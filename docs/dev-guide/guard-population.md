@@ -78,10 +78,34 @@ ADR-0133 의 처방은 동적 모수를 겨눈다. 정적 모수에는 그대로
 
 명제가 부분집합(팔 ⊆ 표)이면 둘 다 **초록**으로 나간다 — 놓친 팔은 검사를 안 받을 뿐이다.
 
-판정기는 모르는 모양을 조용히 넘기지 않고 `Err` 로 돌려준다. 블록형 식 뒤 쉼표를
-생략해 다음 팔로 이어지는 본문이 그 예다(쉼표를 찾아 가면 다음 팔을 본문으로 삼킨다).
-정의를 찾는 `fn_bodies` 는 이름이 같은 정의를 **전부** 돌려준다 — `#[cfg]` 로 갈린 둘째
-정의의 팔도 대조를 받는다.
+판정기는 **구조**를 모르는 모양을 조용히 넘기지 않고 `Err` 로 돌려준다. 블록형 식 뒤
+쉼표를 생략해 다음 팔로 이어지는 본문이 그 예다(쉼표를 찾아 가면 다음 팔을 본문으로 삼킨다).
+
+그 말은 판정기에 대해서만 참이다. 팔을 뗀 뒤 **따옴표 이름이 아닌 조각**(`CONST =>` ·
+`r"…" =>` · 바인딩)을 어떻게 다룰지는 소비자가 정하고, 소비자는 두 무리로 갈린다.
+
+- **실패시키는 쪽**: 창 라우터 호출자 명부 · 합산 명부 · 권한 토큰 판독 ·
+  `src/source_guards/` 의 `non_literal_arms`(`_` 와 guard 없는 바인딩만 봐준다).
+- **조용히 건너뛰는 쪽**: 액션 문 · 라우터 표 정합 · `bundled_plugin_namespace_coverage` ·
+  단축키 표 대조 · `routing_key_method_scope` 의 `dispatch_arms`(조각 하나라도 이름이 아니면
+  그 팔을 통째로 버린다).
+
+뒤쪽은 회귀가 아니다 — 줄 단위로 읽던 구판도 따옴표로 시작하지 않는 조각은 안 셌다. 다만
+"판정기가 모르는 모양은 실패" 를 그 가드들의 성질로 읽으면 안 된다. 재는 법: 액션 문
+(`src/adapters/ui/input/shortcuts/dispatch.rs` 의 `match action_id`) 첫 팔 앞에
+`ZZ_NOT_A_FIELD => {}` 와 `r"zz_raw_not_a_field" => {}` 를 넣으면 그 타깃이 초록으로 남고,
+같은 자리에 `"zz_not_a_field" => {}` 를 넣으면 빨개진다(양성 대조).
+
+**정의를 찾는 헬퍼는 둘이고 범위가 다르다.** 판정기의 `fn_bodies` 는 이름이 같은 정의를
+**전부** 돌려준다. 그것을 쓰는 소비자는 받은 정의를 전부 돌거나(release 표 가드 · 액션 문 ·
+합산 명부 · 창 라우터 호출자 명부 · 단축키 표 대조 — `#[cfg]` 로 갈린 둘째 정의의 팔도
+대조한다) 정확히 하나를 요구한다(권한 토큰 판독 — 둘이면 실패한다).
+`src/source_guards/mod.rs` 의 `fn_body` 는 판정기의 덮은 사본에서 찾되 **첫 정의만** 돌려준다
+— 그 소비자에는 `#[cfg]` 로 갈린 둘째 정의의 사각이 남는다. 재는 법:
+`src/adapters/ipc/handler.rs` 의 `should_rate_limit` 첫 정의 본문에
+`let zz = String::new(); if method == zz { return false; }` 를 넣으면
+`every_delegated_router_decides_by_a_name_the_scan_can_see` 가 빨개지고(양성 대조), 같은
+비교를 `#[cfg(any())]` 를 단 둘째 `fn should_rate_limit` 에만 넣으면 초록으로 남는다.
 
 이것은 렉서 위의 구조 주사이지 Rust 문법 파서가 아니다. `syn` 을 안 쓰는 이유는
 `crates/tasty-doc-guards/src/match_arms.rs` 의 모듈 doc 에 있다 — 소비자 일부가 의존 0 인
@@ -93,7 +117,7 @@ ADR-0133 의 처방은 동적 모수를 겨눈다. 정적 모수에는 그대로
 (`tests/ipc_router_table_parity.rs`) · 액션 문(`the_action_door_has_only_the_registered_callers.rs`)
 · 합산 명부(`window_owned_lists_are_classified.rs`) · 권한 토큰 판독
 (`crates/tasty-doc-guards/src/manifest_text.rs`, `permission_token_docs_parity.rs` 가 그것을 쓴다)
-· `src/source_guards/` 의 공용 헬퍼(`strip_comments` · `fn_body` · `non_literal_arms`)와
+· `src/source_guards/` 의 공용 헬퍼(`strip_comments` · `fn_body`(첫 정의만 — 위) · `non_literal_arms`)와
 `debug_gate_dagger` · `platform_gated_dispatch_complement` · `routing_key_method_scope` ·
 `bundled_plugin_namespace_coverage` · 단축키 표 대조(`src/adapters/ui/input/shortcuts/tests.rs`).
 뒤의 넷 중 dagger 와 platform 은 팔을 떼지 않고 구분자만 덮은 사본에서 찾는다.
