@@ -126,7 +126,7 @@ fish 등 다른 셸은 직접 셸 통합을 설치하지 않으면 빈 목록이
 
 ```sh
 tasty new workspace --name build --cwd ~/proj          # 새 워크스페이스
-tasty new workspace --surface 42                       # 서피스 42 가 있는 윈도우에 새 워크스페이스
+tasty new workspace --surface 42                       # 서피스 42 가 있는 윈도우에 새 워크스페이스 (작업 디렉토리도 서피스 42 에서)
 tasty new window                                        # 새 윈도우 (응답에 window_id)
 tasty split --level surface --target-surface this --direction vertical   # 내 서피스를 좌우 분할
 tasty split --level pane --target-pane 3 --direction horizontal          # 페인 분할
@@ -142,7 +142,7 @@ tasty close self                                        # 지금 이 서피스 �
 
 `tasty new tab` 으로 연 탭은 종류와 상관없이 사용자가 보던 탭을 바꾸지 않습니다. 새 탭은 페인의 맨 뒤에 붙고, 사용자가 고를 때까지 뒤에 있습니다. 응답의 `active_tab` 은 새 탭이 아니라 그 페인에서 지금 선택된 탭이므로, 새 탭을 다룰 때는 응답의 `surface_id` 를 씁니다. 단축키나 메뉴로 사용자가 직접 연 탭은 바로 선택됩니다.
 
-`tasty new window` 로 연 윈도우는 사용자가 보던 윈도우의 포커스를 가져가지 않습니다. 그래서 뒤이어 대상을 안 적은 명령(`tasty new workspace` 등)은 새 윈도우가 아니라 사용자가 보던 윈도우에 만들어집니다. 새 윈도우에 워크스페이스를 만들려면 그 윈도우의 서피스 ID 를 `tasty new workspace --surface <ID>` 로 적습니다 — `tasty list windows` 가 윈도우마다 `workspace_ids` 를, `tasty list surfaces` 가 서피스마다 `workspace_id` 를 보여 줍니다. 적은 서피스가 어느 윈도우에도 없으면 명령은 다른 윈도우로 새지 않고 오류로 끝납니다. 새 윈도우는 사용자가 보던 윈도우 뒤에 생기고 키 입력도 가져가지 않습니다(macOS · Windows). Linux 의 X11 에서는 윈도우 관리자에게 그렇게 해 달라고 요청하지만 따를지는 윈도우 관리자가 정하고, Wayland 에서는 컴포지터가 정합니다. 어느 쪽이든 대상 없는 명령이 가는 윈도우는 바뀌지 않습니다.
+`tasty new window` 로 연 윈도우는 사용자가 보던 윈도우의 포커스를 가져가지 않습니다. 그래서 뒤이어 대상을 안 적은 명령(`tasty new workspace` 등)은 새 윈도우가 아니라 사용자가 보던 윈도우에 만들어집니다. 새 윈도우에 워크스페이스를 만들려면 그 윈도우의 서피스 ID 를 `tasty new workspace --surface <ID>` 로 적습니다 — `tasty list windows` 가 윈도우마다 `workspace_ids` 를, `tasty list surfaces` 가 서피스마다 `workspace_id` 를 보여 줍니다. 적은 서피스가 어느 윈도우에도 없으면 명령은 다른 윈도우로 새지 않고 오류로 끝납니다. `--cwd` 를 생략하면 새 워크스페이스의 작업 디렉토리는 적은 서피스의 것을 이어받습니다(그 윈도우에서 사용자가 보고 있는 서피스가 아닙니다). 새 윈도우는 사용자가 보던 윈도우 뒤에 생기고 키 입력도 가져가지 않습니다(macOS · Windows). Linux 의 X11 에서는 윈도우 관리자에게 그렇게 해 달라고 요청하지만 따를지는 윈도우 관리자가 정하고, Wayland 에서는 컴포지터가 정합니다. 어느 쪽이든 대상 없는 명령이 가는 윈도우는 바뀌지 않습니다.
 
 워크스페이스와 윈도우는 마지막 하나를 닫지 못합니다. 워크스페이스를 닫으면 윈도우까지 사라지는 것이 아니라
 거절되므로, 윈도우를 없앨 생각이면 `tasty close window` 를 따로 씁니다(윈도우 없이 `tasty --headless` 로 실행한

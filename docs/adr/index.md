@@ -67,7 +67,7 @@ VTE 지원 범위 · 마우스 리포팅 · PTY 수명. 마우스 리포팅 우�
 
 ## 창 · 워크스페이스 · 포커스 · 수명주기
 
-창 · 워크스페이스 · 닫기 · 부팅/종료. 종료 사슬은 0077 → 0078, 캡처는 0044 → 0118 이다. 포커스 보존은 0113 · 0125 · 0497 · 0502 가 각각 다른 자리(삭제 이동 · 재정렬 · 에이전트가 만든 창 · 에이전트가 만든 탭)를 정한다. 대상을 생략한 IPC 요청의 활성 워크스페이스 기본값은 0470 → 0471(「아키텍처 · 헤드리스 · 크레이트 경계」, 창 상태를 포트로 좁히며 동작을 안 바꿈) → 0533(자리별 재결정)이다. 에이전트 창에 워크스페이스를 만드는 지목은 0514(「CLI · 로깅 · 에이전트 표면」).
+창 · 워크스페이스 · 닫기 · 부팅/종료. 종료 사슬은 0077 → 0078, 캡처는 0044 → 0118 이다. 포커스 보존은 0113 · 0125 · 0497 · 0502 가 각각 다른 자리(삭제 이동 · 재정렬 · 에이전트가 만든 창 · 에이전트가 만든 탭)를 정한다. 대상을 생략한 IPC 요청의 활성 워크스페이스 기본값은 0470 → 0471(「아키텍처 · 헤드리스 · 크레이트 경계」, 창 상태를 포트로 좁히며 동작을 안 바꿈) → 0533(자리별 재결정)이다. 에이전트 창에 워크스페이스를 만드는 지목은 0514 → 0532(cwd 상속 원본 개정, 둘 다 「CLI · 로깅 · 에이전트 표면」).
 운영 문서: [design/policies/focus](../design/policies/focus.md) · [architecture/close-sequence](../architecture/close-sequence.md)
 
 | # | Title | Status | Date | Tags |
@@ -505,7 +505,7 @@ pragma 보고는 0316 → 0376(보고 채널 개정), 못 연 `memory.db` 의 in
 
 ## CLI · 로깅 · 에이전트 표면
 
-파이프 조기 종료는 0101(stdout, 종료 코드 0) → 0513(stderr, 종료 코드 유지) — 결론이 반대라 합치지 않는다. 호스트 오류 출력은 0512(연결 뒤), 인자 오류의 순서와 종료 코드는 0542(연결 앞) — 자리가 달라 합치지 않는다.
+파이프 조기 종료는 0101(stdout, 종료 코드 0) → 0513(stderr, 종료 코드 유지) — 결론이 반대라 합치지 않는다. 호스트 오류 출력은 0512(연결 뒤), 인자 오류의 순서와 종료 코드는 0542(연결 앞) — 자리가 달라 합치지 않는다. `new workspace --surface` 는 0514 → 0532(같은 키가 cwd 상속 원본도 정한다 — 조항 개정).
 운영 문서: [dev-guide/cli-ipc-surface](../dev-guide/cli-ipc-surface.md) · [dev-guide/error-handling](../dev-guide/error-handling.md) · [dev-guide/cli-structure](../dev-guide/cli-structure.md)
 
 | # | Title | Status | Date | Tags |
@@ -516,6 +516,7 @@ pragma 보고는 0316 → 0376(보고 채널 개정), 못 연 `memory.db` 의 in
 | 0512 | [CLI 는 IPC 오류의 `error.data` 를 stderr 둘째 줄에 원형 그대로 싣는다](0512-the-cli-relays-ipc-error-data-on-a-second-stderr-line.md) | Accepted | 2026-09-23 | cli, ipc, error-message, parity, wire-format, stderr |
 | 0513 | [CLI 의 stderr 쓰기 실패는 버리고 명령의 종료 코드를 그대로 둔다](0513-cli-stderr-broken-pipe-keeps-the-exit-code.md) | Accepted | 2026-09-23 | cli, stderr, epipe, exit-code, crash-report, error-handling, adr-0101 |
 | 0514 | [`tasty new workspace` 는 창을 서피스로 지목하고, 생략값을 `TASTY_SURFACE_ID` 로 채우지 않는다](0514-new-workspace-names-its-window-by-a-surface-and-keeps-no-env-default.md) | Accepted | 2026-09-23 | cli, ipc, workspace, window, multi-window, focus, parity, routing |
+| 0532 | [`workspace.create` 는 창을 지목한 surface 에서 cwd 를 상속한다 — ADR-0514 의 "호스트는 바꾸지 않는다" 조항 개정](0532-workspace-create-inherits-cwd-from-the-surface-that-names-its-window.md) | Accepted | 2026-09-23 | ipc, cli, workspace, cwd, inherit-cwd, focus, multi-window, routing, adr-0514 |
 | 0542 | [CLI 는 요청 인자를 연결보다 먼저 판정하고, 그 오류의 종료 코드로 끝난다](0542-the-cli-judges-request-arguments-before-connecting-and-exits-with-their-code.md) | Accepted | 2026-09-23 | cli, exit-code, argument-validation, error-message, compatibility, adr-0512 |
 
 ## 빌드 · 배포 · 버전

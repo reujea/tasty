@@ -41,7 +41,7 @@ pub enum NewCommands {
         /// Category to place the workspace in (name or id). Defaults to normal.
         #[arg(long)]
         category: Option<String>,
-        /// Create the workspace in the window that holds this surface ID. Without it the workspace goes to the window the user is looking at.
+        /// Create the workspace in the window that holds this surface ID, and inherit the working directory from that surface when --cwd is omitted. Without it the workspace goes to the window the user is looking at.
         #[arg(long)]
         surface: Option<u32>,
     },

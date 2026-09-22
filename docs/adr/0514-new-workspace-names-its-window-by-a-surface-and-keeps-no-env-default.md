@@ -65,3 +65,4 @@ nickname 해석은 라우터가 `split` 에만 한다. `--surface <ID>` 는 CLI 
 - 코드 근거(결정이 실현된 현재 위치): `crates/tasty-cli/src/commands/new_close.rs` 의 `NewCommands::Workspace` · `crates/tasty-cli/src/request.rs` 의 `new_command_to_method_params`
 - [ADR-0497](0497-an-agent-created-window-does-not-take-the-users-focus.md) — 에이전트 창은 포커스를 안 가져간다
 - [`docs/features/work-area/index.md`](../features/work-area/index.md) "인터페이스"
+- 부분 개정: [0532](0532-workspace-create-inherits-cwd-from-the-surface-that-names-its-window.md) ("호스트는 바꾸지 않는다" 개정 — 핸들러가 `surface_id` 를 cwd 상속 원본으로 읽는다)

@@ -98,7 +98,7 @@ Tab 의 SurfaceLayout 트리 leaf, 최하위 컨테이너. 고유 `surface_id` �
 ## 인터페이스
 
 - **AI Agent (IPC/CLI)**: 작업 영역의 도메인을 ID 로 직접 조작.
-  - 생성: `tasty new workspace [--surface <S>]` · `tasty new tab --pane <P> [--type terminal|markdown|explorer|html|image]`. `--surface` 는 새 워크스페이스를 **그 surface 를 가진 창**에 만든다(IPC `workspace.create` 의 `surface_id` — 라우터가 주인 창을 고르고, 그 surface 를 가진 창이 없으면 포커스로 새지 않고 거절한다). 생략하면 사용자가 보고 있는 창이다([ADR-0514](../../adr/0514-new-workspace-names-its-window-by-a-surface-and-keeps-no-env-default.md)).
+  - 생성: `tasty new workspace [--surface <S>]` · `tasty new tab --pane <P> [--type terminal|markdown|explorer|html|image]`. `--surface` 는 새 워크스페이스를 **그 surface 를 가진 창**에 만든다(IPC `workspace.create` 의 `surface_id` — 라우터가 주인 창을 고르고, 그 surface 를 가진 창이 없으면 포커스로 새지 않고 거절한다). 생략하면 사용자가 보고 있는 창이다([ADR-0514](../../adr/0514-new-workspace-names-its-window-by-a-surface-and-keeps-no-env-default.md)). `--cwd` 를 생략한 terminal 워크스페이스는 `--surface` 를 주면 **그 surface** 의 cwd 를, 안 주면 그 창의 포커스 surface 의 cwd 를 상속한다(`inherit_cwd` 설정이 켜져 있을 때 · [ADR-0532](../../adr/0532-workspace-create-inherits-cwd-from-the-surface-that-names-its-window.md)).
     에이전트가 만든 탭은 kind 와 무관하게 선택되지 않는다 — pane 의 `active_tab` 과 포커스가 그대로다([focus 정책](../../design/policies/focus.md) "에이전트가 만든 탭과 선택").
   - 분할: `tasty split --level pane|surface --target <ID> [--direction …]` (상위/하위 레이아웃 각각).
   - 닫기: `tasty close tab|pane|surface --… <ID>` · `tasty close workspace --id <W>`(안의 모든 pane/tab/surface 포함) · `tasty close window --id <N>`.

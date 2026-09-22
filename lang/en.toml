@@ -2003,7 +2003,7 @@ help = "Workspace id on the mapped remote tasty to attach to"
 help = "Category to place the workspace in (name or id). Defaults to normal"
 
 [cli.help._root.new.workspace.arg.surface]
-help = "Create the workspace in the window that holds this surface ID. Without it the workspace goes to the window the user is looking at"
+help = "Create the workspace in the window that holds this surface ID, and inherit the working directory from that surface when --cwd is omitted. Without it the workspace goes to the window the user is looking at"
 
 [cli.help._root.new.tab]
 about = "Create a new tab in the specified pane"

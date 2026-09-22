@@ -148,7 +148,7 @@ IPC 핸들러(`src/adapters/ipc/`)가 활성 포인터를 읽는 자리를 전�
 | 부류 | 하는 일 | 판정 |
 |---|---|---|
 | 보고 | 응답에 활성 상태를 싣는다(`"focused"` · `"active"` · `active_workspace`) | 위 "활성 상태 *조회* 는 허용" 그대로 |
-| 기본값 채우기 | 대상은 인자로 지목됐고, **미지정 인자**만 포커스가 채운다 — 새 탭·split 의 cwd 상속, `telemetry.record` 의 workspace, `approval.request` 의 workspace(단 `surface_id` 를 줬으면 그 surface 의 워크스페이스라 포커스를 안 읽는다) | 호출자가 명시하면 안 읽는다. 명시하지 않으면 같은 인자로 두 번 불러도 값이 다를 수 있다 |
+| 기본값 채우기 | 대상은 인자로 지목됐고, **미지정 인자**만 포커스가 채운다 — 새 탭·split 의 cwd 상속, `surface_id` 를 안 실은 `workspace.create` 의 cwd 상속, `telemetry.record` 의 workspace, `approval.request` 의 workspace(단 `surface_id` 를 줬으면 그 surface 의 워크스페이스라 포커스를 안 읽는다) | 호출자가 명시하면 안 읽는다. 명시하지 않으면 같은 인자로 두 번 불러도 값이 다를 수 있다 |
 | 계측 태그 | 공통 `check_request`가 audit 귀속에 engine의 활성 workspace를 읽는다. telemetry는 같은 engine의 첫 workspace를 태그로 쓴다 | **판정에는 안 쓰인다** — 게이트가 빌린 engine의 관측 문맥이며, 요청이 작용한 대상이나 사용자의 포커스를 증명하지 않는다 |
 | 알림 배치 | cap 임계·이상 탐지·승인 요청 알림이 활성 워크스페이스에 뜬다 | 사용자에게 보이라고 두는 자리라 에이전트 대상 결정이 아니다 |
 | 효과 scope | `debug.host_popup.open` 의 `workspace_scope` | debug 전용. 사용자 조작 재현이라 창 종속이 뜻 자체다 |
@@ -229,6 +229,9 @@ IPC 핸들러(`src/adapters/ipc/`)가 활성 포인터를 읽는 자리를 전�
   만들려면 그 창의 surface 를 `workspace.create` 의 `surface_id`(CLI `tasty new workspace --surface`)로
   지목한다 — `window_id` 는 창 자체를 다루는 요청(닫기 · 스크린샷 등)에만 쓴다
   ([ADR-0514](../../adr/0514-new-workspace-names-its-window-by-a-surface-and-keeps-no-env-default.md)).
+  그 `surface_id` 는 `cwd` 를 생략했을 때의 상속 원본도 정한다 — 지목했는데 그 창의 포커스 surface 를
+  읽으면 결과가 사용자가 그 창에서 보는 탭에 좌우되기 때문이다
+  ([ADR-0532](../../adr/0532-workspace-create-inherits-cwd-from-the-surface-that-names-its-window.md)).
   - 예외: 가리키던 창이 없으면(main 창이 0 개였으면) 에이전트 창이 잡는다. 빼앗을 포커스가 없다.
 - 에이전트 창은 숨긴 채 만들어, 등록 뒤 사용자가 보던 창 **뒤에** 키 포커스 없이 보인다
   (`tasty_platform::window_stacking::show_behind`). OS 마다 할 수 있는 데까지다.

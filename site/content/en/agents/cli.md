@@ -127,7 +127,7 @@ Other shells such as fish return an empty list unless you install shell integrat
 
 ```sh
 tasty new workspace --name build --cwd ~/proj          # new Workspace
-tasty new workspace --surface 42                       # new Workspace in the window that holds Surface 42
+tasty new workspace --surface 42                       # new Workspace in the window that holds Surface 42 (working directory from Surface 42 too)
 tasty new window                                        # new window (the reply carries window_id)
 tasty split --level surface --target-surface this --direction vertical   # split my Surface left/right
 tasty split --level pane --target-pane 3 --direction horizontal          # split a Pane
@@ -143,7 +143,7 @@ tasty close self                                        # close this very Surfac
 
 A tab opened with `tasty new tab` does not change the tab the person was looking at, whatever its kind. The new tab is added at the end of the pane and stays in the background until the person picks it. The reply's `active_tab` is the tab currently selected in that pane, not the new one, so use the reply's `surface_id` to work with the new tab. A tab the person opens by shortcut or menu is selected right away.
 
-A window opened with `tasty new window` does not take the focus from the window the person was looking at. So a following command with no target (`tasty new workspace` and so on) lands in the window they were looking at, not the new one. To create a workspace in the new window, give a Surface ID from that window with `tasty new workspace --surface <ID>` — `tasty list windows` shows the `workspace_ids` of each window, and `tasty list surfaces` shows the `workspace_id` of each Surface. If no window holds the Surface you give, the command ends with an error instead of landing in another window. The new window appears behind the window the person was looking at and does not take keyboard input (macOS · Windows). On Linux, X11 asks the window manager to do the same, but whether it does is up to the window manager, and on Wayland the compositor decides. Either way, the window that untargeted commands go to does not change.
+A window opened with `tasty new window` does not take the focus from the window the person was looking at. So a following command with no target (`tasty new workspace` and so on) lands in the window they were looking at, not the new one. To create a workspace in the new window, give a Surface ID from that window with `tasty new workspace --surface <ID>` — `tasty list windows` shows the `workspace_ids` of each window, and `tasty list surfaces` shows the `workspace_id` of each Surface. If no window holds the Surface you give, the command ends with an error instead of landing in another window. Without `--cwd`, the new workspace takes its working directory from the Surface you give (not from the one the person is looking at in that window). The new window appears behind the window the person was looking at and does not take keyboard input (macOS · Windows). On Linux, X11 asks the window manager to do the same, but whether it does is up to the window manager, and on Wayland the compositor decides. Either way, the window that untargeted commands go to does not change.
 
 The last remaining workspace and the last remaining window cannot be closed. Closing a workspace
 never takes the window down with it; it is refused instead, so reach for `tasty close window` when

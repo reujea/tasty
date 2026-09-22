@@ -139,6 +139,28 @@ pub fn handle_workspace_list(
     JsonRpcResponse::success(id, json!(workspaces))
 }
 
+/// `cwd` 를 생략한 `workspace.create` 의 상속 원본.
+///
+/// `surface_id` 를 지목했으면 **그 surface** 의 cwd 다 — 라우터가 그 키로 주인 창을 고른
+/// 뒤라 이 창(engine)에 있다. 지목이 없을 때만 이 창의 포커스 surface 로 떨어진다(기존 동작).
+/// 지목했는데 창의 포커스를 보면 결과가 사용자가 그 창에서 무엇을 보고 있는지에 좌우된다
+/// (원칙 3). 같은 키가 창과 원본을 함께 정하는 이유는
+/// `docs/adr/0532-workspace-create-inherits-cwd-from-the-surface-that-names-its-window.md`.
+fn inherit_cwd_for_create(
+    window: &dyn crate::ipc::window_port::IpcWindow,
+    engine: &crate::core::CoreState,
+    params: &serde_json::Value,
+) -> Option<std::path::PathBuf> {
+    match params
+        .get("surface_id")
+        .and_then(|v| v.as_u64())
+        .and_then(|v| u32::try_from(v).ok())
+    {
+        Some(surface_id) => window.resolve_inherit_cwd_from_surface(engine, surface_id),
+        None => window.resolve_inherit_cwd(engine),
+    }
+}
+
 pub fn handle_workspace_create(
     core: &mut crate::core::Core,
     window: &mut dyn crate::ipc::window_port::IpcWindow,
@@ -179,11 +201,11 @@ pub fn handle_workspace_create(
     }
 
     // terminal 의 cwd inherit 은 호출자가 미리 결정해 payload 로 넘긴다 (Core 는
-    // focus state 모름). 그 외 kind 는 cwd 미사용. 새 워크스페이스는 로컬이므로 focus 가
+    // focus state 모름). 그 외 kind 는 cwd 미사용. 새 워크스페이스는 로컬이므로 원본이
     // mirror surface 면 inherit 은 `None`(= 홈)이고, 명시 `cwd` 는 그대로 존중한다
     // (`docs/architecture/invariants/surface-cwd.md` §3-2).
     let resolved_cwd = if kind == "terminal" {
-        explicit_cwd.or_else(|| window.resolve_inherit_cwd(engine))
+        explicit_cwd.or_else(|| inherit_cwd_for_create(window, engine, params))
     } else {
         None
     };
@@ -837,5 +859,71 @@ mod close_tests {
 
         assert!(res.error.is_some());
         assert_eq!(engine.workspaces.len(), 2);
+    }
+}
+
+#[cfg(test)]
+mod create_cwd_tests {
+    use super::*;
+    use serde_json::json;
+
+    /// explorer 탭을 열고 그 surface id 와 root 를 돌려준다. 새 탭이 포커스를 받으므로
+    /// 마지막에 연 것이 이 창의 포커스 surface 다.
+    fn open_explorer(
+        state: &mut crate::state::AppState,
+        engine: &mut crate::core::CoreState,
+        rel: &str,
+    ) -> (u32, std::path::PathBuf) {
+        let root = crate::test_support::abs_path(rel);
+        let (_tab, sid) = state
+            .add_kind_tab(
+                engine,
+                "explorer",
+                &json!({ "path": root.to_string_lossy() }),
+            )
+            .expect("add explorer tab");
+        (sid, root)
+    }
+
+    /// `surface_id` 를 지목하면 창의 포커스가 아니라 **그 surface** 에서 상속한다(원칙 3).
+    /// 포커스를 다른 surface 에 두어, 둘이 같으면 통과하는 구현을 가른다.
+    #[test]
+    fn a_named_surface_is_the_inherit_source_not_the_focus() {
+        let (mut state, mut engine) = crate::state::tests::test_state();
+        let (named, named_root) = open_explorer(&mut state, &mut engine, "named/proj");
+        let (focused, focused_root) = open_explorer(&mut state, &mut engine, "focused/proj");
+        assert_eq!(state.focused_surface_id(&engine), Some(focused));
+        assert_ne!(named_root, focused_root);
+
+        assert_eq!(
+            inherit_cwd_for_create(&state, &engine, &json!({ "surface_id": named })),
+            Some(named_root),
+        );
+    }
+
+    /// 지목이 없으면 기존 동작 그대로 이 창의 포커스 surface 에서 상속한다.
+    #[test]
+    fn without_a_named_surface_the_focus_is_the_inherit_source() {
+        let (mut state, mut engine) = crate::state::tests::test_state();
+        let (_named, _) = open_explorer(&mut state, &mut engine, "named/proj");
+        let (_focused, focused_root) = open_explorer(&mut state, &mut engine, "focused/proj");
+
+        assert_eq!(
+            inherit_cwd_for_create(&state, &engine, &json!({})),
+            Some(focused_root),
+        );
+    }
+
+    /// 지목한 surface 가 있어도 `inherit_cwd` 를 끈 설정은 그대로 존중한다.
+    #[test]
+    fn a_named_surface_respects_inherit_cwd_off() {
+        let (mut state, mut engine) = crate::state::tests::test_state();
+        let (named, _) = open_explorer(&mut state, &mut engine, "named/proj");
+        engine.settings.general.inherit_cwd = false;
+
+        assert_eq!(
+            inherit_cwd_for_create(&state, &engine, &json!({ "surface_id": named })),
+            None,
+        );
     }
 }
