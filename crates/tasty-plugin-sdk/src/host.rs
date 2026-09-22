@@ -6,7 +6,6 @@
 //! 결과를 push한다. worker는 그 결과가 올 때까지 block.
 
 use std::collections::HashMap;
-use std::io::Write;
 use std::net::TcpStream;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, mpsc};
@@ -208,8 +207,7 @@ impl HostHandle {
             .writer
             .lock()
             .map_err(|_| PluginError::LockPoisoned("host writer"))?;
-        writeln!(*w, "{line}")?;
-        w.flush()?;
+        tasty_plugin_protocol::write_line(&mut *w, &line)?;
         Ok(())
     }
 
@@ -256,8 +254,7 @@ impl HostHandle {
                 .writer
                 .lock()
                 .map_err(|_| PluginError::LockPoisoned("host writer"))?;
-            writeln!(*w, "{line}")?;
-            w.flush()?;
+            tasty_plugin_protocol::write_line(&mut *w, &line)?;
         }
         match rx.recv_timeout(self.timeout) {
             Ok(result) => result,

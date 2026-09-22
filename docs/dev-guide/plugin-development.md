@@ -341,11 +341,21 @@ SDK가 자기 CWD에서 절대화하여 이 경계를 대신하지 않는다.
 
 ### 전송 지연 (Nagle 금지)
 
-호스트와 plugin 사이 메인 채널(TCP · NDJSON)의 **양 끝 소켓은 `TCP_NODELAY`** 다 — 호스트는
-listener 가 연결을 받는 자리(`crates/tasty-host-plugin/src/listener.rs` `handle_incoming`), plugin 은
-SDK `Connection::connect`. 메시지를 쓰는 쪽이 `writeln!` 으로 본문과 개행을 **두 번에 나눠
-쓰기** 때문에, Nagle 이 켜져 있으면 개행 조각이 본문의 ACK 를 기다리고 받는 쪽은 그 ACK 를 최대
-~40 ms 미룬다. 실측(strace, 같은 조건)으로 개행 조각이 hop 마다 40.0–40.2 ms 늦게 도착했다. 빈 결과를 내는 namespace 호출 하나가 hop 셋(요청 · plugin 이 부른 host-call 의 결과 ·
+호스트와 plugin 사이 메인 채널(TCP · NDJSON)은 IPC · attach 소켓과 같은 **이중 방어**를 쓴다.
+
+- **메시지 한 줄은 한 번의 write 로 나간다** — 양 끝의 모든 송신 자리가
+  `tasty_plugin_protocol::write_line` 을 거쳐 본문과 개행을 한 버퍼로 `write_all` 1 회에 보낸다.
+  단위 시험 `line::tests::write_line_emits_one_write_call` 이 write 횟수를 고정한다(각 호출 자리가
+  이 함수를 쓰는지는 시험이 아니라 코드가 보인다).
+- **양 끝 소켓은 `TCP_NODELAY`** 다 — 호스트는 listener 가 연결을 받는 자리
+  (`crates/tasty-host-plugin/src/listener.rs` `handle_incoming`), plugin 은 SDK `Connection::connect`.
+  한 번에 써도 줄이 MSS 를 넘거나 직전 메시지가 아직 unACKed 면 다음 조각이 다시 Nagle 에 걸리므로
+  이것이 없으면 안 된다.
+
+보조 핸들 채널(Unix 도메인 소켓 · Windows named pipe)은 TCP 가 아니라 Nagle 이 없어 이 규칙의 대상이 아니다.
+
+둘 다 없던 때는 `writeln!` 이 본문과 개행을 **두 번에 나눠 써서**, 개행 조각이 본문의 ACK 를
+기다리고 받는 쪽은 그 ACK 를 최대 ~40 ms 미뤘다. 실측(strace, 같은 조건)으로 개행 조각이 hop 마다 40.0–40.2 ms 늦게 도착했다. 빈 결과를 내는 namespace 호출 하나가 hop 셋(요청 · plugin 이 부른 host-call 의 결과 ·
 응답)을 지나므로 호출마다 ~120 ms 가 붙었다. 끄고 나서의 실측(2026-09-23, Linux 헤드리스 debug,
 `system.pressure` 의 `plugin_round_trip`): 9 건 `us_max` 1515 · `us_mean` 1238(끄기 전 같은 호출
 124.8–130.9 ms). IPC · attach 소켓의 같은 규칙은

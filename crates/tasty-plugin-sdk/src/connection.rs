@@ -11,7 +11,7 @@
 //! 편의 메서드 [`Connection::connect_and_authenticate`]는 1+2를 합친 것이며
 //! 기존 호출자 호환을 위해 남아 있다.
 
-use std::io::{BufRead, BufReader, Write};
+use std::io::{BufRead, BufReader};
 use std::net::TcpStream;
 use std::time::Duration;
 
@@ -79,8 +79,7 @@ impl Connection {
             token: env.token.clone(),
         };
         let line = serde_json::to_string(&auth)?;
-        writeln!(self.writer, "{line}")?;
-        self.writer.flush()?;
+        tasty_plugin_protocol::write_line(&mut self.writer, &line)?;
 
         // AuthAck 한 줄 수신. 호스트가 silent drop했던 과거 버그를 막기 위함.
         self.writer.set_read_timeout(Some(AUTH_ACK_TIMEOUT))?;
@@ -131,16 +130,14 @@ impl Connection {
     pub fn send_event(&mut self, event: &PluginEvent) -> Result<()> {
         let payload = serde_json::json!({ "event": event });
         let line = serde_json::to_string(&payload)?;
-        writeln!(self.writer, "{line}")?;
-        self.writer.flush()?;
+        tasty_plugin_protocol::write_line(&mut self.writer, &line)?;
         Ok(())
     }
 
     /// 호스트의 요청에 대한 응답. id는 원 요청의 id를 그대로 echo.
     pub fn send_response(&mut self, response: &PluginResponse) -> Result<()> {
         let line = serde_json::to_string(response)?;
-        writeln!(self.writer, "{line}")?;
-        self.writer.flush()?;
+        tasty_plugin_protocol::write_line(&mut self.writer, &line)?;
         Ok(())
     }
 
@@ -153,8 +150,7 @@ impl Connection {
             token: env.token.clone(),
         };
         let line = serde_json::to_string(&auth)?;
-        writeln!(self.writer, "{line}")?;
-        self.writer.flush()?;
+        tasty_plugin_protocol::write_line(&mut self.writer, &line)?;
         self.writer.set_read_timeout(Some(timeout))?;
         let mut ack_line = String::new();
         let read_result = self.reader.read_line(&mut ack_line);

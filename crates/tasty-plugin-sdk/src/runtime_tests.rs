@@ -8,6 +8,7 @@ use super::*;
 use crate::error::PluginError;
 use crate::plugin::{IpcMethodCtx, IpcMethodError, SurfaceResult};
 use serde_json::json;
+use std::io::Write;
 use std::sync::{Arc, Mutex};
 
 struct StubPlugin {

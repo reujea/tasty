@@ -14,12 +14,14 @@
 pub mod events;
 pub mod host_port;
 pub mod ipc_method;
+pub mod line;
 #[cfg(feature = "egui-mesh")]
 pub mod mesh_wire;
 pub mod protocol;
 
 pub use events::{EventEnvelope, EventMeta, EventOrigin, EventScope, LifecycleReason, MAX_HOP};
 pub use ipc_method::{IpcInvokeParams, METHOD_IPC_INVOKE};
+pub use line::write_line;
 pub use protocol::{
     AuthAck, AuthAckEnvelope, AuthMessage, BannerCloseReason, BannerClosedParams, BannerOpenParams,
     BannerOpenResult, BannerSetContextParams, CommandInvokeParams, EventDispatchParams,

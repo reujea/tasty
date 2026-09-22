@@ -7,7 +7,7 @@
 //! 매칭되는 spawn 측에 stream을 전달.
 
 use std::collections::HashMap;
-use std::io::{BufRead, BufReader, Write};
+use std::io::{BufRead, BufReader};
 use std::net::{SocketAddr, TcpListener, TcpStream};
 use std::sync::atomic::AtomicBool;
 use std::sync::{Arc, Mutex, mpsc};
@@ -86,7 +86,7 @@ fn handle_incoming(
     pending: &Arc<Mutex<HashMap<String, mpsc::Sender<TcpStream>>>>,
 ) {
     // 요청/응답마다 작은 쓰기가 오가는 채널이라 Nagle 을 끈다 — 켜 두면 한 메시지의
-    // 뒤 조각(`writeln!` 의 개행)이 앞 조각의 ACK 를 기다리고, plugin 쪽은 ACK 를 수십 ms
+    // 뒤 조각이 앞 조각의 ACK 를 기다리고, plugin 쪽은 ACK 를 수십 ms
     // 미뤄서 hop 마다 그만큼이 붙는다. plugin SDK 도 자기 끝에서 같은 설정을 한다
     // (`docs/dev-guide/plugin-development.md` "전송 지연"). 실패해도 채널은 동작하므로
     // 기록만 한다.
@@ -193,9 +193,7 @@ fn send_auth_ack(stream: &TcpStream, ok: bool, reason: Option<&str>) -> std::io:
     let line = serde_json::to_string(&env)
         .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?;
     let mut w = stream;
-    w.write_all(line.as_bytes())?;
-    w.write_all(b"\n")?;
-    w.flush()
+    tasty_plugin_protocol::write_line(&mut w, &line)
 }
 
 #[cfg(test)]

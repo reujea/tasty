@@ -16,7 +16,7 @@
 //! 큐가 닫히기를 기다리지 않는 이유는 `Stop` 의 문서를 본다.
 
 use std::collections::HashMap;
-use std::io::{BufRead, Write};
+use std::io::BufRead;
 use std::net::TcpStream;
 use std::sync::{Arc, Mutex, mpsc};
 
@@ -537,8 +537,7 @@ pub(crate) fn send_event(writer: &Arc<Mutex<TcpStream>>, event: &PluginEvent) ->
     let payload = serde_json::json!({ "event": event });
     let line = serde_json::to_string(&payload)?;
     let mut w = writer.lock().expect("writer lock");
-    writeln!(*w, "{line}")?;
-    w.flush()?;
+    tasty_plugin_protocol::write_line(&mut *w, &line)?;
     Ok(())
 }
 
@@ -550,8 +549,7 @@ pub(crate) fn send_response(
 ) -> Result<()> {
     let line = serde_json::to_string(response)?;
     let mut w = writer.lock().expect("writer lock");
-    writeln!(*w, "{line}")?;
-    w.flush()?;
+    tasty_plugin_protocol::write_line(&mut *w, &line)?;
     Ok(())
 }
 

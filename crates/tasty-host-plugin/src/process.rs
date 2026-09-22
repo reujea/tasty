@@ -10,7 +10,7 @@
 
 use std::collections::HashMap;
 use std::ffi::OsString;
-use std::io::{self, BufRead, BufReader, Write};
+use std::io::{self, BufRead, BufReader};
 use std::path::Path;
 use std::process::{Child, Command, Stdio};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
@@ -967,10 +967,8 @@ fn spawn_tx_thread(
         .name(format!("plugin-tx-{}", sanitize_id(&plugin_id_tx)))
         .spawn(move || {
             while let Ok(line) = req_rx.recv() {
-                if writeln!(writer, "{line}").is_err() {
-                    break;
-                }
-                if writer.flush().is_err() {
+                // 본문과 개행을 한 번에 — `write_line` 문서의 전송 지연 이유.
+                if tasty_plugin_protocol::write_line(&mut writer, &line).is_err() {
                     break;
                 }
             }

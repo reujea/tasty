@@ -60,7 +60,7 @@ attach 스트림은 **프레임 하나 = 상호작용 하나**(키 입력 · 리
 
 - **프레임은 한 번의 `write` 로 나간다** — `tasty_ipc::stream::write_frame` 이 `[tag][len][payload]` 를 한 버퍼에 합쳐 `write_all` 1 회로 보낸다. `TcpStream` 은 버퍼링이 없어 헤더/payload 를 나눠 쓰면 그대로 TCP 세그먼트가 쪼개지고, Nagle 이 켜진 소켓은 첫 조각이 unACKed 인 동안 뒷조각을 상대의 delayed ACK(~40ms)까지 붙잡는다. `crates/tasty-ipc` 의 유닛 테스트 `stream::tests::write_frame_emits_one_write_call` 이 write 횟수를 고정한다.
 - **양쪽 소켓 모두 `TCP_NODELAY`** — 서버 `prepare_stream`(`src/adapters/production/tcp_ipc_server.rs`, 일반 JSON-RPC 연결 포함)과 client `StreamConnection::open_with`(`crates/tasty-ipc/src/client/stream.rs`). 위에서 합쳐도 payload 가 MSS 를 넘으면 마지막 조각이 다시 Nagle 에 걸리므로 이중 방어다.
-- 호스트 ↔ plugin 메인 채널도 양 끝이 `TCP_NODELAY` 다 — [`plugin-development.md` "전송 지연"](plugin-development.md#전송-지연-nagle-금지).
+- 호스트 ↔ plugin 메인 채널도 같은 두 가지를 한다 — 한 줄을 한 번의 write 로(`tasty_plugin_protocol::write_line`), 양 끝 `TCP_NODELAY`. [`plugin-development.md` "전송 지연"](plugin-development.md#전송-지연-nagle-금지).
 
 **SSH 터널은 이 지연을 흡수해 주지 않는다.** 터널 너머든 아니든 tasty 소켓의 양 끝은 항상 loopback이고, 위 지연은 그 loopback 구간에서 발생한다. 그리고 mirror 를 다시 mirror 하는 다단 구성(A → B → C)에서는 홉마다 입력·출력 양방향으로 얹히므로 지연이 홉 수에 비례해 누적된다.
 

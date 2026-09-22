@@ -7,7 +7,6 @@
 //! 발화 권한과 구독 권한은 매니페스트의 `event_subscribe`/`event_publish` 패턴으로
 //! 호스트가 결정한다 — plugin은 클라이언트 측에서 별도 권한 검사를 하지 않는다.
 
-use std::io::Write;
 use std::net::TcpStream;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
@@ -87,8 +86,7 @@ impl BusHandle {
             .writer
             .lock()
             .map_err(|_| PluginError::LockPoisoned("bus writer"))?;
-        writeln!(*w, "{line}")?;
-        w.flush()?;
+        tasty_plugin_protocol::write_line(&mut *w, &line)?;
         Ok(())
     }
 }
