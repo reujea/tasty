@@ -289,6 +289,8 @@ impl PluginProcess {
         let log_file = std::fs::File::create(&log_path)?;
         let log_clone = log_file.try_clone()?;
         let entry_path = package.entry_command_path();
+        // spawn 보다 먼저 — plugin 의 인증이 등록보다 앞서면 거절된다(`register_connection`).
+        let expected = listener.register_connection(&token);
 
         let (mut cmd, handle_stream_rx) = build_plugin_command(
             package,
@@ -322,7 +324,7 @@ impl PluginProcess {
             );
         }
 
-        let stream = match listener.expect_connection(&token, HANDSHAKE_TIMEOUT) {
+        let stream = match expected.wait(HANDSHAKE_TIMEOUT) {
             Some(s) => s,
             None => {
                 anyhow::bail!(
