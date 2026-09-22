@@ -1,4 +1,4 @@
-# ADR-0612: 출력 observer 의 memory 레코드 키에 sink 순번을 붙인다
+# ADR-0519: 출력 observer 의 memory 레코드 키에 sink 순번을 붙인다
 
 - **Status**: Accepted
 - **Date**: 2026-09-23

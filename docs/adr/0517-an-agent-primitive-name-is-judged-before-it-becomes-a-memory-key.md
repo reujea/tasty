@@ -1,4 +1,4 @@
-# ADR-0610: 에이전트 primitive 의 이름은 memory 키가 되기 전에 호출자 값 기준으로 판정한다
+# ADR-0517: 에이전트 primitive 의 이름은 memory 키가 되기 전에 호출자 값 기준으로 판정한다
 
 - **Status**: Accepted
 - **Date**: 2026-09-23

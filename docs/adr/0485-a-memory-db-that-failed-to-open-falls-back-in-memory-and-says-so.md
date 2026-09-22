@@ -101,4 +101,4 @@ SQLite 적용값 티켓의 체크리스트가 요구하는 것은 "실패 시 �
 - 코드 근거(현재 위치, 심볼): `tasty_memory::InitFallback` · `MemoryInitError::cause` ·
   `MemoryStore::open_in_memory_after_init_failure` · `crate::boot::wiring::memory_fallback_after` ·
   `crate::adapters::ipc::handler::memory::written` · `pressure::db_pragmas_json`
-- 부분 개정: [0611](0611-every-ipc-write-to-memory-db-says-when-it-is-not-durable.md) (쓰기 응답 `durable: false` 의 적용 범위 조항 개정)
+- 부분 개정: [0518](0518-every-ipc-write-to-memory-db-says-when-it-is-not-durable.md) (쓰기 응답 `durable: false` 의 적용 범위 조항 개정)

@@ -1,4 +1,4 @@
-# ADR-0611: `memory.db` 에 쓰는 IPC 는 이름공간과 무관하게 durable 이 아님을 말한다 — ADR-0485 의 적용 범위 조항 개정
+# ADR-0518: `memory.db` 에 쓰는 IPC 는 이름공간과 무관하게 durable 이 아님을 말한다 — ADR-0485 의 적용 범위 조항 개정
 
 - **Status**: Accepted
 - **Date**: 2026-09-23

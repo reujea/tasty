@@ -193,7 +193,7 @@ impl FileFormatRegistry {
 /// detector id 에는 출처 이름공간이 없어 host 와 plugin 이 같은 id(`markdown` 등)를 함께
 /// contribute 할 수 있다. 그 둘 사이는 Host → Plugin — plugin 은 늘 host 기본값 뒤에 설치돼
 /// 왔으므로 지금까지의 결과(plugin 이 host 를 덮는다)를 그대로 둔다. 서로 다른 plugin 끼리는
-/// 설치 순서다. 근거는 `docs/adr/0613-file-format-merge-applies-user-patches-last.md`.
+/// 설치 순서다. 근거는 `docs/adr/0520-file-format-merge-applies-user-patches-last.md`.
 fn merge_order(contribs: &[DetectorContribution]) -> Vec<&DetectorContribution> {
     let mut ordered: Vec<&DetectorContribution> = contribs.iter().collect();
     ordered.sort_by_key(|c| match c.origin {

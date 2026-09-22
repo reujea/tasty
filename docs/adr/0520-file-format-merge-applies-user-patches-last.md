@@ -1,4 +1,4 @@
-# ADR-0613: file-format(detector) 병합도 출처 순서(Host → Plugin → User)로 하고 user 의 `disabled = false` 를 켜기로 읽는다
+# ADR-0520: file-format(detector) 병합도 출처 순서(Host → Plugin → User)로 하고 user 의 `disabled = false` 를 켜기로 읽는다
 
 - **Status**: Accepted
 - **Date**: 2026-09-23

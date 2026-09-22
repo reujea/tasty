@@ -157,7 +157,7 @@ CREATE TABLE recent_files (      -- 종류별 최근 경로
   대체로 떴으면(아래 "초기화 실패" 절) commit 은 성공하지만 프로세스와 함께 사라진다. 그때
   `memory.db` 에 쓰는 IPC 쓰기 계열의 성공 응답은 `ok` 를 그대로 두고 `durable: false` 를 더한다 —
   `memory.*` 뿐 아니라 같은 저장소에 쓰는 `agent.*` · `approval.*` · `surface.meta.*` ·
-  `telemetry.*` · `session.*` 도 같다([ADR-0611](../../adr/0611-every-ipc-write-to-memory-db-says-when-it-is-not-durable.md)).
+  `telemetry.*` · `session.*` 도 같다([ADR-0518](../../adr/0518-every-ipc-write-to-memory-db-says-when-it-is-not-durable.md)).
   파일 DB 에서는 이 칸이 없다 — 칸이 없는 성공은 위 "보장 범위" 가 말하는 durable 이다.
 - 근거는 [ADR-0377](../../adr/0377-a-failed-memory-write-names-its-cause-with-the-same-table-as-init.md).
 
@@ -171,7 +171,7 @@ CREATE TABLE recent_files (      -- 종류별 최근 경로
   밀리초, `<seq>` 는 그 sink 가 쓴 순번(0 부터, 6 자리로 채움)이다. 순번이 있어 **같은 밀리초에 온
   항목도 각자 키를 가진다** — 한 줄에서 여러 항목이 나와도 덮어쓰지 않는다. 키 오름차순이 곧 도착
   순서이므로 `memory.list --prefix tasty.observer.<id>.` 가 시간순으로 읽힌다. 근거는
-  [ADR-0612](../../adr/0612-an-observer-memory-record-key-carries-a-sequence.md).
+  [ADR-0519](../../adr/0519-an-observer-memory-record-key-carries-a-sequence.md).
 - **상한 `max_records` 는 가장 최근 N 건을 남긴다.** sink 는 자기가 쓴 키를 순서대로 기억해 넘치면
   가장 오래된 것부터 지운다. 키가 유일하므로 지우는 칸은 늘 그 옛 레코드 자신이다. 삭제는
   best-effort 다 — 실패해도 경고 없이 넘어가므로 그때는 N 을 넘는 레코드가 남을 수 있다. sink 가

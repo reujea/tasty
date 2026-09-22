@@ -402,7 +402,7 @@ namespace 라우팅은 0140 → 0153 → 0171(오류 코드 개정 — 「IPC �
 
 ## 파일 핸들러 · 파일 피커
 
-0272 → 0279 → 0302(포커스 조항 개정)(탭 생성 갈래는 0502 — 「창 · 워크스페이스 · 포커스 · 수명주기」 그룹)(toast 축은 0503 — 「UI · 테마 · 디자인 토큰 · 갤러리」 그룹) → 0425 · 0426 · 0427. 파일 피커는 0042 → 0162(에이전트 표면에서 제외, 0042 대체)이다. detector 병합 순서는 0427 → 0613(같은 출처 순서를 file-format detector 에 적용하고 user 의 `disabled = false` 를 켜기로 읽는다)이다.
+0272 → 0279 → 0302(포커스 조항 개정)(탭 생성 갈래는 0502 — 「창 · 워크스페이스 · 포커스 · 수명주기」 그룹)(toast 축은 0503 — 「UI · 테마 · 디자인 토큰 · 갤러리」 그룹) → 0425 · 0426 · 0427. 파일 피커는 0042 → 0162(에이전트 표면에서 제외, 0042 대체)이다. detector 병합 순서는 0427 → 0613(같은 출처 순서를 file-format detector 에 적용하고 user 의 `disabled = false` 를 켜기로 읽는다)이다. detector 병합 순서는 0427 → 0520(같은 출처 순서를 file-format detector 에 적용하고 user 의 `disabled = false` 를 켜기로 읽는다)이다.
 운영 문서: [features/file-handler](../features/file-handler/index.md)
 
 | # | Title | Status | Date | Tags |
@@ -415,7 +415,7 @@ namespace 라우팅은 0140 → 0153 → 0171(오류 코드 개정 — 「IPC �
 | 0425 | [헤드리스의 `file_handler.dispatch` 는 수락하지 않고 "이 빌드에 없다" 로 답한다](0425-headless-file-dispatch-answers-that-this-build-cannot-open-files.md) | Accepted | 2026-09-21 | ipc, headless, file-handler, agent-facing, build-combination, error-code |
 | 0426 | [`file_handler.reload` 는 적용되지 않은 user 항목을 `rejected` 필드로 알린다](0426-file-handler-reload-reports-the-entries-it-dropped.md) | Accepted | 2026-09-21 | ipc, cli, file-handler, agent-facing, compatibility, settings |
 | 0427 | [file handler 병합은 출처 순서(Host → Plugin → User)로 하고 user patch 를 늘 마지막에 둔다](0427-file-handler-merge-applies-user-patches-last.md) | Accepted | 2026-09-21 | file-handler, registry, plugin, settings, boot, patch-semantics |
-| 0613 | [file-format(detector) 병합도 출처 순서(Host → Plugin → User)로 하고 user 의 `disabled = false` 를 켜기로 읽는다](0613-file-format-merge-applies-user-patches-last.md) | Accepted | 2026-09-23 | file-format, detector, registry, plugin, settings, boot, patch-semantics |
+| 0520 | [file-format(detector) 병합도 출처 순서(Host → Plugin → User)로 하고 user 의 `disabled = false` 를 켜기로 읽는다](0520-file-format-merge-applies-user-patches-last.md) | Accepted | 2026-09-23 | file-format, detector, registry, plugin, settings, boot, patch-semantics |
 
 ## 에이전트 통합 · 협업
 
@@ -444,11 +444,11 @@ child 상태는 0072 → 0266 → 0288 → 0291(0288 대체), 완료 알림 로�
 | 0344 | [완료 알림 로그는 호스트 세대 하나를 들고, 버린 양을 말한다](0344-the-completion-log-keeps-one-host-generation-and-says-what-it-threw-away.md) | Accepted | 2026-09-20 | notify, retention, logging, plugin, instance-identity, adr-0330 |
 | 0415 | [재개하는 완료 로그 reader 는 옆 메타 파일에서 잃은 양을 안다](0415-a-resuming-completion-log-reader-learns-what-it-lost-from-a-sidecar.md) | Accepted | 2026-09-21 | notify, retention, reader-recovery, offset, plugin, compatibility, adr-0330, adr-0344 |
 | 0416 | [부팅 청소는 포트 파일과 같은 뿌리일 때만 돈다 — ADR-0344 의 "안 고친 것" 해소](0416-the-boot-cleanup-follows-the-port-file-root.md) | Accepted | 2026-09-21 | notify, retention, instance-identity, port-file, boot, adr-0344 |
-| 0610 | [에이전트 primitive 의 이름은 memory 키가 되기 전에 호출자 값 기준으로 판정한다](0610-an-agent-primitive-name-is-judged-before-it-becomes-a-memory-key.md) | Accepted | 2026-09-23 | agent, ipc, error-code, memory, key, semaphore, barrier, rate-limit, task |
+| 0517 | [에이전트 primitive 의 이름은 memory 키가 되기 전에 호출자 값 기준으로 판정한다](0517-an-agent-primitive-name-is-judged-before-it-becomes-a-memory-key.md) | Accepted | 2026-09-23 | agent, ipc, error-code, memory, key, semaphore, barrier, rate-limit, task |
 
 ## 저장소 · 메모리 DB
 
-pragma 보고는 0316 → 0376(보고 채널 개정), 못 연 `memory.db` 의 in-memory 대체는 0485 → 0611(쓰기 응답 조항의 적용 범위를 `memory.*` 밖 이름공간까지 개정)이다.
+pragma 보고는 0316 → 0376(보고 채널 개정), 못 연 `memory.db` 의 in-memory 대체는 0485 → 0518(쓰기 응답 조항의 적용 범위를 `memory.*` 밖 이름공간까지 개정)이다.
 운영 문서: [design/systems/storage](../design/systems/storage.md) · [design/systems/memory](../design/systems/memory.md)
 
 | # | Title | Status | Date | Tags |
@@ -462,8 +462,8 @@ pragma 보고는 0316 → 0376(보고 채널 개정), 못 연 `memory.db` 의 in
 | 0377 | [실패한 메모리 쓰기는 초기화와 같은 표로 원인을 말하고, 메모리 쪽 상태는 실패 전 그대로다](0377-a-failed-memory-write-names-its-cause-with-the-same-table-as-init.md) | Accepted | 2026-09-21 | sqlite, storage, memory, error-handling, ipc, compatibility |
 | 0378 | [memory store 락의 poison 보고 좌표는 store 의 port 에 둔다](0378-the-poison-coordinate-of-the-memory-store-lives-at-its-port.md) | Accepted | 2026-09-21 | memory, storage, poison, boundary, output-observer |
 | 0485 | [못 연 `memory.db` 는 in-memory 대체로 계속 뜨되, 그 사실을 진단과 쓰기 응답이 말한다](0485-a-memory-db-that-failed-to-open-falls-back-in-memory-and-says-so.md) | Accepted | 2026-09-22 | sqlite, storage, memory, degraded, durability, ipc, cli, fallback |
-| 0611 | [`memory.db` 에 쓰는 IPC 는 이름공간과 무관하게 durable 이 아님을 말한다 — ADR-0485 의 적용 범위 조항 개정](0611-every-ipc-write-to-memory-db-says-when-it-is-not-durable.md) | Accepted | 2026-09-23 | sqlite, storage, memory, degraded, durability, ipc, agent, approval, telemetry, session |
-| 0612 | [출력 observer 의 memory 레코드 키에 sink 순번을 붙인다](0612-an-observer-memory-record-key-carries-a-sequence.md) | Accepted | 2026-09-23 | output-observer, memory, storage, key, ring-buffer, data-loss |
+| 0518 | [`memory.db` 에 쓰는 IPC 는 이름공간과 무관하게 durable 이 아님을 말한다 — ADR-0485 의 적용 범위 조항 개정](0518-every-ipc-write-to-memory-db-says-when-it-is-not-durable.md) | Accepted | 2026-09-23 | sqlite, storage, memory, degraded, durability, ipc, agent, approval, telemetry, session |
+| 0519 | [출력 observer 의 memory 레코드 키에 sink 순번을 붙인다](0519-an-observer-memory-record-key-carries-a-sequence.md) | Accepted | 2026-09-23 | output-observer, memory, storage, key, ring-buffer, data-loss |
 
 ## 아키텍처 · 헤드리스 · 크레이트 경계
 
