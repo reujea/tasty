@@ -1625,7 +1625,7 @@ fn test_palette_paste_records_user_typing() {
     let deadline = Instant::now() + Duration::from_secs(10);
     loop {
         let idle = is_typing()["idle_seconds"].as_f64().unwrap();
-        if idle < 0.0 || idle > 3.0 {
+        if !(0.0..=3.0).contains(&idle) {
             break;
         }
         assert!(Instant::now() < deadline, "idle never exceeded 3s: {idle}");
