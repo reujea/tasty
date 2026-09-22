@@ -20,9 +20,13 @@ pub(super) struct AgentRequests {
 }
 
 impl AgentRequests {
-    /// 송신 때 부른다 — 에이전트 op 면 기억한다.
-    pub(super) fn note_structural(&mut self, op_id: u64, agent: bool) {
-        if agent {
+    /// 송신 때 부른다 — 에이전트 op(`silent_failure`)면 기억한다.
+    pub(super) fn note_structural_from(
+        &mut self,
+        pending: &crate::core::PendingStructuralForward,
+        op_id: u64,
+    ) {
+        if pending.silent_failure {
             self.structural.insert(op_id);
         }
     }
@@ -32,9 +36,13 @@ impl AgentRequests {
         self.structural.remove(&op_id);
     }
 
-    /// 송신에 성공한 뒤 부른다 — 에이전트 요청이면 기억한다.
-    pub(super) fn note_markdown(&mut self, request_id: u64, agent: bool) {
-        if agent {
+    /// 송신에 성공한 뒤 부른다 — 에이전트 요청(`agent_origin`)이면 기억한다.
+    pub(super) fn note_markdown_from(
+        &mut self,
+        req: &crate::core::PendingMarkdownContentForward,
+        request_id: u64,
+    ) {
+        if req.agent_origin {
             self.markdown.insert(request_id);
         }
     }
@@ -112,14 +120,41 @@ mod tests {
     use super::super::{MirrorEvent, apply_mirror_events};
     use super::*;
 
+    /// 송신 때 쌓이는 큐 원소 — `silent_failure` 만 가른다.
+    fn structural(silent_failure: bool) -> crate::core::PendingStructuralForward {
+        crate::core::PendingStructuralForward {
+            op: tasty_ipc::stream::StructuralOp::NewTab {
+                anchor_surface_id: 1,
+                surface_kind: "terminal".to_string(),
+                params: serde_json::Value::Null,
+            },
+            user_triggered: false,
+            close_focus_candidates: Vec::new(),
+            silent_failure,
+        }
+    }
+
+    fn markdown(request_id: u64, agent_origin: bool) -> crate::core::PendingMarkdownContentForward {
+        crate::core::PendingMarkdownContentForward {
+            local_surface_id: 300,
+            request_id,
+            agent_origin,
+        }
+    }
+
     /// 에이전트 발화로 forward 한 op 의 원격 실패는 사용자 toast 를 내지 않고, 회신과
     /// 함께 표시가 지워진다. 표시가 없는 op 의 실패는 종전대로 toast 를 낸다.
     ///
-    /// `apply_structural_failed` 의 에이전트 가드를 지우는 변이에서 실패해야 한다.
+    /// 세션 기록은 송신 쪽이 큐 원소를 그대로 넘겨 채운다 — `note_structural_from` 이 원소의
+    /// `silent_failure` 를 안 읽는 변이, `apply_structural_failed` 의 에이전트 가드를 지우는
+    /// 변이 어느 쪽에서도 실패해야 한다.
     #[test]
     fn an_agent_forward_failure_does_not_toast() {
         let mut sess = test_session(9_000, HashMap::new());
-        sess.agent_requests.note_structural(5, true);
+        sess.agent_requests
+            .note_structural_from(&structural(true), 5);
+        sess.agent_requests
+            .note_structural_from(&structural(false), 6);
         let mut plugin_manager: Option<crate::plugin::PluginManager> = None;
         let (mut state, mut engine) = crate::state::tests::test_state();
         {
@@ -156,12 +191,17 @@ mod tests {
     /// 에이전트가 건 원문 요청(`markdown.reload`)의 회신은 잘려 와도 사용자 toast 를 내지
     /// 않고, 회신과 함께 표시가 지워진다. plugin 자신의 요청은 종전대로 toast 를 낸다.
     ///
-    /// `notify_markdown_truncated` 의 `agent_origin` 분기를 지우는 변이에서 실패해야 한다.
+    /// 세션 기록은 송신 쪽이 요청 원소를 그대로 넘겨 채운다 — `note_markdown_from` 이 원소의
+    /// `agent_origin` 을 안 읽는 변이, `notify_markdown_truncated` 의 `agent_origin` 분기를
+    /// 지우는 변이 어느 쪽에서도 실패해야 한다.
     #[test]
     fn an_agent_markdown_reload_truncation_does_not_toast() {
         let mut sess = test_session(9_000, HashMap::from([(30, 300)]));
         sess.markdown_locals.insert(300);
-        sess.agent_requests.note_markdown(11, true);
+        sess.agent_requests
+            .note_markdown_from(&markdown(11, true), 11);
+        sess.agent_requests
+            .note_markdown_from(&markdown(12, false), 12);
         let mut plugin_manager: Option<crate::plugin::PluginManager> = None;
         let (mut state, mut engine) = crate::state::tests::test_state();
         let truncated = |request_id| MirrorEvent::MarkdownContentResult {

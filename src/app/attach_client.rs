@@ -1203,8 +1203,8 @@ impl App {
             op: local_op,
             user_triggered,
             close_focus_candidates,
-            silent_failure,
-        } = pending;
+            ..
+        } = &pending;
         let local_anchor = local_op.anchor_surface_id();
         let Some((sess, remote_anchor)) = find_mirror_session_and_remote_id(
             &mut self.attach_client_sessions,
@@ -1217,15 +1217,15 @@ impl App {
         let op_id = sess.op_seq;
         sess.op_seq += 1;
 
-        if user_triggered
+        if *user_triggered
             && let Some(intent) =
-                pending_op_focus_for(&local_op, &close_focus_candidates, &sess.remote_to_local)
+                pending_op_focus_for(local_op, close_focus_candidates, &sess.remote_to_local)
         {
             sess.pending_op_focus.insert(op_id, intent);
         }
-        sess.agent_requests.note_structural(op_id, silent_failure);
+        sess.agent_requests.note_structural_from(&pending, op_id);
 
-        let payload = structural_op_payload(op_id, wire, user_triggered);
+        let payload = structural_op_payload(op_id, wire, *user_triggered);
         // write 큐로 보내 write 스레드가 순차로 쓴다(락 직접 획득 제거).
         if let Err(e) = sess.send_frame(StreamTag::Control, payload) {
             tracing::warn!("structural forward: write 큐 send 실패(세션 종료 중) — drop: {e}");
@@ -4006,8 +4006,7 @@ impl App {
             "surface_id": remote_sid,
         });
         send_capture_control_frame(&sess.frame_tx, &msg)?;
-        sess.agent_requests
-            .note_markdown(request_id, req.agent_origin);
+        sess.agent_requests.note_markdown_from(req, request_id);
         Ok(())
     }
 }
