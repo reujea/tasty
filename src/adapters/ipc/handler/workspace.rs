@@ -157,6 +157,43 @@ fn inherit_cwd_for_create(
     }
 }
 
+/// `workspace.create` 의 params 에서 새 워크스페이스에 줄 cwd 를 정한다.
+///
+/// terminal 의 cwd inherit 은 호출자가 미리 결정해 payload 로 넘긴다 (Core 는
+/// focus state 모름). 그 외 kind 는 cwd 미사용. 새 워크스페이스는 로컬이므로 원본이
+/// mirror surface 면 inherit 은 `None`(= 홈)이고, 명시 `cwd` 는 그대로 존중한다
+/// (`docs/architecture/invariants/surface-cwd.md` §3-2).
+/// 창을 지목한 `surface_id` 가 상속 원본이다. 숫자가 아닌 값은 거절한다 — 무시하면
+/// 라우팅도 못 짚은 채 포커스 surface 로 조용히 떨어진다.
+fn resolve_create_cwd(
+    params: &serde_json::Value,
+    kind: &str,
+    window: &dyn crate::ipc::window_port::IpcWindow,
+    engine: &crate::core::CoreState,
+    id: &serde_json::Value,
+) -> Result<Option<std::path::PathBuf>, JsonRpcResponse> {
+    let explicit_cwd = params
+        .get("cwd")
+        .and_then(|v| v.as_str())
+        .map(std::path::PathBuf::from);
+    // CLI 가 absolute path 로 정규화해 보낸다는 contract — 2 차 방어로 호스트도
+    // 디렉토리 존재 검증. plugin 의 직접 IPC 경로도 함께 보호.
+    if let Some(p) = &explicit_cwd
+        && !p.is_dir()
+    {
+        return Err(JsonRpcResponse::invalid_params(
+            id.clone(),
+            format!("cwd does not exist: {}", p.display()),
+        ));
+    }
+    let named_surface = params::opt_int::<u32>(params, "surface_id", id)?;
+    Ok(if kind == "terminal" {
+        explicit_cwd.or_else(|| inherit_cwd_for_create(window, engine, named_surface))
+    } else {
+        None
+    })
+}
+
 pub fn handle_workspace_create(
     core: &mut crate::core::Core,
     window: &mut dyn crate::ipc::window_port::IpcWindow,
@@ -169,21 +206,11 @@ pub fn handle_workspace_create(
     if let Some(resp) = reject_loopback_attach(params, &id) {
         return resp;
     }
-    let explicit_cwd = params
-        .get("cwd")
-        .and_then(|v| v.as_str())
-        .map(std::path::PathBuf::from);
-    // CLI 가 absolute path 로 정규화해 보낸다는 contract — 2 차 방어로 호스트도
-    // 디렉토리 존재 검증. plugin 의 직접 IPC 경로도 함께 보호.
-    if let Some(p) = &explicit_cwd
-        && !p.is_dir()
-    {
-        return JsonRpcResponse::invalid_params(id, format!("cwd does not exist: {}", p.display()));
-    }
     let kind = params
         .get("type")
         .and_then(|v| v.as_str())
         .unwrap_or("terminal");
+    let resolved_cwd = p_try!(resolve_create_cwd(params, kind, window, engine, &id));
 
     // 필수 파라미터 검증 (registry create 함수도 검사하지만, 명확한 에러 메시지를 위해
     // 선검증). registry 의 required_params(preset_fields.required)로 generic 검증.
@@ -195,19 +222,6 @@ pub fn handle_workspace_create(
             format!("Missing '{missing}' parameter for {kind} type"),
         );
     }
-
-    // terminal 의 cwd inherit 은 호출자가 미리 결정해 payload 로 넘긴다 (Core 는
-    // focus state 모름). 그 외 kind 는 cwd 미사용. 새 워크스페이스는 로컬이므로 원본이
-    // mirror surface 면 inherit 은 `None`(= 홈)이고, 명시 `cwd` 는 그대로 존중한다
-    // (`docs/architecture/invariants/surface-cwd.md` §3-2).
-    // 창을 지목한 `surface_id` 가 상속 원본이다. 숫자가 아닌 값은 거절한다 — 무시하면
-    // 라우팅도 못 짚은 채 포커스 surface 로 조용히 떨어진다.
-    let named_surface = p_try!(params::opt_int::<u32>(params, "surface_id", &id));
-    let resolved_cwd = if kind == "terminal" {
-        explicit_cwd.or_else(|| inherit_cwd_for_create(window, engine, named_surface))
-    } else {
-        None
-    };
 
     let name = params
         .get("name")
@@ -932,6 +946,54 @@ mod create_cwd_tests {
         assert_eq!(err.code, -32602, "{}", err.message);
         assert!(err.message.contains("surface_id"), "{}", err.message);
         assert_eq!(engine.workspaces.len(), before);
+    }
+
+    /// 핸들러가 params 에서 읽은 `surface_id` 가 상속 원본으로 **넘어가는지**를 params 로
+    /// 잰다. 헬퍼만 부르는 위 시험은 이 배선을 안 본다 — 핸들러가 `None` 을 넘기거나 키
+    /// 읽기를 지워도 초록이었다. 포커스를 다른 surface 에 두어 그 결함을 가른다.
+    #[test]
+    fn the_params_surface_id_reaches_the_inherit_source() {
+        let (mut state, mut engine) = crate::state::tests::test_state();
+        let (named, named_root) = open_explorer(&mut state, &mut engine, "named/proj");
+        let (_focused, focused_root) = open_explorer(&mut state, &mut engine, "focused/proj");
+        assert_ne!(named_root, focused_root);
+
+        let got = resolve_create_cwd(
+            &json!({ "surface_id": named }),
+            "terminal",
+            &state,
+            &engine,
+            &json!(1),
+        )
+        .expect("정상 params");
+        assert_eq!(got, Some(named_root));
+
+        let got = resolve_create_cwd(&json!({}), "terminal", &state, &engine, &json!(1))
+            .expect("정상 params");
+        assert_eq!(got, Some(focused_root));
+    }
+
+    /// 명시 `cwd` 는 지목한 surface 보다 앞서고, terminal 이 아닌 kind 는 cwd 를 안 쓴다.
+    #[test]
+    fn explicit_cwd_wins_and_non_terminal_kinds_take_no_cwd() {
+        let (mut state, mut engine) = crate::state::tests::test_state();
+        let (named, _) = open_explorer(&mut state, &mut engine, "named/proj");
+        let explicit = std::env::temp_dir();
+        let params = json!({ "surface_id": named, "cwd": explicit.to_string_lossy() });
+
+        let got = resolve_create_cwd(&params, "terminal", &state, &engine, &json!(1))
+            .expect("정상 params");
+        assert_eq!(got, Some(explicit));
+
+        let got = resolve_create_cwd(
+            &json!({ "surface_id": named }),
+            "explorer",
+            &state,
+            &engine,
+            &json!(1),
+        )
+        .expect("정상 params");
+        assert_eq!(got, None);
     }
 
     /// 지목한 surface 가 있어도 `inherit_cwd` 를 끈 설정은 그대로 존중한다.
