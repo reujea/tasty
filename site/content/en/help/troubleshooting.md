@@ -1,4 +1,4 @@
-<!-- source-hash: 89cae9652a0c -->
+<!-- source-hash: 620f9e433ad4 -->
 # Troubleshooting
 
 If something is not working, find the matching symptom below. Check installation, permissions, terminal connections, and notifications, or use the reporting steps at the end if you still need help.
