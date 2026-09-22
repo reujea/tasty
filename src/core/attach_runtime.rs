@@ -1189,7 +1189,7 @@ fn forward_result<T>(
 /// forward 된 convert 가 실패했는데 도메인이 사유를 안 실었을 때의 회신 문구. 원인을
 /// 짐작해 적지 않는다 — "not found" 같은 원인 문구는 그것이 원인일 때만 참이고, 원인을
 /// 모르는 자리에서 쓰면 원격에서 난 실제 사유를 가린다. 지금 도메인은 모든 실패 자리에
-/// 사유를 실으므로 이 문구는 새 실패 자리가 사유를 빠뜨렸을 때만 나간다.
+/// 사유를 실으므로 이 문구는 새 실패 자리가 사유를 빠뜨렸을 때만 나간다(ADR-0543).
 fn convert_failure_fallback(surface_id: SurfaceId) -> String {
     format!("surface {surface_id} was not converted")
 }
