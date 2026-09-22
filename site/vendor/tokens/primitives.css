@@ -96,8 +96,10 @@
   --tasty-size-28:  28px;
   --tasty-size-32:  32px;
   --tasty-size-36:  36px;  /* titlebar height (CSD) */
+  --tasty-size-44:  44px;  /* preset-window detail toolbar / surface-settings header height */
   --tasty-size-46:  46px;  /* Windows caption button width */
   --tasty-size-48:  48px;  /* DAG node card height */
+  --tasty-size-52:  52px;  /* fixed dialog/settings footer height (28 control + 2 × 12 padding) */
   --tasty-size-56:  56px;  /* banner affordance column reserve (2 × 24 + gaps) */
   --tasty-size-120: 120px; /* explorer favorites pin — lower bound */
   --tasty-size-150: 150px;

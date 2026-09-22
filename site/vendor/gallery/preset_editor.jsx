@@ -1,8 +1,11 @@
 // Tasty Gallery — Preset editor (the PresetView window).
 // Lives in its own file because the demo-layout PREVIEW is a real
 // interactive component (not a static mock): mini tab strips switch,
-// and in edit mode surfaces select / split / delete / change kind in
-// place — WYSIWYG, no separate form screen. Loaded BEFORE overlays-windows.jsx;
+// and in edit mode STRUCTURE is edited in place (edge-split / tab add+close /
+// remove — WYSIWYG, auto-saved), while a leaf's PARAMETERS (kind · cwd ·
+// startup · kind fields) open a SURFACE SETTINGS SCREEN that takes over the
+// whole right detail column (header / scrolling form / fixed Cancel·OK footer)
+// as a draft — the old in-cell LeafEditor clipped in small cells. Loaded BEFORE overlays-windows.jsx;
 // exposes window.PresetEditor = { Section, NAV_ITEM }.
 (function () {
   const { Section, Spec, Stage, Meta, Note, Do, Dont } = window.Gallery;
@@ -25,6 +28,10 @@
     copy: <Icon name="copy" />,
     layers: <Icon name="layers" />,
     check: <Icon name="check" />,
+    gear: <Icon name="settings" />,
+    folder: <Icon name="folderOpen" />,
+    port: <Icon name="port" />,
+    html: <Icon name="html" />,
   };
 
   // ── surface-kind registry (display_name + accent) ─────────
@@ -34,6 +41,8 @@
     editor: { label: "Editor", icon: I.editor, accent: "var(--tasty-accent-agent)" },
     log: { label: "Log", icon: I.log, accent: "var(--tasty-accent-warning)" },
     image: { label: "Image", icon: I.image, accent: "var(--tasty-accent-info)" },
+    html: { label: "HTML", icon: I.html, accent: "var(--tasty-accent-attached)" },
+    "plugin:portscan": { label: "Port scanner", icon: I.port, accent: "var(--tasty-accent-attention)" }, // a plugin kind — N fields, labels from the plugin
   };
   const KIND_KEYS = Object.keys(KINDS);
   const kindOf = (k) => KINDS[k] || KINDS.terminal;
@@ -49,7 +58,78 @@
     markdown: [["file", "file", true]],
     image:    [["file", "file", true]],
     html:     [["url", "url", false]],
+    "plugin:portscan": [["host", "host", false], ["range", "range", false]],
   };
+
+  // ── settings-screen form fields (mirrors KindCatalog::form_fields()) ──
+  // {key, label, type, placeholder?, options?, addon?} — type: dir | file (both get
+  // a Browse button) | text | number | select. Labels come from the kind (plugin
+  // kinds bring their own lang), so lengths vary — the form is one column, label
+  // above input, so any label length fits. Kind is always the first control.
+  const FORM_FIELDS = {
+    terminal: [
+      { key: "cwd", label: "Working directory", type: "dir", placeholder: "~" },
+      { key: "startup", label: "Startup command", type: "text", placeholder: "(none)" },
+    ],
+    editor: [{ key: "cwd", label: "Working directory", type: "dir", placeholder: "~" }],
+    log: [{ key: "cwd", label: "Working directory", type: "dir", placeholder: "~" }],
+    markdown: [{ key: "file", label: "File", type: "file", placeholder: "README.md" }],
+    image: [{ key: "file", label: "File", type: "file", placeholder: "image.png" }],
+    html: [{ key: "url", label: "URL", type: "text", placeholder: "http://localhost:3000" }],
+    "plugin:portscan": [
+      { key: "host", label: "Host", type: "text", placeholder: "127.0.0.1" },
+      { key: "range", label: "Port range", type: "text", placeholder: "1-65535" },
+      { key: "protocol", label: "Protocol", type: "select", options: ["tcp", "udp", "tcp + udp"] },
+      { key: "interval", label: "Scan interval", type: "number", addon: "ms", placeholder: "1000" },
+      { key: "timeout", label: "Connect timeout", type: "number", addon: "ms", placeholder: "200" },
+      { key: "output", label: "Output file", type: "file", placeholder: "ports.log" },
+      { key: "notify", label: "Notify on change", type: "select", options: ["never", "new port", "any change"] },
+    ],
+  };
+  const formFields = (kind) => FORM_FIELDS[kind] || [{ key: "cwd", label: "Working directory", type: "dir" }];
+  // draft normalisation: only kind + the keys the kind declares take part in the diff.
+  const normalize = (s) => {
+    const o = { kind: s.kind };
+    for (const f of formFields(s.kind)) o[f.key] = s[f.key] == null ? "" : String(s[f.key]);
+    return o;
+  };
+  const isDirty = (draft, orig) => JSON.stringify(normalize(draft)) !== JSON.stringify(normalize(orig));
+  // kind switch inside the draft: keep keys the new kind also declares (cwd survives terminal→editor), blank the rest.
+  const switchKind = (draft, kind) => {
+    const next = { kind };
+    for (const f of formFields(kind)) next[f.key] = draft[f.key] != null ? draft[f.key] : "";
+    return next;
+  };
+
+  // locate a leaf for the settings header: [pane N ›] tab › surface k
+  function findNode(node, id) {
+    if (node.id === id) return node;
+    if (node.surface) return null;
+    if (node.pane) { for (const t of node.pane.tabs) { const r = findNode(t.layout, id); if (r) return r; } return null; }
+    return findNode(node.first, id) || findNode(node.second, id);
+  }
+  function leafIndex(layout, id) {
+    let k = 0, found = null;
+    const rec = (m) => { if (found) return; if (m.surface) { k++; if (m.id === id) found = k; return; } rec(m.first); rec(m.second); };
+    rec(layout);
+    return found;
+  }
+  function locate(root, id, scope) {
+    if (scope === "tab") { const k = leafIndex(root, id); return k ? ["surface " + k] : []; }
+    let paneNo = 0;
+    const walk = (node) => {
+      if (node.pane) {
+        paneNo++;
+        for (const t of node.pane.tabs) { const k = leafIndex(t.layout, id); if (k) return [...(scope === "workspace" ? ["pane " + paneNo] : []), t.name, "surface " + k]; }
+        return null;
+      }
+      return walk(node.first) || walk(node.second);
+    };
+    return walk(root) || [];
+  }
+
+  // edit-mode context — SurfaceBox asks the host to open the settings screen.
+  const EditCtx = React.createContext({ openCfg: null });
   // resolve the non-empty field rows for a leaf (empty fields hide their row).
   const summaryRows = (node) => {
     const s = node.surface;
@@ -97,6 +177,8 @@
         return mapNode(root, a.id, (n) => ({ ...n, surface: { ...n.surface, kind: a.kind } }));
       case "field":
         return mapNode(root, a.id, (n) => ({ ...n, surface: { ...n.surface, [a.key]: a.value } }));
+      case "surface": // settings-screen OK: the whole draft lands at once, then auto-saves
+        return mapNode(root, a.id, (n) => ({ ...n, surface: { ...a.surface } }));
       case "split":
         return mapNode(root, a.id, (n) => a.before
           ? { id: uid("x"), dir: a.dir, ratio: 0.5, first: idify(surf("terminal")), second: n }
@@ -128,12 +210,17 @@
   // ── leaf surface box ──────────────────────────────────────
   // Edit mode = direct manipulation (mirrors the real tasty pane): hover an
   // edge (~30% band) to preview a split in that direction, click to commit;
-  // click the CENTER to select the leaf for its inline form + remove handle.
+  // click the CENTER to select the leaf (2px accent outline + settings/remove
+  // handles); the settings handle or a DOUBLE-CLICK opens the surface settings
+  // screen in the detail column. Selection stays the target of the structure
+  // shortcuts (split / remove / new tab) — that is why a single click does NOT
+  // open the screen (decision A1).
   const SPLIT_ZONE_EDGE = 0.3;   // outer 30% of each side is a split band
   const SPLIT_ZONE_MIN = 46;     // below this px on an axis, that axis degrades (no band)
   function SurfaceBox({ node, edit, sel, dispatch, setSel }) {
     const k = kindOf(node.surface.kind);
     const selected = edit && sel === node.id;
+    const { openCfg } = React.useContext(EditCtx);
     const ref = React.useRef(null);
     const [zone, setZone] = useState(null); // 'left'|'right'|'top'|'bottom'|null
     const [box, setBox] = useState({ w: 0, h: 0 });
@@ -149,7 +236,7 @@
     // degrade order: full → (w<96 or h<72) drop summary → (short axis <46) drop kind label, icon only.
     const shortAxis = Math.min(box.w, box.h);
     const showLabel = shortAxis === 0 || shortAxis >= SPLIT_ZONE_MIN;
-    const showSummary = !selected && box.w >= 96 && box.h >= 72;
+    const showSummary = box.w >= 96 && box.h >= 72;
     const rows = showSummary ? summaryRows(node) : [];
 
     const pickZone = (e) => {
@@ -186,6 +273,7 @@
       <div
         ref={ref}
         onClick={edit ? onClick : undefined}
+        onDoubleClick={edit && openCfg ? (e) => { e.stopPropagation(); setSel(node.id); openCfg(node.id); } : undefined}
         onMouseMove={edit && !selected ? pickZone : undefined}
         onMouseLeave={edit ? () => setZone(null) : undefined}
         style={{
@@ -197,24 +285,19 @@
             : edit ? "inset 0 0 0 1px var(--tasty-separator)" : "none",
         }}
       >
-        {selected ? (
-          <LeafEditor node={node} dispatch={dispatch} />
-        ) : (
-          <>
-            <span style={{ display: "inline-flex", color: k.accent }}>{k.icon}</span>
-            {showLabel && (
-              <span style={{ fontFamily: "var(--tasty-font-mono)", fontSize: 11, color: "var(--tasty-text-secondary)", whiteSpace: "nowrap", textOverflow: "ellipsis", overflow: "hidden", maxWidth: "100%" }}>{k.label}</span>
-            )}
-            {rows.length > 0 && <LeafSummary rows={rows} />}
-          </>
+        <span style={{ display: "inline-flex", color: k.accent }}>{k.icon}</span>
+        {showLabel && (
+          <span style={{ fontFamily: "var(--tasty-font-mono)", fontSize: 11, color: "var(--tasty-text-secondary)", whiteSpace: "nowrap", textOverflow: "ellipsis", overflow: "hidden", maxWidth: "100%" }}>{k.label}</span>
         )}
+        {rows.length > 0 && <LeafSummary rows={rows} />}
         {/* split-zone preview overlay (hover, unselected) */}
         {zone && !selected && (
           <div style={{ position: "absolute", background: "var(--tasty-preset-split-zone-bg)", pointerEvents: "none", zIndex: 2, ...bandStyle[zone] }} />
         )}
-        {/* selected → remove-only handle (splitting is done by the edge zones) */}
+        {/* selected → settings + remove handles (splitting is done by the edge zones) */}
         {selected && (
           <div style={{ position: "absolute", top: 4, right: 4, display: "flex", gap: 2, zIndex: 3 }}>
+            {openCfg && <MiniHandle title="Surface settings" onClick={(e) => { e.stopPropagation(); openCfg(node.id); }}>{I.gear}</MiniHandle>}
             <MiniHandle title="Remove" danger onClick={(e) => { e.stopPropagation(); dispatch({ type: "del", id: node.id }); setSel(null); }}>{I.trash}</MiniHandle>
           </div>
         )}
@@ -254,25 +337,88 @@
     );
   }
 
-  // ── inline leaf parameter editor (in place) ───────────────
-  function LeafEditor({ node, dispatch }) {
-    const s = node.surface;
+  // ── SURFACE SETTINGS SCREEN — replaces the detail column (toolbar + preview) ──
+  // Three boxes: header (kind icon + name · location breadcrumb · draft state),
+  // scrolling body (one-column form, capped at form-max-width), fixed footer
+  // (Cancel ghost · OK primary, right-aligned — Settings-footer grammar).
+  // Keys: Esc = Cancel; Enter inside a single-line input = OK (when dirty).
+  // Fixed dialog keys read directly in code (like convert / command palette) —
+  // NOT KeybindingSettings entries. Structure shortcuts
+  // (split / close / new tab) are inert while this is open — the preview is hidden.
+  function SurfaceSettings({ draft, orig, path = [], onChange, onConfirm, onCancel, bodyRef, autoFocus = false }) {
+    const k = kindOf(draft.kind);
+    const dirty = isDirty(draft, orig);
+    const fields = formFields(draft.kind);
+    const set = (key, value) => onChange({ ...draft, [key]: value });
+    const onKeyDown = (e) => {
+      if (e.key === "Escape") { e.preventDefault(); onCancel(); }
+      else if (e.key === "Enter" && e.target.tagName === "INPUT" && dirty) { e.preventDefault(); onConfirm(); }
+    };
     return (
-      <div onClick={(e) => e.stopPropagation()} style={{ width: "100%", maxWidth: 240, display: "flex", flexDirection: "column", gap: 6, padding: "2px 6px" }}>
-        <Field label="Kind">
-          <Select block value={s.kind} onChange={(e) => dispatch({ type: "kind", id: node.id, kind: e.target.value })}
-            options={KIND_KEYS.map((k) => ({ value: k, label: kindOf(k).label }))} />
-        </Field>
-        <Field label="cwd">
-          <Input block mono value={s.cwd} onChange={(e) => dispatch({ type: "field", id: node.id, key: "cwd", value: e.target.value })} />
-        </Field>
-        {s.kind === "terminal" && (
-          <Field label="Startup command">
-            <Input block mono placeholder="(none)" value={s.startup} onChange={(e) => dispatch({ type: "field", id: node.id, key: "startup", value: e.target.value })} />
-          </Field>
-        )}
+      <div onKeyDown={onKeyDown} onClick={(e) => e.stopPropagation()}
+        style={{ flex: 1, minWidth: 0, minHeight: 0, display: "flex", flexDirection: "column", background: "var(--tasty-bg-panel)" }}>
+        {/* header */}
+        <div style={{ display: "flex", alignItems: "center", gap: 8, height: "var(--tasty-preset-cfg-header-height)", flex: "none", padding: "0 12px", minWidth: 0, borderBottom: "1px solid var(--tasty-separator)" }}>
+          <span style={{ display: "inline-flex", flex: "none", color: k.accent }}>{k.icon}</span>
+          <span style={{ fontSize: 14, fontWeight: 600, flex: "none" }}>{k.label}</span>
+          {path.length > 0 && (
+            <span style={{ display: "flex", alignItems: "center", gap: 5, minWidth: 0, overflow: "hidden", fontFamily: "var(--tasty-font-mono)", fontSize: 11, color: "var(--tasty-text-muted)", whiteSpace: "nowrap" }}>
+              {path.map((seg, i) => (
+                <React.Fragment key={i}>
+                  {i > 0 && <span style={{ flex: "none" }}>›</span>}
+                  <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis" }}>{seg}</span>
+                </React.Fragment>
+              ))}
+            </span>
+          )}
+          <div style={{ flex: 1 }} />
+          {dirty && (
+            <span title="Draft — applied on OK" style={{ display: "inline-flex", alignItems: "center", gap: 5, flex: "none", fontSize: 11, color: "var(--tasty-text-muted)" }}>
+              <span style={{ width: 6, height: 6, borderRadius: "var(--tasty-radius-full)", background: "var(--tasty-preset-cfg-draft-fg)" }} />unsaved
+            </span>
+          )}
+        </div>
+        {/* body — the only box that scrolls */}
+        <div ref={bodyRef} className="tasty-scroll" style={{ flex: 1, minHeight: 0, overflowY: "auto", padding: "var(--tasty-preset-cfg-form-padding)" }}>
+          <div style={{ maxWidth: "var(--tasty-preset-cfg-form-max-width)", display: "flex", flexDirection: "column", gap: "var(--tasty-preset-cfg-field-gap)" }}>
+            <Field label="Kind">
+              <Select block autoFocus={autoFocus} value={draft.kind} onChange={(e) => onChange(switchKind(draft, e.target.value))}
+                options={KIND_KEYS.map((kk) => ({ value: kk, label: kindOf(kk).label }))} />
+            </Field>
+            {fields.map((f) => (
+              <Field key={draft.kind + ":" + f.key} label={f.label}>
+                {f.type === "select" ? (
+                  <Select block value={draft[f.key] || f.options[0]} onChange={(e) => set(f.key, e.target.value)} options={f.options} />
+                ) : f.type === "dir" || f.type === "file" ? (
+                  <div style={{ display: "flex", gap: 8, minWidth: 0 }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <Input block mono placeholder={f.placeholder} value={draft[f.key] || ""} onChange={(e) => set(f.key, e.target.value)} />
+                    </div>
+                    <Button variant="secondary" leadingIcon={I.folder} style={{ flex: "none" }}>Browse</Button>
+                  </div>
+                ) : (
+                  <Input block mono type={f.type === "number" ? "number" : "text"} addon={f.addon} placeholder={f.placeholder} value={draft[f.key] || ""} onChange={(e) => set(f.key, e.target.value)} />
+                )}
+              </Field>
+            ))}
+          </div>
+        </div>
+        {/* fixed footer */}
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 8, flex: "none", height: "var(--tasty-preset-cfg-footer-height)", padding: "0 var(--tasty-preset-cfg-footer-padding-x)", borderTop: "1px solid var(--tasty-separator)" }}>
+          <Button variant="ghost" onClick={onCancel}>Cancel</Button>
+          <Button variant="primary" disabled={!dirty} onClick={onConfirm}>OK</Button>
+        </div>
       </div>
     );
+  }
+  // host-side draft state for the settings screen: { id, draft, orig } | null
+  function useSurfaceCfg(root, setRoot, setSel) {
+    const [cfg, setCfg] = useState(null);
+    const openCfg = (id) => { const n = findNode(root, id); if (n) setCfg({ id, draft: { ...n.surface }, orig: { ...n.surface } }); };
+    const cancel = () => setCfg(null);                         // draft dropped, selection kept
+    const confirm = () => { if (!cfg) return; setRoot((r) => applyAction(r, { type: "surface", id: cfg.id, surface: normalize(cfg.draft) })); setSel(cfg.id); setCfg(null); };
+    const change = (draft) => setCfg((c) => (c ? { ...c, draft } : c));
+    return { cfg, openCfg, cancel, confirm, change, reset: () => setCfg(null) };
   }
   function Field({ label, children }) {
     return (
@@ -404,15 +550,23 @@
   }
 
   // ── standalone interactive preview (used by the 3-scope + WYSIWYG specs) ──
+  // In edit mode the settings handle / double-click swaps the frame for the
+  // surface settings screen, exactly like the window's detail column.
   function LivePreview({ scope, build, edit = false, height = 230 }) {
     const [root, setRoot] = useState(() => idify(build()));
     const [sel, setSel] = useState(null);
     const dispatch = (a) => setRoot((r) => applyAction(r, a));
+    const c = useSurfaceCfg(root, setRoot, setSel);
+    const ctx = React.useMemo(() => ({ openCfg: edit ? c.openCfg : null }), [edit, root]);
     return (
-      <div onClick={edit ? () => setSel(null) : undefined}
-        style={{ height, display: "flex", padding: 10, background: "var(--tasty-bg-app)", borderRadius: "var(--tasty-radius)", border: "1px solid var(--tasty-border-default)" }}>
-        <PreviewBody scope={scope} root={root} edit={edit} sel={sel} dispatch={dispatch} setSel={setSel} />
-      </div>
+      <EditCtx.Provider value={ctx}>
+        <div onClick={edit ? () => setSel(null) : undefined}
+          style={{ height, display: "flex", padding: c.cfg ? 0 : 10, background: "var(--tasty-bg-app)", borderRadius: "var(--tasty-radius)", border: "1px solid var(--tasty-border-default)", overflow: "hidden" }}>
+          {c.cfg
+            ? <SurfaceSettings draft={c.cfg.draft} orig={c.cfg.orig} path={locate(root, c.cfg.id, scope)} onChange={c.change} onConfirm={c.confirm} onCancel={c.cancel} autoFocus />
+            : <PreviewBody scope={scope} root={root} edit={edit} sel={sel} dispatch={dispatch} setSel={setSel} />}
+        </div>
+      </EditCtx.Provider>
     );
   }
 
@@ -437,17 +591,24 @@
       tab("notes", surf("markdown", { file: "NOTES.md" })),
     ], 0);
 
-  // for the WYSIWYG spec we want a roomy leaf to host the inline form
+  // for the WYSIWYG spec: a roomy leaf so the handles + summary read at a glance
   const buildEditDemo = () =>
     pane([
       tab("dev", split("row", 0.46, surf("terminal", { cwd: "~/tasty", startup: "cargo watch -x run" }), surf("log"))),
       tab("docs", surf("markdown", { file: "README.md" })),
     ], 0);
+  // the six-surface workspace from the bug report — cells too small for any in-cell form
+  const buildSix = () =>
+    split("row", 0.5,
+      pane([tab("code", split("col", 0.5, surf("editor", { cwd: "~/tasty/src" }), split("row", 0.5, surf("terminal", { startup: "cargo watch" }), surf("terminal", { startup: "cargo test" }))))]),
+      pane([tab("ops", split("col", 0.5, split("row", 0.5, surf("log"), surf("plugin:portscan", { host: "127.0.0.1", range: "3000-3999", protocol: "tcp", interval: "1000", timeout: "200", output: "", notify: "new port" })), surf("markdown", { file: "docs/runbook.md" })))]),
+    );
 
   // ── the full window (list + toolbar + preview, with Edit toggle) ──
   const PRESETS = {
     workspace: [
       { name: "claude", subtitle: "editor · agent · logs", build: buildWorkspace },
+      { name: "six", subtitle: "6 surfaces · code + ops", build: buildSix },
       { name: "dev", subtitle: "2 panes · shell + watch", build: () => split("row", 0.5, pane([tab("shell", surf("terminal"))]), pane([tab("logs", surf("log"))])) },
       { name: "review", subtitle: "diff + terminal", build: () => split("col", 0.55, pane([tab("diff", surf("editor"))]), pane([tab("run", surf("terminal"))])) },
     ],
@@ -474,12 +635,19 @@
     const [root, setRoot] = useState(() => idify(cur.build()));
     const [sel, setSel] = useState(null);
     const [seed, setSeed] = useState(seedKey);
-    if (seed !== seedKey) { setSeed(seedKey); setRoot(idify(cur.build())); setSel(null); setEdit(false); }
     const dispatch = (a) => setRoot((r) => applyAction(r, a));
+    const c = useSurfaceCfg(root, setRoot, setSel);
+    const cfgOpen = !!c.cfg;
+    const ctx = React.useMemo(() => ({ openCfg: edit ? c.openCfg : null }), [edit, root]);
+    // an outside selection change (context-menu "save as preset…", window close) drops the draft like Cancel
+    if (seed !== seedKey) { setSeed(seedKey); setRoot(idify(cur.build())); setSel(null); setEdit(false); c.reset(); }
 
     const choose = (i) => { setPick(i); };
+    // left list + L1 scope are inert while the settings screen is open (decision C)
+    const dim = cfgOpen ? { opacity: "var(--tasty-preset-cfg-dim-opacity)", pointerEvents: "none" } : {};
 
     return (
+      <EditCtx.Provider value={ctx}>
       <div style={{ width: "100%", maxWidth: 680, minWidth: 0, height: 452, display: "flex", flexDirection: "column", background: "var(--tasty-bg-panel)",
         border: "1px solid var(--tasty-border-strong)", borderRadius: "var(--tasty-radius)", overflow: "hidden", boxShadow: "var(--tasty-shadow-modal)" }}>
         {/* title bar */}
@@ -490,7 +658,7 @@
           <IconButton size="sm" aria-label="Close">{I.x}</IconButton>
         </div>
         {/* L1 scope tabs */}
-        <div style={{ display: "flex", alignItems: "center", height: 40, flex: "none", padding: "0 12px", gap: 2, borderBottom: "1px solid var(--tasty-separator)", background: "var(--tasty-bg-sidebar)" }}>
+        <div aria-disabled={cfgOpen || undefined} style={{ display: "flex", alignItems: "center", height: 40, flex: "none", padding: "0 12px", gap: 2, borderBottom: "1px solid var(--tasty-separator)", background: "var(--tasty-bg-sidebar)", ...dim }}>
           {SCOPES.map(([id, lbl]) => {
             const on = id === scope;
             return (
@@ -504,7 +672,7 @@
         {/* body: list + detail */}
         <div style={{ display: "flex", flex: 1, minHeight: 0 }}>
           {/* left list */}
-          <div style={{ width: 196, flex: "none", display: "flex", flexDirection: "column", background: "var(--tasty-bg-sidebar)", borderRight: "1px solid var(--tasty-separator)" }}>
+          <div aria-disabled={cfgOpen || undefined} style={{ width: 196, flex: "none", display: "flex", flexDirection: "column", background: "var(--tasty-bg-sidebar)", borderRight: "1px solid var(--tasty-separator)", ...dim }}>
             <div style={{ display: "flex", alignItems: "center", padding: "8px 10px 4px" }}>
               <span style={{ fontFamily: "var(--tasty-font-mono)", fontSize: 10, textTransform: "uppercase", letterSpacing: ".06em", color: "var(--tasty-text-muted)" }}>{list.length} preset{list.length === 1 ? "" : "s"}</span>
               <div style={{ flex: 1 }} />
@@ -526,7 +694,10 @@
               })}
             </div>
           </div>
-          {/* right: toolbar + preview */}
+          {/* right: surface settings screen (draft) OR toolbar + preview */}
+          {cfgOpen ? (
+            <SurfaceSettings draft={c.cfg.draft} orig={c.cfg.orig} path={[cur.name, ...locate(root, c.cfg.id, scope)]} onChange={c.change} onConfirm={c.confirm} onCancel={c.cancel} autoFocus />
+          ) : (
           <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", background: "var(--tasty-bg-panel)" }}>
             {/* toolbar */}
             <div style={{ display: "flex", alignItems: "center", gap: 8, height: 44, flex: "none", padding: "0 12px", borderBottom: "1px solid var(--tasty-separator)" }}>
@@ -562,6 +733,25 @@
               <PreviewBody scope={scope} root={root} edit={edit} sel={sel} dispatch={dispatch} setSel={setSel} />
             </div>
           </div>
+          )}
+        </div>
+      </div>
+      </EditCtx.Provider>
+    );
+  }
+
+  // ── static state frames for the settings-screen spec ────────────
+  function SettingsDemo({ label, surface, orig, path, width = 300, height = 300, scrollTo = 0 }) {
+    const [draft, setDraft] = useState(surface);
+    const [base, setBase] = useState(orig || surface);
+    const bodyRef = React.useRef(null);
+    React.useEffect(() => { if (bodyRef.current && scrollTo) bodyRef.current.scrollTop = scrollTo; }, []);
+    return (
+      <div style={{ display: "flex", flexDirection: "column", gap: 6, minWidth: 0 }}>
+        <div style={{ fontSize: 11, color: "var(--tasty-text-muted)" }}>{label}</div>
+        <div style={{ width, height, display: "flex", border: "1px solid var(--tasty-border-strong)", borderRadius: "var(--tasty-radius)", overflow: "hidden" }}>
+          <SurfaceSettings draft={draft} orig={base} path={path} bodyRef={bodyRef} onChange={setDraft}
+            onConfirm={() => setBase(draft)} onCancel={() => setDraft(base)} />
         </div>
       </div>
     );
@@ -572,12 +762,12 @@
     return (
       <Section id="preseteditor" title="Preset editor window">
         <Spec title="PresetView — list → toolbar + live preview"
-          when={<>The modeless window behind <b>Tools › Presets</b>. <b>L1 tabs</b> pick the scope (Workspace / Tab / Pane); a <b>left list</b> of saved presets for that scope feeds a <b>right detail</b> = a toolbar (rename · duplicate · delete · <b>Edit</b>) over a <b>live demo-layout preview</b>. The selected row uses the surface-fill + 2px accent left-bar (the file-handler / sidebar idiom). Click a preset, switch its mini tabs, then hit <b>Edit</b> to mutate it in place.</>}>
+          when={<>The modeless window behind <b>Tools › Presets</b>. <b>L1 tabs</b> pick the scope (Workspace / Tab / Pane); a <b>left list</b> of saved presets for that scope feeds a <b>right detail</b> = a toolbar (rename · duplicate · delete · <b>Edit</b>) over a <b>live demo-layout preview</b>. The selected row uses the surface-fill + 2px accent left-bar (the file-handler / sidebar idiom). Click a preset, switch its mini tabs, then hit <b>Edit</b> — structure edits happen on the preview, a leaf's gear opens its settings screen in this same column.</>}>
           <Stage variant="solo center" style={{ padding: 20, background: "var(--tasty-bg-app)" }}><PresetWindow /></Stage>
           <Meta
             specs={[["frame", "up to 680 × 452 (adaptive)"], ["L1 tabs", "40px, accent underline"], ["list", "196px, fill + 2px bar"], ["toolbar", "44px, Edit on the right"], ["preview", "flex, on --tasty-bg-app"]]}
             tokens={[{ tok: "--tasty-bg-sidebar", use: "L1 + list", color: "var(--tasty-bg-sidebar)" }, { tok: "--tasty-bg-panel", use: "detail", color: "var(--tasty-bg-panel)" }, { tok: "--tasty-surface-active", use: "selected preset", color: "var(--tasty-surface-active)" }, { tok: "--tasty-accent-primary", use: "active tab / select bar", color: "var(--tasty-accent-primary)" }]} />
-          <Note>This is the <b>2-depth idiom</b> (L1 fixed scope tabs → growable L2 list → detail), reused from Settings — not a new shell. The only new part is what fills the detail pane: the demo-layout preview below.</Note>
+          <Note>This is the <b>2-depth idiom</b> (L1 fixed scope tabs → growable L2 list → detail), reused from Settings — not a new shell. The detail column has two fillings: the demo-layout preview (below) and, while a surface is being configured, the <b>surface settings screen</b> (last spec). Try <b>six</b> › Edit › select a small cell › gear.</Note>
         </Spec>
 
         <Spec title="Demo-layout preview — the new component"
@@ -593,11 +783,11 @@
             specs={[["pane split", "bordered cards · 5px app-bg gap"], ["tab strip", "20px mini row · accent bar"], ["surface split", "1px hairline (lower layout)"], ["leaf", "icon + kind + field summary"], ["summary", "label:value rows · mono · front-trunc paths"], ["degrade", "drop summary <96×72 · icon-only <46"]]}
             tokens={[{ tok: "--tasty-bg-app", use: "surface fill / pane gap", color: "var(--tasty-bg-app)" }, { tok: "--tasty-border-default", use: "pane card / surface hairline", color: "var(--tasty-border-default)" }, { tok: "--tasty-preset-leaf-label-fg", use: "summary label", color: "var(--tasty-text-muted)" }, { tok: "--tasty-preset-leaf-value-fg", use: "summary value", color: "var(--tasty-text-secondary)" }]} />
           <Do><b>Do</b> separate the two split levels by <b>weight</b>: a heavy gap+border for pane (upper) splits, a hairline for surface (lower) splits — so the hierarchy reads at a glance even at thumbnail scale.</Do>
-          <Dont><b>Don't</b> render surface <i>contents</i> (a program's live output). A leaf shows only its <b>kind</b> + its <b>configured fields</b> (cwd / startup / file / url) — the preview is about <i>structure &amp; config</i>, not runtime data. Empty fields hide their row; below ~96×72px the summary drops, below 46px the label drops too.</Dont>
+          <Dont><b>Don't</b> render surface <i>contents</i> (a program's live output). A leaf shows only its <b>kind</b> + its <b>configured fields</b> (cwd / startup / file / url) — the preview is about <i>structure &amp; config</i>, not runtime data. Empty fields hide their row; below ~96×72px the summary drops, below 46px the label drops too. And never draw a <b>form</b> inside a leaf — parameters are edited on the settings screen.</Dont>
         </Spec>
 
-        <Spec title="WYSIWYG edit mode — direct manipulation"
-          when={<>The <b>Edit</b> button turns the same preview editable in place — no separate form screen, and the same manipulation grammar as a real tasty pane. <b>Split by edge:</b> hover a surface's <b>~30% edge band</b> (left / right / top / bottom) to preview a split there, then click to add a new surface on that side. <b>Click the center</b> of a surface to select it — it gets a <b>2px accent outline</b>, its label becomes an <b>inline leaf form</b> (kind · <code>cwd</code> · terminal-only startup), and a single <b>remove</b> handle appears (splitting lives in the edges now, so the old split-right/split-down handles are gone). <b>Tabs:</b> the mini strip gets a trailing <code>+</code> add-tab and a hover/active <b>close ×</b> per tab (hidden on the last remaining tab). Every empty surface shows a faint 1px outline. Changes <b>save automatically</b>. Click a surface below — edge-split, tab-add/close, and delete all mutate the tree for real.</>}>
+        <Spec title="WYSIWYG edit mode — direct manipulation of STRUCTURE"
+          when={<>The <b>Edit</b> button turns the same preview editable in place with the manipulation grammar of a real tasty pane — for <b>structure</b>. <b>Split by edge:</b> hover a surface's <b>~30% edge band</b> (left / right / top / bottom) to preview a split there, then click to add a new surface on that side. <b>Click the center</b> of a surface to <b>select</b> it — a <b>2px accent outline</b> plus two handles: <b>settings</b> (gear) and <b>remove</b>. The gear, or a <b>double-click</b>, opens the <b>surface settings screen</b> (next spec) for that leaf's parameters; the selection stays the target of the structure shortcuts, which is why a single click never leaves the preview (decision A1). <b>Tabs:</b> the mini strip gets a trailing <code>+</code> add-tab and a hover/active <b>close ×</b> per tab (hidden on the last remaining tab). Structure changes <b>save automatically</b>. Try it below — edge-split, tab add/close, delete, and the gear all work.</>}>
           <Stage variant="solo" style={{ padding: 18, background: "var(--tasty-bg-app)", flexDirection: "column", gap: 14, alignItems: "stretch" }}>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
               <div>
@@ -605,15 +795,38 @@
                 <LivePreview scope="pane" build={buildEditDemo} edit={false} height={232} />
               </div>
               <div>
-                <div style={{ fontSize: 11, color: "var(--tasty-text-muted)", marginBottom: 8 }}>Edit — hover an edge to split, click center to edit</div>
+                <div style={{ fontSize: 11, color: "var(--tasty-text-muted)", marginBottom: 8 }}>Edit — hover an edge to split, click center to select, gear / double-click for settings</div>
                 <LivePreview scope="pane" build={buildEditDemo} edit={true} height={232} />
               </div>
             </div>
           </Stage>
           <Meta
-            specs={[["split", "hover 30% edge band → click"], ["selected", "2px accent inset + inline form"], ["handle", "remove only (split via edges)"], ["tabs", "trailing + add · hover/active × close"], ["last tab", "close × hidden (guard)"], ["persistence", "auto-save — no Save button"]]}
+            specs={[["split", "hover 30% edge band → click"], ["selected", "2px accent inset + gear · remove handles"], ["settings", "gear or double-click → settings screen"], ["tabs", "trailing + add · hover/active × close"], ["last tab", "close × hidden (guard)"], ["persistence", "structure auto-saves · parameters via OK"]]}
             tokens={[{ tok: "--tasty-preset-split-zone-bg", use: "edge split band", color: "var(--tasty-accent-primary)" }, { tok: "--tasty-preset-split-zone-border", use: "split line", color: "var(--tasty-accent-primary)" }, { tok: "--tasty-accent-primary", use: "selection outline", color: "var(--tasty-accent-primary)" }, { tok: "--tasty-accent-danger", use: "remove handle", color: "var(--tasty-accent-danger)" }]} />
-          <Note>Split direction follows the edge: left/top add the new surface <i>before</i> (left / above), right/bottom <i>after</i>. Below <b>~46px</b> on an axis that axis's bands drop out (degrade) so tiny leaves stay selectable. Startup-command shows <b>only when kind = terminal</b>. Every <b>unselected</b> leaf (here and in read-only) shows its kind + a <b>field-value summary</b>; selecting it swaps that summary for the inline form. Empty-list scope shows <span className="ic">"No presets saved yet."</span> in the left list.</Note>
+          <Note>Split direction follows the edge: left/top add the new surface <i>before</i> (left / above), right/bottom <i>after</i>. Below <b>~46px</b> on an axis that axis's bands drop out (degrade) so tiny leaves stay selectable. Every leaf — selected or not — keeps its kind + <b>field-value summary</b>; nothing is ever drawn <i>inside</i> a cell that could clip. Empty-list scope shows <span className="ic">"No presets saved yet."</span> in the left list.</Note>
+        </Spec>
+
+        <Spec title="Surface settings screen — parameters as a draft"
+          when={<>Editing a leaf's <b>parameters</b> (kind · <code>cwd</code> · startup · whatever the kind declares) used to open a form <i>inside</i> the leaf cell, which clipped in the six-surface workspace (the input and startup command fell outside the box). Now the settings screen <b>takes over the whole detail column</b> — toolbar and preview — as three stacked boxes: a <b>header</b> (kind icon in its accent + kind name · mono breadcrumb <code>preset › pane N › tab › surface k</code> · an <b>unsaved</b> dot once the draft differs), a <b>scrolling body</b> (one-column form, label over full-width input, capped at 460px; <b>Kind</b> first, then the kind's fields — changing Kind swaps the fields in place, keeping keys both kinds share), and a <b>fixed footer</b> (1px rule, right-aligned <b>Cancel</b> ghost · <b>OK</b> primary — the Settings-window footer grammar; product labels <span className="ic">취소 / 확인</span> via <code>button.cancel</code> / <code>button.ok</code>). The screen is a <b>draft</b>: OK applies the whole surface at once and auto-saves, Cancel discards. OK is <b>disabled until something changed</b> (decision E). While it is open the left list and L1 scope tabs <b>dim and ignore input</b> (decision C) — leaving would silently drop the draft; an outside selection change (context-menu “save as preset”, window close) drops it like Cancel, without a prompt. Save failure: the screen and draft stay put, the error goes to a toast. Try a frame: change Kind, hit Esc / Enter.</>}>
+          <Stage variant="solo" style={{ padding: 18, background: "var(--tasty-bg-app)", flexDirection: "column", gap: 16, alignItems: "stretch" }}>
+            <div style={{ display: "flex", gap: 16, flexWrap: "wrap", alignItems: "flex-start" }}>
+              <SettingsDemo label="1 · terminal — 2 fields" width={280} height={300} path={["six", "pane 1", "code", "surface 2"]}
+                surface={{ kind: "terminal", cwd: "~/tasty", startup: "cargo watch -x run" }} />
+              <SettingsDemo label="2 · markdown — 1 field + Browse" width={280} height={300} path={["six", "pane 2", "ops", "surface 3"]}
+                surface={{ kind: "markdown", file: "docs/runbook.md" }} />
+              <SettingsDemo label="3 · plugin kind — 7 fields, body scrolls (header + footer stay)" width={280} height={300} scrollTo={120} path={["six", "pane 2", "ops", "surface 2"]}
+                surface={{ kind: "plugin:portscan", host: "127.0.0.1", range: "3000-3999", protocol: "tcp", interval: "1000", timeout: "200", output: "", notify: "new port" }} />
+                          <SettingsDemo label="4 · kind changed → unsaved dot, OK enabled" width={280} height={300} path={["claude", "pane 1", "edit", "surface 1"]}
+                orig={{ kind: "editor", cwd: "~/tasty/src" }} surface={{ kind: "terminal", cwd: "~/tasty/src", startup: "" }} />
+              <SettingsDemo label="5 · narrow detail (220px) — breadcrumb ellipsizes, Browse stays" width={220} height={300} path={["claude", "pane 2", "preview", "surface 1"]}
+                surface={{ kind: "markdown", file: "docs/architecture.md" }} />
+            </div>
+          </Stage>
+          <Meta
+            specs={[["boxes", "header / scroll body / fixed footer"], ["header", "44px — same as the toolbar it replaces"], ["body", "16px padding · 12px field gap · max 460"], ["footer", "52px fixed · 0 14px · Cancel ghost + OK primary"], ["OK", "disabled until draft ≠ saved"], ["keys", "Esc = Cancel · Enter in an input = OK"], ["structure keys", "inert while open (preview hidden)"], ["after OK/Cancel", "back to preview, leaf stays selected"]]}
+            tokens={[{ tok: "--tasty-preset-cfg-header-height", use: "header (44)", color: "var(--tasty-bg-panel)" }, { tok: "--tasty-preset-cfg-footer-height", use: "footer (52)", color: "var(--tasty-bg-panel)" }, { tok: "--tasty-preset-cfg-form-max-width", use: "form column cap (460)", color: "var(--tasty-bg-panel)" }, { tok: "--tasty-preset-cfg-draft-fg", use: "unsaved dot", color: "var(--tasty-accent-warning)" }, { tok: "--tasty-preset-cfg-dim-opacity", use: "list + scope while open", color: "var(--tasty-bg-sidebar)" }]} />
+          <Do><b>Do</b> keep the three boxes independent: only the body scrolls; header and footer never move, so Cancel / OK sit in the same place for a two-field terminal and a twenty-field plugin.</Do>
+          <Dont><b>Don't</b> show “saved automatically” while the screen is open — it is not true for the draft. The toolbar is replaced wholesale (decision B) so the two save models never appear side by side; the header's <b>unsaved</b> dot is the only persistence cue on this screen.</Dont>
         </Spec>
       </Section>
     );

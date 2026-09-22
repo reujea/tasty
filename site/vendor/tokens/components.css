@@ -547,6 +547,14 @@
   --tasty-swatch-radius:            var(--tasty-radius-sm);
   /* Remote tool */
   --tasty-remote-label-col:         var(--tasty-size-112); /* form label grid column */
+  --tasty-remote-filter-menu-width: var(--tasty-size-240); /* protocol-filter menu — BORDER-BOX width (outer edge to outer edge). Content = this minus the frame the popup crate draws (14 total at scale 1 → 226). The mock's 236 was a raw literal, snapped to the existing 240 primitive (same measure as tooltip max-width). All widths in this family read as border box. */
+  /* Explorer view toggle (SegToggle — grid / list / detail). A SEGMENT: it picks a
+     value (how the same listing is drawn), it does not switch content, so it takes the
+     segment recipe from 2026-09-17 R1 — accent fill + on-accent ink. surface-active is
+     row-selection only and never a segment fill. Off = text-muted, hover = overlay-hover,
+     container = surface-raised + border-default (unchanged). */
+  --tasty-segtoggle-on-bg:          var(--tasty-accent-primary);
+  --tasty-segtoggle-on-fg:          var(--tasty-text-on-accent);
   /* Remote file transfer — progress / error popups (PopupDef, centered on the
      scrim) + the Settings › General › Remote transfer rows. The progress bar is
      the system's first determinate bar: a recessed 4px track with an accent
@@ -572,13 +580,31 @@
      < ~96px wide or < ~72px tall → drop the kind label too (icon only) when the
      short axis < 46px (the same floor as the split-zone min). Empty fields hide
      their row. Path-like fields (cwd / file) truncate at the FRONT (keep the
-     tail); commands / urls truncate at the end. Selected leaf is unchanged (it
-     shows the inline edit form, not this summary). */
+     tail); commands / urls truncate at the end. Selected leaf shows the SAME
+     summary (parameters are edited on the surface settings screen below). */
   --tasty-preset-leaf-label-fg:        var(--tasty-text-muted);        /* row label tone */
   --tasty-preset-leaf-label-font-size: var(--tasty-font-size-micro);   /* 10 */
   --tasty-preset-leaf-value-fg:        var(--tasty-text-secondary);    /* row value tone */
   --tasty-preset-leaf-value-font-size: var(--tasty-font-size-caption); /* 11 — one step over the label */
   --tasty-preset-leaf-summary-gap:     var(--tasty-space-xs);          /* 4 — between summary rows AND kind-name ↔ summary */
+  /* Preset editor — SURFACE SETTINGS SCREEN. Editing a leaf's parameters
+     (kind · cwd · startup · kind-declared fields) no longer happens inside the
+     leaf box (which clipped the form in small cells); it takes over the whole
+     right detail column — toolbar AND preview — as three stacked boxes:
+     header (what is being edited) / scrolling body (one-column form) / fixed
+     footer (Cancel · OK, right-aligned, Settings-footer grammar). Structure
+     edits stay auto-saved on the preview; the settings screen is a DRAFT that
+     lands only on OK. While it is open the left list + L1 scope tabs dim to the
+     disabled opacity and ignore input (switching away would silently drop the
+     draft). */
+  --tasty-preset-cfg-header-height:   var(--tasty-size-44);   /* = detail toolbar it replaces */
+  --tasty-preset-cfg-footer-height:   var(--tasty-size-52);   /* fixed: 28 control + 12 top/bottom */
+  --tasty-preset-cfg-footer-padding-x: var(--tasty-size-14);  /* same as Settings footer */
+  --tasty-preset-cfg-form-max-width:  var(--tasty-size-460);  /* form column cap on wide windows */
+  --tasty-preset-cfg-form-padding:    var(--tasty-space-lg);  /* 16 around the body */
+  --tasty-preset-cfg-field-gap:       var(--tasty-space-md);  /* 12 between fields */
+  --tasty-preset-cfg-draft-fg:        var(--tasty-accent-warning); /* "unsaved" dot + caption in the header */
+  --tasty-preset-cfg-dim-opacity:     var(--tasty-state-disabled-opacity); /* list + scope tabs while open */
 
   /* ─────────────────  CHROME · SWITCH-NUMBER OVERLAY  ───────────────── */
   /* Transient number keycaps painted over tabs / workspaces WHILE the
