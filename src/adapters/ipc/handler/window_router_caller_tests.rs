@@ -32,7 +32,7 @@ const WINDOW_ROUTER_CALLERS: &[(&str, WindowCallers, &str)] = &[(
     "고른 경로는 호출한 plugin 에만 push 된다 — CLI·agent 호출은 사용자 포커스만 가져간다(ADR-0498)",
 )];
 
-/// `route_window_handler` 본문에서 `"<메서드>" =>` 팔 이름을 뽑는다.
+/// `route_window_handler` 본문에서 `"<메서드>" =>` · `"<a>" | "<b>" =>` 팔 이름을 전부 뽑는다.
 fn window_router_arms() -> BTreeSet<String> {
     let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src/adapters/ipc/handler.rs");
     let src = std::fs::read_to_string(&path)
@@ -61,9 +61,18 @@ fn window_router_arms() -> BTreeSet<String> {
     let body = &src[open..end];
     let mut arms = BTreeSet::new();
     for (i, _) in body.match_indices("\" =>") {
-        let head = &body[..i];
-        let q = head.rfind('"').expect("팔 이름의 여는 따옴표");
-        arms.insert(head[q + 1..].to_string());
+        // 팔 머리는 `"a" | "b" =>` 처럼 여럿일 수 있다(줄바꿈 포함). `=>` 앞에서 거꾸로
+        // `|` 로 이어진 따옴표 이름을 전부 넣는다 — 마지막 이름만 보면 기존 팔에 `|` 로
+        // 얹은 새 이름이 명부 없이 들어온다.
+        let mut head = &body[..=i];
+        while let Some(rest) = head.strip_suffix('"') {
+            let q = rest.rfind('"').expect("팔 이름의 여는 따옴표");
+            arms.insert(rest[q + 1..].to_string());
+            match rest[..q].trim_end().strip_suffix('|') {
+                Some(before) => head = before.trim_end(),
+                None => break,
+            }
+        }
     }
     arms
 }
