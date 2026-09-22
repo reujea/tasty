@@ -32,8 +32,10 @@ pub(crate) trait IpcWindow: CascadeWindow {
     /// 이 창에서 로컬 사용자가 보고 있는 워크스페이스의 index.
     ///
     /// 대상을 생략한 요청의 기본 워크스페이스 · 응답의 "활성" 표시 · 기록의 기본 귀속이
-    /// 이 값을 읽는다. 포커스 독립성(원칙 3)과의 경계에 있는 읽기다 — 동작은 바꾸지 않았고
-    /// 그 재결정은 ADR-0471 의 재검토 조건에 적었다.
+    /// 이 값을 읽는다. 포커스 독립성(원칙 3)과의 경계에 있는 읽기다 — 호출 자리마다 이 값을
+    /// 남길지(명시 수단이 있거나 좌변이 없는 자리) 요청이 댄 대상에서 끌어낼지를
+    /// [ADR-0533](../../../docs/adr/0533-an-omitted-target-keeps-its-focus-default-only-where-nothing-names-one.md)
+    /// 이 자리별로 정했다(`approval.request` 는 `surface_id` 가 있으면 그 워크스페이스로 간다).
     fn active_workspace_index(&self) -> usize;
 
     /// 새 워크스페이스의 cwd 상속 원본 — 설정(`inherit_cwd`)과 이 창의 포커스 surface 를 본다.
