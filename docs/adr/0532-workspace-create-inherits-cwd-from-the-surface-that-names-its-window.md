@@ -47,7 +47,8 @@ terminal 워크스페이스는 `surface_id` 를 실었으면 **그 surface** 의
 - **잃은 것**: `surface_id` 를 싣던 기존 호출 중, 그 창의 포커스 surface 와 지목 surface 의 cwd 가
   달랐던 것은 결과 cwd 가 바뀐다. 원칙 3 이 호환보다 앞선다. 창만 고르고 cwd 는 다른 곳에서 가져
   오고 싶으면 `cwd` 를 명시한다.
-- **운영 비용 / 유지 부담**: 핸들러의 작은 함수 하나(`inherit_cwd_for_create`)와 시험 넷.
+- **운영 비용 / 유지 부담**: 핸들러의 작은 함수 둘(params 를 읽어 cwd 를 정하는 `resolve_create_cwd`,
+  상속 원본을 읽는 `inherit_cwd_for_create`)과 시험 여섯(`create_cwd_tests`).
 
 ## Alternatives Considered
 
@@ -78,5 +79,5 @@ terminal 워크스페이스는 `surface_id` 를 실었으면 **그 surface** 의
 - 개정 대상: [ADR-0514](0514-new-workspace-names-its-window-by-a-surface-and-keeps-no-env-default.md) (Decision 의 "호스트는 바꾸지 않는다" 조항)
 - 개정 패턴 선례: [ADR-0030](0030-image-egui-mesh-bitmap-texture.md)
 - 선행 결정: [ADR-0267](0267-mirror-surface-cwd-is-pushed-by-the-server.md) (상속은 로컬 출처만 — 그대로 따른다)
-- 코드 근거(결정이 실현된 현재 위치): `src/adapters/ipc/handler/workspace.rs` 의 `inherit_cwd_for_create` 와 그 `create_cwd_tests`
+- 코드 근거(결정이 실현된 현재 위치): `src/adapters/ipc/handler/workspace.rs` 의 `resolve_create_cwd`(params 를 읽는 자리) · `inherit_cwd_for_create`(상속 원본을 읽는 자리)와 그 `create_cwd_tests`
 - [`docs/design/policies/focus.md`](../design/policies/focus.md) "기본값 채우기" · "에이전트가 만든 창과 포커스"
