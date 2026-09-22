@@ -552,6 +552,16 @@ pub struct AppState {
     pub(crate) plugin_mesh_popup_forward:
         std::collections::HashMap<u64, crate::plugin_bridge::MeshForwardCommon>,
 
+    /// 사용자의 확정형 입력(포인터 버튼 누름 · 키 누름)을 받은 egui-mesh popup 인스턴스와 그
+    /// 소유 plugin id. `draw_plugin_popups` 가 입력을 forward 하는 자리에서 세우고, 닫힌
+    /// 인스턴스는 `plugin_mesh_popup_forward` 와 같은 자리에서 걷힌다.
+    ///
+    /// plugin 이 자기 popup 안의 사용자 조작으로 host 를 부를 때, host 가 그 호출을 **사용자
+    /// 행동**으로 칠 수 있는 유일한 근거다 — release 에는 입력 주입이 없으므로 이 칸에 오른
+    /// 인스턴스는 사람이 만졌다(ADR-0526).
+    #[cfg(feature = "gui")]
+    pub(crate) plugin_popup_user_activated: std::collections::HashMap<u64, String>,
+
     /// egui-mesh banner(A3) 합성 영역. `draw_plugin_banners` 가 매 egui frame 채우고,
     /// `gpu.render` 가 host egui pass *후* 각 (instance_id, 물리 콘텐츠 rect)에 plugin
     /// mesh 를 합성한다. 셸(컨테이너/border/close X/카운트다운)은 host egui(banner
@@ -784,6 +794,8 @@ impl AppState {
             plugin_popup_ime_cursor_area: None,
             #[cfg(feature = "gui")]
             plugin_mesh_popup_forward: std::collections::HashMap::new(),
+            #[cfg(feature = "gui")]
+            plugin_popup_user_activated: std::collections::HashMap::new(),
             #[cfg(feature = "gui")]
             plugin_mesh_banner_regions: Vec::new(),
             #[cfg(feature = "gui")]

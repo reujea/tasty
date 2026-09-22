@@ -131,7 +131,9 @@ NewTab으로 폴백하지 않는다. origin 생략의 기존 사용자 경로는
 더블클릭 · 터미널 링크 클릭 · 드롭 · 파일 피커 확정 · 링크 우클릭 메뉴)은 그 결과 탭이
 **선택된다.** 라우팅은 양쪽이 같다(origin 의 pane 에 붙고, 다른 pane 이 포커스를 쥐고
 있어도 그리로 새지 않는다) — 갈리는 것은 선택뿐이다
-([ADR-0302](../../adr/0302-a-user-file-open-selects-its-result-tab.md)). `recent.query`는 state.db에 귀속된 공유 캐시를 조회하므로 어느 창에서 호출해도
+([ADR-0302](../../adr/0302-a-user-file-open-selects-its-result-tab.md)). origin 을 생략한
+에이전트 요청도 새 탭을 뒤에 붙이기만 하고, 사용자가 plugin popup 에서 연 파일(markdown 파일열기
+팝업)은 선택된다([ADR-0526](../../adr/0526-a-plugin-popup-the-user-touched-makes-its-file-dispatch-a-user-action.md)). `recent.query`는 state.db에 귀속된 공유 캐시를 조회하므로 어느 창에서 호출해도
 같은 종류의 최근 목록을 최신순 최대 10개 반환한다. 창이 열린 뒤 다른 창에서 기록한
 파일도 반영되며, 조회는 목록 순서나 사용자 포커스를 바꾸지 않는다.
 
@@ -212,7 +214,7 @@ IPC 핸들러(`src/adapters/ipc/`)가 활성 포인터를 읽는 자리를 전�
 - `active_workspace` 는 인덱스라 앞쪽 워크스페이스가 빠지면 통째로 밀린다. `workspace.close` 도 위 "삭제로 인한 인덱스 이동" 과 **같은 헬퍼**를 지난다 — 제거 직후 `AppState::fix_workspace_pointers_after_removal` 이 제거 위치를 기준으로 인덱스를 보정하므로, 손대지 않은 포인터가 계속 같은 워크스페이스를 가리킨다. 워크스페이스를 제거하는 새 경로를 추가하면 그 헬퍼를 반드시 함께 태운다.
 - **활성 워크스페이스 자신을 닫을 때만** 이웃으로 이동한다.
 - 에이전트가 닫은 것은 사용자의 "닫은 항목" 되돌리기 스택에 쌓이지 않는다. 사용자 경로와 에이전트 경로의 차이는 `close_workspace_at` 의 `WorkspaceCloseOrigin` **하나**로 표현하고, 갈리는 부수효과(되돌리기 스택 · plugin `surface.closed` 의 reason · close 계측 경로값)를 전부 거기서 파생시킨다 — 같은 축을 나타내는 값을 여럿 두면 그중 하나만 갈리는 사고가 난다.
-- 파일 열기도 같은 형태다 — `FileDispatchOrigin` **하나**가 사용자/에이전트를 가르고, 결과 탭을 선택하는지와 `None` 분기가 발화하는 intent 의 출처가 거기서 파생된다. **전송 채널이 아니라 행위의 성질로 정한다**: plugin 이 사용자의 클릭을 `file_handler.dispatch` 로 중계하는 경로가 있어(markdown 문서 안의 링크) "IPC 로 들어왔는가" 는 좌변이 아니다. 그 값이 `IntentOrigin` 과 별개인 이유는 파일 식별이 워커 스레드를 왕복하면서 발화 당시 intent 를 잃기 때문이다 ([ADR-0302](../../adr/0302-a-user-file-open-selects-its-result-tab.md)).
+- 파일 열기도 같은 형태다 — `FileDispatchOrigin` **하나**가 사용자/에이전트를 가르고, 결과 탭을 선택하는지와 `None` 분기가 발화하는 intent 의 출처가 거기서 파생된다. **전송 채널이 아니라 행위의 성질로 정한다**: plugin 이 사용자의 클릭을 `file_handler.dispatch` 로 중계하는 경로가 있어(markdown 문서 안의 링크 · 파일열기 팝업) "IPC 로 들어왔는가" 는 좌변이 아니다. plugin 이 그 호출에 **자기 popup** 을 `owner_popup_instance` 로 실으면, host 는 호출자가 그 popup 의 소유 plugin 이고 그 popup 이 사용자의 확정형 입력(포인터 버튼 · 키 누름)을 받았을 때만 사용자로 친다 — 외부 IPC 호출자는 같은 키를 실어도 에이전트다. popup 밖에서 오는 중계(markdown 문서 안의 링크)는 아직 이 채널이 안 덮어 에이전트로 도착한다 ([ADR-0526](../../adr/0526-a-plugin-popup-the-user-touched-makes-its-file-dispatch-a-user-action.md)). 그 값이 `IntentOrigin` 과 별개인 이유는 파일 식별이 워커 스레드를 왕복하면서 발화 당시 intent 를 잃기 때문이다 ([ADR-0302](../../adr/0302-a-user-file-open-selects-its-result-tab.md)).
 - `workspace.closed` host event 는 origin 과 무관하게 발화한다. 워크스페이스가 사라졌다는 사실 자체는 누가 닫았든 같기 때문이다. 워크스페이스를 제거하는 경로는 셋(GUI·IPC 닫기 · Core cascade · 인라인 cascade)이고, 발화는 각 경로가 아니라 그 셋이 공유하는 초크포인트 `AppState::after_workspace_removed`(`src/state.rs`)가 한다 — 경로마다 각자 쏘던 때 인라인 cascade 하나가 실제로 빠져 있었다. 워크스페이스를 제거하는 새 경로를 추가하면 그 초크포인트를 반드시 지나게 한다.
 
 ## 에이전트가 만든 창과 포커스
@@ -257,10 +259,11 @@ IPC 핸들러(`src/adapters/ipc/`)가 활성 포인터를 읽는 자리를 전�
     (복원 스택을 가르는 `ForwardOrigin` 과 같은 축).
   - 파일 열기의 origin 갈래: `FileDispatchOrigin` 에서 파생(위 "에이전트 닫기와 포커스" 의 파일
     열기 항목).
-  - `Intent::NewTab`: `true`. focused pane 에 붙는 사용자 동작의 인텐트다. **에이전트 라벨로 오는
-    발화점이 하나 있다** — origin 없는 `file_handler.dispatch`. markdown plugin 의 파일열기
-    팝업(사용자의 `open_markdown`)이 그 호출로 새 탭을 열고 host 는 둘을 가를 값이 없어, 그
-    갈래는 에이전트가 불러도 선택한다.
+  - `Intent::NewTab`: 발화 origin 이 사용자면 `true`, 아니면 `false`. 에이전트 라벨로 오는
+    발화점은 origin 없는 `file_handler.dispatch` 하나이고, 그 갈래는 이제 사용자가 보던 탭을
+    바꾸지 않는다. markdown plugin 의 파일열기 팝업(사용자의 `open_markdown`)은 같은 호출에 자기
+    popup 을 실어 사용자로 도착하므로 종전대로 새 탭을 선택한다(아래 "에이전트 닫기와 포커스" 의
+    파일 열기 항목 · [ADR-0526](../../adr/0526-a-plugin-popup-the-user-touched-makes-its-file-dispatch-a-user-action.md)).
 - terminal kind 는 `activate` 와 무관하게 background 다. 사용자의 새 터미널 탭은 이 인텐트가
   아니라 `AppState::add_tab` 이 연다.
 - 응답의 `active_tab` 은 "생성 뒤 그 pane 의 활성 탭" 이다 — 에이전트가 만든 탭이면 사용자가

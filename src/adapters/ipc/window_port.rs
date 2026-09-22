@@ -93,6 +93,12 @@ pub(crate) trait IpcWindow: CascadeWindow {
         record: &tasty_approval::ApprovalRecord,
     );
 
+    /// `plugin_id` 가 소유한 popup 인스턴스 `instance_id` 가 이 창에 열려 있고 사용자의
+    /// 확정형 입력을 받았는가. plugin 이 자기 popup 안의 사용자 조작으로 host 를 부를 때
+    /// 그 호출을 사용자 행동으로 칠지 정한다(ADR-0526).
+    #[cfg(feature = "gui")]
+    fn plugin_popup_user_activated(&self, plugin_id: &str, instance_id: u64) -> bool;
+
     /// 요청 하나가 모은 intent 를 이 창의 큐 끝에 순서대로 옮긴다. 진입점만 부른다.
     fn enqueue_intents(&mut self, intents: IntentOutbox);
 }

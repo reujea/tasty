@@ -318,7 +318,7 @@ tasty file-handler detectors           # see how the file format detectors are m
 
 `set cwd` and `set url` only apply to a remote surface and a webview surface respectively. Using them on a regular terminal surface returns an unsupported-target error.
 
-`file-handler dispatch` accepts file paths only. Passing a web address such as `https://…` returns an error. A headless build, which runs Tasty on a server without a GUI, cannot open files, so instead of reporting the request as accepted it returns an error saying this build does not support it.
+`file-handler dispatch` accepts file paths only. Passing a web address such as `https://…` returns an error. A file opened with this command is added as a new tab in the background; the tab the user was looking at stays selected. A headless build, which runs Tasty on a server without a GUI, cannot open files, so instead of reporting the request as accepted it returns an error saying this build does not support it.
 
 The `file-handler reload` response has a `rejected` list. It holds the `id` and the reason (`reason`) of each entry from the settings file that is not applied right now, and it is empty when everything applied. There are three reasons.
 

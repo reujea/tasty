@@ -475,6 +475,18 @@ fn trigger_params_carry_start_dir_and_origin() {
     assert_eq!(params["filters"], json!(["md", "markdown"]));
 }
 
+/// 파일열기 팝업 [열기] 는 자기 팝업을 실어 보낸다 — host 가 이것으로 사용자 조작을 알아본다.
+/// 빠지면 사용자가 연 탭이 에이전트 요청으로 분류된다(ADR-0526).
+#[cfg(any(unix, windows))]
+#[test]
+fn file_open_dispatch_params_carry_the_owner_popup() {
+    let params = popup::file_open_dispatch_params(42, "/work/a.md");
+    assert_eq!(params["owner_popup_instance"], json!(42));
+    assert_eq!(params["path"], json!("/work/a.md"));
+    assert_eq!(params["depth"], json!("deep"));
+    assert!(params.get("origin_surface_id").is_none());
+}
+
 /// 원격 원문 요청은 에이전트가 건 것에만 `agent_origin` 을 싣는다 — host 는 그 회신의 잘림
 /// toast 를 사용자에게 띄우지 않는다(ADR-0503). plugin 이 건 요청은 종전 모양 그대로다.
 #[test]

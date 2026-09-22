@@ -833,7 +833,7 @@ fn route_engine_handler(
         // `git_viewer.query` 와 같은 모양이고, 빼면 라우터 끝이 `-32017` 로 답한다.
         #[cfg(feature = "gui")]
         "file_handler.dispatch" => {
-            file_handler::handle_dispatch(out, engine, id, request.params.clone())
+            file_handler::handle_dispatch(out, &*window, engine, caller, id, request.params.clone())
         }
         // hook handler: 공유 훅 핸들러 레지스트리 조회/재로드/수동 발화. 상태는
         // 전역 싱글턴이라 list/reload 는 core/state/engine 미사용. dispatch 만

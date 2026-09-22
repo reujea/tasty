@@ -86,6 +86,13 @@ impl IpcWindow for AppState {
         crate::adapters::ui::popup::approval::enqueue_approval(self, engine, record);
     }
 
+    #[cfg(feature = "gui")]
+    fn plugin_popup_user_activated(&self, plugin_id: &str, instance_id: u64) -> bool {
+        self.plugin_popup_user_activated
+            .get(&instance_id)
+            .is_some_and(|owner| owner == plugin_id)
+    }
+
     fn enqueue_intents(&mut self, intents: IntentOutbox) {
         for intent in intents.into_vec() {
             self.dispatch_intent(intent);

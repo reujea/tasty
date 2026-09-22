@@ -177,7 +177,7 @@ impl MarkdownPlugin {
                         // convert 대상 surface → 제자리 markdown 변환.
                         Some(sid) => navigate(&ctx.host, sid, &path),
                         // 대상 없음 → 새 탭으로 연다.
-                        None => open_markdown_file(&ctx.host, &path),
+                        None => open_markdown_file(&ctx.host, iid, &path),
                     }
                     close_popup(&ctx.host, iid);
                 }
@@ -382,13 +382,28 @@ pub(crate) fn file_picker_trigger_params(owner_popup_instance: u64, start: &Pick
 /// 입력/선택한 markdown 파일을 host `file_handler.dispatch` 로 연다(origin 없이 → focused
 /// pane 의 새 탭). markdown 감지·surface 생성은 host detector 가 담당한다.
 #[cfg(any(unix, windows))]
-fn open_markdown_file(host: &HostHandle, path: &str) {
+fn open_markdown_file(host: &HostHandle, owner_popup_instance: u64, path: &str) {
     if let Err(e) = host.call(
         "file_handler.dispatch",
-        json!({ "path": path, "depth": "deep" }),
+        file_open_dispatch_params(owner_popup_instance, path),
     ) {
         tracing::warn!("markdown file-open dispatch failed: {e}");
     }
+}
+
+/// 파일열기 팝업 [열기] 의 `file_handler.dispatch` 파라미터. 호출(`HostHandle`)과 떼어 두어
+/// 단위 테스트가 wire 모양을 본다.
+///
+/// `owner_popup_instance` 는 이 호출이 사용자가 만진 이 팝업에서 왔다는 표지다 — host 는 그
+/// 팝업이 이 plugin 소유이고 사용자의 입력을 받았을 때만 사용자 행동으로 친다. 빠지면 에이전트
+/// 요청이 되어, 사용자가 연 새 탭이 선택되지 않고 적용 실패도 사용자에게 안 보인다(ADR-0526).
+#[cfg(any(unix, windows))]
+pub(crate) fn file_open_dispatch_params(owner_popup_instance: u64, path: &str) -> Value {
+    json!({
+        "path": path,
+        "depth": "deep",
+        "owner_popup_instance": owner_popup_instance,
+    })
 }
 
 /// 파일열기 팝업 콘텐츠. 경로 입력 필드 + [browse] + [취소]/[열기]. 색·폰트·간격은 host 가

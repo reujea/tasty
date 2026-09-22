@@ -80,16 +80,23 @@ URL 대상의 picker 헤더에는 **URL 전용 형태가 따로 없다** — det
 터미널·비터미널 kind에 같은 규칙을 적용하며 origin 자체가 비활성 탭에 있어도 현재 선택을
 origin으로 옮기지 않는다. 사용자가 GUI에서 직접 연 파일은 반대로 그 결과 탭이 **선택된다**
 (explorer 더블클릭 · 터미널 링크 클릭 · 드롭 · 파일 피커 확정 · 링크 우클릭 메뉴).
-라우팅은 양쪽이 같다. 이 값은 `origin_surface_id` 와 나란히 식별 왕복과 picker를 통과하며,
-요청 payload에는 없다 — host는 IPC 호출자가 에이전트인지 사용자의 클릭을 중계하는 plugin인지
-구분할 수단이 없어 IPC 경로를 에이전트로 고정한다.
-근거: [ADR-0302](../../adr/0302-a-user-file-open-selects-its-result-tab.md).
+라우팅은 양쪽이 같다. 이 값은 `origin_surface_id` 와 나란히 식별 왕복과 picker를 통과한다.
+IPC 경로는 기본이 에이전트다. 예외는 plugin 이 자기 popup 안의 사용자 조작으로 부르며
+`owner_popup_instance` 에 그 popup 을 실은 경우 하나다 — host 는 호출자가 그 popup 의 소유
+plugin 이고, 그 popup 이 이 창에 열려 있으며, 사용자의 확정형 입력(포인터 버튼 · 키 누름)을
+받았을 때만 사용자로 친다. 외부 IPC 호출자가 같은 키를 실어도, 남의 popup · 닫힌 popup · 입력을
+안 받은 popup 을 대도 에이전트로 떨어진다(거절하지 않는다). markdown 파일열기 팝업의 [열기] 가
+이 경로다.
+origin 을 생략한 요청도 같은 축으로 갈린다 — 에이전트면 focused pane 에 새 탭을 뒤에 붙이기만
+하고, 사용자면 선택한다.
+근거: [ADR-0302](../../adr/0302-a-user-file-open-selects-its-result-tab.md) ·
+[ADR-0526](../../adr/0526-a-plugin-popup-the-user-touched-makes-its-file-dispatch-a-user-action.md).
 
 처음부터 없는 origin은 기존 `-32602`와 unowned-target 문구로 거절한다. 접수 후
 origin이 사라지면 경고 로그를 남기고 실행하지 않는다. 다른 창의 새 탭으로 폴백하지
 않는다. `accepted: true`는 큐 접수만 뜻하며 완료 응답을 추가로 보내지 않는다.
-picker 취소는 실행·recent 기록 모두 없다. origin 생략은 기존 focused-window /
-사용자 NewTab 동작을 유지한다. Ipc handler의 path-only payload는 그대로다.
+picker 취소는 실행·recent 기록 모두 없다. origin 생략은 focused-window 의 focused
+pane 에 `NewTab` 으로 붙는다(선택 여부는 위의 출처 축). Ipc handler의 path-only payload는 그대로다.
 근거: [ADR-0279](../../adr/0279-file-dispatch-retains-origin-through-completion.md).
 
 ## 인터페이스

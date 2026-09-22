@@ -590,12 +590,12 @@ mod tests {
         );
     }
 
-    /// 에이전트 라벨의 `NewTab` 도 선택한다 — 그 라벨로 오는 유일한 발화점(origin 없는
-    /// `file_handler.dispatch`)이 사용자의 markdown 파일열기 팝업을 싣고 있어서다
-    /// (ADR-0502). 이 값을 바꾸려면 그 팝업이 사용자임을 실어 보내는 채널이 먼저다.
+    /// 에이전트 라벨의 `NewTab` 은 탭을 붙이기만 하고 사용자가 보던 탭을 바꾸지 않는다
+    /// (ADR-0502 · ADR-0526). 사용자의 markdown 파일열기 팝업은 자기 popup 을 실어 보내
+    /// 사용자 라벨로 도착하므로 이 갈래에 오지 않는다.
     #[test]
-    fn an_agent_labelled_new_tab_still_selects_it() {
-        assert_eq!(new_empty_tab_then_selection(Intent::from_agent_ipc), (2, 1));
+    fn an_agent_labelled_new_tab_keeps_the_users_tab() {
+        assert_eq!(new_empty_tab_then_selection(Intent::from_agent_ipc), (2, 0));
     }
 
     /// 배선 가드 — headless 진입점이 drain 을 실제로 부르는지 소스에서 확인한다.

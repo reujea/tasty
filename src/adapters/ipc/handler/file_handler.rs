@@ -130,6 +130,13 @@ struct DispatchReq {
     /// 기본 false — 1MB 초과 markdown 은 확인 팝업이 뜬다.
     #[serde(default)]
     ignore_size_limit: bool,
+    /// 이 호출을 낸 plugin 의 **자기 popup instance_id**. plugin 이 자기 popup 안의 사용자
+    /// 조작(예: markdown 파일열기 팝업의 [열기])으로 부를 때 싣는다. host 는 호출자가 그
+    /// popup 의 소유 plugin 이고 그 popup 이 사용자의 확정형 입력을 받았을 때만 이 호출을
+    /// 사용자 행동으로 친다 — 그 밖에는(외부 IPC 호출자 · 남의 popup · 닫힌 popup · 입력을
+    /// 안 받은 popup) 값이 없는 것과 같다(ADR-0526).
+    #[serde(default)]
+    owner_popup_instance: Option<u64>,
 }
 
 #[cfg(feature = "gui")]
@@ -144,10 +151,15 @@ fn default_depth() -> String {
 /// - `params.depth`: `"cheap"` (확장자/glob 만) 또는 `"deep"` (magic/MIME 포함).
 ///   기본 `"deep"`. 두 경우 모두 worker thread 경유 (통일된 경로) — 응답은
 ///   즉시 돌아오고 handler 실행은 `AppEvent::IdentifyDone` 경로로 진행.
+///
+/// 발화 주체는 [`dispatch_origin_of`] 가 정한다 — 기본은 에이전트고, plugin 이 사용자가 만진
+/// 자기 popup 을 `owner_popup_instance` 로 대면 사용자다.
 #[cfg(feature = "gui")]
 pub fn handle_dispatch(
     out: &mut crate::ipc::window_port::IntentOutbox,
+    window: &dyn crate::ipc::window_port::IpcWindow,
     engine: &crate::core::CoreState,
+    caller: &tasty_ipc::caller::CallerContext,
     id: serde_json::Value,
     params: serde_json::Value,
 ) -> JsonRpcResponse {
@@ -186,19 +198,20 @@ pub fn handle_dispatch(
         );
     }
     let target = FileTarget::new(PathBuf::from(&req.path));
-    out.push(
-        crate::core::intent::DomainIntent::DispatchFile {
-            target,
-            depth,
-            origin_surface_id: req.origin_surface_id,
-            // 채널이 아니라 행위의 성질로 정한다 — 그런데 host 는 이 메서드의 호출자가
-            // 에이전트인지 plugin 을 거친 사용자 클릭인지 **구분할 수단이 없다**(요청에
-            // 그 값이 없다). 그래서 보수적인 쪽으로 고정한다: 포커스를 안 옮기는 쪽이다.
-            dispatch_origin: crate::file::dispatch::FileDispatchOrigin::Agent,
-            ignore_size_limit: req.ignore_size_limit,
-        }
-        .from_agent_ipc(),
-    );
+    let dispatch_origin = dispatch_origin_of(window, caller, req.owner_popup_instance);
+    let intent = crate::core::intent::DomainIntent::DispatchFile {
+        target,
+        depth,
+        origin_surface_id: req.origin_surface_id,
+        dispatch_origin,
+        ignore_size_limit: req.ignore_size_limit,
+    };
+    // 발화 intent 의 origin 도 같은 값에서 나온다 — identify 뒤의 `Intent::NewTab` 과 적용
+    // 실패 보고가 이 축으로 갈린다.
+    out.push(match dispatch_origin {
+        crate::file::dispatch::FileDispatchOrigin::User => intent.from_user_menu("plugin_popup"),
+        crate::file::dispatch::FileDispatchOrigin::Agent => intent.from_agent_ipc(),
+    });
     JsonRpcResponse::success(
         id,
         json!({
@@ -207,6 +220,38 @@ pub fn handle_dispatch(
             "ignore_size_limit": req.ignore_size_limit,
         }),
     )
+}
+
+/// 이 호출을 누가 냈는가. 채널이 아니라 행위의 성질로 정한다 — plugin 이 사용자의 popup
+/// 조작을 받아 이 메서드를 부르는 경우가 있다(markdown 파일열기 팝업).
+///
+/// 사용자로 치는 것은 **셋이 모두 맞을 때뿐이다**: 호출자가 plugin 이고, 그 plugin 이 댄
+/// `owner_popup_instance` 가 그 plugin 소유로 이 창에 열려 있으며, 그 popup 이 사용자의
+/// 확정형 입력을 받았다. 요청 값만으로는 사용자가 될 수 없다 — 외부 IPC 호출자가 같은 키를
+/// 실어도 에이전트다. 어느 하나라도 어긋나면 포커스를 안 옮기는 쪽(에이전트)으로 떨어진다
+/// (ADR-0526).
+#[cfg(feature = "gui")]
+fn dispatch_origin_of(
+    window: &dyn crate::ipc::window_port::IpcWindow,
+    caller: &tasty_ipc::caller::CallerContext,
+    owner_popup_instance: Option<u64>,
+) -> crate::file::dispatch::FileDispatchOrigin {
+    use crate::file::dispatch::FileDispatchOrigin;
+    let (tasty_ipc::caller::CallerContext::Plugin { plugin_id, .. }, Some(instance_id)) =
+        (caller, owner_popup_instance)
+    else {
+        return FileDispatchOrigin::Agent;
+    };
+    if window.plugin_popup_user_activated(plugin_id, instance_id) {
+        FileDispatchOrigin::User
+    } else {
+        tracing::debug!(
+            plugin_id = %plugin_id,
+            instance_id,
+            "file_handler.dispatch: owner_popup_instance is not a user-activated popup of the caller; treated as an agent request",
+        );
+        FileDispatchOrigin::Agent
+    }
 }
 
 #[cfg(all(test, feature = "gui"))]
@@ -233,11 +278,13 @@ mod tests {
     /// `https://example.com/a.md` 가 확장자로 markdown 핸들러에 걸린다.
     #[test]
     fn dispatch_rejects_a_url_in_the_path_param() {
-        let (_state, engine) = crate::state::tests::test_state();
+        let (state, engine) = crate::state::tests::test_state();
         let mut out = crate::ipc::window_port::IntentOutbox::default();
         let resp = handle_dispatch(
             &mut out,
+            &state,
             &engine,
+            &tasty_ipc::caller::CallerContext::Local,
             serde_json::json!(1),
             serde_json::json!({ "path": "https://example.com/a.md" }),
         );
@@ -247,7 +294,9 @@ mod tests {
 
         let resp = handle_dispatch(
             &mut out,
+            &state,
             &engine,
+            &tasty_ipc::caller::CallerContext::Local,
             serde_json::json!(2),
             serde_json::json!({ "path": "/tmp/a.md" }),
         );
@@ -256,11 +305,13 @@ mod tests {
     }
     #[test]
     fn dispatch_rejects_missing_origin_before_enqueueing() {
-        let (_state, engine) = crate::state::tests::test_state();
+        let (state, engine) = crate::state::tests::test_state();
         let mut out = crate::ipc::window_port::IntentOutbox::default();
         let response = handle_dispatch(
             &mut out,
+            &state,
             &engine,
+            &tasty_ipc::caller::CallerContext::Local,
             serde_json::json!(42),
             serde_json::json!({"path":"/a", "origin_surface_id":u32::MAX}),
         );
@@ -268,3 +319,8 @@ mod tests {
         assert!(out.is_empty());
     }
 }
+
+// 입구 → identify 적용 → 새 탭 선택까지. arm 이 gui 에만 있으므로 gui 조합에서만 잰다.
+#[cfg(all(test, feature = "gui"))]
+#[path = "file_handler_origin_tests.rs"]
+mod origin_tests;

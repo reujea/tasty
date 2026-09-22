@@ -83,6 +83,7 @@ pub fn draw_plugin_popups(
 
     let Some(mgr) = plugin_manager else {
         state.plugin_mesh_popup_forward.clear();
+        state.plugin_popup_user_activated.clear();
         return;
     };
 
@@ -94,6 +95,9 @@ pub fn draw_plugin_popups(
     let live_mesh: HashSet<u64> = mesh_snaps.iter().map(|s| s.instance_id).collect();
     state
         .plugin_mesh_popup_forward
+        .retain(|k, _| live_mesh.contains(k));
+    state
+        .plugin_popup_user_activated
         .retain(|k, _| live_mesh.contains(k));
 
     let screen_rect = ctx.screen_rect();
@@ -255,6 +259,11 @@ pub fn draw_plugin_popups(
         let h_px = physical.height.value().round().max(1.0) as u32;
         let geom = (w_px, h_px, ppp.to_bits());
         let has_input = !raw_input.events.is_empty();
+        if is_user_activation(&raw_input) {
+            state
+                .plugin_popup_user_activated
+                .insert(snap.instance_id, snap.plugin_id.clone());
+        }
         let has_frame = mgr.popup_mesh_frame(snap.instance_id).is_some();
         let fwd = state
             .plugin_mesh_popup_forward
@@ -438,6 +447,21 @@ fn place_visible(
             Some((snap, rect))
         })
         .collect()
+}
+
+/// forward 할 입력에 사용자의 **확정형** 조작(포인터 버튼 누름 · 키 누름)이 들었는가.
+///
+/// 포인터 이동·휠·`PointerGone` 은 세지 않는다 — 창 위를 지나가기만 해도 생기고, 무엇을
+/// 고른 것이 아니다. 이 판정이 참인 인스턴스만 plugin 이 그 popup 을 근거로 사용자 행동을
+/// 주장할 수 있다([`crate::state::AppState::plugin_popup_user_activated`], ADR-0526).
+fn is_user_activation(raw: &RawInputWire) -> bool {
+    raw.events.iter().any(|ev| {
+        matches!(
+            ev,
+            RawInputEventWire::PointerButton { pressed: true, .. }
+                | RawInputEventWire::Key { pressed: true, .. }
+        )
+    })
 }
 
 /// popup 콘텐츠 영역 위 egui 입력을 surface-local 논리 포인트(좌상단 0,0) 와이어로 변환.
@@ -703,6 +727,41 @@ fn anchor_pos(anchor: PopupAnchor, size: Vec2, bounds: Rect, pointer_pos: Option
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn wire(events: Vec<RawInputEventWire>) -> RawInputWire {
+        RawInputWire {
+            events,
+            ..RawInputWire::default()
+        }
+    }
+
+    /// 누름만 사용자 활성화다 — 지나가는 포인터 · 휠 · 떼기는 무엇을 고른 것이 아니다(ADR-0526).
+    #[test]
+    fn only_a_press_is_a_user_activation() {
+        use tasty_plugin_protocol::PointerButtonWire;
+        let press = |pressed| RawInputEventWire::PointerButton {
+            x: 1.0,
+            y: 1.0,
+            button: PointerButtonWire::Primary,
+            pressed,
+            modifiers: Default::default(),
+        };
+        let key = |pressed| RawInputEventWire::Key {
+            key: "Enter".into(),
+            pressed,
+            repeat: false,
+            modifiers: Default::default(),
+        };
+        assert!(is_user_activation(&wire(vec![press(true)])));
+        assert!(is_user_activation(&wire(vec![key(true)])));
+        assert!(!is_user_activation(&wire(vec![press(false), key(false)])));
+        assert!(!is_user_activation(&wire(vec![
+            RawInputEventWire::PointerMoved { x: 1.0, y: 1.0 },
+            RawInputEventWire::Scroll { x: 0.0, y: 3.0 },
+            RawInputEventWire::PointerGone,
+        ])));
+        assert!(!is_user_activation(&wire(Vec::new())));
+    }
 
     const SCREEN: Rect = Rect {
         min: Pos2::new(0.0, 0.0),
