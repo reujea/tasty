@@ -1035,12 +1035,15 @@ pre-push `B.4` 는 `--locked` 없이 `-D clippy::correctness` 만 건다 — 셋
 
 채널이 하나뿐인 축은 그 하나가 빨간 순간부터 커버리지가 0 이고, **0 인 채로 흐른 시간은
 초록이 돌아와도 소급되지 않는다** — 초록은 그 51 커밋의 **끝점 하나**를 판정할 뿐, 사이의
-50 개를 각각 판정한 것이 아니다.
+50 개를 각각 판정한 것이 아니다. 50 은 "초록이 판정하지 않은" 수다 — 그 중 push tip 셋은 위 표의
+빨간 시도가 판정했으니, **어떤 판정도 받지 않은** 수는 아래의 47 이다.
 
 ### push 범위 안쪽의 커밋 — 어느 채널도 안 보고, **안 보기로 했다**
 
 위 51 커밋은 push 4 번에 걸쳐 들어왔고, 그 중 push tip 이 아닌 47 개가 그 예다(모수는 이 클론의
-origin/main reflog 다 — `git rev-list c3e78aaa8..dd5ef243a | grep -cvxFf <(git reflog show --format=%H origin/main)`).
+origin/main reflog 다 — `git rev-list c3e78aaa8..dd5ef243a | grep -cvxFf <(git reflog show --format=%H origin/main)`.
+reflog 는 만료되고(`gc.reflogExpire` 기본 90 일) 새 클론에는 아예 없어서, 시간이 지나면 같은 명령이 47 보다
+큰 값을 낸다 — 최대 51).
 채널마다 모수가 다르고, 그 어느 것도 범위 안쪽이 아니다:
 
 | 채널 | 보는 것 |
