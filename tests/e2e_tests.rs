@@ -1772,8 +1772,12 @@ fn a_headless_daemon_answers_that_it_holds_no_layout_slot() {
 fn a_headless_daemon_warns_at_boot_that_restore_layout_is_ignored() {
     let _lane = lane();
     let tasty = common::TastyInstance::spawn_with_restore_layout();
-    // 고지는 포트 파일보다 먼저 나가지만, 배출 스레드가 링에 넣는 시점은 따로다 — IPC 한 번을
-    // 왕복시켜 부팅이 끝났음을 확인한 뒤 짧게 기다린다.
+    // 고지는 포트 파일 **뒤**에 나간다 — `run_headless` 가 IPC 를 먼저 열어 포트 파일을 쓰고
+    // (`start_ipc_and_seed`), 그 다음 `bootstrap_engine` 이 고지를 warn 한다. 하네스는 포트 파일을
+    // 보고 돌아오므로 이 시점에는 아직일 수 있다. `system.info` 는 `bootstrap_engine` 뒤에 도는
+    // 메인 루프가 처리하므로, 응답이 왔으면 고지는 이미 stderr 로 나갔다. 이 호출을 빼면 아래
+    // 5 초 폴링 창이 배출 스레드 지연에 더해 `bootstrap_engine` 소요까지 떠안는다(부하 머신에서
+    // 가짜 빨강). 폴링은 배출 스레드가 링에 넣는 지연만 흡수한다.
     tasty.call("system.info", json!({}));
     let deadline = std::time::Instant::now() + Duration::from_secs(5);
     let line = loop {
