@@ -323,11 +323,11 @@ SDK가 자기 CWD에서 절대화하여 이 경계를 대신하지 않는다.
   `-32004` 는 "실행되지 않았다" 가 아니라 "결과를 모른다" 다 — 늦은 응답이 왔다는 것은
   plugin 이 실제로 실행했다는 뜻이고 호스트는 그 효과를 되돌리지 못한다. 근거는 ADR-0311
   의 2026-09-21 보강.
-- **재시작·disable·swap 의 정리는 한 함수다**: 세 경로가 프로세스를 치운 뒤 모두
+- **재시작·disable·swap·연결 실패의 정리는 한 함수다**: 네 경로가 프로세스를 치운 뒤 모두
   `forget_plugin_runtime` 을 거친다 — event bus 권한·구독 해제, pending 회수, shared
   buffer 해제, 설정 sub-page 해제, 등록 게이트(`registered_plugins`) 해제. 등록 게이트가
   풀려야 새 프로세스의 hello 가 권한·event bus·설정 sub-page 를 **다시** 받는다.
-  그 결과로 세 경로 모두 새 hello 마다 `plugin.surface_kind_registered` · `plugin.loaded` 를
+  그 결과로 다시 띄우는 세 경로(재시작·disable 뒤 enable·swap) 모두 새 hello 마다 `plugin.surface_kind_registered` · `plugin.loaded` 를
   다시 발화하고(구독자는 같은 plugin 의 `plugin.loaded` 를 여러 번 받는다), surface kind 를
   가진 plugin 이면 호스트 로그에 `SurfaceKindRegistry: kind '<kind>' overwritten` 경고가
   한 줄 남는다 — kind 등록이 해제 없이 덮어쓰이기 때문이다.

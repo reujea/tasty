@@ -757,7 +757,8 @@ impl PluginManager {
     }
 
     /// plugin 프로세스를 치운 **뒤** 호스트가 그 plugin 에 대해 들고 있던 실행 상태를
-    /// 잊는다. disable · graceful swap · 무응답 재시작 셋이 **이 한 함수**를 거친다.
+    /// 잊는다. disable · graceful swap · 무응답 재시작 · 연결 실패(`connect::on_connect_failure`)
+    /// 넷이 **이 한 함수**를 거친다.
     ///
     /// 셋이 각자 줄을 들고 있던 때에는 재시작 경로만 마지막 줄을 빠뜨렸다. 그러면
     /// `event_bus.clear_plugin` 이 지운 이벤트 권한과 `settings_pages` 가 지운 sub-page 가
