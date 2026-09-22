@@ -258,7 +258,7 @@ Local 호출자는 이 게이트에서 돌려보내지지 않으므로 없는 �
 부류다 — ⒜ **봉투 토큰 거절**: `session_token` 의 형식 오류 · unknown/expired/revoked 는
 `resolve_caller_from_envelope`(`crates/tasty-ipc/src/caller.rs`)가 게이트 **앞**에서 답하므로 `judged` 에도 안
 든다(낡은 `TASTY_SESSION_TOKEN` 을 든 CLI 가 이 경로다). ⒝ **게이트를 지난 뒤 핸들러가 내는 `-32001`**: 입력
-시뮬레이션 미허용(debug) · macOS 손쉬운 사용 미승인 `surface.raw_key` · 세션 발급의 격상 거절 · plugin manager
+시뮬레이션 미허용(debug) · macOS 손쉬운 사용 미승인 `surface.raw_key`(debug, macOS) · 세션 발급의 격상 거절 · plugin manager
 쪽 거절(자기 namespace 호출 · `ipc.invoke` 부족 · extension filter 차단)은 게이트를 지났으므로 통과 쪽에 든다.
 앞 둘은 Local 호출자도 받는다.
 
