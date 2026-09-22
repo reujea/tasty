@@ -376,3 +376,4 @@
 | 0498 | [surface 훅의 IpcSequence 는 호스트 명령 큐를 비우는 스레드 밖에서 실행한다](0498-a-surface-hook-sequence-runs-off-the-thread-that-drains-the-queue.md) | Accepted | 2026-09-23 | hooks, hook-handler, ipc, host-injection, main-thread, concurrency, adr-0451 |
 | 0501 | [사건의 Experimental 등급은 경고이지 구독 게이트가 아니다](0501-the-experimental-event-grade-is-a-warning-not-a-subscription-gate.md) | Accepted | 2026-09-23 | events, event-bus, plugin, manifest, stability, compatibility, adr-0321 |
 | 0502 | [에이전트가 만든 탭은 사용자가 보던 탭을 바꾸지 않는다](0502-an-agent-created-tab-does-not-take-the-users-tab.md) | Accepted | 2026-09-23 | focus, tab, ipc, cli, user-agent-separation, identity, attach, file-handler, adr-0302, adr-0497 |
+| 0570 | [같은 결정이 서로 모르는 두 ADR 에 적혔으면 겹침의 폭으로 먼저 가른다 — 조항이면 새 ADR 로 모으고, 결정 전체면 한쪽을 Supersede 한다](0570-a-decision-recorded-twice-is-split-by-the-width-of-the-overlap.md) | Accepted | 2026-09-23 | adr-conventions, adr-duplication, documentation, supersede, adr-0239, adr-0030 |

@@ -34,7 +34,7 @@ docs 는 두 묶음으로 나뉜다. §1 의 **동작-우선 taxonomy 는 A(제�
 | 번들 플러그인 | `docs/plugins/<id>/index.md` (+ `screens/`) | **플러그인이 제공**하는 동작·화면 (features 와 동일 구조, 제공자만 다름) | docs / 자유 |
 | 횡단 규칙·흐름 | `docs/design/{policies,flows,systems}/` | 여러 기능 공통 규칙/흐름 | docs / 자유 |
 | 용어 | `docs/concepts/` | 유비쿼터스 언어 | docs / 자유 |
-| 근거 (ADR) | `docs/adr/` | 왜 그렇게 결정했나 (보류 결정·대안·재검토 trigger 포함) | docs / Accepted 후 불변 (supersede) |
+| 근거 (ADR) | `docs/adr/` | 왜 그렇게 결정했나 (보류 결정·대안·재검토 trigger 포함) | docs / Accepted 후 불변 (supersede — 허용 예외와 같은 결정이 두 번 적힌 경우의 처리는 [`adr/template.md`](adr/template.md) "작성 규칙") |
 | 시각 진실 | `design-system/…` (vendor) | 픽셀 / 토큰 / 컴포넌트 | **claude design** / design-request 경유만 |
 
 **시각은 절대 docs 에 재서술하지 않는다.** 화면정의서는 요소 인벤토리와 "동작 상태 → 시각" 매핑만 적고, 픽셀/토큰 값은 `design-system/` 을 링크한다. 복제하면 두 진실이 생겨 drift 한다.
