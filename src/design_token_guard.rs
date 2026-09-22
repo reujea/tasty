@@ -674,12 +674,7 @@ fn theme_path_table() -> Vec<(String, String, Option<String>)> {
         "{theme}\n{}",
         read("crates/tasty-type-appearance/src/generated_component.rs")
     );
-    // 필드는 `pub struct Theme {` 본문에서만 찾는다 — `ThemeSizing` 에만 있는 이름은
-    // `th.<필드>` 로 못 부른다.
-    let theme_struct = theme
-        .split_once("pub struct Theme {")
-        .and_then(|(_, rest)| rest.split_once("\n}\n"))
-        .map_or("", |(body, _)| body);
+    let theme_struct = theme_struct_body(&theme);
     assert!(
         theme_struct.contains("pub spacing_xs: LogicalPx"),
         "`pub struct Theme {{` 본문을 못 찾았다 — 필드 판정이 전부 '없음' 으로 쏠린다"
@@ -717,11 +712,11 @@ fn theme_path_table() -> Vec<(String, String, Option<String>)> {
                 } else {
                     format!("semantic::{}", name.trim())
                 };
-                let field = tasty_design_tokens::dtcg::SEMANTIC_DIM_TO_THEME_FIELD
-                    .iter()
-                    .find(|(p, _)| *p == tok)
-                    .map(|(_, f)| *f)
-                    .filter(|f| theme_struct.contains(&format!("pub {f}: LogicalPx")));
+                let field = semantic_theme_field(
+                    &tok,
+                    tasty_design_tokens::dtcg::SEMANTIC_DIM_TO_THEME_FIELD,
+                    theme_struct,
+                );
                 let accessor = tok
                     .strip_prefix("component.")
                     .map(|n| n.replace('-', "_"))
@@ -736,6 +731,30 @@ fn theme_path_table() -> Vec<(String, String, Option<String>)> {
         }
     }
     out
+}
+
+/// `pub struct Theme {` 의 본문. 필드는 여기서만 찾는다 — `ThemeSizing` 에만 있는
+/// 이름은 `th.<필드>` 로 못 부른다.
+fn theme_struct_body(theme: &str) -> &str {
+    theme
+        .split_once("pub struct Theme {")
+        .and_then(|(_, rest)| rest.split_once("\n}\n"))
+        .map_or("", |(body, _)| body)
+}
+
+/// 토큰 ↔ 필드 표에서 그 토큰의 `Theme` 필드. 먼저 나오는 항목이 이기고, 그 필드가
+/// `Theme` 본문에 `LogicalPx` 로 실재할 때만 돌려준다 — 표 줄이 `ThemeSizing` 에만 있는
+/// 필드를 가리키면 `None` 이다(그 이름은 `th.` 로 못 부른다).
+fn semantic_theme_field<'a>(
+    tok: &str,
+    table: &[(&str, &'a str)],
+    theme_struct: &str,
+) -> Option<&'a str> {
+    table
+        .iter()
+        .find(|(p, _)| *p == tok)
+        .map(|(_, f)| *f)
+        .filter(|f| theme_struct.contains(&format!("pub {f}: LogicalPx")))
 }
 
 /// **`&Theme` 경로가 없는 생성 길이 토큰** — (토큰, 사유).
@@ -1026,8 +1045,11 @@ fn every_generated_length_token_has_a_theme_path_or_is_listed() {
     );
 
     // 양성 대조 — 세 갈래(semantic 필드 · 생성 접근자 · 수기 접근자)가 각각 실제로 풀린다.
+    // `CONTROL_HEIGHT_TAB` 은 표에 필드가 둘인 토큰이다(`item_height_tab` · 배율을 안
+    // 타는 `tab_bar_height`) — "먼저 나오는 항목이 이긴다" 를 이 줄이 고정한다.
     for (path, want) in [
         ("semantic::SPACE_XS", "th.spacing_xs"),
+        ("semantic::CONTROL_HEIGHT_TAB", "th.item_height_tab"),
         (
             "component::autocomplete::MAX_HEIGHT",
             "th.autocomplete_max_height()",
@@ -1066,6 +1088,33 @@ fn every_generated_length_token_has_a_theme_path_or_is_listed() {
         pathless, listed,
         "`&Theme` 경로가 없는 길이 토큰이 명부와 다르다. 명부에만 있으면 경로가 생겼으니 \
          줄을 지워라. 실측에만 있으면 경로가 사라졌거나 새 토큰이다 — 사유와 함께 올려라"
+    );
+}
+
+/// 토큰 ↔ 필드 표의 줄이 `Theme` 에 없는 필드를 가리키면 그 줄은 경로가 아니다.
+///
+/// 오늘 표가 가리키는 필드는 전부 `Theme` 에 있어서 실제 표로는 이 거름이 아무것도 안
+/// 거른다 — 그래서 가짜 표 줄과 가짜 소스로 잰다. 가짜 소스는 `ThemeSizing` 에만 있는
+/// 필드를 하나 둬, 본문을 `pub struct Theme {` 로 좁히는 것까지 함께 잰다.
+#[test]
+fn a_table_field_missing_from_theme_is_not_a_path() {
+    let fake = "pub struct ThemeSizing {\n    pub only_sizing: LogicalPx,\n    \
+                pub spacing_xs: LogicalPx,\n}\n\npub struct Theme {\n    \
+                pub spacing_xs: LogicalPx,\n}\n";
+    let body = theme_struct_body(fake);
+    let table = [
+        ("semantic.fake-a", "only_sizing"),
+        ("semantic.fake-b", "spacing_xs"),
+    ];
+    assert_eq!(
+        semantic_theme_field("semantic.fake-a", &table, body),
+        None,
+        "`ThemeSizing` 에만 있는 필드를 `th.` 경로로 처방했다"
+    );
+    // 양성 대조 — 위 `None` 이 "아무것도 못 찾아서" 가 아님을 같은 입력에서 보인다.
+    assert_eq!(
+        semantic_theme_field("semantic.fake-b", &table, body),
+        Some("spacing_xs")
     );
 }
 

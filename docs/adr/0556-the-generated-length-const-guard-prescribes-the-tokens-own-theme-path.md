@@ -43,6 +43,11 @@ component 토큰 이름의 접근자(`generated_component.rs` 또는 `theme.rs`)
 - **잃은 것**: 명부 하나가 늘었다 — 경로가 생기거나 새 토큰이 들어오면 사람이 한 줄을 고쳐야 한다.
 - **운영 비용 / 유지 부담**: 가드가 생성 파일의 doc 주석(`/// \`component.<이름>\``)과 상수의 짝을
   읽는다. 생성기가 그 주석 형태를 바꾸면 표의 줄 수 대조가 먼저 빨개진다.
+- **표 해석의 두 규칙은 따로 잰다.** "먼저 나오는 항목이 이긴다" 는 필드가 둘인 토큰
+  (`semantic.control-height-tab` → `item_height_tab` · 배율을 안 타는 `tab_bar_height`)의 양성 대조가
+  고정한다. "필드가 `Theme` 에 실재해야 한다" 는 오늘 실제 표로는 아무것도 안 거른다(표가 가리키는 필드가
+  전부 `Theme` 에 있다) — 그래서 `ThemeSizing` 에만 있는 필드를 가리키는 가짜 표 줄로
+  `a_table_field_missing_from_theme_is_not_a_path` 가 잰다.
 
 ## Alternatives Considered
 
