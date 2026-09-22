@@ -32,12 +32,29 @@ CLI 에는 IPC 명령 전반에 걸친 `--json` 플래그가 없다. 성공 응�
   (hook 실패 기록의 `reason=` 등 그 문자열을 쓰는 다른 자리를 움직이지 않는다).
 - 단발 RPC · plugin 동적 명령 · `auto_wait` · 폴링 · 계약 확인 실패는 모두
   `crates/tasty-cli/src/rpc_error.rs` 의 `exit_with` 로 간다.
-- **스트리밍 두 명령(`events follow` · `plugin audit-follow`)은 `exit_with` 로 옮기지 않고 같은
-  두 줄을 `main` 으로 올린다.** 두 명령은 호스트 오류를 `main` 까지 올려 std 가 찍으므로 첫 줄이
-  `Error: Error (<code>): <message>` 다 — `exit_with` 로 옮기면 그 접두 `Error: ` 가 빠진다. 그래서
-  올라가는 값의 문구만 `render` 의 두 줄로 바꾼다(`rpc_error::with_data_line`). 첫 줄은 그대로이고
-  둘째 줄 `data: ` 가 같은 모양으로 붙으며, `data` 가 없으면 값을 건드리지 않는다.
+- **스트리밍 두 명령(`events follow` · `plugin audit-follow`)은 아직 `data` 를 싣지 않는다.**
+  두 명령은 호스트 오류를 `main` 까지 올려 std 가 `Error: Error (<code>): <message>` 한 줄로
+  찍는다(`crates/tasty-cli/src/events.rs` · `crates/tasty-cli/src/plugin.rs`). `exit_with` 로 옮기면
+  첫 줄 접두가 `Error (` 로 바뀌므로, 첫 줄 호환을 지키려고 이 결정에서는 옮기지 않았다.
+  (이 불릿은 최초 결정 시점의 서술이다 — 두 명령이 `data` 를 싣게 된 현재 형태는 아래 "보강" 이 정한다.)
 - 접두 `data: ` 는 번역하지 않는다 — `Error (` 와 같은 응답 형식의 일부다(`docs/dev-guide/i18n.md`).
+
+### 보강 — 스트리밍 두 명령도 `data` 를 싣는다 (같은 날 후속 트랙, 구현 확정)
+
+최초 결정은 두 스트리밍 명령을 첫 줄 호환 때문에 범위 밖에 두었다. 후속 트랙이 첫 줄을 건드리지
+않는 형태를 찾아 그 빈자리를 채웠다 — 결정("첫 줄 불변, `data` 는 둘째 줄") 자체는 그대로다.
+
+- **스트리밍 두 명령은 `exit_with` 로 옮기지 않고 같은 두 줄을 `main` 으로 올린다.** 두 명령은
+  호스트 오류를 `main` 까지 올려 std 가 찍으므로 첫 줄이 `Error: Error (<code>): <message>` 다 —
+  `exit_with` 로 옮기면 그 접두 `Error: ` 가 빠진다. 그래서 올라가는 값의 문구만 `render` 의 두 줄로
+  바꾼다(`rpc_error::with_data_line`, 호출 자리는 `crates/tasty-cli/src/events.rs` ·
+  `crates/tasty-cli/src/plugin.rs`). 첫 줄은 그대로이고 둘째 줄 `data: ` 가 같은 모양으로 붙으며,
+  `data` 가 없으면 값을 건드리지 않는다.
+- **유지 부담이 한 갈래 는다**: 새 오류 출력 자리가 오류를 `main` 까지 올리는 자리면 `exit_with` 가
+  아니라 `with_data_line` 을 불러야 한다. 부르지 않으면 그 자리만 `data` 를 다시 버린다(아래
+  Consequences 의 "운영 비용" 과 같은 성질).
+- 시험: `tests/cli_streaming_error_data.rs` 가 실제 바이너리를 가짜 호스트에 붙여 두 명령의 stderr 를
+  잰다(첫 줄 불변 · `data` 줄 · `data` 없음/`null` 이면 한 줄).
 
 ## Consequences
 
@@ -45,8 +62,8 @@ CLI 에는 IPC 명령 전반에 걸친 `--json` 플래그가 없다. 성공 응�
   출력은 한 글자도 안 바뀐다.
 - **잃은 것**: stderr 가 한 줄이라고 가정하고 **전체**를 한 문장으로 쓰던 스크립트는 `data` 가
   있는 오류에서 둘째 줄을 받는다. 첫 줄만 읽는 쪽은 영향이 없다.
-- **운영 비용 / 유지 부담**: 새 오류 출력 자리는 `exit_with` 를(오류를 `main` 까지 올리는 자리면
-  `with_data_line` 을) 불러야 한다. 부르지 않으면 그 자리만 `data` 를 다시 버린다.
+- **운영 비용 / 유지 부담**: 새 오류 출력 자리는 `exit_with` 를 불러야 한다. 부르지 않으면
+  그 자리만 `data` 를 다시 버린다.
 
 ## Alternatives Considered
 
