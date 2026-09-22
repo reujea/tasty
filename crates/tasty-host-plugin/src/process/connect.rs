@@ -9,7 +9,7 @@
 //! `spawn` 은 자식을 띄우자마자 돌아오고, 그 사이 들어온 요청은 송신 큐에 쌓였다가 연결
 //! 뒤 순서대로 나간다 — 그래서 "enable 직후 호출" 이 예전처럼 plugin 에 닿는다. 연결의
 //! 결과(성사 · 실패)는 이 모듈의 [`ConnectSlot`] 에 남고, 매니저가 pump 에서 한 번 거둔다
-//! (`PluginManager::settle_connections`). 근거·대안은 ADR-0469.
+//! (`PluginManager::settle_connections`). 근거·대안은 ADR-0505.
 
 use std::sync::atomic::AtomicBool;
 use std::sync::{Arc, Condvar, Mutex};

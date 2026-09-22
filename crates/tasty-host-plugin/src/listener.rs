@@ -83,7 +83,7 @@ impl HostListener {
     ///
     /// 기다림은 돌려받은 [`PendingConnection`] 이 한다. 등록과 기다림을 가른 이유는
     /// 기다리는 스레드가 호출자와 다르기 때문이다 — 호출자는 호스트 메인 스레드이고,
-    /// 기다림은 `plugin-connect-<id>` 스레드가 맡는다(ADR-0469).
+    /// 기다림은 `plugin-connect-<id>` 스레드가 맡는다(ADR-0505).
     pub fn register(&self, token: &str) -> PendingConnection {
         let (tx, rx) = mpsc::channel();
         tasty_utils::poison::recover_mutex(self.pending.lock(), PENDING_WHAT, &PENDING_POISONED)

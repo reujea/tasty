@@ -4,7 +4,7 @@
 //! 1. 토큰 생성
 //! 2. 자식 프로세스 spawn (env로 host port + token + plugin id 전달, stdout/stderr는 로그 파일)
 //! 3. 연결 대기(timeout 10s)와 송신/수신 스레드 가동을 `plugin-connect-<id>` 스레드에 맡기고
-//!    **즉시 돌아온다** — 그 사이의 요청은 송신 큐에 쌓였다가 연결 뒤 나간다(`connect`, ADR-0469)
+//!    **즉시 돌아온다** — 그 사이의 요청은 송신 큐에 쌓였다가 연결 뒤 나간다(`connect`, ADR-0505)
 //! 4. 채널은 mpsc 로 호스트 메인 루프에 노출
 //!
 //! plugin이 응답할 때마다 `last_pong`이 갱신된다. 헬스체크는 `since_last_pong()` 비교.

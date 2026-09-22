@@ -1,5 +1,5 @@
 //! 기동이 plugin 의 연결을 메인 스레드에서 기다리지 않는다는 것, 그리고 연결의 결과가
-//! 예전 spawn 결과와 같은 갈래로 거둬진다는 것(`manager::connect`, ADR-0469).
+//! 예전 spawn 결과와 같은 갈래로 거둬진다는 것(`manager::connect`, ADR-0505).
 //!
 //! 가짜 plugin 은 bash `/dev/tcp` 로 연결하므로 unix 에서만 돈다.
 #![cfg(unix)]

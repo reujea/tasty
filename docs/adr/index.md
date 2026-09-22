@@ -338,6 +338,7 @@ modifier-hint 는 0035(좁힘 + 지연) · 0038(빈 섹션) · 0064(타이머 �
 ## plugin 시스템 — 경계 · namespace · 수명
 
 namespace 라우팅은 0140 → 0153 → 0171(오류 코드 개정 — 「IPC 계약 · 오류 코드 · 멱등 키」 그룹) · 0173 · 0179 · 0282 · 0311 이다.
+프로세스 수명의 메인 스레드 대기는 0457(종료 회수) → 0505(기동의 연결 대기, 같은 형태의 대칭)이다.
 운영 문서: [dev-guide/plugin-development](../dev-guide/plugin-development.md) · [concepts/plugins](../concepts/plugins.md)
 
 | # | Title | Status | Date | Tags |
@@ -360,7 +361,7 @@ namespace 라우팅은 0140 → 0153 → 0171(오류 코드 개정 — 「IPC �
 | 0282 | [Namespace 호출은 owner와 필요한 활성 IPC hook extension만 시작한다](0282-namespace-invocation-starts-only-its-owner-and-matching-extension.md) | Accepted | 2026-09-15 | ipc, plugins, lifecycle, headless |
 | 0311 | [namespace 호출의 만료는 fail-open 이 아니라 caller 에 대한 오류다](0311-a-namespace-call-expires-into-an-error-not-a-fail-open.md) | Accepted | 2026-09-20 | plugin, ipc, timeout, host-plugin, error-handling, adr-0078 |
 | 0457 | [단건 plugin 종료는 메인 스레드 밖에서 회수하고, 새 프로세스는 옛 것이 빠진 뒤에 뜬다](0457-a-single-plugin-shutdown-is-reaped-off-the-main-thread.md) | Accepted | 2026-09-21 | plugin, host-plugin, lifecycle, shutdown, main-thread, healthcheck, restart, concurrency |
-| 0469 | [plugin 기동은 연결을 메인 스레드 밖에서 기다리고, 연결 전의 요청은 쌓았다가 보낸다](0469-a-plugin-start-waits-for-its-connection-off-the-main-thread.md) | Accepted | 2026-09-23 | plugin, host-plugin, lifecycle, startup, handshake, main-thread, concurrency, adr-0457 |
+| 0505 | [plugin 기동은 연결을 메인 스레드 밖에서 기다리고, 연결 전의 요청은 쌓았다가 보낸다](0505-a-plugin-start-waits-for-its-connection-off-the-main-thread.md) | Accepted | 2026-09-23 | plugin, host-plugin, lifecycle, startup, handshake, main-thread, concurrency, adr-0457 |
 
 ## plugin 렌더 채널 · webview
 
