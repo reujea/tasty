@@ -34,7 +34,7 @@ docs 는 두 묶음으로 나뉜다. §1 의 **동작-우선 taxonomy 는 A(제�
 | 번들 플러그인 | `docs/plugins/<id>/index.md` (+ `screens/`) | **플러그인이 제공**하는 동작·화면 (features 와 동일 구조, 제공자만 다름) | docs / 자유 |
 | 횡단 규칙·흐름 | `docs/design/{policies,flows,systems}/` | 여러 기능 공통 규칙/흐름 | docs / 자유 |
 | 용어 | `docs/concepts/` | 유비쿼터스 언어 | docs / 자유 |
-| 근거 (ADR) | `docs/adr/` | 왜 그렇게 결정했나 (보류 결정·대안·재검토 trigger 포함) | docs / Accepted 후 불변 (supersede — 허용 예외와 같은 결정이 두 번 적힌 경우의 처리는 [`adr/template.md`](adr/template.md) "작성 규칙") |
+| 근거 (ADR) | `docs/adr/` | 왜 그렇게 결정했나 (보류 결정·대안·재검토 trigger 포함 — 자격은 [`adr/template.md`](adr/template.md) "새 ADR 을 쓰기 전에") | docs / Accepted 후 불변 (supersede — 허용 예외와 같은 결정이 두 번 적힌 경우의 처리는 [`adr/template.md`](adr/template.md) "작성 규칙") |
 | 시각 진실 | `design-system/…` (vendor) | 픽셀 / 토큰 / 컴포넌트 | **claude design** / design-request 경유만 |
 
 **시각은 절대 docs 에 재서술하지 않는다.** 화면정의서는 요소 인벤토리와 "동작 상태 → 시각" 매핑만 적고, 픽셀/토큰 값은 `design-system/` 을 링크한다. 복제하면 두 진실이 생겨 drift 한다.
@@ -163,7 +163,7 @@ docs/features/<feature>/
 - **"배선돼 있다 / 이것이 본다" 는 그 좌변이 그 사실을 재는지 확인하고 적는다.** [ADR-0142](adr/0142-channel-claims-are-written-against-the-working-tree.md) 가 채널 주장의 층을 넷(명령 · 발화 · 원격 · 결과)으로 갈랐고, [`dev-guide/ci-gates.md`](dev-guide/ci-gates.md) 가 "돈 적이 있는가" 를 더해 다섯으로 운영한다. 반복해서 걸리는 것은 그보다 **한 층 앞**이다 — 잡이 초록인가가 아니라 **그 잡 · 그 트리거 · 그 가드가 내가 말한 그 사실을 애초에 재는가.** 걸린 모양: 재검토 조건이 **안 깨지는 층**을 트리거로 삼은 것, ADR 이 인가 집합을 **실제보다 좁게** 적은 것, 가이드가 **발신자 없는 event** 를 현재형 배선으로 적은 것, 가드가 **"그 구멍이 닫혀 있다"** 고 단정한 것. 넷 다 소스를 읽는 것으로는 안 보이고 **변이로만** 드러난다 — 그 사실을 깨는 변경을 심어 그 좌변이 실제로 빨개지는지 본다(변이가 안 죽을 때 무엇을 먼저 의심하는지, 그리고 아무것도 안 돌았는데 초록으로 찍히는 층은 [`dev-guide/self-verification.md`](dev-guide/self-verification.md)). 변이를 못 붙이면 **채널이 없다고 적고 재는 법을 값 자리에 남긴다** — 위 "부재도 출처다" 와 같은 형태다. ★ 안 죽는 변이를 곧바로 결함으로 적지 않는다. 거짓 결함의 처방은 면제 등록이고 그러면 그 자리가 영구히 헐거워지므로, 음성 대조를 함께 돌려 "옳게 통과한 것" 과 가른다. 이 주장들 중 **한 모양**은 기계가 판정한다 — 이름이나 경로로 지목한 시험이 실제로 **자동으로 도는가**를 `crates/tasty-doc-guards/tests/ci_channel_claims_match_workflows.rs` 가 본다.
 - **그 앞 층에는 출처가 "자동 채널 없음" 뿐이다.** 방금 그 한 모양과 지목한 좌표가 실재하는가(위 "인용한 좌표는 따라갈 수 있어야 한다")를 빼면, 한 문장이 가리키는 사실이 무엇인지는 문장 밖에 있어 **지목된 것이 그 사실을 재는지**는 기계가 못 읽는다. 그래서 이 층의 값은 손으로만 나온다 — 다시 재려면 위 불릿대로 변이를 심어 그 좌변을 돌린다. 어휘 가드 같은 대안을 왜 안 붙였는지와 재검토 조건은 [ADR-0270](adr/0270-whether-a-left-side-measures-the-fact-has-no-automatic-channel.md).
 - 시각 수치/토큰은 적지 말고 `design-system/` 을 링크.
-- 결정의 근거는 본문에 길게 쓰지 말고 ADR 로 박고 링크.
+- 결정의 근거는 본문에 길게 쓰지 말고 ADR 로 박고 링크. 단 모든 결정이 ADR 이 되지는 않는다 — 자격(대안 사이의 선택 · 코드·설정·절차에 남음 · 재검토 조건)과 쓰기 전 탐색은 [`adr/template.md`](adr/template.md) "새 ADR 을 쓰기 전에".
 - 합성 화면은 언급/링크로만 잇는다.
 - 디자인 변경이 필요하면 소스를 먼저 고치지 말고 claude design 에 변경을 요청하고, 변경된 디자인을 받아 재적용한다 (구체 워크플로는 [`dev-guide/design-change-workflow.md`](dev-guide/design-change-workflow.md)).
 

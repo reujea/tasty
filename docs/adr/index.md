@@ -377,3 +377,4 @@
 | 0501 | [사건의 Experimental 등급은 경고이지 구독 게이트가 아니다](0501-the-experimental-event-grade-is-a-warning-not-a-subscription-gate.md) | Accepted | 2026-09-23 | events, event-bus, plugin, manifest, stability, compatibility, adr-0321 |
 | 0502 | [에이전트가 만든 탭은 사용자가 보던 탭을 바꾸지 않는다](0502-an-agent-created-tab-does-not-take-the-users-tab.md) | Accepted | 2026-09-23 | focus, tab, ipc, cli, user-agent-separation, identity, attach, file-handler, adr-0302, adr-0497 |
 | 0570 | [같은 결정이 서로 모르는 두 ADR 에 적혔으면 겹침의 폭으로 먼저 가른다 — 조항이면 새 ADR 로 모으고, 결정 전체면 한쪽을 Supersede 한다](0570-a-decision-recorded-twice-is-split-by-the-width-of-the-overlap.md) | Accepted | 2026-09-23 | adr-conventions, adr-duplication, documentation, supersede, adr-0239, adr-0030 |
+| 0571 | [새 ADR 은 결정 대상의 심볼로 기존 ADR 을 찾은 뒤에, 대안 사이의 선택일 때만 쓴다](0571-an-adr-is-written-after-a-symbol-search-and-only-for-a-choice.md) | Accepted | 2026-09-23 | adr-conventions, adr-duplication, documentation, search, adr-0570, adr-0243, adr-0244 |

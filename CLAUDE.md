@@ -54,7 +54,7 @@ Tasty 의 정체성과 거기서 나오는 **불가침 원칙** 전문은 [`docs
 - docs 문서에 마크다운 체크박스(task list)를 넣지 않는다 — 체크 상태는 진행 추적이라 transient 다. Acceptance Criteria 는 평문 Given/When/Then 불릿, 검증·절차 항목은 평문 불릿이나 번호 목록 ([`docs/documentation-model.md`](docs/documentation-model.md) §6). `crates/tasty-doc-guards/tests/no_checkbox_in_docs.rs` 가 강제한다.
 - **한 사실을 고치기 전에 그것이 몇 자리에 적혔는지 세고, 고친 뒤 양방향으로 전수 대조한다** — 한쪽만 고쳐진 상태가 기본값이고, 자리는 파일 경계로 안 나뉜다(한 파일 안의 두 줄 · 값 옆의 주석 · ADR 이 인용하는 파일). 자리가 열거체면 잇는 판정기까지 둔다([`docs/dev-guide/duplicated-sets.md`](docs/dev-guide/duplicated-sets.md)). 규율 본문은 [`docs/documentation-model.md`](docs/documentation-model.md) §6.
 - **"배선돼 있다 / 이것이 본다" 는 변이로 확인하고 적는다** — 그 좌변이 내가 말한 그 사실을 재는지는 소스를 읽어서는 안 보인다. 변이를 못 붙이면 채널이 없다고 적고 재는 법을 값 자리에 남긴다. 규율 본문은 [`docs/documentation-model.md`](docs/documentation-model.md) §6, 변이 절차는 [`docs/dev-guide/self-verification.md`](docs/dev-guide/self-verification.md).
-- 결정의 *근거 / 대안 / 재검토 조건* 은 `docs/adr/` 에 ADR 로 박는다. design/ 본문은 결정의 *현재 운영 상태* 만 기술. ADR 작성/수정 시 [`docs/adr/template.md`](docs/adr/template.md) 의 작성규칙을 먼저 읽는다.
+- 결정의 *근거 / 대안 / 재검토 조건* 은 `docs/adr/` 에 ADR 로 박는다. design/ 본문은 결정의 *현재 운영 상태* 만 기술. ADR 작성/수정 시 [`docs/adr/template.md`](docs/adr/template.md) 의 작성규칙을 먼저 읽는다 — 무엇이 ADR 이 될 자격인지와 쓰기 전에 기존 ADR 을 찾는 법은 그 안의 "새 ADR 을 쓰기 전에" 가 정한다.
 
 ## 커밋 정책
 
