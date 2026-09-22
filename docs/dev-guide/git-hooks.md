@@ -76,14 +76,17 @@ lane 이 자기가 움직인 모수를 갱신했는지는 그것으로 확인된
 실행이 **본 ref 수 · 판정한 수 · 건너뛴 수**를 찍는 것은 빈 모수를 훑은 초록과 실제로 판정한
 초록이 같은 줄로 보이지 않게 하려는 것이다([ADR-0183](../adr/0183-a-green-check-is-not-evidence-without-a-control.md)).
 
-**B.9 에는 P.1 의 사전 필터가 없고, 그 차이가 사각을 하나 닫는다.** pre-commit 의 P.1 은 staged
-목록이 `crates/tasty-plugin-<이름>/` 에 걸릴 때만 게이트를 부른다. 그런데 판정 대상은 그 디렉토리가
-아니라 **워크스페이스 내부 의존 폐포**다([ADR-0166](../adr/0166-the-plugin-version-gate-judges-the-artifact-not-the-directory.md))
-— 폐포 안이면서 이름이 `tasty-plugin-` 으로 시작하지 않는 크레이트만 고친 커밋은 **P.1 이 아예 안
-뜬다.** 실측 2026-09-20: `crates/tasty-utils/src/id.rs` 에 출하되는 한 줄을 더해 staged 한 상태에서
-P.1 의 사전 필터에 걸리는 파일은 0 이었고 pre-commit 은 plugin 버전 줄을 한 줄도 안 찍었다. 같은
-커밋을 push 하니 B.9 가 번들 plugin **9 개 전부**를 위반으로 냈다. B.9 는 밀려는 ref 마다 조건 없이
-게이트를 부르므로 그 사각이 없다 — 대신 판정이 커밋이 아니라 push 시점에 온다.
+**P.1 과 B.9 모두 사전 필터가 없다 — 경로로 미리 거르면 판정 대상의 일부가 사각이 된다.** 판정
+대상은 plugin 디렉토리가 아니라 **의존 폐포**이고([ADR-0166](../adr/0166-the-plugin-version-gate-judges-the-artifact-not-the-directory.md)),
+폐포는 `crates/` 밖의 워크스페이스 밖 path 의존(`vendor/tiny_http`)까지 닿는다([ADR-0537](../adr/0537-the-plugin-version-gate-follows-path-dependencies-outside-the-workspace.md)).
+그래서 두 훅은 staged(P.1) · 밀려는 ref(B.9)가 있으면 조건 없이 게이트를 부르고, 무엇이 산출물인지
+거르는 일은 스크립트 하나가 한다. 경로 선필터가 사각을 만든다는 근거는 실측이다(2026-09-20):
+P.1 이 staged 목록이 `crates/tasty-plugin-<이름>/` 에 걸릴 때만 부르던 판에서,
+`crates/tasty-utils/src/id.rs` 에 출하되는 한 줄을 더해 staged 하니 선필터에 걸리는 파일이 0 이라
+pre-commit 은 plugin 버전 줄을 한 줄도 안 찍었고, 같은 커밋을 push 하니 B.9 가 번들 plugin **9 개
+전부**를 위반으로 냈다. 선필터를 `^crates/` 로 넓혀도 같은 형태가 `vendor/` 에서 다시 났다(ADR-0537
+Context). 두 훅이 모두 부르므로 P.1 은 커밋 시점에, B.9 는 발행 모수로 push 시점에 판정한다 — 모수의
+차이는 위 절 그대로다.
 
 clippy 의 `style`/`pedantic` 은 warning 으로만(error 승격 안 함 — false positive 노이즈 방지).
 
