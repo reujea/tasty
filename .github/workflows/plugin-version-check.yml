@@ -24,19 +24,41 @@ on:
   # 그리고 좌변은 `crates/` 에서도 끝나지 않는다 — `[patch]` 로 끼운 상류 사본
   # (`vendor/tiny_http`)처럼 워크스페이스 밖 path 의존도 plugin 산출물을 바꾼다(ADR-0537).
   # 그 경로를 여기 목록으로 적으면 새 사본이 생길 때 이 자리만 옛 목록에 남아 조용히 안
-  # 돈다. 그래서 거꾸로 **문서만 담은 push 만** 뺀다(script-gates.yml 과 같은 형태).
+  # 돈다. 그래서 거꾸로 **문서만 담은 push 만** 뺀다.
+  # 단 `paths-ignore` 로는 못 뺀다 — `**/*.md` 가 스크립트의 판정 대상인 `.md` 까지 뺀다.
+  # 스크립트(`build_affecting`)는 `*/src/*` · `*/lang/*` · `*/assets/*` 아래를 확장자와 무관하게
+  # 산출물로 보므로 `crates/tasty-plugin-markdown/assets/NOTICE.md` 가 판정 대상이고, 그 파일만
+  # 담은 push 에서 잡이 안 돌면 필터가 판정 대상의 상위집합이 아니게 된다. 오늘 `.md` 가 산출물에
+  # 안 실린다는 것은 참이지만 그 0 은 바뀌어도 아무도 모른다. 그래서 `paths` 에 부정 패턴을 쓰고
+  # 그 세 디렉토리 모양을 되살린다(ADR-0537).
+  # ★ **순서가 의미를 정한다.** GitHub Actions 는 `paths` 의 패턴을 위에서 아래로 평가하고,
+  # 한 파일에 여러 패턴이 맞으면 **뒤에 오는 패턴이 이긴다**(`!` 로 시작하면 제외, 아니면 포함).
+  # - 맨 앞 `'**'` 가 없으면 부정 패턴만 남아 아무것도 포함하지 않는다.
+  # - `src`·`lang`·`assets` 세 줄은 `'!**/*.md'` 보다 **뒤에** 있어야 그 아래 `.md` 가 다시 들어온다.
+  # - `'!docs/**'`·`'!site/**'` 는 세 줄보다 **뒤에** 있어야 `site/src/**` 같은 자리가 되살아나지
+  #   않는다(그 둘은 스크립트의 스캔 뿌리 — `crates/` 와 워크스페이스 밖 path 의존 — 밖이다. 오늘
+  #   path 의존은 `vendor/tiny_http` 하나다).
+  # 줄을 옮기면 조용히 깨진다.
   push:
     branches: [main]
-    paths-ignore:
-      - 'docs/**'
-      - 'site/**'
-      - '**/*.md'
+    paths:
+      - '**'
+      - '!**/*.md'
+      - '**/src/**'
+      - '**/lang/**'
+      - '**/assets/**'
+      - '!docs/**'
+      - '!site/**'
   pull_request:
     branches: [main]
-    paths-ignore:
-      - 'docs/**'
-      - 'site/**'
-      - '**/*.md'
+    paths:
+      - '**'
+      - '!**/*.md'
+      - '**/src/**'
+      - '**/lang/**'
+      - '**/assets/**'
+      - '!docs/**'
+      - '!site/**'
   workflow_dispatch:
 
 concurrency:

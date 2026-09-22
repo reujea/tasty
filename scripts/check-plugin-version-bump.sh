@@ -362,7 +362,11 @@ else
     OUTSIDE=$(git diff --name-only --diff-filter=ACMRD "$BEFORE" "$AFTER" -- . ":(exclude)$SCAN_ROOT/")
 fi
 
-# 산출물에 닿는 경로인가. 문서(.md)·`.sig`·러너 스크립트 등은 여기 없다.
+# 산출물에 닿는 경로인가. `.sig`·러너 스크립트, 그리고 아래 세 디렉토리 밖의 문서(.md)는 여기 없다 —
+# `src/`·`lang/`·`assets/` 아래는 확장자와 무관하게 산출물로 본다(`crates/tasty-plugin-markdown/assets/NOTICE.md` 포함).
+# ★ 이 디렉토리 모양 목록은 `.github/workflows/plugin-version-check.yml` 의 `paths` 가 복제한다
+# (`.md` 를 빼고 되살리는 줄들). 여기에 모양을 더하면 그쪽도 더해야 필터가 판정 대상의
+# 상위집합으로 남는다(ADR-0537).
 build_affecting() {
     case "$1" in
         */src/*|*/lang/*|*/assets/*|*/Cargo.toml|*/tasty-plugin.toml|*/build.rs) return 0 ;;

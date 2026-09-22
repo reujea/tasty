@@ -49,9 +49,14 @@ pre-commit `P.1` 은 `^crates/` 선필터를 두었고 `plugin-version-check.yml
 - **판정 불가**: 멤버 명부를 못 읽으면(`cargo metadata` 실패) 통과가 아니라 rc 2 이고, cargo 의 stderr 를
   사유로 찍는다.
 - **채널 둘의 경로 필터를 걷는다**: pre-commit `P.1` 은 선필터 없이 staged 가 있으면 부르고, 거르는 일은
-  스크립트가 한다. `plugin-version-check.yml` 은 `paths: crates/**` 대신 `paths-ignore`(`docs/**` ·
-  `site/**` · `**/*.md`)를 쓴다. 경로를 목록으로 다시 적으면 새 사본이 생길 때 그 자리만 옛 목록에 남기
-  때문이다. B.9 는 원래 필터가 없다.
+  스크립트가 한다. `plugin-version-check.yml` 은 `paths: crates/**` 대신 문서만 빼는 필터를 쓴다. 경로를 목록으로
+  다시 적으면 새 사본이 생길 때 그 자리만 옛 목록에 남기 때문이다. B.9 는 원래 필터가 없다.
+- **CI 필터는 판정 대상의 상위집합으로 둔다**: 스크립트의 `build_affecting` 은 `src/`·`lang/`·`assets/`
+  아래를 확장자와 무관하게 산출물로 보므로 `crates/tasty-plugin-markdown/assets/NOTICE.md` 가 판정 대상이다.
+  `paths-ignore: '**/*.md'` 는 그 파일만 담은 push 에서 잡을 안 켠다. 그래서 `paths` 에 부정 패턴을
+  `'**'` · `'!**/*.md'` · `'**/src/**'` · `'**/lang/**'` · `'**/assets/**'` · `'!docs/**'` · `'!site/**'`
+  순서로 쓴다. GitHub Actions 는 뒤에 오는 패턴이 이기므로 순서가 의미를 정하고, 그 사실을 워크플로 주석이
+  그 자리에 적는다. 세 디렉토리 모양은 `build_affecting` 의 복제이고 두 자리가 서로를 가리킨다.
 - **보고 줄**: 통과 줄의 "변경된 crates 파일" 수는 `crates/` 아래만 세고, 워크스페이스 밖 path 의존의
   파일이 있으면 `· 워크스페이스 밖 path 의존 파일 N 개` 를 따로 붙인다. 빈 모수를 훑은 초록과 사본을
   **보고** 난 초록이 같은 줄로 안 보이게 하려는 것이다.
@@ -100,6 +105,15 @@ pre-commit `P.1` 은 `^crates/` 선필터를 두었고 `plugin-version-check.yml
 - **`cargo metadata` 전체(의존 포함)로 좌변을 구한다**: 가능하지만 JSON 의 의존 그래프를 셸에서 걸어야 한다.
   게이트가 이미 부르는 `cargo tree` 의 출력에 경로가 있어 그것을 쓰고, `cargo metadata` 는 멤버 명부
   (`--no-deps`)에만 쓴다.
+- **CI 필터를 `paths-ignore`(`docs/**` · `site/**` · `**/*.md`)로 두고, `assets/` 의 `.md` 는 문서에 한 줄로
+  덮는다**: 실측으로는 참이다 — 추적 파일 중 `crates/*/(src|lang|assets)/` 와 `vendor/*/` 아래 `.md` 는
+  `NOTICE.md` 하나이고, `.md` 를 `include_str!`/`include_bytes!` 로 싣는 자리는 0 이다. 그러나 "필터가 판정
+  대상의 상위집합" 은 이 게이트 체계가 조용히 통과하지 않는다는 보증이다. 그 0 은 미래에 바뀔 수 있고, 바뀌면
+  같은 파일을 P.1 · B.9 는 bump 대상으로 보는데 CI 는 잡을 안 켠다. 이것을 알릴 채널은 없다. 보증을 포기하고
+  얻는 것이 문서 한 줄뿐이다 — 기각.
+- **`build_affecting` 에서 `*.md` 를 뺀다**: 필터와 스크립트가 다시 같은 집합이 되지만, ADR-0137 의 판별식
+  (무엇이 산출물 경로인가)을 바꾸는 일이다. 이 결정은 좌변의 폐포 범위만 개정하고 판별식은 안 건드린다
+  (위 "개정하지 않는 것") — 기각.
 
 ## Reconsideration Triggers
 
@@ -117,6 +131,10 @@ pre-commit `P.1` 은 `^crates/` 선필터를 두었고 `plugin-version-check.yml
   접두 비교가 안 맞고, 워크스페이스 밖 사본이 조용히 좌변에서 빠진다. 오늘 세 채널은 Linux 에서 돈다
   (CI 는 self-hosted Linux, 훅은 이 레포의 개발 머신). 재는 법: Windows 에서 사본 한 줄만 staged 하고
   `--staged` 가 rc 1 을 내는지 본다.
+- `build_affecting` 에 디렉토리 모양이 더해지거나, 워크플로 `paths` 의 줄 순서가 바뀌면 — 필터가 판정
+  대상의 상위집합에서 조용히 빠진다. 두 자리를 대조하는 판정기는 없다. 재는 법: 새 모양 아래 `.md`
+  하나만 담은 push 에서 이 잡이 켜졌는지 `gh api "/repos/<owner>/<repo>/actions/runs?head_sha=<sha>"` 로 본다.
+  이 결정의 필터 자체도 첫 push 전까지 발화는 **미측정**이다.
 - `crates/` 밖 산출물 모양 변경이 잦아져 P.1 의 `cargo tree` 비용이 체감되면 — 재는 법: 그런 커밋에서
   `time bash scripts/check-plugin-version-bump.sh --staged` 를 잰다.
 

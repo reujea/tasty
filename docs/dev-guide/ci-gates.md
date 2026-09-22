@@ -35,7 +35,7 @@
 | 사유 없는 `#[allow]` (**상한 래칫**, 판정기 `mask-source` 선행) | `bash scripts/check-allow-reason.sh` | `script-gates.yml` (self-hosted Linux X64) | main push(문서·site 제외) · PR · 수동 | [실측] |
 | 공용 순회를 안 거치는 직접 `read_dir` (**상한 래칫**, 판정기 `mask-source` 선행) | `bash scripts/check-shared-walk-ratchet.sh` | `script-gates.yml` (self-hosted Linux X64) | main push(문서·site 제외) · PR · 수동 | [실측] |
 | 셸 자산 정적 검사 (**잔여 0 hard-fail** · 검사기 부재는 rc 2) | `bash scripts/check-shell-assets.sh` — 잡이 `scripts/install-shellcheck.sh` 로 검사기를 먼저 놓는다 | `script-gates.yml` (self-hosted Linux X64, 같은 잡) | main push(문서·site 제외) · PR · 수동. ★ **모수**: 이 채널은 **추적되는** 셸 자산 전부(`*.sh` + shebang 이 셸인 것)를 본다. pre-commit 의 `A.3` 은 **staged 경로**를 본다 — 새 파일은 아직 추적 밖이라 전수 모수에 안 들어오므로, 그 훅이 새 자산을 처음 보는 자리다. 문턱(warning 이상)과 그 아래를 안 세기로 한 근거는 [ADR-0295](../adr/0295-shell-assets-are-judged-at-warning-and-above.md) | 등급 미정 |
-| plugin 버전 bump | `bash scripts/check-plugin-version-bump.sh --range <before> <after>` | `plugin-version-check.yml` (self-hosted Linux X64) | main push · PR — **둘 다 문서만 담은 push(`docs/**`·`site/**`·`*.md`)는 제외** · 수동. ★ 판정 대상이 plugin 디렉토리가 아니라 **의존 폐포**이고 그 안에서 **출하되는 내용**만 세기 때문에([ADR-0166](../adr/0166-the-plugin-version-gate-judges-the-artifact-not-the-directory.md)) 필터가 넓다 — `tasty-utils`·`tasty-shm` 처럼 이름이 `tasty-plugin-` 으로 시작하지 않는 크레이트가 바뀌어도 plugin 산출물이 달라지고, 폐포는 `crates/` 밖의 **워크스페이스 밖 path 의존**(`[patch]` 로 끼운 `vendor/tiny_http`)까지 닿는다([ADR-0537](../adr/0537-the-plugin-version-gate-follows-path-dependencies-outside-the-workspace.md)). 그래서 경로를 목록으로 적지 않고 문서만 뺀다 — pre-commit `P.1` 도 같은 이유로 선필터가 없다. 잡이 출하 판정기(`strip-cfg-test`)를 먼저 빌드한다. ★ **모수**: 이 채널은 **push 된 범위**를 본다. lane 의 pre-commit 은 **staged** 를 본다. 둘은 다른 물음에 답한다 — lane 이 자기 통과를 전체 통과로 읽으면 안 된다. **그 발행 모수는 push 전에도 한 번 재어진다** — pre-push `B.9` 가 git 이 stdin 으로 준 원격 tip 을 모수로 같은 스크립트를 부른다(아래 "로컬 훅이 앞당겨 주는 것"). 훅을 안 깐 체크아웃에서는 이 채널이 없고, 그때는 통합 회차가 `--range <직전 push> HEAD` 로 다시 잰다(아래 "등급" 절) | [실측] |
+| plugin 버전 bump | `bash scripts/check-plugin-version-bump.sh --range <before> <after>` | `plugin-version-check.yml` (self-hosted Linux X64) | main push · PR — **둘 다 문서만 담은 push(`docs/**`·`site/**`·`*.md`)는 제외하되, `src/`·`lang/`·`assets/` 아래의 `.md` 는 되살린다** · 수동. 스크립트가 그 세 디렉토리 아래를 확장자와 무관하게 판정하므로(`crates/tasty-plugin-markdown/assets/NOTICE.md`) `paths-ignore` 가 아니라 부정 패턴 `paths` 를 쓰고, **패턴 순서가 의미를 정한다**(뒤에 오는 패턴이 이긴다 — 워크플로 머리 주석). 실제 발화는 **미측정**: 다음 push 의 CI 에서 확인한다. ★ 판정 대상이 plugin 디렉토리가 아니라 **의존 폐포**이고 그 안에서 **출하되는 내용**만 세기 때문에([ADR-0166](../adr/0166-the-plugin-version-gate-judges-the-artifact-not-the-directory.md)) 필터가 넓다 — `tasty-utils`·`tasty-shm` 처럼 이름이 `tasty-plugin-` 으로 시작하지 않는 크레이트가 바뀌어도 plugin 산출물이 달라지고, 폐포는 `crates/` 밖의 **워크스페이스 밖 path 의존**(`[patch]` 로 끼운 `vendor/tiny_http`)까지 닿는다([ADR-0537](../adr/0537-the-plugin-version-gate-follows-path-dependencies-outside-the-workspace.md)). 그래서 경로를 목록으로 적지 않고 문서만 뺀다 — pre-commit `P.1` 도 같은 이유로 선필터가 없다. 잡이 출하 판정기(`strip-cfg-test`)를 먼저 빌드한다. ★ **모수**: 이 채널은 **push 된 범위**를 본다. lane 의 pre-commit 은 **staged** 를 본다. 둘은 다른 물음에 답한다 — lane 이 자기 통과를 전체 통과로 읽으면 안 된다. **그 발행 모수는 push 전에도 한 번 재어진다** — pre-push `B.9` 가 git 이 stdin 으로 준 원격 tip 을 모수로 같은 스크립트를 부른다(아래 "로컬 훅이 앞당겨 주는 것"). 훅을 안 깐 체크아웃에서는 이 채널이 없고, 그때는 통합 회차가 `--range <직전 push> HEAD` 로 다시 잰다(아래 "등급" 절) | [실측] |
 | 공급망 | `cargo deny check` | `supply-chain-check.yml` | main push(`paths: Cargo.lock · deny.toml`) · PR · 매주 월 09:00 UTC · 수동. ★ 이 잡은 **두 물음**에 답하고 트리거가 물음마다 다르다. ㉠ **우리 변경이 만드는 것**(새 의존의 license·ban, 새로 직접 의존이 된 크레이트의 advisory, 쓰이지 않게 된 ignore 항목)은 그 변경이 들어오는 push 에서 잡아야 하므로 `Cargo.lock`·`deny.toml` 로 좁힌 **main push** 가 본다 — **커밋 단위다.** ㉡ **바깥 세계가 만드는 것**(코드는 그대로인데 새 RUSTSEC 권고가 뜬 경우)은 push 로는 영영 안 잡히므로 주간 `schedule` 이 본다 — **주 단위다.** **주 단위여도 되는 이유**는 그 축의 입력이 우리 커밋이 아니라 바깥 세계라 우리 회차와 무관하게 바뀌기 때문이고, daily 는 러너 부하 대비 이득이 적다. ⇒ **㉠ 을 주 단위로 읽으면 안 된다**: 새 의존을 들이는 커밋은 그 push 에서 즉시 판정되고, 노출 창은 일주일이 아니다. (이 갈래 서술은 오래도록 워크플로 파일 머리에만 있었다 — 옮긴 것이 아니라 표에도 둔다. 표만 읽으면 "매주 월요일"이 먼저 눈에 들어와 ㉠ 까지 주 단위로 읽힌다.) | [실측] |
 | 사이트 빌드 | `npm ci && npm run build` (`site/`) | `pages.yml` 의 `build` (ubuntu-latest) | main push — `site/**` · `Cargo.toml` · 랜딩 아이콘 · 그 워크플로가 바뀐 경우만 · 수동 | 등급 미정 |
 
@@ -672,6 +672,16 @@ git diff --name-only <앞 push tip> <이 push tip>
 | `pages` (42) | `site/**`·`Cargo.toml`·아이콘·`pages.yml` 없음 | site 빌드 + `check-links` | **구조상 가능, 실측 0** — 아래 |
 
 ⇒ **후보 0.** 필터가 만든 미측정은 이 트리에 없다.
+
+★ **`plugin-version-check` 행의 "상위집합" 은 한 번 깨졌다가 다시 참이다.** 위 표의 필터는
+그 시점의 `crates/**` 다. 좌변이 워크스페이스 밖 path 의존(`vendor/tiny_http`)으로 넓어지며
+필터를 `paths-ignore`(`docs/**`·`site/**`·`**/*.md`)로 바꾸자, `**/*.md` 가 스크립트의 판정
+대상인 `crates/tasty-plugin-markdown/assets/NOTICE.md` 를 뺐다 — 그 파일만 담은 push 는 잡을
+안 켠다. 지금 필터는 부정 패턴 `paths` 로 `src/`·`lang/`·`assets/` 아래의 `.md` 를 되살려
+상위집합을 복원한다([ADR-0537](../adr/0537-the-plugin-version-gate-follows-path-dependencies-outside-the-workspace.md)).
+로컬 모사(GitHub 의 glob 규칙을 정규식으로 옮겨 추적 파일에 적용, 2026-09-23): `crates/` 와
+`vendor/tiny_http/` 아래 `build_affecting` 경로 858 개 중 필터가 빼는 것 0, `docs/`·`site/` 에서
+켜는 것 0. **실제 발화는 미측정**이다 — push 해야 보이고, 다음 push 의 CI 에서 확인한다.
 
 ##### `pages` 만 구조상 가능하다 — 그리고 그 0 은 우연이 아니다
 
