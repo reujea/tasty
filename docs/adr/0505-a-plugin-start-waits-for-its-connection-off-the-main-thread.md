@@ -25,6 +25,9 @@
 시험 `an_upgrade_that_writes_nothing_does_not_wait_for_a_retirement` 가 부하에서 "다시 뜨지 않았다" 로
 가끔 깨지던 것이 이것이다 — 같은 시험 12 개 병렬 + 바쁜 루프 40 개에서 36 번 중 21~23 번 깨졌고, 깨진
 수와 거절 수가 같았다.
+같은 틈은 plugin 채널의 Nagle 을 끈 변경(`set_nodelay`)이 인증 줄의 지연을 없애면서 GUI 부팅에서도 드러났고,
+그 변경이 같은 순서(등록 → spawn)로 독립적으로 고쳤다. 두 구현은 이 결정의 형태(`HostListener::register` →
+`PendingConnection`, 기다림은 연결 대기 스레드)로 합쳤다.
 
 전체 기동은 이 문제의 바깥이다. GUI 부팅의 `discover_and_start` 는 부팅 워커 스레드(`tasty-boot-engine`)에서
 돈다. 그리고 부팅은 그 뒤에 hello 를 짧은 시한(`PLUGIN_WAIT_DEADLINE` 300 ms)으로 기다리므로, 연결을 그
