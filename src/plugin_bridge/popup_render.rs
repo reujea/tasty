@@ -1098,3 +1098,9 @@ mod tests {
         );
     }
 }
+
+// 렌더 루프가 사용자 활성화를 기록하고 걷는지 — plugin 프로세스 없이 인스턴스를 세워 루프를
+// 실제로 돌린다(ADR-0526 조건 3).
+#[cfg(test)]
+#[path = "popup_render_activation_tests.rs"]
+mod activation_tests;

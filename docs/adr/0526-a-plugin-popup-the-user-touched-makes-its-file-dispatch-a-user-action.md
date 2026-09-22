@@ -142,4 +142,8 @@ markdown plugin 의 파일열기 팝업 [열기] 는 `owner_popup_instance` 를 
 - 현재 구현(심볼): `adapters::ipc::handler::file_handler::dispatch_origin_of` ·
   `plugin_bridge::popup_render::is_user_activation` · `AppState::plugin_popup_user_activated` ·
   `IpcWindow::plugin_popup_user_activated` · `intent::tab::new_tab`. 입구 시험은
-  `adapters/ipc/handler/file_handler_origin_tests.rs`.
+  `adapters/ipc/handler/file_handler_origin_tests.rs` 이고, 조건 3 의 기록 자리(누름에서 세우고
+  호버로는 안 세우며 닫힌 popup 의 기록을 걷는 것)는 `plugin_bridge/popup_render_activation_tests.rs`
+  가 `draw_plugin_popups` 를 실제로 돌려 잰다. 그 시험이 plugin 프로세스 없이 popup 인스턴스를
+  세우는 훅은 `PluginManager::insert_popup_instance_for_test` 이고 `tasty-host-plugin` 의
+  `test-support` feature 뒤에 있다 — 루트가 dev-dependency 로만 켜므로 제품 빌드에는 없다.

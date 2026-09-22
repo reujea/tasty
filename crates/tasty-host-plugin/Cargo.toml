@@ -44,6 +44,9 @@ sysinfo = "0.35"
 # Phase J.C WASM POC stub gate. 본 feature 활성 시 src/wasm_poc.rs 컴파일.
 # 기본 비활성. 정식 채택 시점에 sdk-wasm path-dep 을 본 feature 의 deps 에 추가.
 wasm-poc = []
+# 호스트 크레이트의 시험이 plugin 프로세스 없이 popup 인스턴스를 세우는 훅
+# (`PluginManager::insert_popup_instance_for_test`). 루트가 dev-dependency 로만 켠다.
+test-support = []
 
 [dev-dependencies]
 tasty-i18n = { path = "../tasty-i18n" }

@@ -172,6 +172,17 @@ impl PluginManager {
         }
     }
 
+    /// plugin 프로세스 없이 popup 인스턴스를 하나 세운다 — 호스트 크레이트의 시험이 popup 렌더
+    /// 루프(입력 forward 와 그 자리의 사용자 활성화 기록)를 실제로 돌리려고 쓴다. 정식 경로
+    /// [`Self::open_popup_instance`] 는 실행 중인 plugin 이 있어야 인스턴스를 만든다.
+    ///
+    /// `test-support` feature 뒤에만 있다. 루트 크레이트는 그 feature 를 dev-dependency 로만
+    /// 켜므로 정규(lib/bin/release) 빌드에는 이 함수가 없다.
+    #[cfg(feature = "test-support")]
+    pub fn insert_popup_instance_for_test(&mut self, instance_id: u64, instance: PopupInstance) {
+        self.popup_instances.insert(instance_id, instance);
+    }
+
     /// 현재 활성 popup 인스턴스 목록. PopupManager 렌더 / debug IPC가 사용.
     pub fn popup_instances(&self) -> impl Iterator<Item = (u64, &PopupInstance)> {
         self.popup_instances.iter().map(|(k, v)| (*k, v))

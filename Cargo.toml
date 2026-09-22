@@ -526,6 +526,11 @@ serde_json = "1"
 # `docs/adr/0096-unit-tests-isolated-from-user-environment.md`.
 tasty-utils = { path = "crates/tasty-utils", features = ["test-support"] }
 tasty-test-support = { path = "crates/tasty-test-support" }
+# popup 렌더 루프 시험이 plugin 프로세스 없이 popup 인스턴스를 세우는 훅
+# (`PluginManager::insert_popup_instance_for_test`)을 켠다. dev-dependency 라 제품 빌드에는
+# 그 함수가 없다(`docs/adr/0526-a-plugin-popup-the-user-touched-makes-its-file-dispatch-a-user-action.md`
+# 의 조건 3 을 기록하는 자리가 그 루프 안에 있다).
+tasty-host-plugin = { path = "crates/tasty-host-plugin", features = ["test-support"] }
 # 스캔 가드가 공유하는 판정(레포 루트, 빌드 캐시 디렉토리 식별). 이 크레이트는 의존이
 # 0 이라(ADR-0138) 여기에 dev-dep 로 들여도 루트 테스트 빌드가 무거워지지 않는다.
 tasty-doc-guards = { path = "crates/tasty-doc-guards" }
