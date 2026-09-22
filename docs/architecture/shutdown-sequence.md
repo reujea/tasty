@@ -149,7 +149,7 @@ present 한다. **부팅과 같은 렌더 경로·같은 락업**이고 다른 �
 | `SavingLayout` | `shutdown.phase_saving_layout` | 아니오 (실측 <1ms) |
 | `ReclaimingBootWorker` | `shutdown.phase_finishing_startup` | 예 (부팅 중 종료 전용) |
 | `ClosingSurfaces` | `shutdown.phase_closing_surfaces` | 아니오 (실측 <1ms) |
-| `StoppingPlugins` | `shutdown.phase_stopping_plugins` | 예 (S4 ≈2s) |
+| `StoppingPlugins` | `shutdown.phase_stopping_plugins` | 예 (S4 — 가장 늦게 빠지는 plugin 의 소요, 상한 2s) |
 
 동작 규칙 넷:
 
@@ -285,10 +285,13 @@ IPC 로 종료. 단위 ms.
   순차 대기 시절의 같은 plugin 수(6개=12.1s)와 비교하면 6배다.
 - **S4 는 여전히 종료 시간의 대부분이다.** 나머지 단계(S1/S3)는 1ms 미만이고,
   체감 종료(with_drop)의 하한은 S4 2s + Drop tail 0.1~0.3s 다.
-- **번들 plugin 은 실측상 하나도 graceful 로 빠지지 않는다** — 전부 2s deadline 을
-  꽉 채우고 force kill 된다(`reason="killed"`). plugin 로그에는 `plugin received
-  shutdown` 이 찍혀 있어 **shutdown 요청 자체는 도달**하지만 프로세스가 2s 안에
-  종료되지 않는다. 즉 남은 2s 는 대기 구조가 아니라 plugin 쪽 종료 지연이다.
+- **위 표의 "전부 killed" 와 S4 ≈2s 는 SDK 결함의 값이다.** plugin 로그에는 `plugin
+  received shutdown` 이 찍혀 요청 자체는 도달했지만, SDK `run()` 이 worker 스레드 join 에서
+  서서 프로세스가 안 끝났다 — worker 는 큐가 닫히기를 기다렸는데 그 큐의 sender 를
+  `HostHandle` 이 쥐고 있었다. SDK 가 큐에 정지 항목을 넣어 worker 를 멈추게 된 뒤의 실측
+  (2026-09-23, Linux 헤드리스 debug, 번들 9 개를 `plugin enable` 로 띄우고 하나씩 `plugin
+  disable`): **9/9 `reason="graceful"`, 개별 55~160 ms** (`plugin process retired` 줄). GUI
+  종료 경로의 S4 는 이 수정 뒤로 다시 재지 않았다(미측정) — 위 표를 그 값으로 읽지 마라.
 - **Drop tail 은 100~520ms** 로 plugin 구간에 가리지만 무시할 크기는 아니다.
   내역은 S5b(PTY) 55~122ms, S5a(Lua join) 0.2ms 미만이고, 나머지 수십~수백 ms 는
   GPU/egui/View 등 그 밖의 destructor 다. **이 구간은 종료 화면으로 덮을 수 없다** —

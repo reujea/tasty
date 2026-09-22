@@ -1,7 +1,7 @@
 manifest_version = 1
 id = "com.tasty.clipboard-viewer"
 name = "Clipboard Viewer"
-version = "0.1.65"
+version = "0.1.66"
 description = "Read-only viewer of the current system clipboard"
 api_version = "1"
 # clipboard.read 는 ADR-0009 상 이 plugin 엔 무의미(자기 프로세스 직접 read)하나

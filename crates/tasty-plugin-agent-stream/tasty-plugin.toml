@@ -1,7 +1,7 @@
 manifest_version = 1
 id = "com.tasty.agent-stream"
 name = "Agent Stream"
-version = "0.1.42"
+version = "0.1.43"
 description = "Tails AI agent session transcripts and normalizes them into structured stream events"
 api_version = "1"
 # 배포 패키징(DMG / AppImage / MSIX / deb)에서는 아직 제외한다. 이유:

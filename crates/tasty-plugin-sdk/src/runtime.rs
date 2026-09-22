@@ -9,7 +9,9 @@
 //!   dispatch 안에서 [`HostHandle::call`]을 통해 호스트를 동기 호출하면 메인이
 //!   계속 recv 가능하므로 deadlock 없이 결과가 회신된다.
 //!
-//! shutdown 요청은 메인이 즉시 ack 보내고 worker는 queue가 닫히면 자연스럽게 종료.
+//! shutdown 요청은 메인이 즉시 ack 보내고, 메인 루프를 빠져나오면 worker 큐에
+//! [`WorkerItem::Stop`] 을 넣는다 — worker 는 그 앞에 쌓인 요청까지 처리한 뒤 멈춘다.
+//! 큐가 닫히기를 기다리지 않는 이유는 `Stop` 의 문서를 본다.
 
 use std::collections::HashMap;
 use std::io::{BufRead, Write};
@@ -50,6 +52,15 @@ pub(crate) enum WorkerItem {
     /// 스레드(= `&mut plugin` 을 쥔 유일한 스레드)에서 실행시키기 위한 요청.
     /// host가 보낸 적 없는 call이라 응답을 돌려줄 곳이 없다 — fire-and-forget.
     SelfInvoke { method: String, params: Value },
+    /// 메인 recv 루프가 끝났다(shutdown 요청 · 호스트 연결 종료 · 수신 에러) — worker 는
+    /// 이 항목 앞에 쌓인 것까지 처리하고 멈춘다.
+    ///
+    /// sender 를 전부 drop 해 큐를 닫는 것으로는 worker 가 안 멈춘다: self-invoke 용
+    /// sender 클론을 [`HostHandle`] 이 들고 있고, 그 `HostHandle` 은 `run` 자신과 worker 가
+    /// 쥐며 `on_start` 로 plugin 에게도 넘어가 plugin 의 백그라운드 스레드에 남는다. 큐가
+    /// 영영 안 닫히면 `run` 이 worker join 에서 서고, 프로세스가 안 끝나 호스트가
+    /// shutdown 유예(2 s) 뒤 강제 종료한다.
+    Stop,
 }
 
 /// dispatch 내부에서만 쓰이는 에러. JSON-RPC 에러 코드를 보존한다.
@@ -74,20 +85,26 @@ impl DispatchError {
     }
 }
 
-#[allow(clippy::cognitive_complexity)] // complexity-exempt: plugin 부트스트랩(connect/handshake/스레드 기동) 순차 설정 + 단일 while 메인 recv 루프 안의 host 라인 파싱·특수 메서드(ipc.result/shutdown) 분기. 루프 진입부터 worker join 까지가 한 함수의 생명주기라 쪼개면 reader/writer/pending/req_tx 전달만 늘어남.
 pub fn run<P: Plugin>(plugin: P) -> Result<()> {
     let env = PluginEnv::load()?;
+    run_with_env(plugin, &env)
+}
+
+/// [`run`] 의 본체 — 환경변수 대신 받은 [`PluginEnv`] 로 돈다. 프로세스 전역인
+/// 환경변수를 안 건드리고 가짜 호스트에 붙여 생명주기를 시험하려고 떼어 둔 것이다.
+#[allow(clippy::cognitive_complexity)] // complexity-exempt: plugin 부트스트랩(connect/handshake/스레드 기동) 순차 설정 + 단일 while 메인 recv 루프 안의 host 라인 파싱·특수 메서드(ipc.result/shutdown) 분기. 루프 진입부터 worker join 까지가 한 함수의 생명주기라 쪼개면 reader/writer/pending/req_tx 전달만 늘어남.
+fn run_with_env<P: Plugin>(plugin: P, env: &PluginEnv) -> Result<()> {
     // macOS: 부모(tasty) 사망 감시 watchdog 시작. PDEATHSIG 등가물이 없어 자식
     // 측에서 부모 PID 변화를 폴링해 self-exit 한다. Windows(Job)/Linux(PDEATHSIG)
     // 는 호스트 측 메커니즘이 처리하므로 다른 OS 에선 no-op.
     spawn_parent_death_watchdog();
     // connect + AuthMessage 송신 + AuthAck 5s 대기.
     // 호스트가 토큰을 거부하면 PluginError::HandshakeRejected가 즉시 올라온다.
-    let conn = Connection::connect_and_authenticate(&env)?;
+    let conn = Connection::connect_and_authenticate(env)?;
     let (writer_stream, mut reader) = conn.into_parts();
     let writer = Arc::new(Mutex::new(writer_stream));
 
-    let handle_client = connect_handle_channel(&env);
+    let handle_client = connect_handle_channel(env);
 
     // hello event 송신.
     let hello = PluginEvent::Hello {
@@ -180,6 +197,11 @@ pub fn run<P: Plugin>(plugin: P) -> Result<()> {
                 break;
             }
         }
+    }
+    // 큐를 닫는 것으로는 worker 가 안 멈춘다 — `WorkerItem::Stop` 문서 참고. send 가
+    // 실패하면 worker 가 이미 끝나 receiver 가 없는 것이라 join 이 곧바로 돌아온다.
+    if req_tx.send(WorkerItem::Stop).is_err() {
+        tracing::debug!("plugin worker already exited before stop");
     }
     drop(req_tx);
     if let Err(e) = worker_handle.join() {
@@ -460,6 +482,7 @@ fn worker_loop<P: Plugin>(
                     tracing::warn!("plugin self-invoke '{method}' failed: {}", e.message);
                 }
             }
+            WorkerItem::Stop => break,
         }
     }
 }

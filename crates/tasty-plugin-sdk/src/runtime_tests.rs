@@ -518,3 +518,97 @@ fn worker_loop_reports_host_drops_once_before_dispatch() {
         "버린 수는 첫 dispatch 직전에 한 번만 보고돼야 한다"
     );
 }
+
+/// `on_start` 로 받은 `HostHandle` 을 쥐고 있는 plugin — 번들 plugin 들이 백그라운드
+/// 스레드에 host 를 넘겨 두는 형태를 흉내 낸다. 그 클론이 self-invoke sender 를 함께 쥔다.
+struct HostKeeper {
+    kept: Option<HostHandle>,
+}
+
+impl Plugin for HostKeeper {
+    fn id(&self) -> &str {
+        "test.keeper"
+    }
+    fn create_surface(&mut self, _ctx: SurfaceCreateCtx) -> SurfaceResult {
+        SurfaceResult::default()
+    }
+    fn on_start(&mut self, host: HostHandle, _bus: crate::bus::BusHandle) {
+        self.kept = Some(host);
+    }
+}
+
+/// 인증까지 받아 준 가짜 호스트 쪽 소켓과, 그 호스트에 붙은 `run_with_env` 의 종료 통지.
+fn run_against_fake_host() -> (
+    TcpStream,
+    std::io::BufReader<TcpStream>,
+    mpsc::Receiver<std::result::Result<(), String>>,
+) {
+    let listener = std::net::TcpListener::bind(("127.0.0.1", 0)).unwrap();
+    let port = listener.local_addr().unwrap().port();
+    let env = PluginEnv {
+        plugin_id: "test.keeper".into(),
+        host_port: port,
+        token: "t".into(),
+        host_api_version: "1".into(),
+        plugin_dir: None,
+        data_dir: None,
+        config_path: None,
+        log_path: None,
+        locale: "en".into(),
+        locale_font: None,
+        handle_endpoint: None,
+    };
+    let (done_tx, done_rx) = mpsc::channel();
+    std::thread::spawn(move || {
+        let r = run_with_env(HostKeeper { kept: None }, &env).map_err(|e| e.to_string());
+        if done_tx.send(r).is_err() {
+            tracing::debug!("test already gave up waiting for run_with_env");
+        }
+    });
+    let (mut stream, _) = listener.accept().unwrap();
+    let mut reader = std::io::BufReader::new(stream.try_clone().unwrap());
+    let mut line = String::new();
+    reader.read_line(&mut line).unwrap(); // AuthMessage
+    writeln!(stream, "{{\"auth_ack\":{{\"ok\":true}}}}").unwrap();
+    stream.flush().unwrap();
+    line.clear();
+    reader.read_line(&mut line).unwrap(); // hello event
+    assert!(line.contains("hello"), "expected hello, got {line}");
+    (stream, reader, done_rx)
+}
+
+/// shutdown 요청을 받으면 `run` 이 돌아와야 한다 — 호스트는 프로세스 종료를 2 s 기다린 뒤
+/// 강제 종료한다. worker 큐를 닫는 것만으로는 worker 가 안 끝난다: plugin 이 쥔
+/// `HostHandle` 이 self-invoke sender 를 들고 있어서다(`WorkerItem::Stop` 문서).
+#[test]
+fn run_returns_after_shutdown_even_when_plugin_keeps_host_handle() {
+    let (mut stream, mut reader, done_rx) = run_against_fake_host();
+    let req = PluginRequest::new(METHOD_SHUTDOWN, json!({}), 99);
+    writeln!(stream, "{}", serde_json::to_string(&req).unwrap()).unwrap();
+    stream.flush().unwrap();
+    let mut ack = String::new();
+    reader.read_line(&mut ack).unwrap();
+    assert!(
+        ack.contains("\"id\":99"),
+        "shutdown ack expected, got {ack}"
+    );
+    // 호스트는 소켓을 쥔 채 프로세스 종료를 기다린다 — 연결을 닫아 주지 않는다.
+    let outcome = done_rx
+        .recv_timeout(std::time::Duration::from_secs(1))
+        .expect("run did not return within 1 s of the shutdown request");
+    assert_eq!(outcome, Ok(()));
+    drop(stream);
+}
+
+/// 호스트가 연결을 닫아도 같은 이유로 `run` 이 돌아와야 한다.
+#[test]
+fn run_returns_after_host_closes_even_when_plugin_keeps_host_handle() {
+    let (stream, reader, done_rx) = run_against_fake_host();
+    stream.shutdown(std::net::Shutdown::Both).unwrap();
+    drop(reader);
+    drop(stream);
+    let outcome = done_rx
+        .recv_timeout(std::time::Duration::from_secs(1))
+        .expect("run did not return within 1 s of the host closing the connection");
+    assert_eq!(outcome, Ok(()));
+}
