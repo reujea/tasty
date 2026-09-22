@@ -309,7 +309,7 @@ pub(crate) struct TabCreated {
 /// `pane_id` 에 새 탭을 만든다. `params` 의 `type`(기본 terminal) · `cwd` · `name` 을 읽고,
 /// kind 의 fresh-context 기본 파라미터를 채운 사본이 새 surface 의 `surface_params` 가 된다.
 /// `activate` 는 새 탭을 활성 탭으로 세우는가다 — 에이전트 진입점은 `false` 를 준다
-/// ([ADR-0498](../../docs/adr/0498-an-agent-created-tab-does-not-take-the-users-tab.md)).
+/// ([ADR-0502](../../docs/adr/0502-an-agent-created-tab-does-not-take-the-users-tab.md)).
 pub(crate) fn create_tab(
     core: &mut Core,
     state: &mut dyn CascadeWindow,

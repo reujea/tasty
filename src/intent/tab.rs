@@ -5,7 +5,7 @@
 //!   handler 안에서 결정 (`state.active_workspace(engine).focused_pane`).
 //!   terminal kind 면 cwd 도 handler 가 inherit 결정. 새 탭은 **선택한다** — focused
 //!   pane 에 붙는 사용자 동작의 인텐트다. 에이전트 표면(`tab.create`)은 이 인텐트를 안
-//!   거치고 background 로 붙인다(ADR-0498).
+//!   거치고 background 로 붙인다(ADR-0502).
 
 use super::{DispatchedIntent, Intent, IntentOrigin};
 use crate::core::Core;
@@ -63,7 +63,7 @@ fn new_tab(
         // origin 으로 가르지 않는다 — 에이전트 라벨로 여기 오는 발화점은 origin 없는
         // `file_handler.dispatch` 하나인데, markdown plugin 의 파일열기 팝업(사용자의
         // `open_markdown`)이 바로 그 호출로 새 탭을 연다. host 는 둘을 구분할 수 없다
-        // (ADR-0302) — 가르면 사용자 경로가 새 탭을 못 본다(ADR-0498).
+        // (ADR-0302) — 가르면 사용자 경로가 새 탭을 못 본다(ADR-0502).
         activate: true,
     };
     match core.apply(engine, intent) {

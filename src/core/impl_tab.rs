@@ -60,7 +60,7 @@ impl Core {
     /// 3) send_fast_init / mark_layout_dirty (pane borrow 끝난 후)
     ///
     /// 활성 탭은 `activate` 가 정한다 — 에이전트가 만든 탭은 사용자가 보던 탭을 바꾸지
-    /// 않는다([ADR-0498](../../docs/adr/0498-an-agent-created-tab-does-not-take-the-users-tab.md)).
+    /// 않는다([ADR-0502](../../docs/adr/0502-an-agent-created-tab-does-not-take-the-users-tab.md)).
     /// terminal 은 `activate` 와 무관하게 background 다.
     pub(super) fn apply_create_tab(
         engine: &mut crate::core::CoreState,
@@ -181,7 +181,7 @@ impl Core {
 #[cfg(test)]
 mod create_tab_selection_tests {
     //! 새 탭의 선택은 `activate` 가 정한다 — 에이전트가 만든 비터미널 탭이 사용자가 보던
-    //! 탭을 바꾸던 결함의 회귀 방지(ADR-0498).
+    //! 탭을 바꾸던 결함의 회귀 방지(ADR-0502).
     use super::*;
 
     fn create(engine: &mut CoreState, pane_id: u32, kind: &str, activate: bool) -> usize {

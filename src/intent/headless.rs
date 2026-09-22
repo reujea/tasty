@@ -595,7 +595,7 @@ mod tests {
 
     /// 에이전트 라벨의 `NewTab` 도 선택한다 — 그 라벨로 오는 유일한 발화점(origin 없는
     /// `file_handler.dispatch`)이 사용자의 markdown 파일열기 팝업을 싣고 있어서다
-    /// (ADR-0498). 이 값을 바꾸려면 그 팝업이 사용자임을 실어 보내는 채널이 먼저다.
+    /// (ADR-0502). 이 값을 바꾸려면 그 팝업이 사용자임을 실어 보내는 채널이 먼저다.
     #[test]
     fn an_agent_labelled_new_tab_still_selects_it() {
         assert_eq!(new_empty_tab_then_selection(Intent::from_agent_ipc), (2, 1));

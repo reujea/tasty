@@ -862,7 +862,7 @@ pub(crate) fn execute_forwarded_structural_op(
             let p = structural_params(params, json!({ "pane_id": pane_id, "type": surface_kind }));
             engine.attach.set_auto_tap_suppressed(true);
             // 원격 사용자의 손 조작이면 선택하고, 원격 에이전트면 서버 앞 사용자의 탭을
-            // 바꾸지 않는다(ADR-0498) — 복원 스택을 가르는 `restorable` 과 같은 축이다.
+            // 바꾸지 않는다(ADR-0502) — 복원 스택을 가르는 `restorable` 과 같은 축이다.
             let activate = origin == tasty_ipc::stream::ForwardOrigin::User;
             let result = exec::create_tab(core, state, engine, pane_id, &p, activate);
             engine.attach.set_auto_tap_suppressed(false);
@@ -2787,7 +2787,7 @@ mod forward_exec_tests {
         .expect("forwarded new tab must succeed");
     }
 
-    /// 원격 **에이전트**가 연 비터미널 탭은 서버 앞 사용자의 선택을 안 바꾼다(ADR-0498).
+    /// 원격 **에이전트**가 연 비터미널 탭은 서버 앞 사용자의 선택을 안 바꾼다(ADR-0502).
     #[test]
     fn a_forwarded_agent_new_tab_keeps_the_selected_tab() {
         let (mut core, mut state, mut engine, _home) = make_core_state();

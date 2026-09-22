@@ -64,7 +64,7 @@ pub fn handle_tab_create(
         Err(e) => return e,
     };
 
-    // 에이전트 경로 — 새 탭은 사용자가 보던 탭을 바꾸지 않는다(ADR-0498).
+    // 에이전트 경로 — 새 탭은 사용자가 보던 탭을 바꾸지 않는다(ADR-0502).
     match structural_exec::create_tab(core, window, engine, pane_id, params, false) {
         Ok(TabCreated {
             pane_id,

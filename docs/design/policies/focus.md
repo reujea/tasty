@@ -259,7 +259,7 @@ IPC 핸들러(`src/adapters/ipc/`)가 활성 포인터를 읽는 자리를 전�
 - 응답의 `active_tab` 은 "생성 뒤 그 pane 의 활성 탭" 이다 — 에이전트가 만든 탭이면 사용자가
   보던 탭의 인덱스다. 새 탭은 응답의 `surface_id` 로 다룬다.
 
-근거는 [ADR-0498](../../adr/0498-an-agent-created-tab-does-not-take-the-users-tab.md).
+근거는 [ADR-0502](../../adr/0502-an-agent-created-tab-does-not-take-the-users-tab.md).
 
 ## 원격이 점유한 surface 는 닫기 요청이 죽이지 않는다
 
