@@ -19,25 +19,28 @@
 //! 에서도 검증되는 면적이 넓어진다.
 //!
 //! 기능 문서: `docs/features/macos-permissions/index.md`.
+//!
+//! 순수부의 경계는 `cfg(any(target_os = "macos", test))` 다 — 모듈이 이미 `gui` 안쪽이라
+//! macOS 에서는 실행부가 부르고, 다른 OS 에서는 시험만 부른다. 그래서 비-macOS 의
+//! `--all-targets` 가 순수부를 타입체크하고, 라이브러리 구성에는 dead 가 남지 않는다.
 
-// 이유: 비-macOS / headless 빌드에서는 결정 로직을 호출하는 실행부가 cfg 로 잘려 나간다.
-// 그래도 로직 자체는 컴파일한다 — cfg 로 잘린 코드는 타입체크조차 되지 않으므로,
-// 다른 플랫폼에서 검증 가능한 면적을 남겨두는 것이 이 분리의 목적이다.
-#![cfg_attr(not(all(target_os = "macos", feature = "gui")), allow(dead_code))]
-
+#[cfg(any(target_os = "macos", test))]
 use std::path::{Path, PathBuf};
 
 /// pre-warm 할 홈 하위 폴더 — `SystemPolicy{Downloads,Documents,Desktop}Folder` 대응.
 /// 순서가 곧 프롬프트가 뜨는 순서다.
+#[cfg(any(target_os = "macos", test))]
 const HOME_SUBDIRS: [&str; 3] = ["Downloads", "Documents", "Desktop"];
 
 /// 마운트 루트. 이동식(`SystemPolicyRemovableVolumes`)·네트워크
 /// (`SystemPolicyNetworkVolumes`) 볼륨이 모두 여기 하위에 붙는다.
+#[cfg(any(target_os = "macos", test))]
 const VOLUMES_ROOT: &str = "/Volumes";
 
 /// 목록 결정에 필요한 파일시스템 조회. 실제 IO 없이 결정 로직만 검증할 수 있도록
 /// 추상화한다 — TCC 가 없는 CI 에서 `read_dir` 을 돌리면 헤드리스 러너가 프롬프트를
 /// 기다리며 멈출 수 있고, 그 환경 의존성을 테스트에 들이지 않기 위함이다.
+#[cfg(any(target_os = "macos", test))]
 trait FsProbe {
     /// 디렉터리로 존재하는가. 없는 폴더는 읽어봐야 프롬프트가 안 뜨므로 건너뛴다.
     fn is_dir(&self, path: &Path) -> bool;
@@ -77,6 +80,7 @@ impl FsProbe for RealFs {
 /// 나열해 항목당 한 번씩만 건드린다.
 ///
 /// 존재하지 않는 경로는 빠진다. `home` 이 `None` 이면 홈 항목 전체가 빠진다.
+#[cfg(any(target_os = "macos", test))]
 fn prewarm_targets(home: Option<&Path>, fs: &dyn FsProbe) -> Vec<PathBuf> {
     let mut targets = Vec::new();
 
@@ -331,6 +335,7 @@ pub const FULL_DISK_ACCESS_SETTINGS_URL: &str =
 /// FDA 없이는 열리지 않는 것으로 알려진 경로를 읽어보는 우회 판정이다 — 보유 여부를
 /// 묻는 공개 API 자체가 없다. 이 경로들은 거부될 때 **프롬프트를 띄우지 않고 조용히**
 /// `EPERM` 을 내므로 백그라운드에서 안전하게 시도할 수 있다.
+#[cfg(any(target_os = "macos", test))]
 fn fda_probe_paths(home: Option<&Path>) -> Vec<PathBuf> {
     let mut paths = vec![PathBuf::from(
         "/Library/Application Support/com.apple.TCC/TCC.db",
@@ -349,6 +354,7 @@ fn fda_probe_paths(home: Option<&Path>) -> Vec<PathBuf> {
 /// 추정이 틀릴 수 있으므로(아래 `full_disk_access_likely` 참고) 이 값은 **안내 표시
 /// 여부에만** 쓰고 기능 분기에는 쓰지 않는다. 오탐으로 안내가 떠도 평생 1 회이며,
 /// 설정에서 다시 켤 수 있다.
+#[cfg(any(target_os = "macos", test))]
 fn should_show_fda_notice(already_shown: bool, fda_likely: bool) -> bool {
     !already_shown && !fda_likely
 }
