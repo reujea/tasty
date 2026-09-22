@@ -58,13 +58,11 @@ pub(super) fn draw_detectors(
                         fh.detector_enabled.insert(id.clone(), checked);
                     }
                     ui.label(id.as_str());
-                    ui.label(detector_origins_summary(&det.rules));
+                    ui.label(detector_origins_summary(&file_format.rule_origins(id)));
                     ui.label(rule_kinds_summary(&det.rules));
-                    // user-origin 항목이면 Remove 버튼.
-                    let has_user = det
-                        .rules
-                        .iter()
-                        .any(|r| matches!(r.origin, RuleOrigin::User));
+                    // user 출처 contribution 이 있으면 Remove 버튼. finalize 된 rule 의 origin 으로
+                    // 판정하지 않는다 — 같은 rule 을 plugin 도 적으면 dedupe 가 user 를 지운다.
+                    let has_user = file_format.has_user_contribution(id);
                     let pending_remove = fh.remove_detector.contains(id);
                     if has_user {
                         ui.horizontal(|ui| {
@@ -215,10 +213,10 @@ fn build_add_detector_decl(form: &AddDetectorForm) -> Result<DetectorDecl, Strin
     })
 }
 
-fn detector_origins_summary(rules: &[crate::file::format::DetectorRule]) -> String {
+fn detector_origins_summary(rule_origins: &[RuleOrigin]) -> String {
     let mut origins: BTreeSet<String> = BTreeSet::new();
-    for r in rules {
-        let label = match &r.origin {
+    for origin in rule_origins {
+        let label = match origin {
             RuleOrigin::HostDefault => "host".to_string(),
             RuleOrigin::Plugin(id) => format!("plugin:{}", id),
             RuleOrigin::User => "user".to_string(),

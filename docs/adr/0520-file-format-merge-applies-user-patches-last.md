@@ -41,7 +41,14 @@ handler 와 다른 점: detector id 에는 출처 이름공간이 없다(`Detect
 - **잃은 것 / 한계**: 같은 rule 을 두 출처가 적었을 때 finalize 결과에 남는 rule 의 origin 과 rule 의
   나열 순서가 부팅 직후에는 달라진다(전에는 user 가 먼저 설치돼 user origin 이 남았고, 이제 plugin
   origin 이 남는다). 판정은 rule 의 나열 순서에 기대지 않고, user 로 내보내기(`export_user_config`)는
-  finalize 결과가 아니라 user contribution 을 읽으므로 저장 내용은 같다.
+  finalize 결과가 아니라 user contribution 을 읽으므로 저장 내용은 같다. finalize 된 rule 의 origin 을
+  읽던 소비자는 Settings detectors 탭 둘이었다 — "user 항목 삭제" 버튼을 보일지(`has_user`)와 출처 칸.
+  그대로 두면 user 와 plugin 이 같은 rule 을 적은 detector 에서 부팅 직후 버튼과 `user` 표시가 사라진다
+  (전에도 부팅 직후와 reload 뒤가 서로 달랐다). 그래서 둘 다 contribution 을 읽게 옮겼다: 버튼은
+  user 출처 contribution 이 있는지(`FileFormatRegistry::has_user_contribution` — rule 없는 표시명 ·
+  아이콘 · 켜기/끄기 patch 도 센다), 출처 칸은 rule 을 선언한 출처들(`rule_origins`)이다. 이제 두 표시가
+  부팅 직후 · reload 뒤 · plugin 재기동 뒤에 같다. 그 대가로 rule 없이 켜기/끄기나 아이콘만 바꾼 user
+  항목에도 삭제 버튼이 보인다 — 누르면 그 patch 를 지워 host · plugin 값으로 돌아간다.
 - **운영 비용 / 유지 부담**: `DetectorDecl` 을 리터럴로 만드는 자리는 `disabled: None` 을 쓴다. plugin
   manifest 의 JSON 은 `Option` 으로 그대로 역직렬화된다.
 - **호환성**: 부팅 직후의 결과가 바뀐다. 전에는 plugin 값이, 이제는 user patch 값이 나온다. host · plugin
@@ -65,8 +72,10 @@ handler 와 다른 점: detector id 에는 출처 이름공간이 없다(`Detect
   `a_user_patch_wins_over_a_plugin_installed_after_the_boot_load` ·
   `a_user_patch_wins_over_a_plugin_that_contributes_again_without_a_reload` ·
   `a_user_enable_beats_a_plugin_disable_across_boot_and_plugin_restart` ·
-  `a_plugin_overrides_a_host_default_whatever_the_install_order` 가 실패한다. 변이 확인(2026-09-23):
-  `merge_order` 의 정렬을 빼면 넷 다 죽고, user 의 `Some(false)` 해석을 빼면 셋째가 죽는다.
+  `a_plugin_overrides_a_host_default_whatever_the_install_order` ·
+  `the_user_entry_is_seen_the_same_after_boot_and_after_a_reload` 가 실패한다. 변이 확인(2026-09-23):
+  `merge_order` 의 정렬을 빼면 다섯 다 죽고, user 의 `Some(false)` 해석을 빼면 셋째가 죽고,
+  `has_user_contribution` 을 finalize 된 rule 의 origin 으로 판정하게 되돌리면 다섯째가 죽는다.
 - plugin 이 `extension_priority` 를 contribute 하게 된다 — 지금은 host · user 만 그 표를 쓰므로 표의
   출처 순서는 설치 순서(host 가 부팅 첫머리)로 충분하다.
 

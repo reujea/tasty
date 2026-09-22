@@ -1272,3 +1272,51 @@ fn a_plugin_overrides_a_host_default_whatever_the_install_order() {
     reg.install_host_defaults(host);
     assert_eq!(markdown(&reg).icon.as_deref(), Some("p"));
 }
+
+/// Settings 의 "user 항목 삭제" 버튼과 출처 칸이 읽는 판정은 부팅 직후와 reload 뒤에 같다.
+///
+/// user 와 plugin 이 같은 rule 을 적으면 finalize 의 dedupe 는 병합 순서상 앞선 plugin 쪽만
+/// 남긴다 — finalize 된 rule 의 origin 으로 판정하면 user 가 안 보인다. 판정은 contribution 을 본다.
+#[test]
+fn the_user_entry_is_seen_the_same_after_boot_and_after_a_reload() {
+    let reg = FileFormatRegistry::new();
+    reg.install_host_defaults(crate::HOST_DEFAULTS_TOML);
+    let (_dir, p) = user_config(
+        r#"
+            [[detector]]
+            id = "markdown"
+            icon = "user-icon"
+            [[detector.rule]]
+            kind = "extension"
+            values = ["md"]
+        "#,
+    );
+    reg.install_user_config(&p);
+    reg.install_plugin_detectors("com.tasty.markdown", &[plugin_markdown_decl("p", None)]);
+    let id = DetectorId("markdown".into());
+    let plugin = RuleOrigin::Plugin("com.tasty.markdown".into());
+
+    // finalize 된 rule 에는 user origin 이 없다 — 이 판정이 그것을 읽으면 안 되는 이유.
+    assert!(
+        markdown(&reg)
+            .rules
+            .iter()
+            .all(|r| !matches!(r.origin, RuleOrigin::User))
+    );
+    let seen = |reg: &FileFormatRegistry| (reg.has_user_contribution(&id), reg.rule_origins(&id));
+    let after_boot = seen(&reg);
+    assert_eq!(after_boot, (true, vec![plugin.clone(), RuleOrigin::User]));
+
+    reg.reload_user_config(&p);
+    assert_eq!(seen(&reg), after_boot);
+
+    reg.uninstall_plugin("com.tasty.markdown");
+    reg.install_plugin_detectors("com.tasty.markdown", &[plugin_markdown_decl("p", None)]);
+    assert_eq!(seen(&reg), after_boot);
+
+    // rule 없는 user 항목(Settings 의 켜기/끄기만 남긴 것)도 지울 것이 있다.
+    reg.remove_user_detector(&id);
+    assert_eq!(seen(&reg), (false, vec![plugin.clone()]));
+    reg.set_user_detector_disabled(&id, true);
+    assert_eq!(seen(&reg), (true, vec![plugin]));
+}

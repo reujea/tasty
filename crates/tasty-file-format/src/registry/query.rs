@@ -34,6 +34,37 @@ impl FileFormatRegistry {
         inner.finalized.keys().cloned().collect()
     }
 
+    /// 이 detector 에 user 출처 contribution 이 있는가 — rule · 메타 · `disabled` 중 무엇이든.
+    ///
+    /// Settings 의 "user 항목 삭제"(`remove_user_detector`)가 지울 것이 있는지를 이것으로 정한다.
+    /// finalize 된 rule 의 origin 으로 추론하면 안 된다: 같은 rule 을 여러 출처가 적으면 dedupe 가
+    /// 병합 순서상 앞선 출처(host · plugin)만 남겨 user 가 안 보이고, rule 없는 patch 는 애초에
+    /// rule 이 없다(ADR-0520).
+    pub fn has_user_contribution(&self, id: &DetectorId) -> bool {
+        let inner = self.lock_read();
+        inner
+            .contributions
+            .get(id)
+            .is_some_and(|cs| cs.iter().any(|c| matches!(c.origin, RuleOrigin::User)))
+    }
+
+    /// rule 을 하나 이상 선언한 출처들 — 병합 순서(Host → Plugin → User), 중복 없이.
+    ///
+    /// finalize 된 rule 의 origin 과 다르다: 그쪽은 dedupe 로 같은 rule 의 뒤 출처를 지운다.
+    /// 여기는 contribution 을 보므로 같은 rule 을 함께 적은 출처도 모두 나온다.
+    pub fn rule_origins(&self, id: &DetectorId) -> Vec<RuleOrigin> {
+        let inner = self.lock_read();
+        let mut origins: Vec<RuleOrigin> = Vec::new();
+        if let Some(cs) = inner.contributions.get(id) {
+            for c in super::merge_order(cs) {
+                if !c.rules.is_empty() && !origins.contains(&c.origin) {
+                    origins.push(c.origin.clone());
+                }
+            }
+        }
+        origins
+    }
+
     /// `target` 에 매칭되는 detector id 결정. 매칭 실패 시 `None` (= unknown).
     ///
     /// - `DetectDepth::Cheap`: file IO 없음. 확장자/glob/is-directory 만.
