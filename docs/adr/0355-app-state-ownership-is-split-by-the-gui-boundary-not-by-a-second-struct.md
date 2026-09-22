@@ -106,6 +106,12 @@ headless 빌드(`--no-default-features`)도 같은 struct 를 쓴다. 그래서 
     `AppState` 가 없고, 창에서 쓰는 것은 포트 메서드 목록이 답한다. 그래서 "잃은 것" 첫 항은 엔진 핸들러
     층에서 닫혔다. `pump_ipc` 는 `&Core` 가 아니라 창의 소유자로 `AppState` 를 받는다 — 그 이유와 재검토
     조건은 ADR-0471.
+  - **① 의 입구 본문 (후속 — ADR-0471 "입구 본문 봉인과 창 라우터의 호출자", 2026-09-23)**:
+    `handle_checked_request` 아래 입구 본문은 `EntryWindow` 만 받아 창 상태를 이름으로 못 부른다.
+    `pump_ipc` 는 같은 이유(intent 적용이 창을 받는다)로 열려 있다. 그리고 이 잔여가 겨냥한 것은
+    **창 상태(`AppState`) 축**이다 — 원칙 2.1 ① 이 지키는 사용자 상태 중 포커스 pane · 활성 탭 ·
+    포커스 surface · 닫은 항목 히스토리 · 스크롤·선택은 `CoreState` 에 있어, 이 잔여가 닫혀도
+    그쪽은 막히지 않는다. 그쪽의 방어선은 intent 의 origin 판정이다.
 - **운영 비용**: 새 dialog 상태를 넣는 사람은 그것이 headless 에서 읽혀야 하는지를 정해야 한다.
   읽혀야 하면 `dialogs` 가 아니라 `AppState` 나 `CoreState` 에 둔다.
 

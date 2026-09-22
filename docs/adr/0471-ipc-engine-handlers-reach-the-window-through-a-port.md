@@ -89,6 +89,28 @@ GUI·debug 핸들러만 `AppState` 를 받고, 그것은 엔진 핸들러 표와
   `state/ipc_window.rs` 에 한 줄 위임을 쓴다. 창 상태 자체를 조작하는 새 핸들러는 엔진 표가 아니라
   창·debug 라우터에 등록한다. intent 를 내는 새 핸들러는 `&mut IntentOutbox` 를 받는다.
 
+### 입구 본문 봉인과 창 라우터의 호출자 (후속 — 구현 확정 보강, 2026-09-23)
+
+Decision 4 는 창 상태 자체가 대상인 핸들러를 창 라우터로 옮겼지만 **누가 그 문에 닿는가**는 적지
+않았다. 권한 게이트는 `CallerContext::Local` 을 무조건 통과시키므로 CLI·agent 호출이 창 라우터에
+그대로 닿았고, `file_picker.trigger` 가 그 호출로 사용자 입력 포커스를 가져갔다. 그 caller 정책은
+[ADR-0498](0498-the-file-picker-trigger-answers-only-a-plugin-caller.md) 이 정한다. 이 ADR 쪽에서
+확정된 것은 둘이다.
+
+- **입구 본문은 창을 이름으로 못 부른다.** `handle_checked_request` 는 Decision 5 대로 `AppState` 를
+  받지만, 곧바로 `EntryWindow`(`src/adapters/ipc/handler/entry_window.rs`)로 감싼다. 그 아래
+  `route_checked_request` · `dispatch_routed` 는 `EntryWindow` 만 받고, 그 필드는 모듈 밖에 안 보인다.
+  열린 문은 엔진 라우터용 포트(`port`) · gui 창 라우터(`route_window`) · debug 라우터(`route_debug`,
+  파일 전체가 `#![cfg(debug_assertions)]` 인 `entry_window_debug.rs`) 셋이다. `AppState` 를 돌려주는
+  접근자는 없다 — 위 Alternatives 셋째가 기각한 우회문이 안 생긴다. 봉인의 폭은 포트와 같다:
+  `port()` 가 `CascadeWindow` 를 물려받으므로 `set_active_workspace` 는 입구 본문에서도 부를 수 있다.
+  막히는 것은 popup · dialogs · tutorial 같은 `AppState` 직접 접근이다. 헤드리스 `pump_ipc` 는 intent
+  적용에 창 전체를 넘겨야 해서 이 봉인 밖이다(아래 재검토 조건 그대로).
+- **창 라우터 팔은 호출자 정책을 명부에 적는다.** `src/adapters/ipc/handler/window_router_caller_tests.rs`
+  가 라우터 팔과 명부를 양방향으로 대조하고, `PluginOnly` 팔을 CLI·agent 로 불러 `-32016` 과 창
+  무변화를 확인한다. `tests/ipc_release_table_excludes_input_reproduction.rs` 의 `RELEASE_ROUTERS` 도
+  이제 gui 창 라우터를 훑는다.
+
 ## Alternatives Considered
 
 - **라우터가 intent 를 반환값으로 돌려주고 호출자가 적재한다**: 브리핑이 든 방향이다. 안 고른
@@ -132,10 +154,14 @@ GUI·debug 핸들러만 `AppState` 를 받고, 그것은 엔진 핸들러 표와
   시험 8 — 그 "출하" 는 시험 전용 `handle_with_caller` 를 담고 있어, 갈라 세면 출하 26). 2026-09-22
   위 패턴 실측 40 = **출하 26 · 시험 14**(클로저 인자 2 포함, 둘 다 시험). 출하는 그대로이고 는 것은
   전부 시험이다. 경로 한정 표기만 잡히는 자리는 6 이고 전부 시험이다. 옛 패턴
-  `이름: &(mut )?AppState` 로는 34 가 나와 그 6 을 놓친다.
+  `이름: &(mut )?AppState` 로는 34 가 나와 그 6 을 놓친다. 2026-09-23 같은 패턴 실측 38 = **출하 24 ·
+  시험 14** — 입구 본문 둘(`route_checked_request` · `dispatch_routed`)이 `EntryWindow` 를 받게 되어
+  출하가 2 줄었다. `EntryWindow` 의 필드 `state: &'a mut AppState` 는 인자가 아니고, 수명 표기 때문에 이
+  패턴에도 안 잡힌다.
 
 ## References
 
+- [ADR-0498](0498-the-file-picker-trigger-answers-only-a-plugin-caller.md) — 창 라우터 팔 `file_picker.trigger` 의 호출자 정책(후속 항 "입구 본문 봉인과 창 라우터의 호출자")
 - [ADR-0355](0355-app-state-ownership-is-split-by-the-gui-boundary-not-by-a-second-struct.md) — 이 결정이 엔진 핸들러 층을 닫는 잔여 ①(진입점은 열려 있다)
 - [ADR-0470](0470-an-ipc-handler-takes-window-state-only-when-it-reads-it.md) — 인자를 빼는 앞 걸음과 이 결정이 이은 남은 걸음
 - [ADR-0533](0533-an-omitted-target-keeps-its-focus-default-only-where-nothing-names-one.md) — 이 결정이 정하지 않은 대상 생략 기본값의 자리별 재결정

@@ -72,6 +72,9 @@
   **`&Core` 만으로 내려가지는 않았다** — 창을 쥔 진입점 `handle_checked_request` 와 헤드리스 `pump_ipc` 는
   `AppState` 를 받는다. 요청의 출구를 옮길 창 큐와, 창 상태 자체가 대상인 창·debug 핸들러가 거기 있기
   때문이다(ADR-0471 Decision 5).
+- 5 의 뒤 — 진입점 아래 입구 본문(`route_checked_request` · `dispatch_routed`)은 `AppState` 대신
+  `EntryWindow` 를 받는다(ADR-0471 "입구 본문 봉인과 창 라우터의 호출자", 2026-09-23). 진입점과
+  헤드리스 `pump_ipc` 는 여전히 `AppState` 를 받는다.
 - Decision 3 이 `AppState` 에 남긴 `read_since_mark` 의 포커스 폴백은 부르는 자리가 없어 지웠다. 대상을
   준 읽기는 `CoreState::read_since_mark_of` 다.
 
