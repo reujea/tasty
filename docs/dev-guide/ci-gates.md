@@ -1039,7 +1039,9 @@ pre-push `B.4` 는 `--locked` 없이 `-D clippy::correctness` 만 건다 — 셋
 
 ### push 범위 안쪽의 커밋 — 어느 채널도 안 보고, **안 보기로 했다**
 
-위 51 커밋의 사이 50 개가 그 예다. 채널마다 모수가 다르고, 그 어느 것도 범위 안쪽이 아니다:
+위 51 커밋은 push 4 번에 걸쳐 들어왔고, 그 중 push tip 이 아닌 47 개가 그 예다(모수는 이 클론의
+origin/main reflog 다 — `git rev-list c3e78aaa8..dd5ef243a | grep -cvxFf <(git reflog show --format=%H origin/main)`).
+채널마다 모수가 다르고, 그 어느 것도 범위 안쪽이 아니다:
 
 | 채널 | 보는 것 |
 |---|---|
