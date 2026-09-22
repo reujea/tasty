@@ -117,9 +117,9 @@ IPC 응답은 바뀌지 않는다. 이 intent 들은 적용 전에 요청이 응
 - [identity.md](../identity.md) 원칙 1
 - 코드 근거(결정이 실현된 현재 위치, 심볼 이름): `crate::intent::report_apply_error` ·
   `crate::core::mark_last_forward_agent_origin` · `PendingStructuralForward::silent_failure` ·
-  `AttachClientSession::silent_failure_ops` · `AttachClientSession::agent_markdown_requests` ·
+  `AttachClientSession::agent_requests`(`src/app/attach_client/agent_origin.rs` 의 `AgentRequests`) ·
   markdown plugin 의 `RemoteRequester`. 시험: `src/intent/apply_error_tests.rs` ·
-  `src/app/attach_client.rs` 의 `an_agent_forward_failure_does_not_toast` ·
+  `src/app/attach_client/agent_origin.rs` 의 `an_agent_forward_failure_does_not_toast` ·
   `an_agent_markdown_reload_truncation_does_not_toast` · `src/adapters/ipc/handler/markdown_mirror.rs`
   의 `content_request_carries_the_agent_origin` · markdown plugin 의
   `only_an_agent_content_request_carries_the_agent_origin`. `markdown_reload` 가 `RemoteRequester::Agent`
