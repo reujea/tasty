@@ -542,6 +542,8 @@ State 셀은 `status_dot`(점 `status_dot_size` 8 + gap 6 + caption 11px proport
   헤더·unsaved 의 `gap: 5` → `space-xs`(4), unsaved 점 6px → `status-dot-size-compact`(6),
   라벨↔입력 `gap: 3` → `STRUCT_GAP_3`, 선택 leaf 핸들 사이 `gap: 2` → `STRUCT_GAP_2`.
 - **근거**: `gallery/preset_editor.jsx` (`SurfaceSettings`/`useSurfaceCfg`/`switchKind`/`normalize`).
+- **결정 근거**: kind 전환 · default 선채움 · autofocus 없음 · 저장 실패 시 화면 유지 · 더블클릭 범위의
+  근거 · 대안 · 재검토 조건은 [ADR-0522](../../adr/0522-the-preset-surface-settings-draft-keeps-values-across-kind-switches.md).
 
 ## explorer GridCell — 아이콘 축소 + 파일명 3줄 wrap 말줄임 (2026-07-09 디자인 확정 반영)
 

@@ -139,6 +139,7 @@ modifier-hint 는 0035(좁힘 + 지연) · 0038(빈 섹션) · 0064(타이머 �
 | 0401 | [원격 연결 상태 사건은 사용자 행동 없이도 toast 를 띄울 수 있다 — toast 트리거 정책의 허용 부류](0401-remote-connection-events-may-raise-a-toast-without-a-user-action.md) | Accepted | 2026-09-21 | toast, attach, mirror, ui, identity-principle-1, user-agent-separation |
 | 0460 | [셀 강조색의 alpha 는 CPU 에서 그 셀 배경 위에 합성한다](0460-cell-highlight-alpha-is-composited-on-the-cpu-over-the-cell-bg.md) | Accepted | 2026-09-21 | renderer, gpu, theme, search, selection, alpha, blending, compatibility |
 | 0510 | [디자인 작업은 Claude Design 시안을 갤러리 → 본체 → 사이트 사본 순으로 정합한다 — 갤러리는 본체 UI 의 완전한 단일 출처다](0510-design-work-flows-from-claude-design-through-gallery-app-and-site.md) | Accepted | 2026-09-23 | design-workflow, claude-design, gallery, gallery-first, design-parity, component-catalog, site, vendor, guards, adr-0138, adr-0506 |
+| 0522 | [프리셋 surface 설정 화면의 draft 는 kind 를 바꿔도 값을 지우지 않는다](0522-the-preset-surface-settings-draft-keeps-values-across-kind-switches.md) | Accepted | 2026-09-23 | preset, layout-presets, draft, surface-settings, design-parity, egui, input, adr-0510 |
 
 ## 길이 타입 · DPI
 
