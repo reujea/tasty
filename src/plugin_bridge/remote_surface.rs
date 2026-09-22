@@ -8,17 +8,17 @@
 //! 동적 kind 문자열은 `register_remote_kind`에서 `Box::leak`으로 한 번 정적화한다
 //! (plugin 등록 시 1회, 메모리 누수는 plugin 종류 수만큼이라 무시 가능).
 //!
-//! 일부 메서드는 `SurfaceHandles`를 통한 외부 접근용 surface로 노출돼 있고,
-//! 호스트 본문이 직접 호출하지는 않는다 (pump가 핸들 Arc로 직접 동기화) —
-//! 향후 view에서 사용 가능하도록 유지.
-
-#![allow(dead_code)]
+//! 이름·snapshot 은 host 가 `SurfaceHandles` 의 `Arc` 로 직접 갱신한다(pump). webview URL ·
+//! navigation mirror · attach 재구성용 핸들 공유는 GUI 만 쓰므로 `cfg(feature = "gui")` 다 —
+//! 경계 기준은 `docs/dev-guide/headless-build-boundaries.md`.
 
 use std::path::PathBuf;
 use std::sync::atomic::AtomicBool;
 use std::sync::{Arc, Mutex};
 
-use crate::model::{NavState, Surface, SurfaceId};
+#[cfg(any(feature = "gui", test))]
+use crate::model::NavState;
+use crate::model::{Surface, SurfaceId};
 use serde_json::Value;
 
 pub struct RemoteSurface {
@@ -36,6 +36,8 @@ pub struct RemoteSurface {
     /// webview-enabled kind 의 navigation 생명주기 상태 mirror. host 의 sync_webviews 가
     /// 매 프레임 native `PlatformWebView.nav_state()` 를 이 값에 복사하고, egui 렌더 경로
     /// (egui_panels → webview_chrome)가 여기서 읽어 loading/error chrome 을 그린다.
+    /// 쓰는 자도 읽는 자도 GUI 뿐이다 — headless 에는 webview 가 없다.
+    #[cfg(any(feature = "gui", test))]
     pub nav_state: Arc<Mutex<NavState>>,
     /// plugin 이 `surface.set_cwd` 로 통보한 현재 cwd. `source_cwd()` 가 이 값을
     /// 반환하여 다음 surface 의 carry 후보 cwd 로 사용된다 (예: explorer 가 root
@@ -57,12 +59,14 @@ pub struct RemoteSurface {
 pub(crate) static SNAPSHOT_POISON_REPORTED: AtomicBool = AtomicBool::new(false);
 static DISPLAY_NAME_POISON_REPORTED: AtomicBool = AtomicBool::new(false);
 static WEBVIEW_URL_POISON_REPORTED: AtomicBool = AtomicBool::new(false);
+#[cfg(any(feature = "gui", test))]
 static NAV_STATE_POISON_REPORTED: AtomicBool = AtomicBool::new(false);
 static CWD_POISON_REPORTED: AtomicBool = AtomicBool::new(false);
 
 pub(crate) const SNAPSHOT_WHAT: &str = "remote surface snapshot cache";
 const DISPLAY_NAME_WHAT: &str = "remote surface display name";
 const WEBVIEW_URL_WHAT: &str = "remote surface webview url";
+#[cfg(any(feature = "gui", test))]
 const NAV_STATE_WHAT: &str = "remote surface nav state";
 const CWD_WHAT: &str = "remote surface cwd";
 
@@ -80,6 +84,7 @@ impl RemoteSurface {
             snapshot_cache: Arc::new(Mutex::new(None)),
             display_name: Arc::new(Mutex::new(initial_name)),
             webview_url: Arc::new(Mutex::new(None)),
+            #[cfg(any(feature = "gui", test))]
             nav_state: Arc::new(Mutex::new(NavState::Idle)),
             cwd: Arc::new(Mutex::new(None)),
         }
@@ -90,6 +95,7 @@ impl RemoteSurface {
     /// 않는다. attach mirror 가 트리를 통째로 다시 지을 때 survivor surface 를 새 트리에
     /// 옮겨 싣는 데 쓴다(`src/app/attach_client.rs` 의 markdown mirror 재구성) — 새로
     /// 만들면 plugin 이 `surface.create` 를 다시 받아 문서를 처음부터 연다.
+    #[cfg(feature = "gui")]
     pub fn share_handles(&self) -> Self {
         Self {
             id: self.id,
@@ -104,6 +110,7 @@ impl RemoteSurface {
     }
 
     /// `webview.set_url` IPC 가 호출 — webview-enabled kind 의 surface 만 의미 있음.
+    #[cfg(feature = "gui")]
     pub fn set_webview_url(&self, url: Option<String>) {
         *crate::poison::recover_mutex(
             self.webview_url.lock(),
@@ -113,6 +120,7 @@ impl RemoteSurface {
     }
 
     /// sync_webviews 가 매 프레임 native nav_state 를 mirror 할 때 호출.
+    #[cfg(any(feature = "gui", test))]
     pub fn set_nav_state(&self, s: NavState) {
         *crate::poison::recover_mutex(
             self.nav_state.lock(),
@@ -122,6 +130,7 @@ impl RemoteSurface {
     }
 
     /// 현재 mirror 된 navigation 상태. egui 렌더 경로가 chrome 분기에 읽는다.
+    #[cfg(any(feature = "gui", test))]
     pub fn nav_state(&self) -> NavState {
         *crate::poison::recover_mutex(
             self.nav_state.lock(),
@@ -136,6 +145,9 @@ impl RemoteSurface {
         *crate::poison::recover_mutex(self.cwd.lock(), CWD_WHAT, &CWD_POISON_REPORTED) = cwd;
     }
 
+    /// 제품 경로는 이름을 `SurfaceHandles` 로 직접 쓴다 — 이 setter 는 시험이 mirror 를
+    /// 바꾸는 손잡이다.
+    #[cfg(test)]
     pub fn set_display_name(&self, name: String) {
         *crate::poison::recover_mutex(
             self.display_name.lock(),
