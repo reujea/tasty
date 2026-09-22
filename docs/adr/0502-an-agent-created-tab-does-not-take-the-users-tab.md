@@ -131,6 +131,7 @@ mirror pane 에 낸 `CreateTab` 은 `StructuralOp::NewTab` 으로 바뀌어 서�
 - [ADR-0497](0497-an-agent-created-window-does-not-take-the-users-focus.md) — 창 단위의 같은 결정
 - [ADR-0302](0302-a-user-file-open-selects-its-result-tab.md) · [ADR-0279](0279-file-dispatch-retains-origin-through-completion.md)
 - [focus 정책](../design/policies/focus.md)
+- 같은 발화점의 toast 축: [ADR-0503](0503-an-agent-intents-apply-failure-goes-to-the-log-not-a-user-toast.md)(반대 기본값 — origin 없는 `file_handler.dispatch` 의 실패를 에이전트 쪽으로 둔다)
 - 코드 근거(결정이 실현된 현재 위치): `Core::apply_create_tab` · `structural_exec::create_tab` ·
   `crate::intent::tab::new_tab` · `open_surface_tab` · `execute_forwarded_structural_op` ·
   `Pane::add_surface_tab_background`
