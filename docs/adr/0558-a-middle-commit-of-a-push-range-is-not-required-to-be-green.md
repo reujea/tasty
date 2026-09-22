@@ -1,4 +1,4 @@
-# ADR-0557: push 범위 안쪽의 커밋에는 초록을 요구하지 않는다 — 초록의 단위는 push tip 과 착지 tip 이다
+# ADR-0558: push 범위 안쪽의 커밋에는 초록을 요구하지 않는다 — 초록의 단위는 push tip 과 착지 tip 이다
 
 - **Status**: Accepted
 - **Date**: 2026-09-23

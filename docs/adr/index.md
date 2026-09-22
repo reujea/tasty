@@ -592,7 +592,7 @@ flake 처방은 0129 → 0155, e2e 하네스는 0090 → 0127 → 0170 → 0297 
 | 0258 | [계측용 사본은 계측기가 읽을 수 있는 형태로 넘긴다 — 그리고 그 교정이 여는 예산 하향 갈래](0258-the-measured-copy-is-neutralized-for-the-counter.md) | Accepted | 2026-09-09 | complexity-gate, sloc, tokei, measurement, judge-vs-counter, ratchet, budget, adr-0165, adr-0168, adr-0205 |
 | 0295 | [셸 자산은 warning 이상에서 잔여 0 으로 판정한다 — 그 아래는 안 센다](0295-shell-assets-are-judged-at-warning-and-above.md) | Accepted | 2026-09-20 | shell, gates, ci, git-hooks, shellcheck, ratchet, adr-0183 |
 | 0345 | [파일 SLOC 게이트는 파일 전체가 시험인 것도 지운다 — 출하 줄이라는 이름의 근거가 그것이다](0345-the-file-sloc-gate-erases-whole-test-only-files.md) | Accepted | 2026-09-21 | complexity, quality-gate, file-size, tokei, shipping-scope, measurement, complexity-gate, adr-0166, adr-0168 |
-| 0557 | [push 범위 안쪽의 커밋에는 초록을 요구하지 않는다 — 초록의 단위는 push tip 과 착지 tip 이다](0557-a-middle-commit-of-a-push-range-is-not-required-to-be-green.md) | Accepted | 2026-09-23 | ci, git-hooks, pre-push, push-range, landing, bisect, unmeasured, adr-0192, adr-0142 |
+| 0558 | [push 범위 안쪽의 커밋에는 초록을 요구하지 않는다 — 초록의 단위는 push tip 과 착지 tip 이다](0558-a-middle-commit-of-a-push-range-is-not-required-to-be-green.md) | Accepted | 2026-09-23 | ci, git-hooks, pre-push, push-range, landing, bisect, unmeasured, adr-0192, adr-0142 |
 
 ## 가드 설계 · 측정 규율
 
