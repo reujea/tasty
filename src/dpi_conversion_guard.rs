@@ -76,11 +76,10 @@ use std::path::{Path, PathBuf};
 /// 파일 수를 여기 적지 않는다. 적었던 판은 공용 모수가 움직여도 안 따라와 여러 회차
 /// 낡아 있었다. 대신 성질을 적고 그 성질을 시험이 잰다:
 ///
-/// - `src` 한쪽만 훑는 사고는 이 하한에 걸린다 — `src/` 의 `.rs` 수는 공용 모수
-///   `tasty_doc_guards::floored_walk::populations::SRC_RS` 이고, 그것이 하한 아래라는
-///   것을 `a_src_only_scan_falls_below_the_floor` 가 그 모수에서 파생해 고정한다.
+/// - `src` 한쪽만 훑는 사고는 이 하한에 걸린다 — `src/` 의 `.rs` 수가 하한 아래라는
+///   것을 `a_src_only_scan_falls_below_the_floor` 가 **지금 트리를 세어** 고정한다.
 /// - ★ `crates` 한쪽만 훑는 사고는 이 하한이 **못 잡는다** — `crates/` 의 `.rs` 수가
-///   이미 하한을 넘었다. 그 좌변은 공용 모수에 없어 시험으로 고정하지 못했다. 재는 법:
+///   이미 하한을 넘었다. 이 성질은 시험으로 고정하지 않았다. 재는 법:
 ///   `find -L crates -name '*.rs' -type f | wc -l` 을 이 하한과 견준다(순회가 심볼릭
 ///   링크를 따라가므로 `-L`).
 const MIN_SCANNED_FILES: usize = 800;
@@ -461,19 +460,25 @@ mod tests {
         PathBuf::from(env!("CARGO_MANIFEST_DIR"))
     }
 
-    /// 하한 문장의 `src` 쪽 성질을 공용 모수에서 파생해 고정한다. 값을 문장에 베끼면
-    /// 모수가 움직여도 안 따라오지만, 이 단정은 `SRC_RS` 가 갱신되는 순간 함께 움직인다.
-    /// `SRC_RS` 가 트리와 맞는지는 `scripts/check-population-freshness.sh` 가 본다.
+    /// 하한 문장의 `src` 쪽 성질을 **지금 트리에서 세어** 고정한다. 값을 문장에 베끼면
+    /// 트리가 움직여도 안 따라온다. 좌변은 가드 본체와 같은 순회(`collect_rs`)로 센 수다 —
+    /// 선언된 공용 모수 `SRC_RS` 를 좌변으로 쓰면 선언이 낡은 동안 성질이 거짓인 트리에서도
+    /// 초록이 된다. 선언이 트리와 맞는가는 이 시험의 물음이 아니다
+    /// (`scripts/check-population-freshness.sh` 의 물음이다). 선언 값은 진단용으로만 찍는다.
     #[test]
     fn a_src_only_scan_falls_below_the_floor() {
-        let src = tasty_doc_guards::floored_walk::populations::SRC_RS;
+        let mut files = Vec::new();
+        collect_rs(&repo_root().join("src"), &mut files);
+        let declared = tasty_doc_guards::floored_walk::populations::SRC_RS;
         assert!(
-            src.measured < MIN_SCANNED_FILES,
-            "`src/` 의 `.rs` 가 {}개({} 실측)라 하한 {MIN_SCANNED_FILES} 이상이다 — `src` \
-             한쪽만 훑는 사고를 이 하한이 더는 못 잡는다. 하한 문장의 `src` 항목을 고치거나 \
-             스캔 루트별 하한을 따로 둬라. 하한을 내려서 통과시키지 마라.",
-            src.measured,
-            src.measured_on,
+            files.len() < MIN_SCANNED_FILES,
+            "`src/` 의 `.rs` 가 지금 트리에서 {}개라 하한 {MIN_SCANNED_FILES} 이상이다(진단용: \
+             선언 모수 `SRC_RS` = {}, {} 실측) — `src` 한쪽만 훑는 사고를 이 하한이 더는 못 \
+             잡는다. 스캔 루트별 하한을 두거나, 합계 스캔 수 아래에서 하한을 올려라. 이 단정을 \
+             지우거나 완화하지 마라 — 그러면 하한 문장의 `src` 항목이 거짓인 채 남는다.",
+            files.len(),
+            declared.measured,
+            declared.measured_on,
         );
     }
 
