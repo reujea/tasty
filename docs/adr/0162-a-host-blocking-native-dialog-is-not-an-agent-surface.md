@@ -133,6 +133,7 @@ plugin 에 내주면 `fs.*` 가 호스트 파일시스템 표면처럼 읽히는
 
 - [ADR-0042](0042-fs-pick-file-native-dialog-host-delegation.md) — 이 ADR 이 대체하는 결정
 - [ADR-0058](0058-plugin-triggered-host-popup-async-ack-push.md) — 트리거 + 비동기 ack + 푸시
+- [ADR-0498](0498-the-file-picker-trigger-answers-only-a-plugin-caller.md) — `file_picker.trigger` 를 plugin 호출자 전용으로 닫은 후속 결정(에이전트의 파일 열기는 경로 직접 지정)
 - [ADR-0053](0053-native-file-picker-remote-attach-channel.md) — 원격 attach 파일 선택 채널
 - [ADR-0091](0091-render-stall-watchdog-observation-only.md) — stall 워치독은 관측 전용
 - [identity](../identity.md) 2.1 · 2.2 · 2.3 · 2.4 — 불가침 원칙
