@@ -141,8 +141,10 @@ override-redirect · window type · base size · embed parent 다. 포커스 힌
   - 포커스를 가르는 축이 실패 안내 축과 같은 값 하나라, 한쪽만 갈리는 사고가 안 난다.
 - **잃은 것**:
   - `tasty new window` 직후 대상 없는 명령으로 새 창을 조작하던 스크립트는 이제 원래 창을
-    조작한다. 새 창을 다루려면 `window.create` 응답의 `window_id` 로 대상을 지정한다. 원칙 3 이
-    원래 요구하던 형태다.
+    조작한다. 새 창에 워크스페이스를 만들려면 그 창의 surface 를 `workspace.create` 의
+    `surface_id`(CLI `tasty new workspace --surface`)로 지목한다 — `window_id` 는 창 자체를 다루는
+    요청에만 쓴다([ADR-0514](0514-new-workspace-names-its-window-by-a-surface-and-keeps-no-env-default.md)).
+    대상을 ID 로 지정하는 것은 원칙 3 이 원래 요구하던 형태다.
   - X11 은 요청일 뿐이라 창 관리자가 무시할 수 있다. openbox 처럼 `Below` 를 "맨 아래" 로 다루는
     창 관리자에서는 사용자 창 바로 아래가 아니라 맨 아래에 생긴다.
   - Wayland 는 컴포지터가 정한다. 그곳과 요청을 무시하는 X11 창 관리자에서는 OS 포커스와

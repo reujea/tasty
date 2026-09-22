@@ -223,8 +223,10 @@ IPC 핸들러(`src/adapters/ipc/`)가 활성 포인터를 읽는 자리를 전�
     `ipc_sequence` 도 여기로 온다.
   - 창 생성 실패를 누구에게 알릴지도 같은 값이 가른다. 새 경로도 이 값을 정해 넘긴다.
 - `User` 창은 `focused_view_id` 를 새 창으로 옮긴다. `Agent` 창은 옮기지 않는다. 그래서 뒤이은
-  대상 없는 요청(`tasty new workspace` 등)은 사용자가 보던 창에 떨어진다. 새 창을 조작하려면
-  `window.create` 응답의 `window_id` 로 지정한다.
+  대상 없는 요청(`tasty new workspace` 등)은 사용자가 보던 창에 떨어진다. 새 창에 워크스페이스를
+  만들려면 그 창의 surface 를 `workspace.create` 의 `surface_id`(CLI `tasty new workspace --surface`)로
+  지목한다 — `window_id` 는 창 자체를 다루는 요청(닫기 · 스크린샷 등)에만 쓴다
+  ([ADR-0514](../../adr/0514-new-workspace-names-its-window-by-a-surface-and-keeps-no-env-default.md)).
   - 예외: 가리키던 창이 없으면(main 창이 0 개였으면) 에이전트 창이 잡는다. 빼앗을 포커스가 없다.
 - 에이전트 창은 숨긴 채 만들어, 등록 뒤 사용자가 보던 창 **뒤에** 키 포커스 없이 보인다
   (`tasty_platform::window_stacking::show_behind`). OS 마다 할 수 있는 데까지다.
