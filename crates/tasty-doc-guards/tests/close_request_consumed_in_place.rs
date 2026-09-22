@@ -25,6 +25,11 @@
 //! 손으로 거슬러 올라가 만든 목록이고(`handle_shortcut` · `dispatch_action_by_id` ·
 //! `handle_double_tap_shortcut` · `poll_pending_native_menu`), 전이 도달 가능성을 기계로
 //! 재는 채널은 없다. 생산자 명부가 바뀔 때 그 목록을 다시 거슬러 올라가라.
+//!
+//! **안 고른 대안**: `dispatch_window_event_to_view` 진입 시 선 플래그를 먼저 소비하는 것 —
+//! 창 이벤트 앞은 막지만 같은 `about_to_wait` 뒤쪽·다음 `process_ipc` 가 빈 창을 볼 틈이
+//! 남는다. **재검토 조건**: 창 이벤트 밖 MainView 진입점이 늘어 이 짝 규칙의 유지 비용이
+//! 커지면, 짝 대신 App 이 `about_to_wait` 끝에서 한 번 전역 sweep 하는 형태로 바꾼다.
 
 use std::path::PathBuf;
 use tasty_doc_guards::source_text::{mask_non_code, rust_sources};
