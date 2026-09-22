@@ -1,4 +1,4 @@
-<!-- source-hash: 6773cc48ba94 -->
+<!-- source-hash: cd38395d406d -->
 # Driving terminals with the tasty CLI
 
 Use the `tasty` CLI to create terminals, send commands, and read results. Control a running Tasty from a script, or let an AI agent set up the terminals it needs.
