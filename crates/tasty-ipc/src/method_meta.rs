@@ -774,7 +774,9 @@ pub const METHOD_TABLE: &[(&str, MethodMeta)] = {
         // 열도록 트리거한다. host 는 즉시 request_id 만 회신하고(비동기 accept,
         // ADR-0058), 실제 확정/취소 결과는 확정 지점에서 `event.dispatch` unicast
         // `"file_picker.result"` 로 plugin 에 push 된다. 파일을 고르는 read 관심사라
-        // FsRead(`git_viewer.query` 와 동일 근거).
+        // FsRead(`git_viewer.query` 와 동일 근거). 비-plugin 호출자(CLI·agent)는 이 표가
+        // 아니라 핸들러가 `-32016` 으로 거부한다 — 외부 arm 이 있어 `plugin_only` 를 못 단다
+        // (docs/adr/0498-the-file-picker-trigger-answers-only-a-plugin-caller.md).
         ("file_picker.trigger", plugin(Mutate, &[FsRead])),
         // ── popup (plugin → host) ─────────────────────────────────────
         // 자기 contribute popup 인스턴스를 명시적으로 닫는다. METHOD_POPUP_CLOSED
