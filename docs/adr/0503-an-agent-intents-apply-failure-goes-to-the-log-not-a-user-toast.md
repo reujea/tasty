@@ -86,7 +86,15 @@ IPC 응답은 바뀌지 않는다. 이 intent 들은 적용 전에 요청이 응
   경로로 `Core::apply` 를 직접 거치고(`src/file/dispatch.rs`) 이 결정의 표시를 안 붙이므로 원격 거절이
   종전대로 toast 로 뜬다. mirror 문서의 주소창·링크는 host 를 부르지 않는다.
   이 한 갈래는 이 결정에서 고치지 않고, origin 없이 불리는 `file_handler.dispatch`
-  를 다루는 후속 작업이 맡는다(아래 재검토 조건의 두 번째 항목이 그 변화를 잰다). origin 을 가를 수
+  를 다루는 후속 작업이 맡는다(아래 재검토 조건의 두 번째 항목이 그 변화를 잰다).
+  **팝업이 `origin_surface_id` 를 싣는 것만으로는 못 고친다**(2026-09-23 후속 조사, 소스로 확인).
+  그러면 host 가 그 요청을 `Some(pane)` 갈래(`src/file/dispatch.rs` 의 `open_surface_tab`)로
+  보내 원격 거절 toast 는 돌아오지만, IPC 핸들러가 `FileDispatchOrigin::Agent` 로 고정하므로
+  그 갈래의 `activate`(`selects_result`)가 거짓이 되어 **사용자가 연 파일의 새 탭이 선택되지
+  않는다.** 지금의 origin 없는 갈래는 `Intent::NewTab` 이 origin 과 무관하게 선택하므로
+  (`src/intent/tab.rs`, ADR-0502 가 바로 이 팝업 때문에 그렇게 뒀다) 매번 일어나는 선택을 드문
+  원격 거절의 toast 와 맞바꾸게 된다. 그래서 이 갈래는 plugin 이 사용자 클릭임을 싣는 수단
+  (재검토 조건 둘째)이 생길 때 **선택과 toast 를 함께** 사용자 쪽으로 옮기며 고친다. origin 을 가를 수
   없는 자리에서는 사용자 상태를 건드리지 않는 쪽(포커스를 안 옮기는 쪽과 같은 방향)을 골랐다.
   [ADR-0502](0502-an-agent-created-tab-does-not-take-the-users-tab.md) 는 같은 자리를 사용자 쪽으로
   두었다(새 탭을 선택한다) — 두 ADR 은 `file_handler.dispatch` 가 사용자 조작임을 싣는 채널이 생기면
@@ -114,7 +122,8 @@ IPC 응답은 바뀌지 않는다. 이 intent 들은 적용 전에 요청이 응
   `grep -rn 'structural_apply_error(' src/adapters/ipc` 의 호출 자리 수와 각 자리가 표시를 붙이는지.
 
 - plugin 이 host 를 부를 때 그 호출이 사용자 클릭에서 왔는지 싣게 되면 — 위 오분류 자리를 사용자
-  origin 으로 옮긴다. 재는 법: `FileDispatchOrigin::Agent` 로 고정된 자리(`file_handler.rs`)가
+  origin 으로 옮긴다 — toast 와 결과 탭 선택을 함께(위 "잃은 것(오분류)" 의 origin 만 싣는 처방이
+  안 되는 이유). 재는 법: `FileDispatchOrigin::Agent` 로 고정된 자리(`file_handler.rs`)가
   요청 값으로 바뀌었는지.
 
 **원리적으로 안 붙는 것**
