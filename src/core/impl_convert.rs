@@ -29,6 +29,7 @@ impl Core {
                 return CoreEvent::SurfaceConverted {
                     surface_id,
                     replaced: false,
+                    failure: Some(format!("surface {surface_id} not found")),
                 };
             }
         };
@@ -48,6 +49,7 @@ impl Core {
                 return CoreEvent::SurfaceConverted {
                     surface_id,
                     replaced: false,
+                    failure: Some(format!("pane {pane_id} not found")),
                 };
             }
         };
@@ -68,6 +70,10 @@ impl Core {
         CoreEvent::SurfaceConverted {
             surface_id,
             replaced,
+            // 탭 안 split 에서 leaf 교체가 대상을 못 찾은 경우 — 위치 탐색은 그 탭이 대상을
+            // 담는다고 답했으므로 레이아웃 트리와 탭 판정이 어긋난 것이다.
+            failure: (!replaced)
+                .then(|| format!("surface {surface_id} not found in its tab layout")),
         }
     }
 
@@ -99,10 +105,11 @@ impl Core {
                     waker,
                 ) {
                     Ok(t) => t,
-                    Err(_) => {
+                    Err(e) => {
                         return Err(CoreEvent::SurfaceConverted {
                             surface_id,
                             replaced: false,
+                            failure: Some(e.to_string()),
                         });
                     }
                 };
@@ -124,6 +131,7 @@ impl Core {
                         return Err(CoreEvent::SurfaceConverted {
                             surface_id,
                             replaced: false,
+                            failure: Some(e.to_string()),
                         });
                     }
                 };

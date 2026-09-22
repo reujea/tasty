@@ -266,6 +266,7 @@ impl App {
             CoreEvent::SurfaceConverted {
                 surface_id,
                 replaced,
+                ..
             } => {
                 // mark_layout_dirty 와 send_fast_init 은 Core::apply 가 이미 처리.
                 // egui-mesh(markdown 등)로 제자리 변환 시 같은 surface_id 에 stale frame

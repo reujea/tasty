@@ -745,7 +745,9 @@ pub(crate) struct ForwardedDelta {
 /// - 실패: `Err(reason)` — 사유 문자열 하나다. 도메인 실행 함수를 타는 op 는 그 실패
 ///   문구(예: 원격 미등록 plugin kind → "unknown surface kind")를 [`forward_result`] 가
 ///   그대로 옮기고 — IPC 진입점이 같은 실패에 싣는 JSON-RPC 에러 메시지와 byte 단위로 같다 —,
-///   나머지 op(convert / restore / move-surface)는 이 함수가 사유를 만든다.
+///   convert 는 도메인이 `SurfaceConverted.failure` 에 실은 실패 자리의 문구를 그대로
+///   옮기며(없을 때만 [`convert_failure_fallback`]), restore / move-surface 는 이 함수가
+///   사유를 만든다.
 ///
 /// 호출자(메인루프)가 [`StreamControl::StructuralResult`] 로 회신한 **뒤** delta 를 push
 /// 하고, 그 다음 added_terminals 를 tap 한다(순서: result → delta → snapshot).
@@ -979,21 +981,22 @@ pub(crate) fn execute_forwarded_structural_op(
                 target,
             };
             match core.apply(engine, intent) {
-                Ok(events) => {
-                    let replaced = matches!(
-                        events.into_iter().next(),
-                        Some(crate::core::intent::CoreEvent::SurfaceConverted {
-                            replaced: true,
-                            ..
-                        })
-                    );
-                    if replaced {
+                Ok(events) => match events.into_iter().next() {
+                    Some(crate::core::intent::CoreEvent::SurfaceConverted {
+                        replaced: true,
+                        ..
+                    }) => {
                         converted_surface = Some(*surface_id);
                         Ok(())
-                    } else {
-                        Err(format!("surface {surface_id} not found"))
                     }
-                }
+                    // 실패를 낸 자리의 사유를 그대로 싣는다 — 여기서 사유를 지어내면
+                    // 대상이 멀쩡한데 kind 가 없어 실패한 경우에도 "not found" 가 간다.
+                    Some(crate::core::intent::CoreEvent::SurfaceConverted {
+                        failure: Some(reason),
+                        ..
+                    }) => Err(reason),
+                    _ => Err(convert_failure_fallback(*surface_id)),
+                },
                 Err(e) => Err(e.to_string()),
             }
         }
@@ -1181,6 +1184,14 @@ fn forward_result<T>(
             }
         }
     }
+}
+
+/// forward 된 convert 가 실패했는데 도메인이 사유를 안 실었을 때의 회신 문구. 원인을
+/// 짐작해 적지 않는다 — "not found" 같은 원인 문구는 그것이 원인일 때만 참이고, 원인을
+/// 모르는 자리에서 쓰면 원격에서 난 실제 사유를 가린다. 지금 도메인은 모든 실패 자리에
+/// 사유를 실으므로 이 문구는 새 실패 자리가 사유를 빠뜨렸을 때만 나간다.
+fn convert_failure_fallback(surface_id: SurfaceId) -> String {
+    format!("surface {surface_id} was not converted")
 }
 
 /// op 의 split 축을 도메인 방향으로. IPC 진입점이 `direction` 문자열을 읽는 규칙
@@ -3613,6 +3624,36 @@ mod forward_exec_tests {
             engine.terminals.iter().count(),
             before,
             "실패한 forward 는 새 터미널을 만들지 않는다"
+        );
+    }
+
+    /// forward 된 convert 가 원격에서 실패하면 원격이 실제로 낸 사유가 그대로 회신된다.
+    /// 예전에는 convert 실패가 사유를 싣지 않아 이 함수가 `surface N not found` 를 지어냈다
+    /// — 대상 surface 는 멀쩡히 있는데 kind 가 없어서 실패한 경우에도.
+    #[test]
+    fn forward_convert_unknown_kind_reports_the_remote_reason() {
+        let (mut core, mut state, mut engine, _home) = make_core_state();
+        let a = seed(&mut engine);
+        let op = StructuralOp::ConvertSurface {
+            surface_id: a,
+            surface_kind: "definitely-not-registered".to_string(),
+            params: serde_json::json!({}),
+            cwd: None,
+        };
+        let r = execute_forwarded_structural_op(
+            &mut core,
+            &mut state,
+            &mut engine,
+            &op,
+            ForwardOrigin::User,
+        );
+        let Err(reason) = r else {
+            panic!("unknown kind 로의 convert 는 실패해야 한다");
+        };
+        assert_eq!(reason, "unknown surface kind: definitely-not-registered");
+        assert!(
+            engine.terminals.get(a).is_some(),
+            "실패한 convert 는 원래 터미널을 그대로 둔다"
         );
     }
 

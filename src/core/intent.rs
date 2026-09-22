@@ -451,7 +451,10 @@ pub(crate) enum CoreEvent {
         workspace_purged: Option<(usize, u32)>,
         workspaces_now_empty: bool,
     },
-    /// surface 변환 완료. `replaced=false` 면 surface 못 찾음 또는 변환 실패.
+    /// surface 변환 완료. `replaced=false` 면 surface 못 찾음 또는 변환 실패이고, 그때
+    /// `failure` 가 실패를 낸 자리의 사유 문구다(예: 미등록 kind → registry 의
+    /// `unknown surface kind: <kind>`). 성공이면 `None` 이다. forward 된 convert 는 이 문구를
+    /// 원격 사유로 그대로 회신한다(`attach_runtime::execute_forwarded_structural_op`).
     #[cfg_attr(
         not(feature = "gui"),
         expect(
@@ -462,7 +465,11 @@ pub(crate) enum CoreEvent {
                       생기면 이 기대가 깨져 그 자리를 가리킨다"
         )
     )]
-    SurfaceConverted { surface_id: u32, replaced: bool },
+    SurfaceConverted {
+        surface_id: u32,
+        replaced: bool,
+        failure: Option<String>,
+    },
     /// surface 이동(replace) 완료 (T9). `moved=false` 면 self-ref / source 무효 /
     /// target 못 찾음 (no-op, 슬롯만 비움).
     ///
