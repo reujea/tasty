@@ -65,7 +65,8 @@ drain 은 한 번 호출에 최대 8 라운드를 돌아 적용 중 새로 발�
 작업량" 에만 비례하고 요청 누적수에 비례하지 않는다는 것이 이 결정의 불변식이며,
 `src/intent/headless.rs` 의 회귀 테스트가 그것을 고정한다.
 
-drain 모듈은 **gui 빌드에서도 컴파일한다**(호출부는 headless 전용). 그래야 기본 빌드의
+drain 모듈은 **gui 빌드의 시험 구성에서도 컴파일한다**(모듈 선언의
+`cfg(any(not(feature = "gui"), test))` — 호출부가 headless 전용이라 gui 라이브러리에는 안 넣는다). 그래야 기본 빌드의
 `cargo test --workspace` 가 이 경로를 회귀 검증한다 — headless 전용으로 가리면 큐 누적
 회귀는 `--no-default-features` 를 따로 돌린 사람만 보게 된다.
 

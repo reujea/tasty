@@ -18,6 +18,9 @@
 #[cfg(all(test, feature = "gui"))]
 mod apply_error_tests;
 pub mod closed_item;
+// gui 라이브러리에는 호출부가 없다(headless boot 전용). gui 의 `cargo test` 가 이 drain 을
+// 회귀 검증하도록 `test` 에서도 컴파일한다 — 근거는 그 모듈 주석.
+#[cfg(any(not(feature = "gui"), test))]
 pub(crate) mod headless;
 pub mod pane;
 pub mod popup;

@@ -6,7 +6,8 @@
 //! 하나짜리로 좁혀 여기서 수행한다. 설계: `docs/design/flows/action-dispatch.md`,
 //! 결정 근거: `docs/adr/0111-headless-drains-the-intent-queue.md`.
 //!
-//! **gui 빌드에서도 컴파일한다.** 호출은 headless boot
+//! **gui 빌드의 시험 구성에서도 컴파일한다**(모듈 선언의 `cfg(any(not(feature = "gui"), test))`).
+//! 호출은 headless boot
 //! (`src/boot/headless_dispatch.rs` · `src/boot/headless_plugins.rs` · `src/boot.rs`)
 //! 에서만 하지만, 기본(gui) 빌드의 `cargo test` 가 이 경로를 회귀 검증할 수 있어야
 //! 하기 때문이다 — 큐 누적 회귀 테스트가 기본 테스트 실행에서 빠지면 그 회귀는
@@ -30,10 +31,6 @@
 //! 자라고 있다(`src/boot.rs` 의 idle-timeout 경로,
 //! `src/adapters/ipc/handler/hooks.rs` 의 `surface.fire_hook`). 그러니 여기서
 //! 넣지 않는 것은 적재를 막는 것이 아니라 적재율을 올리지 않는 것이다.
-
-// 이유: gui 빌드에서는 호출부가 없다(headless boot 전용) — 테스트만 쓴다. 모듈을 cfg 로
-// 가리지 않는 이유는 위 모듈 주석 참조.
-#![cfg_attr(feature = "gui", allow(dead_code))]
 
 use crate::core::intent::CoreEvent;
 use crate::core::{AttentionKind, Core, CoreState};
