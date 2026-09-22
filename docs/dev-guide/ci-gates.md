@@ -1054,7 +1054,7 @@ origin/main reflog 다 — `git rev-list c3e78aaa8..dd5ef243a | grep -cvxFf <(gi
 그 커밋을 체크아웃해 무언가를 판정하는 소비자가 이 레포에 없다(`git bisect` 실행 0 · 기계
 revert 0 · 범위를 순회하는 잡 0). 실재하는 소비자인 lane base 는 착지 tip 에 선다. 초록을 요구하는
 단위는 **push tip 과 착지 tip** 이고, 빨간 중간 커밋이 발견돼도 이력을 다시 쓰지 않는다. 원인
-커밋을 좁힐 때는 착지 tip 위에서 좁힌다. 실측·대안(각 커밋에 게이트를 돌리는 비용)·재검토 조건은
+커밋을 좁힐 때는 push tip 과 착지 tip 위에서 좁힌다. 실측·대안(각 커밋에 게이트를 돌리는 비용)·재검토 조건은
 [ADR-0558](../adr/0558-a-middle-commit-of-a-push-range-is-not-required-to-be-green.md).
 
 ### 러너는 작업 트리를 재사용한다 — 채널의 성질이지 그 잡의 상태가 아니다
