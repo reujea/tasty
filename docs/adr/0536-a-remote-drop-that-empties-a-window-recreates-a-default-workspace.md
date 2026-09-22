@@ -15,8 +15,8 @@
 워크스페이스 0 개로 남는다. 다음 redraw 가 `forward_egui_mesh_context → surface_regions →
 active_workspace` 에서 debug_assert 로 죽는다(release 는 바로 뒤 빈 Vec 인덱싱). 격리 debug
 인스턴스 둘(A 원격 · B GUI, loopback `remote attach --into-gui`)로 세 끊김 경로를 각각 재현했다
-(실측 2026-09-23 — 수정 전 바이너리에서 EOF 6 회 · force-detach 2 회 · heartbeat TTL 1 회, 매번
-같은 panic. 수정 후 바이너리는 경로마다 3 회씩 9 회 전부 B 가 살아남았다 — 수정 후 쪽은 구현자가
+(실측 2026-09-23 — 수정 전 바이너리에서 EOF 6 회 · force-detach 2 회(+ 판독 미완 1 회, 같은 panic) · heartbeat
+TTL 1 회, 매번 같은 panic. 횟수는 판독까지 끝난 회차 수다. 수정 후 바이너리는 경로마다 3 회씩 9 회 전부 B 가 살아남았다 — 수정 후 쪽은 구현자가
 아닌 리뷰어가 쟀다).
 
 같은 빈 상태를 만드는 다른 자리들은 둘 중 하나로 막혀 있다.
