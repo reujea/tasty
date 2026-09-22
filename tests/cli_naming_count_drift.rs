@@ -20,7 +20,7 @@ const EXPECTED: &[(&str, usize)] = &[
     ("clipboard", 1),
     ("completion_strategy", 1),
     ("events", 1),
-    ("file_handler", 2),
+    ("file_handler", 3),
     ("file_picker", 1),
     ("git_viewer", 1),
     ("global_hook", 3),
