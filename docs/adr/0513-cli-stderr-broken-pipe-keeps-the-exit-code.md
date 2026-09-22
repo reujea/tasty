@@ -1,4 +1,4 @@
-# ADR-0499: CLI 의 stderr 쓰기 실패는 버리고 명령의 종료 코드를 그대로 둔다
+# ADR-0513: CLI 의 stderr 쓰기 실패는 버리고 명령의 종료 코드를 그대로 둔다
 
 - **Status**: Accepted
 - **Date**: 2026-09-23

@@ -335,7 +335,7 @@ crash report 가 된다. Rust 런타임은 SIGPIPE 를 무시하도록 두고 Wi
   파일의 소스 스캔이 강제). `eprintln!` 도 쓰기 실패를 panic 으로 승격해 `2>&1 | head` 에서
   crash report 가 된다. stderr 는 실패를 알리는 마지막 채널이라 그 쓰기의 실패는 **버리고**,
   종료 코드는 명령이 원래 내던 값 그대로다(stdout 처럼 0 으로 접지 않는다 — 대개 이미 실패한
-  명령이다). 근거는 [ADR-0499](../adr/0499-cli-stderr-broken-pipe-keeps-the-exit-code.md).
+  명령이다). 근거는 [ADR-0513](../adr/0513-cli-stderr-broken-pipe-keeps-the-exit-code.md).
 - 예외: `local/attach.rs` raw bridge 는 `std::io::stdout()` 핸들에 best-effort 미러하고 결과를
   주석과 함께 무시한다 — stdout 이 닫혀도 attach 세션은 계속돼야 한다.
 

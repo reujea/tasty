@@ -27,7 +27,7 @@ use crate::protocol::{JsonRpcRequest, JsonRpcResponse};
 ///
 /// `data` 는 응답의 `error.data` 를 **원형 그대로** 든다(`reason` · `storage_failure` 처럼
 /// 호출자가 분기할 구조화 필드). `Display` 에는 싣지 않는다 — 그 문자열을 첫 줄로 파싱하는
-/// 쪽이 있고, `data` 를 보여 줄지는 출력하는 쪽이 정한다(CLI 는 둘째 줄, ADR-0498).
+/// 쪽이 있고, `data` 를 보여 줄지는 출력하는 쪽이 정한다(CLI 는 둘째 줄, ADR-0512).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct JsonRpcCallError {
     pub code: i32,
@@ -565,7 +565,7 @@ mod tests {
     }
 
     /// 오류 응답의 `error.data` 는 원형 그대로 호출자에게 간다 — 버리면 IPC 가 싣는 실패
-    /// 분류(`storage_failure` · `reason`)를 CLI 가 볼 길이 없다(ADR-0498). `Display` 는 종전 한
+    /// 분류(`storage_failure` · `reason`)를 CLI 가 볼 길이 없다(ADR-0512). `Display` 는 종전 한
     /// 줄 그대로다.
     #[test]
     fn an_error_answer_keeps_its_data() {

@@ -1,4 +1,4 @@
-# ADR-0498: CLI 는 IPC 오류의 `error.data` 를 stderr 둘째 줄에 원형 그대로 싣는다
+# ADR-0512: CLI 는 IPC 오류의 `error.data` 를 stderr 둘째 줄에 원형 그대로 싣는다
 
 - **Status**: Accepted
 - **Date**: 2026-09-23

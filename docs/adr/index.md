@@ -500,6 +500,9 @@ pragma 보고는 0316 → 0376(보고 채널 개정)이다.
 | 0160 | [IPC 메서드는 CLI 로 닿거나, 왜 못 닿는지의 근거를 든다](0160-every-ipc-method-is-cli-reachable-or-carries-a-reason.md) | Accepted | 2026-09-05 | ipc, cli, agent-surface, guard, identity-principle |
 | 0499 | [CLI 의 stderr 쓰기 실패는 버리고 명령의 종료 코드를 그대로 둔다](0499-cli-stderr-broken-pipe-keeps-the-exit-code.md) | Accepted | 2026-09-23 | cli, stderr, epipe, exit-code, crash-report, error-handling, adr-0101 |
 | 0500 | [`tasty new workspace` 는 창을 서피스로 지목하고, 생략값을 `TASTY_SURFACE_ID` 로 채우지 않는다](0500-new-workspace-names-its-window-by-a-surface-and-keeps-no-env-default.md) | Accepted | 2026-09-23 | cli, ipc, workspace, window, multi-window, focus, parity, routing |
+| 0512 | [CLI 는 IPC 오류의 `error.data` 를 stderr 둘째 줄에 원형 그대로 싣는다](0512-the-cli-relays-ipc-error-data-on-a-second-stderr-line.md) | Accepted | 2026-09-23 | cli, ipc, error-message, parity, wire-format, stderr |
+| 0513 | [CLI 의 stderr 쓰기 실패는 버리고 명령의 종료 코드를 그대로 둔다](0513-cli-stderr-broken-pipe-keeps-the-exit-code.md) | Accepted | 2026-09-23 | cli, stderr, epipe, exit-code, crash-report, error-handling, adr-0101 |
+| 0514 | [`tasty new workspace` 는 창을 서피스로 지목하고, 생략값을 `TASTY_SURFACE_ID` 로 채우지 않는다](0514-new-workspace-names-its-window-by-a-surface-and-keeps-no-env-default.md) | Accepted | 2026-09-23 | cli, ipc, workspace, window, multi-window, focus, parity, routing |
 
 ## 빌드 · 배포 · 버전
 

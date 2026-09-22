@@ -1,4 +1,4 @@
-# ADR-0500: `tasty new workspace` 는 창을 서피스로 지목하고, 생략값을 `TASTY_SURFACE_ID` 로 채우지 않는다
+# ADR-0514: `tasty new workspace` 는 창을 서피스로 지목하고, 생략값을 `TASTY_SURFACE_ID` 로 채우지 않는다
 
 - **Status**: Accepted
 - **Date**: 2026-09-23

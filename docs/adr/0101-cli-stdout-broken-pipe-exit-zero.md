@@ -102,4 +102,4 @@ panic 을 crash report 로 기록하므로 정상적인 파이프 조기 종료�
 - [ADR-0092](0092-file-log-host-process-only.md) — 같은 바이너리 안에서 host 와 CLI
   클라이언트의 역할을 가르는 선례
 - 구현: `crates/tasty-cli/src/out.rs`, 회귀 테스트 `tests/cli_stdout_broken_pipe.rs`
-- 짝 결정: [ADR-0499](0499-cli-stderr-broken-pipe-keeps-the-exit-code.md) — stderr 쪽(쓰기 실패를 버리고 종료 코드 유지)
+- 짝 결정: [ADR-0513](0513-cli-stderr-broken-pipe-keeps-the-exit-code.md) — stderr 쪽(쓰기 실패를 버리고 종료 코드 유지)

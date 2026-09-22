@@ -4,7 +4,7 @@
 //! 응답에 `error.data` 가 있으면 **둘째 줄** `data: <한 줄 JSON>` 으로 원형 그대로 싣는다.
 //! `reason` · `storage_failure` 처럼 IPC 호출자가 분기하는 실패 분류를 CLI 호출자도 같은
 //! 값으로 얻게 하는 것이 목적이다(원칙 2). 형식의 근거는
-//! `docs/adr/0498-the-cli-relays-ipc-error-data-on-a-second-stderr-line.md`.
+//! `docs/adr/0512-the-cli-relays-ipc-error-data-on-a-second-stderr-line.md`.
 
 use tasty_ipc::client::JsonRpcCallError;
 

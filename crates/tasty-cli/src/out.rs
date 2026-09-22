@@ -17,7 +17,7 @@
 //! - 그 외 stdout 오류(EIO / ENOSPC 등)는 일반 에러로 전파돼 `Error: …` + 종료 코드 1.
 //! - stderr 도 같은 이유로 `eprintln!` 을 쓰지 않는다 — [`errln!`] 을 쓴다. stderr 는 CLI 의
 //!   마지막 보고 채널이라 그 쓰기의 실패는 알릴 곳이 없으므로 **버리고**, 명령의 종료 코드는
-//!   그대로 둔다(`docs/adr/0499-cli-stderr-broken-pipe-keeps-the-exit-code.md`).
+//!   그대로 둔다(`docs/adr/0513-cli-stderr-broken-pipe-keeps-the-exit-code.md`).
 //! - host(GUI / headless) 는 stdout 에 쓰지 않으므로 이 모듈과 무관하다 — `Routed::Gui`
 //!   갈래의 동작은 바뀌지 않는다.
 

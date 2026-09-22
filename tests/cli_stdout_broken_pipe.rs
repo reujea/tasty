@@ -15,7 +15,7 @@
 //!
 //! stderr 도 같은 모양으로 잰다 — 읽는 쪽이 stderr 를 먼저 닫아도(`2>&1 | head`) panic ·
 //! crash report 가 없고, 종료 코드는 stderr 를 열어 둔 대조군과 **같다**(stderr 가 닫혔다고
-//! 실패가 성공이 되지 않는다 — `docs/adr/0499-cli-stderr-broken-pipe-keeps-the-exit-code.md`).
+//! 실패가 성공이 되지 않는다 — `docs/adr/0513-cli-stderr-broken-pipe-keeps-the-exit-code.md`).
 //!
 //! 소스 스캔 둘: tasty-cli 가 `println!`/`print!` 나 `eprintln!` 으로 되돌아가면 같은 panic
 //! 이 재발하므로, 쓰기는 `out.rs` 의 `outln!`/`out!`/`errln!` 로만 하도록 여기서 강제한다.
