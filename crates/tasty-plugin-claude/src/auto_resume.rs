@@ -111,8 +111,10 @@ pub(crate) struct Pending {
     pub turn: u64,
     /// 예약 시점의 전경 pid — 그 사이 Claude 가 다시 떴으면 다른 세션이다.
     pub foreground_pid: Option<u64>,
-    /// 이 시각 이후의 사용자 키 입력은 "사람이 개입했다" 로 본다. 실패한 턴이 시작된
-    /// 시각(`prompt-submit`)이고, 그것을 모르면 예약 시각이다. 턴 시작부터 보는 이유:
+    /// 이 시각 이후의 사용자 입력(키보드 · IME · 붙여넣기 — 본체가 `record_typing` 으로
+    /// 기록하는 것, docs/adr/0560-paste-is-user-input-and-is-recorded-where-both-paste-paths-meet.md)은
+    /// "사람이 개입했다" 로 본다. 실패한 턴이 시작된 시각(`prompt-submit`)이고, 그것을
+    /// 모르면 예약 시각이다. 턴 시작부터 보는 이유:
     /// Claude 가 일하는 동안 입력창에 쓴 미제출 초안도 재개 문구 앞에 붙어 함께 제출된다.
     pub input_since: Instant,
 }
@@ -341,7 +343,8 @@ pub(crate) struct DueFacts {
     pub expected_pid: Option<u64>,
     /// `surface.is_typing` 의 `typing`.
     pub typing: bool,
-    /// 마지막 사용자 키 입력 뒤 경과. 입력이 한 번도 없었으면 `None`.
+    /// 마지막 사용자 입력(키보드 · IME · 붙여넣기) 뒤 경과 — `surface.is_typing` 의
+    /// `idle_seconds`. 입력이 한 번도 없었으면 `None`.
     pub key_idle: Option<Duration>,
     /// [`Pending::input_since`] 뒤로 지난 시간.
     pub since_input_window: Duration,
@@ -378,9 +381,9 @@ pub(crate) fn judge(f: &DueFacts) -> Verdict {
     if f.expected_pid.is_some() && f.foreground_pid != f.expected_pid {
         return Verdict::Cancel("claude was restarted");
     }
-    // 창 안에 키 입력이 한 번이라도 있었으면 사람이 개입했다 — 입력창에 초안이 있을 수
-    // 있다. `is_typing` 은 최근 5 초만 보므로 초안을 쓰다 멈춘 사용자를 놓친다. 그래서
-    // 마지막 입력 시각(`idle_seconds`)을 창과 견준다.
+    // 창 안에 사용자 입력(키보드 · IME · 붙여넣기)이 한 번이라도 있었으면 사람이 개입했다 —
+    // 입력창에 초안이 있을 수 있다. `is_typing` 은 최근 5 초만 보므로 초안을 쓰다 멈춘
+    // 사용자를 놓친다. 그래서 마지막 입력 시각(`idle_seconds`)을 창과 견준다.
     if f.key_idle.is_some_and(|idle| idle < f.since_input_window) {
         return Verdict::Cancel("the user typed after the turn began");
     }
