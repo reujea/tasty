@@ -50,13 +50,14 @@ fn frame(
     let mut surface_cfg = None;
     drop(ctx.run(egui::RawInput::default(), |ctx| {
         egui::CentralPanel::default().show(ctx, |ui| {
+            let rect = ui.max_rect();
             draw_preview(
                 ui,
                 store,
                 &theme,
                 PresetKind::Workspace,
                 "dev",
-                egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(800.0, 600.0)),
+                rect,
                 editing,
                 selected_node,
                 &mut surface_cfg,
