@@ -37,7 +37,7 @@ pub struct ObserverSpec {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum SinkSpec {
-    /// `tasty-memory` 의 `scope=Host` 위 `tasty.observer.<id>.<unix-ms>` key 로
+    /// `tasty-memory` 의 `scope=Host` 위 `tasty.observer.<id>.<unix-ms>.<seq>` key 로
     /// JSON 저장. `max_records=0` 이면 무한, 그 외는 ring buffer (오래된 키
     /// 부터 삭제).
     Memory { max_records: usize },
@@ -544,9 +544,15 @@ fn run_memory_sink(
     use tasty_memory::{HOST_OWNER, MemoryValue, PutOpts, Scope};
     let mut written_keys: std::collections::VecDeque<String> =
         std::collections::VecDeque::with_capacity(max_records.min(1024));
+    // 키마다 붙는 이 sink 의 순번. 밀리초만으로는 같은 ms 에 온 항목이 한 키로 겹쳐
+    // 덮어쓰이고, 그 키가 `written_keys` 에 여러 번 들어가 넘칠 때 오래된 칸의 삭제가
+    // 같은 이름의 **살아 있는** 레코드를 지운다. 순번이 키를 유일하게 만들어 둘 다 없앤다.
+    // 6 자리로 채워 같은 ms 안에서도 키 오름차순이 도착 순서가 된다.
+    let mut seq: u64 = 0;
     while let Ok(item) = rx.recv() {
         let now = unix_ms_now();
-        let key = format!("tasty.observer.{observer_id}.{now}");
+        let key = format!("tasty.observer.{observer_id}.{now}.{seq:06}");
+        seq += 1;
         let record = json!({
             "kind": item.kind,
             "line": item.line,
@@ -935,8 +941,7 @@ mod tests {
         }
     }
 
-    /// 그 observer 가 남긴 레코드의 `data`. 키에 밀리초가 들어가 같은 ms 의 두 레코드는
-    /// 한 키로 겹치므로, 수가 아니라 **내용**으로 대조한다.
+    /// 그 observer 가 남긴 레코드의 `data`, 키 오름차순(= 도착 순서).
     fn observer_records(
         memory: &std::sync::Arc<std::sync::Mutex<dyn tasty_memory::MemoryStorage>>,
         id: ObserverId,
@@ -1001,6 +1006,38 @@ mod tests {
             records,
             vec![json!({ "small": 1 })],
             "실패한 레코드가 쓰였거나 그 뒤 레코드가 안 쓰였다"
+        );
+    }
+
+    /// 상한을 넘기면 **가장 최근 N 건**이 남는다 — 같은 밀리초에 몰려 온 항목도 한 건씩 센다.
+    ///
+    /// 키가 밀리초만이던 때는 같은 ms 의 항목이 한 키로 겹쳐, 넘친 옛 칸의 삭제가 같은 이름의
+    /// 살아 있는 레코드를 지웠다(`max_records=2` 에 여섯 건 → 남은 레코드 0). 여섯 건을 채널에
+    /// 먼저 다 넣고 sink 를 돌려 대부분이 같은 ms 에 쓰이게 한다.
+    #[test]
+    fn the_sink_keeps_the_latest_records_even_within_one_millisecond() {
+        let memory = mem_store();
+        let (tx, rx) = sync_channel::<ParsedItem>(6);
+        for n in 0..6 {
+            tx.send(item(json!({ "n": n }))).unwrap();
+        }
+        drop(tx);
+        run_memory_sink(43, 2, rx, memory.clone());
+        assert_eq!(
+            observer_records(&memory, 43),
+            vec![json!({ "n": 4 }), json!({ "n": 5 })],
+        );
+
+        // 상한이 없으면 같은 ms 의 항목도 하나도 덮어쓰이지 않는다.
+        let (tx, rx) = sync_channel::<ParsedItem>(6);
+        for n in 0..6 {
+            tx.send(item(json!({ "n": n }))).unwrap();
+        }
+        drop(tx);
+        run_memory_sink(44, 0, rx, memory.clone());
+        assert_eq!(
+            observer_records(&memory, 44),
+            (0..6).map(|n| json!({ "n": n })).collect::<Vec<_>>(),
         );
     }
 

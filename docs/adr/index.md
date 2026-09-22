@@ -462,6 +462,7 @@ pragma 보고는 0316 → 0376(보고 채널 개정), 못 연 `memory.db` 의 in
 | 0378 | [memory store 락의 poison 보고 좌표는 store 의 port 에 둔다](0378-the-poison-coordinate-of-the-memory-store-lives-at-its-port.md) | Accepted | 2026-09-21 | memory, storage, poison, boundary, output-observer |
 | 0485 | [못 연 `memory.db` 는 in-memory 대체로 계속 뜨되, 그 사실을 진단과 쓰기 응답이 말한다](0485-a-memory-db-that-failed-to-open-falls-back-in-memory-and-says-so.md) | Accepted | 2026-09-22 | sqlite, storage, memory, degraded, durability, ipc, cli, fallback |
 | 0611 | [`memory.db` 에 쓰는 IPC 는 이름공간과 무관하게 durable 이 아님을 말한다 — ADR-0485 의 적용 범위 조항 개정](0611-every-ipc-write-to-memory-db-says-when-it-is-not-durable.md) | Accepted | 2026-09-23 | sqlite, storage, memory, degraded, durability, ipc, agent, approval, telemetry, session |
+| 0612 | [출력 observer 의 memory 레코드 키에 sink 순번을 붙인다](0612-an-observer-memory-record-key-carries-a-sequence.md) | Accepted | 2026-09-23 | output-observer, memory, storage, key, ring-buffer, data-loss |
 
 ## 아키텍처 · 헤드리스 · 크레이트 경계
 

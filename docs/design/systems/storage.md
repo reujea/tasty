@@ -167,15 +167,15 @@ CREATE TABLE recent_files (      -- 종류별 최근 경로
 쓴다(`src/core/output_observer.rs` 의 `run_memory_sink`). 이 sink 는 **store 의 port
 (`MemoryStorage`)만 본다** — 도메인 `core` 를 참조하지 않는다.
 
-- **키**: `global` 스코프의 `tasty.observer.<id>.<ms>`, owner 는 `_host`. `<ms>` 는 쓰는 순간의
-  밀리초라 **같은 밀리초에 온 두 항목은 한 키로 겹친다**(뒤엣것이 덮어쓴다). 한 줄에서 여러
-  항목이 나오면 흔히 겹친다.
-- **상한 `max_records` 는 근사이고, 겹친 키와 만나면 레코드를 전부 잃을 수 있다.** sink 는 자기가
-  쓴 키를 순서대로 기억해 넘치면 가장 오래된 것부터 지우는데, 겹친 키는 그 기억에 **여러 번**
-  들어가 있다. 그래서 오래된 한 칸을 지우는 삭제가 같은 이름의 **지금 살아 있는** 레코드를
-  지운다. 실측(격리 홈, `--max-records 2`, 한 번의 `send text` 로 url 여섯 항목): `total_out` 6 인데
-  남은 키 0. 삭제는 best-effort 다 — 실패해도 경고 없이 넘어간다. sink 가 재시작하면 기억이
-  비므로 이전 실행이 남긴 키는 이 상한의 대상이 아니다.
+- **키**: `global` 스코프의 `tasty.observer.<id>.<ms>.<seq>`, owner 는 `_host`. `<ms>` 는 쓰는 순간의
+  밀리초, `<seq>` 는 그 sink 가 쓴 순번(0 부터, 6 자리로 채움)이다. 순번이 있어 **같은 밀리초에 온
+  항목도 각자 키를 가진다** — 한 줄에서 여러 항목이 나와도 덮어쓰지 않는다. 키 오름차순이 곧 도착
+  순서이므로 `memory.list --prefix tasty.observer.<id>.` 가 시간순으로 읽힌다. 근거는
+  [ADR-0612](../../adr/0612-an-observer-memory-record-key-carries-a-sequence.md).
+- **상한 `max_records` 는 가장 최근 N 건을 남긴다.** sink 는 자기가 쓴 키를 순서대로 기억해 넘치면
+  가장 오래된 것부터 지운다. 키가 유일하므로 지우는 칸은 늘 그 옛 레코드 자신이다. 삭제는
+  best-effort 다 — 실패해도 경고 없이 넘어가므로 그때는 N 을 넘는 레코드가 남을 수 있다. sink 가
+  재시작하면 기억이 비므로 이전 실행이 남긴 키는 이 상한의 대상이 아니다.
 - **put 실패는 그 항목만 버린다.** `tracing::warn!` 을 한 줄 남기고 다음 항목으로 간다 — sink 가
   멈추지 않는다. **소비자에게 gap 신호는 가지 않는다**: observer 의 `dropped` 는 채널 역압으로
   못 넣은 항목만 세고 put 실패는 세지 않는다. 원인은 위 "저장 실패의 의미" 의 표로 갈리지만 이
