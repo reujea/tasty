@@ -1,4 +1,4 @@
-<!-- source-hash: 0af95f3c05cb -->
+<!-- source-hash: dc3c1ec3b524 -->
 <!-- source-hash: 7d6a53485a98 -->
 # A first look
 
@@ -115,7 +115,7 @@ Pressing the window's close button asks whether to **Quit** or **Minimize to bac
 
 Once you confirm quitting, web pages and Markdown documents in all windows are hidden so the progress screen can be shown while shutdown is pending. If you cancel the confirmation or return after minimizing to the background, you can continue using the documents.
 
-When you launch Tasty again, the Workspace · Pane · Tab arrangement of the last window is restored as it was (**Settings** > **General** > **Restore layout on startup**, on by default). Tasty run without a window (`tasty --headless`) neither saves nor restores the arrangement, whatever this setting says — its workspaces last only for that run. If the setting is on, it logs a one-line warning about this at startup.
+When you launch Tasty again, the Workspace · Pane · Tab arrangement of the last window is restored as it was (**Settings** > **General** > **Restore layout on startup**, on by default). A [headless build](install.md#headless-build) of Tasty, which runs without a window, neither saves nor restores the arrangement, whatever this setting says — its workspaces last only for that run. If the setting is on, it logs a one-line warning about this at startup.
 
 <a id="what-to-read-next"></a>
 
