@@ -82,10 +82,11 @@ pub const NAV_FRAGMENT_MARKER: &str = "tasty-nav:";
 const NAV_REFRESH_PREFIX: &str = "refresh:";
 
 /// Outcome of clicking a markdown link or submitting the address bar, raised so the plugin
-/// shell performs the side effect (host `file_handler.dispatch` for files / OS open for URLs).
+/// shell performs the side effect (host `file_handler.dispatch` for files / host
+/// `webview.open_external` for URLs).
 ///
 /// - `File`: a filesystem path already made absolute against the md dir's `base_dir`.
-/// - `External`: a URL/scheme handed to the OS (`http(s)`, `mailto:`, `data:`, …).
+/// - `External`: a URL/scheme the host hands to the OS (`http(s)`, `mailto:`, `data:`, …).
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum LinkClick {
     File(PathBuf),

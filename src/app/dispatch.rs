@@ -15,6 +15,7 @@ pub(crate) mod picker;
 pub(crate) mod plugin_banner;
 pub(crate) mod plugin_ipc;
 pub(crate) mod plugin_popup_events;
+pub(crate) mod plugin_webview_open;
 pub(crate) mod popup_opens;
 pub(crate) mod surface_lifecycle;
 pub(crate) mod tool_events;

@@ -786,6 +786,15 @@ pub const METHOD_TABLE: &[(&str, MethodMeta)] = {
         ("banner.open", plugin_only(Idempotent, &[UiBanner])),
         // 자기 배너 인스턴스를 명시적으로 닫는다.
         ("banner.close", plugin_only(Idempotent, &[UiBanner])),
+        // ── webview 외부 열기 (plugin → host) ──────────────────────────
+        // 자기 webview surface 안의 외부 링크를 OS 기본 핸들러로 연다. plugin 프로세스가
+        // OS 열기를 직접 하지 않게 host 한 자리로 모은다(ADR-0527). 소유권(자기 surface)
+        // 검증은 App. 외부 IPC 호출자에게는 arm 이 없다 — 사용자 브라우저를 여는 것은
+        // 에이전트가 자기 작업에 쓰는 능력이 아니다(원칙 1).
+        (
+            "webview.open_external",
+            plugin_only(Mutate, &[SurfaceWrite]),
+        ),
         // ── 호스트 자체 메서드 (plugin/window 관리) — local-only ──────
         ("plugin.list", local_only(Read)),
         ("plugin.show", local_only(Read)),

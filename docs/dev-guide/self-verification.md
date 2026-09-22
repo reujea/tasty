@@ -70,7 +70,7 @@ PATH="$SB:$PATH" BROWSER="$SB/firefox" \
 ```
 
 - **`TASTY_DEBUG_OS_OPEN_LOG`** — tasty 자신의 OS 열기 자리가 프로세스를 띄우지 않고 그 파일에 `<via>\t<대상>` 을 붙인다. "무엇이 열리려 했나" 의 판정은 이 줄로 한다. 덮는 자리와 성질은 [debug-ipc.md](debug-ipc.md) "OS 열기를 띄우지 않고 기록하기".
-- **가짜 브라우저 `PATH` + `BROWSER`** — tasty 가 띄운 **다른 프로세스**(PTY 안 셸의 `xdg-open`, 링크를 직접 여는 markdown plugin)는 위 스위치를 안 읽는다. 그쪽이 부르는 것을 기록만 하는 가짜로 가로챈다. 여기 기록이 생기면 그 프로세스가 연 것이다.
+- **가짜 브라우저 `PATH` + `BROWSER`** — tasty 가 띄운 **다른 프로세스**(PTY 안 셸의 `xdg-open`, 스스로 OS 열기를 부르는 plugin — 번들 plugin 은 host 를 거쳐 위 스위치 안이다)는 위 스위치를 안 읽는다. 그쪽이 부르는 것을 기록만 하는 가짜로 가로챈다. 여기 기록이 생기면 그 프로세스가 연 것이다.
 - **`BROWSER=`(빈 값)은 막지 않는다.** `webbrowser` 크레이트(1.2.4 소스)는 빈 항목을 건너뛰고 xdg 설정의 기본 브라우저 desktop entry 를 **직접** 실행한다 — `PATH` 앞의 가짜 `xdg-open` 도 거치지 않는다. `BROWSER` 에는 기록하는 가짜의 경로를 준다.
 
 **`--headless` 는 기본 빌드에서 headless 로 동작하지 않는다.** 기본 빌드는 `gui` feature 가 켜져 있고 그 빌드에는 headless 모드가 들어 있지 않아, `--headless` 를 줘도 **GUI 로 폴백해 실제 창을 띄운다.** 로그에 이렇게 남는다:

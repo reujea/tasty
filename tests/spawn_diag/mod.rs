@@ -1921,9 +1921,10 @@ pub const OS_OPEN_LOG_FILE: &str = "os-open.log";
 /// 으로 나타난다(ADR-0511). 스위치는 제품의 debug 격리라 release 로 지은 자식은 무시한다
 /// — 그래서 이름을 문자열로 옮겨 적지 않고 제품 상수를 그대로 쓴다.
 ///
-/// 스위치는 host 프로세스 안의 OS 열기만 덮는다. 번들 plugin 은 `tasty-platform` 을 링크하지
-/// 않고 자기 프로세스에서 `webbrowser::open` 을 직접 부르므로(markdown 의 외부 링크), 그 자리는
-/// 가짜 `BROWSER`([`apply_fake_browser`])가 막는다 — 같은 기록 파일에 `BROWSER\t<인자>` 로 남는다.
+/// 스위치는 host 프로세스 안의 OS 열기만 덮는다(번들 markdown 의 외부 링크는 host
+/// `webview.open_external` 을 거쳐 그 안이다 — ADR-0527). 자식이 띄운 다른 프로세스(PTY 셸 · 스스로
+/// 여는 plugin)의 열기는 가짜 `BROWSER`([`apply_fake_browser`])가 막는다 — 같은 기록 파일에
+/// `BROWSER\t<인자>` 로 남는다.
 pub fn apply_os_open_record(
     command: &mut std::process::Command,
     home: &std::path::Path,
@@ -1943,7 +1944,7 @@ pub const FAKE_BROWSER_FILE: &str = "os-open-browser.sh";
 ///
 /// `webbrowser` 는 unix(macOS 제외)에서 `BROWSER` 를 먼저 보고, 그 명령이 성공하면 거기서
 /// 멈춘다 — 그래서 여기서 막히는 것은 **Linux·BSD 의 `webbrowser` 경로뿐**이다. macOS·Windows
-/// 의 plugin 쪽 열기는 이것으로 안 막힌다(ADR-0511). 빌드 프로필과 무관하게 준다 — 제품
+/// 의 자식 프로세스 쪽 열기는 이것으로 안 막힌다(ADR-0511). 빌드 프로필과 무관하게 준다 — 제품
 /// 스위치가 없는 release 자식도 Linux 에서는 이것으로 막힌다.
 ///
 /// 빈 `BROWSER=` 는 막지 않는다 — `webbrowser` 가 빈 항목을 건너뛰고 xdg desktop entry 를

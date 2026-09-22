@@ -96,3 +96,4 @@ e2e 하네스도 같다. 격리 HOME 과 `TASTY_E2E_DISPLAY` 가 이 채널을 �
 - [e2e-tests.md](../dev-guide/e2e-tests.md) §3 — 하네스 환경 격리 표
 - 코드 근거(현재 위치): `tasty_platform::debug_os_open::intercepted` · `tests/spawn_diag` 의
   `apply_os_open_record`
+- 부분 개정: [0527](0527-a-plugin-opens-external-links-through-the-host.md) (plugin 프로세스의 열기가 스위치 밖이라는 조항 개정 — markdown 외부 링크는 host `webview.open_external` 로 열려 스위치 안이다)

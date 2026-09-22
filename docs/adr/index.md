@@ -406,6 +406,7 @@ disable 이 무엇을 남기는가는 0173(namespace 소유를 남긴다) → 05
 | 0245 | [image 의 편집은 임시다 — 미저장 편집은 복원하지도, 알리지도 않는다](0245-an-image-surface-edit-is-temporary-and-is-not-restored.md) | Accepted | 2026-09-08 | image, plugin, persistence, restore, snapshot, identity, non-goal, adr-0030 |
 | 0249 | [markdown 의 로컬 이미지는 렌더러가 문서 안에 싣는다 — 그 자리가 읽기 범위이기도 하다](0249-markdown-local-images-are-inlined-by-the-renderer.md) | Accepted | 2026-09-08 | markdown, plugin, webview, images, sanitizer, security, scope, cross-platform, adr-0065 |
 | 0289 | [markdown 문서는 `<base href>` 를 싣지 않는다 — 그것이 문서 안 앵커를 문서 밖으로 보낸다](0289-the-markdown-document-carries-no-base-href.md) | Accepted | 2026-09-19 | markdown, plugin, webview, navigation, anchors, toc, footnotes, cross-platform, adr-0249, adr-0065 |
+| 0527 | [plugin 은 외부 링크를 host 를 거쳐 연다 — ADR-0511 의 "plugin 쪽 열기는 스위치 밖" 조항 개정](0527-a-plugin-opens-external-links-through-the-host.md) | Accepted | 2026-09-23 | plugin, markdown, webview, os-open, browser, debug, verification, user-agent-separation, identity, adr-0511 |
 
 ## 파일 핸들러 · 파일 피커
 

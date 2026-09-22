@@ -487,6 +487,15 @@ fn file_open_dispatch_params_carry_the_owner_popup() {
     assert!(params.get("origin_surface_id").is_none());
 }
 
+/// 외부 링크는 host `webview.open_external` 로 간다 — host 가 읽는 두 키(`surface_id` · `url`)를
+/// 싣는다. 이 plugin 은 OS 열기를 직접 하지 않는다(ADR-0527).
+#[test]
+fn external_link_params_name_the_clicked_surface_and_the_url() {
+    let params = external_link_params(7, "https://example.com/a?b=1");
+    assert_eq!(params["surface_id"], json!(7));
+    assert_eq!(params["url"], json!("https://example.com/a?b=1"));
+}
+
 /// 원격 원문 요청은 에이전트가 건 것에만 `agent_origin` 을 싣는다 — host 는 그 회신의 잘림
 /// toast 를 사용자에게 띄우지 않는다(ADR-0503). plugin 이 건 요청은 종전 모양 그대로다.
 #[test]

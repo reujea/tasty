@@ -8,7 +8,8 @@
 //! plugin no longer tessellates its own egui mesh for the document body (that was the former
 //! `rendering = "egui-mesh"` design, ADR-0028 / B1). Address-bar navigation and content link
 //! clicks are captured via the host's `webview.navigation_attempt` event (Stage A) and routed
-//! back through `file_handler.dispatch` (files) or the OS (external URLs) — see `render.rs`'s
+//! back through `file_handler.dispatch` (files) or `webview.open_external` (external URLs, opened
+//! by the host — this plugin never calls an OS opener itself) — see `render.rs`'s
 //! module doc for why link destinations are rewritten into an internal URL-fragment scheme
 //! rather than left as plain `href`s.
 //!
@@ -603,7 +604,7 @@ impl Plugin for MarkdownPlugin {
             // 없다. 외부 URL 만 연다.
             render::NavIntent::Link(dest) if is_remote => {
                 if let Some(render::LinkClick::External(url)) = render::classify_link(&dest, None) {
-                    dispatch_external_link(&url);
+                    dispatch_external_link(&host, ctx.surface_id, &url);
                 }
             }
             render::NavIntent::Addr(_) if is_remote => {}
@@ -970,12 +971,12 @@ fn parse_recent(v: &Value) -> Vec<String> {
 
 /// 링크 클릭 부수효과. `webview.navigation_attempt` 로 도착한, 이 plugin 이 생성한
 /// `#tasty-nav:link:` fragment 에서만 도달한다(module doc). 파일은 host
-/// `file_handler.dispatch`(같은 Pane 새 탭, origin_surface_id)로, 외부 URL 은 OS
-/// 핸들러로 연다.
+/// `file_handler.dispatch`(같은 Pane 새 탭, origin_surface_id)로, 외부 URL 은 host
+/// `webview.open_external` 로 OS 핸들러에 넘긴다 — 이 plugin 은 OS 열기를 직접 하지 않는다.
 fn dispatch_link(host: &HostHandle, sid: u32, click: render::LinkClick) {
     match click {
         render::LinkClick::File(path) => dispatch_file_link(host, sid, &path),
-        render::LinkClick::External(url) => dispatch_external_link(&url),
+        render::LinkClick::External(url) => dispatch_external_link(host, sid, &url),
     }
 }
 
@@ -994,10 +995,22 @@ fn dispatch_file_link(host: &HostHandle, sid: u32, path: &std::path::Path) {
     }
 }
 
-fn dispatch_external_link(url: &str) {
-    if let Err(e) = webbrowser::open(url) {
-        tracing::warn!("markdown external link open failed ({url}): {e}");
+/// 외부 URL 을 host 의 OS 열기 자리로 보낸다(ADR-0527). host 가 거기서 열기를 한 곳으로 모아
+/// debug 스위치(ADR-0511)도 이 열기를 기록한다. `sid` 는 링크가 클릭된 이 plugin 의 surface 다
+/// — host 는 자기 surface 에서 온 요청만 연다.
+fn dispatch_external_link(host: &HostHandle, sid: u32, url: &str) {
+    match host.call("webview.open_external", external_link_params(sid, url)) {
+        Ok(v) if v.get("opened").and_then(Value::as_bool) == Some(false) => {
+            tracing::warn!("markdown external link was not opened by the OS ({url})");
+        }
+        Ok(_) => {}
+        Err(e) => tracing::warn!("markdown external link open failed ({url}): {e}"),
     }
+}
+
+/// `webview.open_external` 파라미터. 호출(`HostHandle`)과 떼어 두어 단위 테스트가 wire 모양을 본다.
+fn external_link_params(sid: u32, url: &str) -> Value {
+    json!({ "surface_id": sid, "url": url })
 }
 
 /// 주소창 확정 이동을 host `markdown.navigate` 로 보낸다 — 같은 surface 제자리 이동.

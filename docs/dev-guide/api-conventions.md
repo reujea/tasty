@@ -94,7 +94,7 @@ params 를 담는 **이름**이 규약(`params` / `_params`, 또는 살아 있�
 
 그래서 "release 표에 있는데 CLI 가 없다" 는 그 자체로 결함이 아니다. 아래가 현재 그런 메서드 전부이고, 각 행이 왜 원칙 2 밖인지 또는 어떻게 이미 충족되는지를 적는다. **새로 그런 메서드를 만들면 여기에 행을 추가한다** — `tests/cli_method_table_parity.rs` 가 이 표와 실제 집합을 양방향으로 대조하므로, 빠뜨리면 테스트가 떨어진다. 아래 개수와, 사유 열이 "대신 이걸 쓰라" 고 든 명령이 실재하는지도 같은 가드가 본다. 개수는 표에서 파생되지 않는 값이라(마크다운 표는 스스로 세지 않는다) 행을 고칠 때 함께 고쳐야 하고, 안 고치면 그 가드가 실제 값을 알려준다.
 
-총 31개.
+총 32개.
 
 | 이유 | 메서드 | 왜 CLI 가 없나 |
 |---|---|---|
@@ -104,6 +104,7 @@ params 를 담는 **이름**이 규약(`params` / `_params`, 또는 살아 있�
 | plugin → host 서비스 | `markdown_mirror.content_request` | markdown plugin 이 attach mirror 문서의 원격 원문을 요청한다. `git_viewer.query` 와 같은 비동기 accept 라 `request_id` 만 회신하고 원문은 그 plugin 에 unicast push 되므로 셸이 결과를 받을 수 없다([ADR-0255](../adr/0255-markdown-attach-mirror-forwards-content-not-pixels.md)) |
 | 열면 그 능력이 깨진다 | `surface.read_since_scan_mark` | 출력 스캐너 전용 커서라 **읽으면 커서가 전진한다.** CLI 동사를 열면 사용자가 한 줄로 스캐너의 바이트를 가져가 에러 감시에 구멍을 낼 수 있고, 그 구멍은 조용하다 — 에이전트가 출력을 읽는 표면은 커서를 안 움직이는 `tasty read since-mark` 쪽이다([ADR-0307](../adr/0307-the-output-scanner-reads-its-own-cursor.md)) |
 | plugin → host 서비스 | `settings.get_plugin_setting` | `caller_plugin_id` 를 요청 파라미터가 아니라 `CallerContext` 에서 강제 도출한다 — CLI 호출자는 plugin 신원이 없어 **원리적으로** 부를 수 없다 |
+| plugin → host 서비스 †plugin-only | `webview.open_external` | plugin 이 **자기** webview surface 안에서 클릭된 외부 링크를 host 의 OS 열기 자리로 넘긴다. 대상이 caller plugin 소유 surface 여야 하고, 사용자 브라우저를 여는 것은 에이전트가 자기 작업에 쓰는 능력이 아니다([ADR-0527](../adr/0527-a-plugin-opens-external-links-through-the-host.md)) |
 | plugin → host 서비스 †plugin-only | `host.shared_buffer.create` | 응답이 main 채널 하나로 끝나지 않는다 — 공유 메모리 핸들(Unix fd / Windows HANDLE)이 그 plugin 프로세스의 **보조 채널**로 함께 전달되고, 받는 쪽은 그것을 자기 주소공간에 매핑한다. CLI 프로세스에는 그 채널도 매핑 대상도 없어 결과를 받을 수 없다 |
 | CLI 는 있고 IPC 를 안 탄다 | `remote.attach` · `remote.workspaces` | `tasty remote attach` / `tasty remote workspaces` 가 SSH 터널을 직접 열고 클라이언트 주도로 실행한다. 이 IPC 는 같은 일을 **원격/에이전트가 시킬 때**의 판이다 |
 | CLI 는 있고 IPC 를 안 탄다 | `remote.profile.add` · `remote.profile.get` · `remote.profile.list` · `remote.profile.list_local` · `remote.profile.detect` · `remote.profile.import` · `remote.profile.remove` | `tasty tool remote-profile …` 이 로컬 프로필 파일을 직접 다룬다(IPC 없음). 인스턴스가 떠 있지 않아도 되어야 하는 명령이라 그쪽이 옳다 |
@@ -115,14 +116,14 @@ params 를 담는 **이름**이 규약(`params` / `_params`, 또는 살아 있�
 
 #### † plugin-only — 외부 호출자는 무엇을 받는가
 
-위 표에서 †plugin-only 로 표시한 넷(`banner.open` · `banner.close` · `popup.close` ·
-`host.shared_buffer.create`)은 **CLI 잎이 없는 것에 그치지 않고 외부 dispatch arm 자체가
+위 표에서 †plugin-only 로 표시한 다섯(`banner.open` · `banner.close` · `popup.close` ·
+`webview.open_external` · `host.shared_buffer.create`)은 **CLI 잎이 없는 것에 그치지 않고 외부 dispatch arm 자체가
 없다.** plugin host-call 진입부가 직접 인터셉트하기 때문이다. 나머지 행들은 사정이 다르다 —
 `git_viewer.query` · `markdown.navigate` · `settings.get_plugin_setting` 같은 것은 외부에서
 쏘면 실제로 라우팅되어 인자 오류나 plugin 의 답이 돌아온다. 두 부류가 같은 표에 있는 것은 이
 표의 축이 **CLI 진입점**이지 라우팅이 아니기 때문이다.
 
-이 넷은 `METHOD_TABLE` 에 `plugin_only(&[…])` 로 등재되고, 외부 호출자는 `-32601`("그런
+이 다섯은 `METHOD_TABLE` 에 `plugin_only(&[…])` 로 등재되고, 외부 호출자는 `-32601`("그런
 메서드 없다")이 아니라 다음을 받는다:
 
     -32016  method '<name>' is plugin-only: only the plugin host-call path dispatches it,

@@ -126,11 +126,11 @@ debug 메서드는 모두 `local_only()` — plugin caller 는 호출 불가, CL
 
 ### OS 열기를 띄우지 않고 기록하기 (`TASTY_DEBUG_OS_OPEN_LOG`)
 
-tasty 가 OS 기본 핸들러에 무언가를 넘기는 자리 — 링크·`System` 파일 핸들러(`directory-system` 등)가 부르는 `terminal_link::open_uri`, explorer "OS 기본 앱으로 열기" 의 `platform::reveal::open_path`, info modal 외부 링크, macOS 전체 디스크 접근 설정 패널 — 는 격리 `TASTY_HOME` 과 전용 디스플레이로 격리되지 않는다. 브라우저는 이미 떠 있는 자기 인스턴스에 URL 을 넘기는 원격 제어 채널(DBus · 소켓 · LaunchServices)을 가져서, 검증 인스턴스가 연 것이 **사용자 브라우저의 탭**으로 나타난다.
+tasty 가 OS 기본 핸들러에 무언가를 넘기는 자리 — 링크·`System` 파일 핸들러(`directory-system` 등)·plugin 의 `webview.open_external`(markdown 외부 링크)이 부르는 `terminal_link::open_uri`, explorer "OS 기본 앱으로 열기" 의 `platform::reveal::open_path`, info modal 외부 링크, macOS 전체 디스크 접근 설정 패널 — 는 격리 `TASTY_HOME` 과 전용 디스플레이로 격리되지 않는다. 브라우저는 이미 떠 있는 자기 인스턴스에 URL 을 넘기는 원격 제어 채널(DBus · 소켓 · LaunchServices)을 가져서, 검증 인스턴스가 연 것이 **사용자 브라우저의 탭**으로 나타난다.
 
 `TASTY_DEBUG_OS_OPEN_LOG=<파일>` 로 띄우면 그 자리들이 프로세스를 띄우지 않고 `<via>\t<대상>` 한 줄을 그 파일에 붙인다(`via` ∈ `open_uri` · `open_path` · `open_external` · `open_settings`). 무엇이 열리려 했는지는 그 줄로 판정한다. 변수가 **있기만 하면** 억제한다 — 값이 비었거나 파일에 못 쓰면 경고 로그만 남기고 여전히 열지 않는다. 호출부는 성공으로 돌아가므로 뒤따르는 동작(recent 기록 등)은 실제로 연 것과 같다. e2e 하네스 셋(`tests/common` · `tests/gui_common` · `tests/webhook_common`)이 격리 홈 아래 `os-open.log` 로 이것을 켠다.
 
-덮지 **않는** 것: tasty 가 띄운 **다른 프로세스**가 스스로 여는 것 — PTY 안의 셸이 부른 `xdg-open`, 번들 markdown plugin 의 링크 열기(plugin 프로세스가 직접 `webbrowser` 를 부른다). 그쪽은 [self-verification](self-verification.md) 의 가짜 브라우저 절차로 막는다. e2e 하네스는 같은 파일에 기록하는 가짜 `BROWSER` 를 준다(Linux·BSD 한정, [e2e-tests](e2e-tests.md) §3). 구현은 `crates/tasty-platform/src/debug_os_open.rs`(모듈 선언에 `#[cfg(debug_assertions)]`), 근거는 [ADR-0511](../adr/0511-os-open-is-recorded-not-launched-under-a-debug-switch.md). debug 격리, release 미노출.
+덮지 **않는** 것: tasty 가 띄운 **다른 프로세스**가 스스로 여는 것 — PTY 안의 셸이 부른 `xdg-open`, plugin 프로세스가 스스로 부르는 OS 열기(번들 plugin 에는 없다 — markdown 외부 링크는 host 를 거친다, [ADR-0527](../adr/0527-a-plugin-opens-external-links-through-the-host.md)). 그쪽은 [self-verification](self-verification.md) 의 가짜 브라우저 절차로 막는다. e2e 하네스는 같은 파일에 기록하는 가짜 `BROWSER` 를 준다(Linux·BSD 한정, [e2e-tests](e2e-tests.md) §3). 구현은 `crates/tasty-platform/src/debug_os_open.rs`(모듈 선언에 `#[cfg(debug_assertions)]`), 근거는 [ADR-0511](../adr/0511-os-open-is-recorded-not-launched-under-a-debug-switch.md). debug 격리, release 미노출.
 
 ### 회차 시간 예산 줄이기 (`TASTY_DEBUG_IPC_ROUND_TIME_BUDGET_MS`)
 

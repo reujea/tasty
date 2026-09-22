@@ -55,6 +55,10 @@ impl App {
                 self.handle_ipc_banner_close(&call);
                 continue;
             }
+            if call.method == "webview.open_external" {
+                self.handle_ipc_webview_open_external(&call);
+                continue;
+            }
             // namespace forward 경로: 메서드가 다른 plugin의 prefix에 매칭되면
             // 검증/forward를 plugin_manager에 위임한다. 응답은 비동기.
             //
