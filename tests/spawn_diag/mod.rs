@@ -1804,6 +1804,7 @@ TU: error: ../src/freedreno/vulkan/tu_knl.cc:387: failed to open device /dev/dri
 pub const SUITES_THAT_CALL_BUNDLED_PLUGINS: &[&str] = &[
     "attach_markdown_content_loopback",
     "e2e_tests",
+    "plugin_disable_withdraws_surface_kinds",
     "soak_memory",
 ];
 
