@@ -100,17 +100,18 @@ const SCAN_ROOTS_WITH_INTEGRATION_TESTS: &[&str] = &["src", "crates", "tests"];
 /// 소스에서 문자열 리터럴을 뽑는 가드가 공통으로 필요로 한다. 판정이 "리터럴이 있는가"
 /// 인데 주석이 그 이름을 **설명하려고** 인용하는 일이 잦고, 그러면 설명이 대상으로
 /// 오인된다 — 문서를 잘 쓸수록 가드가 나빠진다.
+///
+/// 주석을 가르는 것은 공용 렉서(`tasty_doc_guards::source_text::mask_comments`)다. 손으로 센
+/// 따옴표 짝은 문자 리터럴 `'"'` 과 raw 문자열에서 어긋나 코드를 주석으로 지우거나 주석을
+/// 코드로 남겼고, 블록 주석은 아예 몰랐다. 주석뿐인 줄은 빼고, 줄 끝 주석은 공백으로 덮는다.
 fn strip_comments(src: &str) -> String {
+    let masked = tasty_doc_guards::source_text::mask_comments(src);
     let mut out = String::with_capacity(src.len());
-    for line in src.lines() {
-        if line.trim_start().starts_with("//") {
+    for (orig, line) in src.lines().zip(masked.lines()) {
+        if line.trim().is_empty() && !orig.trim().is_empty() {
             continue;
         }
-        // 줄 끝 주석: 앞의 따옴표 수가 짝수여야 문자열 밖의 `//` 다.
-        let cut = line
-            .match_indices("//")
-            .find(|(at, _)| line[..*at].matches('"').count() % 2 == 0);
-        out.push_str(cut.map_or(line, |(at, _)| &line[..at]));
+        out.push_str(line);
         out.push('\n');
     }
     out
@@ -203,120 +204,53 @@ fn head(s: &str) -> String {
         .collect()
 }
 
-/// 팔 패턴에서 주석과 속성을 걷어낸다 — `#[cfg(debug_assertions)]` 이 붙은 팔과
-/// 팔 앞의 설명 주석이 실제 코드에 있다(실측).
-fn pattern_text(raw: &str) -> String {
-    raw.lines()
-        .map(|l| l.split("//").next().unwrap_or("").trim())
-        .filter(|l| !l.is_empty() && !l.starts_with('#'))
-        .collect::<Vec<_>>()
-        .join(" ")
-}
-
 /// `match ….as_str() { … }` 의 팔 중 **패턴이 리터럴이 아닌** 것.
 ///
-/// 팔 패턴은 문자열 리터럴이거나, `_`/소문자 식별자(전부받기 바인딩)여야 한다.
-/// 대문자 상수나 매크로 호출이 패턴 자리에 오면 그 이름은 텍스트로 안 보인다.
+/// 팔 패턴은 문자열 리터럴이거나, guard 없는 `_`/소문자 식별자(전부받기 바인딩)여야 한다.
+/// 대문자 상수나 매크로 호출이 패턴 자리에 오면 그 이름은 텍스트로 안 보이고, guard 가 붙은
+/// 바인딩은 이름을 guard 식에서 가른다.
+///
+/// `block` 은 `{` 로 시작한다. 팔은 공용 판정기(`tasty_doc_guards::match_arms`)가 뗀다 —
+/// 손으로 센 경계는 문자 리터럴 `'"'` · raw 문자열 · 문자열 속 `//` 에서 어긋나 팔을 숨겼다.
+/// 판정기가 못 읽는 모양은 그 자체로 불투명 자리로 돌려준다.
 fn non_literal_arms(block: &str) -> Vec<String> {
-    let b = block.as_bytes();
+    use tasty_doc_guards::match_arms::{Source, matching_close};
+    let src = Source::new(block);
+    let Some(close) = matching_close(&src.code, 0) else {
+        return vec!["`match` 블록이 닫히지 않는다".to_string()];
+    };
+    let arms = match src.match_arms(0..close + 1) {
+        Ok(arms) => arms,
+        Err(e) => return vec![format!("`match` 팔을 못 읽었다 — {e}")],
+    };
     let mut out = Vec::new();
-    let (mut i, mut depth, mut pat_start, mut in_str) = (0usize, 0usize, 0usize, false);
-    while i < b.len() {
-        let c = b[i];
-        if in_str {
-            if c == b'\\' {
-                i += 2;
-                continue;
+    for arm in arms {
+        for alt in src.alternatives(&arm.pattern) {
+            let text = src.slice(&alt);
+            let binding = arm.guard.is_none()
+                && (text == "_"
+                    || text
+                        .chars()
+                        .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '_'));
+            if src.plain_string(&alt).is_none() && !binding {
+                out.push(format!("`match` 팔 `{text}`"));
             }
-            if c == b'"' {
-                in_str = false;
-            }
-            i += 1;
-            continue;
         }
-        match c {
-            b'"' => in_str = true,
-            b'{' | b'(' | b'[' => {
-                depth += 1;
-                if depth == 1 {
-                    pat_start = i + 1;
-                }
-            }
-            b'}' | b')' | b']' => {
-                depth -= 1;
-                if depth == 0 {
-                    break;
-                }
-                // 블록 팔(`"x" => { … }`) 뒤의 쉼표는 생략할 수 있다. 그 닫는 중괄호도
-                // 팔의 끝으로 쳐야 다음 팔의 패턴이 앞 팔 전체를 끌고 온다.
-                //
-                // **중괄호만이다.** 괄호까지 팔의 끝으로 치면 패턴 자신이 괄호를 가진
-                // 경우(`mac!() => …`)에 시작 자리가 패턴 **뒤로** 밀려 패턴이 빈 문자열이
-                // 되고, 빈 것은 검사가 건너뛴다 — 정확히 잡아야 할 모양이 통과했다(실측).
-                if depth == 1 && c == b'}' {
-                    pat_start = i + 1;
-                }
-            }
-            b',' if depth == 1 => pat_start = i + 1,
-            b'=' if depth == 1 && b.get(i + 1) == Some(&b'>') => {
-                for alt in pattern_text(&block[pat_start..i]).split('|') {
-                    let alt = alt.trim();
-                    if alt.is_empty() {
-                        continue;
-                    }
-                    let binding = alt == "_"
-                        || (!alt.is_empty()
-                            && alt
-                                .chars()
-                                .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '_'));
-                    if !alt.starts_with('"') && !binding {
-                        out.push(format!("`match` 팔 `{alt}`"));
-                    }
-                }
-                i += 2;
-                continue;
-            }
-            _ => {}
-        }
-        i += 1;
     }
     out
 }
 
 /// 시그니처로 함수를 찾아 그 **본문**을 중괄호 균형으로 잘라낸다.
 ///
-/// 들여쓰기에 의존하지 않는다 — rustfmt 스타일이 바뀌어도 같은 것을 자른다.
-/// 문자열 안의 중괄호는 세지 않는다(`"{}"` 포맷 리터럴이 흔하다).
+/// 들여쓰기에 의존하지 않는다 — rustfmt 스타일이 바뀌어도 같은 것을 자른다. 시그니처와
+/// 중괄호 짝은 공용 판정기가 주석·문자열·문자 리터럴을 덮은 사본에서 찾는다 — 주석 속 시그니처
+/// 인용이나 `'}'` · 주석 속 `}` 가 본문을 엉뚱하게 자르지 않는다. **첫** 정의만 돌려준다.
 fn fn_body(src: &str, signature: &str) -> Option<String> {
-    let at = src.find(signature)?;
-    let open = src[at..].find('{')? + at;
-    let mut depth = 0usize;
-    let mut in_str = false;
-    let mut escaped = false;
-    for (i, c) in src[open..].char_indices() {
-        if in_str {
-            if escaped {
-                escaped = false;
-            } else if c == '\\' {
-                escaped = true;
-            } else if c == '"' {
-                in_str = false;
-            }
-            continue;
-        }
-        match c {
-            '"' => in_str = true,
-            '{' => depth += 1,
-            '}' => {
-                depth -= 1;
-                if depth == 0 {
-                    return Some(src[open..open + i + 1].to_string());
-                }
-            }
-            _ => {}
-        }
-    }
-    None
+    let code = tasty_doc_guards::source_text::mask_non_code_aligned(src);
+    let at = code.find(signature)?;
+    let open = code[at..].find('{')? + at;
+    let close = tasty_doc_guards::match_arms::matching_close(&code, open)?;
+    Some(src[open..=close].to_string())
 }
 
 fn repo_root() -> PathBuf {
