@@ -485,7 +485,7 @@ pragma 보고는 0316 → 0376(보고 채널 개정), 못 연 `memory.db` 의 in
 
 ## 아키텍처 · 헤드리스 · 크레이트 경계
 
-구조 op 는 0337 → 0395(결정 2 개정) → 0440, headless Intent 는 0111 → 0346 이다. IPC 핸들러의 창 상태는 0470 → 0471 이고, 그것이 남긴 대상 생략 기본값은 0533(「창 · 워크스페이스 · 포커스 · 수명주기」)이 정한다. 모듈 단위 dead_code 억제는 0346 → 0530 이다. 헤드리스가 적용할 수 없는 요청을 수락하지 않는 결정은 0425(「파일 핸들러 · 파일 피커」 그룹) · 0538(mirror 구조 op forward)이다. 헤드리스가 적용할 수 없는 요청을 수락하지 않는 결정은 0425(「파일 핸들러 · 파일 피커」 그룹) · 0538(mirror 구조 op forward)이고, 헤드리스가 레이아웃을 영속하지 않는 경계는 0539 다.
+구조 op 는 0337 → 0395(결정 2 개정) → 0440, headless Intent 는 0111 → 0346 이다. IPC 핸들러의 창 상태는 0470 → 0471 이고, 그것이 남긴 대상 생략 기본값은 0533(「창 · 워크스페이스 · 포커스 · 수명주기」)이 정한다. 모듈 단위 dead_code 억제는 0346 → 0530 이다. 헤드리스가 적용할 수 없는 요청을 수락하지 않는 결정은 0425(「파일 핸들러 · 파일 피커」 그룹) · 0538(mirror 구조 op forward)이고, 헤드리스가 레이아웃을 영속하지 않는 경계는 0539 다.
 운영 문서: [architecture](../architecture/index.md) · [dev-guide/headless-build-boundaries](../dev-guide/headless-build-boundaries.md) · [dev-guide/app-state-ownership](../dev-guide/app-state-ownership.md)
 
 | # | Title | Status | Date | Tags |
