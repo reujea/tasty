@@ -2,8 +2,8 @@ use std::io::Read;
 use std::io::Result as IoResult;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::channel;
-use std::sync::Arc;
 use std::sync::mpsc::{Receiver, Sender};
+use std::sync::Arc;
 
 /// A `Reader` that reads exactly the number of bytes from a sub-reader.
 ///

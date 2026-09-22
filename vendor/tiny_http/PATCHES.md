@@ -37,6 +37,12 @@ SSE 서버)가 이 사본으로 빌드된다. 결정·근거·대안·탈출 조
 `tasty patch` 주석으로 표시돼 있다. 상류 원본과의 차이는 crates.io 의 0.12.0 을 받아
 `diff -r <원본>/src src` 로 본다.
 
+패치 줄도 상류처럼 `rustfmt --edition 2018 --check` 가 깨끗한 자리에 둔다(예: `equal_reader.rs` 의
+새 `use` 는 rustfmt 가 정하는 순서에 끼운다). 상류 원본이 깨끗하므로, 패치를 다음 상류판에 다시 얹을 때
+포맷 차이가 diff 에 섞이지 않는다. 이 사본은 워크스페이스 `exclude` 라 `cargo fmt` 도 어떤 게이트도 이
+검사를 안 돈다 — 패치를 고쳤으면 `find vendor/tiny_http/src -name '*.rs' -exec rustfmt --edition 2018 --check {} +` 를
+직접 돌린다.
+
 ## 걷는 조건
 
 상류가 요청 단위로 잔여 body 를 읽지 않고 연결을 닫는 공개 API 를 내면 이 사본을 걷고
