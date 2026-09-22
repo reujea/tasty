@@ -10,7 +10,8 @@
 //!    - `AugmentedHelp` → i18n init + `cli::print_augmented_help`
 //!    - `Gui` → 공유 로그 파일 개방(`os::enable_host_file_log`) + i18n init +
 //!      event loop / background threads / App / event_loop.run_app
-//!      (gui 빌드 + `!cli.headless`) — 또는 `run_headless` (headless 빌드 / `--headless`)
+//!      (gui 빌드 — `--headless` 는 warn 한 줄 뒤 무시된다) — 또는 `run_headless`
+//!      (headless 빌드. 헤드리스 여부는 플래그가 아니라 `gui` feature 가 정한다)
 
 pub(crate) mod cli_routing;
 #[cfg(feature = "gui")]
