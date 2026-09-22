@@ -11,6 +11,7 @@ pub(super) fn file_handler_command_to_method_params(
 ) -> (&'static str, serde_json::Value) {
     match command {
         FileHandlerCommands::Reload => ("file_handler.reload", serde_json::Value::Null),
+        FileHandlerCommands::Detectors => ("file_handler.detectors", serde_json::json!({})),
         FileHandlerCommands::Dispatch {
             path,
             depth,

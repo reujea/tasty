@@ -303,7 +303,8 @@ pub enum Commands {
         #[command(subcommand)]
         command: AgentCommands,
     },
-    /// File handler — reload the user configuration (`~/.tasty/file-handlers.toml`)
+    /// File handler — reload the user configuration (`~/.tasty/file-handlers.toml`),
+    /// list the merged file format detectors, or dispatch a path
     FileHandler {
         #[command(subcommand)]
         command: FileHandlerCommands,
@@ -1100,6 +1101,13 @@ mod workspace_category_tests {
         let r = req(&["tasty", "webhook", "unregister", "--id", "abc123"]);
         assert_eq!(r.method, "webhook.unregister");
         assert_eq!(r.params["id"], "abc123");
+    }
+
+    #[test]
+    fn file_handler_detectors_maps_to_the_read_method() {
+        let r = req(&["tasty", "file-handler", "detectors"]);
+        assert_eq!(r.method, "file_handler.detectors");
+        assert_eq!(r.params, serde_json::json!({}));
     }
 
     #[test]

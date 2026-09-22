@@ -1753,6 +1753,85 @@ priority = 10
     );
 }
 
+/// `file_handler.detectors` 는 finalize 된 detector 와 그것을 만든 출처별 원본을 함께 싣는다 —
+/// 병합 결과만으로는 어느 출처가 이겼는지 밖에서 재현할 수 없다.
+///
+/// user 설정으로 host 기본 detector(`html`)에 표시명 patch 를 얹고 reload 한 뒤, 병합 결과와
+/// contribution 두 줄(host · user)을 본다. 공유 인스턴스의 user 설정을 바꾸므로 단독 차선에서
+/// 돌고, 끝에 파일을 지우고 reload 해 원래 상태로 돌려 놓는다. 두 조합 모두에서 돈다.
+#[test]
+fn file_handler_detectors_reports_the_merged_state_and_each_source() {
+    let _lane = exclusive_lane();
+    let tasty = common::shared();
+    let path = tasty.tasty_home().join("file-handlers.toml");
+    assert!(
+        !path.exists(),
+        "격리 홈에 user 설정이 이미 있으면 복원 기준이 없다: {}",
+        path.display()
+    );
+    let find = |resp: &serde_json::Value, id: &str| -> serde_json::Value {
+        resp["detectors"]
+            .as_array()
+            .and_then(|a| a.iter().find(|d| d["id"] == json!(id)).cloned())
+            .unwrap_or_else(|| panic!("`{id}` detector 가 목록에 없다: {resp}"))
+    };
+
+    let before = tasty.call("file_handler.detectors", json!({}));
+    let html = find(&before, "html");
+    assert_eq!(
+        html["contributions"]
+            .as_array()
+            .map(|a| a.iter().map(|c| c["origin"].clone()).collect::<Vec<_>>()),
+        Some(vec![json!("host")]),
+        "user 설정이 없으면 host 한 출처다: {html}"
+    );
+    assert_eq!(html["disabled"], json!(false), "{html}");
+    assert!(
+        html["rules"].as_array().is_some_and(|r| r
+            .iter()
+            .any(|r| r["kind"] == json!("extension") && r["origin"] == json!("host"))),
+        "rule 은 설정 파일 키와 출처로 적힌다: {html}"
+    );
+
+    std::fs::write(
+        &path,
+        r#"
+[[detector]]
+id = "html"
+display_name_i18n_key = "user.html"
+"#,
+    )
+    .expect("user 설정 쓰기");
+    tasty.call("file_handler.reload", json!({}));
+    let after = tasty.call("file_handler.detectors", json!({}));
+
+    std::fs::remove_file(&path).expect("user 설정 지우기");
+    tasty.call("file_handler.reload", json!({}));
+    let restored = tasty.call("file_handler.detectors", json!({}));
+
+    let html = find(&after, "html");
+    assert_eq!(
+        html["display_name_i18n_key"],
+        json!("user.html"),
+        "user patch 가 병합 결과에 반영된다: {html}"
+    );
+    let contribs = html["contributions"].as_array().expect("contributions");
+    assert_eq!(contribs.len(), 2, "host · user 두 출처: {html}");
+    assert!(
+        contribs.iter().any(|c| c["origin"] == json!("user")
+            && c["display_name_i18n_key"] == json!("user.html")
+            && c["disabled"].is_null()),
+        "user 원본이 적은 그대로 실린다(켜기/끄기는 안 적어 null): {html}"
+    );
+    assert_eq!(
+        find(&restored, "html")["contributions"]
+            .as_array()
+            .map(Vec::len),
+        Some(1),
+        "user 설정을 지우고 reload 하면 host 한 출처로 돌아간다: {restored}"
+    );
+}
+
 /// 대상을 **지목했는데 아무 창도 안 가진** 요청은 거절된다 — 포커스된 창으로 안 샌다.
 ///
 /// 지우기 전의 폴백은 이 요청을 포커스된 창에 넘겼고, 그래서 **존재하지 않는

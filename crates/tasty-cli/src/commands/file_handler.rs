@@ -7,6 +7,10 @@ pub enum FileHandlerCommands {
     /// Reload `~/.tasty/file-handlers.toml`. Host and plugin entries are
     /// unaffected.
     Reload,
+    /// List the file format detectors as they are merged now — display name,
+    /// icon, enabled state and rules — together with what each source (host,
+    /// plugin, user) contributed.
+    Detectors,
     /// Open a path through the file-handler dispatch flow — the same route the
     /// explorer's double-click takes.
     Dispatch {

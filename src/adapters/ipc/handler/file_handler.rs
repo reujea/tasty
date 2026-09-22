@@ -3,6 +3,9 @@
 //! - `file_handler.reload`: user TOML 재로드. host/plugin 영향 없음.
 //!   Method call wrapper (`Core::reload_file_handlers`) 직접 호출. 응답의 `rejected` 는
 //!   이번 reload 가 적용하지 않은 user 항목과 사유다.
+//! - `file_handler.detectors`: finalize 된 file format detector 전체와 각자의 출처별
+//!   contribution 을 돌려준다. 조회 전용 — registry 를 finalize 하는 것 말고는 아무것도
+//!   바꾸지 않는다(finalize 는 identify 가 어차피 하는 lazy 캐시 갱신이다).
 //! - `file_handler.dispatch`: 임의 경로를 file_handler 시스템에 진입시킴.
 //!   `DomainIntent::DispatchFile` 발화 — Core::apply 가 worker spawn,
 //!   결과는 `AppEvent::IdentifyDone` 경로로 비동기 적용. **gui 빌드에만 있다** — 그 intent
@@ -37,6 +40,71 @@ pub fn handle_reload(
             "rejected": rejected_json(&outcome.rejected),
         }),
     )
+}
+
+/// `file_handler.detectors` — finalize 된 detector 목록(id 순).
+///
+/// 각 항목은 병합 결과(`display_name_i18n_key` · `icon` · `disabled` · `rules`)와 그것을
+/// 만든 출처별 원본(`contributions`)을 함께 싣는다. 병합 결과만으로는 어느 출처가 이겼는지
+/// 밖에서 재현할 수 없어서다. `contributions` 는 설치 순서이고 병합 순서가 아니다.
+/// rule 은 user 설정 파일의 `[[detector.rule]]` 과 같은 키로 적는다.
+pub fn handle_detectors(engine: &crate::core::CoreState, id: serde_json::Value) -> JsonRpcResponse {
+    let detectors: Vec<serde_json::Value> = engine
+        .file_format
+        .detector_snapshots()
+        .iter()
+        .map(detector_json)
+        .collect();
+    JsonRpcResponse::success(id, json!({ "detectors": detectors }))
+}
+
+fn detector_json(s: &crate::file::format::DetectorSnapshot) -> serde_json::Value {
+    let det = &s.detector;
+    let rules: Vec<serde_json::Value> = det
+        .rules
+        .iter()
+        .map(|r| {
+            let mut v = rule_json(&r.kind);
+            if let Some(obj) = v.as_object_mut() {
+                obj.insert("origin".into(), json!(r.origin.label()));
+            }
+            v
+        })
+        .collect();
+    let contributions: Vec<serde_json::Value> = s
+        .contributions
+        .iter()
+        .map(|c| {
+            json!({
+                "origin": c.origin.label(),
+                "display_name_i18n_key": c.display_name_i18n_key,
+                "icon": c.icon,
+                "disabled": c.disabled,
+                "rules": c.rules.iter().map(rule_json).collect::<Vec<_>>(),
+            })
+        })
+        .collect();
+    json!({
+        "id": det.id.0,
+        "display_name_i18n_key": det.display_name_i18n_key,
+        "icon": det.icon,
+        "disabled": det.disabled,
+        "install_order": det.install_order,
+        "rules": rules,
+        "contributions": contributions,
+    })
+}
+
+fn rule_json(kind: &crate::file::format::DetectorRuleKind) -> serde_json::Value {
+    match serde_json::to_value(kind.to_config_table()) {
+        Ok(v) => v,
+        Err(e) => {
+            // 문자열 키 표라 지금 실패할 값은 없다. 그래도 rule 하나 때문에 목록 전체를
+            // 잃지 않게 그 rule 자리에만 이유를 싣는다.
+            tracing::warn!(error = %e, "file_handler.detectors: rule 을 JSON 으로 옮기지 못했다");
+            json!({ "error": e.to_string() })
+        }
+    }
 }
 
 /// reload 가 적용하지 않은 user 항목을 `[{ "id", "reason" }]` 로 싣는다. 없으면 빈 배열이다

@@ -10,6 +10,7 @@ mod io;
 mod path_glob;
 mod priority;
 mod query;
+mod snapshot;
 #[cfg(test)]
 mod tests;
 mod user_edit;
@@ -25,6 +26,7 @@ use helpers::{
     path_extension_lowercase, rule_kind_eq, rule_kind_to_toml,
 };
 use path_glob::PathGlobCache;
+pub use snapshot::{ContributionSnapshot, DetectorSnapshot};
 use tracing::warn;
 
 use super::config::{

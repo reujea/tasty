@@ -5501,10 +5501,13 @@ help = "이 에이전트 id 의 버킷만 보고한다"
 help = "이 metric 이름의 버킷만 보고한다"
 
 [cli.help._root.file-handler]
-about = "파일 핸들러 — 사용자 설정(`~/.tasty/file-handlers.toml`) 다시 읽기"
+about = "파일 핸들러 — 사용자 설정(`~/.tasty/file-handlers.toml`) 다시 읽기, 병합된 파일 형식 detector 조회, 경로 열기"
 
 [cli.help._root.file-handler.reload]
 about = "`~/.tasty/file-handlers.toml` 다시 읽기. host·plugin 항목은 유지"
+
+[cli.help._root.file-handler.detectors]
+about = "파일 형식 detector 가 지금 병합된 모습(표시 이름·아이콘·켜짐 여부·규칙)과 출처(host·plugin·user)별 원본 조회"
 
 [cli.help._root.file-handler.dispatch]
 about = "파일 핸들러 흐름으로 경로 열기(탐색기 더블클릭과 같은 경로)"

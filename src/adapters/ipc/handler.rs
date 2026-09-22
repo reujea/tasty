@@ -823,6 +823,8 @@ fn route_engine_handler(
         }
         // file handler: 사용자 설정 reload (host 전용 — plugin 비노출).
         "file_handler.reload" => file_handler::handle_reload(core, engine, id),
+        // file handler: finalize 된 detector 와 출처별 contribution 조회 (읽기 전용).
+        "file_handler.detectors" => file_handler::handle_detectors(engine, id),
         // file handler: 임의 경로를 dispatch 흐름에 진입시킴. plugin (예: explorer)
         // 또는 CLI 가 호출. plugin 호출은 FsRead 권한 요구.
         // (docs/adr/0425-headless-file-dispatch-answers-that-this-build-cannot-open-files.md)

@@ -5503,10 +5503,13 @@ help = "このエージェント id のバケットだけ報告する"
 help = "この metric 名のバケットだけ報告する"
 
 [cli.help._root.file-handler]
-about = "ファイルハンドラ — ユーザー設定（`~/.tasty/file-handlers.toml`）を再読み込みする"
+about = "ファイルハンドラ — ユーザー設定（`~/.tasty/file-handlers.toml`）の再読み込み、マージ済みファイル形式 detector の一覧、パスを開く"
 
 [cli.help._root.file-handler.reload]
 about = "`~/.tasty/file-handlers.toml` を再読み込み。host・plugin項目は維持"
+
+[cli.help._root.file-handler.detectors]
+about = "ファイル形式 detector の現在のマージ結果（表示名・アイコン・有効状態・ルール）と出所（host・plugin・user）ごとの元の内容を一覧表示"
 
 [cli.help._root.file-handler.dispatch]
 about = "ファイルハンドラー経由でパスを開く（エクスプローラーのダブルクリックと同じ経路）"

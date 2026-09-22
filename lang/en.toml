@@ -5533,10 +5533,13 @@ help = "Only report buckets belonging to this agent id"
 help = "Only report buckets for this metric name"
 
 [cli.help._root.file-handler]
-about = "File handler — reload the user configuration (`~/.tasty/file-handlers.toml`)"
+about = "File handler — reload the user configuration (`~/.tasty/file-handlers.toml`), list the merged file format detectors, or dispatch a path"
 
 [cli.help._root.file-handler.reload]
 about = "Reload `~/.tasty/file-handlers.toml`. Host and plugin entries are unaffected"
+
+[cli.help._root.file-handler.detectors]
+about = "List the file format detectors as they are merged now — display name, icon, enabled state and rules — together with what each source (host, plugin, user) contributed"
 
 [cli.help._root.file-handler.dispatch]
 about = "Open a path through the file-handler dispatch flow — the same route the explorer's double-click takes"

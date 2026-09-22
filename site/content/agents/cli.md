@@ -330,6 +330,7 @@ tasty set cwd --surface 42 --path /tmp # 원격 서피스가 보고하는 작업
 tasty set url --surface 42 --url URL   # 웹뷰 서피스의 주소 변경
 tasty file-handler dispatch 파일경로     # 탐색기에서 더블클릭한 것과 같은 경로로 파일 열기
 tasty file-handler reload               # 파일 핸들러 설정 파일을 다시 읽기
+tasty file-handler detectors            # 파일 형식 판별 규칙이 지금 어떻게 합쳐져 있는지 보기
 ```
 
 `set cwd` 와 `set url` 은 대상이 각각 원격 서피스·웹뷰 서피스일 때만 동작합니다. 일반 터미널 서피스에 쓰면 지원하지 않는 대상이라는 오류를 반환합니다.
@@ -341,6 +342,8 @@ tasty file-handler reload               # 파일 핸들러 설정 파일을 다�
 - `missing_owner_prefix` — `id` 앞에 `user/` 같은 소유자 부분을 붙이지 않았습니다(`user/이름` 으로 적어야 합니다). 이 항목은 버려집니다.
 - `missing_detector_or_action` — 직접 만든 `user/…` 항목에 어떤 파일을 다룰지(`detector`)나 무엇을 할지(`action`)가 비어 있습니다. 이 항목은 버려집니다.
 - `target_not_contributed` — 기본 핸들러나 플러그인 핸들러를 고치는 항목인데 그 대상이 지금 없습니다. 플러그인이 꺼져 있거나 `id` 가 틀린 경우입니다. 항목은 남아 있어서, 플러그인이 켜지면 그대로 적용됩니다. 켠 뒤에도 남아 있다면 `id` 를 확인하세요.
+
+`file-handler detectors` 는 파일 형식 판별 규칙(detector)마다 지금 적용되는 값(표시 이름·아이콘·켜짐 여부·규칙)과, 그 값을 만든 출처별 원본(`contributions`)을 함께 보여 줍니다. 출처는 `host`(기본 제공) · `plugin:<id>` · `user`(설정 파일)입니다. 설정 파일에 적은 값이 실제로 이겼는지 확인할 때 씁니다 — `contributions` 는 설치된 순서로 나열되므로, 어느 값이 적용됐는지는 위쪽의 적용 값을 보세요.
 
 `list info`의 워크스페이스 수와 활성 위치는 조회한 윈도우의 값이며, 함께 반환된 워크스페이스 ID로 소속을 확인할 수 있습니다. 전체 워크스페이스는 `list workspaces`, 각 윈도우의 상태는 `list windows`로 확인하세요.
 

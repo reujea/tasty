@@ -313,6 +313,7 @@ tasty set cwd --surface 42 --path /tmp # change the working directory a remote s
 tasty set url --surface 42 --url URL   # change the address of a webview surface
 tasty file-handler dispatch PATH       # open a file the same way a double-click in the explorer does
 tasty file-handler reload              # read the file handler settings file again
+tasty file-handler detectors           # see how the file format detectors are merged right now
 ```
 
 `set cwd` and `set url` only apply to a remote surface and a webview surface respectively. Using them on a regular terminal surface returns an unsupported-target error.
@@ -324,6 +325,8 @@ The `file-handler reload` response has a `rejected` list. It holds the `id` and 
 - `missing_owner_prefix` — the `id` has no owner part such as `user/` in front of it (write it as `user/name`). The entry is dropped.
 - `missing_detector_or_action` — an entry you made yourself (`user/…`) is missing either which files it handles (`detector`) or what to do (`action`). The entry is dropped.
 - `target_not_contributed` — the entry changes a built-in or plugin handler, but that handler is not there right now. Either the plugin is off or the `id` is wrong. The entry is kept, and it applies as soon as the plugin is on. If it is still listed after you turn the plugin on, check the `id`.
+
+`file-handler detectors` shows, for each file format detector, the values in effect now (display name, icon, whether it is on, rules) together with what each source contributed (`contributions`). A source is `host` (built in), `plugin:<id>` or `user` (the settings file). Use it to check whether a value from your settings file actually won — `contributions` are listed in the order they were installed, so look at the values in effect above them to see which one applied.
 
 The workspace count and active index in `list info` describe the queried window. The returned workspace IDs identify its scope. Use `list workspaces` for the global inventory and `list windows` for each window’s state.
 

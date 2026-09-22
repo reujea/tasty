@@ -445,6 +445,11 @@ const ROSTER: &[(&str, Why, &str)] = &[
         "`engine.file_format`·`engine.file_handler` 를 다시 읽는데, 그 둘도 창 생성 경로가 첫 engine 의 Arc 로 공유시킨다 — 한 번 reload 하면 전 창에 반영된다",
     ),
     (
+        "file_handler.detectors",
+        NotWindowOwned,
+        "상동 — `engine.file_format` 을 읽기만 한다. 전 창이 같은 Arc 라 어느 창에서 읽어도 같다",
+    ),
+    (
         "workspace.list",
         AggregatedList,
         "워크스페이스는 창 소유이고 id 가 `IdGenerator` 공유라 이어 붙이면 키가 된다. 합산 여부의 정본은 `crates/tasty-doc-guards/tests/window_owned_lists_are_classified.rs` 의 명부다",

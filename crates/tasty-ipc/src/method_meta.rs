@@ -716,6 +716,11 @@ pub const METHOD_TABLE: &[(&str, MethodMeta)] = {
         // user TOML 변경 후 재로드. plugin 이 호출할 일은 없으며 (자기 manifest
         // 도 reload 영향 밖이라) local 전용.
         ("file_handler.reload", local_only(Idempotent)),
+        // finalize 된 detector 와 출처별 contribution 조회. 읽기 전용이라 사용자 상태에
+        // 닿지 않는다. plugin 에는 노출하지 않는다 — user 설정의 원본(표시명·아이콘·
+        // 켜기/끄기 patch)까지 싣는데 그것에 대응하는 plugin 권한 variant 가 없다
+        // (`hook_handler.list` 와 같은 판단).
+        ("file_handler.detectors", local_only(Read)),
         // 임의 경로를 file_handler dispatch 흐름에 진입시킨다. 임의 path 를
         // 읽고 (handler 가 OpenSurface 면 surface 의 param 으로, System 이면 OS
         // opener 가 읽음) 처리하므로 FsRead 권한 요구. explorer plugin 더블클릭
