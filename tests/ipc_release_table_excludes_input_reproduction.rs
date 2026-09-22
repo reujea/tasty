@@ -322,12 +322,24 @@ fn fn_body_lines(src: &str, sig: &str) -> Vec<String> {
 /// 강제한다) 실제로 레포에 들어올 수는 없다. 그래도 정규화해 둔다 — 가드의 회피
 /// 난이도를 포매터 하나에만 의존시키지 않기 위함이다.
 ///
+/// match guard 도 같다 — 패턴과 guard 를 합친 길이가 넘치면 rustfmt 는 **guard 를 다음
+/// 줄로 내린다**(이쪽은 포매터가 되돌리지 않는 실제 형태다).
+///
+/// ```text
+/// "surface.raw_key"
+///     if matches!(caller, CallerContext::Local) => handle(..),
+/// ```
+///
+/// `if` 로 시작하는 줄은 평범한 문장일 때가 훨씬 많으므로, 윗줄이 **닫는 따옴표로
+/// 끝날 때만**(= 패턴의 끝) 끌어올린다.
+///
 /// 병합한 줄은 **빈 줄로 남긴다.** 줄 번호가 밀리면 `is_debug_gated` 가 팔 위의
 /// `#[cfg]` 를 잘못 짚는다.
 fn join_wrapped_arms(lines: &mut [String]) {
     for i in (0..lines.len()).rev() {
         let t = lines[i].trim_start();
-        if !(t.starts_with("=>") || t.starts_with('|')) {
+        let guard = starts_with_guard(t);
+        if !(t.starts_with("=>") || t.starts_with('|') || guard) {
             continue;
         }
         // 위로 올라가며 가장 가까운 비어있지 않은 줄에 붙인다.
@@ -335,6 +347,9 @@ fn join_wrapped_arms(lines: &mut [String]) {
             continue;
         };
         if lines[prev].trim_start().starts_with("//") {
+            continue;
+        }
+        if guard && !lines[prev].trim_end().ends_with('"') {
             continue;
         }
         let merged = format!("{} {}", lines[prev].trim_end(), t);
@@ -370,8 +385,14 @@ fn dispatch_methods(line: &str) -> Vec<Arm<'_>> {
         let after = line[close + 1..].trim_start();
         let before = line[..open].trim_end();
         // `"a" | "b" => ..` 의 앞쪽 팔은 `=>` 가 아니라 `|` 가 뒤따른다. 같은 줄
-        // 뒤쪽에 `=>` 가 있으면 그것도 팔로 센다.
-        let is_arm = after.starts_with("=>") || (after.starts_with('|') && after.contains("=>"));
+        // 뒤쪽에 `=>` 가 있으면 그것도 팔로 센다. guard 가 붙은 팔(`"a" if .. =>`)은
+        // 닫는 따옴표 뒤가 `if` 다 — 문자열 리터럴 바로 뒤의 `if` 낱말은 패턴 + guard
+        // 자리에서만 문법적으로 성립하므로, guard 가 여러 줄로 넘어가 `=>` 가 같은 줄에
+        // 없어도 팔로 센다. `"a" | "b" if ..` 의 앞쪽 이름도 같은 이유로 센다.
+        let is_arm = after.starts_with("=>")
+            || starts_with_guard(after)
+            || (after.starts_with('|')
+                && (after.contains("=>") || alternation_ends_in_guard(after)));
         let is_eq = before.ends_with("==");
         let is_prefix = before.ends_with("starts_with(") || before.ends_with("strip_prefix(");
         let shaped = name.contains('.')
@@ -385,6 +406,27 @@ fn dispatch_methods(line: &str) -> Vec<Arm<'_>> {
         from = close + 1;
     }
     out
+}
+
+/// `t` 가 match guard 의 `if` 낱말로 시작하는가(`if` 뒤가 공백이나 `(`).
+fn starts_with_guard(t: &str) -> bool {
+    t.strip_prefix("if")
+        .is_some_and(|r| r.starts_with(|c: char| c.is_whitespace() || c == '('))
+}
+
+/// `| "b" | "c" if ..` 처럼 `|` 로 이은 따옴표 대안들 끝에 guard 가 오는가.
+fn alternation_ends_in_guard(mut rest: &str) -> bool {
+    while let Some(r) = rest.strip_prefix('|') {
+        let r = r.trim_start();
+        let Some(r) = r.strip_prefix('"') else {
+            return false;
+        };
+        let Some(close) = r.find('"') else {
+            return false;
+        };
+        rest = r[close + 1..].trim_start();
+    }
+    starts_with_guard(rest)
 }
 
 /// `lines[idx]` 바로 위의 연속 attribute/주석/빈 줄을 훑어 `debug_assertions` cfg 가
@@ -590,6 +632,76 @@ if method == \"leaked.method\" { run(); }
             arms.iter().any(|a| a.name == "debug.lua.eval" && a.gated),
             "문자열 안 `}}` 에 속아 블록이 일찍 닫혔다"
         );
+    }
+
+    /// guard 가 붙은 팔도 팔이다 — 닫는 따옴표 뒤 `=>` 만 보면 guard 한 줄로
+    /// release 표 등재 없이 release 라우터에 팔이 들어온다.
+    #[test]
+    fn a_guarded_arm_is_still_an_arm() {
+        let src = "\
+match method {
+    \"leaked.guarded\" if matches!(caller, CallerContext::Local) => run(),
+    \"leaked.alt_a\" | \"leaked.alt_b\" if ok => run(),
+    \"leaked.multiline\" if matches!(
+        caller,
+        CallerContext::Local
+    ) => run(),
+    _ => {}
+}
+";
+        let names: Vec<String> = scan_arms(&lines(src)).into_iter().map(|a| a.name).collect();
+        for want in [
+            "leaked.guarded",
+            "leaked.alt_a",
+            "leaked.alt_b",
+            "leaked.multiline",
+        ] {
+            assert!(
+                names.iter().any(|n| n == want),
+                "guard 가 붙은 팔 `{want}` 을 못 봤다: {names:?}"
+            );
+        }
+    }
+
+    /// rustfmt 가 guard 를 다음 줄로 내린 형태도 팔이다 — 이쪽은 포매터가 되돌리지
+    /// 않는다. 병합은 본문 추출(`fn_body_lines`)에서 일어나므로 같은 순서로 부른다.
+    #[test]
+    fn a_guard_wrapped_to_the_next_line_is_still_an_arm() {
+        let src = "\
+match method {
+    \"leaked.wrapped\"
+        if matches!(caller, CallerContext::Local) =>
+    {
+        run()
+    }
+    \"leaked.wrapped_a\"
+    | \"leaked.wrapped_b\"
+        if ok => run(),
+    _ => {}
+}
+";
+        let mut ls = lines(src);
+        join_wrapped_arms(&mut ls);
+        let names: Vec<String> = scan_arms(&ls).into_iter().map(|a| a.name).collect();
+        for want in ["leaked.wrapped", "leaked.wrapped_a", "leaked.wrapped_b"] {
+            assert!(
+                names.iter().any(|n| n == want),
+                "다음 줄로 내린 guard 의 팔 `{want}` 을 못 봤다: {names:?}"
+            );
+        }
+    }
+
+    /// 평범한 `if` 문은 윗줄에 붙지 않는다 — 윗줄이 닫는 따옴표로 끝날 때만 guard 다.
+    #[test]
+    fn a_plain_if_statement_is_not_joined_as_a_guard() {
+        let src = "\
+let x = run();
+if method == \"kept.eq\" { run(); }
+";
+        let mut ls = lines(src);
+        join_wrapped_arms(&mut ls);
+        assert_eq!(ls[1].trim(), "if method == \"kept.eq\" { run(); }");
+        assert_eq!(scan_arms(&ls).len(), 1);
     }
 
     /// 등재 판정이 접두어와 정확 이름을 구분한다.
