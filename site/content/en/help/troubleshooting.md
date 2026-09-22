@@ -113,6 +113,10 @@ If that still does not help, look at `~/.tasty/hook-failures.log` and `tasty plu
 - **Right after `plugin enable` it shows running, then a moment later it does not** — `plugin enable` returns without waiting for the plugin to connect to Tasty. A plugin you just turned on therefore shows as running before it connects, and requests sent in the meantime are delivered once it connects. If it does not connect within 10 seconds, that counts as a failed run and it is no longer running. Check the cause with `tasty plugin logs <id>`.
 - **A bundled plugin is broken** — copy it again from the bundle with `tasty plugin upgrade-builtins --force`. Plugin data (bookmarks · profiles and so on) is kept.
 
+## A command cannot open the file picker
+
+- **A script or an agent that tries to open the file picker over IPC gets a `-32016` error** — this is expected. The file picker is opened by you from **Tools** > **Open File…** in the sidebar, or by a plugin (for example when you press **Browse…** in the Markdown open-file popup). A command that opened it would take the input focus away from where you were typing, and the picked path would not come back to that command anyway. Scripts and agents should pass the file path directly.
+
 <a id="i-do-not-know-which-port-my-dev-server-came-up-on"></a>
 
 ## Finding the port of a development server

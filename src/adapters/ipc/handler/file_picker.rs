@@ -62,6 +62,22 @@ pub fn handle_trigger(
     id: serde_json::Value,
     params: &serde_json::Value,
 ) -> JsonRpcResponse {
+    // plugin 만 연다. 결과는 호출한 plugin 에게만 push 되므로 CLI·agent 호출에는 받을 곳이
+    // 없고, 남는 효과는 사용자 입력 포커스를 가져가는 popup 뿐이다 — 원칙 1 ①·2.3 위반이다
+    // (`docs/adr/0498-the-file-picker-trigger-answers-only-a-plugin-caller.md`).
+    let requester_plugin = match caller {
+        CallerContext::Plugin { plugin_id, .. } => plugin_id.clone(),
+        CallerContext::Local | CallerContext::Agent { .. } => {
+            return JsonRpcResponse::error(
+                id,
+                -32016,
+                "method 'file_picker.trigger' answers only a plugin caller: the picked path \
+                 is pushed to the calling plugin, so a CLI or agent caller would only take \
+                 the user's input focus",
+            );
+        }
+    };
+
     if state.dialogs.file_picker.is_some() {
         return JsonRpcResponse::error(
             id,
@@ -76,15 +92,11 @@ pub fn handle_trigger(
     };
 
     let request_id = crate::core::next_file_picker_trigger_request_id();
-    let requester = match caller {
-        CallerContext::Plugin { plugin_id, .. } => Some(FilePickerRequester {
-            plugin_id: plugin_id.clone(),
-            request_id,
-            owner_popup_instance: req.owner_popup_instance,
-        }),
-        // Local/Agent 가 직접 호출(예: 디버깅/CLI) — 이벤트를 받을 plugin 이 없다.
-        CallerContext::Local | CallerContext::Agent { .. } => None,
-    };
+    let requester = Some(FilePickerRequester {
+        plugin_id: requester_plugin,
+        request_id,
+        owner_popup_instance: req.owner_popup_instance,
+    });
 
     use crate::adapters::ui::popup::file_picker::FilePickerStart;
     let start = match req.start_dir {
@@ -166,19 +178,28 @@ mod tests {
         assert!(!state.plugin_popup_has_open_child(43));
     }
 
+    /// CLI·agent 호출은 popup 을 열지 않고 `-32016` 으로 끝난다. 결과를 받을 plugin 이 없어
+    /// 남는 효과가 사용자 입력 포커스를 가져가는 것뿐이었다(원칙 1 ①·2.3, ADR-0498).
     #[test]
-    fn trigger_from_local_leaves_requester_none() {
-        let (mut state, mut engine) = make_test_state();
-        let resp = handle_trigger(
-            &mut state,
-            &mut engine,
-            &CallerContext::Local,
-            json!(1),
-            &json!({}),
-        );
-        assert!(resp.result.is_some());
-        let data = state.dialogs.file_picker.as_ref().expect("popup open");
-        assert!(data.requester.is_none());
+    fn trigger_from_a_non_plugin_caller_is_refused_without_opening_the_popup() {
+        let agent = CallerContext::Agent {
+            agent_id: "child:1".to_string(),
+            permissions: Arc::new(Default::default()),
+        };
+        for caller in [CallerContext::Local, agent] {
+            let (mut state, mut engine) = make_test_state();
+            let resp = handle_trigger(&mut state, &mut engine, &caller, json!(1), &json!({}));
+            let err = resp.error.expect("non-plugin caller must be refused");
+            assert_eq!(err.code, -32016, "{caller:?}");
+            assert!(
+                state.dialogs.file_picker.is_none(),
+                "{caller:?} opened the picker"
+            );
+            assert!(
+                state.take_pending_intents().is_empty(),
+                "{caller:?} queued a popup intent"
+            );
+        }
     }
 
     /// 동시성 정책 — 이미 popup 이 열려 있으면 두 번째 trigger 를
@@ -332,7 +353,7 @@ mod tests {
         let resp = handle_trigger(
             &mut state,
             &mut engine,
-            &CallerContext::Local,
+            &plugin_caller("com.tasty.markdown"),
             json!(1),
             &json!({ "origin_surface_id": sid }),
         );

@@ -1,7 +1,7 @@
 # 네이티브 파일 피커 (로컬+원격 겸용)
 
 - **Status**: Implemented
-- **주체**: 로컬 사용자 (Tools 메뉴 트리거 · 설정 창 안의 파일 선택) + plugin(`file_picker.trigger` IPC)
+- **주체**: 로컬 사용자 (Tools 메뉴 트리거 · 설정 창 안의 파일 선택) + plugin(`file_picker.trigger` IPC — plugin 호출자 전용, CLI·agent 는 `-32016`)
 - **ADR**: [ADR-0053](../../adr/0053-native-file-picker-remote-attach-channel.md) (attach 커스텀 이벤트 채널 + 하이브리드 신뢰 모델), [ADR-0058](../../adr/0058-plugin-triggered-host-popup-async-ack-push.md) (plugin 트리거 — 즉시 ack + 이벤트 push). 관련: [ADR-0162](../../adr/0162-a-host-blocking-native-dialog-is-not-an-agent-surface.md)(옛 `fs.pick_file` 제거 — 이 피커가 그 자리를 대신한다)
 - **코드**: `src/adapters/ui/popup/file_picker.rs`(popup wrapper/view/action), `src/core/fs_list.rs`(공유 디렉토리 나열), `src/adapters/ui/tools_menu.rs`(Tools 메뉴 트리거), `src/adapters/ipc/handler/file_picker.rs`(`file_picker.trigger` — plugin 트리거), `src/app/dispatch/file_picker.rs`(result drain + plugin 에게 `"file_picker.result"` push), `src/core/attach_runtime.rs`(서버측 `handle_list_dir_request`), `src/app/attach_client.rs`(client 원격 파싱 + `MirrorEvent::ListDirResult`), `crates/tasty-ipc/src/stream_hub.rs`(`ListDirRequestMsg` 분류), `crates/tasty-plugin-markdown/src/popup.rs`(Browse 버튼 caller), `src/view/settings/ui/file_chooser.rs`(설정 창 안의 로컬 전용 재사용)
 - **화면**: 없음 (popup 은 갤러리 specimen `crates/tasty-gallery/src/catalog/components/file_picker.rs` 로 시각 확인)
@@ -160,7 +160,8 @@ host 자체 egui popup 은 그와 별개로 OS 가 대신 블로킹해주지 않
 멈추고 60 초 `HostCallTimeout` 위험을 진다(ADR-0058 Alternatives Considered).
 
 1. plugin 이 `file_picker.trigger { filters?: string[] }` 를 호출한다(`FsRead` 권한,
-   `gui` feature 전용). host 는 popup 확정을 **기다리지 않고** `{ request_id }` 만 즉시
+   `gui` feature 전용). CLI·agent 호출자는 popup 을 열지 않고 `-32016` 을 받는다 — 결과를 받을
+   곳이 없고 popup 이 사용자 입력 포커스를 가져가기 때문이다([ADR-0498](../../adr/0498-the-file-picker-trigger-answers-only-a-plugin-caller.md)). host 는 popup 확정을 **기다리지 않고** `{ request_id }` 만 즉시
    회신한다(`src/adapters/ipc/handler/file_picker.rs::handle_trigger`).
 2. host 는 `(plugin_id, request_id)` 를 `FilePickerData.requester`(`FilePickerRequester`)
    에 기록하고 popup 을 연다 — 이후 로컬/원격 판별·엔트리 로드는 위 기존 경로(Tools 메뉴
@@ -217,7 +218,8 @@ owner 없는 단독 피커는 창 범위다. surface가 작으면 기존 clamp�
 doc.
 
 **Origin 태깅**: `file_picker.trigger` 로 연 popup 의 `OpenPopup` intent 는
-`Intent::from_agent_plugin(plugin_id)` 로 발화한다(Tools 메뉴는 `from_user_menu` 그대로) —
+`Intent::from_agent_plugin(plugin_id)` 로 발화한다(Tools 메뉴는 `from_user_menu` 그대로). IPC 로
+여는 popup 은 늘 requester 를 가지므로 사용자 메뉴 발화로 기록되는 IPC 경로는 없다 —
 `from_agent_plugin` 은 이 배선 전까지 실사용처가 없던 builder 였다(`src/intent.rs`).
 
 ### 설정 창에서의 로컬 전용 재사용
@@ -343,6 +345,8 @@ view 는 `FilePickerProps` 만 받고 `FilePickerAction` 만 돌려주므로 상
   `\` 구분자와 드라이브 루트를 올바르게 다룬다(POSIX 원격도 계속 정상 동작).
 - Given plugin 이 `file_picker.trigger` 를 호출 When popup 이 아직 열려있지 않음 Then
   즉시 `{ request_id }` 로 회신하고 popup 이 열린다(확정을 기다리지 않음).
+- Given CLI(`Local`) 또는 agent 토큰 호출자 When `file_picker.trigger` 를 호출 Then `-32016` 으로
+  거부되고 popup 이 열리지 않으며 사용자 입력 포커스·단축키 게이트가 그대로다.
 - Given `file_picker` popup 이 이미 열려 있음 When 두 번째 `file_picker.trigger` 가 옴
   Then 거부(`-32000` 에러) — 첫 요청의 `requester` 는 대체되지 않고 그대로 유지된다.
 - Given `filters: ["md"]` 로 트리거됨 Then 렌더된 엔트리 목록에서 `.md` 가 아닌 파일은
@@ -386,12 +390,15 @@ view 는 `FilePickerProps` 만 받고 `FilePickerAction` 만 돌려주므로 상
 > 기록한 것과 동일한 종류의 한계이되, 이번 작업은 실제 서버 프로세스를 상대로 한 프로토콜
 > 왕복까지는 실행 검증했다는 점에서 그 두 문서보다 한 단계 더 나아간 커버리지다.
 >
-> **`file_picker.trigger` 검증**: 격리된 `TASTY_HOME` 으로 기동한 실제 debug
-> `tasty` 인스턴스에 raw `TcpStream` 으로 JSON-RPC(`file_picker.trigger`)를 직접 보내
-> `route_window_handler` 라우팅 전체(gui 전용 창 라우터 → `handle_trigger` → `popup::file_picker::
-> open`)를 실행 검증했다 — 1 차 호출은 `{ request_id: 1 }` 로 성공, popup 이 열린 상태에서의
-> 2 차 호출은 정확히 그 자리에서 설계한 busy 에러(`-32000`, "file_picker popup is already
-> open — retry after it closes")로 거부됨을 확인했다. plugin 프로세스(markdown)가 실제로
+> **`file_picker.trigger` 검증**: 격리된 `TASTY_HOME` 으로 기동한 debug gui 인스턴스(Xvfb)에
+> raw `TcpStream` 으로 JSON-RPC(`file_picker.trigger {}`)를 보내면 — 이 경로의 호출자는
+> `CallerContext::Local` 이다 — `-32016` 으로 거부되고, 호출 전후 `ui.state` 의
+> `gate_host_popup_focused` · `keyboard_shortcuts_gated` 가 둘 다 `false` 그대로다(2026-09-23 실측).
+> 이 거부 전에는 같은 호출이 popup 을 열어 두 값이 `true` 로 바뀌고 intent 감시 로그에
+> `origin=User { source: Menu("tools_menu") }` 가 찍혔다(2026-09-22 실측, ADR-0498 Context).
+> plugin 호출자의 성공·requester 기록·busy 거부(`-32000`)는 단위 시험
+> (`src/adapters/ipc/handler/file_picker.rs` 의 `tests`)이 본다. agent 토큰 호출자의 거부도 같은
+> 시험이 보고, 실제 인스턴스에서는 재지 않았다. plugin 프로세스(markdown)가 실제로
 > `trigger_file_picker`/`on_event` 를 왕복하는 것과 popup 의 픽셀 렌더는 이 환경에서
 > 실행하지 못해 코드 리뷰로 대체했다 — 다만 그 왕복이 재사용하는 `emit_host_event_to_plugin`
 > 자체는 `git_viewer.query_result` 로 이미 프로덕션에서 검증된 동일 경로다.
