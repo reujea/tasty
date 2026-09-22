@@ -91,7 +91,7 @@ toast 트리거 정책에 **허용 부류 하나**를 명시한다. **원격 연
 - [ADR-0400](0400-attach-loss-is-resynced-per-connection-with-the-strongest-contract-it-carries.md) — `mirror_desynced` 를 더한 결정
 - [ADR-0117](0117-window-and-modal-creation-failure-policy.md) — 에이전트 요청 결과는 toast 하지 않는다
 - [identity.md](../identity.md) 원칙 1
-- 부분 개정: [0503](0503-an-agent-intents-apply-failure-goes-to-the-log-not-a-user-toast.md) (구성원 `mirror_structural_forward_failed` 에서 에이전트 origin intent 의 forward 실패를 뺀다 · 알려진 예외 `mirror_markdown_truncated` 에서 `markdown.reload` 경로를 뺀다)
+- 부분 개정: [0503](0503-an-agent-intents-apply-failure-goes-to-the-log-not-a-user-toast.md) (구성원 `mirror_structural_forward_failed` 에서 에이전트 origin intent 와 IPC 구조 요청의 forward 실패를 뺀다 · 알려진 예외 `mirror_markdown_truncated` 에서 `markdown.reload` 경로를 뺀다)
 - 코드 근거(결정 시점의 현재 위치): 부류의 발사 자리는 여섯이다 — `src/app/attach_client.rs` 의
   `mirror_reconnected` · `mirror_reconnecting` · `mirror_disconnected` · `mirror_desynced`(`MirrorHost::toast`
   경유) · `mirror_structural_forward_failed` 와 `src/app/auto_attach.rs` `notify_reconnect_giveup` 의

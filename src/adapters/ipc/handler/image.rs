@@ -42,8 +42,18 @@ pub fn handle_open(
         // {forwarded:true}` 로 돌아온다 — 이걸 그냥 `internal_error` 로 뭉개면 실제로는
         // 원격에 정상 큐잉된 요청을 호출자가 실패로 오인한다. 다른 재사용 핸들러(split
         // 등)와 동일하게 `structural_apply_error` 로 `forwarded:true` 를 성공 응답으로
-        // 변환한다.
-        Err(e) => return super::structural_apply_error(id, &e),
+        // 변환한다. 에이전트 요청이므로 그 forward op 의 원격 실패는 사용자 toast 가 아니라
+        // 로그로 간다(`docs/adr/0503-an-agent-intents-apply-failure-goes-to-the-log-not-a-user-toast.md`).
+        Err(e) => {
+            crate::core::mark_last_forward_agent_origin(
+                engine,
+                &e,
+                &crate::core::origin::IntentOrigin::Agent {
+                    source: crate::core::origin::AgentSource::Ipc,
+                },
+            );
+            return super::structural_apply_error(id, &e);
+        }
     };
     let replaced = matches!(
         events.into_iter().next(),

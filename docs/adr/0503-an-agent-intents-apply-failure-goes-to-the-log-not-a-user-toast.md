@@ -58,10 +58,11 @@ ADR-0401 은 같은 문서 안에서 "에이전트 IPC 호출이 직접 일으�
   `mirror_reconnected` · `mirror_reconnect_giveup` · `mirror_disconnected` · `mirror_desynced`),
   parked engine 게이트, 사용자 조작이 forward 한 op 의 실패 toast, 알려진 예외
   `mirror_markdown_truncated` 의 나머지 세 경로와 그것을 문서 안 표지로 옮길지의 결정 — 는 그대로다.
-- 기본값은 종전 동작이다. origin 을 모르는 자리(`Core::apply` 를 intent 없이 직접 부르는 IPC 핸들러
-  · `AppState::forward_mirror_structural` · `src/file/dispatch.rs` `open_surface_tab` 의 `Some(pane)`
-  갈래 — `origin_surface_id` 를 실은 `file_handler.dispatch` 가 `core.apply` 를 직접 부른다)가 쌓은
-  forward op 는 표시가 없고, 그 실패는 종전대로 toast 가 된다.
+- 기본값은 종전 동작이다. origin 을 모르는 자리(`AppState::forward_mirror_structural` ·
+  `src/file/dispatch.rs` `open_surface_tab` 의 `Some(pane)` 갈래 — `origin_surface_id` 를 실은
+  `file_handler.dispatch` 가 `core.apply` 를 직접 부른다)가 쌓은 forward op 는 표시가 없고, 그
+  실패는 종전대로 toast 가 된다. `Core::apply` 를 intent 없이 직접 부르는 IPC 구조 핸들러는 이
+  자리가 아니다 — 아래 "보강" 절.
 
 IPC 응답은 바뀌지 않는다. 이 intent 들은 적용 전에 요청이 응답을 돌려주는 형태라(`accepted`), 적용
 실패의 사유를 응답에 실을 자리가 없다. 사유는 로그에 남는다.
@@ -102,6 +103,33 @@ IPC 응답은 바뀌지 않는다. 이 intent 들은 적용 전에 요청이 응
 - **운영 비용 / 유지 부담**: forward 큐 원소에 칸이 하나 늘었고 attach 세션에 op_id 집합이 하나
   늘었다. 그 집합은 회신(성공·실패)마다 지워지고 재연결 때 비워진다.
 
+### 보강 (2026-09-23) — intent 를 안 거치는 IPC 구조 핸들러
+
+결정 시점의 "origin 을 모르는 자리" 목록에 `Core::apply` 를 intent 없이 직접 부르는 IPC 핸들러가
+들어 있었다. 그 핸들러는 origin 을 모르는 것이 아니다 — IPC 요청은 언제나 에이전트 행동이고,
+그 실행을 맡는 `core::structural_exec` 는 이미 에이전트 origin(`agent_origin()`)으로 cascade 를
+돈다. 그래서 같은 규칙을 그대로 적용한다. 실례는 `tasty new tab --type <원격에 없는 kind>` 를
+mirror 워크스페이스의 pane 에 보낸 것이다 — 응답은 `{forwarded:true}` 성공인데 원격이 거절하면
+사용자 화면에 `mirror_structural_forward_failed` toast 가 떴다.
+
+- `structural_exec` 의 `Core::apply` 호출은 전부 `apply_as_agent` 를 지난다. 그 함수가 실패를
+  `StructuralFailure::Apply` 로 바꾸기 전에 `mark_last_forward_agent_origin` 을 부른다. 덮는
+  요청: `split`(pane · surface) · `tab.create` · `tab.close` · `tab.move` · `pane.close` ·
+  `surface.close`.
+- `image.open`(`src/adapters/ipc/handler/image.rs` `handle_open`)은 `structural_exec` 밖에서
+  convert 를 직접 적용하므로 그 자리에서 같은 표시를 붙인다.
+- `structural_exec` 는 원격이 forward 한 op 의 실행(`core::attach_runtime`)도 부른다. 그 op 가 이
+  기계에서 다시 mirror 로 forward 되면 역시 표시가 붙는다 — 이 기계 앞 사용자의 행동이 아니므로
+  같은 결론이다.
+- 사용자 조작은 영향이 없다 — 사용자 GUI 경로는 intent(`report_apply_error`)나
+  `AppState::forward_mirror_structural` 을 거치고 이 함수들을 부르지 않는다. 번들 plugin 중 이
+  메서드들을 사용자 클릭에서 부르는 것은 없다(`image.open` 은 image plugin 이 바깥 호출을 host 로
+  넘기는 trampoline 뿐이다).
+- 시험: `src/intent/apply_error_tests.rs` 의
+  `an_ipc_direct_structural_forward_is_marked_for_a_silent_failure` — 여덟 요청 각각이 forward 되고
+  표시되는지 본다. `apply_as_agent` 의 표시 호출을 지우는 변이와 `handle_open` 의 표시 호출을
+  지우는 변이에서 각각 실패한다(실측 2026-09-23).
+
 ## Alternatives Considered
 
 - **기본값을 "조용히" 로 뒤집는다(표시가 있으면 toast)** — 안 골랐다. origin 을 모르는 `Core::apply`
@@ -117,9 +145,10 @@ IPC 응답은 바뀌지 않는다. 이 intent 들은 적용 전에 요청이 응
 
 **채널이 붙는 것**
 
-- origin 을 모르는 IPC 직접 적용 경로(`structural_apply_error` 를 부르는 핸들러)도 origin 을 싣게
-  되면, 그 op 에도 표시를 붙이고 위 "기본값은 종전 동작" 문장을 다시 쓴다. 재는 법:
-  `grep -rn 'structural_apply_error(' src/adapters/ipc` 의 호출 자리 수와 각 자리가 표시를 붙이는지.
+- `structural_apply_error` 를 부르는 IPC 핸들러가 새로 생기거나 `Core::apply` 를
+  `structural_exec::apply_as_agent` 밖에서 부르게 되면, 그 자리도 표시를 붙이는지 본다(아래
+  "보강" 절). 재는 법: `grep -rn 'structural_apply_error(' src/adapters/ipc` 의 호출 자리와
+  `grep -n 'core.apply(' src/core/structural_exec.rs`(`apply_as_agent` 안의 한 줄뿐이어야 한다).
 
 - plugin 이 host 를 부를 때 그 호출이 사용자 클릭에서 왔는지 싣게 되면 — 위 오분류 자리를 사용자
   origin 으로 옮긴다 — toast 와 결과 탭 선택을 함께(위 "잃은 것(오분류)" 의 origin 만 싣는 처방이

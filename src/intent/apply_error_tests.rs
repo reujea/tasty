@@ -284,3 +284,82 @@ fn a_convert_to_a_withdrawn_kind_leaves_no_recent_entry() {
         "철회가 풀린 kind 로의 변환은 기록된다"
     );
 }
+
+/// intent 를 안 거치고 IPC 에서 직접 적용되는 구조 요청(split · tab.create/close/move ·
+/// pane.close · surface.close · image.open)도 mirror 워크스페이스에서 forward 되면 실패 회신이
+/// 로그로 가도록 표시된다 — 에이전트 요청이다. `structural_exec::apply_as_agent` 의 표시 호출이나
+/// `image::handle_open` 의 표시 호출을 지우는 변이에서 해당 메서드 줄이 실패해야 한다.
+#[test]
+fn an_ipc_direct_structural_forward_is_marked_for_a_silent_failure() {
+    let (mut core, mut state, mut engine) = fixture();
+    let ws = state.active_workspace(&engine);
+    let surface_id = *ws.all_surface_ids().first().expect("fixture surface");
+    let pane_id = engine.find_pane_for_surface(surface_id).expect("pane");
+    let tab_id = engine
+        .find_pane_by_id(pane_id)
+        .and_then(|p| p.tabs.first())
+        .map(|t| t.id)
+        .expect("tab");
+    engine.workspaces[0].mirror = true;
+
+    let requests = [
+        (
+            "split",
+            serde_json::json!({ "level": "surface", "target_surface": surface_id }),
+        ),
+        (
+            "split",
+            serde_json::json!({ "level": "pane", "target_pane": pane_id }),
+        ),
+        ("tab.create", serde_json::json!({ "pane_id": pane_id })),
+        ("tab.close", serde_json::json!({ "tab_id": tab_id })),
+        (
+            "tab.move",
+            serde_json::json!({ "pane_id": pane_id, "from_index": 0, "to_index": 0 }),
+        ),
+        ("pane.close", serde_json::json!({ "pane_id": pane_id })),
+        (
+            "surface.close",
+            serde_json::json!({ "surface_id": surface_id }),
+        ),
+        (
+            "image.open",
+            serde_json::json!({ "surface_id": surface_id, "path": "/tmp/x.png" }),
+        ),
+    ];
+    for (method, params) in requests {
+        engine.pending_structural_forward.clear();
+        let req = crate::ipc::protocol::JsonRpcRequest {
+            response_timeout_ms: None,
+            idempotency_key: None,
+            jsonrpc: "2.0".to_string(),
+            method: method.to_string(),
+            params: params.clone(),
+            id: Some(serde_json::json!(1)),
+            session_token: None,
+        };
+        let resp = crate::ipc::handler::handle_with_caller(
+            &mut core,
+            &mut state,
+            &mut engine,
+            &req,
+            &crate::ipc::caller::CallerContext::Local,
+        );
+        assert!(resp.error.is_none(), "{method} {params}: {:?}", resp.error);
+        assert_eq!(
+            resp.result.as_ref().and_then(|r| r.get("forwarded")),
+            Some(&serde_json::json!(true)),
+            "{method} {params}: forward 된다"
+        );
+        assert_eq!(
+            engine.pending_structural_forward.len(),
+            1,
+            "{method} {params}"
+        );
+        assert!(
+            engine.pending_structural_forward[0].silent_failure,
+            "{method} {params}: 에이전트 요청의 원격 실패는 로그로 간다"
+        );
+    }
+    assert_eq!(state.toasts.len(), 0);
+}

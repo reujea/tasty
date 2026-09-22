@@ -67,13 +67,17 @@ grep -rnE 'toasts|report_apply_error|push_toast' \
   `an_agent_forward_failure_does_not_toast`. 두 끝을 세는 명령(경로의 폭을 보는 것이다):
   `grep -rn 'from_agent_ipc()' src --include='*.rs'` 로 agent origin intent 의 발화 자리 ·
   `grep -rln 'report_apply_error\|toasts\.push' src/intent.rs src/intent/`(6 파일).
-  origin 을 모르는 자리(`Core::apply` 를 intent 없이 직접 부르는 IPC 핸들러)는 이 표시를 받지
-  않는다 — 그 forward op 의 원격 실패는 종전대로 토스트가 난다.
+  intent 를 안 거치고 `Core::apply` 를 직접 부르는 IPC 구조 핸들러(split · tab.create/close/move ·
+  pane.close · surface.close · `image.open`)도 같은 표시를 붙인다 — `core::structural_exec` 의
+  `apply_as_agent` 와 `image::handle_open` 이 붙이고, 시험은 같은 파일의
+  `an_ipc_direct_structural_forward_is_marked_for_a_silent_failure` 다. 표시를 안 받는 것은 origin 을
+  가를 수 없는 자리(`src/file/dispatch.rs` 의 `Some(pane)` 갈래)와 사용자 전용 경로
+  (`AppState::forward_mirror_structural`)뿐이고, 그 forward op 의 원격 실패는 토스트가 난다.
 - 판정기를 짓지 않은 이유: 위 명령의 좌변(IPC 파일)에서는 결함이 난 적이 없다. 결함은 늘 그
   밖에서 났다 — ① 과 ④ 둘 다 IPC 파일을 스캔하는 판정기로는 안 잡힌다. ④ 는 판정기가 아니라
   `src/intent/*` 가 origin 을 보게 고친 것으로 막았고, 위 두 시험이 그 분기를 고정한다.
 
-**허용 부류 — 원격 연결 상태 사건.** attach mirror 의 연결 상태 사건(끊김 · 재연결 · 손실 · 구조 전달 실패)은 사용자 행동 없이도 토스트를 띄운다. 원인이 에이전트 IPC 가 아니라 네트워크·원격 처리·소비 속도이고, 알리지 않으면 사용자가 원격의 사본인 mirror 의 낡은 화면을 최신으로 읽는다. 현재 구성원은 `attach.toast.mirror_reconnecting` · `mirror_reconnected` · `mirror_reconnect_giveup` · `mirror_disconnected` · `mirror_desynced` · `mirror_structural_forward_failed` 여섯이다. `mirror_markdown_truncated`(원격 문서가 잘렸다)는 사용자 행동 없이 나지만 연결 사건이 아니라 이 부류 밖이다 — 알려진 예외로 ADR-0401 에 적혀 있다. 그 예외에서 에이전트의 `markdown.reload` 가 건 재조회는 빠졌다 — 그 회신의 잘림은 toast 없이 로그다([ADR-0503](../../adr/0503-an-agent-intents-apply-failure-goes-to-the-log-not-a-user-toast.md)). 창 없는(parked) engine 에서는 띄우지 않는다. 에이전트 IPC 호출이 직접 일으킨 결과는 이 부류가 아니다(위 원칙대로 ❌) — 에이전트 origin intent 가 forward 한 op 의 원격 실패도 그렇다(`mirror_structural_forward_failed` 대신 로그, 위 경로 ④). 근거·대안은 [ADR-0401](../../adr/0401-remote-connection-events-may-raise-a-toast-without-a-user-action.md) · 개정 [ADR-0503](../../adr/0503-an-agent-intents-apply-failure-goes-to-the-log-not-a-user-toast.md).
+**허용 부류 — 원격 연결 상태 사건.** attach mirror 의 연결 상태 사건(끊김 · 재연결 · 손실 · 구조 전달 실패)은 사용자 행동 없이도 토스트를 띄운다. 원인이 에이전트 IPC 가 아니라 네트워크·원격 처리·소비 속도이고, 알리지 않으면 사용자가 원격의 사본인 mirror 의 낡은 화면을 최신으로 읽는다. 현재 구성원은 `attach.toast.mirror_reconnecting` · `mirror_reconnected` · `mirror_reconnect_giveup` · `mirror_disconnected` · `mirror_desynced` · `mirror_structural_forward_failed` 여섯이다. `mirror_markdown_truncated`(원격 문서가 잘렸다)는 사용자 행동 없이 나지만 연결 사건이 아니라 이 부류 밖이다 — 알려진 예외로 ADR-0401 에 적혀 있다. 그 예외에서 에이전트의 `markdown.reload` 가 건 재조회는 빠졌다 — 그 회신의 잘림은 toast 없이 로그다([ADR-0503](../../adr/0503-an-agent-intents-apply-failure-goes-to-the-log-not-a-user-toast.md)). 창 없는(parked) engine 에서는 띄우지 않는다. 에이전트 IPC 호출이 직접 일으킨 결과는 이 부류가 아니다(위 원칙대로 ❌) — 에이전트 origin intent 나 IPC 구조 요청이 forward 한 op 의 원격 실패도 그렇다(`mirror_structural_forward_failed` 대신 로그, 위 경로 ④). 근거·대안은 [ADR-0401](../../adr/0401-remote-connection-events-may-raise-a-toast-without-a-user-action.md) · 개정 [ADR-0503](../../adr/0503-an-agent-intents-apply-failure-goes-to-the-log-not-a-user-toast.md).
 
 ## 스코프
 

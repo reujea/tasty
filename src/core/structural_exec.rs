@@ -63,6 +63,21 @@ fn agent_origin() -> IntentOrigin {
     }
 }
 
+/// `Core::apply` 를 에이전트 경로로 부른다. mirror 워크스페이스에서 forward 로 큐잉된 op 에는
+/// 에이전트 표시를 붙여, 원격 실패 회신이 사용자 toast 가 아니라 로그로 가게 한다 — 두 진입점
+/// (IPC 요청 · forward 된 op 의 실행) 모두 이 기계 앞 사용자의 행동이 아니다(identity 원칙 1,
+/// `docs/adr/0503-an-agent-intents-apply-failure-goes-to-the-log-not-a-user-toast.md`).
+fn apply_as_agent(
+    core: &mut Core,
+    engine: &mut CoreState,
+    intent: DomainIntent,
+) -> Result<Vec<CoreEvent>, StructuralFailure> {
+    core.apply(engine, intent).map_err(|e| {
+        crate::core::mark_last_forward_agent_origin(engine, &e, &agent_origin());
+        StructuralFailure::Apply(e)
+    })
+}
+
 /// split 의 단위.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum SplitLevel {
@@ -192,7 +207,7 @@ pub(crate) fn split(
                 kind: kind.to_string(),
                 surface_params: params.clone(),
             };
-            let events = core.apply(engine, intent)?;
+            let events = apply_as_agent(core, engine, intent)?;
             let Some(CoreEvent::PaneSplit {
                 workspace_index,
                 original_pane_id,
@@ -244,7 +259,7 @@ pub(crate) fn split(
                 kind: kind.to_string(),
                 surface_params: params.clone(),
             };
-            let events = core.apply(engine, intent)?;
+            let events = apply_as_agent(core, engine, intent)?;
             let Some(CoreEvent::SurfaceSplit {
                 workspace_index,
                 pane_id,
@@ -377,7 +392,7 @@ pub(crate) fn create_tab(
         surface_params: params,
         activate,
     };
-    let events = core.apply(engine, intent)?;
+    let events = apply_as_agent(core, engine, intent)?;
 
     let Some(CoreEvent::TabCreated {
         pane_id,
@@ -420,7 +435,7 @@ pub(crate) fn close_tab(
     engine: &mut CoreState,
     tab_id: u32,
 ) -> Result<Closed, StructuralFailure> {
-    let events = core.apply(engine, DomainIntent::CloseTab { tab_id })?;
+    let events = apply_as_agent(core, engine, DomainIntent::CloseTab { tab_id })?;
 
     let Some(CoreEvent::TabClosed {
         tab_id,
@@ -457,7 +472,7 @@ pub(crate) fn close_pane(
         )));
     }
 
-    let events = core.apply(engine, DomainIntent::ClosePane { pane_id })?;
+    let events = apply_as_agent(core, engine, DomainIntent::ClosePane { pane_id })?;
     let Some(CoreEvent::PaneClosed {
         pane_id,
         closed,
@@ -489,7 +504,8 @@ pub(crate) fn move_tab(
     from_index: usize,
     to_index: usize,
 ) -> Result<bool, StructuralFailure> {
-    let events = core.apply(
+    let events = apply_as_agent(
+        core,
         engine,
         DomainIntent::MoveTab {
             pane_id,
@@ -527,7 +543,7 @@ pub(crate) fn close_surface(
         surface_id,
         save_snapshot,
     };
-    let events = core.apply(engine, intent)?;
+    let events = apply_as_agent(core, engine, intent)?;
     let Some(event @ CoreEvent::SurfaceClosed { surface_id, .. }) = events.into_iter().next()
     else {
         return Err(StructuralFailure::MissingEvent(
