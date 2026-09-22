@@ -485,7 +485,7 @@ pragma 보고는 0316 → 0376(보고 채널 개정), 못 연 `memory.db` 의 in
 
 ## 아키텍처 · 헤드리스 · 크레이트 경계
 
-구조 op 는 0337 → 0395(결정 2 개정) → 0440, headless Intent 는 0111 → 0346 이다. IPC 핸들러의 창 상태는 0470 → 0471 이고, 그것이 남긴 대상 생략 기본값은 0533(「창 · 워크스페이스 · 포커스 · 수명주기」)이 정한다. 모듈 단위 dead_code 억제는 0346 → 0530 이다.
+구조 op 는 0337 → 0395(결정 2 개정) → 0440, headless Intent 는 0111 → 0346 이다. IPC 핸들러의 창 상태는 0470 → 0471 이고, 그것이 남긴 대상 생략 기본값은 0533(「창 · 워크스페이스 · 포커스 · 수명주기」)이 정한다. 모듈 단위 dead_code 억제는 0346 → 0530 이다. 헤드리스가 적용할 수 없는 요청을 수락하지 않는 결정은 0425(「파일 핸들러 · 파일 피커」 그룹) · 0538(mirror 구조 op forward)이다.
 운영 문서: [architecture](../architecture/index.md) · [dev-guide/headless-build-boundaries](../dev-guide/headless-build-boundaries.md) · [dev-guide/app-state-ownership](../dev-guide/app-state-ownership.md)
 
 | # | Title | Status | Date | Tags |
@@ -517,6 +517,7 @@ pragma 보고는 0316 → 0376(보고 채널 개정), 못 연 `memory.db` 의 in
 | 0471 | [IPC 엔진 핸들러는 창에 포트와 intent 출구로만 닿는다](0471-ipc-engine-handlers-reach-the-window-through-a-port.md) | Accepted | 2026-09-22 | ipc, handler, app-state, ownership, port, intent, focus, headless, adr-0355, adr-0470 |
 | 0490 | [경계 가드의 세 빈자리를 판정기를 넓혀 닫는다 — 변이로 찾은 것](0490-boundary-guards-close-three-holes-found-by-mutation.md) | Accepted | 2026-09-22 | guard, domain, layering, mutation, gui, focus, automation, webhook, hook-handler, adr-0440 |
 | 0530 | [모듈·crate 단위 dead_code 억제는 판정이 사용을 못 보는 두 부류에만 남긴다](0530-module-wide-dead-code-allows-stay-only-where-the-judge-cannot-see-the-use.md) | Accepted | 2026-09-23 | dead-code, lint, headless, cfg, tests, generated-code, adr-0346 |
+| 0538 | [헤드리스는 mirror 구조 op 를 forward 큐에 넣지 않고 거절한다](0538-headless-refuses-mirror-structural-forward.md) | Accepted | 2026-09-23 | headless, attach, mirror, structural-op, forward-queue, ipc, agent-facing, build-combination, adr-0425, adr-0346 |
 
 ## CLI · 로깅 · 에이전트 표면
 

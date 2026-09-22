@@ -552,17 +552,9 @@ pub struct CoreState {
     /// 프레임에 여러 번 스윕돼도 surface 별 최신값만 남아 coalesce 된다. App 이
     /// `about_to_wait`(`dispatch_pending_resize_forwards`, gui)에서 drain 해 로컬 id 를
     /// 세션 매핑으로 원격 id 로 치환한 뒤 `StreamControl::ClientResize` 로 forward 한다.
-    /// mirror client 는 항상 GUI 라 headless 에서는 채워지지 않는다.
-    #[cfg_attr(
-        not(feature = "gui"),
-        expect(
-            dead_code,
-            reason = "이 큐는 headless 에서도 채워지지만 비우는 쪽이 GUI 의 about_to_wait \
-                      하나뿐이라 그 빌드에는 읽는 자리가 없다. 필드를 빼면 IPC 핸들러가 \
-                      깨지고, 핸들러를 거절로 바꾸는 것은 plugin 계약의 변경이라 이 경계 \
-                      작업의 범위가 아니다 — 그쪽은 따로 판정한다"
-        )
-    )]
+    /// mirror client 는 항상 GUI 라 headless 에서는 채워지지 않는다 — 채우는
+    /// `Core::resize_all_terminals` 도 비우는 쪽도 gui 전용이라 필드도 gui 전용이다.
+    #[cfg(feature = "gui")]
     pub(crate) pending_resize_forward: std::collections::HashMap<u32, (usize, usize)>,
 
     /// mirror surface 의 attention **해제 edge** forward 큐. `clear_attention` 이
@@ -958,6 +950,7 @@ impl CoreState {
             capture_uploads: crate::core::capture_upload::CaptureUploadRegistry::new(),
             bulk_transfers: crate::core::bulk_transfer::BulkTransferRegistry::new(),
             pending_structural_forward: Vec::new(),
+            #[cfg(feature = "gui")]
             pending_resize_forward: std::collections::HashMap::new(),
             #[cfg(feature = "gui")]
             pending_list_dir_forward: Vec::new(),

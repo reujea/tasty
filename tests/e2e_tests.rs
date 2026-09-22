@@ -1642,6 +1642,53 @@ fn file_dispatch_is_refused_rather_than_accepted_in_a_headless_daemon() {
     );
 }
 
+/// 헤드리스는 attach mirror 로 나가는 두 plugin 요청을 **수락하지 않는다** — 큐를 비워 attach
+/// 채널로 보내는 쪽(`App::about_to_wait`)이 gui 에만 있어, 수락하면 `request_id` 만 받은 plugin 이
+/// 결과를 영영 기다린다. 라우터 끝의 `-32017` 이 답하고, 문구가 메서드 이름을 실어 **무엇이
+/// 거절됐는지** 두 자리가 갈린다(docs/dev-guide/headless-ipc-surface.md "census 뒤에 게이트된 arm").
+/// 셋째 자리(mirror 구조 op)는 헤드리스에 mirror workspace 가 없어 여기서 못 부른다 — 그 거절은
+/// `core::attach_runtime` 의 `dispatch_refuses_tab_create_in_mirror_workspace_in_headless` 가 본다.
+#[cfg(not(feature = "gui"))]
+#[test]
+fn mirror_forward_requests_are_refused_by_name_in_a_headless_daemon() {
+    let _lane = lane();
+    let tasty = common::shared();
+    let mut messages = Vec::new();
+    for (method, params) in [
+        (
+            "git_viewer.query",
+            json!({"kind": "status", "local_surface_id": 1}),
+        ),
+        ("markdown_mirror.content_request", json!({"surface_id": 1})),
+    ] {
+        let resp = tasty.call_raw(method, params);
+        let error = resp.get("error");
+        assert_eq!(
+            error.and_then(|e| e.get("code")).and_then(|c| c.as_i64()),
+            Some(-32017),
+            "헤드리스는 {method} 를 수락하면 안 된다 — 결과를 보낼 쪽이 없다: {resp}"
+        );
+        assert!(
+            resp.get("result").is_none(),
+            "거절 응답에 result 가 같이 실리면 호출자가 성공으로 읽는다: {resp}"
+        );
+        let message = error
+            .and_then(|e| e.get("message"))
+            .and_then(|m| m.as_str())
+            .unwrap_or_default()
+            .to_string();
+        assert!(
+            message.contains(method),
+            "거절 문구가 무엇이 거절됐는지 말해야 한다: {message}"
+        );
+        messages.push(message);
+    }
+    assert_ne!(
+        messages[0], messages[1],
+        "두 자리의 거절 사유가 같은 문자열이면 무엇이 거절했는지 못 가른다"
+    );
+}
+
 /// 디렉토리 dispatch 는 host 기본 핸들러 `directory-system`(OS 열기)으로 간다 — 하네스가 켠
 /// `TASTY_DEBUG_OS_OPEN_LOG` 아래에서는 그것이 **띄워지지 않고 기록된다.**
 ///

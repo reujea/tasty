@@ -167,13 +167,19 @@ const UPPER: &[(&str, &str)] = &[
 /// 주체(`IntentOrigin::User` · `UserSource`)가 headless 라이브러리에서 만들어지지 않는 variant 로
 /// 드러났다(③ +2). `adapters/ipc.rs` 의 것을 지우자 도메인 `core/session.rs` 의 agent 권한
 /// 임시 grant·revoke 둘이 드러났다(① +2 — headless IPC 표면이 그 두 메서드를 받지 않는다).
-/// 그래서 지금 258 이다. 레포에 `cfg_attr(not(feature = "gui"), allow(dead_code))` 모듈 속성은 없다.
+/// 그 뒤 headless 가 mirror 구조 op 를 forward 큐에 넣지 않고 거절하게 했다(ADR-0538, +6).
+/// `core/impl_mirror.rs` +5 — op 를 만드는 `build_mirror_forward_op` · 큐에 넣는
+/// `queue_mirror_forward` 의 두 갈래 · 그 원소 생성자 `PendingStructuralForward::agent` 는
+/// headless 에 소비자가 없고(① 네 자리), 차단 문구의 headless 꼬리 한 줄이 다섯째다. `core/state.rs`
+/// +1 — `pending_resize_forward` 는 채우는 쪽도 비우는 쪽도 gui 뿐이라 `expect(dead_code)`
+/// 한 줄을 필드·초기화의 cfg 두 줄로 바꿨다(①).
+/// 그래서 지금 264 이다. 레포에 `cfg_attr(not(feature = "gui"), allow(dead_code))` 모듈 속성은 없다.
 ///
 /// 이 수는 **목표가 아니라 현재 상태의 못**이다. 도메인이 GUI 전용 항목을 갖는 이유는
 /// 대부분 "headless 에 소비자가 없다"(ADR-0346)이고 그 판정 자체는 정당하다. 이 못이 막는
 /// 것은 **새 게이트가 조용히 들어오는 것**이다 — 들어올 때 이 수를 올리는 커밋이 그
 /// 판단을 드러낸다.
-const GUI_GATES_IN_DOMAIN: usize = 258;
+const GUI_GATES_IN_DOMAIN: usize = 264;
 
 /// 도메인 뿌리 아래 `.rs` 수의 하한. 실측 2026-09-21: 92 개(`src/core` 84 · `src/ports` 8),
 /// 그중 출하되는 것 91.

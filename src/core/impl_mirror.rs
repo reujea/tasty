@@ -29,7 +29,15 @@ impl std::fmt::Display for MirrorStructuralBlocked {
             f,
             "structural change rejected: target belongs to a mirror (remote attach) workspace; \
              the operation must be performed on the remote instance"
-        )
+        )?;
+        // headless 의 거절은 op 종류가 아니라 빌드가 사유다 — 같은 문구로 두면 호출자가
+        // "이 op 만 안 된다" 로 읽는다(docs/adr/0538-headless-refuses-mirror-structural-forward.md).
+        #[cfg(not(feature = "gui"))]
+        write!(
+            f,
+            " (this headless build has no attach client to forward it)"
+        )?;
+        Ok(())
     }
 }
 
@@ -51,13 +59,13 @@ impl std::error::Error for MirrorStructuralBlocked {}
 ///   옮긴다. new-tab/split 등 close 가 아닌 op 은 항상 빈 벡터.
 #[derive(Debug, Clone)]
 #[cfg_attr(
-    not(feature = "gui"),
+    all(not(feature = "gui"), not(test)),
     expect(
         dead_code,
-        reason = "이 큐는 headless 에서도 채워지지만 비우는 쪽이 GUI 의 about_to_wait \
-                  하나뿐이라 그 빌드에는 읽는 자리가 없다. 필드를 빼면 IPC 핸들러가 \
-                  깨지고, 핸들러를 거절로 바꾸는 것은 plugin 계약의 변경이라 이 경계 \
-                  작업의 범위가 아니다 — 그쪽은 따로 판정한다"
+        reason = "headless 의 `Core::apply` 는 이 큐에 넣지 않고 거절한다(ADR-0538). \
+                  정의가 남는 것은 두 조합이 공유하는 `mark_last_forward_*` 가 큐의 \
+                  마지막 원소를 표시하기 때문이고, op 를 읽어 보내는 쪽은 GUI 의 \
+                  about_to_wait 뿐이다. 시험은 칸을 읽으므로 test 구성은 뺀다"
     )
 )]
 pub(crate) struct PendingStructuralForward {
@@ -73,6 +81,7 @@ pub(crate) struct PendingStructuralForward {
 }
 
 impl PendingStructuralForward {
+    #[cfg(feature = "gui")]
     fn agent(op: tasty_ipc::stream::StructuralOp) -> Self {
         Self {
             op,
@@ -131,6 +140,7 @@ pub(crate) fn mark_last_forward_user_triggered(
 /// 전용 surface_id 를 원격에 그대로 보내면 그 id 가 원격 트리의 무관한 surface 와 우연히
 /// 겹칠 때(둘 다 단순 u32, 네임스페이스 분리 없음) 엉뚱한 surface 가 대상이 될 위험이
 /// 있다. anchor 를 못 찾거나 위 조건에 안 맞으면 `None`(→ 기존 차단 유지).
+#[cfg(feature = "gui")]
 fn build_mirror_forward_op(
     engine: &crate::core::CoreState,
     intent: &DomainIntent,
@@ -269,6 +279,32 @@ fn build_mirror_forward_op(
     }
 }
 
+/// mirror 구조 op 를 원격 forward 큐에 넣는다. 넣었으면 `true`(→ 호출자는 로컬 실행만
+/// 막고 `{forwarded: true}` 로 답한다), forward 할 수 없는 op 면 `false`(→ 차단).
+#[cfg(feature = "gui")]
+fn queue_mirror_forward(engine: &mut crate::core::CoreState, intent: &DomainIntent) -> bool {
+    match build_mirror_forward_op(engine, intent) {
+        Some(op) => {
+            engine
+                .pending_structural_forward
+                .push(PendingStructuralForward::agent(op));
+            true
+        }
+        None => false,
+    }
+}
+
+/// headless 는 mirror 구조 op 를 forward 하지 않는다 — 큐를 비워 attach 채널로 보내는
+/// 주체(`App::dispatch_pending_structural_forwards`)가 GUI 의 `about_to_wait` 에만 있다.
+/// 넣으면 IPC 핸들러가 `{forwarded: true}` 로 성공을 답하고 op 는 영영 안 나간다.
+/// 그래서 넣지 않고 차단으로 답한다(docs/adr/0538-headless-refuses-mirror-structural-forward.md).
+/// headless 에는 mirror workspace 를 만드는 자리(`app::attach_client`)도 없어 오늘은
+/// 도달하지 않는 갈래지만, 도달하는 날에도 거짓 성공이 아니라 거절이 나가게 한다.
+#[cfg(not(feature = "gui"))]
+fn queue_mirror_forward(_engine: &mut crate::core::CoreState, _intent: &DomainIntent) -> bool {
+    false
+}
+
 impl Core {
     /// 도메인 변경의 단일 진입점. handler 가 발행한 `DomainIntent` 를 받아
     /// 결과 이벤트 목록을 반환. variant 를 더하면 본 match 도 채운다.
@@ -292,16 +328,8 @@ impl Core {
             // 넘기도록 큐에 넣는다. anchor 는 아직 로컬 surface id — App drain 이 세션
             // 매핑으로 원격 id 로 치환해 전송한다. forward 불가 op(워크스페이스 경계를 넘는
             // move-surface, anchor 를 못 찾은 op)는 None → 기존 차단 toast. convert 는 항상
-            // forward 된다.
-            let forwarded = match build_mirror_forward_op(engine, &intent) {
-                Some(op) => {
-                    engine
-                        .pending_structural_forward
-                        .push(PendingStructuralForward::agent(op));
-                    true
-                }
-                None => false,
-            };
+            // forward 된다. headless 는 forward 하지 않고 모두 차단한다(`queue_mirror_forward`).
+            let forwarded = queue_mirror_forward(engine, &intent);
             return Err(anyhow::Error::new(MirrorStructuralBlocked {
                 workspace_index,
                 forwarded,
@@ -1165,6 +1193,8 @@ mod mirror_structural_guard_tests {
 
     /// 2단계 client 측: mirror split 은 로컬 실행이 차단되면서 forward 큐에 op 를 쌓는다.
     /// op 의 anchor 는 아직 **로컬** surface id(App drain 이 원격으로 치환), forwarded=true.
+    // forward 큐에 넣는 것은 gui 뿐이다 — headless 는 거절한다(ADR-0538).
+    #[cfg(feature = "gui")]
     #[test]
     fn mirror_split_enqueues_forward_with_local_anchor() {
         use tasty_ipc::stream::StructuralOp;
@@ -1204,6 +1234,8 @@ mod mirror_structural_guard_tests {
     }
 
     /// SplitPane/NewTab 는 pane 의 대표 surface(활성 탭 focused)를 anchor 로 큐잉한다.
+    // forward 큐에 넣는 것은 gui 뿐이다 — headless 는 거절한다(ADR-0538).
+    #[cfg(feature = "gui")]
     #[test]
     fn mirror_split_pane_anchors_on_pane_surface() {
         use tasty_ipc::stream::StructuralOp;
@@ -1232,6 +1264,8 @@ mod mirror_structural_guard_tests {
     /// mirror 에서 누른 복원은 로컬 실행이 막히고 forward 큐에 op 하나가 쌓인다.
     /// **로컬 복원 스택은 손대지 않는다** — 로컬 pop 은 게이트가 `apply_restore_closed_item`
     /// 호출 전에 돌려주므로 자동으로 막힌다(ADR-0264 결정 2). 그 사실을 고정한다.
+    // forward 큐에 넣는 것은 gui 뿐이다 — headless 는 거절한다(ADR-0538).
+    #[cfg(feature = "gui")]
     #[test]
     fn mirror_restore_enqueues_forward_and_leaves_the_local_stack_alone() {
         use tasty_ipc::stream::StructuralOp;
@@ -1289,6 +1323,8 @@ mod mirror_structural_guard_tests {
 
     /// convert 는 이제 forward 대상이다 — `StructuralOp::ConvertSurface` 로 큐잉되고
     /// (surface_kind/params 전달), forwarded=true(로컬 차단 유지, 원격에 위임).
+    // forward 큐에 넣는 것은 gui 뿐이다 — headless 는 거절한다(ADR-0538).
+    #[cfg(feature = "gui")]
     #[test]
     fn mirror_convert_enqueues_forward_with_local_anchor() {
         use tasty_ipc::stream::StructuralOp;
@@ -1334,6 +1370,8 @@ mod mirror_structural_guard_tests {
 
     /// intent handler 가 source surface 에서 carry 한 cwd 는 forward op 에 그대로
     /// 실린다 — mirror 경로에서 cwd 가 유실되면 explorer root 가 상대경로가 된다.
+    // forward 큐에 넣는 것은 gui 뿐이다 — headless 는 거절한다(ADR-0538).
+    #[cfg(feature = "gui")]
     #[test]
     fn mirror_convert_forwards_cwd() {
         use tasty_ipc::stream::StructuralOp;
@@ -1368,6 +1406,8 @@ mod mirror_structural_guard_tests {
 
     /// 터미널로 되돌리는 변환(`ConvertSurfaceTarget::Terminal`)도 같은 불변식 대상 —
     /// 원격 PTY 가 홈이 아니라 source cwd 에서 뜨도록 cwd 를 실어보낸다.
+    // forward 큐에 넣는 것은 gui 뿐이다 — headless 는 거절한다(ADR-0538).
+    #[cfg(feature = "gui")]
     #[test]
     fn mirror_convert_to_terminal_forwards_cwd() {
         use tasty_ipc::stream::StructuralOp;
@@ -1397,6 +1437,8 @@ mod mirror_structural_guard_tests {
 
     /// MoveSurface 는 source/target 이 같은 mirror workspace 안에 있을 때만
     /// forward 된다(결정됨 — cross-workspace 는 로컬 전용 id 유출 위험이라 계속 차단).
+    // forward 큐에 넣는 것은 gui 뿐이다 — headless 는 거절한다(ADR-0538).
+    #[cfg(feature = "gui")]
     #[test]
     fn mirror_move_surface_enqueues_forward_when_same_workspace() {
         use tasty_ipc::stream::StructuralOp;
@@ -1498,6 +1540,8 @@ mod mirror_structural_guard_tests {
 
     /// `mark_last_forward_user_triggered` 는 `forwarded=true` + user origin 일
     /// 때만 마지막 pending forward 를 `user_triggered=true` 로 뒤집는다.
+    // forward 큐에 넣는 것은 gui 뿐이다 — headless 는 거절한다(ADR-0538).
+    #[cfg(feature = "gui")]
     #[test]
     fn mark_last_forward_user_triggered_flips_on_user_origin() {
         use crate::intent::{IntentOrigin, UserSource};
@@ -1534,6 +1578,8 @@ mod mirror_structural_guard_tests {
 
     /// agent/IPC origin 이면 forwarded=true 여도 그대로 false 로 남는다(기존 동작
     /// 유지, IPC 경로는 focus 를 옮기지 않아야 하므로).
+    // forward 큐에 넣는 것은 gui 뿐이다 — headless 는 거절한다(ADR-0538).
+    #[cfg(feature = "gui")]
     #[test]
     fn mark_last_forward_user_triggered_stays_false_on_agent_origin() {
         use crate::intent::IntentOrigin;

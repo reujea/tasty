@@ -4677,7 +4677,9 @@ mod forward_exec_tests {
 
     /// (설계 보존) 같은 mirror 워크스페이스라도 `tab.create` 는 **여전히 forward**
     /// 돼야 한다 — 가드가 mirror 구조 변경 전체를 막아버리면 attach 의 핵심 기능이
-    /// 회귀한다. 로컬 트리는 그대로고 원격 큐에 `NewTab` 이 쌓인다.
+    /// 회귀한다. 로컬 트리는 그대로고 원격 큐에 `NewTab` 이 쌓인다. gui 만이다 — 그 큐를
+    /// 비워 보내는 쪽이 gui 에만 있다(headless 의 짝은 바로 아래 시험).
+    #[cfg(feature = "gui")]
     #[test]
     fn dispatch_still_forwards_tab_create_in_mirror_workspace() {
         let (mut core, mut state, mut engine, _home) = make_core_state();
@@ -4713,6 +4715,48 @@ mod forward_exec_tests {
             terminals_before,
             "forward 된 구조 변경은 로컬 트리를 바꾸지 않는다"
         );
+    }
+
+    /// headless 는 같은 요청을 **거절한다**(docs/adr/0538-headless-refuses-mirror-structural-forward.md).
+    /// forward 큐를 비워 attach 채널로 보내는 쪽이 gui 의 `about_to_wait` 에만 있어, 큐에
+    /// 넣고 `{forwarded: true}` 로 답하면 호출자는 성공을 받고 op 는 영영 안 나간다. 응답은
+    /// 오류여야 하고, 사유가 mirror 이면서 빌드 조합임을 말해야 하며, 큐는 비어 있어야 한다.
+    #[cfg(not(feature = "gui"))]
+    #[test]
+    fn dispatch_refuses_tab_create_in_mirror_workspace_in_headless() {
+        let (mut core, mut state, mut engine, _home) = make_core_state();
+        seed(&mut engine);
+        let pane_id = engine.workspaces[0].pane_layout().all_pane_ids()[0];
+        engine.workspaces[0].mirror = true;
+        let terminals_before = engine.terminals.iter().count();
+
+        let req = ipc_request("tab.create", serde_json::json!({ "pane_id": pane_id }));
+        let resp = handle_with_caller(
+            &mut core,
+            &mut state,
+            &mut engine,
+            &req,
+            &CallerContext::Local,
+        );
+
+        assert!(
+            resp.result.is_none(),
+            "headless 는 보낼 수 없는 forward 를 성공으로 답하면 안 된다: {:?}",
+            resp.result
+        );
+        let err = resp
+            .error
+            .expect("headless 의 mirror 구조 변경은 거절돼야 한다");
+        assert!(
+            err.message.contains("mirror") && err.message.contains("headless"),
+            "사유가 mirror 이면서 빌드 조합임을 말해야 한다 (got: {})",
+            err.message
+        );
+        assert!(
+            engine.pending_structural_forward.is_empty(),
+            "headless 에는 이 큐를 비우는 쪽이 없다 — 넣으면 안 된다"
+        );
+        assert_eq!(engine.terminals.iter().count(), terminals_before);
     }
 
     /// `--pane` 오버라이드가 `workspace` 파라미터와 **다른** 워크스페이스를 가리키는

@@ -1354,7 +1354,9 @@ fn surface_belongs_to_pane(engine: &CoreState, surface_id: u32, pane_id: u32) ->
 /// 회신한다. 원격 실행 결과는 비동기이며(역반영 delta 로 mirror 트리에 반영),
 /// 호출자는 `list surfaces` 등으로 관측한다. forward 대상이 아닌 mirror 거부
 /// (`forwarded:false`, 예: 워크스페이스 경계를 넘는 move-surface) 또는 일반 에러는 기존대로
-/// internal_error 로 반환한다.
+/// internal_error 로 반환한다. headless 는 `forwarded:true` 를 만들지 않는다 — 큐를 비워
+/// 보낼 쪽이 없어 mirror 구조 op 를 모두 거절한다
+/// (docs/adr/0538-headless-refuses-mirror-structural-forward.md).
 pub(super) fn structural_apply_error(id: serde_json::Value, e: &anyhow::Error) -> JsonRpcResponse {
     if let Some(blocked) = e.downcast_ref::<crate::core::MirrorStructuralBlocked>()
         && blocked.forwarded
