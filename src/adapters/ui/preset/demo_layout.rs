@@ -2040,7 +2040,10 @@ fn draw_handle_cluster(
         ),
         egui::vec2(z(theme, HANDLE_SZ).value(), z(theme, HANDLE_SZ).value()),
     );
-    let settings = remove.translate(egui::vec2(-(z(theme, HANDLE_SZ) + HANDLE_GAP).value(), 0.0));
+    let settings = remove.translate(egui::vec2(
+        -(z(theme, HANDLE_SZ) + z(theme, HANDLE_GAP)).value(),
+        0.0,
+    ));
     if mini_handle(
         ui,
         theme,
