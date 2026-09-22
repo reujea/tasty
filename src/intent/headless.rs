@@ -569,6 +569,38 @@ mod tests {
         );
     }
 
+    /// `NewTab` 을 drain 한 뒤 focused pane 의 `(탭 수, 활성 탭)`.
+    fn new_empty_tab_then_selection(
+        dispatched: impl FnOnce(Intent) -> DispatchedIntent,
+    ) -> (usize, usize) {
+        let (mut core, mut state, mut engine, _sid) = fixture();
+        state.dispatch_intent(dispatched(Intent::NewTab {
+            kind: Some("empty".to_string()),
+            params: serde_json::json!({}),
+        }));
+        drain_pending_intents(&mut core, &mut state, &mut engine);
+        let pane_id = state.active_workspace(&engine).focused_pane;
+        let pane = engine.find_pane_by_id(pane_id).expect("focused pane");
+        (pane.tabs.len(), pane.active_tab)
+    }
+
+    /// 사용자가 발화한 `NewTab` 은 새 탭을 선택한다.
+    #[test]
+    fn a_user_new_tab_selects_it() {
+        assert_eq!(
+            new_empty_tab_then_selection(|i| i.from_user_menu("test")),
+            (2, 1)
+        );
+    }
+
+    /// 에이전트 라벨의 `NewTab` 도 선택한다 — 그 라벨로 오는 유일한 발화점(origin 없는
+    /// `file_handler.dispatch`)이 사용자의 markdown 파일열기 팝업을 싣고 있어서다
+    /// (ADR-0498). 이 값을 바꾸려면 그 팝업이 사용자임을 실어 보내는 채널이 먼저다.
+    #[test]
+    fn an_agent_labelled_new_tab_still_selects_it() {
+        assert_eq!(new_empty_tab_then_selection(Intent::from_agent_ipc), (2, 1));
+    }
+
     /// 배선 가드 — headless 진입점이 drain 을 실제로 부르는지 소스에서 확인한다.
     /// 위 테스트들은 drain 함수 자체의 계약만 보므로, 호출부가 빠지면(가장 그럴듯한
     /// 회귀 형태다) 그것만으로는 잡히지 않는다.

@@ -305,6 +305,18 @@ impl Pane {
         self.active_tab = self.tabs.len() - 1;
     }
 
+    /// Same as [`add_surface_tab`](Self::add_surface_tab) but does NOT change `active_tab`.
+    pub fn add_surface_tab_background(
+        &mut self,
+        tab_id: TabId,
+        name: String,
+        explicit_name: Option<String>,
+        surface: Box<dyn super::Surface>,
+    ) {
+        let tab = super::tab::Tab::new_named(tab_id, name, explicit_name, surface);
+        self.tabs.push(tab);
+    }
+
     /// Get the active tab (mutable). Returns None if tabs are empty.
     pub fn active_tab_mut(&mut self) -> Option<&mut Tab> {
         if self.tabs.is_empty() {

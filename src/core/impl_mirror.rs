@@ -367,7 +367,8 @@ impl Core {
                 kind,
                 name,
                 surface_params,
-            } => Self::apply_create_tab(engine, pane_id, cwd, kind, name, surface_params),
+                activate,
+            } => Self::apply_create_tab(engine, pane_id, cwd, kind, name, surface_params, activate),
             DomainIntent::CloseTab { tab_id } => Ok(vec![Self::apply_close_tab(engine, tab_id)]),
             DomainIntent::MoveTab {
                 pane_id,
@@ -592,6 +593,7 @@ mod mirror_structural_guard_tests {
                 kind: "terminal".to_string(),
                 name: None,
                 surface_params: serde_json::json!({}),
+                activate: false,
             },
         ] {
             let err = core
@@ -661,6 +663,7 @@ mod mirror_structural_guard_tests {
                     kind: "terminal".to_string(),
                     name: None,
                     surface_params: serde_json::json!({}),
+                    activate: false,
                 },
             )
             .expect("create tab must succeed");
@@ -1087,6 +1090,7 @@ mod mirror_structural_guard_tests {
                     kind: "terminal".to_string(),
                     name: None,
                     surface_params: serde_json::json!({}),
+                    activate: false,
                 },
                 DomainIntent::CloseSurface {
                     surface_id: a,

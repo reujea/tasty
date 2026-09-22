@@ -1337,6 +1337,13 @@ fn right_click_explorer_never_falls_back_to_surface_menu() {
     let sid = created["surface_id"]
         .as_u64()
         .expect("tab.create should return the explorer surface_id");
+    // 에이전트가 만든 탭은 사용자 선택을 안 바꾸므로(ADR-0498) 사용자의 탭 전환을 재현해
+    // 렌더시킨다. 새 탭은 뒤에 붙으므로 마지막 인덱스다.
+    let last = created["tab_count"]
+        .as_u64()
+        .expect("tab.create should return tab_count")
+        - 1;
+    inst.call("debug.switch_tab", json!({ "index": last }));
     settle();
 
     // surface 상대 좌표(fx,fy ∈ [0,1]): 이전에 surface fallback 이 새던 chrome 영역들 +

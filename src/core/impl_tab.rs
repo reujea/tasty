@@ -58,6 +58,10 @@ impl Core {
     /// 1) settings / waker / surface 미리 추출 (engine 의 *불변* 의존)
     /// 2) scope block 으로 pane mutate (engine 의 가변 borrow 좁힘)
     /// 3) send_fast_init / mark_layout_dirty (pane borrow 끝난 후)
+    ///
+    /// 활성 탭은 `activate` 가 정한다 — 에이전트가 만든 탭은 사용자가 보던 탭을 바꾸지
+    /// 않는다([ADR-0498](../../docs/adr/0498-an-agent-created-tab-does-not-take-the-users-tab.md)).
+    /// terminal 은 `activate` 와 무관하게 background 다.
     pub(super) fn apply_create_tab(
         engine: &mut crate::core::CoreState,
         pane_id: u32,
@@ -65,6 +69,7 @@ impl Core {
         kind: String,
         explicit_name: Option<String>,
         surface_params: serde_json::Value,
+        activate: bool,
     ) -> anyhow::Result<Vec<CoreEvent>> {
         let tab_id = engine.next_ids.next_tab();
         let surface_id = engine.next_ids.next_surface();
@@ -120,7 +125,11 @@ impl Core {
                 pane.add_terminal_marker_tab_background(tab_id, surface_id, explicit_name);
             } else {
                 let (surface, name) = prepared_non_terminal.unwrap();
-                pane.add_surface_tab(tab_id, name, explicit_name, surface);
+                if activate {
+                    pane.add_surface_tab(tab_id, name, explicit_name, surface);
+                } else {
+                    pane.add_surface_tab_background(tab_id, name, explicit_name, surface);
+                }
             }
         }
 
@@ -166,6 +175,54 @@ impl Core {
             engine.mark_layout_dirty();
         }
         CoreEvent::TabMoved { moved }
+    }
+}
+
+#[cfg(test)]
+mod create_tab_selection_tests {
+    //! 새 탭의 선택은 `activate` 가 정한다 — 에이전트가 만든 비터미널 탭이 사용자가 보던
+    //! 탭을 바꾸던 결함의 회귀 방지(ADR-0498).
+    use super::*;
+
+    fn create(engine: &mut CoreState, pane_id: u32, kind: &str, activate: bool) -> usize {
+        let events = Core::apply_create_tab(
+            engine,
+            pane_id,
+            None,
+            kind.to_string(),
+            None,
+            serde_json::json!({}),
+            activate,
+        )
+        .expect("create tab");
+        let Some(CoreEvent::TabCreated { active_tab, .. }) = events.into_iter().next() else {
+            panic!("expected TabCreated");
+        };
+        active_tab
+    }
+
+    fn engine_and_pane() -> (CoreState, u32) {
+        let waker: tasty_terminal::Waker = std::sync::Arc::new(|| {});
+        let engine = CoreState::new(80, 24, waker).expect("engine");
+        let sid = engine.workspaces[0].all_surface_ids()[0];
+        let pane_id = engine.find_pane_for_surface(sid).expect("pane");
+        (engine, pane_id)
+    }
+
+    #[test]
+    fn a_background_non_terminal_tab_keeps_the_selected_tab() {
+        let (mut engine, pane_id) = engine_and_pane();
+        assert_eq!(create(&mut engine, pane_id, "empty", false), 0);
+        let pane = engine.find_pane_by_id(pane_id).unwrap();
+        assert_eq!(pane.tabs.len(), 2);
+        assert_eq!(pane.active_tab, 0);
+    }
+
+    #[test]
+    fn an_activated_non_terminal_tab_becomes_the_selected_tab() {
+        let (mut engine, pane_id) = engine_and_pane();
+        assert_eq!(create(&mut engine, pane_id, "empty", true), 1);
+        assert_eq!(engine.find_pane_by_id(pane_id).unwrap().active_tab, 1);
     }
 }
 

@@ -861,7 +861,10 @@ pub(crate) fn execute_forwarded_structural_op(
                 .ok_or_else(|| format!("anchor surface {anchor_surface_id} not found"))?;
             let p = structural_params(params, json!({ "pane_id": pane_id, "type": surface_kind }));
             engine.attach.set_auto_tap_suppressed(true);
-            let result = exec::create_tab(core, state, engine, pane_id, &p);
+            // 원격 사용자의 손 조작이면 선택하고, 원격 에이전트면 서버 앞 사용자의 탭을
+            // 바꾸지 않는다(ADR-0498) — 복원 스택을 가르는 `restorable` 과 같은 축이다.
+            let activate = origin == tasty_ipc::stream::ForwardOrigin::User;
+            let result = exec::create_tab(core, state, engine, pane_id, &p, activate);
             engine.attach.set_auto_tap_suppressed(false);
             forward_result(result)
         }
@@ -2756,6 +2759,76 @@ mod forward_exec_tests {
         );
     }
 
+    /// `(탭 수, 활성 탭)` — 선택이 바뀌었는지 보는 좌변.
+    fn tabs_and_selection(engine: &crate::core::CoreState, surface_id: u32) -> (usize, usize) {
+        let pane_id = engine.find_pane_for_surface(surface_id).expect("pane");
+        let pane = engine.find_pane_by_id(pane_id).expect("pane");
+        (pane.tabs.len(), pane.active_tab)
+    }
+
+    fn forward_empty_new_tab(
+        core: &mut crate::core::Core,
+        state: &mut AppState,
+        engine: &mut crate::core::CoreState,
+        anchor: u32,
+        origin: ForwardOrigin,
+    ) {
+        execute_forwarded_structural_op(
+            core,
+            state,
+            engine,
+            &StructuralOp::NewTab {
+                anchor_surface_id: anchor,
+                surface_kind: "empty".to_string(),
+                params: serde_json::json!({}),
+            },
+            origin,
+        )
+        .expect("forwarded new tab must succeed");
+    }
+
+    /// 원격 **에이전트**가 연 비터미널 탭은 서버 앞 사용자의 선택을 안 바꾼다(ADR-0498).
+    #[test]
+    fn a_forwarded_agent_new_tab_keeps_the_selected_tab() {
+        let (mut core, mut state, mut engine, _home) = make_core_state();
+        let a = seed(&mut engine);
+        forward_empty_new_tab(&mut core, &mut state, &mut engine, a, ForwardOrigin::Agent);
+        assert_eq!(tabs_and_selection(&engine, a), (2, 0));
+    }
+
+    /// 원격 **사용자**가 손으로 연 비터미널 탭은 종전대로 선택된다.
+    #[test]
+    fn a_forwarded_user_new_tab_selects_it() {
+        let (mut core, mut state, mut engine, _home) = make_core_state();
+        let a = seed(&mut engine);
+        forward_empty_new_tab(&mut core, &mut state, &mut engine, a, ForwardOrigin::User);
+        assert_eq!(tabs_and_selection(&engine, a), (2, 1));
+    }
+
+    /// IPC `tab.create`(CLI `tasty new tab --type …`)는 에이전트 경로다 — 비터미널 탭을
+    /// 만들어도 사용자가 보던 탭이 그대로다. 응답의 `active_tab` 도 그 선택을 그대로 싣는다.
+    #[test]
+    fn ipc_tab_create_of_a_non_terminal_keeps_the_selected_tab() {
+        let (mut core, mut state, mut engine, _home) = make_core_state();
+        let a = seed(&mut engine);
+        let pane_id = engine.find_pane_for_surface(a).expect("pane");
+        let req = ipc_request(
+            "tab.create",
+            serde_json::json!({ "pane_id": pane_id, "type": "empty" }),
+        );
+        let resp = handle_with_caller(
+            &mut core,
+            &mut state,
+            &mut engine,
+            &req,
+            &CallerContext::Local,
+        );
+        let result = resp.result.expect("tab.create must succeed");
+        assert_eq!(result["tab_count"], 2);
+        assert_eq!(result["active_tab"], 0);
+        assert_eq!(tabs_and_selection(&engine, a), (2, 0));
+    }
+
     /// forward 된 `ClosePane` 은 **트리 재배치 전** 캡처라야 split context 가 남는다 —
     /// 제거 후엔 부모 Split 노드 자체가 사라져 복구할 수 없다.
     #[test]
@@ -3372,6 +3445,7 @@ mod forward_exec_tests {
             &mut engine,
             pane_id,
             &serde_json::json!({ "pane_id": pane_id }),
+            false,
         )
         .expect("local create_tab");
         let first = rx.try_recv().expect("holder 에게 무언가 나가야 한다");

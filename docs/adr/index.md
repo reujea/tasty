@@ -374,4 +374,5 @@
 | 0490 | [경계 가드의 세 빈자리를 판정기를 넓혀 닫는다 — 변이로 찾은 것](0490-boundary-guards-close-three-holes-found-by-mutation.md) | Accepted | 2026-09-22 | guard, domain, layering, mutation, gui, focus, automation, webhook, hook-handler, adr-0440 |
 | 0497 | [에이전트가 만든 창은 사용자의 포커스를 가져가지 않는다](0497-an-agent-created-window-does-not-take-the-users-focus.md) | Accepted | 2026-09-22 | focus, window, multi-window, ipc, cli, user-agent-separation, identity, winit, x11, wayland, stacking |
 | 0498 | [surface 훅의 IpcSequence 는 호스트 명령 큐를 비우는 스레드 밖에서 실행한다](0498-a-surface-hook-sequence-runs-off-the-thread-that-drains-the-queue.md) | Accepted | 2026-09-23 | hooks, hook-handler, ipc, host-injection, main-thread, concurrency, adr-0451 |
+| 0498 | [에이전트가 만든 탭은 사용자가 보던 탭을 바꾸지 않는다](0498-an-agent-created-tab-does-not-take-the-users-tab.md) | Accepted | 2026-09-23 | focus, tab, ipc, cli, user-agent-separation, identity, attach, file-handler, adr-0302, adr-0497 |
 | 0501 | [사건의 Experimental 등급은 경고이지 구독 게이트가 아니다](0501-the-experimental-event-grade-is-a-warning-not-a-subscription-gate.md) | Accepted | 2026-09-23 | events, event-bus, plugin, manifest, stability, compatibility, adr-0321 |

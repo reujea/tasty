@@ -195,6 +195,7 @@ fn identify_and_picker_keep_origin_and_cancel_or_disappearance_do_not_dispatch()
             kind: "empty".into(),
             name: None,
             surface_params: serde_json::json!({}),
+            activate: true,
         },
     )
     .unwrap();
@@ -248,8 +249,7 @@ fn agent_origin_preserves_the_selected_tab_even_when_origin_is_inactive() {
     let (mut state, mut engine) = crate::state::tests::test_state();
     let origin = engine.workspaces[0].all_surface_ids()[0];
     let pane_id = engine.find_pane_for_surface(origin).unwrap();
-    // The ordinary CreateTab contract is unchanged: non-terminal creation selects
-    // its result. This also makes the saved selection different from the origin.
+    // Select the new tab so the saved selection differs from the origin.
     core.apply(
         &mut engine,
         DomainIntent::CreateTab {
@@ -258,6 +258,7 @@ fn agent_origin_preserves_the_selected_tab_even_when_origin_is_inactive() {
             kind: "empty".into(),
             name: None,
             surface_params: serde_json::json!({}),
+            activate: true,
         },
     )
     .unwrap();

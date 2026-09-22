@@ -99,6 +99,7 @@ Tab 의 SurfaceLayout 트리 leaf, 최하위 컨테이너. 고유 `surface_id` �
 
 - **AI Agent (IPC/CLI)**: 작업 영역의 도메인을 ID 로 직접 조작.
   - 생성: `tasty new workspace` · `tasty new tab --pane <P> [--type terminal|markdown|explorer|html|image]`.
+    에이전트가 만든 탭은 kind 와 무관하게 선택되지 않는다 — pane 의 `active_tab` 과 포커스가 그대로다([focus 정책](../../design/policies/focus.md) "에이전트가 만든 탭과 선택").
   - 분할: `tasty split --level pane|surface --target <ID> [--direction …]` (상위/하위 레이아웃 각각).
   - 닫기: `tasty close tab|pane|surface --… <ID>` · `tasty close workspace --id <W>`(안의 모든 pane/tab/surface 포함) · `tasty close window --id <N>`.
     워크스페이스 닫기는 마지막 하나, mirror 워크스페이스, **원격 attach 가 하드 점유 중인 surface 를 든 워크스페이스**를 거부한다 — 창까지 없앨지는 별개의 결정이라 `close window` 로 명시하고(헤드리스는 `window.close` 가 없어 거절 문구가 그것을 권하지 않고 마지막 워크스페이스를 닫을 수 없다고만 말한다), mirror 는 attach 세션 쪽에서 거두며, 점유 중인 터미널은 그것을 쓰고 있는 원격 세션이 놓아야 닫힌다. **되돌릴 수 없다**(안의 터미널이 죽고 되돌리기 스택·스크롤백에 남지 않는다). 경계와 근거는 [ADR-0120](../../adr/0120-agent-workspace-close-boundaries.md).
@@ -118,6 +119,7 @@ Tab 의 SurfaceLayout 트리 leaf, 최하위 컨테이너. 고유 `surface_id` �
 ## Acceptance Criteria
 
 - Given 빈 워크스페이스 When `tasty new tab --pane <P>` Then 새 탭이 추가되고 `tasty list tabs --pane <P>` 에 보인다.
+- Given 사용자가 보던 탭이 있는 Pane When 에이전트가 `tasty new tab --pane <P> --type html|markdown|…` 로 탭을 만든다 Then `tasty list tree` 의 활성 탭과 focus 가 그대로이고, 단축키·메뉴로 사용자가 연 탭은 선택된다.
 - Given Pane 하나 When `tasty split --level pane --target <P>` Then 워크스페이스에 Pane 이 둘이 되고 탭 전환과 무관하게 분할이 유지된다.
 - Given 탭 안 Surface 하나 When `tasty split --level surface --target <S>` Then 그 탭에서만 Surface 가 둘이 되고, 다른 탭으로 전환하면 분할이 사라졌다 돌아온다.
 - Given 마지막 탭 하나 When 닫기 Then 닫히지 않는다.

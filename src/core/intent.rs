@@ -109,6 +109,12 @@ pub(crate) enum DomainIntent {
         /// `display_name()` 에서 최우선으로 쓰인다 (cwd/OSC title 로 덮이지 않음).
         name: Option<String>,
         surface_params: Value,
+        /// 새 탭을 그 pane 의 활성 탭으로 세우는가. 사용자가 직접 연 탭이면 `true`,
+        /// 에이전트(IPC/CLI)가 만든 탭이면 `false` — 에이전트 행동이 사용자가 보던 탭을
+        /// 바꾸면 안 된다([ADR-0498](../../docs/adr/0498-an-agent-created-tab-does-not-take-the-users-tab.md)).
+        /// terminal kind 는 이 값과 무관하게 background 로 붙는다 — 사용자의 새 터미널
+        /// 탭은 이 인텐트가 아니라 `AppState::add_tab` 이 연다.
+        activate: bool,
     },
     /// tab_id 로 tab close. *모든* workspace 의 pane 순회 (포커스 독립).
     /// cleanup (markdown_views / image_views / surface_meta / memory purge) 은

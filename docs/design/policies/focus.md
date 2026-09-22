@@ -239,6 +239,28 @@ IPC 핸들러(`src/adapters/ipc/`)가 활성 포인터를 읽는 자리를 전�
 
 근거와 플랫폼별 결과는 [ADR-0497](../../adr/0497-an-agent-created-window-does-not-take-the-users-focus.md).
 
+## 에이전트가 만든 탭과 선택
+
+에이전트가 탭을 만들어도 그 pane 의 활성 탭은 그대로다 — 위 "에이전트가 만든 창" 의 탭 판이다.
+
+- 선택 여부는 `DomainIntent::CreateTab` 의 `activate` **하나**가 정한다. 각 진입점이 값을 정해
+  싣는다.
+  - IPC `tab.create`(CLI `tasty new tab`): `false`. 새 탭은 뒤에 붙기만 한다.
+  - attach forward 의 `NewTab`: 원격 **사용자**의 손 조작이면 `true`, 원격 에이전트면 `false`
+    (복원 스택을 가르는 `ForwardOrigin` 과 같은 축).
+  - 파일 열기의 origin 갈래: `FileDispatchOrigin` 에서 파생(위 "에이전트 닫기와 포커스" 의 파일
+    열기 항목).
+  - `Intent::NewTab`: `true`. focused pane 에 붙는 사용자 동작의 인텐트다. **에이전트 라벨로 오는
+    발화점이 하나 있다** — origin 없는 `file_handler.dispatch`. markdown plugin 의 파일열기
+    팝업(사용자의 `open_markdown`)이 그 호출로 새 탭을 열고 host 는 둘을 가를 값이 없어, 그
+    갈래는 에이전트가 불러도 선택한다.
+- terminal kind 는 `activate` 와 무관하게 background 다. 사용자의 새 터미널 탭은 이 인텐트가
+  아니라 `AppState::add_tab` 이 연다.
+- 응답의 `active_tab` 은 "생성 뒤 그 pane 의 활성 탭" 이다 — 에이전트가 만든 탭이면 사용자가
+  보던 탭의 인덱스다. 새 탭은 응답의 `surface_id` 로 다룬다.
+
+근거는 [ADR-0498](../../adr/0498-an-agent-created-tab-does-not-take-the-users-tab.md).
+
 ## 원격이 점유한 surface 는 닫기 요청이 죽이지 않는다
 
 하드 점유(ADR-0040)는 "이 surface 는 지금 원격 사용자가 쓰고 있다" 는 선언이다. 닫기는
@@ -283,6 +305,7 @@ IPC 핸들러(`src/adapters/ipc/`)가 활성 포인터를 읽는 자리를 전�
 - 삭제 시 활성 포인터 보정: `Pane::remove_tab_preserving_active`(`crates/tasty-model/src/pane.rs`) · `active_index_after_removal` / `AppState::fix_workspace_pointers_after_removal`(`src/state/workspace.rs`) · cascade 진입점 `cascade_surface_closed`(`src/core/structural_cascade.rs` — 두 빌드가 같은 본문).
 - 재정렬 시 활성 포인터 보정: `active_index_after_move` / `AppState::fix_workspace_pointers_after_move`(`src/state/workspace.rs`) · 호출 경로 `AppState::move_workspace` 와 `cascade_workspace_moved`(`src/app/dispatch_domain.rs`, headless 는 `dispatch_domain_stubs.rs`).
 - 창 생성의 origin 분기: `WindowRequestOrigin`(`src/app/event.rs`) → `focus_after_register` · `origin_window_attributes`(`src/app/window_lifecycle.rs`) — 등록 뒤 focused 창과 생성 속성(`with_active` · `with_visible`)이 여기서 파생된다. 에이전트 창을 사용자 창 뒤에 보이는 OS 호출은 `crates/tasty-platform/src/window_stacking.rs`.
+- 탭 생성의 선택 분기: `DomainIntent::CreateTab` 의 `activate` → `Core::apply_create_tab`(`src/core/impl_tab.rs`) 이 `Pane::add_surface_tab` / `Pane::add_surface_tab_background`(`crates/tasty-model/src/pane.rs`) 중 하나를 고른다. 값을 정하는 진입점은 `structural_exec::create_tab`(`src/core/structural_exec.rs`) 의 호출자 · `src/intent/tab.rs` · `open_surface_tab`(`src/file/dispatch.rs`).
 - 워크스페이스 close 의 origin 분기: `WorkspaceCloseOrigin`(`src/state/workspace.rs`) — 되돌리기 스택 · plugin close reason · 계측 경로값이 여기서 파생된다.
 - 워크스페이스 제거 후 공통 뒷정리(`workspace.closed` 발화 + workspace scope memory purge): `AppState::after_workspace_removed`(`src/state.rs`).
 

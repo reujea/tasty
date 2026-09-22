@@ -451,27 +451,18 @@ pub(crate) fn open_surface_tab(
                 .surface_registry
                 .get(surface_kind)
                 .is_some_and(|d| d.records_recent);
+            // 에이전트가 명시 origin 으로 연 결과는 **선택하지 않는다** — 비동기 완료가
+            // 사용자의 현재 탭을 갈아치우면 안 된다(ADR-0279). 사용자가 방금 그 pane 에서
+            // 직접 연 것은 그 반대다: 보려고 연 것이므로 선택한다(ADR-0302).
             let intent = crate::core::intent::DomainIntent::CreateTab {
                 pane_id,
                 cwd: None,
                 kind: surface_kind.to_string(),
                 name: None,
                 surface_params: params.clone(),
+                activate: dispatch_origin.selects_result(),
             };
-            // 에이전트가 명시 origin 으로 연 결과는 **선택하지 않는다** — 비동기 완료가
-            // 사용자의 현재 탭을 갈아치우면 안 된다(ADR-0279). 사용자가 방금 그 pane 에서
-            // 직접 연 것은 그 반대다: 보려고 연 것이므로 선택한다(ADR-0302). `CreateTab`
-            // 은 뒤에 append 하며 동기라, 옛 index 가 여전히 같은 탭을 가리킨다.
-            let restore_tab = (!dispatch_origin.selects_result())
-                .then(|| engine.find_pane_by_id(pane_id).map(|pane| pane.active_tab))
-                .flatten();
-            let result = core.apply(engine, intent);
-            if let Some(active_tab) = restore_tab
-                && let Some(pane) = engine.find_pane_by_id_mut(pane_id)
-            {
-                pane.active_tab = active_tab;
-            }
-            if let Err(e) = result {
+            if let Err(e) = core.apply(engine, intent) {
                 tracing::warn!(
                     pane_id,
                     kind = %surface_kind,

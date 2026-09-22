@@ -426,6 +426,18 @@ fn pane_close_tab_removes_tab() {
 }
 
 #[test]
+fn pane_add_surface_tab_selects_it_and_the_background_variant_does_not() {
+    use super::EmptySurface;
+    let mut pane = Pane::new_with_terminal_marker(1, 10, 100);
+    pane.add_surface_tab_background(11, "bg".into(), None, Box::new(EmptySurface::new(101)));
+    assert_eq!(pane.tabs.len(), 2);
+    assert_eq!(pane.active_tab, 0, "background tab keeps the selection");
+    pane.add_surface_tab(12, "fg".into(), None, Box::new(EmptySurface::new(102)));
+    assert_eq!(pane.tabs.len(), 3);
+    assert_eq!(pane.active_tab, 2, "the ordinary variant selects its tab");
+}
+
+#[test]
 fn pane_close_tab_last_tab_fails() {
     let pane = Pane::new_with_terminal_marker(1, 10, 100);
     assert_eq!(pane.tabs.len(), 1);
