@@ -35,10 +35,11 @@ surface 훅(notification · bell · output-match · command-completed · process
   스텝의 답을 받은 뒤 다음 스텝이 들어가고, 먼저 발화한 훅의 시퀀스가 먼저 끝난다.
 - 스텝의 실행·기록은 그대로 `execute_sequence` 다 — 기한 없는 주입(ADR-0451), 실패는 `error!`,
   반환값 없음, 한 스텝이 실패해도 다음 스텝 진행.
-- 실행기에 쌓일 수 있는 시퀀스는 256 건이다(`PENDING_SEQUENCE_LIMIT`). **파생이 아니다** — 호스트 큐의
-  주입 명령 수 상한(`INJECTED_DEPTH_LIMIT`, [ADR-0391](0391-the-command-queue-admits-by-queued-bytes-and-injected-depth.md))
-  과 같은 값을 골랐다. 한 시퀀스는 스텝이 하나 이상이므로 호스트 큐가 받아 줬을 폭주를 여기서 먼저
-  거절하지 않는다. 넘치면 그 시퀀스는 실행하지 않고 `hook IpcSequence '<id>' not run — …` 를 `error!` 로
+- 실행기에 쌓일 수 있는 시퀀스 수(`PENDING_SEQUENCE_LIMIT`)는 호스트 큐의 주입 명령 수 상한
+  (`tasty_ipc::admission::INJECTED_DEPTH_LIMIT`, 현재 256,
+  [ADR-0391](0391-the-command-queue-admits-by-queued-bytes-and-injected-depth.md))에 **묶는다** — 코드가
+  그 상수를 그대로 쓰므로 그것이 바뀌면 이 값도 따라 바뀐다. 근거: 한 시퀀스는 스텝이 하나 이상이므로,
+  이 값이 호스트 상한 이상이면 호스트 큐가 받아 줬을 폭주를 여기서 먼저 거절하지 않는다. 넘치면 그 시퀀스는 실행하지 않고 `hook IpcSequence '<id>' not run — …` 를 `error!` 로
   남긴다. 호스트 큐의 입장 거절과 같은 성질이라 다시 걸지 않는다.
 - 실행기 스레드를 못 띄웠으면 시퀀스는 실행하지 않고 `error!` 를 남긴다. 발화한 자리에서 대신 실행하지
   않는다 — 그러면 이 결정이 없애려던 정지가 되돌아온다.
@@ -58,7 +59,7 @@ surface 훅(notification · bell · output-match · command-completed · process
   스텝은 스레드가 풀린 뒤에 실행됐으므로 "발화한 tick 안에 스텝이 실행된다" 는 보장은 원래 없었다.
 - **잃은 것**: 한 시퀀스가 느리면(스텝 하나가 10 s 까지) 뒤에 온 훅의 시퀀스가 그만큼 기다린다. 발화
   순서를 지키려는 대가다. 예전에는 같은 기다림이 메인 스레드 위에 있었다.
-- **운영 비용**: 프로세스마다 스레드 하나(처음 쓸 때 뜬다), 대기 시퀀스 최대 256 건의 메모리.
+- **운영 비용**: 프로세스마다 스레드 하나(처음 쓸 때 뜬다), 대기 시퀀스 최대 `INJECTED_DEPTH_LIMIT`(현재 256) 건의 메모리.
 
 ## Alternatives Considered
 
@@ -95,7 +96,7 @@ surface 훅(notification · bell · output-match · command-completed · process
 - 메인 스레드가 정말 안 서는가. 재는 법: 격리 debug GUI 인스턴스에서 `system.info` 두 스텝짜리 핸들러를
   `notification` 훅에 묶고 `printf '\033]9;probe\007'` 로 발화한 직후 `tasty list info` 왕복을 연속으로
   재서 평시와 견준다.
-- 256 건 상한에 닿는 사용이 있는가. 재는 법: 호스트 로그에서 `sequences are already waiting` 줄을 센다.
+- 대기 상한(`INJECTED_DEPTH_LIMIT`, 현재 256)에 닿는 사용이 있는가. 재는 법: 호스트 로그에서 `sequences are already waiting` 줄을 센다.
 
 ## References
 

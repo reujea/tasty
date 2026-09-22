@@ -161,9 +161,10 @@ pub fn execute_sequence(injector: &HostIpcInjector, calls: &[IpcCall], ctx: &Sub
     }
 }
 
-/// 스텝 실행기 스레드에 쌓여 있을 수 있는 시퀀스 수. **파생이 아니다** — 호스트 명령 큐가 받는
-/// 주입 명령 수의 상한([`tasty_ipc::admission::INJECTED_DEPTH_LIMIT`])과 같은 값을 골랐다. 한 시퀀스는
-/// 스텝이 하나 이상이므로, 호스트 큐가 받아 줬을 만큼의 폭주를 이 자리에서 먼저 거절하지 않는다.
+/// 스텝 실행기 스레드에 쌓여 있을 수 있는 시퀀스 수. 호스트 명령 큐가 받는 주입 명령 수의 상한
+/// ([`tasty_ipc::admission::INJECTED_DEPTH_LIMIT`])에 묶는다 — 그것이 바뀌면 이 값도 따라 바뀐다.
+/// 한 시퀀스는 스텝이 하나 이상이므로, 이 값이 그 상한 이상이면 호스트 큐가 받아 줬을 만큼의 폭주를
+/// 이 자리에서 먼저 거절하지 않는다.
 /// 근거: `docs/adr/0498-a-surface-hook-sequence-runs-off-the-thread-that-drains-the-queue.md`.
 const PENDING_SEQUENCE_LIMIT: usize = tasty_ipc::admission::INJECTED_DEPTH_LIMIT;
 
