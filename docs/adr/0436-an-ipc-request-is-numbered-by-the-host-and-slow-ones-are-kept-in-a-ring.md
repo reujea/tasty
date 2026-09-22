@@ -43,6 +43,7 @@ plugin 쪽에서 되짚을 길도 없었다. 호스트가 req_id 를 남기는 �
 - `SLOW_REQUEST_THRESHOLD` = 100 ms. 파생값이 아니다. ① [ADR-0333](0333-the-pressure-gauge-is-read-by-one-local-only-method-and-split-by-population.md) 이 격리 인스턴스에서 잰 정상 부하의 최댓값이 큐 대기 25.4 ms · handler 0.48 ms 였다 — 그보다 네 배 위라 정상 요청은 안 든다. ② 분포 버킷 경계의 한 칸(100 ms)과 같아, 분포에서 "100 ms 를 넘은 것이 몇 건" 을 읽은 자리에서 그 건들의 줄을 찾을 수 있다.
   - **①은 plugin 왕복을 안 쟀다 — 그 모수에서는 이 문턱이 plugin forward 전부를 넣는다.** 실측 2026-09-21(격리 홈 · debug · 번들 plugin 재빌드 후): 빈 결과를 내는 `markdown.recent` · `image.list` 의 plugin 대기가 gui 에서 130.8–135.3 ms(8 건), headless 에서 123.3–124.1 ms(3 건)였고, 한 건도 100 ms 아래가 없었다. 그래서 지금 이 문턱에서는 **plugin 으로 넘긴 요청이 전부** 링에 들고, plugin 호출이 32 번 이어지면 그 앞의 느린 호스트 요청이 밀려난다.
   - 그래도 100 ms 로 둔다. 할 일이 없는 조회의 왕복이 130 ms 인 것은 그 자체로 조사할 지연이고, 문턱을 그 위(예: 다음 버킷 316 ms)로 올리면 **그 기준선이 링에서 안 보이게 된다** — 링이 "무엇이 느린가" 에 답하려고 있는 것인데 가장 흔한 느림을 치우는 셈이다. 외부 계약도 안 바뀐다(`threshold_us` 가 응답에 함께 나가므로 읽는 쪽이 값을 가정하지 않는다). 기준선의 원인이 잡혀 plugin 왕복이 문턱 아래로 내려오면 이 항은 ①과 같은 근거로 선다.
+  - **보강(2026-09-23) — 기준선의 원인이 잡혀 고쳐졌다.** 호스트 ↔ plugin 메인 채널 양 끝에 `TCP_NODELAY` 가 없었고, 메시지를 쓰는 `writeln!` 이 본문과 개행을 두 번에 나눠 써서 개행 조각이 받는 쪽의 지연 ACK(실측 40.0–40.2 ms)를 기다렸다. 빈 결과 namespace 호출 하나가 그런 hop 셋을 지나 ~120 ms 가 됐다. 양 끝에 Nagle 을 끈 뒤 같은 호출의 plugin 대기는 9 건 최대 1.5 ms · 평균 1.24 ms(Linux 헤드리스 debug, `plugin_round_trip`)이고 링에 한 건도 안 들었다. 그래서 이 항은 이제 ①과 같은 근거로 선다 — 문턱을 그대로 둔 결정은 바뀌지 않는다. gui 조합의 재측은 미측정이다(같은 소켓 코드를 쓴다). 상세 [`plugin-development.md` "전송 지연"](../dev-guide/plugin-development.md#전송-지연-nagle-금지).
 - `SLOW_REQUEST_CAPACITY` = 32. 파생값이 아니다. 한 번의 조회로 최근의 느린 요청을 훑기에 충분하고 상한에서 수십 KB 다.
 - `OPEN_FORWARD_CAPACITY` = 256. 동시 IPC 연결 상한([ADR-0313](0313-the-dispatch-round-budget-is-the-connection-bound.md) 의 256)과 같다 — 소켓 연결 하나는 요청 하나를 기다리므로 동시에 plugin 을 기다리는 IPC 요청이 대개 이 안에 든다.
 - `MAX_PLUGIN_HOPS` = 3(pre-hook · target · post-hook).
@@ -92,7 +93,7 @@ plugin 쪽에서 되짚을 길도 없었다. 호스트가 req_id 를 남기는 �
 **원리적으로 안 붙는 것**
 
 - 링이 상시 넘친다(`admitted` 가 `capacity` 보다 훨씬 빨리 는다). 문턱이 낮거나 용량이 작다는 뜻이다. 재는 법: 부하 중 `tasty list pressure` 를 두 번 떠 `slow_requests.admitted` 의 증가와 `rows` 길이를 견준다.
-- 정상 부하에서 문턱을 넘는 요청이 흔해진다(예: 느린 plugin 이 기본 번들이 된다). 재는 법: 같은 응답의 `plugin_round_trip.us_hist` 에서 100 ms 칸 위의 비율을 본다. **plugin forward 에 대해서는 결정 시점에 이미 충족돼 있다**(위 "상수" 의 실측 — 왕복 전부가 100 ms 칸 위). 그 기준선의 원인이 밝혀져 **고칠 수 없는 것**으로 판정되면 문턱을 plugin 몫과 호스트 몫으로 가르거나 올리는 것을 다시 본다.
+- 정상 부하에서 문턱을 넘는 요청이 흔해진다(예: 느린 plugin 이 기본 번들이 된다). 재는 법: 같은 응답의 `plugin_round_trip.us_hist` 에서 100 ms 칸 위의 비율을 본다. **plugin forward 에 대해서는 결정 시점에 이미 충족돼 있다**(위 "상수" 의 실측 — 왕복 전부가 100 ms 칸 위). 그 기준선의 원인이 밝혀져 **고칠 수 없는 것**으로 판정되면 문턱을 plugin 몫과 호스트 몫으로 가르거나 올리는 것을 다시 본다. (2026-09-23 보강: 원인이 밝혀져 고쳐졌다 — 위 "상수" 의 보강 항. 이 조건은 plugin forward 에 대해 더 이상 충족돼 있지 않다.)
 
 ## References
 

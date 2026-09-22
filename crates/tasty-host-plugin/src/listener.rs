@@ -85,6 +85,14 @@ fn handle_incoming(
     stream: TcpStream,
     pending: &Arc<Mutex<HashMap<String, mpsc::Sender<TcpStream>>>>,
 ) {
+    // 요청/응답마다 작은 쓰기가 오가는 채널이라 Nagle 을 끈다 — 켜 두면 한 메시지의
+    // 뒤 조각(`writeln!` 의 개행)이 앞 조각의 ACK 를 기다리고, plugin 쪽은 ACK 를 수십 ms
+    // 미뤄서 hop 마다 그만큼이 붙는다. plugin SDK 도 자기 끝에서 같은 설정을 한다
+    // (`docs/dev-guide/plugin-development.md` "전송 지연"). 실패해도 채널은 동작하므로
+    // 기록만 한다.
+    if let Err(e) = stream.set_nodelay(true) {
+        tracing::warn!("plugin listener: TCP_NODELAY failed: {e}");
+    }
     let Some(auth) = read_auth_tcp(&stream) else {
         return;
     };
@@ -227,6 +235,36 @@ mod tests {
 
             let stream = listener.expect_connection(&token, Duration::from_secs(2));
             assert!(stream.is_some(), "expected connection to be received");
+        });
+    }
+
+    /// 넘겨받은 plugin 채널은 Nagle 이 꺼져 있어야 한다. 켜져 있으면 요청 줄의
+    /// 개행 조각이 plugin 의 지연 ACK 를 기다려 hop 마다 약 40 ms 가 붙는다.
+    #[test]
+    fn handed_off_stream_has_nodelay() {
+        let listener = HostListener::bind().unwrap();
+        let port = listener.port();
+        let token = "nodelay-token".to_string();
+        std::thread::scope(|s| {
+            let token_clone = token.clone();
+            s.spawn(move || {
+                let mut stream = TcpStream::connect(("127.0.0.1", port)).unwrap();
+                let auth = AuthMessage {
+                    plugin_id: "com.test.plugin".into(),
+                    token: token_clone,
+                };
+                let line = serde_json::to_string(&auth).unwrap() + "\n";
+                stream.write_all(line.as_bytes()).unwrap();
+                stream.flush().unwrap();
+                std::thread::sleep(Duration::from_millis(200));
+            });
+            let stream = listener
+                .expect_connection(&token, Duration::from_secs(2))
+                .expect("connection handed off");
+            assert!(
+                stream.nodelay().unwrap(),
+                "plugin channel must disable Nagle"
+            );
         });
     }
 

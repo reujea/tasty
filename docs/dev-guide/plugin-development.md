@@ -335,6 +335,20 @@ SDK가 자기 CWD에서 절대화하여 이 경계를 대신하지 않는다.
   sender 를 들고 있어 큐가 닫히기를 기다리면 영영 안 끝난다). `main` 이 `run()` 을 반환하면
   프로세스가 끝나고, plugin 의 백그라운드 스레드는 그때 함께 사라진다.
 
+### 전송 지연 (Nagle 금지)
+
+호스트와 plugin 사이 메인 채널(TCP · NDJSON)의 **양 끝 소켓은 `TCP_NODELAY`** 다 — 호스트는
+listener 가 연결을 받는 자리(`crates/tasty-host-plugin/src/listener.rs` `handle_incoming`), plugin 은
+SDK `Connection::connect`. 메시지를 쓰는 쪽이 `writeln!` 으로 본문과 개행을 **두 번에 나눠
+쓰기** 때문에, Nagle 이 켜져 있으면 개행 조각이 본문의 ACK 를 기다리고 받는 쪽은 그 ACK 를 최대
+~40 ms 미룬다. 실측(strace, 같은 조건)으로 개행 조각이 hop 마다 40.0–40.2 ms 늦게 도착했다. 빈 결과를 내는 namespace 호출 하나가 hop 셋(요청 · plugin 이 부른 host-call 의 결과 ·
+응답)을 지나므로 호출마다 ~120 ms 가 붙었다. 끄고 나서의 실측(2026-09-23, Linux 헤드리스 debug,
+`system.pressure` 의 `plugin_round_trip`): 9 건 `us_max` 1515 · `us_mean` 1238(끄기 전 같은 호출
+124.8–130.9 ms). IPC · attach 소켓의 같은 규칙은
+[`attach-behavior.md` "프레임 전송 지연"](attach-behavior.md#프레임-전송-지연-nagle-금지).
+두 끝의 설정은 각 크레이트의 단위 시험(`handed_off_stream_has_nodelay` ·
+`connect_disables_nagle_on_the_host_channel`)이 고정한다.
+
 ### 채널 상한 (개수 · 바이트 · 합계)
 
 호스트와 plugin 프로세스 하나 사이의 세 채널(요청 · 응답 · 이벤트)에는 상한이 셋 걸린다.

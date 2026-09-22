@@ -49,6 +49,14 @@ impl Connection {
                 source,
             }
         })?;
+        // 메시지마다 작은 쓰기가 오가는 요청/응답 채널이라 Nagle 을 끈다. 켜 두면 한
+        // 메시지의 뒤 조각이 앞 조각의 ACK 를 기다리고, 받는 쪽은 ACK 를 최대 수십 ms
+        // 미루므로 왕복마다 그만큼이 붙는다. 호스트도 자기 끝에서 같은 설정을 한다
+        // (`docs/dev-guide/plugin-development.md` "전송 지연"). 실패해도 채널은 동작하므로
+        // 기록만 한다.
+        if let Err(e) = stream.set_nodelay(true) {
+            tracing::warn!("plugin: TCP_NODELAY on the host channel failed: {e}");
+        }
         let writer = stream.try_clone()?;
         Ok(Self {
             reader: BufReader::new(stream),
@@ -303,6 +311,23 @@ mod tests {
             matches!(err, PluginError::HandshakeTimeout),
             "expected HandshakeTimeout, got {err:?}"
         );
+        handle.join().expect("fake host thread");
+    }
+
+    /// 호스트 채널은 Nagle 이 꺼져 있어야 한다. 켜져 있으면 응답 줄의 개행 조각이
+    /// 호스트의 지연 ACK 를 기다려 plugin 호출마다 약 40 ms 가 붙는다.
+    #[test]
+    fn connect_disables_nagle_on_the_host_channel() {
+        let (port, handle) = spawn_fake_host(FakeHostBehavior::AckOk);
+        let env = env_for(port);
+        let conn = Connection::connect_and_authenticate(&env).expect("ok");
+        let (writer, reader) = conn.into_parts();
+        assert!(writer.nodelay().unwrap(), "writer must have TCP_NODELAY");
+        assert!(
+            reader.get_ref().nodelay().unwrap(),
+            "reader shares the socket"
+        );
+        drop((writer, reader));
         handle.join().expect("fake host thread");
     }
 
