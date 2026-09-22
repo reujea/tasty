@@ -19,6 +19,10 @@ const AUTH_READ_TIMEOUT: Duration = Duration::from_secs(5);
 
 pub struct HostListener {
     addr: SocketAddr,
+    /// 등록한 토큰의 연결을 기다려 주는 한도. 운영 값은
+    /// [`HANDSHAKE_TIMEOUT`](crate::process::connect::HANDSHAKE_TIMEOUT) 하나이고, 값으로 둔 것은
+    /// 시험이 연결 실패 갈래를 10 초 기다리지 않고 재려는 것이다.
+    handshake_timeout: Duration,
     pending: Arc<Mutex<HashMap<String, mpsc::Sender<TcpStream>>>>,
     _accept_thread: std::thread::JoinHandle<()>,
 }
@@ -51,6 +55,7 @@ impl HostListener {
             })?;
         Ok(Self {
             addr,
+            handshake_timeout: crate::process::connect::HANDSHAKE_TIMEOUT,
             pending,
             _accept_thread: accept_thread,
         })
@@ -60,45 +65,68 @@ impl HostListener {
         self.addr.port()
     }
 
-    /// 해당 토큰의 connection 을 받을 채널을 등록한다. **plugin 을 spawn 하기 전에** 부른다.
+    /// 등록한 토큰의 연결을 기다려 주는 한도.
+    pub fn handshake_timeout(&self) -> Duration {
+        self.handshake_timeout
+    }
+
+    /// 한도를 줄인다 — 시험 전용(그 시험이 bash 가짜 plugin 을 써서 unix 에서만 돈다).
+    #[cfg(all(test, unix))]
+    pub(crate) fn set_handshake_timeout(&mut self, timeout: Duration) {
+        self.handshake_timeout = timeout;
+    }
+
+    /// 해당 토큰의 connection 을 받을 채널을 등록한다 — plugin 을 spawn 하기 **전에**
+    /// 부른다. 등록이 spawn 뒤면 빠르게 connect 한 plugin 이 토큰 없음으로 거절된다 —
+    /// plugin 은 뜨자마자 connect 하고 채널 양 끝이 Nagle 을 끄므로
+    /// (`docs/dev-guide/plugin-development.md` "전송 지연") 인증 줄은 지연 없이 도착한다.
     ///
-    /// 등록 전에 도착한 인증은 모르는 토큰으로 거절된다. plugin 은 뜨자마자 connect 하고
-    /// 채널 양 끝이 Nagle 을 끄므로(`docs/dev-guide/plugin-development.md` "전송 지연") 인증
-    /// 줄은 지연 없이 도착한다 — spawn 뒤에 등록하면 그 사이의 틈에서 plugin 이 이긴다.
-    pub fn register_connection(&self, token: &str) -> ExpectedConnection {
+    /// 기다림은 돌려받은 [`PendingConnection`] 이 한다. 등록과 기다림을 가른 이유는
+    /// 기다리는 스레드가 호출자와 다르기 때문이다 — 호출자는 호스트 메인 스레드이고,
+    /// 기다림은 `plugin-connect-<id>` 스레드가 맡는다(ADR-0469).
+    pub fn register(&self, token: &str) -> PendingConnection {
         let (tx, rx) = mpsc::channel();
         tasty_utils::poison::recover_mutex(self.pending.lock(), PENDING_WHAT, &PENDING_POISONED)
             .insert(token.to_string(), tx);
-        ExpectedConnection {
-            pending: Arc::clone(&self.pending),
+        PendingConnection {
             token: token.to_string(),
+            timeout: self.handshake_timeout,
             rx,
+            pending: Arc::clone(&self.pending),
         }
     }
 
-    /// [`Self::register_connection`] + [`ExpectedConnection::wait`]. 등록과 대기 사이에
-    /// 할 일이 없는 호출자용.
+    /// 등록하고 그 자리에서 기다린다. `timeout` 내 connection 이 안 오면 `None`.
+    #[cfg(test)]
     pub fn expect_connection(&self, token: &str, timeout: Duration) -> Option<TcpStream> {
-        self.register_connection(token).wait(timeout)
+        self.register(token).wait(timeout)
     }
 }
 
-/// [`HostListener::register_connection`] 으로 등록한 토큰 하나. drop 되면 등록을 거둔다 —
-/// spawn 이 실패해 [`Self::wait`] 에 못 가도 맵에 죽은 토큰이 남지 않는다.
-pub struct ExpectedConnection {
-    pending: Arc<Mutex<HashMap<String, mpsc::Sender<TcpStream>>>>,
+/// [`HostListener::register`] 로 등록한 토큰 하나의 connection 대기.
+///
+/// 버려지면 토큰을 대기 맵에서 거둔다 — 기다리다 시한이 지났든, spawn 이 실패해 아예
+/// 안 기다렸든 같은 자리에서 치운다. 성사된 뒤의 제거는 수락 쪽이 이미 했으므로 빈 제거다.
+pub struct PendingConnection {
     token: String,
+    timeout: Duration,
     rx: mpsc::Receiver<TcpStream>,
+    pending: Arc<Mutex<HashMap<String, mpsc::Sender<TcpStream>>>>,
 }
 
-impl ExpectedConnection {
-    /// `timeout` 안에 그 토큰으로 인증한 connection 을 받는다. 안 오면 `None`.
+impl PendingConnection {
+    /// 등록한 listener 가 정한 기다림 한도.
+    pub fn timeout(&self) -> Duration {
+        self.timeout
+    }
+
+    /// `timeout` 내 connection 이 오면 그 stream, 아니면 `None`.
     pub fn wait(self, timeout: Duration) -> Option<TcpStream> {
         self.rx.recv_timeout(timeout).ok()
     }
 }
 
-impl Drop for ExpectedConnection {
+impl Drop for PendingConnection {
     fn drop(&mut self) {
         // 인증이 성사됐으면 수락 쪽이 이미 뺐다 — 없는 키를 지우는 것은 무해하다.
         tasty_utils::poison::recover_mutex(self.pending.lock(), PENDING_WHAT, &PENDING_POISONED)
@@ -268,7 +296,7 @@ mod tests {
         let listener = HostListener::bind().unwrap();
         let port = listener.port();
         let token = "early-token".to_string();
-        let expected = listener.register_connection(&token);
+        let expected = listener.register(&token);
         let mut stream = TcpStream::connect(("127.0.0.1", port)).unwrap();
         let auth = AuthMessage {
             plugin_id: "com.test.plugin".into(),
@@ -292,7 +320,7 @@ mod tests {
     #[test]
     fn a_dropped_registration_is_withdrawn() {
         let listener = HostListener::bind().unwrap();
-        drop(listener.register_connection("dropped-token"));
+        drop(listener.register("dropped-token"));
         assert!(
             !listener
                 .pending

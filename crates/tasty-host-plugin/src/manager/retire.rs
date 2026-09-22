@@ -111,6 +111,17 @@ impl PluginManager {
     /// 않는다. `respawn` 이면 회수가 끝난 tick 에 같은 plugin 을 다시 띄운다.
     pub(super) fn retire_process(&mut self, plugin_id: &str, proc: PluginProcess, respawn: bool) {
         let pending = proc.begin_shutdown(Instant::now() + PLUGIN_SHUTDOWN_TIMEOUT);
+        self.retire_pending(plugin_id, pending, respawn);
+    }
+
+    /// 이미 만든 종료 핸들의 회수를 스레드에 맡긴다 — [`Self::retire_process`] 와, 연결이
+    /// 끝내 안 와 요청 없이 kill 하는 자리(`manager::connect`)가 함께 쓴다.
+    pub(super) fn retire_pending(
+        &mut self,
+        plugin_id: &str,
+        pending: PendingShutdown,
+        respawn: bool,
+    ) {
         let mut retiring = spawn_waiter(plugin_id, pending);
         retiring.respawn = respawn;
         // 같은 id 가 이미 회수 중일 수는 없다 — 회수 중인 id 는 기동이 미뤄지므로

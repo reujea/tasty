@@ -638,6 +638,7 @@ pub struct PluginPopupEntry {
 
 mod banner;
 mod buffer;
+mod connect;
 mod events;
 mod ipc_dispatch;
 mod lifecycle;
@@ -682,6 +683,9 @@ mod tests_request_origin;
 #[cfg(test)]
 #[cfg(any(unix, windows))]
 mod tests_retire;
+
+#[cfg(test)]
+mod tests_connect;
 
 #[cfg(test)]
 mod tests {

@@ -122,6 +122,9 @@ impl PluginManager {
     /// 등록 + CoreEvent (PluginLoaded / PluginSurfaceKindRegistered) 발화를
     /// 처리한다. 비어있으면 finalize 안 호출.
     pub fn pump(&mut self, now: Instant) -> Vec<(String, String)> {
+        // 0. 연결 대기가 끝난 plugin 을 거둔다 — 실패면 기동 실패로 처리한다(`manager::connect`).
+        self.settle_connections();
+
         // 1. plugin → 호스트 이벤트 수집 후 일괄 처리 (수집 순서·부수효과 보존).
         let collected = self.collect_plugin_events();
         let hello_pairs = self.apply_collected_events(collected);

@@ -111,6 +111,7 @@ tasty codex install     # ~/.codex/config.toml
 ## 플러그인이 멈췄을 때
 
 - **`tasty plugin list` 에서 enabled 인데 running 이 아닙니다** — 10초 안에 3번 실행에 실패하면 자동으로 정지됩니다. `tasty plugin logs <id>` 로 원인을 본 뒤 `tasty plugin enable <id>` 로 다시 시작합니다.
+- **`plugin enable` 직후에는 running 인데 잠시 뒤 running 이 아니게 됩니다** — `plugin enable` 은 플러그인이 Tasty 에 연결하기를 기다리지 않고 바로 돌아옵니다. 그래서 막 켠 플러그인은 연결 전에도 running 으로 보이고, 그 사이 보낸 요청은 연결된 뒤 전달됩니다. 10초 안에 연결하지 못하면 실행 실패로 세어 running 이 아니게 됩니다. 원인은 `tasty plugin logs <id>` 로 봅니다.
 - **번들 플러그인이 깨졌습니다** — `tasty plugin upgrade-builtins --force` 로 번들에서 다시 복사합니다. 플러그인 데이터(북마크 · 프로필 등)는 유지됩니다.
 
 <a id="내-dev-서버가-몇-번-포트에-떴는지-모를-때"></a>

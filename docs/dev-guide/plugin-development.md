@@ -280,12 +280,19 @@ SDK가 자기 CWD에서 절대화하여 이 경계를 대신하지 않는다.
 
 `manager.rs` 상수 기준:
 
-- **부팅**: `~/.tasty/plugins/` 스캔 → enabled 전부 spawn.
+- **부팅**: `~/.tasty/plugins/` 스캔 → enabled 전부 spawn. 전체 기동은 각 plugin 의 연결 결과까지 기다린다 —
+  부팅은 그 뒤 hello 를 짧은 시한으로 기다리므로 연결 시간이 그 시한을 먹으면 안 된다. 연결 대기는 plugin 마다
+  스레드라 겹친다(가장 느린 하나로 수렴). GUI 에서 이 자리는 부팅 워커 스레드다.
+- **기동과 연결**: 기동(명시적 `enable` · namespace 호출이 owner 를 띄울 때 · 재시작 · swap)은 자식을 띄우자마자
+  돌아오고, 연결(`HANDSHAKE_TIMEOUT` 10s 안)은 `plugin-connect-<id>` 스레드가 기다린다 — 메인 스레드가 서지 않는다.
+  연결 전의 plugin 도 `processes` 에 있어 `running: true` 이고, 그 사이 온 요청은 송신 큐에 쌓였다가 연결 뒤 순서대로
+  나간다. 끝내 연결하지 않으면 spawn 실패와 같은 갈래로 간다(프로세스 kill · `plugin.error` `spawn_failed` ·
+  아래 자동 비활성화 누적 · 쌓인 namespace 호출은 caller 에 오류 회신). 근거 [ADR-0469](../adr/0469-a-plugin-start-waits-for-its-connection-off-the-main-thread.md).
 - **헬스체크**: `PING_INTERVAL`(15s)마다 ping, `HEALTHCHECK_TIMEOUT`(60s) 무응답이면 강제 재시작.
   판정은 ping 을 보내는 tick 에서 함께 하므로 **비응답 검출 상한은 60s + 15s = 75s** 다
   ([timer-hub](timer-hub.md#계층을-넘는-허브-합성)). 프로세스가 실제로 죽은 경우는 이 경로가
   아니라 event 채널 Disconnected 로 즉시 잡히므로 이 상한의 영향을 받지 않는다.
-- **자동 비활성화**: `RESTART_FAILURE_WINDOW`(10s) 내 `RESTART_FAILURE_LIMIT`(3)회 spawn 실패 → 정지(사용자가 `tasty plugin enable` 로 수동 재개까지).
+- **자동 비활성화**: `RESTART_FAILURE_WINDOW`(10s) 내 `RESTART_FAILURE_LIMIT`(3)회 spawn 실패(연결 한도 초과 포함) → 정지(사용자가 `tasty plugin enable` 로 수동 재개까지). 누적은 연결이 성사될 때 지워진다.
 - **namespace 호출 만료**: 위 재시작 경로는 프로세스가 굳은 경우만 본다 — ping 에는 답하면서
   특정 호출만 안 돌려주는 plugin 은 healthcheck 에 안 걸린다. 그래서 plugin namespace 로
   forward 한 pending 호출에는 별도로 `NAMESPACE_CALL_TIMEOUT` 데드라인이 붙고, 넘기면
@@ -438,7 +445,7 @@ SDK 가 셋으로 노출한다.
 
 ### 토큰 핸드셰이크 (보안)
 
-호스트가 `127.0.0.1:0`(랜덤 포트) listen → 토큰을 listener 에 **먼저 등록**(`HostListener::register_connection`)하고 spawn 하며 `TASTY_HOST_IPC_PORT` + `TASTY_PLUGIN_TOKEN` 전달 → 플러그인이 그 포트로 connect 후 **첫 줄에 `AuthMessage{plugin_id, token}`** 전송 → 토큰 일치해야 인증 통과(`HANDSHAKE_TIMEOUT` 내), mismatch 면 즉시 끊음. 등록이 spawn 보다 앞서는 이유: 채널이 Nagle 을 끄므로 인증 줄이 지연 없이 도착해, spawn 뒤에 등록하면 plugin 이 그 틈에서 이겨 모르는 토큰으로 거절된다(시험 `a_connection_that_authenticates_before_the_wait_is_kept` 은 등록 뒤·대기 전에 도착한 인증을 listener 가 붙잡아 두는지만 본다). 등록이 spawn 보다 앞선다는 순서 자체는 단위 시험이 고정하지 않는다 — 재는 법: GUI 부팅 로그의 `plugin auth with unknown/expired token` 줄 수(0 이어야 한다). SDK transport 가 이 핸드셰이크를 자동 수행하므로 작성자는 보통 신경 쓸 필요 없다.
+호스트가 `127.0.0.1:0`(랜덤 포트) listen → 토큰을 listener 에 **먼저 등록**(`HostListener::register_connection`)하고 spawn 하며 `TASTY_HOST_IPC_PORT` + `TASTY_PLUGIN_TOKEN` 전달 → 플러그인이 그 포트로 connect 후 **첫 줄에 `AuthMessage{plugin_id, token}`** 전송 → 토큰 일치해야 인증 통과(`HANDSHAKE_TIMEOUT` 10s 내 — 호스트는 이 대기를 메인 스레드 밖에서 한다, 위 "기동과 연결"), mismatch 면 즉시 끊음. 등록이 spawn 보다 앞서는 이유: 채널이 Nagle 을 끄므로 인증 줄이 지연 없이 도착해, spawn 뒤에 등록하면 plugin 이 그 틈에서 이겨 모르는 토큰으로 거절된다(시험 `a_connection_that_authenticates_before_the_wait_is_kept` 은 등록 뒤·대기 전에 도착한 인증을 listener 가 붙잡아 두는지만 본다). 등록이 spawn 보다 앞선다는 순서 자체는 단위 시험이 고정하지 않는다 — 재는 법: GUI 부팅 로그의 `plugin auth with unknown/expired token` 줄 수(0 이어야 한다). SDK transport 가 이 핸드셰이크를 자동 수행하므로 작성자는 보통 신경 쓸 필요 없다.
 
 ## 8. 규약
 
