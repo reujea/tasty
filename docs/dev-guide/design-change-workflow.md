@@ -7,7 +7,7 @@
 > 디자인 변경이 아니므로 바로 [gallery-first](gallery-first.md) 의 구조 전사(1단계)로 간다.
 
 이 워크플로의 도구 분담(Claude design 디자인 / claude code 구현)·정합 순서와 그 근거·재검토 조건은
-[ADR-0574](../adr/0574-design-work-flows-from-claude-design-through-gallery-app-and-site.md) 에 있다. 본 문서는 그 결정의 *현재 운영 절차* 만 기술한다.
+[ADR-0510](../adr/0510-design-work-flows-from-claude-design-through-gallery-app-and-site.md) 에 있다. 본 문서는 그 결정의 *현재 운영 절차* 만 기술한다.
 
 ## 요청문서 전달 경로 (직접 접근 우선 / 로컬 fallback)
 
@@ -100,7 +100,7 @@
 
 부분적인 자동 채널이 **둘** 있다. `crates/tasty-doc-guards/tests/site_vendor_tokens_track_the_app_export.rs` 가 두 사본의 **토큰 이름 집합**을, `crates/tasty-doc-guards/tests/site_vendor_icons_match_the_app_transcription.rs` 가 **아이콘 기하·채움과 그 그릇**(`viewBox` · 선 굵기 · cap/join)을 대조한다 — 앱이 받은 것을 사이트가 못 받으면 그 차이가 명부와 어긋나 빨개진다. **그 둘이 덮는 범위와 이 절차가 덮는 범위는 다르다** — 판정기는 토큰 이름과 아이콘(기하·채움·그릇) 두 층만 보고, 그 둘을 안 건드리는 결정(문구 변경 · 구성 변경 · 컨트롤 삭제)은 양쪽 좌변을 똑같이 남겨두므로 **여전히 안 잡힌다.** 그 층은 이 단계(사람이 도는 재-vendoring)만 닫는다. 판정기가 초록인 것을 "사이트 사본이 최신" 으로 읽지 마라.
 
-이 정합 대상을 세운 근거·대안·재검토 조건은 [ADR-0574](../adr/0574-design-work-flows-from-claude-design-through-gallery-app-and-site.md).
+이 정합 대상을 세운 근거·대안·재검토 조건은 [ADR-0510](../adr/0510-design-work-flows-from-claude-design-through-gallery-app-and-site.md).
 
 재-vendoring 은 원격 프로젝트 접근(DesignSync 세션)을 쓰므로, 그 권한이 없는 세션에서는 이 단계를 **미완으로 남기고 그 사실을 적는다** — 조용히 건너뛰지 않는다.
 
@@ -138,7 +138,7 @@ requested ──(사용자 제출·시안 수령)──▶ received ──(갤�
 | **B. 로컬 (fallback)** | 로컬 작업 폴더의 `design-request/MMDDhhmm-design-request-<slug>.md` | 로컬 파일을 **직접 삭제**한다(gitignored 라 이력 남길 필요 없음). |
 | **A. 원격 (직접 접근)** | 원격 전용 인박스 `design-request/<slug>.md` | **DesignSync `delete_files`** 로 삭제한다 — `list_files`(존재 확인) → `finalize_plan` 의 `deletes`(+ `writes` 는 빈 배열) 에 그 경로를 넣어 `planId` 획득(권한 프롬프트) → `delete_files`(`planId`) 순. 원격 파일 삭제는 이 메서드로 가능하다. |
 
-**삭제 대상 = 요청문서(md)뿐.** 확정 시안(원격 프로젝트의 시안 파일 · `docs/design/` 에 보존한 HTML)은 **삭제하지 않는다** — 그것은 아래 "누가 무엇을 하나"·ADR-0574 의 **보존** 대상이다. 삭제하는 것은 입력 요청문서 한 건이지 산출물이 아니다.
+**삭제 대상 = 요청문서(md)뿐.** 확정 시안(원격 프로젝트의 시안 파일 · `docs/design/` 에 보존한 HTML)은 **삭제하지 않는다** — 그것은 아래 "누가 무엇을 하나"·ADR-0510 의 **보존** 대상이다. 삭제하는 것은 입력 요청문서 한 건이지 산출물이 아니다.
 
 ## 누가 무엇을 하나 (역할 분리)
 
@@ -150,11 +150,11 @@ requested ──(사용자 제출·시안 수령)──▶ received ──(갤�
 | **구현** | claude code | 확정 시안을 [gallery-first](gallery-first.md) 순서로 — 갤러리 specimen(구조 전사+토큰 정합) → 본체 반영 → 사이트 사본 재-vendoring. |
 
 > 확정 시안은 원격 Claude design 프로젝트에 파일로 남는다(정합 뒤 지우는 것은 요청문서뿐이다). 레포 안에
-> 근거로 남겨야 하는 시안은 HTML 을 `docs/design/` 에 보존한다(ADR-0574).
+> 근거로 남겨야 하는 시안은 HTML 을 `docs/design/` 에 보존한다(ADR-0510).
 
 ## 관련
 
-- [ADR-0574](../adr/0574-design-work-flows-from-claude-design-through-gallery-app-and-site.md) — 도구 분담·정합 순서·갤러리 완전성·사이트 사본 결정 근거와 재검토 조건.
+- [ADR-0510](../adr/0510-design-work-flows-from-claude-design-through-gallery-app-and-site.md) — 도구 분담·정합 순서·갤러리 완전성·사이트 사본 결정 근거와 재검토 조건.
 - [gallery-first](gallery-first.md) — 확보한 디자인을 갤러리→본체로 내리는 순서(0단계 "디자인 확보"가 이 워크플로).
 - [design/policies/gallery-completeness](../design/policies/gallery-completeness.md) — cut 금지 시 디자인 보강(=이 워크플로로 재요청).
 - [design/systems/design-parity-notes](../design/systems/design-parity-notes.md) · [design-gallery-mapping](../design/systems/design-gallery-mapping.md) — 시안→소스 구조 전사 원칙·매핑.

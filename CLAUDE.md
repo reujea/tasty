@@ -171,7 +171,7 @@ Tasty 는 cargo workspace 다 (본 바이너리 + `crates/*` 60 개 — 그중 `
 
 **갤러리(`crates/tasty-gallery`)는 본체의 모든 UI 컴포넌트를 노출한다 — cut 금지.** 디자인 산출물이 일부 컴포넌트를 카탈로그에서 생략해도 갤러리에서 빼지 않는다(생략은 디자인 측 결함 → 디자인 request 로 보강). **새 modal/popup/공용 위젯은 gallery-first** — 디자인 수령 → 갤러리 specimen → 본체 반영 순서로 만든다.
 
-상세·근거: [`docs/adr/0574-design-work-flows-from-claude-design-through-gallery-app-and-site.md`](docs/adr/0574-design-work-flows-from-claude-design-through-gallery-app-and-site.md) · [`docs/dev-guide/gallery-first.md`](docs/dev-guide/gallery-first.md) · [`docs/design/policies/gallery-completeness.md`](docs/design/policies/gallery-completeness.md).
+상세·근거: [`docs/adr/0510-design-work-flows-from-claude-design-through-gallery-app-and-site.md`](docs/adr/0510-design-work-flows-from-claude-design-through-gallery-app-and-site.md) · [`docs/dev-guide/gallery-first.md`](docs/dev-guide/gallery-first.md) · [`docs/design/policies/gallery-completeness.md`](docs/design/policies/gallery-completeness.md).
 
 **UI 를 디자인에 정합시킬 때는 두 축을 함께 충족한다 — 둘 다 필수다:**
 

@@ -8,7 +8,7 @@
 //!
 //! 카탈로그(`catalog/`)는 Theme 만 의존하는 foundation 항목(color swatches,
 //! typography, spacing 등)부터 popup / sidebar / tab_bar 계열까지 본체 UI
-//! 컴포넌트를 폭넓게 포괄한다 — cut 금지, gallery-first(ADR-0574).
+//! 컴포넌트를 폭넓게 포괄한다 — cut 금지, gallery-first(ADR-0510).
 
 pub mod catalog;
 pub mod fonts;

@@ -44,7 +44,7 @@
 
 ## 작성 규칙
 
-- **새 ADR 을 쓰기 전에** — 두 단계를 먼저 밟는다. 근거·대안은 [ADR-0571](0571-an-adr-is-written-after-a-symbol-search-and-only-for-a-choice.md).
+- **새 ADR 을 쓰기 전에** — 두 단계를 먼저 밟는다. 근거·대안은 [ADR-0507](0507-an-adr-is-written-after-a-symbol-search-and-only-for-a-choice.md).
   1. **자격을 묻는다.** 먼저 "이 결정은 이미 있는 문서 · 가드 모듈 주석 · 소스 주석 한 자리로
      충분한가" — 충분하면 ADR 을 안 만든다. 그다음 세 물음이 **모두 예**일 때만 ADR 을 쓴다.
      - 서로 배타적인 **대안 중 하나를 골랐는가.** 측정 결과·사실 기록은 대안 선택이 아니다.
@@ -117,7 +117,7 @@
     ADR 의 본문 끝에 지는 ADR 의 고유 근거를 `### 흡수한 근거 — ADR-XXXX 에서` 소제목으로 옮기는
     것을 허용한다. 결정은 바뀌지 않으므로 Supersede 가 아니다. `Date` 는 그대로 둔다.
 - **같은 결정이 두 ADR 에 적혀 있을 때** — 서로를 인용하지 않는 두 ADR 이 같은 결정을 적은 것을
-  발견했으면 아래 순서를 따른다. 근거·대안은 [ADR-0570](0570-a-decision-recorded-twice-is-split-by-the-width-of-the-overlap.md).
+  발견했으면 아래 순서를 따른다. 근거·대안은 [ADR-0506](0506-a-decision-recorded-twice-is-split-by-the-width-of-the-overlap.md).
   1. **폭을 가른다.** 각 ADR 의 Decision 을 조항으로 나눠 겹치는 조항과 겹치지 않는 조항을 적는다.
      어느 한쪽에라도 겹치지 않는 조항이 남으면 **조항 겹침**, 모두 겹치면 **결정 전체 겹침**이다.
   2. **조항 겹침 → 새 ADR 로 모은다.** 원본 중 남는 쪽을 고르지 않는다.

@@ -6,7 +6,7 @@
 
 ## Context
 
-갤러리는 본체 컴포넌트를 전부 전시해야 하고(ADR-0574), specimen 이 본체와 **같은 것을**
+갤러리는 본체 컴포넌트를 전부 전시해야 하고(ADR-0510), specimen 이 본체와 **같은 것을**
 보여야 한다. 그런데 정본 타입이 갤러리에 넣기 무거운 크레이트에 있으면 같은 함수를 부를
 수 없어 갤러리가 같은 모양을 손으로 다시 만든다.
 
@@ -104,6 +104,6 @@ doc 은 없어진 이유를 현재형으로 계속 말했다.
 - [gallery-completeness](../design/policies/gallery-completeness.md) — 미러 정책 본문
 - [toast](../design/systems/toast.md) — 그리기/상태 경계의 현재 상태
 - [design-gallery-mapping](../design/systems/design-gallery-mapping.md) — jsx ↔ 함수 매핑
-- [ADR-0574](0574-design-work-flows-from-claude-design-through-gallery-app-and-site.md) — 갤러리 완전성
+- [ADR-0510](0510-design-work-flows-from-claude-design-through-gallery-app-and-site.md) — 갤러리 완전성
 - 코드 근거(결정이 실현된 현재 위치): `crates/tasty-ui-widgets/src/toast.rs` 의
   `draw_toast_scopes` · `toast_accent_color` · `fade_alpha`

@@ -81,4 +81,4 @@ PhysicalPx(content_rect.min.x)         // `* ppp` 를 빠뜨려도 그대로 컴
 - [`docs/ai-verification/dpi-scale-verification.md`](../ai-verification/dpi-scale-verification.md) — 배율 2 재현 절차
 - [ADR-0148](0148-physical-px-constants-are-split-by-what-they-are-for.md) — 물리 상수를 용도로 가른 결정
 - [ADR-0161](0161-length-constant-conversion-is-ordered-by-path-length.md) — 길이 상수 전환의 순서와 전선 가드
-- 중복 조항 통합: [0573](0573-length-constructor-sealing-clause-consolidated.md) (튜플 생성자 봉인 조항 — 이 ADR 의 다른 조항은 유효)
+- 중복 조항 통합: [0509](0509-length-constructor-sealing-clause-consolidated.md) (튜플 생성자 봉인 조항 — 이 ADR 의 다른 조항은 유효)

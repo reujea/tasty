@@ -1,12 +1,12 @@
-# ADR-0572: 착지는 커밋 전에 들어오는 ADR 을 나란히 놓는다 — 도구는 보고만 하고 판정은 사람이 한다
+# ADR-0508: 착지는 커밋 전에 들어오는 ADR 을 나란히 놓는다 — 도구는 보고만 하고 판정은 사람이 한다
 
 - **Status**: Accepted
 - **Date**: 2026-09-23
-- **Tags**: adr-conventions, adr-duplication, landing, parallel-lanes, adr-0570, adr-0571, adr-0243, adr-0239
+- **Tags**: adr-conventions, adr-duplication, landing, parallel-lanes, adr-0506, adr-0507, adr-0243, adr-0239
 
 ## Context
 
-[ADR-0571](0571-an-adr-is-written-after-a-symbol-search-and-only-for-a-choice.md) 이 작성 시점의
+[ADR-0507](0507-an-adr-is-written-after-a-symbol-search-and-only-for-a-choice.md) 이 작성 시점의
 탐색을 정했다. 그 탐색의 모수는 **작성하는 트리에 이미 있는 ADR** 이다. 두 lane 이 같은 base 에서
 동시에 갈라져 서로의 ADR 을 트리에 갖지 않은 채 같은 조항을 쓰면, 작성 시점 탐색은 원리적으로
 상대를 못 만난다. 두 문서가 처음 한 트리에 놓이는 순간이 착지다.
@@ -34,7 +34,7 @@
   내면 실재하지 않는 중복을 처방하게 된다.
 - **조회가 안 된 것은 2 로 가른다.** 없는 rev · 얕은 clone · git 오류는 판정 불가다. 목록이 빈
   초록과 목록을 못 뽑은 초록이 같은 줄로 보이면 안 된다.
-- **겹치면 착지 전에** [ADR-0570](0570-a-decision-recorded-twice-is-split-by-the-width-of-the-overlap.md)
+- **겹치면 착지 전에** [ADR-0506](0506-a-decision-recorded-twice-is-split-by-the-width-of-the-overlap.md)
   의 절차로 고친다. 착지 뒤에는 두 번호가 다 인용되기 시작한다.
 - **자동 채널에 걸지 않는다.** 착지하는 사람이 직접 돌린다.
 
@@ -68,13 +68,13 @@
 **원리적으로 안 붙는 것** — 사람이 관측해야 한다. 재는 법을 함께 적는다.
 
 - 착지 뒤에 겹침이 발견되는 일이 반복되면 — 절차가 안 돌고 있거나 후보 추출이 놓친다. 재는 법:
-  ADR-0570 절차가 쓰인 사례의 원본들이 같은 착지로 들어왔는지 `git log --diff-filter=A` 로 본다.
+  ADR-0506 절차가 쓰인 사례의 원본들이 같은 착지로 들어왔는지 `git log --diff-filter=A` 로 본다.
 - 후보가 너무 많아 아무도 안 읽으면. 재는 법: 착지 한 번의 `--candidates-only` 줄 수를 본다.
 
 ## References
 
 - 운영 절차: [`docs/dev-guide/adr-landing.md`](../dev-guide/adr-landing.md)
 - 도구: `scripts/adr-landing-report.sh`
-- 작성 시점 탐색: [ADR-0571](0571-an-adr-is-written-after-a-symbol-search-and-only-for-a-choice.md)
-- 겹침 처리: [ADR-0570](0570-a-decision-recorded-twice-is-split-by-the-width-of-the-overlap.md)
+- 작성 시점 탐색: [ADR-0507](0507-an-adr-is-written-after-a-symbol-search-and-only-for-a-choice.md)
+- 겹침 처리: [ADR-0506](0506-a-decision-recorded-twice-is-split-by-the-width-of-the-overlap.md)
 - 선행 결정: [ADR-0239](0239-an-unused-adr-number-is-retired-not-recycled.md) (다른 조항 — 착지 때 번호 구간 재부여)

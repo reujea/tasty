@@ -16,9 +16,9 @@
 //! - `docs/design/policies/shared-widgets.md` — 보편 이름이 붙는 컴포넌트는 **사용처가
 //!   한 곳뿐이어도** 인라인이 아니라 여기 산다. 소속 판정 기준이 사용처 개수가 아니라
 //!   이름이므로, 호출자 수는 애초에 그 판정에 들어가지 않는다.
-//! - `docs/dev-guide/gallery-first.md` · `docs/adr/0574-design-work-flows-from-claude-design-through-gallery-app-and-site.md`
+//! - `docs/dev-guide/gallery-first.md` · `docs/adr/0510-design-work-flows-from-claude-design-through-gallery-app-and-site.md`
 //!   — 새 컴포넌트는 갤러리 specimen 을 먼저 만들고 그다음 본체에 반영한다. 그래서 **본체
-//!   호출자 0 은 절차의 정상 중간 지점**이다. ADR-0574 이 요구하는 포함 방향도 한쪽이다
+//!   호출자 0 은 절차의 정상 중간 지점**이다. ADR-0510 이 요구하는 포함 방향도 한쪽이다
 //!   (본체 ⊆ 갤러리) — 갤러리에만 있는 것은 그 요구를 어기지 않는다.
 //!
 //! 결함인 것은 호출자 0 자체가 아니라 **본체가 같은 것을 손으로 다시 그리는 것**이다.

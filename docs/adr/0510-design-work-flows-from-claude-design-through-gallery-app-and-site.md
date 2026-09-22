@@ -1,8 +1,8 @@
-# ADR-0574: 디자인 작업은 Claude Design 시안을 갤러리 → 본체 → 사이트 사본 순으로 정합한다 — 갤러리는 본체 UI 의 완전한 단일 출처다
+# ADR-0510: 디자인 작업은 Claude Design 시안을 갤러리 → 본체 → 사이트 사본 순으로 정합한다 — 갤러리는 본체 UI 의 완전한 단일 출처다
 
 - **Status**: Accepted
 - **Date**: 2026-09-23
-- **Tags**: design-workflow, claude-design, gallery, gallery-first, design-parity, component-catalog, site, vendor, guards, adr-0138, adr-0570
+- **Tags**: design-workflow, claude-design, gallery, gallery-first, design-parity, component-catalog, site, vendor, guards, adr-0138, adr-0506
 
 ## Context
 
@@ -10,7 +10,7 @@
 완료로 치는가 — 에 관한 결정이 ADR 여러 편에 흩어져 있었다. 디자인 작업을 처음 하는 사람은 그
 여러 편과 운영 문서를 함께 읽어야 했고, 그중 일부는 더는 쓰지 않는 단계를 현재형으로 적었다.
 사용자 결정(2026-09-21)으로 그 결정들을 이 한 편에 모으고 원본 파일은 지운다
-([ADR-0570](0570-a-decision-recorded-twice-is-split-by-the-width-of-the-overlap.md) 의 "흡수 후
+([ADR-0506](0506-a-decision-recorded-twice-is-split-by-the-width-of-the-overlap.md) 의 "흡수 후
 삭제", 번호는 결번).
 
 **도구.** 시안은 Claude Design(claude.ai/design) 에서 받는다 — 실제로 렌더되는 HTML/CSS 시안이라

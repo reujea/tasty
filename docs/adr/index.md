@@ -99,8 +99,8 @@ modifier-hint 는 0035(좁힘 + 지연) · 0038(빈 섹션) · 0064(타이머 �
 
 | # | Title | Status | Date | Tags |
 |---|-------|--------|------|------|
-| 0035 | [modifier-hint 오버레이 — 눌린 조합으로 섹션 좁힘 + Shift 단독 표시 지연 1.2초](0035-modifier-hint-combo-narrowing-and-shift-delay.md) | Accepted | 2026-07-05 | modifier-hint, overlay, keybindings, combo, subset, reveal-delay, shift, design-token, accessibility, debug-ipc, adr-0574 |
-| 0038 | [modifier-hint 빈 조합 섹션은 "바인딩 없음" 플레이스홀더로 표시한다](0038-modifier-hint-empty-combo-placeholder.md) | Accepted | 2026-07-06 | modifier-hint, overlay, keybindings, empty-state, placeholder, design-token, i18n, accessibility, debug-ipc, adr-0035, adr-0574 |
+| 0035 | [modifier-hint 오버레이 — 눌린 조합으로 섹션 좁힘 + Shift 단독 표시 지연 1.2초](0035-modifier-hint-combo-narrowing-and-shift-delay.md) | Accepted | 2026-07-05 | modifier-hint, overlay, keybindings, combo, subset, reveal-delay, shift, design-token, accessibility, debug-ipc, adr-0510 |
+| 0038 | [modifier-hint 빈 조합 섹션은 "바인딩 없음" 플레이스홀더로 표시한다](0038-modifier-hint-empty-combo-placeholder.md) | Accepted | 2026-07-06 | modifier-hint, overlay, keybindings, empty-state, placeholder, design-token, i18n, accessibility, debug-ipc, adr-0035, adr-0510 |
 | 0064 | [modifier-hint 표시 지연 타이머는 등록된 단축키가 실제로 소비되면 리셋한다](0064-modifier-hint-reveal-timer-reset-on-shortcut.md) | Accepted | 2026-08-08 | modifier-hint, overlay, reveal-delay, keybindings, discovery, user-agent-separation, adr-0035 |
 | 0256 | [바인딩 문자열 파서는 그 문자열을 저장하는 크레이트에 둔다 — 매칭 레이어는 결과만 소비한다](0256-the-binding-parser-lives-with-the-setting-it-parses.md) | Accepted | 2026-09-09 | keybindings, parser, crate-boundary, feature-gate, headless, single-source |
 | 0257 | [단축키 이식 번들은 스키마 태그가 붙은 TOML 한 장이고, 미설치 plugin 의 override 는 import 에서 버린다](0257-the-keybinding-bundle-is-a-toml-file-with-a-schema-tag.md) | Accepted | 2026-09-09 | keybindings, portability, import-export, toml, schema, plugin, crate-boundary, warnings |
@@ -108,14 +108,14 @@ modifier-hint 는 0035(좁힘 + 지연) · 0038(빈 섹션) · 0064(타이머 �
 
 ## UI · 테마 · 디자인 토큰 · 갤러리
 
-디자인 작업의 흐름과 갤러리 완전성은 0574 한 편이다. 갤러리 미러는 0329(대조 전에 미러를 없앨 수 있는지 먼저 본다)가 원칙이고 0380(토스트 카드)이 그 적용이다 — 두 편은 서로 인용하지 않으므로 여기서 잇는다. 스케일 밖 값은 0126 → 0290 이다.
+디자인 작업의 흐름과 갤러리 완전성은 0510 한 편이다. 갤러리 미러는 0329(대조 전에 미러를 없앨 수 있는지 먼저 본다)가 원칙이고 0380(토스트 카드)이 그 적용이다 — 두 편은 서로 인용하지 않으므로 여기서 잇는다. 스케일 밖 값은 0126 → 0290 이다.
 운영 문서: [design/systems/theme](../design/systems/theme.md) · [dev-guide/gallery-first](../dev-guide/gallery-first.md) · [dev-guide/popup-implementation](../dev-guide/popup-implementation.md)
 
 | # | Title | Status | Date | Tags |
 |---|-------|--------|------|------|
 | 0024 | [Banner — Modal/Popup/Toast 에 이은 4번째 오버레이 개념(별도 매니저)](0024-banner-fourth-overlay-concept.md) | Accepted | 2026-06-26 | ui, overlay, banner, popup, toast, ubiquitous-language, user-agent-separation |
-| 0033 | [UI 색은 semantic role 접근자로만 — primitive 필드 직접 접근 전면 금지(위젯 포함)](0033-ui-color-semantic-role-only.md) | Accepted | 2026-07-03 | design-tokens, color, semantic, primitive, theme, ui-widgets, guard, enforcement, adr-0574 |
-| 0036 | [플러그인 아이콘은 빌드타임 SVG 베이크 + `tasty-icons` 단일 소스로 그린다](0036-plugin-icon-buildtime-bake-tasty-icons-single-source.md) | Accepted | 2026-07-05 | plugin, icons, tasty-icons, single-source, build-time-bake, svg, vector, egui-mesh, design-parity, i18n, adr-0574, adr-0028, adr-0030 |
+| 0033 | [UI 색은 semantic role 접근자로만 — primitive 필드 직접 접근 전면 금지(위젯 포함)](0033-ui-color-semantic-role-only.md) | Accepted | 2026-07-03 | design-tokens, color, semantic, primitive, theme, ui-widgets, guard, enforcement, adr-0510 |
+| 0036 | [플러그인 아이콘은 빌드타임 SVG 베이크 + `tasty-icons` 단일 소스로 그린다](0036-plugin-icon-buildtime-bake-tasty-icons-single-source.md) | Accepted | 2026-07-05 | plugin, icons, tasty-icons, single-source, build-time-bake, svg, vector, egui-mesh, design-parity, i18n, adr-0510, adr-0028, adr-0030 |
 | 0058 | [plugin이 트리거하는 host 소유 popup은 즉시 ack + 이벤트 push로 비동기 결과를 회신한다](0058-plugin-triggered-host-popup-async-ack-push.md) | Accepted | 2026-08-01 | plugin, ipc, popup, async, event-bus, host-delegation, file-picker, host-agnostic, adr-0042, adr-0043, adr-0053, adr-0056 |
 | 0063 | [Popup 닫힘 뒷정리는 `draw_popups` 가 아니라 `PopupDef.on_close` 훅 + `PopupManager::close()` 단일 관문으로 처리한다](0063-popup-close-hook-single-choke-point.md) | Accepted | 2026-08-08 | ui, popup, lifecycle, close-hook, choke-point, refactor |
 | 0068 | [Host popup ↔ plugin popup z-order — 공유 z_seq + 조건부 GPU pass·sublayer 순서](0068-host-plugin-popup-shared-z-seq.md) | Accepted | 2026-08-12 | popup, plugin, z-order, gpu-rendering, egui |
@@ -134,14 +134,14 @@ modifier-hint 는 0035(좁힘 + 지연) · 0038(빈 섹션) · 0064(타이머 �
 | 0299 | [스크롤 영역은 드래그 패닝 여부를 선언한다](0299-scroll-areas-declare-whether-they-pan-on-drag.md) | Accepted | 2026-09-20 | ui, scroll, input, guard, egui |
 | 0300 | [scrim 은 popup 이 소속된 범위를 덮는다 — 늘 창 전체가 아니다](0300-the-scrim-covers-the-popups-scope-not-always-the-window.md) | Accepted | 2026-09-20 | popup, scope, scrim, plugin, design-tokens, gallery, adr-0273, adr-0254 |
 | 0329 | [갤러리 미러는 대조하기 전에 없앨 수 있는지 먼저 본다](0329-a-mirror-is-removed-before-it-is-compared.md) | Accepted | 2026-09-20 | gallery, widgets, duplication, guards, toast, type-appearance, compiler-enforced |
-| 0380 | [토스트 카드의 치수·색은 도출이 하나다 — 갤러리는 본체의 alpha 곱 순서를 따른다](0380-the-toast-card-geometry-and-color-have-one-derivation.md) | Accepted | 2026-09-21 | toast, gallery, shared-widgets, color, alpha, identity, measurement, adr-0574, adr-0122 |
+| 0380 | [토스트 카드의 치수·색은 도출이 하나다 — 갤러리는 본체의 alpha 곱 순서를 따른다](0380-the-toast-card-geometry-and-color-have-one-derivation.md) | Accepted | 2026-09-21 | toast, gallery, shared-widgets, color, alpha, identity, measurement, adr-0510, adr-0122 |
 | 0401 | [원격 연결 상태 사건은 사용자 행동 없이도 toast 를 띄울 수 있다 — toast 트리거 정책의 허용 부류](0401-remote-connection-events-may-raise-a-toast-without-a-user-action.md) | Accepted | 2026-09-21 | toast, attach, mirror, ui, identity-principle-1, user-agent-separation |
 | 0460 | [셀 강조색의 alpha 는 CPU 에서 그 셀 배경 위에 합성한다](0460-cell-highlight-alpha-is-composited-on-the-cpu-over-the-cell-bg.md) | Accepted | 2026-09-21 | renderer, gpu, theme, search, selection, alpha, blending, compatibility |
-| 0574 | [디자인 작업은 Claude Design 시안을 갤러리 → 본체 → 사이트 사본 순으로 정합한다 — 갤러리는 본체 UI 의 완전한 단일 출처다](0574-design-work-flows-from-claude-design-through-gallery-app-and-site.md) | Accepted | 2026-09-23 | design-workflow, claude-design, gallery, gallery-first, design-parity, component-catalog, site, vendor, guards, adr-0138, adr-0570 |
+| 0510 | [디자인 작업은 Claude Design 시안을 갤러리 → 본체 → 사이트 사본 순으로 정합한다 — 갤러리는 본체 UI 의 완전한 단일 출처다](0510-design-work-flows-from-claude-design-through-gallery-app-and-site.md) | Accepted | 2026-09-23 | design-workflow, claude-design, gallery, gallery-first, design-parity, component-catalog, site, vendor, guards, adr-0138, adr-0506 |
 
 ## 길이 타입 · DPI
 
-튜플 생성자 봉인 조항은 0128 · 0145 · 0169 가 각자 적었고 0573 이 그 조항을 모았다(세 원본의 다른 조항은 유효). 인접한 0135(배율) · 0148(물리 상수의 용도) · 0161(전환 순서) · 0252(부류 하한)는 서로 다른 결정이라 합치지 않는다.
+튜플 생성자 봉인 조항은 0128 · 0145 · 0169 가 각자 적었고 0509 가 그 조항을 모았다(세 원본의 다른 조항은 유효). 인접한 0135(배율) · 0148(물리 상수의 용도) · 0161(전환 순서) · 0252(부류 하한)는 서로 다른 결정이라 합치지 않는다.
 운영 문서: [concepts/typed-length](../concepts/typed-length.md)
 
 | # | Title | Status | Date | Tags |
@@ -153,7 +153,7 @@ modifier-hint 는 0035(좁힘 + 지연) · 0038(빈 섹션) · 0064(타이머 �
 | 0161 | [길이 상수의 `f32` → `LogicalPx` 전환은 이름 수가 아니라 경로 길이 순서로 간다](0161-length-constant-conversion-is-ordered-by-path-length.md) | Accepted | 2026-09-05 | typed-length, geometry, guards, refactor, census, frontier, false-negative |
 | 0169 | [길이 타입의 튜플 생성자는 봉인하지 않는다 — 탈출구가 곧 같은 단언이기 때문](0169-the-tuple-constructor-of-length-types-stays-open.md) | Accepted | 2026-09-05 | typed-length, geometry, guards, dpi, sealing, census |
 | 0252 | [축의 바늘에 걸린 `1` 둘 — 퇴화 방지 하한은 부류로, 정규화 좌표는 자리 명부로 뺀다](0252-a-degenerate-floor-is-a-class-and-unit-space-is-a-roster.md) | Accepted | 2026-09-09 | guards, design-tokens, exemption, class-vs-roster, predicate, ratchet, adr-0126, adr-0135, adr-0139 |
-| 0573 | [길이 타입 튜플 생성자는 봉인하지 않는다 — ADR-0128 · ADR-0145 · ADR-0169 의 봉인 조항 통합](0573-length-constructor-sealing-clause-consolidated.md) | Accepted | 2026-09-23 | typed-length, dpi, guards, sealing, adr-conventions, adr-0128, adr-0145, adr-0169, adr-0570, adr-0148 |
+| 0509 | [길이 타입 튜플 생성자는 봉인하지 않는다 — ADR-0128 · ADR-0145 · ADR-0169 의 봉인 조항 통합](0509-length-constructor-sealing-clause-consolidated.md) | Accepted | 2026-09-23 | typed-length, dpi, guards, sealing, adr-conventions, adr-0128, adr-0145, adr-0169, adr-0506, adr-0148 |
 
 ## 국제화
 
@@ -572,7 +572,7 @@ flake 처방은 0129 → 0155, e2e 하네스는 0090 → 0127 → 0170 → 0297 
 | 0180 | [소스 스캔 가드의 세 판정 물음에 이름과 집을 준다 — "출하되는가" 의 정본은 `shipping_scope` 다](0180-test-only-files-is-the-canonical-shipping-judge.md) | Accepted | 2026-09-05 | guards, shipping-scope, cfg-predicate, test-gate, canonical-judge, layering, cargo-layout, scan-target, adr-0129, adr-0165, adr-0166 |
 | 0183 | [가드·측정의 초록은 증거가 아니다 — 대조가 있어야 측정이다](0183-a-green-check-is-not-evidence-without-a-control.md) | Accepted | 2026-09-06 | guards, measurement, control, testing, mutation, false-green, adr-0129, adr-0139, adr-0180, adr-0181 |
 | 0184 | [새것에 조립은 따라오고 판정은 따라오지 않는다](0184-assembly-follows-a-new-artifact-but-judgment-does-not.md) | Accepted | 2026-09-06 | guards, ci, new-artifacts, scan-population, mirror, pre-commit, shebang, move, adr-0138, adr-0180, adr-0183 |
-| 0186 | [불가침 원칙에도 집행 등급이 있다 — 구두 원칙은 집행이 0이다](0186-an-inviolable-principle-needs-an-enforcer.md) | Accepted | 2026-09-06 | guards, principles, enforcement, gallery, gallery-first, adr-0574, adr-0180, adr-0183, adr-0184, adr-0185, adr-0190 |
+| 0186 | [불가침 원칙에도 집행 등급이 있다 — 구두 원칙은 집행이 0이다](0186-an-inviolable-principle-needs-an-enforcer.md) | Accepted | 2026-09-06 | guards, principles, enforcement, gallery, gallery-first, adr-0510, adr-0180, adr-0183, adr-0184, adr-0185, adr-0190 |
 | 0187 | [줄어든 수는 잃은 것이 아니다 — 인구조사의 감소는 모수를 넓혀 다시 잰다](0187-a-decreased-census-is-not-a-loss-remeasure-by-widening-the-population.md) | Accepted | 2026-09-06 | measurement, census, population, attribution, migration, adr-0139, adr-0183 |
 | 0189 | [목록의 원소는 조각으로 박는다 — 문서가 등급을 매긴 판단은 그것을 지키는 것이 있어야 주장이 된다](0189-a-list-element-is-pinned-by-a-literal-snippet.md) | Accepted | 2026-09-06 | guards, mutation-testing, census, positive-control, adr-0139, adr-0183 |
 | 0190 | [집행 등급은 채널 존재와 효과 둘로 갈린다 — 가드가 있다는 것이 막는다는 뜻은 아니다](0190-a-guard-that-exists-is-not-one-that-blocks.md) | Accepted | 2026-09-06 | guards, principles, enforcement, effect, mirror, polarity, blockage, vocabulary, serialization, modulus, adr-0186, adr-0184, adr-0185, adr-0180, adr-0183 |
@@ -586,7 +586,7 @@ flake 처방은 0129 → 0155, e2e 하네스는 0090 → 0127 → 0170 → 0297 
 
 ## 문서 · ADR 규약
 
-재검토 조건은 0220 → 0244(표기 규격 — 운영 규칙은 template), 앵커 판정은 0201 → 0247(0201 대체)이다. 중복 기록은 0570(처리) · 0571(작성 전 탐색) · 0572(착지 대조)가 3 층을 이룬다.
+재검토 조건은 0220 → 0244(표기 규격 — 운영 규칙은 template), 앵커 판정은 0201 → 0247(0201 대체)이다. 중복 기록은 0506(처리) · 0507(작성 전 탐색) · 0508(착지 대조)가 3 층을 이룬다.
 운영 문서: [documentation-model](../documentation-model.md) · [adr/template](template.md) · [dev-guide/adr-landing](../dev-guide/adr-landing.md)
 
 | # | Title | Status | Date | Tags |
@@ -603,6 +603,6 @@ flake 처방은 0129 → 0155, e2e 하네스는 0090 → 0127 → 0170 → 0297 
 | 0244 | [재검토 조건의 갈래는 소제목 둘로 표시한다 — 표지가 문면에 없으면 좌변이 없다](0244-the-trigger-split-is-marked-by-two-subheadings.md) | Accepted | 2026-09-08 | adr-conventions, documentation, reconsideration-triggers, observability, guards, left-side, adr-0220, adr-0139 |
 | 0247 | [`site/content/` 의 앵커는 산출물을 읽는 판사에게 넘긴다 — ADR-0201 대체](0247-site-anchors-are-judged-by-the-artifact-not-a-copy-of-the-rule.md) | Accepted | 2026-09-08 | documentation, anchors, slug, guards, site, astro, two-judges, adr-0201, adr-0139 |
 | 0296 | [도달 불가가 된 커밋 좌표는 지우지 않고 그 자리에 적는다](0296-an-unreachable-commit-coordinate-is-annotated-not-deleted.md) | Accepted | 2026-09-20 | documentation, guards, citations, git-history, floored-walk, adr-0105, adr-0139 |
-| 0570 | [같은 결정이 서로 모르는 두 ADR 에 적혔으면 겹침의 폭으로 먼저 가른다 — 조항이면 새 ADR 로 모으고, 결정 전체면 한쪽을 Supersede 한다](0570-a-decision-recorded-twice-is-split-by-the-width-of-the-overlap.md) | Accepted | 2026-09-23 | adr-conventions, adr-duplication, documentation, supersede, adr-0239, adr-0030 |
-| 0571 | [새 ADR 은 결정 대상의 심볼로 기존 ADR 을 찾은 뒤에, 대안 사이의 선택일 때만 쓴다](0571-an-adr-is-written-after-a-symbol-search-and-only-for-a-choice.md) | Accepted | 2026-09-23 | adr-conventions, adr-duplication, documentation, search, adr-0570, adr-0243, adr-0244 |
-| 0572 | [착지는 커밋 전에 들어오는 ADR 을 나란히 놓는다 — 도구는 보고만 하고 판정은 사람이 한다](0572-landing-lines-up-incoming-adrs-before-the-commit.md) | Accepted | 2026-09-23 | adr-conventions, adr-duplication, landing, parallel-lanes, adr-0570, adr-0571, adr-0243, adr-0239 |
+| 0506 | [같은 결정이 서로 모르는 두 ADR 에 적혔으면 겹침의 폭으로 먼저 가른다 — 조항이면 새 ADR 로 모으고, 결정 전체면 한쪽을 Supersede 한다](0506-a-decision-recorded-twice-is-split-by-the-width-of-the-overlap.md) | Accepted | 2026-09-23 | adr-conventions, adr-duplication, documentation, supersede, adr-0239, adr-0030 |
+| 0507 | [새 ADR 은 결정 대상의 심볼로 기존 ADR 을 찾은 뒤에, 대안 사이의 선택일 때만 쓴다](0507-an-adr-is-written-after-a-symbol-search-and-only-for-a-choice.md) | Accepted | 2026-09-23 | adr-conventions, adr-duplication, documentation, search, adr-0506, adr-0243, adr-0244 |
+| 0508 | [착지는 커밋 전에 들어오는 ADR 을 나란히 놓는다 — 도구는 보고만 하고 판정은 사람이 한다](0508-landing-lines-up-incoming-adrs-before-the-commit.md) | Accepted | 2026-09-23 | adr-conventions, adr-duplication, landing, parallel-lanes, adr-0506, adr-0507, adr-0243, adr-0239 |

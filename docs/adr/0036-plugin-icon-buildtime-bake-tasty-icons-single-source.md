@@ -2,7 +2,7 @@
 
 - **Status**: Accepted
 - **Date**: 2026-07-05
-- **Tags**: plugin, icons, tasty-icons, single-source, build-time-bake, svg, vector, egui-mesh, design-parity, i18n, adr-0574, adr-0028, adr-0030
+- **Tags**: plugin, icons, tasty-icons, single-source, build-time-bake, svg, vector, egui-mesh, design-parity, i18n, adr-0510, adr-0028, adr-0030
 
 ## Context
 
@@ -62,7 +62,7 @@
 
 - [ADR-0028](0028-plugin-egui-mesh-render-channel.md) — plugin egui-mesh 렌더 채널(out-of-process tessellate → host 합성).
 - [ADR-0030](0030-image-egui-mesh-bitmap-texture.md) — image surface mesh-only(비트맵=egui 텍스처).
-- [ADR-0574](0574-design-work-flows-from-claude-design-through-gallery-app-and-site.md) — 갤러리 완전성(specimen cut 금지) — 아이콘 카탈로그·viewer specimen 미러 근거.
+- [ADR-0510](0510-design-work-flows-from-claude-design-through-gallery-app-and-site.md) — 갤러리 완전성(specimen cut 금지) — 아이콘 카탈로그·viewer specimen 미러 근거.
 - `crates/tasty-icons/` — canonical `Icon` const + `stroke_icon!`/`fill_icon!` 매크로.
 - `crates/tasty-plugin-sdk/src/baked_icon.rs` — 점배열 → egui stroke 벡터 렌더 helper.
 - `crates/tasty-plugin-{image,markdown}/build.rs` — usvg 평탄화 베이크.

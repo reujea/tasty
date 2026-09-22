@@ -2,7 +2,7 @@
 
 여러 lane 의 산출물을 `main` 에 착지시킬 때(병합 · cherry-pick 통합 · 롤업 커밋) **이번 착지로
 들어오는 ADR 끼리, 그리고 같은 주제의 기존 ADR 과 같은 조항을 결정하지 않는지** 대조하는 절차다.
-근거·대안·재검토 조건은 [ADR-0572](../adr/0572-landing-lines-up-incoming-adrs-before-the-commit.md).
+근거·대안·재검토 조건은 [ADR-0508](../adr/0508-landing-lines-up-incoming-adrs-before-the-commit.md).
 
 ## 왜 착지 때인가
 
@@ -55,5 +55,5 @@
 
 2026-09-05 롤업 `f438af4ab` 에 돌리면(`f438af4ab^..f438af4ab`) 대조 대상 78 건 · `--candidates-only`
 출력 76 줄이고, 후보 `ALLOWED ← 0128 0145 0169` 와 `PhysicalPx ← 0126 0145 0161 0169` 가 나온다 —
-길이 타입 생성자 봉인 조항의 중복([ADR-0570](../adr/0570-a-decision-recorded-twice-is-split-by-the-width-of-the-overlap.md) 의 사례)이
+길이 타입 생성자 봉인 조항의 중복([ADR-0506](../adr/0506-a-decision-recorded-twice-is-split-by-the-width-of-the-overlap.md) 의 사례)이
 후보로 드러난다(실측 2026-09-23).

@@ -59,6 +59,6 @@
 - [`features/settings/index.md`](../features/settings/index.md) — General › Language
 - [ADR-0124](0124-blank-value-rule-is-load-path-independent.md) — 위 "팩의 빈 값" 규칙은 이후 로드 경로와 무관해졌다(내장 오버라이드도 같은 규칙, 폴백 대상만 다름)
 - [ADR-0103](0103-plugin-locale-via-host-process-env.md) — `TASTY_LOCALE` 전달 경로
-- [ADR-0574](0574-design-work-flows-from-claude-design-through-gallery-app-and-site.md) — 콤보 위젯의 갤러리 specimen
+- [ADR-0510](0510-design-work-flows-from-claude-design-through-gallery-app-and-site.md) — 콤보 위젯의 갤러리 specimen
 - `crates/tasty-i18n/src/lib.rs` — `load_pack` · `scan_languages` · `LoadReport`
 - `crates/tasty-ui-widgets/src/language_select.rs`

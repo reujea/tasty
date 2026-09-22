@@ -1,8 +1,8 @@
-# ADR-0571: 새 ADR 은 결정 대상의 심볼로 기존 ADR 을 찾은 뒤에, 대안 사이의 선택일 때만 쓴다
+# ADR-0507: 새 ADR 은 결정 대상의 심볼로 기존 ADR 을 찾은 뒤에, 대안 사이의 선택일 때만 쓴다
 
 - **Status**: Accepted
 - **Date**: 2026-09-23
-- **Tags**: adr-conventions, adr-duplication, documentation, search, adr-0570, adr-0243, adr-0244
+- **Tags**: adr-conventions, adr-duplication, documentation, search, adr-0506, adr-0243, adr-0244
 
 ## Context
 
@@ -10,7 +10,7 @@
 [ADR-0169](0169-the-tuple-constructor-of-length-types-stays-open.md) 가
 [ADR-0128](0128-dpi-conversion-guarded-by-source-scan-not-sealed-types.md) 과 같은 조항("길이 타입
 튜플 생성자를 봉인하지 않는다")을 인용 없이 다시 결정했다. 처리 절차는
-[ADR-0570](0570-a-decision-recorded-twice-is-split-by-the-width-of-the-overlap.md) 이 정했고, 이
+[ADR-0506](0506-a-decision-recorded-twice-is-split-by-the-width-of-the-overlap.md) 이 정했고, 이
 ADR 은 **작성 시점에 막을 수 있었는가**를 묻는다.
 
 막을 수 있었다 — 재현했다(2026-09-23). 각 ADR 이 lane 에서 처음 쓰인 커밋의 **부모 트리**에서
@@ -92,7 +92,7 @@ ADR 수가 늘수록 탐색 비용이 오르고 다음 중복의 확률이 오�
 **원리적으로 안 붙는 것** — 사람이 관측해야 한다. 재는 법을 함께 적는다.
 
 - 흔적 줄을 가진 새 ADR 이 그런데도 기존 ADR 과 같은 조항을 다시 결정한 사례가 나오면 — 탐색
-  절차가 심볼로 안 잡히는 형태가 있다는 뜻이다. 재는 법: ADR-0570 절차가 쓰인 사례의 원본들이
+  절차가 심볼로 안 잡히는 형태가 있다는 뜻이다. 재는 법: ADR-0506 절차가 쓰인 사례의 원본들이
   흔적 줄을 가졌는지 본다.
 - 자격 기준이 보류·거부 결정을 일괄로 "쓸데없다" 로 판정하는 쪽으로 읽히면. 재는 법: Deferred
   ADR 에 세 물음을 적용해 본다.
@@ -100,6 +100,6 @@ ADR 수가 늘수록 탐색 비용이 오르고 다음 중복의 확률이 오�
 ## References
 
 - 운영 규칙: [`template.md`](template.md) "새 ADR 을 쓰기 전에"
-- 중복 처리 절차: [ADR-0570](0570-a-decision-recorded-twice-is-split-by-the-width-of-the-overlap.md)
+- 중복 처리 절차: [ADR-0506](0506-a-decision-recorded-twice-is-split-by-the-width-of-the-overlap.md)
 - ADR 없이 결정을 남기는 선례: `crates/tasty-doc-guards/tests/adr_index_parity.rs` 모듈 주석
-- 선행 결정: [ADR-0570](0570-a-decision-recorded-twice-is-split-by-the-width-of-the-overlap.md) (다른 조항 — 발견 뒤 처리)
+- 선행 결정: [ADR-0506](0506-a-decision-recorded-twice-is-split-by-the-width-of-the-overlap.md) (다른 조항 — 발견 뒤 처리)

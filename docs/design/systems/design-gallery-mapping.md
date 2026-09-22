@@ -134,14 +134,14 @@ specimen 은 목록 높이를 먼저 잡아 둔다 — 공용 view 의 `ScrollAr
 이어지고, `poll_create`가 받은 새 workspace ID는 `push_attach`를 통해 기존 attach 큐에
 합류한다. 상세 동작은 [remote-attach](../../features/remote-attach/index.md)의 GUI picker 절을 따른다.
 살아 있는 터널 포트로 생성 요청을 보내며 왕복 상한은 `src/adapters/ui/popup/remote_attach.rs`의
-상수를 따른다. 갤러리 specimen이 gallery-first로 먼저 들어간 순서다(ADR-0574,
+상수를 따른다. 갤러리 specimen이 gallery-first로 먼저 들어간 순서다(ADR-0510,
 [gallery-first](../../dev-guide/gallery-first.md)).
 
 ## switch_overlay (Overlays)
 
 디자인 `gallery/overlays.jsx` "Switch-number overlay" 섹션 ↔ 본체 draw
 (`src/adapters/ui/tab_bar.rs` 탭 스트립 + `sidebar/view.rs` full/collapsed). 갤러리 specimen
-이 본체보다 먼저 들어갔고(gallery-first, ADR-0574), 본체 배선은 아래 표대로 탭·사이드바 모두 구현돼 있다.
+이 본체보다 먼저 들어갔고(gallery-first, ADR-0510), 본체 배선은 아래 표대로 탭·사이드바 모두 구현돼 있다.
 
 | 디자인 jsx 컴포넌트 | 갤러리 항목 (`catalog/components/switch_overlay.rs`) | 본체 함수 |
 |---|---|---|
@@ -579,7 +579,7 @@ compact/image/html-raw/html-pretty/other/empty/read-failed/already-open) 를
 popup`). git-viewer 팝업은 UiNode tree 가 아니라 **egui-mesh** 로 그린다(ADR-0028 / B3) — plugin 이
 자기 egui Context 에서 새 디자인을 직접 페인트하고 host 는 셸(scrim/border/Esc/outside-click)만
 소유한다. 갤러리는 plugin crate 비의존이라 같은 구성을 Theme 토큰 mock 으로 전사한다. **specimen
-포함 확정**(ADR-0574 완전성). 토큰·구조 정합 목표, 픽셀 동일성 비목표.
+포함 확정**(ADR-0510 완전성). 토큰·구조 정합 목표, 픽셀 동일성 비목표.
 
 | 디자인(jsx) | plugin render.rs | 갤러리 함수 |
 |---|---|---|

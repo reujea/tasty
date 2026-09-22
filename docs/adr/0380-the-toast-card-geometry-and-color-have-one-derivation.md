@@ -2,7 +2,7 @@
 
 - **Status**: Accepted
 - **Date**: 2026-09-21
-- **Tags**: toast, gallery, shared-widgets, color, alpha, identity, measurement, adr-0574, adr-0122
+- **Tags**: toast, gallery, shared-widgets, color, alpha, identity, measurement, adr-0510, adr-0122
 
 ## Context
 
@@ -92,4 +92,4 @@ Consequences). 즉 갤러리는 페이드 중인 카드를 **본체와 다른 �
 - 코드 근거(결정이 실현된 현재 위치): `crates/tasty-ui-widgets/src/toast.rs` 의 `card_colors` ·
   `layout_card` · `draw_single_card` · `draw_toast_scopes`, `crates/tasty-gallery/src/catalog/widgets/toast.rs`
   의 `draw_toast_card`
-- [ADR-0574](0574-design-work-flows-from-claude-design-through-gallery-app-and-site.md) — 갤러리 완전성
+- [ADR-0510](0510-design-work-flows-from-claude-design-through-gallery-app-and-site.md) — 갤러리 완전성

@@ -1,8 +1,8 @@
-# ADR-0573: 길이 타입 튜플 생성자는 봉인하지 않는다 — ADR-0128 · ADR-0145 · ADR-0169 의 봉인 조항 통합
+# ADR-0509: 길이 타입 튜플 생성자는 봉인하지 않는다 — ADR-0128 · ADR-0145 · ADR-0169 의 봉인 조항 통합
 
 - **Status**: Accepted
 - **Date**: 2026-09-23
-- **Tags**: typed-length, dpi, guards, sealing, adr-conventions, adr-0128, adr-0145, adr-0169, adr-0570, adr-0148
+- **Tags**: typed-length, dpi, guards, sealing, adr-conventions, adr-0128, adr-0145, adr-0169, adr-0506, adr-0148
 
 ## Context
 
@@ -20,7 +20,7 @@
 0145 를 "정적 축의 현재 결정" 으로 가리켰다.
 
 세 문서의 겹침은 **이 조항 하나**이고 각자 독립 조항을 가져
-[ADR-0570](0570-a-decision-recorded-twice-is-split-by-the-width-of-the-overlap.md) 의 **조항 겹침**
+[ADR-0506](0506-a-decision-recorded-twice-is-split-by-the-width-of-the-overlap.md) 의 **조항 겹침**
 이다. 그래서 원본 어느 것도 Supersede 하지 않고 조항만 여기로 모은다.
 
 ### 다시 잰 수 (2026-09-23, `3d0ec08ef`)
@@ -92,7 +92,7 @@
   불가능(0145).
 - **`#[deprecated]` 로 유도** — 튜플 생성에 붙일 자리가 없다(0145).
 - **원본 중 하나를 남는 쪽으로 골라 흡수** — 기준(가장 이른 것 · 운영 문서가 인용하는 것 · 근거가
-  두꺼운 것)이 셋 다 다른 답을 낸다. ADR-0570 이 그 선택을 절차에서 뺐다.
+  두꺼운 것)이 셋 다 다른 답을 낸다. ADR-0506 이 그 선택을 절차에서 뺐다.
 
 ## Reconsideration Triggers
 
@@ -128,7 +128,7 @@
 ## References
 
 - 통합 대상: [ADR-0128](0128-dpi-conversion-guarded-by-source-scan-not-sealed-types.md) · [ADR-0145](0145-typed-length-constructors-stay-open-for-now.md) · [ADR-0169](0169-the-tuple-constructor-of-length-types-stays-open.md) (튜플 생성자 봉인 조항)
-- 절차: [ADR-0570](0570-a-decision-recorded-twice-is-split-by-the-width-of-the-overlap.md)
+- 절차: [ADR-0506](0506-a-decision-recorded-twice-is-split-by-the-width-of-the-overlap.md)
 - 정책 본문: [`docs/concepts/typed-length.md`](../concepts/typed-length.md)
 - 집행 지점: `src/dpi_conversion_guard.rs`(`ALLOWED` · `PENDING_PORT`)
 - 인접 결정(중복 아님): [ADR-0148](0148-physical-px-constants-are-split-by-what-they-are-for.md) — 생성자가 열려 있다는 전제 위에 선다

@@ -1632,7 +1632,7 @@ mod tests {
 
     #[test]
     fn claude_design_is_not_builtin_plugin() {
-        // docs/adr/0574-design-work-flows-from-claude-design-through-gallery-app-and-site.md: 별도 프로젝트로 분리하며
+        // docs/adr/0510-design-work-flows-from-claude-design-through-gallery-app-and-site.md: 별도 프로젝트로 분리하며
         // tasty 본체 번들에서 완전히 제거됨.
         assert!(!is_builtin_plugin("com.tasty.claude-design"));
     }

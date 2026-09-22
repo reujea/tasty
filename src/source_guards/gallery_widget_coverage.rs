@@ -236,7 +236,7 @@ fn every_exported_widget_module_is_named_by_the_gallery() {
     assert!(
         missing.is_empty(),
         "갤러리가 한 번도 부르지 않는 공용 위젯이 {} 개다:\n{}\n\n\
-         gallery-first(ADR-0574)는 본체보다 갤러리가 먼저다 — 갤러리 카탈로그에서 그리거나, \
+         gallery-first(ADR-0510)는 본체보다 갤러리가 먼저다 — 갤러리 카탈로그에서 그리거나, \
          위젯이 아니라는 **사유와 함께** `NOT_A_WIDGET` 명부에 그 자리를 올려라.\n\
          ★ `pub use` 에서 빼고 `pub mod` 로 옮기는 것은 **이행이 아니다** — 밖에서는 그대로 \
          쓸 수 있는데 이 가드만 못 보게 된다. 그 길은 아래 `pub mod` 명부가 막는다.",
