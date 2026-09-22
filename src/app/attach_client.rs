@@ -5425,6 +5425,9 @@ mod tests {
     /// 만들지 않고 wire 바이트에서 시작해 파싱·적용 두 단계를 모두 지난다.
     #[test]
     fn a_structural_failure_reason_reaches_the_toast_verbatim() {
+        // 번역 테이블은 프로세스 전역 OnceLock 이다. 먼저 채워 두지 않으면 기준 문구(키)를
+        // 읽은 뒤 동시에 도는 다른 시험이 채워 toast 쪽만 번역문이 된다(실측).
+        crate::i18n::init("en");
         let toast_for = |reason: Option<&str>| {
             let payload = serde_json::to_vec(&StreamControl::StructuralResult {
                 op_id: 0,
