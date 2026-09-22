@@ -1005,9 +1005,20 @@ prefix = "{prefix}"
     /// 만료 한 건을 심고 sweep 을 돌린다. `plugin_id` 와 `times` 로 같은 plugin 에
     /// 연속 만료를 만든다.
     fn expire_namespace_calls(mgr: &mut PluginManager, plugin_id: &str, times: u32) {
+        expire_namespace_calls_from(mgr, plugin_id, 100, times);
+    }
+
+    /// [`expire_namespace_calls`] 에 첫 request id 를 고르게 한 것 — 한 시험에서 만료를
+    /// 두 번 쌓을 때 두 번째 묶음이 첫 묶음의 id 를 다시 쓰지 않게 한다.
+    fn expire_namespace_calls_from(
+        mgr: &mut PluginManager,
+        plugin_id: &str,
+        first_id: u64,
+        times: u32,
+    ) {
         for i in 0..times {
             let (tx, _rx) = mpsc::sync_channel(1);
-            let id = 100 + i as u64;
+            let id = first_id + i as u64;
             mgr.pending_requests.insert(
                 id,
                 PendingRequest::now(
@@ -1214,6 +1225,69 @@ prefix = "{prefix}"
         mgr.restart_unresponsive_plugins();
         assert!(
             mgr.processes.contains_key("com.example.slow"),
+            "답한 plugin 이 재시작됐다"
+        );
+    }
+
+    /// 거둬진 id 하나는 계수를 **한 번만** 지운다 — 같은 늦은 응답이 다시 와도 두 번째는
+    /// 아무것도 안 지우고, 한 id 를 소비해도 **다른** 거둬진 id 는 남는다.
+    ///
+    /// 앞쪽이 없으면 plugin 이 옛 응답 한 줄을 계속 재전송해 계수를 영구히 0 으로 눌러
+    /// 둘 수 있다 — namespace 호출을 전부 삼키면서도 재시작 판정을 빠져나간다. 뒤쪽이
+    /// 없으면(한 id 에 목록을 통째로 비우면) 서로 다른 늦은 응답 둘 중 뒤의 것이 계수를
+    /// 못 지운다. 위 두 시험은 같은 id 를 두 번 보내지 않아 둘 다 못 잰다.
+    #[test]
+    fn a_reaped_namespace_id_clears_the_streak_exactly_once() {
+        let mut mgr = PluginManager::new(empty_waker());
+        mgr.processes
+            .insert("com.example.echo".into(), stub_process());
+        let late = |mgr: &mut PluginManager, id: u64| {
+            mgr.handle_plugin_response(
+                "com.example.echo",
+                crate::protocol::PluginResponse {
+                    id,
+                    result: Some(serde_json::json!({})),
+                    error: None,
+                    error_code: None,
+                },
+            );
+        };
+
+        // 목록 길이 상한(`NAMESPACE_EXPIRY_RESTART_LIMIT`)이 id 를 밀어내면 소비가 아니라
+        // 자름이 id 를 지운 것이 되어 이 시험이 소비를 못 잰다 — 그래서 한 번에 상한보다
+        // 적게 쌓는다.
+        expire_namespace_calls_from(&mut mgr, "com.example.echo", 100, 1);
+        late(&mut mgr, 100);
+        assert!(
+            !mgr.namespace_expiries.contains_key("com.example.echo"),
+            "처음 온 늦은 응답이 계수를 안 지웠다 — 소비 누락"
+        );
+
+        expire_namespace_calls_from(
+            &mut mgr,
+            "com.example.echo",
+            200,
+            NAMESPACE_EXPIRY_RESTART_LIMIT - 1,
+        );
+        late(&mut mgr, 100);
+        assert_eq!(
+            mgr.namespace_expiries.get("com.example.echo"),
+            Some(&(NAMESPACE_EXPIRY_RESTART_LIMIT - 1)),
+            "이미 소비된 id 의 재전송이 계수를 또 지웠다 — 중복 소비"
+        );
+
+        // 200 을 소비해도 같은 묶음의 201 은 남아야 한다.
+        late(&mut mgr, 200);
+        expire_namespace_calls_from(&mut mgr, "com.example.echo", 300, 1);
+        late(&mut mgr, 201);
+        assert!(
+            !mgr.namespace_expiries.contains_key("com.example.echo"),
+            "한 id 를 소비하면서 다른 거둬진 id 까지 지웠다"
+        );
+
+        mgr.restart_unresponsive_plugins();
+        assert!(
+            mgr.processes.contains_key("com.example.echo"),
             "답한 plugin 이 재시작됐다"
         );
     }
