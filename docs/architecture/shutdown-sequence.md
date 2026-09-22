@@ -278,24 +278,37 @@ IPC 로 종료. 단위 ms.
 | run 2 | 6 (전부 killed) | 0.6 | 0.06 | 12094 | 12095 | 0.19 | 122 | 335 | **12444** |
 | run 3 | 8 (전부 killed) | 0.6 | 0.04 | 16052 | 16053 | 0.14 | 100 | 149 | **16208** |
 
+SDK 가 shutdown 요청에 스스로 빠지게 된 뒤의 같은 경로 실측 (2026-09-23, Linux Xvfb /
+debug GUI 빌드 / 격리 `TASTY_HOME` / 번들 plugin 9 개 전부 running 확인 후 `system.shutdown`
+IPC, 정지시킨 plugin 없음, 부하 평균 36~56):
+
+| | plugins | S1 | S3 | S4 | shutdown_total | S5 | **with_drop** |
+|---|---|---|---|---|---|---|---|
+| run 1 | 9 (전부 graceful) | 0.89 | 0.06 | 3.44 | 4.88 | 60 | **66** |
+| run 2 | 9 (전부 graceful) | 0.83 | 0.05 | 3.78 | 5.00 | 64 | **69** |
+| run 3 | 9 (전부 graceful) | 0.85 | 0.05 | 3.70 | 4.92 | 64 | **70** |
+
+S4a 는 세 회 모두 plugin 마다 1.6~3.8 ms 였다.
+
 이 값들이 말하는 것:
 
-- **S4 는 plugin 수와 무관하게 ≈2s 로 평탄하다.** 5/6/7개 모두 2.0~2.1s 이고,
-  일부 plugin 을 `SIGSTOP` 으로 정지시켜 응답을 막아도 값이 움직이지 않는다.
-  순차 대기 시절의 같은 plugin 수(6개=12.1s)와 비교하면 6배다.
-- **S4 는 여전히 종료 시간의 대부분이다.** 나머지 단계(S1/S3)는 1ms 미만이고,
-  체감 종료(with_drop)의 하한은 S4 2s + Drop tail 0.1~0.3s 다.
-- **위 표의 "전부 killed" 와 S4 ≈2s 는 SDK 결함의 값이다.** plugin 로그에는 `plugin
+- **위쪽 표들의 "전부 killed" 와 S4 ≈2s 는 SDK 결함의 값이다.** plugin 로그에는 `plugin
   received shutdown` 이 찍혀 요청 자체는 도달했지만, SDK `run()` 이 worker 스레드 join 에서
   서서 프로세스가 안 끝났다 — worker 는 큐가 닫히기를 기다렸는데 그 큐의 sender 를
-  `HostHandle` 이 쥐고 있었다. SDK 가 큐에 정지 항목을 넣어 worker 를 멈추게 된 뒤의 실측
-  (2026-09-23, Linux 헤드리스 debug, 번들 9 개를 `plugin enable` 로 띄우고 하나씩 `plugin
-  disable`): **9/9 `reason="graceful"`, 개별 55~160 ms** (`plugin process retired` 줄). GUI
-  종료 경로의 S4 는 이 수정 뒤로 다시 재지 않았다(미측정) — 위 표를 그 값으로 읽지 마라.
-- **Drop tail 은 100~520ms** 로 plugin 구간에 가리지만 무시할 크기는 아니다.
-  내역은 S5b(PTY) 55~122ms, S5a(Lua join) 0.2ms 미만이고, 나머지 수십~수백 ms 는
+  `HostHandle` 이 쥐고 있었다. 그래서 그 시절 S4 는 2s deadline 에 붙어 plugin 수와 무관하게
+  2.0~2.1s 로 평탄했고, 일부 plugin 을 `SIGSTOP` 으로 정지시켜도 값이 안 움직였다.
+  순차 대기 시절의 같은 plugin 수(6개=12.1s)와 비교하면 6배였다.
+- **지금 정상 종료의 S4 는 수 ms 다.** 9 개 전부 graceful 로 빠져 S4 3.4~3.8 ms,
+  `shutdown_total` 5 ms 안쪽이다. 2s deadline 은 응답하지 않는 plugin 이 있을 때만 S4 의
+  상한으로 드러난다.
+- **체감 종료는 이제 Drop tail 이 대부분이다.** with_drop 66~70 ms 중 S5 가 60~64 ms 다.
+  헤드리스 경로의 같은 수정 실측(번들 9 개를 `plugin enable` 로 띄우고 하나씩
+  `plugin disable`)은 9/9 `reason="graceful"`, 개별 55~160 ms 였다(`plugin process retired` 줄).
+- **Drop tail 은 위쪽 표들에서 36~520ms, 지금 실측에서 60~64ms 다.** 위쪽 표들의 내역은
+  S5b(PTY) 55~122ms, S5a(Lua join) 0.2ms 미만이고, 나머지 수십~수백 ms 는
   GPU/egui/View 등 그 밖의 destructor 다. **이 구간은 종료 화면으로 덮을 수 없다** —
-  창이 이미 사라진 뒤이므로, 종료 화면을 도입해도 체감 시간의 하한으로 남는다.
+  창이 이미 사라진 뒤이므로, 종료 화면을 도입해도 체감 시간의 하한으로 남는다. plugin
+  종료가 graceful 로 빠진 지금은 S4 보다 이 구간이 길다.
 - **`~/.tasty/tasty.port` 는 Drop tail 초반(S5d, `event_loop.exit()` 후 ~14ms)에
   사라진다.** 제거는 `TcpIpcServer::drop` 에서만 일어나지만 Drop tail 의 앞쪽이라,
   Drop tail 이 길어도 stale 포트 파일이 남는 창은 짧다.

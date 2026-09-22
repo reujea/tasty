@@ -91,8 +91,14 @@ S5d 에서 서버가 drop 되며 끊긴다.
 
 - plugin 종료가 실제로 graceful 로 빠지게 되어 S4 가 수백 ms 대로 내려가면 — 종료
   화면이 보이는 구간이 사라져, 화면 자체가 순수 비용이 된다.
+  **충족(2026-09-23 실측, 재검토 미결):** SDK 가 shutdown 요청에 스스로 빠지게 된 뒤 Linux
+  Xvfb debug GUI 에서 번들 9 개 전부 running 상태로 `system.shutdown` 3 회 — 9/9 graceful,
+  S4 3.44 / 3.78 / 3.70 ms, `shutdown_total` 4.9~5.0 ms([종료 시퀀스 실측 기준치](../architecture/shutdown-sequence.md#실측-기준치)).
+  응답하지 않는 plugin 이 있을 때의 S4 상한은 여전히 2s deadline 이다.
 - Drop tail 이 S4 를 넘어 체감 종료의 주된 구간이 되면 — 덮이지 않는 쪽이 커지므로
   Alternative D 를 다시 저울질해야 한다.
+  **충족(같은 실측):** S5(Drop tail) 60~64 ms 가 S4 3.4~3.8 ms 를 넘어, 체감 종료
+  (with_drop) 66~70 ms 의 대부분이다.
 - 종료 단계에 논블로킹으로 만들 수 없는 대기(외부 동기 API 등)가 추가되면.
 
 ## References
