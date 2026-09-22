@@ -11,21 +11,18 @@
 //! `cfg` 블록이다.
 
 #![cfg(not(feature = "gui"))]
-#![allow(dead_code, unused_variables)]
 
 use crate::core::CoreState;
 use crate::core::intent::RestoredKind;
 use crate::intent::IntentOrigin;
 use crate::state::AppState;
 
-/// gui 의 `DispatchSource` 와 동등 — headless 는 사용처가 없지만 type path 보존.
-#[derive(Debug, Clone, Copy)]
-pub(crate) enum DispatchSource {
-    Main(u64),
-    Parked(usize),
-}
-
-/// gui 의 `WorkspaceCreatedCascade` 와 동등.
+/// gui 의 `WorkspaceCreatedCascade` 와 동등. 만드는 자리(`workspace.create` IPC · workspace
+/// intent)는 두 빌드가 공유하지만 필드를 읽는 cascade 는 gui 뿐이다.
+#[expect(
+    dead_code,
+    reason = "headless cascade is a no-op; the fields are read only by the gui cascade"
+)]
 pub(crate) struct WorkspaceCreatedCascade {
     pub(crate) workspace_id: u32,
     pub(crate) index: usize,
@@ -36,18 +33,18 @@ pub(crate) struct WorkspaceCreatedCascade {
 }
 
 pub(crate) fn cascade_workspace_created(
-    state: &mut AppState,
-    engine: &mut CoreState,
-    origin: &IntentOrigin,
-    window_id: u64,
-    c: WorkspaceCreatedCascade,
+    _state: &mut AppState,
+    _engine: &mut CoreState,
+    _origin: &IntentOrigin,
+    _window_id: u64,
+    _c: WorkspaceCreatedCascade,
 ) {
 }
 
 pub(crate) fn cascade_closed_item_restored(
-    state: &mut AppState,
-    engine: &mut CoreState,
-    kind: RestoredKind,
+    _state: &mut AppState,
+    _engine: &mut CoreState,
+    _kind: RestoredKind,
 ) {
 }
 
@@ -60,10 +57,10 @@ pub(crate) fn cascade_workspace_moved(state: &mut AppState, from_index: usize, t
 }
 
 pub(crate) fn cascade_workspace_meta_updated(
-    state: &mut AppState,
-    workspace_id: u32,
-    name: Option<String>,
-    subtitle: Option<String>,
-    description: Option<String>,
+    _state: &mut AppState,
+    _workspace_id: u32,
+    _name: Option<String>,
+    _subtitle: Option<String>,
+    _description: Option<String>,
 ) {
 }

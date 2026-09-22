@@ -31,7 +31,7 @@ dead_code 예외는 쓰지 않는다.
 안 맞는 모듈·crate 단위 `dead_code` 억제(조건 없는 것 · 다른 cfg 조합의 것)는 남아 있고, 그 자리는
 목록으로 적지 않는다 — 세는 법: `git grep -nE '#!\[(cfg_attr\([^]]*)?allow\([^)]*dead_code' -- '*.rs'`.
 
-지금 ③ 에 해당하는 것은 여덟이다.
+지금 ③ 에 해당하는 것은 아홉이다.
 
 | 정의 | 왜 남는가 |
 |---|---|
@@ -40,6 +40,7 @@ dead_code 예외는 쓰지 않는다.
 | CoreEvent 의 페이로드(터미널 OSC 이벤트 전부, `RestoredKind` 의 인덱스) | variant 는 headless 에서도 발화하지만 그 빌드의 drain 이 `other` 갈래로 흘린다 |
 | 호스트 이벤트 큐 항목(`PendingHostEvent` · `PendingSurfaceClosed`, `core/host_event.rs`) | 세우는 코드(`AppState` 의 enqueue 메서드)가 headless 빌드에도 컴파일되지만 비우는 자는 GUI 메인 루프뿐이다. 그 메서드들이 headless 에서 어느 갈래인지는 [AppState 필드 소유권](app-state-ownership.md) 이 적는다 |
 | 파일 열기 발화 주체(`FileDispatchOrigin`, `core/origin.rs`) | 도메인의 `DispatchFile` intent 가 headless 에도 컴파일되지만 값을 만드는 자리(explorer·링크·드롭·picker·`file_handler.dispatch` arm)가 전부 GUI 다. `file::dispatch` 모듈 자체는 headless 라이브러리에 없다(링크 해석·대상 판정을 시험이 부르므로 ②) |
+| workspace 생성 cascade 의 필드(`WorkspaceCreatedCascade`, headless 판 `app/dispatch_domain_stubs.rs`) | 만드는 자리(`workspace.create` IPC · workspace intent)는 두 빌드가 공유하지만 headless 의 cascade 는 no-op 이라 필드를 읽는 자가 gui 뿐이다. 그 파일 전체가 `not(feature = "gui")` 라 조건 없는 `expect` 로 적는다 |
 | `AppState::preset_store` | headless 도 `AppState::new` 로 Core 의 사본을 받지만 읽는 자(preset popup)가 GUI 뿐이다. 에이전트의 preset IPC 는 `Core.preset_store` 를 잠근다 |
 | `ModalKind` 의 variant | 모달을 여는 자리(`App::open_modal`)가 GUI 뿐이다. 열거와 `active_modal_kind` 는 `ui.state` 덤프가 debug 빌드의 두 조합에서 같은 키로 읽는다(release 헤드리스에는 `active_modal_kind` 필드가 없다) |
 | 사용자 발화 intent 의 variant(`Intent` 의 단축키·메뉴 variant · `UiIntent` · `OpenPopupMode` · `ConvertTarget` · 도메인의 `IntentOrigin::User` · `UserSource`) | 만드는 자리(단축키·메뉴·우클릭·popup)가 GUI 뿐이다. 열거와 그 match 는 headless 의 intent drain 도 컴파일한다. `IntentOrigin::User` 는 headless 시험이 만들므로 `not(test)` 도 조건이다 |
