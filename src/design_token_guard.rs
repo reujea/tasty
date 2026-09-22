@@ -826,9 +826,11 @@ fn length_const_prescription(
 /// "zoom 우회 금지 (필수)" 가 "런타임 소비는 반드시 `&Theme` 필드/접근자를 경유한다" 고
 /// 못박고 `generated/semantic.rs` doc 도 같은 말을 반복한다. **없던 것은 집행이다.**
 ///
-/// 생성 const 는 컴파일 타임 상수라 `with_colors_and_zoom` 의 `zoomed()` 밖이고,
-/// 그 토큰의 `Theme` 경로는 안이다. zoom 1 에서만 같고 0.85 / 1.2 에서 갈라진다 —
-/// **토큰을 썼으니 됐다고 믿게 만들기 때문에 리터럴보다 나쁘다.**
+/// 생성 const 는 컴파일 타임 상수라 `with_colors_and_zoom` 의 `zoomed()` 밖이다. 어느
+/// 필드에 배율을 걸고 어느 필드에서 뺄지 — **zoom 적용·제외 정책은 `Theme` 가 소유한다**
+/// (`border_width` · `status_bar_height` 처럼 일부러 배율을 안 타는 필드도 있다). const 를
+/// 직접 읽으면 그 정책을 건너뛴다. 배율을 타는 토큰이면 zoom 1 에서만 같고 0.85 / 1.2 에서
+/// 갈라진다 — **토큰을 썼으니 됐다고 믿게 만들기 때문에 리터럴보다 나쁘다.**
 ///
 /// 무차원 상수(`EDGE_DIM_OPACITY` 등 `f32`)는 배율 축이 아니라 대상이 아니다.
 #[test]
@@ -914,7 +916,8 @@ fn ui_does_not_consume_generated_length_consts_directly() {
     assert!(
         violations.is_empty(),
         "UI 계층이 생성 DTCG 길이 상수를 직접 소비한다 — const 는 `zoomed()` 밖이라 \
-         `ui_scale` 을 안 타고 같은 토큰의 `&Theme` 경로는 탄다(zoom 1 에서만 같다):\n{}\n\
+         zoom 적용·제외 정책(`Theme` 가 소유한다)을 건너뛴다. 배율을 타는 토큰이면 zoom 1 \
+         에서만 같다:\n{}\n\
          (같은 스캔에서 무차원 상수 소비 {} 건은 정상으로 통과했다 — 판정기가 두 갈래를 \
          실제로 가르고 있다는 뜻이다)",
         violations.join("\n"),
