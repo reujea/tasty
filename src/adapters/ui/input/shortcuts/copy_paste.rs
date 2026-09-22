@@ -172,6 +172,12 @@ impl MainView {
 
     /// 붙여넣기 실행 — 키 경로와 명령 팔레트가 공유한다.
     pub(crate) fn run_paste(&mut self) -> bool {
+        // 붙여넣기는 사용자 입력이다 — `surface.is_typing` 이 사람 있음을 말하게 기록한다.
+        // 키 경로는 수식키 키다운이 이미 기록하지만 명령 팔레트 경로는 키가 surface 에
+        // 닿지 않아, 여기가 두 경로가 만나는 유일한 자리다(docs/adr/0560-paste-is-user-input-and-is-recorded-where-both-paste-paths-meet.md).
+        if let Some(sid) = self.state.focused_surface_id(&self.core_state) {
+            self.core_state.record_typing(sid);
+        }
         let st = self.state.focused_surface_type(&self.core_state);
         // egui_paste capability 를 가진 kind(예: image)의 paste 는 plugin 이 자기
         // egui-mesh 입력 / `image.paste` IPC 로 처리한다 — host 는 terminal paste 로

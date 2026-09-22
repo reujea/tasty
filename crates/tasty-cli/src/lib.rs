@@ -216,7 +216,7 @@ pub enum Commands {
         #[command(subcommand)]
         command: PtyCommands,
     },
-    /// Check if a surface is currently typing (received key input within 5 seconds)
+    /// Check if a surface is currently typing (received key input or a paste within 5 seconds)
     IsTyping {
         /// Surface ID (default: focused)
         #[arg(long)]

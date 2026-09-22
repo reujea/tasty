@@ -1246,6 +1246,12 @@ impl CoreState {
     }
 
     /// Record that the user typed on the given surface.
+    ///
+    /// "사용자 입력" 의 좌변은 사용자가 입력창에 내용을 넣는 경로 셋이다 — 키보드
+    /// (`src/view/main/keyboard.rs`) · IME(`src/view/main/ime.rs`) · 붙여넣기(`run_paste`).
+    /// 마우스 보고·휠·클릭 커서 이동은 내용을 넣지 않고, 파일 드롭은 탭을 열 뿐 입력창에
+    /// 쓰지 않아 뺀다. 에이전트의 `send`/`tell` 은 부르지 않는다. 근거는
+    /// docs/adr/0560-paste-is-user-input-and-is-recorded-where-both-paste-paths-meet.md.
     #[cfg(feature = "gui")]
     pub fn record_typing(&mut self, surface_id: u32) {
         self.last_key_input

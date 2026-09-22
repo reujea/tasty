@@ -1,4 +1,4 @@
-<!-- source-hash: e3067bd781d1 -->
+<!-- source-hash: ca1dfe0b391f -->
 # Driving terminals with the tasty CLI
 
 Use the `tasty` CLI to create terminals, send commands, and read results. Control a running Tasty from a script, or let an AI agent set up the terminals it needs.
@@ -66,7 +66,7 @@ When you are not sure whether the command has finished, read the screen and chec
 
 ```sh
 tasty read screen --surface 42 --lines 5     # bottom 5 lines of the screen (reaches into scrollback if needed)
-tasty is-typing --surface 42                  # whether a person pressed a key in the last 5 seconds
+tasty is-typing --surface 42                  # whether a person pressed a key or pasted in the last 5 seconds
 ```
 
 ### When several agents read the same terminal: read from a position you hold

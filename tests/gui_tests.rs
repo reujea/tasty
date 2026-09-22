@@ -1602,3 +1602,74 @@ fn drag_motion_carries_the_pressed_button() {
         json!({ "surface_id": sid, "text": "\u{3}" }),
     );
 }
+
+/// 명령 팔레트 붙여넣기도 사용자 입력으로 기록된다 — `surface.is_typing` 이 사람 있음을 말한다.
+///
+/// 이 경로는 키가 surface 에 닿지 않는다(팔레트는 IPC 로 열고, 쿼리와 Enter 는 egui 층에
+/// 주입한다). 그래서 기록은 `run_paste` 자신이 하는 것밖에 없다 — 키보드 Ctrl+V 는 수식키
+/// 키다운이 이미 기록해서 이 구멍을 못 잰다.
+///
+/// ★★ 비영 대조: 붙여넣기 전에 `idle_seconds` 가 3 초를 넘기를 기다린다. 기록이 안 되면
+/// 그 값이 그대로 커지므로 아래 `< 3.0` 단정이 빨개진다. 붙여넣기가 실제로 입력창에
+/// 들어갔다는 것은 화면의 표지로 따로 단정한다.
+#[test]
+#[ignore]
+fn test_palette_paste_records_user_typing() {
+    let inst = shared();
+    let sid = inst
+        .debug_focused_surface()
+        .expect("a focused surface to paste into");
+    let is_typing = || inst.call("surface.is_typing", json!({ "surface_id": sid }));
+
+    // 앞 시험의 키 입력이 남긴 기록이 식기를 기다린다(기록이 없으면 -1 이다).
+    let deadline = Instant::now() + Duration::from_secs(10);
+    loop {
+        let idle = is_typing()["idle_seconds"].as_f64().unwrap();
+        if idle < 0.0 || idle > 3.0 {
+            break;
+        }
+        assert!(Instant::now() < deadline, "idle never exceeded 3s: {idle}");
+        std::thread::sleep(Duration::from_millis(200));
+    }
+
+    let mark = "PALETTE_PASTE_MARK";
+    inst.call("clipboard.set_text", json!({ "text": mark }));
+    inst.call(
+        "debug.host_popup.open",
+        json!({ "popup_id": "command_palette" }),
+    );
+    std::thread::sleep(Duration::from_millis(300));
+    inst.call("debug.inject_egui_text", json!({ "text": "paste" }));
+    std::thread::sleep(Duration::from_millis(300));
+    inst.call("debug.inject_egui_key", json!({ "key": "Enter" }));
+
+    let deadline = Instant::now() + Duration::from_secs(3);
+    let screen = loop {
+        let text = inst.call("surface.screen_text", json!({ "surface_id": sid }))["text"]
+            .as_str()
+            .unwrap_or_default()
+            .to_string();
+        if text.contains(mark) || Instant::now() >= deadline {
+            break text;
+        }
+        std::thread::sleep(Duration::from_millis(100));
+    };
+    assert!(
+        screen.contains(mark),
+        "palette paste did not reach the input: {screen:?}"
+    );
+
+    let after = is_typing();
+    let idle = after["idle_seconds"].as_f64().unwrap();
+    assert!(
+        (0.0..3.0).contains(&idle),
+        "palette paste must record user input, got idle_seconds={idle}"
+    );
+    assert_eq!(after["typing"], json!(true), "got {after}");
+
+    // 정리: 붙여넣은 표지를 입력줄에서 지운다(Ctrl+U).
+    inst.call(
+        "surface.send",
+        json!({ "surface_id": sid, "text": "\u{15}" }),
+    );
+}

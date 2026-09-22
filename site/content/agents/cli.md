@@ -65,7 +65,7 @@ tasty read since-mark --surface 42 --strip-ansi
 
 ```sh
 tasty read screen --surface 42 --lines 5     # 화면 하단 5줄 (부족하면 스크롤백까지)
-tasty is-typing --surface 42                  # 최근 5초 내 사람이 키를 눌렀는지
+tasty is-typing --surface 42                  # 최근 5초 내 사람이 키를 누르거나 붙여넣었는지
 ```
 
 ### 여러 에이전트가 같은 터미널을 읽을 때: 위치를 들고 읽기

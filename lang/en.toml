@@ -2875,7 +2875,7 @@ help = "Target pty id to promote"
 help = "Pane to attach the promoted terminal to (new background tab)"
 
 [cli.help._root.is-typing]
-about = "Check if a surface is currently typing (received key input within 5 seconds)"
+about = "Check if a surface is currently typing (received key input or a paste within 5 seconds)"
 
 [cli.help._root.is-typing.arg.surface]
 help = "Surface ID (default: focused)"

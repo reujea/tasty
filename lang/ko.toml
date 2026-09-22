@@ -2843,7 +2843,7 @@ help = "승격할 PTY ID"
 help = "승격한 터미널을 붙일 페인(새 백그라운드 탭)"
 
 [cli.help._root.is-typing]
-about = "서피스에 지금 타이핑 중인지 확인 (최근 5초 내 키 입력 여부)"
+about = "서피스에 지금 타이핑 중인지 확인 (최근 5초 내 키 입력·붙여넣기 여부)"
 
 [cli.help._root.is-typing.arg.surface]
 help = "서피스 ID (기본: 포커스된 것)"
