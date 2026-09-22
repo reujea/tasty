@@ -148,16 +148,21 @@ Decision 4 는 창 상태 자체가 대상인 핸들러를 창 라우터로 옮�
   `pump_ipc` 가 포트로 내려갈 수 있다. 재는 법: `src/intent/headless.rs` 의 `route_non_domain` 이
   부르는 도메인 핸들러의 인자 타입.
 - `AppState` 를 받는 자리가 다시 는다. 재는 법: 주석·문자열을 덮은 사본(`mask-source`)의 위 범위
-  (`src/adapters/ipc/**` · `src/boot/headless_dispatch.rs` · `src/app/ipc*`)에서 인자 `[A-Za-z_][A-Za-z0-9_]*: &(mut )?([A-Za-z_][A-Za-z0-9_]*::)*AppState\b` 를
-  센다 — 경로 한정 표기(`&crate::state::AppState`)도 세야 한다. 늘어난 자리가 창을 쥔 진입점 ·
+  (`src/adapters/ipc/**` · `src/boot/headless_dispatch.rs` · `src/app/ipc*`)에서 인자 `[A-Za-z_][A-Za-z0-9_]*: &('[a-z_]+ )?(mut )?([A-Za-z_][A-Za-z0-9_]*::)*AppState\b` 를
+  센다 — 경로 한정 표기(`&crate::state::AppState`)와 수명 표기(`&'a mut AppState`)도 세야 한다. 수명 표기
+  구조체 필드도 같은 모양이라 함께 잡히므로 필드는 따로 빼고 읽는다. 늘어난 자리가 창을 쥔 진입점 ·
   창·debug 라우터 · 창 상태 자체가 대상인 핸들러 중 하나인지 본다. 기록값: 이 결정 직후 35(출하 27 ·
   시험 8 — 그 "출하" 는 시험 전용 `handle_with_caller` 를 담고 있어, 갈라 세면 출하 26). 2026-09-22
   위 패턴 실측 40 = **출하 26 · 시험 14**(클로저 인자 2 포함, 둘 다 시험). 출하는 그대로이고 는 것은
   전부 시험이다. 경로 한정 표기만 잡히는 자리는 6 이고 전부 시험이다. 옛 패턴
-  `이름: &(mut )?AppState` 로는 34 가 나와 그 6 을 놓친다. 2026-09-23 같은 패턴 실측 38 = **출하 24 ·
-  시험 14** — 입구 본문 둘(`route_checked_request` · `dispatch_routed`)이 `EntryWindow` 를 받게 되어
-  출하가 2 줄었다. `EntryWindow` 의 필드 `state: &'a mut AppState` 는 인자가 아니고, 수명 표기 때문에 이
-  패턴에도 안 잡힌다.
+  `이름: &(mut )?AppState` 로는 34 가 나와 그 6 을 놓친다. 2026-09-23 수명 표기를 넣은 지금 패턴 실측
+  40 = **출하 인자 25 · 시험 14 · 필드 1**(수명 표기를 안 받던 앞 패턴으로는 38 이었다 — 그 차 2 가
+  아래 `entry_window.rs` 두 자리다). 같은 날 base(`15c46d5fb`)는 지금 패턴으로도 40(출하 26 · 시험 14)이라
+  수명 표기만 잡히는 자리는 그때 없었다. 입구 본문 둘(`route_checked_request` · `dispatch_routed`)이
+  `EntryWindow` 를 받게 되어 `handler.rs` 의 출하 인자가 2 줄었고, 대신 `EntryWindow::new(state: &'a mut
+  AppState)` 가 출하 인자 하나로 들어왔다 — **출하 인자의 실제 순감은 1** 이다. 그 `new` 는 수명 표기라
+  앞 패턴의 사각이었다. 필드 `state: &'a mut AppState` 는 인자가 아니지만 같은 모양이라 잡히므로
+  위 40 안에 따로 한 항으로 적었다.
 
 ## References
 
