@@ -96,7 +96,14 @@ clap 이 첫 문단을 짧은 help(`-h`), 전체를 긴 help(`--help`)로 그대
 ## 진입점 (`run.rs`)
 
 `run_client` 는 갈래를 묻고 `ClientDriven` 이면 넘긴 뒤, 나머지 단발 RPC 경로
-(포트 파일 읽기 → 연결 → 요청 → 출력, `auto_wait` 폴링 포함)만 직접 수행한다.
+(요청 매핑 → 포트 파일 읽기 → 연결 → 계약 확인 → 전송 → 출력, `auto_wait` 폴링 포함)만 직접 수행한다.
+
+**요청 매핑(`request/`)은 연결보다 먼저다.** 매핑은 서버 없이 끝나는 검증(깨진 JSON 인자 ·
+없는 `--cwd` 등)이라, 실패하면 그 자리에서 원인을 stderr 에 내고 종료한다 — 인스턴스가 없어도
+사용자는 "실행 중인 인스턴스가 없다" 가 아니라 자기 인자의 잘못을 받고, 호스트에는 아무것도
+안 보낸 빈 연결이 생기지 않는다. 서버의 값이 있어야 하는 확인(계약 확인 `contract::ensure`)만
+연결 뒤에 남는다. plugin 동적 명령(`try_run_plugin_cli`)도 같은 순서다. 시험은
+`tests/cli_maps_args_before_connecting.rs`.
 
 ## stdout 출력 (`out.rs`)
 

@@ -490,14 +490,19 @@ fn run_client_inner(command: Commands, port_file: Option<&str>, envelope: Envelo
         return cmd.run(&ClientCtx { port_file });
     }
 
+    // 인자 → 요청 매핑은 **연결보다 먼저** 한다. 매핑은 서버 없이 끝나는 검증(깨진 JSON ·
+    // 없는 `--cwd` 등 — 실패하면 그 자리에서 원인을 내고 종료한다)이라, 연결을 먼저 하면
+    // 인스턴스가 없을 때 사용자는 자기 인자의 잘못 대신 "실행 중인 인스턴스가 없다" 를 받는다.
+    // 서버의 값이 있어야 하는 확인(아래 `contract::ensure`)만 연결 뒤에 남는다.
+    let mut request = command_to_request(&command);
+    envelope.apply(&mut request);
+    let cli_warnings = take_cli_warnings(&mut request);
+
     let port = crate::port_file::read_port(port_file)?;
     let stream = connect_ipc(port)?;
 
     let mut conn = IpcConnection::new(stream)?;
 
-    let mut request = command_to_request(&command);
-    envelope.apply(&mut request);
-    let cli_warnings = take_cli_warnings(&mut request);
     // 새 계약을 쓰는 요청은 상대가 그것을 선언했는지 **보내기 전에** 묻는다 — 모르는
     // 서버는 그 필드를 조용히 버리고 성공으로 답한다(`contract` 모듈).
     if let Err(e) = super::contract::ensure(&mut conn, &mut request) {
