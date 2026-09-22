@@ -334,6 +334,10 @@ SDK가 자기 CWD에서 절대화하여 이 경계를 대신하지 않는다.
   다시 발화하고(구독자는 같은 plugin 의 `plugin.loaded` 를 여러 번 받는다), surface kind 를
   가진 plugin 이면 재시작·swap 에서는 호스트 로그에 `SurfaceKindRegistry: kind '<kind>' overwritten`
   경고가 한 줄 남는다 — kind 등록이 해제 없이 덮어쓰이기 때문이다.
+  pending 회수는 두 축으로 찾는다: *무엇을 위한* 요청인가(namespace 호출·hook 은 caller
+  에 `-32004` 회신)와 *누구에게 보낸* 요청인가(`surface.create`·`surface.restore`·popup
+  open 처럼 회신할 caller 가 없는 것은 조용히 거둔다). 뒤쪽을 안 거두면 새 프로세스가
+  새 request id 를 쓰므로 그 항목은 영영 매칭되지 않고 남는다.
 - **disable · remove 는 surface kind 를 철회한다**([ADR-0534](../adr/0534-a-disabled-plugins-surface-kinds-are-withdrawn-not-erased.md)):
   위 정리 함수는 매니저 안의 상태만 거두고, 본체의 `SurfaceKindRegistry` 는 disable 을 받는
   `ipc::handler::plugin::disable`(gui IPC · 헤드리스 IPC · 설정 모달 공용)과 `App::plugin_remove`
@@ -343,10 +347,6 @@ SDK가 자기 CWD에서 절대화하여 이 경계를 대신하지 않는다.
   된다. `surface.kinds` 목록에서도 빠진다. 다시 켜서 hello 가 오면 등록이 철회를 풀고, 그때 로그는
   경고가 아니라 `withdrawn kind '<kind>' registered again` 이다. 재시작 · swap · 연결 실패는
   철회하지 않는다.
-  pending 회수는 두 축으로 찾는다: *무엇을 위한* 요청인가(namespace 호출·hook 은 caller
-  에 `-32004` 회신)와 *누구에게 보낸* 요청인가(`surface.create`·`surface.restore`·popup
-  open 처럼 회신할 caller 가 없는 것은 조용히 거둔다). 뒤쪽을 안 거두면 새 프로세스가
-  새 request id 를 쓰므로 그 항목은 영영 매칭되지 않고 남는다.
 - **종료**: shutdown 메서드 송신 후 timeout, 초과 시 kill.
   SDK 의 `run()` 은 shutdown 을 받으면 ack 를 보내고, 그 앞에 worker 큐에 쌓인 요청까지
   처리한 뒤 돌아온다 — 호스트가 연결을 닫았을 때도 같다. plugin 이 `on_start` 로 받은
