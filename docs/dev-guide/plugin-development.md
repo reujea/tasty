@@ -438,7 +438,7 @@ SDK 가 셋으로 노출한다.
 
 ### 토큰 핸드셰이크 (보안)
 
-호스트가 `127.0.0.1:0`(랜덤 포트) listen → 토큰을 listener 에 **먼저 등록**(`HostListener::register_connection`)하고 spawn 하며 `TASTY_HOST_IPC_PORT` + `TASTY_PLUGIN_TOKEN` 전달 → 플러그인이 그 포트로 connect 후 **첫 줄에 `AuthMessage{plugin_id, token}`** 전송 → 토큰 일치해야 인증 통과(`HANDSHAKE_TIMEOUT` 내), mismatch 면 즉시 끊음. 등록이 spawn 보다 앞서는 이유: 채널이 Nagle 을 끄므로 인증 줄이 지연 없이 도착해, spawn 뒤에 등록하면 plugin 이 그 틈에서 이겨 모르는 토큰으로 거절된다(시험 `a_connection_that_authenticates_before_the_wait_is_kept`). SDK transport 가 이 핸드셰이크를 자동 수행하므로 작성자는 보통 신경 쓸 필요 없다.
+호스트가 `127.0.0.1:0`(랜덤 포트) listen → 토큰을 listener 에 **먼저 등록**(`HostListener::register_connection`)하고 spawn 하며 `TASTY_HOST_IPC_PORT` + `TASTY_PLUGIN_TOKEN` 전달 → 플러그인이 그 포트로 connect 후 **첫 줄에 `AuthMessage{plugin_id, token}`** 전송 → 토큰 일치해야 인증 통과(`HANDSHAKE_TIMEOUT` 내), mismatch 면 즉시 끊음. 등록이 spawn 보다 앞서는 이유: 채널이 Nagle 을 끄므로 인증 줄이 지연 없이 도착해, spawn 뒤에 등록하면 plugin 이 그 틈에서 이겨 모르는 토큰으로 거절된다(시험 `a_connection_that_authenticates_before_the_wait_is_kept` 은 등록 뒤·대기 전에 도착한 인증을 listener 가 붙잡아 두는지만 본다). 등록이 spawn 보다 앞선다는 순서 자체는 단위 시험이 고정하지 않는다 — 재는 법: GUI 부팅 로그의 `plugin auth with unknown/expired token` 줄 수(0 이어야 한다). SDK transport 가 이 핸드셰이크를 자동 수행하므로 작성자는 보통 신경 쓸 필요 없다.
 
 ## 8. 규약
 
