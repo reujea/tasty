@@ -60,6 +60,49 @@ ADR-0133 의 처방은 동적 모수를 겨눈다. 정적 모수에는 그대로
   삼키면 자기 픽스처를 실제 값으로 센다. 자기 제외 면제를 두지 말고 **루트를 좁게
   유지하고 그 조건 자체를 테스트로 고정**한다.
 
+## `match` 팔을 읽는 가드는 공용 판정기를 쓴다
+
+라우터·액션 문처럼 **`match` 팔의 집합**을 명부·표와 대조하는 가드는 팔을
+`tasty_doc_guards::match_arms` 로 뗀다. 그 판정기는 구조(괄호 짝 · `=>` · `,` · `|` ·
+` if `)를 주석·문자열·문자 리터럴을 **바이트 수까지 맞춰** 덮은 사본
+(`source_text::mask_non_code_aligned`)에서 찾고, 이름은 같은 구간의 원본에서 읽는다.
+팔은 앞에서부터 떼므로 팔 본문 안의 중첩 `match` · 클로저의 `=>` 는 팔 머리로 읽히지 않는다.
+
+손으로 짠 추출기가 조용히 틀린 형태는 둘이고, 둘 다 실측됐다.
+
+- **리터럴 안의 구분자.** guard 문자열 안의 `,` 가 팔 머리를 자르거나, 본문 문자열의
+  `}`(format escape `"}}"` 가 평범한 예다)·`'}'`·주석 속 `}` 가 본문을 일찍 닫아 **그 뒤의
+  팔을 전부** 놓친다.
+- **줄 앞머리 판독.** `"…" =>` 로 시작하는 줄만 세면 `"a" | "b" =>` 와 guard 가 붙은
+  `"a" if … =>` 가 통째로 빠진다.
+
+명제가 부분집합(팔 ⊆ 표)이면 둘 다 **초록**으로 나간다 — 놓친 팔은 검사를 안 받을 뿐이다.
+
+판정기는 모르는 모양을 조용히 넘기지 않고 `Err` 로 돌려준다. 블록형 식 뒤 쉼표를
+생략해 다음 팔로 이어지는 본문이 그 예다(쉼표를 찾아 가면 다음 팔을 본문으로 삼킨다).
+정의를 찾는 `fn_bodies` 는 이름이 같은 정의를 **전부** 돌려준다 — `#[cfg]` 로 갈린 둘째
+정의의 팔도 대조를 받는다.
+
+이것은 렉서 위의 구조 주사이지 Rust 문법 파서가 아니다. `syn` 을 안 쓰는 이유는
+`crates/tasty-doc-guards/src/match_arms.rs` 의 모듈 doc 에 있다 — 소비자 일부가 의존 0 인
+그 크레이트 안에 있다.
+
+**이 판정기를 쓰는 자리**(작업 트리 기준): 창 라우터 호출자 명부
+(`src/adapters/ipc/handler/window_router_caller_tests.rs`) · release 표 가드
+(`tests/ipc_release_table_excludes_input_reproduction.rs`, 본문 경계만) · 라우터 표 정합
+(`tests/ipc_router_table_parity.rs`) · 액션 문(`the_action_door_has_only_the_registered_callers.rs`)
+· 합산 명부(`window_owned_lists_are_classified.rs`) · 권한 토큰 판독
+(`crates/tasty-doc-guards/src/manifest_text.rs`, `permission_token_docs_parity.rs` 가 그것을 쓴다)
+· `src/source_guards/` 의 공용 헬퍼(`strip_comments` · `fn_body` · `non_literal_arms`)와
+`debug_gate_dagger` · `platform_gated_dispatch_complement` · `routing_key_method_scope` ·
+`bundled_plugin_namespace_coverage` · 단축키 표 대조(`src/adapters/ui/input/shortcuts/tests.rs`).
+뒤의 넷 중 dagger 와 platform 은 팔을 떼지 않고 구분자만 덮은 사본에서 찾는다.
+
+**안 쓰는 자리와 그 이유.** `ipc_window_create_returns_outcome.rs` 는 팔 명부가 아니라 한
+블록의 모양을 고정 텍스트로 찾는다. `poison_recovery` 는 이미 덮은 사본을 읽는다.
+`memory/durable_tests.rs` 는 표의 메서드마다 `"<메서드>" =>` 를 찾아 없으면 실패한다 —
+주석 속 같은 텍스트를 먼저 집을 여지는 있지만 팔이 사라지는 방향은 아니다.
+
 ## 1 회성 스캔도 같은 마스킹을 쓴다
 
 모수를 재는 일은 가드 안에서만 일어나지 않는다. **수를 하나 얻으려고 그 자리에서 쓰는
