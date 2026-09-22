@@ -44,6 +44,7 @@
 //! 경로 필터 없는 잡에서 push 마다 돈다. 둘은 겹치는 것이 아니라 **채널이 다르다.**
 
 use std::path::{Path, PathBuf};
+use tasty_doc_guards::match_arms::{Source, matching_close};
 
 #[derive(PartialEq, Debug)]
 enum Class {
@@ -206,28 +207,49 @@ fn repo_root() -> PathBuf {
 }
 
 /// `dispatch_list_global` 의 match arm 에서 메서드 이름을 뽑는다.
+///
+/// 팔은 공용 판정기(`tasty_doc_guards::match_arms`)가 뗀다. 줄이 `"…" =>` 로 시작할 때만
+/// 세던 판독은 `"a" | "b" =>` 와 guard 가 붙은 `"a" if … =>` 를 통째로 놓쳤다 — 그러면 "합산기에
+/// 명부가 모르는 것이 없다" 방향이 조용히 초록이 된다. 따옴표 이름도 `_` 도 아닌 조각은 누가
+/// 합산되는지 판정할 수 없으므로 실패시킨다. 정의가 `#[cfg]` 로 둘 이상이면 전부 읽는다.
 fn aggregated_arms(root: &Path) -> Vec<String> {
-    let src = std::fs::read_to_string(root.join("src/app/dispatch/list_global.rs"))
+    let text = std::fs::read_to_string(root.join("src/app/dispatch/list_global.rs"))
         .expect("list_global.rs 를 읽지 못했다 — 경로가 바뀌었으면 이 가드도 함께 옮긴다");
+    let src = Source::new(&text);
+    let bodies = src.fn_bodies("dispatch_list_global");
+    assert!(
+        !bodies.is_empty(),
+        "`fn dispatch_list_global` 을 못 찾았다 — 이름이 바뀌었으면 이 가드도 함께 옮긴다"
+    );
     let mut out = Vec::new();
-    for line in src.lines() {
-        let t = line.trim_start();
-        // 주석 줄의 예시 이름을 arm 으로 세지 않는다.
-        if t.starts_with("//") {
-            continue;
+    for body in bodies {
+        const HEAD: &str = "match request.method.as_str()";
+        let block = src
+            .code_slice(&body)
+            .find(HEAD)
+            .and_then(|k| {
+                let from = body.start + k + HEAD.len();
+                src.code[from..].find('{').map(|o| from + o)
+            })
+            .and_then(|open| matching_close(&src.code, open).map(|close| open..close + 1))
+            .unwrap_or_else(|| panic!("`{HEAD} {{ … }}` 를 못 찾았다 — 합산기 모양이 바뀌었다"));
+        let arms = src
+            .match_arms(block)
+            .unwrap_or_else(|e| panic!("합산기 팔을 못 읽었다 — {e}"));
+        for arm in arms {
+            for alt in src.alternatives(&arm.pattern) {
+                match src.plain_string(&alt) {
+                    Some(name) => out.push(name.to_string()),
+                    None if src.slice(&alt) == "_" => {}
+                    None => panic!(
+                        "합산기 {}행의 팔 조각 `{}` 은 따옴표 이름이 아니라 누가 합산되는지 \
+                         판정할 수 없다",
+                        src.line_of(alt.start),
+                        src.slice(&alt)
+                    ),
+                }
+            }
         }
-        let Some(rest) = t.strip_prefix('"') else {
-            continue;
-        };
-        let Some(end) = rest.find('"') else { continue };
-        if !rest[end..]
-            .trim_start_matches('"')
-            .trim_start()
-            .starts_with("=>")
-        {
-            continue;
-        }
-        out.push(rest[..end].to_string());
     }
     out
 }
