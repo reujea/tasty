@@ -148,15 +148,18 @@ abort 시킨다.
 **채널이 붙는 것**
 
 - 루트 `Cargo.toml` 의 `[patch.crates-io]` 에서 `tiny_http` 줄이 바뀌거나 빠지면, 또는 `vendor/tiny_http/src`
-  가 바뀌면 — `src/webhook/listener_body_tests.rs` 의 `raw_oversize_*` 시험 넷이 그 사본으로 다시 돈다.
+  가 바뀌면 — `src/webhook/listener_body_tests.rs` 의 `raw_oversize_*` 시험 넷과 429 시험
+  `raw_blocked_source_is_closed_without_draining` 이 그 사본으로 다시 돈다.
   패치가 빠지면 `Request::respond_and_close` 가 없어 본체가 컴파일되지 않는다.
-- 웹훅의 413 응답 경로(`Screened::respond`)가 바뀌면 — 같은 시험 넷이 ADR-0281 의 완결 조건을 다시 잰다.
+- 웹훅의 413 응답 경로(`Screened::respond`)가 바뀌면 — `raw_oversize_*` 시험 넷이 ADR-0281 의 완결 조건을 다시 잰다.
+  429 응답 경로(`reject_if_abusive`)가 바뀌면 — `raw_blocked_source_is_closed_without_draining` 이 같은 조건을 잰다.
 
 **원리적으로 안 붙는 것**
 
 - 상류 `tiny_http` 가 요청 단위로 잔여 body 를 읽지 않고 연결을 닫는 공개 API 를 내면 — 이 사본을 걷고
   `[patch.crates-io]` 줄을 지운 뒤 그 API 로 옮긴다. 재는 법: 상류 릴리스의 `Request` API 와
-  `EqualReader::drop` 을 읽고, body 를 안 보낸 `Content-Length` 초과 요청에서 위 raw 시험 넷이 통과하는지 본다.
+  `EqualReader::drop` 을 읽고, body 를 안 보낸 `Content-Length` 초과 요청에서 위 raw 시험 다섯(`raw_oversize_*` 넷 +
+  429 의 `raw_blocked_source_is_closed_without_draining`)이 통과하는지 본다.
 - 상류에 보안 권고가 붙으면 — 사본은 자동으로 안 따라간다. 재는 법: RustSec 에서 `tiny_http` 를 조회하고,
   해당 수정을 사본에 옮기거나 상류 새 버전 위에 이 패치를 다시 얹는다.
 - 413 뒤 RST 로 응답을 못 받는다는 발신자 보고가 나오면 — 재는 법: 실제 네트워크(루프백 아님)에서 상한을

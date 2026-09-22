@@ -58,7 +58,7 @@ tiny_http = { path = "vendor/tiny_http" }
 
 ### 점검 / 전환 트리거
 
-- 탈출 조건: 상류가 요청 단위로 잔여 body 를 읽지 않고 연결을 닫는 공개 API 를 릴리스 → 사본과 `[patch.crates-io]` 줄을 지우고 그 API 로 옮긴다. 옮긴 뒤 `src/webhook/listener_body_tests.rs` 의 `raw_oversize_*` 시험이 통과해야 한다.
+- 탈출 조건: 상류가 요청 단위로 잔여 body 를 읽지 않고 연결을 닫는 공개 API 를 릴리스 → 사본과 `[patch.crates-io]` 줄을 지우고 그 API 로 옮긴다. 옮긴 뒤 `src/webhook/listener_body_tests.rs` 의 `raw_oversize_*` 시험 넷(413)과 `raw_blocked_source_is_closed_without_draining`(429)이 통과해야 한다 — 뒤의 것은 이름 패턴이 달라 `raw_oversize_*` 로 걸리지 않는다.
 - RustSec 에 `tiny_http` 권고가 붙으면 사본에 수정을 옮기거나 상류 새 버전 위에 패치를 다시 얹는다.
 
 ## (은퇴) `egui_commonmark` — egui 버전 lockstep
