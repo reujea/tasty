@@ -86,6 +86,17 @@ drain 모듈은 **gui 빌드의 시험 구성에서도 컴파일한다**(모듈 
   headless 쪽은 debug 로그만 남기고 지나가므로, 새 도메인을 headless 발화 경로에
   얹을 때 cascade 반영 여부를 함께 본다.
 
+### 보강 — OSC 7 cwd 의 탭 이름 (2026-09-23)
+
+Decision 이 headless cascade 에 넣은 "cwd 표시 갱신" 은 이 결정 시점에 **닿지 않았다.** gui 에서
+그 갱신은 `TerminalCwdChanged`(PTY drain 이 내는 `CoreEvent`)가 `SurfaceCwdChanged` intent 를 큐에
+넣고 그 intent 의 cascade 가 탭 이름을 다시 매기는 두 단인데, headless PTY drain(`src/boot.rs`)은
+`TerminalCwdChanged` 를 훅 발화 함수로 흘려 버렸고 `SurfaceCwdChanged` 는 gui 전용 variant 다. 그래서
+Intent 큐 drain 에는 올 것이 없었다. 이제 headless PTY drain 이 `TerminalCwdChanged` 를 받아
+`intent::headless::apply_terminal_cwd_changed` 로 engine 갱신(탭 이름 · 레이아웃 dirty)을 직접 한다 —
+같은 "engine 에 완결되는 부분만" 규칙을 intent 가 아니라 이벤트 자리에 적용한 것이다. 시험:
+`tests/e2e_tests.rs` 의 `an_osc7_cwd_becomes_the_tab_name`(두 조합).
+
 ## Alternatives Considered
 
 - **A. 핸들러가 headless 에서는 push 대신 직접 적용한다** — 형태로는

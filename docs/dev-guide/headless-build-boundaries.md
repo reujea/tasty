@@ -40,7 +40,7 @@ dead_code 예외는 쓰지 않는다.
 |---|---|
 | 구조 op forward 큐의 원소(`PendingStructuralForward`, `core/impl_mirror.rs`) | headless 의 `Core::apply` 는 이 큐에 넣지 않고 거절한다([ADR-0538](../adr/0538-headless-refuses-mirror-structural-forward.md)). 정의가 남는 것은 두 조합이 공유하는 `mark_last_forward_*` 가 큐의 마지막 원소를 표시하기 때문이고, op 를 읽어 보내는 쪽은 GUI 의 `about_to_wait` 뿐이다. 같은 줄에 있던 git query · markdown content · resize 의 forward 큐는 채우는 자리도 gui 전용이라 필드째 ① 이다 |
 | `SurfaceKindDef` 의 입력·줌·복사 플래그와 변환 입력 popup id | plugin 매니페스트의 `SurfaceKindDecl` 에서 복사되는 값이다. 복사는 headless 에서도 일어난다 |
-| CoreEvent 의 페이로드(터미널 OSC 이벤트 전부, `RestoredKind` 의 인덱스) | variant 는 headless 에서도 발화하지만 그 빌드의 drain 이 `other` 갈래로 흘린다 |
+| CoreEvent 의 페이로드(터미널 이벤트 중 제목 · 알림 · 벨 · 명령 완료 · 셸 통합 힌트 · 클립보드, `RestoredKind` 의 인덱스) | variant 는 headless 에서도 발화하지만 그 빌드의 drain 이 `other` 갈래로 흘린다. OSC 7 cwd(`TerminalCwdChanged`)는 여기 없다 — headless PTY drain 이 읽는다(아래 "두 조합이 같게 하는 것") |
 | 호스트 이벤트 큐 항목(`PendingHostEvent` · `PendingSurfaceClosed`, `core/host_event.rs`) | 세우는 코드(`AppState` 의 enqueue 메서드)가 headless 빌드에도 컴파일되지만 비우는 자는 GUI 메인 루프뿐이다. 그 메서드들이 headless 에서 어느 갈래인지는 [AppState 필드 소유권](app-state-ownership.md) 이 적는다 |
 | 파일 열기 발화 주체(`FileDispatchOrigin`, `core/origin.rs`) | 도메인의 `DispatchFile` intent 가 headless 에도 컴파일되지만 값을 만드는 자리(explorer·링크·드롭·picker·`file_handler.dispatch` arm)가 전부 GUI 다. `file::dispatch` 모듈 자체는 headless 라이브러리에 없다(링크 해석·대상 판정을 시험이 부르므로 ②) |
 | workspace 생성 cascade 의 필드(`WorkspaceCreatedCascade`, headless 판 `app/dispatch_domain_stubs.rs`) | 만드는 자리(`workspace.create` IPC · workspace intent)는 두 빌드가 공유하지만 headless 의 cascade 는 no-op 이라 필드를 읽는 자가 gui 뿐이다. 그 파일 전체가 `not(feature = "gui")` 라 조건 없는 `expect` 로 적는다 |
@@ -92,12 +92,23 @@ headless 쪽 호출자가 debug 전용 핸들러(`#[cfg(debug_assertions)]` 모�
 ## 이 경계가 드러낸 것
 
 경계를 그으면서 보인 사실 둘이다. 둘 다 기능을 뺀 것이 아니라 이미 그랬던 것이 보이게 된
-것이고, 바꿀지는 별도 판단이다.
+것이었고, 각각 한쪽으로 정했다 — 아래 두 절.
 
 - headless 는 레이아웃을 저장하지도 복원하지도 않는다. capture·restore·scrollback 경로
   전체에 그 빌드의 호출자가 없다.
-- headless 의 OSC 7 cwd 변경은 탭 이름을 갱신하지 않는다. 터미널 이벤트에서 그 intent 로
+- headless 의 OSC 7 cwd 변경은 탭 이름을 갱신하지 않았다. 터미널 이벤트에서 그 intent 로
   가는 배선이 그 빌드에 없어, drain 의 처리 갈래가 도달 불가능했다.
+
+## 두 조합이 같게 하는 것
+
+- **OSC 7 → 탭 이름.** 셸이 OSC 7 로 알린 cwd 가 그 탭의 이름이 되고(명시 이름·OSC 제목이
+  없을 때) 레이아웃 dirty 가 선다. gui 는 `TerminalCwdChanged` → `SurfaceCwdChanged` 두 단
+  cascade 가 하고, headless 는 PTY drain(`src/boot.rs` 의 `handle_terminal_output`)이
+  `intent::headless::apply_terminal_cwd_changed` 로 같은 engine 갱신을 직접 한다 — gui 의
+  둘째 단 intent 는 view redraw 를 함께 싣는 gui 전용이라 헤드리스에는 그 두 줄만 필요하다
+  ([ADR-0111](../adr/0111-headless-drains-the-intent-queue.md) 의 "engine 에 완결되는 부분만").
+  시험은 `tests/e2e_tests.rs` 의 `an_osc7_cwd_becomes_the_tab_name` 이 두 조합에서 같은 단언으로
+  재고, 배선이 빠지면 headless 라이브러리가 dead_code 로 먼저 깨진다.
 
 관련 문서: [app-state-ownership](app-state-ownership.md)(이 규칙을 `AppState` 필드에 적용한 표) ·
 [build](build.md) · [model-view-split](model-view-split.md) ·

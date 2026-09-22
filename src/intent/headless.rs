@@ -99,6 +99,24 @@ pub(crate) fn drain_pending_host_events(core: &Core, state: &mut AppState, engin
     }
 }
 
+/// PTY drain 이 낸 OSC 7 cwd 변경을 적용한다 — gui 의 두 단 cascade
+/// (`TerminalCwdChanged` → `DomainIntent::SurfaceCwdChanged` → `cascade_surface_cwd_changed`)
+/// 중 **engine 에 완결되는 부분**이다. 탭 이름을 그 탭의 focused surface 의 cwd 로 다시 매기고
+/// 레이아웃 dirty 를 세운다. dirty 는 렌더용만이 아니다 — 원격 attach mirror 로 나가는 스냅샷
+/// diff 가 이 플래그를 본다.
+///
+/// intent 큐를 거치지 않는다. gui 가 거치는 `SurfaceCwdChanged` 는 view redraw 를 함께 싣는
+/// gui 전용 intent 이고, headless 에서 그 intent 가 할 일은 이 두 줄뿐이다. 이 배선이 없던 동안
+/// headless 는 OSC 7 을 받아도 탭 이름이 안 바뀌어 `tasty list tree` 와 attach client 가 옛
+/// 이름을 봤다(docs/dev-guide/headless-build-boundaries.md "두 조합이 같게 하는 것").
+pub(crate) fn apply_terminal_cwd_changed(engine: &mut CoreState, surface_id: u32) {
+    if !engine.has_surface(surface_id) {
+        return;
+    }
+    engine.refresh_tab_display_name(surface_id);
+    engine.mark_layout_dirty();
+}
+
 /// 단일 intent 적용. gui 의 분류(`App::classify_intent`)와 같은 경계다 —
 /// `Intent::Domain` 은 `Core::apply` + cascade, 나머지는 도메인 핸들러 직결.
 fn apply_one(
@@ -596,6 +614,59 @@ mod tests {
     #[test]
     fn an_agent_labelled_new_tab_keeps_the_users_tab() {
         assert_eq!(new_empty_tab_then_selection(Intent::from_agent_ipc), (2, 0));
+    }
+
+    /// OSC 7 이 가리킨 cwd 가 탭 이름이 된다 — gui cascade 와 같은 engine 결과다. 레이아웃
+    /// dirty 도 선다(attach mirror 로 나가는 스냅샷 diff 가 이것을 본다).
+    #[test]
+    fn an_osc7_cwd_renames_the_tab_and_marks_the_layout_dirty() {
+        let (_core, state, mut engine, sid) = fixture();
+        let mut terminal = tasty_terminal::Terminal::new_detached(80, 24);
+        terminal.feed_bytes(b"\x1b]7;file://localhost/tmp/tasty-osc7-probe\x07");
+        engine.terminals.insert(sid, terminal);
+        engine.layout_dirty.clear();
+        let tab_name = |engine: &CoreState| {
+            state
+                .active_workspace(engine)
+                .pane_layout()
+                .all_pane_ids()
+                .iter()
+                .find_map(|&pid| {
+                    let pane = state
+                        .active_workspace(engine)
+                        .pane_layout()
+                        .find_pane(pid)?;
+                    pane.tabs
+                        .iter()
+                        .find(|t| t.contains_surface(sid))
+                        .map(|t| t.display_name())
+                })
+                .expect("fixture tab")
+        };
+        assert_ne!(
+            tab_name(&engine),
+            "tasty-osc7-probe",
+            "전제: 아직 cwd 이름이 아니다"
+        );
+
+        apply_terminal_cwd_changed(&mut engine, sid);
+
+        assert_eq!(tab_name(&engine), "tasty-osc7-probe");
+        assert!(
+            engine.layout_dirty.is_dirty(),
+            "attach 스냅샷 diff 가 볼 dirty 가 서야 한다"
+        );
+    }
+
+    /// 배선 가드 — headless PTY drain 이 위 함수를 실제로 부르는지 소스에서 확인한다. 끊기면
+    /// 위 시험은 그대로 통과하고 헤드리스의 탭 이름만 조용히 멈춘다. 두 조합의 실제 동작은
+    /// `tests/e2e_tests.rs` 의 `an_osc7_cwd_becomes_the_tab_name` 이 잰다.
+    #[test]
+    fn the_headless_pty_drain_applies_the_cwd_change() {
+        assert!(
+            include_str!("../boot.rs").contains("headless::apply_terminal_cwd_changed"),
+            "src/boot.rs 의 PTY drain 이 OSC 7 cwd 변경을 적용하지 않는다"
+        );
     }
 
     /// 배선 가드 — headless 진입점이 drain 을 실제로 부르는지 소스에서 확인한다.

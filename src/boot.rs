@@ -405,10 +405,15 @@ fn handle_terminal_output(
         }
     };
     for event in outcome.events {
-        if let crate::core::intent::CoreEvent::TerminalProcessExited { surface_id } = event {
-            crate::app::process_exit::handle(&mut app.core, state, engine, surface_id);
-        } else {
-            fire_terminal_hooks(app, state, engine, vec![event]);
+        match event {
+            crate::core::intent::CoreEvent::TerminalProcessExited { surface_id } => {
+                crate::app::process_exit::handle(&mut app.core, state, engine, surface_id);
+            }
+            // OSC 7 → 탭 이름. gui 는 `App::cascade_terminal_pty_cwd_changed` 가 한다.
+            crate::core::intent::CoreEvent::TerminalCwdChanged { surface_id } => {
+                crate::intent::headless::apply_terminal_cwd_changed(engine, surface_id);
+            }
+            event => fire_terminal_hooks(app, state, engine, vec![event]),
         }
     }
     crate::intent::headless::drain_pending_host_events(&app.core, state, engine);

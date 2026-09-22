@@ -27,6 +27,8 @@
 | bash | 수동 (`PROMPT_COMMAND='printf "\033]7;file://%s%s\033\\" "$HOSTNAME" "$PWD"'`) |
 | PowerShell 7+ | 수동 (`prompt` 함수) |
 
+OSC 7 이 오면 그 surface 가 속한 탭의 이름도 다시 매긴다 — 탭의 focused surface 의 cwd 마지막 이름(홈이면 `~`)이고, 명시 이름과 OSC 제목이 있으면 그쪽이 이긴다. 두 빌드 조합이 같다: gui 는 `TerminalCwdChanged` → `SurfaceCwdChanged` cascade 가, headless 는 PTY drain(`src/boot.rs`)이 `intent::headless::apply_terminal_cwd_changed` 로 같은 engine 갱신을 한다([headless-build-boundaries](../../dev-guide/headless-build-boundaries.md) "두 조합이 같게 하는 것"). 시험 `tests/e2e_tests.rs` 의 `an_osc7_cwd_becomes_the_tab_name` 이 두 조합에서 같은 단언을 본다.
+
 셸이 OSC 7 을 안 보내면 `cached_cwd` 가 비어 새 분할 시 부모 cwd 상속이 동작하지 않는다(프롬프트 설정으로 해결). (Windows 는 합성 rcfile 로 bash 의 OSC 7 emit 강제 — [terminal](../../features/terminal/index.md).)
 
 ## `surface.set_cwd` IPC (RemoteSurface)

@@ -173,13 +173,16 @@ const UPPER: &[(&str, &str)] = &[
 /// headless 에 소비자가 없고(① 네 자리), 차단 문구의 headless 꼬리 한 줄이 다섯째다. `core/state.rs`
 /// +1 — `pending_resize_forward` 는 채우는 쪽도 비우는 쪽도 gui 뿐이라 `expect(dead_code)`
 /// 한 줄을 필드·초기화의 cfg 두 줄로 바꿨다(①).
-/// 그래서 지금 264 이다. 레포에 `cfg_attr(not(feature = "gui"), allow(dead_code))` 모듈 속성은 없다.
+/// 그 뒤 headless PTY drain 이 OSC 7 cwd 로 탭 이름을 다시 매기게 했다 — `core/state.rs` 의
+/// `refresh_tab_display_name` 에 headless 소비자가 생겨 게이트가 빠졌고, `core/intent.rs` 의
+/// `CoreEvent::TerminalCwdChanged` 도 칸을 headless 가 읽게 되어 `expect(dead_code)` 가 빠졌다(−2).
+/// 그래서 지금 262 이다. 레포에 `cfg_attr(not(feature = "gui"), allow(dead_code))` 모듈 속성은 없다.
 ///
 /// 이 수는 **목표가 아니라 현재 상태의 못**이다. 도메인이 GUI 전용 항목을 갖는 이유는
 /// 대부분 "headless 에 소비자가 없다"(ADR-0346)이고 그 판정 자체는 정당하다. 이 못이 막는
 /// 것은 **새 게이트가 조용히 들어오는 것**이다 — 들어올 때 이 수를 올리는 커밋이 그
 /// 판단을 드러낸다.
-const GUI_GATES_IN_DOMAIN: usize = 264;
+const GUI_GATES_IN_DOMAIN: usize = 262;
 
 /// 도메인 뿌리 아래 `.rs` 수의 하한. 실측 2026-09-21: 92 개(`src/core` 84 · `src/ports` 8),
 /// 그중 출하되는 것 91.

@@ -630,17 +630,9 @@ pub(crate) enum CoreEvent {
     /// 않는다.
     TerminalOutputMatch { surface_id: u32, text: String },
 
-    /// OSC 7 cwd 변경. cascade 가 후속 `DomainIntent::SurfaceCwdChanged` 발행.
-    #[cfg_attr(
-        not(feature = "gui"),
-        expect(
-            dead_code,
-            reason = "이 이벤트는 headless 에서도 발화하지만 그 빌드의 drain 에 cascade 가 \
-                      없어(`intent::headless::handle_core_event` 의 마지막 갈래) 칸을 읽는 \
-                      자리가 없다. 칸을 빼면 발화점이 정보를 잃으므로 남긴다 — 배선이 \
-                      생기면 이 기대가 깨져 그 자리를 가리킨다"
-        )
-    )]
+    /// OSC 7 cwd 변경. gui cascade 는 후속 `DomainIntent::SurfaceCwdChanged` 를 발행하고,
+    /// headless 는 PTY drain(`src/boot.rs`)이 `intent::headless::apply_terminal_cwd_changed`
+    /// 로 같은 engine 갱신을 직접 한다.
     TerminalCwdChanged { surface_id: u32 },
 
     /// OSC 133 D phase — 셸 통합이 명령 완료 + exit code 를 보고했다. cascade

@@ -1383,7 +1383,8 @@ impl CoreState {
 
 impl CoreState {
     /// Refresh the cached display name of the tab containing a given surface ID.
-    #[cfg(feature = "gui")]
+    /// 두 조합이 쓴다 — gui 는 `App::cascade_surface_cwd_changed`, headless 는
+    /// `intent::headless::apply_terminal_cwd_changed`.
     pub fn refresh_tab_display_name(&mut self, surface_id: u32) {
         let workspaces = &mut self.workspaces;
         let terminals = &self.terminals;

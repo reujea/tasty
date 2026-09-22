@@ -153,6 +153,55 @@ fn read_only_queries() {
     assert!(!tabs["tabs"].as_array().unwrap().is_empty());
 }
 
+/// 셸이 OSC 7 로 알린 cwd 가 그 탭의 이름이 된다 — **두 조합에서 같다.** gui 는
+/// `App::cascade_terminal_pty_cwd_changed` 가, 헤드리스는 PTY drain 의
+/// `intent::headless::apply_terminal_cwd_changed` 가 한다(docs/dev-guide/headless-build-boundaries.md
+/// "두 조합이 같게 하는 것"). 헤드리스에 그 배선이 없던 동안은 이름이 안 바뀌었다.
+///
+/// 하네스 셸은 `/bin/sh` 라 스스로 OSC 7 도 제목(OSC 0/2)도 안 쏜다 — 제목이 이름을 덮는 경우가
+/// 없어 이 시험은 cwd 갈래만 잰다. `printf` 의 `\033` 해석이 셸마다 달라 Unix 로 한정한다
+/// (`dim_sgr2_survives_to_the_renderer` 와 같은 이유).
+#[cfg(not(windows))]
+#[test]
+fn an_osc7_cwd_becomes_the_tab_name() {
+    // `tab.list` 는 표시 이름이 아니라 원본 `name` 을 싣는다 — 표시 이름(명시 이름 → OSC 제목 →
+    // cwd → 원본)을 싣는 것은 `tree` 의 탭 행이다.
+    fn tab_names(v: &serde_json::Value, out: &mut Vec<String>) {
+        match v {
+            serde_json::Value::Object(o) => {
+                if o.contains_key("surface")
+                    && let Some(n) = o.get("name").and_then(|n| n.as_str())
+                {
+                    out.push(n.to_string());
+                }
+                o.values().for_each(|c| tab_names(c, out));
+            }
+            serde_json::Value::Array(a) => a.iter().for_each(|c| tab_names(c, out)),
+            _ => {}
+        }
+    }
+    let (tasty, _ws, sid, _pid, _lane) = scenario("e2e-osc7-tab-name");
+    let dir = format!("tasty-osc7-{}", std::process::id());
+    tasty.send_text(
+        sid,
+        &format!("printf '\\033]7;file://localhost/tmp/{dir}\\007'\r"),
+    );
+    let deadline = std::time::Instant::now() + Duration::from_secs(15);
+    loop {
+        let mut names = Vec::new();
+        tab_names(&tasty.call("tree", json!({})), &mut names);
+        if names.iter().any(|n| n == &dir) {
+            break;
+        }
+        assert!(
+            std::time::Instant::now() < deadline,
+            "OSC 7 cwd({dir}) 가 탭 이름이 되지 않았다: {names:?} / 화면: {}",
+            tasty.screen_text_of(sid)
+        );
+        std::thread::sleep(Duration::from_millis(100));
+    }
+}
+
 #[test]
 fn workspace_list_rows_carry_mirror_and_id() {
     // workspace.list 는 mirror(원격 attach client 인지) 를 함께 실어야 한다 — GUI
