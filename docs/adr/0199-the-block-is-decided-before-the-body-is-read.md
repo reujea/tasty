@@ -51,4 +51,5 @@
 - [ADR-0196](0196-abuse-thresholds-and-source-key.md) — 이 항목을 관찰로 남긴 판정과 그 소비처 계수
 - 코드 근거(결정이 실현된 현재 위치): `src/webhook/listener.rs` 의 `Screened`·`reject_if_abusive`·`handle_request`
 
-- 후속 증거: [ADR-0281](0281-webhook-parser-cap-and-connection-drain.md) (Proposed) — parser 보장과 Content-Length 정리의 선행 가정 오류·미충족 transport 요구. 기존 목표를 변경하거나 구현 완료를 선언하지 않는다.
+- 후속 증거: [ADR-0281](0281-webhook-parser-cap-and-connection-drain.md) (Superseded by ADR-0516) — parser 보장과 Content-Length 정리의 선행 가정 오류·미충족 transport 요구. 기존 목표를 변경하거나 구현 완료를 선언하지 않는다.
+- 잔여 읽기 중단의 구현: [ADR-0516](0516-the-webhook-413-closes-the-connection-through-a-vendored-tiny-http-patch.md) — 차단된 출처의 429 도 413 과 같이 레포에 둔 tiny_http 패치로 잔여 body 를 읽지 않고 연결을 닫는다.
