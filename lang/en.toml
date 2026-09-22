@@ -1301,6 +1301,7 @@ saved_pane = "Pane preset saved"
 save_failed = "Failed to save preset"
 rename_failed = "Failed to rename preset"
 apply_failed = "Failed to apply preset"
+changed_elsewhere = "Preset was changed elsewhere — your change was not saved and the saved version was reloaded"
 
 [preset.tools]
 menu_item = "Presets"

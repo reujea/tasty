@@ -15,8 +15,15 @@
 //! surface 설정 화면([`surface_settings`])으로 바꾼다. 그동안 리스트와 L1 scope 탭은
 //! 흐려지고 입력을 받지 않으며, 구조 편집 단축키도 돌지 않는다(미리보기를 그리지
 //! 않으므로). 값은 확인을 눌러야 트리에 들어가고 저장된다.
+//!
+//! 구조 편집 자동 저장과 설정 화면 확인은 캐시한 layout 으로 저장소의 레이아웃을 갈아
+//! 쓴다. 캐시가 지어진 뒤 저장소의 레이아웃이 바뀌었으면(에이전트의 `preset.save` 등) 덮지
+//! 않고 저장소 판을 다시 불러온 뒤 toast 로 알린다([`layout_base`]).
 
 pub mod demo_layout;
+mod layout_base;
+#[cfg(test)]
+mod persist_tests;
 pub mod surface_settings;
 mod toolbar;
 
@@ -35,6 +42,7 @@ use crate::adapters::ui::{ToastKind, ToastManager, ToastScope};
 use crate::i18n::{t, t_fmt};
 
 use demo_layout::{DemoLayout, KindCatalog, ShortcutAction, ShowOutcome};
+use layout_base::LayoutBase;
 use surface_settings::{CfgOutcome, SurfaceCfg, breadcrumb, draw_surface_settings};
 
 /// 편집 모드 프레임에서 `KeybindingSettings` 바인딩과 이번 프레임 입력을 매칭해
@@ -127,11 +135,39 @@ fn build_demo(
     }
 }
 
-/// 편집된 `layout` 을 store/disk 에 write-through(auto-save). 메타데이터
+/// [`persist_layout`] 의 결과.
+#[derive(Debug, PartialEq)]
+enum Persisted {
+    /// 썼다(또는 쓸 것이 없었다). 값은 캐시의 새 기준 판 — 저장 뒤 저장소의 값이다.
+    Saved(Option<LayoutBase>),
+    /// 캐시가 지어진 뒤 저장소의 레이아웃이 바뀌었다. 아무것도 쓰지 않았다.
+    Conflict,
+}
+
+/// 편집된 `layout` 을 store/disk 에 write-through(auto-save)하되, `base`(캐시가 지어진
+/// 저장소 판)와 저장소의 지금 레이아웃이 다르면 쓰지 않고 [`Persisted::Conflict`] 를
+/// 돌려준다 — 그 사이의 다른 쓰기를 말없이 덮지 않는다. preset 이 사라졌으면 전처럼
+/// 아무것도 쓰지 않는다(되살리지 않는다).
+fn persist_layout(
+    store: &mut PresetStore,
+    kind: PresetKind,
+    name: &str,
+    layout: &DemoLayout,
+    base: &Option<LayoutBase>,
+) -> PresetResult<Persisted> {
+    let current = LayoutBase::current(store, kind, name);
+    if current.is_some() && current != *base {
+        return Ok(Persisted::Conflict);
+    }
+    write_layout(store, kind, name, layout)?;
+    Ok(Persisted::Saved(LayoutBase::current(store, kind, name)))
+}
+
+/// `layout` 을 store/disk 에 쓴다. 메타데이터
 /// (name/subtitle/description/explicit_name)는 기존 preset 에서 보존하고 **레이아웃
 /// 트리만** 교체한다 — 편집 모드는 구조/leaf 파라미터만 건드리므로. scope 가
 /// layout 종류와 안 맞거나 preset 이 사라졌으면 no-op(Ok).
-fn persist_layout(
+fn write_layout(
     store: &mut PresetStore,
     kind: PresetKind,
     name: &str,
@@ -475,8 +511,7 @@ fn draw_preview(
         return;
     }
 
-    let key = preset_key(kind, name);
-    let Some(mut layout) = load_demo(ui, store, kind, name, catalog) else {
+    let Some(mut cache) = load_demo(ui, store, kind, name, catalog) else {
         return;
     };
 
@@ -488,7 +523,7 @@ fn draw_preview(
             kind,
             name,
             canvas,
-            &mut layout,
+            &mut cache,
             selected_node,
             surface_cfg,
             toasts,
@@ -496,12 +531,12 @@ fn draw_preview(
             kb,
         );
     } else {
-        let changed = layout.show(ui, theme, canvas, catalog);
+        let changed = cache.layout.show(ui, theme, canvas, catalog);
         if changed {
             ui.ctx().request_repaint();
         }
     }
-    store_demo(ui, key, layout);
+    store_demo(ui, cache);
 }
 
 /// 미리보기 캐시 키 — `{kind}:{name}`. 설정 화면의 draft 도 같은 키로 자기 preset 을 적는다.
@@ -515,6 +550,29 @@ fn demo_cache_id() -> egui::Id {
     egui::Id::new("preset_demo_layout_cache")
 }
 
+/// 미리보기 캐시 한 칸 — layout 과, 그것이 지어진(또는 마지막으로 저장된) 저장소 판.
+#[derive(Clone)]
+struct DemoCache {
+    key: String,
+    layout: DemoLayout,
+    /// 저장 직전 경합 판정의 기준([`persist_layout`]).
+    base: Option<LayoutBase>,
+}
+
+/// store 에서 캐시 한 칸을 새로 짓는다. preset 이 없으면 `None`.
+fn build_cache(
+    store: &PresetStore,
+    kind: PresetKind,
+    name: &str,
+    catalog: &KindCatalog,
+) -> Option<DemoCache> {
+    Some(DemoCache {
+        key: preset_key(kind, name),
+        layout: build_demo(store, kind, name, catalog)?,
+        base: LayoutBase::current(store, kind, name),
+    })
+}
+
 /// 캐시된 layout 을 꺼낸다. 키가 다르거나 없으면 store 에서 새로 짓는다.
 fn load_demo(
     ui: &egui::Ui,
@@ -522,17 +580,41 @@ fn load_demo(
     kind: PresetKind,
     name: &str,
     catalog: &KindCatalog,
-) -> Option<DemoLayout> {
+) -> Option<DemoCache> {
     let key = preset_key(kind, name);
-    let cached: Option<(String, DemoLayout)> = ui.data(|d| d.get_temp(demo_cache_id()));
+    let cached: Option<DemoCache> = ui.data(|d| d.get_temp(demo_cache_id()));
     match cached {
-        Some((k, dl)) if k == key => Some(dl),
-        _ => build_demo(store, kind, name, catalog),
+        Some(c) if c.key == key => Some(c),
+        _ => build_cache(store, kind, name, catalog),
     }
 }
 
-fn store_demo(ui: &egui::Ui, key: String, layout: DemoLayout) {
-    ui.data_mut(|d| d.insert_temp(demo_cache_id(), (key, layout)));
+fn store_demo(ui: &egui::Ui, cache: DemoCache) {
+    ui.data_mut(|d| d.insert_temp(demo_cache_id(), cache));
+}
+
+/// 저장이 [`Persisted::Conflict`] 로 끝났을 때: 캐시를 저장소 판으로 다시 짓고 알린다.
+/// 이번 변경은 버린다 — 저장소의 쓰기가 남는다. leaf id 는 새 트리에서 다른 leaf 를
+/// 가리킬 수 있으므로 선택도 푼다.
+fn reload_after_conflict(
+    store: &PresetStore,
+    kind: PresetKind,
+    name: &str,
+    catalog: &KindCatalog,
+    cache: &mut DemoCache,
+    selected_node: &mut Option<usize>,
+    toasts: &mut ToastManager,
+) {
+    tracing::warn!("preset '{name}' changed behind the editor; reloaded instead of overwriting");
+    if let Some(fresh) = build_cache(store, kind, name, catalog) {
+        *cache = fresh;
+    }
+    *selected_node = None;
+    toasts.push(
+        t("preset.toast.changed_elsewhere"),
+        ToastKind::Warning,
+        ToastScope::Window,
+    );
 }
 
 /// [`draw_preview`] 의 editing(WYSIWYG) 모드 본문: 단축키/마우스 조작을
@@ -545,13 +627,14 @@ fn draw_preview_editing(
     kind: PresetKind,
     name: &str,
     canvas: egui::Rect,
-    layout: &mut DemoLayout,
+    cache: &mut DemoCache,
     selected_node: &mut Option<usize>,
     surface_cfg: &mut Option<SurfaceCfg>,
     toasts: &mut ToastManager,
     catalog: &KindCatalog,
     kb: &KeybindingSettings,
 ) {
+    let layout = &mut cache.layout;
     // 표준 단축키 → focus(선택 leaf) 기준 mutation. TextEdit(이름/subtitle/cwd/
     // startup) 포커스 중에는 문자 키가 입력으로 가야 하므로 매칭을 차단한다
     // (any_binding_pressed_egui 는 키를 소비하지 않아 가드가 없으면 이중 처리됨).
@@ -582,13 +665,22 @@ fn draw_preview_editing(
     if repaint {
         ui.ctx().request_repaint();
     }
-    if mutated && let Err(e) = persist_layout(store, kind, name, layout) {
-        tracing::warn!("preset auto-save failed: {e}");
-        toasts.push(
-            t("preset.toast.save_failed"),
-            ToastKind::Error,
-            ToastScope::Window,
-        );
+    if !mutated {
+        return;
+    }
+    match persist_layout(store, kind, name, &cache.layout, &cache.base) {
+        Ok(Persisted::Saved(base)) => cache.base = base,
+        Ok(Persisted::Conflict) => {
+            reload_after_conflict(store, kind, name, catalog, cache, selected_node, toasts);
+        }
+        Err(e) => {
+            tracing::warn!("preset auto-save failed: {e}");
+            toasts.push(
+                t("preset.toast.save_failed"),
+                ToastKind::Error,
+                ToastScope::Window,
+            );
+        }
     }
 }
 
@@ -598,6 +690,9 @@ fn draw_preview_editing(
 ///   그 사본을 캐시에 넣고 화면을 닫는다. 실패하면 화면과 draft 를 그대로 두고 toast 로
 ///   알린다 — 미리보기로 돌아가 저장된 것처럼 보이지 않게.
 /// - 취소: draft 를 버린다. 트리도 디스크도 바뀌지 않는다.
+/// - 확인했는데 화면이 열린 사이 저장소의 레이아웃이 바뀌었으면(에이전트의 `preset.save`
+///   등) 덮지 않는다. draft 를 버리고 저장소 판을 다시 불러와 미리보기로 돌아가며 toast 로
+///   알린다 — draft 의 leaf id 가 새 트리에서 같은 leaf 라는 보장이 없다.
 ///
 /// 어느 쪽이든 그 leaf 는 선택된 채 미리보기로 돌아온다. draft 가 가리키는 preset 이나
 /// leaf 가 사라졌으면(에이전트의 삭제 등) 적용하지 않고 draft 를 버린다.
@@ -618,11 +713,11 @@ fn draw_settings_detail(
         return;
     };
     let key = preset_key(kind, name);
-    let layout = (cfg.preset_key() == key)
+    let cache = (cfg.preset_key() == key)
         .then(|| load_demo(ui, store, kind, name, catalog))
         .flatten();
-    let Some((layout, loc)) =
-        layout.and_then(|l| l.leaf_location(cfg.leaf_id()).map(|loc| (l, loc)))
+    let Some((mut cache, loc)) =
+        cache.and_then(|c| c.layout.leaf_location(cfg.leaf_id()).map(|loc| (c, loc)))
     else {
         *surface_cfg = None;
         ui.ctx().request_repaint();
@@ -632,20 +727,40 @@ fn draw_settings_detail(
     let leaf_id = cfg.leaf_id();
 
     match draw_surface_settings(ui, theme, rect, cfg, catalog, &path) {
-        CfgOutcome::None => store_demo(ui, key, layout),
+        CfgOutcome::None => store_demo(ui, cache),
         CfgOutcome::Cancel => {
-            store_demo(ui, key, layout);
+            store_demo(ui, cache);
             *selected_node = Some(leaf_id);
             *surface_cfg = None;
             ui.ctx().request_repaint();
         }
         CfgOutcome::Confirm => {
-            let mut candidate = layout.clone();
+            let mut candidate = cache.layout.clone();
             candidate.apply_leaf_draft(leaf_id, cfg.draft(), catalog);
-            match persist_layout(store, kind, name, &candidate) {
-                Ok(()) => {
-                    store_demo(ui, key, candidate);
+            match persist_layout(store, kind, name, &candidate, &cache.base) {
+                Ok(Persisted::Saved(base)) => {
+                    store_demo(
+                        ui,
+                        DemoCache {
+                            key,
+                            layout: candidate,
+                            base,
+                        },
+                    );
                     *selected_node = Some(leaf_id);
+                    *surface_cfg = None;
+                }
+                Ok(Persisted::Conflict) => {
+                    reload_after_conflict(
+                        store,
+                        kind,
+                        name,
+                        catalog,
+                        &mut cache,
+                        selected_node,
+                        toasts,
+                    );
+                    store_demo(ui, cache);
                     *surface_cfg = None;
                 }
                 Err(e) => {
@@ -655,7 +770,7 @@ fn draw_settings_detail(
                         ToastKind::Error,
                         ToastScope::Window,
                     );
-                    store_demo(ui, key, layout);
+                    store_demo(ui, cache);
                 }
             }
             ui.ctx().request_repaint();

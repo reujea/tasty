@@ -1287,6 +1287,7 @@ saved_pane = "ペインプリセットを保存しました"
 save_failed = "プリセット保存に失敗"
 rename_failed = "プリセット名の変更に失敗"
 apply_failed = "プリセット適用に失敗"
+changed_elsewhere = "プリセットが他の場所で変更されたため、変更を保存せず保存済みの内容を再読み込みしました"
 
 [preset.tools]
 menu_item = "プリセット"

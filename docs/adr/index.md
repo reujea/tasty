@@ -142,6 +142,7 @@ modifier-hint 는 0035(좁힘 + 지연) · 0038(빈 섹션) · 0064(타이머 �
 | 0503 | [에이전트 intent 의 적용 실패는 사용자 toast 가 아니라 로그로 간다 — ADR-0401 의 구조 전달 실패 조항 개정](0503-an-agent-intents-apply-failure-goes-to-the-log-not-a-user-toast.md) | Accepted | 2026-09-23 | toast, attach, mirror, intent, origin, identity-principle-1, user-agent-separation, adr-0401 |
 | 0510 | [디자인 작업은 Claude Design 시안을 갤러리 → 본체 → 사이트 사본 순으로 정합한다 — 갤러리는 본체 UI 의 완전한 단일 출처다](0510-design-work-flows-from-claude-design-through-gallery-app-and-site.md) | Accepted | 2026-09-23 | design-workflow, claude-design, gallery, gallery-first, design-parity, component-catalog, site, vendor, guards, adr-0138, adr-0506 |
 | 0522 | [프리셋 surface 설정 화면의 draft 는 kind 를 바꿔도 값을 지우지 않는다](0522-the-preset-surface-settings-draft-keeps-values-across-kind-switches.md) | Accepted | 2026-09-23 | preset, layout-presets, draft, surface-settings, design-parity, egui, input, adr-0510 |
+| 0531 | [프리셋 편집 화면은 캐시가 지어진 뒤 바뀐 preset 을 덮지 않고, 저장소 판을 다시 불러와 알린다](0531-the-preset-editor-does-not-overwrite-a-preset-changed-behind-its-cache.md) | Accepted | 2026-09-23 | preset, layout-presets, concurrency, agent-user-separation, surface-settings, toast, adr-0522 |
 
 ## 길이 타입 · DPI
 

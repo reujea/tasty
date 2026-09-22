@@ -1287,6 +1287,7 @@ saved_pane = "페인 프리셋 저장됨"
 save_failed = "프리셋 저장 실패"
 rename_failed = "프리셋 이름 변경 실패"
 apply_failed = "프리셋 적용 실패"
+changed_elsewhere = "다른 곳에서 프리셋이 바뀌어 변경을 저장하지 않고 저장된 내용을 다시 불러옴"
 
 [preset.tools]
 menu_item = "프리셋"
