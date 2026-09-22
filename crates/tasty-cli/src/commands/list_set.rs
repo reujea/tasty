@@ -162,7 +162,7 @@ pub enum ListCommands {
     /// (malformed, unknown, expired or revoked, such as a stale
     /// TASTY_SESSION_TOKEN), which is answered before the gate so `judged` does
     /// not count it, and a -32001 a method returns itself after passing the
-    /// gate (a refused grant), which
+    /// gate (such as a refused grant), which
     /// counts as passed. The numbers are totals since this
     /// instance started and go back to 0 on restart. The `throttled_count`
     /// reported by `tasty agent rate-limit-status` is a per-bucket total that
