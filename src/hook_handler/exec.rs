@@ -149,15 +149,45 @@ pub fn substitute_params(template: &Value, ctx: &SubstitutionContext) -> Value {
 /// 다시 오지 않는다 — 웹훅은 밖에서 이미 ACK 됐고, surface 훅의 사건은 한 번 일어나고 끝난다. 그래서
 /// 늦게라도 반영되는 쪽이 안 반영되는 쪽보다 낫다(`agent.task_set_result` 스텝이 버려지면 그 task 는
 /// 끝나지 않는다). 근거: `docs/adr/0451-a-host-injection-carries-its-wait-as-a-deadline.md`.
-pub fn execute_sequence(injector: &HostIpcInjector, calls: &[IpcCall], ctx: &SubstitutionContext) {
+///
+/// 스텝 로그는 `origin` 을 머리에 단다 — 같은 함수를 세 출처가 부르므로, 없으면 실패한 스텝이 어느
+/// 경로에서 왔는지 로그만으로 가를 수 없다.
+pub fn execute_sequence(
+    origin: SequenceOrigin,
+    injector: &HostIpcInjector,
+    calls: &[IpcCall],
+    ctx: &SubstitutionContext,
+) {
     for (i, call) in calls.iter().enumerate() {
         let params = substitute_params(&call.params, ctx);
         match injector.dispatch_even_if_abandoned(&call.method, params, STEP_TIMEOUT) {
             Ok(_result) => {
-                tracing::debug!("webhook IpcSequence step {i} ({}) ok", call.method);
+                tracing::debug!("{origin} IpcSequence step {i} ({}) ok", call.method);
             }
-            Err(e) => log_step_failure(i, &call.method, &e),
+            Err(e) => log_step_failure(origin, i, &call.method, &e),
         }
+    }
+}
+
+/// IpcSequence 를 누가 발화했는가 — 스텝 로그의 머리말이다. 바인딩 게이트의 입력인
+/// [`super::types::TriggerSource`] 와 다르다: 수동 발화는 게이트를 거치지 않는다.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SequenceOrigin {
+    /// 웹훅 리스너 — HTTP 요청마다 제 스레드에서 실행한다.
+    Webhook,
+    /// surface 훅(notification · bell · output-match · command-completed · process-exit · idle 훅).
+    SurfaceHook,
+    /// `hook_handler.dispatch` 수동 발화.
+    Dispatch,
+}
+
+impl std::fmt::Display for SequenceOrigin {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(match self {
+            Self::Webhook => "webhook",
+            Self::SurfaceHook => "surface hook",
+            Self::Dispatch => "hook_handler.dispatch",
+        })
     }
 }
 
@@ -170,6 +200,7 @@ const PENDING_SEQUENCE_LIMIT: usize = tasty_ipc::admission::INJECTED_DEPTH_LIMIT
 
 /// 실행기 스레드로 넘기는 시퀀스 한 건 — 제 injector 사본을 들고 간다.
 struct SequenceJob {
+    origin: SequenceOrigin,
     handler_id: String,
     injector: HostIpcInjector,
     calls: Vec<IpcCall>,
@@ -186,8 +217,8 @@ fn sequence_worker() -> Option<&'static SyncSender<SequenceJob>> {
                 .name("hook-sequence".into())
                 .spawn(move || {
                     for job in rx {
-                        tracing::debug!("hook IpcSequence '{}' running", job.handler_id);
-                        execute_sequence(&job.injector, &job.calls, &job.ctx);
+                        tracing::debug!("{} IpcSequence '{}' running", job.origin, job.handler_id);
+                        execute_sequence(job.origin, &job.injector, &job.calls, &job.ctx);
                     }
                 });
             match spawned {
@@ -209,56 +240,66 @@ fn sequence_worker() -> Option<&'static SyncSender<SequenceJob>> {
 /// 상한([`STEP_TIMEOUT`])까지 서고, 그동안 화면과 모든 IPC 응답이 선다.
 ///
 /// 실행은 전용 스레드 하나가 **넘겨받은 순서대로** 한다 — 한 시퀀스의 스텝은 앞 스텝의 답을 받은 뒤
-/// 다음 스텝을 넣고, 먼저 발화한 훅의 시퀀스가 먼저 끝난다. 결과의 기록은 [`execute_sequence`] 그대로다
-/// (실패는 `error!`, 반환값 없음).
+/// 다음 스텝을 넣고, 먼저 넘겨받은 시퀀스가 먼저 끝난다. surface 훅과 `hook_handler.dispatch` 수동
+/// 발화가 이 한 줄을 함께 쓰므로 두 출처의 시퀀스도 스텝 단위로 끼어들지 않는다. 스텝 결과의 기록은
+/// [`execute_sequence`] 그대로다(실패는 `error!`, 반환값 없음).
 ///
-/// 실행기에 이미 [`PENDING_SEQUENCE_LIMIT`] 건이 쌓여 있으면 이 시퀀스는 **실행하지 않고** `error!` 로
-/// 남긴다 — 호스트 큐의 입장 거절과 같은 성질이다(스텝이 아니라 적체가 원인이고, 다시 걸지 않는다).
+/// 실행기에 이미 [`PENDING_SEQUENCE_LIMIT`] 건이 쌓여 있으면 이 시퀀스는 **실행하지 않고** `Err` 를
+/// 돌려준다 — 호스트 큐의 입장 거절과 같은 성질이다(스텝이 아니라 적체가 원인이고, 다시 걸지 않는다).
+/// 호출자가 `error!` 로 남기고, 답할 호출자가 있는 자리(수동 발화)는 "실행하지 않았다" 로 답한다.
+/// 근거: `docs/adr/0498-a-surface-hook-sequence-runs-off-the-thread-that-drains-the-queue.md`,
+/// `docs/adr/0515-a-manually-dispatched-hook-sequence-joins-the-surface-hook-worker.md`.
 pub fn enqueue_sequence(
+    origin: SequenceOrigin,
     handler_id: &str,
     injector: &HostIpcInjector,
     calls: &[IpcCall],
     ctx: SubstitutionContext,
-) {
-    let Some(worker) = sequence_worker() else {
-        tracing::error!(
-            "hook IpcSequence '{handler_id}' not run — the sequence worker thread is unavailable"
-        );
-        return;
-    };
+) -> Result<(), SequenceNotQueued> {
+    let worker = sequence_worker().ok_or(SequenceNotQueued::WorkerUnavailable)?;
     let job = SequenceJob {
+        origin,
         handler_id: handler_id.to_string(),
         injector: injector.clone(),
         calls: calls.to_vec(),
         ctx,
     };
-    if let Err(e) = worker.try_send(job) {
-        log_not_queued(handler_id, &e);
-    }
+    worker.try_send(job).map_err(|e| match e {
+        TrySendError::Full(_) => SequenceNotQueued::Full,
+        TrySendError::Disconnected(_) => SequenceNotQueued::WorkerStopped,
+    })
 }
 
-/// 실행기에 못 넘긴 시퀀스 하나를 남긴다 — 실행되지 않았다. `enqueue_sequence` 에서 분리
-/// (cognitive complexity 게이트, 로그 매크로 두 벌).
-fn log_not_queued(handler_id: &str, e: &TrySendError<SequenceJob>) {
-    match e {
-        TrySendError::Full(_) => tracing::error!(
-            "hook IpcSequence '{handler_id}' not run — {PENDING_SEQUENCE_LIMIT} sequences are already waiting"
-        ),
-        TrySendError::Disconnected(_) => tracing::error!(
-            "hook IpcSequence '{handler_id}' not run — the sequence worker thread has stopped"
-        ),
+/// 실행기에 못 넘긴 시퀀스의 사유 — 그 시퀀스는 실행되지 않았다.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SequenceNotQueued {
+    /// 대기 시퀀스가 [`PENDING_SEQUENCE_LIMIT`] 에 이르렀다.
+    Full,
+    /// 실행기 스레드를 못 띄웠다.
+    WorkerUnavailable,
+    /// 실행기 스레드가 멈췄다.
+    WorkerStopped,
+}
+
+impl std::fmt::Display for SequenceNotQueued {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Full => write!(f, "{PENDING_SEQUENCE_LIMIT} sequences are already waiting"),
+            Self::WorkerUnavailable => f.write_str("the sequence worker thread is unavailable"),
+            Self::WorkerStopped => f.write_str("the sequence worker thread has stopped"),
+        }
     }
 }
 
 /// 실패한 스텝 하나를 남긴다. 실행되지 않은 실패(큐 입장 거절 · 큐 송신 실패)는 문구를 갈라
 /// 시간 초과·handler 거절과 구별되게 한다 — 앞의 것은 스텝이 아니라 호스트의 적체가 원인이다.
-fn log_step_failure(i: usize, method: &str, e: &InjectError) {
+fn log_step_failure(origin: SequenceOrigin, i: usize, method: &str, e: &InjectError) {
     if e.nothing_ran() {
         tracing::error!(
-            "webhook IpcSequence step {i} ({method}) not run — the host did not queue it: {e}"
+            "{origin} IpcSequence step {i} ({method}) not run — the host did not queue it: {e}"
         );
     } else {
-        tracing::error!("webhook IpcSequence step {i} ({method}) failed: {e}");
+        tracing::error!("{origin} IpcSequence step {i} ({method}) failed: {e}");
     }
 }
 
@@ -290,6 +331,97 @@ pub fn spawn_shell(command: String, args: Vec<String>, env: Vec<(String, String)
 mod tests {
     use super::*;
     use serde_json::json;
+
+    /// 이 스코프 동안 이 스레드에서 나가는 tracing 이벤트를 문자열로 모은다.
+    fn capture_logs(f: impl FnOnce()) -> String {
+        use std::sync::{Arc, Mutex};
+        #[derive(Clone)]
+        struct Buf(Arc<Mutex<Vec<u8>>>);
+        impl std::io::Write for Buf {
+            fn write(&mut self, b: &[u8]) -> std::io::Result<usize> {
+                self.0.lock().unwrap().extend_from_slice(b);
+                Ok(b.len())
+            }
+            fn flush(&mut self) -> std::io::Result<()> {
+                Ok(())
+            }
+        }
+        let buf = Buf(Arc::new(Mutex::new(Vec::new())));
+        let sink = buf.clone();
+        let sub = tracing_subscriber::fmt()
+            .with_max_level(tracing::Level::TRACE)
+            .with_ansi(false)
+            .with_writer(move || sink.clone())
+            .finish();
+        // 다른 스레드(다른 시험의 실행기 · 수동 발화)가 이 콜사이트를 구독자 없이 먼저 등록하면
+        // interest 가 "never" 로 캐시되어 여기서 켠 구독자가 줄을 못 받는다(변이 실행 중 한 번 관측).
+        // 구독자를 켠 뒤 캐시를 다시 짓는다.
+        tracing::subscriber::with_default(sub, || {
+            tracing::callsite::rebuild_interest_cache();
+            f()
+        });
+        let out = buf.0.lock().unwrap().clone();
+        String::from_utf8_lossy(&out).into_owned()
+    }
+
+    /// 스텝 로그는 시퀀스를 발화한 출처를 찍는다 — 성공한 스텝과 실패한 스텝 둘 다. 예전에는 세
+    /// 출처가 모두 `webhook` 으로 찍혀 수동 발화 · surface 훅의 실패를 웹훅 실패로 읽게 했다.
+    #[test]
+    fn step_logs_name_the_origin_that_fired_the_sequence() {
+        use std::sync::{Arc, mpsc};
+        use tasty_ipc::server::IpcCommand;
+
+        for (origin, label) in [
+            (SequenceOrigin::Webhook, "webhook"),
+            (SequenceOrigin::SurfaceHook, "surface hook"),
+            (SequenceOrigin::Dispatch, "hook_handler.dispatch"),
+        ] {
+            let (tx, rx) = mpsc::channel::<IpcCommand>();
+            let injector = HostIpcInjector::new(tx, Arc::new(|| {}));
+            // 첫 스텝은 성공, 둘째 스텝은 handler 거절로 답한다.
+            let answerer = std::thread::spawn(move || {
+                for ok in [true, false] {
+                    let cmd = rx
+                        .recv_timeout(Duration::from_secs(5))
+                        .expect("a step reaches the queue");
+                    let id = cmd.request.id.clone().unwrap_or(Value::Null);
+                    let resp = if ok {
+                        tasty_ipc::protocol::JsonRpcResponse::success(id, json!({}))
+                    } else {
+                        tasty_ipc::protocol::JsonRpcResponse::internal_error(id, "probe refused")
+                    };
+                    cmd.response_tx.send(resp).expect("answer the step");
+                }
+            });
+            let calls = [
+                IpcCall {
+                    method: "probe.ok".into(),
+                    params: json!({}),
+                },
+                IpcCall {
+                    method: "probe.refused".into(),
+                    params: json!({}),
+                },
+            ];
+            let logs = capture_logs(|| {
+                execute_sequence(origin, &injector, &calls, &SubstitutionContext::default())
+            });
+            answerer.join().expect("answerer thread");
+            assert!(
+                logs.contains(&format!("{label} IpcSequence step 0 (probe.ok) ok")),
+                "{origin:?}: {logs}"
+            );
+            assert!(
+                logs.contains(&format!(
+                    "{label} IpcSequence step 1 (probe.refused) failed"
+                )),
+                "{origin:?}: {logs}"
+            );
+            if origin != SequenceOrigin::Webhook {
+                assert!(!logs.contains("webhook"), "{origin:?}: {logs}");
+            }
+        }
+    }
 
     fn ctx() -> SubstitutionContext {
         let mut headers = BTreeMap::new();

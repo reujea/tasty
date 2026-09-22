@@ -74,7 +74,7 @@ surface hook 은 `HookBinding` 으로 무엇을 실행할지 표현한다:
 - **`Handler(id)`** — 공유 훅 핸들러 레지스트리 핸들러 id 참조(`tasty set hook --handler <id>`). 등록 시 핸들러가 존재하고 `source` 가 hook 트리거를 수용(`hook` 또는 `any`)하는지 검증한다 — `webhook` 전용 핸들러는 거부된다.
 - **`InlineShell(cmd)`** — 하위호환 익명 셸(`tasty set hook --command "..."`). 레지스트리에 등록되지 않는 인라인 핸들러라 export/영속화 대상이 아니다.
 
-`tasty-hooks` 는 leaf 크레이트라 레지스트리를 볼 수 없어 `(surface, event)` 매칭만 하고 바인딩을 돌려준다(`FiredHook` 에 매칭된 등록 이벤트 포함). 실제 실행(레지스트리 조회 + `source` 게이트 + `ShellCommand`→셸 / `IpcSequence`→IPC 순차 실행)은 본체 `hook_handler::trigger::execute_binding` 이 담당한다. `IpcSequence` 실행에는 IPC injector 가 필요하다(없으면 건너뛰고 warn). `IpcSequence` 는 발화한 스레드에서 실행하지 않는다 — surface 훅은 호스트 명령 큐를 비우는 스레드(GUI 메인 스레드 · headless 루프)에서 발화하므로, 거기서 스텝의 답을 기다리면 스텝마다 대기 상한(10 s)까지 화면과 IPC 가 선다. 그래서 `hook_handler::exec::enqueue_sequence` 가 전용 `hook-sequence` 스레드 하나에 넘기고 바로 돌아온다. 그 스레드는 받은 순서대로 시퀀스를 하나씩, 스텝은 앞 스텝의 답을 받은 뒤 다음 스텝을 넣는다. 대기 시퀀스가 호스트 주입 큐 상한(`tasty_ipc::admission::INJECTED_DEPTH_LIMIT`, 현재 256)과 같은 수에 이르면 새 시퀀스는 실행하지 않고 `error!` 로 남긴다(다시 걸지 않는다). 근거 [ADR-0498](../../adr/0498-a-surface-hook-sequence-runs-off-the-thread-that-drains-the-queue.md).
+`tasty-hooks` 는 leaf 크레이트라 레지스트리를 볼 수 없어 `(surface, event)` 매칭만 하고 바인딩을 돌려준다(`FiredHook` 에 매칭된 등록 이벤트 포함). 실제 실행(레지스트리 조회 + `source` 게이트 + `ShellCommand`→셸 / `IpcSequence`→IPC 순차 실행)은 본체 `hook_handler::trigger::execute_binding` 이 담당한다. `IpcSequence` 실행에는 IPC injector 가 필요하다(없으면 건너뛰고 warn). `IpcSequence` 는 발화한 스레드에서 실행하지 않는다 — surface 훅은 호스트 명령 큐를 비우는 스레드(GUI 메인 스레드 · headless 루프)에서 발화하므로, 거기서 스텝의 답을 기다리면 스텝마다 대기 상한(10 s)까지 화면과 IPC 가 선다. 그래서 `hook_handler::exec::enqueue_sequence` 가 전용 `hook-sequence` 스레드 하나에 넘기고 바로 돌아온다. 그 스레드는 받은 순서대로 시퀀스를 하나씩, 스텝은 앞 스텝의 답을 받은 뒤 다음 스텝을 넣는다. `hook_handler.dispatch` 수동 발화도 같은 스레드에 줄 서므로, 수동 발화끼리 · 수동 발화와 surface 훅 사이에서도 시퀀스가 스텝 단위로 끼어들지 않는다(웹훅은 요청마다 제 스레드에서 실행하며 이 줄에 서지 않는다). 대기 시퀀스가 호스트 주입 큐 상한(`tasty_ipc::admission::INJECTED_DEPTH_LIMIT`, 현재 256)과 같은 수에 이르면 새 시퀀스는 실행하지 않고 `error!` 로 남긴다(다시 걸지 않는다) — 수동 발화는 그때 호출자에게 `-32603` `hook handler '<id>' not run — …` 로 답한다. 스텝 로그는 `<출처> IpcSequence step <i> (<method>) ok|failed …` 이고 출처는 `webhook` · `surface hook` · `hook_handler.dispatch` 중 하나다. 근거 [ADR-0498](../../adr/0498-a-surface-hook-sequence-runs-off-the-thread-that-drains-the-queue.md) · [ADR-0515](../../adr/0515-a-manually-dispatched-hook-sequence-joins-the-surface-hook-worker.md).
 
 #### 셸 핸들러 환경변수 (`TASTY_HOOK_*`)
 
@@ -141,7 +141,7 @@ surface 무관 — `condition` 으로 트리거:
 | `hook_handler.upsert` | `tasty hook-handler upsert --id <id> [--source ...] [--priority N] [--display-name-key K] [--disabled <bool>] (--action <json> \| --calls <json>)` | user 출처 핸들러를 **제자리 수정**하거나 신규 생성 |
 | `hook_handler.remove` | `tasty hook-handler remove --id <id>` | user 기여분만 제거(host/plugin 기본값 보존) |
 | `hook_handler.reload` | `tasty hook-handler reload` | user config 재로드(host/plugin 영향 없음) |
-| `hook_handler.dispatch` | `tasty hook-handler dispatch --id <id> [--body/--header/--query <json>]` | id 로 수동 발화(fire-and-forget) |
+| `hook_handler.dispatch` | `tasty hook-handler dispatch --id <id> [--body/--header/--query <json>]` | id 로 수동 발화(fire-and-forget). `IpcSequence` 는 surface 훅과 같은 실행기에 발화 순서대로 줄 선다 |
 
 - **`upsert` 는 patch 다** — 안 준 필드는 지우는 것이 아니라 그대로 둔다. id·우선순위·나머지가 유지되므로 그 id 를 참조하는 훅 바인딩(`HookBinding::Handler(id)`)은 계속 같은 것을 가리킨다. 지우고 다시 만드는 경로(`remove` 후 재등록)와 **관측 가능하게 다르다**: 후자는 사이에 들어온 트리거가 갈 곳이 없고, host/plugin 기본값이 잠시 드러나며, 안 적은 필드가 기본값으로 되돌아간다.
 - **최소 한 필드**는 있어야 한다. 아무 필드도 없는 upsert 는 아무것도 안 고친 채 성공으로 보고되므로 거부한다. 형식이 틀린 `action` 도 같은 이유로 조용히 무시하지 않는다.

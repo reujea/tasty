@@ -19,7 +19,7 @@ use super::WebhookInitReport;
 use super::abuse;
 use super::ack::{AckStatus, build_ack};
 use super::registry::{self, MatchResult};
-use crate::hook_handler::{SubstitutionContext, execute_sequence};
+use crate::hook_handler::{SequenceOrigin, SubstitutionContext, execute_sequence};
 use tasty_ipc::host_call::HostIpcInjector;
 
 /// 리스너 init — runtime 주입 후 tiny_http 를 bind 하고 accept thread 를 띄운다.
@@ -132,7 +132,7 @@ fn handle_request(request: tiny_http::Request) {
             headers,
             query,
         };
-        execute_sequence(&injector, &calls, &ctx);
+        execute_sequence(SequenceOrigin::Webhook, &injector, &calls, &ctx);
     }
 }
 

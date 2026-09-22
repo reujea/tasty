@@ -20,7 +20,10 @@ pub mod types;
 // 추가한다. 전체 경로(`registry::` / `types::` / `exec::` / `config::`)로는 항상 접근 가능.
 pub use config::UserHookHandlerActionDecl;
 pub use env::{HookShellEnv, build_env};
-pub use exec::{SubstitutionContext, execute_sequence, spawn_shell};
+pub use exec::{
+    SequenceNotQueued, SequenceOrigin, SubstitutionContext, enqueue_sequence, execute_sequence,
+    spawn_shell,
+};
 pub use registry::{
     HostHookHandlerPort, UserHookHandlerUpsertDecl, global, install_default_sources,
     user_config_path,

@@ -11,7 +11,7 @@
 //! ## 불변식
 //! - **데이터/흐름 분리**: 발화되는 `IpcCall.method` 는 owner 가 등록 시 고정한
 //!   리터럴이며 dispatch 페이로드는 `params` 값 슬롯에만 치환된다([`crate::hook_handler::exec`]).
-//! - **단방향(fire-and-forget)**: dispatch 실행 결과는 worker thread 안에 갇히고
+//! - **단방향(fire-and-forget)**: dispatch 실행 결과는 시퀀스 실행기 스레드 안에 갇히고
 //!   JSON 응답에 실행 결과가 실리지 않는다(응답은 "수리됨" ACK 만).
 //!
 //! ## `get` · `upsert` 가 왜 `local_only` 인가
@@ -39,9 +39,11 @@ use serde_json::json;
 
 use crate::core::Core;
 use crate::hook_handler::{
-    self, HookHandlerAction, HookHandlerId, HookShellEnv, HookSource, SubstitutionContext,
-    UserHookHandlerActionDecl, UserHookHandlerUpsertDecl, build_env, execute_sequence, spawn_shell,
+    self, HookHandlerAction, HookHandlerId, HookShellEnv, HookSource, IpcCall, SequenceNotQueued,
+    SequenceOrigin, SubstitutionContext, UserHookHandlerActionDecl, UserHookHandlerUpsertDecl,
+    build_env, enqueue_sequence, spawn_shell,
 };
+use tasty_ipc::host_call::HostIpcInjector;
 use tasty_ipc::protocol::JsonRpcResponse;
 
 /// `hook_handler.list` — 등록된 모든 훅 핸들러(비활성 포함, 포커스 독립·전 범위).
@@ -108,8 +110,9 @@ pub fn handle_reload(id: serde_json::Value) -> JsonRpcResponse {
 /// - `body` / `headers` / `query`: 치환 컨텍스트(선택). IpcSequence 핸들러의 `params`
 ///   값 슬롯(`${body.x}`/`${header.x}`/`${query.x}`)에 채워진다.
 ///
-/// 응답은 "수리됨(accepted)" ACK 만 담는다 — 실행은 worker thread 에서 fire-and-forget
-/// 되고 결과가 응답에 실리지 않는다(단방향 불변식). 비활성 핸들러는 거부한다.
+/// 응답은 "수리됨(accepted)" ACK 만 담는다 — 실행은 surface 훅과 같은 시퀀스 실행기 스레드에서
+/// fire-and-forget 되고 결과가 응답에 실리지 않는다(단방향 불변식). 실행기에 넘기지 못했으면(대기
+/// 시퀀스가 상한에 이름 · 실행기 스레드 없음) "실행하지 않았다" 오류로 답한다. 비활성 핸들러는 거부한다.
 pub fn handle_dispatch(
     core: &Core,
     id: serde_json::Value,
@@ -128,8 +131,8 @@ pub fn handle_dispatch(
 
     match handler.action {
         HookHandlerAction::IpcSequence { calls } => {
-            // injector 를 얻어 worker thread 에서 실행한다. 메인 스레드(현재 핸들러)를
-            // 막지 않아야 하므로 dispatch 를 spawn 뒤로 넘긴다(웹훅 리스너와 동일 패턴).
+            // injector 를 얻어 surface 훅과 같은 실행기 스레드에 넘긴다. 이 핸들러는 호스트 명령
+            // 큐를 비우는 스레드에서 돌므로 여기서 스텝의 답을 기다릴 수 없다.
             let Some(injector) = core.host_ipc_injector_arc().get().cloned() else {
                 return JsonRpcResponse::internal_error(
                     id,
@@ -138,11 +141,11 @@ pub fn handle_dispatch(
             };
             let ctx = build_context(params);
             let steps = calls.len();
-            if let Err(e) = std::thread::Builder::new()
-                .name("hook-dispatch".into())
-                .spawn(move || execute_sequence(&injector, &calls, &ctx))
-            {
-                return JsonRpcResponse::internal_error(id, format!("dispatch thread spawn: {e}"));
+            if let Err(e) = start_dispatched_sequence(&hid.0, &injector, &calls, ctx) {
+                return JsonRpcResponse::internal_error(
+                    id,
+                    format!("hook handler '{hid}' not run — {e}"),
+                );
             }
             JsonRpcResponse::success(
                 id,
@@ -168,6 +171,21 @@ pub fn handle_dispatch(
             )
         }
     }
+}
+
+/// 수동 발화한 IpcSequence 를 surface 훅과 **같은 실행기**에 줄 세운다 — 잇달아 발화한 시퀀스와
+/// surface 훅의 시퀀스가 스텝 단위로 끼어들지 않고 넘겨받은 순서대로 하나씩 실행된다.
+/// 근거: `docs/adr/0515-a-manually-dispatched-hook-sequence-joins-the-surface-hook-worker.md`.
+fn start_dispatched_sequence(
+    handler_id: &str,
+    injector: &HostIpcInjector,
+    calls: &[IpcCall],
+    ctx: SubstitutionContext,
+) -> Result<(), SequenceNotQueued> {
+    let origin = SequenceOrigin::Dispatch;
+    enqueue_sequence(origin, handler_id, injector, calls, ctx).inspect_err(|e| {
+        tracing::error!("{origin} IpcSequence '{handler_id}' not run — {e}");
+    })
 }
 
 /// `hook_handler.get` — 핸들러 한 건을 id 로 조회한다. **action 본문까지** 싣는다.
@@ -428,6 +446,67 @@ fn string_map(
 mod tests {
     use super::*;
     use serde_json::json;
+
+    /// 수동 발화 시퀀스는 surface 훅과 같은 실행기에 줄 선다 — 잇달아 발화한 두 수동 시퀀스와 그
+    /// 사이에 발화한 surface 훅 시퀀스가 스텝 단위로 끼어들지 않고 넘겨받은 순서대로 하나씩 돈다.
+    /// 수동 발화마다 스레드를 띄우면(ADR-0498 대안 A) 뒤 시퀀스의 첫 스텝이 앞 시퀀스의 첫 스텝
+    /// 답을 기다리지 않고 들어온다.
+    #[test]
+    fn dispatched_sequences_do_not_interleave_with_each_other_or_with_surface_hooks() {
+        use std::sync::{Arc, mpsc};
+        use std::time::Duration;
+        use tasty_ipc::server::IpcCommand;
+
+        let (tx, rx) = mpsc::channel::<IpcCommand>();
+        let injector = HostIpcInjector::new(tx, Arc::new(|| {}));
+        let step = |method: &str| IpcCall {
+            method: method.into(),
+            params: json!({}),
+        };
+        start_dispatched_sequence(
+            "user/first",
+            &injector,
+            &[step("first.a"), step("first.b")],
+            SubstitutionContext::default(),
+        )
+        .expect("the first dispatch is queued");
+        enqueue_sequence(
+            SequenceOrigin::SurfaceHook,
+            "user/hook",
+            &injector,
+            &[step("hook.a"), step("hook.b")],
+            SubstitutionContext::default(),
+        )
+        .expect("the surface hook sequence is queued");
+        start_dispatched_sequence(
+            "user/second",
+            &injector,
+            &[step("second.a")],
+            SubstitutionContext::default(),
+        )
+        .expect("the second dispatch is queued");
+
+        let mut arrived = Vec::new();
+        for _ in 0..5 {
+            let cmd = rx
+                .recv_timeout(Duration::from_secs(5))
+                .expect("a step reaches the queue");
+            arrived.push(cmd.request.method.clone());
+            assert!(
+                rx.recv_timeout(Duration::from_millis(200)).is_err(),
+                "a step reached the queue while {:?} was unanswered (arrived so far: {arrived:?})",
+                cmd.request.method
+            );
+            let id = cmd.request.id.clone().unwrap_or(serde_json::Value::Null);
+            cmd.response_tx
+                .send(JsonRpcResponse::success(id, json!({})))
+                .expect("answer the step");
+        }
+        assert_eq!(
+            arrived,
+            ["first.a", "first.b", "hook.a", "hook.b", "second.a"]
+        );
+    }
 
     #[test]
     fn string_map_lowercases_header_keys() {

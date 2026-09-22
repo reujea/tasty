@@ -113,8 +113,9 @@ ADR-0391 의 주입 깊이 상한과 거절 갈래.
 
 **원리적으로 안 붙는 것**
 
-- 훅 스텝의 늦은 실행이 사고를 내는 보고. 재는 법: `webhook IpcSequence step … failed: host_dispatch
-  timeout` 로그와 같은 스텝의 실행 흔적을 시각으로 대조한다.
+- 훅 스텝의 늦은 실행이 사고를 내는 보고. 재는 법: `<출처> IpcSequence step … failed: host_dispatch
+  timeout` 로그(출처는 `webhook` · `surface hook` · `hook_handler.dispatch`,
+  [ADR-0515](0515-a-manually-dispatched-hook-sequence-joins-the-surface-hook-worker.md))와 같은 스텝의 실행 흔적을 시각으로 대조한다.
 - runner task 가 "nothing ran" 을 받았는데 plugin 에 효과가 남은 보고 — 위 경합 창이 실제로 열리는지.
   재는 법: 그 task 의 결과 시각과 plugin 쪽 요청 로그의 수신 시각을 대조한다.
 

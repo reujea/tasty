@@ -18,7 +18,7 @@
 use tasty_hooks::{HookBinding, HookEvent};
 
 use super::env::{HookShellEnv, build_env};
-use super::exec::{SubstitutionContext, enqueue_sequence};
+use super::exec::{SequenceOrigin, SubstitutionContext, enqueue_sequence};
 use super::registry::global;
 use super::types::{HookHandlerAction, HookHandlerId, IpcCall, TriggerSource, validate_binding};
 use tasty_ipc::host_call::HostIpcInjector;
@@ -109,7 +109,11 @@ fn execute_ipc_sequence_handler(
     };
     // 이 함수는 호스트 명령 큐를 비우는 스레드(GUI 메인 · headless 루프)에서 불린다 — 스텝의 답을
     // 여기서 기다리면 그 스레드가 스텝마다 대기 상한까지 선다. 실행기 스레드에 넘기고 돌아온다.
-    enqueue_sequence(id, inj, calls, ctx);
+    // 못 넘겼으면 실행되지 않은 것이다 — 답할 호출자가 없으므로 로그가 유일한 흔적이다.
+    let origin = SequenceOrigin::SurfaceHook;
+    if let Err(e) = enqueue_sequence(origin, id, inj, calls, ctx) {
+        tracing::error!("{origin} IpcSequence '{id}' not run — {e}");
+    }
 }
 
 /// 훅 트리거 payload 조립 — 셸 env(`TASTY_HOOK_*`)와 IpcSequence(`${body.*}`) 양쪽이
