@@ -106,17 +106,8 @@ fn surface_ids(delta: &Value) -> Vec<u64> {
 fn a_shell_exit_on_the_server_reaches_the_holder_as_a_delta() {
     let server = common::shared();
     let ws = server.create_workspace("structure-sync-exit");
-    // 끝낼 셸은 점유 **전에** 서버 IPC 로 만든다. 점유 중 forward split 으로 만든 셸은 동시
-    // 부하 하에서 기동하지 않고 입력을 무시하는 일이 있다(이 변경 이전 base 에서도 콜드
-    // 실행 6 회 중 1 회 재현) — 이 시험이 재는 것은 셸 종료의 역반영이지 그 결함이 아니다.
-    let b = server.call(
-        "split",
-        json!({ "level": "surface", "target_surface": ws.surface_id, "direction": "vertical" }),
-    )["new_surface_id"]
-        .as_u64()
-        .expect("split returns new_surface_id");
-    server.wait_for_shell(b);
     let mut stream = open_workspace_attach(server.port(), ws.id);
+    let b = split_and_read_new_surface(&mut stream, ws.surface_id);
 
     // 셸이 첫 입력을 놓쳐도 시험이 멈추지 않게 delta 가 올 때까지 간격을 두고 다시 보낸다 —
     // 닫힌 뒤의 재전송은 서버가 버린다(살아 있지 않은 surface 로의 입력).
