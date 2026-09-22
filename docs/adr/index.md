@@ -541,6 +541,7 @@ pragma 보고는 0316 → 0376(보고 채널 개정), 못 연 `memory.db` 의 in
 ## 테스트 · flake · 하네스
 
 flake 처방은 0129 → 0155, e2e 하네스는 0090 → 0127 → 0170 → 0297 이다.
+하네스 격리 축은 0297 · 0511(OS 열기, 운영 문서 [dev-guide/debug-ipc](../dev-guide/debug-ipc.md) · [dev-guide/self-verification](../dev-guide/self-verification.md)) 이다.
 운영 문서: [dev-guide/e2e-tests](../dev-guide/e2e-tests.md) · [dev-guide/unit-test-isolation](../dev-guide/unit-test-isolation.md)
 
 | # | Title | Status | Date | Tags |
