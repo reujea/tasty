@@ -150,6 +150,13 @@ IPC 핸들러는 **창 상태를 읽을 때만** `AppState` 를 받는다
 - **`AppState` 를 받는 자리** — 창을 쥔 진입점(`handle_checked_request` · 헤드리스 `pump_ipc`)과,
   창 상태 자체가 대상인 GUI·debug 핸들러(파일 선택기 · popup · 배너 · 도구 메뉴 · debug 주입 ·
   `ui.state`)와 그 라우터(`route_window_handler` · `route_debug_handler`)뿐이다.
+  `handle_checked_request` 는 받은 창을 곧바로 `EntryWindow`(`src/adapters/ipc/handler/entry_window.rs`)로
+  감싸고, 그 아래 입구 본문(`route_checked_request` · `dispatch_routed`)은 `EntryWindow` 만 받는다.
+  `EntryWindow` 의 필드는 모듈 밖에 안 보이고, 열린 문은 셋이다 — 엔진 라우터용 포트(`port`), gui
+  창 라우터(`route_window`), debug 라우터(`route_debug`, 파일 전체가 `#![cfg(debug_assertions)]` 인
+  `entry_window_debug.rs`). 그래서 입구 본문이 popup·`active_workspace` 를 이름으로 만지면 컴파일이
+  깨진다. 헤드리스 `pump_ipc` 는 응답 전에 intent 적용(`drain_pending_intents`)에 창 전체를 넘겨야
+  해서 이 봉인 밖이다(ADR-0471 Decision 5).
 
 `AppState` 가 든 Core memory 핸들 사본(`memory`)은 IPC 핸들러가 읽지 않는다 — 같은 Arc 를 `Core`
 로 읽는다.

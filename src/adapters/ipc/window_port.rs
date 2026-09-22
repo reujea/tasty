@@ -15,7 +15,7 @@
 //!
 //! 창 상태를 **실제로 조작하는** GUI·debug 전용 핸들러(popup · 배너 · 도구 메뉴 · 파일 선택기
 //! · debug 주입 · `ui.state`)는 이 포트의 대상이 아니다 — 그것들은 라우터 진입점
-//! (`handle_checked_request`)이 쥔 `AppState` 를 창 핸들러 라우터(`route_window_handler`)로
+//! (`handle_checked_request`)이 쥔 `AppState` 를 `EntryWindow` 를 거쳐 창 핸들러 라우터(`route_window_handler`)로
 //! 그대로 받는다. 근거와 경계는
 //! [ADR-0471](../../../docs/adr/0471-ipc-engine-handlers-reach-the-window-through-a-port.md).
 

@@ -12,22 +12,28 @@
 JSON-RPC 라우터는 공통 `check_request`의 권한·cap·rate·관측을 마친 요청만 `src/adapters/ipc/handler.rs::handle_checked_request`에 넘겨 핸들러를 탐색한다:
 
 ```rust
+// window: &mut EntryWindow — handle_checked_request 가 쥔 AppState 를 감싼 것
 let mut out = IntentOutbox::default();   // 요청 하나의 intent 출구
-let routed = route_engine_handler(core, state, &mut out, engine, caller, request, id.clone());
-state.enqueue_intents(out);              // 출구를 이 창의 큐 끝으로
+let routed = route_engine_handler(core, window.port(), &mut out, engine, caller, request, id.clone());
+window.port().enqueue_intents(out);      // 출구를 이 창의 큐 끝으로
 if let Some(resp) = routed {
     return resp;                         // release+debug 공통 엔진 핸들러 (~150개)
 }
 #[cfg(feature = "gui")]
-if let Some(resp) = route_window_handler(state, engine, caller, request, id.clone()) {
-    return resp;                         // 창 상태가 대상인 gui 전용 핸들러
+if let Some(resp) = window.route_window(engine, caller, request, id.clone()) {
+    return resp;                         // 창 상태가 대상인 gui 전용 핸들러(route_window_handler)
 }
 #[cfg(debug_assertions)]
-if let Some(resp) = route_debug_handler(state, engine, request, id.clone()) {
-    return resp;                         // debug 빌드 전용
+if let Some(resp) = window.route_debug(engine, request, id.clone()) {
+    return resp;                         // debug 빌드 전용(route_debug_handler)
 }
 JsonRpcResponse::unrouted_for_external_caller(id, &request.method)
 ```
+
+`EntryWindow` 의 debug 문(`route_debug`)은 별도 파일 `src/adapters/ipc/handler/entry_window_debug.rs`
+에 있다. 그 파일은 `EntryWindow` 의 비공개 필드에 닿아야 해서 `entry_window` 의 자식 모듈이고, 그래서
+cfg 를 선언이 아니라 파일 머리의 `#![cfg(debug_assertions)]` 로 건다 — 아래 격리 정책의 가드가 그 형태를
+파일 단위 격리로 인정한다. release 에는 문 자체가 없다.
 
 `route_debug_handler` 함수 자체가 `#[cfg(debug_assertions)]` 라 release 바이너리엔 분기 한 줄과 함수가 모두 사라진다. release 에서 debug 메서드를 부르면 `-32601`(`method_not_found`)로 떨어진다 — 위 블록 끝의 `unrouted_for_external_caller` 는 **등록된 이름**이면 `-32017`(이 빌드 조합에 dispatch 팔이 없음)을, plugin 전용이면 `-32016` 을 답하지만, debug 메서드 표(`DEBUG_METHODS`)가 release 에서는 빈 표라 debug 메서드는 등록된 이름이 아니다. 그래서 모르는 이름과 같은 답이 된다(release 헤드리스 인스턴스에서 `debug.info` · `debug.popup.open` · `surface.raw_key` 가 전부 `-32601`, 2026-09-22 실측). `-32017` 은 release 에도 등록된 이름이 이 조합에서 빠진 경우(gui 전용 메서드를 헤드리스에 부른 것 등)의 답이다.
 

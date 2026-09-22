@@ -15,6 +15,7 @@ pub(crate) mod debug_plugin;
 mod debug_state;
 #[cfg(debug_assertions)]
 mod debug_terminal;
+mod entry_window;
 mod file_handler;
 #[cfg(feature = "gui")]
 mod file_picker;
@@ -159,7 +160,8 @@ pub fn handle_with_caller(
 /// 이 진입점은 요청이 닿은 창의 `AppState` 를 받는다 — 창 상태 자체가 대상인 창·debug
 /// 핸들러에 그것을 건네고, 요청의 intent 출구를 그 창 큐로 옮기는 자리이기 때문이다. 그 아래
 /// 엔진 핸들러 표는 그 창을 포트로만 본다
-/// (`docs/adr/0471-ipc-engine-handlers-reach-the-window-through-a-port.md`).
+/// (`docs/adr/0471-ipc-engine-handlers-reach-the-window-through-a-port.md`). 받은 창은 곧바로
+/// [`entry_window::EntryWindow`] 로 감싼다 — 그 아래 입구 본문은 창 상태를 이름으로 못 부른다.
 pub(crate) fn handle_checked_request(
     core: &mut crate::core::Core,
     state: &mut AppState,
@@ -167,7 +169,8 @@ pub(crate) fn handle_checked_request(
     checked: &CheckedRequest<'_>,
 ) -> JsonRpcResponse {
     let started = core.now_instant();
-    let response = route_checked_request(core, state, engine, checked);
+    let mut window = entry_window::EntryWindow::new(state);
+    let response = route_checked_request(core, &mut window, engine, checked);
     // 시작·끝 둘 다 `Clock` port 를 지난다 — 한쪽만 port 면 주입한 시계로 잰 값이
     // 실제 벽시계와 섞인다.
     let elapsed = core.now_instant().duration_since(started);
@@ -179,7 +182,7 @@ pub(crate) fn handle_checked_request(
 /// **바깥**에 두어야 모든 갈래가 같은 자리에서 끝난다.
 fn route_checked_request(
     core: &mut crate::core::Core,
-    state: &mut AppState,
+    window: &mut entry_window::EntryWindow<'_>,
     engine: &mut CoreState,
     checked: &CheckedRequest<'_>,
 ) -> JsonRpcResponse {
@@ -196,7 +199,7 @@ fn route_checked_request(
         Ok(pending) => pending,
         Err(answer) => return answer,
     };
-    let response = dispatch_routed(core, state, engine, caller, request, id);
+    let response = dispatch_routed(core, window, engine, caller, request, id);
     idempotency::finish(core.now_instant(), pending, &response);
     response
 }
@@ -205,7 +208,7 @@ fn route_checked_request(
 /// 함수 **바깥**에 두어야 모든 갈래의 답이 같은 자리에서 기록된다.
 fn dispatch_routed(
     core: &mut crate::core::Core,
-    state: &mut AppState,
+    window: &mut entry_window::EntryWindow<'_>,
     engine: &mut CoreState,
     caller: &CallerContext,
     request: &JsonRpcRequest,
@@ -214,19 +217,27 @@ fn dispatch_routed(
     // 핸들러가 낸 intent 는 요청 하나의 출구에 모였다가 라우팅이 끝난 뒤 이 창의 큐 끝으로
     // 옮겨진다 — 넣은 순서 그대로다(`window_port` 모듈 문서).
     let mut out = crate::ipc::window_port::IntentOutbox::default();
-    let routed = route_engine_handler(core, state, &mut out, engine, caller, request, id.clone());
-    state.enqueue_intents(out);
+    let routed = route_engine_handler(
+        core,
+        window.port(),
+        &mut out,
+        engine,
+        caller,
+        request,
+        id.clone(),
+    );
+    window.port().enqueue_intents(out);
     if let Some(resp) = routed {
         return resp;
     }
 
     #[cfg(feature = "gui")]
-    if let Some(resp) = route_window_handler(state, engine, caller, request, id.clone()) {
+    if let Some(resp) = window.route_window(engine, caller, request, id.clone()) {
         return resp;
     }
 
     #[cfg(debug_assertions)]
-    if let Some(resp) = route_debug_handler(state, engine, request, id.clone()) {
+    if let Some(resp) = window.route_debug(engine, request, id.clone()) {
         return resp;
     }
 
@@ -1157,7 +1168,9 @@ fn route_engine_handler(
 /// 엔진 핸들러는 창에 [`IpcWindow`] 포트로만 닿는다. 여기와 debug 라우터에 있는 것은 popup ·
 /// 파일 선택기 · debug 주입처럼 창 상태 자체가 대상인 핸들러라 포트로 좁힐 것이 없다 — 그래서
 /// 진입점이 쥔 `AppState` 를 그대로 받는다
-/// (`docs/adr/0471-ipc-engine-handlers-reach-the-window-through-a-port.md`).
+/// (`docs/adr/0471-ipc-engine-handlers-reach-the-window-through-a-port.md`). 입구 본문은 창을
+/// 이름으로 못 부르므로 `EntryWindow::route_window` 만 여기로 온다. 팔마다 누가 부를 수 있는지는
+/// `handler/window_router_caller_tests.rs` 의 명부가 지킨다.
 #[cfg(feature = "gui")]
 fn route_window_handler(
     state: &mut AppState,
