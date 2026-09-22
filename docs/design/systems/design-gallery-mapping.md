@@ -211,7 +211,8 @@ text_on_accent)에서 온다. 신규 Theme 필드 없음(P0 확정).
 | `PreviewBody` (scope 분기) | `draw_scope_body` | `DemoLayout::show` (`Root::Panes`/`TabFrame`) |
 | `KINDS`(아이콘/accent) | `Kind::{icon,accent}` (정적 4종) | `kind_icon`/`kind_accent` (kind str→`icons::Icon`, plugin kind 중립 fallback) |
 | `activeKind`(탭 대표 kind) | `tab_kind` | `SurfNode::rep_kind` |
-| `SurfaceBox` edit 핸들(remove 단독) | `draw_handle_cluster_mock` | `draw_handle_cluster` (split-right/down 제거 — 경계 존이 대체) |
+| `SurfaceBox` edit 핸들(`MiniHandle` 설정 · remove) | `draw_handle_cluster_mock` | `draw_handle_cluster` (톱니 → `Act::OpenSettings`, remove → `Act::Remove` · split-right/down 제거 — 경계 존이 대체) |
+| `SurfaceBox` `onDoubleClick` → `openCfg` | — (정적) | `draw_surface_box` 의 `double_clicked()`(존 밖) → `Act::OpenSettings` → `ShowOutcome::OpenSettings` |
 | `pickZone`/경계 split 존 overlay | `draw_split_zone_overlay_mock` (Left 고정 예시) | `pick_zone` + `draw_split_zone_overlay` (커서 기반 4변 · crosshair · before/row 매핑) |
 | mini tab close `×` | `draw_edit_direct_mock` (active rest + hover 예시) | `draw_pane_card` 탭 루프(`show_close` · `Act::RemoveTab`) |
 | `AddTabBtn` `+` (22×20 hover) | `draw_edit_direct_mock` (hover 고정) | `draw_pane_card` add-tab(`ADD_TAB_W` · overlay_hover) |
@@ -222,6 +223,27 @@ text_on_accent)에서 온다. 신규 Theme 필드 없음(P0 확정).
 "preset 편집기 — 정적 specimen…" 참조). 본체는 실제 `WorkspacePreset`/`TabPreset`/`PanePreset` 을 공통 preview 모델(`SurfNode`/
 `PaneNode`/`Root`)로 정규화하고, leaf 라벨을 주입 resolver 로 해석한다. split 방향은 라이브
 모델 의미(`Vertical`=좌우/row, `Horizontal`=상하/column, capture·apply 와 일치)를 따른다.
+
+### surface 설정 화면
+
+디자인 `gallery/preset_editor.jsx` 의 `SurfaceSettings` / `useSurfaceCfg` / `locate` /
+`SettingsDemo` ↔ 갤러리 `catalog/components/preset_surface_settings.rs` ↔ 본체
+`src/adapters/ui/preset/surface_settings.rs` + `src/adapters/ui/preset/demo_layout/surface_draft.rs`.
+
+| 디자인 jsx | 갤러리 (`preset_surface_settings.rs`) | 본체 |
+|---|---|---|
+| `SurfaceSettings` (header / body / footer 세 상자) | `draw_screen` | `draw_surface_settings` |
+| header (kind 아이콘 · 이름 · breadcrumb · unsaved) | `draw_header` | `draw_header` |
+| body (`Field` 목록, max 460, 스크롤) | `draw_body` | `draw_body` → `draw_form` |
+| footer (`[Cancel ghost] [OK primary]`) | `draw_footer` | `draw_footer` |
+| `Field` 라벨 | `field_label` | `field_label` (mono micro uppercase muted + 3px) |
+| `useSurfaceCfg` 의 `{ id, draft, orig }` | — (정적) | `SurfaceCfg` (`PresetView::surface_cfg`) |
+| `normalize` / `isDirty` | 프레임별 `dirty` 고정값 | `LeafDraft::is_dirty` |
+| `switchKind` | — | `LeafDraft::switch_kind` (값을 지우지 않는다 — 아래 parity-notes) |
+| `applyAction({type:"surface"})` | — | `DemoLayout::apply_leaf_draft` |
+| `locate` breadcrumb | 데모별 고정 `path` | `DemoLayout::leaf_location` + `breadcrumb` |
+| `PresetWindow` 의 `cfgOpen ? <SurfaceSettings/> : 툴바+미리보기` · `dim` | — | `draw_preset_panel` 의 `locked` 분기 · `draw_settings_detail` · `block_input` |
+| `SettingsDemo` 상태 프레임 5종 | `demos()` | — |
 
 **kind→표시명 (i18n)**: 라벨은 `surface.kind.<kind>` 키로 해석(= registry `display_name_i18n_key`
 규약). 호스트 lang 에 빌트인 `terminal`/`empty` 키를 추가했고(`lang/{en,ko,ja}.toml`
@@ -235,8 +257,9 @@ registry `display_name_i18n_key` 로 해석하며(미번역/미등록이면 `fal
 **배선**: `draw_preset_panel`(`src/adapters/ui/preset.rs`)이 선택 preset 으로 `DemoLayout` 을
 빌드해 egui temp memory 에 `(key, layout)` 으로 유지(탭 클릭 전환 지속), 남은 영역에 캔버스
 프레임 + `DemoLayout::show`/`show_edit` 렌더. `PresetView` 가 파생한 `KindCatalog` 를
-`draw_preset_panel → draw_preview → DemoLayout` 으로 흘려 편집 드롭다운·mutation 라벨의
-kind 소스로 쓴다.
+`draw_preset_panel → draw_preview → DemoLayout` 으로 흘려 설정 화면 드롭다운·mutation 라벨의
+kind 소스로 쓴다. 설정 화면(`draw_settings_detail`)도 같은 캐시 인스턴스를 읽고, 확인 시 그
+사본에 draft 를 적용해 저장이 성공해야만 캐시를 바꾼다.
 
 ## workspace-category (Layouts / Overlays)
 

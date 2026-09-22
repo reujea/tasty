@@ -1,4 +1,4 @@
-<!-- source-hash: 01598792a432 -->
+<!-- source-hash: f103e0dc3b63 -->
 # Panes · Tabs · splits
 
 Keep an agent, your code, and the logs side by side. Divide the window with panes and surfaces, switch tasks with tabs, and save layouts you use often as presets. [A first look](../getting-started/first-look.md) explains how the parts fit together.
@@ -109,8 +109,11 @@ Open **Tools** > **Presets** in the sidebar and the **Layout Presets** window ap
 
 - Choose **Workspace** / **Tab** / **Pane** with the tabs at the top, and pick a preset from the list on the left.
 - A structure preview is shown on the right. The toolbar has **Rename** · **Duplicate** · **Delete**.
-- Press **Edit** to modify it directly on the preview — click a cell to change its kind · working directory · startup command, click the strip that appears when you hover a cell's edge to split in that direction, remove a cell with the handle at its top right, and add and remove Tabs with `+` / `×`. The same split · close shortcuts as in the main window also work.
-- There is no save button. Changes are written to the file immediately and **saved automatically** is shown. Leave with **Done**.
+- Press **Edit** to change the structure directly on the preview — click the strip that appears when you hover a cell's edge to split in that direction, click the middle of a cell to select it and remove it with the trash handle at its top right, and add and remove Tabs with `+` / `×`. The same split · close shortcuts as in the main window also work on the selected cell.
+- Structure changes are written to the file immediately, with no save button, and **saved automatically** is shown. Leave with **Done**.
+- A cell's kind · working directory · startup command are changed on the **Surface settings** screen. Press the gear handle of the selected cell, or double-click the cell, and the whole right-hand area becomes that cell's settings screen. Every field is visible however small the cell is.
+  - Once you change a value, **unsaved** appears at the top, and nothing is saved until you press **OK** at the bottom. **Cancel** or `Esc` discards the changes. Pressing `Enter` in a field also confirms.
+  - While the settings screen is open, the list on the left and the tabs at the top are dimmed and cannot be clicked. After OK or Cancel you are back on the preview, with that cell still selected.
 - **New preset** creates an empty preset with a single terminal.
 
 ### Applying

@@ -1264,6 +1264,13 @@ subtitle_hint = "subtitle"
 # Plugin-declared surface preset fields. Plugins may override these keys from
 # their own lang files; kept here as a graceful fallback if a plugin lang fails
 # to load.
+[preset.settings]
+pane = "pane {}"
+surface = "surface {}"
+open = "Surface settings"
+unsaved = "unsaved"
+unsaved_tooltip = "Draft — applied on OK"
+
 [preset.field]
 browse = "Browse…"
 file = "File"

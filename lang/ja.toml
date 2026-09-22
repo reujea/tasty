@@ -1250,6 +1250,13 @@ subtitle_hint = "サブタイトル"
 
 # プラグインが宣言する surface プリセットフィールド。プラグインは自身の lang
 # ファイルで上書きでき、ここの値はロード失敗時のフォールバック。
+[preset.settings]
+pane = "ペイン {}"
+surface = "サーフェス {}"
+open = "サーフェス設定"
+unsaved = "未保存"
+unsaved_tooltip = "下書き — OK で適用されます"
+
 [preset.field]
 browse = "参照…"
 file = "ファイル"

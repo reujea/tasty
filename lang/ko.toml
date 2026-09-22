@@ -1250,6 +1250,13 @@ subtitle_hint = "부제목"
 
 # 플러그인이 선언하는 surface 프리셋 필드. 플러그인이 자체 lang 파일로 덮어쓸 수
 # 있으며, 여기 값은 플러그인 lang 로드 실패 시의 fallback 이다.
+[preset.settings]
+pane = "페인 {}"
+surface = "서피스 {}"
+open = "서피스 설정"
+unsaved = "저장 안 됨"
+unsaved_tooltip = "초안 — 확인을 누르면 적용됩니다"
+
 [preset.field]
 browse = "찾아보기…"
 file = "파일"

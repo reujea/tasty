@@ -1,6 +1,8 @@
 //! Preset 데모 레이아웃 미리보기 위젯 (본체). read-only 미리보기(`show`)와
-//! 편집 모드(`show_edit` — 선택·핸들 클러스터·inline leaf form·키보드 단축키)를
-//! 모두 지원한다.
+//! 편집 모드(`show_edit` — 선택·핸들 클러스터(설정·remove)·키보드 단축키)를
+//! 모두 지원한다. leaf 파라미터는 칸 안에서 고치지 않는다 — 설정 핸들·더블클릭이
+//! [`ShowOutcome::OpenSettings`] 를 돌려주고, 편집은 [`LeafDraft`] 를 받은 설정 화면
+//! (`preset/surface_settings.rs`)이 한다.
 //!
 //! 저장된 `Preset*` 트리를 받아 **구조만** 축소 렌더한다 — pane split(상위) /
 //! tab strip / surface split(하위) / surface leaf(kind 표시명)을 서로 다른 시각
@@ -25,13 +27,15 @@ use tasty_presets::{
 };
 use tasty_type_appearance::theme::Theme;
 use tasty_type_geometry::length::LogicalPx;
-use tasty_ui_widgets::{Button, ButtonVariant, ControlSize, Input, select};
 
 use crate::adapters::ui::icons::{self, Icon};
 use crate::core::surface_registry::{
     PresetFieldInput, PresetFieldSpec, PresetFieldTarget, SurfaceKindRegistry,
 };
 use crate::i18n::t;
+
+mod surface_draft;
+pub use surface_draft::{LeafDraft, LeafLocation};
 
 // 미리보기 치수를 배율에 올리는 공용 헬퍼. 이 파일 전용이 아니라
 // `adapters::ui` 가 들고 있다 — 같은 사정의 자리가 여럿이라 사본을 두지 않는다.
@@ -83,10 +87,8 @@ const LEAF_SUMMARY_MIN_H: LogicalPx = LogicalPx(72.0);
 /// leaf 짧은 축이 이 값 미만이면 kind명까지 숨기고 아이콘만 남긴다(icon-only degrade).
 /// `SPLIT_ZONE_MIN` 과 같은 46px 구조 상수 계열.
 const LEAF_ICON_ONLY_MIN: LogicalPx = LogicalPx(46.0);
-/// inline leaf form 최대 폭.
-const FORM_MAX_W: LogicalPx = LogicalPx(240.0);
-/// inline leaf form 좌우 padding.
-const FORM_PAD: LogicalPx = LogicalPx(6.0);
+/// 선택 leaf 핸들(설정 · remove) 사이 간격 — 디자인 `gap: 2`.
+const HANDLE_GAP: LogicalPx = tasty_ui_widgets::tokens::STRUCT_GAP_2;
 
 /// registry 미주입 컨텍스트(갤러리·테스트·main 부재)에서 쓰는 정적 kind 후보 +
 /// builtin 정렬 기준. registry 가 주입되면 [`KindCatalog::from_registry`] 가 실제
@@ -182,7 +184,7 @@ impl KindCatalog {
     /// 현재 kind 를 반드시 포함한 편집 드롭다운 후보. 빈 catalog(registry 미주입)면
     /// 정적 [`EDIT_KINDS`] 로 fallback 하고, 현재 leaf 의 kind 가 목록에 없으면
     /// 덧붙여 plugin/unknown kind 가 편집 중 유실되지 않게 한다.
-    fn candidates(&self, current: &str) -> Vec<String> {
+    pub(super) fn candidates(&self, current: &str) -> Vec<String> {
         let mut v: Vec<String> = if self.specs.is_empty() {
             EDIT_KINDS.iter().map(|s| s.to_string()).collect()
         } else {
@@ -196,7 +198,7 @@ impl KindCatalog {
 
     /// kind → 표시명. catalog 에 있으면 registry 기준 표시명을, 없으면(미등록/미주입)
     /// [`fallback_kind_label`] 로 떨어진다.
-    fn label(&self, kind: &str) -> String {
+    pub(super) fn label(&self, kind: &str) -> String {
         self.specs
             .iter()
             .find(|s| s.kind == kind)
@@ -207,7 +209,7 @@ impl KindCatalog {
     /// kind → 편집 필드 스키마. catalog 에 등록돼 있으면 registry 스냅샷을, 미등록/
     /// 미주입(빈 catalog)이면 [`fallback_fields`] 로 떨어진다 — 갤러리·테스트·registry
     /// 미주입 컨텍스트에서도 kind 별 폼이 결정적으로 그려진다.
-    fn fields(&self, kind: &str) -> Vec<PresetFieldSpec> {
+    pub(super) fn fields(&self, kind: &str) -> Vec<PresetFieldSpec> {
         self.specs
             .iter()
             .find(|s| s.kind == kind)
@@ -217,7 +219,7 @@ impl KindCatalog {
 
     /// kind → leading 아이콘. registry `SurfaceKindDef.icon` 이름을 host 아이콘 세트로
     /// 해석한다(하드코딩 없음). 미등록/미선언(빈 catalog 포함)이면 중립 `FILE`.
-    fn kind_icon(&self, kind: &str) -> Icon {
+    pub(super) fn kind_icon(&self, kind: &str) -> Icon {
         self.specs
             .iter()
             .find(|s| s.kind == kind)
@@ -295,7 +297,7 @@ fn fallback_fields(kind: &str) -> Vec<PresetFieldSpec> {
 // 중립(text-secondary)으로 떨어진다. per-surface accent 토큰이 디자인에 추가되면
 // registry 조회로 이관 예정.
 
-fn kind_accent(theme: &Theme, kind: &str) -> egui::Color32 {
+pub(super) fn kind_accent(theme: &Theme, kind: &str) -> egui::Color32 {
     match kind {
         "terminal" => theme.accent_success().to_egui(),
         "markdown" => theme.accent_primary().to_egui(),
@@ -740,13 +742,9 @@ impl DemoLayout {
                     ShowOutcome::None
                 }
             }
-            Act::SetKind { id, kind } => {
-                self.set_kind(id, &kind, catalog);
-                ShowOutcome::Mutated
-            }
-            Act::SetField { id, target, value } => {
-                self.set_field(id, &target, value);
-                ShowOutcome::Mutated
+            Act::OpenSettings(id) => {
+                *selected = Some(id);
+                ShowOutcome::OpenSettings(id)
             }
             Act::Split { id, row, before } => {
                 // 경계 hover-split 존은 좌/상 클릭 시 before(새 leaf first), 우/하는
@@ -1294,6 +1292,9 @@ pub enum ShowOutcome {
     Repaint,
     /// 트리/필드/active 변경 — 디스크 동기화 필요.
     Mutated,
+    /// 이 leaf 의 설정 화면을 열어 달라는 요청(선택은 이미 그 leaf 로 바뀌었다).
+    /// 트리는 바뀌지 않았으니 저장하지 않는다.
+    OpenSettings(usize),
 }
 
 /// 한 프레임에 수집되는 편집 의도(specimen `applyAction` 의 액션).
@@ -1304,15 +1305,8 @@ enum Act {
         pane: usize,
         idx: usize,
     },
-    SetKind {
-        id: usize,
-        kind: String,
-    },
-    SetField {
-        id: usize,
-        target: PresetFieldTarget,
-        value: String,
-    },
+    /// 설정 핸들 · 더블클릭 — 그 leaf 를 선택하고 설정 화면을 연다.
+    OpenSettings(usize),
     Split {
         id: usize,
         row: bool,
@@ -1671,9 +1665,10 @@ fn draw_surf(
     }
 }
 
-/// surface leaf — bg-app fill, 가운데 kind 아이콘(accent) + 표시명(mono, secondary).
-/// 편집 모드: 1px separator inset outline(편집 가능 영역 표시), 선택 시 2px accent
-/// inset outline + 핸들 클러스터(split-right/down/remove) + inline leaf form.
+/// surface leaf — bg-app fill, 가운데 kind 아이콘(accent) + 표시명(mono, secondary) +
+/// 값 요약. 선택 여부와 무관하게 같은 요약을 그린다 — 칸 안에는 잘릴 수 있는 폼을
+/// 두지 않는다. 편집 모드: 1px separator inset outline(편집 가능 영역 표시), 선택 시
+/// 2px accent inset outline + 핸들 클러스터(설정 · remove). 더블클릭은 설정 화면을 연다.
 fn draw_surface_box(
     ui: &mut egui::Ui,
     theme: &Theme,
@@ -1719,7 +1714,11 @@ fn draw_surface_box(
             };
             ui.ctx().set_cursor_icon(cursor);
         }
-        if resp.clicked() {
+        if resp.double_clicked() && zone.is_none() {
+            // 가운데 더블클릭 = 설정 열기. 첫 클릭이 이미 선택했다. 경계 존 위의
+            // 더블클릭은 아래 clicked 갈래로 가서 split 을 한 번 더 한다(빠른 연속 split).
+            cx.act = Some(Act::OpenSettings(leaf.id));
+        } else if resp.clicked() {
             match zone {
                 Some(z) => {
                     cx.act = Some(Act::Split {
@@ -1734,11 +1733,7 @@ fn draw_surface_box(
         }
     }
 
-    if selected {
-        draw_leaf_form(ui, theme, rect, leaf, cx);
-    } else {
-        draw_leaf_preview(ui, theme, rect, leaf, cx.catalog);
-    }
+    draw_leaf_preview(ui, theme, rect, leaf, cx.catalog);
 
     // outline: 선택=2px accent, 편집 일반=1px separator.
     if selected {
@@ -1764,13 +1759,13 @@ fn draw_surface_box(
         draw_split_zone_overlay(ui, theme, rect, z);
     }
 
-    // 선택 leaf: 우상단 remove 핸들.
+    // 선택 leaf: 우상단 설정 · remove 핸들.
     if selected {
         draw_handle_cluster(ui, theme, rect, leaf.id, cx);
     }
 }
 
-/// 미선택 leaf 미리보기 — 가운데 kind 아이콘(accent) + kind명(mono, secondary) +
+/// leaf 미리보기(선택 여부 무관) — 가운데 kind 아이콘(accent) + kind명(mono, secondary) +
 /// 그 아래 값 요약 블록(중앙 정렬). 값 요약은 kind 필드 중 값이 비지 않은 것을
 /// `키 값` 한 줄로 그린다(라벨=`field.id` mono muted, 값 mono secondary).
 ///
@@ -1881,9 +1876,9 @@ struct LeafSummaryRow {
     front_elide: bool,
 }
 
-/// 미선택 leaf 미리보기에 표시할 값 요약 행 목록(순수 함수 — 렌더 무관, 테스트 대상).
+/// leaf 미리보기(선택 여부 무관)에 표시할 값 요약 행 목록(순수 함수 — 렌더 무관, 테스트 대상).
 /// catalog 의 kind 필드를 등록 순서대로 순회하며 값이 비지 않은(공백 제외) 필드만 남긴다.
-/// 라벨은 편집 폼의 번역 헤더([`field_label_text`])가 아니라 `field.id`(cwd/startup/
+/// 라벨은 설정 화면의 번역 필드 라벨이 아니라 `field.id`(cwd/startup/
 /// file/url) 소문자 키다. kind 하드코딩 없이 [`KindCatalog::fields`] 에 의존하므로
 /// plugin kind 도 자체 필드 선언대로 요약된다.
 fn leaf_summary_rows(leaf: &Leaf, catalog: &KindCatalog) -> Vec<LeafSummaryRow> {
@@ -2029,8 +2024,8 @@ fn draw_split_zone_overlay(ui: &mut egui::Ui, theme: &Theme, rect: egui::Rect, z
     }
 }
 
-/// 우상단 핸들 클러스터 — remove(danger) 단독. split-right/down 핸들은 경계
-/// hover-split 존이 대체해 제거됐다.
+/// 우상단 핸들 클러스터 — `[설정(톱니)] [remove(danger)]`, remove 가 오른쪽 끝.
+/// split-right/down 핸들은 경계 hover-split 존이 대체해 제거됐다.
 fn draw_handle_cluster(
     ui: &mut egui::Ui,
     theme: &Theme,
@@ -2045,7 +2040,21 @@ fn draw_handle_cluster(
         ),
         egui::vec2(z(theme, HANDLE_SZ).value(), z(theme, HANDLE_SZ).value()),
     );
-    if mini_handle(ui, theme, remove, icons::TRASH, true, ("rm", leaf_id)) {
+    let settings = remove.translate(egui::vec2(-(z(theme, HANDLE_SZ) + HANDLE_GAP).value(), 0.0));
+    if mini_handle(
+        ui,
+        theme,
+        settings,
+        icons::SETTINGS,
+        false,
+        ("cfg", leaf_id),
+    )
+    .on_hover_text(t("preset.settings.open"))
+    .clicked()
+    {
+        cx.act = Some(Act::OpenSettings(leaf_id));
+    }
+    if mini_handle(ui, theme, remove, icons::TRASH, true, ("rm", leaf_id)).clicked() {
         cx.act = Some(Act::Remove { id: leaf_id });
     }
 }
@@ -2058,7 +2067,7 @@ fn mini_handle(
     icon: Icon,
     danger: bool,
     salt: (&'static str, usize),
-) -> bool {
+) -> egui::Response {
     let resp = ui.interact(rect, ui.id().with(salt), egui::Sense::click());
     let radius = theme.corner_radius_sm.value();
     let bg = if resp.hovered() {
@@ -2084,129 +2093,7 @@ fn mini_handle(
     if resp.hovered() {
         ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
     }
-    resp.clicked()
-}
-
-/// inline leaf parameter editor — kind Select · cwd Input · startup Input(terminal 한정).
-fn draw_leaf_form(
-    ui: &mut egui::Ui,
-    theme: &Theme,
-    rect: egui::Rect,
-    leaf: &Leaf,
-    cx: &mut DrawCtx<'_>,
-) {
-    // 식을 논리 길이 위에서 끝내고 마지막에 한 번만 벗긴다 — 항마다 벗기면 같은
-    // 계산에 `.value()` 가 셋 흩어진다.
-    let inner_w = (LogicalPx(rect.width()) - z(theme, FORM_PAD).scaled(2.0))
-        .min(z(theme, FORM_MAX_W))
-        .max(LogicalPx(0.0))
-        .value();
-    if inner_w < 1.0 {
-        return;
-    }
-    // 핸들 클러스터(상단) 아래에서 시작.
-    let top = LogicalPx(rect.min.y) + z(theme, HANDLE_INSET).scaled(2.0) + z(theme, HANDLE_SZ);
-    let form_rect = egui::Rect::from_min_max(
-        egui::pos2(rect.center().x - inner_w * 0.5, top.value()),
-        egui::pos2(
-            rect.center().x + inner_w * 0.5,
-            rect.max.y - z(theme, FORM_PAD).value(),
-        ),
-    );
-    if form_rect.height() < 1.0 {
-        return;
-    }
-
-    let mut child = ui.new_child(
-        egui::UiBuilder::new()
-            .max_rect(form_rect)
-            .layout(egui::Layout::top_down(egui::Align::Min)),
-    );
-    child.set_clip_rect(form_rect);
-    // inline leaf form 필드 세로 gap. 이 form 은 미니 전사 도형이 아니라 실제
-    // theme 위젯(라벨·Select)으로 짜여 있어 내용이 배율을 탄다 — 간격만 평상수면
-    // 1.2 에서 필드는 커지고 사이는 그대로다.
-    child.spacing_mut().item_spacing.y = theme.spacing_xs.value();
-
-    // kind Select.
-    field_label(&mut child, theme, t("preset.edit.kind"));
-    let candidates = cx.catalog.candidates(&leaf.kind);
-    let labels: Vec<String> = candidates.iter().map(|k| cx.catalog.label(k)).collect();
-    let label_refs: Vec<&str> = labels.iter().map(|s| s.as_str()).collect();
-    let mut sel_idx = candidates.iter().position(|k| *k == leaf.kind).unwrap_or(0);
-    if select(
-        &mut child,
-        theme,
-        &format!("preset_kind_{}", leaf.id),
-        &mut sel_idx,
-        &label_refs,
-        inner_w,
-        true,
-    ) {
-        cx.act = Some(Act::SetKind {
-            id: leaf.id,
-            kind: candidates[sel_idx].clone(),
-        });
-    }
-
-    // kind 가 선언한 필드를 generic 하게 렌더 — text/url = Input, file_path/dir =
-    // Input + Browse 버튼. 값은 target(cwd/startup/params[key])에서 읽고 변경 시 write.
-    for field in cx.catalog.fields(&leaf.kind) {
-        field_label(&mut child, theme, &field_label_text(&field));
-        let mut buf = field_value(leaf, &field.target);
-        let placeholder = field.placeholder_key.as_deref().map(t).unwrap_or("");
-        let resp = Input::new()
-            .mono(true)
-            .width(inner_w)
-            .placeholder(placeholder)
-            .show(&mut child, theme, &mut buf);
-        if resp.changed() {
-            cx.act = Some(Act::SetField {
-                id: leaf.id,
-                target: field.target.clone(),
-                value: buf,
-            });
-        }
-        // file_path/dir 은 파일/폴더 선택 다이얼로그 버튼을 덧붙인다.
-        if matches!(
-            field.input,
-            PresetFieldInput::FilePath | PresetFieldInput::Dir
-        ) {
-            let salt = format!("preset_browse_{}_{}", leaf.id, field.id);
-            let clicked = child
-                .push_id(&salt, |ui| {
-                    Button::new(t("preset.field.browse"))
-                        .variant(ButtonVariant::Secondary)
-                        .size(ControlSize::Sm)
-                        .leading_icon(&|ui, rect, c| {
-                            icons::FOLDER.image(rect.width(), c).paint_at(ui, rect);
-                        })
-                        .show(ui, theme)
-                        .clicked()
-                })
-                .inner;
-            if clicked && let Some(picked) = pick_path(field.input) {
-                cx.act = Some(Act::SetField {
-                    id: leaf.id,
-                    target: field.target.clone(),
-                    value: picked,
-                });
-            }
-        }
-    }
-}
-
-/// 필드 라벨 텍스트 — label_key 를 번역하되 미번역(키 그대로)이면 param_key/id 로
-/// 안전한 대체 표기(플러그인 lang 미로드 방어).
-fn field_label_text(field: &PresetFieldSpec) -> String {
-    let tr = t(&field.label_key);
-    if tr != field.label_key {
-        return tr.to_string();
-    }
-    match &field.target {
-        PresetFieldTarget::Params(k) => k.clone(),
-        _ => field.id.clone(),
-    }
+    resp
 }
 
 /// target(cwd/startup/params[key])에서 현재 문자열 값을 읽는다(부재면 빈 문자열).
@@ -2221,26 +2108,6 @@ fn field_value(leaf: &Leaf, target: &PresetFieldTarget) -> String {
             .unwrap_or_default()
             .to_string(),
     }
-}
-
-/// file_path → 파일 선택, dir → 폴더 선택 다이얼로그. 취소/기타면 None.
-fn pick_path(input: PresetFieldInput) -> Option<String> {
-    let picked = crate::stall_watchdog::without_stall_watch(|| match input {
-        PresetFieldInput::Dir => rfd::FileDialog::new().pick_folder(),
-        PresetFieldInput::FilePath => rfd::FileDialog::new().pick_file(),
-        _ => None,
-    })?;
-    Some(picked.to_string_lossy().into_owned())
-}
-
-/// form 필드 라벨 — mono micro, uppercase, muted.
-fn field_label(ui: &mut egui::Ui, theme: &Theme, text: &str) {
-    ui.label(
-        egui::RichText::new(text.to_uppercase())
-            .monospace()
-            .size(theme.font_size_micro.value())
-            .color(theme.text_muted().to_egui()),
-    );
 }
 
 /// 상위 레이아웃(pane split). Leaf = pane 카드, Split = 5px bg-app gap.

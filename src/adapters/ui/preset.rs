@@ -10,8 +10,14 @@
 //! Edit 버튼으로 read-only 미리보기(`DemoLayout::show`)와 편집(WYSIWYG) 모드
 //! (`DemoLayout::show_edit`)를 토글한다(Edit↔Done). rename·duplicate·delete 는
 //! 기존 store API 에 직결돼 동작한다.
+//!
+//! 편집 모드에서 leaf 의 설정 핸들·더블클릭은 detail 컬럼 전체(툴바 + 미리보기)를
+//! surface 설정 화면([`surface_settings`])으로 바꾼다. 그동안 리스트와 L1 scope 탭은
+//! 흐려지고 입력을 받지 않으며, 구조 편집 단축키도 돌지 않는다(미리보기를 그리지
+//! 않으므로). 값은 확인을 눌러야 트리에 들어가고 저장된다.
 
 pub mod demo_layout;
+pub mod surface_settings;
 mod toolbar;
 
 use tasty_presets::{PresetKind, PresetPaneNode, PresetResult, PresetStore, PresetSurfaceLayout};
@@ -29,6 +35,7 @@ use crate::adapters::ui::{ToastKind, ToastManager, ToastScope};
 use crate::i18n::{t, t_fmt};
 
 use demo_layout::{DemoLayout, KindCatalog, ShortcutAction, ShowOutcome};
+use surface_settings::{CfgOutcome, SurfaceCfg, breadcrumb, draw_surface_settings};
 
 /// 편집 모드 프레임에서 `KeybindingSettings` 바인딩과 이번 프레임 입력을 매칭해
 /// 대응하는 [`ShortcutAction`] 을 하나 고른다. 하드코딩 키 문자열 없이 전부
@@ -454,6 +461,7 @@ fn draw_preview(
     rect: egui::Rect,
     editing: bool,
     selected_node: &mut Option<usize>,
+    surface_cfg: &mut Option<SurfaceCfg>,
     toasts: &mut ToastManager,
     catalog: &KindCatalog,
     kb: &KeybindingSettings,
@@ -466,15 +474,9 @@ fn draw_preview(
         return;
     }
 
-    let key = format!("{}:{}", kind.as_str(), name);
-    let cache_id = egui::Id::new("preset_demo_layout_cache");
-    let cached: Option<(String, DemoLayout)> = ui.data(|d| d.get_temp(cache_id));
-    let mut layout = match cached {
-        Some((k, dl)) if k == key => dl,
-        _ => match build_demo(store, kind, name, catalog) {
-            Some(dl) => dl,
-            None => return,
-        },
+    let key = preset_key(kind, name);
+    let Some(mut layout) = load_demo(ui, store, kind, name, catalog) else {
+        return;
     };
 
     if editing {
@@ -487,6 +489,7 @@ fn draw_preview(
             canvas,
             &mut layout,
             selected_node,
+            surface_cfg,
             toasts,
             catalog,
             kb,
@@ -497,7 +500,38 @@ fn draw_preview(
             ui.ctx().request_repaint();
         }
     }
-    ui.data_mut(|d| d.insert_temp(cache_id, (key, layout)));
+    store_demo(ui, key, layout);
+}
+
+/// 미리보기 캐시 키 — `{kind}:{name}`. 설정 화면의 draft 도 같은 키로 자기 preset 을 적는다.
+fn preset_key(kind: PresetKind, name: &str) -> String {
+    format!("{}:{}", kind.as_str(), name)
+}
+
+/// 미리보기 layout 캐시(egui temp memory) 의 id. 미리보기와 설정 화면이 **같은
+/// 인스턴스**를 읽고 쓴다 — 설정 화면이 사본을 따로 지으면 확인 뒤 미리보기와 어긋난다.
+fn demo_cache_id() -> egui::Id {
+    egui::Id::new("preset_demo_layout_cache")
+}
+
+/// 캐시된 layout 을 꺼낸다. 키가 다르거나 없으면 store 에서 새로 짓는다.
+fn load_demo(
+    ui: &egui::Ui,
+    store: &PresetStore,
+    kind: PresetKind,
+    name: &str,
+    catalog: &KindCatalog,
+) -> Option<DemoLayout> {
+    let key = preset_key(kind, name);
+    let cached: Option<(String, DemoLayout)> = ui.data(|d| d.get_temp(demo_cache_id()));
+    match cached {
+        Some((k, dl)) if k == key => Some(dl),
+        _ => build_demo(store, kind, name, catalog),
+    }
+}
+
+fn store_demo(ui: &egui::Ui, key: String, layout: DemoLayout) {
+    ui.data_mut(|d| d.insert_temp(demo_cache_id(), (key, layout)));
 }
 
 /// [`draw_preview`] 의 editing(WYSIWYG) 모드 본문: 단축키/마우스 조작을
@@ -512,6 +546,7 @@ fn draw_preview_editing(
     canvas: egui::Rect,
     layout: &mut DemoLayout,
     selected_node: &mut Option<usize>,
+    surface_cfg: &mut Option<SurfaceCfg>,
     toasts: &mut ToastManager,
     catalog: &KindCatalog,
     kb: &KeybindingSettings,
@@ -528,6 +563,14 @@ fn draw_preview_editing(
         }
     };
     let draw_outcome = layout.show_edit(ui, theme, canvas, selected_node, catalog);
+
+    // 설정 핸들·더블클릭 → draft 를 떠서 설정 화면을 연다. 트리는 바뀌지 않았다.
+    if let ShowOutcome::OpenSettings(id) = draw_outcome {
+        if let Some(orig) = layout.leaf_draft(id) {
+            *surface_cfg = Some(SurfaceCfg::open(preset_key(kind, name), id, orig));
+        }
+        ui.ctx().request_repaint();
+    }
 
     // 단축키·마우스 어느 쪽이든 변형이면 한 번만 write-through(auto-save).
     let mutated =
@@ -546,6 +589,88 @@ fn draw_preview_editing(
             ToastScope::Window,
         );
     }
+}
+
+/// detail 컬럼 전체(`rect`)에 surface 설정 화면을 그리고, 확인·취소를 적용한다.
+///
+/// - 확인: 캐시 layout 의 **사본**에 draft 를 적용해 먼저 저장한다. 저장이 성공해야만
+///   그 사본을 캐시에 넣고 화면을 닫는다. 실패하면 화면과 draft 를 그대로 두고 toast 로
+///   알린다 — 미리보기로 돌아가 저장된 것처럼 보이지 않게.
+/// - 취소: draft 를 버린다. 트리도 디스크도 바뀌지 않는다.
+///
+/// 어느 쪽이든 그 leaf 는 선택된 채 미리보기로 돌아온다. draft 가 가리키는 preset 이나
+/// leaf 가 사라졌으면(에이전트의 삭제 등) 적용하지 않고 draft 를 버린다.
+#[allow(clippy::too_many_arguments)] // reason: 형제 draw_preview_editing 과 같은 패널 상태 묶음을 그대로 받는다 — 구조체로 묶으면 호출부 한 곳을 위해 빌림 분할만 늘어난다
+fn draw_settings_detail(
+    ui: &mut egui::Ui,
+    store: &mut PresetStore,
+    theme: &Theme,
+    kind: PresetKind,
+    name: &str,
+    rect: egui::Rect,
+    selected_node: &mut Option<usize>,
+    surface_cfg: &mut Option<SurfaceCfg>,
+    toasts: &mut ToastManager,
+    catalog: &KindCatalog,
+) {
+    let Some(cfg) = surface_cfg.as_mut() else {
+        return;
+    };
+    let key = preset_key(kind, name);
+    let layout = (cfg.preset_key() == key)
+        .then(|| load_demo(ui, store, kind, name, catalog))
+        .flatten();
+    let Some((layout, loc)) =
+        layout.and_then(|l| l.leaf_location(cfg.leaf_id()).map(|loc| (l, loc)))
+    else {
+        *surface_cfg = None;
+        ui.ctx().request_repaint();
+        return;
+    };
+    let path = breadcrumb(name, &loc);
+    let leaf_id = cfg.leaf_id();
+
+    match draw_surface_settings(ui, theme, rect, cfg, catalog, &path) {
+        CfgOutcome::None => store_demo(ui, key, layout),
+        CfgOutcome::Cancel => {
+            store_demo(ui, key, layout);
+            *selected_node = Some(leaf_id);
+            *surface_cfg = None;
+            ui.ctx().request_repaint();
+        }
+        CfgOutcome::Confirm => {
+            let mut candidate = layout.clone();
+            candidate.apply_leaf_draft(leaf_id, cfg.draft(), catalog);
+            match persist_layout(store, kind, name, &candidate) {
+                Ok(()) => {
+                    store_demo(ui, key, candidate);
+                    *selected_node = Some(leaf_id);
+                    *surface_cfg = None;
+                }
+                Err(e) => {
+                    tracing::warn!("preset surface settings save failed: {e}");
+                    toasts.push(
+                        t("preset.toast.save_failed"),
+                        ToastKind::Error,
+                        ToastScope::Window,
+                    );
+                    store_demo(ui, key, layout);
+                }
+            }
+            ui.ctx().request_repaint();
+        }
+    }
+}
+
+/// `rect` 위의 입력을 모두 받아 버리는 막. 흐리게 그린 영역(설정 화면이 열린 동안의
+/// 리스트·L1 탭) 위에 **나중에** 얹어, 그 아래 위젯이 hover·click 을 못 받게 한다 —
+/// egui 는 같은 층에서 나중에 등록된 위젯을 위로 본다.
+fn block_input(ui: &mut egui::Ui, rect: egui::Rect, salt: &str) {
+    ui.interact(
+        rect,
+        egui::Id::new(("preset_cfg_lock", salt)),
+        egui::Sense::click_and_drag(),
+    );
 }
 
 // ── 본문 ─────────────────────────────────────────────────────────────────
@@ -611,6 +736,7 @@ fn draw_preset_list(
     resolved: &Option<String>,
     rows: &[(String, String)],
     list_rect: egui::Rect,
+    locked: bool,
 ) {
     let mut new_clicked = false;
     let mut clicked_name: Option<String> = None;
@@ -618,6 +744,9 @@ fn draw_preset_list(
     {
         let mut lui = ui.new_child(egui::UiBuilder::new().max_rect(list_rect));
         lui.set_clip_rect(list_rect);
+        if locked {
+            lui.set_opacity(theme.preset_cfg_dim_opacity());
+        }
         lui.add_space(theme.spacing_sm.value());
         lui.horizontal(|ui| {
             ui.add_space(LIST_INSET.value());
@@ -648,6 +777,7 @@ fn draw_preset_list(
         egui::ScrollArea::vertical()
             .auto_shrink([false; 2])
             .drag_to_scroll(false)
+            .enable_scrolling(!locked)
             .show(&mut lui, |ui| {
                 if rows.is_empty() {
                     ui.add_space(theme.spacing_sm.value());
@@ -669,6 +799,12 @@ fn draw_preset_list(
             });
     }
 
+    if locked {
+        // 설정 화면이 열린 동안에는 선택을 바꾸지 않는다 — 바꾸면 draft 가 말없이
+        // 버려진다. 이번 프레임의 클릭도 버리고, 다음 프레임부터는 막이 받는다.
+        block_input(ui, list_rect, "list");
+        return;
+    }
     if let Some(n) = clicked_name {
         *selected = Some(n);
         ctx.request_repaint();
@@ -699,11 +835,17 @@ pub fn draw_preset_panel(
     selected_pane: &mut Option<String>,
     editing: &mut bool,
     selected_node: &mut Option<usize>,
+    surface_cfg: &mut Option<SurfaceCfg>,
     toasts: &mut ToastManager,
     catalog: &KindCatalog,
     kb: &KeybindingSettings,
 ) {
     let theme = crate::theme::theme();
+    // 설정 화면은 편집 모드 안에서만 산다. 편집이 끝났으면 draft 는 버린다.
+    if !*editing {
+        *surface_cfg = None;
+    }
+    let locked = surface_cfg.is_some();
     let rename_id = egui::Id::new("preset_rename_state");
     let mut rename: Option<RenameState> = ctx
         .data_mut(|d| d.get_temp::<Option<RenameState>>(rename_id))
@@ -712,15 +854,30 @@ pub fn draw_preset_panel(
 
     egui::CentralPanel::default().show(ctx, |ui| {
         // ── L1 scope 탭 (유지) ──────────────────────────────────────────
-        ui.horizontal(|ui| {
-            ui.selectable_value(
-                active_kind,
-                PresetKind::Workspace,
-                t("preset.tab.workspace"),
-            );
-            ui.selectable_value(active_kind, PresetKind::Tab, t("preset.tab.tab"));
-            ui.selectable_value(active_kind, PresetKind::Pane, t("preset.tab.pane"));
-        });
+        // 설정 화면이 열린 동안에는 흐리게 그리고 입력을 막는다(리스트와 같다).
+        let mut scope = *active_kind;
+        let l1 = ui
+            .scope(|ui| {
+                if locked {
+                    ui.set_opacity(theme.preset_cfg_dim_opacity());
+                }
+                ui.horizontal(|ui| {
+                    ui.selectable_value(
+                        &mut scope,
+                        PresetKind::Workspace,
+                        t("preset.tab.workspace"),
+                    );
+                    ui.selectable_value(&mut scope, PresetKind::Tab, t("preset.tab.tab"));
+                    ui.selectable_value(&mut scope, PresetKind::Pane, t("preset.tab.pane"));
+                });
+            })
+            .response
+            .rect;
+        if locked {
+            block_input(ui, l1, "scope");
+        } else {
+            *active_kind = scope;
+        }
         ui.separator();
 
         let kind = *active_kind;
@@ -756,6 +913,7 @@ pub fn draw_preset_panel(
             &resolved,
             &rows,
             rects.list_rect,
+            locked,
         );
 
         // detail 에 그릴 현재 preset.
@@ -777,6 +935,30 @@ pub fn draw_preset_panel(
         };
         // 편집 모드 name/subtitle 인라인 버퍼 — 편집 시에만 로드/저장.
         let mut edit_meta: Option<EditMetaState> = None;
+
+        // ── 설정 화면: detail 컬럼 전체(툴바 + 미리보기)를 대신한다 ──────────
+        if locked {
+            if let Some(n) = current.as_deref() {
+                let detail = rects.toolbar_rect.union(rects.preview_rect);
+                draw_settings_detail(
+                    ui,
+                    store,
+                    &theme,
+                    kind,
+                    n,
+                    detail,
+                    selected_node,
+                    surface_cfg,
+                    toasts,
+                    catalog,
+                );
+            } else {
+                *surface_cfg = None;
+            }
+            // 이번 프레임은 툴바·미리보기를 그리지 않는다 — 가려진 트리를 단축키가
+            // 바꾸지 않게. 닫혔으면 다음 프레임부터 미리보기가 돌아온다.
+            return;
+        }
 
         if let Some(name) = current.clone() {
             let toolbar_inner = rects
@@ -851,6 +1033,7 @@ pub fn draw_preset_panel(
                 rects.preview_rect,
                 *editing,
                 selected_node,
+                surface_cfg,
                 toasts,
                 catalog,
                 kb,

@@ -4,7 +4,8 @@
 //! - 다른 윈도우 입력을 차단하지 않음
 //! - Esc 로 닫히지 않음
 //! - 엔진 전역 단일 인스턴스는 `App.preset_view_id` 가 관리
-//! - 편집 즉시 store 가 디스크 동기화 (별도 save 버튼 없음)
+//! - 구조 편집은 즉시 store 가 디스크 동기화 (별도 save 버튼 없음). surface 파라미터는
+//!   설정 화면의 draft 로 고치고 확인을 눌러야 저장된다
 
 use std::sync::{Arc, Mutex};
 
@@ -14,6 +15,7 @@ use tasty_presets::{PresetKind, PresetStore};
 use tasty_settings::KeybindingSettings;
 
 use crate::adapters::ui::preset::demo_layout::KindCatalog;
+use crate::adapters::ui::preset::surface_settings::SurfaceCfg;
 use crate::adapters::ui::{LayoutContext, ToastManager, ToastScope};
 use crate::core::surface_registry::SurfaceKindRegistry;
 use crate::gpu::GpuState;
@@ -39,6 +41,8 @@ pub struct PresetView {
     editing: bool,
     /// 편집 모드에서 선택된 surface leaf 의 안정 id.
     selected_node: Option<usize>,
+    /// 열려 있는 surface 설정 화면(대상 leaf + draft). `None` 이면 미리보기가 보인다.
+    surface_cfg: Option<SurfaceCfg>,
     toasts: ToastManager,
     shown: bool,
 }
@@ -62,13 +66,19 @@ impl PresetView {
             selected_pane: None,
             editing: false,
             selected_node: None,
+            surface_cfg: None,
             toasts: ToastManager::new(),
             shown: false,
         }
     }
 
     /// 우클릭/IPC 진입 시 특정 preset 선택 상태로 열기 위한 helper.
+    ///
+    /// 창 밖에서 선택이 바뀌는 경로다. 열려 있던 surface 설정 화면의 draft 는 취소와
+    /// 똑같이 버리고 묻지 않는다 — 사용자가 다른 동작을 시작했고, draft 는 저장된다고
+    /// 약속된 적이 없다.
     pub fn select(&mut self, kind: PresetKind, name: String) {
+        self.surface_cfg = None;
         self.active_kind = kind;
         match kind {
             PresetKind::Workspace => self.selected_workspace = Some(name),
@@ -148,6 +158,7 @@ impl View for PresetView {
         let sel_pane = &mut self.selected_pane;
         let editing = &mut self.editing;
         let selected_node = &mut self.selected_node;
+        let surface_cfg = &mut self.surface_cfg;
         let toasts = &mut self.toasts;
         let keybindings = &self.keybindings;
 
@@ -166,6 +177,7 @@ impl View for PresetView {
                 sel_pane,
                 editing,
                 selected_node,
+                surface_cfg,
                 toasts,
                 &catalog,
                 keybindings,

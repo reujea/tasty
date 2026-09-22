@@ -511,6 +511,38 @@ State 셀은 `status_dot`(점 `status_dot_size` 8 + gap 6 + caption 11px proport
   30% 밴드)이라 구조·토큰 축은 정합하고, 오직 "입력 상태 전이"만 정적↔live 로 갈린다.
 - **근거**: `gallery/preset_editor.jsx` (`SurfaceBox`/`pickZone`/`AddTabBtn`).
 
+## preset 편집기 surface 설정 화면 — 시안과 다르게 둔 자리
+
+시안은 `gallery/preset_editor.jsx` 의 `SurfaceSettings` 다. 구조(세 상자 · 한 열 폼 · 고정 footer)와
+토큰(`preset-cfg-*` 8종)은 그대로 전사했고, 아래만 갈린다.
+
+- **kind 전환은 값을 지우지 않는다.** 시안의 `switchKind` 는 새 kind 가 선언하지 않은 키를 비운다.
+  본체 `LeafDraft::switch_kind` 는 값을 draft 에 남겨 둔다 — 두 kind 가 함께 선언한 키가 이어지는
+  것은 같고, 원래 kind 로 돌아오면 원래 값이 다시 보인다. 정리는 확인 시점에 **최종 kind 가
+  원본과 다를 때만** 한 번 한다(`DemoLayout::apply_leaf_draft` → `set_kind`). 시안처럼 전환마다
+  지우면 kind 를 잠깐 바꿨다 되돌리는 것만으로 원본 params 가 사라진다. 비어 있고 `default` 가
+  있는 필드는 전환 시 그 값으로 채워 보인다 — 확인 시 `set_kind` 가 채울 값과 같다.
+- **kind 가 같은 확인은 선언되지 않은 params 를 보존한다.** 시안의 확인은 `normalize(draft)` 로
+  surface 를 통째로 바꿔 선언되지 않은 키를 지운다. 본체는 선언 필드만 덮어쓴다 — 편집기의
+  round-trip 계약(`set_field_writes_param_and_preserves_unknown_params`)이다. dirty 판정은 시안과
+  같다(kind + 현재 kind 의 선언 키).
+- **필드 타입은 본체가 선언하는 넷(text · file_path · dir · url)뿐이다.** 시안 데모 kind
+  `plugin:portscan` 의 `number`(addon `ms`)·`select` 필드는 본체 `PresetFieldInput` 에 없는 타입이라
+  갤러리 specimen ③ 도 text 입력으로 그린다. 두 타입을 들일지는 별도 결정이다. 같은 이유로 그
+  plugin kind 의 accent 는 본체 `kind_accent` 의 중립 fallback(text-secondary)이다.
+- **Kind 드롭다운 autofocus 없음.** 시안은 진입 시 Kind `Select` 에 autofocus 한다. 공용 `select`
+  위젯은 키보드로 조작되지 않아(`Sense::click()` 뿐) 포커스를 받을 자리가 없다.
+- **breadcrumb 말줄임은 조각별이 아니라 전체 꼬리다.** 시안은 각 조각이 `minWidth:0` 으로 함께
+  줄어든다. 본체는 조각을 ` › ` 로 이은 한 라벨을 남은 폭에서 `truncate` 한다.
+- **잠금 디밍은 리스트·L1 탭의 내용에만 걸린다.** 시안은 컨테이너(`bg-sidebar` 배경 포함)에
+  opacity 를 준다. 본체는 배경을 먼저 칠하는 셸 구조라 그 위의 행·탭 글자에 `set_opacity` 를 건다.
+  입력 차단은 시안의 `pointer-events: none` 대신 그 영역 위에 나중에 얹은 막(`block_input`)이
+  hover·click 을 받고, 리스트 스크롤도 끈다.
+- **4px 그리드로 맞춘 raw 간격.** 시안의 raw 값 중 토큰이 없는 것은 가까운 토큰으로 옮겼다 —
+  헤더·unsaved 의 `gap: 5` → `space-xs`(4), unsaved 점 6px → `status-dot-size-compact`(6),
+  라벨↔입력 `gap: 3` → `STRUCT_GAP_3`, 선택 leaf 핸들 사이 `gap: 2` → `STRUCT_GAP_2`.
+- **근거**: `gallery/preset_editor.jsx` (`SurfaceSettings`/`useSurfaceCfg`/`switchKind`/`normalize`).
+
 ## explorer GridCell — 아이콘 축소 + 파일명 3줄 wrap 말줄임 (2026-07-09 디자인 확정 반영)
 
 - **증상**: explorer grid(아이콘) 셀이 28px 아이콘 + **1줄 12자 하드컷**(`truncate(&e.name,12)`
