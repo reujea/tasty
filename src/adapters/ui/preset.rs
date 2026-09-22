@@ -19,6 +19,10 @@
 //! 구조 편집 자동 저장과 설정 화면 확인은 캐시한 layout 으로 저장소의 레이아웃을 갈아
 //! 쓴다. 캐시가 지어진 뒤 저장소의 레이아웃이 바뀌었으면(에이전트의 `preset.save` 등) 덮지
 //! 않고 저장소 판을 다시 불러온 뒤 toast 로 알린다([`layout_base`]).
+//!
+//! 보기 모드(Edit 전)의 미리보기는 저장 시점을 기다리지 않고 저장소를 따라간다 — 저장소의
+//! 레이아웃이 바뀌면 다음 프레임에 캐시를 다시 짓는다([`refresh_view_cache`]). 편집 모드의
+//! 캐시는 사용자가 겨냥 중인 트리라 따라가지 않는다.
 
 pub mod demo_layout;
 mod layout_base;
@@ -26,6 +30,8 @@ mod layout_base;
 mod persist_tests;
 pub mod surface_settings;
 mod toolbar;
+#[cfg(test)]
+mod view_refresh_tests;
 
 use tasty_presets::{PresetKind, PresetPaneNode, PresetResult, PresetStore, PresetSurfaceLayout};
 use tasty_settings::KeybindingSettings;
@@ -531,8 +537,11 @@ fn draw_preview(
             kb,
         );
     } else {
+        // 보기 모드만 저장소를 따라간다 — 편집 모드의 캐시는 ADR-0531 대로 저장 직전에만
+        // 대조한다(`docs/adr/0564-the-preset-view-mode-follows-the-store-and-the-edit-mode-does-not.md`).
+        let refreshed = refresh_view_cache(store, kind, name, catalog, &mut cache);
         let changed = cache.layout.show(ui, theme, canvas, catalog);
-        if changed {
+        if changed || refreshed {
             ui.ctx().request_repaint();
         }
     }
@@ -615,6 +624,30 @@ fn reload_after_conflict(
         ToastKind::Warning,
         ToastScope::Window,
     );
+}
+
+/// 보기 모드 캐시를 저장소에 맞춘다. 캐시가 지어진(또는 마지막으로 저장된) 뒤 저장소의
+/// 레이아웃이 바뀌었으면(에이전트의 `preset.save` 등) 저장소 판으로 다시 짓고 `true`.
+/// 보기 모드는 사용자가 고치는 중인 것이 없으므로 버릴 것이 없다 — 편집 모드에서는 부르지
+/// 않는다. 저장소의 레이아웃이 그대로면 캐시를 건드리지 않아, 미리보기에서 누른 탭도 남는다.
+/// preset 이 사라졌으면 캐시를 그대로 둔다.
+fn refresh_view_cache(
+    store: &PresetStore,
+    kind: PresetKind,
+    name: &str,
+    catalog: &KindCatalog,
+    cache: &mut DemoCache,
+) -> bool {
+    if LayoutBase::current(store, kind, name) == cache.base {
+        return false;
+    }
+    match build_cache(store, kind, name, catalog) {
+        Some(fresh) => {
+            *cache = fresh;
+            true
+        }
+        None => false,
+    }
 }
 
 /// [`draw_preview`] 의 editing(WYSIWYG) 모드 본문: 단축키/마우스 조작을

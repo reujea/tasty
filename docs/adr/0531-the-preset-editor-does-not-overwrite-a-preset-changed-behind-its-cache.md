@@ -73,4 +73,5 @@
 
 - 선행 결정: [ADR-0522](0522-the-preset-surface-settings-draft-keeps-values-across-kind-switches.md) (설정 화면 draft · 확인 저장 — 다른 조항, 그대로 유효)
 - 코드 근거(결정이 실현된 현재 위치): `src/adapters/ui/preset.rs` 의 `persist_layout` · `Persisted` · `reload_after_conflict` · `DemoCache`, `src/adapters/ui/preset/layout_base.rs` 의 `LayoutBase`, 시험 `src/adapters/ui/preset/persist_tests.rs`
+- 후속 결정: [0564](0564-the-preset-view-mode-follows-the-store-and-the-edit-mode-does-not.md) (보기 모드 미리보기는 저장소를 따라간다 — "잃은 것" 의 미리보기 부분 중 보기 모드를 닫는다, 이 결정의 편집 모드 조항은 그대로)
 - [`docs/features/layout-presets/index.md`](../features/layout-presets/index.md) "편집 모드"
