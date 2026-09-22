@@ -617,8 +617,9 @@ mod tests {
     /// 같이 부풀어 비가 상쇄된다. 그래서 기준선 대비 절대값으로 잰다.
     ///
     /// 넣는 지연은 **이 회차의 기준선에서 잰다** — 주입분 = [`INJECTED_OVER_BASELINE`] × 기준선.
-    /// 그래서 주입으로 더해지는 시간이 부하에 따라 늘어난다. 조건별 기준선은 ADR-0552 의 표와
-    /// Consequences "잃은 것" 에 있고, 주입분은 그 값에 배수를 곱한 것이다.
+    /// 그래서 주입으로 더해지는 시간이 부하에 따라 늘어난다. 이 판에서 잰 기준선 범위와 그 주입분은
+    /// ADR-0552 의 Consequences("얻은 것" · "잃은 것")에 있다. 그 ADR Context 의 표는 고정 200 ms
+    /// 판의 회차라 거기서 주입분은 200 ms 였다.
     #[test]
     fn an_artificial_delay_in_the_measured_path_does_not_move_the_control() {
         let control = CpuControl::calibrate();
