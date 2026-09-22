@@ -650,13 +650,23 @@ fn the_gallery_still_agrees_with_the_dimensions_it_restates() {
 /// 앞의 셋째·넷째 칸은 사유를 **기계가 다시 물을 수 있게** 하려고 있다. 산문만 있으면
 /// 그 전제가 거짓이 되어도 표는 그대로 남아 면제만 살아남는다 — 이름·경로로 면제하는
 /// 표의 공통 약점이다([`the_checkable_roster_premises_still_hold`]).
-const SHARES_ONE_ITEM: &[(&str, &str, &str, &str, &str)] = &[(
-    GALLERY_POPUP_FRAME,
-    "TITLE_BTN_SIZE",
-    "tasty_ui_widgets::tokens::POPUP_TITLE_BTN_SIZE",
-    "src/adapters/ui/popup.rs",
-    "본체와 갤러리가 둘 다 `tasty_ui_widgets::tokens::POPUP_TITLE_BTN_SIZE` 를 읽는다",
-)];
+const SHARES_ONE_ITEM: &[(&str, &str, &str, &str, &str)] = &[
+    (
+        GALLERY_POPUP_FRAME,
+        "TITLE_BTN_SIZE",
+        "tasty_ui_widgets::tokens::POPUP_TITLE_BTN_SIZE",
+        "src/adapters/ui/popup.rs",
+        "본체와 갤러리가 둘 다 `tasty_ui_widgets::tokens::POPUP_TITLE_BTN_SIZE` 를 읽는다",
+    ),
+    (
+        GALLERY_PRESET_EDITOR,
+        "E_HANDLE_GAP",
+        "tasty_ui_widgets::tokens::STRUCT_GAP_2",
+        "src/adapters/ui/preset/demo_layout.rs",
+        "선택 leaf 의 설정·삭제 핸들 사이 간격 — 본체 `HANDLE_GAP` 과 갤러리가 둘 다 \
+         `tasty_ui_widgets::tokens::STRUCT_GAP_2` 를 읽는다",
+    ),
+];
 
 /// 자백하면서 **다르다고 밝힌** 자리. 사본이 아니라 의도된 차이다.
 /// (갤러리 파일, 갤러리 상수, **본체에 있으면 이 사유가 무너지는 이름**, 사유).
@@ -1020,6 +1030,7 @@ const CONFESSED: &[(&str, &str)] = &[
     (GALLERY_POPUP_FRAME, "TITLE_BTN_EDGE_PAD"),
     (GALLERY_QUIT_MODAL, "WINDOW_W"),
     (GALLERY_PRESET_EDITOR, "LEAF_SUMMARY_MIN_W"),
+    (GALLERY_PRESET_EDITOR, "E_HANDLE_GAP"),
     (
         "crates/tasty-gallery/src/catalog/components/script_manager.rs",
         "FRAME_MAX_W",

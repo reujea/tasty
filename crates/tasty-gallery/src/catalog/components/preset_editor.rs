@@ -36,7 +36,8 @@ const TAB_GAP: LogicalPx = LogicalPx(5.0);
 const E_HANDLE_SZ: LogicalPx = LogicalPx(18.0);
 /// 편집 핸들 클러스터 모서리 inset.
 const E_HANDLE_INSET: LogicalPx = LogicalPx(4.0);
-/// 선택 leaf 핸들(설정 · remove) 사이 `gap: 2`.
+/// 선택 leaf 핸들(설정 · remove) 사이 `gap: 2` — 본체 `demo_layout::HANDLE_GAP` 과 같은 공용
+/// 항목을 읽는다.
 const E_HANDLE_GAP: LogicalPx = tasty_ui_widgets::tokens::STRUCT_GAP_2;
 /// add-tab `+` 버튼 폭(디자인 22×20 — strip 높이보다 2px 넓다).
 const ADD_TAB_W: LogicalPx = LogicalPx(22.0);

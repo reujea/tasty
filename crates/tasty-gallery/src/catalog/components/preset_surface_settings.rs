@@ -11,6 +11,7 @@
 //! `number`/`select` 필드는 본체에 없는 타입이라 text 로 그린다(parity-notes).
 
 use tasty_type_appearance::theme::Theme;
+use tasty_type_geometry::length::LogicalPx;
 use tasty_ui_widgets::tokens::STRUCT_GAP_3;
 use tasty_ui_widgets::{Button, ButtonVariant, Input, select};
 
@@ -18,13 +19,13 @@ use crate::catalog::icons::{self, MockGlyph};
 use crate::catalog::spec::{self, StageVariant, TokenChip};
 
 // 갤러리 stage 안의 데모 프레임 크기(디자인 `SettingsDemo` width/height) — 본체 치수가
-// 아니라 specimen 배치값이다.
-const FRAME_W: f32 = 280.0;
-const FRAME_NARROW_W: f32 = 220.0;
-const FRAME_H: f32 = 300.0;
+// 아니라 specimen 배치값이라 옮길 `Theme` 이름이 없다.
+const FRAME_W: LogicalPx = LogicalPx(280.0);
+const FRAME_NARROW_W: LogicalPx = LogicalPx(220.0);
+const FRAME_H: LogicalPx = LogicalPx(300.0);
 /// ③ 의 본문 스크롤 위치(디자인 `scrollTo={120}`) — 헤더·footer 가 고정인 것을 보이려는
 /// 데모 값.
-const SCROLLED_Y: f32 = 120.0;
+const SCROLLED_Y: LogicalPx = LogicalPx(120.0);
 /// 한 줄에 놓는 상태 프레임 수 — specimen 배치값.
 const ROW_LEN: usize = 3;
 
@@ -75,8 +76,8 @@ struct Demo {
     path: &'static [&'static str],
     fields: Vec<DemoField>,
     dirty: bool,
-    scroll: Option<f32>,
-    width: f32,
+    scroll: Option<LogicalPx>,
+    width: LogicalPx,
 }
 
 fn demos() -> Vec<Demo> {
@@ -236,7 +237,7 @@ fn draw_body(ui: &mut egui::Ui, theme: &Theme, body: egui::Rect, d: &Demo, salt:
         .auto_shrink([false; 2])
         .drag_to_scroll(false);
     if let Some(y) = d.scroll {
-        area = area.vertical_scroll_offset(y);
+        area = area.vertical_scroll_offset(y.value());
     }
     area.show(&mut bui, |ui| {
         egui::Frame::NONE
@@ -335,7 +336,10 @@ fn draw_demo(ui: &mut egui::Ui, theme: &Theme, d: &Demo, salt: usize) {
                 .size(theme.font_size_caption.value())
                 .color(theme.text_muted().to_egui()),
         );
-        let (rect, _) = ui.allocate_exact_size(egui::vec2(d.width, FRAME_H), egui::Sense::hover());
+        let (rect, _) = ui.allocate_exact_size(
+            egui::vec2(d.width.value(), FRAME_H.value()),
+            egui::Sense::hover(),
+        );
         draw_screen(ui, theme, rect, d, salt);
         ui.painter_at(rect).rect_stroke(
             rect,

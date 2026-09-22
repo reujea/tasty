@@ -73,7 +73,8 @@ fn match_preset_shortcut(
 // 디자인 고정 px (Theme 에 대응 토큰 없는 preset-window 셸 전용 치수 — specimen 전사).
 /// 좌측 리스트 폭.
 const LIST_WIDTH: LogicalPx = LogicalPx(196.0);
-/// 우측 detail 툴바 높이.
+/// 우측 detail 툴바 높이. `size-44` 이지만 툴바 높이라는 역할의 토큰이 없다 — 값이 같은
+/// `preset_cfg_header_height` 는 설정 화면 헤더의 치수라 읽으면 틀린 결합이 된다.
 const TOOLBAR_HEIGHT: LogicalPx = LogicalPx(44.0);
 /// 리스트 row 상하 padding.
 const ROW_PAD_Y: LogicalPx = LogicalPx(7.0);

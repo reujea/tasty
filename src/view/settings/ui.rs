@@ -30,7 +30,8 @@ use tasty_ui_widgets::{Button, ButtonVariant};
 
 /// L2 사이드바 폭. 디자인 `--tasty-settings-sidebar-width` = 200.
 const SETTINGS_SIDEBAR_WIDTH: LogicalPx = LogicalPx(200.0);
-/// L1 헤더 밴드 높이. 디자인 header `height: 44`.
+/// L1 헤더 밴드 높이. 디자인 header `height: 44`. `size-44` 이지만 이 헤더 높이라는 역할의
+/// 토큰이 없어 원시 값을 이름 붙여 둔다.
 const SETTINGS_HEADER_HEIGHT: LogicalPx = LogicalPx(44.0);
 /// active L1 탭 하단 인디케이터 두께. 디자인 `border-bottom: 2px accent`.
 const SETTINGS_TAB_UNDERLINE: LogicalPx = LogicalPx(2.0);
