@@ -36,13 +36,13 @@ e2e 하네스는 `CARGO_BIN_EXE_tasty` 를 띄운다 — 테스트 자신과 같
 
 **낡은 override 는 하네스가 거절한다.** `source_newer_than` 이 `src/`·`crates/` 의 `.rs` 중 그 바이너리보다 새것을 찾으면 패닉으로 세운다. 낡은 데몬은 정상 부팅해 정상 응답하므로, 안 잡으면 스위트가 옛 코드에 대해 판정하고 **그 오진은 양방향이다**(고친 것이 안 고쳐진 것처럼도, 되돌린 것이 여전히 고쳐진 것처럼도 보인다).
 
+**그리고 기본으로 켜지 않는다.** `TASTY_E2E_BIN` 미설정이 기존 동작이므로, 배선을 안 하면 아무것도 바뀌지 않는다. 위 두 측정(이득 ~4 초 대 비용 25~113 초, 회차 안 spawn 타임아웃 0/418)이 지금 켤 근거가 되지 못한다.
+
 ### 보강 (2026-09-23) — "조합 의존 단언" 은 데몬 쪽 갈림도 포함한다
 
 위 판정의 좌변은 테스트 파일의 `cfg(feature = "gui")` 사이트로 셌다. 그것으로 안 보이는 갈래가 하나 있다: 테스트 쪽 단언은 하나인데 **그 단언의 대상이 데몬 조합마다 다른 코드 경로**인 스위트다. `tests/attach_structure_sync_loopback.rs` 가 그 형태다 — forward 회신을 gui 데몬은 `apply_forwarded_structural_op`, 헤드리스 데몬은 `apply_structural_ops` 로 만들고([ADR-0482](0482-a-forward-naming-a-gone-surface-is-answered-like-ipc.md)), 테스트와 `tests/attach_common` 의 `cfg(feature` 사이트는 0 이다.
 
 그런 스위트도 `SameCombo` 다. 헤드리스 데몬을 받으면 초록은 그대로인데 gui 완주가 헤드리스 호출측을 한 번 더 잴 뿐이다. 실측(2026-09-23): gui 호출측이 `unresolved_forward_reason` 대신 고정 문구를 싣게 하는 변이에서 `a_forward_naming_a_gone_surface_is_answered_like_ipc` 가 `SameCombo` 로는 FAILED 이고, `HEADLESS_OK_SUITES` 에 임시로 넣고 `TASTY_E2E_BIN` 헤드리스 데몬으로는 **passed** 였다. 변이 없이는 두 경우 모두 통과했다 — 통과만으로는 이 분류를 가를 수 없다. 명부 정합 가드(`tests/e2e_single_instance_guard.rs` 의 `same_combo`)가 이 스위트를 그 이유와 함께 적는다.
-
-**그리고 기본으로 켜지 않는다.** `TASTY_E2E_BIN` 미설정이 기존 동작이므로, 배선을 안 하면 아무것도 바뀌지 않는다. 위 두 측정(이득 ~4 초 대 비용 25~113 초, 회차 안 spawn 타임아웃 0/418)이 지금 켤 근거가 되지 못한다.
 
 ### 판정 불가를 통과시키는 이유
 
