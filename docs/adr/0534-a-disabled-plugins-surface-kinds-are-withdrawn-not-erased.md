@@ -34,7 +34,9 @@ kind 를 계속 보였다.
   kind 를 뺀다.
 - **생성 funnel 은 명확한 사유로 거절한다.** `CoreState::create_surface_via_registry` 는 철회된
   kind 에 `unknown surface kind` 가 아니라 `SurfaceKindWithdrawn` 을 낸다 — "그 kind 를 제공하던
-  plugin 이 꺼졌다". IPC 응답은 그 문장(영어)을, 사용자 발화 intent 는 i18n toast
+  plugin 이 꺼졌거나, 다시 켠 뒤 아직 연결되지 않았다". 뒤 갈래가 있는 것은 철회가 hello 로만
+  풀리기 때문이다 — 켜고 나서 연결·hello 가 실패하는 동안에도 철회는 남으므로 "꺼졌다" 로 단정하면
+  켜져 있는 plugin 을 꺼졌다고 말한다. IPC 응답은 그 문장(영어)을, 사용자 발화 intent 는 i18n toast
   (`surface.kind_toast.withdrawn`)를 받는다. 에이전트 발화는 ADR-0503 대로 로그뿐이다.
 - **복원 경로는 "아직 없는 kind" 와 같이 다룬다.** 닫은 탭 복원 · 프리셋 적용 · attach mirror
   markdown 은 철회된 kind 를 kind 대기 placeholder 로 두고, 다시 켜면 표시 시점의 reify 가
@@ -51,7 +53,7 @@ kind 를 계속 보였다.
 ## Consequences
 
 - **얻은 것**: 끈 plugin 의 kind 로 새 surface 가 생기지 않는다. 사유가 "없는 kind" 가 아니라
-  "제공 plugin 이 꺼졌다" 라서 사용자·에이전트가 할 일(다시 켠다)이 보인다.
+  "제공 plugin 이 꺼졌거나 아직 다시 연결되지 않았다" 라서 사용자·에이전트가 할 일(다시 켠다)이 보인다.
 - **얻은 것**: 열린 surface 는 끄기 전과 똑같이 남는다 — 저장·아이콘·표시명이 그대로라 다시 켜면
   이어진다. 끄기 전의 외부 동작 중 바뀌는 것은 "꺼진 kind 로 새로 만들기" 하나다.
 - **잃은 것**: 철회된 kind 로 새로 만드는 요청이 예전에는 성공(빈 surface)했고 이제 실패한다.

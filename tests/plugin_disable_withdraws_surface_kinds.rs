@@ -71,7 +71,8 @@ fn disabling_a_plugin_withdraws_its_surface_kinds_and_keeps_open_surfaces() {
     let refused = create_markdown_tab(&server, pane_id, &file);
     let message = refused["error"]["message"].as_str().unwrap_or_default();
     assert!(
-        message.contains("disabled or removed") && message.contains(MARKDOWN_PLUGIN),
+        message.contains("is disabled or removed, or has not reconnected")
+            && message.contains(MARKDOWN_PLUGIN),
         "끈 plugin 의 kind 로 만든 요청은 제공 plugin 이 꺼졌다는 사유로 거절돼야 한다: {refused}"
     );
     assert!(

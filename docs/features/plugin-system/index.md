@@ -37,8 +37,8 @@ GUI·headless 모두 실패하며, 설정 파일과 메모리의 활성/비활�
 
 끄거나(`disable`) 지우면(`remove`) 그 플러그인이 등록한 surface kind 는 재부팅 없이 **철회**된다
 ([ADR-0534](../../adr/0534-a-disabled-plugins-surface-kinds-are-withdrawn-not-erased.md)). 그 kind 로
-새 surface 를 만들려는 요청은 "그 kind 를 제공하던 plugin 이 꺼졌다" 는 사유로 거절되고(IPC 오류 문장,
-사용자 조작이면 경고 toast), `surface.kinds` · 서피스 변환 팝업 목록에서 빠진다. 이미 열린 surface 는
+새 surface 를 만들려는 요청은 "그 kind 를 제공하던 plugin 이 꺼졌거나, 다시 켠 뒤 아직 연결되지 않았다" 는
+사유로 거절되고(IPC 오류 문장, 사용자 조작이면 경고 toast), `surface.kinds` · 서피스 변환 팝업 목록에서 빠진다. 이미 열린 surface 는
 닫거나 바꾸지 않는다 — 다시 켜면 이어진다. 닫은 탭 복원 · 프리셋 적용처럼 복원하는 경로는 그 자리를
 kind 대기 placeholder 로 두었다가 다시 켜면 채운다.
 
@@ -68,7 +68,7 @@ kind 대기 placeholder 로 두었다가 다시 켜면 채운다.
 - `tasty plugin list/install/remove/enable/disable` CLI 가 동일 동작을 수행한다.
 - 미설치 ID의 enable/disable은 GUI·headless 모두 실패하고, 기존 설정 파일은 바이트 단위로 유지되며 없던 설정 파일을 만들지 않는다.
 - 설치된 plugin은 disable 후 enable로 다시 실행할 수 있다.
-- Given surface kind 를 등록한 plugin 이 켜져 있고 When 그 plugin 을 disable 하거나 remove 하면 Then 그 kind 로 새 surface 를 만드는 요청은 "제공 plugin 이 꺼졌다" 는 사유로 거절되고 `surface.kinds` 에서 빠지며, 이미 열린 그 kind 의 surface 는 그대로 남는다.
+- Given surface kind 를 등록한 plugin 이 켜져 있고 When 그 plugin 을 disable 하거나 remove 하면 Then 그 kind 로 새 surface 를 만드는 요청은 "제공 plugin 이 꺼졌거나 아직 다시 연결되지 않았다" 는 사유로 거절되고 `surface.kinds` 에서 빠지며, 이미 열린 그 kind 의 surface 는 그대로 남는다.
 - Given 위처럼 철회된 kind 가 있고 When 그 plugin 을 다시 enable 하면 Then 그 kind 로 다시 만들 수 있다.
 - 플러그인 설정은 설정 창 Plugins 탭에 나타난다 (이 창 아님).
 

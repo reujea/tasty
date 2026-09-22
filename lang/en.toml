@@ -1324,7 +1324,7 @@ explorer = "Explorer"
 
 [surface.kind_toast]
 # 철회된 kind(제공 plugin 이 disable · remove 됨)로 새 surface 를 만들려 했을 때. {} = kind, {} = plugin id
-withdrawn = "Can't open a new '{}' surface: the plugin that provides it ({}) is turned off."
+withdrawn = "Can't open a new '{}' surface: the plugin that provides it ({}) is turned off or has not reconnected yet."
 
 [attach]
 held_title = "Attached elsewhere"

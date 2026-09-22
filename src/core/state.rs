@@ -1299,7 +1299,7 @@ impl CoreState {
         cwd: Option<&std::path::Path>,
         params: &serde_json::Value,
     ) -> anyhow::Result<Box<dyn crate::model::Surface>> {
-        // 철회된 kind(그것을 제공하던 plugin 이 꺼졌다)는 `unknown` 과 다른 사유로 거절한다 —
+        // 철회된 kind(그것을 제공하던 plugin 이 꺼졌거나 다시 켠 뒤 아직 연결되지 않았다)는 `unknown` 과 다른 사유로 거절한다 —
         // 사용자가 할 일이 다르다(ADR-0534). 정의가 남아 있어도 새로 만들지 않는다.
         if let Some(plugin_id) = self.surface_registry.withdrawn_by(kind) {
             return Err(crate::core::surface_registry::SurfaceKindWithdrawn {

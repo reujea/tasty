@@ -1310,7 +1310,7 @@ explorer = "탐색기"
 
 [surface.kind_toast]
 # 철회된 kind(제공 plugin 이 disable · remove 됨)로 새 surface 를 만들려 했을 때. {} = kind, {} = plugin id
-withdrawn = "'{}' surface 를 새로 열 수 없습니다: 이 종류를 제공하던 plugin({})이 꺼져 있습니다."
+withdrawn = "'{}' surface 를 새로 열 수 없습니다: 이 종류를 제공하던 plugin({})이 꺼져 있거나 아직 다시 연결되지 않았습니다."
 
 [attach]
 held_title = "다른 곳에서 점유 중"

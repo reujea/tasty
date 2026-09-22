@@ -58,7 +58,7 @@ fn an_unforwardable_block_toasts_only_for_the_user() {
     );
 }
 
-/// 철회된 kind(제공 plugin 이 꺼졌다)로 만들려다 거절되면 사용자 발화에서만 그 사유를
+/// 철회된 kind(제공 plugin 이 꺼졌거나 아직 다시 연결되지 않았다)로 만들려다 거절되면 사용자 발화에서만 그 사유를
 /// toast 로 보인다 — 에이전트 발화는 로그뿐이다(ADR-0534 · ADR-0503).
 #[test]
 fn a_withdrawn_kind_refusal_toasts_only_for_the_user() {

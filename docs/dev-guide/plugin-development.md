@@ -343,7 +343,7 @@ SDK가 자기 CWD에서 절대화하여 이 경계를 대신하지 않는다.
   `ipc::handler::plugin::disable`(gui IPC · 헤드리스 IPC · 설정 모달 공용)과 `App::plugin_remove`
   가 거둔다. 정의는 지우지 않고 철회로 표시한다 — 이미 열린 surface 는 저장·아이콘을 계속 읽고,
   새 생성(`create_surface_via_registry`)은 `SurfaceKindWithdrawn`("그 kind 를 제공하던 plugin 이
-  꺼졌다")으로 거절되며, 닫은 탭 복원·프리셋 적용·mirror markdown 은 kind 대기 placeholder 가
+  꺼졌거나, 다시 켠 뒤 아직 연결되지 않았다")으로 거절되며, 닫은 탭 복원·프리셋 적용·mirror markdown 은 kind 대기 placeholder 가
   된다. `surface.kinds` 목록에서도 빠진다. 다시 켜서 hello 가 오면 등록이 철회를 풀고, 그때 로그는
   경고가 아니라 `withdrawn kind '<kind>' registered again` 이다. 재시작 · swap · 연결 실패는
   철회하지 않는다.

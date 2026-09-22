@@ -437,7 +437,9 @@ struct KindEntry {
 /// 철회된 kind 로 새 surface 를 만들려 한 요청의 거절 사유.
 ///
 /// `unknown surface kind` 와 가르는 이유: 그 kind 는 **있었고**, 그것을 제공하던 plugin 이
-/// 꺼졌다. 사용자가 할 일(그 plugin 을 다시 켠다)이 다르다. IPC 응답은 [`std::fmt::Display`]
+/// 꺼졌다. 사용자가 할 일(그 plugin 을 다시 켠다)이 다르다. 철회는 다시 켠 뒤 hello 가 와야
+/// 풀리므로, 켰지만 아직 연결되지 않은 동안도 이 사유다 — 문장이 "꺼졌다" 로 단정하지 않고
+/// 그 갈래까지 적는 이유다. IPC 응답은 [`std::fmt::Display`]
 /// 문장을, 사용자 발화 intent 는 i18n toast(`surface.kind_toast.withdrawn`)를 받는다.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SurfaceKindWithdrawn {
@@ -449,8 +451,8 @@ impl std::fmt::Display for SurfaceKindWithdrawn {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "surface kind '{}' is unavailable: the plugin '{}' that provides it has been \
-             disabled or removed",
+            "surface kind '{}' is unavailable: the plugin '{}' that provides it is disabled or \
+             removed, or has not reconnected since it was enabled again",
             self.kind, self.plugin_id
         )
     }
