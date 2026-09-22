@@ -495,11 +495,6 @@ const ROSTER: &[(&str, Why, &str)] = &[
         "이름이 `*.list` 가 아니라 이름 기반 census 에서 빠져 있었다 — 성질은 같다. 합산 여부의 정본은 `crates/tasty-doc-guards/tests/window_owned_lists_are_classified.rs` 의 명부다",
     ),
     (
-        "workspace.create",
-        CreatesWithoutATarget,
-        "생성이라 실을 대상 id 가 없다 — 요청이 닿은 창에 만들어진다. `workspace_id` 를 실으면 범용 키라 라우팅이 그 창을 짚지만, 핸들러는 그 키를 대상으로 안 읽는다",
-    ),
-    (
         "workspace_category.create",
         CreatesWithoutATarget,
         "상동 — `name` 만 받는다",

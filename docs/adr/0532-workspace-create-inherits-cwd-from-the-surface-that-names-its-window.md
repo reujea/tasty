@@ -35,6 +35,10 @@ terminal 워크스페이스는 `surface_id` 를 실었으면 **그 surface** 의
 - 그대로 두는 것: 명시 `cwd` 가 언제나 이긴다. `inherit_cwd` 설정을 끄면 지목해도 상속하지 않는다.
   원본이 mirror surface 면 로컬 출처가 없어 `None`(= 홈)이다
   ([`surface-cwd.md`](../architecture/invariants/surface-cwd.md) §3-2).
+- 숫자가 아닌 `surface_id` 는 `invalid_params` 로 거절한다. 핸들러가 그 키를 안 읽던 때에는 라우터도
+  못 짚은 채 포커스 창의 포커스 surface 로 조용히 떨어졌다 — 읽기 시작한 이상 잘못된 값을 없는
+  값처럼 다루지 않는다(`handler/params.rs` 의 관문 규칙). 그래서 이 메서드는 이제 미라우팅 명부
+  (`src/source_guards/unrouted_dispatch_reasons.rs`)에 없다 — 핸들러가 대상 키를 읽는다.
 
 ## Consequences
 
@@ -43,7 +47,7 @@ terminal 워크스페이스는 `surface_id` 를 실었으면 **그 surface** 의
 - **잃은 것**: `surface_id` 를 싣던 기존 호출 중, 그 창의 포커스 surface 와 지목 surface 의 cwd 가
   달랐던 것은 결과 cwd 가 바뀐다. 원칙 3 이 호환보다 앞선다. 창만 고르고 cwd 는 다른 곳에서 가져
   오고 싶으면 `cwd` 를 명시한다.
-- **운영 비용 / 유지 부담**: 핸들러의 작은 함수 하나(`inherit_cwd_for_create`)와 시험 셋.
+- **운영 비용 / 유지 부담**: 핸들러의 작은 함수 하나(`inherit_cwd_for_create`)와 시험 넷.
 
 ## Alternatives Considered
 

@@ -149,13 +149,9 @@ pub fn handle_workspace_list(
 fn inherit_cwd_for_create(
     window: &dyn crate::ipc::window_port::IpcWindow,
     engine: &crate::core::CoreState,
-    params: &serde_json::Value,
+    named_surface: Option<u32>,
 ) -> Option<std::path::PathBuf> {
-    match params
-        .get("surface_id")
-        .and_then(|v| v.as_u64())
-        .and_then(|v| u32::try_from(v).ok())
-    {
+    match named_surface {
         Some(surface_id) => window.resolve_inherit_cwd_from_surface(engine, surface_id),
         None => window.resolve_inherit_cwd(engine),
     }
@@ -204,8 +200,11 @@ pub fn handle_workspace_create(
     // focus state 모름). 그 외 kind 는 cwd 미사용. 새 워크스페이스는 로컬이므로 원본이
     // mirror surface 면 inherit 은 `None`(= 홈)이고, 명시 `cwd` 는 그대로 존중한다
     // (`docs/architecture/invariants/surface-cwd.md` §3-2).
+    // 창을 지목한 `surface_id` 가 상속 원본이다. 숫자가 아닌 값은 거절한다 — 무시하면
+    // 라우팅도 못 짚은 채 포커스 surface 로 조용히 떨어진다.
+    let named_surface = p_try!(params::opt_int::<u32>(params, "surface_id", &id));
     let resolved_cwd = if kind == "terminal" {
-        explicit_cwd.or_else(|| inherit_cwd_for_create(window, engine, params))
+        explicit_cwd.or_else(|| inherit_cwd_for_create(window, engine, named_surface))
     } else {
         None
     };
@@ -896,7 +895,7 @@ mod create_cwd_tests {
         assert_ne!(named_root, focused_root);
 
         assert_eq!(
-            inherit_cwd_for_create(&state, &engine, &json!({ "surface_id": named })),
+            inherit_cwd_for_create(&state, &engine, Some(named)),
             Some(named_root),
         );
     }
@@ -909,9 +908,30 @@ mod create_cwd_tests {
         let (_focused, focused_root) = open_explorer(&mut state, &mut engine, "focused/proj");
 
         assert_eq!(
-            inherit_cwd_for_create(&state, &engine, &json!({})),
+            inherit_cwd_for_create(&state, &engine, None),
             Some(focused_root),
         );
+    }
+
+    /// `surface_id` 가 숫자가 아니면 포커스로 떨어지지 않고 거절한다 — 아무것도 안 만든다.
+    #[test]
+    fn a_malformed_surface_id_is_rejected_not_ignored() {
+        let (mut state, mut engine) = crate::state::tests::test_state();
+        let mut core = crate::ipc::handler::cli_entry_tests::test_core();
+        let before = engine.workspaces.len();
+
+        let res = handle_workspace_create(
+            &mut core,
+            &mut state,
+            &mut engine,
+            json!(1),
+            &json!({ "surface_id": "7" }),
+        );
+
+        let err = res.error.expect("숫자가 아닌 surface_id 는 거절해야 한다");
+        assert_eq!(err.code, -32602, "{}", err.message);
+        assert!(err.message.contains("surface_id"), "{}", err.message);
+        assert_eq!(engine.workspaces.len(), before);
     }
 
     /// 지목한 surface 가 있어도 `inherit_cwd` 를 끈 설정은 그대로 존중한다.
@@ -921,9 +941,6 @@ mod create_cwd_tests {
         let (named, _) = open_explorer(&mut state, &mut engine, "named/proj");
         engine.settings.general.inherit_cwd = false;
 
-        assert_eq!(
-            inherit_cwd_for_create(&state, &engine, &json!({ "surface_id": named })),
-            None,
-        );
+        assert_eq!(inherit_cwd_for_create(&state, &engine, Some(named)), None,);
     }
 }
