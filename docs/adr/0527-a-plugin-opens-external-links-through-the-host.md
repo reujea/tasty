@@ -33,6 +33,15 @@
 이것이 ADR-0511 의 "plugin 프로세스의 열기(번들 markdown plugin 의 `webbrowser::open`)는 이 스위치
 밖이다" 조항을 개정한다 — markdown 링크 열기는 이제 스위치 안이고 `open_uri\t<url>` 로 기록된다.
 
+**개정하지 않는 것**
+
+- ADR-0511 의 스위치 자체: 변수 `TASTY_DEBUG_OS_OPEN_LOG` · 기록 형식 `<via>\t<대상>` · 가로채면
+  성공으로 돌아가는 것 · 변수가 있기만 하면 억제하는 fail closed · opt-in 인 것.
+- 판정 자리가 `crates/tasty-platform/src/debug_os_open.rs` 의 `intercepted` 하나이고 release 에 없는 것,
+  그리고 그것을 묻는 host 호출부 넷.
+- e2e 하네스가 격리 홈 아래 `os-open.log` 로 스위치를 늘 켜는 것과 가짜 `BROWSER` · 검증 절차의 가짜
+  `PATH`/`BROWSER` — 이제 번들 markdown 몫은 아니지만 PTY 셸과 제3자 plugin 몫으로 그대로 남는다.
+
 ## Consequences
 
 - **얻은 것**: markdown 링크 열기가 플랫폼과 무관하게 debug 스위치로 기록된다. OS 열기 자리가 host
@@ -71,7 +80,8 @@
 
 ## References
 
-- 선행 결정: [ADR-0511](0511-os-open-is-recorded-not-launched-under-a-debug-switch.md) (부분 개정 — plugin 쪽 열기 조항)
+- 개정 대상: [ADR-0511](0511-os-open-is-recorded-not-launched-under-a-debug-switch.md) (plugin 프로세스의 열기는 스위치 밖이라는 조항)
+- 개정 패턴 선례: [ADR-0030](0030-image-egui-mesh-bitmap-texture.md)
 - 탐색: `git grep -l 'webbrowser::open\|dispatch_external_link' -- docs/adr/` → 0511 하나
 - [markdown plugin](../plugins/markdown/index.md) "링크 클릭 라우팅"
 - [debug-ipc.md](../dev-guide/debug-ipc.md) "OS 열기를 띄우지 않고 기록하기"
