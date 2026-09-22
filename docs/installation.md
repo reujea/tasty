@@ -78,7 +78,7 @@ Authenticode 서명이 없어 첫 실행 시 "Windows의 PC 보호" 경고가 �
 
 ## GPU 요구사항
 
-Tasty 는 GPU 가속 렌더링(wgpu, Vulkan/DX12/Metal)을 쓴다. 하드웨어 GPU 어댑터가 없으면(GPU 미탑재 서버·VM·컨테이너 등) 소프트웨어 렌더러로 한 번 더 시도하고, 그마저 없으면 안내 메시지를 낸 뒤 종료한다. 위 배포 산출물은 모두 GUI 빌드라 `--headless` 플래그가 없다 — GPU 없이 IPC/CLI 만 쓰려면 소스에서 `cargo build --no-default-features` 로 headless 빌드해야 한다([dev-guide/build](dev-guide/build.md)).
+Tasty 는 GPU 가속 렌더링(wgpu, Vulkan/DX12/Metal)을 쓴다. 하드웨어 GPU 어댑터가 없으면(GPU 미탑재 서버·VM·컨테이너 등) 소프트웨어 렌더러로 한 번 더 시도하고, 그마저 없으면 안내 메시지를 낸 뒤 종료한다. 위 배포 산출물은 모두 GUI 빌드다 — `--headless` 플래그는 받지만 GUI 빌드에서는 효과가 없어 경고 한 줄을 남기고 평소처럼 GUI 로 실행된다. 헤드리스 여부는 플래그가 아니라 빌드가 정하므로, GPU 없이 IPC/CLI 만 쓰려면 소스에서 `cargo build --no-default-features` 로 headless 빌드해야 한다([dev-guide/build](dev-guide/build.md)).
 
 ## 검증
 
