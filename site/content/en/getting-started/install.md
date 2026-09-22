@@ -1,4 +1,4 @@
-<!-- source-hash: 0891b2ec95fd -->
+<!-- source-hash: 3d736cd038f4 -->
 # Install
 
 Install Tasty for your computer and open your first terminal. Below you will find installation steps for each OS, along with how to update or uninstall.
@@ -96,6 +96,21 @@ Shells opened inside Tasty get the `tasty` command on PATH automatically. On mac
 ## GPU requirements
 
 Tasty draws its screen with the GPU (Vulkan / DirectX 12 / Metal). If there is no GPU it tries once more with a software renderer, and if that fails too it prints a "GPU adapter not found" message and exits. Installing or updating the GPU driver resolves this in most cases. All distributed install files are GUI builds, so they do not run on servers without a GPU.
+
+## Headless build
+
+A **headless build**, which runs Tasty on a server without a window, is not distributed as an install file. Running a distributed Tasty with `--headless` does not start it without a window; it starts the GUI as usual.
+
+If you need a headless build, build it yourself from source on a machine with Rust installed.
+
+```sh
+git clone https://github.com/zilhak/tasty.git
+cd tasty
+cargo build --release --no-default-features
+./target/release/tasty
+```
+
+The `tasty` built this way starts without a window even with no options, and you create and drive its terminals only through the `tasty` CLI. From another computer you can bring its workspaces in with [remote attach](../remote/attach.md).
 
 ## Updating
 

@@ -96,6 +96,21 @@ Tasty 안에서 연 셸에는 `tasty` 명령이 자동으로 PATH 에 들어갑�
 
 Tasty 는 GPU(Vulkan / DirectX 12 / Metal)로 화면을 그립니다. GPU 가 없으면 소프트웨어 렌더러로 한 번 더 시도하고, 그것도 안 되면 "GPU 어댑터를 찾을 수 없음" 메시지를 내고 종료합니다. GPU 드라이버를 설치·업데이트하면 대부분 해결됩니다. 배포되는 설치 파일은 모두 GUI 빌드라 GPU 없는 서버에서는 실행되지 않습니다.
 
+## headless 빌드
+
+윈도우 없이 서버에서 Tasty 를 돌리는 **headless 빌드**는 설치 파일로 배포하지 않습니다. 배포된 Tasty 에 `--headless` 를 붙여 실행해도 윈도우 없이 뜨지 않고 평소처럼 GUI 로 실행됩니다.
+
+headless 빌드가 필요하면 Rust 가 설치된 환경에서 소스로 직접 만듭니다.
+
+```sh
+git clone https://github.com/zilhak/tasty.git
+cd tasty
+cargo build --release --no-default-features
+./target/release/tasty
+```
+
+이렇게 만든 `tasty` 는 옵션 없이 실행해도 윈도우 없이 뜨고, 터미널은 `tasty` CLI 로만 만들고 다룹니다. 다른 컴퓨터에서 [원격 attach](../remote/attach.md) 로 그 워크스페이스를 가져와 볼 수 있습니다.
+
 ## 업데이트
 
 자동 업데이트나 새 버전 알림 기능은 없습니다. 릴리스 페이지에서 새 버전을 받아 같은 방식으로 다시 설치합니다.
