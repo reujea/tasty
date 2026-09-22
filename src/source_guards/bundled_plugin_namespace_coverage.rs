@@ -138,18 +138,46 @@ fn dispatch_bodies(dir: &std::path::Path) -> Vec<(PathBuf, String)> {
     out
 }
 
-/// 본문에 나타나는 `"<prefix>.…"` 문자열 리터럴.
+/// 본문의 `match` 팔 패턴에 나타나는 `"<prefix>.…"` 이름.
+///
+/// 팔 패턴만 센다. 본문 아무 데서나 `"<prefix>.` 를 찾던 판독은 주석 속 인용이나 로그
+/// 문자열, 다른 메서드로 거는 `host.call("<prefix>.…")` 의 인자까지 "받는다" 로 셌다 — 이
+/// 시험의 명제는 포함(host ⊆ 받는 것)이라 넘치게 센 이름은 arm 이 없어도 초록으로 나간다.
+/// 팔은 공용 판정기(`tasty_doc_guards::match_arms`)가 뗀다.
 fn handled_methods(body: &str, prefix: &str) -> BTreeSet<String> {
-    let needle = format!("\"{prefix}.");
+    use tasty_doc_guards::match_arms::{Source, matching_close};
+    let src = Source::new(body);
+    let code = src.code.as_str();
+    let want = format!("{prefix}.");
     let mut out = BTreeSet::new();
-    let mut rest = body;
-    while let Some(at) = rest.find(&needle) {
-        let after = &rest[at + 1..];
-        if let Some(end) = after.find('"') {
-            out.insert(after[..end].to_string());
-            rest = &after[end..];
-        } else {
+    let mut from = 0usize;
+    while let Some(at) = code[from..].find("match ") {
+        let at = from + at;
+        from = at + "match ".len();
+        if code[..at]
+            .chars()
+            .next_back()
+            .is_some_and(|c| c.is_alphanumeric() || c == '_')
+        {
+            continue;
+        }
+        let Some(open) = code[from..].find('{').map(|k| from + k) else {
             break;
+        };
+        let Some(close) = matching_close(code, open) else {
+            continue;
+        };
+        let arms = src
+            .match_arms(open..close + 1)
+            .unwrap_or_else(|e| panic!("inbound dispatch 의 팔을 못 읽었다 — {e}"));
+        for arm in arms {
+            for alt in src.alternatives(&arm.pattern) {
+                if let Some(name) = src.plain_string(&alt)
+                    && name.starts_with(&want)
+                {
+                    out.insert(name.to_string());
+                }
+            }
         }
     }
     out
@@ -321,6 +349,31 @@ fn after() { emit(\"ns.after\"); }
         found.contains("ns.inside") && !found.contains("ns.after"),
         "문자열 안 중괄호에 속아 본문이 일찍 끊기거나 넘쳤다: {found:?}"
     );
+}
+
+/// 팔이 아닌 자리의 같은 prefix 리터럴 — 주석 속 인용, 로그 문자열, 다른 메서드로 거는
+/// 호출 인자 — 은 "받는다" 가 아니다. 셌다면 arm 없는 host 메서드가 초록으로 나간다.
+#[test]
+fn only_arm_patterns_count_as_handled() {
+    let src = "\
+fn handle_ipc_method(&mut self, ctx: IpcMethodCtx) -> R {
+    // \"ns.commented\" 는 여기서 받지 않는다
+    tracing::warn!(\"ns.logged 는 아직 없다\");
+    let _ = host.call(\"ns.forwarded\", p);
+    match ctx.method.as_str() {
+        \"ns.inside\" | \"ns.also\" => ok(),
+        \"ns.guarded\" if ready => ok(),
+        other => not_found(other),
+    }
+}
+";
+    let body = fn_body(src, DISPATCH_FN).expect("본문을 잘라야 한다");
+    let found = handled_methods(&body, "ns");
+    let want: BTreeSet<String> = ["ns.inside", "ns.also", "ns.guarded"]
+        .into_iter()
+        .map(String::from)
+        .collect();
+    assert_eq!(found, want, "팔이 아닌 자리의 이름을 셌거나 팔을 놓쳤다");
 }
 
 // ─── 새 매니페스트가 들어올 때 무엇이 그것을 처음 보는가 ──────────────────────
