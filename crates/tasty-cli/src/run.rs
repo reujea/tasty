@@ -258,19 +258,13 @@ fn run_dynamic_client(
             let code = e
                 .downcast_ref::<tasty_ipc::client::JsonRpcCallError>()
                 .map(|err| err.code);
-            let msg = e.to_string();
             hook_failure::record(
                 &request.method,
                 &request.params,
                 code,
-                &hook_failure::DiagnosticEnglish::new_unchecked(msg.clone()),
+                &hook_failure::DiagnosticEnglish::new_unchecked(e.to_string()),
             );
-            if let Some(rest) = msg.strip_prefix("Error (") {
-                eprintln!("Error ({}", rest);
-            } else {
-                eprintln!("{}", msg);
-            }
-            std::process::exit(1);
+            crate::rpc_error::exit_with(&e);
         }
     }
 }
@@ -337,13 +331,7 @@ fn run_dynamic_client_with_auto_wait(
         match conn.send(&request) {
             Ok(value) => value,
             Err(e) => {
-                let msg = e.to_string();
-                if let Some(rest) = msg.strip_prefix("Error (") {
-                    eprintln!("Error ({}", rest);
-                } else {
-                    eprintln!("{}", msg);
-                }
-                std::process::exit(1);
+                crate::rpc_error::exit_with(&e);
             }
         }
     };
@@ -458,13 +446,7 @@ fn run_dynamic_client_polling(
             }
             Err(e) => {
                 // IPC 자체 에러는 polling 의미 없음 — 그대로 종료.
-                let msg = e.to_string();
-                if let Some(rest) = msg.strip_prefix("Error (") {
-                    eprintln!("Error ({}", rest);
-                } else {
-                    eprintln!("{}", msg);
-                }
-                std::process::exit(1);
+                crate::rpc_error::exit_with(&e);
             }
         }
         if let Some(d) = deadline
@@ -529,13 +511,7 @@ fn run_client_inner(command: Commands, port_file: Option<&str>, envelope: Envelo
             format_output(&command, &value)?;
         }
         Err(e) => {
-            let msg = e.to_string();
-            if let Some(rest) = msg.strip_prefix("Error (") {
-                eprintln!("Error ({}", rest);
-            } else {
-                eprintln!("{}", msg);
-            }
-            std::process::exit(1);
+            crate::rpc_error::exit_with(&e);
         }
     }
 

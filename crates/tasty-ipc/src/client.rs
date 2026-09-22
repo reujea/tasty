@@ -24,10 +24,15 @@ use crate::protocol::{JsonRpcRequest, JsonRpcResponse};
 /// 프로토콜 값이라 안 탄다 — 그 둘을 갈라 두는 것이 이 타입의 전부다.
 ///
 /// `Display` 는 종전 문자열 그대로다. 기존 호출자의 출력은 한 글자도 바뀌지 않는다.
+///
+/// `data` 는 응답의 `error.data` 를 **원형 그대로** 든다(`reason` · `storage_failure` 처럼
+/// 호출자가 분기할 구조화 필드). `Display` 에는 싣지 않는다 — 그 문자열을 첫 줄로 파싱하는
+/// 쪽이 있고, `data` 를 보여 줄지는 출력하는 쪽이 정한다(CLI 는 둘째 줄, ADR-0498).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct JsonRpcCallError {
     pub code: i32,
     pub message: String,
+    pub data: Option<serde_json::Value>,
 }
 
 impl std::fmt::Display for JsonRpcCallError {
@@ -238,6 +243,7 @@ impl IpcConnection {
                 return Err(JsonRpcCallError {
                     code: error.code,
                     message: error.message,
+                    data: error.data,
                 }
                 .into());
             }
@@ -555,6 +561,66 @@ mod tests {
             got.is_empty(),
             "거절됐는데 무언가 나갔다: {}",
             String::from_utf8_lossy(&got)
+        );
+    }
+
+    /// 오류 응답의 `error.data` 는 원형 그대로 호출자에게 간다 — 버리면 IPC 가 싣는 실패
+    /// 분류(`storage_failure` · `reason`)를 CLI 가 볼 길이 없다(ADR-0498). `Display` 는 종전 한
+    /// 줄 그대로다.
+    #[test]
+    fn an_error_answer_keeps_its_data() {
+        use std::io::{BufRead, Write};
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let addr = listener.local_addr().unwrap();
+        let stream = TcpStream::connect(addr).unwrap();
+        stream
+            .set_read_timeout(Some(std::time::Duration::from_secs(2)))
+            .unwrap();
+        let mut conn = IpcConnection::new(stream).unwrap();
+        let (server, _) = listener.accept().unwrap();
+        let answer = std::thread::spawn(move || {
+            let mut reader = BufReader::new(server.try_clone().unwrap());
+            let mut line = String::new();
+            reader.read_line(&mut line).unwrap();
+            let mut server = server;
+            writeln!(
+                server,
+                "{}",
+                serde_json::json!({
+                    "jsonrpc": "2.0",
+                    "id": 1,
+                    "error": {
+                        "code": -32603,
+                        "message": "memory db error: disk I/O error",
+                        "data": { "storage_failure": "io" }
+                    }
+                })
+            )
+            .unwrap();
+        });
+
+        let req = JsonRpcRequest {
+            jsonrpc: "2.0".to_string(),
+            method: "memory.put".to_string(),
+            params: serde_json::json!({}),
+            id: Some(serde_json::Value::from(1)),
+            session_token: None,
+            response_timeout_ms: None,
+            idempotency_key: None,
+        };
+        let err = conn.send(&req).unwrap_err();
+        answer.join().unwrap();
+        let rpc = err
+            .downcast_ref::<JsonRpcCallError>()
+            .expect("호스트가 답한 오류는 타입으로 온다");
+        assert_eq!(rpc.code, -32603);
+        assert_eq!(
+            rpc.data,
+            Some(serde_json::json!({ "storage_failure": "io" }))
+        );
+        assert_eq!(
+            err.to_string(),
+            "Error (-32603): memory db error: disk I/O error"
         );
     }
 

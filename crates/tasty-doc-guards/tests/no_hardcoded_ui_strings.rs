@@ -143,11 +143,6 @@ const PENDING_FIX_LITERALS: &[(&str, &str, &str)] = &[
         "확인 버튼 라벨 — t(\"button.ok\") 로 대체 (ko 는 '확인')",
     ),
     (
-        "crates/tasty-cli/src/run.rs",
-        "Error ({}",
-        "host 에러 포맷 `Error (code): …` 를 stderr 에 재출력 (4 곳) — cli.* 키로 옮기거나 host 포맷과 함께 결정",
-    ),
-    (
         "crates/tasty-ipc/src/client/stream.rs",
         "unknown error",
         "stream.open 거절 사유 폴백 — bail! 로 CLI stderr 에 노출",

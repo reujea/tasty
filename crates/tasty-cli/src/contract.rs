@@ -144,6 +144,7 @@ fn not_run(bound: Duration) -> anyhow::Error {
     JsonRpcCallError {
         code: err.code,
         message: err.message,
+        data: err.data,
     }
     .into()
 }
@@ -184,7 +185,7 @@ pub(crate) fn refusal_line(refusal: &UnsupportedCapability) -> String {
 pub(crate) fn exit_on_failure(e: anyhow::Error) -> ! {
     match e.downcast_ref::<UnsupportedCapability>() {
         Some(refusal) => eprintln!("{}", refusal_line(refusal)),
-        None => eprintln!("{e}"),
+        None => crate::rpc_error::exit_with(&e),
     }
     std::process::exit(1);
 }
@@ -535,6 +536,7 @@ mod tests {
         let probe_error: anyhow::Error = JsonRpcCallError {
             code: -32001,
             message: "permission denied".into(),
+            data: None,
         }
         .into();
         assert_eq!(failure_code(&probe_error), None);

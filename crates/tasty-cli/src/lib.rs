@@ -29,6 +29,7 @@ pub mod out;
 pub mod plugin;
 pub mod port_file;
 pub mod request;
+mod rpc_error;
 pub mod run;
 
 use clap::{Parser, Subcommand};

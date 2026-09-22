@@ -18,6 +18,7 @@
 
 ### Added
 
+- **CLI 가 호스트 오류의 분류(`error.data`)를 보여 준다.** 호스트가 JSON-RPC 오류에 `error.data`(메모리 저장 실패의 `storage_failure`, 거절 사유의 `reason`, 권한 거부의 `approval_id` 등)를 실어 보내면 지금까지 CLI 는 그것을 버리고 `Error (<code>): <message>` 한 줄만 찍었다. 이제 그 아래 stderr 둘째 줄에 `data: <한 줄 JSON>` 으로 원형 그대로 싣는다. 첫 줄과 종료 코드 1 은 그대로이고, `data` 가 없는 오류의 출력은 바뀌지 않는다. 근거는 [ADR-0498](docs/adr/0498-the-cli-relays-ipc-error-data-on-a-second-stderr-line.md).
 - **느린 요청 목록에서 요청이 어떻게 끝났는지 보인다.** `tasty list pressure`(IPC `system.pressure`)의 `slow_requests` 줄마다 `host` 에 `outcome`(`ok`/`error` — 플러그인 hop 과 같은 낱말)과 `error_code`(오류면 호출자가 받은 JSON-RPC 코드)가 실린다. 그래서 큐에서 기한이 지나 실행되지 않은 요청(`-32067`) · 권한 게이트가 거절한 요청(`-32001`) · 정상 답을 목록만으로 가를 수 있다. 아직 답이 안 나갔으면 둘 다 `null` 이다. 기존 칸은 그대로다. 근거는 [ADR-0468](docs/adr/0468-the-slow-request-host-part-carries-the-answer-the-caller-got.md).
 - **새 연결이 받아들여지기까지 기다린 시간을 물을 수 있다.** Tasty 는 새 연결을 최대 100 ms 간격으로 확인해서, 명령마다 새로 연결하는 도구(`tasty` CLI 등)는 요청이 읽히기 전에 그만큼 기다릴 수 있다. 지금까지 그 시간은 `tasty list pressure`(IPC `system.pressure`)의 어느 값에도 안 잡혀 "원인 없는 100 ms" 로 보였다. 이제 `connections` 덩어리가 `accept_waits`(기록 수) · `accept_wait_bound_us_sum` · `accept_wait_bound_us_max` · `accept_wait_bound_us_mean` 을 싣는다. 잰 대기가 아니라 **넘을 수 없는 상한**이다(연결이 들어온 정확한 시각은 볼 수 없어, 마지막으로 새 연결이 없다고 확인한 뒤 지난 시간을 잰다). 기존 칸과 덩어리 수는 그대로다. 근거는 [ADR-0467](docs/adr/0467-the-accept-wait-is-reported-as-a-bound-in-the-connection-block.md).
 
