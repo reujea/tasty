@@ -18,7 +18,7 @@
 
 모수는 "원칙을 인용한 ADR 전부" 가 아니라 **아래 패턴에 걸린 ADR** 이다. `docs/adr/` 에서
 `git grep -lE '원칙 ?[123]|원칙 [0-9]·[0-9]|포커스 독립성|불가침|identity-principle-[13]'`
-(index · template · 이 ADR 제외)에 걸린 73 편과, `CHANGELOG.md` 가 인용하는
+(index · template · 이 ADR 제외)에 걸린 74 편과, `CHANGELOG.md` 가 인용하는
 66 편(`grep -oE 'ADR-[0-9]{4}' CHANGELOG.md | sort -u`)의 교집합 **22 편**을 한 편씩 읽었다. 여기에 CHANGELOG 항목이 없는 ADR-0143 을 더했다.
 이 패턴은 원칙을 `[identity §2.1 ①](../identity.md)` 같은 링크나 `user-agent-separation` 태그로만
 인용한 ADR 을 놓친다. 그래서 `identity\.md|user-agent-separation` 을 더해 넓혀 보았고, CHANGELOG 가
