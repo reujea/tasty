@@ -505,7 +505,7 @@ pragma 보고는 0316 → 0376(보고 채널 개정), 못 연 `memory.db` 의 in
 
 ## CLI · 로깅 · 에이전트 표면
 
-파이프 조기 종료는 0101(stdout, 종료 코드 0) → 0513(stderr, 종료 코드 유지) — 결론이 반대라 합치지 않는다. 호스트 오류 출력은 0512.
+파이프 조기 종료는 0101(stdout, 종료 코드 0) → 0513(stderr, 종료 코드 유지) — 결론이 반대라 합치지 않는다. 호스트 오류 출력은 0512(연결 뒤), 인자 오류의 순서와 종료 코드는 0542(연결 앞) — 자리가 달라 합치지 않는다.
 운영 문서: [dev-guide/cli-ipc-surface](../dev-guide/cli-ipc-surface.md) · [dev-guide/error-handling](../dev-guide/error-handling.md) · [dev-guide/cli-structure](../dev-guide/cli-structure.md)
 
 | # | Title | Status | Date | Tags |
@@ -516,6 +516,7 @@ pragma 보고는 0316 → 0376(보고 채널 개정), 못 연 `memory.db` 의 in
 | 0512 | [CLI 는 IPC 오류의 `error.data` 를 stderr 둘째 줄에 원형 그대로 싣는다](0512-the-cli-relays-ipc-error-data-on-a-second-stderr-line.md) | Accepted | 2026-09-23 | cli, ipc, error-message, parity, wire-format, stderr |
 | 0513 | [CLI 의 stderr 쓰기 실패는 버리고 명령의 종료 코드를 그대로 둔다](0513-cli-stderr-broken-pipe-keeps-the-exit-code.md) | Accepted | 2026-09-23 | cli, stderr, epipe, exit-code, crash-report, error-handling, adr-0101 |
 | 0514 | [`tasty new workspace` 는 창을 서피스로 지목하고, 생략값을 `TASTY_SURFACE_ID` 로 채우지 않는다](0514-new-workspace-names-its-window-by-a-surface-and-keeps-no-env-default.md) | Accepted | 2026-09-23 | cli, ipc, workspace, window, multi-window, focus, parity, routing |
+| 0542 | [CLI 는 요청 인자를 연결보다 먼저 판정하고, 그 오류의 종료 코드로 끝난다](0542-the-cli-judges-request-arguments-before-connecting-and-exits-with-their-code.md) | Accepted | 2026-09-23 | cli, exit-code, argument-validation, error-message, compatibility, adr-0512 |
 
 ## 빌드 · 배포 · 버전
 

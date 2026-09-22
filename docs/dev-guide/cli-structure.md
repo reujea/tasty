@@ -102,8 +102,10 @@ clap 이 첫 문단을 짧은 help(`-h`), 전체를 긴 help(`--help`)로 그대
 없는 `--cwd` 등)이라, 실패하면 그 자리에서 원인을 stderr 에 내고 종료한다 — 인스턴스가 없어도
 사용자는 "실행 중인 인스턴스가 없다" 가 아니라 자기 인자의 잘못을 받고, 호스트에는 아무것도
 안 보낸 빈 연결이 생기지 않는다. 서버의 값이 있어야 하는 확인(계약 확인 `contract::ensure`)만
-연결 뒤에 남는다. plugin 동적 명령(`try_run_plugin_cli`)도 같은 순서다. 시험은
-`tests/cli_maps_args_before_connecting.rs`.
+연결 뒤에 남는다. plugin 동적 명령(`try_run_plugin_cli`)도 같은 순서다. 그래서 인스턴스가 없을
+때의 종료 코드도 그 인자 오류의 값이다(근거·대안은
+[ADR-0542](../adr/0542-the-cli-judges-request-arguments-before-connecting-and-exits-with-their-code.md)).
+시험은 `tests/cli_maps_args_before_connecting.rs`.
 
 ## stdout 출력 (`out.rs`)
 
