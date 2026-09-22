@@ -79,8 +79,14 @@ surface 훅(notification · bell · output-match · command-completed · process
 - 발화한 스레드가 다시 스텝을 기다리면
   `hook_handler::trigger::tests::an_ipc_sequence_hook_returns_before_its_steps_are_answered_and_runs_them_in_order`
   가 잡는다(`enqueue_sequence` 안에서 `execute_sequence` 를 동기로 한 번 부르는 변이로 확인했다 —
-  20.0 s 대기로 실패). 같은 시험이 둘째 스텝이 첫 스텝의 답 전에 들어오는지도 보지만 그 단정은 변이로
-  재지 않았다.
+  20.0 s 대기로 실패). 같은 시험이 한 시퀀스 **안**의 순서 — 둘째 스텝이 첫 스텝의 답 전에 들어오지
+  않는다 — 도 잡는다(`execute_sequence` 의 스텝 대기를 `STEP_TIMEOUT / 10_000` 으로 줄이는 변이로
+  확인했다 — `the second step must wait for the first step's answer` 로 실패, rc=101).
+- 시퀀스 **사이**의 순서가 깨지면 — 먼저 발화한 훅의 시퀀스가 끝나기 전에 뒤 훅의 스텝이 들어가면 —
+  `hook_handler::trigger::tests::ipc_sequence_hooks_fired_back_to_back_do_not_interleave_their_steps`
+  가 잡는다(`sequence_worker` 의 루프 본문을 작업마다 `std::thread::spawn` 으로 바꾸는 변이, 곧 대안 A 로
+  확인했다 — 둘째 시퀀스의 스텝이 먼저 들어와 실패, rc=101). 이 성질이 필요 없어지면 대안 A 를 다시 볼 수
+  있다.
 - `execute_sequence` 가 스텝의 결과를 기다리지 않게 바뀌면 — 순서를 지키려고 한 스레드에 모은 이유가
   사라진다.
 
