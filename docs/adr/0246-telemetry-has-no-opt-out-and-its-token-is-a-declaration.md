@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-08
 - **Tags**: telemetry, privacy, permissions, plugin, trust-boundary, cap, non-goal, adr-0141
+- **Group**: permission-security
 
 ## Context
 

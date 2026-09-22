@@ -4,6 +4,7 @@
 - **Accepted**: 2026-06-30
 - **Date**: 2026-06-29
 - **Tags**: plugin, render-channel, egui, epaint, mesh, ipc, shared-memory, surface-kind, popup, banner, host-rendered-removal, bundled-only, adr-0008, adr-0009
+- **Group**: plugin-render
 
 ## Context
 

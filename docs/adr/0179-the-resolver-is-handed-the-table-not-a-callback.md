@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-06
 - **Tags**: plugins, ipc, derived-state, encapsulation, global-state, adr-0173, adr-0178
+- **Group**: plugin-system
 
 ## Context
 

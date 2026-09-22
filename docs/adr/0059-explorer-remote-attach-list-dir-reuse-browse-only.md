@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-08-01
 - **Tags**: explorer, attach, mirror, remote, list-dir, browse-only, occupancy-trust, view-store, wire-format, adr-0053, adr-0054, adr-0056
+- **Group**: remote-attach
 
 ## Context
 

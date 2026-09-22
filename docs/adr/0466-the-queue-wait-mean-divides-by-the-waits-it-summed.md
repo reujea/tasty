@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-22
 - **Tags**: telemetry, pressure, ipc, queue, modulus, measurement, adr-0305, adr-0333
+- **Group**: ipc-transport
 
 ## Context
 

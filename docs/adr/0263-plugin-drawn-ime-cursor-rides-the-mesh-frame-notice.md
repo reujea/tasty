@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-11
 - **Tags**: ime, egui-mesh, plugin-protocol, typed-length, candidate-window, popup, surface
+- **Group**: plugin-render
 
 ## Context
 

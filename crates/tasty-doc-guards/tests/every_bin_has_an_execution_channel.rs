@@ -59,13 +59,13 @@ const CRATE_DIR: &str = "crates/tasty-doc-guards";
 /// cargo metadata --no-deps …  kind 가 bin 인 target 수  # cargo 가 실제로 만드는 것
 /// ```
 ///
-/// 실측 2026-09-07(`de0572359`): 둘 다 **3** 이다 — `mask-source` · `strip-cfg-test` ·
-/// `workflow-channels`. 이 하한도 3 이라 **여유가 0** 이고, 그것이 맞다: 하한은 실측과
+/// 실측 2026-09-23: 둘 다 **4** 다 — `adr-index` · `mask-source` · `strip-cfg-test` ·
+/// `workflow-channels`. 이 하한도 4 라 **여유가 0** 이고, 그것이 맞다: 하한은 실측과
 /// 붙어 있어야 예리하고, 벌어진 만큼이 곧 안 보는 구간이다.
 ///
 /// ★ 이 하한이 왜 필요한지는 **세 번째 수**가 답한다 — `Cargo.toml` 의 `[[bin]]` 선언이
 /// **0** 이다. 이 크레이트는 cargo 의 자동 발견에만 기대고 있어서, `src/bin/` 에서 파일이
-/// 사라지면 bin 도 함께 조용히 사라진다. "셋이어야 한다" 고 적힌 곳이 레포 어디에도 없고,
+/// 사라지면 bin 도 함께 조용히 사라진다. "넷이어야 한다" 고 적힌 곳이 레포 어디에도 없고,
 /// 그 침묵을 메우는 것이 이 수다.
 ///
 /// **이 수를 내려서 초록을 만들지 마라.** 내리면 아래 전수 명제("모든 bin 이 실행 채널을
@@ -75,7 +75,7 @@ const CRATE_DIR: &str = "crates/tasty-doc-guards";
 /// 정당한 수선: bin 을 **실제로 지웠으면** 이 수도 같은 커밋에서 함께 내려라. 그때 위 두
 /// 출처를 다시 세서 값이 같은지 확인해라 — 파일만 지우고 빌드 산출물이 남아 있으면 두 수가
 /// 갈리고, 그 상태에서 고른 값은 둘 중 어느 쪽도 아니다.
-const MIN_BINS: usize = 3;
+const MIN_BINS: usize = 4;
 
 /// 출력을 읽는다고 볼 표지. `status` 는 종료코드, `stdout` 은 내용이다.
 const READS_OUTPUT: &[&str] = &["stdout", "status", "code()"];

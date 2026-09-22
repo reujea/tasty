@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-21
 - **Tags**: attach, stream, ipc, backpressure, resync, cli, adr-0400, adr-0334
+- **Group**: remote-attach
 
 ## Context
 

@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-08-25
 - **Tags**: layout-persistence, multi-window, slot, occupancy, storage, boot, scrollback, gc
+- **Group**: window-workspace-lifecycle
 
 ## Context
 

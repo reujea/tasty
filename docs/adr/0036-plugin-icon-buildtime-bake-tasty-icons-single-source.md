@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-07-05
 - **Tags**: plugin, icons, tasty-icons, single-source, build-time-bake, svg, vector, egui-mesh, design-parity, i18n, adr-0510, adr-0028, adr-0030
+- **Group**: ui-theme-gallery
 
 ## Context
 

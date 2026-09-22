@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-08
 - **Tags**: markdown, plugin, webview, images, sanitizer, security, scope, cross-platform, adr-0065
+- **Group**: bundled-plugins
 
 ## Context
 

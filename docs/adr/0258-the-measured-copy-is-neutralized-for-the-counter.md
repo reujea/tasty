@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-09
 - **Tags**: complexity-gate, sloc, tokei, measurement, judge-vs-counter, ratchet, budget, adr-0165, adr-0168, adr-0205
+- **Group**: ci-gates
 
 ## Context
 

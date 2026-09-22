@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-08-30
 - **Tags**: claude-plugin, stop-hook, gate, memory, goal, i18n, autonomy
+- **Group**: agent-integration
 
 ## Context
 

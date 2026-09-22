@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-08-08
 - **Tags**: surface-highlight, attention, notification, state, adr-0039
+- **Group**: attention-notification
 
 ## Context
 

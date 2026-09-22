@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-23
 - **Tags**: preset, layout-presets, concurrency, agent-user-separation, identity-principle-1, adr-0531
+- **Group**: ui-theme-gallery
 
 ## Context
 

@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-08
 - **Tags**: guards, judgement, prescription, channels, left-side, discipline, census, positive-control, adr-0139, adr-0242
+- **Group**: guard-design
 
 ## Context
 

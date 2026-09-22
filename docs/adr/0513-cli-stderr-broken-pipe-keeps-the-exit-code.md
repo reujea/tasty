@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-23
 - **Tags**: cli, stderr, epipe, exit-code, crash-report, error-handling, adr-0101
+- **Group**: cli-logging
 
 ## Context
 

@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-20
 - **Tags**: architecture, webview, host-api, cross-platform, trait, cfg, contract
+- **Group**: plugin-render
 
 ## Context
 

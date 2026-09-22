@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-05
 - **Tags**: testing, e2e, harness, gpu, headless, build
+- **Group**: testing
 
 ## Context
 

@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-08-24
 - **Tags**: claude-plugin, registry, stop-hook, gate, session-profile, marker, cli, ipc, i18n
+- **Group**: agent-integration
 
 ## Context
 

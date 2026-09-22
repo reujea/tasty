@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-23
 - **Tags**: attach, stream, heartbeat, cli, debug, mirror-dump, silent-failure, compatibility, adr-0052, adr-0400, adr-0450
+- **Group**: remote-attach
 
 ## Context
 

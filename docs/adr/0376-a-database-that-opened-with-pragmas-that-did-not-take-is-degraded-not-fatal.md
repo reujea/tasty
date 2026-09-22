@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-21
 - **Tags**: sqlite, storage, memory, pragma, observability, ipc, cli, adr-0316
+- **Group**: storage
 
 ## Context
 

@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-12
 - **Tags**: attach, mirror, remote, restore, closed-item, wire-format, focus, user-agent-separation, adr-0040, adr-0045, adr-0086
+- **Group**: remote-attach
 
 ## Context
 

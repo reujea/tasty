@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-08-24
 - **Tags**: fullscreen, stage, ui, render-pipeline, layout, webview, attach, screenshot
+- **Group**: window-workspace-lifecycle
 
 ## Context
 

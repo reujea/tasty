@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-21
 - **Tags**: ipc, transport, timeout, wire, compatibility, cancellation, reliability, adr-0328, adr-0410
+- **Group**: ipc-transport
 
 ## Context
 

@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-02
 - **Tags**: plugin-sdk, egui-mesh, threading, self-repaint
+- **Group**: plugin-render
 
 ## Context
 

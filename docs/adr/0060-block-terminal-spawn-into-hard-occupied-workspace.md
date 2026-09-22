@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-08-05
 - **Tags**: occupation, hard-occupy, attach, terminal-spawn, agent-collaboration, adr-0040
+- **Group**: remote-attach
 
 ## Context
 

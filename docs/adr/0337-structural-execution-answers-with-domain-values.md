@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-20
 - **Tags**: architecture, boundary, close, attach, cascade, resource-reclamation, hexagonal
+- **Group**: architecture
 
 ## Context
 

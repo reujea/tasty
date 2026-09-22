@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-20
 - **Tags**: file-handler, focus, explorer, user-action, adr-0279
+- **Group**: file-handler
 
 ## Context
 

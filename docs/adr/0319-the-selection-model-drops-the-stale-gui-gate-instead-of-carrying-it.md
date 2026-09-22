@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-20
 - **Tags**: architecture, crates, layering, selection, cell-width, headless, feature-gate, adr-0308
+- **Group**: architecture
 
 ## Context
 

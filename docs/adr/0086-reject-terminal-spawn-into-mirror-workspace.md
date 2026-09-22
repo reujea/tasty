@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-08-25
 - **Tags**: attach, mirror, terminal-spawn, structural-forward, orphan-resource, ipc, adr-0060
+- **Group**: remote-attach
 
 ## Context
 

@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-03
 - **Tags**: plugin, git-viewer, git2, cache, invalidation, performance, worktree
+- **Group**: bundled-plugins
 
 ## Context
 

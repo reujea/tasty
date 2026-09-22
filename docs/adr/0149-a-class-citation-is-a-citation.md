@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-05
 - **Tags**: guards, ci-gates, docs, false-negative, census, adr-0139, adr-0142, adr-0144
+- **Group**: guard-design
 
 ## Context
 

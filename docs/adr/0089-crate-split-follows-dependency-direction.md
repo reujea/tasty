@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-08-30
 - **Tags**: build, crate-layout, dependency-direction, remote-attach
+- **Group**: architecture
 
 ## Context
 

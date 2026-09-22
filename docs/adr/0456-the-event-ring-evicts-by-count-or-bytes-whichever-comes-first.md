@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-21
 - **Tags**: events, event-bus, ring-buffer, retention, resource-bounds, plugin, adr-0322, adr-0360
+- **Group**: event-feed
 
 ## Context
 

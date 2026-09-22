@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-05
 - **Tags**: plugin, ipc, manifest, namespace, guards, compatibility, adr-0133
+- **Group**: plugin-system
 
 ## Context
 

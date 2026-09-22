@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-06-16
 - **Tags**: memory, secret, security, encryption, plugin, trust-boundary
+- **Group**: permission-security
 
 > 초기 설계는 secret 을 AES-256-GCM + OS keyring 으로 암호화하려 했다 (도입 커밋 `e562fd53` → 철회 `34c01afe`). 본 ADR 은 "암호화하지 않는다" 는 현재 결정을 응축한 것이다. 결정 배경의 상세 산문은 `docs/design/systems/memory.md` "왜 암호화를 하지 않는가" 에 있다.
 

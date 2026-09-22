@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-21
 - **Tags**: memory, storage, poison, boundary, output-observer
+- **Group**: storage
 
 ## Context
 

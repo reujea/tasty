@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-07-06
 - **Tags**: modifier-hint, overlay, keybindings, empty-state, placeholder, design-token, i18n, accessibility, debug-ipc, adr-0035, adr-0510
+- **Group**: keybindings
 
 ## Context
 

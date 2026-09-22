@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-11
 - **Tags**: plugin, codex, agent-state, attention, hooks
+- **Group**: agent-integration
 
 ## Context
 

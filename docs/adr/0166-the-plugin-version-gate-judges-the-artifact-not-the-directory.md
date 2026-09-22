@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-05
 - **Tags**: plugin, versioning, guards, ci-gates, measurement, adr-0137, adr-0165, adr-0138
+- **Group**: build-release
 
 ## Context
 

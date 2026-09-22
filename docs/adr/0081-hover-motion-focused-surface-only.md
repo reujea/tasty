@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-08-24
 - **Tags**: mouse, input, tracking, focus, terminal, adr-0019
+- **Group**: terminal-input
 
 ## Context
 

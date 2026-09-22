@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-08-30
 - **Tags**: logging, tracing, diagnostics, cli, boot, crash-report
+- **Group**: cli-logging
 
 ## Context
 

@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-21
 - **Tags**: headless, app-state, ownership, popup, feature, adr-0346
+- **Group**: architecture
 
 ## Context
 

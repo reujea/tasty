@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-03
 - **Tags**: i18n, locale, plugin, boot, env, unsafe, language-pack
+- **Group**: i18n
 
 ## Context
 

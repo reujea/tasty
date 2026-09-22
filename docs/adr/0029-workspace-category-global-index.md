@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-06-29
 - **Tags**: workspace, workspace-category, sidebar, indexing, focus
+- **Group**: window-workspace-lifecycle
 
 ## Context
 

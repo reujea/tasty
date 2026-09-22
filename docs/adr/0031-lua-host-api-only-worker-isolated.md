@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-07-01
 - **Tags**: lua, scripting, host-api, worker-thread, snapshot, command-queue, capability-boundary, sandbox, init-lua-removal, observe-only, adr-0009, adr-0028
+- **Group**: plugin-system
 
 ## Context
 

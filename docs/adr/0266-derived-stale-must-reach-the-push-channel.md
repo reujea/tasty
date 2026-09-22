@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-12
 - **Tags**: plugin, claude, child-terminal, agent-state, hooks, notification, stall, adr-0072
+- **Group**: agent-integration
 
 ## Context
 

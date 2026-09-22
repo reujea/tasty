@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-13
 - **Tags**: keybindings, import-export, settings, draft, plugin, option-migration, conflict
+- **Group**: keybindings
 
 ## Context
 

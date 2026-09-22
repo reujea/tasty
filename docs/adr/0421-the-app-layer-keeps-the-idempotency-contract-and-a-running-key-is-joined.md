@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-21
 - **Tags**: ipc, idempotency, retry, app-layer, concurrency, deferred-response, headless, adr-0338, adr-0361
+- **Group**: ipc-contract
 
 ## Context
 

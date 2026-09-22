@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-09
 - **Tags**: guards, design-tokens, exemption, class-vs-roster, predicate, ratchet, adr-0126, adr-0135, adr-0139
+- **Group**: typed-length-dpi
 
 ## Context
 

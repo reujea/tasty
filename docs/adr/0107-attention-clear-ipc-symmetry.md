@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-03
 - **Tags**: attention, surface-highlight, ipc, cli, headless, cascade, intent, attach, mirror, api-symmetry
+- **Group**: attention-notification
 
 ## Context
 

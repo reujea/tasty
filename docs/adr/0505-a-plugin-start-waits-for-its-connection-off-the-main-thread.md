@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-23
 - **Tags**: plugin, host-plugin, lifecycle, startup, handshake, main-thread, concurrency, adr-0457
+- **Group**: plugin-system
 
 ## Context
 

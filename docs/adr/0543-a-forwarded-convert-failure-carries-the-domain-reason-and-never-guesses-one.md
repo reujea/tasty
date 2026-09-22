@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-23
 - **Tags**: attach, mirror, remote, error-message, wire-format, convert, compatibility, adr-0395, adr-0482
+- **Group**: remote-attach
 
 ## Context
 

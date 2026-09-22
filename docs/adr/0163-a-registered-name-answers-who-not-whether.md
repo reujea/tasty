@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-05
 - **Tags**: ipc, error-codes, plugin, agent-surface, guards, adr-0154, adr-0140, adr-0152
+- **Group**: ipc-contract
 
 ## Context
 

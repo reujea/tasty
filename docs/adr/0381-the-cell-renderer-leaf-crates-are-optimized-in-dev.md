@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-21
 - **Tags**: build, dev-profile, opt-level, renderer, selection, terminal-link, cell-width, measurement, adr-0342
+- **Group**: architecture
 
 ## Context
 

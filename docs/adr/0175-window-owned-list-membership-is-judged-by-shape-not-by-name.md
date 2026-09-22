@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-05
 - **Tags**: focus-independence, ipc, routing, list-aggregation
+- **Group**: window-workspace-lifecycle
 
 ## Context
 

@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-03
 - **Tags**: agent-stream, plugin, sse, http, tiny-http, exposure, authentication, backpressure, resume, adr-0046, adr-0048, adr-0093
+- **Group**: agent-integration
 
 ## Context
 

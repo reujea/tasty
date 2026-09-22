@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-23
 - **Tags**: hooks, hook-handler, ipc, concurrency, logging, adr-0498
+- **Group**: webhook-hooks
 
 ## Context
 

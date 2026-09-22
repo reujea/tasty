@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-19
 - **Tags**: markdown, plugin, webview, navigation, anchors, toc, footnotes, cross-platform, adr-0249, adr-0065
+- **Group**: bundled-plugins
 
 ## Context
 

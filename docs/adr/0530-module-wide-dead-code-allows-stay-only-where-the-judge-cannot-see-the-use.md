@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-23
 - **Tags**: dead-code, lint, headless, cfg, tests, generated-code, adr-0346
+- **Group**: architecture
 
 ## Context
 

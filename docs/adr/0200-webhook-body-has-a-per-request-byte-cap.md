@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-08
 - **Tags**: webhook, security, resource-bound, dos, body-limit, measurement, adr-0112, adr-0199, adr-0046
+- **Group**: webhook-hooks
 
 ## Context
 

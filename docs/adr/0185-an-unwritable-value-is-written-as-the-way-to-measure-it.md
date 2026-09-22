@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-06
 - **Tags**: docs, guards, measurement, freshness, declaration, tense, adr-0139, adr-0180, adr-0183, adr-0184
+- **Group**: docs-adr
 
 ## Context
 

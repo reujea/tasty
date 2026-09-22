@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-23
 - **Tags**: preset, layout-presets, concurrency, agent-user-separation, surface-settings, toast, adr-0522
+- **Group**: ui-theme-gallery
 
 ## Context
 

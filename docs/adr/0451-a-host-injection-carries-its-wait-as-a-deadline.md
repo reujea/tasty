@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-21
 - **Tags**: ipc, host-injection, timeout, cancellation, reliability, terminal, adr-0411, adr-0391
+- **Group**: ipc-transport
 
 ## Context
 

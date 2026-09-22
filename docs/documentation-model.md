@@ -114,9 +114,9 @@ docs/features/<feature>/
   걸 수 없다 — 어느 쪽이 짝인지는 모양이 아니라 관례가 정하고, 모양은 둘이 같다.
 - **값을 두 곳에 두면 그 짝을 보는 가드도 같이 만든다.** 한쪽만 움직이는 것이 기본값이기
   때문이다 — 재sync 나 부분 개정에서는 본문만 올라가고 인덱스 행이 첫 커밋 값으로 남는다.
-  ADR 인덱스 행의 `Status`·`Date` 는
-  `crates/tasty-doc-guards/tests/adr_index_parity.rs` 가 본다(`Title`·`Tags` 는 정규화
-  규칙이 아직 없어 범위 밖이며, 그 사유는 그 파일의 모듈 주석에 있다).
+  짝을 없앨 수 있으면 가드보다 그것이 낫다 — ADR 인덱스의 행은 ADR 헤더에서 **생성**하고,
+  `crates/tasty-doc-guards/tests/adr_index_parity.rs` 는 파일이 생성 결과와 같은지를 본다
+  ([ADR-0565](adr/0565-the-adr-index-rows-are-generated-and-the-group-lives-in-the-adr-header.md)).
   **짝을 보는 가드가 아직 없는 자리가 그 밖에 남아 있다.**
 
   가드를 만들 때는 초록만 보지 말고 **한쪽 값을 흔들어 빨개지는지** 확인한다 —

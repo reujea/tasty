@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-06-16
 - **Tags**: ipc, transport, tcp, loopback, security, trust-boundary, cross-platform
+- **Group**: ipc-transport
 
 > IPC=TCP 채택은 아주 초기 결정이라 원본 커밋을 특정하지 못했다. 본 ADR 은 현존하는 최선 출처 (`docs/design/systems/memory.md` "IPC transport 의 trust boundary", `crates/tasty-ipc/`, `src/core/attach.rs`) 에서 결정을 응축한 것이다.
 

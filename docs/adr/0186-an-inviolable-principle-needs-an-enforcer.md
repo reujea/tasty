@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-06
 - **Tags**: guards, principles, enforcement, gallery, gallery-first, adr-0510, adr-0180, adr-0183, adr-0184, adr-0185, adr-0190
+- **Group**: guard-design
 
 ## Context
 

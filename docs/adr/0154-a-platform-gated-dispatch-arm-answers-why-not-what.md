@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-05
 - **Tags**: ipc, debug, cross-platform, error-codes, cli, guards, adr-0115
+- **Group**: ipc-contract
 
 ## Context
 

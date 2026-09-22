@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-21
 - **Tags**: ipc, headless, file-handler, agent-facing, build-combination, error-code
+- **Group**: file-handler
 
 ## Context
 

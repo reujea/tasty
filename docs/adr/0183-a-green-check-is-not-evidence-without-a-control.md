@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-06
 - **Tags**: guards, measurement, control, testing, mutation, false-green, adr-0129, adr-0139, adr-0180, adr-0181
+- **Group**: guard-design
 
 ## Context
 

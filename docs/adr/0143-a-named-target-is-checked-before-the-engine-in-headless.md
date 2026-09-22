@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-05
 - **Tags**: headless, ipc, routing, plugin-namespace, identity-principle-3, adr-0140, adr-0136
+- **Group**: architecture
 
 ## Context
 

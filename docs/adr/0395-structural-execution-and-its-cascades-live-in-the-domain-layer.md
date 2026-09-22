@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-21
 - **Tags**: architecture, boundary, hexagonal, attach, cascade, close, headless, adr-0337
+- **Group**: architecture
 
 ## Context
 

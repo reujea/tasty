@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-14
 - **Tags**: docs, guards, channels, mutation-testing, false-positive, observability, adr-0142, adr-0151, adr-0220
+- **Group**: guard-design
 
 ## Context
 

@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-04
 - **Tags**: focus, user-agent-separation, close, cascade, workspace, tab, pane, index-vs-id, remote-attach, invariant
+- **Group**: window-workspace-lifecycle
 
 ## Context
 

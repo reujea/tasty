@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-20
 - **Tags**: codex, app-server, completion, outbox, removal, lifecycle, plugin
+- **Group**: agent-integration
 
 ## Context
 

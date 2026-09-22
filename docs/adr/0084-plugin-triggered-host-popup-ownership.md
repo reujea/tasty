@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-08-24
 - **Tags**: popup, plugin, ipc, lifecycle, ownership
+- **Group**: ui-theme-gallery
 
 ## Context
 

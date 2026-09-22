@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-08
 - **Tags**: adr, reconsideration-triggers, guards, channels, observability, census, adr-0139, adr-0142
+- **Group**: docs-adr
 
 ## Context
 

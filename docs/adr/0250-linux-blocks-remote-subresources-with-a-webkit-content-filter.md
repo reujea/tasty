@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-08
 - **Tags**: webview, linux, webkitgtk, security, remote-content, cross-platform, ffi, adr-0249
+- **Group**: plugin-render
 
 ## Context
 

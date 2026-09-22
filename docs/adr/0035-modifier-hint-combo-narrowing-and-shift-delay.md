@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-07-05
 - **Tags**: modifier-hint, overlay, keybindings, combo, subset, reveal-delay, shift, design-token, accessibility, debug-ipc, adr-0510
+- **Group**: keybindings
 
 ## Context
 

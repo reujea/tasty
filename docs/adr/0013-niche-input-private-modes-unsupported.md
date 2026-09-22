@@ -3,6 +3,7 @@
 - **Status**: Deferred
 - **Date**: 2026-06-18
 - **Tags**: terminal, vte, dec-private-mode, mouse, input, scope, deferred
+- **Group**: terminal-input
 
 ## Context
 

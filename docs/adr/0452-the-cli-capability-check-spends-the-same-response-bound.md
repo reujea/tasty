@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-21
 - **Tags**: ipc, cli, envelope, response-timeout, capability, compatibility, adr-0366, adr-0411
+- **Group**: ipc-transport
 
 ## Context
 

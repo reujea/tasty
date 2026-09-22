@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-15
 - **Tags**: ipc, rate-limit, telemetry, permissions, headless
+- **Group**: permission-security
 
 ## Context
 

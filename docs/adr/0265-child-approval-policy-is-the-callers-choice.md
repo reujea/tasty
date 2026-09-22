@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-12
 - **Tags**: plugin, claude, codex, permissions, cli, ipc, defaults, safety, profile
+- **Group**: agent-integration
 
 ## Context
 

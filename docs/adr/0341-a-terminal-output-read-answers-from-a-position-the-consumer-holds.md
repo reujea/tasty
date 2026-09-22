@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-21
 - **Tags**: terminal, output, cursor, retention, ipc, method-effect, identity, adr-0307, adr-0322, adr-0323
+- **Group**: event-feed
 
 ## Context
 

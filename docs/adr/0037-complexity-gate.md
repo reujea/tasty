@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-07-06
 - **Tags**: lint, complexity, ci, quality-gate, clippy, cognitive-complexity, tokei, file-size, maintainability, clippy-policy, ratchet
+- **Group**: ci-gates
 
 ## Context
 

@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-21
 - **Tags**: ipc, capability, compatibility, cli, terminal, output, cursor, adr-0307, adr-0312, adr-0341
+- **Group**: event-feed
 
 ## Context
 

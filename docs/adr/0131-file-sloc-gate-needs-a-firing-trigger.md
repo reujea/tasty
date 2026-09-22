@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-04
 - **Tags**: ci, quality-gate, complexity, tokei, file-size, ratchet, trigger, drift, adr-0037
+- **Group**: ci-gates
 
 ## Context
 

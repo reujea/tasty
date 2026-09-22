@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-21
 - **Tags**: events, event-bus, cursor, offsets, epoch, compatibility, adr-0322, adr-0323
+- **Group**: event-feed
 
 ## Context
 

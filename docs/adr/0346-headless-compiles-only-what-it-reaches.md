@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-21
 - **Tags**: headless, intent, feature, dead-code, adr-0111
+- **Group**: architecture
 
 ## Context
 

@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-07-01
 - **Tags**: plugin, render-channel, egui, epaint, mesh, image, surface-kind, bitmap, texture, host-rendered-removal, adr-0028
+- **Group**: plugin-render
 
 ## Context
 

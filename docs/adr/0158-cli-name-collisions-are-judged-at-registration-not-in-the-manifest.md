@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-05
 - **Tags**: plugin, cli, manifest, guards, layering, adr-0140
+- **Group**: plugin-system
 
 ## Context
 

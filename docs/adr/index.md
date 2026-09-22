@@ -6,7 +6,8 @@
 - **Accepted 후의 본문 수정 범위·Status 갱신·Supersede 절차**는 [`template.md`](template.md) 의 "작성 규칙" 을 따른다 — 이 인덱스에 규칙을 복제하지 않는다.
 - **외부(비-git) 위치 문서 참조 금지** + 필요한 근거는 `docs/` 로 재구성해 참조 — 상세·예외는 [`template.md`](template.md) 의 "작성 규칙" 참조.
 - 커밋 형식: [`dev-guide/commit-convention.md`](../dev-guide/commit-convention.md) 의 "ADR 커밋" 항목.
-- **그룹**: ADR 은 아래 주제 그룹 중 정확히 한 곳에 한 행으로 있다. 새 ADR 의 그룹 선택 기준과 Superseded 행의 자리는 [`template.md`](template.md) 의 "인덱스에 행을 추가할 때" 를 따른다. 그룹 머리말은 결정 사슬(A → B 는 B 가 A 를 잇거나 개정한다)과 현재 운영 규칙이 사는 문서를 가리킨다.
+- **그룹**: ADR 은 아래 주제 그룹 중 정확히 한 곳에 한 행으로 있다. 어느 그룹인지는 ADR 헤더의 `- **Group**: <slug>` 한 줄이 정하고, slug 는 그룹 절의 `adr-rows:begin <slug>` 마커에 적힌 값이다. 새 ADR 의 그룹 선택 기준과 Superseded 행의 자리는 [`template.md`](template.md) 의 "인덱스에 행을 추가할 때" 를 따른다. 그룹 머리말은 결정 사슬(A → B 는 B 가 A 를 잇거나 개정한다)과 현재 운영 규칙이 사는 문서를 가리킨다.
+- **행은 생성물이다**: `adr-rows:begin` ~ `adr-rows:end` 마커 사이의 표는 ADR 헤더(제목 · Status · Date · Tags · Group)에서 만든다 — 손으로 고치지 않는다. ADR 을 더하거나 헤더를 고쳤으면 `cargo run -p tasty-doc-guards --bin adr-index -- --write` 로 다시 만든다. 마커 밖(이 목록 · 그룹 목록 · 그룹 머리말)은 사람이 쓰고 생성기가 안 건드린다. 절차: [`dev-guide/adr-index.md`](../dev-guide/adr-index.md).
 
 ## 그룹
 
@@ -42,6 +43,7 @@
 VTE 지원 범위 · 마우스 리포팅 · PTY 수명. 마우스 리포팅 우회는 0019 → 0022 → 0023 사슬이고, 안내 배너는 0055 → 0061(per-app 억제 · 더보기 진입)로 이어진다. PTY 종료 감지(EOF 뒤 재-wake)는 0523 이고, 같은 종료 판정을 기다리는 시험의 상한은 테스트 그룹의 0211 이다. 사용자 입력 기록(`surface.is_typing` 의 좌변 — 키보드 · IME · 붙여넣기)은 0560 이고, 그 소비자인 claude 자동 재개는 에이전트 통합 그룹의 0521 이다.
 운영 문서: [features/terminal](../features/terminal/index.md)
 
+<!-- adr-rows:begin terminal-input -->
 | # | Title | Status | Date | Tags |
 |---|-------|--------|------|------|
 | 0002 | [VTE 파싱을 입력(winit) 스레드 밖의 per-terminal 파서 스레드로 분리](0002-vte-parsing-off-input-thread.md) | Accepted | 2026-06-15 | performance, terminal, threading, input-latency, vte |
@@ -65,12 +67,14 @@ VTE 지원 범위 · 마우스 리포팅 · PTY 수명. 마우스 리포팅 우�
 | 0307 | [출력 스캐너는 자기 커서로 읽는다 — 에이전트의 mark 를 공유하지 않는다](0307-the-output-scanner-reads-its-own-cursor.md) | Accepted | 2026-09-20 | terminal, output-buffer, ipc, plugin, claude, cursor, polling, adr-0085, adr-0266, adr-0306 |
 | 0523 | [PTY EOF 뒤에는 자식 종료가 판정될 때까지 parser 스레드가 계속 깨운다](0523-pty-eof-keeps-waking-until-the-exit-is-settled.md) | Accepted | 2026-09-23 | pty, terminal, process-exit, waker, headless, attach, structural-delta, flaky, ci, adr-0002, adr-0211, adr-0481 |
 | 0560 | [붙여넣기는 사용자 입력이고, 두 붙여넣기 경로가 만나는 자리에서 기록한다](0560-paste-is-user-input-and-is-recorded-where-both-paste-paths-meet.md) | Accepted | 2026-09-23 | input, typing-guard, paste, clipboard, command-palette, identity-principle-1, ipc, adr-0521 |
+<!-- adr-rows:end terminal-input -->
 
 ## 창 · 워크스페이스 · 포커스 · 수명주기
 
 창 · 워크스페이스 · 닫기 · 부팅/종료. 종료 사슬은 0077 → 0078, 캡처는 0044 → 0118 이다. 포커스 보존은 0113 · 0125 · 0497 · 0502 가 각각 다른 자리(삭제 이동 · 재정렬 · 에이전트가 만든 창 · 에이전트가 만든 탭)를 정한다. 대상을 생략한 IPC 요청의 활성 워크스페이스 기본값은 0470 → 0471(「아키텍처 · 헤드리스 · 크레이트 경계」, 창 상태를 포트로 좁히며 동작을 안 바꿈) → 0533(자리별 재결정)이다. 에이전트 창에 워크스페이스를 만드는 지목은 0514 → 0532(cwd 상속 원본 개정, 둘 다 「CLI · 로깅 · 에이전트 표면」).
 운영 문서: [design/policies/focus](../design/policies/focus.md) · [architecture/close-sequence](../architecture/close-sequence.md)
 
+<!-- adr-rows:begin window-workspace-lifecycle -->
 | # | Title | Status | Date | Tags |
 |---|-------|--------|------|------|
 | 0001 | [시스템 트레이 — 전 OS best-effort 지원 (graceful degradation)](0001-system-tray-best-effort.md) | Accepted | 2026-06-17 | system-tray, platform, background, cross-platform, windows, macos, linux |
@@ -94,12 +98,14 @@ VTE 지원 범위 · 마우스 리포팅 · PTY 수명. 마우스 리포팅 우�
 | 0497 | [에이전트가 만든 창은 사용자의 포커스를 가져가지 않는다](0497-an-agent-created-window-does-not-take-the-users-focus.md) | Accepted | 2026-09-22 | focus, window, multi-window, ipc, cli, user-agent-separation, identity, winit, x11, wayland, stacking |
 | 0502 | [에이전트가 만든 탭은 사용자가 보던 탭을 바꾸지 않는다](0502-an-agent-created-tab-does-not-take-the-users-tab.md) | Accepted | 2026-09-23 | focus, tab, ipc, cli, user-agent-separation, identity, attach, file-handler, adr-0302, adr-0497 |
 | 0533 | [대상을 생략한 요청의 포커스 기본값은 아무것도 대상을 대지 않은 자리에만 남는다](0533-an-omitted-target-keeps-its-focus-default-only-where-nothing-names-one.md) | Accepted | 2026-09-23 | focus, identity-principle-3, ipc, cli, approval, telemetry, audit, notification, default-value, compatibility, adr-0470, adr-0471 |
+<!-- adr-rows:end window-workspace-lifecycle -->
 
 ## 단축키 · modifier-hint
 
 modifier-hint 는 0035(좁힘 + 지연) · 0038(빈 섹션) · 0064(타이머 리셋)가 서로 다른 결정이라 합치지 않는다. 단축키 이식은 0257 → 0269 이다.
 운영 문서: [features/keybindings](../features/keybindings/index.md) · [design/policies/key-mapping](../design/policies/key-mapping.md)
 
+<!-- adr-rows:begin keybindings -->
 | # | Title | Status | Date | Tags |
 |---|-------|--------|------|------|
 | 0035 | [modifier-hint 오버레이 — 눌린 조합으로 섹션 좁힘 + Shift 단독 표시 지연 1.2초](0035-modifier-hint-combo-narrowing-and-shift-delay.md) | Accepted | 2026-07-05 | modifier-hint, overlay, keybindings, combo, subset, reveal-delay, shift, design-token, accessibility, debug-ipc, adr-0510 |
@@ -108,12 +114,14 @@ modifier-hint 는 0035(좁힘 + 지연) · 0038(빈 섹션) · 0064(타이머 �
 | 0256 | [바인딩 문자열 파서는 그 문자열을 저장하는 크레이트에 둔다 — 매칭 레이어는 결과만 소비한다](0256-the-binding-parser-lives-with-the-setting-it-parses.md) | Accepted | 2026-09-09 | keybindings, parser, crate-boundary, feature-gate, headless, single-source |
 | 0257 | [단축키 이식 번들은 스키마 태그가 붙은 TOML 한 장이고, 미설치 plugin 의 override 는 import 에서 버린다](0257-the-keybinding-bundle-is-a-toml-file-with-a-schema-tag.md) | Accepted | 2026-09-09 | keybindings, portability, import-export, toml, schema, plugin, crate-boundary, warnings |
 | 0269 | [단축키 가져오기는 고른 행을 draft 에 얹고, 번들에 없는 plugin override 는 건드리지 않는다](0269-keybinding-import-applies-selected-rows-onto-the-draft.md) | Accepted | 2026-09-13 | keybindings, import-export, settings, draft, plugin, option-migration, conflict |
+<!-- adr-rows:end keybindings -->
 
 ## UI · 테마 · 디자인 토큰 · 갤러리
 
 디자인 작업의 흐름과 갤러리 완전성은 0510 한 편이다. 갤러리 미러는 0329(대조 전에 미러를 없앨 수 있는지 먼저 본다)가 원칙이고 0380(토스트 카드)이 그 적용이다 — 두 편은 서로 인용하지 않으므로 여기서 잇는다. 스케일 밖 값은 0126 → 0290 이다. 구조 전달 실패 toast 는 0401 → 0503(에이전트 origin 제외 개정) → 0526(plugin popup 에서 온 파일 열기를 사용자 쪽으로 — 0503 의 오분류 조항 개정, 「파일 핸들러 · 파일 피커」 그룹)이다.
 운영 문서: [design/systems/theme](../design/systems/theme.md) · [dev-guide/gallery-first](../dev-guide/gallery-first.md) · [dev-guide/popup-implementation](../dev-guide/popup-implementation.md)
 
+<!-- adr-rows:begin ui-theme-gallery -->
 | # | Title | Status | Date | Tags |
 |---|-------|--------|------|------|
 | 0024 | [Banner — Modal/Popup/Toast 에 이은 4번째 오버레이 개념(별도 매니저)](0024-banner-fourth-overlay-concept.md) | Accepted | 2026-06-26 | ui, overlay, banner, popup, toast, ubiquitous-language, user-agent-separation |
@@ -146,12 +154,14 @@ modifier-hint 는 0035(좁힘 + 지연) · 0038(빈 섹션) · 0064(타이머 �
 | 0531 | [프리셋 편집 화면은 캐시가 지어진 뒤 바뀐 preset 을 덮지 않고, 저장소 판을 다시 불러와 알린다](0531-the-preset-editor-does-not-overwrite-a-preset-changed-behind-its-cache.md) | Accepted | 2026-09-23 | preset, layout-presets, concurrency, agent-user-separation, surface-settings, toast, adr-0522 |
 | 0564 | [프리셋 보기 모드의 미리보기는 저장소를 따라가고, 편집 모드의 캐시는 따라가지 않는다](0564-the-preset-view-mode-follows-the-store-and-the-edit-mode-does-not.md) | Accepted | 2026-09-23 | preset, layout-presets, concurrency, agent-user-separation, identity-principle-1, adr-0531 |
 | 0556 | [생성 길이 상수 가드의 처방은 그 토큰 자신의 `&Theme` 경로다 — 값이 같은 이름이 아니다](0556-the-generated-length-const-guard-prescribes-the-tokens-own-theme-path.md) | Accepted | 2026-09-23 | design-tokens, guards, theme, zoom, prescription, file-picker, adr-0135 |
+<!-- adr-rows:end ui-theme-gallery -->
 
 ## 길이 타입 · DPI
 
 튜플 생성자 봉인 조항은 0128 · 0145 · 0169 가 각자 적었고 0509 가 그 조항을 모았다(세 원본의 다른 조항은 유효). 인접한 0135(배율) · 0148(물리 상수의 용도) · 0161(전환 순서) · 0252(부류 하한)는 서로 다른 결정이라 합치지 않는다.
 운영 문서: [concepts/typed-length](../concepts/typed-length.md)
 
+<!-- adr-rows:begin typed-length-dpi -->
 | # | Title | Status | Date | Tags |
 |---|-------|--------|------|------|
 | 0128 | [DPI 변환 정합은 타입 봉인이 아니라 소스 스캔 가드로 지킨다](0128-dpi-conversion-guarded-by-source-scan-not-sealed-types.md) | Accepted | 2026-09-04 | typed-length, dpi, guard, scale-factor, geometry, drift-guard |
@@ -162,12 +172,14 @@ modifier-hint 는 0035(좁힘 + 지연) · 0038(빈 섹션) · 0064(타이머 �
 | 0169 | [길이 타입의 튜플 생성자는 봉인하지 않는다 — 탈출구가 곧 같은 단언이기 때문](0169-the-tuple-constructor-of-length-types-stays-open.md) | Accepted | 2026-09-05 | typed-length, geometry, guards, dpi, sealing, census |
 | 0252 | [축의 바늘에 걸린 `1` 둘 — 퇴화 방지 하한은 부류로, 정규화 좌표는 자리 명부로 뺀다](0252-a-degenerate-floor-is-a-class-and-unit-space-is-a-roster.md) | Accepted | 2026-09-09 | guards, design-tokens, exemption, class-vs-roster, predicate, ratchet, adr-0126, adr-0135, adr-0139 |
 | 0509 | [길이 타입 튜플 생성자는 봉인하지 않는다 — ADR-0128 · ADR-0145 · ADR-0169 의 봉인 조항 통합](0509-length-constructor-sealing-clause-consolidated.md) | Accepted | 2026-09-23 | typed-length, dpi, guards, sealing, adr-conventions, adr-0128, adr-0145, adr-0169, adr-0506, adr-0148 |
+<!-- adr-rows:end typed-length-dpi -->
 
 ## 국제화
 
 언어팩은 0114 → 0124(빈 값 규칙) → 0276(plugin 번역)으로 이어진다.
 운영 문서: [dev-guide/i18n](../dev-guide/i18n.md) · [features/language-packs](../features/language-packs/index.md)
 
+<!-- adr-rows:begin i18n -->
 | # | Title | Status | Date | Tags |
 |---|-------|--------|------|------|
 | 0103 | [활성 로케일은 host 프로세스 env 로 plugin 에 전달한다 — 부팅 단일 스레드 구간에서 한 번 set 한다](0103-plugin-locale-via-host-process-env.md) | Accepted | 2026-09-03 | i18n, locale, plugin, boot, env, unsafe, language-pack |
@@ -177,16 +189,18 @@ modifier-hint 는 0035(좁힘 + 지연) · 0038(빈 섹션) · 0064(타이머 �
 | 0193 | [폰트 resolve 는 글리프 유무만 해결한다 — RTL 어순은 범위 밖](0193-font-resolution-covers-glyph-coverage-not-rtl-ordering.md) | Accepted | 2026-09-07 | i18n, font, rtl, egui, scope-boundary, adr-0139, adr-0114 |
 | 0276 | [plugin 사용자 번역은 host 언어 루트에서 같은 순서로 읽는다](0276-plugin-user-catalogs-share-the-host-language-root.md) | Accepted | 2026-09-15 | i18n, plugin, language-pack, compatibility |
 | 0280 | [CLI 도움말은 표시 문구를 번역하고 프로토콜 값은 유지한다](0280-cli-help-localizes-presentation-not-protocol.md) | Accepted | 2026-09-15 | cli, i18n, plugin, compatibility |
+<!-- adr-rows:end i18n -->
 
 ## 원격 attach · mirror · 점유
 
 프로필은 0015 → 0032(2-레이어, 0015 대체), 점유는 0040 → 0049 · 0052(0040 부분 대체) · 0060 · 0116 · 0156 · 0157 이다. 손실 재동기화는 0334 → 0400 → 0450, CLI mirror-dump 의 연결 생존(client 발 heartbeat)은 0052 → 0529, forward 회신 사유는 0395(도메인 실행과 같은 실패 문구) → 0482(실행 이전 거절) · 0543(convert 사유 운반과 원인 없는 폴백), 닫은 항목 복원은 0264 → 0480, mirror markdown 은 0255 → 0268 이다.
 운영 문서: [dev-guide/attach-behavior](../dev-guide/attach-behavior.md) · [features/remote-attach](../features/remote-attach/index.md)
 
+<!-- adr-rows:begin remote-attach -->
 | # | Title | Status | Date | Tags |
 |---|-------|--------|------|------|
 | 0007 | [attach 는 원격을 대상으로 한다 (로컬 self-attach 는 debug 격리)](0007-attach-targets-remote.md) | Accepted | 2026-06-17 | attach, remote, debug-isolation, cli, user-agent-separation, security |
-| 0015 | [원격 접속 프로필 = 범용 typed 레지스트리, attach 는 소비자](0015-remote-profiles-typed-registry.md) | Superseded by 0032 | 2026-06-19 | remote, profile, registry, attach, ssh, smb, extensibility, plugin, ubiquitous-language |
+| 0015 | [원격 접속 프로필 = 범용 typed 레지스트리, attach 는 소비자](0015-remote-profiles-typed-registry.md) | Superseded by 0032 (부분) | 2026-06-19 | remote, profile, registry, attach, ssh, smb, extensibility, plugin, ubiquitous-language |
 | 0032 | [원격 프로필을 ssh(연결) / tasty-attach(attach) 2-레이어로 분리](0032-remote-attach-two-layer-split.md) | Accepted | 2026-07-01 | remote, profile, attach, ssh, two-layer, ref, port-file, cli |
 | 0040 | [점유를 약한/강한(soft/hard) 2계층으로 나누고 AI 에이전트를 점유 주체로 일반화한다](0040-occupancy-soft-hard-tiers-agent-occupant.md) | Superseded by 0052 (부분) | 2026-07-07 | occupation, soft-occupy, hard-occupy, actors, ai-agent, child-terminal, attach, readonly, marker, focus-independence, adr-0007, adr-0032 |
 | 0045 | [mirror grid geometry 는 client 가 구동하고 remote 는 reflow 메커니즘으로 확정한다](0045-mirror-geometry-client-driven.md) | Accepted | 2026-07-11 | attach, remote, mirror, geometry, resize, protocol, client-driven, backward-compat, headless, adr-0007, adr-0040 |
@@ -204,7 +218,7 @@ modifier-hint 는 0035(좁힘 + 지연) · 0038(빈 섹션) · 0064(타이머 �
 | 0121 | [attach 신뢰경계는 원격 조회를 덮고 로컬 구조 op 는 덮지 않는다 — `remote.attach` 는 plugin 미개방](0121-attach-trust-boundary-covers-remote-queries-not-local-structural-ops.md) | Accepted | 2026-09-04 | ipc, permissions, remote-attach, plugin, trust-boundary, user-agent-separation, identity-principle-1, method-table, asymmetry |
 | 0156 | [닫기 요청은 원격이 점유한 surface 를 파괴하지 않는다 — 사후 정리는 예외다](0156-a-close-request-does-not-destroy-an-occupied-surface.md) | Accepted | 2026-09-05 | attach, occupancy, close, data-loss, ipc, gui, symmetry, adr-0040, adr-0120 |
 | 0157 | [끊긴 holder 는 재attach 를 막지 못한다](0157-a-disconnected-holder-does-not-block-a-reattach.md) | Accepted | 2026-09-05 | attach, occupancy, stream, ordering, headless, adr-0040, adr-0052 |
-| 0255 | [attach mirror 의 markdown surface 는 픽셀이 아니라 **원문**을 나른다 — 새 role 과 lazy 조회 채널](0255-markdown-attach-mirror-forwards-content-not-pixels.md) | Accepted | 2026-09-09 | markdown, attach, mirror, remote, wire-format, webview, surface-role, lazy-fetch, budget, occupancy-trust, adr-0053, adr-0056, adr-0059, adr-0065 |
+| 0255 | [attach mirror 의 markdown surface 는 픽셀이 아니라 원문을 나른다 — 새 role 과 lazy 조회 채널](0255-markdown-attach-mirror-forwards-content-not-pixels.md) | Accepted | 2026-09-09 | markdown, attach, mirror, remote, wire-format, webview, surface-role, lazy-fetch, budget, occupancy-trust, adr-0053, adr-0056, adr-0059, adr-0065 |
 | 0264 | [mirror 의 "닫은 항목 복원" 은 원격에서 실행하고, 복원 스택은 워크스페이스로 스코프한다](0264-mirror-restore-closed-item-runs-on-the-remote.md) | Accepted | 2026-09-12 | attach, mirror, remote, restore, closed-item, wire-format, focus, user-agent-separation, adr-0040, adr-0045, adr-0086 |
 | 0267 | [mirror surface 의 cwd 는 서버가 push 하고, 그 경로는 원격 출처로 타입에서 구분한다](0267-mirror-surface-cwd-is-pushed-by-the-server.md) | Accepted | 2026-09-13 | attach, mirror, remote, cwd, wire-format, provenance, newtype, inherit-cwd, file-picker, adr-0056, adr-0059, adr-0086, adr-0255 |
 | 0268 | [끊긴 mirror markdown 문서는 옛 원문 대신 끊김을 보이고, 재연결은 변경 신호 한 번으로 되돌린다 — ADR-0255 의 항목 5·6 개정](0268-a-disconnected-mirror-markdown-shows-the-disconnect-and-reconnect-refetches.md) | Accepted | 2026-09-13 | markdown, attach, mirror, remote, reconnect, disconnect, surface-kind, deferred-plugin, adr-0255 |
@@ -214,15 +228,17 @@ modifier-hint 는 0035(좁힘 + 지연) · 0038(빈 섹션) · 0064(타이머 �
 | 0480 | [forward 된 구조 op 는 누가 요청했는지를 싣고, 에이전트의 close 는 서버 복원 스택에 안 남는다 — ADR-0264 의 결정 4 개정](0480-a-forwarded-close-carries-who-asked-for-it.md) | Accepted | 2026-09-22 | attach, mirror, remote, restore, closed-item, wire-format, user-agent-separation, identity, adr-0264, adr-0395 |
 | 0481 | [점유 워크스페이스의 forward 아닌 구조 변경도 기존 StructuralDelta 로 holder 에게 보낸다](0481-a-server-side-structure-change-reaches-the-holder-as-a-delta.md) | Accepted | 2026-09-22 | attach, mirror, remote, wire-format, structural-delta, pty-exit, occupancy, adr-0040, adr-0264 |
 | 0482 | [forward 가 사라진 surface 를 지목하면 IPC 와 같은 "no live surface" 사유로 거절한다](0482-a-forward-naming-a-gone-surface-is-answered-like-ipc.md) | Accepted | 2026-09-22 | attach, mirror, remote, error-message, wire-format, parity, adr-0395 |
-| 0536 | [원격 끊김으로 창의 마지막 mirror 워크스페이스가 사라지면 기본 워크스페이스를 다시 만든다](0536-a-remote-drop-that-empties-a-window-recreates-a-default-workspace.md) | Accepted | 2026-09-23 | remote-attach, mirror, disconnect, workspace, window-lifecycle, identity-principle-1, adr-0120 |
 | 0529 | [서버 heartbeat 시한보다 긴 mirror-dump 도 client 발 heartbeat 을 보낸다](0529-a-mirror-dump-longer-than-the-heartbeat-timeout-sends-heartbeats.md) | Accepted | 2026-09-23 | attach, stream, heartbeat, cli, debug, mirror-dump, silent-failure, compatibility, adr-0052, adr-0400, adr-0450 |
+| 0536 | [원격 끊김으로 창의 마지막 mirror 워크스페이스가 사라지면 기본 워크스페이스를 다시 만든다](0536-a-remote-drop-that-empties-a-window-recreates-a-default-workspace.md) | Accepted | 2026-09-23 | remote-attach, mirror, disconnect, workspace, window-lifecycle, identity-principle-1, adr-0120 |
 | 0543 | [forward 된 convert 의 실패 사유는 도메인 이벤트가 나르고, 사유가 없으면 원인을 짐작하지 않는다](0543-a-forwarded-convert-failure-carries-the-domain-reason-and-never-guesses-one.md) | Accepted | 2026-09-23 | attach, mirror, remote, error-message, wire-format, convert, compatibility, adr-0395, adr-0482 |
+<!-- adr-rows:end remote-attach -->
 
 ## attention · 알림
 
 0039(공유 primitive) → 0062(kind-aware store) → 0098 · 0104 · 0109(mirror · 소유자 · 홀더) → 0107(IPC/CLI 해제).
 운영 문서: [features/surface-highlight](../features/surface-highlight/index.md) · [features/notifications](../features/notifications/index.md)
 
+<!-- adr-rows:begin attention-notification -->
 | # | Title | Status | Date | Tags |
 |---|-------|--------|------|------|
 | 0039 | [Surface highlight 는 producer 중립 공유 primitive](0039-surface-highlight-shared-primitive.md) | Accepted | 2026-07-07 | surface-highlight, notification, ipc, cli, state, focus-independence |
@@ -231,12 +247,14 @@ modifier-hint 는 0035(좁힘 + 지연) · 0038(빈 섹션) · 0064(타이머 �
 | 0104 | [attention 은 소유자만 발동하고, 확인(해제)은 실제로 본 주체가 한다 — 미러의 해제 edge 를 소유 인스턴스로 전달한다](0104-mirror-attention-clear-forwarded-to-owner.md) | Accepted | 2026-09-03 | attention, surface-highlight, remote-attach, mirror, clear, edge-trigger, occupancy, stream-control |
 | 0107 | [attention 해제를 IPC/CLI 로 노출하고, 상태 변경은 IPC 핸들러가 직접 적용한다](0107-attention-clear-ipc-symmetry.md) | Accepted | 2026-09-03 | attention, surface-highlight, ipc, cli, headless, cascade, intent, attach, mirror, api-symmetry |
 | 0109 | [하드 점유 중인 surface 의 attention 은 홀더만 해제한다 — 서버 로컬 포커스·알림 읽음은 게이트된다](0109-hard-occupancy-attention-clear-holder-only.md) | Accepted | 2026-09-03 | attention, surface-highlight, occupancy, hard-occupy, remote-attach, readonly, adr-0040, adr-0049 |
+<!-- adr-rows:end attention-notification -->
 
 ## IPC 전송 · 상한 · 기한 · 압력
 
 수신 상한은 0304 → 0327(무응답 종료 개정) → 0391 · 0392, 응답 기한은 0328 → 0366 → 0452 와 0411 → 0451(훅 스텝의 대기 스레드 — 0498, 「웹훅 · 훅 핸들러」), dispatch 회차는 0313 → 0410 · 0465 → 0413 이다. 압력 관측은 0305 → 0340(histogram) → 0333 · 0412 · 0435 · 0436 · 0466 · 0467 · 0468 · 0548, plugin 채널 포화는 0315 → 0339 · 0360 이다.
 운영 문서: [dev-guide/api-conventions](../dev-guide/api-conventions.md) · [features/telemetry](../features/telemetry/index.md) · [dev-guide/timer-hub](../dev-guide/timer-hub.md)
 
+<!-- adr-rows:begin ipc-transport -->
 | # | Title | Status | Date | Tags |
 |---|-------|--------|------|------|
 | 0004 | [IPC transport = 127.0.0.1 loopback TCP (동적 포트)](0004-ipc-transport-tcp.md) | Accepted | 2026-06-16 | ipc, transport, tcp, loopback, security, trust-boundary, cross-platform |
@@ -267,12 +285,14 @@ modifier-hint 는 0035(좁힘 + 지연) · 0038(빈 섹션) · 0064(타이머 �
 | 0467 | [accept 대기는 `connections` 덩어리에 상한으로 싣는다](0467-the-accept-wait-is-reported-as-a-bound-in-the-connection-block.md) | Accepted | 2026-09-22 | telemetry, pressure, ipc, accept, connection, measurement, adr-0333, adr-0340 |
 | 0468 | [느린 요청 줄의 호스트 몫은 호출자가 받은 답을 싣는다](0468-the-slow-request-host-part-carries-the-answer-the-caller-got.md) | Accepted | 2026-09-22 | telemetry, pressure, ipc, slow-requests, outcome, measurement, adr-0436, adr-0411 |
 | 0548 | [진입 게이트의 거절은 압력 응답에 한 덩어리로 더하고, 게이트마다 한 칸으로 가른다](0548-gate-refusals-join-the-pressure-answer-as-one-block-split-by-gate.md) | Accepted | 2026-09-23 | ipc, cli, telemetry, pressure, permissions, rate-limit, cap, observability, compatibility, adr-0277, adr-0333, adr-0435 |
+<!-- adr-rows:end ipc-transport -->
 
 ## IPC 계약 · 오류 코드 · 멱등 키
 
 미라우팅 응답 0154 · 0163 · 0167 은 오류 코드 `-32015`~`-32017` 각각의 결정이고 소스가 번호로 인용하므로 합치지 않는다(0425 가 file handler 에 적용 — 「파일 핸들러 · 파일 피커」 그룹). 멱등 키는 0306 → 0338 → 0361 → 0423(선언 값 개정) · 0420 · 0421 · 0422 이다. break 의 deprecation 유예 생략 사유에 0557 이 불가침 원칙 위반을 더했다. 목록은 운영 문서 「Deprecation 절차」 한 자리에 있다.
 운영 문서: [dev-guide/api-conventions](../dev-guide/api-conventions.md)
 
+<!-- adr-rows:begin ipc-contract -->
 | # | Title | Status | Date | Tags |
 |---|-------|--------|------|------|
 | 0154 | [플랫폼이 못 하는 메서드는 "없다" 가 아니라 "여기선 못 한다" 로 답한다](0154-a-platform-gated-dispatch-arm-answers-why-not-what.md) | Accepted | 2026-09-05 | ipc, debug, cross-platform, error-codes, cli, guards, adr-0115 |
@@ -288,12 +308,14 @@ modifier-hint 는 0035(좁힘 + 지연) · 0038(빈 섹션) · 0064(타이머 �
 | 0422 | [재시도 누계는 판정하는 보존소가 센다 — 노출 전 스냅샷까지만](0422-the-retry-counts-are-kept-by-the-store-that-decides.md) | Accepted | 2026-09-21 | ipc, idempotency, telemetry, retry, pressure, observability, adr-0305, adr-0333, adr-0421 |
 | 0423 | [메서드마다 멱등 키 계약과 그것을 지키는 판을 선언한다 — ADR-0361 의 선언 값 조항 개정](0423-each-method-declares-its-key-contract-and-the-version-that-keeps-it.md) | Accepted | 2026-09-21 | ipc, protocol, idempotency, capability, method-meta, compatibility, adr-0312, adr-0338, adr-0361, adr-0421 |
 | 0557 | [불가침 원칙 위반은 deprecation 유예 없이 고친다 — 위반을 이루는 부분만, 가장 적게 깨는 형태로](0557-an-inviolable-principle-violation-is-fixed-without-a-deprecation-period.md) | Accepted | 2026-09-23 | api-stability, deprecation, compatibility, changelog, identity, identity-principle-1, identity-principle-3, adr-0113, adr-0115, adr-0122, adr-0497, adr-0502, adr-0504, adr-0526, adr-0532, adr-0533 |
+<!-- adr-rows:end ipc-contract -->
 
 ## 사건 피드 · 출력 위치
 
 0321(발화 자리) → 0322(위치를 든 링) → 0323(피드) → 0405 · 0406 · 0407 · 0456(용량 단위 개정), 그리고 0321 → 0501(Experimental 등급은 경고, 구독 게이트 아님). 터미널 출력 읽기 0341 · 0365 는 0322 와 같은 "위치로 답하고 못 준 것을 말한다" 규약의 적용처다.
 운영 문서: [features/terminal-output](../features/terminal-output/index.md) · [features/agent-collaboration](../features/agent-collaboration/index.md)
 
+<!-- adr-rows:begin event-feed -->
 | # | Title | Status | Date | Tags |
 |---|-------|--------|------|------|
 | 0321 | [agent 사건은 이미 있는 깔때기에서만 발화한다](0321-agent-domain-events-publish-only-at-the-funnel-that-already-exists.md) | Accepted | 2026-09-20 | events, event-bus, agent, task, barrier, plugin-protocol, catalog |
@@ -306,12 +328,14 @@ modifier-hint 는 0035(좁힘 + 지연) · 0038(빈 섹션) · 0064(타이머 �
 | 0407 | [`events follow` 는 재부착을 넘어 세대를 들고 간다](0407-events-follow-carries-the-generation-across-a-reattach.md) | Accepted | 2026-09-21 | events, cli, cursor, epoch, reconnect, compatibility, adr-0323, adr-0405 |
 | 0456 | [사건 링은 개수와 바이트 중 먼저 닿는 쪽으로 밀어낸다 — ADR-0322 의 용량 단위 조항 개정](0456-the-event-ring-evicts-by-count-or-bytes-whichever-comes-first.md) | Accepted | 2026-09-21 | events, event-bus, ring-buffer, retention, resource-bounds, plugin, adr-0322, adr-0360 |
 | 0501 | [사건의 Experimental 등급은 경고이지 구독 게이트가 아니다](0501-the-experimental-event-grade-is-a-warning-not-a-subscription-gate.md) | Accepted | 2026-09-23 | events, event-bus, plugin, manifest, stability, compatibility, adr-0321 |
+<!-- adr-rows:end event-feed -->
 
 ## 권한 · 신뢰 경계 · 보안
 
 게이트 순서는 0152 → 0277(중첩 게이트 · Allow 위치 개정)이다.
 운영 문서: [dev-guide/plugin-permissions](../dev-guide/plugin-permissions.md)
 
+<!-- adr-rows:begin permission-security -->
 | # | Title | Status | Date | Tags |
 |---|-------|--------|------|------|
 | 0005 | [memory secret 영역은 "안전 보관소" 가 아니다](0005-memory-secret-not-a-vault.md) | Accepted | 2026-06-16 | memory, secret, security, encryption, plugin, trust-boundary |
@@ -322,12 +346,14 @@ modifier-hint 는 0035(좁힘 + 지연) · 0038(빈 섹션) · 0064(타이머 �
 | 0246 | [텔레메트리에는 옵트아웃 축을 두지 않는다 — 그 권한 토큰은 경계가 아니라 선언이다](0246-telemetry-has-no-opt-out-and-its-token-is-a-declaration.md) | Accepted | 2026-09-08 | telemetry, privacy, permissions, plugin, trust-boundary, cap, non-goal, adr-0141 |
 | 0271 | [plugin namespace 는 권한 셋을 가진 모든 caller 에게 그 namespace 의 토큰으로 열린다](0271-a-plugin-namespace-is-invoked-with-its-token-from-every-gated-caller.md) | Accepted | 2026-09-14 | permissions, plugin, ipc, agent, session-token |
 | 0277 | [IPC 진입 검사와 허용 관측은 요청마다 한 번 수행한다 — ADR-0152의 중첩 게이트·Allow 위치 개정](0277-ipc-admission-and-observation-run-once.md) | Accepted | 2026-09-15 | ipc, rate-limit, telemetry, permissions, headless |
+<!-- adr-rows:end permission-security -->
 
 ## 웹훅 · 훅 핸들러
 
 남용차단은 0046 → 0195 → 0196 → 0197 → 0198 → 0199 → 0200 → 0281 이다. 각 ADR 이 다른 상수 · 타입 · 불변식(401 계수 · 출처 키 · 문턱 · 쿨다운 · `Screened` 타입 · body 상한)을 만들어 합치지 않는다. 훅 핸들러는 0047 → 0298 · 0430(병합 순서) · 0498(훅 스텝의 대기 스레드) → 0515(수동 발화도 같은 실행기)이다.
 운영 문서: [features/webhook](../features/webhook/index.md) · [features/hooks](../features/hooks/index.md)
 
+<!-- adr-rows:begin webhook-hooks -->
 | # | Title | Status | Date | Tags |
 |---|-------|--------|------|------|
 | 0046 | [인바운드 웹훅 — owner 신뢰 모델 + 단방향 ACK/데이터·흐름 분리 불변식](0046-webhook-owner-trust-one-way-ack.md) | Accepted | 2026-07-11 | webhook, inbound, security, trust-boundary, one-way-ack, data-flow-separation, ipc, owner-trust, cross-platform, adr-0004 |
@@ -340,11 +366,12 @@ modifier-hint 는 0035(좁힘 + 지연) · 0038(빈 섹션) · 0064(타이머 �
 | 0199 | [차단 판정은 body 를 읽기 전에 끝난다 — 순서를 주석이 아니라 소유권으로 적는다](0199-the-block-is-decided-before-the-body-is-read.md) | Accepted | 2026-09-08 | webhook, security, rate-limit, abuse, resource-bound, type-enforcement, adr-0046, adr-0112 |
 | 0200 | [웹훅 body 는 요청당 바이트 상한을 갖는다 — 선언된 길이와 chunked 를 함께 막는다](0200-webhook-body-has-a-per-request-byte-cap.md) | Accepted | 2026-09-08 | webhook, security, resource-bound, dos, body-limit, measurement, adr-0112, adr-0199, adr-0046 |
 | 0281 | [웹훅 body 상한의 선행 가정 오류와 미충족 연결 정리를 기록한다](0281-webhook-parser-cap-and-connection-drain.md) | Superseded by 0516 | 2026-09-15 | webhook, body-limit, tiny-http, connection-drain, resource-bound, adr-0200 |
-| 0516 | [웹훅 413 은 레포에 둔 tiny_http 패치로 잔여 body 를 읽지 않고 연결을 닫는다](0516-the-webhook-413-closes-the-connection-through-a-vendored-tiny-http-patch.md) | Accepted | 2026-09-23 | webhook, body-limit, tiny-http, connection-drain, resource-bound, dependency, vendoring, adr-0281, adr-0200, adr-0048 |
 | 0298 | [훅 핸들러 시퀀스는 CLI 에서 제자리로 고친다 — 지우고 다시 만들지 않는다](0298-a-hook-handler-sequence-is-edited-in-place-from-the-cli.md) | Accepted | 2026-09-20 | hook-handler, cli, ipc, registry, ipc-sequence, local-only, settings, adr-0046, adr-0047 |
 | 0430 | [hook handler 병합은 출처 순서(Host → Plugin → User)로 하고 user patch 를 늘 마지막에 둔다 — ADR-0047 의 병합 순서 조항 개정](0430-hook-handler-merge-applies-user-patches-last.md) | Accepted | 2026-09-21 | hook-handler, registry, plugin, settings, boot, headless, patch-semantics, adr-0047, adr-0427 |
 | 0498 | [surface 훅의 IpcSequence 는 호스트 명령 큐를 비우는 스레드 밖에서 실행한다](0498-a-surface-hook-sequence-runs-off-the-thread-that-drains-the-queue.md) | Accepted | 2026-09-23 | hooks, hook-handler, ipc, host-injection, main-thread, concurrency, adr-0451 |
 | 0515 | [수동 발화한 훅 시퀀스는 surface 훅과 같은 실행기에 줄 선다 — ADR-0498 의 수동 발화 조항 개정](0515-a-manually-dispatched-hook-sequence-joins-the-surface-hook-worker.md) | Accepted | 2026-09-23 | hooks, hook-handler, ipc, concurrency, logging, adr-0498 |
+| 0516 | [웹훅 413 은 레포에 둔 tiny_http 패치로 잔여 body 를 읽지 않고 연결을 닫는다](0516-the-webhook-413-closes-the-connection-through-a-vendored-tiny-http-patch.md) | Accepted | 2026-09-23 | webhook, body-limit, tiny-http, connection-drain, resource-bound, dependency, vendoring, adr-0281, adr-0200, adr-0048 |
+<!-- adr-rows:end webhook-hooks -->
 
 ## plugin 시스템 — 경계 · namespace · 수명
 
@@ -353,6 +380,7 @@ disable 이 무엇을 남기는가는 0173(namespace 소유를 남긴다) → 05
 프로세스 수명의 메인 스레드 대기는 0457(종료 회수) → 0505(기동의 연결 대기, 같은 형태의 대칭)이다.
 운영 문서: [dev-guide/plugin-development](../dev-guide/plugin-development.md) · [concepts/plugins](../concepts/plugins.md)
 
+<!-- adr-rows:begin plugin-system -->
 | # | Title | Status | Date | Tags |
 |---|-------|--------|------|------|
 | 0009 | [Plugin sandbox 는 보류 — OS-level opt-in 을 우선 후보로](0009-plugin-sandbox-deferred.md) | Deferred | 2026-06-17 | plugin, sandbox, security, wasm, seccomp, trust-boundary, deferred |
@@ -369,19 +397,21 @@ disable 이 무엇을 남기는가는 0173(namespace 소유를 남긴다) → 05
 | 0179 | [해소하는 crate 에 표를 넘긴다 — 주입하는 것은 함수가 아니라 데이터다](0179-the-resolver-is-handed-the-table-not-a-callback.md) | Accepted | 2026-09-06 | plugins, ipc, derived-state, encapsulation, global-state, adr-0173, adr-0178 |
 | 0182 | [테스트 인스턴스는 기본적으로 번들 plugin 을 스테이징하지 않는다](0182-test-instances-do-not-stage-bundled-plugins-by-default.md) | Accepted | 2026-09-06 | testing, harness, plugin, performance, disk-io |
 | 0191 | [로컬에 둘 다 있는 파일은 해시하지 않고 바이트로 비교한다](0191-two-local-files-are-compared-bytewise-not-hashed.md) | Accepted | 2026-09-07 | plugin, install, performance, measurement, hashing, cold-cache, adr-0182, adr-0139 |
-| 0259 | [헤드리스도 plugin surface kind 를 등록하고, 그 kind 를 지목한 생성 요청이 **소유자 하나**를 띄운다](0259-a-kind-request-starts-the-owner-that-declares-it.md) | Accepted | 2026-09-10 | headless, plugin, surface-kind, lazy-start, attach, markdown, trust-boundary, adr-0136, adr-0173, adr-0255 |
+| 0259 | [헤드리스도 plugin surface kind 를 등록하고, 그 kind 를 지목한 생성 요청이 소유자 하나를 띄운다](0259-a-kind-request-starts-the-owner-that-declares-it.md) | Accepted | 2026-09-10 | headless, plugin, surface-kind, lazy-start, attach, markdown, trust-boundary, adr-0136, adr-0173, adr-0255 |
 | 0282 | [Namespace 호출은 owner와 필요한 활성 IPC hook extension만 시작한다](0282-namespace-invocation-starts-only-its-owner-and-matching-extension.md) | Accepted | 2026-09-15 | ipc, plugins, lifecycle, headless |
 | 0311 | [namespace 호출의 만료는 fail-open 이 아니라 caller 에 대한 오류다](0311-a-namespace-call-expires-into-an-error-not-a-fail-open.md) | Accepted | 2026-09-20 | plugin, ipc, timeout, host-plugin, error-handling, adr-0078 |
 | 0457 | [단건 plugin 종료는 메인 스레드 밖에서 회수하고, 새 프로세스는 옛 것이 빠진 뒤에 뜬다](0457-a-single-plugin-shutdown-is-reaped-off-the-main-thread.md) | Accepted | 2026-09-21 | plugin, host-plugin, lifecycle, shutdown, main-thread, healthcheck, restart, concurrency |
 | 0505 | [plugin 기동은 연결을 메인 스레드 밖에서 기다리고, 연결 전의 요청은 쌓았다가 보낸다](0505-a-plugin-start-waits-for-its-connection-off-the-main-thread.md) | Accepted | 2026-09-23 | plugin, host-plugin, lifecycle, startup, handshake, main-thread, concurrency, adr-0457 |
 | 0525 | [번들을 부르는 시험 홈은 하네스 소유 스냅숏에서 번들을 hardlink 로 받는다](0525-test-homes-hardlink-the-bundle-from-a-harness-owned-snapshot.md) | Accepted | 2026-09-23 | testing, harness, plugin, performance, disk-io, hardlink, adr-0182, adr-0191 |
 | 0534 | [꺼진 plugin 의 surface kind 는 지우지 않고 철회한다 — 열린 surface 는 두고 새 생성만 막는다](0534-a-disabled-plugins-surface-kinds-are-withdrawn-not-erased.md) | Accepted | 2026-09-23 | plugin, host-plugin, lifecycle, surface-kind, surface-registry, disable, remove, compatibility, adr-0173 |
+<!-- adr-rows:end plugin-system -->
 
 ## plugin 렌더 채널 · webview
 
 렌더 채널은 0028 → 0030(image) · 0041 · 0065(markdown webview) → 0067 이다. webview 플랫폼 결정(0159 · 0248 · 0250 · 0301)과 호스트 계약(0320 → 0385)이 뒤따른다.
 운영 문서: [dev-guide/egui-mesh-channel](../dev-guide/egui-mesh-channel.md) · [dev-guide/linux](../dev-guide/linux.md)
 
+<!-- adr-rows:begin plugin-render -->
 | # | Title | Status | Date | Tags |
 |---|-------|--------|------|------|
 | 0028 | [Plugin 이 자기 프로세스에서 egui 를 tessellate 한 mesh 를 host 가 합성하는 out-of-process 렌더 채널 도입](0028-plugin-egui-mesh-render-channel.md) | Accepted | 2026-06-29 | plugin, render-channel, egui, epaint, mesh, ipc, shared-memory, surface-kind, popup, banner, host-rendered-removal, bundled-only, adr-0008, adr-0009 |
@@ -400,11 +430,13 @@ disable 이 무엇을 남기는가는 0173(namespace 소유를 남긴다) → 05
 | 0301 | [세 webview backend 는 크기를 서로 다른 수단으로 전파한다 — Linux 는 allocation 을 직접 준다](0301-three-webview-backends-propagate-size-by-different-means.md) | Accepted | 2026-09-20 | linux, x11, gtk, webkitgtk, webview, layout, cross-platform, adr-0159 |
 | 0320 | [webview 백엔드 셋은 trait 이 아니라 공유 호출부가 묶는다](0320-the-webview-backends-are-held-together-by-shared-call-sites-not-a-trait.md) | Accepted | 2026-09-20 | architecture, webview, host-api, cross-platform, trait, cfg, contract |
 | 0385 | [webview 백엔드는 호스트 계약을 주입받는다 — 탐색 상태는 도메인 모델, 키 정책은 콤보 목록, 키 접점은 trait](0385-webview-backends-receive-their-host-contract-by-injection.md) | Accepted | 2026-09-21 | architecture, webview, host-api, keybindings, layering, injection, cross-platform, adr-0102, adr-0320 |
+<!-- adr-rows:end plugin-render -->
 
 ## 번들 plugin 기능 — markdown · git-viewer · explorer · image · clipboard
 
 운영 문서: [features/explorer](../features/explorer/index.md) · [features/clipboard](../features/clipboard/index.md)
 
+<!-- adr-rows:begin bundled-plugins -->
 | # | Title | Status | Date | Tags |
 |---|-------|--------|------|------|
 | 0026 | [클립보드 히스토리 백엔드 제거 + 뷰어는 plugin 직접-read](0026-clipboard-history-removal-plugin-direct-read.md) | Accepted | 2026-06-28 | clipboard, plugin, removal, scope, sandbox, user-agent-separation, semver, breaking, adr-0009 |
@@ -414,14 +446,14 @@ disable 이 무엇을 남기는가는 0173(namespace 소유를 남긴다) → 05
 | 0249 | [markdown 의 로컬 이미지는 렌더러가 문서 안에 싣는다 — 그 자리가 읽기 범위이기도 하다](0249-markdown-local-images-are-inlined-by-the-renderer.md) | Accepted | 2026-09-08 | markdown, plugin, webview, images, sanitizer, security, scope, cross-platform, adr-0065 |
 | 0289 | [markdown 문서는 `<base href>` 를 싣지 않는다 — 그것이 문서 안 앵커를 문서 밖으로 보낸다](0289-the-markdown-document-carries-no-base-href.md) | Accepted | 2026-09-19 | markdown, plugin, webview, navigation, anchors, toc, footnotes, cross-platform, adr-0249, adr-0065 |
 | 0527 | [plugin 은 외부 링크를 host 를 거쳐 연다 — ADR-0511 의 "plugin 쪽 열기는 스위치 밖" 조항 개정](0527-a-plugin-opens-external-links-through-the-host.md) | Accepted | 2026-09-23 | plugin, markdown, webview, os-open, browser, debug, verification, user-agent-separation, identity, adr-0511 |
+<!-- adr-rows:end bundled-plugins -->
 
 ## 파일 핸들러 · 파일 피커
 
-0272 → 0279 → 0302(포커스 조항 개정)(탭 생성 갈래는 0502 — 「창 · 워크스페이스 · 포커스 · 수명주기」 그룹)(toast 축은 0503 — 「UI · 테마 · 디자인 토큰 · 갤러리」 그룹) → 0425 · 0426 · 0427. 0526 이 0302 의 `file_handler.dispatch` 분류와 0502 의 `Intent::NewTab` 선택, 0503 의 오분류 조항을 함께 개정한다(사용자가 만진 plugin popup 에서 온 호출은 사용자). 파일 피커는 0042 → 0162(에이전트 표면에서 제외, 0042 대체)이다. detector 병합 순서는 0427 → 0613(같은 출처 순서를 file-format detector 에 적용하고 user 의 `disabled = false` 를 켜기로 읽는다)이다. detector 병합 순서는 0427 → 0520(같은 출처 순서를 file-format detector 에 적용하고 user 의 `disabled = false` 를 켜기로 읽는다)이다.
-운영 문서: [features/file-handler](../features/file-handler/index.md)
-0272 → 0279 → 0302(포커스 조항 개정)(탭 생성 갈래는 0502 — 「창 · 워크스페이스 · 포커스 · 수명주기」 그룹) → 0425 · 0426 · 0427. 파일 피커는 0042 → 0162(에이전트 표면에서 제외, 0042 대체) → 0504(`file_picker.trigger` 를 plugin 호출자 전용으로)이다.
+0272 → 0279 → 0302(포커스 조항 개정)(탭 생성 갈래는 0502 — 「창 · 워크스페이스 · 포커스 · 수명주기」 그룹)(toast 축은 0503 — 「UI · 테마 · 디자인 토큰 · 갤러리」 그룹) → 0425 · 0426 · 0427. 0526 이 0302 의 `file_handler.dispatch` 분류와 0502 의 `Intent::NewTab` 선택, 0503 의 오분류 조항을 함께 개정한다(사용자가 만진 plugin popup 에서 온 호출은 사용자). 파일 피커는 0042 → 0162(에이전트 표면에서 제외, 0042 대체) → 0504(`file_picker.trigger` 를 plugin 호출자 전용으로)이다. detector 병합 순서는 0427 → 0520(같은 출처 순서를 file-format detector 에 적용하고 user 의 `disabled = false` 를 켜기로 읽는다)이다.
 운영 문서: [features/file-handler](../features/file-handler/index.md) · [features/native-file-picker](../features/native-file-picker/index.md)
 
+<!-- adr-rows:begin file-handler -->
 | # | Title | Status | Date | Tags |
 |---|-------|--------|------|------|
 | 0042 | [native 파일 선택 다이얼로그는 host `fs.pick_file`(FsRead)로 위임한다](0042-fs-pick-file-native-dialog-host-delegation.md) | Superseded by 0162 | 2026-07-09 | plugin, ipc, fs, native-dialog, rfd, permission, fs-read, host-delegation, markdown, focus-independence, adr-0028 |
@@ -432,15 +464,17 @@ disable 이 무엇을 남기는가는 0173(namespace 소유를 남긴다) → 05
 | 0425 | [헤드리스의 `file_handler.dispatch` 는 수락하지 않고 "이 빌드에 없다" 로 답한다](0425-headless-file-dispatch-answers-that-this-build-cannot-open-files.md) | Accepted | 2026-09-21 | ipc, headless, file-handler, agent-facing, build-combination, error-code |
 | 0426 | [`file_handler.reload` 는 적용되지 않은 user 항목을 `rejected` 필드로 알린다](0426-file-handler-reload-reports-the-entries-it-dropped.md) | Accepted | 2026-09-21 | ipc, cli, file-handler, agent-facing, compatibility, settings |
 | 0427 | [file handler 병합은 출처 순서(Host → Plugin → User)로 하고 user patch 를 늘 마지막에 둔다](0427-file-handler-merge-applies-user-patches-last.md) | Accepted | 2026-09-21 | file-handler, registry, plugin, settings, boot, patch-semantics |
+| 0504 | [`file_picker.trigger` 는 plugin 호출자에게만 답한다](0504-the-file-picker-trigger-answers-only-a-plugin-caller.md) | Accepted | 2026-09-23 | file-picker, popup, ipc, cli, caller, focus, user-agent-separation, identity |
 | 0520 | [file-format(detector) 병합도 출처 순서(Host → Plugin → User)로 하고 user 의 `disabled = false` 를 켜기로 읽는다](0520-file-format-merge-applies-user-patches-last.md) | Accepted | 2026-09-23 | file-format, detector, registry, plugin, settings, boot, patch-semantics |
 | 0526 | [사용자가 만진 plugin popup 에서 온 파일 열기는 사용자 행동이다 — ADR-0302 의 `file_handler.dispatch` 분류 조항 · ADR-0502 의 `Intent::NewTab` 선택 조항 · ADR-0503 의 오분류 조항 개정](0526-a-plugin-popup-the-user-touched-makes-its-file-dispatch-a-user-action.md) | Accepted | 2026-09-23 | file-handler, focus, tab, plugin, popup, user-agent-separation, identity, user-activation, adr-0302, adr-0502, adr-0503 |
-| 0504 | [`file_picker.trigger` 는 plugin 호출자에게만 답한다](0504-the-file-picker-trigger-answers-only-a-plugin-caller.md) | Accepted | 2026-09-23 | file-picker, popup, ipc, cli, caller, focus, user-agent-separation, identity |
+<!-- adr-rows:end file-handler -->
 
 ## 에이전트 통합 · 협업
 
 child 상태는 0072 → 0266 → 0288 → 0291(0288 대체), API 에러로 끝난 턴의 자동 재개는 0521(0072 · 0266 위), 완료 알림 로그는 0330 → 0344 → 0415 · 0416 이다. hook 실패 기록은 0075 → 0164(언어 조항 개정)이다. task-graph 는 0066 → 0073(0066 대체)이다.
 운영 문서: [dev-guide/external-interaction/child-completion-notify-log](../dev-guide/external-interaction/child-completion-notify-log.md) · [features/child-terminal](../features/child-terminal/index.md) · [dev-guide/agent-runner](../dev-guide/agent-runner.md)
 
+<!-- adr-rows:begin agent-integration -->
 | # | Title | Status | Date | Tags |
 |---|-------|--------|------|------|
 | 0066 | [task-graph 실시간 화면은 보류한다 (task runner 안정화 전까지)](0066-task-graph-view-deferred.md) | Superseded by 0073 | 2026-08-10 | agent-collaboration, task-graph, ui, scope, deferred, superseded |
@@ -463,20 +497,22 @@ child 상태는 0072 → 0266 → 0288 → 0291(0288 대체), API 에러로 끝�
 | 0344 | [완료 알림 로그는 호스트 세대 하나를 들고, 버린 양을 말한다](0344-the-completion-log-keeps-one-host-generation-and-says-what-it-threw-away.md) | Accepted | 2026-09-20 | notify, retention, logging, plugin, instance-identity, adr-0330 |
 | 0415 | [재개하는 완료 로그 reader 는 옆 메타 파일에서 잃은 양을 안다](0415-a-resuming-completion-log-reader-learns-what-it-lost-from-a-sidecar.md) | Accepted | 2026-09-21 | notify, retention, reader-recovery, offset, plugin, compatibility, adr-0330, adr-0344 |
 | 0416 | [부팅 청소는 포트 파일과 같은 뿌리일 때만 돈다 — ADR-0344 의 "안 고친 것" 해소](0416-the-boot-cleanup-follows-the-port-file-root.md) | Accepted | 2026-09-21 | notify, retention, instance-identity, port-file, boot, adr-0344 |
-| 0521 | [API 에러로 끝난 Claude 턴의 자동 재개는 opt-in 이고, 보내는 순간의 사실로 판정한다](0521-claude-auto-resume-after-an-api-error-is-opt-in-and-judged-at-send-time.md) | Accepted | 2026-09-23 | claude-plugin, stop-failure, auto-resume, settings, defaults, typing-guard, identity-principle-1, adr-0072, adr-0266 |
 | 0517 | [에이전트 primitive 의 이름은 memory 키가 되기 전에 호출자 값 기준으로 판정한다](0517-an-agent-primitive-name-is-judged-before-it-becomes-a-memory-key.md) | Accepted | 2026-09-23 | agent, ipc, error-code, memory, key, semaphore, barrier, rate-limit, task |
+| 0521 | [API 에러로 끝난 Claude 턴의 자동 재개는 opt-in 이고, 보내는 순간의 사실로 판정한다](0521-claude-auto-resume-after-an-api-error-is-opt-in-and-judged-at-send-time.md) | Accepted | 2026-09-23 | claude-plugin, stop-failure, auto-resume, settings, defaults, typing-guard, identity-principle-1, adr-0072, adr-0266 |
+<!-- adr-rows:end agent-integration -->
 
 ## 저장소 · 메모리 DB
 
 pragma 보고는 0316 → 0376(보고 채널 개정), 못 연 `memory.db` 의 in-memory 대체는 0485 → 0518(쓰기 응답 조항의 적용 범위를 `memory.*` 밖 이름공간까지 개정)이다.
 운영 문서: [design/systems/storage](../design/systems/storage.md) · [design/systems/memory](../design/systems/memory.md)
 
+<!-- adr-rows:begin storage -->
 | # | Title | Status | Date | Tags |
 |---|-------|--------|------|------|
 | 0085 | [IPC 관측 로그는 무한 보존하지 않는다 — 상한을 한 곳에서 관리하고, audit 은 deny 만 남긴다](0085-ipc-log-retention-bounded.md) | Accepted | 2026-08-25 | audit, telemetry, memory-db, retention, observability, cpu |
 | 0260 | [튜토리얼 진행은 사용자 상태 DB에 주제별로 저장한다](0260-tutorial-progress-belongs-to-user-state.md) | Accepted | 2026-09-09 | tutorial, persistence, concurrency |
 | 0275 | [최근 목록 캐시는 state.db 수명에 귀속한다](0275-recent-cache-belongs-to-the-state-database.md) | Accepted | 2026-09-15 | storage, recent-files, focus, multi-window |
-| 0316 | [DB 는 요청한 pragma 가 아니라 **적용된** pragma 를 보고한다](0316-a-database-reports-the-pragma-that-took-not-the-one-requested.md) | Accepted | 2026-09-20 | sqlite, storage, memory, pragma, observability, wal |
+| 0316 | [DB 는 요청한 pragma 가 아니라 적용된 pragma 를 보고한다](0316-a-database-reports-the-pragma-that-took-not-the-one-requested.md) | Accepted | 2026-09-20 | sqlite, storage, memory, pragma, observability, wal |
 | 0335 | [`state.db` 는 GUI 부팅만 열고, 접근자의 `None` 은 뜻이 하나다](0335-the-state-database-is-opened-by-gui-boot-alone.md) | Accepted | 2026-09-20 | storage, headless, ownership, naming |
 | 0376 | [요청한 pragma 가 안 선 DB 는 치명이 아니라 degraded 이고, 그 상태는 값으로 밖에 나간다 — ADR-0316 의 보고 채널 조항 개정](0376-a-database-that-opened-with-pragmas-that-did-not-take-is-degraded-not-fatal.md) | Accepted | 2026-09-21 | sqlite, storage, memory, pragma, observability, ipc, cli, adr-0316 |
 | 0377 | [실패한 메모리 쓰기는 초기화와 같은 표로 원인을 말하고, 메모리 쪽 상태는 실패 전 그대로다](0377-a-failed-memory-write-names-its-cause-with-the-same-table-as-init.md) | Accepted | 2026-09-21 | sqlite, storage, memory, error-handling, ipc, compatibility |
@@ -484,12 +520,14 @@ pragma 보고는 0316 → 0376(보고 채널 개정), 못 연 `memory.db` 의 in
 | 0485 | [못 연 `memory.db` 는 in-memory 대체로 계속 뜨되, 그 사실을 진단과 쓰기 응답이 말한다](0485-a-memory-db-that-failed-to-open-falls-back-in-memory-and-says-so.md) | Accepted | 2026-09-22 | sqlite, storage, memory, degraded, durability, ipc, cli, fallback |
 | 0518 | [`memory.db` 에 쓰는 IPC 는 이름공간과 무관하게 durable 이 아님을 말한다 — ADR-0485 의 적용 범위 조항 개정](0518-every-ipc-write-to-memory-db-says-when-it-is-not-durable.md) | Accepted | 2026-09-23 | sqlite, storage, memory, degraded, durability, ipc, agent, approval, telemetry, session |
 | 0519 | [출력 observer 의 memory 레코드 키에 sink 순번을 붙인다](0519-an-observer-memory-record-key-carries-a-sequence.md) | Accepted | 2026-09-23 | output-observer, memory, storage, key, ring-buffer, data-loss |
+<!-- adr-rows:end storage -->
 
 ## 아키텍처 · 헤드리스 · 크레이트 경계
 
 구조 op 는 0337 → 0395(결정 2 개정) → 0440, headless Intent 는 0111 → 0346 이다. IPC 핸들러의 창 상태는 0470 → 0471 이고, 그것이 남긴 대상 생략 기본값은 0533(「창 · 워크스페이스 · 포커스 · 수명주기」)이 정한다. 모듈 단위 dead_code 억제는 0346 → 0530 이다. 헤드리스가 적용할 수 없는 요청을 수락하지 않는 결정은 0425(「파일 핸들러 · 파일 피커」 그룹) · 0538(mirror 구조 op forward)이고, 헤드리스가 레이아웃을 영속하지 않는 경계는 0539 다.
 운영 문서: [architecture](../architecture/index.md) · [dev-guide/headless-build-boundaries](../dev-guide/headless-build-boundaries.md) · [dev-guide/app-state-ownership](../dev-guide/app-state-ownership.md)
 
+<!-- adr-rows:begin architecture -->
 | # | Title | Status | Date | Tags |
 |---|-------|--------|------|------|
 | 0089 | [크레이트 분리 기준은 줄 수보다 의존 방향이 우선한다](0089-crate-split-follows-dependency-direction.md) | Accepted | 2026-08-30 | build, crate-layout, dependency-direction, remote-attach |
@@ -521,12 +559,14 @@ pragma 보고는 0316 → 0376(보고 채널 개정), 못 연 `memory.db` 의 in
 | 0530 | [모듈·crate 단위 dead_code 억제는 판정이 사용을 못 보는 두 부류에만 남긴다](0530-module-wide-dead-code-allows-stay-only-where-the-judge-cannot-see-the-use.md) | Accepted | 2026-09-23 | dead-code, lint, headless, cfg, tests, generated-code, adr-0346 |
 | 0538 | [헤드리스는 mirror 구조 op 를 forward 큐에 넣지 않고 거절한다](0538-headless-refuses-mirror-structural-forward.md) | Accepted | 2026-09-23 | headless, attach, mirror, structural-op, forward-queue, ipc, agent-facing, build-combination, adr-0425, adr-0346 |
 | 0539 | [헤드리스는 레이아웃을 영속하지 않고, 그 사실을 부팅 때와 `system.info` 로 말한다](0539-headless-does-not-persist-layouts.md) | Accepted | 2026-09-23 | headless, layout-persistence, settings, restore-layout, agent-facing, build-combination, boot, adr-0346 |
+<!-- adr-rows:end architecture -->
 
 ## CLI · 로깅 · 에이전트 표면
 
 파이프 조기 종료는 0101(stdout, 종료 코드 0) → 0513(stderr, 종료 코드 유지) — 결론이 반대라 합치지 않는다. 호스트 오류 출력은 0512(연결 뒤), 인자 오류의 순서와 종료 코드는 0542(연결 앞) — 자리가 달라 합치지 않는다. `new workspace --surface` 는 0514 → 0532(같은 키가 cwd 상속 원본도 정한다 — 조항 개정).
 운영 문서: [dev-guide/cli-ipc-surface](../dev-guide/cli-ipc-surface.md) · [dev-guide/error-handling](../dev-guide/error-handling.md) · [dev-guide/cli-structure](../dev-guide/cli-structure.md)
 
+<!-- adr-rows:begin cli-logging -->
 | # | Title | Status | Date | Tags |
 |---|-------|--------|------|------|
 | 0092 | [공유 로그 파일은 host 프로세스만 연다 — CLI 클라이언트는 stderr 전용](0092-file-log-host-process-only.md) | Accepted | 2026-08-30 | logging, tracing, diagnostics, cli, boot, crash-report |
@@ -537,12 +577,14 @@ pragma 보고는 0316 → 0376(보고 채널 개정), 못 연 `memory.db` 의 in
 | 0514 | [`tasty new workspace` 는 창을 서피스로 지목하고, 생략값을 `TASTY_SURFACE_ID` 로 채우지 않는다](0514-new-workspace-names-its-window-by-a-surface-and-keeps-no-env-default.md) | Accepted | 2026-09-23 | cli, ipc, workspace, window, multi-window, focus, parity, routing |
 | 0532 | [`workspace.create` 는 창을 지목한 surface 에서 cwd 를 상속한다 — ADR-0514 의 "호스트는 바꾸지 않는다" 조항 개정](0532-workspace-create-inherits-cwd-from-the-surface-that-names-its-window.md) | Accepted | 2026-09-23 | ipc, cli, workspace, cwd, inherit-cwd, focus, multi-window, routing, adr-0514 |
 | 0542 | [CLI 는 요청 인자를 연결보다 먼저 판정하고, 그 오류의 종료 코드로 끝난다](0542-the-cli-judges-request-arguments-before-connecting-and-exits-with-their-code.md) | Accepted | 2026-09-23 | cli, exit-code, argument-validation, error-message, compatibility, adr-0512 |
+<!-- adr-rows:end cli-logging -->
 
 ## 빌드 · 배포 · 버전
 
 고지 세트는 0317 → 0370(이행 순서 개정), plugin 버전 게이트는 0137 → 0166 이다.
 운영 문서: [dev-guide/release](../dev-guide/release.md) · [dev-guide/dist-build](../dev-guide/dist-build.md)
 
+<!-- adr-rows:begin build-release -->
 | # | Title | Status | Date | Tags |
 |---|-------|--------|------|------|
 | 0021 | [자체 업데이트 확인 기능(update-check) 전면 제거](0021-remove-update-check-feature.md) | Accepted | 2026-06-25 | update, auto-update, scope, distribution, removal, maintenance, cli, plugin |
@@ -552,6 +594,7 @@ pragma 보고는 0316 → 0376(보고 채널 개정), 못 연 `memory.db` 의 in
 | 0317 | [고지 세트는 생성하지 않고 저장소의 고지 파일을 산출물마다 스테이징한다](0317-the-notice-set-is-staged-not-generated.md) | Accepted | 2026-09-20 | release, packaging, licensing, third-party, linux, appimage, deb, rpm, ci |
 | 0370 | [macOS·Windows 산출물도 관측 전에 고지 세트를 배선한다 — ADR-0317 의 이행 순서 조항 개정](0370-macos-and-windows-artifacts-carry-the-notice-set-before-it-is-observed.md) | Accepted | 2026-09-21 | release, packaging, licensing, third-party, macos, dmg, windows, msi, zip, wix, adr-0317 |
 | 0537 | [plugin 버전 게이트는 워크스페이스 밖 path 의존까지 판정한다 — ADR-0166 의 폐포 범위 개정](0537-the-plugin-version-gate-follows-path-dependencies-outside-the-workspace.md) | Accepted | 2026-09-23 | plugin, versioning, guards, ci-gates, vendoring, dependency, adr-0166, adr-0516 |
+<!-- adr-rows:end build-release -->
 
 ## 테스트 · flake · 하네스
 
@@ -559,6 +602,7 @@ flake 처방은 0129 → 0155, e2e 하네스는 0090 → 0127 → 0170 → 0297 
 하네스 격리 축은 0297 · 0511(OS 열기, 운영 문서 [dev-guide/debug-ipc](../dev-guide/debug-ipc.md) · [dev-guide/self-verification](../dev-guide/self-verification.md)) 이다.
 운영 문서: [dev-guide/e2e-tests](../dev-guide/e2e-tests.md) · [dev-guide/unit-test-isolation](../dev-guide/unit-test-isolation.md)
 
+<!-- adr-rows:begin testing -->
 | # | Title | Status | Date | Tags |
 |---|-------|--------|------|------|
 | 0090 | [e2e 테스트 격리 단위는 프로세스가 아니라 workspace 다](0090-test-isolation-by-workspace-not-process.md) | Accepted | 2026-08-30 | testing, e2e, harness, isolation, workspace, attach, ci |
@@ -575,12 +619,14 @@ flake 처방은 0129 → 0155, e2e 하네스는 0090 → 0127 → 0170 → 0297 
 | 0297 | [e2e 하네스는 디스플레이를 격리하지 않고 이름을 요구한다](0297-the-e2e-harness-names-a-display-instead-of-isolating-it.md) | Accepted | 2026-09-20 | testing, e2e, harness, isolation, linux, adr-0127, adr-0090 |
 | 0511 | [debug 스위치 아래에서 OS 열기는 띄우지 않고 기록한다](0511-os-open-is-recorded-not-launched-under-a-debug-switch.md) | Accepted | 2026-09-23 | debug, verification, self-verification, e2e, isolation, os-open, browser, user-agent-separation, identity |
 | 0552 | [양성 대조는 주입 크기를 그 회차의 기준선에서 정한다 — 검출력을 기계가 정하게 두지 않는다](0552-a-positive-control-sizes-its-injection-from-the-calibrated-baseline.md) | Accepted | 2026-09-23 | testing, flake, harness, control, mutation, measurement, adr-0181, adr-0183 |
+<!-- adr-rows:end testing -->
 
 ## CI 게이트 · 복잡도
 
 파일 SLOC 게이트는 0037 → 0131(트리거) → 0165(출하 줄) → 0168(임계) → 0205(총합 저울) → 0258(계측 사본) → 0345(시험 전체 파일)이다. 각각 다른 결정이라 합치지 않는다.
 운영 문서: [dev-guide/complexity-gate](../dev-guide/complexity-gate.md) · [dev-guide/ci-gates](../dev-guide/ci-gates.md)
 
+<!-- adr-rows:begin ci-gates -->
 | # | Title | Status | Date | Tags |
 |---|-------|--------|------|------|
 | 0037 | [복잡도 게이트 — clippy cognitive(deny) + tokei 파일 SLOC, baseline 은 위치 단위 동결](0037-complexity-gate.md) | Accepted | 2026-07-06 | lint, complexity, ci, quality-gate, clippy, cognitive-complexity, tokei, file-size, maintainability, clippy-policy, ratchet |
@@ -596,12 +642,14 @@ flake 처방은 0129 → 0155, e2e 하네스는 0090 → 0127 → 0170 → 0297 
 | 0295 | [셸 자산은 warning 이상에서 잔여 0 으로 판정한다 — 그 아래는 안 센다](0295-shell-assets-are-judged-at-warning-and-above.md) | Accepted | 2026-09-20 | shell, gates, ci, git-hooks, shellcheck, ratchet, adr-0183 |
 | 0345 | [파일 SLOC 게이트는 파일 전체가 시험인 것도 지운다 — 출하 줄이라는 이름의 근거가 그것이다](0345-the-file-sloc-gate-erases-whole-test-only-files.md) | Accepted | 2026-09-21 | complexity, quality-gate, file-size, tokei, shipping-scope, measurement, complexity-gate, adr-0166, adr-0168 |
 | 0558 | [push 범위 안쪽의 커밋에는 초록을 요구하지 않는다 — 초록의 단위는 push tip 과 착지 tip 이다](0558-a-middle-commit-of-a-push-range-is-not-required-to-be-green.md) | Accepted | 2026-09-23 | ci, git-hooks, pre-push, push-range, landing, bisect, unmeasured, adr-0192, adr-0142 |
+<!-- adr-rows:end ci-gates -->
 
 ## 가드 설계 · 측정 규율
 
 집행 등급은 0186 → 0190(한 체계의 두 축), 하한 선언은 0224 → 0225 · 0226(사실 · 재현 불가 · 여유)이다. 둘 다 합치지 않는다.
 운영 문서: [dev-guide/guard-population](../dev-guide/guard-population.md) · [dev-guide/guard-verification](../dev-guide/guard-verification.md) · [dev-guide/self-verification](../dev-guide/self-verification.md)
 
+<!-- adr-rows:begin guard-design -->
 | # | Title | Status | Date | Tags |
 |---|-------|--------|------|------|
 | 0123 | [계층 가드는 `#[cfg(test)]` 전용 모듈을 범위 밖으로 둔다](0123-layering-guard-excludes-cfg-test-modules.md) | Accepted | 2026-09-05 | layering, guards, testing, tasty-cli, adr-0105 |
@@ -628,12 +676,14 @@ flake 처방은 0129 → 0155, e2e 하네스는 0090 → 0127 → 0170 → 0297 
 | 0243 | [「안 짓는다」는 좌변부터 묻지 않는다 — 좌변은 마지막 물음이다](0243-not-building-a-judge-has-three-reasons-and-the-left-side-is-the-last-one.md) | Accepted | 2026-09-08 | guards, judgement, prescription, channels, left-side, discipline, census, positive-control, adr-0139, adr-0242 |
 | 0270 | [좌변이 그 사실을 재는가에는 자동 채널을 안 붙인다 — 기계가 읽는 두 모양만 가드가 본다](0270-whether-a-left-side-measures-the-fact-has-no-automatic-channel.md) | Accepted | 2026-09-14 | docs, guards, channels, mutation-testing, false-positive, observability, adr-0142, adr-0151, adr-0220 |
 | 0567 | [훑어 얻은 id 의 한 번 소비는 구조나 재전송 시험으로 지킨다 — 자리를 세는 명부 가드는 두지 않는다](0567-a-scanned-id-is-consumed-once-by-structure-or-by-a-replay-test.md) | Accepted | 2026-09-23 | testing, mutation-testing, exactly-once, host-plugin, hooks, guards, adr-0311, adr-0243 |
+<!-- adr-rows:end guard-design -->
 
 ## 문서 · ADR 규약
 
-재검토 조건은 0220 → 0244(표기 규격 — 운영 규칙은 template), 앵커 판정은 0201 → 0247(0201 대체)이다. 중복 기록은 0506(처리) · 0507(작성 전 탐색) · 0508(착지 대조)가 3 층을 이룬다.
-운영 문서: [documentation-model](../documentation-model.md) · [adr/template](template.md) · [dev-guide/adr-landing](../dev-guide/adr-landing.md)
+재검토 조건은 0220 → 0244(표기 규격 — 운영 규칙은 template), 앵커 판정은 0201 → 0247(0201 대체)이다. 중복 기록은 0506(처리) · 0507(작성 전 탐색) · 0508(착지 대조)가 3 층을 이룬다. 이 인덱스의 행 생성과 `Group` 헤더는 0565 다.
+운영 문서: [documentation-model](../documentation-model.md) · [adr/template](template.md) · [dev-guide/adr-landing](../dev-guide/adr-landing.md) · [dev-guide/adr-index](../dev-guide/adr-index.md)
 
+<!-- adr-rows:begin docs-adr -->
 | # | Title | Status | Date | Tags |
 |---|-------|--------|------|------|
 | 0006 | [문서 분류체계 — 동작 우선(behavior-first), 화면 종속](0006-docs-taxonomy-behavior-first.md) | Accepted | 2026-06-16 | docs, taxonomy, headless, screen-spec, design-system, behavior-first |
@@ -642,7 +692,7 @@ flake 처방은 0129 → 0155, e2e 하네스는 0090 → 0127 → 0170 → 0297 
 | 0151 | [문서의 좌표 인용은 리터럴로만 판정하고, 오탐은 예외 목록이 아니라 인용 형태를 고쳐 없앤다](0151-cited-coordinates-are-judged-as-literals-not-by-context.md) | Accepted | 2026-09-05 | documentation, guards, citation, false-positive, allowlist, detector-design, adr-0105, adr-0133, adr-0138, adr-0139 |
 | 0185 | [적을 수 없는 값은 재는 법으로 적는다 — 시제가 값과 명령을 가른다](0185-an-unwritable-value-is-written-as-the-way-to-measure-it.md) | Accepted | 2026-09-06 | docs, guards, measurement, freshness, declaration, tense, adr-0139, adr-0180, adr-0183, adr-0184 |
 | 0194 | [코드 인용은 줄 번호가 아니라 심볼 이름으로 한다](0194-code-citations-name-symbols-not-line-numbers.md) | Accepted | 2026-09-07 | documentation, adr-conventions, citations, guards, ratchet, adr-0139, adr-0183, adr-0190, adr-0105 |
-| 0201 | [슬러그 규칙은 그것을 렌더하는 트리가 정한다 — 통일하지 않는다](0201-slug-rules-are-scoped-by-the-tree-that-renders-them.md) | Superseded by ADR-0247 | 2026-09-09 | documentation, anchors, slug, guards, site, github, two-judges, adr-0139, adr-0142 |
+| 0201 | [슬러그 규칙은 그것을 렌더하는 트리가 정한다 — 통일하지 않는다](0201-slug-rules-are-scoped-by-the-tree-that-renders-them.md) | Superseded by 0247 | 2026-09-09 | documentation, anchors, slug, guards, site, github, two-judges, adr-0139, adr-0142 |
 | 0220 | [재검토 조건은 관측 가능성으로 가른다 — 채널은 전수가 아니라 우선순위로 짓는다](0220-reconsideration-triggers-are-split-by-observability.md) | Accepted | 2026-09-08 | adr, reconsideration-triggers, guards, channels, observability, census, adr-0139, adr-0142 |
 | 0239 | [안 쓴 ADR 번호도 재사용하지 않는다 — 비어 있음의 원인을 다시 묻지 않기 위해](0239-an-unused-adr-number-is-retired-not-recycled.md) | Accepted | 2026-09-08 | adr, adr-numbering, identifiers, guards, census, measurement, adr-0138, adr-0139 |
 | 0244 | [재검토 조건의 갈래는 소제목 둘로 표시한다 — 표지가 문면에 없으면 좌변이 없다](0244-the-trigger-split-is-marked-by-two-subheadings.md) | Accepted | 2026-09-08 | adr-conventions, documentation, reconsideration-triggers, observability, guards, left-side, adr-0220, adr-0139 |
@@ -651,3 +701,5 @@ flake 처방은 0129 → 0155, e2e 하네스는 0090 → 0127 → 0170 → 0297 
 | 0506 | [같은 결정이 서로 모르는 두 ADR 에 적혔으면 겹침의 폭으로 먼저 가른다 — 조항이면 새 ADR 로 모으고, 결정 전체면 한쪽을 Supersede 한다](0506-a-decision-recorded-twice-is-split-by-the-width-of-the-overlap.md) | Accepted | 2026-09-23 | adr-conventions, adr-duplication, documentation, supersede, adr-0239, adr-0030 |
 | 0507 | [새 ADR 은 결정 대상의 심볼로 기존 ADR 을 찾은 뒤에, 대안 사이의 선택일 때만 쓴다](0507-an-adr-is-written-after-a-symbol-search-and-only-for-a-choice.md) | Accepted | 2026-09-23 | adr-conventions, adr-duplication, documentation, search, adr-0506, adr-0243, adr-0244 |
 | 0508 | [착지는 커밋 전에 들어오는 ADR 을 나란히 놓는다 — 도구는 보고만 하고 판정은 사람이 한다](0508-landing-lines-up-incoming-adrs-before-the-commit.md) | Accepted | 2026-09-23 | adr-conventions, adr-duplication, landing, parallel-lanes, adr-0506, adr-0507, adr-0243, adr-0239 |
+| 0565 | [ADR 인덱스의 행은 ADR 헤더에서 생성하고, 그룹은 ADR 헤더가 선언한다](0565-the-adr-index-rows-are-generated-and-the-group-lives-in-the-adr-header.md) | Accepted | 2026-09-23 | adr-conventions, documentation, code-generation, guards, parallel-lanes, merge, adr-0138, adr-0239, adr-0508 |
+<!-- adr-rows:end docs-adr -->

@@ -3,6 +3,7 @@
 - **Status**: Deferred
 - **Date**: 2026-06-17
 - **Tags**: plugin, marketplace, registry, trust, distribution, deferred
+- **Group**: plugin-system
 
 ## Context
 

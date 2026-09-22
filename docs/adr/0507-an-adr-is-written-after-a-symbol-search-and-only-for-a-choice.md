@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-23
 - **Tags**: adr-conventions, adr-duplication, documentation, search, adr-0506, adr-0243, adr-0244
+- **Group**: docs-adr
 
 ## Context
 

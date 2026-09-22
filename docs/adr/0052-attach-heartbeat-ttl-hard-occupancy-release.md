@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-07-20
 - **Tags**: occupation, hard-occupy, attach, heartbeat, ttl, disconnect, occupancy-registry, adr-0040
+- **Group**: remote-attach
 
 ## Context
 

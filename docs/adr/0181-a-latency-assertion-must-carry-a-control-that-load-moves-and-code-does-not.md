@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-06
 - **Tags**: testing, flake, harness, assertions, diagnostics, adr-0129, adr-0139
+- **Group**: testing
 
 ## Context
 

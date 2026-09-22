@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-04
 - **Tags**: remote-attach, mirror, parked-engine, multi-window, data-loss, performance
+- **Group**: remote-attach
 
 ## Context
 

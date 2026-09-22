@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-05
 - **Tags**: attach, occupancy, close, data-loss, ipc, gui, symmetry, adr-0040, adr-0120
+- **Group**: remote-attach
 
 ## Context
 

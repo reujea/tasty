@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-22
 - **Tags**: attach, mirror, remote, wire-format, structural-delta, pty-exit, occupancy, adr-0040, adr-0264
+- **Group**: remote-attach
 
 ## Context
 

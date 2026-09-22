@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-09
 - **Tags**: ipc, headless, plugin, lifecycle, routing, agent-surface, adr-0127, adr-0173
+- **Group**: architecture
 
 ## Context
 

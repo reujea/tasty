@@ -3,6 +3,7 @@
 - **Status**: Superseded by [ADR-0032](0032-remote-attach-two-layer-split.md) (부분) — 범용 레지스트리 봉투(kind + fields)는 유효하나, "attach = ssh kind 소비" 는 ssh(연결) / tasty-attach(attach) 2-레이어로 대체됨.
 - **Date**: 2026-06-19
 - **Tags**: remote, profile, registry, attach, ssh, smb, extensibility, plugin, ubiquitous-language
+- **Group**: remote-attach
 
 ## Context
 

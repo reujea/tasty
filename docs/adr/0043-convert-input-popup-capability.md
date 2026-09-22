@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-07-09
 - **Tags**: surface-kind, convert, plugin, de-pluginize, capability, popup, adr-0028, adr-0042
+- **Group**: plugin-system
 
 ## Context
 

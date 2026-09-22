@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-04
 - **Tags**: theme, design-tokens, font-size, corner-radius, status-dot, zoom, guards, adr-0033
+- **Group**: ui-theme-gallery
 
 > **파일명 슬러그는 결정보다 좁다** — `off-scale-font-values-…` 는 이 ADR 이 폰트 축에서
 > 처음 나왔을 때의 이름이다. 슬러그는 ADR 번호와 함께 영구 식별자라 바꾸지 않는다(바꾸면

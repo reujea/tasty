@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-07-13
 - **Tags**: occupation, hard-occupy, readonly, selection, mouse, wheel, link-click, mirror, attach, adr-0040
+- **Group**: remote-attach
 
 ## Context
 

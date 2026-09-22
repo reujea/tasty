@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-20
 - **Tags**: ipc, telemetry, diagnostics, observability
+- **Group**: ipc-transport
 
 ## Context
 

@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-05
 - **Tags**: documentation, guards, citation, false-positive, allowlist, detector-design, adr-0105, adr-0133, adr-0138, adr-0139
+- **Group**: docs-adr
 
 ## Context
 

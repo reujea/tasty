@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-04
 - **Tags**: guards, design-tokens, testing, ci, adr-0126, adr-0128, adr-0033
+- **Group**: guard-design
 
 ## Context
 

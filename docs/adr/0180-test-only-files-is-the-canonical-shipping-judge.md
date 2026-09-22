@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-05
 - **Tags**: guards, shipping-scope, cfg-predicate, test-gate, canonical-judge, layering, cargo-layout, scan-target, adr-0129, adr-0165, adr-0166
+- **Group**: guard-design
 
 ## Context
 

@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-05
 - **Tags**: docs, guards, single-source-of-truth, drift
+- **Group**: guard-design
 
 ## Context
 

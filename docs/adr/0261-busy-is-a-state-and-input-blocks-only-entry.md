@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-11
 - **Tags**: busy-indicator, terminal, sidebar, osc133, shell-integration, input-echo, adr-0002
+- **Group**: terminal-input
 
 ## Context
 

@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-23
 - **Tags**: plugin, host-plugin, lifecycle, surface-kind, surface-registry, disable, remove, compatibility, adr-0173
+- **Group**: plugin-system
 
 ## Context
 

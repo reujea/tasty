@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-20
 - **Tags**: popup, scope, scrim, plugin, design-tokens, gallery, adr-0273, adr-0254
+- **Group**: ui-theme-gallery
 
 ## Context
 

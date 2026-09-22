@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-20
 - **Tags**: gallery, widgets, duplication, guards, toast, type-appearance, compiler-enforced
+- **Group**: ui-theme-gallery
 
 ## Context
 

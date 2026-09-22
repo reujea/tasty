@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-20
 - **Tags**: ipc, method-table, retry, contract
+- **Group**: ipc-contract
 
 ## Context
 

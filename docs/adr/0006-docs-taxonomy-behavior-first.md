@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-06-16
 - **Tags**: docs, taxonomy, headless, screen-spec, design-system, behavior-first
+- **Group**: docs-adr
 
 ## Context
 

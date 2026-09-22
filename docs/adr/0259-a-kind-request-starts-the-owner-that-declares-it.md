@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-10
 - **Tags**: headless, plugin, surface-kind, lazy-start, attach, markdown, trust-boundary, adr-0136, adr-0173, adr-0255
+- **Group**: plugin-system
 
 ## Context
 

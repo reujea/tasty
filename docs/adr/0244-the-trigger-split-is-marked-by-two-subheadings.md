@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-08
 - **Tags**: adr-conventions, documentation, reconsideration-triggers, observability, guards, left-side, adr-0220, adr-0139
+- **Group**: docs-adr
 
 ## Context
 

@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-05
 - **Tags**: focus, workspace, reorder, index-vs-id, cascade, invariant, adr-0113
+- **Group**: window-workspace-lifecycle
 
 ## Context
 

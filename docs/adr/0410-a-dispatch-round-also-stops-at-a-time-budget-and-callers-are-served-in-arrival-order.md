@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-21
 - **Tags**: ipc, dispatch, backpressure, fairness, headless, measurement, adr-0313, adr-0305
+- **Group**: ipc-transport
 
 ## Context
 

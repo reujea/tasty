@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-04
 - **Tags**: plugin, cli, manifest, argument-parsing, error-handling, agent-facing, silent-failure
+- **Group**: plugin-system
 
 ## Context
 

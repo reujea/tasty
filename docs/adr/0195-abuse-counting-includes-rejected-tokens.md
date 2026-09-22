@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-08
 - **Tags**: webhook, security, rate-limit, abuse, auth, buckets, adr-0046, adr-0112
+- **Group**: webhook-hooks
 
 ## Context
 

@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-20
 - **Tags**: hook-handler, cli, ipc, registry, ipc-sequence, local-only, settings, adr-0046, adr-0047
+- **Group**: webhook-hooks
 
 ## Context
 

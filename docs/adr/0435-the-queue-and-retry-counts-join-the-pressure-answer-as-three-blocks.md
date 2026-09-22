@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-21
 - **Tags**: ipc, cli, telemetry, pressure, admission, dispatch, idempotency, retry, compatibility, adr-0333, adr-0391, adr-0412, adr-0422
+- **Group**: ipc-transport
 
 ## Context
 

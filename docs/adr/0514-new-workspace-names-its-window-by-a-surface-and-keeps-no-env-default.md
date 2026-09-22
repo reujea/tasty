@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-23
 - **Tags**: cli, ipc, workspace, window, multi-window, focus, parity, routing
+- **Group**: cli-logging
 
 ## Context
 

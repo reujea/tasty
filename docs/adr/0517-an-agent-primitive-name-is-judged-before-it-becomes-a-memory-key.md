@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-23
 - **Tags**: agent, ipc, error-code, memory, key, semaphore, barrier, rate-limit, task
+- **Group**: agent-integration
 
 ## Context
 

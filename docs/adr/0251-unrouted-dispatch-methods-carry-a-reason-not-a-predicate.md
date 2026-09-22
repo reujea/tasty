@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-09
 - **Tags**: ipc, routing, focus, guards, roster, multi-window, adr-0133, adr-0175
+- **Group**: window-workspace-lifecycle
 
 ## Context
 

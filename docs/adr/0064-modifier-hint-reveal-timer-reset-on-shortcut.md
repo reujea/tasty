@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-08-08
 - **Tags**: modifier-hint, overlay, reveal-delay, keybindings, discovery, user-agent-separation, adr-0035
+- **Group**: keybindings
 
 ## Context
 

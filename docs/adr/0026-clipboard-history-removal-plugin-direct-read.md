@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-06-28
 - **Tags**: clipboard, plugin, removal, scope, sandbox, user-agent-separation, semver, breaking, adr-0009
+- **Group**: bundled-plugins
 
 ## Context
 

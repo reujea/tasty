@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-23
 - **Tags**: sqlite, storage, memory, degraded, durability, ipc, agent, approval, telemetry, session
+- **Group**: storage
 
 ## Context
 

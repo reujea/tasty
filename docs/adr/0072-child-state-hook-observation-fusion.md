@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-08-18
 - **Tags**: child-terminal, agent-collaboration, liveness, staleness, hook, observation, heuristic, self-heal, ipc
+- **Group**: agent-integration
 
 ## Context
 

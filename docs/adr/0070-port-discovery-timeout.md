@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-08-13
 - **Tags**: remote-attach, ssh, port-discovery, timeout, no-hang, i18n, adr-0032, adr-0053
+- **Group**: remote-attach
 
 ## Context
 

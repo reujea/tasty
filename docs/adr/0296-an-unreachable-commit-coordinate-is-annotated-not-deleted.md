@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-20
 - **Tags**: documentation, guards, citations, git-history, floored-walk, adr-0105, adr-0139
+- **Group**: docs-adr
 
 ## Context
 

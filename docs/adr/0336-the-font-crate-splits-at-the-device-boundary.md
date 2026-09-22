@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-20
 - **Tags**: build, cargo, features, headless, font, dependency-graph, wgpu, adr-0326
+- **Group**: architecture
 
 ## Context
 

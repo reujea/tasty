@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-05
 - **Tags**: headless, plugin, ipc, identity-principle-2, agent-surface, observability
+- **Group**: architecture
 
 ## Context
 

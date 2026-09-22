@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-20
 - **Tags**: events, event-bus, ring-buffer, offsets, retention, cursor, adr-0321
+- **Group**: event-feed
 
 ## Context
 

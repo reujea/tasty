@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-21
 - **Tags**: release, packaging, licensing, third-party, macos, dmg, windows, msi, zip, wix, adr-0317
+- **Group**: build-release
 
 ## Context
 

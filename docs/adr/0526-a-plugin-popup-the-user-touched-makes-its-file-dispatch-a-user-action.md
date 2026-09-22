@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-23
 - **Tags**: file-handler, focus, tab, plugin, popup, user-agent-separation, identity, user-activation, adr-0302, adr-0502, adr-0503
+- **Group**: file-handler
 
 ## Context
 

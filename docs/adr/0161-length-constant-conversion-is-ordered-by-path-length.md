@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-05
 - **Tags**: typed-length, geometry, guards, refactor, census, frontier, false-negative
+- **Group**: typed-length-dpi
 
 ## Context
 

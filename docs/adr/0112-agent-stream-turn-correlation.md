@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-04
 - **Tags**: agent-stream, plugin, webhook, correlation, turn, sse, inbound, adr-0046, adr-0093, adr-0100
+- **Group**: agent-integration
 
 ## Context
 

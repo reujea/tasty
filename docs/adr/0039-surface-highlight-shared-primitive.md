@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-07-07
 - **Tags**: surface-highlight, notification, ipc, cli, state, focus-independence
+- **Group**: attention-notification
 
 ## Context
 

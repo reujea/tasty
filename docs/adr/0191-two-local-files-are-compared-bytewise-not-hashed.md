@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-07
 - **Tags**: plugin, install, performance, measurement, hashing, cold-cache, adr-0182, adr-0139
+- **Group**: plugin-system
 
 ## Context
 

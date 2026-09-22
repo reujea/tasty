@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-23
 - **Tags**: adr-conventions, adr-duplication, documentation, supersede, adr-0239, adr-0030
+- **Group**: docs-adr
 
 ## Context
 

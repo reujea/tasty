@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-07-11
 - **Tags**: attach, remote, mirror, geometry, resize, protocol, client-driven, backward-compat, headless, adr-0007, adr-0040
+- **Group**: remote-attach
 
 ## Context
 

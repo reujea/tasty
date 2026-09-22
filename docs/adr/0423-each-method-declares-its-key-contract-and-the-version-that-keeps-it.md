@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-21
 - **Tags**: ipc, protocol, idempotency, capability, method-meta, compatibility, adr-0312, adr-0338, adr-0361, adr-0421
+- **Group**: ipc-contract
 
 ## Context
 

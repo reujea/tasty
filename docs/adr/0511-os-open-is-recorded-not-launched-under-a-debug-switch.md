@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-23
 - **Tags**: debug, verification, self-verification, e2e, isolation, os-open, browser, user-agent-separation, identity
+- **Group**: testing
 
 ## Context
 

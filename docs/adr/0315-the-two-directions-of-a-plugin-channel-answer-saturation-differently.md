@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-20
 - **Tags**: plugin, host-plugin, resource-bounds, backpressure, reliability, adr-0304, adr-0311
+- **Group**: ipc-transport
 
 ## Context
 

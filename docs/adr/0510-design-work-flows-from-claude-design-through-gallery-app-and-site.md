@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-23
 - **Tags**: design-workflow, claude-design, gallery, gallery-first, design-parity, component-catalog, site, vendor, guards, adr-0138, adr-0506
+- **Group**: ui-theme-gallery
 
 ## Context
 

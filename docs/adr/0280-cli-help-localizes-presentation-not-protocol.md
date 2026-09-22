@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-15
 - **Tags**: cli, i18n, plugin, compatibility
+- **Group**: i18n
 
 ## Context
 

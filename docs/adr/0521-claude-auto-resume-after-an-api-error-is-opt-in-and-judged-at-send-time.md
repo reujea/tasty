@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-23
 - **Tags**: claude-plugin, stop-failure, auto-resume, settings, defaults, typing-guard, identity-principle-1, adr-0072, adr-0266
+- **Group**: agent-integration
 
 ## Context
 

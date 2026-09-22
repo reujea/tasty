@@ -3,6 +3,7 @@
 - **Status**: Deferred
 - **Date**: 2026-06-17
 - **Tags**: terminal, graphics, sixel, kitty, image, vte, scope, deferred
+- **Group**: terminal-input
 
 ## Context
 

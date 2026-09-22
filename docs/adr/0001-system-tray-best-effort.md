@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-06-17
 - **Tags**: system-tray, platform, background, cross-platform, windows, macos, linux
+- **Group**: window-workspace-lifecycle
 
 ## Context
 

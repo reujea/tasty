@@ -575,24 +575,9 @@ const EXCLUDED: &[(&str, Kind, &str)] = &[
         "재시도 상한 1000",
     ),
     (
-        "crates/tasty-settings/src/keybindings/tests.rs",
+        "docs/adr/0205-the-frozen-sum-stays-one-scale.md",
         Kind::OtherMeaning,
-        "\"다른 55개와 같은 취급\" — 단축키 항목 개수",
-    ),
-    (
-        "docs/design/systems/design-token-mapping.md",
-        Kind::OtherMeaning,
-        "color-mix 의 55% — 알파 비율",
-    ),
-    (
-        "docs/features/remote-attach/index.md",
-        Kind::OtherMeaning,
-        "connecting 최악 ~55초 — 시간",
-    ),
-    (
-        "src/adapters/ui/popup/remote_attach.rs",
-        Kind::OtherMeaning,
-        "connecting 최악 ~55초 — 시간",
+        "항목 축 표의 \"54 회\" — 30 일 발화 횟수",
     ),
     (
         "crates/tasty-doc-guards/tests/gate_thresholds_are_not_stale_copies.rs",

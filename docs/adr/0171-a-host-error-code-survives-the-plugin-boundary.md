@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-05
 - **Tags**: ipc, error-codes, plugin, sdk, wire-protocol, partial-amendment, adr-0153, adr-0154, adr-0163, adr-0167
+- **Group**: ipc-contract
 
 ## Context
 

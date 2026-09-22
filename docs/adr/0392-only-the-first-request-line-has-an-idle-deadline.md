@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-21
 - **Tags**: ipc, resource-bounds, connection, idle, timeout, compatibility, adr-0304, adr-0327
+- **Group**: ipc-transport
 
 ## Context
 

@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-19
 - **Tags**: design-tokens, color, semantic, role, font-size, opacity, status-dot, theme, adr-0033, adr-0126
+- **Group**: ui-theme-gallery
 
 ## Context
 

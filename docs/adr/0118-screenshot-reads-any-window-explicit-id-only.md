@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-04
 - **Tags**: screenshot, ipc, window, modal, focus, identity-principle-1, identity-principle-3, local-only, ai-verification
+- **Group**: window-workspace-lifecycle
 
 ## Context
 

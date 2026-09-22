@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-05
 - **Tags**: theme, design-tokens, ui-scale, zoom, egui, gallery, guards, adr-0126, adr-0033
+- **Group**: typed-length-dpi
 
 ## Context
 

@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-06-19
 - **Tags**: passkey, secret, security, file-permission, trust-boundary, remote-profile
+- **Group**: permission-security
 
 ## Context
 

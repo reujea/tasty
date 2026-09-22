@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-21
 - **Tags**: hook-handler, registry, plugin, settings, boot, headless, patch-semantics, adr-0047, adr-0427
+- **Group**: webhook-hooks
 
 ## Context
 

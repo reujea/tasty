@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-09
 - **Tags**: tutorial, persistence, concurrency
+- **Group**: storage
 
 ## Context
 

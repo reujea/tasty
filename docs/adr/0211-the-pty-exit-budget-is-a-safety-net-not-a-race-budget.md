@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-09
 - **Tags**: testing, flaky, pty, ci, macos, diagnostics, measurement, adr-0129, adr-0181, adr-0217, adr-0206
+- **Group**: testing
 
 ## Context
 

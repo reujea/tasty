@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-21
 - **Tags**: complexity, quality-gate, file-size, tokei, shipping-scope, measurement, complexity-gate, adr-0166, adr-0168
+- **Group**: ci-gates
 
 ## Context
 

@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-23
 - **Tags**: cli, exit-code, argument-validation, error-message, compatibility, adr-0512
+- **Group**: cli-logging
 
 ## Context
 

@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-20
 - **Tags**: terminal, output-buffer, ipc, plugin, claude, cursor, polling, adr-0085, adr-0266, adr-0306
+- **Group**: terminal-input
 
 ## Context
 

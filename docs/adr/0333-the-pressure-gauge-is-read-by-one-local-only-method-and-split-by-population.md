@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-20
 - **Tags**: telemetry, ipc, cli, method-effect, local-only, pressure, memory, plugin-host, adr-0305
+- **Group**: ipc-transport
 
 ## Context
 

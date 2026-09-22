@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-20
 - **Tags**: terminal, vte, erase, bce, sgr, termwiz, adr-0002
+- **Group**: terminal-input
 
 ## Context
 

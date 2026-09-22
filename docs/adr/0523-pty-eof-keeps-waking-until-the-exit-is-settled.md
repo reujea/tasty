@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-23
 - **Tags**: pty, terminal, process-exit, waker, headless, attach, structural-delta, flaky, ci, adr-0002, adr-0211, adr-0481
+- **Group**: terminal-input
 
 ## Context
 

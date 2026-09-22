@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-04
 - **Tags**: attach, remote-attach, occupancy, handshake, protocol-version, self-attach, stream, adr-0040, adr-0052
+- **Group**: remote-attach
 
 ## Context
 

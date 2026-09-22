@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-21
 - **Tags**: plugin, host-plugin, resource-bounds, backpressure, observability, adr-0315, adr-0339
+- **Group**: ipc-transport
 
 ## Context
 

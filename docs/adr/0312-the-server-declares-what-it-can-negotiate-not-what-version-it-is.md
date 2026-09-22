@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-20
 - **Tags**: ipc, capability, compatibility, method-table, system-info, adr-0306
+- **Group**: ipc-contract
 
 ## Context
 

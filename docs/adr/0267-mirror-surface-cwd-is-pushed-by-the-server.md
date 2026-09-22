@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-13
 - **Tags**: attach, mirror, remote, cwd, wire-format, provenance, newtype, inherit-cwd, file-picker, adr-0056, adr-0059, adr-0086, adr-0255
+- **Group**: remote-attach
 
 ## Context
 

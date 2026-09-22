@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-08
 - **Tags**: guards, docs, census, measurement, decidability, false-prescription, adr-0139
+- **Group**: guard-design
 
 ## Context
 

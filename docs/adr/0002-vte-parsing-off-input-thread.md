@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-06-15
 - **Tags**: performance, terminal, threading, input-latency, vte
+- **Group**: terminal-input
 
 ## Context
 

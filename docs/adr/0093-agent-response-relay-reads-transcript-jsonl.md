@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-02
 - **Tags**: agent-stream, plugin, transcript, tail, relay, at-least-once, claude-plugin, focus-independence
+- **Group**: agent-integration
 
 ## Context
 

@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-08-10
 - **Tags**: plugin, render-channel, webview, html, markdown, mermaid, sanitize, adr-0065, scope-correction
+- **Group**: plugin-render
 
 ## Context
 

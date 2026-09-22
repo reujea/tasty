@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-21
 - **Tags**: headless, domain, core, layering, crate-split, ports, app-state, guard, adr-0355, adr-0346
+- **Group**: architecture
 
 ## Context
 

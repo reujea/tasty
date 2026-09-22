@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-04
 - **Tags**: i18n, language-pack, blank-value, unicode, trim, adr-0114
+- **Group**: i18n
 
 ## Context
 

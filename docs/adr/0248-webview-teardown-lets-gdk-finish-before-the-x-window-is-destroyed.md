@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-08
 - **Tags**: linux, x11, gdk, gtk, webview, crash-safety, teardown, ordering, adr-0159
+- **Group**: plugin-render
 
 ## Context
 

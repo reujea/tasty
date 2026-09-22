@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-20
 - **Tags**: ipc, transport, timeout, wire, idempotency, reliability
+- **Group**: ipc-transport
 
 ## Context
 

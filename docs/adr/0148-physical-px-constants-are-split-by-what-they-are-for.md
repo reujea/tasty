@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-05
 - **Tags**: dpi, typed-length, layout, design-tokens, hidpi, adr-0145
+- **Group**: typed-length-dpi
 
 ## Context
 

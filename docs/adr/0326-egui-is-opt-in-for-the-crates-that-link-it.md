@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-20
 - **Tags**: build, cargo, features, headless, type-appearance, dependency-graph
+- **Group**: architecture
 
 ## Context
 

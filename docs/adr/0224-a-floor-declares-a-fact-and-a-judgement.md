@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-08
 - **Tags**: guards, floored-walk, measurement, staleness, single-source, census, adr-0139, adr-0180
+- **Group**: guard-design
 
 ## Context
 

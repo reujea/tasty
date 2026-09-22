@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-08
 - **Tags**: adr, adr-numbering, identifiers, guards, census, measurement, adr-0138, adr-0139
+- **Group**: docs-adr
 
 ## Context
 
@@ -115,7 +116,8 @@ ls docs/adr/ | sed -n 's/^\([0-9]\{4\}\)-.*/\1/p' | sort -u > /tmp/have
 
 **답하는 시험의 이름**: `crates/tasty-doc-guards/tests/adr_index_parity.rs` 의
 `an_adr_number_names_exactly_one_document`(한 번호가 두 문서를 가리키면 빨갛다) ·
-`every_adr_file_has_a_row_and_every_row_has_a_file`(파일과 행의 양방향 대응). 빈 번호를
+`the_index_rows_are_what_the_generator_renders`(파일과 행의 대응 — 행이 ADR 파일에서 생성된다,
+[ADR-0565](0565-the-adr-index-rows-are-generated-and-the-group-lives-in-the-adr-header.md)). 빈 번호를
 재사용하면 그 번호가 이미 인용된 자리와 충돌하는데, 충돌이 실제로 문서 둘로 나타나는
 순간을 위 둘이 잡는다.
 
@@ -130,4 +132,4 @@ ls docs/adr/ | sed -n 's/^\([0-9]\{4\}\)-.*/\1/p' | sort -u > /tmp/have
 - [ADR-0139](0139-numbers-in-docs-are-classified-by-lineage-not-by-name.md) — 위 수들을
   시점 측정으로 적은 근거
 - 코드(결정이 실현된 현재 위치): `crates/tasty-doc-guards/tests/adr_index_parity.rs` 의
-  `an_adr_number_names_exactly_one_document` · `every_adr_file_has_a_row_and_every_row_has_a_file`
+  `an_adr_number_names_exactly_one_document` · `the_index_rows_are_what_the_generator_renders`

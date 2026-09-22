@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-07-03
 - **Tags**: design-tokens, color, semantic, primitive, theme, ui-widgets, guard, enforcement, adr-0510
+- **Group**: ui-theme-gallery
 
 ## Context
 

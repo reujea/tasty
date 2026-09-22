@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-23
 - **Tags**: output-observer, memory, storage, key, ring-buffer, data-loss
+- **Group**: storage
 
 ## Context
 

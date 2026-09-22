@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-03
 - **Tags**: egui-mesh, plugin-sdk, scroll, self-repaint, performance, theme, animation
+- **Group**: plugin-render
 
 ## Context
 

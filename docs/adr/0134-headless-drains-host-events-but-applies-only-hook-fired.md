@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-04
 - **Tags**: headless, host-event, plugin-event-bus, agent-runner, hooks, queue, agent-surface
+- **Group**: architecture
 
 ## Context
 

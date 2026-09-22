@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-08-25
 - **Tags**: audit, telemetry, memory-db, retention, observability, cpu
+- **Group**: storage
 
 ## Context
 

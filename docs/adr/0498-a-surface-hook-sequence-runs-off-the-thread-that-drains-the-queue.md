@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-23
 - **Tags**: hooks, hook-handler, ipc, host-injection, main-thread, concurrency, adr-0451
+- **Group**: webhook-hooks
 
 ## Context
 

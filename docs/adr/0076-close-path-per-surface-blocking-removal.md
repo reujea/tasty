@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-08-22
 - **Tags**: close-sequence, pty, observer, blocking, render-thread, latency, cross-platform, adr-0002
+- **Group**: window-workspace-lifecycle
 
 ## Context
 

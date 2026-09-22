@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-03
 - **Tags**: attention, surface-highlight, occupancy, hard-occupy, remote-attach, readonly, adr-0040, adr-0049
+- **Group**: attention-notification
 
 ## Context
 

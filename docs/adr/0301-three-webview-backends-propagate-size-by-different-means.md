@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-20
 - **Tags**: linux, x11, gtk, webkitgtk, webview, layout, cross-platform, adr-0159
+- **Group**: plugin-render
 
 ## Context
 

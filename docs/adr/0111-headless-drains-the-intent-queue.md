@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-04
 - **Tags**: headless, intent, dispatch, cascade, ipc, queue, agent-surface
+- **Group**: architecture
 
 ## Context
 

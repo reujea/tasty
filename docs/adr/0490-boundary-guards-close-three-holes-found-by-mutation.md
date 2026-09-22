@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-22
 - **Tags**: guard, domain, layering, mutation, gui, focus, automation, webhook, hook-handler, adr-0440
+- **Group**: architecture
 
 ## Context
 

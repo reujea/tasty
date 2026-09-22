@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-06
 - **Tags**: guards, principles, enforcement, effect, mirror, polarity, blockage, vocabulary, serialization, modulus, adr-0186, adr-0184, adr-0185, adr-0180, adr-0183
+- **Group**: guard-design
 
 ## Context
 

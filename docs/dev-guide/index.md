@@ -20,6 +20,7 @@ tasty 를 **개발하는** AI 에이전트용 가이드. tasty 를 *사용하는
 | 문서 | 내용 |
 |------|------|
 | [commit-convention](commit-convention.md) | Conventional Commits |
+| [adr-index](adr-index.md) | ADR 인덱스의 행을 ADR 헤더에서 다시 만드는 생성기(`adr-index` bin), 생성 구역 마커 · `Group` 헤더, 인덱스 충돌 푸는 법, 가드가 보는 물음(그룹 배치 · 결정 사슬) |
 | [adr-landing](adr-landing.md) | lane 착지 때 새 ADR 끼리·기존 ADR 과 같은 조항을 결정하지 않는지 대조 — 보고 도구 `scripts/adr-landing-report.sh`(겹침은 판정하지 않는다) |
 | [error-handling](error-handling.md) | Result 처리·락 poison 복구와 관측 범위 |
 | [clippy-policy](clippy-policy.md) | 위치별 allow 선호, 워크스페이스 끄기 지양 |

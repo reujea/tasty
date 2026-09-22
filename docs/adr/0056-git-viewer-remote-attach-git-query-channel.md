@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-07-29
 - **Tags**: git-viewer, plugin, attach, mirror, ipc, event-bus, wire-format, tools-menu, egui-mesh, popup, timeout, adr-0053, adr-0028, adr-0040
+- **Group**: remote-attach
 
 ## Context
 

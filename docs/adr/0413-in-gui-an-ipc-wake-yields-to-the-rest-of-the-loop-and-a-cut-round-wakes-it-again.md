@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-21
 - **Tags**: ipc, dispatch, fairness, gui, winit, timers, measurement, adr-0410, adr-0313
+- **Group**: ipc-transport
 
 ## Context
 
@@ -149,6 +150,8 @@ IPC 생산자는 명령마다 wake 를 한 번 부르고, 회차가 답을 주�
   (회차가 끝나면 gui 는 렌더·타이머로 넘어간다는 문장)
 - 관련: [ADR-0313](0313-the-dispatch-round-budget-is-the-connection-bound.md) (명령마다 wake 한 번이
   이월을 보장한다는 근거 — headless 에서는 그대로다)
+- 개정 대상: [ADR-0313](0313-the-dispatch-round-budget-is-the-connection-bound.md) (gui 의 이월 재개 —
+  위 근거가 gui 에서는 이 결정으로 바뀐다. 0313 이 이 ADR 을 `부분 개정` 으로 적는다)
 - 결정이 실현된 현재 위치: `src/app/ipc.rs` 의 `IpcPacer` · `App::process_ipc`,
   `src/app/event_handler.rs` 의 `IpcReady` 처리와 `about_to_wait` 의 `loop_reached_about_to_wait`, `src/app/ipc_round.rs` 의 `IpcRound::finish`
 - 정본 문서: [data-flows](../architecture/data-flows.md) §3 · [timer-hub](../dev-guide/timer-hub.md)

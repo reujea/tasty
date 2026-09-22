@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-04
 - **Tags**: input, scroll, egui, plugin-bridge, settings, accessibility, wire-contract, adr-0108
+- **Group**: terminal-input
 
 ## Context
 

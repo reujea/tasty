@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-05
 - **Tags**: documentation, guards, staleness, measurement, ci-gates, adr-0037, adr-0131, adr-0138
+- **Group**: docs-adr
 
 ## Context
 

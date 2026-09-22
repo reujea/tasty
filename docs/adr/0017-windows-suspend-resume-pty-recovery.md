@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-06-21
 - **Tags**: pty, conpty, suspend, resume, power-management, windows, platform, lifecycle, terminal, cross-platform
+- **Group**: terminal-input
 
 ## Context
 

@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-09
 - **Tags**: keybindings, parser, crate-boundary, feature-gate, headless, single-source
+- **Group**: keybindings
 
 ## Context
 

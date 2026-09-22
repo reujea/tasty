@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-07-01
 - **Tags**: remote, profile, attach, ssh, two-layer, ref, port-file, cli
+- **Group**: remote-attach
 
 ## Context
 

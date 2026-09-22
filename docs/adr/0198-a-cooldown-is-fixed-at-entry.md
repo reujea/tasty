@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-08
 - **Tags**: webhook, security, rate-limit, abuse, cooldown, time-semantics, adr-0196, adr-0197
+- **Group**: webhook-hooks
 
 ## Context
 

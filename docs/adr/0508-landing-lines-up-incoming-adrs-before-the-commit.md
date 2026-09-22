@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-23
 - **Tags**: adr-conventions, adr-duplication, landing, parallel-lanes, adr-0506, adr-0507, adr-0243, adr-0239
+- **Group**: docs-adr
 
 ## Context
 

@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-05
 - **Tags**: linux, x11, gdk, webview, ffi, crash-safety, guards, adr-0117
+- **Group**: plugin-render
 
 ## Context
 

@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-23
 - **Tags**: plugin, versioning, guards, ci-gates, vendoring, dependency, adr-0166, adr-0516
+- **Group**: build-release
 
 ## Context
 

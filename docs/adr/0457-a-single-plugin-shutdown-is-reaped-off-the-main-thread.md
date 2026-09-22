@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-21
 - **Tags**: plugin, host-plugin, lifecycle, shutdown, main-thread, healthcheck, restart, concurrency
+- **Group**: plugin-system
 
 ## Context
 

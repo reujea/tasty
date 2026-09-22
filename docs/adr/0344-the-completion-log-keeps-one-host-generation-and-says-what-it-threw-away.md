@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-20
 - **Tags**: notify, retention, logging, plugin, instance-identity, adr-0330
+- **Group**: agent-integration
 
 ## Context
 

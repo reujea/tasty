@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-05
 - **Tags**: ipc, error-codes, headless, build-combination, guards, adr-0154, adr-0163
+- **Group**: ipc-contract
 
 ## Context
 

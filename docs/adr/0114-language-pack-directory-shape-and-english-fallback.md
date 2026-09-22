@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-03
 - **Tags**: i18n, language-pack, settings, font, boot, toast, discovery
+- **Group**: i18n
 
 ## Context
 

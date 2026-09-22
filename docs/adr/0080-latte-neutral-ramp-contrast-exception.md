@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-08-24
 - **Tags**: theme, accessibility, contrast, latte, palette
+- **Group**: ui-theme-gallery
 
 ## Context
 

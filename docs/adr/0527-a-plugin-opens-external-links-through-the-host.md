@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-23
 - **Tags**: plugin, markdown, webview, os-open, browser, debug, verification, user-agent-separation, identity, adr-0511
+- **Group**: bundled-plugins
 
 ## Context
 

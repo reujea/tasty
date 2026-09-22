@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-23
 - **Tags**: preset, layout-presets, draft, surface-settings, design-parity, egui, input, adr-0510
+- **Group**: ui-theme-gallery
 
 ## Context
 

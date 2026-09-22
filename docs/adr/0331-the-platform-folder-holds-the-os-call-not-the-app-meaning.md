@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-20
 - **Tags**: architecture, platform, layering, app-event, callback, windows, macos, cross-platform
+- **Group**: architecture
 
 ## Context
 

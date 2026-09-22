@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-20
 - **Tags**: shell, gates, ci, git-hooks, shellcheck, ratchet, adr-0183
+- **Group**: ci-gates
 
 ## Context
 

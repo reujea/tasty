@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-03
 - **Tags**: attention, surface-highlight, remote-attach, mirror, source-of-truth, osc133, notification, ipc
+- **Group**: attention-notification
 
 ## Context
 

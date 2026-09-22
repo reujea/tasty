@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-06-25
 - **Tags**: terminal, mouse, mouse-reporting, context-menu, modifier, discoverability, ux
+- **Group**: terminal-input
 
 ## Context
 

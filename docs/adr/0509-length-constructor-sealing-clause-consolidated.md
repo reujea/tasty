@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-23
 - **Tags**: typed-length, dpi, guards, sealing, adr-conventions, adr-0128, adr-0145, adr-0169, adr-0506, adr-0148
+- **Group**: typed-length-dpi
 
 ## Context
 

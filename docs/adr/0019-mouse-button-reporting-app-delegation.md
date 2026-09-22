@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-06-24
 - **Tags**: terminal, vte, mouse, mouse-reporting, sgr, input, selection, scope
+- **Group**: terminal-input
 
 ## Context
 

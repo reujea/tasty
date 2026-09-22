@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-15
 - **Tags**: file-handler, focus, routing, lifecycle
+- **Group**: file-handler
 
 ## Context
 

@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-04
 - **Tags**: docs, conventions, hygiene, dead-reference, gitignore, local-workspace, guard-test, adr-0096
+- **Group**: docs-adr
 
 ## Context
 

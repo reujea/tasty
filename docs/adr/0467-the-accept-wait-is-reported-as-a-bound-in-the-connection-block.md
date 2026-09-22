@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-22
 - **Tags**: telemetry, pressure, ipc, accept, connection, measurement, adr-0333, adr-0340
+- **Group**: ipc-transport
 
 ## Context
 

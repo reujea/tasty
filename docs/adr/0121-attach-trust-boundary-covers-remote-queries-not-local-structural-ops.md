@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-04
 - **Tags**: ipc, permissions, remote-attach, plugin, trust-boundary, user-agent-separation, identity-principle-1, method-table, asymmetry
+- **Group**: remote-attach
 
 ## Context
 

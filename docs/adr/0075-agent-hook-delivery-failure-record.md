@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-08-20
 - **Tags**: agent-hooks, observability, cli, error-handling
+- **Group**: agent-integration
 
 ## Context
 

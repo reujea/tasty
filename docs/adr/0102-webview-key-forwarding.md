@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-03
 - **Tags**: webview, keyboard, shortcuts, keybindings, focus, cross-platform, markdown, html
+- **Group**: plugin-render
 
 ## Context
 

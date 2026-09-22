@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-05
 - **Tags**: ipc, agent-surface, gui, blocking, rfd, portal, identity-principle, adr-0042, adr-0058, adr-0091
+- **Group**: file-handler
 
 ## Context
 

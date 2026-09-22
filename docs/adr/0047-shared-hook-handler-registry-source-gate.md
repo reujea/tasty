@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-07-11
 - **Tags**: hook-handler, webhook, hook, registry, source-gate, file-handler-mirror, trigger-source, patch-semantics, ipc-sequence, shell-command
+- **Group**: webhook-hooks
 
 ## Context
 

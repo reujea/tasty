@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-05
 - **Tags**: security, permissions, memory, ipc, plugin, audit
+- **Group**: permission-security
 
 ## Context
 

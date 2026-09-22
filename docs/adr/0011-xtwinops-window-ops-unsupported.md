@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-06-18
 - **Tags**: terminal, xtwinops, vte, window, user-agent-separation, security, scope
+- **Group**: terminal-input
 
 ## Context
 

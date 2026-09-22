@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-05
 - **Tags**: layering, guards, testing, tasty-cli, adr-0105
+- **Group**: guard-design
 
 ## Context
 

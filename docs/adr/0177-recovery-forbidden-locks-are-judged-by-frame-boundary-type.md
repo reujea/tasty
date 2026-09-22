@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-05
 - **Tags**: poison, locks, error-handling, guards, measurement, false-negative, adr-0129, adr-0155
+- **Group**: guard-design
 
 ## Context
 

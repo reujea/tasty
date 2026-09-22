@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-15
 - **Tags**: testing, attach, flake, diagnostics, connector, adr-0181
+- **Group**: testing
 
 ## Context
 

@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-07
 - **Tags**: ci, guards, ratchet, merge-tree, per-lane, split-landing, cap, adr-0139, adr-0137, adr-0183
+- **Group**: ci-gates
 
 ## Context
 

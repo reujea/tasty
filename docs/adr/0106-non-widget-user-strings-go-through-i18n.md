@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-03
 - **Tags**: i18n, notifications, hooks, ipc, remote-attach, git-viewer, plugin, wire-format
+- **Group**: i18n
 
 ## Context
 

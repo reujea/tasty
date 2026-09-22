@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-06
 - **Tags**: guards, mutation-testing, census, positive-control, adr-0139, adr-0183
+- **Group**: guard-design
 
 ## Context
 

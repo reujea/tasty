@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-08-13
 - **Tags**: ui, shared-widgets, table, egui, hit-test, selectable-labels, explorer, port-scanner, gallery
+- **Group**: ui-theme-gallery
 
 ## Context
 

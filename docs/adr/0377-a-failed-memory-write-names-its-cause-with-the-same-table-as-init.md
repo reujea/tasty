@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-21
 - **Tags**: sqlite, storage, memory, error-handling, ipc, compatibility
+- **Group**: storage
 
 ## Context
 

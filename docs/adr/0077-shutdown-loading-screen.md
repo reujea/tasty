@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-08-23
 - **Tags**: shutdown, boot, ui, state-machine, plugin
+- **Group**: window-workspace-lifecycle
 
 ## Context
 

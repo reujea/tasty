@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-07-23
 - **Tags**: remote, attach, mirror, file-transfer, native-protocol, stream, bulk-channel, no-base64, ssh-delegation, cross-platform, adr-0007, adr-0032, adr-0045
+- **Group**: remote-attach
 
 ## Context
 

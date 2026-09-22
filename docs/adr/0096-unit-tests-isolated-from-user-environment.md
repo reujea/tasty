@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-02
 - **Tags**: testing, isolation, settings, env, harness, ci, regression-detection
+- **Group**: testing
 
 ## Context
 

@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-21
 - **Tags**: notify, retention, instance-identity, port-file, boot, adr-0344
+- **Group**: agent-integration
 
 ## Context
 

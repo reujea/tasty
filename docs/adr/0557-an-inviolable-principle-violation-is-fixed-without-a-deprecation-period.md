@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-23
 - **Tags**: api-stability, deprecation, compatibility, changelog, identity, identity-principle-1, identity-principle-3, adr-0113, adr-0115, adr-0122, adr-0497, adr-0502, adr-0504, adr-0526, adr-0532, adr-0533
+- **Group**: ipc-contract
 
 ## Context
 

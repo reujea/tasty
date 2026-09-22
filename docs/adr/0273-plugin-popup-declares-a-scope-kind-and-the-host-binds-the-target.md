@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-14
 - **Tags**: popup, plugin, scope, manifest
+- **Group**: ui-theme-gallery
 
 ## Context
 

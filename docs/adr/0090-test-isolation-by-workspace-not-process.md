@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-08-30
 - **Tags**: testing, e2e, harness, isolation, workspace, attach, ci
+- **Group**: testing
 
 ## Context
 

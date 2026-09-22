@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-20
 - **Tags**: architecture, crates, layering, plugin-protocol, orphan-rule, file-format, guards, adr-0089
+- **Group**: architecture
 
 ## Context
 

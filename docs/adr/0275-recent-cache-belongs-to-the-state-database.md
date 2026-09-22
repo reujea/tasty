@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-15
 - **Tags**: storage, recent-files, focus, multi-window
+- **Group**: storage
 
 ## Context
 

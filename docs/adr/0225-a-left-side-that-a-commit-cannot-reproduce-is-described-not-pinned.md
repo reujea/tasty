@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-08
 - **Tags**: guards, floored-walk, measurement, reproducibility, working-tree, adr-0139, adr-0142, adr-0224
+- **Group**: guard-design
 
 ## Context
 

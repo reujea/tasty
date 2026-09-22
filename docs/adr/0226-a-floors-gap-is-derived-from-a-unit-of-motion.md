@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-08
 - **Tags**: guards, floored-walk, measurement, justification, ratchet, census, adr-0139, adr-0224, adr-0225
+- **Group**: guard-design
 
 ## Context
 

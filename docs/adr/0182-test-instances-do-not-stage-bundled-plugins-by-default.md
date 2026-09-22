@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-06
 - **Tags**: testing, harness, plugin, performance, disk-io
+- **Group**: plugin-system
 
 ## Context
 

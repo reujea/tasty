@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-04
 - **Tags**: agent-collaboration, semaphore, lease, concurrency, operability
+- **Group**: agent-integration
 
 ## Context
 

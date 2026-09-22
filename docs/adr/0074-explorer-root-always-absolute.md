@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-08-18
 - **Tags**: explorer, surface-cwd, invariant, fallback, attach, path
+- **Group**: bundled-plugins
 
 ## Context
 

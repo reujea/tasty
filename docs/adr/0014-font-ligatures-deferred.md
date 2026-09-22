@@ -3,6 +3,7 @@
 - **Status**: Deferred
 - **Date**: 2026-06-18
 - **Tags**: font, ligatures, appearance, settings, rendering, cell-grid, scope, deferred
+- **Group**: terminal-input
 
 ## Context
 

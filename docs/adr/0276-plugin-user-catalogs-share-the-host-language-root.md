@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-15
 - **Tags**: i18n, plugin, language-pack, compatibility
+- **Group**: i18n
 
 ## Context
 

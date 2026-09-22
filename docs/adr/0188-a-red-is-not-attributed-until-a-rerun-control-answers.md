@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-06
 - **Tags**: ci, measurement, control, attribution, flaky, rerun, bias, wall-clock, adr-0183, adr-0139
+- **Group**: ci-gates
 
 ## Context
 

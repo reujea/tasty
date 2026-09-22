@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-07-11
 - **Tags**: webhook, http, tiny-http, blocking, tokio, dependency, tls, request-smuggling, cross-platform, adr-0004, adr-0046
+- **Group**: webhook-hooks
 
 ## Context
 

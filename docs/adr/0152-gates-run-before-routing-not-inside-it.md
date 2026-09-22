@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-05
 - **Tags**: security, permissions, ipc, plugin, routing, guards, telemetry, audit
+- **Group**: permission-security
 
 ## Context
 

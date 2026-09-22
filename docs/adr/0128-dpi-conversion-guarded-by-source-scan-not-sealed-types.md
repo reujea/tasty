@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-04
 - **Tags**: typed-length, dpi, guard, scale-factor, geometry, drift-guard
+- **Group**: typed-length-dpi
 
 ## Context
 

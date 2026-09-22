@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-08
 - **Tags**: guards, ci-gates, mutation-testing, exit-code, ratchet, census, adr-0139, adr-0205, adr-0217, adr-0211
+- **Group**: guard-design
 
 ## Context
 

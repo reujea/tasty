@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-06-15
 - **Tags**: window, csd, titlebar, cross-platform, winit, macos, windows, linux
+- **Group**: window-workspace-lifecycle
 
 ## Context
 

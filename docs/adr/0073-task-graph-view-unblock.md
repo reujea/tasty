@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-08-19
 - **Tags**: agent-collaboration, task-graph, dag, ui, surface, popup, host-builtin, egui-mesh, adr-0066
+- **Group**: agent-integration
 
 ## Context
 

@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-05
 - **Tags**: guards, ci-gates, docs, false-negative, mutation-testing, adr-0139, adr-0142
+- **Group**: guard-design
 
 ## Context
 

@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-05
 - **Tags**: guards, exemptions, measurement, adr-0133, adr-0146
+- **Group**: guard-design
 
 ## Context
 

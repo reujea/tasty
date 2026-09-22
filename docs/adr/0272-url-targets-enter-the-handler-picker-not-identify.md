@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-14
 - **Tags**: file-handler, terminal-link, dispatch, url
+- **Group**: file-handler
 
 ## Context
 

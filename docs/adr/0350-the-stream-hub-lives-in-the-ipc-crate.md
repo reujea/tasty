@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-21
 - **Tags**: architecture, layering, ipc, attach, stream, crate-split, hexagonal
+- **Group**: architecture
 
 ## Context
 

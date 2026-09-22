@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-23
 - **Tags**: webhook, body-limit, tiny-http, connection-drain, resource-bound, dependency, vendoring, adr-0281, adr-0200, adr-0048
+- **Group**: webhook-hooks
 
 ## Context
 

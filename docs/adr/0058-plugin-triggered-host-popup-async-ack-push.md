@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-08-01
 - **Tags**: plugin, ipc, popup, async, event-bus, host-delegation, file-picker, host-agnostic, adr-0042, adr-0043, adr-0053, adr-0056
+- **Group**: ui-theme-gallery
 
 ## Context
 

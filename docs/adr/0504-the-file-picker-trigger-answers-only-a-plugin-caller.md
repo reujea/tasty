@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-23
 - **Tags**: file-picker, popup, ipc, cli, caller, focus, user-agent-separation, identity
+- **Group**: file-handler
 
 ## Context
 

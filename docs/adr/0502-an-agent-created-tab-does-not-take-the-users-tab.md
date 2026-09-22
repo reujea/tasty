@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-23
 - **Tags**: focus, tab, ipc, cli, user-agent-separation, identity, attach, file-handler, adr-0302, adr-0497
+- **Group**: window-workspace-lifecycle
 
 ## Context
 

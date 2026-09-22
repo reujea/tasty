@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-20
 - **Tags**: events, ipc, cli, cursor, long-poll, method-effect, identity, adr-0322
+- **Group**: event-feed
 
 ## Context
 

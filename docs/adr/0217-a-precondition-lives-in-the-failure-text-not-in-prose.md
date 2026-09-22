@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-08
 - **Tags**: testing, e2e, diagnostics, failure-messages, preconditions, guards, measurement, adr-0139, adr-0142, adr-0206, adr-0211
+- **Group**: testing
 
 ## Context
 

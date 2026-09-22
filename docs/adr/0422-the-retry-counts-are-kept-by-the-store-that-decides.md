@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-21
 - **Tags**: ipc, idempotency, telemetry, retry, pressure, observability, adr-0305, adr-0333, adr-0421
+- **Group**: ipc-contract
 
 ## Context
 

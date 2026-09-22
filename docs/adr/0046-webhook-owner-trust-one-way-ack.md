@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-07-11
 - **Tags**: webhook, inbound, security, trust-boundary, one-way-ack, data-flow-separation, ipc, owner-trust, cross-platform, adr-0004
+- **Group**: webhook-hooks
 
 ## Context
 

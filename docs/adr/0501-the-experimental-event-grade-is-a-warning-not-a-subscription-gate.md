@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-23
 - **Tags**: events, event-bus, plugin, manifest, stability, compatibility, adr-0321
+- **Group**: event-feed
 
 ## Context
 

@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-13
 - **Tags**: markdown, attach, mirror, remote, reconnect, disconnect, surface-kind, deferred-plugin, adr-0255
+- **Group**: remote-attach
 
 ## Context
 

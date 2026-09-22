@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-05
 - **Tags**: lifecycle, boot, plugin, lazy-init, source-guard, adr-0050, adr-0136, adr-0173
+- **Group**: plugin-system
 
 ## Context
 

@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-07-10
 - **Tags**: screenshot, ipc, cli, focus-independence, offscreen-render, gpu, debug-ipc, local-only, adr-0032, adr-0040
+- **Group**: window-workspace-lifecycle
 
 ## Context
 

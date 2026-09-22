@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-03
 - **Tags**: cli, stdout, epipe, sigpipe, exit-code, crash-report, cross-platform, error-handling
+- **Group**: cli-logging
 
 ## Context
 

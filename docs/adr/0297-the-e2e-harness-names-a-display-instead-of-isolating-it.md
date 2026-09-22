@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-20
 - **Tags**: testing, e2e, harness, isolation, linux, adr-0127, adr-0090
+- **Group**: testing
 
 ## Context
 

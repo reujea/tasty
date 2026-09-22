@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-22
 - **Tags**: ipc, dispatch, fairness, headless, timers, plugin, wake, measurement, adr-0313, adr-0410
+- **Group**: ipc-transport
 
 ## Context
 
@@ -131,6 +132,8 @@ wake 의 `swap(true)` 를 획득해야 그 wake 앞에서 큐에 든 명령이 �
   "명령마다 wake 한 번" 불변식에 맡기고 명시적 재깨움을 기각한 조항)
 - 같은 근거를 옮긴 자리: [ADR-0410](0410-a-dispatch-round-also-stops-at-a-time-budget-and-callers-are-served-in-arrival-order.md)
   ("이월은 headless 에서 ADR-0313 의 근거 그대로다")
+- 개정 대상: [ADR-0410](0410-a-dispatch-round-also-stops-at-a-time-budget-and-callers-are-served-in-arrival-order.md)
+  (위 자리의 headless 이월 bullet — 0410 이 이 ADR 을 `부분 개정` 으로 적는다)
 - 개정 패턴 선례: [ADR-0030](0030-image-egui-mesh-bitmap-texture.md)
 - gui 쪽 대응: [ADR-0413](0413-in-gui-an-ipc-wake-yields-to-the-rest-of-the-loop-and-a-cut-round-wakes-it-again.md)
 - 같은 루프의 짝 수정: headless 루프 한 바퀴가 plugin 허브 데드라인도 거둔다

@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-20
 - **Tags**: attach, stream, ipc, capability, backpressure, forward-compat, adr-0312
+- **Group**: remote-attach
 
 ## Context
 

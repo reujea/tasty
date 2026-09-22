@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-02
 - **Tags**: plugin, egui-mesh, git-viewer, scroll, virtualization, performance, layout
+- **Group**: plugin-render
 
 ## Context
 

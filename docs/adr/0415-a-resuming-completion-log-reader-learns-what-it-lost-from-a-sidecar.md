@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-21
 - **Tags**: notify, retention, reader-recovery, offset, plugin, compatibility, adr-0330, adr-0344
+- **Group**: agent-integration
 
 ## Context
 

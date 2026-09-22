@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-22
 - **Tags**: attach, mirror, remote, error-message, wire-format, parity, adr-0395
+- **Group**: remote-attach
 
 ## Context
 

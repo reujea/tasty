@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-21
 - **Tags**: ipc, cli, file-handler, agent-facing, compatibility, settings
+- **Group**: file-handler
 
 ## Context
 

@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-09
 - **Tags**: keybindings, portability, import-export, toml, schema, plugin, crate-boundary, warnings
+- **Group**: keybindings
 
 ## Context
 

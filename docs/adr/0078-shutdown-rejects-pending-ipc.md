@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-08-23
 - **Tags**: shutdown, ipc, cli, error-handling, adr-0077
+- **Group**: window-workspace-lifecycle
 
 ## Context
 

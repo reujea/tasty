@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-08-08
 - **Tags**: ui, popup, lifecycle, close-hook, choke-point, refactor
+- **Group**: ui-theme-gallery
 
 ## Context
 

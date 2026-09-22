@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-08
 - **Tags**: documentation, anchors, slug, guards, site, astro, two-judges, adr-0201, adr-0139
+- **Group**: docs-adr
 
 ## Context
 

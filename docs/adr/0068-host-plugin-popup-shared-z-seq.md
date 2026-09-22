@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-08-12
 - **Tags**: popup, plugin, z-order, gpu-rendering, egui
+- **Group**: ui-theme-gallery
 
 ## Context
 

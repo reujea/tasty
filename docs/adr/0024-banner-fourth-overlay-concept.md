@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-06-26
 - **Tags**: ui, overlay, banner, popup, toast, ubiquitous-language, user-agent-separation
+- **Group**: ui-theme-gallery
 
 ## Context
 

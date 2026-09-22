@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-20
 - **Tags**: ui, scroll, input, guard, egui
+- **Group**: ui-theme-gallery
 
 ## Context
 

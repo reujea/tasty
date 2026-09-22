@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-05
 - **Tags**: design-tokens, motion, typed-values, theme, code-generation
+- **Group**: ui-theme-gallery
 
 ## Context
 

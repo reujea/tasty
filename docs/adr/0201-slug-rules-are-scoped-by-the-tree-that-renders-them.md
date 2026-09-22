@@ -3,6 +3,7 @@
 - **Status**: Superseded by ADR-0247
 - **Date**: 2026-09-09
 - **Tags**: documentation, anchors, slug, guards, site, github, two-judges, adr-0139, adr-0142
+- **Group**: docs-adr
 
 ## Context
 

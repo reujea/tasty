@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-05
 - **Tags**: ci, guards, docs, workspace, paths-ignore, build-cost, adr-0133
+- **Group**: guard-design
 
 ## Context
 

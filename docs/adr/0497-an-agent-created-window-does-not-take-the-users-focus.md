@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-22
 - **Tags**: focus, window, multi-window, ipc, cli, user-agent-separation, identity, winit, x11, wayland, stacking
+- **Group**: window-workspace-lifecycle
 
 ## Context
 

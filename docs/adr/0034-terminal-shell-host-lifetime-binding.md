@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-07-04
 - **Tags**: process-lifetime, reaper, job-object, pty, terminal, windows, conpty, orphan, cross-platform, adr-0009
+- **Group**: terminal-input
 
 ## Context
 

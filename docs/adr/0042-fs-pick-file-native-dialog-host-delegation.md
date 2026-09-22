@@ -5,6 +5,7 @@
   이 별개 메커니즘으로 다룬다(본 ADR 의 개정이 아니다 — 전제 자체가 달라 분리).
 - **Date**: 2026-07-09
 - **Tags**: plugin, ipc, fs, native-dialog, rfd, permission, fs-read, host-delegation, markdown, focus-independence, adr-0028
+- **Group**: file-handler
 
 ## Context
 

@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-06-25
 - **Tags**: update, auto-update, scope, distribution, removal, maintenance, cli, plugin
+- **Group**: build-release
 
 ## Context
 

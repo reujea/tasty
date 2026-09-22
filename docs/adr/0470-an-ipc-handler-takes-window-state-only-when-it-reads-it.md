@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-22
 - **Tags**: ipc, handler, app-state, ownership, headless, signature, adr-0355, adr-0440
+- **Group**: architecture
 
 ## Context
 

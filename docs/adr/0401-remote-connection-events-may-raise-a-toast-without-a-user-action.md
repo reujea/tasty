@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-21
 - **Tags**: toast, attach, mirror, ui, identity-principle-1, user-agent-separation
+- **Group**: ui-theme-gallery
 
 ## Context
 

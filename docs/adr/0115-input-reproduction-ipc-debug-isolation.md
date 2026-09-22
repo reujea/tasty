@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-04
 - **Tags**: ipc, security, input-injection, debug-isolation, macos, ime, focus-independence, method-table, guard-test, adr-0044
+- **Group**: permission-security
 
 ## Context
 

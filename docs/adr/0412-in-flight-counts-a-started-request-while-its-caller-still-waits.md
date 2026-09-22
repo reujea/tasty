@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-21
 - **Tags**: ipc, telemetry, diagnostics, observability, queue, adr-0305, adr-0391, adr-0411
+- **Group**: ipc-transport
 
 ## Context
 

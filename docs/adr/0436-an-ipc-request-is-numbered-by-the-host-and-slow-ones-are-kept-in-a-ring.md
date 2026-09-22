@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-21
 - **Tags**: ipc, plugin, telemetry, pressure, correlation, diagnostics, compatibility, adr-0305, adr-0435
+- **Group**: ipc-transport
 
 ## Context
 

@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-14
 - **Tags**: permissions, plugin, ipc, agent, session-token
+- **Group**: permission-security
 
 ## Context
 

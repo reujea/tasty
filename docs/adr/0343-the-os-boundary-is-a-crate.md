@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-20
 - **Tags**: architecture, platform, crate-split, layering, features, headless, cross-platform, adr-0331
+- **Group**: architecture
 
 ## Context
 

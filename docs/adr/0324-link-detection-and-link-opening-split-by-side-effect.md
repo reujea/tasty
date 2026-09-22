@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-20
 - **Tags**: architecture, crates, layering, terminal-link, headless, feature-gate, side-effect, adr-0319
+- **Group**: architecture
 
 ## Context
 

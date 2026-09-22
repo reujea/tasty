@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-23
 - **Tags**: testing, harness, plugin, performance, disk-io, hardlink, adr-0182, adr-0191
+- **Group**: plugin-system
 
 ## Context
 

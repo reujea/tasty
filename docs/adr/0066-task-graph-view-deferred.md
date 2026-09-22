@@ -3,6 +3,7 @@
 - **Status**: Superseded by [ADR-0073](0073-task-graph-view-unblock.md)
 - **Date**: 2026-08-10
 - **Tags**: agent-collaboration, task-graph, ui, scope, deferred, superseded
+- **Group**: agent-integration
 
 > **이 ADR 은 더 이상 현행 결정이 아니다.** 여기 적힌 유보는 [ADR-0073](0073-task-graph-view-unblock.md) 로 해제됐다 — 본 ADR 의 재검토 트리거 두 개가 모두 충족되어 task-graph 화면(host builtin surface + workspace 스코프 popup)에 착수하기로 결정했다.
 

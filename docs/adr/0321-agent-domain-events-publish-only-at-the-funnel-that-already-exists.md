@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-20
 - **Tags**: events, event-bus, agent, task, barrier, plugin-protocol, catalog
+- **Group**: event-feed
 
 ## Context
 

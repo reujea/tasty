@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-21
 - **Tags**: events, cli, cursor, epoch, reconnect, compatibility, adr-0323, adr-0405
+- **Group**: event-feed
 
 ## Context
 

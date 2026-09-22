@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-20
 - **Tags**: plugin, host-plugin, wire-protocol, backpressure, resource-bounds, forward-compat, adr-0315
+- **Group**: ipc-transport
 
 ## Context
 

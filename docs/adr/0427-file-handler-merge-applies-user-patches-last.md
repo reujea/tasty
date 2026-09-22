@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-21
 - **Tags**: file-handler, registry, plugin, settings, boot, patch-semantics
+- **Group**: file-handler
 
 ## Context
 

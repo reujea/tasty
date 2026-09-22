@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-21
 - **Tags**: ipc, protocol, idempotency, plugin, namespace, retry, adr-0338
+- **Group**: ipc-contract
 
 ## Context
 

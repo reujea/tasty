@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-03
 - **Tags**: attention, surface-highlight, remote-attach, mirror, clear, edge-trigger, occupancy, stream-control
+- **Group**: attention-notification
 
 ## Context
 

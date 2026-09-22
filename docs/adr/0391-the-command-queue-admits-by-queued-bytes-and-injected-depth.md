@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-21
 - **Tags**: ipc, resource-bounds, admission, backpressure, queue, host-call, webhook, adr-0304, adr-0313, adr-0327
+- **Group**: ipc-transport
 
 ## Context
 

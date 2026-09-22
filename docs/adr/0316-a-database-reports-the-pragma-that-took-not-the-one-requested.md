@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-20
 - **Tags**: sqlite, storage, memory, pragma, observability, wal
+- **Group**: storage
 
 ## Context
 

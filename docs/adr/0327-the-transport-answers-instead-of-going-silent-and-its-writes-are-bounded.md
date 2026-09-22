@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-20
 - **Tags**: ipc, transport, resource-bounds, reliability
+- **Group**: ipc-transport
 
 ## Context
 

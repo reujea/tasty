@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-08-15
 - **Tags**: native-menu, context-menu, linux, x11, gtk, winit, event-loop, async, no-hang, cross-platform
+- **Group**: ui-theme-gallery
 
 ## Context
 

@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-23
 - **Tags**: focus, identity-principle-3, ipc, cli, approval, telemetry, audit, notification, default-value, compatibility, adr-0470, adr-0471
+- **Group**: window-workspace-lifecycle
 
 ## Context
 

@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-23
 - **Tags**: input, typing-guard, paste, clipboard, command-palette, identity-principle-1, ipc, adr-0521
+- **Group**: terminal-input
 
 ## Context
 

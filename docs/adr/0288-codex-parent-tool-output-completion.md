@@ -3,6 +3,7 @@
 - **Status**: Superseded by [ADR-0291](0291-remove-the-codex-app-server-completion-channel.md) — Codex App Server 완료 전달 경로가 제거되어 본 결정의 대상이 사라짐
 - **Date**: 2026-09-16
 - **Tags**: codex, app-server, completion, outbox, lifecycle, plugin
+- **Group**: agent-integration
 
 ## Context
 

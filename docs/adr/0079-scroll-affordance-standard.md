@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-08-23
 - **Tags**: ui, scroll, egui, affordance, popup, table, remote-tool, port-scanner
+- **Group**: ui-theme-gallery
 
 ## Context
 

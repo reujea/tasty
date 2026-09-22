@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-08
 - **Tags**: image, plugin, persistence, restore, snapshot, identity, non-goal, adr-0030
+- **Group**: bundled-plugins
 
 ## Context
 

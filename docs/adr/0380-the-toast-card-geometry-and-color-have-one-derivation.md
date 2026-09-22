@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-21
 - **Tags**: toast, gallery, shared-widgets, color, alpha, identity, measurement, adr-0510, adr-0122
+- **Group**: ui-theme-gallery
 
 ## Context
 

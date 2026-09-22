@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-20
 - **Tags**: architecture, layering, renderer, selection, terminal-link, naming, headless, adr-0319, adr-0324
+- **Group**: architecture
 
 ## Context
 

@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-06-26
 - **Tags**: terminal, mouse, mouse-reporting, selection, modifier, clipboard, discoverability, ux
+- **Group**: terminal-input
 
 ## Context
 

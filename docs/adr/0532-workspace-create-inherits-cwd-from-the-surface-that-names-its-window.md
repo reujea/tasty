@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-23
 - **Tags**: ipc, cli, workspace, cwd, inherit-cwd, focus, multi-window, routing, adr-0514
+- **Group**: cli-logging
 
 ## Context
 

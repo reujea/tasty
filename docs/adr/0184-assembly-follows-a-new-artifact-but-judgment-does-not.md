@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-06
 - **Tags**: guards, ci, new-artifacts, scan-population, mirror, pre-commit, shebang, move, adr-0138, adr-0180, adr-0183
+- **Group**: guard-design
 
 ## Context
 

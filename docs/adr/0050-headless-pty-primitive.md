@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-07-14
 - **Tags**: pty, headless, agent-native, terminal, surface-independence, ipc, cli, permission, adopt-terminal, exit-code, concurrency-limit, idle-ttl, adr-0040
+- **Group**: terminal-input
 
 ## Context
 

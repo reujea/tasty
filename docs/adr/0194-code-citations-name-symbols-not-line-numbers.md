@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-07
 - **Tags**: documentation, adr-conventions, citations, guards, ratchet, adr-0139, adr-0183, adr-0190, adr-0105
+- **Group**: docs-adr
 
 ## Context
 

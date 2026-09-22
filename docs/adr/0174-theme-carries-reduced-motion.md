@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-05
 - **Tags**: accessibility, theme, motion, widgets, defaults
+- **Group**: ui-theme-gallery
 
 ## Context
 

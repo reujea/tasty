@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-15
 - **Tags**: tests, mutex, poison, acquisition, scope
+- **Group**: testing
 
 ## Context
 

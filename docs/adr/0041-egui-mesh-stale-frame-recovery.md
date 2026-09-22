@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-07-09
 - **Tags**: plugin, render-channel, egui, epaint, mesh, texture-atlas, font, stale-frame, host-only, recovery, adr-0028, adr-0030
+- **Group**: plugin-render
 
 ## Context
 

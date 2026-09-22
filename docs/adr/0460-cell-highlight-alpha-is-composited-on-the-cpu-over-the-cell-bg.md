@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-21
 - **Tags**: renderer, gpu, theme, search, selection, alpha, blending, compatibility
+- **Group**: ui-theme-gallery
 
 ## Context
 

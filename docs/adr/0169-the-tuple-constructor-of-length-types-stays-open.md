@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-05
 - **Tags**: typed-length, geometry, guards, dpi, sealing, census
+- **Group**: typed-length-dpi
 
 ## Context
 

@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-05
 - **Tags**: attach, occupancy, stream, ordering, headless, adr-0040, adr-0052
+- **Group**: remote-attach
 
 ## Context
 

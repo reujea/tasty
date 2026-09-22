@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-02
 - **Tags**: surface-id, headless-pty, id-space, memory-db, boot, ipc, validation, invariant
+- **Group**: window-workspace-lifecycle
 
 ## Context
 

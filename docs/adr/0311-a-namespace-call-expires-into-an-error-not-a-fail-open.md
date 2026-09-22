@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-20
 - **Tags**: plugin, ipc, timeout, host-plugin, error-handling, adr-0078
+- **Group**: plugin-system
 
 ## Context
 

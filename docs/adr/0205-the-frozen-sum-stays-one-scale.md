@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-08
 - **Tags**: complexity-gate, ratchet, frozen-sum, measurement, granularity, adr-0168, adr-0139
+- **Group**: ci-gates
 
 ## Context
 

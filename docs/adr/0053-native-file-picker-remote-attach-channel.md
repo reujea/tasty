@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-07-23
 - **Tags**: file-picker, popup, attach, mirror, ipc, permission, fs-read, occupancy-trust, timeout, wire-format, tools-menu, adr-0042, adr-0032, adr-0040
+- **Group**: remote-attach
 
 ## Context
 

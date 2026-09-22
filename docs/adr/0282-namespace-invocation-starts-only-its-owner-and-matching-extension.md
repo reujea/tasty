@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-15
 - **Tags**: ipc, plugins, lifecycle, headless
+- **Group**: plugin-system
 
 ## Context
 

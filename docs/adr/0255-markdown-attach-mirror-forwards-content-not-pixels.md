@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-09
 - **Tags**: markdown, attach, mirror, remote, wire-format, webview, surface-role, lazy-fetch, budget, occupancy-trust, adr-0053, adr-0056, adr-0059, adr-0065
+- **Group**: remote-attach
 
 ## Context
 

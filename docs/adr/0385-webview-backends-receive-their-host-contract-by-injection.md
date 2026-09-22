@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-21
 - **Tags**: architecture, webview, host-api, keybindings, layering, injection, cross-platform, adr-0102, adr-0320
+- **Group**: plugin-render
 
 ## Context
 

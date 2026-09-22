@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-05
 - **Tags**: plugin, ipc, namespace, routing, guards, identity-principle-2, adr-0140, adr-0143
+- **Group**: plugin-system
 
 ## Context
 

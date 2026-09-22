@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-08-30
 - **Tags**: gpu, wgpu, winit, event-loop, hang, watchdog, diagnostics, crash-report, render-thread
+- **Group**: window-workspace-lifecycle
 
 ## Context
 

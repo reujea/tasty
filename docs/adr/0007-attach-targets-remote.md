@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-06-17
 - **Tags**: attach, remote, debug-isolation, cli, user-agent-separation, security
+- **Group**: remote-attach
 
 ## Context
 

@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-20
 - **Tags**: architecture, cargo, targets, testing, public-api, headless
+- **Group**: architecture
 
 ## Context
 

@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-22
 - **Tags**: ipc, handler, app-state, ownership, port, intent, focus, headless, adr-0355, adr-0470
+- **Group**: architecture
 
 ## Context
 

@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-08
 - **Tags**: ci, readout, coverage, unmeasured, workflow, steps, guard, adr-0142, adr-0139
+- **Group**: ci-gates
 
 ## Context
 

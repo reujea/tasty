@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-21
 - **Tags**: events, event-bus, plugin, hop, loop-prevention, compatibility, adr-0321
+- **Group**: event-feed
 
 ## Context
 

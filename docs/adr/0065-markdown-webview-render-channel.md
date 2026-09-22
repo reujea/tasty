@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-08-10
 - **Tags**: plugin, render-channel, webview, html, markdown, egui-mesh, typography, mermaid, surface-kind, host-rendered-removal, adr-0028
+- **Group**: plugin-render
 
 ## Context
 

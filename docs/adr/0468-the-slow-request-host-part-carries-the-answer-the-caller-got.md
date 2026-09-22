@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-22
 - **Tags**: telemetry, pressure, ipc, slow-requests, outcome, measurement, adr-0436, adr-0411
+- **Group**: ipc-transport
 
 ## Context
 

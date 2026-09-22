@@ -20,6 +20,9 @@
 // 라이브러리 타깃의 판정은 그대로다 — 프로덕션 자리는 여전히 명부에 오른다.
 #![cfg_attr(test, allow(clippy::let_underscore_must_use))]
 
+/// ADR 인덱스의 행을 ADR 헤더에서 만든다 — 생성기와 가드가 같은 함수를 부른다.
+pub mod adr_index;
+
 /// `#[cfg(...)]` 술어를 읽는다.
 pub mod cfg_predicate;
 /// 지문 계산 규칙 — `build.rs` 와 **원문 한 벌**을 공유한다(그쪽은 `include!`).

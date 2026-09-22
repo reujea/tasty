@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-20
 - **Tags**: release, packaging, licensing, third-party, linux, appimage, deb, rpm, ci
+- **Group**: build-release
 
 ## Context
 

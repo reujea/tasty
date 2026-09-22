@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-04
 - **Tags**: ipc, window, event-loop, agent, error-handling, identity-principle-1, fire-and-forget, completion-channel, adr-0117
+- **Group**: ipc-transport
 
 ## Context
 

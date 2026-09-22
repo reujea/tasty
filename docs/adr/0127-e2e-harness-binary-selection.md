@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-04
 - **Tags**: testing, e2e, headless, gpu, feature-flags, cargo, harness, adr-0090
+- **Group**: testing
 
 ## Context
 

@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-15
 - **Tags**: popup, file-picker, scope, ownership, input
+- **Group**: ui-theme-gallery
 
 ## Context
 

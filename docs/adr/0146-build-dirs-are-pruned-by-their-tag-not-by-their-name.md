@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-05
 - **Tags**: guards, scan-population, build-artifacts, measurement, adr-0133, adr-0138, adr-0139
+- **Group**: guard-design
 
 ## Context
 

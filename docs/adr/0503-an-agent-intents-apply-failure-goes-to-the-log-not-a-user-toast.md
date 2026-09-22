@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-23
 - **Tags**: toast, attach, mirror, intent, origin, identity-principle-1, user-agent-separation, adr-0401
+- **Group**: ui-theme-gallery
 
 ## Context
 

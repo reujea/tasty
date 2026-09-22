@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-05
 - **Tags**: typed-length, dpi, guard, tooling-cost
+- **Group**: typed-length-dpi
 
 ## Context
 

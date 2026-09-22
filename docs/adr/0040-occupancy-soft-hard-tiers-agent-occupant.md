@@ -3,6 +3,7 @@
 - **Status**: Superseded by [ADR-0052](0052-attach-heartbeat-ttl-hard-occupancy-release.md) (부분) — "점유 해제·수명" 절의 강한 점유 해제 사유가 EOF 단독에서 "연결 생존 판정 실패(EOF 또는 attach heartbeat TTL 만료)"로 좁게 확장됨. 그 외(soft 점유 정책, 시각 표현 등)는 그대로 유효.
 - **Date**: 2026-07-07
 - **Tags**: occupation, soft-occupy, hard-occupy, actors, ai-agent, child-terminal, attach, readonly, marker, focus-independence, adr-0007, adr-0032
+- **Group**: remote-attach
 
 ## Context
 

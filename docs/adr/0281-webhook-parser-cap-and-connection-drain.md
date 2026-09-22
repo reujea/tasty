@@ -3,6 +3,7 @@
 - **Status**: Superseded by ADR-0516
 - **Date**: 2026-09-15
 - **Tags**: webhook, body-limit, tiny-http, connection-drain, resource-bound, adr-0200
+- **Group**: webhook-hooks
 
 ## Context
 

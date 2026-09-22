@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-09
 - **Tags**: design-tokens, theme, shadow, modal, popover, scrim, gallery, guards, adr-0139
+- **Group**: ui-theme-gallery
 
 ## Context
 

@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-08
 - **Tags**: webhook, security, rate-limit, abuse, resource-bound, measurement, adr-0196, adr-0195
+- **Group**: webhook-hooks
 
 ## Context
 

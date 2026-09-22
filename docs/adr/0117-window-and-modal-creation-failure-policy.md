@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-04
 - **Tags**: error-handling, window, modal, boot, panic, toast, info-modal, focus, identity-principle-1, i18n, shutdown
+- **Group**: window-workspace-lifecycle
 
 ## Context
 

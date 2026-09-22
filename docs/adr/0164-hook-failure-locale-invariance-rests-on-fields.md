@@ -4,6 +4,7 @@
 - **Accepted**: 2026-09-05
 - **Date**: 2026-09-05
 - **Tags**: cli, agent-hooks, diagnostics, i18n, plugin, partial-amendment, adr-0075
+- **Group**: agent-integration
 
 ## Context
 

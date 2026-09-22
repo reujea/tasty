@@ -3,6 +3,7 @@
 - **Status**: Deferred
 - **Date**: 2026-06-17
 - **Tags**: plugin, sandbox, security, wasm, seccomp, trust-boundary, deferred
+- **Group**: plugin-system
 
 ## Context
 
