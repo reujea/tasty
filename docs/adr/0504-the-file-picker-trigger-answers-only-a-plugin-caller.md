@@ -90,7 +90,8 @@ host-call 진입부가 직접 인터셉트한다" 이고(`src/source_guards/plug
 - 비-plugin 호출이 다시 popup 을 연다 — `src/adapters/ipc/handler/file_picker.rs` 의
   `trigger_from_a_non_plugin_caller_is_refused_without_opening_the_popup` 이 깨진다.
 - 창 라우터(`route_window_handler`)에 팔이 새로 생기거나 이 메서드가 호출자를 다시 가리지 않는다 —
-  `src/adapters/ipc/handler/window_router_caller_tests.rs` 가 깨진다. 앞쪽은 팔과 호출자 명부의 집합
+  `src/adapters/ipc/handler/window_router_caller_tests.rs` 가 깨진다(시험 모듈 doc 의 "한계" 자리는
+  제외 — 그 목록은 닫혀 있지 않다). 앞쪽은 팔과 호출자 명부의 집합
   대조이고, 뒤쪽은 `PluginOnly` 팔을 CLI·agent 로 불러 `-32016` 과 창 무변화를 본다.
 
 **원리적으로 안 붙는 것** — 사람이 관측해야 한다.
