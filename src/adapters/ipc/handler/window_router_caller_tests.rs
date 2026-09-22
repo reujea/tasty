@@ -10,6 +10,24 @@
 //! 두 시험이 짝이다. 하나는 라우터의 팔과 명부가 같은 집합인지 본다 — 새 팔은 명부에 호출자
 //! 정책을 적어야 들어온다. 다른 하나는 `PluginOnly` 인 팔을 CLI·agent 로 실제로 불러, `-32016`
 //! 으로 끝나고 창에 아무것도 남기지 않는지 본다.
+//!
+//! 첫 시험은 라우터 본문의 `=>` 를 **전부** 팔 머리로 읽고, 따옴표 이름을 하나도 못 뽑은 머리는
+//! guard 없는 `_` 가 아니면 실패시킨다. binding 패턴(`m if m.starts_with(…) =>`) · 상수 경로 ·
+//! raw 문자열 · `_ if … =>` · guard 문자열이 `,` 를 담아 머리가 잘린 팔이 그렇게 걸린다 —
+//! 추출기가 못 읽는 팔을 버리면 그 팔이 명부 없이 조용히 들어오기 때문이다.
+//!
+//! 그 대가로 팔 머리가 아닌 `=>` 도 머리로 읽혀 실패한다 — 팔 본문 안의 중첩 `match`
+//! (`Some(x) =>`) · 매크로 규칙 · `=>` 를 담은 문자열이다. **오늘은 0 곳이다**: 본문의 `=>` 는
+//! 팔 둘(`"file_picker.trigger"` · `_`)의 것뿐이다. 재는 법 —
+//! `awk '/^fn route_window_handler\(/,/^}/' src/adapters/ipc/handler.rs | grep -c '=>'` 가 팔
+//! 수와 같은가. 그런 `=>` 가 생기면 그 모양만 좁게 건너뛰는 예외를 `arm_head` 호출부에 근거와
+//! 함께 둔다(명부를 고쳐 통과시키지 않는다).
+//!
+//! "새 팔은 명부를 거쳐야 들어온다" 가 아직 닿지 않는 자리가 둘 남는다. 둘 다 `=>` 머리가 아니라
+//! 이 시험이 원리적으로 안 본다.
+//! - `_` 팔의 **본문**: 오늘은 `return None` 이지만, 거기서 다른 함수로 넘기면 그 함수가 받는
+//!   메서드는 명부를 안 거친다.
+//! - `match` 밖의 분기: `match` 앞에 `if request.method == "…" { return … }` 를 두면 팔이 아니다.
 
 use serde_json::json;
 use std::collections::BTreeSet;
@@ -61,21 +79,37 @@ fn window_router_arms() -> BTreeSet<String> {
     }
     let body = &src[open..end];
     let mut arms = BTreeSet::new();
+    let mut unreadable = Vec::new();
     for (i, _) in body.match_indices("=>") {
-        for name in arm_head_names(&body[..i]) {
-            arms.insert(name);
+        let head = arm_head(&body[..i]);
+        let names = arm_head_names(head);
+        // 이름을 하나도 못 뽑은 머리는 버리지 않는다 — 버리면 추출기가 모르는 모양의 팔이
+        // 명부 없이 조용히 들어온다. 통과시켜도 되는 것은 guard 없는 `_` 하나뿐이다.
+        if names.is_empty() && head != "_" {
+            let line = body[..i].rfind('\n').map_or(0, |n| n + 1);
+            unreadable.push(format!(
+                "머리 `{head}` — 그 줄 `{}`",
+                body[line..i + 2].trim()
+            ));
         }
+        arms.extend(names);
     }
+    assert!(
+        unreadable.is_empty(),
+        "창 라우터에서 추출기가 읽지 못한 팔 머리가 있다:\n  {}\n★ 명부를 고치지 말고 \
+         추출기(`arm_head` · `arm_head_names`)를 고쳐라 — 못 읽는 팔은 누가 부르는지 \
+         판정할 수 없다",
+        unreadable.join("\n  ")
+    );
     arms
 }
 
-/// `=>` 바로 앞까지의 본문(`before`)에서 그 팔 머리의 따옴표 이름을 전부 뽑는다.
+/// `=>` 바로 앞까지의 본문(`before`)에서 그 팔 머리를 떼어 낸다.
 ///
-/// 팔 머리는 직전 경계(괄호 밖의 `,` · `{` · `}`)부터 `=>` 까지다. 그 안에서 속성(`#[...]`)을
-/// 걷어내고, match guard(` if …`)를 잘라낸 뒤 `|` 로 나눈 조각 중 따옴표 이름을 넣는다.
-/// 닫는 따옴표 바로 뒤의 ` =>` 만 팔로 보면 `"a" if … =>` 처럼 guard 가 붙은 팔이 명부 없이
-/// 들어오고, 마지막 이름만 보면 기존 팔에 `|` 로 얹은 새 이름이 명부 없이 들어온다.
-fn arm_head_names(before: &str) -> Vec<String> {
+/// 팔 머리는 직전 경계(괄호 밖의 `,` · `{` · `}`)부터 `=>` 까지이고, 속성(`#[...]`)은 걷어낸다.
+/// 경계 역주사는 문자열 리터럴을 모른다 — guard 안 문자열이 `,` 를 담으면 머리가 그 뒤
+/// 조각으로 잘린다. 그렇게 잘린 머리는 이름이 안 나와 호출부가 실패시킨다.
+fn arm_head(before: &str) -> &str {
     let bytes = before.as_bytes();
     let mut depth = 0usize;
     let mut from = 0;
@@ -109,6 +143,15 @@ fn arm_head_names(before: &str) -> Vec<String> {
         }
         head = rest[cut..].trim_start();
     }
+    head
+}
+
+/// 팔 머리(`arm_head`)에서 따옴표 이름을 전부 뽑는다.
+///
+/// match guard(` if …`)를 잘라낸 뒤 `|` 로 나눈 조각 중 따옴표 이름을 넣는다. 닫는 따옴표 바로
+/// 뒤의 ` =>` 만 팔로 보면 `"a" if … =>` 처럼 guard 가 붙은 팔이 명부 없이 들어오고, 마지막
+/// 이름만 보면 기존 팔에 `|` 로 얹은 새 이름이 명부 없이 들어온다.
+fn arm_head_names(head: &str) -> Vec<String> {
     // guard 는 공백 뒤의 `if` 낱말부터다(rustfmt 가 guard 를 다음 줄로 내려도 같다).
     let guard = head.match_indices("if").find(|(k, _)| {
         head[..*k].ends_with(char::is_whitespace)
