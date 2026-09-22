@@ -35,17 +35,12 @@
 //! "바인딩 없음" 플레이스홀더 한 줄을 그린다(2026-07-06 결정, ADR-0038). 이전엔 빈 섹션을
 //! 생략했으나, 미할당 조합을 홀드하면 패널이 아예 안 떠 "반응 없음"으로 읽히는 문제로 반전.
 //!
-//! NOTE: modifier-hint-03 오버레이(`super::super::modifier_hint_overlay`)가 대부분을 소비한다
-//! (`build_hint_sections`/`Combo`/`HintSection`/`HintRow`/`HintRowSource`/
-//! `HintRole`). 남은 미사용은 ① `Combo::name`(테스트/디버그 전용), ② `PluginBindingInput`
-//! (plugin 단축키 wiring — `PluginManager` 가 `App` 소유라 draw 경로에 아직 미도달, 후속
-//! 배선 대상). 이 둘 때문에 blanket allow 를 유지한다. plugin wiring 완료 시 제거.
-#![allow(dead_code)]
+//! NOTE: 오버레이(`super::super::modifier_hint_overlay`)가 이 모델을 소비한다. plugin 단축키는
+//! 아직 배선되지 않았다 — `PluginManager` 가 `App` 소유라 draw 경로에 미도달이고, 오버레이는
+//! `plugin_bindings` 에 빈 목록을 넘긴다. 배선할 때 registry entry 를 [`PluginBindingInput`] 으로
+//! 바꾸는 해석(`crate::plugin::command_registry::effective_binding`)을 그 자리에 둔다.
 
 use tasty_settings::KeybindingSettings;
-
-use crate::plugin::command_registry::{EffectiveBinding, PluginCommandEntry, effective_binding};
-use crate::plugin::registry_state::ShortcutOverride;
 
 use tasty_key_match::parse_binding;
 
@@ -138,7 +133,7 @@ impl HintSection {
 
 /// Plugin command 하나의 표시용 입력(effective 바인딩 해석 결과).
 ///
-/// [`EffectiveBinding`] 을 재사용해 실제 매칭 키로 환원한 값을 담는다. registry 순회·
+/// `crate::plugin::command_registry::EffectiveBinding` 을 재사용해 실제 매칭 키로 환원한 값을 담는다. registry 순회·
 /// override 소스·focus 스코핑은 오버레이 wiring 이 담당하고, 이 모델은 완성된 입력을 받는다
 /// (순수 함수 테스트 가능성 유지).
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -149,35 +144,12 @@ pub struct PluginBindingInput {
     pub bindings: Vec<String>,
 }
 
-impl PluginBindingInput {
-    /// registry entry + 사용자 override + host keybindings → 표시용 입력.
-    ///
-    /// `EffectiveBinding::Inherit` 는 호스트에서 해석된 `keys` 를, `Keys` 는 그대로,
-    /// `None` 은 빈 목록을 쓴다. focus 스코핑은 하지 않는다(모델 전량 노출, open).
-    pub fn resolve(
-        entry: &PluginCommandEntry,
-        user_override: Option<&ShortcutOverride>,
-        host_kb: &KeybindingSettings,
-    ) -> Self {
-        let bindings = match effective_binding(entry, user_override, host_kb) {
-            EffectiveBinding::Keys(v) => v,
-            EffectiveBinding::Inherit { keys, .. } => keys,
-            EffectiveBinding::None => Vec::new(),
-        };
-        Self {
-            plugin_id: entry.plugin_id.clone(),
-            title_i18n_key: entry.title_i18n_key.clone(),
-            bindings,
-        }
-    }
-}
-
 /// 홀드 조합 `held` 에 대한 정렬된 조합 콘텐츠를 만든다.
 ///
 /// - `held`: 사용자가 누르고 있는 modifier **조합**(4축). 이 조합을 포함하는 조합만 노출된다.
 /// - `kb`: 고정 필드 + `script_bindings` + tab/workspace switch modifier 소스.
 /// - `link_click_modifier`: `general.link_click_modifier`(`"ctrl"`|`"alt"`|`"none"`).
-/// - `plugin_bindings`: 표시할 plugin command 입력(전량, [`PluginBindingInput::resolve`] 산출).
+/// - `plugin_bindings`: 표시할 plugin command 입력(전량).
 ///
 /// 반환은 정렬된 섹션 목록이며 **빈 섹션(바인딩·역할 모두 없음)은 생략**된다.
 pub fn build_hint_sections(
