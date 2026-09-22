@@ -385,7 +385,7 @@ pub(crate) fn judge(f: &DueFacts) -> Verdict {
     // 입력창에 초안이 있을 수 있다. `is_typing` 은 최근 5 초만 보므로 초안을 쓰다 멈춘
     // 사용자를 놓친다. 그래서 마지막 입력 시각(`idle_seconds`)을 창과 견준다.
     if f.key_idle.is_some_and(|idle| idle < f.since_input_window) {
-        return Verdict::Cancel("the user typed after the turn began");
+        return Verdict::Cancel("the user gave input after the turn began");
     }
     if f.attempts >= f.settings.max_attempts {
         return Verdict::LimitReached;
@@ -681,7 +681,7 @@ mod tests {
         f.since_input_window = Duration::from_secs(12);
         assert_eq!(
             judge(&f),
-            Verdict::Cancel("the user typed after the turn began")
+            Verdict::Cancel("the user gave input after the turn began")
         );
     }
 
