@@ -3,7 +3,7 @@
 - **Status**: Implemented
 - **주체**: 로컬 사용자 · AI Agent (`file_handler.dispatch`) · plugin (contribute)
 - **ADR**: [URL 대상은 picker·실행 계층에만](../../adr/0272-url-targets-enter-the-handler-picker-not-identify.md)
-- **코드**: `crates/tasty-file-format/`(식별) + `crates/tasty-file-handler/`(핸들러 정책·레지스트리) + `src/file/dispatch.rs`(디스패치); IPC `file_handler.{reload,dispatch}`
+- **코드**: `crates/tasty-file-format/`(식별) + `crates/tasty-file-handler/`(핸들러 정책·레지스트리) + `src/file/dispatch.rs`(디스패치); IPC `file_handler.{reload,detectors,dispatch}`
 - **화면**: [설정 창](../settings/screens/settings.md) Handler 탭의 파일 서브탭 3종 · file_handler_picker popup
 
 ## 목적
