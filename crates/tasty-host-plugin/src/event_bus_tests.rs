@@ -554,3 +554,51 @@ fn the_count_limit_still_applies_to_small_events() {
     );
     assert!(bytes < crate::event_bus::EVENT_RING_BYTES_LIMIT);
 }
+
+// ── 등급은 구독 조건이 아니다 (ADR-0501) ─────────────────────────────────────
+
+/// 카탈로그가 적은 구독 조건 — 매니페스트 `event_subscribe` 가 덮는가 하나 — 이 코드의
+/// 판정과 같다는 것을 고정한다. Experimental 키도 `experimental_events` 유무와 무관하게
+/// 받는다. 매니페스트는 실제 파서를 거치고, 권한은 `pump` 가 넘기는 필드 그대로 넘긴다.
+#[test]
+fn an_experimental_key_reaches_a_subscriber_with_or_without_the_experimental_flag() {
+    let manifest = |id: &str, extra: &str| -> tasty_plugin_manifest::Manifest {
+        toml::from_str(&format!(
+            r#"manifest_version=1
+id="{id}"
+name="P"
+version="0.1.0"
+api_version="1"
+event_subscribe=["agent.*", "tab.*"]
+{extra}
+[entry]
+type="process"
+command="x"
+"#
+        ))
+        .expect("manifest parses")
+    };
+    let flagged = manifest("com.example.flagged", "experimental_events = true");
+    let plain = manifest("com.example.plain", "");
+    let bus = EventBus::new();
+    for m in [&flagged, &plain] {
+        bus.set_plugin_permissions(&m.id, m.event_subscribe.clone(), m.event_publish.clone());
+        bus.subscribe_plugin(&m.id, 1, "agent.*".into())
+            .expect("agent.* subscribe allowed");
+        bus.subscribe_plugin(&m.id, 2, "tab.*".into())
+            .expect("tab.* subscribe allowed");
+    }
+    for key in ["agent.task_finished", "tab.created"] {
+        let mut got: Vec<String> = bus
+            .publish_from_host(env(key, EventOrigin::Host))
+            .into_iter()
+            .map(|d| d.plugin_id)
+            .collect();
+        got.sort();
+        assert_eq!(
+            got,
+            vec!["com.example.flagged", "com.example.plain"],
+            "{key} 는 플래그와 무관하게 두 plugin 에 간다"
+        );
+    }
+}

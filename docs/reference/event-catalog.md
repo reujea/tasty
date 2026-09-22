@@ -53,7 +53,7 @@ agent
 ## 안정성 등급
 
 - **Stable** — major 전까지 키·필수 필드 불변, 옵션 필드 추가만.
-- **Experimental** — minor 마다 변경 가능, 매니페스트 `experimental_events = true` 필요.
+- **Experimental** — minor 마다 변경 가능. **경고일 뿐 구독 조건이 아니다** — 구독 조건은 등급과 무관하게 매니페스트 `event_subscribe` 패턴이 요청 패턴을 덮는가 하나다. 근거는 [ADR-0501](../adr/0501-the-experimental-event-grade-is-a-warning-not-a-subscription-gate.md).
 - **Internal** — debug 빌드 전용.
 
 ## 카탈로그
@@ -137,7 +137,7 @@ scope=global command 단축키는 조합키만, scope=surface 는 단일 키도 
 - **실패 사유·task 결과·명령 출력을 안 싣는다.** 그 문자열은 task 가 돌린 명령의 출력을 담을 수 있고 피드는 구독 권한만 있으면 받는다. 필요하면 `task_id` 로 `agent.task_get` 을 부른다.
 - **`agent.barrier_closed` 에 시간 초과는 안 온다.** barrier 의 `timed_out` 은 전이가 일어나는 순간이 없고 읽는 쪽이 시계를 견줄 때 도장이 찍힌다.
 - **lease 만료는 사건이 아니다.** 같은 이유다 — 만료는 읽을 때 평가되는 술어이고, 그것을 사건으로 내면 발화 시점이 "누가 언제 조회했나" 에 달린다.
-- 등급이 Experimental 이라 구독 plugin 의 매니페스트에 `experimental_events = true` 가 필요하다.
+- 등급이 Experimental 이라 minor 에서 키·payload 가 바뀔 수 있다. 구독 조건은 다른 키와 같다 — 매니페스트 `event_subscribe` 가 그 키를 덮으면 받는다.
 
 ### IME / Theme / Language / Notification / Hook / System
 | 키 | scope | 등급 | payload |
