@@ -637,8 +637,9 @@ mod tests {
             after.baseline(),
         );
 
-        // 초록일 때도 이 회차의 검출력을 남긴다 — `injected_ratio` 가 문턱보다 얼마나 위인가가
-        // 곧 이 초록이 무엇을 쟀는가다.
+        // 초록일 때도 이 회차의 검출력을 남긴다 — `baseline_ms` · `injected_ms` 가 이 회차의 값이다.
+        // `injected_ratio` 는 측정값이 아니라 구성상 상수(`1 + INJECTED_OVER_BASELINE`)다 — 상수가
+        // 바뀌면 달라지고, 부하로는 안 움직인다.
         observe!(
             before = n(before.ratio()),
             after = n(after.ratio()),
