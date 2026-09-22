@@ -1779,6 +1779,9 @@ fn remove_mirror_workspace_from_engine(
     engine.workspaces.remove(pos);
     // 활성 포인터를 대상 기준으로 보정(제거로 인한 밀림 + out-of-range 방지).
     state.fix_workspace_pointers_after_removal(pos, engine.workspaces.len());
+    // 사용자가 로컬 워크스페이스를 다 닫고 mirror 만 남겼으면 창이 0 개로 남는다 — 원격이
+    // 끊겼다고 사용자 창을 닫지 않고 기본 워크스페이스를 다시 만든다.
+    state.recreate_workspace_if_empty(engine, "mirror workspace cleanup");
     true
 }
 
@@ -4292,6 +4295,45 @@ mod tests {
             engine.workspaces.len() - 1,
             "제거로 out-of-range 가 된 active_workspace 클램프"
         );
+    }
+
+    /// 사용자가 로컬 워크스페이스를 다 닫아 mirror 워크스페이스만 남은 engine 에서 그것을
+    /// 정리하면(원격 끊김) 워크스페이스 0 개로 남지 않고 기본 워크스페이스가 다시 생겨 활성이
+    /// 된다 — 0 개로 남으면 다음 redraw 의 `active_workspace()` 가 panic 한다. 재생성 호출을
+    /// 지우는 변이에서 실패해야 한다.
+    #[test]
+    fn removing_the_only_mirror_workspace_recreates_a_default_workspace() {
+        let (mut state, mut engine) = crate::state::tests::test_state();
+        let ws_id = 9_000u32;
+        let local_surface = 9_003u32;
+        let mut mirror_ws = Workspace::new_with_terminal_marker(
+            ws_id,
+            "mirror".to_string(),
+            9_001,
+            9_002,
+            local_surface,
+        );
+        mirror_ws.mirror = true;
+        engine.workspaces.clear();
+        engine.workspaces.push(mirror_ws);
+        state.active_workspace = 0;
+
+        assert!(remove_mirror_workspace_from_engine(
+            &mut engine,
+            &mut state,
+            ws_id,
+            &HashMap::from([(42u32, local_surface)]),
+        ));
+
+        assert_eq!(
+            engine.workspaces.len(),
+            1,
+            "기본 워크스페이스가 다시 생긴다"
+        );
+        assert!(!engine.has_workspace(ws_id));
+        assert_eq!(state.active_workspace, 0);
+        // 0 개면 여기서 debug_assert 로 panic 한다 — redraw 가 묻는 그 질의다.
+        assert!(!state.active_workspace(&engine).mirror);
     }
 
     /// 그 워크스페이스를 들고 있지 않은 engine 은 건드리지 않는다 — main → parked

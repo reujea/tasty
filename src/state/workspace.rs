@@ -110,6 +110,39 @@ pub(crate) fn active_index_after_move(active: usize, from: usize, to: usize) -> 
 }
 
 impl AppState {
+    /// 워크스페이스가 하나도 남지 않았으면 기본 워크스페이스를 만들어 활성으로 삼는다. 만들었으면
+    /// `true`.
+    ///
+    /// 창이 워크스페이스 0 개로 남으면 다음 redraw 의 `active_workspace()` 가 panic 한다. 이
+    /// 함수를 부르는 자리는 **사용자가 창을 닫으려 한 것이 아닌** 제거다(원격 끊김으로 mirror
+    /// 워크스페이스가 사라지는 것 등) — 그 제거가 사용자 창을 닫게 두지 않는다(identity 원칙 1).
+    /// 시스템 invariant restorer 라 host event 는 내지 않는다
+    /// ([`crate::core::Core::create_default_workspace`] 와 같은 의미 — 에이전트가 마지막 surface 를
+    /// 닫은 경우의 `close_surface_by_id_no_snapshot` 도 같은 모양이다).
+    pub(crate) fn recreate_workspace_if_empty(
+        &mut self,
+        engine: &mut CoreState,
+        context: &str,
+    ) -> bool {
+        if !engine.workspaces.is_empty() {
+            return false;
+        }
+        match crate::core::apply_create_workspace_inner(
+            engine,
+            crate::core::WorkspaceCreationParams::terminal(),
+        ) {
+            Ok(crate::core::intent::CoreEvent::WorkspaceCreated { index, .. }) => {
+                self.active_workspace = index;
+                true
+            }
+            Ok(_) => unreachable!("apply_create_workspace_inner 는 WorkspaceCreated 만 반환"),
+            Err(e) => {
+                tracing::warn!("{context}: auto-recreate workspace failed: {e}");
+                false
+            }
+        }
+    }
+
     /// 워크스페이스 제거 직후, 인덱스를 값으로 들고 있는 활성 포인터를 대상 기준으로
     /// 보정한다.
     ///

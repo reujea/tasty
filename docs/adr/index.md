@@ -211,6 +211,7 @@ modifier-hint 는 0035(좁힘 + 지연) · 0038(빈 섹션) · 0064(타이머 �
 | 0480 | [forward 된 구조 op 는 누가 요청했는지를 싣고, 에이전트의 close 는 서버 복원 스택에 안 남는다 — ADR-0264 의 결정 4 개정](0480-a-forwarded-close-carries-who-asked-for-it.md) | Accepted | 2026-09-22 | attach, mirror, remote, restore, closed-item, wire-format, user-agent-separation, identity, adr-0264, adr-0395 |
 | 0481 | [점유 워크스페이스의 forward 아닌 구조 변경도 기존 StructuralDelta 로 holder 에게 보낸다](0481-a-server-side-structure-change-reaches-the-holder-as-a-delta.md) | Accepted | 2026-09-22 | attach, mirror, remote, wire-format, structural-delta, pty-exit, occupancy, adr-0040, adr-0264 |
 | 0482 | [forward 가 사라진 surface 를 지목하면 IPC 와 같은 "no live surface" 사유로 거절한다](0482-a-forward-naming-a-gone-surface-is-answered-like-ipc.md) | Accepted | 2026-09-22 | attach, mirror, remote, error-message, wire-format, parity, adr-0395 |
+| 0536 | [원격 끊김으로 창의 마지막 mirror 워크스페이스가 사라지면 기본 워크스페이스를 다시 만든다](0536-a-remote-drop-that-empties-a-window-recreates-a-default-workspace.md) | Accepted | 2026-09-23 | remote-attach, mirror, disconnect, workspace, window-lifecycle, identity-principle-1, adr-0120 |
 
 ## attention · 알림
 
