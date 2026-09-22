@@ -1773,11 +1773,14 @@ fn a_headless_daemon_warns_at_boot_that_restore_layout_is_ignored() {
     let _lane = lane();
     let tasty = common::TastyInstance::spawn_with_restore_layout();
     // 고지는 포트 파일 **뒤**에 나간다 — `run_headless` 가 IPC 를 먼저 열어 포트 파일을 쓰고
-    // (`start_ipc_and_seed`), 그 다음 `bootstrap_engine` 이 고지를 warn 한다. 하네스는 포트 파일을
-    // 보고 돌아오므로 이 시점에는 아직일 수 있다. `system.info` 는 `bootstrap_engine` 뒤에 도는
-    // 메인 루프가 처리하므로, 응답이 왔으면 고지는 이미 stderr 로 나갔다. 이 호출을 빼면 아래
-    // 5 초 폴링 창이 배출 스레드 지연에 더해 `bootstrap_engine` 소요까지 떠안는다(부하 머신에서
-    // 가짜 빨강). 폴링은 배출 스레드가 링에 넣는 지연만 흡수한다.
+    // (`start_ipc_and_seed`), 그 다음 `bootstrap_engine` 이 고지를 warn 한다. 그래도 하네스 spawn 은
+    // 포트 파일 뒤에 `surface.list`·셸 대기로 메인 루프를 왕복한 다음 돌아오므로, 이 시점에는
+    // 고지가 이미 stderr 로 나갔다. 아래 폴링은 배출 스레드가 링에 넣는 지연만 흡수한다.
+    // `system.info` 호출은 지금은 중복이다 — 하네스 spawn 이 나중에 포트 파일만 보고 돌아오게
+    // 바뀌어도 이 시험이 안 흔들리게 하는 보험이다(메인 루프가 응답했으면 고지는 나갔다). 이
+    // 보험은 문다 — 하네스를 영구히 바꿀 필요 없이 임시 변이로 잰다: `src/boot.rs` 의 고지 직전에
+    // 6 초 sleep 을 넣고(초록), `tests/common/mod.rs` 의 `wait_for_shell` 호출을 빼 하네스가 포트
+    // 파일만 보고 돌아오게 하면 여전히 초록이며, 거기서 이 호출까지 빼면 아래 단언이 FAILED 가 된다.
     tasty.call("system.info", json!({}));
     let deadline = std::time::Instant::now() + Duration::from_secs(5);
     let line = loop {
