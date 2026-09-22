@@ -525,6 +525,16 @@ fn send<H: HostCall>(
         tracing::warn!("claude auto-resume s{surface_id}: tell failed, not retrying: {e}");
         return;
     }
+    record_resume(table, host, surface_id, pending);
+}
+
+/// 보낸 재개 한 번을 시도 수로 센다 — 표에 올리고, 그 수를 surface 메타데이터에도 적는다.
+fn record_resume<H: HostCall>(
+    table: &Mutex<ResumeTable>,
+    host: &H,
+    surface_id: u32,
+    pending: &Pending,
+) {
     let n = lock_table(table).record_attempt(surface_id);
     tracing::info!(
         "claude auto-resume s{surface_id}: resumed after {} (attempt {n})",
