@@ -266,7 +266,7 @@ modifier-hint 는 0035(좁힘 + 지연) · 0038(빈 섹션) · 0064(타이머 �
 
 ## IPC 계약 · 오류 코드 · 멱등 키
 
-미라우팅 응답 0154 · 0163 · 0167 은 오류 코드 `-32015`~`-32017` 각각의 결정이고 소스가 번호로 인용하므로 합치지 않는다(0425 가 file handler 에 적용 — 「파일 핸들러 · 파일 피커」 그룹). 멱등 키는 0306 → 0338 → 0361 → 0423(선언 값 개정) · 0420 · 0421 · 0422 이다.
+미라우팅 응답 0154 · 0163 · 0167 은 오류 코드 `-32015`~`-32017` 각각의 결정이고 소스가 번호로 인용하므로 합치지 않는다(0425 가 file handler 에 적용 — 「파일 핸들러 · 파일 피커」 그룹). 멱등 키는 0306 → 0338 → 0361 → 0423(선언 값 개정) · 0420 · 0421 · 0422 이다. break 의 deprecation 유예를 건너뛰는 사유(보안 · 심각 버그 · 불가침 원칙 위반)는 0557 이 원칙 위반을 더했고, 목록은 운영 문서 「Deprecation 절차」 한 자리에 있다.
 운영 문서: [dev-guide/api-conventions](../dev-guide/api-conventions.md)
 
 | # | Title | Status | Date | Tags |
@@ -283,6 +283,7 @@ modifier-hint 는 0035(좁힘 + 지연) · 0038(빈 섹션) · 0064(타이머 �
 | 0421 | [App 층도 멱등 키 계약을 지킨다 — 진행 중인 키에 온 재시도는 첫 실행에 합류한다](0421-the-app-layer-keeps-the-idempotency-contract-and-a-running-key-is-joined.md) | Accepted | 2026-09-21 | ipc, idempotency, retry, app-layer, concurrency, deferred-response, headless, adr-0338, adr-0361 |
 | 0422 | [재시도 누계는 판정하는 보존소가 센다 — 노출 전 스냅샷까지만](0422-the-retry-counts-are-kept-by-the-store-that-decides.md) | Accepted | 2026-09-21 | ipc, idempotency, telemetry, retry, pressure, observability, adr-0305, adr-0333, adr-0421 |
 | 0423 | [메서드마다 멱등 키 계약과 그것을 지키는 판을 선언한다 — ADR-0361 의 선언 값 조항 개정](0423-each-method-declares-its-key-contract-and-the-version-that-keeps-it.md) | Accepted | 2026-09-21 | ipc, protocol, idempotency, capability, method-meta, compatibility, adr-0312, adr-0338, adr-0361, adr-0421 |
+| 0557 | [불가침 원칙 위반은 deprecation 유예 없이 고친다 — 위반을 이루는 부분만, 가장 적게 깨는 형태로](0557-an-inviolable-principle-violation-is-fixed-without-a-deprecation-period.md) | Accepted | 2026-09-23 | api-stability, deprecation, compatibility, changelog, identity, identity-principle-1, identity-principle-3, adr-0115, adr-0122, adr-0532, adr-0533 |
 
 ## 사건 피드 · 출력 위치
 

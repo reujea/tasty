@@ -467,7 +467,7 @@ CLI 인자는 `--surface`(매니페스트의 `surface`)이고 호스트 IPC 의 
 
 | 단계 | break 정책 |
 |------|-----------|
-| 0.x (현재) | 적극 변경. break 는 `CHANGELOG.md` 에 `(BREAK)` 표기 + **한 minor 이상 deprecation 우선**(보안 예외 즉시 제거 가능). major bump 는 사용자 결정으로만 |
+| 0.x (현재) | 적극 변경. break 는 `CHANGELOG.md` 에 `(BREAK)` 표기 + **한 minor 이상 deprecation 우선**(유예를 건너뛰는 예외는 아래 「Deprecation 절차」 한 자리에만 적는다). major bump 는 사용자 결정으로만 |
 | 안정선 | SemVer 엄격. `api_version = "1"` schema 는 추가만. 진입 시점은 사용자가 결정 |
 | 1.x | minor 추가, major break |
 | 2.0 | `api_version = "2"` 시작. plugin 이 매니페스트로 명시 선택 |
@@ -530,7 +530,11 @@ CLI 인자는 `--surface`(매니페스트의 `surface`)이고 호스트 IPC 의 
 3. `CHANGELOG.md` `Deprecated` 절에 제거 기한 기록.
 4. 기한 직전 일괄 제거 PR.
 
-deprecation 기간은 "한 minor 이상"이 원칙(보안·심각 버그는 즉시 제거 가능).
+deprecation 기간은 "한 minor 이상"이 원칙이다. 아래 셋은 유예 없이 바로 바꾸거나 제거할 수 있다 — 유예 생략 사유는 **이 목록 한 자리에만** 적는다(위 버전 단계 표는 여기를 가리킨다).
+
+- **보안**
+- **심각 버그**
+- **불가침 원칙 위반** — [`identity.md`](../identity.md) §2 의 원칙을 어기는 동작. 유예를 두면 그 기간 동안 위반이 그대로 출하된다. 세 조건이 붙는다: ① 유예를 건너뛰는 것은 위반을 이루는 부분뿐이고, 함께 가는 무관한 break 는 정상 절차를 따른다. ② 고치는 형태가 여럿이면 기존 호출자를 가장 적게 깨는 쪽을 고른다. ③ `(BREAK)` 항목에 어느 원칙을 어겼는지와, 유예를 건너뛴 사유가 이 예외라는 것을 적는다. 근거·대안은 [ADR-0557](../adr/0557-an-inviolable-principle-violation-is-fixed-without-a-deprecation-period.md).
 
 ### plugin-protocol schema
 
