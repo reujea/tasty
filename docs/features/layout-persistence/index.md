@@ -68,7 +68,7 @@ write 는 `NN.json.tmp` 에 쓴 뒤 rename 하는 **원자적** 교체다. 슬�
 
 저장된 슬롯이 여러 개여도 **부팅 시 창은 1개**다. 나머지 슬롯은 free 로 남아 있다가 창을 더 열면 순서대로 복원된다.
 
-headless(`--headless`)는 레이아웃 복원을 적용하지 않으므로 슬롯을 점유하지도, 저장하지도 않는다.
+headless 빌드(`--no-default-features`)는 레이아웃을 영속하지 않는다 — 슬롯을 점유하지도, 저장하지도, 복원하지도 않고, 워크스페이스는 프로세스 수명 동안만 산다. `general.restore_layout` 이 켜져 있으면 부팅 때 그 설정이 무시된다는 warn 을 한 줄 남긴다([ADR-0539](../../adr/0539-headless-does-not-persist-layouts.md)). (gui 빌드에 `--headless` 를 주면 헤드리스가 아니라 GUI 로 폴백하므로 이 절이 아니라 위 규칙을 따른다.)
 
 ### 슬롯 점유
 

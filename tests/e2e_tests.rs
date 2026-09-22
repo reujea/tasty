@@ -1738,6 +1738,28 @@ fn mirror_forward_requests_are_refused_by_name_in_a_headless_daemon() {
     );
 }
 
+/// 헤드리스는 레이아웃을 영속하지 않는다 — 슬롯을 점유하지 않고, 그 사실을 `system.info` 의
+/// `layout_slot: null` 로 답한다(docs/adr/0539-headless-does-not-persist-layouts.md). 에이전트가
+/// "재시작하면 워크스페이스가 돌아오는가" 를 이 값 하나로 판정하므로, 슬롯을 잡기 시작하면(저장·
+/// 복원 배선이 생기면) 이 시험이 먼저 알린다.
+#[cfg(not(feature = "gui"))]
+#[test]
+fn a_headless_daemon_answers_that_it_holds_no_layout_slot() {
+    let _lane = lane();
+    let tasty = common::shared();
+    let info = tasty.call("system.info", json!({}));
+    assert!(
+        info.as_object()
+            .is_some_and(|o| o.contains_key("layout_slot")),
+        "system.info 가 layout_slot 칸을 아예 안 냈다 — 소비자 쪽에서 null 과 구별되지 않는다: {info}"
+    );
+    assert_eq!(
+        info["layout_slot"],
+        serde_json::Value::Null,
+        "헤드리스는 레이아웃 슬롯을 잡지 않는다: {info}"
+    );
+}
+
 /// 디렉토리 dispatch 는 host 기본 핸들러 `directory-system`(OS 열기)으로 간다 — 하네스가 켠
 /// `TASTY_DEBUG_OS_OPEN_LOG` 아래에서는 그것이 **띄워지지 않고 기록된다.**
 ///

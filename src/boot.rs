@@ -556,9 +556,13 @@ fn bootstrap_engine(
     // gui 의 `begin_boot` 과 같은 부팅 1 회 훅 — 레거시 `layout.json` 마이그레이션 +
     // 전 슬롯 union scrollback GC. `new_with_ids` 가 슬롯을 읽기 전이어야 한다.
     crate::core::layout_persistence::migrate_and_gc_on_boot(boot_settings.general.restore_layout);
+    if let Some(notice) = layout_persistence_notice(boot_settings.general.restore_layout) {
+        tracing::warn!("{notice}");
+    }
     let mut engine =
-        // 슬롯 `None` — headless 는 레이아웃 복원을 적용하지 않으므로(위 "0-C")
-        // 어떤 슬롯도 점유하지 않고 로드·저장 모두 하지 않는다.
+        // 슬롯 `None` — headless 는 레이아웃을 영속하지 않으므로 어떤 슬롯도 점유하지 않고
+        // 로드·저장 모두 하지 않는다(docs/adr/0539-headless-does-not-persist-layouts.md).
+        // 에이전트는 `system.info` 의 `layout_slot: null` 로 이것을 본다.
         crate::core::CoreState::new_with_ids(80, 24, base_waker, None, None, app.core.memory_arc())?;
     engine.waker_factory = Some(factory);
     // agent task runner 재시작 정화(결정 2) — 자동 시작은 하지 않는다(결정 1).
@@ -569,6 +573,18 @@ fn bootstrap_engine(
     // 서버와 동일한 StreamHub 를 attach registry 에 주입.
     engine.attach.set_notifier(app.stream_hub.clone());
     Ok(engine)
+}
+
+/// `general.restore_layout` 을 켠 설정으로 헤드리스를 띄우면 그 설정이 이 빌드에서 아무 일도
+/// 안 한다는 것을 부팅 때 한 번 알린다. headless 는 레이아웃을 저장도 복원도 하지 않는다 —
+/// 워크스페이스는 프로세스 수명 동안만 산다(docs/adr/0539-headless-does-not-persist-layouts.md).
+/// 설정의 기본값이 켜짐이라 알리지 않으면 "재시작하면 돌아온다" 로 읽힌다.
+#[cfg(not(feature = "gui"))]
+fn layout_persistence_notice(restore_layout: bool) -> Option<&'static str> {
+    restore_layout.then_some(
+        "general.restore_layout is on, but a headless build does not save or restore layouts: \
+         workspaces last for this process only (system.info reports layout_slot: null)",
+    )
 }
 
 /// 한 바퀴의 대기 결과.
@@ -780,8 +796,21 @@ fn run_headless(cli: cli::Cli) -> anyhow::Result<()> {
 
 #[cfg(all(test, not(feature = "gui")))]
 mod tests {
-    use super::rewake_if_left;
+    use super::{layout_persistence_notice, rewake_if_left};
     use std::ops::ControlFlow;
+
+    /// 레이아웃 복원을 켠 설정은 헤드리스에서 무시된다는 것을 말한다 — 기본값이 켜짐이라
+    /// 말하지 않으면 재시작 뒤 워크스페이스가 돌아온다고 읽힌다. 끈 설정에는 할 말이 없다.
+    #[test]
+    fn a_restore_layout_setting_is_announced_as_ignored() {
+        let notice = layout_persistence_notice(true).expect("켜진 설정은 알려야 한다");
+        assert!(notice.contains("restore_layout") && notice.contains("headless"));
+        assert!(
+            notice.contains("layout_slot: null"),
+            "in-band 로 확인하는 법을 함께 말한다"
+        );
+        assert_eq!(layout_persistence_notice(false), None);
+    }
 
     /// 예산에서 멈춰 명령이 남은 회차는 루프를 다시 깨운다 — 안 깨우면 남은 명령은 다른
     /// 입력이 올 때까지 선다(그 명령들의 wake 는 게이트에 접혀 사라졌다).
