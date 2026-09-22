@@ -39,7 +39,7 @@
 
 ## 터미널 에뮬레이션 · 입력
 
-VTE 지원 범위 · 마우스 리포팅 · PTY 수명. 마우스 리포팅 우회는 0019 → 0022 → 0023 사슬이고, 안내 배너는 0055 → 0061(per-app 억제 · 더보기 진입)로 이어진다.
+VTE 지원 범위 · 마우스 리포팅 · PTY 수명. 마우스 리포팅 우회는 0019 → 0022 → 0023 사슬이고, 안내 배너는 0055 → 0061(per-app 억제 · 더보기 진입)로 이어진다. PTY 종료 감지(EOF 뒤 재-wake)는 0523 이고, 같은 종료 판정을 기다리는 시험의 상한은 테스트 그룹의 0211 이다.
 운영 문서: [features/terminal](../features/terminal/index.md)
 
 | # | Title | Status | Date | Tags |
@@ -63,6 +63,7 @@ VTE 지원 범위 · 마우스 리포팅 · PTY 수명. 마우스 리포팅 우�
 | 0261 | [busy 는 순간값이 아니라 상태다 — 입력은 진입만 막고, 유지는 못 끊는다](0261-busy-is-a-state-and-input-blocks-only-entry.md) | Accepted | 2026-09-11 | busy-indicator, terminal, sidebar, osc133, shell-integration, input-echo, adr-0002 |
 | 0292 | [소거는 현재 배경색으로 칸을 채우고 pen 을 안 건드린다](0292-erase-fills-with-the-current-background.md) | Accepted | 2026-09-20 | terminal, vte, erase, bce, sgr, termwiz, adr-0002 |
 | 0307 | [출력 스캐너는 자기 커서로 읽는다 — 에이전트의 mark 를 공유하지 않는다](0307-the-output-scanner-reads-its-own-cursor.md) | Accepted | 2026-09-20 | terminal, output-buffer, ipc, plugin, claude, cursor, polling, adr-0085, adr-0266, adr-0306 |
+| 0523 | [PTY EOF 뒤에는 자식 종료가 판정될 때까지 parser 스레드가 계속 깨운다](0523-pty-eof-keeps-waking-until-the-exit-is-settled.md) | Accepted | 2026-09-23 | pty, terminal, process-exit, waker, headless, attach, structural-delta, flaky, ci, adr-0002, adr-0211, adr-0481 |
 
 ## 창 · 워크스페이스 · 포커스 · 수명주기
 

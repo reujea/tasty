@@ -20,7 +20,7 @@ ConPTY(Windows) / Unix PTY 로 네이티브 셸 실행(`TERM=xterm-256color`). �
 
 ### 프로세스 종료 / 절전 복귀
 
-자식 프로세스가 종료하면(파서 스레드의 PTY EOF 또는 throttled `try_wait`) `ProcessExited` 이벤트가 한 번 발화되고, cascade 가 해당 surface 를 자동 정리한다(hook 발화 → host event → surface close).
+자식 프로세스가 종료하면 `ProcessExited` 이벤트가 한 번 발화되고, cascade 가 해당 surface 를 자동 정리한다(hook 발화 → host event → surface close). 종료 판정은 호스트가 그 terminal 을 깨워 처리할 때 도는 `try_wait` 이고(`ALIVE_CHECK_INTERVAL` 500 ms 로 레이트 리밋, PTY EOF 뒤에는 리밋 없이 즉시), 깨우는 것은 파서 스레드다. PTY EOF 는 자식 종료보다 먼저 올 수 있어(커널이 자식의 fd 를 먼저 닫는다), 파서 스레드는 EOF 뒤 한 번 깨우고 끝나지 않고 종료가 판정되거나 terminal 이 닫힐 때까지 간격을 10 ms 부터 두 배씩 500 ms 까지 늘려 계속 깨운다 — 안 그러면 조용해진 PTY 의 종료를 영영 못 보고 죽은 surface 가 남는다([ADR-0523](../../adr/0523-pty-eof-keeps-waking-until-the-exit-is-settled.md)).
 
 **Windows 절전(suspend/resume) 복구**(Windows 전용, [ADR-0017](../../adr/0017-windows-suspend-resume-pty-recovery.md)): ConPTY 는 `conhost.exe` + named pipe 기반이라, OS 절전(특히 modern standby/hibernate) 복귀 후 자식이 stdin 을 읽지 않고 멈출(hang) 수 있다. 메인 윈도우에 `WM_POWERBROADCAST` 서브클래스를 붙여 resume 를 감지하고 헬스 패스를 돈다 — (1) 죽은 자식은 즉시 `ProcessExited` cascade 로 정리, (2) 살아있는 자식은 현재 크기로 ConPTY resize 를 재발행해 wake nudge, (3) wake 로도 깨어나지 못할 수 있는(자식 TUI 가 도는) surface 는 알림으로 가시화. Unix PTY(macOS/Linux)는 sleep 이 프로세스를 freeze→thaw 하며 fd/파이프를 보존해 hang 이 생기지 않으므로 이 경로는 적용하지 않는다(`#[cfg(windows)]`). hang 은 idle 과 구분 불가해 자동 *완전* 복구는 보장하지 않으며, 최종 수단은 사용자 재시작이다.
 

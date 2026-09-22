@@ -281,6 +281,9 @@ impl Terminal {
     /// Surface terminals never call this, so their child stays `Some` and their
     /// lifecycle (Drop-kill, zombie reaping) is unchanged.
     pub fn take_child(&mut self) -> Option<Box<dyn portable_pty::Child + Send + Sync>> {
+        // The new owner reaps the exit; the parser thread's post-EOF wakes, which
+        // exist to drive this handle's own exit check, would only spin.
+        self.exit_settled.store(true, Ordering::Release);
         self.pty.as_mut().and_then(|pty| pty.child.take())
     }
 

@@ -430,6 +430,10 @@ pub struct Terminal {
     dirty: Arc<AtomicBool>,
     /// Set by the parser thread on PTY EOF — forces a prompt alive check.
     parser_eof: Arc<AtomicBool>,
+    /// Set once the handle no longer needs the parser thread's post-EOF wakes:
+    /// `ProcessExited` has been emitted, or the child was handed off
+    /// ([`take_child`](Self::take_child)). See the parser thread's EOF tail.
+    exit_settled: Arc<AtomicBool>,
     /// Last known grid dimensions `(cols, rows)`, mirrored on the handle so
     /// `cols()`/`rows()` and the no-op `resize()` fast path avoid locking the
     /// shared state. The per-frame `resize_all` sweep would otherwise lock every
@@ -487,6 +491,11 @@ pub(crate) const CURSOR_OUTPUT_SUPPRESS_WINDOW: std::time::Duration =
 
 /// Minimum interval between child-alive `try_wait` syscalls in `process()`.
 pub(crate) const ALIVE_CHECK_INTERVAL: std::time::Duration = std::time::Duration::from_millis(500);
+
+/// First gap between the parser thread's post-EOF wakes. The gaps double up to
+/// [`ALIVE_CHECK_INTERVAL`] — the usual EOF-to-waitable window is far shorter than
+/// the first gap, so an ordinary exit costs one extra wake at most.
+pub(crate) const EOF_REWAKE_FIRST: std::time::Duration = std::time::Duration::from_millis(10);
 
 /// Default horizontal tab stops: a stop at column 0 and every 8th column.
 pub(crate) fn default_tab_stops(cols: usize) -> Vec<bool> {
@@ -905,6 +914,7 @@ impl Terminal {
         let state = Arc::new(Mutex::new(initial_state));
         let dirty = Arc::new(AtomicBool::new(false));
         let parser_eof = Arc::new(AtomicBool::new(false));
+        let exit_settled = Arc::new(AtomicBool::new(false));
 
         // Parser thread: read raw PTY bytes and ingest them into the shared state
         // OFF the input thread. The lock is taken per 8KB chunk and released
@@ -919,6 +929,7 @@ impl Terminal {
         let state_weak = Arc::downgrade(&state);
         let dirty_t = Arc::clone(&dirty);
         let eof_t = Arc::clone(&parser_eof);
+        let settled_t = Arc::clone(&exit_settled);
         // Shared, rewireable waker. The parser thread reads the *current* callback
         // each wake (cloning the inner Arc out from under a brief lock, then
         // releasing before invoking), so `rewire_waker` can re-target it at
@@ -958,18 +969,35 @@ impl Terminal {
                 }
             }
             // PTY EOF/error: signal so the next process() does an immediate alive
-            // check (bypassing the throttle), and wake once more to drive it.
+            // check (bypassing the throttle), and wake to drive it.
             eof_t.store(true, Ordering::Release);
             dirty_t.store(true, Ordering::Release);
-            let w = {
-                tasty_utils::poison::recover_mutex(
-                    waker_t.lock(),
-                    WAKER_WHAT,
-                    &WAKER_POISON_REPORTED,
-                )
-                .clone()
-            };
-            w();
+            // EOF is not exit. The kernel closes the child's descriptors (our EOF)
+            // before the child becomes waitable, so the alive check the first wake
+            // drives can still see it running — and with the PTY silent nothing else
+            // ever wakes this terminal again: `ProcessExited` was never emitted and
+            // the dead surface stayed open (measured on Linux, 2026-09-23: 2 of 35
+            // headless runs of `exit` in a shell; the traced one read `alive=true` on
+            // that check 0 ms after EOF and saw no wake afterwards). So keep waking,
+            // with gaps doubling up to the alive-check throttle, until the handle has
+            // settled the exit or been dropped.
+            let mut gap = EOF_REWAKE_FIRST;
+            loop {
+                let w = {
+                    tasty_utils::poison::recover_mutex(
+                        waker_t.lock(),
+                        WAKER_WHAT,
+                        &WAKER_POISON_REPORTED,
+                    )
+                    .clone()
+                };
+                w();
+                thread::sleep(gap);
+                if settled_t.load(Ordering::Acquire) || state_weak.strong_count() == 0 {
+                    break;
+                }
+                gap = (gap * 2).min(ALIVE_CHECK_INTERVAL);
+            }
         });
 
         let pty = PtyBackend {
@@ -984,6 +1012,7 @@ impl Terminal {
             pty: Some(pty),
             dirty,
             parser_eof,
+            exit_settled,
             cached_dims: (cols, rows),
             cached_emit_events: false,
             pending_pty_resize: None,
@@ -1018,6 +1047,8 @@ impl Terminal {
             pty: None,
             dirty: Arc::new(AtomicBool::new(false)),
             parser_eof: Arc::new(AtomicBool::new(false)),
+            // No parser thread to stop.
+            exit_settled: Arc::new(AtomicBool::new(true)),
             cached_dims: (cols, rows),
             cached_emit_events: false,
             pending_pty_resize: None,
@@ -1069,6 +1100,7 @@ impl Terminal {
                 self.last_alive_check = std::time::Instant::now();
                 if !self.check_process_alive() {
                     self.process_exit_emitted = true;
+                    self.exit_settled.store(true, Ordering::Release);
                     self.lock_state().events.push(TerminalEvent {
                         surface_id: 0,
                         kind: TerminalEventKind::ProcessExited,
