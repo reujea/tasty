@@ -250,11 +250,17 @@ in-memory" 가 안 갈린다([ADR-0485](../../adr/0485-a-memory-db-that-failed-t
 게이트, `-32007`) · `throttled`(rate limit 게이트, `-32010`). 게이트는 권한 → cap → rate limit 차례로 보고
 앞에서 돌려보낸 요청은 뒤를 안 지나므로 한 요청은 많아야 한 칸에 세진다 — 그래서 `judged` 에서 세 거절을
 뺀 값이 세 게이트를 모두 지난 수와 같다. 셋을 한 칸으로 합치지 않는 것은 처방이 달라서다(권한을 청한다 ·
-cap 을 푼다 · 기다린다). 단 `permission_denied` 는 wire 코드 `-32001` 과 1:1 이라 권한이 모자란 거절만
-담지 않는다 — 권한 게이트는 권한 셋을 가진 호출자(plugin · agent)가 부른 없는 메서드 이름과 그 호출자에게
+cap 을 푼다 · 기다린다). 단 `permission_denied` 는 **권한 게이트가 돌려보낸 `-32001` 만** 센다 — 그
+거절은 모두 `-32001` 이지만 역은 아니다. 그리고 권한이 모자란 거절만 담지 않는다 — 권한 게이트는 권한 셋을 가진 호출자(plugin · agent)가 부른 없는 메서드 이름과 그 호출자에게
 열리지 않은 메서드도 같은 코드로 돌려보내고, 그 둘은 권한을 청해도 안 풀리고 부르는 메서드를 바꿔야 한다.
 Local 호출자는 이 게이트에서 돌려보내지지 않으므로 없는 메서드를 불러도 이 칸에 안 든다. 응답
-메시지(`permission_denied: unknown ipc method …` 등)가 셋을 가른다.
+메시지(`permission_denied: unknown ipc method …` 등)가 셋을 가른다. `-32001` 인데 이 칸에 안 드는 것이 두
+부류다 — ⒜ **봉투 토큰 거절**: `session_token` 의 형식 오류 · unknown/expired/revoked 는
+`resolve_caller_from_envelope`(`crates/tasty-ipc/src/caller.rs`)가 게이트 **앞**에서 답하므로 `judged` 에도 안
+든다(낡은 `TASTY_SESSION_TOKEN` 을 든 CLI 가 이 경로다). ⒝ **게이트를 지난 뒤 핸들러가 내는 `-32001`**: 입력
+시뮬레이션 미허용(debug) · macOS 손쉬운 사용 미승인 `surface.raw_key` · 세션 발급의 격상 거절 · plugin manager
+쪽 거절(자기 namespace 호출 · `ipc.invoke` 부족 · extension filter 차단)은 게이트를 지났으므로 통과 쪽에 든다.
+앞 둘은 Local 호출자도 받는다.
 
 - **리셋** — 전부 이 프로세스가 뜬 뒤의 누계다. 창 단위로 비워지지 않고 재시작하면 0 이다. 영속되는
   `agent.rate_limit_status` 의 `throttled_count` 와 모수가 다르다 — 그쪽은 버킷 하나의 수명 동안 재시작을
