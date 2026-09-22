@@ -52,7 +52,17 @@ drop 됐으면(parser 스레드가 쥔 약한 참조의 강한 수가 0) 역시 
   죽는다, 대기는 wake 에만 반응)은 옛 동작에서 wake 1 회 뒤 15 s 를 다 쓰고 죽는다.
 - **잃은 것**: EOF 뒤에도 살아 있는 자식(표준 fd 를 PTY 에서 떼고 계속 도는 프로그램)이면
   parser 스레드가 500 ms 마다 깨우기를 그 자식이 죽거나 surface 가 닫힐 때까지 계속한다.
-  wake 한 번의 값은 그 terminal 하나의 `process()` 와 `try_wait` 한 번이다.
+  wake 한 번의 값은 호스트가 그 wake 를 어느 갈래로 받느냐에 따라 다르다.
+  - headless 의 targeted wake 는 그 terminal 하나의 `process()` 와 `try_wait` 한 번이다
+    (`src/boot.rs` `handle_terminal_output`).
+  - GUI 의 targeted wake(`targeted_pty_polling` 켜짐, 기본값)는 그 terminal 하나를
+    `process_pty_output` 한 뒤, 그 surface 가 **보이면** 출력이 실제로 바뀌었는지와 무관하게
+    `mark_dirty_from(RepaintSource::TerminalOutput)` 를 부른다(`src/app/event_handler.rs`
+    `handle_terminal_output`). 그래서 보이는 surface 에 그런 자식이 있으면 **그 창 전체를
+    500 ms 마다 다시 그린다.** 안 보이는 surface 면 redraw 는 없고 drain 만 한다.
+  - `targeted_pty_polling = false` 면 wake 가 surface 를 싣지 않는 default 갈래로 가서, 모든
+    view 와 파킹된 engine 의 `process_all_pty_output` 를 돌고 **모든 창을 dirty 로 만든다**
+    (GUI · headless 모두 전체 drain, redraw 는 GUI 만).
 - **운영 비용 / 유지 부담**: parser 스레드의 수명이 "EOF 까지" 에서 "종료 판정 또는 drop
   까지" 로 늘었다. drop 뒤 멈추기까지 최대 한 간격(500 ms) 동안 스레드가 남는다 —
   `PtyBackend` 의 drop 은 parser 스레드를 join 하지 않으므로 drop 이 그만큼 막히지는 않는다.
@@ -84,7 +94,10 @@ drop 됐으면(parser 스레드가 쥔 약한 참조의 강한 수가 0) 역시 
 
 - EOF 뒤 살아 있는 자식이 흔해 500 ms 재-wake 가 눈에 띄는 비용이 되면 상한을 다시 본다.
   재는 법: 그런 surface 를 띄운 채 wake 수(headless 는 `AppEvent::TerminalOutput` 수신 수)를
-  센다.
+  센다. GUI 는 비용이 wake 가 아니라 redraw 로 나오므로 두 갈래를 따로 잰다 — ⑴
+  `targeted_pty_polling` 켜짐에서 그 surface 를 **보이게** 둔 창의 redraw 수(보이지 않게
+  두면 0 이어야 한다), ⑵ `targeted_pty_polling = false` 에서 **모든 창**의 redraw 수와
+  terminal 수에 비례하는 `process_all_pty_output` 비용.
 
 ## References
 
