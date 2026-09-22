@@ -64,6 +64,12 @@ pub(crate) struct PendingStructuralForward {
     pub(crate) op: tasty_ipc::stream::StructuralOp,
     pub(crate) user_triggered: bool,
     pub(crate) close_focus_candidates: Vec<u32>,
+    /// 원격이 이 op 를 적용하지 못했을 때 사용자 toast 를 내지 않고 로그로만 남긴다.
+    /// origin 을 아는 호출부가 에이전트 발화라고 표시한 op 만 `true` 다
+    /// ([`mark_last_forward_agent_origin`]) — 에이전트 행동의 실패가 사용자 시각 상태에
+    /// 닿지 않게 한다(identity 원칙 1). 기본 `false` 는 origin 을 모르는 `Core::apply`
+    /// 호출의 종전 동작(실패 toast)을 그대로 둔다.
+    pub(crate) silent_failure: bool,
 }
 
 impl PendingStructuralForward {
@@ -72,7 +78,28 @@ impl PendingStructuralForward {
             op,
             user_triggered: false,
             close_focus_candidates: Vec::new(),
+            silent_failure: false,
         }
+    }
+}
+
+/// `core.apply(...)` 가 mirror-block+forward 로 방금 push 한 **마지막** op 를 "에이전트
+/// 발화" 로 표시한다 — 원격 실패 회신이 사용자 toast 가 아니라 로그로 가게 한다.
+/// [`mark_last_forward_user_triggered`] 와 같은 가드를 쓴다: `err` 가 `forwarded=true` 인
+/// `MirrorStructuralBlocked` 가 아니거나 `origin` 이 에이전트가 아니면 no-op 이다.
+pub(crate) fn mark_last_forward_agent_origin(
+    engine: &mut CoreState,
+    err: &anyhow::Error,
+    origin: &crate::core::origin::IntentOrigin,
+) {
+    let Some(blocked) = err.downcast_ref::<MirrorStructuralBlocked>() else {
+        return;
+    };
+    if !blocked.forwarded || !origin.is_agent() {
+        return;
+    }
+    if let Some(last) = engine.pending_structural_forward.last_mut() {
+        last.silent_failure = true;
     }
 }
 

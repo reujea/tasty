@@ -63,7 +63,13 @@ pub fn handle(
             crate::core::mark_last_forward_user_triggered(engine, &e, &intent.origin);
             // forward 불가/그 밖의 실패는 warn 만 남기고 사용자에게 아무 신호가 없었다.
             // 공통 처리로 태워 차단 toast 가 나가게 한다.
-            crate::intent::report_apply_error(state, "RestoreClosedItem", &e);
+            crate::intent::report_apply_error(
+                state,
+                engine,
+                &intent.origin,
+                "RestoreClosedItem",
+                &e,
+            );
             return;
         }
     };

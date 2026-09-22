@@ -97,6 +97,7 @@ impl AppState {
                         op,
                         user_triggered: true,
                         close_focus_candidates,
+                        silent_failure: false,
                     });
             }
             None => {

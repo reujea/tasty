@@ -1,4 +1,4 @@
-<!-- source-hash: b91696357a42 -->
+<!-- source-hash: 53efe7d24309 -->
 <a id="remote-attach"></a>
 
 # Working remotely (attach)
@@ -122,7 +122,7 @@ tasty set workspace --id 5 --clear-mapping                              # remove
 ## What you can do inside a mirror
 
 - Keyboard input · mouse go straight to the remote terminal. The remote re-lays out to match the size of your Pane.
-- Splits, new Tabs, closing · moving Tabs, Surface conversion, and reopening a closed item are **executed on the remote** and the result is reflected in the mirror. Creating a Surface of a type the remote does not have fails with a toast.
+- Splits, new Tabs, closing · moving Tabs, Surface conversion, and reopening a closed item are **executed on the remote** and the result is reflected in the mirror. Creating a Surface of a type the remote does not have fails with a toast. When a file open or markdown navigation requested by an agent fails on the remote, it is only logged, with no toast.
 - **Reopening a closed item** (`Ctrl+Shift+T` by default) inside a mirror brings back a Tab that was closed on the remote — that Tab is a remote terminal, so your input goes to the remote too. Its earlier scrollback is fully visible only in the remote window (a mirror starts from the visible screen).
   - A Tab that an agent closed from the CLI inside a mirror is not brought back — not even by reopening from the remote window. Reopening only covers what a person closed by hand.
   - A reopen only brings back what was closed **in that remote Workspace**. If the remote has nothing to reopen you just get an informational toast and nothing happens — a Tab you closed on your own side is never created inside the mirror instead. Go back to your own Workspace and press the same key to reopen yours.

@@ -23,7 +23,7 @@ pub fn handle(
             split(core, state, engine, *direction, &intent.origin)
         }
         Intent::ConvertSurface { surface_id, target } => {
-            convert(core, state, engine, *surface_id, target)
+            convert(core, state, engine, *surface_id, target, &intent.origin)
         }
         _ => {}
     }
@@ -52,7 +52,7 @@ fn split(
         Ok(e) => e,
         Err(e) => {
             crate::core::mark_last_forward_user_triggered(engine, &e, origin);
-            super::report_apply_error(state, "SplitSurface", &e);
+            super::report_apply_error(state, engine, origin, "SplitSurface", &e);
             return;
         }
     };
@@ -82,6 +82,7 @@ fn convert(
     engine: &mut CoreState,
     surface_id: u32,
     target: &ConvertTarget,
+    origin: &IntentOrigin,
 ) {
     use crate::core::intent::ConvertSurfaceTarget;
 
@@ -127,6 +128,6 @@ fn convert(
         target: domain_target,
     };
     if let Err(e) = core.apply(engine, intent) {
-        super::report_apply_error(state, "ConvertSurface", &e);
+        super::report_apply_error(state, engine, origin, "ConvertSurface", &e);
     }
 }

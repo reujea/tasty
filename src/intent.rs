@@ -15,6 +15,8 @@
 //! source 부착* 의미. `self` 를 받는 것이 의도된 형태이며
 //! `clippy::wrong_self_convention` 은 모듈 단위로 허용한다.
 
+#[cfg(test)]
+mod apply_error_tests;
 pub mod closed_item;
 pub(crate) mod headless;
 pub mod pane;
@@ -43,22 +45,37 @@ pub use crate::core::origin::{AgentSource, IntentOrigin};
 /// ([`crate::core::MirrorStructuralBlocked`]) 사용자에게 차단 toast 를 띄우고,
 /// 그 외 에러는 `warn` 로그를 남긴다. `label` 은 로그용 컨텍스트(예: "SplitSurface").
 ///
-/// mirror 구조 변경 forward 는 2단계에서 붙는다 — 현재(1단계)는 로컬 실행을 막고
-/// 사용자에게 "원격 워크스페이스라 로컬 실행 불가" 를 알리는 데서 그친다.
-pub fn report_apply_error(state: &mut crate::state::AppState, label: &str, err: &anyhow::Error) {
+/// **toast 는 사용자 origin 에서만 난다.** 에이전트 origin 의 차단은 사용자 발화와 같은
+/// 조건이어도 `warn` 로그로만 남긴다 — 에이전트 행동의 부수효과가 사용자 시각 상태에
+/// 닿지 않게 하는 것이다(identity 원칙 1, `docs/design/systems/toast.md` "트리거 정책").
+/// forward 로 큐잉된 에이전트 op 는 원격 실패 회신도 toast 가 아니라 로그로 가도록
+/// 여기서 표시한다([`crate::core::mark_last_forward_agent_origin`]).
+pub fn report_apply_error(
+    state: &mut crate::state::AppState,
+    engine: &mut crate::core::CoreState,
+    origin: &IntentOrigin,
+    label: &str,
+    err: &anyhow::Error,
+) {
+    crate::core::mark_last_forward_agent_origin(engine, err, origin);
     if let Some(blocked) = err.downcast_ref::<crate::core::MirrorStructuralBlocked>() {
-        // 2단계: forward 로 큐잉된 op 는 원격 실행 결과가 UX 를 결정한다 — 여기서 차단
-        // toast 를 띄우지 않는다(성공 무음, 실패 시 App drain 이 forward 실패 toast).
-        // forward 대상이 아닌 op(mirror↔local 경계를 넘는 move-surface 등)만 기존
-        // 차단 toast.
-        if !blocked.forwarded {
-            #[cfg(feature = "gui")]
-            state.toasts.push(
-                crate::i18n::t("attach.toast.mirror_structural_blocked"),
-                crate::model::toast_kind::ToastKind::Warning,
-                crate::model::toast_kind::ToastScope::Window,
-            );
+        // forward 로 큐잉된 op 는 원격 실행 결과가 UX 를 결정한다 — 여기서 차단 toast 를
+        // 띄우지 않는다(성공 무음, 실패 시 App drain 이 forward 실패 toast — 에이전트 op 는
+        // 로그). forward 대상이 아닌 op(mirror↔local 경계를 넘는 move-surface, anchor 를
+        // 못 찾은 op)만 차단 신호를 낸다.
+        if blocked.forwarded {
+            return;
         }
+        if !origin.is_user() {
+            tracing::warn!("{label} blocked on a mirror workspace (agent origin, no toast): {err}");
+            return;
+        }
+        #[cfg(feature = "gui")]
+        state.toasts.push(
+            crate::i18n::t("attach.toast.mirror_structural_blocked"),
+            crate::model::toast_kind::ToastKind::Warning,
+            crate::model::toast_kind::ToastScope::Window,
+        );
     } else {
         tracing::warn!("{label} failed: {err}");
     }

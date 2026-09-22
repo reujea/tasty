@@ -49,25 +49,31 @@ grep -rnE 'toasts|report_apply_error|push_toast' \
   내는 경로(OSC 52 등). ④ IPC 엔진 핸들러가 `out.push(... .from_agent_ipc())` 로
   요청의 intent 출구에 넣고(진입점이 요청 끝에 창 큐로 옮긴다), 메인 루프가 그것을
   `src/intent/*` 에서 처리하면서 토스트를 내는 경로. 이 넷은 호출 이름이 IPC 파일에 안 나타난다.
-- **경로 ④ 는 형태는 있으나 지금 확인된 실례는 없다.** 형태는 이렇다: IPC 핸들러가
-  intent 를 agent origin 으로 넘기고, `src/intent/*` 가 `core.apply` 실패 시
-  `report_apply_error`(`src/intent.rs`)를 부르며, 그 함수는 **origin 을 보지 않고** 사용자
-  토스트를 낼 수 있다. mirror 워크스페이스에서 그 토스트(`attach.toast.mirror_structural_blocked`)
-  는 forward 할 수 없는 구조 op(`forwarded: false`)에서만 난다. 그런데 IPC 가 넘기는 intent
-  가운데 그런 op 로 끝나는 것을 찾지 못했다 — 예를 들어 `markdown.navigate` 의 convert 는
-  **항상 forward 된다**([attach-behavior.md](../../dev-guide/attach-behavior.md) 의
-  convert/move-surface 항목, `build_mirror_forward_op`). forward 할 수 없는 것은 워크스페이스
-  경계를 넘는 move-surface 인데, 그것을 agent origin 으로 넘기는 IPC 진입점은 확인하지 못했다.
-  두 끝을 세는 명령(0 줄이 목표가 아니라 경로의 폭을 보는 것이다):
-  `grep -rln dispatch_intent src/adapters/ipc src/app/ipc src/app/ipc.rs`(2026-09-21 에 12 파일) ·
-  `grep -rln 'report_apply_error\|toasts\.push' src/intent.rs src/intent/`(6 파일). 실례가
-  생기면 `report_apply_error` 가 origin 을 보게 고치는 것이 처방이다.
+- **경로 ④ 는 `src/intent/*` 가 origin 을 보아 막는다.** IPC 핸들러가 intent 를 agent origin
+  으로 넘기면, `src/intent/*` 의 적용 실패 신호는 **사용자 origin 에서만** 토스트가 된다 —
+  에이전트 origin 의 실패는 `warn` 로그로 끝난다. 두 자리가 있다.
+  - 동기 차단: `core.apply` 가 mirror 구조 op 를 forward 하지 못하면(`forwarded: false`)
+    `report_apply_error`(`src/intent.rs`)가 `attach.toast.mirror_structural_blocked` 를 사용자
+    origin 에서만 낸다. preset 적용·저장 실패 토스트(`src/intent/preset.rs`)도 같다(저장 성공
+    토스트는 origin 과 무관하다).
+  - 비동기 실패: forward 된 op 가 원격에서 실패하면 `attach.toast.mirror_structural_forward_failed`
+    가 난다. `report_apply_error` 가 에이전트 origin 의 forward op 에 `silent_failure` 를
+    표시하고, attach client 는 그 op_id 의 실패 회신을 토스트 대신 로그로 보낸다
+    (`src/app/attach_client.rs` `silent_failure_ops`).
+  이 경로의 실례: `markdown.navigate` 의 convert 와 `file.open` 이 새 탭으로 떨어지는
+  경우(`Intent::NewTab`)는 mirror 워크스페이스에서 forward 되고, 원격이 그 op 를 적용하지
+  못하면(예: 원격에 없는 surface kind) 실패 회신이 온다. 시험:
+  `src/intent/apply_error_tests.rs` · `src/app/attach_client.rs` 의
+  `an_agent_forward_failure_does_not_toast`. 두 끝을 세는 명령(경로의 폭을 보는 것이다):
+  `grep -rn 'from_agent_ipc()' src --include='*.rs'` 로 agent origin intent 의 발화 자리 ·
+  `grep -rln 'report_apply_error\|toasts\.push' src/intent.rs src/intent/`(6 파일).
+  origin 을 모르는 자리(`Core::apply` 를 intent 없이 직접 부르는 IPC 핸들러)는 이 표시를 받지
+  않는다 — 그 forward op 의 원격 실패는 종전대로 토스트가 난다.
 - 판정기를 짓지 않은 이유: 위 명령의 좌변(IPC 파일)에서는 결함이 난 적이 없다. 결함은 늘 그
-  밖에서 났거나 날 수 있다 — 실제로 있었던 ①, 형태만 확인된 ④ 둘 다 IPC 파일을 스캔하는
-  판정기로는 안 잡힌다. ④ 는 판정기가 아니라 `report_apply_error` 가 origin 을 보게 고치는
-  것이 처방이다.
+  밖에서 났다 — ① 과 ④ 둘 다 IPC 파일을 스캔하는 판정기로는 안 잡힌다. ④ 는 판정기가 아니라
+  `src/intent/*` 가 origin 을 보게 고친 것으로 막았고, 위 두 시험이 그 분기를 고정한다.
 
-**허용 부류 — 원격 연결 상태 사건.** attach mirror 의 연결 상태 사건(끊김 · 재연결 · 손실 · 구조 전달 실패)은 사용자 행동 없이도 토스트를 띄운다. 원인이 에이전트 IPC 가 아니라 네트워크·원격 처리·소비 속도이고, 알리지 않으면 사용자가 원격의 사본인 mirror 의 낡은 화면을 최신으로 읽는다. 현재 구성원은 `attach.toast.mirror_reconnecting` · `mirror_reconnected` · `mirror_reconnect_giveup` · `mirror_disconnected` · `mirror_desynced` · `mirror_structural_forward_failed` 여섯이다. `mirror_markdown_truncated`(원격 문서가 잘렸다)는 사용자 행동 없이 나지만 연결 사건이 아니라 이 부류 밖이다 — 알려진 예외로 ADR-0401 에 적혀 있다. 창 없는(parked) engine 에서는 띄우지 않는다. 에이전트 IPC 호출이 직접 일으킨 결과는 이 부류가 아니다(위 원칙대로 ❌). 근거·대안은 [ADR-0401](../../adr/0401-remote-connection-events-may-raise-a-toast-without-a-user-action.md).
+**허용 부류 — 원격 연결 상태 사건.** attach mirror 의 연결 상태 사건(끊김 · 재연결 · 손실 · 구조 전달 실패)은 사용자 행동 없이도 토스트를 띄운다. 원인이 에이전트 IPC 가 아니라 네트워크·원격 처리·소비 속도이고, 알리지 않으면 사용자가 원격의 사본인 mirror 의 낡은 화면을 최신으로 읽는다. 현재 구성원은 `attach.toast.mirror_reconnecting` · `mirror_reconnected` · `mirror_reconnect_giveup` · `mirror_disconnected` · `mirror_desynced` · `mirror_structural_forward_failed` 여섯이다. `mirror_markdown_truncated`(원격 문서가 잘렸다)는 사용자 행동 없이 나지만 연결 사건이 아니라 이 부류 밖이다 — 알려진 예외로 ADR-0401 에 적혀 있다. 창 없는(parked) engine 에서는 띄우지 않는다. 에이전트 IPC 호출이 직접 일으킨 결과는 이 부류가 아니다(위 원칙대로 ❌) — 에이전트 origin intent 가 forward 한 op 의 원격 실패도 그렇다(`mirror_structural_forward_failed` 대신 로그, 위 경로 ④). 근거·대안은 [ADR-0401](../../adr/0401-remote-connection-events-may-raise-a-toast-without-a-user-action.md) · 개정 [ADR-0572](../../adr/0572-an-agent-intents-apply-failure-goes-to-the-log-not-a-user-toast.md).
 
 ## 스코프
 

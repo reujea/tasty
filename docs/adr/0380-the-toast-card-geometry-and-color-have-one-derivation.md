@@ -88,6 +88,7 @@ Consequences). 즉 갤러리는 페이드 중인 카드를 **본체와 다른 �
 
 ## References
 
+- 후속: [ADR-0572](0572-an-agent-intents-apply-failure-goes-to-the-log-not-a-user-toast.md) — 경로 ④ 를 origin 으로 막았다(위 재검토 트리거의 착지)
 - `docs/design/systems/toast.md` — 구조 절(함수 목록), 트리거 정책 절(재는 법)
 - 코드 근거(결정이 실현된 현재 위치): `crates/tasty-ui-widgets/src/toast.rs` 의 `card_colors` ·
   `layout_card` · `draw_single_card` · `draw_toast_scopes`, `crates/tasty-gallery/src/catalog/widgets/toast.rs`

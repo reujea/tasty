@@ -84,7 +84,7 @@ fn new_tab(
         }
         Err(e) => {
             crate::core::mark_last_forward_user_triggered(engine, &e, origin);
-            super::report_apply_error(state, &format!("NewTab kind={kind}"), &e);
+            super::report_apply_error(state, engine, origin, &format!("NewTab kind={kind}"), &e);
         }
     }
 }

@@ -107,12 +107,15 @@ fn apply(
 
     if let Err(e) = apply_inner(core, state, engine, target, options) {
         tracing::warn!("preset apply failed: {e}");
+        // 실패 toast 는 사용자 발화에서만 — 에이전트 발화의 실패는 로그로 끝난다(identity 원칙 1).
         #[cfg(feature = "gui")]
-        state.toasts.push(
-            crate::i18n::t("preset.toast.apply_failed"),
-            crate::model::toast_kind::ToastKind::Error,
-            crate::model::toast_kind::ToastScope::Window,
-        );
+        if intent.origin.is_user() {
+            state.toasts.push(
+                crate::i18n::t("preset.toast.apply_failed"),
+                crate::model::toast_kind::ToastKind::Error,
+                crate::model::toast_kind::ToastScope::Window,
+            );
+        }
     }
 }
 
@@ -138,8 +141,11 @@ fn save(
         (Ok(_), PresetKind::Pane) => "preset.toast.saved_pane",
         (Err(_), _) => "preset.toast.save_failed",
     };
+    // 실패 toast 는 사용자 발화에서만 — 에이전트 발화의 실패는 아래 `warn` 로그로 끝난다
+    // (identity 원칙 1). 성공 toast 는 origin 과 무관하게 종전 그대로다.
+    let show_toast = save_result.is_ok() || intent.origin.is_user();
     #[cfg(feature = "gui")]
-    {
+    if show_toast {
         let toast_kind = if save_result.is_ok() {
             crate::model::toast_kind::ToastKind::Info
         } else {
@@ -153,7 +159,7 @@ fn save(
     }
     #[cfg(not(feature = "gui"))]
     {
-        let _ = toast_key; // headless: toast 소비자 없음, silent drop.
+        let _ = (toast_key, show_toast); // headless: toast 소비자 없음, silent drop.
     }
 
     let saved_name = match save_result {

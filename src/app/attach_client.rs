@@ -89,9 +89,10 @@ pub(crate) enum MirrorEvent {
     /// 값은 원격 경로라 로컬 파일시스템에 쓰지 않는다(`CoreState::set_mirror_surface_cwd`,
     /// ADR-0267).
     Cwd(u32, Option<String>),
-    /// forward 한 구조 op 가 원격에서 실패했다(2단계). `reason`(예: 미등록 kind)을 담아
-    /// 메인루프가 실패 toast 를 띄운다.
-    StructuralFailed(String),
+    /// forward 한 구조 op 가 원격에서 실패했다(2단계) — `(op_id, reason)`. `reason`(예:
+    /// 미등록 kind)을 담아 메인루프가 실패 toast 를 띄운다. 에이전트 발화 op(세션의
+    /// `silent_failure_ops` 에 있는 op_id)는 toast 대신 로그로 끝난다(identity 원칙 1).
+    StructuralFailed(u64, String),
     /// forward 한 구조 op 가 원격에서 **성공**했다(2단계) — 페이로드는 `op_id`.
     /// client-only focus 보정 대상 op(`user_triggered`)만 correlate 할 필요가 있어
     /// 세션의 `pending_op_focus`에서 이 id 를 찾아 `next_delta_focus`로 옮겨두는 데
@@ -364,6 +365,10 @@ pub(crate) struct AttachClientSession {
     /// 반드시 제거해야 한다 — 실패 시엔 애초에 삽입되지 않는 성공 전용 슬롯이라
     /// 자연히 문제없다).
     pending_op_focus: HashMap<u64, PendingOpFocus>,
+    /// 에이전트 발화라 실패 회신을 사용자 toast 가 아니라 로그로만 남길 op 의 op_id
+    /// (`PendingStructuralForward::silent_failure`). `forward_one_structural_op` 이 전송 시
+    /// 채우고, 그 op 의 회신(성공이든 실패든)이 오면 제거된다.
+    silent_failure_ops: HashSet<u64>,
     /// 방금 성공한 op 의 focus 의도 — 다음 `StructuralDelta` 적용에 1회 소비(take)된다.
     next_delta_focus: Option<PendingOpFocus>,
     /// client-driven resize(ADR-0045) 중복 전송 억제. **원격 surface_id →
@@ -619,6 +624,7 @@ impl App {
             anchor_ws_id,
             op_seq: 0,
             pending_op_focus: HashMap::new(),
+            silent_failure_ops: HashSet::new(),
             next_delta_focus: None,
             last_forwarded_resize: HashMap::new(),
             remote_label: format!("127.0.0.1:{port}"),
@@ -797,6 +803,7 @@ impl App {
         sess.tunnel = tunnel;
         sess.op_seq = 0;
         sess.pending_op_focus.clear();
+        sess.silent_failure_ops.clear();
         sess.next_delta_focus = None;
         sess.last_forwarded_resize.clear();
         // ADR-0059 Decision 6 — 재연결 시 pending list_dir 요청 폐기(끊긴 연결에
@@ -1197,6 +1204,7 @@ impl App {
             op: local_op,
             user_triggered,
             close_focus_candidates,
+            silent_failure,
         } = pending;
         let local_anchor = local_op.anchor_surface_id();
         let Some((sess, remote_anchor)) = find_mirror_session_and_remote_id(
@@ -1215,6 +1223,9 @@ impl App {
                 pending_op_focus_for(&local_op, &close_focus_candidates, &sess.remote_to_local)
         {
             sess.pending_op_focus.insert(op_id, intent);
+        }
+        if silent_failure {
+            sess.silent_failure_ops.insert(op_id);
         }
 
         let payload = structural_op_payload(op_id, wire, user_triggered);
@@ -2063,10 +2074,15 @@ fn mirror_event_from_control(payload: &[u8]) -> Option<MirrorEvent> {
         // 나르므로, 그중 가장 강한 계약인 snapshot 재요청(=재attach)
         // 을 연결 전체에 건다(ADR-0400).
         Ok(StreamControl::Loss { frames }) => Some(MirrorEvent::Desynced { frames }),
-        // 2단계: forward 실패 회신 → 실패 toast.
+        // 2단계: forward 실패 회신 → 실패 toast(에이전트 op 는 로그).
         Ok(StreamControl::StructuralResult {
-            ok: false, reason, ..
-        }) => Some(MirrorEvent::StructuralFailed(reason.unwrap_or_default())),
+            ok: false,
+            op_id,
+            reason,
+        }) => Some(MirrorEvent::StructuralFailed(
+            op_id,
+            reason.unwrap_or_default(),
+        )),
         // 성공 회신 — UX 로는 무음이지만(구조 반영은
         // 뒤따르는 StructuralDelta), client-only focus 보정
         // op 를 correlate 하려면 op_id 가 필요하다.
@@ -2747,6 +2763,44 @@ fn release_for_resync(sess: &mut AttachClientSession, host: &mut MirrorHost<'_>)
     );
 }
 
+/// forward 한 구조 op 가 원격에서 실패(예: 미등록 kind)했다는 회신을 적용한다.
+/// 사용자에게 실패 toast. 로컬/원격 어느 쪽도 구조 변경 없음(요청/응답).
+///
+/// "원격에 복원할 항목이 없다" 는 **실패가 아니다** — 아래 일반 문구
+/// ("적용하지 못했습니다")로 내보내면 오류로 읽힌다. 서버가 전용 sentinel
+/// (`STRUCTURAL_REASON_RESTORE_EMPTY`)로 그 경우를 표시하고 여기서 다른
+/// 문구를 쓴다(ADR-0264 결정 2).
+///
+/// 에이전트 발화 op 의 실패는 사용자 toast 로 내지 않는다 — 에이전트 행동의
+/// 결과이지 연결 상태 사건이 아니다(identity 원칙 1, ADR-0572).
+fn apply_structural_failed(
+    sess: &mut AttachClientSession,
+    host: &mut MirrorHost<'_>,
+    op_id: u64,
+    reason: &str,
+) {
+    if sess.silent_failure_ops.remove(&op_id) {
+        tracing::warn!(
+            "structural forward op {op_id} (agent origin) failed on the remote: {reason}"
+        );
+        return;
+    }
+    if reason == tasty_ipc::stream::STRUCTURAL_REASON_RESTORE_EMPTY {
+        host.toast(
+            crate::i18n::t("attach.toast.mirror_restore_empty").to_string(),
+            crate::adapters::ui::ToastKind::Info,
+        );
+        return;
+    }
+    let base = crate::i18n::t("attach.toast.mirror_structural_forward_failed");
+    let msg: String = if reason.is_empty() {
+        base.to_string()
+    } else {
+        format!("{base} ({reason})")
+    };
+    host.toast(msg, crate::adapters::ui::ToastKind::Warning);
+}
+
 /// 드레인된 `MirrorEvent` 한 건을 mirror 세션/engine 상태에 적용한다. 대상은
 /// `MirrorHost` — 창 있는 engine 이든 parked engine 이든 같은 분기 로직을 탄다.
 fn apply_one_mirror_event(
@@ -2794,35 +2848,15 @@ fn apply_one_mirror_event(
                 );
             }
         }
-        MirrorEvent::StructuralFailed(reason) => {
-            // forward 한 구조 op 가 원격에서 실패(예: 미등록 kind).
-            // 사용자에게 실패 toast. 로컬/원격 어느 쪽도 구조 변경
-            // 없음(요청/응답).
-            //
-            // "원격에 복원할 항목이 없다" 는 **실패가 아니다** — 아래 일반 문구
-            // ("적용하지 못했습니다")로 내보내면 오류로 읽힌다. 서버가 전용 sentinel
-            // (`STRUCTURAL_REASON_RESTORE_EMPTY`)로 그 경우를 표시하고 여기서 다른
-            // 문구를 쓴다(ADR-0264 결정 2).
-            if reason == tasty_ipc::stream::STRUCTURAL_REASON_RESTORE_EMPTY {
-                host.toast(
-                    crate::i18n::t("attach.toast.mirror_restore_empty").to_string(),
-                    crate::adapters::ui::ToastKind::Info,
-                );
-                return;
-            }
-            let base = crate::i18n::t("attach.toast.mirror_structural_forward_failed");
-            let msg: String = if reason.is_empty() {
-                base.to_string()
-            } else {
-                format!("{base} ({reason})")
-            };
-            host.toast(msg, crate::adapters::ui::ToastKind::Warning);
+        MirrorEvent::StructuralFailed(op_id, reason) => {
+            apply_structural_failed(sess, host, op_id, &reason)
         }
         MirrorEvent::StructuralSucceeded(op_id) => {
             // 이 op 이 client-only focus 보정 대상(user_triggered)으로
             // 등록돼 있었으면, 뒤따르는(프로토콜 보장) 다음
             // StructuralDelta 적용 시 1회 소비할 의도로 옮겨둔다.
             // 등록돼 있지 않았으면(에이전트/IPC 유래 등) no-op.
+            sess.silent_failure_ops.remove(&op_id);
             if let Some(intent) = sess.pending_op_focus.remove(&op_id) {
                 sess.next_delta_focus = Some(intent);
             }
@@ -4228,6 +4262,7 @@ mod tests {
             op: tasty_ipc::stream::StructuralOp::CloseSurface { surface_id: 9 },
             user_triggered,
             close_focus_candidates: Vec::new(),
+            silent_failure: false,
         };
         let origin_on_wire = |p: crate::core::PendingStructuralForward| {
             let payload = structural_op_payload(3, p.op, p.user_triggered);
@@ -5621,6 +5656,7 @@ mod tests {
             anchor_ws_id: None,
             op_seq: 0,
             pending_op_focus: HashMap::new(),
+            silent_failure_ops: HashSet::new(),
             next_delta_focus: None,
             last_forwarded_resize: HashMap::new(),
             remote_label: "127.0.0.1:0".to_string(),
@@ -6224,7 +6260,7 @@ mod tests {
         let ws_id = 9_000u32;
         let mut sess = test_session(ws_id, HashMap::new());
         let mut plugin_manager: Option<crate::plugin::PluginManager> = None;
-        let failure = || vec![MirrorEvent::StructuralFailed("nope".to_string())];
+        let failure = || vec![MirrorEvent::StructuralFailed(0, "nope".to_string())];
 
         let (mut parked_state, mut parked_engine) = crate::state::tests::test_state();
         {
@@ -6246,6 +6282,47 @@ mod tests {
             win_state.toasts.len(),
             1,
             "창이 있으면 같은 이벤트가 toast 를 낸다 — 게이트가 창 유무로만 갈린다"
+        );
+    }
+
+    /// 에이전트 발화로 forward 한 op 의 원격 실패는 사용자 toast 를 내지 않고, 회신과
+    /// 함께 표시가 지워진다. 표시가 없는 op 의 실패는 종전대로 toast 를 낸다.
+    ///
+    /// `apply_one_mirror_event` 의 `silent_failure_ops` 조회를 지우는 변이에서 실패해야 한다.
+    #[test]
+    fn an_agent_forward_failure_does_not_toast() {
+        let mut sess = test_session(9_000, HashMap::new());
+        sess.silent_failure_ops.insert(5);
+        let mut plugin_manager: Option<crate::plugin::PluginManager> = None;
+        let (mut state, mut engine) = crate::state::tests::test_state();
+        {
+            let mut host = MirrorHost::windowed(&mut state, &mut engine);
+            apply_mirror_events(
+                &mut sess,
+                &mut host,
+                &mut plugin_manager,
+                vec![MirrorEvent::StructuralFailed(5, "nope".to_string())],
+            );
+        }
+        assert_eq!(state.toasts.len(), 0, "에이전트 op 의 실패는 로그로 끝난다");
+        assert!(
+            sess.silent_failure_ops.is_empty(),
+            "회신이 오면 표시를 지운다"
+        );
+
+        {
+            let mut host = MirrorHost::windowed(&mut state, &mut engine);
+            apply_mirror_events(
+                &mut sess,
+                &mut host,
+                &mut plugin_manager,
+                vec![MirrorEvent::StructuralFailed(6, "nope".to_string())],
+            );
+        }
+        assert_eq!(
+            state.toasts.len(),
+            1,
+            "표시 없는 op 의 실패는 toast 를 낸다"
         );
     }
 

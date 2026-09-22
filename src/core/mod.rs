@@ -100,7 +100,8 @@ use crate::ports::process::ProcessSpawner;
 
 pub(crate) use impl_close::{SurfaceCloseLocation, locate_surface_in_pane};
 pub(crate) use impl_mirror::{
-    MirrorStructuralBlocked, PendingStructuralForward, mark_last_forward_user_triggered,
+    MirrorStructuralBlocked, PendingStructuralForward, mark_last_forward_agent_origin,
+    mark_last_forward_user_triggered,
 };
 pub(crate) use impl_workspace::{WorkspaceCreationParams, apply_create_workspace_inner};
 

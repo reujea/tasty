@@ -1,6 +1,6 @@
 mod checked;
 #[cfg(test)]
-mod cli_entry_tests;
+pub(crate) mod cli_entry_tests;
 // debug 빌드에만 있는 CLI 진입점 시험 — 배치 규율상 별도 파일이다(그 파일의 doc 참조).
 #[cfg(all(test, debug_assertions))]
 mod cli_entry_debug_tests;
