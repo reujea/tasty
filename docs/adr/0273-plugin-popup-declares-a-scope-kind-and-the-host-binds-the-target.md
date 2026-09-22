@@ -82,13 +82,16 @@ markdown `file-open` 은 `scope = "surface"` 를 선언한다.
 - surface 범위 popup 이 native WebView overlay(markdown · html surface)와 겹쳐 가려진다. 재는 법:
   markdown surface 에서 파일 열기 popup 을 띄우고 OS 화면 캡처로 본다(`ui.screenshot` 에는
   WebView 가 담기지 않는다 — [ai-verification/screenshot-methods](../ai-verification/screenshot-methods.md)).
-- plugin popup 이 창 전체에 깔던 scrim 의 범위를 surface 범위 popup 에서 어떻게 할지 — 이 결정은
-  scrim 을 바꾸지 않았다. 디자인 값이라 Claude Design 이 정한다.
+- ~~plugin popup 이 창 전체에 깔던 scrim 의 범위를 surface 범위 popup 에서 어떻게 할지 — 이 결정은
+  scrim 을 바꾸지 않았다. 디자인 값이라 Claude Design 이 정한다.~~ — **발화했고 닫혔다.** 디자인이
+  답을 정했고 [ADR-0300](0300-the-scrim-covers-the-popups-scope-not-always-the-window.md) 이 그것을
+  결정으로 박았다(scrim 은 popup 이 소속된 범위의 rect 를 덮는다). 이 ADR 의 본체는 바뀌지 않는다.
 
 ## References
 
 - [design/systems/popup.md](../design/systems/popup.md) §스코프
 - [dev-guide/popup-implementation.md](../dev-guide/popup-implementation.md) — 두 팝업 시스템 비교
+- [ADR-0300](0300-the-scrim-covers-the-popups-scope-not-always-the-window.md) — 위 재검토 조건의 미결(scrim 범위)을 닫은 결정
 - [ADR-0043](0043-convert-input-popup-capability.md) — 변환 입력 popup 을 host 가 여는 경로
 - 코드 근거(결정이 실현된 현재 위치): `PopupScopeDecl`(`crates/tasty-plugin-manifest/src/types.rs`),
   `popup_scope`(`src/plugin_bridge/popup_scope.rs`) · `place_popup`(`src/plugin_bridge/popup_render.rs`),
