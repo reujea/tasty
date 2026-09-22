@@ -26,10 +26,20 @@ Claude Code 는 내장 재시도를 다 쓴 뒤 API 에러(`529 Overloaded` · 5
 6. **제출 경로는 `terminal.tell` 이다** — 본문 write 확인 → 정착 지연 → Enter 를 나눠 보내고, 원격 attach 가 점유한 surface 는 거절한다. 거절되면 다시 걸지 않는다.
 7. **연속 상한에 닿으면 보내지 않고 `notification.create` 로 한 번 알린다.** 계수는 성공 턴과 새 세션에서 0 이 되고, 재개 문구 자신이 부르는 `prompt-submit` 은 계수를 지우지 않는다. 보낸 횟수는 surface meta `claude-auto-resume-count` 에 남는다(계수가 0 이 되는 자리 — 성공 턴 · 새 세션 · 세션 종료 — 가 지운다). 부모의 완료 로그에는 따로 줄을 쓰지 않는다 — 실패한 턴마다 이미 에러 종류가 붙은 완료 줄이 간다.
 
+### 서브에이전트의 `StopFailure` 는 무시한다
+
+`agent_id` 가 실린 `StopFailure` 는 상태를 `idle` 로 닫지도, 재개를 예약하지도 않는다(`crates/tasty-plugin-claude/src/hook.rs` 의 `is_subagent_stop_failure`). `Stop` 에는 서브에이전트용 `SubagentStop` 이 따로 있지만 `StopFailure` 는 하나뿐이고, 서브에이전트가 실패해도 메인 턴은 그 실패를 tool 결과로 받고 계속 돈다 — 그것을 턴 종료로 받으면 일하는 세션을 입력 대기로 오보고하고, 부모에게 거짓 완료 알림이 가고, 일하는 중인 입력창에 재개 문구를 넣으려 든다.
+
+- **근거의 종류**: 설치된 Claude Code **2.1.280** 바이너리의 `StopFailure` payload 조립부를 정적으로 읽은 것이다 — 그 조립부가 질의 루프 공용이라 서브에이전트 문맥에서도 불릴 수 있고, 공통부의 `agent_id` 는 서브에이전트 문맥에서만 값이 있다.
+- **서브에이전트 실패 때 `StopFailure` 가 실제로 오는지: 미측정.** 서브에이전트 안에서 API 에러를 일으켜 훅 payload 를 받아 본 적이 없다. 안 온다면 이 분기는 죽은 코드이고 해가 없다. 온다면 이 분기가 위 오보고를 막는다. 어느 쪽인지 레포 안의 채널로는 안 보인다.
+- **대안 — 메인 턴 종료로 취급**(`agent_id` 를 보지 않고 모든 `StopFailure` 를 `idle` 로 닫고 재개를 예약): 판단이 단순하지만, 서브에이전트 실패가 실제로 온다면 위 세 결함이 그대로 난다. 반대로 무시하는 쪽이 틀리는 경우는 "메인 턴이 끝났는데 `agent_id` 가 실려 온다" 뿐이고, 그것은 `agent_id` 의 정의(서브에이전트 문맥에서만 값이 있음)와 어긋난다. 틀렸을 때 비용이 작은 쪽을 골랐다.
+
 ## Consequences
 
 - **얻은 것**: 무인 세션이 일시적 서버 과부하에서 스스로 회복한다. 판정이 보내는 순간의 사실이라, 예약 뒤 설정을 끄거나 사람이 먼저 입력하거나 Claude 를 끄면 아무것도 안 나간다. 초안이 있는 입력창에는 끼어들지 않는다.
 - **잃은 것**: 기본 꺼짐이라 켜야 쓴다. rate limit 으로 멈춘 세션은 자동으로 안 깨어난다. 재개 문구를 바꿀 수 없다. 창 안에 한 번이라도 키 입력이 있으면(초안을 다 지웠더라도) 재개하지 않는다 — 입력창 내용을 읽을 채널이 없어 보수적으로 멈춘다.
+- **잃은 것 — 붙여넣은 초안은 사용자 입력 가드에 안 걸린다.** 가드가 기대는 좌변(`surface.is_typing` 의 `idle_seconds`)은 본체의 `record_typing` 이 갱신하고, 그것을 부르는 자리는 키보드 경로 하나(`src/view/main/keyboard.rs`)와 IME 경로 셋(`src/view/main/ime.rs`) — 모두 4 곳뿐이다. 붙여넣기는 그 어느 것도 안 지난다: 붙여넣기 단축키는 `try_consume_shortcut_key` 가 먼저 소비하고 `paste_to_terminal`(`src/view/main/clipboard.rs`)로 가서 `record_typing` 을 부르지 않는다. 그래서 실패한 턴이 시작된 뒤 사용자가 입력창에 텍스트를 **붙여넣기만** 하고 키를 안 눌렀다면, 결정 5 는 입력이 없었다고 보고 재개 문구가 그 초안 뒤에 붙어 함께 제출될 수 있다. 이 lane(plugin)에서는 닫지 않는다 — 고칠 자리는 본체 입력 경로다.
+- **관측된 것 — 부모의 완료 줄은 재개가 예약된 턴에도 "입력 대기" 라고 적는다.** 실패한 턴의 완료 줄에 붙는 힌트(`claude.notify.stop_failure_hint`, en: "the turn ended on an API error (…) and is waiting for input")는 자동 재개가 켜져 곧 재개 문구가 갈 때도 같다. 고치지 않는다 — 알림은 빠지지 않고(재개된 턴이 끝나면 완료 알림이 다시 무장돼 한 줄이 더 간다), 문구를 켜짐/꺼짐으로 가르면 그 줄을 파싱하는 부모 쪽에 외부 동작 변경이 생긴다.
 - **운영 비용 / 유지 부담**: plugin 에 스레드가 하나 는다(500 ms 주기, 만기된 예약이 있을 때만 IPC). `terminal.tell` 의 본문과 Enter 사이(수백 ms)에 사용자가 입력하면 섞일 수 있다 — `terminal.tell` 이 이미 받아들인 창과 같은 크기이고 더 좁히지 않았다.
 
 ## Alternatives Considered
@@ -48,11 +58,14 @@ Claude Code 는 내장 재시도를 다 쓴 뒤 API 에러(`529 Overloaded` · 5
 
 - 설정 페이지에 자유 문자열 항목 종류가 생긴다 → 사용자 지정 재개 문구를 재검토한다. 재는 법: `crates/tasty-plugin-manifest/src/types.rs` 의 `SettingsItemDecl` 변형.
 - 호스트가 입력창의 미제출 내용(또는 "초안 있음")을 알려 주는 IPC 를 갖는다 → 결정 5 의 보수적 취소를 그 사실로 바꾼다.
+- 본체 붙여넣기 경로가 `record_typing` 을 부르게 된다 → "잃은 것" 의 붙여넣은 초안 구멍이 닫힌다(그 항목을 지운다). 재는 법: `git grep -n 'record_typing(' -- src` 의 호출 자리에 `paste_to_terminal` 또는 그것이 부르는 붙여넣기 dispatch 가 들어 있는가.
+- Claude Code 가 서브에이전트용 실패 이벤트(예: `SubagentStopFailure`)를 따로 갖거나, `StopFailure` payload 조립부가 서브에이전트 문맥에서 불리지 않게 바뀐다 → "서브에이전트의 `StopFailure` 는 무시한다" 의 분기를 재검토한다(앞쪽이면 이벤트 이름으로 가르고, 뒤쪽이면 분기를 지운다). 재는 법: 설치된 Claude Code 바이너리의 `hook_event_name:"StopFailure"` 조립부와 훅 이벤트 목록. 근거가 특정 버전(2.1.280)의 정적 판독이므로 Claude Code 를 올릴 때마다 다시 읽는다.
 - `StopFailure` payload 에 재시도 대기 시각(예: rate limit 해제 시각)이 실린다 → `rate_limit` 을 그 시각 기준으로 재개하는 것을 재검토한다. 재는 법: 설치된 Claude Code 바이너리의 `hook_event_name:"StopFailure"` 조립부.
 
 **원리적으로 안 붙는 것** — 사람이 관측해야 한다.
 
 - 실제 Anthropic API 의 529 가 `overloaded` 로 오는지 `server_error` 로 오는지, 그리고 둘 외의 값으로 오는 일시적 에러가 있는지. 재는 법: `StopFailure` 에 payload 를 파일로 덤프하는 사용자 훅을 하나 더 걸고 과부하 시점의 `error` 값을 본다.
+- 서브에이전트 안에서 난 API 에러에 `StopFailure` 가 실제로 오는지(현재 미측정). 재는 법: `StopFailure` payload 를 파일로 덤프하는 사용자 훅을 걸고, 서브에이전트(Agent 툴)가 API 에러를 맞는 상황에서 `agent_id` 가 실린 payload 가 오는지 본다. 온 적이 없으면 그 분기는 "근거 없음" 이 아니라 "관측 안 됨" 으로 남는다.
 - 켜 둔 사용자가 "원치 않는 재개" 를 보고한다 → 결정 5 의 창과 결정 4 의 확인 목록을 재검토한다.
 
 ## References

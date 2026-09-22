@@ -444,6 +444,7 @@ child 상태는 0072 → 0266 → 0288 → 0291(0288 대체), API 에러로 끝�
 | 0344 | [완료 알림 로그는 호스트 세대 하나를 들고, 버린 양을 말한다](0344-the-completion-log-keeps-one-host-generation-and-says-what-it-threw-away.md) | Accepted | 2026-09-20 | notify, retention, logging, plugin, instance-identity, adr-0330 |
 | 0415 | [재개하는 완료 로그 reader 는 옆 메타 파일에서 잃은 양을 안다](0415-a-resuming-completion-log-reader-learns-what-it-lost-from-a-sidecar.md) | Accepted | 2026-09-21 | notify, retention, reader-recovery, offset, plugin, compatibility, adr-0330, adr-0344 |
 | 0416 | [부팅 청소는 포트 파일과 같은 뿌리일 때만 돈다 — ADR-0344 의 "안 고친 것" 해소](0416-the-boot-cleanup-follows-the-port-file-root.md) | Accepted | 2026-09-21 | notify, retention, instance-identity, port-file, boot, adr-0344 |
+| 0521 | [API 에러로 끝난 Claude 턴의 자동 재개는 opt-in 이고, 보내는 순간의 사실로 판정한다](0521-claude-auto-resume-after-an-api-error-is-opt-in-and-judged-at-send-time.md) | Accepted | 2026-09-23 | claude-plugin, stop-failure, auto-resume, settings, defaults, typing-guard, identity-principle-1, adr-0072, adr-0266 |
 | 0517 | [에이전트 primitive 의 이름은 memory 키가 되기 전에 호출자 값 기준으로 판정한다](0517-an-agent-primitive-name-is-judged-before-it-becomes-a-memory-key.md) | Accepted | 2026-09-23 | agent, ipc, error-code, memory, key, semaphore, barrier, rate-limit, task |
 
 ## 저장소 · 메모리 DB
