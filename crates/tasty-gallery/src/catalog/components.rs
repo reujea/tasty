@@ -46,6 +46,7 @@ pub mod plugin_settings;
 pub mod plugins_window;
 pub mod port_scanner;
 pub mod preset_editor;
+pub mod preset_surface_settings;
 pub mod prim_autocomplete;
 pub mod prim_button;
 pub mod prim_chips;

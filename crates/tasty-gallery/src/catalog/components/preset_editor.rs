@@ -1,6 +1,7 @@
 //! `preset-editor` specimen — 프리셋 데모 레이아웃 미리보기(read-only) + 편집 상태
-//! (selected surface 2px accent outline + handle cluster + inline leaf form)를
-//! 모두 시연한다. 디자인 `(3) gallery/preset_editor.jsx` 의 `SurfaceView` / `Pane` /
+//! (selected surface 2px accent outline + 설정·remove handle cluster)를 모두 시연한다.
+//! leaf 파라미터 편집은 칸 안이 아니라 surface 설정 화면이 한다 — 그 specimen 은
+//! `preset_surface_settings.rs`. 디자인 `(3) gallery/preset_editor.jsx` 의 `SurfaceView` / `Pane` /
 //! `PaneTree` / `SurfaceBox` 표시 부분을 구조까지 1:1 전사한다.
 //!
 //! 갤러리 specimen 은 정적(Theme-only, binary 미의존)이라 mini-tab 클릭 전환은
@@ -35,14 +36,8 @@ const TAB_GAP: LogicalPx = LogicalPx(5.0);
 const E_HANDLE_SZ: LogicalPx = LogicalPx(18.0);
 /// 편집 핸들 클러스터 모서리 inset.
 const E_HANDLE_INSET: LogicalPx = LogicalPx(4.0);
-/// inline leaf form 좌우 padding.
-const E_FORM_PAD: LogicalPx = LogicalPx(6.0);
-/// inline leaf form 필드 세로 gap.
-const E_FORM_GAP: LogicalPx = LogicalPx(4.0);
-/// inline leaf form 필드 입력 박스 높이.
-const E_FIELD_H: LogicalPx = LogicalPx(20.0);
-/// inline leaf form 라벨 높이.
-const E_LABEL_H: LogicalPx = LogicalPx(12.0);
+/// 선택 leaf 핸들(설정 · remove) 사이 `gap: 2`.
+const E_HANDLE_GAP: LogicalPx = tasty_ui_widgets::tokens::STRUCT_GAP_2;
 /// add-tab `+` 버튼 폭(디자인 22×20 — strip 높이보다 2px 넓다).
 const ADD_TAB_W: LogicalPx = LogicalPx(22.0);
 /// mini tab close `×` 히트영역 한 변(14×14).
@@ -578,12 +573,12 @@ fn tab_kind(t: &DemoTab) -> Kind {
     }
 }
 
-// ── 편집 상태 렌더 (디자인 `SurfaceBox` edit + `MiniHandle` + `LeafEditor`) ──
+// ── 편집 상태 렌더 (디자인 `SurfaceBox` edit + `MiniHandle`) ──
 //
 // 정적 specimen 이라 인터랙션은 없다 — "편집 모드의 시각"만 보인다. 모든 surface 가
 // 1px separator outline 을 달고, `selected`(방문 순서 index) surface 는 2px accent
-// inset outline + 우상단 handle cluster(split-right/split-down/remove) + 중앙 라벨
-// 대신 inline leaf form(kind/cwd/startup) 을 보인다. startup 은 terminal 한정.
+// inset outline + 우상단 handle cluster(설정 · remove)를 보인다. 선택돼도 가운데는
+// 비선택과 같은 kind 아이콘 + 표시명이다 — 칸 안에 폼을 그리지 않는다.
 
 /// 편집 트리 순회 상태 — leaf 방문 순서 index 로 선택 leaf 를 지정한다.
 struct EditWalk {
@@ -619,8 +614,8 @@ fn draw_surf_edit(
     }
 }
 
-/// 편집 상태 surface — 비선택: 중앙 라벨 + 1px separator outline. 선택: inline form +
-/// 2px accent outline + handle cluster.
+/// 편집 상태 surface — 중앙 라벨(선택 여부 무관) + 비선택 1px separator outline /
+/// 선택 2px accent outline + handle cluster.
 fn draw_surface_box_edit(
     ui: &mut egui::Ui,
     theme: &Theme,
@@ -631,31 +626,27 @@ fn draw_surface_box_edit(
     ui.painter_at(rect)
         .rect_filled(rect, 0.0, theme.bg_app().to_egui());
 
-    if selected {
-        draw_leaf_form_mock(ui, theme, rect, kind);
-    } else {
-        let icon = theme.icon_glyph_size_md;
-        let label_h = theme.font_size_caption;
-        let total = icon + LEAF_GAP + label_h;
-        let icon_cy = LogicalPx(rect.center().y) - total.scaled(0.5) + icon.scaled(0.5);
-        paint_glyph(
-            ui,
-            kind.icon(),
-            egui::pos2(rect.center().x, icon_cy.value()),
-            icon,
-            kind.accent(theme),
-        );
-        ui.painter_at(rect).text(
-            egui::pos2(
-                rect.center().x,
-                (icon_cy + icon.scaled(0.5) + LEAF_GAP + label_h.scaled(0.5)).value(),
-            ),
-            egui::Align2::CENTER_CENTER,
-            kind.label(),
-            egui::FontId::monospace(label_h.value()),
-            theme.text_secondary().to_egui(),
-        );
-    }
+    let icon = theme.icon_glyph_size_md;
+    let label_h = theme.font_size_caption;
+    let total = icon + LEAF_GAP + label_h;
+    let icon_cy = LogicalPx(rect.center().y) - total.scaled(0.5) + icon.scaled(0.5);
+    paint_glyph(
+        ui,
+        kind.icon(),
+        egui::pos2(rect.center().x, icon_cy.value()),
+        icon,
+        kind.accent(theme),
+    );
+    ui.painter_at(rect).text(
+        egui::pos2(
+            rect.center().x,
+            (icon_cy + icon.scaled(0.5) + LEAF_GAP + label_h.scaled(0.5)).value(),
+        ),
+        egui::Align2::CENTER_CENTER,
+        kind.label(),
+        egui::FontId::monospace(label_h.value()),
+        theme.text_secondary().to_egui(),
+    );
 
     // outline: 선택 = 2px accent, 비선택 = 1px separator (편집 가능 영역 표시).
     if selected {
@@ -678,8 +669,8 @@ fn draw_surface_box_edit(
     }
 }
 
-/// 우상단 handle cluster mock — remove(danger) 단독. split-right/down 핸들은 경계
-/// hover-split 존이 대체해 제거됐다.
+/// 우상단 handle cluster mock — `[설정(톱니)] [remove(danger)]`. split-right/down
+/// 핸들은 경계 hover-split 존이 대체해 제거됐다.
 fn draw_handle_cluster_mock(ui: &mut egui::Ui, theme: &Theme, rect: egui::Rect) {
     let remove = egui::Rect::from_min_size(
         egui::pos2(
@@ -688,6 +679,8 @@ fn draw_handle_cluster_mock(ui: &mut egui::Ui, theme: &Theme, rect: egui::Rect) 
         ),
         egui::vec2(E_HANDLE_SZ.value(), E_HANDLE_SZ.value()),
     );
+    let settings = remove.translate(egui::vec2(-(E_HANDLE_SZ + E_HANDLE_GAP).value(), 0.0));
+    mini_handle_mock(ui, theme, settings, icons::SETTINGS, false);
     mini_handle_mock(ui, theme, remove, icons::TRASH, true);
 }
 
@@ -728,57 +721,6 @@ fn mini_handle_mock(
         theme.text_secondary().to_egui()
     };
     paint_glyph(ui, glyph, rect.center(), E_HANDLE_SZ.scaled(0.62), color);
-}
-
-/// inline leaf form mock — kind 별 선언 필드를 generic 하게 렌더한 결과를 전사한다
-/// (본체 `draw_leaf_form` 이 registry `preset_fields` 를 순회 렌더 — parity).
-/// terminal 은 cwd + startup, markdown 은 파일 경로(cwd 없음), 그 외는 cwd.
-fn draw_leaf_form_mock(ui: &mut egui::Ui, theme: &Theme, rect: egui::Rect, kind: Kind) {
-    let inner_w = (LogicalPx(rect.width()) - E_FORM_PAD.scaled(2.0)).max(LogicalPx(0.0));
-    let mut y = LogicalPx(rect.min.y) + E_HANDLE_INSET.scaled(2.0) + E_HANDLE_SZ;
-    let x = LogicalPx(rect.center().x) - inner_w.scaled(0.5);
-    let fields: &[(&str, &str)] = match kind {
-        Kind::Terminal => &[
-            ("KIND", "Terminal"),
-            ("CWD", "~/tasty"),
-            ("STARTUP COMMAND", "cargo build"),
-        ],
-        // markdown 은 작업 디렉토리가 아니라 파일 경로 필드(+Browse)를 노출한다.
-        Kind::Markdown => &[("KIND", "Markdown"), ("FILE", "~/tasty/README.md")],
-        _ => &[("KIND", "Editor"), ("CWD", "~/tasty")],
-    };
-    for (label, value) in fields {
-        if y + E_LABEL_H + E_FIELD_H > LogicalPx(rect.max.y) - E_FORM_PAD {
-            break;
-        }
-        ui.painter_at(rect).text(
-            egui::pos2(x.value(), y.value()),
-            egui::Align2::LEFT_TOP,
-            label,
-            egui::FontId::monospace(theme.font_size_micro.value()),
-            theme.text_muted().to_egui(),
-        );
-        y += E_LABEL_H;
-        let fr = egui::Rect::from_min_size(
-            egui::pos2(x.value(), y.value()),
-            egui::vec2(inner_w.value(), E_FIELD_H.value()),
-        );
-        ui.painter_at(rect).rect(
-            fr,
-            theme.corner_radius.value(),
-            theme.surface_raised().to_egui(),
-            egui::Stroke::new(theme.border_width.value(), theme.border_default().to_egui()),
-            egui::StrokeKind::Inside,
-        );
-        ui.painter_at(fr).text(
-            egui::pos2(fr.min.x + E_FORM_PAD.value(), fr.center().y),
-            egui::Align2::LEFT_CENTER,
-            value,
-            egui::FontId::monospace(theme.font_size_caption.value()),
-            theme.text_primary().to_egui(),
-        );
-        y += E_FIELD_H + E_FORM_GAP;
-    }
 }
 
 /// 편집 상태 Tab scope mock 프레임(strip 없음 + selected surface).
@@ -1227,8 +1169,7 @@ pub fn draw(ui: &mut egui::Ui, theme: &Theme) {
         );
     });
 
-    // 편집 상태: selected surface 2px accent outline + handle
-    // cluster + inline leaf form. 선택 = Terminal leaf(startup 필드 노출).
+    // 편집 상태: selected surface 2px accent outline + 설정 · remove handle cluster.
     let edit_tab = build_tab();
     let edit_surf = match &edit_tab {
         Scope::TabFrame(s) => s,
@@ -1239,7 +1180,7 @@ pub fn draw(ui: &mut egui::Ui, theme: &Theme) {
             ui,
             theme,
             "Edit mode",
-            "selected surface + handle + form",
+            "selected surface + gear · remove handles",
             edit_surf,
             1,
             EDIT_BOX.0,
@@ -1271,11 +1212,14 @@ pub fn draw(ui: &mut egui::Ui, theme: &Theme) {
             ("leaf summary", "field values · key value (mono, centered)"),
             ("leaf degrade", "<96×72 hides summary · <46 icon only"),
             ("interactive", "mini tabs switch live (in app)"),
-            ("edit: selected", "2px accent outline + remove handle"),
+            (
+                "edit: selected",
+                "2px accent outline + gear · remove handles",
+            ),
             ("edit: split zone", "boundary 30% band + 2px divider"),
             ("edit: tab ×", "close on active / hover (tabs > 1)"),
             ("edit: add-tab", "+ 22px, overlay-hover fill"),
-            ("edit: form", "kind / cwd / startup (terminal only)"),
+            ("edit: settings", "gear or double-click → settings screen"),
         ],
         &[
             TokenChip::new("bg-app", "leaf fill / pane gap", theme.bg_app().to_egui()),
@@ -1322,8 +1266,9 @@ pub fn draw(ui: &mut egui::Ui, theme: &Theme) {
          degrades by box size — under 96×72 the summary is hidden, under 46 on the short axis only \
          the icon remains. The Edit-mode stage shows the WYSIWYG state: every \
          surface gets a faint 1px separator outline, the selected surface gets a 2px accent inset \
-         outline + a single remove handle, and its center label is replaced by the inline leaf form \
-         (kind / cwd / startup — startup only when kind=terminal). The Direct-manipulation stage \
+         outline + two handles (gear · remove) and keeps the same kind label — nothing is drawn \
+         inside a cell that could clip; the gear or a double-click opens the surface settings \
+         screen (next spec). The Direct-manipulation stage \
          transcribes the mouse affordances: hovering a surface boundary lights a 30% split zone \
          (accent 22% band + 2px accent 55% divider, crosshair cursor) that splits toward the edge; \
          active/hovered mini tabs show a close × (hidden when a pane has one tab); the add-tab + is \

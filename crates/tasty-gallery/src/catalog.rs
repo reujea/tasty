@@ -1151,13 +1151,23 @@ pub fn pages() -> Vec<Page> {
                 ),
                 section(
                     "preseteditor",
-                    "Preset demo-layout preview",
-                    vec![spec(
-                        "preseteditor",
-                        "Demo-layout preview — read-only",
-                        Some("Workspace / Tab / Pane · pane card + tab strip + surface hairline"),
-                        components::preset_editor::draw,
-                    )],
+                    "Preset editor",
+                    vec![
+                        spec(
+                            "preseteditor",
+                            "Demo-layout preview — view and edit",
+                            Some(
+                                "Workspace / Tab / Pane · pane card + tab strip + surface hairline",
+                            ),
+                            components::preset_editor::draw,
+                        ),
+                        spec(
+                            "preseteditor-settings",
+                            "Surface settings screen — parameters as a draft",
+                            Some("header 44 · scrolling form · fixed 52 footer (Cancel · OK)"),
+                            components::preset_surface_settings::draw,
+                        ),
+                    ],
                 ),
                 section(
                     "markdown",
