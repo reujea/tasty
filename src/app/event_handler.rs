@@ -2862,8 +2862,9 @@ impl App {
     /// 열려 있는 네이티브 컨텍스트 메뉴를 전 창에 걸쳐 1회씩 펌프한다.
     /// 메뉴가 없는 창에서는 no-op.
     ///
-    /// 완료된 메뉴의 continuation 이 마지막 워크스페이스를 닫을 수 있다(탭/워크스페이스
-    /// 컨텍스트 메뉴의 "닫기"). 여기는 창 이벤트 dispatch 밖이라 그 창을 바로 치운다
+    /// 완료된 메뉴의 continuation 이 마지막 워크스페이스를 닫을 수 있다(워크스페이스
+    /// 컨텍스트 메뉴의 "닫기" — 탭 메뉴의 닫기는 마지막 탭을 거절하므로 워크스페이스를
+    /// 비우지 못한다). 여기는 창 이벤트 dispatch 밖이라 그 창을 바로 치운다
     /// ([`Self::close_self_requesting_windows`]).
     fn poll_pending_native_menus(&mut self) {
         for w in self.view.views.values_mut() {
