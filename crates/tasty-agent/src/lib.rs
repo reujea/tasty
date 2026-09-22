@@ -94,12 +94,20 @@ pub(crate) fn component_key(prefix: &str, label: &str, value: &str) -> Result<St
     let key = format!("{prefix}{value}");
     if let Err(full) = tasty_memory::validate_key(&key) {
         let budget = tasty_memory::MAX_KEY_LEN.saturating_sub(prefix.len());
-        // 접두사는 허용 문자만 쓰므로 실패 원인은 값 쪽이다. 문자 위반이면 값만
-        // 다시 재서 좌표를 값 기준으로 바꾸고, 값 단독이 유효하면 길이 초과다.
-        let reason = match tasty_memory::validate_key(value) {
-            Err(e) if !value.is_empty() => e,
-            Ok(()) => format!("too long: {} bytes > {budget}", value.len()),
-            Err(_) => full,
+        // 접두사는 허용 문자만 쓰므로 실패 원인은 값 쪽이다. 문자 위반이면 값을 문자
+        // 단위로 다시 재서 값 기준 좌표와 **그 문자 자체**를 싣는다 — `validate_key` 는
+        // 바이트를 세고 첫 바이트를 문자로 찍어서 `é` 가 `'Ã'` 로 나온다. 한 문자가
+        // 허용되는지는 `validate_key` 에 그 문자만 넘겨 묻는다(집합을 여기 다시 적지 않는다).
+        // 문자가 다 허용되면 길이 초과다.
+        let mut buf = [0u8; 4];
+        let bad = value
+            .chars()
+            .enumerate()
+            .find(|(_, c)| tasty_memory::validate_key(c.encode_utf8(&mut buf)).is_err());
+        let reason = match bad {
+            Some((i, c)) => format!("invalid char at {i}: {c:?}"),
+            None if !value.is_empty() => format!("too long: {} bytes > {budget}", value.len()),
+            None => full,
         };
         return Err(AgentError::InvalidArgument(format!(
             "{label} {value:?}: {reason} (allowed: {}; at most {budget} bytes)",
@@ -164,6 +172,24 @@ mod component_key_tests {
                 .unwrap_err(),
             "task id",
         );
+    }
+
+    /// 다바이트 문자는 입력한 그 문자와 문자 단위 좌표로 나온다 — 바이트 좌표 · 첫 바이트를
+    /// 문자로 찍은 값(`'Ã'`)이 새면 호출자가 자기 이름에서 그 글자를 못 찾는다.
+    #[test]
+    fn a_multibyte_char_is_named_as_typed_and_counted_in_chars() {
+        let mut m = mem();
+        let mut store = SemaphoreStore::new(&mut m, "_host");
+        for (name, want) in [
+            ("aé", "invalid char at 1: 'é'"),
+            ("ab한글", "invalid char at 2: '한'"),
+        ] {
+            let err = store.create(1, name, 1, 0).unwrap_err();
+            let AgentError::InvalidArgument(msg) = &err else {
+                panic!("expected InvalidArgument, got {err:?}");
+            };
+            assert!(msg.contains(want), "{name}: {msg}");
+        }
     }
 
     #[test]

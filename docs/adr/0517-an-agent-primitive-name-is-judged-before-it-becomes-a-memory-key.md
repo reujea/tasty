@@ -20,9 +20,13 @@ lease 는 이미 다른 길을 택했다 — `resource` 를 `encode_key_componen
 ## Decision
 
 네 store 의 키 생성 함수가 키를 만들기 전에 값을 판정하고, 어기면 `AgentError::InvalidArgument`
-(IPC `-32602`)로 돌려준다. 메시지는 **호출자가 준 값 기준 좌표**와 허용 문자 · 그 종류에서 남는
-바이트 상한(256 − 접두사 길이)을 싣는다. 판정과 허용 문자 문구는 `tasty_memory` 의 것
-(`validate_key` · `KEY_ALLOWED_CHARS` · `MAX_KEY_LEN`)을 그대로 쓰고 집합을 다시 적지 않는다.
+(IPC `-32602`)로 돌려준다. 메시지는 **호출자가 준 값 기준 문자 좌표와 그 문자 자체**, 허용 문자 ·
+그 종류에서 남는 바이트 상한(256 − 접두사 길이)을 싣는다. 문자 단위로 다시 재는 것은
+`validate_key` 가 바이트를 세고 첫 바이트를 문자로 찍기 때문이다 — 그대로 옮기면 `aé` 가
+`invalid char at 1: 'Ã'` 로 나가 호출자가 자기 이름에서 그 글자를 못 찾는다(위반 앞의 문자는 전부
+ASCII 라 좌표 수는 같고, 틀리는 것은 찍히는 문자다). 판정과 허용 문자 문구는 `tasty_memory` 의 것
+(`validate_key` · `KEY_ALLOWED_CHARS` · `MAX_KEY_LEN`)을 그대로 쓰고 집합을 다시 적지 않는다 — 한
+문자의 허용 여부도 그 문자 하나를 `validate_key` 에 넘겨 묻는다.
 판정은 생성뿐 아니라 그 값으로 키를 만드는 모든 경로(get · delete · acquire 등)에 같다. 빈 값은
 종전대로 통과시킨다(접두사만으로 유효한 키가 된다).
 
