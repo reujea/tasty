@@ -20,6 +20,7 @@ tasty 를 **개발하는** AI 에이전트용 가이드. tasty 를 *사용하는
 | 문서 | 내용 |
 |------|------|
 | [commit-convention](commit-convention.md) | Conventional Commits |
+| [adr-landing](adr-landing.md) | lane 착지 때 새 ADR 끼리·기존 ADR 과 같은 조항을 결정하지 않는지 대조 — 보고 도구 `scripts/adr-landing-report.sh`(겹침은 판정하지 않는다) |
 | [error-handling](error-handling.md) | Result 처리·락 poison 복구와 관측 범위 |
 | [clippy-policy](clippy-policy.md) | 위치별 allow 선호, 워크스페이스 끄기 지양 |
 | [complexity-gate](complexity-gate.md) | 복잡도 게이트(cognitive deny + 파일 SLOC), 예외 컨벤션 |
