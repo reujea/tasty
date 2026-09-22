@@ -572,7 +572,7 @@ fn generated_const_types() -> (Vec<String>, Vec<String>) {
 /// **묶음 import(`component::fp::{ROW_HEIGHT, GAP}`)는 항목마다 펼친다.** 펼치지 않으면
 /// 경로가 `component::fp::` 에서 끊겨 마지막 조각이 빈 문자열이 되고, 실패문이 "모듈째
 /// import 했다" 고 **이름으로 import 한 자리를** 잘못 진단한다. 중첩 묶음은 펼치지 않고
-/// 끊긴 경로 그대로 둔다 — 그 자리는 "표에서 못 찾았다" 로 떨어져 조용히 빠지지 않는다.
+/// 끊긴 경로 그대로 둔다 — 그 자리는 "경로가 이어지지 않는다" 로 떨어져 조용히 빠지지 않는다.
 fn generated_const_refs(lines: &[&str]) -> Vec<(String, usize)> {
     // **바늘을 쪼갠다.** 통짜로 두면 이 파일 자신이 그 패턴을 담게 되고,
     // 지금은 스캔 루트 밖이라 안 걸리지만 그건 **우연**이다 — 루트가 넓어지는 날
@@ -809,11 +809,13 @@ fn length_const_prescription(
              arm · 생성물 재생성(`cargo run -p tasty-design-tokens --bin generate`), 그리고 \
              명부에서 그 줄을 지운다"
         ),
-        // 표에 없는 LogicalPx — 경로 파싱이 끊긴 자리(모듈째 import 등)다.
+        // 표에 없는 경로 — 상수 이름까지 이어지지 않고 끊긴 자리다. 마지막 조각이 빈
+        // 문자열(glob · 중첩 묶음)이거나 모듈 이름(모듈째 import)이다.
         None => format!(
-            "  {rel}:{at} — `{path}` 는 LogicalPx(배율 축)인데 어느 토큰의 것인지 경로로 \
-             못 찾았다. 상수를 전체 경로로 import 하면(`…::component::<모듈>::<이름>`) \
-             그 토큰의 `&Theme` 경로를 이름으로 댄다"
+            "  {rel}:{at} — `{path}` 는 상수 이름까지 경로가 이어지지 않는다(모듈째 import · \
+             glob `*` · 중첩 묶음). 그래서 어느 토큰인지, 길이인지 무차원인지를 가를 수 \
+             없다 — 상수를 하나씩 전체 경로로 import 해라(`…::component::<모듈>::<이름>`). \
+             그러면 이 가드가 그 토큰의 `&Theme` 경로를 이름으로 댄다"
         ),
     }
 }
@@ -905,10 +907,7 @@ fn ui_does_not_consume_generated_length_consts_directly() {
             } else if other.contains(&name) {
                 dimensionless += 1;
             } else {
-                violations.push(format!(
-                    "  {rel}:{at} — `{name}` 을 생성 상수 표에서 못 찾았다. 모듈째 import \
-                     하면 타입을 못 가르므로 상수를 이름으로 import 해라"
-                ));
+                violations.push(length_const_prescription(rel, at, &path, &table));
             }
         }
     }
@@ -1002,7 +1001,7 @@ fn the_path_parser_beats_the_weak_forms_on_the_deepest_path() {
 /// 처방 표가 무엇을 들고 있는지를 세 겹으로 잰다:
 ///
 /// 1. **모수** — 표의 줄 수가 생성 파일의 `LogicalPx` 상수 수와 같다. doc 주석 파싱이
-///    한 줄이라도 놓치면 그 상수의 자리에는 "경로로 못 찾았다" 가 처방된다.
+///    한 줄이라도 놓치면 그 상수의 자리에는 "경로가 이어지지 않는다" 가 처방된다.
 /// 2. **component tier 는 전부 경로가 있다.** 토큰마다 제 이름의 접근자가 생성되고,
 ///    생성기가 건너뛴 것(`modhint_*`)은 `theme.rs` 에 수기로 있다. 이 단정이 깨지면
 ///    생성기가 새 토큰을 건너뛴 것이다 — 스킵 사유는 생성기가 찍는다.
@@ -1133,11 +1132,21 @@ fn the_prescription_names_the_token_path_not_a_same_value_one() {
         pathless.contains("경로가 없다") && !pathless.contains("`th."),
         "경로가 없는 토큰에 경로를 지어냈다: {pathless}"
     );
-    let unknown = length_const_prescription("x.rs", 1, "component::fp::", &table);
-    assert!(
-        unknown.contains("못 찾았다"),
-        "경로가 끊긴 자리를 다른 갈래로 보냈다: {unknown}"
+    // 끊긴 경로는 가드 루프가 실제로 보내는 입력으로 잰다 — 중첩 묶음을 파서에 넣어
+    // 나온 경로다. "모듈째 import 했다" 로만 진단하면 이름으로 import 한 자리를 오진한다.
+    let nested = concat!(
+        "use tasty_design_tokens",
+        "::generated::component::{fp::{GAP}, dag::EDGE};"
     );
+    for (path, _) in generated_const_refs(&[nested]) {
+        let broken = length_const_prescription("x.rs", 1, &path, &table);
+        assert!(
+            broken.contains("경로가 이어지지 않는다")
+                && broken.contains("중첩 묶음")
+                && broken.contains("전체 경로로 import"),
+            "경로가 끊긴 자리를 다른 갈래로 보냈다: {broken}"
+        );
+    }
 }
 
 /// 묶음 import 를 항목마다 펼친다. 펼치지 않으면 이름으로 import 한 자리가 "모듈째
@@ -1173,7 +1182,7 @@ fn group_imports_expand_to_one_path_per_item() {
             ("component::fp::CRUMB_MIN_WIDTH".to_string(), 1),
         ],
     );
-    // 중첩 묶음은 펼치지 않는다 — 끊긴 경로가 그대로 남아 "못 찾았다" 로 떨어진다.
+    // 중첩 묶음은 펼치지 않는다 — 끊긴 경로가 그대로 남아 "경로가 이어지지 않는다" 로 떨어진다.
     let nested = concat!(
         "use tasty_design_tokens",
         "::generated::component::{fp::{GAP}, dag::EDGE};"
