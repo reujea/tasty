@@ -150,7 +150,11 @@ pub enum ListCommands {
     /// `throttled` (rate limit, -32010). The gates run in that order and a
     /// request turned away by one never reaches the next, so a request is
     /// counted in at most one slot. The three call for different fixes: ask for
-    /// the permission, lift the cap, or wait. The numbers are totals since this
+    /// the permission, lift the cap, or wait. `permission_denied` follows error
+    /// code -32001 one to one, so besides a missing permission it also counts
+    /// calls to a method that does not exist and to a method a plugin or agent
+    /// is not allowed to call. Asking for a permission does not fix those two;
+    /// calling a different method does. The numbers are totals since this
     /// instance started and go back to 0 on restart. The `throttled_count`
     /// reported by `tasty agent rate-limit-status` is a per-bucket total that
     /// survives restarts, so it is not the same number. A request turned away
