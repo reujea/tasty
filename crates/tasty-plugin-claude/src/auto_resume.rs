@@ -31,6 +31,10 @@ pub(crate) const MAX_ATTEMPTS_KEY: &str = "auto_resume_max_attempts";
 /// 설정이 비어 있을 때 쓰는 값 — 매니페스트의 `default` 와 짝을 맞춘다(host 는 키가
 /// 없으면 `null` 을 돌려주고 기본값을 채워 주지 않는다).
 const DEFAULT_DELAY_SECS: f64 = 10.0;
+/// 지연의 상한(하루) — 매니페스트의 `max` 와 짝이다. 설정 파일을 손으로 고치면 매니페스트
+/// 검증을 안 거치므로 코드도 따로 자른다: 자르지 않으면 `Duration::from_secs_f64` 가
+/// 표현 범위를 넘는 값에서, `Instant + Duration` 이 넘침에서 패닉한다.
+const MAX_DELAY_SECS: f64 = 86_400.0;
 const DEFAULT_MAX_ATTEMPTS: u32 = 5;
 
 /// 재개 문구를 보낸 횟수(연속 실패 중)를 남기는 surface meta — 사용자가 "왜 혼자
@@ -89,7 +93,7 @@ pub(crate) fn read_settings<H: HostCall>(host: &H) -> Settings {
             .unwrap_or(d.enabled),
         delay: get(DELAY_KEY)
             .and_then(|v| v.as_f64())
-            .map(|s| Duration::from_secs_f64(s.max(1.0)))
+            .and_then(|s| Duration::try_from_secs_f64(s.clamp(1.0, MAX_DELAY_SECS)).ok())
             .unwrap_or(d.delay),
         max_attempts: get(MAX_ATTEMPTS_KEY)
             .and_then(|v| v.as_f64())
@@ -176,8 +180,17 @@ impl ResumeTable {
     ) {
         let e = self.surfaces.entry(surface).or_default();
         e.turn += 1;
+        // 설정은 [`read_settings`] 가 자르지만, 이 표는 그것을 모른다 — 넘치면 예약하지
+        // 않는다(턴 번호는 올렸으므로 앞선 예약은 이미 무효다).
+        let Some(due) = now.checked_add(delay) else {
+            e.pending = None;
+            tracing::warn!(
+                "claude auto-resume s{surface}: delay {delay:?} overflows the clock, not scheduling"
+            );
+            return;
+        };
         e.pending = Some(Pending {
-            due: now + delay,
+            due,
             error: error.to_string(),
             turn: e.turn,
             foreground_pid,
@@ -461,7 +474,8 @@ fn gather_facts<H: HostCall>(
             r.get("idle_seconds")
                 .and_then(|v| v.as_f64())
                 .filter(|s| *s >= 0.0)
-                .map(Duration::from_secs_f64),
+                // 표현 범위를 넘는 경과는 "아주 오래전" 이다 — 패닉 대신 최댓값으로.
+                .map(|s| Duration::try_from_secs_f64(s).unwrap_or(Duration::MAX)),
         ),
         None => (true, Some(Duration::ZERO)),
     };
@@ -879,6 +893,49 @@ mod tests {
         let now = Instant::now();
         observe_hook(&t, host, "stop-failure", 7, error, now);
         lock_table(&t).due(7, now + Duration::from_secs(3)).cloned()
+    }
+
+    struct DelayHost(serde_json::Value);
+
+    impl HostCall for DelayHost {
+        fn call(
+            &self,
+            _method: &str,
+            params: serde_json::Value,
+        ) -> Result<serde_json::Value, tasty_plugin_sdk::PluginError> {
+            match params["storage_key"].as_str() {
+                Some(DELAY_KEY) => Ok(json!({ "value": self.0 })),
+                _ => Ok(json!({ "value": null })),
+            }
+        }
+    }
+
+    /// 손으로 고친 설정 파일은 매니페스트의 `max` 를 안 거친다 — 코드가 자른다.
+    #[test]
+    fn a_huge_delay_is_clamped_instead_of_panicking() {
+        for v in [json!(1e300), json!(f64::MAX), json!(1e20)] {
+            let s = read_settings(&DelayHost(v.clone()));
+            assert_eq!(s.delay, Duration::from_secs_f64(MAX_DELAY_SECS), "{v}");
+        }
+        assert_eq!(
+            read_settings(&DelayHost(json!(0.2))).delay,
+            Duration::from_secs(1)
+        );
+        assert_eq!(
+            read_settings(&DelayHost(json!(30.0))).delay,
+            Duration::from_secs(30)
+        );
+    }
+
+    /// 표에 직접 넘친 지연이 와도 패닉하지 않고, 예약하지 않는다(앞선 예약도 버린다).
+    #[test]
+    fn an_overflowing_delay_is_not_scheduled() {
+        let mut t = ResumeTable::default();
+        let now = Instant::now();
+        t.schedule(7, "overloaded", now, Duration::from_secs(1), None);
+        t.schedule(7, "overloaded", now, Duration::MAX, None);
+        assert!(t.due(7, now + Duration::from_secs(5)).is_none());
+        assert!(t.take_due(now + Duration::from_secs(5)).is_empty());
     }
 
     #[test]

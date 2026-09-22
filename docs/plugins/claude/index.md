@@ -210,7 +210,7 @@ API 에러로 끝난 턴(위 `StopFailure`)을 설정된 지연 뒤에 재개 �
 | 설정(`storage_key`) | 종류 | 기본 | 뜻 |
 |---|---|---|---|
 | `auto_resume_enabled` | toggle | `false` | 켜야 동작한다 |
-| `auto_resume_delay_secs` | number(최소 1) | 10 | 턴이 끝난 뒤 재개까지 기다리는 초 |
+| `auto_resume_delay_secs` | number(최소 1, 최대 86400) | 10 | 턴이 끝난 뒤 재개까지 기다리는 초. 범위 밖 값은 코드가 다시 자른다(설정 파일을 손으로 고친 경우) |
 | `auto_resume_max_attempts` | number(최소 1) | 5 | 연속으로 보내는 재개 문구 수의 상한 |
 
 - **대상 에러**: `overloaded` · `server_error` 뿐이다. `rate_limit` 은 제외한다(해제가 분~시간 단위라 몇 초 뒤 재개는 다시 실패한다). 인증·과금·요청 형식·출력 한도 등은 다시 보내도 같아 제외한다. 서브에이전트(`agent_id` 가 실린)의 실패는 메인 턴이 계속되므로 예약하지 않는다.

@@ -442,6 +442,7 @@ label_key = "claude.settings.auto_resume_delay_secs"
 storage_key = "auto_resume_delay_secs"
 default = 10.0
 min = 1.0
+max = 86400.0
 
 [[contributes.settings_pages.items]]
 kind = "number"

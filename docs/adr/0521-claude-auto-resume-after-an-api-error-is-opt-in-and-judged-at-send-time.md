@@ -18,7 +18,7 @@ Claude Code 는 내장 재시도를 다 쓴 뒤 API 에러(`529 Overloaded` · 5
 
 ## Decision
 
-1. **기본값은 꺼짐이다.** `auto_resume_enabled`(toggle, 기본 `false`) · `auto_resume_delay_secs`(number, 기본 10, 최소 1) · `auto_resume_max_attempts`(number, 기본 5, 최소 1). 사용자 세션에 텍스트를 넣는 기능이라 opt-in 이고, 켜지 않은 사용자의 동작은 바뀌지 않는다.
+1. **기본값은 꺼짐이다.** `auto_resume_enabled`(toggle, 기본 `false`) · `auto_resume_delay_secs`(number, 기본 10, 최소 1, 최대 86400 — 하루. 매니페스트 `max` 는 설정 UI 만 막으므로 손으로 고친 설정 파일을 위해 코드도 같은 범위로 자르고, 그래도 시계가 넘치면 예약하지 않는다) · `auto_resume_max_attempts`(number, 기본 5, 최소 1). 사용자 세션에 텍스트를 넣는 기능이라 opt-in 이고, 켜지 않은 사용자의 동작은 바뀌지 않는다.
 2. **재개 대상 에러는 `overloaded` 와 `server_error` 둘로 고정한다.** `rate_limit` 은 넣지 않는다 — 한도가 풀리는 시각이 분~시간 단위라 몇 초 뒤의 재개는 다시 실패하고 실패마다 요청을 한 건 더 쓴다. 나머지는 다시 보내도 같은 결과라 사람이 고쳐야 한다.
 3. **재개 문구는 i18n 고정 문장이다**(`claude.auto_resume.message`, plugin 활성 locale). 사용자 지정 문구는 두지 않는다.
 4. **판정은 만기 시점에 한다.** 예약(`stop-failure` 수신 시, 설정 on · 대상 에러일 때)은 만기 시각만 적고, 만기 스레드가 보내기 직전에 다음을 모두 다시 확인한다 — 설정이 여전히 켜짐 · `terminal.state` 가 `idle` · 전경이 `claude` 이고 pid 가 예약 때와 같음 · 사람 입력 없음 · 연속 상한 미만. 전경 이름은 호스트가 OS 에서 받은 값 그대로라 Windows 에서는 `claude.exe` 이고 대소문자도 보장되지 않는다 — 소문자로 바꾸고 끝의 `.exe` 를 뗀 뒤 `claude` 와 비교한다(셸 판정 `is_known_shell_name` 과 같은 형태). 새 턴 신호(`prompt-submit` · `session-start` · `active`) · 성공 `stop` · `session-end` 는 예약을 지우고, 보내기 직전 턴 번호를 한 번 더 대조한다. 서브에이전트(`agent_id` 가 실린)의 `StopFailure` 는 메인 턴이 계속되므로 예약하지 않는다.
