@@ -1505,9 +1505,9 @@ fn draw_workspace_card(
             //   `status-dot-attached-ring-width` · `-offset` 토큰). red 는
             //   error 전용으로 보존 — attached 에 red 재사용 시 error 와 충돌하므로 분리.
             // 디자인의 agent / waiting case 는 ws-level 데이터 부재로 보류.
-            // 슬롯 폭 = spacing_sm(점 지름 `badge-dot-size` 보다 넓다) — dot 유무와
-            // 무관하게 항상 점유되어 라벨 시작 x 가 흔들리지 않는다. 높이는 행
-            // 높이 안정을 위해 16px 유지.
+            // 슬롯 폭 = spacing_sm(현재 점 지름 `badge-dot-size` 와 같은 값, 좌우 내부
+            // 패딩 0) — dot 유무와 무관하게 항상 점유되어 라벨 시작 x 가 흔들리지
+            // 않는다. 높이는 행 높이 안정을 위해 16px 유지.
             let dot_slot = egui::vec2(th.spacing_sm.value(), 16.0);
             let (dot_rect, dot_resp) = ui.allocate_exact_size(dot_slot, egui::Sense::hover());
             if let Some(digit) = switch_digit {
