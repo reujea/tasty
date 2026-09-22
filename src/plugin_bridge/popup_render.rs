@@ -96,6 +96,10 @@ pub fn draw_plugin_popups(
     state
         .plugin_mesh_popup_forward
         .retain(|k, _| live_mesh.contains(k));
+    // 활성화 기록은 여기서, popup 이 닫힐 때만 걷힌다 — `dispatch_origin_of` 는 조회만 하고
+    // 소비하지 않으므로 사용자가 한 번 누른 popup 이 열려 있는 동안 그 plugin 은 몇 번이든
+    // 사용자 발화를 얻는다. plugin 코드는 이미 사용자 입력을 받는 쪽이라 이 창은 ADR-0526 이
+    // 수용했다.
     state
         .plugin_popup_user_activated
         .retain(|k, _| live_mesh.contains(k));
