@@ -2,7 +2,7 @@
 
 - **Status**: Accepted
 - **Date**: 2026-09-23
-- **Tags**: api-stability, deprecation, compatibility, changelog, identity, identity-principle-1, identity-principle-3, adr-0115, adr-0122, adr-0497, adr-0502, adr-0526, adr-0532, adr-0533
+- **Tags**: api-stability, deprecation, compatibility, changelog, identity, identity-principle-1, identity-principle-3, adr-0113, adr-0115, adr-0122, adr-0497, adr-0502, adr-0504, adr-0526, adr-0532, adr-0533
 
 ## Context
 
@@ -12,28 +12,41 @@
 적었다 — 같은 물음(무엇이 유예를 건너뛰는가)에 답하는 두 자리가 이미 서로 다른 집합을 적고 있었다.
 어느 쪽에도 **불가침 원칙 위반**([`identity.md`](../identity.md) §2)은 없다.
 
-그런데 원칙 위반을 고친 외부 동작 변경은 전부 유예 없이 나갔다. 실측(2026-09-23, 착수 트리
-`f4ff0f72a`). 술어: `docs/adr/` 에서 원칙 1·3 을 근거로 인용하면서 외부 동작(응답 · 기록 값 ·
-표면 존재)을 바꾼 결정을 고르고, `CHANGELOG.md` 의 대응 항목을 대조했다. 모수는 불가침 원칙을 인용한
-ADR 가운데 `CHANGELOG.md` 가 인용하는 21 편을 한 편씩 읽은 것에, CHANGELOG 항목이 없는 ADR-0143 을
-더한 것이다 — CHANGELOG 가 인용하지 않는 나머지 원칙 인용 ADR 은 전부 읽지 않았다.
+그런데 원칙 위반을 고친 외부 동작 변경은 전부 유예 없이 나갔다. 실측(2026-09-23, `main`
+`705da30b4`). 술어: `docs/adr/` 에서 원칙 1·3 을 근거로 인용하면서 외부 동작(응답 · 기록 값 ·
+표면 존재)을 바꾼 결정을 고르고, `CHANGELOG.md` 의 대응 항목을 대조했다.
+
+모수는 "원칙을 인용한 ADR 전부" 가 아니라 **아래 패턴에 걸린 ADR** 이다. `docs/adr/` 에서
+`git grep -lE '원칙 ?[123]|원칙 [0-9]·[0-9]|포커스 독립성|불가침|identity-principle-[13]'`
+(index · template · 이 ADR 제외)에 걸린 73 편과, `CHANGELOG.md` 가 인용하는
+66 편(`grep -oE 'ADR-[0-9]{4}' CHANGELOG.md | sort -u`)의 교집합 **22 편**을 한 편씩 읽었다. 여기에 CHANGELOG 항목이 없는 ADR-0143 을 더했다.
+이 패턴은 원칙을 `[identity §2.1 ①](../identity.md)` 같은 링크나 `user-agent-separation` 태그로만
+인용한 ADR 을 놓친다. 그래서 `identity\.md|user-agent-separation` 을 더해 넓혀 보았고, CHANGELOG 가
+인용하는 것 중 22 편 밖이 4 편 더 나왔다(0113 · 0512 · 0514 · 0531). 그중 ADR-0113 만 술어에 든다.
+0512 · 0514 는 동작을 더하기만 했고(0514 는 "생략 시 동작은 이 결정 전과 같다"), 0531 은 옛 동작에
+기대던 호출자가 없다. CHANGELOG 가 인용하지 않는 원칙 인용 ADR 은 두 패턴 어느 쪽이든 읽지 않았다.
 
 | 결정 | 원칙 | CHANGELOG | 유예 | 인용한 예외 |
 |---|---|---|---|---|
+| [ADR-0113](0113-close-preserves-the-focused-target.md) 에이전트의 `surface.close` 뒤 `active_workspace` · `active_tab` 이 가리키는 대상 | 1 ① | 항목 있음(`### Fixed`), `(BREAK)` 표기 없음 — 항목이 스스로 "불가침 원칙 1 위반" 이라 적었다 | 없음 | 없음 |
 | [ADR-0115](0115-input-reproduction-ipc-debug-isolation.md) `surface.raw_key` · `switch_input_source` | 1 ② | `(BREAK)` | 없음 | 보안 |
 | 같은 ADR `surface.ime_*` | 1 ② · 3 | `(BREAK)` | 없음 | "같은 이유로"(앞 항목을 잇는다) |
 | [ADR-0122](0122-winit-scheduled-fallible-ipc-returns-outcome.md) `window.create` 결과 동기화 | 1 — 위반은 에이전트 발 실패를 사용자 toast 로 낸 것이고, `(BREAK)` 인 응답 형태는 그 toast 를 대신해 실패를 요청자에게 돌려줄 자리다 | `(BREAK)` | 없음 | 없음 |
 | [ADR-0143](0143-a-named-target-is-checked-before-the-engine-in-headless.md) 헤드리스의 지목 대상 검사 | 3 | 항목 없음 | 없음 | 없음 |
 | [ADR-0497](0497-an-agent-created-window-does-not-take-the-users-focus.md) 에이전트가 만든 창의 포커스 | 1 · 3 | 항목 있음, `(BREAK)` 표기 없음 | 없음 | 없음 |
 | [ADR-0502](0502-an-agent-created-tab-does-not-take-the-users-tab.md) 에이전트가 만든 탭의 선택 · 응답 `active_tab` | 1 · 3 | 항목 있음, `(BREAK)` 표기 없음 | 없음 | 없음 |
+| [ADR-0504](0504-the-file-picker-trigger-answers-only-a-plugin-caller.md) CLI · 에이전트의 `file_picker.trigger` 가 popup 대신 `-32016` | 1 ① · ② · 3 | `(BREAK)` | 없음 — ADR 이 "한 minor deprecation 을 거친다" 를 원칙 2.1 ① · 2.3 위반이 남는다는 이유로 기각했다 | 없음 — 사유만 적었다("불가침 원칙의 위반이라 deprecation 기간 없이 바꿨다") |
 | [ADR-0526](0526-a-plugin-popup-the-user-touched-makes-its-file-dispatch-a-user-action.md) origin 없는 `file_handler.dispatch` 의 탭 선택 | 1 · 3 | 항목 있음, `(BREAK)` 표기 없음 | 없음 | 없음 |
 | [ADR-0532](0532-workspace-create-inherits-cwd-from-the-surface-that-names-its-window.md) `workspace.create` cwd 상속 | 3 | `(BREAK)` | 없음 | 없음 — 사유만 적었다("유예를 두면 그 기간 동안 위반이 그대로 남는다") |
 | [ADR-0533](0533-an-omitted-target-keeps-its-focus-default-only-where-nothing-names-one.md) `approval.request` 의 기록 귀속 | 3 | 항목 있음, `(BREAK)` 표기 없음 | 없음 | 없음 |
 
-- 원칙 위반을 고친 변경 9 건(ADR 8 편) 중 유예를 거친 것 **0 건**, 문서의 예외 이름을 댄 것 **1 건**
+- 원칙 위반을 고친 변경 11 건(ADR 10 편) 중 유예를 거친 것 **0 건**, 문서의 예외 이름을 댄 것 **1 건**
   (ADR-0115 의 보안 — 원칙 위반이 아니라 보안 표면이라는 사실을 댄 것이다).
-- 같은 기간 `CHANGELOG.md` 의 `(BREAK)` 항목은 11 건이고 `### Deprecated` 절은 **한 번도 없다**
+- 같은 기간 `CHANGELOG.md` 의 `(BREAK)` 항목은 12 건이고(`grep -c '^- (BREAK)' CHANGELOG.md` = 12 —
+  범례 줄은 `- (BREAK)` 로 시작하지 않아 빠진다) `### Deprecated` 절은 **한 번도 없다**
   (`grep -c '^### Deprecated' CHANGELOG.md` = 0).
+- ADR-0504 는 유예를 두는 안을 대안으로 적고 원칙 위반을 이유로 기각했다 — 이 결정을 가장 곧게
+  앞서간 선례다.
 - ADR-0532 는 Consequences 에 "원칙 3 이 호환보다 앞선다" 고 적었다. 즉 이 판단은 개별 결정 안에서는
   이미 내려졌고, 그것을 받는 규칙 문장만 없었다. 독자는 그 `(BREAK)` 가 "심각 버그" 에 해당한다고
   **추론**해야 했다.
@@ -120,11 +133,13 @@ ADR 가운데 `CHANGELOG.md` 가 인용하는 21 편을 한 편씩 읽은 것에
 - 운영 문서: [dev-guide/api-conventions](../dev-guide/api-conventions.md) 「안정성 정책」 — 버전 단계 표 ·
   「Deprecation 절차」
 - 원칙 정의: [identity.md](../identity.md) §2
-- 표의 결정: [ADR-0115](0115-input-reproduction-ipc-debug-isolation.md) ·
+- 표의 결정: [ADR-0113](0113-close-preserves-the-focused-target.md) ·
+  [ADR-0115](0115-input-reproduction-ipc-debug-isolation.md) ·
   [ADR-0122](0122-winit-scheduled-fallible-ipc-returns-outcome.md) ·
   [ADR-0143](0143-a-named-target-is-checked-before-the-engine-in-headless.md) ·
   [ADR-0497](0497-an-agent-created-window-does-not-take-the-users-focus.md) ·
   [ADR-0502](0502-an-agent-created-tab-does-not-take-the-users-tab.md) ·
+  [ADR-0504](0504-the-file-picker-trigger-answers-only-a-plugin-caller.md) ·
   [ADR-0526](0526-a-plugin-popup-the-user-touched-makes-its-file-dispatch-a-user-action.md) ·
   [ADR-0532](0532-workspace-create-inherits-cwd-from-the-surface-that-names-its-window.md) ·
   [ADR-0533](0533-an-omitted-target-keeps-its-focus-default-only-where-nothing-names-one.md) ·
