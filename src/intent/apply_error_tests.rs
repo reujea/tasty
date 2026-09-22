@@ -125,18 +125,13 @@ fn an_agent_forward_is_marked_for_a_silent_failure() {
 /// `preset::apply` 의 `origin.is_user()` 가드를 `true` 로 바꾸는 변이에서 실패해야 한다.
 #[test]
 fn a_preset_apply_failure_toasts_only_for_the_user() {
-    let (mut core, mut state, mut engine) = fixture();
+    let (core, mut state, mut engine) = fixture();
     let apply = || Intent::ApplyPreset {
         kind: tasty_presets::PresetKind::Tab,
         name: "no-such-preset-apply-error-tests".to_string(),
         category: None,
     };
-    preset::handle(
-        &mut core,
-        &mut state,
-        &mut engine,
-        &apply().from_agent_ipc(),
-    );
+    preset::handle(&core, &mut state, &mut engine, &apply().from_agent_ipc());
     assert_eq!(
         state.toasts.len(),
         0,
@@ -144,7 +139,7 @@ fn a_preset_apply_failure_toasts_only_for_the_user() {
     );
 
     preset::handle(
-        &mut core,
+        &core,
         &mut state,
         &mut engine,
         &apply().from_user_menu("test"),
@@ -161,7 +156,7 @@ fn a_preset_apply_failure_toasts_only_for_the_user() {
 /// `preset::save` 의 `show_toast` 가드를 `true` 로 바꾸는 변이에서 실패해야 한다.
 #[test]
 fn a_preset_save_failure_toasts_only_for_the_user() {
-    let (mut core, mut state, mut engine) = fixture();
+    let (core, mut state, mut engine) = fixture();
     let ws = &engine.workspaces[0];
     let captured = crate::intent::preset_capture::capture_workspace_preset(
         &engine,
@@ -176,7 +171,7 @@ fn a_preset_save_failure_toasts_only_for_the_user() {
         overwrite: true,
         preset: ClonedPreset::Workspace(captured.clone()),
     };
-    preset::handle(&mut core, &mut state, &mut engine, &save().from_agent_ipc());
+    preset::handle(&core, &mut state, &mut engine, &save().from_agent_ipc());
     assert_eq!(
         state.toasts.len(),
         0,
@@ -184,7 +179,7 @@ fn a_preset_save_failure_toasts_only_for_the_user() {
     );
 
     preset::handle(
-        &mut core,
+        &core,
         &mut state,
         &mut engine,
         &save().from_user_menu("test"),
