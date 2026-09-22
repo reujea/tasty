@@ -109,7 +109,7 @@ modifier-hint 는 0035(좁힘 + 지연) · 0038(빈 섹션) · 0064(타이머 �
 
 ## UI · 테마 · 디자인 토큰 · 갤러리
 
-디자인 작업의 흐름과 갤러리 완전성은 0510 한 편이다. 갤러리 미러는 0329(대조 전에 미러를 없앨 수 있는지 먼저 본다)가 원칙이고 0380(토스트 카드)이 그 적용이다 — 두 편은 서로 인용하지 않으므로 여기서 잇는다. 스케일 밖 값은 0126 → 0290 이다.
+디자인 작업의 흐름과 갤러리 완전성은 0510 한 편이다. 갤러리 미러는 0329(대조 전에 미러를 없앨 수 있는지 먼저 본다)가 원칙이고 0380(토스트 카드)이 그 적용이다 — 두 편은 서로 인용하지 않으므로 여기서 잇는다. 스케일 밖 값은 0126 → 0290 이다. 구조 전달 실패 toast 는 0401 → 0503(에이전트 origin 제외 개정)이다.
 운영 문서: [design/systems/theme](../design/systems/theme.md) · [dev-guide/gallery-first](../dev-guide/gallery-first.md) · [dev-guide/popup-implementation](../dev-guide/popup-implementation.md)
 
 | # | Title | Status | Date | Tags |
@@ -138,6 +138,7 @@ modifier-hint 는 0035(좁힘 + 지연) · 0038(빈 섹션) · 0064(타이머 �
 | 0380 | [토스트 카드의 치수·색은 도출이 하나다 — 갤러리는 본체의 alpha 곱 순서를 따른다](0380-the-toast-card-geometry-and-color-have-one-derivation.md) | Accepted | 2026-09-21 | toast, gallery, shared-widgets, color, alpha, identity, measurement, adr-0510, adr-0122 |
 | 0401 | [원격 연결 상태 사건은 사용자 행동 없이도 toast 를 띄울 수 있다 — toast 트리거 정책의 허용 부류](0401-remote-connection-events-may-raise-a-toast-without-a-user-action.md) | Accepted | 2026-09-21 | toast, attach, mirror, ui, identity-principle-1, user-agent-separation |
 | 0460 | [셀 강조색의 alpha 는 CPU 에서 그 셀 배경 위에 합성한다](0460-cell-highlight-alpha-is-composited-on-the-cpu-over-the-cell-bg.md) | Accepted | 2026-09-21 | renderer, gpu, theme, search, selection, alpha, blending, compatibility |
+| 0503 | [에이전트 intent 의 적용 실패는 사용자 toast 가 아니라 로그로 간다 — ADR-0401 의 구조 전달 실패 조항 개정](0503-an-agent-intents-apply-failure-goes-to-the-log-not-a-user-toast.md) | Accepted | 2026-09-23 | toast, attach, mirror, intent, origin, identity-principle-1, user-agent-separation, adr-0401 |
 | 0510 | [디자인 작업은 Claude Design 시안을 갤러리 → 본체 → 사이트 사본 순으로 정합한다 — 갤러리는 본체 UI 의 완전한 단일 출처다](0510-design-work-flows-from-claude-design-through-gallery-app-and-site.md) | Accepted | 2026-09-23 | design-workflow, claude-design, gallery, gallery-first, design-parity, component-catalog, site, vendor, guards, adr-0138, adr-0506 |
 | 0522 | [프리셋 surface 설정 화면의 draft 는 kind 를 바꿔도 값을 지우지 않는다](0522-the-preset-surface-settings-draft-keeps-values-across-kind-switches.md) | Accepted | 2026-09-23 | preset, layout-presets, draft, surface-settings, design-parity, egui, input, adr-0510 |
 
@@ -399,7 +400,7 @@ namespace 라우팅은 0140 → 0153 → 0171(오류 코드 개정 — 「IPC �
 
 ## 파일 핸들러 · 파일 피커
 
-0272 → 0279 → 0302(포커스 조항 개정)(탭 생성 갈래는 0502 — 「창 · 워크스페이스 · 포커스 · 수명주기」 그룹) → 0425 · 0426 · 0427. 파일 피커는 0042 → 0162(에이전트 표면에서 제외, 0042 대체)이다.
+0272 → 0279 → 0302(포커스 조항 개정)(탭 생성 갈래는 0502 — 「창 · 워크스페이스 · 포커스 · 수명주기」 그룹)(toast 축은 0503 — 「UI · 테마 · 디자인 토큰 · 갤러리」 그룹) → 0425 · 0426 · 0427. 파일 피커는 0042 → 0162(에이전트 표면에서 제외, 0042 대체)이다.
 운영 문서: [features/file-handler](../features/file-handler/index.md)
 
 | # | Title | Status | Date | Tags |
@@ -412,7 +413,6 @@ namespace 라우팅은 0140 → 0153 → 0171(오류 코드 개정 — 「IPC �
 | 0425 | [헤드리스의 `file_handler.dispatch` 는 수락하지 않고 "이 빌드에 없다" 로 답한다](0425-headless-file-dispatch-answers-that-this-build-cannot-open-files.md) | Accepted | 2026-09-21 | ipc, headless, file-handler, agent-facing, build-combination, error-code |
 | 0426 | [`file_handler.reload` 는 적용되지 않은 user 항목을 `rejected` 필드로 알린다](0426-file-handler-reload-reports-the-entries-it-dropped.md) | Accepted | 2026-09-21 | ipc, cli, file-handler, agent-facing, compatibility, settings |
 | 0427 | [file handler 병합은 출처 순서(Host → Plugin → User)로 하고 user patch 를 늘 마지막에 둔다](0427-file-handler-merge-applies-user-patches-last.md) | Accepted | 2026-09-21 | file-handler, registry, plugin, settings, boot, patch-semantics |
-| 0503 | [에이전트 intent 의 적용 실패는 사용자 toast 가 아니라 로그로 간다 — ADR-0401 의 구조 전달 실패 조항 개정](0503-an-agent-intents-apply-failure-goes-to-the-log-not-a-user-toast.md) | Accepted | 2026-09-23 | toast, attach, mirror, intent, origin, identity-principle-1, user-agent-separation, adr-0401 |
 
 ## 에이전트 통합 · 협업
 
