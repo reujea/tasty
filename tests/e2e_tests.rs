@@ -1781,6 +1781,9 @@ fn a_headless_daemon_warns_at_boot_that_restore_layout_is_ignored() {
     // 보험은 문다 — 하네스를 영구히 바꿀 필요 없이 임시 변이로 잰다: `src/boot.rs` 의 고지 직전에
     // 6 초 sleep 을 넣고(초록), `tests/common/mod.rs` 의 `wait_for_shell` 호출을 빼 하네스가 포트
     // 파일만 보고 돌아오게 하면 여전히 초록이며, 거기서 이 호출까지 빼면 아래 단언이 FAILED 가 된다.
+    // 6 초는 아래 폴링 창(`from_secs(5)`)보다 길게 잡은 값이다. 창보다 짧으면 호출을 뺀 마지막
+    // 변이에서도 폴링이 지연을 흡수해 초록이 나와 "보험이 안 문다" 로 거꾸로 읽힐 것이다 — 이것은
+    // 창 길이에서 끌어낸 추론이고, 더 짧은 sleep 으로 돌려 본 적은 없다.
     tasty.call("system.info", json!({}));
     let deadline = std::time::Instant::now() + Duration::from_secs(5);
     let line = loop {
