@@ -143,18 +143,24 @@ fn an_upgrade_during_a_restart_keeps_the_restart() {
 
 /// 쓸 것이 없는 upgrade(같은 버전·같은 내용 / 설치본이 더 높음)는 회수를 기다리지 않는다.
 /// 회수는 뒤에서 이어지고, 재시작 예약도 그대로 남아 결국 다시 뜬다.
+///
+/// "기다리지 않았다" 는 시계가 아니라 **회수 기록**으로 판정한다. 기다리는 길
+/// (`wait_retired`)은 기록을 가져가고, 기다리지 않으면 기록은 pump 가 거둘 때까지 남는다 —
+/// upgrade 와 단정 사이에 pump 가 없으므로 회수가 뒤에서 이미 끝났어도 기록은 그대로다.
+/// 그래서 부하가 upgrade 를 아무리 늦춰도 판정이 안 바뀐다. 예전의 벽시계 단언(500 ms)은
+/// 이 호출이 실제로 수 µs~수백 µs 인데도 그 차이를 시계에 맡겼다.
 #[test]
 fn an_upgrade_that_writes_nothing_does_not_wait_for_a_retirement() {
     for (installed, bundle) in [(0, 0), (1, 0)] {
         let home = HomeEnvGuard::tasty_home();
         let (mut mgr, src, dest) = restarting(&home);
 
-        let t = Instant::now();
         upgrade(&mut mgr, &src, &dest, installed, bundle, false);
-        assert!(
-            t.elapsed() < Duration::from_millis(500),
-            "쓸 것이 없는 upgrade(v1.{installed} ← v1.{bundle})가 회수를 기다렸다: {:?}",
-            t.elapsed()
+        assert_eq!(
+            mgr.retiring_count(),
+            1,
+            "쓸 것이 없는 upgrade(v1.{installed} ← v1.{bundle})가 회수를 기다렸다 — 회수 기록이 \
+             pump 없이 사라졌다"
         );
         assert_eq!(
             mgr.retiring_respawn(ID),
