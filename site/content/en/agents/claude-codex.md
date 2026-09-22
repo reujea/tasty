@@ -1,4 +1,4 @@
-<!-- source-hash: 3abab8c45aa2 -->
+<!-- source-hash: 6322aaae345e -->
 # Working with Claude and Codex
 
 Connect Claude Code and Codex CLI to share work across several agents. One agent can launch others and receive their results, so implementation, testing, and review can run alongside each other.
@@ -135,7 +135,7 @@ When a temporary API error such as a server overload ends Claude's turn, Tasty c
 - **Seconds to wait before resuming** — 10 seconds by default. Any value from 1 second to one day (86400 seconds) works, and a value outside that range is moved to the nearest end.
 - **Consecutive automatic resumes before giving up** — 5 by default. When failures in a row reach this number, Tasty stops sending and shows one notification.
 - Errors that would fail the same way again — rate limits, authentication failures, billing problems — are not resumed.
-- If you type something yourself while it waits, nothing is sent. If you pressed any key on that surface after the turn began (there may be a half-written message in the input box), it does not resume.
+- If you type something yourself while it waits, nothing is sent. If you pressed any key or pasted anything into that surface after the turn began (there may be a half-written message in the input box), it does not resume.
 - The number of automatic resumes is in the surface meta `claude-auto-resume-count`.
 - This needs the hooks installed by `tasty claude install`. Run it again after updating Tasty.
 
