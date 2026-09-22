@@ -332,7 +332,7 @@ markdown plugin 이 그 namespace 를 점유해 host 로 되돌리기 때문이�
 
 | 메서드 | 왜 |
 |--------|-----|
-| `file_handler.dispatch` | 요청을 적용할 identify worker 와 결과를 여는 창이 gui 에만 있다. arm 이 헤드리스에 있던 동안은 `{"accepted": true}` 로 답하고 요청을 버렸다 — `git_viewer.query` 와 같은 모양이다. 근거 [ADR-0425](../adr/0425-headless-file-dispatch-answers-that-this-build-cannot-open-files.md). 같은 namespace 의 `file_handler.reload` 는 헤드리스에서도 답한다 |
+| `file_handler.dispatch` | 요청을 적용할 identify worker 와 결과를 여는 창이 gui 에만 있다. arm 이 헤드리스에 있던 동안은 `{"accepted": true}` 로 답하고 요청을 버렸다 — `git_viewer.query` 와 같은 모양이다. 근거 [ADR-0425](../adr/0425-headless-file-dispatch-answers-that-this-build-cannot-open-files.md). 같은 namespace 의 `file_handler.reload` · `file_handler.detectors` 는 헤드리스에서도 답한다 |
 
 ### `debug.*` 36 건
 

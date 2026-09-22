@@ -1,4 +1,4 @@
-//! `file_handler.*` IPC 메서드 — reload + dispatch.
+//! `file_handler.*` IPC 메서드 — reload + detectors + dispatch.
 //!
 //! - `file_handler.reload`: user TOML 재로드. host/plugin 영향 없음.
 //!   Method call wrapper (`Core::reload_file_handlers`) 직접 호출. 응답의 `rejected` 는
