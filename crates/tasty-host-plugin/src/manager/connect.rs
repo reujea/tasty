@@ -12,7 +12,7 @@ use std::time::{Duration, Instant};
 
 use crate::process::connect::{ConnectOutcome, HANDSHAKE_TIMEOUT};
 
-use super::{PendingRequestKind, PluginManager};
+use super::{FinalCaller, PendingRequestKind, PluginManager};
 
 /// 전체 기동이 연결을 기다려 주는 한도의 여유 — 연결 대기 스레드는 연결 한도
 /// ([`HANDSHAKE_TIMEOUT`])에서 스스로 실패를 적으므로, 그 결과를 받을 만큼만 더 기다린다.
@@ -149,14 +149,24 @@ impl PluginManager {
                     final_caller,
                     post_hook,
                     ..
-                } => self.dispatch_target_invoke(
-                    target_plugin_id,
-                    method,
-                    params,
-                    None,
-                    final_caller,
-                    post_hook.map(|p| (extension_plugin_id, p)),
-                ),
+                } => {
+                    // 송신 실패 갈래(`ipc_dispatch.rs`)가 target 에 싣는 호출 plugin id 를 그대로
+                    // 싣는다 — plugin 이 부른 호출이면 그 id, 로컬 호출이면 없다.
+                    let caller_plugin_id = match &final_caller {
+                        FinalCaller::Plugin {
+                            caller_plugin_id, ..
+                        } => Some(caller_plugin_id.clone()),
+                        FinalCaller::Local { .. } => None,
+                    };
+                    self.dispatch_target_invoke(
+                        target_plugin_id,
+                        method,
+                        params,
+                        caller_plugin_id.as_deref(),
+                        final_caller,
+                        post_hook.map(|p| (extension_plugin_id, p)),
+                    )
+                }
                 PendingRequestKind::ExtensionPostIpcHook {
                     target_outcome,
                     final_caller,

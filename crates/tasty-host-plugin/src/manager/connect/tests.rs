@@ -192,3 +192,37 @@ fn a_pre_hook_to_an_extension_that_never_connects_is_bypassed() {
     let forwarded = target_tap.try_recv().expect("hook 없이 target 에 닿는다");
     assert_eq!(forwarded.method, "ipc.invoke");
 }
+
+/// plugin 이 부른 호출이면 건너뛴 hook 뒤 target 에 가는 요청에 그 plugin id 가 실린다 — hook
+/// 송신이 실패했을 때의 갈래와 같은 값이다. 로컬 호출이면 싣지 않는다.
+#[test]
+fn a_bypassed_pre_hook_carries_the_calling_plugin_to_the_target() {
+    const CALLER: &str = "com.example.caller";
+    let mut mgr = manager();
+    let (ext, _ext_tap) = connecting(EXT);
+    let (target, target_tap) = PluginProcess::stub_with_request_rx(TARGET);
+    mgr.processes.insert(EXT.into(), ext);
+    mgr.processes.insert(TARGET.into(), target);
+    let (mut from_plugin, _rx) = pre_hook(Instant::now());
+    if let PendingRequestKind::ExtensionPreIpcHook { final_caller, .. } = &mut from_plugin.kind {
+        *final_caller = FinalCaller::Plugin {
+            caller_plugin_id: CALLER.into(),
+            call_id: 5,
+        };
+    }
+    mgr.pending_requests.insert(7, from_plugin);
+    let (local, _local_rx) = pre_hook(Instant::now());
+    mgr.pending_requests.insert(8, local);
+
+    mgr.on_connect_failure(EXT, "did not connect".into());
+
+    let mut callers: Vec<serde_json::Value> = std::iter::from_fn(|| target_tap.try_recv().ok())
+        .map(|req| req.params["caller_plugin_id"].clone())
+        .collect();
+    callers.sort_by_key(|v| v.is_null());
+    assert_eq!(
+        callers,
+        vec![serde_json::json!(CALLER), serde_json::Value::Null],
+        "target 에 실린 호출 plugin id 가 송신 실패 갈래와 다르다"
+    );
+}

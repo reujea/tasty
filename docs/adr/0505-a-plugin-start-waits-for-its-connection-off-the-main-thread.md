@@ -52,7 +52,8 @@
   곧바로 kill 하는 종료 핸들이고, kill 과 회수는 ADR-0457 의 회수 스레드가 한다. 연결을 기다리던 사이 쌓인
   namespace 호출은 caller 에 오류로 회신한다. 그 사이 그 extension 에 보낸 hook(pre/post × ipc/event)은
   **보낸 적 없는 것으로** 진행한다 — 예전에는 extension 기동이 먼저 실패해 hook 송신이 실패했고 원래
-  흐름이 hook 없이 이어졌다(`bypass_hooks_sent_to`). 실행된 적 없는 hook 이라 연속 실패로 세지 않는다.
+  흐름이 hook 없이 이어졌다(`bypass_hooks_sent_to`). pre-ipc hook 을 건너뛰고 target 에 보내는 요청에는 송신
+  실패 갈래처럼 호출한 plugin id 를 싣는다(로컬 호출이면 없다). 실행된 적 없는 hook 이라 연속 실패로 세지 않는다.
 - **연속 실패 기록은 연결 성사 때 지운다 — 자식을 띄운 때가 아니다.** 띄운 때 지우면 매번 연결에 실패하는
   plugin 의 누적이 기동마다 0 으로 돌아가 자동 비활성이 영영 안 걸린다.
 - **전체 기동(`discover_and_start`)은 연결의 결과까지 기다린다.** 부팅의 hello 시한이 연결 시간에 먹히지
@@ -138,7 +139,9 @@
   hook 을 건너뛰지 않으면 `a_pre_hook_to_an_extension_that_never_connects_is_bypassed` 가, 연결 성사를 안
   표시하면 `tests_connect` 의 첫 시험이, 헤드리스 kind 대기가 연결 시간을 등록 시한에 넣으면
   `boot::headless_plugins` 의 `a_kind_is_registered_when_its_owner_connects_after_the_registration_wait` 가
-  잡는다(변이 넷으로 확인했다 — 시한 재기준을 빼는 변이 하나가 앞의 두 시험을 함께 깨웠다).
+  잡는다(변이 넷으로 확인했다 — 시한 재기준을 빼는 변이 하나가 앞의 두 시험을 함께 깨웠다). 건너뛴 pre-ipc hook 뒤 target 에
+  호출 plugin id 를 안 실으면 `a_bypassed_pre_hook_carries_the_calling_plugin_to_the_target` 가 잡는다(그 id 를
+  `None` 으로 바꾸는 변이로 확인했다).
 
 **원리적으로 안 붙는 것** — 사람이 관측해야 한다. 재는 법을 함께 적는다.
 
