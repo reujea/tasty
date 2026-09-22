@@ -11,6 +11,8 @@
 //!
 //! shutdown 요청은 메인이 즉시 ack 보내고, 메인 루프를 빠져나오면 worker 큐에
 //! [`WorkerItem::Stop`] 을 넣는다 — worker 는 그 앞에 쌓인 요청까지 처리한 뒤 멈춘다.
+//! 그 요청들이 부르는 host call 은 결과를 읽어 줄 루프가 없으므로 기다리지 않고
+//! [`crate::PluginError::HostClosed`] 를 받는다([`HostHandle::fail_pending_calls`]).
 //! 큐가 닫히기를 기다리지 않는 이유는 `Stop` 의 문서를 본다.
 
 use std::collections::HashMap;
@@ -198,6 +200,8 @@ fn run_with_env<P: Plugin>(plugin: P, env: &PluginEnv) -> Result<()> {
             }
         }
     }
+    // 이제 `ipc.result` 를 읽을 스레드가 없다 — host 를 기다리는 worker 를 깨운다.
+    host.fail_pending_calls();
     // 큐를 닫는 것으로는 worker 가 안 멈춘다 — `WorkerItem::Stop` 문서 참고. send 가
     // 실패하면 worker 가 이미 끝나 receiver 가 없는 것이라 join 이 곧바로 돌아온다.
     if req_tx.send(WorkerItem::Stop).is_err() {

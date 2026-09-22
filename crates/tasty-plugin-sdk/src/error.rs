@@ -32,6 +32,9 @@ pub enum PluginError {
     },
 
     /// 호스트가 connection을 닫음.
+    ///
+    /// [`crate::host::HostHandle::call`] 도 이 값을 돌려준다 — 호스트가 shutdown 을
+    /// 요청했거나 연결이 끊겨 SDK 가 결과를 더 받지 않을 때다. 기다려도 오지 않는다.
     #[error("host closed connection")]
     HostClosed,
 

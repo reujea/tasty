@@ -334,6 +334,10 @@ SDK가 자기 CWD에서 절대화하여 이 경계를 대신하지 않는다.
   `HostHandle` 을 백그라운드 스레드에 쥐고 있어도 기다리지 않는다(그 핸들이 worker 큐의
   sender 를 들고 있어 큐가 닫히기를 기다리면 영영 안 끝난다). `main` 이 `run()` 을 반환하면
   프로세스가 끝나고, plugin 의 백그라운드 스레드는 그때 함께 사라진다.
+  그 남은 요청이 `HostHandle::call` 로 호스트를 부르면 결과를 읽어 줄 수신 루프가 이미 끝나
+  있으므로, SDK 는 기다리지 않고 `PluginError::HostClosed` 를 돌려준다 — 루프가 끝날 때 결과를
+  기다리던 call 도, 끝난 뒤에 시작한 call 도 같다. 그 에러를 받은 요청은 그대로 실패로 응답하면
+  된다(시험 `host_calls_left_at_shutdown_fail_fast_instead_of_timing_out`).
 
 ### 전송 지연 (Nagle 금지)
 

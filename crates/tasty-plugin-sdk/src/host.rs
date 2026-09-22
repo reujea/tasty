@@ -8,7 +8,7 @@
 use std::collections::HashMap;
 use std::io::Write;
 use std::net::TcpStream;
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, mpsc};
 use std::time::Duration;
 
@@ -80,6 +80,10 @@ pub struct HostHandle {
     dropped_by_host: Arc<AtomicU64>,
     /// 위 누적분 중 아직 plugin 콜백에 안 넘긴 몫. worker 가 dispatch 직전에 비운다.
     dropped_unreported: Arc<AtomicU64>,
+    /// `ipc.result` 를 읽어 줄 메인 recv 루프가 끝났다(shutdown · 연결 종료 · 수신 에러).
+    /// 켜진 뒤의 [`Self::call`] 은 기다리지 않고 [`PluginError::HostClosed`] 로 돌아온다 —
+    /// [`Self::fail_pending_calls`] 문서 참고.
+    host_gone: Arc<AtomicBool>,
 }
 
 impl HostHandle {
@@ -94,6 +98,36 @@ impl HostHandle {
             self_invoke_tx: None,
             dropped_by_host: Arc::new(AtomicU64::new(0)),
             dropped_unreported: Arc::new(AtomicU64::new(0)),
+            host_gone: Arc::new(AtomicBool::new(false)),
+        }
+    }
+
+    /// 메인 recv 루프가 끝났을 때 부른다 — 대기 중인 host call 을 전부
+    /// [`PluginError::HostClosed`] 로 깨우고, 이후의 call 도 기다리지 않게 한다.
+    ///
+    /// 루프가 끝나면 `ipc.result` 를 읽을 스레드가 없다. 그런데 worker 는 shutdown 앞에
+    /// 쌓인 요청을 계속 처리하므로, 그중 하나가 host 를 부르면 결과가 배달될 길 없이
+    /// [`Self::timeout`](기본 60 s)까지 선다. 그 동안 `run` 이 worker join 에서 서고,
+    /// 호스트는 shutdown 유예(2 s) 뒤 프로세스를 강제 종료한다. plugin 입장에서 그 call 의
+    /// 뜻은 "호스트가 떠났다" 이므로 그 에러로 즉시 돌려준다.
+    ///
+    /// 순서가 경합을 닫는다: 여기서는 플래그를 먼저 켜고 맵을 비우고, [`Self::call`] 은
+    /// 맵에 넣은 **뒤에** 플래그를 본다. 맵 락이 둘을 줄 세우므로, 비우기 전에 넣은 call 은
+    /// 여기서 깨고 비운 뒤에 넣은 call 은 자기 확인에서 플래그를 본다.
+    pub(crate) fn fail_pending_calls(&self) {
+        self.host_gone.store(true, Ordering::SeqCst);
+        let drained: Vec<(u64, mpsc::Sender<HostCallResult>)> = tasty_utils::poison::recover_mutex(
+            self.pending.lock(),
+            PENDING_WHAT,
+            &PENDING_POISONED,
+        )
+        .drain()
+        .collect();
+        for (call_id, tx) in drained {
+            // 호출자가 timeout 으로 이미 rx 를 drop 했을 수 있다 — 깨울 대상이 없다.
+            if tx.send(Err(PluginError::HostClosed)).is_err() {
+                tracing::trace!("host call#{call_id} already gone when the host left");
+            }
         }
     }
 
@@ -199,6 +233,16 @@ impl HostHandle {
                 .lock()
                 .map_err(|_| PluginError::LockPoisoned("host pending"))?;
             p.insert(call_id, tx);
+        }
+        // 넣은 뒤에 본다 — 순서의 이유는 `fail_pending_calls` 문서.
+        if self.host_gone.load(Ordering::SeqCst) {
+            tasty_utils::poison::recover_mutex(
+                self.pending.lock(),
+                PENDING_WHAT,
+                &PENDING_POISONED,
+            )
+            .remove(&call_id);
+            return Err(PluginError::HostClosed);
         }
         let event = PluginEvent::IpcCall {
             call_id,
