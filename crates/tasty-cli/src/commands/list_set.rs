@@ -152,9 +152,11 @@ pub enum ListCommands {
     /// counted in at most one slot. The three call for different fixes: ask for
     /// the permission, lift the cap, or wait. `permission_denied` follows error
     /// code -32001 one to one, so besides a missing permission it also counts
-    /// calls to a method that does not exist and to a method a plugin or agent
-    /// is not allowed to call. Asking for a permission does not fix those two;
-    /// calling a different method does. The numbers are totals since this
+    /// calls a plugin or agent makes to a method that does not exist or to a
+    /// method it is not allowed to call. Asking for a permission does not fix
+    /// those two; calling a different method does. Calls from this CLI without
+    /// a session token are never turned away at this gate, so they do not land
+    /// here even when the method does not exist. The numbers are totals since this
     /// instance started and go back to 0 on restart. The `throttled_count`
     /// reported by `tasty agent rate-limit-status` is a per-bucket total that
     /// survives restarts, so it is not the same number. A request turned away
