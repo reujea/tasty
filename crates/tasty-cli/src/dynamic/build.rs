@@ -41,7 +41,7 @@ pub fn discover_plugin_clis(plugins_root: &Path) -> Vec<PluginCliEntry> {
                 }
             }
             Err(e) => {
-                eprintln!(
+                crate::out::errln!(
                     "{}",
                     tasty_i18n::t_fmt2(
                         "cli.plugin_cli.manifest_skipped",
@@ -62,7 +62,7 @@ pub fn build_augmented_cli(entries: &[PluginCliEntry]) -> Command {
     let host = host_command_names(&cmd);
     for entry in entries {
         if host.contains(&entry.cli.name) {
-            eprintln!(
+            crate::out::errln!(
                 "{}",
                 tasty_i18n::t_fmt("cli.plugin_cli.name_shadows_host_command", &entry.cli.name)
             );

@@ -15,6 +15,9 @@
 //!   `try_run_plugin_cli`)이 [`quiet_if_stdout_closed`] 로 **종료 코드 0** 으로 접는다.
 //!   더 쓸 곳이 없어졌을 뿐 명령이 실패한 것이 아니다.
 //! - 그 외 stdout 오류(EIO / ENOSPC 등)는 일반 에러로 전파돼 `Error: …` + 종료 코드 1.
+//! - stderr 도 같은 이유로 `eprintln!` 을 쓰지 않는다 — [`errln!`] 을 쓴다. stderr 는 CLI 의
+//!   마지막 보고 채널이라 그 쓰기의 실패는 알릴 곳이 없으므로 **버리고**, 명령의 종료 코드는
+//!   그대로 둔다(`docs/adr/0499-cli-stderr-broken-pipe-keeps-the-exit-code.md`).
 //! - host(GUI / headless) 는 stdout 에 쓰지 않으므로 이 모듈과 무관하다 — `Routed::Gui`
 //!   갈래의 동작은 바뀌지 않는다.
 
@@ -67,6 +70,21 @@ pub fn flush() -> anyhow::Result<()> {
     io::stdout().lock().flush().map_err(classify)
 }
 
+/// `eprintln!` 대체 — stderr 에 `args` 뒤 개행. [`errln!`] 이 이 함수를 부른다.
+///
+/// `eprintln!` 은 stderr 쓰기 실패를 panic 으로 승격한다(`failed printing to stderr`) — 읽는
+/// 쪽이 먼저 닫힌 `2>&1 | head` 에서 그 panic 이 crash report 가 된다. stderr 는 CLI 가 실패를
+/// 알리는 마지막 채널이라 그 쓰기가 실패하면 **더 알릴 곳이 없다.** 그래서 결과를 버리고,
+/// 실패의 신호는 호출자가 이어서 내는 종료 코드가 나른다.
+pub fn err_line(args: fmt::Arguments<'_>) {
+    let mut stderr = io::stderr().lock();
+    let written = stderr
+        .write_fmt(args)
+        .and_then(|()| stderr.write_all(b"\n"));
+    // stderr 가 닫혔다 — 이 실패를 보고할 채널이 남아 있지 않다. 종료 코드는 호출자가 정한다.
+    drop(written);
+}
+
 /// `err` 가 stdout 닫힘([`StdoutClosed`])에서 비롯됐는가. `context()` 로 감싸인 경우도
 /// 원인 체인을 따라 찾는다.
 pub fn is_stdout_closed(err: &anyhow::Error) -> bool {
@@ -99,7 +117,17 @@ macro_rules! out {
     };
 }
 
-pub(crate) use {out, outln};
+/// `eprintln!` 대체. 값이 없다 — stderr 쓰기 실패는 [`err_line`] 이 버린다.
+macro_rules! errln {
+    () => {
+        $crate::out::err_line(::std::format_args!(""))
+    };
+    ($($arg:tt)*) => {
+        $crate::out::err_line(::std::format_args!($($arg)*))
+    };
+}
+
+pub(crate) use {errln, out, outln};
 
 #[cfg(test)]
 mod tests {

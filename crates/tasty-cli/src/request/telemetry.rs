@@ -31,7 +31,7 @@ pub(super) fn telemetry_command_to_method_params(
                 match serde_json::from_str::<serde_json::Value>(t) {
                     Ok(v) => p["tags"] = v,
                     Err(e) => {
-                        eprintln!(
+                        crate::out::errln!(
                             "{}",
                             tasty_i18n::t_fmt("cli.telemetry.tags_not_object", &e.to_string())
                         );
@@ -48,14 +48,14 @@ pub(super) fn telemetry_command_to_method_params(
             // 배열이 아닌 JSON 도 여기서 걸러낸다 — host 는 같은 이유로 거절하지만,
             // 셸에서 오타를 낸 사람에게는 왕복 전에 답하는 편이 낫다.
             Ok(_) => {
-                eprintln!(
+                crate::out::errln!(
                     "{}",
                     tasty_i18n::t_fmt("cli.telemetry.events_not_array", "not an array")
                 );
                 std::process::exit(2);
             }
             Err(e) => {
-                eprintln!(
+                crate::out::errln!(
                     "{}",
                     tasty_i18n::t_fmt("cli.telemetry.events_not_array", &e.to_string())
                 );
@@ -238,7 +238,7 @@ pub(super) fn telemetry_cap_command_to_method_params(
         }
         Reset { id, agent } => {
             if id.is_none() && agent.is_none() {
-                eprintln!(
+                crate::out::errln!(
                     "{}",
                     tasty_i18n::t("cli.telemetry.cap_reset_target_required")
                 );

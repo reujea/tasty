@@ -164,7 +164,7 @@ pub(super) fn agent_command_to_method_params(
             dry_run,
         } => {
             if states.is_empty() && older_than_ms.is_none() {
-                eprintln!("{}", tasty_i18n::t("cli.agent.purge_filter_required"));
+                crate::out::errln!("{}", tasty_i18n::t("cli.agent.purge_filter_required"));
                 std::process::exit(1);
             }
             let mut p = serde_json::json!({
@@ -321,7 +321,7 @@ pub(super) fn agent_command_to_method_params(
             extract_path,
         } => {
             if inputs.is_empty() {
-                eprintln!("{}", tasty_i18n::t("cli.agent.inputs_empty"));
+                crate::out::errln!("{}", tasty_i18n::t("cli.agent.inputs_empty"));
                 std::process::exit(1);
             }
             let strategy_val = parse_reducer_strategy(strategy);
@@ -475,7 +475,7 @@ fn parse_inline_or_file_json(s: &str, flag: &str) -> serde_json::Value {
         match std::fs::read_to_string(path) {
             Ok(t) => t,
             Err(e) => {
-                eprintln!(
+                crate::out::errln!(
                     "{}",
                     tasty_i18n::t_args(
                         "cli.agent.flag_file_read_failed",
@@ -491,7 +491,7 @@ fn parse_inline_or_file_json(s: &str, flag: &str) -> serde_json::Value {
     match serde_json::from_str(&json_text) {
         Ok(v) => v,
         Err(e) => {
-            eprintln!(
+            crate::out::errln!(
                 "{}",
                 tasty_i18n::t_fmt2("cli.agent.flag_not_json", flag, &e.to_string())
             );
@@ -516,12 +516,12 @@ fn apply_concurrency_limit(
         serde_json::Value::Null => serde_json::Map::new(),
         serde_json::Value::Object(map) => map,
         _ => {
-            eprintln!("{}", tasty_i18n::t("cli.agent.metadata_not_object"));
+            crate::out::errln!("{}", tasty_i18n::t("cli.agent.metadata_not_object"));
             std::process::exit(1);
         }
     };
     if obj.contains_key("semaphore") {
-        eprintln!("{}", tasty_i18n::t("cli.agent.metadata_semaphore_conflict"));
+        crate::out::errln!("{}", tasty_i18n::t("cli.agent.metadata_semaphore_conflict"));
         std::process::exit(1);
     }
     obj.insert("semaphore".to_string(), serde_json::json!({ "name": name }));

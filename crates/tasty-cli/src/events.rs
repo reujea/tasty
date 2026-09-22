@@ -118,8 +118,8 @@ impl Cursor {
 
 fn print_notice(n: &Notice) {
     match n {
-        Notice::EpochChanged => eprintln!("{}", tasty_i18n::t("cli.events.epoch_changed")),
-        Notice::Ahead { asked, end } => eprintln!(
+        Notice::EpochChanged => crate::out::errln!("{}", tasty_i18n::t("cli.events.epoch_changed")),
+        Notice::Ahead { asked, end } => crate::out::errln!(
             "{}",
             tasty_i18n::t_fmt2(
                 "cli.events.ahead_of_stream",
@@ -127,7 +127,7 @@ fn print_notice(n: &Notice) {
                 &end.to_string()
             )
         ),
-        Notice::Skipped(n) => eprintln!(
+        Notice::Skipped(n) => crate::out::errln!(
             "{}",
             tasty_i18n::t_fmt("cli.events.skipped", &n.to_string())
         ),
@@ -186,13 +186,13 @@ pub fn run_follow(args: FollowArgs<'_>, port_file: Option<&str>) -> Result<()> {
             Err(e) if e.is::<tasty_ipc::client::JsonRpcCallError>() => return Err(e),
             Err(e) => {
                 if !args.reconnect {
-                    eprintln!(
+                    crate::out::errln!(
                         "{}",
                         tasty_i18n::t_fmt("cli.events.connection_lost", &cursor.reattach_args())
                     );
                     return Err(e);
                 }
-                eprintln!("{}", tasty_i18n::t("cli.events.reconnecting"));
+                crate::out::errln!("{}", tasty_i18n::t("cli.events.reconnecting"));
                 conn = loop {
                     std::thread::sleep(RECONNECT_INTERVAL);
                     if let Ok(c) = connect(port_file) {

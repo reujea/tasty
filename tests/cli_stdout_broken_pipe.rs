@@ -13,9 +13,12 @@
 //! `TASTY_HOME` 을 tempdir 로 격리하므로 crash report 가 생기면 그 안의
 //! `crash-reports/` 에 남는다 — 사용자 홈은 건드리지 않는다.
 //!
-//! 마지막 테스트는 소스 스캔이다: tasty-cli 가 `println!`/`print!` 로 되돌아가면
-//! 같은 panic 이 재발하므로, stdout 쓰기는 `out.rs` 의 `outln!`/`out!` 로만 하도록
-//! 여기서 강제한다.
+//! stderr 도 같은 모양으로 잰다 — 읽는 쪽이 stderr 를 먼저 닫아도(`2>&1 | head`) panic ·
+//! crash report 가 없고, 종료 코드는 stderr 를 열어 둔 대조군과 **같다**(stderr 가 닫혔다고
+//! 실패가 성공이 되지 않는다 — `docs/adr/0499-cli-stderr-broken-pipe-keeps-the-exit-code.md`).
+//!
+//! 소스 스캔 둘: tasty-cli 가 `println!`/`print!` 나 `eprintln!` 으로 되돌아가면 같은 panic
+//! 이 재발하므로, 쓰기는 `out.rs` 의 `outln!`/`out!`/`errln!` 로만 하도록 여기서 강제한다.
 
 use std::path::{Path, PathBuf};
 use std::process::{Command, ExitStatus, Stdio};
@@ -141,6 +144,67 @@ fn subcommand_help_with_closed_stdout_exits_zero() {
     check_command("list --help", &["list", "--help"]);
 }
 
+/// stderr 를 파이프로 열고 읽는 쪽을 **즉시 닫은 뒤** 자식을 기다린다. stdout 은 버린다.
+fn run_with_closed_stderr(home: &Path, args: &[&str]) -> ExitStatus {
+    let mut cmd = tasty(home);
+    cmd.args(args).stdout(Stdio::null());
+    let mut child = cmd.spawn().expect("spawn tasty");
+    drop(child.stderr.take());
+    child.wait().expect("wait tasty")
+}
+
+/// 라벨 + 인자 → 두 번 실행한다: (1) stderr 열림(대조군 — stderr 에 실제로 쓰고 0 이 아닌
+/// 코드로 끝나야 한다), (2) stderr 닫힘(검증 대상 — 같은 코드, panic · crash report 없음).
+fn check_stderr_command(label: &str, args: &[&str]) {
+    let home = tempfile::tempdir().expect("tempdir");
+    let home = home.path();
+
+    let control = tasty(home)
+        .args(args)
+        .stdout(Stdio::null())
+        .output()
+        .expect("run tasty");
+    let control_stderr = String::from_utf8_lossy(&control.stderr);
+    assert!(
+        !control_stderr.trim().is_empty(),
+        "{label}: 대조군이 stderr 에 아무것도 쓰지 않음 — EPIPE 시나리오가 성립하지 않는다"
+    );
+    assert_ne!(
+        control.status.code(),
+        Some(0),
+        "{label}: 대조군이 실패 경로가 아니다"
+    );
+
+    let status = run_with_closed_stderr(home, args);
+    assert_eq!(
+        status.code(),
+        control.status.code(),
+        "{label}: stderr 가 닫히자 종료 코드가 바뀜 ({status}) — panic 이면 101 · abort 면 신호"
+    );
+    assert_eq!(
+        crash_report_count(home),
+        0,
+        "{label}: crash report 가 생성됨 ({})",
+        home.join("crash-reports").display()
+    );
+}
+
+/// clap 파싱 오류 — tasty-cli 의 `format_parse_error` 가 stderr 에 여러 줄을 쓴다.
+#[test]
+fn parse_error_with_closed_stderr_keeps_its_exit_code() {
+    check_stderr_command("unknown subcommand", &["nosuchcmd"]);
+    check_stderr_command(
+        "missing required argument",
+        &["read", "since-mark", "--surface", "1", "--cursor", "5"],
+    );
+}
+
+/// host 에 닿지 못한 실패(포트 파일 없음) — 오류가 `main` 까지 올라가 std 가 stderr 에 쓴다.
+#[test]
+fn unreachable_host_with_closed_stderr_keeps_its_exit_code() {
+    check_stderr_command("no port file", &["list", "surfaces"]);
+}
+
 /// tasty-cli 의 stdout 쓰기는 `out.rs` 의 `outln!`/`out!` 로만 한다 — `println!`/`print!`
 /// 가 돌아오면 EPIPE panic 이 재발한다. 주석·문자열 안의 언급은 대상이 아니다.
 #[test]
@@ -170,6 +234,39 @@ fn cli_crate_has_no_direct_stdout_print() {
     assert!(
         offenders.is_empty(),
         "tasty-cli 에 std 의 stdout 출력 매크로가 있음 — `crate::out::{{outln, out}}` 을 쓴다:\n{}",
+        offenders.join("\n")
+    );
+}
+
+/// tasty-cli 의 stderr 쓰기는 `out.rs` 의 `errln!` 로만 한다 — `eprintln!` 이 돌아오면 stderr
+/// 가 닫혔을 때 panic 이 재발한다. 주석·문자열 안의 언급은 대상이 아니다.
+#[test]
+fn cli_crate_has_no_direct_stderr_print() {
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("crates/tasty-cli/src");
+    let mut files = Vec::new();
+    collect_rs(&root, &mut files);
+    assert!(
+        !files.is_empty(),
+        "tasty-cli 소스를 찾지 못함: {}",
+        root.display()
+    );
+
+    let mut offenders = Vec::new();
+    for path in files {
+        if path.file_name().is_some_and(|n| n == "out.rs") {
+            continue;
+        }
+        let src = std::fs::read_to_string(&path).unwrap();
+        for (i, line) in src.lines().enumerate() {
+            let code = strip_comment_and_strings(line);
+            if invokes_macro(&code, "eprintln") || invokes_macro(&code, "eprint") {
+                offenders.push(format!("{}:{}: {}", path.display(), i + 1, line.trim()));
+            }
+        }
+    }
+    assert!(
+        offenders.is_empty(),
+        "tasty-cli 에 std 의 stderr 출력 매크로가 있음 — `crate::out::errln` 을 쓴다:\n{}",
         offenders.join("\n")
     );
 }

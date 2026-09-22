@@ -64,7 +64,7 @@ pub(super) fn memory_command_to_method_params(
                 let raw = match read_value_arg(v) {
                     Ok(s) => s,
                     Err(e) => {
-                        eprintln!(
+                        crate::out::errln!(
                             "{}",
                             tasty_i18n::t_fmt("cli.memory.value_file_read_failed", &e.to_string())
                         );
@@ -78,7 +78,7 @@ pub(super) fn memory_command_to_method_params(
                     params["value"] = serde_json::Value::String(raw);
                 }
             } else {
-                eprintln!(
+                crate::out::errln!(
                     "{}",
                     tasty_i18n::t_fmt("cli.memory.put_requires_value", "memory put")
                 );
@@ -195,7 +195,7 @@ pub(super) fn memory_command_to_method_params(
             let raw = match std::fs::read_to_string(file) {
                 Ok(s) => s,
                 Err(e) => {
-                    eprintln!(
+                    crate::out::errln!(
                         "{}",
                         tasty_i18n::t_fmt2("cli.memory.import_read_failed", file, &e.to_string())
                     );
@@ -205,7 +205,7 @@ pub(super) fn memory_command_to_method_params(
             let parsed: serde_json::Value = match serde_json::from_str(&raw) {
                 Ok(v) => v,
                 Err(e) => {
-                    eprintln!(
+                    crate::out::errln!(
                         "{}",
                         tasty_i18n::t_fmt2("cli.memory.import_not_json", file, &e.to_string())
                     );
@@ -218,7 +218,7 @@ pub(super) fn memory_command_to_method_params(
             } else if let Some(arr) = parsed.get("entries") {
                 arr.clone()
             } else {
-                eprintln!("{}", tasty_i18n::t_fmt("cli.memory.import_bad_shape", file));
+                crate::out::errln!("{}", tasty_i18n::t_fmt("cli.memory.import_bad_shape", file));
                 std::process::exit(1);
             };
             (
@@ -265,7 +265,7 @@ pub(super) fn require_scope(a: &ScopeArgs) -> String {
     match resolve_scope(a) {
         Some(s) => s,
         None => {
-            eprintln!("{}", tasty_i18n::t("cli.memory.scope_required"));
+            crate::out::errln!("{}", tasty_i18n::t("cli.memory.scope_required"));
             std::process::exit(1);
         }
     }

@@ -109,6 +109,10 @@ clap 이 첫 문단을 짧은 help(`-h`), 전체를 긴 help(`--help`)로 그대
 쓰기" 와 [ADR-0101](../adr/0101-cli-stdout-broken-pipe-exit-zero.md), 강제는
 `tests/cli_stdout_broken_pipe.rs`.
 
+stderr 는 같은 모듈의 `errln!` 으로만 쓴다(`eprintln!` 금지). 쓰기 실패는 버리고 종료 코드는
+그대로 둔다 — [ADR-0499](../adr/0499-cli-stderr-broken-pipe-keeps-the-exit-code.md). 강제는 같은
+시험 파일이다.
+
 ## 호스트 오류 출력 (`rpc_error.rs`)
 
 호스트가 JSON-RPC 오류로 답하면 단발 RPC 경로 · `auto_wait` · 폴링 · 계약 확인 실패가

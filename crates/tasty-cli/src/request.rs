@@ -162,7 +162,7 @@ fn normalize_cwd_or_exit(raw: Option<&str>) -> Option<String> {
     match super::cwd_resolve::normalize_cwd_arg(value) {
         Ok(absolute) => Some(absolute),
         Err(e) => {
-            eprintln!(
+            crate::out::errln!(
                 "{}",
                 tasty_i18n::t_fmt("cli.request.cwd_invalid", &e.to_string())
             );
@@ -460,7 +460,7 @@ fn close_command_to_method_params(command: &CloseCommands) -> (&'static str, ser
                 serde_json::json!({ "surface_id": sid }),
             ),
             None => {
-                eprintln!("{}", tasty_i18n::t("cli.request.close_self_no_surface"));
+                crate::out::errln!("{}", tasty_i18n::t("cli.request.close_self_no_surface"));
                 std::process::exit(1);
             }
         },

@@ -114,7 +114,7 @@ pub(crate) fn run_attach_on_port(
             SessionEnd::Desynced(frames) => {
                 resyncs += 1;
                 send = None;
-                eprintln!(
+                crate::out::errln!(
                     "{}",
                     tasty_i18n::t_fmt("cli.attach.resyncing", &frames.to_string())
                 );
@@ -173,7 +173,7 @@ fn attach_surface_once(
     let cols = ctrl.get("cols").and_then(|v| v.as_u64()).unwrap_or(80) as usize;
     let rows = ctrl.get("rows").and_then(|v| v.as_u64()).unwrap_or(24) as usize;
     declare_loss_notify(&mut conn);
-    eprintln!(
+    crate::out::errln!(
         "{}",
         tasty_i18n::t_args(
             "cli.attach.attached_surface",
@@ -231,7 +231,7 @@ pub fn run_attach_ssh(
         ) {
             Ok(p) => p,
             Err(e) if reconnect => {
-                eprintln!(
+                crate::out::errln!(
                     "{}",
                     tasty_i18n::t_fmt("cli.attach.port_discovery_failed_retry", &e.to_string())
                 );
@@ -245,7 +245,7 @@ pub fn run_attach_ssh(
         let tunnel = match SshTunnel::establish(&ssh, &target, remote_port, verify) {
             Ok(t) => t,
             Err(e) if reconnect => {
-                eprintln!(
+                crate::out::errln!(
                     "{}",
                     tasty_i18n::t_fmt("cli.attach.tunnel_failed_retry", &e.to_string())
                 );
@@ -254,7 +254,7 @@ pub fn run_attach_ssh(
             }
             Err(e) => return Err(e),
         };
-        eprintln!(
+        crate::out::errln!(
             "{}",
             tasty_i18n::t_args(
                 "cli.attach.tunnel_established",
@@ -271,7 +271,7 @@ pub fn run_attach_ssh(
         match run_attach_on_port(tunnel.local_port, surface, dump_after, send, raw)? {
             AttachExit::Completed => return Ok(()),
             AttachExit::Disconnected if reconnect => {
-                eprintln!("{}", tasty_i18n::t("cli.attach.disconnected_reconnect"));
+                crate::out::errln!("{}", tasty_i18n::t("cli.attach.disconnected_reconnect"));
                 drop(tunnel); // 자식 ssh kill 후 재수립.
                 backoff.sleep();
                 continue;
@@ -301,7 +301,7 @@ pub(crate) fn run_attach_workspace_on_port(
             SessionEnd::Desynced(frames) => {
                 resyncs += 1;
                 send = None;
-                eprintln!(
+                crate::out::errln!(
                     "{}",
                     tasty_i18n::t_fmt("cli.attach.resyncing", &frames.to_string())
                 );
@@ -387,7 +387,7 @@ fn attach_workspace_once(
             }
         }
     }
-    eprintln!(
+    crate::out::errln!(
         "{}",
         tasty_i18n::t_args(
             "cli.attach.attached_workspace",
@@ -445,7 +445,7 @@ pub fn run_attach_workspace_ssh(
         ) {
             Ok(p) => p,
             Err(e) if reconnect => {
-                eprintln!(
+                crate::out::errln!(
                     "{}",
                     tasty_i18n::t_fmt("cli.attach.port_discovery_failed_retry", &e.to_string())
                 );
@@ -458,7 +458,7 @@ pub fn run_attach_workspace_ssh(
         let tunnel = match SshTunnel::establish(&ssh, &target, remote_port, verify) {
             Ok(t) => t,
             Err(e) if reconnect => {
-                eprintln!(
+                crate::out::errln!(
                     "{}",
                     tasty_i18n::t_fmt("cli.attach.tunnel_failed_retry", &e.to_string())
                 );
@@ -467,7 +467,7 @@ pub fn run_attach_workspace_ssh(
             }
             Err(e) => return Err(e),
         };
-        eprintln!(
+        crate::out::errln!(
             "{}",
             tasty_i18n::t_args(
                 "cli.attach.tunnel_established",
@@ -484,7 +484,7 @@ pub fn run_attach_workspace_ssh(
         {
             AttachExit::Completed => return Ok(()),
             AttachExit::Disconnected if reconnect => {
-                eprintln!("{}", tasty_i18n::t("cli.attach.disconnected_reconnect"));
+                crate::out::errln!("{}", tasty_i18n::t("cli.attach.disconnected_reconnect"));
                 drop(tunnel);
                 backoff.sleep();
                 continue;
@@ -519,7 +519,7 @@ fn run_workspace_mirror_dump(
                 &stream::encode_mux(sid, &decode_escapes(s)),
             )?,
             None => {
-                eprintln!("{}", tasty_i18n::t("cli.attach.send_requires_send_to"))
+                crate::out::errln!("{}", tasty_i18n::t("cli.attach.send_requires_send_to"))
             }
         }
     }
@@ -609,7 +609,7 @@ fn run_workspace_mirror_dump(
     if !forced && !disconnected {
         let _ = stream::write_frame(&mut writer, StreamTag::Detach, &[]); // best-effort detach 통지 — 무시
     } else if forced {
-        eprintln!("{}", tasty_i18n::t("cli.attach.force_detached"));
+        crate::out::errln!("{}", tasty_i18n::t("cli.attach.force_detached"));
     }
     let _ = reader.join(); // reader 스레드 join 실패(패닉) 무시 — 종료 경로
     report_unrecovered_loss(lost);
@@ -717,7 +717,7 @@ fn run_mirror_dump(
     if !forced && !disconnected {
         let _ = stream::write_frame(&mut writer, StreamTag::Detach, &[]); // best-effort detach 통지 — 무시
     } else if forced {
-        eprintln!("{}", tasty_i18n::t("cli.attach.force_detached"));
+        crate::out::errln!("{}", tasty_i18n::t("cli.attach.force_detached"));
     }
     let _ = reader.join(); // reader 스레드 join 실패(패닉) 무시 — 종료 경로
     report_unrecovered_loss(lost);
@@ -749,7 +749,7 @@ fn release_for_resync(mut writer: TcpStream, reader: thread::JoinHandle<()>, los
 /// 있을 수 있다. stdout 은 건드리지 않는다(검증 스크립트가 그 형식을 grep 한다).
 fn report_unrecovered_loss(lost: u64) {
     if lost > 0 {
-        eprintln!(
+        crate::out::errln!(
             "{}",
             tasty_i18n::t_fmt("cli.attach.desync_unrecovered", &lost.to_string())
         );
@@ -1068,7 +1068,7 @@ fn raw_bridge_main_loop(
                 StreamTag::Detach => return done(Completed),
                 StreamTag::Control => match classify_control(&frame.payload) {
                     ControlSignal::ForceDetached => {
-                        eprintln!("\r\n{}", tasty_i18n::t("cli.attach.force_detached"));
+                        crate::out::errln!("\r\n{}", tasty_i18n::t("cli.attach.force_detached"));
                         return done(Completed);
                     }
                     // 화면이 이어지지 않는다 — 옛 연결을 놓고 다시 붙는다. 새 snapshot 이

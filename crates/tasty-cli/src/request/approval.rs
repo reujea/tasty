@@ -63,7 +63,7 @@ pub(super) fn approval_command_to_method_params(
                 match serde_json::from_str::<serde_json::Value>(m) {
                     Ok(v) => p["metadata"] = v,
                     Err(e) => {
-                        eprintln!(
+                        crate::out::errln!(
                             "{}",
                             tasty_i18n::t_fmt("cli.approval.metadata_not_json", &e.to_string())
                         );
@@ -150,7 +150,7 @@ pub(super) fn approval_command_to_method_params(
                         match std::fs::read_to_string(path) {
                             Ok(s) => s,
                             Err(e) => {
-                                eprintln!(
+                                crate::out::errln!(
                                     "{}",
                                     tasty_i18n::t_fmt2(
                                         "cli.approval.content_file_read_failed",

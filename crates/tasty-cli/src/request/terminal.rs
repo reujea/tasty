@@ -39,7 +39,7 @@ pub(super) fn terminal_command_to_method_params(
             let mut m = Map::new();
             // parent = --surface 또는 caller TASTY_SURFACE_ID. 둘 다 없으면 대상 불명.
             let Some(parent) = resolve_surface_id(*surface) else {
-                eprintln!("{}", tasty_i18n::t("cli.terminal.spawn_no_parent"));
+                crate::out::errln!("{}", tasty_i18n::t("cli.terminal.spawn_no_parent"));
                 std::process::exit(1);
             };
             m.insert("parent".into(), Value::from(parent));
@@ -56,7 +56,7 @@ pub(super) fn terminal_command_to_method_params(
         T::Tell { text, surface } => {
             let mut m = Map::new();
             let Some(target) = resolve_surface_id(*surface) else {
-                eprintln!("{}", tasty_i18n::t("cli.terminal.tell_no_target"));
+                crate::out::errln!("{}", tasty_i18n::t("cli.terminal.tell_no_target"));
                 std::process::exit(1);
             };
             m.insert("surface".into(), Value::from(target));

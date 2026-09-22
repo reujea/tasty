@@ -100,7 +100,7 @@ pub fn run(command: &RemoteProfileCommands) -> Result<()> {
             let mut p = RemoteProfile::new(name.clone(), "tasty-attach");
             if let Some(r) = ssh_ref {
                 if profiles.get(r).is_none() {
-                    eprintln!("{}", t_fmt("cli.remote_profile.attach_ref_missing", r));
+                    crate::out::errln!("{}", t_fmt("cli.remote_profile.attach_ref_missing", r));
                 }
                 p.set_field("ssh_ref", r.clone());
             } else {

@@ -289,12 +289,12 @@ pub(super) fn settings_debug_command_to_method_params(
         ),
         // raw 문자열을 그대로 싣지 않고 CLI 단에서 1차 파싱해 Value object 로 넘긴다
         // (서버는 `params.get("settings")` 로 object 를 기대). 이 fn 은 Result 를
-        // 반환하지 못하므로 파싱/파일 에러는 eprintln + exit(1) 로 처리한다
+        // 반환하지 못하므로 파싱/파일 에러는 errln + exit(1) 로 처리한다
         // (normalize_cwd_arg 와 동일한 CLI 에러 선례).
         SettingsDebugCommands::Apply { json, file } => {
             let raw = match (file, json) {
                 (Some(path), _) => std::fs::read_to_string(path).unwrap_or_else(|e| {
-                    eprintln!(
+                    crate::out::errln!(
                         "{}",
                         tasty_i18n::t_fmt2("cli.debug.file_read_failed", path, &e.to_string())
                     );
@@ -302,7 +302,7 @@ pub(super) fn settings_debug_command_to_method_params(
                 }),
                 (None, Some(s)) => s.clone(),
                 (None, None) => {
-                    eprintln!(
+                    crate::out::errln!(
                         "{}",
                         tasty_i18n::t("cli.debug.settings_apply_source_required")
                     );
@@ -310,7 +310,7 @@ pub(super) fn settings_debug_command_to_method_params(
                 }
             };
             let patch: serde_json::Value = serde_json::from_str(&raw).unwrap_or_else(|e| {
-                eprintln!(
+                crate::out::errln!(
                     "{}",
                     tasty_i18n::t_fmt("cli.debug.settings_patch_not_json", &e.to_string())
                 );
@@ -334,10 +334,10 @@ pub(super) fn lua_debug_command_to_method_params(
             ("debug.lua.eval", serde_json::json!({ "source": source }))
         }
         // 파일은 CLI 단에서 읽어 source 로 넘긴다(Apply --file 선례). 이 fn 은 Result 를
-        // 반환하지 못하므로 읽기 실패는 eprintln + exit(1) 로 처리한다.
+        // 반환하지 못하므로 읽기 실패는 errln + exit(1) 로 처리한다.
         LuaDebugCommands::EvalFile { path } => {
             let source = std::fs::read_to_string(path).unwrap_or_else(|e| {
-                eprintln!(
+                crate::out::errln!(
                     "{}",
                     tasty_i18n::t_fmt2("cli.debug.lua_eval_file_failed", path, &e.to_string())
                 );

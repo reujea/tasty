@@ -17,7 +17,7 @@ pub(super) fn memory_bb_command_to_method_params(
                 let v: serde_json::Value = match serde_json::from_str(raw) {
                     Ok(v) => v,
                     Err(e) => {
-                        eprintln!(
+                        crate::out::errln!(
                             "{}",
                             tasty_i18n::t_fmt2(
                                 "cli.memory.option_not_json",
@@ -52,7 +52,7 @@ pub(super) fn memory_bb_command_to_method_params(
                 let raw = match read_value_arg(v) {
                     Ok(s) => s,
                     Err(e) => {
-                        eprintln!(
+                        crate::out::errln!(
                             "{}",
                             tasty_i18n::t_fmt("cli.memory.value_file_read_failed", &e.to_string())
                         );
@@ -65,7 +65,7 @@ pub(super) fn memory_bb_command_to_method_params(
                     p["value"] = serde_json::Value::String(raw);
                 }
             } else {
-                eprintln!(
+                crate::out::errln!(
                     "{}",
                     tasty_i18n::t_fmt("cli.memory.put_requires_value", "memory bb put")
                 );

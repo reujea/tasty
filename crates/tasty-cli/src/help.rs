@@ -196,10 +196,10 @@ pub fn format_parse_error(err: clap::Error) {
             let (current, cmd_path) = resolve_command_path();
             let children = visible_subcommands(&current);
 
-            eprintln!("{}", crate::help_error::render(&err));
+            crate::out::errln!("{}", crate::help_error::render(&err));
 
             if !children.is_empty() {
-                eprintln!(
+                crate::out::errln!(
                     "{}",
                     tasty_i18n::t_fmt("cli.help_frame.available", &cmd_path)
                 );
@@ -207,9 +207,15 @@ pub fn format_parse_error(err: clap::Error) {
                     let about = sub.get_about().map(|s| s.to_string()).unwrap_or_default();
                     let args = format_args(sub);
                     if args.is_empty() {
-                        eprintln!("  {} {:16} {}", cmd_path, sub.get_name(), about);
+                        crate::out::errln!("  {} {:16} {}", cmd_path, sub.get_name(), about);
                     } else {
-                        eprintln!("  {} {} {} — {}", cmd_path, sub.get_name(), args, about);
+                        crate::out::errln!(
+                            "  {} {} {} — {}",
+                            cmd_path,
+                            sub.get_name(),
+                            args,
+                            about
+                        );
                     }
                 }
             } else {
@@ -218,23 +224,23 @@ pub fn format_parse_error(err: clap::Error) {
                 let optional: Vec<_> = args.iter().filter(|a| !a.required).collect();
 
                 if !required.is_empty() {
-                    eprintln!(
+                    crate::out::errln!(
                         "{}",
                         tasty_i18n::t_fmt("cli.help_frame.required", &cmd_path)
                     );
                     for arg in &required {
-                        eprintln!("{}", arg.detail());
+                        crate::out::errln!("{}", arg.detail());
                     }
                 }
                 if !optional.is_empty() {
-                    eprintln!("{}", tasty_i18n::t("cli.help_frame.optional"));
+                    crate::out::errln!("{}", tasty_i18n::t("cli.help_frame.optional"));
                     for arg in &optional {
-                        eprintln!("{}", arg.detail());
+                        crate::out::errln!("{}", arg.detail());
                     }
                 }
             }
-            eprintln!();
-            eprintln!("{}", tasty_i18n::t_fmt("cli.help_frame.details", &cmd_path));
+            crate::out::errln!();
+            crate::out::errln!("{}", tasty_i18n::t_fmt("cli.help_frame.details", &cmd_path));
         }
     }
     std::process::exit(2);

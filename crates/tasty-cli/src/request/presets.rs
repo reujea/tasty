@@ -143,7 +143,7 @@ pub(super) fn preset_command_to_method_params(
             let data = match read_json_file_or_stdin(file) {
                 Ok(v) => v,
                 Err(e) => {
-                    eprintln!("{}", tasty_i18n::t_fmt("cli.preset.save_read_failed", &e));
+                    crate::out::errln!("{}", tasty_i18n::t_fmt("cli.preset.save_read_failed", &e));
                     std::process::exit(1);
                 }
             };

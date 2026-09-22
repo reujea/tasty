@@ -20,7 +20,7 @@ pub(super) fn memory_plan_command_to_method_params(
                 let arr: serde_json::Value = match serde_json::from_str(raw) {
                     Ok(v) => v,
                     Err(e) => {
-                        eprintln!(
+                        crate::out::errln!(
                             "{}",
                             tasty_i18n::t_fmt2(
                                 "cli.memory.option_not_json",
@@ -57,7 +57,7 @@ pub(super) fn memory_plan_command_to_method_params(
             let step_v: serde_json::Value = match serde_json::from_str(step) {
                 Ok(v) => v,
                 Err(e) => {
-                    eprintln!(
+                    crate::out::errln!(
                         "{}",
                         tasty_i18n::t_fmt2("cli.memory.option_not_json", "--step", &e.to_string())
                     );

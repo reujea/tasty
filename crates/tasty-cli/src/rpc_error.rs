@@ -29,7 +29,7 @@ pub(crate) fn render(e: &anyhow::Error) -> String {
 
 /// 오류를 stderr 에 내고 종료 코드 1 로 끝낸다.
 pub(crate) fn exit_with(e: &anyhow::Error) -> ! {
-    eprintln!("{}", render(e));
+    crate::out::errln!("{}", render(e));
     std::process::exit(1);
 }
 

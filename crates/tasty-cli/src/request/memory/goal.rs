@@ -6,7 +6,7 @@ fn require_surface(explicit: Option<u32>) -> u32 {
     match resolve_surface_id(explicit) {
         Some(id) => id,
         None => {
-            eprintln!("{}", tasty_i18n::t("cli.memory.goal_surface_required"));
+            crate::out::errln!("{}", tasty_i18n::t("cli.memory.goal_surface_required"));
             std::process::exit(1);
         }
     }

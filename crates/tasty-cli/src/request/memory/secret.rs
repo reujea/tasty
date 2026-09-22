@@ -28,7 +28,7 @@ pub(super) fn memory_secret_command_to_method_params(
                 let raw = match read_value_arg(v) {
                     Ok(s) => s,
                     Err(e) => {
-                        eprintln!(
+                        crate::out::errln!(
                             "{}",
                             tasty_i18n::t_fmt("cli.memory.value_file_read_failed", &e.to_string())
                         );
@@ -41,7 +41,7 @@ pub(super) fn memory_secret_command_to_method_params(
                     params["value"] = serde_json::Value::String(raw);
                 }
             } else {
-                eprintln!(
+                crate::out::errln!(
                     "{}",
                     tasty_i18n::t_fmt("cli.memory.put_requires_value", "memory secret put")
                 );
