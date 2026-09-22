@@ -116,3 +116,4 @@ DPI 변환의 정합을 **타입 수준 봉인이 아니라, 소스 스캔 가�
 - `crates/tasty-type-geometry/src/rect.rs` — `PhysicalRect` / `LogicalRect` 짝과 왕복 상쇄 테스트
 - `src/host_api/webview.rs` — 같은 형태의 선례(`WebViewBounds` / `PhysicalWebViewBounds`)
 - [`../dev-guide/ci-gates.md`](../dev-guide/ci-gates.md) — 이 결정이 의존하는 실행 채널의 정본
+- 중복 조항 통합: [0573](0573-length-constructor-sealing-clause-consolidated.md) (튜플 생성자 봉인 조항 — 이 ADR 의 다른 조항은 유효)

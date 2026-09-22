@@ -101,3 +101,4 @@ raw 생성에 **이름을 붙일** 뿐이다. 진짜 이득은 그 다음이다:
   거짓 음성 목록
 - `crates/tasty-type-geometry/src/length.rs` — `PhysicalPx` / `LogicalPx` 정의
 - `src/host_api/webview.rs` — 변환 초크포인트와 왕복 테스트
+- 중복 조항 통합: [0573](0573-length-constructor-sealing-clause-consolidated.md) (튜플 생성자 봉인 조항 — 이 ADR 의 다른 조항은 유효)

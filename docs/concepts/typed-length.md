@@ -104,7 +104,8 @@ egui::FontId::proportional(th.font_size_body.value());
 
 ## 관련
 
-- [`../adr/0128-dpi-conversion-guarded-by-source-scan-not-sealed-types.md`](../adr/0128-dpi-conversion-guarded-by-source-scan-not-sealed-types.md) — 왜 생성자를 봉인하지 않고 가드로 지키는지, 기각한 대안과 재검토 조건
+- [`../adr/0573-length-constructor-sealing-clause-consolidated.md`](../adr/0573-length-constructor-sealing-clause-consolidated.md) — 왜 생성자를 봉인하지 않는지, 기각한 대안과 재검토 조건
+- [`../adr/0128-dpi-conversion-guarded-by-source-scan-not-sealed-types.md`](../adr/0128-dpi-conversion-guarded-by-source-scan-not-sealed-types.md) — 봉인 대신 쓰는 집행 수단 셋(스캔 가드 · 짝 타입 · 왕복 상쇄 시험)
 - `src/dpi_conversion_guard.rs` — 수동 DPI 산술을 잡는 가드. 왜 `tests/` 가 아니라 크레이트 안에 있는지도 그 모듈 doc 에 적혀 있다
 - [`../design/systems/theme.md`](../design/systems/theme.md) — Theme 상수는 모두 `LogicalPx`
 - 색은 길이와 같은 newtype 정책을 따른다 (`GpuRgba` 등) — theme.md "색 생성 경로 단일화"
