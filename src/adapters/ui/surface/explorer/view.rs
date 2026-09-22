@@ -473,6 +473,13 @@ impl ExplorerViewStore {
     pub fn drop_view(&mut self, sid: SurfaceId) {
         self.views.remove(&sid);
     }
+
+    /// 지금 들고 있는 view 수 — `system.gpu_stats` 가 창마다 싣는다. view 는 surface 가 처음
+    /// 렌더될 때 생기고 [`Self::drop_view`] 로 사라지므로, surface 를 닫은 뒤에도 줄지 않으면 그것이
+    /// 누수다(메모리 soak 의 기준선 복귀 판정).
+    pub(crate) fn view_count(&self) -> usize {
+        self.views.len()
+    }
 }
 
 #[cfg(test)]

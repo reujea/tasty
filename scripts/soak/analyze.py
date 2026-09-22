@@ -5,7 +5,8 @@ tests/soak_memory.rs 가 기록한 JSONL 을 읽어 4계층 지표를 판정한�
 
 - L2 (heap 성장): warmup 제외 후 트리 RSS 에 OLS. 기울기 + 총증가 이중 조건.
 - L3 (GPU):       wgpu allocated 카운트·egui-mesh 맵 len 이 기준선으로 복귀해야
-                  PASS (정수 엄격 — 1 이라도 순증가면 FAIL).
+                  PASS (정수 엄격 — 1 이라도 순증가면 FAIL). 호스트 explorer view 수도 같은
+                  방식으로 본다(GPU 가 아니라 L2 지만 정수라 엄격 판정이 선다).
 - L4 (핸들/프로세스): 자식 프로세스 수는 엄격, 핸들 수는 요동 허용치 내 복귀.
 
 사용:
@@ -83,6 +84,12 @@ def mesh_targets_sum(p):
     )
 
 
+def explorer_views_sum(p):
+    # 창마다의 explorer view 수. main 이 아닌 창은 null 이라 0 으로 센다. 이 칸이 없는 옛
+    # JSONL 은 KeyError 로 series() 가 건너뛴다(판정 "insufficient data").
+    return sum(w["explorer_views"] or 0 for w in p["gpu"]["windows"])
+
+
 def gpu_allocated(p, kind):
     return p["gpu"]["wgpu"]["hub"][kind]["allocated"]
 
@@ -94,6 +101,7 @@ BASELINE_METRICS = [
     ("gpu.texture_views", lambda p: gpu_allocated(p, "texture_views"), 0),
     ("gpu.bind_groups", lambda p: gpu_allocated(p, "bind_groups"), 0),
     ("egui_mesh_targets", mesh_targets_sum, 0),
+    ("explorer_views", explorer_views_sum, 0),
     ("surfaces", lambda p: p["surfaces"], 0),
     ("proc_count", lambda p: p["tree"]["proc_count"], 0),
     ("handles", lambda p: p["handles"], HANDLE_TOLERANCE),

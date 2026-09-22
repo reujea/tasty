@@ -57,17 +57,21 @@ env 제어:
 | `s1` | tab 생성→준비 대기→닫기 | ConPTY/셸 수명(L4), surface 정리(L2·L3) |
 | `s2` | surface split→닫기 | per-surface GPU, 레이아웃 트리 |
 | `s4` | 대량 출력(스크롤백 상한 미만) | 링버퍼, VTE 파서, glyph atlas |
-| `s6` | explorer(호스트 `drop_view`)·markdown(plugin webview, [ADR-0065](../adr/0065-markdown-webview-render-channel.md)) 교대 open/close | view store·webview overlay retain 경로 — **지금은 재지 못한다**: 에이전트가 만든 탭은 선택·렌더되지 않으므로([ADR-0502](../adr/0502-an-agent-created-tab-does-not-take-the-users-tab.md)) 이 시나리오의 `tab.create` 탭은 view store `drop_view` · egui-mesh retain 경로를 타지 않는다(`s9` 의 s6 몫도 같다). 재설계 필요(별도 작업) |
+| `s6` | explorer · image · markdown 을 사이클마다 돌아가며 **`surface0` 의 surface 분할로** 열고 닫는다(`split` → `surface.close`) | explorer: 호스트 view store(`drop_view`) · image: plugin egui-mesh(`egui_mesh_targets` retain) · markdown: plugin webview(plugin 쪽 per-surface 상태, host shared buffer 매핑) |
 | `s7` | 조회 IPC 연타(매 호출 새 TCP 연결) | per-conn 상태, telemetry 버킷 |
 | `s8` | idle | 타이머/폴링 바닥 드리프트 |
 | `s9` | s1~s7 결정적 가중 혼합 | 종합 회귀 |
+
+`s6` 이 새 탭(`tab.create`)이 아니라 분할로 여는 이유: 에이전트가 만든 탭은 선택되지 않아 렌더되지 않고([ADR-0502](../adr/0502-an-agent-created-tab-does-not-take-the-users-tab.md)), release 에는 탭을 고르는 API 가 없다(원칙 3) — 그렇게 열면 view store · egui-mesh 경로를 안 탄 채 초록이 난다. 분할한 surface 는 `surface0` 이 든 탭, 곧 보이는 탭 안에 서므로 곧바로 렌더된다. debug 전용 `debug.switch_tab` 으로 탭을 고르는 방법은 soak 을 debug 프로필에 묶어 수치의 의미가 바뀌므로 쓰지 않는다.
+
+**`s6` 은 경로를 탔는지 열어 둔 채로 확인한다.** 닫은 뒤의 체크포인트는 경로를 안 탔을 때도 기준선(0)이라 그 값으로는 못 가른다. 그래서 하네스는 explorer 를 열면 `system.gpu_stats` 의 `explorer_views` 가, image 를 열면 `egui_mesh_targets` 가 연 직전보다 커질 때까지 기다리고, 30 초 안에 안 커지면 **soak 을 실패시킨다**(`… was never rendered … the scenario is not measuring its path`). markdown(webview)은 호스트가 세는 값이 없어 이 확인이 없다 — 고정 700 ms 뒤에 닫는다. 분할이 `surface0` 을 매번 리사이즈하므로 `s6` 에는 `s2` 의 레이아웃·PTY 리사이즈 성분이 함께 섞인다. `s9` 의 s6 몫(8 사이클마다 한 번)도 같은 함수를 부르고 세 view 를 차례로 돈다.
 
 미구현: workspace 삭제 churn(삭제 release IPC 없음 — list/create/update/move 뿐), 창 resize churn(resize 는 사용자 조작이라 release IPC 없음, 원칙 1).
 
 ### 기록 지표
 
 - **외부** (하네스가 sysinfo 로 측정, 관찰자 효과 0): 프로세스 **트리 합산** RSS, root RSS, 이름별 자식 수·**이름별 자식 RSS 합산**(`children_rss_by_name` — 누수 프로세스 1차 특정), 핸들(Windows)/fd(Linux/macOS) 수.
-- **내부** (`system.gpu_stats` IPC · CLI `tasty list gpu-stats`): wgpu 전역 리포트(buffers/textures/texture_views/bind_groups 등 live 카운트), 창별 `egui_mesh_targets`/`_popup_targets`/`_banner_targets` len, atlas(eviction/pages/entries), draw calls.
+- **내부** (`system.gpu_stats` IPC · CLI `tasty list gpu-stats`): wgpu 전역 리포트(buffers/textures/texture_views/bind_groups 등 live 카운트), 창별 `egui_mesh_targets`/`_popup_targets`/`_banner_targets` len, atlas(eviction/pages/entries), draw calls, 창별 호스트 explorer view 수(`explorer_views` — main 이 아닌 창은 `null`).
 - **부수 신호**: `input_incidents` — split close 직후 `surface.send` 첫 바이트 유실 레이스의 발생 횟수(하네스가 감지·재시도하며 계수).
 
 ## 2단계 — 판정
@@ -79,7 +83,7 @@ python scripts/soak/analyze.py "${TMPDIR:-/tmp}/tasty-soak/soak-s9-<ts>.jsonl" [
 warmup(기본 앞 10% 체크포인트)을 제외하고:
 
 - **L2**: 트리/root RSS 에 OLS. `기울기 > 1KB/cycle (R²>0.5)` **그리고** 후반 50% 총증가 `> max(5%, 20MB)` 면 FAIL, 한쪽만이면 FLAG.
-- **L3·L4**: GPU 카운트·mesh len·surface·proc 수는 최종 체크포인트가 기준선과 **정수 일치**해야 PASS(1 이라도 순증가면 FAIL — 재현 불요 확정). 핸들 수만 자연 요동 허용치(64) 내 복귀.
+- **L3·L4**: GPU 카운트·mesh len·explorer view 수·surface·proc 수는 최종 체크포인트가 기준선과 **정수 일치**해야 PASS(1 이라도 순증가면 FAIL — 재현 불요 확정). 핸들 수만 자연 요동 허용치(64) 내 복귀.
 - exit code 0=PASS / 1=FLAG / 2=FAIL. 플롯은 matplotlib 있을 때만.
 
 주의: 기준선은 첫 post-warmup 체크포인트다. 짧은 런에서는 lazy 초기화(첫 markdown surface 의 텍스처 등)가 기준선 이후에 발생해 false FAIL 이 날 수 있다 — 본 실행은 충분히 길게, 판정 전 모든 surface kind 가 한 번씩 돌았는지 확인.
@@ -175,7 +179,7 @@ miri 는 FFI(wgpu/ConPTY) 때문에 불가. valgrind 는 20~50배 감속이라 A
 soak 없이도 실행 중 인스턴스에 바로 물을 수 있다:
 
 ```bash
-tasty list gpu-stats   # wgpu 리포트 + 창별 mesh 맵/atlas/draw calls (JSON)
+tasty list gpu-stats   # wgpu 리포트 + 창별 mesh 맵/atlas/draw calls/explorer view 수 (JSON)
 ```
 
 surface 를 열고 닫은 전후로 두 번 찍어 `textures/buffers.allocated` 와 `egui_mesh_*_targets` 가 복귀하는지 보면 L3 를 즉석 판정할 수 있다.

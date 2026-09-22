@@ -139,7 +139,8 @@ impl App {
     ///
     /// 반환: wgpu 전역 리포트(`Instance::generate_report()` — 모든 창 합산 buffers/
     /// textures/texture_views/bind_groups … 의 live 카운트) + 창별 `GpuState` 카운트
-    /// (egui-mesh target 맵 3종 len, atlas, draw calls). soak 하네스가 "surface 를
+    /// (egui-mesh target 맵 3종 len, atlas, draw calls) + 창별 explorer view 수
+    /// (`explorer_views` — main 이 아닌 창은 null). soak 하네스가 "surface 를
     /// 닫았는데 카운트가 기준선으로 복귀하지 않음" 유형의 누수를 판정하는 1차 소스.
     ///
     /// 순수 조회 — 사용자 상태(focus/선택/스크롤)에 닿지 않는다(원칙 1). IPC+CLI
@@ -156,6 +157,9 @@ impl App {
                     "window_id": u64::from(*id),
                     "main": w.as_main().is_some(),
                     "stats": w.base().gpu.resource_stats(),
+                    // 호스트 view store(explorer)의 view 수 — GPU 가 아니라 창의 AppState 에
+                    // 있다. main 이 아닌 창은 그 store 가 없어 null 이다.
+                    "explorer_views": w.as_main().map(|m| m.state.explorer_views.view_count()),
                 })
             })
             .collect();

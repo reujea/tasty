@@ -208,35 +208,110 @@ fn cycle_split_churn(inst: &TastyInstance, surface0: u64) {
     std::thread::sleep(Duration::from_millis(100));
 }
 
-/// S6: plugin/host view churn — explorer(호스트 view store: `drop_view` 경로,
-/// model-view-split.md 가 경고하는 정확히 그 누수 지점)와 markdown(plugin
-/// egui-mesh: `egui_mesh_targets` retain 경로)을 번갈아 열고 닫는다.
-/// plugin surface 는 screen_text 가 없으므로 고정 대기 후 닫는다.
-///
-/// 주의: 에이전트가 만든 탭은 선택·렌더되지 않으므로(ADR-0502) 지금 이 시나리오는
-/// `drop_view` · egui-mesh retain 경로를 타지 않는다 — 재설계 필요(별도 작업).
-fn cycle_plugin_view_churn(inst: &TastyInstance, pane_id: u64, alt: bool) {
-    let params = if alt {
-        json!({ "pane_id": pane_id, "type": "explorer" })
-    } else {
-        let md = format!("{}/README.md", env!("CARGO_MANIFEST_DIR"));
-        json!({ "pane_id": pane_id, "type": "markdown", "file": md })
-    };
-    let r = inst.call("tab.create", params);
-    let surface_id = r["surface_id"]
-        .as_u64()
-        .expect("tab.create returned surface_id");
-    std::thread::sleep(Duration::from_millis(700));
-    let tabs = inst.call("tab.list", json!({ "pane_id": pane_id }));
-    let tab_id = tabs["tabs"]
+/// S6 이 번갈아 여는 view — 셋은 서로 다른 정리 경로를 탄다.
+#[derive(Clone, Copy, Debug)]
+enum ViewKind {
+    /// 호스트 view store — 렌더될 때 view 가 생기고 닫을 때 `drop_view` 로 지운다
+    /// (model-view-split.md 가 경고하는 정확히 그 누수 지점).
+    Explorer,
+    /// plugin egui-mesh — 렌더되는 동안 `egui_mesh_targets` 에 target 이 서고, 닫은 뒤 다음
+    /// 프레임의 retain 이 지운다.
+    Image,
+    /// plugin webview — plugin 프로세스 쪽 per-surface 상태와 host 의 shared buffer 매핑.
+    Markdown,
+}
+
+impl ViewKind {
+    /// 사이클 번호로 고른다 — 재현성을 위해 난수 없이.
+    fn nth(n: u64) -> Self {
+        match n % 3 {
+            0 => Self::Explorer,
+            1 => Self::Image,
+            _ => Self::Markdown,
+        }
+    }
+}
+
+/// 창마다의 값 하나를 합친다. 없는 칸(main 이 아닌 창의 `explorer_views` 등)은 0 이다.
+fn sum_over_windows(gpu: &Value, pick: impl Fn(&Value) -> u64) -> u64 {
+    gpu["windows"]
         .as_array()
-        .and_then(|arr| {
-            arr.iter()
-                .find(|t| t["surface_id"].as_u64() == Some(surface_id))
-        })
-        .and_then(|t| t["id"].as_u64())
-        .expect("created view tab not found in tab.list");
-    inst.call("tab.close", json!({ "tab_id": tab_id }));
+        .map(|ws| ws.iter().map(&pick).sum())
+        .unwrap_or(0)
+}
+
+/// 그 view 가 **지금 렌더되고 있다는** 관측값. explorer 는 view store 의 view 수, image 는
+/// egui-mesh target 수다. markdown(webview)은 호스트가 세는 값이 없어 `None` 이다.
+fn rendered_count(inst: &TastyInstance, kind: ViewKind) -> Option<u64> {
+    let gpu = inst.call("system.gpu_stats", json!({}));
+    match kind {
+        ViewKind::Explorer => Some(sum_over_windows(&gpu, |w| {
+            w["explorer_views"].as_u64().unwrap_or(0)
+        })),
+        ViewKind::Image => Some(sum_over_windows(&gpu, |w| {
+            w["stats"]["egui_mesh_targets"].as_u64().unwrap_or(0)
+        })),
+        ViewKind::Markdown => None,
+    }
+}
+
+/// S6: plugin/host view churn — explorer · image · markdown 을 번갈아 **보이는 자리에** 열고
+/// 닫는다. 열 때는 `surface0` 을 surface 단위로 분할한다 — 분할한 surface 는 `surface0` 이 든
+/// 탭(사용자가 보고 있는 탭) 안에 서므로 곧바로 렌더된다.
+///
+/// 새 탭(`tab.create`)으로 열지 않는 이유: 에이전트가 만든 탭은 선택되지 않아 렌더되지 않고
+/// (ADR-0502), release 에는 탭을 고르는 API 가 없다(원칙 3). 그렇게 열면 view store 와 egui-mesh
+/// 경로를 아예 안 탄 채 초록이 난다.
+///
+/// 렌더됐는지는 열어 둔 채로 잰다 — 닫은 뒤의 체크포인트는 경로를 안 탔을 때도 기준선(0)이라
+/// 그 값으로는 못 가른다. explorer · image 는 `rendered_count` 가 기준선보다 커질 때까지
+/// 기다리고, 끝내 안 커지면 **실패한다**(경로를 안 탄 soak 는 통과가 아니라 미측정이다).
+/// markdown 은 호스트가 세는 값이 없어 고정 대기 후 닫는다.
+fn cycle_plugin_view_churn(inst: &TastyInstance, surface0: u64, kind: ViewKind) {
+    let before = rendered_count(inst, kind);
+    let mut params = json!({
+        "level": "surface",
+        "target_surface": surface0,
+        "direction": "vertical",
+    });
+    let root = env!("CARGO_MANIFEST_DIR");
+    match kind {
+        ViewKind::Explorer => {
+            params["type"] = json!("explorer");
+            params["path"] = json!(root);
+        }
+        ViewKind::Image => {
+            params["type"] = json!("image");
+            params["file"] = json!(format!("{root}/assets/icons/icon_256.png"));
+        }
+        ViewKind::Markdown => {
+            params["type"] = json!("markdown");
+            params["file"] = json!(format!("{root}/README.md"));
+        }
+    }
+    let r = inst.call("split", params);
+    let new_sid = r["new_surface_id"]
+        .as_u64()
+        .expect("split returned new_surface_id");
+    match before {
+        Some(before) => {
+            let start = Instant::now();
+            loop {
+                let now = rendered_count(inst, kind).unwrap_or(0);
+                if now > before {
+                    break;
+                }
+                assert!(
+                    start.elapsed() < Duration::from_secs(30),
+                    "S6: {kind:?} surface {new_sid} was never rendered \
+                     (count stayed {now}, before {before}) — the scenario is not measuring its path"
+                );
+                std::thread::sleep(Duration::from_millis(100));
+            }
+        }
+        None => std::thread::sleep(Duration::from_millis(700)),
+    }
+    inst.call("surface.close", json!({ "surface_id": new_sid }));
     std::thread::sleep(Duration::from_millis(100));
 }
 
@@ -369,7 +444,7 @@ fn soak() {
             "s1" => cycle_tab_churn(&inst, pane_id),
             "s2" => cycle_split_churn(&inst, surface0),
             "s4" => cycle_heavy_output(&inst, surface0),
-            "s6" => cycle_plugin_view_churn(&inst, pane_id, cycle % 2 == 0),
+            "s6" => cycle_plugin_view_churn(&inst, surface0, ViewKind::nth(cycle)),
             "s7" => cycle_ipc_churn(&inst),
             "s8" => cycle_idle(),
             // s9 mixed — 결정적 가중 혼합 (재현성 위해 난수 없이 cycle 인덱스로).
@@ -377,7 +452,7 @@ fn soak() {
                 0 | 1 => cycle_tab_churn(&inst, pane_id),
                 2 => cycle_split_churn(&inst, surface0),
                 3 => cycle_heavy_output(&inst, surface0),
-                4 => cycle_plugin_view_churn(&inst, pane_id, cycle % 16 < 8),
+                4 => cycle_plugin_view_churn(&inst, surface0, ViewKind::nth(cycle / 8)),
                 5 | 6 => cycle_ipc_churn(&inst),
                 _ => std::thread::sleep(Duration::from_secs(5)),
             },
