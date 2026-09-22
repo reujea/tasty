@@ -5,6 +5,7 @@ use crate::core::Core;
 use tasty_ipc::caller::CallerContext;
 use tasty_ipc::protocol::JsonRpcResponse;
 
+use super::super::memory::mark_durability;
 use super::{agent_err_to_response, now_ms};
 
 fn serialize<T: serde::Serialize>(id: Value, value: T) -> JsonRpcResponse {
@@ -54,10 +55,13 @@ pub fn handle_rate_limit_set(
         }
         None => None,
     };
-    match core.rate_limit_set(agent, metric, limit, per_ms, burst, now_ms()) {
-        Ok(rl) => serialize(id, rl),
-        Err(e) => agent_err_to_response(id, e),
-    }
+    mark_durability(
+        core,
+        match core.rate_limit_set(agent, metric, limit, per_ms, burst, now_ms()) {
+            Ok(rl) => serialize(id, rl),
+            Err(e) => agent_err_to_response(id, e),
+        },
+    )
 }
 
 pub fn handle_rate_limit_list(
@@ -84,10 +88,13 @@ pub fn handle_rate_limit_remove(
         Some(s) if !s.is_empty() => s.to_string(),
         _ => return JsonRpcResponse::invalid_params(id, "Missing or empty 'id'"),
     };
-    match core.rate_limit_remove(&rl_id) {
-        Ok(()) => JsonRpcResponse::success(id, json!({ "ok": true })),
-        Err(e) => agent_err_to_response(id, e),
-    }
+    mark_durability(
+        core,
+        match core.rate_limit_remove(&rl_id) {
+            Ok(()) => JsonRpcResponse::success(id, json!({ "ok": true })),
+            Err(e) => agent_err_to_response(id, e),
+        },
+    )
 }
 
 pub fn handle_rate_limit_status(

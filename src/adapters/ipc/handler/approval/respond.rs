@@ -30,7 +30,7 @@ pub fn handle_respond(
             // agent 에 임시 grant 를 적용한다. 실패해도 응답 자체는 유지
             // (grant 가 실패해도 agent 는 retry 시 다시 elevation 을 받게 됨).
             apply_elevation_grant_if_any(core, &change.record, &choice);
-            JsonRpcResponse::success(id, record_to_json(&change.record))
+            crate::adapters::ipc::handler::memory::written(core, id, record_to_json(&change.record))
         }
         Err(e) => map_error(id, e),
     }

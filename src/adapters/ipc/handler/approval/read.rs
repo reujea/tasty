@@ -18,7 +18,7 @@ pub fn handle_cancel(
     match core.cancel_approval(engine, &req_id) {
         Ok(change) => {
             persist_record(core, &change.record);
-            JsonRpcResponse::success(id, record_to_json(&change.record))
+            crate::adapters::ipc::handler::memory::written(core, id, record_to_json(&change.record))
         }
         Err(e) => map_error(id, e),
     }

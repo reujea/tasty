@@ -155,8 +155,10 @@ CREATE TABLE recent_files (      -- 종류별 최근 경로
   알림도 내지 않는다.
 - **저장소가 파일이 아니면 성공도 durable 이 아니다.** 부팅이 `memory.db` 를 못 열어 in-memory
   대체로 떴으면(아래 "초기화 실패" 절) commit 은 성공하지만 프로세스와 함께 사라진다. 그때
-  `memory.*` 쓰기 계열의 성공 응답은 `ok` 를 그대로 두고 `durable: false` 를 더한다. 파일 DB
-  에서는 이 칸이 없다 — 칸이 없는 성공은 위 "보장 범위" 가 말하는 durable 이다.
+  `memory.db` 에 쓰는 IPC 쓰기 계열의 성공 응답은 `ok` 를 그대로 두고 `durable: false` 를 더한다 —
+  `memory.*` 뿐 아니라 같은 저장소에 쓰는 `agent.*` · `approval.*` · `surface.meta.*` ·
+  `telemetry.*` · `session.*` 도 같다([ADR-0611](../../adr/0611-every-ipc-write-to-memory-db-says-when-it-is-not-durable.md)).
+  파일 DB 에서는 이 칸이 없다 — 칸이 없는 성공은 위 "보장 범위" 가 말하는 durable 이다.
 - 근거는 [ADR-0377](../../adr/0377-a-failed-memory-write-names-its-cause-with-the-same-table-as-init.md).
 
 ### 터미널 출력 observer 의 memory sink — 저장 계약
@@ -224,7 +226,8 @@ config 로 열리고, 원래 파일은 건드리지 않는다(손상 파일은 �
   `init_failure: {cause, error}` 가 원인을 싣는다. `cause` 는 `MemoryInitError::cause()` 의 이름
   (`home_missing` · `permission_denied` · `busy` · `disk_full` · `corrupt` · `schema_mismatch` ·
   `other`)이다. 정상이면 `init_failure` 는 `null` 이다.
-- `memory.*` 쓰기 계열의 성공 응답이 `durable: false` 를 더한다(위 "저장 실패의 의미").
+- `memory.db` 에 쓰는 IPC 쓰기 계열(`memory.*` · `agent.*` · `approval.*` · `surface.meta.*` ·
+  `telemetry.*` · `session.*`)의 성공 응답이 `durable: false` 를 더한다(위 "저장 실패의 의미").
 - 로그에 `memory.db falls back to an in-memory store (cause=…) — writes will not survive a
   restart` 가 한 줄 더 남는다.
 - **화면 안내는 없다** — `state.db` 와 달리 InfoModal 도 toast 도 뜨지 않는다.

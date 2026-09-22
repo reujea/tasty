@@ -411,14 +411,24 @@ fn map_error(id: Value, err: MemoryError) -> JsonRpcResponse {
 /// 를 더한다 — 그 쓰기는 프로세스와 함께 사라진다. `ok` 는 그대로 두고(기존 호출자는
 /// 그것만 본다), 정상 저장소에서는 칸을 싣지 않아 응답이 종전과 같다(ADR-0485).
 ///
-/// 이 모듈의 쓰기 계열 메서드는 전부 이것으로 답한다 — 어느 이름이 쓰기 계열인지는
-/// `tasty_ipc::method_meta` 의 효과 분류가 정하고, 시험
-/// `every_memory_write_reports_a_fallback_store_as_not_durable` 가 그 표로 잰다.
-pub(super) fn written(core: &Core, id: Value, mut body: Value) -> JsonRpcResponse {
-    if core.memory_init_fallback().is_some() {
-        body["durable"] = json!(false);
+/// `memory.*` 밖에서 같은 `memory.db` 에 쓰는 메서드(`agent.*` · `approval.*` ·
+/// `surface.meta.*` · `telemetry.*` · `session.*`)도 이것이나 [`mark_durability`] 로
+/// 답한다 — 어느 이름이 쓰기 계열인지는 `tasty_ipc::method_meta` 의 효과 분류가 정하고,
+/// 시험 `every_memory_write_reports_a_fallback_store_as_not_durable` 가 그 표로 잰다.
+pub(crate) fn written(core: &Core, id: Value, body: Value) -> JsonRpcResponse {
+    mark_durability(core, JsonRpcResponse::success(id, body))
+}
+
+/// 이미 만든 응답에 [`written`] 과 같은 칸을 단다. 성공 응답의 **객체** 결과에만 붙고,
+/// 오류 응답은 그대로다 — 실패한 쓰기는 남은 것이 없어 durable 을 말할 대상이 없다.
+/// 성공 경로가 여럿인 핸들러가 반환값 하나를 감싸는 데 쓴다.
+pub(crate) fn mark_durability(core: &Core, mut resp: JsonRpcResponse) -> JsonRpcResponse {
+    if core.memory_init_fallback().is_some()
+        && let Some(Value::Object(obj)) = resp.result.as_mut()
+    {
+        obj.insert("durable".into(), json!(false));
     }
-    JsonRpcResponse::success(id, body)
+    resp
 }
 
 // ============================================================

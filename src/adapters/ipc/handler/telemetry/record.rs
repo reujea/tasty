@@ -53,7 +53,8 @@ pub fn handle_record(
         Err(e) => return JsonRpcResponse::invalid_params(id, e),
     };
     let response = match persist_event(core, engine, &ev) {
-        Ok(key) => JsonRpcResponse::success(
+        Ok(key) => crate::adapters::ipc::handler::memory::written(
+            core,
             id,
             json!({
                 "key": key,
@@ -115,7 +116,8 @@ pub fn handle_record_batch(
         evaluate_caps_after_record(core, window, out, engine, ev);
         detect_rss_self_report(core, window, out, engine, ev);
     }
-    JsonRpcResponse::success(
+    crate::adapters::ipc::handler::memory::written(
+        core,
         id,
         json!({
             "recorded": keys.len(),

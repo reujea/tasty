@@ -115,7 +115,8 @@ pub fn handle_request(
             persist_record(core, &change.record);
             #[cfg(feature = "gui")]
             window.enqueue_approval_popup(engine, &change.record);
-            JsonRpcResponse::success(
+            crate::adapters::ipc::handler::memory::written(
+                core,
                 id,
                 json!({
                     "id": change.record.request.id,

@@ -156,7 +156,8 @@ pub fn handle_issue(
     let now = now_ms();
     let result = core.session_issue(agent_id.clone(), parent.clone(), perms.clone(), ttl_ms, now);
     match result {
-        Ok((token, session)) => JsonRpcResponse::success(
+        Ok((token, session)) => crate::adapters::ipc::handler::memory::written(
+            core,
             id,
             json!({
                 "token": token.as_str(),
@@ -187,7 +188,9 @@ pub fn handle_revoke(core: &crate::core::Core, id: Value, params: &Value) -> Jso
     };
     let result = core.session_revoke(&token);
     match result {
-        Ok(revoked) => JsonRpcResponse::success(id, json!({ "revoked": revoked })),
+        Ok(revoked) => {
+            crate::adapters::ipc::handler::memory::written(core, id, json!({ "revoked": revoked }))
+        }
         Err(e) => session_err_to_response(id, e),
     }
 }

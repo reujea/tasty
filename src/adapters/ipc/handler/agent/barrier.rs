@@ -5,6 +5,7 @@ use crate::core::Core;
 use tasty_ipc::caller::CallerContext;
 use tasty_ipc::protocol::JsonRpcResponse;
 
+use super::super::memory::mark_durability;
 use super::{agent_err_to_response, name_param, now_ms, workspace_id_param};
 
 fn serialize<T: serde::Serialize>(id: Value, value: T) -> JsonRpcResponse {
@@ -39,10 +40,13 @@ pub fn handle_barrier_create(
         }
     };
     let timeout_ms = p_try!(params::opt_int::<u64>(params, "timeout_ms", &id));
-    match core.barrier_create(workspace_id, name, count_required, timeout_ms, now_ms()) {
-        Ok(b) => serialize(id, b),
-        Err(e) => agent_err_to_response(id, e),
-    }
+    mark_durability(
+        core,
+        match core.barrier_create(workspace_id, name, count_required, timeout_ms, now_ms()) {
+            Ok(b) => serialize(id, b),
+            Err(e) => agent_err_to_response(id, e),
+        },
+    )
 }
 
 pub fn handle_barrier_signal(
@@ -60,10 +64,13 @@ pub fn handle_barrier_signal(
         Ok(n) => n,
         Err(e) => return e,
     };
-    match core.barrier_signal(engine, workspace_id, &name, now_ms()) {
-        Ok(b) => serialize(id, b),
-        Err(e) => agent_err_to_response(id, e),
-    }
+    mark_durability(
+        core,
+        match core.barrier_signal(engine, workspace_id, &name, now_ms()) {
+            Ok(b) => serialize(id, b),
+            Err(e) => agent_err_to_response(id, e),
+        },
+    )
 }
 
 pub fn handle_barrier_state(
@@ -132,10 +139,13 @@ pub fn handle_barrier_delete(
         Ok(n) => n,
         Err(e) => return e,
     };
-    match core.barrier_delete(workspace_id, &name) {
-        Ok(()) => JsonRpcResponse::success(id, json!({ "deleted": true })),
-        Err(e) => agent_err_to_response(id, e),
-    }
+    mark_durability(
+        core,
+        match core.barrier_delete(workspace_id, &name) {
+            Ok(()) => JsonRpcResponse::success(id, json!({ "deleted": true })),
+            Err(e) => agent_err_to_response(id, e),
+        },
+    )
 }
 
 // ============================================================

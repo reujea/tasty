@@ -447,7 +447,7 @@ child 상태는 0072 → 0266 → 0288 → 0291(0288 대체), 완료 알림 로�
 
 ## 저장소 · 메모리 DB
 
-pragma 보고는 0316 → 0376(보고 채널 개정)이다.
+pragma 보고는 0316 → 0376(보고 채널 개정), 못 연 `memory.db` 의 in-memory 대체는 0485 → 0611(쓰기 응답 조항의 적용 범위를 `memory.*` 밖 이름공간까지 개정)이다.
 운영 문서: [design/systems/storage](../design/systems/storage.md) · [design/systems/memory](../design/systems/memory.md)
 
 | # | Title | Status | Date | Tags |
@@ -461,6 +461,7 @@ pragma 보고는 0316 → 0376(보고 채널 개정)이다.
 | 0377 | [실패한 메모리 쓰기는 초기화와 같은 표로 원인을 말하고, 메모리 쪽 상태는 실패 전 그대로다](0377-a-failed-memory-write-names-its-cause-with-the-same-table-as-init.md) | Accepted | 2026-09-21 | sqlite, storage, memory, error-handling, ipc, compatibility |
 | 0378 | [memory store 락의 poison 보고 좌표는 store 의 port 에 둔다](0378-the-poison-coordinate-of-the-memory-store-lives-at-its-port.md) | Accepted | 2026-09-21 | memory, storage, poison, boundary, output-observer |
 | 0485 | [못 연 `memory.db` 는 in-memory 대체로 계속 뜨되, 그 사실을 진단과 쓰기 응답이 말한다](0485-a-memory-db-that-failed-to-open-falls-back-in-memory-and-says-so.md) | Accepted | 2026-09-22 | sqlite, storage, memory, degraded, durability, ipc, cli, fallback |
+| 0611 | [`memory.db` 에 쓰는 IPC 는 이름공간과 무관하게 durable 이 아님을 말한다 — ADR-0485 의 적용 범위 조항 개정](0611-every-ipc-write-to-memory-db-says-when-it-is-not-durable.md) | Accepted | 2026-09-23 | sqlite, storage, memory, degraded, durability, ipc, agent, approval, telemetry, session |
 
 ## 아키텍처 · 헤드리스 · 크레이트 경계
 

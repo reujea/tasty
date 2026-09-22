@@ -6,6 +6,7 @@ use tasty_agent::LeaseMode;
 use tasty_ipc::caller::CallerContext;
 use tasty_ipc::protocol::JsonRpcResponse;
 
+use super::super::memory::mark_durability;
 use super::{agent_err_to_response, now_ms, workspace_id_param};
 
 fn resource_param(params: &Value, id: &Value) -> Result<String, JsonRpcResponse> {
@@ -67,10 +68,13 @@ pub fn handle_lease_acquire(
             );
         }
     };
-    match core.lease_acquire(workspace_id, &resource, &holder, ttl_ms, mode, now_ms()) {
-        Ok(outcome) => serialize(id, outcome),
-        Err(e) => agent_err_to_response(id, e),
-    }
+    mark_durability(
+        core,
+        match core.lease_acquire(workspace_id, &resource, &holder, ttl_ms, mode, now_ms()) {
+            Ok(outcome) => serialize(id, outcome),
+            Err(e) => agent_err_to_response(id, e),
+        },
+    )
 }
 
 pub fn handle_lease_release(
@@ -92,10 +96,13 @@ pub fn handle_lease_release(
         Ok(h) => h,
         Err(e) => return e,
     };
-    match core.lease_release(workspace_id, &resource, &holder) {
-        Ok(outcome) => serialize(id, outcome),
-        Err(e) => agent_err_to_response(id, e),
-    }
+    mark_durability(
+        core,
+        match core.lease_release(workspace_id, &resource, &holder) {
+            Ok(outcome) => serialize(id, outcome),
+            Err(e) => agent_err_to_response(id, e),
+        },
+    )
 }
 
 pub fn handle_lease_list(

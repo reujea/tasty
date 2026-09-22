@@ -1,4 +1,4 @@
-<!-- source-hash: 04d5c4121bb4 -->
+<!-- source-hash: dac991a37b7c -->
 # Driving terminals with the tasty CLI
 
 Use the `tasty` CLI to create terminals, send commands, and read results. Control a running Tasty from a script, or let an AI agent set up the terminals it needs.
@@ -273,7 +273,7 @@ tasty memory delete --workspace 7 --key build/status
 
 Switch scope with `--global` · `--surface 3` · `--window 42` · `--account me`. A value that parses as JSON is stored as JSON, otherwise as a string.
 
-If Tasty cannot open its memory file (`~/.tasty/memory.db`) when it starts — the file is damaged or not accessible — Tasty does not stop; it keeps running on **temporary memory**. Values stored in that state are gone after Tasty restarts. While it lasts, every store result also carries `"durable": false`, and `db_pragmas.memory_db` in `tasty list pressure` shows `degraded: true` with the cause (`init_failure`). No notice appears on screen.
+If Tasty cannot open its memory file (`~/.tasty/memory.db`) when it starts — the file is damaged or not accessible — Tasty does not stop; it keeps running on **temporary memory**. Values stored in that state are gone after Tasty restarts. This also applies to everything else kept in the same file: agent tasks and coordination tools such as semaphores, approvals, surface metadata, telemetry, and sessions. While it lasts, every such store result also carries `"durable": false`, and `db_pragmas.memory_db` in `tasty list pressure` shows `degraded: true` with the cause (`init_failure`). No notice appears on screen.
 
 ## Pulling signals out of the output (observers)
 

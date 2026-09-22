@@ -137,7 +137,7 @@ pub fn handle_cap_set(
     if let Err(e) = save_cap(core, &cap) {
         return JsonRpcResponse::error(id, -32603, e);
     }
-    JsonRpcResponse::success(id, cap_to_json(&cap))
+    crate::adapters::ipc::handler::memory::written(core, id, cap_to_json(&cap))
 }
 
 /// `telemetry.cap.list` — 전체 cap. 필터: `agent`.
@@ -180,7 +180,11 @@ pub fn handle_cap_remove(
     let result =
         core.with_memory(|s| s.delete(tasty_memory::HOST_OWNER, &Scope::Global, &key, None));
     match result {
-        Ok(()) => JsonRpcResponse::success(id, json!({ "removed": true, "id": cap_id_str })),
+        Ok(()) => crate::adapters::ipc::handler::memory::written(
+            core,
+            id,
+            json!({ "removed": true, "id": cap_id_str }),
+        ),
         Err(tasty_memory::MemoryError::NotFound { .. }) => {
             JsonRpcResponse::error(id, -32004, format!("not_found: {cap_id_str}"))
         }
@@ -306,7 +310,8 @@ pub fn handle_cap_reset(
         }
         reset_ids.push(cap.id.clone());
     }
-    JsonRpcResponse::success(
+    crate::adapters::ipc::handler::memory::written(
+        core,
         id,
         json!({ "reset_ids": reset_ids, "count": reset_ids.len() }),
     )

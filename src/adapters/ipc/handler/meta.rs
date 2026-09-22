@@ -28,7 +28,11 @@ pub fn handle_surface_meta_set(
     if let Err(e) = result {
         return JsonRpcResponse::internal_error(id, format!("surface meta set failed: {e}"));
     }
-    JsonRpcResponse::success(id, json!({ "ok": true, "surface_id": surface_id }))
+    crate::adapters::ipc::handler::memory::written(
+        core,
+        id,
+        json!({ "ok": true, "surface_id": surface_id }),
+    )
 }
 
 pub fn handle_surface_meta_get(
@@ -69,7 +73,11 @@ pub fn handle_surface_meta_unset(
     if let Err(e) = result {
         return JsonRpcResponse::internal_error(id, format!("surface meta unset failed: {e}"));
     }
-    JsonRpcResponse::success(id, json!({ "ok": true, "surface_id": surface_id }))
+    crate::adapters::ipc::handler::memory::written(
+        core,
+        id,
+        json!({ "ok": true, "surface_id": surface_id }),
+    )
 }
 
 pub fn handle_surface_meta_list(

@@ -13,6 +13,7 @@ use tasty_agent::{
 use tasty_ipc::caller::CallerContext;
 use tasty_ipc::protocol::JsonRpcResponse;
 
+use super::super::memory::mark_durability;
 use super::{agent_err_to_response, escape_dot, now_ms, task_id_param, workspace_id_param};
 
 pub fn handle_task_create(
@@ -79,20 +80,23 @@ pub fn handle_task_create(
         metadata,
         now_ms: now_ms(),
     };
-    match core.task_create(engine, opts, reserved_for_fallback) {
-        Ok(task) => match serde_json::to_value(&task) {
-            Ok(mut v) => {
-                if let Some(warnings) = fallback_with_deps_warning(&task)
-                    && let Some(obj) = v.as_object_mut()
-                {
-                    obj.insert("warnings".into(), json!(warnings));
+    mark_durability(
+        core,
+        match core.task_create(engine, opts, reserved_for_fallback) {
+            Ok(task) => match serde_json::to_value(&task) {
+                Ok(mut v) => {
+                    if let Some(warnings) = fallback_with_deps_warning(&task)
+                        && let Some(obj) = v.as_object_mut()
+                    {
+                        obj.insert("warnings".into(), json!(warnings));
+                    }
+                    JsonRpcResponse::success(id, v)
                 }
-                JsonRpcResponse::success(id, v)
-            }
-            Err(e) => JsonRpcResponse::error(id, -32603, format!("serialize: {e}")),
+                Err(e) => JsonRpcResponse::error(id, -32603, format!("serialize: {e}")),
+            },
+            Err(e) => agent_err_to_response(id, e),
         },
-        Err(e) => agent_err_to_response(id, e),
-    }
+    )
 }
 
 /// `on_failure=Fallback` + 비어있지 않은 `depends_on` 조합은 항상 죽은 설정은
@@ -421,16 +425,19 @@ pub fn handle_task_cancel(
         Ok(t) => t,
         Err(e) => return e,
     };
-    match core.task_cancel(engine, workspace_id, &task_id, now_ms()) {
-        Err(e) => agent_err_to_response(id, e),
-        Ok((task, cascaded)) => JsonRpcResponse::success(
-            id,
-            json!({
-                "task": task,
-                "cascaded": cascaded,
-            }),
-        ),
-    }
+    mark_durability(
+        core,
+        match core.task_cancel(engine, workspace_id, &task_id, now_ms()) {
+            Err(e) => agent_err_to_response(id, e),
+            Ok((task, cascaded)) => JsonRpcResponse::success(
+                id,
+                json!({
+                    "task": task,
+                    "cascaded": cascaded,
+                }),
+            ),
+        },
+    )
 }
 
 // ============================================================
@@ -456,13 +463,16 @@ pub fn handle_task_retry(
         .get("reset_downstream")
         .and_then(|v| v.as_bool())
         .unwrap_or(false);
-    match core.task_retry(engine, workspace_id, &task_id, reset_downstream, now_ms()) {
-        Err(e) => agent_err_to_response(id, e),
-        Ok(task) => match serde_json::to_value(task) {
-            Ok(v) => JsonRpcResponse::success(id, v),
-            Err(e) => JsonRpcResponse::error(id, -32603, format!("serialize: {e}")),
+    mark_durability(
+        core,
+        match core.task_retry(engine, workspace_id, &task_id, reset_downstream, now_ms()) {
+            Err(e) => agent_err_to_response(id, e),
+            Ok(task) => match serde_json::to_value(task) {
+                Ok(v) => JsonRpcResponse::success(id, v),
+                Err(e) => JsonRpcResponse::error(id, -32603, format!("serialize: {e}")),
+            },
         },
-    }
+    )
 }
 
 // ============================================================
@@ -1019,16 +1029,19 @@ pub fn handle_task_set_result(
         }
     };
 
-    match core.task_set_state(engine, workspace_id, &task_id, new_state, now_ms()) {
-        Err(e) => agent_err_to_response(id, e),
-        Ok((task, cascaded)) => JsonRpcResponse::success(
-            id,
-            json!({
-                "task": task,
-                "cascaded": cascaded,
-            }),
-        ),
-    }
+    mark_durability(
+        core,
+        match core.task_set_state(engine, workspace_id, &task_id, new_state, now_ms()) {
+            Err(e) => agent_err_to_response(id, e),
+            Ok((task, cascaded)) => JsonRpcResponse::success(
+                id,
+                json!({
+                    "task": task,
+                    "cascaded": cascaded,
+                }),
+            ),
+        },
+    )
 }
 
 // ============================================================
@@ -1062,15 +1075,18 @@ pub fn handle_task_delete(
         .get("force")
         .and_then(|v| v.as_bool())
         .unwrap_or(false);
-    match core.task_delete(
-        engine,
-        workspace_id,
-        &task_id,
-        TaskDeleteOpts { cascade, force },
-    ) {
-        Err(e) => agent_err_to_response(id, e),
-        Ok(report) => JsonRpcResponse::success(id, json!({ "deleted": report.deleted })),
-    }
+    mark_durability(
+        core,
+        match core.task_delete(
+            engine,
+            workspace_id,
+            &task_id,
+            TaskDeleteOpts { cascade, force },
+        ) {
+            Err(e) => agent_err_to_response(id, e),
+            Ok(report) => JsonRpcResponse::success(id, json!({ "deleted": report.deleted })),
+        },
+    )
 }
 
 // ============================================================
@@ -1121,17 +1137,20 @@ pub fn handle_task_purge(
         Ok(f) => f,
         Err(msg) => return JsonRpcResponse::invalid_params(id, msg),
     };
-    match core.task_purge(engine, workspace_id, filter, dry_run) {
-        Err(e) => agent_err_to_response(id, e),
-        Ok(plan) => JsonRpcResponse::success(
-            id,
-            json!({
-                "deleted": plan.deleted,
-                "retained": plan.retained,
-                "dry_run": dry_run,
-            }),
-        ),
-    }
+    mark_durability(
+        core,
+        match core.task_purge(engine, workspace_id, filter, dry_run) {
+            Err(e) => agent_err_to_response(id, e),
+            Ok(plan) => JsonRpcResponse::success(
+                id,
+                json!({
+                    "deleted": plan.deleted,
+                    "retained": plan.retained,
+                    "dry_run": dry_run,
+                }),
+            ),
+        },
+    )
 }
 
 #[cfg(test)]

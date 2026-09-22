@@ -5,6 +5,7 @@ use crate::core::Core;
 use tasty_ipc::caller::CallerContext;
 use tasty_ipc::protocol::JsonRpcResponse;
 
+use super::super::memory::mark_durability;
 use super::{agent_err_to_response, name_param, now_ms, workspace_id_param};
 
 fn serialize<T: serde::Serialize>(id: Value, value: T) -> JsonRpcResponse {
@@ -38,10 +39,13 @@ pub fn handle_semaphore_create(
             );
         }
     };
-    match core.semaphore_create(workspace_id, name, permits, now_ms()) {
-        Ok(s) => serialize(id, s),
-        Err(e) => agent_err_to_response(id, e),
-    }
+    mark_durability(
+        core,
+        match core.semaphore_create(workspace_id, name, permits, now_ms()) {
+            Ok(s) => serialize(id, s),
+            Err(e) => agent_err_to_response(id, e),
+        },
+    )
 }
 
 pub fn handle_semaphore_set_permits(
@@ -68,10 +72,13 @@ pub fn handle_semaphore_set_permits(
             );
         }
     };
-    match core.semaphore_set_permits(workspace_id, &name, permits, now_ms()) {
-        Ok(s) => serialize(id, s),
-        Err(e) => agent_err_to_response(id, e),
-    }
+    mark_durability(
+        core,
+        match core.semaphore_set_permits(workspace_id, &name, permits, now_ms()) {
+            Ok(s) => serialize(id, s),
+            Err(e) => agent_err_to_response(id, e),
+        },
+    )
 }
 
 pub fn handle_semaphore_acquire(
@@ -97,10 +104,13 @@ pub fn handle_semaphore_acquire(
         Ok(v) => v,
         Err(e) => return e,
     };
-    match core.semaphore_acquire(workspace_id, &name, &holder, ttl_ms, now_ms()) {
-        Ok(outcome) => serialize(id, outcome),
-        Err(e) => agent_err_to_response(id, e),
-    }
+    mark_durability(
+        core,
+        match core.semaphore_acquire(workspace_id, &name, &holder, ttl_ms, now_ms()) {
+            Ok(outcome) => serialize(id, outcome),
+            Err(e) => agent_err_to_response(id, e),
+        },
+    )
 }
 
 pub fn handle_semaphore_release(
@@ -122,10 +132,13 @@ pub fn handle_semaphore_release(
         Some(h) if !h.is_empty() => h.to_string(),
         _ => return JsonRpcResponse::invalid_params(id, "Missing or empty 'holder'"),
     };
-    match core.semaphore_release(workspace_id, &name, &holder) {
-        Ok(outcome) => serialize(id, outcome),
-        Err(e) => agent_err_to_response(id, e),
-    }
+    mark_durability(
+        core,
+        match core.semaphore_release(workspace_id, &name, &holder) {
+            Ok(outcome) => serialize(id, outcome),
+            Err(e) => agent_err_to_response(id, e),
+        },
+    )
 }
 
 pub fn handle_semaphore_list(
@@ -163,10 +176,13 @@ pub fn handle_semaphore_delete(
         Ok(n) => n,
         Err(e) => return e,
     };
-    match core.semaphore_delete(workspace_id, &name) {
-        Ok(()) => JsonRpcResponse::success(id, json!({ "deleted": true })),
-        Err(e) => agent_err_to_response(id, e),
-    }
+    mark_durability(
+        core,
+        match core.semaphore_delete(workspace_id, &name) {
+            Ok(()) => JsonRpcResponse::success(id, json!({ "deleted": true })),
+            Err(e) => agent_err_to_response(id, e),
+        },
+    )
 }
 
 // ============================================================

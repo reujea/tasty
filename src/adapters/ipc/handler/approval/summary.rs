@@ -27,7 +27,11 @@ pub fn handle_summary_set(
     };
     match core.with_memory(|s| s.put(tasty_memory::HOST_OWNER, &scope, SUMMARY_KEY, &value, &opts))
     {
-        Ok(_) => JsonRpcResponse::success(id, json!({ "workspace_id": workspace_id })),
+        Ok(_) => crate::adapters::ipc::handler::memory::written(
+            core,
+            id,
+            json!({ "workspace_id": workspace_id }),
+        ),
         Err(e) => JsonRpcResponse::error(id, -32603, format!("summary set failed: {e}")),
     }
 }
