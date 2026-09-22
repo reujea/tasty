@@ -172,8 +172,9 @@ const AREAS: &[(&str, usize, &str)] = &[
         "src/adapters/ui/popup/",
         48,
         // 49 -> 48 은 path bar 가 `component.fp-*` 토큰을 직접 읽던 자리를 뷰 밖
-        // (`src/file/picker_caps.rs`)으로 옮기면서 그 자리의 리터럴이 함께 나간 것이다.
-        // 안 보게 된 것이 아니라 이 영역에 사본이 하나 줄었다.
+        // (`picker_caps` 모듈)으로 옮기면서 그 자리의 리터럴이 함께 나간 것이다.
+        // 안 보게 된 것이 아니라 이 영역에 사본이 하나 줄었다. 그 모듈은 지금 없다 —
+        // path bar 가 `&Theme` 의 `fp_*` 접근자를 읽고, 리터럴은 돌아오지 않았다.
         // 48 -> 50 은 `port_scanner.rs` 의 컬럼 최소폭 표(`column_layout`)가 타입을
         // 얻으면서 **바늘 안으로 들어온 것**이다. 그 일곱은 전에도 그 자리에 있었고
         // `(84.0, false, ..)` 처럼 맨 f32 라 이 가드의 술어가 안 닿았다. `LogicalPx` 로

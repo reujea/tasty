@@ -145,6 +145,7 @@ modifier-hint 는 0035(좁힘 + 지연) · 0038(빈 섹션) · 0064(타이머 �
 | 0522 | [프리셋 surface 설정 화면의 draft 는 kind 를 바꿔도 값을 지우지 않는다](0522-the-preset-surface-settings-draft-keeps-values-across-kind-switches.md) | Accepted | 2026-09-23 | preset, layout-presets, draft, surface-settings, design-parity, egui, input, adr-0510 |
 | 0531 | [프리셋 편집 화면은 캐시가 지어진 뒤 바뀐 preset 을 덮지 않고, 저장소 판을 다시 불러와 알린다](0531-the-preset-editor-does-not-overwrite-a-preset-changed-behind-its-cache.md) | Accepted | 2026-09-23 | preset, layout-presets, concurrency, agent-user-separation, surface-settings, toast, adr-0522 |
 | 0564 | [프리셋 보기 모드의 미리보기는 저장소를 따라가고, 편집 모드의 캐시는 따라가지 않는다](0564-the-preset-view-mode-follows-the-store-and-the-edit-mode-does-not.md) | Accepted | 2026-09-23 | preset, layout-presets, concurrency, agent-user-separation, identity-principle-1, adr-0531 |
+| 0556 | [생성 길이 상수 가드의 처방은 그 토큰 자신의 `&Theme` 경로다 — 값이 같은 이름이 아니다](0556-the-generated-length-const-guard-prescribes-the-tokens-own-theme-path.md) | Accepted | 2026-09-23 | design-tokens, guards, theme, zoom, prescription, file-picker, adr-0135 |
 
 ## 길이 타입 · DPI
 

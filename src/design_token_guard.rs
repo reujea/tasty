@@ -560,11 +560,19 @@ fn generated_const_types() -> (Vec<String>, Vec<String>) {
     (logical, other)
 }
 
-/// 생성 토큰 모듈(`generated`) 참조에서 **경로의 마지막 조각**을 뽑는다.
+/// 생성 토큰 모듈(`generated`) 참조에서 **`generated::` 뒤의 경로**를 뽑는다
+/// (`component::autocomplete::MAX_HEIGHT` · `semantic::SPACE_XS`). 분류는 마지막 조각
+/// (상수 이름)으로 하고, 처방은 경로 전체로 찾는다([`theme_path_table`]) — 마지막 조각만
+/// 으로는 `HEIGHT` 가 어느 컴포넌트의 것인지 모른다.
 ///
 /// **이름이 아니라 경로로 잡는 이유**: 생성 모듈에는 `HEIGHT` · `SIZE` · `MAX_WIDTH`
 /// 같은 일반적인 이름이 있어서, 이름만 대조하면 무관한 로컬 상수를 대량 오검출한다.
 /// 경로가 있는 줄(= `use` 문)만 보면 소비 선언 하나당 정확히 한 번 잡힌다.
+///
+/// **묶음 import(`component::fp::{ROW_HEIGHT, GAP}`)는 항목마다 펼친다.** 펼치지 않으면
+/// 경로가 `component::fp::` 에서 끊겨 마지막 조각이 빈 문자열이 되고, 실패문이 "모듈째
+/// import 했다" 고 **이름으로 import 한 자리를** 잘못 진단한다. 중첩 묶음은 펼치지 않고
+/// 끊긴 경로 그대로 둔다 — 그 자리는 "표에서 못 찾았다" 로 떨어져 조용히 빠지지 않는다.
 fn generated_const_refs(lines: &[&str]) -> Vec<(String, usize)> {
     // **바늘을 쪼갠다.** 통짜로 두면 이 파일 자신이 그 패턴을 담게 되고,
     // 지금은 스캔 루트 밖이라 안 걸리지만 그건 **우연**이다 — 루트가 넓어지는 날
@@ -584,11 +592,211 @@ fn generated_const_refs(lines: &[&str]) -> Vec<(String, usize)> {
                 .chars()
                 .take_while(|c| c.is_ascii_alphanumeric() || *c == '_' || *c == ':')
                 .collect();
-            out.push((path.rsplit("::").next().unwrap_or("").to_string(), i + 1));
+            // 묶음이 줄을 넘기면(rustfmt 가 긴 묶음을 그렇게 접는다) 닫는 `}` 까지 잇는다.
+            let mut after = tail[path.len()..].to_string();
+            if after.starts_with('{') && !after.contains('}') {
+                for next in lines.iter().skip(i + 1).take(64) {
+                    after.push(' ');
+                    after.push_str(next.trim());
+                    if next.contains('}') {
+                        break;
+                    }
+                }
+            }
+            match expand_group(&path, &after) {
+                Some(items) => out.extend(items.into_iter().map(|p| (p, i + 1))),
+                None => out.push((path, i + 1)),
+            }
             rest = &rest[at + NEEDLE.len()..];
         }
     }
     out
+}
+
+/// `prefix` 가 `::` 로 끝나고 `after` 가 한 겹짜리 묶음(`{A, B as C}`)이면 항목마다
+/// `prefix + 이름` 을 돌려준다. 묶음이 아니거나, 같은 줄에서 닫히지 않거나, 중첩이면
+/// `None` — 호출부가 끊긴 경로를 그대로 남긴다.
+fn expand_group(prefix: &str, after: &str) -> Option<Vec<String>> {
+    if !prefix.ends_with("::") {
+        return None;
+    }
+    let body = after.strip_prefix('{')?;
+    let body = &body[..body.find('}')?];
+    if body.contains('{') {
+        return None;
+    }
+    let items: Vec<String> = body
+        .split(',')
+        .map(|item| item.split_whitespace().next().unwrap_or(""))
+        .filter(|name| !name.is_empty())
+        .map(|name| {
+            if name == "self" {
+                prefix.trim_end_matches("::").to_string()
+            } else {
+                format!("{prefix}{name}")
+            }
+        })
+        .collect();
+    (!items.is_empty()).then_some(items)
+}
+
+/// 생성 길이 상수의 경로 → (그 토큰, 그 토큰의 `&Theme` 경로).
+///
+/// 이 가드의 처방은 "`&Theme` 을 경유해라" 다. 그 말이 따를 수 있는 처방이 되려면
+/// **그 토큰의** 경로를 이름으로 대야 한다. 예전 실패문은 "같은 값의 `Theme`
+/// 필드/접근자" 를 가리켰는데, 그것은 두 방향으로 틀린다 — component tier 에는 토큰마다
+/// 제 이름의 접근자가 있으므로 값으로 찾을 이유가 없고, 경로가 없는 토큰에서는 값이
+/// 같은 **다른 토큰**을 쓰게 만든다(픽셀은 같고 결합이 틀린다 — 그 토큰이 움직이면
+/// 무관한 자리가 따라 움직인다. `source_guards::on_scale_length_literal` 이 손으로
+/// 읽어 13 중 10 이 그런 자리였다고 적은 형태다).
+///
+/// 경로는 손으로 적지 않는다. 두 자리에서 읽는다:
+///
+/// - `SEMANTIC_DIM_TO_THEME_FIELD`(생성기가 쓰는 토큰 ↔ `Theme` 필드 표) — **먼저 나오는
+///   항목이 이긴다**(그 표의 doc 이 정한 규칙이다). 필드가 `Theme` 에 실재하는지까지 본다.
+/// - component 토큰은 표에 없으면 제 이름의 접근자(`component.menu-radius` →
+///   `menu_radius()`)가 `generated_component.rs` 나 `theme.rs`(수기 — `modhint_*`)에
+///   실재하는지 본다.
+///
+/// 둘 다 없으면 `None` 이다. 그 목록은 [`PATHLESS_LENGTH_TOKENS`] 가 이름으로 든다.
+fn theme_path_table() -> Vec<(String, String, Option<String>)> {
+    let root = Path::new(env!("CARGO_MANIFEST_DIR"));
+    let read = |rel: &str| {
+        std::fs::read_to_string(root.join(rel)).unwrap_or_else(|e| {
+            panic!(
+                "{rel} 를 읽을 수 없다 — {e}. 조용히 건너뛰면 처방 표가 비고, 빈 표는 \
+                 모든 자리에 '경로 없음' 을 처방한다."
+            )
+        })
+    };
+    let theme = read("crates/tasty-type-appearance/src/theme.rs");
+    let accessors = format!(
+        "{theme}\n{}",
+        read("crates/tasty-type-appearance/src/generated_component.rs")
+    );
+    // 필드는 `pub struct Theme {` 본문에서만 찾는다 — `ThemeSizing` 에만 있는 이름은
+    // `th.<필드>` 로 못 부른다.
+    let theme_struct = theme
+        .split_once("pub struct Theme {")
+        .and_then(|(_, rest)| rest.split_once("\n}\n"))
+        .map_or("", |(body, _)| body);
+    assert!(
+        theme_struct.contains("pub spacing_xs: LogicalPx"),
+        "`pub struct Theme {{` 본문을 못 찾았다 — 필드 판정이 전부 '없음' 으로 쏠린다"
+    );
+
+    let mut out = Vec::new();
+    for (tier, rel) in [
+        (
+            "semantic",
+            "crates/tasty-design-tokens/src/generated/semantic.rs",
+        ),
+        (
+            "component",
+            "crates/tasty-design-tokens/src/generated/component.rs",
+        ),
+    ] {
+        let text = read(rel);
+        let (mut module, mut token) = (String::new(), None::<String>);
+        for line in text.lines() {
+            let t = line.trim_start();
+            if let Some(m) = t.strip_prefix("pub mod ") {
+                module = m.trim_end_matches(" {").trim().to_string();
+            } else if let Some(doc) = t.strip_prefix(&format!("/// `{tier}.")) {
+                token = doc.split('`').next().map(|n| format!("{tier}.{n}"));
+            } else if let Some(decl) = t.strip_prefix("pub const ") {
+                let Some((name, ty)) = decl.split_once(':') else {
+                    continue;
+                };
+                let (Some(tok), true) = (token.take(), ty.trim_start().starts_with("LogicalPx"))
+                else {
+                    continue;
+                };
+                let path = if tier == "component" {
+                    format!("component::{module}::{}", name.trim())
+                } else {
+                    format!("semantic::{}", name.trim())
+                };
+                let field = tasty_design_tokens::dtcg::SEMANTIC_DIM_TO_THEME_FIELD
+                    .iter()
+                    .find(|(p, _)| *p == tok)
+                    .map(|(_, f)| *f)
+                    .filter(|f| theme_struct.contains(&format!("pub {f}: LogicalPx")));
+                let accessor = tok
+                    .strip_prefix("component.")
+                    .map(|n| n.replace('-', "_"))
+                    .filter(|f| accessors.contains(&format!("pub fn {f}(&self) -> LogicalPx")));
+                let via = match (field, accessor) {
+                    (Some(f), _) => Some(format!("th.{f}")),
+                    (None, Some(f)) => Some(format!("th.{f}()")),
+                    (None, None) => None,
+                };
+                out.push((path, tok, via));
+            }
+        }
+    }
+    out
+}
+
+/// **`&Theme` 경로가 없는 생성 길이 토큰** — (토큰, 사유).
+///
+/// 이 명부는 [`theme_path_table`] 과 **집합 동등**으로 대조된다
+/// ([`every_generated_length_token_has_a_theme_path_or_is_listed`]). 늘어도 줄어도 실패한다 —
+/// 경로가 생겼는데 줄이 남으면 그 토큰의 자리에 "경로 없음" 이 처방되고, 경로가 없는데
+/// 줄이 없으면 실패문이 없는 경로를 가리킨다.
+///
+/// 여기 오른 토큰을 UI 가 쓰려면 **경로를 먼저 만든다** — `SEMANTIC_DIM_TO_THEME_FIELD` 에
+/// (토큰, 필드) 를 더하고 `ThemeSizing` · `Theme` 필드와 `zoomed()` 배선을 둔다. 값은
+/// `crates/tasty-design-tokens/tests/sizing_parity.rs` 가 토큰에 묶으므로 새 값을 정하는
+/// 일이 아니다. 값이 같은 다른 `Theme` 이름으로 우회하는 것은 처방이 아니다.
+const PATHLESS_LENGTH_TOKENS: &[(&str, &str)] = &[
+    (
+        "semantic.field-width-range",
+        "소비처가 없어 표에 오른 적이 없다",
+    ),
+    (
+        "semantic.font-size-brand-wordmark",
+        "component `sidebar-wordmark-font-size` 의 alias 로만 쓰인다 — 그 접근자는 역할 \
+         이름이라 이 토큰의 경로가 아니다",
+    ),
+    (
+        "semantic.letter-spacing-ui",
+        "자간은 egui `extra_letter_spacing` 에 f32 로 넘어가고 이 토큰의 소비처가 없다",
+    ),
+    (
+        "semantic.radius-pill",
+        "component `switch-radius` 의 alias 로만 쓰인다 — 그 접근자는 역할 이름이라 이 \
+         토큰의 경로가 아니다",
+    ),
+];
+
+/// 한 위반 자리의 처방. 경로가 있으면 그 이름을, 없으면 "없다" 와 만드는 법을 말한다.
+fn length_const_prescription(
+    rel: &str,
+    at: usize,
+    path: &str,
+    table: &[(String, String, Option<String>)],
+) -> String {
+    match table.iter().find(|(p, ..)| p == path) {
+        Some((_, tok, Some(via))) => format!(
+            "  {rel}:{at} — `{path}`(`{tok}`)은 LogicalPx(배율 축)다. 같은 토큰의 `&Theme` \
+             경로 `{via}` 를 써라"
+        ),
+        Some((_, tok, None)) => format!(
+            "  {rel}:{at} — `{path}`(`{tok}`)은 LogicalPx(배율 축)인데 이 토큰에는 `&Theme` \
+             경로가 없다(`PATHLESS_LENGTH_TOKENS`). 값이 같은 다른 `Theme` 이름으로 \
+             우회하지 마라 — 경로를 먼저 만든다: `SEMANTIC_DIM_TO_THEME_FIELD` 에 (토큰, \
+             필드) 추가 · `ThemeSizing`/`Theme` 필드와 `zoomed()` 배선 · `sizing_parity` 의 \
+             arm · 생성물 재생성(`cargo run -p tasty-design-tokens --bin generate`), 그리고 \
+             명부에서 그 줄을 지운다"
+        ),
+        // 표에 없는 LogicalPx — 경로 파싱이 끊긴 자리(모듈째 import 등)다.
+        None => format!(
+            "  {rel}:{at} — `{path}` 는 LogicalPx(배율 축)인데 어느 토큰의 것인지 경로로 \
+             못 찾았다. 상수를 전체 경로로 import 하면(`…::component::<모듈>::<이름>`) \
+             그 토큰의 `&Theme` 경로를 이름으로 댄다"
+        ),
+    }
 }
 
 /// UI 계층은 생성 DTCG 상수 중 **길이(`LogicalPx`)** 를 직접 소비하지 않는다.
@@ -598,7 +806,7 @@ fn generated_const_refs(lines: &[&str]) -> Vec<(String, usize)> {
 /// 못박고 `generated/semantic.rs` doc 도 같은 말을 반복한다. **없던 것은 집행이다.**
 ///
 /// 생성 const 는 컴파일 타임 상수라 `with_colors_and_zoom` 의 `zoomed()` 밖이고,
-/// 같은 값의 `Theme` 필드는 안이다. zoom 1 에서만 같고 0.85 / 1.2 에서 갈라진다 —
+/// 그 토큰의 `Theme` 경로는 안이다. zoom 1 에서만 같고 0.85 / 1.2 에서 갈라진다 —
 /// **토큰을 썼으니 됐다고 믿게 만들기 때문에 리터럴보다 나쁘다.**
 ///
 /// 무차원 상수(`EDGE_DIM_OPACITY` 등 `f32`)는 배율 축이 아니라 대상이 아니다.
@@ -666,16 +874,15 @@ fn ui_does_not_consume_generated_length_consts_directly() {
         );
     }
 
+    let table = theme_path_table();
     let mut violations = Vec::new();
     let mut dimensionless = 0usize;
     for (rel, contents) in &scanned {
         let lines: Vec<&str> = contents.lines().collect();
-        for (name, at) in generated_const_refs(&lines) {
+        for (path, at) in generated_const_refs(&lines) {
+            let name = path.rsplit("::").next().unwrap_or("").to_string();
             if logical.contains(&name) {
-                violations.push(format!(
-                    "  {rel}:{at} — `{name}` 은 LogicalPx(배율 축)다. 같은 값의 `Theme` \
-                     필드/접근자를 경유해라"
-                ));
+                violations.push(length_const_prescription(rel, at, &path, &table));
             } else if other.contains(&name) {
                 dimensionless += 1;
             } else {
@@ -689,7 +896,7 @@ fn ui_does_not_consume_generated_length_consts_directly() {
     assert!(
         violations.is_empty(),
         "UI 계층이 생성 DTCG 길이 상수를 직접 소비한다 — const 는 `zoomed()` 밖이라 \
-         `ui_scale` 을 안 타고 같은 값의 `Theme` 필드는 탄다(zoom 1 에서만 같다):\n{}\n\
+         `ui_scale` 을 안 타고 같은 토큰의 `&Theme` 경로는 탄다(zoom 1 에서만 같다):\n{}\n\
          (같은 스캔에서 무차원 상수 소비 {} 건은 정상으로 통과했다 — 판정기가 두 갈래를 \
          실제로 가르고 있다는 뜻이다)",
         violations.join("\n"),
@@ -741,8 +948,8 @@ fn the_path_parser_beats_the_weak_forms_on_the_deepest_path() {
     let refs = generated_const_refs(&[line]);
     assert_eq!(
         refs.iter().map(|(n, _)| n.as_str()).collect::<Vec<_>>(),
-        vec!["MAX_HEIGHT"],
-        "마지막 조각을 못 뽑았다 — 중간 모듈이 하나 더 끼면 무너진다"
+        vec!["component::autocomplete::MAX_HEIGHT"],
+        "경로를 끝까지 못 뽑았다 — 중간 모듈이 하나 더 끼면 무너진다"
     );
 
     // 약한 형태 ①: `semantic::` 한 모듈만 보는 판정기 → 이 줄에 **초록**이다.
@@ -768,6 +975,166 @@ fn the_path_parser_beats_the_weak_forms_on_the_deepest_path() {
     assert!(
         logical.iter().any(|n| n == "MAX_HEIGHT"),
         "`MAX_HEIGHT` 가 LogicalPx 표에 없다 — 최악 후보를 잘못 골랐다"
+    );
+}
+
+/// 이 가드의 처방("그 토큰의 `&Theme` 경로를 써라")이 **실재하는 경로**를 가리킨다.
+///
+/// 처방 표가 무엇을 들고 있는지를 세 겹으로 잰다:
+///
+/// 1. **모수** — 표의 줄 수가 생성 파일의 `LogicalPx` 상수 수와 같다. doc 주석 파싱이
+///    한 줄이라도 놓치면 그 상수의 자리에는 "경로로 못 찾았다" 가 처방된다.
+/// 2. **component tier 는 전부 경로가 있다.** 토큰마다 제 이름의 접근자가 생성되고,
+///    생성기가 건너뛴 것(`modhint_*`)은 `theme.rs` 에 수기로 있다. 이 단정이 깨지면
+///    생성기가 새 토큰을 건너뛴 것이다 — 스킵 사유는 생성기가 찍는다.
+/// 3. **경로가 없는 토큰은 [`PATHLESS_LENGTH_TOKENS`] 와 집합 동등이다.**
+#[test]
+fn every_generated_length_token_has_a_theme_path_or_is_listed() {
+    let table = theme_path_table();
+    let root = Path::new(env!("CARGO_MANIFEST_DIR"));
+    for (tier, file) in [("semantic", "semantic.rs"), ("component", "component.rs")] {
+        let text = std::fs::read_to_string(
+            root.join("crates/tasty-design-tokens/src/generated")
+                .join(file),
+        )
+        .expect("생성 토큰 파일 read 실패");
+        let declared = text
+            .lines()
+            .filter(|l| {
+                l.trim_start().starts_with("pub const ")
+                    && l.split_once(':')
+                        .is_some_and(|(_, ty)| ty.trim_start().starts_with("LogicalPx"))
+            })
+            .count();
+        let parsed = table
+            .iter()
+            .filter(|(p, ..)| p.starts_with(&format!("{tier}::")))
+            .count();
+        assert_eq!(
+            parsed, declared,
+            "{file} 의 LogicalPx 상수 {declared} 개 중 {parsed} 개만 처방 표에 올랐다 — \
+             doc 주석(`/// `{tier}.<이름>``)과 상수의 짝 읽기가 어긋났다"
+        );
+    }
+    let component = table
+        .iter()
+        .filter(|(p, ..)| p.starts_with("component::"))
+        .count();
+    assert!(
+        component >= 200,
+        "component LogicalPx 상수가 {component} 개뿐이다 — 표가 비면 아래 단정이 전부 공허하다"
+    );
+
+    // 양성 대조 — 세 갈래(semantic 필드 · 생성 접근자 · 수기 접근자)가 각각 실제로 풀린다.
+    for (path, want) in [
+        ("semantic::SPACE_XS", "th.spacing_xs"),
+        (
+            "component::autocomplete::MAX_HEIGHT",
+            "th.autocomplete_max_height()",
+        ),
+        ("component::modhint::WIDTH", "th.modhint_width()"),
+    ] {
+        let got = table.iter().find(|(p, ..)| p == path).map(|(.., v)| v);
+        assert_eq!(
+            got,
+            Some(&Some(want.to_string())),
+            "`{path}` 의 처방이 `{want}` 가 아니다"
+        );
+    }
+
+    let orphans: Vec<&str> = table
+        .iter()
+        .filter(|(p, _, via)| p.starts_with("component::") && via.is_none())
+        .map(|(_, tok, _)| tok.as_str())
+        .collect();
+    assert!(
+        orphans.is_empty(),
+        "component 토큰 {} 개에 `&Theme` 접근자가 없다 — 생성기가 건너뛰었다(`cargo run -p \
+         tasty-design-tokens --bin generate` 가 스킵 사유를 찍는다): {orphans:?}",
+        orphans.len()
+    );
+
+    let mut pathless: Vec<&str> = table
+        .iter()
+        .filter(|(.., via)| via.is_none())
+        .map(|(_, tok, _)| tok.as_str())
+        .collect();
+    pathless.sort_unstable();
+    let mut listed: Vec<&str> = PATHLESS_LENGTH_TOKENS.iter().map(|(t, _)| *t).collect();
+    listed.sort_unstable();
+    assert_eq!(
+        pathless, listed,
+        "`&Theme` 경로가 없는 길이 토큰이 명부와 다르다. 명부에만 있으면 경로가 생겼으니 \
+         줄을 지워라. 실측에만 있으면 경로가 사라졌거나 새 토큰이다 — 사유와 함께 올려라"
+    );
+}
+
+/// 처방 문구가 경로의 세 갈래를 제대로 가른다 — 있으면 **그 이름**을 대고 "같은 값" 을
+/// 말하지 않으며, 없으면 "없다" 고 말하고 이름을 지어내지 않는다.
+#[test]
+fn the_prescription_names_the_token_path_not_a_same_value_one() {
+    let table = theme_path_table();
+    let found = length_const_prescription("x.rs", 1, "component::autocomplete::MAX_HEIGHT", &table);
+    assert!(
+        found.contains("`th.autocomplete_max_height()`") && !found.contains("같은 값의"),
+        "경로가 있는 자리에 그 이름을 대지 않았다: {found}"
+    );
+    let pathless = length_const_prescription("x.rs", 1, "semantic::FIELD_WIDTH_RANGE", &table);
+    assert!(
+        pathless.contains("경로가 없다") && !pathless.contains("`th."),
+        "경로가 없는 토큰에 경로를 지어냈다: {pathless}"
+    );
+    let unknown = length_const_prescription("x.rs", 1, "component::fp::", &table);
+    assert!(
+        unknown.contains("못 찾았다"),
+        "경로가 끊긴 자리를 다른 갈래로 보냈다: {unknown}"
+    );
+}
+
+/// 묶음 import 를 항목마다 펼친다. 펼치지 않으면 이름으로 import 한 자리가 "모듈째
+/// import 했다" 로 잘못 진단된다. rustfmt 가 여러 줄로 접은 묶음도 펼친다.
+#[test]
+fn group_imports_expand_to_one_path_per_item() {
+    let line = concat!(
+        "use tasty_design_tokens",
+        "::generated::component::fp::{ROW_HEIGHT, GAP as G, self};"
+    );
+    let refs = generated_const_refs(&[line]);
+    assert_eq!(
+        refs.iter().map(|(p, _)| p.as_str()).collect::<Vec<_>>(),
+        vec![
+            "component::fp::ROW_HEIGHT",
+            "component::fp::GAP",
+            "component::fp"
+        ],
+    );
+    // rustfmt 가 접은 여러 줄 묶음. 자리는 여는 줄이다.
+    let folded = [
+        concat!(
+            "    use tasty_design_tokens",
+            "::generated::component::fp::{"
+        ),
+        "        CRUMB_MAX_WIDTH, CRUMB_MIN_WIDTH,",
+        "    };",
+    ];
+    assert_eq!(
+        generated_const_refs(&folded),
+        vec![
+            ("component::fp::CRUMB_MAX_WIDTH".to_string(), 1),
+            ("component::fp::CRUMB_MIN_WIDTH".to_string(), 1),
+        ],
+    );
+    // 중첩 묶음은 펼치지 않는다 — 끊긴 경로가 그대로 남아 "못 찾았다" 로 떨어진다.
+    let nested = concat!(
+        "use tasty_design_tokens",
+        "::generated::component::{fp::{GAP}, dag::EDGE};"
+    );
+    assert_eq!(
+        generated_const_refs(&[nested])
+            .iter()
+            .map(|(p, _)| p.as_str())
+            .collect::<Vec<_>>(),
+        vec!["component::"],
     );
 }
 
