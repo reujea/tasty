@@ -48,7 +48,10 @@ terminal 워크스페이스는 `surface_id` 를 실었으면 **그 surface** 의
   달랐던 것은 결과 cwd 가 바뀐다. 원칙 3 이 호환보다 앞선다. 창만 고르고 cwd 는 다른 곳에서 가져
   오고 싶으면 `cwd` 를 명시한다.
 - **운영 비용 / 유지 부담**: 핸들러의 작은 함수 둘(params 를 읽어 cwd 를 정하는 `resolve_create_cwd`,
-  상속 원본을 읽는 `inherit_cwd_for_create`)과 시험 여섯(`create_cwd_tests`).
+  상속 원본을 읽는 `inherit_cwd_for_create`)과 시험 일곱(`create_cwd_tests`). 그중 하나는 핸들러를
+  끝까지 불러 새 터미널의 셸이 계산된 cwd 에서 뜨는지를 실제 PTY 로 잰다 — 나머지는 cwd 를 무엇으로
+  계산하는가만 재서 그 값을 생성 intent 에 싣지 않아도 초록이다. 셸 cwd 조회 수단이 linux·macos 에만
+  있어 그 하나는 Windows 에서 컴파일되지 않는다.
 
 ## Alternatives Considered
 

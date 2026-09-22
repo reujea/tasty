@@ -997,6 +997,50 @@ mod create_cwd_tests {
         assert_eq!(got, None);
     }
 
+    /// 핸들러를 끝까지 불러 새 터미널을 **실제 PTY 로** 띄우고, 그 셸의 cwd 를 조회해
+    /// 핸들러가 계산한 값과 대조한다. 위 시험들은 cwd 를 **무엇으로 계산하는가**만 재서,
+    /// 생성 intent 에 `cwd: None` 을 실어도 전부 초록이었다 — 이 시험은 그 값이 생성
+    /// payload 에 **실리는가**를 잰다. 명시 `cwd` 와 지목 surface 상속 두 갈래를 다 본다.
+    ///
+    /// 셸은 `/bin/sh` 로 고정한다 — 사용자 rc 파일이 `cd` 하면 조회값이 흔들린다.
+    /// 셸 프로세스의 cwd 를 읽는 수단(`get_cwd_of_pid`)이 linux·macos 에만 있어 그 둘로 한정한다.
+    #[cfg(any(target_os = "linux", target_os = "macos"))]
+    #[test]
+    fn the_resolved_cwd_reaches_the_new_terminals_shell() {
+        let (mut state, mut engine) = crate::state::tests::test_state();
+        let mut core = crate::ipc::handler::cli_entry_tests::test_core();
+        engine.settings.general.shell = "/bin/sh".to_string();
+
+        let explicit_dir = tempfile::tempdir().expect("tmp");
+        let explicit = explicit_dir.path().canonicalize().expect("canonical");
+        let inherit_dir = tempfile::tempdir().expect("tmp");
+        let inherited = inherit_dir.path().canonicalize().expect("canonical");
+        let (_tab, named) = state
+            .add_kind_tab(
+                &mut engine,
+                "explorer",
+                &json!({ "path": inherited.to_string_lossy() }),
+            )
+            .expect("add explorer tab");
+
+        for (params, want) in [
+            (json!({ "cwd": explicit.to_string_lossy() }), &explicit),
+            (json!({ "surface_id": named }), &inherited),
+        ] {
+            let res =
+                handle_workspace_create(&mut core, &mut state, &mut engine, json!(1), &params);
+            let result = res
+                .result
+                .unwrap_or_else(|| panic!("{params}: {:?}", res.error));
+            let sid = result["surface_id"].as_u64().expect("surface_id") as u32;
+            assert_eq!(
+                engine.local_surface_cwd(sid).as_ref(),
+                Some(want),
+                "{params}: 새 터미널의 셸이 계산된 cwd 에서 뜨지 않았다",
+            );
+        }
+    }
+
     /// 지목한 surface 가 있어도 `inherit_cwd` 를 끈 설정은 그대로 존중한다.
     #[test]
     fn a_named_surface_respects_inherit_cwd_off() {
