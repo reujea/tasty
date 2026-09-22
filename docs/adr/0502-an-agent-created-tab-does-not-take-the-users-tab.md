@@ -76,6 +76,11 @@
     레포 안의 소비자는 그렇게 읽지 않았다(통합 테스트는 `surface_id` 를 쓴다).
   - 에이전트가 만든 비터미널 탭은 사용자가 고를 때까지 렌더되지 않는다. 렌더 경로를 재야 하는
     시험(explorer 우클릭 GUI 시험)은 debug `debug.switch_tab` 으로 사용자 전환을 재현한다.
+  - 메모리 soak 의 S6(`tests/soak_memory.rs` `cycle_plugin_view_churn`)은 `tab.create` 로 연
+    탭을 닫기만 하므로, 그 탭이 선택·렌더되지 않는 지금은 view store `drop_view` · egui-mesh
+    retain 경로를 타지 않는다 — 그 누수를 더는 재지 못한다. release soak 에는 탭을 고르는 API 가
+    없어(원칙 3) GUI 시험처럼 `debug.switch_tab` 으로 메울 수 없다. 시나리오 재설계가 필요하다
+    (별도 작업).
 - **운영 비용 / 유지 부담**: `CreateTab` 을 새로 만드는 자리는 `activate` 를 정해야 한다 —
   필드가 필수라 빠뜨리면 컴파일이 멈춘다.
 

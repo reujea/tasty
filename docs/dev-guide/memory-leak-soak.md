@@ -57,7 +57,7 @@ env 제어:
 | `s1` | tab 생성→준비 대기→닫기 | ConPTY/셸 수명(L4), surface 정리(L2·L3) |
 | `s2` | surface split→닫기 | per-surface GPU, 레이아웃 트리 |
 | `s4` | 대량 출력(스크롤백 상한 미만) | 링버퍼, VTE 파서, glyph atlas |
-| `s6` | explorer(호스트 `drop_view`)·markdown(plugin webview, [ADR-0065](../adr/0065-markdown-webview-render-channel.md)) 교대 open/close | view store·webview overlay retain 경로 |
+| `s6` | explorer(호스트 `drop_view`)·markdown(plugin webview, [ADR-0065](../adr/0065-markdown-webview-render-channel.md)) 교대 open/close | view store·webview overlay retain 경로 — **지금은 재지 못한다**: 에이전트가 만든 탭은 선택·렌더되지 않으므로([ADR-0502](../adr/0502-an-agent-created-tab-does-not-take-the-users-tab.md)) 이 시나리오의 `tab.create` 탭은 view store `drop_view` · egui-mesh retain 경로를 타지 않는다(`s9` 의 s6 몫도 같다). 재설계 필요(별도 작업) |
 | `s7` | 조회 IPC 연타(매 호출 새 TCP 연결) | per-conn 상태, telemetry 버킷 |
 | `s8` | idle | 타이머/폴링 바닥 드리프트 |
 | `s9` | s1~s7 결정적 가중 혼합 | 종합 회귀 |

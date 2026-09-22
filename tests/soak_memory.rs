@@ -212,6 +212,9 @@ fn cycle_split_churn(inst: &TastyInstance, surface0: u64) {
 /// model-view-split.md 가 경고하는 정확히 그 누수 지점)와 markdown(plugin
 /// egui-mesh: `egui_mesh_targets` retain 경로)을 번갈아 열고 닫는다.
 /// plugin surface 는 screen_text 가 없으므로 고정 대기 후 닫는다.
+///
+/// 주의: 에이전트가 만든 탭은 선택·렌더되지 않으므로(ADR-0502) 지금 이 시나리오는
+/// `drop_view` · egui-mesh retain 경로를 타지 않는다 — 재설계 필요(별도 작업).
 fn cycle_plugin_view_churn(inst: &TastyInstance, pane_id: u64, alt: bool) {
     let params = if alt {
         json!({ "pane_id": pane_id, "type": "explorer" })
