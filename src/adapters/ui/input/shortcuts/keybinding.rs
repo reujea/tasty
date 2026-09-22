@@ -836,8 +836,9 @@ impl MainView {
     /// `open_markdown` 이 file-open 팝업을 여는 것과 달리 팝업이 없다. markdown 은 파일
     /// 하나를 골라야 하지만 탐색기는 디렉토리를 **자기가** 정한다 — 이 kind 는
     /// `convert_input_popup` 이 없고(host builtin), 경로 미지정이면 홈에서 연다
-    /// (`core/surface_registry/builtins.rs` 의 `resolve_root`). `Intent::NewTab` 을 쓰는
-    /// 것은 CLI 의 `new tab --type explorer` 와 같은 경로를 타기 위해서다.
+    /// (`core/surface_registry/builtins.rs` 의 `resolve_root`). `Intent::NewTab` 은 CLI 의
+    /// `new tab --type explorer` 와 같은 도메인 인텐트(`CreateTab`)를 쓰되 선택은 다르다 —
+    /// 단축키는 새 탭을 선택하고, 에이전트(CLI/IPC)는 선택하지 않는다(ADR-0502).
     pub(crate) fn open_explorer_tab(state: &mut crate::state::AppState) {
         state.dispatch_intent(
             crate::intent::Intent::NewTab {
