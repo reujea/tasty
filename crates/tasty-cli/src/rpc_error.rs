@@ -33,6 +33,24 @@ pub(crate) fn exit_with(e: &anyhow::Error) -> ! {
     std::process::exit(1);
 }
 
+/// 오류를 `main` 까지 올리는 경로(스트리밍 명령)용 — std 가 찍는 문구에 `data` 줄을 싣는다.
+///
+/// 그 경로의 첫 줄은 std 가 앞에 붙이는 `Error: ` 까지 포함해 `Error: Error (<code>): <message>`
+/// 이고, 그 모양을 파싱하는 쪽이 있다. [`exit_with`] 로 옮기면 그 접두가 빠지므로 옮기지 않고,
+/// 올라가는 값의 문구만 [`render`] 의 두 줄로 바꾼다. `data` 가 없으면 **값을 그대로** 돌려준다 —
+/// 그 출력은 한 글자도 안 바뀐다.
+pub(crate) fn with_data_line(e: anyhow::Error) -> anyhow::Error {
+    let has_data = e
+        .downcast_ref::<JsonRpcCallError>()
+        .is_some_and(|rpc| rpc.data.as_ref().is_some_and(|d| !d.is_null()));
+    if has_data {
+        // 원인 체인(`Caused by:`)을 달지 않는다 — std 의 출력에 그 블록이 붙어 두 줄 모양이 깨진다.
+        anyhow::anyhow!("{}", render(&e))
+    } else {
+        e
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -76,6 +94,37 @@ mod tests {
         assert_eq!(
             render(&call_error(Some(serde_json::Value::Null))),
             "Error (-32603): memory store write failed"
+        );
+    }
+
+    /// std 가 `main` 의 `Err` 를 찍는 모양(`Error: {:?}`)으로 재 본다 — 첫 줄은 종전 그대로이고
+    /// `data` 는 둘째 줄이다. `data` 가 없으면 한 줄 그대로다.
+    #[test]
+    fn the_main_path_keeps_its_first_line_and_adds_the_data_line() {
+        // `RUST_BACKTRACE` 가 켜진 환경이면 anyhow 가 뒤에 backtrace 블록을 붙인다 — 그 앞까지만 본다.
+        let termination = |e: anyhow::Error| {
+            let full = format!("Error: {:?}", with_data_line(e));
+            match full.split_once("\n\nStack backtrace:") {
+                Some((head, _)) => head.to_string(),
+                None => full,
+            }
+        };
+        assert_eq!(
+            termination(call_error(Some(json!({ "reason": "evicted" })))),
+            "Error: Error (-32603): memory store write failed\ndata: {\"reason\":\"evicted\"}"
+        );
+        assert_eq!(
+            termination(call_error(None)),
+            "Error: Error (-32603): memory store write failed"
+        );
+        assert_eq!(
+            termination(call_error(Some(serde_json::Value::Null))),
+            "Error: Error (-32603): memory store write failed"
+        );
+        let other = anyhow::anyhow!("tasty instance closed the connection");
+        assert_eq!(
+            termination(other),
+            "Error: tasty instance closed the connection"
         );
     }
 

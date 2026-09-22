@@ -79,7 +79,8 @@ pub fn run_audit_follow(
             session_token: session_token.clone(),
         };
         next_id += 1;
-        let resp = conn.send(&req)?;
+        // 호스트 오류는 `main` 까지 올라가 std 가 찍는다 — `data` 는 둘째 줄로 싣는다(ADR-0512).
+        let resp = conn.send(&req).map_err(crate::rpc_error::with_data_line)?;
         if let Some(ts) = resp.get("next_after_ts_ms").and_then(|v| v.as_u64()) {
             after_ts = Some(ts);
         }

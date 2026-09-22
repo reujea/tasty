@@ -183,7 +183,10 @@ pub fn run_follow(args: FollowArgs<'_>, port_file: Option<&str>) -> Result<()> {
         let resp = match conn.send(&req) {
             Ok(resp) => resp,
             // 호스트가 답한 오류는 연결 문제가 아니다 — 다시 붙어도 같은 답이 온다.
-            Err(e) if e.is::<tasty_ipc::client::JsonRpcCallError>() => return Err(e),
+            // 그 오류는 `main` 까지 올라가 std 가 찍는다 — `data` 는 둘째 줄로 싣는다(ADR-0512).
+            Err(e) if e.is::<tasty_ipc::client::JsonRpcCallError>() => {
+                return Err(crate::rpc_error::with_data_line(e));
+            }
             Err(e) => {
                 if !args.reconnect {
                     crate::out::errln!(
