@@ -24,6 +24,9 @@ mod hook_handler;
 pub(crate) mod idempotency;
 #[cfg(test)]
 mod intent_order_tests;
+// 창 라우터 팔의 호출자 명부와 그 집행 — 라우터가 gui 전용이라 시험도 gui 조합에서만 돈다.
+#[cfg(all(test, feature = "gui"))]
+mod window_router_caller_tests;
 // `list_global` 이 두 hook 목록을 합산하므로 크레이트 안에서 보여야 한다.
 pub(crate) mod hooks;
 // `output`/`pane`/`surface` 와 같은 이유로 열려 있다 — `image.list` 도 전 창 합산
