@@ -602,3 +602,22 @@ command="x"
         );
     }
 }
+
+// ── 세대 표지 ────────────────────────────────────────────────────────────────
+
+/// 시계가 1970 이전이라 벽시계로 표지를 못 만드는 기계에서도 두 세대의 표지가 다르다.
+/// 고정값(예전의 0)으로 떨어지면 소비자는 `had != got` 만 보므로 재시작을 모른다.
+#[test]
+fn a_clock_before_the_unix_epoch_still_gives_each_generation_its_own_epoch() {
+    use std::time::{Duration, UNIX_EPOCH};
+    let before = || UNIX_EPOCH.duration_since(UNIX_EPOCH + Duration::from_secs(3600));
+    assert!(before().is_err(), "시험 전제: 시계 실패 갈래를 만든다");
+    let a = crate::event_bus::epoch_from_clock(before());
+    let b = crate::event_bus::epoch_from_clock(before());
+    assert_ne!(a, b, "같은 시계 실패에서도 두 세대의 표지가 달라야 한다");
+    // 정상 갈래는 예전과 같은 값 — 나노초 벽시계.
+    assert_eq!(
+        crate::event_bus::epoch_from_clock(Ok(Duration::from_nanos(42))),
+        42
+    );
+}

@@ -186,7 +186,8 @@ pub struct EventBus {
     /// 프로세스마다 하나(`PluginManager` 가 하나)라 두 세대는 서로 다른 프로세스이고, 그
     /// 사이의 시간은 시계 해상도보다 훨씬 길다. ★ 단위가 나노초일 뿐 해상도는 OS 가
     /// 정한다(macOS 는 µs, Windows 는 100 ns) — 한 프로세스 안에서 버스 둘을 잇달아
-    /// 세우면 같은 값이 나올 수 있다. 그런 경로는 시험에만 있다.
+    /// 세우면 같은 값이 나올 수 있다. 그런 경로는 시험에만 있다. 시계가 1970 이전이면
+    /// 벽시계 대신 프로세스마다 다른 값을 쓴다([`epoch_from_clock`]).
     epoch: u64,
     /// 발화가 있을 때마다 깨운다. long-poll 이 이것을 기다린다 — 없으면 대기하는
     /// 쪽이 짧은 잠을 반복해야 하고, 그러면 응답 지연의 바닥이 그 잠 길이가 된다.
@@ -253,10 +254,9 @@ impl EventBus {
             })),
             published: Arc::new(Condvar::new()),
             poison_reported: Arc::new(AtomicBool::new(false)),
-            epoch: std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .map(|d| d.as_nanos() as u64)
-                .unwrap_or(0),
+            epoch: epoch_from_clock(
+                std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH),
+            ),
         }
     }
 
@@ -675,6 +675,27 @@ impl EventBus {
         .join();
         assert!(joined.is_err(), "그 스레드는 패닉했어야 한다");
         assert!(self.inner.lock().is_err(), "버스가 poison 됐어야 한다");
+    }
+}
+
+/// 버스 세대 표지를 시계 읽기 결과에서 만든다.
+///
+/// 시계가 UNIX_EPOCH 보다 앞이면(RTC 가 깨진 기계) 벽시계로는 값을 못 만든다. 그때 고정값을
+/// 쓰면 모든 세대가 같은 값이 되어 소비자가 재시작을 영영 모른다 — 소비자는 표지가 **다른가**
+/// 만 본다. 그래서 그 갈래는 프로세스마다 다른 값을 쓴다: `RandomState` 의 키는 OS 난수로
+/// 시드되므로 프로세스가 다르면 다르고, 거기에 pid 와 시계가 가리킨 음의 거리를 섞는다.
+pub(crate) fn epoch_from_clock(
+    since_unix: Result<std::time::Duration, std::time::SystemTimeError>,
+) -> u64 {
+    match since_unix {
+        Ok(d) => d.as_nanos() as u64,
+        Err(before) => {
+            use std::hash::{BuildHasher, Hash, Hasher};
+            let mut h = std::collections::hash_map::RandomState::new().build_hasher();
+            std::process::id().hash(&mut h);
+            before.duration().as_nanos().hash(&mut h);
+            h.finish()
+        }
     }
 }
 
