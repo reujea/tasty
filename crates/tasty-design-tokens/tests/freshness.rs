@@ -34,7 +34,12 @@ const COMMITTED_TYPE_APPEARANCE: &[(&str, &str)] = &[
     ),
 ];
 
-/// 토큰 census — 819 (121/143/555). 앞 회차 818 에서 component 1종
+/// 토큰 census — 832 (123/143/566). 앞 회차 819 에서 primitive 2종(`size-44`/
+/// `size-52`) · component 11종이 늘었다 — 프리셋 편집기 surface 설정 화면의
+/// `preset-cfg-*` 8종(헤더·footer 높이, footer 좌우 padding, 폼 최대 폭·padding·필드
+/// 간격, draft 점 색, 잠금 디밍 opacity)과, 같은 export 에 함께 실려 온
+/// `remote-filter-menu-width` · `segtoggle-on-{bg,fg}` 3종이다. 제거·개명은 없다.
+/// 그 앞 회차: 819 (121/143/555). 818 에서 component 1종
 /// (`fh-when-col-width`)이 늘었다 — 파일 핸들러 행의 "언제" 컬럼에 자기 이름을
 /// 준 결정이다.
 /// 그 앞 회차: 818 (121/143/554). 817 에서 component 1종
@@ -56,7 +61,7 @@ fn token_census_matches_design_export() {
     let set = dtcg::parse(DTCG_JSON).expect("vendor json must parse");
     assert_eq!(
         set.tier_count(dtcg::Tier::Primitive),
-        121,
+        123,
         "primitive census drift"
     );
     assert_eq!(
@@ -66,10 +71,10 @@ fn token_census_matches_design_export() {
     );
     assert_eq!(
         set.tier_count(dtcg::Tier::Component),
-        555,
+        566,
         "component census drift"
     );
-    assert_eq!(set.len(), 819, "total census drift");
+    assert_eq!(set.len(), 832, "total census drift");
 }
 
 /// in-memory 재생성 결과가 커밋된 생성물 텍스트와 완전히 일치해야 한다.

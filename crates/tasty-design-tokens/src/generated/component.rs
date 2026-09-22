@@ -597,6 +597,27 @@ pub mod port {
 pub mod preset {
     use tasty_type_geometry::length::LogicalPx;
 
+    /// `component.preset-cfg-dim-opacity` → `{semantic.state-disabled-opacity}` = 0.5
+    pub const CFG_DIM_OPACITY: f32 = crate::generated::semantic::STATE_DISABLED_OPACITY;
+
+    /// `component.preset-cfg-field-gap` → `{semantic.space-md}` = 12px
+    pub const CFG_FIELD_GAP: LogicalPx = crate::generated::semantic::SPACE_MD;
+
+    /// `component.preset-cfg-footer-height` → `{primitive.size-52}` = 52px
+    pub const CFG_FOOTER_HEIGHT: LogicalPx = crate::generated::primitive::SIZE_52;
+
+    /// `component.preset-cfg-footer-padding-x` → `{primitive.size-14}` = 14px
+    pub const CFG_FOOTER_PADDING_X: LogicalPx = crate::generated::primitive::SIZE_14;
+
+    /// `component.preset-cfg-form-max-width` → `{primitive.size-460}` = 460px
+    pub const CFG_FORM_MAX_WIDTH: LogicalPx = crate::generated::primitive::SIZE_460;
+
+    /// `component.preset-cfg-form-padding` → `{semantic.space-lg}` = 16px
+    pub const CFG_FORM_PADDING: LogicalPx = crate::generated::semantic::SPACE_LG;
+
+    /// `component.preset-cfg-header-height` → `{primitive.size-44}` = 44px
+    pub const CFG_HEADER_HEIGHT: LogicalPx = crate::generated::primitive::SIZE_44;
+
     /// `component.preset-leaf-label-font-size` → `{semantic.font-size-micro}` = 10px
     pub const LEAF_LABEL_FONT_SIZE: LogicalPx = crate::generated::semantic::FONT_SIZE_MICRO;
 
@@ -619,6 +640,9 @@ pub mod progress {
 
 pub mod remote {
     use tasty_type_geometry::length::LogicalPx;
+
+    /// `component.remote-filter-menu-width` → `{primitive.size-240}` = 240px
+    pub const FILTER_MENU_WIDTH: LogicalPx = crate::generated::primitive::SIZE_240;
 
     /// `component.remote-label-col` → `{primitive.size-112}` = 112px
     pub const LABEL_COL: LogicalPx = crate::generated::primitive::SIZE_112;

@@ -1,7 +1,7 @@
 //! Vendored DTCG 디자인 토큰 + 코드 생성.
 //!
 //! 디자인 시스템(claude design 산출물)의 W3C DTCG export 를 `dtcg/tasty.tokens.json`
-//! 으로 vendor 하고(3-tier: primitive → semantic → component, 총 819 토큰),
+//! 으로 vendor 하고(3-tier: primitive → semantic → component, 총 832 토큰),
 //! `src/bin/generate.rs` 가 치수 계열($type: dimension/duration/number/fontWeight)을
 //! `src/generated/` 의 Rust const 로 생성한다. **생성물은 커밋**되며, freshness
 //! 테스트(`tests/freshness.rs`)가 vendor json ↔ 생성물 텍스트 일치를 강제한다 — 통합

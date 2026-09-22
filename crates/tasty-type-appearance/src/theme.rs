@@ -1580,6 +1580,14 @@ impl Theme {
         self.text_secondary()
     }
 
+    /// 프리셋 편집기 surface 설정 화면이 열려 있는 동안 왼쪽 preset 리스트와 L1 scope
+    /// 탭을 흐리게 하는 opacity. design `--tasty-preset-cfg-dim-opacity` →
+    /// `state-disabled-opacity`. number 토큰이라 생성기가 접근자를 만들지 않는다.
+    #[inline]
+    pub fn preset_cfg_dim_opacity(&self) -> f32 {
+        self.opacity_disabled()
+    }
+
     // ── Titlebar (CSD) 컴포넌트 색 — 신규 primitive 없이 기존 semantic 접근자 조합으로 구성 ──
     /// 타이틀바 배경 (active/focused). `--tasty-titlebar-bg` → `bg-app`.
     #[inline]

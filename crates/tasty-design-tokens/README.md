@@ -37,7 +37,7 @@ crate 문서 주석 참조.
    올리는 절차는 `docs/dev-guide/design-change-workflow.md`.
 3. 생성기를 재실행한다: `cargo run -p tasty-design-tokens --bin generate`
 4. 테스트로 확인한다: `cargo test -p tasty-design-tokens`
-   - 토큰 census(819 = 121/143/555)가 바뀌었으면 `tests/freshness.rs` 의
+   - 토큰 census(832 = 123/143/566)가 바뀌었으면 `tests/freshness.rs` 의
      스냅샷을 의식적으로 갱신한다.
    - `sizing_parity` / `color_drift` 실패는 소스 ↔ 디자인 드리프트 신호 —
      값을 임의로 맞추지 말고 디자인 판정을 먼저 확인한다.

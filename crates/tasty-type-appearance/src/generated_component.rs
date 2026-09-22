@@ -1879,6 +1879,48 @@ impl crate::theme::Theme {
         self.status_dot_idle()
     }
 
+    /// `component.preset-cfg-draft-fg` → `{semantic.accent-warning}`
+    #[inline]
+    pub fn preset_cfg_draft_fg(&self) -> HexColor {
+        self.accent_warning()
+    }
+
+    /// `component.preset-cfg-field-gap` → `{semantic.space-md}` = 12px
+    #[inline]
+    pub fn preset_cfg_field_gap(&self) -> LogicalPx {
+        self.spacing_md
+    }
+
+    /// `component.preset-cfg-footer-height` → `{primitive.size-52}` = 52px
+    #[inline]
+    pub fn preset_cfg_footer_height(&self) -> LogicalPx {
+        LogicalPx((52.0 * self.ui_zoom).round())
+    }
+
+    /// `component.preset-cfg-footer-padding-x` → `{primitive.size-14}` = 14px
+    #[inline]
+    pub fn preset_cfg_footer_padding_x(&self) -> LogicalPx {
+        LogicalPx((14.0 * self.ui_zoom).round())
+    }
+
+    /// `component.preset-cfg-form-max-width` → `{primitive.size-460}` = 460px
+    #[inline]
+    pub fn preset_cfg_form_max_width(&self) -> LogicalPx {
+        LogicalPx((460.0 * self.ui_zoom).round())
+    }
+
+    /// `component.preset-cfg-form-padding` → `{semantic.space-lg}` = 16px
+    #[inline]
+    pub fn preset_cfg_form_padding(&self) -> LogicalPx {
+        self.spacing_lg
+    }
+
+    /// `component.preset-cfg-header-height` → `{primitive.size-44}` = 44px
+    #[inline]
+    pub fn preset_cfg_header_height(&self) -> LogicalPx {
+        LogicalPx((44.0 * self.ui_zoom).round())
+    }
+
     /// `component.preset-leaf-label-font-size` → `{semantic.font-size-micro}` = 10px
     #[inline]
     pub fn preset_leaf_label_font_size(&self) -> LogicalPx {
@@ -1921,10 +1963,28 @@ impl crate::theme::Theme {
         self.bg_app()
     }
 
+    /// `component.remote-filter-menu-width` → `{primitive.size-240}` = 240px
+    #[inline]
+    pub fn remote_filter_menu_width(&self) -> LogicalPx {
+        LogicalPx((240.0 * self.ui_zoom).round())
+    }
+
     /// `component.remote-label-col` → `{primitive.size-112}` = 112px
     #[inline]
     pub fn remote_label_col(&self) -> LogicalPx {
         LogicalPx((112.0 * self.ui_zoom).round())
+    }
+
+    /// `component.segtoggle-on-bg` → `{semantic.accent-primary}`
+    #[inline]
+    pub fn segtoggle_on_bg(&self) -> HexColor {
+        self.accent_primary()
+    }
+
+    /// `component.segtoggle-on-fg` → `{semantic.text-on-accent}`
+    #[inline]
+    pub fn segtoggle_on_fg(&self) -> HexColor {
+        self.text_on_accent()
     }
 
     /// `component.select-bg` → `{semantic.surface-raised}`
