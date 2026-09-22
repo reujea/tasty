@@ -77,7 +77,12 @@ pub fn handle(
         if let crate::core::intent::CoreEvent::ClosedItemRestored { restored, kind } = ev
             && restored
         {
-            crate::app::dispatch_domain::cascade_closed_item_restored(state, engine, kind);
+            crate::app::dispatch_domain::cascade_closed_item_restored(
+                state,
+                engine,
+                &intent.origin,
+                kind,
+            );
         }
     }
 }

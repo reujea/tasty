@@ -44,6 +44,7 @@ pub(crate) fn cascade_workspace_created(
 pub(crate) fn cascade_closed_item_restored(
     _state: &mut AppState,
     _engine: &mut CoreState,
+    _origin: &IntentOrigin,
     _kind: RestoredKind,
 ) {
 }

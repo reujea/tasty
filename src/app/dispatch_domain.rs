@@ -302,7 +302,7 @@ impl App {
             }
             CoreEvent::ClosedItemRestored { restored, kind } => {
                 if restored {
-                    self.dispatch_closed_item_restored_cascade(source, kind);
+                    self.dispatch_closed_item_restored_cascade(source, origin, kind);
                 }
             }
 
@@ -393,6 +393,7 @@ impl App {
     fn dispatch_closed_item_restored_cascade(
         &mut self,
         source: DispatchSource,
+        origin: &IntentOrigin,
         kind: crate::core::intent::RestoredKind,
     ) {
         match source {
@@ -400,14 +401,14 @@ impl App {
                 let Some(main) = self.view.views.get_mut(&wid).and_then(|w| w.as_main_mut()) else {
                     return;
                 };
-                cascade_closed_item_restored(&mut main.state, &mut main.core_state, kind);
+                cascade_closed_item_restored(&mut main.state, &mut main.core_state, origin, kind);
                 main.mark_dirty();
             }
             DispatchSource::Parked(idx) => {
                 let Some((state, engine)) = self.parked_states.get_mut(idx) else {
                     return;
                 };
-                cascade_closed_item_restored(state, engine, kind);
+                cascade_closed_item_restored(state, engine, origin, kind);
             }
         }
     }
@@ -1571,9 +1572,9 @@ pub(crate) fn cascade_workspace_created(
     }
 }
 
-/// `CoreEvent::ClosedItemRestored` 의 외부 cascade.
+/// `CoreEvent::ClosedItemRestored` 의 외부 cascade. **사용자 발화일 때만** 포커스를 옮긴다.
 /// - `Workspace`: `state.active_workspace = new_ws_index` (사용자가 복원한 ws 로
-///   포커스 이동 — restore 는 사용자 단축키 only 라 origin 분기 불요).
+///   포커스 이동).
 /// - `TabIntoPane`: 별도 mutate 없음 (engine 안 이미 push 완료).
 /// - `PaneIntoWorkspace`: 복원된 pane 으로 `focused_pane` 이동 — Workspace
 ///   케이스와 같은 취지, 대상이 워크스페이스 전체 대신 그 안의 pane 일 뿐.
@@ -1582,12 +1583,22 @@ pub(crate) fn cascade_workspace_created(
 /// Parked 경로도 동일 함수 호출 — Parked engine 의 `state.active_workspace` 도
 /// 같은 의미라 일관 처리 (현재 호출처는 사용자 단축키 only 라 Main 만 도달하지만
 /// 다른 cascade 와 시그니처 정렬을 위해 Parked 분기 유지).
+///
+/// 복원은 오늘 사용자 단축키에서만 발화한다. 그 사실에 기대 origin 을 안 보던 때는 복원이
+/// IPC 로 열리는 순간 에이전트 행동이 사용자 포커스를 옮기게 됐고 그것을 막는 자리가 주석
+/// 하나뿐이었다(원칙 2.1 ① · 2.3). 그래서 다른 cascade(`cascade_workspace_created` 등)처럼
+/// origin 을 직접 본다 — 사용자 발화가 아니면 복원 결과(엔진 안의 attach)는 그대로 두고
+/// 포커스 포인터만 안 옮긴다.
 pub(crate) fn cascade_closed_item_restored(
     state: &mut crate::state::AppState,
     engine: &mut crate::core::CoreState,
+    origin: &IntentOrigin,
     kind: crate::core::intent::RestoredKind,
 ) {
     use crate::core::intent::RestoredKind;
+    if !origin.is_user() {
+        return;
+    }
     match kind {
         RestoredKind::Nothing => {}
         RestoredKind::Workspace { new_ws_index } => {
@@ -1636,3 +1647,7 @@ pub(crate) fn cascade_workspace_meta_updated(
         });
     }
 }
+
+#[cfg(test)]
+#[path = "dispatch_domain_restore_tests.rs"]
+mod restore_tests;
