@@ -20,6 +20,11 @@
 //!    그룹에 있다. `개정 대상` ↔ `부분 개정`, `통합 대상` ↔ `중복 조항 통합` 은 짝으로 있다.
 //! 5. **머리말이 부르는 번호가 실재하는가** — 머리말은 산문이라 생성 대상이 아니지만, 거기
 //!    적힌 네 자리 번호가 없는 ADR 을 가리키면 사슬이 끊긴 것이다(병합에서 실제로 났다).
+//! 6. **행이 생성 구역에만 있는가** — 생성기는 마커 밖을 안 건드리므로, 머리말에 끼우거나
+//!    `adr-rows:end` 아래에 옛 습관대로 덧붙인 행은 2 의 대조에 **안 걸린다**(파일은 생성 결과와
+//!    같다). 손으로 쓴 행 시절의 가드는 "한 번호가 두 행이면 실패" 로 그 형태를 잡았는데, 행이
+//!    생성물이 되면서 그 물음은 "생성물과 수기가 한 파일에서 섞였는가" 로 바뀌었고, 그것을
+//!    마커 밖의 표 줄 수(0 이어야 한다)와 마커 안의 행 수(= ADR 수)로 잰다.
 //!
 //! 머리말의 사슬 **서술이 완전한가**(A → B 가 머리말에 적혔는가)는 안 본다 — 어느 사슬을
 //! 머리말에 올릴지는 사람의 편집 판단이고, ADR ↔ ADR 의 양방향 기록(4)이 이미 있다.
@@ -109,7 +114,8 @@ use std::path::{Path, PathBuf};
 
 use tasty_doc_guards::adr_index::{
     ADR_DIR, Adr, INDEX, chain_violations, collect, duplicate_numbers, group_slugs, parse_adr,
-    placement_violations, preamble_violations, render_index, superseder,
+    placement_violations, preamble_violations, region_row_count, render_index, stray_table_lines,
+    superseder,
 };
 
 /// ADR 수의 하한 — **연기 검사**다. 수집이 죽으면 아래 대조는 빈 집합끼리라 그냥 통과한다.
@@ -243,16 +249,17 @@ fn the_index_rows_are_what_the_generator_renders() {
     let current = index_text(&root);
     let rendered = render_index(&current, &all)
         .unwrap_or_else(|e| panic!("인덱스의 마커 구조가 깨졌다:\n  {}", e.join("\n  ")));
-    let rows = rendered
-        .lines()
-        .filter(|l| l.starts_with("| ") && l.as_bytes().get(2).is_some_and(u8::is_ascii_digit))
-        .count();
+    // 파일 전체가 아니라 **마커 안**만 센다 — 마커 밖에 적힌 행은 생성물이 아니다.
+    let rows = region_row_count(&current);
     println!(
-        "[adr-index-parity] ADR {} · 그룹 {} · 생성 행 {rows}",
+        "[adr-index-parity] ADR {} · 그룹 {} · 생성 구역 행 {rows}",
         all.len(),
         group_slugs(&current).len()
     );
-    assert!(rows >= MIN_ADRS, "생성 행이 {rows} 개다(하한 {MIN_ADRS})");
+    assert!(
+        rows >= MIN_ADRS,
+        "생성 구역 행이 {rows} 개다(하한 {MIN_ADRS})"
+    );
     assert!(
         rendered == current,
         "{INDEX} 의 생성 구역(`adr-rows:begin` ~ `adr-rows:end`)이 ADR 헤더에서 만든 결과와 \
@@ -260,6 +267,39 @@ fn the_index_rows_are_what_the_generator_renders() {
          Group)가 정본이다. 헤더를 고친 뒤 \
          `cargo run -p tasty-doc-guards --bin adr-index -- --write` 로 다시 만든다.\n{}",
         first_difference(&rendered, &current)
+    );
+    assert_eq!(
+        rows,
+        all.len(),
+        "생성 구역 행 수가 ADR 수와 다르다 — 생성 결과와 같은데 이렇다면 생성기가 ADR 을 \
+         빠뜨리거나 두 번 싣는다"
+    );
+}
+
+/// **행이 생성 구역에만 있는가** — 마커 밖의 표 줄은 생성 결과와의 대조에 안 걸린다
+/// (생성기가 마커 밖을 안 건드리므로 파일은 생성 결과와 같다). 그래서 따로 센다.
+#[test]
+fn no_table_line_sits_outside_the_generated_regions() {
+    let current = index_text(&repo_root());
+    let stray = stray_table_lines(&current);
+    println!(
+        "[adr-stray] 생성 구역 {} · 구역 밖 표 줄 {}",
+        group_slugs(&current).len(),
+        stray.len()
+    );
+    assert!(
+        !group_slugs(&current).is_empty(),
+        "생성 구역을 하나도 못 읽었다 — 구역 밖이 파일 전체라 이 판정은 미측정이다"
+    );
+    assert!(
+        stray.is_empty(),
+        "{INDEX} 의 생성 구역(`adr-rows:begin` ~ `adr-rows:end`) 밖에 표 줄이 있다 {} 건. \
+         생성기는 마커 밖을 안 건드리므로 이 줄은 `--write` 로 안 없어지고 생성 결과와의 대조에도 \
+         안 걸린다. 머리말에 행을 끼웠거나 `adr-rows:end` 아래에 행을 덧붙인 것이다 — 그 줄을 \
+         지우고, 그 ADR 이 빠진 그룹에 들어가야 한다면 ADR 헤더의 `- **Group**:` 을 고친 뒤 \
+         생성기를 돌린다. 머리말에서 ADR 을 부를 때는 표가 아니라 산문 속 번호로 쓴다:\n  {}",
+        stray.len(),
+        stray.join("\n  ")
     );
 }
 
@@ -399,6 +439,50 @@ fn rendering_touches_only_the_inside_of_the_markers() {
         "| 0002 | [손으로 고친 제목](0002-x.md) | Accepted |",
     );
     assert_ne!(render_index(&hand, &all).expect("구조가 맞다"), hand);
+}
+
+/// 마커 밖 행의 **양성 대조** — 머리말에 끼운 표(B2)와 `adr-rows:end` 바로 아래 덧붙인
+/// 행(B2c) 둘 다 생성 결과와의 대조를 통과하는 것을 먼저 보이고(그래서 이 판정이 따로
+/// 필요하다), 그 둘을 이 판정이 잡는지 묻는다.
+#[test]
+fn a_row_outside_the_markers_is_caught() {
+    let all = vec![
+        adr("0001", "Accepted", "a", ""),
+        adr("0002", "Accepted", "b", ""),
+    ];
+    let clean = render_index(TWO_GROUPS, &all).expect("구조가 맞다");
+    assert!(
+        stray_table_lines(&clean).is_empty(),
+        "정상 인덱스를 위반으로 셌다"
+    );
+    assert_eq!(region_row_count(&clean), 2, "구역 안 행 수");
+    let row = "| 0002 | [제목 0002](0002-x.md) | Accepted | 2026-09-23 | t |\n";
+    let in_preamble = clean.replace(
+        "0001 을 부른다.\n",
+        &format!(
+            "0001 을 부른다.\n\n| # | Title | Status | Date | Tags |\n|---|---|---|---|---|\n{row}"
+        ),
+    );
+    let after_end = clean.replace(
+        "<!-- adr-rows:end b -->\n",
+        &format!("<!-- adr-rows:end b -->\n{row}"),
+    );
+    for (bad, why, want) in [
+        (in_preamble, "머리말에 끼운 표", 3),
+        (after_end, "end 아래 덧붙인 행", 1),
+    ] {
+        assert_eq!(
+            render_index(&bad, &all).expect("구조가 맞다"),
+            bad,
+            "{why}: 생성 대조가 이미 잡는다면 이 판정의 전제가 틀렸다"
+        );
+        assert_eq!(
+            region_row_count(&bad),
+            2,
+            "{why}: 구역 밖 행을 구역 행으로 셌다"
+        );
+        assert_eq!(stray_table_lines(&bad).len(), want, "{why} 를 못 잡았다");
+    }
 }
 
 #[test]

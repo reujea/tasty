@@ -30,8 +30,9 @@ cargo run -p tasty-doc-guards --bin adr-index -- --write   # 생성 구역을 �
 cargo run -p tasty-doc-guards --bin adr-index               # 대조만 — 다르면 rc 1
 ```
 
-종료코드: 0 = 같다(또는 `--write` 로 맞췄다) · 1 = 다르다 · 2 = 만들 수 없다(마커 짝이 깨짐 ·
-ADR 0 개 · 파일을 못 읽음). 마커 밖은 한 글자도 안 바꾼다.
+종료코드: 0 = 같다(또는 `--write` 로 맞췄다) · 1 = 다르다, 또는 생성 구역 밖에 표 줄이 있다(두
+모드 모두) · 2 = 만들 수 없다(마커 짝이 깨짐 · ADR 0 개 · 파일을 못 읽음). 마커 밖은 한 글자도 안
+바꾼다 — 그래서 마커 밖에 적힌 행은 `--write` 로 안 없어지고, 손으로 지운다.
 
 ## 언제 돌리나
 
@@ -57,6 +58,7 @@ ADR 0 개 · 파일을 못 읽음). 마커 밖은 한 글자도 안 바꾼다.
 | 모든 ADR 이 정확히 한 그룹에 있고 그 그룹이 실재하는가 · 빈 그룹이 없는가 | `every_adr_sits_in_exactly_one_known_group` |
 | 대체 · 부분 개정 · 중복 통합이 양 끝에 적혔는가 · 대체된 ADR 이 대체한 ADR 과 같은 그룹인가 | `decision_chains_are_written_on_both_ends` |
 | 머리말이 부르는 네 자리 번호가 실재하는가 | `group_preambles_cite_only_existing_adrs` |
+| 생성 구역 밖에 표 줄이 없는가(머리말에 끼운 행 · `adr-rows:end` 아래 덧붙인 행) | `no_table_line_sits_outside_the_generated_regions` |
 
 사슬의 짝 문구는 template 이 정한 것이다 — 새 ADR 쪽 `개정 대상:` ↔ 옛 ADR 쪽 `부분 개정:`(개정이
 나중에 거둬졌으면 `부분 개정 후 철회:`), `통합 대상:` ↔ `중복 조항 통합:`. 줄 안에서 괄호 밖의

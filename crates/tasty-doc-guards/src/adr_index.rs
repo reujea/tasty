@@ -478,6 +478,51 @@ pub fn chain_violations(adrs: &[Adr]) -> (Vec<String>, usize) {
     (out, ends)
 }
 
+/// 인덱스 원문을 줄 번호(1 부터) · 줄 · **생성 구역 안인가** 로 편다. 마커 줄 자신은 안 낸다.
+///
+/// 짝이 깨진 구조는 [`render_index`] 가 먼저 거절하므로 여기서는 열림/닫힘만 따른다.
+fn lines_by_region(index: &str) -> impl Iterator<Item = (usize, &str, bool)> {
+    let mut inside = false;
+    index.lines().enumerate().filter_map(move |(i, line)| {
+        if marker_slug(line, BEGIN).is_some() {
+            inside = true;
+            return None;
+        }
+        if marker_slug(line, END).is_some() {
+            inside = false;
+            return None;
+        }
+        Some((i + 1, line, inside))
+    })
+}
+
+/// ADR 행 한 줄의 형태 — `| NNNN …`.
+fn is_adr_row(line: &str) -> bool {
+    line.starts_with("| ") && line.as_bytes().get(2).is_some_and(u8::is_ascii_digit)
+}
+
+/// 생성 구역 **안**에 있는 ADR 행의 수. 파일 전체의 `| NNNN` 줄이 아니다 — 구역 밖에 적힌
+/// 행은 생성물이 아니므로 이 수에 안 들어가고 [`stray_table_lines`] 가 따로 센다.
+pub fn region_row_count(index: &str) -> usize {
+    lines_by_region(index)
+        .filter(|(_, l, inside)| *inside && is_adr_row(l))
+        .count()
+}
+
+/// 생성 구역 **밖**의 표 줄(앞 공백을 빼고 `|` 로 시작하는 줄).
+///
+/// 생성기는 마커 밖을 안 건드리므로, 거기 적힌 행은 생성 결과와의 대조에 **안 걸린다** —
+/// 머리말에 끼운 행도, `adr-rows:end` 바로 아래에 옛 습관대로 덧붙인 행도 파일은 생성 결과와
+/// 같다. 그래서 "생성물과 수기 부분이 한 파일에서 섞이지 않는다" 는 이 판정이 따로 진다.
+/// 행만이 아니라 표 줄 전체를 센다 — 머리말은 산문이고, 머리말에 표 머리글만 남은 것도
+/// 생성 구역 밖에 두 번째 표를 짓기 시작한 흔적이다.
+pub fn stray_table_lines(index: &str) -> Vec<String> {
+    lines_by_region(index)
+        .filter(|(_, l, inside)| !*inside && l.trim_start().starts_with('|'))
+        .map(|(n, l, _)| format!("{n}행: {l}"))
+        .collect()
+}
+
 /// 머리말(생성 구역 밖)이 부르는 네 자리 번호가 실재하는 ADR 인가.
 ///
 /// 번호로 보는 토큰: 앞이 숫자가 아니고 `-` 도 아니거나(`ADR-` 는 예외로 본다), 뒤가
@@ -487,26 +532,11 @@ pub fn preamble_violations(index: &str, adrs: &[Adr]) -> (Vec<String>, usize) {
     let have: BTreeSet<&str> = adrs.iter().map(|a| a.num.as_str()).collect();
     let mut out = Vec::new();
     let mut seen = 0usize;
-    let mut inside = false;
-    for (i, line) in index.lines().enumerate() {
-        if marker_slug(line, BEGIN).is_some() {
-            inside = true;
-            continue;
-        }
-        if marker_slug(line, END).is_some() {
-            inside = false;
-            continue;
-        }
-        if inside {
-            continue;
-        }
+    for (n, line, _) in lines_by_region(index).filter(|(_, _, inside)| !*inside) {
         for num in bare_numbers(line) {
             seen += 1;
             if !have.contains(num) {
-                out.push(format!(
-                    "{}행: 머리말이 {num} 을 부르는데 그 ADR 이 없다",
-                    i + 1
-                ));
+                out.push(format!("{n}행: 머리말이 {num} 을 부르는데 그 ADR 이 없다"));
             }
         }
     }

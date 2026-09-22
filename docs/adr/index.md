@@ -7,7 +7,7 @@
 - **외부(비-git) 위치 문서 참조 금지** + 필요한 근거는 `docs/` 로 재구성해 참조 — 상세·예외는 [`template.md`](template.md) 의 "작성 규칙" 참조.
 - 커밋 형식: [`dev-guide/commit-convention.md`](../dev-guide/commit-convention.md) 의 "ADR 커밋" 항목.
 - **그룹**: ADR 은 아래 주제 그룹 중 정확히 한 곳에 한 행으로 있다. 어느 그룹인지는 ADR 헤더의 `- **Group**: <slug>` 한 줄이 정하고, slug 는 그룹 절의 `adr-rows:begin <slug>` 마커에 적힌 값이다. 새 ADR 의 그룹 선택 기준과 Superseded 행의 자리는 [`template.md`](template.md) 의 "인덱스에 행을 추가할 때" 를 따른다. 그룹 머리말은 결정 사슬(A → B 는 B 가 A 를 잇거나 개정한다)과 현재 운영 규칙이 사는 문서를 가리킨다.
-- **행은 생성물이다**: `adr-rows:begin` ~ `adr-rows:end` 마커 사이의 표는 ADR 헤더(제목 · Status · Date · Tags · Group)에서 만든다 — 손으로 고치지 않는다. ADR 을 더하거나 헤더를 고쳤으면 `cargo run -p tasty-doc-guards --bin adr-index -- --write` 로 다시 만든다. 마커 밖(이 목록 · 그룹 목록 · 그룹 머리말)은 사람이 쓰고 생성기가 안 건드린다. 절차: [`dev-guide/adr-index.md`](../dev-guide/adr-index.md).
+- **행은 생성물이다**: `adr-rows:begin` ~ `adr-rows:end` 마커 사이의 표는 ADR 헤더(제목 · Status · Date · Tags · Group)에서 만든다 — 손으로 고치지 않는다. ADR 을 더하거나 헤더를 고쳤으면 `cargo run -p tasty-doc-guards --bin adr-index -- --write` 로 다시 만든다. 마커 밖(이 목록 · 그룹 목록 · 그룹 머리말)은 사람이 쓰고 생성기가 안 건드린다 — 그래서 마커 밖에는 표 줄을 두지 않는다(머리말은 ADR 을 산문 속 번호로 부른다). 절차: [`dev-guide/adr-index.md`](../dev-guide/adr-index.md).
 
 ## 그룹
 
