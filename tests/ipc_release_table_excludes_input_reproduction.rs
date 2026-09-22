@@ -65,6 +65,7 @@
 #![cfg(debug_assertions)]
 
 use tasty_doc_guards::cfg_predicate as cfg_span;
+use tasty_doc_guards::match_arms::Source;
 
 use std::path::Path;
 
@@ -271,46 +272,29 @@ const RELEASE_ROUTERS: &[(&str, &str, usize)] = &[
     ),
 ];
 
-/// `sig` 로 시작하는 함수의 본문 줄 범위를 돌려준다(중괄호 짝 세기, 문자열 리터럴 제외).
-fn fn_body_lines(src: &str, sig: &str) -> Vec<String> {
-    let start = src
-        .find(sig)
-        .unwrap_or_else(|| panic!("함수 시그니처를 찾지 못했다: {sig}"));
-    let mut depth = 0i32;
-    let mut in_str = false;
-    let mut escaped = false;
-    let mut end = src.len();
-    let mut opened = false;
-    for (i, c) in src[start..].char_indices() {
-        if in_str {
-            if escaped {
-                escaped = false;
-            } else if c == '\\' {
-                escaped = true;
-            } else if c == '"' {
-                in_str = false;
-            }
-            continue;
-        }
-        match c {
-            '"' => in_str = true,
-            '{' => {
-                depth += 1;
-                opened = true;
-            }
-            '}' => {
-                depth -= 1;
-                if opened && depth == 0 {
-                    end = start + i;
-                    break;
-                }
-            }
-            _ => {}
-        }
-    }
-    let mut lines: Vec<String> = src[start..end].lines().map(str::to_owned).collect();
-    join_wrapped_arms(&mut lines);
-    lines
+/// `sig` 가 가리키는 함수 정의 **전부**의 본문 줄을 돌려준다.
+///
+/// 본문의 경계는 공용 판정기(`tasty_doc_guards::match_arms`)가 주석·문자열·문자 리터럴을 덮은
+/// 사본에서 찾는다 — 손으로 센 중괄호는 주석 속 `}` 나 `'}'` 에서 본문을 일찍 닫아 그 뒤의
+/// 팔을 조용히 놓쳤다. 정의가 `#[cfg]` 로 둘 이상이면 둘 다 읽는다(첫 정의만 보면 둘째의
+/// 팔은 어느 플랫폼에서도 대조를 안 받는다). 정의마다 줄 목록을 따로 돌려주어 한 정의의
+/// 블록 cfg 가 다음 정의로 새지 않게 한다.
+fn fn_body_lines(src: &str, sig: &str) -> Vec<Vec<String>> {
+    let name = sig
+        .split_once("fn ")
+        .and_then(|(_, rest)| rest.strip_suffix('('))
+        .unwrap_or_else(|| panic!("시그니처가 `… fn <이름>(` 모양이 아니다: {sig}"));
+    let source = Source::new(src);
+    let bodies = source.fn_bodies(name);
+    assert!(!bodies.is_empty(), "함수 시그니처를 찾지 못했다: {sig}");
+    bodies
+        .iter()
+        .map(|body| {
+            let mut lines: Vec<String> = source.slice(body).lines().map(str::to_owned).collect();
+            join_wrapped_arms(&mut lines);
+            lines
+        })
+        .collect()
 }
 
 /// `=>` 나 `|` 가 다음 줄로 넘어간 match 팔을 **원래 줄로 끌어올린다.**
@@ -509,8 +493,10 @@ fn release_router_arms_are_registered_in_the_release_table() {
         let path = root.join(rel);
         let src = std::fs::read_to_string(&path)
             .unwrap_or_else(|e| panic!("라우터 소스를 읽을 수 없다: {}: {e}", path.display()));
-        let lines = fn_body_lines(&src, sig);
-        let arms = scan_arms(&lines);
+        let arms: Vec<Scanned> = fn_body_lines(&src, sig)
+            .iter()
+            .flat_map(|lines| scan_arms(lines))
+            .collect();
         let here = arms.len();
         for arm in arms {
             if arm.gated {
