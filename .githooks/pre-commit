@@ -635,7 +635,7 @@ check_new_file_judges() {
 # main 이 없거나(단독 clone) merge-base 를 못 구하면 HEAD 로 떨어진다.
 # ────────────────────────────────────────────────────────────
 #
-# **선필터는 `^crates/` 다 — plugin 디렉토리가 아니다.** 판정 대상은 plugin 디렉토리가
+# **선필터는 plugin 디렉토리가 아니었다 — `^crates/` 였다.** 판정 대상은 plugin 디렉토리가
 # 아니라 워크스페이스 내부 의존 폐포이므로(ADR-0166), 이름이 `tasty-plugin-` 으로
 # 시작하지 않는 크레이트(`tasty-utils`·`tasty-shm` 등)만 담은 커밋도 9 개 전부의 bump 를
 # 요구할 수 있다. 좁은 필터는 그런 커밋에서 스크립트를 **부르지도 않아** 초록이 된다 —
@@ -643,12 +643,18 @@ check_new_file_judges() {
 # 선필터 0 건, 같은 내용에 스크립트를 직접 돌리면 위반 9 / 대상 9). 같은 스크립트를 부르는
 # 다른 두 자리(pre-push B.9 · plugin-version-check.yml)는 이미 넓고, 로컬 훅만 좁게
 # 남아 있었다.
+#
+# **그리고 `^crates/` 선필터도 없앴다.** 좌변이 `crates/` 밖으로 넓어졌기 때문이다 —
+# `[patch]` 로 끼운 상류 사본(`vendor/tiny_http`)처럼 워크스페이스 밖 path 의존도 plugin
+# 산출물을 바꾼다(ADR-0537). 어느 경로가 그 좌변인지는 cargo 폐포가 정하고, 그것을 여기서
+# 경로 목록으로 다시 적으면 새 사본이 생길 때 이 자리만 옛 목록에 남는다. 그래서 staged 가
+# 있으면 늘 부르고, 거를 것은 스크립트가 거른다(산출물 모양의 변경이 없으면 cargo 를
+# 안 부르고 0.1 s 안에 끝난다).
 # ────────────────────────────────────────────────────────────
 check_plugin_version_bump() {
-    local staged_plugin base rc
-    staged_plugin=$(git diff --cached --name-only --diff-filter=ACMRD \
-        | /usr/bin/grep -E '^crates/' || true)
-    if [ -z "$staged_plugin" ]; then return; fi
+    local staged_any base rc
+    staged_any=$(git diff --cached --name-only --diff-filter=ACMRD || true)
+    if [ -z "$staged_any" ]; then return; fi
 
     base=$(git merge-base main HEAD 2>/dev/null || true)
     [ -n "$base" ] || base=HEAD

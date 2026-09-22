@@ -742,6 +742,176 @@ fn a_change_in_an_unlinked_workspace_crate_does_not() {
     );
 }
 
+// ── 산출물의 범위: 워크스페이스 밖 path 의존 ─────────────────────────────
+//
+// `[patch]` 로 끼운 상류 사본(이 레포의 `vendor/tiny_http`)은 워크스페이스 `exclude` 에
+// 있고 `crates/` 밖에 산다. 좌변이 `crates/` 뿐이면 그 사본만 고친 커밋이 판정 대상 0 건
+// 으로 통과한다. 여기서도 양극성이다 — 링크된 사본은 요구하고, 아무도 안 링크하는 사본은
+// 안 요구한다. 사본의 테스트 전용 변경이 출하 판정기를 거쳐 빠지는 갈래는 여기서 못 잰다
+// — 합성 저장소에는 판정기 바이너리가 없다(위 "판정기의 신선도" 절). 그 갈래는 ADR 이
+// 실저장소 변이로 잰 값을 적는다. 근거:
+// docs/adr/0537-the-plugin-version-gate-follows-path-dependencies-outside-the-workspace.md
+
+/// plugin 하나가 워크스페이스 밖 path 의존 `vendor/upstream` 을 링크하고, `vendor/orphan`
+/// 은 아무도 안 링크하는 cargo 워크스페이스. 둘 다 `exclude` 에 있다 — 루트 아래 path
+/// 의존은 exclude 하지 않으면 자동 멤버가 되기 때문이다(이 레포의 루트 Cargo.toml 과 같은 형태).
+fn seed_vendored_workspace() -> tempfile::TempDir {
+    let tmp = tempfile::tempdir().expect("임시 디렉토리");
+    let d = tmp.path();
+    run_git(d, &["init", "--quiet"]);
+    run_git(d, &["config", "user.email", "fixture@example.invalid"]);
+    run_git(d, &["config", "user.name", "fixture"]);
+    run_git(d, &["config", "core.hooksPath", "/dev/null"]);
+    write(
+        d,
+        "Cargo.toml",
+        "[workspace]\nresolver = \"2\"\n\
+         members = [\"crates/tasty-plugin-fixture\"]\n\
+         exclude = [\"vendor/upstream\", \"vendor/orphan\"]\n\
+         [workspace.package]\nedition = \"2024\"\n\
+         [package]\nname = \"root-fixture\"\nversion = \"0.0.0\"\nedition = \"2024\"\n\
+         [lib]\npath = \"lib.rs\"\n",
+    );
+    write(d, "lib.rs", "pub fn nothing() {}\n");
+    write(
+        d,
+        &format!("{PLUGIN}/Cargo.toml"),
+        "[package]\nname = \"tasty-plugin-fixture\"\nversion = \"0.1.0\"\nedition = \"2024\"\n\
+         [dependencies]\nupstream = { path = \"../../vendor/upstream\" }\n",
+    );
+    write(
+        d,
+        &format!("{PLUGIN}/tasty-plugin.toml"),
+        "id = \"com.tasty.fixture\"\nversion = \"0.1.0\"\n",
+    );
+    write(
+        d,
+        &format!("{PLUGIN}/src/main.rs"),
+        "fn main() {\n    upstream::greet();\n}\n",
+    );
+    for c in ["upstream", "orphan"] {
+        write(
+            d,
+            &format!("vendor/{c}/Cargo.toml"),
+            &format!("[package]\nname = \"{c}\"\nversion = \"0.1.0\"\nedition = \"2018\"\n"),
+        );
+        write(
+            d,
+            &format!("vendor/{c}/src/lib.rs"),
+            "pub fn greet() {\n    let _ = 1;\n}\n\n#[cfg(test)]\nmod t {\n    #[test]\n    fn probe() {\n        assert_eq!(1, 1);\n    }\n}\n",
+        );
+    }
+    run_git(d, &["add", "-A"]);
+    run_git(d, &["commit", "--quiet", "-m", "seed"]);
+    tmp
+}
+
+#[test]
+fn a_change_in_a_linked_path_dependency_outside_the_workspace_demands_a_bump() {
+    let tmp = seed_vendored_workspace();
+    let d = tmp.path();
+    write(
+        d,
+        "vendor/upstream/src/lib.rs",
+        "pub fn greet() {\n    let _ = 2;\n}\n\n#[cfg(test)]\nmod t {\n    #[test]\n    fn probe() {\n        assert_eq!(1, 1);\n    }\n}\n",
+    );
+    run_git(d, &["add", "-A"]);
+
+    let (code, text) = check(d, &["--staged"]);
+    assert_eq!(
+        code, 1,
+        "링크된 워크스페이스 밖 사본이 바뀌었는데 통과했다 — `crates/` 만 보는 좌변의 구멍이다:\n{text}"
+    );
+    assert!(
+        text.contains("vendor/upstream/src/lib.rs"),
+        "어느 파일 때문인지 메시지에 없다:\n{text}"
+    );
+
+    run_git(
+        d,
+        &["commit", "--quiet", "-m", "fix(upstream): change behaviour"],
+    );
+    let (code, text) = check(d, &["--range", "HEAD^", "HEAD"]);
+    assert_eq!(code, 1, "`--range` 갈래가 사본을 못 본다:\n{text}");
+}
+
+#[test]
+fn a_change_in_an_unlinked_path_dependency_outside_the_workspace_does_not() {
+    let tmp = seed_vendored_workspace();
+    let d = tmp.path();
+    write(
+        d,
+        "vendor/orphan/src/lib.rs",
+        "pub fn greet() {\n    let _ = 2;\n}\n",
+    );
+    commit_all(d, "fix(orphan): change behaviour");
+
+    let (code, text) = check(d, &["--range", "HEAD^", "HEAD"]);
+    assert_eq!(
+        code, 0,
+        "아무 plugin 도 링크하지 않는 사본이 bump 를 요구했다:\n{text}"
+    );
+}
+
+/// 워크스페이스 멤버 명부를 못 읽으면 **판정 불가**이고, 사유(cargo 의 stderr)가 남는다.
+///
+/// 명부가 비면 워크스페이스 밖 사본과 `crates/` 밖 멤버를 못 가르고, 스텁이 빈 출력으로
+/// 성공을 흉내 내면 좌변이 조용히 달라진다. 그래서 실패를 통과로 흘리지 않는다.
+#[test]
+fn an_unreadable_member_roster_is_undecidable_and_says_why() {
+    const MARK: &str = "zz-cargo-metadata-died-here";
+    let tmp = seed_vendored_workspace();
+    let d = tmp.path();
+    write(
+        d,
+        "vendor/upstream/src/lib.rs",
+        "pub fn greet() {\n    let _ = 2;\n}\n",
+    );
+    commit_all(d, "fix(upstream): change behaviour");
+
+    let stub = tempfile::tempdir().expect("스텁 디렉토리");
+    let cargo = stub.path().join("cargo");
+    fs::write(
+        &cargo,
+        // `tree` 는 진짜 cargo 로 넘긴다 — 폐포가 비면 명부를 묻기 전에 다른 거절이 난다.
+        format!(
+            "#!/bin/sh\nif [ \"$1\" = metadata ]; then echo {MARK} >&2; exit 101; fi\nexec \"{real}\" \"$@\"\n",
+            real = std::env::var("CARGO").unwrap_or_else(|_| "cargo".into())
+        ),
+    )
+    .expect("스텁 작성");
+    let mut perm = fs::metadata(&cargo).expect("스텁 metadata").permissions();
+    std::os::unix::fs::PermissionsExt::set_mode(&mut perm, 0o755);
+    fs::set_permissions(&cargo, perm).expect("실행권한");
+
+    let out = Command::new("bash")
+        .arg(script())
+        .args(["--range", "HEAD^", "HEAD"])
+        .current_dir(d)
+        .env(
+            "PATH",
+            format!(
+                "{}:{}",
+                stub.path().display(),
+                std::env::var("PATH").unwrap_or_default()
+            ),
+        )
+        .output()
+        .expect("게이트 스크립트 실행");
+    let run = gate_env::GateRun::from_output(&out);
+    assert_eq!(run, 2, "멤버 명부를 못 읽었는데 판정 불가가 아니다");
+    assert!(
+        run.output.contains("cargo metadata 가 실패했다"),
+        "다른 거절이 대신 rc 2 를 냈다 — 명부 거절 자리의 문구가 없다:\n{}",
+        run.output
+    );
+    assert!(
+        run.output.contains(MARK),
+        "판정 불가의 사유(cargo 의 stderr)가 출력에 없다:\n{}",
+        run.output
+    );
+}
+
 /// 의존 폐포를 못 읽으면 **판정 불가**이고, 그 실패의 사유(cargo 의 stderr)가 출력에 남는다.
 ///
 /// 폐포 계산은 `links` 가 `$(...)` 안에서 부른다. 그 안의 `die` 는 **서브셸만** 끝내므로,

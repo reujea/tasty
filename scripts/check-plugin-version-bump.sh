@@ -177,13 +177,21 @@ trap 'rm -rf "$WORK"' EXIT
 closure_of() {
     local pname="$1" cache="$WORK/closure.$1"
     CLOSURE_FILE="$cache"
+    CLOSURE_PATHS="$cache.paths"
     [ -f "$cache" ] && return 0
     if ! cargo tree -p "$pname" -e normal,build --prefix none --offline 2>"$cache.err" \
-        | awk '{print $1}' | sort -u > "$cache.tmp"; then
+        > "$cache.raw"; then
         die "판정 불가: cargo tree 가 실패했다 ($pname). cargo 의 stderr:
 $(cat "$cache.err")"
     fi
+    awk '{print $1}' "$cache.raw" | sort -u > "$cache.tmp"
     [ -s "$cache.tmp" ] || die "판정 불가: $pname 의 의존 폐포가 비었다 — 빈 모수는 측정 실패다."
+    # path 의존의 디렉토리(저장소 루트 기준 상대 경로). cargo tree 는 path 의존에만
+    # `(/절대/경로)` 를 붙인다 — 레지스트리·git 의존은 이 모양으로 안 나온다. 저장소 밖
+    # 경로와 루트 패키지 자신은 접두 치환에서 자연히 빠진다(git 이 담지 않거나, 루트는
+    # `$ROOT_REAL/` 접두를 안 가진다).
+    sed -n 's|^[^ ]* v[^ ]* (\(/[^)]*\)).*$|\1|p' "$cache.raw" \
+        | sed -n "s|^${ROOT_REAL}/||p" | sort -u > "$cache.paths"
     mv "$cache.tmp" "$cache"
 }
 
@@ -197,6 +205,19 @@ $(cat "$cache.err")"
 links() {  # <pname> <crate-name>
     closure_of "$1"
     grep -qxF "$2" "$CLOSURE_FILE"
+}
+
+# 공유 크레이트를 **디렉토리**로 묻는다. `$SCAN_ROOT` 아래는 디렉토리 이름이 곧 크레이트
+# 이름이라 위 `links` 로 묻고, 워크스페이스 밖 path 의존(아래 EXTRA_ROOTS)은 디렉토리
+# 이름과 크레이트 이름이 같다는 보장이 없어 폐포의 **경로**로 묻는다. 파이프를 안 쓰는
+# 이유는 위 `links` 와 같다.
+links_crate() {  # <pname> <crate-dir>
+    if is_extra_root "$2"; then
+        closure_of "$1"
+        grep -qxF "$2" "$CLOSURE_PATHS"
+    else
+        links "$1" "$(basename "$2")"
+    fi
 }
 
 # 사용: materialize <라벨> <tree-ish> <crate 경로>...
@@ -215,8 +236,17 @@ materialize() {
     [ "${#present[@]}" -gt 0 ] || return 0
     git archive --format=tar "$tree" -- "${present[@]}" | tar -x -C "$raw" \
         || die "판정 불가: 트리를 펼치지 못했다 ($label)."
-    [ -d "$raw/crates" ] || return 0
-    "$STRIP_BIN" --blank-test-only-files "$cooked" "$raw" crates >/dev/null \
+    # 판정기는 `.rs` 가 0 개인 뿌리를 판정 불가(exit 2)로 돌려준다 — `.rs` 를 가진
+    # 뿌리만 넘긴다. 워크스페이스 밖 path 의존(EXTRA_ROOTS)도 같은 판정기를 거친다.
+    local scan=() r
+    # 이유: EXTRA_ROOTS 는 공백으로 이은 디렉토리 목록이다 — 단어 분리가 목적이다.
+    # shellcheck disable=SC2086
+    for r in "$SCAN_ROOT" $EXTRA_ROOTS; do
+        [ -d "$raw/$r" ] || continue
+        [ -n "$(find "$raw/$r" -name '*.rs' -print -quit)" ] && scan+=("$r")
+    done
+    [ "${#scan[@]}" -gt 0 ] || return 0
+    "$STRIP_BIN" --blank-test-only-files "$cooked" "$raw" "${scan[@]}" >/dev/null \
         || die "판정 불가: 출하 판정기가 실패했다 ($label)."
 }
 
@@ -326,8 +356,10 @@ SCAN_ROOT=crates
 # ── 변경된 파일 목록 ─────────────────────────────────────────
 if [ "$MODE" = staged ]; then
     CHANGED=$(git diff --cached --name-only --diff-filter=ACMRD -- "$SCAN_ROOT/")
+    OUTSIDE=$(git diff --cached --name-only --diff-filter=ACMRD -- . ":(exclude)$SCAN_ROOT/")
 else
     CHANGED=$(git diff --name-only --diff-filter=ACMRD "$BEFORE" "$AFTER" -- "$SCAN_ROOT/")
+    OUTSIDE=$(git diff --name-only --diff-filter=ACMRD "$BEFORE" "$AFTER" -- . ":(exclude)$SCAN_ROOT/")
 fi
 
 # 산출물에 닿는 경로인가. 문서(.md)·`.sig`·러너 스크립트 등은 여기 없다.
@@ -336,6 +368,85 @@ build_affecting() {
         */src/*|*/lang/*|*/assets/*|*/Cargo.toml|*/tasty-plugin.toml|*/build.rs) return 0 ;;
         *) return 1 ;;
     esac
+}
+
+# ── 워크스페이스 밖 path 의존 (EXTRA_ROOTS) ──────────────────────────
+#
+# `[patch]` 로 끼운 상류 사본(`vendor/tiny_http`)처럼 워크스페이스 `exclude` 에 있으면서
+# plugin 이 링크하는 path 의존은 `$SCAN_ROOT` 밖에 산다. 좌변을 `$SCAN_ROOT` 로만 두면
+# 그 사본만 고친 커밋이 세 채널(P.1 · B.9 · CI) 모두에서 판정 대상 0 건으로 통과한다 —
+# plugin 산출물은 달라졌는데. 근거·대안·재검토 조건:
+# docs/adr/0537-the-plugin-version-gate-follows-path-dependencies-outside-the-workspace.md
+#
+# 좌변은 **plugin 폐포에 실제로 든 path 의존** 중 워크스페이스 멤버가 아니고 `$SCAN_ROOT`
+# 밖인 디렉토리다. 멤버를 빼는 이유: `$SCAN_ROOT` 밖의 멤버는 이 게이트의 좌변이 아니다 —
+# 좌변을 옮기는 것은 `SCAN_ROOT` 한 값의 일이다. 폐포에 안 든 사본(아무 plugin 도
+# 링크하지 않는 것)은 여기 안 들어오므로 bump 를 요구하지 않는다.
+#
+# 값은 `$SCAN_ROOT` 밖에서 산출물 경로 모양의 변경이 **있을 때만** 구한다(plugin 마다
+# cargo tree 한 번, 폐포에 `$SCAN_ROOT` 밖 경로가 나오면 cargo metadata 한 번). 없으면
+# cargo 를 안 부른다.
+#
+# 경로는 cargo 가 찍는 정규 경로를 `pwd -P` 와 견준다 — 심볼릭 링크로 들어온 트리에서도
+# 같은 문자열이 되도록.
+ROOT_REAL=$(pwd -P)
+EXTRA_ROOTS=""
+is_extra_root() {
+    case " $EXTRA_ROOTS " in *" $1 "*) return 0 ;; *) return 1 ;; esac
+}
+OUTSIDE_BUILD=""
+while IFS= read -r f; do
+    [ -z "$f" ] && continue
+    if build_affecting "$f"; then OUTSIDE_BUILD="$OUTSIDE_BUILD
+$f"; fi
+done <<EOF
+$OUTSIDE
+EOF
+# 멤버 명부는 후보(폐포 안의 `$SCAN_ROOT` 밖 경로)가 처음 나올 때 한 번 구한다.
+MEMBERS=""; MEMBERS_READ=0
+read_members() {
+    [ "$MEMBERS_READ" = 1 ] && return 0
+    MEMBERS=$(cargo metadata --no-deps --offline --format-version 1 2>"$WORK/metadata.err") \
+        || die "판정 불가: cargo metadata 가 실패했다. cargo 의 stderr:
+$(cat "$WORK/metadata.err")"
+    MEMBERS=$(printf '%s' "$MEMBERS" | grep -o '"manifest_path":"[^"]*"' \
+        | sed -n "s|^\"manifest_path\":\"${ROOT_REAL}/\(.*\)/Cargo.toml\"\$|\1|p")
+    MEMBERS_READ=1
+}
+if [ -n "$OUTSIDE_BUILD" ]; then
+    for man in "$ROOT/$SCAN_ROOT"/*/tasty-plugin.toml; do
+        [ -f "$man" ] || continue
+        closure_of "$(basename "$(dirname "$man")")"
+        while IFS= read -r p; do
+            [ -z "$p" ] && continue
+            case "$p" in "$SCAN_ROOT"/*) continue ;; esac
+            read_members
+            case "
+$MEMBERS
+" in *"
+$p
+"*) continue ;; esac
+            is_extra_root "$p" || EXTRA_ROOTS="$EXTRA_ROOTS $p"
+        done < "$CLOSURE_PATHS"
+    done
+    while IFS= read -r f; do
+        [ -z "$f" ] && continue
+        for r in $EXTRA_ROOTS; do
+            case "$f" in "$r"/*) CHANGED="$CHANGED
+$f"; break ;; esac
+        done
+    done <<EOF
+$OUTSIDE_BUILD
+EOF
+fi
+
+# 변경 파일이 속한 크레이트 디렉토리.
+crate_dir_of() {
+    local r
+    for r in $EXTRA_ROOTS; do
+        case "$1" in "$r"/*) printf '%s' "$r"; return ;; esac
+    done
+    printf '%s' "$1" | sed -n "s|^\\(${SCAN_ROOT}/[^/]*\\)/.*\$|\\1|p"
 }
 
 VIOLATIONS=0
@@ -349,7 +460,7 @@ while IFS= read -r f; do
     [ -z "$f" ] && continue
     build_affecting "$f" || continue
     CHANGED_CRATES="$CHANGED_CRATES
-$(printf '%s' "$f" | sed -n "s|^\\(${SCAN_ROOT}/[^/]*\\)/.*\$|\\1|p")"
+$(crate_dir_of "$f")"
 done <<EOF
 $CHANGED
 EOF
@@ -380,7 +491,7 @@ if [ -n "${SHARED_CHANGED// /}" ]; then
         pdir=$(dirname "$man"); pname=$(basename "$pdir"); prel="$SCAN_ROOT/$pname"
         case " $PLUGINS " in *" $prel "*) continue ;; esac
         for c in $SHARED_CHANGED; do
-            if links "$pname" "$(basename "$c")"; then PLUGINS="$PLUGINS $prel"; break; fi
+            if links_crate "$pname" "$c"; then PLUGINS="$PLUGINS $prel"; break; fi
         done
     done
 fi
@@ -413,7 +524,7 @@ for base in $PLUGINS; do
     scope="$base"
     if [ -n "${SHARED_CHANGED// /}" ]; then
         for c in $SHARED_CHANGED; do
-            if links "$(basename "$base")" "$(basename "$c")"; then scope="$scope $c"; fi
+            if links_crate "$(basename "$base")" "$c"; then scope="$scope $c"; fi
         done
     fi
     files=""
@@ -516,6 +627,15 @@ if [ "$BEHIND" -gt 0 ]; then
     printf '    측정이 안 됐으므로 게이트를 통과로 읽지 않는다.\n' >&2
     exit 2
 fi
-printf '[plugin-version] 통과 — 판정 대상 %d 건 (변경된 crates 파일 %d 개 중)\n' \
-    "$CONSIDERED" "$(printf '%s\n' "$CHANGED" | sed -n '/./p' | wc -l)"
+# 워크스페이스 밖 path 의존(EXTRA_ROOTS)의 파일은 따로 센다 — "crates 파일" 이라는 이름
+# 아래 섞으면 그 수가 무엇을 셌는지 안 보인다. 0 이면 꼬리를 안 붙여 기존 줄 형태를 지킨다.
+n_all=$(printf '%s\n' "$CHANGED" | sed -n '/./p' | wc -l)
+n_extra=$(printf '%s\n' "$CHANGED" | sed -n "/^${SCAN_ROOT}\//!{/./p}" | wc -l)
+if [ "$n_extra" -gt 0 ]; then
+    printf '[plugin-version] 통과 — 판정 대상 %d 건 (변경된 crates 파일 %d 개 · 워크스페이스 밖 path 의존 파일 %d 개 중)\n' \
+        "$CONSIDERED" "$((n_all - n_extra))" "$n_extra"
+else
+    printf '[plugin-version] 통과 — 판정 대상 %d 건 (변경된 crates 파일 %d 개 중)\n' \
+        "$CONSIDERED" "$n_all"
+fi
 exit 0

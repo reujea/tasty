@@ -21,14 +21,22 @@ on:
   # 내부 의존 폐포**다(ADR-0166). `tasty-utils`·`tasty-shm` 처럼 이름이 `tasty-plugin-` 으로
   # 시작하지 않는 크레이트가 바뀌어도 plugin 산출물이 달라지므로, 좁은 필터로는 그 push 에서
   # 잡 자체가 안 돈다 — 스크립트를 고쳐도 자동 채널이 안 따라온다.
+  # 그리고 좌변은 `crates/` 에서도 끝나지 않는다 — `[patch]` 로 끼운 상류 사본
+  # (`vendor/tiny_http`)처럼 워크스페이스 밖 path 의존도 plugin 산출물을 바꾼다(ADR-0537).
+  # 그 경로를 여기 목록으로 적으면 새 사본이 생길 때 이 자리만 옛 목록에 남아 조용히 안
+  # 돈다. 그래서 거꾸로 **문서만 담은 push 만** 뺀다(script-gates.yml 과 같은 형태).
   push:
     branches: [main]
-    paths:
-      - 'crates/**'
+    paths-ignore:
+      - 'docs/**'
+      - 'site/**'
+      - '**/*.md'
   pull_request:
     branches: [main]
-    paths:
-      - 'crates/**'
+    paths-ignore:
+      - 'docs/**'
+      - 'site/**'
+      - '**/*.md'
   workflow_dispatch:
 
 concurrency:

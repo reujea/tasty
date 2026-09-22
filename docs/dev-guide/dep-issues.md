@@ -54,6 +54,7 @@ tiny_http = { path = "vendor/tiny_http" }
 - **왜 사본인가**: 상류 0.12.0 의 `Content-Length` 리더는 요청을 파괴할 때 읽지 않은 body 를 끝까지 읽는다(drain). 웹훅 413 이 그 drain 없이 연결을 닫게 하는 공개 API(`Request::respond_and_close`)를 더한 최소 패치다. 결정·대안·재검토 조건은 [ADR-0516](../adr/0516-the-webhook-413-closes-the-connection-through-a-vendored-tiny-http-patch.md), 사본 범위·패치 목록은 [`vendor/tiny_http/PATCHES.md`](../../vendor/tiny_http/PATCHES.md).
 - **워크스페이스 멤버가 아니다**: 루트 `Cargo.toml` 의 `exclude` 에 있다 — 워크스페이스 lint·clippy·fmt·파일 SLOC 게이트가 상류 코드를 판정하지 않고, `crates/` 크레이트 수에도 안 들어간다.
 - **리스크**: `cargo update` 가 이 의존을 올리지 않고 상류의 보안 수정도 자동으로 안 들어온다.
+- **사본을 고치면 plugin 버전도 오른다**: 번들 plugin 중 `tasty-plugin-agent-stream` 이 이 사본을 링크한다. 사본의 출하 코드를 고친 커밋은 plugin 버전 게이트가 그 plugin 의 patch +1 을 요구한다 — 게이트의 좌변이 워크스페이스 밖 path 의존까지 닿는다([ADR-0537](../adr/0537-the-plugin-version-gate-follows-path-dependencies-outside-the-workspace.md)). 테스트 전용 변경과 `PATCHES.md` 는 요구하지 않는다.
 
 ### 점검 / 전환 트리거
 

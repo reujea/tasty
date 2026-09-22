@@ -199,3 +199,4 @@ ADR-0137 은 "주석만 바뀐 변경" 오탐을 감수했다(정규식 주석 �
 - `scripts/check-plugin-version-bump.sh` · `crates/tasty-doc-guards/src/bin/strip-cfg-test.rs`
 - `tests/plugin_version_bump_channel.rs` · `crates/tasty-doc-guards/tests/strip_cfg_test_bin.rs`
 - [docs/dev-guide/ci-gates.md](../dev-guide/ci-gates.md)
+- 부분 개정: [0537](0537-the-plugin-version-gate-follows-path-dependencies-outside-the-workspace.md) (넓히는 쪽 — 폐포에 워크스페이스 밖 path 의존을 더함)
