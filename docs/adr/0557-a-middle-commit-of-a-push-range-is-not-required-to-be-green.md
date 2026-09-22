@@ -75,8 +75,18 @@ Alternatives 의 ⒜ 에 적었다.
 ## Alternatives Considered
 
 - **⒜ pre-push 가 `--range` 의 각 커밋에 빠른 게이트(fmt · clippy correctness · doc-guards)를
-  돌린다** — 비용이 범위 크기에 선형이다. 소비자가 0 인 성질에 그 비용을 매 push 마다 치를
-  이유가 없다. 고른다면 판정 불가(원격 tip 이 로컬에 없음·체크아웃 실패)는
+  돌린다** — 비용이 범위 크기에 선형이다. 실측(2026-09-23, 지금 push 대기 중인 범위의 끝 6 커밋,
+  커밋마다 체크아웃해 같은 target 디렉토리로 워밍된 상태, 머신 load average 35~66):
+
+  | 게이트 | 커밋당 벽시계 |
+  |---|---|
+  | `cargo fmt --check` | 2.7 ~ 10.9 s |
+  | `cargo test -p tasty-doc-guards --locked` | 47 ~ 240 s (6 중 넷이 63 ~ 77 s) |
+  | `cargo clippy --workspace --all-targets -- -D clippy::correctness` | **미측정** — 6 커밋 전부 번들 plugin 한 크레이트에서 rc=101 로 일찍 멈춰 워크스페이스를 다 돌지 않았다 |
+
+  clippy 를 빼고도 커밋당 약 1 분이 하한이다. 중앙값 범위 8 이면 약 9 분, p90 범위 54 면 약 1
+  시간, 이 측정 시점에 push 를 기다리던 범위 194 면 3 시간을 넘는다 — 전부 clippy 를 뺀 하한이다.
+  소비자가 0 인 성질에 그 비용을 매 push 마다 치를 이유가 없다. 고른다면 판정 불가(원격 tip 이 로컬에 없음·체크아웃 실패)는
   `B.9` 처럼 실패로 떨어져야 했다.
 - **⒝ lane 이 착지 전에 `git rebase --exec` 로 자기 커밋을 스스로 훑는다** — ⒜ 와 같은 비용을
   lane 쪽으로 옮길 뿐이고, 병합 트리에서의 상호작용(두 lane 이 합쳐져야 나는 빨강)은 lane 이
@@ -94,7 +104,9 @@ Alternatives 의 ⒜ 에 적었다.
 
 - 추적 파일(스크립트 · 워크플로 · 훅 · 문서 절차)이 `git bisect` 나 커밋 순회(`git rev-list`
   위를 도는 체크아웃)를 절차로 들인다. 재는 법: `git grep -n -E 'git bisect|rev-list' -- scripts
-  .github .githooks docs/dev-guide`. 이 결정은 가드를 두지 않는다 — 위 명령을 사람이 돌린다.
+  .github .githooks docs/dev-guide`. 이 결정 시점 적중은 4 이고 셋은 `rev-list --count`(개수
+  세기), 하나는 이 결정을 옮겨 적은 ci-gates 의 서술이다 — 순회·실행은 0. 이 결정은 가드를 두지
+  않는다 — 위 명령을 사람이 돌린다.
 - 착지 방식이 바뀌어 lane 이 착지 tip 이 아니라 lane 내부 커밋 위에서 출발한다. 재는 법: lane
   브랜치마다 `git merge-base <브랜치> main` 을 구해, 그것이 어느 브랜치 tip 과도 같지 않은 수를
   센다(이 결정 시점 73 중 1).
