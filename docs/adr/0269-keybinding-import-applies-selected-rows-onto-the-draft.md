@@ -1,6 +1,6 @@
 # ADR-0269: 단축키 가져오기는 고른 행을 draft 에 얹고, 번들에 없는 plugin override 는 건드리지 않는다
 
-- **Status**: Proposed
+- **Status**: Accepted
 - **Date**: 2026-09-13
 - **Tags**: keybindings, import-export, settings, draft, plugin, option-migration, conflict
 

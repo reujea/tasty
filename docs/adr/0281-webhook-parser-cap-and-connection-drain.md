@@ -1,6 +1,6 @@
 # ADR-0281: 웹훅 body 상한의 선행 가정 오류와 미충족 연결 정리를 기록한다
 
-- **Status**: Proposed
+- **Status**: Proposed — 거부 뒤 잔여 읽기 중단의 구현 방식(의존성 패치·교체) 선택을 기다린다. 완결 조건은 Decision 의 "미충족 transport 요구와 완결 조건"
 - **Date**: 2026-09-15
 - **Tags**: webhook, body-limit, tiny-http, connection-drain, resource-bound, adr-0200
 

@@ -1,6 +1,6 @@
 # ADR-XXXX: <한 줄 결정 제목>
 
-- **Status**: Proposed | Accepted | Deprecated | Superseded by ADR-XXXX
+- **Status**: Proposed | Accepted | Deferred | Experimental | Deprecated | Superseded by ADR-XXXX
 - **Date**: YYYY-MM-DD
 - **Tags**: <kebab-case 태그, 콤마 구분>
 
@@ -71,6 +71,13 @@
      요구한다(기존 문서 소급 없음). 줄의 존재를 보는 가드는 두지 않는다 — 존재는 탐색의 질을
      말하지 않는다.
 - 파일명: `XXXX-<kebab-case-slug>.md` (번호 4 자리, 0001 시작).
+- **Status 어휘** — 첫 낱말은 아래 여섯 중 하나다. 첫 낱말 뒤에 ` — <사유>` 를 붙여 무엇을 기다리는지·어디가 미이행인지를 적을 수 있다(인덱스 행은 첫 낱말부터의 앞부분만 실어도 된다 — `adr_index_parity` 가 행이 본문의 접두인지와 첫 낱말이 같은지를 본다). 괄호를 붙인 기존 형태(`Accepted (… 일부 개정 — …)`)는 그대로 두고, 새로 쓰는 사유는 ` — ` 로 붙인다.
+  - `Proposed` — 결정이 아직 열려 있다. **본문에 무엇을 기다리는지 적는다**(선택하지 않은 구현 방식 · 필요한 사용자 결정 등). 미구현 범위를 적는 자리가 Status 줄과 본문 문장이라는 [`documentation-model.md`](../documentation-model.md) 의 규칙과 같은 것이다.
+  - `Accepted` — 결정이 확정됐다. **Proposed 는 결정이 확정되거나 이행되는 커밋에서 Accepted 로 올린다** — 이행이 끝났는데 Proposed 로 남으면 그 ADR 을 근거로 인용하는 코드가 "근거가 확정 안 됐다" 로 읽힌다. 일부 절이 미이행이면 Accepted 로 올리고 Status 사유와 본문에 그 절을 적는다. 올릴 때 `Date` 는 그대로 둔다.
+  - `Deferred` — 하지 않기로(지금은) 한 결정이 유효하다. 보류된 기능이 실제로 없는 동안 이 값이 맞다.
+  - `Experimental` — 시험 운영 중인 결정이다. 재검토 조건이 결론을 내면 Accepted 나 Superseded 로 옮긴다.
+  - `Deprecated` — 대체 결정 없이 거둔 결정이다.
+  - `Superseded by NNNN` — 새 ADR 이 대체했다. 인덱스 행이 번호를 잃으면 가드가 잡는다.
 - 본 템플릿의 "작성 규칙" 섹션은 실제 ADR 에 포함하지 않는다.
 - **Accepted 후에는 본문을 수정하지 않는다.** Status 필드만 갱신하고, 결정이 바뀌면 새 ADR 로 Supersede 한다 (구 ADR 의 Status 를 `Superseded by ADR-YYYY` 로 변경).
   - **사실 정정 예외**: 이 불변 원칙은 *결정이 바뀌는* 경우를 위한 것이다 — 이전 결정을 기록으로 보존하고, 바뀐 결정은 새 ADR 로 대체한다. 반면 처음부터 **사실과 어긋난 서술**(존재하지 않는 경로·API·동작, git 에 없는 위치를 실제 사용처로 적은 것 등)은 보존할 "이전 결정" 자체가 없으므로 정정 대상이며, 본문을 직접 고친다. Status·Date 는 그대로 둔다.

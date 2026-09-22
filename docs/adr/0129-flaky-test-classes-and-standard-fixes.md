@@ -1,6 +1,6 @@
 # ADR-0129: 확률적 테스트 실패(flake)의 부류별 표준 처방
 
-- **Status**: Proposed
+- **Status**: Accepted — 형태 B 의 점유 단정과 "적용 강제 (가드)" 절의 소스 스캔 가드는 미이행이다. 본문이 그 두 자리를 "처방이지 현황이 아니다" · "요건이지 현황이 아니다" 로 표시한다
 - **Date**: 2026-09-04
 - **Tags**: testing, flaky-tests, ci, concurrency, test-isolation, guards, cfg-feature-gate, source-scan-guard, adr-0128
 

@@ -1,6 +1,6 @@
 # ADR-0189: 목록의 원소는 조각으로 박는다 — 문서가 등급을 매긴 판단은 그것을 지키는 것이 있어야 주장이 된다
 
-- **Status**: Proposed
+- **Status**: Accepted
 - **Date**: 2026-09-06
 - **Tags**: guards, mutation-testing, census, positive-control, adr-0139, adr-0183
 

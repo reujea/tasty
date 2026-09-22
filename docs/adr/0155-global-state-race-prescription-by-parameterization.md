@@ -1,6 +1,6 @@
 # ADR-0155: 전역 상태 경합 flake 의 두 갈래와 처방을 "인자화됐는가" 에 건다
 
-- **Status**: Proposed
+- **Status**: Accepted
 - **Date**: 2026-09-05
 - **Tags**: testing, flaky-tests, concurrency, test-isolation, env, adr-0129
 
