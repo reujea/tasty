@@ -30,9 +30,9 @@ cargo run -p tasty-doc-guards --bin adr-index -- --write   # 생성 구역을 �
 cargo run -p tasty-doc-guards --bin adr-index               # 대조만 — 다르면 rc 1
 ```
 
-종료코드: 0 = 같다(또는 `--write` 로 맞췄다) · 1 = 다르다, 또는 생성 구역 밖에 표 줄이 있다(두
-모드 모두) · 2 = 만들 수 없다(마커 짝이 깨짐 · ADR 0 개 · 파일을 못 읽음). 마커 밖은 한 글자도 안
-바꾼다 — 그래서 마커 밖에 적힌 행은 `--write` 로 안 없어지고, 손으로 지운다.
+종료코드: 0 = 같다(또는 `--write` 로 맞췄다) · 1 = 다르다, 또는 생성 구역 밖에 표 줄이나 git
+충돌 표지가 있다(두 모드 모두) · 2 = 만들 수 없다(마커 짝이 깨짐 · ADR 0 개 · 파일을 못 읽음). 마커 밖은 한 글자도 안
+바꾼다 — 그래서 마커 밖에 적힌 행과 머리말의 충돌 표지는 `--write` 로 안 없어지고, 손으로 푼다.
 
 ## 언제 돌리나
 
@@ -40,10 +40,21 @@ cargo run -p tasty-doc-guards --bin adr-index               # 대조만 — 다�
   [`adr/template.md`](../adr/template.md) 의 "인덱스에 행을 추가할 때".
 - **ADR 헤더(제목 · Status · Date · Tags · Group)를 고쳤을 때.** Supersede 로 옛 ADR 의 Status 를
   바꿨거나 그룹을 옮겼을 때도 같다.
-- **rebase · 병합에서 `docs/adr/index.md` 가 생성 구역에서 충돌했을 때** — 충돌을 손으로 풀지
-  않는다. 어느 쪽이든 받아(`git checkout --ours docs/adr/index.md` 등) 충돌 표지를 없앤 뒤
-  `--write` 로 다시 만든다. 행은 ADR 파일에서 오므로 어느 쪽을 받았는지는 결과에 영향이 없다.
-  머리말(생성 구역 밖)에서 충돌했으면 그 산문은 사람이 합친다.
+- **rebase · 병합에서 `docs/adr/index.md` 가 충돌했을 때** — 인덱스는 두 층이라 푸는 법도
+  둘이다. **생성 구역은 어느 쪽을 받아도 되지만, 머리말은 양쪽을 사람이 합쳐야 한다.** 그래서
+  파일째 한쪽을 받지 않는다(`git checkout --ours` · `--theirs`) — 그러면 git 이 이미 자동 병합해
+  둔 **상대 쪽 머리말 줄까지** 버려진다. 머리말은 사람이 쓰는 산문이라 생성기가 되살리지 못하고,
+  그 유실은 어떤 판정에도 안 걸린다(다른 판정은 전부 초록이다). 순서:
+  1. ADR 파일 자체가 충돌했으면 그것부터 푼다. 생성기는 헤더에 충돌 표지가 든 ADR 에서 첫 쪽
+     값을 조용히 읽어 행에 싣는다.
+  2. 충돌 표지가 든 인덱스를 **그대로 둔 채** `--write` 를 돌린다. 생성 구역은 안의 충돌 표지와
+     양쪽 행째 새로 만든 행으로 덮인다 — 행은 ADR 파일에서 오므로 이 구역에서는 어느 쪽 내용이
+     있었든 결과가 같다. 충돌 덩이가 마커 줄을 걸쳤으면 마커 짝이 깨져 rc 2 로 멈춘다 — 그때는
+     마커 줄과 그 곁 머리말을 손으로 한 벌로 만든 뒤 다시 돌린다.
+  3. 머리말(생성 구역 밖)에 남은 충돌은 **양쪽 산문을 합쳐** 푼다. 한쪽을 고르지 않는다 —
+     양쪽이 각자 새 ADR 을 사슬에 올렸으면 둘 다 남아야 한다. 표지가 남아 있는 동안 `--check` ·
+     `--write` 는 rc 1 이고 가드 `no_conflict_marker_is_left_in_the_preambles` 가 빨갛다.
+  4. `--check` 가 0 으로 끝나는 것을 보고 `git add` 한다.
 
 ## 가드가 보는 것
 
@@ -59,6 +70,7 @@ cargo run -p tasty-doc-guards --bin adr-index               # 대조만 — 다�
 | 대체 · 부분 개정 · 중복 통합이 양 끝에 적혔는가 · 대체된 ADR 이 대체한 ADR 과 같은 그룹인가 | `decision_chains_are_written_on_both_ends` |
 | 머리말이 부르는 네 자리 번호가 실재하는가 | `group_preambles_cite_only_existing_adrs` |
 | 생성 구역 밖에 표 줄이 없는가(머리말에 끼운 행 · `adr-rows:end` 아래 덧붙인 행) | `no_table_line_sits_outside_the_generated_regions` |
+| 머리말에 git 충돌 표지가 안 남았는가(병합 뒤 생성기만 돌리고 머리말을 안 합친 상태) | `no_conflict_marker_is_left_in_the_preambles` |
 
 사슬의 짝 문구는 template 이 정한 것이다 — 새 ADR 쪽 `개정 대상:` ↔ 옛 ADR 쪽 `부분 개정:`(개정이
 나중에 거둬졌으면 `부분 개정 후 철회:`), `통합 대상:` ↔ `중복 조항 통합:`. 줄 안에서 괄호 밖의

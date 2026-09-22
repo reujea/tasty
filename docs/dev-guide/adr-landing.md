@@ -12,7 +12,7 @@
 처음 한 트리에 놓이는 순간이 착지다. 이 절차는 그 빈칸만 메우는 **보조 층**이다 — 주 방어는
 작성 시점 탐색이다.
 
-번호 충돌은 `crates/tasty-doc-guards/tests/adr_index_parity.rs` 가 잡는다. 인덱스(`docs/adr/index.md`)가 충돌했으면 행을 손으로 합치지 말고 생성기로 다시 만든다([adr-index](adr-index.md)). 번호가 다르고 조항이
+번호 충돌은 `crates/tasty-doc-guards/tests/adr_index_parity.rs` 가 잡는다. 인덱스(`docs/adr/index.md`)가 충돌했으면 행은 손으로 합치지 말고 생성기로 다시 만들되, 머리말(생성 구역 밖)은 양쪽을 사람이 합친다 — 파일째 한쪽을 받으면(`git checkout --ours` 등) 상대 쪽 머리말이 조용히 사라진다. 순서는 [adr-index](adr-index.md) 의 "언제 돌리나". 번호가 다르고 조항이
 같은 것은 git 도 충돌로 보지 않고(서로 다른 파일이다) 어떤 가드도 안 본다. lane 소스 교집합으로
 재완주 생략을 판정할 때도 ADR 끼리는 파일이 달라 교집합 0 으로 통과한다.
 

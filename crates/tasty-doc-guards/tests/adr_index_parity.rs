@@ -25,6 +25,9 @@
 //!    같다). 손으로 쓴 행 시절의 가드는 "한 번호가 두 행이면 실패" 로 그 형태를 잡았는데, 행이
 //!    생성물이 되면서 그 물음은 "생성물과 수기가 한 파일에서 섞였는가" 로 바뀌었고, 그것을
 //!    마커 밖의 표 줄 수(0 이어야 한다)와 마커 안의 행 수(= ADR 수)로 잰다.
+//! 7. **머리말에 충돌 표지가 안 남았는가** — 인덱스가 병합에서 충돌하면 생성기는 생성 구역만
+//!    다시 쓰고 머리말은 안 건드린다. 머리말의 충돌은 사람이 양쪽을 합쳐야 풀리는데, 표지가
+//!    남은 채로 커밋해도 1~6 은 초록이다.
 //!
 //! 머리말의 사슬 **서술이 완전한가**(A → B 가 머리말에 적혔는가)는 안 본다 — 어느 사슬을
 //! 머리말에 올릴지는 사람의 편집 판단이고, ADR ↔ ADR 의 양방향 기록(4)이 이미 있다.
@@ -113,9 +116,9 @@
 use std::path::{Path, PathBuf};
 
 use tasty_doc_guards::adr_index::{
-    ADR_DIR, Adr, INDEX, chain_violations, collect, duplicate_numbers, group_slugs, parse_adr,
-    placement_violations, preamble_violations, region_row_count, render_index, stray_table_lines,
-    superseder,
+    ADR_DIR, Adr, INDEX, chain_violations, collect, conflict_marker_lines, duplicate_numbers,
+    group_slugs, parse_adr, placement_violations, preamble_violations, region_row_count,
+    render_index, stray_table_lines, superseder,
 };
 
 /// ADR 수의 하한 — **연기 검사**다. 수집이 죽으면 아래 대조는 빈 집합끼리라 그냥 통과한다.
@@ -439,6 +442,58 @@ fn rendering_touches_only_the_inside_of_the_markers() {
         "| 0002 | [손으로 고친 제목](0002-x.md) | Accepted |",
     );
     assert_ne!(render_index(&hand, &all).expect("구조가 맞다"), hand);
+}
+
+/// **머리말에 git 충돌 표지가 안 남았는가** — `--write` 는 머리말을 안 건드리므로, 병합
+/// 충돌을 생성기로 풀고 머리말의 충돌을 잊으면 표지가 그대로 커밋된다.
+#[test]
+fn no_conflict_marker_is_left_in_the_preambles() {
+    let current = index_text(&repo_root());
+    let found = conflict_marker_lines(&current);
+    println!("[adr-conflict] 구역 밖 충돌 표지 {}", found.len());
+    assert!(
+        found.is_empty(),
+        "{INDEX} 의 머리말(생성 구역 밖)에 git 충돌 표지가 남았다 {} 건. 생성기는 머리말을 안 \
+         건드린다 — 양쪽 산문을 사람이 합친 뒤 표지를 지운다(docs/dev-guide/adr-index.md \
+         \"언제 돌리나\"):\n  {}",
+        found.len(),
+        found.join("\n  ")
+    );
+}
+
+/// 충돌 표지 판정의 **양성 대조** — 머리말 충돌은 `render_index` 가 그대로 두고(그래서 이
+/// 판정이 따로 필요하다), 생성 구역 안의 충돌은 생성기가 덮는다.
+#[test]
+fn a_conflict_left_in_a_preamble_is_caught() {
+    let all = vec![
+        adr("0001", "Accepted", "a", ""),
+        adr("0002", "Accepted", "b", ""),
+    ];
+    let clean = render_index(TWO_GROUPS, &all).expect("구조가 맞다");
+    assert!(
+        conflict_marker_lines(&clean).is_empty(),
+        "정상 인덱스를 위반으로 셌다"
+    );
+    let preamble = clean.replace(
+        "0001 을 부른다.\n",
+        "<<<<<<< HEAD\n0001 을 부른다.\n=======\n0001 을 이어 부른다.\n>>>>>>> theirs\n",
+    );
+    let regenerated = render_index(&preamble, &all).expect("구조가 맞다");
+    assert_eq!(regenerated, preamble, "생성기가 머리말을 건드렸다");
+    assert_eq!(
+        conflict_marker_lines(&regenerated).len(),
+        3,
+        "머리말 충돌을 못 잡았다"
+    );
+    let in_region = clean.replace(
+        "<!-- adr-rows:end a -->\n",
+        "<<<<<<< HEAD\n| 0009 | x |\n=======\n| 0008 | y |\n>>>>>>> theirs\n<!-- adr-rows:end a -->\n",
+    );
+    assert_eq!(
+        render_index(&in_region, &all).expect("구조가 맞다"),
+        clean,
+        "생성 구역 안의 충돌은 생성기가 덮어야 한다"
+    );
 }
 
 /// 마커 밖 행의 **양성 대조** — 머리말에 끼운 표(B2)와 `adr-rows:end` 바로 아래 덧붙인

@@ -12,14 +12,16 @@
 //! ## 종료코드
 //!
 //! 0 = 파일이 생성 결과와 같다(또는 `--write` 로 맞췄다). 1 = 다르다(`--check`), 또는 생성 구역
-//! **밖**에 표 줄이 있다(두 모드 모두 — 마커 밖은 생성기가 안 건드리므로 `--write` 로 안 없어진다).
+//! **밖**에 표 줄이나 git 충돌 표지가 있다(두 모드 모두 — 마커 밖은 생성기가 안 건드리므로
+//! `--write` 로 안 없어진다).
 //! 2 = 만들 수 없다 — ADR 디렉토리·인덱스를 못 읽음, 마커 짝이 깨짐, ADR 0 개.
 //! 0 개를 0 으로 돌려주면 빈 모수에서 초록이 난다.
 
 use std::path::PathBuf;
 
 use tasty_doc_guards::adr_index::{
-    INDEX, collect, group_slugs, region_row_count, render_index, stray_table_lines,
+    INDEX, collect, conflict_marker_lines, group_slugs, region_row_count, render_index,
+    stray_table_lines,
 };
 
 fn fail(msg: &str) -> ! {
@@ -49,13 +51,22 @@ fn main() {
     let rendered = render_index(&current, &adrs)
         .unwrap_or_else(|errs| fail(&format!("마커 구조가 깨졌다:\n  {}", errs.join("\n  "))));
     let stray = stray_table_lines(&current);
+    let conflicts = conflict_marker_lines(&current);
     eprintln!(
-        "[adr-index] ADR {} · 그룹 {} · 생성 구역 행 {} · 구역 밖 표 줄 {}",
+        "[adr-index] ADR {} · 그룹 {} · 생성 구역 행 {} · 구역 밖 표 줄 {} · 구역 밖 충돌 표지 {}",
         adrs.len(),
         group_slugs(&current).len(),
         region_row_count(&rendered),
-        stray.len()
+        stray.len(),
+        conflicts.len()
     );
+    if !conflicts.is_empty() {
+        eprintln!(
+            "[adr-index] {INDEX} 의 생성 구역 밖(머리말)에 git 충돌 표지가 남아 있다. 생성기는 \
+             머리말을 안 건드린다 — 양쪽 산문을 사람이 합친 뒤 표지를 지운다:\n  {}",
+            conflicts.join("\n  ")
+        );
+    }
     if !stray.is_empty() {
         eprintln!(
             "[adr-index] {INDEX} 의 생성 구역(`adr-rows:begin` ~ `adr-rows:end`) 밖에 표 줄이 있다. \
@@ -70,7 +81,7 @@ fn main() {
         eprintln!("[adr-index] {INDEX} 를 다시 썼다");
     }
     if rendered == current || write {
-        if !stray.is_empty() {
+        if !stray.is_empty() || !conflicts.is_empty() {
             std::process::exit(1)
         }
         return;

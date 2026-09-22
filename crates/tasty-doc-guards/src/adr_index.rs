@@ -523,6 +523,25 @@ pub fn stray_table_lines(index: &str) -> Vec<String> {
         .collect()
 }
 
+/// 생성 구역 **밖**에 남은 git 충돌 표지 줄(`<<<<<<< ` · `|||||||` · `=======` · `>>>>>>> `).
+///
+/// 인덱스가 병합에서 충돌하면 `--write` 는 생성 구역 안의 충돌 표지를 새로 만든 행으로 덮어
+/// 버리지만, 머리말은 사람이 쓰는 산문이라 손대지 않는다 — 머리말의 충돌은 `--write` 뒤에도
+/// 그대로 남고, 그 상태로 커밋해도 다른 판정은 초록이다. 양쪽 머리말을 사람이 합쳤는가를
+/// 이 수가 잰다(0 이어야 한다).
+pub fn conflict_marker_lines(index: &str) -> Vec<String> {
+    lines_by_region(index)
+        .filter(|(_, l, inside)| {
+            !*inside
+                && (l.starts_with("<<<<<<< ")
+                    || l.starts_with(">>>>>>> ")
+                    || l.starts_with("|||||||")
+                    || *l == "=======")
+        })
+        .map(|(n, l, _)| format!("{n}행: {l}"))
+        .collect()
+}
+
 /// 머리말(생성 구역 밖)이 부르는 네 자리 번호가 실재하는 ADR 인가.
 ///
 /// 번호로 보는 토큰: 앞이 숫자가 아니고 `-` 도 아니거나(`ADR-` 는 예외로 본다), 뒤가
