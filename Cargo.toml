@@ -7,7 +7,10 @@ members = ["crates/*"]
 # POC 측정과 채택 보류 결정 = docs/adr/0009-plugin-sandbox-deferred.md.
 # `site/` 는 더 이상 크레이트가 아니다 — GitHub Pages 정적 사이트는 Astro 로
 # 빌드한다(docs/dev-guide/site.md). 그 안에 .rs 가 없으므로 exclude 대상도 아니다.
-exclude = ["crates/tasty-plugin-sdk-wasm"]
+# `vendor/tiny_http` 는 [patch.crates-io] 로 끼운 상류 크레이트 사본이다 — 워크스페이스
+# 루트 아래의 path 의존은 기본으로 멤버가 되므로 명시적으로 뺀다(lint·fmt·clippy 대상 밖).
+# 근거: docs/adr/0516-the-webhook-413-closes-the-connection-through-a-vendored-tiny-http-patch.md
+exclude = ["crates/tasty-plugin-sdk-wasm", "vendor/tiny_http"]
 resolver = "2"
 
 # 워크스페이스 공통 lint.
@@ -551,6 +554,10 @@ required-features = ["gui"]
 # TODO: winit PR #4478 (https://github.com/rust-windowing/winit/pull/4478) 머지 후 공식 버전으로 교체
 [patch.crates-io]
 winit = { git = "https://github.com/zilhak/winit-ime-fix.git", rev = "dfe2ec8d5bf55bfbca274a7cf56e5fae0d20c1f5" }
+# 웹훅 413 이 잔여 body 를 읽지 않고 연결을 닫게 하는 최소 패치를 얹은 tiny_http 0.12.0 사본.
+# 패치 범위·탈출 조건(상류가 같은 수정을 내면 걷는다): vendor/tiny_http/PATCHES.md,
+# docs/adr/0516-the-webhook-413-closes-the-connection-through-a-vendored-tiny-http-patch.md
+tiny_http = { path = "vendor/tiny_http" }
 
 [lints]
 workspace = true

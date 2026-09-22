@@ -95,3 +95,129 @@ fn raw_content_length_preserves_json_and_invalid_utf8_policy() {
         Ok(Value::Null)
     );
 }
+
+/// The real `Screened` path over one connection: reject with 413 when the body is over
+/// [`LIMIT`], read it and answer 200 otherwise. The handler reports each request once
+/// `respond` returns — that return includes destroying the request, which is where an
+/// unread `Content-Length` body used to be drained.
+fn serve(requests: usize) -> (std::net::SocketAddr, std::sync::mpsc::Receiver<()>) {
+    let server = tiny_http::Server::http("127.0.0.1:0").unwrap();
+    let addr = server.server_addr().to_ip().unwrap();
+    let (done_tx, done_rx) = std::sync::mpsc::channel();
+    std::thread::spawn(move || {
+        for _ in 0..requests {
+            let Ok(Some(request)) = server.recv_timeout(Duration::from_secs(5)) else {
+                return;
+            };
+            let mut request = Screened(request);
+            let ack = match request.read_json_body(LIMIT) {
+                Ok(_) => AckStatus::Received,
+                Err(_) => AckStatus::PayloadTooLarge,
+            };
+            request.respond(ack);
+            if done_tx.send(()).is_err() {
+                return;
+            }
+        }
+    });
+    (addr, done_rx)
+}
+
+/// Declares `declared` body bytes, sends none of them and keeps the socket open.
+/// Everything below must happen without the client sending the rest or a FIN:
+/// the full 413 with `Connection: close`, the server closing the connection, the
+/// handler returning, and the server's receive side being gone.
+fn assert_rejected_without_draining(extra_header: &str, declared: usize) {
+    let (addr, done) = serve(1);
+    let mut client = TcpStream::connect(addr).unwrap();
+    client
+        .set_read_timeout(Some(Duration::from_secs(5)))
+        .unwrap();
+    write!(
+        client,
+        "POST /hook HTTP/1.1\r\nHost: localhost\r\n{extra_header}Content-Length: {declared}\r\n\r\n"
+    )
+    .unwrap();
+
+    // Response EOF alone is not the completion signal (a close request got it even
+    // while the body was still being drained), but it must come without our help.
+    let mut response = Vec::new();
+    client
+        .read_to_end(&mut response)
+        .expect("the server must close the connection after 413 without waiting for the body");
+    let response = String::from_utf8(response).unwrap();
+    assert!(response.starts_with("HTTP/1.1 413"), "{response}");
+    assert!(response.contains("\r\nConnection: close\r\n"), "{response}");
+    assert!(response.ends_with("payload too large"), "{response}");
+    assert!(!response.contains("100 Continue"), "{response}");
+
+    done.recv_timeout(Duration::from_secs(5))
+        .expect("the handler must return without reading the rest of the body");
+
+    // The receive side is gone when the peer's kernel refuses further body bytes. A
+    // server still draining would accept every one of them.
+    let deadline = std::time::Instant::now() + Duration::from_secs(5);
+    loop {
+        if client.write(b"x").is_err() {
+            break;
+        }
+        assert!(
+            std::time::Instant::now() < deadline,
+            "the server kept accepting body bytes after 413"
+        );
+        std::thread::sleep(Duration::from_millis(10));
+    }
+}
+
+#[test]
+fn raw_oversize_keep_alive_is_closed_without_draining() {
+    assert_rejected_without_draining("", LIMIT + 1);
+}
+
+#[test]
+fn raw_oversize_connection_close_is_closed_without_draining() {
+    assert_rejected_without_draining("Connection: close\r\n", LIMIT + 1);
+}
+
+#[test]
+fn raw_oversize_expect_continue_is_closed_without_draining() {
+    assert_rejected_without_draining("Expect: 100-continue\r\n", LIMIT + 1);
+}
+
+/// The drain used to allocate the whole remaining declared length at once, so a
+/// declared terabyte is the allocation probe: it can only pass if nothing is drained.
+#[test]
+fn raw_oversize_huge_declared_length_allocates_nothing_for_the_rest() {
+    assert_rejected_without_draining("", 1 << 40);
+}
+
+/// Requests that are not rejected keep the keep-alive connection as before.
+#[test]
+fn raw_accepted_bodies_keep_the_connection_alive() {
+    let (addr, done) = serve(2);
+    let mut client = TcpStream::connect(addr).unwrap();
+    client
+        .set_read_timeout(Some(Duration::from_secs(5)))
+        .unwrap();
+    let mut body = b"{}".to_vec();
+    body.resize(1500, b' ');
+    for _ in 0..2 {
+        write!(
+            client,
+            "POST /hook HTTP/1.1\r\nHost: localhost\r\nContent-Length: {}\r\n\r\n",
+            body.len()
+        )
+        .unwrap();
+        client.write_all(&body).unwrap();
+        done.recv_timeout(Duration::from_secs(5)).unwrap();
+    }
+    let mut response = String::new();
+    let mut buf = [0; 1024];
+    while response.matches("received").count() < 2 {
+        let n = client.read(&mut buf).unwrap();
+        assert!(n > 0, "the connection closed early: {response}");
+        response.push_str(std::str::from_utf8(&buf[..n]).unwrap());
+    }
+    assert_eq!(response.matches("HTTP/1.1 200").count(), 2, "{response}");
+    assert!(!response.contains("Connection: close"), "{response}");
+}

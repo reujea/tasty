@@ -41,3 +41,4 @@
 - [ADR-0046](0046-webhook-owner-trust-one-way-ack.md) — 웹훅 신뢰 모델/불변식(HTTP 레이어가 담는 요청의 처리 규칙)
 - [ADR-0004](0004-ipc-transport-tcp.md) — 제어용 IPC 의 std::thread blocking TCP(동형 런타임 패턴)
 - 코드: `src/webhook/listener.rs`(tiny_http bind/accept), `Cargo.toml`(tiny_http 0.12.0), `deny.toml`
+- [ADR-0516](0516-the-webhook-413-closes-the-connection-through-a-vendored-tiny-http-patch.md) — tiny_http 0.12.0 은 이제 레포의 `vendor/tiny_http/` 사본(최소 패치 하나)으로 빌드된다

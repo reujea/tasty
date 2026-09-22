@@ -87,13 +87,21 @@ use std::path::{Path, PathBuf};
 /// 이유를 적어놨다 — "파일 통째가 아니라 패턴 단위로 면제해, 그 파일이 다른 형태의
 /// 위반을 새로 들이면 그건 잡히게 한다").
 ///
-/// **현재 비어 있다.** 면제가 필요할 만한 유일한 형태는 문자열 리터럴 안의 금지
-/// 형태인데([`has_let_underscore`] 가 리터럴을 파싱하지 않는다), 아직 그런 줄이
-/// 없다. 이 가드 파일 자신은 `tests/` 아래라 [`is_test_path`] 로 이미 빠지므로
-/// 여기 등록될 일이 없다 — 그럼에도 픽스처는 런타임에 조립한다([`ignore_stmt`]).
-/// `.githooks/pre-commit` C.6 에는 면제 장치가 **아예 없어서** 어차피 그래야 하고,
-/// 덕분에 훅이 이 파일도 검사한다.
-const ALLOWLIST: &[(&str, &[&str])] = &[];
+/// 등록은 하나다 — `vendor/tiny_http/` 는 상류 크레이트 사본이고, 사본을 상류와 같게
+/// 두는 것이 그 디렉토리의 규칙이다(무엇이 tasty 패치인지가 상류와의 차이로 읽혀야
+/// 한다 — `docs/adr/0516-the-webhook-413-closes-the-connection-through-a-vendored-tiny-http-patch.md`).
+/// 그래서 상류가 쓴 두 줄에 사유 주석을 더하지 않고 줄 단위로 면제한다. 그 파일에 새
+/// `let _` 이 들어오면 여전히 잡힌다. 이 가드 파일 자신은 `tests/` 아래라
+/// [`is_test_path`] 로 이미 빠지므로 여기 등록될 일이 없다 — 그럼에도 픽스처는 런타임에
+/// 조립한다([`ignore_stmt`]). `.githooks/pre-commit` C.6 에는 면제 장치가 **아예 없어서**
+/// 어차피 그래야 하고, 덕분에 훅이 이 파일도 검사한다.
+const ALLOWLIST: &[(&str, &[&str])] = &[(
+    "vendor/tiny_http/src/lib.rs",
+    &[
+        "let _ = stream.shutdown(Shutdown::Both);",
+        "let _ = std::fs::remove_file(path);",
+    ],
+)];
 
 /// 위반 줄이 `entries` 에 등록된 조각을 담고 있으면 면제다. 판정이 **파일 단위가
 /// 아니라 줄 단위**라, 등록된 파일이 새로 들이는 다른 위반은 그대로 잡힌다.

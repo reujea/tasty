@@ -30,7 +30,7 @@ GitHub Action 처럼 **외부 이벤트가 HTTP 로 들어오면 tasty 를 구�
 3. **매칭 + 인증**(`match_request`) — path 없음 `404`, lifetime 만료 `410`(lazy 삭제), 메서드 불일치 `405`(카운트 미차감), 인증 불일치 `401`(**카운트 미차감**). 인증 검증은 호출자가 넘긴 술어로 **같은 lock 안에서** 차감보다 **먼저** 한다 — `CountLimit` 이 세는 단위가 "시퀀스를 돌린 횟수" 라서, 시퀀스를 0 번 돌린 요청이 통을 태우면 안 된다. 통의 키는 토큰이 아니라 **등록**이라(모든 발신자가 한 통을 공유한다) 그 차이는 인증을 통과하지 못한 발신자가 owner 의 예산을 태우는 것으로 나타난다.
 4. 매칭·인증을 모두 통과하면 카운트 1 차감(소진되면 삭제).
 5. **출처 실패 집계** — `404`/`405`/`401`/`413` 을 이 출처의 실패로 센다(`counts_as_failure` → `record_failure`). 통이 둘이고 답도 둘이다: 4 번의 예산(`CountLimit`)에서 401 은 **세면 안 되고**(세는 것이 소모다) 이 통에서는 **세야 한다**(제한이라 안 세는 것이 우회다) — [ADR-0195](../../adr/0195-abuse-counting-includes-rejected-tokens.md).
-6. **ACK 즉시 응답**(`build_ack`) — 여기까지 핸들러 실행과 무관.
+6. **ACK 즉시 응답**(`build_ack`) — 여기까지 핸들러 실행과 무관. `413` 만은 응답에 `Connection: close` 를 싣고 잔여 body 를 읽지 않은 채 연결을 닫는다(아래 body 상한).
 7. **fire-and-forget** — `execute_sequence` 로 핸들러(IpcSequence)를 메인 루프에 전달. 결과는 응답으로 되돌리지 않는다.
 
 ### 단방향 ACK (불변식)
@@ -74,12 +74,12 @@ HTTP 응답은 **고정 상태코드 + 고정 문자열 바디**뿐이다. `buil
 
 JSON 처리에 허용하는 요청 body 는 **기본 1 MiB** 까지다. `read_json_body` 는 선언된 `Content-Length` 가 상한을 넘으면 입력을 읽지 않고 거부한다. 선언 길이가 없는 chunked 는 판정용 1바이트를 더해 최대 `상한 + 1`바이트를 모으며, UTF-8 변환 전에 길이를 검사한다. 무효 UTF-8도 초과하면 `413 payload too large`이고 시퀀스는 실행하지 않는다. 상한 이내의 무효 UTF-8·비-JSON은 기존대로 `null`이다. 초과 판정은 경로 매칭·인증보다 앞이다.
 
-**이 상한은 HTTP 연결 전체의 I/O나 프로세스 전체 메모리 상한이 아니다.** 입력 버퍼에 저장하는 바이트 수, JSON 표현의 부가 메모리, HTTP 라이브러리의 연결 정리 비용은 서로 다르다. `tiny_http` 0.12.0의 일반 Content-Length 리더는 `Request`를 정리할 때 미읽은 나머지를 읽어 버린다(drain). 이때 잔여 선언 길이만큼 임시 버퍼를 요청하며, 완료·EOF·오류까지 기다릴 수 있다. 413이 먼저 전달되거나 서버 송신 방향의 EOF를 받아도 서버 수신 방향의 정리가 끝났다는 뜻은 아니다. 이 잔여 읽기를 끊는 지원 API는 현재 리스너에 없다.
+**413 은 잔여 body 를 읽지 않고 연결을 닫는다.** 응답에 `Connection: close` 를 싣고, 상한을 넘긴 body 의 나머지는 HTTP 계층도 읽지 않는다 — 요청의 `Connection: close` · keep-alive · `Expect: 100-continue` 어느 경우든 같다. 상대가 나머지 body 나 FIN 을 보내지 않아도 요청 처리 스레드가 돌아오고 연결의 두 방향이 닫힌다. 잔여 선언 길이에 비례하는 임시 할당도 없다. 상류 `tiny_http` 0.12.0 의 `Content-Length` 리더는 요청을 정리할 때 미읽은 나머지를 끝까지 읽으므로(drain), 레포에 둔 `tiny_http` 사본의 최소 패치(`Request::respond_and_close`)로 이 경로를 연다 — [ADR-0516](../../adr/0516-the-webhook-413-closes-the-connection-through-a-vendored-tiny-http-patch.md). 그 결과 413 을 받은 keep-alive 연결은 재사용되지 않는다. 이미 body 를 보내던 중이면 연결 종료가 RST 로 나갈 수 있다.
 
-chunked의 디코더 Drop에는 같은 Content-Length drain 루프가 없다. 그러나 parser가 읽은 양을 라이브러리의 버퍼링·다음 요청 처리까지 포함한 전체 소켓 읽기량으로 일반화하지 않는다. 선행 가정 오류와 현재 보장·미충족 transport 요구는 [ADR-0281](../../adr/0281-webhook-parser-cap-and-connection-drain.md)에 둔다. 잔여 읽기 없이 거부 연결을 종료한다는 목표는 유지되며, 문서 정정이 그 요구를 구현한 것은 아니다.
+**이 상한은 프로세스 전체 메모리 상한이 아니다.** 입력 버퍼에 저장하는 바이트 수와 JSON 표현의 부가 메모리는 다르고, 동시 요청 수·연결 수는 이 값으로 묶지 않는다. 남용차단의 `429` 는 body 를 읽지 않고 답하지만 상류 동작 그대로라, 1024 바이트를 넘는 `Content-Length` body 가 남아 있으면 응답 뒤 drain 이 일어난다. 선행 가정 오류의 기록은 [ADR-0281](../../adr/0281-webhook-parser-cap-and-connection-drain.md).
 
 - `TASTY_WEBHOOK_MAX_BODY_BYTES` 로 조정한다(0·파싱 실패는 기본값). 수십 MB 짜리 payload 를 보내는 발신자를 붙이려면 이 값을 올린다.
-- **요청당 JSON 입력 상한이다** — 동시 요청 수·연결 수·총 메모리·drain 시간은 이 값으로 제한하지 않는다.
+- **요청당 JSON 입력 상한이다** — 동시 요청 수·연결 수·총 메모리는 이 값으로 제한하지 않는다.
 - `Content-Length` 가 1024 이하인 body 는 HTTP 라이브러리가 요청을 만드는 단계에서 먼저 읽으므로, 이 상한도 남용차단도 그 구간에는 닿지 않는다.
 
 ### 남용차단 (일시 거부)

@@ -112,8 +112,12 @@ use std::path::{Path, PathBuf};
 /// - `scripts/check-allow-reason.sh`(P7): 그 스크립트 주석이 ADR-0037 의 규칙 본문
 ///   (**빈 사유·"TODO" 금지**)을 인용한다. 인용을 지우면 그 게이트가 무엇을 강제하는지
 ///   알 수 없게 된다 — `CLAUDE.md` 가 P1·P4 를 면제받는 것과 같은 이유다.
+/// - `vendor/tiny_http/src/response.rs`(P7): 상류 크레이트 사본이 쓴 `/* TODO */` 다.
+///   사본을 상류와 같게 두는 것이 그 디렉토리의 규칙이라(무엇이 tasty 패치인지가 상류와의
+///   차이로 읽혀야 한다 — `docs/adr/0516-the-webhook-413-closes-the-connection-through-a-vendored-tiny-http-patch.md`)
+///   고치지 않는다. 가리키는 로컬 티켓이 없는 상류의 할 일 표시다.
 ///
-/// **면제는 여전히 패턴 단위다.** 위 둘도 P7 만 면제이고, 같은 파일에 P1·P3·P6 을
+/// **면제는 여전히 패턴 단위다.** P7 로 등록한 항목들도 P7 만 면제이고, 같은 파일에 P1·P3·P6 을
 /// 심으면 잡힌다. 순회 입력으로 폴더 이름이 필요한 곳은 조각으로 조립하고
 /// ([`ws_dir`]), 번호가 붙는 패턴의 픽스처는 그대로 `fx!` 로 판정 지점을 끊어 쓴다.
 const ALLOWLIST: &[(&str, &[&str])] = &[
@@ -124,6 +128,7 @@ const ALLOWLIST: &[(&str, &[&str])] = &[
         &["P7", "P8", "P9", "P10"],
     ),
     ("scripts/check-allow-reason.sh", &["P7"]),
+    ("vendor/tiny_http/src/response.rs", &["P7"]),
 ];
 
 /// 탐지 패턴 표 — (id, 설명, 판정 함수). 한 줄에 대해 **전부** 돌린다.

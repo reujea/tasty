@@ -43,6 +43,23 @@ winit = { git = "https://github.com/zilhak/winit-ime-fix.git", rev = "dfe2ec8d5b
 - PR #4478 상태를 주기적으로 확인한다(머지/클로즈/대체 PR 여부).
 - **대비책**(포크 레포 소실 시): 해당 commit 을 조직 레포에 미러링하거나 `vendor/` 로 캐싱. 핀 고정으로 충분할 수 있으므로 레포 소실 징후가 보일 때만 착수(과투자 주의).
 
+## `tiny_http` — 레포 사본 + 최소 패치 (탈출 대기 중)
+
+`Cargo.toml` 의 `[patch.crates-io]` 가 tiny_http 를 레포 안의 사본에 핀:
+
+```toml
+tiny_http = { path = "vendor/tiny_http" }
+```
+
+- **왜 사본인가**: 상류 0.12.0 의 `Content-Length` 리더는 요청을 파괴할 때 읽지 않은 body 를 끝까지 읽는다(drain). 웹훅 413 이 그 drain 없이 연결을 닫게 하는 공개 API(`Request::respond_and_close`)를 더한 최소 패치다. 결정·대안·재검토 조건은 [ADR-0516](../adr/0516-the-webhook-413-closes-the-connection-through-a-vendored-tiny-http-patch.md), 사본 범위·패치 목록은 [`vendor/tiny_http/PATCHES.md`](../../vendor/tiny_http/PATCHES.md).
+- **워크스페이스 멤버가 아니다**: 루트 `Cargo.toml` 의 `exclude` 에 있다 — 워크스페이스 lint·clippy·fmt·파일 SLOC 게이트가 상류 코드를 판정하지 않고, `crates/` 크레이트 수에도 안 들어간다.
+- **리스크**: `cargo update` 가 이 의존을 올리지 않고 상류의 보안 수정도 자동으로 안 들어온다.
+
+### 점검 / 전환 트리거
+
+- 탈출 조건: 상류가 요청 단위로 잔여 body 를 읽지 않고 연결을 닫는 공개 API 를 릴리스 → 사본과 `[patch.crates-io]` 줄을 지우고 그 API 로 옮긴다. 옮긴 뒤 `src/webhook/listener_body_tests.rs` 의 `raw_oversize_*` 시험이 통과해야 한다.
+- RustSec 에 `tiny_http` 권고가 붙으면 사본에 수정을 옮기거나 상류 새 버전 위에 패치를 다시 얹는다.
+
 ## (은퇴) `egui_commonmark` — egui 버전 lockstep
 
 [ADR-0065](../adr/0065-markdown-webview-render-channel.md)(Stage B)로 `crates/tasty-plugin-markdown` 의 본문 렌더가 `egui_commonmark` 에서 `pulldown-cmark`(HTML writer) + `ammonia`(sanitize) + native webview 로 전환되면서, `egui_commonmark`/`egui_commonmark_backend` 의존성 자체가 제거됐다 — 아래는 더 이상 유효하지 않은 과거 lockstep 이슈였다(참고용으로 남김).

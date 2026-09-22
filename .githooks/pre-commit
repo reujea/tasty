@@ -107,6 +107,9 @@ check_mod_use_order() {
     if [ -z "$STAGED_RS" ]; then return; fi
     for f in $STAGED_RS; do
         [ -f "$f" ] || continue
+        # 상류 크레이트 사본은 상류의 선언 순서를 그대로 둔다 — 무엇이 tasty 패치인지가
+        # 상류와의 차이로 읽혀야 한다(docs/adr/0516-the-webhook-413-closes-the-connection-through-a-vendored-tiny-http-patch.md).
+        case "$f" in vendor/*) continue ;; esac
         # top-level "선언 영역" 안에서만 검사. 영역 = 빈 줄/주석/attribute/use/mod/
         # extern crate 만 나오는 동안. 첫 코드 토큰 (fn/struct/impl/const/static/
         # type/trait/enum/macro_rules) 이 나오면 영역 종료 — dispatcher 패턴
@@ -264,6 +267,9 @@ check_let_underscore() {
 
     for f in $STAGED_RS; do
         [ -f "$f" ] || continue
+        # 상류 크레이트 사본의 `let _` 은 상류가 쓴 그대로 둔다(A.1 과 같은 이유). 전수
+        # 가드 `let_underscore_documented.rs` 는 그 줄들을 줄 단위 ALLOWLIST 로 면제한다.
+        case "$f" in vendor/*) continue ;; esac
         local violation masked_file=""
         if [ -n "$masked" ] && [ -f "$masked/$f" ]; then masked_file="$masked/$f"; fi
         violation=$(git diff --cached -U1 -- "$f" | awk -v maskfile="$masked_file" '

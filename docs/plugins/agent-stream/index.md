@@ -254,7 +254,7 @@ FE 가 요청마다 **자기가 만든 `request_id`** 를 웹훅 페이로드에
 
 > **웹훅 JSON 입력 body 상한은 본체 리스너가 적용한다.** 요청당 기본 1 MiB이며 `TASTY_WEBHOOK_MAX_BODY_BYTES`로 조정한다. 선언된 `Content-Length`가 상한을 넘거나 chunked body가 상한을 넘으면 `413 payload too large`로 거부하고 시퀀스를 실행하지 않는다. `request_id`의 512바이트 상한은 그 다음 단계에서 이벤트마다 복제되는 값을 제한한다.
 >
-> body 크기는 경로 매칭·인증보다 먼저 검사한다. 따라서 인증은 이 크기 제한을 대신하지 않으며, 토큰 없는 작은 요청은 `401 unauthorized`, 상한을 넘는 요청은 인증 전에 `413`을 받는다. 남용차단은 `401`·`413` 반복도 집계한다. 이 상한은 JSON 입력에 적용된다. 413 응답 후에도 HTTP 라이브러리가 Content-Length의 잔여 body를 읽어 버릴 수 있으며, 입력 상한은 연결 전체 수신량·정리 시간·총 메모리의 보장이 아니다. 요청당 상한이 동시 요청 수나 연결 수를 제한하지는 않으므로, 외부 노출 시 프록시에서 연결 제한·타임아웃·TLS를 설정한다. 현재 보장과 미충족 transport 요구는 [웹훅 body 상한](../../features/webhook/index.md#body-상한-요청당)과 [ADR-0281](../../adr/0281-webhook-parser-cap-and-connection-drain.md)에 구분한다. [ADR-0200](../../adr/0200-webhook-body-has-a-per-request-byte-cap.md)의 잔여 읽기 중단 목표는 유지된다.
+> body 크기는 경로 매칭·인증보다 먼저 검사한다. 따라서 인증은 이 크기 제한을 대신하지 않으며, 토큰 없는 작은 요청은 `401 unauthorized`, 상한을 넘는 요청은 인증 전에 `413`을 받는다. 남용차단은 `401`·`413` 반복도 집계한다. 이 상한은 JSON 입력에 적용된다. 413 응답은 `Connection: close`를 싣고 잔여 body를 읽지 않은 채 연결을 닫는다([ADR-0516](../../adr/0516-the-webhook-413-closes-the-connection-through-a-vendored-tiny-http-patch.md)). 입력 상한은 총 메모리의 보장이 아니다. 요청당 상한이 동시 요청 수나 연결 수를 제한하지는 않으므로, 외부 노출 시 프록시에서 연결 제한·타임아웃·TLS를 설정한다. 현재 보장은 [웹훅 body 상한](../../features/webhook/index.md#body-상한-요청당)에 있다. 본체와 같은 `tiny_http` 사본으로 빌드되지만 SSE 서버의 응답 경로는 상류 동작 그대로다.
 
 ### 정책 — 겹침 · 중복 · 막힌 턴 · 턴 밖 이벤트
 
