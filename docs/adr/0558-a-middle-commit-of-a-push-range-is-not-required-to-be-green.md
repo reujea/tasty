@@ -104,8 +104,9 @@ Alternatives 의 ⒜ 에 적었다.
 
 - 추적 파일(스크립트 · 워크플로 · 훅 · 문서 절차)이 `git bisect` 나 커밋 순회(`git rev-list`
   위를 도는 체크아웃)를 절차로 들인다. 재는 법: `git grep -n -E 'git bisect|rev-list' -- scripts
-  .github .githooks docs/dev-guide`. 이 결정 시점 적중은 5 이고 셋은 `rev-list --count`(개수
-  세기), 하나는 ci-gates 의 47 측정 파이프(`rev-list` 출력을 `grep -c` 로 세는 것 — 체크아웃
+  .github .githooks docs/dev-guide`. 이 결정이 착지한 시점의 적중은 5 다(결정을 처음 적은
+  커밋에서는 4 였고, 같은 lane 이 ci-gates 에 측정 명령을 한 줄 더하면서 5 가 됐다). 다섯 중
+  셋은 `rev-list --count`(개수 세기), 하나는 ci-gates 의 47 측정 파이프(`rev-list` 출력을 `grep -c` 로 세는 것 — 체크아웃
   없음), 하나는 이 결정을 옮겨 적은 ci-gates 의 서술이다 — 순회·실행은 0. 이 결정은 가드를 두지
   않는다 — 위 명령을 사람이 돌린다.
 - 착지 방식이 바뀌어 lane 이 착지 tip 이 아니라 lane 내부 커밋 위에서 출발한다. 재는 법: lane
