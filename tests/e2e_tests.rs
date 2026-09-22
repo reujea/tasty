@@ -1648,7 +1648,10 @@ fn file_dispatch_is_refused_rather_than_accepted_in_a_headless_daemon() {
 /// 이 스위치가 없으면 시험 인스턴스의 OS 열기가 실행자의 이미 떠 있는 브라우저로 URL 을
 /// 넘긴다 — 격리 홈도 전용 디스플레이도 그 채널을 못 막는다(ADR-0511). 기록 줄이 안 생기면
 /// 그 열기는 실제로 실행됐다는 뜻이다.
-#[cfg(feature = "gui")]
+///
+/// `debug_assertions` 로 막는다 — 스위치는 debug 격리라 release 로 지은 자식에는 없고, 그때 이
+/// 시험은 실패하기 **전에** 실제로 OS 열기를 띄운다. 막으려던 바로 그 부수효과다.
+#[cfg(all(feature = "gui", debug_assertions))]
 #[test]
 fn directory_dispatch_is_recorded_instead_of_opened_under_the_harness() {
     let _lane = lane();

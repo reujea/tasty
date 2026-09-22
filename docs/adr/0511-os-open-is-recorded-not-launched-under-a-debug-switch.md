@@ -53,7 +53,7 @@ e2e 하네스도 같다. 격리 HOME 과 `TASTY_E2E_DISPLAY` 가 이 채널을 �
 
 - **얻은 것**: tasty 자신의 OS 열기가 플랫폼과 무관하게 한 자리에서 막힌다. "무엇이 열리려 했나"
   가 파일의 줄로 남아 시험이 단언할 수 있다 — `tests/e2e_tests.rs` 의
-  `directory_dispatch_is_recorded_instead_of_opened_under_the_harness`(gui 조합)가 디렉토리
+  `directory_dispatch_is_recorded_instead_of_opened_under_the_harness`(gui 조합 · debug 빌드)가 디렉토리
   dispatch 의 기록을 단언한다. 실측(2026-09-23): `open_uri` 의 가로채기를 끄는 변이에서 그 시험이
   FAILED 이고, 그때 가짜 `BROWSER` 가 실제 실행을 받았다.
 - **잃은 것**: 없다 — release 동작은 그대로이고, 변수를 안 준 debug 동작도 그대로다.
