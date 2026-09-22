@@ -139,11 +139,17 @@ fn dispatch_map() -> BTreeMap<String, BTreeSet<String>> {
 }
 
 /// 위의 순수부 — 합성 입력으로 면제를 찌를 수 있게 분리한다.
+///
+/// 구분자(`=>` · `{` · `,` · `(`)는 공용 렉서가 문자열·문자 리터럴·주석을 바이트째 덮은
+/// 사본(`code`)에서 찾고, 메서드 이름은 같은 구간의 원본에서 읽는다 — guard 문자열 안의 `,`
+/// 가 팔 머리를 자르면 그 앞의 이름이 지도에서 빠지고, 한 메서드에 팔이 둘일 때 게이트 없는
+/// 팔이 빠져 판정이 조용히 뒤집힌다.
 fn dispatch_map_of(src: &str) -> BTreeMap<String, BTreeSet<String>> {
+    let code = tasty_doc_guards::source_text::mask_non_code_aligned(src);
     let mut out: BTreeMap<String, BTreeSet<String>> = BTreeMap::new();
-    for (i, _) in src.match_indices("=>") {
+    for (i, _) in code.match_indices("=>") {
         // 오른쪽: 첫 `식별자(` 의 마지막 경로 세그먼트가 핸들러 이름이다.
-        let rhs = &src[i + 2..];
+        let rhs = &code[i + 2..];
         let Some(paren) = rhs.find('(') else { continue };
         let callee: String = rhs[..paren]
             .rsplit(|c: char| !(c.is_ascii_alphanumeric() || c == '_'))
@@ -154,12 +160,12 @@ fn dispatch_map_of(src: &str) -> BTreeMap<String, BTreeSet<String>> {
             continue;
         }
         // 왼쪽: 이 팔의 문자열 리터럴들. 앞선 `=>` 나 블록 경계까지만 거슬러 본다.
-        let lhs_start = src[..i]
+        let lhs_start = code[..i]
             .rfind("=>")
             .map(|p| p + 2)
             .into_iter()
-            .chain(src[..i].rfind('{').map(|p| p + 1))
-            .chain(src[..i].rfind(',').map(|p| p + 1))
+            .chain(code[..i].rfind('{').map(|p| p + 1))
+            .chain(code[..i].rfind(',').map(|p| p + 1))
             .max()
             .unwrap_or(0);
         for m in backticked_or_quoted(&src[lhs_start..i]) {
