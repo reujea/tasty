@@ -98,26 +98,33 @@ pub(super) struct Arms {
 }
 
 /// dispatch arm 을 훑어 위 지도를 만든다.
+///
+/// 구조(`#[cfg(` · 괄호 짝 · `=>` · `;` · `{`)는 공용 렉서가 주석·문자열·문자 리터럴을 바이트째
+/// 덮은 사본(`code`)에서 찾고, 조건과 메서드 이름은 같은 구간의 원본에서 읽는다 — guard
+/// 문자열 안의 `{` · `;` 가 그 arm 을 "arm 이 아님" 으로 떨궈 짝 검사를 조용히 건너뛰었고,
+/// 주석 속 `#[cfg(` 인용이 arm 으로 읽힐 수 있었다.
 pub(super) fn scan(src: &str) -> Arms {
+    let code = tasty_doc_guards::source_text::mask_non_code_aligned(src);
     let mut by_method: BTreeMap<String, BTreeSet<String>> = BTreeMap::new();
     let mut platform: Vec<(String, String)> = Vec::new();
     let mut from = 0usize;
-    while let Some(at) = src[from..].find("#[cfg(") {
+    while let Some(at) = code[from..].find("#[cfg(") {
         let at = from + at;
         let open = at + "#[cfg".len();
-        let Some((cond, close)) = cfg_condition(src, open) else {
+        let Some((_, close)) = cfg_condition(&code, open) else {
             break;
         };
+        let cond = src[open + 1..close].to_string();
         from = close + 1;
         // `]` 다음부터 첫 `=>` 까지가 arm 패턴 자리다.
-        let after = &src[from..];
-        let Some(arrow) = after.find("=>") else {
+        let Some(arrow) = code[from..].find("=>") else {
             continue;
         };
-        let seg = &after[..arrow];
+        let seg_code = &code[from..from + arrow];
+        let seg = &src[from..from + arrow];
         let looks_like_arm = arrow <= MAX_ARM_PATTERN
-            && !seg.contains(';')
-            && !seg.contains('{')
+            && !seg_code.contains(';')
+            && !seg_code.contains('{')
             && seg.contains('"');
         if !looks_like_arm {
             continue;
