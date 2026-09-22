@@ -74,8 +74,11 @@ ADR-0111 의 다음 조항은 개정하지 않는다.
   release headless 두 칸과 release gui `--all-targets` 칸은 **어떤 자동 채널도 안 본다**.
 - **드러난 것**: headless 는 레이아웃을 저장하지도 복원하지도 않는다. 그 경로 전체가 GUI
   경계 안으로 들어간 것은 기능을 뺀 것이 아니라 이미 그랬던 사실이 보이게 된 것이다.
-  마찬가지로 headless 의 OSC 7 cwd 변경은 탭 이름을 갱신하지 않는다 — 터미널 이벤트에서
-  그 intent 로 가는 배선이 그 빌드에 없다.
+  마찬가지로 headless 의 OSC 7 cwd 변경은 탭 이름을 갱신하지 않았다 — 터미널 이벤트에서
+  그 intent 로 가는 배선이 그 빌드에 없었다.
+  (보강 2026-09-23: 둘 다 판정됐다. OSC 7 은 headless PTY drain 에 배선했다 —
+  [ADR-0111 "보강 — OSC 7 cwd 의 탭 이름"](0111-headless-drains-the-intent-queue.md).
+  레이아웃은 저장·복원하지 않는 것으로 정했다 — [ADR-0539](0539-headless-does-not-persist-layouts.md).)
 
 ## Alternatives Considered
 
@@ -103,6 +106,8 @@ ADR-0111 의 다음 조항은 개정하지 않는다.
 - headless 가 레이아웃을 저장·복원해야 하는지, OSC 7 이 그 빌드에서 탭 이름을 갱신해야
   하는지는 제품 결정이다. 재는 법: 그 동작을 요구하는 헤드리스 통합 테스트를 먼저 쓰고,
   그것이 빨간 것을 확인한다.
+  **판정됨(2026-09-23)**: OSC 7 → 갱신한다([ADR-0111](0111-headless-drains-the-intent-queue.md) 보강 절),
+  레이아웃 → 저장·복원하지 않는다([ADR-0539](0539-headless-does-not-persist-layouts.md)).
 
 ## References
 
