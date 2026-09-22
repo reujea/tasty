@@ -1004,6 +1004,13 @@ mod create_cwd_tests {
     ///
     /// 셸은 `/bin/sh` 로 고정한다 — 사용자 rc 파일이 `cd` 하면 조회값이 흔들린다.
     /// 셸 프로세스의 cwd 를 읽는 수단(`get_cwd_of_pid`)이 linux·macos 에만 있어 그 둘로 한정한다.
+    ///
+    /// **Windows 에는 이 채널이 없다.** 거기서 `get_cwd_of_pid` 는 항상 `None` 이고
+    /// (`crates/tasty-terminal/src/cwd.rs`), `Terminal::get_cwd` 는 OSC 7 캐시 다음에 그것을
+    /// 보므로 OSC 7 을 안 내는 셸의 cwd 는 조회되지 않는다. 누락 지점
+    /// (`cwd: resolved_cwd,`)은 플랫폼 공통 코드라 linux 채널이 같은 줄을 본다. Windows 에서
+    /// 이 사실을 재려면 PTY 가 아니라 `DomainIntent::CreateWorkspace` 를 가로채 그 `cwd`
+    /// 필드를 단언하는 수준의 시험이 필요하다.
     #[cfg(any(target_os = "linux", target_os = "macos"))]
     #[test]
     fn the_resolved_cwd_reaches_the_new_terminals_shell() {
