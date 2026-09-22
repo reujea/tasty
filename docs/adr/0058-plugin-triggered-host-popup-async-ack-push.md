@@ -197,7 +197,7 @@ plugin이 왜 요청했는지 몰라도 되며(`context`/결과 필드는 순전
   로컬/원격 겸용 설계, 본 ADR이 그대로 재사용하는 부분
 - [ADR-0056](0056-git-viewer-remote-attach-git-query-channel.md) — `git_viewer.query`
   IPC, 본 ADR이 채택한 "즉시 ack + 이벤트 push" shape의 실제 프로덕션 선례
-- [ADR-0498](0498-the-file-picker-trigger-answers-only-a-plugin-caller.md) — 이 메서드를 plugin 호출자에게만 연 후속 결정(CLI·agent 는 `-32016`)
+- [ADR-0504](0504-the-file-picker-trigger-answers-only-a-plugin-caller.md) — 이 메서드를 plugin 호출자에게만 연 후속 결정(CLI·agent 는 `-32016`)
 - `crates/tasty-plugin-protocol/src/protocol.rs` — 전송 계층 메시지 타입(요청-응답 vs
   이벤트)
 - `crates/tasty-host-plugin/src/manager/events.rs` — `emit_host_event_to_plugin`

@@ -99,7 +99,7 @@ params 를 담는 **이름**이 규약(`params` / `_params`, 또는 살아 있�
 | 이유 | 메서드 | 왜 CLI 가 없나 |
 |---|---|---|
 | plugin → host 서비스 †plugin-only | `banner.open` · `banner.close` · `popup.close` | plugin 이 **자기** contribute UI 인스턴스를 여닫는다. 대상 식별이 caller plugin 자신이라 CLI 호출자가 존재하지 않는다 |
-| plugin → host 서비스 | `file_picker.trigger` | plugin 프로세스가 못 여는 host 소유 popup 을 대신 연다. 결과는 응답이 아니라 `event.dispatch` 로 그 plugin 에 push 된다. 외부 arm 은 있지만 CLI·agent 호출은 popup 을 안 열고 `-32016` 을 받는다(아래 †plugin-only 절 끝, [ADR-0498](../adr/0498-the-file-picker-trigger-answers-only-a-plugin-caller.md)) |
+| plugin → host 서비스 | `file_picker.trigger` | plugin 프로세스가 못 여는 host 소유 popup 을 대신 연다. 결과는 응답이 아니라 `event.dispatch` 로 그 plugin 에 push 된다. 외부 arm 은 있지만 CLI·agent 호출은 popup 을 안 열고 `-32016` 을 받는다(아래 †plugin-only 절 끝, [ADR-0504](../adr/0504-the-file-picker-trigger-answers-only-a-plugin-caller.md)) |
 | plugin → host 서비스 | `git_viewer.query` · `markdown.navigate` | 특정 plugin(git-viewer · markdown 주소창)이 자기 surface 를 위해 부른다. `git_viewer.query` 는 `request_id` 만 회신하고 결과를 그 plugin 에 unicast push 하므로 셸이 결과를 받을 수 없고, `markdown.navigate` 는 그 namespace 를 번들 plugin 이 점유해 외부 호출이 plugin 으로 forward 된다([ADR-0153](../adr/0153-a-bundled-namespace-hands-host-methods-back.md)) |
 | plugin → host 서비스 | `markdown_mirror.content_request` | markdown plugin 이 attach mirror 문서의 원격 원문을 요청한다. `git_viewer.query` 와 같은 비동기 accept 라 `request_id` 만 회신하고 원문은 그 plugin 에 unicast push 되므로 셸이 결과를 받을 수 없다([ADR-0255](../adr/0255-markdown-attach-mirror-forwards-content-not-pixels.md)) |
 | 열면 그 능력이 깨진다 | `surface.read_since_scan_mark` | 출력 스캐너 전용 커서라 **읽으면 커서가 전진한다.** CLI 동사를 열면 사용자가 한 줄로 스캐너의 바이트를 가져가 에러 감시에 구멍을 낼 수 있고, 그 구멍은 조용하다 — 에이전트가 출력을 읽는 표면은 커서를 안 움직이는 `tasty read since-mark` 쪽이다([ADR-0307](../adr/0307-the-output-scanner-reads-its-own-cursor.md)) |
@@ -151,7 +151,7 @@ arm(gui 창 라우터)이 있어 `plugin_only` 표식을 달지 않는다. 그�
 
 고른 경로는 호출한 plugin 에게만 push 되므로 CLI·agent 호출에는 받을 곳이 없고, popup 은 사용자
 입력 포커스를 가져간다(원칙 2.1 ① · 2.3). 코드가 같은 것은 뜻이 같아서다 — 부를 수 있는 주체가
-다르다. 근거 [ADR-0498](../adr/0498-the-file-picker-trigger-answers-only-a-plugin-caller.md).
+다르다. 근거 [ADR-0504](../adr/0504-the-file-picker-trigger-answers-only-a-plugin-caller.md).
 
 ### 등재된 이름인데 이 바이너리에 arm 이 없을 때
 

@@ -427,6 +427,7 @@ disable 이 무엇을 남기는가는 0173(namespace 소유를 남긴다) → 05
 | 0427 | [file handler 병합은 출처 순서(Host → Plugin → User)로 하고 user patch 를 늘 마지막에 둔다](0427-file-handler-merge-applies-user-patches-last.md) | Accepted | 2026-09-21 | file-handler, registry, plugin, settings, boot, patch-semantics |
 | 0520 | [file-format(detector) 병합도 출처 순서(Host → Plugin → User)로 하고 user 의 `disabled = false` 를 켜기로 읽는다](0520-file-format-merge-applies-user-patches-last.md) | Accepted | 2026-09-23 | file-format, detector, registry, plugin, settings, boot, patch-semantics |
 | 0526 | [사용자가 만진 plugin popup 에서 온 파일 열기는 사용자 행동이다 — ADR-0302 의 `file_handler.dispatch` 분류 조항 · ADR-0502 의 `Intent::NewTab` 선택 조항 · ADR-0503 의 오분류 조항 개정](0526-a-plugin-popup-the-user-touched-makes-its-file-dispatch-a-user-action.md) | Accepted | 2026-09-23 | file-handler, focus, tab, plugin, popup, user-agent-separation, identity, user-activation, adr-0302, adr-0502, adr-0503 |
+| 0504 | [`file_picker.trigger` 는 plugin 호출자에게만 답한다](0504-the-file-picker-trigger-answers-only-a-plugin-caller.md) | Accepted | 2026-09-23 | file-picker, popup, ipc, cli, caller, focus, user-agent-separation, identity |
 
 ## 에이전트 통합 · 협업
 

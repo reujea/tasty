@@ -161,7 +161,7 @@ host 자체 egui popup 은 그와 별개로 OS 가 대신 블로킹해주지 않
 
 1. plugin 이 `file_picker.trigger { filters?: string[] }` 를 호출한다(`FsRead` 권한,
    `gui` feature 전용). CLI·agent 호출자는 popup 을 열지 않고 `-32016` 을 받는다 — 결과를 받을
-   곳이 없고 popup 이 사용자 입력 포커스를 가져가기 때문이다([ADR-0498](../../adr/0498-the-file-picker-trigger-answers-only-a-plugin-caller.md)). host 는 popup 확정을 **기다리지 않고** `{ request_id }` 만 즉시
+   곳이 없고 popup 이 사용자 입력 포커스를 가져가기 때문이다([ADR-0504](../../adr/0504-the-file-picker-trigger-answers-only-a-plugin-caller.md)). host 는 popup 확정을 **기다리지 않고** `{ request_id }` 만 즉시
    회신한다(`src/adapters/ipc/handler/file_picker.rs::handle_trigger`).
 2. host 는 `(plugin_id, request_id)` 를 `FilePickerData.requester`(`FilePickerRequester`)
    에 기록하고 popup 을 연다 — 이후 로컬/원격 판별·엔트리 로드는 위 기존 경로(Tools 메뉴
@@ -395,7 +395,7 @@ view 는 `FilePickerProps` 만 받고 `FilePickerAction` 만 돌려주므로 상
 > `CallerContext::Local` 이다 — `-32016` 으로 거부되고, 호출 전후 `ui.state` 의
 > `gate_host_popup_focused` · `keyboard_shortcuts_gated` 가 둘 다 `false` 그대로다(2026-09-23 실측).
 > 이 거부 전에는 같은 호출이 popup 을 열어 두 값이 `true` 로 바뀌고 intent 감시 로그에
-> `origin=User { source: Menu("tools_menu") }` 가 찍혔다(2026-09-22 실측, ADR-0498 Context).
+> `origin=User { source: Menu("tools_menu") }` 가 찍혔다(2026-09-22 실측, ADR-0504 Context).
 > plugin 호출자의 성공·requester 기록·busy 거부(`-32000`)는 단위 시험
 > (`src/adapters/ipc/handler/file_picker.rs` 의 `tests`)이 본다. agent 토큰 호출자의 거부도 같은
 > 시험이 보고, 실제 인스턴스에서는 재지 않았다. plugin 프로세스(markdown)가 실제로

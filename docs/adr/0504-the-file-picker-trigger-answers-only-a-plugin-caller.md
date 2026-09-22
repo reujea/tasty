@@ -1,4 +1,4 @@
-# ADR-0498: `file_picker.trigger` 는 plugin 호출자에게만 답한다
+# ADR-0504: `file_picker.trigger` 는 plugin 호출자에게만 답한다
 
 - **Status**: Accepted
 - **Date**: 2026-09-23

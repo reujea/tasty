@@ -64,7 +64,7 @@ pub fn handle_trigger(
 ) -> JsonRpcResponse {
     // plugin 만 연다. 결과는 호출한 plugin 에게만 push 되므로 CLI·agent 호출에는 받을 곳이
     // 없고, 남는 효과는 사용자 입력 포커스를 가져가는 popup 뿐이다 — 원칙 1 ①·2.3 위반이다
-    // (`docs/adr/0498-the-file-picker-trigger-answers-only-a-plugin-caller.md`).
+    // (`docs/adr/0504-the-file-picker-trigger-answers-only-a-plugin-caller.md`).
     let requester_plugin = match caller {
         CallerContext::Plugin { plugin_id, .. } => plugin_id.clone(),
         CallerContext::Local | CallerContext::Agent { .. } => {
@@ -179,7 +179,7 @@ mod tests {
     }
 
     /// CLI·agent 호출은 popup 을 열지 않고 `-32016` 으로 끝난다. 결과를 받을 plugin 이 없어
-    /// 남는 효과가 사용자 입력 포커스를 가져가는 것뿐이었다(원칙 1 ①·2.3, ADR-0498).
+    /// 남는 효과가 사용자 입력 포커스를 가져가는 것뿐이었다(원칙 1 ①·2.3, ADR-0504).
     #[test]
     fn trigger_from_a_non_plugin_caller_is_refused_without_opening_the_popup() {
         let agent = CallerContext::Agent {

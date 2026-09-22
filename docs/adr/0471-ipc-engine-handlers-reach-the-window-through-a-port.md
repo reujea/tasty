@@ -94,7 +94,7 @@ GUI·debug 핸들러만 `AppState` 를 받고, 그것은 엔진 핸들러 표와
 Decision 4 는 창 상태 자체가 대상인 핸들러를 창 라우터로 옮겼지만 **누가 그 문에 닿는가**는 적지
 않았다. 권한 게이트는 `CallerContext::Local` 을 무조건 통과시키므로 CLI·agent 호출이 창 라우터에
 그대로 닿았고, `file_picker.trigger` 가 그 호출로 사용자 입력 포커스를 가져갔다. 그 caller 정책은
-[ADR-0498](0498-the-file-picker-trigger-answers-only-a-plugin-caller.md) 이 정한다. 이 ADR 쪽에서
+[ADR-0504](0504-the-file-picker-trigger-answers-only-a-plugin-caller.md) 이 정한다. 이 ADR 쪽에서
 확정된 것은 둘이다.
 
 - **입구 본문은 창을 이름으로 못 부른다.** `handle_checked_request` 는 Decision 5 대로 `AppState` 를
@@ -166,7 +166,7 @@ Decision 4 는 창 상태 자체가 대상인 핸들러를 창 라우터로 옮�
 
 ## References
 
-- [ADR-0498](0498-the-file-picker-trigger-answers-only-a-plugin-caller.md) — 창 라우터 팔 `file_picker.trigger` 의 호출자 정책(후속 항 "입구 본문 봉인과 창 라우터의 호출자")
+- [ADR-0504](0504-the-file-picker-trigger-answers-only-a-plugin-caller.md) — 창 라우터 팔 `file_picker.trigger` 의 호출자 정책(후속 항 "입구 본문 봉인과 창 라우터의 호출자")
 - [ADR-0355](0355-app-state-ownership-is-split-by-the-gui-boundary-not-by-a-second-struct.md) — 이 결정이 엔진 핸들러 층을 닫는 잔여 ①(진입점은 열려 있다)
 - [ADR-0470](0470-an-ipc-handler-takes-window-state-only-when-it-reads-it.md) — 인자를 빼는 앞 걸음과 이 결정이 이은 남은 걸음
 - [ADR-0533](0533-an-omitted-target-keeps-its-focus-default-only-where-nothing-names-one.md) — 이 결정이 정하지 않은 대상 생략 기본값의 자리별 재결정
