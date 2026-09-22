@@ -75,8 +75,13 @@ gui 는 창(engine)마다 레이아웃 슬롯 하나를 점유하고, 레이아�
 - `tests/e2e_tests.rs` 의 `a_headless_daemon_answers_that_it_holds_no_layout_slot` 이 실패한다 — 헤드리스가
   슬롯을 잡기 시작했다(영속 배선이 생겼다)는 뜻이다. 그때 이 ADR 을 다시 연다. 변이 확인: 헤드리스
   `bootstrap_engine` 이 `Some(1)` 슬롯을 넘기게 하면 이 시험이 죽는다(2026-09-23).
-- `src/boot.rs` 의 `a_restore_layout_setting_is_announced_as_ignored` 가 실패한다 — 부팅 알림이 사라졌다는 뜻이다.
+- `src/boot.rs` 의 `a_restore_layout_setting_is_announced_as_ignored` 가 실패한다 — 고지 **문구**가 무엇을
+  안 하는지·어떻게 확인하는지를 더는 말하지 않는다는 뜻이다. 이 시험은 함수의 반환값만 본다.
   변이 확인: `layout_persistence_notice` 가 늘 `None` 을 돌려주게 하면 죽는다(2026-09-23).
+- `tests/e2e_tests.rs` 의 `a_headless_daemon_warns_at_boot_that_restore_layout_is_ignored` 가 실패한다 — 부팅이
+  그 고지를 **warn 으로** 내지 않는다는 뜻이다(설정을 켠 헤드리스 자식의 stderr 를 제품 기본 필터 그대로 읽는다).
+  위 단위 시험은 레벨을 못 보므로 이 칸이 따로 있다. 변이 확인: 부팅의 `tracing::warn!` 을 `trace!` 나
+  `info!` 로 내리면 죽는다(2026-09-23).
 
 **원리적으로 안 붙는 것**
 

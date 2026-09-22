@@ -1760,6 +1760,58 @@ fn a_headless_daemon_answers_that_it_holds_no_layout_slot() {
     );
 }
 
+/// `general.restore_layout` 을 켠 헤드리스는 그 설정이 이 빌드에서 아무 일도 안 한다는 것을
+/// 부팅 때 **경고로** 말한다(docs/adr/0539-headless-does-not-persist-layouts.md 결정 ①). 문구는
+/// `src/boot.rs` 의 단위 시험이 재지만, 그 시험은 함수의 반환값만 본다 — 부팅이 그것을 어느
+/// 레벨로 내보내는지는 이 시험만 본다. stderr 기본 필터가 warn 이라, 레벨이 info 이하로 내려가면
+/// 사람은 아무것도 못 보는데 단위 시험은 초록으로 남는다. 그래서 자식의 stderr 를 **제품 기본
+/// 필터 그대로**(하네스가 `spawn_diag::LOG_FILTER` 로 박는다) 읽어 줄이 있는지와 그 줄의 레벨을
+/// 함께 단언한다.
+#[cfg(not(feature = "gui"))]
+#[test]
+fn a_headless_daemon_warns_at_boot_that_restore_layout_is_ignored() {
+    let _lane = lane();
+    let tasty = common::TastyInstance::spawn_with_restore_layout();
+    // 고지는 포트 파일보다 먼저 나가지만, 배출 스레드가 링에 넣는 시점은 따로다 — IPC 한 번을
+    // 왕복시켜 부팅이 끝났음을 확인한 뒤 짧게 기다린다.
+    tasty.call("system.info", json!({}));
+    let deadline = std::time::Instant::now() + Duration::from_secs(5);
+    let line = loop {
+        if let Some(line) = tasty.find_stderr(|l| l.contains("general.restore_layout is on")) {
+            break line;
+        }
+        assert!(
+            std::time::Instant::now() < deadline,
+            "restore_layout 을 켠 헤드리스가 부팅 고지를 stderr 에 안 냈다 — 레벨이 기본 필터 아래로 \
+             내려갔거나 호출이 사라졌다:\n{}",
+            tasty.startup_diagnostics()
+        );
+        std::thread::sleep(Duration::from_millis(50));
+    };
+    // fmt 레이어는 파이프에도 ANSI 색을 붙인다 — 레벨 토큰을 가르기 전에 벗긴다.
+    let mut plain = String::with_capacity(line.len());
+    let mut chars = line.chars();
+    while let Some(c) = chars.next() {
+        if c == '\u{1b}' {
+            for c in chars.by_ref() {
+                if c.is_ascii_alphabetic() {
+                    break;
+                }
+            }
+        } else {
+            plain.push(c);
+        }
+    }
+    assert!(
+        plain.split_whitespace().any(|token| token == "WARN"),
+        "부팅 고지가 warn 이 아니다 — 기본 필터가 warn 이라 이 줄이 보인 것은 필터가 바뀐 탓일 수 있다: {plain}"
+    );
+    assert!(
+        plain.contains("does not save or restore layouts"),
+        "고지가 무엇을 안 하는지 말하지 않는다: {plain}"
+    );
+}
+
 /// 디렉토리 dispatch 는 host 기본 핸들러 `directory-system`(OS 열기)으로 간다 — 하네스가 켠
 /// `TASTY_DEBUG_OS_OPEN_LOG` 아래에서는 그것이 **띄워지지 않고 기록된다.**
 ///

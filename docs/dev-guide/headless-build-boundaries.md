@@ -119,7 +119,8 @@ headless 쪽 호출자가 debug 전용 핸들러(`#[cfg(debug_assertions)]` 모�
   두 intent 는 gui 전용이다), 그 설정이 켜져 있으면 부팅이 warn 한 줄로 무시된다고 말하고
   `system.info` 의 `layout_slot: null` 이 in-band 답이다. 근거·대안
   [ADR-0539](../adr/0539-headless-does-not-persist-layouts.md). 시험은 `src/boot.rs` 의
-  `a_restore_layout_setting_is_announced_as_ignored` 와 `tests/e2e_tests.rs` 의
+  `a_restore_layout_setting_is_announced_as_ignored`(문구)와 `tests/e2e_tests.rs` 의
+  `a_headless_daemon_warns_at_boot_that_restore_layout_is_ignored`(부팅이 warn 으로 내는가) ·
   `a_headless_daemon_answers_that_it_holds_no_layout_slot`.
 - **attach mirror 로 나가는 forward 셋.** git 조회(`git_viewer.query`) · markdown 원문
   (`markdown_mirror.content_request`) · mirror 구조 op. 큐를 비워 attach 채널로 보내는 쪽이 gui 에만

@@ -171,7 +171,7 @@ pub struct TastyInstance {
     startup: StartupTimeline,
 }
 
-fn write_isolated_config(isolated_home: &std::path::Path, inherit_cwd: bool) {
+fn write_isolated_config(isolated_home: &std::path::Path, inherit_cwd: bool, restore_layout: bool) {
     let tasty_dir = isolated_home.join(".tasty");
     std::fs::create_dir_all(&tasty_dir).expect("failed to create isolated .tasty dir");
 
@@ -196,12 +196,13 @@ confirm_close_running = false
 click_to_move_cursor = true
 inherit_cwd = {inherit_cwd}
 close_behavior = "ask"
-restore_layout = false
+restore_layout = {restore_layout}
 restore_surface_content = false
 link_click_modifier = "ctrl"
 "#,
         shell = shell_path,
-        inherit_cwd = inherit_cwd
+        inherit_cwd = inherit_cwd,
+        restore_layout = restore_layout
     );
     std::fs::write(tasty_dir.join("config.toml"), config)
         .expect("failed to write isolated config.toml");
@@ -224,16 +225,28 @@ impl TastyInstance {
     /// 인스턴스에 런타임으로 바꿔 끼울 수 없다. 값이 다른 인스턴스가 필요하면
     /// 항상 별도 프로세스로 남는다.
     pub fn spawn_with_inherit_cwd(inherit_cwd: bool) -> Self {
-        Self::spawn_configured(inherit_cwd, &[])
+        Self::spawn_configured(inherit_cwd, false, &[])
     }
 
     /// 환경 변수를 더해 띄우는 변형. debug 전용 조절 손잡이(`TASTY_DEBUG_*`)를 켠 인스턴스를
     /// 공유 인스턴스와 따로 세울 때 쓴다.
     pub fn spawn_with_env(extra_env: &[(&str, &str)]) -> Self {
-        Self::spawn_configured(false, extra_env)
+        Self::spawn_configured(false, false, extra_env)
     }
 
-    fn spawn_configured(inherit_cwd: bool, extra_env: &[(&str, &str)]) -> Self {
+    /// `general.restore_layout` 을 켠 설정으로 띄우는 변형. 다른 모든 인스턴스는 이 설정을 꺼서
+    /// 실행 간 레이아웃이 새어들지 않게 하는데, 켠 설정에서만 나오는 부팅 동작(헤드리스의
+    /// "레이아웃을 저장하지 않는다" 고지)을 재려면 켠 프로세스가 따로 있어야 한다 — 기동 시점
+    /// 설정이라 공유 인스턴스에 끼울 수 없다.
+    pub fn spawn_with_restore_layout() -> Self {
+        Self::spawn_configured(false, true, &[])
+    }
+
+    fn spawn_configured(
+        inherit_cwd: bool,
+        restore_layout: bool,
+        extra_env: &[(&str, &str)],
+    ) -> Self {
         // 유일화 키에 **시각을 안 쓴다.** 시계의 해상도는 플랫폼의 성질이라 같은 코드가
         // 어떤 OS 에서는 유일하고 어떤 OS 에서는 겹친다 — 겹치면 두 완주가 같은 경로를
         // 쓰고 먼저 끝난 쪽이 다른 쪽의 파일을 지운다. 단조 카운터는 해상도가 없어
@@ -259,7 +272,7 @@ impl TastyInstance {
         // 격리된 ~/.tasty/config.toml 사전 작성 — shell auto-detect 분기를 결정적으로
         // 차단하여 host /etc/passwd 와 $SHELL 의존을 제거한다. shell_setup_mode 진입
         // 경로를 막아 port file 이 항상 작성되도록 보장한다.
-        write_isolated_config(&isolated_home, inherit_cwd);
+        write_isolated_config(&isolated_home, inherit_cwd, restore_layout);
 
         let mut command = Command::new(spawn_diag::instance_bin());
         command
