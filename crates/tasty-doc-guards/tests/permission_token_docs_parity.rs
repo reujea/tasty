@@ -18,6 +18,8 @@
 
 use std::path::PathBuf;
 
+use tasty_doc_guards::manifest_text::TokenForm;
+
 /// 토큰 문자열의 단일 출처.
 const SOURCE: &str = "crates/tasty-plugin-manifest/src/types.rs";
 
@@ -38,49 +40,20 @@ fn read(rel: &str) -> String {
     std::fs::read_to_string(&path).unwrap_or_else(|e| panic!("read {}: {e}", path.display()))
 }
 
-/// `as_token` 본문의 match 팔에서 토큰을 뽑는다.
+/// `as_token` 본문의 match 팔에서 토큰을 뽑는다 — 판독은 `manifest_text::permission_tokens`
+/// 한 벌이다(같은 함수를 읽는 판독기가 둘이면 한쪽만 고쳐져 갈린다).
 ///
 /// - `Self::SurfaceRead => "surface.read".into(),` → `surface.read` (그대로 검색)
 /// - `Self::IpcInvoke(prefix) => format!("ipc.invoke:{prefix}"),` → `ipc.invoke:`
 ///   (scope 값은 매니페스트가 정하므로 문서에는 `ipc.invoke:<prefix>` 처럼 적힌다 —
 ///   `:` 까지만 대조한다)
 fn tokens_from_source(src: &str) -> Vec<String> {
-    let body = src
-        .split_once("pub fn as_token(&self) -> String {")
-        .unwrap_or_else(|| panic!("{SOURCE}: as_token not found"))
-        .1;
-    let mut out = Vec::new();
-    for line in body.lines() {
-        let t = line.trim();
-        // 함수 밖으로 나가면 중단 — 다음 아이템 선언이 나오는 지점.
-        if t.starts_with("pub fn ") || t.starts_with("fn ") {
-            break;
-        }
-        let Some(arm) = t.strip_prefix("Self::") else {
-            continue;
-        };
-        let Some((_, rhs)) = arm.split_once("=>") else {
-            continue;
-        };
-        let rhs = rhs.trim();
-        if let Some(rest) = rhs.strip_prefix("format!(\"") {
-            // scoped: `pfx:{value}"` 형태에서 `{` 앞까지가 고정 prefix.
-            let (prefix, _) = rest
-                .split_once('{')
-                .unwrap_or_else(|| panic!("{SOURCE}: unparsed scoped arm: {t}"));
-            assert!(
-                prefix.ends_with(':'),
-                "{SOURCE}: scoped token prefix should end with ':': {prefix}"
-            );
-            out.push(prefix.to_string());
-        } else if let Some(rest) = rhs.strip_prefix('"') {
-            let (tok, _) = rest
-                .split_once('"')
-                .unwrap_or_else(|| panic!("{SOURCE}: unparsed arm: {t}"));
-            out.push(tok.to_string());
-        }
-    }
-    out
+    tasty_doc_guards::manifest_text::permission_tokens(src)
+        .into_values()
+        .map(|form| match form {
+            TokenForm::Literal(t) | TokenForm::Prefixed(t) => t,
+        })
+        .collect()
 }
 
 #[test]

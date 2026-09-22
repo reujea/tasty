@@ -36,44 +36,73 @@ impl TokenForm {
 /// `Permission::as_token` 의 팔을 **variant 이름 → 토큰 형태** 로 읽는다.
 ///
 /// 토큰 문자열의 단일 출처는 그 함수다 — exhaustive match 라 variant 를 늘리면 팔이
-/// 강제로 추가된다.
+/// 강제로 추가된다. 팔은 공용 판정기([`crate::match_arms`])가 떼고, 모르는 모양(여러 variant
+/// 를 `|` 로 묶은 팔, 리터럴도 `format!` 도 아닌 본문)은 panic 한다 — 줄 단위로 읽던
+/// 판독은 그런 팔을 `continue` 로 건너뛰어, 본문이 여러 줄로 내려간 새 variant 의 토큰이
+/// 문서 대조에서 조용히 빠졌다.
 pub fn permission_tokens(src: &str) -> BTreeMap<String, TokenForm> {
-    let body = src
-        .split_once("pub fn as_token(&self) -> String {")
-        .expect("as_token 을 못 찾았다")
-        .1;
+    use crate::match_arms::{Source, matching_close};
+    let source = Source::new(src);
+    let bodies = source.fn_bodies("as_token");
+    assert_eq!(
+        bodies.len(),
+        1,
+        "`fn as_token` 정의가 {} 개다 — 판독기는 `Permission` 의 것 하나를 가정한다",
+        bodies.len()
+    );
+    let body = &bodies[0];
+    let block = source
+        .code_slice(body)
+        .find("match self")
+        .and_then(|k| {
+            let from = body.start + k;
+            source.code[from..].find('{').map(|o| from + o)
+        })
+        .and_then(|open| matching_close(&source.code, open).map(|close| open..close + 1))
+        .expect("`as_token` 의 `match self {{ … }}` 를 못 찾았다");
+    let arms = source
+        .match_arms(block)
+        .unwrap_or_else(|e| panic!("`as_token` 의 팔을 못 읽었다 — {e}"));
     let mut out = BTreeMap::new();
-    for line in body.lines() {
-        let t = line.trim();
-        // 함수 밖으로 나가면 중단 — 다음 아이템 선언이 나오는 지점.
-        if t.starts_with("pub fn ") || t.starts_with("fn ") {
-            break;
-        }
-        let Some(arm) = t.strip_prefix("Self::") else {
-            continue;
-        };
-        let Some((lhs, rhs)) = arm.split_once("=>") else {
-            continue;
-        };
+    for arm in arms {
+        let pattern = source.slice(&arm.pattern);
+        let alts = source.alternatives(&arm.pattern);
+        let variant = pattern
+            .strip_prefix("Self::")
+            .filter(|_| alts.len() == 1 && arm.guard.is_none())
+            .unwrap_or_else(|| panic!("`as_token` 팔 패턴을 못 읽었다: `{pattern}`"));
         // `Extension(target)` 처럼 payload 가 붙은 팔은 이름만 남긴다.
-        let name = lhs.split(['(', ' ']).next().unwrap_or(lhs).to_string();
-        let rhs = rhs.trim();
+        let name = variant
+            .split(['(', ' ', '{'])
+            .next()
+            .unwrap_or(variant)
+            .to_string();
+        let rhs = source.slice(&arm.body).trim();
+        // rustfmt 가 긴 팔을 `=> { … }` 블록으로 내린 형태 — 문장 없는 식 하나면 그 식이다.
+        let rhs = match rhs.strip_prefix('{').and_then(|r| r.strip_suffix('}')) {
+            Some(inner) if !source.code_slice(&arm.body).contains(';') => inner.trim(),
+            _ => rhs,
+        };
         let form = if let Some(rest) = rhs.strip_prefix("format!(\"") {
             let (prefix, _) = rest
                 .split_once('{')
-                .unwrap_or_else(|| panic!("scoped 팔을 못 읽었다: {t}"));
+                .unwrap_or_else(|| panic!("scoped 팔을 못 읽었다: {rhs}"));
             assert!(
                 prefix.ends_with(':'),
                 "scoped 토큰 prefix 는 ':' 로 끝나야 한다: {prefix}"
             );
             TokenForm::Prefixed(prefix.to_string())
         } else if let Some(rest) = rhs.strip_prefix('"') {
-            let (tok, _) = rest
+            let (tok, tail) = rest
                 .split_once('"')
-                .unwrap_or_else(|| panic!("팔을 못 읽었다: {t}"));
+                .unwrap_or_else(|| panic!("팔을 못 읽었다: {rhs}"));
+            assert!(
+                matches!(tail, ".into()" | ".to_string()" | ".to_owned()"),
+                "고정 토큰 팔의 본문이 `\"…\".into()` 꼴이 아니다: {rhs}"
+            );
             TokenForm::Literal(tok.to_string())
         } else {
-            continue;
+            panic!("`as_token` 팔 본문이 리터럴도 `format!` 도 아니다: {rhs}");
         };
         out.insert(name, form);
     }
