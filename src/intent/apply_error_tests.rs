@@ -120,3 +120,78 @@ fn an_agent_forward_is_marked_for_a_silent_failure() {
     assert_eq!(engine.pending_structural_forward.len(), 1);
     assert!(!engine.pending_structural_forward[0].silent_failure);
 }
+
+/// preset 적용 실패(없는 이름)는 사용자 발화에서만 실패 toast 를 낸다.
+/// `preset::apply` 의 `origin.is_user()` 가드를 `true` 로 바꾸는 변이에서 실패해야 한다.
+#[test]
+fn a_preset_apply_failure_toasts_only_for_the_user() {
+    let (mut core, mut state, mut engine) = fixture();
+    let apply = || Intent::ApplyPreset {
+        kind: tasty_presets::PresetKind::Tab,
+        name: "no-such-preset-apply-error-tests".to_string(),
+        category: None,
+    };
+    preset::handle(
+        &mut core,
+        &mut state,
+        &mut engine,
+        &apply().from_agent_ipc(),
+    );
+    assert_eq!(
+        state.toasts.len(),
+        0,
+        "에이전트 발화의 적용 실패는 toast 를 안 낸다"
+    );
+
+    preset::handle(
+        &mut core,
+        &mut state,
+        &mut engine,
+        &apply().from_user_menu("test"),
+    );
+    assert_eq!(
+        state.toasts.len(),
+        1,
+        "사용자 발화의 적용 실패는 toast 를 낸다"
+    );
+}
+
+/// preset 저장 실패(저장소가 거절하는 이름)는 사용자 발화에서만 실패 toast 를 낸다.
+/// 이름 검증에서 거절되므로 디스크에 아무것도 쓰지 않는다.
+/// `preset::save` 의 `show_toast` 가드를 `true` 로 바꾸는 변이에서 실패해야 한다.
+#[test]
+fn a_preset_save_failure_toasts_only_for_the_user() {
+    let (mut core, mut state, mut engine) = fixture();
+    let ws = &engine.workspaces[0];
+    let captured = crate::intent::preset_capture::capture_workspace_preset(
+        &engine,
+        ws,
+        None,
+        &engine.surface_registry,
+    )
+    .expect("capture");
+    let save = || Intent::SavePreset {
+        base_name: "unused".to_string(),
+        explicit_name: Some("bad/name".to_string()),
+        overwrite: true,
+        preset: ClonedPreset::Workspace(captured.clone()),
+    };
+    preset::handle(&mut core, &mut state, &mut engine, &save().from_agent_ipc());
+    assert_eq!(
+        state.toasts.len(),
+        0,
+        "에이전트 발화의 저장 실패는 toast 를 안 낸다"
+    );
+
+    preset::handle(
+        &mut core,
+        &mut state,
+        &mut engine,
+        &save().from_user_menu("test"),
+    );
+    assert_eq!(
+        state.toasts.len(),
+        1,
+        "사용자 발화의 저장 실패는 toast 를 낸다"
+    );
+}
