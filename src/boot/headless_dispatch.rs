@@ -273,8 +273,10 @@ fn intercept_app_layer(
     if crate::ipc::handler::plugin::is_lifecycle_toggle_method(&cmd.request.method) {
         super::headless_plugins::ensure_plugin_manager_metadata(app, engine);
         let hook_events = engine.plugin_hook_events.clone();
+        let surface_registry = engine.surface_registry.clone();
         if let Some((resp, events)) = crate::ipc::handler::plugin::dispatch_lifecycle_toggle(
             app.plugin_manager.as_mut(),
+            &surface_registry,
             &cmd.request.method,
             cmd.request.id.clone().unwrap_or(serde_json::Value::Null),
             &cmd.request.params,

@@ -1299,9 +1299,18 @@ impl CoreState {
         cwd: Option<&std::path::Path>,
         params: &serde_json::Value,
     ) -> anyhow::Result<Box<dyn crate::model::Surface>> {
+        // 철회된 kind(그것을 제공하던 plugin 이 꺼졌다)는 `unknown` 과 다른 사유로 거절한다 —
+        // 사용자가 할 일이 다르다(ADR-0534). 정의가 남아 있어도 새로 만들지 않는다.
+        if let Some(plugin_id) = self.surface_registry.withdrawn_by(kind) {
+            return Err(crate::core::surface_registry::SurfaceKindWithdrawn {
+                kind: kind.to_string(),
+                plugin_id,
+            }
+            .into());
+        }
         let def = self
             .surface_registry
-            .get(kind)
+            .get_live(kind)
             .ok_or_else(|| anyhow::anyhow!("unknown surface kind: {}", kind))?;
         // kind별 default_params 정책 토큰을 주입한다(예: 새 explorer 는 "마지막으로
         // 고른 view mode"). params 에 없는 키만 채운다(명시 우선). restore 경로는 create

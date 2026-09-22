@@ -1,4 +1,4 @@
-<!-- source-hash: 64c3ac096ae9 -->
+<!-- source-hash: 3c10954c5e09 -->
 # Plugins
 
 Use plugins for tools such as Markdown and image viewers or AI agent integrations. Explore the bundled plugins, add new ones, and manage which tools run and what permissions they have.
@@ -9,7 +9,7 @@ Features such as the Markdown viewer, the image viewer and the Claude Code integ
 
 - Plugins are installed in `~/.tasty/plugins/<id>/`, with logs in `~/.tasty/plugins-logs/<id>.log`.
 - The bundled plugins are installed automatically on first launch. After that they can be disabled or removed exactly like plugins you installed yourself. A bundled plugin you removed is not reinstalled on the next launch.
-- When a plugin is disabled, the Surface kinds · commands · menu items it added disappear with it.
+- When a plugin is disabled, the Surface kinds · commands · menu items it added disappear with it. This takes effect right away when you disable or remove it while Tasty is running: opening a new Surface of such a kind fails with the reason that the plugin providing it is turned off. Surfaces you already opened stay as they are and pick up again when you enable the plugin.
 
 ## Bundled plugins
 

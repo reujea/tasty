@@ -58,7 +58,7 @@ fn surface_kind_json(
     plugin_id: &str,
     k: &tasty_plugin_manifest::SurfaceKindDecl,
 ) -> Value {
-    let def = registry.get(&k.kind);
+    let def = registry.get_live(&k.kind);
     let owner = def.as_ref().map(|d| d.source.clone());
     let mine = matches!(
         &owner,
@@ -499,8 +499,13 @@ pub fn enable(
 /// `plugin.disable` 의 본체 — graceful shutdown. 돌기 전에 잡은 `was_running` 으로
 /// `PluginUnloaded` 를 함께 낼지 가른다(끄기 전부터 안 돌던 plugin 은 "내려갔다" 가
 /// 아니다). 결정 §7.2: reason 은 항상 `User`.
+///
+/// 그 plugin 이 등록한 surface kind 도 여기서 철회한다(ADR-0534) — 두 조합의 disable 과
+/// 설정 모달이 모두 이 함수를 거치므로 한 자리다. remove 는 매니저의 `disable` 을 직접
+/// 부르므로 `App::plugin_remove` 가 같은 철회를 따로 한다.
 pub fn disable(
     mgr: Option<&mut PluginManager>,
+    registry: &crate::core::surface_registry::SurfaceKindRegistry,
     plugin_id: String,
 ) -> anyhow::Result<Vec<crate::core::intent::CoreEvent>> {
     let Some(mgr) = mgr else {
@@ -508,6 +513,7 @@ pub fn disable(
     };
     let was_running = mgr.is_running(&plugin_id);
     mgr.disable(&plugin_id)?;
+    registry.withdraw_plugin(&plugin_id);
     let mut events = vec![crate::core::intent::CoreEvent::PluginEnableToggled {
         plugin_id: plugin_id.clone(),
         enabled: false,
@@ -528,6 +534,7 @@ pub fn disable(
 /// 그 차이가 이 함수 밖에 있는 유일한 것이다.
 pub fn dispatch_lifecycle_toggle(
     mgr: Option<&mut PluginManager>,
+    registry: &crate::core::surface_registry::SurfaceKindRegistry,
     method: &str,
     id: Value,
     params: &Value,
@@ -549,7 +556,7 @@ pub fn dispatch_lifecycle_toggle(
     // CLI 가 그대로 사람에게 보여 주는 계약이다 — 조합마다 갈리면 안 된다.
     let (verb, key, result) = match method {
         "plugin.enable" => ("enable", "enabled", enable(mgr, plugin_id)),
-        "plugin.disable" => ("disable", "disabled", disable(mgr, plugin_id)),
+        "plugin.disable" => ("disable", "disabled", disable(mgr, registry, plugin_id)),
         // 위에서 표로 걸렀으므로 여기 오는 것은 **표에 이름을 넣고 arm 을 안 넣은**
         // 경우뿐이다. 조용히 `None` 을 돌려주면 그 메서드가 `-32601` 로 새어나가
         // "구현 안 됨" 과 구별되지 않으므로, 그 자리에서 크게 실패한다.

@@ -341,6 +341,7 @@ modifier-hint 는 0035(좁힘 + 지연) · 0038(빈 섹션) · 0064(타이머 �
 ## plugin 시스템 — 경계 · namespace · 수명
 
 namespace 라우팅은 0140 → 0153 → 0171(오류 코드 개정 — 「IPC 계약 · 오류 코드 · 멱등 키」 그룹) · 0173 · 0179 · 0282 · 0311 이다.
+disable 이 무엇을 남기는가는 0173(namespace 소유를 남긴다) → 0534(surface kind 정의를 남기고 새 생성만 막는다)이다.
 프로세스 수명의 메인 스레드 대기는 0457(종료 회수) → 0505(기동의 연결 대기, 같은 형태의 대칭)이다.
 운영 문서: [dev-guide/plugin-development](../dev-guide/plugin-development.md) · [concepts/plugins](../concepts/plugins.md)
 
@@ -366,6 +367,7 @@ namespace 라우팅은 0140 → 0153 → 0171(오류 코드 개정 — 「IPC �
 | 0457 | [단건 plugin 종료는 메인 스레드 밖에서 회수하고, 새 프로세스는 옛 것이 빠진 뒤에 뜬다](0457-a-single-plugin-shutdown-is-reaped-off-the-main-thread.md) | Accepted | 2026-09-21 | plugin, host-plugin, lifecycle, shutdown, main-thread, healthcheck, restart, concurrency |
 | 0505 | [plugin 기동은 연결을 메인 스레드 밖에서 기다리고, 연결 전의 요청은 쌓았다가 보낸다](0505-a-plugin-start-waits-for-its-connection-off-the-main-thread.md) | Accepted | 2026-09-23 | plugin, host-plugin, lifecycle, startup, handshake, main-thread, concurrency, adr-0457 |
 | 0525 | [번들을 부르는 시험 홈은 하네스 소유 스냅숏에서 번들을 hardlink 로 받는다](0525-test-homes-hardlink-the-bundle-from-a-harness-owned-snapshot.md) | Accepted | 2026-09-23 | testing, harness, plugin, performance, disk-io, hardlink, adr-0182, adr-0191 |
+| 0534 | [꺼진 plugin 의 surface kind 는 지우지 않고 철회한다 — 열린 surface 는 두고 새 생성만 막는다](0534-a-disabled-plugins-surface-kinds-are-withdrawn-not-erased.md) | Accepted | 2026-09-23 | plugin, host-plugin, lifecycle, surface-kind, surface-registry, disable, remove, compatibility, adr-0173 |
 
 ## plugin 렌더 채널 · webview
 

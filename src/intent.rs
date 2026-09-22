@@ -43,6 +43,8 @@ pub use crate::core::origin::{AgentSource, IntentOrigin};
 /// `Core::apply` 가 반환한 에러를 도메인 핸들러가 공통 처리한다. mirror(원격 attach
 /// client) 워크스페이스에서 구조 변경을 시도해 거부된 경우
 /// ([`crate::core::MirrorStructuralBlocked`]) 사용자에게 차단 toast 를 띄우고,
+/// 철회된 kind 로 만들려다 거절된 경우([`crate::core::surface_registry::SurfaceKindWithdrawn`])
+/// 그 kind 를 제공하던 plugin 이 꺼졌다는 toast 를 띄우고(ADR-0534),
 /// 그 외 에러는 `warn` 로그를 남긴다. `label` 은 로그용 컨텍스트(예: "SplitSurface").
 ///
 /// **toast 는 사용자 origin 에서만 난다.** 에이전트 origin 의 차단은 사용자 발화와 같은
@@ -73,6 +75,30 @@ pub fn report_apply_error(
         #[cfg(feature = "gui")]
         state.toasts.push(
             crate::i18n::t("attach.toast.mirror_structural_blocked"),
+            crate::model::toast_kind::ToastKind::Warning,
+            crate::model::toast_kind::ToastScope::Window,
+        );
+    } else if let Some(withdrawn) =
+        err.downcast_ref::<crate::core::surface_registry::SurfaceKindWithdrawn>()
+    {
+        // 사용자가 연 것이면 이유를 보여 준다 — 그 kind 를 제공하던 plugin 이 꺼졌다
+        // (ADR-0534). 에이전트 발화는 로그만(ADR-0503).
+        if !origin.is_user() {
+            tracing::warn!("{label} failed (agent origin, no toast): {err}");
+            return;
+        }
+        tracing::info!(
+            kind = %withdrawn.kind,
+            plugin_id = %withdrawn.plugin_id,
+            "{label} refused: the surface kind's plugin is turned off"
+        );
+        #[cfg(feature = "gui")]
+        state.toasts.push(
+            crate::i18n::t_fmt2(
+                "surface.kind_toast.withdrawn",
+                &withdrawn.kind,
+                &withdrawn.plugin_id,
+            ),
             crate::model::toast_kind::ToastKind::Warning,
             crate::model::toast_kind::ToastScope::Window,
         );

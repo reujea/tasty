@@ -58,6 +58,30 @@ fn an_unforwardable_block_toasts_only_for_the_user() {
     );
 }
 
+/// 철회된 kind(제공 plugin 이 꺼졌다)로 만들려다 거절되면 사용자 발화에서만 그 사유를
+/// toast 로 보인다 — 에이전트 발화는 로그뿐이다(ADR-0534 · ADR-0503).
+#[test]
+fn a_withdrawn_kind_refusal_toasts_only_for_the_user() {
+    let (_core, mut state, mut engine) = fixture();
+    let err = anyhow::Error::new(crate::core::surface_registry::SurfaceKindWithdrawn {
+        kind: "markdown".to_string(),
+        plugin_id: "com.tasty.markdown".to_string(),
+    });
+    report_apply_error(&mut state, &mut engine, &agent(), "t", &err);
+    assert_eq!(
+        state.toasts.len(),
+        0,
+        "에이전트 발화의 거절은 toast 를 안 낸다"
+    );
+
+    report_apply_error(&mut state, &mut engine, &user(), "t", &err);
+    assert_eq!(
+        state.toasts.len(),
+        1,
+        "사용자 발화의 거절은 사유 toast 를 낸다"
+    );
+}
+
 /// IPC(`markdown.navigate`)가 mirror 워크스페이스의 surface 를 바꾸면 op 는 원격으로
 /// forward 되고, 그 op 는 실패 회신이 toast 가 아니라 로그로 가도록 표시된다. 같은 op 를
 /// 사용자가 발화하면 표시되지 않는다(원격 실패 toast 는 종전대로).

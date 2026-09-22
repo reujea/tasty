@@ -64,7 +64,7 @@ pub(crate) fn rebuild_surface(
             // 그 pane 의 형제 tab(무고한 terminal 포함)까지 통째로 버린다. 대신
             // kind/snapshot 을 보존한 deferred placeholder 로 남겨 형제를 살리고,
             // reify(`reify_displayed_surfaces`)가 kind 등록 후 실제화한다.
-            match engine.surface_registry.get(&kind) {
+            match engine.surface_registry.get_live(&kind) {
                 None => {
                     let ph =
                         EmptySurface::new_deferred_plugin(id, DeferredPlugin { kind, snapshot });

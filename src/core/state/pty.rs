@@ -194,7 +194,7 @@ impl CoreState {
                 if let Some(pane) = ws.pane_layout_mut().find_pane_mut(pane_id) {
                     for tab in &mut pane.tabs {
                         if tab.reify_deferred_plugin(surface_id, |kind, snap| {
-                            let def = registry.get(kind)?;
+                            let def = registry.get_live(kind)?;
                             (def.restore)(surface_id, snap).ok()
                         }) {
                             return true;

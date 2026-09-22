@@ -409,13 +409,54 @@ impl SurfaceKindDef {
 /// 내부적으로 `RwLock`을 사용하여 plugin이 부팅 후 동적으로 kind를 등록할 수 있게
 /// 한다. Builtin은 부팅 시 한 번 register되고 read만 일어나는 hot path는 read-lock
 /// 한 번이므로 사실상 lock-free에 가깝다.
+///
+/// # 철회(withdrawn)
+///
+/// plugin 을 disable · remove 하면 그 plugin 이 등록한 kind 는 **지우지 않고 철회로
+/// 표시한다**([ADR-0534](../../docs/adr/0534-a-disabled-plugins-surface-kinds-are-withdrawn-not-erased.md)).
+/// 이미 열린 surface 는 자기 kind 의 `snapshot` · 아이콘 · 입력 플래그를 계속 읽어야
+/// 하므로(지우면 layout 저장이 그 surface 를 `empty` 로 떨어뜨린다) [`Self::get`] 은
+/// 철회된 것도 돌려준다. 새로 만드는 쪽 — 생성 funnel · 복원 · 목록 — 은
+/// [`Self::get_live`] · [`Self::contains`] · [`Self::kinds_snapshot`] 을 읽어 철회된
+/// kind 를 "지금 없는 kind" 로 본다. 같은 kind 가 다시 [`Self::register`] 되면(plugin 을
+/// 다시 켜 hello 가 오면) 철회가 풀린다.
 #[derive(Default)]
 pub struct SurfaceKindRegistry {
-    kinds: RwLock<HashMap<&'static str, Arc<SurfaceKindDef>>>,
+    kinds: RwLock<HashMap<&'static str, KindEntry>>,
     /// poison 을 보고했는가(첫 1 회만). poison 은 sticky 인데 조회가 매 프레임
     /// dispatch 에서 도는 hot path 라, 매번 남기면 그 로그가 자기 자신에 묻힌다.
     poison_reported: std::sync::atomic::AtomicBool,
 }
+
+/// registry 한 칸 — 정의와, 철회됐다면 그것을 등록했던 plugin id.
+struct KindEntry {
+    def: Arc<SurfaceKindDef>,
+    withdrawn_by: Option<String>,
+}
+
+/// 철회된 kind 로 새 surface 를 만들려 한 요청의 거절 사유.
+///
+/// `unknown surface kind` 와 가르는 이유: 그 kind 는 **있었고**, 그것을 제공하던 plugin 이
+/// 꺼졌다. 사용자가 할 일(그 plugin 을 다시 켠다)이 다르다. IPC 응답은 [`std::fmt::Display`]
+/// 문장을, 사용자 발화 intent 는 i18n toast(`surface_kind.withdrawn_toast`)를 받는다.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SurfaceKindWithdrawn {
+    pub kind: String,
+    pub plugin_id: String,
+}
+
+impl std::fmt::Display for SurfaceKindWithdrawn {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "surface kind '{}' is unavailable: the plugin '{}' that provides it has been \
+             disabled or removed",
+            self.kind, self.plugin_id
+        )
+    }
+}
+
+impl std::error::Error for SurfaceKindWithdrawn {}
 
 impl SurfaceKindRegistry {
     pub fn new() -> Self {
@@ -443,9 +484,7 @@ impl SurfaceKindRegistry {
     /// 조회는 **메인 스레드의 매 프레임 dispatch** 가 부르므로 패닉은 프로세스 전체를
     /// 죽인다 — 두 질문 모두 복구를 가리킨다
     /// ([`error-handling.md`](../../docs/dev-guide/error-handling.md) "락 poison").
-    fn lock_read(
-        &self,
-    ) -> std::sync::RwLockReadGuard<'_, HashMap<&'static str, Arc<SurfaceKindDef>>> {
+    fn lock_read(&self) -> std::sync::RwLockReadGuard<'_, HashMap<&'static str, KindEntry>> {
         crate::poison::recover_read(
             self.kinds.read(),
             "surface kind registry",
@@ -454,9 +493,7 @@ impl SurfaceKindRegistry {
     }
 
     /// Poison 을 복구해 write guard 를 잡는다. 근거는 [`Self::lock_read`] 와 같다.
-    fn lock_write(
-        &self,
-    ) -> std::sync::RwLockWriteGuard<'_, HashMap<&'static str, Arc<SurfaceKindDef>>> {
+    fn lock_write(&self) -> std::sync::RwLockWriteGuard<'_, HashMap<&'static str, KindEntry>> {
         crate::poison::recover_write(
             self.kinds.write(),
             "surface kind registry",
@@ -465,28 +502,88 @@ impl SurfaceKindRegistry {
     }
 
     /// `&self`만 받으므로 `Arc<SurfaceKindRegistry>` 너머에서도 호출 가능.
-    /// plugin 매니저가 hello 받은 후 호출.
+    /// plugin 매니저가 hello 받은 후 호출. 철회돼 있던 kind 면 철회가 풀린다.
     pub fn register(&self, def: SurfaceKindDef) {
         let kind = def.kind;
         let mut map = self.lock_write();
-        if map.insert(kind, Arc::new(def)).is_some() {
-            tracing::warn!("SurfaceKindRegistry: kind '{}' overwritten", kind);
+        let entry = KindEntry {
+            def: Arc::new(def),
+            withdrawn_by: None,
+        };
+        match map.insert(kind, entry) {
+            Some(old) if old.withdrawn_by.is_some() => {
+                tracing::info!(
+                    "SurfaceKindRegistry: withdrawn kind '{}' registered again",
+                    kind
+                );
+            }
+            Some(_) => tracing::warn!("SurfaceKindRegistry: kind '{}' overwritten", kind),
+            None => {}
         }
     }
 
+    /// `plugin_id` 가 등록한 kind 를 전부 철회로 표시하고, 이번에 새로 철회된 kind 를
+    /// 이름순으로 돌려준다. 정의는 지우지 않는다 — 열린 surface 가 계속 읽는다(타입 문서
+    /// "철회" 절). host builtin 과 다른 plugin 의 kind 는 건드리지 않는다.
+    pub fn withdraw_plugin(&self, plugin_id: &str) -> Vec<&'static str> {
+        let mut map = self.lock_write();
+        let mut withdrawn: Vec<&'static str> = map
+            .iter_mut()
+            .filter(|(_, e)| {
+                e.withdrawn_by.is_none() && e.def.source.plugin_id() == Some(plugin_id)
+            })
+            .map(|(k, e)| {
+                e.withdrawn_by = Some(plugin_id.to_string());
+                *k
+            })
+            .collect();
+        drop(map);
+        withdrawn.sort_unstable();
+        if !withdrawn.is_empty() {
+            tracing::info!(
+                "SurfaceKindRegistry: withdrew kind(s) {:?} of plugin '{}'",
+                withdrawn,
+                plugin_id
+            );
+        }
+        withdrawn
+    }
+
+    /// kind 정의 — **철회된 것도 돌려준다.** 이미 있는 surface 에 대한 물음(snapshot ·
+    /// 아이콘 · 입력 플래그 · 표시명)이 쓴다. 새로 만들 수 있는가를 물으려면
+    /// [`Self::get_live`].
     pub fn get(&self, kind: &str) -> Option<Arc<SurfaceKindDef>> {
-        self.lock_read().get(kind).cloned()
+        self.lock_read().get(kind).map(|e| e.def.clone())
     }
 
+    /// 지금 새 surface 를 만들 수 있는 kind 의 정의. 철회된 kind 는 `None` — 생성 funnel ·
+    /// 복원 · kind 등록 대기가 "아직(다시) 없는 kind" 로 다룬다.
+    pub fn get_live(&self, kind: &str) -> Option<Arc<SurfaceKindDef>> {
+        self.lock_read()
+            .get(kind)
+            .filter(|e| e.withdrawn_by.is_none())
+            .map(|e| e.def.clone())
+    }
+
+    /// 철회된 kind 면 그것을 등록했던 plugin id.
+    pub fn withdrawn_by(&self, kind: &str) -> Option<String> {
+        self.lock_read()
+            .get(kind)
+            .and_then(|e| e.withdrawn_by.clone())
+    }
+
+    /// 지금 쓸 수 있는(철회되지 않은) kind 인가.
     pub fn contains(&self, kind: &str) -> bool {
-        self.lock_read().contains_key(kind)
+        self.get_live(kind).is_some()
     }
 
-    /// 등록된 kind 목록을 스냅샷으로 반환 (lock 해제 후 안전히 사용).
+    /// 지금 쓸 수 있는 kind 목록을 스냅샷으로 반환 (lock 해제 후 안전히 사용). 철회된
+    /// kind 는 빠진다 — 이 목록의 소비자는 전부 "무엇을 만들 수 있는가" 를 묻는다.
     pub fn kinds_snapshot(&self) -> Vec<(&'static str, Arc<SurfaceKindDef>)> {
         self.lock_read()
             .iter()
-            .map(|(k, v)| (*k, v.clone()))
+            .filter(|(_, e)| e.withdrawn_by.is_none())
+            .map(|(k, e)| (*k, e.def.clone()))
             .collect()
     }
 
@@ -594,6 +691,79 @@ mod tests {
             convert_requires_input: false,
             convert_input_popup: None,
         }
+    }
+
+    fn plugin_def(kind: &'static str, plugin_id: &str) -> SurfaceKindDef {
+        SurfaceKindDef {
+            source: KindSource::Plugin(plugin_id.to_string()),
+            ..dummy_def(kind)
+        }
+    }
+
+    /// 철회(ADR-0534)는 정의를 지우지 않는다 — 열린 surface 가 `get` 으로 snapshot 을 계속
+    /// 읽는다. 새로 만들 수 있는가를 묻는 셋(`get_live` · `contains` · `kinds_snapshot`)과
+    /// 생성 funnel 은 철회된 kind 를 없는 것으로 보고, funnel 은 그 사유를 따로 낸다.
+    #[test]
+    fn a_withdrawn_kind_keeps_its_definition_but_refuses_creation() {
+        let waker: tasty_terminal::Waker = std::sync::Arc::new(|| {});
+        let engine = crate::core::CoreState::new(80, 24, waker).expect("engine");
+        let reg = &engine.surface_registry;
+        reg.register(plugin_def("probe_kind", "com.x.probe"));
+        assert!(
+            engine
+                .create_surface_via_registry("probe_kind", 1, None, &serde_json::json!({}))
+                .is_err_and(|e| e.downcast_ref::<SurfaceKindWithdrawn>().is_none())
+        );
+
+        assert_eq!(reg.withdraw_plugin("com.x.probe"), vec!["probe_kind"]);
+
+        assert!(
+            reg.get("probe_kind").is_some(),
+            "열린 surface 용 정의는 남는다"
+        );
+        assert!(reg.get_live("probe_kind").is_none());
+        assert!(!reg.contains("probe_kind"));
+        assert!(reg.kinds_snapshot().iter().all(|(k, _)| *k != "probe_kind"));
+        assert_eq!(
+            reg.withdrawn_by("probe_kind").as_deref(),
+            Some("com.x.probe")
+        );
+        let err = engine
+            .create_surface_via_registry("probe_kind", 1, None, &serde_json::json!({}))
+            .err()
+            .expect("철회된 kind 는 만들지 않는다");
+        assert_eq!(
+            err.downcast_ref::<SurfaceKindWithdrawn>(),
+            Some(&SurfaceKindWithdrawn {
+                kind: "probe_kind".to_string(),
+                plugin_id: "com.x.probe".to_string(),
+            })
+        );
+        assert!(err.to_string().contains("com.x.probe"), "{err}");
+        // 두 번째 철회는 새로 철회한 것이 없다.
+        assert!(reg.withdraw_plugin("com.x.probe").is_empty());
+    }
+
+    #[test]
+    fn registering_a_withdrawn_kind_again_lifts_the_withdrawal() {
+        let reg = SurfaceKindRegistry::new();
+        reg.register(plugin_def("probe_kind", "com.x.probe"));
+        reg.withdraw_plugin("com.x.probe");
+        reg.register(plugin_def("probe_kind", "com.x.probe"));
+        assert!(reg.get_live("probe_kind").is_some());
+        assert_eq!(reg.withdrawn_by("probe_kind"), None);
+    }
+
+    #[test]
+    fn withdrawal_touches_only_the_plugins_own_kinds() {
+        let reg = SurfaceKindRegistry::new();
+        reg.register(dummy_def("host_kind"));
+        reg.register(plugin_def("mine", "com.x.a"));
+        reg.register(plugin_def("theirs", "com.x.b"));
+        assert_eq!(reg.withdraw_plugin("com.x.a"), vec!["mine"]);
+        assert!(reg.get_live("host_kind").is_some());
+        assert!(reg.get_live("theirs").is_some());
+        assert!(reg.get_live("mine").is_none());
     }
 
     #[test]

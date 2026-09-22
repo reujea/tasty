@@ -214,7 +214,7 @@ pub fn handle_workspace_create(
 
     // 필수 파라미터 검증 (registry create 함수도 검사하지만, 명확한 에러 메시지를 위해
     // 선검증). registry 의 required_params(preset_fields.required)로 generic 검증.
-    if let Some(def) = engine.surface_registry.get(kind)
+    if let Some(def) = engine.surface_registry.get_live(kind)
         && let Some(missing) = def.first_missing_required_param(params)
     {
         return JsonRpcResponse::invalid_params(

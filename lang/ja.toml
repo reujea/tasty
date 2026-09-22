@@ -1308,6 +1308,10 @@ terminal = "ターミナル"
 empty = "空"
 explorer = "エクスプローラー"
 
+[surface.kind_toast]
+# 철회된 kind(제공 plugin 이 disable · remove 됨)로 새 surface 를 만들려 했을 때. {} = kind, {} = plugin id
+withdrawn = "新しい '{}' サーフェスを開けません: 提供していたプラグイン ({}) がオフになっています。"
+
 [attach]
 held_title = "別の場所で接続中"
 held_body = "この画面は別のクライアントが占有しています。"

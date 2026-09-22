@@ -501,7 +501,7 @@ impl App {
         let engine = self.core_state();
         needed
             .iter()
-            .all(|k| engine.surface_registry.get(k).is_some())
+            .all(|k| engine.surface_registry.get_live(k).is_some())
     }
 
     /// ApplyPendingLayoutRestore 가 RemoteSurface 들을 생성하고

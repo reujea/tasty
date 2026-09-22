@@ -213,10 +213,14 @@ impl App {
     /// registry 갱신. CoreEvent::PluginRegistryChanged 반환.
     pub(crate) fn plugin_remove(&mut self, plugin_id: String) -> anyhow::Result<Vec<CoreEvent>> {
         let hook_event_registry = self.core_state().plugin_hook_events.clone();
+        let surface_registry = self.core_state().surface_registry.clone();
         let Some(mgr) = self.plugin_manager.as_mut() else {
             anyhow::bail!("plugin manager not initialized");
         };
         stop_before_remove(mgr, &plugin_id);
+        // 켜진 채 지우는 plugin 은 `plugin.disable` 을 안 거치므로 kind 철회를 여기서 한다
+        // (ADR-0534). 이미 꺼져 있던 것이면 철회돼 있어 no-op 이다.
+        surface_registry.withdraw_plugin(&plugin_id);
         let plugin_dir = crate::plugin::plugin_root()
             .ok_or_else(|| anyhow::anyhow!("could not resolve plugins directory"))?
             .join(&plugin_id);
@@ -280,7 +284,12 @@ impl App {
     ///
     /// 본체 위치는 [`Self::plugin_enable`] 와 같다 — 두 조합이 같은 함수를 부른다.
     pub(crate) fn plugin_disable(&mut self, plugin_id: String) -> anyhow::Result<Vec<CoreEvent>> {
-        crate::ipc::handler::plugin::disable(self.plugin_manager.as_mut(), plugin_id)
+        let surface_registry = self.core_state().surface_registry.clone();
+        crate::ipc::handler::plugin::disable(
+            self.plugin_manager.as_mut(),
+            &surface_registry,
+            plugin_id,
+        )
     }
 
     /// `plugin.grant` IPC handler 의 본문. permission 토큰 검증 + grant +

@@ -2480,7 +2480,7 @@ fn merge_survivor_mapping(
                 markdown_locals.insert(local_id, surface);
             }
         } else if role == Some("markdown")
-            && engine.surface_registry.get(MARKDOWN_MIRROR_KIND).is_none()
+            && !engine.surface_registry.contains(MARKDOWN_MIRROR_KIND)
         {
             // plugin kind 가 아직 없다(꺼져 있던 plugin 을 켜는 경우 등). 그냥 빈 surface 로
             // 두면 kind 가 나중에 등록돼도 다음 구조 delta·재연결 전까지 아무도 다시 시도하지
@@ -2546,7 +2546,7 @@ impl SurvivorMapping {
 fn markdown_mirror_available(engine: &crate::core::CoreState) -> bool {
     engine
         .surface_registry
-        .get(MARKDOWN_MIRROR_KIND)
+        .get_live(MARKDOWN_MIRROR_KIND)
         .is_some_and(|def| {
             matches!(
                 &def.source,

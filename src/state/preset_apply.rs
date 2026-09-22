@@ -351,7 +351,7 @@ impl AppState {
             return Ok(Box::new(TerminalSurface { id: surface_id }));
         }
 
-        let Some(def) = engine.surface_registry.get(&preset.kind) else {
+        let Some(def) = engine.surface_registry.get_live(&preset.kind) else {
             // 미등록 kind 를 restore(rebuild_surface)와 동형으로 deferred plugin placeholder 로
             // 흡수한다. Err 전파는 build_surface_layout 의 Split 에서 `?` 로 퍼져 이 leaf 의
             // 형제(무고한 terminal 포함)까지 통째로 버린다 — 같은 kind miss 를 restore 는

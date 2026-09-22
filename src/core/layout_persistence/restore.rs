@@ -453,7 +453,7 @@ fn restore_generic_immediate(
     data: serde_json::Value,
 ) -> Option<Box<dyn Surface>> {
     let registry = engine.surface_registry.clone();
-    let def = match registry.get(&kind) {
+    let def = match registry.get_live(&kind) {
         Some(d) => d,
         None => {
             tracing::warn!(

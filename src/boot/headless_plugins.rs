@@ -225,7 +225,7 @@ pub(crate) fn ensure_plugin_for_surface_kind(
     let Some(kind) = request.params.get("type").and_then(|v| v.as_str()) else {
         return;
     };
-    if engine.surface_registry.get(kind).is_some() {
+    if engine.surface_registry.get_live(kind).is_some() {
         return;
     }
     // 매니페스트와 `plugins.toml` 만 읽는다 — 프로세스는 아직 하나도 안 띄운다.
@@ -258,7 +258,7 @@ pub(crate) fn ensure_plugin_for_surface_kind(
         .map_or(std::time::Duration::ZERO, |mgr| mgr.connection_wait_limit());
     let outcome = wait_for_kind_registration(connect_limit, KIND_REGISTRATION_WAIT, || {
         pump_plugins(app, state, engine);
-        if engine.surface_registry.get(&kind).is_some() {
+        if engine.surface_registry.get_live(&kind).is_some() {
             return OwnerPoll::Registered;
         }
         match app.plugin_manager.as_ref() {

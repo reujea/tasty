@@ -144,7 +144,7 @@ pub(crate) fn split(
 
     // 필수 파라미터 선검증 — registry 의 required_params(preset_fields.required)로
     // generic 하게 검증한다(kind 하드코딩 없음).
-    if let Some(def) = engine.surface_registry.get(kind)
+    if let Some(def) = engine.surface_registry.get_live(kind)
         && let Some(missing) = def.first_missing_required_param(params)
     {
         return Err(StructuralFailure::Rejected(format!(

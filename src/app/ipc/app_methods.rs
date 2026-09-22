@@ -584,8 +584,10 @@ impl App {
             // (`src/boot/headless_dispatch.rs`). 여기 남는 차이는 낸 이벤트의
             // 소비처뿐이다: gui 는 창 큐로 cascade 하고 헤드리스는 그 자리에서 낸다.
             "plugin.enable" | "plugin.disable" => {
+                let surface_registry = self.core_state().surface_registry.clone();
                 let Some((response, events)) = host_ipc::handler::plugin::dispatch_lifecycle_toggle(
                     self.plugin_manager.as_mut(),
+                    &surface_registry,
                     cmd.request.method.as_str(),
                     id,
                     &cmd.request.params,
