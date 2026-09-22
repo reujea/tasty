@@ -295,7 +295,7 @@ SDK가 자기 CWD에서 절대화하여 이 경계를 대신하지 않는다.
   판정은 ping 을 보내는 tick 에서 함께 하므로 **비응답 검출 상한은 60s + 15s = 75s** 다
   ([timer-hub](timer-hub.md#계층을-넘는-허브-합성)). 프로세스가 실제로 죽은 경우는 이 경로가
   아니라 event 채널 Disconnected 로 즉시 잡히므로 이 상한의 영향을 받지 않는다.
-- **자동 비활성화**: `RESTART_FAILURE_WINDOW`(10s) 내 `RESTART_FAILURE_LIMIT`(3)회 spawn 실패(연결 한도 초과 포함) → 정지(사용자가 `tasty plugin enable` 로 수동 재개까지). 누적은 연결이 성사될 때 지워진다.
+- **자동 비활성화**: `RESTART_FAILURE_WINDOW`(10s) 내 `RESTART_FAILURE_LIMIT`(3)회 spawn 실패 → 정지(사용자가 `tasty plugin enable` 로 수동 재개까지). 연결 한도 초과도 한 건으로 세지만, 한 건이 한도(10s)만큼 걸리므로 연결 실패만으로는 창 안에 3 건이 안 쌓이고 빠른 spawn 실패와 섞일 때만 닿는다. 누적은 연결이 성사될 때 지워진다.
 - **namespace 호출 만료**: 위 재시작 경로는 프로세스가 굳은 경우만 본다 — ping 에는 답하면서
   특정 호출만 안 돌려주는 plugin 은 healthcheck 에 안 걸린다. 그래서 plugin namespace 로
   forward 한 pending 호출에는 별도로 `NAMESPACE_CALL_TIMEOUT` 데드라인이 붙고, 넘기면

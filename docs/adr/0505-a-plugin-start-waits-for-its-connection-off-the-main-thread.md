@@ -44,7 +44,8 @@
   owner 를 띄우는 경로는 예전처럼 plugin 에 닿는다.
 - **결과는 pump 가 한 번 거둔다(`settle_connections`).** 연결이 성사되면 연속 실패 기록을 지운다. 끝내 안
   오면(한도 10 s) 예전 spawn 실패와 같은 갈래로 보낸다 — 프로세스를 내리고, `plugin.error`
-  (`spawn_failed`)를 내고, 연속 실패로 세어 한도(10 s 안에 3 회)면 자동 비활성한다. 내리는 것은 요청 없이
+  (`spawn_failed`)를 내고, 연속 실패로 센다(자동 비활성 한도는 10 s 안에 3 회라, 한 건이 10 s 걸리는 연결
+  실패만으로는 닿지 않고 빠른 spawn 실패와 섞일 때만 닿는다 — 예전과 같다). 내리는 것은 요청 없이
   곧바로 kill 하는 종료 핸들이고, kill 과 회수는 ADR-0457 의 회수 스레드가 한다. 연결을 기다리던 사이 쌓인
   namespace 호출은 caller 에 오류로 회신한다. 그 사이 그 extension 에 보낸 hook(pre/post × ipc/event)은
   **보낸 적 없는 것으로** 진행한다 — 예전에는 extension 기동이 먼저 실패해 hook 송신이 실패했고 원래
