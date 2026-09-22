@@ -7,8 +7,8 @@
 # 갱신 절차: X.0.0 (major) tag 직전에만 본 파일을 갱신한다 (PR 에 명시).
 # 정책: docs/dev-guide/release.md.
 #
-# 보안 예외로 제거된 항목 (api-conventions.md "안정성 정책" — 0.x 에서
-# 보안·심각 버그는 deprecation 없이 즉시 제거 가능):
+# 보안 예외로 제거된 항목 (api-conventions.md 「Deprecation 절차」 의 유예
+# 생략 예외 — 이 두 항목의 사유는 보안):
 #   surface.raw_key            — macOS CGEventPost 로 OS 전역 키 주입.
 #   surface.switch_input_source — TISSelectInputSource 로 시스템 입력 소스 전환.
 # 둘 다 사용자 입력 재현이라 release 표면에 있어선 안 되는 것이 원칙이었고
