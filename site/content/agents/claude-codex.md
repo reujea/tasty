@@ -125,6 +125,18 @@ Monitor 없이 직접 읽을 수는 있지만 자동 재개나 영구 보관을 
 폴더를 통째로 지우는데, 그때 먼저 떠 있던 쪽이 쓰고 있던 완료 로그까지 사라집니다. 두 벌을
 같이 쓰려면 `TASTY_HOME` 으로 데이터 폴더를 따로 주세요.
 
+### API 에러로 멈춘 Claude 자동 재개
+
+서버 과부하 같은 일시적인 API 에러로 Claude 의 턴이 끝나면, Tasty 가 잠시 뒤 "이어서 진행해" 문구를 대신 보내 작업을 잇게 할 수 있습니다. **기본은 꺼져 있습니다.** **설정** <!-- en: Settings --> › **플러그인** <!-- en: Plugin --> › **Claude Code** 에서 켭니다.
+
+- **일시적인 API 에러(서버 과부하) 뒤 자동으로 이어서 진행** <!-- en: Resume automatically after a temporary API error (server overload) --> — 켜기/끄기.
+- **재개 전 대기 시간(초)** <!-- en: Seconds to wait before resuming --> — 기본 10초.
+- **포기하기 전 연속 자동 재개 횟수** <!-- en: Consecutive automatic resumes before giving up --> — 기본 5번. 연달아 실패해 이 수에 닿으면 더 보내지 않고 알림을 한 번 띄웁니다.
+- 요청 한도 초과·인증 실패·결제 문제처럼 다시 보내도 같은 에러는 재개하지 않습니다.
+- 기다리는 동안 직접 입력하면 보내지 않습니다. 그 턴이 시작된 뒤 그 서피스에 키를 한 번이라도 눌렀다면(입력 칸에 쓰다 만 글이 있을 수 있으므로) 재개하지 않습니다.
+- 자동으로 보낸 횟수는 서피스 메타 `claude-auto-resume-count` 에서 볼 수 있습니다.
+- 이 기능은 `tasty claude install` 로 설치한 훅이 필요합니다. Tasty 를 업데이트한 뒤에는 다시 설치하세요.
+
 ## 5. Codex 승인 정책
 
 `tasty codex spawn/launch/respawn/reboot` 는 Codex 의 승인·샌드박스 정책을 플래그로 받습니다.

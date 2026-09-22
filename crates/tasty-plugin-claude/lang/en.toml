@@ -5,6 +5,9 @@ desc = "Claude Code CLI integration (launch, spawn, kill, etc.)"
 "settings.spawn_child_warn_threshold" = "Spawn child warning threshold"
 "settings.continue_checklist_round_limit" = "Default gate round limit (used when a gate sets none)"
 "settings.default_permission_mode" = "Default permission mode for child sessions"
+"settings.auto_resume_enabled" = "Resume automatically after a temporary API error (server overload)"
+"settings.auto_resume_delay_secs" = "Seconds to wait before resuming"
+"settings.auto_resume_max_attempts" = "Consecutive automatic resumes before giving up"
 "settings.permission_mode.inherit" = "Inherit (use Claude Code's own settings)"
 "settings.permission_mode.manual" = "Ask every time (manual)"
 "settings.permission_mode.plan" = "Plan only (plan)"
@@ -50,6 +53,11 @@ permission_mode_conflicts_with_profile = "--permission-mode and a profile whose 
 [claude.hook]
 missing_event = "Missing required 'event' parameter"
 unknown_event = "unknown claude hook event: '{}'"
+
+[claude.auto_resume]
+message = "The previous turn stopped on a temporary API error. Please continue where you left off."
+limit_title = "Claude auto-resume stopped"
+limit_body = "surface {}: stopped resuming after {} consecutive API errors ({}). Check the session and continue it yourself."
 
 [claude.notify]
 done_message = "surface {}: task complete (via {})"

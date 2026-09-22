@@ -419,7 +419,7 @@ namespace 라우팅은 0140 → 0153 → 0171(오류 코드 개정 — 「IPC �
 
 ## 에이전트 통합 · 협업
 
-child 상태는 0072 → 0266 → 0288 → 0291(0288 대체), 완료 알림 로그는 0330 → 0344 → 0415 · 0416 이다. hook 실패 기록은 0075 → 0164(언어 조항 개정)이다. task-graph 는 0066 → 0073(0066 대체)이다.
+child 상태는 0072 → 0266 → 0288 → 0291(0288 대체), API 에러로 끝난 턴의 자동 재개는 0521(0072 · 0266 위), 완료 알림 로그는 0330 → 0344 → 0415 · 0416 이다. hook 실패 기록은 0075 → 0164(언어 조항 개정)이다. task-graph 는 0066 → 0073(0066 대체)이다.
 운영 문서: [dev-guide/external-interaction/child-completion-notify-log](../dev-guide/external-interaction/child-completion-notify-log.md) · [features/child-terminal](../features/child-terminal/index.md) · [dev-guide/agent-runner](../dev-guide/agent-runner.md)
 
 | # | Title | Status | Date | Tags |

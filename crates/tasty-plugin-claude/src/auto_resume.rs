@@ -1,0 +1,859 @@
+//! API 에러로 끝난 턴의 자동 재개.
+//!
+//! Claude Code 는 내장 재시도를 다 쓴 뒤 API 에러(`529 Overloaded` 등)로 턴을 끝내면
+//! 입력을 기다리며 멈춘다. 사람이 없는 세션(무인 conductor · 자식 Claude)은 그대로
+//! 방치된다. 이 모듈은 `StopFailure` 신호(`hook.rs` 의 `stop-failure`)를 받아 설정된
+//! 지연 뒤에 재개 문구를 그 surface 에 한 번 제출한다. 설정 기본값은 **꺼짐**이다 —
+//! 사용자 세션에 텍스트를 넣는 기능이라 opt-in 이다.
+//!
+//! 흐름은 둘로 갈린다:
+//! - **예약**(hook 핸들러 스레드): [`observe_hook`] 이 이벤트마다 [`ResumeTable`] 을
+//!   갱신한다. 여기서는 잠들지 않는다 — IPC 핸들러 스레드라 sleep 하면 다른 요청이 선다.
+//! - **만기 처리**(전용 스레드 `claude-auto-resume`): [`run_loop`] 가 짧은 주기로 만기된
+//!   예약을 꺼내, 보내기 직전의 사실을 모아 [`judge`] 에 묻고 그 답대로 한다.
+//!
+//! 판정은 **보내는 순간의 사실**로 한다 — 예약 뒤에 설정이 꺼졌거나, 사람이 먼저
+//! 입력했거나, Claude 가 종료됐거나, 사용자가 입력창에 초안을 쓰고 있으면 보내지 않는다.
+//! 근거·대안·재검토 조건은 `docs/adr/0521-claude-auto-resume-after-an-api-error-is-opt-in-and-judged-at-send-time.md`.
+
+use std::collections::HashMap;
+use std::sync::{Arc, Mutex};
+use std::time::{Duration, Instant};
+
+use serde_json::json;
+use tasty_plugin_agent_common::host_call::HostCall;
+
+/// 설정 키 — 매니페스트 `[[contributes.settings_pages.items]]` 의 `storage_key` 와 같다.
+pub(crate) const ENABLED_KEY: &str = "auto_resume_enabled";
+pub(crate) const DELAY_KEY: &str = "auto_resume_delay_secs";
+pub(crate) const MAX_ATTEMPTS_KEY: &str = "auto_resume_max_attempts";
+
+/// 설정이 비어 있을 때 쓰는 값 — 매니페스트의 `default` 와 짝을 맞춘다(host 는 키가
+/// 없으면 `null` 을 돌려주고 기본값을 채워 주지 않는다).
+const DEFAULT_DELAY_SECS: f64 = 10.0;
+const DEFAULT_MAX_ATTEMPTS: u32 = 5;
+
+/// 재개 문구를 보낸 횟수(연속 실패 중)를 남기는 surface meta — 사용자가 "왜 혼자
+/// 진행됐나" 를 추적하는 자리다. 성공 턴이 끝나면 지운다.
+pub(crate) const COUNT_META_KEY: &str = "claude-auto-resume-count";
+
+/// 만기 확인 주기. 지연의 해상도가 이것이다(설정 최소 1 초보다 충분히 짧다).
+const TICK: Duration = Duration::from_millis(500);
+
+/// 만기 시점에 사용자가 타이핑 중이면 이만큼 미룬다. 호스트의 타이핑 창(5 초)과 같다.
+const TYPING_DEFER: Duration = Duration::from_secs(5);
+
+/// 재개해도 되는 에러 종류 — 일시적인 서버 측 에러만. Claude Code 가 `StopFailure`
+/// matcher 로 선언한 값 중에서 고른다.
+///
+/// `rate_limit` 은 넣지 않는다: 한도가 풀리는 시각은 분~시간 단위라 몇 초 뒤의 재개는
+/// 다시 실패할 뿐이고, 실패마다 요청 한 건을 더 쓴다. `authentication_failed` ·
+/// `billing_error` · `invalid_request` · `max_output_tokens` · `model_not_found` 등은
+/// 다시 보내도 같은 결과라 사람이 고쳐야 한다. 실측(2026-09-23, Claude Code 2.1.280):
+/// 로컬 게이트웨이가 돌려준 `529 overloaded_error` 는 `server_error` 로 분류돼 왔다.
+pub(crate) fn is_resumable_error(error: &str) -> bool {
+    matches!(error, "overloaded" | "server_error")
+}
+
+/// 만기 시점에 다시 읽는 설정.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub(crate) struct Settings {
+    pub enabled: bool,
+    pub delay: Duration,
+    pub max_attempts: u32,
+}
+
+impl Default for Settings {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            delay: Duration::from_secs_f64(DEFAULT_DELAY_SECS),
+            max_attempts: DEFAULT_MAX_ATTEMPTS,
+        }
+    }
+}
+
+/// plugin 설정을 읽는다. 읽기 실패·미설정은 그 항목의 기본값이다 — 기본값이 꺼짐이라
+/// 조회 실패가 전송으로 이어지지 않는다.
+pub(crate) fn read_settings<H: HostCall>(host: &H) -> Settings {
+    let get = |key: &str| {
+        host.call("settings.get_plugin_setting", json!({ "storage_key": key }))
+            .ok()
+            .and_then(|v| v.get("value").cloned())
+            .filter(|v| !v.is_null())
+    };
+    let d = Settings::default();
+    Settings {
+        enabled: get(ENABLED_KEY)
+            .and_then(|v| v.as_bool())
+            .unwrap_or(d.enabled),
+        delay: get(DELAY_KEY)
+            .and_then(|v| v.as_f64())
+            .map(|s| Duration::from_secs_f64(s.max(1.0)))
+            .unwrap_or(d.delay),
+        max_attempts: get(MAX_ATTEMPTS_KEY)
+            .and_then(|v| v.as_f64())
+            .map(|n| n.max(1.0).round() as u32)
+            .unwrap_or(d.max_attempts),
+    }
+}
+
+/// 걸려 있는 재개 예약 하나.
+#[derive(Debug, Clone, PartialEq)]
+pub(crate) struct Pending {
+    pub due: Instant,
+    pub error: String,
+    /// 예약한 턴의 번호 — 보내기 직전에 그 뒤로 새 턴이 없었는지 이것으로 본다.
+    pub turn: u64,
+    /// 예약 시점의 전경 pid — 그 사이 Claude 가 다시 떴으면 다른 세션이다.
+    pub foreground_pid: Option<u64>,
+    /// 이 시각 이후의 사용자 키 입력은 "사람이 개입했다" 로 본다. 실패한 턴이 시작된
+    /// 시각(`prompt-submit`)이고, 그것을 모르면 예약 시각이다. 턴 시작부터 보는 이유:
+    /// Claude 가 일하는 동안 입력창에 쓴 미제출 초안도 재개 문구 앞에 붙어 함께 제출된다.
+    pub input_since: Instant,
+}
+
+#[derive(Debug, Default)]
+struct SurfaceResume {
+    /// 연속으로 보낸 재개 문구 수. 성공 턴(`stop`)과 새 세션에서 0.
+    attempts: u32,
+    /// 턴 경계마다 올라가는 번호.
+    turn: u64,
+    /// 마지막 `prompt-submit` 시각.
+    turn_started: Option<Instant>,
+    pending: Option<Pending>,
+    /// 상한 도달 알림을 이미 냈는가 — 연속 실패 구간당 1 회.
+    limit_notified: bool,
+}
+
+/// surface → 재개 상태. hook 스레드와 만기 스레드가 함께 쓴다(`Arc<Mutex<_>>`).
+#[derive(Debug, Default)]
+pub(crate) struct ResumeTable {
+    surfaces: HashMap<u32, SurfaceResume>,
+}
+
+impl ResumeTable {
+    /// 새 턴이 시작됐다(사람 입력 · 재개 문구 제출 · `active`) — 걸린 예약은 취소한다.
+    pub fn on_new_turn(&mut self, surface: u32, now: Instant) {
+        let e = self.surfaces.entry(surface).or_default();
+        e.turn += 1;
+        e.turn_started = Some(now);
+        e.pending = None;
+    }
+
+    /// 새 세션 — 턴 경계이면서 연속 실패 계수도 새로 센다.
+    pub fn on_session_start(&mut self, surface: u32, now: Instant) {
+        self.on_new_turn(surface, now);
+        let e = self.surfaces.entry(surface).or_default();
+        e.attempts = 0;
+        e.limit_notified = false;
+    }
+
+    /// 턴이 성공으로 끝났다 — 연속 실패가 끊겼다. 끊기 전의 연속 재개 수를 돌려준다.
+    pub fn on_success(&mut self, surface: u32) -> u32 {
+        let Some(e) = self.surfaces.get_mut(&surface) else {
+            return 0;
+        };
+        e.turn += 1;
+        e.limit_notified = false;
+        e.pending = None;
+        std::mem::take(&mut e.attempts)
+    }
+
+    /// 세션이 끝났다 — 이 surface 의 상태를 버린다.
+    pub fn on_session_end(&mut self, surface: u32) {
+        self.surfaces.remove(&surface);
+    }
+
+    /// API 에러로 끝난 턴에 재개를 예약한다. 이미 걸린 예약은 덮어쓴다(중복 전송 금지).
+    pub fn schedule(
+        &mut self,
+        surface: u32,
+        error: &str,
+        now: Instant,
+        delay: Duration,
+        foreground_pid: Option<u64>,
+    ) {
+        let e = self.surfaces.entry(surface).or_default();
+        e.turn += 1;
+        e.pending = Some(Pending {
+            due: now + delay,
+            error: error.to_string(),
+            turn: e.turn,
+            foreground_pid,
+            input_since: e.turn_started.unwrap_or(now),
+        });
+    }
+
+    /// `surface` 의 예약이 `now` 에 만기인가(꺼내지 않고 본다). 시험 전용 — 만기 스레드는
+    /// [`Self::take_due`] 로 꺼낸다.
+    #[cfg(test)]
+    pub fn due(&self, surface: u32, now: Instant) -> Option<&Pending> {
+        self.surfaces
+            .get(&surface)
+            .and_then(|e| e.pending.as_ref())
+            .filter(|p| p.due <= now)
+    }
+
+    /// 만기된 예약을 전부 꺼낸다 — 꺼낸 뒤에는 표에 없으므로 두 번 처리되지 않는다.
+    pub fn take_due(&mut self, now: Instant) -> Vec<(u32, Pending, u32)> {
+        let mut out = Vec::new();
+        for (sid, e) in self.surfaces.iter_mut() {
+            if e.pending.as_ref().is_some_and(|p| p.due <= now)
+                && let Some(p) = e.pending.take()
+            {
+                out.push((*sid, p, e.attempts));
+            }
+        }
+        out
+    }
+
+    /// 예약한 뒤로 턴 경계가 없었는가 — 보내기 직전의 마지막 확인.
+    pub fn still_current(&self, surface: u32, turn: u64) -> bool {
+        self.surfaces
+            .get(&surface)
+            .is_some_and(|e| e.turn == turn && e.pending.is_none())
+    }
+
+    /// 꺼낸 예약을 `by` 만큼 미뤄 되돌린다 — 그 사이 턴 경계가 있었으면 버린다.
+    pub fn defer(&mut self, surface: u32, mut pending: Pending, now: Instant, by: Duration) {
+        if self.still_current(surface, pending.turn)
+            && let Some(e) = self.surfaces.get_mut(&surface)
+        {
+            pending.due = now + by;
+            e.pending = Some(pending);
+        }
+    }
+
+    /// 재개 문구를 하나 보냈다. 보낸 뒤의 누적 수를 돌려준다.
+    pub fn record_attempt(&mut self, surface: u32) -> u32 {
+        let e = self.surfaces.entry(surface).or_default();
+        e.attempts += 1;
+        e.attempts
+    }
+
+    /// 시험 전용 — 만기 처리는 꺼낸 시도 수를 [`judge`] 에 넘겨 같은 비교를 한다.
+    #[cfg(test)]
+    pub fn limit_reached(&self, surface: u32, max_attempts: u32) -> bool {
+        self.surfaces
+            .get(&surface)
+            .is_some_and(|e| e.attempts >= max_attempts)
+    }
+
+    /// 상한 도달 알림을 낼 차례인가 — 연속 실패 구간당 처음 한 번만 `true`.
+    pub fn take_limit_notice(&mut self, surface: u32) -> bool {
+        let e = self.surfaces.entry(surface).or_default();
+        !std::mem::replace(&mut e.limit_notified, true)
+    }
+}
+
+/// poison 이어도 표를 버리지 않는다 — 지키는 자료구조가 복구 가능하다
+/// (`error_scan::lock_scanner` 와 같은 이유).
+pub(crate) fn lock_table(table: &Mutex<ResumeTable>) -> std::sync::MutexGuard<'_, ResumeTable> {
+    const WHAT: &str = "the claude auto-resume table";
+    static REPORTED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+    tasty_utils::poison::recover_mutex(table.lock(), WHAT, &REPORTED)
+}
+
+/// hook 이벤트 하나를 표에 반영한다. `stop-failure` 이면 설정을 읽어 예약을 건다.
+/// 서브에이전트의 `stop-failure` 는 호출부(`hook.rs`)가 이미 걸러 이 함수에 오지 않는다.
+pub(crate) fn observe_hook<H: HostCall>(
+    table: &Mutex<ResumeTable>,
+    host: &H,
+    event: &str,
+    surface_id: u32,
+    error: Option<&str>,
+    now: Instant,
+) {
+    match event {
+        "prompt-submit" | "active" => lock_table(table).on_new_turn(surface_id, now),
+        "session-start" => lock_table(table).on_session_start(surface_id, now),
+        // `subagent-stop` 은 서브에이전트가 끝난 것이지 메인 턴이 끝난 것이 아니다.
+        "stop" => {
+            // 재개 뒤의 턴이 성공했으면 계수 기록을 지운다 — 남겨 두면 다음 사고 때
+            // 지난 연속 수가 현재 값으로 읽힌다.
+            if lock_table(table).on_success(surface_id) > 0
+                && let Err(e) = host.call(
+                    "surface.meta.unset",
+                    json!({ "surface_id": surface_id, "key": COUNT_META_KEY }),
+                )
+            {
+                tracing::warn!(
+                    "claude auto-resume s{surface_id}: clearing the attempt count failed: {e}"
+                );
+            }
+        }
+        "session-end" => lock_table(table).on_session_end(surface_id),
+        "stop-failure" => {
+            let error = error.filter(|e| !e.is_empty()).unwrap_or("unknown");
+            if !is_resumable_error(error) {
+                return;
+            }
+            let settings = read_settings(host);
+            if !settings.enabled {
+                return;
+            }
+            let foreground_pid = foreground(host, surface_id).and_then(|(_, pid)| pid);
+            lock_table(table).schedule(surface_id, error, now, settings.delay, foreground_pid);
+            tracing::info!(
+                "claude auto-resume s{surface_id}: turn ended on {error}, resume scheduled in {:?}",
+                settings.delay
+            );
+        }
+        _ => {}
+    }
+}
+
+/// 만기 시점에 모은 사실. [`judge`] 의 입력 — host 없이 테스트한다.
+#[derive(Debug, Clone, PartialEq)]
+pub(crate) struct DueFacts {
+    pub settings: Settings,
+    pub attempts: u32,
+    /// `terminal.state` 의 값(조회 실패면 `None`).
+    pub state: Option<String>,
+    /// 전경 프로세스 이름·pid(조회 실패 — surface 소멸 — 면 `None`).
+    pub foreground_name: Option<String>,
+    pub foreground_pid: Option<u64>,
+    pub expected_pid: Option<u64>,
+    /// `surface.is_typing` 의 `typing`.
+    pub typing: bool,
+    /// 마지막 사용자 키 입력 뒤 경과. 입력이 한 번도 없었으면 `None`.
+    pub key_idle: Option<Duration>,
+    /// [`Pending::input_since`] 뒤로 지난 시간.
+    pub since_input_window: Duration,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum Verdict {
+    Send,
+    /// 지금은 보내지 않고 미룬다(시도 수를 쓰지 않는다).
+    Defer,
+    /// 보내지 않고 예약을 버린다.
+    Cancel(&'static str),
+    /// 연속 상한에 닿았다 — 보내지 않고 한 번 알린다.
+    LimitReached,
+}
+
+/// 보낼지 판정한다. 순서가 곧 우선순위다 — 취소 사유가 상한보다 앞서는 것은, 사람이
+/// 개입했거나 Claude 가 사라진 surface 에 "자동 재개를 멈췄다" 를 알리면 거짓이 되기
+/// 때문이다.
+pub(crate) fn judge(f: &DueFacts) -> Verdict {
+    if !f.settings.enabled {
+        return Verdict::Cancel("disabled");
+    }
+    if f.state.as_deref() != Some("idle") {
+        return Verdict::Cancel("not idle");
+    }
+    match f.foreground_name.as_deref() {
+        Some("claude") => {}
+        _ => return Verdict::Cancel("claude is not in the foreground"),
+    }
+    if f.expected_pid.is_some() && f.foreground_pid != f.expected_pid {
+        return Verdict::Cancel("claude was restarted");
+    }
+    // 창 안에 키 입력이 한 번이라도 있었으면 사람이 개입했다 — 입력창에 초안이 있을 수
+    // 있다. `is_typing` 은 최근 5 초만 보므로 초안을 쓰다 멈춘 사용자를 놓친다. 그래서
+    // 마지막 입력 시각(`idle_seconds`)을 창과 견준다.
+    if f.key_idle.is_some_and(|idle| idle < f.since_input_window) {
+        return Verdict::Cancel("the user typed after the turn began");
+    }
+    if f.attempts >= f.settings.max_attempts {
+        return Verdict::LimitReached;
+    }
+    if f.typing {
+        return Verdict::Defer;
+    }
+    Verdict::Send
+}
+
+/// 만기 처리 스레드가 쓰는 문구 — `main()` 이 활성 locale 로 한 번 해석해 넘긴다.
+#[derive(Debug, Clone)]
+pub(crate) struct Texts {
+    /// 제출할 재개 문구.
+    pub message: String,
+    pub limit_title: String,
+    /// `{}` 세 개: surface id, 시도 수, 에러 종류.
+    pub limit_body: String,
+}
+
+pub(crate) fn run_loop<H: HostCall>(table: Arc<Mutex<ResumeTable>>, host: H, texts: Texts) {
+    loop {
+        std::thread::sleep(TICK);
+        let due = lock_table(&table).take_due(Instant::now());
+        for (surface_id, pending, attempts) in due {
+            process_due(&table, &host, &texts, surface_id, pending, attempts);
+        }
+    }
+}
+
+fn process_due<H: HostCall>(
+    table: &Mutex<ResumeTable>,
+    host: &H,
+    texts: &Texts,
+    surface_id: u32,
+    pending: Pending,
+    attempts: u32,
+) {
+    let now = Instant::now();
+    let facts = gather_facts(host, surface_id, &pending, attempts, now);
+    match judge(&facts) {
+        Verdict::Send => send(table, host, texts, surface_id, &pending),
+        Verdict::Defer => {
+            tracing::info!("claude auto-resume s{surface_id}: user is typing, deferring");
+            lock_table(table).defer(surface_id, pending, now, TYPING_DEFER);
+        }
+        Verdict::Cancel(reason) => {
+            tracing::info!("claude auto-resume s{surface_id}: not resuming — {reason}");
+        }
+        Verdict::LimitReached => {
+            if lock_table(table).take_limit_notice(surface_id) {
+                notify_limit(host, texts, surface_id, attempts, &pending.error);
+            }
+        }
+    }
+}
+
+fn gather_facts<H: HostCall>(
+    host: &H,
+    surface_id: u32,
+    pending: &Pending,
+    attempts: u32,
+    now: Instant,
+) -> DueFacts {
+    let state = host
+        .call("terminal.state", json!({ "surface": surface_id }))
+        .ok()
+        .and_then(|r| r.get("state").and_then(|v| v.as_str()).map(str::to_string));
+    let (foreground_name, foreground_pid) = match foreground(host, surface_id) {
+        Some((name, pid)) => (Some(name), pid),
+        None => (None, None),
+    };
+    let typing = host
+        .call("surface.is_typing", json!({ "surface_id": surface_id }))
+        .ok();
+    // 조회가 실패하면 "입력 있음" 으로 본다 — 모르는 채로 보내면 초안에 붙을 수 있다.
+    let (typing_now, key_idle) = match &typing {
+        Some(r) => (
+            r.get("typing").and_then(|v| v.as_bool()).unwrap_or(true),
+            r.get("idle_seconds")
+                .and_then(|v| v.as_f64())
+                .filter(|s| *s >= 0.0)
+                .map(Duration::from_secs_f64),
+        ),
+        None => (true, Some(Duration::ZERO)),
+    };
+    DueFacts {
+        settings: read_settings(host),
+        attempts,
+        state,
+        foreground_name,
+        foreground_pid,
+        expected_pid: pending.foreground_pid,
+        typing: typing_now,
+        key_idle,
+        since_input_window: now.saturating_duration_since(pending.input_since),
+    }
+}
+
+fn foreground<H: HostCall>(host: &H, surface_id: u32) -> Option<(String, Option<u64>)> {
+    let r = host
+        .call(
+            "surface.foreground_process",
+            json!({ "surface_id": surface_id }),
+        )
+        .ok()?;
+    let name = r.get("name").and_then(|v| v.as_str())?.to_string();
+    Some((name, r.get("pid").and_then(|v| v.as_u64())))
+}
+
+fn send<H: HostCall>(
+    table: &Mutex<ResumeTable>,
+    host: &H,
+    texts: &Texts,
+    surface_id: u32,
+    pending: &Pending,
+) {
+    // 사실을 모으는 동안 새 턴이 시작됐을 수 있다 — 마지막으로 한 번 더 본다. 여기서
+    // 제출까지 사이의 창은 `terminal.tell` 의 본문→Enter 사이 창과 같은 크기다.
+    if !lock_table(table).still_current(surface_id, pending.turn) {
+        tracing::info!("claude auto-resume s{surface_id}: a new turn began, not resuming");
+        return;
+    }
+    // `terminal.tell` 은 본문 write 확인 → 정착 지연 → Enter 를 나눠 보내고, 원격 attach 가
+    // 점유한 surface 는 거절한다. 거절되면 다시 걸지 않는다(다른 곳에서 조작 중이다).
+    if let Err(e) = host.call(
+        "terminal.tell",
+        json!({ "surface": surface_id, "text": texts.message }),
+    ) {
+        tracing::warn!("claude auto-resume s{surface_id}: tell failed, not retrying: {e}");
+        return;
+    }
+    let n = lock_table(table).record_attempt(surface_id);
+    tracing::info!(
+        "claude auto-resume s{surface_id}: resumed after {} (attempt {n})",
+        pending.error
+    );
+    if let Err(e) = host.call(
+        "surface.meta.set",
+        json!({ "surface_id": surface_id, "key": COUNT_META_KEY, "value": n.to_string() }),
+    ) {
+        tracing::warn!("claude auto-resume s{surface_id}: recording the attempt count failed: {e}");
+    }
+}
+
+fn notify_limit<H: HostCall>(host: &H, texts: &Texts, surface_id: u32, attempts: u32, error: &str) {
+    tracing::info!(
+        "claude auto-resume s{surface_id}: stopped after {attempts} consecutive API errors ({error})"
+    );
+    let body = texts
+        .limit_body
+        .replacen("{}", &surface_id.to_string(), 1)
+        .replacen("{}", &attempts.to_string(), 1)
+        .replacen("{}", error, 1);
+    if let Err(e) = host.call(
+        "notification.create",
+        json!({ "title": texts.limit_title, "body": body, "surface_id": surface_id }),
+    ) {
+        tracing::warn!("claude auto-resume s{surface_id}: limit notification failed: {e}");
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn on() -> Settings {
+        Settings {
+            enabled: true,
+            ..Settings::default()
+        }
+    }
+
+    /// 보낼 조건이 전부 갖춰진 사실 — 각 테스트가 한 칸만 바꿔 그 칸의 효과를 본다.
+    fn sendable() -> DueFacts {
+        DueFacts {
+            settings: on(),
+            attempts: 0,
+            state: Some("idle".into()),
+            foreground_name: Some("claude".into()),
+            foreground_pid: Some(42),
+            expected_pid: Some(42),
+            typing: false,
+            key_idle: None,
+            since_input_window: Duration::from_secs(12),
+        }
+    }
+
+    #[test]
+    fn overloaded_is_resumable_auth_failure_is_not() {
+        assert!(is_resumable_error("overloaded"));
+        assert!(is_resumable_error("server_error"));
+        for e in [
+            "authentication_failed",
+            "billing_error",
+            "invalid_request",
+            "max_output_tokens",
+            "rate_limit",
+            "model_not_found",
+            "unknown",
+        ] {
+            assert!(!is_resumable_error(e), "{e}");
+        }
+    }
+
+    #[test]
+    fn the_default_is_off() {
+        assert!(!Settings::default().enabled);
+        let mut f = sendable();
+        f.settings = Settings::default();
+        assert_eq!(judge(&f), Verdict::Cancel("disabled"));
+    }
+
+    #[test]
+    fn all_conditions_met_sends() {
+        assert_eq!(judge(&sendable()), Verdict::Send);
+    }
+
+    #[test]
+    fn a_turn_that_is_no_longer_idle_is_not_resumed() {
+        let mut f = sendable();
+        f.state = Some("active".into());
+        assert!(matches!(judge(&f), Verdict::Cancel(_)));
+        f.state = None;
+        assert!(matches!(judge(&f), Verdict::Cancel(_)));
+    }
+
+    #[test]
+    fn claude_gone_or_restarted_is_not_resumed() {
+        let mut f = sendable();
+        f.foreground_name = Some("zsh".into());
+        assert!(matches!(judge(&f), Verdict::Cancel(_)));
+        let mut f = sendable();
+        f.foreground_name = None;
+        assert!(matches!(judge(&f), Verdict::Cancel(_)));
+        let mut f = sendable();
+        f.foreground_pid = Some(43);
+        assert_eq!(judge(&f), Verdict::Cancel("claude was restarted"));
+    }
+
+    /// 초안을 쓰다 5 초 넘게 멈춘 사용자 — `typing` 은 false 지만 창 안에 입력이 있었다.
+    #[test]
+    fn a_draft_left_for_more_than_five_seconds_still_cancels() {
+        let mut f = sendable();
+        f.typing = false;
+        f.key_idle = Some(Duration::from_secs(8));
+        f.since_input_window = Duration::from_secs(12);
+        assert_eq!(
+            judge(&f),
+            Verdict::Cancel("the user typed after the turn began")
+        );
+    }
+
+    /// 창이 열리기 전의 입력(실패한 턴을 제출한 Enter 등)은 개입이 아니다.
+    #[test]
+    fn input_before_the_turn_began_does_not_cancel() {
+        let mut f = sendable();
+        f.key_idle = Some(Duration::from_secs(13));
+        f.since_input_window = Duration::from_secs(12);
+        assert_eq!(judge(&f), Verdict::Send);
+    }
+
+    #[test]
+    fn typing_right_now_defers_without_spending_an_attempt() {
+        let mut f = sendable();
+        f.typing = true;
+        f.key_idle = Some(Duration::from_secs(2));
+        f.since_input_window = Duration::from_secs(1);
+        assert_eq!(judge(&f), Verdict::Defer);
+    }
+
+    #[test]
+    fn the_limit_stops_sending() {
+        let mut f = sendable();
+        f.attempts = f.settings.max_attempts;
+        assert_eq!(judge(&f), Verdict::LimitReached);
+    }
+
+    #[test]
+    fn new_turn_cancels_pending_resume() {
+        let now = Instant::now();
+        let mut t = ResumeTable::default();
+        t.schedule(7, "overloaded", now, Duration::from_secs(10), Some(1));
+        assert!(t.due(7, now + Duration::from_secs(11)).is_some());
+        t.on_new_turn(7, now + Duration::from_secs(2));
+        assert!(t.due(7, now + Duration::from_secs(11)).is_none());
+        assert!(t.take_due(now + Duration::from_secs(11)).is_empty());
+    }
+
+    #[test]
+    fn a_pending_resume_is_not_due_before_the_delay() {
+        let now = Instant::now();
+        let mut t = ResumeTable::default();
+        t.schedule(7, "overloaded", now, Duration::from_secs(10), None);
+        assert!(t.take_due(now + Duration::from_secs(9)).is_empty());
+        let due = t.take_due(now + Duration::from_secs(10));
+        assert_eq!(due.len(), 1);
+        // 한 번 꺼낸 예약은 다시 나오지 않는다 — 두 번 보내지 않는다.
+        assert!(t.take_due(now + Duration::from_secs(20)).is_empty());
+    }
+
+    #[test]
+    fn rescheduling_overwrites_instead_of_queueing_a_second_send() {
+        let now = Instant::now();
+        let mut t = ResumeTable::default();
+        t.schedule(7, "overloaded", now, Duration::from_secs(10), None);
+        t.schedule(7, "server_error", now, Duration::from_secs(10), None);
+        let due = t.take_due(now + Duration::from_secs(10));
+        assert_eq!(due.len(), 1);
+        assert_eq!(due[0].1.error, "server_error");
+    }
+
+    #[test]
+    fn the_input_window_opens_at_the_turn_start_when_known() {
+        let t0 = Instant::now();
+        let mut t = ResumeTable::default();
+        t.on_new_turn(7, t0);
+        t.schedule(
+            7,
+            "overloaded",
+            t0 + Duration::from_secs(30),
+            Duration::from_secs(10),
+            None,
+        );
+        assert_eq!(
+            t.due(7, t0 + Duration::from_secs(40)).unwrap().input_since,
+            t0
+        );
+        // 턴 시작을 모르면(plugin 재시작 직후) 예약 시각부터.
+        let mut t = ResumeTable::default();
+        let at = t0 + Duration::from_secs(5);
+        t.schedule(8, "overloaded", at, Duration::from_secs(10), None);
+        assert_eq!(
+            t.due(8, at + Duration::from_secs(10)).unwrap().input_since,
+            at
+        );
+    }
+
+    #[test]
+    fn a_turn_boundary_during_the_checks_makes_the_taken_resume_stale() {
+        let now = Instant::now();
+        let mut t = ResumeTable::default();
+        t.schedule(7, "overloaded", now, Duration::from_secs(1), None);
+        let (_, p, _) = t.take_due(now + Duration::from_secs(1)).remove(0);
+        assert!(t.still_current(7, p.turn));
+        t.on_new_turn(7, now + Duration::from_secs(2));
+        assert!(!t.still_current(7, p.turn));
+        // 미루려 해도 되살아나지 않는다.
+        t.defer(7, p, now, Duration::from_secs(5));
+        assert!(t.take_due(now + Duration::from_secs(60)).is_empty());
+    }
+
+    #[test]
+    fn a_deferred_resume_comes_back_later() {
+        let now = Instant::now();
+        let mut t = ResumeTable::default();
+        t.schedule(7, "overloaded", now, Duration::from_secs(1), None);
+        let (_, p, _) = t.take_due(now + Duration::from_secs(1)).remove(0);
+        t.defer(7, p, now + Duration::from_secs(1), Duration::from_secs(5));
+        assert!(t.take_due(now + Duration::from_secs(5)).is_empty());
+        assert_eq!(t.take_due(now + Duration::from_secs(6)).len(), 1);
+    }
+
+    #[test]
+    fn attempts_stop_at_limit_and_reset_on_success() {
+        let mut t = ResumeTable::default();
+        for _ in 0..5 {
+            t.record_attempt(7);
+        }
+        assert!(t.limit_reached(7, 5));
+        t.on_success(7);
+        assert!(!t.limit_reached(7, 5));
+    }
+
+    #[test]
+    fn a_new_turn_does_not_reset_the_consecutive_count() {
+        // 재개 문구 자신이 `prompt-submit` 을 부른다 — 그것이 계수를 지우면 상한이 영영 안 온다.
+        let mut t = ResumeTable::default();
+        t.record_attempt(7);
+        t.on_new_turn(7, Instant::now());
+        assert_eq!(t.record_attempt(7), 2);
+        t.on_session_start(7, Instant::now());
+        assert_eq!(t.record_attempt(7), 1, "새 세션은 새로 센다");
+    }
+
+    #[test]
+    fn the_limit_notice_goes_out_once_per_failure_streak() {
+        let mut t = ResumeTable::default();
+        assert!(t.take_limit_notice(7));
+        assert!(!t.take_limit_notice(7));
+        t.on_success(7);
+        assert!(t.take_limit_notice(7));
+    }
+
+    #[test]
+    fn session_end_forgets_the_surface() {
+        let now = Instant::now();
+        let mut t = ResumeTable::default();
+        t.schedule(7, "overloaded", now, Duration::from_secs(1), None);
+        t.record_attempt(7);
+        t.on_session_end(7);
+        assert!(t.take_due(now + Duration::from_secs(2)).is_empty());
+        assert!(!t.limit_reached(7, 1));
+    }
+
+    /// 번역기는 없는 키를 키 문자열 그대로 돌려준다 — 그러면 키 이름이 사용자 세션에
+    /// 제출된다. 세 locale 모두 실제 문장이 있고, 상한 문구가 자리 셋을 갖는지 본다.
+    #[test]
+    fn every_locale_has_the_resume_texts() {
+        let lang_dir = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("lang");
+        for code in ["en", "ko", "ja"] {
+            let tr = tasty_plugin_sdk::i18n::Translator::load(&lang_dir, code);
+            for key in [
+                "claude.auto_resume.message",
+                "claude.auto_resume.limit_title",
+                "claude.auto_resume.limit_body",
+                "claude.settings.auto_resume_enabled",
+                "claude.settings.auto_resume_delay_secs",
+                "claude.settings.auto_resume_max_attempts",
+            ] {
+                assert_ne!(tr.t(key), key, "{code}: {key} 누락");
+            }
+            assert_eq!(
+                tr.t("claude.auto_resume.limit_body").matches("{}").count(),
+                3,
+                "{code}"
+            );
+        }
+    }
+
+    // ── observe_hook 배선 — mock host 로 설정·에러 종류에 따른 예약 여부 ──
+
+    struct SettingsHost {
+        enabled: Option<bool>,
+    }
+
+    impl HostCall for SettingsHost {
+        fn call(
+            &self,
+            method: &str,
+            params: serde_json::Value,
+        ) -> Result<serde_json::Value, tasty_plugin_sdk::PluginError> {
+            match (method, params["storage_key"].as_str()) {
+                ("settings.get_plugin_setting", Some(ENABLED_KEY)) => {
+                    Ok(json!({ "value": self.enabled }))
+                }
+                ("settings.get_plugin_setting", Some(DELAY_KEY)) => Ok(json!({ "value": 3.0 })),
+                ("settings.get_plugin_setting", _) => Ok(json!({ "value": null })),
+                ("surface.foreground_process", _) => Ok(json!({ "name": "claude", "pid": 9 })),
+                _ => Ok(json!({})),
+            }
+        }
+    }
+
+    fn scheduled_after(host: &SettingsHost, error: Option<&str>) -> Option<Pending> {
+        let t = Mutex::new(ResumeTable::default());
+        let now = Instant::now();
+        observe_hook(&t, host, "stop-failure", 7, error, now);
+        lock_table(&t).due(7, now + Duration::from_secs(3)).cloned()
+    }
+
+    #[test]
+    fn stop_failure_schedules_only_when_enabled_and_resumable() {
+        let on = SettingsHost {
+            enabled: Some(true),
+        };
+        let p = scheduled_after(&on, Some("overloaded")).expect("scheduled");
+        assert_eq!(p.foreground_pid, Some(9));
+        assert!(scheduled_after(&on, Some("authentication_failed")).is_none());
+        assert!(
+            scheduled_after(&on, None).is_none(),
+            "unknown 은 재개 대상이 아니다"
+        );
+        assert!(
+            scheduled_after(
+                &SettingsHost {
+                    enabled: Some(false)
+                },
+                Some("overloaded")
+            )
+            .is_none()
+        );
+        assert!(
+            scheduled_after(&SettingsHost { enabled: None }, Some("overloaded")).is_none(),
+            "미설정은 기본값(꺼짐)"
+        );
+    }
+
+    #[test]
+    fn subagent_stop_does_not_end_the_failure_streak() {
+        let t = Mutex::new(ResumeTable::default());
+        let host = SettingsHost {
+            enabled: Some(true),
+        };
+        lock_table(&t).record_attempt(7);
+        observe_hook(&t, &host, "subagent-stop", 7, None, Instant::now());
+        assert!(lock_table(&t).limit_reached(7, 1));
+        observe_hook(&t, &host, "stop", 7, None, Instant::now());
+        assert!(!lock_table(&t).limit_reached(7, 1));
+    }
+}

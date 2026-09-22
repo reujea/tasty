@@ -203,6 +203,24 @@ install은 marker substring(`tasty claude hook <token>`)으로 자기 entry를 �
 
 이 플러그인이 fire하는 surface hook 이벤트는 `claude-idle`/`needs-input`/`claude-stop-failure`/`claude-error`/`claude-error-stalled` 5개이며, 매니페스트 `contributes.hook_events`로 선언한다 — host가 (내장 ∪ 활성 plugin 선언) 집합으로 `hook.set` 등록을 검증하므로([hooks](../../features/hooks/index.md)), 이 플러그인이 비활성이면 저 5개 키로의 hook 등록도 거부된다. **이 5개가 전부 위 9개 설치 훅에서 나오는 건 아니다** — `claude-idle`은 위 `apply_hook`(Stop/SubagentStop/StopFailure/SessionEnd)에서, `claude-stop-failure`는 `StopFailure`에서, `needs-input`은 `Notification`(idle_prompt 제외)과 `PreToolUse`(matcher `AskUserQuestion`) 두 경로에서 나오지만, `claude-error`/`claude-error-stalled`는 이 훅 메커니즘과 무관한 별도 producer다: `error_scan.rs`가 surface 출력 텍스트를 패턴 매칭해 매치 시 직접 `surface.fire_hook`으로 발사한다(정지 판정은 아래 절). API 에러로 턴이 **끝나면** `StopFailure`가 구조적 신호를 주지만, 요청이 응답 없이 매달리면 턴이 끝나지 않아 `Stop`도 `StopFailure`도 **발화하지 않는다** — 그때는 PTY에 찍히는 에러 문자열과 출력 정적이 얻을 수 있는 유일한 신호다. `claude-idle`/`needs-input`은 [surface-highlight](../../features/surface-highlight/index.md)(Stop hook → highlight)와 [telemetry](../../features/telemetry/index.md)(`session-start`→`stop`의 `wall_time_ms`, `notification`의 `input_tokens`)가 소비하고, `SessionStart`/`SessionEnd`의 meta set/unset은 [layout-persistence](../../features/layout-persistence/index.md)의 `restore.command` 복원이 소비한다.
 
+### API 에러 뒤 자동 재개 (`auto_resume.rs`)
+
+API 에러로 끝난 턴(위 `StopFailure`)을 설정된 지연 뒤에 재개 문구 하나로 이어 준다. **기본 꺼짐**이다 — 사용자 세션에 텍스트를 넣는 기능이라 opt-in 이다. 근거·대안·재검토 조건은 [ADR-0521](../../adr/0521-claude-auto-resume-after-an-api-error-is-opt-in-and-judged-at-send-time.md).
+
+| 설정(`storage_key`) | 종류 | 기본 | 뜻 |
+|---|---|---|---|
+| `auto_resume_enabled` | toggle | `false` | 켜야 동작한다 |
+| `auto_resume_delay_secs` | number(최소 1) | 10 | 턴이 끝난 뒤 재개까지 기다리는 초 |
+| `auto_resume_max_attempts` | number(최소 1) | 5 | 연속으로 보내는 재개 문구 수의 상한 |
+
+- **대상 에러**: `overloaded` · `server_error` 뿐이다. `rate_limit` 은 제외한다(해제가 분~시간 단위라 몇 초 뒤 재개는 다시 실패한다). 인증·과금·요청 형식·출력 한도 등은 다시 보내도 같아 제외한다. 서브에이전트(`agent_id` 가 실린)의 실패는 메인 턴이 계속되므로 예약하지 않는다.
+- **예약**: `stop-failure` 가 오면 설정을 읽어 켜짐 · 대상 에러일 때만 만기 시각을 적는다(같은 surface 의 예약은 덮어쓴다). 새 턴(`prompt-submit` · `session-start` · `active`) · 성공 `stop` · `session-end` 가 예약을 지운다 — 사람이 먼저 입력하면 그 입력의 `prompt-submit` 이 지운다. hook 핸들러는 잠들지 않고, 만기는 전용 스레드 `claude-auto-resume`(500 ms 주기)가 처리한다.
+- **보내기 직전 확인**(전부 참이어야 보낸다): 설정이 여전히 켜짐(예약 뒤 끄면 안 나간다) · `terminal.state` 가 `idle` · 전경이 `claude` 이고 pid 가 예약 때와 같음 · **실패한 턴이 시작된 뒤 사용자 키 입력이 없음** · 연속 상한 미만. 마지막으로 예약 이후 턴 경계가 없었는지 한 번 더 본다.
+- **사용자 입력 가드**: `surface.is_typing` 의 `idle_seconds`(마지막 사용자 키 입력 뒤 경과)를 그 턴의 `prompt-submit` 이후 경과와 견준다 — 작으면 입력창에 초안이 있을 수 있으므로 취소한다. `typing`(최근 5 초)만 보면 초안을 쓰다 멈춘 사용자를 놓친다. 이 조건을 통과했는데 `typing` 이 참이면 5 초 미루고 시도 수를 쓰지 않는다. 사용자 키 입력은 GUI 키보드·IME 만 기록하므로 에이전트의 `send`/`tell` 은 이 가드에 걸리지 않는다. 조회가 실패하면 입력이 있었던 것으로 본다.
+- **제출**: `terminal.tell`(본문 write 확인 → 정착 지연 → Enter, 원격 attach 점유 surface 거절). 거절되면 다시 걸지 않는다. 문구는 i18n 키 `claude.auto_resume.message` 고정이다.
+- **상한**: 연속으로 보낸 수가 상한에 닿으면 보내지 않고 `notification.create` 로 한 번 알린다(i18n `claude.auto_resume.limit_*`). 계수는 성공 `stop` 과 새 세션에서 0 이 되고, 재개 문구 자신의 `prompt-submit` 은 계수를 지우지 않는다. 가짜 서버처럼 매번 실패하면 요청은 처음 1 + 재개 상한만큼이다.
+- **흔적**: 보낼 때마다 `tracing::info!` 한 줄과 surface meta `claude-auto-resume-count`(연속 재개 수, 성공 턴이 지움)를 남긴다. 부모 완료 로그에는 실패한 턴마다 에러 종류가 붙은 완료 줄이 이미 가므로 따로 쓰지 않는다.
+
 ### PTY 에러 스캔 (`claude-error`) 범위
 
 `error_scan.rs`는 800ms 주기 폴링으로 추적 대상 surface 마다 `surface.read_since_scan_mark`(strip-ansi)를 읽어 알려진 네트워크/API 에러 패턴(`API Error` / `Output blocked by content filtering policy` / `overloaded_error` / `rate_limit_error` / `Internal Server Error` / `network error` / `Bad Request`)을 매칭하고, 매치 시 그 surface 에 `claude-error` 를 fire 한다. 같은 텍스트가 연속 폴링에서 다시 잡히면 발화하지 않으며(dedupe), 새 턴 시작 신호(`prompt-submit`/`session-start`/`active`)에 dedupe 가 풀린다.

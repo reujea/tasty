@@ -84,6 +84,7 @@ pub enum HostCall {
 pub(crate) fn handle_claude_hook(
     state: &mut ClaudeState,
     scanner: &Arc<Mutex<ErrorScanner>>,
+    resume: &Mutex<crate::auto_resume::ResumeTable>,
     host: &HostHandle,
     params: &Value,
     data_dir: Option<&Path>,
@@ -157,6 +158,15 @@ pub(crate) fn handle_claude_hook(
     // "실패했을 때만 넣는" 형태는 같은 침묵을 한 칸 옮길 뿐이다(필드가 없는 것과 실패가
     // 0 인 것이 다시 구별되지 않는다).
     let host_call_failures = deliver_all(host, &calls);
+    // 상태(`idle`)를 먼저 쓴 뒤에 예약한다 — 만기 처리가 그 상태를 확인한다.
+    crate::auto_resume::observe_hook(
+        resume,
+        host,
+        event,
+        surface_id,
+        error,
+        std::time::Instant::now(),
+    );
 
     if is_new_turn_event(event) {
         reset_dedupe_if_enabled(scanner, surface_id);

@@ -5,6 +5,9 @@ desc = "Claude Code CLI連携（launch、spawn、killなど）"
 "settings.spawn_child_warn_threshold" = "Spawn child 警告しきい値"
 "settings.continue_checklist_round_limit" = "ゲートの既定ラウンド上限（ゲートが独自の値を指定しない場合）"
 "settings.default_permission_mode" = "子セッションの既定パーミッションモード"
+"settings.auto_resume_enabled" = "一時的な API エラー（サーバー過負荷）の後に自動で再開する"
+"settings.auto_resume_delay_secs" = "再開までの待ち時間（秒）"
+"settings.auto_resume_max_attempts" = "諦めるまでの連続自動再開回数"
 "settings.permission_mode.inherit" = "継承（Claude Code 自身の設定に従う）"
 "settings.permission_mode.manual" = "毎回確認する（manual）"
 "settings.permission_mode.plan" = "計画のみ（plan）"
@@ -50,6 +53,11 @@ permission_mode_conflicts_with_profile = "--permission-mode と permissions.defa
 [claude.hook]
 missing_event = "必須パラメータ 'event' がありません"
 unknown_event = "不明な claude hook イベント: '{}'"
+
+[claude.auto_resume]
+message = "直前のターンが一時的な API エラーで中断されました。作業の続きを進めてください。"
+limit_title = "Claude 自動再開を停止"
+limit_body = "surface {}: API エラーが {} 回連続したため（{}）自動再開を停止しました。セッションを確認して手動で続けてください。"
 
 [claude.notify]
 done_message = "surface {}: 作業完了 ({} 経由)"

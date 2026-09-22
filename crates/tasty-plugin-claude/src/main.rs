@@ -13,6 +13,7 @@
 //!
 //! 호스트 코드에는 의존하지 않으며 `tasty-plugin-sdk`만 사용한다.
 
+mod auto_resume;
 mod checklist;
 mod error_scan;
 mod gate;
@@ -54,6 +55,11 @@ struct ClaudePlugin {
     /// registry 는 호스트 `terminal.*` 가 소유한다.
     state: ClaudeState,
     scanner: Arc<Mutex<ErrorScanner>>,
+    /// API 에러로 끝난 턴의 재개 예약 — hook 핸들러가 쓰고 `claude-auto-resume` 스레드가
+    /// 만기를 처리한다(`auto_resume.rs`).
+    resume: Arc<Mutex<auto_resume::ResumeTable>>,
+    /// 그 스레드가 쓸 문구. `on_start` 에서 스레드로 넘긴다.
+    resume_texts: auto_resume::Texts,
     /// reboot 시퀀스 진행 중인 surface 집합 — 같은 surface 중복 reboot 가드.
     rebooting: Arc<Mutex<HashSet<u32>>>,
     /// Claude 세션 프로필 레지스트리·머지 산출물(`profile.rs`) + 게이트 레지스트리
@@ -78,9 +84,16 @@ impl ClaudePlugin {
         checklist_body: String,
         translator: Translator,
     ) -> Self {
+        let resume_texts = auto_resume::Texts {
+            message: translator.t("claude.auto_resume.message").to_string(),
+            limit_title: translator.t("claude.auto_resume.limit_title").to_string(),
+            limit_body: translator.t("claude.auto_resume.limit_body").to_string(),
+        };
         Self {
             state: ClaudeState::new(),
             scanner: Arc::new(Mutex::new(ErrorScanner::new())),
+            resume: Arc::new(Mutex::new(auto_resume::ResumeTable::default())),
+            resume_texts,
             rebooting: Arc::new(Mutex::new(HashSet::new())),
             plugin_data_dir,
             checklist_body,
@@ -110,6 +123,7 @@ impl Plugin for ClaudePlugin {
             "claude.hook" => hook::handle_claude_hook(
                 &mut self.state,
                 &self.scanner,
+                &self.resume,
                 &ctx.host,
                 &ctx.params,
                 self.plugin_data_dir.as_deref(),
@@ -261,6 +275,9 @@ impl Plugin for ClaudePlugin {
         // enable 되며, 추적 대상이 사라지면 이 스레드 자신이 매 tick 생존을 확인해
         // disable 한다(`error_scan_loop` / `error_scan::scan_target_is_alive` 참조).
         let scanner = self.scanner.clone();
+        let resume = self.resume.clone();
+        let resume_host = host.clone();
+        let resume_texts = self.resume_texts.clone();
         // spawn 실패 시 패닉을 유지한다 — 호스트(tasty)가 아니라 **이 plugin
         // 프로세스만** 죽고, 호스트는 plugin 사망을 이미 감지·복구한다. 호스트 쪽
         // 스레드 spawn 이 에러 반환으로 바뀐 것과 대칭이 아닌 이유가 이것이다:
@@ -269,6 +286,13 @@ impl Plugin for ClaudePlugin {
             .name("claude-error-scan".into())
             .spawn(move || error_scan_loop(scanner, host))
             .expect("spawn claude-error-scan thread");
+        // 같은 이유로 패닉을 유지한다. 스캐너와 스레드를 나누는 이유: 만기 처리는
+        // `terminal.tell` 을 부르고 그 호출은 제출 확인까지 수백 ms 를 쓴다 — 스캔 주기에
+        // 얹으면 그동안 모든 surface 의 에러 스캔이 선다.
+        std::thread::Builder::new()
+            .name("claude-auto-resume".into())
+            .spawn(move || auto_resume::run_loop(resume, resume_host, resume_texts))
+            .expect("spawn claude-auto-resume thread");
     }
 }
 

@@ -5,6 +5,9 @@ desc = "Claude Code CLI 연동(launch, spawn, kill 등)"
 "settings.spawn_child_warn_threshold" = "Spawn child 경고 임계치"
 "settings.continue_checklist_round_limit" = "게이트 기본 라운드 상한 (게이트가 자체 값을 지정하지 않았을 때)"
 "settings.default_permission_mode" = "자식 세션 기본 권한 모드"
+"settings.auto_resume_enabled" = "일시적인 API 에러(서버 과부하) 뒤 자동으로 이어서 진행"
+"settings.auto_resume_delay_secs" = "재개 전 대기 시간(초)"
+"settings.auto_resume_max_attempts" = "포기하기 전 연속 자동 재개 횟수"
 "settings.permission_mode.inherit" = "물려받음 (Claude Code 자신의 설정을 따름)"
 "settings.permission_mode.manual" = "매번 묻기 (manual)"
 "settings.permission_mode.plan" = "계획만 (plan)"
@@ -50,6 +53,11 @@ permission_mode_conflicts_with_profile = "--permission-mode 와 permissions.defa
 [claude.hook]
 missing_event = "필수 파라미터 'event' 누락"
 unknown_event = "알 수 없는 claude hook 이벤트: '{}'"
+
+[claude.auto_resume]
+message = "직전 턴이 일시적인 API 에러로 중단됐다. 하던 작업을 이어서 계속 진행해."
+limit_title = "Claude 자동 재개 중단"
+limit_body = "surface {}: API 에러가 {}번 연달아 나서({}) 자동 재개를 멈췄습니다. 세션을 확인하고 직접 이어 주세요."
 
 [claude.notify]
 done_message = "surface {}: 작업 완료 (호출: {})"
