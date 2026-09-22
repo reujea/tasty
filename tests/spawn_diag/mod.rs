@@ -2053,14 +2053,18 @@ fn bundle_link_snapshot() -> Option<&'static std::path::Path> {
 /// 자식이 부팅하며 고를 번들을 정하고, 그 내용 서명으로 이름 붙인 스냅숏을 돌려준다.
 /// 같은 서명의 스냅숏이 이미 있으면 그대로 쓴다 — 번들이 안 바뀌는 동안 스냅숏 쓰기는 0 이다.
 fn build_bundle_link_snapshot() -> Result<std::path::PathBuf, String> {
-    let bin = std::path::PathBuf::from(instance_bin());
     // override 된 바이너리는 테스트와 다른 프로필일 수 있다. 그때 아래의 dev 스테이징을
     // 테스트 프로필로 돌리면 자식이 안 할 쓰기를 남의 번들에 하게 된다 — 대신 정하지 않는다.
-    if bin.as_os_str() != env!("CARGO_BIN_EXE_tasty") {
+    // 판정은 [`instance_bin`] 과 같은 규칙([`effective_override`])으로 한다 — 바이너리를 고르는
+    // 자리를 여기에 하나 더 만들지 않는다.
+    if effective_override(daemon_kind(), std::env::var_os(INSTANCE_BIN_ENV))
+        .is_some_and(|v| !v.is_empty())
+    {
         return Err(format!(
             "{INSTANCE_BIN_ENV} override 중이라 자식의 번들을 대신 못 정한다"
         ));
     }
+    let bin = std::path::PathBuf::from(instance_bin());
     let bin_dir = bin
         .parent()
         .ok_or_else(|| format!("바이너리 경로에 부모가 없다: {}", bin.display()))?;
