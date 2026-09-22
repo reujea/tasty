@@ -74,24 +74,32 @@ pub fn handle_request(
         },
     };
 
+    let surface_id =
+        match crate::adapters::ipc::handler::params::optional_u32(params, "surface_id", &id) {
+            Ok(v) => v,
+            Err(e) => return e,
+        };
+
+    // 귀속 워크스페이스: 명시 `workspace_id` → `surface_id` 가 사는 워크스페이스 → 활성
+    // 워크스페이스. 가운데 갈래는 호출자가 대상 surface 를 이미 댔는데 귀속을 사용자 포커스가
+    // 정하지 않게 한다(원칙 3). 둘 다 없는 요청만 종전대로 활성으로 떨어진다 — 호환 때문에
+    // 남긴 기본값이고 근거는 ADR-0533.
     let workspace_id =
         match crate::adapters::ipc::handler::params::optional_u32(params, "workspace_id", &id) {
             Ok(v) => v,
             Err(e) => return e,
         }
         .or_else(|| {
-            // 미지정이면 활성 워크스페이스로 fallback (편의).
+            surface_id
+                .and_then(|sid| engine.find_workspace_index_for_surface(sid))
+                .map(|(idx, _)| engine.workspaces[idx].id)
+        })
+        .or_else(|| {
             engine
                 .workspaces
                 .get(window.active_workspace_index())
                 .map(|ws| ws.id)
         });
-
-    let surface_id =
-        match crate::adapters::ipc::handler::params::optional_u32(params, "surface_id", &id) {
-            Ok(v) => v,
-            Err(e) => return e,
-        };
 
     let metadata = params.get("metadata").cloned().unwrap_or(Value::Null);
 

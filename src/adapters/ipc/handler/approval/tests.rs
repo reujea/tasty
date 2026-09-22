@@ -103,3 +103,63 @@ fn the_elevation_envelope_carries_what_the_agent_needs_to_recover() {
         "격상 레코드를 지목할 id 가 봉투에 실려야 한다"
     );
 }
+
+/// `approval.request` 가 귀속시킨 워크스페이스 id 를 응답에서 읽는다.
+fn requested_workspace(params: Value, active: usize) -> (Option<u64>, Vec<u32>) {
+    let _home = crate::test_support::TastyHomeGuard::new();
+    let mut core = crate::adapters::ipc::handler::cli_entry_tests::test_core();
+    let (mut state, mut engine) = crate::state::tests::test_state();
+    crate::core::apply_create_workspace_inner(
+        &mut engine,
+        crate::core::WorkspaceCreationParams::terminal(),
+    )
+    .expect("두 번째 워크스페이스");
+    let ids: Vec<u32> = engine.workspaces.iter().map(|w| w.id).collect();
+    state.active_workspace = active;
+    let mut params = params;
+    if params.get("surface_id").and_then(Value::as_str) == Some("ws1") {
+        params["surface_id"] = json!(engine.workspaces[1].all_surface_ids()[0]);
+    }
+    params["title"] = json!("t");
+    let res = handle_request(
+        &mut core,
+        &mut state,
+        &mut engine,
+        &CallerContext::Local,
+        json!(1),
+        &params,
+    );
+    assert!(res.error.is_none(), "성공해야 한다: {:?}", res.error);
+    let result = res.result.expect("result");
+    (result["record"]["request"]["workspace_id"].as_u64(), ids)
+}
+
+/// 원칙 3 — 호출자가 surface 를 댔으면 귀속은 그 surface 의 워크스페이스다. 사용자가 어느
+/// 워크스페이스를 보고 있든 같은 답이어야 한다(ADR-0533).
+#[test]
+fn a_named_surface_decides_the_workspace_whatever_the_user_is_viewing() {
+    for active in [0, 1] {
+        let (ws, ids) = requested_workspace(json!({ "surface_id": "ws1" }), active);
+        assert_eq!(
+            ws,
+            Some(u64::from(ids[1])),
+            "활성 {active} 에서 surface 의 워크스페이스가 아닌 곳에 귀속됐다"
+        );
+    }
+}
+
+/// 명시 `workspace_id` 가 surface 보다 앞선다 — 호출자가 둘 다 줬으면 준 대로 기록한다.
+#[test]
+fn an_explicit_workspace_wins_over_the_surface() {
+    let (ws, ids) = requested_workspace(json!({ "surface_id": "ws1", "workspace_id": 999 }), 1);
+    assert_eq!(ws, Some(999), "명시 workspace_id 를 무시했다 (ids {ids:?})");
+}
+
+/// 둘 다 없으면 종전대로 활성 워크스페이스다 — 호환 때문에 남긴 기본값이다.
+#[test]
+fn without_a_target_the_active_workspace_is_kept_for_compatibility() {
+    for active in [0, 1] {
+        let (ws, ids) = requested_workspace(json!({}), active);
+        assert_eq!(ws, Some(u64::from(ids[active])));
+    }
+}

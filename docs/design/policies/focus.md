@@ -148,13 +148,15 @@ IPC 핸들러(`src/adapters/ipc/`)가 활성 포인터를 읽는 자리를 전�
 | 부류 | 하는 일 | 판정 |
 |---|---|---|
 | 보고 | 응답에 활성 상태를 싣는다(`"focused"` · `"active"` · `active_workspace`) | 위 "활성 상태 *조회* 는 허용" 그대로 |
-| 기본값 채우기 | 대상은 인자로 지목됐고, **미지정 인자**만 포커스가 채운다 — 새 탭·split 의 cwd 상속, `telemetry.record` 의 workspace, `approval.request` 의 workspace | 호출자가 명시하면 안 읽는다. 명시하지 않으면 같은 인자로 두 번 불러도 값이 다를 수 있다 |
+| 기본값 채우기 | 대상은 인자로 지목됐고, **미지정 인자**만 포커스가 채운다 — 새 탭·split 의 cwd 상속, `telemetry.record` 의 workspace, `approval.request` 의 workspace(단 `surface_id` 를 줬으면 그 surface 의 워크스페이스라 포커스를 안 읽는다) | 호출자가 명시하면 안 읽는다. 명시하지 않으면 같은 인자로 두 번 불러도 값이 다를 수 있다 |
 | 계측 태그 | 공통 `check_request`가 audit 귀속에 engine의 활성 workspace를 읽는다. telemetry는 같은 engine의 첫 workspace를 태그로 쓴다 | **판정에는 안 쓰인다** — 게이트가 빌린 engine의 관측 문맥이며, 요청이 작용한 대상이나 사용자의 포커스를 증명하지 않는다 |
 | 알림 배치 | cap 임계·이상 탐지·승인 요청 알림이 활성 워크스페이스에 뜬다 | 사용자에게 보이라고 두는 자리라 에이전트 대상 결정이 아니다 |
 | 효과 scope | `debug.host_popup.open` 의 `workspace_scope` | debug 전용. 사용자 조작 재현이라 창 종속이 뜻 자체다 |
 
 두 번째 부류가 이 축에서 유일하게 관측 가능한 흔들림이다 — **인자를 명시하지 않은
 호출은 재현 가능하지 않다.** 금지가 아니라 성질이고, 재현이 필요하면 인자를 준다.
+요청이 이미 대상을 댄 자리에서는 그 대상이 귀속을 정하고, 아무것도 대지 않은 자리에만
+포커스 기본값이 남는다. 자리별 갈래와 남긴 이유는 [ADR-0533](../../adr/0533-an-omitted-target-keeps-its-focus-default-only-where-nothing-names-one.md).
 
 세 번째 부류는 **감사 로그를 workspace 로 조회할 때만 드러난다.** 행의 workspace 는
 요청의 대상이 아니므로, 그 열로 "이 워크스페이스에서 무슨 일이 있었나" 를 물으면

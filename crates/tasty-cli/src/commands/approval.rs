@@ -32,7 +32,7 @@ pub enum ApprovalCommands {
         /// Severity: info | warn | danger. Default: info.
         #[arg(long)]
         severity: Option<String>,
-        /// Workspace id binding (defaults to active workspace).
+        /// Workspace id binding (defaults to the workspace of --surface-id, then the active workspace).
         #[arg(long)]
         workspace_id: Option<u32>,
         /// Surface id binding (optional).

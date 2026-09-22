@@ -138,6 +138,7 @@ GUI·debug 핸들러만 `AppState` 를 받고, 그것은 엔진 핸들러 표와
 
 - [ADR-0355](0355-app-state-ownership-is-split-by-the-gui-boundary-not-by-a-second-struct.md) — 이 결정이 엔진 핸들러 층을 닫는 잔여 ①(진입점은 열려 있다)
 - [ADR-0470](0470-an-ipc-handler-takes-window-state-only-when-it-reads-it.md) — 인자를 빼는 앞 걸음과 이 결정이 이은 남은 걸음
+- [ADR-0533](0533-an-omitted-target-keeps-its-focus-default-only-where-nothing-names-one.md) — 이 결정이 정하지 않은 대상 생략 기본값의 자리별 재결정
 - [ADR-0440](0440-the-domain-boundary-is-a-module-boundary-with-a-guard-not-a-crate.md) — 이 포트가 물려받는 도메인 포트 `CascadeWindow`
 - [ADR-0111](0111-headless-drains-the-intent-queue.md) — 헤드리스 pump 가 창 큐를 비우는 이유
 - [AppState 필드 소유권](../dev-guide/app-state-ownership.md) · [포커스 정책](../design/policies/focus.md) · [Action Dispatch](../design/flows/action-dispatch.md)

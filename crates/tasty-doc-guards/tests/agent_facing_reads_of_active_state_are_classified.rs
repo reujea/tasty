@@ -179,7 +179,7 @@ const ROSTER: &[(&str, Kind, usize, &str)] = &[
         "src/adapters/ipc/handler/approval/request.rs",
         Attribution,
         1,
-        "승인 요청 생성 쪽의 같은 귀속. approval.rs 와 파일이 달라 사유를 따로 적는다",
+        "승인 요청 생성 쪽의 같은 귀속 — 명시 workspace_id 도 surface_id 도 없을 때만 읽는다(surface 를 댔으면 그 워크스페이스, ADR-0533). approval.rs 와 파일이 달라 사유를 따로 적는다",
     ),
     (
         "src/adapters/ipc/handler/telemetry/record.rs",

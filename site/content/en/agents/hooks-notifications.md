@@ -157,6 +157,7 @@ tasty approval await --id "$ID"            # wait until a response arrives, prin
 - A popup appears and a notification goes out as well. The user answers by clicking a popup button, pressing number keys `1`~`9` in the popup (in choice order), or with `tasty approval respond --id <ID> --choice approve`.
 - `--severity info` sends only a notification with no popup; `warn`/`danger` show a popup plus a notification. `danger` must be answered by the user directly.
 - The popup does not close on Esc (to prevent bypassing). Query with `tasty approval list` / `get` / `history`.
+- A request is bound to a workspace: the one given by `--workspace-id`, otherwise the workspace of the terminal given by `--surface-id`, otherwise the workspace you are looking at. An agent is safest passing its own terminal with `--surface-id "$TASTY_SURFACE_ID"` — the request then lands in the same place even when the user is looking at another workspace.
 
 ## Webhooks (outside → Tasty)
 

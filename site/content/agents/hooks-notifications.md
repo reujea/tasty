@@ -152,6 +152,7 @@ tasty approval await --id "$ID"            # 응답이 올 때까지 대기, 결
 - 팝업이 뜨고 알림도 함께 갑니다. 사용자는 팝업 버튼 클릭, 팝업에서 숫자 키 `1`~`9`(선택지 순서), 또는 `tasty approval respond --id <ID> --choice approve` 로 답합니다.
 - `--severity info` 는 팝업 없이 알림만, `warn`/`danger` 는 팝업 + 알림. `danger` 는 사용자가 직접 답해야 합니다.
 - 팝업은 Esc 로 닫히지 않습니다 (우회 방지). `tasty approval list` / `get` / `history` 로 조회.
+- 요청은 워크스페이스에 묶입니다. `--workspace-id` 를 주면 그곳, `--surface-id` 만 주면 그 터미널이 있는 워크스페이스, 둘 다 없으면 지금 보고 있는 워크스페이스입니다. 에이전트가 요청하면 자기 터미널을 `--surface-id "$TASTY_SURFACE_ID"` 로 주는 것이 안전합니다 — 사용자가 다른 워크스페이스를 보고 있어도 같은 곳에 묶입니다.
 
 ## 웹훅 (외부 → Tasty)
 

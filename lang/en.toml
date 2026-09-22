@@ -4828,7 +4828,7 @@ help = "Timeout in milliseconds. Caller may override at `await` time"
 help = "Severity: info | warn | danger. Default: info"
 
 [cli.help._root.approval.request.arg.workspace_id]
-help = "Workspace id binding (defaults to active workspace)"
+help = "Workspace id binding (defaults to the workspace of --surface-id, then the active workspace)"
 
 [cli.help._root.approval.request.arg.surface_id]
 help = "Surface id binding (optional)"

@@ -67,7 +67,7 @@ VTE 지원 범위 · 마우스 리포팅 · PTY 수명. 마우스 리포팅 우�
 
 ## 창 · 워크스페이스 · 포커스 · 수명주기
 
-창 · 워크스페이스 · 닫기 · 부팅/종료. 종료 사슬은 0077 → 0078, 캡처는 0044 → 0118 이다. 포커스 보존은 0113 · 0125 · 0497 · 0502 가 각각 다른 자리(삭제 이동 · 재정렬 · 에이전트가 만든 창 · 에이전트가 만든 탭)를 정한다. 에이전트 창에 워크스페이스를 만드는 지목은 0514(「CLI · 로깅 · 에이전트 표면」).
+창 · 워크스페이스 · 닫기 · 부팅/종료. 종료 사슬은 0077 → 0078, 캡처는 0044 → 0118 이다. 포커스 보존은 0113 · 0125 · 0497 · 0502 가 각각 다른 자리(삭제 이동 · 재정렬 · 에이전트가 만든 창 · 에이전트가 만든 탭)를 정한다. 대상을 생략한 IPC 요청의 활성 워크스페이스 기본값은 0470 → 0471(「아키텍처 · 헤드리스 · 크레이트 경계」, 창 상태를 포트로 좁히며 동작을 안 바꿈) → 0533(자리별 재결정)이다. 에이전트 창에 워크스페이스를 만드는 지목은 0514(「CLI · 로깅 · 에이전트 표면」).
 운영 문서: [design/policies/focus](../design/policies/focus.md) · [architecture/close-sequence](../architecture/close-sequence.md)
 
 | # | Title | Status | Date | Tags |
@@ -92,6 +92,7 @@ VTE 지원 범위 · 마우스 리포팅 · PTY 수명. 마우스 리포팅 우�
 | 0251 | [폴백으로 가는 dispatch 메서드는 술어가 아니라 사유로 판정한다](0251-unrouted-dispatch-methods-carry-a-reason-not-a-predicate.md) | Accepted | 2026-09-09 | ipc, routing, focus, guards, roster, multi-window, adr-0133, adr-0175 |
 | 0497 | [에이전트가 만든 창은 사용자의 포커스를 가져가지 않는다](0497-an-agent-created-window-does-not-take-the-users-focus.md) | Accepted | 2026-09-22 | focus, window, multi-window, ipc, cli, user-agent-separation, identity, winit, x11, wayland, stacking |
 | 0502 | [에이전트가 만든 탭은 사용자가 보던 탭을 바꾸지 않는다](0502-an-agent-created-tab-does-not-take-the-users-tab.md) | Accepted | 2026-09-23 | focus, tab, ipc, cli, user-agent-separation, identity, attach, file-handler, adr-0302, adr-0497 |
+| 0533 | [대상을 생략한 요청의 포커스 기본값은 아무것도 대상을 대지 않은 자리에만 남는다](0533-an-omitted-target-keeps-its-focus-default-only-where-nothing-names-one.md) | Accepted | 2026-09-23 | focus, identity-principle-3, ipc, cli, approval, telemetry, audit, notification, default-value, compatibility, adr-0470, adr-0471 |
 
 ## 단축키 · modifier-hint
 
@@ -470,7 +471,7 @@ pragma 보고는 0316 → 0376(보고 채널 개정), 못 연 `memory.db` 의 in
 
 ## 아키텍처 · 헤드리스 · 크레이트 경계
 
-구조 op 는 0337 → 0395(결정 2 개정) → 0440, headless Intent 는 0111 → 0346 이다.
+구조 op 는 0337 → 0395(결정 2 개정) → 0440, headless Intent 는 0111 → 0346 이다. IPC 핸들러의 창 상태는 0470 → 0471 이고, 그것이 남긴 대상 생략 기본값은 0533(「창 · 워크스페이스 · 포커스 · 수명주기」)이 정한다.
 운영 문서: [architecture](../architecture/index.md) · [dev-guide/headless-build-boundaries](../dev-guide/headless-build-boundaries.md) · [dev-guide/app-state-ownership](../dev-guide/app-state-ownership.md)
 
 | # | Title | Status | Date | Tags |

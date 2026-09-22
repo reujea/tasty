@@ -4796,7 +4796,7 @@ help = "timeout (밀리초). 호출자가 `await` 때 덮어쓸 수 있다"
 help = "심각도: info | warn | danger. 기본값: info"
 
 [cli.help._root.approval.request.arg.workspace_id]
-help = "묶을 워크스페이스 id (기본값: 활성 워크스페이스)"
+help = "묶을 워크스페이스 id (기본값: --surface-id 가 있는 워크스페이스, 없으면 활성 워크스페이스)"
 
 [cli.help._root.approval.request.arg.surface_id]
 help = "묶을 surface id (선택)"

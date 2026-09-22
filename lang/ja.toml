@@ -4798,7 +4798,7 @@ help = "timeout（ミリ秒）。呼び出し側が `await` のときに上書�
 help = "深刻度: info | warn | danger。デフォルト: info"
 
 [cli.help._root.approval.request.arg.workspace_id]
-help = "紐づけるワークスペース id（デフォルト: アクティブなワークスペース）"
+help = "紐づけるワークスペース id（デフォルト: --surface-id のワークスペース、なければアクティブなワークスペース）"
 
 [cli.help._root.approval.request.arg.surface_id]
 help = "紐づける surface id（任意）"
