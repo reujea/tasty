@@ -207,6 +207,7 @@ pub(super) fn dispatch_arms(src: &str) -> Vec<(Vec<String>, String)> {
     out
 }
 
+/// 파일 경로 → 모듈 경로. `handler.rs` 는 빈 경로(모듈 루트)다.
 fn module_of(rel: &str) -> Vec<String> {
     if rel == HANDLER_ROOT {
         return Vec::new();
