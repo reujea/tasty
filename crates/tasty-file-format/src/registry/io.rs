@@ -1,24 +1,10 @@
 //! `FileFormatRegistry` — io 도메인.
 
-use std::collections::BTreeMap;
 use std::path::Path;
 
-use tracing::warn;
-
-use super::helpers::{
-    decl_rule_to_kind, identify_by_extension_priority, install_extension_priority, install_one,
-    parse_detector_section, parse_extension_priority_section, path_extension_lowercase,
-    rule_kind_eq, rule_kind_to_toml,
-};
-use super::{DetectorContribution, ExtensionPriorityEntry, FileFormatRegistry};
-use crate::config::{
-    DetectorDecl, DetectorRuleDecl, ExtensionPriorityDecl, validate_detector_decl,
-};
-use crate::evaluator::{DeepCtx, evaluate_cheap, evaluate_deep};
-use crate::types::{
-    DetectDepth, DetectorId, DetectorRule, DetectorRuleKind, FileFormatDetector, FileTarget,
-    RuleOrigin,
-};
+use super::FileFormatRegistry;
+use super::helpers::rule_kind_to_toml;
+use crate::types::RuleOrigin;
 
 impl FileFormatRegistry {
     /// user 출처 contribution 만 모아 TOML 문자열로 직렬화. Settings UI 가 변경 사항을

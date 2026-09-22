@@ -16,28 +16,20 @@ mod tests;
 mod user_edit;
 
 use std::collections::BTreeMap;
-use std::path::{Path, PathBuf};
 use std::sync::RwLock;
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::AtomicU64;
 
-use helpers::{
-    decl_rule_to_kind, hex_to_bytes, identify_by_extension_priority, install_extension_priority,
-    install_one, parse_detector_section, parse_extension_priority_section,
-    path_extension_lowercase, rule_kind_eq, rule_kind_to_toml,
-};
+use helpers::rule_kind_eq;
 use path_glob::PathGlobCache;
+<<<<<<< HEAD
 pub use snapshot::{ContributionSnapshot, DetectorSnapshot};
 use tracing::warn;
+=======
+>>>>>>> eb59faea4 (refactor(file-format): drop the crate wide dead_code and unused_imports allows)
 
-use super::config::{
-    DetectorDecl, DetectorRuleDecl, ExtensionPriorityDecl, validate_detector_decl,
-};
-use super::evaluator::{DeepCtx, evaluate_cheap, evaluate_deep};
+use super::config::DetectorDecl;
 use super::info::DetectorInfo;
-use super::types::{
-    DetectDepth, DetectorId, DetectorRule, DetectorRuleKind, FileFormatDetector, FileTarget,
-    RuleOrigin,
-};
+use super::types::{DetectorId, DetectorRule, DetectorRuleKind, FileFormatDetector, RuleOrigin};
 
 /// 한 출처가 단일 detector 에 기여한 내용.
 #[derive(Debug, Clone)]

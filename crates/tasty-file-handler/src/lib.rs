@@ -2,7 +2,6 @@
 //!
 //! `FileHandlerRegistry` 가 detector → handler 매핑을 관리한다. `file_format` 의
 //! evaluator / rule kind 를 모르고, `DetectorId` 만 import 한다.
-#![allow(dead_code, unused_imports)]
 
 pub mod config;
 pub mod recent;

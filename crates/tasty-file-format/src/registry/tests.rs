@@ -2,6 +2,8 @@
 //! user TOML round-trip, identify_by_*, plugin disable/enable 등.
 
 use super::*;
+use crate::config::DetectorRuleDecl;
+use crate::types::{DetectDepth, FileTarget};
 use std::path::PathBuf;
 
 fn target(p: &str) -> FileTarget {

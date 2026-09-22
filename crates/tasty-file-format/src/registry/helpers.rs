@@ -9,7 +9,7 @@ use tracing::warn;
 use super::super::config::{
     DetectorDecl, DetectorRuleDecl, ExtensionPriorityDecl, validate_detector_decl,
 };
-use super::super::types::{DetectorId, DetectorRule, DetectorRuleKind, RuleOrigin};
+use super::super::types::{DetectorId, DetectorRuleKind, RuleOrigin};
 use super::{DetectorContribution, ExtensionPriorityEntry, Inner};
 
 pub(super) fn install_one(

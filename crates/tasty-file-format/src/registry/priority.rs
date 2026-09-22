@@ -1,24 +1,9 @@
 //! `FileFormatRegistry` — priority 도메인.
 
-use std::collections::BTreeMap;
-use std::path::Path;
-
-use tracing::warn;
-
-use super::helpers::{
-    decl_rule_to_kind, identify_by_extension_priority, install_extension_priority, install_one,
-    parse_detector_section, parse_extension_priority_section, path_extension_lowercase,
-    rule_kind_eq, rule_kind_to_toml,
-};
-use super::{DetectorContribution, ExtensionPriorityEntry, FileFormatRegistry};
-use crate::config::{
-    DetectorDecl, DetectorRuleDecl, ExtensionPriorityDecl, validate_detector_decl,
-};
-use crate::evaluator::{DeepCtx, evaluate_cheap, evaluate_deep};
-use crate::types::{
-    DetectDepth, DetectorId, DetectorRule, DetectorRuleKind, FileFormatDetector, FileTarget,
-    RuleOrigin,
-};
+use super::FileFormatRegistry;
+use super::helpers::install_extension_priority;
+use crate::config::ExtensionPriorityDecl;
+use crate::types::{DetectorId, RuleOrigin};
 
 impl FileFormatRegistry {
     /// `extension` 에 대한 사용자 우선순위 표. 적힌 detector id 들 (등록 여부 무관).

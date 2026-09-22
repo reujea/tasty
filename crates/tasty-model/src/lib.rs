@@ -4,9 +4,8 @@
 //!
 //! popup_kind / toast_kind 등은 본 바이너리의
 //! gui 컴포넌트 API surface. headless 빌드 (`tasty --no-default-features`) 에선
-//! 호출자가 cfg(gui) 로 차단되지만, library crate 표면 자체는 GUI 무관이라
-//! dead_code 침묵은 본 crate 에서 적용한다.
-#![allow(dead_code, unused_imports)]
+//! 호출자가 cfg(gui) 로 차단되지만, 공개 표면은 library crate 의 `dead_code` 판정
+//! 대상이 아니라 crate 단위 억제가 필요 없다.
 
 /// `Surface::as_any` / `as_any_mut` 구현을 한 줄로 채우는 매크로.
 ///

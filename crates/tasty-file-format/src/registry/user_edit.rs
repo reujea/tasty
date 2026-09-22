@@ -1,24 +1,16 @@
 //! `FileFormatRegistry` — user_edit 도메인.
 
-use std::collections::BTreeMap;
 use std::path::Path;
 
 use tracing::warn;
 
 use super::helpers::{
-    decl_rule_to_kind, identify_by_extension_priority, install_extension_priority, install_one,
-    parse_detector_section, parse_extension_priority_section, path_extension_lowercase,
-    rule_kind_eq, rule_kind_to_toml,
+    install_extension_priority, install_one, parse_detector_section,
+    parse_extension_priority_section,
 };
-use super::{DetectorContribution, ExtensionPriorityEntry, FileFormatRegistry};
-use crate::config::{
-    DetectorDecl, DetectorRuleDecl, ExtensionPriorityDecl, validate_detector_decl,
-};
-use crate::evaluator::{DeepCtx, evaluate_cheap, evaluate_deep};
-use crate::types::{
-    DetectDepth, DetectorId, DetectorRule, DetectorRuleKind, FileFormatDetector, FileTarget,
-    RuleOrigin,
-};
+use super::{DetectorContribution, FileFormatRegistry};
+use crate::config::{DetectorDecl, ExtensionPriorityDecl};
+use crate::types::{DetectorId, RuleOrigin};
 
 impl FileFormatRegistry {
     /// Settings UI 가 host/plugin detector 를 user-origin override 로 disable/enable.

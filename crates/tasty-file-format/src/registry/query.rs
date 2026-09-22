@@ -1,24 +1,9 @@
 //! `FileFormatRegistry` — query 도메인.
 
-use std::collections::BTreeMap;
-use std::path::Path;
-
-use tracing::warn;
-
-use super::helpers::{
-    decl_rule_to_kind, identify_by_extension_priority, install_extension_priority, install_one,
-    parse_detector_section, parse_extension_priority_section, path_extension_lowercase,
-    rule_kind_eq, rule_kind_to_toml,
-};
-use super::{DetectorContribution, ExtensionPriorityEntry, FileFormatRegistry};
-use crate::config::{
-    DetectorDecl, DetectorRuleDecl, ExtensionPriorityDecl, validate_detector_decl,
-};
+use super::FileFormatRegistry;
+use super::helpers::{identify_by_extension_priority, path_extension_lowercase};
 use crate::evaluator::{DeepCtx, evaluate_cheap, evaluate_deep};
-use crate::types::{
-    DetectDepth, DetectorId, DetectorRule, DetectorRuleKind, FileFormatDetector, FileTarget,
-    RuleOrigin,
-};
+use crate::types::{DetectDepth, DetectorId, DetectorRuleKind, FileFormatDetector, FileTarget};
 
 impl FileFormatRegistry {
     /// detector 조회 — clone 반환.
