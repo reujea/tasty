@@ -34,7 +34,7 @@ const DEFAULT_DELAY_SECS: f64 = 10.0;
 const DEFAULT_MAX_ATTEMPTS: u32 = 5;
 
 /// 재개 문구를 보낸 횟수(연속 실패 중)를 남기는 surface meta — 사용자가 "왜 혼자
-/// 진행됐나" 를 추적하는 자리다. 성공 턴이 끝나면 지운다.
+/// 진행됐나" 를 추적하는 자리다. 계수가 0 이 되는 자리(성공 턴 · 새 세션 · 세션 종료)가 지운다.
 pub(crate) const COUNT_META_KEY: &str = "claude-auto-resume-count";
 
 /// 만기 확인 주기. 지연의 해상도가 이것이다(설정 최소 1 초보다 충분히 짧다).
@@ -267,23 +267,25 @@ pub(crate) fn observe_hook<H: HostCall>(
 ) {
     match event {
         "prompt-submit" | "active" => lock_table(table).on_new_turn(surface_id, now),
-        "session-start" => lock_table(table).on_session_start(surface_id, now),
+        // 새 세션·세션 종료는 연속 계수를 0 으로 되돌리므로 계수 기록도 함께 지운다 —
+        // 남겨 두면 새 세션에서 지난 세션의 연속 수가 현재 값으로 읽힌다. 표가 비어 있어도
+        // (plugin 재시작 뒤) 지운다: 세션마다 한 번이라 싸고, 표와 기록이 어긋날 틈을 없앤다.
+        "session-start" => {
+            lock_table(table).on_session_start(surface_id, now);
+            clear_count_meta(host, surface_id);
+        }
         // `subagent-stop` 은 서브에이전트가 끝난 것이지 메인 턴이 끝난 것이 아니다.
         "stop" => {
-            // 재개 뒤의 턴이 성공했으면 계수 기록을 지운다 — 남겨 두면 다음 사고 때
-            // 지난 연속 수가 현재 값으로 읽힌다.
-            if lock_table(table).on_success(surface_id) > 0
-                && let Err(e) = host.call(
-                    "surface.meta.unset",
-                    json!({ "surface_id": surface_id, "key": COUNT_META_KEY }),
-                )
-            {
-                tracing::warn!(
-                    "claude auto-resume s{surface_id}: clearing the attempt count failed: {e}"
-                );
+            // 재개 뒤의 턴이 성공했으면 계수 기록을 지운다. 매 턴 오는 신호라 보낸 적이
+            // 있을 때만 부른다.
+            if lock_table(table).on_success(surface_id) > 0 {
+                clear_count_meta(host, surface_id);
             }
         }
-        "session-end" => lock_table(table).on_session_end(surface_id),
+        "session-end" => {
+            lock_table(table).on_session_end(surface_id);
+            clear_count_meta(host, surface_id);
+        }
         "stop-failure" => {
             let error = error.filter(|e| !e.is_empty()).unwrap_or("unknown");
             if !is_resumable_error(error) {
@@ -301,6 +303,15 @@ pub(crate) fn observe_hook<H: HostCall>(
             );
         }
         _ => {}
+    }
+}
+
+fn clear_count_meta<H: HostCall>(host: &H, surface_id: u32) {
+    if let Err(e) = host.call(
+        "surface.meta.unset",
+        json!({ "surface_id": surface_id, "key": COUNT_META_KEY }),
+    ) {
+        tracing::warn!("claude auto-resume s{surface_id}: clearing the attempt count failed: {e}");
     }
 }
 
@@ -790,6 +801,16 @@ mod tests {
 
     struct SettingsHost {
         enabled: Option<bool>,
+        unsets: Mutex<Vec<String>>,
+    }
+
+    impl SettingsHost {
+        fn new(enabled: Option<bool>) -> Self {
+            Self {
+                enabled,
+                unsets: Mutex::new(Vec::new()),
+            }
+        }
     }
 
     impl HostCall for SettingsHost {
@@ -805,6 +826,11 @@ mod tests {
                 ("settings.get_plugin_setting", Some(DELAY_KEY)) => Ok(json!({ "value": 3.0 })),
                 ("settings.get_plugin_setting", _) => Ok(json!({ "value": null })),
                 ("surface.foreground_process", _) => Ok(json!({ "name": "claude", "pid": 9 })),
+                ("surface.meta.unset", _) => {
+                    let key = params["key"].as_str().unwrap_or_default().to_string();
+                    self.unsets.lock().expect("unsets").push(key);
+                    Ok(json!({}))
+                }
                 _ => Ok(json!({})),
             }
         }
@@ -819,9 +845,7 @@ mod tests {
 
     #[test]
     fn stop_failure_schedules_only_when_enabled_and_resumable() {
-        let on = SettingsHost {
-            enabled: Some(true),
-        };
+        let on = SettingsHost::new(Some(true));
         let p = scheduled_after(&on, Some("overloaded")).expect("scheduled");
         assert_eq!(p.foreground_pid, Some(9));
         assert!(scheduled_after(&on, Some("authentication_failed")).is_none());
@@ -829,17 +853,9 @@ mod tests {
             scheduled_after(&on, None).is_none(),
             "unknown 은 재개 대상이 아니다"
         );
+        assert!(scheduled_after(&SettingsHost::new(Some(false)), Some("overloaded")).is_none());
         assert!(
-            scheduled_after(
-                &SettingsHost {
-                    enabled: Some(false)
-                },
-                Some("overloaded")
-            )
-            .is_none()
-        );
-        assert!(
-            scheduled_after(&SettingsHost { enabled: None }, Some("overloaded")).is_none(),
+            scheduled_after(&SettingsHost::new(None), Some("overloaded")).is_none(),
             "미설정은 기본값(꺼짐)"
         );
     }
@@ -847,13 +863,37 @@ mod tests {
     #[test]
     fn subagent_stop_does_not_end_the_failure_streak() {
         let t = Mutex::new(ResumeTable::default());
-        let host = SettingsHost {
-            enabled: Some(true),
-        };
+        let host = SettingsHost::new(Some(true));
         lock_table(&t).record_attempt(7);
         observe_hook(&t, &host, "subagent-stop", 7, None, Instant::now());
         assert!(lock_table(&t).limit_reached(7, 1));
         observe_hook(&t, &host, "stop", 7, None, Instant::now());
         assert!(!lock_table(&t).limit_reached(7, 1));
+    }
+
+    #[test]
+    fn the_attempt_count_record_is_cleared_whenever_the_streak_resets() {
+        let t = Mutex::new(ResumeTable::default());
+        let host = SettingsHost::new(Some(true));
+        let unsets = |h: &SettingsHost| std::mem::take(&mut *h.unsets.lock().expect("unsets"));
+
+        // 보낸 적 없는 성공 턴은 IPC 를 쓰지 않는다 — 매 턴 오는 신호다.
+        observe_hook(&t, &host, "stop", 7, None, Instant::now());
+        assert!(unsets(&host).is_empty());
+
+        lock_table(&t).record_attempt(7);
+        observe_hook(&t, &host, "stop", 7, None, Instant::now());
+        assert_eq!(unsets(&host), [COUNT_META_KEY]);
+
+        // 새 세션·세션 종료는 표가 비어 있어도 지운다(plugin 재시작 뒤 남은 기록).
+        observe_hook(&t, &host, "session-start", 7, None, Instant::now());
+        assert_eq!(unsets(&host), [COUNT_META_KEY]);
+        observe_hook(&t, &host, "session-end", 7, None, Instant::now());
+        assert_eq!(unsets(&host), [COUNT_META_KEY]);
+
+        // 재개 문구 자신이 부르는 새 턴은 계수를 지우지 않는다.
+        lock_table(&t).record_attempt(7);
+        observe_hook(&t, &host, "prompt-submit", 7, None, Instant::now());
+        assert!(unsets(&host).is_empty());
     }
 }

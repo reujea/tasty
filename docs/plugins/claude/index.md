@@ -219,7 +219,7 @@ API 에러로 끝난 턴(위 `StopFailure`)을 설정된 지연 뒤에 재개 �
 - **사용자 입력 가드**: `surface.is_typing` 의 `idle_seconds`(마지막 사용자 키 입력 뒤 경과)를 그 턴의 `prompt-submit` 이후 경과와 견준다 — 작으면 입력창에 초안이 있을 수 있으므로 취소한다. `typing`(최근 5 초)만 보면 초안을 쓰다 멈춘 사용자를 놓친다. 이 조건을 통과했는데 `typing` 이 참이면 5 초 미루고 시도 수를 쓰지 않는다. 사용자 키 입력은 GUI 키보드·IME 만 기록하므로 에이전트의 `send`/`tell` 은 이 가드에 걸리지 않는다. 조회가 실패하면 입력이 있었던 것으로 본다.
 - **제출**: `terminal.tell`(본문 write 확인 → 정착 지연 → Enter, 원격 attach 점유 surface 거절). 거절되면 다시 걸지 않는다. 문구는 i18n 키 `claude.auto_resume.message` 고정이다.
 - **상한**: 연속으로 보낸 수가 상한에 닿으면 보내지 않고 `notification.create` 로 한 번 알린다(i18n `claude.auto_resume.limit_*`). 계수는 성공 `stop` 과 새 세션에서 0 이 되고, 재개 문구 자신의 `prompt-submit` 은 계수를 지우지 않는다. 가짜 서버처럼 매번 실패하면 요청은 처음 1 + 재개 상한만큼이다.
-- **흔적**: 보낼 때마다 `tracing::info!` 한 줄과 surface meta `claude-auto-resume-count`(연속 재개 수, 성공 턴이 지움)를 남긴다. 부모 완료 로그에는 실패한 턴마다 에러 종류가 붙은 완료 줄이 이미 가므로 따로 쓰지 않는다.
+- **흔적**: 보낼 때마다 `tracing::info!` 한 줄과 surface meta `claude-auto-resume-count`(연속 재개 수 — 성공 턴 · 새 세션 · 세션 종료가 지움)를 남긴다. 부모 완료 로그에는 실패한 턴마다 에러 종류가 붙은 완료 줄이 이미 가므로 따로 쓰지 않는다.
 
 ### PTY 에러 스캔 (`claude-error`) 범위
 

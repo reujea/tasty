@@ -24,7 +24,7 @@ Claude Code 는 내장 재시도를 다 쓴 뒤 API 에러(`529 Overloaded` · 5
 4. **판정은 만기 시점에 한다.** 예약(`stop-failure` 수신 시, 설정 on · 대상 에러일 때)은 만기 시각만 적고, 만기 스레드가 보내기 직전에 다음을 모두 다시 확인한다 — 설정이 여전히 켜짐 · `terminal.state` 가 `idle` · 전경이 `claude` 이고 pid 가 예약 때와 같음 · 사람 입력 없음 · 연속 상한 미만. 새 턴 신호(`prompt-submit` · `session-start` · `active`) · 성공 `stop` · `session-end` 는 예약을 지우고, 보내기 직전 턴 번호를 한 번 더 대조한다. 서브에이전트(`agent_id` 가 실린)의 `StopFailure` 는 메인 턴이 계속되므로 예약하지 않는다.
 5. **사람 입력 판정은 "실패한 턴이 시작된 뒤 키 입력이 한 번이라도 있었나" 다.** `idle_seconds` 를 그 턴의 `prompt-submit` 이후 경과와 견줘, 작으면 취소한다(턴 시작을 모르면 예약 시각부터). 창을 예약 시각이 아니라 턴 시작에서 여는 이유는, Claude 가 일하는 동안 입력창에 써 둔 미제출 초안도 똑같이 재개 문구 앞에 붙기 때문이다. 이 조건을 통과했는데 `typing` 이 참이면 5 초 미루고 시도 수를 쓰지 않는다.
 6. **제출 경로는 `terminal.tell` 이다** — 본문 write 확인 → 정착 지연 → Enter 를 나눠 보내고, 원격 attach 가 점유한 surface 는 거절한다. 거절되면 다시 걸지 않는다.
-7. **연속 상한에 닿으면 보내지 않고 `notification.create` 로 한 번 알린다.** 계수는 성공 턴과 새 세션에서 0 이 되고, 재개 문구 자신이 부르는 `prompt-submit` 은 계수를 지우지 않는다. 보낸 횟수는 surface meta `claude-auto-resume-count` 에 남는다(성공 턴이 지운다). 부모의 완료 로그에는 따로 줄을 쓰지 않는다 — 실패한 턴마다 이미 에러 종류가 붙은 완료 줄이 간다.
+7. **연속 상한에 닿으면 보내지 않고 `notification.create` 로 한 번 알린다.** 계수는 성공 턴과 새 세션에서 0 이 되고, 재개 문구 자신이 부르는 `prompt-submit` 은 계수를 지우지 않는다. 보낸 횟수는 surface meta `claude-auto-resume-count` 에 남는다(계수가 0 이 되는 자리 — 성공 턴 · 새 세션 · 세션 종료 — 가 지운다). 부모의 완료 로그에는 따로 줄을 쓰지 않는다 — 실패한 턴마다 이미 에러 종류가 붙은 완료 줄이 간다.
 
 ## Consequences
 
