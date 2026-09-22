@@ -572,6 +572,7 @@ flake 처방은 0129 → 0155, e2e 하네스는 0090 → 0127 → 0170 → 0297 
 | 0284 | [Self-attach 거절은 RTT가 아니라 connector 진입 사건으로 판정한다](0284-self-attach-is-judged-by-connector-entry.md) | Accepted | 2026-09-15 | testing, attach, flake, diagnostics, connector, adr-0181 |
 | 0297 | [e2e 하네스는 디스플레이를 격리하지 않고 이름을 요구한다](0297-the-e2e-harness-names-a-display-instead-of-isolating-it.md) | Accepted | 2026-09-20 | testing, e2e, harness, isolation, linux, adr-0127, adr-0090 |
 | 0511 | [debug 스위치 아래에서 OS 열기는 띄우지 않고 기록한다](0511-os-open-is-recorded-not-launched-under-a-debug-switch.md) | Accepted | 2026-09-23 | debug, verification, self-verification, e2e, isolation, os-open, browser, user-agent-separation, identity |
+| 0552 | [양성 대조는 주입 크기를 그 회차의 기준선에서 정한다 — 검출력을 기계가 정하게 두지 않는다](0552-a-positive-control-sizes-its-injection-from-the-calibrated-baseline.md) | Accepted | 2026-09-23 | testing, flake, harness, control, mutation, measurement, adr-0181, adr-0183 |
 
 ## CI 게이트 · 복잡도
 

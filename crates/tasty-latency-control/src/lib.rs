@@ -582,48 +582,88 @@ mod tests {
         format!("{v:.2}")
     }
 
+    /// 변이 시험이 측정 대상 경로에 넣는 지연의 크기 — **기준선의 몇 배인가**로 정한다.
+    ///
+    /// ★★ **절대 시간으로 되돌리지 마라.** 이 값이 한때 `200 ms` 고정이었고, 그때 양성 대조의
+    /// 배수는 `1 + 200ms / baseline` 이었다 — 좌변을 **기계가** 정했다. baseline 이 22.2 ms 를
+    /// 넘으면 문턱 [`MUTATION_MARGIN`] 을 구조적으로 못 넘고, baseline 은 부하가 올린다.
+    /// 실측 2026-09-23(nproc 20, 시험 하나만 한 스레드로 10 회씩):
+    ///
+    /// | 조건 | 고정 200 ms 통과/실패 | baseline(ms) |
+    /// |---|---|---|
+    /// | 주변 부하만 | 10/0 | 12.7 ~ 16.6 |
+    /// | +20 busy (1× 코어) | 2/8 | 16.9 ~ 46.5 |
+    /// | +60 busy (3×) | 2/8 | 13.5 ~ 76.5 |
+    /// | +200 busy (10×) | 0/10 | 38.8 ~ 147.9 |
+    ///
+    /// 그 빨강은 술어의 결함이 아니라 **시험의 검출력이 부하에 먹힌 것**이었다 — 경로를 지난
+    /// 대조군도 그 회차에서는 통과했을 것이다. 배수로 정하면 검출력이 부하와 무관해진다.
+    ///
+    /// 문턱의 **두 배**인 이유: 경로를 지난 대조군의 값은 `스핀 + 지연` 인데, 스핀 자신이
+    /// 클럭 상태로 기준선의 0.59 배까지 내려간다([`CPU_FAMILY`]). 그래도 `0.59 + 20` 이 문턱
+    /// 10 을 두 배로 넘는다. 문턱에 묶어 두었으므로 문턱을 바꾸면 이 값도 따라간다.
+    ///
+    /// 결정과 대안은 `docs/adr/0552-a-positive-control-sizes-its-injection-from-the-calibrated-baseline.md`.
+    const INJECTED_OVER_BASELINE: f64 = 2.0 * MUTATION_MARGIN;
+
     /// ★ ADR-0181 의 규칙 2 를 재는 변이 단정이다.
     ///
-    /// 측정 대상 경로에 인위적 지연을 넣는다 — 여기서는 "그 경로가 막혀 있다" 를 잠으로
+    /// 측정 대상 경로에 인위적 지연을 넣는다 — 여기서는 "그 경로가 막혀 있다" 를 바쁜 시간으로
     /// 흉내낸다. 대조군이 그 경로를 지나면 기준선(`calibrate` 가 잰 순수 스핀) 대비
     /// 비율이 통째로 튄다. 이 단정이 없으면 "대조군은 코드에 반응하지 않는다" 는
     /// **가정**이고, 그때 이 설계는 지금(거짓 양성)보다 나쁜 **거짓 음성**을 만든다.
     ///
     /// **앞뒤 차분으로는 이 변이를 못 잡는다** — 대조군이 그 경로를 지나면 앞 표본도
     /// 같이 부풀어 비가 상쇄된다. 그래서 기준선 대비 절대값으로 잰다.
+    ///
+    /// 넣는 지연은 **이 회차의 기준선에서 잰다**([`INJECTED_OVER_BASELINE`]). 그래서 벽시계가
+    /// 부하에 따라 늘어난다 — 조용하면 약 0.14 초, 코어 10 배 초과구독에서 약 3 초.
     #[test]
     fn an_artificial_delay_in_the_measured_path_does_not_move_the_control() {
         let control = CpuControl::calibrate();
+        let injected = control.baseline().mul_f64(INJECTED_OVER_BASELINE);
         let before = control.sample();
         // 잠이 아니라 바쁜 시간으로 흉내낸다 — 유휴 반응과 코드 반응을 섞지 않으려는 것이다
         // (같은 이유가 spawn·채널 계열 시험에도 있다).
-        busy_for(Duration::from_millis(200));
+        busy_for(injected);
         let after = control.sample();
 
+        // ★ 양성 대조 — 초록일 때 이 술어가 **무엇을 집는지** 보이게 한다.
+        // 아래 음성 단정만 있으면 "통과했다" 가 "변이를 실제로 가른다" 를 뜻하지 않는다.
+        // 대조군이 측정 경로를 지났다면 그 경로의 지연이 값에 통째로 실린다.
+        let as_if_it_traversed = ControlSample::from_parts_in(
+            &CPU_FAMILY,
+            after.baseline() + injected,
+            after.baseline(),
+        );
+
+        // 초록일 때도 이 회차의 검출력을 남긴다 — `injected_ratio` 가 문턱보다 얼마나 위인가가
+        // 곧 이 초록이 무엇을 쟀는가다.
         observe!(
             before = n(before.ratio()),
             after = n(after.ratio()),
             margin = n(MUTATION_MARGIN),
+            baseline_ms = n(control.baseline().as_secs_f64() * 1e3),
+            injected_ms = n(injected.as_secs_f64() * 1e3),
+            injected_ratio = n(as_if_it_traversed.ratio()),
         );
         assert!(
             control_stayed_out_of_the_path(&after),
             "{}",
-            control_independence_verdict(&before, &after)
+            control_independence_verdict(&before, &after, injected)
         );
-
-        // ★ 양성 대조 — 초록일 때 이 술어가 **무엇을 집는지** 보이게 한다.
-        // 위 단정만 있으면 "통과했다" 가 "변이를 실제로 가른다" 를 뜻하지 않는다.
-        // 대조군이 측정 경로를 지났다면 그 경로의 200 ms 가 값에 통째로 실린다.
-        let as_if_it_traversed = ControlSample::from_parts_in(
-            &CPU_FAMILY,
-            after.baseline() + Duration::from_millis(200),
-            after.baseline(),
-        );
+        // 주입이 기준선에 비례하므로 이 배수는 부하와 무관하게 21 이다. 여기가 빨간 것은
+        // "이 회차가 굶었다" 가 아니라 **술어·문턱·주입 배수 중 하나가 바뀌었다** 는 뜻이다.
         assert!(
             !control_stayed_out_of_the_path(&as_if_it_traversed),
-            "술어가 경로를 지난 대조군({:.0} 배)을 통과시킨다 — 위 초록은 변이를 가른 \
-             증거가 못 된다",
-            as_if_it_traversed.ratio()
+            "술어가 경로를 지난 대조군({:.1} 배 = 기준선 {:?} + 주입 {:?})을 통과시킨다. 주입은 \
+             기준선의 {INJECTED_OVER_BASELINE} 배로 정해지므로 이 배수는 부하가 못 움직인다 — \
+             술어 `control_stayed_out_of_the_path` · 문턱 `MUTATION_MARGIN`({MUTATION_MARGIN}) · \
+             주입 배수 `INJECTED_OVER_BASELINE` 중 하나가 바뀐 것이고, 그 상태에서 위 초록은 변이를 \
+             가른 증거가 못 된다",
+            as_if_it_traversed.ratio(),
+            after.baseline(),
+            injected,
         );
     }
 
@@ -632,7 +672,11 @@ mod tests {
     /// ★ **정상 부하는 여기 안 걸린다** — 꾸준한 굶주림은 기준선(`calibrate`)에 그대로
     /// 흡수돼 비율이 1 근처로 나온다. 그래서 이 시험이 빨간 것은 "부하가 세다" 가 아니라
     /// "보정 뒤에 무언가가 달라졌다" 는 뜻이고, 그 무언가가 어디서 왔는지를 앞 표본이 가른다.
-    fn control_independence_verdict(before: &ControlSample, after: &ControlSample) -> String {
+    fn control_independence_verdict(
+        before: &ControlSample,
+        after: &ControlSample,
+        injected: Duration,
+    ) -> String {
         if before.is_inflated() {
             return format!(
                 "보정 **직후** 첫 표본이 이미 기준선의 {:.1} 배다({:?} → {:?}). 그 사이에는 \
@@ -645,10 +689,10 @@ mod tests {
             );
         }
         format!(
-            "지연을 넣기 전 대조군은 기준선의 {:.1} 배로 정상이었는데, 측정 대상 경로에 200 ms \
+            "지연을 넣기 전 대조군은 기준선의 {:.1} 배로 정상이었는데, 측정 대상 경로에 {injected:?} \
              지연을 넣은 뒤 {:.1} 배가 됐다({:?}). 대조군이 그 경로를 지난다 — ADR-0181 규칙 2 \
              위반이고, 이 상태에서는 진짜 회귀가 '부하였다' 로 덮인다. ★ 다만 이 자리는 \
-             '그 200 ms 창에 굶주림이 **시작**한 경우' 와 원리적으로 구분되지 않는다. 조용할 때 \
+             '그 {injected:?} 창에 굶주림이 **시작**한 경우' 와 원리적으로 구분되지 않는다. 조용할 때 \
              한 번 더 재서 재현되면 위반이다",
             before.ratio(),
             after.ratio(),
@@ -662,9 +706,11 @@ mod tests {
         let base = Duration::from_micros(170);
 
         // 앞 표본이 이미 부풀었다 = 보정과 표본이 다른 일감을 돈다.
+        let injected = base * 20;
         let broken = control_independence_verdict(
             &ControlSample::from_parts(base * 900, base),
             &ControlSample::from_parts(base * 900, base),
+            injected,
         );
         assert!(broken.contains("대조군 자신이 깨진 것"), "{broken}");
         assert!(!broken.contains("규칙 2\n"), "{broken}");
@@ -674,6 +720,7 @@ mod tests {
         let reactive = control_independence_verdict(
             &ControlSample::from_parts(base, base),
             &ControlSample::from_parts(base * 900, base),
+            injected,
         );
         assert!(reactive.contains("그 경로를 지난다"), "{reactive}");
         assert!(
