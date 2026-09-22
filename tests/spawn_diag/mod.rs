@@ -1989,6 +1989,10 @@ fn write_fake_browser(home: &std::path::Path) -> std::io::Result<std::path::Path
 /// 어느 갈래든 제품 코드의 설치 경로는 그대로다 — 서명·업그레이드 판정이 얹혀 있는 자리를
 /// 테스트 사정으로 바꾸지 않는다. `tasty_home` 은 자식에게 주는 `TASTY_HOME` 이다.
 pub fn apply_bundle_opt_in(command: &mut std::process::Command, tasty_home: &std::path::Path) {
+    // 아래 갈래의 물러남 사유는 `tracing::warn!` 으로만 남는다. 구독자가 없으면 그 줄은
+    // 어디에도 안 찍힌다 — `common` 은 spawn 뒤에야 설치하고 `gui_common` 은 아예 안 한다.
+    // 그래서 판정보다 먼저 여기서 설치한다(멱등).
+    init_test_tracing();
     if suite_calls_bundled_plugins() {
         prefill_bundle_links(tasty_home);
         return;

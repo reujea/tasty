@@ -102,6 +102,10 @@ hardlink 의 원본은 번들 자체가 아니라 **하네스 소유 스냅숏**
 - CI 러너에서 `target` 과 `temp_dir` 이 다른 파일시스템이라 이 경로가 늘 물러나고 있을 때.
   재는 법: 명부 안 스위트의 출력에서 `번들 hardlink 를 안 쓴다` warn 줄을 본다. 통과한 시험의
   출력은 캡처되므로 `--nocapture` 로 돌린다.
+  구독자는 `apply_bundle_opt_in` 이 첫 줄에서 설치하므로 하네스 종류와 무관하게 보인다.
+  실측 2026-09-23: 스냅숏 자리(`target/debug/test-bundle-links`)를 일반 파일로 막고
+  `e2e_tests lifecycle_toggles_answer_without_a_window --exact --nocapture` 로 돌리면 그 줄이
+  1 줄 찍힌다. 그 설치 한 줄을 빼면 같은 조건에서 0 줄이다.
 
 ## References
 
