@@ -355,9 +355,12 @@ pub(crate) fn judge(f: &DueFacts) -> Verdict {
     if f.state.as_deref() != Some("idle") {
         return Verdict::Cancel("not idle");
     }
-    match f.foreground_name.as_deref() {
-        Some("claude") => {}
-        _ => return Verdict::Cancel("claude is not in the foreground"),
+    if !f
+        .foreground_name
+        .as_deref()
+        .is_some_and(is_claude_process_name)
+    {
+        return Verdict::Cancel("claude is not in the foreground");
     }
     if f.expected_pid.is_some() && f.foreground_pid != f.expected_pid {
         return Verdict::Cancel("claude was restarted");
@@ -375,6 +378,15 @@ pub(crate) fn judge(f: &DueFacts) -> Verdict {
         return Verdict::Defer;
     }
     Verdict::Send
+}
+
+/// 전경 프로세스 이름이 Claude Code 인가. 호스트는 OS 가 준 이름을 그대로 넘기므로
+/// Windows 에서는 `claude.exe` 이고 대소문자도 보장되지 않는다 — 소문자로 바꾸고
+/// `.exe` 를 떼어 비교한다(`tasty_terminal::foreground_process::is_known_shell_name` 과
+/// 같은 형태).
+fn is_claude_process_name(name: &str) -> bool {
+    let lower = name.to_ascii_lowercase();
+    lower.strip_suffix(".exe").unwrap_or(&lower) == "claude"
 }
 
 /// 만기 처리 스레드가 쓰는 문구 — `main()` 이 활성 locale 로 한 번 해석해 넘긴다.
@@ -605,6 +617,32 @@ mod tests {
         let mut f = sendable();
         f.foreground_pid = Some(43);
         assert_eq!(judge(&f), Verdict::Cancel("claude was restarted"));
+    }
+
+    /// Windows 의 전경 이름은 `claude.exe` 다 — 그것을 못 맞추면 재개가 한 번도 안 나간다.
+    #[test]
+    fn the_foreground_name_matches_claude_on_every_platform() {
+        for name in ["claude", "claude.exe", "Claude.exe", "CLAUDE.EXE"] {
+            let mut f = sendable();
+            f.foreground_name = Some(name.into());
+            assert_eq!(judge(&f), Verdict::Send, "{name}");
+        }
+        for name in [
+            "claudex",
+            "claudex.exe",
+            "claude.exe.bak",
+            "node",
+            "exe",
+            "",
+        ] {
+            let mut f = sendable();
+            f.foreground_name = Some(name.into());
+            assert_eq!(
+                judge(&f),
+                Verdict::Cancel("claude is not in the foreground"),
+                "{name}"
+            );
+        }
     }
 
     /// 초안을 쓰다 5 초 넘게 멈춘 사용자 — `typing` 은 false 지만 창 안에 입력이 있었다.
