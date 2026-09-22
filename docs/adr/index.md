@@ -177,7 +177,7 @@ modifier-hint 는 0035(좁힘 + 지연) · 0038(빈 섹션) · 0064(타이머 �
 
 ## 원격 attach · mirror · 점유
 
-프로필은 0015 → 0032(2-레이어, 0015 대체), 점유는 0040 → 0049 · 0052(0040 부분 대체) · 0060 · 0116 · 0156 · 0157 이다. 손실 재동기화는 0334 → 0400 → 0450, 닫은 항목 복원은 0264 → 0480, mirror markdown 은 0255 → 0268 이다.
+프로필은 0015 → 0032(2-레이어, 0015 대체), 점유는 0040 → 0049 · 0052(0040 부분 대체) · 0060 · 0116 · 0156 · 0157 이다. 손실 재동기화는 0334 → 0400 → 0450, CLI mirror-dump 의 연결 생존(client 발 heartbeat)은 0052 → 0529, 닫은 항목 복원은 0264 → 0480, mirror markdown 은 0255 → 0268 이다.
 운영 문서: [dev-guide/attach-behavior](../dev-guide/attach-behavior.md) · [features/remote-attach](../features/remote-attach/index.md)
 
 | # | Title | Status | Date | Tags |
@@ -212,6 +212,7 @@ modifier-hint 는 0035(좁힘 + 지연) · 0038(빈 섹션) · 0064(타이머 �
 | 0481 | [점유 워크스페이스의 forward 아닌 구조 변경도 기존 StructuralDelta 로 holder 에게 보낸다](0481-a-server-side-structure-change-reaches-the-holder-as-a-delta.md) | Accepted | 2026-09-22 | attach, mirror, remote, wire-format, structural-delta, pty-exit, occupancy, adr-0040, adr-0264 |
 | 0482 | [forward 가 사라진 surface 를 지목하면 IPC 와 같은 "no live surface" 사유로 거절한다](0482-a-forward-naming-a-gone-surface-is-answered-like-ipc.md) | Accepted | 2026-09-22 | attach, mirror, remote, error-message, wire-format, parity, adr-0395 |
 | 0536 | [원격 끊김으로 창의 마지막 mirror 워크스페이스가 사라지면 기본 워크스페이스를 다시 만든다](0536-a-remote-drop-that-empties-a-window-recreates-a-default-workspace.md) | Accepted | 2026-09-23 | remote-attach, mirror, disconnect, workspace, window-lifecycle, identity-principle-1, adr-0120 |
+| 0529 | [서버 heartbeat 시한보다 긴 mirror-dump 도 client 발 heartbeat 을 보낸다](0529-a-mirror-dump-longer-than-the-heartbeat-timeout-sends-heartbeats.md) | Accepted | 2026-09-23 | attach, stream, heartbeat, cli, debug, mirror-dump, silent-failure, compatibility, adr-0052, adr-0400, adr-0450 |
 
 ## attention · 알림
 

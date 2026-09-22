@@ -128,8 +128,8 @@ attach 스트림은 **프레임 하나 = 상호작용 하나**(키 입력 · 리
     push 에도, 소비자의 inbound 에도 기대지 않는다. server→client push 는 전부 **변화 구동**이라
     (1 Hz tick 에 올라타는 `Activity`·`Attention`·`Cwd` 도 diff 만 민다 —
     `busy_activity_forwards_only_on_change`), 갚는 자리가 `push` · `pump_inbound` 뿐이면 폭주 직후
-    조용해진 연결에서 통지가 다음 사건이나 그 연결의 다음 inbound 를 기다린다. **심장박동이 없는
-    CLI mirror-dump** 는 그 사이에 창이 끝나 공백 앞까지의 화면을 경고 없이 찍었다
+    조용해진 연결에서 통지가 다음 사건이나 그 연결의 다음 inbound 를 기다린다. **첫 심장박동
+    (`HEARTBEAT_INTERVAL`) 전에 창이 끝나는 CLI mirror-dump**(기본 500 ms)는 그 사이에 창이 끝나 공백 앞까지의 화면을 경고 없이 찍었다
     ([ADR-0450](../adr/0450-a-pending-loss-notice-is-queued-the-moment-the-sink-has-room.md)).
     sink 가 계속 차 있으면(소비자가 안 읽으면) 여전히 안 나가고, 그 경우는 `LAG_LIMIT` 강제분리가
     끝낸다. 시험 `a_notice_follows_the_last_survivor_with_nothing_pushed_and_nothing_sent_after_the_loss`.
@@ -426,7 +426,7 @@ attach 스트림은 read timeout 이 없는 순수 blocking I/O 라 네트워크
 - **read timeout**: 서버(`tcp_ipc_server.rs::handle_stream_connection`)·GUI client(`attach_client.rs::start_gui_attach`)·CLI client(`tasty-ipc/src/client/stream.rs::StreamConnection::open_with`) 3곳 모두 소켓에 `HEARTBEAT_TIMEOUT` read timeout 을 건다. **서버는 그것을 attach dispatch 보다 먼저 건다**(`arm_stream_read_timeout` 이 `validate_stream_proto` 앞이다) — 즉 판정은 **연결 단위**이고 점유 유무와 무관하다: 아무 workspace 도 점유하지 않은 단순 upgrade 연결도 20초 침묵하면 닫힌다. 그래서 client 는 점유를 잡았든 안 잡았든 Ping 을 보내야 한다. `try_clone` 된 reader/writer 는 같은 소켓 옵션을 공유하므로 한 번만 걸면 양쪽 다 적용된다. CLI 는 핸드셰이크 ack/`attached(_workspace)` 디스크립터 대기(둘 다 `recv()`)에도 자동으로 적용된다.
 - **`StreamTag::Ping`**: 빈 payload 의 keepalive 프레임(값 `2`, 코덱은 이전부터 예약돼 있었다). 수신측은 아무 처리도 하지 않는다 — `read_frame` 호출이 성공적으로 리턴하는 것 자체가 read timeout 을 리셋하므로, Ping 이든 실제 Data/Control 이든 도착만 하면 liveness 로 인정된다.
 - **송신은 write 쪽이 idle 할 때만**: 서버의 write thread(`handle_stream_connection`)는 기존 `for frame in sink_rx` blocking iterator 대신 `sink_rx.recv_timeout(HEARTBEAT_INTERVAL)` 루프를 쓴다 — sink 에 실제 Data/Control 프레임이 흐르면 그게 곧 liveness 라 Ping 을 보내지 않고, `HEARTBEAT_INTERVAL` 동안 조용하면 빈 Ping 을 대신 흘린다. GUI/CLI(raw 브리지) client 는 각각 별도 heartbeat 스레드가 `HEARTBEAT_INTERVAL` 마다 무조건 Ping 을 보낸다(활성 트래픽 여부를 별도로 추적하지 않음 — 5바이트 프레임 오버헤드가 그 추적 비용보다 훨씬 싸다).
-- **CLI dump 모드(mirror-dump/workspace-mirror-dump)는 client 발 heartbeat 이 없다**: `--dump-after` 기본 500ms 로 짧게 끝나 `HEARTBEAT_TIMEOUT`(20초) 안에서 항상 종료되고, 서버가 보내는 Ping 만으로 client 쪽 read timeout 은 충분히 방지된다. raw 브리지(대화형, 장시간 idle 가능)만 client 쪽 heartbeat 스레드를 띄운다.
+- **CLI dump 모드(mirror-dump/workspace-mirror-dump)도 client 발 heartbeat 을 보낸다 — 스레드 없이 수집 루프 안에서**: 수집 대기를 `min(창 끝, 다음 Ping)` 으로 끊고 `HEARTBEAT_INTERVAL` 마다 `Ping` 을 쓴다(`DumpHeartbeat`). 그래서 `--dump-after` 가 `HEARTBEAT_TIMEOUT` 보다 길어도 서버가 창 도중에 끊지 않는다. 첫 Ping 은 창을 연 지 한 주기 뒤라 기본 500 ms 창의 송신 프레임은 heartbeat 이 없던 때와 같다. `Ping` 쓰기가 실패하면 `Disconnected` 로 끝난다. writer 를 루프 하나가 쥐므로 raw 브리지(stdin 라우팅과 writer 공유 → 별도 heartbeat 스레드 + `Mutex`)와 형태가 다르다. 근거: [ADR-0529](../adr/0529-a-mirror-dump-longer-than-the-heartbeat-timeout-sends-heartbeats.md).
 - **양방향이 필요한 이유**: 서버 write thread 의 Ping 은 client 의 read timeout 을(idle mirror 뷰), client 의 Ping 은 서버의 read timeout 을(client 가 오래 아무 입력도 안 보내는 세션) 각각 갱신한다 — 한쪽만 보내면 반대 방향의 read loop 가 오탐 disconnect 된다.
 - **timeout 만료 → 기존 disconnect 경로 재사용**: read timeout 으로 인한 `WouldBlock`/`TimedOut` io 에러는 서버의 `Err(_) => break`(`handle_stream_connection`)·GUI client 의 `Err(_) => disconnected.store(true, ...)`·CLI 의 채널 기반 끊김 신호(`run_mirror_dump`/`run_workspace_mirror_dump` 의 `mpsc::RecvTimeoutError::Disconnected`, `run_raw_bridge` 의 `RawEvent::ServerRecvErr` — 위 "SSH 터널" 절 참고)를 그대로 타 EOF 와 동일하게 처리된다 — 별도 sweep 스레드나 새 상태 없이, 아래 "mirror 세션 종료"·[`features/remote-attach`](../features/remote-attach/index.md) 의 "자동 해제" 가 조용한 네트워크 단절까지 커버하게 된다.
 - **GUI heartbeat 스레드 정리**: `cleanup_mirror_workspace` 가 세션 종료 시(원격발이든 사용자 close 든) `sess.disconnected` 를 set 해, `writer: Arc<Mutex<TcpStream>>` 를 계속 붙들고 있는 heartbeat 스레드가 다음 tick 에 스스로 종료하게 한다 — 안 하면 세션이 정리된 뒤에도 소켓/스레드가 새는 leak.
@@ -464,12 +464,12 @@ workspace 는 사라지는데 서버는 여전히 점유 상태로 남는" 비�
   종료한 클라이언트는 영향 없음 — 정상 동작.
 - **회귀 확인**: 서버가 건강한 상태에서 `HEARTBEAT_TIMEOUT` 보다 오래(raw 브리지, idle 25초+)
   열어둔 세션은 끊기지 않고 유지됨을 같은 방식으로 확인(client 발 heartbeat 스레드가
-  서버측 read timeout 을 계속 갱신). 단, CLI **mirror-dump 모드**(`--raw` 미사용)는
-  client 발 heartbeat 이 없어 `--dump-after` 를 `HEARTBEAT_TIMEOUT`(20초) 이상으로 주면
-  **서버가 먼저** client 를 idle 로 보고 끊는다(서버도 20초 read timeout 을 걸기 때문) —
-  이건 버그가 아니라 문서화된 설계(위 "연결 생존 확인"의 "CLI dump 모드는 client 발
-  heartbeat 이 없다" 참조): 기본값 500ms 로 짧게 끝나는 검증 전용 모드라 20초를 넘기는
-  사용은 애초에 지원 대상이 아니다.
+  서버측 read timeout 을 계속 갱신). CLI **mirror-dump 모드**(`--raw` 미사용)도 수집 루프가
+  같은 주기로 `Ping` 을 보내므로 `--dump-after` 를 `HEARTBEAT_TIMEOUT`(20초) 이상으로 줘도
+  서버가 창 도중에 끊지 않는다(위 "연결 생존 확인" 의 CLI dump 항목,
+  [ADR-0529](../adr/0529-a-mirror-dump-longer-than-the-heartbeat-timeout-sends-heartbeats.md)).
+  예전에는 이 Ping 이 없어 ≈20초에 서버가 점유를 풀고 client 는 오류 없이 그때까지의 화면을
+  찍고 끝났다.
 
 ## GUI 자동 재연결 스코프
 

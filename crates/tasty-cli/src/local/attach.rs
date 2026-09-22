@@ -58,6 +58,54 @@ enum SessionEnd {
 /// 대화형이라 사용자가 `Ctrl+\` 로 끝낼 수 있다.
 const DUMP_RESYNC_LIMIT: u32 = 3;
 
+/// mirror-dump 수집 루프가 보내는 client 발 heartbeat. 서버는 attach 소켓에
+/// [`stream::HEARTBEAT_TIMEOUT`] read timeout 을 걸어, 그동안 client 프레임이 하나도 안 오면
+/// 끊긴 연결로 보고 점유를 푼다. dump 는 `--send` 한 번 뒤로 아무것도 안 보내므로 이것이
+/// 없으면 그 시한보다 긴 `--dump-after` 가 오류 없이 도중에 풀린다 — 그래서 raw 브리지와
+/// 같은 주기로 `Ping` 을 보낸다. 첫 Ping 은 시작 후 한 주기 뒤라 그보다 짧은 dump 의
+/// 송신 프레임은 종전과 같다(`docs/adr/0529-a-mirror-dump-longer-than-the-heartbeat-timeout-sends-heartbeats.md`).
+struct DumpHeartbeat {
+    every: Duration,
+    next: Instant,
+}
+
+impl DumpHeartbeat {
+    fn start(now: Instant) -> Self {
+        let every = dump_heartbeat_interval();
+        Self {
+            every,
+            next: now + every,
+        }
+    }
+
+    /// 다음 Ping 까지 남은 시간 — 수집 대기를 이 값으로 끊어 주기를 놓치지 않는다.
+    fn until_due(&self, now: Instant) -> Duration {
+        self.next.saturating_duration_since(now)
+    }
+
+    /// 주기가 됐으면 Ping 을 한 번 보낸다. 쓰기 실패는 연결이 끊겼다는 뜻이다.
+    fn beat_if_due(&mut self, writer: &mut TcpStream, now: Instant) -> std::io::Result<()> {
+        if now < self.next {
+            return Ok(());
+        }
+        stream::write_frame(writer, StreamTag::Ping, &[])?;
+        self.next = now + self.every;
+        Ok(())
+    }
+}
+
+/// dump heartbeat 주기. 시험은 서버 시한을 줄인 가짜 서버로 재므로 주기도 같은 비율로 줄인다.
+fn dump_heartbeat_interval() -> Duration {
+    #[cfg(test)]
+    {
+        Duration::from_millis(50)
+    }
+    #[cfg(not(test))]
+    {
+        stream::HEARTBEAT_INTERVAL
+    }
+}
+
 /// 손실 통지를 받겠다고 선언한다. 선언이 없으면 서버는 그 연결에서 종전대로 조용히
 /// 버린다. 보내지 못해도 attach 는 이어간다 — 그 연결은 종전 동작이 될 뿐이다.
 fn declare_loss_notify(conn: &mut StreamConnection) {
@@ -524,7 +572,7 @@ fn run_workspace_mirror_dump(
         }
     }
 
-    let writer = conn.try_clone_writer()?;
+    let mut writer = conn.try_clone_writer()?;
     let (tx, rx) = mpsc::channel::<StreamFrame>();
     let reader = thread::spawn(move || {
         while let Ok(frame) = conn.recv() {
@@ -540,12 +588,19 @@ fn run_workspace_mirror_dump(
     let mut disconnected = false;
     let mut desynced = false;
     let mut lost = 0u64;
+    let mut heartbeat = DumpHeartbeat::start(Instant::now());
     loop {
-        let remaining = deadline.saturating_duration_since(Instant::now());
+        let now = Instant::now();
+        let remaining = deadline.saturating_duration_since(now);
         if remaining.is_zero() {
             break;
         }
-        match rx.recv_timeout(remaining) {
+        if let Err(e) = heartbeat.beat_if_due(&mut writer, now) {
+            tracing::warn!("attach: mirror-dump heartbeat was not written: {e}");
+            disconnected = true;
+            break;
+        }
+        match rx.recv_timeout(remaining.min(heartbeat.until_due(now))) {
             Ok(frame) => match frame.tag {
                 StreamTag::Data => {
                     if let Some((sid, payload)) = stream::decode_mux(&frame.payload)
@@ -572,9 +627,8 @@ fn run_workspace_mirror_dump(
                     forced = true;
                     break;
                 }
-                // heartbeat — read 자체가 이미 소켓 read timeout 을 리셋하므로 별도
-                // 처리 불필요. 이 dump 는 기본 500ms 로 짧게 끝나 client 발 Ping 송신은
-                // 두지 않았다(HEARTBEAT_TIMEOUT 20s 이내).
+                // 서버 heartbeat — read 자체가 이미 소켓 read timeout 을 리셋하므로 별도
+                // 처리 불필요. 반대 방향(client 발)은 위 `heartbeat` 가 보낸다.
                 StreamTag::Ping => {}
                 // CLI mirror-dump 는 terminal grid 재구성만 한다 — mesh 바이트를
                 // 디코드/렌더할 GPU 파이프라인이 없으므로 무시(attach mesh mirror
@@ -582,7 +636,8 @@ fn run_workspace_mirror_dump(
                 // mirror 채널" 절).
                 StreamTag::MeshData => {}
             },
-            Err(mpsc::RecvTimeoutError::Timeout) => break,
+            // deadline 이나 heartbeat 주기 — 루프 머리가 어느 쪽인지 가른다.
+            Err(mpsc::RecvTimeoutError::Timeout) => continue,
             Err(mpsc::RecvTimeoutError::Disconnected) => {
                 disconnected = true;
                 break;
@@ -605,7 +660,6 @@ fn run_workspace_mirror_dump(
         outln!("=== surface {sid} (placeholder: {kind}) ===")?;
     }
 
-    let mut writer = writer;
     if !forced && !disconnected {
         let _ = stream::write_frame(&mut writer, StreamTag::Detach, &[]); // best-effort detach 통지 — 무시
     } else if forced {
@@ -642,7 +696,7 @@ fn run_mirror_dump(
 
     // reader thread → channel; 메인은 deadline 까지 수집해 mirror 에 feed.
     // (소켓 read timeout 은 프레임 중간에 잘릴 수 있어 thread+channel 로 분리.)
-    let writer = conn.try_clone_writer()?;
+    let mut writer = conn.try_clone_writer()?;
     let (tx, rx) = mpsc::channel::<StreamFrame>();
     let reader = thread::spawn(move || {
         while let Ok(frame) = conn.recv() {
@@ -659,12 +713,19 @@ fn run_mirror_dump(
     let mut disconnected = false;
     let mut desynced = false;
     let mut lost = 0u64;
+    let mut heartbeat = DumpHeartbeat::start(Instant::now());
     loop {
-        let remaining = deadline.saturating_duration_since(Instant::now());
+        let now = Instant::now();
+        let remaining = deadline.saturating_duration_since(now);
         if remaining.is_zero() {
             break;
         }
-        match rx.recv_timeout(remaining) {
+        if let Err(e) = heartbeat.beat_if_due(&mut writer, now) {
+            tracing::warn!("attach: mirror-dump heartbeat was not written: {e}");
+            disconnected = true;
+            break;
+        }
+        match rx.recv_timeout(remaining.min(heartbeat.until_due(now))) {
             Ok(frame) => match frame.tag {
                 StreamTag::Data => {
                     mirror.feed_bytes(&frame.payload);
@@ -687,14 +748,14 @@ fn run_mirror_dump(
                     forced = true;
                     break;
                 }
-                // heartbeat — read 자체가 이미 소켓 read timeout 을 리셋하므로 별도
-                // 처리 불필요. 이 dump 도 기본 500ms 로 짧게 끝나 client 발 Ping 송신은
-                // 두지 않았다(HEARTBEAT_TIMEOUT 20s 이내).
+                // 서버 heartbeat — read 자체가 이미 소켓 read timeout 을 리셋하므로 별도
+                // 처리 불필요. 반대 방향(client 발)은 위 `heartbeat` 가 보낸다.
                 StreamTag::Ping => {}
                 // 위와 동일 사유 — CLI dump 는 mesh 를 소비하지 않는다.
                 StreamTag::MeshData => {}
             },
-            Err(mpsc::RecvTimeoutError::Timeout) => break, // 정상: deadline 도달.
+            // deadline 이나 heartbeat 주기 — 루프 머리가 어느 쪽인지 가른다.
+            Err(mpsc::RecvTimeoutError::Timeout) => continue,
             Err(mpsc::RecvTimeoutError::Disconnected) => {
                 // reader 스레드 종료 = 소켓 끊김(터널/서버 단절) → 재연결 대상.
                 disconnected = true;
@@ -713,7 +774,6 @@ fn run_mirror_dump(
     outln!("{}", mirror.screen_text(true))?;
 
     // 정상 종료 시 detach 통지(force-detach/단절이면 서버가 이미 끊음).
-    let mut writer = writer;
     if !forced && !disconnected {
         let _ = stream::write_frame(&mut writer, StreamTag::Detach, &[]); // best-effort detach 통지 — 무시
     } else if forced {
@@ -1522,5 +1582,130 @@ mod raw_bridge_tests {
 
         // 패닉하지 않고 정상 진행되면 통과.
         route_stdin_chunk(&slot, b"after poison");
+    }
+}
+
+/// mirror-dump 가 서버 heartbeat 시한보다 오래 붙어 있을 때 client 발 `Ping` 을 보내는가.
+/// 가짜 서버가 실제 서버처럼 read timeout 을 걸고(시험용으로 줄인 주기의 네 배 —
+/// `HEARTBEAT_TIMEOUT` 과 `HEARTBEAT_INTERVAL` 의 비율 그대로), 그 시한을 여러 번 넘기는
+/// dump 동안 한 번도 시한에 안 걸리고 `Detach` 까지 받는지 잰다. Ping 이 없으면 서버 쪽
+/// read 가 시한에 걸려 실제 서버가 점유를 푸는 바로 그 자리에서 이 시험이 실패한다.
+#[cfg(test)]
+mod dump_heartbeat_tests {
+    use std::io::{BufRead, BufReader};
+    use std::net::{TcpListener, TcpStream};
+    use std::thread;
+
+    use tasty_ipc::client::StreamConnection;
+    use tasty_ipc::stream::{self, STREAM_PROTO, StreamTag};
+
+    use super::{
+        AttachExit, SessionEnd, dump_heartbeat_interval, run_mirror_dump, run_workspace_mirror_dump,
+    };
+
+    /// 가짜 서버가 dump 동안 본 것.
+    struct Seen {
+        pings: usize,
+        timed_out: bool,
+        detached: bool,
+    }
+
+    fn fake_server(listener: TcpListener) -> thread::JoinHandle<Seen> {
+        thread::spawn(move || {
+            let (sock, _) = listener.accept().expect("accept");
+            let mut reader = BufReader::new(sock.try_clone().expect("clone"));
+            let mut writer = sock;
+            let mut line = String::new();
+            reader.read_line(&mut line).expect("handshake line");
+            let ack = serde_json::json!({ "ok": true, "client_id": 7 });
+            stream::write_frame(
+                &mut writer,
+                StreamTag::Control,
+                &serde_json::to_vec(&ack).expect("ack json"),
+            )
+            .expect("ack");
+            reader
+                .get_ref()
+                .set_read_timeout(Some(dump_heartbeat_interval() * 4))
+                .expect("read timeout");
+            let mut seen = Seen {
+                pings: 0,
+                timed_out: false,
+                detached: false,
+            };
+            loop {
+                match stream::read_frame(&mut reader) {
+                    Ok(f) if f.tag == StreamTag::Ping => seen.pings += 1,
+                    Ok(f) if f.tag == StreamTag::Detach => {
+                        seen.detached = true;
+                        break;
+                    }
+                    Ok(_) => {}
+                    Err(e)
+                        if matches!(
+                            e.kind(),
+                            std::io::ErrorKind::WouldBlock | std::io::ErrorKind::TimedOut
+                        ) =>
+                    {
+                        seen.timed_out = true;
+                        break;
+                    }
+                    Err(_) => break,
+                }
+            }
+            seen
+        })
+    }
+
+    /// 서버 시한(주기 × 4)의 세 배.
+    fn long_dump_ms() -> u64 {
+        (dump_heartbeat_interval() * 12).as_millis() as u64
+    }
+
+    fn connect() -> (StreamConnection, thread::JoinHandle<Seen>) {
+        let listener = TcpListener::bind("127.0.0.1:0").expect("bind");
+        let addr = listener.local_addr().expect("addr");
+        let server = fake_server(listener);
+        let sock = TcpStream::connect(addr).expect("connect");
+        let (conn, _) = StreamConnection::open(sock, STREAM_PROTO).expect("open");
+        (conn, server)
+    }
+
+    fn assert_kept_alive(end: SessionEnd, server: thread::JoinHandle<Seen>) {
+        assert!(matches!(end, SessionEnd::Exit(AttachExit::Completed)));
+        let seen = server.join().expect("server thread");
+        assert!(
+            !seen.timed_out,
+            "서버 read 가 heartbeat 시한에 걸렸다 — dump 가 Ping 을 안 보냈다"
+        );
+        assert!(seen.detached, "dump 가 끝나면 Detach 로 놓아야 한다");
+        assert!(
+            seen.pings >= 3,
+            "Ping {} 회 — 주기마다 보내야 한다",
+            seen.pings
+        );
+    }
+
+    #[test]
+    fn a_surface_dump_longer_than_the_server_timeout_keeps_the_connection_alive() {
+        let (conn, server) = connect();
+        let end = run_mirror_dump(conn, 80, 24, Some(long_dump_ms()), None, false).expect("dump");
+        assert_kept_alive(end, server);
+    }
+
+    #[test]
+    fn a_workspace_dump_longer_than_the_server_timeout_keeps_the_connection_alive() {
+        let (conn, server) = connect();
+        let end = run_workspace_mirror_dump(
+            conn,
+            Vec::new(),
+            Vec::new(),
+            Some(long_dump_ms()),
+            None,
+            None,
+            false,
+        )
+        .expect("dump");
+        assert_kept_alive(end, server);
     }
 }
