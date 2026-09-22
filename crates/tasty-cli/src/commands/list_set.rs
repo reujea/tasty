@@ -161,13 +161,13 @@ pub enum ListCommands {
     /// Two kinds of -32001 never land here either: a rejected session token
     /// (malformed, unknown, expired or revoked, such as a stale
     /// TASTY_SESSION_TOKEN), which is answered before the gate so `judged` does
-    /// not count it, and a -32001 a method returns itself after passing the
-    /// gate (such as a refused grant), which
-    /// counts as passed. The numbers are totals since this
-    /// instance started and go back to 0 on restart. The `throttled_count`
-    /// reported by `tasty agent rate-limit-status` is a per-bucket total that
-    /// survives restarts, so it is not the same number. A request turned away
-    /// for a malformed idempotency key is not counted here.
+    /// not count it, and a -32001 returned after the request passed the gate
+    /// (such as a refused grant), which counts as passed. The numbers are
+    /// totals since this instance started and go back to 0 on restart. The
+    /// `throttled_count` reported by `tasty agent rate-limit-status` is a
+    /// per-bucket total that survives restarts, so it is not the same number.
+    /// A request turned away for a malformed idempotency key is not counted
+    /// here.
     ///
     /// An average with nothing behind it comes back as null, not zero.
     Pressure,
