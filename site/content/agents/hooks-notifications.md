@@ -195,7 +195,7 @@ tasty webhook register --method POST \
 
 `--ttl-secs`와 `--count`를 모두 생략하면 호출 제한이 없습니다. `--persistent`는 제한 종류와 함께 사용할 수 있으며, 재시작할 때 기한이나 횟수가 남은 등록을 복원합니다.
 
-쓸 수 있는 핸들러 id 는 `tasty hook-handler list` 로 확인합니다. `--sequence` 는 Tasty 내부 동작(알림 보내기, 텍스트 전송 등)을 순서대로 적은 JSON 목록입니다.
+쓸 수 있는 핸들러 id 는 `tasty hook-handler list` 로 확인합니다. `--sequence` 는 Tasty 내부 동작(알림 보내기, 텍스트 전송 등)을 순서대로 적은 JSON 목록입니다. 올바른 JSON 이 아니면 아무것도 등록하지 않고 원인을 적은 오류로 끝납니다(종료 코드 1).
 
 ### 응답과 관리
 

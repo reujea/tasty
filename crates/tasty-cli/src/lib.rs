@@ -1044,6 +1044,15 @@ mod workspace_category_tests {
         assert_eq!(r.params["sequence"][0]["method"], "notification.create");
     }
 
+    /// `--method` 생략은 빈 배열이 아니라 null 이다 — 빈 배열은 서버가 거절하고, null 이면
+    /// 서버 기본값(POST)이 선다(도움말 "Defaults to POST").
+    #[test]
+    fn webhook_register_without_method_leaves_the_default_to_the_server() {
+        let r = req(&["tasty", "webhook", "register", "--handler", "host/notify"]);
+        assert_eq!(r.method, "webhook.register");
+        assert!(r.params["methods"].is_null(), "{:?}", r.params["methods"]);
+    }
+
     #[test]
     fn webhook_register_handler_maps_to_ipc() {
         let r = req(&["tasty", "webhook", "register", "--handler", "host/notify"]);

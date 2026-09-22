@@ -1,4 +1,4 @@
-<!-- source-hash: 1c561d524541 -->
+<!-- source-hash: d08b4bc10e83 -->
 <!-- source-hash: 566aeb51a6d8 -->
 <!-- source-hash: 4d29d4555043 -->
 <!-- source-hash: 889e7471180f -->
@@ -200,7 +200,7 @@ Registering prints a URL of the form `http://127.0.0.1:28429/<16-character id>`.
 
 Omit both `--ttl-secs` and `--count` for unlimited calls. `--persistent` can be combined with either limit; restarting restores registrations whose time or call allowance has not expired.
 
-Check the available handler ids with `tasty hook-handler list`. `--sequence` is a JSON list of Tasty-internal actions (send a notification, send text, etc.) written in order.
+Check the available handler ids with `tasty hook-handler list`. `--sequence` is a JSON list of Tasty-internal actions (send a notification, send text, etc.) written in order. If it is not valid JSON, nothing is registered and the command ends with an error that says why (exit code 1).
 
 ### Responses and management
 

@@ -111,7 +111,7 @@ chunked의 디코더 Drop에는 같은 Content-Length drain 루프가 없다. �
 
 | IPC | CLI | 동작 |
 |-----|-----|------|
-| `webhook.register` | `tasty webhook register` | 필요 메서드 + (`--handler <id>` xor `--sequence <json>`) + lifetime + 선택 인증 → `{id, url, ...}` 반환 |
+| `webhook.register` | `tasty webhook register` | 필요 메서드 + (`--handler <id>` xor `--sequence <json>`) + lifetime + 선택 인증 → `{id, url, ...}` 반환. `--method` 를 생략하면 CLI 는 `methods` 를 싣지 않아 서버 기본값 `POST` 가 선다(빈 배열은 서버가 거절한다). `--sequence` 가 JSON 으로 안 읽히면 CLI 가 요청을 보내지 않고 인자 이름과 원인을 찍은 뒤 종료 코드 1 로 끝난다 |
 | `webhook.list` | `tasty webhook list` | 전체 목록(각 항목 URL·메서드·steps·lifetime·인증여부) |
 | `webhook.info` | `tasty webhook info --id <id>` | 단일 상세 |
 | `webhook.unregister` | `tasty webhook unregister --id <id>` | 등록 해제(path 회수) |

@@ -171,6 +171,21 @@ fn normalize_cwd_or_exit(raw: Option<&str>) -> Option<String> {
     }
 }
 
+/// JSON 을 받는 인자(`flag`)의 값을 파싱한다. 실패 문구는 인자 이름과 파서의 원인을 담는다.
+fn parse_json_arg(flag: &str, raw: &str) -> Result<serde_json::Value, String> {
+    serde_json::from_str(raw)
+        .map_err(|e| tasty_i18n::t_fmt2("cli.request.json_arg_invalid", flag, &e.to_string()))
+}
+
+/// [`parse_json_arg`] 가 실패하면 원인을 stderr 에 내고 종료 코드 1 로 끝낸다 — 요청 매핑은
+/// `Result` 를 돌려주지 못한다([`normalize_cwd_or_exit`] 와 같은 선례).
+fn parse_json_arg_or_exit(flag: &str, raw: &str) -> serde_json::Value {
+    parse_json_arg(flag, raw).unwrap_or_else(|msg| {
+        crate::out::errln!("{msg}");
+        std::process::exit(1);
+    })
+}
+
 pub fn command_to_request(command: &Commands) -> JsonRpcRequest {
     let (method, params) = match command {
         // ── grouped ──
@@ -759,9 +774,11 @@ fn webhook_command_to_method_params(
             auth_token,
         } => {
             // --sequence 는 JSON 문자열 → Value 로 파싱해 전달(서버가 IpcCall 배열로 검증).
+            // 파싱 실패는 여기서 멈춘다 — null 로 흘리면 사용자는 원인 대신 "handler 나
+            // sequence 중 하나" 라는 서버 거절을 받는다.
             let sequence_value = sequence
                 .as_deref()
-                .and_then(|s| serde_json::from_str::<serde_json::Value>(s).ok());
+                .map(|s| parse_json_arg_or_exit("--sequence", s));
             // auth 3-flag → 서버가 검증하는 auth 객체(미지정 시 null).
             let auth_value = auth_location.as_deref().map(|loc| {
                 serde_json::json!({
@@ -773,7 +790,10 @@ fn webhook_command_to_method_params(
             (
                 "webhook.register",
                 serde_json::json!({
-                    "methods": methods,
+                    // `--method` 생략은 null 이다 — 빈 배열을 보내면 서버가 "비어 있다" 로
+                    // 거절한다. null 이면 서버의 기본값(POST)이 선다: 기본값의 정본은 서버
+                    // 한 곳이다.
+                    "methods": (!methods.is_empty()).then_some(methods),
                     "handler": handler,
                     "sequence": sequence_value,
                     "persistent": persistent,
@@ -918,6 +938,21 @@ mod tests {
                 None => unsafe { std::env::remove_var(Self::KEY) },
             }
         }
+    }
+
+    /// 깨진 JSON 은 null 로 흘리지 않고 인자 이름과 원인을 담은 실패다. 멀쩡한 JSON 은 그대로다.
+    #[test]
+    fn a_broken_json_argument_is_an_error_that_names_the_flag() {
+        tasty_i18n::init("en");
+        let err = parse_json_arg("--sequence", "{broken").unwrap_err();
+        assert!(
+            err.starts_with("Error: --sequence: not valid JSON: "),
+            "{err}"
+        );
+        assert_eq!(
+            parse_json_arg("--sequence", r#"[{"method":"x"}]"#).unwrap(),
+            serde_json::json!([{ "method": "x" }])
+        );
     }
 
     // env 는 process-global 이라 cargo test 의 병렬 실행에서 race 가 난다.

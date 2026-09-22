@@ -1488,6 +1488,7 @@ invalid_contents = "ポートファイルの内容が不正です"
 # `エラー: {}` が接頭辞を付けるエラー本文である。
 [cli.request]
 cwd_invalid = "エラー: --cwd: {}"
+json_arg_invalid = "エラー: {}: 有効な JSON ではありません: {}"
 close_self_no_surface = "エラー: TASTY_SURFACE_ID が設定されていません。'close self' は tasty ターミナル内でのみ使用できます。"
 connect_failed = "ポート {} の tasty インスタンスに接続できません: {}。tasty は起動していますか?"
 
