@@ -1920,8 +1920,60 @@ positive control(일부러 미사용 항목을 심어 그 조합의 잡이 잡�
 |---|---|---|
 | 전체 스위트 | `cargo test --workspace --locked` | 병합 후 main 에서 conductor 1회. `test.yml` 의 `test-linux-x64` 잡을 수동 실행해도 같다. **그것이 자동 채널 위로 새로 사는 것은 아래에서 잰 대로 1 건이다** |
 | Linux x64 gui 컴파일 | — | **더 이상 여기 없다.** `check-headless` 의 `cargo test (linux, gui, unit)` 스텝이 main push 마다 본다 |
-| 기본 조합 clippy (Linux) | `cargo clippy --workspace --all-targets --locked` | 각 작업 lane. CI 에서 이 조합을 보는 것은 Windows 잡뿐이다 |
+| 기본 조합 clippy (Linux) | `cargo clippy --workspace --all-targets --locked` | 각 작업 lane. CI 에서 이 조합을 보는 것은 Windows 잡뿐이다. ★ **`--workspace` 가 모수다** — `-p <크레이트>` 로 좁히면 다른 feature 집합을 재고, 그 초록은 push 의 초록이 아니다(아래 [절](#크레이트를-지목한-clippy-는-push-와-다른-feature-집합을-잰다)) |
 | dist 산출물 빌드 | `scripts/build-*.sh` | `build-check.yml` 수동 실행 |
+
+### 크레이트를 지목한 clippy 는 push 와 다른 feature 집합을 잰다
+
+위 표의 "기본 조합 clippy" 행은 워크스페이스 **전체**를 말한다. lane 이 시간을 아끼려고
+`cargo clippy -p <크레이트>` 로 좁히면 다른 물음에 답하게 된다 — cargo 는 `--workspace` 일
+때 워크스페이스 전체의 feature 를 통합하고, `-p` 일 때는 그 크레이트의 의존 폐포 안에서만
+통합한다. **그 차이가 판정을 가르는 자리가 실제로 있고, lane 에서 초록을 본 뒤 push 에서
+빨개진 적이 있다.**
+
+- **기제.** 인지복잡도 lint(`cognitive_complexity = "deny"`, 문턱은 [complexity-gate](complexity-gate.md))는
+  매크로 전개 뒤를 센다. `tracing` 의 `log` feature 가 켜지면 `tracing::info!`·`warn!` 한
+  자리가 log 통합 분기까지 전개돼 훨씬 크게 세어진다. 그래서 같은 함수가 `-p` 에서는 문턱
+  아래, `--workspace` 에서는 문턱 위가 된다.
+- **누가 켜나.** Linux 에서 `tracing/log` 를 켜는 것은 `calloop` 다(← `calloop-wayland-source`
+  ← `smithay-client-toolkit` ← `smithay-clipboard` ← `egui-winit`). 번들 plugin 크레이트는
+  이 사슬 밖이라 `-p` 트리에는 `"log"` 가 없다. 헤드리스 조합(`--no-default-features`)의
+  워크스페이스 트리에도 있다.
+- **플랫폼마다 답이 다르다.** `cargo tree --workspace --target <triple> -e features -i tracing`
+  에서 `tracing feature "log"` 가 나오는 것은 Linux 뿐이다 — `x86_64-pc-windows-msvc` ·
+  `aarch64-apple-darwin` 트리에는 없다. 그래서 기본 조합 clippy 를 배선한 유일한 자동 잡인
+  `check-windows` 는 **이 갈림을 못 본다** — 그 트리의 `tracing` feature 집합이 `-p` 쪽과
+  같다. 이 문턱을 넘는 자리를 잡는 채널은 Linux 쪽 둘이다: pre-push `B.4`(훅을 깐
+  체크아웃만)와 `check-headless` 의 clippy. 뒤쪽은 `--no-default-features` 라 `gui` 뒤에
+  있는 코드는 안 본다 — 그 자리에서는 `B.4` 하나만 남는다.
+
+실측 2026-09-23 — `tasty-plugin-claude` 에 `if` 셋과 `tracing` 매크로 넷을 가진 함수 하나를
+심고(변이) 잰 뒤 원복했다. 변이 없는 트리에서는 앞 두 명령이 모두 rc=0 이었다.
+
+| 명령 | rc | 판정 |
+|---|---|---|
+| `cargo clippy -p tasty-plugin-claude --all-targets -- -D clippy::correctness` | 0 | 문턱 안 넘음 |
+| 같은 명령 + `--features tracing/log` | 101 | 인지복잡도 32 로 문턱 초과 |
+| `cargo clippy --workspace --all-targets -- -D clippy::correctness` (pre-push `B.4` 와 같은 명령) | 101 | 같은 자리 32 로 문턱 초과 |
+| `cargo clippy --workspace --all-targets --no-default-features --locked` (`check-headless` 와 같은 명령) | 101 | 같은 자리 32 로 문턱 초과 |
+| `cargo clippy --workspace --all-targets --locked --target x86_64-pc-windows-msvc` (`check-windows` 의 대리) | **미측정** | 이 머신에서는 `libsqlite3-sys` · `mlua-sys` 빌드 스크립트에서 멈춘다. 위 "못 본다" 는 clippy 실측이 아니라 cargo tree 의 feature 집합에서 나온 추론이다 |
+
+**그래서 "`-p` 로 초록이면 push 에서도 초록인가" 의 답은 아니다.** lane 에서 push 의 모수로
+미리 재는 법:
+
+```bash
+cargo tree --workspace -e features -i tracing \
+  | grep -A1 'tracing feature "log"'        # 이 갈림이 지금 있는가 — 비면 없다
+cargo clippy -p <크레이트> --all-targets --features tracing/log \
+  -- -D clippy::correctness                 # 싼 쪽 — 이 한 갈래만 닫는다
+cargo clippy --workspace --all-targets \
+  -- -D clippy::correctness                 # push(B.4) 와 같은 모수
+```
+
+가운데 명령은 그 크레이트가 `tracing` 을 의존으로 가질 때만 받아들여지고, `tracing/log` 라는
+**알려진 한 갈래**만 맞춘다 — feature 통합이 만드는 다른 차이까지 맞추는 것은 마지막 명령
+하나다. 첫 명령이 비게 되면(워크스페이스에서 `tracing/log` 를 켜는 의존이 사라지면) 이 갈래의
+차이는 없어진다.
 
 ### 남은 것은 둘이고, 둘 다 **디스플레이를 요구한다** (2026-09-05 실측)
 
@@ -2940,7 +2992,7 @@ e2e 하네스가 헤드리스로 뜨게 되면 그 비용이 사라지고 자동
 | pre-commit | 커밋되지 않는 티켓을 가리키는 인용 P1~P7 (T.1) | ✅ `doc-guards.yml` — **같은 타깃을 부른다**(`cargo test -p tasty-doc-guards --test no_todo_file_citation`). pre-push `B.7` 도 그 타깃을 포함한다 — 셋이 겹치는 것은 의도다: 커밋 · push · main/PR 은 서로 다른 자리고, 자동 채널 둘은 **push 된 커밋만** 본다. ★ 이 검사만 staged diff 가 아니라 **레포 전체 작업 트리**를 본다(가드의 좌변이 순회다) — 내가 안 건드린 파일이 범인일 수 있는 대신, staged 밖에 남은 죽은 인용도 같이 막힌다. 실측 2.0 s |
 | pre-push | plugin 의 **발행 판정** — `--range <원격 tip> <로컬 tip>` (B.9) | ✅ `plugin-version-check.yml` — **같은 스크립트를 같은 물음으로** 부른다. 모수도 같은 축이다: CI 는 `github.event.before`, 훅은 git 이 stdin 으로 준 원격 tip. 차이는 **시점** 하나다 — CI 는 push 된 뒤에 답하고 훅은 push 되기 전에 답한다. pre-commit `P.1` 과는 같은 스크립트지만 **다른 물음**이다(그쪽은 "내 커밋이 올렸나"). 모수를 못 정하면 통과가 아니라 실패다 |
 | pre-push | 공용 모수의 **트리 판정** — `scripts/check-population-freshness.sh --rev <로컬 tip>` (B.10) | **자동 채널 없음.** `crates/tasty-doc-guards/src/floored_walk.rs` 의 `populations::*` 가 그 tip 의 트리와 맞는지 묻는 자리는 이 훅뿐이다 — 어느 CI 잡도 이 스크립트를 안 부른다. 훅을 안 깐 체크아웃에는 이 채널이 없고, 그때 그 선언이 틀려도 **아무것도 안 운다**(`Floor::validate` 는 `min <= measured` 와 날짜 형식만 본다). ★ 모수가 **병합된 트리**여야 하는 축이다: lane 둘이 같은 모수에 파일을 하나씩 더하면 둘 다 같은 +1 값을 적고 git 이 충돌을 안 내며, 두 lane 의 트리에서는 각각 참이다. 실측 2026-09-20: 그 형태를 재현하면 lane 둘이 `통과` · 병합 트리가 `위반`(선언 451 · 트리 452)이었다. CI 로 옮기는 것은 가능하다 — 이 판정은 이력이 아니라 **트리 하나**만 읽으므로 `fetch-depth: 1` 에서도 돈다. 다만 그때는 push 된 뒤에 답한다 |
-| pre-push | `cargo clippy --workspace --all-targets -- -D clippy::correctness` | 부분 — Windows 잡의 clippy 는 `--locked` 를 쓰고 correctness deny 를 걸지 않는다 |
+| pre-push | `cargo clippy --workspace --all-targets -- -D clippy::correctness` | 부분 — Windows 잡의 clippy 는 `--locked` 를 쓰고 correctness deny 를 걸지 않는다. 그리고 이 훅은 Linux 트리의 feature 집합(`tracing/log` 가 켜진 쪽)으로 lint 를 센다 — Windows 잡은 그 갈림을 못 본다([크레이트를 지목한 clippy](#크레이트를-지목한-clippy-는-push-와-다른-feature-집합을-잰다)) |
 | pre-push | `cargo check --workspace --all-targets` | 부분 — CI 는 `--all-targets` 없이 macOS 에서 본다 |
 | pre-push | `cargo check --no-default-features` | ✅ `crossplatform-check.yml` |
 | pre-push | `cargo test -p tasty-doc-guards` | ✅ `doc-guards.yml` — **같은 크레이트를 부른다**. 훅은 push 하는 머신에서만 돌아 worker 머신엔 이 채널이 없다 |
