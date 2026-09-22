@@ -904,8 +904,10 @@ fn ui_does_not_consume_generated_length_consts_directly() {
         let lines: Vec<&str> = contents.lines().collect();
         for (path, at) in generated_const_refs(&lines) {
             let name = path.rsplit("::").next().unwrap_or("").to_string();
-            // "LogicalPx 인데 처방 표에 없음" 과 "이름이 어느 표에도 없음" 이 한 갈래다 —
-            // 둘 다 같은 헬퍼로 처방을 받으므로 가르면 헬퍼를 우회할 두 번째 자리만 생긴다.
+            // `else` 는 무차원이 아닌 이름 전부를 덮는다 — LogicalPx 이름(대부분 처방
+            // 표에 있어 `&Theme` 경로를 받는 정상 위반)과 어느 이름 표에도 없는 이름(경로가
+            // 상수까지 안 이어진 자리)이 함께 든다. 표에 있는지 없는지는 헬퍼가 가르므로,
+            // 여기서 다시 가르면 헬퍼를 우회할 두 번째 자리만 생긴다.
             if other.contains(&name) {
                 dimensionless += 1;
             } else {
