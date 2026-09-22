@@ -2,7 +2,7 @@
 
 - **Status**: Accepted
 - **Date**: 2026-07-03
-- **Tags**: design-tokens, color, semantic, primitive, theme, ui-widgets, guard, enforcement, adr-0020
+- **Tags**: design-tokens, color, semantic, primitive, theme, ui-widgets, guard, enforcement, adr-0574
 
 ## Context
 
@@ -48,5 +48,5 @@ design-tokens 시리즈는 "UI 는 primitive 색(Catppuccin 원색: `crust`/`sur
 - `crates/tasty-type-appearance/src/semantic_color_generated.rs` — role 접근자 codegen 산출물
 - `crates/tasty-design-tokens/dtcg/tasty.tokens.json` · `crates/tasty-design-tokens/src/dtcg.rs` — 토큰 SoT + 매핑표
 - `crates/tasty-doc-guards/tests/design_token_adherence.rs` — `no_primitive_color_field_access_in_host_ui` 가드(스코프에 ui-widgets 편입)
-- [ADR-0020](0020-gallery-complete-component-source.md) — 갤러리 = 컴포넌트 완전 출처(팔레트 데모 제외 근거)
+- [ADR-0574](0574-design-work-flows-from-claude-design-through-gallery-app-and-site.md) — 갤러리 = 컴포넌트 완전 출처(팔레트 데모 제외 근거)
 - [ADR-0290](0290-settled-role-gaps-close-the-divergence-and-off-scale-sets.md) — 이 ADR 이 남긴 divergence alias 집합이 2026-09-17 디자인 결정으로 닫힌 기록(규칙 자체는 그대로 유효)

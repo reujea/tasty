@@ -115,7 +115,7 @@ ref pill 도 조회마다 다시 읽는다 — ref 는 커밋/브랜치 조작 �
 
 `crates/tasty-gallery/src/catalog/components/git_viewer.rs` — Overlays › `Git worktree viewer
 popup`. context strip · 섹션 strip · 2줄 worktree 행 · Changes · Commits · diff well 을 토큰·구조
-정합으로 전사(픽셀 동일성 비목표 — ADR-0020 완전성). 3자 매핑:
+정합으로 전사(픽셀 동일성 비목표 — ADR-0574 완전성). 3자 매핑:
 [design-gallery-mapping.md](../../../design/systems/design-gallery-mapping.md#git-viewer-plugins).
 
 ## 시각 소스

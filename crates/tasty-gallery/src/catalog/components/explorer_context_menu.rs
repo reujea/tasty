@@ -1,5 +1,5 @@
 //! `explorer_context_menu` specimen — 디자인 T11 우클릭 컨텍스트 메뉴 4 variant
-//! (design §3.3, 와이어프레임 7).
+//! (design §3.3).
 //!
 //! 기존 `menu_item()` / `menu_separator()` 재사용 — 메뉴 컨테이너만 조립한다.
 //! 타겟별 항목 구성 4종(빈 영역 / 파일 / 폴더 / 다중선택)을 2×2 로 전시.

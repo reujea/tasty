@@ -6,7 +6,6 @@
 - **코드**: `crates/tasty-plugin-codex/`
 - **권한**: `terminal.spawn` 등 (매니페스트 `permissions`)
 - **화면**: 없음 — CLI/IPC 오케스트레이션 플러그인 (headless).
-- **플로우**: claude 와 동형인 멀티에이전트 오케스트레이션 다이어그램 (spawn·tell·wait·hook·상태머신) — [Figma · Flows & IA](https://www.figma.com/design/ct3uPefwY2uk6i1i9wYpkU/Untitled?node-id=33-915).
 
 > **예제로서**: **cli + ipc namespace 멀티에이전트** 예제(claude 의 경량판) — state/handlers 모듈 분리 → [plugin-development](../../dev-guide/plugin-development.md#cli--ipc-namespace).
 

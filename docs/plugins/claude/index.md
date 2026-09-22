@@ -6,7 +6,6 @@
 - **코드**: `crates/tasty-plugin-claude/`
 - **권한**: `terminal.spawn` 등 (매니페스트 `permissions`) · `memory.read`(Stop-훅 게이트가 발화 surface 의 goal 을 읽는다 — 읽기 전용)
 - **화면**: 없음 — CLI/IPC 로 터미널 surface 를 조작하는 오케스트레이션 플러그인 (headless).
-- **플로우**: 멀티에이전트 오케스트레이션 다이어그램 (spawn·tell·wait·hook·상태머신) — [Figma · Flows & IA](https://www.figma.com/design/ct3uPefwY2uk6i1i9wYpkU/Untitled?node-id=33-915).
 
 > **예제로서**: **최대 통합 레퍼런스**(~3.5k줄) — cli + ipc namespace + 멀티에이전트 + **훅** + event_subscribe + 외부 설치. state/handlers/install/hook/error_scan 모듈 분리의 본보기 → [plugin-development](../../dev-guide/plugin-development.md#cli--ipc-namespace).
 

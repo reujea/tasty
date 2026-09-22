@@ -5,7 +5,7 @@
 //! jsx:910-964) + `HookHandlers`/`HookRow` 컴포넌트(jsx:442-545).
 //!
 //! `settings` specimen(창 셸)은 L2 를 탐색할 수 없어 이 서브탭 콘텐츠들이
-//! 카탈로그에서 누락돼 있었다(ADR 0020 갤러리 완전성 갭) — 여기서 서브탭별
+//! 카탈로그에서 누락돼 있었다(ADR-0574 갤러리 완전성 갭) — 여기서 서브탭별
 //! Spec 으로 노출한다. 갤러리는 본체 registry 에 의존할 수 없으므로 jsx 의
 //! seed 데이터를 그대로 쓴다. 본체 대응: `src/view/settings/ui/file_handler_tab/`.
 

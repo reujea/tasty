@@ -2,7 +2,7 @@
 
 - **Status**: Accepted
 - **Date**: 2026-09-04
-- **Tags**: docs, conventions, hygiene, dead-reference, gitignore, local-workspace, guard-test, adr-0027, adr-0096
+- **Tags**: docs, conventions, hygiene, dead-reference, gitignore, local-workspace, guard-test, adr-0096
 
 ## Context
 
@@ -11,8 +11,7 @@
 번호는 다음 세션에서 재사용된다. 그런데 커밋되는 파일 쪽에서 그 경로를 좌표로 적어 온
 관행이 있었다. 저장소를 새로 clone 한 사람에게 그 좌표는 **존재한 적이 없고**, 번호 재사용
 탓에 살아 있는 것처럼 보이면서 *무관한 문서* 를 가리키기까지 한다. 죽은 참조를 넘어
-오도하는 참조다. ADR-0027 이 Figma 기획 기록에서 같은 증상을 "세션/트랙 식별자 누수" 로
-이미 진단했다.
+오도하는 참조다.
 
 **이전 규정 상태는 두 갈래였고 둘 다 좁았다.**
 
@@ -200,8 +199,6 @@ gitignored 이므로 clone 한 사람에게 죽은 좌표를 남기지 않는다
 
 - [`template.md`](template.md) — "외부(비-git) 위치 문서 참조 금지" 작성 규칙. 이 ADR 이 그
   예외 조항을 폐지한다.
-- [ADR-0027](0027-figma-planning-sot-naming-derived-index.md) — 같은 증상을 Figma 기획
-  기록에서 "세션/트랙 식별자 누수" 로 진단한 선례. 이 ADR 이 0027 의 결정을 바꾸지는 않는다.
 - [ADR-0096](0096-unit-tests-isolated-from-user-environment.md) — 커밋되는 산출물이 로컬
   머신 상태에 의존하지 않게 한 같은 축의 결정.
 - 루트 `CLAUDE.md` "소스 주석의 TODO 파일 및 디자인 changelog 인용 금지" — 이 ADR 이 넓힌

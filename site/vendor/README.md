@@ -18,7 +18,7 @@ Claude Design 프로젝트 **Tasty Design System** 에서 받아온 사본이다
 **모수가 다르다** — 저쪽은 파일 하나(`tokens/tasty.tokens.json`)이고 여기는 트리 전체다.
 그 차이가 아래 1~3 단계(목록 회수 · 개별 수신 · 로컬 변형 재적용)를 만든다.
 
-이 절차를 세운 근거·대안·재검토 조건은 `docs/adr/0294-the-site-vendor-copy-gets-a-channel-and-a-visible-date.md`.
+이 절차를 세운 근거·대안·재검토 조건은 `docs/adr/0574-design-work-flows-from-claude-design-through-gallery-app-and-site.md`.
 
 > **★ 여기서부터 1~3 단계는 DesignSync 세션이 필요하다.** 원격 Claude Design 프로젝트에
 > 접근할 수 없는 세션에서는 이 단계를 돌 수 없다. 그때는 **조용히 건너뛰지 말고** 그 사실을

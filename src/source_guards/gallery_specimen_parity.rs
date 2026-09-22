@@ -1,6 +1,6 @@
 //! **본체에 들어온 popup·무대가 갤러리에도 들어왔는가.**
 //!
-//! gallery-first 는 이 프로젝트의 불가침 원칙이다(ADR-0020 · CLAUDE.md "갤러리 완전성 ·
+//! gallery-first 는 이 프로젝트의 불가침 원칙이다(ADR-0574 · CLAUDE.md "갤러리 완전성 ·
 //! gallery-first" — *새 modal/popup/공용 위젯은 디자인 수령 → 갤러리 specimen → 본체 반영
 //! 순서로 만든다*). 그런데 그것을 어겼을 때 빨개지는 것이 **하나도 없었다.**
 //!
@@ -161,7 +161,7 @@ fn check(
         let Some((_, rel)) = roster.iter().find(|(k, _)| k == id) else {
             panic!(
                 "{what} `{id}` 에 대응하는 갤러리 specimen 이 명부에 없다.\n\
-                 gallery-first(ADR-0020)는 본체보다 갤러리가 먼저다 — specimen 을 만들고 \
+                 gallery-first(ADR-0574)는 본체보다 갤러리가 먼저다 — specimen 을 만들고 \
                  `{}` 의 명부에 그 자리를 적어라.\n\
                  빚 목록에 옮기는 것은 **이행이 아니다.** 그 목록은 면제가 아니라 \
                  원칙을 어긴 자리의 장부이고, 행을 더하려면 그 옆의 빚 수도 함께 올려야 \

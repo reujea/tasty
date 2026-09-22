@@ -1,5 +1,5 @@
 //! `explorer_tab_bar` specimen — 디자인 T11 explorer 내부 탭바 (design §3.6,
-//! 와이어프레임 5 탭 strip).
+//! 탭 strip).
 //!
 //! **상위 Tab 위젯(`tab_bar` specimen)과 별개** — surface-local 내부 탭. 시각 분리:
 //! 높이 24(item-height-tab, 상위보다 작게), 활성 탭은 **상단 2px accent 인디케이터**

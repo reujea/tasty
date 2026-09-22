@@ -1,6 +1,6 @@
 # Gallery-first — 새 UI 컴포넌트 추가 순서
 
-**새 modal · popup · 공용 위젯은 본체에 넣기 전에 갤러리(`crates/tasty-gallery`)에 먼저 만든다.** 갤러리는 본체의 모든 UI 컴포넌트를 노출하는 단일 출처이고([gallery-completeness](../design/policies/gallery-completeness.md), [ADR-0020](../adr/0020-gallery-complete-component-source.md)), 컴포넌트는 그 출처를 *거쳐서* 본체로 들어온다.
+**새 modal · popup · 공용 위젯은 본체에 넣기 전에 갤러리(`crates/tasty-gallery`)에 먼저 만든다.** 갤러리는 본체의 모든 UI 컴포넌트를 노출하는 단일 출처이고([gallery-completeness](../design/policies/gallery-completeness.md), [ADR-0574](../adr/0574-design-work-flows-from-claude-design-through-gallery-app-and-site.md)), 컴포넌트는 그 출처를 *거쳐서* 본체로 들어온다.
 
 ## 순서 (필수)
 
@@ -104,7 +104,7 @@ gallery-first 이전에 만들어져 본체 binary 에만 있는 view 는 갤러
 ## 관련
 
 - [design-change-workflow](design-change-workflow.md) — 0단계 "디자인 확보"의 전체 절차(요청문서→시안→정합 루프).
-- [ADR-0020](../adr/0020-gallery-complete-component-source.md) — cut 금지 + gallery-first 결정 근거.
+- [ADR-0574](../adr/0574-design-work-flows-from-claude-design-through-gallery-app-and-site.md) — cut 금지 + gallery-first 결정 근거.
 - [design/policies/gallery-completeness](../design/policies/gallery-completeness.md) — 갤러리 완전성 운영 상태.
 - [popup-implementation](popup-implementation.md) — 본체 팝업 추가(`PopupDef`).
 - [design/policies/shared-widgets](../design/policies/shared-widgets.md) · [model-view-split](model-view-split.md) — 부품 단위 공용화 + view 분리.

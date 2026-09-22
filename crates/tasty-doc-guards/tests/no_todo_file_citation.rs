@@ -8,9 +8,7 @@
 //! 휘발성 식별자**다. 저장소를 새로 clone 한 사람에게 그 좌표는 존재한 적이 없다.
 //!
 //! 실제로 번호 재사용이 일어나 인용이 *무관한 문서* 로 해석되는 사례까지 나왔다 —
-//! 죽은 참조를 넘어 오도하는 참조가 된다. 같은 문제를 진단한 선례는
-//! [ADR-0027](../docs/adr/0027-figma-planning-sot-naming-derived-index.md) 의
-//! "세션/트랙 식별자 누수" 항목이다.
+//! 죽은 참조를 넘어 오도하는 참조가 된다.
 //!
 //! **대체 수단(위반 시 이 중 하나를 쓴다)**:
 //! 1. 이유가 자명하면 — 번호/경로 대신 이유를 주석에 직접 서술
@@ -107,8 +105,6 @@ use std::path::{Path, PathBuf};
 ///   예시를 지우면 규칙이 무엇을 금지하는지 알 수 없게 된다. 경로 인용(P3/P6)은
 ///   면제하지 않는다 — 규칙을 설명하는 데 실제 경로가 필요하지 않다.
 /// - `.gitignore`: 제외 항목을 적는 것이 그 파일의 정의다(ADR-0105 범위 밖 4항).
-/// - `docs/adr/0027-...`: 휘발 경로 누수를 *문제로 서술* 하는 예시(참조가 아니다).
-///   게다가 Accepted ADR 의 Context 본문이라 template 규칙상 수정 대상도 아니다.
 /// - 이 파일 자신(P7): 모듈 머리말·패턴 doc·단위 테스트가 `TODO` 를 산문으로 쓴다 —
 ///   무엇을 잡고 무엇을 통과시키는지 적는 것이 이 파일의 일이라, 금지 형태를 담는
 ///   것이 본질이다. P7 은 숫자를 요구하지 않아 `fx!` 로 판정 지점을 끊을 수도 없다
@@ -123,10 +119,6 @@ use std::path::{Path, PathBuf};
 const ALLOWLIST: &[(&str, &[&str])] = &[
     ("CLAUDE.md", &["P1", "P4"]),
     (".gitignore", &["P6"]),
-    (
-        "docs/adr/0027-figma-planning-sot-naming-derived-index.md",
-        &["P3", "P6"],
-    ),
     (
         "crates/tasty-doc-guards/tests/no_todo_file_citation.rs",
         &["P7", "P8", "P9", "P10"],
@@ -1537,10 +1529,10 @@ fn allowlist_exempts_only_the_named_pattern_not_the_whole_file() {
             .any(|v| v.starts_with("P1"))
     );
 
-    // 반대 방향 — ADR 0027 은 P3·P6 면제이므로 P1 은 잡혀야 한다.
-    let adr = "docs/adr/0027-figma-planning-sot-naming-derived-index.md";
+    // 반대 방향 — 이 스크립트는 P7 만 면제이므로 P1 은 잡혀야 한다.
+    let script = "scripts/check-allow-reason.sh";
     assert!(
-        violations_in_line(adr, fx!("(TODO", "18)"))
+        violations_in_line(script, fx!("(TODO", "18)"))
             .iter()
             .any(|v| v.starts_with("P1"))
     );

@@ -81,8 +81,8 @@ site/
 디자인 결정이 착지하면 누군가 그것을 받아와야 한다. 절차는
 [`site/vendor/README.md`](../../site/vendor/README.md) 의 "vendor 갱신 절차" 에 있고,
 정합 루프에서 이 단계가 차지하는 자리는
-[design-change-workflow](design-change-workflow.md#넷째-정합-대상--사이트-사본-필수) 에 있다. 결정 근거는
-[ADR-0294](../adr/0294-the-site-vendor-copy-gets-a-channel-and-a-visible-date.md).
+[design-change-workflow](design-change-workflow.md#정합-대상--사이트-사본-필수) 에 있다. 결정 근거는
+[ADR-0574](../adr/0574-design-work-flows-from-claude-design-through-gallery-app-and-site.md).
 
 따라오지 않아도 **사이트는 정상 빌드된다** — 낡은 사본을 성실히 렌더할 뿐이다. 그 침묵을
 깨는 판정기가 둘 있고 둘 다 **레포 안의 두 사본만** 본다:

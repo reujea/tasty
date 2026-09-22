@@ -2,14 +2,14 @@
 
 - **Status**: Accepted
 - **Date**: 2026-09-06
-- **Tags**: guards, principles, enforcement, gallery, gallery-first, adr-0020, adr-0180, adr-0183, adr-0184, adr-0185, adr-0190
+- **Tags**: guards, principles, enforcement, gallery, gallery-first, adr-0574, adr-0180, adr-0183, adr-0184, adr-0185, adr-0190
 
 ## Context
 
 원칙을 문서에 "불가침" 이라 적는 것과, 그것을 어겼을 때 무언가 **빨개지는** 것은 다르다.
 2026-09-06 회차에 두 레인이 서로 모른 채 그 간극에 닿았다:
 
-- **706** — 갤러리 완전성(gallery-first)은 불가침 원칙이다([ADR-0020] · `CLAUDE.md` "갤러리
+- **706** — 갤러리 완전성(gallery-first)은 불가침 원칙이다([ADR-0574] · `CLAUDE.md` "갤러리
   완전성 · gallery-first": 새 modal/popup/공용 위젯은 갤러리 specimen 이 본체보다 먼저다).
   그런데 그것을 어겼을 때 빨개지는 것이 **하나도 없었다.** 바늘 셋으로 재도(구조: host
   등록처 `all_defs()` 소비자 전수 → 갤러리에 닿는 것 0 · 경로: 판정 코퍼스에서
@@ -272,7 +272,7 @@ gallery-first 에 specimen parity 가드(`gallery_specimen_parity.rs`, `92cc45bd
 
 ## References
 
-- [ADR-0020](0020-gallery-complete-component-source.md) — 갤러리 완전성(이 ADR 의 대표
+- [ADR-0574](0574-design-work-flows-from-claude-design-through-gallery-app-and-site.md) — 갤러리 완전성(이 ADR 의 대표
   [구두]→[가드] 사례)
 - [ADR-0184](0184-assembly-follows-a-new-artifact-but-judgment-does-not.md) — 조립은
   따라오고 판정은 안 따라온다([가드—무채널]=(ㄴ-구조), 이 ADR 의 극단은 집행 0)

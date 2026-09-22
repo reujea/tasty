@@ -6,8 +6,8 @@
 > 디자인에 *이미 있는데* 소스만 못 따라간 경우(구현 누락/불일치)는 이 워크플로가 필요 없다 —
 > 디자인 변경이 아니므로 바로 [gallery-first](gallery-first.md) 의 구조 전사(1단계)로 간다.
 
-이 워크플로의 도구 3분할(Figma 기획 / Claude design 디자인 / claude code 구현)과 그 근거·재검토 조건은
-[ADR-0025](../adr/0025-planning-tool-split-experimental.md) 에 있다. 본 문서는 그 결정의 *현재 운영 절차* 만 기술한다.
+이 워크플로의 도구 분담(Claude design 디자인 / claude code 구현)·정합 순서와 그 근거·재검토 조건은
+[ADR-0574](../adr/0574-design-work-flows-from-claude-design-through-gallery-app-and-site.md) 에 있다. 본 문서는 그 결정의 *현재 운영 절차* 만 기술한다.
 
 ## 요청문서 전달 경로 (직접 접근 우선 / 로컬 fallback)
 
@@ -39,20 +39,20 @@
                         design-request/*.md)                                  │            │
                                                                               │ 시안 수령   │
                                                                               ▼            │
-                              [4] 정합: Figma 회귀반영 → 갤러리 specimen → 본체 구현 → 사이트 사본 ─┘
-                                  (구조 전사 + 토큰 정합)                    (site/vendor 재-vendoring)
+                              [4] 정합: 갤러리 specimen → 본체 구현 → 사이트 사본 ─────────┘
+                                  (구조 전사 + 토큰 정합)     (site/vendor 재-vendoring)
 ```
 
 | 단계 | 행위자 | 하는 일 | 산출물 |
 |------|--------|---------|--------|
 | 1 | **planner** | 무엇을·어떻게 보이게 할지 정의한 **디자인 요청문서** 작성 | 로컬 작업 폴더의 `design-request/MMDDhhmm-design-request-<slug>.md` |
 | 2 | **사용자** | 요청문서를 **Claude design 에 직접 제출** | (제출) |
-| 3 | **designer** (Claude design) | 색·간격·인터랙션 살아있는 **고충실 시안** 생성 | HTML/CSS 시안 (휘발성) |
-| 4 | **구현** (claude code) | Figma 회귀반영 → 갤러리 specimen → 본체 반영 → **사이트 사본 재-vendoring**(`site/vendor/`) | 코드 + Figma 갱신 + vendor 사본 |
+| 3 | **designer** (Claude design) | 색·간격·인터랙션 살아있는 **고충실 시안** 생성 | HTML/CSS 시안 (원격 프로젝트의 파일) |
+| 4 | **구현** (claude code) | 갤러리 specimen → 본체 반영 → **사이트 사본 재-vendoring**(`site/vendor/`) | 코드 + vendor 사본 |
 | → 재요청 | planner | 4 에서 부족·불일치가 드러나면 **추가 요청문서**로 다시 2 로 | 새/갱신 요청문서 |
 
 루프인 이유: 한 번에 끝나지 않는다. 시안이 열린 결정(아래 §6)을 확정하거나
-와이어프레임에 없던 구조를 드러내면, 그 변화를 Figma 기획에 되먹이고(ADR-0025 회귀 반영) 부족분은 다음 요청문서로 다시 돈다.
+요청문서에 없던 구조를 드러내면, 부족분은 다음 요청문서로 다시 돈다.
 
 ## 디자인 요청문서란
 
@@ -67,7 +67,7 @@
 
 | 섹션 | 내용 |
 |------|------|
-| 헤더 메타 | 작성일 · 요청자(planner) · 수행자(designer) · **상태** · 연계 계획 · 파이프라인(ADR-0025) |
+| 헤더 메타 | 작성일 · 요청자(planner) · 수행자(designer) · **상태** · 연계 계획 |
 | §0 한 줄 요약 | 이 요청이 만들려는 것 한 줄 |
 | §1 맥락 / 제약 | 토큰=코드 SoT(Catppuccin Mocha, raw hex 금지) · 4px 그리드/14px 폰트 상한/1px 보더 · gallery-first 부품 재사용 · i18n 가변폭 · 기존 구현과의 관계 |
 | §2 인벤토리 | 디자이너가 만들 화면/컴포넌트/팝업/상태 목록 표 (신규/기존 구분) |
@@ -75,19 +75,19 @@
 | §4 컴포넌트별 요구사항 | 컴포넌트 단위 상태·변형 |
 | §5 인터랙션 / 동작 | 시안에 주석으로 달 조작·상태전이 규칙 |
 | §6 열린 결정 | 디자이너/사용자가 확정해야 할 미결 사항 |
-| §7 산출물 형식 | 디자이너에게: 고충실 HTML/CSS, 상태 변형 포함, 토큰 안에서만, 회귀 반영·구현 친화 박스 경계 |
-| §8 참고 | Figma 와이어프레임 nodeId, 계획 문서, 토큰/팝업 정책 링크 |
+| §7 산출물 형식 | 디자이너에게: 고충실 HTML/CSS, 상태 변형 포함, 토큰 안에서만, 구현 친화 박스 경계 |
+| §8 참고 | 계획 문서, 토큰/팝업 정책 링크 |
 
 ### 요청문서가 강제하는 디자인 규칙 (시안 단계부터)
 
 요청문서 §1·§7 은 시안이 본체 토큰·정책과 어긋나지 않도록 다음을 **시안 단계에서부터** 못박는다:
 
-- **토큰 SoT = 코드(`Theme`)** — 색·간격·치수·보더는 모두 Catppuccin Mocha 토큰 안에서만. raw hex 하드코딩 금지(시안에서도 토큰 의미 이름으로 표기). Figma Foundations 는 미러. ([theme UI 규칙](../design/systems/theme.md#ui-디자인-규칙-필수))
+- **토큰 SoT = 코드(`Theme`)** — 색·간격·치수·보더는 모두 Catppuccin Mocha 토큰 안에서만. raw hex 하드코딩 금지(시안에서도 토큰 의미 이름으로 표기). ([theme UI 규칙](../design/systems/theme.md#ui-디자인-규칙-필수))
 - **레이아웃 규칙** — 4px 그리드 · 폰트 14px 상한 · 보더 1px · 호버(흰색 +8%)/액티브(+12%) 오버레이는 직접 값 금지(자동 도출).
 - **gallery-first 부품 재사용** — 보편 부품(버튼/입력/표/스크롤바/컨텍스트 메뉴/팝업)은 [공용 위젯](../design/policies/shared-widgets.md)·기존 카탈로그와 시각 일관. ([gallery-first](gallery-first.md))
 - **i18n 가변폭** — 모든 문자열은 [`t()`](i18n.md) 번역 키로 노출될 예정. 시안 텍스트는 영어 기준이되 독/일/한 가변 길이를 감안해 여유 폭.
 
-## 넷째 정합 대상 — 사이트 사본 (필수)
+## 정합 대상 — 사이트 사본 (필수)
 
 레포에는 같은 원격 canonical 의 vendored 사본이 **둘** 있고, 디자인 결정은 **둘 다** 따라와야 한다.
 
@@ -100,7 +100,7 @@
 
 부분적인 자동 채널이 **둘** 있다. `crates/tasty-doc-guards/tests/site_vendor_tokens_track_the_app_export.rs` 가 두 사본의 **토큰 이름 집합**을, `crates/tasty-doc-guards/tests/site_vendor_icons_match_the_app_transcription.rs` 가 **아이콘 기하·채움과 그 그릇**(`viewBox` · 선 굵기 · cap/join)을 대조한다 — 앱이 받은 것을 사이트가 못 받으면 그 차이가 명부와 어긋나 빨개진다. **그 둘이 덮는 범위와 이 절차가 덮는 범위는 다르다** — 판정기는 토큰 이름과 아이콘(기하·채움·그릇) 두 층만 보고, 그 둘을 안 건드리는 결정(문구 변경 · 구성 변경 · 컨트롤 삭제)은 양쪽 좌변을 똑같이 남겨두므로 **여전히 안 잡힌다.** 그 층은 이 단계(사람이 도는 재-vendoring)만 닫는다. 판정기가 초록인 것을 "사이트 사본이 최신" 으로 읽지 마라.
 
-이 넷째 대상을 세운 근거·대안·재검토 조건은 [ADR-0294](../adr/0294-the-site-vendor-copy-gets-a-channel-and-a-visible-date.md).
+이 정합 대상을 세운 근거·대안·재검토 조건은 [ADR-0574](../adr/0574-design-work-flows-from-claude-design-through-gallery-app-and-site.md).
 
 재-vendoring 은 원격 프로젝트 접근(DesignSync 세션)을 쓰므로, 그 권한이 없는 세션에서는 이 단계를 **미완으로 남기고 그 사실을 적는다** — 조용히 건너뛰지 않는다.
 
@@ -109,7 +109,7 @@
 요청문서 헤더 메타의 `상태:` 필드로 추적한다.
 
 ```
-requested ──(사용자 제출·시안 수령)──▶ received ──(Figma/갤러리/본체 정합)──▶ reconciled
+requested ──(사용자 제출·시안 수령)──▶ received ──(갤러리/본체/사이트 정합)──▶ reconciled
     ▲                                                                          │
     └────────────────── re-requested (부족·불일치 발견 시 새 요청으로) ─────────────┘
 ```
@@ -118,12 +118,12 @@ requested ──(사용자 제출·시안 수령)──▶ received ──(Figma
 |------|------|
 | `requested` | planner 가 요청문서를 작성·확정. 아직 시안 없음 (제출 대기). |
 | `received` | 사용자가 Claude design 시안을 받아옴. 정합 작업 대기/진행. |
-| `reconciled` | 시안을 Figma 회귀반영 + 갤러리 specimen + 본체 + **사이트 사본(`site/vendor/`)** 에 반영 완료 — 넷째 자리가 빠지면 코드가 따라와도 **공개 사이트는 결정 이전 UI 를 계속 전시한다**(아래 [넷째 정합 대상](#넷째-정합-대상--사이트-사본-필수)). 이 시점에 **요청문서를 삭제한다**(아래 [정합 완료 후 요청문서 삭제](#정합-완료-후-요청문서-삭제-필수)). |
+| `reconciled` | 시안을 갤러리 specimen + 본체 + **사이트 사본(`site/vendor/`)** 에 반영 완료 — 사이트 사본이 빠지면 코드가 따라와도 **공개 사이트는 결정 이전 UI 를 계속 전시한다**(위 [정합 대상 — 사이트 사본](#정합-대상--사이트-사본-필수)). 이 시점에 **요청문서를 삭제한다**(아래 [정합 완료 후 요청문서 삭제](#정합-완료-후-요청문서-삭제-필수)). |
 | `re-requested` | 정합 중 부족·불일치가 드러나 추가/갱신 요청문서로 루프 재진입. |
 
 ## 정합 완료 후 요청문서 삭제 (필수)
 
-요청문서는 designer 에게 "무엇을 만들지"를 넘기기 위한 **입력 산출물**일 뿐, 정합이 끝나면 더 이상 쓸모가 없다. 그래서 `reconciled` 에 도달하면(디자인 작업이 수락·완료되고 시안이 Figma/갤러리/본체에 반영 완료) **그 작업을 유발한 요청문서를 삭제한다.** 이력이 필요한 결정은 이미 ADR·docs·Figma 에 남으므로 요청문서를 붙잡아 둘 이유가 없다.
+요청문서는 designer 에게 "무엇을 만들지"를 넘기기 위한 **입력 산출물**일 뿐, 정합이 끝나면 더 이상 쓸모가 없다. 그래서 `reconciled` 에 도달하면(디자인 작업이 수락·완료되고 시안이 갤러리/본체/사이트 사본에 반영 완료) **그 작업을 유발한 요청문서를 삭제한다.** 이력이 필요한 결정은 이미 ADR·docs 에 남으므로 요청문서를 붙잡아 둘 이유가 없다.
 
 **전제 (삭제 조건).** 아래를 모두 만족할 때만 삭제한다:
 
@@ -138,24 +138,23 @@ requested ──(사용자 제출·시안 수령)──▶ received ──(Figma
 | **B. 로컬 (fallback)** | 로컬 작업 폴더의 `design-request/MMDDhhmm-design-request-<slug>.md` | 로컬 파일을 **직접 삭제**한다(gitignored 라 이력 남길 필요 없음). |
 | **A. 원격 (직접 접근)** | 원격 전용 인박스 `design-request/<slug>.md` | **DesignSync `delete_files`** 로 삭제한다 — `list_files`(존재 확인) → `finalize_plan` 의 `deletes`(+ `writes` 는 빈 배열) 에 그 경로를 넣어 `planId` 획득(권한 프롬프트) → `delete_files`(`planId`) 순. 원격 파일 삭제는 이 메서드로 가능하다. |
 
-**삭제 대상 = 요청문서(md)뿐.** 확정 시안 아카이브(Figma Screens "확정 시안 아카이브" 스크린샷 · `docs/design/` 에 보존한 HTML)는 **삭제하지 않는다** — 그것은 위 "누가 무엇을 하나"·ADR-0025 의 **보존** 대상이다. 삭제하는 것은 입력 요청문서 한 건이지 산출물이 아니다.
+**삭제 대상 = 요청문서(md)뿐.** 확정 시안(원격 프로젝트의 시안 파일 · `docs/design/` 에 보존한 HTML)은 **삭제하지 않는다** — 그것은 아래 "누가 무엇을 하나"·ADR-0574 의 **보존** 대상이다. 삭제하는 것은 입력 요청문서 한 건이지 산출물이 아니다.
 
 ## 누가 무엇을 하나 (역할 분리)
 
 | 역할 | 누가 | 책임 |
 |------|------|------|
-| **planner** | claude code(todo-maker 겸) 또는 사용자 | 요청문서 작성 — 인벤토리·제약·열린 결정 정의. Figma 기획(와이어프레임/IA/플로우) 유지. |
+| **planner** | claude code(todo-maker 겸) 또는 사용자 | 요청문서 작성 — 인벤토리·제약·열린 결정 정의. |
 | **사용자** | 사람 | 요청문서를 **Claude design 에 직접 제출**하고 시안 결과를 받아온다. (이 제출은 사용자 행위 — 에이전트가 대행하지 않는다.) |
 | **designer** | Claude design (claude.ai Artifacts) | 고충실 HTML/CSS 시안 생성. 색·치수는 요청문서가 준 토큰 팔레트 안에서만. |
-| **구현** | claude code | 확정 시안을 [gallery-first](gallery-first.md) 순서로 — Figma 회귀반영 → 갤러리 specimen(구조 전사+토큰 정합) → 본체 반영 → 사이트 사본 재-vendoring. |
+| **구현** | claude code | 확정 시안을 [gallery-first](gallery-first.md) 순서로 — 갤러리 specimen(구조 전사+토큰 정합) → 본체 반영 → 사이트 사본 재-vendoring. |
 
-> Claude design 산출물은 **휘발성**(세션 종료 시 사라짐)이다. 확정 시안은 스크린샷을 Figma Screens 페이지에
-> "확정 시안 아카이브"로 박거나 HTML 을 `docs/design/` 에 보존한다(ADR-0025).
+> 확정 시안은 원격 Claude design 프로젝트에 파일로 남는다(정합 뒤 지우는 것은 요청문서뿐이다). 레포 안에
+> 근거로 남겨야 하는 시안은 HTML 을 `docs/design/` 에 보존한다(ADR-0574).
 
 ## 관련
 
-- [ADR-0025](../adr/0025-planning-tool-split-experimental.md) — 도구 3분할(Figma/Claude design/claude code) 결정 근거·회귀 반영 루프·재검토 조건. (Experimental)
-- [ADR-0020](../adr/0020-gallery-complete-component-source.md) — 갤러리 완전성 + gallery-first 결정 근거.
+- [ADR-0574](../adr/0574-design-work-flows-from-claude-design-through-gallery-app-and-site.md) — 도구 분담·정합 순서·갤러리 완전성·사이트 사본 결정 근거와 재검토 조건.
 - [gallery-first](gallery-first.md) — 확보한 디자인을 갤러리→본체로 내리는 순서(0단계 "디자인 확보"가 이 워크플로).
 - [design/policies/gallery-completeness](../design/policies/gallery-completeness.md) — cut 금지 시 디자인 보강(=이 워크플로로 재요청).
 - [design/systems/design-parity-notes](../design/systems/design-parity-notes.md) · [design-gallery-mapping](../design/systems/design-gallery-mapping.md) — 시안→소스 구조 전사 원칙·매핑.

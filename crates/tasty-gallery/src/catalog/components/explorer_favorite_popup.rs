@@ -1,5 +1,5 @@
 //! `explorer_favorite_popup` specimen — 디자인 T11 "Add to favorites" 팝업
-//! (design §3.5, 와이어프레임 8).
+//! (design §3.5).
 //!
 //! 결정: Popup (`PopupDef`, Modal View 아님 — 경량 입력). 본체는 이것을 별도 def 로
 //! 두지 않고 `rename` popup 의 한 target(`RenameTarget::ExplorerAddFavorite`)으로

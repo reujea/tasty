@@ -20,7 +20,7 @@
 - **(나) 산술에 섞이는 것.** 다른 상수와 더해지거나 계수를 만난다. `LogicalPx` 의 연산 표면에 그 연산이 있는지가 선행 물음이다.
 - **(다) 함수 경계를 넘는 것.** `f32` 를 받는 우리 함수로 넘어가면 그 시그니처가 바뀌고 호출처로 번진다.
 
-본체 (가) 는 **79** 였고 전부 옮겼다. 본체에 남은 것은 50, 전부 `src/adapters/ui/` 안이다. 갤러리는 뒤로 미룬다 — 갤러리는 본체를 비추는 판정 기준이라 본체보다 앞서 나가면 안 된다([ADR-0020](0020-gallery-complete-component-source.md)).
+본체 (가) 는 **79** 였고 전부 옮겼다. 본체에 남은 것은 50, 전부 `src/adapters/ui/` 안이다. 갤러리는 뒤로 미룬다 — 갤러리는 본체를 비추는 판정 기준이라 본체보다 앞서 나가면 안 된다([ADR-0574](0574-design-work-flows-from-claude-design-through-gallery-app-and-site.md)).
 
 세 결정이 이 순서를 떠받친다.
 
@@ -96,4 +96,4 @@
 - `crates/tasty-type-geometry/src/length.rs` — `const fn plus`/`minus`/`scaled` 와 그 `const` 문맥 테스트
 - `src/source_guards/length_constant_frontier.rs` — 전선 가드, 사각 넷과 각각을 겨냥한 테스트
 - `src/dpi_conversion_guard.rs` — 변환 누락 가드. 모듈 주석에 집행 셋의 분담이 있다
-- [ADR-0020](0020-gallery-complete-component-source.md) — 갤러리는 본체를 비추는 판정 기준이라는 결정
+- [ADR-0574](0574-design-work-flows-from-claude-design-through-gallery-app-and-site.md) — 갤러리는 본체를 비추는 판정 기준이라는 결정
