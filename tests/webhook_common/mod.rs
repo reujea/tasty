@@ -21,6 +21,8 @@
 // 안 걸리기 때문이다 — 그래서 "테스트라서 뺐다" 를 **형태**가 남기게 한다. 프로덕션 자리는
 // 같은 lint 라도 무조건 `#![allow]` + 사유이고, 그 둘이 형태로 갈린다.
 #![cfg_attr(test, allow(clippy::multiple_unsafe_ops_per_block))]
+// 이유: 이 모듈을 include 하는 test binary 마다 쓰는 부분집합이 달라, 안 쓰는 binary 에서
+// 죽은 코드가 된다(통합 시험 공용 모듈 — `tests/common/mod.rs` 와 같은 이유).
 #![allow(dead_code)]
 // 테스트 본문은 `let _ =` 사유 주석 정책의 범위 밖이다 — 전수 가드
 // (`crates/tasty-doc-guards/tests/let_underscore_documented.rs`)가 테스트 본문을 제외하므로, 여기서 나는

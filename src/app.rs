@@ -104,8 +104,13 @@ impl std::fmt::Display for NoGpuAdapter {
 #[cfg(feature = "gui")]
 impl std::error::Error for NoGpuAdapter {}
 
-// 이유: 이 구조체의 필드를 읽는 것이 gui 이벤트 루프뿐이라 headless 빌드엔 독자가 없다.
-#[cfg_attr(not(feature = "gui"), allow(dead_code))]
+#[cfg_attr(
+    not(feature = "gui"),
+    expect(
+        dead_code,
+        reason = "some fields are read only by the gui event loop; headless has no reader"
+    )
+)]
 pub(crate) struct App {
     /// 도메인 본체 — `CoreState` 의 mutate 로직을 점진 흡수한 Method wrapper 다수를
     /// 이미 보유한다(수십 개 규모, 계속 증가 중). 잔여 흡수는 계속 진행 중이다.

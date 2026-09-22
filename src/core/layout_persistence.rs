@@ -94,8 +94,7 @@ fn list_slots_in(dir: &Path) -> Vec<LayoutSlotId> {
 /// 창 생성 시 free 슬롯을 고르는 `App::claim_free_layout_slot` 이 소비한다 —
 /// "점유되지 않은 가장 낮은 기존 슬롯" 판정의 후보 집합이다. headless 빌드에는
 /// 창 생성 경로가 없어 호출자가 없다.
-// 이유: 호출자 `App::claim_free_layout_slot` 이 창 생성 경로라 headless 엔 없다(위).
-#[cfg_attr(not(feature = "gui"), allow(dead_code))]
+#[cfg(feature = "gui")]
 pub(crate) fn list_slots() -> Vec<LayoutSlotId> {
     match layouts_dir() {
         Some(dir) => list_slots_in(&dir),

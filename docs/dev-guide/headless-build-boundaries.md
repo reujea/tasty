@@ -27,11 +27,14 @@ headless 에 생산자도 호출자도 없는 정의. 모듈 통째가 그 안�
 (그 lint 는 warn 이고 `Cargo.toml` 의 deny 목록 밖이며, CI 는 `-D warnings` 를 안 쓴다). 모듈이나 crate 전체를 덮는
 dead_code 예외는 쓰지 않는다.
 
-조건이 `not(feature = "gui")` 하나뿐인 모듈 단위 `allow(dead_code)` 는 0 이다. 이 규칙에 아직
-안 맞는 모듈·crate 단위 `dead_code` 억제(조건 없는 것 · 다른 cfg 조합의 것)는 남아 있고, 그 자리는
-목록으로 적지 않는다 — 세는 법: `git grep -nE '#!\[(cfg_attr\([^]]*)?allow\([^)]*dead_code' -- '*.rs'`.
+모듈·crate 단위 `dead_code` 억제는 이 경계 밖의 두 부류에만 남는다 — 통합 시험 공용 모듈
+(`tests/*/mod.rs`: test binary 마다 쓰는 부분집합이 달라 binary 별로 dead 가 생긴다)과 생성
+파일(`tasty-design-tokens` 의 `generated/primitive.rs` 와 그것을 쓰는 생성기: `pub(crate)` 스케일을
+미참조 엔트리까지 보존한다). 둘 다 자리에 사유가 붙어 있다. 그 밖에는 0 이고, 결정과 재검토
+조건은 [ADR-0530](../adr/0530-module-wide-dead-code-allows-stay-only-where-the-judge-cannot-see-the-use.md).
+세는 법: `git grep -nE '#!\[(cfg_attr\([^]]*)?allow\([^)]*dead_code' -- '*.rs'`.
 
-지금 ③ 에 해당하는 것은 아홉이다.
+지금 ③ 에 해당하는 것은 열하나다.
 
 | 정의 | 왜 남는가 |
 |---|---|
@@ -41,6 +44,8 @@ dead_code 예외는 쓰지 않는다.
 | 호스트 이벤트 큐 항목(`PendingHostEvent` · `PendingSurfaceClosed`, `core/host_event.rs`) | 세우는 코드(`AppState` 의 enqueue 메서드)가 headless 빌드에도 컴파일되지만 비우는 자는 GUI 메인 루프뿐이다. 그 메서드들이 headless 에서 어느 갈래인지는 [AppState 필드 소유권](app-state-ownership.md) 이 적는다 |
 | 파일 열기 발화 주체(`FileDispatchOrigin`, `core/origin.rs`) | 도메인의 `DispatchFile` intent 가 headless 에도 컴파일되지만 값을 만드는 자리(explorer·링크·드롭·picker·`file_handler.dispatch` arm)가 전부 GUI 다. `file::dispatch` 모듈 자체는 headless 라이브러리에 없다(링크 해석·대상 판정을 시험이 부르므로 ②) |
 | workspace 생성 cascade 의 필드(`WorkspaceCreatedCascade`, headless 판 `app/dispatch_domain_stubs.rs`) | 만드는 자리(`workspace.create` IPC · workspace intent)는 두 빌드가 공유하지만 headless 의 cascade 는 no-op 이라 필드를 읽는 자가 gui 뿐이다. 그 파일 전체가 `not(feature = "gui")` 라 조건 없는 `expect` 로 적는다 |
+| `App` 의 필드(`src/app.rs`) | headless boot 도 `App` 을 세워 Core 를 쓰지만, 일부 필드를 읽는 자는 gui 이벤트 루프뿐이다 |
+| `AppEvent::Shutdown` · `AppEvent::QuitRequested`(`src/app/event.rs`) | 만드는 자리가 gui 창 라이프사이클·종료 경로뿐이다. 열거와 그 match 는 headless 도 컴파일한다 |
 | `AppState::preset_store` | headless 도 `AppState::new` 로 Core 의 사본을 받지만 읽는 자(preset popup)가 GUI 뿐이다. 에이전트의 preset IPC 는 `Core.preset_store` 를 잠근다 |
 | `ModalKind` 의 variant | 모달을 여는 자리(`App::open_modal`)가 GUI 뿐이다. 열거와 `active_modal_kind` 는 `ui.state` 덤프가 debug 빌드의 두 조합에서 같은 키로 읽는다(release 헤드리스에는 `active_modal_kind` 필드가 없다) |
 | 사용자 발화 intent 의 variant(`Intent` 의 단축키·메뉴 variant · `UiIntent` · `OpenPopupMode` · `ConvertTarget` · 도메인의 `IntentOrigin::User` · `UserSource`) | 만드는 자리(단축키·메뉴·우클릭·popup)가 GUI 뿐이다. 열거와 그 match 는 headless 의 intent drain 도 컴파일한다. `IntentOrigin::User` 는 headless 시험이 만들므로 `not(test)` 도 조건이다 |
