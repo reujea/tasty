@@ -1,4 +1,4 @@
-//! Headless 빌드 / `--headless` 모드용 IpcWaker + WakerFactory.
+//! Headless 빌드용 IpcWaker + WakerFactory (헤드리스 여부는 플래그가 아니라 `gui` feature 가 정한다).
 //!
 //! gui 빌드의 winit `EventLoopProxy` 대신 `mpsc::Sender` 를 통해
 //! [`crate::AppEvent`] 를 push — `boot::run_headless` 의 receiver loop 가
