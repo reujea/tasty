@@ -1004,4 +1004,146 @@ mod tests {
         observe_hook(&t, &host, "prompt-submit", 7, None, Instant::now());
         assert!(unsets(&host).is_empty());
     }
+
+    // ── 재개 전송 경로(send → record_resume) — 호출 순서·조기 return·기록 값 ──
+
+    /// host 호출을 순서대로 적는다. 호출마다 그 순간 표의 시도 수를 함께 적어, 표 갱신이
+    /// 어느 호출 앞뒤에 일어났는지 본다. `fail` 에 든 메서드는 에러를 돌려준다.
+    struct RecordingHost<'a> {
+        table: &'a Mutex<ResumeTable>,
+        fail: Option<&'static str>,
+        calls: Mutex<Vec<(String, serde_json::Value, u32)>>,
+    }
+
+    impl<'a> RecordingHost<'a> {
+        fn new(table: &'a Mutex<ResumeTable>, fail: Option<&'static str>) -> Self {
+            Self {
+                table,
+                fail,
+                calls: Mutex::new(Vec::new()),
+            }
+        }
+
+        fn take_calls(&self) -> Vec<(String, serde_json::Value, u32)> {
+            std::mem::take(&mut *self.calls.lock().expect("calls"))
+        }
+    }
+
+    impl HostCall for RecordingHost<'_> {
+        fn call(
+            &self,
+            method: &str,
+            params: serde_json::Value,
+        ) -> Result<serde_json::Value, tasty_plugin_sdk::PluginError> {
+            let attempts = attempts_of(self.table, 7);
+            self.calls
+                .lock()
+                .expect("calls")
+                .push((method.to_string(), params, attempts));
+            if self.fail == Some(method) {
+                return Err(tasty_plugin_sdk::PluginError::HostCall {
+                    method: method.to_string(),
+                    message: "mock: refused".to_string(),
+                    code: None,
+                });
+            }
+            Ok(json!({}))
+        }
+    }
+
+    fn attempts_of(table: &Mutex<ResumeTable>, surface: u32) -> u32 {
+        lock_table(table)
+            .surfaces
+            .get(&surface)
+            .map_or(0, |e| e.attempts)
+    }
+
+    fn texts() -> Texts {
+        Texts {
+            message: "resume please".into(),
+            limit_title: "limit".into(),
+            limit_body: "{} {} {}".into(),
+        }
+    }
+
+    /// 예약을 걸고 만기로 꺼낸 상태 — 만기 스레드가 `send` 에 넘기는 그 모양이다.
+    fn taken_pending(table: &Mutex<ResumeTable>) -> Pending {
+        let now = Instant::now();
+        let mut t = lock_table(table);
+        t.schedule(7, "overloaded", now, Duration::from_secs(1), Some(42));
+        let mut due = t.take_due(now + Duration::from_secs(1));
+        assert_eq!(due.len(), 1);
+        due.remove(0).1
+    }
+
+    #[test]
+    fn send_tells_first_then_counts_the_attempt_and_records_it() {
+        let table = Mutex::new(ResumeTable::default());
+        let host = RecordingHost::new(&table, None);
+        let pending = taken_pending(&table);
+
+        send(&table, &host, &texts(), 7, &pending);
+        let calls = host.take_calls();
+        let methods: Vec<&str> = calls.iter().map(|(m, _, _)| m.as_str()).collect();
+        assert_eq!(methods, ["terminal.tell", "surface.meta.set"]);
+        let (_, tell, before) = &calls[0];
+        assert_eq!(tell, &json!({ "surface": 7, "text": "resume please" }));
+        assert_eq!(*before, 0, "시도는 제출이 성공한 뒤에 센다");
+        let (_, set, after) = &calls[1];
+        assert_eq!(*after, 1, "메타데이터는 표를 올린 뒤에 적는다");
+        assert_eq!(
+            set,
+            &json!({ "surface_id": 7, "key": COUNT_META_KEY, "value": "1" })
+        );
+        assert_eq!(attempts_of(&table, 7), 1);
+
+        // 두 번째 재개는 누적 수를 적는다 — 적는 값은 표가 돌려준 수 그대로다.
+        send(&table, &host, &texts(), 7, &pending);
+        let calls = host.take_calls();
+        assert_eq!(
+            calls.last().map(|(m, p, _)| (m.as_str(), p)),
+            Some((
+                "surface.meta.set",
+                &json!({ "surface_id": 7, "key": COUNT_META_KEY, "value": "2" })
+            ))
+        );
+        assert_eq!(attempts_of(&table, 7), 2);
+    }
+
+    #[test]
+    fn send_does_nothing_when_a_new_turn_began_after_the_take() {
+        let table = Mutex::new(ResumeTable::default());
+        let host = RecordingHost::new(&table, None);
+        let pending = taken_pending(&table);
+        lock_table(&table).on_new_turn(7, Instant::now());
+
+        send(&table, &host, &texts(), 7, &pending);
+        assert!(host.take_calls().is_empty(), "제출도 기록도 없다");
+        assert_eq!(attempts_of(&table, 7), 0);
+    }
+
+    #[test]
+    fn a_refused_tell_is_not_counted_or_recorded() {
+        let table = Mutex::new(ResumeTable::default());
+        let host = RecordingHost::new(&table, Some("terminal.tell"));
+        let pending = taken_pending(&table);
+
+        send(&table, &host, &texts(), 7, &pending);
+        let methods: Vec<String> = host.take_calls().into_iter().map(|(m, _, _)| m).collect();
+        assert_eq!(methods, ["terminal.tell"]);
+        assert_eq!(attempts_of(&table, 7), 0);
+    }
+
+    /// 메타데이터 기록이 실패해도 보낸 사실은 표에 남는다 — 상한 판정은 표가 한다.
+    #[test]
+    fn a_failed_count_record_still_counts_the_attempt() {
+        let table = Mutex::new(ResumeTable::default());
+        let host = RecordingHost::new(&table, Some("surface.meta.set"));
+        let pending = taken_pending(&table);
+
+        send(&table, &host, &texts(), 7, &pending);
+        let methods: Vec<String> = host.take_calls().into_iter().map(|(m, _, _)| m).collect();
+        assert_eq!(methods, ["terminal.tell", "surface.meta.set"]);
+        assert_eq!(attempts_of(&table, 7), 1);
+    }
 }
