@@ -80,7 +80,11 @@ const ROUTERS: &[&str] = &[
 /// 라우터로 세면서 조립에서 빨갛게 났다. 경로를 옮기면 소속이 바뀌는 부류다.
 const GUARD_DIRS: &[&str] = &["src/source_guards/", "crates/tasty-doc-guards/"];
 
+/// `src` 의 **코드**에 판정 자리가 있는가. 주석·문자열은 덮고 본다 — 그 판정 자리를 설명하는
+/// doc 주석이나 그 모양을 담은 문자열(라우터를 읽는 시험이 그렇다)은 라우터가 아니다.
 fn has_decision_site(src: &str) -> bool {
+    let code = mask_non_code(src);
+    let src = code.as_str();
     let mut at = 0usize;
     while let Some(i) = src[at..].find(METHOD_EXPR) {
         at += i + METHOD_EXPR.len();
