@@ -6,7 +6,7 @@
 
 ## Context
 
-mirror client 가 forward 한 구조 op 는 서버에서 실행되고, 실패하면 `StructuralResult{ok:false, reason}` 로 회신된다. client 는 그 사유를 고치지 않고 실패 toast 끝 괄호 안에 싣는다. split · 새 탭 · close 류는 도메인 실행 함수(`core/structural_exec.rs`)가 실패 문구를 돌려주므로 그 문구가 그대로 간다([ADR-0395](0395-structural-execution-and-its-cascades-live-in-the-domain-layer.md)).
+mirror client 가 forward 한 구조 op 는 서버에서 실행되고, 실패하면 `StructuralResult{ok:false, reason}` 로 회신된다. client 는 그 사유를 고치지 않고 사용자 발화 op 의 실패 toast 끝 괄호 안에 싣는다(에이전트 발화 op 의 실패는 ADR-0503 에 따라 toast 없이 warn 로그로 간다). split · 새 탭 · close 류는 도메인 실행 함수(`core/structural_exec.rs`)가 실패 문구를 돌려주므로 그 문구가 그대로 간다([ADR-0395](0395-structural-execution-and-its-cascades-live-in-the-domain-layer.md)).
 
 convert 는 대응하는 도메인 실행 함수가 없어 서버가 `Core::apply(DomainIntent::ConvertSurface)` 를 직접 부른다. 그런데 `Core::apply` 는 convert 실패를 `Err` 로 돌려주지 않고 `CoreEvent::SurfaceConverted { replaced: false }` 이벤트로 답했고, 그 이벤트에는 사유 칸이 없었다(registry 오류는 warn 로그로만 남았다). 그래서 `execute_forwarded_structural_op` 가 사유를 스스로 만들었다 — `surface {id} not found`. 실측: 서버에서 kind 가 미등록이라 실패한 convert(`unknown surface kind: <kind>`)가 client 에는 `surface 5 not found` 로 왔다. 대상 surface 는 멀쩡히 살아 있었다.
 
