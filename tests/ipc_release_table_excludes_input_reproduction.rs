@@ -234,6 +234,10 @@ const RELEASE_ROUTERS: &[(&str, &str, usize)] = &[
         "fn route_engine_handler(",
         200,
     ),
+    // gui release 창 라우터 — 창 상태 자체가 대상인 핸들러(popup 을 여는 `file_picker.trigger`)가
+    // 여기 산다. 입력 재현(popup 강제 open)이 들어오기 가장 쉬운 자리인데 한동안 명부에 없어
+    // 이 가드가 훑지 않았다. 하한 1 은 오늘 팔 하나(`file_picker.trigger`)다.
+    ("src/adapters/ipc/handler.rs", "fn route_window_handler(", 1),
     (
         "src/app/ipc/app_methods.rs",
         "pub(crate) fn ipc_step_app_methods(",
