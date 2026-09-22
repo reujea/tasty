@@ -114,7 +114,8 @@ const PRUNE_DIRS: &[&str] = &[
     // 실제로 아직 없는 자리를 "(planned)" 로 든다. 여기서 판정하면 처방이 **upstream 을
     // 고치라**가 되는데 그 파일은 다음 동기화가 덮어쓴다. `js`·`css` 를 `UNJUDGED_FORMS`
     // 에 둔 것과 같은 부류이고, 이름으로 가르는 것은 `vendor` 가 관례로 고정된 이름이라
-    // 가능하다.
+    // 가능하다. 이름으로 가르므로 루트 `vendor/`(`[patch]` 로 끼운 상류 사본
+    // `vendor/tiny_http`)도 같은 부류로 빠진다 — 그 안에서 우리가 쓴 `PATCHES.md` 의 인용까지.
     "vendor",
 ];
 
