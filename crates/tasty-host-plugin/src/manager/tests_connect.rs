@@ -102,6 +102,7 @@ fn a_start_returns_before_the_plugin_connects_and_queued_requests_reach_it() {
         mgr.is_running(ID),
         "기동이 연결을 기다렸거나 연결 전의 plugin 을 떠 있지 않은 것으로 쳤다"
     );
+    assert!(mgr.is_connecting(ID), "연결 전의 plugin 을 연결됨으로 쳤다");
     let request = PluginRequest::new("probe.echo", serde_json::json!({}), 7);
     mgr.processes[ID]
         .try_send_request(request)
@@ -117,7 +118,11 @@ fn a_start_returns_before_the_plugin_connects_and_queued_requests_reach_it() {
         line.contains("probe.echo"),
         "연결 전에 보낸 요청이 연결 뒤 첫 줄로 닿아야 한다: {line}"
     );
-    mgr.pump(Instant::now());
+    // 연결을 거두면 연결 중이 아니다 — 이것이 안 풀리면 그 plugin 에 보낸 요청은 시한이
+    // 영영 안 선다(`deadline_from_connection`).
+    pump_until(&mut mgr, "연결 성사를 거둔다", |m| {
+        !m.is_connecting(ID)
+    });
     assert!(mgr.is_running(ID), "연결한 plugin 이 내려갔다");
     shut_down(&mut mgr);
 }

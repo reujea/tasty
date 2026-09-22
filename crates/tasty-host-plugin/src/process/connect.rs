@@ -30,8 +30,12 @@ const SLOT_WHAT: &str = "plugin connect slot";
 /// 연결 대기의 결과. 매니저가 한 번 거두면 [`ConnectState::Reported`] 가 된다.
 enum ConnectState {
     Connecting,
-    /// 연결했고 송수신 스레드가 돈다. 값은 spawn 부터 연결까지 걸린 시간이다.
-    Connected(Duration),
+    /// 연결했고 송수신 스레드가 돈다. `at` 은 연결이 성사된 시각, `waited` 는 spawn 부터
+    /// 거기까지 걸린 시간이다.
+    Connected {
+        at: Instant,
+        waited: Duration,
+    },
     /// 시한 안에 연결이 안 왔거나 송수신 스레드를 못 띄웠다. 값은 사유 문장이다.
     Failed(String),
     Reported,
@@ -40,7 +44,7 @@ enum ConnectState {
 /// 매니저가 거둔 연결 결과 한 건.
 #[derive(Debug)]
 pub(crate) enum ConnectOutcome {
-    Connected(Duration),
+    Connected { at: Instant, waited: Duration },
     Failed(String),
 }
 
@@ -80,7 +84,10 @@ impl ConnectSlot {
         let mut st =
             tasty_utils::poison::recover_mutex(self.state.lock(), SLOT_WHAT, &SLOT_POISONED);
         let outcome = match &*st {
-            ConnectState::Connected(d) => ConnectOutcome::Connected(*d),
+            ConnectState::Connected { at, waited } => ConnectOutcome::Connected {
+                at: *at,
+                waited: *waited,
+            },
             ConnectState::Failed(reason) => ConnectOutcome::Failed(reason.clone()),
             ConnectState::Connecting | ConnectState::Reported => return None,
         };
@@ -179,7 +186,13 @@ fn run(job: ConnectJob, slot: &ConnectSlot) {
             match start_io(
                 &plugin_id, stream, req_rx, resp_tx, event_tx, last_pong, &waker,
             ) {
-                Ok(()) => ConnectState::Connected(spawned_at.elapsed()),
+                Ok(()) => {
+                    let at = Instant::now();
+                    ConnectState::Connected {
+                        at,
+                        waited: at.saturating_duration_since(spawned_at),
+                    }
+                }
                 Err(e) => ConnectState::Failed(format!(
                     "plugin '{plugin_id}' connected but its I/O threads could not start: {e}"
                 )),

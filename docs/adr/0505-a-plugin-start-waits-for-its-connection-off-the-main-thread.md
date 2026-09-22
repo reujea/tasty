@@ -46,12 +46,22 @@
   오면(한도 10 s) 예전 spawn 실패와 같은 갈래로 보낸다 — 프로세스를 내리고, `plugin.error`
   (`spawn_failed`)를 내고, 연속 실패로 세어 한도(10 s 안에 3 회)면 자동 비활성한다. 내리는 것은 요청 없이
   곧바로 kill 하는 종료 핸들이고, kill 과 회수는 ADR-0457 의 회수 스레드가 한다. 연결을 기다리던 사이 쌓인
-  namespace 호출은 caller 에 오류로 회신한다.
+  namespace 호출은 caller 에 오류로 회신한다. 그 사이 그 extension 에 보낸 hook(pre/post × ipc/event)은
+  **보낸 적 없는 것으로** 진행한다 — 예전에는 extension 기동이 먼저 실패해 hook 송신이 실패했고 원래
+  흐름이 hook 없이 이어졌다(`bypass_hooks_sent_to`). 실행된 적 없는 hook 이라 연속 실패로 세지 않는다.
 - **연속 실패 기록은 연결 성사 때 지운다 — 자식을 띄운 때가 아니다.** 띄운 때 지우면 매번 연결에 실패하는
   plugin 의 누적이 기동마다 0 으로 돌아가 자동 비활성이 영영 안 걸린다.
 - **전체 기동(`discover_and_start`)은 연결의 결과까지 기다린다.** 부팅의 hello 시한이 연결 시간에 먹히지
   않게 하려는 것이다. 연결 대기는 plugin 마다 스레드라 겹치므로, 이 대기는 예전의 합(Σ)이 아니라 가장
   느린 하나로 수렴한다.
+- **요청의 시한은 받는 plugin 의 연결 성사부터 센다.** 예전에는 기동이 연결까지 막혔으므로 기동 직후 보낸
+  요청의 시한은 연결 뒤에 섰다. 그 호환을 지키려고 연결 중인 plugin 에 보낸 요청은 아직 만료를 따지지
+  않고, 연결이 성사되면 기다린 만큼 시한을 민다 — 시한의 길이는 그대로다(`deadline_from_connection`).
+  pending 만료 판정 한 자리(`collect_expired_request_ids`)가 이 규칙을 쓰므로 extension pre-hook
+  (`timeout_ms`, 수십 ms) · namespace 호출(`NAMESPACE_CALL_TIMEOUT`) · 나머지 hook 이 같은 규칙을 받는다.
+  헤드리스 `--type <kind>` 의 hello 대기(ADR-0259 의 `KIND_REGISTRATION_WAIT`)는 메인 스레드의 동기 루프라
+  같은 규칙을 그 자리에서 쓴다 — 먼저 연결 결과를 연결 한도(= 예전에 spawn 안에서 막히던 값)까지 기다리고,
+  연결이 성사된 뒤부터 5 s 를 센다. 끝내 연결 안 하는 owner 는 연결 한도에서 끝난다.
 - **스레드를 못 띄우면 그 자리에서 기다린다** — 예전 동작이다.
 - **plugin 이 보는 것은 그대로다** — 환경변수 · 인증 한 줄 · 한도 · 그 뒤의 요청 순서. wire 도 그대로다.
 
@@ -78,6 +88,9 @@
 - **잃은 것**: 연결을 기다리는 사이의 요청은 plugin 이 끝내 연결하지 않으면 한도(10 s)까지 답을 못 받는다.
   예전에는 그 요청이 오기 전에 기동이 이미 실패해 있었다.
 - **운영 비용**: 기동마다 연결까지 사는 스레드 하나(최대 10 s).
+- **운영 비용**: 연결 중인 plugin 에 보낸 요청은 연결 결과가 날 때까지 만료되지 않는다. 끝내 연결하지 않으면
+  그 요청은 시한이 아니라 연결 실패(최대 10 s)에서 끝난다 — 짧은 시한의 hook 도 그때까지 기다린다. 예전에는
+  그 10 s 를 기동이 메인 스레드에서 막혀 보냈다.
 
 ## Alternatives Considered
 
@@ -112,6 +125,13 @@
   안 기다리면 `discover_and_start_settles_connections_before_it_returns` 가 잡는다(넷 다 변이로 확인했다).
 - 헤드리스의 전체 기동(`ensure_plugin_manager`, attach mesh mirror 세션)은 메인 스레드에서 돌고, 이 결정
   뒤에도 가장 느린 연결 하나만큼 선다. 그 경로가 주기적으로 오게 되면 다시 연다.
+- 시한을 보낸 시각부터 다시 세면 `manager::connect::tests` 의
+  `a_pre_hook_sent_before_the_extension_connects_is_timed_from_the_connection` 과
+  `a_namespace_call_sent_before_the_owner_connects_is_timed_from_the_connection` 이, 연결 실패한 extension 의
+  hook 을 건너뛰지 않으면 `a_pre_hook_to_an_extension_that_never_connects_is_bypassed` 가, 연결 성사를 안
+  표시하면 `tests_connect` 의 첫 시험이, 헤드리스 kind 대기가 연결 시간을 등록 시한에 넣으면
+  `boot::headless_plugins` 의 `a_kind_is_registered_when_its_owner_connects_after_the_registration_wait` 가
+  잡는다(변이 넷으로 확인했다 — 시한 재기준을 빼는 변이 하나가 앞의 두 시험을 함께 깨웠다).
 
 **원리적으로 안 붙는 것** — 사람이 관측해야 한다. 재는 법을 함께 적는다.
 
@@ -127,4 +147,6 @@
 - 관련 문서: [`plugin-development.md`](../dev-guide/plugin-development.md) §7 "생명주기" · "토큰 핸드셰이크" — 이 결정의 현재 운영 상태
 - **코드 근거 (결정이 실현된 현재 위치)**: `tasty-host-plugin` 의 `process::connect` 모듈(`start` · `ConnectSlot`) ·
   `listener` 모듈의 `HostListener::register` · `PendingConnection`, 그리고 `manager::connect` 모듈의
-  `PluginManager::settle_connections` · `wait_for_connections` 와 `PluginProcess::abandon`.
+  `PluginManager::settle_connections` · `wait_for_connections` · `deadline_from_connection` ·
+  `bypass_hooks_sent_to` 와 `PluginProcess::abandon`, 헤드리스 `boot::headless_plugins` 의
+  `wait_for_kind_registration`.

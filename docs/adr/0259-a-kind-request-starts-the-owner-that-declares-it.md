@@ -46,8 +46,10 @@ control 프레임 왕복뿐이다. 그 채널의 서버측 코드(`core/attach_r
 - **설치·권한 grant 는 이 경로에 없다.** 소속 판정이 이미 설치된 package 표를 보므로, 여기 닿았다는
   것 자체가 설치가 끝났다는 뜻이다. 설치는 부팅에 걸려 있다(`src/boot.rs`,
   `source_guards::jobs_anchored_at_boot` 가 그 자리를 못 박는다).
-- 기다리는 것은 **우리가 방금 spawn 한 프로세스의 handshake** 뿐이다. 이미 떠 있는데 kind 가 아직
-  없으면 기다려도 원인이 우리 손에 없으므로 그냥 돌아간다.
+- 기다리는 것은 **우리가 방금 띄운 프로세스**뿐이다. 이미 떠 있는데 kind 가 아직 없으면 기다려도 원인이
+  우리 손에 없으므로 그냥 돌아간다. 기동은 연결 전에 돌아오므로([ADR-0505](0505-a-plugin-start-waits-for-its-connection-off-the-main-thread.md))
+  대기는 두 단계다 — 연결 결과를 연결 한도까지, 그리고 연결이 성사된 뒤부터 hello 를 `KIND_REGISTRATION_WAIT`
+  동안.
 
 ### 신뢰 경계 — 이 트리거는 비-Local 에게도 열려 있다
 
@@ -108,9 +110,10 @@ Agent caller 가 `tab.create {type:"markdown"}` 을 언제 불러도 kind 가 �
   요청에는 허용하는 것이다: `tab.create` 는 관측이 아니라 생성 명령이고, 그 명령이 성립하려면 그
   plugin 이 떠 있어야 한다).
 - **한계 (정직하게)**:
-  - 첫 호출은 spawn + handshake 만큼 느리다. 그 대기 동안 데몬 IPC 는 **전부 선다** — 헤드리스 메인
-    루프가 단일 스레드이기 때문이다. 상한은 `KIND_REGISTRATION_WAIT`(5 초)이고, 그 상한을 꽉 채우는
-    갈래는 "spawn 은 됐는데 hello 가 안 온다" 하나로 좁혀져 있다.
+  - 첫 호출은 spawn + 연결 + hello 만큼 느리다. 그 대기 동안 데몬 IPC 는 **전부 선다** — 헤드리스 메인
+    루프가 단일 스레드이기 때문이다. 상한은 둘이다: 연결 결과까지 연결 한도(10 초 + 거둘 여유), 그리고
+    연결 뒤 `KIND_REGISTRATION_WAIT`(5 초). 뒤쪽을 꽉 채우는 갈래는 "연결은 됐는데 hello 가 안 온다"
+    하나로 좁혀져 있고, 끝내 연결 안 하는 owner 는 앞쪽에서 끝난다.
   - **kind 마다 한 번씩** 이 비용을 낸다. 트리거가 소유자만 띄우므로 여덟 kind 를 쓰면 여덟 번이다.
     전부 미리 띄우고 싶으면 그것은 사용자의 명령이어야 한다(`plugin enable`).
   - 소속 판정은 `packages()` 를 **선형 탐색**한다. 설치 수가 지금 9 라 문제가 없고, 커지면 kind →

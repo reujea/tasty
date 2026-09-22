@@ -171,6 +171,8 @@ impl PluginManager {
                         "params": params,
                         "caller_plugin_id": caller_plugin_id,
                     });
+                    // 막 띄운 extension 이면 아직 연결 중이다 — 이 시한은 sweep 이 연결
+                    // 성사부터 센다(`deadline_from_connection`, ADR-0505).
                     let deadline = Instant::now() + Duration::from_millis(pre.timeout_ms as u64);
                     let origin = final_caller.origin();
                     match self.send_extension_invoke_hook(

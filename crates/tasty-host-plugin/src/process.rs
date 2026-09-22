@@ -178,6 +178,10 @@ pub struct PluginProcess {
     dirty_rects: Arc<Mutex<HashMap<SharedBufferId, Option<PixelRect>>>>,
     /// 연결 대기의 결과 자리. 연결 대기 스레드가 채우고 매니저가 pump 에서 한 번 거둔다.
     connect: Arc<connect::ConnectSlot>,
+    /// 매니저가 거둔 연결 성사 시각. `None` 이면 아직 연결 중이다 — 연결에 실패한 프로세스는
+    /// `processes` 에서 빠지므로 여기 남지 않는다. 요청의 시한을 연결 성사부터 세는 데
+    /// 쓴다(ADR-0505).
+    connected_at: Option<Instant>,
 }
 
 #[cfg(test)]
@@ -223,6 +227,11 @@ impl PluginProcess {
         proc
     }
 
+    /// 아직 연결 결과가 안 거둬진 프로세스로 만든다 — 연결 전에 보낸 요청의 시한을 재려고.
+    pub(crate) fn mark_connecting_for_test(&mut self) {
+        self.connected_at = None;
+    }
+
     /// 마지막 pong 을 `by` 만큼 과거로 민다 — 무응답 재시작을 60 초 기다리지 않고 재려고.
     pub(crate) fn backdate_pong_for_test(&self, by: Duration) {
         let mut last = self.last_pong.lock().expect("fresh mutex");
@@ -258,6 +267,7 @@ impl PluginProcess {
             handle_state: Mutex::new(HandleStreamState::Unavailable),
             dirty_rects: Arc::new(Mutex::new(HashMap::new())),
             connect: connect::ConnectSlot::reported(),
+            connected_at: Some(Instant::now()),
         }
     }
 }
@@ -390,6 +400,7 @@ impl PluginProcess {
             handle_state: Mutex::new(initial_state),
             dirty_rects: Arc::new(Mutex::new(HashMap::new())),
             connect,
+            connected_at: None,
         })
     }
 
@@ -397,6 +408,16 @@ impl PluginProcess {
     /// 중이거나 이미 거뒀으면 `None`.
     pub(crate) fn take_connect_outcome(&self) -> Option<connect::ConnectOutcome> {
         self.connect.take()
+    }
+
+    /// 연결 성사 시각. 아직 연결 중이면 `None`.
+    pub(crate) fn connected_at(&self) -> Option<Instant> {
+        self.connected_at
+    }
+
+    /// 매니저가 연결 성사를 거뒀을 때 부른다.
+    pub(crate) fn mark_connected(&mut self, at: Instant) {
+        self.connected_at = Some(at);
     }
 
     /// 연결 대기의 결과가 날 때까지 `deadline` 까지 기다린다 — 부팅 워커처럼 기다려도

@@ -208,9 +208,11 @@ fn forward_mesh_frames(app: &mut App, engine: &mut CoreState) {
 /// **여기서 기다리는 이유.** hello 는 비동기고 등록은 hello 가 한다. 반면 이 요청은
 /// 동기라 handler 가 돌기 전에 registry 가 차 있어야 한다. 그래서 hello 를 등록의
 /// 유일한 트리거로 두고(사본을 만들지 않는다) 그것이 도착할 때까지 pump 를 돌린다.
-/// 기다리는 것은 **우리가 방금 spawn 한 프로세스의 handshake** 뿐이다 — 이미 떠
-/// 있는데 kind 가 아직 없으면 기다려도 원인이 우리 손에 없으므로 그냥 돌아간다.
-/// 시한이 지나도록 안 차면 handler 가 예전과 똑같은 `unknown surface kind` 를 답한다.
+/// 기다리는 것은 **우리가 방금 띄운 프로세스**뿐이다 — 이미 떠 있는데 kind 가 아직
+/// 없으면 기다려도 원인이 우리 손에 없으므로 그냥 돌아간다. 대기는 두 단계다: 연결 결과가
+/// 날 때까지(상한 = 연결 한도, 기동이 연결 전에 돌아오므로 — ADR-0505), 그리고 연결이
+/// 성사된 뒤부터 [`KIND_REGISTRATION_WAIT`] 동안 hello 를. 연결에 실패했거나 시한이
+/// 지나도록 안 차면 handler 가 예전과 똑같은 `unknown surface kind` 를 답한다.
 pub(crate) fn ensure_plugin_for_surface_kind(
     app: &mut App,
     state: &mut AppState,
@@ -250,19 +252,78 @@ pub(crate) fn ensure_plugin_for_surface_kind(
         );
         return;
     }
-    let deadline = std::time::Instant::now() + KIND_REGISTRATION_WAIT;
-    while std::time::Instant::now() < deadline {
+    let connect_limit = app
+        .plugin_manager
+        .as_ref()
+        .map_or(std::time::Duration::ZERO, |mgr| mgr.connection_wait_limit());
+    let outcome = wait_for_kind_registration(connect_limit, KIND_REGISTRATION_WAIT, || {
         pump_plugins(app, state, engine);
         if engine.surface_registry.get(&kind).is_some() {
-            return;
+            return OwnerPoll::Registered;
         }
-        std::thread::sleep(std::time::Duration::from_millis(5));
+        match app.plugin_manager.as_ref() {
+            Some(mgr) if mgr.is_connecting(&owner) => OwnerPoll::Connecting,
+            Some(mgr) if mgr.is_running(&owner) => OwnerPoll::Connected,
+            _ => OwnerPoll::Gone,
+        }
+    });
+    match outcome {
+        OwnerPoll::Registered => {}
+        OwnerPoll::Connecting | OwnerPoll::Gone => tracing::warn!(
+            "surface kind '{kind}' is declared by '{owner}' but it did not connect or went \
+             down; the request will be answered as an unknown kind"
+        ),
+        OwnerPoll::Connected => tracing::warn!(
+            "surface kind '{kind}' is declared by '{owner}' but was not registered within {:?} \
+             of its connection; the request will be answered as an unknown kind",
+            KIND_REGISTRATION_WAIT
+        ),
     }
-    tracing::warn!(
-        "surface kind '{kind}' is declared by '{owner}' but was not registered within {:?} of \
-         starting it; the request will be answered as an unknown kind",
-        KIND_REGISTRATION_WAIT
-    );
+}
+
+/// 방금 띄운 owner 를 한 번 pump 한 뒤 본 상태.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum OwnerPoll {
+    /// kind 가 등록됐다 — 기다림이 끝났다.
+    Registered,
+    /// 떠 있지만 연결 결과가 아직 안 났다.
+    Connecting,
+    /// 연결했고 hello 를 기다린다.
+    Connected,
+    /// 연결에 실패해 내려갔다.
+    Gone,
+}
+
+/// [`ensure_plugin_for_surface_kind`] 의 두 단계 대기. 먼저 연결 결과를 `connect_limit` 까지
+/// 기다리고, 연결이 성사된 **그 뒤부터** `registration_wait` 동안 등록을 기다린다 — 등록
+/// 시한이 연결 시간을 떠안지 않게(ADR-0505). 기동이 연결까지 막히던 예전에는 연결이 시한
+/// 밖에 있었으므로 그것과 같은 몫이다. 돌려주는 것은 마지막으로 본 상태다.
+///
+/// 판정을 `poll` 하나로 받는 이유는 시험이다 — pump 는 `App` 전체를 요구하므로, 시한을
+/// 어디서부터 세는가를 `App` 없이 재려면 대기 규칙을 여기로 떼어야 한다.
+fn wait_for_kind_registration(
+    connect_limit: std::time::Duration,
+    registration_wait: std::time::Duration,
+    mut poll: impl FnMut() -> OwnerPoll,
+) -> OwnerPoll {
+    let connect_give_up = std::time::Instant::now() + connect_limit;
+    let mut seen = poll();
+    while seen == OwnerPoll::Connecting && std::time::Instant::now() < connect_give_up {
+        std::thread::sleep(std::time::Duration::from_millis(5));
+        seen = poll();
+    }
+    if seen != OwnerPoll::Connected {
+        return seen;
+    }
+    let deadline = std::time::Instant::now() + registration_wait;
+    while std::time::Instant::now() < deadline {
+        std::thread::sleep(std::time::Duration::from_millis(5));
+        seen = poll();
+        if seen != OwnerPoll::Connected {
+            return seen;
+        }
+    }
+    seen
 }
 
 /// 이 kind 를 선언했고 **사용자가 끄지 않은** plugin 의 id.
@@ -303,9 +364,10 @@ fn owner_of_kind<'a>(
         .map(|(id, _)| id.to_string())
 }
 
-/// [`ensure_plugin_for_surface_kind`] 가 hello 를 기다리는 시한.
+/// [`ensure_plugin_for_surface_kind`] 가 hello 를 기다리는 시한 — **연결이 성사된 뒤부터**
+/// 센다. 연결 대기는 그 앞 단계이고 상한이 따로 있다(연결 한도).
 ///
-/// 재는 대상은 프로세스 spawn + handshake **한 번**이다. 실측(2026-09-10, 갓 만든 격리
+/// 아래 표가 잰 것은 프로세스 spawn + 연결 + hello **한 번** 전체다. 실측(2026-09-10, 갓 만든 격리
 /// 홈의 헤드리스 데몬, `new workspace --type <kind>`):
 ///
 /// | 호출 | 소요 | 그 뒤 running | 등록된 kind |
@@ -321,9 +383,10 @@ fn owner_of_kind<'a>(
 /// plugin 만 뜬다: markdown 을 물었는데 image 가 딸려 오지 않는다.
 ///
 /// 5 초는 위 0.14 s 의 30 배가 넘는 여유이면서, 뜨다 만 plugin 에 데몬을 오래 묶어
-/// 두지 않는 선이다. 이 시한을 꽉 채우는 갈래는 **우리가 spawn 에 성공했는데 hello 가
-/// 안 오는 경우** 하나로 좁혀져 있다([`ensure_plugin_for_surface_kind`] 의 `started`
-/// 검사) — 비활성 plugin 을 지목하던 옛 갈래는 소속 판정이 먼저 자른다.
+/// 두지 않는 선이다. 이 시한을 꽉 채우는 갈래는 **우리가 띄운 plugin 이 연결까지 했는데
+/// hello 가 안 오는 경우** 하나로 좁혀져 있다([`ensure_plugin_for_surface_kind`] 의 `started`
+/// 검사와 연결 단계) — 비활성 plugin 을 지목하던 옛 갈래는 소속 판정이 먼저 자르고, 끝내
+/// 연결 안 하는 plugin 은 연결 한도에서 끝난다.
 const KIND_REGISTRATION_WAIT: std::time::Duration = std::time::Duration::from_secs(5);
 
 /// `src/app/plugin_glue/lifecycle.rs::finalize_plugin_hello` 의 헤드리스 등가.
@@ -570,7 +633,7 @@ fn dispatch_plugin_ipc_calls_headless(app: &mut App, state: &mut AppState, engin
 
 #[cfg(test)]
 mod tests {
-    use super::{owner_of_kind, run_if_due};
+    use super::{OwnerPoll, owner_of_kind, run_if_due, wait_for_kind_registration};
     use std::time::{Duration, Instant};
 
     /// 지난 데드라인은 거둔다 — 안 거두면 headless 루프가 다음 `Tick::Busy` 까지 헛돈다.
@@ -670,6 +733,47 @@ mod tests {
             owner_of_kind(pkgs, |id| id == "com.first", "markdown").as_deref(),
             Some("com.second"),
             "앞엣것이 비활성이면 다음 선언자로 넘어가야 한다"
+        );
+    }
+
+    /// 연결이 등록 시한보다 오래 걸린 owner 의 kind 도 등록된다 — 등록 시한은 연결이 성사된
+    /// 뒤부터 센다(ADR-0505). 연결 대기를 빼고 시한을 기동부터 세면 연결하는 동안 시한이 다
+    /// 지나 `Connected` 로 끝난다(= `unknown surface kind`).
+    #[test]
+    fn a_kind_is_registered_when_its_owner_connects_after_the_registration_wait() {
+        let started = Instant::now();
+        let connects_at = started + Duration::from_millis(1000);
+        let registers_at = connects_at + Duration::from_millis(100);
+        let outcome =
+            wait_for_kind_registration(Duration::from_secs(10), Duration::from_millis(500), || {
+                let now = Instant::now();
+                if now < connects_at {
+                    OwnerPoll::Connecting
+                } else if now < registers_at {
+                    OwnerPoll::Connected
+                } else {
+                    OwnerPoll::Registered
+                }
+            });
+        assert_eq!(
+            outcome,
+            OwnerPoll::Registered,
+            "연결 시간이 등록 시한을 갉아먹었다"
+        );
+    }
+
+    /// 끝내 연결 안 하는 owner 는 연결 상한에서 끝나고 등록 시한을 더 기다리지 않는다.
+    #[test]
+    fn an_owner_that_never_connects_ends_at_the_connect_limit() {
+        let started = Instant::now();
+        let outcome =
+            wait_for_kind_registration(Duration::from_millis(100), Duration::from_secs(30), || {
+                OwnerPoll::Connecting
+            });
+        assert_eq!(outcome, OwnerPoll::Connecting);
+        assert!(
+            started.elapsed() < Duration::from_secs(10),
+            "연결 상한이 지난 뒤 등록 시한까지 기다렸다"
         );
     }
 }

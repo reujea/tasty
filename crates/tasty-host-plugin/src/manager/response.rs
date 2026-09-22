@@ -592,7 +592,14 @@ impl PluginManager {
     /// 현재 pending 중인 요청 가운데 `now` 시점 deadline 을 넘긴 request id 목록.
     /// deadline 을 든 변종만 본다 — 4 종 hook(pre/post × ipc/event) 과 3 종
     /// namespace 호출.
+    ///
+    /// 시한은 받는 plugin 의 연결 성사부터 센다([`Self::deadline_from_connection`]) —
+    /// 연결 중인 plugin 에 보낸 요청은 아직 만료되지 않는다.
     fn collect_expired_request_ids(&self, now: Instant) -> Vec<u64> {
+        let expired = |p: &PendingRequest, deadline: Instant| {
+            self.deadline_from_connection(&p.to, p.sent_at, deadline)
+                .is_some_and(|d| now >= d)
+        };
         self.pending_requests
             .iter()
             .filter_map(|(id, p)| match &p.kind {
@@ -603,11 +610,11 @@ impl PluginManager {
                 | PendingRequestKind::NamespaceInvoke { deadline, .. }
                 | PendingRequestKind::PluginToPluginNamespace { deadline, .. }
                 | PendingRequestKind::NamespaceInvokeWithPostHook { deadline, .. } => {
-                    if now >= *deadline { Some(*id) } else { None }
+                    expired(p, *deadline).then_some(*id)
                 }
                 #[cfg(debug_assertions)]
                 PendingRequestKind::DebugExtensionInvokeHook { deadline, .. } => {
-                    if now >= *deadline { Some(*id) } else { None }
+                    expired(p, *deadline).then_some(*id)
                 }
                 _ => None,
             })

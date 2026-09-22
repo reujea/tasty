@@ -286,8 +286,11 @@ SDK가 자기 CWD에서 절대화하여 이 경계를 대신하지 않는다.
 - **기동과 연결**: 기동(명시적 `enable` · namespace 호출이 owner 를 띄울 때 · 재시작 · swap)은 자식을 띄우자마자
   돌아오고, 연결(`HANDSHAKE_TIMEOUT` 10s 안)은 `plugin-connect-<id>` 스레드가 기다린다 — 메인 스레드가 서지 않는다.
   연결 전의 plugin 도 `processes` 에 있어 `running: true` 이고, 그 사이 온 요청은 송신 큐에 쌓였다가 연결 뒤 순서대로
-  나간다. 끝내 연결하지 않으면 spawn 실패와 같은 갈래로 간다(프로세스 kill · `plugin.error` `spawn_failed` ·
-  아래 자동 비활성화 누적 · 쌓인 namespace 호출은 caller 에 오류 회신). 근거 [ADR-0505](../adr/0505-a-plugin-start-waits-for-its-connection-off-the-main-thread.md).
+  나간다. 그 요청의 시한(hook `timeout_ms` · namespace 호출 만료)은 **연결이 성사된 뒤부터** 센다 — 연결 중에는
+  만료되지 않고, 연결되면 기다린 만큼 밀린다. 헤드리스 `--type <kind>` 의 hello 대기도 연결 뒤부터 센다.
+  끝내 연결하지 않으면 spawn 실패와 같은 갈래로 간다(프로세스 kill · `plugin.error` `spawn_failed` ·
+  아래 자동 비활성화 누적 · 쌓인 namespace 호출은 caller 에 오류 회신 · 그 extension 에 보낸 hook 은 hook 없이
+  진행). 근거 [ADR-0505](../adr/0505-a-plugin-start-waits-for-its-connection-off-the-main-thread.md).
 - **헬스체크**: `PING_INTERVAL`(15s)마다 ping, `HEALTHCHECK_TIMEOUT`(60s) 무응답이면 강제 재시작.
   판정은 ping 을 보내는 tick 에서 함께 하므로 **비응답 검출 상한은 60s + 15s = 75s** 다
   ([timer-hub](timer-hub.md#계층을-넘는-허브-합성)). 프로세스가 실제로 죽은 경우는 이 경로가
