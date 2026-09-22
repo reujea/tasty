@@ -2,7 +2,7 @@
 
 - **Status**: Accepted
 - **Date**: 2026-09-23
-- **Tags**: api-stability, deprecation, compatibility, changelog, identity, identity-principle-1, identity-principle-3, adr-0115, adr-0122, adr-0532, adr-0533
+- **Tags**: api-stability, deprecation, compatibility, changelog, identity, identity-principle-1, identity-principle-3, adr-0115, adr-0122, adr-0497, adr-0502, adr-0526, adr-0532, adr-0533
 
 ## Context
 
@@ -14,18 +14,23 @@
 
 그런데 원칙 위반을 고친 외부 동작 변경은 전부 유예 없이 나갔다. 실측(2026-09-23, 착수 트리
 `f4ff0f72a`). 술어: `docs/adr/` 에서 원칙 1·3 을 근거로 인용하면서 외부 동작(응답 · 기록 값 ·
-표면 존재)을 바꾼 결정을 고르고, `CHANGELOG.md` 의 대응 항목을 대조했다.
+표면 존재)을 바꾼 결정을 고르고, `CHANGELOG.md` 의 대응 항목을 대조했다. 모수는 불가침 원칙을 인용한
+ADR 가운데 `CHANGELOG.md` 가 인용하는 21 편을 한 편씩 읽은 것에, CHANGELOG 항목이 없는 ADR-0143 을
+더한 것이다 — CHANGELOG 가 인용하지 않는 나머지 원칙 인용 ADR 은 전부 읽지 않았다.
 
 | 결정 | 원칙 | CHANGELOG | 유예 | 인용한 예외 |
 |---|---|---|---|---|
 | [ADR-0115](0115-input-reproduction-ipc-debug-isolation.md) `surface.raw_key` · `switch_input_source` | 1 ② | `(BREAK)` | 없음 | 보안 |
 | 같은 ADR `surface.ime_*` | 1 ② · 3 | `(BREAK)` | 없음 | "같은 이유로"(앞 항목을 잇는다) |
-| [ADR-0122](0122-winit-scheduled-fallible-ipc-returns-outcome.md) `window.create` 결과 동기화 | 1 | `(BREAK)` | 없음 | 없음 |
+| [ADR-0122](0122-winit-scheduled-fallible-ipc-returns-outcome.md) `window.create` 결과 동기화 | 1 — 위반은 에이전트 발 실패를 사용자 toast 로 낸 것이고, `(BREAK)` 인 응답 형태는 그 toast 를 대신해 실패를 요청자에게 돌려줄 자리다 | `(BREAK)` | 없음 | 없음 |
 | [ADR-0143](0143-a-named-target-is-checked-before-the-engine-in-headless.md) 헤드리스의 지목 대상 검사 | 3 | 항목 없음 | 없음 | 없음 |
+| [ADR-0497](0497-an-agent-created-window-does-not-take-the-users-focus.md) 에이전트가 만든 창의 포커스 | 1 · 3 | 항목 있음, `(BREAK)` 표기 없음 | 없음 | 없음 |
+| [ADR-0502](0502-an-agent-created-tab-does-not-take-the-users-tab.md) 에이전트가 만든 탭의 선택 · 응답 `active_tab` | 1 · 3 | 항목 있음, `(BREAK)` 표기 없음 | 없음 | 없음 |
+| [ADR-0526](0526-a-plugin-popup-the-user-touched-makes-its-file-dispatch-a-user-action.md) origin 없는 `file_handler.dispatch` 의 탭 선택 | 1 · 3 | 항목 있음, `(BREAK)` 표기 없음 | 없음 | 없음 |
 | [ADR-0532](0532-workspace-create-inherits-cwd-from-the-surface-that-names-its-window.md) `workspace.create` cwd 상속 | 3 | `(BREAK)` | 없음 | 없음 — 사유만 적었다("유예를 두면 그 기간 동안 위반이 그대로 남는다") |
 | [ADR-0533](0533-an-omitted-target-keeps-its-focus-default-only-where-nothing-names-one.md) `approval.request` 의 기록 귀속 | 3 | 항목 있음, `(BREAK)` 표기 없음 | 없음 | 없음 |
 
-- 원칙 위반을 고친 변경 6 건(ADR 5 편) 중 유예를 거친 것 **0 건**, 문서의 예외 이름을 댄 것 **1 건**
+- 원칙 위반을 고친 변경 9 건(ADR 8 편) 중 유예를 거친 것 **0 건**, 문서의 예외 이름을 댄 것 **1 건**
   (ADR-0115 의 보안 — 원칙 위반이 아니라 보안 표면이라는 사실을 댄 것이다).
 - 같은 기간 `CHANGELOG.md` 의 `(BREAK)` 항목은 11 건이고 `### Deprecated` 절은 **한 번도 없다**
   (`grep -c '^### Deprecated' CHANGELOG.md` = 0).
@@ -66,7 +71,7 @@
   필요 없다([duplicated-sets](../dev-guide/duplicated-sets.md) — 소비자가 같은 물음에 답하는 자리는
   하나로 줄이는 것이 먼저다).
 - **잃은 것**: 원칙 위반 수정을 받는 외부 호출자에게는 경고 기간이 없다. 옛 동작에 기대던 호출이 다음
-  릴리스에서 바로 다른 값을 받는다(ADR-0532 의 cwd, ADR-0533 의 기록 귀속이 그 형태였다).
+  릴리스에서 바로 다른 값을 받는다(ADR-0532 의 cwd, ADR-0533 의 기록 귀속, ADR-0502 의 응답 `active_tab` 이 그 형태였다).
 - **잃은 것**: "원칙 위반" 은 "보안" 보다 넓게 읽힐 수 있다 — 넓게 읽으면 유예 규칙 전체가 비어 버린다.
   조건 1·3(위반 부분만 · 원칙을 이름으로)이 그 경계를 잡지만 판정하는 것은 사람이다.
 - **운영 비용 / 유지 부담**: `(BREAK)` 항목을 쓸 때 원칙 조항을 한 번 더 적는다. 강제 채널은 두지
@@ -105,6 +110,10 @@
   번호와 위반의 서술이 있는지 대조한다.
 - 외부(서드파티) plugin · 클라이언트 소비자가 생겨, 원칙 위반 수정의 즉시 break 가 실제 피해 보고로
   돌아온다. 재는 법: 이슈 트래커와 plugin 레지스트리에서 `(BREAK)` 이후의 호환 문의를 센다.
+- 사용자(레포 소유자)가 원칙 위반을 고치는 어떤 break 에 유예를 요구한다. 그 요구 하나가 이 예외의
+  전제(원칙 위반은 한 minor 도 출하하지 않는다)를 뒤집으므로, 그 break 에만 유예를 주고 넘어가지 말고
+  이 결정 전체를 다시 묻는다. 재는 법: 그 break 의 리뷰 · 이슈 · 커밋 논의에서 유예 요구가 나왔는지를
+  본다 — 레포에 기록되는 값이 아니다.
 
 ## References
 
@@ -114,6 +123,9 @@
 - 표의 결정: [ADR-0115](0115-input-reproduction-ipc-debug-isolation.md) ·
   [ADR-0122](0122-winit-scheduled-fallible-ipc-returns-outcome.md) ·
   [ADR-0143](0143-a-named-target-is-checked-before-the-engine-in-headless.md) ·
+  [ADR-0497](0497-an-agent-created-window-does-not-take-the-users-focus.md) ·
+  [ADR-0502](0502-an-agent-created-tab-does-not-take-the-users-tab.md) ·
+  [ADR-0526](0526-a-plugin-popup-the-user-touched-makes-its-file-dispatch-a-user-action.md) ·
   [ADR-0532](0532-workspace-create-inherits-cwd-from-the-surface-that-names-its-window.md) ·
   [ADR-0533](0533-an-omitted-target-keeps-its-focus-default-only-where-nothing-names-one.md) ·
   형태 선택 선례 [ADR-0480](0480-a-forwarded-close-carries-who-asked-for-it.md) ·
