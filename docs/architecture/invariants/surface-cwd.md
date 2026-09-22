@@ -60,7 +60,8 @@ mirror 워크스페이스의 convert 는 로컬에서 실행되지 않고 `Struc
 
 | 소비 지점 | cwd 가 가는 곳 | 판정 |
 |---|---|---|
-| `intent/workspace.rs` (새 워크스페이스 intent) · `adapters/ipc/handler/workspace.rs` (`workspace.create`) | 새 **로컬** 워크스페이스의 첫 PTY | mirror focus 면 `None`(= 홈). 명시 `cwd` 는 그대로 존중 |
+| `intent/workspace.rs` (새 워크스페이스 intent — GUI 경로) | 새 **로컬** 워크스페이스의 첫 PTY | 상속 원본은 그 창의 포커스 surface. 그것이 mirror 면 `None`(= 홈) |
+| `adapters/ipc/handler/workspace.rs` (`workspace.create`) | 새 **로컬** 워크스페이스의 첫 PTY | 상속 원본은 지목한 `surface_id`, 없으면 그 창의 포커스 surface([ADR-0532](../../adr/0532-workspace-create-inherits-cwd-from-the-surface-that-names-its-window.md)). 그것이 mirror 면 `None`(= 홈). 명시 `cwd` 는 그대로 존중 |
 | `state/tab.rs` (`add_tab` · `add_kind_tab`) | mirror 면 cwd 를 읽기 **전에** forward 로 return | 로컬 워크스페이스에서만 값이 쓰인다 |
 | `state/tab.rs` (`add_kind_tab_by_owner`) | owner surface 의 pane 에 로컬 생성 | mirror owner 면 `None` — 원격 경로를 로컬 surface 에 심지 않는다 |
 | `intent/pane.rs` · `intent/surface.rs` (split) · `intent/tab.rs` · `adapters/ipc/handler/{pane,tab}.rs` | cwd 계산 **후** `Core::apply` 의 mirror 게이트가 forward — 그 op(`SplitPane`/`NewTab`/`SplitSurface`)는 cwd 필드가 없다 | mirror 에서는 `None` 이 계산돼 버려진다. 서버가 자기 트리에서 결정 |
