@@ -143,102 +143,70 @@ fn is_id_shaped(key: &str) -> bool {
     key == "id" || key.ends_with("_id")
 }
 
-/// 여는 중괄호 위치에서 짝을 찾아 블록을 돌려준다. 문자열 리터럴 안의 중괄호는 안 센다.
+/// 여는 중괄호 위치에서 짝을 찾아 블록을 돌려준다. 주석·문자열·문자 리터럴 안의 중괄호는
+/// 안 센다 — 짝은 공용 렉서가 그것들을 덮은 사본에서 찾는다(손으로 센 따옴표는 `'"'` · `'}'`
+/// · raw 문자열에서 어긋나 블록을 일찍 닫았다).
 pub(super) fn balanced(src: &str, open_at: usize) -> &str {
-    let b = src.as_bytes();
-    let (mut depth, mut i) = (0usize, open_at);
-    let (mut in_str, mut esc) = (false, false);
-    while i < b.len() {
-        let c = b[i] as char;
-        if in_str {
-            if esc {
-                esc = false;
-            } else if c == '\\' {
-                esc = true;
-            } else if c == '"' {
-                in_str = false;
-            }
-        } else if c == '"' {
-            in_str = true;
-        } else if c == '{' {
-            depth += 1;
-        } else if c == '}' {
-            depth -= 1;
-            if depth == 0 {
-                return &src[open_at..=i];
-            }
-        }
-        i += 1;
+    let code = tasty_doc_guards::source_text::mask_non_code_aligned(&src[open_at..]);
+    match tasty_doc_guards::match_arms::matching_close(&code, 0) {
+        Some(close) => &src[open_at..=open_at + close],
+        None => &src[open_at..],
     }
-    &src[open_at..]
 }
 
-/// `"a" | "b" => 식` 형태의 arm 을 걷는다.
+/// `"a" | "b" => 식` 형태의 arm 을 걷는다 — guard 가 붙은 팔(`"a" if … =>`)도 팔이다.
+///
+/// 팔은 공용 판정기(`tasty_doc_guards::match_arms`)가 뗀다. 손으로 뒤로 훑던 판독은 guard 가
+/// 붙은 팔을 통째로 빠뜨리고 그 본문을 앞 팔에 붙였다 — 빠진 메서드가 읽는 키는 조용히
+/// 통과했다. 판정기가 못 읽는 블록은 여기서 실패한다(건너뛰면 그 안의 팔이 전부 빠진다).
 pub(super) fn dispatch_arms(src: &str) -> Vec<(Vec<String>, String)> {
+    use tasty_doc_guards::match_arms::{Source, matching_close};
     const HEAD: &str = "Some(match request.method.as_str() {";
+    let source = Source::new(src);
     let mut out = Vec::new();
     let mut from = 0usize;
-    while let Some(at) = src[from..].find(HEAD) {
-        let start = from + at + HEAD.len() - 1;
-        let block = balanced(src, start);
-        out.extend(arms_in_block(block));
-        from = start + block.len();
+    while let Some(at) = source.code[from..].find(HEAD) {
+        let open = from + at + HEAD.len() - 1;
+        let close = matching_close(&source.code, open).unwrap_or_else(|| {
+            panic!(
+                "dispatch `match` 가 닫히지 않는다({}행)",
+                source.line_of(open)
+            )
+        });
+        let arms = source
+            .match_arms(open..close + 1)
+            .unwrap_or_else(|e| panic!("dispatch 팔을 못 읽었다 — {e}"));
+        for arm in arms {
+            let names: Option<Vec<String>> = source
+                .alternatives(&arm.pattern)
+                .iter()
+                .map(|alt| {
+                    source
+                        .plain_string(alt)
+                        .filter(|name| {
+                            !name.is_empty()
+                                && name.chars().all(|c| {
+                                    c.is_ascii_lowercase()
+                                        || c.is_ascii_digit()
+                                        || c == '.'
+                                        || c == '_'
+                                })
+                        })
+                        .map(str::to_string)
+                })
+                .collect();
+            if let Some(names) = names.filter(|n| !n.is_empty()) {
+                // guard 도 그 팔이 params 를 읽는 자리다 — 본문만 보면 guard 에서 읽는 키가
+                // 빠진다.
+                let guard = arm.guard.as_ref().map_or("", |g| source.slice(g));
+                out.push((names, format!("{guard}\n{}", source.slice(&arm.body))));
+            }
+        }
+        from = close + 1;
     }
     out
 }
 
-fn arms_in_block(block: &str) -> Vec<(Vec<String>, String)> {
-    let mut heads: Vec<(usize, usize, Vec<String>)> = Vec::new();
-    let mut i = 0usize;
-    while let Some(at) = block[i..].find("=>") {
-        let arrow = i + at;
-        // 화살표 앞에서 `"…"`( `|` 로 이어진) 만 있는지 뒤로 훑는다.
-        let head = &block[..arrow];
-        let trimmed = head.trim_end();
-        if !trimmed.ends_with('"') {
-            i = arrow + 2;
-            continue;
-        }
-        let mut names = Vec::new();
-        let mut rest = trimmed;
-        let mut head_start = arrow;
-        loop {
-            let Some(close) = rest.rfind('"') else { break };
-            let Some(open) = rest[..close].rfind('"') else {
-                break;
-            };
-            let name = &rest[open + 1..close];
-            if name.is_empty()
-                || !name
-                    .chars()
-                    .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '.' || c == '_')
-            {
-                break;
-            }
-            names.push(name.to_string());
-            head_start = open;
-            let before = rest[..open].trim_end();
-            if let Some(stripped) = before.strip_suffix('|') {
-                rest = stripped;
-            } else {
-                break;
-            }
-        }
-        if !names.is_empty() {
-            names.reverse();
-            heads.push((head_start, arrow + 2, names));
-        }
-        i = arrow + 2;
-    }
-    let mut out = Vec::new();
-    for (n, (_, body_from, names)) in heads.iter().enumerate() {
-        let end = heads.get(n + 1).map_or(block.len(), |h| h.0);
-        out.push((names.clone(), block[*body_from..end].to_string()));
-    }
-    out
-}
-
-/// 파일 경로 → 모듈 경로. `handler.rs` 는 빈 경로(모듈 루트)다.
 fn module_of(rel: &str) -> Vec<String> {
     if rel == HANDLER_ROOT {
         return Vec::new();
