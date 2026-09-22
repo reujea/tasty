@@ -1821,6 +1821,10 @@ pub const OS_OPEN_LOG_FILE: &str = "os-open.log";
 /// URL 을 넘기는 원격 제어 채널을 가져서, 시험 인스턴스가 연 것이 **실행자의 브라우저 탭**
 /// 으로 나타난다(ADR-0511). 스위치는 제품의 debug 격리라 release 로 지은 자식은 무시한다
 /// — 그래서 이름을 문자열로 옮겨 적지 않고 제품 상수를 그대로 쓴다.
+///
+/// 스위치는 host 프로세스 안의 OS 열기만 덮는다. 번들 plugin 은 `tasty-platform` 을 링크하지
+/// 않고 자기 프로세스에서 `webbrowser::open` 을 직접 부르므로(markdown 의 외부 링크), 그 자리는
+/// 가짜 `BROWSER`([`apply_fake_browser`])가 막는다 — 같은 기록 파일에 `BROWSER\t<인자>` 로 남는다.
 pub fn apply_os_open_record(
     command: &mut std::process::Command,
     home: &std::path::Path,
@@ -1828,9 +1832,53 @@ pub fn apply_os_open_record(
     let log = home.join(OS_OPEN_LOG_FILE);
     #[cfg(debug_assertions)]
     command.env(tasty_platform::debug_os_open::ENV, &log);
-    #[cfg(not(debug_assertions))]
-    let _ = command; // 스위치가 없는 빌드 — 줄 것이 없다.
+    apply_fake_browser(command, home);
     log
+}
+
+/// [`apply_fake_browser`] 가 `home` 아래에 쓰는 가짜 브라우저 스크립트 이름.
+pub const FAKE_BROWSER_FILE: &str = "os-open-browser.sh";
+
+/// 자식(과 그 자식인 plugin)의 `BROWSER` 를 받은 인자를 [`OS_OPEN_LOG_FILE`] 에 적기만 하는
+/// 스크립트로 준다. 아무것도 열지 않는다.
+///
+/// `webbrowser` 는 unix(macOS 제외)에서 `BROWSER` 를 먼저 보고, 그 명령이 성공하면 거기서
+/// 멈춘다 — 그래서 여기서 막히는 것은 **Linux·BSD 의 `webbrowser` 경로뿐**이다. macOS·Windows
+/// 의 plugin 쪽 열기는 이것으로 안 막힌다(ADR-0511). 빌드 프로필과 무관하게 준다 — 제품
+/// 스위치가 없는 release 자식도 Linux 에서는 이것으로 막힌다.
+///
+/// 빈 `BROWSER=` 는 막지 않는다 — `webbrowser` 가 빈 항목을 건너뛰고 xdg desktop entry 를
+/// 직접 실행한다. 그래서 경로가 `BROWSER` 문법(공백·`:` 로 가른다)에 안 맞으면 `true` 로
+/// 떨어진다 — 기록은 없지만 여전히 아무것도 안 연다. 스크립트를 못 쓰면 하네스가 선다.
+pub fn apply_fake_browser(command: &mut std::process::Command, home: &std::path::Path) {
+    #[cfg(unix)]
+    {
+        let script = write_fake_browser(home).expect("write fake BROWSER script");
+        let value = match script.to_str() {
+            Some(s) if !s.contains(|c: char| c == ':' || c.is_whitespace()) => s,
+            _ => "true",
+        };
+        command.env("BROWSER", value);
+    }
+    #[cfg(not(unix))]
+    {
+        // `webbrowser` 가 `BROWSER` 를 읽지 않는 플랫폼 — 줄 것이 없다.
+        let _ = (command, home);
+    }
+}
+
+#[cfg(unix)]
+fn write_fake_browser(home: &std::path::Path) -> std::io::Result<std::path::PathBuf> {
+    use std::os::unix::fs::PermissionsExt;
+    std::fs::create_dir_all(home)?;
+    let script = home.join(FAKE_BROWSER_FILE);
+    // 기록 파일은 스크립트 옆이다 — 경로를 스크립트 본문에 박지 않아 따옴표 문제가 없다.
+    let body = format!(
+        "#!/bin/sh\nprintf 'BROWSER\\t%s\\n' \"$*\" >> \"$(dirname \"$0\")/{OS_OPEN_LOG_FILE}\"\n"
+    );
+    std::fs::write(&script, body)?;
+    std::fs::set_permissions(&script, std::fs::Permissions::from_mode(0o755))?;
+    Ok(script)
 }
 
 pub fn apply_bundle_opt_in(command: &mut std::process::Command) {

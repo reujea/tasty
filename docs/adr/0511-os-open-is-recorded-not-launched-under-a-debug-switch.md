@@ -45,7 +45,8 @@ e2e 하네스도 같다. 격리 HOME 과 `TASTY_E2E_DISPLAY` 가 이 채널을 �
   않는다(fail closed).
 - 켜는 것은 opt-in 이다. 격리 `TASTY_HOME` 이 켜는 것이 아니다.
 - e2e 하네스 셋은 격리 홈 아래 `os-open.log` 로 늘 켠다(`tests/spawn_diag` 의
-  `apply_os_open_record`). 문서 절차(self-verification)는 이 스위치와 가짜 브라우저
+  `apply_os_open_record`). 같은 자리가 받은 인자를 그 파일에 `BROWSER\t<인자>` 로 적기만 하는
+  가짜 `BROWSER` 도 준다 — plugin 프로세스의 `webbrowser::open` 을 막는 몫이다. 문서 절차(self-verification)는 이 스위치와 가짜 브라우저
   `PATH`/`BROWSER` 를 함께 쓴다. 뒤쪽은 tasty 가 띄운 **다른 프로세스**(PTY 셸 · plugin)를 막는다.
 
 ## Consequences
@@ -59,6 +60,8 @@ e2e 하네스도 같다. 격리 HOME 과 `TASTY_E2E_DISPLAY` 가 이 채널을 �
 - **운영 비용 / 유지 부담**: OS 열기 자리를 새로 만들면 그 자리도 `intercepted` 를 물어야 한다.
   그 누락을 잡는 채널은 없다 — 자리를 세는 가드는 만들지 않았다(자리가 넷이고 드물게 는다).
   plugin 프로세스의 열기(번들 markdown plugin 의 `webbrowser::open`)는 이 스위치 밖이다.
+  하네스의 가짜 `BROWSER` 는 Linux·BSD 의 `webbrowser` 경로만 막는다(macOS·Windows 의 plugin 쪽 열기는 안 막힌다) —
+  근본 해결(markdown plugin 의 외부 링크를 host 경유로 여는 것)은 별도 과제로 남아 있다.
 
 ## Alternatives Considered
 
@@ -68,7 +71,7 @@ e2e 하네스도 같다. 격리 HOME 과 `TASTY_E2E_DISPLAY` 가 이 채널을 �
 - **격리 `TASTY_HOME` 이면 자동으로 억제** — `TASTY_HOME` 은 다중 인스턴스 · 샌드박스 용도로도
   쓰이고, 거기서 링크를 실제로 열고 싶은 사용이 있다. 루트 override 에 다른 의미를 싣는 것이다.
 - **plugin 도 같은 스위치를 읽게** — 번들 plugin 의 산출물이 바뀌어 plugin bump 가 따르고,
-  plugin SDK 에 debug 분기를 들이는 일이다. 문서 절차의 가짜 `BROWSER` 가 그 경로를 이미 막는다.
+  plugin SDK 에 debug 분기를 들이는 일이다. 문서 절차와 e2e 하네스의 가짜 `BROWSER` 가 Linux 에서는 그 경로를 막는다.
 - **debug IPC 로 켜고 끄기** — 부팅 직후의 열기(세션 복원 등)를 못 덮고, 스위치를 켜기 전의 창이
   남는다. 환경변수는 부팅 전에 정해진다.
 
@@ -82,8 +85,9 @@ e2e 하네스도 같다. 격리 HOME 과 `TASTY_E2E_DISPLAY` 가 이 채널을 �
 
 **원리적으로 안 붙는 것**
 
-- plugin 이 스스로 여는 경로가 사고를 낸다(가짜 `BROWSER` 를 안 준 검증에서). 재는 법: 검증 보고의
-  부수효과 절.
+- plugin 이 스스로 여는 경로가 사고를 낸다(가짜 `BROWSER` 를 안 준 검증에서, 또는 가짜 `BROWSER` 가
+  안 닿는 macOS·Windows 에서). 그때는 markdown plugin 의 외부 링크를 host 경유로 옮기는 근본 해결을
+  당긴다. 재는 법: 검증 보고의 부수효과 절.
 
 ## References
 
