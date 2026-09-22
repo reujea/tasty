@@ -1,14 +1,12 @@
-//! FakeClock — test 시 시각을 *수동으로 advance*. deterministic.
+//! FakeClock — test 시 시각을 생성 시점에 **고정**한다. deterministic.
 
-use std::sync::Mutex;
-use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
+use std::time::{Instant, SystemTime, UNIX_EPOCH};
 
 use crate::ports::clock::Clock;
 
 pub struct FakeClock {
     base_instant: Instant,
     base_system: SystemTime,
-    elapsed: Mutex<Duration>,
 }
 
 impl FakeClock {
@@ -16,14 +14,7 @@ impl FakeClock {
         Self {
             base_instant: Instant::now(),
             base_system: SystemTime::now(),
-            elapsed: Mutex::new(Duration::ZERO),
         }
-    }
-
-    /// 시각을 `dur` 만큼 앞으로 이동. test 시 호출.
-    pub fn advance(&self, dur: Duration) {
-        let mut e = self.elapsed.lock().expect("FakeClock poisoned");
-        *e += dur;
     }
 }
 
@@ -35,13 +26,11 @@ impl Default for FakeClock {
 
 impl Clock for FakeClock {
     fn now_instant(&self) -> Instant {
-        let e = *self.elapsed.lock().expect("FakeClock poisoned");
-        self.base_instant + e
+        self.base_instant
     }
 
     fn now_system(&self) -> SystemTime {
-        let e = *self.elapsed.lock().expect("FakeClock poisoned");
-        self.base_system + e
+        self.base_system
     }
 
     fn now_unix_millis(&self) -> i64 {

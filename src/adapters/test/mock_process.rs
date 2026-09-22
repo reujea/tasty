@@ -1,40 +1,20 @@
-//! MockProcessSpawner — process spawn 을 *기록만* 함. 외부 process 띄우지 않음.
+//! MockProcessSpawner — 외부 process 를 띄우지 않고 성공한 child 를 돌려준다.
 
-use std::path::{Path, PathBuf};
-use std::sync::Mutex;
+use std::path::Path;
 
 use crate::ports::process::{ExitStatus, ProcessChild, ProcessSpawner};
 
-#[derive(Debug, Clone)]
-pub struct SpawnRecord {
-    pub command: String,
-    pub args: Vec<String>,
-    pub env: Vec<(String, String)>,
-    pub cwd: Option<PathBuf>,
-}
-
 #[derive(Debug, Default)]
-pub struct MockProcessSpawner {
-    pub spawns: Mutex<Vec<SpawnRecord>>,
-}
+pub struct MockProcessSpawner;
 
 impl ProcessSpawner for MockProcessSpawner {
     fn spawn(
         &self,
-        command: &str,
-        args: &[&str],
-        env: &[(String, String)],
-        cwd: Option<&Path>,
+        _command: &str,
+        _args: &[&str],
+        _env: &[(String, String)],
+        _cwd: Option<&Path>,
     ) -> anyhow::Result<Box<dyn ProcessChild>> {
-        self.spawns
-            .lock()
-            .expect("MockProcessSpawner poisoned")
-            .push(SpawnRecord {
-                command: command.to_string(),
-                args: args.iter().map(|s| s.to_string()).collect(),
-                env: env.to_vec(),
-                cwd: cwd.map(|p| p.to_path_buf()),
-            });
         Ok(Box::new(MockProcessChild { pid: 1 }))
     }
 }
