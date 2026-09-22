@@ -67,6 +67,8 @@ const DUMP_RESYNC_LIMIT: u32 = 3;
 struct DumpHeartbeat {
     every: Duration,
     next: Instant,
+    /// Ping 쓰기가 실패했다 — 연결이 끊겼다는 뜻이라 수집 루프는 `Disconnected` 로 끝낸다.
+    broken: bool,
 }
 
 impl DumpHeartbeat {
@@ -75,22 +77,27 @@ impl DumpHeartbeat {
         Self {
             every,
             next: now + every,
+            broken: false,
         }
     }
 
-    /// 다음 Ping 까지 남은 시간 — 수집 대기를 이 값으로 끊어 주기를 놓치지 않는다.
-    fn until_due(&self, now: Instant) -> Duration {
-        self.next.saturating_duration_since(now)
-    }
-
-    /// 주기가 됐으면 Ping 을 한 번 보낸다. 쓰기 실패는 연결이 끊겼다는 뜻이다.
-    fn beat_if_due(&mut self, writer: &mut TcpStream, now: Instant) -> std::io::Result<()> {
-        if now < self.next {
-            return Ok(());
+    /// 수집 루프 머리: 주기가 됐으면 Ping 을 보내고, 다음 대기 시간(창 끝과 다음 Ping 중
+    /// 이른 쪽)을 돌려준다. 창이 끝났거나 Ping 을 못 썼으면 `None` — 루프를 끝낸다.
+    fn next_wait(&mut self, writer: &mut TcpStream, deadline: Instant) -> Option<Duration> {
+        let now = Instant::now();
+        let remaining = deadline.saturating_duration_since(now);
+        if remaining.is_zero() {
+            return None;
         }
-        stream::write_frame(writer, StreamTag::Ping, &[])?;
-        self.next = now + self.every;
-        Ok(())
+        if now >= self.next {
+            if let Err(e) = stream::write_frame(writer, StreamTag::Ping, &[]) {
+                tracing::warn!("attach: mirror-dump heartbeat was not written: {e}");
+                self.broken = true;
+                return None;
+            }
+            self.next = now + self.every;
+        }
+        Some(remaining.min(self.next.saturating_duration_since(now)))
     }
 }
 
@@ -589,18 +596,8 @@ fn run_workspace_mirror_dump(
     let mut desynced = false;
     let mut lost = 0u64;
     let mut heartbeat = DumpHeartbeat::start(Instant::now());
-    loop {
-        let now = Instant::now();
-        let remaining = deadline.saturating_duration_since(now);
-        if remaining.is_zero() {
-            break;
-        }
-        if let Err(e) = heartbeat.beat_if_due(&mut writer, now) {
-            tracing::warn!("attach: mirror-dump heartbeat was not written: {e}");
-            disconnected = true;
-            break;
-        }
-        match rx.recv_timeout(remaining.min(heartbeat.until_due(now))) {
+    while let Some(wait) = heartbeat.next_wait(&mut writer, deadline) {
+        match rx.recv_timeout(wait) {
             Ok(frame) => match frame.tag {
                 StreamTag::Data => {
                     if let Some((sid, payload)) = stream::decode_mux(&frame.payload)
@@ -645,6 +642,7 @@ fn run_workspace_mirror_dump(
         }
     }
 
+    disconnected |= heartbeat.broken;
     if desynced {
         return Ok(SessionEnd::Desynced(release_for_resync(
             writer, reader, lost,
@@ -714,18 +712,8 @@ fn run_mirror_dump(
     let mut desynced = false;
     let mut lost = 0u64;
     let mut heartbeat = DumpHeartbeat::start(Instant::now());
-    loop {
-        let now = Instant::now();
-        let remaining = deadline.saturating_duration_since(now);
-        if remaining.is_zero() {
-            break;
-        }
-        if let Err(e) = heartbeat.beat_if_due(&mut writer, now) {
-            tracing::warn!("attach: mirror-dump heartbeat was not written: {e}");
-            disconnected = true;
-            break;
-        }
-        match rx.recv_timeout(remaining.min(heartbeat.until_due(now))) {
+    while let Some(wait) = heartbeat.next_wait(&mut writer, deadline) {
+        match rx.recv_timeout(wait) {
             Ok(frame) => match frame.tag {
                 StreamTag::Data => {
                     mirror.feed_bytes(&frame.payload);
@@ -764,6 +752,7 @@ fn run_mirror_dump(
         }
     }
 
+    disconnected |= heartbeat.broken;
     if desynced {
         return Ok(SessionEnd::Desynced(release_for_resync(
             writer, reader, lost,
