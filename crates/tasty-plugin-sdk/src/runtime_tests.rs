@@ -714,3 +714,45 @@ fn host_calls_left_at_shutdown_fail_fast_instead_of_timing_out() {
     assert_eq!(outcome, Ok(()));
     drop(stream);
 }
+
+/// 요청 한 줄이 read timeout(50 ms)보다 긴 간격으로 조각나 도착해도 처리돼야 한다.
+/// 자르는 자리는 멀티바이트 문자 한가운데 — `read_line` 이라면 앞 조각이 UTF-8 검사로
+/// 지워지는 갈래다. 줄이 깨지면 요청이 버려져 응답이 오지 않는다.
+#[test]
+fn run_handles_a_request_line_split_across_read_timeouts() {
+    let (mut stream, mut reader, done_rx) = run_against_fake_host();
+    let req = PluginRequest::new(METHOD_PING, json!({ "note": "한글 조각" }), 77);
+    let bytes = format!("{}\n", serde_json::to_string(&req).unwrap()).into_bytes();
+    let cut = bytes
+        .iter()
+        .position(|b| *b >= 0x80)
+        .expect("the line carries a multibyte character")
+        + 1;
+    stream.write_all(&bytes[..cut]).unwrap();
+    stream.flush().unwrap();
+    std::thread::sleep(std::time::Duration::from_millis(150));
+    stream.write_all(&bytes[cut..]).unwrap();
+    stream.flush().unwrap();
+
+    reader
+        .get_ref()
+        .set_read_timeout(Some(std::time::Duration::from_secs(2)))
+        .unwrap();
+    let mut resp = String::new();
+    reader
+        .read_line(&mut resp)
+        .expect("no response to the split request within 2 s");
+    assert!(
+        resp.contains("\"id\":77"),
+        "response to the split request expected, got {resp}"
+    );
+
+    send_line(
+        &mut stream,
+        &PluginRequest::new(METHOD_SHUTDOWN, json!({}), 78),
+    );
+    let outcome = done_rx
+        .recv_timeout(std::time::Duration::from_secs(1))
+        .expect("run did not return after shutdown");
+    assert_eq!(outcome, Ok(()));
+}

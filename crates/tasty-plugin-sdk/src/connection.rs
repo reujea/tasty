@@ -31,6 +31,9 @@ const RUN_READ_TIMEOUT: Duration = Duration::from_millis(50);
 pub struct Connection {
     writer: TcpStream,
     reader: BufReader<TcpStream>,
+    /// [`Self::try_recv`] 가 read timeout 사이에 이어 붙이는 미완성 줄. 이유는 `runtime.rs`
+    /// 메인 recv 루프의 줄 버퍼 주석과 같다.
+    partial: Vec<u8>,
 }
 
 /// 호스트가 plugin에 보낼 수 있는 메시지.
@@ -61,6 +64,7 @@ impl Connection {
         Ok(Self {
             reader: BufReader::new(stream),
             writer,
+            partial: Vec::new(),
         })
     }
 
@@ -181,17 +185,18 @@ impl Connection {
         }
     }
 
-    /// 호스트로부터 한 줄 수신. timeout이면 `Ok(None)`.
+    /// 호스트로부터 한 줄 수신. timeout이면 `Ok(None)` — 그때까지 받은 줄 앞부분은
+    /// 버리지 않고 다음 호출이 이어 붙인다.
     pub fn try_recv(&mut self) -> Result<Option<HostMessage>> {
-        let mut line = String::new();
-        match self.reader.read_line(&mut line) {
+        match self.reader.read_until(b'\n', &mut self.partial) {
             Ok(0) => Err(PluginError::HostClosed),
             Ok(_) => {
-                let trim = line.trim();
+                let line = std::mem::take(&mut self.partial);
+                let trim = line.trim_ascii();
                 if trim.is_empty() {
                     return Ok(None);
                 }
-                let req: PluginRequest = serde_json::from_str(trim)?;
+                let req: PluginRequest = serde_json::from_slice(trim)?;
                 Ok(Some(HostMessage::Request(req)))
             }
             Err(e)
@@ -328,6 +333,55 @@ mod tests {
             "reader shares the socket"
         );
         drop((writer, reader));
+        handle.join().expect("fake host thread");
+    }
+
+    /// read timeout(50 ms)이 줄 중간에 걸려도 줄이 온전히 도착해야 한다. 조각 사이를
+    /// timeout 보다 길게 두고, 자르는 자리를 멀티바이트 문자 한가운데로 잡는다 — 그 자리는
+    /// `read_line` 이 UTF-8 검사로 앞 조각을 지워 버리는 갈래다.
+    #[test]
+    fn try_recv_joins_a_line_split_across_read_timeouts() {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let port = listener.local_addr().unwrap().port();
+        let req = PluginRequest::new("ping", serde_json::json!({ "note": "한글 조각" }), 42);
+        let line = format!("{}\n", serde_json::to_string(&req).unwrap());
+        let bytes = line.into_bytes();
+        let cut = bytes
+            .iter()
+            .position(|b| *b >= 0x80)
+            .expect("the line carries a multibyte character")
+            + 1;
+        let handle = thread::spawn(move || {
+            let (mut stream, _) = listener.accept().unwrap();
+            let mut reader = BufReader::new(stream.try_clone().unwrap());
+            let mut auth = String::new();
+            reader.read_line(&mut auth).expect("fake host: read auth");
+            writeln!(stream, "{{\"auth_ack\":{{\"ok\":true}}}}").expect("fake host: ack");
+            stream.flush().expect("fake host: flush ack");
+            for (i, chunk) in [&bytes[..cut], &bytes[cut..]].into_iter().enumerate() {
+                if i > 0 {
+                    thread::sleep(RUN_READ_TIMEOUT * 3);
+                }
+                stream.write_all(chunk).expect("fake host: write chunk");
+                stream.flush().expect("fake host: flush chunk");
+            }
+            thread::sleep(Duration::from_millis(200));
+        });
+        let env = env_for(port);
+        let mut conn = Connection::connect_and_authenticate(&env).expect("ok");
+        let deadline = std::time::Instant::now() + Duration::from_secs(2);
+        let got = loop {
+            assert!(
+                std::time::Instant::now() < deadline,
+                "the split line never arrived whole"
+            );
+            match conn.try_recv().expect("the split line must parse") {
+                Some(HostMessage::Request(r)) => break r,
+                None => continue,
+            }
+        };
+        assert_eq!(got.id, 42);
+        assert_eq!(got.params["note"], "한글 조각");
         handle.join().expect("fake host thread");
     }
 
