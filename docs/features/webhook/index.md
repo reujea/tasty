@@ -25,7 +25,7 @@ GitHub Action 처럼 **외부 이벤트가 HTTP 로 들어오면 tasty 를 구�
 
 `tiny_http`([ADR-0048](../../adr/0048-webhook-http-tiny-http-blocking.md))가 bind + accept 하고, 요청마다 worker 스레드에서:
 
-1. **남용차단 선검사** — 출처 IP 가 쿨다운 중이면 즉시 `429`. 경로 파싱·헤더 수집·**JSON 입력 읽기보다 앞**이라, 차단된 출처의 body 를 `read_json_body` 의 입력 버퍼로 모으거나 JSON 으로 파싱하지 않는다. HTTP 라이브러리의 사전 버퍼링과 응답 후 drain 은 이 타입 경계 밖이다. 그 순서는 타입으로 강제된다(선검사를 통과한 요청만 JSON 입력 파서를 호출할 수 있다 — [ADR-0199](../../adr/0199-the-block-is-decided-before-the-body-is-read.md)).
+1. **남용차단 선검사** — 출처 IP 가 쿨다운 중이면 즉시 `429`. 경로 파싱·헤더 수집·**JSON 입력 읽기보다 앞**이라, 차단된 출처의 body 를 `read_json_body` 의 입력 버퍼로 모으거나 JSON 으로 파싱하지 않는다. `413` 과 같이 잔여 body 를 읽지 않고 연결을 닫는다(아래 body 상한). HTTP 라이브러리의 작은 body 사전 버퍼링은 이 타입 경계 밖이다. 그 순서는 타입으로 강제된다(선검사를 통과한 요청만 JSON 입력 파서를 호출할 수 있다 — [ADR-0199](../../adr/0199-the-block-is-decided-before-the-body-is-read.md)).
 2. path/query 분리, 헤더 소문자 정규화, **JSON 입력을 요청당 상한으로 제한**해 파싱한다(실패 시 `null`). 선언된 `Content-Length` 가 상한을 넘으면 이 파서 함수에서 body 를 읽지 않고, 길이 선언이 없는 chunked 는 판정용 1바이트를 포함해 상한 + 1 바이트까지만 모은다. 어느 방식이든 상한 초과는 `413`([ADR-0200](../../adr/0200-webhook-body-has-a-per-request-byte-cap.md)).
 3. **매칭 + 인증**(`match_request`) — path 없음 `404`, lifetime 만료 `410`(lazy 삭제), 메서드 불일치 `405`(카운트 미차감), 인증 불일치 `401`(**카운트 미차감**). 인증 검증은 호출자가 넘긴 술어로 **같은 lock 안에서** 차감보다 **먼저** 한다 — `CountLimit` 이 세는 단위가 "시퀀스를 돌린 횟수" 라서, 시퀀스를 0 번 돌린 요청이 통을 태우면 안 된다. 통의 키는 토큰이 아니라 **등록**이라(모든 발신자가 한 통을 공유한다) 그 차이는 인증을 통과하지 못한 발신자가 owner 의 예산을 태우는 것으로 나타난다.
 4. 매칭·인증을 모두 통과하면 카운트 1 차감(소진되면 삭제).
@@ -74,9 +74,9 @@ HTTP 응답은 **고정 상태코드 + 고정 문자열 바디**뿐이다. `buil
 
 JSON 처리에 허용하는 요청 body 는 **기본 1 MiB** 까지다. `read_json_body` 는 선언된 `Content-Length` 가 상한을 넘으면 입력을 읽지 않고 거부한다. 선언 길이가 없는 chunked 는 판정용 1바이트를 더해 최대 `상한 + 1`바이트를 모으며, UTF-8 변환 전에 길이를 검사한다. 무효 UTF-8도 초과하면 `413 payload too large`이고 시퀀스는 실행하지 않는다. 상한 이내의 무효 UTF-8·비-JSON은 기존대로 `null`이다. 초과 판정은 경로 매칭·인증보다 앞이다.
 
-**413 은 잔여 body 를 읽지 않고 연결을 닫는다.** 응답에 `Connection: close` 를 싣고, 상한을 넘긴 body 의 나머지는 HTTP 계층도 읽지 않는다 — 요청의 `Connection: close` · keep-alive · `Expect: 100-continue` 어느 경우든 같다. 상대가 나머지 body 나 FIN 을 보내지 않아도 요청 처리 스레드가 돌아오고 연결의 두 방향이 닫힌다. 잔여 선언 길이에 비례하는 임시 할당도 없다. 상류 `tiny_http` 0.12.0 의 `Content-Length` 리더는 요청을 정리할 때 미읽은 나머지를 끝까지 읽으므로(drain), 레포에 둔 `tiny_http` 사본의 최소 패치(`Request::respond_and_close`)로 이 경로를 연다 — [ADR-0516](../../adr/0516-the-webhook-413-closes-the-connection-through-a-vendored-tiny-http-patch.md). 그 결과 413 을 받은 keep-alive 연결은 재사용되지 않는다. 이미 body 를 보내던 중이면 연결 종료가 RST 로 나갈 수 있다.
+**body 를 읽지 않고 답하는 두 자리(`413`·남용차단 `429`)는 잔여 body 를 읽지 않고 연결을 닫는다.** 응답에 `Connection: close` 를 싣고, 상한을 넘긴 body 의 나머지는 HTTP 계층도 읽지 않는다 — 요청의 `Connection: close` · keep-alive · `Expect: 100-continue` 어느 경우든 같다. 상대가 나머지 body 나 FIN 을 보내지 않아도 요청 처리 스레드가 돌아오고 연결의 두 방향이 닫힌다. 잔여 선언 길이에 비례하는 임시 할당도 없다. 상류 `tiny_http` 0.12.0 의 `Content-Length` 리더는 요청을 정리할 때 미읽은 나머지를 끝까지 읽으므로(drain), 레포에 둔 `tiny_http` 사본의 최소 패치(`Request::respond_and_close`)로 이 경로를 연다 — [ADR-0516](../../adr/0516-the-webhook-413-closes-the-connection-through-a-vendored-tiny-http-patch.md). 그 결과 413 을 받은 keep-alive 연결은 재사용되지 않는다. 이미 body 를 보내던 중이면 연결 종료가 RST 로 나갈 수 있다.
 
-**이 상한은 프로세스 전체 메모리 상한이 아니다.** 입력 버퍼에 저장하는 바이트 수와 JSON 표현의 부가 메모리는 다르고, 동시 요청 수·연결 수는 이 값으로 묶지 않는다. 남용차단의 `429` 는 body 를 읽지 않고 답하지만 상류 동작 그대로라, 1024 바이트를 넘는 `Content-Length` body 가 남아 있으면 응답 뒤 drain 이 일어난다. 선행 가정 오류의 기록은 [ADR-0281](../../adr/0281-webhook-parser-cap-and-connection-drain.md).
+**이 상한은 프로세스 전체 메모리 상한이 아니다.** 입력 버퍼에 저장하는 바이트 수와 JSON 표현의 부가 메모리는 다르고, 동시 요청 수·연결 수는 이 값으로 묶지 않는다. 선행 가정 오류의 기록은 [ADR-0281](../../adr/0281-webhook-parser-cap-and-connection-drain.md).
 
 - `TASTY_WEBHOOK_MAX_BODY_BYTES` 로 조정한다(0·파싱 실패는 기본값). 수십 MB 짜리 payload 를 보내는 발신자를 붙이려면 이 값을 올린다.
 - **요청당 JSON 입력 상한이다** — 동시 요청 수·연결 수·총 메모리는 이 값으로 제한하지 않는다.

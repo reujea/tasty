@@ -1,4 +1,4 @@
-<!-- source-hash: 191ef1dc3c0b -->
+<!-- source-hash: ee3f4c9096c6 -->
 <!-- source-hash: 566aeb51a6d8 -->
 <!-- source-hash: 4d29d4555043 -->
 <!-- source-hash: 889e7471180f -->
@@ -218,7 +218,7 @@ The calling service receives a status code and a fixed response message. The res
 | 413 | The body exceeded the per-request size cap (1 MiB by default) |
 | 429 | The same source failed (`401`, `404`, `405` or `413`) 20 or more times in 10 seconds and is blocked for 60 seconds |
 
-The body size cap is checked before authentication. The same cap applies to chunked bodies containing invalid UTF-8 bytes. An oversized request receives `413 payload too large` even without a token, and no action runs. This cap limits the body accepted for processing. A 413 response carries `Connection: close`, and the server closes the connection without receiving the rest of the body. The connection cannot carry another request, so open a new one. If the client was still sending the body, the connection may end with a reset. The cap does not bound total memory use or simultaneous connections.
+The body size cap is checked before authentication. The same cap applies to chunked bodies containing invalid UTF-8 bytes. An oversized request receives `413 payload too large` even without a token, and no action runs. This cap limits the body accepted for processing. A 413 response carries `Connection: close`, and the server closes the connection without receiving the rest of the body. A blocked request (`429`) is answered the same way. The connection cannot carry another request, so open a new one. If the client was still sending the body, the connection may end with a reset. The cap does not bound total memory use or simultaneous connections.
 
 The block lives in memory only — restart Tasty and the remaining block time is gone, so that source starts over.
 

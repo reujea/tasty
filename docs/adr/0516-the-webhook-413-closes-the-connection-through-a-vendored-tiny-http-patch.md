@@ -23,8 +23,13 @@ drain 이 존재하는 이유는 연결 재사용이다. keep-alive 연결에서
 ## Decision
 
 **`tiny_http` 0.12.0 을 레포의 `vendor/tiny_http/` 에 옮기고 `[patch.crates-io]` 로 끼운 뒤, 새 공개
-메서드 `Request::respond_and_close` 하나를 더하는 최소 패치를 얹는다. 웹훅 리스너는 413 응답에만 그
-메서드를 쓴다.** 그 밖의 `tiny_http` 동작·기존 API 는 상류와 같다.
+메서드 `Request::respond_and_close` 하나를 더하는 최소 패치를 얹는다. 웹훅 리스너는 **body 를 읽지 않고
+답하는 두 자리 — 상한 초과 `413` 과 남용차단 `429` — 에 그 메서드를 쓴다.** 그 밖의 `tiny_http`
+동작·기존 API 는 상류와 같다.
+
+두 자리를 함께 고치는 이유는 결함이 응답 코드가 아니라 **"body 를 안 읽고 답한다" 는 성질**에 붙기
+때문이다. 실측(아래)에서 미패치 429 경로도 같은 abort 로 끝났다. 다른 응답(`200`·`404`·`405`·`401`·`410`)은
+`read_json_body` 가 이미 body 를 상한까지 읽은 뒤에 나가므로 이 자리에 해당하지 않는다.
 
 `respond_and_close(response)` 가 하는 일:
 
@@ -72,6 +77,33 @@ FD 해킹 · `mem::forget` · 요청/스레드 누수 · 위장 upgrade 중 어�
   연결 스레드의 플래그 검사 제거(keep-alive · Expect · 2^40 경로의 응답 EOF 없음).
 - 거부되지 않은 요청은 그대로다: 같은 keep-alive 연결에 1500 바이트 body 두 건이 둘 다 `200` 이고
   `Connection: close` 가 없다. chunked 경계·무효 UTF-8·작은 `Content-Length` 시험도 변화 없이 통과한다.
+- SSE 는 같은 사본 위에서 `tasty-plugin-agent-stream` 시험 137 건이 통과한다 — 정상 구독(이벤트 스트림
+  응답 + live 프레임 · `Last-Event-ID` 재생) · 빈 바디 `401` · `404` 를 실제 소켓으로 두드리는 것들이다.
+
+#### 실행 인스턴스에서 (격리 `TASTY_HOME` · 헤드리스 debug 데몬 · 기본 상한 1 MiB)
+
+같은 프로브를 패치 전/후 바이너리에 각각 쏘았다(413 응답을 받은 뒤 body 바이트를 5 초 동안 계속 쓴다).
+
+| 프로브(`Content-Length`, body 0 바이트) | 패치 전 | 패치 후 |
+|---|---|---|
+| keep-alive, 1 MiB+1 | 응답 EOF 없음(8 s timeout) · 413 뒤 받아 간 body **247,808 B** | EOF 즉시 · 1,024 B 뒤 `EPIPE` |
+| `Connection: close`, 1 MiB+1 | EOF 즉시인데 수신은 계속 — **246,784 B** | EOF 즉시 · 1,024 B 뒤 `EPIPE` |
+| `Expect: 100-continue`, 1 MiB+1 | 응답 EOF 없음 · **225,280 B**(`100 Continue` 없음) | EOF 즉시 · 1,024 B 뒤 `EPIPE` |
+| 1 TiB(2^40) | **데몬이 죽었다** — exit `-6`(SIGABRT), 로그 `memory allocation of 1099511627776 bytes failed` | 데몬 생존 · RSS 28,052 KB · EOF 즉시 |
+
+413 응답 자체는 네 프로브 모두 두 바이너리에서 전달됐고, 응답의 `Connection: close` 는 패치 후에만 있다.
+패치 후 `CountLimit` 은 413 넷을 받고도 `remaining: 1` 이었고, 이어진 정상 호출이 `200` 과 함께 시퀀스를
+실행하고(데몬 로그의 `notification.create`) 통을 소진해 웹훅이 사라졌다 — 초과 요청의 시퀀스 무실행 ·
+CountLimit 미차감 · 정상 경로 보존이 같은 인스턴스에서 확인된다.
+
+**패치 전의 1 TiB 갈래는 문서화되지 않은 원격 종료 경로였다.** 등록·인증과 무관하게(상한 판정이 매칭보다
+앞이다) 요청 하나로 프로세스가 죽는다 — 남용차단 임계에 닿기도 전이다.
+
+같은 프로브를 **남용차단 `429`** 경로에도 쏘았다(없는 path 로 404 를 반복해 쿨다운을 띄운 뒤 1 TiB 선언).
+미패치는 물론이고 413 만 고친 중간 상태에서도 데몬이 같은 문구로 abort 했다(exit `-6`, 둘 다 21 번째
+요청에서 429 진입). 그래서 `reject_if_abusive` 도 같은 메서드로 답한다 — 고친 뒤 그 자리는 시험
+`raw_blocked_source_is_closed_without_draining` 이 재고, 그 한 줄을 되돌리는 변이는 시험 프로세스를
+abort 시킨다.
 
 ## Consequences
 

@@ -254,11 +254,15 @@ impl Screened {
 /// 남용 차단(쿨다운 중) 출처면 즉시 429 로 응답하고 `None`(요청 소비 완료,
 /// 호출자는 더 진행하지 않음)을 반환한다. 아니면 `request` 소유권을 그대로
 /// 돌려준다.
+///
+/// 429 도 413 처럼 body 를 읽지 않고 답하므로 같은 자리에서 연결을 닫는다
+/// ([`Screened::respond`] 와 같은 이유 — 읽지 않은 body 를 HTTP 계층이 Drop 에서 끝까지
+/// 읽으면 선언 길이에 비례한 할당이 생기고, 그 할당이 실패하면 프로세스가 끝난다).
 fn reject_if_abusive(request: tiny_http::Request, source: Option<&str>) -> Option<Screened> {
     if let Some(src) = source
         && abuse::is_source_blocked(src)
     {
-        if let Err(e) = request.respond(build_ack(AckStatus::TooManyRequests)) {
+        if let Err(e) = request.respond_and_close(build_ack(AckStatus::TooManyRequests)) {
             tracing::debug!("webhook 429 respond failed: {e}");
         }
         return None;
