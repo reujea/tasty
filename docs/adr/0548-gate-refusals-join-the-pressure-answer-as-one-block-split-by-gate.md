@@ -50,7 +50,7 @@
   모수는 `check_request` 에 든 요청 전부다 — 호출자 종류를 안 가리고(Local 도 센다), 외부 IPC 와
   plugin host-call 을 다 센다. 그래서 `queue_before_gate` 와 모수가 다르다(host-call 은 큐를 안
   지난다). `judged − (세 거절의 합)` 은 세 게이트를 모두 지난 수와 정확히 같다.
-- **세지 않는 것을 이름으로 적는다.** 게이트 뒤의 봉투 검사(멱등 키 길이, [ADR-0420](0420-the-idempotency-key-envelope-is-judged-at-the-admission-gate.md))
+- **게이트에 맞붙은 판정 중 세지 않는 것을 이름으로 적는다.** 게이트 뒤의 봉투 검사(멱등 키 길이, [ADR-0420](0420-the-idempotency-key-envelope-is-judged-at-the-admission-gate.md))
   가 돌려보낸 요청은 거절 칸에 안 든다 — 정책이 아니라 모양이 틀린 인자다. 엔진이 없는 GUI
   부팅·종료 구간에서 Local 이 아닌 호출자를 돌려보내는 `check_without_engine` 은 `judged` 에도 안
   든다 — 그 판정은 `Core` 를 안 거친다.
