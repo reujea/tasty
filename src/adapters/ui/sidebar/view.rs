@@ -1497,16 +1497,15 @@ fn draw_workspace_card(
             // 좌측 상태 dot — 디자인 StatusDot (running/idle/agent/waiting/error)
             // 중 ws-level 데이터로 결정 가능한 case 만 표시. dot 은 항상 렌더하고
             // 색만 상태별로 분기한다 (디자인 StatusDot 은 idle 에도 점을 그림).
-            // 우선순위(fill): mirror (원격 attach client mirror) → sky
-            //               > running(busy_count>0) → green (accent-success)
-            //               > idle → overlay0 (디자인 2026-06-15: idle 을 neutral-900
-            //                 text-muted 대신 dim 한 neutral-600=overlay0,
-            //                 token-crosswalk.md:41 로 낮춰 active 상태가 도드라지게).
-            // attached(다른 client 점유)는 fill 이 아니라 dot 을 감싸는 lavender ring
-            //   (디자인 StatusDot attached prop: outline 1.5px + offset 1.5px). red 는
+            // fill: running(busy_count>0) → accent-success
+            //       > idle → `status-dot-idle` (StatusDot Idle 과 같은 role).
+            //       mirror(원격 origin)는 fill 이 아니라 아래 "REMOTE" pill 로 표시한다.
+            // attached(다른 client 점유)는 fill 이 아니라 dot 을 감싸는 ring
+            //   (디자인 StatusDot attached prop — 굵기·offset 은
+            //   `status-dot-attached-ring-width` · `-offset` 토큰). red 는
             //   error 전용으로 보존 — attached 에 red 재사용 시 error 와 충돌하므로 분리.
             // 디자인의 agent / waiting case 는 ws-level 데이터 부재로 보류.
-            // 슬롯 폭 = dot 지름(spacing_sm=8) → 좌우 내부 패딩 0. dot 유무와
+            // 슬롯 폭 = spacing_sm(점 지름 `badge-dot-size` 보다 넓다) — dot 유무와
             // 무관하게 항상 점유되어 라벨 시작 x 가 흔들리지 않는다. 높이는 행
             // 높이 안정을 위해 16px 유지.
             let dot_slot = egui::vec2(th.spacing_sm.value(), 16.0);
