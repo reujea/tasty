@@ -104,7 +104,8 @@ drop 됐으면(parser 스레드가 쥔 약한 참조의 강한 수가 0) 역시 
 - 코드 근거(현재 위치): `crates/tasty-terminal/src/lib.rs` 의 `Terminal::new` parser
   스레드 EOF 꼬리 · `Terminal::process` · `EOF_REWAKE_FIRST`,
   `crates/tasty-terminal/src/accessors.rs` 의 `Terminal::take_child`
-- 시험: `crates/tasty-terminal/src/tests.rs` 의 `process_exit_after_pty_eof_is_seen_by_wakes_alone`,
+- 시험: `crates/tasty-terminal/src/tests.rs` 의 `process_exit_after_pty_eof_is_seen_by_wakes_alone`
+  (재-wake 가 도는가) · `eof_rewakes_stop_once_the_exit_is_settled`(판정 뒤 멈추는가),
   `tests/attach_structure_sync_loopback.rs` 의 `a_shell_exit_on_the_server_reaches_the_holder_as_a_delta`
 - [ADR-0002](0002-vte-parsing-off-input-thread.md) — parser 스레드
 - [ADR-0211](0211-the-pty-exit-budget-is-a-safety-net-not-a-race-budget.md) — 같은 종료 판정의 다른 시험(폴링 폴백을 가진 쪽)

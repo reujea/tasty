@@ -1509,6 +1509,71 @@ fn process_exit_after_pty_eof_is_seen_by_wakes_alone() {
     );
 }
 
+/// 위 시험의 반대쪽 — 재-wake 가 **멈추는** 조건을 고정한다. `ProcessExited` 를 낸 뒤에는
+/// `exit_settled` 가 서서 parser 스레드의 EOF 꼬리가 끝나야 한다. 그 플래그를 안 세우면 꼬리는
+/// 핸들이 drop 될 때까지 500 ms 마다 깨운다(ADR-0523) — 이 시험이 아니면 그 회귀는 아무
+/// 결과도 안 바꿔 조용히 남는다.
+///
+/// 종료 판정 뒤에 합법적으로 올 수 있는 wake 는 최대 한 번이다: 판정이 EOF 보다 먼저 났으면
+/// EOF 가 한 번 깨우고 멈추고, EOF 가 먼저였으면 꼬리가 플래그를 읽은 직후·세워지기 직전에
+/// 한 번 더 깨울 수 있다. 둘은 동시에 안 일어난다.
+#[cfg(unix)]
+#[test]
+fn eof_rewakes_stop_once_the_exit_is_settled() {
+    let (tx, rx) = std::sync::mpsc::sync_channel::<()>(1);
+    let waker: Waker = Arc::new(move || {
+        // 버퍼(1)가 차 있으면 이미 깨우기 신호가 대기 중이라 이번 실패는 버려도 된다.
+        let _ = tx.try_send(());
+    });
+    let mut t = Terminal::new(
+        TerminalConfig {
+            cols: 80,
+            rows: 24,
+            shell: Some("sh"),
+            args: &["-c", "exit 0"],
+            surface_id: 0,
+            working_dir: None,
+            initial_input: None,
+            extra_env: &[],
+        },
+        waker,
+    )
+    .expect("terminal creation");
+
+    const BUDGET: std::time::Duration = std::time::Duration::from_secs(15);
+    let deadline = std::time::Instant::now() + BUDGET;
+    loop {
+        let remaining = deadline.saturating_duration_since(std::time::Instant::now());
+        rx.recv_timeout(remaining)
+            .unwrap_or_else(|_| panic!("no ProcessExited within {BUDGET:?}"));
+        t.process();
+        if t.lock_state()
+            .events
+            .iter()
+            .any(|e| matches!(e.kind, TerminalEventKind::ProcessExited))
+        {
+            break;
+        }
+    }
+
+    // 상한(500 ms)의 네 배 — 플래그가 안 서면 이 창에 wake 가 여러 번 온다.
+    let window = ALIVE_CHECK_INTERVAL * 4;
+    let until = std::time::Instant::now() + window;
+    let mut late_wakes = 0usize;
+    loop {
+        let remaining = until.saturating_duration_since(std::time::Instant::now());
+        if remaining.is_zero() || rx.recv_timeout(remaining).is_err() {
+            break;
+        }
+        late_wakes += 1;
+    }
+    assert!(
+        late_wakes <= 1,
+        "{late_wakes} wakes in {window:?} after ProcessExited — the EOF re-wake did not stop \
+         once the exit was settled"
+    );
+}
+
 // ---- OutputAppended observer gate tests ----
 
 /// Concat of all OutputAppended texts — termwiz may deliver "hello" as one
