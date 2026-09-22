@@ -268,10 +268,15 @@ pub mod populations {
 
     /// 크레이트들의 통합 테스트 타깃 — `crates/<크레이트>/tests/` 바로 아래 한 겹.
     pub const CRATE_TEST_TARGETS: Population = Population {
-        measured: 124,
-        measured_on: "2026-09-22",
+        measured: 125,
+        measured_on: "2026-09-23",
         counted_on: super::CountedOn::Tree(
-            "153566489 + lane — 경계 가드 구멍 lane 이 \
+            "f5c9893c4 + lane — 마지막 워크스페이스 닫기 레이스 lane 이 \
+             `tasty-doc-guards/tests/close_request_consumed_in_place.rs` 하나를 더해 124 -> 125 \
+             다. 삭제는 0 이다. **lane 트리에서 잰 값이라 구조적으로 낮다** — 같은 회차의 다른 \
+             lane 이 통합 타깃을 더했으면 통합 트리에서는 더 크고, 최종 값은 병합하는 쪽이 거기서 \
+             다시 잰다. \
+             이전 회차: 153566489 + lane — 경계 가드 구멍 lane 이 \
              `tasty-doc-guards/tests/automation_runners_do_not_reach_inbound_adapters.rs` 하나를 \
              더해 123 -> 124 다. 삭제는 0 이다. **lane 트리에서 잰 값이라 구조적으로 낮다** — 같은 \
              회차의 다른 lane 이 통합 타깃을 더했으면 통합 트리에서는 더 크고, 최종 값은 병합하는 \

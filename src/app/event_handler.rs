@@ -1427,6 +1427,31 @@ impl App {
         }
     }
 
+    /// `close_requested` 를 세운 창을 **전부** 그 자리에서 치운다 — 창 이벤트 dispatch
+    /// **밖**에서 MainView 를 움직이는 App 경로의 마무리다.
+    ///
+    /// `request_close` 는 플래그만 세우고, 그 플래그를 읽는 자리는 원래
+    /// [`Self::dispatch_window_event_to_view`] 의 handler 직후 하나뿐이다. 그래서
+    /// `about_to_wait` 안에서 MainView 가 마지막 워크스페이스를 닫으면(webview 가 먹은
+    /// 키의 단축키 실행 · 네이티브 메뉴 continuation) 플래그는 **다음 창 이벤트까지**
+    /// 서 있다. 그 사이 `engine.workspaces` 는 비어 있고, 다음 창 이벤트가
+    /// `RedrawRequested` 면 렌더 경로가 active workspace 를 묻다 죽는다 — 다른 이벤트가
+    /// 먼저 오면 그 dispatch 가 치워서 살아남는 레이스였다. 이 함수를 그 경로 **직후**에
+    /// 불러 빈 창이 이벤트 루프로 돌아가지 않게 한다. 호출 자리의 짝은
+    /// `crates/tasty-doc-guards/tests/close_request_consumed_in_place.rs` 가 고정한다.
+    pub(crate) fn close_self_requesting_windows(&mut self) {
+        let ids: Vec<WindowId> = self
+            .view
+            .views
+            .iter()
+            .filter(|(_, w)| w.base().close_requested)
+            .map(|(id, _)| *id)
+            .collect();
+        for id in ids {
+            self.close_self_requesting_window(id);
+        }
+    }
+
     /// `close_requested` 플래그를 세운 창(마지막 워크스페이스 제거 등)을 실제로
     /// 치운다. 닫기 버튼 경로(`close_main_window`)와 달리 plugin/Lua 통지를 내지
     /// 않는 내부 경로다.
@@ -2836,12 +2861,17 @@ impl App {
 
     /// 열려 있는 네이티브 컨텍스트 메뉴를 전 창에 걸쳐 1회씩 펌프한다.
     /// 메뉴가 없는 창에서는 no-op.
+    ///
+    /// 완료된 메뉴의 continuation 이 마지막 워크스페이스를 닫을 수 있다(탭/워크스페이스
+    /// 컨텍스트 메뉴의 "닫기"). 여기는 창 이벤트 dispatch 밖이라 그 창을 바로 치운다
+    /// ([`Self::close_self_requesting_windows`]).
     fn poll_pending_native_menus(&mut self) {
         for w in self.view.views.values_mut() {
             if let Some(main) = w.as_main_mut() {
                 main.poll_pending_native_menu();
             }
         }
+        self.close_self_requesting_windows();
     }
 }
 

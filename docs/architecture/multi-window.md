@@ -54,6 +54,15 @@ View (sealed trait, : sealed::Sealed + std::any::Any)
 
 **"engine 이 살아 있는가"를 묻는 판정은 `views` 와 `parked_states` 를 함께 봐야 한다.** 창 유무로 대신 판정하면 파킹이 곧 소멸로 오인된다. 원격 attach 세션의 고아 판정이 그 사례다 — mirror 워크스페이스를 들고 있는 engine 이 parked 라는 이유로 세션을 끊으면 사용자가 창을 최소화했을 뿐인데 원격 점유가 풀린다([remote-attach — 창 없는 상태(parked)에서의 세션 수명](../features/remote-attach/index.md#창-없는-상태parked에서의-세션-수명)). 그 세션에 도착하는 mirror 이벤트의 적용 대상 탐색도 같은 범위를 돈다 — parked engine 의 mirror 터미널에 즉시 적용되고, 창 복원 시 그대로 그려진다([ADR-0110](../adr/0110-mirror-events-apply-to-parked-engines.md)).
 
+### 창이 스스로 닫히는 자리 — `close_requested`
+
+마지막 워크스페이스가 닫힌 MainView 는 `request_close()` 로 `ViewBase.close_requested` 만 세우고, App 이 그 플래그를 보고 창을 치운다(마지막 main 창이면 파킹, 아니면 은퇴). **플래그는 세운 경로 안에서 소비한다** — 세운 채 이벤트 루프로 돌아가면 워크스페이스가 빈 창이 다음 창 이벤트를 받고, 그것이 `RedrawRequested` 면 렌더 경로가 active workspace 를 묻다 죽는다.
+
+- **창 이벤트 경로**(winit 키 · 마우스 · redraw 안의 메뉴 continuation): `App::dispatch_window_event_to_view` 가 handler 직후 그 창을 치운다.
+- **창 이벤트 밖의 App 경로**(`about_to_wait` 의 webview 포워딩 키 단축키 · 네이티브 메뉴 폴링): 그 App 함수가 MainView 를 부른 뒤 같은 함수 안에서 `App::close_self_requesting_windows` 를 부른다.
+
+렌더 경로 쪽을 "빈 워크스페이스면 건너뛴다" 로 누그러뜨리지 않는다 — 그 창은 이미 닫혀야 할 창이고, 건너뛰어도 다음 IPC·입력 핸들러가 같은 전제로 active workspace 를 묻는다. 두 번째 목록의 짝과 `request_close()` 생산자 명부는 `crates/tasty-doc-guards/tests/close_request_consumed_in_place.rs` 가 고정한다.
+
 ## 레이아웃 슬롯
 
 창 ↔ engine ↔ **레이아웃 슬롯**은 1:1 이다. 각 `CoreState` 는 자기 슬롯 번호(`layout_slot`)를 들고, 자기 슬롯 파일에만 저장한다. 창마다 워크스페이스 목록이 독립이라는 구조적 사실이 저장소까지 이어진 형태다 — 두 창이 같은 목록을 복제하거나 서로의 저장을 덮어쓰지 않는다.

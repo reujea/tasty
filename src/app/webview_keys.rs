@@ -137,5 +137,9 @@ impl App {
             // 후처리는 winit 경로와 동일 함수를 쓴다(`mark_dirty` 포함).
             main.after_shortcut_consumed();
         }
+        // 그 단축키가 마지막 워크스페이스를 닫았을 수 있다(`close_workspace` 등). 여기는
+        // 창 이벤트 dispatch 밖이라, 지금 치우지 않으면 워크스페이스가 빈 창이 다음
+        // `RedrawRequested` 를 받는다(`App::close_self_requesting_windows`).
+        self.close_self_requesting_windows();
     }
 }
