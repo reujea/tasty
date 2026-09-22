@@ -81,30 +81,42 @@ pub fn report_apply_error(
     } else if let Some(withdrawn) =
         err.downcast_ref::<crate::core::surface_registry::SurfaceKindWithdrawn>()
     {
-        // 사용자가 연 것이면 이유를 보여 준다 — 그 kind 를 제공하던 plugin 이 꺼졌다
-        // (ADR-0534). 에이전트 발화는 로그만(ADR-0503).
-        if !origin.is_user() {
-            tracing::warn!("{label} failed (agent origin, no toast): {err}");
-            return;
-        }
-        tracing::info!(
-            kind = %withdrawn.kind,
-            plugin_id = %withdrawn.plugin_id,
-            "{label} refused: the surface kind's plugin is turned off"
-        );
-        #[cfg(feature = "gui")]
-        state.toasts.push(
-            crate::i18n::t_fmt2(
-                "surface.kind_toast.withdrawn",
-                &withdrawn.kind,
-                &withdrawn.plugin_id,
-            ),
-            crate::model::toast_kind::ToastKind::Warning,
-            crate::model::toast_kind::ToastScope::Window,
-        );
+        report_withdrawn_kind(state, origin, label, err, withdrawn);
     } else {
         tracing::warn!("{label} failed: {err}");
     }
+}
+
+/// 철회된 kind 로 만들려다 거절된 것을 알린다 — 사용자가 연 것이면 그 kind 를 제공하던
+/// plugin 이 꺼졌다는 toast(ADR-0534), 에이전트 발화는 로그만(ADR-0503).
+// reason: 헤드리스 조합에는 toast 매니저가 없어 `state` 를 안 쓴다 — gui 조합만 쓴다.
+#[cfg_attr(not(feature = "gui"), allow(unused_variables))]
+fn report_withdrawn_kind(
+    state: &mut crate::state::AppState,
+    origin: &IntentOrigin,
+    label: &str,
+    err: &anyhow::Error,
+    withdrawn: &crate::core::surface_registry::SurfaceKindWithdrawn,
+) {
+    if !origin.is_user() {
+        tracing::warn!("{label} failed (agent origin, no toast): {err}");
+        return;
+    }
+    tracing::info!(
+        kind = %withdrawn.kind,
+        plugin_id = %withdrawn.plugin_id,
+        "{label} refused: the surface kind's plugin is turned off"
+    );
+    #[cfg(feature = "gui")]
+    state.toasts.push(
+        crate::i18n::t_fmt2(
+            "surface.kind_toast.withdrawn",
+            &withdrawn.kind,
+            &withdrawn.plugin_id,
+        ),
+        crate::model::toast_kind::ToastKind::Warning,
+        crate::model::toast_kind::ToastScope::Window,
+    );
 }
 
 /// 발화된 Intent. 메인 루프 drain 까지 `AppState::pending_intents` 에 머문다.
