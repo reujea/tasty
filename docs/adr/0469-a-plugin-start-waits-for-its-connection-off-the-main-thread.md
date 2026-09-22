@@ -49,11 +49,13 @@
 
 ## Consequences
 
-- **얻은 것**: 5 s 뒤에 연결하는 plugin 의 `enable` 이 102 ms 로 끝났고 같은 구간의 `list info` 최댓값이
-  99 ms 였다(전 5121 ms · 5098 ms). 호스트 로그의 `plugin connected … ms=5004` 가 연결이 뒤에서 성사됐음을
-  보인다. 끝내 연결하지 않는 plugin 은 enable 102 ms · 14 s 구간 `list info` 최댓값 99 ms 였고(전
-  10122 ms · 9954 ms), 10 s 에 `spawn failed … did not connect within 10s` 로 기록된 뒤 50 ms 에 kill 로
-  회수돼 `running: false` 가 됐다. 격리 헤드리스 debug 인스턴스, 2026-09-23.
+- **얻은 것**: 5 s 뒤에 연결하는 plugin 의 `enable` 이 130 ms 로 끝났고 같은 구간의 `list info` 최댓값이
+  164 ms(중앙값 129 ms)였다(전 5121 ms · 5098 ms). 호스트 로그의 `plugin connected … ms=5027` 이 연결이
+  뒤에서 성사됐음을 보인다. 끝내 연결하지 않는 plugin 은 enable 189 ms · 14 s 구간 `list info` 최댓값
+  170 ms(중앙값 135 ms)였고(전 10122 ms · 9954 ms), 10 s 에 `spawn failed … did not connect within 10s` 로
+  기록된 뒤 50 ms 에 kill 로 회수됐다. 격리 헤드리스 debug 인스턴스, 이 결정이 착지한 코드의 빌드,
+  2026-09-23. 머신에 다른 빌드가 돌던 때라 평시 중앙값도 올라 있다 — 견줄 것은 초 단위 정지가 사라졌다는
+  것이다.
 - **얻은 것**: 연결 실패로 끝난 자식이 남지 않는다. 예전에는 연결 한도를 넘긴 자식을 kill 하지 않고
   버렸다(`std::process::Child` 는 drop 에서 kill 하지 않는다 — 소스로 확인했고 옛 동작의 잔존은 관측하지 않았다).
 - **얻은 것**: 전체 기동의 연결 대기가 plugin 수만큼 쌓이지 않는다(가장 느린 하나).
