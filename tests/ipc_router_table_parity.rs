@@ -143,7 +143,9 @@ fn is_method_name(name: &str) -> bool {
 fn every_router_arm_is_registered_in_method_table() {
     let root = Path::new(env!("CARGO_MANIFEST_DIR"));
     let mut missing: Vec<String> = Vec::new();
-    let mut scanned = 0usize;
+    let mut arm_scanned = 0usize;
+    let mut eq_scanned = 0usize;
+    let mut judge_scanned = 0usize;
 
     // 고정 소스 + 디렉토리째 걷는 소스(`src/app/ipc/*.rs`)를 합친다.
     let mut sources: Vec<String> = ROUTER_SOURCES.iter().map(|s| s.to_string()).collect();
@@ -168,7 +170,7 @@ fn every_router_arm_is_registered_in_method_table() {
         let src = std::fs::read_to_string(&path)
             .unwrap_or_else(|e| panic!("라우터 소스를 읽을 수 없다: {rel}: {e}"));
         for name in match_arm_methods(&src) {
-            scanned += 1;
+            judge_scanned += 1;
             if method_meta(&name).is_none() {
                 missing.push(format!("{rel}: {name}"));
             }
@@ -176,13 +178,13 @@ fn every_router_arm_is_registered_in_method_table() {
         for line in src.lines() {
             // `"…" =>` 팔과 `… .method == "…"` 비교를 모두 본다.
             if let Some(name) = arm_method(line) {
-                scanned += 1;
+                arm_scanned += 1;
                 if method_meta(name).is_none() {
                     missing.push(format!("{rel}: {name}"));
                 }
             }
             for name in eq_methods(line) {
-                scanned += 1;
+                eq_scanned += 1;
                 if method_meta(name).is_none() {
                     missing.push(format!("{rel}: {name}"));
                 }
@@ -190,9 +192,24 @@ fn every_router_arm_is_registered_in_method_table() {
         }
     }
 
+    // 하한은 판독기마다 따로 둔다 — 합산하면 한 판독기가 0 건이 돼도 나머지가 하한을
+    // 채워 연기 검사가 못 본다(판정기 판독만으로 100 을 넘는다). 세 판독은 서로 겹치므로
+    // (평범한 `"…" =>` 팔은 줄 판독과 판정기 판독이 둘 다 센다) 합이 팔 수도 아니다.
+    // 실측 2026-09-23(이 테스트의 세 카운터를 `--nocapture` 로 찍어 셈): 줄 팔 311 ·
+    // `method ==` 비교 46 · 판정기 팔 321. `method ==` 46 은 `grep -o 'method == "[a-z_.]*"'`
+    // 을 위 소스 전부에 돌린 합과 같다(`app_methods.rs` 18 · `window_required.rs` 16 ·
+    // `headless_dispatch.rs` 7 · `debug_methods.rs` 4 · `handler.rs` 1). 하한은 그 약 8 할이다.
     assert!(
-        scanned > 100,
-        "라우터 팔을 {scanned} 개밖에 못 찾았다 — 스캔 패턴이 깨졌을 가능성이 크다"
+        arm_scanned >= 250,
+        "`\"…\" =>` 줄 팔을 {arm_scanned} 개밖에 못 찾았다(실측 311) — 줄 판독이 깨졌을 가능성이 크다"
+    );
+    assert!(
+        eq_scanned >= 36,
+        "`… .method == \"…\"` 비교를 {eq_scanned} 개밖에 못 찾았다(실측 46) — 비교 판독이 깨졌을 가능성이 크다"
+    );
+    assert!(
+        judge_scanned >= 250,
+        "판정기로 읽은 dispatch 팔을 {judge_scanned} 개밖에 못 찾았다(실측 321) — 판정기 판독이 깨졌을 가능성이 크다"
     );
     missing.sort();
     missing.dedup();
