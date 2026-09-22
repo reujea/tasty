@@ -174,10 +174,10 @@ fn widen_and_cap(root: &Path, cap: usize) {
 fn set_cap(root: &Path, cap: usize) {
     let p = root.join("scripts/check-allow-reason.sh");
     let text = fs::read_to_string(&p).expect("게이트 사본을 읽을 수 없다");
-    let capped = text.replace("CAP=180", &format!("CAP={cap}"));
+    let capped = text.replace("CAP=173", &format!("CAP={cap}"));
     assert_ne!(
         capped, text,
-        "게이트에 `CAP=180` 한 줄이 없다 — 상한 표기가 바뀌었다. 이 시험은 상한을 \
+        "게이트에 `CAP=173` 한 줄이 없다 — 상한 표기가 바뀌었다. 이 시험은 상한을 \
          프로브에 맞춰 놓고 초록을 기대하므로 여기서 멈춘다."
     );
     fs::write(&p, capped).expect("게이트 사본 쓰기");

@@ -525,11 +525,6 @@ const EXCLUDED: &[(&str, Kind, &str)] = &[
         "목록이 상한에 걸린 뒤 높이가 안 움직이는지 보는 시험의 항목 수 1000 — 줄 수가 아니다",
     ),
     (
-        "src/source_guards/on_scale_length_literal.rs",
-        Kind::OtherMeaning,
-        "파일 선택기 경로 조각의 최대 폭 `CRUMB_MAX_W`(180) — 길이 리터럴 계수를 설명하는 px 값이고, 사유 없는 allow 상한이 180 으로 내려오면서 값만 겹쳤다",
-    ),
-    (
         "docs/adr/0091-render-stall-watchdog-observation-only.md",
         Kind::OtherMeaning,
         "wgpu FRAME_TIMEOUT_MS = 1000",
