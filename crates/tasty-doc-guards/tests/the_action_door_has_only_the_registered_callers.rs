@@ -46,6 +46,7 @@
 use std::collections::BTreeSet;
 use std::path::PathBuf;
 
+use tasty_doc_guards::match_arms::{Source, matching_close};
 use tasty_doc_guards::source_text::{mask_non_code, rust_sources};
 use tasty_doc_guards::temp_scratch::Scratch;
 
@@ -219,54 +220,60 @@ fn keybinding_fields(root: &std::path::Path) -> BTreeSet<String> {
     out
 }
 
+/// 액션 문의 `match action_id` 팔 이름.
+///
+/// 본문과 팔의 경계는 공용 판정기(`tasty_doc_guards::match_arms`)가 주석·문자열·문자 리터럴을
+/// 덮은 사본에서 찾는다 — 손으로 센 중괄호는 본문 문자열의 `}`(format escape `"}}"` 가 평범한
+/// 예다)에서 `match` 를 일찍 닫아 그 뒤의 팔을 조용히 놓쳤다. 이 가드의 명제는 부분집합(팔 ⊆
+/// 필드)이라 놓친 팔은 실패가 아니라 초록으로 나간다. `fn dispatch_action_by_id` 정의가 `#[cfg]`
+/// 로 둘 이상이면 전부 읽는다.
 fn door_arms(root: &std::path::Path) -> BTreeSet<String> {
     let text = std::fs::read_to_string(root.join(DOOR_FILE))
         .unwrap_or_else(|e| panic!("{DOOR_FILE} 를 읽지 못했다 — {e}"));
-    let at = text
-        .find("fn dispatch_action_by_id")
-        .expect("액션 문을 못 찾았다 — 이름이 바뀌었으면 이 가드도 함께 옮긴다");
-    let body = brace_body(&text[at..], "match action_id")
-        .expect("`match action_id` 를 못 찾았다 — 디스패치 모양이 바뀌었다");
+    let src = Source::new(&text);
+    let bodies = src.fn_bodies("dispatch_action_by_id");
+    assert!(
+        !bodies.is_empty(),
+        "액션 문을 못 찾았다 — 이름이 바뀌었으면 이 가드도 함께 옮긴다"
+    );
     let mut out = BTreeSet::new();
-    for line in body.lines() {
-        let t = line.trim();
-        if !t.contains("=>") {
-            continue;
-        }
-        let head = t.split("=>").next().unwrap_or("");
-        for piece in head.split('|') {
-            let p = piece.trim();
-            if let Some(inner) = p.strip_prefix('"').and_then(|x| x.strip_suffix('"'))
-                && !inner.is_empty()
-                && inner
-                    .chars()
-                    .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '_')
-            {
-                out.insert(inner.to_string());
+    for body in bodies {
+        let block = src
+            .code_slice(&body)
+            .find("match action_id")
+            .and_then(|k| {
+                src.code[body.start + k..]
+                    .find('{')
+                    .map(|o| body.start + k + o)
+            })
+            .and_then(|open| matching_close(&src.code, open).map(|close| open..close + 1))
+            .expect("`match action_id` 를 못 찾았다 — 디스패치 모양이 바뀌었다");
+        let arms = src
+            .match_arms(block)
+            .unwrap_or_else(|e| panic!("액션 문의 팔을 못 읽었다 — {e}"));
+        for arm in arms {
+            for alt in src.alternatives(&arm.pattern) {
+                if let Some(name) = src.plain_string(&alt)
+                    && !name.is_empty()
+                    && name
+                        .chars()
+                        .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '_')
+                {
+                    out.insert(name.to_string());
+                }
             }
         }
     }
     out
 }
 
-/// `marker` 뒤 첫 `{` 부터 짝이 맞는 `}` 까지.
+/// `marker` 뒤 첫 `{` 부터 짝이 맞는 `}` 까지 — 짝은 주석·리터럴을 덮은 사본에서 센다.
 fn brace_body<'a>(src: &'a str, marker: &str) -> Option<&'a str> {
-    let at = src.find(marker)?;
-    let open = at + src[at..].find('{')?;
-    let mut depth = 0usize;
-    for (i, c) in src[open..].char_indices() {
-        match c {
-            '{' => depth += 1,
-            '}' => {
-                depth -= 1;
-                if depth == 0 {
-                    return Some(&src[open + 1..open + i]);
-                }
-            }
-            _ => {}
-        }
-    }
-    None
+    let source = Source::new(src);
+    let at = source.code.find(marker)?;
+    let open = at + source.code[at..].find('{')?;
+    let close = matching_close(&source.code, open)?;
+    Some(&src[open + 1..close])
 }
 
 #[test]
