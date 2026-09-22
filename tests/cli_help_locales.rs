@@ -11,7 +11,7 @@ use std::{
 
 fn cli(home: &Path, args: &[&str]) -> Output {
     let mut cmd = Command::new(spawn_diag::instance_bin());
-    spawn_diag::apply_bundle_opt_in(&mut cmd);
+    spawn_diag::apply_bundle_opt_in(&mut cmd, home);
     for (key, _) in std::env::vars_os() {
         if key.to_string_lossy().starts_with("TASTY_") {
             cmd.env_remove(key);
@@ -124,7 +124,7 @@ fn a_reply_bound_without_a_command_is_refused_instead_of_dropped() {
     std::fs::create_dir_all(&home).unwrap();
     std::fs::write(home.join("config.toml"), "[general]\nlanguage='en'\n").unwrap();
     let mut cmd = Command::new(spawn_diag::instance_bin());
-    spawn_diag::apply_bundle_opt_in(&mut cmd);
+    spawn_diag::apply_bundle_opt_in(&mut cmd, &home);
     for (key, _) in std::env::vars_os() {
         if key.to_string_lossy().starts_with("TASTY_") {
             cmd.env_remove(key);

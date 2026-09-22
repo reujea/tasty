@@ -237,8 +237,9 @@ impl GuiTestInstance {
         spawn_diag::apply_os_open_record(&mut command, &isolated_home);
         // 이 스위트가 번들 plugin 을 안 부르면 빈 번들 루트를 준다 — 형제 하네스 둘이
         // 이미 하는 것이고, 이 하네스만 안 하고 있었다. 안 하면 부팅마다 격리 홈에
-        // 번들 전량(debug 45 파일 ≈ 1.1 GB)을 복사한다. 명부·판정은 `spawn_diag` 한 곳이다.
-        spawn_diag::apply_bundle_opt_in(&mut command);
+        // 번들 전량(debug 45 파일 ≈ 1.1 GB)을 복사한다. 부르는 스위트는 hardlink 로 미리
+        // 채운다. 명부·판정은 `spawn_diag` 한 곳이다.
+        spawn_diag::apply_bundle_opt_in(&mut command, &isolated_home);
 
         // 두 겹으로 회수한다. 형제 하네스 둘은 이미 가진 것이고 이 하네스만 둘 다 없었다.
         //   ① `spawn_child` — 이 테스트 바이너리가 즉사하면(배경 작업이 끊기거나 사람이

@@ -154,3 +154,4 @@ Decision 이 소비자를 `tests/common` 과 `tests/webhook_common` **둘로** �
   그쪽은 *두 번째 이후* 부팅의 쓰기를 없애고, 이 ADR 은 **첫 스테이징**을 없앤다. 격리 홈은
   스위트마다 새로 만들어지므로 거기서는 언제나 첫 스테이징이다 — 서로를 대체하지 않는다
 - [ADR-0166](0166-the-plugin-version-gate-judges-the-artifact-not-the-directory.md) — plugin 판정을 이름이 아니라 산출물로 하는 같은 원칙
+- [ADR-0525](0525-test-homes-hardlink-the-bundle-from-a-harness-owned-snapshot.md) — Alternatives 의 "hardlink 로 복사를 싸게" 후속. 명부에 남은 스위트의 첫 스테이징을 하네스 소유 스냅숏의 hardlink 로 바꾼다

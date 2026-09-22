@@ -362,6 +362,7 @@ namespace 라우팅은 0140 → 0153 → 0171(오류 코드 개정 — 「IPC �
 | 0311 | [namespace 호출의 만료는 fail-open 이 아니라 caller 에 대한 오류다](0311-a-namespace-call-expires-into-an-error-not-a-fail-open.md) | Accepted | 2026-09-20 | plugin, ipc, timeout, host-plugin, error-handling, adr-0078 |
 | 0457 | [단건 plugin 종료는 메인 스레드 밖에서 회수하고, 새 프로세스는 옛 것이 빠진 뒤에 뜬다](0457-a-single-plugin-shutdown-is-reaped-off-the-main-thread.md) | Accepted | 2026-09-21 | plugin, host-plugin, lifecycle, shutdown, main-thread, healthcheck, restart, concurrency |
 | 0505 | [plugin 기동은 연결을 메인 스레드 밖에서 기다리고, 연결 전의 요청은 쌓았다가 보낸다](0505-a-plugin-start-waits-for-its-connection-off-the-main-thread.md) | Accepted | 2026-09-23 | plugin, host-plugin, lifecycle, startup, handshake, main-thread, concurrency, adr-0457 |
+| 0525 | [번들을 부르는 시험 홈은 하네스 소유 스냅숏에서 번들을 hardlink 로 받는다](0525-test-homes-hardlink-the-bundle-from-a-harness-owned-snapshot.md) | Accepted | 2026-09-23 | testing, harness, plugin, performance, disk-io, hardlink, adr-0182, adr-0191 |
 
 ## plugin 렌더 채널 · webview
 

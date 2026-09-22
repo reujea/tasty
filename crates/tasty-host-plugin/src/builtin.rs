@@ -335,7 +335,15 @@ fn bundle_root_exe_relative() -> Option<PathBuf> {
     bundle_root_from_exe_dir(exe.parent()?)
 }
 
-fn bundle_root_from_exe_dir(exe_dir: &Path) -> Option<PathBuf> {
+/// 실행 파일이 `exe_dir` 에 있을 때의 exe-relative 번들 루트 — [`bundle_root`] 에서 환경변수
+/// override 와 FHS 경로를 뺀 갈래이고, debug 에서는 그 안의 dev 스테이징([`ensure_dev_bundle`])도
+/// 그대로 돈다.
+///
+/// `pub` 인 이유는 통합 테스트 하네스 하나다: 번들을 부르는 스위트는 격리 홈에 번들을 hardlink
+/// 로 미리 넣는데, 그 원본이 **자식 인스턴스가 부팅하며 고를 번들과 같아야** host 의 내용 판정이
+/// "이미 같다" 로 떨어진다. 같은 답을 하네스에 따로 적으면 사본이 갈린다
+/// (`docs/adr/0525-test-homes-hardlink-the-bundle-from-a-harness-owned-snapshot.md`).
+pub fn bundle_root_from_exe_dir(exe_dir: &Path) -> Option<PathBuf> {
     #[cfg(target_os = "macos")]
     {
         // .app 번들: `Contents/Resources/plugins/`. exe 옆(`Contents/MacOS/`)이

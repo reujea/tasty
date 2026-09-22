@@ -271,7 +271,7 @@ Xvfb 를 직접 띄웠으면 **저장한 PID 로 회수한다** — `xvfb-run` �
 
 그래서 하네스는 **기본적으로 빈 디렉터리를 번들 루트로 지정**하고
 (`TASTY_BUILTIN_PLUGINS_DIR`), plugin 을 실제로 호출하는 스위트만 명부에 올린다.
-명부는 `tests/spawn_diag` 에 하나로 두고 `tests/common` 과 `tests/webhook_common` 이 쓴다.
+명부는 `tests/spawn_diag` 에 하나로 두고 인스턴스를 띄우는 하네스 전부가 `apply_bundle_opt_in` 으로 거친다.
 
 - **명부에 무엇을 넣을지는 이름이 아니라 성질로 정한다** — plugin 네임스페이스를
   호출하는가, plugin 이 뒷받침하는 surface 타입을 여는가. 이름 모양으로 고르면 샌다:
@@ -294,6 +294,39 @@ Xvfb 를 직접 띄웠으면 **저장한 PID 로 회수한다** — `xvfb-run` �
 그 스위트가 만드는 dirty page 이고, 그 부담은 같은 박스에서 동시에 도는 다른 러너가 진다.
 동시 러너 수 대비 효과는 측정하지 않았다. 근거와 대안은
 [ADR-0182](../adr/0182-test-instances-do-not-stage-bundled-plugins-by-default.md).
+
+### 명부 안 스위트는 번들을 hardlink 로 받는다
+
+명부에 오른 스위트(plugin 을 실제로 부르는 쪽)는 번들이 필요하다. 그 격리 홈에는 번들을
+**복사하지 않고 hardlink 로 미리 넣는다** — `apply_bundle_opt_in` 이 자식을 띄우기 전에
+`<TASTY_HOME>/plugins/<id>/` 를 채운다. host 는 이미 있는 builtin 을 같은 버전이면 **내용으로**
+대조하므로(ADR-0191) 같은 파일을 다시 쓰지 않는다. 제품의 설치 경로는 그대로다 — 사용자
+홈으로의 sync 는 지금도 복사다.
+
+- **원본은 번들이 아니라 하네스 소유 스냅숏이다** — `target/<profile>/test-bundle-links/<서명>/`.
+  hardlink 는 inode 를 공유하므로 번들(`builtin-plugins/`)에 직접 걸면 `just build-plugins` 의
+  제자리 `cp` 가 돌고 있는 시험의 plugin 을 바꾸거나 `Text file busy` 로 빌드가 실패한다.
+  스냅숏은 번들의 경로·크기·mtime 서명으로 이름을 붙여 **번들이 바뀔 때만 한 번** 복사하고,
+  서명이 다른 옛 스냅숏은 지운다.
+- **스냅숏의 원본은 자식이 고를 번들이다** — 하네스가 제품의 `bundle_root_from_exe_dir` 를
+  그대로 부른다(debug 에서는 그 안의 dev 스테이징도 돈다 — 자식이 부팅하며 할 쓰기를 먼저 할
+  뿐이고 자식 쪽은 no-op 이 된다). `TASTY_BUILTIN_PLUGINS_DIR` 이 걸려 있으면 그것이 이긴다.
+  `TASTY_E2E_BIN` override 중에는 자식의 프로필을 하네스가 모르므로 채우지 않는다.
+- **실패는 전부 변경 전 동작으로 물러난다** — 스냅숏 자리와 `temp_dir` 이 다른 파일시스템이면
+  (시작할 때 hardlink 한 번으로 잰다) 스냅숏을 안 만들고, 걸기가 중간에 멈추면 못 건 파일을
+  host 가 복사로 채운다. 스냅숏이 낡았어도 host 가 내용으로 대조해 다른 파일만 새로 쓴다 —
+  틀리는 것은 비용뿐이고 결과가 아니다. 사유는 `tracing::warn!` 으로 남는다.
+- **제자리 쓰기가 없다는 것이 전제다** — host 의 설치·갱신은 전부 임시 파일 + rename 이고
+  청소는 unlink 라 공유 inode 를 안 건드린다. plugin 프로세스의 영속 쓰기는 설치 폴더가 아니라
+  `TASTY_PLUGIN_DATA_DIR` 로 간다. 이 전제를 깨는 코드(설치 폴더 안 파일을 열어 고치는 것)를
+  더하면 스냅숏이 오염된다 — 그래도 다음 홈은 host 의 내용 대조가 바로잡지만 그 스냅숏에서 건
+  홈들은 오염된 채로 부팅한다. 전수 근거는 ADR-0525.
+
+실측(2026-09-23, 이 개발 박스, `e2e_tests` 한 번 = 인스턴스 2 개, 같은 계기로 전·후):
+host 프로세스(`tasty`)의 `/proc/<pid>/io` `write_bytes` 합 **2446 MB → 13.7 MB**, 격리 홈의
+hardlink 아닌 바이트 **1226 + 1221 MB → 10 + 4 MB**. 번들이 바뀐 뒤 첫 완주는 하네스가
+스냅숏을 한 번 쓴다(약 1.2 GB — 그 뒤 완주는 0). 근거·대안은
+[ADR-0525](../adr/0525-test-homes-hardlink-the-bundle-from-a-harness-owned-snapshot.md).
 
 격리 HOME 에 사전 작성하는 파일:
 

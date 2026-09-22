@@ -292,8 +292,9 @@ impl TastyInstance {
         // 자식의 OS 열기(브라우저 · 파일 관리자)는 실행자의 데스크톱에 닿는다 — 기록만 하게 한다.
         spawn_diag::apply_os_open_record(&mut command, &isolated_home);
         // 이 스위트가 번들 plugin 을 안 부르면 빈 번들로 띄운다 — 격리 홈으로 가는
-        // 1 GB 복사가 통째로 사라진다. 명부와 근거는 `spawn_diag` 에 있다.
-        spawn_diag::apply_bundle_opt_in(&mut command);
+        // 1 GB 복사가 통째로 사라진다. 부르면 번들을 hardlink 로 미리 넣어 host 가 다시 쓰지
+        // 않게 한다. 명부와 근거는 `spawn_diag` 에 있다.
+        spawn_diag::apply_bundle_opt_in(&mut command, &isolated_home.join(".tasty"));
         // 자식이 어느 디스플레이에 창을 띄우는가. 이 줄이 없으면 부모의 값을 그대로
         // 물려받아 **실행자가 보고 있는 화면**이 시험의 디스플레이가 된다 — 그 상태는
         // 조용해서, 격리의 다른 축(HOME · TASTY_HOME · 포트 파일)이 다 맞아도 이 축만

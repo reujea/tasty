@@ -1679,6 +1679,107 @@ TU: error: ../src/freedreno/vulkan/tu_knl.cc:387: failed to open device /dev/dri
             "절차 문서를 안 가리킨다: {msg}"
         );
     }
+
+    // ───── 번들 hardlink 미리 채우기 ─────
+
+    fn write(p: &std::path::Path, body: &str) {
+        std::fs::create_dir_all(p.parent().unwrap()).unwrap();
+        std::fs::write(p, body).unwrap();
+    }
+
+    /// 미리 채운 홈의 파일은 스냅숏과 **같은 inode** 여야 한다 — 복사로 떨어지면 부팅당 쓰기가
+    /// 그대로 남는데, 내용은 같아 host 도 시험도 초록이다. 그 조용한 퇴행을 inode 로 잡는다.
+    #[cfg(unix)]
+    #[test]
+    fn prefilled_home_shares_inodes_with_the_snapshot() {
+        use std::os::unix::fs::MetadataExt;
+        let root = tempfile::tempdir().unwrap();
+        let bundle = root.path().join("bundle");
+        write(
+            &bundle.join("markdown/tasty-plugin.toml"),
+            "version = \"0.1.0\"",
+        );
+        write(&bundle.join("markdown/tasty-plugin-markdown"), "bin");
+        write(&bundle.join("markdown/lang/en.toml"), "k = 'v'");
+        let cache = root.path().join("cache");
+        let snapshot = cache.join("key");
+        copy_snapshot(&bundle, &cache, &snapshot).unwrap();
+        let home = root.path().join("home/plugins");
+        link_tree(&snapshot, &home).unwrap();
+        for rel in [
+            "markdown/tasty-plugin.toml",
+            "markdown/tasty-plugin-markdown",
+            "markdown/lang/en.toml",
+        ] {
+            let a = std::fs::metadata(snapshot.join(rel)).unwrap();
+            let b = std::fs::metadata(home.join(rel)).unwrap();
+            assert_eq!(
+                (a.dev(), a.ino()),
+                (b.dev(), b.ino()),
+                "{rel} 가 hardlink 가 아니다"
+            );
+            assert_eq!(
+                std::fs::read(bundle.join(rel)).unwrap(),
+                std::fs::read(home.join(rel)).unwrap()
+            );
+        }
+        // 스냅숏은 번들과 끊겨 있어야 한다 — 번들 쪽 제자리 `cp` 가 홈에 번지지 않게.
+        let src = std::fs::metadata(bundle.join("markdown/tasty-plugin-markdown")).unwrap();
+        let snap = std::fs::metadata(snapshot.join("markdown/tasty-plugin-markdown")).unwrap();
+        assert_ne!(src.ino(), snap.ino(), "스냅숏이 번들과 inode 를 공유한다");
+        // 이름이 보이는 스냅숏만 남고 임시 디렉터리는 치워진다.
+        let names: Vec<_> = std::fs::read_dir(&cache)
+            .unwrap()
+            .map(|e| e.unwrap().file_name())
+            .collect();
+        assert_eq!(names, vec![std::ffi::OsString::from("key")]);
+    }
+
+    /// 서명은 번들이 바뀌면 바뀌어야 한다 — 안 바뀌면 낡은 스냅숏이 계속 걸리고, host 가
+    /// 매 부팅 차이를 다시 복사한다(초록인 채 쓰기가 되살아난다).
+    #[test]
+    fn bundle_signature_follows_the_bundle() {
+        let root = tempfile::tempdir().unwrap();
+        write(&root.path().join("a/bin"), "one");
+        let before = bundle_signature(root.path()).unwrap();
+        assert_eq!(
+            before,
+            bundle_signature(root.path()).unwrap(),
+            "같은 번들이면 같다"
+        );
+        write(&root.path().join("a/bin"), "one-longer");
+        assert_ne!(
+            before,
+            bundle_signature(root.path()).unwrap(),
+            "크기가 바뀌었다"
+        );
+        let resized = bundle_signature(root.path()).unwrap();
+        write(&root.path().join("a/lang/en.toml"), "");
+        assert_ne!(
+            resized,
+            bundle_signature(root.path()).unwrap(),
+            "파일이 늘었다"
+        );
+    }
+
+    /// 지금 서명이 아닌 스냅숏은 지우고, 막 만들어지는 임시 디렉터리는 남긴다.
+    #[test]
+    fn prune_keeps_the_current_snapshot_and_young_builds() {
+        let root = tempfile::tempdir().unwrap();
+        for d in ["keep", "old", ".building-1-ff"] {
+            std::fs::create_dir_all(root.path().join(d)).unwrap();
+        }
+        prune_old_snapshots(root.path(), "keep");
+        let mut names: Vec<_> = std::fs::read_dir(root.path())
+            .unwrap()
+            .map(|e| e.unwrap().file_name().into_string().unwrap())
+            .collect();
+        names.sort();
+        assert_eq!(
+            names,
+            vec![".building-1-ff".to_string(), "keep".to_string()]
+        );
+    }
 }
 
 /// 번들 plugin 을 **실제로 호출하는** 테스트 바이너리.
@@ -1728,11 +1829,6 @@ pub fn current_suite_name() -> Option<String> {
     }
 }
 
-/// 이 스위트가 번들 plugin 을 안 쓰면 빈 디렉터리를 번들 루트로 지정한다.
-///
-/// 제품의 `bundle_root()` 는 `TASTY_BUILTIN_PLUGINS_DIR` 를 **최우선**으로 보므로,
-/// 이 한 줄이 workspace 스테이징 탐색과 격리 홈 복사를 **둘 다** 건너뛰게 한다.
-/// 제품 코드는 건드리지 않는다 — 설치 경로에는 서명·업그레이드 판정이 얹혀 있다.
 /// 번들 plugin 실행 파일 이름의 공통 머리. 좌변은 **이 한 값이다**.
 const PLUGIN_BIN_PREFIX: &str = "tasty-plugin-";
 
@@ -1881,8 +1977,20 @@ fn write_fake_browser(home: &std::path::Path) -> std::io::Result<std::path::Path
     Ok(script)
 }
 
-pub fn apply_bundle_opt_in(command: &mut std::process::Command) {
+/// 번들 plugin 을 격리 홈에 어떻게 들일지 정한다 — 갈래는 스위트 단위로 둘이다.
+///
+/// - **안 부르는 스위트**: 빈 디렉터리를 번들 루트로 지정한다. 제품의 `bundle_root()` 는
+///   `TASTY_BUILTIN_PLUGINS_DIR` 를 **최우선**으로 보므로, 이 한 줄이 workspace 스테이징
+///   탐색과 격리 홈 복사를 **둘 다** 건너뛰게 한다(ADR-0182).
+/// - **부르는 스위트**: 번들을 `tasty_home/plugins/` 에 **hardlink 로 미리 넣는다**
+///   ([`prefill_bundle_links`]). host 는 같은 버전 갈래에서 내용으로 판정하므로 이미 같은
+///   파일을 다시 쓰지 않는다 — 부팅마다 약 1.1 GB 이던 복사가 사라진다(ADR-0525).
+///
+/// 어느 갈래든 제품 코드의 설치 경로는 그대로다 — 서명·업그레이드 판정이 얹혀 있는 자리를
+/// 테스트 사정으로 바꾸지 않는다. `tasty_home` 은 자식에게 주는 `TASTY_HOME` 이다.
+pub fn apply_bundle_opt_in(command: &mut std::process::Command, tasty_home: &std::path::Path) {
     if suite_calls_bundled_plugins() {
+        prefill_bundle_links(tasty_home);
         return;
     }
     // 만들기에 실패하면 아무것도 안 한다 — 없는 경로를 넘기면 제품이 그 분기를
@@ -1897,6 +2005,264 @@ pub fn apply_bundle_opt_in(command: &mut std::process::Command) {
     if std::fs::create_dir_all(&empty).is_ok() && empty.is_dir() {
         command.env("TASTY_BUILTIN_PLUGINS_DIR", &empty);
     }
+}
+
+// ───── 번들 hardlink 미리 채우기 (ADR-0525) ─────
+
+/// 하네스 소유 스냅숏을 두는 디렉터리 이름. 자식 바이너리 옆(`target/<profile>/`)에 둔다 —
+/// 빌드 트리와 수명이 같고(`cargo clean` 이 지운다) 청소 범위가 그 트리 안으로 닫힌다.
+pub const BUNDLE_LINK_CACHE_DIR: &str = "test-bundle-links";
+
+/// 부르는 스위트의 격리 홈 `tasty_home/plugins/` 에 번들을 hardlink 로 넣는다.
+///
+/// **이것은 최적화이지 정확성의 자리가 아니다.** 무엇을 넣든(스냅숏이 낡았든, 일부만
+/// 들어갔든, 아무것도 못 넣었든) host 가 부팅하며 번들과 **내용으로** 대조해 다른 파일만
+/// 새로 쓴다. 그래서 여기서의 실패는 전부 "변경 전 동작(host 의 복사)" 으로 물러나고,
+/// 시험을 세우지 않는다 — 사유만 로그에 남긴다.
+///
+/// 원본이 번들 자체가 아니라 [`bundle_link_snapshot`] 인 이유: hardlink 는 inode 를
+/// 공유하므로, 번들(`builtin-plugins/`)에 직접 걸면 `just build-plugins` 의 제자리 `cp` 가
+/// 돌고 있는 시험의 plugin 을 바꾸거나 `Text file busy` 로 실패하고, 반대로 홈 쪽 제자리
+/// 쓰기가 개발 번들을 오염시킨다. 스냅숏은 하네스만 만들고 하네스만 지운다.
+fn prefill_bundle_links(tasty_home: &std::path::Path) {
+    let Some(snapshot) = bundle_link_snapshot() else {
+        return;
+    };
+    if let Err(e) = link_tree(snapshot, &tasty_home.join("plugins")) {
+        tracing::warn!(
+            "번들 hardlink 미리 채우기가 중간에 멈췄다({e}) — 못 넣은 파일은 host 가 복사로 채운다"
+        );
+    }
+}
+
+/// 스위트(테스트 바이너리)당 한 번 정하는 스냅숏 경로. 못 정하면 `None` — 그 스위트는
+/// 변경 전처럼 host 의 복사로 간다.
+fn bundle_link_snapshot() -> Option<&'static std::path::Path> {
+    static SNAPSHOT: std::sync::OnceLock<Option<std::path::PathBuf>> = std::sync::OnceLock::new();
+    SNAPSHOT
+        .get_or_init(|| match build_bundle_link_snapshot() {
+            Ok(p) => Some(p),
+            Err(why) => {
+                tracing::warn!("번들 hardlink 를 안 쓴다 — host 가 복사로 채운다: {why}");
+                None
+            }
+        })
+        .as_deref()
+}
+
+/// 자식이 부팅하며 고를 번들을 정하고, 그 내용 서명으로 이름 붙인 스냅숏을 돌려준다.
+/// 같은 서명의 스냅숏이 이미 있으면 그대로 쓴다 — 번들이 안 바뀌는 동안 스냅숏 쓰기는 0 이다.
+fn build_bundle_link_snapshot() -> Result<std::path::PathBuf, String> {
+    let bin = std::path::PathBuf::from(instance_bin());
+    // override 된 바이너리는 테스트와 다른 프로필일 수 있다. 그때 아래의 dev 스테이징을
+    // 테스트 프로필로 돌리면 자식이 안 할 쓰기를 남의 번들에 하게 된다 — 대신 정하지 않는다.
+    if bin.as_os_str() != env!("CARGO_BIN_EXE_tasty") {
+        return Err(format!(
+            "{INSTANCE_BIN_ENV} override 중이라 자식의 번들을 대신 못 정한다"
+        ));
+    }
+    let bin_dir = bin
+        .parent()
+        .ok_or_else(|| format!("바이너리 경로에 부모가 없다: {}", bin.display()))?;
+    let source = child_bundle_root(bin_dir)?;
+    let cache_root = bin_dir.join(BUNDLE_LINK_CACHE_DIR);
+    std::fs::create_dir_all(&cache_root)
+        .map_err(|e| format!("{} 를 못 만든다: {e}", cache_root.display()))?;
+    probe_hard_link_to_temp(&cache_root)?;
+
+    let key = format!(
+        "{:016x}",
+        bundle_signature(&source).map_err(|e| format!("번들 서명 실패: {e}"))?
+    );
+    let snapshot = cache_root.join(&key);
+    if !snapshot.is_dir() {
+        copy_snapshot(&source, &cache_root, &snapshot)?;
+    }
+    prune_old_snapshots(&cache_root, &key);
+    Ok(snapshot)
+}
+
+/// 자식이 고를 번들 루트 — 제품의 우선순위를 따른다. 자식은 이 프로세스의 환경을 물려받으므로
+/// `TASTY_BUILTIN_PLUGINS_DIR` 가 걸려 있으면 그것이 이긴다. 아니면 제품의 exe-relative 해석을
+/// **그대로 부른다**(debug 에서는 그 안의 dev 스테이징도 돈다 — 자식이 부팅하며 곧 할 쓰기를
+/// 먼저 하는 것뿐이고, 자식 쪽은 그 뒤 no-op 이 된다). 같은 답을 여기 따로 적지 않는다.
+fn child_bundle_root(bin_dir: &std::path::Path) -> Result<std::path::PathBuf, String> {
+    if let Some(p) = std::env::var_os("TASTY_BUILTIN_PLUGINS_DIR").map(std::path::PathBuf::from)
+        && p.is_dir()
+    {
+        return Ok(p);
+    }
+    tasty_host_plugin::builtin::bundle_root_from_exe_dir(bin_dir)
+        .ok_or_else(|| format!("{} 옆에 번들이 없다", bin_dir.display()))
+}
+
+/// 스냅숏 자리와 격리 홈(`temp_dir`)이 같은 파일시스템인지 hardlink 한 번으로 잰다. 다르면
+/// 스냅숏을 만들어도 걸 수 없으므로 1.1 GB 를 쓰기 전에 멈춘다.
+fn probe_hard_link_to_temp(cache_root: &std::path::Path) -> Result<(), String> {
+    // 스냅숏은 `OnceLock` 으로 한 번만 정하지만 키에 카운터를 넣어 재호출도 가른다.
+    static NEXT: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+    let unique = format!(
+        "{}-{}",
+        std::process::id(),
+        NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
+    );
+    let probe = cache_root.join(format!(".probe-{unique}"));
+    let linked = std::env::temp_dir().join(format!("tasty-test-bundle-link-probe-{unique}"));
+    std::fs::write(&probe, b"probe").map_err(|e| format!("probe 쓰기 실패: {e}"))?;
+    let result = std::fs::hard_link(&probe, &linked);
+    // 정리 실패는 판정을 안 바꾼다 — 남는 것은 몇 바이트짜리 탐침 하나이고, 이름에 카운터가
+    // 있어 다음 탐침과 부딪치지 않는다.
+    let _ = std::fs::remove_file(&linked);
+    // 위와 같은 이유 — 탐침 원본 쪽.
+    let _ = std::fs::remove_file(&probe);
+    result.map_err(|e| {
+        format!(
+            "{} 와 {} 사이에 hardlink 를 못 건다(다른 파일시스템?): {e}",
+            cache_root.display(),
+            linked.parent().unwrap_or(&linked).display()
+        )
+    })
+}
+
+/// 번들의 **값싼** 내용 서명 — 상대 경로 · 크기 · mtime 을 FNV-1a 로 접는다.
+///
+/// 바이트를 읽지 않는 것이 의도다(스위트마다 1.1 GB 를 읽게 된다). 그래서 크기와 mtime 이
+/// 같고 내용만 다른 교체(`cp -p`)는 못 가른다 — 그때 낡은 스냅숏이 걸려도 host 가 내용으로
+/// 대조해 다른 파일을 새로 쓰므로, 틀리는 것은 비용뿐이고 결과는 아니다. 심볼릭 링크는
+/// 따라간다(`just link-plugins` 가 번들을 링크로 채운다).
+fn bundle_signature(root: &std::path::Path) -> std::io::Result<u64> {
+    let mut files = Vec::new();
+    collect_files(root, std::path::Path::new(""), &mut files)?;
+    files.sort();
+    let mut h: u64 = 0xcbf2_9ce4_8422_2325;
+    let mut feed = |bytes: &[u8]| {
+        for b in bytes {
+            h ^= u64::from(*b);
+            h = h.wrapping_mul(0x0000_0100_0000_01b3);
+        }
+    };
+    for rel in files {
+        let meta = std::fs::metadata(root.join(&rel))?;
+        let mtime = meta
+            .modified()?
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_nanos())
+            .unwrap_or(0);
+        feed(rel.to_string_lossy().as_bytes());
+        feed(&[0]);
+        feed(&meta.len().to_le_bytes());
+        feed(&mtime.to_le_bytes());
+    }
+    Ok(h)
+}
+
+fn collect_files(
+    root: &std::path::Path,
+    rel: &std::path::Path,
+    out: &mut Vec<std::path::PathBuf>,
+) -> std::io::Result<()> {
+    for entry in std::fs::read_dir(root.join(rel))? {
+        let entry = entry?;
+        let child = rel.join(entry.file_name());
+        if std::fs::metadata(entry.path())?.is_dir() {
+            collect_files(root, &child, out)?;
+        } else {
+            out.push(child);
+        }
+    }
+    Ok(())
+}
+
+/// 번들을 `snapshot` 으로 복사한다 — 옆 임시 디렉터리에 다 쓴 뒤 rename 하므로, 이름이 보이는
+/// 스냅숏은 언제나 완성본이다. 동시에 같은 서명을 만든 다른 완주가 먼저 이름을 가져갔으면
+/// 내 것을 버리고 그쪽을 쓴다.
+fn copy_snapshot(
+    source: &std::path::Path,
+    cache_root: &std::path::Path,
+    snapshot: &std::path::Path,
+) -> Result<(), String> {
+    let nanos = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_nanos())
+        .unwrap_or(0);
+    let building = cache_root.join(format!(".building-{}-{nanos:x}", std::process::id()));
+    let result = copy_tree(source, &building)
+        .map_err(|e| format!("스냅숏 복사 실패: {e}"))
+        .and_then(|()| match std::fs::rename(&building, snapshot) {
+            Ok(()) => Ok(()),
+            Err(_) if snapshot.is_dir() => Ok(()),
+            Err(e) => Err(format!("스냅숏 rename 실패: {e}")),
+        });
+    if building.exists() {
+        // 못 지운 임시 디렉터리는 한 시간 뒤 [`prune_old_snapshots`] 가 치운다.
+        let _ = std::fs::remove_dir_all(&building);
+    }
+    result
+}
+
+fn copy_tree(src: &std::path::Path, dst: &std::path::Path) -> std::io::Result<()> {
+    std::fs::create_dir_all(dst)?;
+    for entry in std::fs::read_dir(src)? {
+        let entry = entry?;
+        let to = dst.join(entry.file_name());
+        // 링크를 따라간다 — 스냅숏에는 링크가 아니라 내용이 있어야 번들 쪽 교체와 끊긴다.
+        if std::fs::metadata(entry.path())?.is_dir() {
+            copy_tree(&entry.path(), &to)?;
+        } else {
+            std::fs::copy(entry.path(), &to)?;
+        }
+    }
+    Ok(())
+}
+
+/// 지금 서명이 아닌 스냅숏을 지운다 — 번들이 바뀔 때마다 1.1 GB 가 쌓이지 않게. 다른 완주가
+/// 방금 만들고 있는 임시 디렉터리(`.building-*`)는 한 시간이 지나기 전엔 안 건드린다.
+/// 지우는 도중 다른 완주가 그 스냅숏에서 걸고 있었다면 그쪽 link 가 실패하고 host 의 복사로
+/// 물러날 뿐이다 — 이미 걸린 link 는 inode 가 살아 있어 영향이 없다.
+fn prune_old_snapshots(cache_root: &std::path::Path, keep: &str) {
+    let Ok(entries) = std::fs::read_dir(cache_root) else {
+        return;
+    };
+    for entry in entries.flatten() {
+        let name = entry.file_name();
+        let name = name.to_string_lossy();
+        if name == keep || name.starts_with(".probe-") {
+            continue;
+        }
+        if name.starts_with(".building-") {
+            let young = entry
+                .metadata()
+                .and_then(|m| m.modified())
+                .ok()
+                .and_then(|t| t.elapsed().ok())
+                .is_none_or(|age| age < Duration::from_secs(3600));
+            if young {
+                continue;
+            }
+        }
+        if let Err(e) = std::fs::remove_dir_all(entry.path()) {
+            tracing::warn!(
+                "낡은 번들 스냅숏 {} 를 못 지웠다: {e}",
+                entry.path().display()
+            );
+        }
+    }
+}
+
+/// `src` 의 파일을 `dst` 아래 같은 상대 경로에 hardlink 로 건다. 첫 실패에서 멈춘다 — 이미
+/// 걸린 것은 두고, 나머지는 host 가 내용 대조로 채운다.
+fn link_tree(src: &std::path::Path, dst: &std::path::Path) -> std::io::Result<()> {
+    std::fs::create_dir_all(dst)?;
+    for entry in std::fs::read_dir(src)? {
+        let entry = entry?;
+        let to = dst.join(entry.file_name());
+        if entry.file_type()?.is_dir() {
+            link_tree(&entry.path(), &to)?;
+        } else {
+            std::fs::hard_link(entry.path(), &to)?;
+        }
+    }
+    Ok(())
 }
 
 // ───── 자식이 어느 디스플레이에 뜨는가 ─────
