@@ -27,7 +27,7 @@
 | 클릭 커서 이동(`click_cursor`) | 안 넣는다(화살표 시퀀스) | 안 한다 |
 | 마우스 보고 · 휠(`mouse_report` · `mouse_wheel`) | 안 넣는다 | 안 한다 |
 | 파일 드롭(`DispatchFile`) | 안 넣는다 — 번들 핸들러는 전부 `open_surface`(새 탭) | 안 한다 |
-| mirror 이미지 붙여넣기 뒤 원격 경로 삽입 | 넣는다(업로드가 끝난 뒤) | 붙여넣기 순간의 기록만 |
+| mirror 이미지 붙여넣기 뒤 원격 경로 삽입 | 넣는다(업로드가 끝난 뒤) | 붙여넣는 순간은 위 두 붙여넣기 행과 같다(단축키는 수식키 키다운만, 팔레트는 없음). 삽입 순간(`src/app/image_upload.rs` 의 `dispatch_paste`)은 안 한다 |
 
 **실측(2026-09-23, 격리 `TASTY_HOME` debug 인스턴스 · Xvfb · 이 결정 전 바이너리)**: 키보드 Ctrl+V 는 `record_typing` 을 부르지 않는 `run_paste` 로 가지만, **Ctrl 키다운이 따로 온 winit `KeyboardInput` 이라** 단축키가 아니므로 `handle_keyboard_input` 끝까지 내려가 기록한다. `xdotool key ctrl+v` 뒤 `{"idle_seconds":1.36,"typing":true}`, `xdotool key ctrl` 단독 뒤 `{"idle_seconds":0.61,"typing":true}`. 즉 수식키가 붙은 붙여넣기 바인딩(4 프리셋 기본값이 전부 그렇다)은 수식키 키다운이 먼저 기록해 구멍이 아니었다 — Ctrl 로 실측했고, Alt·Shift 키다운은 같은 경로를 지나지만 따로 재지 않았다. 구멍은 **키가 surface 에 닿지 않는 붙여넣기**다 — 명령 팔레트를 열어 "paste" 를 고르면 입력창에 텍스트가 들어가는데(`PALETTE_MARK_B` 가 화면에 나타남) `idle_seconds` 는 14.15 초 그대로였다. 수식키 없는 키 하나에 붙여넣기를 묶은 사용자 바인딩도 같은 형태다(단축키로 소비돼 기록 자리에 안 닿는다).
 
@@ -40,7 +40,7 @@
 ## Consequences
 
 - **얻은 것**: 팔레트로 붙여넣은 초안이 `surface.is_typing` 에 사람 있음으로 보인다 — 자동 재개가 그 초안 뒤에 재개 문구를 붙여 제출하지 않고, `--wait-idle` 전송도 5 초 동안 물러선다. 키 없는 붙여넣기 바인딩도 같다.
-- **잃은 것**: 클립보드가 비어 아무것도 안 들어간 붙여넣기도 기록된다 — 사용자가 그 surface 에서 붙여넣기를 시도했다는 사실만 본다. 소비자 셋이 모두 "기록 있음 = 덜 보냄" 방향이라 틀렸을 때 비용은 에이전트 전송이 한 번 미뤄지는 것이다.
+- **잃은 것**: 클립보드가 비어 아무것도 안 들어간 붙여넣기도 기록된다 — 사용자가 그 surface 에서 붙여넣기를 시도했다는 사실만 본다. 포커스된 surface 의 종류도 가리지 않는다 — 터미널도 `egui_paste` surface 도 아닌 surface(markdown · html · empty 등)에서 팔레트로 붙여넣으면 `paste_to_terminal` 은 아무것도 넣지 않는데 기록은 남는다(키보드 경로도 종류를 가리지 않아 같은 형태다). 소비자 셋이 모두 "기록 있음 = 덜 보냄" 방향이라 틀렸을 때 비용은 에이전트 전송이 한 번 미뤄지는 것이다.
 - **잃은 것**: mirror 이미지 붙여넣기는 원격 경로가 실제로 들어가는 순간(업로드 완료)이 아니라 붙여넣은 순간을 기록한다. 업로드가 5 초를 넘기면 삽입 순간의 `typing` 은 거짓일 수 있다. 자동 재개가 보는 `idle_seconds`("턴 시작 뒤 입력이 있었나")에는 영향이 없다.
 - **운영 비용 / 유지 부담**: 새 붙여넣기 진입점을 만들면 `run_paste` 를 거쳐야 기록된다. 회귀 시험은 `tests/gui_tests.rs` 의 `test_palette_paste_records_user_typing` 이고, 그 스위트는 `#[ignore]` 라 자동 채널이 없다(Xvfb 에서 손으로 돌린다).
 
@@ -56,7 +56,7 @@
 
 **채널이 붙는 것** — 판정 시점에 레포가 읽을 수 있는 사실이다.
 
-- 사용자 출처 `SendToSurface` 를 내는 새 자리가 생긴다 → 그것이 입력창에 내용을 넣는지 가려 좌변에 넣을지 정한다. 재는 법: `git grep -n 'from_user_shortcut\|from_user_menu' -- src` 중 `SendToSurface` 를 감싼 자리의 라벨 목록을 이 ADR 의 표와 대조한다.
+- 사용자 출처 `SendToSurface` 를 내는 새 자리가 생긴다 → 그것이 입력창에 내용을 넣는지 가려 좌변에 넣을지 정한다. 재는 법: `git grep -n -A8 'SendToSurface' -- src ':!*tests*' | grep 'from_user_'` 로 `SendToSurface` 를 감싼 사용자 출처 생성자(`src/intent.rs` 의 `from_user_shortcut` · `from_user_menu` · `from_user_context_menu` 셋 전부를 `from_user_` 로 덮는다)의 라벨 목록을 뽑아 이 ADR 의 표와 대조한다. 2026-09-23 실측 11 자리 · 라벨 6 종(`paste` 4 · `ime_commit` 1 · `keyboard_input` 1 · `mouse_report` 1 · `mouse_wheel` 2 · `click_cursor` 2), 생성자는 전부 `from_user_shortcut` 이다. 참고로 `git grep -n 'from_user_' -- src` 는 같은 날 169 줄(`from_user_shortcut` 79 · `from_user_menu` 66 · `from_user_context_menu` 24)이고, 앞 두 이름만 찾는 패턴은 145 줄이라 셋째 24 줄을 놓친다.
 - 파일 핸들러 액션 종류에 입력창에 경로를 넣는 것이 생긴다 → 파일 드롭을 좌변에 넣는다. 재는 법: `crates/tasty-file-handler/src/types.rs` 의 `HandlerAction` 변형과 번들 plugin 매니페스트의 `[contributes.handler.action]` `kind`.
 - `run_paste` 를 안 거치는 붙여넣기 진입점이 생긴다 → 기록 자리를 그쪽까지 넓힌다. 재는 법: `git grep -n 'paste_to_terminal\|dispatch_paste(' -- src` 의 호출자가 `run_paste` 와 mirror 업로드 완료(`src/app/image_upload.rs`) 밖에 없는가.
 
