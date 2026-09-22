@@ -27,9 +27,9 @@
 | 6 | `telemetry.record_batch`(`record.rs`) | 이벤트 귀속 | 이벤트마다 `workspace_id` |
 | 7 | `approval.request`(`approval/request.rs`) | 요청 귀속(영속 스코프 · 함께 뜨는 알림의 워크스페이스) | `workspace_id` · `surface_id` 둘 다 IPC·CLI 에 있다 |
 | 8 | 권한 부족 격상 발행(`approval.rs` `publish_capability_elevation`) | 격상 요청의 귀속 | 없다 — 호스트가 거부 응답 안에서 스스로 발행한다 |
-| 9 | 상한 `require_approval`(`cap.rs`) | 승인 요청의 귀속(영속 스코프 `workspace:<id>` · 함께 뜨는 알림) | 요청 인자로는 없다 — 발화 경로 셋 중 명시 `telemetry.record` 에서만 계기 이벤트의 `workspace_id` 가 뜻을 갖는다(아래 ⒞) |
+| 9 | 상한 `require_approval`(`cap.rs`) | 승인 요청의 귀속(영속 스코프 `workspace:<id>` · 함께 뜨는 알림) | 요청 인자로는 없다 — 발화 경로 둘(⒤ · ⒥) 중 ⒤ 명시 `telemetry.record` 에서만 계기 이벤트의 `workspace_id` 가 뜻을 갖는다(아래 ⒞) |
 | 10 | 상한 `notify`(`cap.rs`) | 알림을 붙일 워크스페이스 | 9 와 같다 |
-| 11 | 이상 탐지 알림(`anomaly.rs`) | 알림을 붙일 워크스페이스 | 9 와 같고, plugin RSS 샘플링 갈래에는 계기 요청이 아예 없다 |
+| 11 | 이상 탐지 알림(`anomaly.rs`) | 알림을 붙일 워크스페이스 | 요청 인자로는 없다 — 발화 경로 셋(⒤ · ⒥ · ⒦) 중 ⒤ 에서만 계기 이벤트의 `workspace_id` 가 뜻을 갖고, ⒦ 에는 계기 요청이 아예 없다(아래 ⒞) |
 
 어느 자리도 요청이 **작용할 대상**을 포커스로 고르지 않는다 — 대상을 고르는 일은 라우터가
 요청이 실은 id 로 하고, 위 값은 전부 보고 · 귀속 · 알림 배치다. 흔들리는 것은 **같은 요청을 다시
@@ -63,12 +63,12 @@ A 의 스코프에 남는다. 같은 판단의 선례가 `notification.create` �
   - 8 은 호스트가 권한 거부 응답 안에서 스스로 내는 격상 요청이고 요청 인자가 없다. 그것을 일으킨
     에이전트는 agent id 로만 식별되고 워크스페이스에 매이지 않는다.
   - 9 · 10 · 11 은 좌변이 **없는** 것이 아니라 **있어도 안 쓰기로 한** 자리다. 셋은 텔레메트리
-    기록 직후 동기로 발화하고, 발화 경로는 셋이다.
+    기록 또는 RSS 샘플 직후 동기로 발화하고, 발화 경로는 셋이다(상한 9 · 10 은 ⒤ · ⒥ 둘, 이상 탐지 11 은 셋 다).
     - ⒤ 명시 `telemetry.record`(`_batch`)(`telemetry/record.rs`) — 상한 평가(9 · 10)와 RSS
       self-report 이상 탐지(11)를 부른다. 그 순간 계기 이벤트를 들고 있고 그 `workspace_id` 는
       호출자가 댔으면 그 값이다. 안 댔으면 그것도 활성 워크스페이스에서 왔다(5 · 6 의 기본값 —
       번들 claude plugin 경로가 이것이다).
-    - ⒥ 게이트 미들웨어(`handler/telemetry.rs` `record_ipc_call`) — 모든 비-텔레메트리 IPC 호출마다
+    - ⒥ 게이트 미들웨어(`handler/telemetry.rs` `record_ipc_call`) — `telemetry.*` 와 host caller 를 뺀 모든 IPC 호출마다
       `ipc_calls` 이벤트를 쌓고 상한 평가(9 · 10)와 호출 폭주·느린 루프 이상 탐지(11)를 부른다. 이 이벤트의
       워크스페이스 태그는 `engine.workspaces.first()` 라 요청과 무관한 좌변이다.
     - ⒦ plugin RSS 샘플링(`handler.rs` `record_plugin_rss_samples`) — host 가 sysinfo 로 잰 값을
