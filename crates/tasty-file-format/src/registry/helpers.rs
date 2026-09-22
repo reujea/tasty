@@ -45,14 +45,20 @@ pub(super) fn install_one(
         .into_iter()
         .filter_map(decl_rule_to_kind)
         .collect();
+    // patch semantics: host · plugin 의 `disabled = false` 는 "끄지 않는다" 일 뿐 다른 출처가
+    // 끈 것을 켜지 않는다(종전 그대로). user 의 명시적 `false` 는 켠다는 뜻이다 — Settings 의
+    // 켜기(`set_user_detector_disabled(.., false)`)가 저장 파일에 `disabled = false` 로 남고,
+    // 다음 부팅에 그 값이 살아야 한다.
+    let disabled_override = match (decl.disabled, &origin) {
+        (Some(true), _) => Some(true),
+        (Some(false), RuleOrigin::User) => Some(false),
+        _ => None,
+    };
     entry.push(DetectorContribution {
         origin,
         display_name_i18n_key: decl.display_name_i18n_key,
         icon: decl.icon,
-        // decl.disabled 가 명시되었는지 schema 상 알 수 없으므로(`#[serde(default)]`),
-        // patch semantics 를 위해 false 면 None 으로 취급 (= 끄지 않음). 사용자가 명시적으로
-        // disable 하려면 다른 출처가 disabled = true 를 적어 last-writer-wins.
-        disabled_override: if decl.disabled { Some(true) } else { None },
+        disabled_override,
         rules: rule_kinds,
     });
 }

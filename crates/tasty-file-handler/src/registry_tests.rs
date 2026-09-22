@@ -432,7 +432,7 @@ fn install_markdown_plugin_detector(formats: &tasty_file_format::FileFormatRegis
         id: "markdown".into(),
         display_name_i18n_key: Some("file_handler.format.markdown".into()),
         icon: None,
-        disabled: false,
+        disabled: None,
         rule: vec![DetectorRuleDecl::Extension {
             values: vec!["md".into(), "markdown".into()],
         }],

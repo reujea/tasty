@@ -210,7 +210,7 @@ fn build_add_detector_decl(form: &AddDetectorForm) -> Result<DetectorDecl, Strin
         id,
         display_name_i18n_key: None,
         icon: None,
-        disabled: false,
+        disabled: None,
         rule: rules,
     })
 }

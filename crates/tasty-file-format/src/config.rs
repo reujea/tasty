@@ -38,8 +38,10 @@ pub struct DetectorDecl {
     pub display_name_i18n_key: Option<String>,
     #[serde(default)]
     pub icon: Option<String>,
+    /// 적지 않으면 `None`. host · plugin 은 `true` 만 뜻을 갖고(끈다), user 는 `false` 도
+    /// 뜻을 갖는다(다른 출처가 끈 detector 를 켠다) — 해석은 registry 의 `install_one`.
     #[serde(default)]
-    pub disabled: bool,
+    pub disabled: Option<bool>,
     #[serde(default)]
     pub rule: Vec<DetectorRuleDecl>,
 }
@@ -384,7 +386,7 @@ mod tests {
             id: "$something".into(),
             display_name_i18n_key: None,
             icon: None,
-            disabled: false,
+            disabled: None,
             rule: vec![],
         };
         let res = validate_detector_decl(&decl, true);
@@ -400,7 +402,7 @@ mod tests {
             id: "$directory".into(),
             display_name_i18n_key: None,
             icon: None,
-            disabled: false,
+            disabled: None,
             rule: vec![DetectorRuleDecl::IsDirectory],
         };
         assert!(validate_detector_decl(&decl, false).is_ok());
@@ -412,7 +414,7 @@ mod tests {
             id: "x".into(),
             display_name_i18n_key: None,
             icon: None,
-            disabled: false,
+            disabled: None,
             rule: vec![DetectorRuleDecl::Magic {
                 offset: 0,
                 bytes_hex: "ZZZ".into(),
@@ -430,7 +432,7 @@ mod tests {
             id: "x".into(),
             display_name_i18n_key: None,
             icon: None,
-            disabled: false,
+            disabled: None,
             rule: vec![DetectorRuleDecl::Extension { values: vec![] }],
         };
         assert!(matches!(
@@ -445,7 +447,7 @@ mod tests {
             id: "x".into(),
             display_name_i18n_key: None,
             icon: None,
-            disabled: false,
+            disabled: None,
             rule: vec![DetectorRuleDecl::PathGlob {
                 // globset 이 거부하는 불균형 bracket — evaluator 까지 흘려보내지
                 // 않고 등록 시점에 바로 reject 되어야 한다.
@@ -469,7 +471,7 @@ mod tests {
                 id: "x".into(),
                 display_name_i18n_key: None,
                 icon: None,
-                disabled: false,
+                disabled: None,
                 rule: vec![DetectorRuleDecl::PathGlob {
                     pattern: pattern.into(),
                 }],
@@ -487,7 +489,7 @@ mod tests {
             id: "x".into(),
             display_name_i18n_key: None,
             icon: None,
-            disabled: false,
+            disabled: None,
             rule: vec![DetectorRuleDecl::StructureCheck {
                 spec: "../etc/passwd".into(),
             }],
@@ -504,7 +506,7 @@ mod tests {
             id: "x".into(),
             display_name_i18n_key: None,
             icon: None,
-            disabled: false,
+            disabled: None,
             rule: vec![DetectorRuleDecl::Unknown {
                 kind_name: "future".into(),
                 raw: toml::Value::String("dummy".into()),

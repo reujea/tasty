@@ -17,7 +17,7 @@ fn install_host_with_markdown(reg: &FileFormatRegistry) {
         id: "markdown".into(),
         display_name_i18n_key: Some("file_handler.format.markdown".into()),
         icon: None,
-        disabled: false,
+        disabled: None,
         rule: vec![DetectorRuleDecl::Extension {
             values: vec!["md".into(), "markdown".into()],
         }],
@@ -48,7 +48,7 @@ fn plugin_extends_existing_detector() {
         id: "markdown".into(),
         display_name_i18n_key: None,
         icon: None,
-        disabled: false,
+        disabled: None,
         rule: vec![DetectorRuleDecl::Extension {
             values: vec!["mdx".into()],
         }],
@@ -69,7 +69,7 @@ fn plugin_lua_rule_dropped_with_warn() {
         id: "weird-fmt".into(),
         display_name_i18n_key: None,
         icon: None,
-        disabled: false,
+        disabled: None,
         rule: vec![
             DetectorRuleDecl::Lua {
                 script: "return true".into(),
@@ -93,7 +93,7 @@ fn plugin_lua_only_detector_skipped() {
         id: "lua-only".into(),
         display_name_i18n_key: None,
         icon: None,
-        disabled: false,
+        disabled: None,
         rule: vec![DetectorRuleDecl::Lua {
             script: "return true".into(),
         }],
@@ -111,7 +111,7 @@ fn uninstall_plugin_removes_only_its_rules() {
         id: "markdown".into(),
         display_name_i18n_key: None,
         icon: None,
-        disabled: false,
+        disabled: None,
         rule: vec![DetectorRuleDecl::Extension {
             values: vec!["mdx".into()],
         }],
@@ -503,7 +503,7 @@ fn detectors_for_extension_orders_by_install_order() {
         id: "aaa".into(),
         display_name_i18n_key: None,
         icon: None,
-        disabled: false,
+        disabled: None,
         rule: vec![DetectorRuleDecl::Extension {
             values: vec!["md".into()],
         }],
@@ -927,7 +927,7 @@ fn identify_falls_back_to_install_order_without_priority_table() {
         id: "a".into(),
         display_name_i18n_key: None,
         icon: None,
-        disabled: false,
+        disabled: None,
         rule: vec![DetectorRuleDecl::Extension {
             values: vec!["md".into()],
         }],
@@ -1117,7 +1117,7 @@ fn identify_does_not_path_glob_match_a_url_target() {
         id: "dockerfile".into(),
         display_name_i18n_key: None,
         icon: None,
-        disabled: false,
+        disabled: None,
         rule: vec![DetectorRuleDecl::PathGlob {
             pattern: "Dockerfile".into(),
         }],
@@ -1134,4 +1134,141 @@ fn identify_does_not_path_glob_match_a_url_target() {
         ),
         None,
     );
+}
+
+// ── 병합 순서: user patch 는 설치 순서와 무관하게 마지막에 이긴다 ──────────
+
+fn plugin_markdown_decl(icon: &str, disabled: Option<bool>) -> DetectorDecl {
+    DetectorDecl {
+        id: "markdown".into(),
+        display_name_i18n_key: Some("plugin.markdown".into()),
+        icon: Some(icon.into()),
+        disabled,
+        rule: vec![DetectorRuleDecl::Extension {
+            values: vec!["md".into()],
+        }],
+    }
+}
+
+fn user_config(body: &str) -> (tempfile::TempDir, PathBuf) {
+    let dir = tempfile::tempdir().unwrap();
+    let p = dir.path().join("file-formats.toml");
+    std::fs::write(&p, body).unwrap();
+    (dir, p)
+}
+
+fn markdown(reg: &FileFormatRegistry) -> FileFormatDetector {
+    reg.detector(&DetectorId("markdown".into()))
+        .expect("markdown detector")
+}
+
+/// 부팅 순서 그대로 — host 기본값 → user 설정 → plugin. plugin 이 값을 주는 필드도 user 값이
+/// 이긴다.
+#[test]
+fn a_user_patch_wins_over_a_plugin_installed_after_the_boot_load() {
+    let reg = FileFormatRegistry::new();
+    reg.install_host_defaults(crate::HOST_DEFAULTS_TOML);
+    let (_dir, p) = user_config(
+        r#"
+            [[detector]]
+            id = "markdown"
+            icon = "user-icon"
+            display_name_i18n_key = "user.markdown"
+        "#,
+    );
+    reg.install_user_config(&p);
+    reg.install_plugin_detectors("com.tasty.markdown", &[plugin_markdown_decl("p", None)]);
+
+    let det = markdown(&reg);
+    assert_eq!(det.icon.as_deref(), Some("user-icon"));
+    assert_eq!(det.display_name_i18n_key.as_deref(), Some("user.markdown"));
+}
+
+/// plugin 을 껐다 켜면 그 contribution 이 user 뒤에 다시 붙는다 — reload 없이도 user 값이 남는다.
+#[test]
+fn a_user_patch_wins_over_a_plugin_that_contributes_again_without_a_reload() {
+    let reg = FileFormatRegistry::new();
+    let (_dir, p) = user_config(
+        r#"
+            [[detector]]
+            id = "markdown"
+            icon = "user-icon"
+        "#,
+    );
+    reg.install_plugin_detectors("com.tasty.markdown", &[plugin_markdown_decl("p", None)]);
+    reg.install_user_config(&p);
+    assert_eq!(markdown(&reg).icon.as_deref(), Some("user-icon"));
+
+    reg.uninstall_plugin("com.tasty.markdown");
+    reg.install_plugin_detectors("com.tasty.markdown", &[plugin_markdown_decl("p", None)]);
+    assert_eq!(markdown(&reg).icon.as_deref(), Some("user-icon"));
+}
+
+/// plugin 이 끈 detector 를 user 가 `disabled = false` 로 켠다 — 부팅 순서에서도, plugin 재기동
+/// 뒤에도. Settings 의 켜기가 저장 파일에 남기는 모양이 이것이다.
+#[test]
+fn a_user_enable_beats_a_plugin_disable_across_boot_and_plugin_restart() {
+    let reg = FileFormatRegistry::new();
+    let (_dir, p) = user_config(
+        r#"
+            [[detector]]
+            id = "markdown"
+            disabled = false
+        "#,
+    );
+    reg.install_user_config(&p);
+    reg.install_plugin_detectors(
+        "com.tasty.markdown",
+        &[plugin_markdown_decl("p", Some(true))],
+    );
+    assert!(!markdown(&reg).disabled, "부팅 뒤 user 의 켜기가 졌다");
+
+    reg.uninstall_plugin("com.tasty.markdown");
+    reg.install_plugin_detectors(
+        "com.tasty.markdown",
+        &[plugin_markdown_decl("p", Some(true))],
+    );
+    assert!(
+        !markdown(&reg).disabled,
+        "plugin 재기동 뒤 user 의 켜기가 졌다"
+    );
+
+    // 그 상태를 저장하면 같은 모양이 나온다 — 다음 부팅의 입력이다.
+    assert!(reg.export_user_config().contains("disabled = false"));
+}
+
+/// host · plugin 의 `disabled = false` 는 켜지 않는다 — 다른 출처가 끈 것은 그대로 꺼져 있다.
+#[test]
+fn a_plugin_disabled_false_does_not_enable_what_the_user_disabled() {
+    let reg = FileFormatRegistry::new();
+    let (_dir, p) = user_config(
+        r#"
+            [[detector]]
+            id = "markdown"
+            disabled = true
+        "#,
+    );
+    reg.install_user_config(&p);
+    reg.install_plugin_detectors(
+        "com.tasty.markdown",
+        &[plugin_markdown_decl("p", Some(false))],
+    );
+    assert!(markdown(&reg).disabled);
+}
+
+/// host 와 plugin 이 같은 id 를 contribute 하면 plugin 이 host 를 덮는다 — 설치 순서와 무관하게.
+#[test]
+fn a_plugin_overrides_a_host_default_whatever_the_install_order() {
+    let host = r#"
+        [[detector]]
+        id = "markdown"
+        icon = "host-icon"
+        [[detector.rule]]
+        kind = "extension"
+        values = ["md"]
+    "#;
+    let reg = FileFormatRegistry::new();
+    reg.install_plugin_detectors("com.tasty.markdown", &[plugin_markdown_decl("p", None)]);
+    reg.install_host_defaults(host);
+    assert_eq!(markdown(&reg).icon.as_deref(), Some("p"));
 }

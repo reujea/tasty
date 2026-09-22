@@ -56,7 +56,8 @@ pub(super) struct ExtensionPriorityEntry {
 }
 
 pub(super) struct Inner {
-    /// detector id → 출처별 contribution. install 순서대로 push (host → plugin → user).
+    /// detector id → 출처별 contribution. install 순서대로 push 한다 — 병합 순서는 이
+    /// 순서가 아니라 [`merge_order`] 가 정한다.
     pub(super) contributions: BTreeMap<DetectorId, Vec<DetectorContribution>>,
     /// detector id → 최초 install 시점의 monotonic counter 값. 후속 patch 에 의해 변하지
     /// 않는다 (`install_one` 이 entry 가 비었을 때만 부여).
@@ -136,7 +137,7 @@ impl FileFormatRegistry {
             let mut icon = None;
             let mut disabled = false;
             let mut rules: Vec<DetectorRule> = Vec::new();
-            for c in contribs {
+            for c in merge_order(contribs) {
                 if c.display_name_i18n_key.is_some() {
                     display = c.display_name_i18n_key.clone();
                 }
@@ -179,6 +180,28 @@ impl FileFormatRegistry {
         inner.finalized = next;
         inner.dirty = false;
     }
+}
+
+/// 병합 순서 — 출처 순(Host → Plugin → User)으로 안정 정렬한다. 같은 출처 안에서는 설치
+/// 순서를 그대로 둔다.
+///
+/// 병합은 "마지막 non-None 이 이긴다" 라서 순서가 곧 우선순위다. 설치 순서로 병합하면 부팅
+/// (user 설정을 plugin 보다 먼저 읽는다)이나 plugin 재기동(끈 plugin 의 contribution 이 빠졌다가
+/// 다시 뒤에 붙는다) 뒤에 plugin 의 값이 user patch 를 덮는다. user patch 는 host · plugin 의
+/// 값을 덮어쓰는 것이 뜻이므로 늘 마지막에 둔다.
+///
+/// detector id 에는 출처 이름공간이 없어 host 와 plugin 이 같은 id(`markdown` 등)를 함께
+/// contribute 할 수 있다. 그 둘 사이는 Host → Plugin — plugin 은 늘 host 기본값 뒤에 설치돼
+/// 왔으므로 지금까지의 결과(plugin 이 host 를 덮는다)를 그대로 둔다. 서로 다른 plugin 끼리는
+/// 설치 순서다. 근거는 `docs/adr/0613-file-format-merge-applies-user-patches-last.md`.
+fn merge_order(contribs: &[DetectorContribution]) -> Vec<&DetectorContribution> {
+    let mut ordered: Vec<&DetectorContribution> = contribs.iter().collect();
+    ordered.sort_by_key(|c| match c.origin {
+        RuleOrigin::HostDefault => 0u8,
+        RuleOrigin::Plugin(_) => 1,
+        RuleOrigin::User => 2,
+    });
+    ordered
 }
 
 impl DetectorInfo for FileFormatRegistry {

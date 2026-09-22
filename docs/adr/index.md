@@ -402,7 +402,7 @@ namespace 라우팅은 0140 → 0153 → 0171(오류 코드 개정 — 「IPC �
 
 ## 파일 핸들러 · 파일 피커
 
-0272 → 0279 → 0302(포커스 조항 개정)(탭 생성 갈래는 0502 — 「창 · 워크스페이스 · 포커스 · 수명주기」 그룹)(toast 축은 0503 — 「UI · 테마 · 디자인 토큰 · 갤러리」 그룹) → 0425 · 0426 · 0427. 파일 피커는 0042 → 0162(에이전트 표면에서 제외, 0042 대체)이다.
+0272 → 0279 → 0302(포커스 조항 개정)(탭 생성 갈래는 0502 — 「창 · 워크스페이스 · 포커스 · 수명주기」 그룹)(toast 축은 0503 — 「UI · 테마 · 디자인 토큰 · 갤러리」 그룹) → 0425 · 0426 · 0427. 파일 피커는 0042 → 0162(에이전트 표면에서 제외, 0042 대체)이다. detector 병합 순서는 0427 → 0613(같은 출처 순서를 file-format detector 에 적용하고 user 의 `disabled = false` 를 켜기로 읽는다)이다.
 운영 문서: [features/file-handler](../features/file-handler/index.md)
 
 | # | Title | Status | Date | Tags |
@@ -415,6 +415,7 @@ namespace 라우팅은 0140 → 0153 → 0171(오류 코드 개정 — 「IPC �
 | 0425 | [헤드리스의 `file_handler.dispatch` 는 수락하지 않고 "이 빌드에 없다" 로 답한다](0425-headless-file-dispatch-answers-that-this-build-cannot-open-files.md) | Accepted | 2026-09-21 | ipc, headless, file-handler, agent-facing, build-combination, error-code |
 | 0426 | [`file_handler.reload` 는 적용되지 않은 user 항목을 `rejected` 필드로 알린다](0426-file-handler-reload-reports-the-entries-it-dropped.md) | Accepted | 2026-09-21 | ipc, cli, file-handler, agent-facing, compatibility, settings |
 | 0427 | [file handler 병합은 출처 순서(Host → Plugin → User)로 하고 user patch 를 늘 마지막에 둔다](0427-file-handler-merge-applies-user-patches-last.md) | Accepted | 2026-09-21 | file-handler, registry, plugin, settings, boot, patch-semantics |
+| 0613 | [file-format(detector) 병합도 출처 순서(Host → Plugin → User)로 하고 user 의 `disabled = false` 를 켜기로 읽는다](0613-file-format-merge-applies-user-patches-last.md) | Accepted | 2026-09-23 | file-format, detector, registry, plugin, settings, boot, patch-semantics |
 
 ## 에이전트 통합 · 협업
 
