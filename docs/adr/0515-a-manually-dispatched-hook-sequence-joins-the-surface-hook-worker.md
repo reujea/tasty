@@ -39,7 +39,9 @@
   돌려주고 로그는 호출자가 남긴다.
 - 스텝 로그 머리말은 `webhook` · `surface hook` · `hook_handler.dispatch` 중 하나다
   (`hook_handler::exec::SequenceOrigin`). 문구의 나머지(`IpcSequence step {i} ({method}) ok` ·
-  `… failed: …` · `… not run — the host did not queue it: …`)는 그대로다.
+  `… failed: …` · `… not run — the host did not queue it: …`)는 그대로다. 실행기의 시퀀스 단위 줄
+  (`<출처> IpcSequence '<id>' running`(debug) · `<출처> IpcSequence '<id>' not run — …`(error))도 머리말이
+  `hook` 에서 같은 출처로 바뀐다 — ADR-0498 Decision 이 인용한 `hook IpcSequence '<id>' not run — …` 문구의 개정이다.
 
 **개정하지 않는 것** — ADR-0498 의 나머지 조항은 모두 유효하다: surface 훅을 실행기에 넘기는 것, 실행기가
 하나이고 순서대로 도는 것, 대기 상한과 넘칠 때 버리는 것, 스레드를 못 띄우면 발화한 자리에서 대신
@@ -60,6 +62,8 @@
   시퀀스가 넘쳐 버려질 수 있고, 그 반대도 된다.
 - **호환**: 스텝 로그 문구의 머리말이 바뀌었다 — `webhook IpcSequence step` 으로 로그를 찾던 사람은
   surface 훅 · 수동 발화 스텝을 더 이상 그 문자열로 못 찾는다(원래 그 문자열이 틀렸던 것이다).
+  시퀀스 단위의 `hook IpcSequence '<id>' running` · `… not run — …` 줄도 `<출처> IpcSequence` 로 바뀌어
+  `hook IpcSequence` 로는 더 이상 안 찾인다.
 - **운영 비용**: 없음 — 스레드는 줄었다(발화마다 하나 → 공유 하나).
 
 ## Alternatives Considered

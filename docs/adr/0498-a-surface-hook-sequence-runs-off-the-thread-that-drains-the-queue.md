@@ -108,6 +108,7 @@ surface 훅(notification · bell · output-match · command-completed · process
 - 관련 문서: [`docs/features/hooks/index.md`](../features/hooks/index.md) "바인딩" 절 — 이 결정의 현재 운영 상태
 - 관련 ADR: [ADR-0451](0451-a-host-injection-carries-its-wait-as-a-deadline.md) — 훅 스텝이 기한 없이 들어가는 이유(이 결정은 그 대기를 어느 스레드가 하는지만 옮긴다)
 - 부분 개정: [0515](0515-a-manually-dispatched-hook-sequence-joins-the-surface-hook-worker.md) (수동 발화 조항 개정 — `hook_handler.dispatch` 도 이 실행기에 줄 선다)
+- 인용 문구 개정: Decision 의 `hook IpcSequence '<id>' not run — …` 는 [0515](0515-a-manually-dispatched-hook-sequence-joins-the-surface-hook-worker.md) 이후 머리말이 출처(`webhook` · `surface hook` · `hook_handler.dispatch`)로 바뀌었다
 - 관련 ADR: [ADR-0457](0457-a-single-plugin-shutdown-is-reaped-off-the-main-thread.md) — 메인 스레드 위의 대기를 옮긴 같은 모양의 결정
 - **코드 근거 (결정이 실현된 현재 위치)**: `hook_handler::exec` 의 `enqueue_sequence` · `sequence_worker` ·
   `PENDING_SEQUENCE_LIMIT`, `hook_handler::trigger` 의 `execute_ipc_sequence_handler`.
