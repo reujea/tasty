@@ -107,10 +107,13 @@ fn convert(
                 .or_else(|| state.resolve_inherit_cwd_from_surface(engine, surface_id));
             // 제자리 변환(주소창 navigate·convert 팝업 등)도 최근 목록 기록. `file` 키로
             // 통일된 뒤라 여기서 1회 기록 — file 없으면 no-op. kind 하드코딩 없이 매니페스트
-            // `records_recent` 를 선언한 kind 만 기록(generic per-kind).
+            // `records_recent` 를 선언한 kind 만 기록(generic per-kind). 기록이 적용보다
+            // 앞이라 `get_live` 로 묻는다 — 철회된 kind(ADR-0534)는 아래 적용에서 거절되므로
+            // 기록하지 않는다. 위 alias 정규화는 `get` 그대로 둔다: 거절될 params 를 고칠
+            // 뿐 아무것도 남기지 않는다.
             if engine
                 .surface_registry
-                .get(kind)
+                .get_live(kind)
                 .is_some_and(|d| d.records_recent)
             {
                 state.record_recent(kind, &params);

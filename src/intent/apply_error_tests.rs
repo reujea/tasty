@@ -214,3 +214,73 @@ fn a_preset_save_failure_toasts_only_for_the_user() {
         "사용자 발화의 저장 실패는 toast 를 낸다"
     );
 }
+
+/// 철회된 kind 로의 제자리 변환은 거절되므로 최근 목록에도 남지 않는다 — 기록은 적용 전에
+/// 일어나므로, 그 판정이 정의 잔존(`get`)이 아니라 새로 만들 수 있는가(`get_live`)를 물어야
+/// 한다(ADR-0534 "운영 비용"). 다시 등록해 철회가 풀리면 같은 변환이 기록된다(대조군).
+#[test]
+fn a_convert_to_a_withdrawn_kind_leaves_no_recent_entry() {
+    let (mut core, mut state, mut engine) = fixture();
+    let decl: tasty_plugin_manifest::SurfaceKindDecl = serde_json::from_value(serde_json::json!({
+        "kind": "probe_recent",
+        "display_name_i18n_key": "surface.kind.markdown",
+        "rendering": "webview",
+        "records_recent": true,
+    }))
+    .expect("probe decl");
+    let register = |engine: &crate::core::CoreState| {
+        let (host_cmd_tx, _host_cmd_rx) = std::sync::mpsc::channel();
+        crate::plugin_bridge::remote_kind::register_remote_kind(
+            &engine.surface_registry,
+            "com.x.probe",
+            &decl,
+            host_cmd_tx,
+        );
+    };
+    register(&engine);
+    assert_eq!(
+        engine.surface_registry.withdraw_plugin("com.x.probe"),
+        vec!["probe_recent"]
+    );
+    let surface_id = *state
+        .active_workspace(&engine)
+        .all_surface_ids()
+        .first()
+        .expect("fixture surface");
+    let convert = |file: &str| {
+        Intent::ConvertSurface {
+            surface_id,
+            target: ConvertTarget::Kind {
+                cwd: None,
+                kind: "probe_recent".to_string(),
+                params: serde_json::json!({ "file": file }),
+            },
+        }
+        .from_user_menu("test")
+    };
+
+    crate::intent::surface::handle(
+        &mut core,
+        &mut state,
+        &mut engine,
+        &convert("/notes/withdrawn.md"),
+    );
+    assert_eq!(
+        state.recent_files.get("probe_recent"),
+        Vec::<String>::new(),
+        "거절된 변환은 최근 목록에 남지 않는다"
+    );
+
+    register(&engine);
+    crate::intent::surface::handle(
+        &mut core,
+        &mut state,
+        &mut engine,
+        &convert("/notes/live.md"),
+    );
+    assert_eq!(
+        state.recent_files.get("probe_recent"),
+        vec!["/notes/live.md".to_string()],
+        "철회가 풀린 kind 로의 변환은 기록된다"
+    );
+}

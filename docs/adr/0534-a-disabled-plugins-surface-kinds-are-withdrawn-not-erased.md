@@ -61,6 +61,11 @@ kind 를 계속 보였다.
   surface 를 닫거나 바꾸지 않는다. 다시 켜면 hello 가 정의를 덮어쓰고 이어진다(종전과 같다).
 - **운영 비용**: registry 조회가 둘이다. 새 호출자는 "이미 있는 surface 에 대한 물음인가, 새로
   만들 수 있는가" 를 골라야 하고, 틀리게 고르면 앞쪽은 저장 오염, 뒤쪽은 거절 누락이 된다.
+  생성 요청이 적용(거절)보다 **앞에서** registry 를 읽는 자리가 셋이다. 그중 제자리 변환의 최근
+  목록 기록(`intent::surface` 의 `records_recent` 판정)은 흔적을 남기므로 `get_live` 로 묻는다 —
+  `get` 이면 거절된 변환이 최근 목록에 남는다. 나머지 둘 — 같은 함수의 param alias 정규화와
+  `core::structural_exec` 의 새 탭 기본 params 주입 — 은 곧 거절될 params 를 고칠 뿐 아무것도
+  남기지 않아 `get` 그대로 둔다.
 
 ## Alternatives Considered
 
@@ -88,6 +93,9 @@ kind 를 계속 보였다.
   격리 `TASTY_HOME` GUI 인스턴스에서 `plugin disable` · `plugin remove` 뒤 `tasty list surface-kinds`.
 - 사용자 발화의 철회 거절이 toast 를 안 내거나 에이전트 발화가 toast 를 내면
   `intent::apply_error_tests` 의 `a_withdrawn_kind_refusal_toasts_only_for_the_user` 가 잡는다.
+- 철회된 kind 로의 제자리 변환이 최근 목록에 남으면 같은 모듈의
+  `a_convert_to_a_withdrawn_kind_leaves_no_recent_entry` 가 잡는다(`get_live` 를 `get` 으로 되돌리는
+  변이에서 실패한다 — 2026-09-23 실측).
 
 **원리적으로 안 붙는 것** — 사람이 관측해야 한다. 재는 법을 함께 적는다.
 
