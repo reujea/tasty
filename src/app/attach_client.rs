@@ -369,6 +369,10 @@ pub(crate) struct AttachClientSession {
     /// (`PendingStructuralForward::silent_failure`). `forward_one_structural_op` 이 전송 시
     /// 채우고, 그 op 의 회신(성공이든 실패든)이 오면 제거된다.
     silent_failure_ops: HashSet<u64>,
+    /// 에이전트가 건 원격 markdown 원문 요청의 request_id(`PendingMarkdownContentForward::
+    /// agent_origin`). 그 회신이 잘려 와도 사용자 toast 를 띄우지 않는다 — 에이전트 행동의
+    /// 결과다(identity 원칙 1, ADR-0572). 송신 때 채우고 회신이 오면 지운다.
+    agent_markdown_requests: HashSet<u64>,
     /// 방금 성공한 op 의 focus 의도 — 다음 `StructuralDelta` 적용에 1회 소비(take)된다.
     next_delta_focus: Option<PendingOpFocus>,
     /// client-driven resize(ADR-0045) 중복 전송 억제. **원격 surface_id →
@@ -625,6 +629,7 @@ impl App {
             op_seq: 0,
             pending_op_focus: HashMap::new(),
             silent_failure_ops: HashSet::new(),
+            agent_markdown_requests: HashSet::new(),
             next_delta_focus: None,
             last_forwarded_resize: HashMap::new(),
             remote_label: format!("127.0.0.1:{port}"),
@@ -804,6 +809,7 @@ impl App {
         sess.op_seq = 0;
         sess.pending_op_focus.clear();
         sess.silent_failure_ops.clear();
+        sess.agent_markdown_requests.clear();
         sess.next_delta_focus = None;
         sess.last_forwarded_resize.clear();
         // ADR-0059 Decision 6 — 재연결 시 pending list_dir 요청 폐기(끊긴 연결에
@@ -1363,8 +1369,11 @@ impl App {
             pending.append(&mut e.pending_markdown_content_forward);
         }
         for req in pending {
-            if let Err(e) = self.send_markdown_content_request(req.local_surface_id, req.request_id)
-            {
+            if let Err(e) = self.send_markdown_content_request(
+                req.local_surface_id,
+                req.request_id,
+                req.agent_origin,
+            ) {
                 tracing::warn!(
                     "markdown_content_request send 실패 (local surface {}, request {}): {e}",
                     req.local_surface_id,
@@ -3112,12 +3121,14 @@ fn markdown_mirror_local(sess: &AttachClientSession, remote_surface_id: u32) -> 
 /// 이 세션의 로컬 markdown surface 로 되돌려 그 plugin 에 unicast 한다. host 는 원문을
 /// 해석하지 않는다(plugin 이 그린다). `truncated` 는 toast 로 알린다 — 문서 본문에
 /// "여기서 잘렸다" 를 심지 않는다(ADR-0255 항목 3, File Picker 의 `list_dir` 과 같은 방식).
+/// 에이전트가 건 요청(`agent_markdown_requests`)의 회신은 잘려 와도 toast 를 띄우지 않는다
+/// (ADR-0572).
 ///
 /// 로컬 markdown surface 로 매핑되지 않는 회신(그 사이 surface 가 사라졌거나 다른 kind 로
 /// 바뀜)은 조용히 버린다 — 받을 문서가 없다.
 #[allow(clippy::too_many_arguments)] // reason: wire 회신 필드를 풀어 받는다(GitQueryResult 적용과 같은 형태)
 fn apply_markdown_content_result_event(
-    sess: &AttachClientSession,
+    sess: &mut AttachClientSession,
     host: &mut MirrorHost<'_>,
     plugin_manager: &mut Option<crate::plugin::PluginManager>,
     request_id: u64,
@@ -3128,6 +3139,7 @@ fn apply_markdown_content_result_event(
     truncated: bool,
     reason: Option<String>,
 ) {
+    let agent_origin = sess.agent_markdown_requests.remove(&request_id);
     let Some(local) = markdown_mirror_local(sess, remote_surface_id) else {
         return;
     };
@@ -3141,6 +3153,14 @@ fn apply_markdown_content_result_event(
         "reason": reason,
     });
     push_markdown_content_result(plugin_manager, &payload);
+    if agent_origin {
+        if ok && truncated {
+            tracing::info!(
+                "markdown mirror surface {local}: agent-requested content arrived truncated (no toast)"
+            );
+        }
+        return;
+    }
     if ok && truncated {
         host.toast(
             crate::i18n::t("attach.toast.mirror_markdown_truncated").to_string(),
@@ -4028,10 +4048,11 @@ impl App {
         &mut self,
         local_surface_id: u32,
         request_id: u64,
+        agent_origin: bool,
     ) -> anyhow::Result<()> {
         let Some(sess) = self
             .attach_client_sessions
-            .iter()
+            .iter_mut()
             .find(|s| s.markdown_locals.contains(&local_surface_id))
         else {
             anyhow::bail!("no attach session holds mirror markdown surface {local_surface_id}");
@@ -4052,7 +4073,11 @@ impl App {
             "request_id": request_id,
             "surface_id": remote_sid,
         });
-        send_capture_control_frame(&sess.frame_tx, &msg)
+        send_capture_control_frame(&sess.frame_tx, &msg)?;
+        if agent_origin {
+            sess.agent_markdown_requests.insert(request_id);
+        }
+        Ok(())
     }
 }
 
@@ -5657,6 +5682,7 @@ mod tests {
             op_seq: 0,
             pending_op_focus: HashMap::new(),
             silent_failure_ops: HashSet::new(),
+            agent_markdown_requests: HashSet::new(),
             next_delta_focus: None,
             last_forwarded_resize: HashMap::new(),
             remote_label: "127.0.0.1:0".to_string(),
@@ -6323,6 +6349,61 @@ mod tests {
             state.toasts.len(),
             1,
             "표시 없는 op 의 실패는 toast 를 낸다"
+        );
+    }
+
+    /// 에이전트가 건 원문 요청(`markdown.reload`)의 회신은 잘려 와도 사용자 toast 를 내지
+    /// 않고, 회신과 함께 표시가 지워진다. plugin 자신의 요청은 종전대로 toast 를 낸다.
+    ///
+    /// `apply_markdown_content_result_event` 의 `agent_origin` 분기를 지우는 변이에서 실패해야 한다.
+    #[test]
+    fn an_agent_markdown_reload_truncation_does_not_toast() {
+        let mut sess = test_session(9_000, HashMap::from([(30, 300)]));
+        sess.markdown_locals.insert(300);
+        sess.agent_markdown_requests.insert(11);
+        let mut plugin_manager: Option<crate::plugin::PluginManager> = None;
+        let (mut state, mut engine) = crate::state::tests::test_state();
+        let truncated = |request_id| MirrorEvent::MarkdownContentResult {
+            request_id,
+            surface_id: 30,
+            ok: true,
+            file: Some("/r/a.md".to_string()),
+            source: Some("# a".to_string()),
+            truncated: true,
+            reason: None,
+        };
+        {
+            let mut host = MirrorHost::windowed(&mut state, &mut engine);
+            apply_mirror_events(
+                &mut sess,
+                &mut host,
+                &mut plugin_manager,
+                vec![truncated(11)],
+            );
+        }
+        assert_eq!(
+            state.toasts.len(),
+            0,
+            "에이전트 요청의 잘림은 toast 를 안 낸다"
+        );
+        assert!(
+            sess.agent_markdown_requests.is_empty(),
+            "회신이 오면 표시를 지운다"
+        );
+
+        {
+            let mut host = MirrorHost::windowed(&mut state, &mut engine);
+            apply_mirror_events(
+                &mut sess,
+                &mut host,
+                &mut plugin_manager,
+                vec![truncated(12)],
+            );
+        }
+        assert_eq!(
+            state.toasts.len(),
+            1,
+            "plugin 자신의 요청은 종전대로 toast 를 낸다"
         );
     }
 

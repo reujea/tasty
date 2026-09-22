@@ -77,6 +77,27 @@ const THEME_CHANGED_EVENT: &str = "theme.changed";
 /// (`docs/adr/0255-markdown-attach-mirror-forwards-content-not-pixels.md`).
 const MIRROR_CONTENT_REQUEST_METHOD: &str = "markdown_mirror.content_request";
 
+/// 원격 원문 요청을 누가 일으켰나. host 는 에이전트가 일으킨 요청의 회신에서 사용자
+/// toast(원문 잘림)를 띄우지 않는다 — 에이전트 행동의 부수효과가 사용자 시각 상태에 닿지
+/// 않게 하는 것이다(identity 원칙 1, ADR-0572).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum RemoteRequester {
+    /// 최초 열기 · 원격 변경 신호 재조회 · 새로고침 버튼 — 이 plugin 이 스스로 또는 사용자
+    /// 클릭으로 건 요청.
+    Plugin,
+    /// `markdown.reload` IPC — 바깥 호출자(에이전트)가 건 요청.
+    Agent,
+}
+
+/// `markdown_mirror.content_request` 의 params. 에이전트 요청에만 `agent_origin: true` 를
+/// 싣는다 — 그 칸이 없는 요청은 종전 그대로 읽힌다.
+fn mirror_content_request_params(surface_id: u32, requester: RemoteRequester) -> Value {
+    match requester {
+        RemoteRequester::Plugin => json!({ "surface_id": surface_id }),
+        RemoteRequester::Agent => json!({ "surface_id": surface_id, "agent_origin": true }),
+    }
+}
+
 /// host 가 이 plugin 에 unicast 하는 원문 조회 회신 이벤트.
 const MIRROR_CONTENT_RESULT_EVENT: &str = "markdown_mirror.content_result";
 
@@ -573,7 +594,9 @@ impl Plugin for MarkdownPlugin {
             .get(&ctx.surface_id)
             .is_some_and(|d| d.remote.is_some());
         match intent {
-            render::NavIntent::Refresh if is_remote => self.request_remote_content(ctx.surface_id),
+            render::NavIntent::Refresh if is_remote => {
+                self.request_remote_content(ctx.surface_id, RemoteRequester::Plugin)
+            }
             // 버튼은 mirror 문서에만 그려진다 — 로컬 문서에 온 것은 이 plugin 이 낸 것이 아니다.
             render::NavIntent::Refresh => {}
             // mirror 문서의 파일 링크와 주소창 경로는 원격 호스트의 것이라 이 머신에서 열 수
@@ -633,7 +656,9 @@ impl MarkdownPlugin {
         match change {
             RemoteChange::Ignore => {}
             RemoteChange::Redraw => self.reload_webview(surface_id),
-            RemoteChange::Refetch => self.request_remote_content(surface_id),
+            RemoteChange::Refetch => {
+                self.request_remote_content(surface_id, RemoteRequester::Plugin)
+            }
         }
     }
 
@@ -644,12 +669,15 @@ impl MarkdownPlugin {
             .ok_or_else(|| IpcMethodError::invalid_params("missing 'surface'"))?
             as u32;
         // mirror 문서는 원격 원문을 다시 요청한다 — 회신이 오면 그때 다시 그린다.
+        // mirror 문서는 감시에 등록되지 않으므로 이 IPC 는 idle 감시의 self_invoke 가 아니라
+        // 바깥 호출자(`tasty markdown reload` — 에이전트)만 부른다. 그래서 그 회신의 잘림
+        // toast 를 host 가 사용자에게 띄우지 않도록 요청에 표시한다(identity 원칙 1).
         if self
             .docs
             .get(&surface_id)
             .is_some_and(|d| d.remote.is_some())
         {
-            self.request_remote_content(surface_id);
+            self.request_remote_content(surface_id, RemoteRequester::Agent);
             return Ok(json!({ "ok": true, "surface_id": surface_id }));
         }
         if let Some(doc) = self.docs.get_mut(&surface_id) {
@@ -685,7 +713,7 @@ impl MarkdownPlugin {
     /// mirror 워크스페이스는 저장되지 않는다. 원문 요청을 먼저 걸고 로딩 상태를 그린다.
     fn open_remote_surface(&mut self, surface_id: u32, file: String) -> SurfaceResult {
         self.docs.insert(surface_id, MdDoc::new_remote(file));
-        self.request_remote_content(surface_id);
+        self.request_remote_content(surface_id, RemoteRequester::Plugin);
         SurfaceResult {
             display_name: None,
             snapshot: None,
@@ -694,7 +722,7 @@ impl MarkdownPlugin {
 
     /// mirror 문서의 원문을 host 에 요청하고 다시 그린다. 호출이 실패하면 그 사유를 문서의
     /// 실패 상태로 둔다 — 회신이 올 길이 없으므로 로딩 상태로 남기지 않는다.
-    fn request_remote_content(&mut self, surface_id: u32) {
+    fn request_remote_content(&mut self, surface_id: u32, requester: RemoteRequester) {
         let Some(host) = self.host.clone() else {
             tracing::warn!(
                 "markdown surface {surface_id}: no host handle yet — cannot request remote content"
@@ -704,7 +732,7 @@ impl MarkdownPlugin {
         let outcome = host
             .call(
                 MIRROR_CONTENT_REQUEST_METHOD,
-                json!({ "surface_id": surface_id }),
+                mirror_content_request_params(surface_id, requester),
             )
             .map_err(|e| e.to_string())
             .and_then(|v| {

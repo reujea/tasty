@@ -1,8 +1,10 @@
 //! 적용 실패 신호의 origin 분기 — 사용자 발화의 실패만 toast 를 내고, 에이전트 발화의
 //! 실패는 로그로 끝난다(identity 원칙 1, `docs/design/systems/toast.md` "트리거 정책").
+//!
+//! gui 전용이다 — toast 매니저와, forward 큐를 비우고 원격 회신을 받는 쪽(attach client)이
+//! gui 에만 있다.
 
 use super::*;
-use crate::core::MirrorStructuralBlocked;
 
 fn fixture() -> (
     crate::core::Core,
@@ -18,7 +20,7 @@ fn fixture() -> (
 }
 
 fn blocked(forwarded: bool) -> anyhow::Error {
-    anyhow::Error::new(MirrorStructuralBlocked {
+    anyhow::Error::new(crate::core::MirrorStructuralBlocked {
         workspace_index: 0,
         forwarded,
     })
@@ -30,7 +32,6 @@ fn agent() -> IntentOrigin {
     }
 }
 
-#[cfg(feature = "gui")]
 fn user() -> IntentOrigin {
     IntentOrigin::User {
         source: UserSource::Shortcut("test"),
@@ -39,7 +40,6 @@ fn user() -> IntentOrigin {
 
 /// forward 할 수 없는 차단(`forwarded=false`)은 사용자 발화에서만 차단 toast 를 낸다.
 /// `report_apply_error` 의 `origin.is_user()` 가드를 지우는 변이에서 실패해야 한다.
-#[cfg(feature = "gui")]
 #[test]
 fn an_unforwardable_block_toasts_only_for_the_user() {
     let (_core, mut state, mut engine) = fixture();
@@ -103,7 +103,6 @@ fn an_agent_forward_is_marked_for_a_silent_failure() {
         engine.pending_structural_forward[0].silent_failure,
         "에이전트 발화 op 는 실패 회신을 로그로 보낸다"
     );
-    #[cfg(feature = "gui")]
     assert_eq!(state.toasts.len(), 0);
 
     // 같은 op 를 사용자 발화로 — 표시되지 않는다.

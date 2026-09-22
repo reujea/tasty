@@ -15,7 +15,7 @@
 //! source 부착* 의미. `self` 를 받는 것이 의도된 형태이며
 //! `clippy::wrong_self_convention` 은 모듈 단위로 허용한다.
 
-#[cfg(test)]
+#[cfg(all(test, feature = "gui"))]
 mod apply_error_tests;
 pub mod closed_item;
 pub(crate) mod headless;

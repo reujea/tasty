@@ -25,6 +25,12 @@ mirror 워크스페이스에서 forward 된다. 그래서 동기 차단 toast �
 **비동기 실패 toast 는 실례가 있다** — 원격이 그 op 를 적용하지 못하면(예: 원격에 등록되지 않은
 surface kind) 에이전트의 IPC 한 번이 사용자 화면에 경고 toast 를 띄운다.
 
+같은 원칙 위반이 intent 밖에 하나 더 있었다. ADR-0401 이 알려진 예외로 적은
+`attach.toast.mirror_markdown_truncated` 는 원격 markdown 원문이 잘려 오면 원문 요청마다 난다.
+요청하는 자리 넷 중 `markdown.reload` IPC(`tasty markdown reload --surface`)는 mirror 문서에 대해
+바깥 호출자만 부른다 — mirror 문서는 idle 감시에 등록되지 않아 plugin 자신의 self_invoke 가 없다.
+ADR-0401 은 그것을 "별도 결함 후보(원칙 1)" 로 남겼다.
+
 ADR-0401 은 같은 문서 안에서 "에이전트 IPC 호출이 직접 일으킨 결과는 이 부류가 아니다" 라고도
 적었다. 구조 전달 실패를 부류에 넣을 때 그 실패를 누가 일으켰는지는 가르지 않았다 — Context 가
 "조작은 사용자가 했지만" 이라고 사용자 조작만 상정했다.
@@ -42,10 +48,15 @@ ADR-0401 은 같은 문서 안에서 "에이전트 IPC 호출이 직접 일으�
 - **ADR-0401 의 개정 조항**: 허용 부류의 구성원 `mirror_structural_forward_failed` 는 이제
   **에이전트 origin intent 가 forward 한 op 의 실패를 포함하지 않는다.** 그것은 에이전트 IPC 호출이
   직접 일으킨 결과이고, ADR-0401 이 부류 밖이라고 적은 것에 해당한다.
+- markdown plugin 은 `markdown.reload` 로 건 원문 요청에만 `agent_origin: true` 를 싣는다
+  (`markdown_mirror.content_request`). host 는 그 request_id 를 세션에 기억하고, 그 회신이 잘려 와도
+  toast 대신 로그로 남긴다. **ADR-0401 의 개정 조항 둘째**: 알려진 예외 `mirror_markdown_truncated`
+  에서 `markdown.reload` 경로가 빠진다 — 최초 열기 · 변경 신호 재조회 · 새로고침 버튼의 잘림 toast 는
+  그대로다.
 - **개정하지 않는 것**: ADR-0401 의 나머지 — 허용 부류 자체, 다른 다섯 구성원(`mirror_reconnecting` ·
   `mirror_reconnected` · `mirror_reconnect_giveup` · `mirror_disconnected` · `mirror_desynced`),
   parked engine 게이트, 사용자 조작이 forward 한 op 의 실패 toast, 알려진 예외
-  `mirror_markdown_truncated` 의 서술 — 는 그대로다.
+  `mirror_markdown_truncated` 의 나머지 세 경로와 그것을 문서 안 표지로 옮길지의 결정 — 는 그대로다.
 - 기본값은 종전 동작이다. origin 을 모르는 자리(`Core::apply` 를 intent 없이 직접 부르는 IPC 핸들러
   · `AppState::forward_mirror_structural`)가 쌓은 forward op 는 표시가 없고, 그 실패는 종전대로
   toast 가 된다.
@@ -56,7 +67,8 @@ IPC 응답은 바뀌지 않는다. 이 intent 들은 적용 전에 요청이 응
 ## Consequences
 
 - **얻은 것**: 에이전트가 mirror 워크스페이스에 `markdown.navigate` · `file.open` 을 보내 원격이
-  거절해도 사용자 화면에 경고가 뜨지 않는다. 같은 조작을 사용자가 하면 종전대로 뜬다.
+  거절해도 사용자 화면에 경고가 뜨지 않는다. 같은 조작을 사용자가 하면 종전대로 뜬다. 에이전트가
+  mirror markdown 문서를 `markdown.reload` 로 몇 번 불러도 잘림 toast 가 그 수만큼 쌓이지 않는다.
 - **잃은 것**: 에이전트는 그 실패를 IPC 응답으로 알 수 없다 — 전에도 알 수 없었고, 전에는 사용자가
   대신 봤다. 이제는 로그에만 있다.
 - **잃은 것(오분류)**: host 는 `file_handler.dispatch` · `markdown.navigate` 를 부른 것이 에이전트인지
@@ -99,11 +111,16 @@ IPC 응답은 바뀌지 않는다. 이 intent 들은 적용 전에 요청이 응
 
 ## References
 
-- 개정 대상: [ADR-0401](0401-remote-connection-events-may-raise-a-toast-without-a-user-action.md) (허용 부류 구성원 `mirror_structural_forward_failed` 의 범위)
+- 개정 대상: [ADR-0401](0401-remote-connection-events-may-raise-a-toast-without-a-user-action.md) (허용 부류 구성원 `mirror_structural_forward_failed` 의 범위 · 알려진 예외 `mirror_markdown_truncated` 의 `markdown.reload` 경로)
 - 개정 패턴 선례: [ADR-0030](0030-image-egui-mesh-bitmap-texture.md)
 - [design/systems/toast.md](../design/systems/toast.md) "트리거 정책" 경로 ④
 - [identity.md](../identity.md) 원칙 1
 - 코드 근거(결정이 실현된 현재 위치, 심볼 이름): `crate::intent::report_apply_error` ·
   `crate::core::mark_last_forward_agent_origin` · `PendingStructuralForward::silent_failure` ·
-  `AttachClientSession::silent_failure_ops`. 시험: `src/intent/apply_error_tests.rs` ·
-  `src/app/attach_client.rs` 의 `an_agent_forward_failure_does_not_toast`.
+  `AttachClientSession::silent_failure_ops` · `AttachClientSession::agent_markdown_requests` ·
+  markdown plugin 의 `RemoteRequester`. 시험: `src/intent/apply_error_tests.rs` ·
+  `src/app/attach_client.rs` 의 `an_agent_forward_failure_does_not_toast` ·
+  `an_agent_markdown_reload_truncation_does_not_toast` · `src/adapters/ipc/handler/markdown_mirror.rs`
+  의 `content_request_carries_the_agent_origin` · markdown plugin 의
+  `only_an_agent_content_request_carries_the_agent_origin`. `markdown_reload` 가 `RemoteRequester::Agent`
+  를 고르는 배선 자체는 plugin 에 host 테스트 더블이 없어 시험 채널이 없다.
