@@ -654,8 +654,9 @@ mod tests {
             "{}",
             control_independence_verdict(&before, &after, injected)
         );
-        // 주입이 기준선에 비례하므로 이 배수는 부하와 무관하게 21 이다. 여기가 빨간 것은
-        // "이 회차가 굶었다" 가 아니라 **술어·문턱·주입 배수 중 하나가 바뀌었다** 는 뜻이다.
+        // 주입이 기준선에 비례하므로 이 배수는 부하와 무관하게 `1 + INJECTED_OVER_BASELINE` 이다.
+        // 여기가 빨간 것은 "이 회차가 굶었다" 가 아니라 **술어·문턱·주입 배수 중 하나가
+        // 바뀌었다** 는 뜻이다.
         assert!(
             !control_stayed_out_of_the_path(&as_if_it_traversed),
             "술어가 경로를 지난 대조군({:.1} 배 = 기준선 {:?} + 주입 {:?})을 통과시킨다. 주입은 \
