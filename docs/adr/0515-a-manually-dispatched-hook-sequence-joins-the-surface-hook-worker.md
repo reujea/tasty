@@ -62,8 +62,9 @@
   시퀀스가 넘쳐 버려질 수 있고, 그 반대도 된다.
 - **호환**: 스텝 로그 문구의 머리말이 바뀌었다 — `webhook IpcSequence step` 으로 로그를 찾던 사람은
   surface 훅 · 수동 발화 스텝을 더 이상 그 문자열로 못 찾는다(원래 그 문자열이 틀렸던 것이다).
-  시퀀스 단위의 `hook IpcSequence '<id>' running` · `… not run — …` 줄도 `<출처> IpcSequence` 로 바뀌어
-  `hook IpcSequence` 로는 더 이상 안 찾인다.
+  시퀀스 단위의 `hook IpcSequence '<id>' running` · `… not run — …` 줄도 `<출처> IpcSequence` 로 바뀌어,
+  `hook_handler.dispatch` 출처의 줄은 더 이상 `hook IpcSequence '` 로 안 찾힌다(`webhook …` ·
+  `surface hook …` 줄은 출처 낱말이 `hook` 으로 끝나 부분 문자열로 여전히 걸린다).
 - **운영 비용**: 없음 — 스레드는 줄었다(발화마다 하나 → 공유 하나).
 
 ## Alternatives Considered
