@@ -59,7 +59,7 @@ pub(crate) fn is_resumable_error(error: &str) -> bool {
     matches!(error, "overloaded" | "server_error")
 }
 
-/// 만기 시점에 다시 읽는 설정.
+/// plugin 설정. 켜짐·상한은 만기 시점에 다시 읽고, 지연은 예약 때 한 번 쓴다.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub(crate) struct Settings {
     pub enabled: bool,

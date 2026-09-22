@@ -424,8 +424,8 @@ options = [
 ]
 
 # API 에러(서버 과부하 등)로 끝난 턴의 자동 재개(`src/auto_resume.rs`). 사용자
-# 세션에 텍스트를 넣는 기능이라 기본 꺼짐(opt-in). 지연·상한은 만기 시점에 다시
-# 읽는다 — 예약 뒤에 꺼도 보내지 않는다. 상한은 연속 실패의 백스톱이다
+# 세션에 텍스트를 넣는 기능이라 기본 꺼짐(opt-in). 켜짐·상한은 만기 시점에 다시
+# 읽는다(지연은 예약 때 정해진다) — 예약 뒤에 꺼도 보내지 않는다. 상한은 연속 실패의 백스톱이다
 # (`continue_checklist_round_limit` 와 같은 성격). 근거는
 # docs/adr/0521-claude-auto-resume-after-an-api-error-is-opt-in-and-judged-at-send-time.md.
 [[contributes.settings_pages.items]]
