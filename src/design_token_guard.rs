@@ -1048,10 +1048,13 @@ fn every_generated_length_token_has_a_theme_path_or_is_listed() {
 
     // 양성 대조 — 세 갈래(semantic 필드 · 생성 접근자 · 수기 접근자)가 각각 실제로 풀린다.
     // `CONTROL_HEIGHT_TAB` 은 표에 필드가 둘인 토큰이다(`item_height_tab` · 배율을 안
-    // 타는 `tab_bar_height`) — "먼저 나오는 항목이 이긴다" 를 이 줄이 고정한다.
+    // 타는 `tab_bar_height`) — "먼저 나오는 항목이 이긴다" 를 이 줄이 고정한다. 필드가
+    // 둘인 토큰은 셋이라 셋 다 적는다 — 하나만 적으면 나머지 둘의 표 순서가 뒤집혀도 모른다.
     for (path, want) in [
         ("semantic::SPACE_XS", "th.spacing_xs"),
         ("semantic::CONTROL_HEIGHT_TAB", "th.item_height_tab"),
+        ("semantic::FONT_SIZE_BODY", "th.font_size_body"),
+        ("semantic::FONT_SIZE_CAPTION", "th.font_size_caption"),
         (
             "component::autocomplete::MAX_HEIGHT",
             "th.autocomplete_max_height()",
