@@ -154,6 +154,8 @@ tasty agent lease-acquire --workspace-id 2 --resource file:/tmp/db --holder agen
 tasty agent task-reduce --workspace-id 2 --inputs t-a,t-b --strategy all --extract-path /stdout/text
 ```
 
+세마포어 · 배리어 이름에는 영문 소문자 · 숫자 · `.` · `_` · `-` 만 씁니다. 다른 문자가 섞이면 명령이 어느 글자가 문제인지 알려 주며 거절합니다. 리스의 자원 이름에는 이 제한이 없습니다.
+
 전체 목록은 `tasty agent --help` 에 있습니다.
 
 <a id="다음-읽을-것"></a>

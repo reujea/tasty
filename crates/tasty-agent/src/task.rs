@@ -321,8 +321,8 @@ pub struct Task {
 /// 워크스페이스에 속한 task들의 그래프 뷰. 사이클 검출, downstream 계산용.
 pub(super) const TASK_KEY_PREFIX: &str = "tasty.agent.task.";
 
-pub(super) fn task_key(id: &TaskId) -> String {
-    format!("{TASK_KEY_PREFIX}{id}")
+pub(super) fn task_key(id: &TaskId) -> crate::Result<String> {
+    crate::component_key(TASK_KEY_PREFIX, "task id", id)
 }
 
 /// `MemoryStore` 위에 얹은 Task 영속 + state 머신.

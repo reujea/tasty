@@ -81,13 +81,20 @@ impl fmt::Display for Scope {
     }
 }
 
-/// 키 검증. 1..=256자, `[a-z0-9._-]+`만 허용.
+/// 키 길이 상한(바이트). [`validate_key`] 가 이 값으로 자른다.
+pub const MAX_KEY_LEN: usize = 256;
+
+/// [`validate_key`] 가 허용하는 문자를 사람에게 설명하는 문구. 판정 규칙을
+/// 바꾸면 이 문구도 같이 바꾼다 — 둘은 이 파일 안에서만 짝을 이룬다.
+pub const KEY_ALLOWED_CHARS: &str = "lowercase a-z, 0-9, '.', '_', '-'";
+
+/// 키 검증. 1..=[`MAX_KEY_LEN`]자, `[a-z0-9._-]+`만 허용.
 pub fn validate_key(key: &str) -> Result<(), String> {
     if key.is_empty() {
         return Err("empty key".to_string());
     }
-    if key.len() > 256 {
-        return Err(format!("key too long: {} > 256", key.len()));
+    if key.len() > MAX_KEY_LEN {
+        return Err(format!("key too long: {} > {MAX_KEY_LEN}", key.len()));
     }
     for (i, c) in key.bytes().enumerate() {
         let ok =

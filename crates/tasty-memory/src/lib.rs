@@ -69,7 +69,7 @@ use rusqlite::{Connection, OptionalExtension, params};
 use serde::{Deserialize, Serialize};
 
 pub use migrations::{DbSchemaError, SCHEMA_VERSION};
-pub use scope::{Scope, validate_key};
+pub use scope::{KEY_ALLOWED_CHARS, MAX_KEY_LEN, Scope, validate_key};
 
 /// 단일 값 최대 크기의 참고값 (1 MiB).
 ///

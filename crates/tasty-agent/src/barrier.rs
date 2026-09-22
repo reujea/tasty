@@ -21,8 +21,8 @@ use crate::{AgentError, Result};
 
 pub const BARRIER_KEY_PREFIX: &str = "tasty.agent.barrier.";
 
-fn barrier_key(name: &str) -> String {
-    format!("{BARRIER_KEY_PREFIX}{name}")
+fn barrier_key(name: &str) -> Result<String> {
+    crate::component_key(BARRIER_KEY_PREFIX, "barrier name", name)
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -93,7 +93,7 @@ impl<'a> BarrierStore<'a> {
         self.mem.put(
             &self.owner,
             &scope,
-            &barrier_key(&b.name),
+            &barrier_key(&b.name)?,
             &value,
             &PutOpts::default(),
         )?;
@@ -102,7 +102,7 @@ impl<'a> BarrierStore<'a> {
 
     pub fn get(&self, workspace_id: WorkspaceId, name: &str) -> Result<Option<Barrier>> {
         let scope = Scope::Workspace(workspace_id);
-        let entry = self.mem.get(&scope, &barrier_key(name))?;
+        let entry = self.mem.get(&scope, &barrier_key(name)?)?;
         match entry {
             Some(e) => match e.value {
                 MemoryValue::Json(v) => Ok(Some(serde_json::from_value(v)?)),
@@ -220,7 +220,7 @@ impl<'a> BarrierStore<'a> {
     pub fn delete(&mut self, workspace_id: WorkspaceId, name: &str) -> Result<()> {
         let scope = Scope::Workspace(workspace_id);
         self.mem
-            .delete(&self.owner, &scope, &barrier_key(name), None)?;
+            .delete(&self.owner, &scope, &barrier_key(name)?, None)?;
         Ok(())
     }
 }

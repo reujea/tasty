@@ -81,3 +81,104 @@ pub enum AgentError {
 }
 
 pub type Result<T> = std::result::Result<T, AgentError>;
+
+/// 호출자가 준 값(`value`)을 `prefix` 뒤에 붙여 memory 키를 만든다.
+///
+/// 키 규칙 위반을 memory 층에 맡기면 `MemoryError::InvalidKey` 가 되어 IPC 에서
+/// internal(`-32603`)로 나가고, 메시지의 좌표도 접두사를 붙인 **내부 키** 기준이라
+/// 호출자는 자기 값의 어디가 틀렸는지 못 읽는다. 그래서 여기서 먼저 재고
+/// 입력 오류(`InvalidArgument`)로, 호출자가 준 값 기준 좌표로 돌려준다.
+/// 판정과 허용 문자 문구는 `tasty_memory` 의 것을 그대로 쓴다 — 집합을 여기
+/// 다시 적지 않는다. 빈 값은 종전대로 통과한다(키가 접두사만으로 유효하다).
+pub(crate) fn component_key(prefix: &str, label: &str, value: &str) -> Result<String> {
+    let key = format!("{prefix}{value}");
+    if let Err(full) = tasty_memory::validate_key(&key) {
+        let budget = tasty_memory::MAX_KEY_LEN.saturating_sub(prefix.len());
+        // 접두사는 허용 문자만 쓰므로 실패 원인은 값 쪽이다. 문자 위반이면 값만
+        // 다시 재서 좌표를 값 기준으로 바꾸고, 값 단독이 유효하면 길이 초과다.
+        let reason = match tasty_memory::validate_key(value) {
+            Err(e) if !value.is_empty() => e,
+            Ok(()) => format!("too long: {} bytes > {budget}", value.len()),
+            Err(_) => full,
+        };
+        return Err(AgentError::InvalidArgument(format!(
+            "{label} {value:?}: {reason} (allowed: {}; at most {budget} bytes)",
+            tasty_memory::KEY_ALLOWED_CHARS
+        )));
+    }
+    Ok(key)
+}
+
+#[cfg(test)]
+mod component_key_tests {
+    use super::*;
+    use std::sync::atomic::AtomicU64;
+    use tasty_memory::MemoryStore;
+
+    fn mem() -> MemoryStore {
+        MemoryStore::open_in_memory().unwrap()
+    }
+
+    /// 호출자 값 기준 좌표로, 입력 오류로 돌아와야 한다 — 내부 키 좌표(접두사 길이
+    /// 만큼 밀린 값)나 `Memory` 오류로 새면 IPC 가 `-32603` 을 낸다.
+    fn assert_caller_error(err: AgentError, label: &str) {
+        let AgentError::InvalidArgument(msg) = &err else {
+            panic!("expected InvalidArgument, got {err:?}");
+        };
+        assert!(msg.starts_with(label), "{msg}");
+        assert!(msg.contains("\"v6S\""), "{msg}");
+        assert!(msg.contains("invalid char at 2: 'S'"), "{msg}");
+    }
+
+    #[test]
+    fn semaphore_name_is_judged_in_caller_coordinates() {
+        let mut m = mem();
+        let mut store = SemaphoreStore::new(&mut m, "_host");
+        assert_caller_error(store.create(1, "v6S", 1, 0).unwrap_err(), "semaphore name");
+        assert_caller_error(
+            store.acquire(1, "v6S", "h", None, 0).unwrap_err(),
+            "semaphore name",
+        );
+        assert_caller_error(store.delete(1, "v6S").unwrap_err(), "semaphore name");
+    }
+
+    #[test]
+    fn barrier_rate_limit_and_task_ids_are_judged_the_same_way() {
+        let mut m = mem();
+        assert_caller_error(
+            BarrierStore::new(&mut m, "_host")
+                .create(1, "v6S", 1, None, 0)
+                .unwrap_err(),
+            "barrier name",
+        );
+        assert_caller_error(
+            RateLimitStore::new(&mut m, "_host")
+                .remove("v6S")
+                .unwrap_err(),
+            "rate_limit id",
+        );
+        let seq = AtomicU64::new(0);
+        assert_caller_error(
+            TaskStore::new(&mut m, "_host", &seq)
+                .get(1, &"v6S".to_string())
+                .unwrap_err(),
+            "task id",
+        );
+    }
+
+    #[test]
+    fn too_long_name_reports_the_budget_left_after_the_prefix() {
+        let mut m = mem();
+        let mut store = SemaphoreStore::new(&mut m, "_host");
+        let budget = tasty_memory::MAX_KEY_LEN - semaphore::SEMAPHORE_KEY_PREFIX.len();
+        store.create(1, "a".repeat(budget), 1, 0).unwrap();
+        let err = store.create(1, "a".repeat(budget + 1), 1, 0).unwrap_err();
+        let AgentError::InvalidArgument(msg) = &err else {
+            panic!("expected InvalidArgument, got {err:?}");
+        };
+        assert!(
+            msg.contains(&format!("too long: {} bytes > {budget}", budget + 1)),
+            "{msg}"
+        );
+    }
+}

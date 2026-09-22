@@ -1,4 +1,4 @@
-<!-- source-hash: 5b40a73bd0f6 -->
+<!-- source-hash: 96124475f363 -->
 <a id="task-dag"></a>
 
 # Task workflows (DAG)
@@ -152,6 +152,8 @@ tasty agent barrier-create --workspace-id 2 --name ready --count-required 3
 tasty agent lease-acquire --workspace-id 2 --resource file:/tmp/db --holder agent-a --ttl-ms 60000
 tasty agent task-reduce --workspace-id 2 --inputs t-a,t-b --strategy all --extract-path /stdout/text
 ```
+
+Semaphore and barrier names use only lowercase letters, digits, `.`, `_`, and `-`. If a name contains any other character, the command is rejected and tells you which character is the problem. Lease resource names have no such limit.
 
 The full list is in `tasty agent --help`.
 

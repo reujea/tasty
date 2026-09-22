@@ -1,4 +1,4 @@
-<!-- source-hash: 8ea8e4a1f800 -->
+<!-- source-hash: 3e0c88eacc18 -->
 # Troubleshooting
 
 If something is not working, find the matching symptom below. Check installation, permissions, terminal connections, and notifications, or use the reporting steps at the end if you still need help.
@@ -136,3 +136,7 @@ Describe the problem in a [GitHub issue](https://github.com/zilhak/tasty/issues)
 ### The parent agent does not receive a child result
 
 Child attention indicators and parent delivery are separate. If the parent is Claude Code, check the completion log and the Monitor subscription. See [connection and recovery](../agents/claude-codex.md).
+
+### Creating a semaphore or barrier fails with "invalid char"
+
+The name contains a character that is not allowed, such as an uppercase letter or a space. The position in the message is counted in the name you typed, starting from 0. Rename it using only lowercase letters, digits, `.`, `_`, and `-`. See [Concurrency limits and signals](../agents/tasks.md#concurrency-limits-and-signals).

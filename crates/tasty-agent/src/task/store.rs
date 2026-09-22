@@ -105,7 +105,7 @@ impl<'a> TaskStore<'a> {
     /// task 영속. 신규/갱신 모두 동일 (overwrite).
     pub fn put(&mut self, task: &Task) -> Result<()> {
         let scope = Scope::Workspace(task.workspace_id);
-        let key = task_key(&task.id);
+        let key = task_key(&task.id)?;
         let value = MemoryValue::Json(serde_json::to_value(task)?);
         self.mem
             .put(&self.owner, &scope, &key, &value, &PutOpts::default())?;
@@ -115,7 +115,7 @@ impl<'a> TaskStore<'a> {
     /// 단건 조회.
     pub fn get(&self, workspace_id: WorkspaceId, id: &TaskId) -> Result<Option<Task>> {
         let scope = Scope::Workspace(workspace_id);
-        let entry = self.mem.get(&scope, &task_key(id))?;
+        let entry = self.mem.get(&scope, &task_key(id)?)?;
         match entry {
             Some(e) => match e.value {
                 MemoryValue::Json(v) => Ok(Some(serde_json::from_value(v)?)),
@@ -147,7 +147,7 @@ impl<'a> TaskStore<'a> {
     /// task 삭제 (드물게 사용; 보통은 Cancelled 상태로 유지).
     pub fn delete(&mut self, workspace_id: WorkspaceId, id: &TaskId) -> Result<()> {
         let scope = Scope::Workspace(workspace_id);
-        self.mem.delete(&self.owner, &scope, &task_key(id), None)?;
+        self.mem.delete(&self.owner, &scope, &task_key(id)?, None)?;
         Ok(())
     }
 

@@ -41,8 +41,8 @@ use crate::{AgentError, Result};
 
 pub const SEMAPHORE_KEY_PREFIX: &str = "tasty.agent.semaphore.";
 
-fn semaphore_key(name: &str) -> String {
-    format!("{SEMAPHORE_KEY_PREFIX}{name}")
+fn semaphore_key(name: &str) -> Result<String> {
+    crate::component_key(SEMAPHORE_KEY_PREFIX, "semaphore name", name)
 }
 
 /// permit 하나를 점유 중인 홀더.
@@ -181,7 +181,7 @@ impl<'a> SemaphoreStore<'a> {
         self.mem.put(
             &self.owner,
             &scope,
-            &semaphore_key(&s.name),
+            &semaphore_key(&s.name)?,
             &value,
             &PutOpts::default(),
         )?;
@@ -190,7 +190,7 @@ impl<'a> SemaphoreStore<'a> {
 
     pub fn get(&self, workspace_id: WorkspaceId, name: &str) -> Result<Option<Semaphore>> {
         let scope = Scope::Workspace(workspace_id);
-        let entry = self.mem.get(&scope, &semaphore_key(name))?;
+        let entry = self.mem.get(&scope, &semaphore_key(name)?)?;
         match entry {
             Some(e) => match e.value {
                 MemoryValue::Json(v) => {
@@ -377,7 +377,7 @@ impl<'a> SemaphoreStore<'a> {
     pub fn delete(&mut self, workspace_id: WorkspaceId, name: &str) -> Result<()> {
         let scope = Scope::Workspace(workspace_id);
         self.mem
-            .delete(&self.owner, &scope, &semaphore_key(name), None)?;
+            .delete(&self.owner, &scope, &semaphore_key(name)?, None)?;
         Ok(())
     }
 }

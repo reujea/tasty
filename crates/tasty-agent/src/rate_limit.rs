@@ -26,8 +26,8 @@ use crate::{AgentError, Result};
 
 pub const RATE_LIMIT_KEY_PREFIX: &str = "tasty.agent.rate_limit.";
 
-fn rate_limit_key(id: &str) -> String {
-    format!("{RATE_LIMIT_KEY_PREFIX}{id}")
+fn rate_limit_key(id: &str) -> Result<String> {
+    crate::component_key(RATE_LIMIT_KEY_PREFIX, "rate_limit id", id)
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -89,7 +89,7 @@ impl<'a> RateLimitStore<'a> {
         self.mem.put(
             &self.owner,
             &scope,
-            &rate_limit_key(&rl.id),
+            &rate_limit_key(&rl.id)?,
             &value,
             &PutOpts::default(),
         )?;
@@ -98,7 +98,7 @@ impl<'a> RateLimitStore<'a> {
 
     pub fn get(&self, id: &str) -> Result<Option<RateLimit>> {
         let scope = Scope::Global;
-        let entry = self.mem.get(&scope, &rate_limit_key(id))?;
+        let entry = self.mem.get(&scope, &rate_limit_key(id)?)?;
         match entry {
             Some(e) => match e.value {
                 MemoryValue::Json(v) => Ok(Some(serde_json::from_value(v)?)),
@@ -203,7 +203,7 @@ impl<'a> RateLimitStore<'a> {
     pub fn remove(&mut self, id: &str) -> Result<()> {
         let scope = Scope::Global;
         self.mem
-            .delete(&self.owner, &scope, &rate_limit_key(id), None)?;
+            .delete(&self.owner, &scope, &rate_limit_key(id)?, None)?;
         Ok(())
     }
 
