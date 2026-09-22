@@ -1170,8 +1170,10 @@ fn route_engine_handler(
 /// 진입점이 쥔 `AppState` 를 그대로 받는다
 /// (`docs/adr/0471-ipc-engine-handlers-reach-the-window-through-a-port.md`). 입구 본문은 창을
 /// 이름으로 못 부르므로 `EntryWindow::route_window` 만 여기로 온다. 팔마다 누가 부를 수 있는지는
-/// `handler/window_router_caller_tests.rs` 의 명부에 적고 그 시험이 대조하지만, 그 대조는 문자
-/// 주사 근사라 닿지 않는 자리가 있다(그 모듈 doc 의 "한계") — 새 팔은 호출자 판정을 직접 확인하라.
+/// `handler/window_router_caller_tests.rs` 의 명부에 적고 그 시험이 대조한다. 그 시험은 본문이
+/// `Some(match request.method.as_str() { … })` 한 식이고 `_` 팔이 `return None` 이기를 요구한다 —
+/// `match` 밖의 분기는 팔이 아니라 명부를 안 거친다. 그 대조도 닿지 않는 자리가 있다(그 모듈 doc
+/// 의 "한계") — 새 팔은 호출자 판정을 직접 확인하라.
 #[cfg(feature = "gui")]
 fn route_window_handler(
     state: &mut AppState,

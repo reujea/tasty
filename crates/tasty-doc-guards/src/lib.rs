@@ -39,6 +39,9 @@ pub mod crate_layers;
 /// 소스를 텍스트로 읽는 가드들이 공유하는 마스킹·순회.
 pub mod source_text;
 
+/// 함수 본문과 `match` 팔을 구간으로 읽는다 — 팔 명부 가드들의 공용 판정기.
+pub mod match_arms;
+
 /// 소스가 부르는 크레이트 루트 경로(`crate::…` · `super::…` · 중괄호 import)를 편다.
 pub mod crate_paths;
 

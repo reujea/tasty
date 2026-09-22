@@ -43,8 +43,8 @@ impl<'a> EntryWindow<'a> {
     }
 
     /// 창 상태 자체가 대상인 gui 핸들러의 유일한 문. 누가 부를 수 있는지는 팔마다 핸들러가
-    /// 판정하고, 그 명부는 `window_router_caller_tests.rs` 가 대조하지만 그 대조는 문자 주사
-    /// 근사라 닿지 않는 자리가 있다(그 모듈 doc 의 "한계") — 새 팔은 호출자 판정을 직접 확인하라.
+    /// 판정하고, 그 명부는 `window_router_caller_tests.rs` 가 대조하지만 그 대조도 닿지 않는
+    /// 자리가 있다(그 모듈 doc 의 "한계") — 새 팔은 호출자 판정을 직접 확인하라.
     #[cfg(feature = "gui")]
     pub(crate) fn route_window(
         &mut self,

@@ -15,6 +15,25 @@ pub fn mask_non_code(src: &str) -> String {
     mask(src, Fate::Blank, Fate::Blank, Fate::Blank)
 }
 
+/// [`mask_non_code`] 와 같은 구간을 덮되 **바이트 위치까지** 원본과 맞춘 사본 — 덮은
+/// 글자 하나를 그 글자의 UTF-8 바이트 수만큼의 공백으로 바꾼다.
+///
+/// 구조(괄호 짝 · 구분자)는 이 사본에서 찾고 **값은 같은 구간의 원본에서 읽는** 가드가
+/// 쓴다([`crate::match_arms`]). [`mask_non_code`] 는 글자 수만 지키므로, 덮인 구간에
+/// 한글 같은 여러 바이트 글자가 있으면 그 뒤의 바이트 위치가 원본과 어긋난다.
+pub fn mask_non_code_aligned(src: &str) -> String {
+    mask(src, Fate::BlankBytes, Fate::BlankBytes, Fate::BlankBytes)
+}
+
+/// 주석만 덮고 리터럴은 남기되 **바이트 위치까지** 원본과 맞춘 사본.
+///
+/// [`mask_non_code_aligned`] 의 짝이다 — 그 사본에서 공백인 자리가 이 사본에서도 공백이면
+/// 공백이나 주석이고, 여기서 글자가 남으면 리터럴이다. 구조 주사가 "주석은 건너뛰되
+/// 리터럴은 건너뛰지 않는다" 를 가를 때 쓴다.
+pub fn mask_comments_aligned(src: &str) -> String {
+    mask(src, Fate::BlankBytes, Fate::Keep, Fate::Keep)
+}
+
 /// 문자열·문자 리터럴만 덮고 **주석은 원문 그대로 남긴** 사본.
 ///
 /// "여기 **주석**이 달려 있나" 를 묻는 가드가 쓴다. 두 물음은 서로의 답을 지우므로
@@ -65,6 +84,8 @@ pub fn neutralize_char_literal_quotes(src: &str) -> String {
 enum Fate {
     /// 공백으로 덮는다(줄바꿈은 남긴다).
     Blank,
+    /// 공백으로 덮되 글자의 바이트 수만큼 채운다(줄바꿈은 남긴다).
+    BlankBytes,
     /// 원문 그대로 둔다.
     Keep,
     /// 원문 그대로 두되 `"` 만 안전한 글자로 바꾼다.
@@ -104,6 +125,8 @@ fn mask(src: &str, comments: Fate, strings: Fate, char_literals: Fate) -> String
 fn emit(out: &mut String, c: char, fate: Fate) {
     match fate {
         Fate::Blank => out.push(if c == '\n' { '\n' } else { ' ' }),
+        Fate::BlankBytes if c == '\n' => out.push('\n'),
+        Fate::BlankBytes => out.extend(std::iter::repeat_n(' ', c.len_utf8())),
         Fate::Keep => out.push(c),
         // `x` 인 이유는 폭이 같은 아무 글자면 되기 때문이다 — 계측기가 이 자리를
         // 문자열의 시작으로 안 읽기만 하면 된다.

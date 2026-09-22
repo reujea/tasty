@@ -11,62 +11,58 @@
 //! 정책을 적어야 들어온다(아래 "한계" 의 자리는 제외). 다른 하나는 `PluginOnly` 인 팔을
 //! CLI·agent 로 실제로 불러, `-32016` 으로 끝나고 창에 아무것도 남기지 않는지 본다.
 //!
-//! 첫 시험은 라우터 본문의 `=>` 를 **전부** 팔 머리로 읽고, guard 를 자른 패턴을 `|` 로 나눈
-//! 조각 중 **하나라도** 따옴표 이름이 아니면 실패시킨다 — 머리 전체가 guard 없는 `_` 인 팔만
-//! 예외다. binding 패턴(`m if m.starts_with(…) =>`) · 상수 경로 · raw 문자열 · 따옴표 이름
-//! 안에 `|` · ` if ` 가 든 팔이 그렇게 걸리고, 그 조각이 기존 따옴표 이름 옆에 `|` 로 얹혀도
-//! (`"a" | r"b" =>` · `"a" | CONST =>`) 똑같이 걸린다 — 추출기가 못 읽는 조각을 버리면 그
-//! 조각이 명부 없이 조용히 들어오기 때문이다. guard 문자열이 `,` 를 담아 머리가 잘린 팔도
-//! 잘린 조각이 따옴표 이름이 아니면 걸린다(`!= "x,y"` 는 조각 `y"` 로 실패한다).
+//! 첫 시험은 `handler.rs` 의 `fn route_window_handler` 정의를 **전부** 읽는다(`#[cfg]` 로 갈린
+//! 둘째 정의도). 정의마다 본문이 `Some(match request.method.as_str() { … })` 한 식뿐이고 그
+//! `match` 의 `_` 팔이 `return None` 인지 먼저 본다 — `match` 앞의 조기 반환이나 `_` 팔 본문의
+//! 위임은 팔이 아니라서 명부를 안 거치기 때문이다. 그다음 팔을 앞에서부터 하나씩 떼어, guard 를
+//! 뺀 패턴을 `|` 로 나눈 조각 중 **하나라도** 보통 문자열 리터럴이 아니면 실패시킨다 — binding
+//! 패턴(`m if m.starts_with(…) =>`) · 상수 경로 · raw 문자열이 그렇게 걸리고, 그 조각이 기존
+//! 따옴표 이름 옆에 `|` 로 얹혀도(`"a" | r"b" =>`) 똑같이 걸린다. 못 읽는 조각을 버리면 그
+//! 조각이 명부 없이 조용히 들어오기 때문이다.
 //!
-//! 그 대가로 팔 머리가 아닌 `=>` 도 머리로 읽혀 실패한다 — 팔 본문 안의 중첩 `match`
-//! (`Some(x) =>`) · 매크로 규칙 · `=>` 를 담은 문자열이다. **오늘은 0 곳이다**: 본문의 `=>` 는
-//! 팔 둘(`"file_picker.trigger"` · `_`)의 것뿐이다. 재는 법 —
-//! `awk '/^fn route_window_handler\(/,/^}/' src/adapters/ipc/handler.rs | grep -c '=>'` 가 팔
-//! 수와 같은가. 그런 `=>` 가 생기면 그 모양만 좁게 건너뛰는 예외를 `arm_head` 호출부에 근거와
-//! 함께 둔다(명부를 고쳐 통과시키지 않는다).
+//! 팔을 떼는 판정기는 `tasty_doc_guards::match_arms` 다. 구조(괄호 짝 · `=>` · `,` · `|` ·
+//! ` if `)는 주석·문자열·문자 리터럴을 덮은 사본에서 찾고 이름은 같은 구간의 원본에서 읽으므로,
+//! 리터럴 **안의** 구분자는 구조로 읽히지 않는다. 팔 본문 안의 중첩 `match` · 클로저의 `=>` 는
+//! 본문에 들어가 팔 머리로 읽히지 않는다. 판정기가 모르는 모양(블록형 식 뒤 쉼표를 생략해 다음
+//! 팔로 이어지는 본문)은 조용히 넘기지 않고 이 시험을 실패시킨다.
 //!
 //! ## 한계 — 이 시험이 잡는 것과 못 잡는 것
 //!
 //! **아래 목록은 닫혀 있지 않다.** "새 팔은 명부를 거쳐야 들어온다" 가 닿지 않는 자리 중
-//! **지금까지 실측·코드 읽기로 확인된 것**만 적었고, 이것이 전부라는 보장은 없다. 이 추출기는
-//! Rust 구문을 파싱하지 않고 문자 주사로 근사하므로, 근사가 어긋나는 자리를 앞에서 셀 수 없다.
-//! 새 자리를 찾으면 여기에 더하고, 이 시험의 ok 를 "명부 밖 팔이 없다" 의 증명으로 읽지 마라.
+//! **지금까지 실측·코드 읽기로 확인된 것**만 적었고, 이것이 전부라는 보장은 없다. 판정기는
+//! 렉서 위의 구조 주사이지 Rust 문법 파서가 아니다 — 리터럴과 주석은 가르지만 식의 문법은
+//! 모른다. 새 자리를 찾으면 여기에 더하고, 이 시험의 ok 를 "명부 밖 팔이 없다" 의 증명으로
+//! 읽지 마라.
 //!
-//! **①과 ⑤ 의 뿌리**: 팔 머리를 찾는 역주사(`arm_head`)도 본문 끝을 찾는 전진 주사
-//! (`window_router_arms`)도 **문자열·char 리터럴 안의 구분자를 모른다**(주석은 가리지만 문자열은
-//! 안 가린다). 그래서 문자열이 경계 문자나 `{`·`}` 를 담으면 머리가 잘리거나 **본문이 일찍
-//! 끝난다.** 근본 해결은 구문 파싱으로 본문과 팔 머리를 뽑는 것이고, 이 파일은 그것을 하지
-//! 않는다. 그 해결도 ②③④ 는 닫지 못한다 — 그 셋은 문자열과 무관하게 시험이 읽는 범위 밖이다.
+//! 적대적 작성자를 막는 울타리로도, 실수를 다 잡는 그물로도 읽지 마라. 아래 자리가 아닌
+//! 곳에서 "명부를 안 거친 팔은 실패한다" 가 선다.
 //!
-//! "실수로 명부를 안 거친 팔은 잡는다" 도 좁게 읽어라. 그 말은 아래 자리가 아닌 곳에서만
-//! 선다. 각 자리의 "실수로 생기는가" 를 함께 적었고, 실수로 생길 수 있는 자리가 여럿이다.
-//! 적대적 작성자를 막는 울타리로도, 실수를 다 잡는 그물로도 읽지 마라.
+//! **이 시험이 이제 실패로 답하는 모양**(2026-09-23, 각각 변이를 `handler.rs` 에 넣어 FAILED 를
+//! 봤다): guard 의 raw 문자열이 경계 `,` 와 명부 이름을 따옴표째 담은 팔 · 앞 팔 본문의
+//! `"closing }}"` 뒤에 둔 팔 · 앞 팔 본문의 `'}'` 뒤에 둔 팔 · `#[cfg]` 로 꺼 둔 둘째
+//! `fn route_window_handler` 의 팔 · `_` 팔 본문의 `if request.method == "…"` 분기 · `match`
+//! 앞의 `if request.method == "…" { return … }`.
 //!
-//! 확인된 자리(2026-09-23 기준. [실측] 은 변이를 넣어 시험이 ok 로 끝나는 것을 본 것,
-//! [코드상] 은 코드를 읽은 판단이다):
-//! - ① guard 문자열 안의 경계 문자 뒤에 **명부 이름을 따옴표째** 담은 팔 [실측: `,` 로].
-//!   `"window.x" if … == r#"a,"file_picker.trigger" if "# =>` 는 머리가 `"file_picker.trigger" if "#`
-//!   로 잘려 기존 이름 하나만 나온다. 보통 문자열로는 안쪽 따옴표가 `\"` 가 되어 조각이 실패
-//!   쪽으로 가므로 raw 문자열이 필요하다[코드상]. 같은 뿌리의 변형 — 경계 문자가 `{` · `}` 이거나
-//!   문자열 안 괄호가 역주사의 깊이를 어긋내는 경우 — 도 같은 모양을 만들 수 있다[코드상, 안 잼].
-//!   실수로 생기는가: 어렵다 — 명부 이름을 raw 문자열에 따옴표째 심어야 한다.
-//! - ② 라우터 정의가 `#[cfg]` 로 둘 이상일 때 **첫 정의만** 읽는다 [실측]. `src.find` 가 첫
-//!   `fn route_window_handler(` 만 잡으므로, 둘째 정의(예: macOS 전용)의 팔은 어느 플랫폼에서도
-//!   명부 대조를 받지 않는다. 실수로 생기는가: 생긴다 — 원칙 4 의 `#[cfg]` 분기로 평범하게 생긴다.
-//! - ③ `_` 팔의 **본문** [코드상]: 오늘은 `return None` 이지만, 거기서 다른 함수로 넘기면 그
-//!   함수가 받는 메서드는 명부를 안 거친다. 실수로 생기는가: 생긴다 — 평범한 위임 코드다.
-//! - ④ `match` 밖의 분기 [코드상]: `match` 앞에 `if request.method == "…" { return … }` 를 두면
-//!   팔이 아니다. 실수로 생기는가: 생긴다 — 평범한 조기 반환이다.
-//! - ⑤ 본문 안 문자열·char 리터럴의 `}` 가 본문 끝으로 읽힌다 [실측: `"closing }}"` 로]. 팔 본문에
-//!   `tracing::trace!("closing }}");` 한 줄이 있으면 깊이가 거기서 0 이 되어 본문이 끝나고, **그
-//!   뒤의 팔은 전부** 안 읽힌다 — 그 자리 뒤에 명부 없는 팔을 더해도 두 시험이 ok 였다. `'}'` char
-//!   리터럴도 같은 경로다[코드상, 안 잼]. 실수로 생기는가: 생긴다 — `}}` 는 format escape 의 평범한
-//!   모양이다. (반대로 `"{{"` 는 본문을 다음 함수까지 늘려 실패 쪽으로 간다고 판단했다[코드상, 안 잼].)
+//! 확인된 자리([실측] 은 변이를 넣어 시험이 ok 로 끝나는 것을 본 것, [코드상] 은 코드를 읽은
+//! 판단이다):
+//! - 이 시험은 **`handler.rs` 의 `route_window_handler` 라는 이름만** 읽는다 [코드상]. 창 상태에
+//!   닿는 다른 문 — 다른 이름·다른 파일의 라우터나 `EntryWindow` 에 새로 연 메서드 — 는 명부
+//!   밖이다. 실수로 생기는가: 생긴다 — 라우터를 나누거나 옮기는 평범한 리팩터로 생긴다(옮기면
+//!   이 시험은 "찾지 못했다" 로 실패하지만, 하나를 **더** 만들면 조용하다).
+//! - 명부에 적힌 팔의 **본문 안** 분기 [코드상]: 본문이 params 를 보고 다른 핸들러로 가르면, 둘째
+//!   시험은 빈 params(`{}`) 로만 불러 그 갈래의 호출자 판정을 안 잰다. 팔의 이름은 명부를 거쳤으니
+//!   "명부 밖 팔" 은 아니지만, 명부의 정책이 그 팔의 모든 갈래에 서는지는 이 시험이 모른다.
+//!   실수로 생기는가: 생긴다 — 평범한 params 분기다.
+//! - 렉서의 근사 [코드상]: 문자 리터럴과 라이프타임 틱은 `'` 바로 뒤가 `\` 이거나 두 칸 뒤가
+//!   `'` 인가로 가른다(`tasty_doc_guards::source_text`). 이 규칙이 Rust 어휘와 갈리는 자리는 아직 확인된 것이
+//!   없지만, 갈리면 그 뒤의 덮기가 어긋나 구조가 틀리게 읽힌다. 실수로 생기는가: 모른다.
 
 use serde_json::json;
 use std::collections::BTreeSet;
+use std::ops::Range;
 use std::sync::Arc;
+
+use tasty_doc_guards::match_arms::{Source, matching_close};
 
 use crate::ipc::caller::CallerContext;
 use crate::ipc::protocol::JsonRpcRequest;
@@ -85,127 +81,113 @@ const WINDOW_ROUTER_CALLERS: &[(&str, WindowCallers, &str)] = &[(
     "고른 경로는 호출한 plugin 에만 push 된다 — CLI·agent 호출은 사용자 포커스만 가져간다(ADR-0504)",
 )];
 
-/// `route_window_handler` 본문에서 `"<메서드>" =>` · `"<a>" | "<b>" =>` · `"<메서드>" if … =>` 팔
-/// 이름을 전부 뽑는다.
+/// `route_window_handler` 정의 **전부**에서 팔 이름을 뽑는다.
+///
+/// 정의마다 본문이 `Some(match request.method.as_str() { … })` 한 식뿐인지, 그 `match` 의
+/// `_` 팔이 `return None` 인지 먼저 본다 — 그 밖의 자리(`match` 앞의 조기 반환, `_` 팔
+/// 본문의 위임)는 팔이 아니라서 명부를 안 거친다. 모양이 다르면 명부가 아니라 이 시험을
+/// 실패시킨다.
 fn window_router_arms() -> BTreeSet<String> {
     let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src/adapters/ipc/handler.rs");
-    let src = std::fs::read_to_string(&path)
+    let text = std::fs::read_to_string(&path)
         .unwrap_or_else(|e| panic!("{} 을 읽지 못했다: {e}", path.display()));
-    let src = tasty_doc_guards::source_text::mask_comments(&src);
-    let sig = "fn route_window_handler(";
-    let start = src
-        .find(sig)
-        .unwrap_or_else(|| panic!("`{sig}` 를 찾지 못했다 — 라우터가 옮겨졌으면 이 시험도 옮겨라"));
-    let open = start + src[start..].find('{').expect("함수 본문");
-    let mut depth = 0usize;
-    let mut end = src.len();
-    for (i, c) in src[open..].char_indices() {
-        match c {
-            '{' => depth += 1,
-            '}' => {
-                depth -= 1;
-                if depth == 0 {
-                    end = open + i;
-                    break;
-                }
-            }
-            _ => {}
-        }
-    }
-    let body = &src[open..end];
+    let src = Source::new(&text);
+    let bodies = src.fn_bodies("route_window_handler");
+    assert!(
+        !bodies.is_empty(),
+        "`fn route_window_handler` 를 찾지 못했다 — 라우터가 옮겨졌으면 이 시험도 옮겨라"
+    );
     let mut arms = BTreeSet::new();
     let mut unreadable = Vec::new();
-    for (i, _) in body.match_indices("=>") {
-        let head = arm_head(&body[..i]);
-        let (names, bad) = arm_head_names(head);
-        // 못 읽은 조각은 버리지 않는다 — 버리면 추출기가 모르는 모양의 팔이, 따옴표 이름 옆에
-        // `|` 로 얹힌 것까지, 명부 없이 조용히 들어온다. 통과시켜도 되는 것은 머리 전체가
-        // guard 없는 `_` 인 팔 하나뿐이다.
-        if head != "_" && (names.is_empty() || !bad.is_empty()) {
-            let line = body[..i].rfind('\n').map_or(0, |n| n + 1);
-            unreadable.push(format!(
-                "머리 `{head}` · 못 읽은 조각 {bad:?} — 그 줄 `{}`",
-                body[line..i + 2].trim()
-            ));
+    for body in bodies {
+        let line = src.line_of(body.start);
+        let block = match router_match_block(&src, &body) {
+            Ok(block) => block,
+            Err(e) => {
+                unreadable.push(format!("{line}행 정의: {e}"));
+                continue;
+            }
+        };
+        let parsed = match src.match_arms(block) {
+            Ok(parsed) => parsed,
+            Err(e) => {
+                unreadable.push(format!("{line}행 정의: {e}"));
+                continue;
+            }
+        };
+        for arm in parsed {
+            let pattern = src.slice(&arm.pattern);
+            if pattern == "_" && arm.guard.is_none() {
+                // `_` 팔의 본문이 다른 함수로 넘기면 그 함수가 받는 메서드는 명부를 안
+                // 거친다 — 팔이 아닌 채로 라우팅된다.
+                let body = src
+                    .code_slice(&arm.body)
+                    .split_whitespace()
+                    .collect::<String>();
+                if body != "returnNone" {
+                    unreadable.push(format!(
+                        "{}행: `_` 팔의 본문이 `return None` 이 아니다 — `{}`",
+                        src.line_of(arm.body.start),
+                        src.slice(&arm.body)
+                    ));
+                }
+                continue;
+            }
+            // 못 읽은 조각은 버리지 않는다 — 버리면 추출기가 모르는 모양의 팔이, 따옴표
+            // 이름 옆에 `|` 로 얹힌 것까지, 명부 없이 조용히 들어온다.
+            let mut bad = Vec::new();
+            for alt in src.alternatives(&arm.pattern) {
+                match src.plain_string(&alt) {
+                    Some(name) => {
+                        arms.insert(name.to_string());
+                    }
+                    None => bad.push(src.slice(&alt).to_string()),
+                }
+            }
+            if !bad.is_empty() {
+                unreadable.push(format!(
+                    "{}행: 팔 `{pattern}` · 따옴표 이름이 아닌 조각 {bad:?}",
+                    src.line_of(arm.pattern.start)
+                ));
+            }
         }
-        arms.extend(names);
     }
     assert!(
         unreadable.is_empty(),
-        "창 라우터에서 추출기가 읽지 못한 팔 머리가 있다:\n  {}\n★ 명부를 고치지 말고 \
-         추출기(`arm_head` · `arm_head_names`)를 고쳐라 — 못 읽는 팔은 누가 부르는지 \
+        "창 라우터에서 이 시험이 읽지 못한 자리가 있다:\n  {}\n★ 명부를 고치지 말고 \
+         라우터를 명부가 읽을 수 있는 모양으로 두어라 — 못 읽는 팔은 누가 부르는지 \
          판정할 수 없다",
         unreadable.join("\n  ")
     );
     arms
 }
 
-/// `=>` 바로 앞까지의 본문(`before`)에서 그 팔 머리를 떼어 낸다.
-///
-/// 팔 머리는 직전 경계(괄호 밖의 `,` · `{` · `}`)부터 `=>` 까지이고, 속성(`#[...]`)은 걷어낸다.
-/// 경계 역주사는 문자열 리터럴을 모른다 — guard 안 문자열이 `,` 를 담으면 머리가 그 뒤
-/// 조각으로 잘린다. 잘린 조각이 따옴표 이름이 아니면 호출부가 실패시키지만, 명부에 있는 이름
-/// 모양이면 조용히 통과한다(모듈 doc "한계" ①).
-fn arm_head(before: &str) -> &str {
-    let bytes = before.as_bytes();
-    let mut depth = 0usize;
-    let mut from = 0;
-    for j in (0..bytes.len()).rev() {
-        match bytes[j] {
-            b')' | b']' => depth += 1,
-            b'(' | b'[' => depth = depth.saturating_sub(1),
-            b',' | b'{' | b'}' if depth == 0 => {
-                from = j + 1;
-                break;
-            }
-            _ => {}
-        }
+/// 라우터 본문(`{ … }`)이 `Some(match request.method.as_str() { … })` 한 식뿐이면 그
+/// `match` 블록 구간을 돌려준다.
+fn router_match_block(src: &Source, body: &Range<usize>) -> Result<Range<usize>, String> {
+    const HEAD: &str = "Some(match request.method.as_str()";
+    let inner = src.trim(body.start + 1..body.end - 1);
+    let code = src.code_slice(&inner);
+    let squeezed: String = code.split_whitespace().collect();
+    let expected = format!("{}{{", HEAD.split_whitespace().collect::<String>());
+    if !squeezed.starts_with(&expected) {
+        return Err(format!(
+            "본문이 `{HEAD} {{ … }})` 로 시작하지 않는다 — `match` 앞의 분기는 팔이 아니라 \
+             명부를 안 거친다"
+        ));
     }
-    let mut head = before[from..].trim();
-    while let Some(rest) = head.strip_prefix("#[") {
-        let mut d = 1usize;
-        let mut cut = rest.len();
-        for (k, c) in rest.char_indices() {
-            match c {
-                '[' => d += 1,
-                ']' => {
-                    d -= 1;
-                    if d == 0 {
-                        cut = k + 1;
-                        break;
-                    }
-                }
-                _ => {}
-            }
-        }
-        head = rest[cut..].trim_start();
+    let open = inner.start
+        + code
+            .find('{')
+            .ok_or_else(|| "`match` 블록을 못 찾았다".to_string())?;
+    let close = matching_close(&src.code, open).ok_or("`match` 블록이 닫히지 않는다")?;
+    let tail: String = src.code[close + 1..inner.end].split_whitespace().collect();
+    if tail != ")" {
+        return Err(format!(
+            "`match` 뒤에 `)` 말고 `{tail}` 가 있다 — 본문은 그 식 하나여야 한다"
+        ));
     }
-    head
-}
-
-/// 팔 머리(`arm_head`)에서 따옴표 이름을 전부 뽑고, 따옴표 이름이 아닌 조각을 따로 돌려준다.
-///
-/// match guard(` if …`)를 잘라낸 뒤 `|` 로 나눈 조각마다 따옴표 이름이면 이름으로, 아니면
-/// 못 읽은 조각으로 넣는다(빈 조각 — 앞머리 `|` — 은 패턴이 없어 뺀다). 닫는 따옴표 바로 뒤의
-/// ` =>` 만 팔로 보면 `"a" if … =>` 처럼 guard 가 붙은 팔이 명부 없이 들어오고, 마지막 이름만
-/// 보면 기존 팔에 `|` 로 얹은 새 이름이, 못 읽은 조각을 버리면 `"a" | r"b"` 의 `r"b"` 가 명부
-/// 없이 들어온다.
-fn arm_head_names(head: &str) -> (Vec<String>, Vec<String>) {
-    // guard 는 공백 뒤의 `if` 낱말부터다(rustfmt 가 guard 를 다음 줄로 내려도 같다).
-    let guard = head.match_indices("if").find(|(k, _)| {
-        head[..*k].ends_with(char::is_whitespace)
-            && head[k + 2..].starts_with(|c: char| c.is_whitespace() || c == '(')
-    });
-    let pattern = guard.map_or(head, |(k, _)| &head[..k]);
-    let mut names = Vec::new();
-    let mut bad = Vec::new();
-    for alt in pattern.split('|').map(str::trim).filter(|a| !a.is_empty()) {
-        match alt.strip_prefix('"').and_then(|a| a.strip_suffix('"')) {
-            Some(name) => names.push(name.to_string()),
-            None => bad.push(alt.to_string()),
-        }
-    }
-    (names, bad)
+    Ok(open..close + 1)
 }
 
 #[test]
