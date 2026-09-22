@@ -175,6 +175,39 @@ fn a_connection_clears_the_failure_record() {
     shut_down(&mut mgr);
 }
 
+/// 연결을 받을 자리는 자식을 띄우기 **전에** 열린다 — 곧바로 연결하는 plugin 이 등록보다 먼저
+/// 인증해 토큰 없음으로 거절되지 않는다.
+///
+/// 옛 코드는 자식을 띄운 뒤 등록했다. 부하로 호출 스레드가 밀리면 가짜 plugin 이 그 사이 인증해
+/// 거절됐고, 호스트는 연결 한도까지 기다린 뒤 기동 실패로 쳤다(같은 시험 12 개 병렬 + 바쁜 루프
+/// 40 개에서 36 번 중 21~23 번). 그 밀림을 hook 으로 1 s 만들어 결정적으로 세운다 — 올바른
+/// 구현은 hook 과 무관하게 연결된다.
+#[test]
+fn the_connection_is_registered_before_the_child_starts() {
+    let home = HomeEnvGuard::tasty_home();
+    let dir = home.path().join("plugin");
+    let pkg = write_plugin(&dir, GATED);
+    std::fs::write(dir.join("go"), "").expect("let the plugin connect at once");
+    let mut mgr = manager(&pkg, Duration::from_secs(3));
+    mgr.spawn_failures
+        .insert(ID.to_string(), vec![Instant::now()]);
+
+    crate::process::AFTER_CHILD_SPAWN_DELAY.with(|d| d.set(Duration::from_secs(1)));
+    mgr.start_plugin_internal(&pkg);
+    crate::process::AFTER_CHILD_SPAWN_DELAY.with(|d| d.set(Duration::ZERO));
+
+    pump_until(
+        &mut mgr,
+        "연결이 성사되거나 실패로 거둬진다",
+        |m| !m.spawn_failures.contains_key(ID) || !m.is_running(ID),
+    );
+    assert!(
+        mgr.is_running(ID) && !mgr.spawn_failures.contains_key(ID),
+        "곧바로 연결한 plugin 이 등록 전에 인증해 거절됐다"
+    );
+    shut_down(&mut mgr);
+}
+
 /// 전체 기동은 연결의 결과까지 기다린다 — 부팅은 이 뒤 hello 를 짧은 시한으로 기다리므로
 /// 연결이 그 시한을 갉아먹으면 안 된다. 돌아온 시점에 연결 실패가 이미 거둬져 있다.
 #[test]

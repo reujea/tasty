@@ -262,6 +262,15 @@ impl PluginProcess {
     }
 }
 
+#[cfg(test)]
+thread_local! {
+    /// 자식을 띄운 직후 호출 스레드를 이만큼 세운다 — 시험 전용. 부하로 호출 스레드가 밀리는
+    /// 상황을 결정적으로 만든다: 그 사이 곧바로 연결한 plugin 이 인증하므로, 연결을 받을
+    /// 자리를 자식을 띄운 **뒤에** 여는 구현이면 그 인증이 토큰 없음으로 거절된다.
+    pub(crate) static AFTER_CHILD_SPAWN_DELAY: std::cell::Cell<Duration> =
+        const { std::cell::Cell::new(Duration::ZERO) };
+}
+
 /// 시험이 호스트가 **무엇을 보냈는지** 읽는 자리. 큐에는 직렬화된 줄이 들어 있으므로
 /// 꺼낼 때 요청으로 되돌린다 — 되돌린 값이 곧 plugin 이 소켓에서 읽을 값이다.
 #[cfg(test)]
@@ -320,6 +329,8 @@ impl PluginProcess {
             )
         })?;
         let spawned_at = Instant::now();
+        #[cfg(test)]
+        std::thread::sleep(AFTER_CHILD_SPAWN_DELAY.with(std::cell::Cell::get));
 
         // spawn 직후 자식이 살아있는 시점에 Job 에 assign(Windows). 실패해도
         // 플러그인 기능은 정상이며 수명 결박만 누락되므로 warn 후 진행한다.
