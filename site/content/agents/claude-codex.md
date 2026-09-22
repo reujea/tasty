@@ -15,6 +15,7 @@ tasty codex install     # ~/.codex/config.toml 의 [hooks] 에 Tasty 항목 추�
 
 - 이미 직접 넣어 둔 훅은 그대로 보존됩니다. 여러 번 실행해도 중복되지 않습니다.
 - **Tasty 를 업데이트한 뒤에는 다시 실행합니다.** 훅 명령 문자열은 설정 파일에 저장되므로 새 형식을 반영하려면 재설치가 필요합니다.
+- Claude Code 가 API 에러(서버 과부하 · 요청 한도 · 인증 실패 등)로 턴을 끝낸 경우를 대기로 알리는 훅도 재설치해야 들어갑니다. 그 전에는 그런 자식이 계속 "작업 중" 으로 보입니다.
 - Codex에서 `hook returned invalid ... JSON output` 오류가 뜨면 업데이트 후 `tasty codex install`을 다시 실행하세요. Tasty의 상태 전달 결과가 Codex의 훅 응답에 섞이지 않도록 설정됩니다.
 - Tasty 밖에서 Claude Code를 실행하면 이 훅은 동작하지 않습니다.
 - 제거는 `tasty claude uninstall` / `tasty codex uninstall`.
@@ -94,6 +95,7 @@ tasty claude parent --surface 57                            # 이 자식의 부�
 
 완료는 부모 종류와 관계없이 같은 로그 파일에 한 줄씩 쌓입니다. 자식이 Claude인지 Codex인지도 관계없습니다.
 입력 요청·중단·오류·프로세스 종료도 상태 알림이므로, 알림을 작업 성공으로 단정하지 마세요.
+Claude 자식이 API 에러로 턴을 끝냈으면 완료 알림 줄 끝에 그 사실과 에러 종류(예: `overloaded`)가 붙습니다.
 
 ### Claude Code의 Monitor로 받기
 

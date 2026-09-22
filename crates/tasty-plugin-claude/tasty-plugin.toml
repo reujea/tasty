@@ -50,6 +50,10 @@ key = "needs-input"
 description = "Claude instance is waiting for user input (Notification hook)"
 
 [[contributes.hook_events]]
+key = "claude-stop-failure"
+description = "Claude's turn ended on an API error (StopFailure hook — overloaded, rate limit, auth failure, ...). Fires together with claude-idle; the error kind is in surface meta claude-last-stop-failure"
+
+[[contributes.hook_events]]
 key = "claude-error"
 description = "Claude output matched an error pattern"
 
@@ -78,7 +82,7 @@ subcommands = [
     { name = "child-profile", ipc_method = "claude.child_profile", args = "child_profile_args", description = "Attach a persistent Claude session profile to a CHILD instance (resolves --child to its surface, then runs the same sequence as 'claude reboot --profile' on it). Unlike reboot, this does NOT cut off the caller's turn — only the child restarts. A notification is delivered to the caller surface when the child transitions to idle/needs_input, and once more when it exits.", description_i18n_key = "claude.cli.sub.child-profile.description" },
     { name = "install",   ipc_method = "claude.install",   args = "no_args",        description = "Install tasty hooks into ~/.claude/settings.json", description_i18n_key = "claude.cli.sub.install.description" },
     { name = "uninstall", ipc_method = "claude.uninstall", args = "no_args",        description = "Uninstall tasty hooks from ~/.claude/settings.json", description_i18n_key = "claude.cli.sub.uninstall.description" },
-    { name = "hook",      ipc_method = "claude.hook",      args = "hook_args",      stdin_json = true, description = "Claude Code hook integration. Reads JSON payload from stdin (session_id, message, notification_type) when invoked by Claude Code's hook system.", description_i18n_key = "claude.cli.sub.hook.description" },
+    { name = "hook",      ipc_method = "claude.hook",      args = "hook_args",      stdin_json = true, description = "Claude Code hook integration. Reads JSON payload from stdin (session_id, message, notification_type, error, agent_id) when invoked by Claude Code's hook system.", description_i18n_key = "claude.cli.sub.hook.description" },
     # Stop-훅 게이트 판정 — `install::MANAGED_HOOKS` 에는 넣지 않는다(전역 미설치,
     # 게이트가 부착된 세션에서만 등록됨). `hook` subcommand 와 별개 IPC/파라미터
     # 스키마를 쓴다 — Claude Code Stop 훅 payload 필드
@@ -224,13 +228,15 @@ flags = [
 
 [contributes.cli.arg_groups.hook_args]
 positional = [
-    { name = "event", type = "string", required = true, help = "Hook event name (e.g. stop, notification, session-end, prompt-submit, session-start, subagent-stop, pre-tool-use, post-tool-use)", help_i18n_key = "claude.cli.arg.hook_args.event.help" },
+    { name = "event", type = "string", required = true, help = "Hook event name (e.g. stop, stop-failure, notification, session-end, prompt-submit, session-start, subagent-stop, pre-tool-use, post-tool-use)", help_i18n_key = "claude.cli.arg.hook_args.event.help" },
 ]
 flags = [
     { name = "surface", type = "u32",    flag = "--surface", required = false, help = "Surface ID the hook is firing for (defaults to caller's TASTY_SURFACE_ID)", help_i18n_key = "claude.cli.arg.hook_args.surface.help" },
     { name = "session", type = "string", flag = "--session", required = false, stdin_field = "session_id", help = "Claude Code session ID. Auto-populated from stdin JSON 'session_id' when Claude Code invokes the hook.", help_i18n_key = "claude.cli.arg.hook_args.session.help" },
     { name = "message", type = "string", flag = "--message", required = false, stdin_field = "message",    help = "Hook message text (used for notification token extraction). Auto-populated from stdin JSON 'message'.", help_i18n_key = "claude.cli.arg.hook_args.message.help" },
     { name = "notification_type", type = "string", flag = "--notification-type", required = false, stdin_field = "notification_type", help = "Claude Code notification subtype (e.g. permission_prompt, idle_prompt). Auto-populated from stdin JSON 'notification_type'. Used to exclude idle_prompt from the needs_input signal.", help_i18n_key = "claude.cli.arg.hook_args.notification_type.help" },
+    { name = "error", type = "string", flag = "--error", required = false, stdin_field = "error", help = "API error kind that ended the turn (e.g. overloaded, rate_limit, server_error, authentication_failed). Auto-populated from stdin JSON 'error' on the StopFailure hook.", help_i18n_key = "claude.cli.arg.hook_args.error.help" },
+    { name = "agent_id", type = "string", flag = "--agent-id", required = false, stdin_field = "agent_id", help = "Subagent ID when the hook fires inside a subagent (absent on the main thread). Auto-populated from stdin JSON 'agent_id'. A stop-failure carrying it is a subagent's API error — the main turn continues, so it is ignored.", help_i18n_key = "claude.cli.arg.hook_args.agent_id.help" },
 ]
 
 [contributes.cli.arg_groups.checklist_hook_args]

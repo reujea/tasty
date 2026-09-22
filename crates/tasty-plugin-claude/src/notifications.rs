@@ -32,6 +32,39 @@ pub(crate) fn notify_done_message(
         .replacen("{}", command_name, 1)
 }
 
+/// 완료 알림 문구에 "API 에러로 턴이 끝났다" 를 덧붙인다 — `error` 는 대상 surface 의
+/// [`crate::hook::STOP_FAILURE_META_KEY`] 값(없으면 `None` → 문구 그대로).
+///
+/// 본문 앞부분은 건드리지 않고 **뒤에 붙인다**: 부모는 이 한 줄을 이미 "작업 완료" 로
+/// 읽고 있고(Monitor 필터 · 사람 눈), 에러로 끝난 턴도 턴이 끝나 입력을 기다린다는
+/// 점에서는 같은 전환이다. 다른 것은 "왜 끝났나" 하나라 그것만 덧붙인다.
+pub(crate) fn with_stop_failure_hint(
+    tr: &Translator,
+    mut message: String,
+    error: Option<&str>,
+) -> String {
+    if let Some(error) = error.filter(|e| !e.is_empty()) {
+        message.push_str(
+            &tr.t("claude.notify.stop_failure_hint")
+                .replacen("{}", error, 1),
+        );
+    }
+    message
+}
+
+/// 대상 surface 의 직전 턴이 API 에러로 끝났으면 그 종류를 읽는다. 조회 실패(이미
+/// 닫힌 surface — process-exit 로 발화한 경우)는 기록 없음과 같게 본다: 그때는 붙일
+/// 힌트가 없을 뿐 알림 자체는 나가야 한다.
+fn last_stop_failure<H: HostCall>(host: &H, target_surface: u32) -> Option<String> {
+    host.call(
+        "surface.meta.get",
+        json!({ "surface_id": target_surface, "key": crate::hook::STOP_FAILURE_META_KEY }),
+    )
+    .ok()
+    .and_then(|r| r.get("value").and_then(|v| v.as_str()).map(String::from))
+    .filter(|s| !s.is_empty())
+}
+
 /// spawn/tell 완료 시 caller 에게 1회성으로 알려줄 3개의 형제 hook
 /// (claude-idle / needs-input / process-exit) 을 target_surface 에 등록한다.
 /// 등록 자체는 best-effort — 실패해도 spawn/tell 성공 자체를 막지 않는다.
@@ -124,7 +157,11 @@ pub(crate) fn handle_notify_done<H: HostCall>(
         .ok_or_else(|| IpcMethodError::invalid_params(tr.t("claude.params.missing_command")))?;
 
     // 1) 부모가 Monitor 로 tail 하는 완료 로그에 append 한다 — 부모 종류를 묻지 않는다.
-    let message = notify_done_message(tr, command_name, target_surface);
+    let message = with_stop_failure_hint(
+        tr,
+        notify_done_message(tr, command_name, target_surface),
+        last_stop_failure(host, target_surface).as_deref(),
+    );
     if let Err(e) = tasty_utils::notify::append_notify_line(caller_surface, &message) {
         tracing::warn!("claude notify-done completion-log append failed: {e}");
     }

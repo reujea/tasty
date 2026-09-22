@@ -13,7 +13,8 @@ use serde_json::{Value, json};
 use tasty_plugin_sdk::i18n::Translator;
 
 /// tasty가 자동으로 등록하는 Claude Code hook 이벤트 목록.
-/// `(claude_event_name, tasty_hook_token, matcher)` 3-튜플. 호스트 `MANAGED_HOOKS`와 동일.
+/// `(claude_event_name, tasty_hook_token, matcher)` 3-튜플. 정의는 이 목록 하나뿐이다 —
+/// `profile.rs`(내장 훅 나열) · `hook.rs` 는 이것을 읽을 뿐 사본을 두지 않는다.
 ///
 /// `UserPromptSubmit` 은 child 가 *2 번째 이후 prompt* 를 받을 때 ClaudeState 의
 /// idle=true (직전 Stop hook 잔재) 를 clear 하는 데 필수. 미등록 시 multi-round
@@ -21,7 +22,7 @@ use tasty_plugin_sdk::i18n::Translator;
 /// idle 로 잘못 보고하는 transient state bug 발생 (구현 중 확인됨).
 ///
 /// `PreToolUse`/`PostToolUse` 는 matcher `"AskUserQuestion"` 으로 좁혀 그 툴
-/// 호출에만 발화한다(다른 6종은 matcher `""` 로 전부 받는다). 실측(실제 Claude Code
+/// 호출에만 발화한다(나머지는 matcher `""` 로 전부 받는다). 실측(실제 Claude Code
 /// 를 띄워 hook stdin payload 를 덤프해 확인)으로 근거를 얻었다:
 /// - `AskUserQuestion` 답변은 `UserPromptSubmit` 을 발생시키지 않는다(같은 프롬프트
 ///   turn 안의 tool 상호작용이라 새 프롬프트로 카운트되지 않음) — 그래서 기존
@@ -32,6 +33,12 @@ use tasty_plugin_sdk::i18n::Translator;
 /// - `PreToolUse`/`AskUserQuestion` 은 인터랙티브 선택 UI 가 뜨기 **전에** 발화하고
 ///   `tool_input.questions` 를 담고 있어, "질문을 막 띄우려는 참"을 구조적으로
 ///   (matcher 로 tool 이름 자체를 보증) 정밀하게 잡는다.
+///
+/// `StopFailure` 는 API 에러(재시도를 다 쓴 529 · rate limit · 인증 실패 …)로 턴이 끝날
+/// 때 `Stop` **대신** 발화한다. 이것이 없으면 그 턴은 끝났다는 신호가 하나도 오지 않아
+/// 상태가 직전 `UserPromptSubmit` 이 남긴 `active` 에 머물고, 부모 완료 알림도 나가지
+/// 않는다 — `UserPromptSubmit` 미등록 때와 같은 부류의 상태 오보고다. matcher 는 `""`
+/// (에러 종류 전부) — 종류는 stdin payload 의 `error` 로 받아 plugin 이 가른다.
 pub const MANAGED_HOOKS: &[(&str, &str, &str)] = &[
     ("Stop", "stop", ""),
     ("Notification", "notification", ""),
@@ -41,6 +48,7 @@ pub const MANAGED_HOOKS: &[(&str, &str, &str)] = &[
     ("UserPromptSubmit", "prompt-submit", ""),
     ("PreToolUse", "pre-tool-use", "AskUserQuestion"),
     ("PostToolUse", "post-tool-use", "AskUserQuestion"),
+    ("StopFailure", "stop-failure", ""),
 ];
 
 /// `entry_matches_marker`가 식별자로 사용하는 substring.
@@ -346,6 +354,19 @@ mod tests {
         }
     }
 
+    /// 위 테스트와 `install_is_idempotent` 는 `MANAGED_HOOKS` 를 순회해 기대값을 만들므로 항목이 빠져도
+    /// 초록이다. 이름으로 박아 두어야 `StopFailure` 배선이 사라질 때 이 자리가 빨개진다.
+    #[test]
+    fn install_adds_stop_failure_entry_exactly_once() {
+        let mut root = json!({});
+        install_hooks_in_value(&mut root, &test_translator()).expect("install 1");
+        install_hooks_in_value(&mut root, &test_translator()).expect("install 2");
+        assert_eq!(
+            count_managed_entries(&root, "StopFailure", &tasty_hook_marker("stop-failure")),
+            1
+        );
+    }
+
     #[test]
     fn install_upgrades_stale_command() {
         // 옛 install 이 남긴 잘못된 SessionStart command 문자열이, 재 install 시
@@ -394,7 +415,7 @@ mod tests {
             root["hooks"]["PostToolUse"][0]["matcher"],
             "AskUserQuestion"
         );
-        // 기존 6종은 matcher `""` 로 동작 불변 유지.
+        // 나머지는 matcher `""` 로 전부 받는다(`StopFailure` 는 에러 종류 전부).
         for event_name in [
             "Stop",
             "Notification",
@@ -402,6 +423,7 @@ mod tests {
             "SubagentStop",
             "SessionStart",
             "UserPromptSubmit",
+            "StopFailure",
         ] {
             assert_eq!(
                 root["hooks"][event_name][0]["matcher"], "",

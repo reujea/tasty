@@ -662,3 +662,39 @@ subcommands = [
     let names: Vec<&str> = entries.iter().map(|e| e.cli.name.as_str()).collect();
     assert_eq!(names, vec!["a"]);
 }
+
+/// 실제 claude 매니페스트의 `hook_args` 로 StopFailure payload 를 병합한다. 픽스처를
+/// 손으로 짓지 않는 이유: 물음이 "`stdin_field` 가 동작하나" 가 아니라 "**그 매니페스트가**
+/// `error` 를 받을 자리를 선언했나" 이기 때문이다 — 선언이 빠지면 stdin 의 `error` 는
+/// params 에 실리지 않고, plugin 은 에러 종류를 모른 채 `unknown` 을 기록한다.
+#[test]
+fn claude_hook_args_carry_the_stop_failure_error_from_stdin() {
+    let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../tasty-plugin-claude");
+    let manifest =
+        tasty_plugin_manifest::Manifest::load(&dir).expect("claude manifest should load");
+    let cli = manifest
+        .contributes
+        .cli
+        .iter()
+        .find(|c| c.name == "claude")
+        .expect("claude cli decl");
+    let group = cli.arg_groups.get("hook_args").expect("hook_args group");
+
+    let mut params = Map::new();
+    params.insert("event".into(), Value::String("stop-failure".into()));
+    let stdin = serde_json::json!({
+        "session_id": "s",
+        "hook_event_name": "StopFailure",
+        "error": "overloaded",
+        "agent_id": "sub-1",
+    });
+    merge_stdin_params(&mut params, group, &stdin).expect("string fields pass through");
+
+    assert_eq!(
+        params.get("error"),
+        Some(&Value::String("overloaded".into()))
+    );
+    assert_eq!(params.get("session"), Some(&Value::String("s".into())));
+    // 서브에이전트 실패를 메인 턴 종료와 가르는 필드 — 빠지면 plugin 이 둘을 구별 못 한다.
+    assert_eq!(params.get("agent_id"), Some(&Value::String("sub-1".into())));
+}

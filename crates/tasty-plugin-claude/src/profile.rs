@@ -6,7 +6,7 @@
 //! 공유하지 않는다 — plugin 이 host 타입에 묶이면 plugin 을 독립적으로 갱신할 수
 //! 없어지고, 이 레지스트리의 소비자는 이 plugin 하나뿐이라 공유 이득도 없다.
 //!
-//! 실질 2 출처: host(내장 훅 6종을 조회 전용 항목으로 나열 — `install::MANAGED_HOOKS`
+//! 실질 2 출처: host(내장 훅 전부를 조회 전용 항목으로 나열 — `install::MANAGED_HOOKS`
 //! 가 유일한 정의처, 여기서 재정의하지 않는다) + user(사용자가 등록한 프로필의
 //! 실체 JSON). plugin manifest 출처는 소비자가 이 plugin 하나뿐이라 비어 있다.
 //! host/user 는 id 네임스페이스가 겹치지 않으므로(`host/*` vs `user/*`)

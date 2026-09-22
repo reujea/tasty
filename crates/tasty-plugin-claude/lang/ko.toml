@@ -53,6 +53,7 @@ unknown_event = "알 수 없는 claude hook 이벤트: '{}'"
 
 [claude.notify]
 done_message = "surface {}: 작업 완료 (호출: {})"
+stop_failure_hint = " — API 에러({})로 턴이 끝나 입력을 기다리는 중"
 stalled_message = "surface {}: 에러 이후 출력이 멈췄다 — 자식이 정지한 것으로 보인다 (여전히 active, 완료 신호 없음)"
 stalled_no_error_message = "surface {}: 오랫동안 출력도 완료 신호도 없다 — 자식이 멈춘 것으로 보인다 (훅이 오지 않은 프롬프트에서 대기 중일 수 있다)"
 stalled_hint = " 마지막 에러: {}"
@@ -166,7 +167,7 @@ description = "~/.claude/settings.json에 tasty 훅 설치"
 description = "~/.claude/settings.json에서 tasty 훅 제거"
 
 [claude.cli.sub.hook]
-description = "Claude Code 훅 연동. Claude Code 훅 시스템이 호출하면 stdin에서 JSON payload(session_id, message, notification_type)를 읽습니다."
+description = "Claude Code 훅 연동. Claude Code 훅 시스템이 호출하면 stdin에서 JSON payload(session_id, message, notification_type, error, agent_id)를 읽습니다."
 
 [claude.cli.sub.checklist-hook]
 description = "Stop 훅 게이트 판정. stdin에서 JSON(session_id, prompt_id, stop_hook_active, last_assistant_message)을 읽습니다. --gate로 판정할 등록 게이트 선택(기본값: continue-checklist)."
@@ -382,7 +383,7 @@ help = "재개 전에 자식의 기존 세션 프로필 부착 해제(경로 또
 help = "자식 세션 권한 모드(acceptEdits|auto|bypassPermissions|manual|dontAsk|plan). --permission-mode로 전달하며 이번 호출에만 default_permission_mode를 재정의합니다. 미지정이면 플래그를 보내지 않아 사용자 Claude Code 설정을 따릅니다. permissions.defaultMode를 설정한 --profile/--profile-file과 함께 쓰면 거부됩니다."
 
 [claude.cli.arg.hook_args.event]
-help = "훅 이벤트 이름(예: stop, notification, session-end, prompt-submit, session-start, subagent-stop, pre-tool-use, post-tool-use)"
+help = "훅 이벤트 이름(예: stop, stop-failure, notification, session-end, prompt-submit, session-start, subagent-stop, pre-tool-use, post-tool-use)"
 
 [claude.cli.arg.hook_args.surface]
 help = "훅 대상 서피스 ID(기본값: 호출자의 TASTY_SURFACE_ID)"
@@ -395,6 +396,12 @@ help = "훅 메시지(알림 토큰 추출에 사용). stdin JSON의 'message'�
 
 [claude.cli.arg.hook_args.notification_type]
 help = "Claude Code 알림 하위 종류(예: permission_prompt, idle_prompt). stdin JSON의 'notification_type'에서 자동 입력. needs_input 신호에서 idle_prompt를 제외하는 데 사용"
+
+[claude.cli.arg.hook_args.error]
+help = "턴을 끝낸 API 에러 종류(예: overloaded, rate_limit, server_error, authentication_failed). StopFailure 훅에서 stdin JSON의 'error'로 자동 입력"
+
+[claude.cli.arg.hook_args.agent_id]
+help = "훅이 서브에이전트 안에서 발화할 때의 서브에이전트 ID(메인 스레드에서는 없음). stdin JSON의 'agent_id'에서 자동 입력. 이 값이 있는 stop-failure는 서브에이전트의 API 에러라 메인 턴이 계속되므로 무시"
 
 [claude.cli.arg.checklist_hook_args.surface]
 help = "게이트 대상 서피스 ID. 해당 세션의 목표 조회에 사용. 기본값은 호출자의 TASTY_SURFACE_ID"

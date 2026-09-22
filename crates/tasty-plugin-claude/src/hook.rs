@@ -32,6 +32,16 @@ use crate::state::ClaudeState;
 /// [`crate::reboot::resume_command_line`] 다.
 pub(crate) const RESTORE_COMMAND_META_KEY: &str = "restore.command";
 
+/// surface meta 키 — 직전 턴이 API 에러로 끝났을 때 그 에러 종류(Claude Code
+/// `StopFailure` payload 의 `error`: `overloaded` · `rate_limit` · `server_error` …).
+/// `stop-failure` 가 쓰고 새 턴(`prompt-submit`/`session-start`/`active`)과
+/// `session-end` 가 지운다. 부모 완료 알림 문구가 읽는다.
+pub(crate) const STOP_FAILURE_META_KEY: &str = "claude-last-stop-failure";
+
+/// API 에러로 턴이 끝났을 때 `claude-idle` 과 함께 쏘는 surface hook 이벤트
+/// (매니페스트 `contributes.hook_events` 에 선언).
+pub(crate) const STOP_FAILURE_EVENT: &str = "claude-stop-failure";
+
 /// hook 처리 후 plugin이 호스트에 보낼 IPC 호출 1건.
 #[derive(Debug, Clone, PartialEq)]
 pub enum HostCall {
@@ -91,9 +101,32 @@ pub(crate) fn handle_claude_hook(
         .map(String::from);
     let message = params.get("message").and_then(|v| v.as_str());
     let notification_type = params.get("notification_type").and_then(|v| v.as_str());
+    let error = params.get("error").and_then(|v| v.as_str());
+    let agent_id = params.get("agent_id").and_then(|v| v.as_str());
     let now_ms = now_ms();
 
-    let mut calls = apply_hook(event, surface_id, session.as_deref(), notification_type, tr)?;
+    if is_subagent_stop_failure(event, agent_id) {
+        // 메인 턴은 끝나지 않았다 — 상태·알림·meta 어느 것도 건드리지 않는다.
+        tracing::info!(
+            "claude hook stop-failure s{surface_id}: subagent {agent_id:?} failed ({error:?}) — main turn continues, ignored"
+        );
+        return Ok(json!({
+            "ok": true,
+            "surface_id": surface_id,
+            "event": event,
+            "ignored": "subagent",
+            "host_call_failures": 0,
+        }));
+    }
+
+    let mut calls = apply_hook(
+        event,
+        surface_id,
+        session.as_deref(),
+        notification_type,
+        error,
+        tr,
+    )?;
 
     // 부착된 프로필을 복원 명령에 싣는다 — surface meta 는 앱 재시작/닫은 탭 복원을
     // 넘지 못하므로(`profile_attach` 모듈 doc), 복원된 프로세스에 프로필을 다시
@@ -152,6 +185,18 @@ pub(crate) fn handle_claude_hook(
     }))
 }
 
+/// 서브에이전트(Agent 툴 호출) 안에서 난 API 에러인가.
+///
+/// Claude Code 는 훅 payload 공통부에 `agent_id` 를 싣는데 **서브에이전트 문맥에서만**
+/// 값이 있다(메인 스레드는 필드 자체가 없다). `StopFailure` 를 조립하는 경로는 질의
+/// 루프 공용이라 서브에이전트의 실패에도 불릴 수 있고, 그때 메인 턴은 그 실패를 tool
+/// 결과로 받고 계속 돈다 — 여기서 `idle` 로 닫으면 일하는 세션을 입력 대기로 오보고하고
+/// 부모에게 거짓 완료 알림이 간다. (`Stop` 은 서브에이전트용 `SubagentStop` 이 따로
+/// 있어 이 구분이 이벤트 이름에 실리지만 `StopFailure` 는 하나뿐이다.)
+pub(crate) fn is_subagent_stop_failure(event: &str, agent_id: Option<&str>) -> bool {
+    event == "stop-failure" && agent_id.is_some_and(|a| !a.is_empty())
+}
+
 /// 새 턴 시작(=idle 상태 해제) 신호 — `apply_hook` 이 `SetState{state:"active"}` 로
 /// 묶는 이벤트 집합과 동일하다. 이 시점에 error dedupe 를 초기화해, 지난 턴의 에러
 /// 텍스트로 눌려있던 dedupe 가 이번 턴에 나는 새 에러까지 억제하지 않게 한다.
@@ -181,7 +226,8 @@ fn now_ms() -> u64 {
 /// hook event → telemetry HostCall 매핑. 순수 함수 — 테스트가 직접 검증한다.
 ///
 /// - `session-start` → state 에 시작 시각 기록 (HostCall 없음)
-/// - `stop` / `subagent-stop` / `session-end` → wall_time_ms 가 있으면 발행
+/// - `stop` / `stop-failure` / `subagent-stop` / `session-end` → wall_time_ms 가 있으면
+///   발행(`stop-failure` 는 API 에러로 끝난 턴 — `stop` 대신 온다)
 /// - `notification` → message 에서 `\btokens?:\s*(\d+)\b` 매칭되면 input_tokens 발행
 pub(crate) fn telemetry_for_hook(
     state: &mut ClaudeState,
@@ -195,7 +241,7 @@ pub(crate) fn telemetry_for_hook(
         "session-start" => {
             state.mark_session_start(surface_id, now_ms);
         }
-        "stop" | "subagent-stop" | "session-end" => {
+        "stop" | "stop-failure" | "subagent-stop" | "session-end" => {
             if let Some(elapsed) = state.take_wall_time(surface_id, now_ms) {
                 out.push(HostCall::TelemetryRecord {
                     metric: "wall_time_ms",
@@ -275,10 +321,56 @@ pub(crate) fn apply_hook(
     surface_id: u32,
     session: Option<&str>,
     notification_type: Option<&str>,
+    error: Option<&str>,
     tr: &Translator,
 ) -> Result<Vec<HostCall>, IpcMethodError> {
     let mut calls = Vec::new();
+    // 지난 턴이 API 에러로 끝났다는 기록은 그 턴에만 참이다 — 새 턴이 시작되거나 세션이
+    // 끝나면 지운다. 이 기록이 있는지 먼저 묻지 않고 매번 지우는 이유: plugin 이 그 사실을
+    // 메모리에 들고 있으면 plugin 재시작이 그것을 잃고, 그러면 지난 에러가 다음 완료 알림에
+    // 계속 붙는다(`notifications::notify_done_message` 가 이 meta 를 읽는다).
+    if is_new_turn_event(event) || event == "session-end" {
+        calls.push(HostCall::MetaUnset {
+            surface_id,
+            key: STOP_FAILURE_META_KEY,
+        });
+    }
     match event {
+        "stop-failure" => {
+            // Claude Code 는 API 에러(재시도 소진 뒤의 529·rate limit·인증 실패 …)로 턴이
+            // 끝나면 `Stop` **대신** `StopFailure` 를 쏜다 — 이 턴에는 `stop` 이 오지
+            // 않는다. 턴은 끝났고 Claude 는 입력을 기다리므로 상태는 `idle` 이다.
+            //
+            // `claude-idle` 도 함께 쏜다: 부모의 완료 알림은 그 이벤트를 구독하므로
+            // (`notifications::register_notify_hooks`), 빠뜨리면 부모는 아무 알림도 못
+            // 받는다. 에러로 끝났다는 사실은 알림 문구가 meta 로 가른다 — 그래서 meta 를
+            // fire 보다 **먼저** 쓴다(알림 command 가 fire 뒤에 meta 를 읽는다).
+            calls.push(HostCall::SetState {
+                surface_id,
+                state: "idle",
+            });
+            calls.push(HostCall::MetaSet {
+                surface_id,
+                key: STOP_FAILURE_META_KEY,
+                // Claude Code 자신도 필드가 없으면 `"unknown"` 을 싣는다(`e.error??"unknown"`).
+                value: error
+                    .filter(|e| !e.is_empty())
+                    .unwrap_or("unknown")
+                    .to_string(),
+            });
+            calls.push(HostCall::FireHook {
+                surface_id,
+                event: "claude-idle",
+            });
+            calls.push(HostCall::FireHook {
+                surface_id,
+                event: STOP_FAILURE_EVENT,
+            });
+            calls.push(HostCall::SurfaceCompletion {
+                surface_id,
+                kind: "completion",
+            });
+        }
         "stop" | "subagent-stop" => {
             calls.push(HostCall::SetState {
                 surface_id,
@@ -729,39 +821,40 @@ mod tests {
         }
     }
 
-    /// 죽은 surface 를 가리키는 session-start + session-end 는 host 호출 **여덟 개**를
+    /// 죽은 surface 를 가리키는 session-start + session-end 는 host 호출 **열 개**를
     /// 쏘고 전부 실패한다. 그 수가 응답에 실리는 값이다.
     ///
-    /// 여덟은 이 시험이 정한 수가 아니라 **실측에서 나온 수**다 — 격리 인스턴스에서 죽은
-    /// surface 에 훅을 보내면 `warn` 이 정확히 여덟 줄 나온다(`terminal.set_state` 둘 ·
-    /// `surface.meta.set` 둘 · `surface.meta.unset` 둘 · `surface.fire_hook` ·
-    /// `surface.completion`). 세는 자리가 틀리면 여기서 여덟이 안 나온다.
+    /// 열의 뿌리는 **실측에서 나온 여덟**이다 — 격리 인스턴스에서 죽은 surface 에 훅을
+    /// 보내면 `warn` 이 정확히 여덟 줄 나왔다(`terminal.set_state` 둘 · `surface.meta.set`
+    /// 둘 · `surface.meta.unset` 둘 · `surface.fire_hook` · `surface.completion`). 그 뒤
+    /// 두 이벤트가 각각 `claude-last-stop-failure` 를 지우는 `surface.meta.unset` 을 하나씩
+    /// 더 쏘게 되어 열이다. 세는 자리가 틀리면 여기서 열이 안 나온다.
     #[test]
-    fn a_dead_surface_makes_every_host_call_fail_and_the_count_is_eight() {
+    fn a_dead_surface_makes_every_host_call_fail_and_the_count_is_ten() {
         let tr = test_translator();
         let host = FlakyHost::failing_everything();
 
-        let start = apply_hook("session-start", 100, Some("sess-1"), None, &tr).unwrap();
-        let end = apply_hook("session-end", 100, None, None, &tr).unwrap();
+        let start = apply_hook("session-start", 100, Some("sess-1"), None, None, &tr).unwrap();
+        let end = apply_hook("session-end", 100, None, None, None, &tr).unwrap();
         let failures = deliver_all(&host, &start) + deliver_all(&host, &end);
 
-        assert_eq!(failures, 8, "쏜 호출: {:?}", host.seen.borrow());
-        assert_eq!(host.seen.borrow().len(), 8, "센 수와 쏜 수가 같아야 한다");
+        assert_eq!(failures, 10, "쏜 호출: {:?}", host.seen.borrow());
+        assert_eq!(host.seen.borrow().len(), 10, "센 수와 쏜 수가 같아야 한다");
     }
 
-    /// 같은 자극, 살아 있는 호스트 — 0 이다. 이 대조가 없으면 위 8 이 "언제나 8" 인지
-    /// "실패해서 8" 인지 안 갈린다.
+    /// 같은 자극, 살아 있는 호스트 — 0 이다. 이 대조가 없으면 위 10 이 "언제나 10" 인지
+    /// "실패해서 10" 인지 안 갈린다.
     #[test]
     fn a_live_host_makes_the_same_two_events_report_zero_failures() {
         let tr = test_translator();
         let host = FlakyHost::healthy();
 
-        let start = apply_hook("session-start", 100, Some("sess-1"), None, &tr).unwrap();
-        let end = apply_hook("session-end", 100, None, None, &tr).unwrap();
+        let start = apply_hook("session-start", 100, Some("sess-1"), None, None, &tr).unwrap();
+        let end = apply_hook("session-end", 100, None, None, None, &tr).unwrap();
         let failures = deliver_all(&host, &start) + deliver_all(&host, &end);
 
         assert_eq!(failures, 0);
-        assert_eq!(host.seen.borrow().len(), 8, "실패가 0 이어도 쏜 수는 같다");
+        assert_eq!(host.seen.borrow().len(), 10, "실패가 0 이어도 쏜 수는 같다");
     }
 
     /// 일부만 실패하면 그만큼만 센다 — 전부/전무 두 끝만 맞고 가운데가 틀리는 세는 법이
@@ -774,18 +867,18 @@ mod tests {
             seen: std::cell::RefCell::new(Vec::new()),
         };
 
-        let end = apply_hook("session-end", 100, None, None, &tr).unwrap();
+        let end = apply_hook("session-end", 100, None, None, None, &tr).unwrap();
         assert_eq!(
             deliver_all(&host, &end),
-            2,
-            "meta.unset 은 이 계획에 둘이다"
+            3,
+            "meta.unset 은 이 계획에 셋이다"
         );
-        assert_eq!(host.seen.borrow().len(), 5, "실패 뒤에도 나머지를 쏜다");
+        assert_eq!(host.seen.borrow().len(), 6, "실패 뒤에도 나머지를 쏜다");
     }
 
     #[test]
     fn stop_sets_idle_and_emits_fire_hook() {
-        let calls = apply_hook("stop", 100, None, None, &test_translator()).unwrap();
+        let calls = apply_hook("stop", 100, None, None, None, &test_translator()).unwrap();
         assert_eq!(
             calls,
             vec![
@@ -807,7 +900,7 @@ mod tests {
 
     #[test]
     fn subagent_stop_treated_like_stop() {
-        let calls = apply_hook("subagent-stop", 7, None, None, &test_translator()).unwrap();
+        let calls = apply_hook("subagent-stop", 7, None, None, None, &test_translator()).unwrap();
         assert_eq!(
             calls,
             vec![
@@ -829,7 +922,7 @@ mod tests {
 
     #[test]
     fn notification_sets_needs_input_and_fires_needs_input() {
-        let calls = apply_hook("notification", 100, None, None, &test_translator()).unwrap();
+        let calls = apply_hook("notification", 100, None, None, None, &test_translator()).unwrap();
         assert_eq!(
             calls,
             vec![
@@ -856,6 +949,7 @@ mod tests {
             100,
             None,
             Some("permission_prompt"),
+            None,
             &test_translator(),
         )
         .unwrap();
@@ -887,6 +981,7 @@ mod tests {
             100,
             None,
             Some("idle_prompt"),
+            None,
             &test_translator(),
         )
         .unwrap();
@@ -902,6 +997,7 @@ mod tests {
             100,
             None,
             Some("auth_success"),
+            None,
             &test_translator(),
         )
         .unwrap();
@@ -919,7 +1015,7 @@ mod tests {
     fn notification_missing_type_still_sets_needs_input() {
         // stdin 에 notification_type 자체가 없는 (구버전 Claude Code 등) 경우도
         // 기존 동작을 유지한다 — 회귀 방지.
-        let calls = apply_hook("notification", 100, None, None, &test_translator()).unwrap();
+        let calls = apply_hook("notification", 100, None, None, None, &test_translator()).unwrap();
         assert!(calls.iter().any(|c| matches!(
             c,
             HostCall::SetState {
@@ -933,7 +1029,7 @@ mod tests {
     fn pre_tool_use_sets_needs_input_and_fires_needs_input() {
         // matcher "AskUserQuestion" 로 이미 좁혀 등록되므로 이 event 가 오면 곧
         // 선택지 UI 가 뜬다는 뜻 — Notification 의 needs_input 분기와 동일한 효과.
-        let calls = apply_hook("pre-tool-use", 100, None, None, &test_translator()).unwrap();
+        let calls = apply_hook("pre-tool-use", 100, None, None, None, &test_translator()).unwrap();
         assert_eq!(
             calls,
             vec![
@@ -958,7 +1054,7 @@ mod tests {
         // 실측 확인: AskUserQuestion 답변은 UserPromptSubmit 을 발생시키지 않으므로
         // PostToolUse 가 needs_input 해제의 유일한 신호. highlight 는 다시 안
         // 올린다(이미 질문에 답한 것이지 "완료/확인 필요" 신호가 아님).
-        let calls = apply_hook("post-tool-use", 100, None, None, &test_translator()).unwrap();
+        let calls = apply_hook("post-tool-use", 100, None, None, None, &test_translator()).unwrap();
         assert_eq!(
             calls,
             vec![HostCall::SetState {
@@ -970,10 +1066,14 @@ mod tests {
 
     #[test]
     fn session_end_clears_session_meta_and_fires_idle() {
-        let calls = apply_hook("session-end", 100, None, None, &test_translator()).unwrap();
+        let calls = apply_hook("session-end", 100, None, None, None, &test_translator()).unwrap();
         assert_eq!(
             calls,
             vec![
+                HostCall::MetaUnset {
+                    surface_id: 100,
+                    key: STOP_FAILURE_META_KEY,
+                },
                 HostCall::SetState {
                     surface_id: 100,
                     state: "idle",
@@ -1006,7 +1106,7 @@ mod tests {
 
     #[test]
     fn stop_also_raises_surface_completion_highlight() {
-        let calls = apply_hook("stop", 100, None, None, &test_translator()).unwrap();
+        let calls = apply_hook("stop", 100, None, None, None, &test_translator()).unwrap();
         assert!(calls.iter().any(|c| matches!(
             c,
             HostCall::SurfaceCompletion {
@@ -1018,7 +1118,7 @@ mod tests {
 
     #[test]
     fn subagent_stop_also_raises_surface_completion_highlight() {
-        let calls = apply_hook("subagent-stop", 7, None, None, &test_translator()).unwrap();
+        let calls = apply_hook("subagent-stop", 7, None, None, None, &test_translator()).unwrap();
         assert!(calls.iter().any(|c| matches!(
             c,
             HostCall::SurfaceCompletion {
@@ -1030,7 +1130,7 @@ mod tests {
 
     #[test]
     fn session_end_also_raises_surface_completion_highlight() {
-        let calls = apply_hook("session-end", 100, None, None, &test_translator()).unwrap();
+        let calls = apply_hook("session-end", 100, None, None, None, &test_translator()).unwrap();
         assert!(calls.iter().any(|c| matches!(
             c,
             HostCall::SurfaceCompletion {
@@ -1042,7 +1142,7 @@ mod tests {
 
     #[test]
     fn notification_also_raises_surface_completion_highlight() {
-        let calls = apply_hook("notification", 100, None, None, &test_translator()).unwrap();
+        let calls = apply_hook("notification", 100, None, None, None, &test_translator()).unwrap();
         assert!(calls.iter().any(|c| matches!(
             c,
             HostCall::SurfaceCompletion {
@@ -1056,7 +1156,7 @@ mod tests {
     /// notification 과 동일 계약.
     #[test]
     fn pre_tool_use_also_raises_surface_completion_with_needs_input_kind() {
-        let calls = apply_hook("pre-tool-use", 100, None, None, &test_translator()).unwrap();
+        let calls = apply_hook("pre-tool-use", 100, None, None, None, &test_translator()).unwrap();
         assert!(calls.iter().any(|c| matches!(
             c,
             HostCall::SurfaceCompletion {
@@ -1071,7 +1171,7 @@ mod tests {
         // "작업 시작" 신호는 완료/확인필요가 아니므로 highlight 대상이 아니다 —
         // apply_hook의 "prompt-submit"|"session-start"|"active" 분기는 건드리지 않는다
         // (`docs/features/surface-highlight/index.md` 참고).
-        let calls = apply_hook("prompt-submit", 100, None, None, &test_translator()).unwrap();
+        let calls = apply_hook("prompt-submit", 100, None, None, None, &test_translator()).unwrap();
         assert!(
             !calls
                 .iter()
@@ -1080,25 +1180,135 @@ mod tests {
     }
 
     #[test]
-    fn prompt_submit_sets_active_and_no_meta() {
-        let calls = apply_hook("prompt-submit", 100, None, None, &test_translator()).unwrap();
+    fn prompt_submit_sets_active_and_only_clears_the_stop_failure_record() {
+        let calls = apply_hook("prompt-submit", 100, None, None, None, &test_translator()).unwrap();
         assert_eq!(
             calls,
-            vec![HostCall::SetState {
-                surface_id: 100,
-                state: "active",
-            }]
+            vec![
+                HostCall::MetaUnset {
+                    surface_id: 100,
+                    key: STOP_FAILURE_META_KEY,
+                },
+                HostCall::SetState {
+                    surface_id: 100,
+                    state: "active",
+                },
+            ]
         );
     }
 
     #[test]
     fn session_start_without_session_id_just_sets_active() {
-        let calls = apply_hook("session-start", 100, None, None, &test_translator()).unwrap();
+        let calls = apply_hook("session-start", 100, None, None, None, &test_translator()).unwrap();
         assert_eq!(
             calls,
-            vec![HostCall::SetState {
-                surface_id: 100,
-                state: "active",
+            vec![
+                HostCall::MetaUnset {
+                    surface_id: 100,
+                    key: STOP_FAILURE_META_KEY,
+                },
+                HostCall::SetState {
+                    surface_id: 100,
+                    state: "active",
+                },
+            ]
+        );
+    }
+
+    // ── StopFailure — API 에러로 끝난 턴 ──
+
+    #[test]
+    fn only_a_stop_failure_carrying_an_agent_id_is_a_subagent_failure() {
+        assert!(is_subagent_stop_failure("stop-failure", Some("a1b2")));
+        assert!(!is_subagent_stop_failure("stop-failure", None));
+        assert!(!is_subagent_stop_failure("stop-failure", Some("")));
+        // 다른 이벤트는 agent_id 가 있어도 이 판정과 무관하다.
+        assert!(!is_subagent_stop_failure("stop", Some("a1b2")));
+    }
+
+    #[test]
+    fn stop_failure_sets_idle_and_fires_idle_and_stop_failure() {
+        let calls = apply_hook(
+            "stop-failure",
+            100,
+            None,
+            None,
+            Some("overloaded"),
+            &test_translator(),
+        )
+        .unwrap();
+        assert_eq!(
+            calls,
+            vec![
+                HostCall::SetState {
+                    surface_id: 100,
+                    state: "idle",
+                },
+                // meta 가 fire 보다 먼저다 — 완료 알림 command 가 fire 뒤에 이것을 읽는다.
+                HostCall::MetaSet {
+                    surface_id: 100,
+                    key: STOP_FAILURE_META_KEY,
+                    value: "overloaded".into(),
+                },
+                HostCall::FireHook {
+                    surface_id: 100,
+                    event: "claude-idle",
+                },
+                HostCall::FireHook {
+                    surface_id: 100,
+                    event: STOP_FAILURE_EVENT,
+                },
+                HostCall::SurfaceCompletion {
+                    surface_id: 100,
+                    kind: "completion",
+                },
+            ]
+        );
+    }
+
+    #[test]
+    fn stop_failure_without_error_field_records_unknown() {
+        for error in [None, Some("")] {
+            let calls =
+                apply_hook("stop-failure", 5, None, None, error, &test_translator()).unwrap();
+            assert!(calls.contains(&HostCall::MetaSet {
+                surface_id: 5,
+                key: STOP_FAILURE_META_KEY,
+                value: "unknown".into(),
+            }));
+        }
+    }
+
+    #[test]
+    fn stop_failure_record_is_cleared_by_new_turn_and_session_end_only() {
+        let clears = |event: &str| {
+            apply_hook(event, 9, None, None, None, &test_translator())
+                .unwrap()
+                .contains(&HostCall::MetaUnset {
+                    surface_id: 9,
+                    key: STOP_FAILURE_META_KEY,
+                })
+        };
+        for event in ["prompt-submit", "session-start", "active", "session-end"] {
+            assert!(clears(event), "{event} 는 기록을 지워야 한다");
+        }
+        // 에러로 끝난 턴 뒤의 알림·질문이 기록을 지우면 부모 알림이 사유를 잃는다.
+        for event in ["stop", "subagent-stop", "notification", "pre-tool-use"] {
+            assert!(!clears(event), "{event} 는 기록을 건드리지 않는다");
+        }
+    }
+
+    #[test]
+    fn stop_failure_closes_wall_time_like_stop() {
+        let mut state = ClaudeState::default();
+        telemetry_for_hook(&mut state, "session-start", 3, None, 1_000);
+        let calls = telemetry_for_hook(&mut state, "stop-failure", 3, None, 4_000);
+        assert_eq!(
+            calls,
+            vec![HostCall::TelemetryRecord {
+                metric: "wall_time_ms",
+                value: 3_000.0,
+                surface_id: 3,
             }]
         );
     }
@@ -1110,12 +1320,17 @@ mod tests {
             100,
             Some("sess-abc"),
             None,
+            None,
             &test_translator(),
         )
         .unwrap();
         assert_eq!(
             calls,
             vec![
+                HostCall::MetaUnset {
+                    surface_id: 100,
+                    key: STOP_FAILURE_META_KEY,
+                },
                 HostCall::SetState {
                     surface_id: 100,
                     state: "active",
@@ -1188,8 +1403,15 @@ mod tests {
         data_dir: &std::path::Path,
     ) -> (Vec<HostCall>, SessionStartProfile) {
         let tr = test_translator();
-        let mut calls =
-            apply_hook("session-start", surface_id, Some(session_id), None, &tr).unwrap();
+        let mut calls = apply_hook(
+            "session-start",
+            surface_id,
+            Some(session_id),
+            None,
+            None,
+            &tr,
+        )
+        .unwrap();
         let plan = plan_session_start_profile(session_id, meta, Some(data_dir), &tr);
         apply_session_start_profile(&mut calls, surface_id, session_id, &plan);
         (calls, plan)
@@ -1353,8 +1575,15 @@ mod tests {
 
         // 2) Ctrl+C 로 죽은 claude 가 session-end 를 발화 — 기록이 지워진다.
         //    같은 이벤트가 프로필 meta 는 건드리지 않는다는 것도 함께 고정한다.
-        let end_calls =
-            apply_hook("session-end", 7, Some("sess-1"), None, &test_translator()).unwrap();
+        let end_calls = apply_hook(
+            "session-end",
+            7,
+            Some("sess-1"),
+            None,
+            None,
+            &test_translator(),
+        )
+        .unwrap();
         assert!(!end_calls.iter().any(|c| matches!(
             c,
             HostCall::MetaUnset { key, .. }
@@ -1414,7 +1643,7 @@ mod tests {
 
     #[test]
     fn unknown_event_returns_invalid_params() {
-        let err = apply_hook("bogus", 100, None, None, &test_translator()).unwrap_err();
+        let err = apply_hook("bogus", 100, None, None, None, &test_translator()).unwrap_err();
         assert_eq!(err.code, -32602);
         assert!(err.message.contains("bogus"));
     }

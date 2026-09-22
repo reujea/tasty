@@ -53,6 +53,7 @@ unknown_event = "不明な claude hook イベント: '{}'"
 
 [claude.notify]
 done_message = "surface {}: 作業完了 ({} 経由)"
+stop_failure_hint = " — API エラー（{}）でターンが終了し、入力待ちです"
 stalled_message = "surface {}: エラー以降 出力が止まっています — 子が停止した可能性があります (まだ active、完了シグナルなし)"
 stalled_no_error_message = "surface {}: 長時間 出力も完了シグナルもありません — 子が停止している可能性があります (フックが届かないプロンプトで待機中かもしれません)"
 stalled_hint = " 直近のエラー: {}"
@@ -166,7 +167,7 @@ description = "~/.claude/settings.jsonにtastyフックをインストール"
 description = "~/.claude/settings.jsonからtastyフックを削除"
 
 [claude.cli.sub.hook]
-description = "Claude Codeフック連携。Claude Codeのフックシステムから呼び出されるとstdinからJSONペイロード（session_id、message、notification_type）を読み取ります。"
+description = "Claude Codeフック連携。Claude Codeのフックシステムから呼び出されるとstdinからJSONペイロード（session_id、message、notification_type、error、agent_id）を読み取ります。"
 
 [claude.cli.sub.checklist-hook]
 description = "Stopフックゲートの判定。stdinからJSON（session_id、prompt_id、stop_hook_active、last_assistant_message）を読み取ります。--gateで判定する登録ゲートを選択（既定値：continue-checklist）。"
@@ -382,7 +383,7 @@ help = "再開前に子の既存セッションプロファイルを解除（パ
 help = "子セッションの権限モード（acceptEdits|auto|bypassPermissions|manual|dontAsk|plan）。--permission-modeで渡し、今回の呼び出しだけdefault_permission_modeを上書きします。未指定ならフラグを送らずユーザーのClaude Code設定に従います。permissions.defaultModeを設定する --profile/--profile-fileとの併用は拒否します。"
 
 [claude.cli.arg.hook_args.event]
-help = "フックイベント名（例：stop、notification、session-end、prompt-submit、session-start、subagent-stop、pre-tool-use、post-tool-use）"
+help = "フックイベント名（例：stop、stop-failure、notification、session-end、prompt-submit、session-start、subagent-stop、pre-tool-use、post-tool-use）"
 
 [claude.cli.arg.hook_args.surface]
 help = "フック対象サーフェスID（既定値：呼び出し元のTASTY_SURFACE_ID）"
@@ -395,6 +396,12 @@ help = "フックメッセージ（通知トークン抽出に使用）。stdin 
 
 [claude.cli.arg.hook_args.notification_type]
 help = "Claude Code通知のサブタイプ（例：permission_prompt、idle_prompt）。stdin JSONの 'notification_type' から自動設定。needs_input信号からidle_promptを除外する際に使用"
+
+[claude.cli.arg.hook_args.error]
+help = "ターンを終了させた API エラーの種類（例：overloaded、rate_limit、server_error、authentication_failed）。StopFailure フックで stdin JSON の 'error' から自動設定"
+
+[claude.cli.arg.hook_args.agent_id]
+help = "フックがサブエージェント内で発火したときのサブエージェント ID（メインスレッドでは無し）。stdin JSON の 'agent_id' から自動設定。これを持つ stop-failure はサブエージェントの API エラーでメインターンは続くため無視"
 
 [claude.cli.arg.checklist_hook_args.surface]
 help = "ゲート対象サーフェスID。セッションの目標照会に使用。既定値は呼び出し元のTASTY_SURFACE_ID"

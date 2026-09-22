@@ -1458,6 +1458,35 @@ mod tests {
     }
 
     #[test]
+    fn stop_failure_hint_is_appended_after_the_completion_text() {
+        let tr = test_translator_ko();
+        let base = notify_done_message(&tr, "spawn", 42);
+        let msg =
+            crate::notifications::with_stop_failure_hint(&tr, base.clone(), Some("overloaded"));
+        assert!(
+            msg.starts_with(&base),
+            "완료 문구 앞부분은 그대로여야 함: {msg}"
+        );
+        assert!(msg.contains("overloaded"), "에러 종류 누락: {msg}");
+        assert!(
+            msg.contains("API 에러"),
+            "에러로 끝났음이 드러나야 함: {msg}"
+        );
+    }
+
+    #[test]
+    fn no_stop_failure_record_leaves_the_completion_text_unchanged() {
+        let tr = test_translator();
+        let base = notify_done_message(&tr, "tell", 7);
+        for error in [None, Some("")] {
+            assert_eq!(
+                crate::notifications::with_stop_failure_hint(&tr, base.clone(), error),
+                base
+            );
+        }
+    }
+
+    #[test]
     fn require_child_index_missing_is_invalid_params() {
         let tr = test_translator();
         let err = require_child_index(&json!({ "surface_id": 1 }), &tr).unwrap_err();

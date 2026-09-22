@@ -53,6 +53,7 @@ unknown_event = "unknown claude hook event: '{}'"
 
 [claude.notify]
 done_message = "surface {}: task complete (via {})"
+stop_failure_hint = " — the turn ended on an API error ({}) and is waiting for input"
 stalled_message = "surface {}: no output since an error — the child looks stuck (still active, no completion signal)"
 stalled_no_error_message = "surface {}: no output for a long stretch and no completion signal — the child looks stuck (it may be waiting at a prompt whose hook never arrived)"
 stalled_hint = " Last error: {}"
@@ -166,7 +167,7 @@ description = "Install tasty hooks into ~/.claude/settings.json"
 description = "Uninstall tasty hooks from ~/.claude/settings.json"
 
 [claude.cli.sub.hook]
-description = "Claude Code hook integration. Reads JSON payload from stdin (session_id, message, notification_type) when invoked by Claude Code's hook system."
+description = "Claude Code hook integration. Reads JSON payload from stdin (session_id, message, notification_type, error, agent_id) when invoked by Claude Code's hook system."
 
 [claude.cli.sub.checklist-hook]
 description = "Stop-hook gate decision. Reads JSON payload from stdin (session_id, prompt_id, stop_hook_active, last_assistant_message); --gate selects which registered gate decides (default: continue-checklist)."
@@ -382,7 +383,7 @@ help = "Detach the child's previously attached session profile (path- or name-ba
 help = "Permission mode for the child session (acceptEdits|auto|bypassPermissions|manual|dontAsk|plan), passed through as --permission-mode. Overrides the default_permission_mode setting for this call only. Unset means no flag at all — the user's own Claude Code settings decide. Rejected together with a --profile/--profile-file whose settings JSON sets permissions.defaultMode"
 
 [claude.cli.arg.hook_args.event]
-help = "Hook event name (e.g. stop, notification, session-end, prompt-submit, session-start, subagent-stop, pre-tool-use, post-tool-use)"
+help = "Hook event name (e.g. stop, stop-failure, notification, session-end, prompt-submit, session-start, subagent-stop, pre-tool-use, post-tool-use)"
 
 [claude.cli.arg.hook_args.surface]
 help = "Surface ID the hook is firing for (defaults to caller's TASTY_SURFACE_ID)"
@@ -395,6 +396,12 @@ help = "Hook message text (used for notification token extraction). Auto-populat
 
 [claude.cli.arg.hook_args.notification_type]
 help = "Claude Code notification subtype (e.g. permission_prompt, idle_prompt). Auto-populated from stdin JSON 'notification_type'. Used to exclude idle_prompt from the needs_input signal."
+
+[claude.cli.arg.hook_args.error]
+help = "API error kind that ended the turn (e.g. overloaded, rate_limit, server_error, authentication_failed). Auto-populated from stdin JSON 'error' on the StopFailure hook."
+
+[claude.cli.arg.hook_args.agent_id]
+help = "Subagent ID when the hook fires inside a subagent (absent on the main thread). Auto-populated from stdin JSON 'agent_id'. A stop-failure carrying it is a subagent's API error — the main turn continues, so it is ignored."
 
 [claude.cli.arg.checklist_hook_args.surface]
 help = "Surface ID the gate is firing for, used to look up that session's goal. Defaults to the caller's TASTY_SURFACE_ID."

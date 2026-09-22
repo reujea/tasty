@@ -26,7 +26,7 @@ surface hook 은 더 이상 셸 명령 문자열을 직접 들지 않고, **공�
 | `Notification` | OSC 알림 수신 |
 | `IdleTimeout(secs)` | N초간 PTY 출력 없음 — **1Hz 해상도**(`Tick::Busy`) |
 | `CommandCompleted(Option<i32>)` | OSC 133 D phase — 셸 통합이 개별 명령(`docker build`, `just run` 등)의 종료 + exit code 를 보고 |
-| `Custom(string)` | 코어가 모르는 임의 이벤트 식별자. 정확 문자열 일치로 매칭. 플러그인 소유 이벤트(예: claude plugin 이 fire 하는 `claude-idle` / `needs-input` / `claude-error`)는 모두 이 변형으로 처리된다 — 코어에 에이전트 고유 이벤트명을 박지 않는다. |
+| `Custom(string)` | 코어가 모르는 임의 이벤트 식별자. 정확 문자열 일치로 매칭. 플러그인 소유 이벤트(예: claude plugin 이 fire 하는 `claude-idle` / `needs-input` / `claude-stop-failure` / `claude-error`)는 모두 이 변형으로 처리된다 — 코어에 에이전트 고유 이벤트명을 박지 않는다. |
 
 #### OutputMatch — 완성된 라인 단위 매칭
 
