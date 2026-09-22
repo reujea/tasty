@@ -32,11 +32,22 @@ pub(crate) fn check_request<'a>(
         .workspaces
         .get(window.active_workspace_index())
         .map(|w| w.id);
-    if let Some(response) =
-        super::check_permission_gate(core, window, engine, caller, canonical, ws, &id)
-            .or_else(|| super::check_cap_gate(core, engine, caller, canonical, ws, &id))
-            .or_else(|| super::check_rate_limit_gate(core, engine, caller, canonical, ws, &id))
-    {
+    // 거절은 게이트마다 따로 센다 — 처방이 셋 다 다르다(ADR-0548). 앞 게이트가 돌려보내면 뒤
+    // 게이트는 안 돌므로 한 요청은 많아야 한 칸에 세진다.
+    use tasty_telemetry::GateRefusal;
+    core.gate().record_judged();
+    let refused = super::check_permission_gate(core, window, engine, caller, canonical, ws, &id)
+        .map(|r| (GateRefusal::Permission, r))
+        .or_else(|| {
+            super::check_cap_gate(core, engine, caller, canonical, ws, &id)
+                .map(|r| (GateRefusal::Cap, r))
+        })
+        .or_else(|| {
+            super::check_rate_limit_gate(core, engine, caller, canonical, ws, &id)
+                .map(|r| (GateRefusal::Throttle, r))
+        });
+    if let Some((by, response)) = refused {
+        core.gate().record_refusal(by);
         return Err(response);
     }
     super::record_telemetry_and_audit(core, window, engine, caller, canonical, &request.params, ws);
@@ -198,6 +209,87 @@ mod tests {
             core.pressure().snapshot().handler_calls,
             1,
             "통과한 요청 하나가 한 번 세져야 한다"
+        );
+    }
+
+    /// 게이트 셋이 돌려보낸 요청이 **각자의 칸**으로, 프로덕션 조회(`system.pressure`)까지 나간다.
+    ///
+    /// 거절을 게이트마다 다른 수로 일으켜, 한 칸이 다른 칸으로 새거나 두 칸이 합쳐지면 대조가
+    /// 깨지게 한다. `judged` 는 통과한 요청과 조회 자신까지 센다.
+    #[test]
+    fn each_gate_refusal_is_counted_in_its_own_slot_of_the_pressure_answer() {
+        let _home = crate::test_support::TastyHomeGuard::new();
+        let mut core = super::super::cli_entry_tests::test_core();
+        let (mut state, mut engine) = crate::state::tests::test_state();
+        let req = request("surface.kinds");
+        let mut call = |core: &mut Core, caller: &CallerContext| {
+            super::super::handle_with_caller(core, &mut state, &mut engine, &req, caller)
+                .error
+                .map(|e| e.code)
+        };
+
+        // 권한: 권한 없는 agent 두 번.
+        for _ in 0..2 {
+            assert_eq!(call(&mut core, &agent(&[])), Some(-32001));
+        }
+        // 스로틀: 버킷 1 개 — 첫 번째는 통과, 뒤의 셋은 돌려보낸다.
+        budget(&core);
+        assert_eq!(call(&mut core, &agent(&[Permission::SurfaceRead])), None);
+        for _ in 0..3 {
+            assert_eq!(
+                call(&mut core, &agent(&[Permission::SurfaceRead])),
+                Some(-32010)
+            );
+        }
+        // cap: 발동된 Pause cap 이 걸린 plugin 한 번.
+        let cap = tasty_telemetry::CostCap {
+            id: "cap_gate_probe".into(),
+            agent: "gate-plugin".into(),
+            metric: "ipc_calls".into(),
+            threshold: 1.0,
+            window: tasty_telemetry::CapWindow::Total,
+            action: tasty_telemetry::CapAction::Pause,
+            created_at: 0,
+            triggered: Some(tasty_telemetry::CapTriggered { at: 0, value: 1.0 }),
+        };
+        core.with_memory(|m| {
+            m.put(
+                tasty_memory::HOST_OWNER,
+                &tasty_memory::Scope::Global,
+                &tasty_telemetry::cap_key(&cap.id),
+                &tasty_memory::MemoryValue::Json(serde_json::to_value(&cap).unwrap()),
+                &tasty_memory::PutOpts::default(),
+            )
+        })
+        .unwrap();
+        let plugin = CallerContext::Plugin {
+            plugin_id: "gate-plugin".into(),
+            permissions: Arc::new([Permission::SurfaceRead].into_iter().collect()),
+        };
+        assert_eq!(call(&mut core, &plugin), Some(-32007));
+        // Local 은 어느 게이트에도 안 걸린다.
+        assert_eq!(call(&mut core, &CallerContext::Local), None);
+
+        let mut query = request("system.pressure");
+        query.params = json!({});
+        let answer = super::super::handle_with_caller(
+            &mut core,
+            &mut state,
+            &mut engine,
+            &query,
+            &CallerContext::Local,
+        )
+        .result
+        .expect("local 은 조회할 수 있다");
+        assert_eq!(
+            answer["gate_refusals"],
+            json!({
+                "judged": 2 + 4 + 1 + 1 + 1,
+                "permission_denied": 2,
+                "cap_blocked": 1,
+                "throttled": 3,
+            }),
+            "{answer}"
         );
     }
 

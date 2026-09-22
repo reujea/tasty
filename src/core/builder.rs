@@ -172,6 +172,8 @@ impl CoreBuilder {
             // 주입 대상이 아니다 — 외부 자원이 아니라 이 프로세스의 누계라서
             // production/test 가 다른 구현을 받을 이유가 없다.
             pressure: tasty_telemetry::PressureStats::default(),
+            // 주입 대상이 아니다 — `pressure` 와 같은 이유(이 프로세스의 누계).
+            gate: tasty_telemetry::GateStats::default(),
             plugin_wait: std::sync::Arc::new(tasty_telemetry::PluginWaitStats::default()),
             slow_requests: std::sync::Arc::new(tasty_telemetry::SlowRequestLog::default()),
             db_latency: self.db_latency.unwrap_or_default(),

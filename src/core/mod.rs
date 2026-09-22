@@ -288,6 +288,10 @@ pub(crate) struct Core {
     /// (원자값 여덟 개) 프로세스 수명 동안 들고 있어도 자라지 않는다.
     pressure: tasty_telemetry::PressureStats,
 
+    /// IPC 진입 게이트의 판정 누계 — 권한 거절 · cap 차단 · 스로틀을 따로 센다(ADR-0548).
+    /// `pressure` 와 같은 이유로 여기 있다: 기록 자리(`check_request`)가 손에 쥐는 것이 `Core` 다.
+    gate: tasty_telemetry::GateStats,
+
     /// host→plugin 왕복 대기 게이지.
     ///
     /// `pressure` 와 달리 `Arc` 인 이유는 **올리는 자리가 다른 크레이트**이기
@@ -367,6 +371,11 @@ impl Core {
     /// 관측이 요청 처리의 가변 빌림과 다투지 않는다.
     pub(crate) fn pressure(&self) -> &tasty_telemetry::PressureStats {
         &self.pressure
+    }
+
+    /// IPC 진입 게이트의 판정 누계. `pressure` 와 같이 `&self` 로 기록한다.
+    pub(crate) fn gate(&self) -> &tasty_telemetry::GateStats {
+        &self.gate
     }
 
     /// host→plugin 왕복 대기 게이지. plugin manager 에 **핸들을 넘기려고** 존재하므로

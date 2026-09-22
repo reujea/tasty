@@ -7,7 +7,7 @@
 //!
 //! ## 덩어리는 **모수마다 하나**다
 //!
-//! 응답은 재는 모수마다 한 덩어리로 갈린다 — 오늘 열하나이고, 아래에 그 열하나가 한
+//! 응답은 재는 모수마다 한 덩어리로 갈린다 — 오늘 열둘이고, 아래에 그 열둘이 한
 //! 절씩 있다(큐의 두 덩어리는 한 절에 함께 있다). **덩어리 이름 자체에 그 모수의 경계를 넣는다**: 응답을 그대로 덤프해도
 //! 어느 수가 무엇을 센 것인지 갈린다.
 //!
@@ -150,6 +150,20 @@
 //! 줄부터 밀려나고, `admitted` 는 켜진 뒤 링에 든 누계라 줄 수와의 차가 밀려난 수다. `host` 가
 //! `null` 인 줄은 열린 자리가 밀려난 뒤 plugin hop 만 온 것이다.
 //!
+//! ## `gate_refusals` — 게이트가 **돌려보낸** 요청이다
+//!
+//! 진입 게이트(`handler/checked.rs` 의 `check_request`)에 든 요청의 판정 누계다
+//! (ADR-0548). `judged` 가 모수 — 게이트에 든 요청 전부(Local 도, 큐를 안 지나는 plugin
+//! host-call 도 센다) — 이고, 거절이 게이트마다 한 칸이다: `permission_denied`(권한, `-32001`) · `cap_blocked`(텔레메트리 cap, `-32007`) ·
+//! `throttled`(rate limit, `-32010`). 게이트는 이 차례로 보고 앞에서 돌려보낸 요청은 뒤를 안 지나므로
+//! 한 요청은 많아야 한 칸이다. 셋을 합치지 않는 이유는 처방이 달라서다(권한을 청한다 · cap 을 푼다 ·
+//! 기다린다).
+//!
+//! 전부 이 프로세스가 뜬 뒤의 누계다. 창 단위가 아니고 재시작하면 0 이다 — 영속되는
+//! `agent.rate_limit_status` 의 `throttled_count`(버킷 하나의, 재시작을 넘는 누계)와 모수가 다르다.
+//! 판정 뒤의 봉투 검사(멱등 키 길이)에서 돌려보낸 요청은 거절 칸에 안 들고, 엔진이 없는 부팅·종료
+//! 구간에서 Local 이 아닌 호출자를 돌려보내는 것(`check_without_engine`)은 `judged` 에도 안 든다.
+//!
 //! ## 아직 안 재는 값의 자리는 미리 비워 두지 않는다
 //!
 //! 위 `connections` 덩어리는 재는 자리가 생겼을 때 함께 생겼다. 빈 덩어리를 미리
@@ -162,7 +176,8 @@
 //! `handle_checked_request` 를 안 지나는 갈래가 있다 — gui 의 app 층 메서드
 //! (`App::ipc_step_app_methods`)가 그 자리에서 답하고 돌아간다. 그 차를 이름 붙여
 //! 내보내면 실재하지 않는 양을 재는 것이 되므로, 두 모수를 **나란히** 두고 뺄셈은
-//! 하지 않는다.
+//! 하지 않는다. 게이트가 돌려보낸 수는 뺄셈이 아니라 그 자리에서 센 값으로 `gate_refusals` 에
+//! 따로 있다.
 //!
 //! ## `*_hist` — 평균·최대가 못 답하는 것
 //!
@@ -229,6 +244,7 @@ pub(super) fn handle_system_pressure(
     body["queue_dispatch"] = queue_dispatch_json(&queue.dispatch);
     body["keyed_requests"] = keyed_requests_json(&super::idempotency::retry_counts());
     body["slow_requests"] = slow_requests_json(&core.slow_requests().snapshot());
+    body["gate_refusals"] = gate_refusals_json(&core.gate().snapshot());
     JsonRpcResponse::success(id, body)
 }
 
@@ -309,6 +325,23 @@ pub(super) fn keyed_requests_json(r: &super::idempotency::RetryCounts) -> serde_
         "conflicted": conflicted,
         "discarded": discarded,
         "in_flight": in_flight,
+    })
+}
+
+/// 진입 게이트의 판정 누계 — 판정한 수와 게이트마다의 거절 수(ADR-0548). 누계는 `Core` 가 늘 들고
+/// 있어 `null` 이 되지 않는다. **`..` 없이** 분해하는 것은 위 세 함수와 같은 이유다.
+pub(super) fn gate_refusals_json(g: &tasty_telemetry::GateSnapshot) -> serde_json::Value {
+    let tasty_telemetry::GateSnapshot {
+        judged,
+        permission_denied,
+        cap_blocked,
+        throttled,
+    } = *g;
+    json!({
+        "judged": judged,
+        "permission_denied": permission_denied,
+        "cap_blocked": cap_blocked,
+        "throttled": throttled,
     })
 }
 
@@ -653,7 +686,8 @@ mod tests {
                 && result.get("queue_admission").is_some()
                 && result.get("queue_dispatch").is_some()
                 && result.get("keyed_requests").is_some()
-                && result.get("slow_requests").is_some(),
+                && result.get("slow_requests").is_some()
+                && result.get("gate_refusals").is_some(),
             "덩어리들이 응답에 있어야 한다: {result}"
         );
         assert!(
@@ -1357,6 +1391,22 @@ mod tests {
                 (json!("error"), json!(-32067)),
             ],
             "두 번째 답은 첫 답을 덮지 않는다"
+        );
+    }
+
+    /// 게이트 덩어리는 원천의 칸을 **이름 그대로** 옮긴다 — 값을 전부 다르게 골라 두 칸이 맞바뀌면
+    /// 대조가 깨지게 한다.
+    #[test]
+    fn the_gate_block_carries_its_source_slot_by_slot() {
+        let v = gate_refusals_json(&tasty_telemetry::GateSnapshot {
+            judged: 17,
+            permission_denied: 2,
+            cap_blocked: 3,
+            throttled: 5,
+        });
+        assert_eq!(
+            v,
+            json!({"judged": 17, "permission_denied": 2, "cap_blocked": 3, "throttled": 5})
         );
     }
 

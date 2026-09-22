@@ -234,7 +234,7 @@ modifier-hint 는 0035(좁힘 + 지연) · 0038(빈 섹션) · 0064(타이머 �
 
 ## IPC 전송 · 상한 · 기한 · 압력
 
-수신 상한은 0304 → 0327(무응답 종료 개정) → 0391 · 0392, 응답 기한은 0328 → 0366 → 0452 와 0411 → 0451(훅 스텝의 대기 스레드 — 0498, 「웹훅 · 훅 핸들러」), dispatch 회차는 0313 → 0410 · 0465 → 0413 이다. 압력 관측은 0305 → 0340(histogram) → 0333 · 0412 · 0435 · 0436 · 0466 · 0467 · 0468, plugin 채널 포화는 0315 → 0339 · 0360 이다.
+수신 상한은 0304 → 0327(무응답 종료 개정) → 0391 · 0392, 응답 기한은 0328 → 0366 → 0452 와 0411 → 0451(훅 스텝의 대기 스레드 — 0498, 「웹훅 · 훅 핸들러」), dispatch 회차는 0313 → 0410 · 0465 → 0413 이다. 압력 관측은 0305 → 0340(histogram) → 0333 · 0412 · 0435 · 0436 · 0466 · 0467 · 0468 · 0548, plugin 채널 포화는 0315 → 0339 · 0360 이다.
 운영 문서: [dev-guide/api-conventions](../dev-guide/api-conventions.md) · [features/telemetry](../features/telemetry/index.md) · [dev-guide/timer-hub](../dev-guide/timer-hub.md)
 
 | # | Title | Status | Date | Tags |
@@ -266,6 +266,7 @@ modifier-hint 는 0035(좁힘 + 지연) · 0038(빈 섹션) · 0064(타이머 �
 | 0466 | [큐 대기 평균은 대기를 더한 수로 나눈다](0466-the-queue-wait-mean-divides-by-the-waits-it-summed.md) | Accepted | 2026-09-22 | telemetry, pressure, ipc, queue, modulus, measurement, adr-0305, adr-0333 |
 | 0467 | [accept 대기는 `connections` 덩어리에 상한으로 싣는다](0467-the-accept-wait-is-reported-as-a-bound-in-the-connection-block.md) | Accepted | 2026-09-22 | telemetry, pressure, ipc, accept, connection, measurement, adr-0333, adr-0340 |
 | 0468 | [느린 요청 줄의 호스트 몫은 호출자가 받은 답을 싣는다](0468-the-slow-request-host-part-carries-the-answer-the-caller-got.md) | Accepted | 2026-09-22 | telemetry, pressure, ipc, slow-requests, outcome, measurement, adr-0436, adr-0411 |
+| 0548 | [진입 게이트의 거절은 압력 응답에 한 덩어리로 더하고, 게이트마다 한 칸으로 가른다](0548-gate-refusals-join-the-pressure-answer-as-one-block-split-by-gate.md) | Accepted | 2026-09-23 | ipc, cli, telemetry, pressure, permissions, rate-limit, cap, observability, compatibility, adr-0277, adr-0333, adr-0435 |
 
 ## IPC 계약 · 오류 코드 · 멱등 키
 

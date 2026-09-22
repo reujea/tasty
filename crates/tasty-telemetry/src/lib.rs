@@ -301,12 +301,14 @@ impl TelemetrySeq {
 mod aggregate;
 mod anomaly;
 mod cap;
+mod gate;
 pub mod pressure;
 pub mod slow_requests;
 
 pub use aggregate::*;
 pub use anomaly::*;
 pub use cap::*;
+pub use gate::{GateRefusal, GateSnapshot, GateStats};
 // 크레이트 루트로 올리는 것은 **밖에서 실제로 부르는 이름**뿐이다. 빠진 둘은 일부러다.
 //
 // - `LatencyHistogram` 은 `PressureStats`·`PluginWaitStats` 의 **비공개 필드 타입**이라

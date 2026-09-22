@@ -142,6 +142,20 @@ pub enum ListCommands {
     /// answer it can trail `waits` by the round still running, which includes
     /// the query itself.
     ///
+    /// `gate_refusals` is the twelfth block and counts requests the admission
+    /// gate **turned away**: `judged` is every request that reached the gate
+    /// (requests from this CLI and calls plugins make into this instance
+    /// included), and each gate has its own slot — `permission_denied`
+    /// (permission, -32001), `cap_blocked` (telemetry cap, -32007) and
+    /// `throttled` (rate limit, -32010). The gates run in that order and a
+    /// request turned away by one never reaches the next, so a request is
+    /// counted in at most one slot. The three call for different fixes: ask for
+    /// the permission, lift the cap, or wait. The numbers are totals since this
+    /// instance started and go back to 0 on restart. The `throttled_count`
+    /// reported by `tasty agent rate-limit-status` is a per-bucket total that
+    /// survives restarts, so it is not the same number. A request turned away
+    /// for a malformed idempotency key is not counted here.
+    ///
     /// An average with nothing behind it comes back as null, not zero.
     Pressure,
     /// List notifications

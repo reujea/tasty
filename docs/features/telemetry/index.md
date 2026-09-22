@@ -82,8 +82,10 @@ RSS 값 소스는 caller 타입별로 다르다: **Plugin** 은 host(`tasty-host
 잰다 — 스트림 연결로 민 프레임의 손실과 적체다. 다음 셋은 명령 큐의 **양 끝**(들어온 쪽의 입장
 장부 · 꺼낸 쪽의 회차와 실행 중인 요청)과 멱등 키를 실은 요청이 받은 **판정**이다
 ([ADR-0435](../../adr/0435-the-queue-and-retry-counts-join-the-pressure-answer-as-three-blocks.md)).
-마지막 하나는 집계가 아니라 **느린 요청 한 건씩**이다 — 호스트가 발급한 요청 번호로 큐 대기 · 호스트
+그다음 하나는 집계가 아니라 **느린 요청 한 건씩**이다 — 호스트가 발급한 요청 번호로 큐 대기 · 호스트
 처리 · plugin 대기를 한 줄에 잇는다([ADR-0436](../../adr/0436-an-ipc-request-is-numbered-by-the-host-and-slow-ones-are-kept-in-a-ring.md)).
+그리고 진입 게이트 **자신의 판정** — 게이트가 요청을 몇 건 보았고 그중 몇 건을 권한 · cap · 스로틀
+중 어느 게이트가 돌려보냈는가 — 가 덩어리 하나다([ADR-0548](../../adr/0548-gate-refusals-join-the-pressure-answer-as-one-block-split-by-gate.md)).
 
 `system.pressure`(local-only) 가 그 누계를 읽는다. 응답은 **모수마다 한 덩어리**다.
 
@@ -100,6 +102,7 @@ RSS 값 소스는 caller 타입별로 다르다: **Plugin** 은 host(`tasty-host
 | `queue_dispatch` | 큐에서 꺼내는 회차와 실행 직전 (`tasty_ipc::dispatch::DispatchStats`) | 큐에서 **꺼낸** 명령과 그 회차 — 실행 중인 요청은 호출자가 아직 기다리는 것만 |
 | `keyed_requests` | 멱등 보존소의 판정 (`idempotency::Store::decide`) | **멱등 키를 실은** 요청만 — 한 요청은 자기를 맡은 층의 판정으로 한 번 |
 | `slow_requests` | 명령을 꺼낸 직후·다 다룬 직후 (`app::ipc_round::CommandObservation`, gui · headless 같은 자리) + plugin 대기 표의 응답·만료·취소 (`PluginManager::record_origin_hop`) | 호스트 IPC 큐를 지난 요청 중 **합이 문턱(100 ms) 이상인 것만** — `system.pressure` 자신은 안 넣는다 |
+| `gate_refusals` | 공통 진입 게이트 (`handler/checked.rs` 의 `check_request`) | 게이트에 **든** 요청 전부(`judged`) — Local 도, 큐를 안 지나는 plugin host-call 도 센다. 거절은 게이트마다 한 칸 |
 
 `queue_before_gate` 안에서 명령을 세는 수가 둘이다. `waits` 는 대기를 기록한 명령 수로, 명령을 **꺼내는 순간** 대기 합·최댓값·분포와 함께 오른다 — `wait_us_mean` 의 분모이고 `wait_us_hist.counts` 의 합과 같다. `commands` 는 회차가 **끝날 때** 그 회차가 꺼낸 수만큼 오르고 `depth_mean`(= `commands / drains`)의 분자다. 조회는 늘 자기 회차 안에서 답하므로 한 답 안에서 `commands` 는 아직 도는 회차(조회 자신 포함)만큼 `waits` 보다 작다 — 평균을 `commands` 로 나누면 최댓값을 넘는 값이 나왔다([ADR-0466](../../adr/0466-the-queue-wait-mean-divides-by-the-waits-it-summed.md)).
 
@@ -242,6 +245,21 @@ in-memory" 가 안 갈린다([ADR-0485](../../adr/0485-a-memory-db-that-failed-t
 
 값과 상수의 근거는 [ADR-0436](../../adr/0436-an-ipc-request-is-numbered-by-the-host-and-slow-ones-are-kept-in-a-ring.md).
 
+열둘째 `gate_refusals` 는 게이트가 **돌려보낸** 요청이다(`tasty_telemetry::GateStats`). 칸은 넷이다 —
+`judged`(게이트에 든 요청, 모수) · `permission_denied`(권한 게이트, `-32001`) · `cap_blocked`(텔레메트리 cap
+게이트, `-32007`) · `throttled`(rate limit 게이트, `-32010`). 게이트는 권한 → cap → rate limit 차례로 보고
+앞에서 돌려보낸 요청은 뒤를 안 지나므로 한 요청은 많아야 한 칸에 세진다 — 그래서 `judged` 에서 세 거절을
+뺀 값이 세 게이트를 모두 지난 수와 같다. 셋을 한 칸으로 합치지 않는 것은 처방이 달라서다(권한을 청한다 ·
+cap 을 푼다 · 기다린다).
+
+- **리셋** — 전부 이 프로세스가 뜬 뒤의 누계다. 창 단위로 비워지지 않고 재시작하면 0 이다. 영속되는
+  `agent.rate_limit_status` 의 `throttled_count` 와 모수가 다르다 — 그쪽은 버킷 하나의 수명 동안 재시작을
+  넘어 쌓이고, 게이트 밖의 직접 소비 거절도 센다.
+- **모수 밖** — 게이트 뒤의 봉투 검사(멱등 키 길이)에서 돌려보낸 요청은 거절 칸에 안 든다(정책이 아니라
+  틀린 인자다). 엔진이 없는 GUI 부팅·종료 구간에서 Local 이 아닌 호출자를 돌려보내는 판정
+  (`check_without_engine`)은 `judged` 에도 안 든다.
+- **호출자별이 아니다** — 누가 거절당했는지는 audit log(`plugin.audit_query`, Deny 만 남는다)의 몫이다.
+
 #### 분포 — 평균·최대가 못 답하는 것
 
 `queue_before_gate.wait_us_hist` · `handler_after_gate.us_hist` ·
@@ -262,7 +280,7 @@ in-memory" 가 안 갈린다([ADR-0485](../../adr/0485-a-memory-db-that-failed-t
 
 `db` 에는 분포가 없다 — 그 게이지는 `tasty-memory` 에 살고 histogram 타입은
 `tasty-telemetry` 에 있어 의존 방향이 반대다. `connections` 에도 없다 — 시간이 아니라
-자리라 분포를 잴 축이 아니다. `stream_push` 와 그 뒤 세 덩어리도 시간이 아니라 수라 없다. `slow_requests` 는 시간을 싣지만 분포가 아니라 문턱을 넘은 요청 한 건씩이다.
+자리라 분포를 잴 축이 아니다. `stream_push` 와 그 뒤 세 덩어리, 그리고 `gate_refusals` 도 시간이 아니라 수라 없다. `slow_requests` 는 시간을 싣지만 분포가 아니라 문턱을 넘은 요청 한 건씩이다.
 
 #### 덩어리를 가리지 않고 걸리는 것
 
