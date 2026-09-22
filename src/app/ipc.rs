@@ -12,7 +12,8 @@
 //! 3. `debug_methods` (debug 빌드): debug.event_bus.* / debug.extension.invoke_hook /
 //!    debug.popup.*.
 //! 4. `window_required`: focused window 가 있어야 처리 가능 (surface.ime_*,
-//!    debug.info, ui.screenshot).
+//!    debug.info, debug.inject_*). 3·4 는 멱등 키 보존소를 한 번 지나는 한 묶음이다
+//!    (`ipc_step_debug_layers`).
 //! 5. `routing`: plugin namespace forward → focused window / parked state fallback.
 
 mod app_methods;
@@ -180,17 +181,52 @@ impl App {
             IpcStep::Handled => return IpcStep::Handled,
             IpcStep::NotHandled => {}
         }
-        #[cfg(debug_assertions)]
-        if matches!(self.ipc_step_debug(&cmd), IpcStep::Handled) {
-            return IpcStep::Handled;
-        }
-        if matches!(self.ipc_step_window_required(&cmd), IpcStep::Handled) {
+        if matches!(self.ipc_step_debug_layers(&cmd, &caller), IpcStep::Handled) {
             return IpcStep::Handled;
         }
         if matches!(self.ipc_step_routing(&cmd, &checked), IpcStep::Handled) {
             return IpcStep::Handled;
         }
         IpcStep::NotHandled
+    }
+
+    /// step 3·4 — debug step 과 window-required step. 둘 다 release 에서는 아무것도 안 맡는다.
+    ///
+    /// 멱등 키를 실은 `Mutate` 는 보존소를 먼저 지난다 — app_methods step 과 같은 함수다. 이
+    /// step 들은 app_methods step **뒤**라 거기서 연 자리가 닫힌 뒤에 오므로, 여기서 다시 열지
+    /// 않으면 입력 주입 · `debug.lua.eval` 이 보존소 없이 실행된다(ADR-0566). 두 step 을 한
+    /// 함수로 묶는 이유는 보존소를 한 번 여는 것이다 — 따로 감싸면 첫 step 이 안 맡은 이름을
+    /// 둘째가 또 연다.
+    #[cfg(debug_assertions)]
+    fn ipc_step_debug_layers(
+        &mut self,
+        cmd: &crate::ipc::server::IpcCommand,
+        caller: &crate::ipc::caller::CallerContext,
+    ) -> IpcStep {
+        if let Some(step) = crate::ipc::handler::idempotency::run_app_layer(
+            caller,
+            cmd,
+            IpcStep::Handled,
+            |step| matches!(step, IpcStep::Handled),
+            |relayed| self.ipc_step_debug_layers(relayed, caller),
+        ) {
+            return step;
+        }
+        if matches!(self.ipc_step_debug(cmd), IpcStep::Handled) {
+            return IpcStep::Handled;
+        }
+        self.ipc_step_window_required(cmd)
+    }
+
+    /// release 에는 debug step 이 없고 window-required step 은 아무것도 안 맡는다 — 보존소를
+    /// 열 이름이 없다.
+    #[cfg(not(debug_assertions))]
+    fn ipc_step_debug_layers(
+        &mut self,
+        cmd: &crate::ipc::server::IpcCommand,
+        _caller: &crate::ipc::caller::CallerContext,
+    ) -> IpcStep {
+        self.ipc_step_window_required(cmd)
     }
 }
 

@@ -18,24 +18,27 @@
 //! 수렴한다), 보존소에 넣으면 오히려 **조회가 낡은 답을 받는다.** 그 분류가 이미 표에
 //! 있으므로 여기서 목록을 다시 만들지 않는다 — 두 목록이면 갈리고, 갈렸을 때 조용하다.
 //!
-//! ★ **그 상한과 실제로 도는 범위는 층마다 따로 배선된다.** 호스트의 IPC 는 층이 셋이고,
-//! 이 모듈을 부르는 자리가 층마다 있다:
+//! ★ **그 상한과 실제로 도는 범위는 경로마다 따로 배선된다.** 호스트가 키를 실은 요청을
+//! 끝내는 경로는 넷이고, 이 모듈을 부르는 자리가 경로마다 있다:
 //!
 //! - **engine 라우터** — [`super::route_checked_request`] 가 [`begin`]/[`finish`] 를 부른다.
 //!   [`super::handle_checked_request`] 를 지나는 모든 요청이다.
 //! - **App 층** — 창 생성·화면 캡처·plugin 설치·원격 attach 처럼 `App` 이 직접 끝내는
 //!   메서드. GUI 의 app_methods step 과 헤드리스의 App 층 가로채기가 각각 첫 줄에서
 //!   [`run_app_layer`] 를 부른다(ADR-0421). 답을 **나중에** 보내는 메서드가 있어서 진행
-//!   중 상태가 여기서만 생긴다 — 아래 "동시에 같은 키가 둘 오면".
-//! - **plugin namespace forward** — plugin 이 점유한 prefix 아래의 **모든 이름**. 호스트는
-//!   그 뜻을 모르고 plugin 에게 넘길 뿐이라 보존소를 안 거친다. 이 층은 계약 **밖**이라고
-//!   이름 표가 선언한다(ADR-0361).
+//!   중 상태가 여기서 생긴다 — 아래 "동시에 같은 키가 둘 오면".
+//! - **GUI debug step** — app_methods step **뒤**의 두 step(`debug_methods` ·
+//!   `window_required`, 사용자 입력 재현이라 release 에 없다). 두 step 을 한 함수로 묶어 그
+//!   첫 줄에서 [`run_app_layer`] 를 부른다. 헤드리스에는 이 step 이 따로 없다 — 그 빌드의
+//!   debug 이름은 App 층 가로채기 안에서 끝난다(ADR-0566).
+//! - **plugin namespace forward** — plugin 이 점유한 prefix 아래의 이름. 두 무리가 있다.
+//!   표가 아는 호스트 메서드인데 prefix 를 번들 plugin 이 점유한 것(`image.open` 등 — plugin
+//!   이 받아 호스트로 되부른다)은 [`forward_keeping_the_key`] 가 보존소를 지나게 한다.
+//!   표가 모르는 plugin 고유 이름은 호스트가 뜻을 모르므로 개입하지 않고, 이름 표가 계약
+//!   **밖**이라고 선언한다(ADR-0361).
 //!
-//! 남는 구멍이 하나 있다: GUI 의 **debug step**(`src/app/ipc/debug_methods.rs` ·
-//! `window_required.rs`)은 app_methods step **뒤**에서 돌고 거기 `Mutate` 가 있다
-//! (`debug.lua.eval` · 입력 주입 등). 그 이름은 [`run_app_layer`] 를 거치지만 app_methods
-//! step 이 안 맡으므로 연 자리가 닫히고 보존소 없이 실행된다. 사용자 입력 재현이라
-//! release 에 없는 표면이고, 이름 표가 그것을 계약 밖으로 선언한다.
+//! 그래서 **보존소를 안 지나는 것은 plugin 고유 이름뿐이다.** 호스트가 아는 이름은 어느 경로로
+//! 끝나든 지난다 — 그 경로가 받기 시작한 판은 이름 표의 `KeyContract::Kept { since }` 가 말한다.
 //!
 //! ## 동시에 같은 키가 둘 오면
 //!
@@ -314,10 +317,10 @@ impl Store {
     /// 이 층이 그 이름을 **안 맡은** 실행을 닫는다 — [`Store::abandon`] 에 더해, 연 판정이
     /// 올린 `executed` 를 되돌린다.
     ///
-    /// 그 요청은 실행되지 않았다. 다음 층으로 가서 거기서 다시 판정되고(engine 라우터면
-    /// 처음 보는 키로 한 번 더 센다), 보존소를 안 지나는 층(GUI debug step · namespace
-    /// forward)이면 아무 데서도 실행을 세지 않는 것이 맞다. 되돌리지 않으면 한 요청이
-    /// 두 번 세지거나, 계약 밖 호출이 모수에 섞인다(ADR-0422).
+    /// 그 요청은 실행되지 않았다. 다음 층으로 가서 거기서 다시 판정되고(다음 층도 보존소를
+    /// 지나면 처음 보는 키로 한 번 더 센다), 보존소를 안 지나는 이름(plugin 고유 이름)이면
+    /// 아무 데서도 실행을 세지 않는 것이 맞다. 되돌리지 않으면 한 요청이 두 번 세지거나,
+    /// 계약 밖 호출이 모수에 섞인다(ADR-0422).
     fn abandon_unhandled(&mut self, scope: &str, key: &str, ticket: u64) {
         self.abandon(scope, key, ticket);
         self.counts.executed = self.counts.executed.saturating_sub(1);
@@ -672,6 +675,51 @@ pub(crate) fn run_app_layer<T>(
         handled,
         dispatch,
     )
+}
+
+/// plugin namespace forward 가 보존소를 지나게 한다 — 이름 표가 `Kept` 로 선언한 이름만.
+///
+/// 부르는 쪽은 그 이름을 plugin 이 점유했는지 **먼저** 정하고(점유하지 않았으면 engine
+/// 라우터가 보존소를 지난다), 점유했으면 여기서 `forward` 로 넘긴다. 나가는 이름은 두 무리다.
+///
+/// - **표의 호스트 메서드**(`image.open` · `markdown.navigate` 등 — prefix 를 번들 plugin 이
+///   점유했다). 표가 `Kept` 로 선언하므로 호출자는 키를 싣는다. plugin 이 받아 호스트로
+///   되부르는데 그 되부름에는 키가 없다 — 여기서 안 걸면 재시도가 두 번째 실행이 된다. 답은
+///   plugin 이 **나중에** 보내므로 App 층과 같은 진행 중 상태가 생기고, 그래서 같은 함수
+///   ([`run_app_layer`])를 쓴다. `forward` 는 키를 뗀 사본과 relay 통로를 받는다.
+/// - **plugin 고유 이름**(표가 모른다 → `Outside`). 호스트는 그 뜻을 모르고, 정확히 한 번은
+///   target plugin 의 몫이라고 선언돼 있다(ADR-0361). 개입하지 않고 원래 요청을 그대로 넘긴다.
+///
+/// 판정을 이름 표의 선언으로 하는 이유 — 선언과 배선이 한 값에서 나와야 둘이 안 갈린다.
+/// `Kept` 가 아닌데 여기서 보존하면 호출자는 안 싣는 키를 기다리고, `Kept` 인데 안 보존하면
+/// 호출자가 믿은 계약이 거짓이 된다.
+pub(crate) fn forward_keeping_the_key(
+    caller: &CallerContext,
+    cmd: &IpcCommand,
+    forward: impl FnOnce(&IpcCommand),
+) {
+    let method = tasty_ipc::alias::canonicalize(&cmd.request.method);
+    let mut forward = Some(forward);
+    let engaged = matches!(
+        tasty_ipc::method_meta::key_contract(method),
+        tasty_ipc::method_meta::KeyContract::Kept { .. }
+    ) && run_app_layer(
+        caller,
+        cmd,
+        (),
+        |_| true,
+        |relayed| {
+            if let Some(f) = forward.take() {
+                f(relayed);
+            }
+        },
+    )
+    .is_some();
+    // 개입하지 않았으면(키가 없거나 계약 밖) 원래 요청을 넘긴다. 개입했으면 `forward` 는
+    // relay 안에서 불렸거나(처음 보는 키), 재생·충돌·합류라 부르면 안 된다.
+    if !engaged && let Some(f) = forward.take() {
+        f(cmd);
+    }
 }
 
 /// relay 스레드를 세우는 함수. 시험은 실패하는 것을 넣어 그 갈래를 잰다.
@@ -1791,9 +1839,9 @@ mod tests {
         assert_eq!(after_retry.replayed, 1, "{after_retry:?}");
     }
 
-    /// 보존소를 안 지나는 호출은 `executed` 에 안 든다 — GUI debug step 의 `Mutate`(App 층을
-    /// 지나지만 그 층이 안 맡고, debug step 은 보존소 없이 실행한다)와 plugin namespace
-    /// forward 이름(표가 모른다).
+    /// App 층이 안 맡은 호출은 거기서 `executed` 에 안 든다 — 다음 경로가 다시 판정한다.
+    /// GUI debug step 의 `Mutate`(그 step 이 다시 [`run_app_layer`] 로 판정한다)와 plugin
+    /// namespace 고유 이름(표가 모른다 — 아무 데서도 안 센다).
     #[test]
     fn a_call_outside_the_contract_is_not_counted_as_executed() {
         let store = isolated_store();
@@ -1813,6 +1861,71 @@ mod tests {
                 |_| false,
             );
             assert_eq!(lock(store).counts(), RetryCounts::default(), "{name}");
+        }
+    }
+
+    // ── plugin namespace forward(`forward_keeping_the_key`) ──
+
+    /// forward 흉내 — 넘겨받은 명령을 붙들어 둔다. plugin 은 답을 **나중에** 보내므로 여기서
+    /// 답하지 않는다.
+    fn hold_forward(held: &std::cell::RefCell<Vec<IpcCommand>>) -> impl FnOnce(&IpcCommand) + '_ {
+        move |c: &IpcCommand| {
+            held.borrow_mut().push(IpcCommand::continuing(
+                c.request.clone(),
+                c.response_tx.clone(),
+                c.request_seq(),
+            ));
+        }
+    }
+
+    /// prefix 를 plugin 이 점유한 **표의** `Mutate`(`image.open`)는 forward 로 나가도 같은 키의
+    /// 재시도가 두 번째 forward 를 안 낸다 — 첫 forward 의 답(plugin 이 나중에 보낸 것)을 재생으로
+    /// 받는다. 표가 그 이름을 `Kept` 로 선언하므로 호출자가 믿는 계약이다(ADR-0566).
+    #[test]
+    fn a_forwarded_host_method_runs_once_per_key_and_the_retry_is_a_replay() {
+        let held = std::cell::RefCell::new(Vec::new());
+        let (first, rx1) = keyed("image.open", "forward-once-probe");
+        forward_keeping_the_key(&CallerContext::Local, &first, hold_forward(&held));
+        assert_eq!(held.borrow().len(), 1, "첫 요청이 forward 되지 않았다");
+        assert!(
+            held.borrow()[0].request.idempotency_key.is_none(),
+            "forward 는 키를 뗀 사본을 받아야 한다"
+        );
+        // plugin 이 나중에 답한다 — relay 통로로.
+        let answer = JsonRpcResponse::success(json!(1), json!({"surface_id": 7}));
+        send_response(&held.borrow()[0].response_tx, answer);
+        let r1 = rx1.recv_timeout(WAIT).expect("첫 답");
+        assert!(!r1.idempotent_replay);
+
+        let (retry, rx2) = keyed("image.open", "forward-once-probe");
+        forward_keeping_the_key(&CallerContext::Local, &retry, hold_forward(&held));
+        assert_eq!(
+            held.borrow().len(),
+            1,
+            "같은 키의 재시도가 plugin 으로 두 번째 forward 됐다"
+        );
+        let r2 = rx2.recv_timeout(WAIT).expect("재생 답");
+        assert!(r2.idempotent_replay, "재생 표지가 없다");
+        assert_eq!(r2.result, r1.result);
+    }
+
+    /// 통제군 — plugin **고유** 이름(표가 모른다 → `Outside`)은 보존소가 개입하지 않는다. 같은
+    /// 키로 두 번 오면 두 번 forward 되고, plugin 은 원래 요청을 그대로 받는다(ADR-0361).
+    #[test]
+    fn a_plugin_name_is_forwarded_every_time_with_its_request_untouched() {
+        let held = std::cell::RefCell::new(Vec::new());
+        for _ in 0..2 {
+            let (cmd, _rx) = keyed("zzzforwardprobe.run", "forward-outside-probe");
+            forward_keeping_the_key(&CallerContext::Local, &cmd, hold_forward(&held));
+        }
+        let held = held.borrow();
+        assert_eq!(held.len(), 2, "계약 밖 이름의 두 번째 forward 가 걸러졌다");
+        for c in held.iter() {
+            assert_eq!(
+                c.request.idempotency_key.as_deref(),
+                Some("forward-outside-probe"),
+                "개입하지 않는 갈래는 원래 요청을 넘긴다"
+            );
         }
     }
 

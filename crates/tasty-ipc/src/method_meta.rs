@@ -54,19 +54,23 @@ pub enum MethodEffect {
 /// 보존소가 "이 메서드에 걸리는가" 도 같은 물음이라 칸을 따로 두지 않는다 — 걸리면
 /// [`KeyContract::Kept`], 원래 걸 필요가 없으면 [`KeyContract::Unneeded`], 걸리지 않으면
 /// [`KeyContract::Outside`] 다. [`MethodEffect`] 와 다른 물음인 것은 층 때문이다: 같은
-/// `Mutate` 라도 보존소를 지나는 층(engine 라우터 · App 층)이 있고 안 지나는 층(plugin
-/// namespace forward · GUI debug step)이 있다.
+/// `Mutate` 라도 보존소를 지나는 이름(호스트가 아는 이름 — 어느 층이 끝내든)이 있고 안 지나는
+/// 이름(plugin 이 뜻을 정하는 namespace 고유 이름)이 있으며, 지나는 이름도 층마다 **받기 시작한
+/// 판**이 다르다.
 ///
 /// 값은 대부분 [`MethodEffect`] 에서 **유도**된다(`Mutate` → `Kept`, 나머지 → `Unneeded`).
-/// 손으로 적는 것은 층이 다른 이름뿐이다 — App 층이 끝내는 `Mutate` 는 `Kept` 의 판이 다르고
-/// ([`KEY_KEPT_BY_APP_LAYER`]), GUI debug step 이 끝내는 `Mutate` 는 `Outside` 다. 그 둘이
-/// 실제 배선과 맞는지는 본체의 source guard(`key_contract_by_layer`)가 dispatch 본문을 읽어
-/// 양방향으로 잰다.
+/// 손으로 적는 것은 판이 다른 이름뿐이다 — App 층이 끝내는 `Mutate` 는
+/// [`KEY_KEPT_BY_APP_LAYER`], 그 뒤의 두 경로(GUI debug step · plugin namespace forward 로 나가는
+/// 표 이름)가 끝내는 `Mutate` 는 [`KEY_KEPT_ON_EVERY_HOST_PATH`] 다. 그 둘이 실제 배선과
+/// 맞는지는 본체의 source guard(`key_contract_by_layer`)가 dispatch 본문을 읽어 양방향으로 잰다.
 ///
-/// 근거·대안은 [ADR-0423], plugin namespace forward 의 `Outside` 는 [ADR-0361].
+/// `Outside` 는 표가 쓰지 않는다 — 표가 모르는 이름(plugin 고유 이름)에만 나온다.
+///
+/// 근거·대안은 [ADR-0423] · [ADR-0566], plugin namespace forward 의 `Outside` 는 [ADR-0361].
 ///
 /// [ADR-0361]: ../../../docs/adr/0361-a-plugin-namespace-forward-is-declared-outside-the-idempotency-contract.md
 /// [ADR-0423]: ../../../docs/adr/0423-each-method-declares-its-key-contract-and-the-version-that-keeps-it.md
+/// [ADR-0566]: ../../../docs/adr/0566-every-host-path-keeps-the-idempotency-key-and-only-a-plugin-name-is-outside.md
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum KeyContract {
     /// **호스트 보존소가 키를 받는다.** 같은 키·같은 요청의 재시도는 실행되지 않고 보관된 답을
@@ -91,11 +95,15 @@ pub enum KeyContract {
 
 /// engine 라우터의 보존소가 키를 받기 시작한 `ipc.idempotency-key` 판.
 pub const KEY_KEPT_BY_ROUTER: u32 = 1;
-/// App 층도 키를 받기 시작한 판. 서버가 선언하는 판이 이것이다(`crate::capability`).
+/// App 층도 키를 받기 시작한 판.
 pub const KEY_KEPT_BY_APP_LAYER: u32 = 2;
+/// App 층 **뒤**의 두 경로도 키를 받기 시작한 판 — GUI debug step, 그리고 plugin namespace
+/// forward 로 나가는 **표의** 이름(prefix 를 번들 plugin 이 점유한 `image.open` 등). 판 2
+/// 서버는 그 둘에서 키를 무시했다. 서버가 선언하는 판이 이것이다(`crate::capability`).
+pub const KEY_KEPT_ON_EVERY_HOST_PATH: u32 = 3;
 
-/// [`MethodEffect`] 에서 유도한 기본 선언. 층이 다른 이름만 [`MethodMeta::kept_by_app_layer`] ·
-/// [`MethodMeta::outside_key_contract`] 로 고친다.
+/// [`MethodEffect`] 에서 유도한 기본 선언. 판이 다른 이름만 [`MethodMeta::kept_by_app_layer`] ·
+/// [`MethodMeta::kept_on_every_host_path`] 로 고친다.
 const fn key_contract_of(effect: MethodEffect) -> KeyContract {
     match effect {
         MethodEffect::Mutate => KeyContract::Kept {
@@ -177,14 +185,17 @@ impl MethodMeta {
         }
     }
 
-    /// 보존소를 안 지나는 층이 끝내는 `Mutate`(GUI debug step).
-    ///
-    /// 부르는 자리가 [`DEBUG_METHODS`] 뿐이라 그 표와 같은 cfg 로 게이트한다 — release 에는
-    /// debug step 이 없으므로 이 선언을 쓸 이름도 없다.
-    #[cfg(debug_assertions)]
-    const fn outside_key_contract(self) -> Self {
+    /// App 층 뒤의 경로가 끝내는 `Mutate` — GUI debug step 과, plugin namespace forward 로 나가는
+    /// 표 이름. 보존소가 받지만 판 [`KEY_KEPT_ON_EVERY_HOST_PATH`] 부터다.
+    const fn kept_on_every_host_path(self) -> Self {
+        assert!(
+            matches!(self.effect, MethodEffect::Mutate),
+            "보존소 선언은 Mutate 에만 뜻이 있다"
+        );
         Self {
-            key_contract: KeyContract::Outside,
+            key_contract: KeyContract::Kept {
+                since: KEY_KEPT_ON_EVERY_HOST_PATH,
+            },
             ..self
         }
     }
@@ -440,14 +451,29 @@ pub const METHOD_TABLE: &[(&str, MethodMeta)] = {
         // com.tasty.image plugin이 namespace를 점유하지만, 호스트 어댑터는
         // plugin 비활성 상태에서도 동작한다. plugin은 ipc.invoke:image 권한으로
         // 위 메서드들을 호출한다.
-        ("image.open", plugin(Mutate, &[SurfaceWrite, FsRead])),
+        //
+        // plugin 이 켜져 있으면 외부 호출은 namespace forward 로 plugin 에 먼저 가고
+        // plugin 이 호스트로 되부른다 — 그래서 `Mutate` 는 forward 경로의 판이다.
+        (
+            "image.open",
+            plugin(Mutate, &[SurfaceWrite, FsRead]).kept_on_every_host_path(),
+        ),
         ("image.save", plugin(Idempotent, &[FsWrite])),
-        ("image.export_png", plugin(Mutate, &[FsWrite])),
-        ("image.next", plugin(Mutate, &[SurfaceWrite])),
-        ("image.prev", plugin(Mutate, &[SurfaceWrite])),
+        (
+            "image.export_png",
+            plugin(Mutate, &[FsWrite]).kept_on_every_host_path(),
+        ),
+        (
+            "image.next",
+            plugin(Mutate, &[SurfaceWrite]).kept_on_every_host_path(),
+        ),
+        (
+            "image.prev",
+            plugin(Mutate, &[SurfaceWrite]).kept_on_every_host_path(),
+        ),
         (
             "image.paste",
-            plugin(Mutate, &[SurfaceWrite, ClipboardRead]),
+            plugin(Mutate, &[SurfaceWrite, ClipboardRead]).kept_on_every_host_path(),
         ),
         ("image.reload", plugin(Idempotent, &[SurfaceWrite, FsRead])),
         ("image.list", plugin(Read, &[SurfaceRead])),
@@ -748,7 +774,10 @@ pub const METHOD_TABLE: &[(&str, MethodMeta)] = {
         ("completion_strategy.list", local_only(Read)),
         // markdown surface 제자리 이동 — 주어진 surface 를 새 파일의 markdown
         // 으로 교체한다. 임의 path 를 읽으므로 FsRead. markdown 주소창 플러그인이 caller.
-        ("markdown.navigate", plugin(Mutate, &[FsRead])),
+        (
+            "markdown.navigate",
+            plugin(Mutate, &[FsRead]).kept_on_every_host_path(),
+        ),
         // generic per-kind 최근목록 조회 — 주소창 드롭다운 데이터 공급원(plugin 이
         // kind 를 채워 호출). 임의 파일 read 가 아니라 이미 열었던 목록 반환뿐이라 더
         // 약한 SurfaceRead 권한. host 는 특정 kind 이름을 모른다(generic).
@@ -863,9 +892,10 @@ pub const METHOD_TABLE: &[(&str, MethodMeta)] = {
 ///
 /// (`ui.screenshot` 은 focus-독립 리팩토링으로 [`METHOD_TABLE`] 로 승격됨.)
 ///
-/// `.outside_key_contract()` 가 붙은 `Mutate` 는 GUI 의 debug step(app_methods step **뒤**)이
-/// 끝내는 이름이라 멱등 키 보존소를 안 지난다(ADR-0421 의 "남는 구멍"). 그 목록이 debug step
-/// 의 실제 dispatch 와 맞는지는 본체의 `source_guards::key_contract_by_layer` 가 잰다.
+/// `.kept_on_every_host_path()` 가 붙은 `Mutate` 는 GUI 의 debug step(app_methods step **뒤**)이
+/// 끝내는 이름이다. 그 step 도 보존소를 지나지만 판 [`KEY_KEPT_ON_EVERY_HOST_PATH`] 부터다. 그
+/// 목록이 debug step 의 실제 dispatch 와 맞는지는 본체의 `source_guards::key_contract_by_layer`
+/// 가 잰다.
 #[cfg(debug_assertions)]
 pub const DEBUG_METHODS: &[(&str, MethodMeta)] = &[
     ("system.shutdown", local_only(MethodEffect::Idempotent)),
@@ -884,24 +914,24 @@ pub const DEBUG_METHODS: &[(&str, MethodMeta)] = &[
     // (`Event::Text`) 따로 있다 — 키 주입으로는 `TextEdit` 에 글자가 안 들어간다.
     (
         "debug.inject_window_mouse",
-        local_only(MethodEffect::Mutate).outside_key_contract(),
+        local_only(MethodEffect::Mutate).kept_on_every_host_path(),
     ),
     (
         "debug.inject_egui_mouse",
-        local_only(MethodEffect::Mutate).outside_key_contract(),
+        local_only(MethodEffect::Mutate).kept_on_every_host_path(),
     ),
     (
         "debug.inject_egui_key",
-        local_only(MethodEffect::Mutate).outside_key_contract(),
+        local_only(MethodEffect::Mutate).kept_on_every_host_path(),
     ),
     (
         "debug.inject_egui_text",
-        local_only(MethodEffect::Mutate).outside_key_contract(),
+        local_only(MethodEffect::Mutate).kept_on_every_host_path(),
     ),
     // 임의 Lua 주입(ADR-0031) — release 에는 이 경로가 없다(원칙 1). local 전용.
     (
         "debug.lua.eval",
-        local_only(MethodEffect::Mutate).outside_key_contract(),
+        local_only(MethodEffect::Mutate).kept_on_every_host_path(),
     ),
     // 사용자 조작 재현(워크스페이스 닫기 / 워크스페이스·탭 전환) — 위 inject_*
     // 와 같은 계열이라 같은 debug 격리.
@@ -970,12 +1000,12 @@ pub const DEBUG_METHODS: &[(&str, MethodMeta)] = &[
     ),
     (
         "debug.event_bus.publish",
-        local_only(MethodEffect::Mutate).outside_key_contract(),
+        local_only(MethodEffect::Mutate).kept_on_every_host_path(),
     ),
     ("debug.event_bus.trace", local_only(MethodEffect::Read)),
     (
         "debug.extension.invoke_hook",
-        local_only(MethodEffect::Mutate).outside_key_contract(),
+        local_only(MethodEffect::Mutate).kept_on_every_host_path(),
     ),
     // 전체화면 무대 강제 진입/종료/조회 — 사용자 조작(popup 타이틀바 전체화면 버튼)
     // 재현. release 미노출. 자기검증(무대 렌더 스크린샷)의 진입점.

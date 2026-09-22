@@ -126,8 +126,9 @@ impl std::error::Error for KeyOutsideContract {}
 /// 키를 실어 보내기 **전에** 그 메서드의 선언을 읽어, 상대에게 요구할
 /// `ipc.idempotency-key` 판을 정한다. 계약 밖이면 거절이다. 연결이 필요 없다.
 ///
-/// - `Kept { since }` — 보존소가 그 판부터 이 메서드를 받는다. App 층 메서드는 판 2 부터라,
-///   판 1 서버에 보내면 키가 조용히 무시된다.
+/// - `Kept { since }` — 보존소가 그 판부터 이 메서드를 받는다. App 층 메서드는 판 2 부터,
+///   GUI debug step 과 plugin namespace forward 로 나가는 표 이름은 판 3 부터라, 그보다 낮은
+///   서버에 보내면 키가 조용히 무시된다.
 /// - `Unneeded` — 재전달이 원래 안전하다. 서버가 필드를 읽기만 하면 된다(최소 판).
 /// - `Outside` — [`KeyOutsideContract`].
 fn required_key_version(method: &str) -> Result<u32> {
@@ -387,9 +388,10 @@ impl IpcConnection {
     /// 확인 자체는 `system.info` 라 부수효과가 없고 연결마다 한 번이다.
     ///
     /// **확인은 둘이다.** 먼저 그 메서드의 선언을 읽는다([`crate::method_meta::key_contract`]).
-    /// 계약 밖이면(plugin namespace forward 등) 연결을 쓰지도 않고 [`KeyOutsideContract`] 로
+    /// 계약 밖이면(표가 모르는 plugin 고유 이름) 연결을 쓰지도 않고 [`KeyOutsideContract`] 로
     /// 끝난다. 그다음 선언이 요구하는 판을 서버가 선언하는지 capability 로 묻는다 — engine
-    /// 라우터 메서드는 판 1, App 층 메서드(창 생성 · plugin 설치 등)는 판 2 다. 판이 모자라면
+    /// 라우터 메서드는 판 1, App 층 메서드(창 생성 · plugin 설치 등)는 판 2, GUI debug step 과
+    /// namespace forward 로 나가는 표 이름(`image.open` 등)은 판 3 이다. 판이 모자라면
     /// [`UnsupportedCapability`] 로 끝나고 요청은 안 나간다.
     ///
     /// 그래서 이 함수를 통과한 요청은 **보내기 전에** 셋 중 하나로 정해져 있다: 보존소가 받는다
@@ -473,6 +475,10 @@ mod tests {
         assert_eq!(
             required_key_version("window.create").expect("App 층 메서드"),
             crate::method_meta::KEY_KEPT_BY_APP_LAYER
+        );
+        assert_eq!(
+            required_key_version("image.open").expect("forward 로 나가는 표 이름"),
+            crate::method_meta::KEY_KEPT_ON_EVERY_HOST_PATH
         );
         assert_eq!(
             required_key_version("workspace.list").expect("읽기"),

@@ -116,12 +116,13 @@
 - 개정 대상: [ADR-0361](0361-a-plugin-namespace-forward-is-declared-outside-the-idempotency-contract.md)
   (`key_contract` 의 값 집합)
 - 개정 패턴 선례: [ADR-0030](0030-image-egui-mesh-bitmap-texture.md)
+- 부분 개정: [0566](0566-every-host-path-keeps-the-idempotency-key-and-only-a-plugin-name-is-outside.md) (GUI debug step 의 `Outside` 조항 개정, 판 3 추가)
 - 관련 ADR: [ADR-0312](0312-the-server-declares-what-it-can-negotiate-not-what-version-it-is.md) —
   capability 선언. [ADR-0338](0338-a-mutation-retry-is-told-apart-by-a-caller-key-and-the-peer-is-asked-before-the-effect.md)
   — 멱등 키 계약. [ADR-0421](0421-the-app-layer-keeps-the-idempotency-contract-and-a-running-key-is-joined.md)
   — App 층 배선.
 - 관련 dev-guide: [api-conventions](../dev-guide/api-conventions.md) 의 멱등 키 절.
 - **코드 근거 (결정이 실현된 현재 위치)**: `tasty-ipc` 의 `method_meta::KeyContract` ·
-  `KEY_KEPT_BY_ROUTER` · `KEY_KEPT_BY_APP_LAYER` · `MethodMeta::kept_by_app_layer` ·
-  `MethodMeta::outside_key_contract`, `client::required_key_version` · `IpcConnection::send_idempotent`,
+  `KEY_KEPT_BY_ROUTER` · `KEY_KEPT_BY_APP_LAYER` · `MethodMeta::kept_by_app_layer`,
+  `client::required_key_version` · `IpcConnection::send_idempotent`,
   `capability::CAPABILITIES`; 본체의 `source_guards::key_contract_by_layer`.

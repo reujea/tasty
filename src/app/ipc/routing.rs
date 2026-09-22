@@ -15,18 +15,23 @@ impl App {
         // Plugin namespace forward: 메서드가 plugin contribute 한 prefix 에 매칭되면
         // owner plugin 으로 forward. 응답은 plugin 이 줄 때까지 보류되며 다음 tick 에서
         // `plugin_manager.handle_plugin_response` 가 client 에 회신.
+        //
+        // 멱등 키를 실은 **표의** `Mutate`(`image.open` 등)는 보존소를 먼저 지난다 — 헤드리스와
+        // 같은 함수다(ADR-0566). plugin 고유 이름은 거기서 개입하지 않는다(ADR-0361).
         if let Some(mgr) = self.plugin_manager.as_mut()
             && mgr.owns_namespace(&cmd.request.method)
         {
-            let id = cmd.request.id.clone().unwrap_or(serde_json::Value::Null);
-            mgr.forward_namespace_call(
-                &cmd.request.method,
-                cmd.request.params.clone(),
-                None, // CLI/사용자 호출. plugin → plugin 호출은 별도 경로.
-                id,
-                cmd.response_tx.clone(),
-                Some(cmd.request_seq()),
-            );
+            host_ipc::handler::idempotency::forward_keeping_the_key(checked.caller(), cmd, |c| {
+                let id = c.request.id.clone().unwrap_or(serde_json::Value::Null);
+                mgr.forward_namespace_call(
+                    &c.request.method,
+                    c.request.params.clone(),
+                    None, // CLI/사용자 호출. plugin → plugin 호출은 별도 경로.
+                    id,
+                    c.response_tx.clone(),
+                    Some(c.request_seq()),
+                );
+            });
             return IpcStep::Handled;
         }
 

@@ -812,27 +812,34 @@ fn a_forwarded_namespace_name_is_declared_outside_the_key_contract() {
     ns_unregister("zzzkeyns");
 }
 
-/// 호스트 메서드의 선언은 [`MethodEffect`] 에서 유도되고, 층이 다른 이름만 손으로 고친다 —
+/// 호스트 메서드의 선언은 [`MethodEffect`] 에서 유도되고, 판이 다른 이름만 손으로 고친다 —
 /// 재전달이 원래 안전한 것은 `Unneeded`, `Mutate` 는 `Kept`(판 1 = engine 라우터, 판 2 = App
-/// 층) 또는 `Outside`(GUI debug step). **`Mutate` 가 아닌데 `Kept`/`Outside` 인 이름은 없다** —
-/// 보존소는 `Mutate` 만 받으므로 그 선언은 거짓이다. 어느 이름이 판 2 이고 어느 이름이
-/// `Outside` 인지가 실제 배선과 맞는지는 본체의 `source_guards::key_contract_by_layer` 가 잰다.
-/// ADR-0423.
+/// 층, 판 3 = GUI debug step · namespace forward 로 나가는 표 이름). **`Mutate` 가 아닌데 `Kept`
+/// 인 이름은 없고, 표의 이름이 `Outside` 인 경우도 없다** — 보존소는 `Mutate` 만 받고, 호스트가
+/// 아는 이름은 어느 경로로 가든 보존소를 지난다(ADR-0566). 어느 이름이 판 2 · 3 인지가 실제
+/// 배선과 맞는지는 본체의 `source_guards::key_contract_by_layer` 가 잰다. ADR-0423.
 #[test]
 fn a_host_method_declaration_follows_its_effect() {
     use crate::method_meta::{
-        DEBUG_METHODS, KEY_KEPT_BY_APP_LAYER, KEY_KEPT_BY_ROUTER, KeyContract, METHOD_TABLE,
-        MethodEffect,
+        DEBUG_METHODS, KEY_KEPT_BY_APP_LAYER, KEY_KEPT_BY_ROUTER, KEY_KEPT_ON_EVERY_HOST_PATH,
+        KeyContract, METHOD_TABLE, MethodEffect,
     };
     for (name, meta) in METHOD_TABLE.iter().chain(DEBUG_METHODS) {
         match (meta.effect, meta.key_contract) {
             (MethodEffect::Read | MethodEffect::Idempotent, KeyContract::Unneeded) => {}
             (MethodEffect::Mutate, KeyContract::Kept { since })
-                if since == KEY_KEPT_BY_ROUTER || since == KEY_KEPT_BY_APP_LAYER => {}
-            (MethodEffect::Mutate, KeyContract::Outside) => {}
+                if since == KEY_KEPT_BY_ROUTER
+                    || since == KEY_KEPT_BY_APP_LAYER
+                    || since == KEY_KEPT_ON_EVERY_HOST_PATH => {}
             (effect, contract) => panic!("{name}: {effect:?} 에 {contract:?} 선언"),
         }
     }
+    assert_eq!(
+        crate::method_meta::key_contract("image.open"),
+        KeyContract::Kept {
+            since: KEY_KEPT_ON_EVERY_HOST_PATH
+        }
+    );
     assert_eq!(
         crate::method_meta::key_contract("window.create"),
         KeyContract::Kept {
@@ -848,6 +855,48 @@ fn a_host_method_declaration_follows_its_effect() {
     assert_eq!(
         crate::method_meta::key_contract("workspace.list"),
         KeyContract::Unneeded
+    );
+}
+
+/// 표의 `Mutate` 가운데 **plugin 이 점유할 수 있는 prefix**(예약 목록 밖) 아래의 것은 전부 판 3
+/// 이고, `METHOD_TABLE` 의 판 3 은 그것뿐이다.
+///
+/// 그 이름들은 prefix 를 점유한 plugin 이 켜져 있으면 engine 라우터가 아니라 namespace forward 로
+/// 먼저 나간다 — 판 2 서버는 거기서 키를 무시했다. 좌변을 예약 목록에서 유도하는 이유는 "지금
+/// 어느 plugin 이 무엇을 점유했나" 가 설치마다 달라서다: 예약 밖이면 **점유될 수 있고**, 점유되면
+/// forward 로 간다. ADR-0566.
+#[test]
+fn a_host_mutation_under_a_claimable_prefix_is_kept_from_version_three() {
+    use crate::method_meta::{
+        KEY_KEPT_ON_EVERY_HOST_PATH, KeyContract, METHOD_TABLE, MethodEffect,
+    };
+    use tasty_plugin_manifest::validators::RESERVED_IPC_PREFIXES;
+    let claimable: Vec<&str> = METHOD_TABLE
+        .iter()
+        .filter(|(_, m)| m.effect == MethodEffect::Mutate)
+        .map(|(name, _)| *name)
+        .filter(|name| !RESERVED_IPC_PREFIXES.contains(&name.split('.').next().unwrap_or(name)))
+        .collect();
+    // 좌변이 비면 아래 대조가 "둘 다 빈 집합" 으로 초록이 된다. 실측 2026-09-23 여섯.
+    assert!(
+        claimable.len() >= 6,
+        "예약 밖 prefix 의 Mutate 를 {} 개만 읽었다: {claimable:?}",
+        claimable.len()
+    );
+    let declared: Vec<&str> = METHOD_TABLE
+        .iter()
+        .filter(|(_, m)| {
+            m.key_contract
+                == KeyContract::Kept {
+                    since: KEY_KEPT_ON_EVERY_HOST_PATH,
+                }
+        })
+        .map(|(name, _)| *name)
+        .collect();
+    assert_eq!(
+        claimable, declared,
+        "예약 밖 prefix 의 Mutate(왼쪽)와 표의 판 3 선언(오른쪽)이 다르다 — 그 prefix 에 Mutate 를 \
+         더했으면 `.kept_on_every_host_path()` 를 붙인다"
     );
 }
 

@@ -74,13 +74,13 @@ pub const CAPABILITIES: &[Capability] = &[
     //
     //
     // 판이 **어느 층까지 받는가** 를 말한다 — 판 1 은 engine 라우터, 판 2 는 App 층까지
-    // (ADR-0421). 메서드마다 어느 판이 필요한지는 이름 표의 `KeyContract::Kept { since }` 가
-    // 답하고, plugin namespace forward 처럼 계약 밖인 이름은 판과 무관하게 `Outside` 다
-    // (ADR-0423). 판을 리터럴로 안 적는다 — 표가 요구하는 가장 높은 판이 곧 이 서버가
-    // 선언하는 판이다.
+    // (ADR-0421), 판 3 은 그 뒤의 GUI debug step 과 plugin namespace forward 로 나가는 표
+    // 이름까지(ADR-0566). 메서드마다 어느 판이 필요한지는 이름 표의 `KeyContract::Kept { since }`
+    // 가 답하고, plugin 고유 이름처럼 계약 밖인 이름은 판과 무관하게 `Outside` 다(ADR-0423).
+    // 판을 리터럴로 안 적는다 — 표가 요구하는 가장 높은 판이 곧 이 서버가 선언하는 판이다.
     Capability {
         name: "ipc.idempotency-key",
-        version: crate::method_meta::KEY_KEPT_BY_APP_LAYER,
+        version: crate::method_meta::KEY_KEPT_ON_EVERY_HOST_PATH,
     },
     // 스트리밍 채널의 프레임 프로토콜. 판을 **리터럴로 안 적는다** — 서버가 handshake 에서
     // 동등 비교하는 그 상수를 그대로 싣는다. 둘로 적으면 갈린다.
@@ -172,6 +172,10 @@ mod tests {
             (
                 crate::client::IDEMPOTENCY_CAPABILITY,
                 crate::method_meta::KEY_KEPT_BY_APP_LAYER,
+            ),
+            (
+                crate::client::IDEMPOTENCY_CAPABILITY,
+                crate::method_meta::KEY_KEPT_ON_EVERY_HOST_PATH,
             ),
             (
                 crate::output_cursor::CAPABILITY,

@@ -515,8 +515,10 @@ mod tests {
                 .map(|rest| rest.split(");").next().unwrap_or(rest))
                 .collect();
             assert_eq!(calls.len(), 1, "{name}");
+            // 보존소를 지나는 갈래(`forward_keeping_the_key`)에서는 키를 뗀 사본 `c` 가 원 명령의
+            // 번호를 그대로 든다(`IpcCommand::continuing`).
             assert!(
-                calls[0].contains("Some(cmd.request_seq())"),
+                calls[0].contains("Some(c.request_seq())"),
                 "{name}: {}",
                 calls[0]
             );

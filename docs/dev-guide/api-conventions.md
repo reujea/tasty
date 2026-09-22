@@ -284,7 +284,7 @@ CLI 는 루트 플래그 `tasty --response-timeout-ms <MS> <명령>` 으로 **�
 - **뜻이 있을 수 있는 것은 `Mutate` 로 분류된 메서드뿐이다.** 읽기는 흔적을 안 남기고 멱등은
   같은 끝 상태로 수렴하므로 보존할 이유가 없다 — 보존하면 오히려 조회가 낡은 답을 받는다.
   분류는 `method_meta::MethodEffect` 하나가 답한다(목록을 따로 두지 않는다).
-- ★ **그러나 `Mutate` 는 상한이지 보장이 아니다 — 아래 "어느 층에 걸리나" 를 읽어라.**
+- ★ **그러나 `Mutate` 는 상한이지 보장이 아니다 — 아래 "어느 경로에 걸리나" 를 읽어라.**
 - 봉투 검사(키 길이 1..=256)는 메서드와 **목적지** 모두와 무관하다 — 길이 밖 키는 `Read` 든
   `Mutate` 든, App 층 · plugin namespace · engine 라우터 중 어디로 가든 실행 전에 `-32602` 다.
   검사가 그 셋보다 앞인 진입 게이트(`check_request`)에 있다. 권한 게이트 **뒤**라 권한 없는
@@ -316,9 +316,9 @@ CLI 는 루트 플래그 `tasty --response-timeout-ms <MS> <명령>` 으로 **�
 호스트가 재시작하면 전부 사라진다(`survives_restart: false`). crash 이후의 영속은 약속하지
 않는다.
 
-#### 어느 층에 걸리나 — engine 라우터 · App 층은 안, namespace forward 는 밖
+#### 어느 경로에 걸리나 — 호스트가 아는 이름은 전부 안, plugin 고유 이름만 밖
 
-호스트의 IPC 는 층이 셋이고, 보존소는 층마다 따로 배선된다.
+호스트가 키를 실은 요청을 끝내는 경로는 넷이고, 보존소는 경로마다 따로 배선된다.
 
 - **engine 라우터** — `handle_checked_request` 를 지나는 모든 요청.
 - **App 층** — `App` 이 직접 끝내는 메서드. `Mutate` 는 여섯이다: `window.create` ·
@@ -326,12 +326,19 @@ CLI 는 루트 플래그 `tasty --response-timeout-ms <MS> <명령>` 으로 **�
   `plugin.request_permission`. GUI 의 app_methods step 과 헤드리스의 App 층 가로채기가 같은
   함수(`idempotency::run_app_layer`)로 보존소를 먼저 지난다. 근거는
   [ADR-0421](../adr/0421-the-app-layer-keeps-the-idempotency-contract-and-a-running-key-is-joined.md).
-- **plugin namespace forward** — plugin 이 점유한 prefix 아래의 **모든 이름.** 호스트는 그
-  뜻을 모르고 넘길 뿐이라 **계약 밖**이다. client 는 보내기 전에 거절한다
-  ([ADR-0361](../adr/0361-a-plugin-namespace-forward-is-declared-outside-the-idempotency-contract.md)).
+- **GUI debug step** — app_methods step 뒤의 두 step(입력 주입 · `debug.lua.eval` 등 release 에
+  없는 표면). 두 step 을 한 묶음(`App::ipc_step_debug_layers`)으로 부르고 그 첫 줄에서 같은 함수로
+  보존소를 지난다. 헤드리스의 debug 이름은 App 층 가로채기 안에서 끝난다.
+- **plugin namespace forward** — plugin 이 점유한 prefix 아래의 이름. 두 무리다.
+  - **표에 있는 호스트 메서드**(prefix 를 번들 plugin 이 점유한 `image.*` · `markdown.*` — plugin 이
+    받아 호스트로 되부른다). `Mutate` 여섯(`image.open` · `image.export_png` · `image.next` ·
+    `image.prev` · `image.paste` · `markdown.navigate`)은 forward 전에 보존소를 지난다
+    (`idempotency::forward_keeping_the_key`, GUI 라우터와 헤드리스가 같은 함수를 부른다).
+  - **plugin 고유 이름**(표가 모른다). 호스트는 그 뜻을 모르고 넘길 뿐이라 **계약 밖**이다. client 는
+    보내기 전에 거절한다([ADR-0361](../adr/0361-a-plugin-namespace-forward-is-declared-outside-the-idempotency-contract.md)).
 
-GUI 의 debug step(입력 주입 · `debug.lua.eval` 등 release 에 없는 표면)은 app_methods step
-**뒤**에서 돌아 보존소를 안 거친다. 그 이름들도 계약 밖이다.
+뒤의 두 경로의 근거는
+[ADR-0566](../adr/0566-every-host-path-keeps-the-idempotency-key-and-only-a-plugin-name-is-outside.md).
 
 App 층 이름을 세는 명령:
 
@@ -348,13 +355,14 @@ grep -ohE '"[a-z_]+\.[a-z_.]+"' src/app/ipc/app_methods.rs src/app/ipc/app_metho
 
 | 선언 | 뜻 | 해당 |
 |------|----|------|
-| `Kept { since }` | 보존소가 받는다. 같은 키·같은 요청의 재시도는 재생이다. `since` 는 그것을 선언하는 `ipc.idempotency-key` 판 | engine 라우터로 가는 `Mutate`(판 1), App 층 `Mutate` 여섯(판 2) |
+| `Kept { since }` | 보존소가 받는다. 같은 키·같은 요청의 재시도는 재생이다. `since` 는 그것을 선언하는 `ipc.idempotency-key` 판 | engine 라우터로 가는 `Mutate`(판 1), App 층 `Mutate` 여섯(판 2), GUI debug step 의 `Mutate` 와 namespace forward 로 나가는 표의 `Mutate` 여섯(판 3) |
 | `Unneeded` | 재전달이 원래 안전하다. 키는 봉투 검사만 받고 재생 표지는 안 붙는다 | `Read` · `Idempotent` |
-| `Outside` | 계약 밖. 키를 싣지 마라 — client 가 보내기 전에 거절한다 | plugin namespace forward, GUI debug step 의 `Mutate` |
+| `Outside` | 계약 밖. 키를 싣지 마라 — client 가 보내기 전에 거절한다 | 표가 모르는 이름(plugin 고유 이름) |
 
-값은 대부분 `MethodEffect` 에서 유도되고, 층이 다른 이름(App 층 판 2 · debug step `Outside`)만 표에
-손으로 적는다. 그 두 무리가 실제 dispatch 와 맞는지는 본체의 source guard
-(`key_contract_by_layer`)가 양방향으로 잰다.
+값은 대부분 `MethodEffect` 에서 유도되고, 판이 다른 이름(App 층 판 2 · debug step 과 forward 로 나가는
+표 이름 판 3)만 표에 손으로 적는다. 그 무리가 실제 dispatch 와 맞는지는 본체의 source guard
+(`key_contract_by_layer`)와 `tasty-ipc` 의 `method_meta` 시험(예약 밖 prefix 의 `Mutate` = 판 3 의 표
+이름)이 양방향으로 잰다.
 
 그래서 응답의 `idempotent_replay` 는 **"이 답이 재생인가" 하나만** 답한다. 계약 안인지는 선언으로
 이미 알므로, 표지의 부재를 "계약 밖" 으로 읽을 자리가 없다. `Kept` 메서드에서:
@@ -370,15 +378,16 @@ grep -ohE '"[a-z_]+\.[a-z_.]+"' src/app/ipc/app_methods.rs src/app/ipc/app_metho
 이 키를 조용히 버리고 요청을 그대로 실행한다 — 그때 호출자는 계약이 걸린 줄 알고 재시도하므로
 두 번째 효과가 남는다. 그래서 기능 목록의 `ipc.idempotency-key` 를 확인하는 것이 필수이고,
 `IpcConnection::send_idempotent` 가 그 확인을 **먼저** 하고 없으면 요청을 아예 안 내보낸다.
-그 이름의 **판이 층을 말한다** — 판 1 은 engine 라우터, 판 2 는 App 층까지 받는다. 그래서
-`send_idempotent` 는 메서드 선언의 `since` 를 요구 판으로 쓴다: App 층 메서드에 키를 실으려면 상대가
-판 2 를 선언해야 하고, 판 1 서버(App 층에서 키를 무시한다)에는 요청이 안 나간다. `Unneeded` 메서드는
+그 이름의 **판이 경로를 말한다** — 판 1 은 engine 라우터, 판 2 는 App 층까지, 판 3 은 GUI debug step
+과 namespace forward 로 나가는 표 이름까지 받는다. 그래서 `send_idempotent` 는 메서드 선언의 `since` 를
+요구 판으로 쓴다: App 층 메서드에 키를 실으려면 상대가 판 2 를, `image.open` 같은 이름에 실으려면 판 3 을
+선언해야 하고, 그보다 낮은 서버(그 경로에서 키를 무시한다)에는 요청이 안 나간다. `Unneeded` 메서드는
 판 1 이면 된다.
 그 거절은 호스트가 답한 실패와 다른 타입(`UnsupportedCapability`)으로 오는데, 그 차이가
 "아무것도 일어나지 않았다" 를 뜻한다. 결정 근거는
 [ADR-0338](../adr/0338-a-mutation-retry-is-told-apart-by-a-caller-key-and-the-peer-is-asked-before-the-effect.md).
 
-**plugin namespace forward 는 계약 밖이라고 선언돼 있다.** 이름 표(`method_meta`)의
+**plugin 고유 이름의 namespace forward 는 계약 밖이라고 선언돼 있다.** 이름 표(`method_meta`)의
 `key_contract` 가 그 이름에 `Outside` 를 내고, 표가 모르는 이름도 `Outside` 로 읽는다(client
 프로세스에는 namespace 소유 표가 없어 plugin 이름이 그렇게 보인다). `send_idempotent` 는
 capability 확인보다 **먼저** 그 값을 보고 `Outside` 면 `KeyOutsideContract` 로 끝낸다 — 연결을

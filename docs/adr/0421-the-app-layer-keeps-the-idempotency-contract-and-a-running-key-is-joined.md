@@ -145,6 +145,8 @@ App 층 가로채기는 두 조합에 따로 있다 — GUI 의 `ipc_step_app_me
   [ADR-0361](0361-a-plugin-namespace-forward-is-declared-outside-the-idempotency-contract.md) — forward 는
   계약 밖. [ADR-0122](0122-winit-scheduled-fallible-ipc-returns-outcome.md) — 창 생성의 지연 응답.
   [ADR-0420](0420-the-idempotency-key-envelope-is-judged-at-the-admission-gate.md) — 봉투 검사 위치.
+- 후속 결정: [ADR-0566](0566-every-host-path-keeps-the-idempotency-key-and-only-a-plugin-name-is-outside.md)
+  — 같은 함수를 GUI debug step 과 namespace forward 로 나가는 표 이름에 적용해 "남는 구멍" 을 닫는다.
 - 관련 dev-guide: [api-conventions](../dev-guide/api-conventions.md) 의 멱등 키 절.
 - **코드 근거 (결정이 실현된 현재 위치)**: `idempotency::run_app_layer` · `Relay::run` · `spawn_relay` · `Store::open` ·
   `Store::join` · `Store::abandon` · `Store::settle`, `App::ipc_step_app_methods` 첫 줄,

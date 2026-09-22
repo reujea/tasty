@@ -160,7 +160,7 @@ fn dispatch_command(
     //     종단을 더 정확하게 만드는 변경이 forward 를 조용히 깨뜨렸다(실측: 표에
     //     등재된 채 plugin namespace 아래 있던 여덟). 이제 코드는 라우팅에 안
     //     쓰인다 — [ADR-0173](../../docs/adr/0173-namespace-resolution-reads-the-manifest-not-the-process-table.md).
-    if forward_to_plugin_namespace(app, engine, &cmd) {
+    if forward_to_plugin_namespace(app, engine, &caller, &cmd) {
         return std::ops::ControlFlow::Continue(());
     }
     // 2e) plugin 이 선언한 surface kind 를 지목했으면 **그 하나를** 먼저 띄운다.
@@ -530,10 +530,14 @@ fn intercept_debug_app_layer(
 /// 포함) 그 데몬이 plugin 9 개를 띄웠고 첫 응답이 1272 ms(기동 후 92 ms)였으며 그
 /// 프로세스들은 데몬 수명 내내 남았다. 미등록 prefix는 스캔에서 끝난다. 등록 prefix
 /// 안의 메서드 오타는 전체 메서드 명부가 없는 기존 계약대로 owner가 판정한다.
+///
+/// 멱등 키를 실은 **표의** `Mutate`(`image.open` 등)는 넘기기 전에 보존소를 지난다 — gui 라우터와
+/// 같은 함수다(ADR-0566). plugin 고유 이름은 거기서 개입하지 않는다(ADR-0361).
 #[cfg(not(feature = "gui"))]
 fn forward_to_plugin_namespace(
     app: &mut App,
     engine: &CoreState,
+    caller: &crate::ipc::caller::CallerContext,
     cmd: &crate::ipc::server::IpcCommand,
 ) -> bool {
     super::headless_plugins::ensure_plugin_manager_metadata(app, engine);
@@ -547,14 +551,16 @@ fn forward_to_plugin_namespace(
     let Some(mgr) = app.plugin_manager.as_mut() else {
         return false;
     };
-    let id = cmd.request.id.clone().unwrap_or(serde_json::Value::Null);
-    mgr.forward_namespace_call(
-        &cmd.request.method,
-        cmd.request.params.clone(),
-        None, // CLI/사용자 호출 — plugin → plugin 호출은 별도 경로(gui 와 같다).
-        id,
-        cmd.response_tx.clone(),
-        Some(cmd.request_seq()),
-    );
+    crate::ipc::handler::idempotency::forward_keeping_the_key(caller, cmd, |c| {
+        let id = c.request.id.clone().unwrap_or(serde_json::Value::Null);
+        mgr.forward_namespace_call(
+            &c.request.method,
+            c.request.params.clone(),
+            None, // CLI/사용자 호출 — plugin → plugin 호출은 별도 경로(gui 와 같다).
+            id,
+            c.response_tx.clone(),
+            Some(c.request_seq()),
+        );
+    });
     true
 }
