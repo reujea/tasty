@@ -375,6 +375,59 @@ mod tests {
         answer(second);
     }
 
+    /// 잇달아 발화한 두 훅의 시퀀스는 끼어들지 않는다 — 첫 시퀀스의 모든 스텝이 둘째 시퀀스의 첫
+    /// 스텝보다 먼저 큐에 들어간다. 시퀀스마다 스레드를 띄우면(ADR-0498 대안 A) 둘째 시퀀스의 첫
+    /// 스텝이 첫 시퀀스의 첫 스텝 답을 기다리지 않고 들어온다.
+    #[test]
+    fn ipc_sequence_hooks_fired_back_to_back_do_not_interleave_their_steps() {
+        use std::sync::{Arc, mpsc};
+        use tasty_ipc::server::IpcCommand;
+
+        let (tx, rx) = mpsc::channel::<IpcCommand>();
+        let injector = HostIpcInjector::new(tx, Arc::new(|| {}));
+        let step = |method: &str| IpcCall {
+            method: method.into(),
+            params: serde_json::json!({}),
+        };
+        let payload = trigger_payload(&HookEvent::Notification, 5);
+        execute_ipc_sequence_handler(
+            "user/first",
+            Some(&injector),
+            &payload,
+            &[step("first.a"), step("first.b")],
+        );
+        execute_ipc_sequence_handler(
+            "user/second",
+            Some(&injector),
+            &payload,
+            &[step("second.a")],
+        );
+
+        let answer = |cmd: IpcCommand| {
+            let id = cmd.request.id.clone().unwrap_or(serde_json::Value::Null);
+            cmd.response_tx
+                .send(tasty_ipc::protocol::JsonRpcResponse::success(
+                    id,
+                    serde_json::json!({}),
+                ))
+                .expect("answer the step");
+        };
+        let mut arrived = Vec::new();
+        for _ in 0..3 {
+            let cmd = rx
+                .recv_timeout(Duration::from_secs(5))
+                .expect("a step reaches the queue");
+            arrived.push(cmd.request.method.clone());
+            assert!(
+                rx.recv_timeout(Duration::from_millis(200)).is_err(),
+                "a step reached the queue while {:?} was unanswered (arrived so far: {arrived:?})",
+                cmd.request.method
+            );
+            answer(cmd);
+        }
+        assert_eq!(arrived, ["first.a", "first.b", "second.a"]);
+    }
+
     /// 알 수 없는 핸들러 id 참조는 조용히 무시(패닉 없음).
     #[test]
     fn unknown_handler_reference_is_noop() {
