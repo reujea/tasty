@@ -62,7 +62,9 @@ grep -rnE 'toasts|report_apply_error|push_toast' \
     (`src/app/attach_client/agent_origin.rs` `AgentRequests`).
   이 경로의 실례: `markdown.navigate` 의 convert 와 `file_handler.dispatch`(`origin_surface_id`
   없이)가 새 탭으로 떨어지는 경우(`Intent::NewTab`)는 mirror 워크스페이스에서 forward 되고, 원격이 그 op 를 적용하지
-  못하면(예: 원격에 없는 surface kind) 실패 회신이 온다. 시험:
+  못하면(예: 원격에 없는 surface kind) 실패 회신이 온다. 뒤쪽이 에이전트 origin 인 것은 호출이
+  사용자가 만진 plugin popup 을 대지 않았을 때다 — 대면 사용자 origin 이라 표시가 없고 실패는
+  토스트가 된다(markdown 파일열기 팝업, [ADR-0526](../../adr/0526-a-plugin-popup-the-user-touched-makes-its-file-dispatch-a-user-action.md)). 시험:
   `src/intent/apply_error_tests.rs` · `src/app/attach_client/agent_origin.rs` 의
   `an_agent_forward_failure_does_not_toast`. 두 끝을 세는 명령(경로의 폭을 보는 것이다):
   `grep -rn 'from_agent_ipc()' src --include='*.rs'` 로 agent origin intent 의 발화 자리 ·

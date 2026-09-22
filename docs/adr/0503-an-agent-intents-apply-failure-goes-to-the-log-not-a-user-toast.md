@@ -166,6 +166,7 @@ mirror 워크스페이스의 pane 에 보낸 것이다 — 응답은 `{forwarded
 - 개정 대상: [ADR-0401](0401-remote-connection-events-may-raise-a-toast-without-a-user-action.md) (허용 부류 구성원 `mirror_structural_forward_failed` 의 범위 · 알려진 예외 `mirror_markdown_truncated` 의 `markdown.reload` 경로)
 - 개정 패턴 선례: [ADR-0030](0030-image-egui-mesh-bitmap-texture.md)
 - 같은 발화점의 선택 축: [ADR-0502](0502-an-agent-created-tab-does-not-take-the-users-tab.md)(반대 기본값 — 사용자 경로 보존)
+- 부분 개정: [0526](0526-a-plugin-popup-the-user-touched-makes-its-file-dispatch-a-user-action.md) (잃은 것(오분류) 조항 개정 — markdown 파일열기 팝업으로 연 탭은 이제 사용자 발화라 원격 거절이 toast 가 된다)
 - [design/systems/toast.md](../design/systems/toast.md) "트리거 정책" 경로 ④
 - [identity.md](../identity.md) 원칙 1
 - 코드 근거(결정이 실현된 현재 위치, 심볼 이름): `crate::intent::report_apply_error` ·

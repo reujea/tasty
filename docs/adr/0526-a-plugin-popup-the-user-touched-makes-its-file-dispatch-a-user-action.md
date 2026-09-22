@@ -1,8 +1,8 @@
-# ADR-0526: 사용자가 만진 plugin popup 에서 온 파일 열기는 사용자 행동이다 — ADR-0302 의 `file_handler.dispatch` 분류 조항 · ADR-0502 의 `Intent::NewTab` 선택 조항 개정
+# ADR-0526: 사용자가 만진 plugin popup 에서 온 파일 열기는 사용자 행동이다 — ADR-0302 의 `file_handler.dispatch` 분류 조항 · ADR-0502 의 `Intent::NewTab` 선택 조항 · ADR-0503 의 오분류 조항 개정
 
 - **Status**: Accepted
 - **Date**: 2026-09-23
-- **Tags**: file-handler, focus, tab, plugin, popup, user-agent-separation, identity, user-activation, adr-0302, adr-0502
+- **Tags**: file-handler, focus, tab, plugin, popup, user-agent-separation, identity, user-activation, adr-0302, adr-0502, adr-0503
 
 ## Context
 
@@ -53,6 +53,12 @@ release 에는 입력 주입이 없으므로(원칙 1 ②) 3 은 사람이 그 p
 markdown plugin 의 파일열기 팝업 [열기] 는 `owner_popup_instance` 를 싣는다. popup 을 닫는
 `popup.close` 는 `host.call` 이 동기라 dispatch 가 처리된 **뒤에** 나가므로 조건 2 가 성립한다.
 
+그래서 [ADR-0503](0503-an-agent-intents-apply-failure-goes-to-the-log-not-a-user-toast.md) 의
+"잃은 것(오분류)" 조항 — markdown 파일열기 팝업으로 연 탭이 mirror 에서 원격에 거절되거나 forward
+전에 차단돼도 에이전트 발화로 분류돼 toast 없이 로그로 간다 — 도 개정한다. 그 탭의 발화 intent 는
+이제 사용자라, 원격 거절과 차단은 종전 사용자 조작처럼 toast 가 된다. 그 조항이 가리키던
+`dispatch_origin` 주석은 이 결정이 `dispatch_origin_of` 로 바꿨다.
+
 **개정하지 않는 것**
 
 - ADR-0302 의 나머지: `FileDispatchOrigin` 이라는 별도 값 · 그것이 identify 왕복과 picker 를
@@ -61,6 +67,10 @@ markdown plugin 의 파일열기 팝업 [열기] 는 `owner_popup_instance` 를 
 - ADR-0502 의 나머지: `CreateTab.activate` 필드 · `tab.create` 의 `false` · 파일 디스패치 origin
   갈래 · attach forward `NewTab` 의 `ForwardOrigin` 규칙 · terminal kind 의 background 고정 ·
   mirror pane 에서 서버가 선택을 정하는 것 · 응답 `active_tab` 의 의미.
+- ADR-0503 의 나머지: 에이전트 발화의 적용 실패는 로그로 간다는 결정 자체 · forward op 의
+  `silent_failure` 표시와 attach 세션의 op_id 집합 · origin 을 모르는 자리의 기본값(종전 toast) ·
+  markdown 원문 요청의 `agent_origin` · ADR-0401 에 대한 개정. popup 근거가 없는 origin 없는
+  `file_handler.dispatch` 는 여전히 에이전트이고 그 실패는 로그로 간다.
 - ADR-0279 의 라우팅(어느 pane 에 붙는가).
 - `file_handler.dispatch` 의 응답 모양(`accepted` · `depth` · `ignore_size_limit`)과 오류 코드.
 
@@ -124,6 +134,7 @@ markdown plugin 의 파일열기 팝업 [열기] 는 `owner_popup_instance` 를 
 
 - 개정 대상: [ADR-0302](0302-a-user-file-open-selects-its-result-tab.md) (`file_handler.dispatch` 를 `Agent` 로 고정한 조항)
 - 개정 대상: [ADR-0502](0502-an-agent-created-tab-does-not-take-the-users-tab.md) (`Intent::NewTab` 의 `activate: true` 조항)
+- 개정 대상: [ADR-0503](0503-an-agent-intents-apply-failure-goes-to-the-log-not-a-user-toast.md) (잃은 것(오분류) 조항)
 - 개정 패턴 선례: [ADR-0030](0030-image-egui-mesh-bitmap-texture.md)
 - 선행 결정: [ADR-0084](0084-plugin-triggered-host-popup-ownership.md) (plugin 이 자기 popup instance 를 `owner_popup_instance` 로 신고하는 선례 — 같은 키 이름을 쓴다)
 - 탐색: `git grep -l 'owner_popup_instance\|FileDispatchOrigin\|Intent::NewTab' -- docs/adr/`

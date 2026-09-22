@@ -110,7 +110,7 @@ modifier-hint 는 0035(좁힘 + 지연) · 0038(빈 섹션) · 0064(타이머 �
 
 ## UI · 테마 · 디자인 토큰 · 갤러리
 
-디자인 작업의 흐름과 갤러리 완전성은 0510 한 편이다. 갤러리 미러는 0329(대조 전에 미러를 없앨 수 있는지 먼저 본다)가 원칙이고 0380(토스트 카드)이 그 적용이다 — 두 편은 서로 인용하지 않으므로 여기서 잇는다. 스케일 밖 값은 0126 → 0290 이다. 구조 전달 실패 toast 는 0401 → 0503(에이전트 origin 제외 개정)이다.
+디자인 작업의 흐름과 갤러리 완전성은 0510 한 편이다. 갤러리 미러는 0329(대조 전에 미러를 없앨 수 있는지 먼저 본다)가 원칙이고 0380(토스트 카드)이 그 적용이다 — 두 편은 서로 인용하지 않으므로 여기서 잇는다. 스케일 밖 값은 0126 → 0290 이다. 구조 전달 실패 toast 는 0401 → 0503(에이전트 origin 제외 개정) → 0526(plugin popup 에서 온 파일 열기를 사용자 쪽으로 — 0503 의 오분류 조항 개정, 「파일 핸들러 · 파일 피커」 그룹)이다.
 운영 문서: [design/systems/theme](../design/systems/theme.md) · [dev-guide/gallery-first](../dev-guide/gallery-first.md) · [dev-guide/popup-implementation](../dev-guide/popup-implementation.md)
 
 | # | Title | Status | Date | Tags |
@@ -410,7 +410,7 @@ disable 이 무엇을 남기는가는 0173(namespace 소유를 남긴다) → 05
 
 ## 파일 핸들러 · 파일 피커
 
-0272 → 0279 → 0302(포커스 조항 개정)(탭 생성 갈래는 0502 — 「창 · 워크스페이스 · 포커스 · 수명주기」 그룹)(toast 축은 0503 — 「UI · 테마 · 디자인 토큰 · 갤러리」 그룹) → 0425 · 0426 · 0427. 0526 이 0302 의 `file_handler.dispatch` 분류와 0502 의 `Intent::NewTab` 선택을 함께 개정한다(사용자가 만진 plugin popup 에서 온 호출은 사용자). 파일 피커는 0042 → 0162(에이전트 표면에서 제외, 0042 대체)이다. detector 병합 순서는 0427 → 0613(같은 출처 순서를 file-format detector 에 적용하고 user 의 `disabled = false` 를 켜기로 읽는다)이다. detector 병합 순서는 0427 → 0520(같은 출처 순서를 file-format detector 에 적용하고 user 의 `disabled = false` 를 켜기로 읽는다)이다.
+0272 → 0279 → 0302(포커스 조항 개정)(탭 생성 갈래는 0502 — 「창 · 워크스페이스 · 포커스 · 수명주기」 그룹)(toast 축은 0503 — 「UI · 테마 · 디자인 토큰 · 갤러리」 그룹) → 0425 · 0426 · 0427. 0526 이 0302 의 `file_handler.dispatch` 분류와 0502 의 `Intent::NewTab` 선택, 0503 의 오분류 조항을 함께 개정한다(사용자가 만진 plugin popup 에서 온 호출은 사용자). 파일 피커는 0042 → 0162(에이전트 표면에서 제외, 0042 대체)이다. detector 병합 순서는 0427 → 0613(같은 출처 순서를 file-format detector 에 적용하고 user 의 `disabled = false` 를 켜기로 읽는다)이다. detector 병합 순서는 0427 → 0520(같은 출처 순서를 file-format detector 에 적용하고 user 의 `disabled = false` 를 켜기로 읽는다)이다.
 운영 문서: [features/file-handler](../features/file-handler/index.md)
 
 | # | Title | Status | Date | Tags |
@@ -424,7 +424,7 @@ disable 이 무엇을 남기는가는 0173(namespace 소유를 남긴다) → 05
 | 0426 | [`file_handler.reload` 는 적용되지 않은 user 항목을 `rejected` 필드로 알린다](0426-file-handler-reload-reports-the-entries-it-dropped.md) | Accepted | 2026-09-21 | ipc, cli, file-handler, agent-facing, compatibility, settings |
 | 0427 | [file handler 병합은 출처 순서(Host → Plugin → User)로 하고 user patch 를 늘 마지막에 둔다](0427-file-handler-merge-applies-user-patches-last.md) | Accepted | 2026-09-21 | file-handler, registry, plugin, settings, boot, patch-semantics |
 | 0520 | [file-format(detector) 병합도 출처 순서(Host → Plugin → User)로 하고 user 의 `disabled = false` 를 켜기로 읽는다](0520-file-format-merge-applies-user-patches-last.md) | Accepted | 2026-09-23 | file-format, detector, registry, plugin, settings, boot, patch-semantics |
-| 0526 | [사용자가 만진 plugin popup 에서 온 파일 열기는 사용자 행동이다 — ADR-0302 의 `file_handler.dispatch` 분류 조항 · ADR-0502 의 `Intent::NewTab` 선택 조항 개정](0526-a-plugin-popup-the-user-touched-makes-its-file-dispatch-a-user-action.md) | Accepted | 2026-09-23 | file-handler, focus, tab, plugin, popup, user-agent-separation, identity, user-activation, adr-0302, adr-0502 |
+| 0526 | [사용자가 만진 plugin popup 에서 온 파일 열기는 사용자 행동이다 — ADR-0302 의 `file_handler.dispatch` 분류 조항 · ADR-0502 의 `Intent::NewTab` 선택 조항 · ADR-0503 의 오분류 조항 개정](0526-a-plugin-popup-the-user-touched-makes-its-file-dispatch-a-user-action.md) | Accepted | 2026-09-23 | file-handler, focus, tab, plugin, popup, user-agent-separation, identity, user-activation, adr-0302, adr-0502, adr-0503 |
 
 ## 에이전트 통합 · 협업
 
