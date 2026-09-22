@@ -165,7 +165,7 @@ mod tests {
             .with_fs(Arc::new(MemFileSystem::new()))
             .with_clock(Arc::new(FakeClock::default()))
             .with_clipboard(Arc::new(MockClipboard::default()))
-            .with_process(Arc::new(MockProcessSpawner::default()))
+            .with_process(Arc::new(MockProcessSpawner))
             .with_home(Arc::new(TmpHome::new(
                 tempfile::tempdir().expect("tmp").keep(),
             )))

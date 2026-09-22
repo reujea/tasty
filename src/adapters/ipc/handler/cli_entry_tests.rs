@@ -64,7 +64,7 @@ pub(crate) fn test_core_builder() -> crate::core::builder::CoreBuilder {
             crate::adapters::test::mock_clipboard::MockClipboard::default(),
         ))
         .with_process(Arc::new(
-            crate::adapters::test::mock_process::MockProcessSpawner::default(),
+            crate::adapters::test::mock_process::MockProcessSpawner,
         ))
         .with_home(Arc::new(crate::adapters::test::tmp_home::TmpHome::new(
             tempfile::tempdir().expect("tmp").keep(),

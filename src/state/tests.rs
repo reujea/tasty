@@ -535,7 +535,7 @@ fn close_pane_then_restore_reinserts_pane() {
             crate::adapters::test::mock_clipboard::MockClipboard::default(),
         ))
         .with_process(std::sync::Arc::new(
-            crate::adapters::test::mock_process::MockProcessSpawner::default(),
+            crate::adapters::test::mock_process::MockProcessSpawner,
         ))
         .with_home(std::sync::Arc::new(
             crate::adapters::test::tmp_home::TmpHome::new(tempfile::tempdir().expect("tmp").keep()),
