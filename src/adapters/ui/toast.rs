@@ -142,6 +142,13 @@ impl ToastManager {
         self.toasts.len()
     }
 
+    /// 지금 떠 있는 토스트의 문구(발사 순). **테스트 전용** — 개수만으로는 사유가 문구에
+    /// 그대로 실렸는지 못 본다. `len` 과 같은 이유로 `cfg(test)` 로 묶는다.
+    #[cfg(test)]
+    pub(crate) fn messages(&self) -> Vec<&str> {
+        self.toasts.iter().map(|t| t.message.as_str()).collect()
+    }
+
     /// 편의 헬퍼: Info 토스트.
     pub fn push_info(&mut self, message: impl Into<String>, scope: ToastScope) {
         self.push(message, ToastKind::Info, scope);

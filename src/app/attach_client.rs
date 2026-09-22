@@ -5420,6 +5420,50 @@ mod tests {
         );
     }
 
+    /// (ADR-0543) 원격이 회신한 실패 사유는 wire 에서 toast 까지 고쳐지지 않고 괄호 안에
+    /// 그대로 실린다. wire 에 사유가 없으면 괄호 없는 기본 문구다. 이벤트 변형을 직접
+    /// 만들지 않고 wire 바이트에서 시작해 파싱·적용 두 단계를 모두 지난다.
+    #[test]
+    fn a_structural_failure_reason_reaches_the_toast_verbatim() {
+        let toast_for = |reason: Option<&str>| {
+            let payload = serde_json::to_vec(&StreamControl::StructuralResult {
+                op_id: 0,
+                ok: false,
+                reason: reason.map(str::to_string),
+            })
+            .unwrap();
+            let ev = mirror_event_from_control(&payload).expect("실패 회신은 이벤트가 된다");
+            let mut sess = test_session(9_000, HashMap::new());
+            let mut plugin_manager: Option<crate::plugin::PluginManager> = None;
+            let (mut state, mut engine) = crate::state::tests::test_state();
+            {
+                let mut host = MirrorHost::windowed(&mut state, &mut engine);
+                apply_mirror_events(&mut sess, &mut host, &mut plugin_manager, vec![ev]);
+            }
+            let messages: Vec<String> = state
+                .toasts
+                .messages()
+                .into_iter()
+                .map(str::to_string)
+                .collect();
+            messages
+        };
+        let base = crate::i18n::t("attach.toast.mirror_structural_forward_failed").to_string();
+
+        assert_eq!(
+            toast_for(Some("unknown surface kind: definitely-not-registered")),
+            vec![format!(
+                "{base} (unknown surface kind: definitely-not-registered)"
+            )],
+            "원격 사유가 원문 그대로 괄호 안에 실려야 한다"
+        );
+        assert_eq!(
+            toast_for(None),
+            vec![base],
+            "wire 에 사유가 없으면 괄호 없는 기본 문구다"
+        );
+    }
+
     /// (ADR-0400) 손실을 받은 세션은 재attach 대기로 들어가고, 옛 연결에 `Detach` 를
     /// **한 번만** 보내며, mirror 터미널의 출력 stream 표지를 새로 만든다. 기다리는 중에 온
     /// 통지는 수만 더한다.
