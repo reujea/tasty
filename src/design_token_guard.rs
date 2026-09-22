@@ -904,9 +904,9 @@ fn ui_does_not_consume_generated_length_consts_directly() {
         let lines: Vec<&str> = contents.lines().collect();
         for (path, at) in generated_const_refs(&lines) {
             let name = path.rsplit("::").next().unwrap_or("").to_string();
-            if logical.contains(&name) {
-                violations.push(length_const_prescription(rel, at, &path, &table));
-            } else if other.contains(&name) {
+            // "LogicalPx 인데 처방 표에 없음" 과 "이름이 어느 표에도 없음" 이 한 갈래다 —
+            // 둘 다 같은 헬퍼로 처방을 받으므로 가르면 헬퍼를 우회할 두 번째 자리만 생긴다.
+            if other.contains(&name) {
                 dimensionless += 1;
             } else {
                 violations.push(length_const_prescription(rel, at, &path, &table));
