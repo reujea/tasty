@@ -257,11 +257,17 @@ const HEADLESS_OK_SUITES: &[&str] = &[
 /// 확장되고(실측), 이 모듈은 각 테스트 바이너리에 함께 컴파일되므로 스위트마다
 /// 다른 값이 된다.
 ///
-/// **`e2e_tests` 만 [`DaemonKind::SameCombo`] 다.** 실측 2026-09-05: 인스턴스를 띄우는
-/// 11 스위트 중 `cfg(feature = "gui")` 계열 사이트를 가진 것은 `e2e_tests.rs` 하나였고
-/// (10 사이트), 나머지 10 개는 각 0 이었다. 실행 쪽 확인도 있다 —
-/// `docs/dev-guide/e2e-tests.md` §0-1 이 gui 테스트 바이너리 + 헤드리스 데몬으로
-/// 11 스위트를 돌려 10 개가 통과하고 `e2e_tests` 만 깨진 것을 기록해 두었다.
+/// 명부 밖(= [`DaemonKind::SameCombo`])은 두 갈래다.
+///
+/// * 테스트 쪽 단언이 조합으로 갈린다 — `e2e_tests`. 실측 2026-09-05: 인스턴스를 띄우는
+///   11 스위트 중 `cfg(feature = "gui")` 계열 사이트를 가진 것은 `e2e_tests.rs` 하나였다.
+///   `docs/dev-guide/e2e-tests.md` §0-1 이 gui 테스트 바이너리 + 헤드리스 데몬으로 그
+///   11 스위트를 돌려 `e2e_tests` 만 깨진 것을 기록해 두었다.
+/// * 단언은 하나인데 **데몬 쪽**이 조합마다 다른 호출측을 잰다 —
+///   `attach_structure_sync_loopback`(ADR-0482 의 forward 회신: gui 데몬과 헤드리스 데몬이
+///   서로 다른 함수로 만든다). `cfg(feature` 를 세는 것으로는 안 보인다. 헤드리스 데몬을
+///   받으면 초록은 그대로인데 gui 호출측을 안 잰다(실측 2026-09-23, ADR-0170 보강).
+///
 /// `gui_tests` 는 애초에 이 경로를 안 쓴다(`BIN_SELECTION_ALLOWLIST`).
 pub fn daemon_kind() -> DaemonKind {
     if HEADLESS_OK_SUITES.contains(&env!("CARGO_CRATE_NAME")) {

@@ -421,11 +421,13 @@ fn daemon_kind_roster_matches_instance_test_roster() {
         .map(str::to_string)
         .collect();
 
-    // 조합 의존 단언을 가져 자기 조합의 데몬이 필요한 것들. `gui_tests` 는 이 경로를
-    // 아예 안 쓰지만(BIN_SELECTION_ALLOWLIST) 데몬이 gui 여야 하는 것은 같다.
-    // `attach_structure_sync_loopback` 은 조합 의존 단언이 없지만 HeadlessOk 로 올릴지는
-    // 아직 판정하지 않았다 — 런타임 `daemon_kind()` 도 명부에 없으면 SameCombo 로 떨어지므로,
-    // 여기에 두는 것이 실제 분류를 그대로 적는 것이다(최적화 누락은 안전한 쪽).
+    // 자기 조합의 데몬이 필요한 것들. `gui_tests` 는 이 경로를 아예 안 쓰지만
+    // (BIN_SELECTION_ALLOWLIST) 데몬이 gui 여야 하는 것은 같다.
+    // `attach_structure_sync_loopback` 은 테스트 쪽 `cfg(feature` 가 0 이지만 **데몬 쪽**이
+    // 조합마다 다른 호출측을 잰다 — forward 회신을 gui 데몬은 `apply_forwarded_structural_op`,
+    // 헤드리스 데몬은 `apply_structural_ops` 가 만든다(ADR-0482). 헤드리스 데몬을 받으면 gui
+    // 완주가 헤드리스 호출측을 한 번 더 잴 뿐이다. 실측 2026-09-23: gui 호출측을 끊는 변이가
+    // SameCombo 에서는 빨갛고, HeadlessOk + override 에서는 초록이었다(ADR-0170 보강).
     let same_combo: BTreeSet<String> = ["e2e_tests", "gui_tests", "attach_structure_sync_loopback"]
         .iter()
         .map(|s| (*s).to_string())
@@ -450,7 +452,7 @@ fn daemon_kind_roster_matches_instance_test_roster() {
         unclassified.is_empty() && stale.is_empty(),
         "스위트별 데몬 판정 명부가 EXPECTED_INSTANCE_TESTS 와 갈렸다. 새 인스턴스 스위트는 \
          `spawn_diag::HEADLESS_OK_SUITES` 에 넣거나(IPC/attach 만 쓴다) 조합 의존 단언이 \
-         있으면 이 테스트의 same_combo 에 넣어라 — 분류를 안 하면 안전한 쪽(SameCombo)으로 \
+         있거나 단언의 대상이 데몬 조합마다 다른 코드 경로면 이 테스트의 same_combo 에 넣어라 — 분류를 안 하면 안전한 쪽(SameCombo)으로 \
          떨어져 GPU 부팅을 계속 탄다. 원칙: {DOC}\n\
          \x20 분류 안 된 스위트: {unclassified:?}\n\x20 명부에만 있는 이름: {stale:?}"
     );

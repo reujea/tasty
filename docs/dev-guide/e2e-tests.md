@@ -29,7 +29,7 @@
 
 **동률을 낡음으로 세는 이유, 그리고 그 판정이 두 층에 있다는 것.** 소스 mtime 이 바이너리와 같은 눈금에 떨어지면 어느 쪽이 먼저인지 파일시스템이 답을 안 준다. 그 **판정 불가**를 "안 낡았다" 로 흡수하면 위 문단이 막으려는 것이 그대로 통과하므로, 판정 불가는 실패 방향으로 보낸다(반대 비용은 다시 빌드 한 번이고, 패닉 문구가 끄는 법까지 알려 준다). ★ 같은 판정이 `scripts/build-e2e-headless.sh` 에도 있다 — 그쪽이 **먼저** 걸러 패닉까지 안 가게 하는 인체공학이고, 하네스가 그 스크립트를 받쳐 주는 관계가 아니다. **두 층이 같은 mtime 을 보므로 한쪽만 고치면 같은 사각이 남는다**: 두 곳의 극성은 함께 움직여야 한다. mtime 을 못 읽는 파일은 두 층 모두 못 본다 — 그것은 선언된 거짓 음성이고, 받쳐 주는 층이 없다.
 
-**그 안에서 판정은 스위트 단위다** — `spawn_diag::daemon_kind()`. 인스턴스를 띄우는 스위트 중 **조합 의존 단언을 가진 것만** 자기 조합의 데몬을 요구하고(`DaemonKind::SameCombo`), 나머지는 헤드리스 데몬으로 충분하다(`HeadlessOk`). 명부는 `HEADLESS_OK_SUITES` 한 곳이고, 그것이 `EXPECTED_INSTANCE_TESTS` 와 갈리지 않는 것은 `tests/e2e_single_instance_guard.rs` 가 **양방향으로** 본다(분류 안 된 스위트 / 명부에만 있는 이름). 분류를 안 하면 안전한 쪽인 `SameCombo` 로 떨어진다 — 놓치면 최적화를 잃을 뿐 틀린 빨강은 안 난다.
+**그 안에서 판정은 스위트 단위다** — `spawn_diag::daemon_kind()`. 인스턴스를 띄우는 스위트 중 **조합 의존 단언을 가진 것만** 자기 조합의 데몬을 요구하고(`DaemonKind::SameCombo`), 나머지는 헤드리스 데몬으로 충분하다(`HeadlessOk`). 조합 의존은 테스트 쪽 `cfg(feature = "gui")` 로만 드러나지 않는다 — 단언은 하나인데 **데몬 쪽**이 조합마다 다른 호출측을 재는 스위트도 `SameCombo` 다. 헤드리스 데몬을 받으면 초록은 그대로인데 gui 호출측을 안 잰다. 지금 그 형태는 `attach_structure_sync_loopback` 하나다(forward 회신을 gui · 헤드리스 데몬이 서로 다른 함수로 만든다 — [ADR-0170](../adr/0170-e2e-daemon-is-chosen-per-suite-and-off-by-default.md) 보강). 명부는 `HEADLESS_OK_SUITES` 한 곳이고, 그것이 `EXPECTED_INSTANCE_TESTS` 와 갈리지 않는 것은 `tests/e2e_single_instance_guard.rs` 가 **양방향으로** 본다(분류 안 된 스위트 / 명부에만 있는 이름). 분류를 안 하면 안전한 쪽인 `SameCombo` 로 떨어진다 — 놓치면 최적화를 잃을 뿐 틀린 빨강은 안 난다.
 
 **로컬 탈출구 — `TASTY_E2E_BIN`.** 워크트리 여러 개가 같은 GPU 를 다투는 상황에서 IPC 전용 스위트를 GPU 밖으로 뺄 수 있다. 미리 빌드해 둔 headless 바이너리의 경로를 주면 하네스가 그것을 띄운다.
 
