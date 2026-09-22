@@ -2,7 +2,7 @@
 
 아키텍처/정책 결정의 *근거·대안·재검토 조건* 을 기록한다. design/ 문서가 "지금 어떻게 동작하나" 를 기술한다면, ADR 은 "왜 그렇게 결정했나" 를 기술한다.
 
-- 신규 작성: [`template.md`](template.md) 양식을 따른다. 파일명 `XXXX-<slug>.md`, 번호는 0001 부터 4 자리.
+- 신규 작성: [`template.md`](template.md) 양식을 따른다. 파일명 `XXXX-<slug>.md`, 번호는 4 자리 — 현재 최대 번호 + 1(빈 번호 재사용 금지, template "작성 규칙").
 - **Accepted 후의 본문 수정 범위·Status 갱신·Supersede 절차**는 [`template.md`](template.md) 의 "작성 규칙" 을 따른다 — 이 인덱스에 규칙을 복제하지 않는다.
 - **외부(비-git) 위치 문서 참조 금지** + 필요한 근거는 `docs/` 로 재구성해 참조 — 상세·예외는 [`template.md`](template.md) 의 "작성 규칙" 참조.
 - 커밋 형식: [`dev-guide/commit-convention.md`](../dev-guide/commit-convention.md) 의 "ADR 커밋" 항목.

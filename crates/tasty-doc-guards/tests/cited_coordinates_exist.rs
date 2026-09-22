@@ -69,6 +69,9 @@
 //!
 //! 선례: `crates/tasty-doc-guards/tests/no_checkbox_in_docs.rs`(docs 순회 구조) ·
 //! `crates/tasty-doc-guards/tests/no_todo_file_citation.rs`(레포 전체 스캔).
+//!
+//! 판정을 리터럴 좌표로 좁히고 오탐을 예외 목록이 아니라 인용 형태로 없애는 결정의 근거·대안:
+//! `docs/adr/0151-cited-coordinates-are-judged-as-literals-not-by-context.md`.
 
 // 이유: 이 타깃은 전부 테스트다. 테스트의 `let _ =` 는 정책이 사유를 요구하지
 // 않으므로 `clippy::let_underscore_must_use` 명부(프로덕션 전용)에 섞이면 안 된다

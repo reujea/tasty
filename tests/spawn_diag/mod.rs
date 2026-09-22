@@ -1755,6 +1755,9 @@ fn suite_calls_bundled_plugins() -> bool {
 /// 판정을 통과한다. 그것까지 잡으려면 어느 plugin 이 필요한지 알아야 하고 그것이 곧 위의
 /// 사본이다. cargo 가 실제로 만드는 상태는 0(루트 패키지만 짓는 조합) 아니면 전부
 /// (`--workspace`)라, 이 사각이 실물이 되는 경로는 손으로 지운 경우뿐이다.
+///
+/// 검증의 전제를 산문이 아니라 실패 문구에 싣는 결정의 근거·대안:
+/// `docs/adr/0217-a-precondition-lives-in-the-failure-text-not-in-prose.md`.
 fn staged_bundle_note(exe_dir: &std::path::Path, opted_in: bool) -> Option<String> {
     if !opted_in {
         return None;

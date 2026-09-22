@@ -54,6 +54,8 @@
 //! 고치는 방법도 다르다: 저장소가 창 밖이면 고칠 것이 없고, 창 소유인데 합산이 답하면
 //! 정본이 합산 명부이며, 생성이면 애초에 실을 id 가 없고, 열린 결함이면 축을 세워야
 //! 한다. 갈래 이름만으로는 판정이 재현되지 않으므로 **모든 항목에 사유를 요구한다.**
+//!
+//! 자동 술어 대신 사유 명부로 판정하는 결정의 근거·대안: `docs/adr/0251-unrouted-dispatch-methods-carry-a-reason-not-a-predicate.md`.
 
 use std::collections::{BTreeMap, BTreeSet};
 

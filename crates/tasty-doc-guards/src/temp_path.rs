@@ -1211,6 +1211,9 @@ mod tests {
     /// 여기 여덟뿐인 이유: `process::id` 는 아래 세 테스트가 이미 이름으로 부른다.
     /// 확인했다 — 아홉을 하나씩 빼면 전부 빨개지고, 여덟은 이 테스트가 성분 이름을
     /// 대며 잡고 `process::id` 는 그 셋이 잡는다.
+    ///
+    /// 목록의 원소를 리터럴 조각으로 박는 규율의 근거·대안:
+    /// `docs/adr/0189-a-list-element-is-pinned-by-a-literal-snippet.md`.
     #[test]
     fn every_recognized_uniquifier_is_actually_recognized() {
         // 조각은 [`UNIQ_TOKENS`] 와 **같은 수**여야 한다 — 아래에서 단정한다. 성분을
