@@ -20,7 +20,8 @@ IPC 핸들러 일부는 일을 직접 하지 않고 intent 를 agent origin 으�
   이 "원격 연결 상태 사건" 부류의 구성원으로 허용했다.
 
 교차 조사(결정 시점)에서 에이전트 origin intent 를 만드는 자리는 IPC `markdown.navigate`
-(`Intent::ConvertSurface`) 와 `file.open` 이 새 탭으로 떨어지는 갈래(`Intent::NewTab`)였다. 둘 다
+(`Intent::ConvertSurface`) 와 `file_handler.dispatch`(`origin_surface_id` 없이)가 새 탭으로 떨어지는
+갈래(`Intent::NewTab`)였다. 둘 다
 mirror 워크스페이스에서 forward 된다. 그래서 동기 차단 toast 로 이어진 실례는 확인하지 못했지만,
 **비동기 실패 toast 는 실례가 있다** — 원격이 그 op 를 적용하지 못하면(예: 원격에 등록되지 않은
 surface kind) 에이전트의 IPC 한 번이 사용자 화면에 경고 toast 를 띄운다.
@@ -58,17 +59,20 @@ ADR-0401 은 같은 문서 안에서 "에이전트 IPC 호출이 직접 일으�
   parked engine 게이트, 사용자 조작이 forward 한 op 의 실패 toast, 알려진 예외
   `mirror_markdown_truncated` 의 나머지 세 경로와 그것을 문서 안 표지로 옮길지의 결정 — 는 그대로다.
 - 기본값은 종전 동작이다. origin 을 모르는 자리(`Core::apply` 를 intent 없이 직접 부르는 IPC 핸들러
-  · `AppState::forward_mirror_structural`)가 쌓은 forward op 는 표시가 없고, 그 실패는 종전대로
-  toast 가 된다.
+  · `AppState::forward_mirror_structural` · `src/file/dispatch.rs` `open_surface_tab` 의 `Some(pane)`
+  갈래 — `origin_surface_id` 를 실은 `file_handler.dispatch` 가 `core.apply` 를 직접 부른다)가 쌓은
+  forward op 는 표시가 없고, 그 실패는 종전대로 toast 가 된다.
 
 IPC 응답은 바뀌지 않는다. 이 intent 들은 적용 전에 요청이 응답을 돌려주는 형태라(`accepted`), 적용
 실패의 사유를 응답에 실을 자리가 없다. 사유는 로그에 남는다.
 
 ## Consequences
 
-- **얻은 것**: 에이전트가 mirror 워크스페이스에 `markdown.navigate` · `file.open` 을 보내 원격이
-  거절해도 사용자 화면에 경고가 뜨지 않는다. 같은 조작을 사용자가 하면 종전대로 뜬다. 에이전트가
-  mirror markdown 문서를 `markdown.reload` 로 몇 번 불러도 잘림 toast 가 그 수만큼 쌓이지 않는다.
+- **얻은 것**: 에이전트가 mirror 워크스페이스에 `markdown.navigate` 나 `origin_surface_id` 없는
+  `file_handler.dispatch` 를 보내 원격이 거절해도 사용자 화면에 경고가 뜨지 않는다. `origin_surface_id`
+  를 실은 `file_handler.dispatch` 의 원격 거절은 위 "기본값은 종전 동작" 대로 여전히 toast 가 된다.
+  같은 조작을 사용자가 하면 종전대로 뜬다. 에이전트가 mirror markdown 문서를 `markdown.reload` 로
+  몇 번 불러도 잘림 toast 가 그 수만큼 쌓이지 않는다.
 - **잃은 것**: 에이전트는 그 실패를 IPC 응답으로 알 수 없다 — 전에도 알 수 없었고, 전에는 사용자가
   대신 봤다. 이제는 로그에만 있다.
 - **잃은 것(오분류)**: 사용자 조작 한 갈래가 실패 toast 를 잃는다 — markdown plugin 의 **"파일 열기"

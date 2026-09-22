@@ -60,8 +60,8 @@ grep -rnE 'toasts|report_apply_error|push_toast' \
     가 난다. `report_apply_error` 가 에이전트 origin 의 forward op 에 `silent_failure` 를
     표시하고, attach client 는 그 op_id 의 실패 회신을 토스트 대신 로그로 보낸다
     (`src/app/attach_client/agent_origin.rs` `AgentRequests`).
-  이 경로의 실례: `markdown.navigate` 의 convert 와 `file.open` 이 새 탭으로 떨어지는
-  경우(`Intent::NewTab`)는 mirror 워크스페이스에서 forward 되고, 원격이 그 op 를 적용하지
+  이 경로의 실례: `markdown.navigate` 의 convert 와 `file_handler.dispatch`(`origin_surface_id`
+  없이)가 새 탭으로 떨어지는 경우(`Intent::NewTab`)는 mirror 워크스페이스에서 forward 되고, 원격이 그 op 를 적용하지
   못하면(예: 원격에 없는 surface kind) 실패 회신이 온다. 시험:
   `src/intent/apply_error_tests.rs` · `src/app/attach_client/agent_origin.rs` 의
   `an_agent_forward_failure_does_not_toast`. 두 끝을 세는 명령(경로의 폭을 보는 것이다):
