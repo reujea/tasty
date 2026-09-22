@@ -1,9 +1,9 @@
-//! `testing::InMemoryStorage` — HashMap 기반 mock. test 시 SQLite 우회.
+//! `testing::InMemoryStorage` — 맵 기반 mock. test 시 SQLite 우회.
 //!
 //! 현재는 stub — Phase D.3.C 의 test 작성 시 필요한 메서드 부터 채운다.
 //! 미구현 메서드는 `unimplemented!()` — 호출 시 panic 으로 알려준다.
 
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 
 use crate::port::MemoryStorage;
 use crate::{
@@ -16,7 +16,10 @@ use crate::{
 #[allow(dead_code)]
 pub struct InMemoryStorage {
     config: MemoryConfig,
-    regular: HashMap<(String, String), MemoryEntry>,
+    /// (scope, key) → entry. `BTreeMap` 이라 순회가 (scope, key) 오름차순이다 — 운영
+    /// `MemoryStore::list` 의 `ORDER BY key ASC` 와 같은 순서를 `list` 가 내게 하려는 것이다.
+    /// `HashMap` 이면 순서가 실행마다 달라 목록 순서에 기대는 시험이 운에 맡겨진다.
+    regular: BTreeMap<(String, String), MemoryEntry>,
     secret: HashMap<(String, String, String), MemoryEntry>, // (owner, scope, key) → entry
     pending: Vec<MemoryChange>,
     /// `purge_scope` 가 불린 scope token 을 호출 순서대로 기록한다.
@@ -35,7 +38,7 @@ impl InMemoryStorage {
     pub fn with_config(config: MemoryConfig) -> Self {
         Self {
             config,
-            regular: HashMap::new(),
+            regular: BTreeMap::new(),
             secret: HashMap::new(),
             pending: Vec::new(),
             purge_scope_calls: Vec::new(),
@@ -115,6 +118,7 @@ impl MemoryStorage for InMemoryStorage {
         Ok(())
     }
 
+    /// 운영 저장소처럼 키 오름차순이다(`regular` 가 (scope, key) 순으로 순회한다).
     fn list(&self, scope: &Scope, opts: &ListOpts) -> Result<Vec<MemoryEntry>> {
         let token = scope.as_token();
         Ok(self
@@ -269,5 +273,54 @@ impl MemoryStorage for InMemoryStorage {
 
     fn take_pending_changes(&mut self) -> Vec<MemoryChange> {
         std::mem::take(&mut self.pending)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::MemoryStore;
+
+    fn keys(entries: Vec<MemoryEntry>) -> Vec<String> {
+        entries.into_iter().map(|e| e.key).collect()
+    }
+
+    /// `list` 는 운영 저장소와 같은 순서(키 오름차순)로 돌려준다 — 넣은 순서와 무관하게,
+    /// 실행마다 같게. 같은 입력을 운영 저장소에 넣은 결과와 견준다.
+    #[test]
+    fn list_returns_keys_in_the_same_order_as_the_real_store() {
+        let inserted = ["b.2", "a.10", "c", "a.9", "a.1", "b.1"];
+        let mut mock = InMemoryStorage::new();
+        let mut real = MemoryStore::open_in_memory().unwrap();
+        for k in inserted {
+            let v = MemoryValue::Text(k.into());
+            mock.put("_host", &Scope::Global, k, &v, &PutOpts::default())
+                .unwrap();
+            real.put("_host", &Scope::Global, k, &v, &PutOpts::default())
+                .unwrap();
+        }
+        // 다른 scope 의 항목은 섞이지 않는다.
+        mock.put(
+            "_host",
+            &Scope::Workspace(1),
+            "a.0",
+            &MemoryValue::Text("x".into()),
+            &PutOpts::default(),
+        )
+        .unwrap();
+
+        let opts = ListOpts::default();
+        let got = keys(mock.list(&Scope::Global, &opts).unwrap());
+        assert_eq!(got, keys(real.list(&Scope::Global, &opts).unwrap()));
+        assert_eq!(got, vec!["a.1", "a.10", "a.9", "b.1", "b.2", "c"]);
+
+        let prefixed = ListOpts {
+            prefix: Some("a.".into()),
+            ..Default::default()
+        };
+        assert_eq!(
+            keys(mock.list(&Scope::Global, &prefixed).unwrap()),
+            vec!["a.1", "a.10", "a.9"]
+        );
     }
 }
