@@ -76,6 +76,10 @@ host-call 진입부가 직접 인터셉트한다" 이고(`src/source_guards/plug
 - **popup 을 포커스 없이 연다**: 사용자 입력은 안 막는다. 안 고른 이유: 에이전트가 사용자 화면에
   popup 을 띄우는 것 자체가 원칙 2.1 ② 의 "popup 강제 open" 이고, 결과를 받을 곳도 여전히 없다.
 - **발화 라벨만 바로 세운다(`from_agent_…`)**: 기록은 맞아진다. 안 고른 이유: 포커스 효과가 그대로다.
+- **한 minor deprecation 을 거친다**: 0.x 의 break 는 한 minor 이상 deprecation 을 먼저 두는 것이
+  기본 정책이다(`docs/dev-guide/api-conventions.md`). 안 고른 이유: 그 기간 동안 원칙 2.1 ①·2.3
+  위반이 release 에 그대로 남는다. 그리고 CLI·agent 호출자는 고른 경로를 받을 방법이 원래 없었으므로,
+  그 기간에 옮겨 갈 대체 경로도 없다 — 이행할 것이 없다.
 - **debug 로 옮긴다**: 자기검증용으로는 debug popup 강제 open(`debug.popup.*`)이 이미 있다. 이 메서드의
   정상 사용자는 plugin 이라 release 에 남아야 한다.
 
