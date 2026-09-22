@@ -978,7 +978,8 @@ mod create_cwd_tests {
     fn explicit_cwd_wins_and_non_terminal_kinds_take_no_cwd() {
         let (mut state, mut engine) = crate::state::tests::test_state();
         let (named, _) = open_explorer(&mut state, &mut engine, "named/proj");
-        let explicit = std::env::temp_dir();
+        // 실재하는 디렉토리면 된다 — 핸들러가 명시 `cwd` 의 존재를 검사한다.
+        let explicit = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"));
         let params = json!({ "surface_id": named, "cwd": explicit.to_string_lossy() });
 
         let got = resolve_create_cwd(&params, "terminal", &state, &engine, &json!(1))
