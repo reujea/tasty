@@ -969,20 +969,44 @@ fn shortcut_new_workspace_stays_normal_when_categories_off() {
 //
 // 이 모듈의 두 시험은 **소스 텍스트를 읽는다.** 재는 대상이 `match` 의 arm 집합인데
 // 그것을 값으로 꺼내는 길이 없어서다(arm 을 상수 배열에서 유도하도록 바꾸면 그 배열이
-// 또 하나의 사본이 된다 — 이 티켓이 고친 병이 그것이다). 읽는 자리를 함수 본문으로
-// 좁히고 arm 들여쓰기에 앵커를 걸어 주석·문자열이 섞이지 않게 한다.
+// 또 하나의 사본이 된다 — 이 티켓이 고친 병이 그것이다). 읽는 자리를 함수 본문의 `match`
+// 로 좁히고, 팔은 공용 판정기(`tasty_doc_guards::match_arms`)가 뗀다 — 주석·문자열은 구조로
+// 안 읽히고, `"a" | "b" =>` 와 guard 가 붙은 팔도 팔이다(줄 앞머리의 `"id" =>` 만 세던
+// 판독은 그 둘을 놓쳐 "arm 인데 등록 안 됨" 방향이 조용히 초록이었다).
+
+/// `fn <fn_name>` 정의들 안의 `match <scrutinee> { … }` 팔 이름(따옴표 이름만).
+fn match_arm_names(src: &str, fn_name: &str, scrutinee: &str) -> Vec<String> {
+    use tasty_doc_guards::match_arms::{Source, matching_close};
+    let s = Source::new(src);
+    let bodies = s.fn_bodies(fn_name);
+    assert!(!bodies.is_empty(), "`fn {fn_name}` 를 못 찾았다");
+    let head = format!("match {scrutinee} {{");
+    let mut out = Vec::new();
+    for body in bodies {
+        let mut from = body.start;
+        while let Some(k) = s.code[from..body.end].find(&head) {
+            let open = from + k + head.len() - 1;
+            from = open + 1;
+            let close = matching_close(&s.code, open).expect("match 블록이 닫히지 않는다");
+            let arms = s
+                .match_arms(open..close + 1)
+                .unwrap_or_else(|e| panic!("`{fn_name}` 의 팔을 못 읽었다 — {e}"));
+            for arm in arms {
+                for alt in s.alternatives(&arm.pattern) {
+                    if let Some(name) = s.plain_string(&alt) {
+                        out.push(name.to_string());
+                    }
+                }
+            }
+        }
+    }
+    out
+}
 
 /// `dispatch_action_by_id` 의 match arm 이 아는 action_id 집합.
 fn dispatchable_action_ids() -> Vec<String> {
     const SRC: &str = include_str!("dispatch.rs");
-    let start = SRC
-        .find("fn dispatch_action_by_id")
-        .expect("dispatch_action_by_id 를 못 찾았다");
-    let end = SRC[start..]
-        .find("            other => {")
-        .expect("unknown-action arm 을 못 찾았다")
-        + start;
-    arm_ids(&SRC[start..end], "            ")
+    match_arm_names(SRC, "dispatch_action_by_id", "action_id")
 }
 
 /// `handle_double_tap_shortcut` 의 등록 목록(`bindings_to_check`)과 `run_double_tap_*_action`
@@ -1003,30 +1027,27 @@ fn double_tap_registered_and_armed() -> (Vec<String>, Vec<String>) {
         })
         .collect();
 
-    // 실행 표는 `run_double_tap_*_action` 넷에 나뉘어 있다(인지 복잡도 상한 때문이다).
-    // 그 앞에는 12칸 들여쓰기의 `"id" =>` 꼴이 없으므로, 첫 실행 함수부터 파일 끝까지를
-    // 한 구간으로 읽으면 갈래가 늘어도 이 시험이 따라간다.
-    let run_start = SRC
-        .find("fn run_double_tap_layout_action")
-        .expect("실행 함수를 못 찾았다");
-    let armed = arm_ids(&SRC[run_start..], "            ");
-    (registered, armed)
-}
-
-/// `<indent>"id" =>` 꼴 arm 의 id 를 뽑는다. 들여쓰기를 정확히 요구해 중첩 match 나
-/// 주석 안의 비슷한 문자열을 안 집는다.
-fn arm_ids(body: &str, indent: &str) -> Vec<String> {
-    body.lines()
-        .filter_map(|line| {
-            let rest = line.strip_prefix(indent)?;
-            if rest.starts_with(' ') {
-                return None;
-            }
-            let rest = rest.strip_prefix('"')?;
-            let (id, after) = rest.split_once('"')?;
-            after.trim_start().starts_with("=>").then(|| id.to_string())
+    // 실행 표는 `run_double_tap_*_action` 여럿에 나뉘어 있다(인지 복잡도 상한 때문이다).
+    // 이름을 손으로 적지 않고 그 접두어의 함수를 전부 읽어, 갈래가 늘어도 이 시험이 따라간다.
+    let code = tasty_doc_guards::source_text::mask_non_code(SRC);
+    let mut names: Vec<&str> = code
+        .match_indices("fn run_double_tap_")
+        .map(|(at, _)| {
+            let rest = &code[at + "fn ".len()..];
+            let end = rest
+                .find(|c: char| !(c.is_ascii_alphanumeric() || c == '_'))
+                .unwrap_or(rest.len());
+            &rest[..end]
         })
-        .collect()
+        .collect();
+    names.sort_unstable();
+    names.dedup();
+    assert!(names.len() > 1, "실행 함수를 못 찾았다: {names:?}");
+    let armed = names
+        .iter()
+        .flat_map(|name| match_arm_names(SRC, name, "action"))
+        .collect();
+    (registered, armed)
 }
 
 /// 명령 팔레트에 뜨는 액션은 전부 실행 arm 이 있다.
