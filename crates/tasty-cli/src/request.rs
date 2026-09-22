@@ -391,23 +391,29 @@ fn new_command_to_method_params(command: &NewCommands) -> (&'static str, serde_j
             ssh,
             remote_workspace,
             category,
+            surface,
         } => {
             let resolved_cwd = normalize_cwd_or_exit(cwd.as_deref());
-            (
-                "workspace.create",
-                serde_json::json!({
-                    "name": name.as_deref().unwrap_or(""),
-                    "cwd": resolved_cwd,
-                    "type": r#type,
-                    "file": file,
-                    "path": path,
-                    "url": url,
-                    "attach_profile": ssh_profile,
-                    "attach_ssh": ssh,
-                    "attach_remote_workspace": remote_workspace,
-                    "category": category,
-                }),
-            )
+            let mut params = serde_json::json!({
+                "name": name.as_deref().unwrap_or(""),
+                "cwd": resolved_cwd,
+                "type": r#type,
+                "file": file,
+                "path": path,
+                "url": url,
+                "attach_profile": ssh_profile,
+                "attach_ssh": ssh,
+                "attach_remote_workspace": remote_workspace,
+                "category": category,
+            });
+            // 주인 창은 IPC 라우터가 `surface_id` 로 고른다(원칙 3) — 그 surface 를 가진 창이
+            // 없으면 포커스로 새지 않고 거절된다. 생략하면 키를 싣지 않아 종전 요청과 같다.
+            // `TASTY_SURFACE_ID` 로 채우지 않는다: 생략 시 사용자가 보는 창으로 가던 동작을
+            // 지킨다.
+            if let Some(sid) = surface {
+                params["surface_id"] = serde_json::json!(sid);
+            }
+            ("workspace.create", params)
         }
         NewCommands::Tab {
             pane,
@@ -938,6 +944,18 @@ mod tests {
         assert_eq!(
             req.params.get("surface_id").and_then(|v| v.as_u64()),
             Some(42)
+        );
+
+        // case 1a: `new workspace` 는 env 가 있어도 surface_id 를 싣지 않는다 — 생략 시
+        // 사용자가 보는 창으로 가던 동작을 지킨다. `--surface` 를 주면 그 값이 라우팅 키다.
+        let ws_default = command_to_request(&cmd_from(&["tasty", "new", "workspace"]));
+        assert_eq!(ws_default.method, "workspace.create");
+        assert!(ws_default.params.get("surface_id").is_none());
+        let ws_named =
+            command_to_request(&cmd_from(&["tasty", "new", "workspace", "--surface", "7"]));
+        assert_eq!(
+            ws_named.params.get("surface_id").and_then(|v| v.as_u64()),
+            Some(7)
         );
 
         // case 1b: hook.list 는 포커스 독립 list — env(TASTY_SURFACE_ID=42)가 있어도

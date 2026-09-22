@@ -1964,6 +1964,9 @@ help = "attach 先となるリモート tasty 側のワークスペース ID"
 [cli.help._root.new.workspace.arg.category]
 help = "ワークスペースを入れるカテゴリ（名前または ID）。既定は normal"
 
+[cli.help._root.new.workspace.arg.surface]
+help = "このサーフェス ID を持つウィンドウにワークスペースを作成する。省略するとユーザーが見ているウィンドウに作成する"
+
 [cli.help._root.new.tab]
 about = "指定したペインに新しいタブを作成する"
 
