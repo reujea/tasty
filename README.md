@@ -78,7 +78,7 @@ cargo build --release
 ## Key Features
 
 - **Orchestrate multiple AI agents in one terminal** — a task DAG plus barrier / semaphore / lease / reduce / rate-limit collaboration primitives coordinate parallel work ([`docs/features/agent-collaboration/index.md`](docs/features/agent-collaboration/index.md))
-- **Runs fully headless** — create, tear down, and drive surface I/O with CLI/IPC alone, so it drops straight into CI/server environments (`--headless`, [`docs/features/headless-pty/index.md`](docs/features/headless-pty/index.md))
+- **Runs fully headless** — create, tear down, and drive surface I/O with CLI/IPC alone, so it drops straight into CI/server environments (headless build: `cargo build --no-default-features`; the flag `--headless` does not make a GUI build headless, [`docs/features/headless-pty/index.md`](docs/features/headless-pty/index.md))
 - **Select and copy with the keyboard alone** — vi-style copy mode (hjkl movement, visual selection, search) with GPU cursor visualization ([`docs/features/clipboard/index.md`](docs/features/clipboard/index.md))
 - **Produce installers in one step** — `cargo build --profile dist` plus a Justfile wrapper auto-builds DMG / MSI / AppImage
 - **Extend it yourself with plugins** — an SDK with a manifest schema and a permission system ([`docs/features/plugin-system/index.md`](docs/features/plugin-system/index.md))

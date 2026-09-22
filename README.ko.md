@@ -78,7 +78,7 @@ cargo build --release
 ## 핵심 기능
 
 - **여러 AI 에이전트를 하나의 터미널에서 오케스트레이션한다** — task DAG + barrier / semaphore / lease / reduce / rate-limit 협업 primitive 로 병렬 작업을 조율([`docs/features/agent-collaboration/index.md`](docs/features/agent-collaboration/index.md))
-- **GUI 없이도 완전히 동작한다** — CLI/IPC 만으로 surface 를 만들고 끄고 입출력까지 다룰 수 있어 CI/서버 환경에 그대로 올라간다(`--headless`, [`docs/features/headless-pty/index.md`](docs/features/headless-pty/index.md))
+- **GUI 없이도 완전히 동작한다** — CLI/IPC 만으로 surface 를 만들고 끄고 입출력까지 다룰 수 있어 CI/서버 환경에 그대로 올라간다(headless 빌드: `cargo build --no-default-features` — gui 빌드에 `--headless` 를 줘도 headless 가 되지 않는다, [`docs/features/headless-pty/index.md`](docs/features/headless-pty/index.md))
 - **키보드만으로 화면을 선택·복사한다** — vi 스타일 카피 모드(hjkl 이동·visual 선택·검색)와 GPU 커서 시각화([`docs/features/clipboard/index.md`](docs/features/clipboard/index.md))
 - **배포용 설치 파일을 한 번에 뽑는다** — `cargo build --profile dist` + Justfile 로 DMG / MSI / AppImage 를 자동 빌드
 - **플러그인으로 기능을 직접 확장한다** — 매니페스트 스키마 + 권한 시스템을 갖춘 SDK 제공([`docs/features/plugin-system/index.md`](docs/features/plugin-system/index.md))
