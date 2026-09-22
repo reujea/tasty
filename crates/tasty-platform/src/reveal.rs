@@ -8,6 +8,10 @@ use std::process::Command;
 
 /// `path` 를 OS 기본 핸들러로 연다 (폴더 → 파일 관리자). 실패는 Err 로 반환.
 pub fn open_path(path: &Path) -> std::io::Result<()> {
+    #[cfg(debug_assertions)]
+    if crate::debug_os_open::intercepted("open_path", &path.to_string_lossy()) {
+        return Ok(());
+    }
     #[cfg(target_os = "windows")]
     {
         Command::new("explorer").arg(path).spawn()?;

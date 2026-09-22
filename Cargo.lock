@@ -6095,6 +6095,7 @@ dependencies = [
  "tasty-settings",
  "tasty-test-support",
  "tasty-utils",
+ "tempfile",
  "tracing",
  "tracing-subscriber",
  "tray-icon",

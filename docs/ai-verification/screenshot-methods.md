@@ -179,7 +179,9 @@ debug 빌드는 이미 `~/.tasty-debug/` 루트로 release(`~/.tasty/`)와 자�
 
 ```bash
 TH=$(mktemp -d); cp ~/.tasty/config.toml "$TH/"    # config 는 루트 바로 아래
-TASTY_HOME="$TH" ./target/debug/tasty --launch &   # tasty 터미널 안에서면 GUI 부팅 skip 되므로 --launch 강제
+TASTY_HOME="$TH" TASTY_DEBUG_OS_OPEN_LOG="$TH/os-open.log" \
+  ./target/debug/tasty --launch &                  # tasty 터미널 안에서면 GUI 부팅 skip 되므로 --launch 강제
+                                                   # OS 열기는 띄우지 않고 기록만 — 격리 홈은 사용자 브라우저를 못 막는다
 MY_APP=$!                                          # 띄운 즉시 PID 를 잡는다
 until TASTY_HOME="$TH" ./target/debug/tasty list info >/dev/null 2>&1; do   # IPC 대기
   kill -0 "$MY_APP" 2>/dev/null || { echo "기동 실패 — 로그를 본다"; break; }  # 죽은 프로세스를 무한정 기다리지 않는다
@@ -188,6 +190,8 @@ done
 # "$TH/tasty.port" 로 ui.screenshot 호출 (TASTY_HOME 루트라 -debug 접미사 없음)
 kill "$MY_APP"; rm -rf "${TH:?}"                   # 정리 — 저장한 PID 로만
 ```
+
+**격리 홈은 OS 열기(브라우저 · 파일 관리자)를 격리하지 않는다** — 위 `TASTY_DEBUG_OS_OPEN_LOG` 가 tasty 자신의 열기를 기록으로 바꾸고, PTY 셸·plugin 이 스스로 여는 것은 가짜 브라우저 `PATH`/`BROWSER` 로 막는다. 절차 전체는 [self-verification](../dev-guide/self-verification.md) "격리 홈도 전용 디스플레이도 OS 열기를 격리하지 않는다".
 
 **격리 CLI 는 바깥 세션의 `TASTY_SESSION_TOKEN` 을 물려받으면 안 된다.** 이 절차를
 tasty 안에서 돌리면(멀티에이전트 검증이 늘 그렇다) 셸에 이미 `TASTY_SESSION_TOKEN` 이

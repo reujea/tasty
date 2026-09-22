@@ -1642,6 +1642,48 @@ fn file_dispatch_is_refused_rather_than_accepted_in_a_headless_daemon() {
     );
 }
 
+/// 디렉토리 dispatch 는 host 기본 핸들러 `directory-system`(OS 열기)으로 간다 — 하네스가 켠
+/// `TASTY_DEBUG_OS_OPEN_LOG` 아래에서는 그것이 **띄워지지 않고 기록된다.**
+///
+/// 이 스위치가 없으면 시험 인스턴스의 OS 열기가 실행자의 이미 떠 있는 브라우저로 URL 을
+/// 넘긴다 — 격리 홈도 전용 디스플레이도 그 채널을 못 막는다(ADR-0511). 기록 줄이 안 생기면
+/// 그 열기는 실제로 실행됐다는 뜻이다.
+#[cfg(feature = "gui")]
+#[test]
+fn directory_dispatch_is_recorded_instead_of_opened_under_the_harness() {
+    let _lane = lane();
+    let tasty = common::shared();
+    let dir = tasty.tasty_home().join("os-open-probe-dir");
+    std::fs::create_dir_all(&dir).expect("create probe dir");
+    let resp = tasty.call_raw(
+        "file_handler.dispatch",
+        json!({"path": dir.to_str().unwrap(), "depth": "cheap"}),
+    );
+    assert_eq!(
+        resp.pointer("/result/accepted"),
+        Some(&json!(true)),
+        "gui 는 디렉토리 dispatch 를 접수해야 한다: {resp}"
+    );
+    let log = tasty.os_open_log();
+    let needle = dir.to_str().unwrap().to_string();
+    let deadline = std::time::Instant::now() + Duration::from_secs(15);
+    loop {
+        let text = std::fs::read_to_string(&log).unwrap_or_default();
+        if text
+            .lines()
+            .any(|l| l.starts_with("open_uri\t") && l.contains(&needle))
+        {
+            break;
+        }
+        assert!(
+            std::time::Instant::now() < deadline,
+            "디렉토리 OS 열기가 {} 에 기록되지 않았다 — 기록 대신 실제로 띄웠을 수 있다. 기록 내용: {text:?}",
+            log.display()
+        );
+        std::thread::sleep(Duration::from_millis(100));
+    }
+}
+
 /// `file_handler.reload` 는 적용하지 않은 user 항목을 `rejected` 에 사유와 함께 싣는다 — 기존 필드는
 /// 그대로다. 예전에는 `{path, exists}` 뿐이라 설정이 무시된 것이 로그에만 남았다
 /// (docs/adr/0426-file-handler-reload-reports-the-entries-it-dropped.md).

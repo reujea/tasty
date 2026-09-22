@@ -397,6 +397,10 @@ pub fn mark_full_disk_access_notice_shown(_settings: &mut tasty_settings::Settin
 /// 프로세스를 기다리지 않는다(렌더 경로에서 호출될 수 있다).
 #[cfg(all(target_os = "macos", feature = "gui"))]
 pub fn open_full_disk_access_settings() {
+    #[cfg(debug_assertions)]
+    if crate::debug_os_open::intercepted("open_settings", FULL_DISK_ACCESS_SETTINGS_URL) {
+        return;
+    }
     if let Err(err) = std::process::Command::new("open")
         .arg(FULL_DISK_ACCESS_SETTINGS_URL)
         .spawn()

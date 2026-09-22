@@ -233,6 +233,8 @@ impl GuiTestInstance {
             .env_remove("TASTY_SESSION_TOKEN")
             .stderr(std::process::Stdio::piped());
 
+        // 자식의 OS 열기(브라우저 · 파일 관리자)는 실행자의 데스크톱에 닿는다 — 기록만 하게 한다.
+        spawn_diag::apply_os_open_record(&mut command, &isolated_home);
         // 이 스위트가 번들 plugin 을 안 부르면 빈 번들 루트를 준다 — 형제 하네스 둘이
         // 이미 하는 것이고, 이 하네스만 안 하고 있었다. 안 하면 부팅마다 격리 홈에
         // 번들 전량(debug 45 파일 ≈ 1.1 GB)을 복사한다. 명부·판정은 `spawn_diag` 한 곳이다.

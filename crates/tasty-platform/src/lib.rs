@@ -16,6 +16,9 @@
 #[cfg(feature = "gui")]
 pub mod app_icon;
 pub mod crash_report;
+/// debug 격리 — OS 열기를 띄우지 않고 기록만 한다(`TASTY_DEBUG_OS_OPEN_LOG`, ADR-0511).
+#[cfg(debug_assertions)]
+pub mod debug_os_open;
 #[cfg(all(windows, feature = "gui"))]
 pub mod jump_list;
 #[cfg(all(target_os = "macos", feature = "gui"))]

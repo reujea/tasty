@@ -13,6 +13,10 @@ pub use tasty_terminal_link::*;
 /// URI를 기본 브라우저/연결 프로그램으로 연다. 크로스 플랫폼.
 /// 성공하면 true, 실패하면 `tracing::warn!`을 남기고 false.
 pub fn open_uri(uri: &str) -> bool {
+    #[cfg(debug_assertions)]
+    if crate::platform::debug_os_open::intercepted("open_uri", uri) {
+        return true;
+    }
     match webbrowser::open(uri) {
         Ok(()) => true,
         Err(e) => {

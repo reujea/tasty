@@ -36,6 +36,7 @@ Tasty 를 개발하는 환경이 곧 Tasty 다 (dogfooding). 보통 사용자·�
 
 ## 한계 / 주의
 
+- 격리는 **tasty 의 상태**(루트 디렉토리)만 가른다. OS 열기(브라우저 · 파일 관리자)는 사용자 데스크톱의 이미 떠 있는 브라우저에 닿는다 — 검증 인스턴스는 `TASTY_DEBUG_OS_OPEN_LOG` 와 가짜 브라우저로 띄운다([self-verification.md](self-verification.md), [debug-ipc.md](debug-ipc.md)).
 - 격리는 **debug ↔ release** 기준이다. 두 debug 인스턴스를 동시에 띄우면 같은 `~/.tasty-debug/` 루트(포트파일 `~/.tasty-debug/tasty.port`)를 공유하므로 충돌한다 — 이때는 `TASTY_HOME` 으로 루트를 분리하거나 별도 checkout/worktree 를 운용한다.
 
 ## 관련

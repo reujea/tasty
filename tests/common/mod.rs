@@ -289,6 +289,8 @@ impl TastyInstance {
             .env(spawn_diag::LOG_ENV, spawn_diag::LOG_FILTER)
             .stderr(Stdio::piped());
         command.envs(extra_env.iter().copied());
+        // 자식의 OS 열기(브라우저 · 파일 관리자)는 실행자의 데스크톱에 닿는다 — 기록만 하게 한다.
+        spawn_diag::apply_os_open_record(&mut command, &isolated_home);
         // 이 스위트가 번들 plugin 을 안 부르면 빈 번들로 띄운다 — 격리 홈으로 가는
         // 1 GB 복사가 통째로 사라진다. 명부와 근거는 `spawn_diag` 에 있다.
         spawn_diag::apply_bundle_opt_in(&mut command);
@@ -651,6 +653,12 @@ impl TastyInstance {
     #[allow(dead_code)] // 일부 test binary 만 사용
     pub fn tasty_home(&self) -> PathBuf {
         self.isolated_home.join(".tasty")
+    }
+
+    /// 자식이 띄우지 않고 기록한 OS 열기의 기록 파일(`spawn_diag::apply_os_open_record`).
+    #[allow(dead_code)] // 일부 test binary 만 사용
+    pub fn os_open_log(&self) -> PathBuf {
+        self.isolated_home.join(spawn_diag::OS_OPEN_LOG_FILE)
     }
 
     /// Loopback IPC port — attach stream 핸드셰이크처럼 `call()` 이 감싸지 않는

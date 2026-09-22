@@ -216,6 +216,10 @@ pub fn draw_info_modal(
 /// 핸들러가 받는 스킴도 그대로 통과해야 하기 때문이다. 프로세스를 기다리지 않는다
 /// (렌더 경로에서 호출된다).
 fn open_external(url: &str) {
+    #[cfg(debug_assertions)]
+    if crate::platform::debug_os_open::intercepted("open_external", url) {
+        return;
+    }
     #[cfg(target_os = "macos")]
     let mut cmd = std::process::Command::new("open");
     #[cfg(windows)]

@@ -1805,6 +1805,28 @@ pub fn bundle_staging_note() -> String {
         .unwrap_or_default()
 }
 
+/// [`apply_os_open_record`] 가 `home` 아래에 만드는 기록 파일 이름.
+pub const OS_OPEN_LOG_FILE: &str = "os-open.log";
+
+/// 자식이 OS 열기(브라우저 · 파일 관리자)를 **띄우지 않고** `<home>/`[`OS_OPEN_LOG_FILE`] 에 기록만
+/// 하게 한다. 돌려주는 경로가 그 기록 파일이다.
+///
+/// 격리 홈도 전용 디스플레이도 이 축을 못 막는다 — 브라우저는 이미 떠 있는 자기 인스턴스에
+/// URL 을 넘기는 원격 제어 채널을 가져서, 시험 인스턴스가 연 것이 **실행자의 브라우저 탭**
+/// 으로 나타난다(ADR-0511). 스위치는 제품의 debug 격리라 release 로 지은 자식은 무시한다
+/// — 그래서 이름을 문자열로 옮겨 적지 않고 제품 상수를 그대로 쓴다.
+pub fn apply_os_open_record(
+    command: &mut std::process::Command,
+    home: &std::path::Path,
+) -> std::path::PathBuf {
+    let log = home.join(OS_OPEN_LOG_FILE);
+    #[cfg(debug_assertions)]
+    command.env(tasty_platform::debug_os_open::ENV, &log);
+    #[cfg(not(debug_assertions))]
+    let _ = command; // 스위치가 없는 빌드 — 줄 것이 없다.
+    log
+}
+
 pub fn apply_bundle_opt_in(command: &mut std::process::Command) {
     if suite_calls_bundled_plugins() {
         return;

@@ -57,6 +57,22 @@ debug 인스턴스가 동시에 떠 있는 것이 이 레포의 일상이고, �
 
 **이미 다른 tasty 인스턴스(사용자의 release 등)가 떠 있어도 충돌하지 않는다.** `cargo run` 은 debug 빌드라 데이터 루트가 `~/.tasty-debug/`(포트파일 `~/.tasty-debug/tasty.port`)로 release 의 `~/.tasty/` 와 **완전히 분리**된다 — 포트·layout·scrollback 모두 별도. 그러니 인스턴스가 떠 있는지 따지지 말고 그냥 `cargo run` 으로 자기 debug 인스턴스를 띄워 검증한다. (격리 표·`TASTY_HOME` override: [independent-verification.md](independent-verification.md))
 
+**격리 홈도 전용 디스플레이도 OS 열기를 격리하지 않는다 — 검증 인스턴스는 OS 열기를 기록만 하게 띄운다.** 디렉토리 dispatch · 링크 클릭 · "OS 기본 앱으로 열기" 는 `xdg-open`/브라우저를 부르고, 브라우저는 이미 떠 있는 자기 인스턴스에 URL 을 넘기는 원격 제어 채널(DBus · 소켓)을 가져서 `DISPLAY` 와 무관하게 **사용자 브라우저에 탭이 열린다**(격리 `TASTY_HOME` + 전용 Xvfb 로 띄운 인스턴스에서 실제로 났다). 그래서 두 겹으로 막는다:
+
+```bash
+SB=$(mktemp -d)                                   # 가짜 브라우저 자리
+for n in xdg-open gio open sensible-browser x-www-browser firefox firefox-bin google-chrome chromium; do
+  printf '#!/bin/sh\necho "%s $*" >> %s/fake-open.log\n' "$n" "$SB" > "$SB/$n"; chmod +x "$SB/$n"
+done
+TASTY_DEBUG_OS_OPEN_LOG="$SB/os-open.log" \
+PATH="$SB:$PATH" BROWSER="$SB/firefox" \
+  ./target/debug/tasty --launch &                 # 나머지(env -u … · PID 저장)는 위 절차 그대로
+```
+
+- **`TASTY_DEBUG_OS_OPEN_LOG`** — tasty 자신의 OS 열기 자리가 프로세스를 띄우지 않고 그 파일에 `<via>\t<대상>` 을 붙인다. "무엇이 열리려 했나" 의 판정은 이 줄로 한다. 덮는 자리와 성질은 [debug-ipc.md](debug-ipc.md) "OS 열기를 띄우지 않고 기록하기".
+- **가짜 브라우저 `PATH` + `BROWSER`** — tasty 가 띄운 **다른 프로세스**(PTY 안 셸의 `xdg-open`, 링크를 직접 여는 markdown plugin)는 위 스위치를 안 읽는다. 그쪽이 부르는 것을 기록만 하는 가짜로 가로챈다. 여기 기록이 생기면 그 프로세스가 연 것이다.
+- **`BROWSER=`(빈 값)은 막지 않는다.** `webbrowser` 크레이트(1.2.4 소스)는 빈 항목을 건너뛰고 xdg 설정의 기본 브라우저 desktop entry 를 **직접** 실행한다 — `PATH` 앞의 가짜 `xdg-open` 도 거치지 않는다. `BROWSER` 에는 기록하는 가짜의 경로를 준다.
+
 **`--headless` 는 기본 빌드에서 headless 로 동작하지 않는다.** 기본 빌드는 `gui` feature 가 켜져 있고 그 빌드에는 headless 모드가 들어 있지 않아, `--headless` 를 줘도 **GUI 로 폴백해 실제 창을 띄운다.** 로그에 이렇게 남는다:
 
 ```
