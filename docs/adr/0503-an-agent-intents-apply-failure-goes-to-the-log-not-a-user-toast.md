@@ -1,4 +1,4 @@
-# ADR-0572: 에이전트 intent 의 적용 실패는 사용자 toast 가 아니라 로그로 간다 — ADR-0401 의 구조 전달 실패 조항 개정
+# ADR-0503: 에이전트 intent 의 적용 실패는 사용자 toast 가 아니라 로그로 간다 — ADR-0401 의 구조 전달 실패 조항 개정
 
 - **Status**: Accepted
 - **Date**: 2026-09-23
@@ -71,12 +71,18 @@ IPC 응답은 바뀌지 않는다. 이 intent 들은 적용 전에 요청이 응
   mirror markdown 문서를 `markdown.reload` 로 몇 번 불러도 잘림 toast 가 그 수만큼 쌓이지 않는다.
 - **잃은 것**: 에이전트는 그 실패를 IPC 응답으로 알 수 없다 — 전에도 알 수 없었고, 전에는 사용자가
   대신 봤다. 이제는 로그에만 있다.
-- **잃은 것(오분류)**: host 는 `file_handler.dispatch` · `markdown.navigate` 를 부른 것이 에이전트인지
-  plugin 을 거친 사용자 클릭인지 가를 수단이 없어 둘 다 agent origin 으로 싣는다
-  (`src/adapters/ipc/handler/file_handler.rs` 의 `dispatch_origin` 주석). 그래서 사용자가 markdown
-  plugin 의 열기 팝업으로 파일을 열었는데 활성 워크스페이스가 mirror 이고 원격이 그 새 탭을 거절하면,
-  그 실패도 toast 없이 로그로 간다. origin 을 가를 수 없는 자리에서는 사용자 상태를 건드리지 않는
-  쪽(포커스를 안 옮기는 쪽과 같은 방향)을 골랐다.
+- **잃은 것(오분류)**: 사용자 조작 한 갈래가 실패 toast 를 잃는다 — markdown plugin 의 **"파일 열기"
+  팝업**이다. 그 [열기] 는 `crates/tasty-plugin-markdown/src/popup.rs` 의 `open_markdown_file` 이
+  host `file_handler.dispatch` 를 surface 없이 부르고, host 는 그 호출이 에이전트인지 plugin 을 거친
+  사용자 클릭인지 가를 수단이 없어 agent origin 으로 싣는다(`src/adapters/ipc/handler/file_handler.rs`
+  의 `dispatch_origin` 주석). 그래서 활성 워크스페이스가 mirror 이고 원격이 그 새 탭(focused pane 의
+  `Intent::NewTab`)을 거절하면, 사용자가 연 것인데도 실패가 toast 없이 로그로만 간다. 같은 plugin 의
+  다른 사용자 조작은 이 갈래가 아니다 — 문서 안 링크 클릭은 대상 pane 이 정해진(`Some(pane)`)
+  경로로 `Core::apply` 를 직접 거치고(`src/file/dispatch.rs`) 이 결정의 표시를 안 붙이므로 원격 거절이
+  종전대로 toast 로 뜬다. mirror 문서의 주소창·링크는 host 를 부르지 않는다.
+  이 한 갈래는 이 결정에서 고치지 않고, origin 없이 불리는 `file_handler.dispatch`
+  를 다루는 후속 작업이 맡는다(아래 재검토 조건의 두 번째 항목이 그 변화를 잰다). origin 을 가를 수
+  없는 자리에서는 사용자 상태를 건드리지 않는 쪽(포커스를 안 옮기는 쪽과 같은 방향)을 골랐다.
 - **운영 비용 / 유지 부담**: forward 큐 원소에 칸이 하나 늘었고 attach 세션에 op_id 집합이 하나
   늘었다. 그 집합은 회신(성공·실패)마다 지워지고 재연결 때 비워진다.
 

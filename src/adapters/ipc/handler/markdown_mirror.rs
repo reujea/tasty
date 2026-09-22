@@ -34,7 +34,7 @@ pub fn handle_content_request(
         Err(e) => return e,
     };
     // 에이전트가 건 요청(plugin 이 `markdown.reload` 를 받아 건 것)은 그 회신의 잘림 toast 를
-    // 사용자에게 띄우지 않는다(ADR-0572). 칸이 없으면 종전대로 plugin 자신의 요청이다.
+    // 사용자에게 띄우지 않는다(ADR-0503). 칸이 없으면 종전대로 plugin 자신의 요청이다.
     let agent_origin = params
         .get("agent_origin")
         .and_then(|v| v.as_bool())
@@ -80,7 +80,7 @@ mod tests {
     }
 
     /// `agent_origin: true` 를 실은 요청은 큐 원소에 그대로 표시된다 — 회신의 잘림 toast 를
-    /// 사용자에게 띄우지 않는 근거다(ADR-0572).
+    /// 사용자에게 띄우지 않는 근거다(ADR-0503).
     #[test]
     fn content_request_carries_the_agent_origin() {
         let waker: tasty_terminal::Waker = std::sync::Arc::new(|| {});

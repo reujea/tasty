@@ -1,5 +1,5 @@
 //! 에이전트가 일으킨 mirror 왕복의 결과를 사용자 toast 에서 떼어 낸다(identity 원칙 1,
-//! `docs/adr/0572-an-agent-intents-apply-failure-goes-to-the-log-not-a-user-toast.md`).
+//! `docs/adr/0503-an-agent-intents-apply-failure-goes-to-the-log-not-a-user-toast.md`).
 //!
 //! 원격 회신은 op_id · request_id 만 싣고 누가 요청했는지는 안 싣는다. 그래서 송신할 때 에이전트
 //! 요청의 id 를 세션에 기억해 두고, 회신이 오면 그 id 로 가른다 — 에이전트 요청이면 로그,

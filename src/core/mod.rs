@@ -238,7 +238,7 @@ pub(crate) struct PendingMarkdownContentForward {
     pub(crate) local_surface_id: u32,
     pub(crate) request_id: u64,
     /// 에이전트가 건 요청이다(`markdown.reload` IPC). 그 회신이 잘려 와도 사용자 toast 를
-    /// 띄우지 않는다(ADR-0572).
+    /// 띄우지 않는다(ADR-0503).
     pub(crate) agent_origin: bool,
 }
 

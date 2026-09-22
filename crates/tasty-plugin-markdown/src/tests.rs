@@ -476,7 +476,7 @@ fn trigger_params_carry_start_dir_and_origin() {
 }
 
 /// 원격 원문 요청은 에이전트가 건 것에만 `agent_origin` 을 싣는다 — host 는 그 회신의 잘림
-/// toast 를 사용자에게 띄우지 않는다(ADR-0572). plugin 이 건 요청은 종전 모양 그대로다.
+/// toast 를 사용자에게 띄우지 않는다(ADR-0503). plugin 이 건 요청은 종전 모양 그대로다.
 #[test]
 fn only_an_agent_content_request_carries_the_agent_origin() {
     assert_eq!(

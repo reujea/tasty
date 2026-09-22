@@ -79,7 +79,7 @@ const MIRROR_CONTENT_REQUEST_METHOD: &str = "markdown_mirror.content_request";
 
 /// 원격 원문 요청을 누가 일으켰나. host 는 에이전트가 일으킨 요청의 회신에서 사용자
 /// toast(원문 잘림)를 띄우지 않는다 — 에이전트 행동의 부수효과가 사용자 시각 상태에 닿지
-/// 않게 하는 것이다(identity 원칙 1, ADR-0572).
+/// 않게 하는 것이다(identity 원칙 1, ADR-0503).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum RemoteRequester {
     /// 최초 열기 · 원격 변경 신호 재조회 · 새로고침 버튼 — 이 plugin 이 스스로 또는 사용자
