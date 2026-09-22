@@ -21,11 +21,7 @@ use std::sync::atomic::AtomicU64;
 
 use helpers::rule_kind_eq;
 use path_glob::PathGlobCache;
-<<<<<<< HEAD
 pub use snapshot::{ContributionSnapshot, DetectorSnapshot};
-use tracing::warn;
-=======
->>>>>>> eb59faea4 (refactor(file-format): drop the crate wide dead_code and unused_imports allows)
 
 use super::config::DetectorDecl;
 use super::info::DetectorInfo;

@@ -3,7 +3,9 @@
 use super::FileFormatRegistry;
 use super::helpers::{identify_by_extension_priority, path_extension_lowercase};
 use crate::evaluator::{DeepCtx, evaluate_cheap, evaluate_deep};
-use crate::types::{DetectDepth, DetectorId, DetectorRuleKind, FileFormatDetector, FileTarget};
+use crate::types::{
+    DetectDepth, DetectorId, DetectorRuleKind, FileFormatDetector, FileTarget, RuleOrigin,
+};
 
 impl FileFormatRegistry {
     /// detector 조회 — clone 반환.
