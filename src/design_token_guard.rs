@@ -904,10 +904,15 @@ fn ui_does_not_consume_generated_length_consts_directly() {
         let lines: Vec<&str> = contents.lines().collect();
         for (path, at) in generated_const_refs(&lines) {
             let name = path.rsplit("::").next().unwrap_or("").to_string();
-            // `else` 는 무차원이 아닌 이름 전부를 덮는다 — LogicalPx 이름(대부분 처방
-            // 표에 있어 `&Theme` 경로를 받는 정상 위반)과 어느 이름 표에도 없는 이름(경로가
-            // 상수까지 안 이어진 자리)이 함께 든다. 표에 있는지 없는지는 헬퍼가 가르므로,
-            // 여기서 다시 가르면 헬퍼를 우회할 두 번째 자리만 생긴다.
+            // `else` 는 무차원이 아닌 이름 전부를 덮는다 — 셋이 함께 든다. ⒜ 처방 표에
+            // 있는 LogicalPx 이름(`&Theme` 경로를 받는 정상 위반), ⒝ LogicalPx 인데 처방
+            // 표에 없는 이름, ⒞ 어느 이름 표에도 없는 이름(경로가 상수까지 안 이어진 자리).
+            // ⒝ 는 primitive 의 LogicalPx 다 — 처방 표가 semantic·component 만 읽으므로
+            // 헬퍼의 끊긴 경로 처방으로 떨어진다. 검출은 덮지만 처방은 틀린다(이미 전체
+            // 경로로 쓴 자리에 "전체 경로로 import 해라" 를 준다). 그 상수가 `pub(crate)`
+            // 라 오늘은 도달 불가다 — 가시성이 넓어지면 첫 위반이 틀린 처방을 받는다.
+            // 표에 있는지 없는지는 헬퍼가 가르므로, 여기서 다시 가르면 헬퍼를 우회할 두
+            // 번째 자리만 생긴다.
             if other.contains(&name) {
                 dimensionless += 1;
             } else {
