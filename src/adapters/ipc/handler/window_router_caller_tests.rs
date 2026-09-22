@@ -32,7 +32,8 @@ const WINDOW_ROUTER_CALLERS: &[(&str, WindowCallers, &str)] = &[(
     "고른 경로는 호출한 plugin 에만 push 된다 — CLI·agent 호출은 사용자 포커스만 가져간다(ADR-0504)",
 )];
 
-/// `route_window_handler` 본문에서 `"<메서드>" =>` · `"<a>" | "<b>" =>` 팔 이름을 전부 뽑는다.
+/// `route_window_handler` 본문에서 `"<메서드>" =>` · `"<a>" | "<b>" =>` · `"<메서드>" if … =>` 팔
+/// 이름을 전부 뽑는다.
 fn window_router_arms() -> BTreeSet<String> {
     let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src/adapters/ipc/handler.rs");
     let src = std::fs::read_to_string(&path)
@@ -60,21 +61,69 @@ fn window_router_arms() -> BTreeSet<String> {
     }
     let body = &src[open..end];
     let mut arms = BTreeSet::new();
-    for (i, _) in body.match_indices("\" =>") {
-        // 팔 머리는 `"a" | "b" =>` 처럼 여럿일 수 있다(줄바꿈 포함). `=>` 앞에서 거꾸로
-        // `|` 로 이어진 따옴표 이름을 전부 넣는다 — 마지막 이름만 보면 기존 팔에 `|` 로
-        // 얹은 새 이름이 명부 없이 들어온다.
-        let mut head = &body[..=i];
-        while let Some(rest) = head.strip_suffix('"') {
-            let q = rest.rfind('"').expect("팔 이름의 여는 따옴표");
-            arms.insert(rest[q + 1..].to_string());
-            match rest[..q].trim_end().strip_suffix('|') {
-                Some(before) => head = before.trim_end(),
-                None => break,
-            }
+    for (i, _) in body.match_indices("=>") {
+        for name in arm_head_names(&body[..i]) {
+            arms.insert(name);
         }
     }
     arms
+}
+
+/// `=>` 바로 앞까지의 본문(`before`)에서 그 팔 머리의 따옴표 이름을 전부 뽑는다.
+///
+/// 팔 머리는 직전 경계(괄호 밖의 `,` · `{` · `}`)부터 `=>` 까지다. 그 안에서 속성(`#[...]`)을
+/// 걷어내고, match guard(` if …`)를 잘라낸 뒤 `|` 로 나눈 조각 중 따옴표 이름을 넣는다.
+/// 닫는 따옴표 바로 뒤의 ` =>` 만 팔로 보면 `"a" if … =>` 처럼 guard 가 붙은 팔이 명부 없이
+/// 들어오고, 마지막 이름만 보면 기존 팔에 `|` 로 얹은 새 이름이 명부 없이 들어온다.
+fn arm_head_names(before: &str) -> Vec<String> {
+    let bytes = before.as_bytes();
+    let mut depth = 0usize;
+    let mut from = 0;
+    for j in (0..bytes.len()).rev() {
+        match bytes[j] {
+            b')' | b']' => depth += 1,
+            b'(' | b'[' => depth = depth.saturating_sub(1),
+            b',' | b'{' | b'}' if depth == 0 => {
+                from = j + 1;
+                break;
+            }
+            _ => {}
+        }
+    }
+    let mut head = before[from..].trim();
+    while let Some(rest) = head.strip_prefix("#[") {
+        let mut d = 1usize;
+        let mut cut = rest.len();
+        for (k, c) in rest.char_indices() {
+            match c {
+                '[' => d += 1,
+                ']' => {
+                    d -= 1;
+                    if d == 0 {
+                        cut = k + 1;
+                        break;
+                    }
+                }
+                _ => {}
+            }
+        }
+        head = rest[cut..].trim_start();
+    }
+    // guard 는 공백 뒤의 `if` 낱말부터다(rustfmt 가 guard 를 다음 줄로 내려도 같다).
+    let guard = head.match_indices("if").find(|(k, _)| {
+        head[..*k].ends_with(char::is_whitespace)
+            && head[k + 2..].starts_with(|c: char| c.is_whitespace() || c == '(')
+    });
+    let pattern = guard.map_or(head, |(k, _)| &head[..k]);
+    pattern
+        .split('|')
+        .filter_map(|alt| {
+            let alt = alt.trim();
+            alt.strip_prefix('"')
+                .and_then(|a| a.strip_suffix('"'))
+                .map(str::to_string)
+        })
+        .collect()
 }
 
 #[test]
