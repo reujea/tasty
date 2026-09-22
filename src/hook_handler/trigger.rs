@@ -18,7 +18,7 @@
 use tasty_hooks::{HookBinding, HookEvent};
 
 use super::env::{HookShellEnv, build_env};
-use super::exec::{SubstitutionContext, execute_sequence};
+use super::exec::{SubstitutionContext, enqueue_sequence};
 use super::registry::global;
 use super::types::{HookHandlerAction, HookHandlerId, IpcCall, TriggerSource, validate_binding};
 use tasty_ipc::host_call::HostIpcInjector;
@@ -107,7 +107,9 @@ fn execute_ipc_sequence_handler(
         body: payload.clone(),
         ..Default::default()
     };
-    execute_sequence(inj, calls, &ctx);
+    // 이 함수는 호스트 명령 큐를 비우는 스레드(GUI 메인 · headless 루프)에서 불린다 — 스텝의 답을
+    // 여기서 기다리면 그 스레드가 스텝마다 대기 상한까지 선다. 실행기 스레드에 넘기고 돌아온다.
+    enqueue_sequence(id, inj, calls, ctx);
 }
 
 /// 훅 트리거 payload 조립 — 셸 env(`TASTY_HOOK_*`)와 IpcSequence(`${body.*}`) 양쪽이
@@ -310,6 +312,67 @@ mod tests {
             content.contains(": test"),
             "marker does not contain --list output; got: {content:?}"
         );
+    }
+
+    /// surface 훅의 IpcSequence 는 부른 스레드에서 스텝의 답을 기다리지 않는다. 그 스레드가 곧
+    /// 호스트 명령 큐를 비우는 스레드라, 기다리면 스텝마다 대기 상한(10 s)까지 선다. 여기서는 부른
+    /// 스레드(이 시험)가 큐를 비우는 쪽을 맡는다 — 돌아온 뒤에야 첫 스텝을 받을 수 있다.
+    /// 스텝은 순서대로, 앞 스텝의 답을 받은 뒤에 다음 스텝이 들어온다.
+    #[test]
+    fn an_ipc_sequence_hook_returns_before_its_steps_are_answered_and_runs_them_in_order() {
+        use std::sync::{Arc, mpsc};
+        use tasty_ipc::server::IpcCommand;
+
+        let (tx, rx) = mpsc::channel::<IpcCommand>();
+        let injector = HostIpcInjector::new(tx, Arc::new(|| {}));
+        let calls = vec![
+            IpcCall {
+                method: "probe.first".into(),
+                params: serde_json::json!({"surface": "${body.surface_id}"}),
+            },
+            IpcCall {
+                method: "probe.second".into(),
+                params: serde_json::json!({}),
+            },
+        ];
+
+        let started = Instant::now();
+        execute_ipc_sequence_handler(
+            "user/probe",
+            Some(&injector),
+            &trigger_payload(&HookEvent::Notification, 5),
+            &calls,
+        );
+        let returned_after = started.elapsed();
+        assert!(
+            returned_after < Duration::from_secs(2),
+            "the hook waited {returned_after:?} for its steps on the thread that drains the queue"
+        );
+
+        let answer = |cmd: IpcCommand| {
+            let id = cmd.request.id.clone().unwrap_or(serde_json::Value::Null);
+            cmd.response_tx
+                .send(tasty_ipc::protocol::JsonRpcResponse::success(
+                    id,
+                    serde_json::json!({}),
+                ))
+                .expect("answer the step");
+        };
+        let first = rx
+            .recv_timeout(Duration::from_secs(5))
+            .expect("the first step reaches the queue");
+        assert_eq!(first.request.method, "probe.first");
+        assert_eq!(first.request.params, serde_json::json!({"surface": 5}));
+        assert!(
+            rx.recv_timeout(Duration::from_millis(200)).is_err(),
+            "the second step must wait for the first step's answer"
+        );
+        answer(first);
+        let second = rx
+            .recv_timeout(Duration::from_secs(5))
+            .expect("the second step reaches the queue after the first is answered");
+        assert_eq!(second.request.method, "probe.second");
+        answer(second);
     }
 
     /// 알 수 없는 핸들러 id 참조는 조용히 무시(패닉 없음).

@@ -63,7 +63,7 @@ surface hook 은 더 이상 셸 명령 문자열을 직접 들지 않고, **공�
 - 따라서 **플러그인이 비활성이면 그 플러그인의 이벤트 hook 등록도 거부**된다(예: claude plugin 비활성 시 `claude-idle` hook 등록 불가 — 의도된 dead-setting 방지). claude plugin 은 위 3개 키를 manifest 로 선언한다.
 
 - **once** 옵션: true 면 한 번 실행 후 자동 삭제. 기본은 persistent.
-- **비동기 실행**: 훅 동작은 백그라운드에서(메인 루프 블로킹 없음). 각 이벤트의 발생 surface ID 를 추적해 올바른 surface 에서 실행.
+- **비동기 실행**: 훅 동작은 백그라운드에서(메인 루프 블로킹 없음 — 셸은 자식 프로세스 스레드, `IpcSequence` 는 아래 "바인딩" 절의 실행기 스레드). 각 이벤트의 발생 surface ID 를 추적해 올바른 surface 에서 실행.
 - ProcessExit은 GUI/headless 모두에서 surface 자동 닫기까지 수행한다(surface→tab→pane→workspace 계층 정리, 마지막이면 새 셸 spawn). headless는 종료 hook의 binding을 먼저 모으고 surface를 닫은 뒤 실행한다.
 - surface가 닫히면 그 surface의 once·persistent hook 등록도 제거한다. 이미 발화해 복사한 binding은 실행을 마치며, 다른 surface의 hook은 유지한다.
 
@@ -74,7 +74,7 @@ surface hook 은 `HookBinding` 으로 무엇을 실행할지 표현한다:
 - **`Handler(id)`** — 공유 훅 핸들러 레지스트리 핸들러 id 참조(`tasty set hook --handler <id>`). 등록 시 핸들러가 존재하고 `source` 가 hook 트리거를 수용(`hook` 또는 `any`)하는지 검증한다 — `webhook` 전용 핸들러는 거부된다.
 - **`InlineShell(cmd)`** — 하위호환 익명 셸(`tasty set hook --command "..."`). 레지스트리에 등록되지 않는 인라인 핸들러라 export/영속화 대상이 아니다.
 
-`tasty-hooks` 는 leaf 크레이트라 레지스트리를 볼 수 없어 `(surface, event)` 매칭만 하고 바인딩을 돌려준다(`FiredHook` 에 매칭된 등록 이벤트 포함). 실제 실행(레지스트리 조회 + `source` 게이트 + `ShellCommand`→셸 / `IpcSequence`→IPC 순차 실행)은 본체 `hook_handler::trigger::execute_binding` 이 담당한다. `IpcSequence` 실행에는 IPC injector 가 필요하다(없으면 건너뛰고 warn).
+`tasty-hooks` 는 leaf 크레이트라 레지스트리를 볼 수 없어 `(surface, event)` 매칭만 하고 바인딩을 돌려준다(`FiredHook` 에 매칭된 등록 이벤트 포함). 실제 실행(레지스트리 조회 + `source` 게이트 + `ShellCommand`→셸 / `IpcSequence`→IPC 순차 실행)은 본체 `hook_handler::trigger::execute_binding` 이 담당한다. `IpcSequence` 실행에는 IPC injector 가 필요하다(없으면 건너뛰고 warn). `IpcSequence` 는 발화한 스레드에서 실행하지 않는다 — surface 훅은 호스트 명령 큐를 비우는 스레드(GUI 메인 스레드 · headless 루프)에서 발화하므로, 거기서 스텝의 답을 기다리면 스텝마다 대기 상한(10 s)까지 화면과 IPC 가 선다. 그래서 `hook_handler::exec::enqueue_sequence` 가 전용 `hook-sequence` 스레드 하나에 넘기고 바로 돌아온다. 그 스레드는 받은 순서대로 시퀀스를 하나씩, 스텝은 앞 스텝의 답을 받은 뒤 다음 스텝을 넣는다. 대기 시퀀스가 256 건이면 새 시퀀스는 실행하지 않고 `error!` 로 남긴다(다시 걸지 않는다). 근거 [ADR-0498](../../adr/0498-a-surface-hook-sequence-runs-off-the-thread-that-drains-the-queue.md).
 
 #### 셸 핸들러 환경변수 (`TASTY_HOOK_*`)
 

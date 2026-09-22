@@ -12,6 +12,7 @@
 
 use std::collections::BTreeMap;
 use std::sync::OnceLock;
+use std::sync::mpsc::{SyncSender, TrySendError, sync_channel};
 use std::time::Duration;
 
 use regex::Regex;
@@ -157,6 +158,94 @@ pub fn execute_sequence(injector: &HostIpcInjector, calls: &[IpcCall], ctx: &Sub
             }
             Err(e) => log_step_failure(i, &call.method, &e),
         }
+    }
+}
+
+/// 스텝 실행기 스레드에 쌓여 있을 수 있는 시퀀스 수. **파생이 아니다** — 호스트 명령 큐가 받는
+/// 주입 명령 수의 상한([`tasty_ipc::admission::INJECTED_DEPTH_LIMIT`])과 같은 값을 골랐다. 한 시퀀스는
+/// 스텝이 하나 이상이므로, 호스트 큐가 받아 줬을 만큼의 폭주를 이 자리에서 먼저 거절하지 않는다.
+/// 근거: `docs/adr/0498-a-surface-hook-sequence-runs-off-the-thread-that-drains-the-queue.md`.
+const PENDING_SEQUENCE_LIMIT: usize = tasty_ipc::admission::INJECTED_DEPTH_LIMIT;
+
+/// 실행기 스레드로 넘기는 시퀀스 한 건 — 제 injector 사본을 들고 간다.
+struct SequenceJob {
+    handler_id: String,
+    injector: HostIpcInjector,
+    calls: Vec<IpcCall>,
+    ctx: SubstitutionContext,
+}
+
+/// 스텝 실행기 스레드의 입구. 처음 부를 때 스레드를 하나 띄운다. 못 띄웠으면 `None` 이다.
+fn sequence_worker() -> Option<&'static SyncSender<SequenceJob>> {
+    static WORKER: OnceLock<Option<SyncSender<SequenceJob>>> = OnceLock::new();
+    WORKER
+        .get_or_init(|| {
+            let (tx, rx) = sync_channel::<SequenceJob>(PENDING_SEQUENCE_LIMIT);
+            let spawned = std::thread::Builder::new()
+                .name("hook-sequence".into())
+                .spawn(move || {
+                    for job in rx {
+                        tracing::debug!("hook IpcSequence '{}' running", job.handler_id);
+                        execute_sequence(&job.injector, &job.calls, &job.ctx);
+                    }
+                });
+            match spawned {
+                Ok(_) => Some(tx),
+                Err(e) => {
+                    tracing::error!("hook IpcSequence worker thread spawn failed: {e}");
+                    None
+                }
+            }
+        })
+        .as_ref()
+}
+
+/// IpcSequence 를 **호스트 명령 큐를 비우는 스레드 밖에서** 실행하도록 넘기고 곧바로 돌아온다.
+///
+/// surface 훅(notification · bell · output-match · command-completed · process-exit · idle 훅)은
+/// 호스트 명령 큐를 비우는 바로 그 스레드(GUI 메인 스레드 · headless 루프)에서 발화한다. 거기서
+/// [`execute_sequence`] 를 부르면 스텝이 넣은 명령을 꺼낼 스레드가 자기 자신이라 스텝마다 대기
+/// 상한([`STEP_TIMEOUT`])까지 서고, 그동안 화면과 모든 IPC 응답이 선다.
+///
+/// 실행은 전용 스레드 하나가 **넘겨받은 순서대로** 한다 — 한 시퀀스의 스텝은 앞 스텝의 답을 받은 뒤
+/// 다음 스텝을 넣고, 먼저 발화한 훅의 시퀀스가 먼저 끝난다. 결과의 기록은 [`execute_sequence`] 그대로다
+/// (실패는 `error!`, 반환값 없음).
+///
+/// 실행기에 이미 [`PENDING_SEQUENCE_LIMIT`] 건이 쌓여 있으면 이 시퀀스는 **실행하지 않고** `error!` 로
+/// 남긴다 — 호스트 큐의 입장 거절과 같은 성질이다(스텝이 아니라 적체가 원인이고, 다시 걸지 않는다).
+pub fn enqueue_sequence(
+    handler_id: &str,
+    injector: &HostIpcInjector,
+    calls: &[IpcCall],
+    ctx: SubstitutionContext,
+) {
+    let Some(worker) = sequence_worker() else {
+        tracing::error!(
+            "hook IpcSequence '{handler_id}' not run — the sequence worker thread is unavailable"
+        );
+        return;
+    };
+    let job = SequenceJob {
+        handler_id: handler_id.to_string(),
+        injector: injector.clone(),
+        calls: calls.to_vec(),
+        ctx,
+    };
+    if let Err(e) = worker.try_send(job) {
+        log_not_queued(handler_id, &e);
+    }
+}
+
+/// 실행기에 못 넘긴 시퀀스 하나를 남긴다 — 실행되지 않았다. `enqueue_sequence` 에서 분리
+/// (cognitive complexity 게이트, 로그 매크로 두 벌).
+fn log_not_queued(handler_id: &str, e: &TrySendError<SequenceJob>) {
+    match e {
+        TrySendError::Full(_) => tracing::error!(
+            "hook IpcSequence '{handler_id}' not run — {PENDING_SEQUENCE_LIMIT} sequences are already waiting"
+        ),
+        TrySendError::Disconnected(_) => tracing::error!(
+            "hook IpcSequence '{handler_id}' not run — the sequence worker thread has stopped"
+        ),
     }
 }
 
