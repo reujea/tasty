@@ -30,8 +30,12 @@ CLI 에는 IPC 명령 전반에 걸친 `--json` 플래그가 없다. 성공 응�
 
 - `JsonRpcCallError` 에 `data: Option<serde_json::Value>` 를 더한다. `Display` 는 바꾸지 않는다
   (hook 실패 기록의 `reason=` 등 그 문자열을 쓰는 다른 자리를 움직이지 않는다).
-- CLI 의 출력 자리는 `crates/tasty-cli/src/rpc_error.rs` 의 `exit_with` 하나다. 단발 RPC ·
-  plugin 동적 명령 · `auto_wait` · 폴링 · 계약 확인 실패가 모두 거기로 간다.
+- 단발 RPC · plugin 동적 명령 · `auto_wait` · 폴링 · 계약 확인 실패는 모두
+  `crates/tasty-cli/src/rpc_error.rs` 의 `exit_with` 로 간다.
+- **스트리밍 두 명령(`events follow` · `plugin audit-follow`)은 아직 `data` 를 싣지 않는다.**
+  두 명령은 호스트 오류를 `main` 까지 올려 std 가 `Error: Error (<code>): <message>` 한 줄로
+  찍는다(`crates/tasty-cli/src/events.rs` · `crates/tasty-cli/src/plugin.rs`). `exit_with` 로 옮기면
+  첫 줄 접두가 `Error (` 로 바뀌므로, 첫 줄 호환을 지키려고 이 결정에서는 옮기지 않았다.
 - 접두 `data: ` 는 번역하지 않는다 — `Error (` 와 같은 응답 형식의 일부다(`docs/dev-guide/i18n.md`).
 
 ## Consequences

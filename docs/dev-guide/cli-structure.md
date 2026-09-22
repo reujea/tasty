@@ -119,7 +119,9 @@ stderr 는 같은 모듈의 `errln!` 으로만 쓴다(`eprintln!` 금지). 쓰�
 모두 `rpc_error::exit_with` 하나로 stderr 에 내고 종료 코드 1 로 끝난다. 첫 줄은
 `Error (<code>): <message>` 이고, 응답에 `error.data` 가 있으면(`null` 제외) 둘째 줄
 `data: <한 줄 JSON>` 이 원형 그대로 붙는다 — `reason` · `storage_failure` 같은 실패 분류를
-CLI 호출자도 IPC 와 같은 값으로 얻는다. 근거는
+CLI 호출자도 IPC 와 같은 값으로 얻는다. 예외는 스트리밍 두 명령(`events follow` ·
+`plugin audit-follow`)이다 — 호스트 오류를 `main` 까지 올려 std 가 `Error: Error (…)` 한 줄로
+찍으므로 **아직 `data` 를 싣지 않는다.** 근거는
 [ADR-0498](../adr/0498-the-cli-relays-ipc-error-data-on-a-second-stderr-line.md).
 
 ## `debug` 갈래
