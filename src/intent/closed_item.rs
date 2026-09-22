@@ -86,3 +86,8 @@ pub fn handle(
         }
     }
 }
+
+// 헤드리스의 복원 cascade 는 no-op stub 이라 포커스 이동이 원래 없다 — gui 조합에서만 잰다.
+#[cfg(all(test, feature = "gui"))]
+#[path = "closed_item_origin_tests.rs"]
+mod origin_tests;
