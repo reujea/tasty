@@ -76,6 +76,11 @@ handler 와 다른 점: detector id 에는 출처 이름공간이 없다(`Detect
   `the_user_entry_is_seen_the_same_after_boot_and_after_a_reload` 가 실패한다. 변이 확인(2026-09-23):
   `merge_order` 의 정렬을 빼면 다섯 다 죽고, user 의 `Some(false)` 해석을 빼면 셋째가 죽고,
   `has_user_contribution` 을 finalize 된 rule 의 origin 으로 판정하게 되돌리면 다섯째가 죽는다.
+- `src/view/settings/ui/file_handler_tab/detectors.rs` 의
+  `a_user_rule_shared_with_a_plugin_keeps_the_user_origin_and_remove_button` 가 Settings 탭 한 행의
+  출처 칸 · 삭제 버튼 판정(`detector_row_origin`)을 본다. 변이 확인(2026-09-23): 그 판정의 버튼 쪽이나
+  출처 칸 쪽을 finalize 된 rule 의 origin 으로 되돌리면 죽는다. `draw_detectors` 가 그 함수를 안
+  거치고 다시 직접 판정하는 것은 시험이 못 본다.
 - plugin 이 `extension_priority` 를 contribute 하게 된다 — 지금은 host · user 만 그 표를 쓰므로 표의
   출처 순서는 설치 순서(host 가 부팅 첫머리)로 충분하다.
 

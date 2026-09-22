@@ -1,7 +1,7 @@
 use std::collections::BTreeSet;
 
 use crate::file::format::{
-    DetectorDecl, DetectorRuleDecl, DetectorRuleKind, FileFormatRegistry, RuleOrigin,
+    DetectorDecl, DetectorId, DetectorRuleDecl, DetectorRuleKind, FileFormatRegistry, RuleOrigin,
 };
 use crate::i18n::t;
 
@@ -58,11 +58,10 @@ pub(super) fn draw_detectors(
                         fh.detector_enabled.insert(id.clone(), checked);
                     }
                     ui.label(id.as_str());
-                    ui.label(detector_origins_summary(&file_format.rule_origins(id)));
+                    let (origins, has_user) = detector_row_origin(file_format, id);
+                    ui.label(origins);
                     ui.label(rule_kinds_summary(&det.rules));
-                    // user 출처 contribution 이 있으면 Remove 버튼. finalize 된 rule 의 origin 으로
-                    // 판정하지 않는다 — 같은 rule 을 plugin 도 적으면 dedupe 가 user 를 지운다.
-                    let has_user = file_format.has_user_contribution(id);
+                    // user 출처 contribution 이 있으면 Remove 버튼.
                     let pending_remove = fh.remove_detector.contains(id);
                     if has_user {
                         ui.horizontal(|ui| {
@@ -213,6 +212,16 @@ fn build_add_detector_decl(form: &AddDetectorForm) -> Result<DetectorDecl, Strin
     })
 }
 
+/// 한 행의 출처 칸 문구와 "user 항목 삭제" 버튼을 보일지. 둘 다 finalize 된 rule 의 origin 이
+/// 아니라 출처별 contribution 을 읽는다 — 같은 rule 을 plugin 도 적으면 dedupe 가 user origin 을
+/// 지우고, rule 없는 user patch 는 애초에 rule 이 없다(ADR-0520).
+fn detector_row_origin(file_format: &FileFormatRegistry, id: &DetectorId) -> (String, bool) {
+    (
+        detector_origins_summary(&file_format.rule_origins(id)),
+        file_format.has_user_contribution(id),
+    )
+}
+
 fn detector_origins_summary(rule_origins: &[RuleOrigin]) -> String {
     let mut origins: BTreeSet<String> = BTreeSet::new();
     for origin in rule_origins {
@@ -250,5 +259,56 @@ fn rule_kinds_summary(rules: &[crate::file::format::DetectorRule]) -> String {
         "—".into()
     } else {
         kinds.join(", ")
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// user 와 plugin 이 같은 rule 을 적은 detector 에서도 출처 칸에 `user` 가 남고 삭제 버튼이
+    /// 보인다 — finalize 된 rule 에는 plugin origin 만 남으므로 그것을 읽으면 둘 다 사라진다.
+    /// rule 없이 켜기/끄기만 남긴 user 항목에도 버튼이 보인다.
+    #[test]
+    fn a_user_rule_shared_with_a_plugin_keeps_the_user_origin_and_remove_button() {
+        let reg = FileFormatRegistry::new();
+        let dir = tempfile::tempdir().expect("tempdir");
+        let path = dir.path().join("file-formats.toml");
+        std::fs::write(
+            &path,
+            "[[detector]]\nid = \"markdown\"\nicon = \"u\"\n\
+             [[detector.rule]]\nkind = \"extension\"\nvalues = [\"md\"]\n",
+        )
+        .expect("write user config");
+        reg.install_user_config(&path);
+        reg.install_plugin_detectors(
+            "com.tasty.markdown",
+            &[DetectorDecl {
+                id: "markdown".into(),
+                display_name_i18n_key: None,
+                icon: Some("p".into()),
+                disabled: None,
+                rule: vec![DetectorRuleDecl::Extension {
+                    values: vec!["md".into()],
+                }],
+            }],
+        );
+        let id = DetectorId("markdown".into());
+
+        assert_eq!(
+            detector_row_origin(&reg, &id),
+            ("plugin:com.tasty.markdown, user".to_string(), true)
+        );
+
+        reg.remove_user_detector(&id);
+        assert_eq!(
+            detector_row_origin(&reg, &id),
+            ("plugin:com.tasty.markdown".to_string(), false)
+        );
+        reg.set_user_detector_disabled(&id, true);
+        assert_eq!(
+            detector_row_origin(&reg, &id),
+            ("plugin:com.tasty.markdown".to_string(), true)
+        );
     }
 }
