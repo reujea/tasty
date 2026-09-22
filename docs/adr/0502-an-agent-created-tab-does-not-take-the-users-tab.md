@@ -54,6 +54,14 @@
   - attach forward `NewTab`: `ForwardOrigin::User` 일 때만 `true`. 복원 스택을 가르는
     `restorable` 과 같은 축이다.
 
+**mirror(원격 attach) pane 위에서는 선택을 서버가 forward origin 으로 정한다.** 클라이언트가
+mirror pane 에 낸 `CreateTab` 은 `StructuralOp::NewTab` 으로 바뀌어 서버로 가는데, 그때
+`activate` 는 실리지 않는다 — 서버는 `ForwardOrigin`(클라이언트의 `user_triggered`, 곧 발화한
+인텐트의 origin 이 사용자인가)만 보고 위 attach forward 규칙대로 정한다. 그래서 origin 없는
+`file_handler.dispatch` 가 mirror pane 에 연 탭은 로컬 pane 에서와 달리 서버에서 선택되지
+않는다. 원칙 1 쪽으로 기우는 차이라 그대로 두고, wire(`StructuralOp::NewTab`)에 `activate` 를
+싣지 않는다.
+
 **응답의 `active_tab` 의미는 바꾸지 않는다.** 종전에도 그 값은 "생성 뒤 그 pane 의 활성 탭
 인덱스" 였고, 지금도 그렇다. 달라진 것은 값이다 — 에이전트가 만든 탭이면 사용자가 보던 탭의
 인덱스가 나온다. 새 탭의 인덱스가 필요한 호출자는 `tab_count - 1`(탭은 언제나 뒤에 붙는다)이나
