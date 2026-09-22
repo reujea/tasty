@@ -414,6 +414,8 @@ disable 이 무엇을 남기는가는 0173(namespace 소유를 남긴다) → 05
 
 0272 → 0279 → 0302(포커스 조항 개정)(탭 생성 갈래는 0502 — 「창 · 워크스페이스 · 포커스 · 수명주기」 그룹)(toast 축은 0503 — 「UI · 테마 · 디자인 토큰 · 갤러리」 그룹) → 0425 · 0426 · 0427. 0526 이 0302 의 `file_handler.dispatch` 분류와 0502 의 `Intent::NewTab` 선택, 0503 의 오분류 조항을 함께 개정한다(사용자가 만진 plugin popup 에서 온 호출은 사용자). 파일 피커는 0042 → 0162(에이전트 표면에서 제외, 0042 대체)이다. detector 병합 순서는 0427 → 0613(같은 출처 순서를 file-format detector 에 적용하고 user 의 `disabled = false` 를 켜기로 읽는다)이다. detector 병합 순서는 0427 → 0520(같은 출처 순서를 file-format detector 에 적용하고 user 의 `disabled = false` 를 켜기로 읽는다)이다.
 운영 문서: [features/file-handler](../features/file-handler/index.md)
+0272 → 0279 → 0302(포커스 조항 개정)(탭 생성 갈래는 0502 — 「창 · 워크스페이스 · 포커스 · 수명주기」 그룹) → 0425 · 0426 · 0427. 파일 피커는 0042 → 0162(에이전트 표면에서 제외, 0042 대체) → 0504(`file_picker.trigger` 를 plugin 호출자 전용으로)이다.
+운영 문서: [features/file-handler](../features/file-handler/index.md) · [features/native-file-picker](../features/native-file-picker/index.md)
 
 | # | Title | Status | Date | Tags |
 |---|-------|--------|------|------|
