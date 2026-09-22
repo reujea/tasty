@@ -11,7 +11,7 @@ Claude Code 는 내장 재시도를 다 쓴 뒤 API 에러(`529 Overloaded` · 5
 제약:
 
 - **불가침 원칙 1**([identity.md](../identity.md) §2.1): 에이전트 행동이 사용자 상태에 닿으면 안 된다. 재개는 사용자 입력 재현이 아니라 에이전트 기능(`terminal.tell`, release 에 있는 텍스트 전송)이지만, 사용자가 그 surface 입력창에 초안을 쓰고 있으면 재개 문구가 초안 뒤에 붙어 **함께 제출된다** — 그것은 사용자 상태 침범이다.
-- 호스트의 `surface.is_typing` 은 `typing`(최근 5 초 안의 사용자 입력) 과 함께 `idle_seconds`(마지막 사용자 입력 뒤 경과, 없으면 `-1`)를 준다. 사용자 입력은 GUI 의 키보드·IME·붙여넣기 경로가 기록한다(좌변은 [ADR-0560](0560-paste-is-user-input-and-is-recorded-where-both-paste-paths-meet.md)) — 에이전트의 `send`/`tell` 은 기록하지 않는다.
+- 호스트의 `surface.is_typing` 은 `typing`(최근 5 초 안의 키 입력) 과 함께 `idle_seconds`(마지막 사용자 키 입력 뒤 경과, 없으면 `-1`)를 준다. 사용자 키 입력은 GUI 의 키보드·IME 경로만 기록한다 — 에이전트의 `send`/`tell` 은 기록하지 않는다.
 - `terminal.tell` 에는 타이핑 가드가 없다. `surface.send_wait_idle` 에는 있지만 본문만 보내고 Enter 를 나눠 보내지 않는다.
 - 설정 페이지 항목 종류는 `toggle` · `select` · `number` · 폰트뿐이다 — 자유 문자열 입력이 없다.
 - 에러 종류는 Claude Code 가 `StopFailure` matcher 로 선언한 값(`rate_limit` · `overloaded` · `authentication_failed` · `billing_error` · `invalid_request` · `server_error` · `max_output_tokens` · `model_not_found` · `unknown` …)이다. 실측(2026-09-23, Claude Code 2.1.280): 로컬 게이트웨이가 돌려준 `529 overloaded_error` 는 `server_error` 로 분류돼 왔다.
