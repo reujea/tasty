@@ -438,7 +438,7 @@ struct KindEntry {
 ///
 /// `unknown surface kind` 와 가르는 이유: 그 kind 는 **있었고**, 그것을 제공하던 plugin 이
 /// 꺼졌다. 사용자가 할 일(그 plugin 을 다시 켠다)이 다르다. IPC 응답은 [`std::fmt::Display`]
-/// 문장을, 사용자 발화 intent 는 i18n toast(`surface_kind.withdrawn_toast`)를 받는다.
+/// 문장을, 사용자 발화 intent 는 i18n toast(`surface.kind_toast.withdrawn`)를 받는다.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SurfaceKindWithdrawn {
     pub kind: String,
