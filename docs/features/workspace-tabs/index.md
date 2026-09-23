@@ -66,7 +66,7 @@
 
 ## 구현
 
-- view: `src/adapters/ui/tab_bar/view.rs` — `draw_pane_tab_bars_view`(props→`PaneTabBarsOutput{actions, measured_height}`), `compute_drop_index`(드래그 drop 위치).
+- view: `src/adapters/ui/tab_bar/view.rs` — `draw_pane_tab_bars_view`(props→`PaneTabBarsOutput{actions, measured_height_physical}`), `compute_drop_index`(드래그 drop 위치).
 - 탭 한 칸 렌더링: `src/adapters/ui/tab_bar/tab.rs` — `TabRenderContext`/`draw_tab`(표시·클립·클릭·드래그). strip 조립과 drag overlay는 `view.rs`의 `strip_geometry`를 함께 사용한다.
 - 공개 진입점과 재수출: `src/adapters/ui/tab_bar.rs`.
 - props: `PaneTabBarView`(pane별 탭명/kind/알림/busy/active/focus/scroll), `PaneTabBarsProps`(테마/탭폭/폰트/drag).
