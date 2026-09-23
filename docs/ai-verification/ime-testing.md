@@ -1,6 +1,6 @@
 # IME 시뮬레이션 검증
 
-`surface.ime_*` IPC(**debug 빌드 전용** — 사용자 입력기 조합의 재현이라 release 표면에 없다, [ADR-0115](../adr/0115-input-reproduction-ipc-debug-isolation.md). window-local, **local-only** — 로컬 caller 만, `crates/tasty-ipc/src/method_meta.rs::PREFIX_RULES`)로 IME 입력을 프로그래밍 방식으로 시뮬레이션해 한글/CJK 입력 파이프라인 버그를 재현·검증한다. 핸들러는 `src/adapters/ipc/handler/ime.rs`. (정상 모드 포트 `~/.tasty/tasty.port`.)
+`surface.ime_*` IPC(**debug 빌드 전용** — 사용자 입력기 조합의 재현이라 release 표면에 없다, [ADR-0115](../adr/0115-input-reproduction-ipc-debug-isolation.md). window-local, **local-only** — 로컬 caller 만, `crates/tasty-ipc/src/method_meta.rs::PREFIX_RULES`)로 IME 입력을 프로그래밍 방식으로 시뮬레이션해 한글/CJK 입력 파이프라인 버그를 재현·검증한다. 핸들러는 `src/adapters/ipc/handler/ime.rs`. (debug 포트 `~/.tasty-debug/tasty.port`, 격리 인스턴스면 `$TASTY_HOME/tasty.port`.)
 
 메서드: `surface.ime_enable` · `surface.ime_preedit {text}` · `surface.ime_commit {text}` · `surface.ime_status` · `surface.ime_disable`.
 
@@ -19,7 +19,7 @@ call("surface.ime_disable")
 1. **Preedit 렌더링 위치** — 터미널에 텍스트 입력 후 `ime_enable`+`ime_preedit "한"` → [스크린샷](screenshot-methods.md)으로 preedit 오버레이가 커서 위치에 파란 배경으로 셀 그리드 정렬되는지.
 2. **연속 커밋 후 위치 이동** — `preedit "한"`→`commit "한"`→`preedit "글"` → preedit 이 오른쪽으로 이동하는지. (셸 에코 처리 전 다음 preedit 시작 시 커서 미갱신 — `sleep 0.1`.)
 3. **IME 활성 중 ASCII** — ASCII 는 `surface.send` 로(KeyboardInput 통과), 한글은 IME 경로 → `tasty read since-mark --strip-ansi` 로 결과 확인.
-4. **분할 패널** — `tasty split --level surface --target-surface this --direction horizontal` 후 오른쪽 surface 에서 preedit 위치 검증.
+4. **분할 패널** — `tasty split --level surface --target-surface this --direction horizontal` 후 아래 surface 에서 preedit 위치 검증.
 
 ## 검증 체크리스트
 
@@ -69,6 +69,6 @@ call("surface.ime_disable")
   "입력 forward"·"입력 게이트"). 어느 쪽도 이 IPC 로는 주입되지 않는다 —
   `surface.ime_*` 는 focused surface 의 **터미널** 오버레이 상태를 만지고, `debug.inject_key` 는
   키만 주입한다. 인라인 조합 표시는 헤드리스 시뮬레이션 불가 — 실제 OS IME 로 육안 검증한다.
-  (markdown 주소창은 [ADR-0065](../adr/0065-markdown-webview-render-channel.md) 로 문서에 내장된
+  (markdown 주소창은 [ADR-0067](../adr/0067-markdown-webview-stage-b-scope-correction.md) 로 문서에 내장된
   HTML `<input>` 이 됐다 — IME 는 host native WebView 가 자체 처리하며 이 경로/egui-mesh 어느
   쪽에도 속하지 않는다.)
