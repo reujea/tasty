@@ -279,7 +279,7 @@ General → Workspace → Pane → Tab → Surface → Clipboard → Zoom → Ex
 
 **어느 서브탭에 두는가** — 그 동작의 *대상 엔티티* 이름을 가진 서브탭에 둔다. `new_tab`→Tab, `split_pane_*`→Pane, `close_surface`→Surface. 수식키도 대상 엔티티 서브탭(`tab_switch_modifier`→Tab, `workspace_switch_modifier`·`category_switch_modifier`→Workspace). cascade 인 `close_active` 는 가장 먼저 닫히는 대상이 탭이라 Tab. `open_markdown` 은 새 탭으로 열려 Tab.
 
-> explorer / html 이 plugin 으로 분리되며 `open_explorer`·`convert_to_explorer` 호스트 키바인딩은 사라졌다(plugin 이 자기 command 로 기여). 현재 Surface 의 convert 계열은 `convert_surface`·`convert_to_markdown` 만 호스트에 남는다.
+> explorer 는 host builtin kind 라 `open_explorer`(Tab)·`convert_to_explorer`(Surface) 호스트 키바인딩이 있다. 현재 Surface 의 convert 계열은 `convert_surface`·`convert_to_markdown`·`convert_to_explorer` 다.
 
 ## 인터페이스
 
