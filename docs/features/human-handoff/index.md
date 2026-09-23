@@ -21,7 +21,7 @@
 
 | severity | 채널 |
 |----------|------|
-| `danger` | popup + notification, **사용자 직접 응답만**(self-response 거부) |
+| `danger` | popup + notification |
 | `warn` | popup + notification |
 | `info` | notification only |
 
