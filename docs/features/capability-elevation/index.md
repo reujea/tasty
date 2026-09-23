@@ -17,7 +17,7 @@ plugin/agent 가 IPC 호출 시 호스트가 권한을 강제하고, 부족하�
 
 1. **권한 평가** — `method_meta` 가 메서드별 필요 권한 선언. caller 의 권한 셋에 모두 포함돼야 통과.
 2. **Capability elevation** — Agent 가 권한 부족으로 거부되면 자동 popup.
-3. **Audit log** — 모든 IPC(allow+deny)를 dispatcher 단일 진입점에서 영속.
+3. **Audit log** — IPC 의 deny 결정을 dispatcher 단일 진입점에서 영속(allow 는 기록 안 함 — 아래).
 
 ### Agent session 권한
 
@@ -29,7 +29,7 @@ Agent 가 권한 부족으로 거부되면 호스트가 (같은 (agent, permissi
 
 ### Audit log
 
-레코드: `ts_ms, seq, caller_kind(local/internal/plugin/agent), caller_id, method, decision(allow/deny), reason?, workspace_id?`. 영속 키 `tasty.audit.{ts}.{seq}`(global, query 시 lazy evict). `seq` 는 telemetry 와 공유 단조 증가.
+레코드: `ts_ms, seq, caller_kind(local/plugin/agent), caller_id, method, decision(allow/deny), reason?, workspace_id?`. 영속 키 `tasty.audit.{ts}.{seq}`(global, query 시 lazy evict). `seq` 는 telemetry 와 공유 단조 증가.
 
 **기록되는 것은 deny 뿐이다.** allow 는 method 와 무관하게 저장하지 않는다 — 폴링형 에이전트 워크로드에서 allow 가 초당 14건씩 영구 레코드를 만들어 `memory.db` 의 최대 유입원이 됐기 때문이다(18시간 실행 371,936행, 그중 deny 0건). 그래서 이 로그는 **평시에 사실상 빈 테이블**이고, "agent 가 승인된 권한으로 실제 무엇을 했나" 를 사후에 되짚는 용도는 없다. 반대로 deny 는 어떤 method 든 전부 남으므로 권한 거부 사고 추적은 그대로다. 결정의 근거·대안·재검토 조건은 [ADR-0085](../../adr/0085-ipc-log-retention-bounded.md).
 
