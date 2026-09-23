@@ -33,8 +33,7 @@ tasty 를 **개발하는** AI 에이전트용 가이드. tasty 를 *사용하는
 
 | 문서 | 내용 |
 |------|------|
-| [build](build.md) | 워크스페이스·빌드 프로필 · debug 전용 번들 자동 동기화 · 공용 모듈의 GUI 정의 경계 |
-| [dist-build](dist-build.md) | 로컬 dist 산출물 명령 |
+| [build](build.md) | 워크스페이스·빌드 프로필 · debug 전용 번들 자동 동기화 · 공용 모듈의 GUI 정의 경계 · 로컬 dist 산출물 명령 |
 | [release](release.md) | 릴리스 워크플로(버전 bump → 태그 → CI) |
 | [release-runners](release-runners.md) | self-hosted runner 인벤토리·운영 |
 | [dep-issues](dep-issues.md) | 의존성 future-incompat 모니터링 |
