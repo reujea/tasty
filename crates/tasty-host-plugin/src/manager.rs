@@ -1090,6 +1090,46 @@ prefix = "{prefix}"
         );
     }
 
+    /// 계수로 재시작된 plugin 은 **한 번만** 재시작된다 — 재시작이 그 plugin 의 계수와
+    /// 거둔 id 목록을 함께 비우므로, 새로 뜬 프로세스가 다음 tick 에 옛 계수로 또
+    /// 거둬지지 않는다.
+    ///
+    /// 비우는 줄이 빠지면 계수는 상한에 머물고, 새 프로세스가 ping tick 마다 다시
+    /// 재시작된다 — 한 번 훑어 얻은 판정이 tick 마다 다시 소비되는 것이다. 위 두 시험은
+    /// 재시작 **뒤에** 프로세스를 다시 두지 않아(시험에는 패키지가 없어 재시작 경로가
+    /// 새 프로세스를 안 띄운다) 그것을 못 잰다.
+    #[test]
+    fn a_plugin_restarted_by_the_expiry_streak_is_restarted_once() {
+        let mut mgr = PluginManager::new(empty_waker());
+        mgr.processes
+            .insert("com.example.silent".into(), stub_process());
+
+        expire_namespace_calls(
+            &mut mgr,
+            "com.example.silent",
+            NAMESPACE_EXPIRY_RESTART_LIMIT,
+        );
+        mgr.restart_unresponsive_plugins();
+        assert!(
+            !mgr.processes.contains_key("com.example.silent"),
+            "연속 만료가 상한에 닿았는데 재시작이 안 걸렸다"
+        );
+
+        // 새 프로세스가 떴다 — 재시작 경로가 스스로 띄우지 않으므로 시험이 대신 둔다.
+        mgr.processes
+            .insert("com.example.silent".into(), stub_process());
+        mgr.restart_unresponsive_plugins();
+        assert!(
+            mgr.processes.contains_key("com.example.silent"),
+            "재시작된 새 프로세스가 옛 계수로 또 재시작됐다 — 중복 소비"
+        );
+        assert!(
+            !mgr.expired_namespace_calls
+                .contains_key("com.example.silent"),
+            "옛 프로세스의 거둔 id 가 새 프로세스 앞으로 남았다"
+        );
+    }
+
     /// 재시작된 plugin **에게 보낸** 요청은 caller 가 없어도 거둬진다.
     ///
     /// 새 프로세스는 새 request id 를 쓰므로 옛 id 의 응답은 다시 안 온다. deadline 도
