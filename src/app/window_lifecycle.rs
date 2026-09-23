@@ -127,7 +127,9 @@ fn build_core_state_first_boot(
     let t_engine = std::time::Instant::now();
     let waker: crate::terminal::Waker = factory.make_default_waker();
     // engine 생성 실패(= 사용자 shell 경로 오타·PTY/fd 고갈 등)를 패닉으로 올리지
-    // 않고 caller 로 반환한다. 부팅은 진단 후 정상 종료, 새 창은 안내 후 취소한다.
+    // 않고 caller 로 반환한다. 부팅은 진단을 로그로 내고 실패 화면을 그렸다가 사용자가
+    // 닫을 때 종료하고, 새 창은 그 창만 취소한다 — 사용자 조작발이면 InfoModal 로 안내,
+    // 에이전트 IPC 발이면 요청자에게 응답 에러로만 돌려준다(`notify_window_creation_failed`).
     let mut engine =
         crate::core::CoreState::new_with_ids(cols, rows, waker, None, Some(layout_slot), memory)?;
     engine.waker_factory = Some(factory);
