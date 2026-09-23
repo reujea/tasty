@@ -204,12 +204,17 @@ plugin 을 다시 띄우므로 다음 호출은 기다림 없이 건강한 프�
   (이 좌변에 붙은 판정기는 지금 없다.)
 - healthcheck 회수 경로(`cancel_pending_namespace_calls`)가 사라지거나 namespace
   pending 을 더 이상 거두지 않게 됐을 때. 그러면 "앞지르지 않는다" 는 유도의 전제가 없어지고
-  값은 회수 상한이 아니라 정상 호출 길이에서 나와야 한다. (좌변에 붙은 판정기는
-  `tasty-host-plugin` 의 `a_forward_cancelled_by_plugin_removal_lands_as_cancelled` 하나다 —
-  회수 루프를 끄면 그것만 죽는다. 그 시험은 회수가 남기는 origin hop 기록(`Cancelled`)으로
-  좌변을 재며, pending 이 비었는지·caller 가 오류를 받았는지는 단언하지 않는다.
-  재시작이 두 자료(연속 만료 계수와 거둔 id 목록)를 함께 비우는지는
-  `tasty-host-plugin` 의 `a_plugin_restarted_by_the_expiry_streak_is_restarted_once` 가 잰다 —
+  값은 회수 상한이 아니라 정상 호출 길이에서 나와야 한다. (좌변이 두 갈래라 판정기도 갈래마다
+  다르다. **회수 경로가 사라지는** 갈래 — `forget_plugin_runtime` 이 그 함수를 더 이상
+  부르지 않는 것 — 는 `tasty-host-plugin` 의
+  `a_plugin_restarted_by_the_expiry_streak_is_restarted_once` ·
+  `requests_sent_to_a_restarted_plugin_are_reclaimed` 둘이 잰다. 호출을 조건으로 감싸
+  경로에서 빼면 그 둘만 죽는다. **pending 을 더 이상 거두지 않는** 갈래 — 함수 안의
+  회수 루프 — 는 `a_forward_cancelled_by_plugin_removal_lands_as_cancelled` 하나가 잰다.
+  그 시험은 함수를 직접 부르므로 앞 갈래는 못 보고, 루프를 끄면 그것만 죽는다. 그 시험은 회수가
+  남기는 origin hop 기록(`Cancelled`)으로 좌변을 재며, pending 이 비었는지·caller 가 오류를
+  받았는지는 단언하지 않는다. 재시작이 두 자료(연속 만료 계수와 거둔 id 목록)를 함께 비우는지는
+  앞 갈래의 첫 시험이 잰다 —
   [ADR-0567](0567-a-scanned-id-is-consumed-once-by-structure-or-by-a-replay-test.md).)
 - `handle_plugin_response` 의 `None` 갈래가 `expired_namespace_calls` 를 더 이상 안 볼 때.
   그러면 늦은 응답이 계수를 못 지워 위 대안 G 의 상태로 되돌아간다. (좌변에 붙은 판정기는
