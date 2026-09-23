@@ -154,3 +154,42 @@ fn view_mode_keeps_its_cache_while_the_store_is_unchanged() {
         "저장소가 그대로인데 캐시를 다시 지었다"
     );
 }
+
+/// 보기 → 편집 전이 프레임: 에이전트 저장 뒤 첫 프레임이 곧 Edit 를 누른 프레임(`editing`
+/// 이 이미 `true`)이어도 편집 모드는 새 판·새 기준 판으로 시작한다. 그 뒤의 편집 프레임은
+/// 다시 따라가지 않는다.
+#[test]
+fn edit_mode_entered_on_the_first_frame_after_an_agent_save_starts_from_the_new_version() {
+    let (_tmp, mut store) = seeded();
+    let ctx = egui::Context::default();
+    let mut selected = None;
+    frame(&ctx, &mut store, false, &mut selected);
+    assert_eq!(cached_tabs(&ctx), 1);
+
+    store
+        .save_workspace_overwrite(ws("dev", 2))
+        .expect("agent save");
+    frame(&ctx, &mut store, true, &mut selected);
+    assert_eq!(
+        cached_tabs(&ctx),
+        2,
+        "Edit 를 누른 프레임의 편집 모드가 옛 판으로 시작했다"
+    );
+    let cache: DemoCache = ctx.data(|d| d.get_temp(demo_cache_id())).expect("cache");
+    assert_eq!(
+        cache.base,
+        LayoutBase::current(&store, PresetKind::Workspace, "dev"),
+        "기준 판이 옛것이면 첫 편집이 경합으로 버려진다"
+    );
+
+    // 전이 뒤의 편집 프레임은 ADR-0531 그대로 따라가지 않는다.
+    store
+        .save_workspace_overwrite(ws("dev", 3))
+        .expect("agent save");
+    frame(&ctx, &mut store, true, &mut selected);
+    assert_eq!(
+        cached_tabs(&ctx),
+        2,
+        "편집 도중의 캐시를 갈아 끼우면 안 된다"
+    );
+}

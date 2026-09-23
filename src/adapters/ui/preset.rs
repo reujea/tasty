@@ -521,6 +521,20 @@ fn draw_preview(
         return;
     };
 
+    // 편집 갈래는 저장소를 따라가지 않는다. 다만 보기 → 편집 전이 프레임(직전에 그린 것이
+    // 보기 모드)에서는 먼저 한 번 따라간다 — Edit 를 누른 프레임이 곧 저장 뒤 첫 프레임이면
+    // 보기 갈래가 새로고침할 기회가 없었고, 이 시점의 캐시에는 아직 사용자 편집이 없다.
+    let entering_edit = editing && !drew_editing_last(ui);
+    if !editing || entering_edit {
+        // 보기 모드만 저장소를 따라간다 — 편집 모드의 캐시는 ADR-0531 대로 저장 직전에만
+        // 대조한다(`docs/adr/0564-the-preset-view-mode-follows-the-store-and-the-edit-mode-does-not.md`).
+        let refreshed = refresh_view_cache(store, kind, name, catalog, &mut cache);
+        if refreshed {
+            ui.ctx().request_repaint();
+        }
+    }
+    set_drew_editing_last(ui, editing);
+
     if editing {
         draw_preview_editing(
             ui,
@@ -537,15 +551,27 @@ fn draw_preview(
             kb,
         );
     } else {
-        // 보기 모드만 저장소를 따라간다 — 편집 모드의 캐시는 ADR-0531 대로 저장 직전에만
-        // 대조한다(`docs/adr/0564-the-preset-view-mode-follows-the-store-and-the-edit-mode-does-not.md`).
-        let refreshed = refresh_view_cache(store, kind, name, catalog, &mut cache);
         let changed = cache.layout.show(ui, theme, canvas, catalog);
-        if changed || refreshed {
+        if changed {
             ui.ctx().request_repaint();
         }
     }
     store_demo(ui, cache);
+}
+
+/// 직전 [`draw_preview`] 가 그린 모드(편집이면 `true`) 의 temp memory id. 캐시 칸과 따로
+/// 둔다 — 설정 화면·경합 재적재가 캐시를 새로 지어도 이 값이 흔들리지 않게.
+fn drew_editing_id() -> egui::Id {
+    egui::Id::new("preset_demo_drew_editing")
+}
+
+/// 직전 프레임이 편집 모드로 그렸는가. 기록이 없으면 보기로 본다.
+fn drew_editing_last(ui: &egui::Ui) -> bool {
+    ui.data(|d| d.get_temp(drew_editing_id())).unwrap_or(false)
+}
+
+fn set_drew_editing_last(ui: &egui::Ui, editing: bool) {
+    ui.data_mut(|d| d.insert_temp(drew_editing_id(), editing));
 }
 
 /// 미리보기 캐시 키 — `{kind}:{name}`. 설정 화면의 draft 도 같은 키로 자기 preset 을 적는다.
