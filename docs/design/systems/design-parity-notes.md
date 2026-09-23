@@ -289,9 +289,9 @@ State 셀은 `status_dot`(점 `status_dot_size` 8 + gap 6 + caption 11px proport
 
 - **증상**: 디자인 Button 의 primary/ghost 같은 variant 는 CSS 클래스로 갈리는데 egui 엔
   variant 개념이 없다.
-- **처방**: variant 별로 fill·stroke 를 수동 조합해 그린다. remote_tool 은 view-local
+- **처방**: variant 별로 fill·stroke 를 수동 조합해 그린다. remote_tool 은
   `primary_button`(accent fill) / `ghost_button`(투명 fill + 보더) 헬퍼로 분리.
-- **근거**: `src/adapters/ui/popup/remote_tool.rs`. (primitive 레이어는 `tasty_ui_widgets::
+- **근거**: `crates/tasty-ui-widgets/src/remote_tool.rs`. (primitive 레이어는 `tasty_ui_widgets::
   Button` 의 `ButtonVariant` 가 동일 역할.)
 
 ## 폼 라벨 — egui Grid 컬럼폭 고정 미지원 → 고정폭 우측정렬 흉내
@@ -345,8 +345,7 @@ State 셀은 `status_dot`(점 `status_dot_size` 8 + gap 6 + caption 11px proport
 
 - **증상**: 갤러리 specimen 에 `t()` 를 적용하려다 의존성/관례 충돌.
 - **원인**: `tasty-gallery` 는 `tasty-i18n` 에 의존하지 않는다(Cargo.toml). 모든 specimen 이
-  하드코딩 mock 영문 라벨을 쓴다(Storybook 류 격리 시각 카탈로그 — `host_shell.rs` 도 "본체
-  i18n 시스템 미사용" 명시). CLAUDE.md 의 `t()` 규칙은 *본체 shipping UI* 대상이며 갤러리
+  하드코딩 mock 영문 라벨을 쓴다(Storybook 류 격리 시각 카탈로그). CLAUDE.md 의 `t()` 규칙은 *본체 shipping UI* 대상이며 갤러리
   specimen 은 범위 밖.
 - **처방**: 갤러리 specimen 라벨은 대상 디자인 jsx 의 영문 라벨을 그대로 미러(하드코딩). i18n
   의존 추가는 단일 specimen 작업 범위 밖.
@@ -403,7 +402,7 @@ State 셀은 `status_dot`(점 `status_dot_size` 8 + gap 6 + caption 11px proport
 
 ---
 
-## 갤러리 — inline 키캡 위젯은 좌표 slot 에 못 끼운다 → 형상 재현
+## 갤러리 — inline 키캡 위젯은 좌표 slot 에 못 끼운다 → painter 갈래를 공유 위젯에 둔다
 
 - **증상**: switch-number overlay 는 탭 스트립/사이드바 행 중간의 *정해진 16px slot*(아이콘/
   dot 자리)에 키캡을 그려야 한다. 본체 `kbd()`(`crates/tasty-ui-widgets/src/chip.rs`)를 그대로
@@ -411,11 +410,9 @@ State 셀은 `status_dot`(점 `status_dot_size` 8 + gap 6 + caption 11px proport
   배치**하는 위젯이라 임의 좌표 slot 에 끼울 수 없다.
 - **원인**: 갤러리 mock(tab_bar/sidebar specimen)은 `ui.painter_at(rect)` 로 좌표 painting 한다.
   inline 위젯(kbd)과 좌표 painting 은 배치 모델이 달라 섞이지 않는다.
-- **처방**: 키캡 *형상*을 painter 로 재현하는 헬퍼(`num_cap`)를 둔다. 레시피는 `chip.rs` 의 kbd
-  와 1:1 — `corner_radius_sm` radius, `border_width` 1px stroke(Inside), 하단 2px line(=
-  switch-overlay-shadow-depth=size-2), `font_size_micro` mono, fill `surface_raised`/border
-  `border_strong`/fg `text_secondary`. active 변종만 `accent_primary` fill + `text_on_accent`
-  숫자. tab_bar/tab.rs 가 본체 tab 시각을 painter 로 재현하는 것과 같은 방식.
+- **처방**: 그림을 좌표 painter `paint_num_keycap`(`chip.rs`)으로 뽑아 두고, inline 위젯
+  `num_keycap` 은 자리를 할당해 그것을 부른다. 갤러리 `keycap_at` 과 본체 `paint_keycap` 이 같은
+  함수를 부르므로 형상은 한 벌이다. 색·치수는 `switch-overlay-*` component 토큰에서 온다.
 - **근거(2026-06-25)**: `crates/tasty-gallery/src/catalog/components/switch_overlay.rs`. 신규
   Theme 필드 없음(P0). 본체 P2 draw 도 같은 좌표 painting 이 될 것이므로 형상 로직 공유 가능.
 
