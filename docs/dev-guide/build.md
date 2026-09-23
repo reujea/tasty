@@ -251,7 +251,7 @@ tasty-icons  lib   dirty: FsStatusOutdated
 
 ## Plugin 빌드 / 스테이징
 
-번들 plugin(`crates/tasty-plugin-*` 중 `tasty-plugin.toml` 보유)은 부팅 시 `install_builtins_if_needed` 가 `~/.tasty/plugins/<id>/` 로 자동 sync 한다. `bundle_root()` fallback 이 `<exe_dir>/builtin-plugins/`(= `target/<profile>/builtin-plugins/`)라, **그 경로에 스테이징만 해두면** 부팅 시 user dir 까지 흐른다. **debug 빌드만** `ensure_dev_bundle` 이 매 부팅 mtime(동률이면 내용) 비교로 workspace→bundle 을 sync 한다. 플러그인까지 빌드한 `cargo build --workspace` 후 실행하면 반영된다. **release/dist 는 소스가 옆에 있어도 workspace→bundle 자동 동기화를 하지 않는다.** `just build --release` 또는 해당 프로필의 `just build-plugins` 로 서명과 함께 스테이징한 번들을 사용한다. 빌드 후 소스 매니페스트를 수정해도 다음 실행이 서명된 번들을 덮어쓰지 않는다. `cargo build --release --workspace` 만으로는 번들 스테이징이 되지 않는다.
+번들 plugin(`crates/tasty-plugin-*` 중 `tasty-plugin.toml` 보유)은 부팅 시 `install_builtins_if_needed` 가 `~/.tasty/plugins/<id>/` 로 자동 sync 한다. `bundle_root()` fallback 이 `<exe_dir>/builtin-plugins/`(= `target/<profile>/builtin-plugins/`)라, **그 경로에 스테이징만 해두면** 부팅 시 user dir 까지 흐른다. **debug 빌드만** `ensure_dev_bundle` 이 매 부팅 mtime(동률이면 내용) 비교로 workspace→bundle 을 sync 한다 — 소스가 bundle 보다 옛 시각이면 내용이 달라도 안 옮긴다(`cp -p` 복원 등). 플러그인까지 빌드한 `cargo build --workspace` 후 실행하면 반영된다. **release/dist 는 소스가 옆에 있어도 workspace→bundle 자동 동기화를 하지 않는다.** `just build --release` 또는 해당 프로필의 `just build-plugins` 로 서명과 함께 스테이징한 번들을 사용한다. 빌드 후 소스 매니페스트를 수정해도 다음 실행이 서명된 번들을 덮어쓰지 않는다. `cargo build --release --workspace` 만으로는 번들 스테이징이 되지 않는다.
 
 ```bash
 just build-plugins                # 모든 bin plugin → release 스테이징
