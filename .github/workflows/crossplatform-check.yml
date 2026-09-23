@@ -335,8 +335,9 @@ jobs:
       # 부팅 진입점(`src/boot.rs` 의 `run_headless`)을 실제로 부팅해 IPC/attach/PTY 경로를
       # 끝까지 돌린다. `--lib --bins` 로는 그 경로가 한 줄도 안 돌았다.
       #
-      # 아래 `--skip` 1 건은 **GUI 가 필요해서가 아니다.** 원인과 무엇을 고치면 풀리는지를
-      # 적어 둔다 — 고치면 skip 을 지우는 것이 이 목록의 용도다.
+      # 아래 `--skip` 1 건은 **창(GUI)을 요구해서다** — 헤드리스 조합에서 고칠 결함이 아니다.
+      # 원인과 그것이 왜 헤드리스에서 풀리지 않는지를 적어 둔다 — 원인이 고칠 수 있는 것으로
+      # 바뀌면 skip 을 지우는 것이 이 목록의 용도다.
       # **skip 은 커버리지를 영구히 깎는 장치라, 하나씩 정당화가 없으면 넣지 않는다.**
       #   1. multi_window_owner_routing
       #      **GUI 요구.** `window.create` 는 gui 라우터의 `app_methods` step 에만 있고,
@@ -432,10 +433,13 @@ jobs:
         if: ${{ !cancelled() }}
         run: cargo test --workspace --lib --bins --locked --no-fail-fast
 
-      # 조합 격자의 **마지막 칸** — 이 저장소의 어떤 자동 채널도 안 보는 테스트 1 건.
+      # 조합 격자의 **마지막 칸** — 차단하는 자동 채널이 없는 테스트 1 건. 안 도는 것이
+      # 아니라 **돌지만 차단하지 않는다**: 이 스텝(`cargo test (linux, gui, e2e — 관측용)`)이
+      # Xvfb 아래에서 그 한 건을 돌리되 `continue-on-error: true` 라 빨개져도 잡을 안 막는다.
+      # 결과는 잡 결론이 아니라 이 스텝의 결론으로 읽어야 보인다.
       #
       # `multi_window_owner_routing` 은 창을 요구해 위 headless 스텝이 이름으로 `--skip`
-      # 한다. 그 테스트가 든 `e2e_tests` 바이너리 자체는 채널이 있지만 **이 하나만 그
+      # 한다. 그 테스트가 든 `e2e_tests` 바이너리 자체는 차단 채널이 있지만 **이 하나만 그
       # 채널 밖**이다. 실측으로 남은 사각이 정확히 이것 하나다: 두 조합의 통합 명부를
       # 차분하면 `gui_tests`(전부 `#[ignore]`) 를 빼고 기본 feature 에만 있는 항목이 0 이다
       # (절차는 docs/dev-guide/ci-gates.md).
