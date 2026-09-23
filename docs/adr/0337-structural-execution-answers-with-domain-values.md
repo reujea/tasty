@@ -115,7 +115,7 @@ dispatcher · 원격 forward 실행)가 그것을 부른다. 다만 **이름이 
   `src/source_guards/auto_tap_suppression_window.rs` 가 그 자리를 이미 본다 — 그 파일의
   `the_guard_cuts_the_two_functions_and_not_some_others` 는 잘라 온 본문에
   `handle_tab_create(` 가 있는지를 단정하므로, 재사용이 사라지는 순간 그 시험이 좌표를 찍고
-  죽는다.
+  죽는다. 이 조건은 ADR-0395 로 발화해 소진됐다 — 그 시험은 지금 `exec::create_tab(` 를 단정한다.
 
 **원리적으로 안 붙는 것** — 사람이 관측해야 한다. 재는 법을 함께 적는다.
 

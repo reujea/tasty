@@ -154,7 +154,8 @@ journal 과 통합하지 않는다.
   의 전제("소비자가 하나")가 필요 없어진다. 좌변: `git grep -n 'read_since_scan_mark'` 의
   호출 자리.
 - `tasty read since-mark` 에 위치 인자가 생긴다. 그러면 위 "CLI 진입점이 아직 없다" 가
-  사라지고, `docs/dev-guide/api-conventions.md` 의 CLI 표와 함께 움직인다.
+  사라지고, `docs/dev-guide/api-conventions.md` 의 CLI 표와 함께 움직인다. 이 조건은 발동했다
+  (위 운영 비용의 구현 확정 보강).
 
 **원리적으로 안 붙는 것** — 사람이 관측해야 한다. 재는 법을 함께 적는다.
 

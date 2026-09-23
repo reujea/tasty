@@ -139,5 +139,6 @@ mirror stream 표지 · 세 값의 노출) 전부. ADR-0334 의 선언 게이트
 - 개정 대상: [ADR-0400](0400-attach-loss-is-resynced-per-connection-with-the-strongest-contract-it-carries.md) (결정 5 — 통지 지연의 상한)
 - 개정 대상: [ADR-0334](0334-a-dropped-stream-frame-is-told-to-the-clients-that-asked-for-it.md) (막힌 통지를 갚는 자리)
 - 개정 패턴 선례: [ADR-0030](0030-image-egui-mesh-bitmap-texture.md)
+- 후속: [ADR-0529](0529-a-mirror-dump-longer-than-the-heartbeat-timeout-sends-heartbeats.md) (위 "개정하지 않는 것" 의 CLI dump 심장박동 부재 — mirror-dump 도 `Ping` 을 보낸다)
 - 동작 문서: [`docs/dev-guide/attach-behavior.md`](../dev-guide/attach-behavior.md) — "client 에게 공백을 알린다" 절
 - 코드 근거(결정이 실현된 현재 위치): `tasty_ipc::stream_hub::{SinkReceiver::took, StreamHub::repay_pending_loss, StreamHub::sync_owed, StreamHub::repay_all_pending_loss}` · 시험 `a_notice_follows_the_last_survivor_with_nothing_pushed_and_nothing_sent_after_the_loss` · `a_declaration_that_arrives_after_the_loss_is_answered_in_the_same_inbound_batch` · `a_declaration_between_the_loss_and_the_drain_is_repaid_by_the_write_thread`

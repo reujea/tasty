@@ -100,6 +100,7 @@ pragma 를 함수 하나(`tasty_memory::pragma::apply_connection_pragmas`)로 �
 
 - 개정 대상: [ADR-0316](0316-a-database-reports-the-pragma-that-took-not-the-one-requested.md) (보고 채널 조항 — 로그 단독 → 값 + IPC·CLI)
 - 개정 패턴 선례: [ADR-0030](0030-image-egui-mesh-bitmap-texture.md)
+- 후속: [ADR-0485](0485-a-memory-db-that-failed-to-open-falls-back-in-memory-and-says-so.md) (`degraded` 의 뜻을 파일을 못 열어 in-memory 대체로 뜬 경우까지 넓혔다)
 - 결정이 실현된 현재 위치: `crates/tasty-memory/src/pragma.rs` 의 `apply_connection_pragmas` ·
   `AppliedPragmas` · `PragmaReading`, 보유자는 `MemoryStore::applied_pragmas` 와 `src/db.rs` 의
   `Db::applied_pragmas`, 노출은 `src/adapters/ipc/handler/pressure.rs` 의 `db_pragmas_json`
