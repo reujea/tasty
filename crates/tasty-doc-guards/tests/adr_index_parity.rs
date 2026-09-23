@@ -120,6 +120,7 @@ use tasty_doc_guards::adr_index::{
     group_slugs, incomplete_rows, parse_adr, placement_violations, preamble_violations,
     region_row_count, render_index, stray_table_lines, superseder,
 };
+use tasty_doc_guards::temp_scratch::Scratch;
 
 /// ADR 수의 하한 — **연기 검사**다. 수집이 죽으면 아래 대조는 빈 집합끼리라 그냥 통과한다.
 /// 값의 근거: 2026-09-05 실측 153 건, 2026-09-23 실측 396 건.
@@ -577,6 +578,121 @@ fn a_row_outside_the_markers_is_caught() {
             "{why}: 구역 밖 행을 구역 행으로 셌다"
         );
         assert_eq!(stray_table_lines(&bad).len(), want, "{why} 를 못 잡았다");
+    }
+}
+
+/// 생성기 bin 의 **rc 배선** — 위 합성 시험들은 판정 함수를 부르고,
+/// `the_generator_bin_agrees_with_the_repo` 는 완전한 레포에서 rc 0 만 본다. 그래서 판정이
+/// 옳아도 그 결과를 rc 로 바꾸는 줄이 빠지면 아무 시험도 안 빨개진다. 여기서는 합성
+/// 코퍼스를 디스크에 쓰고 `--check` 를 돌려, 생성 결과와 **같은** 파일에서도 rc 1 이 나는
+/// 세 갈래(불완전 · 구역 밖 표 줄 · 머리말 충돌)와, 파일이 **다른** 갈래를 함께 묻는다.
+#[test]
+fn the_generator_bin_fails_on_a_synthetic_corpus() {
+    fn adr_file(num: &str, group: &str) -> (String, String) {
+        let body = if group.is_empty() {
+            String::new()
+        } else {
+            format!("- **Group**: {group}\n")
+        };
+        (
+            format!("{num}-x.md"),
+            format!(
+                "# ADR-{num}: 제목 {num}\n\n- **Status**: Accepted\n- **Date**: 2026-09-23\n\
+                 - **Tags**: t\n{body}\n## References\n\n"
+            ),
+        )
+    }
+    /// `mode` 로 돌리고 (rc, stderr, 돌린 뒤의 인덱스) 를 돌려준다.
+    fn run(
+        what: &str,
+        mode: &str,
+        files: &[(String, String)],
+        index: &str,
+    ) -> (Option<i32>, String, String) {
+        let root = Scratch::new(what);
+        let dir = root.path().join(ADR_DIR);
+        std::fs::create_dir_all(&dir).expect("임시 디렉토리를 못 만들었다");
+        for (name, body) in files {
+            std::fs::write(dir.join(name), body).expect("쓰기 실패");
+        }
+        std::fs::write(root.path().join(INDEX), index).expect("쓰기 실패");
+        let out = std::process::Command::new(env!("CARGO_BIN_EXE_adr-index"))
+            .arg(mode)
+            .arg(root.path())
+            .output()
+            .expect("adr-index 를 못 돌렸다");
+        (
+            out.status.code(),
+            String::from_utf8_lossy(&out.stderr).to_string(),
+            std::fs::read_to_string(root.path().join(INDEX)).expect("다시 읽기 실패"),
+        )
+    }
+
+    let two = vec![adr_file("0001", "a"), adr_file("0002", "b")];
+    let parsed: Vec<Adr> = two.iter().map(|(n, b)| parse_adr(n, b.clone())).collect();
+    let clean = render_index(TWO_GROUPS, &parsed).expect("구조가 맞다");
+
+    // 음성 대조 — 이 픽스처가 그 자체로 초록이 아니면 아래 rc 1 은 아무것도 안 잰다.
+    let (rc, err, _) = run("adrbin-clean", "--check", &two, &clean);
+    assert_eq!(rc, Some(0), "완전한 합성 코퍼스가 초록이 아니다:\n{err}");
+    assert!(
+        err.contains("생성 구역 행 현재 2 / 생성 결과 2"),
+        "모수 줄:\n{err}"
+    );
+
+    let missing = [two.clone(), vec![adr_file("0003", "")]].concat();
+    let row = "| 0002 | [제목 0002](0002-x.md) | Accepted | 2026-09-23 | t |\n";
+    let hand_deleted = clean.replace(row, "");
+    assert_ne!(hand_deleted, clean, "지울 행을 못 찾았다");
+    // 넷째 칸: `--write` 가 파일을 생성 결과로 맞춘 뒤의 rc. 앞의 셋은 파일이 이미 생성 결과와
+    // 같은데도 빨간 갈래라 `--write` 로도 안 풀린다 — 종료코드 문서의 "두 모드 모두" 가 그것이다.
+    for (what, files, index, want, write_rc) in [
+        (
+            "adrbin-incomplete",
+            &missing,
+            clean.clone(),
+            "0003-x.md — 생성 구역에 행이 없다",
+            1,
+        ),
+        (
+            "adrbin-stray",
+            &two,
+            clean.replace(
+                "<!-- adr-rows:end b -->\n",
+                &format!("<!-- adr-rows:end b -->\n{row}"),
+            ),
+            "구역 밖 표 줄 1",
+            1,
+        ),
+        (
+            "adrbin-conflict",
+            &two,
+            clean.replace(
+                "0001 을 부른다.\n",
+                "<<<<<<< HEAD\n0001 을 부른다.\n=======\n0001 을 이어 부른다.\n>>>>>>> theirs\n",
+            ),
+            "구역 밖 충돌 표지 3",
+            1,
+        ),
+        (
+            "adrbin-differs",
+            &two,
+            hand_deleted,
+            "생성 구역 행 현재 1 / 생성 결과 2",
+            0,
+        ),
+    ] {
+        let (rc, err, _) = run(what, "--check", files, &index);
+        assert_eq!(rc, Some(1), "{what} --check: rc 가 1 이 아니다:\n{err}");
+        assert!(err.contains(want), "{what}: `{want}` 가 안 찍혔다:\n{err}");
+        let (rc, err, after) = run(what, "--write", files, &index);
+        assert_eq!(
+            rc,
+            Some(write_rc),
+            "{what} --write: rc 가 {write_rc} 가 아니다:\n{err}"
+        );
+        let want_after = if write_rc == 0 { &clean } else { &index };
+        assert_eq!(&after, want_after, "{what} --write: 쓴 결과가 다르다");
     }
 }
 
