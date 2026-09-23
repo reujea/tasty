@@ -204,13 +204,14 @@ plugin 을 다시 띄우므로 다음 호출은 기다림 없이 건강한 프�
   (이 좌변에 붙은 판정기는 지금 없다.)
 - healthcheck 회수 경로(`cancel_pending_namespace_calls`)가 사라지거나 namespace
   pending 을 더 이상 거두지 않게 됐을 때. 그러면 "앞지르지 않는다" 는 유도의 전제가 없어지고
-  값은 회수 상한이 아니라 정상 호출 길이에서 나와야 한다.
+  값은 회수 상한이 아니라 정상 호출 길이에서 나와야 한다. (재시작이 두 자료를 함께 비우는지는
+  `tasty-host-plugin` 의 `a_plugin_restarted_by_the_expiry_streak_is_restarted_once` 가 잰다 —
+  [ADR-0567](0567-a-scanned-id-is-consumed-once-by-structure-or-by-a-replay-test.md).)
 - `handle_plugin_response` 의 `None` 갈래가 `expired_namespace_calls` 를 더 이상 안 볼 때.
   그러면 늦은 응답이 계수를 못 지워 위 대안 G 의 상태로 되돌아간다. (좌변에 붙은 판정기는
   `tasty-host-plugin` 의 `a_late_namespace_answer_also_clears_the_expiry_streak` ·
   `only_a_namespace_answer_clears_the_expiry_streak` 둘이다. 늦은 응답이 기억된 id 를 **한 번만**
-  소비하는지는 `a_reaped_namespace_id_clears_the_streak_exactly_once` 가 재고, 재시작이 두 자료를
-  함께 비우는지는 `a_plugin_restarted_by_the_expiry_streak_is_restarted_once` 가 잰다 —
+  소비하는지는 `a_reaped_namespace_id_clears_the_streak_exactly_once` 가 잰다 —
   [ADR-0567](0567-a-scanned-id-is-consumed-once-by-structure-or-by-a-replay-test.md).)
 - `restart_unresponsive_plugins` 가 `namespace_expiries` 를 더 이상 안 볼 때. 2026-09-20
   보강의 처방이 그 한 자리에 있으므로, 그것이 빠지면 반복 만료가 다시 로그뿐이 된다.
