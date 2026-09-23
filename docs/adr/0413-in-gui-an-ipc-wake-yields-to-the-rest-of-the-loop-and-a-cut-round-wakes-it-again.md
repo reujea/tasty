@@ -149,7 +149,9 @@ IPC 생산자는 명령마다 wake 를 한 번 부르고, 회차가 답을 주�
 - 전제를 고친 대상: [ADR-0410](0410-a-dispatch-round-also-stops-at-a-time-budget-and-callers-are-served-in-arrival-order.md)
   (회차가 끝나면 gui 는 렌더·타이머로 넘어간다는 문장)
 - 관련: [ADR-0313](0313-the-dispatch-round-budget-is-the-connection-bound.md) (명령마다 wake 한 번이
-  이월을 보장한다는 근거 — headless 에서는 그대로다)
+  이월을 보장한다는 근거 — headless 에서는 이 결정 시점에 그대로였다)
+- 후속: [ADR-0465](0465-headless-keeps-one-ipc-wake-in-its-channel-and-a-cut-round-wakes-it-again.md)
+  (headless 의 이월 — "headless 는 바꾸지 않는다" 가 기댄 "명령마다 wake 한 번" 을 headless 에서 바꿨다)
 - 개정 대상: [ADR-0313](0313-the-dispatch-round-budget-is-the-connection-bound.md) (gui 의 이월 재개 —
   위 근거가 gui 에서는 이 결정으로 바뀐다. 0313 이 이 ADR 을 `부분 개정` 으로 적는다)
 - 결정이 실현된 현재 위치: `src/app/ipc.rs` 의 `IpcPacer` · `App::process_ipc`,

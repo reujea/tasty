@@ -43,7 +43,7 @@ N-B 개의 wake 가 그대로 남아 루프를 다시 들여보낸다. 즉 이�
 > 부분 개정: gui 에서는 [ADR-0413](0413-in-gui-an-ipc-wake-yields-to-the-rest-of-the-loop-and-a-cut-round-wakes-it-again.md) 이후 wake 가 회차 없이 건너뛰어질 수 있어 이 성질이
 > 성립하지 않는다. 그래서 gui 는 아래 대안의 "남은 것을 회차 끝에서 직접 다시 깨운다" 를 채택했다 —
 > 예산에서 잘린 회차가 스스로 한 번 더 깨우고, 그 재깨움은 양보 규칙을 `about_to_wait` 한 번 사이에
-> 한 번 건너뛴다. headless 는 이 문단 그대로다.
+> 한 번 건너뛴다. headless 도 [ADR-0465](0465-headless-keeps-one-ipc-wake-in-its-channel-and-a-cut-round-wakes-it-again.md) 이후 이 성질에 기대지 않는다 — wake 를 하나로 접고 잘린 회차가 다시 깨운다.
 
 ## Consequences
 
@@ -54,7 +54,8 @@ N-B 개의 wake 가 그대로 남아 루프를 다시 들여보낸다. 즉 이�
   **다음 회차**로 나타나므로, 클라이언트에게는 지연으로만 보인다(wire 는 안 바뀐다).
 - **운영 비용 / 유지 부담**: `MAX_CONCURRENT_CONNECTIONS` 를 움직이면 예산이 같이 움직인다 —
   그것이 의도다. 다만 **호스트 주입은 그 상한 밖**이라, 주입이 연결 수 규모로 늘어나면
-  파생의 전제가 헐거워진다. 지금 주입자는 plugin host-call 하나다.
+  파생의 전제가 헐거워진다. 주입자는 plugin host-call 말고도 여럿이다
+  ([ADR-0391](0391-the-command-queue-admits-by-queued-bytes-and-injected-depth.md) 의 Context).
 - **종료 drain 은 범위 밖이다.** `src/app/shutdown_machine.rs` 의 같은 형태는 "남은 것을
   거절하며 비우는" 종료 절차이고([ADR-0078](0078-shutdown-rejects-pending-ipc.md)),
   거기서 예산을 두면 **남은 것을 거절하지 못한 채 종료**할 수 있다. 정상 회차의 정책을
