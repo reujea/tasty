@@ -1,4 +1,4 @@
-<!-- source-hash: ed1d07060574 -->
+<!-- source-hash: 3c2bdbcd97cf -->
 # Opening files
 
 Read a README or check an image beside your terminal. Tasty can open an Explorer, Markdown documents, images, and HTML pages, with a Git viewer for reviewing changes.
@@ -107,7 +107,7 @@ tasty image export --surface 5 out.png
 Shows a local HTML file or a URL in the OS web view. Press **New HTML...** and type a URL or file path in the **Open HTML** window.
 
 - While loading, **Loading…** is shown; on failure, **Failed to load** and the URL.
-- The **HTML** item under **Settings** > **Appearance** — **Default zoom** · **Color scheme** (**Follow theme** / light / dark) · **Allow remote content** · **Sandbox scripts**. Remote content and scripts are blocked by default. It is meant for viewing previews built locally, so to open external sites you need to turn these two items on.
+- The **HTML** item under **Settings** > **Appearance** — **Default zoom** · **Color scheme** (**Follow theme** / light / dark) · **Allow remote content** · **Sandbox scripts**. Remote content and scripts are blocked by default. It is meant for viewing previews built locally, so to open external sites you need to turn **Allow remote content** on and **Sandbox scripts** off.
 
 ```sh
 tasty html open --surface 5 ./dist/index.html

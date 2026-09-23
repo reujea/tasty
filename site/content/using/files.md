@@ -106,7 +106,7 @@ tasty image export --surface 5 out.png
 로컬 HTML 파일이나 URL 을 OS 의 웹 뷰로 띄웁니다. **새 HTML...** 을 누르면 **HTML 열기** <!-- en: Open HTML --> 창에 URL 또는 파일 경로를 입력합니다.
 
 - 로드 중이면 **불러오는 중…** <!-- en: Loading… -->, 실패하면 **불러오지 못했습니다** <!-- en: Failed to load --> 와 URL 이 보입니다.
-- **설정** > **외관** 의 **HTML** 항목 — **기본 확대** <!-- en: Default zoom --> · **색 구성표** <!-- en: Color scheme --> (**테마 따름** <!-- en: Follow theme --> / 라이트 / 다크) · **원격 콘텐츠 허용** <!-- en: Allow remote content --> · **스크립트 샌드박스** <!-- en: Sandbox scripts -->. 원격 콘텐츠와 스크립트는 기본적으로 막혀 있습니다. 로컬에서 만든 미리보기를 보는 용도라 외부 사이트를 열 때는 이 두 항목을 켜야 합니다.
+- **설정** > **외관** 의 **HTML** 항목 — **기본 확대** <!-- en: Default zoom --> · **색 구성표** <!-- en: Color scheme --> (**테마 따름** <!-- en: Follow theme --> / 라이트 / 다크) · **원격 콘텐츠 허용** <!-- en: Allow remote content --> · **스크립트 샌드박스** <!-- en: Sandbox scripts -->. 원격 콘텐츠와 스크립트는 기본적으로 막혀 있습니다. 로컬에서 만든 미리보기를 보는 용도라 외부 사이트를 열 때는 **원격 콘텐츠 허용** 을 켜고 **스크립트 샌드박스** 를 꺼야 합니다.
 
 ```sh
 tasty html open --surface 5 ./dist/index.html
