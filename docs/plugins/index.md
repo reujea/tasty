@@ -2,7 +2,7 @@
 
 tasty 에 **동봉되어 첫 부팅 시 자동 install** 되는 공식 플러그인들(배포 축 = bundled, [plugins 개념](../concepts/plugins.md)). 각 플러그인은 외부 플러그인과 동일한 라이프사이클(활성/비활성/제거/권한)을 따른다 — 관리 UI 는 [plugin-system](../features/plugin-system/index.md).
 
-각 플러그인은 폴더 하나다 — `plugins/<id>/index.md`(동작) + `screens/`(UI 가 있으면). 이 영역은 [features/](../features/index.md) 와 구조가 같되, **host 가 아니라 플러그인이 제공**하는 동작이라 분리되어 있다. 양식은 features 템플릿을 그대로 쓴다.
+각 플러그인은 폴더 하나다 — `plugins/<id>/index.md`(동작) + 화면(UI 가 있으면 — 기획문서의 `## 화면` 절이 기본, 화면이 둘 이상이거나 자기 규칙을 가지면 `screens/` 파일. 기준은 [documentation-model §3](../documentation-model.md#3-폴더-구조-중첩)). 이 영역은 [features/](../features/index.md) 와 구조가 같되, **host 가 아니라 플러그인이 제공**하는 동작이라 분리되어 있다. 양식은 features 템플릿을 그대로 쓴다.
 
 ## 카탈로그 (`BUILTINS`)
 

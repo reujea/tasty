@@ -1,6 +1,8 @@
 <!--
 화면정의서 (visual projection, 2순위) 템플릿.
-부모 기획의 screens/ 아래 둔다:  docs/features/<feature>/screens/<screen>.md
+절로 쓸지 파일로 뺄지는 docs/documentation-model.md §3 의 기준이 정한다.
+- 파일:  docs/features/<feature>/screens/<screen>.md (아래 모양 그대로)
+- 절:    부모 기획의 `## 화면` 절 — "부모 기획" 줄은 빼고, 아래 `##` 절을 `###` 로 내린다.
 규칙: docs/documentation-model.md (§4 연결 개념 포함).
 
 작성 시 지킬 것:

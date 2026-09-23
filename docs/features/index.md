@@ -1,6 +1,6 @@
 # 기능 (Features)
 
-각 기능은 폴더 하나다 — `features/<f>/index.md`(기획, 내부 동작 · 1순위) + `screens/<s>.md`(화면, 투영 · 0..N). 모델·작성 규칙은 [documentation-model.md](../documentation-model.md), 작성 전 [identity.md](../identity.md) 필독.
+각 기능은 폴더 하나다 — `features/<f>/index.md`(기획, 내부 동작 · 1순위)와 화면(투영 · 0..N). 화면은 기획문서의 `## 화면` 절이 기본이고, 화면이 둘 이상이거나 자기 규칙을 가지면 `screens/<s>.md` 파일이다(기준은 documentation-model §3). 모델·작성 규칙은 [documentation-model.md](../documentation-model.md), 작성 전 [identity.md](../identity.md) 필독.
 
 양식: [`_feature.template.md`](_feature.template.md) (기획) · [`_screen.template.md`](_screen.template.md) (화면). 새 기능은 양식을 복사해 채운다.
 
