@@ -40,8 +40,11 @@
   `run_app_layer` 로 보존소를 지나게 한 뒤, 키를 뗀 사본과 relay 통로로 forward 한다. plugin 의 답은
   나중에 오므로 App 층과 같은 진행 중 상태 · 합류가 그대로 쓰인다. `Kept` 가 아니면(plugin 고유 이름)
   개입하지 않고 원래 요청을 넘긴다. GUI 라우터와 헤드리스가 **같은 함수**를 부른다.
-- **판정을 선언으로 한다.** 보존할지를 이름 표의 `KeyContract` 에서 읽는다 — 선언과 배선이 한 값에서
-  나와야 둘이 안 갈린다.
+- **판정은 두 겹이고, 오늘 결과를 정하는 것은 `Mutate` 쪽이다.** `forward_keeping_the_key` 는 이름 표의
+  `KeyContract` 가 `Kept` 인지 보고, 그 뒤 `run_app_layer` 가 `MethodEffect::Mutate` 인지 본다. 표의
+  `Mutate` 는 전부 `Kept` 이고 표가 모르는 plugin 고유 이름은 둘 다에서 빠지므로, 앞 겹은 지금 결과를
+  바꾸지 않는다. 앞 겹은 표에 `Mutate` 이면서 `Outside` 인 이름이 다시 생길 때 그 이름을 보존하지 않기
+  위한 것이고, **그 갈래를 재는 시험은 없다** — 앞 겹을 지워도 시험이 전부 통과한다.
 - **GUI debug step.** 두 step 을 한 함수(`App::ipc_step_debug_layers`)로 묶고 그 첫 줄에서
   `run_app_layer` 를 부른다. 따로 감싸면 첫 step 이 안 맡은 이름을 둘째가 또 연다.
 - **판 3.** `KEY_KEPT_ON_EVERY_HOST_PATH = 3`. forward 로 나갈 수 있는 표 이름(예약 밖 prefix 의
