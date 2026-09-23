@@ -60,7 +60,7 @@ surface hook 은 더 이상 셸 명령 문자열을 직접 들지 않고, **공�
 - **내장 이벤트**(`process-exit` / `bell` / `notification` / `output-match:` / `idle-timeout:` / `command-completed` / `command-completed:<N>`)는 플러그인 무관하게 항상 허용.
 - **플러그인 선언 이벤트**는 플러그인이 manifest `[[contributes.hook_events]]` 로 자기가 발사하는 키를 선언해야 한다. 코어는 이름을 하드코딩하지 않고 이 카탈로그를 활성 플러그인 hello 시 집계한다(언로드/제거 시 제거). `disable`→`enable`(또는 `upgrade-builtins`)로 재기동된 새 프로세스의 hello 도, 무응답으로 **자동 재시작**된 새 프로세스의 hello 도 다시 집계된다 — 세 경로(disable · graceful swap · 재시작)가 — 연결 실패로 내린 plugin 과 함께 넷이 — 모두 `PluginManager::forget_plugin_runtime`(`crates/tasty-host-plugin/src/manager/lifecycle.rs`)을 거치고, 그 함수가 `registered_plugins` gate 를 함께 지워야 재기동 후 hello 가 `finalize_plugin_hello`(→`hook_event_registry.register`)까지 재도달한다. 이 gate 를 안 지우면 재기동 후 hello 가 host 에 "이미 등록된 plugin" 으로 오판되어 조용히 무시되고, 그 plugin 이 선언한 hook 이벤트 전부가 완료 알림 없이 사라진다.
 - 내장도 아니고 활성 플러그인이 선언하지도 않은 키(오타·미존재 이벤트)는 **등록 거부**(`invalid_params`, 에러 메시지에 내장 + 활성 선언 목록 안내). 죽은 hook 등록을 막는다.
-- 따라서 **플러그인이 비활성이면 그 플러그인의 이벤트 hook 등록도 거부**된다(예: claude plugin 비활성 시 `claude-idle` hook 등록 불가 — 의도된 dead-setting 방지). claude plugin 은 위 3개 키를 manifest 로 선언한다.
+- 따라서 **플러그인이 비활성이면 그 플러그인의 이벤트 hook 등록도 거부**된다(예: claude plugin 비활성 시 `claude-idle` hook 등록 불가 — 의도된 dead-setting 방지). claude plugin 이 선언하는 키는 `crates/tasty-plugin-claude/tasty-plugin.toml` 의 `[[contributes.hook_events]]` 가 정본이다.
 
 - **once** 옵션: true 면 한 번 실행 후 자동 삭제. 기본은 persistent. 한 번의 판정에 맞는 사건이 여럿 들어와도 once 훅은 **한 번만** 발화한다 — 지속 훅은 맞는 사건마다 발화한다(이벤트 종류와 무관한 성질이다 — [ADR-0567](../../adr/0567-a-scanned-id-is-consumed-once-by-structure-or-by-a-replay-test.md)).
 - **비동기 실행**: 훅 동작은 백그라운드에서(메인 루프 블로킹 없음 — 셸은 자식 프로세스 스레드, `IpcSequence` 는 아래 "바인딩" 절의 실행기 스레드). 각 이벤트의 발생 surface ID 를 추적해 올바른 surface 에서 실행.
