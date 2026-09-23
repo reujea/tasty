@@ -11,7 +11,7 @@
 //! 필터가 필요 없다. 배경·대안·재검토 트리거는 ADR-0138.
 //!
 //! 여기에 의존을 하나라도 더하면 그 결정의 전제가 사라진다. `Cargo.toml` 의
-//! `[dependencies]` 는 비어 있어야 하고, `the_crate_has_no_dependencies` 가 그것을 본다.
+//! `[dependencies]` 는 비어 있어야 한다. 그것을 재는 시험은 없다(채널 없음 — ADR-0565).
 
 // 이유: 테스트 본문의 `let _ =` 는 정책이 사유를 요구하지 않는 자리라
 // `clippy::let_underscore_must_use` 명부에 섞이면 안 된다 — 그 명부는 프로덕션에서
