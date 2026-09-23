@@ -1,8 +1,10 @@
 name: Plugin Version Check
 
 # plugin 의 빌드 산출물이 달라졌는데 매니페스트 `version` 이 그대로인 것을 잡는다.
-# 목적은 라이브 반영이다 — `upgrade-builtins` 재sync 는 version 이 올랐을 때만 동작한다
-# (same-version skip). 판정은 scripts/check-plugin-version-bump.sh 하나가 하고, 로컬
+# 목적은 발행된 값과 산출물의 짝이다 — `upgrade-builtins` 재sync 는 같은 버전이면 내용이
+# 다른 파일을 옮기므로 반영은 bump 없이도 되지만, 같은 버전 문자열이 서로 다른 두 산출물을
+# 가리키는 상태는 금지다(갈래 전체는 루트 CLAUDE.md 버전 정책). 판정은
+# scripts/check-plugin-version-bump.sh 하나가 하고, 로컬
 # 훅 둘(pre-commit P.1 · pre-push B.9)도 같은 스크립트를 부른다 — 세 자리가 갈리지 않게.
 # 세 자리는 모수가 다르다: P.1 은 staged 를 main 과의 merge-base 와, B.9 는 원격 tip 을
 # 로컬 tip 과, 이 잡은 밀려 들어온 범위의 두 끝점을 본다.
