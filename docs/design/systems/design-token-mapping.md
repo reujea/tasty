@@ -61,7 +61,7 @@ claude design(`Tasty Design System`)의 semantic 토큰을 tasty `Theme` 필드�
 | statusbar-glyph-size | → `icon-size-xs` (12) | 상태바 인라인 글리프의 **크기** role(2026-09-20 결정). 바에는 글리프 색 role 만 있고 크기 role 이 없어 위젯이 `icon-size-xs` 를 직접 읽고 있었다 — 그 한 자리를 이 role 로 바꿨고, 바의 글리프는 전부 거기서 크기를 받는다. 배율은 바의 다른 글자와 같이 탄다(`round(12 × s)` = 10 / 12 / 14). **바 높이 24 는 배율 밖**이고 이 role 과 무관하다. 테마 분기 없음 — 치수는 어느 테마가 켜졌는지에 의존하지 않는다 |
 | git-toolbar-height | 32 | `git_toolbar_height()` — git viewer diff 툴바. **`control-height`(28) 아님**(컨테이너 role) |
 | port-process-col-min-width | 200 | `port_process_col_min_width()` — port scanner Process 컬럼 **최소폭** |
-| radius / radius-sm | 4 / 2 | `corner_radius` |
+| radius / radius-sm | 4 / 2 | `corner_radius` / `corner_radius_sm` |
 | border-width | 1 (항상) | `border_width` |
 
 ## token-policy 값 변동 (★)
@@ -88,16 +88,16 @@ claude design(`Tasty Design System`)의 semantic 토큰을 tasty `Theme` 필드�
 
 | 디자인 토큰 | 디자인 체인 | tasty Theme / 위젯 | 비고 |
 |---|---|---|---|
-| `--tasty-switch-overlay-size` | → `kbd-size` → `size-16` (16px) | `chip.rs` `KBD_HEIGHT`/`KBD_MIN_W = 16.0` (위젯 상수) | 키캡 footprint = 아이콘/dot slot. Theme 필드 아님(Kbd 위젯 상수) |
-| `--tasty-switch-overlay-bg` | → `kbd-bg` → `surface-raised` | `Theme::surface0` | 비active 키캡 fill |
-| `--tasty-switch-overlay-fg` | → `kbd-fg` → `text-secondary` | `Theme::subtext1` | 비active 키캡 숫자 |
-| `--tasty-switch-overlay-border` | → `kbd-border` → `border-strong` | `Theme::surface1` | 키캡 외곽선 |
-| `--tasty-switch-overlay-shadow-depth` | → `kbd-shadow-depth` → `size-2` (2px) | `chip.rs` `KBD_BOTTOM_BORDER = 2.0` (위젯 상수) | 키캡 하단 3D edge. Theme 필드 아님 |
-| `--tasty-switch-overlay-active-bg` | → `accent-primary` → `color-blue` | `Theme::accent_primary()` | **현재 항목 = accent-filled 키캡 bg.** 기존 접근자 |
-| `--tasty-switch-overlay-active-fg` | → `text-on-accent` → `color-neutral-0` | `Theme::text_on_accent()` | accent fill 위 숫자. 기존 접근자 (`text_on_accent` 는 dark 테마면 `crust`, light 테마면 `#ffffff`(`TEXT_ON_ACCENT_LIGHT`) — button-primary-fg/checkbox-check 등과 공유) |
-| `--tasty-switch-overlay-fade` | → `motion-ui-fast` → `duration-90` (90ms) | (없음 — 모션 토큰 미보유) | 등장 90ms ease, release 0ms. egui immediate-mode 는 end-state 로 snap = readme 상 compliant. P2 draw 의 선택적 연출, Theme 필드 불필요 |
+| `--tasty-switch-overlay-size` | → `kbd-size` → `size-16` (16px) | `switch_overlay_size()` (생성) | 키캡 footprint = 아이콘/dot slot |
+| `--tasty-switch-overlay-bg` | → `kbd-bg` → `surface-raised` | `switch_overlay_bg()` (생성) | 비active 키캡 fill |
+| `--tasty-switch-overlay-fg` | → `kbd-fg` → `text-secondary` | `switch_overlay_fg()` (생성) | 비active 키캡 숫자 |
+| `--tasty-switch-overlay-border` | → `kbd-border` → `border-strong` | `switch_overlay_border()` (생성) | 키캡 외곽선 |
+| `--tasty-switch-overlay-shadow-depth` | → `kbd-shadow-depth` → `size-2` (2px) | `switch_overlay_shadow_depth()` (생성) | 키캡 하단 3D edge |
+| `--tasty-switch-overlay-active-bg` | → `accent-primary` → `color-blue` | `switch_overlay_active_bg()` (생성) | **현재 항목 = accent-filled 키캡 bg.** |
+| `--tasty-switch-overlay-active-fg` | → `text-on-accent` → `color-neutral-0` | `switch_overlay_active_fg()` (생성) | accent fill 위 숫자 (`text_on_accent` 는 dark 테마면 `crust`, light 테마면 `#ffffff`(`TEXT_ON_ACCENT_LIGHT`) — button-primary-fg/checkbox-check 등과 공유) |
+| `--tasty-switch-overlay-fade` | → `motion-ui-fast` → `duration-90` (90ms) | `switch_overlay_fade()` (생성, `Millis`) | 등장 90ms, release 0ms. `src/adapters/ui/switch_overlay.rs` 가 소비 |
 
-> **결론(검증 완료)**: switch-number overlay 8 토큰 모두 **기존 Theme 접근자(`accent_primary()`/`text_on_accent()`/`surface0`/`subtext1`/`surface1`)·위젯 상수·`font_size_micro` 로 커버** → P0 에서 추가할 신규 Theme 필드 없음. P2(draw)는 비active 키캡=`kbd()` 재사용, active 키캡=`accent_primary()` fill + `text_on_accent()` 숫자로 그린다.
+> **결론**: switch-number overlay 8 토큰 모두 **생성 접근자 `switch_overlay_*()` 로 커버** → 신규 Theme 필드 없음. 키캡은 `tasty-ui-widgets` `chip.rs` 의 `paint_num_keycap` 한 벌이 그린다(radius·글자 크기는 `kbd-*`).
 
 ## preset split-zone (preset-editor 경계 hover-split)
 
@@ -141,7 +141,7 @@ semantic 필드를 그대로 재사용한다(신규 필드 없음). 정본 소�
 
 디자인 inline style 에는 토큰이 아닌 raw px 도 섞여 있다 (전사 시 그대로 옮기되 기록):
 - remote_tool 헤더 `gap: 9` — 토큰 아님 (spacing_sm=8 과 1px 차).
-- remote_tool 헤더 title `fontSize: 14` — 토큰 아님 (tasty 엔 14 폰트 토큰 없음 → heading 13 사용, 1px 차).
+- remote_tool 헤더 title `fontSize: 14` — 토큰 아님 (14 폰트 토큰은 UI 상한 `font_size_max` 뿐 → heading 13 사용, 1px 차).
 - remote_tool TabBtn `height: 35` / 탭바 `padding 0 8` / 탭 `padding 0 13` / `gap 2` — raw.
 
 ## banner (banner-02 specimen / banner-03 본체)
@@ -169,7 +169,7 @@ semantic 필드를 그대로 재사용한다(신규 필드 없음). 정본 소�
 | `--tasty-banner-countdown-font-size` | → `font-size-micro` (10) | `font_size_micro` | 기존 토큰 |
 | `--tasty-banner-countdown-fg` | → `text-muted` | `text_muted()` | 기존 접근자 |
 | `--tasty-banner-recessed-opacity` | → `opacity-recessed` (0.4) | `opacity_recessed()` + `gamma_multiply` | 기존 접근자 — 본체도 같은 접근자를 쓴다 |
-| `--tasty-banner-fade` | → `motion-ui` → duration-120 (120ms) | (없음 — 모션 토큰 미보유, immediate-mode end-state) | switch-overlay-fade 와 동일 한계 — 모션 토큰 미도입 |
+| `--tasty-banner-fade` | → `motion-ui` → duration-120 (120ms) | `banner_fade()` (생성, `Millis`) — 소비처 없음 | 본체는 페이드 없이 end-state 로 그린다 |
 
 > **banner-03(본체) 에 추가로 필요한 신규 Theme 항목은 없다.** 한때 신규로 적혔던 셋 —
 > `--tasty-banner-radius`(`corner_radius_lg`) · `--tasty-opacity-recessed`
@@ -184,12 +184,12 @@ semantic 필드를 그대로 재사용한다(신규 필드 없음). 정본 소�
 (Popup/Toast/Banner/Modal) 밖의 신규 요소(키보드 포커스 없음 + 마우스 인터랙티브 + 홀드
 수명)라 [`docs/concepts/ubiquitous-language.md`](../../concepts/ubiquitous-language.md) 에
 정의를 추가했다. 지오메트리는 `LogicalPx`(DPI 자연대응), 색은 전부 기존 semantic 접근자 재사용.
-접근자는 `crates/tasty-type-appearance/src/theme.rs` 의 `modhint_*()` / `motion_*_ms()`.
+접근자는 `crates/tasty-type-appearance/src/theme.rs` 의 `modhint_*()` / `motion_hold_reveal_shift()`.
 
 | 디자인 토큰 | 디자인 체인 | Theme 접근자 | 비고 |
 |---|---|---|---|
 | `--tasty-motion-hold-reveal` | → `duration-500` (500ms) | `modhint_hold_delay()` (생성, `Millis`) | 홀드→표시 지연. 모션 아님 → reduced_motion 무관 유지 |
-| `--tasty-motion-hold-reveal-shift` | → `duration-1200` (1200ms) | `motion_hold_reveal_shift_ms()` = `MOTION_HOLD_REVEAL_SHIFT_MS` | **신규** primitive duration-1200. **Shift 단독** 홀드만 이 지연. 타이핑 중 Shift 스침으로 팝업이 튀는 것 억제. 모션 아님 → reduced_motion 무관 |
+| (대응 토큰 없음) | 1200ms | `motion_hold_reveal_shift()` = `MOTION_HOLD_REVEAL_SHIFT_MS` (수기, [ADR-0035](../../adr/0035-modifier-hint-combo-narrowing-and-shift-delay.md)) | **Shift 단독** 홀드만 이 지연. 타이핑 중 Shift 스침으로 팝업이 튀는 것 억제. 모션 아님 → reduced_motion 무관 |
 | `--tasty-motion-ui-fade` | → `duration-200` (200ms) | `modhint_fade()` (생성, `Millis`) | 등장 페이드(opacity 0.2→1.0). reduced_motion 시 0ms |
 | `--tasty-modhint-width` | → `size-180` (180px) | `modhint_width()` | 열린 사이드바 폭(기본 180)과 정렬 |
 | `--tasty-modhint-height` | → 400px | `modhint_height()` | 기본 세로 높이 |
@@ -235,7 +235,7 @@ Tier-3 블록. 위젯 `crates/tasty-ui-widgets/src/tooltip.rs`(`Tooltip`) + `hel
 | `--tasty-tooltip-line-height` | → `line-height-ui` (1.4) | **신규** `line_height_ui: f32 = 1.4` (무차원 비율, zoom 무관) | UI 줄간격 배수 |
 | `--tasty-tooltip-max-width` | → `size-240` (240px) | **신규** `tooltip_max_width: LogicalPx(240)` (zoom 적용 — `toast_max_width` 전례) | 초과 시 wrap |
 | `--tasty-tooltip-offset` | → `space-xs` (4) | `spacing_xs` | 앵커와 간격 |
-| `--tasty-tooltip-motion` | → `motion-ui-med` → duration-150 (150ms) | `tooltip_delay()` (생성, `Millis`) | hover delay. 종전에는 위젯 상수 `HOVER_DELAY_SECONDS: f64 = 0.15` 였다. fade 는 immediate-mode snap 으로 생략 |
+| `--tasty-tooltip-delay` | → `motion-ui-med` → duration-150 (150ms) | `tooltip_delay()` (생성, `Millis`) | hover delay. 종전에는 위젯 상수 `HOVER_DELAY_SECONDS: f64 = 0.15` 였다. fade 는 immediate-mode snap 으로 생략 |
 
 ### duration 접근자에서 값을 벗기는 자리 — 감시 대상
 
@@ -262,8 +262,8 @@ echo "$(grep -rn 'to_millis_f32()' --include='*.rs' src crates \
 
 > **결론**: tooltip/help-hint 16 토큰 중 14 종은 기존 Theme 접근자·위젯 상수로 커버되고,
 > `line-height-ui`(1.4)·`max-width-240`(240px) 2 종만 신규 Theme 필드로 승격했다. delay(150ms)
-> 는 모션 토큰 부재로 위젯 duration 상수, fade 는 immediate-mode snap 처리(switch-overlay-fade 와
-> 동일 관습). 글리프는 SVG 자산 주입 대신 painter 직접 드로잉(`status_dot`/`spinner` 전례).
+> 는 생성 접근자 `tooltip_delay()`, fade 는 immediate-mode snap 처리.
+> 글리프는 SVG 자산 주입 대신 painter 직접 드로잉(`status_dot`/`spinner` 전례).
 
 ## drilldown / listctrl (S13 settings-preset-drilldown 위젯 2종)
 
@@ -308,7 +308,7 @@ semantic/primitive 종착.
 
 ## Remote file transfer (progress/error 09)
 
-디자인 `tokens/components.css` 의 `--tasty-transfer-popup-width` + `--tasty-progress-*`(5종).
+디자인 `tokens/components.css` 의 `--tasty-transfer-popup-width` + `--tasty-progress-*`(4종).
 09 진행/실패 팝업(`popup/transfer.rs`)의 프레임 폭 + **시스템 최초 determinate progress bar**.
 switch-overlay/preset-leaf 와 동일하게 **전부 기존 semantic 접근자·primitive 로 종착 → 신규 Theme
 필드 0**([design-parity-notes](design-parity-notes.md) "component-tier 토큰은 신규 필드 안 만듦").
@@ -332,7 +332,7 @@ switch-overlay/preset-leaf 와 동일하게 **전부 기존 semantic 접근자·
 `components/feedback/StatusDot.jsx`(원본: Claude Design "attention-visuals", 2026-08-10
 확정). 색은 기존 semantic accessor 를 그대로 참조 — **신규 Theme 필드 0**
 ([design-parity-notes](design-parity-notes.md) "component-tier 토큰은 신규 필드 안 만듦").
-`--tasty-badge-group-gap` 도 `space-xs` 그대로 별칭이라 accessor 를 추가하지 않고
+`--tasty-badge-group-gap` 도 `space-xs` 그대로 별칭이다 — 생성 접근자 `badge_group_gap()` 은 있으나 소비처는 없고
 `Theme::spacing_xs` 를 직접 참조한다.
 
 | 디자인 토큰 | 디자인 체인 | tasty Theme / 값 | 비고 |
@@ -344,7 +344,7 @@ switch-overlay/preset-leaf 와 동일하게 **전부 기존 semantic 접근자·
 | `--tasty-attention-rank-completion` | `10`(정수) | `AttentionLevel::Completion` | 위와 동일 |
 | `--tasty-badge-primary-bg`/`-fg` | = attention-completion(-fg) | `accent_primary()`/`text_on_accent()` | Completion 배지 |
 | `--tasty-badge-warning-bg`/`-fg` | = attention-needs-input(-fg) | `accent_warning()`/`text_on_accent()` | NeedsInput 배지 |
-| `--tasty-badge-group-gap` | → `space-xs`(4px) | `Theme::spacing_xs` | 두 배지 동시 표시 시 간격. accessor 미신설 — 직접 참조 |
+| `--tasty-badge-group-gap` | → `space-xs`(4px) | `Theme::spacing_xs` | 두 배지 동시 표시 시 간격. `badge_group_gap()` 은 생성됐으나 미사용 — 직접 참조 |
 | `--tasty-tab-fg-needs-input`/`-completion` | = attention-* | `accent_warning()`/`accent_primary()` | 탭 제목 색 |
 | `--tasty-surface-highlight-input-border` | = attention-needs-input | `accent_warning()` | surface 테두리 NeedsInput |
 | `--tasty-surface-highlight-input-width` | → `focus-ring-width`(2px) | `Theme::focus_ring_width` | Completion 테두리와 동일 굵기 |
