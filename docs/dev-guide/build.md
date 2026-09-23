@@ -362,7 +362,7 @@ just dist-setup-linux              # 또는 수동 (아래)
 
 #### 관련
 
-- 위 [빌드 프로필 (3종)](#빌드-프로필-3종) — 프로필 정의 · [release](release.md) — 릴리스 워크플로 · [release-runners](release-runners.md) — self-hosted runner
+- 위 [빌드 프로필 (3종)](#빌드-프로필-3종) — 프로필 정의 · [release](release.md) — 릴리스 워크플로 · [release 러너](release.md#러너) — self-hosted runner
 
 ## 빌드 시간 진단
 

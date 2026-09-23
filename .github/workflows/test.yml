@@ -21,7 +21,7 @@ name: Test
 #    각 작업 lane 은 자기 변경이 닿는 테스트만 돌린다(CLAUDE.md 의 명령 표 참고).
 
 # `pull_request` 가 없는 이유(`format-check.yml` 은 붙어 있다 — 의도된 차이다):
-# 이 잡은 **self-hosted Linux X64 러너 한 대**(release-runners.md 의 `tasty-server-x64`)
+# 이 잡은 **self-hosted Linux X64 러너 한 대**(docs/dev-guide/release.md 의 러너 절, `tasty-server-x64`)
 # 에서 돈다. 그 한 대를 crossplatform-check 의 `check-headless` · complexity-check ·
 # supply-chain-check · release/dist 빌드가 함께 쓰므로 잡이 직렬로 줄을 선다. PR 을 거의
 # 열지 않는 이 저장소의 흐름에서 PR 트리거는 발사가 드문 반면, 발사되면 긴 빌드 뒤에

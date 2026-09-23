@@ -1275,7 +1275,7 @@ done | sort | uniq -c
 
 - **배포 파이프라인이라 여기 안 적는다** — `release.yml` 여섯 잡과 `pages.yml` 의 `deploy`.
   산출물을 만들지 검증 술어를 돌리지 않는다. 절차는 [release](release.md) ·
-  [release-runners](release-runners.md) · [site](site.md) 가 담는다.
+  [release 러너](release.md#러너) · [site](site.md) 가 담는다.
 - **빠뜨린 것 하나** — `pages.yml` 의 `build`. `npm run check-links` 가 산출 HTML 의 깨진 내부
   링크·앵커를, `npm run build` 가 `ORDER` 누락을 **실패로 올리므로** 검증 술어다. 위 표에 행을
   넣었다.
@@ -3152,4 +3152,4 @@ cargo check --workspace --all-targets --target x86_64-pc-windows-gnu --locked
 
 - [git-hooks](git-hooks.md) — 훅 각 검사의 내용과 설치
 - [clippy-policy](clippy-policy.md) · [complexity-gate](complexity-gate.md) — lint 정책
-- [release-runners](release-runners.md) — self-hosted 러너 구성
+- [release 러너](release.md#러너) — self-hosted 러너 구성

@@ -97,4 +97,4 @@ tasty list info       # GUI 인스턴스가 떠 있을 때 시스템 정보 IPC
 
 ## 패키지 빌드 (메인테이너)
 
-[dev-guide/build](dev-guide/build.md) · [dev-guide/build › dist 빌드 명령](dev-guide/build.md#dist-빌드-명령-카탈로그) · [dev-guide/release-runners](dev-guide/release-runners.md).
+[dev-guide/build](dev-guide/build.md) · [dev-guide/build › dist 빌드 명령](dev-guide/build.md#dist-빌드-명령-카탈로그) · [dev-guide/release › 러너](dev-guide/release.md#러너).
