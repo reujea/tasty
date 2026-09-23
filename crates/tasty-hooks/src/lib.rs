@@ -254,6 +254,11 @@ impl HookManager {
     /// 실제 실행(레지스트리 조회 + `source` 게이트 + ShellCommand/IpcSequence 분기)은
     /// 본체 `hook_handler::trigger::execute_binding` 이 담당한다. once 훅은 여기서
     /// 발사 즉시 제거된다(옛 동작 보존).
+    ///
+    /// **once 훅은 한 호출 안에서도 한 번만 발사한다.** `events` 에 그 훅과 맞는 사건이
+    /// 여럿 있어도 첫 사건에서 멈춘다 — 제거가 훑기가 끝난 뒤에 일어나므로, 멈추지 않으면
+    /// 같은 once 훅이 사건 수만큼 돌려진다. 지속 훅은 맞는 사건마다 발사한다. 근거는
+    /// `docs/adr/0567-a-scanned-id-is-consumed-once-by-structure-or-by-a-replay-test.md`.
     pub fn check_and_fire(&mut self, surface_id: u32, events: &[HookEvent]) -> Vec<FiredHook> {
         let mut fired = Vec::new();
 
@@ -269,6 +274,9 @@ impl HookManager {
                         event: hook.event.clone(),
                         received: event.clone(),
                     });
+                    if hook.once {
+                        break;
+                    }
                 }
             }
         }
@@ -612,6 +620,41 @@ mod tests {
         assert_eq!(fired.len(), 1);
         // Hook should be removed after firing
         assert_eq!(manager.list_hooks(None).len(), 0);
+    }
+
+    /// once 훅은 한 호출에 맞는 사건이 여럿 와도 **한 번만** 돌려진다 — 제거는 훑기가
+    /// 끝난 뒤라, 사건마다 돌려주면 같은 once 훅이 사건 수만큼 실행된다. 지속 훅은 맞는
+    /// 사건마다 돌려진다(once 의 멈춤이 지속 훅까지 번지지 않는다). 다음 호출에서는
+    /// once 훅이 이미 없다.
+    #[test]
+    fn a_once_hook_fires_once_even_when_several_events_match() {
+        let mut manager = HookManager::new();
+        manager.add_hook(1, HookEvent::Bell, shell("echo once"), true);
+        manager.add_hook(1, HookEvent::Bell, shell("echo each"), false);
+        let fired = manager.check_and_fire(1, &[HookEvent::Bell, HookEvent::Bell]);
+        let count = |cmd: &str| {
+            fired
+                .iter()
+                .filter(|f| f.binding == HookBinding::InlineShell(cmd.into()))
+                .count()
+        };
+        assert_eq!(
+            count("echo once"),
+            1,
+            "once 훅이 한 호출에서 두 번 돌려졌다"
+        );
+        assert_eq!(
+            count("echo each"),
+            2,
+            "지속 훅이 맞는 사건마다 돌려지지 않았다"
+        );
+        let again = manager.check_and_fire(1, &[HookEvent::Bell]);
+        assert!(
+            again
+                .iter()
+                .all(|f| f.binding != HookBinding::InlineShell("echo once".into())),
+            "발사한 once 훅이 다음 호출에서 또 돌려졌다"
+        );
     }
 
     #[test]

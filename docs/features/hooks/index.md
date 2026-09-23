@@ -42,7 +42,7 @@ surface hook 은 더 이상 셸 명령 문자열을 직접 들지 않고, **공�
 
 - 최대 1초 지연: PTY 출력 정지 시점과 훅 발화 시점 사이에 최대 1초의 오차가 있다(Global hook 의 `file:` 조건과 동일한 해상도).
 - **epoch 기반 anti-spam**: 한 번 발화하면 그 시점의 `last_output_at` 값(epoch)을 기록해, 같은 epoch 동안은 재발화하지 않는다(persistent 훅이 매 tick 마다 스팸처럼 재발화하는 것을 막음). 새 출력이 들어와 `last_output_at` 이 갱신되면 자동으로 재무장된다.
-- `once` 훅은 발화 후 즉시 제거된다(Global hook 의 `once:SECS` 와 동일한 시맨틱).
+- `once` 훅은 발화 후 즉시 제거된다(Global hook 의 `once:SECS` 와 동일한 시맨틱). 한 번의 판정에 맞는 사건이 여럿 들어와도 once 훅은 **한 번만** 발화한다 — 지속 훅은 맞는 사건마다 발화한다(ADR-0567).
 
 #### CommandCompleted — OSC 133 명령 완료(exit code)
 

@@ -627,6 +627,7 @@ flake 처방은 0129 → 0155, e2e 하네스는 0090 → 0127 → 0170 → 0297 
 | 0242 | [아무도 안 읽는 문서의 수는 판정 대상이 아니다 — 셀 수는 있고 시킬 것이 없다](0242-a-number-nobody-reads-is-not-a-guard-target.md) | Accepted | 2026-09-08 | guards, docs, census, measurement, decidability, false-prescription, adr-0139 |
 | 0243 | [「안 짓는다」는 좌변부터 묻지 않는다 — 좌변은 마지막 물음이다](0243-not-building-a-judge-has-three-reasons-and-the-left-side-is-the-last-one.md) | Accepted | 2026-09-08 | guards, judgement, prescription, channels, left-side, discipline, census, positive-control, adr-0139, adr-0242 |
 | 0270 | [좌변이 그 사실을 재는가에는 자동 채널을 안 붙인다 — 기계가 읽는 두 모양만 가드가 본다](0270-whether-a-left-side-measures-the-fact-has-no-automatic-channel.md) | Accepted | 2026-09-14 | docs, guards, channels, mutation-testing, false-positive, observability, adr-0142, adr-0151, adr-0220 |
+| 0567 | [훑어 얻은 id 의 한 번 소비는 구조나 재전송 시험으로 지킨다 — 자리를 세는 명부 가드는 두지 않는다](0567-a-scanned-id-is-consumed-once-by-structure-or-by-a-replay-test.md) | Accepted | 2026-09-23 | testing, mutation-testing, exactly-once, host-plugin, hooks, guards, adr-0311, adr-0243 |
 
 ## 문서 · ADR 규약
 
