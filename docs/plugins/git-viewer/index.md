@@ -8,7 +8,7 @@
 - **권한**: `ui.popup` · `ui.tool_item` · `fs.read`
 - **화면**: [screens/git-viewer.md](screens/git-viewer.md)
 
-> **예제로서**: **도구 메뉴 항목 + popup** 예제 — main/git/view 모듈을 분리한 깔끔한 구조의 레퍼런스 → [plugin-development](../../dev-guide/plugin-development.md#도구-메뉴-항목--popup).
+> **예제로서**: **도구 메뉴 항목 + popup** 예제 — main/render 모듈(조회 로직은 `tasty-git-core`)로 분리한 구조의 레퍼런스 → [plugin-development](../../dev-guide/plugin-development.md#도구-메뉴-항목--popup).
 
 ## 목적
 
