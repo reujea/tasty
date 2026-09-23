@@ -184,6 +184,7 @@ surface_id 로 자동 해석하지 않고, **인자 의미는 index 로 고정�
 | 같은 부모의 `child_surface_id` | `… 4 is a child_surface_id, not a child index — use \`--child 2\`` |
 | 다른 부모의 `child_surface_id` | `… under a different parent — use \`--surface 9000 --child 4\`` |
 | 그 외(오타·범위 밖·이미 정리됨) | `… (valid child indices: 0, 2; 2 children)` |
+| 그 외 + 등록된 child 가 0 | `… (no children registered under surface 9000)` |
 
 kill/release/respawn 세 경로가 같은 메시지를 쓴다. 실패는 `exit=1` + stderr 이므로, 일괄
 처리 스크립트는 **호출당 종료코드를 확인해야 한다** — 버리면 전건 실패를 성공으로 오인한다.
@@ -216,8 +217,8 @@ kill/release/respawn 세 경로가 같은 메시지를 쓴다. 실패는 `exit=1
 - Given 점유된 child C When `terminal.release` Then `occupancy_of(C)==None` + `terminal.children` 목록에서 사라짐 + surface(탭)는 여전히 열려있음(닫히지 않음).
 - Given 등록되지 않은 child index When `terminal.release` Then 에러 반환.
 - Given C 와 무관한 다른 surface 가 hard 점유 중 When `terminal.release{child=C}` Then 그 hard 점유는 영향받지 않음.
-- Given 실행 중인 child C When `terminal.state{surface=C}` Then `{"state":"active","surface_id":C}`.
-- Given `terminal.kill`로 종료된 child C When `terminal.state{surface=C}` Then `{"state":"exited","surface_id":C}` (`"active"`가 아님).
+- Given 실행 중인 child C When `terminal.state{surface=C}` Then 응답이 `state`·`evidence`·`confidence`·`surface_id:C` 를 싣고 `state` 는 `exited` 가 아니다(값은 위 판정 우선순위 표).
+- Given `terminal.kill`로 종료된 child C When `terminal.state{surface=C}` Then `state` 가 `"exited"` 다 (`"active"`가 아님).
 
 ## spawn 준비와 실제 PTY 종료
 
