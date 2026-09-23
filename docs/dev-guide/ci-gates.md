@@ -35,9 +35,9 @@
 | 사유 없는 `#[allow]` (**상한 래칫**, 판정기 `mask-source` 선행) | `bash scripts/check-allow-reason.sh` | `script-gates.yml` (self-hosted Linux X64) | main push(문서·site 제외) · PR · 수동 | [실측] |
 | 공용 순회를 안 거치는 직접 `read_dir` (**상한 래칫**, 판정기 `mask-source` 선행) | `bash scripts/check-shared-walk-ratchet.sh` | `script-gates.yml` (self-hosted Linux X64) | main push(문서·site 제외) · PR · 수동 | [실측] |
 | 셸 자산 정적 검사 (**잔여 0 hard-fail** · 검사기 부재는 rc 2) | `bash scripts/check-shell-assets.sh` — 잡이 `scripts/install-shellcheck.sh` 로 검사기를 먼저 놓는다 | `script-gates.yml` (self-hosted Linux X64, 같은 잡) | main push(문서·site 제외) · PR · 수동. ★ **모수**: 이 채널은 **추적되는** 셸 자산 전부(`*.sh` + shebang 이 셸인 것)를 본다. pre-commit 의 `A.3` 은 **staged 경로**를 본다 — 새 파일은 아직 추적 밖이라 전수 모수에 안 들어오므로, 그 훅이 새 자산을 처음 보는 자리다. 문턱(warning 이상)과 그 아래를 안 세기로 한 근거는 [ADR-0295](../adr/0295-shell-assets-are-judged-at-warning-and-above.md) | 등급 미정 |
-| plugin 버전 bump | `bash scripts/check-plugin-version-bump.sh --range <before> <after>` | `plugin-version-check.yml` (self-hosted Linux X64) | main push · PR — **둘 다 문서만 담은 push(`docs/**`·`site/**`·`*.md`)는 제외하되, `src/`·`lang/`·`assets/` 아래의 `.md` 는 되살린다** · 수동. 스크립트가 그 세 디렉토리 아래를 확장자와 무관하게 판정하므로(`crates/tasty-plugin-markdown/assets/NOTICE.md`) `paths-ignore` 가 아니라 부정 패턴 `paths` 를 쓰고, **패턴 순서가 의미를 정한다**(뒤에 오는 패턴이 이긴다 — 워크플로 머리 주석). 실제 발화는 **미측정**: 다음 push 의 CI 에서 확인한다. ★ 판정 대상이 plugin 디렉토리가 아니라 **의존 폐포**이고 그 안에서 **출하되는 내용**만 세기 때문에([ADR-0166](../adr/0166-the-plugin-version-gate-judges-the-artifact-not-the-directory.md)) 필터가 넓다 — `tasty-utils`·`tasty-shm` 처럼 이름이 `tasty-plugin-` 으로 시작하지 않는 크레이트가 바뀌어도 plugin 산출물이 달라지고, 폐포는 `crates/` 밖의 **워크스페이스 밖 path 의존**(`[patch]` 로 끼운 `vendor/tiny_http`)까지 닿는다([ADR-0537](../adr/0537-the-plugin-version-gate-follows-path-dependencies-outside-the-workspace.md)). 그래서 경로를 목록으로 적지 않고 문서만 뺀다 — pre-commit `P.1` 도 같은 이유로 선필터가 없다. 잡이 출하 판정기(`strip-cfg-test`)를 먼저 빌드한다. ★ **모수**: 이 채널은 **push 된 범위**를 본다. lane 의 pre-commit 은 **staged** 를 본다. 둘은 다른 물음에 답한다 — lane 이 자기 통과를 전체 통과로 읽으면 안 된다. **그 발행 모수는 push 전에도 한 번 재어진다** — pre-push `B.9` 가 git 이 stdin 으로 준 원격 tip 을 모수로 같은 스크립트를 부른다(아래 "로컬 훅이 앞당겨 주는 것"). 훅을 안 깐 체크아웃에서는 이 채널이 없고, 그때는 통합 회차가 `--range <직전 push> HEAD` 로 다시 잰다(아래 "등급" 절) | [실측] |
+| plugin 버전 bump | `bash scripts/check-plugin-version-bump.sh --range <before> <after>` | `plugin-version-check.yml` (self-hosted Linux X64) | main push · PR — **둘 다 문서만 담은 push(`docs/**`·`site/**`·`*.md`)는 제외하되, `src/`·`lang/`·`assets/` 아래의 `.md` 는 되살린다** · 수동. 스크립트가 그 세 디렉토리 아래를 확장자와 무관하게 판정하므로(`crates/tasty-plugin-markdown/assets/NOTICE.md`) `paths-ignore` 가 아니라 부정 패턴 `paths` 를 쓰고, **패턴 순서가 의미를 정한다**(뒤에 오는 패턴이 이긴다 — 워크플로 머리 주석). 발화는 필터 커밋 뒤 첫 push(run 35816936207, `91b75ef7d`)에서 실측했다 — `src/`·`lang/`·`assets/` 아래 `.md` 만 담은 push 의 발화는 **미측정**이다. ★ 판정 대상이 plugin 디렉토리가 아니라 **의존 폐포**이고 그 안에서 **출하되는 내용**만 세기 때문에([ADR-0166](../adr/0166-the-plugin-version-gate-judges-the-artifact-not-the-directory.md)) 필터가 넓다 — `tasty-utils`·`tasty-shm` 처럼 이름이 `tasty-plugin-` 으로 시작하지 않는 크레이트가 바뀌어도 plugin 산출물이 달라지고, 폐포는 `crates/` 밖의 **워크스페이스 밖 path 의존**(`[patch]` 로 끼운 `vendor/tiny_http`)까지 닿는다([ADR-0537](../adr/0537-the-plugin-version-gate-follows-path-dependencies-outside-the-workspace.md)). 그래서 경로를 목록으로 적지 않고 문서만 뺀다 — pre-commit `P.1` 도 같은 이유로 선필터가 없다. 잡이 출하 판정기(`strip-cfg-test`)를 먼저 빌드한다. ★ **모수**: 이 채널은 **push 된 범위**를 본다. lane 의 pre-commit 은 **staged** 를 본다. 둘은 다른 물음에 답한다 — lane 이 자기 통과를 전체 통과로 읽으면 안 된다. **그 발행 모수는 push 전에도 한 번 재어진다** — pre-push `B.9` 가 git 이 stdin 으로 준 원격 tip 을 모수로 같은 스크립트를 부른다(아래 "로컬 훅이 앞당겨 주는 것"). 훅을 안 깐 체크아웃에서는 이 채널이 없고, 그때는 통합 회차가 `--range <직전 push> HEAD` 로 다시 잰다(아래 "등급" 절) | [실측] |
 | 공급망 | `cargo deny check` | `supply-chain-check.yml` | main push(`paths: Cargo.lock · deny.toml`) · PR · 매주 월 09:00 UTC · 수동. ★ 이 잡은 **두 물음**에 답하고 트리거가 물음마다 다르다. ㉠ **우리 변경이 만드는 것**(새 의존의 license·ban, 새로 직접 의존이 된 크레이트의 advisory, 쓰이지 않게 된 ignore 항목)은 그 변경이 들어오는 push 에서 잡아야 하므로 `Cargo.lock`·`deny.toml` 로 좁힌 **main push** 가 본다 — **커밋 단위다.** ㉡ **바깥 세계가 만드는 것**(코드는 그대로인데 새 RUSTSEC 권고가 뜬 경우)은 push 로는 영영 안 잡히므로 주간 `schedule` 이 본다 — **주 단위다.** **주 단위여도 되는 이유**는 그 축의 입력이 우리 커밋이 아니라 바깥 세계라 우리 회차와 무관하게 바뀌기 때문이고, daily 는 러너 부하 대비 이득이 적다. ⇒ **㉠ 을 주 단위로 읽으면 안 된다**: 새 의존을 들이는 커밋은 그 push 에서 즉시 판정되고, 노출 창은 일주일이 아니다. (이 갈래 서술은 오래도록 워크플로 파일 머리에만 있었다 — 옮긴 것이 아니라 표에도 둔다. 표만 읽으면 "매주 월요일"이 먼저 눈에 들어와 ㉠ 까지 주 단위로 읽힌다.) | [실측] |
-| 사이트 빌드 | `npm ci && npm run build` (`site/`) | `pages.yml` 의 `build` (ubuntu-latest) | main push — `site/**` · `Cargo.toml` · 랜딩 아이콘 · 그 워크플로가 바뀐 경우만 · 수동 | 등급 미정 |
+| 사이트 빌드 | `npm ci && npm run build && npm run check-links` (`site/`) | `pages.yml` 의 `build` (ubuntu-latest) | main push — `site/**` · `Cargo.toml` · 랜딩 아이콘 · 그 워크플로가 바뀐 경우만 · 수동 | 등급 미정 |
 
 ### 로컬에서 이 게이트들을 돌리기 전에 — **판정기부터**
 
@@ -189,7 +189,7 @@ cargo build -p tasty-doc-guards --bin mask-source
 초록과 실제로 판정한 초록이 같은 줄로 보이기 때문이다.
 
 ⇒ 집행: **모수가 환경마다 달라질 수 있는 가드는 자기가 훑은 수를 노출한다.** 위 가드는
-이미 그렇게 한다(`MIN_DIRS_WALKED` 하한 + 실패문이 순회 수를 찍는다). 그 수가 없으면
+이미 그렇게 한다(`MARKER_FLOOR`·`TARGET_FLOOR` 하한 + 실패문이 순회 수를 찍는다). 그 수가 없으면
 "안전하다" 와 "애초에 못 봤다" 가 구별되지 않는다.
 
 ⇒ 그리고 여기서 나오는 일반형: **"doc-guards 초록" 은 기계마다 모수가 다르다.** 여러
@@ -370,7 +370,7 @@ cargo build -p tasty-doc-guards --bin mask-source
 [그 잡이 초록인가](#그-잡이-초록인가-그리고-그-결과가-읽히는가) 절에 있다.
 
 
-**문서만 담은 push 는 세 크로스플랫폼 잡을 발사하지 않는다.** `crossplatform-check.yml` 의
+**문서만 담은 push 는 네 크로스플랫폼 잡을 발사하지 않는다.** `crossplatform-check.yml` 의
 push 트리거에 `paths-ignore`(`docs/**` · `site/**` · `**/*.md`)가 걸려 있다. 컴파일 입력이
 아닌 경로로 러너를 깨우지 않으려는 안전판인데, **문서 가드에는 정확히 거꾸로 작동한다** —
 문서를 고치는 push 가 문서를 검사하는 채널을 돌리지 않는다. 소스를 함께 담은 push 에서는
@@ -491,12 +491,12 @@ gh api "/repos/<owner>/<repo>/actions/runs/<run-id>/jobs?per_page=100" \
 않는** 경우다. 앞의 둘은 로그에 흔적이 남지만(줄이 없거나 빨갛다) 이것은 **초록으로
 보인다.**
 
-실물 하나. pre-push B.6 은 `--no-default-features` 조합을 컴파일하는데, `src/lib.rs:23`
-이 `#![cfg_attr(not(feature = "gui"), allow(dead_code))]` 다 — **그 조합에서는 `dead_code`
-lint 가 꺼져 있다.** 그래서 그 스텝이 초록인 것은 "죽은 코드가 없다" 가 아니라 **"그것을
-안 물었다"** 이다. `--release` 조합에서 `dead_code` 는 error 라서 컴파일이 죽는데, 그
-조합을 보는 자리는 CI `check-release` 하나이고 **그것은 push 후**다(2026-09-07 실측:
-`--release` 를 부르는 자리가 pre-commit 0 건 · pre-push 0 건).
+실물 하나(과거 사례). pre-push B.6 은 `--no-default-features` 조합을 컴파일하는데,
+`src/lib.rs` 최상단에 `#![cfg_attr(not(feature = "gui"), allow(dead_code))]` 가 있던 동안
+(`6708c7767` 이 지웠다) **그 조합에서는 `dead_code` lint 가 꺼져 있었다.** 그래서 그 스텝이
+초록인 것은 "죽은 코드가 없다" 가 아니라 **"그것을 안 물었다"** 였다. `--release` 조합에서
+`dead_code` 는 error 라서 컴파일이 죽는데, 2026-09-07 실측으로 그 조합을 보는 자리는 CI
+`check-release` 하나였다. 지금은 pre-push B.8 도 그 조합을 본다.
 
 **그래서 "헤드리스도 돌렸으니 괜찮다" 는 근거가 되지 않는다.** 두 조합은
 `debug_assertions` 과 feature 가 함께 다르고, 켜진 lint 도 다르다. 어떤 조합이 어떤
@@ -554,7 +554,7 @@ gh api /repos/zilhak/tasty/actions/jobs/<jid>/logs | grep -a "^test result\|Runn
 **실측은 0 건**이다(최근 30 실행: 그 스텝 success 26 · failure 0 · skipped 4).
 
 이 자리의 수는 `crates/tasty-doc-guards/tests/ci_channel_claims_match_workflows.rs` 의
-`SWALLOWABLE_STEPS`(6)와 `PROTECTED_STEPS`(2)가 짝으로 못박는다. 두 수를 함께 두는 이유는
+`SWALLOWABLE_STEPS`(6)와 `PROTECTED_STEPS`(6)가 짝으로 못박는다. 두 수를 함께 두는 이유는
 **처방이 들어간 것과 스텝이 통째로 사라진 것이 한 수만 보면 같은 모양이기 때문**이다.
 
 ★ **그 판정기가 덮는 것은 ㄴ 층뿐이다.** 스텝 헤더(6 칸)만 읽으므로 ㄱ 층의 잡 조건
@@ -681,7 +681,7 @@ git diff --name-only <앞 push tip> <이 push tip>
 상위집합을 복원한다([ADR-0537](../adr/0537-the-plugin-version-gate-follows-path-dependencies-outside-the-workspace.md)).
 로컬 모사(GitHub 의 glob 규칙을 정규식으로 옮겨 추적 파일에 적용, 2026-09-23): `crates/` 와
 `vendor/tiny_http/` 아래 `build_affecting` 경로 858 개 중 필터가 빼는 것 0, `docs/`·`site/` 에서
-켜는 것 0. **실제 발화는 미측정**이다 — push 해야 보이고, 다음 push 의 CI 에서 확인한다.
+켜는 것 0. 발화는 필터 커밋 뒤 첫 push(run 35816936207, `91b75ef7d`)에서 실측했고, `.md` 되살림 갈래의 발화는 **미측정**이다.
 
 ##### `pages` 만 구조상 가능하다 — 그리고 그 0 은 우연이 아니다
 
@@ -850,7 +850,6 @@ ADR-0230 의 세 층은 **한 번 돈 회차 안에서 무엇이 안 돌았나**
 | `check-headless` `cargo test (headless)` | `cargo check (headless)` (40/40 success) | 전제 — 컴파일 | 안 건다(좌변도 0) |
 | `check-windows` `cargo clippy` | `normalize the working tree …` (failure 1) | **아니다** — 줄 끝 문자는 컴파일에 무관 | **건다** |
 | `check-windows` `cargo clippy` | `ensure clippy component` (failure 0) | 전제 — 컴포넌트 | 안 건다. 대신 **그 스텝도 함께 들어올린다** |
-| `release` 빌드·서명·업로드 (skipped 18) | `Decode release signing key` | 전제 — 키 | 안 건다. 릴리스가 안 나오는 것으로 사람에게 이미 보인다 |
 
 ★ **그 셋째 줄에는 "정밀한 처방" 이 있는데 안 쓴다 — 칸 (ㄴ)③ 이다.**
 전제의 실패만 막는 형태(`if: ${{ !cancelled() && steps.<id>.outcome == 'success' }}`)를 쓰면
@@ -1277,9 +1276,9 @@ done | sort | uniq -c
 - **배포 파이프라인이라 여기 안 적는다** — `release.yml` 여섯 잡과 `pages.yml` 의 `deploy`.
   산출물을 만들지 검증 술어를 돌리지 않는다. 절차는 [release](release.md) ·
   [release-runners](release-runners.md) · [site](site.md) 가 담는다.
-- **빠뜨린 것 하나** — `pages.yml` 의 `build`. `--strict` 가 깨진 상대 링크와 `ORDER` 누락을
-  **실패로 승격**하므로 검증 술어이고, 그 스텝이 workspace 밖 `site/` 크레이트를 컴파일하기도
-  한다. 위 표에 행을 넣었다.
+- **빠뜨린 것 하나** — `pages.yml` 의 `build`. `npm run check-links` 가 산출 HTML 의 깨진 내부
+  링크·앵커를, `npm run build` 가 `ORDER` 누락을 **실패로 올리므로** 검증 술어다. 위 표에 행을
+  넣었다.
 - **죽은 채널은 0** — 배선만 있고 안 도는 잡은 없었다. 다만 `build-check.yml` 은 지금까지
   실행 이력이 0 이다(수동 전용이니 "쓸 수 있다" 는 주장은 참이다).
 
@@ -1288,10 +1287,8 @@ done | sort | uniq -c
 정당한 예외가 계속 생겨 **명부 밖에 대상이 없다** 를 함께 단정해야 한다 — 그 단정이 이
 표보다 먼저 낡는다.
 
-> **가이드의 깨진 링크·앵커를 보는 자동 채널은 지금 없다.** Rust 생성기의 `--strict` 가
-> 상대 링크와 `#앵커` 를 전수 검사하고 `ORDER` 누락을 실패로 올렸는데, Astro 로 옮기면서
-> 그 검사가 함께 사라졌다. `ORDER` 누락만 빌드 실패로 남아 있다(`buildPages` 가 던진다).
-> 링크 검사를 다시 세우기 전까지 이 칸은 **미측정**이다.
+> **가이드의 깨진 링크·앵커는 `pages.yml` 의 `npm run check-links`(`site/scripts/check-links.mjs`)가
+> 산출 HTML 에서 판정한다.** `ORDER` 누락은 빌드 실패다(`buildPages` 가 던진다).
 
 ## "안 돈다" 를 쓰기 전에 두 가지를 갈라라
 
@@ -1357,7 +1354,7 @@ cargo test -p tasty-doc-guards --test filter_free_channel_still_exists
 
 **이 수는 술어 자신을 세지 않는다.** 술어가 `"Command::new"` 같은 표지를 문자열로 찾는데,
 그 표지를 **리터럴로 담은 파일**(술어를 구현한 가드들)은 자기 표지에 걸려 모수에서 빠진다.
-실측 17 은 그 둘을 뺀 값이다 — 세는 쪽을 고치려면 `mask-source` 처럼 코드와 문자열을
+위 표의 값은 그 둘을 뺀 값이다 — 세는 쪽을 고치려면 `mask-source` 처럼 코드와 문자열을
 가르는 판정기가 먼저 있어야 한다.
 
 **필터가 구멍이 되는 것은 그중 1 뿐이다.** 뒤 34 중 28 은 읽는 경로에 무시 대상이 하나도
@@ -1891,17 +1888,17 @@ lib 유닛 테스트에서 그 서술을 지우면 사실보다 약하다. 어�
 해당 lint 를 **끈다** — 그 조합에서만 도는 자동 잡(`check-headless`)이 그 lint 를
 영영 못 본다. deny 로 승격된 lint 라도 마찬가지다: `allow` 가 deny 를 이긴다.
 
-**crate-level 하나가 조합 전체의 채널을 지운다(실측).** `src/lib.rs` 최상단의
-`#![cfg_attr(not(feature = "gui"), allow(dead_code))]` 를 임시로 걷고 headless
-`cargo check` 를 돌리면 그동안 숨어 있던 dead code 가 다수 error 로 터진다(`enum
+**crate-level 하나가 조합 전체의 채널을 지운다(실측, 과거 사례).** `src/lib.rs` 최상단에
+있던 `#![cfg_attr(not(feature = "gui"), allow(dead_code))]`(`6708c7767` 이 지웠다)를 임시로
+걷고 headless `cargo check` 를 돌리자 그동안 숨어 있던 dead code 가 다수 error 로 터졌다(`enum
 Strategy` · `const PAPLAY_SOUND`/`APLAY_SOUND` · `static STRATEGY` 등). 즉 그
 attribute 는 no-op 가 아니라 **headless 의 dead_code 채널을 crate 전역으로 삭제**하고
-있다 — [ADR-0142](../adr/0142-channel-claims-are-written-against-the-working-tree.md) 의
+있었다 — [ADR-0142](../adr/0142-channel-claims-are-written-against-the-working-tree.md) 의
 ② 형(잡은 돌지만 술어가 못 봐서 초록이 오도)의 전형이다.
 
 **같은 allow 가 중첩되면 자식 제거는 채널을 복원하지 못한다.** inner attribute 는
 자손 모듈로 전파되므로, `lib.rs`(crate) → `adapters/ipc.rs`(모듈) → `adapters/ipc/
-handler.rs`(자식) 처럼 같은 조건부 allow 가 겹쳐 있으면 자식 하나를 떼도 상위가 여전히
+handler.rs`(자식) 처럼(과거 배치) 같은 조건부 allow 가 겹쳐 있으면 자식 하나를 떼도 상위가 여전히
 그 트리를 덮는다. 자식 allow 제거는 "채널을 되살린 것" 처럼 보이지만 실제로는 중복
 제거(no-op)일 뿐이다 — 채널을 되살리려면 **가장 바깥의 allow** 를 걷어야 한다. 그래서
 조건부 allow 를 지울 때는 그 자리가 실제로 무엇을 침묵시키는지(가장 바깥인지, 이미 상위가
@@ -2005,7 +2002,7 @@ Linux gui 유닛 스텝이 붙은 뒤 모수를 다시 잡았다 — 술어가 �
    `skipped` 라 물음이 던져지지도 않았다. 그래서 그 스텝의 승격 조건 둘 중 앞엣것
    (러너에 `xvfb-run` 이 있는가)은 충족됐고, 남은 것은 **연속 N 회 초록**이다.
    N 은 아직 정하지 않았다 — 초록 한 번으로 정하면 그 수는 관측이 아니라 선호가 된다.
-2. **`tests/gui_tests.rs` 33 건** — 33 개 전부 `#[ignore]` 라 조합을 바꿔도 안 돈다.
+2. **`tests/gui_tests.rs`** — 전부 `#[ignore]` 라 조합을 바꿔도 안 돈다.
 
 두 번째가 왜 "성질" 인지는 실제로 돌려 봐야 갈린다. 돌려 봤고, 막는 것이 셋이었다:
 
@@ -2043,7 +2040,7 @@ Linux gui 유닛 스텝이 붙은 뒤 모수를 다시 잡았다 — 술어가 �
   한 프로세스로 잰 값은 여전히 사건 수가 아니다.
 
   ☆ 아래 33 은 이 정정의 대상이 **아니다.** 그것은 사건 수가 아니라 `--ignored --list` 의
-  항목 수라 지금도 맞다. **수를 지우지 말고 무엇을 센 수였는지로 바꾼다** — 33 은 틀린 수가
+  측정 당시의 항목 수다(지금 수는 `grep -cE '^\s*#\[ignore' tests/gui_tests.rs`). **수를 지우지 말고 무엇을 센 수였는지로 바꾼다** — 33 은 틀린 수가
   아니라 다른 것을 센 수다.
   다만 **왜 대부분이 안 도는지는 갈렸다**: 33 건을 "OS 전역 입력(`enigo`)을 쓰는가" 로
   가르면 그쪽 26 건이 **26/26 실패**하고 통과가 0 이다. 프로세스 안 IPC 주입만 쓰는 쪽은
@@ -2062,7 +2059,7 @@ Linux gui 유닛 스텝이 붙은 뒤 모수를 다시 잡았다 — 술어가 �
 | 층 | 값 |
 |---|---|
 | 디스플레이가 사는 것 | **1** — `multi_window_owner_routing`. `#[ignore]` 가 아닌데 창이 없어 못 돌았다 |
-| 디스플레이가 **못 사는** 것 | **33** — `gui_tests` 전부가 `#[ignore]` 라, 디스플레이가 있어도 평범한 `cargo test` 는 한 건도 안 돈다. 이쪽이 요구하는 것은 디스플레이가 아니라 **플래그**다 |
+| 디스플레이가 **못 사는** 것 | **`gui_tests` 전부** — 그것이 `#[ignore]` 라, 디스플레이가 있어도 평범한 `cargo test` 는 한 건도 안 돈다. 이쪽이 요구하는 것은 디스플레이가 아니라 **플래그**다 |
 | `-- --ignored` 를 줘도 나오는 수 | **단일 값이 없다** — 계기마다 다르고 서로 반대 방향으로 흔들린다 |
 
 **셋째 칸의 값을 하나 더 쟀다 (2026-09-07).** 이 칸의 규칙이 "계기를 함께 적어라" 이므로
@@ -2334,9 +2331,9 @@ false 로 되돌리며 `AppEvent::OpenSettings` 로 바꾼다. 키보드 경로�
 - ★ 그래서 이 절이 남기는 교훈은 뒤집히지 않았다: 세 번의 `skipped` 는 "없다" 의 증거가
   **아니었다.** 물음이 안 던져졌던 것뿐이고, 던지자 답이 나왔다. 그때 세 번을 근거로 "없다" 라고
   적었더라면 **그 줄은 지금 틀린 채로 남아 있었을 것이다.**
-- **처방이 이미 있고, 아직 안 돌았다**: `if: !cancelled()` 가 그 건너뜀을 막는다. 그러나
-  그 수정이 main 에서 한 번 돌기 전까지 위 0 은 안 움직인다. **"다음 회차에 답이 나온다" 는
-  예측은 세 번 빗나갔다** — 예측을 반복해 적는 대신, 답이 나오는 **조건**을 적는다.
+- **처방**: `if: !cancelled()` 가 그 건너뜀을 막는다. 그것이 main 에서 실제로 돈 회차가 위
+  run 33994212447 이다. **"다음 회차에 답이 나온다" 는 예측은 그 전에 세 번 빗나갔다** —
+  예측을 반복해 적는 대신, 답이 나오는 **조건**을 적는다.
 
 재는 법(러너를 새로 점유하지 않는다 — 과거 실행에 이미 들어 있다):
 
@@ -2521,7 +2518,7 @@ grep -o 'openat([^,]*, "[^"]*"' /tmp/t.log | sed 's/.*, "//;s/"$//' \
 | 자리 | 도출/재사용을 재는 판사 | 붙였나 |
 |---|---|---|
 | `tests/i18n_key_parity.rs` | 도출 계수기 + 조기 탐침 | 이미 있다(이 회차의 앞 단위) |
-| `tests/common/mod.rs` | `SHARED_SPAWN_COUNT` 를 `tests/shared_instance_harness.rs:23` 이 판정 | 이미 있다 |
+| `tests/common/mod.rs` | `SHARED_SPAWN_COUNT` 를 `tests/shared_instance_harness.rs` 가 판정 | 이미 있다 |
 | `tests/gui_common/mod.rs` | 없다 | **붙일 수 없었다 — 아래** |
 
 ★ **셋째에서 이 형태가 안 선다.** 계수 판정은 "같은 것을 두 번 부르고 둘째가 비싼 일을
@@ -3117,7 +3114,7 @@ cargo check --workspace --all-targets --target x86_64-pc-windows-gnu --locked
 열어야만 보인다 — 그래서 리뷰로는 걸러지지 않는다.
 
 `crates/tasty-doc-guards/tests/ci_channel_claims_match_workflows.rs` 가 그 형태를 막는다(이 가드 자신도 통합
-테스트라 `doc-guards.yml` 과 `check-headless` 두 잡이 돌린다 — 위 규칙이 자기에게도 그대로
+테스트라 `doc-guards.yml` · `check-windows` · `check-headless` 세 잡이 돌린다 — 위 규칙이 자기에게도 그대로
 적용된다). 문서를 문서로 검사하지 않고 **워크플로에서 자동 트리거를 가진 잡을 읽는다.**
 네 축이 있다.
 
