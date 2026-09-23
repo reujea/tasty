@@ -1,4 +1,4 @@
-<!-- source-hash: 24ebe9f4def3 -->
+<!-- source-hash: 4819180445d3 -->
 # Settings
 
 Adjust your shell, fonts, and workspace preferences to suit the way you work. Use the settings window or edit `~/.tasty/config.toml` directly. For key combinations and colours, see [Keybindings](keybindings.md) and [Themes](themes.md).
@@ -208,7 +208,7 @@ the text that language ships with stays on screen, and you never get a blank spo
   language code, that the file inside is called exactly `pack.toml`, and that
   `[font]` is present. Close and reopen the settings window (the list is read once
   when the window opens). A `pack.toml` may not exceed **2 MiB** — the built-in
-  language files are under 100 KiB, so a normal translation never runs into this.
+  language files are under 400 KiB, so a normal translation never runs into this.
 - **English shows up with a warning** — the pack for the selected language was not
   found, or the file is invalid. The warning names the path that was looked for.
   **Your setting is kept**, so fixing the pack and restarting brings that language
