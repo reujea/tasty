@@ -91,7 +91,7 @@ impl PluginManager {
     ///   매칭되는 `HandleAttach`를 기다린다).
     ///
     /// 핸들 전송이 실패하면 SharedMemory를 등록하지 않고 에러를 반환한다 — plugin은
-    /// `host_call_timeout` 등으로 인식한다.
+    /// `PluginError::HostCallTimeout` 등으로 인식한다.
     #[cfg(unix)]
     pub fn create_shared_buffer_for(
         &mut self,

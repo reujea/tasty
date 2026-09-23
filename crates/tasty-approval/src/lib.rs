@@ -300,7 +300,7 @@ pub enum ApprovalError {
 // Store
 // ============================================================
 
-/// Approval 들을 담는 메인 컨테이너. 호스트는 단일 인스턴스를 `engine_state` 에
+/// Approval 들을 담는 메인 컨테이너. 호스트는 단일 인스턴스를 `CoreState::approval_store` 에
 /// 들고 모든 IPC handler 가 공유한다. 내부 `Mutex` 로 thread-safe.
 pub struct ApprovalStore {
     inner: Arc<Mutex<Inner>>,

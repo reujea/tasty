@@ -2,13 +2,9 @@ use super::tab::Tab;
 use super::{PaneId, SplitDirection, SurfaceId, TabId, TerminalSurface};
 use tasty_terminal::{Terminal, Waker};
 
-/// Pane 의 shell-spawning 함수들이 공유하는 옵션 묶음.
+/// [`Pane::spawn_terminal`] 이 받는 shell-spawning 옵션 묶음.
 ///
-/// `new_with_shell`, `add_tab_with_shell`, `add_tab_background_with_shell`,
-/// `split_active_surface_with_shell`,
-/// `split_surface_by_id_with_shell` 함수들이 모두 `(cols, rows, shell,
-/// shell_args, waker, working_dir)` 6 인자를 가져 너무 많았다 (`too_many_arguments`).
-/// 공통 옵션을 struct 로 묶어 각 함수 시그니처 인자 수를 lint 임계값 내로 줄임.
+/// 인자를 따로 받으면 `too_many_arguments` 임계를 넘어 struct 로 묶었다.
 pub struct ShellSpawnOpts<'a> {
     pub cols: usize,
     pub rows: usize,

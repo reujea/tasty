@@ -18,7 +18,7 @@ use crate::ipc_namespace::IpcNamespaceRegistry;
 // 접히면 규칙이 사라진 것과 구별이 안 돼 빨개진다.
 //
 // cfg 가 붙은 이유: 이 이름을 쓰는 자리가 debug 쪽 `PREFIX_RULES` 하나뿐이라,
-// release 에서는 아무 데도 안 쓰여 `unused_import` 가 뜬다. 그 조합을 보는 잡이
+// release 에서는 아무 데도 안 쓰여 `unused_imports` 가 뜬다. 그 조합을 보는 잡이
 // `check-release` 이고 debug 빌드에서는 조용하다.
 #[cfg(debug_assertions)]
 use self::MethodEffect::Idempotent;
@@ -1050,7 +1050,7 @@ pub const DEBUG_METHODS: &[(&str, MethodMeta)] = &[];
 ///   대상이다 — release 에서는 이 규칙 자체가 사라져 빈 슬라이스가 된다.
 ///
 /// plugin 이 매니페스트 `[[contributes.ipc_namespace]]` 로 점유한 prefix 는
-/// [`register_plugin_prefix`] 로 *runtime* 등록되어 `method_meta()` 의 마지막
+/// host 가 [`install_namespace_table`] 로 건넨 표에 올라 `method_meta()` 의 마지막
 /// fallback 단계에서 해소된다. 정적 `PREFIX_RULES` 는 host 자체 메서드의
 /// prefix-fallback 전용.
 #[cfg(debug_assertions)]

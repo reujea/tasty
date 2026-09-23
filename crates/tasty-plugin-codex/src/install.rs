@@ -110,7 +110,7 @@ pub(crate) const HOOK_EVENTS: &[(&str, &str, &str)] = &[
 ];
 
 /// 경로만 계산한다 — 실패를 문구로 만들지 않으므로 `Translator` 가 없는 자리에서도
-/// 쓸 수 있다(`codex_hooks_all_trusted` 는 실패를 그냥 `false` 로 접는다).
+/// 쓸 수 있다.
 pub(crate) fn config_toml_path_opt() -> Option<PathBuf> {
     if let Some(home) = std::env::var_os("CODEX_HOME").filter(|s| !s.is_empty()) {
         return Some(PathBuf::from(home).join("config.toml"));

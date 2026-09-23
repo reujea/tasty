@@ -356,7 +356,7 @@ impl PluginManager {
     ///
     /// [`send_surface_set_context`](Self::send_surface_set_context) 의 popup 대응 —
     /// fire-and-forget 이고, plugin 은 응답 대신 비동기 [`PopupPaintFrame`] 알림으로
-    /// mesh 를 회신한다. 호스트 popup 합성기(`popup_mesh_render`)가 host→plugin 송신
+    /// mesh 를 회신한다. 호스트 popup 합성기(`src/plugin_bridge/popup_render.rs`)가 host→plugin 송신
     /// 경로로 이 헬퍼를 호출한다.
     ///
     /// [`PopupPaintFrame`]: tasty_plugin_protocol::PluginEvent::PopupPaintFrame

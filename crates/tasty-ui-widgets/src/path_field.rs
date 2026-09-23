@@ -15,8 +15,7 @@
 //!   가 경로 문자열만 담는다.
 //! - **id_salt 필수**: host 다중 surface/tab 충돌 방지(각 필드 고유 id).
 //!
-//! 결정 로직([`decide`])은 markdown 주소창의 `addr_outcome` 를 포팅한 것이다(Go 클릭 분기
-//! 추가). 순수 함수라 단위테스트로 격리한다.
+//! 결정 로직([`decide`])은 순수 함수라 단위테스트로 격리한다.
 
 use tasty_type_appearance::theme::Theme;
 
@@ -36,7 +35,7 @@ pub enum PathFieldOutcome {
     Revert,
 }
 
-/// 편집/이동 결정(내부) — markdown `AddrOutcome` 포팅. `decide` 가 산출한다.
+/// 편집/이동 결정(내부). `decide` 가 산출한다.
 #[derive(Debug, Clone, PartialEq, Eq)]
 enum Decision {
     None,

@@ -1,7 +1,7 @@
 //! Tasty 의 사용자 데이터 디렉토리 헬퍼.
 //!
 //! `tasty_home()` 이 기반 경로 (`~/.tasty/`) 를 반환한다. 도메인별 경로
-//! (`themes_dir`, `memory_db_path`, `config_path` 등) 는 각 도메인 crate 가
+//! (`themes_dir`, `default_db_path`, `config_path` 등) 는 각 도메인 crate 가
 //! 이 함수를 호출해 자체 정의한다 — utils 는 *공통 기반* 만 제공.
 
 use std::path::{Path, PathBuf};

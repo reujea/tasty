@@ -1,4 +1,4 @@
-//! `keybindings_tests` 단위 테스트.
+//! `keybindings` 단위 테스트.
 
 use super::*;
 use crate::general::GeneralSettings;

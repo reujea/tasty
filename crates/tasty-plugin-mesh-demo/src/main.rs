@@ -8,7 +8,7 @@
 //!
 //! 코덱/SDK 는 재구현하지 않는다 — [`EguiMeshSurface`] 헬퍼만 호출한다.
 //! `surface.set_context`(host→plugin) → `run_frame`/`tessellate`/`encode` →
-//! `paint_and_send`(shared buffer commit + `PaintFrame` 알림) 전 과정을 SDK 가 은닉한다.
+//! `paint`(shared buffer commit + `PaintFrame` 알림) 전 과정을 SDK 가 은닉한다.
 //!
 //! 데모는 label 1개에 더해 입력 forward 를 눈으로 확인할 수 있도록 클릭 카운터
 //! 버튼과 스크롤 영역을 둔다 — host 가 forward 한 실제 사용자 입력이 plugin 의

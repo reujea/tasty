@@ -446,7 +446,7 @@ impl TerminalState {
     ///
     /// 캡처 전용 벌크 경로다 — 호출자가 `0..scrollback_len()` 을 돌며
     /// [`scrollback_line_full`](Self::scrollback_line_full) 을 부르는 것과 결과는
-    /// 같지만, `TerminalHandle` 경유 시 라인마다 잡히는 state mutex 를 한 번으로
+    /// 같지만, `Terminal` 핸들(`handle.rs`) 경유 시 라인마다 잡히는 state mutex 를 한 번으로
     /// 줄인다. 그 mutex 는 PTY 파서 스레드가 `ingest` 로 잡는 것과 같은 것이라,
     /// 라인당 lock 은 만재 스크롤백에서 파서와 수만 회 경합한다.
     pub fn scrollback_lines_all(&self) -> Vec<crate::ScrollbackLine> {

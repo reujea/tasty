@@ -202,7 +202,7 @@ pub fn evaluate_deep(rule: &DetectorRuleKind, target: &FileTarget, ctx: &mut Dee
 /// (구) 단순 glob 매처 — `PathGlob` 평가는 `globset` 기반으로 교체 완료됐고,
 /// 이 함수는 더 이상 production 경로에서 쓰이지 않는다. 옛 매처와 새
 /// `globset` 매처의 동작 차이를 확인하는 호환성 회귀 테스트 전용으로만 남겨둔다
-/// (아래 `tests::glob_migration_compat` 모듈). `*` 는 여러 개 지원(prefix/middle/suffix
+/// (아래 `tests` 의 `glob_migration_*` 시험). `*` 는 여러 개 지원(prefix/middle/suffix
 /// 매칭) — `?`/`[...]`/`**` 같은 문법은 지원하지 않는다.
 #[cfg(test)]
 fn simple_glob_match(pattern: &str, name: &str) -> bool {

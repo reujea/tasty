@@ -110,7 +110,7 @@ PS0='$(__tasty_osc133_preexec)'
 "#;
 
 /// 합성 bashrc 버전 스탬프. `compose_*_bashrc` 가 출력 맨 앞에 심고,
-/// `ensure_compiled_bashrc` 가 기존 파일에서 이 줄이 정확히 일치하지 않으면
+/// `ensure_compiled_bashrc_in` 가 기존 파일에서 이 줄이 정확히 일치하지 않으면
 /// (스탬프 없음 = 구버전 포함) 강제 재생성한다 — "빠진 파일만 채우는" 기존
 /// 동작으로는 빌트인 블록 변경이 기존 설치본에 반영되지 않기 때문.
 ///
@@ -911,7 +911,7 @@ fn ensure_compiled_bashrc_in(dir: Option<&std::path::Path>) {
     }
     // default 모드 합성 rc — 양쪽 플랫폼 공통(비-Windows 는 이거 하나만 쓴다).
     // 홈 미해석이면 CWD 에 만들지 않고 그냥 만들지 않는다 — 호출자
-    // (`bash_rcfile_args`)도 같은 조건에서 `--rcfile` 을 내지 않으므로 셸은 통합
+    // (`bash_rcfile_args_in`)도 같은 조건에서 `--rcfile` 을 내지 않으므로 셸은 통합
     // 없이 평소대로 뜬다(`tasty_dir` 참고).
     let Some(default_path) = tasty_bashrc_default_path_in(dir) else {
         return;
@@ -992,7 +992,7 @@ pub fn compose_zsh_zshenv() -> String {
 }
 
 /// wrapper `.zshenv` 가 존재하고 최신 빌트인 버전인지 보장한다. 파일이 없거나
-/// 버전 스탬프가 현재와 다르면 재생성한다(bash 의 `ensure_compiled_bashrc` 와
+/// 버전 스탬프가 현재와 다르면 재생성한다(bash 의 `ensure_compiled_bashrc_in` 와
 /// 동형 — 사용자 편집 영역이 없어 훨씬 단순하다: zsh 는 wrapper 가 사용자 콘텐츠를
 /// 감싸지 않고 그대로 원본 `.zshenv` 로 넘기므로 재생성이 사용자 데이터를 건드릴
 /// 위험 자체가 없다).
@@ -1031,7 +1031,7 @@ fn ensure_compiled_zshenv_in(dir: Option<&std::path::Path>) {
 ///
 /// **각 `pub fn` 의 `tasty_dir().as_deref()` 위임은 덮는다** — `None` 이 필요 없고
 /// 상대 `TASTY_HOME` 이면 갈리기 때문이다(절대 경로는 해석 전후가 같아 구분되지
-/// 않는다). 출력 경로 둘(`bash_rcfile_args`·`effective_shell_envs`)을
+/// 않는다). 출력 경로 둘(`bash_rcfile_args_in`·`effective_shell_envs`)을
 /// `*_uses_the_resolved_root` 가 각각 고정한다.
 ///
 /// 상대 경로 축(`TASTY_HOME` 이 상대일 때 파생 경로가 자식 셸의 CWD 로 재해석되는 것)
@@ -1237,7 +1237,7 @@ mod tests {
     // `var_os` 와 겹치면 UB(edition 2024 가 unsafe 로 표시)다. 그래서 대부분의
     // 테스트는 홈 경로를 `_in(Some(home.path()))` 로 **주입**해 env 를 아예 안
     // 만진다(아래 `TmpHome`). 남은 SERIAL 은 **상대 TASTY_HOME 해석 자체가 검증
-    // 대상**이라 env 를 만질 수밖에 없는 소수(`relative_tasty_home_is_absolutized`,
+    // 대상**이라 env 를 만질 수밖에 없는 소수(`relative_tasty_home_is_absolutized_for_child_processes`,
     // `RelativeHomeGuard` 계열)와 CWD 오염 canary 를 직렬화한다.
     static SERIAL: std::sync::Mutex<()> = std::sync::Mutex::new(());
 

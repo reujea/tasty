@@ -1,4 +1,4 @@
-//! `parsers_tests` 단위 테스트.
+//! `parsers` 단위 테스트.
 
 use crate::{ParsedItem, parse_buffer};
 

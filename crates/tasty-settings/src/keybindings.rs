@@ -206,7 +206,7 @@ pub struct KeybindingSettings {
     pub category_switch_prev_key: String,
 }
 
-/// 탭 quick-switch 슬롯 raw 키 기본값 `["1".."9","0"]`(현행 `TAB_DIGITS` 와 동일).
+/// 탭 quick-switch 슬롯 raw 키 기본값 `["1".."9","0"]`.
 ///
 /// 기존 config 마이그레이션 안전용. struct 레벨 `#[serde(default)]` 는 누락 필드를
 /// 그 타입의 `Default::default()`(= 빈 문자열 배열)로 채우므로, 필드별 전용 default fn 이

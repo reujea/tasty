@@ -544,7 +544,7 @@ pub(crate) fn lock_write_progress(count: &Mutex<u64>) -> std::sync::MutexGuard<'
 
 /// PTY writer 스레드 본체 — 큐에 들어오는 write 를 순서대로 PTY 에
 /// write_all+flush 하고, 각 성공마다 `progress` 카운터를 올려 `\r` 를 별도로
-/// write 로 보내는 `IpcHandler` 가 `WriteAck` 로 실제 flush 완료를 확인할 수
+/// write 로 보내는 IPC 핸들러(`send_text_to_surface_with_ack`)가 `WriteAck` 로 실제 flush 완료를 확인할 수
 /// 있게 한다.
 pub(crate) fn run_writer_loop(
     mut pty_writer: Box<dyn Write + Send>,

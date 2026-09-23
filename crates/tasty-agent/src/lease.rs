@@ -39,7 +39,7 @@
 //!   합성해 즉시 점유한다. `max_candidates` 가 있으면 그 상한(고정 candidates
 //!   개수 + 합성된 개수)까지만 증설하고, 넘으면 fixed 와 동일하게 대기/실패.
 //!
-//! 합성된 이름의 원자성: pool 별로 카운터를 하나 영속(`lease_pool_counter_key`)
+//! 합성된 이름의 원자성: pool 별로 카운터를 하나 영속(`pool_counter_key`)
 //! 해 두고, "현재 카운터 읽기 → 후보 스캔 → (소진 시) 카운터 +1 → 새 이름으로
 //! acquire" 전체를 **`acquire_any` 한 호출 안에서, 같은 `&mut dyn
 //! MemoryStorage` 로 순차 수행**한다. 호출자(`HostExecutor::try_acquire_lease`)

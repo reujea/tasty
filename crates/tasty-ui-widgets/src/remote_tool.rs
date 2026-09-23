@@ -355,7 +355,7 @@ pub fn draw_tab_strip(ui: &mut egui::Ui, th: &Theme, data: &TabStripData<'_>) ->
 
 /// 섹션 상단 여백 — canonical `marginTop: 10`. 그 값의 semantic 이 없다(spacing
 /// 스텝은 4·8·12·16·24). 겨루는 component 토큰이 없어 이 출처가 곧 근거다 —
-/// [`crate::status_bar`] 의 `CELL_PAD_X` 와 같은 사정이다.
+/// [`crate::status_bar`] 의 `BAR_PAD_X` 와 같은 사정이다.
 const SSH_SECTION_MARGIN_TOP: LogicalPx = LogicalPx(10.0);
 /// 헤더 라벨·경로·개수 사이 gap, 그리고 헤더/행의 세로 여백 — canonical `gap: 6` ·
 /// `padding: "2px 4px 6px"` · `padding: "6px 4px"` 의 6. `size-6` 에 값은 있지만

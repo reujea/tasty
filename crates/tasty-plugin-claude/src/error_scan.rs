@@ -45,7 +45,7 @@ use tasty_plugin_agent_common::host_call::HostCall;
 /// 측은 제거됐고 이 상수가 단일 출처다.
 const CLAUDE_ERROR_PATTERN: &str = r"(?i)(\bAPI Error\b|Output blocked by content filtering policy|\boverloaded_error\b|\brate_limit_error\b|\bInternal Server Error\b|\bnetwork error\b|\bBad Request\b)";
 
-/// 매칭 창의 상한. 호스트 출력 버퍼의 상한(`OutputBuffer::OUTPUT_BUFFER_MAX`)과 **같은
+/// 매칭 창의 상한. 호스트 출력 버퍼의 상한(`tasty-terminal` 의 `OUTPUT_RETENTION_MAX_BYTES`)과 **같은
 /// 값을 따로 적은 사본**이다 — plugin 은 호스트 크레이트를 링크하지 않는다. 같은 형태의
 /// 사본이 이미 하나 있다([`STALL_QUIET_NO_ERROR`]).
 ///
