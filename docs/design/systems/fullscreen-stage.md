@@ -6,7 +6,7 @@
 [ADR-0082](../../adr/0082-fullscreen-independent-stage.md). 이 문서는 시스템 *동작 모델* 이다.
 
 구현: `src/adapters/ui/fullscreen.rs`(무대 셸·닫힘 훅 drain) + `.../fullscreen/defs.rs`(정적
-테이블) + `AppState`(상태) + `Gpu::render`(렌더 분기).
+테이블) + `src/fullscreen_stages.rs`(gui 무관 메타) + `AppState`(상태) + `Gpu::render`(렌더 분기).
 
 ## 모델
 
@@ -31,7 +31,7 @@
 | `PopupManager::close` → `closed_queue` → `on_close` | `AppState::close_fullscreen_stage` → `stage_closed_queue` → `drain_on_close_hooks` |
 | `draw_popup_layer` | `draw_fullscreen_stage` |
 
-`StageDef` 필드: `id`(진입 경로가 지정하는 이름) · `title_key`(i18n) · `draw_fn` · `on_close`.
+`StageDef` 필드: `meta`(`&'static StageMeta` — `id`(진입 경로가 지정하는 이름) · `title_key`(i18n), `src/fullscreen_stages.rs`) · `draw_fn` · `on_close`.
 무대 콘텐츠의 **자체 상태**는 popup 관례를 따른다 — 무대 id 로 키를 만든 egui temp memory 에
 두고 `on_close` 에서 지운다. `StageState` 에는 무대 수명 그 자체에 속하는 것만 담는다.
 
@@ -355,8 +355,8 @@ OS 가 직접 띄우는 UI 는 wgpu 표면 **위**에 있어 무대가 덮지 �
 - 갇히지 않는다. 모달이 활성인 동안 `MainView::handle_event` 가 메인 창 입력을 통째로
   버리므로 무대 ESC 는 안 먹지만, 모달을 닫으면 그 순간 정상 동작한다 — 회복 경로가
   사용자 손에 항상 있다.
-- 거절을 구현하려면 전역 모달 상태를 창마다의 `AppState` 로 미러링해야 하는데, 그
-  미러가 어긋나면 **무대가 영영 안 열리는** 훨씬 나쁜 실패로 나타난다.
+- 거절을 구현하려면 창마다의 `AppState` 에 있는 모달 거울(`active_modal_id`)을 읽어야 하는데, 그
+  거울이 어긋나면 **무대가 영영 안 열리는** 훨씬 나쁜 실패로 나타난다.
 
 ## 아직 없는 것 — 무대 위에 얹을 때 전제할 경계
 
@@ -370,5 +370,5 @@ OS 가 직접 띄우는 UI 는 wgpu 표면 **위**에 있어 무대가 덮지 �
 ## headless
 
 무대는 화면 투영이라 headless 에 대응 도메인이 없다(`docs/identity.md` §2.2). 상태 필드와
-API 는 `#[cfg(feature = "gui")]` 안에 있고, `AppState::fullscreen_stage_active()` 만 두 빌드
-공통으로 존재해 headless 에서는 항상 `false` 를 돌려준다.
+API 는 `#[cfg(feature = "gui")]` 안에 있고, `AppState::fullscreen_stage_active()` 는
+`#[cfg(any(feature = "gui", debug_assertions))]` 라 debug headless 에도 있고 거기서는 항상 `false` 를 돌려준다(release headless 에는 없다).
