@@ -46,7 +46,7 @@ docs 는 두 묶음으로 나뉜다. §1 의 **동작-우선 taxonomy 는 A(제�
 | **개발 가이드** | `docs/dev-guide/` | **tasty 를 개발하는 법 — 빌드·커밋·릴리스·플러그인·i18n·에러처리·GPU·디버그 IPC·자체검증 등** | 개발 AI 에이전트 |
 | 아키텍처 | `docs/architecture/` | 크레이트 구조 / 데이터 흐름 / invariant | 개발 AI 에이전트 |
 | 자체 검증 | `docs/ai-verification/` | UI·렌더링 검증 절차 | 개발 AI 에이전트 |
-| 에이전트 가이드 | 미신설 — 조회용 표면은 [`docs/reference/`](reference/index.md) | tasty 를 IPC/CLI 로 조작하는 법 (릴리스 에셋으로 배포) | 사용자의 AI 에이전트 |
+| 에이전트 가이드 | 미신설 — 조회용 표면은 [`docs/reference/`](reference/index.md) | tasty 를 IPC/CLI 로 조작하는 법 (릴리스 에셋으로 첨부되지 않는다) | 사용자의 AI 에이전트 |
 | 설치 | `docs/installation.md` | OS·아키텍처별 설치 | 사용자 / 에이전트 |
 
 > B 는 코드·프로세스에서 파생되어 claude design 도입과 무관하게 대체로 유효하다. 따라서 **백지 재작성 대상이 아니라 검토·교정 대상** 이다.

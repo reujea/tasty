@@ -15,8 +15,6 @@ Tasty 는 GitHub Releases 에서 OS·아키텍처·설치 형태별 산출물로
 | Windows | x86_64 | `tasty-{ver}-windows-x64.zip` | 바이너리만 압축 |
 | Windows | x86_64 | `tasty-{ver}-windows-x64.msi` | 시작 메뉴/제거 등록 인스톨러 |
 
-릴리스에는 에이전트용 [reference/](reference/index.md) 문서(IPC/CLI 레퍼런스)도 함께 첨부된다.
-
 ## Linux
 
 ```bash
