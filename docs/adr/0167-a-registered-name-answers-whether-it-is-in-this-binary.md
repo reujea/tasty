@@ -131,3 +131,4 @@ plugin 이 기동된 헤드리스 데몬):
 - [ADR-0143](0143-a-named-target-is-checked-before-the-engine-in-headless.md) — 헤드리스 종단 앞뒤 순서
 - [api-conventions](../dev-guide/api-conventions.md) — 네 코드의 관계 표
 - [headless-ipc-surface](../dev-guide/headless-ipc-surface.md) — 두 조합의 메서드별 판정
+- 부분 개정: [0173](0173-namespace-resolution-reads-the-manifest-not-the-process-table.md) (헤드리스 forward 신호 조항 개정 — `is_unrouted_here` 를 지우고 소속을 매니페스트로 묻는다)

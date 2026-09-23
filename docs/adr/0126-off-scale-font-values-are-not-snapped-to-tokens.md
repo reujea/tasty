@@ -122,10 +122,10 @@ zoom 을 타고 있었고 반경만 고정이었다.
 불변 셋의 전제)이 각각 변이로 죽는 것을 확인했다.
 
 기계가 가르는 경계도 축마다 다르다. 폰트 축은 `no_named_const_copies_a_ui_font_token` 이
-"토큰 값과 같은 const" 를 잡는다. 반경 축에는 대응 가드가 아직 없다 — 지금 막는 것은
-`crates/tasty-doc-guards/tests/design_token_adherence.rs` 의 인라인 리터럴(`.corner_radius(` ·
-`CornerRadius::same(` 두 접두)까지이고, **값이 반경 토큰과 같은 명명 const** 는 열려 있다.
-그 형태가 실제로 나타나면 폰트 쪽 가드와 같은 모양으로 넓히면 된다.
+"토큰 값과 같은 const" 를 잡는다. 반경 축은 `no_named_const_copies_a_radius_token` 이 같은 모양으로 잡는다 — 결정 시점에는
+그 가드가 없어 `crates/tasty-doc-guards/tests/design_token_adherence.rs` 의 인라인 리터럴
+(`.corner_radius(` · `CornerRadius::same(` 두 접두)까지만 막았고, 생긴 경위는 아래 재검토
+조건의 반경 축 셋째 항이 적는다.
 
 ### 축 확장 — 점 치수 축도 같은 결정이다 (상태 점 축에서 확정)
 

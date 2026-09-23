@@ -131,6 +131,7 @@ forward 의존 여덟은 변경 뒤에도 전부 plugin 에 닿는다(헤드리�
 
 - [ADR-0167](0167-a-registered-name-answers-whether-it-is-in-this-binary.md) — 이
   결정이 없애는 결합(종단 코드 ↔ 라우팅 신호)을 만든 변경
+- 개정 대상: [ADR-0167](0167-a-registered-name-answers-whether-it-is-in-this-binary.md) (헤드리스 forward 신호 조항)
 - [ADR-0136](0136-a-query-does-not-create-what-it-observes.md) — 조회가 관측 대상을
   바꾸지 않는다. 설치를 조회 층이 아니라 부팅으로 올린 이유가 이 규약이다
 - [ADR-0171](0171-a-host-error-code-survives-the-plugin-boundary.md) — 위 실측에서

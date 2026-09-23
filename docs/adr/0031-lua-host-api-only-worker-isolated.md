@@ -73,5 +73,5 @@
 ## References
 
 - 코드 근거: `crates/tasty-lua/src/{engine.rs:92-106,123-152, host_api.rs:36-69, sandbox.rs:11-46}`; `src/app.rs`(`lua_engine`); `src/boot.rs:166,255`; `src/app/window_lifecycle.rs:302`; `src/app/event_handler.rs:790`; `src/app/dispatch/{surface_lifecycle.rs:28, host_events.rs:39}`; `src/app/ipc/app_methods.rs:33`(`script.reload`).
-- 관련 문서: [design/policies/lua-hooks](../design/policies/lua-hooks.md)(observe-only/init.lua — 본 ADR 로 init.lua·자동로드 부분 supersede, 문서 갱신 필요), [features/lua-hooks](../features/lua-hooks/index.md), [dev-guide/lua-hooks](../dev-guide/lua-hooks.md), [reference/api](../reference/api.md).
+- 관련 문서: [design/policies/lua-hooks](../design/policies/lua-hooks.md)(observe-only/init.lua — 본 ADR 로 init.lua·자동로드 부분 supersede), [features/lua-hooks](../features/lua-hooks/index.md), [dev-guide/lua-hooks](../dev-guide/lua-hooks.md), [reference/api](../reference/api.md).
 - 관련 ADR: [0009](0009-plugin-sandbox-deferred.md)(plugin sandbox 보류 — plugin 은 별 프로세스, Lua 는 in-process 워커라 신뢰 카테고리 상이), [0028](0028-plugin-egui-mesh-render-channel.md)(plugin 렌더 채널 — plugin in-process dylib 기각 근거와 대비).
