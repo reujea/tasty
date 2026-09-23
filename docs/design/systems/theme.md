@@ -160,7 +160,7 @@ DTCG component tier(치수+색) 토큰은 `crates/tasty-type-appearance/src/gene
 
 코드에 하드코딩이 보이면 `Theme` 필드로 옮긴다. 새 시각 규칙은 이 표에 추가 후 `Theme` 에 필드 신설 — 단 **on/off 정책은 제외한다.** 조절 가능한 수치가 아니라 "끈다"는 결정은 테마마다 달라지지 않는 정책 상수이므로 `Theme`/`ThemeWire` 를 넓히지 않고 이 표와 ADR 을 단일 출처로 둔다(위 애니메이션 3행이 그 예 — `crates/tasty-type-appearance` 에 대응 필드가 없다).
 
-표·드롭다운·버튼처럼 이름이 곧 정체성인 보편 컴포넌트는 인라인으로 그리지 말고 공용 위젯으로 추출한다 — [공용 위젯 제작 정책](../policies/shared-widgets.md).
+표·드롭다운·버튼처럼 이름이 곧 정체성인 보편 컴포넌트는 인라인으로 그리지 말고 공용 위젯으로 추출한다 — [공용 위젯 제작 정책](../../architecture/ui-widgets-crate.md#무엇을-공용-위젯으로).
 
 ### latte 중성 램프 대비 — 알려진 예외
 

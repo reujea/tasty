@@ -14,7 +14,7 @@
 //!   "안내만으로 끝나지 않는" 모달에서만 생긴다.
 //!
 //! **토큰 이관 1건**: 본체는 버튼을 egui 기본 `ui.button` 으로 그린다 → specimen 은
-//! 공용 `tasty_ui_widgets::Button`(`docs/design/policies/shared-widgets.md` 목표 상태).
+//! 공용 `tasty_ui_widgets::Button`(`docs/architecture/ui-widgets-crate.md#무엇을-공용-위젯으로` 목표 상태).
 
 use tasty_type_appearance::theme::Theme;
 use tasty_type_geometry::length::LogicalPx;

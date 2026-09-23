@@ -17,7 +17,7 @@
 //!   `spacing_lg*2` / `spacing_sm` 에서 도출. 값은 전부 동일하다.
 //! - 본체 `egui::Button::new` + `ui.heading`/`ui.label` → 공용
 //!   `tasty_ui_widgets::Button` + Theme 폰트 토큰
-//!   (`docs/design/policies/shared-widgets.md` 목표 상태).
+//!   (`docs/architecture/ui-widgets-crate.md#무엇을-공용-위젯으로` 목표 상태).
 
 use tasty_type_appearance::theme::Theme;
 use tasty_type_geometry::length::LogicalPx;

@@ -12,7 +12,7 @@
 ### 1. 갤러리 specimen 먼저
 받은 디자인으로 갤러리에 specimen 을 만든다: `catalog/{components,widgets}/<name>.rs` 의 `draw(ui, &Theme)` + `catalog.rs::pages()` 의 해당 페이지에 `section(...)`/`spec(...)` 등록. 정합은 **두 개의 독립 축**으로 맞춘다:
 
-- **토큰 정합**: 색·간격·치수·보더는 모두 Theme 토큰에서 가져온다([theme UI 규칙](../design/systems/theme.md#ui-디자인-규칙-필수)). 보편 이름이 붙는 부품(버튼/입력/표 등)은 [공용 위젯](../design/policies/shared-widgets.md)을 호출한다.
+- **토큰 정합**: 색·간격·치수·보더는 모두 Theme 토큰에서 가져온다([theme UI 규칙](../design/systems/theme.md#ui-디자인-규칙-필수)). 보편 이름이 붙는 부품(버튼/입력/표 등)은 [공용 위젯](../architecture/ui-widgets-crate.md#무엇을-공용-위젯으로)을 호출한다.
 - **구조 전사(structural transcription)**: 디자인의 **레이아웃 구조**(grid·컬럼·패딩·정렬·요소 경계)를 egui 소스에 **1:1 전사**한다 — egui flow 로 눈대중 흉내 내지 않는다. 토큰만 맞고 구조가 어긋나면 specimen 이 드리프트한다(전사 절차·함정은 [`design-parity-notes`](../design/systems/design-parity-notes.md) 의 "구조 전사" 원칙, 매핑은 [`design-gallery-mapping`](../design/systems/design-gallery-mapping.md)).
 
 ### 2. 본체 반영
@@ -107,5 +107,5 @@ gallery-first 이전에 만들어져 본체 binary 에만 있는 view 는 갤러
 - [ADR-0510](../adr/0510-design-work-flows-from-claude-design-through-gallery-app-and-site.md) — cut 금지 + gallery-first 결정 근거.
 - [design/policies/gallery-completeness](../design/policies/gallery-completeness.md) — 갤러리 완전성 운영 상태.
 - [popup-implementation](popup-implementation.md) — 본체 팝업 추가(`PopupDef`).
-- [design/policies/shared-widgets](../design/policies/shared-widgets.md) · [model-view-split](model-view-split.md) — 부품 단위 공용화 + view 분리.
+- [architecture/ui-widgets-crate › 무엇을 공용 위젯으로](../architecture/ui-widgets-crate.md#무엇을-공용-위젯으로) · [model-view-split](model-view-split.md) — 부품 단위 공용화 + view 분리.
 - [design/systems/design-gallery-mapping §공용 crate view specimen](../design/systems/design-gallery-mapping.md) — 이미 이 경로로 올라간 항목 목록.

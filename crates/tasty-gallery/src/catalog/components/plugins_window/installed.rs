@@ -228,7 +228,7 @@ fn health_box(ui: &mut egui::Ui, theme: &Theme) {
 }
 
 /// `Status:` 행 — 체크박스 + `Configure`. 본체는 egui `ui.checkbox` 를 직접 쓰지만
-/// 갤러리는 공용 위젯(`shared-widgets` 정책)을 부른다.
+/// 갤러리는 공용 위젯(`docs/architecture/ui-widgets-crate.md` 의 "무엇을 공용 위젯으로")을 부른다.
 fn status_row(ui: &mut egui::Ui, theme: &Theme, row: &Row) {
     ui.horizontal(|ui| {
         caption(ui, theme, "Status:");

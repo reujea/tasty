@@ -82,7 +82,7 @@
 
 - **토큰 SoT = 코드(`Theme`)** — 색·간격·치수·보더는 모두 Catppuccin Mocha 토큰 안에서만. raw hex 하드코딩 금지(시안에서도 토큰 의미 이름으로 표기). ([theme UI 규칙](../design/systems/theme.md#ui-디자인-규칙-필수))
 - **레이아웃 규칙** — 4px 그리드 · 폰트 14px 상한 · 보더 1px · 호버(흰색 +8%)/액티브(+12%) 오버레이는 직접 값 금지(자동 도출).
-- **gallery-first 부품 재사용** — 보편 부품(버튼/입력/표/스크롤바/컨텍스트 메뉴/팝업)은 [공용 위젯](../design/policies/shared-widgets.md)·기존 카탈로그와 시각 일관. ([gallery-first](gallery-first.md))
+- **gallery-first 부품 재사용** — 보편 부품(버튼/입력/표/스크롤바/컨텍스트 메뉴/팝업)은 [공용 위젯](../architecture/ui-widgets-crate.md#무엇을-공용-위젯으로)·기존 카탈로그와 시각 일관. ([gallery-first](gallery-first.md))
 - **i18n 가변폭** — 모든 문자열은 [`t()`](i18n.md) 번역 키로 노출될 예정. 시안 텍스트는 영어 기준이되 독/일/한 가변 길이를 감안해 여유 폭.
 
 ## 정합 대상 — 사이트 사본 (필수)

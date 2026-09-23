@@ -9,7 +9,7 @@
 //! - 본체의 버튼 높이 리터럴 `28.0` → `item_height_interactive`(28) 로 읽는다.
 //! - 본체는 egui 기본 `ui.button` 을 쓴다 → specimen 은 공용
 //!   `tasty_ui_widgets::Button`(Secondary). 보편 컴포넌트는 공용 위젯으로
-//!   그린다는 정책(`docs/design/policies/shared-widgets.md`)의 목표 상태다.
+//!   그린다는 정책(`docs/architecture/ui-widgets-crate.md#무엇을-공용-위젯으로`)의 목표 상태다.
 
 use tasty_type_appearance::theme::Theme;
 use tasty_ui_widgets::{Button, ButtonVariant};
