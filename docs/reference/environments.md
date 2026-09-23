@@ -28,7 +28,7 @@ tasty &
 until tasty list info 2>/dev/null; do sleep 0.2; done    # 포트 뜰 때까지 (sleep 루프 대신 조건검사)
 tasty list tree            # 구조 (ID 포함)
 tasty send text "ls -la\r" --surface <id>
-# 종료: system.shutdown IPC (또는 tasty 명령)
+# 종료: system.shutdown IPC 는 debug 빌드 전용 — release 는 프로세스를 끝낸다(kill <pid>)
 ```
 
 ## IPC 직접 (Python)
