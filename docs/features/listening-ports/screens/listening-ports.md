@@ -32,4 +32,4 @@
 
 ## 시각 소스
 
-`design-system/ui_kits/terminal/overlays/port_scanner.jsx` — 팝업 치수·색·dot·레이아웃 수치의 단일 출처. 스크린샷: `design-system/assets/screens/port_scanner-*.png`. (design-system vendor 후 링크 resolve.)
+`site/vendor/ui_kits/terminal/overlays/port_scanner.jsx` — 팝업 치수·색·dot·레이아웃 수치의 단일 출처. 스크린샷: `site/vendor/screens/port_scanner-*.png`.

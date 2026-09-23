@@ -46,4 +46,4 @@
 
 ## 시각 소스
 
-`design-system/ui_kits/terminal/overlays/plugins_window.jsx` — 창 치수·탭·목록·설치 폼 배치의 단일 출처. 스크린샷: `design-system/assets/screens/plugins_window-installed.png`, `plugins_window-install.png`, `plugins_window-modal.png`. (vendor 후 resolve.)
+`site/vendor/ui_kits/terminal/overlays/plugins_window.jsx` — 창 치수·탭·목록·설치 폼 배치의 단일 출처. 스크린샷: `site/vendor/screens/plugins_window-installed.png`, `plugins_window-install.png`, `plugins_window-modal.png`.

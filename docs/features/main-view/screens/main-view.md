@@ -33,4 +33,4 @@
 
 ## 시각 소스
 
-`design-system/ui_kits/terminal/` — 전체 셸의 치수·색·영역 배치 단일 출처. 스크린샷: `design-system/assets/screens/sidebar-full.png`, `terminal-surface.png` 등. (design-system vendor 후 링크 resolve.)
+`site/vendor/ui_kits/terminal/` — 전체 셸의 치수·색·영역 배치 단일 출처. 스크린샷: `site/vendor/screens/sidebar-full.png`, `terminal-surface.png` 등.

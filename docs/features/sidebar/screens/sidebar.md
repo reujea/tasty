@@ -62,4 +62,4 @@ collapsed 레일은 카테고리마다 경계 `---` 버튼 + 소속 아바타로
 
 ## 시각 소스
 
-`design-system/ui_kits/terminal/chrome.jsx` — 사이드바 치수·색·로고·버튼 배치의 단일 출처. 스크린샷: `design-system/assets/screens/sidebar-full.png`, `sidebar-collapsed.png`, `sidebar-workspaces.png`. (design-system vendor 후 링크 resolve.)
+`site/vendor/ui_kits/terminal/chrome.jsx` — 사이드바 치수·색·로고·버튼 배치의 단일 출처. 스크린샷: `site/vendor/screens/sidebar-full.png`, `sidebar-collapsed.png`, `sidebar-workspaces.png`.

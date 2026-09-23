@@ -33,5 +33,5 @@ Windows:                    [ _ ] [ ▢ ] [ ✕ ]   (캡션 버튼 tasty, OS 캡
 
 ## 시각 소스
 
-`design-system/ui_kits/terminal/chrome.jsx`(공통)·`titlebar_linux.jsx`(Linux 캡션) — 타이틀바 높이·색 토큰·버튼 배치의 단일 출처. macOS 신호등 geometry 는 OS 고정(테마 토큰 아님). (design-system vendor 후 링크 resolve.)
+`site/vendor/ui_kits/terminal/chrome.jsx`(공통)·`titlebar/titlebar_linux.jsx`(Linux 캡션) — 타이틀바 높이·색 토큰·버튼 배치의 단일 출처. macOS 신호등 geometry 는 OS 고정(테마 토큰 아님).
 </content>

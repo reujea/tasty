@@ -37,4 +37,4 @@
 
 ## 시각 소스
 
-`design-system/ui_kits/terminal/overlays/command_palette.jsx` — 팔레트 치수·행·아이콘·바인딩 표기의 단일 출처. 스크린샷: `design-system/assets/screens/statusbar-palette-chip.png`. (vendor 후 resolve.)
+`site/vendor/ui_kits/terminal/overlays/command_palette.jsx` — 팔레트 치수·행·아이콘·바인딩 표기의 단일 출처. 스크린샷: `site/vendor/screens/statusbar-palette-chip.png`.

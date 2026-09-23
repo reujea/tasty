@@ -35,5 +35,5 @@ Pane 이 존재하면 항상 그 위에 표시(Pane 마다 하나).
 
 ## 시각 소스
 
-`design-system/ui_kits/terminal/work.jsx` 의 탭 바 — 탭 치수·아이콘·표지·간격의 단일 출처. (design-system vendor 후 링크 resolve.)
+`site/vendor/ui_kits/terminal/work.jsx` 의 탭 바 — 탭 치수·아이콘·표지·간격의 단일 출처.
 </content>

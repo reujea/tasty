@@ -81,4 +81,4 @@
 
 ## 시각 소스
 
-`design-system/ui_kits/terminal/overlays/settings_window.jsx` — 창 치수·탭바·L2 목록·콘텐츠 배치의 단일 출처. 스크린샷: `design-system/assets/screens/settings_window-tabs.png`. (design-system vendor 후 resolve.)
+`site/vendor/ui_kits/terminal/overlays/settings_window.jsx` — 창 치수·탭바·L2 목록·콘텐츠 배치의 단일 출처. 스크린샷: `site/vendor/screens/settings_window-tabs.png`.

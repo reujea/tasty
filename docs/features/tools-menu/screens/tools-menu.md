@@ -46,4 +46,4 @@
 
 ## 시각 소스
 
-`design-system/ui_kits/terminal/overlays/tools_menu.jsx` — 메뉴 치수·항목 행·구분선의 단일 출처. 스크린샷: `design-system/assets/screens/tools_menu.png`, `tools_menu-ko.png`. (design-system vendor 후 링크 resolve.)
+`site/vendor/ui_kits/terminal/overlays/tools_menu.jsx` — 메뉴 치수·항목 행·구분선의 단일 출처. 스크린샷: `site/vendor/screens/tools_menu.png`, `tools_menu-ko.png`.
