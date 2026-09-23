@@ -1,4 +1,4 @@
-<!-- source-hash: dc3c1ec3b524 -->
+<!-- source-hash: 608378c88d68 -->
 # A first look
 
 Start by looking at the sidebar and work area. Learn how workspaces organize your projects and how panes, tabs, and surfaces fit together, then arrange them to suit your work.
@@ -64,7 +64,7 @@ When you have many Workspaces, turn on **Settings** > **General** > **Workspace 
 At the top of each Pane.
 
 - Each Tab shows a type icon (terminal · Markdown, etc.) and a name. The name follows the shell's current directory and can be pinned with right-click > **Rename Tab**.
-- A **green dot** appears when a program is running, a **yellow mark** when a notification has arrived.
+- A **green dot** appears while a program is producing output, and the name changes colour when it waits for input or finishes ([Names and marks](../using/panes-tabs-splits.md#names-and-marks)).
 - `+` is a new Tab. Right-click to create from a preset. The split · search icons next to it split this Pane or search inside the current Surface.
 - When Tabs overflow, left/right arrows appear. Drag to reorder.
 - Right-click an empty spot to create a non-terminal Surface with **New Terminal** · **New Markdown...** · **New Explorer** · **New HTML...** · **New Image**. Each type is described in [Opening files](../using/files.md).
