@@ -1,4 +1,4 @@
-<!-- source-hash: f103e0dc3b63 -->
+<!-- source-hash: c96d2989776a -->
 # Panes · Tabs · splits
 
 Keep an agent, your code, and the logs side by side. Divide the window with panes and surfaces, switch tasks with tabs, and save layouts you use often as presets. [A first look](../getting-started/first-look.md) explains how the parts fit together.
@@ -61,7 +61,7 @@ A Tab's name is decided in this order of priority — a name you set yourself > 
 - **Green dot** — a program other than the shell is producing output. It disappears while waiting at a prompt or when the program is idle.
 - **Yellow name** — the program is waiting for input. **Blue name** — a job finished. Click that Surface and it returns to its normal color.
 
-Tab width and font size are **Tab width** · **Tab font size** under **Settings** > **Appearance**.
+Tab width and font size have no entry in the settings window; change them with `tab_width` · `tab_font_size` under `[appearance]` in `~/.tasty/config.toml`.
 
 ### Tabs not visible after a restart
 
