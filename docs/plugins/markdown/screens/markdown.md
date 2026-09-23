@@ -162,7 +162,7 @@ class="math math-display">`(원본 LaTeX 소스가 HTML-escape된 텍스트)로 
   가능하고, 기본은 `opacity:0` 로 숨겨져 있다가 `pre:hover`/`:focus-visible` 시 나타난다. hover
   가 없는 터치 환경은 `@media (hover:none)` 로 상시 노출한다.
 - **피드백**: 복사 성공/실패 시 버튼 텍스트가 `markdown.copy.copied`/`markdown.copy.failed` 로
-  바뀌고 `data-state` 속성(CSS 색 변경, "디자인 토큰 매핑" 절 참조)이 붙은 뒤 1.5초 후 원래
+  바뀌고 `data-state` 속성(CSS 색 변경)이 붙은 뒤 1.5초 후 원래
   라벨로 복원된다.
 - **중복 부착 방지**: `reload_webview`(`main.rs`)는 재로드 때마다 `render_document` 를 다시 호출해
   문서 전체를 통째로 교체한다(부분 DOM 패치가 아님) — 그래서 리스너가 재로드마다 누적될 구조적
@@ -341,7 +341,7 @@ Obsidian 스타일 `[[문서명]]`/`[[문서명|표시텍스트]]` 문법을 인
 - **못 찾은 경우**: 링크 자체는 그대로 만든다(destination 을 지우지 않음) — 클릭하면
   `dispatch_file_link` 의 기존 "존재하지 않는 파일은 로그만 남기고 조용히 무시" 경로를 그대로 탄다.
   다만 `.tasty-wikilink-missing` 스팬으로 감싸 시각적으로만 구분한다(점선 밑줄 + `accent-danger`
-  색 — 아래 "디자인 토큰 매핑" 참조). `span`/`class` 는 이미 `sanitize_html` 화이트리스트에
+  색). `span`/`class` 는 이미 `sanitize_html` 화이트리스트에
   열려 있어(수식 렌더링 절 참조) 이 기능을 위한 sanitizer 변경은 없다.
 - **`base_dir` 자체가 없는 경우**(저장 안 된 버퍼 등) — 일반 상대링크가 `classify_link` 에서
   해석 불가로 처리되는 것과 동일하게, 항상 "못 찾음" 취급한다.
@@ -530,7 +530,7 @@ image_error_script`). 문서에 `<img` 가 하나도 없으면(대다수 비-이
 - **테마 연동**: 아이콘은 `tasty_icons::IMAGE` 글리프를 `theme.accent_danger()`로 구운 data URI로
   심는다(GFM alert 아이콘과 동일한 `render.rs::alert_icon_data_uri` 재사용). 테두리/라벨 색도
   같은 `danger` 토큰, 경로 텍스트는 `.tasty-state-detail`과 동일한 `muted` 토큰 — 별도 실패 UI
-  전용 토큰 없이 기존 에러 상태 배색을 그대로 재사용한다(위 "디자인 토큰 매핑" 참조).
+  전용 토큰 없이 기존 에러 상태 배색을 그대로 재사용한다.
 
 **실기 검증(이 저장소 개발 머신, Linux/WebKitGTK, libwebkit2gtk-4.1)**: `render_document`가 실제로
 만든 문서(실재하는 1x1 PNG 하나 + 존재하지 않는 경로 하나, 실제 `file://` base URI)를
@@ -583,43 +583,7 @@ kind 를 가리지 않고 `search_bar` egui popup 을 열었었다 — 그 popup
 
 ## 디자인 토큰 매핑
 
-`crates/tasty-plugin-markdown/src/render.rs::render_document` 가 완전한 HTML5 문서 하나를 만든다
-— `<style>` 안에 Theme 토큰을 CSS custom property 로 주입한 뒤(`theme_css`), 문서 전체(주소창 +
-본문)가 그 property 를 참조한다. host 는 이 문서를 통째로 `webview.set_url` 로 받아 native
-WebView 에 올릴 뿐, 개별 요소를 픽셀 단위로 그리지 않는다 — 아래 표는 CSS custom property ↔
-Theme 토큰 매핑이다.
-
-| UI 요소 | CSS custom property | 토큰 / 비례 | 비고 |
-|---|---|---|---|
-| 문서 배경/전경 | `--md-bg` / `--md-fg` | `bg-app`(=crust) · `text-secondary` | webview 렌더 경로엔 focus 신호가 없어 `bg-app` 이 문서의 유일한 배경(`surfaces.markdown.focused_bg` 설정값은 이 경로에서 쓰지 않음) |
-| 주소창 바 | `#tasty-addr-bar` · `--md-addr-bar-h` | `bg-sidebar` · `--md-addr-bar-h` sticky top | `<input list>`+native `<datalist>`(최근목록)+Go `<button>` — 전부 문서 HTML |
-| 새로고침 버튼(attach mirror 문서) | `#tasty-refresh` | 평소 `surface-raised` 배경 · `text-secondary` / `data-stale="true"` 이면 `accent-primary` 배경·보더 · `text-on-accent` | mirror 문서에서만 주소창 우측 끝에 Go 대신 붙는다. 주소창 입력은 `readonly` 이고 글자색이 `text-muted` |
-| 강조 텍스트 | `--md-strong` | `text-primary` | heading, `<strong>` |
-| 링크 | `--md-link` | `accent-primary` | nav-fragment 로 rewrite 된 `href` |
-| 코드 배경/보더 | `--md-code-bg` / `--md-code-border` | `surface-raised` / `separator` | 인라인 `<code>` + `<pre>` |
-| 인용구 좌측 바/본문 | `--md-quote-bar` / (본문은 `--md-fg`) | `border-strong` | `blockquote` |
-| 구분선 | `--md-rule` | `separator` | `hr` |
-| 헤딩 크기 | `--md-h1`..`--md-h6` | `heading_sizes_px` — `font-size-prose-h1`(h1)↔`font-size-body`(h6) 5단계 선형보간 | CSS 라 per-level override 가능(현재는 선형보간을 디자인으로 채택) |
-| 표(GFM) 격자선 | `--md-border` | `md-table-border`(=`border-strong`) | 실제 `<table>` border-collapse — 문서 코드/인용 보더와는 별개 토큰(값은 같지만 의미상 독립) |
-| 표 zebra | `--md-zebra` | `md-table-row-bg-zebra` | `tr:nth-child(even)` |
-| 상태(에러) 제목 | inline hex(`danger`) | `accent-danger` | `.tasty-state-title` |
-| 상태(에러/빈 문서) 본문 | inline hex(`muted`) | `text-muted` | `.tasty-state-detail` |
-| 코너 반경/보더 굵기 | `--md-radius` / `--md-border-w` | `corner-radius` / `border-width` | 주소창 입력·코드 블록·표 공용 |
-| 콜아웃(GFM 5종+Obsidian 확장 10종) | inline hex(kind 별 accent) | note/todo/abstract/quote=`accent-primary` · tip/success=`accent-success` · important/bug/example=`accent-agent` · warning=`accent-warning` · caution/failure/danger=`accent-danger` · info=`accent-info` · question=`accent-attention` | 전용 콜아웃 토큰 없음 — 기존 7개 semantic accent 재사용, 15종이 나눠 쓰므로 일부 중복(위 "콜아웃" 절) |
-| TOC 패널 배경 | `--md-code-bg` | `surface-raised` | `#tasty-toc` — 코드 블록 배경과 동일 토큰 재사용(전용 토큰 없음) |
-| TOC 들여쓰기 | `--md-space-sm` × (레벨-1) | `spacing-sm` | `.tasty-toc-l1`..`l6` |
-| heading scroll 여유 | `scroll-margin-top` | `--md-addr-bar-h`(주소창 높이) + `--md-space-sm` | TOC 클릭 이동 시 heading 이 sticky 주소창에 가리지 않게 |
-| 코드 syntax 토큰 | inline hex(scope 별) | keyword=`mauve` · title/function=`blue` · string=`green` · number/literal=`peach` · tag/attr=`teal` · variable=`lavender` · built_in=`red` · comment=`text-muted` | 전용 highlight 토큰 없음 — `render.rs::hljs_css`, `.hljs-*` class(위 "코드블록 syntax highlighting" 절) |
-| 이미지 캡션 | `figure`/`figcaption` | `--md-space-sm`/`--md-space-xs`(여백) · `--md-font-body` · `text-muted`(캡션 색) | 전용 캡션 토큰 없음 — `.tasty-state-detail` 과 동일하게 `text-muted` 재사용(위 "이미지 캡션" 절) |
-| 코드블록 복사 버튼 | `--md-bg`/`--md-fg`/`--md-border`/`--md-radius` | 기본은 `#tasty-addr-go` 와 동일 톤 | `.tasty-copy-btn` — hover/focus 시에만 `opacity:1` |
-| 복사 버튼 성공/실패 상태 | inline hex(`success`/`danger`) | `accent-success` / `accent-danger` | `.tasty-copy-btn[data-state="copied"/"failed"]` |
-| 이미지 로드 실패 플레이스홀더 | inline hex(`danger`) + `--md-code-bg`/`--md-radius` | `accent-danger` · `surface-raised` | `.tasty-img-error` — 아이콘은 `tasty_icons::IMAGE` 를 `danger` 로 구운 data URI(`render.rs::alert_icon_data_uri` 재사용) |
-| 이미지 로드 실패 경로 텍스트 | inline hex(`muted`) | `text-muted` | `.tasty-img-error-path` — `.tasty-state-detail` 과 동일 토큰 재사용 |
-| 검색 바 | `#tasty-find-bar` | `bg-sidebar` · `separator` | 우상단 `position:fixed`, 갤러리 `search_bar` specimen 과 동일 배치(위 "문서 내 검색" 절) |
-| 수식(KaTeX) 텍스트 색 | 없음(상속) | `body`의 `--md-fg` 를 그대로 상속 | vendored `katex.min.css` 가 `color:currentColor` 만 씀 — 전용 토큰/오버라이드 불필요(위 "수식 렌더링" 절) |
-| 위키링크(존재하지 않는 대상) | inline hex(`danger`) | `accent-danger` | `.tasty-wikilink-missing a` — 점선 밑줄. 전용 토큰 없음, 기존 에러 상태 배색 재사용(위 "위키링크" 절) |
-| 매치 하이라이트 | inline hex(`accent-warning`, alpha) | `accent-warning` | `mark.tasty-find-hit` |
-| 현재 매치 하이라이트 | inline hex(`accent-primary`/`text-on-accent`) | `accent-primary` bg + `text-on-accent` fg | `mark.tasty-find-hit.tasty-find-current` |
+시각 수치·토큰의 단일 출처는 `design-system/` 이다 — [시각 소스](#시각-소스).
 
 ## 갤러리 specimen
 

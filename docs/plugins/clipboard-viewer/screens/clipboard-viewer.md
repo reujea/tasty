@@ -43,31 +43,7 @@ plugin 은 header~footer content 영역만 그린다(`cbFrame`/`Scrim` 은 desig
 
 ## 디자인 토큰 매핑
 
-색·폰트·간격은 전부 host 가 보낸 `Theme` 토큰에서 가져온다(from_rgb/raw px 금지). UI 인벤토리 ↔ 토큰:
-
-| UI 요소 | 토큰 | 비고 |
-|---|---|---|
-| popup 프레임 | `bg-panel` | 480×360 고정(size_hint), plugin content 도 동일 fill |
-| header/type-bar/footer 좌우 인셋 | `space-md`(12) | ADR-0290 이 시안의 14 를 12 로 내렸다 — 14 전용 semantic 은 열지 않는다 |
-| header 타이틀 | `font-size-max`(14) + `text-primary` | `.strong()` |
-| snapshot 뱃지 | `tag`(Default variant) | `tasty_ui_widgets::tag` |
-| type-bar 행 배경 | `bg-sidebar` | |
-| 단일 타입 뱃지 | `tag`(Accent variant) + `text-muted` 아이콘 | |
-| 세그먼트(2개 이상) | `border-default` 그룹 보더 + `corner-radius`, active `accent-primary`/`text-on-accent`, idle `text-secondary` | |
-| body well | `bg-app` fill + `separator`+`border-width` + `corner-radius` | `ScrollArea`(text) 또는 중앙 정렬(image, `well_centered`) |
-| body 미리보기 텍스트 | `font-size-term-sm`(12) mono + `text-primary` | |
-| type-bar 우측 메타(image 등) | `font-size-caption`(11) mono + `text-muted` | design `cbMetaMono`, `meta_label` |
-| image body 아이콘 | `CLIPBOARD_CENTER_ICON_SIZE`(28) + `text-muted` | ADR-0290 이 30 → 28 로 모았다 — 폰트가 아니라 아이콘 가족 |
-| image body "미리보기 없음" 안내 | `font-size-caption`(11) italic + `text-disabled` | design `fontStyle: italic` |
-| footer mime 텍스트 | `font-size-caption`(11) mono + `text-muted` | HTML 타입은 `{mime} · {meta}` 로 결합, Other 는 meta 가 mime 을 통째로 대체 |
-| footer Close 버튼 | `tasty_ui_widgets::Button`(Secondary) | |
-| type-bar 우측 Pretty print 체크박스 | `tasty_ui_widgets::checkbox` 자체 토큰 | HTML 타입일 때만, 새 토큰 없음 |
-| other 포맷 이름 | `font-size-caption`(11) mono + `text-secondary` | `.strong()`, 새 토큰 없음 |
-| other 포맷 크기 / +N more lines | `font-size-caption`(11) mono + `text-muted` | 새 토큰 없음 |
-| other 블록 구분선 | `separator` + `border-width` | 블록 사이 1px hline |
-| CenterState 타이틀 | `font-size-body`(13) + `text-secondary`(또는 danger 시 `accent-danger`) | `.strong()` |
-| CenterState 부제 | `font-size-term-sm`(12) + `text-muted` | |
-| 읽기 실패 톤 | `accent-danger` | |
+시각 수치·토큰의 단일 출처는 `design-system/ui_kits/terminal/overlays/clipboard_viewer.jsx` 다 — [시각 소스](#시각-소스).
 
 ## HTML prettify 인덴터
 

@@ -95,21 +95,7 @@ ref pill 도 조회마다 다시 읽는다 — ref 는 커밋/브랜치 조작 �
 
 ## 디자인 토큰 매핑
 
-색·폰트·간격은 전부 `Theme` 토큰(host catppuccin → 의미 토큰). UI 인벤토리 ↔ 토큰:
-
-| UI 요소 | 토큰 | 비고 |
-|---|---|---|
-| popup 프레임(host 셸) | `bg-panel` · `border-default` | 960×640 |
-| context / 섹션 strip | `bg-sidebar` · `separator` | 상단 밴드 |
-| 섹션 제목 | `text-muted` · `font-size-micro` mono uppercase | count 포함 |
-| 선택 행 | `surface-active` + `accent-primary` inset bar | worktree / change |
-| HEAD·commit oid · refs · `main` · hunk | `accent-info` | sky (Tag `Info` 톤) |
-| `current` · added(`A`) · diff `+` | `accent-success` | `green` |
-| `locked` · modified(`M`) | `accent-warning` | `yellow` |
-| `invalid` · deleted(`D`) · unmerged(`U`) · diff `-` · error | `accent-danger` | `red` |
-| `linked` · untracked(`?`) | neutral(`text-secondary`/`border-default`) | Tag `Default` |
-| dir 경로 · author · time · 거터 | `text-muted` / `text-disabled` | |
-| diff well | `bg-app` | recessed |
+시각 수치·토큰의 단일 출처는 `design-system/ui_kits/terminal/overlays/git_viewer.jsx` 다 — [시각 소스](#시각-소스).
 
 ## 갤러리 specimen
 

@@ -21,21 +21,7 @@
 
 ## 디자인 토큰 매핑
 
-`crates/tasty-plugin-image/src/render.rs::draw` 가 상단 control bar + 이미지 영역을 자기 egui
-`Context` 에서 그려 mesh 로 host 가 합성한다([ADR-0030](../../../adr/0030-image-egui-mesh-bitmap-texture.md)).
-툴바 버튼 아이콘은 `tasty-icons` 빌드타임 베이크 벡터([ADR-0036](../../../adr/0036-plugin-icon-buildtime-bake-tasty-icons-single-source.md)),
-zoom 은 텍스트 버튼:
-
-| UI 요소 | 토큰 | 비고 |
-|---|---|---|
-| 캔버스 배경 | `bg-sidebar` | host `mantle` |
-| 툴바 아이콘 버튼 | `surface-raised` + `border-default` · 글리프 tint `text-primary`(disabled=`text-muted`) | chevron-left/right(prev/next) · refresh · edit · plus(new) — `tasty-icons` 베이크 벡터, 24×20 고정. no-image 상태는 refresh/new 만 |
-| zoom 컨트롤 | `surface-raised` + `border-default` | `Fit`/`+`/`-` **텍스트** 버튼(30×20·24×20) + `%` 라벨 |
-| 파일명 라벨 | `text-muted` · `font-size-caption` | `subtext0` |
-| zoom 퍼센트 | `text-muted` · `font-size-caption` | 우측 정렬 |
-| 로드된 그림 프레임 | `bg-panel` + `border-default` | fit-to-window |
-| fallback / 빈 안내 glyph | `IMAGE` glyph · `text-muted`/`text-disabled` | `tasty-icons` SURFACES |
-| "No image" 텍스트 | `text-muted` | plugin `no_image` |
+시각 수치·토큰의 단일 출처는 `design-system/` 이다 — [시각 소스](#시각-소스).
 
 ## 갤러리 specimen
 

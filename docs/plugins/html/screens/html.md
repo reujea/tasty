@@ -29,17 +29,7 @@ surface 는 트리에선 `RemoteSurface` marker. 네이티브 WebView 의 naviga
 
 ## 디자인 토큰 매핑
 
-콘텐츠 픽셀은 OS WebView 가 그려 **토큰 무관**이다. tasty 가 토큰으로 책임지는 건 overlay 가
-붙기 전/실패 시의 *chrome* 뿐 — 얇게만 정의한다:
-
-| chrome 요소 | 토큰 | 비고 |
-|---|---|---|
-| 타일 경계 | `bg-panel` + `border-default` | overlay 마운트 영역 |
-| boundary / placeholder glyph | `GLOBE` glyph · `text-muted`/`text-disabled` | gallery `icons.rs` SURFACES |
-| 안내 캡션 / URL | `text-muted` · `text-disabled` | "No page loaded" 등 |
-| 로딩 | `Spinner`(ui-widgets) · `text-muted` | attach·탐색 중 |
-| 에러 | `ALERT_CIRCLE` glyph + `accent-danger` | 로드 실패 |
-| 콘텐츠 영역 | (비움) | 네이티브 overlay 가 덮음 |
+시각 수치·토큰의 단일 출처는 `design-system/` 이다 — [시각 소스](#시각-소스).
 
 ## 갤러리 specimen
 
