@@ -15,16 +15,14 @@
 
 | | **A. 직접 접근 가능 (우선)** | **B. fallback (직접 접근 없음/실패/미인증)** |
 |---|---|---|
-| 요청문서 위치 | 원격 프로젝트의 **전용 요청 인박스** `design-request/<slug>.md` 에 직접 write | 로컬 작업 폴더의 `design-request/MMDDhhmm-design-request-<slug>.md`(gitignored — 폴더 위치는 로컬 전용 지침이 정한다) |
+| 요청문서 위치 | 원격 프로젝트의 **전용 요청 인박스**(경로는 로컬 전용 지침이 정한다)에 직접 write | 로컬 작업 폴더의 `design-request/MMDDhhmm-design-request-<slug>.md`(gitignored — 폴더 위치는 로컬 전용 지침이 정한다) |
 | 넣는 주체 | claude code 가 write (요청 md 한정 — 실제 디자인 파일 산출은 아님) | claude code 가 로컬 파일로 작성 |
 | designer 에게 전달 | 사용자가 Claude design 을 열어 직접 지시 | 사용자가 요청문서를 Claude design 에 직접 제출 |
-| 시안 수령 | 갱신 디자인/`.DONE` 을 직접 접근 수단으로 읽어 정합(폴더 경로 수령 불필요) | 사용자가 받아온 디자인 폴더 경로를 넘겨받아 정합 |
+| 시안 수령 | 갱신 디자인과 완료 표지를 직접 접근 수단으로 읽어 정합(폴더 경로 수령 불필요) | 사용자가 받아온 디자인 폴더 경로를 넘겨받아 정합 |
 
 - **직접 접근 수단으로 write 하는 대상은 요청 인박스의 요청 md 뿐**이다. 토큰/컴포넌트/UI kit 등 실제 디자인 산출물은 여전히 designer(Claude design)만 만든다 — claude code 가 직접 수정하지 않는다는 원칙은 불변.
 - **A 경로 지시는 항상 사용자 몫**이다 — claude code 는 원격 인박스에 요청문서를 write 할 뿐, designer 에게 실제로 알리는 것(지시)은 사용자가 Claude design 을 열어 직접 한다.
 - 이 저장소의 직접 접근 설정(접근 수단·projectId 등)은 커밋되지 않는 로컬 전용 지침(Claude Code 가 세션 시작 시 함께 로드하는 프로젝트 로컬 CLAUDE.md)에 기록한다(세션 고유값이라 커밋 문서에 박지 않는다).
-- 요청 인박스는 원격 프로젝트에 **전용 폴더 `design-request/`** 를 둔다(파일명 `<slug>.md`). claude design 의 `uploads/` 는 아무 파일이나 업로드되면 쌓이는 **범용 싱크**라 요청문서가 잡동사니와 섞이므로 인박스로 쓰지 않는다. `design-request/` 이름은 로컬 B경로 폴더명과 맞춰 A/B 대칭을 이룬다. B(로컬)의 파일명은 tasty 컨벤션 `MMDDhhmm-design-request-<slug>.md`.
-  - designer(Claude design)는 인박스 폴더를 스스로 스캔하지 않고 요청 경로를 사용자가 직접 열어 보여주므로, 이 폴더명은 순수 claude code 측 컨벤션이다(designer 규율은 인박스 폴더명을 소유하지 않는다).
 
 아래 다이어그램·표·라이프사이클은 **B(fallback)** 경로를 기준으로 그린 것이다. A 경로에서는 `[2] 사용자 제출`이 "claude code 가 원격 요청 인박스에 write → 사용자가 Claude design 을 열어 직접 지시"로 대체되고, 시안 수령이 직접 읽기가 된다.
 
@@ -59,7 +57,7 @@
 **planner 가 작성하는 입력 산출물.** "이번에 무엇을, 어떤 화면·컴포넌트·상태·인터랙션으로 보이게 할지"를
 디자이너(Claude design)가 고충실 시안으로 옮길 수 있도록 정의한 문서다. *왜/구현 배선*이 아니라 **무엇을 어떻게 보이게 할지**만 담는다.
 
-- **위치**: 전달 경로에 따라 다르다(위 "요청문서 전달 경로" 참조) — A(직접 접근)면 원격 프로젝트의 전용 요청 인박스 `design-request/`(범용 `uploads/` 싱크가 아님), B(fallback)면 로컬 작업 폴더의 `design-request/`(gitignored, 커밋 대상 아님 — 폴더 위치는 로컬 전용 지침이 정한다).
+- **위치**: 전달 경로에 따라 다르다(위 "요청문서 전달 경로" 참조) — A(직접 접근)면 원격 프로젝트의 전용 요청 인박스(경로는 로컬 전용 지침이 정한다), B(fallback)면 로컬 작업 폴더의 `design-request/`(gitignored, 커밋 대상 아님 — 폴더 위치는 로컬 전용 지침이 정한다).
 - **파일명 규칙**: `MMDDhhmm-design-request-<slug>.md` — 맨 앞에 **월일시분(MMDDhhmm)**, 이어서 **`design-request`**, 마지막에 내용 slug 를 붙인다(예: `07101430-design-request-explorer-file-manager.md`). 날짜·시간을 선두에 둬 파일이 시간순으로 정렬되게 하고, `design-request` 접두로 문서 종류를 명시한다.
 - **기준 구성**: 아래 §0~§8 구성을 그대로 따른다.
 
@@ -136,7 +134,7 @@ requested ──(사용자 제출·시안 수령)──▶ received ──(갤�
 | 경로 | 요청문서 위치 | 삭제 방법 |
 |------|--------------|-----------|
 | **B. 로컬 (fallback)** | 로컬 작업 폴더의 `design-request/MMDDhhmm-design-request-<slug>.md` | 로컬 파일을 **직접 삭제**한다(gitignored 라 이력 남길 필요 없음). |
-| **A. 원격 (직접 접근)** | 원격 전용 인박스 `design-request/<slug>.md` | **DesignSync `delete_files`** 로 삭제한다 — `list_files`(존재 확인) → `finalize_plan` 의 `deletes`(+ `writes` 는 빈 배열) 에 그 경로를 넣어 `planId` 획득(권한 프롬프트) → `delete_files`(`planId`) 순. 원격 파일 삭제는 이 메서드로 가능하다. |
+| **A. 원격 (직접 접근)** | 원격 전용 인박스의 요청문서 | **DesignSync `delete_files`** 로 삭제한다 — `list_files`(존재 확인) → `finalize_plan` 의 `deletes`(+ `writes` 는 빈 배열) 에 그 경로를 넣어 `planId` 획득(권한 프롬프트) → `delete_files`(`planId`) 순. 원격 파일 삭제는 이 메서드로 가능하다. |
 
 **삭제 대상 = 요청문서(md)뿐.** 확정 시안(원격 프로젝트의 시안 파일 · `docs/design/` 에 보존한 HTML)은 **삭제하지 않는다** — 그것은 아래 "누가 무엇을 하나"·ADR-0510 의 **보존** 대상이다. 삭제하는 것은 입력 요청문서 한 건이지 산출물이 아니다.
 
