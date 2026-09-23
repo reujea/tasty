@@ -194,13 +194,13 @@ git grep -nE 'webkit2gtk|WKWebView|ICoreWebView2|wry::' -- crates/
 
 ```bash
 grep -lE '^egui' crates/*/Cargo.toml                          # 13
-grep -lE '^(winit|raw-window-handle)' crates/*/Cargo.toml     # 2
+grep -lE '^(winit|raw-window-handle)' crates/*/Cargo.toml     # 3
 ```
 
 egui 열셋은 전부 UI 크레이트이거나 그 뒤가 feature 다(본체는 `gui` feature 에서만 켠다).
-winit 둘은 `tasty-gallery`(GUI 바이너리)와 `tasty-key-match` 다. 뒤엣것은 **winit 키
+winit 셋은 `tasty-gallery`(GUI 바이너리) · `tasty-key-match` · `tasty-platform` 이다. 뒤엣것은 **winit 키
 이벤트를 바인딩 문자열과 맞추는 것이 그 크레이트의 일**이라 의존이 우연이 아니고, 소비자가
-전부 `gui` 뒤에 있어 본체가 optional 로 잡는다 — 헤드리스 그래프에 윈도잉 스택이 안 들어온다.
+전부 `gui` 뒤에 있어 본체가 optional 로 잡는다 — 헤드리스 그래프에 윈도잉 스택이 안 들어온다. `tasty-platform` 은 OS 경계 크레이트이고 winit 을 `gui` feature 뒤 optional 로만 켠다.
 그래서 이 셋 중 **도메인 라이브러리에 해당하는 크레이트는 하나도 없다.** 그 판정은 사람이
 한다. 세는 명령만 자동이고, "이 크레이트가 도메인 라이브러리인가" 를 답하는 채널은 없다.
 

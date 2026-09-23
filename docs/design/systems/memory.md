@@ -1,6 +1,6 @@
 # 에이전트 메모리 시스템
 
-`~/.tasty/memory.db` (SQLite WAL 단일 파일)에 저장되는 영속 키-값 스토어. AI 에이전트·plugin 이 작업 도중 누적·검색·공유하는 데이터의 backing store 다. 본 바이너리가 `OnceLock<Mutex<MemoryStore>>` 싱글톤으로 동기 접근한다(`crates/tasty-memory/`). 이 문서는 **가시성·소유권 모델**을 정의한다. 암호화 안 하는 결정의 근거는 [ADR-0005](../../adr/0005-memory-secret-not-a-vault.md), IPC trust boundary 는 [ADR-0004](../../adr/0004-ipc-transport-tcp.md).
+`~/.tasty/memory.db` (SQLite WAL 단일 파일)에 저장되는 영속 키-값 스토어. AI 에이전트·plugin 이 작업 도중 누적·검색·공유하는 데이터의 backing store 다. 본 바이너리는 `init_with_config` 로 연 store 를 `Arc<Mutex<dyn MemoryStorage>>` 로 Core 에 주입해 동기 접근한다(`crates/tasty-memory/`). 이 문서는 **가시성·소유권 모델**을 정의한다. 암호화 안 하는 결정의 근거는 [ADR-0005](../../adr/0005-memory-secret-not-a-vault.md), IPC trust boundary 는 [ADR-0004](../../adr/0004-ipc-transport-tcp.md).
 
 ## 책임 범위
 
