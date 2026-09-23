@@ -245,7 +245,7 @@ Claude·Codex hook 은 이벤트별로 `Completion` 또는 `NeedsInput` 으로 �
     중의 벨/알림은 여전히 유효한 로컬 UX 다.
   - `surface.completion` 이 미러를 대상으로 불린 경우도 **서버로 forward 하지 않고 억제**
     한다. 근거·대안은 [ADR-0098](../../adr/0098-mirror-local-attention-raise-suppressed.md).
-- **후속(미구현)** — 그 외 plugin(non-Claude AI 코딩 에이전트 등)이 자체 완료/확인대기
+- **후속(미구현)** — Claude·Codex 외 plugin 이 자체 완료/확인대기
   신호를 이 attention API 에 연결하는 것. attention API 는 이들이 호출 가능하게 계속
   열려 있다.
 
@@ -253,7 +253,7 @@ Claude·Codex hook 은 이벤트별로 `Completion` 또는 `NeedsInput` 으로 �
 
 - **AI Agent (IPC/CLI)**: `tasty surface completion --surface <id> [--kind needs_input]` /
   IPC `surface.completion { surface_id, kind? }` — 대상 surface 를 attention 발동.
-  `surface_id` **필수**(포커스 독립, 불가침 원칙 1). `kind` 생략(또는 `completion` 외 값)은
+  `surface_id` **필수**(포커스 독립, 불가침 원칙 1). `kind` 생략(또는 `needs_input` 외 값)은
   `Completion`. 권한 `Notification`.
 - **AI Agent (IPC/CLI) — 해제**: `tasty surface attention clear --surface <id> [--kind <k>]` /
   IPC `surface.attention.clear { surface_id, kind? }`. `surface_id` **필수**. `kind` 를 주면
@@ -457,7 +457,7 @@ Claude·Codex hook 은 이벤트별로 `Completion` 또는 `NeedsInput` 으로 �
 - Claude hook producer: `apply_hook` (`crates/tasty-plugin-claude/src/hook.rs`) → `HostCall::
   SurfaceCompletion { surface_id, kind }` → `deliver()` 가 `surface.completion` IPC 호출로
   매핑(`{ "surface_id", "kind" }`) → 위 producer 경로 그대로 재사용.
-- OSC 133 명령 완료 producer: `Core::apply_terminal_event` (`src/core/mod.rs`, D phase 파싱)
+- OSC 133 명령 완료 producer: `Core::handle_prompt_boundary` (`src/core/impl_pty.rs`, D phase)
   → `CoreEvent::TerminalCommandCompleted { surface_id, exit_code }` (`src/core/intent.rs`)
   → `App::cascade_terminal_command_completed` (`src/app/dispatch_domain.rs`)가
   `engine.raise_attention(surface_id, AttentionKind::Completion)` 직접 호출(자동 경로) +
