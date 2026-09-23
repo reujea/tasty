@@ -499,6 +499,7 @@ lane 의 트리에서 빨강은 합쳐진 뒤 오탐이 되고, 통합 트리에
   두꺼운데 처방이 없어서 안 지은 자리다.
 - [ADR-0139](0139-numbers-in-docs-are-classified-by-lineage-not-by-name.md) — 수는 이름이
   아니라 계보로 분류한다. 이 ADR 은 같은 방식으로 **결정**을 그 이유의 계보로 분류한다.
-- 이 회차의 다른 lane 이 낸 ADR 셋이 각각 한 칸의 실물이다 — CI 판독 세 층(ㄱ) ·
-  빈 ADR 번호는 재사용하지 않는다(ㄷ) · 커밋에서 재현 안 되는 좌변은 값으로 안 덮는다(ㄴ).
-  이 트리에는 아직 안 들어와 있어 경로로 인용하지 않는다.
+- 이 회차의 다른 lane 이 낸 ADR 셋이 각각 한 칸의 실물이다 — CI 판독 세 층(ㄱ,
+  [ADR-0230](0230-ci-readout-has-three-layers-and-each-hides-in-the-one-above.md)) ·
+  빈 ADR 번호는 재사용하지 않는다(ㄷ, [ADR-0239](0239-an-unused-adr-number-is-retired-not-recycled.md)) ·
+  커밋에서 재현 안 되는 좌변은 값으로 안 덮는다(ㄴ, [ADR-0225](0225-a-left-side-that-a-commit-cannot-reproduce-is-described-not-pinned.md)).

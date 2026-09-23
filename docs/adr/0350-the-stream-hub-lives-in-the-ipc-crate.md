@@ -76,7 +76,7 @@ adapter 가 아니라 **core** 였다 — `src/core/attach.rs`(점유 레지스�
   생기지 않는다. 안 골랐다.
 - **B. 본체 안에서 `src/core/` 나 `src/ports/` 로 옮긴다** — core 의 역참조는 사라지지만,
   허브가 본체 안에 있는 한 `crate::` 한 줄이면 다시 AppState·handler 에 닿는다. 앞으로
-  headless core 를 크레이트로 뗄 때(RF10) 한 번 더 옮겨야 한다. 안 골랐다.
+  headless core 를 크레이트로 뗄 때 한 번 더 옮겨야 한다. 안 골랐다.
 - **C. 옛 경로에 재수출 shim 을 둔다**(`adapters::production::stream_hub` 가
   `pub use tasty_ipc::stream_hub::*`) — 호출부 diff 가 줄지만 core 가 그 shim 경로를 계속 쓰면
   "core → adapter" 가 이름만 남아 경계 판정이 안 된다. `HostIpcInjector` 이동의 선례도

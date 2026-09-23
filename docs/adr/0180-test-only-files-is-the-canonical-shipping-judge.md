@@ -202,8 +202,7 @@ poison 축은 "출하 코드다" 라며 잡는다(거짓 양성, 시끄러움). 
 - 정본: `crates/tasty-doc-guards/src/shipping_scope.rs`(`test_only_files`·
   `is_cargo_test_target`) · `crates/tasty-doc-guards/src/cfg_predicate.rs` ·
   `crates/tasty-doc-guards/src/lib.rs`(`is_binary_artifact_ext` — 스캔 대상 파일 판정)
-- 위임/소비: main 크레이트 `src/source_guards/` 의 `test_gate` 모듈(706, `7919c9a89` —
-  이 lane 에는 아직 없고 train70 병합으로 들어온다) ·
+- 위임/소비: main 크레이트 `src/source_guards/` 의 `test_gate` 모듈 ·
   `src/source_guards/length_constant_frontier.rs` · `src/source_guards/sloc_gate_skip_proxy.rs`
   · `src/source_guards/headless_app_layer_coverage.rs`(명부 밖 잔여의 좌변을
   `cfg_predicate::blank_gated_lines` 로 좁힌다 — `strip-cfg-test` 와 같은 판정)
