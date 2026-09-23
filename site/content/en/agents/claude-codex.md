@@ -17,6 +17,7 @@ tasty codex install     # add the Tasty entry to [hooks] in ~/.codex/config.toml
 - Hooks you added yourself are preserved as they are. Running it several times does not create duplicates.
 - **Run it again after updating Tasty.** The hook command string is baked into the settings file, so a reinstall is needed to pick up the new format.
 - The hook that reports a turn Claude Code ended on an API error (server overload, rate limit, authentication failure, and so on) as idle also arrives only with a reinstall. Until then such a child keeps looking "working".
+- If Codex shows a `hook returned invalid ... JSON output` error, update and run `tasty codex install` again. It sets things up so Tasty's status reporting does not mix into Codex's hook response.
 - These hooks do not run when you use Claude Code outside Tasty.
 - To remove: `tasty claude uninstall` / `tasty codex uninstall`.
 
