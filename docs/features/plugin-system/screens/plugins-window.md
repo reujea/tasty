@@ -12,7 +12,7 @@
 
 ```
 ┌──────────────────────────────────────────┐
-│ [Installed]  [Install]                    │  탭
+│ [Installed]  [Attention]  [Install]       │  탭
 ├──────────────────────────────────────────┤
 │ Installed:                                │
 │  ▸ plugin A          [enable ▢]  [⌫]      │  목록 — 토글 / uninstall
@@ -28,7 +28,7 @@
 
 ## UI 요소 인벤토리
 
-- **탭**: Installed / Install.
+- **탭**: Installed / Attention(확인 필요 — 등록 거부·실행 실패 plugin, 개수 danger 배지) / Install.
 - **Installed 항목**:
   - enable/disable 토글, health error 인디케이터(오류 플러그인).
   - 권한 표시 — **read-only** (창에서 권한 토글 없음).

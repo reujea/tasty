@@ -14,13 +14,14 @@
 
 ## 내부 동작
 
-### 창 — 두 탭
+### 창 — 세 탭
 
 - **Installed (list)**: 설치된 플러그인 목록. 각 항목:
   - **enable/disable** 토글.
   - **health error** 인디케이터 (enable 상태인데 오류인 플러그인).
   - **권한 read-only 표시** (창에서 권한을 토글하지 않는다).
   - **install dir 열기**, **uninstall**.
+- **Attention (확인 필요)**: 등록 거부(서명/신뢰) 또는 실행 실패(health error) plugin 을 사유·조치와 함께 보여준다. 탭 라벨에 개수를 danger 배지로 표시.
 - **Install (add)**: 디렉터리(`tasty-plugin.toml`)에서 설치.
   - 매니페스트 + 권한 **미리보기**.
   - **서명/신뢰 검증**: `Trusted` 이면 바로 설치, 서명/권한이 바뀐 경우(`PermissionsChanged`) 재신뢰(`TrustAndInstall`) 후 설치.
@@ -62,7 +63,7 @@ kind 대기 placeholder 로 두었다가 다시 켜면 채운다.
 
 ## Acceptance Criteria
 
-- 사이드바 플러그인 버튼 클릭 시 관리 창이 열린다 (Installed / Install 탭).
+- 사이드바 플러그인 버튼 클릭 시 관리 창이 열린다 (Installed / Attention / Install 탭).
 - Installed 에서 enable/disable 토글이 동작하고, 오류 플러그인에 health 인디케이터가 뜬다.
 - Install 탭에서 디렉터리 설치 시 매니페스트·권한 미리보기와 신뢰 검증을 거친다.
 - `tasty plugin list/install/remove/enable/disable` CLI 가 동일 동작을 수행한다.
@@ -81,4 +82,4 @@ kind 대기 placeholder 로 두었다가 다시 켜면 채운다.
 
 ## 화면
 
-- [screens/plugins-window.md](screens/plugins-window.md) — 관리 창 레이아웃(Installed/Install 탭)과 연결.
+- [screens/plugins-window.md](screens/plugins-window.md) — 관리 창 레이아웃(Installed/Attention/Install 탭)과 연결.
