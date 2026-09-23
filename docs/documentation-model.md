@@ -43,7 +43,7 @@ docs 는 두 묶음으로 나뉜다. §1 의 **동작-우선 taxonomy 는 A(제�
 
 | 종류 | 위치 | 무엇을 | 대상 독자 |
 |------|------|--------|-----------|
-| **개발 가이드** | `docs/dev-guide/` | **tasty 를 개발하는 법 — 빌드·커밋·릴리스·플러그인·i18n·에러처리·GPU·디버그 IPC·자체검증 등** | 개발 AI 에이전트 |
+| **개발 가이드** | `docs/dev-guide/` | **tasty 를 개발하는 법 — 빌드·커밋·릴리스·플러그인·i18n·에러처리·GPU·디버그 IPC·자체검증 등.** 호스트가 plugin 에게 주는 계약(런타임 · 권한 · 렌더 · 번들)도 여기다 — `docs/plugins/` 는 plugin **이** 제공하는 동작이다 | 개발 AI 에이전트 |
 | 아키텍처 | `docs/architecture/` | 크레이트 구조 / 데이터 흐름 / invariant | 개발 AI 에이전트 |
 | 자체 검증 | `docs/ai-verification/` | UI·렌더링 검증 절차 | 개발 AI 에이전트 |
 | 에이전트 가이드 | 미신설 — 조회용 표면은 [`docs/reference/`](reference/index.md) | tasty 를 IPC/CLI 로 조작하는 법 (릴리스 에셋으로 첨부되지 않는다) | 사용자의 AI 에이전트 |
