@@ -19,7 +19,7 @@ tasty 는 4개 프리셋을 제공한다. 각 프리셋은 **바인딩 문자열
 | new_window | alt+shift+n | alt+shift+n | ctrl+shift+n | ctrl+shift+n |
 | new_workspace | alt+n | alt+n | alt+n | alt+n |
 | new_tab | alt+t | alt+t | alt+t | alt+t |
-| close_active | ctrl+w | alt+w | ctrl+w | ctrl+w |
+| close_active | ctrl+w | | ctrl+w | ctrl+w |
 | close_pane | ctrl+shift+w | alt+shift+w | ctrl+shift+w | ctrl+shift+w |
 | close_workspace | alt+shift+w | | alt+shift+w | alt+shift+w |
 | restore_closed | ctrl+shift+t | ctrl+shift+t | ctrl+shift+t | ctrl+shift+t |
@@ -36,7 +36,7 @@ tasty 는 4개 프리셋을 제공한다. 각 프리셋은 **바인딩 문자열
 | tab_switch_modifier / workspace_switch_modifier | ctrl / alt | (동일) | (동일) | (동일) |
 | category_switch_modifier | ctrl+shift | (동일) | (동일) | (동일) |
 
-> Pane/Surface 분할·포커스는 tasty 고유라 전 프리셋 동일. `next_tab`/`prev_tab` 은 `ctrl+tab`/`alt+tab` 이 OS 단축키와 충돌해 기본값 없음.
+> Pane/Surface 포커스는 tasty 고유라 전 프리셋 동일(분할은 위 표대로 프리셋마다 다르다). `next_tab`/`prev_tab` 은 `ctrl+tab`/`alt+tab` 이 OS 단축키와 충돌해 기본값 없음.
 
 ### 클립보드 / 줌
 | 필드 | Tasty | Mac | Windows | Linux |
@@ -74,7 +74,7 @@ tasty 는 4개 프리셋을 제공한다. 각 프리셋은 **바인딩 문자열
 
 ## 설계 원칙
 
-1. **수정자 계층** — Mac: `alt`(⌘)=주요 동작 / `alt+shift`(⌘⇧)=보조 / `ctrl`(⌃)=surface 포커스. Windows·Linux: `ctrl+shift`=주요 / `ctrl`=보조/줌 / `alt`=분할·pane 포커스.
+1. **수정자 계층** — Mac: `alt`(⌘)=주요 동작 / `alt+shift`(⌘⇧)=보조 / `ctrl`(⌃)=pane 포커스. Windows·Linux: `ctrl+shift`=주요 / `ctrl`=보조/줌 / `alt`=분할·surface 포커스.
 2. **tasty 고유 기능**(Pane/Surface 분할·Workspace·변환)은 각 프리셋 수정자 계층에 맞추되 가능하면 문자 키 유지(`d`=분할, `e`=pane 분할).
 
 ## 관련
