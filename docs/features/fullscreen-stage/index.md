@@ -51,7 +51,7 @@
   평상시 ESC 동작을 가져가지 않는 것이 이 위치의 목적이다. 사용자가 다른 키로 바꾸면 그 키로
   닫히고 ESC 로는 닫히지 않는다. 빈 값이면 키보드 종료 수단만 사라지고 셸의 종료 버튼이
   남는다(셸이 항상 그리므로 탈출 불가 상태가 되지 않는다). 프리셋 표는
-  [`design/policies/keybinding-presets.md`](../../design/policies/keybinding-presets.md).
+  [`features/keybindings/index.md`](../keybindings/index.md#프리셋-바인딩--네-프리셋의-기본값).
 
 ## 인터페이스
 
