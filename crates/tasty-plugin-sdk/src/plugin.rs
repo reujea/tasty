@@ -34,7 +34,7 @@ pub struct SurfaceCreateCtx {
     pub kind: String,
     /// 호스트가 source surface 로부터 carry 한 시작 cwd. None 이면 plugin 측에서
     /// params 우선순위 또는 자체 fallback (예: home dir) 으로 결정.
-    /// Surface cwd invariant — `docs/architecture/invariants/surface-cwd.md`.
+    /// Surface cwd invariant — `docs/design/policies/cwd.md#surface-cwd-invariant`.
     pub cwd: Option<PathBuf>,
     pub params: Value,
 }

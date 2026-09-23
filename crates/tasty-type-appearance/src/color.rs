@@ -7,7 +7,7 @@
 //! surface 종류별 색 묶음 (focused/unfocused × bg/fg) 은 [`crate::theme::SurfaceTheme`]
 //! 에 정의돼 있다.
 //!
-//! 색 생성 강제 모델은 `docs/dev-guide/color-policy.md` 참고.
+//! 색 생성 강제 모델은 `docs/design/systems/theme.md#색-생성-정책` 참고.
 
 use bytemuck::{Pod, Zeroable};
 use serde::{Deserialize, Serialize};

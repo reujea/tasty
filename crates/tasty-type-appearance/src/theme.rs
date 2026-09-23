@@ -1414,7 +1414,7 @@ impl Theme {
 // codegen 불가라 수기로 남는 접근자만 둔다: is_light 분기(text-on-accent), derive_overlays
 // 도출(overlay-*), 합성색(scrim), OS/brand 리터럴, component tier 조합(titlebar/banner) 등.
 //
-// 매핑 근거: `docs/design/systems/token-crosswalk.md` (semantic ↔ primitive ↔ 필드).
+// 매핑 근거: `docs/design/systems/design-token-mapping.md#rust-필드--호출처-토큰-크로스워크` (semantic ↔ primitive ↔ 필드).
 // 같은 primitive 가 여러 role 로 갈리는 다의성(crosswalk §4)은 호출처가 어느 접근자를
 // 쓰는지로 표현된다 (예: blue → `accent_primary` / `border_focus` / ansi-blue).
 impl Theme {

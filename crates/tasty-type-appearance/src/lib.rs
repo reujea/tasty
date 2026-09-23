@@ -31,7 +31,7 @@
 //! 색을 "디자인" 하거나 "새로 만들기" 위해 `dangerously_force_*` 를 사용하면 안 된다.
 //! 항상 theme 파일 또는 tasty-themes 의 fallback const 를 통해야 한다.
 //!
-//! 상세는 `docs/dev-guide/color-policy.md` 참고.
+//! 상세는 `docs/design/systems/theme.md#색-생성-정책` 참고.
 
 // 이유: 테스트 본문은 `let _ =` 사유 주석 정책의 범위 밖이다 — 전수 가드
 // (`crates/tasty-doc-guards/tests/let_underscore_documented.rs`)가 테스트 본문을

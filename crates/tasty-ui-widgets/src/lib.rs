@@ -13,7 +13,7 @@
 //! 이 crate 에는 갤러리 specimen 만 부르고 본체 호출자가 아직 없는 함수가 있다. 그것은
 //! 치우다 만 것이 아니라 두 정책이 함께 그린 상태다:
 //!
-//! - `docs/design/policies/shared-widgets.md` — 보편 이름이 붙는 컴포넌트는 **사용처가
+//! - `docs/architecture/ui-widgets-crate.md#무엇을-공용-위젯으로` — 보편 이름이 붙는 컴포넌트는 **사용처가
 //!   한 곳뿐이어도** 인라인이 아니라 여기 산다. 소속 판정 기준이 사용처 개수가 아니라
 //!   이름이므로, 호출자 수는 애초에 그 판정에 들어가지 않는다.
 //! - `docs/dev-guide/gallery-first.md` · `docs/adr/0510-design-work-flows-from-claude-design-through-gallery-app-and-site.md`
