@@ -432,4 +432,4 @@ tasty agent task-purge --workspace-id 1 --states succeeded,failed --older-than-m
 
 ## 관련
 
-- [agent-identification](agent-identification.md) — `AgentId` 도출 · [reference/api](../reference/api.md) — agent namespace
+- [telemetry › AgentId](../features/telemetry/index.md#agentid--agent-식별) — `AgentId` 도출 · [reference/api](../reference/api.md) — agent namespace

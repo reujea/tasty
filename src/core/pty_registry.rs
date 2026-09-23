@@ -151,7 +151,7 @@ const PHASE_REAPED: u8 = 3;
 /// 담지 않는다 — 18-b 에서 동일 id 로 `engine.terminals`(`TerminalStore`)가 보관한다.
 pub struct PtyEntry {
     pub id: u32,
-    /// AgentId — cap/telemetry 귀속용(위조 가능한 잠정 모델, agent-identification.md).
+    /// AgentId — cap/telemetry 귀속용(위조 가능한 잠정 모델, docs/features/telemetry/index.md 의 "AgentId — agent 식별").
     pub owner_agent_id: String,
     pub cwd: Option<String>,
     pub command: Vec<String>,

@@ -70,7 +70,6 @@ tasty 를 **개발하는** AI 에이전트용 가이드. tasty 를 *사용하는
 | [cli-ipc-surface](cli-ipc-surface.md) | CLI 진입점 유무를 가르는 판별식과 그것을 실행으로 세는 법 |
 | [attach-behavior](attach-behavior.md) | attach(서버=loopback / 로컬-원격=클라이언트) · self-attach connector 진입/완료 검증 |
 | [agent-runner](agent-runner.md) | task DAG executor + 동기화 primitive |
-| [agent-identification](agent-identification.md) | `AgentId` 도출(잠정 모델) |
 
 ## 외부 프로그램 구동
 
