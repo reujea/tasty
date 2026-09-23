@@ -1919,6 +1919,30 @@ mod tests {
         assert_eq!(r2.result, r1.result);
     }
 
+    /// 위 시험의 짝 — 재시도가 plugin 의 답 **전에** 오면 진행 중인 첫 forward 에 합류하고, 두
+    /// 번째 forward 를 안 낸다. forward 자리가 `run_app_layer` 에 넘기는 `handled` 판정이 자리를
+    /// 열어 둔 채 두는지를 잰다 — 그 판정이 `false` 면 forward 직후 자리가 닫혀 재시도가 plugin
+    /// 으로 한 번 더 나가고, 답을 늦게 받는 위 시험은 그 갈래를 못 본다(ADR-0566).
+    #[test]
+    fn a_retry_before_the_plugin_answers_joins_the_running_forward() {
+        let held = std::cell::RefCell::new(Vec::new());
+        let (first, rx1) = keyed("image.open", "forward-join-probe");
+        forward_keeping_the_key(&CallerContext::Local, &first, hold_forward(&held));
+        let (retry, rx2) = keyed("image.open", "forward-join-probe");
+        forward_keeping_the_key(&CallerContext::Local, &retry, hold_forward(&held));
+        assert_eq!(
+            held.borrow().len(),
+            1,
+            "답 전에 온 같은 키의 재시도가 plugin 으로 두 번째 forward 됐다"
+        );
+        let answer = JsonRpcResponse::success(json!(1), json!({"surface_id": 9}));
+        send_response(&held.borrow()[0].response_tx, answer);
+        let r1 = rx1.recv_timeout(WAIT).expect("첫 답");
+        let r2 = rx2.recv_timeout(WAIT).expect("합류한 재시도의 답");
+        assert!(r2.idempotent_replay, "합류한 재시도에 재생 표지가 없다");
+        assert_eq!(r2.result, r1.result);
+    }
+
     /// 통제군 — plugin **고유** 이름(표가 모른다 → `Outside`)은 보존소가 개입하지 않는다. 같은
     /// 키로 두 번 오면 두 번 forward 되고, plugin 은 원래 요청을 그대로 받는다(ADR-0361).
     ///
