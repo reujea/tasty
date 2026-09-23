@@ -27,7 +27,7 @@ tasty 의 lint 경고는 **워크스페이스 단위로 lint 를 끄기보다 �
 
 `[workspace.lints]` 가 정하는 것은 **레벨**이고, `clippy.toml` 이 정하는 것은 그 레벨이 무는 **대상과 임계값**이다. 이름이 겹쳐 보이는 자리가 있어 갈라 적는다 — 위 표의 `disallowed_methods`(밑줄)는 **레벨**이고, 아래 `disallowed-methods`(하이픈)는 그 레벨이 무는 **목록**이다. 서로 다른 것이고 한쪽만 있어도 다른 쪽은 아무 일도 안 한다.
 
-- `disallowed-methods` — 색을 "디자인" 하는 함수의 목록. 우연한 호출을 차단한다 ([color-policy](color-policy.md)). 옛 pre-commit C.8 이 이리로 이관됐다.
+- `disallowed-methods` — 색을 "디자인" 하는 함수의 목록. 우연한 호출을 차단한다 ([theme › 색 생성 정책](../design/systems/theme.md#색-생성-정책)). 옛 pre-commit C.8 이 이리로 이관됐다.
 - `cognitive-complexity-threshold` — `cognitive_complexity` 가 발동하는 임계값. 복잡도 게이트의 함수 축이 쓴다 ([complexity-gate](complexity-gate.md)).
 
 clippy 내장 threshold config(`type-complexity-threshold`, `too-many-arguments-threshold` 등)는 **위반을 봐주려고 느슨하게 풀지 않는다**(원칙 #3) — 위반은 소스 개선(struct/type alias) 또는 위치별 attr 로 처리한다. 이는 threshold 를 *올려 신규 위반까지 은폐하는* 것을 금하는 것이며, 복잡도 상한 강제 자체를 배제하지 않는다. 복잡도 상한은 별도의 **복잡도 게이트**(아래)가 담당한다 — 두 축은 독립이다.

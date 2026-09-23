@@ -92,12 +92,85 @@ let pad = th.spacing_sm;                               // sizing 동일 방식
 // ❌ egui::Color32::from_rgb(80,140,255)             // 하드코딩 금지 (clippy 차단)
 ```
 
-- **색 생성 경로 단일화**: GPU 버퍼 struct 는 newtype(`GpuRgba` 등)을 받아 `[f32;4]` 대입이 컴파일 에러. `from_rgb` 직접 호출은 clippy 차단. 상세 [`dev-guide/color-policy`](../../dev-guide/color-policy.md).
+- **색 생성 경로 단일화**: GPU 버퍼 struct 는 newtype(`GpuRgba` 등)을 받아 `[f32;4]` 대입이 컴파일 에러. `from_rgb` 직접 호출은 clippy 차단. 상세는 아래 [색 생성 정책](#색-생성-정책).
 - **premultiplied 주의**: `hover_overlay`/`active_overlay`/`separator` 는 premultiplied 바이트라 `to_egui_premultiplied()` 를 써야 한다. `to_egui()` 를 쓰면 sRGB-aware premultiplication 이 한 번 더 적용돼 색이 어긋난다.
 - **Semantic 접근자 우선**: 평면 primitive(`th.blue`) 외에 의미 기반 접근자(`accent_primary()`/`surface_raised()`/`text_muted()`)를 제공. 신규/수정 UI 는 의미가 드러나는 접근자를 우선(같은 primitive 가 여러 role 로 갈리는 다의성 표현). **host UI 계층(`src/view`·`src/adapters/ui`·shell_setup) + 위젯 크레이트(`tasty-ui-widgets`)는 전수 이식 완료 → `crates/tasty-doc-guards/tests/design_token_adherence.rs` 가 `th.<primitive>`/`theme.<primitive>` 직접접근을 금지**한다(`doc-guards.yml` 이 main push · PR 마다 **경로 필터 없이** 자동으로 돌린다 — 그 크레이트로 옮겨 오면서 두 조합 모두에서 도는 자리가 됐다, [ci-gates](../../dev-guide/ci-gates.md))(semantic 접근자로 강제 유도). 위젯도 primitive 절대 불가 — 근거·제외 목록(테마 내부·픽커·ANSI·갤러리 팔레트 데모)·집행 채널(clippy 불가·가드 테스트 전담)은 [ADR-0033](../../adr/0033-ui-color-semantic-role-only.md). 대응 role 부재 use 는 primitive 로 되돌리지 말고 가장 가까운 role 로 alias + `// divergence:` 주석. 매핑·다의성 핫스팟은 [`design-token-mapping` 크로스워크 절](design-token-mapping.md#rust-필드--호출처-토큰-크로스워크).
 - **잉크 role 은 값이 아니라 의미로 고른다** (2026-09-17 결정): **disabled 는 고유 잉크**다 — 모든 disabled 라벨·글리프는 `text_disabled()`(neutral-700)를 읽고, `text_placeholder()`(입력 전 안내)도 border role 도 쓰지 않는다. **`glyph_dim()`**(neutral-600)은 *물러나야 하는 chrome* 전용이지 disabled 용이 아니다(사이드바 dim chevron·dim 아이콘·상태바 글리프). **`border_frame()`**(neutral-500)은 틀의 선이고 `surface_active()`(선택된 표면)와 값만 같다. **그 선은 넷이다** — popup 프레임·titlebar 아래 선·pane divider·GPU 비활성 보더. popup **내부** 구분선은 이 role 이 아니라 `border_strong()`(neutral-400)에 남는다 — 틀과 칸막이는 다른 역할이라, 한 role 로 묶으면 틀만 올리는 것이 불가능해진다. 단계는 **명도가 아니라 대비로** 고른다: latte 에서는 neutral-500 이 neutral-400 보다 *어두워서* 명도 부등호가 두 테마에서 뒤집힌다([ADR-0290](../../adr/0290-settled-role-gaps-close-the-divergence-and-off-scale-sets.md), 값은 `crates/tasty-design-tokens/tests/color_drift.rs` 의 `the_frame_line_outranks_the_strong_border_by_contrast_not_lightness` 가 고정한다). **`accent_decorative()`**(peach)는 헤더 장식이고 `accent_attention()`(주의 환기)과 값만 같다.
 - **tinted 채움/테두리는 한 짝이다**: accent 를 옅게 깔고 같은 accent 로 두르는 관용구는 **채움 `tint_fill_alpha()`(0.12) / 테두리 `tint_border_alpha()`(0.36)** 한 짝만 쓴다. 승인된 부분 사용 둘 — **채움만**(warning callout · misc/remote/script 배지)과 **테두리만**(chip remote 태그). 은퇴한 짝: 0.14/0.45 · 0.12/0.35 · 0.11/0.36.
 - **Semantic 색 접근자 생성**: bg-*/surface-*/text-*(placeholder 까지)/accent-*/border-* 의 **단순 primitive 필드 alias** semantic 색 접근자는 `crates/tasty-type-appearance/src/semantic_color_generated.rs` 의 **생성된 `&Theme` 메서드**(`tasty-design-tokens` 생성기 산출, `DO NOT EDIT`) 로 노출된다 — DTCG semantic 색 토큰이 SSoT. is_light 분기(`text_on_accent()`)·derive_overlays 도출(`overlay_hover()`/`overlay_active()`)·합성색(`scrim()`)·OS/brand 리터럴 접근자만 `theme.rs` 에 수기로 남는다. component 색 접근자(아래)가 이 semantic 접근자를 호출하므로 inherent method 이름은 불변.
+
+## 색 생성 정책
+
+tasty 의 색 데이터는 **단 두 출처**(테마 파일 + 빌트인 fallback/const)에서만 만들어진다. 그 외 경로는 **컴파일(newtype) + clippy lint** 조합으로 차단된다. 테마 모델은 이 문서 위쪽 [핵심 모델](#핵심-모델), 필드↔role 매핑은 [design-token-mapping.md 크로스워크 절](design-token-mapping.md#rust-필드--호출처-토큰-크로스워크).
+
+### 정상 출처
+
+1. `~/.tasty/themes/<id>.toml` — 사용자/빌트인 테마 파일(palette/accent/terminal/ansi/`[surfaces.<id>]`)
+2. `tasty-themes::fallback` — `mocha_fallback_colors()` (빌트인 surface_themes 포함)
+3. `tasty-type-appearance::theme` 의 const/const fn — `derive_overlays`, `FALLBACK_SURFACE`
+
+**외부 입력(예외, 명시 호출 필요)**: termwiz ANSI true-color escape, 디스크 이미지/클립보드 픽셀, 직렬화 scrollback, 테스트 더미. 이들은 `dangerously_force_from_array` + 사유 주석 + `#[allow]` 필수.
+
+> settings UI 의 surface 색 picker 는 제거됐다 — surface 색은 theme TOML 의 `[surfaces.<id>]` 직접 편집.
+
+### 컴파일 강제 — newtype
+
+```rust
+// crates/tasty-type-appearance/src/color.rs
+#[repr(transparent)]
+pub struct GpuRgba([f32; 4]);  // private field
+impl GpuRgba {
+    pub const fn as_array(self) -> [f32; 4] { ... }                  // 꺼내기 OK
+    pub const fn dangerously_force_from_array(arr: [f32; 4]) -> Self { ... }  // 외부 입력 전용
+}
+```
+
+GPU 버퍼 struct(`BgInstance.bg_color: GpuRgba`)가 이 newtype 을 받으므로:
+
+```rust
+let bg: GpuRgba = [1.0, 0.0, 0.0, 1.0];        // ❌ array literal 로 못 만듦
+let bg = GpuRgba([1.0, 0.0, 0.0, 1.0]);        // ❌ private field
+let bg = theme().crust.to_gpu_rgba();          // ✅ theme 에서 변환
+// 외부 입력 (termwiz true-color escape).
+let bg = GpuRgba::dangerously_force_from_array([r, g, b, a]);  // ⚠ 명시 + 주석
+```
+
+`#[repr(transparent)]` + `bytemuck::Pod` 라 byte layout 은 raw `[f32; 4]` 와 동일 — wgpu vertex layout 무수정, 런타임 오버헤드 0.
+
+### clippy 강제 — disallowed-methods
+
+`clippy.toml` 의 `disallowed-methods` 가 색 생성 함수의 외부 호출을 차단한다:
+
+| 차단 함수 | 대체 |
+|-----------|------|
+| `HexColor::from_rgb` / `from_rgba` | TOML 또는 const(`hex!`) |
+| `egui::Color32::from_rgb` | `theme().X` 또는 `.with_alpha(N).to_egui()` |
+| `egui::Color32::from_rgba_{unmultiplied,premultiplied}` | 외부 픽셀은 `#[allow]` + 주석 / premultiplied 는 `to_egui_premultiplied()` |
+| `egui::Color32::from_gray` | theme 회색 톤 |
+
+예외 위치는 본거지 모듈(`tasty-type-appearance::{color,theme}`, `tasty-themes::fallback`)의 항목 단위 `#[allow]` + `// reason:` 주석, 외부 입력/테스트는 라인별 `#[allow]` + 주석.
+
+### 컴파일 타임 hex 검증 — `hex!`
+
+```rust
+use tasty_type_appearance::{color::HexColor, hex};
+pub const BRAND: HexColor = hex!("#89b4fa");          // OK (alpha·3-digit shorthand 도)
+// pub const BAD: HexColor = hex!("#zzz");            // ← compile error
+```
+
+`from_hex_const`(= `from_hex` 의 const fn 버전)으로 잘못된 hex 를 빌드 에러로 잡는다.
+
+### 새 색 도입 시
+
+1. **테마 색**: 빌트인은 `crates/tasty-themes/themes/*.toml`/`mocha_fallback_colors()`, 사용자는 `~/.tasty/themes/*.toml`. UI 는 `theme().X.into()`(egui) / `theme().X.to_gpu_rgba()`(GPU).
+2. **alpha 변형**: `theme().X.with_alpha(N).to_egui()`.
+3. **외부 입력**: `dangerously_force_from_array` + 주석 + `#[allow]`.
+
+UI 색 읽기는 primitive 직접접근(`theme().blue`)보다 **semantic 접근자**(`accent_primary()`/`text_muted()`…)를 우선한다(다의성 구분). additive 라 픽셀 동일, 전수 이식 전까지 clippy 강제는 보류 — 위 [UI 코드의 색상 접근](#ui-코드의-색상-접근) 의 "Semantic 접근자 우선" · [design-token-mapping.md 크로스워크 절](design-token-mapping.md#rust-필드--호출처-토큰-크로스워크).
+
+### 추가 가드
+
+GPU 버퍼 struct 필드·렌더러 함수 색 인자는 **항상 newtype**(`GpuRgba`/`GpuRgb`), raw `[f32; 4]` 금지. 새 GPU buffer/렌더 시그니처 추가 시 동일 적용. 길이도 같은 newtype 정책 — [typed-length](../../concepts/typed-length.md).
 
 ## Component tier 접근자
 

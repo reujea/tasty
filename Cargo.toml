@@ -67,7 +67,7 @@ result_large_err = "allow"
 #   근거·실측: docs/dev-guide/error-handling.md "clippy::let_underscore_must_use 는
 #   무엇을 세는가".
 let_underscore_must_use = "warn"
-# 색을 "디자인"하는 raw 생성자 호출 차단(color-policy 의 집행 수단). warn 이던 시절
+# 색을 "디자인"하는 raw 생성자 호출 차단(docs/design/systems/theme.md "색 생성 정책" 의 집행 수단). warn 이던 시절
 # 위반 6건이 조용히 유입됐던 전례 → deny 로 승격. 예외는 위치 단위
 # `#[allow(clippy::disallowed_methods)]` + 사유 주석 (clippy.toml 의 예외 컨벤션).
 disallowed_methods = "deny"

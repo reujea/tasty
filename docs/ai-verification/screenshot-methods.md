@@ -406,7 +406,7 @@ TASTY_GALLERY_SIZE=1360x1000 \
 예: 배경 rgb(26,26,30) 에 경계선 rgb(60,60,75) → 차이 최대 45 (겨우 보임)
 ```
 
-(실제 색은 Theme 토큰에서 — 하드코딩 금지, [color-policy](../dev-guide/color-policy.md). 대비 기준은 [theme.md](../design/systems/theme.md) "텍스트 대비 4.5:1".)
+(실제 색은 Theme 토큰에서 — 하드코딩 금지, [theme › 색 생성 정책](../design/systems/theme.md#색-생성-정책). 대비 기준은 [theme.md](../design/systems/theme.md) "텍스트 대비 4.5:1".)
 
 #### 2. 렌더 레이어/순서
 
@@ -448,7 +448,7 @@ for x in range(expected_x - 5, expected_x + 5):
 
 - 이 문서의 앞 절들 — 캡처 수단 · Xvfb 함정, 바로 아래 [픽셀 diff 판정 전](#픽셀-diff-판정-전--통제군으로-노이즈-바닥을-먼저-재라) — **전후 diff 판정의 노이즈 바닥과 양성 대조**
 - [dev-guide/debug-ipc](../dev-guide/debug-ipc.md) — `ui.screenshot` / `debug.glyph_color`
-- [dev-guide/gpu-rendering](../dev-guide/gpu-rendering.md) · [dev-guide/color-policy](../dev-guide/color-policy.md) · [design/systems/theme](../design/systems/theme.md)
+- [dev-guide/gpu-rendering](../dev-guide/gpu-rendering.md) · [design/systems/theme › 색 생성 정책](../design/systems/theme.md#색-생성-정책) · [design/systems/theme](../design/systems/theme.md)
 
 ## 픽셀 diff 판정 전 — 통제군으로 노이즈 바닥을 먼저 재라
 

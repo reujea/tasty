@@ -32,7 +32,7 @@ A.1/A.2 는 파일 전체, C.* 는 **staged diff 의 추가 라인만** 검사(�
 
 > W.1 이 경고에 그치는 이유: 그 파일을 만졌다고 반드시 사용자 표면이 바뀌는 것은 아니다(내부 refactor, 도움말 오타, 매니페스트 버전 bump). 하드 실패로 만들면 무해한 커밋마다 `--no-verify` 를 쓰게 되고 훅 전체가 무력화된다 — 판단은 사람이 한다.
 >
-> 색상 하드코딩(옛 C.8)은 pre-commit 에서 빠지고 **clippy `disallowed-methods`** 로 이관됐다 — `#[allow]` 와 path 예외를 정확히 인식한다([color-policy](color-policy.md), [clippy-policy](clippy-policy.md)).
+> 색상 하드코딩(옛 C.8)은 pre-commit 에서 빠지고 **clippy `disallowed-methods`** 로 이관됐다 — `#[allow]` 와 path 예외를 정확히 인식한다([theme › 색 생성 정책](../design/systems/theme.md#색-생성-정책), [clippy-policy](clippy-policy.md)).
 >
 > C.6 은 staged diff 만 보므로 **기존 코드의 위반은 못 잡는다**. 전수 검사는
 > `crates/tasty-doc-guards/tests/let_underscore_documented.rs` 가 한다 — 훅이 인정하는 세 형태(같은 줄·윗줄·다음 줄)를

@@ -27,7 +27,7 @@ tasty 를 **개발하는** AI 에이전트용 가이드. tasty 를 *사용하는
 | [complexity-gate](complexity-gate.md) | 복잡도 게이트(cognitive deny + 파일 SLOC), 예외 컨벤션 |
 | [duplicated-sets](duplicated-sets.md) | 같은 집합이 여러 곳에 적힐 때 — 자리로 셀 수 있는 것, 합칠 곳과 남길 곳을 가르는 기준 |
 | [unsafe-checklist](unsafe-checklist.md) | `// SAFETY:` 작성 + 자가검토 7문 |
-| [color-policy](color-policy.md) | 색 생성 newtype + clippy 강제 |
+| [theme › 색 생성 정책](../design/systems/theme.md#색-생성-정책) | 색 생성 newtype + clippy 강제 (design/systems/theme 의 절) |
 | [i18n](i18n.md) | 생성 help 트리·설명 없는 인자의 안내 보존; `t()` / lang 파일, host/plugin CLI 도움말·파싱 오류, plugin 사용자 오버라이드와 부모 홈 경로 확정, 공용 폰트 검사, 하드코딩 허용 예외, 강제 테스트 |
 
 ## 빌드 / 릴리스

@@ -36,4 +36,4 @@
 ## 관련
 
 - [design/systems/theme](../../design/systems/theme.md) — Theme 모델/resolve/도출/sizing(시스템) · [settings](../settings/index.md)
-- [dev-guide/color-policy](../../dev-guide/color-policy.md) — 색 생성 정책
+- [design/systems/theme › 색 생성 정책](../../design/systems/theme.md#색-생성-정책) — 색 생성 정책

@@ -1,4 +1,4 @@
-//! `clippy.toml` 의 `disallowed-methods` 목록과 `color-policy.md` 의 차단 함수 표가
+//! `clippy.toml` 의 `disallowed-methods` 목록과 `theme.md` 의 "색 생성 정책" 절 차단 함수 표가
 //! **같은 집합**인지 본다.
 //!
 //! ## 왜 이 자리인가 — 이름 둘을 세다가 나왔다
@@ -12,7 +12,7 @@
 //! 것은 그 명명의 우연이다. (문서 표에는 이미 레벨 행 하나뿐이고, 목록은 별도 소절이
 //! 든다. 그러니 거기엔 부분 사본이 없다.)
 //!
-//! **부분 사본은 한 층 아래에 있었다.** `color-policy.md` 가 차단 함수를 표로 다시
+//! **부분 사본은 한 층 아래에 있었다.** `theme.md` 의 "색 생성 정책" 절이 차단 함수를 표로 다시
 //! 적는데, 그 표는 손으로 베낀 사본이고 어떤 채널도 안 본다. 지금은 여섯을 다 든다 —
 //! 그러나 일곱째가 `clippy.toml` 에 추가되는 날 그 표는 **조용히 여섯에 머문다.**
 //! 빠진 행은 틀린 값이 아니라 없는 값이라 읽는 사람이 못 본다.
@@ -43,8 +43,8 @@
 use std::collections::BTreeSet;
 
 const MANIFEST: &str = "clippy.toml";
-const DOC: &str = "docs/dev-guide/color-policy.md";
-const SECTION: &str = "## clippy 강제 — disallowed-methods";
+const DOC: &str = "docs/design/systems/theme.md";
+const SECTION: &str = "\n### clippy 강제 — disallowed-methods";
 
 /// 좌우변이 이 아래로 떨어지면 수집이 죽은 것이다.
 ///
@@ -130,7 +130,9 @@ fn doc_coords(md: &str) -> BTreeSet<Coord> {
         .split_once(SECTION)
         .unwrap_or_else(|| panic!("`{SECTION}` 절을 못 찾았다 — 제목이 바뀌었으면 여기를 고쳐라"))
         .1;
+    // 절의 끝은 다음 같은 깊이(###) 또는 더 얕은(##) 헤딩이다.
     let body = body.split("\n## ").next().unwrap_or(body);
+    let body = body.split("\n### ").next().unwrap_or(body);
 
     let mut out = BTreeSet::new();
     let mut started = false;
@@ -326,8 +328,8 @@ mod disallowed_mutations {
 
     #[test]
     fn the_doc_reader_carries_the_type_across_a_slash() {
-        let md = "## clippy 강제 — disallowed-methods\n\n| 차단 함수 | 대체 |\n|---|---|\n\
-                  | `HexColor::from_rgb` / `from_rgba` | x |\n\n## 다음\n";
+        let md = "## 색 생성 정책\n\n### clippy 강제 — disallowed-methods\n\n| 차단 함수 | 대체 |\n|---|---|\n\
+                  | `HexColor::from_rgb` / `from_rgba` | x |\n\n### 다음\n";
         let got = doc_coords(md);
         assert!(
             got.contains(&("HexColor".into(), "from_rgba".into())),
@@ -338,8 +340,8 @@ mod disallowed_mutations {
     #[test]
     #[should_panic(expected = "이어받을 것이 없다")]
     fn a_bare_method_with_no_type_to_carry_is_not_silently_skipped() {
-        let md = "## clippy 강제 — disallowed-methods\n\n| 차단 함수 | 대체 |\n|---|---|\n\
-                  | `from_rgba` | x |\n\n## 다음\n";
+        let md = "## 색 생성 정책\n\n### clippy 강제 — disallowed-methods\n\n| 차단 함수 | 대체 |\n|---|---|\n\
+                  | `from_rgba` | x |\n\n### 다음\n";
         doc_coords(md);
     }
 }
