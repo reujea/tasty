@@ -23,8 +23,8 @@ tasty 를 재시작하면 러너는 자동으로 켜지지 않습니다. 작업 
 ## 작업 만들기
 
 ```sh
-tasty agent task-create --workspace-id 2 --name build \
-  --command '{"kind":"run","command":["cargo","build"]}'
+BUILD=$(tasty agent task-create --workspace-id 2 --name build \
+  --command '{"kind":"run","command":["cargo","build"]}' | jq -r .id)
 ```
 
 만들면 작업 ID 가 돌아옵니다. 이 ID 로 의존 관계를 걸고 상태를 조회합니다.
@@ -41,9 +41,9 @@ tasty agent task-create --workspace-id 2 --name build \
 ## 순서와 실패 처리
 
 ```sh
-tasty agent task-create --workspace-id 2 --name test \
+TEST=$(tasty agent task-create --workspace-id 2 --name test \
   --command '{"kind":"run","command":["cargo","test"]}' \
-  --depends-on t-build --on-failure abort
+  --depends-on "$BUILD" --on-failure abort | jq -r .id)
 ```
 
 `--depends-on` 에 적은 작업이 모두 끝나야 이 작업이 준비 상태가 됩니다. 사이클이 생기는 그래프는 만들 때 거부됩니다.
@@ -92,7 +92,7 @@ ${task.<작업 ID>.output/stdout/text}   결과 안의 한 값
 ```sh
 tasty agent dag-list                                   # 모든 워크스페이스의 DAG
 tasty agent task-list --workspace-id 2 --state waiting,ready,running
-tasty agent task-get --workspace-id 2 --id t-build
+tasty agent task-get --workspace-id 2 --id "$BUILD"
 tasty agent task-graph --workspace-id 2 --format dot   # Graphviz 로 그리기
 ```
 
@@ -101,10 +101,10 @@ tasty agent task-graph --workspace-id 2 --format dot   # Graphviz 로 그리기
 ## 작업 기다리기와 관리
 
 ```sh
-tasty agent task-await --workspace-id 2 --id t-test              # 끝날 때까지 대기
-tasty agent task-retry --workspace-id 2 --id t-test              # 실패·취소·건너뛴 작업 재시도
-tasty agent task-cancel --workspace-id 2 --id t-test
-tasty agent task-set-result --workspace-id 2 --id t-manual --state succeeded
+tasty agent task-await --workspace-id 2 --id "$TEST"             # 끝날 때까지 대기
+tasty agent task-retry --workspace-id 2 --id "$TEST"             # 실패·취소·건너뛴 작업 재시도
+tasty agent task-cancel --workspace-id 2 --id "$TEST"
+tasty agent task-set-result --workspace-id 2 --id "$MANUAL" --state succeeded
 tasty agent task-purge --workspace-id 2 --states succeeded
 ```
 
@@ -143,7 +143,7 @@ done
 |---|---|
 | 세마포어 | 같은 이름을 단 작업이 동시에 몇 개까지 돌지 정합니다. 작업을 만들 때 `--concurrency-limit <이름>` 이 짧은 표기입니다 |
 | 배리어 | 정해진 수의 신호가 모일 때까지 막습니다. `wait_barrier` 작업으로 그래프에 끼워 넣습니다 |
-| 리스 | 파일 같은 자원을 한 번에 하나만 잡게 합니다. 만료 시간이 있고, 충돌하면 실패하거나 기다립니다 |
+| 리스 | 파일 같은 자원을 한 번에 하나만 잡게 합니다. 만료 시간이 있고, 충돌하면 실패하거나 못 잡았다는 응답을 바로 돌려줍니다 — 기다리지 않습니다 |
 | 리듀서 | 여러 작업의 결과를 하나로 합칩니다. 첫 성공만, 전부, JSON 병합, 텍스트 이어붙이기 중에 고릅니다 |
 | 요청량 제한 | 에이전트별 · 지표별로 정해진 시간에 몇 번까지 허용할지 정합니다 |
 
@@ -151,7 +151,7 @@ done
 tasty agent semaphore-create --workspace-id 2 --name build --permits 2
 tasty agent barrier-create --workspace-id 2 --name ready --count-required 3
 tasty agent lease-acquire --workspace-id 2 --resource file:/tmp/db --holder agent-a --ttl-ms 60000
-tasty agent task-reduce --workspace-id 2 --inputs t-a,t-b --strategy all --extract-path /stdout/text
+tasty agent task-reduce --workspace-id 2 --inputs "$A,$B" --strategy all --extract-path /stdout/text
 ```
 
 세마포어 · 배리어 이름에는 영문 소문자 · 숫자 · `.` · `_` · `-` 만 씁니다. 다른 문자가 섞이면 명령이 어느 글자가 문제인지 알려 주며 거절합니다. 리스의 자원 이름에는 이 제한이 없습니다.

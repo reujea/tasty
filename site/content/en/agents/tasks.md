@@ -1,4 +1,4 @@
-<!-- source-hash: 96124475f363 -->
+<!-- source-hash: 15ee8c63fd97 -->
 <a id="task-dag"></a>
 
 # Task workflows (DAG)
@@ -24,8 +24,8 @@ Restarting Tasty does not start the runner again automatically. The tasks themse
 ## Creating a task
 
 ```sh
-tasty agent task-create --workspace-id 2 --name build \
-  --command '{"kind":"run","command":["cargo","build"]}'
+BUILD=$(tasty agent task-create --workspace-id 2 --name build \
+  --command '{"kind":"run","command":["cargo","build"]}' | jq -r .id)
 ```
 
 Creating one returns a task ID. Use that ID to wire dependencies and to query state.
@@ -42,9 +42,9 @@ You can also pull the command JSON out into a file and pass it as `--command @bu
 ## Order and failure handling
 
 ```sh
-tasty agent task-create --workspace-id 2 --name test \
+TEST=$(tasty agent task-create --workspace-id 2 --name test \
   --command '{"kind":"run","command":["cargo","test"]}' \
-  --depends-on t-build --on-failure abort
+  --depends-on "$BUILD" --on-failure abort | jq -r .id)
 ```
 
 Every task listed in `--depends-on` has to finish before this task becomes ready. A graph that would form a cycle is rejected at creation time.
@@ -93,17 +93,17 @@ To see it from a terminal:
 ```sh
 tasty agent dag-list                                   # DAGs across every Workspace
 tasty agent task-list --workspace-id 2 --state waiting,ready,running
-tasty agent task-get --workspace-id 2 --id t-build
+tasty agent task-get --workspace-id 2 --id "$BUILD"
 tasty agent task-graph --workspace-id 2 --format dot   # draw it with Graphviz
 ```
 
 ## Waiting and fixing up
 
 ```sh
-tasty agent task-await --workspace-id 2 --id t-test              # wait until it finishes
-tasty agent task-retry --workspace-id 2 --id t-test              # retry a failed, cancelled or skipped task
-tasty agent task-cancel --workspace-id 2 --id t-test
-tasty agent task-set-result --workspace-id 2 --id t-manual --state succeeded
+tasty agent task-await --workspace-id 2 --id "$TEST"             # wait until it finishes
+tasty agent task-retry --workspace-id 2 --id "$TEST"             # retry a failed, cancelled or skipped task
+tasty agent task-cancel --workspace-id 2 --id "$TEST"
+tasty agent task-set-result --workspace-id 2 --id "$MANUAL" --state succeeded
 tasty agent task-purge --workspace-id 2 --states succeeded
 ```
 
@@ -142,7 +142,7 @@ Coordination devices for running several tasks at once come along with it.
 |---|---|
 | Semaphore | Decides how many tasks carrying the same name may run at once. `--concurrency-limit <name>` at task creation is the short form |
 | Barrier | Blocks until the set number of signals have gathered. Slot it into the graph as a `wait_barrier` task |
-| Lease | Makes something like a file be held by only one holder at a time. It has an expiry, and on a conflict it either fails or waits |
+| Lease | Makes something like a file be held by only one holder at a time. It has an expiry, and on a conflict it either fails or returns at once saying it was not acquired — it does not wait |
 | Reducer | Merges the results of several tasks into one. Choose between first success only, all of them, JSON merge, or text concatenation |
 | Rate limit | Decides how many times per period is allowed, per agent and per metric |
 
@@ -150,7 +150,7 @@ Coordination devices for running several tasks at once come along with it.
 tasty agent semaphore-create --workspace-id 2 --name build --permits 2
 tasty agent barrier-create --workspace-id 2 --name ready --count-required 3
 tasty agent lease-acquire --workspace-id 2 --resource file:/tmp/db --holder agent-a --ttl-ms 60000
-tasty agent task-reduce --workspace-id 2 --inputs t-a,t-b --strategy all --extract-path /stdout/text
+tasty agent task-reduce --workspace-id 2 --inputs "$A,$B" --strategy all --extract-path /stdout/text
 ```
 
 Semaphore and barrier names use only lowercase letters, digits, `.`, `_`, and `-`. If a name contains any other character, the command is rejected and tells you which character is the problem. Lease resource names have no such limit.
