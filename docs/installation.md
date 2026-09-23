@@ -57,7 +57,7 @@ xattr -dr com.apple.quarantine /Applications/Tasty.app
 ```powershell
 # .msi (권장) — 더블클릭 → 설치 마법사. 시작 메뉴 바로가기 + 프로그램 추가/제거 등록
 # .zip (수동)
-Expand-Archive tasty-{ver}-windows-x64.zip; .\tasty\tasty.exe
+Expand-Archive tasty-{ver}-windows-x64.zip -DestinationPath tasty; .\tasty\tasty.exe
 ```
 
 ### SmartScreen 경고 우회
