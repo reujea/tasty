@@ -13,7 +13,7 @@
 | 위치 | 자유 이동 | 스코프별 고정 스택 |
 | 트리거 | 사용자 또는(debug)에이전트 | **사용자 행동만** (예외: 원격 연결 상태 사건 — 아래 허용 부류) |
 
-Toast 는 Popup 의 변종이 *아니다* — 7대 규칙(타이틀바·X·드래그·z-order 승격·외부클릭닫기)이 토스트와 정면 충돌하므로 별도 매니저로 둔다. 단 스코프 정의와 스코프-rect 계산은 `LayoutContext` 를 재사용해 일관성을 유지한다.
+Toast 는 Popup 의 변종이 *아니다* — 8대 규칙(타이틀바·X·드래그·z-order 승격·외부클릭닫기)이 토스트와 정면 충돌하므로 별도 매니저로 둔다. 단 스코프 정의와 스코프-rect 계산은 `LayoutContext` 를 재사용해 일관성을 유지한다.
 
 ## 트리거 정책 (CRITICAL)
 
@@ -35,7 +35,7 @@ Toast 는 Popup 의 변종이 *아니다* — 7대 규칙(타이틀바·X·드�
 토스트 매니저로 닿는 이름을 센다. 결과가 **0 줄**이어야 한다.
 
 ```bash
-grep -rnE 'toasts|report_apply_error|push_toast' \
+grep -rnE --exclude='*_tests.rs' 'toasts|report_apply_error|push_toast' \
   src/adapters/ipc/ src/app/ipc/ src/app/ipc.rs \
   src/boot/headless_dispatch.rs src/boot/headless_plugins.rs
 ```
@@ -68,7 +68,7 @@ grep -rnE 'toasts|report_apply_error|push_toast' \
   `src/intent/apply_error_tests.rs` · `src/app/attach_client/agent_origin.rs` 의
   `an_agent_forward_failure_does_not_toast`. 두 끝을 세는 명령(경로의 폭을 보는 것이다):
   `grep -rn 'from_agent_ipc()' src --include='*.rs'` 로 agent origin intent 의 발화 자리 ·
-  `grep -rln 'report_apply_error\|toasts\.push' src/intent.rs src/intent/`(6 파일).
+  `grep -rln 'report_apply_error\|toasts\.push' src/intent.rs src/intent/`(7 파일 — 시험 `apply_error_tests.rs` 포함).
   intent 를 안 거치고 `Core::apply` 를 직접 부르는 IPC 구조 핸들러(split · tab.create/close/move ·
   pane.close · surface.close · `image.open`)도 같은 표시를 붙인다 — `core::structural_exec` 의
   `apply_as_agent` 와 `image::handle_open` 이 붙이고, 시험은 같은 파일의
@@ -144,7 +144,7 @@ Toast 위에서 마우스 클릭/드래그해도 토스트는 무시하고 이�
   `crates/tasty-type-appearance/src/toast_kind.rs` 이고 여기는 재수출이다.
 - `ToastScope` — 위 enum. 정본은 `crates/tasty-model/src/toast_kind.rs`.
 - `ToastState` — id, message, kind, scope, spawned_at, lifetime.
-- `ToastManager` — `push(message, kind, scope)` / `push_info(...)` / `draw(ctx, LayoutContext)`(만료 제거 + 렌더). `AppState::toasts` 로 통합, draw 는 popup draw 직후(= 위 레이어)에서.
+- `ToastManager` — `push(message, kind, scope)` / `push_info(...)` / `draw(ctx, &LayoutContext, reduced_motion)`(만료 제거 + 렌더). `AppState::toasts` 로 통합, draw 는 popup draw 직후(= 위 레이어)에서.
 - `compute_alpha` — `ToastState` 에서 곡선이 읽는 두 값을 꺼내는 어댑터. `ToastState` 가
   `ToastScope`(→ `tasty-model` → termwiz)를 품어 위젯 크레이트로 넘어가지 못한다.
 - `truncate_message` — 캡 집행. `push` 진입부라 그리기 경로가 아니다.

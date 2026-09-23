@@ -13,11 +13,11 @@
 | 마우스 입력 | **소비**(뒤로 전파 X) | 통과(소비 X) | 소비 |
 | 키보드 포커스 | **없음** — 클릭해도 포커스 이동 X | 없음 | 가짐(클릭→포커스) |
 | 내부 인터랙션(버튼) | **있음** | 없음(본문만) | 있음 |
-| 타이틀바 / 드래그 / 자유이동 | 없음 | 없음 | 있음(7대 규칙) |
+| 타이틀바 / 드래그 / 자유이동 | 없음 | 없음 | 있음(8대 규칙) |
 | 수명 | 사용자 닫기 또는 TTL | 자동소멸(고정) | 사용자 닫기 |
 | 위치 | parent **상단** 고정, floating | 스코프 우측 하단 스택 | 자유 이동 |
 
-배너는 **포커스를 받지 않으면서도 자기 영역의 마우스를 소비하고 내부 버튼을 갖는다.** 이 조합은 Popup 의 7대 규칙([popup.md](popup.md))·포커스 모델과 충돌하고(타이틀바·X·드래그·z-order 승격·자유이동 모두 없음), Toast 의 휘발성·입력통과([toast.md](toast.md))와도 충돌한다(배너는 입력을 소비하고 사용자가 닫을 수 있다). → **별도 개념·별도 매니저** 로 둔다. Toast 가 Popup 의 변종이 아니라 별도 매니저로 분리된 것과 동일한 논리다.
+배너는 **포커스를 받지 않으면서도 자기 영역의 마우스를 소비하고 내부 버튼을 갖는다.** 이 조합은 Popup 의 8대 규칙([popup.md](popup.md))·포커스 모델과 충돌하고(타이틀바·X·드래그·z-order 승격·자유이동 모두 없음), Toast 의 휘발성·입력통과([toast.md](toast.md))와도 충돌한다(배너는 입력을 소비하고 사용자가 닫을 수 있다). → **별도 개념·별도 매니저** 로 둔다. Toast 가 Popup 의 변종이 아니라 별도 매니저로 분리된 것과 동일한 논리다.
 
 ## 포지셔닝 — Popup / Banner / Toast
 
@@ -58,7 +58,7 @@
 - margin: **상 8px / 좌 8px / 우 8px**, **하단 margin 없음**(`spacing_sm`).
 - border-radius: **8px**(약간 둥근 사각형 패널) — `corner_radius_lg`(= `--tasty-radius-8`, 시스템 기본 4px 의 의도적 2배). 이 단차는 ADR 근거로 토큰화.
 - 높이: **콘텐츠에 따라 가변** — 각 배너 구현체가 자체 결정. 시스템은 "프레임/셸"(`draw_shell`) 과 내부 패딩(좌우 `spacing_md` 12 / 상하 `spacing_sm` 8) 규칙만 정의.
-- 배경 / 보더 / 그림자: **Theme 토큰** — `banner_bg()`(→ `surface_raised`/surface0) 배경 + 1px `banner_border()`(→ `border_strong`) 보더 + `shadow_popover()`(= `--tasty-shadow-popover`) 그림자. 본문 색은 `banner_fg()`(→ text_primary), leading 글리프 기본색은 `banner_icon_fg()`(→ text_muted, 심각도 배너는 override), 카운트다운은 `banner_countdown_fg()`(→ text_muted). 하위 스코프 디밍은 `opacity_recessed()`(0.4), 페이드 모션은 `motion_ui_ms()`(120ms).
+- 배경 / 보더 / 그림자: **Theme 토큰** — `banner_bg()`(→ `surface_raised`/surface0) 배경 + 1px `banner_border()`(→ `border_strong`) 보더 + `shadow_popover()`(= `--tasty-shadow-popover`) 그림자. 본문 색은 `banner_fg()`(→ text_primary), leading 글리프 기본색은 `banner_icon_fg()`(→ text_muted, 심각도 배너는 override), 카운트다운은 `banner_countdown_fg()`(→ text_muted). 하위 스코프 디밍은 `opacity_recessed()`(0.4), 페이드 모션은 없다(`banner_fade()` 는 생성만 되고 소비처가 없다).
 
 ## 닫기 버튼 / 카운트다운 (우측 상단, 같은 자리)
 
