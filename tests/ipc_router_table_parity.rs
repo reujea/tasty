@@ -24,6 +24,7 @@
 //! 테스트를 `--release` 로 돌리면 이 파일은 통째로 컴파일에서 빠진다.
 #![cfg(debug_assertions)]
 
+use std::collections::BTreeSet;
 use std::path::Path;
 
 use tasty_doc_guards::match_arms::{Source, matching_close};
@@ -146,6 +147,7 @@ fn every_router_arm_is_registered_in_method_table() {
     let mut arm_scanned = 0usize;
     let mut eq_scanned = 0usize;
     let mut judge_scanned = 0usize;
+    let mut line_only: Vec<String> = Vec::new();
 
     // 고정 소스 + 디렉토리째 걷는 소스(`src/app/ipc/*.rs`)를 합친다.
     let mut sources: Vec<String> = ROUTER_SOURCES.iter().map(|s| s.to_string()).collect();
@@ -169,16 +171,21 @@ fn every_router_arm_is_registered_in_method_table() {
         let path = root.join(rel);
         let src = std::fs::read_to_string(&path)
             .unwrap_or_else(|e| panic!("라우터 소스를 읽을 수 없다: {rel}: {e}"));
-        for name in match_arm_methods(&src) {
+        let judged_arms = match_arm_methods(&src);
+        for name in &judged_arms {
             judge_scanned += 1;
-            if method_meta(&name).is_none() {
+            if method_meta(name).is_none() {
                 missing.push(format!("{rel}: {name}"));
             }
         }
+        let judged: BTreeSet<&str> = judged_arms.iter().map(String::as_str).collect();
         for line in src.lines() {
             // `"…" =>` 팔과 `… .method == "…"` 비교를 모두 본다.
             if let Some(name) = arm_method(line) {
                 arm_scanned += 1;
+                if !judged.contains(name) {
+                    line_only.push(format!("{rel}: {name}"));
+                }
                 if method_meta(name).is_none() {
                     missing.push(format!("{rel}: {name}"));
                 }
@@ -210,6 +217,18 @@ fn every_router_arm_is_registered_in_method_table() {
     assert!(
         judge_scanned >= 250,
         "판정기로 읽은 dispatch 팔을 {judge_scanned} 개밖에 못 찾았다(실측 321) — 판정기 판독이 깨졌을 가능성이 크다"
+    );
+    // 위 하한은 판독기가 **통째로** 죽는 것만 잡는다 — 파일 하나만 못 읽게 되면 나머지가
+    // 하한을 채운다. 그래서 줄 판독이 본 팔은 전부 같은 파일의 판정기 판독도 봐야 한다는
+    // 포함관계를 따로 단정한다: 판정기 판독이 파일 하나만큼 죽으면 그 파일의 줄 팔이 여기로
+    // 떨어진다. 반대쪽(줄 판독이 파일 하나만큼 죽는 것)은 이 단정이 못 보지만, 그때도 그
+    // 팔은 판정기 판독이 대조하므로 표 대조에서 빠지는 팔은 없다. `method ==` 비교 판독의
+    // 파일 단위 부분 사망은 이 단정 밖이다(판정기 판독과 겹치는 원소가 없다).
+    assert!(
+        line_only.is_empty(),
+        "줄 판독이 본 `\"…\" =>` 팔을 같은 파일의 판정기 판독이 못 봤다 — 판정기 판독이 그 \
+         파일에서 깨졌을 가능성이 크다:\n  {}",
+        line_only.join("\n  ")
     );
     missing.sort();
     missing.dedup();
