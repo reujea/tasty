@@ -1,4 +1,4 @@
-<!-- source-hash: 3d736cd038f4 -->
+<!-- source-hash: 0eb7231d713d -->
 # Install
 
 Install Tasty for your computer and open your first terminal. Below you will find installation steps for each OS, along with how to update or uninstall.
@@ -84,7 +84,7 @@ On Windows, Tasty uses **Git Bash** as its shell. If Git for Windows is not inst
 language = "ko"
 ```
 
-Check from the terminal that the install worked. The second command only responds while a Tasty window is open.
+Check from the terminal that the install worked. The second command only responds while Tasty is running.
 
 ```sh
 tasty --version      # e.g. tasty 0.10.3

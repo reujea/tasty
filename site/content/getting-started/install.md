@@ -83,7 +83,7 @@ Windows 에서 Tasty 는 **Git Bash** 를 셸로 씁니다. Git for Windows 가 
 language = "ko"
 ```
 
-터미널에서 설치가 잘 됐는지 확인합니다. 두 번째 명령은 Tasty 윈도우가 떠 있어야 응답합니다.
+터미널에서 설치가 잘 됐는지 확인합니다. 두 번째 명령은 Tasty 가 실행 중이어야 응답합니다.
 
 ```sh
 tasty --version      # 예: tasty 0.10.3

@@ -1,4 +1,4 @@
-<!-- source-hash: 620f9e433ad4 -->
+<!-- source-hash: 353185e7c794 -->
 # Troubleshooting
 
 If something is not working, find the matching symptom below. Check installation, permissions, terminal connections, and notifications, or use the reporting steps at the end if you still need help.
@@ -75,7 +75,7 @@ You can see the current state in the **Settings** > **General** > **Permissions*
 
 ## The `tasty` command cannot connect
 
-- **`No running tasty instance found (port file not found at …)`** — no Tasty window is running. If the path in the message is not `~/.tasty/tasty.port`, the command is looking at a different home directory (`TASTY_HOME`). The message follows your configured language (`general.language`, English by default), so it is worded differently if you set another one. A wrong argument (broken JSON, a `--cwd` folder that does not exist, and so on) is reported before this message, so if you see this message the arguments themselves passed.
+- **`No running tasty instance found (port file not found at …)`** — no Tasty is running. If the path in the message is not `~/.tasty/tasty.port`, the command is looking at a different home directory (`TASTY_HOME`). The message follows your configured language (`general.language`, English by default), so it is worded differently if you set another one. A wrong argument (broken JSON, a `--cwd` folder that does not exist, and so on) is reported before this message, so if you see this message the arguments themselves passed.
 - **The port file exists but it cannot connect** — a previous Tasty exited abnormally and left only the port file behind. Make sure Tasty is not running, then delete the file and start it again.
 
   ```sh
