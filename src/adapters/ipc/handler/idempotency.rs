@@ -202,9 +202,10 @@ pub(crate) struct Store {
     /// 다음에 줄 진행 중 표.
     next_ticket: u64,
     /// 판정 누계. [`Store::decide`] 가 갈래마다 센다 — 판정이 그 함수 하나에서 나오므로
-    /// 층(engine 라우터 · App 층)마다 세는 자리를 따로 두지 않는다. 단 한 요청이 두 층의
-    /// 판정을 지나는 갈래가 하나 있어(App 층이 이름을 안 맡아 engine 라우터로 넘긴다),
-    /// 그 갈래는 [`Store::abandon_unhandled`] 가 앞 층의 셈을 되돌린다.
+    /// 층(engine 라우터 · App 층 · GUI debug 묶음 · forward)마다 세는 자리를 따로 두지 않는다.
+    /// 단 한 요청이 여러 층의 판정을 지나는 갈래가 있어(App 층이나 GUI debug 묶음이 이름을
+    /// 안 맡아 다음 층으로 넘긴다), 그 갈래는 [`Store::abandon_unhandled`] 가 앞 층의 셈을
+    /// 되돌린다.
     counts: RetryCounts,
 }
 

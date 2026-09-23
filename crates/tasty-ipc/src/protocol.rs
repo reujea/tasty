@@ -140,10 +140,12 @@ pub struct JsonRpcRequest {
     /// plugin namespace forward · engine 라우터 중 어디로 가든 `-32602` 다. 검사 자리가 그
     /// 셋보다 앞인 진입 게이트(`check_request`)이기 때문이다 — ADR-0420.
     ///
-    /// ★ **`Mutate` 는 상한이지 보장이 아니다.** 호스트의 보존소는 engine 라우터와 App 층
-    /// (창 · plugin 설치 · 스크린샷 · 원격 attach 처럼 `App` 이 끝내는 메서드) 두 층에
-    /// 배선돼 있다(ADR-0421). plugin namespace 로 forward 되는 이름은 계약 **밖**이다 —
-    /// 키를 실어도 호스트가 보존소를 안 거친다(ADR-0361).
+    /// ★ **`Mutate` 는 상한이지 보장이 아니다.** 호스트의 보존소는 호스트가 아는 이름이
+    /// 끝나는 경로마다 배선돼 있다 — engine 라우터, App 층(창 · plugin 설치 · 스크린샷 ·
+    /// 원격 attach 처럼 `App` 이 끝내는 메서드, ADR-0421), 그리고 그 뒤의 GUI debug step 과
+    /// plugin namespace 로 forward 되는 **표의** 이름(`image.open` 등, ADR-0566). 계약
+    /// **밖**은 표가 모르는 plugin 고유 이름뿐이다 — 키를 실어도 호스트가 보존소를 안
+    /// 거친다(ADR-0361).
     ///
     /// 그 차이는 **보내기 전에** 안다 — 메서드마다 이름 표가 선언한다
     /// ([`crate::method_meta::key_contract`]: 보존소가 받는다 · 원래 안전하다 · 계약 밖).

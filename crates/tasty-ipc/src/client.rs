@@ -103,8 +103,9 @@ impl std::error::Error for CapabilityProbeExpired {}
 /// [`UnsupportedCapability`] 와 같은 성질의 거절이다. 저쪽은 "서버가 키를 못 읽는다",
 /// 이쪽은 "서버가 키를 읽어도 **이 메서드에서는** 안 지킨다" 다. 어느 쪽이든 키를 실어
 /// 보내면 호출자는 계약이 걸린 줄 알고 재시도하고, 그 재시도는 두 번째 실행이 된다.
-/// 판정은 [`crate::method_meta::key_contract`] 가 한다 — plugin namespace forward(ADR-0361)와
-/// GUI debug step 이 끝내는 `Mutate`(ADR-0423)가 이 값을 낸다.
+/// 판정은 [`crate::method_meta::key_contract`] 가 한다 — 이 값을 내는 것은 표가 모르는 이름,
+/// 곧 plugin namespace 로 forward 되는 plugin 고유 이름뿐이다(ADR-0361). 호스트가 아는 이름은
+/// 어느 경로로 끝나든 보존소를 지나 판(1·2·3)만 다르다(ADR-0566).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct KeyOutsideContract {
     pub method: String,
