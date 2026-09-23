@@ -1,4 +1,4 @@
-<!-- source-hash: bf03b0213b1c -->
+<!-- source-hash: 2116e3c9a7f2 -->
 # Working with the terminal
 
 Copy the output you need, search terminal history, and open file paths as you work. You can also select text without a mouse and receive notifications when work finishes.
@@ -101,7 +101,7 @@ How files are opened (Markdown · image · Explorer) is in [Opening files](files
 - The number of lines kept is **Settings** > **Terminal** > **Scrollback lines** (default 10,000, maximum 100,000). `clear` also empties the scrollback.
 - The scrollback continues after a restart — [Workspaces](workspaces.md#restoring-after-a-restart).
 
-Increase and decrease the font size with `Ctrl+=` / `Ctrl+-` and reset it with `Ctrl+0`. This applies only to the terminal font.
+Increase and decrease the font size with `Ctrl+=` / `Ctrl+-` and reset it with `Ctrl+0`. It applies to the focused Surface — a terminal, Explorer or Markdown.
 
 ## Programs that capture the mouse
 
