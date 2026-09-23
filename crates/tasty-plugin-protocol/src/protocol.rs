@@ -348,8 +348,8 @@ pub struct ExtensionHookResult {
 //
 // plugin이 OS 공유 메모리 영역을 만들고 dirty rect를 알릴 때 사용한다. 실제 핸들
 // (fd/HANDLE) 전송은 *보조 채널*을 통해 이루어지고, 이 메인 채널 메서드는 id/size/
-// rect 같은 메타데이터만 운반한다. 보조 채널 wire 포맷은 SDK 통합 단계(Step 02b/02c)
-// 에서 정의된다.
+// rect 같은 메타데이터만 운반한다. 보조 채널 wire 포맷은 아래 [`HandleChannelMessage`]
+// 절이 정의한다.
 //
 // 권한: manifest의 `[memory]` 섹션에 `max_shared_buffer_bytes`가 선언된 plugin만
 // 호출 가능. 미선언 plugin이 호출하면 호스트가 -32001 PermissionDenied 응답.
@@ -652,11 +652,11 @@ pub struct AuthAckEnvelope {
     pub auth_ack: AuthAck,
 }
 
-// ── 보조 핸들 채널 (Step 02b/02c) ──
+// ── 보조 핸들 채널 ──
 //
 // 메인 TCP 채널은 fd/HANDLE을 운반할 수 없으므로 보조 채널을 별도로 둔다. Unix는
 // AF_UNIX (SCM_RIGHTS 가능), Windows는 Named Pipe (DuplicateHandle 가능). 이 채널의
-// wire 포맷은 NDJSON이며, 02c에서 NDJSON 한 줄 직후 OS-네이티브 ancillary data로
+// wire 포맷은 NDJSON이며, NDJSON 한 줄 직후 OS-네이티브 ancillary data로
 // 핸들을 함께 전송한다.
 //
 // 인증 단계는 메인 채널의 [`AuthMessage`] / [`AuthAckEnvelope`]를 그대로 재사용한다 —

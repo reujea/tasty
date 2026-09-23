@@ -18,7 +18,8 @@
 //! # 안전성
 //!
 //! 두 프로세스가 같은 영역을 동시에 변경하면 data race(UB). 동기화는 상위 계층
-//! 책임이다(generation counter, dirty rect 등 — Step 02/03에서 추가).
+//! 책임이다(generation counter, dirty rect 등 — `tasty-plugin-sdk` 의 shared buffer 와
+//! `host.shared_buffer.dirty`).
 //!
 //! mmap된 메모리는 신뢰할 수 없는 외부 프로세스가 임의로 쓸 수 있으므로 `as_slice`
 //! / `as_mut_slice`는 `unsafe`다. 호출자는 (1) 동기화가 보장된 시점에 읽고, (2)
