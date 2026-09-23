@@ -131,6 +131,24 @@ capability 판 숫자 하나만 바뀐다는 조항.
   같은 모듈의 `the_relay_closure_uses_only_its_own_argument` 가, debug 묶음의 `handled` 판정이
   `IpcStep::Handled` 를 안 보게 되면 `the_debug_layers_judge_handled_by_the_step` 가 잡는다. 둘 다
   호출 자리의 모양을 재는 텍스트 가드이고, 그 closure 를 실제 dispatch 로 돌려 재는 행동 시험은 없다.
+- forward 자리의 `handled` 판정이 자리를 열어 둔 채 두지 않게 되면 — `forward_keeping_the_key` 가
+  `run_app_layer` 에 넘기는 `|_| true` 가 `false` 를 내게 되면, forward 직후 자리가 닫혀 plugin 이 답하기
+  **전에** 온 같은 키의 재시도가 합류하지 않고 plugin 으로 한 번 더 나간다 —
+  `idempotency::tests::a_retry_before_the_plugin_answers_joins_the_running_forward` 가 잡는다. 위
+  `a_forwarded_host_method_runs_once_per_key_and_the_retry_is_a_replay` 는 첫 답이 온 **뒤에** 재시도를
+  보내므로 그 갈래를 못 본다.
+- 예약 밖 prefix 의 `Mutate` 와 판 3 선언이 갈리면
+  `method_meta::tests::a_host_mutation_under_a_claimable_prefix_is_kept_from_version_three` 가, debug step
+  의 `Mutate` 와 갈리면 `key_contract_by_layer::the_debug_step_mutations_are_exactly_the_debug_names_kept_from_version_three`
+  가 잡는다.
+- 번들 plugin 이 예약 prefix 를 점유하게 되거나(예약 목록이 바뀌면) 판 3 의 좌변이 바뀐다 — 위 시험이
+  그 날의 좌변으로 다시 잰다.
+
+**원리적으로 안 붙는 것** — 사람이 관측해야 한다. 재는 법을 함께 적는다.
+
+- **실제 plugin 을 거친 forward 가 한 번만 실행되는가.** 단위 시험은 forward 를 흉내 낸다. 재는 법:
+  image plugin 이 켜진 격리 `TASTY_HOME` 의 debug 인스턴스에 같은 키로 `image.open` 을 두 번 보내
+  `surface.list` 의 이미지 surface 수와 둘째 답의 `idempotent_replay` 를 본다.
 - **네 배선 자리(GUI debug · GUI window-required · GUI forward · 헤드리스 forward)의 보존소 호출을 옮기거나
   감싸는 리팩토링이 오면** 이 결정을 다시 잰다. 지금 그 자리들을 지키는 것은 위의 텍스트 가드뿐이라, 가드가
   읽는 호출 모양 밖으로 보존소를 비껴가는 변경은 아무 시험도 못 잡는다 — 자리마다 보존소 호출을 떼는 변이를
@@ -150,24 +168,6 @@ capability 판 숫자 하나만 바뀐다는 조항.
   `the_gui_debug_steps_run_behind_the_store` 가 잡는다. 다시 재는 법: 루프를 고친 커밋에서 위 두 변이를
   붙여 전량을 기준선과 견준다. 그 가드의 음의 단언이 `ipc_dispatch_command` 본문에서 `src/app/` 출하 코드
   전체(묶음 함수 본문 제외)로 넓어지면 이 불릿은 그 가드 이름을 가리키는 쪽으로 바뀐다.
-- forward 자리의 `handled` 판정이 자리를 열어 둔 채 두지 않게 되면 — `forward_keeping_the_key` 가
-  `run_app_layer` 에 넘기는 `|_| true` 가 `false` 를 내게 되면, forward 직후 자리가 닫혀 plugin 이 답하기
-  **전에** 온 같은 키의 재시도가 합류하지 않고 plugin 으로 한 번 더 나간다 —
-  `idempotency::tests::a_retry_before_the_plugin_answers_joins_the_running_forward` 가 잡는다. 위
-  `a_forwarded_host_method_runs_once_per_key_and_the_retry_is_a_replay` 는 첫 답이 온 **뒤에** 재시도를
-  보내므로 그 갈래를 못 본다.
-- 예약 밖 prefix 의 `Mutate` 와 판 3 선언이 갈리면
-  `method_meta::tests::a_host_mutation_under_a_claimable_prefix_is_kept_from_version_three` 가, debug step
-  의 `Mutate` 와 갈리면 `key_contract_by_layer::the_debug_step_mutations_are_exactly_the_debug_names_kept_from_version_three`
-  가 잡는다.
-- 번들 plugin 이 예약 prefix 를 점유하게 되거나(예약 목록이 바뀌면) 판 3 의 좌변이 바뀐다 — 위 시험이
-  그 날의 좌변으로 다시 잰다.
-
-**원리적으로 안 붙는 것** — 사람이 관측해야 한다. 재는 법을 함께 적는다.
-
-- **실제 plugin 을 거친 forward 가 한 번만 실행되는가.** 단위 시험은 forward 를 흉내 낸다. 재는 법:
-  image plugin 이 켜진 격리 `TASTY_HOME` 의 debug 인스턴스에 같은 키로 `image.open` 을 두 번 보내
-  `surface.list` 의 이미지 surface 수와 둘째 답의 `idempotent_replay` 를 본다.
 
 ## References
 
