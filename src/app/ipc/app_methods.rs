@@ -4,7 +4,7 @@
 //! - `system.gpu_stats` (read-only GPU 리소스 카운트 — 메모리 누수 soak 검증)
 //! - `timer.list` (read-only 타이머 허브 스냅샷 — 무엇이 인스턴스를 깨우는가)
 //! - `window.create` / `window.close` / `window.focus` / `window.list`
-//! - `plugin.*` (15개 메서드)
+//! - `plugin.*` (목록은 `crates/tasty-ipc/src/method_meta.rs` 의 `"plugin.` 항목)
 //! - `approval.await` (blocking — worker thread 위임)
 
 mod remote;

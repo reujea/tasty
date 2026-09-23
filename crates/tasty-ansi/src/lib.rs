@@ -11,8 +11,10 @@
 //!
 //! 두 소비자 크레이트는 서로를 흡수할 수 없다 — `tasty-output` 에 합치면
 //! `tasty-terminal` 이 `serde`/`serde_json` 을, 반대로 합치면 `tasty-output` 이
-//! `termwiz`/`portable-pty` 를 딸려온다. `tasty-utils` 는 22 개 크레이트가 의존해서
-//! 거기에 `regex` 를 넣으면 지금 4 곳만 쓰는 의존이 그 전부로 퍼진다. 그래서
+//! `termwiz`/`portable-pty` 를 딸려온다. `tasty-utils` 는 `regex` 를 쓰는 크레이트보다
+//! 훨씬 많은 크레이트가 의존해서, 거기에 `regex` 를 넣으면 일부만 쓰는 의존이 그 전부로
+//! 퍼진다(두 수는 `crates/*/Cargo.toml` 에서 `^tasty-utils\s*=` 와 `^regex\s*=` 를 `git grep -l`
+//! 로 센다). 그래서
 //! 크기가 아니라 의존 방향으로 판정해 별도 크레이트로 세웠다 —
 //! 근거는 `docs/adr/0089-crate-split-follows-dependency-direction.md`.
 
