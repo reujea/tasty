@@ -26,7 +26,7 @@
 | [toast](systems/toast.md) | 자동으로 사라지는 휘발성 피드백 UI — `ToastManager` |
 | [banner](systems/banner.md) | 스코프 상단의 지속·인터랙티브 안내+조치 오버레이(4번째 오버레이 개념) |
 | [modifier-hint](systems/modifier-hint.md) | modifier 홀드 동안 뜨는 단축키 목록 오버레이(5번째 오버레이 개념) |
-| [fullscreen-stage](systems/fullscreen-stage.md) | 창 전체를 독점하는 독립 표면 — 기존 트리 밖의 무대 |
+| [fullscreen-stage](systems/fullscreen-stage.md) | 창 전체를 독점하는 독립 표면 — 기존 트리 밖의 무대 (기능 명세 포함) |
 | [webview](systems/webview.md) | 창 안의 native 자식 창 — 표면 열둘+`Drop`, 부모 handle·좌표·스레드 친화성·수명·탐색 상태·키보드 포커스 회수의 입출력 계약 |
 | [memory](systems/memory.md) | 에이전트 메모리 `memory.db` 의 가시성·소유권 모델 |
 | [storage](systems/storage.md) | 영속 데이터의 텍스트(TOML/셸) ↔ SQLite 분할, 창 간 공유 최근 목록 |
