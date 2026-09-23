@@ -89,7 +89,7 @@ tasty claude parent --surface 57                            # 이 자식의 부�
 
 `tasty codex …` 도 같은 서브커맨드(`tell` / `children` / `state` / `broadcast` / `kill` / `respawn` / `parent`)를 가집니다.
 
-자식이 너무 많아지면 spawn 응답에 경고가 붙습니다. 임계치는 **설정** <!-- en: Settings --> › **플러그인** <!-- en: Plugin --> › **Claude Code** / **Codex** 의 **Spawn child 경고 임계치** <!-- en: Spawn child warning threshold --> 에서 바꿉니다 (Codex 기본 6).
+자식이 너무 많아지면 spawn 응답에 경고가 붙습니다. 임계치는 **설정** <!-- en: Settings --> › **플러그인** <!-- en: Plugins --> › **Claude Code** / **Codex** 의 **Spawn child 경고 임계치** <!-- en: Spawn child warning threshold --> 에서 바꿉니다 (Codex 기본 6).
 
 ## 4. 완료 알림 받기
 
@@ -127,7 +127,7 @@ Monitor 없이 직접 읽을 수는 있지만 자동 재개나 영구 보관을 
 
 ### API 에러로 멈춘 Claude 자동 재개
 
-서버 과부하 같은 일시적인 API 에러로 Claude 의 턴이 끝나면, Tasty 가 잠시 뒤 "이어서 진행해" 문구를 대신 보내 작업을 잇게 할 수 있습니다. **기본은 꺼져 있습니다.** **설정** <!-- en: Settings --> › **플러그인** <!-- en: Plugin --> › **Claude Code** 에서 켭니다.
+서버 과부하 같은 일시적인 API 에러로 Claude 의 턴이 끝나면, Tasty 가 잠시 뒤 "이어서 진행해" 문구를 대신 보내 작업을 잇게 할 수 있습니다. **기본은 꺼져 있습니다.** **설정** <!-- en: Settings --> › **플러그인** <!-- en: Plugins --> › **Claude Code** 에서 켭니다.
 
 - **일시적인 API 에러(서버 과부하) 뒤 자동으로 이어서 진행** <!-- en: Resume automatically after a temporary API error (server overload) --> — 켜기/끄기.
 - **재개 전 대기 시간(초)** <!-- en: Seconds to wait before resuming --> — 기본 10초. 1초부터 하루(86400초)까지 정할 수 있고, 범위를 벗어난 값은 가장 가까운 끝으로 맞춥니다.

@@ -1,4 +1,4 @@
-<!-- source-hash: 937bc882c841 -->
+<!-- source-hash: d09687c48027 -->
 <!-- source-hash: 566aeb51a6d8 -->
 <!-- source-hash: 4d29d4555043 -->
 <!-- source-hash: 889e7471180f -->
@@ -91,7 +91,7 @@ tasty hook-handler remove --id user/my-handler
 
 The change is saved to `~/.tasty/hook-handlers.toml` right away. One thing does not follow: **a webhook address you already created keeps doing what it did** — it holds on to the actions it was given at the time, so register it again to pick up the new ones.
 
-User handlers are added and edited in the **Settings** › **Handlers** › **Hook Handlers** tab. Saving writes them to `~/.tasty/hook-handlers.toml`, and you can also write the file directly (apply with `tasty hook-handler reload`).
+User handlers are added and edited in the **Settings** › **Handler** › **Hook Handlers** tab. Saving writes them to `~/.tasty/hook-handlers.toml`, and you can also write the file directly (apply with `tasty hook-handler reload`).
 
 Every row shows who planted it — `host` for Tasty itself, the plugin's own name for a plugin, and `you` for the ones you made. Only the rows you can delete carry a trash button; the rest carry a padlock, because Tasty and its plugins plant their handlers again on every start. A handler that chains several internal actions shows that chain on one line, and the tab cannot change it — use `tasty hook-handler upsert` above, or edit the file and run `tasty hook-handler reload`.
 

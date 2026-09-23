@@ -1,4 +1,4 @@
-<!-- source-hash: 99b629420af5 -->
+<!-- source-hash: fb26fb54395c -->
 # Keybindings
 
 Use Tasty with shortcuts that feel familiar. Choose a preset or assign your preferred keys to actions you use often. Open **Settings** > **Keybindings** to get started.

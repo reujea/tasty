@@ -1,4 +1,4 @@
-<!-- source-hash: 6322aaae345e -->
+<!-- source-hash: 347d1d2567bb -->
 # Working with Claude and Codex
 
 Connect Claude Code and Codex CLI to share work across several agents. One agent can launch others and receive their results, so implementation, testing, and review can run alongside each other.
@@ -90,7 +90,7 @@ tasty claude parent --surface 57                            # the parent of this
 
 `tasty codex …` has the same subcommands (`tell` / `children` / `state` / `broadcast` / `kill` / `respawn` / `parent`).
 
-When there are too many children, a warning is attached to the spawn response. Change the threshold at **Settings** › **Plugin** › **Claude Code** / **Codex** › **Spawn child warning threshold** (Codex default 6).
+When there are too many children, a warning is attached to the spawn response. Change the threshold at **Settings** › **Plugins** › **Claude Code** / **Codex** › **Spawn child warning threshold** (Codex default 6).
 
 ## 4. Receiving completion notifications
 
@@ -130,7 +130,7 @@ Give each copy its own data folder with `TASTY_HOME` if you need both.
 
 ### Resuming Claude automatically after an API error
 
-When a temporary API error such as a server overload ends Claude's turn, Tasty can send a "please continue" message for you after a short wait so the work carries on. **It is off by default.** Turn it on at **Settings** › **Plugin** › **Claude Code**.
+When a temporary API error such as a server overload ends Claude's turn, Tasty can send a "please continue" message for you after a short wait so the work carries on. **It is off by default.** Turn it on at **Settings** › **Plugins** › **Claude Code**.
 
 - **Resume automatically after a temporary API error (server overload)** — on/off.
 - **Seconds to wait before resuming** — 10 seconds by default. Any value from 1 second to one day (86400 seconds) works, and a value outside that range is moved to the nearest end.
@@ -149,7 +149,7 @@ When a temporary API error such as a server overload ends Claude's turn, Tasty c
 - **Approval**: `--approval untrusted|on-request|never`. If you pass nothing, it runs with **`never`** — to prevent automation from getting stuck forever at an approval prompt. Specify `untrusted` / `on-request` only when a person is beside it to approve.
 - **Sandbox**: `--sandbox read-only|workspace-write|danger-full-access`. If not given, the Codex default. `read-only` suits children used for review and cross-checking.
 - `--full-auto`: bypasses both approval and sandbox. Cannot be combined with `--approval`/`--sandbox`.
-- The global defaults are **Default approval policy** / **Default sandbox mode** at **Settings** › **Plugin** › **Codex**. Per-call flags take precedence.
+- The global defaults are **Default approval policy** / **Default sandbox mode** at **Settings** › **Plugins** › **Codex**. Per-call flags take precedence.
 
 In environments where nested sandboxes are not possible, such as containers, if specifying `--sandbox` fails with something like `RTM_NEWADDR: Operation not permitted`, use `--full-auto`. This hint is also attached to the completion notification.
 
@@ -160,7 +160,7 @@ In environments where nested sandboxes are not possible, such as containers, if 
 - `--permission-mode acceptEdits|auto|bypassPermissions|manual|dontAsk|plan` — passed straight through to Claude Code.
 - **If you pass nothing, no flag is added at all.** The child starts with the Claude Code settings you already use. Unlike Codex it does not quietly become "never ask" — Claude Code has no separate sandbox axis, so making it stop asking is the same as letting it run unrestricted.
 - If a child pausing for approval would break an unattended run, name the mode you want on that call. A paused child’s state is also delivered through the configured [receiving channel](#4-receiving-completion-notifications).
-- The global default is **Default permission mode for child sessions** at **Settings** › **Plugin** › **Claude Code**. It defaults to **Inherit** (no flag), and per-call flags take precedence.
+- The global default is **Default permission mode for child sessions** at **Settings** › **Plugins** › **Claude Code**. It defaults to **Inherit** (no flag), and per-call flags take precedence.
 - If the settings JSON behind `--profile` / `--profile-file` sets `permissions.defaultMode`, it cannot be combined with `--permission-mode` — the two decide the same thing, so you get an error asking you to pick one.
 - A mode given to `reboot` / `child-profile` applies **to that restart only**. It is not carried over when the tab is restored later.
 
@@ -199,7 +199,7 @@ tasty claude spawn --workspace w --profile continue-checklist
 ```
 
 - If the agent puts `[[TASTY-CHECKLIST-DONE]]` at the end of its response it passes; otherwise it receives the checklist again. When the round limit (default 3) is reached it passes automatically.
-- The limit is **Default gate round limit** at **Settings** › **Plugin** › **Claude Code**.
+- The limit is **Default gate round limit** at **Settings** › **Plugins** › **Claude Code**.
 - To create your own gate: `tasty claude gate-register <name> --body-file <file> [--sentinel <string>] [--rounds N]`. The body must contain the sentinel string. Check with `gate-list` / `gate-show`.
 
 ## Troubleshooting
