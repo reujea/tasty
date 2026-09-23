@@ -10,10 +10,11 @@
 
 gui 는 5-step 라우터(`src/app/ipc.rs`)를 쓴다. 헤드리스 pump(`src/boot/headless_dispatch.rs`)
 는 caller 해석 → **권한 경계** → engine handler 직결로 간소화하되, **`App` 층 상태를 읽어야만
-답할 수 있는 것**만 그 앞에서 가로챈다. 현재 가로채는 것은 넷이다.
+답할 수 있는 것**만 그 앞에서 가로챈다. 현재 가로채는 것은 다섯이다.
 
 - `timer.list` — `App` 의 TimerHub 를 읽는다.
 - 읽기 전용 `plugin.*` 조회 — `App.plugin_manager` 를 읽는다.
+- `plugin.enable` / `plugin.disable` — `App.plugin_manager` 를 쓴다(아래 "수명주기 토글").
 - `plugin.request_permission` — `state`·`engine` 만 읽는다(아래 "권한 경계").
 - `events.fetch` — `App.plugin_manager` 가 소유한 사건 버스의 링을 읽는다.
 

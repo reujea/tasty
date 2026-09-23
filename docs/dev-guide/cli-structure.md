@@ -5,7 +5,7 @@
 
 | 디렉토리 | 답하는 질문 | 들어가는 것 | 들어가면 안 되는 것 |
 |----------|-------------|-------------|---------------------|
-| `commands/` | **무엇을 받나** | clap `Subcommand`/`Args` 선언, 도움말 문구(영어) | 실행 코드 (`pub fn` 0개), SSH·스트림·원격 계층 참조, 한국어 `///` |
+| `commands/` | **무엇을 받나** | clap `Subcommand`/`Args` 선언, 도움말 문구(영어) | 실행 코드 (`pub fn` 은 `ValueEnum` 의 `as_str` 같은 선언 보조만), SSH·스트림·원격 계층 참조, 한국어 `///` |
 | `request/` | 단발 RPC 면 **어디로** | `Commands` → JSON-RPC method/params 변환 | 통신 자체 |
 | `local/` | 클라이언트 주도면 **무엇을** | `ClientCommand` 구현 + 그 실행부 | clap 선언 |
 

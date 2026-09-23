@@ -9,7 +9,7 @@
 
 ## 라우팅
 
-JSON-RPC 라우터는 공통 `check_request`의 권한·cap·rate·관측을 마친 요청만 `src/adapters/ipc/handler.rs::handle_checked_request`에 넘겨 핸들러를 탐색한다:
+JSON-RPC 라우터는 공통 `check_request`의 권한·cap·rate·관측을 마친 요청만 `src/adapters/ipc/handler.rs::handle_checked_request`에 넘기고, 핸들러 탐색은 그 안의 `dispatch_routed` 가 한다:
 
 ```rust
 // window: &mut EntryWindow — handle_checked_request 가 쥔 AppState 를 감싼 것
@@ -17,7 +17,7 @@ let mut out = IntentOutbox::default();   // 요청 하나의 intent 출구
 let routed = route_engine_handler(core, window.port(), &mut out, engine, caller, request, id.clone());
 window.port().enqueue_intents(out);      // 출구를 이 창의 큐 끝으로
 if let Some(resp) = routed {
-    return resp;                         // release+debug 공통 엔진 핸들러 (~150개)
+    return resp;                         // release+debug 공통 엔진 핸들러
 }
 #[cfg(feature = "gui")]
 if let Some(resp) = window.route_window(engine, caller, request, id.clone()) {
@@ -108,12 +108,12 @@ debug 메서드는 모두 `local_only()` — plugin caller 는 호출 불가, CL
 
 | `tab` | 유효 `subtab` 키 |
 |-------|------------------|
-| `general` | `general` · `notifications` · `accessibility` · `overlay` · `remote_transfer` · `display`(macOS 전용 UI — 키 자체는 크로스플랫폼으로 강제 선택 가능) |
+| `general` | `general` · `notifications` · `accessibility` · `overlay` · `remote_transfer` · `display`(macOS 전용 UI — 키 자체는 크로스플랫폼으로 강제 선택 가능) · `macos_permissions` |
 | `terminal` | `general` · `mouse_capture` · `tui` · `performance` |
-| `appearance` | `theme` · `colors` · `general` · `display` · `tasty` · `terminal` |
-| `keybindings` | `general` · `workspace` · `pane` · `tab` · `surface` · `clipboard` · `zoom` · `image` · `preset` · `plugins` |
-| `file_handler` | `extension_mapping` · `detectors` · `handlers` |
-| `misc` | `tastyrc` (Windows 전용) |
+| `appearance` | `theme` · `colors` · `general` · `display` · `tasty` · `terminal` · `explorer` |
+| `keybindings` | `general` · `workspace` · `pane` · `tab` · `surface` · `clipboard` · `zoom` · `explorer` · `scripts` · `preset` · `plugins` · `import_export` |
+| `file_handler` | `extension_mapping` · `detectors` · `handlers` · `hook_handlers` |
+| `misc` | `scripts` · `tastyrc` (Windows 전용) |
 | `plugins` | — (L2 가 plugin contribute page 라 정적 키 없음; 무시) |
 
 > **이 표에는 자동 채널이 없다.** `DEBUG_METHODS` 와 이 표가 어긋나도 어떤 잡도 안 터진다 —
@@ -201,7 +201,7 @@ tasty screenshot --window <id> --path /tmp/palette-filtered.png
 
 ## CLI 노출
 
-CLI 도 동일하게 debug 빌드에서만 등록된다 — `DebugCommands`(`crates/tasty-cli/src/commands/debug.rs`)가 모듈째 `#![cfg(debug_assertions)]` — 실행부는 `crates/tasty-cli/src/local/debug.rs`(같은 cfg). 서브커맨드: `info` · `cell-info` · `screen-attrs` · `glyph-color` · `ime-*` · `switch-input-source` · `raw-key`(주입에 macOS 손쉬운 사용 권한 필요 — 미승인이면 `surface.raw_key` 가 `permission_denied` 에러를 돌려준다. **두 서브커맨드는 모든 플랫폼에서 도움말에 뜨고 요청을 받는다** — 숨기면 "그런 명령 없음" 이 되어 이름을 의심하게 만드는데 이름은 맞다. 대신 도움말 첫 줄이 macOS GUI 전용임을 말하고, 다른 조합에서는 위 `-32015` 가 사유와 함께 즉시 돌아온다(CLI 가 그 메시지를 그대로 출력하고 exit 1 이다 — 실측). CLI 층에 플랫폼 조건을 넣지 않는 것이 그 결정이며 `src/source_guards/platform_gated_dispatch_complement.rs` 가 그 전제를 지킨다. [macOS 권한](../features/macos-permissions/index.md). `ime-*`/`switch-input-source`/`raw-key` 는 IPC 쪽도 debug 전용이다 — [ADR-0115](../adr/0115-input-reproduction-ipc-debug-isolation.md)) · `event-bus` · `extension` · `tool` · `popup` · `host-popup` · `modifier-hint` · `banner` · `settings` · `stream-echo` · `attach`. (`settings open [--tab <name>] [--subtab <key>]` → `debug.settings.open`; `settings apply --json '<obj>'` 또는 `settings apply --file <path>` → `debug.settings.apply`. 예: `tasty debug settings apply --json '{"general":{"workspace_categories_enabled":false}}'`. JSON 파싱/파일 읽기 에러는 CLI 단에서 1차로 잡아 종료하고, 서버는 `params.get("settings")` 가 object 임을 기대한다.)
+CLI 도 동일하게 debug 빌드에서만 등록된다 — `DebugCommands`(`crates/tasty-cli/src/commands/debug.rs`)가 모듈째 `#![cfg(debug_assertions)]` — 실행부는 `crates/tasty-cli/src/local/debug.rs`(같은 cfg). 서브커맨드(일부 — 전체는 `tasty debug --help`): `info` · `cell-info` · `screen-attrs` · `glyph-color` · `ime-*` · `switch-input-source` · `raw-key`(주입에 macOS 손쉬운 사용 권한 필요 — 미승인이면 `surface.raw_key` 가 `permission_denied` 에러를 돌려준다. **두 서브커맨드는 모든 플랫폼에서 도움말에 뜨고 요청을 받는다** — 숨기면 "그런 명령 없음" 이 되어 이름을 의심하게 만드는데 이름은 맞다. 대신 도움말 첫 줄이 macOS GUI 전용임을 말하고, 다른 조합에서는 위 `-32015` 가 사유와 함께 즉시 돌아온다(CLI 가 그 메시지를 그대로 출력하고 exit 1 이다 — 실측). CLI 층에 플랫폼 조건을 넣지 않는 것이 그 결정이며 `src/source_guards/platform_gated_dispatch_complement.rs` 가 그 전제를 지킨다. [macOS 권한](../features/macos-permissions/index.md). `ime-*`/`switch-input-source`/`raw-key` 는 IPC 쪽도 debug 전용이다 — [ADR-0115](../adr/0115-input-reproduction-ipc-debug-isolation.md)) · `event-bus` · `extension` · `tool` · `popup` · `host-popup` · `modifier-hint` · `banner` · `settings` · `stream-echo` · `attach`. (`settings open [--tab <name>] [--subtab <key>]` → `debug.settings.open`; `settings apply --json '<obj>'` 또는 `settings apply --file <path>` → `debug.settings.apply`. 예: `tasty debug settings apply --json '{"general":{"workspace_categories_enabled":false}}'`. JSON 파싱/파일 읽기 에러는 CLI 단에서 1차로 잡아 종료하고, 서버는 `params.get("settings")` 가 object 임을 기대한다.)
 
 ### `tasty debug attach` (JSON-RPC 메서드 아님)
 
@@ -230,8 +230,8 @@ debug 메서드의 메타(`local_only()`)는 `crates/tasty-ipc/src/method_meta.r
 
 기준 한 줄: *"이 코드를 통째로 지우고 컴파일 에러 몇 줄만 정리하면 디버그 기능이 깨끗이 사라지는가?"* 그게 되면 격리 OK.
 
-- **debug 핸들러는 별도 파일에 모은다** — `src/adapters/ipc/handler/` 의 `debug.rs`(cell/screen/glyph/feed/inject) · `debug_plugin.rs`(event_bus/extension) · `tool.rs` · `popup.rs` · `input_source.rs`(macOS raw_key/switch_input_source) · `ime.rs`(surface.ime_*) 가 각각 `#[cfg(...)]` 로 모듈 선언된다. **파일 이름에 `debug` 가 들어갈 필요는 없다** — 기준은 "그 파일이 debug 핸들러만 담고 모듈 선언에 cfg 가 붙어 있는가" 다. 일반 핸들러 파일(`pane.rs`, `surface.rs` 등) 중간에 `#[cfg(debug_assertions)] fn debug_xxx()` 를 끼우지 않는다.
-  - **예외 — gui 게이트 없는 debug 핸들러**: `debug.rs` 모듈은 `#[cfg(all(debug_assertions, feature = "gui"))]` 로 선언돼 headless 빌드에서 통째로 사라진다(그 모듈의 핸들러 다수가 `state.popups` / `state.banners` / `state.modifier_hint` 처럼 gui 에만 존재하는 필드를 만진다). 따라서 **gui 무관하게 headless 에서도 동작해야 하는 비-gui debug 핸들러**는 `debug.rs` 에 두지 않는다 — 한두 개면 `handler.rs` 안에 `#[cfg(debug_assertions)]` 로 직접 두고(`ui.state` 의 `handle_ui_state`, `debug.settings.apply` 의 `handle_debug_settings_apply`), 묶음이면 `#![cfg(debug_assertions)]` 만 건 형제 모듈로 뺀다 — 지금 둘이다: `debug_nav.rs`(워크스페이스/탭 전환 3 종) · `debug_terminal.rs`(터미널 그리드 4 종 — `cell_info` / `screen_attrs` / `feed_bytes` / `glyph_color`). **판정 기준은 핸들러 본체가 gui 게이트된 심볼을 실제로 만지는가**이지, 그 메서드가 사용자 조작 재현인가가 아니다 — 사용자 조작 재현 여부는 debug/release 축이고 이미 `debug_assertions` 가 가른다. 그리고 "만진다" 의 판정은 **심볼이 하는 일**이지 심볼이 놓인 자리가 아니다: `debug.glyph_color` 가 부르는 색 해석 함수는 `CellAttributes` 와 색 타입만 쓰는 순수 함수인데 한동안 `#[cfg(feature = "gui")] mod gfx;` 아래 있었을 뿐이라, 함수를 복제하지 않고 그 파일을 게이트 밖(`src/cell_palette.rs`)으로 올렸다 — 렌더러와 **같은 함수**를 부르는 것이 그 메서드의 정의라 복제는 답이 아니다. 삭제 가능성(핸들러 fn + route 한 줄 + `DEBUG_METHODS` 한 줄 + CLI variant)은 그대로 유지된다.
+- **debug 핸들러는 별도 파일에 모은다** — `src/adapters/ipc/handler/` 의 `debug.rs`(inject/host-popup/modifier-hint/banner 등 gui 상태) · `debug_plugin.rs`(event_bus/extension) · `tool.rs` · `popup.rs` · `input_source.rs`(macOS raw_key/switch_input_source) · `ime.rs`(surface.ime_*) 가 각각 `#[cfg(...)]` 로 모듈 선언된다. **파일 이름에 `debug` 가 들어갈 필요는 없다** — 기준은 "그 파일이 debug 핸들러만 담고 모듈 선언에 cfg 가 붙어 있는가" 다. 일반 핸들러 파일(`pane.rs`, `surface.rs` 등) 중간에 `#[cfg(debug_assertions)] fn debug_xxx()` 를 끼우지 않는다.
+  - **예외 — gui 게이트 없는 debug 핸들러**: `debug.rs` 모듈은 `#[cfg(all(debug_assertions, feature = "gui"))]` 로 선언돼 headless 빌드에서 통째로 사라진다(그 모듈의 핸들러 다수가 `state.popups` / `state.banners` / `state.modifier_hint` 처럼 gui 에만 존재하는 필드를 만진다). 따라서 **gui 무관하게 headless 에서도 동작해야 하는 비-gui debug 핸들러**는 `debug.rs` 에 두지 않는다 — `#[cfg(debug_assertions)]` 만 건 형제 모듈로 뺀다 — 지금 셋이다: `debug_state.rs`(`ui.state` 의 `handle_ui_state`, `debug.settings.apply` 의 `handle_debug_settings_apply`) · `debug_nav.rs`(워크스페이스/탭 전환 3 종) · `debug_terminal.rs`(터미널 그리드 4 종 — `cell_info` / `screen_attrs` / `feed_bytes` / `glyph_color`). **판정 기준은 핸들러 본체가 gui 게이트된 심볼을 실제로 만지는가**이지, 그 메서드가 사용자 조작 재현인가가 아니다 — 사용자 조작 재현 여부는 debug/release 축이고 이미 `debug_assertions` 가 가른다. 그리고 "만진다" 의 판정은 **심볼이 하는 일**이지 심볼이 놓인 자리가 아니다: `debug.glyph_color` 가 부르는 색 해석 함수는 `CellAttributes` 와 색 타입만 쓰는 순수 함수인데 한동안 `#[cfg(feature = "gui")] mod gfx;` 아래 있었을 뿐이라, 함수를 복제하지 않고 그 파일을 게이트 밖(`src/cell_palette.rs`)으로 올렸다 — 렌더러와 **같은 함수**를 부르는 것이 그 메서드의 정의라 복제는 답이 아니다. 삭제 가능성(핸들러 fn + route 한 줄 + `DEBUG_METHODS` 한 줄 + CLI variant)은 그대로 유지된다.
 - **외부 표면에 남는 cfg 가드는 router 분기 한 줄** (위 라우팅 코드의 `#[cfg(debug_assertions)] route_debug_handler(...)`).
 - **삭제 가능성 테스트**: debug 파일을 지웠을 때 cfg-guard 호출처 몇 줄 제거 외에 다른 변경이 필요하면 격리가 깨진 것이다.
 
@@ -260,7 +260,7 @@ debug 메서드의 메타(`local_only()`)는 `crates/tasty-ipc/src/method_meta.r
 
 ### 예외: 데이터 구조의 dev-only 필드
 
-매니페스트나 빌트인 spec 처럼 **데이터 구조의 필드 하나만 dev 전용**인 경우는 분리 대상이 아니다(예: `BuiltinSpec` 의 `#[cfg(debug_assertions)] crate_dir`). *디버그 동작* 이 아니라 *dev 빌드 데이터 차이* 라 같은 룰을 적용하면 구조가 찢어진다.
+매니페스트나 빌트인 spec 처럼 **데이터 구조의 필드 하나만 dev 전용**인 경우는 분리 대상이 아니다. *디버그 동작* 이 아니라 *dev 빌드 데이터 차이* 라 같은 룰을 적용하면 구조가 찢어진다.
 
 ## 관련
 

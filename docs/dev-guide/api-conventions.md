@@ -13,7 +13,7 @@ CLI 명령:  tasty <namespace> <verb> [--<option>]
 
 - **namespace 단수형** (`surface`, NOT `surfaces`). list 반환 키는 복수 (`surfaces: [...]`).
 - **root 예외**: `split`(pane 분할) · `tree`(surface tree)만 namespace 없이 root 에 등록(자주 쓰는 짧은 명령). 새 메서드는 이 예외에 동참 금지.
-- **보조 도메인은 3단** `<namespace>.<sub>.<verb>` (예: `tool.ssh.*`, `surface.meta.*` 점 표기).
+- **보조 도메인은 3단** `<namespace>.<sub>.<verb>` (예: `remote.profile.*`, `surface.meta.*` 점 표기).
 
 namespace 별 메서드 수는 `tests/cli_naming_count_drift.rs` 가 강제한다 — 추가는 같은 minor 내 OK(테이블 동기화 필요), **제거는 SemVer 위반**(major bump 필요). 카운트 snapshot 은 테스트가 SoT 라 본 문서에 박지 않는다.
 
@@ -427,7 +427,7 @@ debug 표 기준 총 3개.
 
 | 이유 | debug 메서드 | 왜 CLI 가 없나 |
 |---|---|---|
-| 사용자 행동 | `system.shutdown` | 호스트 종료는 사용자가 직접 하는 동작이다. debug 빌드에서도 에이전트 표면에 두지 않는다 |
+| 사용자 행동 | `system.shutdown` | 호스트 종료는 사용자가 직접 하는 동작이다. debug IPC 에 local 전용으로만 있고 CLI 진입점은 두지 않는다 |
 | 사용자 행동 | `window.focus` · `view.focus` | 포커스 전환은 사용자의 단축키/마우스 영역이다(원칙 3). debug IPC 에 재현 수단이 있는 것과, 그것을 CLI 한 줄로 상시 노출하는 것은 다르다 |
 
 ## 응답 계약 — mirror 워크스페이스로 간 구조 op
@@ -452,7 +452,7 @@ debug 표 기준 총 3개.
 
 ## plugin 점유 namespace
 
-plugin 이 매니페스트로 contribute 하는 IPC namespace 는 호스트 예약어와 충돌 금지(`system surface tab pane workspace claude plugin hook global_hook webhook message tool notification window debug ui ime split tree memory output approval telemetry timer` 등). 상세는 [plugin-development](plugin-development.md) "예약 prefix".
+plugin 이 매니페스트로 contribute 하는 IPC namespace 는 호스트 예약어와 충돌 금지(`system surface tab pane workspace plugin hook global_hook webhook message tool notification window debug ui ime split tree memory output approval telemetry timer` 등). 상세는 [plugin-development](plugin-development.md) "예약 prefix".
 
 ### 대상 surface 는 `surface` / `surface_id` 어느 이름으로 와도 같은 필드다
 
