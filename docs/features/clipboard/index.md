@@ -10,13 +10,13 @@
 
 터미널 텍스트의 **복사/붙여넣기/선택**, OSC 52 클립보드 설정. 복사/붙여넣기는 사용자 행동이라 토스트로 피드백하고, 에이전트(IPC) 경로는 사용자 시각 상태를 건드리지 않는다. OSC 52 쓰기는 토스트를 낸다 — 보이지 않는 클립보드 쓰기를 사용자에게 보이게 하는 목적이다(PTY 출력이라 origin 을 가를 수 없어 에이전트가 셸에 찍게 해도 뜬다 — [toast](../../design/systems/toast.md) 트리거 정책의 알려진 예외).
 
-> **히스토리 기능 제거됨.** 과거 host 가 OS 클립보드를 폴링해 누적하던 클립보드 히스토리(메모리 `ClipboardHistory` + DB 테이블 + `tasty clipboard` CLI + `tool.clipboard.*` IPC + `clipboard.copied` 이벤트)는 전부 제거됐다. 현재는 *히스토리 누적 없이* 지금 클립보드 내용만 [clipboard-viewer plugin](../../plugins/clipboard-viewer/index.md) 이 read-only 로 보여준다.
+> **히스토리 기능 제거됨.** 과거 host 가 OS 클립보드를 폴링해 누적하던 클립보드 히스토리(메모리 `ClipboardHistory` + DB 테이블 + `tasty clipboard` 의 히스토리 서브커맨드 + `tool.clipboard.*` IPC + `clipboard.copied` 이벤트)는 전부 제거됐다. 현재는 *히스토리 누적 없이* 지금 클립보드 내용만 [clipboard-viewer plugin](../../plugins/clipboard-viewer/index.md) 이 read-only 로 보여준다.
 
 ## 내부 동작
 
 ### 복사 / 붙여넣기 — KeybindingSettings 경유
 
-`copy`/`paste` 바인딩 목록 중 하나와 매칭되면 동작(다중 바인딩). 기본값은 OS 별로 다르다(Win `ctrl+c`/`ctrl+v`, Linux `ctrl+shift+c/v`, macOS `alt+c/v`). 바인딩 편집은 [keybindings](../keybindings/index.md). 위치 기반 매핑은 [key-mapping](../../design/policies/key-mapping.md).
+`copy`/`paste` 바인딩 목록 중 하나와 매칭되면 동작(다중 바인딩). 기본값(tasty 프리셋)은 OS 와 무관하게 세 조합을 모두 묶는다(`ctrl+c`·`alt+c`·`ctrl+shift+c`, paste 동형). OS 별 조합은 Mac/Windows/Linux 프리셋을 고를 때의 값이다. 바인딩 편집은 [keybindings](../keybindings/index.md). 위치 기반 매핑은 [key-mapping](../../design/policies/key-mapping.md).
 
 - **소프트 랩 인지 복사**: 셸이 너비에 맞춰 자동 줄바꿈한 라인은 복사 시 한 줄로 합쳐지고, 진짜 hard newline 은 보존.
 - **붙여넣기**: bracketed paste(DECSET 2004) 지원. 텍스트 없고 이미지가 있으면 PNG 로 저장 후 경로를 붙여넣기(AI 에이전트가 이미지 참조 가능).
