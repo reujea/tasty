@@ -12,7 +12,7 @@ tasty-ui-widgets     layout / 위젯 primitive (본 문서)
    tasty (본체)    tasty-gallery
 ```
 
-- 의존: `egui`, `tasty-egui-theme`, `tasty-type-appearance`(Theme schema), `tasty-type-geometry`(`LogicalPx`/`PhysicalPx`).
+- 의존: `egui`, `egui_extras`, `tasty-icons`, `tasty-egui-theme`, `tasty-type-appearance`(Theme schema), `tasty-type-geometry`(`LogicalPx`/`PhysicalPx`).
 - **본체(`tasty`) 미의존** — widgets crate 는 본체 state·plugin·전역 `theme()` 를 모른다. 모든 함수는 `&Theme` 을 **명시적 인자**로 받는다.
 - 갤러리는 본체 빌드와 분리 — `cargo build` 기본 타깃이 `tasty-gallery` 를 의존하지 않는다. `cargo run -p tasty-gallery` 로만 실행되는 standalone 데모.
 
@@ -29,7 +29,7 @@ tasty-ui-widgets     layout / 위젯 primitive (본 문서)
 | `DrillDown::show(ui, theme, list, detail, actions)` | master→detail content-swap idiom — controlled `view`, 디테일 back bar(←+제목+actions) + 내부 스크롤 |
 | `ListCtrl::show(ui, theme, items, selected)` | 행 선택형 내비게이션 리스트 — DrillDown 과 짝 (`clicked` 인덱스 반환) |
 
-사용 사이트: 본체 settings(Appearance/Keybindings 의 2-depth 레이아웃·상단 탭바·콘텐츠 프레임), 갤러리 데모.
+사용 사이트: `DrillDown`/`ListCtrl` — 본체 settings Keybindings(프리셋·import/export)와 DAG 목록 popup, 갤러리 데모. 나머지 넷 — 갤러리 데모만.
 
 ## Layout 토큰 (`tokens` 모듈)
 
@@ -79,7 +79,7 @@ if let Some(new) = selected_new { *sub_tab = new; }
 
 탭 전환에 1 프레임(~16ms) 지연이 생기지만 인지 불가 수준 — closure 모델의 자연스러운 비용.
 
-`horizontal_tab_bar_with_arrows` 의 chevron 아이콘은 widgets crate 내 SVG 사본을 쓰며, 호출자가 `egui_extras::install_image_loaders` 를 미리 호출했다고 가정한다.
+`horizontal_tab_bar_with_arrows` 의 chevron 아이콘은 `tasty-icons` 의 `CHEVRON_LEFT`/`CHEVRON_RIGHT` 를 쓰며, 호출자가 `egui_extras::install_image_loaders` 를 미리 호출했다고 가정한다.
 
 ## 확장 가이드
 
