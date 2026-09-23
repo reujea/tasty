@@ -18,8 +18,8 @@ Tasty 자체 in-app "파일 열기" 다이얼로그. 로컬 파일시스템뿐 �
 ### 로컬/원격 판별
 
 Tools 메뉴에서 파일 피커 항목을 클릭하면(`src/adapters/ui/tools_menu.rs::open` 경유,
-`popup::file_picker::open`), 현재 활성 workspace(`state.active_workspace`)의 `Workspace.mirror`
-플래그를 1회 확인해 로컬/원격을 고정한다. `FilePickerData.mirror_ws_id: Option<u32>` 가 `Some`
+`popup::file_picker::open`, 출발 surface = focus surface), 출발 surface 가 속한 workspace(없으면 활성
+workspace)의 `Workspace.mirror` 플래그를 1회 확인해 로컬/원격을 고정한다. `FilePickerData.mirror_ws_id: Option<u32>` 가 `Some`
 이면 원격, `None` 이면 로컬이다.
 
 ### 로컬 브라우징
@@ -126,8 +126,8 @@ forward/tap 도 동반 — file picker 뿐 아니라 mirror 연결 자체가 끊
 
 - **path bar**: 상위 폴더·새로고침 버튼이 오른쪽 끝을 먼저 차지하고, breadcrumb 은 남은 폭 안에서만
   그려지고 그 밖은 잘린다. 가로 스크롤은 없다.
-- **가운데 생략**: 전체 breadcrumb 이 그 폭에 안 들어가면 root + `…` + 마지막 두 성분(현재 폴더와 그
-  부모)만 보인다(`crumb_slots`). 들어가면 접지 않는다. 성분 하나는 180px 에서 말줄임한다.
+- **가운데 생략**: 전체 breadcrumb 이 그 폭에 안 들어가면 `crumb_alloc::plan`(`crates/tasty-ui-widgets/src/crumb_alloc.rs`)
+  사다리로 접는다 — 조상 한 칸씩 `…` 로 → 부모 축소 → 현재 폴더 축소 → `root › … › current` → `… › current`. 들어가면 접지 않는다. 성분 하나는 180px 에서 말줄임한다.
 - **`…` 메뉴**: `…` 를 누르면 숨긴 조상들이 메뉴로 나열되고, 고르면 그 폴더로 이동한다. hover 하면
   **누르면 무엇이 되는지**를 말한다 — `Show 3 hidden folders`(`filepicker.hidden_folders_many`),
   하나면 단수형(`filepicker.hidden_folders_one`). 상태 서술("N folders hidden")이 아닌 이유는
@@ -331,7 +331,7 @@ view 는 `FilePickerProps` 만 받고 `FilePickerAction` 만 돌려주므로 상
   이어진다.
 - Given 원격 파일을 확정 Then 선택 경로가 로컬 클립보드에 복사되고 toast 가 뜬다(원격 콘텐츠
   fetch 는 일어나지 않는다).
-- Given X 버튼/ESC/외부 클릭으로 popup 이 닫힘 Then 결과가 `Cancelled` 로 명시되어 dialog
+- Given X 버튼/ESC 로 popup 이 닫힘 Then 결과가 `Cancelled` 로 명시되어 dialog
   상태가 정리된다(다음 오픈에 이전 상태가 새지 않음).
 - Given 열기 모드에서 디렉토리 엔트리가 선택됨(더블클릭 아님) Then [열기] 가 활성이고 누르면
   그 디렉토리로 들어간다 — 결과는 나지 않는다(디렉토리는 파일로 확정되지 않는다). 이름 칸은
@@ -372,7 +372,7 @@ view 는 `FilePickerProps` 만 받고 `FilePickerAction` 만 돌려주므로 상
   고친 이름의 경로가 돌아간다.
 - Given 어떤 깊이 · 어떤 성분 길이의 경로든 When 메인 피커나 설정 창 파일 선택이 열린다 Then footer 의
   취소·확정 버튼이 온전히 보인다.
-- Given breadcrumb 이 path bar 폭을 넘는 깊은 경로 When 그린다 Then root · `…` · 마지막 두 성분만 보이고,
+- Given breadcrumb 이 path bar 폭을 넘는 깊은 경로 When 그린다 Then 조상이 `…` 로 접히고(`crumb_alloc` 사다리),
   `…` 를 누르면 숨긴 조상이 나열되며 고르면 그 폴더로 이동한다.
 
 > **검증 한계(문서화)**: 원격 attach loopback e2e(`--ssh 127.0.0.1:<port>`)로 실제 GUI 두
@@ -406,7 +406,7 @@ view 는 `FilePickerProps` 만 받고 `FilePickerAction` 만 돌려주므로 상
 ## 구현
 
 - Popup: `src/adapters/ui/popup/file_picker.rs`(`FilePickerProps`/`FilePickerMode`/`FilePickerAction`/
-  `draw_file_picker_view`/`draw_file_picker`/`on_close_file_picker` — X 버튼/외부 클릭 등
+  `draw_file_picker_view`/`draw_file_picker`/`on_close_file_picker` — X 버튼 등
   draw_fn 을 거치지 않는 닫힘도 `PopupDef.on_close` 훅으로 `Cancelled` 명시),
   같은 디렉토리의 `file_picker/path_bar.rs`(breadcrumb · 가운데 생략 · `…` 메뉴) ·
   `file_picker/footer.rs`(이름 행 · 덮어쓰기 경고 · 버튼 행) · `file_picker/layout_tests.rs`,
@@ -434,7 +434,7 @@ view 는 `FilePickerProps` 만 받고 `FilePickerAction` 만 돌려주므로 상
 - 원격 수신(server): `crates/tasty-ipc/src/stream_hub.rs`(`ListDirRequestMsg`, `pump_inbound`
   분류), `src/core/attach_runtime.rs`(`handle_list_dir_request`, `list_dir_for_request`,
   `list_dir_entry_wire`, `list_dir_entries_wire_capped`/`LIST_DIR_ENTRIES_BYTE_BUDGET`). GUI
-  (`src/app/event_handler.rs::apply_list_dir_request_msg`)와 headless(`src/boot.rs`) 양쪽
+  (`src/app/event_handler.rs::apply_list_dir_request_msg`)와 headless(`src/boot/headless_stream.rs`) 양쪽
   진입점에서 동일 서버 로직을 호출.
 - Popup 상태: `src/state/dialogs.rs`(`FilePickerData`, `FpLoadState`, `FilePickerResult`).
 - 설정 창 재사용: `src/view/settings/ui/file_chooser.rs`(`SettingsFileChooser`/`FileChooserMode`/
@@ -454,4 +454,4 @@ view 는 `FilePickerProps` 만 받고 `FilePickerAction` 만 돌려주므로 상
   없음 에러/attach 점유 없는 client 거부), `src/view/settings/ui/file_chooser.rs`(`tests` — 설정 창
   재사용의 확정·필터·이동·읽기 실패·저장 이름 검증·외부 닫힘 · 저장 모드의 단일 확정 대상·선택 해제·
   덮어쓰기 판정·더블클릭), `src/adapters/ui/popup/file_picker/layout_tests.rs`(헤드리스 렌더로 footer
-  버튼 무잘림 · 깊은 경로 가운데 생략 · 짧은 경로 비생략 · `crumb_slots` 전수 덮음).
+  버튼 무잘림 · 깊은 경로 가운데 생략 · 짧은 경로 비생략 · 모든 조상이 칠해지거나 `…` 뒤에 있음).
