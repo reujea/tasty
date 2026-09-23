@@ -38,7 +38,7 @@ Windows · macOS · Linux 모두 1급 지원.
 - **사용자 행동** = 로컬 사용자의 직접 입력 (키보드/마우스/OS). **에이전트 행동** = IPC/CLI 호출 (에이전트가 자기 작업 수행). (원격 접속 사용자는 사람이지만 연결(attach)+점유 기반이라 분류상 에이전트 쪽 — [주체](concepts/actors.md).)
 - **① 에이전트 행동의 부수효과가 사용자 상태에 닿지 않는다** — 포커스 / 닫은 항목 히스토리(Ctrl+Shift+T) / 선택·스크롤·커서. 에이전트가 surface 100개를 열었다 닫아도 사용자의 복원 스택은 *사용자가 닫은 것만* 복원한다.
 - **② 사용자 입력 재현은 release 에 없다** — 키/마우스 주입, popup 강제 open/close, 메뉴 강제 invoke, 프로그래밍적 포커스 전환은 release IPC/CLI 표면에 존재하지 않는다. debug 빌드(`#[cfg(debug_assertions)]`)에서만 격리 제공한다 (격리의 판정은 *"이 코드를 통째로 지우고 컴파일 에러 몇 줄만 정리하면 디버그 기능이 깨끗이 사라지는가"* 이고, 그 집행은 debug 핸들러를 **모듈 선언에 cfg 가 붙은 별도 파일**로 모으는 것이다 — 상세 [`dev-guide/debug-ipc.md`](dev-guide/debug-ipc.md)).
-- **②의 목적 — debug 에서는 사용자 전용 동작도 IPC 로 구동해 자기검증한다.** ②의 재현 기능을 *debug 에 제공하는 이유* 는 agent 가 자기가 만든 기능을 스스로 검증하기 위해서다. debug 빌드에서는 사용자에게만 허용되는 동작(키/마우스 주입 `debug.inject_key`/`inject_mouse`, popup 강제 open/close `debug.popup.*`, 도구 메뉴 클릭 `debug.tool.invoke` 등)을 **IPC 로 구동** 할 수 있어, 사용자 입력 흐름까지 포함한 기능을 release(= 사용자 환경)와 격리된 채 검증한다. → dev-guide [독립 검증](dev-guide/independent-verification.md).
+- **②의 목적 — debug 에서는 사용자 전용 동작도 IPC 로 구동해 자기검증한다.** ②의 재현 기능을 *debug 에 제공하는 이유* 는 agent 가 자기가 만든 기능을 스스로 검증하기 위해서다. debug 빌드에서는 사용자에게만 허용되는 동작(키/마우스 주입 `debug.inject_key`/`inject_mouse`, popup 강제 open/close `debug.popup.*`, 도구 메뉴 클릭 `debug.tool.invoke` 등)을 **IPC 로 구동** 할 수 있어, 사용자 입력 흐름까지 포함한 기능을 release(= 사용자 환경)와 격리된 채 검증한다. → dev-guide [독립 검증](dev-guide/self-verification.md#독립-검증--개발도-agent-가-스스로-확인할-수-있어야-한다).
 - **판단 기준**: *에이전트가 자기 작업을 하기 위해 필요한가(→ release) vs 사용자가 직접 하는 조작을 재현하는가(→ debug)*.
 
 ### 2.2 AI 에이전트 조작 가능성

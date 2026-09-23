@@ -2,7 +2,7 @@
 
 tasty 를 **개발하는** AI 에이전트용 가이드. tasty 를 *사용하는* 에이전트용 표면은 [reference/](../reference/index.md).
 
-> 핵심 원칙 — **독립 검증**: tasty 개발 환경이 곧 tasty(dogfooding)다. debug 빌드는 별도 루트(`~/.tasty-debug/`)로 release(`~/.tasty/`)와 격리돼, agent 가 release tasty 안에서 동작 중이어도 자기 debug 빌드를 따로 띄워 충돌 없이 검증할 수 있다. [independent-verification](independent-verification.md).
+> 핵심 원칙 — **독립 검증**: tasty 개발 환경이 곧 tasty(dogfooding)다. debug 빌드는 별도 루트(`~/.tasty-debug/`)로 release(`~/.tasty/`)와 격리돼, agent 가 release tasty 안에서 동작 중이어도 자기 debug 빌드를 따로 띄워 충돌 없이 검증할 수 있다. [self-verification 독립 검증](self-verification.md#독립-검증--개발도-agent-가-스스로-확인할-수-있어야-한다).
 
 ## 시작 / 검증
 
@@ -11,9 +11,7 @@ tasty 를 **개발하는** AI 에이전트용 가이드. tasty 를 *사용하는
 | [git-hooks](git-hooks.md) | clone 직후 `./scripts/dev-setup.sh` + pre-commit/pre-push 검사 |
 | [shell-scripts](shell-scripts.md) | `scripts/`·`.githooks/`·`Justfile`·워크플로 `run:` 규약 — 조기에 끝나는 소비자를 파이프 오른쪽에 두지 않는다(SIGPIPE) |
 | [ci-gates](ci-gates.md) | CI·훅 게이트 매트릭스 — 어떤 검증 명령이 어디서(자동/수동/훅) 실제로 도는지, 자동 채널이 없는 검사는 없다고 명시 |
-| [self-verification](self-verification.md) | 커밋 전 직접 검증(사용자에게 떠넘기지 않기), 길이 가드 사각 계수의 도입 추적·변이 대조 |
-| [independent-verification](independent-verification.md) | dogfooding · debug↔release 격리 |
-| [linux](linux.md) | Linux dev 환경(실행/재시작/스크린샷) |
+| [self-verification](self-verification.md) | 커밋 전 직접 검증(사용자에게 떠넘기지 않기), 독립 검증(dogfooding · debug↔release 격리), Linux dev 환경(실행/재시작/스크린샷), 길이 가드 사각 계수의 도입 추적·변이 대조 |
 
 ## 코드 정책
 

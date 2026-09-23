@@ -269,4 +269,4 @@ debug 메서드의 메타(`local_only()`)는 `crates/tasty-ipc/src/method_meta.r
 - [ADR-0115](../adr/0115-input-reproduction-ipc-debug-isolation.md) — OS 전역 입력 조작(`raw_key`/`switch_input_source`/`ime_*`)을 debug 로 격리한 결정 + `tests/ipc_release_table_excludes_input_reproduction.rs` 회귀 가드
 - [ADR-0154](../adr/0154-a-platform-gated-dispatch-arm-answers-why-not-what.md) — 플랫폼 게이트가 걸린 dispatch arm 은 `-32601` 이 아니라 `-32015` 와 사유로 답한다 + `src/source_guards/platform_gated_dispatch_complement.rs` 짝 가드
 - [attach-behavior.md](attach-behavior.md) — attach 메커니즘
-- [independent-verification.md](independent-verification.md) — debug IPC 를 쓴 자체 검증
+- [self-verification 독립 검증](self-verification.md#독립-검증--개발도-agent-가-스스로-확인할-수-있어야-한다) — debug IPC 를 쓴 자체 검증

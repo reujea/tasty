@@ -9,7 +9,7 @@ tasty 를 개발하는 AI 에이전트가 UI/렌더링/입력을 **스스로 재
 | [dpi-scale-verification](dpi-scale-verification.md) | `WINIT_X11_SCALE_FACTOR` 로 DPI≠1 재현 + 배율이 걸렸는지 가르는 두 신호 |
 | [ime-testing](ime-testing.md) | `surface.ime_*`(debug 전용) 로 한글/CJK 입력 시뮬레이션 |
 
-> 검증은 커밋 전 직접 수행한다([dev-guide/self-verification](../dev-guide/self-verification.md)). 개발용 격리는 [dev-guide/independent-verification](../dev-guide/independent-verification.md).
+> 검증은 커밋 전 직접 수행한다([dev-guide/self-verification](../dev-guide/self-verification.md)). 개발용 격리는 [dev-guide/self-verification 독립 검증](../dev-guide/self-verification.md#독립-검증--개발도-agent-가-스스로-확인할-수-있어야-한다).
 
 ## 이 문서군의 절차 중 무엇이 자동화 대상인가
 

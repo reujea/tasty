@@ -9,7 +9,55 @@
 1. **검증 가능 여부를 먼저 판단.** IPC/CLI/스크립트로 트리거 가능하면 검증 가능. 마우스 hover 같은 *사용자 입력이 있어야만 재현되는* 케이스만 사용자에게 부탁한다.
 2. **검증은 커밋 전.** 빌드 통과 + 단위 테스트 통과는 *컴파일된다* 는 의미일 뿐 *기능이 동작한다* 는 보장이 아니다 — 별도 시나리오 재현이 필요.
 3. **확인 안 됐으면 "확인 안 됨" 이라고 말한다.** 추측으로 "동작할 거예요" 보고 금지.
-4. **검증 인스턴스는 자동 격리된다.** debug 빌드(`cargo run` / `target/debug/tasty`)는 `~/.tasty-debug/` 루트를, release 사용자 세션은 `~/.tasty/` 를 쓴다 — 따로 끄거나 환경변수를 줄 필요 없이 `cargo run` 만으로 release 인스턴스와 충돌하지 않는다. debug 인스턴스끼리는 `TASTY_HOME` 으로 루트를 나눈다. (상세 [independent-verification.md](independent-verification.md))
+4. **검증 인스턴스는 자동 격리된다.** debug 빌드(`cargo run` / `target/debug/tasty`)는 `~/.tasty-debug/` 루트를, release 사용자 세션은 `~/.tasty/` 를 쓴다 — 따로 끄거나 환경변수를 줄 필요 없이 `cargo run` 만으로 release 인스턴스와 충돌하지 않는다. debug 인스턴스끼리는 `TASTY_HOME` 으로 루트를 나눈다. (상세 [아래 절](#독립-검증--개발도-agent-가-스스로-확인할-수-있어야-한다))
+
+### 독립 검증 — 개발도 Agent 가 스스로 확인할 수 있어야 한다
+
+> dev-guide 의 **가장 핵심 원칙**. Tasty 정체성인 *동시성*([identity.md](../identity.md))이 **개발 환경 자체에 재귀적으로 적용된 것** 이다.
+
+#### 원칙
+
+**Tasty 의 모든 기능은, 그것을 개발하는 AI Agent 가 자기 수정을 독립적으로 띄워 검증할 수 있도록 만들어야 한다.**
+
+Tasty 를 개발하는 환경이 곧 Tasty 다 (dogfooding). 보통 사용자·다른 Agent 는 **release** 빌드를 띄워 작업 중이다. 그 위에서 Agent 가 자기가 고친 것을 확인하려면 **debug** 빌드를 동시에 띄워야 하는데, 둘이 같은 자원(포트·상태 파일)을 공유하면 서로 간섭한다.
+
+그래서 Tasty 는 **debug 빌드와 release 빌드의 환경을 격리** 한다 (0% 충돌은 불가능하지만 최대한). 덕분에 Agent 는 *자신이 release tasty 안에서 동작 중이어도*, 자기 debug 빌드를 따로 띄워 release(= 사용자·다른 작업)와 충돌 없이 검증할 수 있다.
+
+> **Agent 는 이것을 반드시 인지한다**: 내가 tasty 안에서 돌고 있어도, 내 수정은 *별도 debug 인스턴스* 로 띄워 검증한다. 돌아가는 release 를 건드리지 않는다.
+
+#### debug ↔ release 격리 (현재 구현)
+
+> 이 표가 격리 경로의 **산문 SoT** 다. 다른 문서는 이 표를 풀-복제하지 말고 "debug 는 별도 루트(`~/.tasty-debug/`)로 격리됨" + 이 문서 링크로 참조한다.
+
+**데이터 루트 자체가 갈린다** — debug 빌드는 `~/.tasty-debug/`, release 는 `~/.tasty/` 를 쓴다. 같은 디렉토리 안의 파일명 접미사가 아니라 **루트 디렉토리 분리**라, 포트·layout·scrollback·state.db·memory.db·plugins 가 통째로 별도다:
+
+| 자원 | release (`~/.tasty/`) | debug (`~/.tasty-debug/`) |
+|------|---------|-------|
+| IPC 포트 파일 | `~/.tasty/tasty.port` | `~/.tasty-debug/tasty.port` |
+| scrollback | `~/.tasty/scrollback/` | `~/.tasty-debug/scrollback/` |
+| layout | `~/.tasty/layouts/NN.json` | `~/.tasty-debug/layouts/NN.json` |
+
+- 파일명은 양쪽 모두 동일(`tasty.port` 등) — 구분은 **루트** 가 한다. (`-debug` 파일명 접미사는 쓰지 않는다.)
+- `target/debug/tasty` (debug 바이너리)는 `~/.tasty-debug/` 루트를 읽으므로 CLI 조작이 **debug 인스턴스에만** 간다. 사용자의 release 인스턴스는 건드리지 않는다.
+- **`TASTY_HOME` env override**: 비어있지 않으면 그 경로를 루트로 강제한다(테스트/샌드박스/다중 인스턴스용) — debug/release 자동 분기보다 우선.
+- 구현(SoT): `crates/tasty-utils/src/path.rs` (`tasty_home()` — `TASTY_HOME` 우선, 없으면 `cfg!(debug_assertions)`→`.tasty-debug`), `crates/tasty-ipc/src/port_file.rs`, `src/store/scrollback.rs`, `src/core/layout_persistence.rs`.
+
+#### 새 기능 추가 시 적용
+
+- 영속 상태(파일/소켓/포트 등)를 새로 추가하면 **debug/release 분리 패턴을 따른다** (`tasty_home()` 루트 아래에 둔다). 안 그러면 debug 검증이 release 데이터를 오염시킨다.
+- 동작은 IPC/CLI 로 트리거 가능하게 만든다 (headless 동작-우선) — 그래야 Agent 가 GUI 없이 검증한다. → [identity.md](../identity.md) §2.2.
+
+#### 한계 / 주의
+
+- 격리는 **tasty 의 상태**(루트 디렉토리)만 가른다. OS 열기(브라우저 · 파일 관리자)는 사용자 데스크톱의 이미 떠 있는 브라우저에 닿는다 — 검증 인스턴스는 `TASTY_DEBUG_OS_OPEN_LOG` 와 가짜 브라우저로 띄운다([아래 "tasty 에서 직접 검증"](#tasty-에서-직접-검증), [debug-ipc.md](debug-ipc.md)).
+- 격리는 **debug ↔ release** 기준이다. 두 debug 인스턴스를 동시에 띄우면 같은 `~/.tasty-debug/` 루트(포트파일 `~/.tasty-debug/tasty.port`)를 공유하므로 충돌한다 — 이때는 `TASTY_HOME` 으로 루트를 분리하거나 별도 checkout/worktree 를 운용한다.
+
+#### 관련
+
+- [아래 "tasty 에서 직접 검증"](#tasty-에서-직접-검증) — 실제 검증 절차 (cargo run & + CLI 시나리오)
+- [`debug-ipc.md`](debug-ipc.md) — debug 전용 IPC (사용자 입력 재현, release 미노출)
+- [`e2e-tests.md`](e2e-tests.md) — 테스트 환경 격리 정책
+- [identity.md](../identity.md) — 동시성 정체성 (이 원칙의 뿌리)
 
 ## tasty 에서 직접 검증
 
@@ -55,7 +103,7 @@ debug 인스턴스가 동시에 떠 있는 것이 이 레포의 일상이고, �
 [ai-verification/screenshot-methods](../ai-verification/screenshot-methods.md) "사용자 세션을
 건드리지 않고 격리 실행".
 
-**이미 다른 tasty 인스턴스(사용자의 release 등)가 떠 있어도 충돌하지 않는다.** `cargo run` 은 debug 빌드라 데이터 루트가 `~/.tasty-debug/`(포트파일 `~/.tasty-debug/tasty.port`)로 release 의 `~/.tasty/` 와 **완전히 분리**된다 — 포트·layout·scrollback 모두 별도. 그러니 release 인스턴스가 떠 있는지는 따지지 말고 `cargo run` 으로 자기 debug 인스턴스를 띄워 검증한다 — 다른 debug 인스턴스가 떠 있으면 `TASTY_HOME` 으로 루트를 나눈다. (격리 표·`TASTY_HOME` override: [independent-verification.md](independent-verification.md))
+**이미 다른 tasty 인스턴스(사용자의 release 등)가 떠 있어도 충돌하지 않는다.** `cargo run` 은 debug 빌드라 데이터 루트가 `~/.tasty-debug/`(포트파일 `~/.tasty-debug/tasty.port`)로 release 의 `~/.tasty/` 와 **완전히 분리**된다 — 포트·layout·scrollback 모두 별도. 그러니 release 인스턴스가 떠 있는지는 따지지 말고 `cargo run` 으로 자기 debug 인스턴스를 띄워 검증한다 — 다른 debug 인스턴스가 떠 있으면 `TASTY_HOME` 으로 루트를 나눈다. (격리 표·`TASTY_HOME` override: [위 "독립 검증"](#독립-검증--개발도-agent-가-스스로-확인할-수-있어야-한다))
 
 **격리 홈도 전용 디스플레이도 OS 열기를 격리하지 않는다 — 검증 인스턴스는 OS 열기를 기록만 하게 띄운다.** 디렉토리 dispatch · 링크 클릭 · "OS 기본 앱으로 열기" 는 `xdg-open`/브라우저를 부르고, 브라우저는 이미 떠 있는 자기 인스턴스에 URL 을 넘기는 원격 제어 채널(DBus · 소켓)을 가져서 `DISPLAY` 와 무관하게 **사용자 브라우저에 탭이 열린다**(격리 `TASTY_HOME` + 전용 Xvfb 로 띄운 인스턴스에서 실제로 났다). 그래서 두 겹으로 막는다:
 
@@ -154,6 +202,48 @@ echo $! > <pid 파일>                        # 정리는 저장한 이 PID 로�
 **스크린샷은 OS 화면 캡처(`screencapture` / PowerShell `CopyFromScreen` 등)보다 tasty 자체 `ui.screenshot` IPC 를 먼저 쓴다.** OS 화면 캡처는 화면 녹화 권한이 필요해 *빌드할 때마다 사용자가 권한을 다시 풀어주지 않는 한 막힌다* — 자기검증 흐름이 권한 프롬프트에서 멈춘다. `ui.screenshot` 은 tasty 가 실제 렌더한 프레임을 권한 없이 PNG 로 떨구므로 자동 검증에 적합하다(다른 윈도우 가림·포커스 상태에도 영향 없음).
 
 **다만 `ui.screenshot` 이 모든 화면의 상위 채널은 아니다 — 무엇을 그리느냐가 어느 캡처로 보이느냐를 정한다.** native WebView 로 그리는 surface(`markdown` · `html`)는 wgpu 스왑체인 **밖의 OS 자식 윈도우**라 그 캡처에 담기지 않는다(찍으면 그 자리에 host 가 그린 "WebView region" + URL chrome 만 나온다). 그쪽은 OS 화면 캡처가 폴백이 아니라 **유일 채널**이다. 대상별로 어느 채널에 있고 어느 채널에 없는지는 [`ai-verification/screenshot-methods`](../ai-verification/screenshot-methods.md) 맨 위 표가 정본이다 — **"OS 캡처는 최후 폴백" 으로만 읽으면 그 두 kind 의 시각 검증을 통째로 건너뛰게 된다.** 호출법·격리 실행도 같은 문서.
+
+### Linux 개발 환경
+
+tasty 를 개발하는 AI 에이전트용 Linux 환경 가이드. (경로 예시는 Linux dev 머신 기준 — 본인 환경에 맞춰 치환.)
+
+#### 바이너리 / 실행
+
+```
+target/debug/tasty     # 디버그
+target/release/tasty   # 릴리스
+```
+
+`tasty` 는 PATH 에 없다 — 직접 경로 또는 `cargo run`.
+
+```bash
+# GUI 실행 + 준비 대기 — PID 를 저장한다(이름·패턴으로 찾지 않는다)
+./target/debug/tasty & TASTY_PID=$!
+while [ ! -f ~/.tasty-debug/tasty.port ]; do sleep 0.2; done
+
+# 실행 여부
+kill -0 "$TASTY_PID" 2>/dev/null && echo running || echo "not running"
+
+# 다중 인스턴스 — 루트를 분리한다
+TASTY_HOME=/tmp/tasty-a ./target/debug/tasty &
+```
+
+종료: `system.shutdown` IPC — **debug 전용이고 CLI 는 없다**([api-conventions](api-conventions.md)
+"debug 표에 있는데 CLI 가 없는 메서드"). 포트로 raw JSON-RPC 를 보낸다. `kill "$TASTY_PID"` 로 죽이면 포트 파일 수동 삭제(`rm -f ~/.tasty-debug/tasty.port`).
+
+#### 빌드 후 재시작
+
+Linux 는 실행 중 바이너리를 `cargo build` 로 교체해도 실행 프로세스에 영향 없다(inode 참조). 실행 중 인스턴스는 옛 바이너리로 계속 동작, 다음 실행부터 새 바이너리.
+
+#### 스크린샷
+
+GUI 모드 전용(headless 불가):
+
+```python
+call("ui.screenshot", {"path": "/tmp/tasty-capture.png"})   # PNG
+```
+
+hover/애니메이션 등 상태 의존 UI 는 정적 캡처로 확인 불가 — 조건(`if response.hovered()` 등)을 임시 제거해 항상 적용 → 빌드/재시작/캡처 → 확인 후 복원. (시각 검증 휴리스틱: [ai-verification/screenshot-methods 시각 판정 체크리스트](../ai-verification/screenshot-methods.md#시각-판정-체크리스트).)
 
 ## 가드를 검증할 때 — 세 가지 침묵은 **다른 물음**이다
 
@@ -463,5 +553,4 @@ ls target/debug/deps/*.d | sed 's/-[0-9a-f]*\.d$//' \
   채널 주장**("배선돼 있다 / 이것이 본다")에 적용하는 규칙의 정본. 변이를 못 붙일 때
   무엇을 대신 적는지도 거기다.
 - [debug-ipc.md](debug-ipc.md) — debug 전용 IPC (사용자 입력 재현)
-- [independent-verification.md](independent-verification.md) — debug 격리 + 자기검증 배경
 - [`ai-verification/screenshot-methods` 시각 판정 체크리스트](../ai-verification/screenshot-methods.md#시각-판정-체크리스트) — 시각 검증 · [`ai-verification/screenshot-methods`](../ai-verification/screenshot-methods.md) — `ui.screenshot`(markdown·html 은 OS 캡처)
