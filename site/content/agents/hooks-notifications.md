@@ -75,7 +75,7 @@ tasty hook-handler reload                                   # ~/.tasty/hook-hand
 ```sh
 # 하는 일만 바꾸기 — 먼저 get 으로 지금 무엇을 하는지 보고, 그 모양 그대로 돌려줍니다
 tasty hook-handler upsert --id user/my-handler \
-  --calls '[{"method":"notification.create","params":{"message":"빌드 끝"}}]'
+  --calls '[{"method":"notification.create","params":{"body":"빌드 끝"}}]'
 
 # 잠시 꺼두기 / 다시 켜기
 tasty hook-handler upsert --id user/my-handler --disabled true
