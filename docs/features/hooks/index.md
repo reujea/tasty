@@ -42,7 +42,7 @@ surface hook 은 더 이상 셸 명령 문자열을 직접 들지 않고, **공�
 
 - 최대 1초 지연: PTY 출력 정지 시점과 훅 발화 시점 사이에 최대 1초의 오차가 있다(Global hook 의 `file:` 조건과 동일한 해상도).
 - **epoch 기반 anti-spam**: 한 번 발화하면 그 시점의 `last_output_at` 값(epoch)을 기록해, 같은 epoch 동안은 재발화하지 않는다(persistent 훅이 매 tick 마다 스팸처럼 재발화하는 것을 막음). 새 출력이 들어와 `last_output_at` 이 갱신되면 자동으로 재무장된다.
-- `once` 훅은 발화 후 즉시 제거된다(Global hook 의 `once:SECS` 와 동일한 시맨틱). 한 번의 판정에 맞는 사건이 여럿 들어와도 once 훅은 **한 번만** 발화한다 — 지속 훅은 맞는 사건마다 발화한다(ADR-0567).
+- `once` 훅은 발화 후 즉시 제거된다(Global hook 의 `once:SECS` 와 동일한 시맨틱).
 
 #### CommandCompleted — OSC 133 명령 완료(exit code)
 
@@ -62,7 +62,7 @@ surface hook 은 더 이상 셸 명령 문자열을 직접 들지 않고, **공�
 - 내장도 아니고 활성 플러그인이 선언하지도 않은 키(오타·미존재 이벤트)는 **등록 거부**(`invalid_params`, 에러 메시지에 내장 + 활성 선언 목록 안내). 죽은 hook 등록을 막는다.
 - 따라서 **플러그인이 비활성이면 그 플러그인의 이벤트 hook 등록도 거부**된다(예: claude plugin 비활성 시 `claude-idle` hook 등록 불가 — 의도된 dead-setting 방지). claude plugin 은 위 3개 키를 manifest 로 선언한다.
 
-- **once** 옵션: true 면 한 번 실행 후 자동 삭제. 기본은 persistent.
+- **once** 옵션: true 면 한 번 실행 후 자동 삭제. 기본은 persistent. 한 번의 판정에 맞는 사건이 여럿 들어와도 once 훅은 **한 번만** 발화한다 — 지속 훅은 맞는 사건마다 발화한다(이벤트 종류와 무관한 성질이다 — [ADR-0567](../../adr/0567-a-scanned-id-is-consumed-once-by-structure-or-by-a-replay-test.md)).
 - **비동기 실행**: 훅 동작은 백그라운드에서(메인 루프 블로킹 없음 — 셸은 자식 프로세스 스레드, `IpcSequence` 는 아래 "바인딩" 절의 실행기 스레드). 각 이벤트의 발생 surface ID 를 추적해 올바른 surface 에서 실행.
 - ProcessExit은 GUI/headless 모두에서 surface 자동 닫기까지 수행한다(surface→tab→pane→workspace 계층 정리, 마지막이면 새 셸 spawn). headless는 종료 hook의 binding을 먼저 모으고 surface를 닫은 뒤 실행한다.
 - surface가 닫히면 그 surface의 once·persistent hook 등록도 제거한다. 이미 발화해 복사한 binding은 실행을 마치며, 다른 surface의 hook은 유지한다.
