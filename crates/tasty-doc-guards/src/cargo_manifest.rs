@@ -2,7 +2,7 @@
 //! 여럿이라, 그 물음의 판사를 하나로 둔다.
 //!
 //! 파싱이 아니라 **원문 스캔**이다 — 이 크레이트는 의존이 0 이고
-//! ([ADR-0138](../../../docs/adr/0138-doc-guards-crate-has-no-dependencies.md)) toml 파서를
+//! ([ADR-0138](../../../docs/adr/0138-doc-guards-live-in-a-dependency-free-crate.md)) toml 파서를
 //! 들이지 않는다. 그 대가로 형태를 손으로 다뤄야 하므로, 네 형태를 모두 다루는지는
 //! 소비자 쪽 픽스처가 고정한다.
 

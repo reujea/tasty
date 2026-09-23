@@ -315,7 +315,7 @@ impl MainView {
                 self.mark_dirty();
             }
         }
-        // Cursor icon is determined in the egui render cycle (gpu/mod.rs)
+        // Cursor icon is determined in the egui render cycle (gfx/gpu.rs)
     }
 
     /// `handle_event` 진입부 전용 래퍼 — 이 winit 이벤트가 "네이티브 메뉴를 닫는 바깥

@@ -21,7 +21,7 @@ use tasty_ipc::protocol::JsonRpcResponse;
 /// `debug.lua.eval` — App 소유 Lua 워커에 스크립트를 던진다(fire-and-forget).
 ///
 /// 부수효과는 로그로 관측한다. release 에는 이 경로가 없다(identity 원칙 1: release 는
-/// 사용자 키 입력에서만 스크립트를 실행한다 — [ADR-0031](../../docs/adr/0031-lua-hook-engine.md)).
+/// 사용자 키 입력에서만 스크립트를 실행한다 — [ADR-0031](../../docs/adr/0031-lua-host-api-only-worker-isolated.md)).
 ///
 /// 엔진을 **인자로 받는다**. 어느 엔진인지 고르는 일이 조합마다 다르기 때문이 아니라
 /// (헤드리스도 gui 도 `App` 필드 하나다), 이 함수가 `App` 을 안 알아야 헤드리스 pump 와
