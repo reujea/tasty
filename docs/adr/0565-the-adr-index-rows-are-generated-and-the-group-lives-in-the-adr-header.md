@@ -102,7 +102,8 @@
 - `crates/tasty-doc-guards/Cargo.toml` 의 `[dependencies]` 가 비지 않게 되면(ADR-0138 이 뒤집히면) 대안 D 의
   기각 근거 중 비용 논거가 약해진다. 레포가 읽을 수 있는 사실이지만 그것을 재는 시험은 이 결정을 쓰는
   시점에 찾지 못했다 — `crates/tasty-doc-guards/src/lib.rs` 모듈 주석이 부르는 이름의 시험이 레포에 없다
-  (`git grep -n 'fn the_crate_has_no_dependencies'` 가 0 줄). 채널 없음.
+  (`git grep -n 'fn the_crate_has_no_dependencies' -- '*.rs'` 가 0 줄 — 범위를 안 좁히면 이 문장 자신이
+  1 줄로 잡힌다). 채널 없음.
 
 **원리적으로 안 붙는 것**
 
