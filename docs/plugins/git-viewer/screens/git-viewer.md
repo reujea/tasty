@@ -10,7 +10,7 @@
 
 ## 트리거
 
-[도구 메뉴](../../../features/tools-menu/screens/tools-menu.md) git viewer 항목 또는 IPC. 단일
+[도구 메뉴](../../../features/tools-menu/index.md#화면) git viewer 항목 또는 IPC. 단일
 인스턴스 — 두 번째 open 은 "이미 열림" 안내를 보인다.
 
 ## 레이아웃
