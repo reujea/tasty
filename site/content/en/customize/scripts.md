@@ -1,4 +1,4 @@
-<!-- source-hash: 3deb69b08b85 -->
+<!-- source-hash: c9b51f4f0d28 -->
 # Lua scripts
 
 Turn repeated tasks into Lua scripts. Run them with a shortcut, or set them to run when a window, workspace, or tab opens or closes.
@@ -53,7 +53,7 @@ Actually operating Tasty is mostly done with `tasty.run_cli`. Whether you create
 ```lua
 -- When a new Workspace is created, attach a log window on the right.
 local tree = tasty.tree()
-tasty.log("workspaces: " .. tostring(#tree.workspaces))
+tasty.log("workspaces: " .. tostring(#tree))
 tasty.run_cli({ "notify", "New Workspace", "--title", "script" })
 ```
 

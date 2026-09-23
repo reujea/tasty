@@ -52,7 +52,7 @@ tasty 를 실제로 조작하는 일은 대부분 `tasty.run_cli` 로 합니다.
 ```lua
 -- 워크스페이스가 새로 생기면 오른쪽에 로그 창 하나 붙이기
 local tree = tasty.tree()
-tasty.log("workspaces: " .. tostring(#tree.workspaces))
+tasty.log("workspaces: " .. tostring(#tree))
 tasty.run_cli({ "notify", "새 워크스페이스", "--title", "script" })
 ```
 
