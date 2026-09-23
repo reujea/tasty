@@ -68,8 +68,7 @@ state 전이는 `tasty-agent` 의 `is_valid_transition` 표를 따른다. `Ready
 >  "params":{"surface_id":561,"message":"방금 고친 테스트를 다시 돌려라"}}
 > ```
 >
-> **현재 되는 것과 안 되는 것.** 자식을 띄우고(spawn) 이어서 지시를 주고(tell) 각각의 완료를 기다리는 것까지 위 그대로 동작하고, 자식이 죽으면 그 노드는 실패한다. 여러 자식을 하나의 DAG 로 엮으려 할 때 남는 갭은 하나다:
-> - **노드 간 출력 전달 수단이 없다.** 앞 task 의 `TaskResult.output` 을 뒤 task 의 `params` 에 꽂아 넣는 치환은 없다 — dispatch 시점에 `command` 로 주입되는 placeholder 는 `${lease.resource}` 하나뿐이다(`substitute_lease_resource`). 여러 결과를 한 값으로 합치는 `Reduce` 는 있지만 그 합성 값 역시 다른 task 의 파라미터가 되지는 못한다. 자식에게 앞 단계 결과를 넘기려면 파일/memory 키처럼 task 바깥의 매개를 쓴다. spawn→tell 을 한 DAG 로 이으려면 tell 노드의 `surface_id` 를 사람이 직접 박아야 하는 것도 같은 이유다.
+> **현재 되는 것.** 자식을 띄우고(spawn) 이어서 지시를 주고(tell) 각각의 완료를 기다리는 것까지 위 그대로 동작하고, 자식이 죽으면 그 노드는 실패한다. spawn→tell 을 한 DAG 로 이을 때 tell 노드의 `surface_id` 는 아래 `${task.<id>.output<pointer>}` 로 넘긴다.
 
 ### `Run` 출력 캡처
 
@@ -212,7 +211,7 @@ tick 머리의 `TaskStore::list` 가 실패하면 **빈 목록으로 흡수하�
 
 ## host→plugin 동기 IPC (`HostIpcInjector`)
 
-runner thread 는 off-main 이라 `PluginManager`(App main thread 단독 소유)를 직접 못 부른다. injector 경유: `IpcCommand`+`sync_channel(1)` 을 App IPC 큐에 push → waker 로 App 깨움 → tick 의 routing 이 plugin 에 forward → 응답이 sync_channel 회신 → runner 의 `recv_timeout(5s)`. `Core::set_host_ipc_injector` 가 IPC 시작 직후 1회 등록(boot.rs headless + window_lifecycle.rs gui 양쪽).
+runner thread 는 off-main 이라 `PluginManager`(App main thread 단독 소유)를 직접 못 부른다. injector 경유: `IpcCommand`+`sync_channel(1)` 을 App IPC 큐에 push → waker 로 App 깨움 → tick 의 routing 이 plugin 에 forward → 응답이 sync_channel 회신 → runner 의 `recv_timeout(5s)`. `Core::set_host_ipc_injector` 가 IPC 시작 직후 1회 등록(boot.rs headless + app/boot_machine.rs gui 양쪽).
 
 주입은 IPC 서버와 **같은 큐 입장 장부**를 거친다. 큐에 든 호스트 주입 명령이 이미 상한만큼이거나(메인 루프가 서 있는 동안 시간 초과로 돌아간 호출이 남긴 명령이 쌓인 경우) 큐의 바이트 합이 넘치면, 명령은 큐에 들어가지 않고 `InjectError::Refused` 로 즉시 돌아온다 — `InjectError::nothing_ran()` 이 참이라 "안 됐다" 가 확실하고, 시간 초과(결과 불명)와 갈린다. runner 의 `dispatch_plugin` 은 그 오류를 문자열(문구에 "nothing ran")로 task 결과에 올리고 다시 걸지 않는다. 상한 값과 근거는 [ADR-0391](../adr/0391-the-command-queue-admits-by-queued-bytes-and-injected-depth.md). 주입은 제 대기 상한(5 s)을 명령의 기한으로도 싣는다 — 상한까지 큐에서 못 나간 명령은 나중에도 실행되지 않고 `InjectError::Expired`(문구 `… while still queued (nothing ran)`)로 돌아오며, 상한 전에 시작된 명령만 `InjectError::Timeout`(결과 불명)이다. 근거는 [ADR-0451](../adr/0451-a-host-injection-carries-its-wait-as-a-deadline.md).
 

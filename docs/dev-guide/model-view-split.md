@@ -2,7 +2,7 @@
 
 `tasty-model` 의 surface 모델은 **GUI-free** 다 (egui/wgpu 직접 사용 금지). 휘발성 GUI 상태(텍스처·캐시·편집 세션·스크롤·팝업 버퍼)는 호스트 측 **View** 구조체에 둔다. host 가 egui 로 직접 그리는 내장 surface 에 뷰 상태를 더할 때 이 패턴을 따른다.
 
-`tasty-model` 이 의존하는 유일한 type-\* crate 는 `tasty-type-geometry`(LogicalPx/PhysicalPx) 뿐 — 픽셀 단위 wrapper 라 GUI-free 원칙과 무관하다. 색/시각 schema 는 view 영역(`tasty-type-appearance`/`tasty-themes`)이다.
+`tasty-model` 이 의존하는 type-\* crate 는 `tasty-type-geometry`(LogicalPx/PhysicalPx)와 `tasty-type-appearance` 다 — 둘 다 GUI 타입을 들이지 않는다.
 
 ## 왜 분리하나
 
@@ -10,13 +10,13 @@
 - **테스트 용이성** — 모델 단위 테스트가 GUI 컨텍스트 없이 가능.
 - **정리 일관성** — View 가 store 에 모이면 surface 닫힘 시 한 곳에서 일괄 해제.
 
-> 적용 대상은 **host 내장 surface**(host 가 egui 로 그리는 surface, 현재 explorer·empty)다. `image` 같은 **egui-mesh plugin surface** 와 `html`/`markdown`([ADR-0065](../adr/0065-markdown-webview-render-channel.md)) 같은 **webview plugin surface** 는 plugin 프로세스가 자기 상태를 들고 그리므로 이 패턴 밖이다 (→ [concepts/plugins](../concepts/plugins.md)).
+> 적용 대상은 **host 내장 surface**(host 가 egui 로 그리는 surface, 현재 explorer·dag_graph·empty)다. `image` 같은 **egui-mesh plugin surface** 와 `html`/`markdown`([ADR-0065](../adr/0065-markdown-webview-render-channel.md)) 같은 **webview plugin surface** 는 plugin 프로세스가 자기 상태를 들고 그리므로 이 패턴 밖이다 (→ [concepts/plugins](../concepts/plugins.md)).
 
 ## 어디에 무엇을 두나
 
 | 종류 | 위치 | 예 |
 |------|------|-----|
-| 식별 정보 | model | `id`, `file_path`, `dir_images`, `current_index` |
+| 식별 정보 | model | `id`, `tabs`, `active`, `dag_id` |
 | 직렬화 영속 상태 | model | mtime, 트리 구조 |
 | egui 타입 | view | `egui::ColorImage`, `TextureHandle` |
 | 편집 세션 머신 | view | `EditState`, `DragState`, `ActionHistory` |
@@ -82,7 +82,7 @@ for info in &infos {
 state.foo_views = foo_views;   // 반드시 복원 (이후 state 접근 전에)
 ```
 
-이 패턴은 `src/adapters/ui/egui_panels.rs`(메인 디스패치)와 `src/view/main/clipboard.rs`(paste→image)에서 쓰인다.
+이 패턴은 `src/adapters/ui/egui_panels.rs`(메인 디스패치)에서 쓰인다.
 
 ## 안티패턴
 
@@ -95,8 +95,8 @@ state.foo_views = foo_views;   // 반드시 복원 (이후 state 접근 전에)
 
 | Model | View | Store |
 |-------|------|-------|
-| `MarkdownPanel` (file_path + mtime) | `MarkdownView` (content, scroll, load error) | `AppState::markdown_views` |
-| `ImagePanel` (file_path, dir_images, current_index) | `ImageView` (image, texture, edit_state, brush, popup buffers) | `AppState::image_views` |
+| `ExplorerPanel` (id, tabs, active) | `ExplorerView` (entries, …) | `AppState::explorer_views` |
+| `DagGraphSurface` (id, dag_id, workspace_id, direction) | `DagGraphView` (data, layout cache, …) | `AppState::dag_graph_views` |
 | `TerminalSurface` / `EmptySurface` | (없음 — GPU 렌더 또는 id-only) | — |
 
-신규 host surface 추가 시 이 표에 줄을 더한다. plugin surface(`explorer`/`html`)는 여기 들어오지 않는다.
+신규 host surface 추가 시 이 표에 줄을 더한다. plugin surface(`image`/`html`/`markdown`)는 여기 들어오지 않는다.

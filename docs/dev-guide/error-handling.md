@@ -218,7 +218,7 @@ host 호출이 전부 실패해도 전부 성공했을 때와 바이트가 같�
 
 **관측 지점은 둘이다** — IPC 응답과, 그 응답을 그대로 찍는 CLI(`tasty claude hook …`).
 다만 실사용에서 그 CLI 는 훅 명령 안에서 돌고 훅 명령은 출력을 버리므로, 0 이 아닌 수는
-`hook-failures.log` 에도 함께 남긴다(위 "왜 IPC 가 아니라 파일인가" 와 같은 이유다).
+`hook-failures.log` 에도 함께 남긴다([ADR-0075](../adr/0075-agent-hook-delivery-failure-record.md)).
 
 ## 락 poison (`Mutex` / `RwLock`)
 

@@ -26,7 +26,8 @@ egui render 루프 안에서는 OS 네이티브 메뉴를 직접 호출할 수 �
 pub enum PendingNativeMenu {
     Tab { pane_id: u32, tab_index: usize, x: f32, y: f32 },
     Pane { pane_id: u32, x: f32, y: f32 },
-    ExplorerFolder { path: String, is_bookmarked: bool, x: f32, y: f32 },
+    ExplorerFavorite { surface_id: u32, path: PathBuf, x: f32, y: f32 },
+    // … (전체 목록은 src/state/dialogs.rs)
     // 새 메뉴 유형 → variant 추가 (좌표 x/y 필수)
 }
 ```

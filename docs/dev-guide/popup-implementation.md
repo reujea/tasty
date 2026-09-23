@@ -10,7 +10,7 @@ tasty 에는 팝업을 만드는 경로가 **둘** 있다. 아래 문서 나머�
 
 | | **host `PopupDef`** | **plugin `[[contributes.popup]]`** |
 |---|---|---|
-| 정의 위치 | `src/adapters/ui/popup/defs.rs::all_defs()` 컴파일타임 `vec![...]` | plugin 매니페스트 `tasty-plugin.toml` |
+| 정의 위치 | `src/adapters/ui/popup/defs.rs::all_defs()` 정적 목록(`OnceLock`) | plugin 매니페스트 `tasty-plugin.toml` |
 | 콘텐츠 렌더 | host 프로세스 egui (`draw_fn`) | **plugin 프로세스** egui → egui-mesh 로 tessellate, host 가 합성 ([ADR-0028](../adr/0028-plugin-egui-mesh-render-channel.md)) |
 | 셸(scrim·border·이동·리사이즈·outside-click·Esc) | `PopupManager` | **host `PopupManager`** (동일 — 셸은 언제나 host 소유) |
 | 여는 주체 | host — `UiIntent::OpenPopup { id }` | host 가 `PluginManager::open_popup_instance(plugin_id, popup_id, context)` 로 인스턴스화. 트리거는 (a) 매니페스트 `trigger = { kind = "event", event_key }` 를 host event 발행이 발화, 또는 (b) surface-kind capability(`convert_input_popup`) 로 host 가 직접 open ([ADR-0043](../adr/0043-convert-input-popup-capability.md)) |
@@ -72,8 +72,12 @@ PopupDef {
     close_on_outside_click: false,
     headless: false,                 // true = 타이틀바·닫기버튼 없이 콘텐츠만 (컨텍스트 메뉴 스타일)
     sticky_focus: false,             // true = 바깥 클릭해도 키보드 포커스 유지 (검색바 등)
+    drag_handle: DragHandle::TitleBar,
+    resizable: false,
+    min_size: None,
     fullscreen_stage: None,          // Some(stage_id) = 타이틀바에 전체화면 버튼 노출 (아래 참고)
     draw_fn: super::my_popup::draw_my_popup,
+    on_close: None,                  // 상태를 가지면 Some(정리 fn) (아래 "닫힘 정리")
 }
 ```
 
@@ -241,7 +245,7 @@ if resp.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)) { /* apply
 
 ## 닫힘 정리
 
-**새 팝업이 draft 버퍼/대상 id 같은 상태를 가지면 반드시 `PopupDef.on_close` 를 선언한다.** draw_fn 내부에서 Escape/버튼 클릭 시에만 정리하면 X 버튼·바깥 클릭·`UiIntent::ClosePopup`(디버그 IPC 포함)처럼 draw_fn 을 거치지 않는 닫힘 경로에서 정리가 새고, 재오픈 시 이전 상태가 그대로 보이거나(가벼운 경우) 진행 중 워커/네트워크 연결이 살아남는다(무거운 경우 — 예: `remote_attach`/`remote_tool` 의 ssh 터널). `on_close` 는 어떤 닫힘 경로로도 정확히 한 번 호출되는 유일한 지점이므로, 상태 정리는 draw_fn 안에 흩어놓지 말고 여기 모은다. 상태가 전혀 없거나(예: `notifications`) 남아도 무해하다고 **판단**했다면(예: `tutorial_topics` 의 선택 인덱스) `on_close: None` 옆에 근거를 한 줄 남긴다 — `src/adapters/ui/popup/defs.rs` 의 기존 항목들이 그 예시다.
+**새 팝업이 draft 버퍼/대상 id 같은 상태를 가지면 반드시 `PopupDef.on_close` 를 선언한다.** draw_fn 내부에서 Escape/버튼 클릭 시에만 정리하면 X 버튼·바깥 클릭·`UiIntent::ClosePopup`(디버그 IPC 포함)처럼 draw_fn 을 거치지 않는 닫힘 경로에서 정리가 새고, 재오픈 시 이전 상태가 그대로 보이거나(가벼운 경우) 진행 중 워커/네트워크 연결이 살아남는다(무거운 경우 — 예: `remote_attach`/`remote_tool` 의 ssh 터널). `on_close` 는 어떤 닫힘 경로로도 정확히 한 번 호출되는 유일한 지점이므로, 상태 정리는 draw_fn 안에 흩어놓지 말고 여기 모은다. 상태가 전혀 없거나(예: `notifications`) 남아도 무해하다고 **판단**했다면(예: `mouse_capture_menu` 의 대상 id) `on_close: None` 옆에 근거를 한 줄 남긴다 — `src/adapters/ui/popup/defs.rs` 의 기존 항목들이 그 예시다.
 
 ## 관련
 

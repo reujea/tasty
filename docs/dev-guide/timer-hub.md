@@ -318,7 +318,7 @@ DAG 목록 popup 은 surface 에 매이지 않으므로 `Tick::DagListPopup` 로
 | `DagListPopup` | `last_list_poll + 폴링주기` | `POLL_INTERVAL` |
 | `Reconnect(anchor)` | `slot.next_attempt` | `RECONNECT_MIN_BACKOFF` |
 
-`NativeMenu` 만 예외인데, 그건 파생이 아니라 `once_after(주기)` = **상대 지연**이라
+`NativeMenu` · `WebviewKeyPoll` 은 예외인데, 그건 파생이 아니라 `once_after(주기)` = **상대 지연**이라
 정의상 과거가 될 수 없기 때문이다. 새 키가 절대시각을 쓴다면 예외가 아니다.
 
 이 규칙은 `crates/tasty-doc-guards/tests/timer_deadline_hygiene.rs` 가 소스 수준에서 강제한다 — `timers.rs`

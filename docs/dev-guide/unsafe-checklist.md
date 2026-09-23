@@ -13,7 +13,7 @@ unsafe { ... }
 
 형식적이면 안 된다. **무엇이 안전을 보장하는지가 핵심** — 검토자가 SAFETY 주석만 보고 동의할 수 있어야 한다.
 
-## 자가검토 5문
+## 자가검토 7문
 
 1. **OS thread affinity 가 있는가?** AppKit·Win32 GUI = main thread only. Xlib `Display*` = `XInitThreads()` 없이는 not thread-safe. POSIX 기본 syscall = thread-safe.
 2. **raw pointer lifetime 이 어디까지 보장되나?** 호출 끝까지 / 함수 / `'static`? 누가 free/release 책임?
@@ -58,7 +58,7 @@ unsafe { (xlib.XMapWindow)(display, x11_window); }
 ## 새 unsafe 절차
 
 1. 정말 필요한지 재검토(`bytemuck::cast_slice`, `std::mem::take`, `pin-project` 등 safe 대안).
-2. 5문에 답한다 → SAFETY 주석으로 작성.
+2. 7문에 답한다 → SAFETY 주석으로 작성.
 3. `cargo clippy --workspace --all-targets` 통과 확인.
 4. OS 의존이면 `docs/dev-guide/` 관련 문서에도 invariant 를 적는다.
 
@@ -67,7 +67,7 @@ unsafe { (xlib.XMapWindow)(display, x11_window); }
 | lint | 수준 |
 |------|------|
 | `clippy::undocumented_unsafe_blocks` | `deny` (모든 unsafe 블록 SAFETY 필수) |
-| `clippy::multiple_unsafe_ops_per_block` | `warn` (향후 deny 검토) |
+| `clippy::multiple_unsafe_ops_per_block` | `deny` |
 | `rust::unsafe_op_in_unsafe_fn` | `deny` (edition 2024 기본) |
 
 리뷰어는 코드보다 **SAFETY 본문(invariant) 검증을 우선** 한다. OS 문서 링크가 있으면 SAFETY 에 포함(장기 변동 대응).

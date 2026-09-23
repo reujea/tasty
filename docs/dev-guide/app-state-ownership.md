@@ -86,6 +86,8 @@ headless 빌드에 그 필드가 있는지를 적는다.
 | `plugin_mesh_popup_forward` · `plugin_mesh_banner_forward` | 사용자 view 상태 | 열림 | egui 패스 → 합성 | 없음 |
 | `plugin_mesh_banner_regions` | 사용자 view 상태 | 프레임 | egui 패스 → 합성 | 없음 |
 | `plugin_mesh_popup_pending_repaint` · `plugin_mesh_banner_pending_repaint` | 사용자 view 상태 | 요청 | plugin repaint 요청 → 합성 | 없음 |
+| `plugin_popup_user_activated` | 실행 자원 (사용자 행동 근거) | 열림 | `draw_plugin_popups` 입력 forward → popup 닫힘 | 없음 |
+| `webview_user_navigations` | 실행 자원 (사용자 행동 근거) | 요청 | `sync_webviews` → 한 번 쓰이거나 webview 소멸 | 없음 |
 | `pending_intents` | 실행 자원 (큐) | 요청 | GUI 의 `dispatch_intent` · IPC 진입점이 옮기는 요청 출구 → `dispatch_pending_intents` / headless drain | 읽힘 |
 
 ## 모듈 단위 예외 없이 가른다
