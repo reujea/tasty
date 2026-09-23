@@ -502,6 +502,17 @@ mod tests {
     /// IPC 명령을 plugin namespace 로 넘기는 두 자리(gui 라우터 · headless)가 **그 명령의 번호**를
     /// 넘긴다 — `None` 을 넘기면 plugin hop 이 호스트 몫과 이어지지 않아 링에 두 줄로 갈리거나
     /// 아예 안 남는데, 매니저 쪽 시험은 번호를 직접 넣으므로 그것을 못 본다(ADR-0436).
+    /// 이 시험이 재는 것은 두 파일 본문(`#[cfg(test)]` 앞)의 **문자열**뿐이고, 파일마다 셋이다 —
+    /// 메서드 표기 `.forward_namespace_call(` 가 정확히 1 건인가, 그 1 건의 인자 문자열에
+    /// `Some(c.request_seq())` 가 있는가, `::forward_namespace_call` 부분 문자열이 0 건인가.
+    /// 마지막 것은 메서드 표기 분할이 못 세는 표기로 forward 가 쓰이지 않게 막는 자리이고, 부분
+    /// 문자열 계수라 같은 접두의 `forward_namespace_call_from_plugin` 경로 표기와 주석·문자열 안의
+    /// 언급에도 걸린다. 이 시험은 호출 관계를 따라가지 않는다 — 그 1 건을 감싼 closure 가
+    /// 몇 번 불리는지, `c` 가 무엇에 묶이는지는 안 보인다. `c` 는 보존소 함수
+    /// (`forward_keeping_the_key`)가 넘기는 명령이고, 그것이 키를 뗀 사본이어도 원 명령의 번호를
+    /// 든다는 것은 `idempotency::tests::the_stripped_copy_keeps_the_request_seq_of_the_original`
+    /// 이 잰다. 두 파일 밖의 forward(파일 핸들러 큐를 비우는 자리는 원 요청 번호를 잃어 `None`
+    /// 을 넘긴다)는 이 시험의 좌변이 아니다.
     #[test]
     fn both_namespace_forwards_pass_the_commands_request_seq() {
         for (name, src) in [
@@ -510,11 +521,19 @@ mod tests {
         ] {
             let body = src.split("\n#[cfg(test)]").next().unwrap_or(src);
             let calls: Vec<&str> = body
-                .split("forward_namespace_call(")
+                .split(".forward_namespace_call(")
                 .skip(1)
                 .map(|rest| rest.split(");").next().unwrap_or(rest))
                 .collect();
             assert_eq!(calls.len(), 1, "{name}");
+            assert_eq!(
+                body.matches("::forward_namespace_call").count(),
+                0,
+                "{name}: `::forward_namespace_call` must not appear — a path-form forward \
+                 (direct call or function pointer) escapes the method-form split above, so its \
+                 request seq is never checked; this is a raw substring count, so a mention in a \
+                 comment or string and a path-form `forward_namespace_call_from_plugin` trip it too"
+            );
             // 보존소를 지나는 갈래(`forward_keeping_the_key`)에서는 키를 뗀 사본 `c` 가 원 명령의
             // 번호를 그대로 든다(`IpcCommand::continuing`).
             assert!(
