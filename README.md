@@ -82,7 +82,7 @@ cargo build --release
 - **Select and copy with the keyboard alone** — vi-style copy mode (hjkl movement, visual selection, search) with GPU cursor visualization ([`docs/features/clipboard/index.md`](docs/features/clipboard/index.md))
 - **Produce installers in one step** — `cargo build --profile dist` plus a Justfile wrapper auto-builds DMG / MSI / AppImage
 - **Extend it yourself with plugins** — an SDK with a manifest schema and a permission system ([`docs/features/plugin-system/index.md`](docs/features/plugin-system/index.md))
-- **Share context between agents** — Blackboard / Plan / Cache let multiple agents exchange the same working context ([`docs/features/agent-collaboration/index.md`](docs/features/agent-collaboration/index.md))
+- **Share context between agents** — Blackboard / Plan / Cache let multiple agents exchange the same working context ([`docs/design/systems/memory.md`](docs/design/systems/memory.md))
 - **Pinpoint output per shell command** — recognizes shell prompt boundaries to capture exactly "this command's output" ([`docs/features/terminal-output/index.md`](docs/features/terminal-output/index.md))
 - **Watch terminal output live and trigger follow-up work** — parses PTY output lines and fans them out to memory/file sinks automatically ([`docs/features/terminal-output/index.md`](docs/features/terminal-output/index.md))
 - **Cap agent token spend automatically** — tracks and aggregates usage, auto-blocking once a cost cap is exceeded ([`docs/features/telemetry/index.md`](docs/features/telemetry/index.md))
