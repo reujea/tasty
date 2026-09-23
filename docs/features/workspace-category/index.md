@@ -46,7 +46,7 @@
 - Given 토글 off When 구버전 레이아웃 스냅샷 로드 Then 모든 워크스페이스가 `normal` 로 귀속(무손실).
 - Given `workspace_category.create {name:"normal"}` Then 예약어 거부.
 - Given 카테고리 A 에 워크스페이스 존재 When `workspace_category.delete A` Then 워크스페이스는 normal 로 이동, active 전역 인덱스 불변.
-- Given `workspace_category.move {from:0}` 또는 `{to:0}` Then 거부(normal 0번 고정).
+- Given `workspace_category.move {from_index:0}` 또는 `{to_index:0}` Then 거부(normal 0번 고정).
 - Given 토글 on Then 사이드바가 카테고리 섹션(chevron 헤더 + 소속 행)으로 그룹 렌더, 토글 off 면 평면 렌더(회귀 없음).
 - Given 카테고리 헤더 클릭 When 접힘 토글 Then 접힘 상태가 슬롯 파일에 영속되고 확장↔레일이 공유.
 - Given `toggle_categories_collapsed` 바인딩 When 하나라도 펼쳐진 상태에서 누름 Then 전부 접힘, 다시 누르면 전부 펴짐(normal 포함). 카테고리 토글 off 면 no-op(키 흐름).
