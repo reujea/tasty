@@ -70,6 +70,8 @@
 
 - **완료 알림 로그 옆에 버린 양의 누계가 남는다 — `<caller_surface>.log.meta`.** 완료 로그(`<parent_home>/notify/<caller_surface>.log`)는 256 KiB 에서 통째로 비워지는데, 지금까지 얼마를 버렸는지는 writer plugin 의 로그에만 남아 로그를 읽는 쪽이 자기 읽기 위치와 이어 볼 수 없었다. 이제 같은 폴더의 `<caller_surface>.log.meta` 에 `retention_start=<누계>` 한 줄이 있다. 이 세대에서 비워진 바이트의 합계다. 멈췄다 다시 읽는 reader 는 들고 있던 위치(누계 + 파일 안 위치)를 이 값과 견줘, 그 사이 비우기가 있었는지와 못 읽고 잃은 바이트 수를 안다. 이 수는 claude · codex child 가 동시에 써도 정확하다 — 비우기와 쓰기가 메타 파일의 잠금으로 겹치지 않는다. 메타 파일을 오래 잠근 reader 가 있어도 완료 기록은 기다리지 않는다 — 비우기는 잠금을 200 ms 만 기다리고, 못 잡으면 그 비우기를 누계에 넣지 않는다(그 reader 는 다음 재개에서 잃은 양을 "모른다" 로 받는다). 완료 로그의 줄 형식·경로·`tail -F` 로 받는 Monitor 는 그대로다. 메타 파일은 첫 완료 기록 때 빈 파일로 생기고, 재시작 때 완료 로그와 함께 지워진다.
 
+- **튜토리얼 완성판** — 화면 구조 5단계, 별도 워크스페이스의 분할·탭 전환 실습, 실제 단축키를 반영한 명령 안내를 제공합니다. 완료·중단 위치를 기억하고 다시 보기를 지원하며, 대상 유실 안내와 터미널 Escape 처리를 보완했습니다.
+
 ### Changed
 
 - **`surface_id` 를 준 승인 요청은 그 터미널의 워크스페이스에 묶인다.** `approval.request`(CLI `tasty approval request`)가 `workspace_id` 없이 `surface_id` 만 받으면 지금까지는 그 surface 가 아니라 사용자가 보고 있는 워크스페이스에 묶였다 — 같은 요청이 사용자의 시선에 따라 다른 워크스페이스에 기록되고, 그 기록은 요청한 터미널의 워크스페이스를 닫아도 남았다. 이제 순서는 `workspace_id` → `surface_id` 가 있는 워크스페이스 → 활성 워크스페이스다. 둘 다 안 준 요청은 종전과 같고, 살아 있지 않은 `surface_id` 는 종전처럼 거절된다. popup 은 창 단위라 그대로다. 근거는 [ADR-0533](docs/adr/0533-an-omitted-target-keeps-its-focus-default-only-where-nothing-names-one.md).
@@ -212,8 +214,6 @@
 ## [0.10.3] - 2026-09-09
 
 ### Added
-
-- **튜토리얼 완성판** — 화면 구조 5단계, 별도 워크스페이스의 분할·탭 전환 실습, 실제 단축키를 반영한 명령 안내를 제공합니다. 완료·중단 위치를 기억하고 다시 보기를 지원하며, 대상 유실 안내와 터미널 Escape 처리를 보완했습니다.
 
 - **`plugin.show` 가 선언과 사실을 갈라 낸다.** 지금까지 이 응답의 `surface_kinds[].rendering` 은 매니페스트에 적힌 값을 그대로 옮긴 것이었다 — plugin 이 요청한 것이지 host 가 등록한 것이 아니라서, 소비자가 그 갈림을 볼 수 없었다. 그리고 그 갈림은 오류 상태에서만 나는 것이 아니다: 헤드리스는 `webview`/`remote` 선언을 설계대로 등록하지 않고, egui-mesh 는 화이트리스트·api_version 게이트를 통과한 것만 등록하며, host 내장 kind 를 remote 로 재선언한 plugin 은 조용히 무시된다(셋 다 로그로만 남았다). 이제 칸이 넷이다 — `declared_rendering`(매니페스트가 요청한 것) · `registered`(그 선언이 **이 plugin 의 것으로** 등록됐는가) · `effective_rendering`(등록됐을 때 host 가 실제로 쓰는 경로) · `registered_by`(kind 이름의 임자 — `host` 이거나 plugin id). 이름이 registry 에 있는데 임자가 다르면 `registered` 는 false 다. **`rendering` 칸은 없어졌다** — 이름이 사실처럼 읽히는 것이 결함이었고, 그 값을 읽던 소비자는 저장소에 없었다. (BREAK 아님: 0.x 표면 · 소비자 0.)
 - **`surface.kinds`(CLI `tasty list surface-kinds`) — 이 인스턴스가 **실제로 등록한** surface kind 를 묻는다.** 지금까지 이것을 묻는 IPC/CLI 가 하나도 없었다 — `SurfaceKindRegistry` 가 런타임의 사실을 들고 있는데 읽는 창구가 없어서, "이 kind 로 만들 수 있나" 를 아는 유일한 방법이 **만들어 보는 것**이었다(실패는 `unknown surface kind: <kind>`, 성공하면 탭이나 workspace 가 생긴다 — 관측하려고 부른 명령이 관측 대상을 바꾼다). `plugin.show` 로는 답이 안 나왔다: 그쪽이 내는 것은 매니페스트 **선언**이라 등록 여부와 무관하고, host 내장 kind(`terminal`/`empty`/`explorer`/`dag_graph`)는 plugin 이 아니라 어느 `plugin.*` 조회에도 아예 안 나온다. 응답은 kind 마다 표시명 i18n 키 · icon · **실제** 렌더 경로(`rendering`: `host-egui`/`egui-mesh`/`webview`/`remote`) · 출처(`source`: `host`/`plugin` + `plugin_id`) · 필수 params 이고, kind 이름으로 정렬된다. **같은 매니페스트가 빌드 조합에 따라 다른 답을 낸다** — 헤드리스는 `webview`/`remote` 선언을 설계대로 등록하지 않으므로 GUI 에서 8 종이 나오는 홈이 헤드리스에서는 6 종을 낸다(실측 2026-09-08, 번들 plugin 9 개 기동 후). 읽기 전용이라 부수효과가 없다.
