@@ -14,7 +14,7 @@ tasty 의 많은 기능은 **플러그인**으로 제공된다 — 별도 프로
 | **bundled plugin** (기본 플러그인) | `~/.tasty/plugins/<id>/` | ✓ | 첫 부팅 시 `BUILTINS` 자동 install | ✓ disable/remove |
 | **user plugin** (사용자 플러그인) | `~/.tasty/plugins/<id>/` | ✓ | `tasty plugin install <path>` | ✓ |
 
-- **host-native** 는 플러그인 메커니즘을 거치지 않는 host 코드다. 대부분의 viewer 는 bundled 로 이전됐지만, `explorer` surface kind 는 T11 에서 plugin → host-native 로 역이전됐다([hierarchy.md](hierarchy.md) 참고) — 현재 유일한 host-native 항목. (사용자가 플러그인으로 인식하지 않아야 하고 교체 여지를 원천 차단할 때만 쓰는 카테고리.)
+- **host-native** 는 플러그인 메커니즘을 거치지 않는 host 코드다. 대부분의 viewer 는 bundled 로 이전됐지만, `explorer` surface kind 는 T11 에서 plugin → host-native 로 역이전됐다([hierarchy.md](hierarchy.md) 참고) — `dag_graph` surface kind 도 host-native 다. (사용자가 플러그인으로 인식하지 않아야 하고 교체 여지를 원천 차단할 때만 쓰는 카테고리.)
 - **bundled plugin** 은 tasty 에 동봉되어 첫 부팅에 자동 install 되지만, 이후엔 외부 플러그인과 동일 라이프사이클(활성/비활성/제거/권한)을 따른다. remove 하면 `removed_builtins` 에 박혀 재설치되지 않는다.
 - **user plugin** 은 사용자가 직접 install 한 외부 플러그인. host 가 자동 install 대상으로 인지하지 않을 뿐 디렉토리·라이프사이클은 동일.
 
@@ -33,7 +33,7 @@ tasty 의 많은 기능은 **플러그인**으로 제공된다 — 별도 프로
 | **detector / handler** | 파일 확장자 → surface 매핑(파일 열기) | markdown / image / html |
 | **settings_pages** | [설정 창](../features/settings/index.md)에 플러그인 페이지 추가 (`ui.settings_page`) | markdown / html / claude / codex |
 | **commands** | 명령 팔레트/단축키용 명령 | clipboard-viewer / git-viewer |
-| **event_subscribe / hooks** | host 이벤트 구독 / pre·post 훅 | claude·codex (`surface.closed`) |
+| **event_subscribe / hooks** | host 이벤트 구독 / pre·post 훅 | markdown (`theme.changed`) |
 
 #### surface_kind 의 `rendering` — 누가 그리나
 
