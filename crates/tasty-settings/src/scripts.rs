@@ -13,7 +13,7 @@ use sha2::{Digest, Sha256};
 
 /// 자동실행 트리거로 등록 가능한 host lifecycle 이벤트 화이트리스트.
 ///
-/// host 가 실제 `fire` 하는 이벤트명과 1:1 (`docs/dev-guide/lua-hooks.md` 카탈로그).
+/// host 가 실제 `fire` 하는 이벤트명과 1:1 (`docs/features/lua-hooks/index.md#구현--발화-site--payload` 카탈로그).
 /// 여기 없는 이름은 트리거로 등록할 수 없다 — 발화 지점이 없어 영원히 침묵하는
 /// 바인딩을 config 에 만들지 않기 위함.
 pub const AUTO_TRIGGER_EVENTS: [&str; 13] = [

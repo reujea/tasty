@@ -72,7 +72,6 @@ tasty 를 **개발하는** AI 에이전트용 가이드. tasty 를 *사용하는
 | [attach-behavior](attach-behavior.md) | attach(서버=loopback / 로컬-원격=클라이언트) · self-attach connector 진입/완료 검증 |
 | [agent-runner](agent-runner.md) | task DAG executor + 동기화 primitive |
 | [agent-identification](agent-identification.md) | `AgentId` 도출(잠정 모델) |
-| [lua-hooks](lua-hooks.md) | Lua hook 호스트 측 매핑 |
 
 ## 외부 프로그램 구동
 

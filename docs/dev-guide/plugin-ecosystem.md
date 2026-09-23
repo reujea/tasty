@@ -15,7 +15,7 @@ plugin 시스템의 작성 형식·배포·신뢰·호환성·hot reload 정책�
 | **hot reload** | seamless 미지원. `disable`→`enable` 재시작 안내 | 재빌드 워크플로 비용 명백한 사례 |
 
 - WASM 의 가치는 "가벼움"이 아니라 **강제 가능한 sandbox** 다. 현 권한 모델은 *호스트 API 호출* 만 게이트하고 plugin 이 자기 프로세스에서 직접 fs/network 접근하는 것은 OS process privilege 에 의존한다. 이 한계를 false security 보다 투명하게 명시한다 — 매니페스트 `permissions` 는 "호스트 API 호출 권한"이지 "OS 자원 권한"이 아니다([plugin-permissions](plugin-permissions.md)).
-- Lua 는 plugin 과 책임이 다르다(plugin = 시스템 확장, Lua = 사용자 일상 커스터마이징) — 호스트 임베드 별 시스템([lua-hooks](lua-hooks.md)).
+- Lua 는 plugin 과 책임이 다르다(plugin = 시스템 확장, Lua = 사용자 일상 커스터마이징) — 호스트 임베드 별 시스템([lua-hooks](../features/lua-hooks/index.md)).
 
 ## 호환성 분류 (plugin-protocol)
 
