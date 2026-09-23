@@ -1,6 +1,6 @@
 # 색 생성 정책
 
-tasty 의 색 데이터는 **단 두 출처**(테마 파일 + 빌트인 fallback/const)에서만 만들어진다. 그 외 경로는 **컴파일(newtype) + clippy lint** 조합으로 차단된다. 테마 모델은 [theme.md](../design/systems/theme.md), 필드↔role 매핑은 [token-crosswalk.md](../design/systems/token-crosswalk.md).
+tasty 의 색 데이터는 **단 두 출처**(테마 파일 + 빌트인 fallback/const)에서만 만들어진다. 그 외 경로는 **컴파일(newtype) + clippy lint** 조합으로 차단된다. 테마 모델은 [theme.md](../design/systems/theme.md), 필드↔role 매핑은 [design-token-mapping.md 크로스워크 절](../design/systems/design-token-mapping.md#rust-필드--호출처-토큰-크로스워크).
 
 ## 정상 출처
 
@@ -65,7 +65,7 @@ pub const BRAND: HexColor = hex!("#89b4fa");          // OK (alpha·3-digit shor
 2. **alpha 변형**: `theme().X.with_alpha(N).to_egui()`.
 3. **외부 입력**: `dangerously_force_from_array` + 주석 + `#[allow]`.
 
-UI 색 읽기는 primitive 직접접근(`theme().blue`)보다 **semantic 접근자**(`accent_primary()`/`text_muted()`…)를 우선한다(다의성 구분). additive 라 픽셀 동일, 전수 이식 전까지 clippy 강제는 보류 — [theme.md](../design/systems/theme.md) "Semantic 접근자 우선" · [token-crosswalk.md](../design/systems/token-crosswalk.md).
+UI 색 읽기는 primitive 직접접근(`theme().blue`)보다 **semantic 접근자**(`accent_primary()`/`text_muted()`…)를 우선한다(다의성 구분). additive 라 픽셀 동일, 전수 이식 전까지 clippy 강제는 보류 — [theme.md](../design/systems/theme.md) "Semantic 접근자 우선" · [design-token-mapping.md 크로스워크 절](../design/systems/design-token-mapping.md#rust-필드--호출처-토큰-크로스워크).
 
 ## 추가 가드
 

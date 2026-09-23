@@ -18,8 +18,7 @@
 | 문서 | 내용 |
 |------|------|
 | [theme](systems/theme.md) | 색·타이포·간격의 단일 출처 `Theme` + UI 디자인 규칙·그림자 토큰과 검사 범위 |
-| [token-crosswalk](systems/token-crosswalk.md) | DTCG 토큰 ↔ Rust `Theme` 필드 ↔ 호출처 매핑 참조 |
-| [design-token-mapping](systems/design-token-mapping.md) | claude design semantic 토큰을 `Theme` 필드로 옮기는 매핑 |
+| [design-token-mapping](systems/design-token-mapping.md) | claude design semantic 토큰을 `Theme` 필드로 옮기는 매핑 + 반대 방향(DTCG 토큰 ↔ Rust `Theme` 필드 ↔ 호출처) 크로스워크 |
 | [design-gallery-mapping](systems/design-gallery-mapping.md) | 디자인 jsx 하위 컴포넌트 ↔ 갤러리 specimen ↔ 호스트 함수 3자 매핑 (원격 picker 행·pane 포함) |
 | [design-parity-notes](systems/design-parity-notes.md) | 디자인(html/CSS) ↔ 구현(winit/egui) 의 구조적 차이와 전사 원칙 |
 | [icons](systems/icons.md) | 라인/필 아이콘 세트 — SVG 지오메트리 단일 소스와 소비 구조 |

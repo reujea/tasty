@@ -10,7 +10,7 @@
 //!   (OS 리터럴 const) — `ThemeColors` 테마 필드가 아님 → 스킵
 //!
 //! neutral ramp 12단 넘버링은 elevation role 기준 (TOKENS.md) — 대응표는
-//! `docs/design/systems/token-crosswalk.md` 에도 기록되어 있다.
+//! `docs/design/systems/design-token-mapping.md#rust-필드--호출처-토큰-크로스워크` 에도 기록되어 있다.
 
 use tasty_design_tokens::DTCG_JSON;
 use tasty_design_tokens::dtcg::{self, ThemeMode};
