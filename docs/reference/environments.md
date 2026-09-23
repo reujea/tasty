@@ -51,4 +51,4 @@ release 기능이다(focus 독립 — `--surface <id>` 로 터미널 surface 를
 
 ## 관련
 
-- [api.md](api.md) — 전체 IPC/CLI · [dev-guide/self-verification](../dev-guide/self-verification.md) — 검증 시나리오
+- [api.md](api.md) — 주요 IPC/CLI · [dev-guide/self-verification](../dev-guide/self-verification.md) — 검증 시나리오

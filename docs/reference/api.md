@@ -1,6 +1,6 @@
 # IPC / CLI API 레퍼런스
 
-tasty 를 조작하는 전체 IPC/CLI 표면의 네임스페이스별 목록. **메서드·권한의 정답은 코드** — `crates/tasty-ipc/src/method_meta.rs`(`METHOD_TABLE`/`DEBUG_METHODS`)와 `src/adapters/ipc/handler.rs` 라우터다. 이 문서는 사람이 읽는 지도이며, 각 메서드의 *동작* 은 해당 feature 문서로 위임한다.
+tasty 를 조작하는 주요 IPC/CLI 표면의 네임스페이스별 목록 — 전수 목록이 아니다. **메서드·권한의 정답은 코드** — `crates/tasty-ipc/src/method_meta.rs`(`METHOD_TABLE`/`DEBUG_METHODS`)와 `src/adapters/ipc/handler.rs` 라우터다. 이 문서는 사람이 읽는 지도이며, 각 메서드의 *동작* 은 해당 feature 문서로 위임한다.
 
 ## 접속
 
