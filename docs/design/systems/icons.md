@@ -60,9 +60,9 @@ pub struct Icon {
 
 | 소비처 | 방식 | 지오메트리 정의 |
 |---|---|---|
-| 본체 `src/adapters/ui/icons.rs` | `pub use tasty_icons::*` shim + host 로컬 이름 별칭(`COPY as CLIPBOARD` 등) + `from_name` 이름→글리프 매핑 | 없음(재노출) |
+| 본체 `src/adapters/ui/icons.rs` | `pub use tasty_icons::*` shim + host 로컬 이름 별칭(`LAYOUT_DETAIL as DETAIL` 등) + `from_name` 이름→글리프 매핑 | 없음(재노출) |
 | 갤러리 `crates/tasty-gallery/src/catalog/icons.rs` | `tasty_icons::*` 재노출 + 카탈로그 페이지 전시(글리프 전시 창구) | 없음(재노출) |
-| 위젯 `crates/tasty-ui-widgets/` | chevron 을 `tasty_icons::CHEVRON_LEFT/RIGHT` 직접 참조 | 없음(직접 참조) |
+| 위젯 `crates/tasty-ui-widgets/` | `tasty_icons::CHEVRON_LEFT/RIGHT` · `PLUS` · `FUNNEL` · `SUN` · `THEME` · `GIT_BRANCH` 직접 참조 | 없음(직접 참조) |
 
 세 소비처 모두 지오메트리를 재정의하지 않는다 — 정의는 오직 `tasty-icons`. `IconButton`
 (`icon_button.rs`)은 `IconPainter` 클로저 주입 방식이라 아이콘 소스에 비의존이며, 이 설계는
@@ -80,14 +80,14 @@ pub struct Icon {
 
 ## 정합 보장 방식
 
-자동 코드 생성·freshness 가드는 **없다**(수기 전사이므로 생성 파이프라인 자체가 없다).
+자동 코드 생성은 **없다**(수기 전사이므로 생성 파이프라인 자체가 없다).
 정합은 두 축으로 보장한다:
 
 - **(a) 존재성은 컴파일러가 강제** — 없는 글리프를 참조하면 빌드가 실패한다. `icons::CLOSE`
   같은 심볼 참조가 핵심 사용법이므로, 오타·미정의 글리프는 컴파일 단계에서 걸린다.
-- **(b) canonical ↔ const 정합은 수동 대조** — 디자인 canonical path 와 `tasty-icons` const
-  의 일치는 디자인 요청 워크플로에서 사람이 대조한다. 전사가 손 작업이므로 자동 가드가
-  아니라 워크플로 단계로 보장한다.
+- **(b) canonical ↔ const 정합은 가드가 대조한다** — `crates/tasty-doc-guards/tests/site_vendor_icons_match_the_app_transcription.rs`
+  가 레포 안의 canonical 사본(`site/vendor/`)과 `tasty-icons` const 를 대조한다(`doc-guards.yml`, main push · PR).
+  원격 원본과 그 사본 사이의 차이는 이 가드 밖이다.
 
 ## 알려진 한계
 
