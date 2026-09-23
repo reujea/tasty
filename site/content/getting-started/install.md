@@ -40,7 +40,7 @@ tar -xzf tasty-{ver}-linux-x64.tar.gz && ./tasty-linux-x64/tasty
 ```
 
 - `.deb` / `.rpm` 은 `tasty` 명령을 PATH 에 등록하고 앱 메뉴에 아이콘을 넣습니다. 필요한 라이브러리는 패키지가 자동으로 끌어옵니다.
-- GPU 가속(Vulkan)은 `libvulkan1` / `vulkan-loader` 가 있을 때 씁니다. 없어도 설치·실행은 되고 소프트웨어 렌더링으로 동작합니다.
+- GPU 가속(Vulkan)은 `libvulkan1` / `vulkan-loader` 가 있을 때 씁니다. 없어도 설치·실행은 되고 OpenGL 로, 그것도 안 되면 소프트웨어 렌더링으로 동작합니다.
 - `.AppImage` 는 라이브러리를 모두 포함합니다. 앱 메뉴 등록은 직접 합니다(`appimaged` 사용 또는 `.desktop` 파일을 `~/.local/share/applications/` 에 두기).
 - `.tar.gz` 는 PATH 등록과 메뉴 등록을 직접 해야 합니다. 필요한 시스템 라이브러리가 없으면 `tasty` 실행 시 무엇이 빠졌는지 안내하고 종료합니다.
 - 라이선스 고지(Tasty 의 MIT 본문 · 함께 번들하는 폰트와 markdown 렌더링 엔진의 라이선스 본문 · 제3자 고지 문서)는 산출물 안에 함께 들어 있습니다. `.deb` 은 `/usr/share/doc/tasty/`, `.rpm` 과 `.AppImage` 는 `usr/share/licenses/tasty/`, `.tar.gz` 는 압축을 푼 디렉토리 최상단입니다. 릴리스 페이지에서도 따로 내려받을 수 있도록 해 두었지만, 그렇게 올라간 릴리스는 아직 없습니다.

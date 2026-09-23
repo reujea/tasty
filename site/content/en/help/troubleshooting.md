@@ -1,4 +1,4 @@
-<!-- source-hash: 09f4e689abfc -->
+<!-- source-hash: 10f43ba1d3d8 -->
 # Troubleshooting
 
 If something is not working, find the matching symptom below. Check installation, permissions, terminal connections, and notifications, or use the reporting steps at the end if you still need help.
@@ -31,7 +31,7 @@ TASTY_LOG=debug tasty 2> tasty.log
 - **Linux: the AppImage does not run** — it lacks the execute bit or FUSE is missing. Run `chmod +x Tasty-*.AppImage` first; if it still fails, start it with `./Tasty-*.AppImage --appimage-extract-and-run`.
 - **Linux: it does not start, with `GLIBC_2.39 not found`** — your distribution is older than the build baseline (Ubuntu 24.04), for example Ubuntu 20.04 · Debian 11. There is no build for older distributions.
 - **Linux `.tar.gz`: it exits saying a library is missing** — `tasty` lists the missing library and exits. Install the packages it names (`libfreetype6` · `libfontconfig1` · `libgtk-3` · `libwebkit2gtk-4.1` and so on). To have them pulled in automatically, use the `.deb` / `.rpm` instead.
-- **"No GPU adapter found" appears and it exits** — there is no GPU driver (Vulkan / DirectX 12 / Metal). Install or update the driver. On Linux, Tasty runs GPU-accelerated when `libvulkan1` / `vulkan-loader` is present, and falls back to software rendering when it is not. On a server · VM with no GPU at all, the distributed files cannot run.
+- **"No GPU adapter found" appears and it exits** — there is no GPU driver (Vulkan / DirectX 12 / Metal). Install or update the driver. On Linux, Tasty uses Vulkan when `libvulkan1` / `vulkan-loader` is present, OpenGL when it is not, and software rendering if that fails too. On a server · VM with no GPU at all, the distributed files cannot run.
 - **Windows: "Git Bash not found"** — Tasty uses Git Bash as the shell on Windows. Install Git for Windows, or set the bash path yourself in **Settings** > **Terminal** > **Shell**.
 - **It exits right after starting with "Database initialization error"** — read the message body. "The database is locked" means another Tasty is already running. "corrupted" / "schema version mismatch" means you can back up `~/.tasty/state.db`, delete it, and start fresh. Only the recent-files list and tutorial progress are lost.
 - **You typed `tasty` inside a Tasty terminal but no new window appeared** — run with no arguments inside Tasty, it shows the help instead of opening a new window. For a new window use `tasty new window` (it leaves the focus on the window you were looking at); to force the GUI to launch, `tasty --launch`.
