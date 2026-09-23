@@ -44,7 +44,7 @@ Modal/View 레벨과 별개로, 각 View 내부에서 Pane 간·Surface 간 포�
 
 - **IPC/CLI 로 focus 를 변경할 수 없다.** focus 변경 API(`surface.focus` / `pane.focus` / `workspace.select` / `focus.direction`)는 release 에 없다(제거됨). focus 는 오직 사용자 행위(단축키·마우스)로만 바뀐다.
 - 모든 명령은 대상을 **ID 로 직접 지정**한다. `list` 는 **전 워크스페이스 순회**(활성 상태 비의존).
-  - 순회하는 `list` 는 호스트가 명시적으로 합산하는 것뿐이다(`src/app/dispatch/list_global.rs`). **그 집합의 소속은 이름이 아니라 성질로 판정한다**(핸들러가 창 소유 컬렉션을 순회하는가 · 대상 인자가 없는가 · 합산 집합에 없는가) — 이름 모양(`*.list`)으로 훑는 눈에는 `tree` 가 안 걸려 오래 빠져 있었다([ADR-0175](../../adr/0175-window-owned-list-membership-is-judged-by-shape-not-by-name.md)). **그 목록에 없는 `list` 는 포커스된 창의 것만 답하고, 에러가 없다.** 실측(창 둘): 창1 에서 만든 headless pty 가 창2 포커스의 `pty.list` 에 안 나오는데 `pty.read {id}` 는 그 pty 를 읽었다 — **조작할 수 있는데 볼 수 없는** 상태다. 창 소유 자원의 `list` 를 새로 만들면 거기에 등록한다.
+  - 순회하는 `list` 는 호스트가 명시적으로 합산하는 것뿐이다(`src/app/dispatch/list_global.rs`). **그 집합의 소속은 이름이 아니라 성질로 판정한다**(핸들러가 창 소유 컬렉션을 순회하는가 · 대상 인자가 없는가 · 합산 집합에 없는가) — 이름 모양(`*.list`)으로 훑는 눈에는 `tree` 가 안 걸려 오래 빠져 있었다([ADR-0175](../../adr/0175-window-owned-list-membership-is-judged-by-shape-not-by-name.md)). **그 목록에 없는 `list` 는 포커스된 창의 것만 답하고, 에러가 없다.** 그 목록 밖의 창 소유 자원은 **조작할 수 있는데 볼 수 없는** 상태가 된다. 창 소유 자원의 `list` 를 새로 만들면 거기에 등록한다.
   - `notification.list`도 main/parked engine의 알림을 합산한다. ID는 공유
     IdGenerator에서 발급하고 생성 순서 역순으로 전체 50개를 반환한다. 병합은 기존
     ID와 생성 순서를 유지한다. UI 알림 패널과 읽음 처리는 각 engine 소유로 남는다.
@@ -200,7 +200,7 @@ IPC 핸들러(`src/adapters/ipc/`)가 활성 포인터를 읽는 자리를 전�
 - 카테고리 quick-switch 착지점(`AppState::category_last_active`)은 인덱스가 아니라 **워크스페이스 id** 를 값으로 든다. 그래서 제거·재정렬 어느 쪽으로도 밀리지 않는다 — 보정 대상이 아니다. 착지 시점에 id 로 워크스페이스를 찾고, 사라졌거나 다른 카테고리로 옮겨졌으면 그 카테고리의 first 로 폴백한다.
 - 원격 attach 로 forward 된 구조 변경(`execute_forwarded_structural_op`)과 mirror 워크스페이스 teardown 도 같은 close 경로를 타므로 같은 규칙이 적용된다.
 
-구현: tab 은 `Pane::remove_tab_preserving_active`(`crates/tasty-model/src/pane.rs`), workspace 는 `active_index_after_removal` + `AppState::fix_workspace_pointers_after_removal`(`src/state/workspace.rs`), pane 은 각 close 경로의 `was_focused` 가드. 제거 위치는 `CoreEvent::SurfaceClosed { workspace_index_purged }` 로 cascade 에 전달된다 — Core 는 `active_workspace` 를 모르고, cascade 시점엔 워크스페이스가 이미 사라져 위치를 알 수 없기 때문이다. 워크스페이스를 제거하는 **새 경로**를 추가하면 그 헬퍼를 함께 태운다.
+구현: tab 은 `Pane::remove_tab_preserving_active`(`crates/tasty-model/src/pane.rs`), workspace 는 `active_index_after_removal` + `AppState::fix_workspace_pointers_after_removal`(`src/state/workspace.rs`), pane 은 각 close 경로의 `was_focused` 가드. 제거 위치는 `CoreEvent::SurfaceClosed { workspace_purged }` 로 cascade 에 전달된다 — Core 는 `active_workspace` 를 모르고, cascade 시점엔 워크스페이스가 이미 사라져 위치를 알 수 없기 때문이다. 워크스페이스를 제거하는 **새 경로**를 추가하면 그 헬퍼를 함께 태운다.
 
 ## 자기 자신 닫기 보호 (Self-Close Protection)
 
