@@ -35,13 +35,13 @@ plugin 시스템의 작성 형식·배포·신뢰·호환성·hot reload 정책�
 BUILTINS 각 항목에 대해 bundle vs 설치본 매니페스트 version 비교:
 
 - `bundle > installed` → mtime 무시 덮어쓰기 + 옛 잔존 파일 제거. 로그 `upgrading builtin '<id>' v<old> → v<new>`.
-- `bundle == installed` → mtime 기반 sync 만(dev workspace 의 매니페스트-only hotfix 즉시 반영 경로).
+- `bundle == installed` → 내용 기반 sync 만(내용이 다른 파일만 옮긴다, mtime 은 안 본다).
 - `bundle < installed` → skip(자동 다운그레이드 금지).
-- 매니페스트 파싱 실패: bundle corrupt → skip / installed corrupt + bundle ok → mtime sync 복구.
+- 매니페스트 파싱 실패: bundle corrupt → skip / installed corrupt + bundle ok → 내용 sync 복구.
 
 ### bundle signature 검증
 
-bundle 의 `tasty-plugin.toml` 은 ed25519 detached signature(`.sig` sidecar)로 보호. release 빌드는 검증 실패 시 `Skipped { reason: "signature-invalid" }` 차단(누락/길이불일치/검증실패 모두), debug 빌드는 trace 로깅 후 통과(`#[cfg(debug_assertions)]`). 키·회전은 [plugin-packaging](plugin-packaging.md).
+bundle 의 `tasty-plugin.toml` 은 ed25519 detached signature(`.sig` sidecar)로 보호. 검증은 plugin 로드 시점(`discovery.rs` 의 `trust_outcome`)과 `upgrade-builtins` 경로(`verify_builtin_bundle_trust`)에서 한다. release 빌드는 검증 실패 시 차단하고, debug 빌드는 로드 시점 검증을 건너뛰고 upgrade 경로에서는 `tracing::debug!` 로만 남긴다(`#[cfg(debug_assertions)]`). 키·회전은 [plugin-packaging](plugin-packaging.md).
 
 ### 수동 재설치 — `tasty plugin upgrade-builtins`
 
@@ -57,7 +57,7 @@ builtin 디렉토리는 **host-owned** — 자동/수동 upgrade 가 `overwrite_
 
 ### 매니페스트 version bump
 
-plugin 작성자가 의미적 변경 시 `tasty-plugin.toml::version` 을 수동 bump 해야 자동 upgrade 가 동작한다. **루트 앱 자동 패치 +1 정책과 분리** — plugin 단위 변경(매니페스트/permission 추가, behavior 변경)이 있을 때 그 plugin 매니페스트만 bump. version 그대로면 동일버전 분기(mtime resync)로 떨어져 dev workspace 외엔 새 binary 미노출.
+plugin 작성자가 의미적 변경 시 `tasty-plugin.toml::version` 을 수동 bump 해야 자동 upgrade 가 동작한다. **루트 앱 자동 패치 +1 정책과 분리** — plugin 단위 변경(매니페스트/permission 추가, behavior 변경)이 있을 때 그 plugin 매니페스트만 bump. version 그대로면 동일버전 분기(내용 resync)로 떨어져 파일은 옮겨지지만, 같은 버전 아래 두 산출물이 남는다.
 
 ### 개발용 자동 reload — `TASTY_PLUGIN_AUTO_RELOAD`
 

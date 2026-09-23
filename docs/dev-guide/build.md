@@ -11,7 +11,7 @@ cargo workspace — **본 바이너리(`src/`) + `crates/*`**. 크레이트 수�
 | **type-\*** primitive | `tasty-type-geometry`(길이), `tasty-type-appearance`(색·theme schema) | 최하위 schema/primitive |
 | 도메인 leaf (GUI-free) | `tasty-model`, `tasty-i18n`, `tasty-settings`, `tasty-themes`, `tasty-terminal`, `tasty-memory`, `tasty-hooks`, `tasty-ipc`, `tasty-ssh`, `tasty-remote`, `tasty-portscan` 등 | 공용 도메인·IO |
 | plugin 인프라 | `tasty-plugin-protocol`, `tasty-plugin-sdk`, `tasty-plugin-manifest`, `tasty-host-plugin`, `tasty-plugin-agent-common` | 호스트↔plugin 와이어·SDK·번들 plugin 공용 헬퍼 |
-| 번들 plugin | `tasty-plugin-{claude,codex,image,html,markdown,git-viewer,clipboard-viewer,mesh-demo}` | → [`../plugins/`](../plugins/index.md) |
+| 번들 plugin | `tasty-plugin-{claude,codex,image,html,markdown,git-viewer,clipboard-viewer,mesh-demo,agent-stream}` | → [`../plugins/`](../plugins/index.md) |
 | CLI / 테스트 | `tasty-cli`, `tasty-tui-simulator` | |
 
 본 바이너리는 `pub use tasty_core as ...` 식으로 재수출해 `crate::model::X` / `crate::theme::theme()` 같은 경로가 그대로 동작한다.
@@ -42,7 +42,7 @@ cargo workspace — **본 바이너리(`src/`) + `crates/*`**. 크레이트 수�
 
 - **`dev` 는 본체와 등재되지 않은 워크스페이스 크레이트가 opt 0 이다**: 의존성 전체는 `[profile.dev.package."*"]` 로 opt 3 이고, 워크스페이스 크레이트는 glob 에 안 걸려 루트 `Cargo.toml` 에 `[profile.dev.package.<이름>]` 으로 **하나씩 등재**된 것만 opt 3 이다. 새 크레이트를 만들면 등재 여부를 정한다 — 셀 렌더러의 잎 크레이트 셋을 실행·편집 비용으로 잰 예와 재는 절차는 [ADR-0381](../adr/0381-the-cell-renderer-leaf-crates-are-optimized-in-dev.md).
 - **`release` = thin LTO**: 크레이트 IR 요약을 공유해 cross-crate inlining 을 **병렬** 적용. full 의 95–99% 효과를 1/3 시간에 — 일상 "릴리즈 검증" 은 모두 이걸 쓴다.
-- **`dist` = full LTO**: 모든 IR 을 단일 LLVM 모듈로 합쳐 재최적화. 단일 스레드 단계가 길어 약 3.5배 느림. **배포 바이너리(DMG/MSIX/AppImage) 빌드 시에만** 쓴다. (AI 자체 검증 빌드에는 절대 사용 금지.)
+- **`dist` = full LTO**: 모든 IR 을 단일 LLVM 모듈로 합쳐 재최적화. 단일 스레드 단계가 길어 약 3.5배 느림. **배포 바이너리(DMG/MSI/AppImage) 빌드 시에만** 쓴다. (AI 자체 검증 빌드에는 절대 사용 금지.)
 
 ```bash
 cargo build                 # debug
@@ -119,7 +119,7 @@ reason)`)와 그것을 재는 여덟 칸이 거기 있다. 아래 표는 이 빌
 [crash-diagnostics](crash-diagnostics.md), 저장소 접근은
 [storage](../design/systems/storage.md)를 따른다.
 
-본체+플러그인을 한 번에 다루는 래퍼가 있다. `just build` 는 빌드·스테이징만(실행 X), `just run` 은 빌드 후 호스트까지 실행한다. 둘 다 플러그인을 빌드·스테이징하며, 호스트는 부팅 시 builtin 을 강제 덮어쓰기 설치하므로 플러그인 소스 변경이 (`just build` 면 다음 실행 시, `just run` 이면 그 실행에서) 반영된다.
+본체+플러그인을 한 번에 다루는 래퍼가 있다. `just build` 는 빌드·스테이징만(실행 X), `just run` 은 빌드 후 호스트까지 실행한다. 둘 다 플러그인을 빌드·스테이징하며, 호스트는 부팅 시 builtin 을 동기화하므로(버전으로 갈래를 고르고 같은 버전이면 내용이 다른 파일만 옮긴다 — 설치본이 더 높으면 건너뛴다) 플러그인 소스 변경이 (`just build` 면 다음 실행 시, `just run` 이면 그 실행에서) 반영된다.
 
 ```bash
 just build                  # 본체+플러그인 debug 빌드·스테이징 (실행 X)
@@ -290,7 +290,7 @@ just link-plugins                 # cp 대신 symlink (rebuild 즉시 반영)
 - **Windows** MSI 는 `cargo-wix` + `wix/main.wxs`. **UpgradeCode GUID 는 절대 변경 금지** — 바뀌면 새 제품으로 인식되어 구버전과 공존.
 - CI: `.github/workflows/release.yml` (self-hosted runner, Linux x64/arm64 라벨 분기, Windows). `workflow_dispatch` 로 태그 없는 수동 검증 빌드 가능.
 
-현재 머신에 바로 설치하려면 `just install` — 본체+플러그인을 dist 빌드해 현재 OS 에 설치한다 (자동 감지). macOS 는 `scripts/install-macos.sh` 가 `build-macos-dmg.sh` 를 `NO_DMG=1` 로 재사용해 `dist/Tasty.app` 만 조립한 뒤 `/Applications/Tasty.app` 을 덮어쓴다. 번들 플러그인은 앱 첫 실행 시 `~/.tasty/plugins` 로 강제 동기화된다. (Linux/Windows 자동 설치는 미구현 — `just dist-linux`/`dist-windows` 산출물로 수동 설치.)
+현재 머신에 바로 설치하려면 `just install` — 본체+플러그인을 dist 빌드해 현재 OS 에 설치한다 (자동 감지). macOS 는 `scripts/install-macos.sh` 가 `build-macos-dmg.sh` 를 `NO_DMG=1` 로 재사용해 `dist/Tasty.app` 만 조립한 뒤 `/Applications/Tasty.app` 을 덮어쓴다. 번들 플러그인은 앱 실행 시 `~/.tasty/plugins` 로 동기화된다(설치본 버전이 더 높으면 건너뛴다). (Linux/Windows 자동 설치는 미구현 — `just dist-linux`/`dist-windows` 산출물로 수동 설치.)
 
 ## 빌드 시간 진단
 

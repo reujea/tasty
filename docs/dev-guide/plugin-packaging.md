@@ -22,7 +22,7 @@ plugin 당 산출물: `<bin>`(Windows `.exe`) · `tasty-plugin.toml`(매니페�
 
 ### 배포 제외 플래그 (`bundle = false`)
 
-매니페스트 최상위 `bundle` 키(기본 `true`, 스키마: `crates/tasty-plugin-manifest/src/types.rs`)로 **개별 plugin 을 배포 패키징에서만 제외**할 수 있다. `false` 면 dist 스크립트(`build-macos-dmg.sh`/`build-linux.sh`/`build-windows.ps1`)의 plugin 탐색 glob 이 그 crate 를 건너뛰어 DMG/AppImage/MSIX 산출물과 실제 바이너리 빌드에는 넣지 않는다. **dev 스테이징**(`just build-plugins`/`link-plugins`)은 이 플래그를 보지 않으므로 로컬 빌드에는 그대로 포함된다 — 데모/PoC plugin 을 개발 중엔 쓰되 출하판엔 빼는 용도.
+매니페스트 최상위 `bundle` 키(기본 `true`, 스키마: `crates/tasty-plugin-manifest/src/types.rs`)로 **개별 plugin 을 배포 패키징에서만 제외**할 수 있다. `false` 면 dist 스크립트(`build-macos-dmg.sh`/`build-linux.sh`/`build-windows.ps1`)의 plugin 탐색 glob 이 그 crate 를 건너뛰어 DMG/AppImage/MSI 산출물과 실제 바이너리 빌드에는 넣지 않는다. **dev 스테이징**(`just build-plugins`/`link-plugins`)은 이 플래그를 보지 않으므로 로컬 빌드에는 그대로 포함된다 — 데모/PoC plugin 을 개발 중엔 쓰되 출하판엔 빼는 용도.
 
 런타임 `BUILTINS`(`builtin.rs`)에는 그대로 남겨둔다: `install_builtins_if_needed` 가 번들에 없는 builtin 을 debug 로그만 남기고 **graceful skip** 하므로, dev(스테이징됨)는 설치·dist(미스테이징)는 무시로 자연히 갈린다. 현재 `com.tasty.mesh-demo`(egui-mesh PoC)가 유일한 `bundle = false`. **주의**: `bundle = false` 는 glob 기반 위치(4/5/6)와 바이너리 빌드에만 자동 적용되고, 아래 "staging 7 위치 동기화" 표의 **명시(explicit) 위치(1/2/3)는 자동으로 걸러지지 않는다** — 새로 `bundle = false` 를 붙인 plugin 이 있으면 `[package.metadata.deb] assets`/`[package.metadata.generate-rpm] assets`/`wix/main.wxs` 에서도 그 plugin 항목을 수동으로 빼야 한다. mesh-demo 는 WiX 는 애초에 목록에 없었지만 deb/rpm 에는 남아있어 dist 빌드가 `Static file asset has not been built`(cargo-deb)로 fail 하는 실제 사고가 있었다 — deb/rpm assets 에서도 제거해 정정됨.
 
@@ -34,7 +34,7 @@ plugin 당 산출물: `<bin>`(Windows `.exe`) · `tasty-plugin.toml`(매니페�
 | 서명 대상 | `<plugin-dir>/tasty-plugin.toml` 의 SHA-256 digest |
 | 서명 파일 | `tasty-plugin.toml.sig` (raw 64 byte) |
 | Trust store | `crates/tasty-host-plugin/keys/` 의 `release-pubkey.bin` + `dev-pubkey.bin` (2-slot 배열, `bundle_sig.rs::TRUSTED_PUBKEYS`) — 둘 다 추적 안 함, 매 빌드 로컬 자동생성. `release-pubkey.bin` 은 항상 placeholder 로 남고 실질 검증은 dev 슬롯이 담당 |
-| 검증 시점 | `install_builtins_if_needed()` — release/dist 는 실제 차단, debug 는 warn 만(`#[cfg(debug_assertions)]`) |
+| 검증 시점 | plugin 로드(`discovery.rs::trust_outcome`)와 `upgrade-builtins`(`builtin.rs::verify_builtin_bundle_trust`) — release/dist 는 실제 차단, debug 는 건너뛰거나 `debug!` 로그만(`#[cfg(debug_assertions)]`) |
 
 보호 범위는 **매니페스트 한 파일만** — 권한/contributes/kind 가 매니페스트 안이라 변조 시 confused-deputy 가 최대 위험. binary 는 OS codesign(macOS notarization/Windows Authenticode)에 위임, lang/ 등 부속은 검증 밖.
 
@@ -64,7 +64,7 @@ dist 스크립트(`build-macos-dmg.sh`/`build-linux.sh`/`build-windows.ps1`)와 
 
 ### Release CI 서명
 
-`.github/workflows/release.yml` 이 tag push(`v*`)/manual dispatch 시, self-hosted 빌드 러너(macOS/Windows/Linux x64/Linux ARM64)가 각자 `scripts/build-*.sh`/`build-windows.ps1` 안에서 `scripts/ensure-sign-key.sh` → `scripts/sign-bundle.sh --all-builtins` 를 호출해 서명한다. GitHub Secret 은 관여하지 않는다 — 각 러너는 `~/.tasty-keys/release.pem` 이 없으면(4대 전부 없음, 아래 "영구 release 키를 두지 않는 이유" 참고) `gen-dev-key.sh` 로 그 자리에서 새 키를 만들어 서명하고, 그 키는 해당 머신에만 남는다.
+`.github/workflows/release.yml` 이 tag push(`v*`)/manual dispatch 시, self-hosted 빌드 러너(macOS/Windows/Linux x64/Linux ARM64)가 각자 `scripts/build-*.sh` 안에서 `scripts/ensure-sign-key.sh`(Windows 는 `build-windows.ps1` 의 자체 키 탐색) → `scripts/sign-bundle.sh --all-builtins` 를 호출해 서명한다. GitHub Secret 은 관여하지 않는다 — 각 러너는 `~/.tasty-keys/release.pem` 이 없으면(4대 전부 없음, 아래 "영구 release 키를 두지 않는 이유" 참고) `gen-dev-key.sh` 로 그 자리에서 새 키를 만들어 서명하고, 그 키는 해당 머신에만 남는다.
 
 repo 의 `.sig` 는 *로컬 release/dev 검증용* — CI 정식 release 는 그 빌드 시점에 생성된 키로 재서명하므로 repo 와 다른 키로 덮어쓰는 게 정상.
 
@@ -104,7 +104,7 @@ repo 의 `.sig` 는 *로컬 release/dev 검증용* — CI 정식 release 는 그
 
 | 증상 | 조치 |
 |------|------|
-| `Skipped { signature-invalid }` 로 builtin 미설치 | non-debug 인데 `.sig` 부재. 패키징본(exe-relative `plugins/`)은 `sign-bundle.sh` 후 재빌드. workspace 산출물 직접 실행(`target/<profile>/tasty.exe`)은 dev bundle 이 `crates/<plugin>/tasty-plugin.toml.sig` 를 동기화하므로, crates 에 `.sig` 만 있으면(=`sign-bundle.sh --all-builtins` 1 회) 통과 |
+| `Skipped { signature-invalid }` 로 builtin 미설치 | non-debug 인데 `.sig` 부재. 패키징본(exe-relative `plugins/`)은 `sign-bundle.sh` 후 재빌드. workspace 산출물 직접 실행(`target/<profile>/tasty.exe`)은 non-debug 에서 dev bundle 동기화를 안 하므로, `PROFILE=<profile> just build-plugins`(서명 + `.sig` 스테이징)로 `target/<profile>/builtin-plugins/` 를 다시 채운다 |
 | 로컬 release 에서 dev key 서명 검증 실패 | `dev-pubkey.bin` 이 사용 private key 와 불일치 → `gen-dev-key.sh` 로 두 파일 함께 갱신 |
 | Windows `candle could not be found` | WiX 3.x 미설치/`WIX` env 누락 → `winget install WiXToolset.WiXToolset` |
 
