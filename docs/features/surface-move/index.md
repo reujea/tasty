@@ -16,7 +16,7 @@
 
 - 어떤 surface 든 "빈 공간"(특정 대상이 없는 영역)을 우클릭하면 `[surface 전용 항목] + 구분선 + [잘라내기] + [여기로 이동]` OS 메뉴가 뜬다. `여기로 이동` 은 **잘라낸 대상이 대기 중일 때만** 나타난다.
 - **잘라내기**: 그 surface 의 id 를 세션 단일 슬롯 `pending_move_surface` 에 마킹한다. 도메인 변경이 아니라 UI 핸들러에서 슬롯만 설정 — 사용자 조작이므로 release 경로다.
-- **여기로 이동**: 슬롯의 source(A) 를 우클릭한 위치의 target(B) 로 이동시키는 `DomainIntent::MoveSurface { source, target }` 를 `from_user_context_menu` origin 으로 발행한다.
+- **여기로 이동**: 슬롯의 source(A) 를 우클릭한 위치의 target(B) 로 이동시키는 `DomainIntent::MoveSurface { source_surface_id, target_surface_id }` 를 `from_user_context_menu` origin 으로 발행한다.
 - surface 종류에 따라 두 생산 경로가 있다 — 타입은 `PendingNativeMenu::TerminalSurface`(terminal, selection-copy 항목이 있어 별도 variant) / `Surface`(비-terminal)로 나뉘지만, "잘라내기"/"여기로 이동" 두 항목은 두 variant 모두에 동일하게 뜬다:
   - **terminal**(winit, `src/view/main/mouse.rs`) — winit 경로는 **terminal 전용**이다. mouse-tracking 위임(ADR-0019/0022) 미해당 시 terminal surface 메뉴를 낸다. 비-terminal 은 winit 이 메뉴를 만들지 않고 egui 프레임에 위임(`return`)한다.
   - **비-terminal surface**(explorer/empty/markdown/image/mesh/webview chrome/remote) — **egui 패널 단일 경로**(`emit_surface_menu_fallback`, `src/adapters/ui/egui_panels.rs`)가 release 시점 `secondary_clicked()` 를 패널 논리 rect 와 대조해 surface 를 식별하고 메뉴를 낸다. explorer 는 예외적으로 `apply_explorer_action` 이 위치별 `Explorer`/`ExplorerFavorite` 를 먼저 슬롯에 선점하며, fallback 은 `is_none()` 가드로 이를 존중한다(한 프레임 한 메뉴, 이중 발화 없음).

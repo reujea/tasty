@@ -22,7 +22,7 @@
 
 ### 에이전트
 
-- **범용 `surface.convert` IPC/CLI 는 없다.** 전환 팝업은 사용자 단축키 전용 UI — release·debug 모두 팝업을 여는 경로 없음(사용자 입력 재현 금지).
+- **범용 `surface.convert` IPC/CLI 는 없다.** 전환 팝업은 사용자 단축키 전용 UI — release 에는 팝업을 여는 경로가 없고, debug 는 `debug.host_popup.open` 으로만 연다(사용자 입력 재현은 debug 격리).
 - kind 별 IPC 가 내부적으로 같은 메커니즘(`DomainIntent::ConvertSurface`)을 쓴다 — 예: `image.open{surface_id, path}` 가 대상을 image kind 로 전환.
 - 새 타입 surface 가 필요하면 에이전트는 `tab.create`/`split` 의 `type` 으로 **새로 생성**하는 게 기본 경로.
 
