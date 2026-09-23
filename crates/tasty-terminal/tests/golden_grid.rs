@@ -18,7 +18,7 @@
 //!   - NOT COVERED here: GPU pixel rendering (environment-dependent → unfit for
 //!     golden), and chrome/widget layout (lives in `src/view`, needs the GUI
 //!     harness). Those remain on manual visual verification
-//!     (`docs/ai-verification/visual-verification.md`).
+//!     (`docs/ai-verification/screenshot-methods.md#시각-판정-체크리스트`).
 //!
 //! Why text (not pixels): the grid's deterministic text form is stable across
 //! OS/GPU, so a logic regression (e.g. SGR bold no longer applied) flips a

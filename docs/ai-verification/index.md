@@ -4,8 +4,7 @@ tasty 를 개발하는 AI 에이전트가 UI/렌더링/입력을 **스스로 재
 
 | 문서 | 내용 |
 |------|------|
-| [visual-verification](visual-verification.md) | 시각 변경 체크리스트 + 스크린샷 판단 휴리스틱 |
-| [screenshot-methods](screenshot-methods.md) | **어느 대상이 어느 채널에 있나**(`ui.screenshot` 과 OS 캡처는 대립이 아니라 커버리지가 다르다 — webview 는 OS 캡처에만 있다), focus 독립 surface/window ID, 격리 실행, 전후 diff 판정의 양성 대조·노이즈 바닥 |
+| [screenshot-methods](screenshot-methods.md) | **어느 대상이 어느 채널에 있나**(`ui.screenshot` 과 OS 캡처는 대립이 아니라 커버리지가 다르다 — webview 는 OS 캡처에만 있다), focus 독립 surface/window ID, 격리 실행, 전후 diff 판정의 양성 대조·노이즈 바닥, [시각 판정 체크리스트](screenshot-methods.md#시각-판정-체크리스트)(색 대비·렌더 순서·픽셀 수치 + 스크린샷 판단 휴리스틱) |
 | [ipc-usage](ipc-usage.md) | IPC 로 조작·검증 + `\r`/`read_line` 함정 + 실 PTY 로 대화형 작업 수행 |
 | [dpi-scale-verification](dpi-scale-verification.md) | `WINIT_X11_SCALE_FACTOR` 로 DPI≠1 재현 + 배율이 걸렸는지 가르는 두 신호 |
 | [ime-testing](ime-testing.md) | `surface.ime_*`(debug 전용) 로 한글/CJK 입력 시뮬레이션 |
@@ -15,7 +14,7 @@ tasty 를 개발하는 AI 에이전트가 UI/렌더링/입력을 **스스로 재
 ## 이 문서군의 절차 중 무엇이 자동화 대상인가
 
 "검증 절차에 자동 실행 채널이 없다" 를 결함으로 세기 전에 **단위를 정해야 한다.**
-문서 단위로 세면 다섯 문서 전부가 "판정이 사람" 으로 보이지만, 절차 단위로 가르면
+문서 단위로 세면 네 문서 전부가 "판정이 사람" 으로 보이지만, 절차 단위로 가르면
 사람의 판정이 답인 것은 소수다. 아래는 그 갈래다.
 
 **세는 단위**: 문서가 *수행하라고 지시하는 최소 단위* — 번호 목록의 한 항목, 또는
@@ -25,8 +24,7 @@ tasty 를 개발하는 AI 에이전트가 UI/렌더링/입력을 **스스로 재
 
 | 문서 | 절차 | 판정이 사람 | 전제·함정 회피 | 판정이 기계적 |
 |---|---|---|---|---|
-| [visual-verification](visual-verification.md) | 9 | 5 | 2 | 2 |
-| [screenshot-methods](screenshot-methods.md) | 30 | 0 | 21 | 9 |
+| [screenshot-methods](screenshot-methods.md) | 39 | 5 | 23 | 11 |
 | [ime-testing](ime-testing.md) | 15 | 4 | 0 | 11 |
 | [dpi-scale-verification](dpi-scale-verification.md) | 11 | 0 | 6 | 5 |
 | [ipc-usage](ipc-usage.md) | 2 | 0 | 2 | 0 |

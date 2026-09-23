@@ -149,7 +149,7 @@ echo $! > <pid 파일>                        # 정리는 저장한 이 PID 로�
 
 ### GUI 시각 검증
 
-색상·정렬·폰트처럼 스크린샷이 필요한 변경은 CLI 만으로 잡지 못한다 — [`ai-verification/visual-verification`](../ai-verification/visual-verification.md) 체크리스트를 따른다.
+색상·정렬·폰트처럼 스크린샷이 필요한 변경은 CLI 만으로 잡지 못한다 — [`ai-verification/screenshot-methods` 시각 판정 체크리스트](../ai-verification/screenshot-methods.md#시각-판정-체크리스트) 체크리스트를 따른다.
 
 **스크린샷은 OS 화면 캡처(`screencapture` / PowerShell `CopyFromScreen` 등)보다 tasty 자체 `ui.screenshot` IPC 를 먼저 쓴다.** OS 화면 캡처는 화면 녹화 권한이 필요해 *빌드할 때마다 사용자가 권한을 다시 풀어주지 않는 한 막힌다* — 자기검증 흐름이 권한 프롬프트에서 멈춘다. `ui.screenshot` 은 tasty 가 실제 렌더한 프레임을 권한 없이 PNG 로 떨구므로 자동 검증에 적합하다(다른 윈도우 가림·포커스 상태에도 영향 없음).
 
@@ -464,4 +464,4 @@ ls target/debug/deps/*.d | sed 's/-[0-9a-f]*\.d$//' \
   무엇을 대신 적는지도 거기다.
 - [debug-ipc.md](debug-ipc.md) — debug 전용 IPC (사용자 입력 재현)
 - [independent-verification.md](independent-verification.md) — debug 격리 + 자기검증 배경
-- [`ai-verification/visual-verification`](../ai-verification/visual-verification.md) — 시각 검증 · [`ai-verification/screenshot-methods`](../ai-verification/screenshot-methods.md) — `ui.screenshot`(markdown·html 은 OS 캡처)
+- [`ai-verification/screenshot-methods` 시각 판정 체크리스트](../ai-verification/screenshot-methods.md#시각-판정-체크리스트) — 시각 검증 · [`ai-verification/screenshot-methods`](../ai-verification/screenshot-methods.md) — `ui.screenshot`(markdown·html 은 OS 캡처)

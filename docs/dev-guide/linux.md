@@ -38,4 +38,4 @@ GUI 모드 전용(headless 불가):
 call("ui.screenshot", {"path": "/tmp/tasty-capture.png"})   # PNG
 ```
 
-hover/애니메이션 등 상태 의존 UI 는 정적 캡처로 확인 불가 — 조건(`if response.hovered()` 등)을 임시 제거해 항상 적용 → 빌드/재시작/캡처 → 확인 후 복원. (시각 검증 휴리스틱: [ai-verification/visual-verification](../ai-verification/visual-verification.md).)
+hover/애니메이션 등 상태 의존 UI 는 정적 캡처로 확인 불가 — 조건(`if response.hovered()` 등)을 임시 제거해 항상 적용 → 빌드/재시작/캡처 → 확인 후 복원. (시각 검증 휴리스틱: [ai-verification/screenshot-methods 시각 판정 체크리스트](../ai-verification/screenshot-methods.md#시각-판정-체크리스트).)

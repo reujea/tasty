@@ -128,6 +128,6 @@ GDK 논리 좌표로 읽으므로, **두 배율이 같을 때만** 메뉴가 클
 ## 관련
 
 - [screenshot-methods](screenshot-methods.md) — 캡처 수단과 Xvfb 함정
-- [visual-verification](visual-verification.md) — 시각 판정 휴리스틱
+- [screenshot-methods › 시각 판정 체크리스트](screenshot-methods.md#시각-판정-체크리스트) — 시각 판정 휴리스틱
 - [`docs/concepts/typed-length.md`](../concepts/typed-length.md) — 이 검증이 지키려는 정책
 - [`docs/adr/0509-length-constructor-sealing-clause-consolidated.md`](../adr/0509-length-constructor-sealing-clause-consolidated.md) — 정적 축의 현재 결정(생성자를 봉인하지 않는다)

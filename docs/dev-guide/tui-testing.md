@@ -81,7 +81,7 @@ E2E 와 달리 **GUI surface 없이** 도는 결정적 회귀 가드. `crates/ta
 **커버 범위(의도적으로 좁게):**
 
 - 커버: 커서 절대 위치/레이아웃, autowrap 줄바꿈, scroll-region(DECSTBM) 스크롤업, erase-display(CSI J), per-cell SGR 속성.
-- **미커버**: GPU 픽셀 렌더(환경의존 → 골든 부적합, `debug.glyph_color` 로 검증), chrome/위젯 레이아웃(`src/view` — GUI 하니스 필요). 둘 다 수동 시각 검증(`docs/ai-verification/visual-verification.md`) 영역으로 남는다.
+- **미커버**: GPU 픽셀 렌더(환경의존 → 골든 부적합, `debug.glyph_color` 로 검증), chrome/위젯 레이아웃(`src/view` — GUI 하니스 필요). 둘 다 수동 시각 검증(`docs/ai-verification/screenshot-methods.md#시각-판정-체크리스트`) 영역으로 남는다.
 
 픽셀이 아닌 **텍스트**를 고정하는 이유: 그리드의 텍스트 표현은 OS/GPU 무관하게 안정적이라, 로직 회귀가 골든 한 줄을 뒤집어 실패시키되 픽셀 골든처럼 flaky 하지 않다.
 

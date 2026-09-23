@@ -240,7 +240,7 @@ Claude Design(claude.ai/design) 프로젝트의 **changelog**도 동일하게 �
 
 UI / 렌더링 / 환경별 검증 시에는 [`docs/ai-verification/`](docs/ai-verification/) 의 항목별 문서를 반드시 확인. 전체 목록은 [`docs/ai-verification/index.md`](docs/ai-verification/index.md).
 
-UI 변경 시 [`docs/ai-verification/visual-verification.md`](docs/ai-verification/visual-verification.md) 의 체크리스트 + 스크린샷 판단 휴리스틱을 따른다.
+UI 변경 시 [`docs/ai-verification/screenshot-methods.md`](docs/ai-verification/screenshot-methods.md#시각-판정-체크리스트) 의 "시각 판정 체크리스트" 절(체크리스트 + 스크린샷 판단 휴리스틱)을 따른다.
 
 ## 디자인 / 아키텍처
 
