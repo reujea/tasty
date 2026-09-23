@@ -129,7 +129,7 @@ env 락이 한 테스트 바이너리에 함께 서는 상태는 **언어가 이
 가 아니라 **이 절의 논증이 서 있던 전제가 사라졌다**고 말한다. 그때 다시 물어야 하는
 것은 선언 한 줄이 아니라 배제 단위 자체다.
 
-루트 쪽은 물음이 다르다. 라이브러리 타깃이 없어 링크가 애초에 불가능하므로 여기서
+루트 쪽은 물음이 다르다. 위 `#[cfg(test)]` 선언 때문에 링크가 애초에 불가능하므로 여기서
 지킬 전제가 없고, 그 크레이트의 `the_lock_declaration_stays_module_private`
 (`crates/tasty-doc-guards/tests/tasty_home_env_has_one_touch_point.rs`)가 지키는 것은
 **같은 크레이트 안에서** 락을 직접 잡고 env 를 만지는 우회다 — 다른 축이다.
@@ -250,9 +250,9 @@ TASTY_HOME=$(mktemp -d) cargo test --workspace --locked -- --test-threads=1
 `crate::terminal::*` 가 gui 전용 재export 라면 headless 에서도 도는 코드는 원본 크레이트를
 직접 가리킨다(`tasty_terminal::*`).
 
-CI 는 `cargo test --workspace --lib --bins --no-default-features --locked` 로 이 조합을 강제한다
-(`.github/workflows/crossplatform-check.yml` 의 `check-headless` 잡). e2e/통합 테스트는 GUI
-기동이 필요해 이 잡에서 제외한다.
+CI 는 `cargo test --workspace --no-default-features --locked` 로 이 조합을 강제한다
+(`.github/workflows/crossplatform-check.yml` 의 `check-headless` 잡 — 통합 타깃도 돈다. 채널
+상세는 [`ci-gates.md`](ci-gates.md)).
 
 ## 7. 병렬 실행 경합(flake) — 공유 상태는 직렬화, 외부 자원은 소유
 

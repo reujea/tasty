@@ -66,7 +66,7 @@ env 제어:
 
 **`s6` 은 경로를 탔는지 열어 둔 채로 확인한다.** 닫은 뒤의 체크포인트는 경로를 안 탔을 때도 기준선(0)이라 그 값으로는 못 가른다. 그래서 하네스는 explorer 를 열면 `system.gpu_stats` 의 `explorer_views` 가, image 를 열면 `egui_mesh_targets` 가 연 직전보다 커질 때까지 기다리고, 30 초 안에 안 커지면 **soak 을 실패시킨다**(`… was never rendered … the scenario is not measuring its path`). markdown(webview)은 호스트가 세는 값이 없어 이 확인이 없다 — 고정 700 ms 뒤에 닫는다. 분할이 `surface0` 을 매번 리사이즈하므로 `s6` 에는 `s2` 의 레이아웃·PTY 리사이즈 성분이 함께 섞인다. `s9` 의 s6 몫(8 사이클마다 한 번)도 같은 함수를 부르고 세 view 를 차례로 돈다.
 
-미구현: workspace 삭제 churn(삭제 release IPC 없음 — list/create/update/move 뿐), 창 resize churn(resize 는 사용자 조작이라 release IPC 없음, 원칙 1).
+미구현: workspace 삭제 churn, 창 resize churn(resize 는 사용자 조작이라 release IPC 없음, 원칙 1).
 
 ### 기록 지표
 

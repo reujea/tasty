@@ -12,23 +12,19 @@ target/release/tasty   # 릴리스
 `tasty` 는 PATH 에 없다 — 직접 경로 또는 `cargo run`.
 
 ```bash
+# GUI 실행 + 준비 대기 — PID 를 저장한다(이름·패턴으로 찾지 않는다)
+./target/debug/tasty & TASTY_PID=$!
+while [ ! -f ~/.tasty-debug/tasty.port ]; do sleep 0.2; done
+
 # 실행 여부
-pgrep -x tasty >/dev/null && echo running || echo "not running"
+kill -0 "$TASTY_PID" 2>/dev/null && echo running || echo "not running"
 
-# stale 포트 파일 정리 (프로세스 없는데 포트 파일만 남음)
-if [ -f ~/.tasty/tasty.port ] && ! pgrep -x tasty >/dev/null; then rm ~/.tasty/tasty.port; fi
-
-# GUI 실행 + 준비 대기
-./target/debug/tasty &
-while [ ! -f ~/.tasty/tasty.port ]; do sleep 0.2; done
-
-# 다중 인스턴스
-./target/debug/tasty --port-file /tmp/tasty-a.port &
+# 다중 인스턴스 — 루트를 분리한다
+TASTY_HOME=/tmp/tasty-a ./target/debug/tasty &
 ```
 
-종료: `system.shutdown` IPC 권장 — **CLI 는 없다**(호스트 종료는 사용자 행동이라 에이전트
-표면에 두지 않는다, [api-conventions](api-conventions.md) "release IPC 에 있는데 CLI 가 없는
-메서드"). 포트로 raw JSON-RPC 를 보낸다. `kill $(pgrep -x tasty)` 으로 죽이면 포트 파일 수동 삭제(`rm -f ~/.tasty/tasty.port`).
+종료: `system.shutdown` IPC — **debug 전용이고 CLI 는 없다**([api-conventions](api-conventions.md)
+"debug 표에 있는데 CLI 가 없는 메서드"). 포트로 raw JSON-RPC 를 보낸다. `kill "$TASTY_PID"` 로 죽이면 포트 파일 수동 삭제(`rm -f ~/.tasty-debug/tasty.port`).
 
 ## 빌드 후 재시작
 
