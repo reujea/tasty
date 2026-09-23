@@ -26,7 +26,7 @@ MainView 가 열리면 항상 표시(중앙 고정 영역). 사이드바에서 W
 - **Pane 영역(상위 레이아웃)** — 워크스페이스를 물리적으로 나눈 칸. 각 Pane 은 자기 **탭 스트립**을 머리에 둔다. Pane 사이 경계는 분할 보더(`PANE_BORDER_WIDTH`).
 - **탭 스트립** (각 Pane 상단) — 그 Pane 의 탭 목록 + active 탭 강조. 시각/드래그/추가 버튼은 → [`features/workspace-tabs/`](../../workspace-tabs/index.md). 표시명 규칙은 부모 기획.
 - **Surface 타일(하위 레이아웃)** — active 탭의 SurfaceLayout 을 타일로 렌더. 분할 시 surface 사이 경계는 `SURFACE_BORDER_WIDTH`. 포커스된 surface 강조.
-- **Surface 콘텐츠** — 타입별로 다르게 렌더(terminal=GPU, markdown/image=egui, html=WebView, empty=타입 선택 UI). 종류 표는 부모 기획 [Surface 종류](../index.md#surface-종류).
+- **Surface 콘텐츠** — 타입별로 다르게 렌더(terminal=GPU, image=egui-mesh, markdown/html=WebView, empty=타입 선택 UI). 종류 표는 부모 기획 [Surface 종류](../index.md#surface-종류).
 - **Empty surface** — 빈 자리. 타입 선택 버튼을 보여 다른 종류로 전환. deferred 터미널이면 PTY 준비 전 표시.
 
 ## 상태별 시각
