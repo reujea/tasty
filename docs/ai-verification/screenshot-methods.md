@@ -179,11 +179,13 @@ debug 빌드는 이미 `~/.tasty-debug/` 루트로 release(`~/.tasty/`)와 자�
 
 ```bash
 TH=$(mktemp -d); cp ~/.tasty/config.toml "$TH/"    # config 는 루트 바로 아래
-TASTY_HOME="$TH" TASTY_DEBUG_OS_OPEN_LOG="$TH/os-open.log" \
+env -u TASTY_SESSION_TOKEN -u TASTY_SURFACE_ID -u TASTY_PARENT_HOME \
+  TASTY_HOME="$TH" TASTY_DEBUG_OS_OPEN_LOG="$TH/os-open.log" \
   ./target/debug/tasty --launch &                  # tasty 터미널 안에서면 GUI 부팅 skip 되므로 --launch 강제
                                                    # OS 열기는 띄우지 않고 기록만 — 격리 홈은 사용자 브라우저를 못 막는다
 MY_APP=$!                                          # 띄운 즉시 PID 를 잡는다
-until TASTY_HOME="$TH" ./target/debug/tasty list info >/dev/null 2>&1; do   # IPC 대기
+until env -u TASTY_SESSION_TOKEN -u TASTY_SURFACE_ID -u TASTY_PARENT_HOME \
+      TASTY_HOME="$TH" ./target/debug/tasty list info >/dev/null 2>&1; do   # IPC 대기
   kill -0 "$MY_APP" 2>/dev/null || { echo "기동 실패 — 로그를 본다"; break; }  # 죽은 프로세스를 무한정 기다리지 않는다
   sleep 1
 done
@@ -377,8 +379,8 @@ tasty screenshot --window "$WIN" --path /tmp/palette-filtered.png
 
 ```bash
 B="${TMPDIR:-/tmp}/tasty-shots"; mkdir -p "$B"
-# 여러 specimen 한 방에 (init 1회): idx 3=Button, 6=Badge·Tag·Kbd, 9=MenuItem·TreeRow
-TASTY_GALLERY_SHOT="3:$B/button.png,6:$B/chips.png,9:$B/nav.png" ./target/debug/tasty-gallery
+# 여러 페이지 한 방에 (init 1회): idx 1=Components(Button·Badge·MenuItem…), 3=Overlays, 6=Chrome
+TASTY_GALLERY_SHOT="1:$B/components.png,3:$B/overlays.png,6:$B/chrome.png" ./target/debug/tasty-gallery
 
 # 페이지 중간 섹션(Layouts 페이지의 Task DAG)을 전폭으로
 TASTY_GALLERY_SIZE=1360x1000 \
@@ -386,8 +388,9 @@ TASTY_GALLERY_SIZE=1360x1000 \
 # 윈도우 1100x720, 1:1(논-레티나) → 좌측 사이드바 ~240px, 우측이 specimen 패널
 ```
 
-## OS 화면 캡처 (폴백만)
+## OS 화면 캡처
 
+- **Linux** `scrot` — native WebView 화면은 이 채널로만 찍힌다(위 "무엇을 그리느냐가 어느 캡처로 보이느냐를 정한다").
 - **macOS** `screencapture` — 해당 프로세스에 화면 녹화 권한 필요(없으면 `could not create image from display` 실패 → `ui.screenshot` 또는 갤러리는 `TASTY_GALLERY_SHOT` 사용).
 - **Windows** PowerShell `CopyFromScreen`. 윈도우가 가려져 있으면 `ShowWindow`+`SetForegroundWindow` 로 최대화 후 캡처. tasty.exe 실행 중이면 `cargo build` 가 exe 를 못 덮어쓰니 빌드 전 종료(`Stop-Process -Force`).
 
