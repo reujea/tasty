@@ -7,7 +7,7 @@
 | 문서 | 내용 |
 |------|------|
 | [focus](policies/focus.md) | 포커스는 사용자의 것 — 에이전트 행동(IPC/CLI)은 포커스를 바꾸지 않고 release 엔 포커스 변경 API 가 없다 |
-| [cwd](policies/cwd.md) | surface 가 자기 cwd 를 정의·갱신하는 방식 — 새 탭 상속·split carry·링크 해석·닫힌 항목 복원의 기준 |
+| [cwd](policies/cwd.md) | surface 가 자기 cwd 를 정의·갱신하는 방식 — 새 탭 상속·split carry·링크 해석·닫힌 항목 복원의 기준, 그리고 생성·변환 경로에서 cwd 가 손실 없이 carry 되는 invariant |
 | [busy-indicator](policies/busy-indicator.md) | 탭·워크스페이스의 "실행 중" 시각 표시 — focus 와 무관 |
 | [key-mapping](policies/key-mapping.md) | 바인딩 문자열의 OS별 키 매핑과 위치 기반 추상화 — 모든 단축키는 `KeybindingSettings` 로 노출 |
 | [keybinding-presets](policies/keybinding-presets.md) | 4개 단축키 프리셋(바인딩 문자열 집합) |

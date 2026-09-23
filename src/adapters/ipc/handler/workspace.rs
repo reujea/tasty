@@ -162,7 +162,7 @@ fn inherit_cwd_for_create(
 /// terminal 의 cwd inherit 은 호출자가 미리 결정해 payload 로 넘긴다 (Core 는
 /// focus state 모름). 그 외 kind 는 cwd 미사용. 새 워크스페이스는 로컬이므로 원본이
 /// mirror surface 면 inherit 은 `None`(= 홈)이고, 명시 `cwd` 는 그대로 존중한다
-/// (`docs/architecture/invariants/surface-cwd.md` §3-2).
+/// (`docs/design/policies/cwd.md#surface-cwd-invariant` §3-2).
 /// 창을 지목한 `surface_id` 가 상속 원본이다. 숫자가 아닌 값은 거절한다 — 무시하면
 /// 라우팅도 못 짚은 채 포커스 surface 로 조용히 떨어진다.
 fn resolve_create_cwd(

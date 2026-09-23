@@ -135,7 +135,7 @@ impl Surface for DagGraphSurface {
         // workspace 의 task 레코드(memory store)이지 파일시스템 경로가 아니므로,
         // 여기서 새 터미널을 열 때 상속시킬 "그럴듯한 cwd" 가 존재하지 않는다.
         // 없는 경로를 지어내면 그 값이 주소창·경로 복사·attach wire 로 새어나간다
-        // (Surface cwd 불변식 — `docs/architecture/invariants/surface-cwd.md`).
+        // (Surface cwd 불변식 — `docs/design/policies/cwd.md#surface-cwd-invariant`).
         None
     }
 

@@ -373,7 +373,7 @@ impl Surface for ExplorerPanel {
 /// 최후 수단이며, 그 경우에도 생성 시점에 절대경로로 확정해 외부로 상대경로가
 /// 새지 않게 한다.
 ///
-/// 상세: `docs/architecture/invariants/surface-cwd.md` §5.
+/// 상세: `docs/design/policies/cwd.md#surface-cwd-invariant` §5.
 pub fn default_root() -> PathBuf {
     if let Some(home) = directories::BaseDirs::new().map(|d| d.home_dir().to_path_buf())
         && home.is_absolute()

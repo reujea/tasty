@@ -82,7 +82,7 @@ impl Surface for TerminalSurface {
 
     /// Terminal 의 cwd 는 `engine.terminals.get(id).get_cwd()` 로 store 경유 —
     /// trait 는 None 반환. caller(host 의 `CoreState::surface_cwd`)가 분기 처리. Surface cwd
-    /// invariant — `docs/architecture/invariants/surface-cwd.md`.
+    /// invariant — `docs/design/policies/cwd.md#surface-cwd-invariant`.
     fn source_cwd(&self) -> Option<std::path::PathBuf> {
         None
     }

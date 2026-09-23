@@ -228,7 +228,7 @@ pub struct SurfaceKindDef {
     /// `cwd` 는 호출자가 결정한 *carry cwd* — 사용자가 보고 있던 surface 의 source_cwd
     /// 를 그대로 전달한다. surface 생성자가 사용 여부를 결정 (예: explorer 는 root,
     /// terminal 은 spawn 시 working_dir). Surface cwd invariant: 호출자는 *반드시*
-    /// resolve 후 명시 전달. 자세한 규칙은 `docs/architecture/invariants/surface-cwd.md`.
+    /// resolve 후 명시 전달. 자세한 규칙은 `docs/design/policies/cwd.md#surface-cwd-invariant`.
     ///
     /// `params`는 IPC/CLI에서 받은 JSON. 종류별로 필요한 키가 다르다 (예: markdown은 `"file"`,
     /// html은 `"url"`).

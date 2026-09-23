@@ -26,7 +26,7 @@ pub(crate) enum ConvertSurfaceTarget {
     },
     /// `cwd` 는 호출자가 source surface 로부터 resolve 한 carry cwd. Surface cwd
     /// invariant — 호출자는 None 으로 임의 고정하지 않는다 (변환 시 cwd 손실 금지).
-    /// 자세한 규칙은 `docs/architecture/invariants/surface-cwd.md`.
+    /// 자세한 규칙은 `docs/design/policies/cwd.md#surface-cwd-invariant`.
     Kind {
         cwd: Option<PathBuf>,
         kind: String,

@@ -18,7 +18,7 @@
 - 팝업 항목은 `SurfaceKindRegistry` 에서 **동적 enumerate**(빌트인 + plugin 제공 kind). `empty` 등 시스템 kind 는 `HIDDEN_KINDS` 로 제외. 현재 타입과 같은 항목은 체크 + 비활성. `dag_graph`([화면](../agent-collaboration/screens/dag-graph-surface.md))는 파일 입력이 없어 빈 params 즉시 변환 경로를 탄다 — 별도 분기가 없다.
 - 키보드 탐색(Up/Down+Enter), kind 첫 글자 즉시 선택. **convert 라우팅은 registry capability 로 판정**(host 는 kind 이름을 하드코딩하지 않는다, [ADR-0043](../../adr/0043-convert-input-popup-capability.md)): `terminal` 은 host PTY spawn 전용 경로, `convert_requires_input` capability 를 선언한 kind(예: markdown)는 그 kind 소유 plugin 의 파일 입력 팝업(`convert_input_popup`)을 먼저 열고(제자리 변환은 context 에 `surface_id` 실림), 그 외 kind 는 빈 params 로 즉시 변환.
 - **개별 surface 교체 원칙**: 대상 surface 구현체만 교체, 탭 레이아웃·다른 surface 무영향.
-- **cwd carry**: 터미널에서 `cd /foo/bar` 후 Explorer 로 전환하면 Explorer 루트는 `/foo/bar`(호스트 시작 cwd 로 fallback 안 함) — [surface-cwd invariant](../../architecture/invariants/surface-cwd.md). mirror(원격 attach) 워크스페이스에서도 동일하다 — convert 가 원격으로 forward 될 때 cwd 가 함께 전달되고, 전달값이 없으면 원격이 대상 surface 의 실제 PTY 에서 직접 resolve 한다([§3-1](../../architecture/invariants/surface-cwd.md)).
+- **cwd carry**: 터미널에서 `cd /foo/bar` 후 Explorer 로 전환하면 Explorer 루트는 `/foo/bar`(호스트 시작 cwd 로 fallback 안 함) — [surface-cwd invariant](../../design/policies/cwd.md#surface-cwd-invariant). mirror(원격 attach) 워크스페이스에서도 동일하다 — convert 가 원격으로 forward 될 때 cwd 가 함께 전달되고, 전달값이 없으면 원격이 대상 surface 의 실제 PTY 에서 직접 resolve 한다([§3-1](../../design/policies/cwd.md#3-1-mirror원격-attach-forward-경로도-같은-불변식-대상)).
 
 ### 에이전트
 
@@ -33,4 +33,4 @@
 
 ## 관련
 
-- [work-area](../work-area/index.md)(Surface kind) · [surface-cwd invariant](../../architecture/invariants/surface-cwd.md) · [popup-implementation](../../dev-guide/popup-implementation.md)
+- [work-area](../work-area/index.md)(Surface kind) · [surface-cwd invariant](../../design/policies/cwd.md#surface-cwd-invariant) · [popup-implementation](../../dev-guide/popup-implementation.md)

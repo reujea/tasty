@@ -55,7 +55,7 @@ Pane 안의 탭 하나. 내부에 Surface 들의 `SurfaceLayout` 이진 트리(`
 
 ### Surface
 
-Tab 의 SurfaceLayout 트리 leaf, 최하위 컨테이너. 고유 `surface_id` 를 갖고, **타입(kind)** 을 가진다(아래). `Surface` trait 의 핵심: `kind()`(불변 식별자) · `type_name()`(표시 라벨) · `surface_id()` · `source_cwd()`(새 surface 생성 시 상속할 시작 cwd — Surface cwd invariant, [`architecture/invariants/surface-cwd`](../../architecture/invariants/surface-cwd.md)) · `display_name()`. 닫기/포커스/리스트 동작은 타입과 무관하게 동일하다.
+Tab 의 SurfaceLayout 트리 leaf, 최하위 컨테이너. 고유 `surface_id` 를 갖고, **타입(kind)** 을 가진다(아래). `Surface` trait 의 핵심: `kind()`(불변 식별자) · `type_name()`(표시 라벨) · `surface_id()` · `source_cwd()`(새 surface 생성 시 상속할 시작 cwd — Surface cwd invariant, [`design/policies/cwd` Surface cwd invariant](../../design/policies/cwd.md#surface-cwd-invariant)) · `display_name()`. 닫기/포커스/리스트 동작은 타입과 무관하게 동일하다.
 
 #### Deferred 터미널
 

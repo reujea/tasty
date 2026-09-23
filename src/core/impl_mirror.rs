@@ -236,7 +236,7 @@ fn build_mirror_forward_op(
         }),
         D::ConvertSurface { surface_id, target } => {
             use crate::core::intent::ConvertSurfaceTarget;
-            // cwd 는 intent handler 가 결정한 값이다(`docs/architecture/invariants/surface-cwd.md`
+            // cwd 는 intent handler 가 결정한 값이다(`docs/design/policies/cwd.md#surface-cwd-invariant`
             // §3) — forward 경로에서 버리지 않고 그대로 실어보낸다. mirror surface 에서 carry
             // 한 cwd 는 원격 출처라 로컬 carry 헬퍼가 `None` 을 돌려주므로, 여기 값이 있는
             // 것은 호출자가 명시한 경우뿐이다. `None` 이면 서버가 자기 PTY 에서 직접

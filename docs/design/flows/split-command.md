@@ -34,7 +34,7 @@ tasty split --level pane --target-surface this --type markdown --file /path/doc.
 2. `inherit_cwd` 켜져 있으면 source surface 의 `Surface::source_cwd()`.
 3. 그 외 None → 셸 home.
 
-source 별 `source_cwd()` 는 [cwd 정책](../policies/cwd.md). 이 정책은 새 탭·새 워크스페이스·pane/surface 분할·타입 변환 등 **모든 생성 경로**에 동일 적용(carry invariant: [surface-cwd](../../architecture/invariants/surface-cwd.md)).
+source 별 `source_cwd()` 는 [cwd 정책](../policies/cwd.md). 이 정책은 새 탭·새 워크스페이스·pane/surface 분할·타입 변환 등 **모든 생성 경로**에 동일 적용(carry invariant: [surface-cwd](../policies/cwd.md#surface-cwd-invariant)).
 
 ## 포커스 정책
 
@@ -52,4 +52,4 @@ source 별 `source_cwd()` 는 [cwd 정책](../policies/cwd.md). 이 정책은 �
 
 ## 관련
 
-- [work-area](../../features/work-area/index.md) — 두 레벨 레이아웃 · [cwd 정책](../policies/cwd.md) · [surface-cwd invariant](../../architecture/invariants/surface-cwd.md) · [reference/api](../../reference/api.md)
+- [work-area](../../features/work-area/index.md) — 두 레벨 레이아웃 · [cwd 정책](../policies/cwd.md) · [surface-cwd invariant](../policies/cwd.md#surface-cwd-invariant) · [reference/api](../../reference/api.md)

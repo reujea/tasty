@@ -225,7 +225,7 @@ fn capture_surface(
     if kind_str == "terminal" {
         // 로컬 출처만 저장한다 — preset 은 영속이고 로컬에서 다시 실행되는데, mirror
         // 워크스페이스는 비영속이라 그 terminal 의 원격 cwd 가 preset 에 박히면 존재하지
-        // 않는 로컬 경로로 PTY 를 띄운다(`docs/architecture/invariants/surface-cwd.md` §3-2).
+        // 않는 로컬 경로로 PTY 를 띄운다(`docs/design/policies/cwd.md#surface-cwd-invariant` §3-2).
         let cwd = surface
             .surface_id()
             .and_then(|id| engine.local_surface_cwd(id))

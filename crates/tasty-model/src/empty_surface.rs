@@ -21,7 +21,7 @@ pub struct EmptySurface {
     /// 멈춘다 (transient 실패는 상한 전에 성공해 0 으로 의미를 잃는다).
     pub spawn_attempts: u32,
     /// 호스트가 carry 한 시작 cwd. fresh empty 면 None — Surface cwd invariant
-    /// (`docs/architecture/invariants/surface-cwd.md`) 에 따라 다음 변환 시 후보로 사용.
+    /// (`docs/design/policies/cwd.md#surface-cwd-invariant`) 에 따라 다음 변환 시 후보로 사용.
     pub cwd: Option<PathBuf>,
 }
 

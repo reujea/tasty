@@ -960,7 +960,7 @@ pub(crate) fn execute_forwarded_structural_op(
             // 서버 resolve 는 로컬 convert 와 같은 헬퍼를 써서 `inherit_cwd` 설정
             // 게이트를 그대로 적용한다 — 실행 주체가 원격 인스턴스이므로 그 인스턴스의
             // 설정 의미론을 따르는 쪽이 로컬 실행과 대칭이다.
-            // (`docs/architecture/invariants/surface-cwd.md` §3)
+            // (`docs/design/policies/cwd.md#surface-cwd-invariant` §3)
             use crate::core::intent::ConvertSurfaceTarget;
             let carried_cwd = cwd
                 .as_ref()

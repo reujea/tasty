@@ -1290,7 +1290,7 @@ impl CoreState {
     ///
     /// `cwd` 는 *carry cwd* — 호출자(intent / preset / convert)가 source surface 의
     /// source_cwd 를 resolve 해 명시 전달한다. surface kind 가 사용 여부를 결정.
-    /// Surface cwd invariant — `docs/architecture/invariants/surface-cwd.md` 참조.
+    /// Surface cwd invariant — `docs/design/policies/cwd.md#surface-cwd-invariant` 참조.
     pub(crate) fn create_surface_via_registry(
         &self,
         kind: &str,

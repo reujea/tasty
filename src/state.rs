@@ -1393,7 +1393,7 @@ impl AppState {
     ///
     /// **로컬 출처만** 돌려준다 — 이 값은 로컬 PTY `working_dir` 등 로컬에서 실행되는
     /// 생성 자리에 들어가므로, mirror surface 의 원격 경로는 `None` 이 된다
-    /// (`docs/architecture/invariants/surface-cwd.md` §3-2). mirror 워크스페이스 안의 구조
+    /// (`docs/design/policies/cwd.md#surface-cwd-invariant` §3-2). mirror 워크스페이스 안의 구조
     /// 변경은 원격으로 forward 되고 서버가 자기 PTY 에서 cwd 를 resolve 하므로 이 `None`
     /// 으로 잃는 것이 없다.
     pub(crate) fn resolve_inherit_cwd(&self, engine: &CoreState) -> Option<std::path::PathBuf> {

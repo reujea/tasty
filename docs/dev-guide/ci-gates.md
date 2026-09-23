@@ -2645,7 +2645,7 @@ I/O 가 있나" 였고, 그 회귀는 함수 본문이 아니라 **호출 문맥
 배선 시점에 두 스크립트를 작업 트리에서 직접 돌린 결과는 `rc=0`(둘 다)이다. 다만
 그 직전까지 `check-intent-discipline.sh` 는 **위반 50 건으로 오래 빨갰다** — 채널이
 없어 아무도 안 봤고, 그 사이 문서 셋(`docs/design/flows/action-dispatch.md` ·
-[ADR-0037](../adr/0037-complexity-gate.md) · `docs/architecture/invariants/index.md`)
+[ADR-0037](../adr/0037-complexity-gate.md) · `docs/architecture/index.md#invariants`)
 은 그것을 살아 있는 게이트로 인용하고 있었다.
 
 **빨간 채로 배선하지 않았다.** 50 을 먼저 갈랐고, 36 이 술어의 오탐이었다 —
