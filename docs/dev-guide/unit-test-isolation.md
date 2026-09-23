@@ -250,9 +250,9 @@ TASTY_HOME=$(mktemp -d) cargo test --workspace --locked -- --test-threads=1
 `crate::terminal::*` 가 gui 전용 재export 라면 headless 에서도 도는 코드는 원본 크레이트를
 직접 가리킨다(`tasty_terminal::*`).
 
-CI 는 `cargo test --workspace --no-default-features --locked` 로 이 조합을 강제한다
-(`.github/workflows/crossplatform-check.yml` 의 `check-headless` 잡 — 통합 타깃도 돈다. 채널
-상세는 [`ci-gates.md`](ci-gates.md)).
+CI 는 `.github/workflows/crossplatform-check.yml` 의 `check-headless` 잡이 이 조합
+(`--no-default-features`)의 전체 스위트를 돌려 강제한다 — 통합 타깃도 돈다(채널 상세는
+[`ci-gates.md`](ci-gates.md)).
 
 ## 7. 병렬 실행 경합(flake) — 공유 상태는 직렬화, 외부 자원은 소유
 
