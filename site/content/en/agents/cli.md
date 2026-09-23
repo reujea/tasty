@@ -1,4 +1,4 @@
-<!-- source-hash: a55d5d010faf -->
+<!-- source-hash: c19ee76c74a9 -->
 # Driving terminals with the tasty CLI
 
 Use the `tasty` CLI to create terminals, send commands, and read results. Control a running Tasty from a script, or let an AI agent set up the terminals it needs.
@@ -9,7 +9,7 @@ Start by listing terminals, then try sending a command and reading its output. A
 
 - Tasty must be running. The CLI connects to the running instance through the port written in `~/.tasty/tasty.port`.
 - Inside a terminal that Tasty opened, `tasty` is already on the PATH. To use it from outside (another terminal app), add the directory containing the Tasty executable to your PATH. The path for each install method is listed in [Install](../getting-started/install.md#install-locations).
-- A shell that Tasty opened carries the `TASTY_SURFACE_ID` environment variable. Commands that omit `--surface` use this value, so you do not need to type an ID when driving your own terminal.
+- A shell that Tasty opened carries the `TASTY_SURFACE_ID` environment variable. Most commands that omit `--surface` use this value (`tasty new workspace` · `tasty output observe start` do not), so you do not need to type an ID when driving your own terminal.
 
 ```sh
 echo $TASTY_SURFACE_ID     # e.g. 42
@@ -109,7 +109,7 @@ tasty send key escape --surface 42
 tasty send key up --surface 42
 ```
 
-Key names: `enter` `tab` `escape` (or `esc`) `backspace` `delete` `insert` `up` `down` `left` `right` `home` `end` `pageup` `pagedown` `f1`~`f12`. Join combinations with `+`, as in `ctrl+c` `alt+x` `ctrl+shift+c`.
+Key names: `enter` `tab` `escape` (or `esc`) `backspace` `delete` `insert` `up` `down` `left` `right` `home` `end` `pageup` `pagedown` `f1`~`f12`. Join combinations with `+`, as in `ctrl+c` `alt+x`. `shift+` is accepted but ignored.
 
 ## With shell integration: reading per command
 
@@ -224,7 +224,7 @@ A queue that passes messages between Surfaces without touching terminal input.
 ```sh
 tasty send queue --to 42 "Tests done, please check the results"
 tasty list queue --surface 42            # pending count and preview
-tasty read queue --surface 42            # pop the oldest message
+tasty read queue --surface 42            # pop all queued messages
 tasty read queue --surface 42 --peek     # look without popping
 tasty read queue --surface 42 --clear    # empty everything
 ```
@@ -236,10 +236,10 @@ tasty read queue --surface 42 --clear    # empty everything
 Open additional terminals in a workspace to run commands, send input, and track the work. You can use this with **any program**, including Claude and Codex. Their [dedicated commands](claude-codex.md) also provide session management.
 
 ```sh
-tasty terminal spawn --workspace build --command "cargo watch -x test\r" --cwd ~/proj --role worker
+tasty terminal spawn --workspace build --command "cargo watch -x test" --cwd ~/proj --role worker
 tasty terminal children                        # children under me
-tasty terminal tell "y\r" --surface 57         # send input to a child (line breaks kept, submitted automatically)
-tasty terminal broadcast "git pull\r" --role worker   # to every child with the same role
+tasty terminal tell "y" --surface 57           # send input to a child (line breaks kept, submitted automatically)
+tasty terminal broadcast $'git pull\r' --role worker # to every child with the same role (submits only with a real trailing CR)
 tasty terminal kill --child 1                   # kill a child by index
 ```
 
@@ -254,10 +254,10 @@ Run a program on a real PTY (pseudo-terminal) with no tab and no screen. Use it 
 
 ```sh
 tasty pty spawn --cwd ~/proj -- python3         # start a command on a PTY and get its id
-tasty pty write --id 3 $'print(1+1)\n'           # send to stdin (a newline submits)
-tasty pty read --id 3 --lines 20                # the last 20 lines on the screen right now
+tasty pty write --id 2147483648 $'print(1+1)\n' # send to stdin (a newline submits)
+tasty pty read --id 2147483648 --lines 20      # the last 20 lines on the screen right now
 tasty pty list                                  # PTYs that are up
-tasty pty kill --id 3                            # stop it
+tasty pty kill --id 2147483648                   # stop it
 ```
 
 ## Memory shared between agents
@@ -265,10 +265,10 @@ tasty pty kill --id 3                            # stop it
 A key-value store where several agents in the same Tasty exchange values. Pick a scope (global · surface · workspace · window · account) to store under, and optionally let entries expire (TTL) or guard against overwrites (CAS).
 
 ```sh
-tasty memory put --workspace 7 --key build/status --value running --ttl 600
-tasty memory get --workspace 7 --key build/status
-tasty memory list --workspace 7 --prefix build/
-tasty memory delete --workspace 7 --key build/status
+tasty memory put --workspace 7 --key build.status --value running --ttl 600
+tasty memory get --workspace 7 --key build.status
+tasty memory list --workspace 7 --prefix build.
+tasty memory delete --workspace 7 --key build.status
 ```
 
 Switch scope with `--global` · `--surface 3` · `--window 42` · `--account me`. A value that parses as JSON is stored as JSON, otherwise as a string.

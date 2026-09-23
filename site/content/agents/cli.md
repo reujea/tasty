@@ -8,7 +8,7 @@
 
 - Tasty 가 실행 중이어야 합니다. CLI 는 `~/.tasty/tasty.port` 에 적힌 포트로 실행 중인 인스턴스에 접속합니다.
 - Tasty 가 띄운 터미널 안에서는 `tasty` 가 이미 PATH 에 있습니다. 밖(다른 터미널 앱)에서 쓰려면 Tasty 실행 파일이 있는 경로를 PATH 에 넣습니다. 설치 방식별 경로는 [설치](../getting-started/install.md#설치-위치) 에 있습니다.
-- Tasty 가 띄운 셸에는 `TASTY_SURFACE_ID` 환경변수가 들어 있습니다. `--surface` 를 생략한 명령은 이 값을 쓰므로, 자기 터미널을 조작할 때는 ID 를 적지 않아도 됩니다.
+- Tasty 가 띄운 셸에는 `TASTY_SURFACE_ID` 환경변수가 들어 있습니다. `--surface` 를 생략한 명령은 대부분 이 값을 쓰므로(`tasty new workspace` · `tasty output observe start` 는 예외), 자기 터미널을 조작할 때는 ID 를 적지 않아도 됩니다.
 
 ```sh
 echo $TASTY_SURFACE_ID     # 예: 42
@@ -108,7 +108,7 @@ tasty send key escape --surface 42
 tasty send key up --surface 42
 ```
 
-키 이름: `enter` `tab` `escape`(또는 `esc`) `backspace` `delete` `insert` `up` `down` `left` `right` `home` `end` `pageup` `pagedown` `f1`~`f12`. 조합은 `ctrl+c` `alt+x` `ctrl+shift+c` 처럼 `+` 로 잇습니다.
+키 이름: `enter` `tab` `escape`(또는 `esc`) `backspace` `delete` `insert` `up` `down` `left` `right` `home` `end` `pageup` `pagedown` `f1`~`f12`. 조합은 `ctrl+c` `alt+x` 처럼 `+` 로 잇습니다. `shift+` 는 받아들이지만 무시됩니다.
 
 ## 셸 통합이 있으면: 명령 단위로 읽기
 
@@ -224,7 +224,7 @@ tasty surface-meta unset --key role --surface 42
 ```sh
 tasty send queue --to 42 "테스트 끝났음, 결과 확인 바람"
 tasty list queue --surface 42            # 대기 건수·미리보기
-tasty read queue --surface 42            # 가장 오래된 메시지 하나 꺼냄
+tasty read queue --surface 42            # 쌓인 메시지를 전부 꺼냄
 tasty read queue --surface 42 --peek     # 꺼내지 않고 보기
 tasty read queue --surface 42 --clear    # 전부 비움
 ```
@@ -236,10 +236,10 @@ tasty read queue --surface 42 --clear    # 전부 비움
 워크스페이스에 터미널을 더 열어 명령을 실행하고, 입력을 보내고, 진행 중인 작업을 확인하세요. Claude와 Codex를 포함해 **일반 프로그램도** 같은 방식으로 실행할 수 있습니다. Claude와 Codex의 [전용 명령](claude-codex.md)은 세션 관리 기능도 제공합니다.
 
 ```sh
-tasty terminal spawn --workspace build --command "cargo watch -x test\r" --cwd ~/proj --role worker
+tasty terminal spawn --workspace build --command "cargo watch -x test" --cwd ~/proj --role worker
 tasty terminal children                        # 내 밑의 자식 목록
-tasty terminal tell "y\r" --surface 57         # 자식에게 입력 보내기 (줄바꿈 보존, 자동 제출)
-tasty terminal broadcast "git pull\r" --role worker   # 역할이 같은 자식 전부에게
+tasty terminal tell "y" --surface 57           # 자식에게 입력 보내기 (줄바꿈 보존, 자동 제출)
+tasty terminal broadcast $'git pull\r' --role worker # 역할이 같은 자식 전부에게 (끝에 실제 CR 이 있어야 제출)
 tasty terminal kill --child 1                   # 자식을 인덱스로 종료
 ```
 
@@ -255,10 +255,10 @@ TTY 가 필요한 명령을 스크립트로 굴릴 때 씁니다. `spawn` 이 �
 
 ```sh
 tasty pty spawn --cwd ~/proj -- python3         # 명령을 PTY 로 띄우고 id 를 받음
-tasty pty write --id 3 $'print(1+1)\n'           # 표준 입력으로 보내기 (줄바꿈이 곧 제출)
-tasty pty read --id 3 --lines 20                # 지금 화면의 마지막 20줄
+tasty pty write --id 2147483648 $'print(1+1)\n' # 표준 입력으로 보내기 (줄바꿈이 곧 제출)
+tasty pty read --id 2147483648 --lines 20      # 지금 화면의 마지막 20줄
 tasty pty list                                  # 떠 있는 PTY 목록
-tasty pty kill --id 3                            # 종료
+tasty pty kill --id 2147483648                   # 종료
 ```
 
 ## 에이전트가 함께 쓰는 메모리
@@ -267,10 +267,10 @@ tasty pty kill --id 3                            # 종료
 윈도우 · 계정)를 골라 저장하고, 시간이 지나면 사라지게 하거나(TTL) 겹쳐쓰기를 막을(CAS) 수 있습니다.
 
 ```sh
-tasty memory put --workspace 7 --key build/status --value running --ttl 600
-tasty memory get --workspace 7 --key build/status
-tasty memory list --workspace 7 --prefix build/
-tasty memory delete --workspace 7 --key build/status
+tasty memory put --workspace 7 --key build.status --value running --ttl 600
+tasty memory get --workspace 7 --key build.status
+tasty memory list --workspace 7 --prefix build.
+tasty memory delete --workspace 7 --key build.status
 ```
 
 `--global` · `--surface 3` · `--window 42` · `--account me` 로 범위를 바꿉니다. 값이 JSON 이면
