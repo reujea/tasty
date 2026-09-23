@@ -2,8 +2,8 @@
 //! 편집. `RemoteTransferSettings{dir, max_mb}`(수신측 백엔드)를 두 행으로
 //! 편집한다.
 //!
-//! 디자인 구조 전사: `gallery/overlays-shared.jsx` `SettingsRemoteTransferFrame`
-//! (design-request `design-request/remote-transfer-ui.md`). 콘텐츠 컬럼 =
+//! 디자인 구조 전사: `gallery/overlays-shared.jsx` `SettingsRemoteTransferFrame`.
+//! 콘텐츠 컬럼 =
 //! mono uppercase 섹션 헤딩("Received files") + 150px 라벨 grid 2행(Save folder /
 //! Maximum size), 각 행 아래 muted 설명 + 행 사이 separator. 갤러리 spec:
 //! `gallery/overlays-windows.jsx` "Settings · General › Remote transfer".

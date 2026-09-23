@@ -2,11 +2,10 @@
 //!
 //! 권위 원본: `gallery/overlays-shared.jsx` `FilePickerFrame`/`FpRow`/`FpCrumbs`/
 //! `FpHostBadge`, `gallery/overlays-windows.jsx` `#filepicker` Section(스펙 3개).
-//! design-request: `design-request/07151555-design-request-remote-file-picker.md`. 매핑:
-//! `design-gallery-mapping.md` "file_picker".
+//! 매핑: `design-gallery-mapping.md` "file_picker".
 //!
 //! 640×480 단일 컴포넌트가 로컬/원격 두 모드를 겸한다 — 차이는 헤더 host indicator와
-//! 브레드크럼 root뿐, 레이아웃은 불변. 원격 표시는 §6.1 열린 결정(A 배지 / B 글리프 /
+//! 브레드크럼 root뿐, 레이아웃은 불변. 원격 표시는 디자인의 열린 결정(A 배지 / B 글리프 /
 //! C 프레임보더) 중 **A 배지가 사용자 확정**되어 이 specimen 은 A만 반영한다 —
 //! B/C 는 미채택 대안이라 코드화하지 않는다.
 //!
