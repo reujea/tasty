@@ -481,7 +481,7 @@ pub fn chain_violations(adrs: &[Adr]) -> (Vec<String>, usize) {
 /// 인덱스 원문을 줄 번호(1 부터) · 줄 · **생성 구역 안인가** 로 편다. 마커 줄 자신은 안 낸다.
 ///
 /// 짝이 깨진 구조는 [`render_index`] 가 먼저 거절하므로 여기서는 열림/닫힘만 따른다.
-fn lines_by_region(index: &str) -> impl Iterator<Item = (usize, &str, bool)> {
+pub fn lines_by_region(index: &str) -> impl Iterator<Item = (usize, &str, bool)> {
     let mut inside = false;
     index.lines().enumerate().filter_map(move |(i, line)| {
         if marker_slug(line, BEGIN).is_some() {
@@ -589,7 +589,9 @@ pub fn preamble_violations(index: &str, adrs: &[Adr]) -> (Vec<String>, usize) {
     (out, seen)
 }
 
-fn bare_numbers(line: &str) -> Vec<&str> {
+/// 머리말 한 줄에서 번호로 보는 토큰 — [`preamble_violations`] 와 재번호 도구
+/// (`crate::adr_renumber`)가 같은 술어를 쓴다.
+pub fn bare_numbers(line: &str) -> Vec<&str> {
     let b = line.as_bytes();
     let mut out = Vec::new();
     let mut i = 0;

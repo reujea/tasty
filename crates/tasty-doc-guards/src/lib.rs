@@ -22,6 +22,8 @@
 
 /// ADR 인덱스의 행을 ADR 헤더에서 만든다 — 생성기와 가드가 같은 함수를 부른다.
 pub mod adr_index;
+/// ADR 재번호의 판정(매핑 파일 · 인용 형태) — `adr-renumber` 가 부른다.
+pub mod adr_renumber;
 
 /// `#[cfg(...)]` 술어를 읽는다.
 pub mod cfg_predicate;
