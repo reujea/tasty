@@ -2,7 +2,7 @@
 
 디자인 시스템의 DTCG 토큰과 Rust `Theme` 필드, 그리고 실제 `th.*`/`theme.*` 호출처를 잇는 매핑 참조. [theme.md](theme.md) 의 토큰 구조를 호출처 관점에서 보충한다.
 
-> **vendor 상태**: DTCG 토큰 파일은 `crates/tasty-design-tokens/dtcg/tasty.tokens.json` 으로 **vendor 되어 있다** (492 토큰 = primitive 104 / semantic 129 / component 259, 실측 기준). 치수 계열은 `crates/tasty-design-tokens/src/generated/` 에 const 로 생성되고 freshness·정합·색 드리프트 테스트가 CI 에서 일치를 강제한다. vendor 갱신 절차는 `crates/tasty-design-tokens/README.md`. **component tier(치수+색)는 `&Theme` 접근자로 생성돼**(`tasty-type-appearance/src/generated_component.rs`, [theme.md](theme.md) "Component tier 접근자") `tasty-ui-widgets` 위젯이 소비 중 — host chrome(`src/adapters/ui/`) 소비처 전환은 후속 시리즈.
+> **vendor 상태**: DTCG 토큰 파일은 `crates/tasty-design-tokens/dtcg/tasty.tokens.json` 으로 **vendor 되어 있다** (832 토큰 = primitive 123 / semantic 143 / component 566 — 수는 `crates/tasty-design-tokens/tests/freshness.rs` 가 고정). 치수 계열은 `crates/tasty-design-tokens/src/generated/` 에 const 로 생성되고 freshness·정합·색 드리프트 테스트가 CI 에서 일치를 강제한다. vendor 갱신 절차는 `crates/tasty-design-tokens/README.md`. **component tier(치수+색)는 `&Theme` 접근자로 생성돼**(`tasty-type-appearance/src/generated_component.rs`, [theme.md](theme.md) "Component tier 접근자") `tasty-ui-widgets` 위젯과 host chrome(`src/adapters/ui/`)이 소비 중.
 
 ## 구조 모델
 
@@ -12,7 +12,7 @@ Rust:  ThemeColors(평면 primitive) ─▶ Theme(펼친 필드 + 도출 overlay
                     ▲ 색 저장은 평면 primitive, tier 는 &Theme 접근자로 재구성
 ```
 
-- **색 저장은 평면 primitive.** `ThemeColors`(`crates/tasty-type-appearance/src/theme.rs`)는 catppuccin 평면 primitive(neutral ramp 12 + accent hue 13 + 터미널 색 4 + ansi 16 + `surface_themes` map)만 저장한다.
+- **색 저장은 평면 primitive.** `ThemeColors`(`crates/tasty-type-appearance/src/theme.rs`)는 catppuccin 평면 primitive(neutral ramp 12 + `placeholder` + accent hue 13 + 터미널 색 4 + ansi 16 + `surface_themes` map)만 저장한다.
 - **tier 는 `&Theme` 접근자로 노출된다**: semantic 색 중 단순 primitive alias(`accent_primary()`/`surface_raised()`/`border_default()` 등)는 **생성 접근자**(`semantic_color_generated.rs` — DTCG semantic 색 토큰에서 생성), is_light 분기·도출 overlay·합성·리터럴은 수기(`text_on_accent()`/`overlay_hover()`/`scrim()` 등). component tier(치수+색)는 생성 접근자(`generated_component.rs` — `button_primary_bg()`/`button_height_lg()` 등, [theme.md](theme.md) "Component tier 접근자"). 즉 저장은 평면이나 소비는 tier 를 경유한다.
 - 아직 접근자로 못 옮긴 **primitive 직접 참조**(`th.<field>`)에서는 *"이 primitive 가 지금 어떤 의미(role)로 쓰이나"* 를 코드 호출처가 들고 있다 — 같은 필드가 여러 role 로 갈린다(아래 핫스팟).
 - 반투명 의미색(`hover_overlay`/`active_overlay`/`separator`)만 `is_light` 에서 **도출**된다(`derive_overlays`), primitive 가 아니다.
@@ -63,14 +63,14 @@ accent hue 13종(`color-blue` … `color-rosewater`)은 동명 필드와 1:1 (�
 
 vendor·치수 codegen·드리프트 테스트는 완료됐다 (`crates/tasty-design-tokens`). 남은 것:
 
-- DTCG semantic **색** 토큰 ↔ Rust 접근자 전수표. 과거 이 문서가 "Rust 미대응"으로 꼽았던 것 중 `text-on-accent` → `Theme::text_on_accent()`, `radius-sm` → `SIZING.corner_radius_sm` 은 **이미 구현되어 있다** (stale 정정). `radius-pill`/`motion-*`/`ui-scale-*`/`brand-*` 등은 여전히 Theme 표면 부재 — 색은 시리즈 05, component 색 접근자는 시리즈 04 에서 결정.
+- DTCG semantic **색** 토큰 ↔ Rust 접근자 전수표. 과거 이 문서가 "Rust 미대응"으로 꼽았던 것 중 `text-on-accent` → `Theme::text_on_accent()`, `radius-sm` → `SIZING.corner_radius_sm` 은 **이미 구현되어 있다** (stale 정정). `radius-pill`/`motion-*`(semantic — component 모션은 `banner_fade()` 등 생성 접근자로 있다)/`ui-scale-*`/`brand-*`(`brand-melon-flesh` → `brand_melon_flesh()` 만 있다) 등은 여전히 Theme 표면 부재 — 색은 시리즈 05, component 색 접근자는 시리즈 04 에서 결정.
 - component tier(버튼/입력/탭/토스트…) ↔ 호출처 매핑, SIZING 소비처의 토큰 참조 전환 (시리즈 02).
 
 ### ★ 시리즈 02 착수 전 필독 — 그 전환에는 **픽셀 변경이 섞여 있다**
 
 **이 시리즈는 "연결" 이 아니라 부분적으로 재디자인이다.** vendor 된 값과 그 자리가 지금
 그리는 값이 다르면 연결하는 순간 화면이 바뀌고, 그건 전환이 아니라 **디자인 결정**이라
-전환 커밋이 곁다리로 할 수 없다. **현재 다섯이 확인됐고 나머지는 미측정이다** — 그 둘을
+전환 커밋이 곁다리로 할 수 없다. **지금까지 다섯이 확인됐고(아래에서 모두 닫혔다) 나머지는 미측정이다** — 그 둘을
 같이 읽어라. 다섯은 상한이 아니라 지금까지 연 자리의 수다.
 
 **같은 형태를 이 레포는 이미 한 번 겪었다** — 폰트 축에서 "값이 바뀌는 치환은 하나도
@@ -98,7 +98,7 @@ base 필드 이름으로 이미 불리고 있을 수 있고(예: `titlebar-capti
 `-offset`(D5) · 상태바 점(D3, 7→`statusbar-dot-size` 6)은 **자리가 토큰 값으로 옮겨 갔다**
 (6→8 · 1.5→2 · 1.5→2 · 7→6, 전부 의도된 시각 변화).
 
-**이 표가 비었다는 것이 "어긋난 자리가 없다" 는 뜻은 아니다** — 확인된 자리가 없다는
+**확인된 자리가 다 닫혔다는 것이 "어긋난 자리가 없다" 는 뜻은 아니다** — 열린 확인 자리가 없다는
 뜻이다. 아래 "미측정" 문단이 그 차이를 든다. 새로 확인되면 그 자리의 상수 doc 이 같은
 사실을 적어야 한다: 값이 그리드 스케일 밖이라는 것과, 겨냥하는 토큰이 실재하되 값이
 어긋난다는 것은 다른 물음이라 갈라 적는다. 어느 쪽이 맞는지는 디자인이 정하고, 그때까지
