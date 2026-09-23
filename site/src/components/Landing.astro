@@ -93,7 +93,7 @@ const dataAttrs = Object.fromEntries(
     --role <span class="y">implementer</span> --prompt <span class="g">"fix the flaky test"</span>
 <span class="c">→ child surface 52 · completion hook armed</span>
 
-<span class="g">$</span> tasty agent barrier wait --name <span class="y">review-ready</span> --parties 3
+<span class="g">$</span> tasty agent barrier-await --workspace-id 2 --name <span class="y">review-ready</span>
 <span class="c">→ 2/3 arrived …</span>
 
 <span class="g">$</span> tasty read queue --surface 52
