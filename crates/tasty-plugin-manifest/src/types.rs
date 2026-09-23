@@ -91,7 +91,7 @@ pub enum Entry {
         #[serde(default)]
         args: Vec<String>,
     },
-    // WASM entry는 0.7 이후 재검토. 보류 이유는 docs/dev-guide/plugin-ecosystem.md
+    // WASM entry는 0.7 이후 재검토. 보류 이유는 docs/dev-guide/plugin-packaging.md#생태계-정책--자동-upgrade--호환성-분류
     // §1 참조 (강제 가능한 sandbox 가치 vs. 1.0 전 보안/도구체인 비용).
 }
 

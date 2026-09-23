@@ -92,5 +92,4 @@ tasty 를 **개발하는** AI 에이전트용 가이드. tasty 를 *사용하는
 | [plugin-runtime](plugin-runtime.md) | 호스트가 plugin 프로세스에게 주는 런타임 계약 — 수명주기 · namespace · 채널 |
 | [plugin-permissions](plugin-permissions.md) | namespace owner 기동 범위 · 권한 모델 |
 | [plugin-sensitive-data](plugin-sensitive-data.md) | 민감 데이터 |
-| [plugin-packaging](plugin-packaging.md) | 서명 + staging 동기화 |
-| [plugin-ecosystem](plugin-ecosystem.md) | 생태계 정책 + 자동 upgrade |
+| [plugin-packaging](plugin-packaging.md) | 서명 + staging 동기화 + 생태계 정책(자동 upgrade · 호환성 분류) |

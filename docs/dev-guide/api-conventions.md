@@ -617,7 +617,7 @@ deprecation 기간은 "한 minor 이상"이 원칙이다. 아래 셋은 유예 �
 ## 관련
 
 - [reference/api](../reference/api.md) — 전체 IPC/CLI 메서드 카탈로그
-- [plugin-development](plugin-development.md) · [plugin-ecosystem](plugin-ecosystem.md) · [release](release.md)
+- [plugin-development](plugin-development.md) · [plugin-packaging 생태계 정책](plugin-packaging.md#생태계-정책--자동-upgrade--호환성-분류) · [release](release.md)
 
 ### child 상태 전달의 채널
 

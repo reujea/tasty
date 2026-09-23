@@ -7,7 +7,7 @@
 - `HOST_API_VERSION`은 메이저 버전 단위로 호스트와 plugin 사이에 매치된다 (`crates/tasty-plugin-manifest/src/types.rs::HOST_API_VERSION`).
 - minor 추가는 같은 `api_version` 내에서 호환되어야 한다. 새 필드는 **optional + default**, 새 enum variant는 `#[serde(other)]`로 fallback 가능한 형태로만 허용한다.
 - major 증가가 필요한 변경은 별도 RFC가 동반되어야 한다 (필드 의미 변경/제거, required 필드 추가, 에러 코드 의미 변경 등).
-- 자세한 break 분류와 deprecation 절차는 [docs/dev-guide/plugin-ecosystem.md §4](../../docs/dev-guide/plugin-ecosystem.md) + [docs/dev-guide/api-conventions.md](../../docs/dev-guide/api-conventions.md) 의 "안정성 정책" 절 참조.
+- 자세한 break 분류와 deprecation 절차는 [docs/dev-guide/plugin-packaging.md#생태계-정책--자동-upgrade--호환성-분류 §4](../../docs/dev-guide/plugin-packaging.md#생태계-정책--자동-upgrade--호환성-분류) + [docs/dev-guide/api-conventions.md](../../docs/dev-guide/api-conventions.md) 의 "안정성 정책" 절 참조.
 
 본 changelog는 [Keep a Changelog 1.1](https://keepachangelog.com/en/1.1.0/) 형식을 따른다.
 
