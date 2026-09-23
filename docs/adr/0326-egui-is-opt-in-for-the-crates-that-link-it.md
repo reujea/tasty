@@ -105,7 +105,7 @@
 
 - 이 결정이 실현된 현재 위치: `crates/tasty-type-appearance/Cargo.toml` 의 `[features]`,
   루트 `Cargo.toml` 의 `gui` feature 와 `tasty-egui-theme`·`tasty-ui-widgets`·`tasty-icons`
-  선언, 그리고 `features = ["egui-compat"]` 를 켜는 여섯 크레이트의 매니페스트.
+  선언, 그리고 `features = ["egui-compat"]` 를 켜는 일곱 크레이트의 매니페스트.
 - [`../dev-guide/build.md`](../dev-guide/build.md) — headless 절에 재는 법과 **채널이 없다는
   사실**을 적었다.
 - [ADR-0166](0166-the-plugin-version-gate-judges-the-artifact-not-the-directory.md) — 공용

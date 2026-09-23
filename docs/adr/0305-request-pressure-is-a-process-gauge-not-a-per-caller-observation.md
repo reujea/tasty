@@ -27,7 +27,7 @@
 ## Decision
 
 요청 압력을 **caller 별 관측과 다른 축**으로 둔다. `PressureStats` 는 프로세스 수명 동안
-누적되는 고정 크기 게이지다 — 원자값 여덟 개이고, 호출 수와 무관하게 자라지 않으며,
+누적되는 고정 크기 게이지다 — 원자값 여덟 개(결정 시점 — 아홉째 `queue_waits` 는 [ADR-0466](0466-the-queue-wait-mean-divides-by-the-waits-it-summed.md) 이 더했다)이고, 호출 수와 무관하게 자라지 않으며,
 저장소를 거치지 않고, **caller 로 나누지 않는다.**
 
 세는 값은 큐 깊이 · 큐 대기 · handler 실행 시간이다. 각각 count·sum·max 를 들며, 평균은

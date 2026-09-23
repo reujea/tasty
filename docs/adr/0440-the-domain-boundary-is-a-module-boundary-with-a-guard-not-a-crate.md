@@ -55,7 +55,7 @@ headless 빌드(`--no-default-features`)는 GUI 없이 IPC/CLI 와 attach 서버
    - IPC 배관(워커 스레드로 응답 보내기)은 **어댑터 쪽**에 둔다 — 승인·태스크 대기의 spawn
      (`ipc::handler::approval` · `ipc::handler::agent::task`).
 3. **gui 게이트 수를 고정한다.** 같은 가드가 도메인 출하 코드의 `feature = "gui"` 개수를
-   양방향으로 고정한다(현재 258 — 아래 "잃은 것" 둘째 항). 도메인이 GUI 전용 항목을 cfg 로 들여오면 상위 참조가 없어도
+   양방향으로 고정한다(값의 정본은 `crates/tasty-doc-guards/tests/domain_does_not_reach_up.rs` 의 `GUI_GATES_IN_DOMAIN` — 아래 "잃은 것" 둘째 항). 도메인이 GUI 전용 항목을 cfg 로 들여오면 상위 참조가 없어도
    도메인이 GUI 를 안다 — 그 판단이 들어오는 커밋에 드러나게 한다.
 4. **공개 표면은 넓히지 않는다.** 도메인 항목은 `pub(crate)` 그대로다. lib 이 밖에 내는 것은
    여전히 `boot` 하나다. GUI 없는 소비자는 같은 lib 의 headless 구성(`--no-default-features`)
@@ -97,7 +97,7 @@ headless 빌드(`--no-default-features`)는 GUI 없이 IPC/CLI 와 attach 서버
   밖의 것도 뿌리였다: `file/dispatch.rs` 의 모듈 `allow` 를 지우자 `core/origin.rs` 의 판정 둘이
   headless 소비자 없는 정의로 드러나 +2, `intent.rs` 의 것을 지우자 `core/origin.rs` 의 사용자 발화
   주체 variant 둘이 headless 에서 안 만들어지는 것으로 드러나 +2(`expect`), `adapters/ipc.rs` 의 것을
-  지우자 `core/session.rs` 의 agent 권한 임시 grant·revoke 가 드러나 +2. 지금 258 이다. 조건이
+  지우자 `core/session.rs` 의 agent 권한 임시 grant·revoke 가 드러나 +2. 결정 시점에 258 이었다. 조건이
   `not(feature = "gui")` 하나뿐인 모듈 단위 `allow(dead_code)` 는 0 이다. 모듈 단위 `dead_code` 억제
   자체가 없어진 것은 아니다 — 조건 없는 것과 다른 cfg 조합의 것이 남아 있다. 그 자리는 여기 적지
   않고 재는 법만 둔다: `git grep -nE '#!\[(cfg_attr\([^]]*)?allow\([^)]*dead_code' -- '*.rs'`.

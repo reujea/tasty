@@ -72,7 +72,7 @@ contribution 은 하나다. 정렬이 실제로 옮기는 것은 user 의 자리
   입력이 없다(위 Decision 의 id 이름공간).
 - **운영 비용 / 유지 부담**: 병합 순서가 설치 순서와 갈라졌다. contribution 을 넣는 새 경로가 생겨도
   순서는 `merge_order` 가 정하므로 그 경로는 순서를 신경 쓰지 않아도 된다. file handler 와 hook handler
-  의 두 `merge_order` 는 같은 모양의 복제다 — 레지스트리가 다른 크레이트에 있고 contribution 타입이
+  의 두 `merge_order` 는 같은 모양의 복제다(결정 시점 — 셋째는 [ADR-0520](0520-file-format-merge-applies-user-patches-last.md) 의 file format 레지스트리가 더했다) — 레지스트리가 다른 크레이트에 있고 contribution 타입이
   다르다.
 - **호환성**: 결함 경로의 결과가 바뀐다. 전에는 plugin 값이, 이제는 user patch 값이 나온다. 사용자가
   설정 파일에 적은 대로 되는 쪽이다. IPC 응답 형태·CLI 출력 형식·plugin wire 는 그대로다. GUI 부팅
