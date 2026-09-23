@@ -414,6 +414,12 @@ fn temp_dir(tag: &str, server_pid: u32) -> std::path::PathBuf {
     dir.canonicalize().unwrap()
 }
 
+/// 첫 단언은 `workspace.create` 의 명시 `cwd` 가 새 셸의 시작 cwd 로 **실리는가**도 함께 잰다 —
+/// 핸들러가 계산한 값 대신 생성 intent 에 `cwd: None` 을 실으면 초기 push 가 격리 HOME 으로 와서
+/// 여기서 실패한다(헤드리스 조합에서 변이로 확인). 그 물음의 1 차 채널은 핸들러 옆의
+/// `create_cwd_tests::the_resolved_cwd_reaches_the_new_terminals_shell` 이고, 이 시험은 실행 중
+/// 서버를 상대로 하는 두 번째 채널이다. 시작 디렉토리를 `workspace.create` 의 `cwd` 가 아니라
+/// 나중의 `cd` 로 주도록 바꾸면 그 채널이 사라진다.
 #[test]
 fn server_pushes_the_occupied_terminal_cwd_and_follows_cd() {
     let server = common::shared();

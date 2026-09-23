@@ -52,6 +52,10 @@ terminal 워크스페이스는 `surface_id` 를 실었으면 **그 surface** 의
   끝까지 불러 새 터미널의 셸이 계산된 cwd 에서 뜨는지를 실제 PTY 로 잰다 — 나머지는 cwd 를 무엇으로
   계산하는가만 재서 그 값을 생성 intent 에 싣지 않아도 초록이다. 셸 cwd 조회 수단이 linux·macos 에만
   있어 그 하나는 Windows 에서 컴파일되지 않는다.
+  명시 `cwd` 갈래에는 실행 중 서버를 상대로 하는 두 번째 채널이 있다 — `tests/attach_attention_loopback.rs`
+  의 `server_pushes_the_occupied_terminal_cwd_and_follows_cd` 가 명시 `cwd` 로 만든 워크스페이스의 셸
+  시작 cwd 를 단언하므로, 생성 intent 에 `cwd: None` 을 실으면 그 시험도 실패한다(헤드리스 조합에서
+  변이로 확인, 2026-09-23). 지목 surface 상속 갈래는 그 시험이 안 본다.
 
 ## Alternatives Considered
 
