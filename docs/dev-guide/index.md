@@ -26,7 +26,7 @@ tasty 를 **개발하는** AI 에이전트용 가이드. tasty 를 *사용하는
 | [clippy-policy](clippy-policy.md) | 위치별 allow 선호, 워크스페이스 끄기 지양 |
 | [complexity-gate](complexity-gate.md) | 복잡도 게이트(cognitive deny + 파일 SLOC), 예외 컨벤션 |
 | [duplicated-sets](duplicated-sets.md) | 같은 집합이 여러 곳에 적힐 때 — 자리로 셀 수 있는 것, 합칠 곳과 남길 곳을 가르는 기준 |
-| [unsafe-checklist](unsafe-checklist.md) | `// SAFETY:` 작성 + 자가검토 5문 |
+| [unsafe-checklist](unsafe-checklist.md) | `// SAFETY:` 작성 + 자가검토 7문 |
 | [color-policy](color-policy.md) | 색 생성 newtype + clippy 강제 |
 | [i18n](i18n.md) | 생성 help 트리·설명 없는 인자의 안내 보존; `t()` / lang 파일, host/plugin CLI 도움말·파싱 오류, plugin 사용자 오버라이드와 부모 홈 경로 확정, 공용 폰트 검사, 하드코딩 허용 예외, 강제 테스트 |
 
@@ -55,9 +55,7 @@ tasty 를 **개발하는** AI 에이전트용 가이드. tasty 를 *사용하는
 | [dag-layout](dag-layout.md) | Task DAG 좌표 계산(`tasty-dag-layout`) — 레이어 배치·엣지 라우팅·어댑터 경계 |
 | [context-menu](context-menu.md) | OS 네이티브 컨텍스트 메뉴 |
 | [timer-hub](timer-hub.md) | 중앙 타이머 허브 — 메인 루프 시간축 폴링 등록/실행, Strict·Lax, 대기 전략·waker poison 관측 |
-| [crash-diagnostics](crash-diagnostics.md) | 크래시 진단·로그 위치 · GUI/headless 진단 범위 |
-| [timer-hub](timer-hub.md) | 중앙 타이머 허브 — 메인 루프 시간축 폴링 등록/실행, Strict·Lax, 대기 전략 |
-| [crash-diagnostics](crash-diagnostics.md) | 크래시 진단·로그 위치·WebView 로드/배치/표시 실패 |
+| [crash-diagnostics](crash-diagnostics.md) | 크래시 진단·로그 위치 · GUI/headless 진단 범위 · WebView 로드/배치/표시 실패 |
 | [memory-leak-soak](memory-leak-soak.md) | 메모리 누수 soak 테스트 — 4계층 지표·판정·플랫폼별 attribution |
 
 ## IPC / Agent
@@ -88,8 +86,6 @@ tasty 를 **개발하는** AI 에이전트용 가이드. tasty 를 *사용하는
 |------|------|
 | [e2e-tests](e2e-tests.md) | E2E 인스턴스 공유·환경 격리·timeout 정책 + 부팅 이정표와 포트 공개 동기화 검증·GUI stderr 수명과 실패 진단 |
 | [unit-test-isolation](unit-test-isolation.md) | 유닛 테스트를 로컬 상태(홈 `config.toml` · env · 이 머신에만 있는 파일시스템 경로)로부터 격리하는 규칙 — 설정 주입 지점 + env RAII 가드 + 파일시스템 픽스처 직접 생성·PID와 호출별 counter 격리·시계 nonce 한계 + feature 별 테스트 게이팅 + 병렬 경합(flake) 처방과 temp 바인딩 범위와 가드 검증(§7) + 공유 픽스처 `test_state()` 가 진짜 셸을 fork 한다는 것과 그 횟수를 세는 법(§8) |
-| [e2e-tests](e2e-tests.md) | E2E 인스턴스 공유·환경 격리·timeout 정책 + GUI stderr 수명과 실패 진단 |
-| [unit-test-isolation](unit-test-isolation.md) | 유닛 테스트를 로컬 상태(홈 `config.toml` · env · 이 머신에만 있는 파일시스템 경로)로부터 격리하는 규칙 — 설정 주입 지점 + env RAII 가드 + 파일시스템 픽스처는 테스트가 직접 생성 + feature 별 테스트 게이팅 + 병렬 경합(flake) 처방과 가드 검증(§7) + 공유 픽스처 `test_state()` 가 진짜 셸을 fork 한다는 것과 그 횟수를 세는 법(§8) |
 | [tui-testing](tui-testing.md) | tui-simulator + debug 셀 검증 |
 | [guard-population](guard-population.md) | 모수가 걷기가 아니라 `const` 배열·fixture 에서 오는 가드 — drift 가 위험이고 비면 조용히 통과한다. 목록을 소스 추출로 바꾸는 절차(ADR-0133 이 못 다루는 갈래) + 직접 `read_dir` 자리의 갈래(순회의 뿌리로 가른다)와 세는 법 · 판정값이 0 이어도 정상인 뿌리는 판정값이 아니라 「봤다」로 잰다 |
 | [guard-verification](guard-verification.md) | 가드가 **자기가 주장하는 것을 실제로 판정하는가** — 변이를 죽인 것이 컴파일러/타입/고아 파일일 수 있다, 술어가 대리(키 이름)를 본다, 눈멂의 방향이 한쪽이면 그 수는 상한, 지표를 목적함수로 삼지 않는다 |
