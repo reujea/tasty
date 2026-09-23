@@ -115,8 +115,8 @@ mirror pane 에 낸 `CreateTab` 은 `StructuralOp::NewTab` 으로 바뀌어 서�
 - `file_handler.dispatch` 가 사용자 조작임을 실을 값(또는 markdown 파일열기 팝업이 그 호출
   대신 쓸 사용자 경로)이 생기면 `Intent::NewTab` 의 `activate` 를 origin 으로 가른다. 이 조건을
   재는 가드는 없다 — `file_handler.dispatch` 의 요청 구조체 필드와 markdown plugin 의 파일열기
-  호출을 읽는다. 지금의 선택 값은
-  `intent::headless::tests::an_agent_labelled_new_tab_still_selects_it` 가 고정한다.
+  호출을 읽는다. 이 조건은 ADR-0526 으로 발화했고, 지금의 선택 값은
+  `intent::headless::tests::an_agent_labelled_new_tab_keeps_the_users_tab` 가 고정한다.
 - 사용자의 새 터미널 탭이 `AppState::add_tab` 대신 `DomainIntent::CreateTab` 을 거치게 되면
   terminal 의 background 고정을 다시 본다 — 그때는 사용자 경로가 선택을 잃는다.
   `apply_create_tab` 의 terminal 갈래와 `add_tab` 호출자를 함께 읽는다.

@@ -88,7 +88,7 @@ bg 파이프라인은 `REPLACE` 로 둔다.
   `bg_instances.push` 가 셀당 한 번인지 본다.
 - 창 투명도가 terminal 셀 영역까지 닿게 바뀐다(surface 를 투명 합성으로 만들고 셀 bg 가
   `background_opacity` 를 따른다) — 합성 결과 alpha 가 화면에 나타나므로 이 공식을 다시
-  본다. 재는 법: `src/gfx/gpu.rs` 의 `alpha_mode` 선택과 `render_clear_pass` 외에
+  본다. 재는 법: `src/gfx/gpu.rs` 의 `alpha_mode` 선택과 `src/gfx/gpu/render_pass.rs` 의 `render_clear_pass` 외에
   `background_opacity` 를 읽는 자리가 늘었는지 grep.
 
 **원리적으로 안 붙는 것** — 사람이 관측해야 한다.

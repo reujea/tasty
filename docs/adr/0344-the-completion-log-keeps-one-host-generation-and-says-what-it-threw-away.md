@@ -120,7 +120,7 @@ isolation")은 **포트 파일만** 옮기고 청소 대상은 `tasty_home()/not
 - **버린 양이 실제로 로그에 나가는 것.** 반환값에는 채널이 있으나 `tracing` 출력에는
   없다 — `tasty-utils` 는 구독자를 갖지 않는 leaf crate다. 재는 법: 호스트를 띄우고
   한 caller surface 의 완료 로그를 cap 위로 넘긴 뒤, 그 plugin 의 로그
-  (`<home>/plugins-logs/<plugin id>.log`)에서 `hit the` 로 시작하는 줄과 거기 실린
+  (`<home>/plugins-logs/<plugin id>.log`)에서 `hit the` 를 담은 줄과 거기 실린
   바이트 수를 찾는다.
 - 닫힌 surface 의 파일이 세션 중 쌓여 디스크가 문제가 되는 것. 재는 법: 오래 뜬
   인스턴스에서 `<home>/notify/` 의 파일 수와 합계 크기를 잰다. 파일 수 상한을 두는

@@ -139,6 +139,6 @@
   — capability 이름으로 선언하는 형태.
 - **코드 근거 (결정이 실현된 현재 위치)**: `JsonRpcRequest::response_timeout_ms` ·
   `ERR_RESPONSE_TIMEOUT_OUTCOME_UNKNOWN` (`crates/tasty-ipc/src/protocol.rs`) ·
-  `TcpIpcServer::dispatch_and_await` · `TcpIpcServer::answer_wait_expired`
+  `TcpIpcServer::dispatch_and_await` · `TcpIpcServer::wait_expired_response`
   (`src/adapters/production/tcp_ipc_server.rs`) · `CAPABILITIES` 의
   `ipc.response-timeout` (`crates/tasty-ipc/src/capability.rs`).

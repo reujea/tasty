@@ -28,7 +28,7 @@
 **바인딩 문자열의 해석 규칙은 그 문자열을 저장하는 크레이트가 소유한다.**
 `parse_binding`·`ParsedBinding`·`Combo`(+`parse_modifiers`·`name`·`all_modifier_combos`·
 `combos_containing_all`·`OPTION_AXIS`)를 `tasty_settings::keybindings::parse` 로 내리고,
-`src/adapters/ui/input/shortcuts/{binding,modifier_hint}.rs` 는 그것을 **재수출해 소비**한다.
+`crates/tasty-key-match/src/lib.rs` 와 `src/adapters/ui/input/shortcuts/modifier_hint.rs` 는 그것을 **재수출해 소비**한다.
 호출 사이트 이름(`parse_binding`, `Combo`, `all_modifier_combos`)은 그대로 두어 매칭 레이어
 코드는 바뀌지 않는다.
 

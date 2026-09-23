@@ -43,7 +43,7 @@ GUI **메인 스레드에서 동기 블로킹**으로 돈다. 그런데 그 응�
    핸드셰이크는 serde default 로 `0` 이 되어 함께 거절된다("모르는 버전은 통과" 구멍 없음).
 
 2. **self-attach 는 GUI attach dispatch 층에서 무조건 거절한다.**
-   `attach_client.rs::reject_self_attach` 가 요청 포트를 이 인스턴스의 IPC 포트와 비교해
+   `src/app/attach_client/dispatch.rs` 의 `connect_unless_self` 가 요청 포트를 이 인스턴스의 IPC 포트와 비교해
    같으면 거부한다. 기존 release 전용 게이트(`#[cfg(not(debug_assertions))]`)를 **양쪽 빌드로
    올린다.**
 

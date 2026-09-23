@@ -13,7 +13,7 @@
 바이너리와 무관한 도메인 로직을 소유했다.
 
 한 가지가 잘못 세어지기 쉬웠다. 이 모듈은 `crate::poison::` 을 쓰는데 그것은 **GUI 가 아니다**
-— `src/main.rs` 의 `pub(crate) use tasty_utils::poison;` 재수출이다. 의존으로 세면 잎
+— `src/lib.rs` 의 `pub(crate) use tasty_utils::poison;` 재수출이다. 의존으로 세면 잎
 크레이트 하나다.
 
 번들 기본값 `default-file-handlers.toml` 은 **두 자리에서** 상대 경로로
