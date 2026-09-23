@@ -1,4 +1,4 @@
-<!-- source-hash: 5e4c726de282 -->
+<!-- source-hash: b7395825d68d -->
 <a id="remote-attach"></a>
 
 # Working remotely (attach)
@@ -147,7 +147,7 @@ While the other side's user is attached, attempting a split · new Tab · `spawn
 
 ## Where files received from the remote are stored
 
-Files transferred over the attach channel are stored in `~/.tasty/transfers/`, with a folder cap of 500 MiB. There is no entry in the settings window yet; change it with the CLI.
+Files transferred over the attach channel are stored in `~/.tasty/transfers/`, with a folder cap of 500 MiB. Change it under **Settings** > **General** > **Remote transfer**, or with the CLI.
 
 ```sh
 tasty settings get-remote-transfer

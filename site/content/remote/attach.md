@@ -146,7 +146,7 @@ tasty remote attach --force-detach 57               # 서피스 57
 
 ## 원격에서 받은 파일 저장 위치
 
-attach 채널로 전송된 파일은 `~/.tasty/transfers/` 에 저장되며 폴더 상한은 500 MiB 입니다. 설정 윈도우에는 아직 항목이 없고 CLI 로 바꿉니다.
+attach 채널로 전송된 파일은 `~/.tasty/transfers/` 에 저장되며 폴더 상한은 500 MiB 입니다. **설정** > **일반** > **원격 전송** <!-- en: Remote transfer --> 에서 바꾸거나 CLI 로 바꿉니다.
 
 ```sh
 tasty settings get-remote-transfer
