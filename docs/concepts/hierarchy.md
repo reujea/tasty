@@ -59,7 +59,7 @@ GUI 에서는 `MainView`(View) 가 이 `CoreState` 를 호스팅·렌더한다. 
 | `empty` | **host 내장** | 빈 surface (타입 전환 버튼); deferred 터미널 자리 | egui |
 | `markdown` | `com.tasty.markdown` plugin (`rendering=webview`) | 마크다운 뷰어 | 네이티브 WebView overlay — plugin 이 sanitize HTML 문서를 생성(`RemoteSurface`) |
 | `image` | `com.tasty.image` plugin (`rendering=egui-mesh`) | 이미지 뷰어/편집 | plugin 자가 렌더 mesh (비트맵=egui 텍스처) |
-| `explorer` | **host 내장** (T11) | 파일 탐색기 | egui |
+| `explorer` | **host 내장** | 파일 탐색기 | egui |
 | `dag_graph` | **host 내장** | agent task DAG 뷰 | egui |
 | `html` | `com.tasty.html` plugin (`rendering=webview`) | HTML/웹 뷰어 | 네이티브 WebView overlay (`RemoteSurface`) |
 

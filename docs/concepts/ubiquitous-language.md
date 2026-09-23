@@ -101,7 +101,7 @@ tasty 의 코드·문서·IPC/CLI 표면 전체가 같은 용어를 쓴다. 이 
 
 ### Surface 종류 (→ [hierarchy.md](hierarchy.md#surface-타입) · [plugins.md](plugins.md))
 
-- **host 내장** — `terminal`(PTY+GPU 셰이더) / `empty` / `dag_graph` / `explorer`(T11 에서 plugin → host-native 로 역이전).
+- **host 내장** — `terminal`(PTY+GPU 셰이더) / `empty` / `dag_graph` / `explorer`(plugin 에서 host-native 로 역이전).
 - **egui-mesh plugin** — `image` (plugin 이 `rendering=egui-mesh` 선언, plugin 프로세스가 tessellate 한 mesh 를 host 가 합성).
 - **webview plugin** — `html` / `markdown`([ADR-0065](../adr/0065-markdown-webview-render-channel.md), Stage B 부터) — `rendering=webview`, host 의 네이티브 WebView 오버레이로 그림.
 

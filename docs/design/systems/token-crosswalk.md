@@ -59,16 +59,16 @@ DTCG `primitive.color-neutral-*` 는 **elevation role 기준 넘버링**(0 = 최
 
 accent hue 13종(`color-blue` … `color-rosewater`)은 동명 필드와 1:1 (테마당 hue 별 1값, ramp 없음).
 
-## vendor 후 남은 것 (후속 시리즈)
+## vendor 후 남은 것
 
 vendor·치수 codegen·드리프트 테스트는 완료됐다 (`crates/tasty-design-tokens`). 남은 것:
 
-- DTCG semantic **색** 토큰 ↔ Rust 접근자 전수표. 과거 이 문서가 "Rust 미대응"으로 꼽았던 것 중 `text-on-accent` → `Theme::text_on_accent()`, `radius-sm` → `SIZING.corner_radius_sm` 은 **이미 구현되어 있다** (stale 정정). `radius-pill`/`motion-*`(semantic — component 모션은 `banner_fade()` 등 생성 접근자로 있다)/`ui-scale-*`/`brand-*`(`brand-melon-flesh` → `brand_melon_flesh()` 만 있다) 등은 여전히 Theme 표면 부재 — 색은 시리즈 05, component 색 접근자는 시리즈 04 에서 결정.
-- component tier(버튼/입력/탭/토스트…) ↔ 호출처 매핑, SIZING 소비처의 토큰 참조 전환 (시리즈 02).
+- DTCG semantic **색** 토큰 ↔ Rust 접근자 전수표. 과거 이 문서가 "Rust 미대응"으로 꼽았던 것 중 `text-on-accent` → `Theme::text_on_accent()`, `radius-sm` → `SIZING.corner_radius_sm` 은 **이미 구현되어 있다** (stale 정정). `radius-pill`/`motion-*`(semantic — component 모션은 `banner_fade()` 등 생성 접근자로 있다)/`ui-scale-*`/`brand-*`(`brand-melon-flesh` → `brand_melon_flesh()` 만 있다) 등은 여전히 Theme 표면 부재.
+- component tier(버튼/입력/탭/토스트…) ↔ 호출처 매핑, SIZING 소비처의 토큰 참조 전환.
 
-### ★ 시리즈 02 착수 전 필독 — 그 전환에는 **픽셀 변경이 섞여 있다**
+### ★ SIZING 소비처 토큰 전환 전 필독 — 그 전환에는 **픽셀 변경이 섞여 있다**
 
-**이 시리즈는 "연결" 이 아니라 부분적으로 재디자인이다.** vendor 된 값과 그 자리가 지금
+**이 전환은 "연결" 이 아니라 부분적으로 재디자인이다.** vendor 된 값과 그 자리가 지금
 그리는 값이 다르면 연결하는 순간 화면이 바뀌고, 그건 전환이 아니라 **디자인 결정**이라
 전환 커밋이 곁다리로 할 수 없다. **지금까지 다섯이 확인됐고(아래에서 모두 닫혔다) 나머지는 미측정이다** — 그 둘을
 같이 읽어라. 다섯은 상한이 아니라 지금까지 연 자리의 수다.
