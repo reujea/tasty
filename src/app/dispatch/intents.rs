@@ -25,7 +25,7 @@ impl App {
     /// 프레임 끝 1회로 축약. drain 중 새로 발화된 Intent 는 다음 프레임에 처리
     /// (재진입 방지 — `mem::take`).
     ///
-    /// D.3.I.3: `Intent::Domain` 을 per-state loop 안에서 처리하지 못하는 이유는
+    /// `Intent::Domain` 을 per-state loop 안에서 처리하지 못하는 이유는
     /// `dispatch_domain_intent` 가 `&mut self` 를 요구하는데 loop 는
     /// `&mut self.view.views[id]` 를 잡고 있어 동시 borrow 불가하기 때문. 그래서
     /// 단계 A(드레인)/B(per-state 처리+Domain 분리)/C(Domain cascade) 로 분리한다.

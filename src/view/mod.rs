@@ -75,7 +75,7 @@ pub(crate) struct ViewRegistry {
     pub focused_view_id: Option<WindowId>,
     /// 모든 View(모달 포함). `active_modal_id`로 현재 활성 모달을 식별한다.
     /// 모달도 여기에 들어가며, 모달은 엔진 전역에 최대 1개라는 불변식을 유지한다.
-    /// D.3.E.3.a — 옛 `App.windows` 가 이쪽으로 이동. key 는 winit `WindowId`.
+    /// key 는 winit `WindowId`.
     pub views: HashMap<WindowId, Box<dyn ui::View>>,
 }
 

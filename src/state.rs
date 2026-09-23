@@ -619,7 +619,7 @@ pub struct AppState {
 
     /// 호스트 내부 Intent 큐. 발화자가 push 만 하고, `App::dispatch_pending_intents`
     /// 가 메인 루프에서 drain 한다. UI Intent (`Intent::Ui`) 와 Domain Intent
-    /// (`Intent::Domain`) 가 한 큐 위에서 처리됨 (D.3.I.3 통합). 설계:
+    /// (`Intent::Domain`) 가 한 큐 위에서 처리됨. 설계:
     /// `docs/design/flows/action-dispatch.md`, `intent-ui-vs-domain.md`.
     pub(crate) pending_intents: Vec<crate::intent::DispatchedIntent>,
 }
@@ -820,7 +820,7 @@ impl AppState {
     }
 
     /// Intent 발화. `App::dispatch_pending_intents` 가 메인 루프에서 drain.
-    /// UI Intent / Domain Intent 모두 본 큐로 발화 (D.3.I.3 두 큐 통합).
+    /// UI Intent / Domain Intent 모두 본 큐로 발화.
     pub fn dispatch_intent(&mut self, intent: crate::intent::DispatchedIntent) {
         self.pending_intents.push(intent);
     }
@@ -1148,7 +1148,7 @@ impl AppState {
         }
     }
 
-    /// **D.3.E.4.f** — TerminalStore 의 Terminal/부속 데이터 cascade 정리.
+    /// TerminalStore 의 Terminal/부속 데이터 cascade 정리.
     /// store.remove 가 Terminal drop → PTY SIGHUP 발사 + busy/scrollback_persist
     /// /deferred/pending_scrollback_inject 까지 함께 정리.
     fn drop_terminal(&mut self, engine: &mut CoreState, surface_id: u32) {

@@ -1,7 +1,7 @@
 //! `Hub` — 외부 통신 표면. IPC 서버, 포트 파일 등 *프로세스 외부* 와 주고받는
 //! 인프라를 모은다.
 //!
-//! D.3.D.2 — `ipc_server` 는 `Option<Box<dyn IpcServerPort>>` 로 보유. production
+//! `ipc_server` 는 `Option<Box<dyn IpcServerPort>>` 로 보유. production
 //! 은 `TcpIpcServer` (옛 `IpcServer` 의 type alias).
 
 use crate::adapters::production::tcp_ipc_server::TcpIpcServer;

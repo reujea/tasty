@@ -1,7 +1,7 @@
 //! IPC wire 타입 + 응답 헬퍼 — `IpcCommand` / `IpcWaker` / `send_response`.
 //!
 //! 서버 인스턴스 본문은 `crate::adapters::production::tcp_ipc_server::TcpIpcServer`
-//! (D.3.D.2.b) 로 이전. 본 모듈은 wire 형식과 강결합된 타입 정의만 보유 —
+//! 로 이전. 본 모듈은 wire 형식과 강결합된 타입 정의만 보유 —
 //! verify 자율 결정으로 ports/ 가 아닌 wire 모듈 옆에 둔다.
 
 use std::sync::atomic::{AtomicU8, AtomicU64, Ordering};

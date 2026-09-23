@@ -229,7 +229,7 @@ impl CoreState {
     /// The old terminal's PTY process is dropped (SIGHUP sent).
     /// Returns Ok(()) on success, Err if the surface was not found.
     ///
-    /// **D.3.E.4.f** — `TerminalStore::replace` 로 cutover. layout 트리의 옛
+    /// `TerminalStore::replace` 로 cutover. layout 트리의 옛
     /// Terminal owner 경로는 더 이상 사용 안 함.
     pub fn replace_terminal_by_id(
         &mut self,
@@ -256,7 +256,7 @@ impl CoreState {
         }
     }
 
-    /// Process all terminals (read PTY output). **D.3.E.4.f** — store 가 owner.
+    /// Process all terminals (read PTY output). store 가 owner.
     pub fn process_all(&mut self) -> bool {
         self.sync_output_event_gates();
         self.terminals.process_all()
@@ -311,7 +311,7 @@ impl CoreState {
         self.layout_dirty.mark_dirty();
     }
 
-    /// Collect events from all terminals. **D.3.E.4.f** — store iter.
+    /// Collect events from all terminals. store iter.
     ///
     /// Uses a non-blocking take: a terminal whose parser thread currently holds
     /// the state lock (mid-chunk ingest) is skipped this round, so the input

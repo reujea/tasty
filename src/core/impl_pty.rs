@@ -208,7 +208,7 @@ impl Core {
     /// (`AppState::tab_bar_height`) 호출자가 값으로 넘긴다 — 도메인이 창 상태 전체를
     /// 받지 않게 하려는 것이다.
     ///
-    /// D.3.E.4 이후 TerminalSurface 는 id-marker 라 `Surface::resize_all` 은
+    /// TerminalSurface 는 id-marker 라 `Surface::resize_all` 은
     /// no-op. Terminal 본체는 `engine.terminals` (TerminalStore) 가 owner 이므로
     /// 여기서 직접 store 를 두드려 resize 한다.
     #[cfg(feature = "gui")]

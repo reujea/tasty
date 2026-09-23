@@ -7,7 +7,7 @@
 //! └── PresetView               — Modeless 에디터 (View + Sealed 직접 구현)
 //! ```
 //!
-//! 모든 구현체는 `ViewBase` (D.3.E.3.e 에서 옛 `WindowBase` 에서 rename 완료) 를
+//! 모든 구현체는 `ViewBase` 를
 //! composition 하여 공통 필드를 공유한다. `View` 는 sealed 이므로 크레이트
 //! 외부에서 직접 구현할 수 없다 — 모달 계열은 `ModalView` supertrait 를 거치고,
 //! 그 외(`MainView`/`PresetView`)는 `View` + `sealed::Sealed` 를 직접 구현한다
