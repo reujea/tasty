@@ -7,7 +7,7 @@
 # 출력: ${PERF_LOG_DIR:-${TMPDIR:-/tmp}/tasty-bench}/perf-cjk-{platform}-{profile}.log 의 마지막 12 `perf` 라인.
 #
 # CJK 폰트 fallback 부재 시 자동 abort (visual check 의존 X). 측정 segment / 임계값은
-# docs/dev-guide/perf-benchmarks.md 참조.
+# docs/dev-guide/gpu-rendering.md#성능-측정 참조.
 
 set -euo pipefail
 

@@ -4,7 +4,7 @@
 # 사전: tasty release 빌드 + `tasty` CLI 가 PATH 에 있어야 함.
 # 출력: ${PERF_LOG_DIR:-${TMPDIR:-/tmp}/tasty-bench}/perf-{platform}-{profile}.log 의 마지막 12 `perf` 라인.
 #
-# 측정 segment 정의 / window 크기 등은 docs/dev-guide/perf-benchmarks.md 참조.
+# 측정 segment 정의 / window 크기 등은 docs/dev-guide/gpu-rendering.md#성능-측정 참조.
 
 set -euo pipefail
 

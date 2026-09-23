@@ -187,7 +187,7 @@ surface 를 열고 닫은 전후로 두 번 찍어 `textures/buffers.allocated` 
 ## 관련
 
 - [crash-diagnostics](crash-diagnostics.md) — panic/hang 진단 (누수가 아니라 죽음/멈춤일 때)
-- [perf-benchmarks](perf-benchmarks.md) — 렌더 성능 측정 (RSS/GPU 메모리는 그쪽 범위 밖, 여기가 담당)
+- [gpu-rendering 성능 측정](gpu-rendering.md#성능-측정) — 렌더 성능 측정 (RSS/GPU 메모리는 그쪽 범위 밖, 여기가 담당)
 - [model-view-split](model-view-split.md) — `drop_view` 누락이 만드는 L2/L3 누수의 설계 차원 방지
 - [e2e-tests](e2e-tests.md) — soak 이 재활용하는 `TastyInstance` 격리 하네스
 - ADR-0034 — 셸/conhost 좀비(L4) 의 과거 사례와 Job Object 방어
