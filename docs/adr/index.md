@@ -308,6 +308,7 @@ modifier-hint 는 0035(좁힘 + 지연) · 0038(빈 섹션) · 0064(타이머 �
 | 0422 | [재시도 누계는 판정하는 보존소가 센다 — 노출 전 스냅샷까지만](0422-the-retry-counts-are-kept-by-the-store-that-decides.md) | Accepted | 2026-09-21 | ipc, idempotency, telemetry, retry, pressure, observability, adr-0305, adr-0333, adr-0421 |
 | 0423 | [메서드마다 멱등 키 계약과 그것을 지키는 판을 선언한다 — ADR-0361 의 선언 값 조항 개정](0423-each-method-declares-its-key-contract-and-the-version-that-keeps-it.md) | Accepted | 2026-09-21 | ipc, protocol, idempotency, capability, method-meta, compatibility, adr-0312, adr-0338, adr-0361, adr-0421 |
 | 0557 | [불가침 원칙 위반은 deprecation 유예 없이 고친다 — 위반을 이루는 부분만, 가장 적게 깨는 형태로](0557-an-inviolable-principle-violation-is-fixed-without-a-deprecation-period.md) | Accepted | 2026-09-23 | api-stability, deprecation, compatibility, changelog, identity, identity-principle-1, identity-principle-3, adr-0113, adr-0115, adr-0122, adr-0497, adr-0502, adr-0504, adr-0526, adr-0532, adr-0533 |
+| 0566 | [호스트가 아는 이름은 어느 경로로 끝나든 멱등 키를 지킨다 — ADR-0423 의 debug step 조항 개정](0566-every-host-path-keeps-the-idempotency-key-and-only-a-plugin-name-is-outside.md) | Accepted | 2026-09-23 | ipc, protocol, idempotency, capability, method-meta, plugin, namespace, debug, partial-amendment, adr-0361, adr-0421, adr-0423 |
 <!-- adr-rows:end ipc-contract -->
 
 ## 사건 피드 · 출력 위치
