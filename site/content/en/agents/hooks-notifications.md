@@ -1,4 +1,4 @@
-<!-- source-hash: ef0b2dd7f906 -->
+<!-- source-hash: e3f64e96de02 -->
 # Hooks, notifications and webhooks
 
 Get a notification when a build finishes, or run a command when a message appears in the logs. **Hooks** run commands in response to events, and **notifications** let you know when to check back. Use **webhooks** to send requests to Tasty from an external service.
@@ -152,7 +152,7 @@ tasty approval await --id "$ID"            # wait until a response arrives, prin
 ```
 
 - A popup appears and a notification goes out as well. The user answers by clicking a popup button, pressing number keys `1`~`9` in the popup (in choice order), or with `tasty approval respond --id <ID> --choice approve`.
-- `--severity` (`info`/`warn`/`danger`) only changes the popup's accent colour and the `[WARN]`·`[DANGER]` prefix on the notification title. Whatever the value, the requesting agent cannot answer its own request.
+- `--severity info` sends only a notification with no popup; `warn`/`danger` show a popup plus a notification. `danger` must be answered by the user directly.
 - The popup does not close on Esc (to prevent bypassing). Query with `tasty approval list` / `get` / `history`.
 - A request is bound to a workspace: the one given by `--workspace-id`, otherwise the workspace of the terminal given by `--surface-id`, otherwise the workspace you are looking at. An agent is safest passing its own terminal with `--surface-id "$TASTY_SURFACE_ID"` — the request then lands in the same place even when the user is looking at another workspace.
 
