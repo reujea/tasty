@@ -40,7 +40,7 @@ tasty 의 주 윈도우. 워크스페이스를 호스팅하고 사이드바·탭
 
 ## 비-목표
 
-- 단일 surface/workspace 만 가지는 경량 View(`StandaloneSurfaceView` 등)는 별도 — MainView 는 풀 셸이다.
+- 단일 surface/workspace 만 가지는 경량 View 는 별도 — MainView 는 풀 셸이다.
 - 모달/에디터 계열 윈도우(설정·preset 등)는 MainView 가 아니라 다른 View 구현체.
 
 ## Acceptance Criteria
