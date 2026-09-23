@@ -1,4 +1,4 @@
-<!-- source-hash: c63120e02788 -->
+<!-- source-hash: 09f4e689abfc -->
 # Troubleshooting
 
 If something is not working, find the matching symptom below. Check installation, permissions, terminal connections, and notifications, or use the reporting steps at the end if you still need help.
@@ -33,7 +33,7 @@ TASTY_LOG=debug tasty 2> tasty.log
 - **Linux `.tar.gz`: it exits saying a library is missing** — `tasty` lists the missing library and exits. Install the packages it names (`libfreetype6` · `libfontconfig1` · `libgtk-3` · `libwebkit2gtk-4.1` and so on). To have them pulled in automatically, use the `.deb` / `.rpm` instead.
 - **"No GPU adapter found" appears and it exits** — there is no GPU driver (Vulkan / DirectX 12 / Metal). Install or update the driver. On Linux, Tasty runs GPU-accelerated when `libvulkan1` / `vulkan-loader` is present, and falls back to software rendering when it is not. On a server · VM with no GPU at all, the distributed files cannot run.
 - **Windows: "Git Bash not found"** — Tasty uses Git Bash as the shell on Windows. Install Git for Windows, or set the bash path yourself in **Settings** > **Terminal** > **Shell**.
-- **It exits right after starting with "Database initialization error"** — read the message body. "The database is locked" means another Tasty is already running. "corrupted" / "schema version mismatch" means you can back up `~/.tasty/state.db`, delete it, and start fresh. Only the recent-files list is lost.
+- **It exits right after starting with "Database initialization error"** — read the message body. "The database is locked" means another Tasty is already running. "corrupted" / "schema version mismatch" means you can back up `~/.tasty/state.db`, delete it, and start fresh. Only the recent-files list and tutorial progress are lost.
 - **You typed `tasty` inside a Tasty terminal but no new window appeared** — run with no arguments inside Tasty, it shows the help instead of opening a new window. For a new window use `tasty new window` (it leaves the focus on the window you were looking at); to force the GUI to launch, `tasty --launch`.
 
 The install procedure itself is in [Install](../getting-started/install.md).
@@ -79,10 +79,10 @@ You can see the current state in the **Settings** > **General** > **Permissions*
 - **The port file exists but it cannot connect** — a previous Tasty exited abnormally and left only the port file behind. Make sure Tasty is not running, then delete the file and start it again.
 
   ```sh
-  pgrep -x tasty || rm ~/.tasty/tasty.port
+  pgrep -x 'tasty|tasty\.bin' || rm ~/.tasty/tasty.port
   ```
 
-- **`tasty: command not found`** — inside a terminal that Tasty opened it is on the PATH automatically, but in another terminal app you have to add it yourself. The path for each install method is in [Install location](../getting-started/install.md#install-locations).
+- **`tasty: command not found`** — inside a terminal that Tasty opened it is on the PATH automatically, and a `.deb` · `.rpm` · `.msi` install puts it on the PATH for other terminal apps too. With any other install method you have to add it yourself. The path for each install method is in [Install location](../getting-started/install.md#install-locations).
 
 ## Notifications do not arrive · there are too many
 

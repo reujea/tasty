@@ -32,7 +32,7 @@ TASTY_LOG=debug tasty 2> tasty.log
 - **Linux `.tar.gz`: 라이브러리가 없다며 종료됩니다** — `tasty` 가 빠진 라이브러리를 안내하고 끝납니다. 안내된 패키지(`libfreetype6` · `libfontconfig1` · `libgtk-3` · `libwebkit2gtk-4.1` 등)를 설치합니다. 자동으로 끌어오게 하려면 `.deb` / `.rpm` 을 씁니다.
 - **"GPU 어댑터를 찾을 수 없음" 이 뜨고 종료됩니다** — GPU 드라이버(Vulkan / DirectX 12 / Metal)가 없습니다. 드라이버를 설치·업데이트합니다. Linux 는 `libvulkan1` / `vulkan-loader` 가 있으면 GPU 가속, 없으면 소프트웨어 렌더링으로 뜹니다. GPU 가 아예 없는 서버 · VM 에서는 배포 파일로 실행할 수 없습니다.
 - **Windows: "Git Bash를 찾을 수 없습니다"** — Tasty 는 Windows 에서 Git Bash 를 셸로 씁니다. Git for Windows 를 설치하거나 **설정** <!-- en: Settings --> > **터미널** <!-- en: Terminal --> > **셸** <!-- en: Shell --> 에서 bash 경로를 직접 지정합니다.
-- **"데이터베이스 초기화 오류" 로 시작하자마자 종료됩니다** — 본문을 봅니다. "DB가 잠겨 있습니다" 면 다른 Tasty 가 이미 떠 있습니다. "손상되었습니다" / "스키마 버전이 맞지 않습니다" 면 `~/.tasty/state.db` 를 백업한 뒤 지우면 새로 시작됩니다. 최근 파일 목록만 사라집니다.
+- **"데이터베이스 초기화 오류" 로 시작하자마자 종료됩니다** — 본문을 봅니다. "DB가 잠겨 있습니다" 면 다른 Tasty 가 이미 떠 있습니다. "손상되었습니다" / "스키마 버전이 맞지 않습니다" 면 `~/.tasty/state.db` 를 백업한 뒤 지우면 새로 시작됩니다. 최근 파일 목록과 튜토리얼 진행 기록만 사라집니다.
 - **Tasty 터미널 안에서 `tasty` 를 쳤는데 새 윈도우가 안 뜹니다** — Tasty 안에서 인자 없이 실행하면 새 윈도우 대신 도움말을 보여줍니다. 새 윈도우는 `tasty new window`(보던 윈도우의 포커스는 그대로 둡니다), GUI 를 강제로 띄우려면 `tasty --launch`.
 
 설치 절차 자체는 [설치](../getting-started/install.md) 에 있습니다.
@@ -80,10 +80,10 @@ TASTY_LOG=debug tasty 2> tasty.log
 - **포트 파일은 있는데 연결이 안 됩니다** — 이전 Tasty 가 비정상 종료돼 포트 파일만 남았습니다. Tasty 가 실행 중이 아닌지 확인한 뒤 파일을 지우고 다시 띄웁니다.
 
   ```sh
-  pgrep -x tasty || rm ~/.tasty/tasty.port
+  pgrep -x 'tasty|tasty\.bin' || rm ~/.tasty/tasty.port
   ```
 
-- **`tasty: command not found`** — Tasty 가 띄운 터미널 안에서는 PATH 에 자동으로 잡히지만, 다른 터미널 앱에서는 직접 등록해야 합니다. 설치 방식별 경로는 [설치 위치](../getting-started/install.md#설치-위치).
+- **`tasty: command not found`** — Tasty 가 띄운 터미널 안에서는 PATH 에 자동으로 잡히고, `.deb` · `.rpm` · `.msi` 로 설치했다면 다른 터미널 앱에서도 잡힙니다. 그 밖의 설치 방식은 직접 등록해야 합니다. 설치 방식별 경로는 [설치 위치](../getting-started/install.md#설치-위치).
 
 ## 알림이 안 오거나 너무 많을 때
 
