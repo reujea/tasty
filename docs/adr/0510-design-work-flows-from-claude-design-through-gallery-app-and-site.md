@@ -148,7 +148,7 @@ tasty 본체에 디자인 도구 자동화 plugin 을 두지 않는다.
 
 ## References
 
-- 흡수: ADR-0018 · ADR-0020 · ADR-0025 · ADR-0027 · ADR-0057 · ADR-0294 (파일 삭제, 번호 결번)
+- 흡수: 디자인 작업 결정 여섯 편 — Claude Design plugin 자격증명의 평문 저장(Context "도구 접근의 형태") · 갤러리 완전성(결정 2) · 기획 도구 분리 실험과 Figma 기획 정본 명명(Context "도구" 의 Figma 한 문장) · Claude Design plugin 제거(결정 6) · 사이트 사본의 채널과 화면 시점(결정 7). 원본 파일은 커밋 `f7154e582` 에서 삭제됐고 번호는 결번이다 — 원문 목록은 `git ls-tree f7154e582^ docs/adr/` 로, 본문은 `git show f7154e582^:docs/adr/<파일>` 로 읽는다
 - 운영 절차: [`dev-guide/design-change-workflow.md`](../dev-guide/design-change-workflow.md) · [`dev-guide/gallery-first.md`](../dev-guide/gallery-first.md) · [`site/vendor/README.md`](../../site/vendor/README.md) · [`dev-guide/site.md`](../dev-guide/site.md)
 - 운영 상태: [design/policies/gallery-completeness](../design/policies/gallery-completeness.md) · [design/systems/design-gallery-mapping](../design/systems/design-gallery-mapping.md) · [design/systems/design-parity-notes](../design/systems/design-parity-notes.md)
 - 코드 근거(결정이 실현된 현재 위치): `crates/tasty-doc-guards/tests/site_vendor_tokens_track_the_app_export.rs` 의 `LAGGING` · `crates/tasty-doc-guards/tests/site_vendor_icons_match_the_app_transcription.rs` · `site/scripts/vendor-to-esm.mjs` 의 `vendorStamp` · `src/source_guards/gallery_specimen_parity.rs` · `src/source_guards/gallery_widget_coverage.rs`
