@@ -1,4 +1,4 @@
-<!-- source-hash: d09687c48027 -->
+<!-- source-hash: 56d0a44d6109 -->
 # Hooks, notifications and webhooks
 
 Get a notification when a build finishes, or run a command when a message appears in the logs. **Hooks** run commands in response to events, and **notifications** let you know when to check back. Use **webhooks** to send requests to Tasty from an external service.
@@ -11,7 +11,7 @@ Run a shell command when an event occurs on a specific Surface (terminal).
 
 ```sh
 tasty set hook --surface 42 --event process-exit --command "tasty notify 'Shell exited'"
-tasty set hook --surface 42 --event 'output-match:error\[E\d+\]' --command "tasty notify \"$TASTY_HOOK_MATCHED_TEXT\""
+tasty set hook --surface 42 --event 'output-match:error\[E\d+\]' --command 'tasty notify "$TASTY_HOOK_MATCHED_TEXT"'
 tasty set hook --surface 42 --event idle-timeout:30 --command "tasty notify 'No output for 30 seconds'" --once
 tasty list hooks [--surface 42]
 tasty unset hook --hook <HOOK_ID>
@@ -147,7 +147,7 @@ Send an approval request when a task needs the user's decision before it can pro
 
 ```sh
 ID=$(tasty approval request --title "Run the prod DB migration?" --severity danger \
-      --choices "approve:Run,deny:Abort:1" --timeout-ms 600000)
+      --choices "approve:Run,deny:Abort:1" --timeout-ms 600000 | jq -r .id)
 tasty approval await --id "$ID"            # wait until a response arrives, print the result as JSON
 ```
 
@@ -177,7 +177,7 @@ tasty webhook config --port 28429   # change the port — applied after restart
 
 ```sh
 # attach to a registered handler
-tasty webhook register --method POST --handler host/notify --persistent
+tasty webhook register --method POST --handler host/webhook-notify --persistent
 
 # define the action inline — pull values from the body with ${body.x}
 tasty webhook register --method POST \

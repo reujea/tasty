@@ -10,7 +10,7 @@ headless 인스턴스에서도 셸 종료 훅이 실행됩니다. 서피스를 �
 
 ```sh
 tasty set hook --surface 42 --event process-exit --command "tasty notify '셸 종료됨'"
-tasty set hook --surface 42 --event 'output-match:error\[E\d+\]' --command "tasty notify \"$TASTY_HOOK_MATCHED_TEXT\""
+tasty set hook --surface 42 --event 'output-match:error\[E\d+\]' --command 'tasty notify "$TASTY_HOOK_MATCHED_TEXT"'
 tasty set hook --surface 42 --event idle-timeout:30 --command "tasty notify '30초간 출력 없음'" --once
 tasty list hooks [--surface 42]
 tasty unset hook --hook <HOOK_ID>
@@ -145,7 +145,7 @@ bell_notification = true   # 벨 알림 표시 (끄면 벨 토스트만 억제, 
 
 ```sh
 ID=$(tasty approval request --title "prod DB 마이그레이션 실행?" --severity danger \
-      --choices "approve:실행,deny:중단:1" --timeout-ms 600000)
+      --choices "approve:실행,deny:중단:1" --timeout-ms 600000 | jq -r .id)
 tasty approval await --id "$ID"            # 응답이 올 때까지 대기, 결과를 JSON 으로 출력
 ```
 
@@ -175,7 +175,7 @@ tasty webhook config --port 28429   # 포트 변경 — 재시작 후 반영
 
 ```sh
 # 등록된 핸들러에 연결
-tasty webhook register --method POST --handler host/notify --persistent
+tasty webhook register --method POST --handler host/webhook-notify --persistent
 
 # 인라인 동작 정의 — 바디의 값을 ${body.x} 로 끌어다 쓰기
 tasty webhook register --method POST \
