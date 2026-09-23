@@ -16,8 +16,7 @@ tasty 에 **동봉되어 첫 부팅 시 자동 install** 되는 공식 플러그
 | [claude](claude/index.md) — `com.tasty.claude` | Claude Code CLI 통합 | cli · ipc · 멀티에이전트 |
 | [codex](codex/index.md) — `com.tasty.codex` | Codex CLI 통합 | cli · ipc · 멀티에이전트 · Codex 호환 훅 응답 · POSIX alias/function 우회 실행 |
 | mesh-demo — `com.tasty.mesh-demo` (전용 문서 없음) | egui-mesh 채널 PoC(A1), `bundle=false`로 배포 제외 | surface_kind(egui-mesh) · popup |
-| [agent-stream](agent-stream/index.md) — `com.tasty.agent-stream` | 에이전트 세션 transcript tail → 구조화 스트림 이벤트 수집 + SSE 엔드포인트 방출 · 요청별 턴 correlation · 인증 웹훅 배선(headless) · JSON 입력 상한과 연결 정리의 구분, `bundle=false`로 배포 제외 | cli · ipc · sse |
-| [agent-stream](agent-stream/index.md) — `com.tasty.agent-stream` | 에이전트 세션 transcript tail → 구조화 스트림 이벤트 수집 + SSE 엔드포인트 방출(headless), `bundle=false`로 배포 제외 · SSE 포트 소유권 시험 | cli · ipc · sse |
+| [agent-stream](agent-stream/index.md) — `com.tasty.agent-stream` | 에이전트 세션 transcript tail → 구조화 스트림 이벤트 수집 + SSE 엔드포인트 방출 · 요청별 턴 correlation · 인증 웹훅 배선(headless) · JSON 입력 상한과 연결 정리의 구분 · SSE 포트 소유권 시험, `bundle=false`로 배포 제외 | cli · ipc · sse |
 
 > 각 플러그인은 **제작 가이드의 예제**이기도 하다 — 각 문서 상단의 "예제로서" 노트가 어떤 기여 패턴의 레퍼런스인지와 [dev-guide/plugin-development](../dev-guide/plugin-development.md) 해당 절을 가리킨다.
 
