@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-23
 - **Tags**: testing, mutation-testing, exactly-once, host-plugin, hooks, guards, adr-0311, adr-0243
+- **Group**: guard-design
 
 ## Context
 

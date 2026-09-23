@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-23
 - **Tags**: design-tokens, guards, theme, zoom, prescription, file-picker, adr-0135
+- **Group**: ui-theme-gallery
 
 ## Context
 

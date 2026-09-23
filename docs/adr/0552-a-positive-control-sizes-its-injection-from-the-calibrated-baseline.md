@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-23
 - **Tags**: testing, flake, harness, control, mutation, measurement, adr-0181, adr-0183
+- **Group**: testing
 
 ## Context
 

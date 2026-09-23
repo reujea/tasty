@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-23
 - **Tags**: ipc, cli, telemetry, pressure, permissions, rate-limit, cap, observability, compatibility, adr-0277, adr-0333, adr-0435
+- **Group**: ipc-transport
 
 ## Context
 

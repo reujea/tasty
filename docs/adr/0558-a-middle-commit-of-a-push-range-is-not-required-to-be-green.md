@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-23
 - **Tags**: ci, git-hooks, pre-push, push-range, landing, bisect, unmeasured, adr-0192, adr-0142
+- **Group**: ci-gates
 
 ## Context
 

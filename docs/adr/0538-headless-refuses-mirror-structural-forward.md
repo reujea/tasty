@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-23
 - **Tags**: headless, attach, mirror, structural-op, forward-queue, ipc, agent-facing, build-combination, adr-0425, adr-0346
+- **Group**: architecture
 
 ## Context
 

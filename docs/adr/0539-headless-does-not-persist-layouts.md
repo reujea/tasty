@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-23
 - **Tags**: headless, layout-persistence, settings, restore-layout, agent-facing, build-combination, boot, adr-0346
+- **Group**: architecture
 
 ## Context
 
