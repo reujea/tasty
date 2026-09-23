@@ -8,7 +8,7 @@
 
 ## 목적
 
-터미널이 보낸 OSC 알림 시퀀스와 시스템 이벤트를 모아 **인앱 알림 패널 + 시스템 OS 알림 + 사운드 + surface 하이라이트 + 사이드바 배지**로 노출한다.
+터미널이 보낸 OSC 알림 시퀀스와 시스템 이벤트를 모아 **인앱 알림 패널 + 사운드 + surface 하이라이트 + 사이드바 배지**로 노출한다.
 
 ## 내부 동작
 
@@ -43,7 +43,7 @@ ID는 인스턴스의 공유 IdGenerator에서 발급하는 u64이며 재시작 
 
 ### 시스템 알림 + 사운드
 
-윈도우 비활성 시 OS 네이티브 알림(notify-rust, 초당 1회 rate limit). `notification.sound` 가 true 면 신규 알림 발화 시 OS beep 1회(macOS `NSBeep` / Windows `MessageBeep` / Linux `paplay→aplay→\a` 3단 폴백, headless 는 Noop). coalesce 로 묶인 알림은 host event 미생성이라 자동 비음. 터미널 `\a`(Bell)는 OS 가 자체 beep 할 수 있어 안전 default 로 skip.
+`notification.sound` 가 true 면 신규 알림 발화 시 OS beep 1회(macOS `NSBeep` / Windows `MessageBeep` / Linux `paplay→aplay→\a` 3단 폴백, headless 는 Noop). coalesce 로 묶인 알림은 host event 미생성이라 자동 비음. 터미널 `\a`(Bell)는 OS 가 자체 beep 할 수 있어 안전 default 로 skip.
 
 ### 시각 표시
 
