@@ -103,7 +103,7 @@ Tasty 는 cargo workspace 다 (본 바이너리 + `crates/*` 60 개 — 그중 `
 > 위 크레이트 수는 [`docs/architecture/index.md`](docs/architecture/index.md) 가 정본이고 이 문장은 그 복제본이다 — `crates/tasty-doc-guards/tests/architecture_crate_list_complete.rs` 가 `crates/` 실측과 대조하므로 고칠 때 함께 움직인다. 두 README 의 Workspace 배지·본문도 같은 좌변을 쓰고 `readme_badge_parity` 가 본다. 좌변은 **`crates/` 바로 아래에서 `Cargo.toml` 을 가진 디렉토리 수**다 — `exclude` 된 것도 세고, 레포 루트의 본 바이너리 크레이트는 안 센다.
 
 - **일상 개발**: `cargo build` 또는 `cargo build --release`.
-- **배포 산출물 빌드 (DMG / MSIX / AppImage 등)**: `cargo build --profile dist`. 일상 빌드에는 사용하지 않는다 (3.5 배 느림).
+- **배포 산출물 빌드 (DMG / MSI / AppImage 등)**: `cargo build --profile dist`. 일상 빌드에는 사용하지 않는다 (3.5 배 느림).
 
 워크스페이스 구조, 프로필 상세, LTO 설명, 빌드 시간 측정, 크레이트 분리 가이드 전체: [`docs/dev-guide/build.md`](docs/dev-guide/build.md).
 
