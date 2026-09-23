@@ -160,7 +160,7 @@ Explorer 는 plugin 이 아니라 본체 builtin surface 다(`register_explorer`
 
 ## 관련
 
-- [`design/flows/split-command`](../flows/split-command.md) — split/새 탭 상속
+- [`features/work-area` split 명령](../../features/work-area/index.md#split-명령) — split/새 탭 상속
 - [features/work-area](../../features/work-area/index.md) — Surface 도메인 (`source_cwd` 가 Surface trait 핵심)
 - [concepts/plugins](../../concepts/plugins.md) — RemoteSurface plugin
 - [terminal](../../features/terminal/index.md) · [terminal-link](../../features/terminal-link/index.md)(OSC 7 경로 해석)
