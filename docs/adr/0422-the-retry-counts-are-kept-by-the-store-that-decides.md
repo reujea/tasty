@@ -95,6 +95,9 @@
 - 관련 ADR: [ADR-0305](0305-request-pressure-is-a-process-gauge-not-a-per-caller-observation.md),
   [ADR-0333](0333-the-pressure-gauge-is-read-by-one-local-only-method-and-split-by-population.md),
   [ADR-0421](0421-the-app-layer-keeps-the-idempotency-contract-and-a-running-key-is-joined.md).
+- 후속 결정: [ADR-0566](0566-every-host-path-keeps-the-idempotency-key-and-only-a-plugin-name-is-outside.md)
+  — GUI debug step 과 namespace forward 로 나가는 표 이름도 보존소를 지나게 해, 이 ADR 이 "보존소를 안
+  지나는 층" · "계약 밖 호출" 로 적은 것 중 남는 것은 plugin 고유 이름뿐이다.
 - **코드 근거 (결정이 실현된 현재 위치)**: `idempotency::RetryCounts` · `Store::decide` ·
   `Store::abandon_unhandled` · `Store::counts` ·
   `idempotency::retry_counts`.
