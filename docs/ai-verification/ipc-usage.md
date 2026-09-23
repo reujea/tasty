@@ -20,11 +20,11 @@ tasty send text "hello" && tasty send key enter
 
 | 전송 경로 | `"text\r"` 의미 | Enter 전송법 |
 |-----------|----------------|-------------|
-| CLI `tasty send text "..."` | **리터럴 `\`+`r`** (셸 `"..."` 안에서 이스케이프 안 됨) | `send text` + `send key enter`, 또는 `$'...\r'` |
+| CLI `tasty send text "..."` | CR (0x0D) ✅ — CLI 가 `\r` `\n` `\t` `\\` `\0` 을 해석한다 | `"text\r"` |
 | Python/JSON-RPC | CR (0x0D) ✅ | `{"text": "...\r"}` |
 | CLI `tasty send text $'...'` | CR (0x0D) ✅ | `$'text\r'` |
 
-혼동하면 `\r` 이 리터럴로 전송돼 셸 명령이 실행되지 않거나 화면에 `\r` 이 그대로 보인다. **Bash 도구에서 `tasty send text "cat\r"` 는 리터럴 전송** — `tasty send text "cat" && tasty send key enter` 또는 Python IPC 를 쓴다.
+**Bash 도구에서 `tasty send text "cat\r"` 는 CR 을 보낸다** — CLI 가 전송 전에 C 식 이스케이프를 풀기 때문이다(`crates/tasty-cli/src/request.rs` 의 `unescape`).
 
 ## 함정 2 — 응답은 `read_line` 으로 (`read_to_end` 금지)
 
