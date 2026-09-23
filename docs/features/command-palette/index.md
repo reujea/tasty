@@ -16,7 +16,7 @@ VS Code 스타일 명령 팔레트. 모든 단축키 명령을 쿼리로 검색�
 
 두 출처를 합친다(`PaletteCommand::Host` / `PaletteCommand::Plugin`):
 
-- 호스트: `KeybindingSettings::GENERAL_BINDING_FIELDS` (단축키 설정 탭에 나타나는 모든 명령). `toggle_command_palette` 자신은 제외 (이미 팔레트 안이므로).
+- 호스트: `KeybindingSettings::GENERAL_BINDING_FIELDS` (단축키 설정 탭에 나타나는 모든 명령). `toggle_command_palette` 자신(이미 팔레트 안이므로)과 `fullscreen_stage_exit`(팔레트를 열 수 있는 시점엔 no-op)는 제외(`PALETTE_EXCLUDED`).
 - Plugin: `AppState.palette_plugin_commands` — `PluginManager::plugin_palette_commands()` 스냅샷. `[[contributes.commands]]` 로 선언된 명령 중 **`scope = "global"`만** 노출한다 — `surface` scope 는 owner plugin surface 가 포커스되어 있을 때만 의미가 있는데, 팔레트 실행 시점엔 그 컨텍스트를 보장할 수 없다(포커스 없이 매칭되는 키보드 단축키 경로 `match_global_shortcut` 과 동일 판단). 비활성 plugin 의 명령은 제외된다(`plugin_tool_items` = Tools 메뉴와 동일 필터 — 설정 UI 의 사전 키 바인딩 목적과 달리 팔레트는 "지금 실행 가능한" 명령만 보여줘야 하는 실행 UI).
 
 ### 매칭
@@ -52,7 +52,7 @@ Enter/클릭 시 `command_palette.pending_run` 에 선택된 `PaletteCommand` �
 ## Acceptance Criteria
 
 - 단축키 또는 도구 메뉴로 팔레트가 열린다.
-- 쿼리 입력 시 모든 단축키 명령(자기 자신 제외) + 활성 plugin 의 global 명령이 점수순으로 필터된다.
+- 쿼리 입력 시 모든 단축키 명령(`PALETTE_EXCLUDED` 제외) + 활성 plugin 의 global 명령이 점수순으로 필터된다.
 - `↑/↓`/Enter/Esc 와 클릭으로 탐색·실행·닫기가 된다.
 - 항목 실행 결과가 해당 단축키 직접 실행과 동일하다(호스트) / 대응 도구 메뉴 클릭과 동일하다(plugin).
 - plugin 이 하나도 활성화되지 않은 상태에서도 팔레트가 정상 동작한다(회귀 없음).
