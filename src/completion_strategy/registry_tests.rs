@@ -9,6 +9,7 @@ use crate::completion_strategy::types::CompletionStrategyId;
 use crate::hook_handler::types::{
     HookHandler, HookHandlerAction, HookHandlerId, HookHandlerOwner, HookSource,
 };
+use crate::namespace_table_for_tests::installed_test_table;
 
 fn poll_toml(id: &str, priority: i32, method: &str, default_for: &str) -> String {
     format!(
@@ -126,26 +127,6 @@ fn plugin_poll_method_outside_own_namespace_is_dropped() {
     let decls = parse_strategy_section(&poll_toml("evil", 100, "other.wait", "")).expect("parse");
     reg.install_plugin_strategies("acme", &decls);
     assert!(reg.get(&CompletionStrategyId::new("acme/evil")).is_none());
-}
-
-/// 소유 표는 **부팅 때 1 회 설치**된다(운영에서는 `PluginManager` 가 넘긴다). 이
-/// 테스트 바이너리에는 그 매니저가 없으므로 여기서 자기 표를 설치하고 그 핸들로
-/// 내용을 넣는다 — 예전의 `register_plugin_prefix` 같은 전역 변형자를 안 쓴다.
-fn installed_test_table()
--> &'static std::sync::Arc<std::sync::RwLock<tasty_ipc::ipc_namespace::IpcNamespaceRegistry>> {
-    static TABLE: std::sync::OnceLock<
-        std::sync::Arc<std::sync::RwLock<tasty_ipc::ipc_namespace::IpcNamespaceRegistry>>,
-    > = std::sync::OnceLock::new();
-    TABLE.get_or_init(|| {
-        let table = std::sync::Arc::new(std::sync::RwLock::new(
-            tasty_ipc::ipc_namespace::IpcNamespaceRegistry::new(),
-        ));
-        assert!(
-            tasty_ipc::method_meta::install_namespace_table(std::sync::Arc::clone(&table)),
-            "다른 곳이 먼저 표를 설치했다 — 그러면 이 테스트가 넣는 prefix 는 해소에 안 쓰인다"
-        );
-        table
-    })
 }
 
 #[test]

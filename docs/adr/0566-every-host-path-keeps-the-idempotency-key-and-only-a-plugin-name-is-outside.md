@@ -40,11 +40,12 @@
   `run_app_layer` 로 보존소를 지나게 한 뒤, 키를 뗀 사본과 relay 통로로 forward 한다. plugin 의 답은
   나중에 오므로 App 층과 같은 진행 중 상태 · 합류가 그대로 쓰인다. `Kept` 가 아니면(plugin 고유 이름)
   개입하지 않고 원래 요청을 넘긴다. GUI 라우터와 헤드리스가 **같은 함수**를 부른다.
-- **판정은 두 겹이고, 오늘 결과를 정하는 것은 `Mutate` 쪽이다.** `forward_keeping_the_key` 는 이름 표의
-  `KeyContract` 가 `Kept` 인지 보고, 그 뒤 `run_app_layer` 가 `MethodEffect::Mutate` 인지 본다. 표의
-  `Mutate` 는 전부 `Kept` 이고 표가 모르는 plugin 고유 이름은 둘 다에서 빠지므로, 앞 겹은 지금 결과를
-  바꾸지 않는다. 앞 겹은 표에 `Mutate` 이면서 `Outside` 인 이름이 다시 생길 때 그 이름을 보존하지 않기
-  위한 것이고, **그 갈래를 재는 시험은 없다** — 앞 겹을 지워도 시험이 전부 통과한다.
+- **plugin 고유 이름을 계약 밖으로 지키는 것은 `Kept` 판정 하나뿐이다.** `forward_keeping_the_key` 는
+  이름 표의 `KeyContract` 가 `Kept` 인지 보고, 그 뒤 `run_app_layer` 가 `MethodEffect::Mutate` 인지 본다.
+  뒤 판정은 plugin 고유 이름을 거르지 않는다 — forward 는 prefix 가 점유됐을 때만 일어나고, 그때
+  `method_meta` 는 그 이름을 namespace fallback 으로 `Mutate` · `Outside` 로 해소한다. 그래서 `Kept`
+  판정이 빠지면 plugin 고유 이름이 보존소에 들어가 같은 키의 재시도가 재생이 되고, ADR-0361 의 `Outside`
+  와 반대 결과가 된다. 그 갈래는 prefix 를 등록한 채 부르는 통제군 시험이 잰다(아래 재검토 트리거).
 - **GUI debug step.** 두 step 을 한 함수(`App::ipc_step_debug_layers`)로 묶고 그 첫 줄에서
   `run_app_layer` 를 부른다. 따로 감싸면 첫 step 이 안 맡은 이름을 둘째가 또 연다.
 - **판 3.** `KEY_KEPT_ON_EVERY_HOST_PATH = 3`. forward 로 나갈 수 있는 표 이름(예약 밖 prefix 의
@@ -98,6 +99,16 @@ capability 판 숫자 하나만 바뀐다는 조항.
 - forward 경로가 `Kept` 이름을 보존하지 않게 되면
   `idempotency::tests::a_forwarded_host_method_runs_once_per_key_and_the_retry_is_a_replay` 가, plugin 고유
   이름까지 보존하게 되면 `a_plugin_name_is_forwarded_every_time_with_its_request_untouched` 가 빨개진다.
+  뒤쪽은 그 이름의 prefix 를 시험 바이너리의 소유 표에 **등록한 채** 부른다 — 등록하지 않으면
+  `method_meta` 가 `None` 이라 `run_app_layer` 가 먼저 빼 주고, `Kept` 판정을 지워도 통과한다(운영에서는
+  등록 안 된 prefix 가 forward 되지 않으므로 그 상태는 운영에 없다).
+- ADR-0361 의 재검토 트리거("호스트가 같은 forward 를 거르거나 재생하게 되면
+  `manager::tests_forward_idempotency::the_same_forward_twice_runs_the_target_twice_and_is_never_replayed`
+  가 잡는다")는 **이 결정이 배선한 층을 못 본다.** 그 시험은 `tasty-host-plugin` 의 `PluginManager` 층을
+  재고, 그 크레이트는 루트 크레이트에 의존하지 않아 `forward_keeping_the_key` 가 그 시험 바이너리에 없다
+  — `Kept` 판정을 지워 plugin 고유 이름이 재생되게 해도 그 시험은 통과한다(2026-09-23 실측). 그리고 이
+  결정 뒤로 호스트 바이너리는 표 이름의 forward 를 실제로 거르고 재생한다. 호스트 바이너리의 forward 앞
+  보존소가 plugin 고유 이름까지 거르게 되는 것은 위 통제군이 잡는다.
 - 두 조합의 forward 자리가 `forward_keeping_the_key` 밖에서 `forward_namespace_call` 을 부르게 되면
   `source_guards::key_contract_by_layer::both_namespace_forwards_go_through_the_store` 가 잡는다.
 - GUI dispatch 가 debug step 을 보존소 밖에서 부르게 되면 같은 모듈의

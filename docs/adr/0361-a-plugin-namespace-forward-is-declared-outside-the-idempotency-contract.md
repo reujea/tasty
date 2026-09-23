@@ -117,6 +117,9 @@
   확정한다. App 층은 다루지 않는다.
 - 관련 dev-guide: [api-conventions](../dev-guide/api-conventions.md) 의 멱등 키 절.
 - 부분 개정: [0423](0423-each-method-declares-its-key-contract-and-the-version-that-keeps-it.md) (`key_contract` 의 값 집합 개정)
+- 후속 결정: [ADR-0566](0566-every-host-path-keeps-the-idempotency-key-and-only-a-plugin-name-is-outside.md)
+  — forward 로 나가는 표의 이름(`image.open` 등)도 보존소를 지나게 한다. plugin 고유 이름은 이 결정
+  그대로 계약 밖이다.
 - **코드 근거 (결정이 실현된 현재 위치)**: `tasty-ipc` 의 `method_meta::KeyContract` ·
   `MethodMeta::key_contract` · `method_meta::key_contract`, `client::KeyOutsideContract` ·
   `IpcConnection::send_idempotent`, 그리고 `tasty-host-plugin` 의

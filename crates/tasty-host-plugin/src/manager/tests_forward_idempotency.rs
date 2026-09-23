@@ -1,10 +1,15 @@
-//! plugin namespace forward 는 **정확히 한 번을 약속하지 않는다**(ADR-0361).
+//! plugin namespace forward 는 plugin 고유 이름에 **정확히 한 번을 약속하지 않는다**(ADR-0361).
 //!
-//! 호스트는 forward 에 멱등 키를 싣지도, 같은 호출을 가려내지도, 앞선 답을 되돌려
-//! 주지도 않는다. 같은 호출이 두 번 오면 target plugin 이 두 번 실행한다 — 그것을 막을
-//! 수 있는 자리는 target 자신뿐이다. 이 시험은 그 사실을 **고정**한다: 누가 호스트에
-//! 조용한 중복 제거를 넣으면(그러면 이름 표가 "계약 밖" 이라 선언한 것과 동작이
-//! 갈린다) 여기서 빨개진다.
+//! `PluginManager` 의 forward 는 멱등 키를 싣지도, 같은 호출을 가려내지도, 앞선 답을 되돌려
+//! 주지도 않는다. 같은 호출이 두 번 오면 target plugin 이 두 번 실행한다 — plugin 고유 이름에서
+//! 그것을 막을 수 있는 자리는 target 자신뿐이다. 이 시험은 **이 크레이트의 forward 층**에서 그
+//! 사실을 고정한다: `PluginManager` 에 조용한 중복 제거를 넣으면 여기서 빨개진다.
+//!
+//! 호스트 바이너리의 forward 앞 보존소(루트 크레이트의 `forward_keeping_the_key`)는 이 시험이
+//! 못 본다 — 이 크레이트는 루트 크레이트에 의존하지 않아 그 함수가 이 시험 바이너리에 없다.
+//! 그 층은 표가 아는 이름(`image.open` 등)의 forward 를 실제로 거르고 재생하며(ADR-0566),
+//! plugin 고유 이름을 거기서 계약 밖으로 지키는지는 루트 크레이트의
+//! `idempotency::tests::a_plugin_name_is_forwarded_every_time_with_its_request_untouched` 가 잰다.
 
 use std::path::PathBuf;
 use std::sync::Arc;

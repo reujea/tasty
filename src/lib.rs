@@ -48,6 +48,8 @@ mod hub;
 mod i18n;
 mod intent;
 mod model;
+#[cfg(test)]
+mod namespace_table_for_tests;
 mod plugin_bridge;
 mod ports;
 #[cfg(test)]

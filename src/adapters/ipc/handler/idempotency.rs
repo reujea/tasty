@@ -694,13 +694,13 @@ pub(crate) fn run_app_layer<T>(
 /// - **plugin 고유 이름**(표가 모른다 → `Outside`). 호스트는 그 뜻을 모르고, 정확히 한 번은
 ///   target plugin 의 몫이라고 선언돼 있다(ADR-0361). 개입하지 않고 원래 요청을 그대로 넘긴다.
 ///
-/// **오늘 결과를 정하는 것은 [`run_app_layer`] 의 `Mutate` 판정이다.** 이름 표의 `Kept` 판정은
-/// 그 앞에 한 겹 더 있지만 지금은 결과를 바꾸지 않는다 — 표의 `Mutate` 는 전부 `Kept` 이고
-/// (`Outside` 인 표 이름이 없다), 표가 모르는 plugin 고유 이름은 두 판정 모두에서 빠진다.
-/// 그 한 겹은 표에 `Mutate` 이면서 `Outside` 인 이름이 다시 생길 때를 위한 것이다: 그때
-/// 여기서 보존하면 호출자가 안 싣는 키를 기다리게 된다. **그 갈래를 재는 시험은 지금 없다** —
-/// 그 한 겹을 지워도 이 모듈의 시험은 전부 통과한다. 재려면 `Mutate` 이면서 `Outside` 인 표
-/// 이름이 필요하고, 표가 그런 값을 쓰지 않는 한 만들 수 없다.
+/// **plugin 고유 이름을 계약 밖으로 지키는 판정은 이름 표의 `Kept` 판정 하나뿐이다.**
+/// [`run_app_layer`] 의 `Mutate` 판정은 그 이름을 거르지 않는다 — forward 는 prefix 가
+/// 점유됐을 때만 일어나고, 그때 `method_meta` 는 plugin 고유 이름을 namespace fallback 으로
+/// `Mutate` 로 해소한다. 그래서 `Kept` 판정을 지우면 plugin 고유 이름이 보존소에 들어가 같은
+/// 키의 재시도가 재생이 된다 — ADR-0361 이 정한 "정확히 한 번은 target 의 몫" 과 반대다.
+/// 그 갈래는 prefix 를 등록한 채 부르는
+/// `tests::a_plugin_name_is_forwarded_every_time_with_its_request_untouched` 가 잰다.
 pub(crate) fn forward_keeping_the_key(
     caller: &CallerContext,
     cmd: &IpcCommand,
@@ -1919,13 +1919,38 @@ mod tests {
 
     /// 통제군 — plugin **고유** 이름(표가 모른다 → `Outside`)은 보존소가 개입하지 않는다. 같은
     /// 키로 두 번 오면 두 번 forward 되고, plugin 은 원래 요청을 그대로 받는다(ADR-0361).
+    ///
+    /// prefix 를 **등록한 채** 부른다 — 운영에서 forward 는 prefix 가 점유됐을 때만 일어나므로
+    /// 그것이 이 함수가 plugin 고유 이름을 받는 유일한 상태다. 그 상태에서 `method_meta` 는 그
+    /// 이름을 namespace fallback 으로 `Mutate` 로 해소하므로 [`run_app_layer`] 의 `Mutate`
+    /// 판정은 그 이름을 거르지 **않는다** — 거르는 것은 `forward_keeping_the_key` 의 `Kept`
+    /// 판정뿐이고, 이 시험이 그 판정을 잰다. 등록하지 않으면 해소가 `None` 이라 `Mutate`
+    /// 판정이 먼저 빼 주고, 그 판정이 없어도 이 시험이 통과한다.
     #[test]
     fn a_plugin_name_is_forwarded_every_time_with_its_request_untouched() {
+        const OWNER: &str = "com.test.idempotency-forward-probe";
+        const PREFIX: &str = "zzzforwardprobe";
+        let table = crate::namespace_table_for_tests::installed_test_table();
+        table
+            .write()
+            .unwrap_or_else(|poison| poison.into_inner())
+            .register(OWNER, PREFIX)
+            .expect("test prefix must be free");
+        let method = format!("{PREFIX}.run");
+        assert_eq!(
+            tasty_ipc::method_meta::method_meta(&method).map(|m| m.effect),
+            Some(MethodEffect::Mutate),
+            "등록된 prefix 아래 이름이 `Mutate` 로 해소되지 않으면 이 시험은 `Kept` 판정을 안 잰다"
+        );
         let held = std::cell::RefCell::new(Vec::new());
         for _ in 0..2 {
-            let (cmd, _rx) = keyed("zzzforwardprobe.run", "forward-outside-probe");
+            let (cmd, _rx) = keyed(&method, "forward-outside-probe");
             forward_keeping_the_key(&CallerContext::Local, &cmd, hold_forward(&held));
         }
+        table
+            .write()
+            .unwrap_or_else(|poison| poison.into_inner())
+            .unregister_plugin(OWNER);
         let held = held.borrow();
         assert_eq!(held.len(), 2, "계약 밖 이름의 두 번째 forward 가 걸러졌다");
         for c in held.iter() {
