@@ -234,7 +234,7 @@ Claude Design(claude.ai/design) 프로젝트의 **changelog**도 동일하게 �
 - [`docs/dev-guide/model-view-split.md`](docs/dev-guide/model-view-split.md) — Model + Host View 분리 패턴
 - [`docs/dev-guide/gpu-rendering.md`](docs/dev-guide/gpu-rendering.md) — GPU 렌더링 구조
 - [`docs/dev-guide/agent-runner.md`](docs/dev-guide/agent-runner.md) — **Task DAG executor.** 여러 AI 에이전트가 같은 tasty 인스턴스를 공유할 때 쓰는 협업 primitive 6종(`agent.*`: task DAG · barrier · semaphore · lease · reducer · rate-limit). 기획/인터페이스는 [`docs/features/agent-collaboration/index.md`](docs/features/agent-collaboration/index.md)
-- [`docs/dev-guide/plugin-development.md`](docs/dev-guide/plugin-development.md), [`plugin-permissions.md`](docs/dev-guide/plugin-permissions.md), [`plugin-sensitive-data.md`](docs/dev-guide/plugin-sensitive-data.md) — Plugin 제작. **번들 plugin 코드를 고친 뒤 실행 중 tasty 인스턴스에 재빌드·재시작 없이 반영할 때도 이 문서 §9.1** (빌드 → 재서명 → `disable` → `upgrade-builtins` → `enable` 순서) — "새 plugin 만들기"가 아니라도 반드시 먼저 확인한다.
+- [`docs/dev-guide/plugin-development.md`](docs/dev-guide/plugin-development.md)(민감 데이터는 그 문서 §6 의 [민감 데이터 절](docs/dev-guide/plugin-development.md#민감-데이터--regular--secret--keyring-선택)), [`plugin-permissions.md`](docs/dev-guide/plugin-permissions.md) — Plugin 제작. **번들 plugin 코드를 고친 뒤 실행 중 tasty 인스턴스에 재빌드·재시작 없이 반영할 때도 이 문서 §9.1** (빌드 → 재서명 → `disable` → `upgrade-builtins` → `enable` 순서) — "새 plugin 만들기"가 아니라도 반드시 먼저 확인한다.
 
 ## 자체 검증
 

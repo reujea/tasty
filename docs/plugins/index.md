@@ -23,6 +23,6 @@ tasty 에 **동봉되어 첫 부팅 시 자동 install** 되는 공식 플러그
 ## 관련
 
 - 개념·분류 축·권한: [concepts/plugins](../concepts/plugins.md)
-- **제작 가이드(예제 인용)**: [dev-guide/plugin-development](../dev-guide/plugin-development.md) · [plugin-permissions](../dev-guide/plugin-permissions.md) · [plugin-sensitive-data](../dev-guide/plugin-sensitive-data.md)
+- **제작 가이드(예제 인용)**: [dev-guide/plugin-development](../dev-guide/plugin-development.md) · [plugin-permissions](../dev-guide/plugin-permissions.md) · [plugin-development 민감 데이터](../dev-guide/plugin-development.md#민감-데이터--regular--secret--keyring-선택)
 - 관리/설치/권한 UI: [features/plugin-system](../features/plugin-system/index.md)
 - 도구 메뉴 기여 항목의 진입점: [features/tools-menu](../features/tools-menu/index.md)

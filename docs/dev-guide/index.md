@@ -87,9 +87,8 @@ tasty 를 **개발하는** AI 에이전트용 가이드. tasty 를 *사용하는
 
 | 문서 | 내용 |
 |------|------|
-| [plugin-development](plugin-development.md) | 상대 설치 루트의 실행·CWD·자산 경계, plugin 제작 + 호스트 런타임 계약 (실행 중 tasty 에 플러그인만 반복 갱신 §9.1 — 호스트 재빌드 불필요) |
+| [plugin-development](plugin-development.md) | 상대 설치 루트의 실행·CWD·자산 경계, plugin 제작 + 민감 데이터(regular · secret · keyring) + 호스트 런타임 계약 (실행 중 tasty 에 플러그인만 반복 갱신 §9.1 — 호스트 재빌드 불필요) |
 | [paired-agent-handlers](paired-agent-handlers.md) | Claude/Codex 짝 핸들러의 공개 응답·번역·완료 알림 호환 경계 |
 | [plugin-runtime](plugin-runtime.md) | 호스트가 plugin 프로세스에게 주는 런타임 계약 — 수명주기 · namespace · 채널 |
 | [plugin-permissions](plugin-permissions.md) | namespace owner 기동 범위 · 권한 모델 |
-| [plugin-sensitive-data](plugin-sensitive-data.md) | 민감 데이터 |
 | [plugin-packaging](plugin-packaging.md) | 서명 + staging 동기화 + 생태계 정책(자동 upgrade · 호환성 분류) |

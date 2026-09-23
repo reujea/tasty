@@ -133,11 +133,11 @@ Secret 의 격리 약속은 **"plugin 간 IPC 격리" 하나로 좁혀져 있다
 | 사용자/host 가 모든 entry 조회·수정 | 허용 | 허용 |
 | plugin/타 프로세스가 `memory.db` 파일 직접 열기 | 평문(책임 밖) | 평문(책임 밖) |
 
-> 정말 민감한 데이터(master password, OAuth refresh token, 결제 key)는 secret 영역에 두지 *말고* OS keyring/외부 보관소를 쓴다 — [plugin-sensitive-data.md](../../dev-guide/plugin-sensitive-data.md).
+> 정말 민감한 데이터(master password, OAuth refresh token, 결제 key)는 secret 영역에 두지 *말고* OS keyring/외부 보관소를 쓴다 — [plugin-development 민감 데이터](../../dev-guide/plugin-development.md#민감-데이터--regular--secret--keyring-선택).
 
 ## 관련
 
 - 코드: `crates/tasty-memory/`
 - [ADR-0005](../../adr/0005-memory-secret-not-a-vault.md) · [ADR-0004](../../adr/0004-ipc-transport-tcp.md)
-- [plugin-permissions](../../dev-guide/plugin-permissions.md) · [plugin-sensitive-data](../../dev-guide/plugin-sensitive-data.md)
+- [plugin-permissions](../../dev-guide/plugin-permissions.md) · [plugin-development 민감 데이터](../../dev-guide/plugin-development.md#민감-데이터--regular--secret--keyring-선택)
 - 저장 위치 규칙: [storage.md](storage.md) (`~/.tasty/` 전체 저장소 지도; `memory.db` 는 `state.db` 와 별도 연결)
