@@ -26,7 +26,7 @@ CLAUDE.md 정책의 운영 형태:
    ### Fixed
    - `fix(...)`: ...
    ```
-3. `README.md`·`README.ko.md` 의 Version 배지(`img.shields.io/badge/version-X.Y.Z-blue`, `CHANGELOG.md` 로 링크)를 `Cargo.toml` 과 같은 값으로 갱신한다. shields.io static badge 라 URL 에 값이 박혀 있어 어디서도 파생되지 않는다 — 이 단계가 빠지면 배지가 `CHANGELOG.md` 에 없는 버전을 가리킨 채 남는다. 배지 변경은 §3 의 bump 커밋에 함께 넣는다. **`crates/tasty-doc-guards/tests/readme_badge_parity.rs` 가 이 정합을 강제하고, `doc-guards.yml` 이 main push · PR 마다 그것을 돌린다**([ci-gates](ci-gates.md)). **다만 자동 잡은 push 된 커밋만 본다 — 배지를 빠뜨린 bump 커밋은 push 전까지 통과한 것처럼 보이므로 아래 로컬 확인을 거르지 마라.** 로컬 확인:
+3. `README.md`·`README.ko.md` 의 Version 배지(`img.shields.io/badge/version-X.Y.Z-blue`, `CHANGELOG.md` 로 링크)를 `Cargo.toml` 과 같은 값으로 갱신한다. shields.io static badge 라 URL 에 값이 박혀 있어 어디서도 파생되지 않는다 — 이 단계가 빠지면 배지가 `Cargo.toml` 과 다른 버전을 가리킨 채 남는다. 배지 변경은 §3 의 bump 커밋에 함께 넣는다. **`crates/tasty-doc-guards/tests/readme_badge_parity.rs` 가 이 정합을 강제하고, `doc-guards.yml` 이 main push · PR 마다 그것을 돌린다**([ci-gates](ci-gates.md)). **다만 자동 잡은 push 된 커밋만 본다 — 배지를 빠뜨린 bump 커밋은 push 전까지 통과한 것처럼 보이므로 아래 로컬 확인을 거르지 마라.** 로컬 확인:
    ```bash
    cargo test -p tasty-doc-guards --test readme_badge_parity
    ```
