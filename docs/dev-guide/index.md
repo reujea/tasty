@@ -20,10 +20,9 @@ tasty 를 **개발하는** AI 에이전트용 가이드. tasty 를 *사용하는
 | [commit-convention](commit-convention.md) | Conventional Commits |
 | [adr-index](adr-index.md) | ADR 인덱스의 행을 ADR 헤더에서 다시 만드는 생성기(`adr-index` bin), 생성 구역 마커 · `Group` 헤더, 인덱스 충돌 푸는 법, 가드가 보는 물음(그룹 배치 · 결정 사슬) · lane 착지 때 새 ADR 끼리·기존 ADR 과 같은 조항을 결정하지 않는지 대조 — 보고 도구 `scripts/adr-landing-report.sh`(겹침은 판정하지 않는다) |
 | [error-handling](error-handling.md) | Result 처리·락 poison 복구와 관측 범위 |
-| [clippy-policy](clippy-policy.md) | 위치별 allow 선호, 워크스페이스 끄기 지양 |
+| [clippy-policy](clippy-policy.md) | 위치별 allow 선호, 워크스페이스 끄기 지양 · unsafe `// SAFETY:` 작성 + 자가검토 7문 |
 | [complexity-gate](complexity-gate.md) | 복잡도 게이트(cognitive deny + 파일 SLOC), 예외 컨벤션 |
 | [duplicated-sets](duplicated-sets.md) | 같은 집합이 여러 곳에 적힐 때 — 자리로 셀 수 있는 것, 합칠 곳과 남길 곳을 가르는 기준 |
-| [unsafe-checklist](unsafe-checklist.md) | `// SAFETY:` 작성 + 자가검토 7문 |
 | [theme › 색 생성 정책](../design/systems/theme.md#색-생성-정책) | 색 생성 newtype + clippy 강제 (design/systems/theme 의 절) |
 | [i18n](i18n.md) | 생성 help 트리·설명 없는 인자의 안내 보존; `t()` / lang 파일, host/plugin CLI 도움말·파싱 오류, plugin 사용자 오버라이드와 부모 홈 경로 확정, 공용 폰트 검사, 하드코딩 허용 예외, 강제 테스트 |
 
