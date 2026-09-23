@@ -212,7 +212,7 @@ fn is_prunable_dir(name: &str) -> bool {
 /// `docs/` 아래 디렉토리 순회의 하한. 여기서 하한은 **모은 수가 아니라 훑은 수**에
 /// 걸린다 — 가지쳐야 할 디렉토리가 0 개인 것이 이 가드가 지키려는 정상 상태다.
 const DOCS_DIR_FLOOR: Floor = Floor {
-    min: 73,
+    min: 59,
     measured: 87,
     measured_on: "2026-09-06",
     counted_on: tasty_doc_guards::floored_walk::CountedOn::LaneTip("8bdbf1bdb"),
@@ -221,8 +221,12 @@ const DOCS_DIR_FLOOR: Floor = Floor {
                    커밋에서 이 수는 87 로 **한 번도 안 변했다**. 진폭이 0 이라 다른 하한들처럼 \
                    '관측 진폭 × 세 배' 를 쓸 근거가 없다 — 연속으로 몇 번 움직인다는 관측 자체가 \
                    없다. 그래서 사건 하나분만 둔다: 카테고리 하나가 접히면 그 아래가 통째로 \
-                   빠지고, 지금 트리에서 그 크기의 최대는 `features` 를 뺀 `plugins` 의 14 다. \
-                   여유 14 = 사건 하나. `features` 61 은 곱수에 안 넣는다 — 그것이 통째로 접히는 \
+                   빠지고, 그 크기의 최대는 `features` 를 뺀 `plugins` 다. 비-ADR 문서 \
+                   통폐합이 단일 화면 `screens/` 폴더와 하위 폴더 셋을 없애 이 수가 71 로 \
+                   내려갔고(clean checkout 에서 `git ls-tree -r -d --name-only HEAD docs` 로 잰 \
+                   값 — 빈 디렉토리는 git 이 추적하지 않으므로 작업 트리의 `find` 가 아니라 \
+                   이것으로 잰다), 그때 `plugins` 는 12 였다. 하한 59 = 71 − 12 = 사건 하나. \
+                   `measured` 는 착지가 다시 잰다. `features` 49 는 곱수에 안 넣는다 — 그것이 통째로 접히는 \
                    것은 카테고리 하나가 접히는 사건이 아니라 문서 모델이 바뀌는 일이고, 그때는 \
                    이 수를 다시 재는 것이 맞다. 앞선 판은 '여유를 중간쯤 둔다' 였는데, 중간쯤은 \
                    어떤 실측으로도 거짓이 되지 않아 폭을 아무것도 안 정한다",
