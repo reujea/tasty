@@ -15,7 +15,6 @@
 | [terminal-search](terminal-search/index.md) — 터미널 검색 (스크롤백+화면) | 로컬 사용자 | 검색 바 popup |
 | [terminal-link](terminal-link/index.md) — 링크 hover·수식키 좌클릭·좌클릭 열기 끄기 · 우클릭 메뉴 | 로컬 사용자 | hover 하이라이트 |
 | [workspace-tabs](workspace-tabs/index.md) — 탭 스트립 (Pane 별 탭 바) | 로컬 사용자 | [화면](workspace-tabs/screens/workspace-tabs.md) · [구현](workspace-tabs/index.md#구현) |
-| [workspace-tabs](workspace-tabs/index.md) — 탭 스트립 (Pane 별 탭 바) | 로컬 사용자 | [화면](workspace-tabs/screens/workspace-tabs.md) |
 | [workspace-category](workspace-category/index.md) — 워크스페이스 카테고리 (사이드바 폴더) | AI Agent · 로컬 사용자 | [사이드바](sidebar/screens/sidebar.md) 카테고리 섹션 (토글 on 시 그룹 렌더) · 레일 `---` 팝업 · 생성/이름변경/삭제 다이얼로그 |
 | [window-chrome](window-chrome/index.md) — 윈도우 크롬 (CSD 타이틀바) | 로컬 사용자 | [화면](window-chrome/screens/window-chrome.md) |
 | [workspace-status-bar](workspace-status-bar/index.md) — 상태바 (작업영역 하단) | 로컬 사용자 | [화면](workspace-status-bar/screens/workspace-status-bar.md) |
