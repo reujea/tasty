@@ -2988,8 +2988,8 @@ e2e 하네스가 헤드리스로 뜨게 되면 그 비용이 사라지고 자동
 | pre-commit | `cargo fmt --check` | ✅ `format-check.yml` |
 | pre-commit | mod/use 선언 순서 · `egui::Window` 직접 사용 · `println!`/`dbg!` | ❌ 훅에만 있다 |
 | pre-commit | plugin 산출물이 바뀌었는데 매니페스트 `version` 이 그대로 (P.1) | ✅ `plugin-version-check.yml` — **같은 스크립트를 부른다**. 훅은 index 를 `main` 과의 merge-base 와 비교하고(amend·rebase 에 안 흔들리게), CI 는 밀어넣은 범위의 두 끝점을 비교한다 |
-| pre-commit | 주석 없는 `let _ =` (C.6) | 부분 — 전수판 `crates/tasty-doc-guards/tests/let_underscore_documented.rs` 가 훅의 상위집합이고, 그 전수판이 `check-headless` 에서 자동 실행된다(기본 조합 잡은 `--lib --bins` 라 못 본다). **자동 잡의 clippy 는 `let_underscore_must_use`(warn)로 그 자리를 표면화하지만 이 규칙을 집행하지는 않는다** — 주석을 못 읽어 사유가 달린 정상 코드까지 세는 명부이고, `-D warnings` 가 없어 빌드도 막지 않는다([error-handling](error-handling.md)) |
-| pre-commit | 커밋되지 않는 티켓을 가리키는 인용 P1~P7 (T.1) | ✅ `doc-guards.yml` — **같은 타깃을 부른다**(`cargo test -p tasty-doc-guards --test no_todo_file_citation`). pre-push `B.7` 도 그 타깃을 포함한다 — 셋이 겹치는 것은 의도다: 커밋 · push · main/PR 은 서로 다른 자리고, 자동 채널 둘은 **push 된 커밋만** 본다. ★ 이 검사만 staged diff 가 아니라 **레포 전체 작업 트리**를 본다(가드의 좌변이 순회다) — 내가 안 건드린 파일이 범인일 수 있는 대신, staged 밖에 남은 죽은 인용도 같이 막힌다. 실측 2.0 s |
+| pre-commit | 주석 없는 `let _ =` (C.6) | 부분 — 전수판 `crates/tasty-doc-guards/tests/let_underscore_documented.rs` 가 훅의 상위집합이고, 그 전수판을 `doc-guards.yml`(경로 필터 없음) · `check-windows` · `check-headless` 가 자동 실행한다. **자동 잡의 clippy 는 `let_underscore_must_use`(warn)로 그 자리를 표면화하지만 이 규칙을 집행하지는 않는다** — 주석을 못 읽어 사유가 달린 정상 코드까지 세는 명부이고, `-D warnings` 가 없어 빌드도 막지 않는다([error-handling](error-handling.md)) |
+| pre-commit | 커밋되지 않는 티켓을 가리키는 인용 — 형태 목록은 `no_todo_file_citation.rs` 의 `PATTERNS` (T.1) | ✅ `doc-guards.yml` — **같은 타깃을 부른다**(`cargo test -p tasty-doc-guards --test no_todo_file_citation`). pre-push `B.7` 도 그 타깃을 포함한다 — 셋이 겹치는 것은 의도다: 커밋 · push · main/PR 은 서로 다른 자리고, 자동 채널 둘은 **push 된 커밋만** 본다. ★ 이 검사만 staged diff 가 아니라 **레포 전체 작업 트리**를 본다(가드의 좌변이 순회다) — 내가 안 건드린 파일이 범인일 수 있는 대신, staged 밖에 남은 죽은 인용도 같이 막힌다. 실측 2.0 s |
 | pre-push | plugin 의 **발행 판정** — `--range <원격 tip> <로컬 tip>` (B.9) | ✅ `plugin-version-check.yml` — **같은 스크립트를 같은 물음으로** 부른다. 모수도 같은 축이다: CI 는 `github.event.before`, 훅은 git 이 stdin 으로 준 원격 tip. 차이는 **시점** 하나다 — CI 는 push 된 뒤에 답하고 훅은 push 되기 전에 답한다. pre-commit `P.1` 과는 같은 스크립트지만 **다른 물음**이다(그쪽은 "내 커밋이 올렸나"). 모수를 못 정하면 통과가 아니라 실패다 |
 | pre-push | 공용 모수의 **트리 판정** — `scripts/check-population-freshness.sh --rev <로컬 tip>` (B.10) | **자동 채널 없음.** `crates/tasty-doc-guards/src/floored_walk.rs` 의 `populations::*` 가 그 tip 의 트리와 맞는지 묻는 자리는 이 훅뿐이다 — 어느 CI 잡도 이 스크립트를 안 부른다. 훅을 안 깐 체크아웃에는 이 채널이 없고, 그때 그 선언이 틀려도 **아무것도 안 운다**(`Floor::validate` 는 `min <= measured` 와 날짜 형식만 본다). ★ 모수가 **병합된 트리**여야 하는 축이다: lane 둘이 같은 모수에 파일을 하나씩 더하면 둘 다 같은 +1 값을 적고 git 이 충돌을 안 내며, 두 lane 의 트리에서는 각각 참이다. 실측 2026-09-20: 그 형태를 재현하면 lane 둘이 `통과` · 병합 트리가 `위반`(선언 451 · 트리 452)이었다. CI 로 옮기는 것은 가능하다 — 이 판정은 이력이 아니라 **트리 하나**만 읽으므로 `fetch-depth: 1` 에서도 돈다. 다만 그때는 push 된 뒤에 답한다 |
 | pre-push | `cargo clippy --workspace --all-targets -- -D clippy::correctness` | 부분 — Windows 잡의 clippy 는 `--locked` 를 쓰고 correctness deny 를 걸지 않는다. 그리고 이 훅은 Linux 트리의 feature 집합(`tracing/log` 가 켜진 쪽)으로 lint 를 센다 — Windows 잡은 그 갈림을 못 본다([크레이트를 지목한 clippy](#크레이트를-지목한-clippy-는-push-와-다른-feature-집합을-잰다)) |
@@ -3020,8 +3020,8 @@ done
 즉 **훅에만 있는 검사가 셋**이다(mod/use 순서 · `egui::Window` · `println!`/`dbg!`).
 훅을 설치하지 않은 체크아웃이나 `--no-verify` 커밋은 그 셋을 통과한다 — 이것들은 diff
 기반이라 CI 로 옮기려면 "무엇을 신규로 볼 것인가" 를 다시 정의해야 해서 지금은 훅에
-남아 있다. `let _ =` 만 성격이 다르다: 전수판이 이미 있고 diff 기반이 아니므로, 위
-"전체 스위트" 에 자동 채널이 생기면 그 순간 함께 자동화된다.
+남아 있다. `let _ =` 만 성격이 다르다: 전수판이 이미 있고 diff 기반이 아니므로 `doc-guards.yml` 이
+자동으로 돌린다.
 
 ### 훅이 **어느 OS 에서** 도는가 — 위 표에 없는 축
 

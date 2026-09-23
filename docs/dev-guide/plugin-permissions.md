@@ -173,7 +173,7 @@ IPC 외에 일부 contribute 는 권한을 강제(매니페스트 로드 단계 
 
 게이트 목록의 단일 출처는 `crates/tasty-plugin-manifest/src/gates.rs` 의 `ContributesGate` 표다.
 `validate.rs` 의 검증 코드는 토큰 문자열을 그 표에서만 가져오고, `crates/tasty-doc-guards/tests/contributes_gate_docs_parity.rs`
-가 표와 아래 행을 **양방향으로** 대조한다 — 코드에만 있는 게이트도, 문서에만 남은 행도 깨진다. 이것도 컴파일만 자동으로 검사되고 **실행 채널은 자동이 아닌** 가드다(위와 같다 — 스캔 가드라 컴파일 검사는 보장이 되지 않는다).
+가 표와 아래 행을 **양방향으로** 대조한다 — 코드에만 있는 게이트도, 문서에만 남은 행도 깨진다. 채널은 [ci-gates](ci-gates.md) 가 정본이다.
 
 | contributes | 요구 권한 |
 |-------------|-----------|

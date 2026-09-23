@@ -322,8 +322,7 @@ DAG 목록 popup 은 surface 에 매이지 않으므로 `Tick::DagListPopup` 로
 정의상 과거가 될 수 없기 때문이다. 새 키가 절대시각을 쓴다면 예외가 아니다.
 
 이 규칙은 `crates/tasty-doc-guards/tests/timer_deadline_hygiene.rs` 가 소스 수준에서 강제한다 — `timers.rs`
-에서 `hub.once_at` 을 직접 부르면 그 테스트가 fail 한다(통합 테스트라 자동 실행 채널이
-없다 — 컴파일만 자동 검사, [ci-gates](ci-gates.md)). 실패 지점이 단위 테스트가 닿지
+에서 `hub.once_at` 을 직접 부르면 그 테스트가 fail 한다(채널은 [ci-gates](ci-gates.md)). 실패 지점이 단위 테스트가 닿지
 않는 **호출부 한 줄**이라 같은 클래스가 두 번 재발했기 때문이다.
 
 ### 바닥치기는 2차 방어다 — 스케줄 대상 자체를 좁혀라

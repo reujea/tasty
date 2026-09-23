@@ -105,5 +105,4 @@ producer 가 SIGPIPE 로 죽어 141 을 남기고, `set -o pipefail` 이 그것�
 
 ## 채널
 
-이 가드는 통합 테스트라 헤드리스 조합에서만 자동 실행된다. 채널 정본은
-[ci-gates](ci-gates.md).
+이 가드의 채널 정본은 [ci-gates](ci-gates.md).
