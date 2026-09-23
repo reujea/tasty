@@ -94,9 +94,9 @@ tasty 는 Cargo 워크스페이스 기반 크로스 플랫폼 GPU 가속 터미�
 이 절이 UI primitive 뒤에 오는 이유는 의존이 아니라 **소비자**다 — 이 크레이트를 드는 것은 본 바이너리 하나이고, 자기가 드는 것은 위 두 절(도메인-IO · type-\*)뿐이다. 네이티브 메뉴·트레이가 UI 지만 egui 를 한 줄도 안 쓰므로 UI primitive 절에 넣지 않았다: 그 절의 규칙은 "본체·갤러리가 공유하는 egui 위젯" 이고 이 크레이트에는 갤러리 소비자가 없다.
 
 ### plugin protocol / SDK (sandbox 경계)
-`tasty-plugin-protocol`(호스트↔plugin 와이어, → type-appearance) · `tasty-plugin-sdk`(외부 plugin 제작 SDK, → protocol/shm) · `tasty-plugin-sdk-wasm`(WASM 타깃 SDK) · `tasty-plugin-agent-common`(AI CLI 자식을 다루는 두 번들 plugin — claude/codex — 이 공유하는 헬퍼: prompt 임시파일·형제 hook 정리·children 응답 읽기·reboot 인자. 이름이 `tasty-plugin-` 으로 시작하지만 매니페스트가 없어 번들 plugin 이 아니다, → sdk)
+`tasty-plugin-protocol`(호스트↔plugin 와이어, → type-appearance) · `tasty-plugin-sdk`(외부 plugin 제작 SDK, → protocol/shm/utils/i18n) · `tasty-plugin-sdk-wasm`(WASM 타깃 SDK) · `tasty-plugin-agent-common`(AI CLI 자식을 다루는 두 번들 plugin — claude/codex — 이 공유하는 헬퍼: prompt 임시파일·형제 hook 정리·children 응답 읽기·reboot 인자. 이름이 `tasty-plugin-` 으로 시작하지만 매니페스트가 없어 번들 plugin 이 아니다, → sdk)
 
-이 계층은 도메인-IO 에 **직접 의존하지 않는다**(sandbox 경계) — protocol/sdk 만 통과.
+이 계층은 도메인-IO 에 **직접 의존하지 않는다**(sandbox 경계) — protocol/sdk 만 통과. **예외 하나** — `tasty-plugin-sdk` → `tasty-i18n`: 호스트와 SDK 가 설치·사용자 plugin 카탈로그 로딩을 공유한다.
 
 ### plugin host (IPC 인프라)
 `tasty-plugin-manifest`(manifest 스키마/파서) · `tasty-ipc`(JSON-RPC envelope + caller + audit + method_meta + facade trait + 클라이언트 연결 `client::{IpcConnection, StreamConnection}` — 서버·프레이밍과 같은 크레이트 · off-main 스레드가 호스트 큐에 요청을 주입하는 `host_call::HostIpcInjector` · attach 스트림 연결마다 bounded push sink 를 드는 서버측 레지스트리 `stream_hub::StreamHub` — 소켓을 읽고 쓰는 accept 스레드는 본체 adapter `tcp_ipc_server.rs` 에 남는다, [ADR-0350](../adr/0350-the-stream-hub-lives-in-the-ipc-crate.md)) · `tasty-host-plugin`(호스트의 plugin 매니저/process/event_bus/registry)
