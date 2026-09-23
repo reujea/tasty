@@ -28,12 +28,12 @@
 
 - **L1 탭바** (상단, 7탭, 이 순서): General / Terminal / Appearance / Keybindings / FileHandler(표시 라벨 **Handler**) / Misc / Plugins.
 - **L2 섹션 목록** (좌측): 현재 L1 의 하위 섹션 + **필터 검색**. (L1 전환 시 필터 클리어.) L1 별 L2:
-  - **General**: General / Notifications / Accessibility / Overlay(토스트 표시 시간 `Toast duration`, 1~10s · 0.5s 눈금) / Remote transfer
+  - **General**: General / Notifications / Accessibility / Overlay(토스트 표시 시간 `Toast duration`, 1~10s · 0.5s 눈금) / Remote transfer / Display(macOS 전용) / Permissions(macOS 전용)
   - **Terminal**: General(터미널 동작 설정) / Mouse Capture(마우스 캡처 안내 배너 토글 + Shift 우회 Note + 캡처 비활성화 블랙리스트 + 배너만 억제하는 블랙리스트) / TUI(OSC 52 클립보드 읽기 허용 토글 + bordered warning callout) / Performance
   - **Appearance**: Theme / Colors(프리셋 색 개별 override picker) / General / Display(UI 스케일 전용) / Tasty(앱 크롬 색상) / Terminal / Explorer(내장 파일 관리자 폰트, T11 host builtin 승격) / (플러그인 기여 페이지 동적 — 예: HTML)
   - **Keybindings**: General / Workspace / Pane / Tab / Surface / Clipboard / Zoom / Explorer / Scripts / Preset / Plugins / ─ / Import / Export — 마지막 항목 위에만 1px separator 가 붙고, 필터 검색 중에는 separator 를 숨긴다
   - **FileHandler**(표시 "Handler"): File Extension Mapping / File Detectors / File Handlers / Hook Handlers(공유 훅 핸들러 레지스트리 편집 — 리스너 설정은 CLI 전용, 여기 미노출)
-  - **Misc**: Tastyrc (Windows 전용; 비-Windows 는 섹션 0개 → empty state).
+  - **Misc**: Scripts (전 플랫폼·최상단) / Tastyrc (Windows 전용).
   - **Plugins**: 플러그인 기여 설정 페이지 (동적)
 - **콘텐츠** (중앙): 선택된 L2 섹션의 설정 항목. 도메인별 내용은 해당 기능 문서로 위임 (연결 개념):
   - Keybindings → [`features/keybindings/`](../../keybindings/index.md) / [`design/policies/key-mapping`](../../../design/policies/key-mapping.md)
