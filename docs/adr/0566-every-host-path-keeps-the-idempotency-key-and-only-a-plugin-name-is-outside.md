@@ -30,6 +30,18 @@
 모르는 plugin 고유 이름(ADR-0361 의 `Outside`). plugin → 호스트 호출(`plugin_call_request`)은 봉투에
 키를 싣지 않아 우회할 키가 없다.
 
+호출자의 키가 **닿지 않는** 경로도 같은 날 셌다 — 우회할 키가 없으므로 배선 대상이 아니다.
+
+- plugin → plugin forward(`forward_namespace_call_from_plugin`): plugin 호출 봉투에 키 칸이 없다.
+- 파일 핸들러 큐의 forward(`src/app/dispatch/handler_ipc.rs`): 키를 받는 것은 바깥
+  `file_handler.dispatch` 이고 그것은 engine 라우터 보존소를 지난다. 큐에서 나가는 forward 는 키도
+  원 요청 번호도 없다. 이 자리는 `forward_namespace_call` 을 부르는 **셋째** 자리지만
+  `forward_keeping_the_key` 를 안 거치고, 아래 source guard 의 좌변(두 파일)에도 없다.
+- attach 의 구조 op forward: JSON-RPC 요청이 아니라 `op_id` 만 싣는다.
+- `stream.open` 의 인라인 업그레이드: TCP 서버가 dispatch 앞에서 가로챈다. 이름 표에 없어 `Outside`
+  로 읽히므로 선언이 참이다.
+- 내부 주입기(`HostIpcInjector`): 요청을 키 `None` 으로 짓는다.
+
 ## Decision
 
 **호스트가 아는 `Mutate` 이름은 어느 경로로 끝나든 보존소를 지난다. 남은 두 경로를 배선하고, 그 둘이
@@ -119,6 +131,22 @@ capability 판 숫자 하나만 바뀐다는 조항.
   같은 모듈의 `the_relay_closure_uses_only_its_own_argument` 가, debug 묶음의 `handled` 판정이
   `IpcStep::Handled` 를 안 보게 되면 `the_debug_layers_judge_handled_by_the_step` 가 잡는다. 둘 다
   호출 자리의 모양을 재는 텍스트 가드이고, 그 closure 를 실제 dispatch 로 돌려 재는 행동 시험은 없다.
+- **네 배선 자리(GUI debug · GUI window-required · GUI forward · 헤드리스 forward)를 지키는 것은 위의
+  텍스트 가드뿐이다.** 자리마다 보존소 호출을 떼는 변이를 `cargo test -p tasty --lib` 전량(헤드리스
+  forward 는 `--no-default-features` 전량도)으로 쟀을 때 빨개진 것은 `key_contract_by_layer` 의 가드
+  하나~셋이고, 그 자리를 실제 dispatch 로 부르는 시험은 하나도 없었다(2026-09-23 실측).
+- **debug 두 step 의 가드는 `ipc_dispatch_command` 본문 안만 본다.** 그 본문 **밖**, `process_ipc`
+  루프에서 `let step = self.ipc_dispatch_command(cmd);` 앞에 `self.ipc_step_debug(&cmd)` 나
+  `self.ipc_step_window_required(&cmd)` 를 먼저 부르는 변이는 보존소를 건너뛰는데도 `cargo test -p tasty
+  --lib --locked --no-fail-fast` 전량이 기준선과 같은 결과다(두 변이 모두 `2728 passed; 1 failed`,
+  실패 1 건은 변이와 무관한 기존 실패, 2026-09-23 실측). 묶음 **안에서** 보존소보다 먼저 부르는 변이는
+  `the_gui_debug_steps_run_behind_the_store` 가 잡는다.
+- **forward 의 `handled` 판정과 진행 중 합류에는 시험이 없다.** `forward_keeping_the_key` 가
+  `run_app_layer` 에 넘기는 `|_| true` 를 `|_| false` 로 바꾸는 변이는 위 전량에서 살아남는다(같은
+  실측). 그 변이는 forward 직후 연 자리를 닫으므로, 판독상 plugin 이 답하기 **전에** 온 같은 키의
+  재시도가 합류하지 않고 plugin 으로 한 번 더 나간다 — 위 `a_forwarded_host_method_runs_once_per_key_and_the_retry_is_a_replay`
+  는 첫 답이 온 **뒤에** 재시도를 보내므로 그 갈래를 못 본다. 합류 기구 자체는 App 층 시험이 재지만,
+  forward 자리의 술어는 아무도 안 잰다.
 - 예약 밖 prefix 의 `Mutate` 와 판 3 선언이 갈리면
   `method_meta::tests::a_host_mutation_under_a_claimable_prefix_is_kept_from_version_three` 가, debug step
   의 `Mutate` 와 갈리면 `key_contract_by_layer::the_debug_step_mutations_are_exactly_the_debug_names_kept_from_version_three`
