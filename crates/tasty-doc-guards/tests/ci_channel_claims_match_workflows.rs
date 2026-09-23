@@ -2521,7 +2521,7 @@ fn the_gui_ignored_layer_has_no_single_value() {
 /// 층 4 — 층 2·3 의 서술이 **워크플로와 같은 방향을 가리키는가.**
 ///
 /// 층 2 는 `tests/gui_tests.rs` **소스만** 읽는다(전수가 `#[ignore]` 인가). 그래서 워크플로
-/// 쪽에서 누가 `-- --ignored` 를 넣으면 층 2 는 그대로 통과하는데 그 층의 서술
+/// 쪽에서 누가 `-- --ignored`(또는 `--include-ignored`)를 넣으면 층 2 는 그대로 통과하는데 그 층의 서술
 /// ("디스플레이가 있어도 한 건도 안 돈다")은 **거짓이 된다.** 소스와 문서만 보는 층들이
 /// 워크플로의 변화에 대해 원리적으로 눈이 먼 자리다.
 ///
@@ -2544,7 +2544,7 @@ fn the_gui_ignored_layer_has_no_single_value() {
 /// 배치별 표가 맡는다. 여기서 그것까지 요구하면 표현을 고정하게 되고, 그러면 문장을
 /// 다듬을 때마다 빨개진다.
 ///
-/// **두 팔이 다 죽어야 방향을 재는 것이다.** 워크플로에 `--ignored` 를 심어도 빨개지고,
+/// **두 팔이 다 죽어야 방향을 재는 것이다.** 워크플로에 `--ignored` 나 `--include-ignored` 를 심어도 빨개지고,
 /// 문서의 부재 표지를 걷어도 빨개진다. 한쪽만 죽으면 이 시험이 재는 것은 방향이 아니라
 /// 그 한쪽의 존재다.
 #[test]
@@ -2556,7 +2556,7 @@ fn the_gui_suite_channel_claim_points_the_same_way_as_the_workflows() {
     let bodies = automatic_job_bodies_of_dir(&root.join(".github/workflows"), &WORKFLOW_FLOOR);
     assert!(
         bodies.len() >= 8,
-        "자동 잡을 {}개밖에 못 읽었다 — 판독이 죽으면 `--ignored` 가 있어도 0 이 나오고 \
+        "자동 잡을 {}개밖에 못 읽었다 — 판독이 죽으면 `--ignored`·`--include-ignored` 가 있어도 0 이 나오고 \
          이 층은 언제나 '부재' 쪽으로 판정한다",
         bodies.len()
     );
@@ -2575,7 +2575,9 @@ fn the_gui_suite_channel_claim_points_the_same_way_as_the_workflows() {
                 .collect::<Vec<_>>()
                 .join("\n")
         })
-        .filter(|c| c.contains("--ignored"))
+        // `--include-ignored` 도 `#[ignore]` 를 돌린다. 그 철자는 `--ignored` 를 부분
+        // 문자열로 담지 않으므로(`-include-ignored`) 따로 세지 않으면 이 층이 못 본다.
+        .filter(|c| c.contains("--ignored") || c.contains("--include-ignored"))
         .collect();
 
     let doc_text = std::fs::read_to_string(root.join(CLAIM_DOC))
@@ -2590,7 +2592,7 @@ fn the_gui_suite_channel_claim_points_the_same_way_as_the_workflows() {
     if firing.is_empty() {
         assert!(
             says_absent,
-            "워크플로의 자동 잡 어디에도 `--ignored` 가 없는데 {CLAIM_DOC} 에서 \
+            "워크플로의 자동 잡 어디에도 `--ignored`·`--include-ignored` 가 없는데 {CLAIM_DOC} 에서 \
              '{ABSENCE_CLAIM}' 표지가 사라졌다.\n\
              그 표지가 이 방향의 **값 자리**다 — 없으면 이 층은 지킬 것이 없는 채로 \
              언제나 초록이 된다. 채널을 안 두기로 한 결정이면 그 문장을 되살리고, \
@@ -2599,7 +2601,7 @@ fn the_gui_suite_channel_claim_points_the_same_way_as_the_workflows() {
     } else {
         assert!(
             !says_absent,
-            "자동 잡이 `--ignored` 를 넘긴다 — 즉 `gui_tests` 에 자동 실행 채널이 \
+            "자동 잡이 `--ignored`·`--include-ignored` 를 넘긴다 — 즉 `gui_tests` 에 자동 실행 채널이 \
              생겼다:\n  {}\n\
              그런데 {CLAIM_DOC} 은 아직 '{ABSENCE_CLAIM}' 라고 적고 있다.\n\
              채널을 넣는 결정의 부수효과로 문서가 조용히 거짓이 되는 자리다 — \

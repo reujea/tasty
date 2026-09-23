@@ -2289,9 +2289,9 @@ false 로 되돌리며 `AppEvent::OpenSettings` 로 바꾼다. 키보드 경로�
 | `--ignored` 를 줘도 나오는 수 | `the_gui_ignored_layer_has_no_single_value` |
 
 **넷째는 값의 층이 아니라 방향의 층이다.** 위 셋은 전부 소스와 이 문서만 읽어서, 워크플로
-쪽에서 누가 `-- --ignored` 를 넣으면 셋 다 통과하는데 둘째 층의 서술은 거짓이 된다.
+쪽에서 누가 `-- --ignored`(또는 `--include-ignored`)를 넣으면 셋 다 통과하는데 둘째 층의 서술은 거짓이 된다.
 `the_gui_suite_channel_claim_points_the_same_way_as_the_workflows` 가 그 자리를 막는다 —
-자동 잡이 `--ignored` 를 넘기는가와 이 문서가 부재를 적고 있는가가 **같은 방향인가**만
+자동 잡이 `--ignored`·`--include-ignored` 중 하나라도 넘기는가와 이 문서가 부재를 적고 있는가가 **같은 방향인가**만
 묻는다. 채널을 넣기로 하면 문서가 부재 표지를 걷어야 하고, 안 넣기로 하면 그 표지가 그
 결정을 지키는 자리가 된다. 수동 전용 잡은 안 본다 — 물음이 "자동 채널" 이기 때문이다.
 
