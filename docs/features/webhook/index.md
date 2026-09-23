@@ -1,7 +1,7 @@
 # 웹훅 (Inbound webhook listener)
 
 - **Status**: Implemented
-- **주체**: 로컬 사용자 · AI Agent (`webhook.*`, local-only)
+- **주체**: 로컬 사용자 · AI Agent (`webhook.*` — `register` 만 plugin 허용(`Network` 권한), 나머지 local-only)
 - **ADR**: [ADR-0046](../../adr/0046-webhook-owner-trust-one-way-ack.md)(신뢰 모델·불변식) · [ADR-0047](../../adr/0047-shared-hook-handler-registry-source-gate.md)(공유 핸들러 레지스트리)
 - **코드**: `src/webhook/`(리스너·레지스트리·lifetime·인증·남용차단·영속화) · `src/adapters/ipc/handler/webhook.rs`(IPC) · `crates/tasty-cli/src/commands/webhook.rs`(CLI)
 - **화면**: 없음 — headless 전용(경고는 기존 toast/`tracing::warn!` 재사용)
@@ -103,11 +103,11 @@ JSON 처리에 허용하는 요청 body 는 **기본 1 MiB** 까지다. `read_js
 
 ### 부팅 초기화
 
-공용 헬퍼 `webhook::init_from_config(injector)` 를 두 진입점에서 호출한다 — GUI 는 `window_lifecycle` 의 `start_ipc`/injector 확보 직후, headless 는 `boot` 의 IPC 시작 이후. 두 전제(core config 로드 + 메인 루프 IPC 처리 가능)를 만족한 시점이다. 중복 호출은 리스너 내부 bind 가드로 무해하다. init 후 `Persistent` 웹훅을 복원한다.
+공용 헬퍼 `webhook::init_from_config(injector)` 를 두 진입점에서 호출한다 — GUI 는 `src/app/boot_machine.rs` 의 `start_ipc`/injector 확보 직후, headless 는 `boot` 의 IPC 시작 이후. 두 전제(core config 로드 + 메인 루프 IPC 처리 가능)를 만족한 시점이다. 중복 호출은 리스너 내부 bind 가드로 무해하다. init 후 `Persistent` 웹훅을 복원한다.
 
 ## 인터페이스
 
-전부 **`local_only`** — plugin 은 호출할 수 없고 CLI/로컬 클라이언트만 가능하다. 포커스 독립(대상은 `id` 로 지정, `list` 는 전 범위 순회).
+`webhook.register` 는 plugin 도 호출할 수 있고(`Network` 권한), 나머지는 **`local_only`** — CLI/로컬 클라이언트만 가능하다. 포커스 독립(대상은 `id` 로 지정, `list` 는 전 범위 순회).
 
 | IPC | CLI | 동작 |
 |-----|-----|------|
@@ -129,7 +129,7 @@ JSON 처리에 허용하는 요청 body 는 **기본 1 MiB** 까지다. `read_js
 - **HTTPS/TLS 종단** — 리버스 프록시/공유기에 위임(사용자 요구가 "포워딩은 OS/공유기 몫").
 - **외부 발신자의 조회/응답 채널** — 응답은 ACK 전용. 내부 상태 조회는 로컬 소유자 채널(`list`/`info`)로만.
 - **웹훅에서의 OS 셸 실행** — 셸(`ShellCommand`)은 기존 훅(source `hook`) 전용, 웹훅 바인딩 불가. 셸 핸들러가 훅 트리거/수동 발화로 실행될 때 받는 `TASTY_HOOK_*` env 목록은 [hooks 문서의 셸 핸들러 환경변수 절](../hooks/index.md#셸-핸들러-환경변수-tasty_hook_) 참조.
-- **plugin 의 웹훅 등록** — 현재 `webhook.*` 는 local-only(plugin 미노출).
+- **plugin 의 웹훅 관리** — 현재 plugin 은 `webhook.register` 만 호출할 수 있다(나머지는 local-only).
 - **plugin 프로세스의 직접 소켓 소유** — 코어가 소켓을 소유한다.
 - **웹훅 외 프로토콜(raw TCP 등)** — HTTP 웹훅으로 확정.
 
