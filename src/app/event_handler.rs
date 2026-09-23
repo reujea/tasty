@@ -686,9 +686,10 @@ impl App {
 
     /// `resumed()` 의 GPU 초기화. 어댑터가 아예 없으면(드라이버 미설치 등 정상적으로
     /// 발생 가능한 환경 문제) panic(크래시 리포트 대상) 대신 사람이 읽을 진단을
-    /// `tracing::error!`(stderr + 파일 로그)로 내고 정상 종료한다 — 부팅 창 생성·엔진
-    /// 생성 실패와 같은 처리다(ADR-0117). 그 외 에러는 예상 밖 실패이므로 panic 시켜
-    /// 크래시 리포팅 경로를 유지한다.
+    /// `tracing::error!`(stderr + 파일 로그)로 내고 정상 종료한다 — 부팅 창 생성 실패와
+    /// 같은 처리다(ADR-0117). 엔진 생성 실패는 이 단계와 달리 창·GPU 가 살아 있어
+    /// 종료하지 않고 실패 화면을 그린다(`enter_boot_error_mode`). 그 외 에러는 예상 밖
+    /// 실패이므로 panic 시켜 크래시 리포팅 경로를 유지한다.
     fn try_init_boot_gpu(
         &mut self,
         window: &std::sync::Arc<winit::window::Window>,
