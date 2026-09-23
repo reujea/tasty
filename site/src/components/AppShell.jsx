@@ -59,19 +59,19 @@ const userSession = {
   // plain-text mirror of `lines` — what the search bar matches against
   plainLines: [
     "~/tasty main via v1.84",
-    "❯ tasty list surfaces --json | jq '.[].kind'",
-    '"terminal"', '"markdown"', '"terminal"',
+    "❯ tasty list surfaces | jq '.[].type'",
+    '"Terminal"', '"Explorer"', '"Terminal"',
     "~/tasty main via v1.84",
-    "❯ tasty read since-mark --surface s_01HX",
+    "❯ tasty read since-mark --surface 12",
   ],
   lines: [
     <Prompt branch="main" />,
-    <><span style={{ color: c.mauve }}>❯</span> tasty list surfaces --json | jq '.[].kind'</>,
-    t(c.green)('"terminal"'),
-    t(c.green)('"markdown"'),
-    t(c.green)('"terminal"'),
+    <><span style={{ color: c.mauve }}>❯</span> tasty list surfaces | jq '.[].type'</>,
+    t(c.green)('"Terminal"'),
+    t(c.green)('"Explorer"'),
+    t(c.green)('"Terminal"'),
     <Prompt branch="main" />,
-    <><span style={{ color: c.mauve }}>❯</span> tasty read since-mark --surface s_01HX</>,
+    <><span style={{ color: c.mauve }}>❯</span> tasty read since-mark --surface 12</>,
   ],
 };
 
