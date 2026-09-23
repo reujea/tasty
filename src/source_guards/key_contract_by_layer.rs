@@ -23,6 +23,13 @@
 //!   (`ipc_step_debug_layers`)으로 부르며, 그 묶음은 두 step 보다 먼저 `run_app_layer` 를 부른다.
 //! - GUI 라우터와 헤드리스의 namespace forward 는 `forward_namespace_call` 을
 //!   `forward_keeping_the_key` 의 **인자 안에서만** 부른다.
+//! - 세 자리(두 forward · debug 묶음)가 보존소 함수에 넘기는 relay closure 는 **자기 인자만**
+//!   쓴다 — 보존소에 넘긴 바깥 명령 바인딩을 본문에서 쓰지 않는다. 쓰면 키를 뗀 사본과 relay
+//!   통로가 버려지고 답이 원 통로로 나가 결말이 기록되지 않는다.
+//! - debug 묶음의 `handled` 판정 closure 는 자기 인자를 `IpcStep::Handled` 와 견준다 — "늘
+//!   맡았다" 가 되면 안 맡은 이름의 자리를 맡은 것으로 닫는다.
+//!
+//! closure 쪽 두 판정은 주석·문자열을 덮은 사본(`mask_non_code`)에서 식별자 경계로 한다.
 //!
 //! 뒤쪽이 텍스트로 재는 것은 "부르는 자리의 모양" 까지다 — 그 함수가 옳게 판정하는지는
 //! `idempotency` 모듈의 시험이 행동으로 잰다. 둘이 합쳐서 "그 경로의 재시도가 한 번만 실행된다"
@@ -43,7 +50,7 @@ use tasty_ipc::method_meta::{
 };
 
 use super::headless_app_layer_coverage::{headless_dispatch_code, method_literals};
-use super::{fn_body, repo_root, strip_comments};
+use super::{fn_body, mask_non_code, repo_root, strip_comments, word_positions};
 
 const GUI_DISPATCH: &str = "src/app/ipc.rs";
 const GUI_ROUTING: &str = "src/app/ipc/routing.rs";
@@ -261,4 +268,172 @@ fn both_namespace_forwards_go_through_the_store() {
             "{rel}: `forward_namespace_call` 이 보존소 함수 밖에 있다"
         );
     }
+}
+
+/// 호출 인자 목록을 **최상위** `,` 로 가른다 — 괄호 안의 `,` 는 그 인자의 것이다.
+fn top_level_args(args: &str) -> Vec<&str> {
+    let mut out = Vec::new();
+    let mut depth = 0usize;
+    let mut from = 0usize;
+    for (i, c) in args.char_indices() {
+        match c {
+            '(' | '[' | '{' => depth += 1,
+            ')' | ']' | '}' => depth = depth.saturating_sub(1),
+            ',' if depth == 0 => {
+                out.push(&args[from..i]);
+                from = i + 1;
+            }
+            _ => {}
+        }
+    }
+    if !args[from..].trim().is_empty() {
+        out.push(&args[from..]);
+    }
+    out
+}
+
+/// `|p| 본문` 모양의 closure 인자를 (매개변수 이름, 본문) 으로. 타입 표기(`p: &T`)는 뗀다.
+fn closure_parts(arg: &str) -> Option<(&str, &str)> {
+    let s = arg.trim();
+    let s = s.strip_prefix("move").map_or(s, str::trim_start);
+    let s = s.strip_prefix('|')?;
+    let end = s.find('|')?;
+    let param = s[..end].split(':').next()?.trim();
+    Some((param, &s[end + 1..]))
+}
+
+/// 보존소 함수에 넘기는 closure 하나를 재는 자리.
+struct StoreCall {
+    rel: &'static str,
+    /// 이 함수 본문 안에서 찾는다. `None` 이면 파일 전체.
+    scope_fn: Option<&'static str>,
+    call: &'static str,
+}
+
+/// 세 자리 — 두 조합의 forward 와 GUI 의 debug 묶음. 셋 다 `(caller, 명령, …, closure)` 모양이다.
+const STORE_CALLS: &[StoreCall] = &[
+    StoreCall {
+        rel: GUI_ROUTING,
+        scope_fn: None,
+        call: "forward_keeping_the_key(",
+    },
+    StoreCall {
+        rel: HEADLESS_DISPATCH,
+        scope_fn: None,
+        call: "forward_keeping_the_key(",
+    },
+    StoreCall {
+        rel: GUI_DISPATCH,
+        scope_fn: Some("fn ipc_step_debug_layers"),
+        call: "run_app_layer(",
+    },
+];
+
+/// 주석·문자열을 덮은 사본에서 그 호출의 최상위 인자들.
+fn store_call_args(site: &StoreCall) -> Vec<String> {
+    let masked = mask_non_code(shipped(&read(site.rel)));
+    let scope = match site.scope_fn {
+        Some(sig) => fn_body(&masked, sig)
+            .unwrap_or_else(|| panic!("{}: `{sig}` 본문을 못 잘랐다", site.rel)),
+        None => masked,
+    };
+    let args = call_args(&scope, site.call)
+        .unwrap_or_else(|| panic!("{}: `{}` 를 안 부른다", site.rel, site.call));
+    top_level_args(args)
+        .into_iter()
+        .map(str::to_string)
+        .collect()
+}
+
+/// 보존소 함수에 넘기는 relay closure 가 **자기 인자만** 쓴다 — 바깥의 명령 바인딩을 쓰지 않는다.
+///
+/// 보존소는 처음 보는 키면 **키를 뗀 사본**에 relay 통로를 달아 closure 에 넘긴다. closure 가
+/// 그 인자 대신 바깥 명령(보존소에 넘긴 둘째 인자)을 쓰면 두 형태로 깨진다 — 원 통로로 답이
+/// 나가 relay 가 결말을 기록하지 못하거나(재시도가 두 번째 실행이 된다), 키를 단 원 명령이
+/// 같은 층으로 돌아와 자기 진행 중 자리에 합류한다. 둘 다 컴파일되고 단위 시험은 closure 를
+/// 시험이 직접 만들므로 못 본다 — 그래서 호출 자리의 모양을 잰다.
+///
+/// 판정은 주석·문자열을 덮은 사본(`mask_non_code`)에서 식별자 경계로 한다 — 주석이 바깥
+/// 바인딩을 설명하려고 인용해도 세지 않는다.
+#[test]
+fn the_relay_closure_uses_only_its_own_argument() {
+    for site in STORE_CALLS {
+        let args = store_call_args(site);
+        assert!(
+            args.len() >= 3,
+            "{}: `{}` 의 인자를 {} 개만 읽었다 — 추출이 망가졌다: {args:?}",
+            site.rel,
+            site.call,
+            args.len()
+        );
+        let outer = args[1].trim();
+        assert!(
+            !outer.is_empty() && outer.chars().all(|c| c.is_alphanumeric() || c == '_'),
+            "{}: 보존소에 넘기는 명령이 바인딩 하나가 아니다(`{outer}`) — 이 가드의 전제가 깨졌다",
+            site.rel
+        );
+        let last = args.last().expect("길이를 위에서 쟀다");
+        let (param, body) = closure_parts(last).unwrap_or_else(|| {
+            panic!(
+                "{}: 마지막 인자가 `|인자| 본문` closure 가 아니다: `{}`",
+                site.rel,
+                last.trim()
+            )
+        });
+        assert!(
+            !param.starts_with('_') && !word_positions(body, param).is_empty(),
+            "{}: relay closure 가 자기 인자 `{param}` 를 안 쓴다 — 보존소가 넘긴 키를 뗀 사본과 \
+             relay 통로가 버려진다",
+            site.rel
+        );
+        assert!(
+            word_positions(body, outer).is_empty(),
+            "{}: relay closure 가 바깥 명령 `{outer}` 를 쓴다 — `{param}` 를 써야 한다(원 통로로 \
+             답이 나가면 결말이 기록되지 않는다)",
+            site.rel
+        );
+    }
+}
+
+/// GUI debug 묶음의 `handled` 판정이 **`IpcStep::Handled` 를 실제로 본다.**
+///
+/// 이 판정이 "늘 맡았다" 가 되면, debug step 이 안 맡은 이름도 연 자리를 맡은 것으로 닫아
+/// 다음 층(라우터 등)이 같은 키를 또 판정한다 — 한 요청이 실행 수를 두 번 올린다(ADR-0422).
+/// 판정 closure 가 자기 인자를 쓰고 그 인자를 `IpcStep::Handled` 와 견주는지 모양으로 잰다.
+#[test]
+fn the_debug_layers_judge_handled_by_the_step() {
+    let site = STORE_CALLS
+        .iter()
+        .find(|s| s.rel == GUI_DISPATCH)
+        .expect("위 표에 debug 묶음이 있다");
+    let args = store_call_args(site);
+    // `run_app_layer(caller, cmd, answered, handled, dispatch)` — 넷째가 판정이다.
+    assert_eq!(
+        args.len(),
+        5,
+        "{}: `run_app_layer` 인자가 다섯이 아니다 — 시그니처가 바뀌었으면 이 가드를 같이 고친다: {args:?}",
+        site.rel
+    );
+    let (param, body) = closure_parts(&args[3]).unwrap_or_else(|| {
+        panic!(
+            "{}: 판정 인자가 closure 가 아니다: `{}`",
+            site.rel,
+            args[3].trim()
+        )
+    });
+    assert!(
+        !param.starts_with('_') && !word_positions(body, param).is_empty(),
+        "{}: 판정 closure 가 자기 인자 `{param}` 를 안 본다 — 어느 step 결과든 같은 답이 된다",
+        site.rel
+    );
+    // 경로 사이 공백(`IpcStep :: Handled`)도 같은 것이라 공백을 걷고 식별자 경계로 찾는다 —
+    // `IpcStep::HandledDirty` 는 다른 갈래다.
+    let compact: String = body.chars().filter(|c| !c.is_whitespace()).collect();
+    let handled = !word_positions(&compact, "IpcStep::Handled").is_empty();
+    assert!(
+        handled,
+        "{}: 판정 closure 가 `IpcStep::Handled` 를 안 본다: `{}`",
+        site.rel,
+        body.trim()
+    );
 }

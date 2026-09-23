@@ -99,6 +99,11 @@ capability 판 숫자 하나만 바뀐다는 조항.
   `source_guards::key_contract_by_layer::both_namespace_forwards_go_through_the_store` 가 잡는다.
 - GUI dispatch 가 debug step 을 보존소 밖에서 부르게 되면 같은 모듈의
   `the_gui_debug_steps_run_behind_the_store` 가 잡는다.
+- 세 자리(두 forward · debug 묶음)가 보존소에 넘기는 relay closure 가 자기 인자(키를 뗀 사본) 대신
+  바깥 명령을 쓰게 되면 — 답이 원 통로로 나가 결말이 기록되지 않거나 키를 단 명령이 제 자리에 합류한다 —
+  같은 모듈의 `the_relay_closure_uses_only_its_own_argument` 가, debug 묶음의 `handled` 판정이
+  `IpcStep::Handled` 를 안 보게 되면 `the_debug_layers_judge_handled_by_the_step` 가 잡는다. 둘 다
+  호출 자리의 모양을 재는 텍스트 가드이고, 그 closure 를 실제 dispatch 로 돌려 재는 행동 시험은 없다.
 - 예약 밖 prefix 의 `Mutate` 와 판 3 선언이 갈리면
   `method_meta::tests::a_host_mutation_under_a_claimable_prefix_is_kept_from_version_three` 가, debug step
   의 `Mutate` 와 갈리면 `key_contract_by_layer::the_debug_step_mutations_are_exactly_the_debug_names_kept_from_version_three`
