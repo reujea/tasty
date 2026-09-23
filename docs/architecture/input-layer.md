@@ -144,13 +144,13 @@ egui 는 `egui::Order` enum(`Background` / `Middle` / `Foreground` / `Tooltip` /
 |------|------|-----------|
 | `AppState::keyboard_overlay_open()` (`src/state.rs`, 순수 술어는 같은 파일 하단) | settings + input dialog + focused host popup + plugin popup | 키/IME 를 host egui 로 들여보낼지(= 터미널 포워딩을 막을지) |
 | `MainView::mouse_overlay_open()` (`src/view/main/mouse.rs`) | settings + **무대** | 이 마우스 이벤트를 뒤 세계 좌표로 처리할지 |
-| `AppState::has_egui_overlay_open()` (`src/state.rs`) | settings + plugins + dialog + popup(any) + **무대** | WebView(OS 네이티브 자식 뷰)를 숨길지 |
+| `AppState::has_egui_overlay_open()` (`src/state.rs`) | dialog + plugin popup + popup(visible) + **무대** + tutorial | WebView(OS 네이티브 자식 뷰)를 숨길지 |
 
 왜 조합이 다른가:
 
 - **키보드/IME 경로** 는 "이 키 이벤트를 egui 로 줄지, 중앙 디스패처(터미널/단축키)로 줄지" 를 결정하는 라우팅 전제 질문이다. 이 앱은 키를 기본적으로 egui 에 주지 않으므로, "지금 텍스트 입력을 받는 오버레이가 있는가" 라는 넓은 정의가 필요하다.
 - **마우스** 는 `src/view/main.rs` 의 이벤트 분기에서 **항상 무조건** egui 로 먼저 전달되고 `egui_consumed` 로 결과를 받는다 — 라우팅 전제 자체가 없다. Popup 위 클릭은 이미 `egui_consumed`/`popup_hovered`(위치 기반)로 정확히 처리되므로, 여기 남은 항은 **모달(별도 OS 창) 전용** 보강 게이트일 뿐이다. `has_input_dialog_open()`(rename, popup 시스템으로 구현됨)과 `popups.has_focused()` 는 정책상 Popup 이 비모달이라 위치 밖 클릭까지 막을 이유가 없어 안 들어간다.
-- **WebView** 는 입력이 아니라 **표시** 질문이다. WebView 는 OS 네이티브 자식 뷰라 wgpu 표면 **위**에 있어 "안 그리는 것" 만으로는 사라지지 않는다 — `set_visible(false)` 가 필요하고 그 게이트가 이 함수다. 그래서 popup 을 `has_focused()` 가 아니라 `has_any_open()` 으로 넓게 본다.
+- **WebView** 는 입력이 아니라 **표시** 질문이다. WebView 는 OS 네이티브 자식 뷰라 wgpu 표면 **위**에 있어 "안 그리는 것" 만으로는 사라지지 않는다 — `set_visible(false)` 가 필요하고 그 게이트가 이 함수다. 그래서 popup 을 `has_focused()` 가 아니라 `has_visible_open()` 으로 넓게 본다.
 
 **plugin egui-mesh popup 의 키보드 계층**: 이 popup 은 host `PopupManager` 소속이 아니라 `popups.has_focused()` 로 잡히지 않지만, 키보드 계층에서는 **focused host popup 과 동급**이다 — 열려 있으면 키/IME 가 egui 로 들어가고 터미널로는 안 간다. 그 **키와 IME 조합**은 `collect_mesh_popup_input` 이 `ctx.input` 에서 긁어 plugin 프로세스로 forward 하므로, 게이트가 닫혀 있으면 forward 소스가 비어 입력이 통째로 터미널로 샌다. IME 는 조합 세션 네 단계를 전부 나른다 — Commit 만 실으면 egui `TextEdit` 이 조합 결과를 조용히 버린다([egui-mesh-channel § 입력 게이트](../dev-guide/egui-mesh-channel.md)). 게이트 지점(winit 이벤트 핸들러)은 `PluginManager` 에 접근할 수 없어 `AppState.plugin_popup_open` 캐시를 읽는다 — 마우스 쪽 `popup_hovered` 와 같은 프레임 간 전달 패턴이다(위 "프레임 간 전달" 절). 같은 술어를 IME 라우팅(`view::main::ime`)과 plugin surface 단축키 게이트(`app::plugin_glue::shortcut`)도 공유한다. 예외는 `set_ime_allowed` 판정(`gfx/gpu.rs`) 하나 — plugin popup 은 host egui 위젯이 없어 IME 를 끄면 popup 안에서 조합 입력을 못 하게 되므로 제외한다. 겹친 popup 중 **누가** 키를 갖는지는 [popup.md § Host ↔ Plugin popup z-order](../design/systems/popup.md#host--plugin-popup-z-order) 의 Esc 소유권 규칙을 따른다.
 
@@ -158,7 +158,7 @@ egui 는 `egui::Order` enum(`Background` / `Middle` / `Foreground` / `Tooltip` /
 
 `has_egui_overlay_open` 에 무대가 들어가 있어도 나머지 둘은 각자의 식을 본다 — 그 함수의
 프로덕션 소비처는 WebView 표시 하나뿐이다. 게다가 `keyboard_overlay_open()` 은 **정의가
-하나인데 소비 지점이 다섯**이고, 그 다섯이 무대에 대해 같은 답을 필요로 하지 않는다. 그래서
+하나인데 소비 지점이 여섯**이고, 그 여섯이 무대에 대해 같은 답을 필요로 하지 않는다. 그래서
 무대는 지점마다 명시적으로 배선한다 — 아래 여덟 곳이 전부다.
 
 | # | 지점 | 무대 항 | 근거 |
