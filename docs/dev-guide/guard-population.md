@@ -100,7 +100,7 @@ ADR-0133 의 처방은 동적 모수를 겨눈다. 정적 모수에는 그대로
 그 밖까지 센 목록이 아니다.** 판정기의 `fn_bodies` 는 이름이 같은 정의를 **전부** 돌려준다.
 그것을 쓰는 소비자는 받은 정의를 전부 돌거나(release 표 가드 · 액션 문 · 합산 명부 · 창 라우터
 호출자 명부 · 단축키 표 대조 — `#[cfg]` 로 갈린 둘째 정의의 팔도 대조한다) 정확히 하나를
-요구한다(권한 토큰 판독 — 둘이면 실패한다). 반면 아래 두 자리는 **첫 정의만** 본다 — 이름이
+요구한다(권한 토큰 판독 — 둘이면 실패한다). 반면 아래 두 헬퍼는 **첫 정의만** 본다 — 이름이
 같은 정의가 `#[cfg]` 로 갈려 둘 있으면 둘째 정의 본문은 대조를 안 받고, 첫 정의가 꺼진 쪽이면
 살아 있는 정의가 통째로 안 보인다.
 
@@ -113,13 +113,28 @@ ADR-0133 의 처방은 동적 모수를 겨눈다. 정적 모수에는 그대로
 - `src/source_guards/routing_key_method_scope.rs` 의 `fn_index` 와 그것이 부르는 사설
   `fn_bodies` — **판정기의 `fn_bodies` 와 이름만 같은 다른 함수다.** 주석만 지운 원문에서
   `fn ` 을 찾아 정의를 전부 뽑지만, `fn_index` 가 (모듈, 함수 이름) 을 열쇠로 `or_insert` 해
-  같은 모듈의 같은 이름은 먼저 나온 것만 남긴다. 그래서 그 파일의 두 테스트
-  (`every_method_scoped_key_is_read_only_where_it_routes` · `the_four_layers_partition_every_pair`)
-  가 이 사각을 갖는다. 재는 법: `handler.rs` 의 `handle_system_info` 첫 정의 본문에
-  `let params = serde_json::json!({}); let _zz = params.get("observer_id").and_then(|v| v.as_u64());`
-  를 넣으면 두 테스트가 빨개지고 실패문이 `("system.info", "observer_id")` 를 찍는다(양성
-  대조). 같은 읽기를 그 뒤에 둔 `#[cfg(any())]` 둘째 `fn handle_system_info` 에만 넣으면 그
-  파일의 테스트 7 개가 초록으로 남는다.
+  같은 모듈의 같은 이름은 먼저 나온 것만 남긴다. 그래서 `fn_index` 의 결과를 쓰는 테스트가
+  전부 이 사각을 갖는다. `fn_index` 는 `pub(super)` 라 그 파일 밖에서도 부른다 — 소비자는
+  이름을 적어 두지 않고 `git grep -n 'fn_index(' -- src` 로 호출 자리를 센 뒤 각 자리를 감싼
+  함수의 호출자를 따라가 센다. 작업 트리 기준으로는 그 파일의 `method_id_keys` 를 거치는
+  `every_method_scoped_key_is_read_only_where_it_routes` · `the_four_layers_partition_every_pair`
+  와, `src/source_guards/unrouted_dispatch_reasons.rs` 의 `unrouted_methods` 를 거치는
+  `every_unrouted_method_is_classified` 다. 재는 법 둘:
+  - `handler.rs` 의 `handle_system_info` 첫 정의 본문에
+    `let params = serde_json::json!({}); let _zz = params.get("observer_id").and_then(|v| v.as_u64());`
+    를 넣으면 앞의 두 테스트가 빨개지고 실패문이 `("system.info", "observer_id")` 를 찍는다(양성
+    대조). 같은 읽기를 그 뒤에 둔 `#[cfg(any())]` 둘째 `fn handle_system_info` 에만 넣으면 그
+    파일의 테스트 7 개가 초록으로 남는다.
+  - `src/adapters/ipc/handler/hook_handler.rs` 의 `handle_reload` 첫 정의 본문에 범용 키
+    `surface_id` 를 읽는 줄을 넣으면 `every_unrouted_method_is_classified` 가 빨개진다(양성
+    대조 — 그 파일은 3 통과 · 1 실패, rc 101). 같은 읽기를 그 함수 뒤에 둔 `#[cfg(any())]` 둘째
+    `fn handle_reload` 에만 넣으면 그 파일의 테스트 4 개가 초록으로 남는다.
+- 위 두 헬퍼를 거치지 않고 본문 안에서 `find("fn <이름>")` 으로 첫 정의를 곧장 찾는 자리도
+  있다 — `routing_key_method_scope.rs` 의 `generic_keys_all` · `scoped_pairs` 와 같은 파일의
+  `find("fn method_scoped_resource_id")`, `src/source_guards/dispatch_name_literals.rs` 의
+  `param_index_at_call`. 코드상으로는 같은 모양의 사각이지만 **변이를 걸어 재지 않았다.** 이
+  목록은 헬퍼 단위로 세었으므로 이것들은 위 두 불릿에 안 들고, 이 절 머리의 "그 밖까지 센 목록이
+  아니다" 로만 덮인다 — 재면 불릿으로 올린다.
 
 이것은 렉서 위의 구조 주사이지 Rust 문법 파서가 아니다. `syn` 을 안 쓰는 이유는
 `crates/tasty-doc-guards/src/match_arms.rs` 의 모듈 doc 에 있다 — 소비자 일부가 의존 0 인
