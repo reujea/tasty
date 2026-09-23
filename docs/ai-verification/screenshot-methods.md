@@ -342,18 +342,8 @@ PointerRoot 모델이 구해 주는 것은 **포인터**뿐이다. 키보드 포
 판정하면 "쳤는데 필터가 안 먹는다" 로 오진한다.
 
 그래서 `TextEdit` 에 쿼리를 넣어 **목록이 줄어든 화면**을 찍으려면 egui 입력 큐로 직접
-주입한다:
-
-```bash
-tasty debug host-popup open --popup-id command_palette
-tasty debug inject egui-text --text split      # {"injected":true} 를 확인한다
-tasty screenshot --window "$WIN" --path /tmp/palette-filtered.png
-```
-
-`{"injected":false}` 면 그 문자열이 실입력 경로가 나를 수 없는 것이다(제어문자 · 빈
-문자열). Enter·↑↓·Esc 같은 **키**는 문자가 아니므로 `tasty debug inject egui-key --key Enter`
-쪽이다 — 둘은 egui 에서도 다른 이벤트라, 한쪽으로 다른 쪽을 대신할 수 없다.
-상세는 [debug-ipc.md](../dev-guide/debug-ipc.md) "문자 주입은 키 주입과 다른 채널이다".
+주입한다(`tasty debug inject egui-text`). 절차·거절 조건은
+[debug-ipc.md](../dev-guide/debug-ipc.md) "문자 주입은 키 주입과 다른 채널이다" 가 정본이다.
 
 그 밖에 이 조합에서 지키는 것:
 
