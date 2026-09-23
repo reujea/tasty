@@ -131,22 +131,31 @@ capability 판 숫자 하나만 바뀐다는 조항.
   같은 모듈의 `the_relay_closure_uses_only_its_own_argument` 가, debug 묶음의 `handled` 판정이
   `IpcStep::Handled` 를 안 보게 되면 `the_debug_layers_judge_handled_by_the_step` 가 잡는다. 둘 다
   호출 자리의 모양을 재는 텍스트 가드이고, 그 closure 를 실제 dispatch 로 돌려 재는 행동 시험은 없다.
-- **네 배선 자리(GUI debug · GUI window-required · GUI forward · 헤드리스 forward)를 지키는 것은 위의
-  텍스트 가드뿐이다.** 자리마다 보존소 호출을 떼는 변이를 `cargo test -p tasty --lib` 전량(헤드리스
-  forward 는 `--no-default-features` 전량도)으로 쟀을 때 빨개진 것은 `key_contract_by_layer` 의 가드
-  하나~셋이고, 그 자리를 실제 dispatch 로 부르는 시험은 하나도 없었다(2026-09-23 실측).
-- **debug 두 step 의 가드는 `ipc_dispatch_command` 본문 안만 본다.** 그 본문 **밖**, `process_ipc`
-  루프에서 `let step = self.ipc_dispatch_command(cmd);` 앞에 `self.ipc_step_debug(&cmd)` 나
+- **네 배선 자리(GUI debug · GUI window-required · GUI forward · 헤드리스 forward)의 보존소 호출을 옮기거나
+  감싸는 리팩토링이 오면** 이 결정을 다시 잰다. 지금 그 자리들을 지키는 것은 위의 텍스트 가드뿐이라, 가드가
+  읽는 호출 모양 밖으로 보존소를 비껴가는 변경은 아무 시험도 못 잡는다 — 자리마다 보존소 호출을 떼는 변이를
+  `cargo test -p tasty --lib` 전량(헤드리스 forward 는 `--no-default-features` 전량도)으로 쟀을 때 빨개진
+  것은 `key_contract_by_layer` 의 가드뿐이었고, 그 자리를 실제 dispatch 로 부르는 시험은 없었다(2026-09-23
+  실측). 다시 재는 법: 그 커밋에서 같은 변이를 자리마다 붙여 두 조합 전량을 돌리고, 가드 말고 빨개지는
+  시험이 있는지 본다. 자리를 실제 dispatch 로 부르는 행동 시험이 서면 이 불릿은 그 시험 이름을 가리키는
+  쪽으로 바뀐다.
+- **GUI 의 IPC 루프(`process_ipc`)를 고치게 되면** 이 결정을 다시 잰다. debug 두 step 의 가드는
+  `ipc_dispatch_command` 본문 안만 보므로, 그 본문 **밖**, `process_ipc` 루프에서
+  `let step = self.ipc_dispatch_command(cmd);` 앞에 `self.ipc_step_debug(&cmd)` 나
   `self.ipc_step_window_required(&cmd)` 를 먼저 부르는 변이는 보존소를 건너뛰는데도 `cargo test -p tasty
-  --lib --locked --no-fail-fast` 전량이 기준선과 같은 결과다(두 변이 모두 `2728 passed; 1 failed`,
-  실패 1 건은 변이와 무관한 기존 실패, 2026-09-23 실측). 묶음 **안에서** 보존소보다 먼저 부르는 변이는
-  `the_gui_debug_steps_run_behind_the_store` 가 잡는다.
-- **forward 의 `handled` 판정과 진행 중 합류에는 시험이 없다.** `forward_keeping_the_key` 가
-  `run_app_layer` 에 넘기는 `|_| true` 를 `|_| false` 로 바꾸는 변이는 위 전량에서 살아남는다(같은
-  실측). 그 변이는 forward 직후 연 자리를 닫으므로, 판독상 plugin 이 답하기 **전에** 온 같은 키의
-  재시도가 합류하지 않고 plugin 으로 한 번 더 나간다 — 위 `a_forwarded_host_method_runs_once_per_key_and_the_retry_is_a_replay`
-  는 첫 답이 온 **뒤에** 재시도를 보내므로 그 갈래를 못 본다. 합류 기구 자체는 App 층 시험이 재지만,
-  forward 자리의 술어는 아무도 안 잰다.
+  --lib --locked --no-fail-fast` 전량이 기준선과 같은 결과다(아무 시험도 새로 빨개지지 않았다, 2026-09-23
+  실측). 그 변이는 `ipc_dispatch_command` 를 통째로 건너뛰므로 보존소만이 아니라 caller gate
+  (`gates_before_routing`)와 기한 판정(`ipc_round::claim_or_answer`)도 건너뛰고, 그것 역시 아무 시험이 안
+  잡는다 — 사각은 멱등 하나가 아니라 셋이다. 묶음 **안에서** 보존소보다 먼저 부르는 변이는
+  `the_gui_debug_steps_run_behind_the_store` 가 잡는다. 다시 재는 법: 루프를 고친 커밋에서 위 두 변이를
+  붙여 전량을 기준선과 견준다. 그 가드의 음의 단언이 `ipc_dispatch_command` 본문에서 `src/app/` 출하 코드
+  전체(묶음 함수 본문 제외)로 넓어지면 이 불릿은 그 가드 이름을 가리키는 쪽으로 바뀐다.
+- forward 자리의 `handled` 판정이 자리를 열어 둔 채 두지 않게 되면 — `forward_keeping_the_key` 가
+  `run_app_layer` 에 넘기는 `|_| true` 가 `false` 를 내게 되면, forward 직후 자리가 닫혀 plugin 이 답하기
+  **전에** 온 같은 키의 재시도가 합류하지 않고 plugin 으로 한 번 더 나간다 —
+  `idempotency::tests::a_retry_before_the_plugin_answers_joins_the_running_forward` 가 잡는다. 위
+  `a_forwarded_host_method_runs_once_per_key_and_the_retry_is_a_replay` 는 첫 답이 온 **뒤에** 재시도를
+  보내므로 그 갈래를 못 본다.
 - 예약 밖 prefix 의 `Mutate` 와 판 3 선언이 갈리면
   `method_meta::tests::a_host_mutation_under_a_claimable_prefix_is_kept_from_version_three` 가, debug step
   의 `Mutate` 와 갈리면 `key_contract_by_layer::the_debug_step_mutations_are_exactly_the_debug_names_kept_from_version_three`
