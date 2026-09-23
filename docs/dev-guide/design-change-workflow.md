@@ -146,7 +146,7 @@ requested ──(사용자 제출·시안 수령)──▶ received ──(갤�
 |------|------|------|
 | **planner** | claude code(todo-maker 겸) 또는 사용자 | 요청문서 작성 — 인벤토리·제약·열린 결정 정의. |
 | **사용자** | 사람 | 요청문서를 **Claude design 에 직접 제출**하고 시안 결과를 받아온다. (이 제출은 사용자 행위 — 에이전트가 대행하지 않는다.) |
-| **designer** | Claude design (claude.ai Artifacts) | 고충실 HTML/CSS 시안 생성. 색·치수는 요청문서가 준 토큰 팔레트 안에서만. |
+| **designer** | Claude Design (claude.ai/design) | 고충실 HTML/CSS 시안 생성. 색·치수는 요청문서가 준 토큰 팔레트 안에서만. |
 | **구현** | claude code | 확정 시안을 [gallery-first](gallery-first.md) 순서로 — 갤러리 specimen(구조 전사+토큰 정합) → 본체 반영 → 사이트 사본 재-vendoring. |
 
 > 확정 시안은 원격 Claude design 프로젝트에 파일로 남는다(정합 뒤 지우는 것은 요청문서뿐이다). 레포 안에

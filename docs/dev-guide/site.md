@@ -176,9 +176,9 @@ npm run stamp content/en/index.md
 site/content/
   index.md                      가이드 홈
   getting-started/  install · first-look
-  using/            workspaces · panes-tabs-splits · terminal · files
+  using/            workspaces · workflow-layouts · panes-tabs-splits · terminal · files
   customize/        keybindings · settings · themes · scripts
-  agents/           cli · claude-codex · tasks · hooks-notifications
+  agents/           cli · background-tasks · claude-codex · tasks · hooks-notifications
   remote/           attach
   plugins/          index
   help/             troubleshooting
@@ -226,7 +226,7 @@ site/content/
   만들어지므로 번역된 페이지의 앵커는 영어 slug 다(`install.md#설치-위치` → `install.md#install-locations`).
   `npm run check-links` 가 언어별 산출 트리에서 모든 `#앵커` 의 존재를 검사해 없으면 깨진
   링크로 집계한다.
-- **고아 번역** — 대응하는 한국어 원본이 없는 `en/` 파일은 경고를 내고 발행되지 않는다.
+- **고아 번역** — 대응하는 한국어 원본이 없는 `en/` 파일은 발행되지 않는다(경고 없이 빠진다 — 빌드는 `ORDER` 만 돈다).
 
 ### 번역 절차
 
@@ -238,7 +238,7 @@ $EDITOR content/en/using/terminal.md
 npm run stamp content/en/using/terminal.md
 ```
 
-`--stamp` 는 **번역을 실제로 손본 직후에만** 실행한다. 갱신 없이 스탬프만 찍으면 stale 표시만
+`npm run stamp` 는 **번역을 실제로 손본 직후에만** 실행한다. 갱신 없이 스탬프만 찍으면 stale 표시만
 사라지고 내용은 어긋난 채 남는다.
 
 **콘텐츠의 내부 링크는 상대경로로 쓴다.** hast 플러그인이 그것을 라우트로 바꾸고, 그 라우트는
@@ -296,7 +296,7 @@ Plugins · Ports · Remote · 커맨드 팔레트를 연다. 페이지이기 때
   제 크기로 페이지 위에 띄운다.
 
 랜딩은 사이트에서 **유일하게 하이드레이트하는 라우트**다 — gzip 94 KB(react-dom 44, 킷과
-오버레이 46). 가이드 36 페이지는 여전히 JS 를 하나도 싣지 않는다.
+오버레이 46). 가이드 페이지는 여전히 JS 를 하나도 싣지 않는다.
 
 ## 디자인 섹션
 

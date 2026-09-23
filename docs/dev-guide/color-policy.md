@@ -47,7 +47,7 @@ let bg = GpuRgba::dangerously_force_from_array([r, g, b, a]);  // ⚠ 명시 + �
 | `egui::Color32::from_rgba_{unmultiplied,premultiplied}` | 외부 픽셀은 `#[allow]` + 주석 / premultiplied 는 `to_egui_premultiplied()` |
 | `egui::Color32::from_gray` | theme 회색 톤 |
 
-예외 위치는 본거지 모듈(`tasty-type-appearance::{color,theme}`, `tasty-themes::fallback`)의 모듈 상단 `#![allow]`, 외부 입력/테스트는 라인별 `#[allow]` + 주석.
+예외 위치는 본거지 모듈(`tasty-type-appearance::{color,theme}`, `tasty-themes::fallback`)의 항목 단위 `#[allow]` + `// reason:` 주석, 외부 입력/테스트는 라인별 `#[allow]` + 주석.
 
 ## 컴파일 타임 hex 검증 — `hex!`
 
@@ -61,7 +61,7 @@ pub const BRAND: HexColor = hex!("#89b4fa");          // OK (alpha·3-digit shor
 
 ## 새 색 도입 시
 
-1. **테마 색**: 빌트인은 `crates/tasty-themes/themes/*.toml`/`MOCHA_FALLBACK_COLORS`, 사용자는 `~/.tasty/themes/*.toml`. UI 는 `theme().X.into()`(egui) / `theme().X.to_gpu_rgba()`(GPU).
+1. **테마 색**: 빌트인은 `crates/tasty-themes/themes/*.toml`/`mocha_fallback_colors()`, 사용자는 `~/.tasty/themes/*.toml`. UI 는 `theme().X.into()`(egui) / `theme().X.to_gpu_rgba()`(GPU).
 2. **alpha 변형**: `theme().X.with_alpha(N).to_egui()`.
 3. **외부 입력**: `dangerously_force_from_array` + 주석 + `#[allow]`.
 
