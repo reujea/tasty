@@ -1,4 +1,4 @@
-<!-- source-hash: 702c1f9b454b -->
+<!-- source-hash: 02520e4e159c -->
 # Build and reuse a working layout
 
 Keep implementation and tests side by side. Save a layout as a preset so you can use it again for your next task.
@@ -28,7 +28,7 @@ You can also inspect images and HTML output with the viewers described in [openi
 1. Right-click the Workspace in the sidebar.
 2. Choose **Save as workspace preset**.
 3. Open **Tools > Presets** and find the saved Workspace preset.
-4. Choose **Edit** to check each area's kind, working directory, and startup command. Changes save automatically.
+4. Choose **Edit** to check each area's kind, working directory, and startup command. Structure changes save automatically; area settings save only when you press **OK** ([Editing](panes-tabs-splits.md#editing)).
 
 Startup commands run when new terminals open. Leave them empty where you do not need automatic execution. Adjust paths and commands before using a layout for another project.
 
