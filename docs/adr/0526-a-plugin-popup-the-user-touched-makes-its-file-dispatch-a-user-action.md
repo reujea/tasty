@@ -93,7 +93,7 @@ markdown plugin 의 파일열기 팝업 [열기] 는 `owner_popup_instance` 를 
     않았다 — 막을 대상은 외부 호출자와 사람이 안 만진 popup 이다.
   - markdown 문서 안의 파일 링크 클릭(명시 origin 갈래)은 여전히 `Agent` 로 도착한다 — webview
     클릭은 popup 입력이 아니라 이 채널이 안 덮는다. ADR-0302 의 재검토 조건 "재는 법" 이 그대로
-    유효하다.
+    유효하다. (ADR-0568 이후 macOS 에서만 그렇다.)
 - **운영 비용 / 유지 부담**: popup 입력 forward 자리가 이 기록을 세우는 유일한 곳이다. 입력
   경로를 새로 만들면(예: popup 에 입력을 다른 채널로 보내기) 그 자리도 기록을 세워야 사용자
   조작이 에이전트로 떨어지지 않는다.
@@ -129,7 +129,7 @@ markdown plugin 의 파일열기 팝업 [열기] 는 `owner_popup_instance` 를 
 
 - markdown 링크 클릭처럼 popup 밖에서 오는 사용자 조작의 중계가 흔해지면 webview 입력에도 같은
   활성화 기록이 필요하다. 재는 법: markdown 문서 안의 파일 링크를 클릭하고 `tab.list` 로 새 탭이
-  활성인지 본다 — 지금은 아니다.
+  활성인지 본다 — 지금은 아니다. (ADR-0568 로 발화했다 — macOS 에서만 아직 아니다.)
 
 ## References
 

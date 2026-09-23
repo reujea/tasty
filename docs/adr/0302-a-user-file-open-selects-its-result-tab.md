@@ -93,13 +93,14 @@ behaviour. Routing and focus are separate axes and only the second one changes.
   the distinction itself, rather than being fixed to `Agent`. 재는 법: open a document
   in the markdown surface, click a link inside it, and observe with `tab.list` whether
   the tab that appears is active; today it is not, and that is the cost of the fixed
-  value.
+  value. (Since [ADR-0568](0568-a-user-gesture-on-a-page-the-owning-plugin-wrote-makes-its-webview-file-dispatch-a-user-action.md) this holds on macOS only.)
 
 ## References
 
 - 개정 대상: [ADR-0279](0279-file-dispatch-retains-origin-through-completion.md) (focus clause)
 - 부분 개정: [0526](0526-a-plugin-popup-the-user-touched-makes-its-file-dispatch-a-user-action.md) (`file_handler.dispatch` 를 `Agent` 로 고정한 조항 개정 — 사용자가 만진 plugin popup 을 실으면 `User`)
 - 개정 패턴 선례: [ADR-0030](0030-image-egui-mesh-bitmap-texture.md)
+- 후속: [0568](0568-a-user-gesture-on-a-page-the-owning-plugin-wrote-makes-its-webview-file-dispatch-a-user-action.md) (위 재검토 조건의 markdown 링크 클릭에 답한다 — macOS 밖에서는 `User`)
 - [Focus policy](../design/policies/focus.md)
 - [File handler](../features/file-handler/index.md)
 - Current implementation: `core::origin::FileDispatchOrigin`, `open_surface_tab`,
