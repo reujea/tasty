@@ -108,6 +108,8 @@ agent
 | `plugin.unloaded` | `plugin_id, reason` |
 | `plugin.error` | `plugin_id, error_kind, message` |
 | `plugin.enabled` / `plugin.disabled` | `plugin_id` |
+| `plugin.surface_kind_registered` | `plugin_id, kind, rendering` |
+| `plugin.window_declared` | `plugin_id, window_id` |
 | `extension.activated` | `extension_id, target_id` |
 | `extension.pending` | `extension_id, target_id, reason` |
 | `extension.conflict` | `extension_id, target_id, conflicting_id` |
