@@ -816,7 +816,7 @@ fn a_forwarded_namespace_name_is_declared_outside_the_key_contract() {
 /// 재전달이 원래 안전한 것은 `Unneeded`, `Mutate` 는 `Kept`(판 1 = engine 라우터, 판 2 = App
 /// 층, 판 3 = GUI debug step · namespace forward 로 나가는 표 이름). **`Mutate` 가 아닌데 `Kept`
 /// 인 이름은 없고, 표의 이름이 `Outside` 인 경우도 없다** — 보존소는 `Mutate` 만 받고, 호스트가
-/// 아는 이름은 어느 경로로 가든 보존소를 지난다(ADR-0566). 어느 이름이 판 2 · 3 인지가 실제
+/// 아는 `Mutate` 이름은 어느 경로로 가든 보존소를 지난다(ADR-0566). 어느 이름이 판 2 · 3 인지가 실제
 /// 배선과 맞는지는 본체의 `source_guards::key_contract_by_layer` 가 잰다. ADR-0423.
 #[test]
 fn a_host_method_declaration_follows_its_effect() {
