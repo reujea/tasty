@@ -56,10 +56,14 @@ fn main() {
     let stray = stray_table_lines(&current);
     let conflicts = conflict_marker_lines(&current);
     let incomplete = incomplete_rows(&rendered, &adrs);
+    // 행 수는 둘을 함께 찍는다 — 하나만 찍으면 그것이 파일의 상태인지 생성 결과인지 라벨로만
+    // 갈리고, `--check` 가 빨간 때는 둘이 다르다(행을 지운 파일 · Group 을 지운 ADR).
     eprintln!(
-        "[adr-index] ADR {} · 그룹 {} · 생성 구역 행 {} · 구역 밖 표 줄 {} · 구역 밖 충돌 표지 {}",
+        "[adr-index] ADR {} · 그룹 {} · 생성 구역 행 현재 {} / 생성 결과 {} · 구역 밖 표 줄 {} · \
+         구역 밖 충돌 표지 {}",
         adrs.len(),
         group_slugs(&current).len(),
+        region_row_count(&current),
         region_row_count(&rendered),
         stray.len(),
         conflicts.len()
