@@ -118,8 +118,11 @@
   좌변이 초록이라는 뜻이다** — doc 주석 편향의 이동은 그 좌변이 앞에서 잡으므로 여기 오는
   시점에는 ㄷ 의 그 형태가 배제돼 있다.
   근거·기각한 대안(상시 독립 계측 대조 · 차이의 상한 래칫 · 미달 갈래 진단 열): [ADR-0258](../adr/0258-the-measured-copy-is-neutralized-for-the-counter.md).
-  - **파일 전체**가 출하 밖인 경우(별도 파일 테스트 모듈·cargo 통합 타깃·생성 코드)는
-    여전히 스크립트의 `skip()` 이름 글롭이 담당한다. 그 대리인은
+  - **파일 전체**가 출하 밖인 경우 중 `#[cfg(test)] mod` 선언으로만 닿는 파일과 cargo
+    통합 타깃은 판정기(`strip-cfg-test --blank-test-only-files`)가 통째로 빈 줄로 만든다
+    ([ADR-0345](../adr/0345-the-file-sloc-gate-erases-whole-test-only-files.md) — 인라인
+    범위를 지우는 위 결정은 ADR-0165 이고, 0165 는 이 축을 미뤄 두었다). 생성·전사 코드는 판정기가 안 지우므로 스크립트 `skip()` 의 이름 글롭에서만 빠진다.
+    `skip()` 의 테스트 이름 갈래는 판정기와 **겹친다**. 그 대리인은
     `src/source_guards/sloc_gate_skip_proxy.rs` 가 선언 기반 정본에 양방향으로 못박는다.
 
 ## 예외 컨벤션
