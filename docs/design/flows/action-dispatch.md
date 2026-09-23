@@ -64,18 +64,18 @@ pub enum IntentOrigin { User { source: UserSource }, Agent { source: AgentSource
 - **발화(IPC 엔진 핸들러)**: 핸들러는 창을 받지 않으므로 요청 하나의 `IntentOutbox` 에 `out.push(dispatched)` 한다. 진입점(게이트 · 엔진 라우터 `dispatch_routed` · `record_plugin_rss_samples`)이 요청이 끝날 때 출구를 그 창 큐 끝으로 옮긴다 — 반환 경로가 아니라 본문 안의 enqueue 이고, 한 요청 안의 순서는 넣은 순서 그대로(게이트가 낸 것이 먼저)다. 근거: [ADR-0471](../../adr/0471-ipc-engine-handlers-reach-the-window-through-a-port.md).
 - **처리**: 메인 루프의 `App::dispatch_pending_intents` 가 모든 window/parked_state 를 순회 drain. 처리 순서는 발화 순서 전체가 아니라 **클래스별 부분순서**(`classify_intent` 이 단일 정의점): 같은 state 내 non-Domain(`Immediate`) 은 FIFO 즉시 처리, `Intent::Domain` 은 전부 뒤로 밀려 단계 C(`run_domain_cascade`)에서 FIFO, `AppearanceChanged` 는 프레임 끝 1회로 축약. 따라서 같은 state 에서 Domain↔non-Domain 클래스 간 재정렬은 설계상 의도(borrow 분리 제약). drain 중 새로 발화한 Intent 는 **다음 프레임**(재진입 방지, `mem::take` 후 별 Vec 순회).
 - **처리(headless)**: window 가 없어 위 drain 이 통째로 `gui` feature 게이트이므로, headless 는 `crate::intent::headless::drain_pending_intents` 가 engine 하나짜리로 같은 계약을 수행한다 — IPC 요청 처리 직후(**응답 송신 전**) · plugin 호출 결과 회신 전 · 메인 루프 블로킹 대기 직전. cascade 는 gui `handle_core_event` 중 engine 상태로 완결되는 것만(attention · notification 적재 · terminal mark · settings 적용/저장) 수행하고(OSC 7 cwd 의 탭 이름 갱신은 intent 가 아니라 PTY drain 이 `intent::headless::apply_terminal_cwd_changed` 로 직접 한다), view redraw/toast/theme 재설치·알림음은 소비처가 없어 제외한다. 근거·범위: [ADR-0111](../../adr/0111-headless-drains-the-intent-queue.md).
-- **host event(headless)**: 같은 세 지점에서 `crate::intent::headless::drain_pending_host_events` 가 `pending_host_events` 를 통째로 비우되, 소비자가 plugin event bus 뿐이 아닌 종류만 적용한다 — 오늘 그것은 `HookFired` 하나이고 push 완료 전략으로 대기 중인 agent task 를 마감한다. 나머지 종류는 버린다(headless 에 bus 발화 배선이 없다). 근거·대안·재검토 트리거: [ADR-0134](../../adr/0134-headless-drains-host-events-but-applies-only-hook-fired.md).
+- **host event(headless)**: 같은 세 지점과 PTY 출력 처리 끝(`src/boot.rs`)에서 `crate::intent::headless::drain_pending_host_events` 가 `pending_host_events` 를 통째로 비우되, 소비자가 plugin event bus 뿐이 아닌 종류만 적용한다 — 오늘 그것은 `HookFired` 하나이고 push 완료 전략으로 대기 중인 agent task 를 마감한다. 나머지 종류는 버린다(headless 에 bus 발화 배선이 없다). 근거·대안·재검토 트리거: [ADR-0134](../../adr/0134-headless-drains-host-events-but-applies-only-hook-fired.md).
 - **핸들러 분기**: trait dispatch 아니라 **도메인 함수 분기**(`match &intent.body`). `&mut AppState` 를 trait object 가 통째 잡으면 partial mutation 이 borrow checker 를 못 통과하기 때문.
 - **에러**: 핸들러 안에서 `tracing::warn!`(패닉 금지, `let _=` 금지). 사용자에게 보여야 하면 `state.toasts.push`.
 
 ## Intent → Event Bus Bridge
 
-핸들러가 mutation 성공 후 `state.pending_host_events` 에 host event 를 push → 단일 bridge(`src/intent.rs`)가 [Event Bus](../../reference/event-catalog.md) envelope 으로 변환:
+핸들러가 mutation 성공 후 `state.pending_host_events` 에 host event 를 push → 단일 bridge(`src/app/dispatch/host_events.rs` → `PluginManager::emit_host_event`)가 [Event Bus](../../reference/event-catalog.md) envelope 으로 변환:
 
 | envelope | 규칙 |
 |----------|------|
-| `meta.origin` | `User`→`{kind:host}`, `Agent{Plugin(id)}`→`{kind:plugin,plugin_id}`, 그 외 Agent→`{kind:host}` |
-| `meta.trace_id` | `intent.trace_id` 있으면 그대로, 없으면 새 발급 |
+| `meta.origin` | 항상 `{kind:host}`(`EventOrigin::Host`) — intent origin 을 반영하지 않는다 |
+| `meta.trace_id` | 이벤트마다 새 발급(`h<seq 16진>`) — intent 값을 이어받지 않는다 |
 | `meta.scope` | 핸들러가 mutation 결과 보고 채움 |
 | `meta.hop` | 호스트 발화이므로 `0` |
 
