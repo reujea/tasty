@@ -75,7 +75,8 @@ producer 가 SIGPIPE 로 죽어 141 을 남기고, `set -o pipefail` 이 그것�
 | `scripts/` 16 개 중 14 | `set -euo pipefail` | 대입·단독이면 즉사, `if`/`\|\|` 면 조건이 뒤집힌다 |
 | `scripts/check-plugin-version-bump.sh` | `set -uo pipefail` (`-e` 없음) | rc 는 올라오지만 안 죽는다 — 읽는 자리에서만 드러난다 |
 | `scripts/dev-setup.sh` | `set -e` 만 | 미실현 |
-| `.githooks/` 3 개 | `set -e` 만 | 지금은 미실현 — 한 줄 추가로 되살아난다 |
+| `.githooks/pre-commit` · `pre-merge-commit` | `set -e` 만 | 지금은 미실현 — 한 줄 추가로 되살아난다 |
+| `.githooks/pre-push` | `set -e -o pipefail` | rc 가 올라온다 — `if`/`\|\|` 면 조건이 뒤집힌다 |
 | `Justfile` 레시피 | 레시피마다 `#!/bin/bash` + `set -euo pipefail` | **성립한다.** 대입이라 즉사 |
 | 워크플로 `run:` | GitHub 기본 셸이 `bash -e {0}` 라 없음 | 미실현 — `shell: bash` 한 줄이면 켜진다 |
 

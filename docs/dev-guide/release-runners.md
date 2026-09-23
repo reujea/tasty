@@ -15,7 +15,7 @@
 
 macOS/Windows 러너도 동일 패턴(라벨만 `[self-hosted, macOS]` / `[self-hosted, Windows]`).
 
-같은 mac/win 러너를 `.github/workflows/crossplatform-check.yml` 이 재사용한다 — dist 빌드 없이 컴파일 정합성만 확인하는 가벼운 가드다. **언제 도는가**: `main` 에 push 될 때(문서·사이트·마크다운만 바뀐 push 는 제외) · `main` 대상 PR · 수동 dispatch. 이 저장소는 PR 없이 main 에 직접 push 하는 흐름이라 push 가 실효 트리거이고, PR 트리거는 PR 흐름을 쓰게 될 때를 위해 남아 있다(선택 근거는 워크플로 파일 상단 주석). **무엇을 도는가**: macOS 잡은 `cargo check --workspace --locked`, Windows 잡은 `cargo clippy --workspace --all-targets --locked` 뒤 `cargo test --workspace --lib --bins --locked`, Linux X64 잡(`check-headless`)은 `cargo check --workspace --no-default-features --locked`. 네이티브 host 타깃이 곧 `x86_64-pc-windows-msvc` / `aarch64-apple-darwin` 이라 `--target` 지정은 불필요. 세 잡이 서로 다른 러너에서 병렬로 돌고 같은 ref 의 앞선 실행은 취소되므로 러너 점유는 하루 수 분 규모다. (무거운 dist 빌드 검증은 여전히 수동 `build-check.yml`.)
+같은 mac/win 러너를 `.github/workflows/crossplatform-check.yml` 이 재사용한다 — dist 빌드 없이 컴파일 정합성만 확인하는 가벼운 가드다. **언제 도는가**: `main` 에 push 될 때(문서·사이트·마크다운만 바뀐 push 는 제외) · `main` 대상 PR · 수동 dispatch. 이 저장소는 PR 없이 main 에 직접 push 하는 흐름이라 push 가 실효 트리거이고, PR 트리거는 PR 흐름을 쓰게 될 때를 위해 남아 있다(선택 근거는 워크플로 파일 상단 주석). **무엇을 도는가**: 잡은 넷(`check-macos` · `check-windows` · `check-headless` · `check-release`)이고 잡별 명령은 [ci-gates](ci-gates.md) 의 표가 정본이다. 네이티브 host 타깃이 곧 `x86_64-pc-windows-msvc` / `aarch64-apple-darwin` 이라 `--target` 지정은 불필요. 잡들이 병렬로 돌고 같은 ref 의 앞선 실행은 취소되므로 러너 점유는 하루 수 분 규모다. (무거운 dist 빌드 검증은 여전히 수동 `build-check.yml`.)
 
 ## 1회 도구 설치 (러너 추가 / 새 도구 의존성 시)
 
