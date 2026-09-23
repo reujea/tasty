@@ -1,4 +1,4 @@
-<!-- source-hash: 217057d7769f -->
+<!-- source-hash: 8a2c9811225a -->
 # Keybindings
 
 Use Tasty with shortcuts that feel familiar. Choose a preset or assign your preferred keys to actions you use often. Open **Settings** > **Keybindings** to get started.
@@ -198,7 +198,7 @@ While the settings window or the notification panel is open, `Esc` closes that o
 ## Two things that save you from memorising keybindings
 
 - **Modifier key hints** — Hold `Ctrl` · `Alt` · `Shift` and the like for 0.5 seconds or longer (Shift alone: 1.2 seconds) and a list of keybindings starting with that combination appears below the sidebar. It disappears when you let go. Turn it off with **Settings** > **General** > **Accessibility** > **Show modifier key hints**; the panel can be dragged around or resized.
-- **Command palette** — `Ctrl+Shift+P` or the **palette** chip in the status bar. Type an action's name and run it with `Enter`. Every action in the Keybindings tab and the global commands of active plugins are searchable.
+- **Command palette** — `Ctrl+Shift+P` or the palette shortcut keycap on the right of the status bar. Type an action's name and run it with `Enter`. Every action in the Keybindings tab and the global commands of active plugins are searchable.
 
 ## Editing the settings file directly
 
