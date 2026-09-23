@@ -96,9 +96,10 @@
 - 호스트가 같은 forward 를 거르거나 재생하게 되면
   `manager::tests_forward_idempotency::the_same_forward_twice_runs_the_target_twice_and_is_never_replayed`
   가 빨개진다 — 그때는 ⒜ 가 착지한 것이므로 이 ADR 을 Supersede 한다.
-- namespace fallback 의 선언이 `Outside` 가 아니게 되거나 표의 호스트 메서드에 선언이 붙으면
+- namespace fallback 의 선언이 `Outside` 가 아니게 되면
   `method_meta::tests::a_forwarded_namespace_name_is_declared_outside_the_key_contract` 가 잡는다.
-  뒤쪽은 "걸린다" 를 뜻하는 값이 생긴 날이다 — 그 값의 근거를 이 ADR 이 아니라 새 결정에 적는다.
+  표의 호스트 메서드에 선언이 붙는 것은 ADR-0423 으로 이미 일어났고, 그 값은
+  `a_host_method_declaration_follows_its_effect` 가 본다.
 - client 가 계약 밖 이름에 키를 실어 보내게 되면
   `client::tests::a_refused_key_never_touches_the_connection` 이 잡는다.
 - `forward_namespace_call` 이 멱등 키를 인자로 받게 되면 — ⒜ 의 둘째 장애가 없어진 것이다.

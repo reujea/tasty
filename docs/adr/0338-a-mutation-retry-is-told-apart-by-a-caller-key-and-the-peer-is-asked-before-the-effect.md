@@ -156,6 +156,8 @@
   ★ **그 바늘이 재는 범위는 그 갈래 하나뿐이다** — 위 ★ 의 App 층과 namespace forward 는
   지금 **그 시험이 초록인 채로** 보존소를 안 지나고 있다. 그 둘을 재는 채널은 없다(만들려면
   창을 띄우는 시험이나 plugin 을 세우는 시험이 필요하고, 그것은 이 시험의 타깃이 아니다).
+  결정 시점의 상태다 — 두 층은 ADR-0421 · ADR-0566 으로 보존소를 지나고, 채널은
+  `src/source_guards/key_contract_by_layer.rs` 에 있다(plugin 고유 이름은 ADR-0361 대로 계약 밖).
 - 주체 셋이 한 칸으로 접히면. `the_three_caller_kinds_get_three_scopes` 가 잡는다.
 
 **원리적으로 안 붙는 것** — 사람이 관측해야 한다. 재는 법을 함께 적는다.
@@ -166,7 +168,7 @@
 - 위 ★ 의 두 층이 배선되면. 그때 이 ADR 의 좌변이 선언과 같아지고, 메서드 단위 선언을
   더할지가 다시 열린다. 재는 법: 격리 홈의 GUI 인스턴스에 같은 키로 `window.create` 를 두 번
   보내고 창 수와 `idempotent_replay` 를 함께 본다 — 지금은 창이 둘 생기고 표지가 안 붙는다
-  (실측 2026-09-21).
+  (실측 2026-09-21). 이 조건은 ADR-0421 · ADR-0566 으로 충족됐다.
 - 보존소가 프로세스 메모리를 쓴다는 것이 부담이 될 만큼 항목이 커지면. 재는 법: `system.info`
   의 `idempotency.capacity`·`max_response_bytes` 와 호스트 RSS(`system.pressure` 의 게이지)를
   같은 시각에 읽어 견준다 — 지금은 그 둘을 잇는 채널이 없다.
@@ -187,5 +189,8 @@
   운영 상태 서술.
 - 후속: [ADR-0361](0361-a-plugin-namespace-forward-is-declared-outside-the-idempotency-contract.md)
   — 이 결정이 후속으로 남긴 두 층 가운데 plugin namespace forward 를 계약 밖으로 확정했다.
+- 후속: [ADR-0421](0421-the-app-layer-keeps-the-idempotency-contract-and-a-running-key-is-joined.md)
+  (App 층 배선) · [ADR-0566](0566-every-host-path-keeps-the-idempotency-key-and-only-a-plugin-name-is-outside.md)
+  (GUI debug step 과 호스트가 아는 forward 이름).
 - 코드 근거(결정이 실현된 현재 위치): `tasty_ipc::protocol::JsonRpcRequest::idempotency_key` ·
   `tasty_ipc::client::IpcConnection::send_idempotent` · 호스트 보존소의 `begin`/`finish`.

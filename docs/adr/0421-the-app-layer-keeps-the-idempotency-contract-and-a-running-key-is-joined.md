@@ -76,7 +76,8 @@ App 층 가로채기는 두 조합에 따로 있다 — GUI 의 `ipc_step_app_me
 
 **남는 구멍 하나.** GUI 의 debug step(`debug_methods.rs` · `window_required.rs`)은 app_methods step
 **뒤**라, 거기 있는 `Mutate`(입력 주입 · `debug.lua.eval` 등)는 연 항목이 닫힌 뒤 보존소 없이 실행된다.
-사용자 입력 재현이라 release 에 없는 표면이고, 이 결정은 그 층을 넓히지 않는다.
+사용자 입력 재현이라 release 에 없는 표면이고, 이 결정은 그 층을 넓히지 않는다. (결정 시점의
+구멍이다 — ADR-0566 이 닫았다.)
 
 ## Consequences
 
@@ -125,7 +126,7 @@ App 층 가로채기는 두 조합에 따로 있다 — GUI 의 `ipc_step_app_me
   `idempotency::tests::a_layer_that_does_not_handle_the_name_leaves_no_trace` 가 빨개진다(변이 확인: 닫는
   줄을 지우면 실패했다, 2026-09-21).
 - App 층 가로채기가 debug step 까지 한 함수로 합쳐지면 — 위 "남는 구멍" 이 닫히는 날이다. 그때 이름 표의
-  debug 이름 선언을 함께 고친다.
+  debug 이름 선언을 함께 고친다. 이 조건은 ADR-0566 으로 충족됐다.
 
 **원리적으로 안 붙는 것** — 사람이 관측해야 한다. 재는 법을 함께 적는다.
 

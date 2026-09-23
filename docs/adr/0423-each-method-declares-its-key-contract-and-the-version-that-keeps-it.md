@@ -95,7 +95,7 @@
 
 **채널이 붙는 것** — 판정 시점에 레포가 읽을 수 있는 사실이다.
 
-- App 층 · debug step 의 `Mutate` 와 선언이 갈리면 `source_guards::key_contract_by_layer` 의 세 시험이
+- App 층 · debug step 의 `Mutate` 와 선언이 갈리면 `source_guards::key_contract_by_layer` 의 시험이
   빨개진다(변이 확인은 References 의 커밋에 적었다).
 - 표의 `Kept` 판 최댓값과 capability 판이 갈리면
   `capability::tests::the_idempotency_version_is_the_highest_one_the_table_requires` 가 잡는다.
@@ -105,6 +105,7 @@
   `client::tests::an_app_layer_key_needs_the_version_that_keeps_it` 가 잡는다.
 - GUI debug step 이 app_methods step 앞으로 옮겨져 보존소를 지나게 되면 — debug `Mutate` 의 `Outside`
   를 걷을 날이다. 그때 `key_contract_by_layer` 의 둘째 시험이 판 2 쪽으로 옮겨야 한다고 알린다.
+  이 조건은 ADR-0566 으로 충족됐다(debug `Mutate` 의 `Outside` 를 걷고 판 3 을 더했다).
 
 **원리적으로 안 붙는 것** — 사람이 관측해야 한다. 재는 법을 함께 적는다.
 
