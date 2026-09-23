@@ -7,7 +7,7 @@
 - **권한**: `ui.tool_item` · `ui.popup` · `clipboard.read`
 - **화면**: [screens/clipboard-viewer.md](screens/clipboard-viewer.md)
 
-> **예제로서**: **도구 메뉴 항목 + popup**(master-detail) 예제. 클립보드를 host 백엔드 없이 **plugin 프로세스가 `arboard` 로 직접 read** 하는 [ADR-0009](../../adr/0009-plugin-sandbox-deferred.md) 비-샌드박스 모델의 레퍼런스 → [plugin-development](../../dev-guide/plugin-development.md#도구-메뉴-항목--popup).
+> **예제로서**: **도구 메뉴 항목 + popup** 예제. 클립보드를 host 백엔드 없이 **plugin 프로세스가 `arboard` 로 직접 read** 하는 [ADR-0009](../../adr/0009-plugin-sandbox-deferred.md) 비-샌드박스 모델의 레퍼런스 → [plugin-development](../../dev-guide/plugin-development.md#도구-메뉴-항목--popup).
 
 ## 목적
 
@@ -49,4 +49,4 @@
 
 ## 화면
 
-- [screens/clipboard-viewer.md](screens/clipboard-viewer.md) — master-detail 뷰어 popup.
+- [screens/clipboard-viewer.md](screens/clipboard-viewer.md) — 뷰어 popup.
