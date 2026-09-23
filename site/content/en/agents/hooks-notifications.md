@@ -1,7 +1,4 @@
 <!-- source-hash: d09687c48027 -->
-<!-- source-hash: 566aeb51a6d8 -->
-<!-- source-hash: 4d29d4555043 -->
-<!-- source-hash: 889e7471180f -->
 # Hooks, notifications and webhooks
 
 Get a notification when a build finishes, or run a command when a message appears in the logs. **Hooks** run commands in response to events, and **notifications** let you know when to check back. Use **webhooks** to send requests to Tasty from an external service.
