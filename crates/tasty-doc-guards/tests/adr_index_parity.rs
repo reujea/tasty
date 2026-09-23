@@ -117,8 +117,8 @@ use std::path::{Path, PathBuf};
 
 use tasty_doc_guards::adr_index::{
     ADR_DIR, Adr, INDEX, chain_violations, collect, conflict_marker_lines, duplicate_numbers,
-    group_slugs, parse_adr, placement_violations, preamble_violations, region_row_count,
-    render_index, stray_table_lines, superseder,
+    group_slugs, incomplete_rows, parse_adr, placement_violations, preamble_violations,
+    region_row_count, render_index, stray_table_lines, superseder,
 };
 
 /// ADR 수의 하한 — **연기 검사**다. 수집이 죽으면 아래 대조는 빈 집합끼리라 그냥 통과한다.
@@ -493,6 +493,46 @@ fn a_conflict_left_in_a_preamble_is_caught() {
         render_index(&in_region, &all).expect("구조가 맞다"),
         clean,
         "생성 구역 안의 충돌은 생성기가 덮어야 한다"
+    );
+}
+
+/// 생성 결과의 **완전성** — `Group` 이 없거나 인덱스에 없는 slug 를 가리키는 ADR 은 행 없이
+/// 빠지는데, 그래도 파일은 생성 결과와 같다(생성 대조가 못 잡는 것을 먼저 보인다). 그 빈칸을
+/// 생성기 bin 이 rc 1 로 내는 근거가 이 판정이다.
+#[test]
+fn an_adr_left_out_of_the_rendered_rows_is_caught() {
+    let all = vec![
+        adr("0001", "Accepted", "a", ""),
+        adr("0002", "Accepted", "b", ""),
+    ];
+    let clean = render_index(TWO_GROUPS, &all).expect("구조가 맞다");
+    assert!(
+        incomplete_rows(&clean, &all).is_empty(),
+        "완전한 결과를 불완전으로 셌다"
+    );
+    for (bad, why) in [
+        (adr("0003", "Accepted", "", ""), "Group 없음"),
+        (adr("0003", "Accepted", "nowhere", ""), "인덱스에 없는 slug"),
+    ] {
+        let with = [all.clone(), vec![bad]].concat();
+        let rendered = render_index(&clean, &with).expect("구조가 맞다");
+        assert_eq!(
+            rendered, clean,
+            "{why}: 생성 대조가 이미 잡는다면 이 판정의 전제가 틀렸다"
+        );
+        assert_eq!(
+            incomplete_rows(&rendered, &with),
+            vec!["0003-x.md — 생성 구역에 행이 없다".to_string()],
+            "{why}: 빠진 ADR 을 못 잡았다"
+        );
+    }
+    let twice = adr("0003", "Accepted", "a, b", "");
+    let with = [all.clone(), vec![twice]].concat();
+    let rendered = render_index(&clean, &with).expect("구조가 맞다");
+    assert_eq!(
+        incomplete_rows(&rendered, &with),
+        vec!["0003-x.md — 생성 구역에 행이 2 개다".to_string()],
+        "두 그룹에 실린 ADR 을 못 잡았다"
     );
 }
 

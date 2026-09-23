@@ -509,6 +509,33 @@ pub fn region_row_count(index: &str) -> usize {
         .count()
 }
 
+/// 생성 결과가 **완전한가** — 모든 ADR 이 생성 구역 안에 정확히 한 행을 갖는가.
+///
+/// 생성기는 헤더의 `Group` 이 가리키는 구역에만 행을 싣는다. 그래서 `Group` 이 없거나
+/// 인덱스에 없는 slug 를 가리키는 ADR 은 행 없이 빠지고, 그래도 파일은 생성 결과와 **같다**
+/// — "생성 결과와 같은가" 만 물으면 빠진 ADR 이 초록으로 지나간다. 이 판정은 그 빈칸을
+/// 생성기 자신이 보게 한다. 왜 빠졌는지(그룹 배치)는 묻지 않는다 — 그것은
+/// [`placement_violations`] 의 물음이다. 돌려주는 줄은 행이 없거나 여럿인 ADR 이다.
+pub fn incomplete_rows(rendered: &str, adrs: &[Adr]) -> Vec<String> {
+    let mut rows: BTreeMap<&str, usize> = BTreeMap::new();
+    for (_, l, inside) in lines_by_region(rendered) {
+        if inside && is_adr_row(l) {
+            let num = l[2..]
+                .split(|c: char| !c.is_ascii_digit())
+                .next()
+                .unwrap_or("");
+            *rows.entry(num).or_default() += 1;
+        }
+    }
+    adrs.iter()
+        .filter_map(|a| match rows.get(a.num.as_str()).copied().unwrap_or(0) {
+            1 => None,
+            0 => Some(format!("{} — 생성 구역에 행이 없다", a.file)),
+            n => Some(format!("{} — 생성 구역에 행이 {n} 개다", a.file)),
+        })
+        .collect()
+}
+
 /// 생성 구역 **밖**의 표 줄(앞 공백을 빼고 `|` 로 시작하는 줄).
 ///
 /// 생성기는 마커 밖을 안 건드리므로, 거기 적힌 행은 생성 결과와의 대조에 **안 걸린다** —

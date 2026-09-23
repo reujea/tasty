@@ -11,17 +11,20 @@
 //!
 //! ## 종료코드
 //!
-//! 0 = 파일이 생성 결과와 같다(또는 `--write` 로 맞췄다). 1 = 다르다(`--check`), 또는 생성 구역
-//! **밖**에 표 줄이나 git 충돌 표지가 있다(두 모드 모두 — 마커 밖은 생성기가 안 건드리므로
-//! `--write` 로 안 없어진다).
+//! 0 = 파일이 생성 결과와 같고(또는 `--write` 로 맞췄고) 그 결과가 완전하다. 1 = 다르다
+//! (`--check`), 또는 생성 구역 **밖**에 표 줄이나 git 충돌 표지가 있다, 또는 생성 결과가
+//! **불완전하다** — 생성 구역에 행이 없거나 둘 이상인 ADR 이 있다(`Group` 이 없거나 인덱스에
+//! 없는 slug). 뒤의 둘은 두 모드 모두다 — 마커 밖은 생성기가 안 건드리고, 빠진 행은 헤더를
+//! 고쳐야 생기므로 `--write` 로 안 없어진다. 빠진 행을 0 으로 돌려주면 "생성 결과와 같다" 만
+//! 보고 ADR 이 인덱스에서 빠진 상태를 통과시킨다.
 //! 2 = 만들 수 없다 — ADR 디렉토리·인덱스를 못 읽음, 마커 짝이 깨짐, ADR 0 개.
 //! 0 개를 0 으로 돌려주면 빈 모수에서 초록이 난다.
 
 use std::path::PathBuf;
 
 use tasty_doc_guards::adr_index::{
-    INDEX, collect, conflict_marker_lines, group_slugs, region_row_count, render_index,
-    stray_table_lines,
+    INDEX, collect, conflict_marker_lines, group_slugs, incomplete_rows, region_row_count,
+    render_index, stray_table_lines,
 };
 
 fn fail(msg: &str) -> ! {
@@ -52,6 +55,7 @@ fn main() {
         .unwrap_or_else(|errs| fail(&format!("마커 구조가 깨졌다:\n  {}", errs.join("\n  "))));
     let stray = stray_table_lines(&current);
     let conflicts = conflict_marker_lines(&current);
+    let incomplete = incomplete_rows(&rendered, &adrs);
     eprintln!(
         "[adr-index] ADR {} · 그룹 {} · 생성 구역 행 {} · 구역 밖 표 줄 {} · 구역 밖 충돌 표지 {}",
         adrs.len(),
@@ -65,6 +69,17 @@ fn main() {
             "[adr-index] {INDEX} 의 생성 구역 밖(머리말)에 git 충돌 표지가 남아 있다. 생성기는 \
              머리말을 안 건드린다 — 양쪽 산문을 사람이 합친 뒤 표지를 지운다:\n  {}",
             conflicts.join("\n  ")
+        );
+    }
+    if !incomplete.is_empty() {
+        eprintln!(
+            "[adr-index] 생성 결과가 불완전하다 — ADR {} 개 중 {} 개가 생성 구역에 정확히 한 행을 \
+             갖지 않는다. 행은 헤더의 `- **Group**: <slug>` 가 가리키는 구역에만 생긴다 — 그 ADR \
+             헤더에 인덱스에 있는 slug 하나를 적고 다시 돌린다(고르는 기준은 template 의 \
+             \"인덱스에 행을 추가할 때\"):\n  {}",
+            adrs.len(),
+            incomplete.len(),
+            incomplete.join("\n  ")
         );
     }
     if !stray.is_empty() {
@@ -81,7 +96,7 @@ fn main() {
         eprintln!("[adr-index] {INDEX} 를 다시 썼다");
     }
     if rendered == current || write {
-        if !stray.is_empty() || !conflicts.is_empty() {
+        if !stray.is_empty() || !conflicts.is_empty() || !incomplete.is_empty() {
             std::process::exit(1)
         }
         return;
