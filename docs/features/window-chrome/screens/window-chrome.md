@@ -1,7 +1,7 @@
 # 윈도우 크롬 화면 (CSD 타이틀바)
 
 - **부모 기획**: [../index.md](../index.md)
-- **시각 소스**: `design-system/ui_kits/terminal/` (`chrome.jsx`, `titlebar_linux.jsx`) — claude design, vendor 예정
+- **시각 소스**: `site/vendor/ui_kits/terminal/` (`chrome.jsx`, `titlebar/titlebar_linux.jsx`) — claude design
 
 [MainView](../../main-view/screens/main-view.md) 최상단의 OS별 타이틀바. 동작은 부모 기획, 여기선 OS별 시각 배치.
 

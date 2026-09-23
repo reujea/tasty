@@ -1,7 +1,7 @@
 # 리스닝 포트 팝업 (화면)
 
 - **부모 기획**: [../index.md](../index.md)
-- **시각 소스**: `design-system/ui_kits/terminal/overlays/port_scanner.jsx` (claude design — vendor 예정)
+- **시각 소스**: `site/vendor/ui_kits/terminal/overlays/port_scanner.jsx` (claude design)
 
 ## 트리거
 

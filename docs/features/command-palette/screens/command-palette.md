@@ -2,7 +2,7 @@
 
 - **부모 기획**: [../index.md](../index.md)
 - **트리거 위치**: `toggle_command_palette` 단축키 · [도구 메뉴](../../tools-menu/screens/tools-menu.md) `Command palette`
-- **시각 소스**: `design-system/ui_kits/terminal/overlays/command_palette.jsx` — claude design, vendor 예정
+- **시각 소스**: `site/vendor/ui_kits/terminal/overlays/command_palette.jsx` — claude design
 
 ## 트리거
 

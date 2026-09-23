@@ -2,7 +2,7 @@
 
 - **부모 기획**: [../index.md](../index.md)
 - **트리거 위치**: [사이드바](../../sidebar/screens/sidebar.md) 하단 **도구 버튼**
-- **시각 소스**: `design-system/ui_kits/terminal/overlays/tools_menu.jsx` — claude design, vendor 예정
+- **시각 소스**: `site/vendor/ui_kits/terminal/overlays/tools_menu.jsx` — claude design
 
 각 항목은 이름 + (있으면) 한 줄 + 해당 기능 문서 **링크만** — 항목 내용은 그 문서에 (연결 개념).
 

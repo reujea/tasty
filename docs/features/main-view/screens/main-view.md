@@ -1,7 +1,7 @@
 # MainView 화면 (전체 레이아웃)
 
 - **부모 기획**: [../index.md](../index.md)
-- **시각 소스**: `design-system/ui_kits/terminal/` (`chrome.jsx`, `work.jsx`, `index.html`) — claude design, vendor 예정
+- **시각 소스**: `site/vendor/ui_kits/terminal/` (`chrome.jsx`, `work.jsx`) — claude design
 
 이 화면은 **합성 화면** 이다 — 각 영역은 *자기 위치/역할만* 적고, 내용은 하위 feature 문서로 **링크만** 한다 (연결 개념).
 

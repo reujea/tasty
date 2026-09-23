@@ -2,7 +2,7 @@
 
 - **부모 기획**: [../index.md](../index.md)
 - **상위 화면**: [MainView 전체 레이아웃](../../main-view/screens/main-view.md) 의 좌측 영역
-- **시각 소스**: `design-system/ui_kits/terminal/chrome.jsx` — claude design, vendor 예정
+- **시각 소스**: `site/vendor/ui_kits/terminal/chrome.jsx` — claude design
 
 각 영역은 자기 위치/역할만 적고, 다른 기능으로 위임되는 버튼은 그 문서를 **링크만** 한다 (연결 개념).
 

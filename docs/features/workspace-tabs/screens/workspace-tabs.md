@@ -1,7 +1,7 @@
 # 탭 스트립 화면
 
 - **부모 기획**: [../index.md](../index.md)
-- **시각 소스**: `design-system/ui_kits/terminal/work.jsx` (탭 바 부분) — claude design, vendor 예정
+- **시각 소스**: `site/vendor/ui_kits/terminal/work.jsx` (탭 바 부분) — claude design
 
 [작업 영역](../../work-area/screens/work-area.md) 안, 각 Pane 머리의 탭 바. 동작은 부모 기획, 여기선 시각.
 

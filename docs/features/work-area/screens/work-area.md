@@ -1,7 +1,7 @@
 # 작업 영역 화면
 
 - **부모 기획**: [../index.md](../index.md)
-- **시각 소스**: `design-system/ui_kits/terminal/work.jsx` — claude design, vendor 예정
+- **시각 소스**: `site/vendor/ui_kits/terminal/work.jsx` — claude design
 
 [MainView](../../main-view/screens/main-view.md) 중앙. 이 화면은 부모 기획의 **두 레벨 레이아웃**(상위 Pane / 하위 Surface)을 투영한다 — 동작 정의는 부모에, 여기선 시각 배치만. 위임 요소는 링크만 둔다(연결 개념).
 
