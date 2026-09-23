@@ -356,7 +356,8 @@ println!("{}", serde_json::to_string_pretty(&value)?);
 
 | 지점 | 처리 |
 |------|------|
-| 부팅 창 생성 · 부팅 엔진 생성 · GPU 어댑터 부재 | 진단 3줄을 `tracing::error!` 한 이벤트로 내고 `exit(1)`. `eprintln!` 은 파일 로그에 안 남아 쓰지 않는다 |
+| 부팅 창 생성 · GPU 어댑터 부재 | 진단 3줄을 `tracing::error!` 한 이벤트로 내고 `exit(1)`. `eprintln!` 은 파일 로그에 안 남아 쓰지 않는다 — 그릴 창·GPU 가 없어 로그가 유일한 채널이다 |
+| 부팅 엔진 생성 | 같은 진단을 `tracing::error!` 로 내고, 이미 살아 있는 창에 실패 화면을 그려 둔다. 사용자가 닫을 때(종료 버튼 · Esc/Enter · 창 닫기) `exit(1)` |
 | 부팅의 그 외 GPU 실패 | 패닉 유지 — 환경 문제가 아니라 버그이므로 크래시 리포팅 경로에 남긴다 |
 | 새 창 · 설정 · 플러그인 모달 | 그 창만 취소하고 살아 있는 메인 창에 안내. 안내 문구는 지점별 i18n 키 |
 | 종료 확인 모달 | 확인을 건너뛰고 `begin_shutdown()`. 생략 사실을 toast + `error!` 로 알린다 |
@@ -364,9 +365,10 @@ println!("{}", serde_json::to_string_pretty(&value)?);
 | plugin 프로세스 스레드 spawn | 패닉 유지 — 폭발 반경이 그 plugin 프로세스로 한정된다 |
 
 **안내 채널은 요청 origin 이 가른다.** 사용자 조작(메뉴 · 단축키 · dock · tray)발 실패는
-`InfoModal`, 에이전트 IPC(`window.create`)발 실패는 **toast** 다. `InfoModal` 은 포커스를
-가져가므로, 에이전트 행동의 부수효과가 사용자 포커스에 닿지 않는다는 핵심 원칙 1 을
-어기게 된다.
+`InfoModal`, 에이전트 IPC(`window.create`)발 실패는 **요청자에게 IPC 응답 에러로만** 돌려주고
+사용자 화면에는 아무것도 띄우지 않는다(toast 도 아니다). `InfoModal` 은 포커스를 가져가고
+toast 도 요청하지 않은 일의 통지라, 어느 쪽이든 에이전트 행동의 부수효과가 사용자 상태에
+닿지 않는다는 핵심 원칙 1 을 어기게 된다([ADR-0122](../adr/0122-winit-scheduled-fallible-ipc-returns-outcome.md)).
 
 이 경로들은 winit `ActiveEventLoop` 가 있어야 돌아가 행동 테스트로 감쌀 수 없다 —
 `crates/tasty-doc-guards/tests/no_panic_in_window_creation.rs` 가 소스 형태로 패닉 재유입을 막는다.
