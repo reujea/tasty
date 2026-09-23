@@ -119,7 +119,7 @@ tasty list notifications
 
 ### 어디에 나타나나
 
-- **알림 패널** — `Ctrl+Shift+I` (macOS `Cmd+Shift+I`) 로 엽니다. 최신순 목록에 워크스페이스·제목·본문·경과 시간이 보이고, **이동** <!-- en: Jump --> 으로 그 워크스페이스로 갑니다. 열면 전부 읽음 처리되며 **모두 읽음** <!-- en: Mark all read --> 버튼도 있습니다.
+- **알림 패널** — `Ctrl+Shift+I` 로 엽니다. 최신순 목록에 워크스페이스·제목·본문·경과 시간이 보이고, **이동** <!-- en: Jump --> 으로 그 워크스페이스로 갑니다. 열면 전부 읽음 처리되며 **모두 읽음** <!-- en: Mark all read --> 버튼도 있습니다.
 - **서피스 테두리** — 알림이 난 서피스에 파란 테두리. 그 서피스로 포커스하면 사라집니다.
 - **사이드바 배지** — 주의가 필요한 서피스가 있는 워크스페이스 행에 개수 배지.
 - **OS 알림** — Tasty 윈도우가 비활성일 때 시스템 알림 (초당 1회 제한).
@@ -127,7 +127,7 @@ tasty list notifications
 
 ### 설정
 
-**설정** › **알림** <!-- en: Notifications --> 탭, 또는 `~/.tasty/config.toml`:
+**설정** › **일반** › **알림** <!-- en: Notifications --> 탭, 또는 `~/.tasty/config.toml`:
 
 ```toml
 [notification]

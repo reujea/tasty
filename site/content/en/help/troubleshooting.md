@@ -1,4 +1,4 @@
-<!-- source-hash: 353185e7c794 -->
+<!-- source-hash: c63120e02788 -->
 # Troubleshooting
 
 If something is not working, find the matching symptom below. Check installation, permissions, terminal connections, and notifications, or use the reporting steps at the end if you still need help.
@@ -86,9 +86,9 @@ You can see the current state in the **Settings** > **General** > **Permissions*
 
 ## Notifications do not arrive · there are too many
 
-- **OS notifications do not appear** — while the Tasty window is active, no OS notification is sent; you are notified only inside the app, through the panel · border · badge. OS notifications go out only while the window is inactive, and are limited to one per second. Check that **Notifications enabled** under **Settings** > **Notifications** is not turned off. The panel opens with `Ctrl+Shift+I` (macOS `Cmd+Shift+I`).
+- **OS notifications do not appear** — while the Tasty window is active, no OS notification is sent; you are notified only inside the app, through the panel · border · badge. OS notifications go out only while the window is inactive, and are limited to one per second. Check that **Notifications enabled** under **Settings** > **General** > **Notifications** is not turned off. The panel opens with `Ctrl+Shift+I`.
 - **A notification for every bell (`\a`) is noisy** — turn off **Settings** > **Terminal** > **Show bell notification**. In `config.toml`, that is `bell_notification = false` under `[general]`. Bell hooks still fire.
-- **There is no sound** — **Settings** > **Notifications** > **Sound** is off by default. Even when it is on, consecutive notifications from the same source within the merge interval are combined into one, so the sound plays only once.
+- **There is no sound** — **Settings** > **General** > **Notifications** > **Sound** is off by default. Even when it is on, consecutive notifications from the same source within the merge interval are combined into one, so the sound plays only once.
 
 The full list of settings is in [Hooks · notifications · webhooks](../agents/hooks-notifications.md#settings).
 

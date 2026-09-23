@@ -1,4 +1,4 @@
-<!-- source-hash: f338913f8f8c -->
+<!-- source-hash: ef0b2dd7f906 -->
 # Hooks, notifications and webhooks
 
 Get a notification when a build finishes, or run a command when a message appears in the logs. **Hooks** run commands in response to events, and **notifications** let you know when to check back. Use **webhooks** to send requests to Tasty from an external service.
@@ -121,7 +121,7 @@ Notification sequences sent by terminal programs (OSC 9 / 99 / 777) and bells ar
 
 ### Where they appear
 
-- **Notification panel** — open it with `Ctrl+Shift+I` (macOS `Cmd+Shift+I`). The newest-first list shows Workspace, title, body, and elapsed time, and **Jump** takes you to that Workspace. Opening it marks everything read; there is also a **Mark all read** button.
+- **Notification panel** — open it with `Ctrl+Shift+I`. The newest-first list shows Workspace, title, body, and elapsed time, and **Jump** takes you to that Workspace. Opening it marks everything read; there is also a **Mark all read** button.
 - **Surface border** — a blue border on the Surface where the notification occurred. It disappears when you focus that Surface.
 - **Sidebar badge** — a count badge on the row of any Workspace that has a Surface needing attention.
 - **OS notification** — a system notification when the Tasty window is inactive (limited to once per second).
@@ -129,7 +129,7 @@ Notification sequences sent by terminal programs (OSC 9 / 99 / 777) and bells ar
 
 ### Settings
 
-The **Settings** › **Notifications** tab, or `~/.tasty/config.toml`:
+The **Settings** › **General** › **Notifications** tab, or `~/.tasty/config.toml`:
 
 ```toml
 [notification]

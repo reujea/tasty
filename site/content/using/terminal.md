@@ -126,7 +126,7 @@ vim(`:set mouse=a`) · htop · Claude Code 처럼 마우스를 직접 쓰는 프
 
 - `Ctrl+Shift+I` — **알림** <!-- en: Notifications --> 패널. 최신순 목록과 **이동** <!-- en: Jump --> 버튼, **모두 읽음** <!-- en: Mark all read -->. 열면 전부 읽음 처리됩니다. 타이틀바의 전체화면 버튼으로 크게 볼 수 있습니다([전체화면](panes-tabs-splits.md#전체화면)).
 - 윈도우가 뒤에 있으면 OS 알림으로도 띄웁니다.
-- **설정** > **알림** <!-- en: Notifications --> — **알림 활성화** <!-- en: Notifications enabled --> · **소리** <!-- en: Sound --> · **알림 병합 간격 (ms)** <!-- en: Coalesce interval (ms) --> (같은 곳에서 연달아 온 알림을 하나로 합치는 간격, 기본 500).
+- **설정** > **일반** > **알림** <!-- en: Notifications --> — **알림 활성화** <!-- en: Notifications enabled --> · **소리** <!-- en: Sound --> · **알림 병합 간격 (ms)** <!-- en: Coalesce interval (ms) --> (같은 곳에서 연달아 온 알림을 하나로 합치는 간격, 기본 500).
 - 벨만 끄려면 **설정** > **터미널** > **벨 알림 표시** <!-- en: Show bell notification -->.
 
 스크립트에서 직접 알림을 띄우려면 `tasty notify "빌드 끝" --title build`.
