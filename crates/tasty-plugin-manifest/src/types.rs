@@ -518,7 +518,7 @@ pub struct SurfaceKindDecl {
 #[serde(rename_all = "lowercase")]
 pub enum SurfaceKindRendering {
     /// 기본값. webview kind 가 공유하는 `RemoteSurface` stand-in 으로 등록된다.
-    /// (host 가 콘텐츠를 그리는 UiNode tree 렌더 경로는 C1 에서 제거됨.)
+    /// (host 가 콘텐츠를 그리는 UiNode tree 렌더 경로는 제거됨.)
     #[default]
     Remote,
     /// 호스트가 OS-level native WebView overlay 로 surface 영역을 자동 관리한다.
@@ -878,7 +878,7 @@ pub struct PopupContribute {
     pub rendering: PopupRendering,
 }
 
-/// popup 콘텐츠의 렌더링 방식. UiNode(ui-tree) 채널은 C1 에서 제거돼 egui-mesh
+/// popup 콘텐츠의 렌더링 방식. UiNode(ui-tree) 채널은 제거돼 egui-mesh
 /// 가 기본이자 유일한 channel 이다.
 #[derive(Debug, Clone, Copy, Default, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "kebab-case")]

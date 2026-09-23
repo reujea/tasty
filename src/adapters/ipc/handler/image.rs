@@ -3,7 +3,7 @@
 //! `image.open`(ConvertSurface) / `image.list`(surface 순회) 만 host 가 처리한다.
 //! 픽셀 편집 계열(`image.save`/`export_png`/`paste`/`next`/`prev`)은 com.tasty.image
 //! plugin 이 자기 `image` namespace 에서 직접 처리한다 (namespace forward 가 host
-//! 라우터보다 먼저 매칭) — 옛 host `ImagePanel`/`ImageView` 위임 핸들러는 C1 에서 제거.
+//! 라우터보다 먼저 매칭) — 옛 host `ImagePanel`/`ImageView` 위임 핸들러는 제거됐다.
 //!
 //! 모든 메서드는 `surface_id`를 명시적으로 받는다 (포커스 독립성 원칙).
 

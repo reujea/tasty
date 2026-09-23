@@ -2,7 +2,7 @@
 //!
 //! webview-kind(html) surface 의 실 vehicle — host 는 URL/navigation chrome 만
 //! 그리고 콘텐츠는 native WebView overlay 가 담당한다. (UiNode tree 렌더 경로는
-//! C1 에서 제거됨.)
+//! 제거됨.)
 //!
 //! `Surface` trait의 `kind() -> &'static str` 제약 때문에 plugin manifest의
 //! 동적 kind 문자열은 `register_remote_kind`에서 `Box::leak`으로 한 번 정적화한다

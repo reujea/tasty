@@ -929,7 +929,7 @@ fn surface_kind_rendering_defaults_to_remote() {
 
 #[test]
 fn surface_kind_rendering_host_rejected() {
-    // host-rendered 채널은 C1 에서 제거됐다 — `rendering = "host"` 는 더 이상
+    // host-rendered 채널은 제거됐다 — `rendering = "host"` 는 더 이상
     // 유효한 variant 가 아니며 매니페스트 파싱 자체가 실패해야 한다.
     let s = r#"
         manifest_version = 1
