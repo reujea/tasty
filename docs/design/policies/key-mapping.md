@@ -26,7 +26,7 @@ macOS 에서만 `alt` 토큰이 Cmd(⌘)에 매핑된다(물리 위치가 Win/Li
 
 ### 캡처(설정 UI) / 매칭(런타임)
 
-- **캡처**: egui `Modifiers` → 토큰. macOS `mac_cmd → "alt"`, 기타 `alt → "alt"`; `ctrl → "ctrl"`, `shift → "shift"`. macOS 에서 ⌘+N 도, Windows 에서 Alt+N 도 동일하게 `"alt+n"` 저장.
+- **캡처**: winit `ModifiersState` → 토큰. macOS `super_key() → "alt"` · `alt_key() → "option"`, 기타 `alt_key() → "alt"`; `control_key() → "ctrl"`, `shift_key() → "shift"`. macOS 에서 ⌘+N 도, Windows 에서 Alt+N 도 동일하게 `"alt+n"` 저장.
 - **매칭**: winit `ModifiersState` 와 비교. `"ctrl" → control_key()`, `"alt" → macOS super_key() / 기타 alt_key()`, `"shift" → shift_key()`.
 
 ## 바인딩 문자열 문법
@@ -79,7 +79,7 @@ macOS 사용자를 위한 표시 커스터마이징: `GeneralSettings::{alt,opti
 
 ### 이식 시 `option` 처리
 
-이식이 깨지는 토큰은 `option` **하나뿐**이다. 나머지는 저장이 이미 OS 독립이고 `alt` 는 저장이 하나이며 macOS 에서만 ⌘ 로 매핑된다. 반면 `option` 은 macOS 물리 ⌥ 이라 **비-macOS 에서는 매칭 자체가 항상 불일치**로 접힌다(`binding.rs` 의 winit·egui 두 경로 모두 `option_matches = !parsed.option`). 그래서 macOS 에서 만든 구성을 Windows/Linux 로 가져오면 그 바인딩들은 **화면에는 그대로 보이는데 눌러도 아무 일이 없다**.
+이식이 깨지는 토큰은 `option` **하나뿐**이다. 나머지는 저장이 이미 OS 독립이고 `alt` 는 저장이 하나이며 macOS 에서만 ⌘ 로 매핑된다. 반면 `option` 은 macOS 물리 ⌥ 이라 **비-macOS 에서는 매칭 자체가 항상 불일치**로 접힌다(`crates/tasty-key-match/src/lib.rs` 의 winit·egui 두 경로 모두 `option_matches = !parsed.option`). 그래서 macOS 에서 만든 구성을 Windows/Linux 로 가져오면 그 바인딩들은 **화면에는 그대로 보이는데 눌러도 아무 일이 없다**.
 
 네 프리셋에는 `option` 문자열이 하나도 없다 — `option` 바인딩은 사용자가 macOS 에서 직접 만든 것뿐이다(녹화이거나 quick-switch modifier 선택).
 
@@ -100,7 +100,7 @@ macOS 사용자를 위한 표시 커스터마이징: `GeneralSettings::{alt,opti
 
 ## OS 메뉴 key equivalent
 
-tasty 가 직접 소유하는 OS 메뉴(macOS NSMenu / Windows AcceleratorTable / Linux Wayland 메뉴)의 key equivalent 도 **`KeybindingSettings` 의 대응 binding 에서 가져온다 — 가져올 수 없으면 비운다.** selector 가 OS 표준(`cut:` / `performClose:` 등)이라는 사실이 단축키 하드코딩을 정당화하지 않는다(selector 와 key equivalent 는 독립 결정). binding 이 빈 vec 이면 key equivalent 도 비워 단축키 없는 메뉴 항목으로 둔다.
+tasty 가 직접 소유하는 OS 메뉴의 key equivalent 도 **`KeybindingSettings` 의 대응 binding 에서 가져온다 — 가져올 수 없으면 비운다.** 지금 key equivalent 를 배선한 메뉴는 macOS NSMenu 하나이고, Windows AcceleratorTable · Linux Wayland 메뉴도 등록하게 되면 같은 규칙을 따른다. selector 가 OS 표준(`cut:` / `performClose:` 등)이라는 사실이 단축키 하드코딩을 정당화하지 않는다(selector 와 key equivalent 는 독립 결정). binding 이 빈 vec 이면 key equivalent 도 비워 단축키 없는 메뉴 항목으로 둔다.
 
 **예외**: OS 자체가 박아 tasty 가 무력화/덮어쓰기/가로채기 모두 불가능한 단축키(macOS Spotlight `Cmd+Space`, OS 전역 윈도우 전환 등)는 정책 범위 밖 — tasty 가 등록할 수도 끌 수도 없다.
 
@@ -214,7 +214,7 @@ macOS·Wayland 에서는 항상 `false` 로 들어와 동작이 바뀌지 않으
 ## 코드 위치
 
 - `KeybindingSettings`(바인딩 필드·`format_display`), 캡처/매칭 레이어, 프리셋 기본 바인딩.
-- OS 메뉴 배선: macOS NSMenu / Windows AcceleratorTable.
+- OS 메뉴 배선: macOS NSMenu(`crates/tasty-platform/src/native_menu/macos.rs`).
 - 합성 키 차단: `src/adapters/ui/input/synthetic.rs`(`is_synthetic_key_event`),
   `src/app/event_handler.rs`(`App::window_event` 진입부 게이트),
   `src/adapters/ui/input/double_tap.rs`(`DoubleTapDetector::reset`).
