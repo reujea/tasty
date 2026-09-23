@@ -436,7 +436,7 @@ impl MainView {
                 // 단발 키 경로(`keybinding.rs` 의 `match_copy_rename_bindings`)와 **같은
                 // 신호**를 쓴다 — 여기서 직접 모드에 들어가지 않는 이유는 진입 판정이
                 // 포커스된 surface 가 터미널인지 등 다음 프레임의 상태를 보기 때문이다
-                // (`view/main/vi_copy.rs` 의 `consume_pending_enter_copy_mode`).
+                // (`view/main/vi_copy.rs` 의 `try_enter_vi_copy_mode`).
                 // 팔레트는 팝업이 닫힌 뒤 drain 되므로 그 프레임이 곧 사용자가 기대하는
                 // 포커스 상태다.
                 state.dialogs.pending_enter_copy_mode = true;

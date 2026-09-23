@@ -3,7 +3,7 @@
 //! 정책:
 //! - **RestoreClosedItem**: Ctrl+Shift+T 등 사용자 단축키 전용. target_pane_id
 //!   는 호출 시점의 focused pane (있으면). closed 스택 top 이 Surface/Tab
-//!   인 상태에서 workspaces 가 비어있으면 사전에 `ensure_workspace_exists`
+//!   인 상태에서 workspaces 가 비어있으면 사전에 `ensure_workspace_for_restore`
 //!   처리해 add_workspace 부수효과를 정상화.
 //! - **mirror 워크스페이스면 원격으로 forward 된다**: `Core::apply` 의 mirror 게이트가
 //!   로컬 실행을 막고 `StructuralOp::RestoreClosedItem` 을 forward 큐에 넣는다. 복원은

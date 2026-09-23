@@ -83,7 +83,7 @@ impl Core {
         workspaces_now_empty: bool,
     ) -> CoreEvent {
         // `moved: false` 이벤트도 1 단계가 실제로 지운 것(탭/pane/workspace)을 그대로
-        // 싣는다. 소비자(`App::dispatch_core_event`)가 `moved` 로 cascade 를 막으므로
+        // 싣는다. 소비자(`App::handle_core_event`)가 `moved` 로 cascade 를 막으므로
         // `workspace_purged` 는 이 분기에서 **쓰이지 않는다** — 그래도 비우지 않는 것은,
         // 이벤트가 "무슨 일이 일어났는가" 를 기술해야지 "소비자가 무엇을 쓸 것인가" 를
         // 미리 판단하면 안 되기 때문이다. 세 실패 분기 모두 구조적으로 unreachable 인

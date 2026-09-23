@@ -176,7 +176,7 @@ fn dispatch_command(
     // 3) 이미 검사한 요청을 engine handler에 넘긴다.
     let resp = crate::ipc::handler::handle_checked_request(&mut app.core, state, engine, &checked);
     // 4) 핸들러가 발화한 Intent 를 **응답 전에** 적용한다. gui 의
-    //    `App::dispatch_with_caller` 가 응답 반환 전에 `dispatch_pending_intents`
+    //    `App::dispatch_checked` 가 응답 반환 전에 `dispatch_pending_intents`
     //    를 부르는 것과 같은 계약이며, 이게 없으면 큐가 프로세스 수명 동안 쌓이고
     //    (`docs/adr/0111-headless-drains-the-intent-queue.md`) set_mark /
     //    completion / notification 같은 에이전트 표면이 headless 에서 무응답이 된다.

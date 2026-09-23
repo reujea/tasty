@@ -522,7 +522,7 @@ fn gc_scrollback_orphans_all_slots() {
 /// engine(슬롯 로드)이 만들어지기 전에 불러야 한다.
 ///
 /// `restore_layout` 이 꺼져 있으면 GC 를 건너뛴다 — 그 설정에서는 애초에 슬롯을
-/// 저장하지 않으므로(`impl_workspace::save_layout_now` 의 게이트), union 이 비어
+/// 저장하지 않으므로(`impl_workspace::apply_save_layout_now` 의 게이트), union 이 비어
 /// 옛 `.bin` 을 전부 지우게 된다. 슬롯 도입 전에도 GC 는 같은 조건 안에 있었다.
 /// 마이그레이션 자체는 설정과 무관하게 한다(나중에 켰을 때 복원되도록).
 pub(crate) fn migrate_and_gc_on_boot(restore_layout: bool) {

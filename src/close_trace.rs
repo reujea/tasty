@@ -110,7 +110,7 @@ pub(crate) fn log_total(t0: Instant, surfaces: usize, snapshot: bool, path: &'st
 
 /// `cleanup_surface` 세부(C5a~C5d)의 surface 간 누적기.
 ///
-/// `cleanup_surface` 는 GUI(`cleanup_targets`)/cascade(`cleanup_closed_surfaces`)
+/// `cleanup_surface` 는 GUI(`cleanup_targets`)/cascade(`reclaim_closed_surfaces`)
 /// 양쪽 루프에서 불리므로 누적은 호출자가 소유하고, `cleanup_surface` 는 여기에
 /// 더하기만 한다.
 #[derive(Default, Clone, Copy)]

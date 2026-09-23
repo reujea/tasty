@@ -220,7 +220,7 @@ pub fn debug_state_json(
 /// - 그 외 → `[delay, delay+fade]` 구간에서 opacity **0.2→1.0** 선형 페이드.
 ///
 /// 디자인 확정: 등장은 투명도 80%→0%(alpha 0.2→1.0). `delay_ms`/`fade_ms` 는 Theme 토큰
-/// (`motion_hold_reveal_ms` / `motion_ui_fade_ms`)에서 주입 — 순수 함수라 테스트로 고정한다.
+/// (`modhint_hold_delay` · `motion_hold_reveal_shift` / `modhint_fade`)에서 주입 — 순수 함수라 테스트로 고정한다.
 pub fn hold_reveal_alpha(
     held_ms: f32,
     delay_ms: f32,

@@ -1,8 +1,7 @@
 use crate::state::AppState;
 
 /// 마우스 캡처 배너 "더보기" 메뉴가 (액션 클릭이든 outside click/Esc 든) 닫혔으면
-/// 대상 surface 필드를 비운다. 매번 확인해도 무해(idempotent) — 다른 popup 의
-/// close 정리 블록(`rename_closed` 등)과 동일 관례.
+/// 대상 surface 필드를 비운다. 매번 확인해도 무해(idempotent)하다.
 fn cleanup_mouse_capture_menu_target(
     state: &mut AppState,
     dispatch_closed: &[&'static str],

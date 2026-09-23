@@ -46,7 +46,7 @@ const MAX_DRAIN_ROUNDS: usize = 8;
 /// `AppState` 의 pending intent 큐를 비우고 각 intent 를 engine 에 적용한다.
 ///
 /// 호출 시점은 gui 와 같은 계약이다 — IPC 요청 하나를 처리한 뒤 **응답을 보내기
-/// 전에** 부른다(gui `App::dispatch_with_caller` 가 응답 반환 전에
+/// 전에** 부른다(gui `App::dispatch_checked` 가 응답 반환 전에
 /// `dispatch_pending_intents` 를 부르는 것과 동형). 그래야 `surface.set_mark` 응답을
 /// 받은 호출자가 곧바로 `surface.read_since_mark` 를 물었을 때 mark 가 이미 서 있다.
 pub(crate) fn drain_pending_intents(core: &mut Core, state: &mut AppState, engine: &mut CoreState) {

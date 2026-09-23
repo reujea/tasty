@@ -117,7 +117,7 @@ enum Stored {
     /// 실행은 됐지만 답이 상한을 넘어 버렸다.
     Discarded,
     /// 실행이 시작됐고 답이 아직 안 왔다. App 층의 지연 응답 메서드에서만 생긴다 —
-    /// [`admit_app_call`] 참조.
+    /// [`run_app_layer`] 참조.
     InFlight {
         /// 이 실행을 연 쪽의 표. 늦게 온 결말이 **자기 자리**에만 기록되게 한다.
         ticket: u64,

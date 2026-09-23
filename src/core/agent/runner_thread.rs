@@ -73,7 +73,7 @@ struct RunnerControl {
     /// "러너가 살아는 있는데 아무것도 못 읽고 있다" 를 드러내기 위해 스레드와
     /// 공유한다 — `running: true` 인데 이 값이 크면 DAG 는 정지 상태다.
     list_failures: Arc<AtomicU32>,
-    /// `Option` — `Drop` / `stop_workspace` 에서 `take()` 후 join.
+    /// `Option` — `stop` 에서 `take()` 후 join.
     join: Option<thread::JoinHandle<()>>,
 }
 

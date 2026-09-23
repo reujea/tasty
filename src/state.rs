@@ -418,7 +418,7 @@ pub struct AppState {
     /// `Core::with_memory` 와 같은 lock 정책 (poisoning 시 inner 사용).
     pub(crate) memory: std::sync::Arc<std::sync::Mutex<dyn tasty_memory::MemoryStorage>>,
     /// Surface close lifecycle 알림 큐. close 직후 enqueue되고, App 메인 루프가
-    /// drain하여 `PluginManager::notify_surface_closed`로 dispatch한다.
+    /// drain하여 `surface.closed` 로 broadcast한다(`App::dispatch_pending_surface_lifecycle`).
     /// `state/`는 `plugin/` 의존이 없어 별도 plain struct로 둔다.
     pub(crate) pending_lifecycle_events: Vec<PendingSurfaceClosed>,
     /// Event Bus 1.0 호스트 자동 발화 큐. 호스트 코드 곳곳에서 `enqueue_host_event`로

@@ -5,7 +5,7 @@
 //! `execute_forwarded_structural_op` 는 도메인 실행 함수(`structural_exec::split` ·
 //! `structural_exec::create_tab`)를 부르기 직전에 `set_auto_tap_suppressed(true)` 로
 //! 즉시-tap 을 끄고 직후에 `false` 로 되돌린다. 그 사이에 함수를 빠져나가면 플래그는 **켜진 채로
-//! 남는다** — `AttachState` 는 프로세스 수명 동안 살아 있으므로 이후 모든
+//! 남는다** — `OccupancyRegistry` 는 프로세스 수명 동안 살아 있으므로 이후 모든
 //! `tap_new_workspace_member` 가 영구히 tap 을 건너뛴다. 증상은 점유된 workspace 에
 //! 새로 생긴 터미널이 그냥 스트리밍되지 않는 것뿐이고, 패닉도 로그도 없다.
 //!

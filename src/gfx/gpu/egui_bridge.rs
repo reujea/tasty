@@ -210,7 +210,7 @@ impl GpuState {
             //   plugin 쪽 판정이 **지난 프레임** rect 를 읽는다
             //   (`adapters/ui/popup/draw.rs` 의 `hit_rects` 주석).
             // - 반대 방향은 이미 1 프레임 stale 인 것이 **정상**이다 —
-            //   `plugin_mesh_popup_hittest` 는 plugin draw 가 뒤라서 host 가 다음 프레임에
+            //   `plugin_popup_hittest` 는 plugin draw 가 뒤라서 host 가 다음 프레임에
             //   읽는다(`state.rs` 의 그 필드 선언). 순서를 뒤집으면 그 "1 프레임" 이
             //   조용히 0 이 되고, 두 판정이 같은 프레임 안에서 서로를 물게 된다.
             //

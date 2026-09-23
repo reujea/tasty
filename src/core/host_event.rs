@@ -10,7 +10,7 @@
 
 /// Surface가 닫혔다는 사실을 plugin 측에 broadcast하기 위해 메인 루프가 소비할
 /// 큐 항목. `state/`는 `plugin/` 의존이 없으므로 enum 대신 `is_user_close: bool`로
-/// reason을 담고, App 메인 루프에서 `SurfaceCloseReason`으로 매핑한다.
+/// reason을 담고, App 메인 루프에서 `LifecycleReason`으로 매핑한다.
 // 이유: headless 빌드에도 이 항목을 세우는 코드가 컴파일된다(`AppState` 의 enqueue 메서드 —
 // `state.rs`·`state/pane.rs`·`state/tab.rs`). 비우는 자는 GUI 메인 루프뿐이다. 구조 cascade 의
 // enqueue 자리는 gui 로 가려져 있다(`core/structural_cascade.rs` 모듈 문서).

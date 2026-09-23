@@ -72,7 +72,7 @@ impl App {
             // 번들 plugin 이 점유한 namespace 라 외부 호출은 step 5 의 namespace
             // forward 에서 plugin 으로 넘어가고, 그 forward 는 이 합산보다 **먼저**
             // 돈다. plugin 은 `image.list` 를 자기가 답하지 않고 trampoline 으로
-            // host 에 되돌린다(`host.call`) — 그 되돌림은 `dispatch_with_caller` 로
+            // host 에 되돌린다(`host.call`) — 그 되돌림은 `dispatch_checked` 로
             // 들어오고 거기서는 forward 단계가 없어 이 합산을 지난다. 즉 host 가
             // 합산해야 plugin 을 거쳐 온 답도 전 창을 본다.
             //

@@ -679,7 +679,7 @@ pub struct CoreState {
     /// 경로) entry 를 꺼내 `inject_scrollback` 호출.
     pub(crate) pending_scrollback_inject: HashMap<u32, Vec<tasty_terminal::ScrollbackLine>>,
     /// 첫 plugin pump 후 적용할 layout. plugin이 제공하는 surface kind가
-    /// 등록되기 전에 복원하면 사라지므로 한 번 미뤄둔다. `App::apply_pending_layout_restore`가 소비.
+    /// 등록되기 전에 복원하면 사라지므로 한 번 미뤄둔다. `App::boot_apply_pending_layout_restore`가 소비.
     pub(crate) pending_layout_restore: Option<crate::core::layout_persistence::SavedLayout>,
     /// 이 engine 이 점유한 레이아웃 슬롯. gui engine 은 항상 `Some`, headless 는
     /// `None`(복원·저장 모두 하지 않는다).
@@ -727,7 +727,7 @@ pub struct CoreState {
     pub(crate) memory: std::sync::Arc<std::sync::Mutex<dyn tasty_memory::MemoryStorage>>,
 
     /// agent task runner 스레드 레지스트리의 Arc clone — Core 가 owner. 부팅이 1 회
-    /// 주입한다(`set_agent_runner_registry`).
+    /// 주입한다(`Core::inject_agent_runner_registry`).
     ///
     /// `memory` 와 같은 이유의 필드다: 렌더 경로(DAG surface 의 러너 배지)는 `Core`
     /// 를 손에 쥐지 않은 채 `CoreState` 만 받으므로, 러너가 살아 있는지/죽었는지를
@@ -1031,7 +1031,7 @@ impl CoreState {
         // Try restoring saved layout. plugin이 제공하는 surface kind(예: explorer)는
         // PluginManager가 hello를 처리한 후에야 registry에 등록되므로, 여기서 즉시
         // 복원하면 그런 surface가 사라진다. 따라서 layout 복원은 첫 plugin pump 후로
-        // 지연한다 (`App::apply_pending_layout_restore`).
+        // 지연한다 (`App::boot_apply_pending_layout_restore`).
         //
         // scrollback GC 는 여기서 하지 않는다. engine 하나가 읽는 것은 슬롯
         // **하나**뿐이라, 그 슬롯의 ref 집합으로 GC 하면 다른 슬롯이 참조하는

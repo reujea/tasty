@@ -4,7 +4,7 @@ use crate::app::App;
 
 impl App {
     /// 모든 윈도우/parked state의 surface close lifecycle 큐를 비우고 구독 plugin에
-    /// broadcast한다. `is_user_close` bool → `SurfaceCloseReason` enum 매핑은
+    /// broadcast한다. `is_user_close` bool → `LifecycleReason` enum 매핑은
     /// 여기서 수행 (state/ 레이어가 plugin/ 의존을 갖지 않게).
     ///
     /// Event Bus 1.0 `surface.closed`로 broadcast. (PR 4에서 옛 `surface.lifecycle`
