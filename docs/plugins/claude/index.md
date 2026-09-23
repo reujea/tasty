@@ -14,7 +14,7 @@
 완료는 부모 종류와 무관하게 caller surface 의 `<parent_home>/notify/<caller_surface>.log`
 한 줄로 나간다. child CLI 종류로 채널을 선택하지 않는다. 훅 설치·관측 상태와 부모의 수신
 준비는 별개다. idle/needs_input/interrupt/exit는 작업 성공과 같은 뜻이 아니다.
-[완료 알림 로그](../../dev-guide/external-interaction/child-completion-notify-log.md)를 따른다.
+[완료 알림 로그](../../dev-guide/external-interaction.md#child-완료-알림--completion-log)를 따른다.
 
 
 ## 목적
@@ -26,7 +26,7 @@
 짝 핸들러의 서로 다른 공개 응답과 번역 형식은 기존 호출자 호환을 위해 유지한다.
 `children`/`kill` 형상 및 완료 hook의 대칭·의도된 차이는
 [짝 핸들러 호환 경계](../../dev-guide/paired-agent-handlers.md)를 따른다. 완료 알림은
-[completion-log](../../dev-guide/external-interaction/child-completion-notify-log.md)에 기록하며 caller PTY에 발화를 주입하지 않는다.
+[completion-log](../../dev-guide/external-interaction.md#child-완료-알림--completion-log)에 기록하며 caller PTY에 발화를 주입하지 않는다.
 
 - **cli `claude`** (`tasty claude …`) — 서브커맨드: `launch`(새 워크스페이스에서 실행) · `spawn`(자식 인스턴스, 페인 분할) · `children`/`parent`(관계 조회) · `tell`/`broadcast`(메시지 전송) · `kill`/`respawn` · `reboot`(같은 세션 resume 재시작, 아래) · `child-profile`(자식에게 지속 프로필 부착, 아래) · `hook`(Claude Code 훅 통합, 아래 "Claude Code 훅 통합" 절) · `checklist-hook`(`continue-checklist` 세션 프로필 전용 `Stop` 훅, 아래 "continue-checklist 세션 프로필" 절) · `checklist-enable`/`checklist-disable`/`checklist-status`(게이트별 마커 파일을 켜고 끄고 조회 — `--gate` 생략 시 `continue-checklist`, 같은 절) · `notify-done`(내부용: spawn/tell 상태 전환 시 caller 에게 알림 전달 + 형제 hook 정리·재무장, 아래) · `profile-register`/`profile-unregister`/`profile-list`/`profile-show`/`profile-current`(Claude 세션 프로필 레지스트리, 아래 "Claude 세션 프로필 레지스트리" 절).
 - `spawn`/`tell`은 **동기 블록 없이 즉시 반환**한다. 대상(child 또는 tell 대상 surface)이 idle/needs_input 에 도달할 때마다, 그리고 최종적으로 exited 에 도달했을 때 caller surface(spawn/tell을 호출한 surface)의 완료 알림 로그로 상태를 전달한다. `claude-idle`/`needs-input`/`process-exit` 3개의 once(1회성) surface hook을 등록해 구현하며, 그중 하나가 fire되면 `notify-done`이 알림 전송 + 나머지 형제 hook 정리 후, target surface 가 아직 살아있으면(=이번 fire 가 process-exit 가 아니었으면) `surface.locate` 로 확인해 3개 hook 을 다시 등록한다(자기재무장). 이 덕분에 needs-input(되묻기) 같은 일시적 상태 전환을 거쳐도 그 뒤 진짜 완료 시 알림을 놓치지 않는다 — "spawn/tell 당 알림 1회"가 아니라 "child 가 살아있는 동안 상태 전환마다 알림"이다.
@@ -264,7 +264,7 @@ API 에러로 끝난 턴(위 `StopFailure`)을 설정된 지연 뒤에 재개 �
 - 상시라서 **재무장이 필요 없다** — 3형제의 fire→정리→재무장 사이클과 얽히지 않는다. 발사 빈도 상한은 발신 측(위 쿨다운)이 갖는다.
 - 같은 observer의 재등록은 멱등하다. spawn/tell 구독의 observer는 각각 독립이며, 같은 부모의 동일 epoch는 host에서 한 번으로 합쳐 중복 로그를 막는다. 다른 부모의 유효 tell 수신은 별도로 유지한다.
 - `notify-error`는 구독과 child 실행 세대에 묶인 observer를 host에 전달해 현재 소유권을 확인한다. 종료·교체된 실행 또는 observer 없는 구형 callback은 상태와 로그를 변경하지 않는다.
-- `notify-error` 핸들러는 알림 조립 직전 `surface.screen_text`를 읽어 **원인을 가른다** — 에러 줄이 있으면 그 줄을 힌트로 덧붙이고, 없으면 에러 없는 정지용 문구를 쓴다(codex `notify-caller`와 같은 방식). 완료 알림과 같은 `<parent_home>/notify/<caller_surface>.log` 한 줄로 나간다([child-completion-notify-log](../../dev-guide/external-interaction/child-completion-notify-log.md)).
+- `notify-error` 핸들러는 알림 조립 직전 `surface.screen_text`를 읽어 **원인을 가른다** — 에러 줄이 있으면 그 줄을 힌트로 덧붙이고, 없으면 에러 없는 정지용 문구를 쓴다(codex `notify-caller`와 같은 방식). 완료 알림과 같은 `<parent_home>/notify/<caller_surface>.log` 한 줄로 나간다([external-interaction 완료 알림](../../dev-guide/external-interaction.md#child-완료-알림--completion-log)).
 
 ## 인터페이스
 

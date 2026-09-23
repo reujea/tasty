@@ -68,7 +68,7 @@ tasty 를 **개발하는** AI 에이전트용 가이드. tasty 를 *사용하는
 
 | 문서 | 내용 |
 |------|------|
-| [external-interaction](external-interaction/index.md) | PTY 로 구동하는 외부 TUI(child Claude Code / codex 등)의 동작 때문에 생기는 함정 모음 |
+| [external-interaction](external-interaction.md) | PTY 로 구동하는 외부 TUI(child Claude Code / codex 등)의 동작 때문에 생기는 함정 모음 |
 
 ## 테스트
 

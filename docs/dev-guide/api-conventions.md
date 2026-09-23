@@ -623,4 +623,4 @@ deprecation 기간은 "한 minor 이상"이 원칙이다. 아래 셋은 유예 �
 
 완료 알림 채널은 `<parent_home>/notify/<caller_surface>.log` 하나이며, notify 형제 hook의
 surface 생존 판정·재무장이 그 경로를 채운다. `auto_wait`의 작업 성공 판정과는 별개다.
-[완료 알림 로그](external-interaction/child-completion-notify-log.md)를 따른다.
+[완료 알림 로그](external-interaction.md#child-완료-알림--completion-log)를 따른다.

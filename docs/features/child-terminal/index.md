@@ -102,7 +102,7 @@ claude plugin 의 정지 감시(`crates/tasty-plugin-claude/src/error_scan.rs`)�
 문턱 이상 멎은 것을 보면 이 판정을 조회해 보고, 그 값이 **`active` 또는 `stale`** 이면
 부모의 완료 알림 로그에 한 줄을 싣는다(`claude-error-stalled` hook →
 `tasty claude notify-error` →
-[child-completion-notify-log](../../dev-guide/external-interaction/child-completion-notify-log.md)).
+[external-interaction 완료 알림](../../dev-guide/external-interaction.md#child-완료-알림--completion-log)).
 `stale` 이 그 대상인 이유는 **그 값에 대응하는 완료 알림 경로가 없기 때문**이다 — `stale` 이
 나온다는 것 자체가 훅이 유실됐다는 뜻이라, 부모가 묻지 않으면 그 사실이 아무 데도 도달하지
 않는다. 결정과 오탐 대가는

@@ -41,7 +41,7 @@ command를 가진 형제를 정리한다. target이 살아 있으면 다시 등�
 
 완료 알림은 caller의 PTY에 새 발화를 주입하지 않는다. 일반 `tell`이 대상 PTY에
 메시지를 보내는 것과 구분한다. 경로·로그 소비 계약은
-[child 완료 알림](external-interaction/child-completion-notify-log.md)을 따른다.
+[child 완료 알림](external-interaction.md#child-완료-알림--completion-log)을 따른다.
 
 등록 루프는 공용 `host_call::register_completion_hooks`이고 이벤트 목록은 각 plugin의
 매니페스트가 근거다. Codex에도 needs-input이 있으므로 이벤트 부재를 비대칭의

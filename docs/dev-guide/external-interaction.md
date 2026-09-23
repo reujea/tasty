@@ -1,13 +1,116 @@
-# child 완료 알림 — completion-log
+# 외부 프로그램 구동 함정 (external-interaction)
 
-## 증상
+tasty 가 PTY 로 **외부 프로그램**(child Claude Code / codex CLI / 기타 TUI)을 구동하고 입력을
+주입·제어할 때, **외부 프로그램 측 동작**(bracketed-paste 감지, 입력 모드, read 타이밍 등)
+때문에 생기는 **구조적 함정**을 검증된 사실로 모은다.
+
+[`docs/design/systems/design-parity-notes.md`](../design/systems/design-parity-notes.md) 의
+dev-guide 판이다 — 대상이 "디자인 렌더와 egui 의 구조 차이" 가 아니라 "tasty 가 구동하는
+외부 프로그램의 동작" 이라는 점만 다르다.
+
+## 기록 원칙
+
+- **추측 금지.** 실측(재현 실험)·소스 코드로 확인된 것만 적는다.
+- 항목 형식: **증상 / 원인 / 임계·근거 / 처방(현재 상태) / 일반 교훈 / 날짜(절대값)**.
+- docs 는 현재 상태를 기술한다 — "수정 전/후" 는 함정을 설명하는 데 필요한 만큼만.
+
+## 노트 — 아래 절 목록
+
+| 노트 | 요지 |
+|------|------|
+| [tell-autosubmit-paste-threshold](#child-tell-단일라인-자동제출--63자-paste-임계) | child `tell` 단일라인이 63자(code point) 이상이면 자동제출 안 됨 — 본문+`\r` 한 burst 가 수신측 paste 휴리스틱에 흡수. 본문과 제출 `\r` 을 별도 PTY write 로 분리해 해결 |
+| [child-completion-notify-log](#child-완료-알림--completion-log) | 완료는 부모 종류와 무관하게 로그 한 줄로 나가고 부모 Claude는 그것을 Monitor 로 tail 한다. 완료 이벤트의 PTY tell fallback은 없다. |
+| [bash-resize-first-byte-loss](#bashmsys-resize-후-다음-입력의-첫-바이트-유실) | **Windows 전용**(ConPTY+MSYS bash). resize 후 다음 입력의 첫 1바이트를 지연 SIGWINCH 처리에 소모 (~25–33%, 시간 무관, cmd.exe 무결). 상류 버그 — 에이전트는 `\n` 프리픽스 또는 echo 검증으로 방어 |
+
+## child tell 단일라인 자동제출 — 63자 paste 임계
+
+`tasty claude tell` / `tasty codex tell` 로 child(외부 TUI: Claude Code / codex CLI)에 입력을
+주입할 때, 단일라인 본문과 제출 Enter 를 **같은 PTY write burst** 에 섞으면 수신측의
+bracketed-paste 휴리스틱이 끝의 `\r` 을 제출이 아닌 paste 본문으로 흡수하는 함정.
+
+### 증상
+
+- `tell` 단일라인 메시지가 **63자(code point) 이상**이면 자동제출(Enter)되지 않고 입력창(❯)에
+  텍스트만 남는다. **62자 이하는 정상 제출.**
+- **멀티라인(개행 포함) 은 길이 무관 제출**된다.
+- 임계는 byte 도 표시폭도 아니라 **code point 수** 다 — 영문 63B 와 한글 189B 가 **같은 63자**
+  에서 끊긴다(한글은 2배폭인데도 char 기준). 콘텐츠(영문/한글/공백/슬래시/경로/특수문자)·
+  타이밍(즉시/지연 read) 모두 무관, 결정적.
+
+### 원인
+
+수신측 Claude Code / codex TUI 는 한 번의 read 로 들어온 입력 burst 가 일정 크기(~64 codepoint,
+= 63자 본문 + `\r`) 이상이면 bracketed-paste 휴리스틱으로 **paste 로 판정**하고, burst 끝의
+`\r` 을 제출 Enter 가 아니라 paste 본문 리터럴로 흡수한다.
+
+tasty 가 단일라인 tell 을 본문과 제출 `\r` 을 **한 문자열(`"{msg}\r"`)로 만들어 한 번의
+`surface.send` = 한 PTY write** 로 보내면, 본문이 길 때 그 write 전체가 paste 로 처리되어
+미제출된다. 멀티라인은 원래부터 본문과 `\r` 을 **별도 PTY write** 로 분리해 보내므로 단독
+`\r` 이 제출로 처리되어 길이와 무관하게 안정적이었다.
+
+**근본 원인 소속**: 외부 TUI 의 paste 감지 자체는 합리적 동작이다. 함정은 tasty 가 "제출"
+신호를 본문과 같은 write burst 에 섞어 보낸 데 있다 — tasty 측에서 고친다.
+
+### 임계·근거
+
+내부 재현 실험으로 확정(2026-06-25, idle child 에 `tell --no-wait` 후 화면 판정):
+
+| 입력 | 문자수 | byte | 개행 | 결과 |
+|------|-------|------|------|------|
+| 영문 | 62 | 62 | 0 | 제출 |
+| 영문 | 63 | 63 | 0 | **미제출** |
+| 한글 | 62 | 186 | 0 | 제출 |
+| 한글 | 63 | 189 | 0 | **미제출** |
+| 슬래시/경로·한글+경로 혼합 | 62 / 63 | — | 0 | 62 제출 / 63 미제출 |
+| 멀티라인 | 17·81 | — | 1 | 제출 (길이 무관) |
+
+→ 경계는 콘텐츠 무관 **본문 63자**(본문+`\r` = 64 codepoint burst). 미제출 케이스는 텍스트가
+입력창에 온전히 들어가 있고 수동 Enter 1회로 정상 제출됨.
+
+### 처방 (현재 상태)
+
+단일라인 tell 도 멀티라인과 동일하게 **본문과 제출 `\r` 을 별도 PTY write 로 분리 전송**한다.
+
+- **호스트 `terminal.tell` 에 중앙화됐다** — `src/adapters/ipc/handler/terminal.rs` 의
+  `build_tell_payload`(개행 유무와 무관하게 `\r` 미포함 본문만 만든다. 멀티라인은 bracketed
+  paste 로 감싼다) + `handle_tell`(본문 `surface.send` → 별도 `\r` `surface.send`, 두 번의
+  write 로 분리)이 유일한 구현이다.
+- `claude`/`codex` 플러그인의 `tell` 은 자체 페이로드 조립 로직을 갖지 않고 `terminal.tell`
+  IPC 를 그대로 호출해 위임한다(`crates/tasty-plugin-claude/src/handlers.rs`,
+  `crates/tasty-plugin-codex/src/handlers.rs` 의 `handle_tell` — 둘 다 `host_call(host,
+  "terminal.tell", …)` 한 줄). `terminal.spawn` 의 초기 command 주입도 같은
+  `build_tell_payload` 를 거친다.
+- 호스트 `terminal.broadcast`(`handle_broadcast`)도 동일 함정을 피한다 — `build_broadcast_payload`
+  가 호출자가 넣은 trailing `\r`(제출 의도)을 본문에서 분리해, 본문은 `build_tell_payload` 로
+  감싸 한 write, 제출 `\r` 은 별도 write 로 보낸다. tell 과 달리 broadcast 는 `\r` 이 없으면
+  제출 write 를 생략해 "sent as-is" 주입 계약을 보존한다.
+- **적용 범위 밖(주의)**: `claude`/`codex` 플러그인이 자기 프로세스를 처음 띄우는
+  `start_claude_in_surface`류 launch 경로는 별도 `surface.send`(쉘 커맨드라인 + `\r` 한 덩어리)
+  라 같은 사각지대다 — 다만 이쪽은 대상이 TUI 가 아니라 아직 아무것도 안 뜬 shell 프롬프트라
+  bracketed-paste 휴리스틱이 걸릴 대상 자체가 없어 실질 위험은 없다.
+
+결과: `tell`/`terminal.spawn`/`terminal.broadcast` 경로 모두 메시지 길이·콘텐츠와 무관하게
+결정적으로 동작한다. 단위 테스트가 본문 payload 에 제출 `\r` 이 섞이지 않음(63자+ 회귀 가드
+`broadcast_payload_splits_trailing_cr_for_submit`)과 멀티라인 본문 분리(`broadcast_payload_multiline_wraps_bracketed_and_submits`)를 검증한다.
+
+### 일반 교훈
+
+외부 TUI 에 입력을 주입할 때, **"제출(Enter)" 같은 제어 신호는 본문과 다른 write 로 분리**해야
+외부의 paste/모드 감지에 흡수되지 않는다. 한 write burst 에 본문+제어를 섞으면 burst 크기에
+따라 제어 신호가 비결정적으로 삼켜질 수 있다.
+
+날짜: 2026-06-25 (근거는 내부 조사로 실측 확정 — 재현 매트릭스 핵심 수치를 위에 옮김).
+
+## child 완료 알림 — completion-log
+
+### 증상
 
 child(claude/codex)가 작업을 끝내 caller(conductor)에게 "완료" 를 알릴 때, caller
 세션이 **busy(다른 turn 을 생성 중)** 이면 완료 알림이 **씹힌다**. conductor 가 무거운
 작업(빌드/리뷰/직접 코딩)을 도는 동안 child 완료 알림이 도착해도 놓치는 사고가 실제로
 있었다.
 
-## 원인
+### 원인
 
 완료 알림의 원래 유일 경로는 `terminal.tell`(claude `notify-done` / codex
 `notify-caller`)로 caller surface 의 PTY 에 텍스트+`\r` 을 강제 주입하는 것이다. 이는
@@ -16,7 +119,7 @@ child(claude/codex)가 작업을 끝내 caller(conductor)에게 "완료" 를 알
 못한다. idle 세션이라도 tell 텍스트가 프롬프트에 얹힐 뿐 자동 제출/turn 시작을 보장하지
 못하는 경우가 있다.
 
-## 처방 (현재 상태)
+### 처방 (현재 상태)
 
 완료 이벤트를 **파일에 한 줄씩 append** 한다. 부모가 Claude Code이면 이 파일을 Claude Code 내장
 **Monitor tool** 로 tail 하면 busy/idle 여부와 무관하게 다음 turn 에 완료를 전달받는다 —
@@ -68,14 +171,14 @@ completion-log(Monitor) 채널이 안정적으로 검증된 뒤 **완료-알림 
   append 한다(`tasty claude notify-error`, `claude-error-stalled` hook). 완료 신호 없이
   매달린 자식을 부모가 무한정 기다리지 않게 하는 push 경로다 — 판정 기준(무출력 지속 +
   호스트가 여전히 `active`)과 노이즈 상한은
-  [plugins/claude](../../plugins/claude/index.md) 의 "정지 알림" 절.
+  [plugins/claude](../plugins/claude/index.md) 의 "정지 알림" 절.
 - **writer 는 여럿이다**: 한 caller surface 밑에 claude child 와 codex child 가 함께 뜨면
   **서로 다른 두 프로세스**가 같은 파일에 append 한다. 그래서 append 헬퍼의 불변식은
   **"한 줄은 통째로 남거나 통째로 없다"** 다 — 줄이 잘리거나 두 줄이 섞이는 상태는 없다.
   그것을 두 가지로 지킨다: 쓰기 핸들은 **언제나 append** 이고(비우기를 섞지 않는다),
   한 줄은 **한 번의 `write`** 로 나간다(`O_APPEND` 가 보장하는 것은 한 번의 write 가 끝에
   통째로 붙는 것뿐이다). 근거·측정·재검토 조건은
-  [ADR-0330](../../adr/0330-one-completion-line-is-one-write.md).
+  [ADR-0330](../adr/0330-one-completion-line-is-one-write.md).
 - **크기 관리**: append 전 파일이 256 KiB 이상이면 비우고 새로 쓴다(무한 성장 방어).
   `tail -F` 는 파일 축소를 감지해 재오픈하므로 arm 된 Monitor 는 비운 뒤의 라인을 계속
   받는다. **비우기는 파일 전체를 버린다** — "마지막 256 KiB 를 남긴다" 가 아니라 "256 KiB
@@ -87,7 +190,7 @@ completion-log(Monitor) 채널이 안정적으로 검증된 뒤 **완료-알림 
   로그 **옆 메타 파일** `<caller_surface>.log.meta` 의 누계 `retention_start` 에 더한다(아래
   "재개하는 reader"). 로그 파일 **자신에는 안 쓴다** — 읽는 쪽 계약이 "한 줄 = 완료 통지"
   라 메타 줄을 끼우면 그것이 완료로 읽힌다
-  ([ADR-0330](../../adr/0330-one-completion-line-is-one-write.md) 이 그 대안을 기각한 자리).
+  ([ADR-0330](../adr/0330-one-completion-line-is-one-write.md) 이 그 대안을 기각한 자리).
 
   비우기는 쓰기와 **분리된 단계**이고, 별도 핸들에서 크기를 다시 재고 그때도 cap 을 넘을
   때만 실행한다. 재기 · 비우기 · 누계 갱신은 메타 파일의 **배타** advisory 잠금 아래에서,
@@ -100,7 +203,7 @@ completion-log(Monitor) 채널이 안정적으로 검증된 뒤 **완료-알림 
 
 - **재개하는 reader — `<caller_surface>.log.meta`**: `tail -F` 는 arm 된 동안만 비우기를
   따라간다. 멈췄다 다시 붙는 reader 는 그 사이 무엇을 잃었는지 옆 메타 파일로 안다. 정본은
-  [ADR-0415](../../adr/0415-a-resuming-completion-log-reader-learns-what-it-lost-from-a-sidecar.md).
+  [ADR-0415](../adr/0415-a-resuming-completion-log-reader-learns-what-it-lost-from-a-sidecar.md).
   - 메타 파일은 `key=value` 줄이고 지금 키는 `retention_start` 하나다 — 이 세대에서 **버린
     바이트 누계**, 곧 지금 파일 첫 바이트의 논리 위치다. 값은 왼쪽 정렬 · 공백 채움 폭 20
     이다(셸 `$((…))` 이 그대로 읽는다). 파일이 없거나 비었으면 0 이다. 메타 파일은 첫
@@ -163,9 +266,9 @@ completion-log(Monitor) 채널이 안정적으로 검증된 뒤 **완료-알림 
   `handle_notify_caller`. **claude 쪽은 `handlers.rs` 가 아니라 `notifications.rs` 다.**
   위 불변식은 이 세 자리 전부에 걸린다 — 여기에 쓰기를 더하면 그 자리도 한 번의 write 여야 한다.
 
-### 보존 범위·유실·인스턴스 정체성 — 한 자리
+#### 보존 범위·유실·인스턴스 정체성 — 한 자리
 
-정본은 [ADR-0344](../../adr/0344-the-completion-log-keeps-one-host-generation-and-says-what-it-threw-away.md)
+정본은 [ADR-0344](../adr/0344-the-completion-log-keeps-one-host-generation-and-says-what-it-threw-away.md)
 와 `crates/tasty-utils/src/notify.rs` 의 모듈 문서다. 요지는 셋이다.
 
 - **정체성은 경로다.** 한 완료 로그의 정체성은 **(데이터 루트, caller surface id)** 이고,
@@ -184,11 +287,11 @@ writer 는 여전히 데이터 루트(`tasty_home()`)의 `notify/` 에 쓴다. �
 지우지 않기 위해서다. 예전에는 루트 밖이어도 지웠다(실측 2026-09-20: 격리 홈에 호스트 A 를
 띄우고 `notify/9.log` 를 남긴 뒤, 같은 홈에 `--port-file` 만 다른 호스트 B 를 띄웠더니 A 의
 `notify/` 가 사라졌다). 근거·대안은
-[ADR-0416](../../adr/0416-the-boot-cleanup-follows-the-port-file-root.md).
+[ADR-0416](../adr/0416-the-boot-cleanup-follows-the-port-file-root.md).
 그래도 두 호스트가 한 루트를 쓰면 **surface 번호가 겹쳐 줄이 한 파일에 섞인다** —
 루트 밖 포트 파일로 뜬 호스트는 자기 세대 경계도 못 만든다. 격리는 **`TASTY_HOME` 으로** 한다.
 
-### 부모 Claude 운영 규약 — Monitor arm
+#### 부모 Claude 운영 규약 — Monitor arm
 
 부모 Claude는 child 를 dispatch 한 뒤 **한 번** 자기 surface 의 완료 로그를 arm 한다:
 
@@ -202,7 +305,7 @@ Monitor({ command: "tail -n0 -F \"$TASTY_PARENT_HOME/notify/$TASTY_SURFACE_ID.lo
 이후 child 완료마다 append 된 라인이 Monitor 이벤트로 전달된다. `-n0` 은 기존 라인을 건너뛰고
 arm 시점 이후만 받게 한다. `persistent: true` 로 세션 내내 열려 있어 재-arm 이 필요 없다.
 
-### Monitor 사용 시 주의 (상류 제약)
+#### Monitor 사용 시 주의 (상류 제약)
 
 - **WebSocket 소스 금지**: Monitor 의 `ws` 소스는 loopback/사설 IP 를 거부하므로
   (`ws://127.0.0.1` 불가) tasty 완료 로그엔 쓸 수 없다. 반드시 `command`(파일 tail) 소스.
@@ -213,7 +316,7 @@ arm 시점 이후만 받게 한다. `persistent: true` 로 세션 내내 열려 
   때문에 제거됐으므로 더는 대안 채널이 아니다.
 - 간헐적 전달 지연(수십 초)이 보고돼 있다(아래 근거). 손실이 아니라 지연이다.
 
-## 근거
+### 근거
 
 - **tasty 측(append)**: 소스 확인 — `crates/tasty-utils/src/notify.rs`,
   `crates/tasty-plugin-claude/src/notifications.rs`,
@@ -229,7 +332,7 @@ arm 시점 이후만 받게 한다. `persistent: true` 로 세션 내내 열려 
   `a_resuming_reader_is_told_exactly_how_many_bytes_it_lost`(고유 표식으로 중지/재개 대조) ·
   `under_concurrent_writers_read_plus_skipped_equals_written`(동시 writer 에서 받은 바이트 +
   `skipped` = 쓴 바이트. 확률적 채널이라 잠금을 빼도 한 번 실행에 약 30~40% 만 깨진다 — 검출률
-  실측과 재는 법은 [ADR-0415](../../adr/0415-a-resuming-completion-log-reader-learns-what-it-lost-from-a-sidecar.md)
+  실측과 재는 법은 [ADR-0415](../adr/0415-a-resuming-completion-log-reader-learns-what-it-lost-from-a-sidecar.md)
   의 Consequences) · `retention_start_accumulates_what_every_truncation_threw_away`
   · `an_unaccounted_truncation_is_reported_as_unknown_loss`. **`tracing` 출력 자체에는 채널이 없다** — `tasty-utils` 는 구독자를
   갖지 않는 leaf crate 라, 그 줄이 실제로 나가는지는 호스트를 띄워 plugin 로그에서
@@ -241,7 +344,7 @@ arm 시점 이후만 받게 한다. `persistent: true` 로 세션 내내 열려 
   그래서 채널이 아니라 **에이전트가 직접 arm 하는 Monitor** 방식을 택했다. Monitor 라인
   전달의 간헐 지연: `#76508`.
 
-## 패키징된 macOS `.app` 의 PATH 제약 — hook 셸 커맨드가 자기 자신을 재호출할 때
+### 패키징된 macOS `.app` 의 PATH 제약 — hook 셸 커맨드가 자기 자신을 재호출할 때
 
 완료 알림 hook(`register_notify_hooks` — claude 는
 `crates/tasty-plugin-claude/src/notifications.rs`, codex 는
@@ -271,7 +374,7 @@ arm 시점 이후만 받게 한다. `persistent: true` 로 세션 내내 열려 
   `inline_shell_resolves_self_binary_via_augmented_path`(self-dir 없는 PATH 에서 basename 재호출 성공
   end-to-end 검증).
 
-## 일반 교훈
+### 일반 교훈
 
 - 수신 세션 상태(busy/idle)에 의존하는 PTY 입력 주입은 완료 알림의 **단일 경로로 부적합**하다.
   파일 append + 에이전트가 능동적으로 arm 하는 감시(Monitor tail)가 상태 독립적이다.
@@ -286,6 +389,35 @@ arm 시점 이후만 받게 한다. `persistent: true` 로 세션 내내 열려 
   루트 override 로 오인해 프로파일 격리가 깨진다. 그래서 broadcast 는 `TASTY_PARENT_HOME`
   으로 분리했다(위 "왜 `TASTY_HOME` 이 아니라" 참조).
 
-## 날짜
+### 날짜
 
 2026-07-13 최초 작성.
+
+## bash(MSYS): resize 후 다음 입력의 첫 바이트 유실
+
+**⚠️ Windows 전용 이슈.** ConPTY(Windows 전용 PTY 백엔드) + MSYS bash(git-bash 등) 조합에서만 재현된다 — macOS/Linux 의 tasty PTY 백엔드는 ConPTY 를 쓰지 않으므로 이 문서의 증상과 무관하다(아래 실측의 "셸을 cmd.exe 로 교체 → 유실 0" 도 Windows 내부 비교이지, 크로스플랫폼 비교가 아님에 주의).
+
+**증상.** ConPTY resize(레이아웃 변경 — split/unsplit, 창 크기 변경)가 일어난 surface 의 bash 프롬프트에 다음 입력을 주입하면, 첫 1바이트가 소리 없이 사라진다 — `surface.send "seq 1 5000\n"` 이 `eq 1 5000` 으로 도착해 `bash: eq: command not found`. 재현율 resize+입력 쌍당 ~25–33%.
+
+**원인 (셸 측 — tasty 무죄).** bash 는 SIGWINCH 핸들러를 `SA_RESTART` 로 설치하고, readline 은 플래그만 세워뒀다가 **다음 입력이 read 를 깨울 때** 보류된 WINCH 를 처리한다(bash 5 동작, [fff#48](https://github.com/dylanaraps/fff/issues/48)). MSYS/Cygwin 의 시그널 에뮬레이션이 ConPTY 위에서 이 "read 를 깨운 바이트"를 소모한다.
+
+**상태: 알려진 상류(msys2-runtime) 버그로 기록만 한다 — 상류 제보는 하지 않기로 결정(2026-07-12).** 상류 이슈 트래커에 기존 리포트 없음(당시 검색 기준). tasty 는 아래 처방으로 방어하고, 향후 마음이 바뀌면 아래 실측 표·원인 분석을 근거로 제보할 수 있다.
+
+**임계·근거 (2026-07-12 실측, 격리 debug 인스턴스).**
+
+| 실험 | 결과 |
+|------|------|
+| resize 없이 send 만 20회 | 유실 0 (resize 연루 확정) |
+| settle 0.1 s / 0.6 s / 2 s 후 send | 모두 ~25–33% — **시간 무관**, "다음 입력"에 앵커 |
+| 희생 개행(`\n`) 프리픽스 | 유실 0/15 — 정확히 첫 1바이트만 소모, `\n` 이 대신 먹힘 |
+| 셸을 cmd.exe 로 교체 | 유실 0/27 — bash(MSYS) 전용 |
+| **tasty 무관 단독 재현기** (portable-pty 단독, 단일 스레드) | **셸 기동 후 첫 resize 의 다음 입력에서 결정적 재현** (3회 연속 1/20, 항상 iter 0) — tasty 최종 무죄 확정 |
+
+**처방 (현재 상태).**
+
+- tasty 는 PTY 계층에서 셸 내부 상태를 알 수 없어 근본 수정 불가(상류 몫). 감시는 soak 하네스가 `input_incidents` 카운터로 계수한다 ([memory-leak-soak](memory-leak-soak.md)).
+- **에이전트 처방**: 레이아웃 변경(split/close/resize) 직후 같은 surface 의 bash 에 명령을 주입해야 하면 **텍스트 앞에 `\n` 하나를 붙인다** — 유실돼도 개행이라 무해하고, 안 유실되면 빈 프롬프트 한 줄이 생길 뿐이다. 또는 주입 후 echo 를 검증하고 오염 시 재시도한다 (`tests/soak_memory.rs` 의 `cycle_heavy_output` 가 이 패턴).
+
+**일반 교훈.** "주입한 입력이 도착했는가"는 시간 대기로 보장되지 않는다 — 셸이 시그널을 지연 처리하는 한 유실 창은 벽시계가 아니라 *다음 read* 에 붙는다. 입력 무결성이 필요한 자동화는 echo 검증 또는 무해한 선행 바이트로 방어한다.
+
+날짜: 2026-07-12

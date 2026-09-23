@@ -14,7 +14,7 @@
 완료는 부모 종류와 무관하게 caller surface 의 `<parent_home>/notify/<caller_surface>.log`
 한 줄로 나간다. child CLI 종류로 채널을 선택하지 않는다. 훅 설치·관측 상태와 부모의 수신
 준비는 별개다. idle/needs_input/interrupt/exit는 작업 성공과 같은 뜻이 아니다.
-[완료 알림 로그](../../dev-guide/external-interaction/child-completion-notify-log.md)를 따른다.
+[완료 알림 로그](../../dev-guide/external-interaction.md#child-완료-알림--completion-log)를 따른다.
 
 
 ## 목적
@@ -26,7 +26,7 @@
 짝 핸들러의 서로 다른 공개 응답과 번역 형식은 기존 호출자 호환을 위해 유지한다.
 `children`/`kill` 형상 및 완료 hook의 대칭·의도된 차이는
 [짝 핸들러 호환 경계](../../dev-guide/paired-agent-handlers.md)를 따른다. 완료 알림은
-[completion-log](../../dev-guide/external-interaction/child-completion-notify-log.md)에 기록하며 caller PTY에 발화를 주입하지 않는다.
+[completion-log](../../dev-guide/external-interaction.md#child-완료-알림--completion-log)에 기록하며 caller PTY에 발화를 주입하지 않는다.
 
 - **cli `codex`** (`tasty codex …`) — 서브커맨드: `launch` · `spawn`(자식, 페인 분할) · `children`/`parent` · `tell`(메시지 전송, 줄바꿈 보존·자동 제출) · `notify-caller`(내부용, 아래) · `broadcast` · `kill`/`respawn` · `reboot`(같은 세션 resume 재시작, 아래) · `hook`(stop/prompt-submit/session-start/permission-request/post-tool-use/interrupt/session-end). `install`/`uninstall`(Tasty 훅을 Codex CLI 설정에 설치).
 - **ipc_namespace `codex`** — 위 동작의 IPC 표면.

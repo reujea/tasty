@@ -822,7 +822,7 @@ mod tests {
         assert_eq!(after.lines, ["after-cap"]);
     }
 
-    // 세 값의 사본 자리: 200 ms 는 ADR-0415 · dev-guide(child-completion-notify-log) · CHANGELOG,
+    // 세 값의 사본 자리: 200 ms 는 ADR-0415 · dev-guide(external-interaction 의 완료 알림 절) · CHANGELOG,
     // 5 ms 는 ADR-0415, 40 번은 위 `EXCLUSIVE_LOCK_RETRY` 의 doc 이다. 이 시험이 그 사본들의
     // 판정기다 — 값을 바꾸면 여기가 빨개지고, 그때 그 자리들을 같이 고친다.
     #[test]
