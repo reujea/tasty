@@ -83,4 +83,4 @@ AA)이다. latte 의 `subtext0`(text-muted)은 upstream catppuccin 값 `#6c6f85`
 ## References
 
 - [테마 시스템](../design/systems/theme.md) "latte 중성 램프 대비 — 알려진 예외" — 대비 표와 배경 선택 기준(현재 운영 상태)
-- [visual-verification](../ai-verification/visual-verification.md) — 대비 위반 판정 체크리스트
+- [screenshot-methods 시각 판정 체크리스트](../ai-verification/screenshot-methods.md#시각-판정-체크리스트) — 대비 위반 판정 체크리스트

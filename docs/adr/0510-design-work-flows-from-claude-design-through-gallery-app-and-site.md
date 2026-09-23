@@ -19,7 +19,7 @@
 맡는다. Figma 로 기획을 병행하려 했으나 Claude Design 으로 충분했다.
 
 **갤러리의 누락.** `crates/tasty-gallery` 는 본체 UI 컴포넌트를 격리 렌더해 디자인 정합·토큰·시각을
-검증하는 도구이고, demo=main 원칙([shared-widgets](../design/policies/shared-widgets.md))상 갤러리
+검증하는 도구이고, demo=main 원칙([ui-widgets-crate 공용 위젯](../architecture/ui-widgets-crate.md#무엇을-공용-위젯으로))상 갤러리
 specimen 은 본체와 같은 view-only 함수를 호출한다. 그런데 디자인 산출물의 갤러리 재구성이 본체에
 실재하는 컴포넌트 다수(Convert · Port Scanner · File Handler Picker · Apply Preset · Toast Stack ·
 Markdown Open · Update · Search Bar · Tools Menu · Divider · Multi-tier Tab · hint_text)를 카탈로그에서

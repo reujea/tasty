@@ -24,7 +24,7 @@
 ## Decision
 
 **착지마다, 착지 커밋을 만들기 전에 이번 착지로 들어오는 ADR 을 나란히 놓고 사람이 대조한다.**
-절차는 [`docs/dev-guide/adr-landing.md`](../dev-guide/adr-landing.md) 가 운영 규칙으로 싣는다.
+절차는 [`docs/dev-guide/adr-index.md`](../dev-guide/adr-index.md#착지-때-새-adr-끼리-대조) 가 운영 규칙으로 싣는다.
 
 - **입력은 `A`·`M`·`R` 전부다.** `A` 만 보면 같은 기존 ADR 을 두 lane 이 서로 다르게 고친 겹침이
   빠진다.
@@ -74,7 +74,7 @@
 
 ## References
 
-- 운영 절차: [`docs/dev-guide/adr-landing.md`](../dev-guide/adr-landing.md)
+- 운영 절차: [`docs/dev-guide/adr-index.md`](../dev-guide/adr-index.md#착지-때-새-adr-끼리-대조)
 - 도구: `scripts/adr-landing-report.sh`
 - 작성 시점 탐색: [ADR-0507](0507-an-adr-is-written-after-a-symbol-search-and-only-for-a-choice.md)
 - 겹침 처리: [ADR-0506](0506-a-decision-recorded-twice-is-split-by-the-width-of-the-overlap.md)

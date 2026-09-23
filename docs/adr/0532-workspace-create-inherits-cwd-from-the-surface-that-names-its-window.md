@@ -35,7 +35,7 @@ terminal 워크스페이스는 `surface_id` 를 실었으면 **그 surface** 의
   surface 를 아무 창도 안 가졌을 때의 거절.
 - 그대로 두는 것: 명시 `cwd` 가 언제나 이긴다. `inherit_cwd` 설정을 끄면 지목해도 상속하지 않는다.
   원본이 mirror surface 면 로컬 출처가 없어 `None`(= 홈)이다
-  ([`surface-cwd.md`](../architecture/invariants/surface-cwd.md) §3-2).
+  ([`cwd.md`](../design/policies/cwd.md#3-2-원격-출처-cwd-는-로컬-실행-경로로-새지-않는다) §3-2).
 - 숫자가 아닌 `surface_id` 는 `invalid_params` 로 거절한다. 핸들러가 그 키를 안 읽던 때에는 라우터도
   못 짚은 채 포커스 창의 포커스 surface 로 조용히 떨어졌다 — 읽기 시작한 이상 잘못된 값을 없는
   값처럼 다루지 않는다(`handler/params.rs` 의 관문 규칙). 그래서 이 메서드는 이제 미라우팅 명부

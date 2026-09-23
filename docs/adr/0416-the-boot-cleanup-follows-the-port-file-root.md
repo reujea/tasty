@@ -113,4 +113,4 @@ reader(conductor 셸)는 호스트가 주입한 `TASTY_PARENT_HOME` 을 보고, 
 - 청소 순서(청소 → 포트 파일)는 바꾸지 않는다 — `clear_notify_then_publish` 의 계약.
 - **코드 근거 (결정이 실현된 현재 위치)**: `src/adapters/production/tcp_ipc_server.rs` 의
   `TcpIpcServer::notify_dir_to_clear` · `start_with_port_file` · `clear_notify_then_publish_port`.
-- 사용자 경로: [dev-guide/external-interaction/child-completion-notify-log.md](../dev-guide/external-interaction/child-completion-notify-log.md).
+- 사용자 경로: [dev-guide/external-interaction.md](../dev-guide/external-interaction.md#child-완료-알림--completion-log).

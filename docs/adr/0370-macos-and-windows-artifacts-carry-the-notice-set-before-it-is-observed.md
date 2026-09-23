@@ -45,7 +45,7 @@ Windows `.zip` · macOS `.dmg` 는 "그 빌드 환경이 아니면 산출물을 
   **WiX 만은 파일마다 이름을 적어야 해서** `wix/main.wxs` 에 본문마다 `Component` 가 있고,
   `build-windows.ps1` 이 MSI 를 만들기 전에 `LICENSES/` 의 파일마다 대응 `Source` 가 있는지 보고
   없으면 멈춘다.
-- **상태 표기** — `THIRD_PARTY_LICENSES.md` 의 "산출물별 위치" 표와 `docs/dev-guide/dist-build.md`
+- **상태 표기** — `THIRD_PARTY_LICENSES.md` 의 "산출물별 위치" 표와 `docs/dev-guide/build.md#dist-빌드-명령-카탈로그`
   가 세 자리를 "배선했고 열어 본 적은 없다" 로 적는다. 관측한 Linux 넷과 같은 줄로 읽히지 않게
   한다.
 
@@ -115,4 +115,4 @@ Windows `.zip` · macOS `.dmg` 는 "그 빌드 환경이 아니면 산출물을 
 - `scripts/lib/notice-set.sh` 의 `stage_notice` · `verify_notice_tree` · `verify_notice_listing` — 셸 쪽 스테이징과 확인. (결정이 실현된 현재 위치)
 - `scripts/build-windows.ps1` 의 `Get-NoticeSetFiles` · `Stage-Notice` · `Test-NoticeTree` — PowerShell 쪽. (결정이 실현된 현재 위치)
 - `wix/main.wxs` 의 `NoticeLicensesDir` 트리 — MSI 의 고지 자리. (결정이 실현된 현재 위치)
-- [`docs/dev-guide/dist-build.md`](../dev-guide/dist-build.md) — 빌더가 읽는 절차.
+- [`docs/dev-guide/build.md`](../dev-guide/build.md#dist-빌드-명령-카탈로그) — 빌더가 읽는 절차.

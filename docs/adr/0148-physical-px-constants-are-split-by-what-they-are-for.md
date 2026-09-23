@@ -33,7 +33,7 @@ src/state/mouse.rs              DIVIDER_HIT_THRESHOLD   (이전: 타입 없는 f
 
 ### 같은 수를 두 문서가 다르게 읽고 있다
 
-[`work-area.md`](../features/work-area/screens/work-area.md) 는 이 값들을 디자인
+[`work-area` 화면 절](../features/work-area/index.md#화면) 는 이 값들을 디자인
 시스템의 치수와 **일치한다**고 적는다("보더 폭은 코드 상수(`PANE_BORDER_WIDTH`=2px,
 `SURFACE_BORDER_WIDTH`=1px)와 일치"). 디자인 시스템의 px 는 **논리**다. 코드는
 **물리**로 구현했다. 두 해석은 **배율 1 에서만 같은 값을 낸다.**
@@ -128,7 +128,7 @@ src/state/mouse.rs              DIVIDER_HIT_THRESHOLD   (이전: 타입 없는 f
 
 - [`docs/concepts/typed-length.md`](../concepts/typed-length.md) — 이 축이 지키려는 정책
 - [`docs/ai-verification/dpi-scale-verification.md`](../ai-verification/dpi-scale-verification.md) — 배율 2 환경 재현 절차(위 실측이 따른 절차)
-- [`docs/features/work-area/screens/work-area.md`](../features/work-area/screens/work-area.md) — 같은 수를 논리 px 로 읽는 문서
+- [`docs/features/work-area/index.md`](../features/work-area/index.md#화면) — 같은 수를 논리 px 로 읽는 문서
 - `crates/tasty-model/src/lib.rs` — `PANE_BORDER_WIDTH` · `SURFACE_BORDER_WIDTH`
 - `src/state/mouse.rs` — `DIVIDER_HIT_THRESHOLD` (본 결정의 첫 적용)
 - [ADR-0145](0145-typed-length-constructors-stay-open-for-now.md) — 길이 newtype 의 생성자를

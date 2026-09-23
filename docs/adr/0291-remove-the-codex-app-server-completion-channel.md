@@ -104,4 +104,4 @@ plugin IPC `codex.completion`, CLI `tasty codex completion` 의 bind·status·di
   `refactor(agents): drop the plugin side of App Server completion delivery` ·
   `refactor(agents): drop the host side of App Server completion delivery` 다. 해시가 아니라
   제목으로 적는 이유는 이 브랜치가 병합 전에 다시 rebase 될 수 있어 해시가 바뀌기 때문이다.
-- 살아남는 채널의 동작·운영: [child-completion-notify-log](../dev-guide/external-interaction/child-completion-notify-log.md)
+- 살아남는 채널의 동작·운영: [external-interaction 완료 알림](../dev-guide/external-interaction.md#child-완료-알림--completion-log)

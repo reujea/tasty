@@ -38,6 +38,6 @@ trigger 발동 시 권고 순서: ① **git-tap** 정의(`install <id>` 가 git 
 
 ## References
 
-- [dev-guide/plugin-ecosystem](../dev-guide/plugin-ecosystem.md) §정책(배포·신뢰) · [plugin-packaging](../dev-guide/plugin-packaging.md)(서명) · [plugin-permissions](../dev-guide/plugin-permissions.md)
+- [dev-guide/plugin-packaging 생태계 정책](../dev-guide/plugin-packaging.md#생태계-정책--자동-upgrade--호환성-분류) §정책(배포·신뢰) · [plugin-packaging](../dev-guide/plugin-packaging.md)(서명) · [plugin-permissions](../dev-guide/plugin-permissions.md)
 - [ADR-0009](0009-plugin-sandbox-deferred.md) — sandbox 보류(묶음)
 - 코드: `src/app/plugin_glue/lifecycle.rs`(`plugin_install`) · `crates/tasty-plugin-manifest/src/validators.rs`(plugin id)

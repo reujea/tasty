@@ -93,7 +93,7 @@ doc 은 없어진 이유를 현재형으로 계속 말했다.
 - **specimen 과 본체가 같은 픽셀을 그리는가.** 함수가 하나라는 것은 *부르는 쪽이 같은
   입력을 준다*를 보장하지 않는다 — 무대 rect·테마·배율이 다르면 그림도 다르다. 재는 법:
   갤러리 specimen 캡처와 본체 토스트 캡처를 같은 테마·같은 배율로 떠서 겹친다
-  (`docs/ai-verification/visual-verification.md` 의 절차, Xvfb 넓은 화면 + GPU
+  (`docs/ai-verification/screenshot-methods.md#시각-판정-체크리스트` 의 절차, Xvfb 넓은 화면 + GPU
   `screenshot --window`). 자동 채널은 없다.
 - **토스트 본문 글자가 페이드해야 하는가.** 지금은 카드 chrome 만 페이드한다 — `Fonts::layout`
   이 색을 galley 에 박아 `Painter::galley` 의 fallback 이 죽기 때문이고, 의도한 설계가

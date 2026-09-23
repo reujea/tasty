@@ -81,7 +81,7 @@ take the last one"), 뒤쪽 위젯 우선 예외(`should_prioritize_hits_on_back
 
 ## References
 
-- [`docs/design/policies/shared-widgets.md`](../design/policies/shared-widgets.md) — 보편 컴포넌트 단일 출처
+- [`docs/architecture/ui-widgets-crate.md`](../architecture/ui-widgets-crate.md#무엇을-공용-위젯으로) — 보편 컴포넌트 단일 출처
 - [`docs/features/explorer/index.md`](../features/explorer/index.md) — detail 행 상호작용
 - `crates/tasty-ui-widgets/src/table.rs`, `crates/tasty-ui-widgets/tests/table_row_click.rs`
 - egui 0.31.1 `egui/src/widgets/label.rs`(sense 결정), `egui/src/hit_test.rs`(동률 시 나중 등록 우선),

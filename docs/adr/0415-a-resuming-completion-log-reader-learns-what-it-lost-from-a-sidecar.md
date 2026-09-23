@@ -193,4 +193,4 @@
   `truncate_and_account` · `advance_retention_start` · `MetaLock` · `EXCLUSIVE_LOCK_BUDGET` ·
   `EXCLUSIVE_LOCK_RETRY`. reader 절차의 참조 구현은
   같은 파일 `mod tests` 의 `resume` 이다.
-- 사용자 경로: [dev-guide/external-interaction/child-completion-notify-log.md](../dev-guide/external-interaction/child-completion-notify-log.md).
+- 사용자 경로: [dev-guide/external-interaction.md](../dev-guide/external-interaction.md#child-완료-알림--completion-log).

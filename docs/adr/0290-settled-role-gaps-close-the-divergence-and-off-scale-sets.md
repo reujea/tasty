@@ -101,7 +101,7 @@ tinted 채움/테두리 계수 5 짝(P1~P5) · 인셋 1 건(I1) · 이름 없는
 
 - Latte 에서 C3/C4 의 disabled 대비가 4.5:1 목표에 못 미친다는 보고가 나온다.
   재는 법: Mocha/Latte 격리 인스턴스에서 해당 화면을 띄워 `text-disabled` 와 배경의
-  대비를 잰다(`docs/ai-verification/visual-verification.md`).
+  대비를 잰다(`docs/ai-verification/screenshot-methods.md#시각-판정-체크리스트`).
 - 디자인이 `.5` 스케일을 정식 tier 로 승인한다. 재는 법: 디자인 changelog 의 결정표를
   읽는다 — 레포에는 그 사실을 실어 나르는 좌변이 없다.
 
@@ -111,5 +111,5 @@ tinted 채움/테두리 계수 5 짝(P1~P5) · 인셋 1 건(I1) · 이름 없는
 - [ADR-0126](0126-off-scale-font-values-are-not-snapped-to-tokens.md) — 스케일 밖 값을 스냅하지 않는 규칙(그대로 유효)
 - `docs/design/systems/theme.md` — 잉크 role · tint 짝 · 점 가족의 집행 요지
 - `docs/design/systems/design-token-mapping.md` — 새 role 의 Theme 대응
-- `docs/design/systems/token-crosswalk.md` — 값이 어긋나던 다섯 줄 중 넷이 닫힌 기록
+- `docs/design/systems/design-token-mapping.md#rust-필드--호출처-토큰-크로스워크` — 값이 어긋나던 다섯 줄 중 넷이 닫힌 기록
 - 코드 근거(결정이 실현된 현재 위치): `crates/tasty-type-appearance/src/semantic_color_generated.rs` 의 `border_frame`·`glyph_dim`·`accent_decorative`, `crates/tasty-type-appearance/src/theme.rs` 의 `TINT_FILL_ALPHA`·`TINT_BORDER_ALPHA`

@@ -100,5 +100,5 @@ cap 을 넘은 뒤에 쓰인 것이라 **애초에 이 비우기가 버릴 구�
   **claude 쪽은 `handlers.rs` 가 아니라 `notifications.rs` 다** — 두 plugin 의 파일
   이름이 다르므로 중괄호로 묶어 한 경로처럼 쓰면 claude 쪽이 실재하지 않는 자리를
   가리킨다. 위 Decision 의 불변식("한 줄은 한 번의 write")은 이 **세 자리 전부**에 건다.
-- 사용자 경로와 크기 관리: [dev-guide/external-interaction/child-completion-notify-log.md](../dev-guide/external-interaction/child-completion-notify-log.md)
+- 사용자 경로와 크기 관리: [dev-guide/external-interaction.md](../dev-guide/external-interaction.md#child-완료-알림--completion-log)
 - 같은 모양의 물음(보존 밖 요청에 건너뛴 수를 함께 준다): [ADR-0322](0322-the-event-ring-keeps-positions-and-says-what-it-dropped.md)

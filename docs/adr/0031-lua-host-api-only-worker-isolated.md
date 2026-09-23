@@ -10,7 +10,7 @@
 현재 `crates/tasty-lua`(별칭 `ln`, `app.lua_engine`)는 다음 모델이다.
 
 - **init.lua 부팅 자동로드.** `~/.tasty/init.lua` 1개를 부팅 시 실행해 그 안의 `tasty.on(event, cb)` 등록 코드를 돌린다(`crates/tasty-lua/src/engine.rs:92-106` `load_init`). Lua 를 쓰는 등록 경로가 이것뿐이다.
-- **observe-only 훅.** 콜백은 이벤트를 보고(`fire`, `engine.rs:123-152`) 외부 동작만 한다. 반환값으로 tasty 흐름을 못 바꾼다(`docs/design/policies/lua-hooks.md`).
+- **observe-only 훅.** 콜백은 이벤트를 보고(`fire`, `engine.rs:123-152`) 외부 동작만 한다. 반환값으로 tasty 흐름을 못 바꾼다(`docs/features/lua-hooks/index.md#설계-경계`).
 - **호스트 API = `log`/`warn`/`run_cli`**(`crates/tasty-lua/src/host_api.rs`). `run_cli` 는 tasty 자기 CLI 를 **프로세스로 spawn** 해 간접 조작한다.
 - **단일 VM, 메인 스레드.** VM 1 개를 메인 스레드 1 군데서만 호출한다.
 - **샌드박스는 메모리 캡뿐.** `sandbox.rs` 는 32MB 메모리 한계 + `debug`/`load*`/`loadlib` 제거만 한다. `lib.rs:14` 주석은 "instruction cap" 을 주장하지만 **실제 구현이 없다**(무한 루프 미보호).
@@ -51,7 +51,7 @@
 - **운영 비용 / 유지 부담**:
   - 새 mutation API 마다 API 시그니처 + 커맨드 variant + 메인 적용 지점 3 중 배선.
   - `set_interrupt` deadline 튜닝(정상 스크립트 오탐 abort 방지).
-  - init.lua 폐기에 따른 문서 정리 — `docs/design/policies/lua-hooks.md`(observe-only/init.lua 서술), `docs/features/lua-hooks/`, `docs/dev-guide/lua-hooks.md`, `docs/reference/api.md`(`script.reload`).
+  - init.lua 폐기에 따른 문서 정리 — `docs/features/lua-hooks/index.md#설계-경계`(observe-only/init.lua 서술), `docs/features/lua-hooks/`, `docs/features/lua-hooks/index.md#구현--발화-site--payload`, `docs/reference/api.md`(`script.reload`).
 
 ## Alternatives Considered
 
@@ -73,5 +73,5 @@
 ## References
 
 - 코드 근거: `crates/tasty-lua/src/{engine.rs:92-106,123-152, host_api.rs:36-69, sandbox.rs:11-46}`; `src/app.rs`(`lua_engine`); `src/boot.rs:166,255`; `src/app/window_lifecycle.rs:302`; `src/app/event_handler.rs:790`; `src/app/dispatch/{surface_lifecycle.rs:28, host_events.rs:39}`; `src/app/ipc/app_methods.rs:33`(`script.reload`).
-- 관련 문서: [design/policies/lua-hooks](../design/policies/lua-hooks.md)(observe-only/init.lua — 본 ADR 로 init.lua·자동로드 부분 supersede), [features/lua-hooks](../features/lua-hooks/index.md), [dev-guide/lua-hooks](../dev-guide/lua-hooks.md), [reference/api](../reference/api.md).
+- 관련 문서: [features/lua-hooks 설계 경계](../features/lua-hooks/index.md#설계-경계)(observe-only/init.lua — 본 ADR 로 init.lua·자동로드 부분 supersede), [features/lua-hooks](../features/lua-hooks/index.md), [features/lua-hooks 구현](../features/lua-hooks/index.md#구현--발화-site--payload), [reference/api](../reference/api.md).
 - 관련 ADR: [0009](0009-plugin-sandbox-deferred.md)(plugin sandbox 보류 — plugin 은 별 프로세스, Lua 는 in-process 워커라 신뢰 카테고리 상이), [0028](0028-plugin-egui-mesh-render-channel.md)(plugin 렌더 채널 — plugin in-process dylib 기각 근거와 대비).

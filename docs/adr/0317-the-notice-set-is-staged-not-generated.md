@@ -159,5 +159,5 @@ deb·tar.gz·AppImage 에서 유지한다 — `THIRD_PARTY_LICENSES.md` 안의 �
 - 루트 `Cargo.toml` 의 `[package.metadata.deb]` · `[package.metadata.generate-rpm]` asset 목록. (결정이 실현된 현재 위치)
 - `.github/workflows/release.yml` 의 publish 잡. (결정이 실현된 현재 위치)
 - `wix/main.wxs` 의 `Component Id='License'` — MSI 가 이미 MIT 본문을 넣는 자리. (결정 시점의 기록)
-- [`docs/dev-guide/dist-build.md`](../dev-guide/dist-build.md) — 빌더가 읽는 절차.
+- [`docs/dev-guide/build.md`](../dev-guide/build.md#dist-빌드-명령-카탈로그) — 빌더가 읽는 절차.
 - 부분 개정: [0370](0370-macos-and-windows-artifacts-carry-the-notice-set-before-it-is-observed.md) (이행 순서 조항과 대안 D 개정 — macOS·Windows 산출물도 관측 전에 배선한다)

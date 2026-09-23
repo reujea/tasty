@@ -410,7 +410,7 @@ disable 이 무엇을 남기는가는 0173(namespace 소유를 남긴다) → 05
 ## plugin 렌더 채널 · webview
 
 렌더 채널은 0028 → 0030(image) · 0041 · 0065(markdown webview) → 0067 이다. webview 플랫폼 결정(0159 · 0248 · 0250 · 0301)과 호스트 계약(0320 → 0385)이 뒤따른다.
-운영 문서: [dev-guide/egui-mesh-channel](../dev-guide/egui-mesh-channel.md) · [dev-guide/linux](../dev-guide/linux.md)
+운영 문서: [dev-guide/egui-mesh-channel](../dev-guide/egui-mesh-channel.md) · [dev-guide/self-verification › Linux](../dev-guide/self-verification.md#linux-개발-환경)
 
 <!-- adr-rows:begin plugin-render -->
 | # | Title | Status | Date | Tags |
@@ -474,7 +474,7 @@ disable 이 무엇을 남기는가는 0173(namespace 소유를 남긴다) → 05
 ## 에이전트 통합 · 협업
 
 child 상태는 0072 → 0266 → 0288 → 0291(0288 대체), API 에러로 끝난 턴의 자동 재개는 0521(0072 · 0266 위), 완료 알림 로그는 0330 → 0344 → 0415 · 0416 이다. hook 실패 기록은 0075 → 0164(언어 조항 개정)이다. task-graph 는 0066 → 0073(0066 대체)이다.
-운영 문서: [dev-guide/external-interaction/child-completion-notify-log](../dev-guide/external-interaction/child-completion-notify-log.md) · [features/child-terminal](../features/child-terminal/index.md) · [dev-guide/agent-runner](../dev-guide/agent-runner.md)
+운영 문서: [dev-guide/external-interaction › 완료 알림](../dev-guide/external-interaction.md#child-완료-알림--completion-log) · [features/child-terminal](../features/child-terminal/index.md) · [dev-guide/agent-runner](../dev-guide/agent-runner.md)
 
 <!-- adr-rows:begin agent-integration -->
 | # | Title | Status | Date | Tags |
@@ -566,7 +566,7 @@ pragma 보고는 0316 → 0376(보고 채널 개정), 못 연 `memory.db` 의 in
 ## CLI · 로깅 · 에이전트 표면
 
 파이프 조기 종료는 0101(stdout, 종료 코드 0) → 0513(stderr, 종료 코드 유지) — 결론이 반대라 합치지 않는다. 호스트 오류 출력은 0512(연결 뒤), 인자 오류의 순서와 종료 코드는 0542(연결 앞) — 자리가 달라 합치지 않는다. `new workspace --surface` 는 0514 → 0532(같은 키가 cwd 상속 원본도 정한다 — 조항 개정).
-운영 문서: [dev-guide/cli-ipc-surface](../dev-guide/cli-ipc-surface.md) · [dev-guide/error-handling](../dev-guide/error-handling.md) · [dev-guide/cli-structure](../dev-guide/cli-structure.md)
+운영 문서: [dev-guide/api-conventions › CLI ↔ IPC 표면](../dev-guide/api-conventions.md#cli--ipc-표면--무엇이-cli-로-닿고-무엇이-왜-안-닿는가) · [dev-guide/error-handling](../dev-guide/error-handling.md) · [dev-guide/cli-structure](../dev-guide/cli-structure.md)
 
 <!-- adr-rows:begin cli-logging -->
 | # | Title | Status | Date | Tags |
@@ -584,7 +584,7 @@ pragma 보고는 0316 → 0376(보고 채널 개정), 못 연 `memory.db` 의 in
 ## 빌드 · 배포 · 버전
 
 고지 세트는 0317 → 0370(이행 순서 개정), plugin 버전 게이트는 0137 → 0166 이다.
-운영 문서: [dev-guide/release](../dev-guide/release.md) · [dev-guide/dist-build](../dev-guide/dist-build.md)
+운영 문서: [dev-guide/release](../dev-guide/release.md) · [dev-guide/build › dist 빌드](../dev-guide/build.md#dist-빌드-명령-카탈로그)
 
 <!-- adr-rows:begin build-release -->
 | # | Title | Status | Date | Tags |
@@ -683,7 +683,7 @@ flake 처방은 0129 → 0155, e2e 하네스는 0090 → 0127 → 0170 → 0297 
 ## 문서 · ADR 규약
 
 재검토 조건은 0220 → 0244(표기 규격 — 운영 규칙은 template), 앵커 판정은 0201 → 0247(0201 대체)이다. 중복 기록은 0506(처리) · 0507(작성 전 탐색) · 0508(착지 대조)가 3 층을 이룬다. 이 인덱스의 행 생성과 `Group` 헤더는 0565 다.
-운영 문서: [documentation-model](../documentation-model.md) · [adr/template](template.md) · [dev-guide/adr-landing](../dev-guide/adr-landing.md) · [dev-guide/adr-index](../dev-guide/adr-index.md)
+운영 문서: [documentation-model](../documentation-model.md) · [adr/template](template.md) · [dev-guide/adr-index](../dev-guide/adr-index.md)(착지 대조는 [그 절](../dev-guide/adr-index.md#착지-때-새-adr-끼리-대조))
 
 <!-- adr-rows:begin docs-adr -->
 | # | Title | Status | Date | Tags |

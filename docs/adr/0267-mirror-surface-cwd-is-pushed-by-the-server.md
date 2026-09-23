@@ -94,7 +94,7 @@ source" 라고 적고, `Attention` 도 같다. cwd 도 진실 원천이 PTY 를 
 
 5. **`inherit_cwd` 설정은 push 를 게이트하지 않는다.** 서버는 raw cwd 를 보내고, 게이트는 소비
    시점(client)이 건다. `inherit_cwd` 는 "새 surface 가 cwd 를 상속하는가" 이지 "cwd 를 아는가" 가
-   아니다. [surface-cwd §3-1](../architecture/invariants/surface-cwd.md) 의 "원격 인스턴스의
+   아니다. [cwd §3-1](../design/policies/cwd.md#3-1-mirror원격-attach-forward-경로도-같은-불변식-대상) 의 "원격 인스턴스의
    `inherit_cwd` 게이트를 그대로 적용" 은 **실행 경로(서버측 resolve)에 한정**된다. 같은 이유로
    "지금 어느 폴더를 보고 있나" 를 알려 주는 소비자(파일 피커 시작 위치)는 설정과 무관하게 cwd 를
    받는다 — popup context 의 게이트 안 걸린 필드는 `cwd` 와 별개 키로 싣는다.
@@ -157,7 +157,7 @@ source" 라고 적고, `Attention` 도 같다. cwd 도 진실 원천이 PTY 를 
 
 ## References
 
-- [docs/architecture/invariants/surface-cwd.md](../architecture/invariants/surface-cwd.md) — §1 표, §3-1 mirror forward
+- [docs/design/policies/cwd.md](../design/policies/cwd.md#surface-cwd-invariant) — §1 표, §3-1 mirror forward
 - [docs/dev-guide/attach-behavior.md](../dev-guide/attach-behavior.md) — mirror push 채널 목록
 - [docs/features/remote-attach/index.md](../features/remote-attach/index.md)
 - [ADR-0056](0056-git-viewer-remote-attach-git-query-channel.md) — 원격 surface cwd 를 서버가 resolve 하는 첫 선례

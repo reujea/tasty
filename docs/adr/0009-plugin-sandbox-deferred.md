@@ -38,6 +38,6 @@ tasty plugin 의 권한 모델은 **IPC method 단위 게이트** 다([plugin-pe
 
 ## References
 
-- [dev-guide/plugin-ecosystem](../dev-guide/plugin-ecosystem.md) §정책(WASM 보류) · [plugin-permissions](../dev-guide/plugin-permissions.md) 「한계」
+- [dev-guide/plugin-packaging 생태계 정책](../dev-guide/plugin-packaging.md#생태계-정책--자동-upgrade--호환성-분류) §정책(WASM 보류) · [plugin-permissions](../dev-guide/plugin-permissions.md) 「한계」
 - [ADR-0010](0010-plugin-marketplace-deferred.md) — marketplace 보류(연동)
 - 코드: `crates/tasty-host-plugin/src/process.rs`(spawn) · `crates/tasty-plugin-manifest/src/types.rs`(`Permission`) · `crates/tasty-plugin-sdk-wasm/`(WASM POC, workspace exclude)

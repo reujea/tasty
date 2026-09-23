@@ -15,7 +15,7 @@
 2. **본체 웹훅 리스너를 재사용할 수 없다.** [ADR-0046](0046-webhook-owner-trust-one-way-ack.md) 의 불변식 2(단방향 ACK)에 의해 `build_ack(status)` 가 실행 결과를 인자로 받지 않는다 — 응답에 내부 데이터가 실릴 코드 경로가 구조적으로 없다. 스트리밍 응답은 그 불변식을 깨야만 가능하고, 그것은 이 작업의 범위가 아니다.
 3. **SDK 는 async 를 지원하지 않는다.** 모든 콜백이 동기이고, dispatch 스레드가 막히면 healthcheck(15s ping / 60s 무응답 → 강제 재시작)가 깨진다.
 
-그리고 정책 공백이 하나 있었다. `docs/dev-guide/plugin-sensitive-data.md` 는 민감 데이터의 **저장**만 다루고 **외부 전송**은 다루지 않는데, 이 채널로 나가는 것은 대화 전문(코드·경로·에러 메시지, 경우에 따라 자격증명 문자열)이다.
+그리고 정책 공백이 하나 있었다. `docs/dev-guide/plugin-development.md#민감-데이터--regular--secret--keyring-선택` 는 민감 데이터의 **저장**만 다루고 **외부 전송**은 다루지 않는데, 이 채널로 나가는 것은 대화 전문(코드·경로·에러 메시지, 경우에 따라 자격증명 문자열)이다.
 
 ## Decision
 
@@ -55,7 +55,7 @@
 
 다음 중 하나가 충족되면 본 ADR 을 재검토한다.
 
-- **plugin sandbox 가 도입된다**(`docs/dev-guide/plugin-sensitive-data.md` 가 예고). plugin 이 임의 포트를 여는 것 자체를 호스트가 통제하게 되면, "plugin 이 스스로 지키는 규약" 이라는 이 결정의 전제가 바뀐다 — 정책을 호스트 권한 게이트로 옮길지 재검토한다.
+- **plugin sandbox 가 도입된다**(`docs/dev-guide/plugin-development.md#민감-데이터--regular--secret--keyring-선택` 가 예고). plugin 이 임의 포트를 여는 것 자체를 호스트가 통제하게 되면, "plugin 이 스스로 지키는 규약" 이라는 이 결정의 전제가 바뀐다 — 정책을 호스트 권한 게이트로 옮길지 재검토한다.
 - **구독자가 소수(FE 서버 한둘)라는 전제가 깨진다.** 연결당 스레드 모델이 부담이 되는 규모가 되면 ADR-0048 의 재검토 트리거("롱-커넥션 트래픽")와 함께 async 스택을 재평가한다.
 - **평문 공유 토큰이 부족해진다**(다중 소비자별 권한 분리, 회수 요구 등) — 토큰 발급/폐기 모델을 재설계한다.
 - **이 plugin 이 배포 패키징 대상이 된다**(`bundle = false` 해제). "tasty 를 설치하면 딸려오는 것이 대화 전문을 네트워크로 내보낼 수 있다" 는 의미가 되므로, 기본 비활성만으로 충분한지 다시 본다.
@@ -69,4 +69,4 @@
 - [ADR-0046](0046-webhook-owner-trust-one-way-ack.md) — 본체 리스너를 재사용할 수 없는 이유(단방향 ACK 불변식)
 - [ADR-0048](0048-webhook-http-tiny-http-blocking.md) — 같은 HTTP 레이어를 고른 근거
 - [dev-guide/plugin-development](../dev-guide/plugin-development.md) — §7 런타임 계약(healthcheck·강제 재시작) · §10 한계(async 미지원, 권한 게이트는 host IPC 만 막음)
-- [dev-guide/plugin-sensitive-data](../dev-guide/plugin-sensitive-data.md) — 민감 데이터 저장 정책(전송은 본 ADR 이 다룬다)
+- [dev-guide/plugin-development 민감 데이터](../dev-guide/plugin-development.md#민감-데이터--regular--secret--keyring-선택) — 민감 데이터 저장 정책(전송은 본 ADR 이 다룬다)

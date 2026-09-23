@@ -40,7 +40,7 @@ plugin 설정)이나 호출자에게 push 되는 이벤트 수신처에 매여 �
 이 판정에 따라 37 건을 갈라 **21 건에 진입점을 만들었고**(debug 15 · release 6),
 14 건은 "못 부르는 것이 정답" 으로, 2 건은 선행 작업이 필요한 것으로 남겼다. 부류별
 메서드와 사유는 [api-conventions](../dev-guide/api-conventions.md) 의 두 표(release · debug)에 있고,
-판별식과 세는 법은 [cli-ipc-surface](../dev-guide/cli-ipc-surface.md) 에 있다.
+판별식과 세는 법은 [api-conventions CLI ↔ IPC 표면](../dev-guide/api-conventions.md#cli--ipc-표면--무엇이-cli-로-닿고-무엇이-왜-안-닿는가) 에 있다.
 
 근거 표는 **면제 목록이 아니다.** 행의 유효 조건이 행 밖에 있기 때문이다 —
 `tests/cli_method_table_parity.rs` 가 표와 **실제로 계산한 집합**을 양방향으로 대조하므로,
@@ -132,7 +132,7 @@ record` 를 반복하는 셸 스크립트는 그 보장을 얻지 못하므로, 
 ## References
 
 - [api-conventions](../dev-guide/api-conventions.md) — **사유 표의 정본**(release · debug 두 표)
-- [cli-ipc-surface](../dev-guide/cli-ipc-surface.md) — 판별식과 세는 법
+- [api-conventions CLI ↔ IPC 표면](../dev-guide/api-conventions.md#cli--ipc-표면--무엇이-cli-로-닿고-무엇이-왜-안-닿는가) — 판별식과 세는 법
 - [identity](../identity.md) 원칙 2 — 에이전트 기능은 IPC + CLI 양면
 - [ADR-0154](0154-a-platform-gated-dispatch-arm-answers-why-not-what.md) — 등재·CLI 는
   균일하게 두고 차이를 dispatch 층에서 말한다는 앞선 결정

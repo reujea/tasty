@@ -9,7 +9,7 @@
 
 부모 에이전트는 "자식이 끝나면 알림이 온다" 는 전제로 동작한다 — 완료 알림은
 `<TASTY_PARENT_HOME>/notify/<caller_surface>.log` 한 줄로 오고, 부모는 그것을
-`Monitor` 로 기다린다([`docs/dev-guide/external-interaction/child-completion-notify-log.md`](../dev-guide/external-interaction/child-completion-notify-log.md)).
+`Monitor` 로 기다린다([`docs/dev-guide/external-interaction.md`](../dev-guide/external-interaction.md#child-완료-알림--completion-log)).
 그 전제가 성립하지 않는 갈래가 하나 있다. **자식이 승인 프롬프트 같은 자리에서 멈췄고
 훅이 오지 않으면 부모에게 아무것도 가지 않는다.** 호스트는 그 자식을 `stale` 로
 판정하지만([ADR-0072](0072-child-state-hook-observation-fusion.md)), 그 값은 부모가
@@ -165,7 +165,7 @@ watchdog 이 ADR-0072 보다 **뒤인데도** `stale` 을 언급하지 않는다
   판정 우선순위표 SoT. push 축이 그 판정을 소비한다.
 - [`docs/plugins/claude/index.md`](../plugins/claude/index.md) — 이 plugin 이 발사하는
   hook 이벤트와 정지 알림 절차.
-- [`docs/dev-guide/external-interaction/child-completion-notify-log.md`](../dev-guide/external-interaction/child-completion-notify-log.md)
+- [`docs/dev-guide/external-interaction.md`](../dev-guide/external-interaction.md#child-완료-알림--completion-log)
   — 부모가 기다리는 push 채널의 계약.
 - 코드 근거(결정 시점의 현재 위치): `crates/tasty-plugin-claude/src/error_scan.rs`
   (`scan_one_at`·`should_notify_stall`·`maybe_notify_stall`·`STALLED_EVENT`),

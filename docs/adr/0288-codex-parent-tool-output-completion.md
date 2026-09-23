@@ -65,4 +65,4 @@ hook session_id, thread.sessionId, thread.id를 별도 필드로 보관한다. �
 - 개정 패턴 선례: [ADR-0030](0030-image-egui-mesh-bitmap-texture.md)
 
 - [App Server 공식 문서](https://learn.chatgpt.com/docs/app-server)
-- [Claude 부모 로그](../dev-guide/external-interaction/child-completion-notify-log.md)
+- [Claude 부모 로그](../dev-guide/external-interaction.md#child-완료-알림--completion-log)

@@ -140,4 +140,4 @@ isolation")은 **포트 파일만** 옮기고 청소 대상은 `tasty_home()/not
   `crates/tasty-cli/src/hook_failure.rs` · [ADR-0075](0075-agent-hook-delivery-failure-record.md).
 - `memory.db` 쪽 관측 로그의 보존 정책(매체가 달라 표를 공유하지 않는다):
   `src/store/log_retention.rs` · [ADR-0085](0085-ipc-log-retention-bounded.md).
-- 사용자 경로와 크기 관리: [dev-guide/external-interaction/child-completion-notify-log.md](../dev-guide/external-interaction/child-completion-notify-log.md)
+- 사용자 경로와 크기 관리: [dev-guide/external-interaction.md](../dev-guide/external-interaction.md#child-완료-알림--completion-log)

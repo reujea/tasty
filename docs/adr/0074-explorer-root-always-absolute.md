@@ -11,7 +11,7 @@ Explorer surface 의 root 는 `params["path"]` → `SurfaceKindDef::create` 의 
 
 상대 root 는 그대로 밖으로 흘러나간다 — 주소창에 `.` 이 표시되고, 항목 경로가 `./<name>` 이 되어 경로 복사 결과가 상대경로가 되며, attach mirror 에서는 `list_dir` 요청의 `dir` 이 `"."` 로 나가 **원격 프로세스의 cwd** 가 나열된다. 나열 대상 자체도 사용자가 의도한 적 없는 디렉토리(앱을 띄운 셸의 위치)가 된다.
 
-이는 [surface cwd 불변식](../architecture/invariants/surface-cwd.md) 의 취지("호스트 시작 cwd 가 root 행세 못 하게 — `std::env::current_dir()` 폴백 제거")에 정면으로 어긋난다. `"."` 를 root 로 두는 것은 `current_dir()` 을 **지연 평가**하는 것과 동작상 같으면서, 그 문자열이 UI·wire·클립보드로 새어나가므로 오히려 더 나쁘다.
+이는 [surface cwd 불변식](../design/policies/cwd.md#surface-cwd-invariant) 의 취지("호스트 시작 cwd 가 root 행세 못 하게 — `std::env::current_dir()` 폴백 제거")에 정면으로 어긋난다. `"."` 를 root 로 두는 것은 `current_dir()` 을 **지연 평가**하는 것과 동작상 같으면서, 그 문자열이 UI·wire·클립보드로 새어나가므로 오히려 더 나쁘다.
 
 동시에 그 불변식 문서의 해당 절은 존재하지 않는 `tasty-plugin-explorer` 크레이트를 전제로 서술돼 있었다 — explorer 는 본체 builtin surface 로 승격된 지 오래다. 즉 문서에는 `$HOME` 단계가 있는데 구현에는 없었고, 문서가 가리키는 코드 위치도 죽어 있었다.
 
@@ -44,6 +44,6 @@ cwd 를 상속하지 않는 생성 경로(비-terminal split, `workspace.create`
 
 ## References
 
-- [`docs/architecture/invariants/surface-cwd.md`](../architecture/invariants/surface-cwd.md) §5 — 현행 규칙 본문
+- [`docs/design/policies/cwd.md`](../design/policies/cwd.md#5-explorer-root-fallback-host-builtin) §5 — 현행 규칙 본문
 - [`docs/features/explorer/index.md`](../features/explorer/index.md) — root 결정 규칙
 - `src/core/surface_registry/builtins.rs` (`register_explorer`, `explorer_tab_from_json`) · `crates/tasty-model/src/explorer_panel.rs` (`default_root`, `resolve_root`)

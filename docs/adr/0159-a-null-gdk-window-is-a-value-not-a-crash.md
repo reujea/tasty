@@ -148,6 +148,6 @@ panic: gdk-0.18.2/src/auto/window.rs:20  assertion failed: !ptr.is_null()
 - `crates/tasty-platform/src/x11_gdk_window.rs` — 결정 1 의 구현과 세 가드
 - `src/host_api/webview/linux.rs` — 결정 2·3 의 자리
 - `crates/tasty-platform/src/native_menu/linux.rs` — 같은 바인딩을 쓰던 두 번째 자리
-- [`docs/dev-guide/unsafe-checklist.md`](../dev-guide/unsafe-checklist.md) — 자가검토 6·7 문항
+- [`docs/dev-guide/clippy-policy.md`](../dev-guide/clippy-policy.md#unsafe--safety-주석) — 자가검토 6·7 문항
   (NULL 이 정상 반환값인가 · 연결이 하나인가)
 - [ADR-0117](0117-window-and-modal-creation-failure-policy.md) — 창 생성 실패 정책
