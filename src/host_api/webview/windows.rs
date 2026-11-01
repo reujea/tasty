@@ -742,10 +742,6 @@ impl PlatformWebView {
             let h_key = AcceleratorKeyPressedEventHandler::create(Box::new(
                 move |_sender, args| -> windows::core::Result<()> {
                     let Some(args) = args else { return Ok(()) };
-                    // host 입력 경로의 view는 winit 메시지 훅이 같은 키를 이미 판정했다.
-                    if host_input_on {
-                        return Ok(());
-                    }
                     let mut kind = COREWEBVIEW2_KEY_EVENT_KIND::default();
                     args.KeyEventKind(&mut kind)?;
                     if kind != COREWEBVIEW2_KEY_EVENT_KIND_KEY_DOWN
@@ -763,14 +759,16 @@ impl PlatformWebView {
                     let physical =
                         win32_scancode_to_physical(status.ScanCode, status.IsExtendedKey.as_bool());
                     let mods = current_winit_mods();
-                    if host_input::route_key(
+                    // host 입력 경로의 view도 판정한다. 훅이 소비한 키는 여기로 오지 않고, 훅을 지나지 않은
+                    // 키(중첩 메시지 루프)는 여기서 받는다(host_input 모듈 설명).
+                    if super::keys::route_key_down(
                         &*key_bridge_cb,
-                        &edit_target,
                         surface_id,
                         key,
                         physical,
                         mods,
                         status.WasKeyDown.as_bool(),
+                        |action| run_editing_command(&edit_target, action, surface_id),
                     ) {
                         args.SetHandled(true)?;
                     }

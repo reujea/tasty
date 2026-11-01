@@ -327,6 +327,33 @@ impl WebViewKeyBridge {
     }
 }
 
+/// key-down 하나를 사용자 바인딩으로 판정한다. 소비했으면 true이고 backend는 페이지·엔진에 보내지 않는다.
+/// 자동 반복은 첫 누름의 결정을 따르며 다시 실행하지 않는다. 편집 명령은 `run_edit`로 그 WebView에 실행한다.
+/// false를 돌려줄 때는 sink 상태를 바꾸지 않으므로, 같은 키를 두 경로가 차례로 판정해도 한 번만 실행된다.
+/// Windows의 메시지 훅과 `AcceleratorKeyPressed`가 이 순서를 함께 쓴다.
+#[cfg(any(windows, test))]
+pub(crate) fn route_key_down(
+    sink: &dyn WebViewKeySink,
+    surface_id: u32,
+    key: Key,
+    physical: PhysicalKey,
+    mods: ModifiersState,
+    repeat: bool,
+    run_edit: impl FnOnce(WebViewEditAction),
+) -> bool {
+    if repeat {
+        return sink.consumes_repeat(surface_id, &key, &physical, mods);
+    }
+    if sink.blocks_edit_key(&key, &physical, mods) {
+        return true;
+    }
+    if let Some(action) = sink.edit_action(&key, &physical, mods) {
+        run_edit(action);
+        return true;
+    }
+    sink.capture_key(surface_id, key, physical, mods)
+}
+
 impl WebViewKeySink for WebViewKeyBridge {
     /// 정책이 선택한 키만 큐에 넣는다. 실행 시점이나 최종 동작 성공을 여기서 보장하지 않는다.
     fn capture_key(
@@ -827,5 +854,43 @@ mod tests {
             edit: Vec::new(),
         });
         assert_eq!(p.combos(), ["f5", "ctrl+alt+r"]);
+    }
+
+    /// Windows 메시지 훅이 소비한 key-down은 Dispatch되지 않아 accelerator가 다시 오지 않는다.
+    /// 훅이 통과시킨 키는 accelerator가 한 번 더 판정해도 실행·큐 등록이 생기지 않는다.
+    /// 훅을 지나지 않은 키(중첩 메시지 루프)는 accelerator 판정 하나로 같은 결과를 낸다.
+    #[test]
+    fn judging_a_key_down_twice_never_runs_a_binding_twice() {
+        let bridge = WebViewKeyBridge::new();
+        bridge.set_policy(HostShortcutPolicy::new(ShortcutSources {
+            host: strings(&["ctrl+j"]),
+            edit: vec![(WebViewEditAction::SelectAll, strings(&["q"]))],
+            ..Default::default()
+        }));
+        let phys = unknown_physical();
+        let ctrl = ModifiersState::CONTROL;
+        let mut edits = Vec::new();
+        let judge = |key: &str, mods: ModifiersState, repeat: bool, edits: &mut Vec<_>| {
+            route_key_down(&bridge, 7, ch(key), phys, mods, repeat, |a| edits.push(a))
+        };
+
+        // 훅 경로: 소비하면 끝이다(accelerator가 오지 않는다).
+        assert!(judge("j", ctrl, false, &mut edits));
+        assert!(judge("q", ModifiersState::empty(), false, &mut edits));
+        assert_eq!(edits, vec![WebViewEditAction::SelectAll]);
+        assert_eq!(bridge.take_pending().len(), 1);
+
+        // 훅이 통과시킨 키를 accelerator가 다시 판정해도 아무것도 생기지 않는다.
+        for _ in 0..2 {
+            assert!(!judge("k", ctrl, false, &mut edits));
+            assert!(!judge("z", ModifiersState::empty(), false, &mut edits));
+        }
+        assert_eq!(edits.len(), 1);
+        assert!(bridge.take_pending().is_empty());
+
+        // 중첩 루프: 훅 없이 accelerator 판정만 와도 한 번 실행된다. 반복은 다시 실행하지 않는다.
+        assert!(judge("j", ctrl, false, &mut edits));
+        assert!(judge("j", ctrl, true, &mut edits));
+        assert_eq!(bridge.take_pending().len(), 1);
     }
 }

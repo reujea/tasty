@@ -348,15 +348,28 @@ Windows WebView2는 `AcceleratorKeyPressed`를 Ctrl이나 Alt를 누르고 있�
 winit 메시지 훅(`webview/windows/host_input.rs`)이 Translate·Dispatch 전에 그 메시지의 창이 어느 WebView 자식 창 아래인지 찾고,
 그 WebView의 `WebViewKeySink`로 위와 같은 순서(반복 → 입력 차단 → 편집 명령 → host 가져가기)를 판정한다.
 소비한 key-down은 보내지 않으므로 WM_CHAR도 생기지 않는다. key-up, IME가 처리하는 키(`VK_PROCESSKEY`), 변환표 밖 키,
-WebView 밖으로 가는 메시지는 판정하지 않고 그대로 보낸다. 이 view의 `AcceleratorKeyPressed`는 같은 키를 두 번 판정하지 않도록
-아무것도 하지 않는다. 그래서 Ctrl·Alt 없이 누르는 글자·숫자·기호 키(Shift 조합 포함)에 준 편집 바인딩도 웹 화면에서 받는다.
-host 액션은 modifier가 있는 조합만 가져가는 정책이 다른 OS와 같다.
+WebView 밖으로 가는 메시지는 판정하지 않고 그대로 보낸다. 그래서 Ctrl·Alt 없이 누르는 글자·숫자·기호 키(Shift 조합 포함)에 준
+편집 바인딩도 웹 화면에서 받는다. host 액션은 modifier가 있는 조합만 가져가는 정책이 다른 OS와 같다.
+
+이 view에서도 `AcceleratorKeyPressed`는 같은 판정(`keys::route_key_down`)을 한다. 훅이 소비한 key-down은 Dispatch되지 않으므로
+WebView2가 그 키로 이 이벤트를 올리지 않는다. 훅이 통과시킨 키는 이 이벤트에서 한 번 더 판정하지만, 판정은 소비하지 않을 때 상태를
+바꾸지 않아 같은 결과(통과)가 된다. 그래서 바인딩이 두 번 실행되지 않는다. 훅을 지나지 않은 키는 이 이벤트가 판정한다.
+controller 생성을 기다리는 `wait_with_pump` 같은 중첩 메시지 루프, 창 이동·크기 조절 modal loop, `DoDragDrop`,
+다른 스레드가 `SendMessage`로 보낸 키가 여기에 해당한다. 이 경우 Ctrl·Alt 조합과 글자가 아닌 키는 기존처럼 받지만,
+이 이벤트가 오지 않는 Ctrl·Alt 없는 글자 키 바인딩은 그동안 페이지에 입력된다.
+
+글자 키는 VK 코드를 US 배열 기준 문자로 바꿔 비교한다(`windows/keyboard.rs`의 `vk_to_winit_key`). VK_A~Z는 라틴 소문자,
+숫자 열은 숫자, OEM 키는 US 기호가 된다. 그래서 Ctrl·Alt 없는 글자 바인딩은 현재 입력 언어의 문자가 아니라 이 변환값과 맞춰진다.
+러시아어처럼 라틴 문자가 아닌 배열에서는 `q` 바인딩이 Q 자리 키(`й` 입력)에도 실행되고, 독일어 배열의 `ü` 키(VK_OEM_1)는 `;`로
+읽힌다. AZERTY 숫자 열은 `&`·`é` 대신 `1`·`2`로 읽힌다. macOS·Linux와 터미널은 modifier가 없으면 배열 문자로 비교하므로
+결과가 다르다. 기본 바인딩에는 modifier 없는 글자가 없어 사용자가 직접 그런 바인딩을 줄 때만 나타난다.
+AltGr는 `GetKeyState`가 Ctrl+Alt로 읽으므로 Ctrl+Alt 조합으로 판정된다.
 
 옵션 인터페이스(`ICoreWebView2Environment10`, `ICoreWebView2ControllerOptions4`)가 없는 옛 runtime이거나 이 옵션으로
 만든 controller 생성이 실패하면 경고를 남기고 옵션 없이 다시 만든다. 그 view는 `AcceleratorKeyPressed`로 판정하므로
 Ctrl·Alt 없는 글자 키 바인딩은 페이지에 입력된다. 사용자 세션의 runtime 156에서는 옵션을 켠 생성이 성공했고,
 session 0에서 실행한 하네스에서는 같은 생성이 `REGDB_E_CLASSNOTREG`로 실패했다. 이 실패 경로의 Tasty 실제 실행은 측정하지 않았다.
-controller 생성을 기다리는 `wait_with_pump`처럼 winit 루프 밖에서 메시지를 처리하는 동안 온 키는 훅을 지나지 않는다.
+폴백은 그 view가 닫힐 때까지 유지되며 warn 로그 외의 표시는 없다.
 
 키 도착만으로 모델 focus를 바꾸지 않는다. X11에서는 포인터가 자식 위에 있다는 이유로 키가 올 수 있다.
 Linux만 보이는 webview와 활성 창이 있을 때 16ms GTK poll을 사용하고 숨김·비활성 때 취소한다.

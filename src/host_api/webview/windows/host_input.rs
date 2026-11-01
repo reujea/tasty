@@ -5,7 +5,12 @@
 //! Translate·Dispatch 전에 소비 여부를 정할 수 있다. `AcceleratorKeyPressed`는 Ctrl·Alt가 없는
 //! 글자 키를 올리지 않으므로 그 키의 바인딩은 이 경로로만 받는다.
 //! 옵션을 쓸 수 없으면(옛 runtime의 인터페이스 부재, 생성 실패) 옵션 없이 다시 만들고
-//! 그 view는 기존 `AcceleratorKeyPressed` 경로를 쓴다.
+//! 그 view는 기존 `AcceleratorKeyPressed` 경로만 쓴다.
+//!
+//! 옵션을 켠 view도 `AcceleratorKeyPressed` 판정을 유지한다. 훅이 소비한 key-down은 Dispatch되지 않아
+//! WebView2가 그 키로 이벤트를 올리지 않는다. 훅이 통과시킨 키는 같은 판정을 다시 받지만, 판정은 소비하지 않을
+//! 때 아무 상태도 바꾸지 않으므로 같은 결과(통과)가 된다. 훅을 지나지 않은 키(`wait_with_pump` 같은 중첩 메시지
+//! 루프, 다른 스레드가 보낸 메시지)는 이 이벤트가 Ctrl·Alt 조합과 글자가 아닌 키를 대신 판정한다.
 
 use std::cell::RefCell;
 use std::ffi::c_void;
@@ -20,32 +25,7 @@ use windows::core::*;
 use super::keyboard::{
     current_winit_mods, key_down_message, vk_to_winit_key, win32_scancode_to_physical,
 };
-use crate::host_api::webview::keys::WebViewKeySink;
-
-/// 키를 받은 그 WebView에서 사용자 바인딩을 처리한다. 소비했으면 true이고 페이지·엔진에 보내지 않는다.
-/// 자동 반복은 첫 누름의 결정을 따르며 다시 실행하지 않는다. 두 키 경로가 같은 순서를 쓴다.
-pub(super) fn route_key(
-    sink: &dyn WebViewKeySink,
-    target: &ICoreWebView2,
-    surface_id: u32,
-    key: winit::keyboard::Key,
-    physical: winit::keyboard::PhysicalKey,
-    mods: winit::keyboard::ModifiersState,
-    repeat: bool,
-) -> bool {
-    if repeat {
-        return sink.consumes_repeat(surface_id, &key, &physical, mods);
-    }
-    if sink.blocks_edit_key(&key, &physical, mods) {
-        return true;
-    }
-    // 사용자 편집 바인딩은 이 WebView의 포커스 frame에 엔진 편집 명령으로 실행한다.
-    if let Some(action) = sink.edit_action(&key, &physical, mods) {
-        super::run_editing_command(target, action, surface_id);
-        return true;
-    }
-    sink.capture_key(surface_id, key, physical, mods)
-}
+use crate::host_api::webview::keys::{WebViewKeySink, route_key_down};
 
 struct Route {
     root: HWND,
@@ -124,14 +104,14 @@ pub(crate) fn filter_message(msg: *const c_void) -> bool {
         return false;
     };
     let physical = win32_scancode_to_physical(km.scan, km.extended);
-    route_key(
+    route_key_down(
         &*sink,
-        &target,
         surface_id,
         key,
         physical,
         current_winit_mods(),
         km.repeat,
+        |action| super::run_editing_command(&target, action, surface_id),
     )
 }
 
