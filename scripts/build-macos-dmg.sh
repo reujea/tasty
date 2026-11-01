@@ -165,20 +165,13 @@ cat > "$APP_DIR/Contents/Info.plist" << PLIST
     <true/>
     <key>NSSupportsAutomaticGraphicsSwitching</key>
     <true/>
-    <!-- Remote HTTP views load remote loopback hosts on *.tasty.localhost aliases (docs/dev-guide/macos-http-context.md).
-         App Transport Security blocks plain HTTP to that qualified name unless it is excepted here. -->
+    <!-- Remote HTTP views load any host through the loopback endpoint, including *.tasty.localhost aliases
+         (docs/dev-guide/macos-http-context.md). Only web view loads are exempt from App Transport Security.
+         NSExceptionDomains is omitted on purpose: a listed domain would not receive this exemption. -->
     <key>NSAppTransportSecurity</key>
     <dict>
-        <key>NSExceptionDomains</key>
-        <dict>
-            <key>tasty.localhost</key>
-            <dict>
-                <key>NSIncludesSubdomains</key>
-                <true/>
-                <key>NSExceptionAllowsInsecureHTTPLoads</key>
-                <true/>
-            </dict>
-        </dict>
+        <key>NSAllowsArbitraryLoadsInWebContent</key>
+        <true/>
     </dict>
     <!-- Terminal commands may access these resources. Localized descriptions require InfoPlist.strings. -->
     <key>NSDownloadsFolderUsageDescription</key>

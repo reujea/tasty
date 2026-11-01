@@ -67,11 +67,6 @@ A remote loopback host is therefore addressed by an alias under `tasty.localhost
   so each loopback form is its own rule. A failed compile leaves the view
   unloaded.
 - `*.localhost` stays a secure context, so features that need one keep working.
-- App Transport Security treats `tasty.localhost` as a qualified name and refuses
-  plain HTTP to it. The bundle's `Info.plist` excepts `tasty.localhost` and its
-  subdomains with `NSExceptionAllowsInsecureHTTPLoads`; nothing else is excepted.
-  Without it every alias load fails with "App Transport Security policy requires
-  the use of a secure connection" (measured on macOS 27.2 with the real app).
 
 The page sees its alias as `location.host`. A subresource, fetch or WebSocket that
 names the remote loopback address absolutely is blocked; relative references work.
@@ -86,6 +81,38 @@ Script enablement is fixed per navigation, so the view runs scripts natively and
 the endpoint decides from the verified main response, as on Windows. A blocked
 document receives `Content-Security-Policy: script-src 'none'` on every response.
 Script Allow replays the verified response once instead of a new request.
+
+## App Transport Security
+
+The app bundle's `Info.plist` sets only `NSAllowsArbitraryLoadsInWebContent`. App
+Transport Security then leaves WKWebView loads alone and still applies to the app's
+`URLSession` connections. `NSAllowsArbitraryLoads` is absent, and the key's
+presence makes ATS ignore it anyway.
+
+`NSExceptionDomains` is deliberately absent. Apple documents that a listed domain is
+not affected by the web content key and that its own dictionary replaces the global
+keys, so listing `tasty.localhost` would leave alias HTTPS under ATS.
+
+Without the key, measured on macOS 27.2 with the real bundle:
+
+- Plain HTTP to an alias or to a public name such as `example.com` failed with
+  "App Transport Security policy requires the use of a secure connection".
+- HTTPS to `example.com` failed with "A TLS error caused the secure connection to
+  fail" after the endpoint leaf above had been accepted. ATS requires a chain the
+  system trusts, and the per-document leaf is not one.
+- In both cases no request reached the remote server.
+
+The exemption does not widen what a view trusts:
+
+- Each remote certificate is verified by the server that fetches the page. An
+  untrusted certificate (`self-signed.badssl.com`) was refused there with the key
+  present, and the view never loaded.
+- The view-to-endpoint hop still accepts only the exact endpoint leaf.
+- A local HTML surface does not use this path. Its network addresses stay blocked
+  by its content rules with or without the key.
+
+The measurements in the next sections that predate the key ran outside an app
+bundle, where ATS does not apply.
 
 ## Reload
 
