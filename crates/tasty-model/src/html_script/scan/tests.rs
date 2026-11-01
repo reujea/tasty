@@ -283,6 +283,9 @@ fn local_data_and_non_fetching_urls_are_not_remote_refs() {
         r#"<textarea><img src="https://e.example/a.png"></textarea>"#,
         r#"<style>/* url(https://e.example/a.png) */ p { color: red }</style>"#,
         r#"<p>https://e.example/a.png</p>"#,
+        r#"<form action="https://e.example/post"><button>x</button></form>"#,
+        r#"<meta http-equiv="refresh" content="0; url=https://e.example/">"#,
+        r#"<img src="blob:https://e.example/1">"#,
         r#"<script type="application/json">{"u": "<img src='https://e.example/a.png'>"}</script>"#,
     ];
     for c in cases {
@@ -319,6 +322,17 @@ fn script_detection_and_remote_refs_are_found_in_one_pass() {
     );
     assert_eq!(d.scripts, ScriptDetection::Scripts);
     assert!(d.remote_refs, "the pass keeps going after the first script");
+    assert!(!d.remote_scripts);
+    let d = super::detect(br#"<script>a()</script><script src="https://e.example/a.js"></script>"#);
+    assert_eq!(
+        d.scripts,
+        ScriptDetection::Scripts,
+        "the script result is unchanged"
+    );
+    assert!(
+        d.remote_scripts,
+        "a remote script beside a local one is still recorded"
+    );
     let d = super::detect(br#"<script src="https://e.example/a.js"></script>"#);
     assert_eq!(d.scripts, ScriptDetection::ScriptsRemoteOnly);
     assert!(d.remote_refs, "a remote script is a remote ref");

@@ -101,7 +101,7 @@ pub fn draw(
     panel: egui::Rect,
 ) -> Option<LogicalPx> {
     let phase = snapshot.phase;
-    let remote_only = snapshot.remote_only;
+    let remote_body = snapshot.remote_body;
     let memo_id = egui::Id::new(("html_script_banner_fade", surface_id));
     let memo = ui
         .ctx()
@@ -123,7 +123,7 @@ pub fn draw(
     let t = crate::i18n::t;
     let view = HtmlScriptBannerView {
         title: t("banner.html_script.title"),
-        body: t(if remote_only {
+        body: t(if remote_body {
             "banner.html_script.body_remote"
         } else {
             "banner.html_script.body"

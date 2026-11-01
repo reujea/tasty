@@ -4,9 +4,7 @@ use crate::core::origin::IntentOrigin;
 use crate::plugin_bridge::remote_surface::RemoteSurface;
 use crate::runtime::engine_access::EngineMut;
 use std::sync::{Arc, Mutex, Weak};
-use tasty_model::html_script::{
-    BannerPhase, DocumentRecord, HtmlScriptState, ScriptDetection, ScriptMarker,
-};
+use tasty_model::html_script::{BannerPhase, DocumentRecord, HtmlScriptState, ScriptMarker};
 
 #[derive(Clone, Copy, Debug)]
 pub(crate) enum HtmlActionKind {
@@ -26,7 +24,8 @@ pub(crate) struct HtmlAction {
 #[derive(Clone)]
 pub(crate) struct HtmlSnapshot {
     pub(crate) phase: BannerPhase,
-    pub(crate) remote_only: bool,
+    /// 스크립트 안내가 원격 안내와 함께 보이며 원격 스크립트도 막혀 있다. 본문을 `body_remote`로 바꾼다.
+    pub(crate) remote_body: bool,
     pub(crate) marker: Option<ScriptMarker>,
     /// 마지막 로드가 실패한 채 새 문서가 commit되지 않았다.
     pub(crate) load_failed: bool,
@@ -44,7 +43,7 @@ pub(crate) fn snapshot(remote: &RemoteSurface, target: SurfaceBinding) -> HtmlSn
     let surface = remote.id;
     remote.with_html_script(|state| HtmlSnapshot {
         phase: state.banner_phase(),
-        remote_only: state.current_detection() == Some(ScriptDetection::ScriptsRemoteOnly),
+        remote_body: state.script_banner_needs_remote_body(),
         marker: state.marker(),
         load_failed: state.load_failed(),
         request: HtmlAction {
@@ -117,7 +116,7 @@ fn apply_decision(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tasty_model::html_script::{Fingerprint, ScriptScan};
+    use tasty_model::html_script::{Fingerprint, ScriptDetection, ScriptScan};
 
     fn commit(state: &mut HtmlScriptState, url: &str, byte: u8) {
         state.on_load_started();
@@ -127,6 +126,7 @@ mod tests {
                 fingerprint: Fingerprint([byte; 32]),
                 detection: ScriptDetection::Scripts,
                 remote_refs: false,
+                remote_scripts: false,
             }),
         );
         state.on_committed(Some(url));

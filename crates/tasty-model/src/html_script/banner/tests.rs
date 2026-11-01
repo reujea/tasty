@@ -9,6 +9,7 @@ fn scan(byte: u8, detection: ScriptDetection) -> ScriptScan {
         fingerprint: Fingerprint([byte; 32]),
         detection,
         remote_refs: false,
+        remote_scripts: false,
     }
 }
 
@@ -124,10 +125,16 @@ fn no_banner_without_scripts_with_the_sandbox_off_or_once_dismissed() {
 }
 
 #[test]
-fn remote_only_scripts_also_fire() {
+fn remote_only_scripts_fire_once_remote_content_is_open() {
     let mut st = HtmlScriptState::new(true);
     st.on_user_view();
     host_load(&mut st, A, scan(1, ScriptDetection::ScriptsRemoteOnly));
+    assert_eq!(
+        st.update_banner(),
+        BannerPhase::Hidden,
+        "network scripts cannot run while remote content is blocked"
+    );
+    st.set_remote_global(true);
     assert_eq!(st.update_banner(), BannerPhase::Blocked);
 }
 

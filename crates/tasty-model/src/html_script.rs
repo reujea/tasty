@@ -5,9 +5,11 @@
 //! backend의 navigation 콜백이 아래 `on_*` 메서드를 순서대로 부르고 돌려받은 값으로 JS를 켜거나 끈다.
 
 pub mod banner;
+pub mod remote;
 pub mod scan;
 
 pub use banner::{BannerPhase, ScriptMarker};
+pub use remote::{RemoteAllowError, RemoteMarker};
 
 /// 문서 원본 전체의 SHA-256 지문.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -54,6 +56,8 @@ pub struct ScriptScan {
     pub detection: ScriptDetection,
     /// 원격(`http(s)`) 리소스 참조가 있다. 상한 뒤의 참조, 외부 CSS 안의 참조, 런타임에 넣은 요소는 모른다.
     pub remote_refs: bool,
+    /// 원격 `src` 스크립트가 있다. 원격을 막으면 허용해도 이 스크립트는 실행되지 않는다.
+    pub remote_scripts: bool,
 }
 
 /// 마지막 main frame commit에서 기록한 화면 문서.
@@ -89,6 +93,8 @@ struct PendingResponse {
     url: String,
     scan: ScanSlot,
     matched: bool,
+    /// 원격 허용 기록과 같은 문서다. 이 로드의 원격 차단을 푼다.
+    matched_remote: bool,
 }
 
 /// 스캔이 끝나기 전에 commit된 문서. 같은 URL의 재로드면 이전 문서의 배너 표지를 잠정 유지하고,
@@ -166,6 +172,8 @@ pub struct HtmlScriptState {
     /// 마지막 로드가 문서를 commit하지 못하고 실패했다. 다음 commit까지 배너와 탭 표지를 내린다.
     load_failed: bool,
     banner: BannerFlags,
+    /// 원격 리소스 차단 상태. 스크립트 허용과 독립이다.
+    remote: remote::RemoteState,
 }
 
 impl Default for HtmlScriptState {
@@ -196,6 +204,7 @@ impl HtmlScriptState {
             viewed_before_commit: false,
             load_failed: false,
             banner: BannerFlags::default(),
+            remote: remote::RemoteState::default(),
         }
     }
 
@@ -226,13 +235,18 @@ impl HtmlScriptState {
 
     /// 배너·탭 표지에 쓰는 감지 결과. 같은 URL의 재로드 스캔이 끝나기 전에는 이전 문서의 결과를 쓴다.
     pub(crate) fn display_detection(&self) -> Option<ScriptDetection> {
+        self.display_scan().map(|s| s.detection)
+    }
+
+    /// 배너·표지에 쓰는 스캔 결과. 규칙은 [`Self::display_detection`]과 같다.
+    pub(crate) fn display_scan(&self) -> Option<ScriptScan> {
         match &self.current_wait {
             Some(wait) => wait
                 .previous
                 .as_ref()
                 .filter(|prev| self.current.as_ref().is_some_and(|cur| cur.url == prev.url))
-                .and_then(|prev| prev.scan.map(|s| s.detection)),
-            None => self.current_detection(),
+                .and_then(|prev| prev.scan),
+            None => self.current.as_ref()?.scan,
         }
     }
 
@@ -250,14 +264,14 @@ impl HtmlScriptState {
         self.loading_before_commit() || self.current_wait.is_some()
     }
 
-    /// 이 URL의 응답에서 JS를 켤지 정하려면 스캔 결과가 먼저 있어야 하는지.
-    /// sandbox가 켜져 있고 같은 URL에 허용 기록이 있을 때만 그렇다. 그 밖에는 결과와 관계없이 JS 값이 같다.
+    /// 이 URL의 응답에서 JS나 원격 차단 값을 정하려면 스캔 결과가 먼저 있어야 하는지.
+    /// sandbox가 켜져 있고 같은 URL에 스크립트 허용 기록이 있거나, 전역 원격 허용이 꺼져 있고 같은 URL에
+    /// 원격 허용 기록이 있을 때만 그렇다. 그 밖에는 결과와 관계없이 두 값이 같다.
     pub fn needs_scan_before_js(&self, url: &str) -> bool {
-        self.sandbox
-            && self
-                .allowance
-                .as_ref()
-                .is_some_and(|a| a.url == strip_fragment(url))
+        let url = strip_fragment(url);
+        let same = |a: &Option<Allowance>| a.as_ref().is_some_and(|a| a.url == url);
+        (self.sandbox && same(&self.allowance))
+            || (!self.remote.global && same(&self.remote.allowance))
     }
 
     /// 현재 문서가 허용 기록과 같은 문서인지.
@@ -306,8 +320,9 @@ impl HtmlScriptState {
     /// main frame main resource의 응답 결정. `scan`은 `file://` 문서에서만 있다.
     pub fn on_main_response(&mut self, url: &str, scan: Option<ScriptScan>) -> bool {
         let url = strip_fragment(url).to_string();
-        let matched = self.matches_allowance(&url, scan);
-        self.record_response(url, ScanSlot::Done(scan), matched)
+        let matched = matches(&self.allowance, &url, scan);
+        let matched_remote = matches(&self.remote.allowance, &url, scan);
+        self.record_response(url, ScanSlot::Done(scan), matched, matched_remote)
     }
 
     /// 스캔을 다른 스레드에서 하는 응답 결정. 결과는 돌려준 표로 [`Self::on_scan_finished`]에 넘긴다.
@@ -316,19 +331,23 @@ impl HtmlScriptState {
         self.next_ticket += 1;
         let ticket = ScanTicket(self.next_ticket);
         let url = strip_fragment(url).to_string();
-        let js = self.record_response(url, ScanSlot::Waiting(ticket), false);
+        let js = self.record_response(url, ScanSlot::Waiting(ticket), false, false);
         (js, ticket)
     }
 
-    fn matches_allowance(&self, url: &str, scan: Option<ScriptScan>) -> bool {
-        match (&self.allowance, scan) {
-            (Some(allow), Some(scan)) => allow.url == url && allow.fingerprint == scan.fingerprint,
-            _ => false,
-        }
-    }
-
-    fn record_response(&mut self, url: String, scan: ScanSlot, matched: bool) -> bool {
-        self.pending = Some(PendingResponse { url, scan, matched });
+    fn record_response(
+        &mut self,
+        url: String,
+        scan: ScanSlot,
+        matched: bool,
+        matched_remote: bool,
+    ) -> bool {
+        self.pending = Some(PendingResponse {
+            url,
+            scan,
+            matched,
+            matched_remote,
+        });
         // 응답 단계가 로드 시작 신호보다 먼저 올 수 없지만, 신호를 놓쳐도 이 로드의 판단을 따른다.
         self.load_in_flight = true;
         self.effective_js()
@@ -344,10 +363,12 @@ impl HtmlScriptState {
         if let Some(pending) = &self.pending
             && pending.scan == ScanSlot::Waiting(ticket)
         {
-            let matched = self.matches_allowance(&pending.url, scan);
+            let matched = matches(&self.allowance, &pending.url, scan);
+            let matched_remote = matches(&self.remote.allowance, &pending.url, scan);
             let pending = self.pending.as_mut().expect("checked above");
             pending.scan = ScanSlot::Done(scan);
             pending.matched = matched;
+            pending.matched_remote = matched_remote;
             return Some(self.effective_js());
         }
         let wait = self.current_wait.take_if(|w| w.ticket == ticket)?;
@@ -357,10 +378,7 @@ impl HtmlScriptState {
             .expect("a scan wait belongs to a committed document");
         current.scan = scan;
         if wait.previous.as_ref() != Some(&*current) {
-            self.banner = BannerFlags {
-                viewed: wait.viewed_if_new,
-                ..BannerFlags::default()
-            };
+            self.reset_document_flags(wait.viewed_if_new);
         }
         Some(self.effective_js())
     }
@@ -374,6 +392,11 @@ impl HtmlScriptState {
         if !matched {
             self.allowance = None;
         }
+        if !pending.as_ref().is_some_and(|p| p.matched_remote) {
+            self.remote.allowance = None;
+        }
+        // 차단 관측은 commit된 문서의 하위 리소스 요청에서 다시 쌓는다.
+        self.remote.observed = false;
         let (record, waiting) = match pending {
             Some(p) => {
                 let (scan, waiting) = match p.scan {
@@ -408,10 +431,7 @@ impl HtmlScriptState {
             viewed_if_new,
         });
         if !same_document {
-            self.banner = BannerFlags {
-                viewed: viewed_if_new,
-                ..BannerFlags::default()
-            };
+            self.reset_document_flags(viewed_if_new);
         }
         self.end_load_marks();
         self.load_failed = false;
@@ -463,9 +483,28 @@ impl HtmlScriptState {
         Ok(())
     }
 
+    /// 새 문서로 바뀌었다. 두 배너의 문서 단위 표지를 내리고 열람만 이어받는다.
+    fn reset_document_flags(&mut self, viewed: bool) {
+        let fresh = BannerFlags {
+            viewed,
+            ..BannerFlags::default()
+        };
+        self.banner = fresh;
+        self.remote.banner = fresh;
+        self.remote.reshown = false;
+    }
+
     /// 허용 직후의 재로드 요청을 한 번 꺼낸다.
     pub fn take_reload_request(&mut self) -> bool {
         std::mem::take(&mut self.reload_requested)
+    }
+}
+
+/// 허용 기록이 이 응답의 URL·지문과 같은지.
+fn matches(allowance: &Option<Allowance>, url: &str, scan: Option<ScriptScan>) -> bool {
+    match (allowance, scan) {
+        (Some(allow), Some(scan)) => allow.url == url && allow.fingerprint == scan.fingerprint,
+        _ => false,
     }
 }
 

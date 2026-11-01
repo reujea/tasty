@@ -12,7 +12,7 @@
 //! - 문서가 없거나 로드 중일 때 사용자가 선택했다.
 //! - 사용자가 보던 문서에서 페이지 안 이동(링크·스크립트)으로 바뀌었다. 호스트가 넣은 로드는 제외한다.
 
-use super::{BannerFlags, HtmlScriptState};
+use super::{BannerFlags, HtmlScriptState, ScriptDetection};
 
 /// 배너가 보여야 하는 단계. 그리기와 페이드는 호스트가 한다.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -55,8 +55,7 @@ impl HtmlScriptState {
         if self.current_is_allowed() {
             return Some(ScriptMarker::Allowed);
         }
-        let has_scripts = self.display_detection().is_some_and(|d| d.has_scripts());
-        (has_scripts && self.banner.dismissed).then_some(ScriptMarker::Blocked)
+        (self.has_runnable_scripts() && self.banner.dismissed).then_some(ScriptMarker::Blocked)
     }
 
     /// 호스트가 URL을 넣어 로드를 시작한다. 다음 문서는 이전 문서의 열람을 이어받지 않는다.
@@ -79,6 +78,7 @@ impl HtmlScriptState {
     pub fn on_user_view(&mut self) {
         if self.current.is_some() {
             self.banner.viewed = true;
+            self.remote.banner.viewed = true;
         }
         if self.current.is_none() || self.load_in_flight {
             self.viewed_before_commit = true;
@@ -90,6 +90,7 @@ impl HtmlScriptState {
         self.host_requested_load = false;
         self.viewed_before_commit = false;
         self.reloading_after_allow = false;
+        self.remote.reloading_after_allow = false;
     }
 
     /// 사용자가 이 문서의 배너를 닫았다.
@@ -103,10 +104,19 @@ impl HtmlScriptState {
         self.banner.viewed = true;
     }
 
+    /// 실행될 수 있는 스크립트가 있는지. 원격 `src` 스크립트만 있으면 원격 콘텐츠가 열려 있을 때만 그렇다.
+    fn has_runnable_scripts(&self) -> bool {
+        match self.display_detection() {
+            Some(ScriptDetection::Scripts) => true,
+            Some(ScriptDetection::ScriptsRemoteOnly) => self.remote_effectively_allowed(),
+            Some(ScriptDetection::None) | None => false,
+        }
+    }
+
     /// 전역 sandbox와 관계없이 이 문서에 배너가 필요한지. 닫힘도 반영한다.
     fn wants_banner(&self) -> bool {
         self.sandbox
-            && self.display_detection().is_some_and(|d| d.has_scripts())
+            && self.has_runnable_scripts()
             && !self.current_is_allowed()
             && !self.banner.dismissed
     }
@@ -124,6 +134,7 @@ impl HtmlScriptState {
             *shown = true;
         }
         *pending_view = wants && !*viewed;
+        self.update_remote_banner();
         self.banner_phase()
     }
 

@@ -39,6 +39,7 @@ pub fn scan_reader(mut reader: impl Read, limit: usize) -> std::io::Result<Scrip
         fingerprint: Fingerprint(hasher.finalize().into()),
         detection: found.scripts,
         remote_refs: found.remote_refs,
+        remote_scripts: found.remote_scripts,
     })
 }
 
@@ -57,6 +58,8 @@ pub fn detect_remote_refs(src: &[u8]) -> bool {
 pub struct Detection {
     pub scripts: ScriptDetection,
     pub remote_refs: bool,
+    /// 원격에서 받는 실행 가능한 스크립트가 있다. 로컬 스크립트와 섞여 있어도 선다.
+    pub remote_scripts: bool,
 }
 
 /// 스크립트와 원격 참조를 함께 감지한다. 원격 참조를 놓치지 않도록 원본(상한까지) 끝까지 순회한다.
@@ -132,6 +135,7 @@ pub fn detect(src: &[u8]) -> Detection {
     Detection {
         scripts,
         remote_refs: remote_refs || remote_scripts,
+        remote_scripts,
     }
 }
 

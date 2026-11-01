@@ -1350,6 +1350,7 @@ mod nav_origin_tests {
                 fingerprint: Fingerprint([7; 32]),
                 detection: ScriptDetection::Scripts,
                 remote_refs: false,
+                remote_scripts: false,
             }),
         );
         st.on_committed(Some(B));
