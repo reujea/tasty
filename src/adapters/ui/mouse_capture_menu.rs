@@ -271,6 +271,122 @@ mod tests {
         );
     }
 
+    /// `surface_id` 메뉴를 그리고 `row` 행을 실제 포인터 누름·뗌으로 클릭한다. 나온 요청을 돌려준다.
+    /// 행은 한 줄 높이로 붙어 있으므로 `row` 번째 행의 가운데를 누른다.
+    fn click_menu_row(
+        state: &mut crate::state::MainViewState,
+        engine: &crate::runtime::engine_read::EngineRead<'_>,
+        surface_id: u32,
+        row: usize,
+    ) -> Vec<crate::intent::DispatchedIntent> {
+        let th = theme::theme();
+        state.dialogs.mouse_capture_banner_menu_target = Some(surface_id);
+        let width = th.banner_more_menu_max_width().value();
+        let h = th.menu_item_height().value();
+        let at = egui::pos2(width * 0.5, h * (row as f32 + 0.5));
+        let ctx = egui::Context::default();
+        // 새 Area 는 첫 프레임에 크기만 재고 그리지 않으므로 빈 프레임을 먼저 둔다.
+        let frames = [
+            vec![],
+            vec![egui::Event::PointerMoved(at)],
+            vec![egui::Event::PointerButton {
+                pos: at,
+                button: egui::PointerButton::Primary,
+                pressed: true,
+                modifiers: egui::Modifiers::NONE,
+            }],
+            vec![egui::Event::PointerButton {
+                pos: at,
+                button: egui::PointerButton::Primary,
+                pressed: false,
+                modifiers: egui::Modifiers::NONE,
+            }],
+        ];
+        for events in frames {
+            let input = egui::RawInput {
+                events,
+                ..Default::default()
+            };
+            let _frame = ctx.run(input, |ctx| {
+                egui::Area::new(egui::Id::new("mouse_capture_menu_test"))
+                    .fixed_pos(egui::Pos2::ZERO)
+                    .show(ctx, |ui| {
+                        ui.set_width(width);
+                        ui.set_max_width(width);
+                        let _action = draw_menu(ui, state, engine);
+                    });
+            });
+        }
+        state.take_pending_intents()
+    }
+
+    /// 요청 중 설정 패치를 엔진 설정에 적용한다. 본체는 같은 `apply` 로 새 설정을 만든다.
+    fn apply_patches(
+        intents: &[crate::intent::DispatchedIntent],
+        settings: &mut crate::settings::Settings,
+    ) -> usize {
+        let mut applied = 0;
+        for intent in intents {
+            if let crate::intent::Intent::PatchSettings(patch) = &intent.body {
+                patch.apply(settings);
+                applied += 1;
+            }
+        }
+        applied
+    }
+
+    /// 대조군: 이름을 아는 surface 에서는 같은 클릭이 그 이름을 두 목록에 저장한다.
+    /// 아래 이름 없음 시험의 클릭이 실제로 행에 닿는다는 근거다.
+    #[test]
+    fn a_known_foreground_name_is_saved_by_each_menu_row() {
+        let (mut state, mut session) = crate::state::tests::test_state();
+        let e = session.borrow_mut();
+        e.live.foreground_names.insert(42, "vimtest".into());
+        for row in 0..2 {
+            let intents = click_menu_row(&mut state, &e.read(), 42, row);
+            assert_eq!(apply_patches(&intents, &mut e.runtime.settings), 1);
+        }
+        let general = &e.runtime.settings.general;
+        assert!(
+            general
+                .mouse_capture_banner_blacklist
+                .contains(&"vimtest".to_string())
+        );
+        assert!(
+            general
+                .mouse_capture_blacklist
+                .contains(&"vimtest".to_string())
+        );
+    }
+
+    /// 첫 busy 폴링 전에는 foreground 이름이 없다(`foreground_names` 항목 없음).
+    /// 이 상태에서 두 행을 눌러도 어느 목록에도 항목이 생기지 않는다.
+    #[test]
+    fn menu_rows_save_nothing_before_the_first_foreground_poll() {
+        let (mut state, mut session) = crate::state::tests::test_state();
+        let e = session.borrow_mut();
+        assert_eq!(e.foreground_name(42), None);
+        let banner_before = e
+            .runtime
+            .settings
+            .general
+            .mouse_capture_banner_blacklist
+            .clone();
+        let capture_before = e.runtime.settings.general.mouse_capture_blacklist.clone();
+        for row in 0..2 {
+            let intents = click_menu_row(&mut state, &e.read(), 42, row);
+            apply_patches(&intents, &mut e.runtime.settings);
+        }
+        assert_eq!(
+            e.runtime.settings.general.mouse_capture_banner_blacklist,
+            banner_before
+        );
+        assert_eq!(
+            e.runtime.settings.general.mouse_capture_blacklist,
+            capture_before
+        );
+    }
+
     /// ja 처럼 고정 문구가 상한 폭을 넘는 행이 있으면 메뉴는 288 에 머물고 셸이 그 행만큼 높아진다.
     /// 그린 두 행의 높이 합이 열 때 잰 셸 높이와 같아야 셸이 행을 자르지 않는다.
     #[test]
