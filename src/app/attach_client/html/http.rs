@@ -211,6 +211,15 @@ fn refresh(
             }
         }
     }
+    // The failed view is gone before its state is mirrored, so the kept failure reports itself.
+    if surface
+        .http_session
+        .as_ref()
+        .is_some_and(|session| session.failed())
+        && surface.nav_state() != crate::model::NavState::Failed
+    {
+        surface.set_nav_state(crate::model::NavState::Failed);
+    }
     surface.http_session.clone()
 }
 
