@@ -40,6 +40,70 @@ pub(super) fn key_down_message(
     })
 }
 
+/// Ctrl·Alt·Super 없이 누른 글자 키의 논리 값. 이 GUI 스레드의 입력 언어와 키보드 상태(Shift·CapsLock)로
+/// 현재 배열이 만드는 문자를 읽는다. 수식키 조합은 이 값을 쓰지 않고 US 물리 키 문자로 비교한다
+/// (`tasty_key_match::shortcut_lookup_key`). 읽지 못하면 None이고 호출자는 VK 변환값을 쓴다.
+pub(super) fn layout_character_key(vk: u32, scan: u32) -> Option<winit::keyboard::Key> {
+    use windows::Win32::UI::Input::KeyboardAndMouse::{GetKeyboardLayout, GetKeyboardState};
+    let mut state = [0u8; 256];
+    // SAFETY: 256바이트 배열에 이 스레드의 키 상태를 쓰는 조회다.
+    if let Err(error) = unsafe { GetKeyboardState(&mut state) } {
+        tracing::warn!(%error, "GetKeyboardState failed; the key is compared by its US character");
+        return None;
+    }
+    // SAFETY: 0은 호출 스레드의 입력 언어를 뜻하며 조회만 한다.
+    let layout = unsafe { GetKeyboardLayout(0) };
+    character_key_in_layout(vk, scan, &state, layout)
+}
+
+/// `ToUnicodeEx`의 0x4 플래그(Windows 10 1607 이상)는 dead key 상태를 바꾸지 않아 뒤따르는 메시지의 조합이
+/// 그대로 남는다. 그보다 오래된 Windows는 이 플래그를 모르므로 dead key 조합이 깨질 수 있다.
+const TO_UNICODE_KEEP_KEYBOARD_STATE: u32 = 0x4;
+
+/// 지정한 배열과 키 상태로 VK 하나의 문자를 읽는다. 시험에서 배열을 명시하려고 나눴다.
+pub(super) fn character_key_in_layout(
+    vk: u32,
+    scan: u32,
+    state: &[u8; 256],
+    layout: windows::Win32::UI::Input::KeyboardAndMouse::HKL,
+) -> Option<winit::keyboard::Key> {
+    use windows::Win32::UI::Input::KeyboardAndMouse::ToUnicodeEx;
+    let mut buf = [0u16; 8];
+    // SAFETY: 입력 배열과 출력 버퍼가 호출 동안 살아 있고, 0x4 플래그로 키보드 상태를 바꾸지 않는다.
+    let rc = unsafe {
+        ToUnicodeEx(
+            vk,
+            scan,
+            state,
+            &mut buf,
+            TO_UNICODE_KEEP_KEYBOARD_STATE,
+            Some(layout),
+        )
+    };
+    key_from_to_unicode(rc, &buf)
+}
+
+/// `ToUnicodeEx` 결과를 논리 키로 바꾼다. 음수는 dead key이고 어떤 바인딩과도 맞지 않는 `Key::Dead`가 된다.
+/// 0(이 배열에서 문자가 없음)과 제어 문자는 None이다.
+pub(super) fn key_from_to_unicode(rc: i32, buf: &[u16]) -> Option<winit::keyboard::Key> {
+    use winit::keyboard::Key;
+    if rc < 0 {
+        let dead = buf
+            .first()
+            .and_then(|&u| char::from_u32(u32::from(u)))
+            .filter(|c| !c.is_control());
+        return Some(Key::Dead(dead));
+    }
+    let len = usize::try_from(rc)
+        .ok()
+        .filter(|&n| n > 0 && n <= buf.len())?;
+    let text = String::from_utf16(&buf[..len]).ok()?;
+    if text.chars().any(char::is_control) {
+        return None;
+    }
+    Some(Key::Character(text.into()))
+}
+
 /// callback 인자에 없는 modifier 상태를 현재 스레드의 키보드 상태에서 읽는다.
 pub(super) fn current_winit_mods() -> winit::keyboard::ModifiersState {
     use windows::Win32::UI::Input::KeyboardAndMouse::{
@@ -165,6 +229,95 @@ mod tests {
         // WM_CHAR·WM_SYSKEYUP도 건너뛴다.
         assert_eq!(key_down_message(0x0102, 0x71, 0x0010_0001), None);
         assert_eq!(key_down_message(0x0105, 0x51, 0x0010_0001), None);
+    }
+
+    #[test]
+    fn to_unicode_results_become_layout_keys() {
+        use winit::keyboard::Key;
+        let q = [u16::from(b'q'), 0];
+        assert_eq!(key_from_to_unicode(1, &q), Some(Key::Character("q".into())));
+        let yi = [0x0439u16, 0];
+        assert_eq!(
+            key_from_to_unicode(1, &yi),
+            Some(Key::Character("\u{439}".into()))
+        );
+        // dead key는 바인딩과 맞지 않는 Dead로 두어 페이지가 조합을 이어 가게 한다.
+        let caret = [u16::from(b'^'), 0];
+        assert_eq!(key_from_to_unicode(-1, &caret), Some(Key::Dead(Some('^'))));
+        assert_eq!(key_from_to_unicode(0, &q), None);
+        let ctrl_q = [0x11u16, 0];
+        assert_eq!(key_from_to_unicode(1, &ctrl_q), None);
+        assert_eq!(key_from_to_unicode(9, &q), None);
+    }
+
+    /// 배열을 임시로 불러 확인한다. 활성 배열은 바꾸지 않으며(KLF_ACTIVATE 없음), 시험 전에 없던 배열만
+    /// 끝에(panic이어도) 내린다. 불러온 배열은 그동안 세션의 배열 목록에 보이므로 기본 실행에서 뺀다.
+    /// 대화형 데스크톱이 없는 세션(SSH의 session 0)에서는 배열을 불러오지 못한다.
+    #[test]
+    #[ignore = "temporarily loads keyboard layouts into the interactive session; run explicitly"]
+    fn plain_keys_follow_the_layout_and_keep_dead_key_state() {
+        use windows::Win32::UI::Input::KeyboardAndMouse::{
+            GetKeyboardLayoutList, HKL, KLF_NOTELLSHELL, LoadKeyboardLayoutW, UnloadKeyboardLayout,
+        };
+        use winit::keyboard::Key;
+        /// 시험이 불러온 배열만 내린다. 단언이 실패해 panic해도 Drop에서 내린다.
+        struct Loaded(Option<HKL>);
+        impl Drop for Loaded {
+            fn drop(&mut self) {
+                if let Some(hkl) = self.0.take() {
+                    // SAFETY: 이 시험이 불러온 배열만 내린다.
+                    if let Err(error) = unsafe { UnloadKeyboardLayout(hkl) } {
+                        tracing::warn!(%error, "unloading the test keyboard layout failed");
+                    }
+                }
+            }
+        }
+        fn with_layout(klid: &str, check: impl FnOnce(HKL)) {
+            let mut before = [HKL::default(); 64];
+            // SAFETY: 조회만 하며 배열 길이를 함께 넘긴다.
+            let n = unsafe { GetKeyboardLayoutList(Some(&mut before)) } as usize;
+            let id: Vec<u16> = klid.encode_utf16().chain([0]).collect();
+            // SAFETY: NUL 종단 문자열이며 KLF_ACTIVATE 없이 불러 활성 배열을 바꾸지 않는다.
+            let hkl =
+                unsafe { LoadKeyboardLayoutW(windows::core::PCWSTR(id.as_ptr()), KLF_NOTELLSHELL) }
+                    .expect("load layout");
+            let _loaded = Loaded((!before[..n].contains(&hkl)).then_some(hkl));
+            check(hkl);
+        }
+        let plain = [0u8; 256];
+        let mut shift = [0u8; 256];
+        shift[0x10] = 0x80;
+        shift[0xA0] = 0x80;
+        let ch = |s: &str| Some(Key::Character(s.into()));
+        with_layout("00000409", |us| {
+            assert_eq!(character_key_in_layout(0xBA, 0x27, &plain, us), ch(";"));
+            assert_eq!(character_key_in_layout(0xBA, 0x27, &shift, us), ch(":"));
+            assert_eq!(character_key_in_layout(0x51, 0x10, &shift, us), ch("Q"));
+        });
+        with_layout("00000419", |ru| {
+            assert_eq!(
+                character_key_in_layout(0x51, 0x10, &plain, ru),
+                ch("\u{439}")
+            );
+            assert_eq!(
+                character_key_in_layout(0x51, 0x10, &shift, ru),
+                ch("\u{419}")
+            );
+        });
+        with_layout("00000407", |de| {
+            assert_eq!(
+                character_key_in_layout(0xBA, 0x1A, &plain, de),
+                ch("\u{fc}")
+            );
+            // dead key(^)를 두 번 읽어도 같은 Dead이고, 뒤의 a는 조합되지 않은 a다(상태를 바꾸지 않음).
+            for _ in 0..2 {
+                assert_eq!(
+                    character_key_in_layout(0xDC, 0x29, &plain, de),
+                    Some(Key::Dead(Some('^')))
+                );
+            }
+            assert_eq!(character_key_in_layout(0x41, 0x1E, &plain, de), ch("a"));
+        });
     }
 
     #[test]

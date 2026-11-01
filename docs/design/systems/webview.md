@@ -358,12 +358,14 @@ controller 생성을 기다리는 `wait_with_pump` 같은 중첩 메시지 루�
 다른 스레드가 `SendMessage`로 보낸 키가 여기에 해당한다. 이 경우 Ctrl·Alt 조합과 글자가 아닌 키는 기존처럼 받지만,
 이 이벤트가 오지 않는 Ctrl·Alt 없는 글자 키 바인딩은 그동안 페이지에 입력된다.
 
-글자 키는 VK 코드를 US 배열 기준 문자로 바꿔 비교한다(`windows/keyboard.rs`의 `vk_to_winit_key`). VK_A~Z는 라틴 소문자,
-숫자 열은 숫자, OEM 키는 US 기호가 된다. 그래서 Ctrl·Alt 없는 글자 바인딩은 현재 입력 언어의 문자가 아니라 이 변환값과 맞춰진다.
-러시아어처럼 라틴 문자가 아닌 배열에서는 `q` 바인딩이 Q 자리 키(`й` 입력)에도 실행되고, 독일어 배열의 `ü` 키(VK_OEM_1)는 `;`로
-읽힌다. AZERTY 숫자 열은 `&`·`é` 대신 `1`·`2`로 읽힌다. macOS·Linux와 터미널은 modifier가 없으면 배열 문자로 비교하므로
-결과가 다르다. 기본 바인딩에는 modifier 없는 글자가 없어 사용자가 직접 그런 바인딩을 줄 때만 나타난다.
-AltGr는 `GetKeyState`가 Ctrl+Alt로 읽으므로 Ctrl+Alt 조합으로 판정된다.
+훅 경로에서 Ctrl·Alt·Super 없이 누른 글자 키는 다른 OS와 같이 현재 배열의 논리 문자로 비교한다(`windows/keyboard.rs`의
+`layout_character_key`). GUI 스레드의 입력 언어(`GetKeyboardLayout(0)`)와 키 상태(Shift·CapsLock)로 `ToUnicodeEx`를
+부르며, 0x4 플래그로 dead key 상태를 바꾸지 않아 뒤따르는 메시지의 조합이 그대로 남는다. 이 플래그는 Windows 10 1607부터
+지원되므로 그보다 오래된 Windows에서는 dead key 조합이 깨질 수 있다. dead key는 어떤 바인딩과도 맞지 않는 `Key::Dead`가
+되어 페이지로 간다. 배열이 문자를 만들지 않거나 제어 문자를 만들면 VK의 US 배열 문자(`vk_to_winit_key`)를 쓴다.
+Ctrl·Alt·Super 조합은 계약대로 물리 키의 US 배열 문자로 비교한다(`tasty_key_match::shortcut_lookup_key`). AltGr는
+`GetKeyState`가 Ctrl+Alt로 읽으므로 이 규칙을 따른다. `AcceleratorKeyPressed` 경로는 Ctrl·Alt 조합과 글자가 아닌 키만 받으므로
+VK 변환값을 그대로 쓴다.
 
 옵션 인터페이스(`ICoreWebView2Environment10`, `ICoreWebView2ControllerOptions4`)가 없는 옛 runtime이거나 이 옵션으로
 만든 controller 생성이 실패하면 경고를 남기고 옵션 없이 다시 만든다. 그 view는 `AcceleratorKeyPressed`로 판정하므로

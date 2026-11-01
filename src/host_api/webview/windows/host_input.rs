@@ -23,7 +23,8 @@ use windows::Win32::UI::WindowsAndMessaging::{IsChild, MSG};
 use windows::core::*;
 
 use super::keyboard::{
-    current_winit_mods, key_down_message, vk_to_winit_key, win32_scancode_to_physical,
+    current_winit_mods, key_down_message, layout_character_key, vk_to_winit_key,
+    win32_scancode_to_physical,
 };
 use crate::host_api::webview::keys::{WebViewKeySink, route_key_down};
 
@@ -103,13 +104,22 @@ pub(crate) fn filter_message(msg: *const c_void) -> bool {
     let Some(key) = vk_to_winit_key(km.vk) else {
         return false;
     };
+    let mods = current_winit_mods();
+    // Ctrl·Alt·Super 없는 글자 키는 다른 경로처럼 현재 배열의 문자로 비교한다. 수식키 조합은 US 물리 키 문자다.
+    let key = if matches!(key, winit::keyboard::Key::Character(_))
+        && !(mods.control_key() || mods.alt_key() || mods.super_key())
+    {
+        layout_character_key(km.vk, km.scan).unwrap_or(key)
+    } else {
+        key
+    };
     let physical = win32_scancode_to_physical(km.scan, km.extended);
     route_key_down(
         &*sink,
         surface_id,
         key,
         physical,
-        current_winit_mods(),
+        mods,
         km.repeat,
         |action| super::run_editing_command(&target, action, surface_id),
     )
