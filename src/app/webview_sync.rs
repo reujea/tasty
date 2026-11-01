@@ -132,6 +132,20 @@ struct HtmlSurfaces {
     all_ids: Vec<u32>,
 }
 
+/// surface에 옮길 탐색 상태. 실패한 HTTP 세션은 `failed`만 보고한다. 세션 refresh도 같은 값을
+/// 쓰므로, 남아 있는 view의 native 상태(`done` 등)와 프레임마다 번갈아 쓰이며 다시 그리지 않는다.
+#[cfg(any(target_os = "linux", target_os = "macos", windows))]
+fn mirrored_nav_state(
+    native: crate::webview::NavState,
+    session_failed: bool,
+) -> crate::webview::NavState {
+    if session_failed {
+        crate::webview::NavState::Failed
+    } else {
+        native
+    }
+}
+
 /// native WebView를 둘 surface인지. 호스트 주소가 있는 surface와, 주소 띠로 문서를 연 빈 html
 /// surface다. 빈 html 탭은 사용자가 처음 주소를 열 때(사용자 탐색 큐에 들어올 때) 만들고 그 뒤로 둔다.
 fn hosts_webview(view: &MainView, surface: &dyn crate::model::Surface, sid: u32) -> bool {
@@ -867,6 +881,13 @@ fn sync_webviews(
         let Some(rs) = find_remote_surface(view, engine, sid) else {
             continue;
         };
+        #[cfg(any(target_os = "linux", target_os = "macos", windows))]
+        let nav = mirrored_nav_state(
+            nav,
+            rs.http_session
+                .as_ref()
+                .is_some_and(|session| session.failed()),
+        );
         if rs.nav_state() != nav {
             rs.set_nav_state(nav);
             nav_changed = true;
@@ -1392,5 +1413,30 @@ mod nav_origin_tests {
         assert!(host_load_marks_origin(Some(A), "file:///docs/b.html"));
         assert!(host_load_marks_origin(None, &format!("{A}#sec")));
         assert!(host_load_marks_origin(Some(A), A));
+    }
+}
+
+#[cfg(all(test, any(target_os = "linux", target_os = "macos", windows)))]
+mod failed_nav_tests {
+    use super::mirrored_nav_state;
+    use crate::webview::NavState;
+
+    #[test]
+    fn a_failed_session_keeps_failed_over_any_native_state() {
+        for native in [
+            NavState::Idle,
+            NavState::Loading,
+            NavState::Done,
+            NavState::Failed,
+        ] {
+            assert_eq!(mirrored_nav_state(native, true), NavState::Failed);
+        }
+    }
+
+    #[test]
+    fn a_live_session_mirrors_the_native_state() {
+        for native in [NavState::Idle, NavState::Loading, NavState::Done] {
+            assert_eq!(mirrored_nav_state(native, false), native);
+        }
     }
 }
