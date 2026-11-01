@@ -108,7 +108,7 @@ impl HtmlScriptState {
     fn has_runnable_scripts(&self) -> bool {
         match self.display_detection() {
             Some(ScriptDetection::Scripts) => true,
-            Some(ScriptDetection::ScriptsRemoteOnly) => self.remote_effectively_allowed(),
+            Some(ScriptDetection::ScriptsRemoteOnly) => self.remote_scripts_runnable(),
             Some(ScriptDetection::None) | None => false,
         }
     }

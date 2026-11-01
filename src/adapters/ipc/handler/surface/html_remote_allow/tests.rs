@@ -130,7 +130,7 @@ fn refusals_name_their_reason_and_change_nothing() {
     rs.with_html_script(|st| {
         st.on_committed(Some(URL));
         st.on_load_finished();
-        st.set_remote_unsupported();
+        st.set_remote_view(tasty_model::html_script::RemoteView::Mirror);
     });
     assert_eq!(
         reason(&allow(&mut state, &engine, json!({ "surface_id": sid }))),

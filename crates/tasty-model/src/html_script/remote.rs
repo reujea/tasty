@@ -4,6 +4,8 @@
 //! commit되면 풀린다. 응답 결정 단계에서 URL·지문이 맞을 때만 그 로드의 차단을 푼다
 //! ([`HtmlScriptState::document_remote_allowed`]). 전역 "Allow remote content"가 켜져 있으면 감지·안내를
 //! 하지 않는다. entry mirror·HTTP view는 차단을 다른 곳이 정하므로 안내와 허용을 지원하지 않는다.
+//! 두 view의 정책은 다르다([`RemoteView`]). mirror는 전역 설정과 관계없이 원격을 늘 막고, HTTP view는
+//! endpoint가 client의 전역 설정과 같은 origin 규칙으로 정한다.
 //!
 //! 표시 판정은 스크립트 안내와 같은 열람 규칙을 쓴다. 원격 안내는 정적 참조가 있는 문서에만 뜬다.
 //! 정적 참조 없이 OS가 차단을 알린 문서는 표지만 남기고, 표지를 누르면 안내를 보인다.
@@ -15,8 +17,8 @@ use super::{AllowError, Allowance, BannerFlags, BannerPhase, HtmlScriptState};
 pub(super) struct RemoteState {
     /// 전역 "Allow remote content". 켜져 있으면 모든 문서에서 원격을 받는다.
     pub(super) global: bool,
-    /// 이 view에서 문서 단위 허용을 지원한다. entry mirror·HTTP view는 `false`다.
-    pub(super) supported: bool,
+    /// 원격 차단을 정하는 view 종류. 문서 단위 허용은 `Local`에서만 지원한다.
+    pub(super) view: RemoteView,
     pub(super) allowance: Option<Allowance>,
     pub(super) banner: BannerFlags,
     /// 정적 참조 없이 관측한 차단을 사용자가 표지로 열었다.
@@ -31,12 +33,33 @@ impl Default for RemoteState {
     fn default() -> Self {
         Self {
             global: false,
-            supported: true,
+            view: RemoteView::Local,
             allowance: None,
             banner: BannerFlags::default(),
             reshown: false,
             observed: false,
             reloading_after_allow: false,
+        }
+    }
+}
+
+/// 원격 차단을 정하는 view 종류.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RemoteView {
+    /// 로컬 문서. `전역 설정 || 문서 단위 허용`으로 정한다.
+    Local,
+    /// 원격 파일 entry mirror. 응답 경계(CSP)가 전역 설정과 관계없이 원격을 늘 막는다.
+    Mirror,
+    /// 원격 HTTP(S) view. endpoint가 전역 설정과 같은 origin 기본 허용으로 정한다.
+    Http,
+}
+
+impl RemoteView {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Local => "local",
+            Self::Mirror => "mirror",
+            Self::Http => "http",
         }
     }
 }
@@ -98,13 +121,20 @@ impl HtmlScriptState {
 
     /// 이 view가 문서 단위 원격 허용을 지원하는지.
     pub fn remote_supported(&self) -> bool {
-        self.remote.supported
+        self.remote.view == RemoteView::Local
     }
 
-    /// entry mirror·HTTP view로 바뀌었다. 안내·표지를 내리고 허용을 받지 않는다.
-    pub fn set_remote_unsupported(&mut self) {
-        self.remote.supported = false;
-        self.remote.allowance = None;
+    /// 원격 차단을 정하는 view 종류.
+    pub fn remote_view(&self) -> RemoteView {
+        self.remote.view
+    }
+
+    /// entry mirror·HTTP view로 바뀌었다. 원격 안내·표지를 내리고 문서 단위 허용을 받지 않는다.
+    pub fn set_remote_view(&mut self, view: RemoteView) {
+        self.remote.view = view;
+        if view != RemoteView::Local {
+            self.remote.allowance = None;
+        }
     }
 
     /// 원격 허용 기록.
@@ -142,7 +172,7 @@ impl HtmlScriptState {
     /// 로드가 진행 중이고 아직 commit 전이면 응답 단계의 판단(없으면 차단)을 따른다.
     /// 그렇지 않으면 화면 문서의 허용 여부를 따른다.
     pub fn document_remote_allowed(&self) -> bool {
-        if !self.remote.supported {
+        if !self.remote_supported() {
             return false;
         }
         if self.loading_before_commit() {
@@ -151,21 +181,35 @@ impl HtmlScriptState {
         self.current_is_remote_allowed()
     }
 
-    /// 원격 콘텐츠가 실제로 열려 있는지(전역 또는 이 문서 허용).
+    /// 원격 콘텐츠가 실제로 열려 있는지. 로컬 문서는 전역 또는 이 문서 허용, mirror는 늘 닫혀 있고,
+    /// HTTP view는 전역 설정을 따른다(같은 origin은 endpoint가 설정과 관계없이 허용한다).
     pub fn remote_effectively_allowed(&self) -> bool {
-        self.remote.global || self.current_is_remote_allowed()
+        match self.remote.view {
+            RemoteView::Local => self.remote.global || self.current_is_remote_allowed(),
+            RemoteView::Mirror => false,
+            RemoteView::Http => self.remote.global,
+        }
+    }
+
+    /// `http(s)` `src` 스크립트만 있는 문서의 스크립트가 실행될 수 있는지. HTTP view는 그 스크립트가
+    /// 같은 origin일 수 있고 endpoint가 정하므로 원래대로 실행될 수 있다고 본다.
+    pub(super) fn remote_scripts_runnable(&self) -> bool {
+        match self.remote.view {
+            RemoteView::Http => true,
+            RemoteView::Local | RemoteView::Mirror => self.remote_effectively_allowed(),
+        }
     }
 
     /// OS가 현재 문서의 하위 리소스 요청을 막았다. 새 로드가 시작된 뒤 도착한 알림은 호스트가 거른다.
     pub fn on_remote_block_observed(&mut self) {
-        if self.remote.supported && !self.remote.global && !self.loading_before_commit() {
+        if self.remote_supported() && !self.remote.global && !self.loading_before_commit() {
             self.remote.observed = true;
         }
     }
 
     /// 현재 문서에 원격을 허용으로 기록하고 재로드를 요청한다. 거절 조건은 스크립트 허용과 같다.
     pub fn allow_remote_current(&mut self) -> Result<(), RemoteAllowError> {
-        if !self.remote.supported {
+        if !self.remote_supported() {
             return Err(RemoteAllowError::UnsupportedView);
         }
         if self.remote.global {
@@ -192,7 +236,7 @@ impl HtmlScriptState {
 
     /// 안내가 필요한 문서인지. 닫힘도 반영한다.
     fn wants_remote_banner(&self) -> bool {
-        if !self.remote.supported || self.remote.global || self.current_is_remote_allowed() {
+        if !self.remote_supported() || self.remote.global || self.current_is_remote_allowed() {
             return false;
         }
         let refs = self.display_scan().is_some_and(|s| s.remote_refs);
@@ -211,7 +255,7 @@ impl HtmlScriptState {
 
     /// 표지를 바꾸지 않고 원격 안내 단계를 읽는다.
     pub fn remote_banner_phase(&self) -> BannerPhase {
-        if !self.remote.supported || self.remote.global || self.load_failed {
+        if !self.remote_supported() || self.remote.global || self.load_failed {
             return BannerPhase::Hidden;
         }
         if self.remote.reloading_after_allow && self.remote.banner.shown {
@@ -230,7 +274,7 @@ impl HtmlScriptState {
 
     /// 주소 칸 끝 표지. 안내가 보이는 동안에는 없다.
     pub fn remote_marker(&self) -> Option<RemoteMarker> {
-        if !self.remote.supported || self.remote.global || self.load_failed {
+        if !self.remote_supported() || self.remote.global || self.load_failed {
             return None;
         }
         if self.current_is_remote_allowed() {

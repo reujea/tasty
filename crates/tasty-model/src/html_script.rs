@@ -9,7 +9,7 @@ pub mod remote;
 pub mod scan;
 
 pub use banner::{BannerPhase, ScriptMarker};
-pub use remote::{RemoteAllowError, RemoteMarker};
+pub use remote::{RemoteAllowError, RemoteMarker, RemoteView};
 
 /// 문서 원본 전체의 SHA-256 지문.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]

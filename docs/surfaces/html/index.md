@@ -118,7 +118,7 @@ html surface 위쪽에 host가 주소 띠를 그린다. 띠는 공용 view `tast
 - 요소의 `on*` 이벤트 핸들러 속성.
 - `javascript:` 스킴 URL. `href`, `src`, `action`, `formaction` 속성의 값을 검사한다.
 
-스크립트 배너는 지금 실행될 수 있는 스크립트가 있을 때만 뜬다. 감지 결과가 `http(s)` `src` 스크립트뿐(`ScriptsRemoteOnly`)이면 원격 콘텐츠가 열려 있을 때(전역 설정이나 이 문서의 원격 허용)만 배너를 띄운다. 막혀 있으면 허용해도 실행되지 않기 때문이다. 감지 결과(`ScriptDetection`)는 `<base href>`를 보지 않는다. 원격 base 아래의 상대 `src` 스크립트는 로컬 스크립트로 세므로 배너가 뜨지만, 원격을 막는 동안에는 허용해도 그 스크립트는 받지 못한다. base를 반영한 원격 스크립트 여부는 따로 둔다([원격 콘텐츠 차단](#원격-콘텐츠-차단)). 원격 스크립트가 있고 원격 안내도 보이면 스크립트 배너 본문을 원격 안내 문구(`bodyRemote`)로 바꾼다.
+스크립트 배너는 지금 실행될 수 있는 스크립트가 있을 때만 뜬다. 감지 결과가 `http(s)` `src` 스크립트뿐(`ScriptsRemoteOnly`)이면 그 view에서 원격이 열려 있을 때만 배너를 띄운다. 막혀 있으면 허용해도 실행되지 않기 때문이다. 로컬 문서는 전역 설정이나 이 문서의 원격 허용이 있을 때, entry mirror는 늘 막으므로 띄우지 않고, HTTP view는 같은 origin 스크립트를 endpoint가 허용하므로 원래대로 띄운다. 감지 결과(`ScriptDetection`)는 `<base href>`를 보지 않는다. 원격 base 아래의 상대 `src` 스크립트는 로컬 스크립트로 세므로 배너가 뜨지만, 원격을 막는 동안에는 허용해도 그 스크립트는 받지 못한다. base를 반영한 원격 스크립트 여부는 따로 둔다([원격 콘텐츠 차단](#원격-콘텐츠-차단)). 원격 스크립트가 있고 원격 안내도 보이면 스크립트 배너 본문을 원격 안내 문구(`bodyRemote`)로 바꾼다.
 
 ### 스캔
 
@@ -343,7 +343,10 @@ OS별 구현은 다음과 같다.
 - 원격 허용 기록과 같은 URL의 응답은 스크립트 허용처럼 스캔 결과를 기다려 지문이 맞을 때만 그 로드의 차단을 푼다. 전역 설정이 켜져 있어도 기다린다. 기다리지 않고 commit하면 허용 기록이 풀려, 전역을 다시 껐을 때 같은 문서가 막히기 때문이다.
 - 전역 설정을 켰다 꺼도 허용 기록은 지우지 않는다.
 - 로드 중(commit 전)이거나 지문이 없는 문서는 허용하지 않는다. 전역 설정이 이미 허용하면 `globally_allowed`로 거절한다.
-- entry mirror와 HTTP view는 차단을 다른 곳이 정한다(mirror는 늘 막고 HTTP view는 endpoint가 정한다). 그래서 이 view에서는 문서 단위 허용과 안내를 지원하지 않고 `unsupported_view`로 거절한다.
+- entry mirror와 HTTP view는 차단을 다른 곳이 정한다. 그래서 이 view에서는 문서 단위 허용과 안내를 지원하지 않고 `unsupported_view`로 거절한다. 두 view의 정책은 달라서 `remote.view`(`local`·`mirror`·`http`)로 구분하고 실효값(`remote.effective`)도 view마다 정한다.
+  - mirror: 응답 경계가 전역 설정과 관계없이 원격을 늘 막는다. 실효값은 늘 거짓이다.
+  - HTTP view: endpoint가 client의 전역 설정과 같은 origin 기본 허용으로 정한다. 실효값은 전역 설정이다. 같은 origin 요청은 설정과 관계없이 열려 있다.
+- top-level `http(s)` 탐색: 실효값이 참인 동안 문서에서 연 `http(s)` 링크·이동도 막지 않는다(Linux 탐색 정책, macOS 규칙 목록, Windows 문서 요청이 같은 실효값을 쓴다). 문서 단위 허용도 같다. 그 탐색이 commit되면 다른 문서이므로 허용이 풀리고 새 문서의 하위 원격 요청은 다시 막힌다. 원래 문서로 돌아와도 허용 기록이 없으므로 다시 허용해야 열린다. 시험은 `a_remote_navigation_from_an_allowed_document_releases_the_allowance`다.
 
 ### 적용
 
@@ -397,6 +400,7 @@ backend는 실효값 `전역 설정 || 문서 단위 허용` 하나를 한 곳�
 - Given 원격을 허용한 문서 When 같은 문서를 재로드하거나, 전역 원격 허용을 켠 채 재로드한 뒤 다시 끈다 Then 허용 기록과 원격 요청이 유지된다(Linux 실제 실행, 모델 시험 `reloading_with_the_global_switch_on_keeps_the_document_allowance`).
 - Given 원격을 허용한 문서 When 파일 내용을 바꾼 뒤 재로드하거나 다른 문서를 연다 Then 허용 기록이 풀리고 새 문서의 원격 요청은 가지 않는다(Linux 실제 실행).
 - Given 전역 원격 허용이 켜져 있거나 대상이 mirror·HTTP view When `surface.html_remote_allow` Then `-32022`와 `reason` `globally_allowed`·`unsupported_view`로 거절하고 상태를 바꾸지 않는다.
+- Given 전역 원격 허용이 켜진 entry mirror에서 `http(s)` `src` 스크립트만 있는 문서 When `surface.html_script` Then `remote.view`는 `mirror`, `remote.effective`는 거짓이고 스크립트 배너가 뜨지 않는다. HTTP view의 같은 문서는 전역 설정과 관계없이 스크립트 배너가 뜬다(모델 시험 `each_view_reports_its_own_remote_policy`).
 - Given html 탭이 `file:///tmp/x/a.html`을 보여 준다 When 페이지 안 `#sec` 링크를 누른다 Then `surface.html_nav`의 `url`은 `file:///tmp/x/a.html#sec`이고 `requested_url`은 그대로다.
 - Given `a/index.html`이 `../b/style.css`와 `../b/dot.png`를 쓴다 When `tasty html open`으로 연다 Then 세 OS 모두 스타일과 이미지가 적용되고 스크립트 배너는 뜨지 않는다.
 - Given `a/redirect.html`이 meta refresh로 `../b/next.html`을 가리킨다 When 연다 Then `surface.html_nav`의 `url`은 `b/next.html`이고 `nav_state`는 `done`이다.

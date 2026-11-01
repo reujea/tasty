@@ -132,6 +132,7 @@ fn remote_json(st: &HtmlScriptState) -> Value {
     json!({
         "global": st.remote_global(),
         "supported": st.remote_supported(),
+        "view": st.remote_view().as_str(),
         "refs": scan.map(|s| s.remote_refs),
         "remote_scripts": scan.map(|s| s.remote_scripts),
         "observed": st.remote_observed(),

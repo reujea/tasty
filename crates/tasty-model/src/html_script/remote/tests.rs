@@ -90,7 +90,7 @@ fn no_banner_without_refs_with_the_global_switch_or_in_an_unsupported_view() {
     assert_eq!(st.remote_banner_phase(), BannerPhase::Hidden);
     assert_eq!(st.remote_marker(), None);
     let mut st = viewed(remote_page(1));
-    st.set_remote_unsupported();
+    st.set_remote_view(RemoteView::Mirror);
     st.update_banner();
     assert_eq!(st.remote_banner_phase(), BannerPhase::Hidden);
     assert_eq!(
@@ -341,4 +341,58 @@ fn the_script_notice_follows_runnable_scripts_and_picks_its_body() {
     st.dismiss_remote_banner();
     st.update_banner();
     assert!(!st.script_banner_needs_remote_body());
+}
+
+/// view마다 원격 실효값과 원격 전용 스크립트 배너가 그 view의 실제 정책을 따른다.
+/// mirror는 전역 설정과 관계없이 원격을 막으므로 원격 전용 스크립트는 실행될 수 없다.
+/// HTTP view는 같은 origin 스크립트를 endpoint가 허용하므로 원래대로 스크립트 배너를 띄운다.
+#[test]
+fn each_view_reports_its_own_remote_policy() {
+    let remote_scripts = || scan(1, ScriptDetection::ScriptsRemoteOnly, true, true);
+    let case = |view: RemoteView, global: bool| {
+        let mut st = HtmlScriptState::new(true);
+        st.set_remote_view(view);
+        st.set_remote_global(global);
+        st.on_user_view();
+        host_load(&mut st, A, remote_scripts());
+        st.update_banner();
+        (st.remote_effectively_allowed(), st.banner_phase())
+    };
+    assert_eq!(case(RemoteView::Local, false), (false, BannerPhase::Hidden));
+    assert!(case(RemoteView::Local, true).0);
+    assert_ne!(case(RemoteView::Local, true).1, BannerPhase::Hidden);
+    assert_eq!(
+        case(RemoteView::Mirror, false),
+        (false, BannerPhase::Hidden)
+    );
+    assert_eq!(case(RemoteView::Mirror, true), (false, BannerPhase::Hidden));
+    for global in [false, true] {
+        let (effective, phase) = case(RemoteView::Http, global);
+        assert_eq!(effective, global);
+        assert_ne!(phase, BannerPhase::Hidden, "global {global}");
+    }
+    let mut st = HtmlScriptState::new(true);
+    st.set_remote_view(RemoteView::Mirror);
+    st.on_user_view();
+    host_load(&mut st, A, scan(1, ScriptDetection::Scripts, true, false));
+    st.update_banner();
+    assert_ne!(
+        st.banner_phase(),
+        BannerPhase::Hidden,
+        "local scripts still ask"
+    );
+}
+
+/// 허용한 문서에서 연 top-level `http(s)` 탐색은 그 로드 동안 실효값을 따른다. commit되면 다른 문서이므로
+/// 허용이 풀리고, 원래 문서로 돌아와도 다시 허용해야 열린다(URL·지문 묶음).
+#[test]
+fn a_remote_navigation_from_an_allowed_document_releases_the_allowance() {
+    let mut st = viewed(remote_page(1));
+    st.allow_remote_current().unwrap();
+    assert!(st.remote_effectively_allowed());
+    gate_load(&mut st, "https://e.example/page", plain(9));
+    assert!(!st.current_is_remote_allowed());
+    assert!(!st.remote_effectively_allowed());
+    gate_load(&mut st, A, remote_page(1));
+    assert!(!st.remote_effectively_allowed(), "back to the document");
 }

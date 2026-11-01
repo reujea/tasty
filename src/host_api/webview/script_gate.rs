@@ -170,8 +170,9 @@ impl ScriptGate {
 
     pub(crate) fn with_received_source(mut self, source: EntryResponseSource) -> Self {
         self.received = Some(source);
-        // mirror는 client에서 원격을 받지 않는다. 문서 단위 원격 허용은 효과가 없다.
-        self.lock().set_remote_unsupported();
+        // mirror는 응답 경계가 원격을 늘 막는다. 문서 단위 원격 허용은 효과가 없다.
+        self.lock()
+            .set_remote_view(tasty_model::html_script::RemoteView::Mirror);
         self
     }
 
@@ -182,7 +183,8 @@ impl ScriptGate {
     ) -> Self {
         self.http = Some(session);
         // HTTP view의 원격 요청은 endpoint가 정한다. 문서 단위 원격 허용은 효과가 없다.
-        self.lock().set_remote_unsupported();
+        self.lock()
+            .set_remote_view(tasty_model::html_script::RemoteView::Http);
         self
     }
 
@@ -753,7 +755,8 @@ mod tests {
         gate.committed(Some(&url));
         gate.finished();
         wait_scan(&rx);
-        gate.lock().set_remote_unsupported();
+        gate.lock()
+            .set_remote_view(tasty_model::html_script::RemoteView::Mirror);
         assert!(gate.lock().allow_remote_current().is_err());
         assert!(!gate.document_remote());
         cleanup(&dir);
