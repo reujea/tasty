@@ -7,6 +7,7 @@ fn scan(byte: u8) -> ScriptScan {
     ScriptScan {
         fingerprint: Fingerprint([byte; 32]),
         detection: ScriptDetection::Scripts,
+        remote_refs: false,
     }
 }
 

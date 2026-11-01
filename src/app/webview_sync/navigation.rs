@@ -202,6 +202,7 @@ mod tests {
                     Some(ScriptScan {
                         fingerprint: Fingerprint([4; 32]),
                         detection: ScriptDetection::Scripts,
+                        remote_refs: false,
                     }),
                 );
                 state.on_committed(Some("file:///new.html"));

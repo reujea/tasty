@@ -10,6 +10,7 @@ fn scan(byte: u8) -> Option<ScriptScan> {
     Some(ScriptScan {
         fingerprint: Fingerprint([byte; 32]),
         detection: ScriptDetection::Scripts,
+        remote_refs: false,
     })
 }
 

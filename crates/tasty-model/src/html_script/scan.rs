@@ -1,8 +1,8 @@
 //! 문서 원본을 한 번 읽어 스크립트 감지와 파일 전체 지문을 함께 구한다.
 //! 바이트 입력만 다룬다. 파일을 열고 정규 파일인지 확인하는 일은 호스트가 맡는다.
 //!
-//! 감지는 상한까지만 하고 지문은 파일 끝까지 구한다(docs/surfaces/html/index.md). 상한 뒤에만 있는 스크립트는
-//! 감지하지 못하며, 이때는 JS가 꺼진 채 배너가 뜨지 않는다.
+//! 감지는 상한까지만 하고 지문은 파일 끝까지 구한다(docs/surfaces/html/index.md). 상한 뒤에만 있는 스크립트와
+//! 원격 참조는 감지하지 못하며, 이때는 차단된 채 배너가 뜨지 않는다.
 
 use std::io::Read;
 
@@ -34,15 +34,38 @@ pub fn scan_reader(mut reader: impl Read, limit: usize) -> std::io::Result<Scrip
             head.extend_from_slice(&chunk[..take]);
         }
     }
+    let found = detect(&head);
     Ok(ScriptScan {
         fingerprint: Fingerprint(hasher.finalize().into()),
-        detection: detect_scripts(&head),
+        detection: found.scripts,
+        remote_refs: found.remote_refs,
     })
 }
 
 /// HTML 원본에서 실행 가능한 스크립트를 찾는다. 주석과 원문 텍스트 요소의 내용은 보지 않는다.
 pub fn detect_scripts(src: &[u8]) -> ScriptDetection {
-    let mut remote_only = false;
+    detect(src).scripts
+}
+
+/// HTML 원본에서 원격(`http(s)`) 리소스 참조를 찾는다. 결과는 "참조가 있다"이며 실제 차단 여부가 아니다.
+pub fn detect_remote_refs(src: &[u8]) -> bool {
+    detect(src).remote_refs
+}
+
+/// 한 번의 순회로 구한 감지 결과.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Detection {
+    pub scripts: ScriptDetection,
+    pub remote_refs: bool,
+}
+
+/// 스크립트와 원격 참조를 함께 감지한다. 원격 참조를 놓치지 않도록 원본(상한까지) 끝까지 순회한다.
+pub fn detect(src: &[u8]) -> Detection {
+    let mut local_scripts = false;
+    let mut remote_scripts = false;
+    let mut remote_refs = false;
+    // 첫 `<base href>`만 상대 URL 해석에 쓰인다. 원격이면 상대 경로 참조도 원격이다.
+    let mut base: Option<bool> = None;
     let mut i = 0;
     while i < src.len() {
         if src[i] != b'<' {
@@ -61,34 +84,181 @@ pub fn detect_scripts(src: &[u8]) -> ScriptDetection {
         if tag.closing {
             continue;
         }
+        if tag.name == "base"
+            && base.is_none()
+            && let Some(href) = attr(&tag.attrs, "href")
+        {
+            base = Some(is_remote_url(href));
+        }
+        let base_remote = base.unwrap_or(false);
         if tag.attrs.iter().any(|a| is_event_handler(&a.name)) {
-            return ScriptDetection::Scripts;
+            local_scripts = true;
         }
         if tag
             .attrs
             .iter()
             .any(|a| is_url_attribute(&a.name) && a.value.as_deref().is_some_and(is_javascript_url))
         {
-            return ScriptDetection::Scripts;
+            local_scripts = true;
+        }
+        if !remote_refs {
+            remote_refs = tag_has_remote_ref(&tag, base_remote);
         }
         if tag.name == "script" {
             if is_executable_script(&tag.attrs) {
-                if script_src(&tag.attrs).is_some_and(is_remote_url) {
-                    remote_only = true;
-                } else {
-                    return ScriptDetection::Scripts;
+                match script_src(&tag.attrs) {
+                    Some(url) if resolves_remote(url, base_remote) => remote_scripts = true,
+                    _ => local_scripts = true,
                 }
             }
             i = skip_raw_text(src, i, b"script");
+        } else if tag.name == "style" {
+            let end = skip_raw_text(src, i, b"style");
+            if !remote_refs {
+                remote_refs = css_has_remote_ref(&src[i..end], base_remote);
+            }
+            i = end;
         } else if let Some(name) = RAW_TEXT_ELEMENTS.iter().find(|n| **n == tag.name) {
             i = skip_raw_text(src, i, name.as_bytes());
         }
     }
-    if remote_only {
+    let scripts = if local_scripts {
+        ScriptDetection::Scripts
+    } else if remote_scripts {
         ScriptDetection::ScriptsRemoteOnly
     } else {
         ScriptDetection::None
+    };
+    Detection {
+        scripts,
+        remote_refs: remote_refs || remote_scripts,
     }
+}
+
+fn attr<'a>(attrs: &'a [Attr], name: &str) -> Option<&'a str> {
+    attrs
+        .iter()
+        .find(|a| a.name == name)
+        .and_then(|a| a.value.as_deref())
+}
+
+/// `link`의 `rel` 중 WebView가 리소스를 받아 오는 값.
+const FETCHING_LINK_RELS: &[&str] = &[
+    "stylesheet",
+    "icon",
+    "apple-touch-icon",
+    "preload",
+    "prefetch",
+    "modulepreload",
+    "manifest",
+];
+
+/// 태그가 리소스로 불러오는 URL 속성 가운데 원격으로 해석되는 것이 있는지. `style` 속성의 CSS도 본다.
+fn tag_has_remote_ref(tag: &Tag, base_remote: bool) -> bool {
+    let remote =
+        |name: &str| attr(&tag.attrs, name).is_some_and(|u| resolves_remote(u, base_remote));
+    let remote_srcset =
+        |name: &str| attr(&tag.attrs, name).is_some_and(|v| srcset_has_remote(v, base_remote));
+    let by_element = match tag.name.as_str() {
+        "link" => {
+            let rel = attr(&tag.attrs, "rel").unwrap_or("").to_ascii_lowercase();
+            rel.split_ascii_whitespace()
+                .any(|r| FETCHING_LINK_RELS.contains(&r))
+                && (remote("href") || remote_srcset("imagesrcset"))
+        }
+        "img" => remote("src") || remote_srcset("srcset"),
+        "source" => remote("src") || remote_srcset("srcset"),
+        "video" => remote("src") || remote("poster"),
+        "audio" | "track" | "iframe" | "frame" | "embed" => remote("src"),
+        "input" => {
+            attr(&tag.attrs, "type").is_some_and(|t| t.trim().eq_ignore_ascii_case("image"))
+                && remote("src")
+        }
+        "object" => remote("data"),
+        "image" | "feimage" | "use" => remote("href") || remote("xlink:href"),
+        "body" | "table" | "td" | "th" => remote("background"),
+        _ => false,
+    };
+    by_element
+        || attr(&tag.attrs, "style")
+            .is_some_and(|css| css_has_remote_ref(css.as_bytes(), base_remote))
+}
+
+/// `srcset`의 각 후보 URL(쉼표로 나눈 항목의 첫 단어).
+fn srcset_has_remote(value: &str, base_remote: bool) -> bool {
+    value.split(',').any(|candidate| {
+        candidate
+            .split_ascii_whitespace()
+            .next()
+            .is_some_and(|u| resolves_remote(u, base_remote))
+    })
+}
+
+/// CSS 텍스트의 `url(...)`과 `@import "..."`에서 원격 URL을 찾는다. CSS 주석은 건너뛴다.
+fn css_has_remote_ref(css: &[u8], base_remote: bool) -> bool {
+    let text = String::from_utf8_lossy(css);
+    let mut stripped = String::with_capacity(text.len());
+    let mut rest = text.as_ref();
+    while let Some(start) = rest.find("/*") {
+        stripped.push_str(&rest[..start]);
+        rest = rest[start + 2..]
+            .find("*/")
+            .map_or("", |e| &rest[start + 2 + e + 2..]);
+    }
+    stripped.push_str(rest);
+    let lower = stripped.to_ascii_lowercase();
+    let mut from = 0;
+    while let Some(pos) = lower[from..].find("url(") {
+        let start = from + pos + 4;
+        let end = lower[start..].find(')').map_or(lower.len(), |e| start + e);
+        let raw = stripped[start..end]
+            .trim()
+            .trim_matches(|c| c == '"' || c == '\'');
+        if resolves_remote(raw, base_remote) {
+            return true;
+        }
+        from = end;
+    }
+    let mut from = 0;
+    while let Some(pos) = lower[from..].find("@import") {
+        let start = from + pos + "@import".len();
+        let tail = stripped[start..].trim_start();
+        if let Some(q) = tail.chars().next().filter(|c| *c == '"' || *c == '\'')
+            && let Some(end) = tail[1..].find(q)
+            && resolves_remote(&tail[1..1 + end], base_remote)
+        {
+            return true;
+        }
+        from = start;
+    }
+    false
+}
+
+/// 문서 기준으로 해석했을 때 `http(s)` URL인지. 문서는 `file://`이고 `base_remote`면 `<base href>`가 원격이다.
+/// 스킴이 있는 다른 URL(`data:` 등)과 fragment만 있는 값은 원격이 아니다.
+fn resolves_remote(url: &str, base_remote: bool) -> bool {
+    let trimmed = url.trim();
+    if trimmed.is_empty() || trimmed.starts_with('#') {
+        return false;
+    }
+    if is_remote_url(trimmed) {
+        return true;
+    }
+    if has_scheme(trimmed) {
+        return false;
+    }
+    // 상대 경로와 `//host`는 기준 URL의 스킴을 따른다. `file://` 문서에서는 `file://host`다.
+    base_remote
+}
+
+/// URL이 `scheme:`으로 시작하는지(RFC 3986 scheme 문자).
+fn has_scheme(url: &str) -> bool {
+    let Some((scheme, _)) = url.split_once(':') else {
+        return false;
+    };
+    let mut chars = scheme.chars();
+    chars.next().is_some_and(|c| c.is_ascii_alphabetic())
+        && chars.all(|c| c.is_ascii_alphanumeric() || matches!(c, '+' | '-' | '.'))
 }
 
 /// 내용을 태그로 해석하지 않는 요소. `script`는 따로 처리한다.

@@ -91,6 +91,7 @@ fn reports_detection_and_a_pending_banner_without_changing_it() {
             Some(ScriptScan {
                 fingerprint: Fingerprint([0xab; 32]),
                 detection: ScriptDetection::Scripts,
+                remote_refs: false,
             }),
         );
         st.on_committed(Some("file:///docs/a.html"));
@@ -129,6 +130,7 @@ fn reports_a_load_before_its_commit_and_the_loading_banner() {
     let scan = |b: u8| ScriptScan {
         fingerprint: Fingerprint([b; 32]),
         detection: ScriptDetection::Scripts,
+        remote_refs: false,
     };
     rs.with_html_script(|st| {
         st.on_user_view();
@@ -176,6 +178,7 @@ fn reports_a_committed_document_whose_scan_has_not_ended() {
             Some(ScriptScan {
                 fingerprint: Fingerprint([7; 32]),
                 detection: ScriptDetection::Scripts,
+                remote_refs: false,
             }),
         );
         st.update_banner();

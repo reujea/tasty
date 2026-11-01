@@ -232,3 +232,113 @@ fn a_script_inside_the_limit_is_detected_across_read_chunks() {
     let s = scan_reader(doc.as_bytes(), SCAN_LIMIT_BYTES).expect("scan");
     assert_eq!(s.detection, ScriptDetection::Scripts);
 }
+
+fn remote(src: &str) -> bool {
+    detect_remote_refs(src.as_bytes())
+}
+
+#[test]
+fn each_fetching_element_with_a_remote_url_is_a_remote_ref() {
+    let cases = [
+        r#"<link rel="stylesheet" href="https://cdn.example/a.css">"#,
+        r#"<link rel="Shortcut Icon" href="http://e.example/f.ico">"#,
+        r#"<link rel="preload" as="image" imagesrcset="https://e.example/a.png 1x">"#,
+        r#"<img src="https://e.example/a.png">"#,
+        r#"<img src="a.png" srcset="a.png 1x, https://e.example/b.png 2x">"#,
+        r#"<picture><source srcset="https://e.example/a.webp"></picture>"#,
+        r#"<video src="https://e.example/a.mp4"></video>"#,
+        r#"<video poster="https://e.example/p.png"></video>"#,
+        r#"<audio src="https://e.example/a.mp3"></audio>"#,
+        r#"<video><track src="https://e.example/t.vtt"></video>"#,
+        r#"<iframe src="https://e.example/"></iframe>"#,
+        r#"<embed src="https://e.example/a.swf">"#,
+        r#"<object data="https://e.example/a.svg"></object>"#,
+        r#"<input type="image" src="https://e.example/a.png">"#,
+        r#"<svg><image href="https://e.example/a.png"/></svg>"#,
+        r#"<body background="https://e.example/bg.png">"#,
+        r#"<div style="background: url('https://e.example/bg.png')">x</div>"#,
+        r#"<style>@import "https://e.example/a.css";</style>"#,
+        r#"<style>@import url(https://e.example/a.css);</style>"#,
+        r#"<style>p { background: url( "HTTPS://e.example/x.png" ) }</style>"#,
+        r#"<script src="https://e.example/a.js"></script>"#,
+    ];
+    for c in cases {
+        assert!(remote(c), "{c}");
+    }
+}
+
+#[test]
+fn local_data_and_non_fetching_urls_are_not_remote_refs() {
+    let cases = [
+        r#"<link rel="stylesheet" href="style.css">"#,
+        r#"<link rel="canonical" href="https://e.example/">"#,
+        r#"<link rel="alternate" href="https://e.example/feed">"#,
+        r#"<a href="https://e.example/">link</a>"#,
+        r#"<img src="data:image/png;base64,AAAA">"#,
+        r#"<img src="//e.example/a.png">"#,
+        r#"<img src="file:///tmp/a.png">"#,
+        r##"<img src="#frag">"##,
+        r#"<input type="text" src="https://e.example/a.png">"#,
+        r#"<!-- <img src="https://e.example/a.png"> -->"#,
+        r#"<textarea><img src="https://e.example/a.png"></textarea>"#,
+        r#"<style>/* url(https://e.example/a.png) */ p { color: red }</style>"#,
+        r#"<p>https://e.example/a.png</p>"#,
+        r#"<script type="application/json">{"u": "<img src='https://e.example/a.png'>"}</script>"#,
+    ];
+    for c in cases {
+        assert!(!remote(c), "{c}");
+    }
+}
+
+#[test]
+fn a_remote_base_makes_relative_and_protocol_relative_refs_remote() {
+    assert!(remote(
+        r#"<base href="https://e.example/"><img src="a.png">"#
+    ));
+    assert!(remote(
+        r#"<base href="https://e.example/"><link rel="stylesheet" href="//cdn.example/a.css">"#
+    ));
+    assert!(
+        !remote(r#"<base href="sub/"><img src="a.png">"#),
+        "relative base stays local"
+    );
+    assert!(
+        !remote(r#"<base href="https://e.example/"><img src="data:image/png;base64,AA">"#),
+        "data: ignores the base"
+    );
+    assert!(
+        !remote(r#"<base href="sub/"><base href="https://e.example/"><img src="a.png">"#),
+        "only the first base counts"
+    );
+}
+
+#[test]
+fn script_detection_and_remote_refs_are_found_in_one_pass() {
+    let d = super::detect(
+        br#"<script>a()</script><link rel="stylesheet" href="https://e.example/a.css">"#,
+    );
+    assert_eq!(d.scripts, ScriptDetection::Scripts);
+    assert!(d.remote_refs, "the pass keeps going after the first script");
+    let d = super::detect(br#"<script src="https://e.example/a.js"></script>"#);
+    assert_eq!(d.scripts, ScriptDetection::ScriptsRemoteOnly);
+    assert!(d.remote_refs, "a remote script is a remote ref");
+    let d = super::detect(br#"<base href="https://e.example/"><script src="a.js"></script>"#);
+    assert_eq!(
+        d.scripts,
+        ScriptDetection::ScriptsRemoteOnly,
+        "a relative script under a remote base loads from the network"
+    );
+}
+
+#[test]
+fn scan_reader_reports_remote_refs_within_the_limit_only() {
+    let src = br#"<p>x</p><img src="https://e.example/a.png">"#;
+    let full = scan_reader(&src[..], SCAN_LIMIT_BYTES).unwrap();
+    assert!(full.remote_refs);
+    let cut = scan_reader(&src[..], 8).unwrap();
+    assert!(!cut.remote_refs, "refs after the limit are not seen");
+    assert_eq!(
+        full.fingerprint, cut.fingerprint,
+        "the fingerprint covers the whole file"
+    );
+}

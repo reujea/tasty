@@ -406,6 +406,7 @@ mod tests {
                 Some(ScriptScan {
                     fingerprint: Fingerprint([0xab; 32]),
                     detection: ScriptDetection::Scripts,
+                    remote_refs: false,
                 }),
             );
             st.on_committed(Some("file:///docs/a.html"));

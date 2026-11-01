@@ -52,6 +52,8 @@ impl Fingerprint {
 pub struct ScriptScan {
     pub fingerprint: Fingerprint,
     pub detection: ScriptDetection,
+    /// 원격(`http(s)`) 리소스 참조가 있다. 상한 뒤의 참조, 외부 CSS 안의 참조, 런타임에 넣은 요소는 모른다.
+    pub remote_refs: bool,
 }
 
 /// 마지막 main frame commit에서 기록한 화면 문서.
