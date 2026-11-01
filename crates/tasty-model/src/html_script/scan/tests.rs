@@ -337,9 +337,8 @@ fn script_detection_and_remote_refs_are_found_in_one_pass() {
     assert_eq!(d.scripts, ScriptDetection::ScriptsRemoteOnly);
     assert!(d.remote_refs, "a remote script is a remote ref");
     let d = super::detect(br#"<base href="https://e.example/"><script src="a.js"></script>"#);
-    assert_eq!(
-        d.scripts,
-        ScriptDetection::ScriptsRemoteOnly,
+    assert!(
+        d.remote_scripts,
         "a relative script under a remote base loads from the network"
     );
 }
@@ -355,4 +354,60 @@ fn scan_reader_reports_remote_refs_within_the_limit_only() {
         full.fingerprint, cut.fingerprint,
         "the fingerprint covers the whole file"
     );
+}
+
+#[test]
+fn srcset_data_urls_with_commas_stay_one_candidate() {
+    let under_remote_base =
+        r#"<base href="https://e.example/"><img srcset="data:image/png;base64,AAAA 1x">"#;
+    // The relative `AAAA` would resolve remote if the comma split the data URL.
+    assert!(!remote(under_remote_base));
+    assert!(remote(
+        r#"<img srcset="data:image/png;base64,AA 1x, https://e.example/b.png 2x">"#
+    ));
+    assert!(
+        !remote(r#"<img srcset="a.png,https://e.example/b.png">"#),
+        "without whitespace the whole value is one relative URL, as in the HTML parser"
+    );
+    assert!(remote(r#"<img srcset="a.png, https://e.example/b.png">"#));
+    assert!(!remote(r#"<img srcset="a.png 1x,b.png 2x">"#));
+}
+
+#[test]
+fn template_content_is_not_fetched() {
+    assert!(!remote(
+        r#"<template><img src="https://e.example/a.png"></template><p>x</p>"#
+    ));
+    assert_eq!(
+        detect("<template><script>a()</script></template>"),
+        ScriptDetection::Scripts,
+        "the script result keeps its previous answer"
+    );
+}
+
+#[test]
+fn the_script_result_ignores_the_base_and_the_remote_bit_uses_it() {
+    let d = super::detect(br#"<base href="https://e.example/"><script src="a.js"></script>"#);
+    assert_eq!(
+        d.scripts,
+        ScriptDetection::Scripts,
+        "unchanged legacy result"
+    );
+    assert!(d.remote_scripts, "the script loads from the network");
+}
+
+#[test]
+fn known_gaps_stay_undetected() {
+    // These are documented limits, not targets: connection hints, srcdoc HTML, CSS image-set strings,
+    // a scheme-only base.
+    assert!(!remote(
+        r#"<link rel="preconnect" href="https://e.example">"#
+    ));
+    assert!(!remote(
+        r#"<iframe srcdoc="<img src='https://e.example/a.png'>"></iframe>"#
+    ));
+    assert!(!remote(
+        r#"<div style='background: image-set("https://e.example/a.png" 1x)'></div>"#
+    ));
+    assert!(!remote(r#"<base href="http:"><img src="a.png">"#));
 }

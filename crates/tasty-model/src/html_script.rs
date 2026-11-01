@@ -265,13 +265,14 @@ impl HtmlScriptState {
     }
 
     /// 이 URL의 응답에서 JS나 원격 차단 값을 정하려면 스캔 결과가 먼저 있어야 하는지.
-    /// sandbox가 켜져 있고 같은 URL에 스크립트 허용 기록이 있거나, 전역 원격 허용이 꺼져 있고 같은 URL에
-    /// 원격 허용 기록이 있을 때만 그렇다. 그 밖에는 결과와 관계없이 두 값이 같다.
+    /// sandbox가 켜져 있고 같은 URL에 스크립트 허용 기록이 있거나, 같은 URL에 원격 허용 기록이 있을 때만
+    /// 그렇다. 그 밖에는 결과와 관계없이 두 값이 같다.
     pub fn needs_scan_before_js(&self, url: &str) -> bool {
         let url = strip_fragment(url);
         let same = |a: &Option<Allowance>| a.as_ref().is_some_and(|a| a.url == url);
-        (self.sandbox && same(&self.allowance))
-            || (!self.remote.global && same(&self.remote.allowance))
+        // 원격 허용은 전역 설정이 켜져 있어도 기다린다. 결정 없이 commit하면 허용 기록이 풀려, 전역을
+        // 다시 껐을 때 같은 문서가 막힌다(허용 수명은 문서 단위다).
+        (self.sandbox && same(&self.allowance)) || same(&self.remote.allowance)
     }
 
     /// 현재 문서가 허용 기록과 같은 문서인지.

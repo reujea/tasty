@@ -34,6 +34,20 @@ fn load(st: &mut HtmlScriptState, url: &str, s: ScriptScan) {
     st.on_load_finished();
 }
 
+/// 게이트와 같은 순서의 로드. 허용 기록이 있는 URL만 스캔을 기다리고, 그 밖에는 스캔이 commit 뒤에 끝난다.
+fn gate_load(st: &mut HtmlScriptState, url: &str, s: ScriptScan) {
+    st.on_load_started();
+    if st.needs_scan_before_js(url) {
+        st.on_main_response(url, Some(s));
+        st.on_committed(Some(url));
+    } else {
+        let (_, ticket) = st.on_main_response_pending(url);
+        st.on_committed(Some(url));
+        st.on_scan_finished(ticket, Some(s));
+    }
+    st.on_load_finished();
+}
+
 fn host_load(st: &mut HtmlScriptState, url: &str, s: ScriptScan) {
     st.on_host_load_requested();
     load(st, url, s);
@@ -155,9 +169,31 @@ fn an_allowance_waits_for_the_scan_before_deciding() {
     assert!(!st.needs_scan_before_js(B));
     st.set_remote_global(true);
     assert!(
-        !st.needs_scan_before_js(A),
-        "the global switch makes the scan moot"
+        st.needs_scan_before_js(A),
+        "the allowance outlives a global switch, so its document still waits"
     );
+}
+
+#[test]
+fn reloading_with_the_global_switch_on_keeps_the_document_allowance() {
+    let mut st = viewed(remote_page(1));
+    st.allow_remote_current().unwrap();
+    gate_load(&mut st, A, remote_page(1));
+    st.set_remote_global(true);
+    gate_load(&mut st, A, remote_page(1));
+    assert!(
+        st.remote_allowance().is_some(),
+        "the same document reloaded"
+    );
+    assert!(
+        st.set_remote_global(false),
+        "still open once the switch is off"
+    );
+    // A changed fingerprint still revokes it while the switch is on.
+    st.set_remote_global(true);
+    gate_load(&mut st, A, remote_page(9));
+    assert!(st.remote_allowance().is_none());
+    assert!(!st.set_remote_global(false));
 }
 
 #[test]

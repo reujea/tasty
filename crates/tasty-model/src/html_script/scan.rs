@@ -65,6 +65,8 @@ pub struct Detection {
 /// 스크립트와 원격 참조를 함께 감지한다. 원격 참조를 놓치지 않도록 원본(상한까지) 끝까지 순회한다.
 pub fn detect(src: &[u8]) -> Detection {
     let mut local_scripts = false;
+    // 기존 판정(`ScriptsRemoteOnly`)은 `<base href>`를 보지 않는다. 원격 스크립트 비트는 base를 반영한다.
+    let mut legacy_remote_scripts = false;
     let mut remote_scripts = false;
     let mut remote_refs = false;
     // 첫 `<base href>`만 상대 URL 해석에 쓰인다. 원격이면 상대 경로 참조도 원격이다.
@@ -109,12 +111,24 @@ pub fn detect(src: &[u8]) -> Detection {
         }
         if tag.name == "script" {
             if is_executable_script(&tag.attrs) {
-                match script_src(&tag.attrs) {
-                    Some(url) if resolves_remote(url, base_remote) => remote_scripts = true,
-                    _ => local_scripts = true,
+                let src = script_src(&tag.attrs);
+                if src.is_some_and(is_remote_url) {
+                    legacy_remote_scripts = true;
+                } else {
+                    local_scripts = true;
+                }
+                if src.is_some_and(|url| resolves_remote(url, base_remote)) {
+                    remote_scripts = true;
                 }
             }
             i = skip_raw_text(src, i, b"script");
+        } else if tag.name == "template" {
+            // template 내용은 문서에 붙기 전에는 리소스를 받지 않는다. 스크립트 판정과 달리 원격 감지에서만 건너뛴다.
+            let end = skip_raw_text(src, i, b"template");
+            let inner = detect(&src[i..end]);
+            local_scripts |= inner.scripts == ScriptDetection::Scripts;
+            legacy_remote_scripts |= inner.scripts == ScriptDetection::ScriptsRemoteOnly;
+            i = end;
         } else if tag.name == "style" {
             let end = skip_raw_text(src, i, b"style");
             if !remote_refs {
@@ -127,7 +141,7 @@ pub fn detect(src: &[u8]) -> Detection {
     }
     let scripts = if local_scripts {
         ScriptDetection::Scripts
-    } else if remote_scripts {
+    } else if legacy_remote_scripts {
         ScriptDetection::ScriptsRemoteOnly
     } else {
         ScriptDetection::None
@@ -188,14 +202,45 @@ fn tag_has_remote_ref(tag: &Tag, base_remote: bool) -> bool {
             .is_some_and(|css| css_has_remote_ref(css.as_bytes(), base_remote))
 }
 
-/// `srcset`의 각 후보 URL(쉼표로 나눈 항목의 첫 단어).
+/// `srcset`의 각 후보 URL. HTML 명세처럼 공백까지를 URL로 읽어 `data:` URL 안의 쉼표를 후보 구분으로 보지 않는다.
 fn srcset_has_remote(value: &str, base_remote: bool) -> bool {
-    value.split(',').any(|candidate| {
-        candidate
-            .split_ascii_whitespace()
-            .next()
-            .is_some_and(|u| resolves_remote(u, base_remote))
-    })
+    let mut rest = value;
+    loop {
+        rest = rest.trim_start_matches(|c: char| c.is_ascii_whitespace() || c == ',');
+        if rest.is_empty() {
+            return false;
+        }
+        let end = rest
+            .find(|c: char| c.is_ascii_whitespace())
+            .unwrap_or(rest.len());
+        let url = &rest[..end];
+        rest = &rest[end..];
+        // URL 끝의 쉼표는 후보 구분이다. 그때는 설명자가 없다.
+        let (url, described) = match url.strip_suffix(',') {
+            Some(u) => (u.trim_end_matches(','), false),
+            None => (url, true),
+        };
+        if resolves_remote(url, base_remote) {
+            return true;
+        }
+        if described {
+            // 설명자(`2x`, `100w`)는 괄호 밖의 다음 쉼표까지다.
+            let mut depth = 0u32;
+            let cut = rest
+                .char_indices()
+                .find(|&(_, c)| {
+                    match c {
+                        '(' => depth += 1,
+                        ')' => depth = depth.saturating_sub(1),
+                        ',' if depth == 0 => return true,
+                        _ => {}
+                    }
+                    false
+                })
+                .map_or(rest.len(), |(at, _)| at + 1);
+            rest = &rest[cut..];
+        }
+    }
 }
 
 /// CSS 텍스트의 `url(...)`과 `@import "..."`에서 원격 URL을 찾는다. CSS 주석은 건너뛴다.
