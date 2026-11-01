@@ -5,6 +5,7 @@
 // 이유: native 포인터·핸들 호출을 묶는 FFI 모듈이다. 파일 단위 면제는 새 코드에도 적용되므로 안전 래퍼로 옮기면 범위를 줄여야 한다.
 #![allow(clippy::multiple_unsafe_ops_per_block)]
 
+mod host_input;
 mod http;
 mod keyboard;
 mod navigation;
@@ -34,6 +35,8 @@ use super::scan_resume::{HistoryStep, RequestAction, ScanResume, Start, StartKin
 use super::script_gate::ScriptGate;
 use super::window_region::{PointerGate, WindowRegion};
 use super::{NavState, PendingNavigation, WebViewBounds};
+
+pub(crate) use host_input::filter_message as filter_host_input;
 
 pub struct PlatformWebView {
     hwnd: HWND,
@@ -67,12 +70,18 @@ pub struct PlatformWebView {
     region: RefCell<WindowRegion>,
     /// 대상 팝업이 보이는 동안 이 창을 꺼서 WebView 영역의 포인터를 부모(winit)로 보낸 상태.
     pointer: RefCell<PointerGate>,
+    /// host 입력 경로(winit 메시지 훅) 등록. 옵션을 쓰지 못한 view는 None이고 accelerator 경로를 쓴다.
+    host_input: Option<host_input::RouteGuard>,
 }
 
 /// WebView2에는 편집 명령 API가 없어 DevTools `Input.dispatchKeyEvent`의 `commands`로 엔진 편집
 /// 명령을 실행한다. 페이지 스크립트 허용과 무관하게 포커스 frame에서 실행되며, 선택 없는 복사나
 /// 읽기 전용 대상의 잘라내기·붙여넣기는 아무것도 바꾸지 않는다.
-fn run_editing_command(webview: &ICoreWebView2, action: super::WebViewEditAction, surface_id: u32) {
+pub(super) fn run_editing_command(
+    webview: &ICoreWebView2,
+    action: super::WebViewEditAction,
+    surface_id: u32,
+) {
     use super::WebViewEditAction as A;
     let command = match action {
         A::Copy => "copy",
@@ -252,25 +261,11 @@ impl PlatformWebView {
                 .map_err(|e| transient(format!("Environment wait failed: {e}")))?
                 .ok_or_else(|| transient("No environment returned"))?;
 
-            let (ctrl_tx, ctrl_rx) = mpsc::channel();
-            let callback = CreateCoreWebView2ControllerCompletedHandler::create(Box::new(
-                move |_hr, controller| {
-                    if let Err(error) = ctrl_tx.send(controller) {
-                        tracing::warn!(%error, "WebView2 controller handoff failed");
-                    }
-                    Ok(())
-                },
-            ));
-            if entry_source.is_some() || http.is_some() {
-                entry_adapter::controller(&env, hwnd, &callback)
-            } else {
-                env.CreateCoreWebView2Controller(hwnd, &callback)
-            }
-            .map_err(|error| transient(format!("CreateController failed: {error}")))?;
-
-            let controller = webview2_com::wait_with_pump(ctrl_rx)
-                .map_err(|e| transient(format!("Controller wait failed: {e}")))?
-                .ok_or_else(|| transient("No controller returned"))?;
+            // entry·HTTP view는 비영속 프로필이다. host 입력 경로를 먼저 시도하고 안 되면 기존 경로로 만든다.
+            let in_private = entry_source.is_some() || http.is_some();
+            let (controller, host_input_on) =
+                host_input::create_controller(&env, hwnd, in_private, surface_id)
+                    .map_err(transient)?;
 
             controller
                 .SetBounds(RECT {
@@ -747,6 +742,10 @@ impl PlatformWebView {
             let h_key = AcceleratorKeyPressedEventHandler::create(Box::new(
                 move |_sender, args| -> windows::core::Result<()> {
                     let Some(args) = args else { return Ok(()) };
+                    // host 입력 경로의 view는 winit 메시지 훅이 같은 키를 이미 판정했다.
+                    if host_input_on {
+                        return Ok(());
+                    }
                     let mut kind = COREWEBVIEW2_KEY_EVENT_KIND::default();
                     args.KeyEventKind(&mut kind)?;
                     if kind != COREWEBVIEW2_KEY_EVENT_KIND_KEY_DOWN
@@ -764,24 +763,15 @@ impl PlatformWebView {
                     let physical =
                         win32_scancode_to_physical(status.ScanCode, status.IsExtendedKey.as_bool());
                     let mods = current_winit_mods();
-                    // 자동 반복은 다시 실행하지 않고, 첫 누름을 막거나 가져갔던 조합이면 페이지·엔진에도 보내지 않는다.
-                    if status.WasKeyDown.as_bool() {
-                        if key_bridge_cb.consumes_repeat(surface_id, &key, &physical, mods) {
-                            args.SetHandled(true)?;
-                        }
-                        return Ok(());
-                    }
-                    if key_bridge_cb.blocks_edit_key(&key, &physical, mods) {
-                        args.SetHandled(true)?;
-                        return Ok(());
-                    }
-                    // 사용자 편집 바인딩은 이 WebView의 포커스 frame에 엔진 편집 명령으로 실행한다.
-                    if let Some(action) = key_bridge_cb.edit_action(&key, &physical, mods) {
-                        run_editing_command(&edit_target, action, surface_id);
-                        args.SetHandled(true)?;
-                        return Ok(());
-                    }
-                    if key_bridge_cb.capture_key(surface_id, key, physical, mods) {
+                    if host_input::route_key(
+                        &*key_bridge_cb,
+                        &edit_target,
+                        surface_id,
+                        key,
+                        physical,
+                        mods,
+                        status.WasKeyDown.as_bool(),
+                    ) {
                         args.SetHandled(true)?;
                     }
                     Ok(())
@@ -802,6 +792,10 @@ impl PlatformWebView {
             controller
                 .add_GotFocus(&h_focus, &mut tok_focus)
                 .map_err(|e| transient(format!("add_GotFocus failed: {e}")))?;
+
+            let host_input = host_input_on.then(|| {
+                host_input::register(hwnd, surface_id, key_bridge.clone(), webview.clone())
+            });
 
             Ok(Self {
                 hwnd,
@@ -827,6 +821,7 @@ impl PlatformWebView {
                 size: Cell::new((w, h)),
                 region: RefCell::new(WindowRegion::default()),
                 pointer: RefCell::new(PointerGate::default()),
+                host_input,
             })
         }
     }
@@ -1152,6 +1147,8 @@ impl Drop for PlatformWebView {
         }
         // Revoke endpoint, body and view authority before WebView2 tears down the view.
         drop(self.http.take());
+        // 창을 없애기 전에 메시지 훅 등록을 지운다.
+        drop(self.host_input.take());
         // SAFETY: controller.Close()는 webview2 자원 해제, DestroyWindow는 child HWND 정리.
         // 둘 다 self가 처음 만들어진 main thread에서 Drop이 호출된다는 전제 (PlatformWebView는
         // !Send/!Sync 기본 — COM 객체 포함).

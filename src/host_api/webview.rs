@@ -44,6 +44,9 @@ pub use macos::PlatformWebView;
 
 #[cfg(windows)]
 pub use self::windows::PlatformWebView;
+/// winit 메시지 훅이 WebView로 가는 키를 페이지보다 먼저 판정한다(Windows host 입력 경로).
+#[cfg(windows)]
+pub(crate) use self::windows::filter_host_input;
 
 /// 생성 실패를 재시도 정책에 맞게 분류한다. native 창 생성·삭제가 다음 시도를 유발할 수 있어 상한이 필요하다.
 #[derive(Debug, Clone)]

@@ -10,6 +10,36 @@ pub(super) fn win32_scancode_to_physical(
     winit::keyboard::PhysicalKey::from_scancode(ex)
 }
 
+/// host 메시지 루프에서 본 key-down 하나. lParam의 scan code(16~23비트), extended(24비트),
+/// 직전 눌림(30비트, 자동 반복)을 풀어 둔다.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) struct KeyDownMessage {
+    pub vk: u32,
+    pub scan: u32,
+    pub extended: bool,
+    pub repeat: bool,
+}
+
+/// WM_KEYDOWN·WM_SYSKEYDOWN만 풀어 돌려준다. key-up과 문자 메시지는 None이다.
+pub(super) fn key_down_message(
+    message: u32,
+    wparam: usize,
+    lparam: isize,
+) -> Option<KeyDownMessage> {
+    const WM_KEYDOWN: u32 = 0x0100;
+    const WM_SYSKEYDOWN: u32 = 0x0104;
+    if message != WM_KEYDOWN && message != WM_SYSKEYDOWN {
+        return None;
+    }
+    let l = lparam as u32;
+    Some(KeyDownMessage {
+        vk: (wparam & 0xffff) as u32,
+        scan: (l >> 16) & 0xff,
+        extended: l & (1 << 24) != 0,
+        repeat: l & (1 << 30) != 0,
+    })
+}
+
 /// callback 인자에 없는 modifier 상태를 현재 스레드의 키보드 상태에서 읽는다.
 pub(super) fn current_winit_mods() -> winit::keyboard::ModifiersState {
     use windows::Win32::UI::Input::KeyboardAndMouse::{
@@ -94,4 +124,52 @@ pub(super) fn vk_to_winit_key(vk: u32) -> Option<winit::keyboard::Key> {
         _ => return None,
     };
     Some(Key::Named(named))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn key_down_message_reads_scan_extended_and_repeat() {
+        // Q 첫 누름: scan 0x10, 반복 아님.
+        assert_eq!(
+            key_down_message(0x0100, 0x51, 0x0010_0001),
+            Some(KeyDownMessage {
+                vk: 0x51,
+                scan: 0x10,
+                extended: false,
+                repeat: false
+            })
+        );
+        // 자동 반복(30비트).
+        assert_eq!(
+            key_down_message(0x0100, 0x51, 0x4010_0001).map(|m| m.repeat),
+            Some(true)
+        );
+        // Alt 조합은 WM_SYSKEYDOWN, extended 화살표(24비트).
+        assert_eq!(
+            key_down_message(0x0104, 0x25, 0x214B_0001),
+            Some(KeyDownMessage {
+                vk: 0x25,
+                scan: 0x4B,
+                extended: true,
+                repeat: false
+            })
+        );
+        // 32비트 lParam을 부호 확장한 key-up 값(winit이 넘기는 isize)도 key-down이 아니다.
+        assert_eq!(
+            key_down_message(0x0101, 0x51, 0xffff_ffff_c010_0001_u64 as isize),
+            None
+        );
+        // WM_CHAR·WM_SYSKEYUP도 건너뛴다.
+        assert_eq!(key_down_message(0x0102, 0x71, 0x0010_0001), None);
+        assert_eq!(key_down_message(0x0105, 0x51, 0x0010_0001), None);
+    }
+
+    #[test]
+    fn ime_process_key_is_not_converted() {
+        // IME가 처리하는 키는 VK_PROCESSKEY(0xE5)로 오고 변환표 밖이라 host가 판정하지 않는다.
+        assert_eq!(vk_to_winit_key(0xE5), None);
+    }
 }

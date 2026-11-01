@@ -342,11 +342,21 @@ macOS·Windows의 자동 반복은 다시 실행하거나 큐에 넣지 않는�
 정상 press 오판을 피하려고 반복도 일반 press로 처리한다.
 Windows WebView2는 `AcceleratorKeyPressed`를 Ctrl이나 Alt를 누르고 있거나 글자로 바뀌지 않는 키에서만 올린다
 ([ICoreWebView2Controller](https://learn.microsoft.com/en-us/microsoft-edge/webview2/reference/win32/icorewebview2controller)).
-그래서 Ctrl·Alt 없이 누르는 글자·숫자·기호 키(Shift 조합 포함)에 준 host·plugin·편집 바인딩은 native 페이지가 포커스를
-가진 동안 받지 못하고 페이지에 입력된다. 호스트가 먼저 입력을 보는 공식 대안인 `AllowHostInputProcessing`은 켜면
-`AcceleratorKeyPressed`가 비동기로 바뀌고, 측정한 session 0 환경(runtime 156)에서는 이 옵션을 켠 controller 생성이
-`REGDB_E_CLASSNOTREG`로 실패해 쓰지 않는다. 이 경계 때문에 "모든 바인딩을 웹 화면에서도 받는다"는 조건은 Windows에서
-충족하지 못한다. Ctrl·Alt 조합과 F 키 같은 글자가 아닌 키는 이 경로로 받는다.
+그래서 Windows는 controller를 `AllowHostInputProcessing`
+([ICoreWebView2ControllerOptions4](https://learn.microsoft.com/en-us/microsoft-edge/webview2/reference/win32/icorewebview2controlleroptions4))
+을 켜서 만든다. 이 옵션의 키보드 포커스 창은 host GUI 스레드에 있으므로 페이지로 갈 key-down이 winit 메시지 루프를 먼저 지난다.
+winit 메시지 훅(`webview/windows/host_input.rs`)이 Translate·Dispatch 전에 그 메시지의 창이 어느 WebView 자식 창 아래인지 찾고,
+그 WebView의 `WebViewKeySink`로 위와 같은 순서(반복 → 입력 차단 → 편집 명령 → host 가져가기)를 판정한다.
+소비한 key-down은 보내지 않으므로 WM_CHAR도 생기지 않는다. key-up, IME가 처리하는 키(`VK_PROCESSKEY`), 변환표 밖 키,
+WebView 밖으로 가는 메시지는 판정하지 않고 그대로 보낸다. 이 view의 `AcceleratorKeyPressed`는 같은 키를 두 번 판정하지 않도록
+아무것도 하지 않는다. 그래서 Ctrl·Alt 없이 누르는 글자·숫자·기호 키(Shift 조합 포함)에 준 편집 바인딩도 웹 화면에서 받는다.
+host 액션은 modifier가 있는 조합만 가져가는 정책이 다른 OS와 같다.
+
+옵션 인터페이스(`ICoreWebView2Environment10`, `ICoreWebView2ControllerOptions4`)가 없는 옛 runtime이거나 이 옵션으로
+만든 controller 생성이 실패하면 경고를 남기고 옵션 없이 다시 만든다. 그 view는 `AcceleratorKeyPressed`로 판정하므로
+Ctrl·Alt 없는 글자 키 바인딩은 페이지에 입력된다. 사용자 세션의 runtime 156에서는 옵션을 켠 생성이 성공했고,
+session 0에서 실행한 하네스에서는 같은 생성이 `REGDB_E_CLASSNOTREG`로 실패했다. 이 실패 경로의 Tasty 실제 실행은 측정하지 않았다.
+controller 생성을 기다리는 `wait_with_pump`처럼 winit 루프 밖에서 메시지를 처리하는 동안 온 키는 훅을 지나지 않는다.
 
 키 도착만으로 모델 focus를 바꾸지 않는다. X11에서는 포인터가 자식 위에 있다는 이유로 키가 올 수 있다.
 Linux만 보이는 webview와 활성 창이 있을 때 16ms GTK poll을 사용하고 숨김·비활성 때 취소한다.

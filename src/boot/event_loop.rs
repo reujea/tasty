@@ -9,7 +9,7 @@ use crate::AppEvent;
 static ACTIVATE_PROXY: std::sync::OnceLock<EventLoopProxy<AppEvent>> = std::sync::OnceLock::new();
 
 /// macOS 기본 메뉴를 끄고 Tasty가 직접 종료·새 창 동작을 등록한다.
-/// Windows는 두 번째 프로세스가 보낸 등록 메시지 "활성화"를 메시지 훅으로 받는다.
+/// Windows는 두 번째 프로세스가 보낸 등록 메시지 "활성화"와 WebView로 가는 키를 메시지 훅으로 받는다.
 pub(crate) fn build() -> anyhow::Result<(EventLoop<AppEvent>, EventLoopProxy<AppEvent>)> {
     let mut builder = EventLoop::<AppEvent>::with_user_event();
     #[cfg(target_os = "macos")]
@@ -20,27 +20,35 @@ pub(crate) fn build() -> anyhow::Result<(EventLoop<AppEvent>, EventLoopProxy<App
         crate::boot::debug_background::configure_event_loop(&mut builder);
     }
     #[cfg(windows)]
-    if crate::boot::single_instance::service_enabled() {
+    {
         use winit::platform::windows::EventLoopBuilderExtWindows;
-        let activate = crate::platform::single_instance_windows::activate_message();
+        // 두 번째 프로세스가 보낸 활성화 등록 메시지와 WebView로 가는 키를 같은 훅이 판정한다.
+        let activate = crate::boot::single_instance::service_enabled()
+            .then(crate::platform::single_instance_windows::activate_message);
         builder.with_msg_hook(move |msg| {
-            // SAFETY: winit은 훅에 유효한 MSG 포인터를 넘긴다.
-            if !unsafe {
-                crate::platform::single_instance_windows::is_activate_message(msg, activate)
-            } {
-                return false;
+            if let Some(activate) = activate {
+                // SAFETY: winit은 훅에 유효한 MSG 포인터를 넘긴다.
+                if unsafe {
+                    crate::platform::single_instance_windows::is_activate_message(msg, activate)
+                } {
+                    match ACTIVATE_PROXY.get() {
+                        Some(proxy) => crate::shortcuts::send_app_event(
+                            proxy,
+                            AppEvent::ExternalActivate(
+                                crate::boot::single_instance::ExternalActivation {
+                                    evidence: Default::default(),
+                                    os_granted: true,
+                                },
+                            ),
+                        ),
+                        None => {
+                            tracing::warn!("activate message arrived before the event loop proxy")
+                        }
+                    }
+                    return true;
+                }
             }
-            match ACTIVATE_PROXY.get() {
-                Some(proxy) => crate::shortcuts::send_app_event(
-                    proxy,
-                    AppEvent::ExternalActivate(crate::boot::single_instance::ExternalActivation {
-                        evidence: Default::default(),
-                        os_granted: true,
-                    }),
-                ),
-                None => tracing::warn!("activate message arrived before the event loop proxy"),
-            }
-            true
+            crate::webview::filter_host_input(msg)
         });
     }
     let event_loop = builder.build()?;

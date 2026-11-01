@@ -13,7 +13,7 @@ use webview2_com::{
     Microsoft::Web::WebView2::Win32::*,
 };
 use windows::{
-    Win32::{Foundation::HWND, System::Com::CoTaskMemFree, UI::Shell::SHCreateMemStream},
+    Win32::{System::Com::CoTaskMemFree, UI::Shell::SHCreateMemStream},
     core::*,
 };
 
@@ -50,22 +50,6 @@ impl EntryEnvironment {
             profile,
             folder,
         })
-    }
-}
-/// A different user-data folder prevents sharing the local WebView browser context.
-/// InPrivate also prevents a completed mirror session from persisting a browsing profile.
-pub(in crate::host_api::webview) fn controller(
-    environment: &ICoreWebView2Environment,
-    hwnd: HWND,
-    callback: &ICoreWebView2CreateCoreWebView2ControllerCompletedHandler,
-) -> Result<()> {
-    let environment: ICoreWebView2Environment10 = environment.cast()?;
-    // SAFETY: called on the COM apartment thread with live environment/parent/callback.
-    #[allow(clippy::multiple_unsafe_ops_per_block)]
-    unsafe {
-        let options = environment.CreateCoreWebView2ControllerOptions()?;
-        options.SetIsInPrivateModeEnabled(true)?;
-        environment.CreateCoreWebView2ControllerWithOptions(hwnd, &options, callback)
     }
 }
 pub(in crate::host_api::webview) fn reply(
