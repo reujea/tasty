@@ -304,19 +304,41 @@ fn a_same_url_navigation_of_another_kind_does_not_take_the_replay_scan() {
     );
 }
 
-/// 페이지 스크립트가 시작한 같은 주소·같은 종류 탐색(IsUserInitiated 거짓)은 재시작이 아니다.
+/// 다시 시작한 재로드의 `IsUserInitiated`가 거짓으로 와도 재시작으로 알아본다. Windows 실 기기에서
+/// 이 값이 거짓인 회차마다 재시작을 알아보지 못해 상한에 걸리고 허용한 문서가 스크립트 없이
+/// 열렸다. 같은 조건의 다른 탐색이 결과를 받아도 파일 판과 문서 요청 지문 확인이 내용을 묶는다.
 #[test]
-fn a_page_script_navigation_does_not_take_the_replay_scan() {
-    let doc = allowed_doc("script");
+fn a_replay_reported_as_not_user_initiated_is_still_recognised() {
+    let doc = allowed_doc("not-user");
+    let mut resume = ScanResume::<Token>::new(1);
+    assert_eq!(
+        resume.start(&doc.gate, &doc.url, Some(10), StartKind::Reload, false),
+        Start::Cancel
+    );
+    assert_eq!(wait(|| resume.poll()).0, Replay::Reload);
+    assert_eq!(
+        resume.start(&doc.gate, &doc.url, Some(11), StartKind::Reload, false),
+        Start::Resumed(true)
+    );
+    assert!(
+        doc.gate.effective_js(),
+        "the allowed document runs its scripts"
+    );
+}
+
+/// 이 모듈이 취소한 탐색의 ID로 온 시작 신호는 재시작이 아니다.
+#[test]
+fn a_start_with_the_cancelled_id_is_not_the_replay() {
+    let doc = allowed_doc("cancelled-id");
     let mut resume = ScanResume::<Token>::new(1);
     assert_eq!(
         resume.start(&doc.gate, &doc.url, Some(10), StartKind::Reload, true),
         Start::Cancel
     );
     wait(|| resume.poll());
-    assert_eq!(
-        resume.start(&doc.gate, &doc.url, Some(11), StartKind::Reload, false),
-        Start::Cancel
+    assert_ne!(
+        resume.start(&doc.gate, &doc.url, Some(10), StartKind::Reload, true),
+        Start::Resumed(true)
     );
 }
 

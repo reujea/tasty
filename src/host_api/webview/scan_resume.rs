@@ -7,9 +7,10 @@
 //! 이 모듈은 상태 전이만 가진다. native 호출(취소·재시작·JS 적용)은 backend가 한다.
 //!
 //! 다시 시작한 탐색을 확정할 식별자는 없다. `Navigate`·`Reload`·`GoBack`·`GoForward`는
-//! `NavigationId`를 돌려주지 않고, WebView2 API로 시작한 탐색은 `IsUserInitiated`가 참이다.
-//! 재시작을 기다리는 동안 온 `NavigationStarting`은 주소, 다시 시작한 종류, 사용자 시작 여부가 모두
-//! 맞고 그 경로의 파일 판([`FileStamp`])이 스캔한 판과 같을 때만 결과를 받는다. 식별값이 같아도
+//! `NavigationId`를 돌려주지 않고, 다시 시작한 탐색의 `IsUserInitiated`도 일정하지 않다(실 기기에서
+//! 거짓으로 온 재로드를 관측). 재시작을 기다리는 동안 온 `NavigationStarting`은 주소와 다시 시작한
+//! 종류가 맞고, 이 모듈이 취소한 탐색의 ID가 아니며, 그 경로의 파일 판([`FileStamp`])이 스캔한 판과
+//! 같을 때만 결과를 받는다. 식별값이 같아도
 //! 내용이 같다는 보장은 없으므로, 결과를 받은 탐색의 실제 문서 요청을 확인한다. 그 탐색이
 //! commit되기 전까지 같은 파일의 문서 요청을 붙잡고(deferral), 작업 스레드가 파일 전체 지문을 다시
 //! 구한다. 결과의 지문과 같으면 요청을 그대로 진행시킨다. 다르면 탐색을 멈추고(`Stop`) 그 탐색이
@@ -306,7 +307,7 @@ impl<D> ScanResume<D> {
         kind: StartKind,
         user_initiated: bool,
     ) -> Option<Start> {
-        let (scan, replay, path) = self.take_resume(url, kind, user_initiated)?;
+        let (scan, replay, path) = self.take_resume(url, nav_id, kind, user_initiated)?;
         self.unmatched_replays = 0;
         gate.load_started();
         self.verify = scan.map(|scan| Verify {
@@ -546,15 +547,21 @@ impl<D> ScanResume<D> {
         self.clear();
     }
 
-    /// 다시 시작한 탐색이면 읽어 둔 결과를 꺼낸다. 주소·종류·사용자 시작 여부 중 하나라도
-    /// 다르거나, 경로의 파일 판이 스캔한 판과 다르면 꺼내지 않는다(모듈 설명 참고).
+    /// 다시 시작한 탐색이면 읽어 둔 결과를 꺼낸다. 주소·종류가 다르거나, 이 모듈이 취소한 탐색의
+    /// ID이거나, 경로의 파일 판이 스캔한 판과 다르면 꺼내지 않는다(모듈 설명 참고).
     /// 파일 판 확인은 메타데이터 조회 한 번이며 내용을 읽지 않는다.
+    ///
+    /// `IsUserInitiated`는 조건이 아니다. WebView2 API로 다시 시작한 탐색도 거짓으로 오는 경우를
+    /// Windows 실 기기에서 관측했다(재로드). 사용자 시작 여부는 기록·진단에만 쓰고, 결과가 다른
+    /// 내용에 붙지 않는 것은 파일 판과 문서 요청의 지문 확인이 맡는다.
     fn take_resume(
         &mut self,
         url: &str,
+        nav_id: Option<u64>,
         kind: StartKind,
         user_initiated: bool,
     ) -> Option<(Option<ScriptScan>, Replay, PathBuf)> {
+        let cancelled_id = nav_id.is_some_and(|id| self.cancelled.contains(&id));
         match &self.state {
             State::Resuming {
                 url: waiting,
@@ -564,8 +571,30 @@ impl<D> ScanResume<D> {
                 ..
             } if waiting == url
                 && *expected == kind
-                && user_initiated
+                && !cancelled_id
                 && FileStamp::of_path(path).as_ref() == Some(stamp) => {}
+            State::Resuming {
+                url: waiting,
+                kind: expected,
+                stamp,
+                path,
+                ..
+            } => {
+                // 알아보지 못한 재시작은 상한에서 스크립트 없는 로드가 된다. 어느 조건이 어긋났는지 남긴다.
+                tracing::debug!(
+                    surface_id = self.surface_id,
+                    url_matches = waiting == url,
+                    ?expected,
+                    ?kind,
+                    user_initiated,
+                    cancelled_id,
+                    stamp_read = stamp.is_some(),
+                    stamp_matches =
+                        stamp.is_some() && FileStamp::of_path(path).as_ref() == stamp.as_ref(),
+                    "a start while waiting for a replay was not the replay"
+                );
+                return None;
+            }
             _ => return None,
         }
         match std::mem::replace(&mut self.state, State::Idle) {
