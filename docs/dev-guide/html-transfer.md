@@ -82,6 +82,8 @@ native 주 문서 이동 의도는 원 entry identity·source generation·root �
 
 Linux wrapper는 native 창과 수명을 소유하며, 탐색·응답 정책 callback 등록은 `src/host_api/webview/linux/navigation_policy.rs`에서 수행한다. callback은 같은 생성 스레드의 WebView와 원 script gate·entry source·탐색 queue를 사용한다.
 
+macOS wrapper의 navigation delegate는 판정에 쓰지 않는 탐색 입력 진단 로그(`log_navigation_action`)를 `src/host_api/webview/macos/navigation_debug.rs`에 둔다.
+
 
 native view 소유권은 immutable 본문 수명과 구분한다. `NativeViewBinding`은 여섯 부분 entry identity·source generation과 view owner의 weak allocation identity를 함께 비교한다. 새 문서·clear와 명시적 native view retirement는 이전 callback 권한을 회수한다. native view만 retire할 때는 완성 body/cache를 보존할 수 있다. App의 native binding과 script gate도 이 identity를 캡처하여 이전 view의 늦은 load·commit·failure·scan 결과가 현재 문서 상태를 바꾸지 못하게 한다. 일반 local WebView의 기존 script gate 동작은 유지한다.
 
