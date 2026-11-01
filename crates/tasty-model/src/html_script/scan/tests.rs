@@ -411,3 +411,48 @@ fn known_gaps_stay_undetected() {
     ));
     assert!(!remote(r#"<base href="http:"><img src="a.png">"#));
 }
+
+/// 닫히지 않거나 중첩된 template이 많아도 작은 스택에서 한 번 순회로 끝난다(재귀 금지 회귀).
+#[test]
+fn deep_unclosed_templates_scan_on_a_small_stack() {
+    let k = 100_000;
+    let mut doc = "<template>".repeat(k);
+    doc.push_str(r#"<img src="https://e.example/a.png"><script>a()</script>"#);
+    let nested_closed = format!("{}{}", "<template>".repeat(k), "</template>".repeat(k));
+    let handle = std::thread::Builder::new()
+        .stack_size(2 * 1024 * 1024)
+        .spawn(move || {
+            let started = std::time::Instant::now();
+            let d = super::detect(doc.as_bytes());
+            let closed = super::detect(nested_closed.as_bytes());
+            (d, closed, started.elapsed())
+        })
+        .expect("spawn");
+    let (d, closed, elapsed) = handle.join().expect("no stack overflow");
+    assert_eq!(
+        d.scripts,
+        ScriptDetection::Scripts,
+        "the script verdict is unchanged"
+    );
+    assert!(!d.remote_refs, "template content is inert");
+    assert!(!d.remote_scripts);
+    assert_eq!(closed.scripts, ScriptDetection::None);
+    assert!(
+        elapsed < std::time::Duration::from_secs(5),
+        "linear scan, took {elapsed:?}"
+    );
+}
+
+#[test]
+fn content_after_a_closed_template_counts_again() {
+    assert!(remote(
+        r#"<template><template></template></template><img src="https://e.example/a.png">"#
+    ));
+    assert!(!remote(
+        r#"<template><template></template><img src="https://e.example/a.png"></template>"#
+    ));
+    // A base inside a template is inert and does not make relative URLs remote.
+    assert!(!remote(
+        r#"<template><base href="https://e.example/"></template><img src="a.png">"#
+    ));
+}

@@ -71,6 +71,9 @@ pub fn detect(src: &[u8]) -> Detection {
     let mut remote_refs = false;
     // 첫 `<base href>`만 상대 URL 해석에 쓰인다. 원격이면 상대 경로 참조도 원격이다.
     let mut base: Option<bool> = None;
+    // 열린 `<template>` 깊이. template 내용은 문서에 붙기 전에는 리소스를 받지 않으므로 원격 감지에서만
+    // 뺀다. 스크립트 판정은 template을 보통 태그로 읽던 원래 판정 그대로다. 재귀하지 않고 한 번 순회한다.
+    let mut template_depth: usize = 0;
     let mut i = 0;
     while i < src.len() {
         if src[i] != b'<' {
@@ -87,9 +90,17 @@ pub fn detect(src: &[u8]) -> Detection {
         };
         i = tag.end;
         if tag.closing {
+            if tag.name == "template" {
+                template_depth = template_depth.saturating_sub(1);
+            }
             continue;
         }
+        let inert = template_depth > 0;
+        if tag.name == "template" {
+            template_depth += 1;
+        }
         if tag.name == "base"
+            && !inert
             && base.is_none()
             && let Some(href) = attr(&tag.attrs, "href")
         {
@@ -106,7 +117,7 @@ pub fn detect(src: &[u8]) -> Detection {
         {
             local_scripts = true;
         }
-        if !remote_refs {
+        if !remote_refs && !inert {
             remote_refs = tag_has_remote_ref(&tag, base_remote);
         }
         if tag.name == "script" {
@@ -117,21 +128,14 @@ pub fn detect(src: &[u8]) -> Detection {
                 } else {
                     local_scripts = true;
                 }
-                if src.is_some_and(|url| resolves_remote(url, base_remote)) {
+                if !inert && src.is_some_and(|url| resolves_remote(url, base_remote)) {
                     remote_scripts = true;
                 }
             }
             i = skip_raw_text(src, i, b"script");
-        } else if tag.name == "template" {
-            // template 내용은 문서에 붙기 전에는 리소스를 받지 않는다. 스크립트 판정과 달리 원격 감지에서만 건너뛴다.
-            let end = skip_raw_text(src, i, b"template");
-            let inner = detect(&src[i..end]);
-            local_scripts |= inner.scripts == ScriptDetection::Scripts;
-            legacy_remote_scripts |= inner.scripts == ScriptDetection::ScriptsRemoteOnly;
-            i = end;
         } else if tag.name == "style" {
             let end = skip_raw_text(src, i, b"style");
-            if !remote_refs {
+            if !remote_refs && !inert {
                 remote_refs = css_has_remote_ref(&src[i..end], base_remote);
             }
             i = end;
