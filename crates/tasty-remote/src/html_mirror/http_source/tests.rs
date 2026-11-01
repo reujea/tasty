@@ -152,3 +152,37 @@ fn concurrent_view_replacement_cannot_resurrect_an_old_callback_or_drop_the_late
     let replacement = source.new_view().unwrap();
     assert!(replacement.is_current());
 }
+// The App keeps a failed HTTP session while its source identity is unchanged. A reconnect builds a
+// new mirror with a new binding, so the same address and generation must not look unchanged.
+#[test]
+fn a_reconnected_mirror_gives_the_same_address_a_new_source_identity() {
+    let mut old = mirror();
+    metadata(&mut old, 9, "https://remote.example/page");
+    let before = old.http_source().unwrap();
+    old.disconnect();
+    assert!(!before.is_current());
+    assert!(old.http_source().is_none());
+
+    let (sender, _rx) = channel();
+    let mut new = HtmlMirror::new(42, 8, sender.epoch());
+    let stale = TransferId {
+        epoch: 1,
+        surface_id: 42,
+        binding: 7,
+        document: new.generation,
+        request: 1,
+        transfer: 1,
+    };
+    assert!(new.begin(stale).is_empty());
+    let id = TransferId {
+        epoch: 2,
+        binding: 8,
+        ..stale
+    };
+    assert_eq!(new.begin(id).len(), 1);
+    metadata(&mut new, 9, "https://remote.example/page");
+    let after = new.http_source().unwrap();
+    assert_eq!(after.source_generation(), before.source_generation());
+    assert_eq!(after.entry_url(), before.entry_url());
+    assert_ne!(after.metadata_id(), before.metadata_id());
+}
