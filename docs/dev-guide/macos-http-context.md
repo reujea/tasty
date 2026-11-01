@@ -67,6 +67,11 @@ A remote loopback host is therefore addressed by an alias under `tasty.localhost
   so each loopback form is its own rule. A failed compile leaves the view
   unloaded.
 - `*.localhost` stays a secure context, so features that need one keep working.
+- App Transport Security treats `tasty.localhost` as a qualified name and refuses
+  plain HTTP to it. The bundle's `Info.plist` excepts `tasty.localhost` and its
+  subdomains with `NSExceptionAllowsInsecureHTTPLoads`; nothing else is excepted.
+  Without it every alias load fails with "App Transport Security policy requires
+  the use of a secure connection" (measured on macOS 27.2 with the real app).
 
 The page sees its alias as `location.host`. A subresource, fetch or WebSocket that
 names the remote loopback address absolutely is blocked; relative references work.

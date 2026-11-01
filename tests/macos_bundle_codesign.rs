@@ -1,4 +1,4 @@
-//! macOS 번들 빌드 스크립트의 플러그인 위치와 Info.plist 설명 키를 검사한다.
+//! macOS 번들 빌드 스크립트의 플러그인 위치와 Info.plist 설명 키·ATS 예외를 검사한다.
 //! 정적 검사는 자동으로 헤드리스 조합(check-headless)에서 실행된다.
 //! 실제 codesign 검사는 macOS에서만 실행할 수 있으며 이 자동 경로의 Linux 실행에는 포함되지 않는다.
 
@@ -54,6 +54,25 @@ fn info_plist_template() -> String {
     panic!(
         "Info.plist 생성 heredoc 을 찾지 못함: {}",
         script_path.display()
+    );
+}
+
+/// 원격 HTTP 보기는 원격 loopback 호스트를 `*.tasty.localhost` 별칭으로 연다. ATS는 이 이름의
+/// 평문 HTTP를 막으므로 하위 도메인을 포함한 예외가 번들에 있어야 한다.
+#[test]
+fn info_plist_excepts_tasty_localhost_aliases_from_ats() {
+    let plist = info_plist_template();
+    let compact: String = plist.split_whitespace().collect();
+    let expected = "<key>NSAppTransportSecurity</key><dict><key>NSExceptionDomains</key><dict>\
+<key>tasty.localhost</key><dict><key>NSIncludesSubdomains</key><true/>\
+<key>NSExceptionAllowsInsecureHTTPLoads</key><true/></dict></dict></dict>";
+    assert!(
+        compact.contains(expected),
+        "Info.plist 에 tasty.localhost 하위 도메인의 ATS 평문 HTTP 예외가 없다"
+    );
+    assert!(
+        !compact.contains("NSAllowsArbitraryLoads"),
+        "ATS 예외는 별칭 도메인으로 한정한다"
     );
 }
 

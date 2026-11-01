@@ -165,6 +165,21 @@ cat > "$APP_DIR/Contents/Info.plist" << PLIST
     <true/>
     <key>NSSupportsAutomaticGraphicsSwitching</key>
     <true/>
+    <!-- Remote HTTP views load remote loopback hosts on *.tasty.localhost aliases (docs/dev-guide/macos-http-context.md).
+         App Transport Security blocks plain HTTP to that qualified name unless it is excepted here. -->
+    <key>NSAppTransportSecurity</key>
+    <dict>
+        <key>NSExceptionDomains</key>
+        <dict>
+            <key>tasty.localhost</key>
+            <dict>
+                <key>NSIncludesSubdomains</key>
+                <true/>
+                <key>NSExceptionAllowsInsecureHTTPLoads</key>
+                <true/>
+            </dict>
+        </dict>
+    </dict>
     <!-- Terminal commands may access these resources. Localized descriptions require InfoPlist.strings. -->
     <key>NSDownloadsFolderUsageDescription</key>
     <string>Tasty runs the commands you type in its terminal. Grant access so those commands can read and write files in your Downloads folder.</string>
