@@ -175,7 +175,7 @@ fn cancellation_before_profile_dispatch_performs_no_namespace_io() {
         Setup::start(Arc::new(|| true), Arc::new(|| {})).unwrap_or_else(|_| panic!("setup"));
     let runtime = ready(&mut setup);
     let (receipt, work) = Preparation::new(
-        home.path().into(),
+        home.path().to_path_buf(),
         8,
         Duration::from_secs(1),
         runtime.current(),

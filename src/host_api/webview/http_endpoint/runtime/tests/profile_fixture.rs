@@ -22,7 +22,7 @@ pub(super) fn attempt(
     home: &Path,
 ) -> Result<PreparedProfile, PrepareError> {
     let (receipt, work) = Preparation::new(
-        home.into(),
+        home.to_path_buf(),
         8,
         Duration::from_secs(1),
         runtime.current(),

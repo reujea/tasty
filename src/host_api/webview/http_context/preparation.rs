@@ -2,8 +2,8 @@
 mod admission;
 mod namespace;
 use super::profile::{self, PreparedProfile, ProfileError};
+pub(crate) use namespace::NamespaceRoot;
 use std::{
-    path::PathBuf,
     sync::{
         Arc, Condvar, Mutex,
         atomic::{AtomicBool, Ordering},
@@ -58,13 +58,13 @@ pub(crate) struct Preparation {
 }
 pub(crate) struct ProfileWork {
     shared: Option<Arc<Shared>>,
-    home: PathBuf,
+    home: NamespaceRoot,
     roots: usize,
     claim_timeout: Duration,
 }
 impl Preparation {
     pub(crate) fn new(
-        home: PathBuf,
+        home: impl Into<NamespaceRoot>,
         roots: usize,
         claim_timeout: Duration,
         current: Arc<dyn Fn() -> bool + Send + Sync>,
@@ -83,7 +83,7 @@ impl Preparation {
             },
             ProfileWork {
                 shared: Some(shared),
-                home,
+                home: home.into(),
                 roots,
                 claim_timeout,
             },
@@ -202,6 +202,7 @@ impl ProfileWork {
         let report = admission::run(shared, deadline, "sweep", || {
             profile::reclaim_dead(&parent, self.roots)
         })?;
+        self.sweep_legacy();
         tracing::debug!(
             inspected = report.inspected,
             removed = report.removed,
@@ -217,6 +218,26 @@ impl ProfileWork {
         admission::run(shared, deadline, "create", || {
             PreparedProfile::create(&parent, self.roots)
         })
+    }
+}
+impl ProfileWork {
+    /// Removes dead roots left in the app-home namespace before the runtime directory was used.
+    /// Only the existing dead-owner rules delete; contention or any doubt keeps the data.
+    fn sweep_legacy(&self) {
+        let Some(legacy) = self.home.legacy() else {
+            return;
+        };
+        match profile::reclaim_dead(&legacy, self.roots) {
+            Ok(report) => tracing::debug!(
+                removed = report.removed,
+                live = report.kept_live,
+                uncertain = report.kept_uncertain,
+                "legacy private profile namespace swept"
+            ),
+            Err(error) => {
+                tracing::debug!(%error, "legacy private profile namespace kept");
+            }
+        }
     }
 }
 impl Drop for ProfileWork {
@@ -247,3 +268,6 @@ mod tests;
 
 #[cfg(test)]
 mod admission_tests;
+
+#[cfg(test)]
+mod runtime_tests;

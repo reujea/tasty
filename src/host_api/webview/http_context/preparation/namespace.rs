@@ -1,13 +1,19 @@
 //! Prepare only the app-owned namespace leaf; never follow links or chmod shared ancestors.
+//!
+//! The namespace lives in the user runtime directory when XDG_RUNTIME_DIR is set, and in the app
+//! data home otherwise. The choice is made once per process and a refused location is never
+//! retried elsewhere (docs/dev-guide/html-http-bridge.md "Private profile namespace location").
 use super::super::profile::ProfileError;
+use sha2::{Digest, Sha256};
 use std::{
-    ffi::{CString, OsStr},
+    ffi::{CString, OsStr, OsString},
     fs::File,
     os::{
         fd::{AsRawFd, FromRawFd},
         unix::{ffi::OsStrExt, fs::MetadataExt},
     },
     path::{Component, Path, PathBuf},
+    sync::OnceLock,
 };
 fn uid() -> u32 {
     // SAFETY: geteuid has no arguments or memory preconditions.
@@ -59,9 +65,91 @@ fn home(path: &Path) -> Result<File, ProfileError> {
     }
     Ok(dir)
 }
-pub(super) fn prepare(data_home: &Path) -> Result<PathBuf, ProfileError> {
-    let parent = home(data_home)?;
-    let name = OsStr::new("native-http-profiles");
+const HOME_LEAF: &str = "native-http-profiles";
+
+/// Where the private profile namespace is created.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) enum NamespaceRoot {
+    /// `<app home>/native-http-profiles`.
+    AppHome(PathBuf),
+    /// `<runtime>/tasty-native-http-<SHA-256 of the app home path bytes>`.
+    Runtime { runtime: PathBuf, app_home: PathBuf },
+}
+
+impl From<PathBuf> for NamespaceRoot {
+    fn from(app_home: PathBuf) -> Self {
+        Self::AppHome(app_home)
+    }
+}
+
+impl NamespaceRoot {
+    /// Reads XDG_RUNTIME_DIR once per process. A set value always selects the runtime directory,
+    /// even when it is empty or relative; preparation then refuses it.
+    pub(crate) fn for_process(app_home: PathBuf) -> Self {
+        static RUNTIME: OnceLock<Option<OsString>> = OnceLock::new();
+        let runtime = RUNTIME.get_or_init(|| std::env::var_os("XDG_RUNTIME_DIR"));
+        Self::select(runtime.as_deref(), app_home)
+    }
+
+    pub(crate) fn select(runtime: Option<&OsStr>, app_home: PathBuf) -> Self {
+        match runtime {
+            Some(runtime) => Self::Runtime {
+                runtime: PathBuf::from(runtime),
+                app_home,
+            },
+            None => Self::AppHome(app_home),
+        }
+    }
+
+    /// The pre-runtime namespace of the same app home, swept but never created.
+    pub(super) fn legacy(&self) -> Option<PathBuf> {
+        match self {
+            Self::AppHome(_) => None,
+            Self::Runtime { app_home, .. } => existing(app_home, OsStr::new(HOME_LEAF)).ok(),
+        }
+    }
+}
+
+pub(super) fn runtime_leaf(app_home: &Path) -> OsString {
+    let digest = Sha256::digest(app_home.as_os_str().as_bytes());
+    let hex: String = digest.iter().map(|b| format!("{b:02x}")).collect();
+    OsString::from(format!("tasty-native-http-{hex}"))
+}
+
+pub(super) fn prepare(root: &NamespaceRoot) -> Result<PathBuf, ProfileError> {
+    match root {
+        NamespaceRoot::AppHome(app_home) => create(app_home, OsStr::new(HOME_LEAF), false),
+        NamespaceRoot::Runtime { runtime, app_home } => {
+            create(runtime, &runtime_leaf(app_home), true)
+        }
+    }
+}
+
+/// The parent of the runtime namespace must additionally be exactly 0700.
+fn parent_dir(path: &Path, exact_private: bool) -> Result<File, ProfileError> {
+    let dir = home(path)?;
+    if exact_private && dir.metadata()?.mode() & 0o7777 != 0o700 {
+        return Err(ProfileError::Ownership);
+    }
+    Ok(dir)
+}
+
+/// Opens an existing namespace that passes the same checks as a created one; creates nothing.
+fn existing(path: &Path, name: &OsStr) -> Result<PathBuf, ProfileError> {
+    let parent = home(path)?;
+    let m = open(&parent, name)?.metadata()?;
+    if m.uid() != uid() || m.mode() & 0o7777 != 0o700 {
+        return Err(ProfileError::Ownership);
+    }
+    let again = open(&home(path)?, name)?.metadata()?;
+    if (m.dev(), m.ino()) != (again.dev(), again.ino()) {
+        return Err(ProfileError::Ownership);
+    }
+    Ok(path.join(name))
+}
+
+fn create(data_home: &Path, name: &OsStr, exact_private: bool) -> Result<PathBuf, ProfileError> {
+    let parent = parent_dir(data_home, exact_private)?;
     let c = CString::new(name.as_bytes()).map_err(|_| ProfileError::Invalid)?;
     // SAFETY: parent is an owned directory fd, c is a fixed single relative name.
     let created = unsafe { libc::mkdirat(parent.as_raw_fd(), c.as_ptr(), 0o700) } == 0;
@@ -93,7 +181,7 @@ pub(super) fn prepare(data_home: &Path) -> Result<PathBuf, ProfileError> {
         return Err(ProfileError::Ownership);
     }
     // Reopen every ancestor and leaf and compare actual objects before returning a pathname.
-    let current = home(data_home)?;
+    let current = parent_dir(data_home, exact_private)?;
     let a = parent.metadata()?;
     let b = current.metadata()?;
     let current = open(&current, name)?.metadata()?;

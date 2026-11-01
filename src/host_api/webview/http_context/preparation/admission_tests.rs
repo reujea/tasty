@@ -67,7 +67,8 @@ impl HeldAdmission {
     fn start(phase: Phase, roots: usize, timeout: Duration) -> Self {
         let home = tempfile::tempdir().unwrap();
         fs::set_permissions(home.path(), fs::Permissions::from_mode(0o700)).unwrap();
-        let parent = namespace::prepare(home.path()).unwrap();
+        let parent =
+            namespace::prepare(&NamespaceRoot::AppHome(home.path().to_path_buf())).unwrap();
         for _ in 0..roots {
             drop(setup_positive(|| PreparedProfile::create(&parent, 8)).into_native());
         }
@@ -267,7 +268,7 @@ fn actual_worker_refuses_unsafe_ancestry_and_symlink_without_modifying_them() {
             fs::set_permissions(home.path(), fs::Permissions::from_mode(0o775)).unwrap();
         }
         let (receipt, work) = Preparation::new(
-            home.path().into(),
+            home.path().to_path_buf(),
             8,
             Duration::from_secs(2),
             Arc::new(|| true),
@@ -298,7 +299,7 @@ fn retirement_after_allocation_returns_unpublished_root_to_worker_before_publica
     let calls = Arc::new(AtomicUsize::new(0));
     let current = calls.clone();
     let (receipt, work) = Preparation::new(
-        home.path().into(),
+        home.path().to_path_buf(),
         8,
         Duration::from_secs(2),
         Arc::new(move || current.fetch_add(1, Ordering::AcqRel) < 2),

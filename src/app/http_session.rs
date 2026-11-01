@@ -266,7 +266,9 @@ impl HttpSession {
         if state.runtime.is_some() && state.preparation.is_none() && !self.native_store.is_live() {
             let runtime = state.runtime.as_ref().expect("ready runtime");
             let (receipt, work) = Preparation::new(
-                tasty_utils::path::tasty_home().ok_or("native HTTP data home unavailable")?,
+                crate::host_api::webview::http_context::preparation::NamespaceRoot::for_process(
+                    tasty_utils::path::tasty_home().ok_or("native HTTP data home unavailable")?,
+                ),
                 8,
                 Duration::from_secs(30),
                 runtime.current(),
@@ -331,7 +333,9 @@ impl HttpSession {
             .as_ref()
             .ok_or("native probe runtime unavailable")?;
         let (receipt, work) = Preparation::new(
-            tasty_utils::path::tasty_home().ok_or("native probe home unavailable")?,
+            crate::host_api::webview::http_context::preparation::NamespaceRoot::for_process(
+                tasty_utils::path::tasty_home().ok_or("native probe home unavailable")?,
+            ),
             8,
             Duration::from_secs(30),
             runtime.current(),

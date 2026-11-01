@@ -34,7 +34,7 @@ fn busy_profile_work_retains_eight_job_permits_and_drop_returns_them() {
             let tx = tx.clone();
             let current = runtime.current();
             let (receipt, work) = Preparation::new(
-                home.path().into(),
+                home.path().to_path_buf(),
                 8,
                 Duration::from_secs(2),
                 Arc::new(move || {
@@ -51,7 +51,7 @@ fn busy_profile_work_retains_eight_job_permits_and_drop_returns_them() {
         }
         assert_eq!(runtime.parts.jobs.available_permits(), 0);
         let (extra, work) = Preparation::new(
-            home.path().into(),
+            home.path().to_path_buf(),
             8,
             Duration::from_secs(2),
             runtime.current(),

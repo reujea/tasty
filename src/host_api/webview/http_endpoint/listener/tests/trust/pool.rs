@@ -8,7 +8,7 @@ use crate::host_api::webview::http_context::{
 #[cfg(target_os = "linux")]
 async fn profile(home: &std::path::Path) -> NativeProfileLease {
     let (receipt, work) = Preparation::new(
-        home.into(),
+        home.to_path_buf(),
         8,
         Duration::from_secs(2),
         Arc::new(|| true),

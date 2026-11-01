@@ -3,7 +3,7 @@ use super::*;
 use std::os::unix::fs::{MetadataExt, PermissionsExt};
 use std::{
     fs,
-    path::Path,
+    path::{Path, PathBuf},
     sync::{
         atomic::{AtomicBool, Ordering},
         mpsc,
@@ -165,19 +165,24 @@ fn abandoned_native_claim_times_out_and_cleans_only_unpublished_root() {
 }
 #[test]
 fn namespace_refuses_symlink_and_unsafe_existing_leaf_without_chmod() {
-    assert!(namespace::prepare(Path::new("relative-native-home")).is_err());
+    assert!(
+        namespace::prepare(&NamespaceRoot::AppHome(
+            Path::new("relative-native-home").to_path_buf()
+        ))
+        .is_err()
+    );
     let home = private_home();
     let outside = private_home();
     let sentinel = outside.path().join("sentinel");
     fs::write(&sentinel, b"outside").unwrap();
     let leaf = home.path().join("native-http-profiles");
     std::os::unix::fs::symlink(outside.path(), &leaf).unwrap();
-    assert!(namespace::prepare(home.path()).is_err());
+    assert!(namespace::prepare(&NamespaceRoot::AppHome(home.path().to_path_buf())).is_err());
     assert_eq!(fs::read(&sentinel).unwrap(), b"outside");
     fs::remove_file(&leaf).unwrap();
     fs::create_dir(&leaf).unwrap();
     fs::set_permissions(&leaf, fs::Permissions::from_mode(0o755)).unwrap();
-    assert!(namespace::prepare(home.path()).is_err());
+    assert!(namespace::prepare(&NamespaceRoot::AppHome(home.path().to_path_buf())).is_err());
     assert_eq!(fs::metadata(&leaf).unwrap().mode() & 0o7777, 0o755);
 }
 
