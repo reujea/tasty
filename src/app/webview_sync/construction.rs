@@ -64,6 +64,16 @@ fn default_bounds() -> crate::webview::WebViewBounds {
         height: 1.0,
     }
 }
+/// Whether the surface's HTTP session lost its native owner without failing. When a surface's
+/// view is rebuilt (for example after another tab opens in the same mirror pane), dropping the old
+/// view revokes the owner of the session it showed. The attach refresh replaces such a session;
+/// preparing it first fails as retired, and that failure gave the surface up until it was reopened.
+/// A failed session keeps the permanent failure so it does not loop.
+#[cfg(any(target_os = "linux", target_os = "macos", windows))]
+fn awaits_replacement(failed: bool, native_owner_current: bool) -> bool {
+    !failed && !native_owner_current
+}
+
 fn construct(
     view: &mut MainView,
     engine: &crate::runtime::engine_access::EngineRef<'_>,
@@ -76,6 +86,10 @@ fn construct(
         find_remote_surface(view, engine, sid).and_then(|remote| remote.http_session.clone());
     #[cfg(any(target_os = "linux", target_os = "macos", windows))]
     let prepared = if let Some(session) = http {
+        if awaits_replacement(session.failed(), session.native_owner_current()) {
+            view.http_preparing.remove(&sid);
+            return Ok(None);
+        }
         let pending = view
             .http_preparing
             .entry(sid)
@@ -134,4 +148,21 @@ fn construct(
             }),
     );
     result.map(Some)
+}
+
+#[cfg(all(test, any(target_os = "linux", target_os = "macos", windows)))]
+mod tests {
+    use super::awaits_replacement;
+
+    #[test]
+    fn a_live_session_without_its_native_owner_waits_for_its_replacement() {
+        assert!(awaits_replacement(false, false));
+    }
+
+    #[test]
+    fn a_failed_or_owned_session_is_prepared_as_before() {
+        assert!(!awaits_replacement(true, false));
+        assert!(!awaits_replacement(true, true));
+        assert!(!awaits_replacement(false, true));
+    }
 }
