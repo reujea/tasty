@@ -259,6 +259,8 @@ Only when both explicit test variables `TASTY_DEBUG_HTTP_MIRROR_NATIVE=1` and `T
 
 The physical native allocation generation belongs to the remote surface and is captured by every logical session, including a prepared Reload successor. Source invalidation closes the current session before advancing that generation. Both the retained predecessor and prepared successor then lose currentness, even while selected clear has completed but native resume has not. A late predecessor drop cannot invalidate a newer generation. The actual retained view still supplies its separate native owner lifetime receipt; the generation does not authorize a Reload.
 
+A main load that fails ends its session and the surface keeps that failed session as a stable failure. Dropping the failed view revokes the native allocation generation, but that alone does not start a new session while the source keeps its metadata identity, source generation and entry URL. Only a user Reload, a new source or a reconnect retires the source and starts a new session, so a failing document is never reopened automatically. This applies to the Linux, Windows and macOS clients through the same session refresh.
+
 ## Windows App session and native factory
 
 The Windows GUI client uses the same HttpSession, bridge, body source and endpoint as Linux. Its endpoint uses the HTTP proxy front and has no native trust preparation or probe pool. PendingNative publishes the document once the endpoint exists and hands the proxy credentials to the WebView2 factory. The factory and its script policy are described in [Windows HTTP context](windows-http-context.md).

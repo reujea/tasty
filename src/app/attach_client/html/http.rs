@@ -131,6 +131,15 @@ fn retire_unavailable(surface: &mut RemoteSurface) {
     }
     surface.http_session.take();
 }
+/// Whether the surface's HTTP session gives way to a new one for the current source.
+///
+/// A failed session stays as a stable failure while its source is unchanged. Dropping its view
+/// revokes the native owner, and treating that as a reason to replace it reopened the same
+/// failing document in a loop. A user Reload, a new source or a reconnect retire the source and
+/// start a new session through the other paths.
+fn replaces_session(failed: bool, native_owner_current: bool, source_changed: bool) -> bool {
+    source_changed || (!failed && !native_owner_current)
+}
 fn refresh(
     surface: &mut RemoteSurface,
     sess: &AttachClientSession,
@@ -154,12 +163,15 @@ fn refresh(
     }
     let mut predecessor = None;
     if surface.http_session.as_ref().is_some_and(|session| {
-        !session.native_owner_current()
-            || source.as_ref().is_none_or(|source| {
+        replaces_session(
+            session.failed(),
+            session.native_owner_current(),
+            source.as_ref().is_none_or(|source| {
                 source.metadata_id() != session.source.metadata_id()
                     || source.source_generation() != session.source.source_generation()
                     || source.entry_url() != session.source.entry_url()
-            })
+            }),
+        )
     }) && let Some(session) = surface.http_session.take()
     {
         predecessor = match session.take_successor() {
@@ -250,4 +262,27 @@ fn reload_authority(
             })
         })
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::replaces_session;
+
+    #[test]
+    fn a_failed_session_stays_while_its_source_is_unchanged() {
+        assert!(!replaces_session(true, false, false));
+        assert!(!replaces_session(true, true, false));
+    }
+
+    #[test]
+    fn a_changed_source_replaces_any_session() {
+        assert!(replaces_session(true, true, true));
+        assert!(replaces_session(false, true, true));
+    }
+
+    #[test]
+    fn a_live_session_without_its_native_owner_is_replaced() {
+        assert!(replaces_session(false, false, false));
+        assert!(!replaces_session(false, true, false));
+    }
 }
