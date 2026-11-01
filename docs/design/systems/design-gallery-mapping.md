@@ -616,7 +616,7 @@ immediate-mode 정적 specimen 이므로 **각 상태를 나란히 노출**(toas
 | Spec 2 plain/TTL | `draw_dismiss` | plain(× 노출 상태) + TTL(check 글리프 + 우상단 카운트다운 `6`) 두 행을 Column 으로 |
 | `TtlBannerG` countdown | `countdown` | mono micro(10)·text-muted·tabular 숫자 |
 | `StackDemoG` (Spec 3) | `draw_stack` | 하위(Pane, 40% 디밍, 후면) + 상위(Workspace, warn 글리프, 전면) 두 shell 을 overlap child Ui 로 |
-| `BannerMoreMenuG` · `MoreLabel` (Elastic width) | `banner_mouse_capture::draw_elastic` → 행은 `tasty_ui_widgets::banner_more_row`(본체 `mouse_capture_menu` 도 같은 함수) | 짧은 이름 · 중간(active) · 긴 이름(288 상한, 이름 말줄임) · ja 줄바꿈(288 유지, 둘째 행 active) · 기각된 danger. 이름은 mono 이고 고정 문구와 같은 행 글자색(`banner-more-app-fg` → menu-item-fg, `-fg-hover`). 고정 문구 + 이름 한 글자 + 말줄임표가 안 들어가면 그 행만 줄을 바꾼다(최소 28, 위아래 `menu-item-wrap-padding-y`, 줄 높이 `line-height-ui`, 아이콘 세로 가운데) — 반영됨 |
+| `BannerMoreMenuG` · `MoreLabel` (Elastic width) | `banner_mouse_capture::draw_elastic` → 행은 `tasty_ui_widgets::banner_more_row`(본체 `mouse_capture_menu` 도 같은 함수) | 짧은 이름 · 중간(active) · 긴 이름(288 상한, 이름 말줄임) · ja 줄바꿈(288 유지, 둘째 행 active) · ko·ja 본체 문구(`t_lang`으로 `lang/{ko,ja}.toml`의 메뉴 키를 읽는 갤러리 보조 예제로 시안에는 없다. 이름이 앞에 와 문장이 뒤 문구에 있다) · 기각된 danger. 이름은 mono 이고 고정 문구와 같은 행 글자색(`banner-more-app-fg` → menu-item-fg, `-fg-hover`). 고정 문구 + 이름 한 글자 + 말줄임표가 안 들어가면 그 행만 줄을 바꾼다(최소 28, 위아래 `menu-item-wrap-padding-y`, 줄 높이 `line-height-ui`, 아이콘 세로 가운데) — 반영됨 |
 
 글리프: mouse/check 는 `crates/tasty-icons` 의 `MOUSE`/`CHECK` 글리프(warn = 기존
 `ALERT_TRIANGLE`, × = 기존 `CLOSE`). 카탈로그 등록은 Overlays 페이지에 `banner`

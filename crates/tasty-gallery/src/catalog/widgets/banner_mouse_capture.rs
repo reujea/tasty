@@ -35,6 +35,21 @@ fn disable_text() -> (&'static str, &'static str) {
         crate::i18n::t("popup.mouse_capture_banner_menu.disable_suffix"),
     )
 }
+/// `code`(ko·ja) 로케일의 두 행 고정 문구(앞, 뒤). 본체 `row_labels` 와 같은 키 쌍을 그 언어의
+/// `lang/{code}.toml` 에서 읽으므로 번역이 바뀌면 예제도 따라 바뀐다.
+fn locale_texts(code: &str) -> [(&'static str, &'static str); 2] {
+    use crate::i18n::t_lang;
+    [
+        (
+            t_lang(code, "popup.mouse_capture_banner_menu.suppress_prefix"),
+            t_lang(code, "popup.mouse_capture_banner_menu.suppress_suffix"),
+        ),
+        (
+            t_lang(code, "popup.mouse_capture_banner_menu.disable_prefix"),
+            t_lang(code, "popup.mouse_capture_banner_menu.disable_suffix"),
+        ),
+    ]
+}
 /// ja 줄바꿈 예제의 고정 문구 — 시안 `BannerMoreMenuG` 의 `texts`. 시안이 앞 문구로만 준다.
 const JA_TEXTS: [(&str, &str); 2] = [
     ("vim の通知をオフにする ", ""),
@@ -183,6 +198,12 @@ pub fn draw_elastic(ui: &mut egui::Ui, theme: &Theme) {
                             more_menu_texts(ui, theme, JA_TEXTS, "vim", Some(1), false);
                         },
                     );
+                    for code in ["ko", "ja"] {
+                        let caption = format!("{code} — app copy (lang/{code}.toml)");
+                        elastic_slot(ui, theme, &caption, |ui| {
+                            more_menu_texts(ui, theme, locale_texts(code), "vim", None, false);
+                        });
+                    }
                     elastic_slot(
                         ui,
                         theme,
@@ -329,4 +350,37 @@ fn more_menu_texts(
                 );
             }
         });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::locale_texts;
+
+    /// ko·ja 예제는 본체와 같은 키를 그 언어 파일에서 읽는다. 이름이 앞에 오는 언어라 문장이 뒤 문구에 있다.
+    #[test]
+    fn locale_examples_read_the_app_copy_of_that_language() {
+        for code in ["ko", "ja"] {
+            let lang: toml::Value = toml::from_str(match code {
+                "ko" => include_str!("../../../../../lang/ko.toml"),
+                _ => include_str!("../../../../../lang/ja.toml"),
+            })
+            .expect("lang file parses");
+            let menu = &lang["popup"]["mouse_capture_banner_menu"];
+            let key = |k: &str| menu[k].as_str().expect("menu key").to_string();
+            let [suppress, disable] = locale_texts(code);
+            assert_eq!(
+                (suppress.0.to_string(), suppress.1.to_string()),
+                (key("suppress_prefix"), key("suppress_suffix"))
+            );
+            assert_eq!(
+                (disable.0.to_string(), disable.1.to_string()),
+                (key("disable_prefix"), key("disable_suffix"))
+            );
+            assert!(!suppress.1.is_empty() && !disable.1.is_empty());
+            assert_ne!(
+                suppress.1,
+                crate::i18n::t("popup.mouse_capture_banner_menu.suppress_suffix")
+            );
+        }
+    }
 }
