@@ -10,6 +10,7 @@ mod http;
 mod keyboard;
 mod navigation;
 mod overlay;
+mod remote_block;
 
 use std::cell::{Cell, RefCell};
 use std::ffi::c_void;
@@ -339,7 +340,7 @@ impl PlatformWebView {
                     }
                     let is_remote =
                         uri_str.starts_with("http://") || uri_str.starts_with("https://");
-                    if is_remote && !allow_cb.get() {
+                    if is_remote && remote_block::refuse(&allow_cb, &gate_request, &args) {
                         let resp =
                             env_cb.CreateWebResourceResponse(None, 403, w!("Blocked"), w!(""))?;
                         args.SetResponse(&resp)?;
@@ -1130,7 +1131,11 @@ impl PlatformWebView {
     }
 
     /// 다음 요청부터 WebResourceRequested가 읽을 허용 여부를 갱신한다.
+    /// 문서 단위 허용은 요청마다 게이트에서 읽는다(remote_block).
     pub fn set_remote_content_allowed(&self, allowed: bool) {
+        if let Some(gate) = self.script_gate.borrow().as_ref() {
+            gate.set_remote_global(allowed);
+        }
         self.allow_remote
             .set(self.entry_source.is_none() && allowed);
         tracing::debug!("Windows WebView2 set_remote_content_allowed({allowed})");

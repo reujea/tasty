@@ -7,19 +7,20 @@ mod http;
 mod keyboard;
 mod navigation_debug;
 mod overlay_backend;
+mod remote_block;
 
 pub(crate) use http::available as http_available;
 
-use content_rules::apply_block_state;
 use delegate_state::PendingDecision;
 use navigation_debug::log_navigation_action;
+use remote_block::RemoteBlock;
 
 use std::cell::{Cell, RefCell};
 use std::ptr::NonNull;
 use std::rc::{Rc, Weak};
 use std::time::Instant;
 
-use block2::{DynBlock, RcBlock};
+use block2::DynBlock;
 use objc2::rc::Retained;
 use objc2::runtime::{NSObject, NSObjectProtocol, ProtocolObject};
 use objc2::{DefinedClass, MainThreadMarker, MainThreadOnly, Message, define_class, msg_send};
@@ -31,9 +32,8 @@ use objc2_foundation::{
     NSURLCredential, NSURLSessionAuthChallengeDisposition,
 };
 use objc2_web_kit::{
-    WKContentRuleList, WKContentRuleListStore, WKNavigation, WKNavigationAction,
-    WKNavigationActionPolicy, WKNavigationDelegate, WKNavigationType, WKWebView,
-    WKWebViewConfiguration, WKWebpagePreferences,
+    WKNavigation, WKNavigationAction, WKNavigationActionPolicy, WKNavigationDelegate,
+    WKNavigationType, WKWebView, WKWebViewConfiguration, WKWebpagePreferences,
 };
 use winit::raw_window_handle::{HasWindowHandle, RawWindowHandle};
 
@@ -62,6 +62,8 @@ struct NavDelegateIvars {
     navigations: NavigationRecorder,
     /// html surface의 문서 단위 스크립트 허용. 없으면 탐색 단위 JS를 바꾸지 않는다.
     script_gate: Rc<RefCell<Option<ScriptGate>>>,
+    /// 원격 차단의 실효값(전역 || 문서 허용). 게이트 상태가 바뀌는 지점마다 다시 읽는다.
+    remote: RemoteBlock,
     /// 게이트가 정책 결정에서 로드를 시작했고 그 provisional 시작을 아직 받지 않았다.
     gate_load_pending: Cell<bool>,
     /// 게이트가 시작한 마지막 로드의 WKNavigation. 새 로드가 앞 로드를 취소하면 앞 로드의 종료가
@@ -133,6 +135,7 @@ define_class!(
             }
             if let Some(gate) = self.ivars().script_gate.borrow().as_ref() {
                 let js = gate.committed(url.as_deref());
+                self.ivars().remote.sync(gate);
                 tracing::debug!(
                     "WebView surface {}: committed with js={js}",
                     self.ivars().surface_id
@@ -286,6 +289,7 @@ define_class!(
                     // 같은 문서의 fragment 이동은 로드가 아니므로 건너뛴다. 재로드는 fragment가 있어도 거친다.
                     Some(true) if reload || !gate.is_fragment_move(url) => {
                         gate.load_started();
+                        self.ivars().remote.sync(gate);
                         // 새 로드가 앞에서 보류한 결정을 대신한다. load_started 뒤라 그 표는 이미 낡았다.
                         self.ivars().cancel_pending_decision();
                         // provisional 시작이 새 세대를 기록할 때까지 어떤 종료든 이 로드를 끝낸다.
@@ -295,6 +299,7 @@ define_class!(
                             Response::Decided(js) => {
                                 // SAFETY: main thread WebKit delegate 호출. preferences는 이 호출 동안 유효하다.
                                 unsafe { preferences.setAllowsContentJavaScript(js) };
+                                self.ivars().remote.sync(gate);
                             }
                             // 스캔 결과가 JS를 정한다. 결정을 붙잡아 두고 반환하면 WebKit은 응답을
                             // 기다린다. 작업 스레드는 파일만 읽고 호스트를 깨우며, 결정은 다음 webview
@@ -404,7 +409,7 @@ impl NavDelegate {
         surface_id: u32,
         nav_state: Rc<Cell<NavState>>,
         navigations: NavigationRecorder,
-        script_gate: Rc<RefCell<Option<ScriptGate>>>,
+        (script_gate, remote): (Rc<RefCell<Option<ScriptGate>>>, RemoteBlock),
         entry_source: Option<EntryResponseSource>,
         http: Option<Weak<super::http_native::NativeDocument>>,
     ) -> Retained<Self> {
@@ -416,6 +421,7 @@ impl NavDelegate {
             nav_state,
             navigations,
             script_gate,
+            remote,
             gate_load_pending: Cell::new(false),
             gate_navigation: RefCell::new(None),
             chrome_navigation: RefCell::new(None),
@@ -635,10 +641,6 @@ fn view_holds_first_responder(view: &NSView) -> bool {
         .is_some_and(|v| v.isDescendantOf(view))
 }
 
-/// http(s) content-blocker 규칙. 컴파일·설치 전 요청은 이 규칙으로 막지 못한다.
-const REMOTE_BLOCK_RULE_JSON: &str =
-    r#"[{"trigger":{"url-filter":"^https?://"},"action":{"type":"block"}}]"#;
-
 pub struct PlatformWebView {
     surface_id: u32,
     /// The remote HTTP document this view shows through its endpoint proxy.
@@ -646,8 +648,7 @@ pub struct PlatformWebView {
     entry_handler: Option<Retained<super::entry_response::macos::EntryHandler>>,
     entry_source: Option<EntryResponseSource>,
     webview: Retained<KeyWebView>,
-    content_rule_list: Rc<RefCell<Option<Retained<WKContentRuleList>>>>,
-    block_remote: Rc<Cell<bool>>,
+    remote: RemoteBlock,
     nav_state: Rc<Cell<NavState>>,
     pending_navigations: Rc<RefCell<Vec<PendingNavigation>>>,
     script_gate: Rc<RefCell<Option<ScriptGate>>>,
@@ -766,6 +767,17 @@ impl PlatformWebView {
             let pending_navigations: Rc<RefCell<Vec<PendingNavigation>>> =
                 Rc::new(RefCell::new(Vec::new()));
             let script_gate: Rc<RefCell<Option<ScriptGate>>> = Rc::new(RefCell::new(None));
+            if let Some(http) = &http {
+                // The endpoint decides remote content; only direct loopback loads are refused.
+                http.install_rules(&webview, surface_id, mtm);
+            }
+            // 컴파일 완료 전에는 차단 규칙이 없다. 콜백이 현재 차단 상태에 맞춰 설치한다.
+            let remote = RemoteBlock::install(
+                Retained::into_super(webview.clone()),
+                entry_source.is_some(),
+                http.is_some(),
+                mtm,
+            );
             let nav_delegate = NavDelegate::new(
                 mtm,
                 surface_id,
@@ -774,54 +786,12 @@ impl PlatformWebView {
                     attempts: pending_navigations.clone(),
                     click,
                 },
-                script_gate.clone(),
+                (script_gate.clone(), remote.clone()),
                 entry_source.clone(),
                 http.as_ref().map(|http| Rc::downgrade(&http.document)),
             );
             let nav_proto = ProtocolObject::from_ref(&*nav_delegate);
             webview.setNavigationDelegate(Some(nav_proto));
-
-            // 컴파일 완료 전에는 차단 규칙이 없다. 콜백이 현재 설정에 맞춰 설치한다.
-            let content_rule_list: Rc<RefCell<Option<Retained<WKContentRuleList>>>> =
-                Rc::new(RefCell::new(None));
-            let block_remote = Rc::new(Cell::new(true));
-            if let Some(http) = &http {
-                // The endpoint decides remote content; only direct loopback loads are refused.
-                http.install_rules(&webview, surface_id, mtm);
-            } else if let Some(store) = WKContentRuleListStore::defaultStore(mtm) {
-                let webview_cb = webview.clone();
-                let rule_cb = content_rule_list.clone();
-                let block_cb = block_remote.clone();
-                let handler =
-                    RcBlock::new(move |list: *mut WKContentRuleList, err: *mut NSError| {
-                        // SAFETY(외부 unsafe 블록 상속): WebKit 이 main thread 에서 컴파일 완료를
-                        // 호출하며 list/err 는 이 시점 valid. list non-null 이면 +0 참조라 보관 위해
-                        // retain 한다.
-                        if let Some(retained) = Retained::retain(list) {
-                            tracing::debug!("WKContentRuleList 컴파일 성공 — 원격 차단 룰 설치");
-                            *rule_cb.borrow_mut() = Some(retained);
-                            apply_block_state(
-                                &webview_cb,
-                                block_cb.get(),
-                                rule_cb.borrow().as_deref(),
-                            );
-                        } else if let Some(err) = err.as_ref() {
-                            tracing::warn!(
-                                "WKContentRuleList compile 실패: {}",
-                                err.localizedDescription()
-                            );
-                        }
-                    });
-                let id = NSString::from_str("tasty-block-remote");
-                let json = NSString::from_str(REMOTE_BLOCK_RULE_JSON);
-                store.compileContentRuleListForIdentifier_encodedContentRuleList_completionHandler(
-                    Some(&id),
-                    Some(&json),
-                    Some(&handler),
-                );
-            } else {
-                tracing::warn!("WKContentRuleListStore::defaultStore 없음 — 원격 차단 비활성");
-            }
 
             Ok(Self {
                 surface_id,
@@ -829,8 +799,7 @@ impl PlatformWebView {
                 entry_handler,
                 entry_source,
                 webview,
-                content_rule_list,
-                block_remote,
+                remote,
                 nav_state,
                 pending_navigations,
                 script_gate,
@@ -1090,6 +1059,7 @@ impl PlatformWebView {
     /// 문서 단위 스크립트 허용을 붙인다. 첫 로드 전에 호출한다.
     pub fn attach_script_gate(&self, gate: ScriptGate) {
         self.set_global_javascript(true);
+        self.remote.sync(&gate);
         if let Some(http) = &self.http {
             http.session().attach_script_gate(gate.clone());
         }
@@ -1181,19 +1151,13 @@ impl PlatformWebView {
         }
     }
 
-    /// 비동기 규칙이 준비되면 http(s) 차단 여부를 반영한다. 미준비·컴파일 실패 동안의 차단을 보장하지 않는다.
+    /// 전역 "Allow remote content"를 적용한다. 문서 단위 허용은 게이트가 정하고 실효값은 둘의 OR다.
+    /// 규칙 미준비·컴파일 실패 동안의 차단을 보장하지 않는다.
     pub fn set_remote_content_allowed(&self, allowed: bool) {
-        // The endpoint applies this setting to a remote HTTP document; its loopback rule stays.
-        if self.http.is_some() {
-            return;
+        if let Some(gate) = self.script_gate.borrow().as_ref() {
+            gate.set_remote_global(allowed);
         }
-        self.block_remote
-            .set(self.entry_source.is_some() || !allowed);
-        apply_block_state(
-            &self.webview,
-            self.block_remote.get(),
-            self.content_rule_list.borrow().as_deref(),
-        );
+        self.remote.set_global(allowed);
     }
 
     pub fn load_html(&self, html: &str) {

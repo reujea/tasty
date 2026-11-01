@@ -114,6 +114,13 @@ impl DeferredScan {
         self.gate.spawn_read_slot(&self.path)
     }
 
+    /// 이 결정의 게이트. 결과를 적용한 뒤 원격 차단 값을 다시 읽을 때 쓴다.
+    // 이유: Linux·macOS backend만 쓴다.
+    #[cfg_attr(not(any(target_os = "linux", target_os = "macos")), allow(dead_code))]
+    pub fn gate(&self) -> &ScriptGate {
+        &self.gate
+    }
+
     /// 스캔하는 로컬 파일 경로.
     // 이유: Windows backend와 시험만 쓴다.
     #[cfg_attr(not(any(windows, test)), allow(dead_code))]
@@ -163,6 +170,8 @@ impl ScriptGate {
 
     pub(crate) fn with_received_source(mut self, source: EntryResponseSource) -> Self {
         self.received = Some(source);
+        // mirror는 client에서 원격을 받지 않는다. 문서 단위 원격 허용은 효과가 없다.
+        self.lock().set_remote_unsupported();
         self
     }
 
@@ -172,6 +181,8 @@ impl ScriptGate {
         session: Arc<crate::app::http_session::HttpSession>,
     ) -> Self {
         self.http = Some(session);
+        // HTTP view의 원격 요청은 endpoint가 정한다. 문서 단위 원격 허용은 효과가 없다.
+        self.lock().set_remote_unsupported();
         self
     }
 
@@ -195,6 +206,29 @@ impl ScriptGate {
             return false;
         }
         self.lock().effective_js()
+    }
+
+    /// 이 문서의 원격 차단을 풀지(전역 설정 제외). backend가 `전역 || 이 값`으로 적용한다.
+    /// 응답 결정·commit·로드 시작·종료마다 다시 읽는다.
+    pub fn document_remote(&self) -> bool {
+        if !self.received_current() {
+            return false;
+        }
+        self.lock().document_remote_allowed()
+    }
+
+    /// 전역 "Allow remote content"가 바뀌었다. 감지·안내 판정에 쓴다.
+    pub fn set_remote_global(&self, allowed: bool) {
+        self.lock().set_remote_global(allowed);
+    }
+
+    /// OS가 현재 문서의 하위 리소스 원격 요청을 막았다(Windows). 표지 근거로만 쓴다.
+    // 이유: Windows backend만 쓴다.
+    #[cfg_attr(not(windows), allow(dead_code))]
+    pub fn remote_block_observed(&self) {
+        if self.received_current() {
+            self.lock().on_remote_block_observed();
+        }
     }
 
     /// 전역 sandbox 설정이 바뀌었다.
@@ -659,6 +693,69 @@ mod tests {
         std::fs::write(dir.join("doc.html"), "<script>b()</script>").expect("rewrite");
         gate.load_started();
         assert_eq!(decide(&gate, &url), Some(false));
+        cleanup(&dir);
+    }
+
+    /// 문서 단위 원격 허용은 응답 결정 단계에서 정해지고 그 문서에만 남는다. 지문이 바뀌면 풀리고,
+    /// mirror로 바뀐 view에서는 효과가 없다.
+    #[test]
+    fn a_remote_allowance_opens_only_its_document_from_the_decision_on() {
+        let (gate, rx, dir, url) =
+            gate_with_doc("remote", r#"<img src="https://e.example/a.png">"#);
+        gate.load_started();
+        gate.main_response(&url);
+        gate.committed(Some(&url));
+        gate.finished();
+        wait_scan(&rx);
+        assert!(!gate.document_remote());
+        gate.lock().allow_remote_current().expect("allow remote");
+        assert!(
+            gate.document_remote(),
+            "the shown document is the allowed one"
+        );
+        gate.load_started();
+        assert!(
+            !gate.document_remote(),
+            "a new load is blocked until it is decided"
+        );
+        assert_eq!(
+            decide(&gate, &url),
+            Some(false),
+            "no scripts, so js stays off"
+        );
+        assert!(gate.document_remote(), "the decision matched the allowance");
+        gate.committed(Some(&url));
+        gate.finished();
+        assert!(gate.document_remote());
+        // 전역 설정을 켰다 꺼도 이 문서의 허용은 남는다.
+        gate.set_remote_global(true);
+        gate.set_remote_global(false);
+        assert!(gate.document_remote());
+        // 파일이 바뀌면 다음 로드에서 풀린다.
+        std::fs::write(
+            dir.join("doc.html"),
+            r#"<img src="https://e.example/b.png">"#,
+        )
+        .expect("rewrite");
+        gate.load_started();
+        decide(&gate, &url);
+        gate.committed(Some(&url));
+        assert!(!gate.document_remote());
+        cleanup(&dir);
+    }
+
+    #[test]
+    fn a_mirror_view_never_opens_remote_content_per_document() {
+        let (gate, rx, dir, url) =
+            gate_with_doc("remote-mirror", r#"<img src="https://e.example/a.png">"#);
+        gate.load_started();
+        gate.main_response(&url);
+        gate.committed(Some(&url));
+        gate.finished();
+        wait_scan(&rx);
+        gate.lock().set_remote_unsupported();
+        assert!(gate.lock().allow_remote_current().is_err());
+        assert!(!gate.document_remote());
         cleanup(&dir);
     }
 

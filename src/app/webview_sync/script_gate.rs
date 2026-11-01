@@ -38,5 +38,6 @@ pub(super) fn attach_script_gate(
         gate
     };
     gate.set_sandbox(!settings.javascript_enabled);
+    gate.set_remote_global(settings.allow_remote_content);
     wv.attach_script_gate(gate);
 }

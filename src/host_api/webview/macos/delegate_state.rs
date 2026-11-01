@@ -105,10 +105,12 @@ impl NavDelegateIvars {
             return;
         };
         // 표 확인과 상태 반영은 결정을 넘기기 직전 이 메인 스레드 호출 안에서 한다.
+        let gate = pending.scan.gate().clone();
         let policy = match pending.scan.apply(read) {
             Some(js) => {
                 // SAFETY: main thread. preferences는 이 결정이 붙잡아 둔 Retained 값이다.
                 unsafe { pending.preferences.setAllowsContentJavaScript(js) };
+                self.remote.sync(&gate);
                 WKNavigationActionPolicy::Allow
             }
             None => {
@@ -173,6 +175,7 @@ impl NavDelegateIvars {
     pub(super) fn gate_failed(&self) {
         if let Some(gate) = self.script_gate.borrow().as_ref() {
             gate.failed();
+            self.remote.sync(gate);
         }
     }
 
@@ -191,6 +194,9 @@ impl NavDelegateIvars {
                 "WebView surface {}: the load ended without a commit; the next navigation decides js (now {js})",
                 self.surface_id
             );
+        }
+        if let Some(gate) = self.script_gate.borrow().as_ref() {
+            self.remote.sync(gate);
         }
     }
 }

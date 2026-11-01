@@ -12,7 +12,7 @@ use gtk::prelude::*;
 use webkit2gtk::{
     LoadEvent, NavigationPolicyDecision, NavigationPolicyDecisionExt, PolicyDecisionExt,
     PolicyDecisionType, ResponsePolicyDecision, ResponsePolicyDecisionExt, SettingsExt,
-    URIRequestExt, UserContentManager, UserContentManagerExt, WebView, WebViewExt,
+    URIRequestExt, WebView, WebViewExt,
 };
 use winit::raw_window_handle::{
     HasDisplayHandle, HasWindowHandle, RawDisplayHandle, RawWindowHandle,
@@ -31,9 +31,11 @@ pub(super) mod direct_paths;
 mod edit;
 mod navigation_policy;
 mod overlay_backend;
+mod remote_block;
 pub(super) mod selection;
 use super::entry_response::EntryResponseSource;
-use content_filter::{ContentFilter, REMOTE_BLOCK_FILTER_ID, compile_remote_block_filter};
+use content_filter::compile_remote_block_filter;
+use remote_block::RemoteBlock;
 
 pub struct PlatformWebView {
     entry_source: Option<EntryResponseSource>,
@@ -45,7 +47,8 @@ pub struct PlatformWebView {
     x11_display: *mut std::os::raw::c_void,
     /// Xlib 핸들은 생성 스레드에서만 사용한다. 메서드 진입에서 이 ID를 확인한다.
     origin_thread: std::thread::ThreadId,
-    block_remote: Rc<Cell<bool>>,
+    /// 원격 차단의 실효값(전역 || 문서 허용)과 content filter.
+    remote: RemoteBlock,
     nav_state: Rc<Cell<NavState>>,
     /// chrome 세대. 앞 로드의 늦은 종료가 새 로드의 Loading을 바꾸지 않게 한다.
     loads: Rc<RefCell<SignalOrderLoads>>,
@@ -57,10 +60,6 @@ pub struct PlatformWebView {
     parent_x11_window: std::os::raw::c_ulong,
     /// X11 foreign 창의 GDK 참조. Drop 중 GDK 연결의 오류 트랩에도 사용한다.
     gdk_window: gtk::gdk::Window,
-    /// 없으면 content filter를 붙이지 못한다.
-    ucm: Option<UserContentManager>,
-    /// 비동기 컴파일 완료 전에는 필터가 없다.
-    content_filter: Rc<RefCell<Option<ContentFilter>>>,
     /// 마지막 `set_bounds` 의 X 창 크기(물리 px). input shape 의 전체 사각형이다.
     x11_size: Cell<(i32, i32)>,
     /// X 창 shape 를 물리 px 로 설정하는 XFixes. 열지 못하면 구멍을 두지 않는다.
@@ -73,6 +72,21 @@ pub struct PlatformWebView {
     input_held: Rc<Cell<bool>>,
     /// 편집 명령의 비동기 선택 질의가 낡았는지 판정한다.
     edit_guard: edit::EditGuard,
+}
+
+/// 게이트 상태를 한 단계 옮기고 그 결과의 JS 값과 원격 차단 값을 적용한다.
+fn gate_step(
+    wv: &WebView,
+    gate: &RefCell<Option<ScriptGate>>,
+    remote: &RemoteBlock,
+    step: impl FnOnce(&ScriptGate) -> Option<bool>,
+) {
+    if let Some(gate) = gate.borrow().as_ref() {
+        if let Some(js) = step(gate) {
+            set_js(wv, js);
+        }
+        remote.sync(gate);
+    }
 }
 
 fn set_js(wv: &WebView, enabled: bool) {
@@ -273,14 +287,18 @@ impl PlatformWebView {
         vbox.pack_start(&webview, true, true, 0);
 
         // 탐색 정책만으로 서브리소스를 막을 수 없어 content filter도 별도로 설치한다.
-        let block_remote = Rc::new(Cell::new(http.is_none()));
+        let remote = RemoteBlock::new(
+            entry_source.is_some(),
+            http.is_some(),
+            WebViewExt::user_content_manager(&webview),
+        );
         let pending_navigations = Rc::new(RefCell::new(Vec::new()));
         let script_gate: Rc<RefCell<Option<ScriptGate>>> = Rc::new(RefCell::new(None));
         navigation_policy::install(
             &webview,
             &entry_source,
             http.as_ref().map(|document| document.session_slot()),
-            &block_remote,
+            &remote,
             &pending_navigations,
             &script_gate,
             surface_id,
@@ -296,6 +314,7 @@ impl PlatformWebView {
             let nav = nav_state.clone();
             let loads = loads.clone();
             let gate = script_gate.clone();
+            let remote = remote.clone();
             let committed = committed_url.clone();
             // load-changed는 main frame 로드에서만 온다(측정은 docs/surfaces/html/index.md의 OS별 적용 절). 화면 문서는 commit에서 기록한다.
             let edit_guard = edit_guard.clone();
@@ -305,17 +324,13 @@ impl PlatformWebView {
                     tracing::debug!("WebView surface {surface_id}: load started");
                     loads.borrow_mut().started();
                     nav.set(NavState::Loading);
-                    if let Some(gate) = gate.borrow().as_ref() {
-                        set_js(wv, gate.load_started());
-                    }
+                    gate_step(wv, &gate, &remote, |g| Some(g.load_started()));
                 }
                 LoadEvent::Committed => {
                     edit_guard.unready();
                     let uri = wv.uri();
                     *committed.borrow_mut() = uri.as_deref().map(str::to_string);
-                    if let Some(gate) = gate.borrow().as_ref() {
-                        set_js(wv, gate.committed(uri.as_deref()));
-                    }
+                    gate_step(wv, &gate, &remote, |g| Some(g.committed(uri.as_deref())));
                 }
                 LoadEvent::Finished => {
                     let state = loads.borrow_mut().finished();
@@ -323,9 +338,7 @@ impl PlatformWebView {
                         tracing::debug!("WebView surface {surface_id}: load finished");
                         nav.set(NavState::Done);
                     }
-                    if let Some(js) = gate.borrow().as_ref().and_then(|g| g.finished()) {
-                        set_js(wv, js);
-                    }
+                    gate_step(wv, &gate, &remote, ScriptGate::finished);
                 }
                 _ => {} // Redirected 는 무시
             });
@@ -336,18 +349,17 @@ impl PlatformWebView {
             let nav = nav_state.clone();
             let loads = loads.clone();
             let gate = script_gate.clone();
+            let remote = remote.clone();
             webview.connect_web_process_terminated(move |wv, reason| {
                 tracing::warn!(
                     "WebView surface {surface_id}: WebKit web process terminated ({reason:?})"
                 );
                 loads.borrow_mut().terminated();
                 nav.set(NavState::Failed);
-                if let Some(gate) = gate.borrow().as_ref() {
-                    gate.failed();
-                }
-                if let Some(js) = gate.borrow().as_ref().and_then(|g| g.finished()) {
-                    set_js(wv, js);
-                }
+                gate_step(wv, &gate, &remote, |g| {
+                    g.failed();
+                    g.finished()
+                });
             });
         }
         {
@@ -457,9 +469,11 @@ impl PlatformWebView {
         }
 
         // 필터는 비동기로 붙는다. 그전에 온 원격 요청까지 막는다고 보장하지 않는다.
-        let ucm = WebViewExt::user_content_manager(&webview);
-        let content_filter: Rc<RefCell<Option<ContentFilter>>> = Rc::new(RefCell::new(None));
-        compile_remote_block_filter(ucm.clone(), block_remote.clone(), content_filter.clone());
+        compile_remote_block_filter(
+            remote.ucm(),
+            remote.block_cell().clone(),
+            remote.filter_slot().clone(),
+        );
 
         gtk_window.show_all();
 
@@ -477,7 +491,7 @@ impl PlatformWebView {
             xlib,
             x11_display: display as _,
             origin_thread: std::thread::current().id(),
-            block_remote,
+            remote,
             nav_state,
             loads,
             pending_navigations,
@@ -485,8 +499,6 @@ impl PlatformWebView {
             script_gate,
             parent_x11_window: parent_xid as _,
             gdk_window,
-            ucm,
-            content_filter,
             x11_size: Cell::new((w.max(1) as i32, h.max(1) as i32)),
             xfixes,
             shape: RefCell::default(),
@@ -870,6 +882,7 @@ impl PlatformWebView {
             settings.set_enable_page_cache(false);
         }
         set_js(&self.webview, gate.effective_js());
+        self.remote.sync(&gate);
         *self.script_gate.borrow_mut() = Some(gate);
     }
 
@@ -973,32 +986,14 @@ impl PlatformWebView {
         tracing::debug!("set_color_scheme({scheme:?}) is not implemented for Linux WebKitGTK");
     }
 
-    /// 탐색 정책과 content filter에 차단 상태를 적용한다. 필터 준비 전·준비 실패 시 적용 범위가 다르다.
+    /// 전역 "Allow remote content"를 적용한다. 문서 단위 허용은 게이트가 정하고 실효값은 둘의 OR다.
+    /// 필터 준비 전·준비 실패 시 적용 범위가 다르다.
     pub fn set_remote_content_allowed(&self, allowed: bool) {
-        self.block_remote
-            .set(self.http.is_none() && (self.entry_source.is_some() || !allowed));
-        self.apply_remote_block_filter();
-        tracing::debug!("Linux WebKitGTK set_remote_content_allowed({allowed})");
-    }
-
-    /// 중복 설치를 피하려고 기존 ID의 필터를 제거한 뒤 필요하면 다시 붙인다.
-    /// 컴파일 중이면 완료 콜백이 그때의 상태를 확인한다.
-    fn apply_remote_block_filter(&self) {
-        use gtk::glib::translate::ToGlibPtr;
-
-        let Some(ucm) = &self.ucm else { return };
-        ucm.remove_filter_by_id(REMOTE_BLOCK_FILTER_ID);
-        if self.block_remote.get()
-            && let Some(filter) = self.content_filter.borrow().as_ref()
-        {
-            // SAFETY: 컴파일이 끝난 유효한 필터이고 매니저는 self 가 소유한다.
-            unsafe {
-                webkit2gtk::ffi::webkit_user_content_manager_add_filter(
-                    ucm.to_glib_none().0,
-                    filter.0,
-                )
-            };
+        if let Some(gate) = self.script_gate.borrow().as_ref() {
+            gate.set_remote_global(allowed);
         }
+        self.remote.set_global(allowed);
+        tracing::debug!("Linux WebKitGTK set_remote_content_allowed({allowed})");
     }
 }
 
@@ -1059,8 +1054,10 @@ fn defer_response(
     wv: WebView,
     decision: webkit2gtk::PolicyDecision,
     scan: DeferredScan,
+    remote: RemoteBlock,
     surface_id: u32,
 ) {
+    let gate = scan.gate().clone();
     gtk::glib::MainContext::default().spawn_local(async move {
         let read = gtk::gio::spawn_blocking(scan.reader()).await;
         // 표 확인과 적용은 결정을 넘기는 이 GTK 작업 안에서 한다. 읽는 동안 새 로드가 시작됐으면
@@ -1068,6 +1065,7 @@ fn defer_response(
         match read.map(|result| scan.apply(result)) {
             Ok(Some(js)) => {
                 set_js(&wv, js);
+                remote.sync(&gate);
                 decision.use_();
             }
             Ok(None) => decision.ignore(),

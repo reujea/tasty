@@ -5,14 +5,14 @@ pub(super) fn install(
     webview: &WebView,
     entry_source: &Option<EntryResponseSource>,
     http: Option<Rc<RefCell<std::sync::Arc<crate::app::http_session::HttpSession>>>>,
-    block_remote: &Rc<Cell<bool>>,
+    remote: &RemoteBlock,
     pending_navigations: &Rc<RefCell<Vec<PendingNavigation>>>,
     script_gate: &Rc<RefCell<Option<ScriptGate>>>,
     surface_id: u32,
 ) {
     {
         let entry = entry_source.clone();
-        let block = block_remote.clone();
+        let remote = remote.clone();
         let pending_nav = pending_navigations.clone();
         let gate = script_gate.clone();
         webview.connect_decide_policy(move |wv, decision, decision_type| {
@@ -47,7 +47,15 @@ pub(super) fn install(
                     .downcast_ref::<ResponsePolicyDecision>()
                     .is_some_and(|d| d.is_main_frame_main_resource())
                 && let Some(uri) = &uri
-                && decide_main(wv, decision, uri.as_str(), gate, http.as_ref(), surface_id)
+                && decide_main(
+                    wv,
+                    decision,
+                    uri.as_str(),
+                    gate,
+                    &remote,
+                    http.as_ref(),
+                    surface_id,
+                )
             {
                 return true;
             }
@@ -75,7 +83,7 @@ pub(super) fn install(
                     user_gesture,
                 });
             }
-            if http.is_some() || !block.get() {
+            if http.is_some() || !remote.block_cell().get() {
                 return false;
             }
             if let Some(uri) = &uri {
@@ -96,6 +104,7 @@ fn decide_main(
     decision: &webkit2gtk::PolicyDecision,
     uri: &str,
     gate: &ScriptGate,
+    remote: &RemoteBlock,
     http: Option<&NativeSessionSlot>,
     surface_id: u32,
 ) -> bool {
@@ -126,11 +135,20 @@ fn decide_main(
         gate.main_response(uri)
     };
     match response {
-        Response::Decided(js) => set_js(wv, js),
+        Response::Decided(js) => {
+            set_js(wv, js);
+            remote.sync(gate);
+        }
         Response::Deferred(scan) => {
             // 스캔이 JS 값을 정하는 응답(허용한 문서의 재로드)은 결정을 보류하고
             // 작업 스레드에서 읽는다. GTK 루프는 그동안 다른 이벤트를 처리한다.
-            defer_response(wv.clone(), decision.clone(), scan, surface_id);
+            defer_response(
+                wv.clone(),
+                decision.clone(),
+                scan,
+                remote.clone(),
+                surface_id,
+            );
             return true;
         }
     }
