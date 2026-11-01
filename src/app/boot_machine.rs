@@ -195,6 +195,9 @@ impl App {
             tracing::warn!("boot loading first frame render failed: {e} — showing window anyway");
         }
         if window_hidden {
+            #[cfg(debug_assertions)]
+            crate::boot::debug_background::show_boot_window(&boot.window);
+            #[cfg(not(debug_assertions))]
             boot.window.set_visible(true);
             tracing::info!(
                 target: "tasty::boot",

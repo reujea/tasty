@@ -176,6 +176,21 @@ tasty 가 OS 기본 핸들러에 무언가를 넘기는 자리 — 링크·`Syst
 
 덮지 **않는** 것: tasty 가 띄운 **다른 프로세스**가 스스로 여는 것 — PTY 안의 셸이 부른 `xdg-open`, plugin 프로세스가 스스로 부르는 OS 열기(번들 plugin 에는 없다 — markdown 외부 링크는 host 를 거친다, [플러그인 제작 가이드](plugin-development.md)). 그쪽은 [self-verification](self-verification.md) 의 가짜 브라우저 절차로 막는다. e2e 하네스는 같은 파일에 기록하는 가짜 `BROWSER` 를 준다(Linux·BSD 한정, [e2e-tests](e2e-tests.md) §3). 구현은 `crates/tasty-platform/src/debug_os_open.rs`(모듈 선언에 `#[cfg(debug_assertions)]`), 근거는 [유닛 테스트 격리 — 사용자 환경을 읽지 않는다](unit-test-isolation.md). debug 격리, release 미노출.
 
+### 배경 실행 (`TASTY_DEBUG_BACKGROUND`)
+
+macOS에서 `open -g`로 띄워도 winit은 실행이 끝날 때 기본값으로 앱을 활성화하고, 첫 창을 보이는
+`set_visible(true)`는 그 창을 키 창으로 앞에 올린다. 화면 잠금이 풀린 Mac에서 격리 인스턴스를 띄우면
+사용자가 쓰던 앱의 앞 창과 키 입력을 가져간다.
+
+`TASTY_DEBUG_BACKGROUND=1`로 띄우면 macOS debug 빌드가 실행 완료 때의 활성화를 끄고
+(`with_activate_ignoring_other_apps(false)`), 숨겨 만든 첫 창을 키 창으로 만들지 않은 채 모든 창
+뒤에 둔다(`orderBack`). 뒤로 보내지 못하면 앞 창을 가져가지 않도록 창을 숨긴 채 두고 오류 로그를
+남긴다(IPC는 계속 받는다). 변수가 없는 실행은 기존처럼 보인다. 값이 정확히 `1`일
+때만 켜지며, 다른 OS에서는 값과 관계없이 기존 동작이다. 이후 사용자 출처로 여는 창·모달은 이
+변수와 무관하게 기존 정책을 따른다. 가려진 창의 WebView는 그리기를 미룰 수 있으므로 화면
+픽셀 판정에는 쓰지 않고 IPC·로그로 판정할 때 쓴다. 구현은 `src/boot/debug_background.rs`(모듈
+선언에 `#[cfg(debug_assertions)]`), debug 격리, release 미노출.
+
 ### 회차 시간 예산 줄이기 (`TASTY_DEBUG_IPC_ROUND_TIME_BUDGET_MS`)
 
 IPC dispatch 한 회차의 시간 예산(제품값 16 ms)을 밀리초로 **줄여** 띄운다 — 제품값 이상은 버린다.

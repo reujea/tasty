@@ -16,6 +16,8 @@ pub(crate) fn build() -> anyhow::Result<(EventLoop<AppEvent>, EventLoopProxy<App
     {
         use winit::platform::macos::EventLoopBuilderExtMacOS;
         builder.with_default_menu(false);
+        #[cfg(debug_assertions)]
+        crate::boot::debug_background::configure_event_loop(&mut builder);
     }
     #[cfg(windows)]
     if crate::boot::single_instance::service_enabled() {
