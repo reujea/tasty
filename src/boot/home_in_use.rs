@@ -135,6 +135,9 @@ impl ApplicationHandler<AppEvent> for HomeInUseScreen {
         self.window = Some(window.clone());
         // 첫 프레임을 그린 뒤 표시한다. 렌더에 실패해도 창은 보인다.
         self.render(event_loop);
+        #[cfg(debug_assertions)]
+        crate::boot::debug_background::show_boot_window(&window);
+        #[cfg(not(debug_assertions))]
         window.set_visible(true);
     }
 

@@ -694,6 +694,9 @@ impl App {
         if let Err(e) = gpu.render_shell_setup(&window, &mut self.state.shell_setup_path) {
             tracing::warn!("shell setup first frame render failed: {e} — showing window anyway");
         }
+        #[cfg(debug_assertions)]
+        crate::boot::debug_background::show_boot_window(&window);
+        #[cfg(not(debug_assertions))]
         window.set_visible(true);
         self.shell_setup_gpu = Some(gpu);
         self.shell_setup_window = Some(window);
@@ -1060,6 +1063,9 @@ impl App {
         {
             tracing::warn!("boot error first frame render failed: {e} — showing window anyway");
         }
+        #[cfg(debug_assertions)]
+        crate::boot::debug_background::show_boot_window(&window);
+        #[cfg(not(debug_assertions))]
         window.set_visible(true);
         self.boot_error_gpu = Some(gpu);
         self.boot_error_window = Some(window);

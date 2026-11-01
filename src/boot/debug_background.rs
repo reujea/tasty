@@ -24,7 +24,7 @@ pub(crate) fn configure_event_loop(
     }
 }
 
-/// 숨겨 만든 첫 창을 보인다. 배경 실행이면 macOS에서 키 창으로 만들지 않고 모든 창 뒤에 둔다.
+/// 숨겨 만든 첫 창(정상 부팅·셸 설정·부팅 오류·home 사용 중 화면)을 보인다. 배경 실행이면 macOS에서 키 창으로 만들지 않고 모든 창 뒤에 둔다.
 /// 뒤로 보내지 못하면 앞 창을 가져가지 않도록 창을 숨긴 채 두고 오류를 남긴다. IPC는 계속 받는다.
 /// 배경 실행이 아니면 `set_visible(true)`로 보인다.
 pub(crate) fn show_boot_window(window: &winit::window::Window) {
