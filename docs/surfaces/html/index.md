@@ -312,7 +312,7 @@ OS별 구현은 다음과 같다.
 - **사용자**: html surface 위쪽 [주소 표시줄](#주소-표시줄)에서 경로·URL 입력, 뒤로·앞으로·새로고침, 주소창 포커스 단축키(`Alt+L`, macOS `⌘L`).
 - **사용자**: HTML·SVG 파일 열기 → html surface(WebView). 탭 스트립 빈 곳 메뉴의 **새 HTML...** 은 파일 피커(`html`·`htm`·`svg` 필터)를 열고, 고른 파일의 절대 경로를 `url` 파라미터로 넘겨 메뉴를 연 pane 에 html 탭을 만든다([파일 피커 확정](../../features/native-file-picker/index.md#확정confirm)). 지원 연결의 mirror pane에서는 원격 cwd로 피커를 열고 원래 pane에 원격 탭을 만든다. 미지원 연결은 원격 열기 불가 토스트를 띄운다.
 - **AI Agent**: `tasty html …` CLI / `html.*` IPC. surface 생성은 [work-area](../../features/work-area/index.md) (`--type html --url …`).
-- **AI Agent**: 스크립트 감지·허용·배너 상태 조회는 `tasty surface html-script --surface <id>`(IPC `surface.html_script`), 현재 문서의 스크립트 허용은 `tasty surface html-script-allow --surface <id>`(IPC `surface.html_script_allow`).
+- **AI Agent**: 스크립트·원격 콘텐츠의 감지·허용·안내 상태 조회는 `tasty surface html-script --surface <id>`(IPC `surface.html_script`), 현재 문서의 스크립트 허용은 `tasty surface html-script-allow --surface <id>`(IPC `surface.html_script_allow`), 원격 콘텐츠 허용은 `tasty surface html-remote-allow --surface <id> [--url <url> --fingerprint <hex>]`(IPC `surface.html_remote_allow`, 권한 `surface.write`).
 - **AI Agent**: 보여 주는 문서 주소와 뒤로·앞으로 이동 가능 여부 조회는 `tasty surface html-nav --surface <id>`(IPC `surface.html_nav`).
 - **AI Agent**: 뒤로·앞으로·새로고침은 `tasty surface html-back`·`html-forward`·`html-reload --surface <id>`(IPC `surface.html_back`·`surface.html_forward`·`surface.html_reload`).
 

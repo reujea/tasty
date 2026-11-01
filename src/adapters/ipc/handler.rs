@@ -674,6 +674,10 @@ fn route_engine_handler(
             surface::handle_html_script_allow(&engine.as_ref(), id, &request.params)
         }
         #[cfg(feature = "gui")]
+        "surface.html_remote_allow" => {
+            surface::handle_html_remote_allow(&engine.as_ref(), id, &request.params)
+        }
+        #[cfg(feature = "gui")]
         "surface.html_nav" => surface::handle_html_nav(&engine.as_ref(), id, &request.params),
         #[cfg(feature = "gui")]
         "surface.html_back" => surface::handle_html_history(

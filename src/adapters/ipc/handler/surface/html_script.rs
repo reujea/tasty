@@ -1,6 +1,6 @@
 //! html surface 상태 조회.
 //!
-//! - `surface.html_script`: 스크립트 감지·허용·배너 상태(docs/surfaces/html/index.md). 배너 표지를 갱신하는
+//! - `surface.html_script`: 스크립트·원격 콘텐츠의 감지·허용·안내 상태(docs/surfaces/html/index.md). 배너 표지를 갱신하는
 //!   `update_banner`가 아니라 `banner_phase`를 부르므로 조회가 배너를 띄우거나 사용자 열람으로
 //!   기록되지 않는다.
 //! - `surface.html_nav`: commit된 문서 주소와 히스토리 이동 가능 여부. 호스트가 프레임마다 옮긴
@@ -110,6 +110,37 @@ fn state_json(st: &HtmlScriptState) -> Value {
         "scanning": st.scan_pending(),
         "banner": {
             "phase": st.banner_phase().as_str(),
+            "viewed": flags.viewed,
+            "pending_view": flags.pending_view,
+            "shown": flags.shown,
+            "dismissed": flags.dismissed,
+        },
+        "remote": remote_json(st),
+    })
+}
+
+/// 원격 콘텐츠 차단 상태. 조회만 하며 안내 표지를 바꾸지 않는다.
+fn remote_json(st: &HtmlScriptState) -> Value {
+    let allowance = st.remote_allowance().map(|a| {
+        json!({
+            "url": a.url,
+            "fingerprint": a.fingerprint.to_hex(),
+        })
+    });
+    let flags = st.remote_banner();
+    let scan = st.current().and_then(|doc| doc.scan);
+    json!({
+        "global": st.remote_global(),
+        "supported": st.remote_supported(),
+        "refs": scan.map(|s| s.remote_refs),
+        "remote_scripts": scan.map(|s| s.remote_scripts),
+        "observed": st.remote_observed(),
+        "allowance": allowance,
+        "allowed": st.current_is_remote_allowed(),
+        "effective": st.remote_effectively_allowed(),
+        "marker": st.remote_marker().map(|m| m.as_str()),
+        "banner": {
+            "phase": st.remote_banner_phase().as_str(),
             "viewed": flags.viewed,
             "pending_view": flags.pending_view,
             "shown": flags.shown,

@@ -59,8 +59,9 @@ pub enum SurfaceCommands {
         #[arg(long)]
         surface: u32,
     },
-    /// Print the script state of an html surface: what was detected in the
-    /// current document, whether it may run, and the banner state.
+    /// Print the script and remote content state of an html surface: what
+    /// was detected in the current document, whether scripts may run and
+    /// remote content may load, and the notice states.
     ///
     /// Read-only: the query never shows the banner and never counts as the
     /// user viewing the document. The target surface is always given
@@ -81,6 +82,29 @@ pub enum SurfaceCommands {
     /// always given explicitly with --surface. Not available in a headless
     /// build.
     HtmlScriptAllow {
+        /// Surface ID (required)
+        #[arg(long)]
+        surface: u32,
+        /// Document url from html-script; refuse if the document differs
+        #[arg(long)]
+        url: Option<String>,
+        /// Document fingerprint from html-script; refuse if it differs
+        #[arg(long)]
+        fingerprint: Option<String>,
+    },
+    /// Allow remote content (network stylesheets, images, fonts, frames and
+    /// scripts) for the document an html surface shows, as the remote notice
+    /// button does, and reload it.
+    ///
+    /// The allowance covers this document only and is separate from the
+    /// script allowance. Pass the url and fingerprint printed by html-script
+    /// so a document replaced after that query is refused instead of allowed.
+    /// The result field is "allowed" or "already_allowed". A refusal names
+    /// its reason: unsupported_view, globally_allowed, document_changed,
+    /// loading, no_document or no_fingerprint. Focus, selection, the active
+    /// tab and the notice stay as they are. The target surface is always
+    /// given explicitly with --surface. Not available in a headless build.
+    HtmlRemoteAllow {
         /// Surface ID (required)
         #[arg(long)]
         surface: u32,

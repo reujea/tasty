@@ -3208,8 +3208,8 @@ long = "서피스가 속한 페인과 트리에 남아 있는지 출력합니다
 help = "서피스 ID(필수)"
 
 [cli.help._root.surface.html-script]
-about = "html 서피스의 스크립트 상태 출력: 현재 문서의 감지 결과, 실행 허용 여부, 배너 상태"
-long = "html 서피스의 스크립트 상태를 출력합니다. 현재 문서의 감지 결과, 실행 허용 여부, 배너 상태를 보여 줍니다. 조회만 하므로 배너를 띄우거나 사용자가 문서를 본 것으로 기록하지 않습니다. 대상은 항상 --surface로 명시합니다. 헤드리스 빌드에서는 사용할 수 없습니다."
+about = "html 서피스의 스크립트·원격 콘텐츠 상태 출력: 현재 문서의 감지 결과, 스크립트 실행과 원격 콘텐츠 로드 허용 여부, 안내 상태"
+long = "html 서피스의 스크립트·원격 콘텐츠 상태를 출력합니다. 현재 문서의 감지 결과, 스크립트 실행과 원격 콘텐츠 로드 허용 여부, 안내 상태를 보여 줍니다. 조회만 하므로 배너를 띄우거나 사용자가 문서를 본 것으로 기록하지 않습니다. 대상은 항상 --surface로 명시합니다. 헤드리스 빌드에서는 사용할 수 없습니다."
 
 [cli.help._root.surface.html-script.arg.surface]
 help = "서피스 ID(필수)"
@@ -3225,6 +3225,19 @@ help = "서피스 ID(필수)"
 help = "html-script가 출력한 문서 url. 문서가 다르면 거절"
 
 [cli.help._root.surface.html-script-allow.arg.fingerprint]
+help = "html-script가 출력한 문서 fingerprint. 다르면 거절"
+
+[cli.help._root.surface.html-remote-allow]
+about = "원격 콘텐츠 안내 버튼처럼 html 서피스가 보여 주는 문서에 원격 콘텐츠(네트워크의 스타일시트, 이미지, 글꼴, 프레임, 스크립트)를 허용하고 다시 로드"
+long = "원격 콘텐츠 안내 버튼처럼 html 서피스가 보여 주는 문서에 원격 콘텐츠(네트워크의 스타일시트, 이미지, 글꼴, 프레임, 스크립트)를 허용하고 다시 로드합니다. 허용은 이 문서에만 적용되며 스크립트 허용과 별개입니다. html-script가 출력한 url과 fingerprint를 넘기면 조회 뒤 바뀐 문서는 허용하지 않고 거절합니다. 결과 필드는 \"allowed\" 또는 \"already_allowed\"입니다. 거절하면 unsupported_view, globally_allowed, document_changed, loading, no_document, no_fingerprint 중 하나로 이유를 알립니다. 포커스, 선택, 활성 탭, 안내는 그대로입니다. 대상은 항상 --surface로 명시합니다. 헤드리스 빌드에서는 사용할 수 없습니다."
+
+[cli.help._root.surface.html-remote-allow.arg.surface]
+help = "서피스 ID(필수)"
+
+[cli.help._root.surface.html-remote-allow.arg.url]
+help = "html-script가 출력한 문서 url. 문서가 다르면 거절"
+
+[cli.help._root.surface.html-remote-allow.arg.fingerprint]
 help = "html-script가 출력한 문서 fingerprint. 다르면 거절"
 
 [cli.help._root.surface.html-nav]

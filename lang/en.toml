@@ -3276,8 +3276,8 @@ long = "Print which pane a surface belongs to, and whether it is still in the tr
 help = "Surface ID (required)"
 
 [cli.help._root.surface.html-script]
-about = "Print the script state of an html surface: what was detected in the current document, whether it may run, and the banner state"
-long = "Print the script state of an html surface: what was detected in the current document, whether it may run, and the banner state.\n\nRead-only: the query never shows the banner and never counts as the user viewing the document. The target surface is always given explicitly with --surface. Not available in a headless build."
+about = "Print the script and remote content state of an html surface: what was detected in the current document, whether scripts may run and remote content may load, and the notice states"
+long = "Print the script and remote content state of an html surface: what was detected in the current document, whether scripts may run and remote content may load, and the notice states.\n\nRead-only: the query never shows the banner and never counts as the user viewing the document. The target surface is always given explicitly with --surface. Not available in a headless build."
 
 [cli.help._root.surface.html-script.arg.surface]
 help = "Surface ID (required)"
@@ -3293,6 +3293,19 @@ help = "Surface ID (required)"
 help = "Document url from html-script; refuse if the document differs"
 
 [cli.help._root.surface.html-script-allow.arg.fingerprint]
+help = "Document fingerprint from html-script; refuse if it differs"
+
+[cli.help._root.surface.html-remote-allow]
+about = "Allow remote content (network stylesheets, images, fonts, frames and scripts) for the document an html surface shows, as the remote notice button does, and reload it"
+long = "Allow remote content (network stylesheets, images, fonts, frames and scripts) for the document an html surface shows, as the remote notice button does, and reload it.\n\nThe allowance covers this document only and is separate from the script allowance. Pass the url and fingerprint printed by html-script so a document replaced after that query is refused instead of allowed. The result field is \"allowed\" or \"already_allowed\". A refusal names its reason: unsupported_view, globally_allowed, document_changed, loading, no_document or no_fingerprint. Focus, selection, the active tab and the notice stay as they are. The target surface is always given explicitly with --surface. Not available in a headless build."
+
+[cli.help._root.surface.html-remote-allow.arg.surface]
+help = "Surface ID (required)"
+
+[cli.help._root.surface.html-remote-allow.arg.url]
+help = "Document url from html-script; refuse if the document differs"
+
+[cli.help._root.surface.html-remote-allow.arg.fingerprint]
 help = "Document fingerprint from html-script; refuse if it differs"
 
 [cli.help._root.surface.html-nav]

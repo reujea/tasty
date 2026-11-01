@@ -49,7 +49,7 @@ alias는 canonical 이름으로 판정·집계한다.
 | 토큰 | 여는 호스트 IPC | 그 밖의 게이트 |
 |------|-----------------|----------------|
 | `surface.read` | 트리·메타 조회 (`tree` · `workspace.list` · `tab.list` · `surface.list` · `surface.meta.get` · `hook.list` · `message.read` · `recent.query` 등) | — |
-| `surface.write` | 트리 변경 (`workspace.create` · `tab.create` · `tab.close` · `split` · `surface.close` · `surface.set_cwd` · `surface.meta.set` · `hook.set` · `message.send` · html 문서 스크립트 허용 `surface.html_script_allow` 등) | — |
+| `surface.write` | 트리 변경 (`workspace.create` · `tab.create` · `tab.close` · `split` · `surface.close` · `surface.set_cwd` · `surface.meta.set` · `hook.set` · `message.send` · html 문서 스크립트 허용 `surface.html_script_allow` · 원격 콘텐츠 허용 `surface.html_remote_allow` 등) | — |
 | `notification` | `notification.create` · `notification.list` · `notification.counts` · `notification.read` · `surface.completion` · `surface.attention.get` · `surface.attention.clear` | — |
 | `clipboard.read` | `image.paste` **하나뿐** | — |
 | `clipboard.write` | `clipboard.set_text` | — |

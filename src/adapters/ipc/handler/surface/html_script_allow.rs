@@ -25,20 +25,11 @@ fn decide(st: &mut HtmlScriptState, url: Option<&str>, fingerprint: Option<&str>
     if st.loading_before_commit() {
         return Outcome::Refused("loading", AllowError::Loading.to_string());
     }
-    let Some(doc) = st.current() else {
+    if st.current().is_none() {
         return Outcome::Refused("no_document", AllowError::NoDocument.to_string());
-    };
-    let current_fp = doc.scan.map(|s| s.fingerprint.to_hex());
-    let url_changed = url.is_some_and(|u| u != doc.url);
-    let fp_changed =
-        fingerprint.is_some_and(|f| current_fp.as_deref() != Some(f.to_ascii_lowercase().as_str()));
-    if url_changed || fp_changed {
-        return Outcome::Refused(
-            "document_changed",
-            "the current document is not the one given by url/fingerprint; \
-             read surface.html_script again"
-                .to_string(),
-        );
+    }
+    if document_changed(st, url, fingerprint) {
+        return Outcome::Refused("document_changed", DOCUMENT_CHANGED.to_string());
     }
     if st.current_is_allowed() {
         return Outcome::AlreadyAllowed;
@@ -49,6 +40,46 @@ fn decide(st: &mut HtmlScriptState, url: Option<&str>, fingerprint: Option<&str>
         Err(e @ AllowError::NoDocument) => Outcome::Refused("no_document", e.to_string()),
         Err(e @ AllowError::Loading) => Outcome::Refused("loading", e.to_string()),
     }
+}
+
+pub(super) const DOCUMENT_CHANGED: &str = "the current document is not the one given by \
+     url/fingerprint; read surface.html_script again";
+
+/// 인자로 받은 url·지문이 화면 문서와 다른지. 인자가 없으면 비교하지 않는다.
+pub(super) fn document_changed(
+    st: &HtmlScriptState,
+    url: Option<&str>,
+    fingerprint: Option<&str>,
+) -> bool {
+    let Some(doc) = st.current() else {
+        return url.is_some() || fingerprint.is_some();
+    };
+    let current_fp = doc.scan.map(|s| s.fingerprint.to_hex());
+    url.is_some_and(|u| u != doc.url)
+        || fingerprint
+            .is_some_and(|f| current_fp.as_deref() != Some(f.to_ascii_lowercase().as_str()))
+}
+
+/// 응답의 `document` 객체.
+pub(super) fn document_json(st: &HtmlScriptState) -> Option<Value> {
+    st.current().map(|doc| {
+        json!({
+            "url": doc.url,
+            "detection": doc.scan.map(|s| s.detection.as_str()),
+            "fingerprint": doc.scan.map(|s| s.fingerprint.to_hex()),
+        })
+    })
+}
+
+/// url·fingerprint 인자를 읽는다.
+pub(super) fn document_args<'a>(
+    params: &'a Value,
+    id: &Value,
+) -> Result<(Option<&'a str>, Option<&'a str>), JsonRpcResponse> {
+    Ok((
+        optional_str(params, "url", id)?,
+        optional_str(params, "fingerprint", id)?,
+    ))
 }
 
 fn optional_str<'a>(
@@ -71,12 +102,9 @@ pub(crate) fn handle_html_script_allow(
     id: Value,
     params: &Value,
 ) -> JsonRpcResponse {
-    let (url, fingerprint) = match (
-        optional_str(params, "url", &id),
-        optional_str(params, "fingerprint", &id),
-    ) {
-        (Ok(u), Ok(f)) => (u, f),
-        (Err(e), _) | (_, Err(e)) => return e,
+    let (url, fingerprint) = match document_args(params, &id) {
+        Ok(args) => args,
+        Err(e) => return e,
     };
     let (surface_id, rs) = match find_html(engine, &id, params) {
         Ok(found) => found,
@@ -84,14 +112,7 @@ pub(crate) fn handle_html_script_allow(
     };
     let (outcome, document) = rs.with_html_script(|st| {
         let outcome = decide(st, url, fingerprint);
-        let document = st.current().map(|doc| {
-            json!({
-                "url": doc.url,
-                "detection": doc.scan.map(|s| s.detection.as_str()),
-                "fingerprint": doc.scan.map(|s| s.fingerprint.to_hex()),
-            })
-        });
-        (outcome, document)
+        (outcome, document_json(st))
     });
     match outcome {
         Outcome::Allowed | Outcome::AlreadyAllowed => {

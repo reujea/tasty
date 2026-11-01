@@ -1,4 +1,4 @@
-<!-- source-hash: 0a7ea97027dd -->
+<!-- source-hash: ac32efbd7378 -->
 # CLI command reference
 
 How to use the `tasty` commands the [introduction](cli.md) does not cover: reading `read since-mark` from a saved position, looking into a surface, permission tokens, notifications, metadata, queues between Surfaces, running several terminals, headless PTYs, shared memory, observers, usage records, and other queries and settings, organised by purpose. Check every argument a command takes with `tasty help <command>`.
@@ -203,8 +203,9 @@ tasty list theme                       # the theme snapshot in effect (colors, f
 tasty list recent --kind markdown      # files recently opened as that kind
 tasty set cwd --surface 42 --path /tmp # change the working directory a remote surface reports
 tasty set url --surface 42 --url URL   # change the address of a webview surface (--label NAME: the name shown while the page is hidden)
-tasty surface html-script --surface 42 # script detection, allowance and notice state of an HTML surface (read only)
+tasty surface html-script --surface 42 # script and remote content detection, allowance and notice state of an HTML surface (read only)
 tasty surface html-script-allow --surface 42 --url <url> --fingerprint <hex>  # allow the scripts of the queried document and reload it; refused if the document changed; focus stays
+tasty surface html-remote-allow --surface 42 --url <url> --fingerprint <hex>  # allow remote content (network stylesheets, images, fonts, frames and scripts) for the queried document only and reload it; separate from the script allowance; focus stays
 tasty surface html-nav --surface 42    # the address of the document an HTML surface shows and whether it can go back or forward (read only)
 tasty surface html-back --surface 42   # go back in an HTML surface (html-forward: forward, html-reload: reload); focus stays; check the result with html-nav
 tasty hook-handler dispatch --id user/my-handler  # run a hook handler directly and wait for its final result

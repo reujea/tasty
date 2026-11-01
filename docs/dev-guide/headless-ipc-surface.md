@@ -329,7 +329,7 @@ markdown plugin 이 그 namespace 를 점유해 host 로 되돌리기 때문이�
 | `attach.into_gui` | 접수한 요청을 비워 mirror 를 만드는 쪽이 gui 의 `about_to_wait` 에만 있다. arm 이 헤드리스에 있던 동안은 자기 포트만 거절하고 `{queued:true}` 로 답한 뒤 요청을 처리하지 않았다. 지금은 engine 처리기에 arm 이 없어 자기 포트를 포함해 `-32017` 로 거절한다. GUI 는 app 층이 먼저 답하므로 이 arm 에 닿지 않는다. 시험 `tests/attach_silent_disconnect.rs` 의 `a_headless_daemon_refuses_gui_attach_without_taking_occupancy` |
 | `surface.html_back` · `surface.html_forward` · `surface.html_reload` | 이동을 실행하는 것이 gui 전용인 네이티브 WebView와 그것을 매 프레임 동기화하는 창이다. 헤드리스에는 html surface의 WebView가 없어 큐를 소비할 쪽이 없다 |
 | `surface.html_nav` | 읽는 주소와 히스토리 정보가 gui 전용인 네이티브 WebView에서 프레임마다 옮겨진다. 헤드리스에는 html surface의 WebView가 없어 답할 상태가 없다 |
-| `surface.html_script_allow` | 허용 뒤 재로드를 실행하는 것이 gui 전용인 네이티브 WebView와 그것을 매 프레임 동기화하는 창이다. 헤드리스에는 html surface의 WebView가 없어 허용할 문서가 없다 |
+| `surface.html_script_allow` · `surface.html_remote_allow` | 허용 뒤 재로드를 실행하는 것이 gui 전용인 네이티브 WebView와 그것을 매 프레임 동기화하는 창이다. 헤드리스에는 html surface의 WebView가 없어 허용할 문서가 없다 |
 | `surface.html_script` | 읽는 스크립트 상태가 gui 전용인 네이티브 WebView의 탐색 콜백에서만 채워진다. 헤드리스에는 html surface의 WebView가 없어 답할 상태가 없다 |
 
 ### `debug.*` 36 건

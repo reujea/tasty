@@ -7,6 +7,8 @@ pub(crate) mod cwd;
 #[cfg(feature = "gui")]
 mod html_history;
 #[cfg(feature = "gui")]
+mod html_remote_allow;
+#[cfg(feature = "gui")]
 mod html_script;
 #[cfg(feature = "gui")]
 mod html_script_allow;
@@ -23,6 +25,8 @@ pub(crate) use completion::handle_completion;
 pub(crate) use cwd::handle_set_cwd;
 #[cfg(feature = "gui")]
 pub(crate) use html_history::handle_html_history;
+#[cfg(feature = "gui")]
+pub(crate) use html_remote_allow::handle_html_remote_allow;
 #[cfg(feature = "gui")]
 pub(crate) use html_script::{handle_html_nav, handle_html_script};
 #[cfg(feature = "gui")]

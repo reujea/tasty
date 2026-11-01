@@ -3208,8 +3208,8 @@ long = "サーフェスの所属ペインとツリー内に残っているかを
 help = "サーフェスID（必須）"
 
 [cli.help._root.surface.html-script]
-about = "htmlサーフェスのスクリプト状態を出力：現在の文書の検出結果、実行許可の有無、バナーの状態"
-long = "htmlサーフェスのスクリプト状態を出力します。現在の文書の検出結果、実行許可の有無、バナーの状態を表示します。照会のみのため、バナーを表示したりユーザーが文書を見たと記録したりしません。対象は必ず --surface で指定します。ヘッドレスビルドでは使用できません。"
+about = "htmlサーフェスのスクリプト・リモートコンテンツの状態を出力：現在の文書の検出結果、スクリプト実行とリモートコンテンツ読み込みの許可の有無、案内の状態"
+long = "htmlサーフェスのスクリプト・リモートコンテンツの状態を出力します。現在の文書の検出結果、スクリプト実行とリモートコンテンツ読み込みの許可の有無、案内の状態を表示します。照会のみのため、バナーを表示したりユーザーが文書を見たと記録したりしません。対象は必ず --surface で指定します。ヘッドレスビルドでは使用できません。"
 
 [cli.help._root.surface.html-script.arg.surface]
 help = "サーフェスID（必須）"
@@ -3225,6 +3225,19 @@ help = "サーフェスID（必須）"
 help = "html-script が出力した文書の url。文書が異なれば拒否"
 
 [cli.help._root.surface.html-script-allow.arg.fingerprint]
+help = "html-script が出力した文書の fingerprint。異なれば拒否"
+
+[cli.help._root.surface.html-remote-allow]
+about = "リモートコンテンツの案内ボタンと同様に、htmlサーフェスが表示する文書にリモートコンテンツ（ネットワークのスタイルシート、画像、フォント、フレーム、スクリプト）を許可して再読み込み"
+long = "リモートコンテンツの案内ボタンと同様に、htmlサーフェスが表示する文書にリモートコンテンツ（ネットワークのスタイルシート、画像、フォント、フレーム、スクリプト）を許可して再読み込みします。許可はこの文書にのみ適用され、スクリプトの許可とは別です。html-script が出力した url と fingerprint を渡すと、照会後に置き換わった文書は許可せず拒否します。結果フィールドは \"allowed\" または \"already_allowed\" です。拒否した場合は unsupported_view、globally_allowed、document_changed、loading、no_document、no_fingerprint のいずれかで理由を示します。フォーカス、選択、アクティブなタブ、案内は変わりません。対象は必ず --surface で指定します。ヘッドレスビルドでは使用できません。"
+
+[cli.help._root.surface.html-remote-allow.arg.surface]
+help = "サーフェスID（必須）"
+
+[cli.help._root.surface.html-remote-allow.arg.url]
+help = "html-script が出力した文書の url。文書が異なれば拒否"
+
+[cli.help._root.surface.html-remote-allow.arg.fingerprint]
 help = "html-script が出力した文書の fingerprint。異なれば拒否"
 
 [cli.help._root.surface.html-nav]
