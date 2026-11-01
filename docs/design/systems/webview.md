@@ -41,7 +41,7 @@ PlatformWebView는 OS별 타입 중 cfg가 하나를 선택한다. 공통 호출
 | `nav_info` | — | `WebViewNavInfo` | commit 주소의 출처는 Linux 가 WebKitGTK `load-changed` Committed, macOS 가 WKWebView `didCommitNavigation`, Windows 가 WebView2 `ContentLoading` 이다. 주소 선택은 공통 `committed_document_url`(로드가 끝났으면 엔진 현재 주소, 로드 중·실패면 마지막 commit 주소)이다. 이동 가능 여부는 WebKitGTK `can_go_back`·`can_go_forward`, WKWebView `canGoBack`·`canGoForward`, WebView2 `CanGoBack`·`CanGoForward` 다. Windows 는 조회 실패를 웹뷰별 첫 번째만 warn 으로 남긴다. macOS·Windows 는 실 기기 미측정이다([html surface §문서 주소와 히스토리](../../surfaces/html/index.md#내부-동작)) |
 | `debug_stop` | — | — | debug 빌드 전용이다. 로드 중지를 재현한다. 사용자 진입점이 없는 조작이라 사용자 탐색 큐와 나눈다 |
 | `set_color_scheme` | `ColorScheme` | — | |
-| `set_remote_content_allowed` | `bool` | — | Linux 는 WebKit content filter 로 막는다(이 문서) |
+| `set_remote_content_allowed` | `bool` | — | 전역 설정 값이다. 실제로 막을지는 이 값과 스크립트 게이트의 문서 단위 원격 허용을 OR 한 실효값으로 정한다(아래 "원격 리소스 차단") |
 | `Drop` | — | — | 아래 "수명" |
 
 ## 생성 — 부모 handle 과 실패 분류
@@ -720,8 +720,10 @@ html 은 이 값을 전역 sandbox 로 받고 문서마다 스크립트를 판�
 일반 WebView의 allow_remote_content=false는 navigation과 페이지 내부 HTTP·HTTPS 요청을 함께 제한한다.
 원격 파일 entry 모드는 [별도 응답 경계](#원격-파일-entry-응답-모드)를 사용하며 이 설정으로 하위 파일이나 HTTP(S)를 활성화하지 않는다.
 Linux는 `^https?://` WebKit content filter를 홈의 webkit-content-filters 저장소에 비동기 컴파일한다.
-완료 callback은 그때의 설정을 다시 읽고, 토글은 기존 필터를 제거한 뒤 필요하면 붙인다.
+완료 callback은 그때의 차단 상태를 다시 읽고, 상태가 바뀌면 기존 필터를 제거한 뒤 필요하면 붙인다.
 macOS는 WKContentRuleList, Windows는 WebResourceRequested 거절을 사용한다. data URI는 원격 규칙에 해당하지 않는다.
+
+막을지는 `전역 설정 || 문서 단위 원격 허용` 실효값 하나로 정한다. 문서 단위 값은 스크립트 게이트가 응답 결정에서 정하며, backend의 `remote_block` 모듈이 게이트 전이마다 다시 읽어 적용한다. Windows는 요청마다 게이트를 읽는다. entry mirror는 늘 막고 HTTP view는 endpoint가 정한다. 규칙과 수명은 [html surface의 원격 콘텐츠 차단](../../surfaces/html/index.md#원격-콘텐츠-차단)에 있다.
 
 Linux는 필터 컴파일이 끝나기 전까지 차단하지 못하는 시간이 있으며 실패하면 경고를 남긴다. 첫 로드에서 원격 리소스가 차단되는지는 실제 화면·요청으로 확인한다.
 안전 바인딩에 없는 API만 FFI로 호출하고 boxed filter handle은 Drop에서 unref한다.
