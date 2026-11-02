@@ -114,27 +114,67 @@ impl Notice {
     }
 }
 
-/// 원격 안내가 이번 프레임에 화면에 있는지(재로드 뒤 페이드 중 포함). 주소 칸 표지는 안내가 없을 때만 그린다.
-pub fn remote_notice_on_screen(
+/// 원격 안내가 화면에 있는지. 실패 상태에서는 안내를 그리지 않고, 재로드 뒤 페이드 중이면 아직 화면에 있다.
+fn remote_notice_shown(phase: BannerPhase, load_failed: bool, fading: bool) -> bool {
+    !load_failed && (phase != BannerPhase::Hidden || fading)
+}
+
+/// 주소 칸 끝 표지. 원격 안내가 화면에 있는 동안에는 모델 표지가 있어도 그리지 않는다.
+fn address_marker(
+    phase: BannerPhase,
+    load_failed: bool,
+    fading: bool,
+    marker: Option<RemoteMarker>,
+) -> Option<HtmlRemoteMarkerKind> {
+    if remote_notice_shown(phase, load_failed, fading) {
+        return None;
+    }
+    marker.map(|marker| match marker {
+        RemoteMarker::Blocked => HtmlRemoteMarkerKind::Blocked,
+        RemoteMarker::Allowed => HtmlRemoteMarkerKind::Allowed,
+    })
+}
+
+/// 이번 프레임에 주소 칸 끝에 그릴 원격 표지. 원격 안내(재로드 뒤 페이드 포함)가 화면에 없을 때만 있다.
+pub fn remote_address_marker(
     ctx: &egui::Context,
     snapshot: &HtmlSnapshot,
     surface_id: u32,
-) -> bool {
-    if snapshot.load_failed {
-        return false;
-    }
-    snapshot.remote_phase != BannerPhase::Hidden
-        || ctx
-            .data(|d| d.get_temp::<FadeMemo>(Notice::Remote.memo_id(surface_id)))
-            .is_some_and(|m| m.showing_reload)
+) -> Option<HtmlRemoteMarkerKind> {
+    let fading = ctx
+        .data(|d| d.get_temp::<FadeMemo>(Notice::Remote.memo_id(surface_id)))
+        .is_some_and(|m| m.showing_reload);
+    address_marker(
+        snapshot.remote_phase,
+        snapshot.load_failed,
+        fading,
+        snapshot.remote_marker,
+    )
 }
 
-/// 모델 표지를 주소 칸 위젯 표지로 옮긴다.
-pub fn remote_marker_kind(marker: RemoteMarker) -> HtmlRemoteMarkerKind {
-    match marker {
-        RemoteMarker::Blocked => HtmlRemoteMarkerKind::Blocked,
-        RemoteMarker::Allowed => HtmlRemoteMarkerKind::Allowed,
+/// inset 안내 묶음의 세로 배치. 크기 안내가 있으면 그 카드 뒤에서 시작하고, 원격 → 스크립트 순서로
+/// `place(안내, 패널 위쪽 오프셋)`을 부른다. `place`는 그 안내를 그렸으면 패널 위쪽에서 카드 아래
+/// `banner_inset_gap`까지의 거리를 돌려준다. 각 카드는 자기 위에 `banner_margin`을 두므로 다음 패널은
+/// 앞 카드의 간격 끝에서 `gap`만큼 올라가 시작한다. 반환값은 페이지가 시작할 오프셋이다.
+fn stack_notices(
+    margin: LogicalPx,
+    gap: LogicalPx,
+    size: Option<LogicalPx>,
+    mut place: impl FnMut(Notice, LogicalPx) -> Option<LogicalPx>,
+) -> LogicalPx {
+    let mut next = LogicalPx(0.0);
+    let mut end = LogicalPx(0.0);
+    if let Some(height) = size {
+        next = margin + height;
+        end = next + gap;
     }
+    for notice in [Notice::Remote, Notice::Script] {
+        if let Some(h) = place(notice, next) {
+            end = next + h;
+            next = end - gap;
+        }
+    }
+    end
 }
 
 /// 주소 띠 아래 inset 안내 묶음(크기 → 원격 → 스크립트)을 그리고 `below` 위쪽에서 페이지가
@@ -149,24 +189,16 @@ pub fn draw_stack(
     below: egui::Rect,
     size: Option<LogicalPx>,
 ) -> LogicalPx {
-    let gap = theme.banner_inset_gap();
-    let mut next = LogicalPx(0.0);
-    let mut end = LogicalPx(0.0);
-    if let Some(height) = size {
-        next = theme.banner_margin() + height;
-        end = next + gap;
-    }
-    let Some(snapshot) = snapshot else {
-        return end;
-    };
-    for notice in [Notice::Remote, Notice::Script] {
-        let panel = below.with_min_y(below.min.y + next.value());
-        if let Some(h) = draw_one(ui, theme, snapshot, actions, surface_id, panel, notice) {
-            end = next + h;
-            next = end - gap;
-        }
-    }
-    end
+    stack_notices(
+        theme.banner_margin(),
+        theme.banner_inset_gap(),
+        size,
+        |notice, top| {
+            let snapshot = snapshot?;
+            let panel = below.with_min_y(below.min.y + top.value());
+            draw_one(ui, theme, snapshot, actions, surface_id, panel, notice)
+        },
+    )
 }
 
 /// `panel`에 안내 하나를 그리고 패널 위쪽에서 카드 아래 `banner_inset_gap`까지의 거리를 돌려준다.

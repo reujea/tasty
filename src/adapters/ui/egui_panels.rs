@@ -1,8 +1,6 @@
 use egui::emath::GuiRounding as _;
 
-use crate::adapters::ui::surface::html_script_banner::{
-    remote_marker_kind, remote_notice_on_screen,
-};
+use crate::adapters::ui::surface::html_script_banner::remote_address_marker;
 use crate::model::PhysicalRect;
 use crate::runtime::engine_read::EngineRead;
 use crate::state::MainViewState;
@@ -352,9 +350,7 @@ pub fn draw_egui_panels(
                                     received: received.as_ref(),
                                     remote_marker: html_snapshot
                                         .as_ref()
-                                        .filter(|s| !remote_notice_on_screen(ui.ctx(), s, sid))
-                                        .and_then(|s| s.remote_marker)
-                                        .map(remote_marker_kind),
+                                        .and_then(|s| remote_address_marker(ui.ctx(), s, sid)),
                                     native: &native_content,
                                 };
                             let frame = html_bands.draw(ui, &th, sid, panel, &source);
