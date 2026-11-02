@@ -1,5 +1,8 @@
 use egui::emath::GuiRounding as _;
 
+use crate::adapters::ui::surface::html_script_banner::{
+    remote_marker_kind, remote_notice_on_screen,
+};
 use crate::model::PhysicalRect;
 use crate::runtime::engine_read::EngineRead;
 use crate::state::MainViewState;
@@ -37,6 +40,12 @@ pub fn draw_egui_panels(
     let mut infos = Vec::new();
     let mut html_actions = Vec::new();
     let mut receive_actions = Vec::new();
+    // 원격 표지 툴팁이 피할 WebView 영역(탭 스트립 툴팁과 같은 목록).
+    let native_content: Vec<egui::Rect> = state
+        .native_content_rects
+        .iter()
+        .map(|r| crate::adapters::ui::to_egui_rect(*r, scale_factor))
+        .collect();
     {
         let ws = state.active_workspace(engine);
         let ws_id = ws.id;
@@ -320,6 +329,7 @@ pub fn draw_egui_panels(
                 let cwd = html_sid.and_then(|sid| engine.local_surface_cwd(sid));
                 let mirror = html_sid.is_some_and(|sid| engine.is_mirror_surface(sid));
                 let received = html_sid.and_then(|sid| engine.html_receive(sid));
+                let html_snapshot = html_sid.and_then(|sid| engine.html_script(sid));
                 let content_inset = draw_panel_frame(
                     ctx,
                     &format!("webview_chrome_{}", id_suffix),
@@ -329,7 +339,7 @@ pub fn draw_egui_panels(
                     |ui| {
                         let panel = ui.max_rect();
                         let th = theme::theme();
-                        // 시안 순서: 주소 띠 → 크기 배너 → 스크립트 배너 → 페이지.
+                        // 시안 순서: 주소 띠 → 크기 배너 → 원격 배너 → 스크립트 배너 → 페이지.
                         let band = html_sid.map(|sid| {
                             let source =
                                 crate::adapters::ui::surface::html_address::HtmlAddressSource {
@@ -340,10 +350,23 @@ pub fn draw_egui_panels(
                                     home: home.as_deref(),
                                     mirror,
                                     received: received.as_ref(),
+                                    remote_marker: html_snapshot
+                                        .as_ref()
+                                        .filter(|s| !remote_notice_on_screen(ui.ctx(), s, sid))
+                                        .and_then(|s| s.remote_marker)
+                                        .map(remote_marker_kind),
+                                    native: &native_content,
                                 };
                             let frame = html_bands.draw(ui, &th, sid, panel, &source);
                             if let Some(nav) = frame.nav {
                                 html_navs.push((sid, nav));
+                            }
+                            if frame.remote_reshow
+                                && let Some(snapshot) = &html_snapshot
+                            {
+                                html_actions.push(snapshot.request(
+                                    crate::runtime::html_script::HtmlActionKind::RemoteReshow,
+                                ));
                             }
                             frame.height
                         });
@@ -358,32 +381,23 @@ pub fn draw_egui_panels(
                                 &mut receive_actions,
                             )
                         });
-                        // The script view contributes its top margin and final gap. With a
-                        // size banner above it, that margin becomes the single inter-card gap.
-                        let before_script = size
-                            .map(|height| th.banner_margin() + height)
-                            .unwrap_or_default();
-                        let script_panel = below.with_min_y(below.min.y + before_script.value());
-                        let script = html_sid.and_then(|sid| {
-                            engine.html_script(sid).and_then(|snapshot| {
-                                crate::adapters::ui::surface::html_script_banner::draw(
+                        let banners = html_sid.map_or_else(
+                            || {
+                                size.map(|h| th.banner_margin() + h + th.banner_inset_gap())
+                                    .unwrap_or_default()
+                            },
+                            |sid| {
+                                crate::adapters::ui::surface::html_script_banner::draw_stack(
                                     ui,
                                     &th,
-                                    &snapshot,
+                                    html_snapshot.as_ref(),
                                     &mut html_actions,
                                     sid,
-                                    script_panel,
+                                    below,
+                                    size,
                                 )
-                            })
-                        });
-                        let banners = before_script
-                            + script.unwrap_or_else(|| {
-                                if size.is_some() {
-                                    th.banner_inset_gap()
-                                } else {
-                                    Default::default()
-                                }
-                            });
+                            },
+                        );
                         let page = below.with_min_y(below.min.y + banners.value());
                         let [left, right, bottom] = info.webview_inset;
                         let content = egui::Rect::from_min_max(

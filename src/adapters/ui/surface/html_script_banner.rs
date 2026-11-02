@@ -1,4 +1,5 @@
-//! html surface의 스크립트 차단 배너를 webview chrome 위에 inset으로 그린다(docs/surfaces/html/index.md).
+//! html surface의 원격 콘텐츠·스크립트 차단 배너를 webview chrome 위에 inset으로 그린다
+//! (docs/surfaces/html/index.md). 크기 안내 아래에 원격 → 스크립트 순서로 쌓는다.
 //!
 //! 배너 단계는 `tasty_model::html_script`가 정하고 여기서는 읽기만 한다. 그린 카드 아래
 //! `banner_inset_gap`까지의 높이를 돌려주면 호출자가 native WebView를 그만큼 내린다.
@@ -6,12 +7,12 @@
 //! 로드가 실패하면 배너를 페이드 없이 바로 내린다.
 //! 배너는 키보드 포커스를 가져가지 않고, 클릭은 사용자 조작으로만 상태를 바꾼다.
 
-use tasty_model::html_script::BannerPhase;
+use tasty_model::html_script::{BannerPhase, RemoteMarker};
 use tasty_type_appearance::theme::Theme;
 use tasty_type_geometry::length::LogicalPx;
 use tasty_ui_widgets::{
-    HtmlScriptBannerState, HtmlScriptBannerView, html_script_banner, html_script_banner_is_narrow,
-    inset_banner_zone,
+    HtmlRemoteBannerView, HtmlRemoteMarkerKind, HtmlScriptBannerState, HtmlScriptBannerView,
+    html_remote_banner, html_script_banner, html_script_banner_is_narrow, inset_banner_zone,
 };
 
 use crate::runtime::html_script::{HtmlAction, HtmlActionKind, HtmlSnapshot};
@@ -90,19 +91,96 @@ fn resolve(
     }
 }
 
-/// `panel`에 배너를 그리고 패널 위쪽에서 페이지가 시작할 곳까지의 거리를 돌려준다.
-/// 배너가 없으면 `None`이다. 허용·닫기는 표시한 문서에 묶인 App 요청으로 반환한다.
-pub fn draw(
+/// 같은 inset 묶음에 쌓는 안내의 종류. 쌓는 순서는 원격 → 스크립트다.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Notice {
+    Remote,
+    Script,
+}
+
+impl Notice {
+    fn memo_id(self, surface_id: u32) -> egui::Id {
+        match self {
+            Self::Remote => egui::Id::new(("html_remote_banner_fade", surface_id)),
+            Self::Script => egui::Id::new(("html_script_banner_fade", surface_id)),
+        }
+    }
+
+    fn phase(self, snapshot: &HtmlSnapshot) -> BannerPhase {
+        match self {
+            Self::Remote => snapshot.remote_phase,
+            Self::Script => snapshot.phase,
+        }
+    }
+}
+
+/// 원격 안내가 이번 프레임에 화면에 있는지(재로드 뒤 페이드 중 포함). 주소 칸 표지는 안내가 없을 때만 그린다.
+pub fn remote_notice_on_screen(
+    ctx: &egui::Context,
+    snapshot: &HtmlSnapshot,
+    surface_id: u32,
+) -> bool {
+    if snapshot.load_failed {
+        return false;
+    }
+    snapshot.remote_phase != BannerPhase::Hidden
+        || ctx
+            .data(|d| d.get_temp::<FadeMemo>(Notice::Remote.memo_id(surface_id)))
+            .is_some_and(|m| m.showing_reload)
+}
+
+/// 모델 표지를 주소 칸 위젯 표지로 옮긴다.
+pub fn remote_marker_kind(marker: RemoteMarker) -> HtmlRemoteMarkerKind {
+    match marker {
+        RemoteMarker::Blocked => HtmlRemoteMarkerKind::Blocked,
+        RemoteMarker::Allowed => HtmlRemoteMarkerKind::Allowed,
+    }
+}
+
+/// 주소 띠 아래 inset 안내 묶음(크기 → 원격 → 스크립트)을 그리고 `below` 위쪽에서 페이지가
+/// 시작할 곳까지의 거리를 돌려준다. `size`는 이미 그린 크기 안내 카드의 높이다.
+/// 각 카드는 자기 위에 `banner_margin`을 두므로 앞 카드의 끝이 다음 카드 영역의 시작이 된다.
+pub fn draw_stack(
+    ui: &mut egui::Ui,
+    theme: &Theme,
+    snapshot: Option<&HtmlSnapshot>,
+    actions: &mut Vec<HtmlAction>,
+    surface_id: u32,
+    below: egui::Rect,
+    size: Option<LogicalPx>,
+) -> LogicalPx {
+    let gap = theme.banner_inset_gap();
+    let mut next = LogicalPx(0.0);
+    let mut end = LogicalPx(0.0);
+    if let Some(height) = size {
+        next = theme.banner_margin() + height;
+        end = next + gap;
+    }
+    let Some(snapshot) = snapshot else {
+        return end;
+    };
+    for notice in [Notice::Remote, Notice::Script] {
+        let panel = below.with_min_y(below.min.y + next.value());
+        if let Some(h) = draw_one(ui, theme, snapshot, actions, surface_id, panel, notice) {
+            end = next + h;
+            next = end - gap;
+        }
+    }
+    end
+}
+
+/// `panel`에 안내 하나를 그리고 패널 위쪽에서 카드 아래 `banner_inset_gap`까지의 거리를 돌려준다.
+/// 안내가 없으면 `None`이다. 허용·닫기는 표시한 문서에 묶인 App 요청으로 반환한다.
+fn draw_one(
     ui: &mut egui::Ui,
     theme: &Theme,
     snapshot: &HtmlSnapshot,
     actions: &mut Vec<HtmlAction>,
     surface_id: u32,
     panel: egui::Rect,
+    notice: Notice,
 ) -> Option<LogicalPx> {
-    let phase = snapshot.phase;
-    let remote_body = snapshot.remote_body;
-    let memo_id = egui::Id::new(("html_script_banner_fade", surface_id));
+    let memo_id = notice.memo_id(surface_id);
     let memo = ui
         .ctx()
         .data(|d| d.get_temp::<FadeMemo>(memo_id))
@@ -112,7 +190,12 @@ pub fn draw(
     let (shown, memo) = if snapshot.load_failed {
         (None, FadeMemo::default())
     } else {
-        resolve(phase, memo, now, theme.banner_fade().to_secs_f64())
+        resolve(
+            notice.phase(snapshot),
+            memo,
+            now,
+            theme.banner_fade().to_secs_f64(),
+        )
     };
     ui.ctx().data_mut(|d| d.insert_temp(memo_id, memo));
     let shown = shown?;
@@ -121,30 +204,56 @@ pub fn draw(
     }
 
     let t = crate::i18n::t;
-    let view = HtmlScriptBannerView {
-        title: t("banner.html_script.title"),
-        body: t(if remote_body {
-            "banner.html_script.body_remote"
-        } else {
-            "banner.html_script.body"
-        }),
-        action: t("banner.html_script.action"),
-        reloading: t("banner.html_script.reloading"),
-        loading_tooltip: t("banner.html_script.action_loading"),
-        state: shown.state,
-        narrow: html_script_banner_is_narrow(panel.width(), theme),
-        force_hover: false,
-    };
+    let narrow = html_script_banner_is_narrow(panel.width(), theme);
     let mut child = ui.new_child(egui::UiBuilder::new().max_rect(inset_banner_zone(panel, theme)));
     child.set_clip_rect(panel);
     child.set_opacity(shown.alpha);
-    let out = html_script_banner(&mut child, theme, &view);
+    let (out, allow, dismiss) = match notice {
+        Notice::Script => {
+            let view = HtmlScriptBannerView {
+                title: t("banner.html_script.title"),
+                body: t(if snapshot.remote_body {
+                    "banner.html_script.body_remote"
+                } else {
+                    "banner.html_script.body"
+                }),
+                action: t("banner.html_script.action"),
+                reloading: t("banner.html_script.reloading"),
+                loading_tooltip: t("banner.html_script.action_loading"),
+                state: shown.state,
+                narrow,
+                force_hover: false,
+            };
+            (
+                html_script_banner(&mut child, theme, &view),
+                HtmlActionKind::Allow,
+                HtmlActionKind::Dismiss,
+            )
+        }
+        Notice::Remote => {
+            let view = HtmlRemoteBannerView {
+                title: t("banner.html_remote.title"),
+                body: t("banner.html_remote.body"),
+                action: t("banner.html_remote.action"),
+                reloading: t("banner.html_remote.reloading"),
+                loading_tooltip: t("banner.html_remote.action_loading"),
+                state: shown.state,
+                narrow,
+                force_hover: false,
+            };
+            (
+                html_remote_banner(&mut child, theme, &view),
+                HtmlActionKind::RemoteAllow,
+                HtmlActionKind::RemoteDismiss,
+            )
+        }
+    };
     if shown.alpha >= 1.0 {
         if out.allow_clicked {
-            actions.push(snapshot.request(HtmlActionKind::Allow));
+            actions.push(snapshot.request(allow));
         } else if out.dismiss_clicked {
-            tracing::debug!("html script banner: surface {surface_id} dismissed by the user");
-            actions.push(snapshot.request(HtmlActionKind::Dismiss));
+            tracing::debug!("html {notice:?} banner: surface {surface_id} dismissed by the user");
+            actions.push(snapshot.request(dismiss));
         }
     }
     Some(LogicalPx(

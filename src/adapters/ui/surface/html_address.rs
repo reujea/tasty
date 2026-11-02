@@ -14,7 +14,8 @@ use tasty_type_appearance::theme::Theme;
 use tasty_type_geometry::length::LogicalPx;
 use tasty_ui_widgets::{
     HtmlAddressAction, HtmlAddressKind, HtmlAddressLabels, HtmlAddressState, HtmlAddressView,
-    html_address_bar, html_address_field_id, html_address_surrender_focus,
+    HtmlRemoteMarkerKind, HtmlRemoteMarkerView, html_address_bar, html_address_field_id,
+    html_address_surrender_focus,
 };
 use tasty_utils::html_address::{
     AddressError, AddressTarget, LocalFileStatus, resolve_html_address,
@@ -75,6 +76,10 @@ pub(crate) struct HtmlAddressSource<'a> {
     /// mirror workspace의 html leaf. 수신 모델이 없는 placeholder에는 띠를 숨긴다.
     pub mirror: bool,
     pub received: Option<&'a crate::runtime::html_receive::ReceiveSnapshot>,
+    /// 주소 칸 끝 원격 콘텐츠 표지. 원격 안내가 화면에 있으면 호출자가 `None`을 넣는다.
+    pub remote_marker: Option<tasty_ui_widgets::HtmlRemoteMarkerKind>,
+    /// egui 위에 그려지는 WebView 영역. 표지 툴팁이 피한다.
+    pub native: &'a [egui::Rect],
 }
 
 /// 입력을 확정했을 때 할 일.
@@ -263,6 +268,8 @@ pub(crate) struct BandFrame {
     pub height: LogicalPx,
     /// 탐색 큐에 넣을 사용자 조작.
     pub nav: Option<WebViewUserNav>,
+    /// 사용자가 차단 원격 표지를 눌러 안내를 다시 불렀다.
+    pub remote_reshow: bool,
 }
 
 impl HtmlAddressBands {
@@ -386,7 +393,15 @@ impl HtmlAddressBands {
                 }),
             disconnected: source.received.is_some_and(|r| !r.connected),
             skipped: skipped.as_deref().zip(declined.as_deref()),
-            remote_marker: None,
+            remote_marker: source.remote_marker.map(|kind| HtmlRemoteMarkerView {
+                kind,
+                tooltip: t(match kind {
+                    HtmlRemoteMarkerKind::Blocked => "banner.html_remote.marker_blocked",
+                    HtmlRemoteMarkerKind::Allowed => "banner.html_remote.marker_allowed",
+                }),
+                force_hover: false,
+                native: source.native,
+            }),
             focus,
             labels: HtmlAddressLabels {
                 placeholder: t("html_address.placeholder"),
@@ -443,6 +458,7 @@ impl HtmlAddressBands {
         BandFrame {
             height: LogicalPx(out.rect.height()),
             nav,
+            remote_reshow: out.remote_marker_clicked,
         }
     }
 }

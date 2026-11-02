@@ -27,6 +27,8 @@ fn source<'a>(
         home: None,
         mirror: false,
         received: None,
+        remote_marker: None,
+        native: &[],
     }
 }
 
@@ -320,4 +322,41 @@ fn the_mirror_placeholder_hides_the_band() {
     let ctx = egui::Context::default();
     let mut bands = HtmlAddressBands::default();
     assert_eq!(run(&ctx, &mut bands, &src, vec![]).height.value(), 0.0);
+}
+
+/// 차단 원격 표지를 누르면 안내 다시 보이기만 알리고 탐색이나 주소 편집을 시작하지 않는다.
+#[test]
+fn the_blocked_remote_marker_reshows_the_notice_without_navigating() {
+    let theme = tasty_themes::mocha_fallback();
+    let info = tasty_model::WebViewNavInfo::default();
+    let src = HtmlAddressSource {
+        remote_marker: Some(tasty_ui_widgets::HtmlRemoteMarkerKind::Blocked),
+        ..source(&info, None)
+    };
+    let ctx = egui::Context::default();
+    let mut bands = HtmlAddressBands::default();
+    run(&ctx, &mut bands, &src, vec![]);
+    // 표지 칸은 필드 오른쪽 padding으로 space-xs 들어간 자리의 20 칸이다(위젯 시험이 위치를 고정한다).
+    let field_right = 800.0 - theme.html_address_bar_padding_x().value();
+    let right = field_right - theme.input_padding_x().value() + theme.spacing_xs.value();
+    let p = egui::pos2(
+        right - theme.html_remote_marker_hit().value() / 2.0,
+        theme.html_address_bar_height().value() / 2.0,
+    );
+    let press = |pressed| egui::Event::PointerButton {
+        pos: p,
+        button: egui::PointerButton::Primary,
+        pressed,
+        modifiers: egui::Modifiers::NONE,
+    };
+    run(
+        &ctx,
+        &mut bands,
+        &src,
+        vec![egui::Event::PointerMoved(p), press(true)],
+    );
+    let out = run(&ctx, &mut bands, &src, vec![press(false)]);
+    assert!(out.remote_reshow);
+    assert!(out.nav.is_none());
+    assert!(!bands.has_keyboard_focus());
 }
