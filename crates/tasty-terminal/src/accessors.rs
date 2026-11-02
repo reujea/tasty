@@ -153,6 +153,23 @@ impl Terminal {
         }
     }
 
+    /// 처음으로 출력을 처리한 시각. 출력이 없었거나 락이 사용 중이면 None을 반환하므로
+    /// 호출자는 다음 확인 때 다시 묻는다. `OutputAppended` 게이트와 관계없이 기록된다.
+    pub fn first_output_at(&self) -> Option<std::time::Instant> {
+        match self.state.try_lock() {
+            Ok(st) => st.first_output_at,
+            Err(std::sync::TryLockError::WouldBlock) => None,
+            Err(std::sync::TryLockError::Poisoned(p)) => {
+                tasty_utils::poison::recover_poisoned(
+                    p,
+                    crate::STATE_WHAT,
+                    &crate::STATE_POISON_REPORTED,
+                )
+                .first_output_at
+            }
+        }
+    }
+
     /// Whether the renderer should temporarily hide the focused text cursor
     /// while a program is repainting terminal output. This suppresses visible
     /// intermediate cursor hops from redraw-heavy TUIs/CLIs, but leaves plain

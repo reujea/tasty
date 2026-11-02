@@ -509,6 +509,8 @@ pub(crate) enum CoreEvent {
     },
 
     /// 출력 이후 일정 시간 동안 OSC 133 경계가 없다는 안내 요청. 셸 통합 미설치를 확정한 것은 아니다.
+    /// 배너로만 소비되므로 GUI 조합에만 있다.
+    #[cfg(feature = "gui")]
     TerminalShellIntegrationHint {
         surface_id: u32,
         generation: tasty_terminal::ResourceGeneration,
@@ -642,15 +644,15 @@ impl CoreEvent {
                 generation,
                 ..
             }
-            | Self::TerminalShellIntegrationHint {
-                surface_id,
-                generation,
-                ..
-            }
             | Self::TerminalClipboardSet {
                 surface_id,
                 generation,
                 ..
+            } => Some((*surface_id, *generation)),
+            #[cfg(feature = "gui")]
+            Self::TerminalShellIntegrationHint {
+                surface_id,
+                generation,
             } => Some((*surface_id, *generation)),
             _ => None,
         }

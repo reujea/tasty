@@ -495,6 +495,7 @@ impl ApplicationHandler<AppEvent> for App {
                     self.poll_busy_states();
                     self.poll_global_hooks();
                     self.poll_idle_timeout_hooks();
+                    self.poll_shell_integration_hints();
                 }
                 Tick::AttachView => self.poll_attach_views(),
                 Tick::LayoutFlush => self.flush_layout_persistence(false),

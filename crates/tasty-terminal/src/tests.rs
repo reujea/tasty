@@ -2577,3 +2577,15 @@ fn title_only_output_still_refreshes_last_output_at() {
     t.process_bytes(b"\x1b]0;title\x07");
     assert!(t.last_output_at().elapsed() < BUSY_OUTPUT_WINDOW);
 }
+
+/// 첫 출력 시각은 `OutputAppended` 게이트가 꺼져 있어도 기록되고 이후 출력으로 바뀌지 않는다.
+#[test]
+fn first_output_at_is_recorded_with_output_events_disabled() {
+    let mut t = Terminal::new_detached(80, 24);
+    t.set_output_events_enabled(false);
+    assert_eq!(t.first_output_at(), None);
+    t.feed_bytes(b"$ ");
+    let first = t.first_output_at().expect("first output");
+    t.feed_bytes(b"more");
+    assert_eq!(t.first_output_at(), Some(first));
+}

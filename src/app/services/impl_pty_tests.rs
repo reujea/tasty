@@ -128,3 +128,103 @@ fn osc52_clipboard_result_retains_generation_and_rpc_failure_has_no_event() {
         assert_eq!(state.toasts.messages(), vec![crate::i18n::t(key)]);
     }
 }
+
+/// 훅·observer가 없는 surface는 `OutputAppended`를 만들지 않는다. 그래도 출력 뒤 마감이 지나면
+/// 셸 통합 안내가 판정돼야 한다. 출력 이벤트 게이트가 꺼진 상태를 유지하는지도 확인한다.
+/// 판정 대상은 로컬 PTY가 있는 surface이므로 출력이 없는 실제 자식을 붙인다.
+#[test]
+#[cfg(unix)]
+fn shell_integration_hint_is_judged_without_output_events() {
+    let mut core = crate::adapters::ipc::handler::cli_entry_tests::test_core_builder()
+        .build()
+        .expect("core");
+    let (state, mut session) = crate::state::tests::test_state();
+    let mut engine = session.borrow_mut();
+    let sid = *engine
+        .workspace_at(state.active_workspace_index(&engine.read()))
+        .expect("workspace")
+        .all_surface_ids()
+        .first()
+        .expect("surface");
+    let local = tasty_terminal::spawn_terminal(
+        tasty_terminal::TerminalConfig {
+            cols: 80,
+            rows: 24,
+            shell: Some("/bin/sh"),
+            args: &["-c", "exec sleep 60"],
+            surface_id: sid,
+            working_dir: None,
+            initial_input: None,
+            extra_env: &[],
+        },
+        std::sync::Arc::new(|| {}),
+    )
+    .expect("local child");
+    engine
+        .replace_terminal_by_id(sid, local)
+        .expect("replace terminal");
+    assert!(!engine.observer_router.wants(sid));
+    assert!(!engine.hooks.has_output_match_hook(sid));
+    assert!(
+        engine.runtime.terminals.pty(sid).is_some(),
+        "판정 대상은 로컬 PTY가 있는 surface다"
+    );
+
+    // 게이트는 처리 회차 시작에 맞춰지므로 한 번 처리한 뒤 출력을 넣고 drain 전에 이벤트를 본다.
+    core.process_all_pty_output(&mut engine);
+    engine
+        .find_terminal_by_id_mut(sid)
+        .expect("terminal surface")
+        .feed_bytes(b"$ echo hi\r\nhi\r\n$ ");
+    let raw = engine.collect_events();
+    assert!(
+        !raw.iter().any(|e| matches!(
+            e.kind,
+            tasty_terminal::TerminalEventKind::OutputAppended { .. }
+        )),
+        "훅·observer가 없는 surface에서 출력 이벤트 게이트가 켜졌다"
+    );
+
+    assert!(engine.take_due_shell_integration_hints().is_empty());
+    let first = engine
+        .live
+        .shell_integration_first_output_at
+        .get_mut(&sid)
+        .expect("출력 이벤트 없이도 첫 출력 시각을 기록해야 한다");
+    *first = std::time::Instant::now() - std::time::Duration::from_secs(999);
+
+    let generation = engine
+        .runtime
+        .terminals
+        .generation(sid)
+        .expect("generation");
+    assert_eq!(
+        engine.take_due_shell_integration_hints(),
+        vec![(sid, generation)]
+    );
+    assert!(engine.take_due_shell_integration_hints().is_empty());
+}
+
+/// 로컬 PTY가 없는 attach mirror는 출력이 있고 마감이 지나도 셸 통합 안내를 요청하지 않는다.
+#[test]
+fn shell_integration_hint_skips_terminals_without_a_local_pty() {
+    let (_state, mut session) = crate::state::tests::test_state();
+    let mut engine = session.borrow_mut();
+    let mirror_sid = 9_001;
+    let mut mirror = tasty_terminal::Terminal::new_detached(80, 24);
+    mirror.feed_bytes(b"user@remote:~$ ");
+    assert!(mirror.first_output_at().is_some());
+    engine.runtime.terminals.insert(mirror_sid, mirror, None);
+    engine.live.shell_integration_first_output_at.insert(
+        mirror_sid,
+        std::time::Instant::now() - std::time::Duration::from_secs(999),
+    );
+
+    assert!(
+        !engine
+            .take_due_shell_integration_hints()
+            .iter()
+            .any(|(sid, _)| *sid == mirror_sid),
+        "로컬 PTY가 없는 mirror에 셸 통합 안내를 요청했다"
+    );
+}

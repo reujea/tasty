@@ -195,6 +195,8 @@ pub(crate) struct TerminalState {
     restorable_scrollback_count: usize,
     /// Timestamp of the most recent non-empty PTY output processed.
     last_output_at: std::time::Instant,
+    /// 처음으로 비어 있지 않은 출력을 처리한 시각. 출력 이벤트 게이트와 관계없이 기록한다.
+    first_output_at: Option<std::time::Instant>,
     /// busy 판정이 쓰는 마지막 활동 출력 시각. 제목만 바꾸는 action 뿐인 출력은 갱신하지 않는다.
     last_activity_at: std::time::Instant,
     /// Timestamp of the most recent user input sent to the PTY.
@@ -422,6 +424,7 @@ impl TerminalState {
             saved_line_tails: Vec::new(),
             restorable_scrollback_count: 0,
             last_output_at: std::time::Instant::now(),
+            first_output_at: None,
             last_activity_at: std::time::Instant::now(),
             // Start in the past so the first PTY output is never mistaken for echo.
             last_input_at: std::time::Instant::now() - INPUT_ECHO_WINDOW,
@@ -455,6 +458,7 @@ impl TerminalState {
         }
         self.output.append(data);
         self.last_output_at = std::time::Instant::now();
+        self.first_output_at.get_or_insert(self.last_output_at);
         self.fan_out_to_taps(data);
 
         let mut changed = false;

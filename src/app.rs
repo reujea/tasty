@@ -82,6 +82,8 @@ pub(crate) mod screenshot_capture;
 pub(crate) mod services;
 pub(crate) mod settings_change;
 #[cfg(feature = "gui")]
+mod shell_integration_hint_poll;
+#[cfg(feature = "gui")]
 pub(crate) mod shutdown_cascade;
 #[cfg(feature = "gui")]
 pub(crate) mod shutdown_machine;

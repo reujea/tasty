@@ -123,14 +123,6 @@ impl AppServices {
                 });
             }
         }
-        // 첫 출력 이후 경계 보고가 없으면 셸 통합 안내를 요청한다. 이 경로는 출력이 올 때 실행된다.
-        engine.note_first_output(sid);
-        if engine.take_shell_integration_hint_due(sid) {
-            out.push(CoreEvent::TerminalShellIntegrationHint {
-                generation,
-                surface_id: sid,
-            });
-        }
     }
 
     /// 끝난 명령 기록의 한도 알림을 연결이 그대로인 터미널에만 낸다.
