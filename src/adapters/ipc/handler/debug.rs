@@ -314,10 +314,7 @@ pub(super) fn handle_debug_banner_show(
     let Some(scope) = crate::adapters::ui::BannerScope::from_token(scope_token) else {
         return JsonRpcResponse::error(id, -32602, format!("invalid scope '{scope_token}'"));
     };
-    let banner = match def.ttl_seconds {
-        Some(secs) => crate::adapters::ui::BannerState::with_ttl(def.id, scope, secs),
-        None => crate::adapters::ui::BannerState::persistent(def.id, scope),
-    };
+    let banner = crate::adapters::ui::BannerState::from_def(def, scope);
     let outcome = state.banners.push(banner);
     JsonRpcResponse::success(id, json!({ "outcome": format!("{outcome:?}") }))
 }

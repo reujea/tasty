@@ -1,4 +1,4 @@
-<!-- source-hash: 246cd61e4513 -->
+<!-- source-hash: 19397694f068 -->
 # Working with the terminal
 
 Copy the output you need, search terminal history, and open file paths as you work. You can also select text without a mouse and receive notifications when work finishes.
@@ -14,7 +14,7 @@ Set under **Settings** > **Terminal**.
 - **Inherit working directory** — starts a new terminal in the current terminal's directory (on by default).
 - **Confirm close running process** — asks for confirmation when closing a terminal in which a program is running.
 
-bash (4.4 or later) and zsh get shell integration with no extra setup. The Tab name follows the current directory, the git branch appears in the status bar, and you can attach hooks to command completion ([Hooks · notifications](../agents/hooks-notifications.md)). Other shells such as fish need to be set up by hand, and until then the **Shell integration not detected** banner may appear.
+bash (4.4 or later) and zsh get shell integration with no extra setup. The Tab name follows the current directory, the git branch appears in the status bar, and you can attach hooks to command completion ([Hooks · notifications](../agents/hooks-notifications.md)). Other shells such as fish need to be set up by hand, and until then the **Shell integration not detected** banner may appear. It closes on its own after 10 seconds, and waits while the pointer is over it.
 
 When the program exits and the shell ends, that Surface closes automatically.
 

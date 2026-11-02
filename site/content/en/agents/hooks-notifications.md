@@ -1,4 +1,4 @@
-<!-- source-hash: a154666edd1d -->
+<!-- source-hash: 97a4ed429393 -->
 # Hooks, notifications and webhooks
 
 Get a notification when a build finishes, or run a command when a message appears in the logs. **Hooks** run commands in response to events, and **notifications** let you know when to check back. Use **webhooks** to send requests to Tasty from an external service.
@@ -33,7 +33,7 @@ tasty unset hook --hook <HOOK_ID>
 
 - Add `--once` and the hook is removed automatically after firing once. By default it stays.
 - Hook commands run in the background and do not block terminal input.
-- `command-completed` never fires without shell integration. A guidance banner appears once on Surfaces that lack shell integration.
+- `command-completed` never fires without shell integration. A guidance banner appears once on Surfaces that lack shell integration and closes on its own after 10 seconds.
 
 Event information reaches the command through environment variables.
 

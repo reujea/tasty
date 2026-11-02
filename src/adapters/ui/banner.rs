@@ -32,8 +32,10 @@ pub struct BannerDef {
     /// 고유 id = kind. 같은 id 는 한 스코프에 하나만 존재한다.
     pub id: BannerId,
     /// TTL(초). `None` 이면 사용자 닫기까지 유지, `Some` 이면 카운트다운 후 자동 소멸.
-    // 이유: 제품 배너는 persistent로 직접 열고 이 정의의 TTL은 디버그 경로에서만 읽는다.
-    #[allow(dead_code)]
+    /// 사용자 동작(버튼·⋯ 메뉴 행, ×는 제외)이 없는 배너는 `Some`, 동작이 있는 배너는 `None`이다.
+    /// 이 규칙의 예외는 해당 정의 위치의 주석에 이유와 함께 개발자의 명확한 지시가 있었다는
+    /// 사실과 지시 날짜를 적는다(`docs/principles/feedback-and-recovery.md`의 배너 절).
+    /// 정의로 배너를 열 때는 `BannerState::from_def`를 써서 이 값을 그대로 따른다.
     pub ttl_seconds: Option<u32>,
     /// 셸 내부 콘텐츠 draw 함수.
     pub content_fn: BannerContentFn,
@@ -109,10 +111,15 @@ impl BannerState {
         self
     }
 
+    /// 정의의 TTL을 따라 `with_ttl` 또는 `persistent`로 만든다.
+    pub fn from_def(def: &BannerDef, scope: BannerScope) -> Self {
+        match def.ttl_seconds {
+            Some(seconds) => Self::with_ttl(def.id, scope, seconds),
+            None => Self::persistent(def.id, scope),
+        }
+    }
+
     /// TTL(초) 배너 — 카운트다운 0 에서 자동 소멸.
-    // 이유: 호출부가 debug.rs(`#![cfg(debug_assertions)]`)와 `#[cfg(test)]` 뿐이라
-    // release+non-test 빌드에서 미사용으로 잡힌다.
-    #[cfg_attr(not(debug_assertions), allow(dead_code))]
     pub fn with_ttl(id: BannerId, scope: BannerScope, seconds: u32) -> Self {
         let ms = seconds as f32 * 1000.0;
         Self {
@@ -984,6 +991,17 @@ pub mod defs {
     /// 출력이 있는데도 PromptBoundary를 받지 못하면 안내한다. 자동으로 설치하거나 수정하지 않는다.
     pub const BANNER_SHELL_INTEGRATION_MISSING: BannerId = "shell-integration-missing";
 
+    /// 셸 통합 안내의 TTL(초). 동작이 없는 배너라 자동으로 닫힌다. 본문을 읽고 알아차릴
+    /// 시간을 둔 디자인 고정값이며 설정으로 노출하지 않는다.
+    pub const SHELL_INTEGRATION_MISSING_TTL_SECONDS: u32 = 10;
+
+    /// 셸 통합 안내 정의. 제품 경로는 `BannerState::from_def`로 이 정의를 연다.
+    pub const SHELL_INTEGRATION_MISSING: BannerDef = BannerDef {
+        id: BANNER_SHELL_INTEGRATION_MISSING,
+        ttl_seconds: Some(SHELL_INTEGRATION_MISSING_TTL_SECONDS),
+        content_fn: content_shell_integration_missing,
+    };
+
     fn content_shell_integration_missing(ui: &mut egui::Ui, theme: &Theme) {
         ui.horizontal_top(|ui| {
             ui.spacing_mut().item_spacing.x = theme.spacing_md.value();
@@ -1024,11 +1042,7 @@ pub mod defs {
             ttl_seconds: None,
             content_fn: content_mouse_capture,
         },
-        BannerDef {
-            id: BANNER_SHELL_INTEGRATION_MISSING,
-            ttl_seconds: None,
-            content_fn: content_shell_integration_missing,
-        },
+        SHELL_INTEGRATION_MISSING,
     ];
 
     pub fn find(id: &str) -> Option<&'static BannerDef> {
@@ -1169,6 +1183,44 @@ mod tests {
         assert_eq!(mgr.shown_banners().next().unwrap().remaining_ms, 5000.0);
         mgr.advance(1000.0, |_, _| false);
         assert_eq!(mgr.shown_banners().next().unwrap().remaining_ms, 4000.0);
+    }
+
+    #[test]
+    fn shell_integration_banner_expires_after_its_ttl() {
+        let mut mgr = BannerManager::new();
+        let scope = BannerScope::Surface(1);
+        mgr.push(BannerState::with_ttl(
+            defs::BANNER_SHELL_INTEGRATION_MISSING,
+            scope.clone(),
+            defs::SHELL_INTEGRATION_MISSING_TTL_SECONDS,
+        ));
+        assert_eq!(
+            defs::find(defs::BANNER_SHELL_INTEGRATION_MISSING).and_then(|d| d.ttl_seconds),
+            Some(10)
+        );
+        mgr.advance(9_900.0, |_, _| false);
+        assert_eq!(
+            mgr.shown_banners().next().map(|b| b.id),
+            Some(defs::BANNER_SHELL_INTEGRATION_MISSING)
+        );
+        mgr.advance(200.0, |_, _| false);
+        assert_eq!(mgr.shown_banners().count(), 0);
+    }
+
+    #[test]
+    fn shell_integration_banner_stays_while_paused() {
+        let mut mgr = BannerManager::new();
+        let scope = BannerScope::Surface(1);
+        mgr.push(BannerState::with_ttl(
+            defs::BANNER_SHELL_INTEGRATION_MISSING,
+            scope.clone(),
+            defs::SHELL_INTEGRATION_MISSING_TTL_SECONDS,
+        ));
+        mgr.advance(60_000.0, |_, _| true);
+        assert_eq!(
+            mgr.shown_banners().next().map(|b| b.id),
+            Some(defs::BANNER_SHELL_INTEGRATION_MISSING)
+        );
     }
 
     #[test]

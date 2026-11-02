@@ -244,10 +244,7 @@ impl App {
         }
         state
             .banners
-            .push(crate::adapters::ui::BannerState::persistent(
-                crate::adapters::ui::banner::defs::BANNER_SHELL_INTEGRATION_MISSING,
-                crate::adapters::ui::BannerScope::Surface(surface_id),
-            ));
+            .push(shell_integration_hint_banner(surface_id));
         if let Some(base) = dirty_main {
             base.state.dirty = true;
         }
@@ -303,5 +300,28 @@ impl App {
         if let Some(base) = dirty_main {
             base.state.dirty = true;
         }
+    }
+}
+
+/// 셸 통합 안내 배너. 정의의 TTL을 그대로 따르므로 동작이 없는 이 배너는 스스로 닫힌다.
+fn shell_integration_hint_banner(surface_id: u32) -> crate::adapters::ui::BannerState {
+    crate::adapters::ui::BannerState::from_def(
+        &crate::adapters::ui::banner::defs::SHELL_INTEGRATION_MISSING,
+        crate::adapters::ui::BannerScope::Surface(surface_id),
+    )
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::adapters::ui::BannerScope;
+    use crate::adapters::ui::banner::defs;
+
+    #[test]
+    fn shell_integration_hint_opens_a_ten_second_ttl_banner() {
+        let banner = super::shell_integration_hint_banner(7);
+        assert_eq!(banner.id, defs::BANNER_SHELL_INTEGRATION_MISSING);
+        assert_eq!(banner.scope, BannerScope::Surface(7));
+        assert_eq!(banner.ttl_ms, Some(10_000.0));
+        assert_eq!(banner.remaining_ms, 10_000.0);
     }
 }

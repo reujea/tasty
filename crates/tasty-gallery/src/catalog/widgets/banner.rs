@@ -1,6 +1,6 @@
 //! 탭바 아래에 표시하는 배너의 외형·닫기 버튼·메뉴·겹침 예제.
 //! 본체는 스코프당 한 개를 표시하고 최대 다섯 개를 대기시킨다. 이 예제는 큐를 실행하지 않는다.
-//! 카운트다운도 6초로 고정해 그리며 호버·만료·키보드 포커스 처리는 재현하지 않는다.
+//! 카운트다운은 고정된 숫자로 그리며 호버·만료·키보드 포커스 처리는 재현하지 않는다.
 
 use tasty_type_appearance::theme::Theme;
 use tasty_type_geometry::length::LogicalPx;
@@ -16,6 +16,10 @@ use crate::catalog::spec::{self, StageVariant, TokenChip};
 const STACK_REAR_OVERHANG_Y: LogicalPx = LogicalPx(14.0);
 /// 전면 배너 child 영역의 높이. 뒤쪽 배너의 아래 부분이 남도록 정한 데모 기하다.
 const STACK_FRONT_BANNER_H: LogicalPx = LogicalPx(56.0);
+/// 셸 통합 안내 예제 카드의 최대 폭. 디자인은 `--tasty-size-480`을 쓴다.
+const SHELL_CARD_MAX_W: LogicalPx = LogicalPx(480.0);
+/// 셸 통합 안내의 TTL(초). 본체 `defs::SHELL_INTEGRATION_MISSING_TTL_SECONDS`와 같은 디자인 고정값이다.
+const SHELL_INTEGRATION_TTL_SECONDS: u32 = 10;
 
 fn dim(color: egui::Color32, opacity: f32) -> egui::Color32 {
     color.gamma_multiply(opacity)
@@ -297,7 +301,10 @@ pub fn draw(ui: &mut egui::Ui, theme: &Theme) {
             ("position", "content-top, below the tab bar"),
             ("width", "100% − 16 (8 each side)"),
             ("margin", "8 top/sides · 0 bottom"),
-            ("persistent", "no TTL · × on hover only"),
+            (
+                "lifetime",
+                "no action → TTL (auto-dismiss) · has action → until the action or ×",
+            ),
             ("fires on", "user click only (never IPC)"),
         ],
         &[
@@ -550,15 +557,23 @@ pub fn draw_dismiss(ui: &mut egui::Ui, theme: &Theme) {
 
         ui.vertical(|ui| {
             ui.spacing_mut().item_spacing.y = theme.spacing_sm.value();
-            caption_label(ui, theme, "no TTL — close button shown");
+            caption_label(
+                ui,
+                theme,
+                "has an action → no TTL · hover the banner to reveal ×",
+            );
             ui.scope(|ui| {
                 ui.set_max_width(theme.measure_md.value());
                 banner_shell(ui, theme, 1.0, |ui| {
                     ui.horizontal(|ui| {
                         ui.spacing_mut().item_spacing.x = theme.spacing_md.value();
-                        body_secondary(ui, theme, "Plain banner — × appears on hover (top-right)");
+                        body_secondary(ui, theme, "Stays until the action or × (× on hover)");
                         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                             dismiss_x(ui, theme);
+                            Button::new(crate::i18n::t("remote.size_sync.retry"))
+                                .variant(ButtonVariant::Secondary)
+                                .size(ControlSize::Sm)
+                                .show(ui, theme);
                         });
                     });
                 });
@@ -567,7 +582,7 @@ pub fn draw_dismiss(ui: &mut egui::Ui, theme: &Theme) {
 
         ui.vertical(|ui| {
             ui.spacing_mut().item_spacing.y = theme.spacing_sm.value();
-            caption_label(ui, theme, "TTL — static 6s countdown example");
+            caption_label(ui, theme, "no action → TTL 6s · countdown → × on hover");
             ui.scope(|ui| {
                 ui.set_max_width(theme.measure_md.value());
                 banner_shell(ui, theme, 1.0, |ui| {
@@ -594,8 +609,8 @@ pub fn draw_dismiss(ui: &mut egui::Ui, theme: &Theme) {
         theme,
         &[
             ("slot", "top-right · one affordance"),
-            ("plain", "× hidden → reveal on hover"),
-            ("TTL", "seconds count → × on hover"),
+            ("has action", "no TTL · × hidden → reveal on hover"),
+            ("no action", "TTL · seconds count → × on hover"),
             ("expiry", "0 → auto-dismiss"),
             ("pause", "hover · backgrounded scope"),
             ("motion", "120ms alpha fade, no move"),
@@ -622,6 +637,137 @@ pub fn draw_dismiss(ui: &mut egui::Ui, theme: &Theme) {
         "The host pauses the countdown while the banner is hovered or its scope is backgrounded and uses a 120ms alpha fade. This example only paints the close button and a fixed countdown; it does not run the timer or fade.",
     );
 }
+
+/// 배너 수명 규칙: 사용자 동작이 없으면 TTL, 있으면 TTL 없음.
+pub fn draw_lifetime(ui: &mut egui::Ui, theme: &Theme) {
+    spec::meta(
+        ui,
+        theme,
+        &[
+            ("no action", "TTL — countdown, auto-dismiss at 0"),
+            ("has action", "no TTL — until the action or ×"),
+            ("×", "not an action"),
+            (
+                "exception",
+                "developer-directed, code comment at the definition",
+            ),
+            (
+                "plugin banners",
+                "same rule as authoring guidance (host can't see plugin content)",
+            ),
+        ],
+        &[TokenChip::new(
+            "banner-countdown-fg",
+            "TTL seconds",
+            theme.banner_countdown_fg().to_egui(),
+        )],
+    );
+
+    spec::note(
+        ui,
+        theme,
+        "A banner exists only while it is valid. While valid, a banner that offers no user \
+         action (inline button or ⋯ menu row) has a TTL and closes on its own; a banner that \
+         offers one has no TTL and stays until the action or ×. The × is not an action. \
+         Host banners with a TTL: shell integration missing (10 s). Without a TTL: mouse \
+         capture (⋯ rows), auto-attach refused, attach size sync, HTML script notice, HTML \
+         mirror size / aggregate.",
+    );
+}
+
+/// 셸 통합 안내 카드 한 장. 본체 `content_shell_integration_missing`과 같은 구성이다.
+fn shell_integration_banner(ui: &mut egui::Ui, theme: &Theme, hovered: bool) {
+    banner_shell(ui, theme, 1.0, |ui| {
+        ui.horizontal_top(|ui| {
+            ui.spacing_mut().item_spacing.x = theme.spacing_md.value();
+            glyph(
+                ui,
+                icons::TERMINAL,
+                theme.icon_glyph_size_md.value(),
+                theme.banner_icon_fg().to_egui(),
+            );
+            ui.vertical(|ui| {
+                ui.set_max_width(
+                    (ui.available_width() - theme.item_height_interactive.value()).max(0.0),
+                );
+                ui.spacing_mut().item_spacing.y = theme.banner_text_gap().value();
+                ui.label(
+                    egui::RichText::new(crate::i18n::t("banner.shell_integration_missing.title"))
+                        .size(theme.font_size_body.value())
+                        .strong()
+                        .color(theme.banner_fg().to_egui()),
+                );
+                body_line(
+                    ui,
+                    theme,
+                    crate::i18n::t("banner.shell_integration_missing.body"),
+                );
+            });
+            ui.with_layout(egui::Layout::right_to_left(egui::Align::Min), |ui| {
+                if hovered {
+                    dismiss_x(ui, theme);
+                } else {
+                    countdown(ui, theme, SHELL_INTEGRATION_TTL_SECONDS);
+                }
+            });
+        });
+    });
+}
+
+/// `shell-integration-missing` — 동작이 없어 TTL 10초로 닫히는 surface 배너.
+pub fn draw_shell_integration(ui: &mut egui::Ui, theme: &Theme) {
+    spec::stage(ui, theme, StageVariant::Column, |ui| {
+        ui.spacing_mut().item_spacing.y = theme.spacing_lg.value();
+        for (label, hovered) in [
+            ("countdown · 10 s TTL", false),
+            ("hovered · countdown paused, × shown", true),
+        ] {
+            ui.vertical(|ui| {
+                ui.spacing_mut().item_spacing.y = theme.spacing_sm.value();
+                caption_label(ui, theme, label);
+                ui.scope(|ui| {
+                    ui.set_max_width(SHELL_CARD_MAX_W.value());
+                    shell_integration_banner(ui, theme, hovered);
+                });
+            });
+        }
+    });
+
+    spec::meta(
+        ui,
+        theme,
+        &[
+            ("scope", "surface"),
+            ("actions", "none → TTL"),
+            ("TTL", "10 s — fixed design constant, not a setting"),
+            ("pause", "hover · scope backgrounded"),
+            ("re-raise (shown)", "countdown resets to 10"),
+            ("text", "banner.shell_integration_missing.* (en/ko/ja)"),
+        ],
+        &[
+            TokenChip::new(
+                "banner-countdown-fg",
+                "seconds",
+                theme.banner_countdown_fg().to_egui(),
+            ),
+            TokenChip::without_color("banner-countdown-font", "mono digits"),
+            TokenChip::new(
+                "banner-icon-fg",
+                "terminal glyph",
+                theme.banner_icon_fg().to_egui(),
+            ),
+        ],
+    );
+
+    spec::note(
+        ui,
+        theme,
+        "Why 10 s: the body is two sentences plus a docs path — about 7–8 s of reading, plus \
+         time to notice a card over live output. Hover pauses the count. No setting: a \
+         per-banner TTL setting would be the only one of its kind.",
+    );
+}
+
 pub fn draw_stack(ui: &mut egui::Ui, theme: &Theme) {
     spec::stage(ui, theme, StageVariant::Solo, |ui| {
         let width = theme.measure_md.value();

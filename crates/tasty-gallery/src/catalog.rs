@@ -997,6 +997,22 @@ pub fn pages() -> Vec<Page> {
                             widgets::banner::draw_dismiss,
                         ),
                         spec(
+                            "banner-lifetime",
+                            "Lifetime — TTL follows whether the banner has an action",
+                            Some(
+                                "No action → TTL, auto-dismiss · has action → no TTL · × is not an action",
+                            ),
+                            widgets::banner::draw_lifetime,
+                        ),
+                        spec(
+                            "banner-shell-integration",
+                            "Shell integration missing — action-less, TTL 10 s",
+                            Some(
+                                "Surface scope · countdown in the dismiss slot · hover pauses and shows ×",
+                            ),
+                            widgets::banner::draw_shell_integration,
+                        ),
+                        spec(
                             "banner-stack",
                             "Queue & stacking",
                             Some(

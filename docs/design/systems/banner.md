@@ -14,7 +14,7 @@
 | 키보드 포커스 | 없음 | 없음 | 있음 |
 | 내부 버튼 | 있음 | 없음 | 있음 |
 | 위치·이동 | 부모 상단 고정 | 범위별 고정 스택 | 이동 가능 |
-| 수명 | 닫기 또는 TTL | 자동 소멸 | 사용자가 닫음 |
+| 수명 | 동작이 없으면 TTL 뒤 자동 소멸, 동작이 있으면 TTL 없이 동작이나 ×까지 유지 | 자동 소멸 | 사용자가 닫음 |
 
 이 차이를 유지하려고 별도 BannerManager를 둔다. popup의 타이틀바·이동·포커스 기능을 여러 옵션으로 끄거나 입력이 통과하는 toast에 버튼을 넣지 않는다.
 
@@ -113,8 +113,8 @@ tasty가 위에 그릴 수 없는 네이티브 레이어(HTML surface의 WebView
 
 우상단 같은 자리에서 상태에 따라 표현이 바뀐다.
 
-- **기본 배너(TTL 없음)**: X(닫기) 버튼이 **평소 숨김**, **배너 위 hover 시에만 표시**.
-- **TTL 배너**: 평소 그 자리에 **카운트다운 숫자(초 단위)** 표시 → **hover 시 X 로 전환**.
+- **동작이 있는 배너(TTL 없음)**: X(닫기) 버튼이 **평소 숨김**, **배너 위 hover 시에만 표시**.
+- **동작이 없는 배너(TTL)**: 평소 그 자리에 **카운트다운 숫자(초 단위)** 표시 → **hover 시 X 로 전환**.
 - X 클릭 시 배너 닫힘(사용자 행동).
 - 닫기 버튼은 갤러리의 `dismiss_x()`와 같은 Ghost/Sm `IconButton`과 `icons::CLOSE` SVG를 사용한다. `"✕"` 문자는 UI 폰트에 없으면 빈 사각형으로 표시되므로 사용하지 않는다. 색은 IconButton의 기본 색을 따른다(ghost: text-secondary, hover: text-primary). 카운트다운은 `banner_countdown_fg()`를 사용한다.
 
@@ -164,7 +164,10 @@ mouse-capture 배너(`defs::BANNER_MOUSE_CAPTURE`)에 한해, X 왼쪽에 "더�
 
 ## TTL (살아있는 시간)
 
-- 배너는 선택적으로 TTL 을 가진다.
+- 배너는 유효한 동안에만 존재한다. 유효한 동안 사용자 동작(본문 안 버튼, ⋯ 메뉴 행)이 **없는** 배너는 TTL 을 가지고 스스로 닫힌다. 동작이 **있는** 배너는 TTL 이 없고 사용자가 동작을 고르거나 닫을 때까지 남는다.
+- 닫기(×)는 동작이 아니다. 모든 배너에 있으므로 × 때문에 TTL 을 빼지 않는다.
+- 개발자는 특정 배너 id 에 이 규칙의 예외를 둘 수 있다. 예외와 그 이유는 해당 배너 정의 위치의 코드 주석에 적고, [원칙](../../principles/feedback-and-recovery.md#배너의-생명주기와-자동-닫힘)대로 개발자의 명확한 지시가 있었다는 사실과 지시 날짜를 함께 적는다.
+- plugin 배너는 호스트가 내용을 볼 수 없어 이 규칙을 작성 지침으로 안내한다([egui-mesh 가이드](../../dev-guide/egui-mesh-channel.md)의 banner 절).
 - 카운트다운은 **초 단위** 로 우상단에 표시, **0 이 되면 자동 소멸**.
 - **정지 조건**: ① 배너 위에 마우스 hover 중 ② 백그라운드(자기 스코프가 현재 화면에 그려지지 않음). 정지 동안 남은 TTL 을 **보존** 하고, 재개 시 **이어서** 진행한다.
 
@@ -204,7 +207,7 @@ mouse-capture 배너(`defs::BANNER_MOUSE_CAPTURE`)에 한해, X 왼쪽에 "더�
 | id | 범위 | 언제 | 내용 |
 |---|---|---|---|
 | `mouse-capture` | Surface | 마우스를 캡처한 TUI에서 사용자가 드래그 선택을 시도했을 때 | 정적 `content_fn` + 더보기(⋯)·닫기 |
-| `shell-integration-missing` | Surface | 사용자가 본 surface가 출력은 있는데 PromptBoundary를 받지 못할 때 | 정적 `content_fn` + 닫기 |
+| `shell-integration-missing` | Surface | 사용자가 본 surface가 출력은 있는데 PromptBoundary를 받지 못할 때 | 정적 `content_fn` + 카운트다운·닫기. 동작이 없어 TTL 10초 뒤 닫힌다. TTL은 디자인 고정값이며 설정으로 노출하지 않는다 |
 | `attach-refusal` | Workspace | 사용자가 활성화한 워크스페이스의 자동 attach 매핑을 연결하지 않았을 때 | `BannerContentSource::AttachRefusal`(대상·이유)을 `tasty_ui_widgets::attach_refusal_banner_content`로 그린다. 매핑 지우기·닫기 버튼이 내용 안에 있어 모서리 닫기 슬롯을 쓰지 않는다. 스코프가 좁으면 매핑 지우기 버튼만 본문 아래 줄로 내리고 ×는 오른쪽 위에 남는다([좁은 스코프](#좁은-스코프)). ×는 그 창의 이번 활성화에만 숨긴다. 상세는 [원격 attach](../../features/remote-attach/index.md) |
 | `attach-size-sync` | Workspace | 활성 워크스페이스가 mirror 이고 그 터미널 크기 동기화가 자동 재시도 뒤에도 실패했을 때 | `BannerContentSource::AttachSizeSync`(탭 이름·다시 시도 중 여부)를 `tasty_ui_widgets::attach_size_sync_banner_content`로 그린다. 다시 시도·닫기 버튼이 내용 안에 있어 모서리 닫기 슬롯을 쓰지 않으며, 좁으면 다시 시도만 아래 줄로 내린다. 버튼은 App 이 그 세션에 적용하고 × 는 실패 목록을 비운다. 상세는 [attach 동작](../../dev-guide/attach-behavior.md#크기-요청의-응답과-재시도) |
 
