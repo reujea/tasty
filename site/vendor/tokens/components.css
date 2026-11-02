@@ -428,6 +428,13 @@
   --tasty-html-script-marker-size:    var(--tasty-icon-size-xs);      /* 12 — sits inside the 24px tab strip */
   --tasty-html-script-marker-hit:     var(--tasty-size-16);           /* 16 square cell around the 12 glyph — lock click / hover target */
   --tasty-html-script-marker-hover-bg: var(--tasty-overlay-hover);    /* lock only; scriptFile has no hover fill */
+  /* HTML surface — remote-content-blocked notice (inset banner) + address-field marker — 2026-11-01 */
+  --tasty-html-remote-banner-glyph:   var(--tasty-accent-info);       /* globeOff — informational, same tone as the script notice */
+  --tasty-html-remote-marker-fg:      var(--tasty-glyph-dim);         /* globeOff in the address field while blocked + notice hidden */
+  --tasty-html-remote-marker-allowed-fg: var(--tasty-text-muted);     /* globe in the address field while allowed for this document */
+  --tasty-html-remote-marker-size:    var(--tasty-icon-size-sm);      /* 14 — same as the field's leading kind glyph */
+  --tasty-html-remote-marker-hit:     var(--tasty-size-20);           /* 20 square cell inside the 28 field — click / hover target */
+  --tasty-html-remote-marker-hover-bg: var(--tasty-overlay-hover);    /* blocked only; allowed has no hover fill */
   /* HTML surface — address bar band (host egui, ABOVE the WebView; the page rect starts below it) — 2026-10-12 */
   --tasty-html-address-bar-height:    var(--tasty-size-40);           /* 40 — same as the markdown address bar */
   --tasty-html-address-bar-bg:        var(--tasty-bg-sidebar);

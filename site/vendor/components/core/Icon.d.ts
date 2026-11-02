@@ -6,7 +6,7 @@ export type IconName =
   | "chevronRight" | "arrowRight" | "chevronDown" | "chevronUp" | "chevronLeft" | "chevronsLeft" | "chevronsRight" | "move" | "fit"
   | "terminal" | "agent" | "markdown" | "html" | "split" | "splitH" | "paneEmpty" | "folder" | "folderOpen" | "file" | "image" | "list" | "layoutGrid" | "layoutDetail" | "listView" | "layers" | "columns"
   | "clipboard" | "textLeft" | "scriptFile" | "remote" | "port" | "gitBranch" | "gitTree"
-  | "eye" | "eyeOff" | "lock"
+  | "eye" | "eyeOff" | "lock" | "globe" | "globeOff"
   | "alertTriangle" | "alertCircle" | "helpCircle" | "shieldCheck" | "bell"
   | "tools" | "settings" | "plug" | "rocket" | "command" | "theme" | "keyboard" | "mouse" | "sun" | "hash"
   | "cmdKey" | "optionKey" | "shiftKey"

@@ -96,6 +96,8 @@ const GROUPS = [
       { name: "eye", role: "reveal value" },
       { name: "eyeOff", role: "hide value" },
       { name: "lock", role: "locked / secret held back" },
+      { name: "globe", role: "remote content allowed (network)" },
+      { name: "globeOff", role: "remote content blocked (network)" },
     ],
   },
   {

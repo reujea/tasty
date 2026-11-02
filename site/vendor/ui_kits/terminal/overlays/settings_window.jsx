@@ -965,7 +965,7 @@ function SettingsWindow({ theme, onTheme, uiScale, onUiScale, onClose }) {
             <Row label="Show mouse capture hint:"><Switch defaultChecked /></Row>
             <Note>When a program turns on mouse tracking (DECSET 1000/1002/1003), a banner explains why drag-to-select stopped and how to bypass it by holding <b style={{ color: "var(--tasty-text-secondary)" }}>Shift</b>. Turn this off to suppress that banner.</Note>
             <div style={{ height: "var(--tasty-border-width)", background: "var(--tasty-separator)", margin: "var(--tasty-space-xs) 0" }} />
-            <Mono>Disable mouse capture for programs</Mono>
+            <Mono>Let Tasty handle clicks in these programs</Mono>
             <CaptureBlacklist />
           </>
         );

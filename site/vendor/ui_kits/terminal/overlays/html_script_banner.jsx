@@ -21,7 +21,8 @@ const HsIcon = window.TastyDesignSystem_41fd3f.Icon;
 const HS_COPY = {
   title: "Scripts in this document are blocked",
   body: "Buttons and menus that need JavaScript may not respond. Allowing applies to this document only, until Tasty restarts.",
-  bodyRemote: "Some of its scripts load from the network, which stays blocked. Allowing runs only the scripts inside this document, until Tasty restarts.",
+  // 2026-11-01: shown only while the remote-content notice is also up (remote scripts need both allows).
+  bodyRemote: "Buttons and menus that need JavaScript may not respond. Allowing runs the scripts inside this document; scripts from the network also need remote content allowed.",
   action: "Allow for this document",
   reloading: "Reloading with scripts allowed",
   actionLoading: "Available when the document finishes loading",

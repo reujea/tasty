@@ -1449,11 +1449,18 @@ function MoreLabel({ text, app, after, wrap = false }) {
 }
 
 // the menu itself — 2 rows, no scrim, anchored under the ⋯ trigger.
-function BannerMoreMenuG({ app = "vim", hovered = -1, danger = false, texts = null, wrapRows = [], style }) {
+// 2026-11-02 (mouse-capture-menu-wording) — rows are [prefix, suffix] around {app}; en = prefix only, ko/ja = suffix only.
+const MORE_COPY = {
+  en: [["Don't show again for ", ""], ["Let Tasty handle clicks in ", ""]],
+  ko: [["", "에서 다시 보지 않기"], ["", "에서 클릭은 Tasty가 처리"]],
+  ja: [["", " では今後表示しない"], ["", " ではクリックを Tasty で処理"]],
+};
+function BannerMoreMenuG({ app = "vim", hovered = -1, danger = false, lang = "en", texts = null, wrapRows = [], style }) {
+  const copy = texts || MORE_COPY[lang];
   const rows = [
-    { icon: <Icon name="bell" />, text: "Turn off this notice for ", danger: false },
-    { icon: <Icon name="mouse" />, text: "Disable mouse capture for ", danger },
-  ].map((r, i) => (texts ? { ...r, text: texts[i] } : r));
+    { icon: <Icon name="bell" />, danger: false },
+    { icon: <Icon name="mouse" />, danger },
+  ].map((r, i) => ({ ...r, text: copy[i][0], after: copy[i][1] }));
   return (
     <div role="menu" aria-label="Banner options" style={{
       minWidth: "var(--tasty-banner-more-menu-min-width)", maxWidth: "var(--tasty-banner-more-menu-max-width)",
@@ -1461,8 +1468,8 @@ function BannerMoreMenuG({ app = "vim", hovered = -1, danger = false, texts = nu
       borderRadius: "var(--tasty-banner-more-menu-radius)", padding: "var(--tasty-banner-more-menu-padding)",
       boxShadow: "var(--tasty-banner-more-menu-shadow)", ...style }}>
       {rows.map((r, i) => (
-        <MenuItem key={r.text} icon={r.icon} danger={r.danger} active={hovered === i} wrap={wrapRows.includes(i)}
-          label={<MoreLabel text={r.text} app={app} wrap={wrapRows.includes(i)} />} />
+        <MenuItem key={i} icon={r.icon} danger={r.danger} active={hovered === i} wrap={wrapRows.includes(i)}
+          label={<MoreLabel text={r.text} app={app} after={r.after} wrap={wrapRows.includes(i)} />} />
       ))}
     </div>
   );
@@ -1551,9 +1558,9 @@ function BannerMoreDemoG() {
                           borderRadius: "var(--tasty-banner-more-menu-radius)", padding: "var(--tasty-banner-more-menu-padding)",
                           boxShadow: "var(--tasty-banner-more-menu-shadow)" }}>
                           <MenuItem icon={<Icon name="bell" />} onClick={() => act("notice")}
-                            label={<MoreLabel text="Turn off this notice for " app="vim" />} />
+                            label={<MoreLabel text="Don't show again for " app="vim" />} />
                           <MenuItem icon={<Icon name="mouse" />} onClick={() => act("capture")}
-                            label={<MoreLabel text="Disable mouse capture for " app="vim" />} />
+                            label={<MoreLabel text="Let Tasty handle clicks in " app="vim" />} />
                         </div>
                       </div>
                     )}
@@ -1626,9 +1633,18 @@ function BlacklistEditorG({ empty }) {
         <Switch defaultChecked />
       </div>
       <div style={{ height: 1, background: "var(--tasty-separator)" }} />
-      <div style={{ fontSize: 13, color: "var(--tasty-text-secondary)" }}>Disable capture for these programs</div>
+      <div style={{ fontSize: 13, color: "var(--tasty-text-secondary)" }}>Don't show the capture notice for these programs</div>
       {empty ? (
-        <div style={{ fontSize: 11, color: "var(--tasty-text-muted)", lineHeight: 1.5, padding: "4px 0" }}>No programs excluded — clicks are sent to capturing apps.</div>
+        <div style={{ fontSize: 11, color: "var(--tasty-text-muted)", lineHeight: 1.5, padding: "4px 0" }}>No programs listed — the notice shows for every capturing program.</div>
+      ) : (
+        <div style={{ display: "flex", flexDirection: "column", gap: 1 }}>
+          <BlacklistRow pattern="less" />
+        </div>
+      )}
+      <div style={{ height: 1, background: "var(--tasty-separator)" }} />
+      <div style={{ fontSize: 13, color: "var(--tasty-text-secondary)" }}>Let Tasty handle clicks in these programs</div>
+      {empty ? (
+        <div style={{ fontSize: 11, color: "var(--tasty-text-muted)", lineHeight: 1.5, padding: "4px 0" }}>No programs listed — clicks are sent to capturing programs.</div>
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: 1 }}>
           <BlacklistRow pattern="htop" />
@@ -1647,15 +1663,34 @@ function BlacklistEditorG({ empty }) {
   );
 }
 
-// a TTL banner — live countdown that flips to X on hover (and pauses while hovered)
-function TtlBannerG() {
+// a TTL banner — live countdown that flips to X on hover (and pauses while hovered).
+// 2026-11-02: no user action → TTL (the rule). Loops back to `ttl` at 0 so the specimen keeps running.
+function TtlBannerG({ ttl = 6, glyph, glyphColor, title, body }) {
   const [hover, setHover] = React.useState(false);
-  const [n, setN] = React.useState(6);
+  const [n, setN] = React.useState(ttl);
   React.useEffect(() => {
     if (hover) return undefined;                       // pause while hovered
-    const id = setTimeout(() => setN((x) => (x <= 1 ? 6 : x - 1)), 1000);
+    const id = setTimeout(() => setN((x) => (x <= 1 ? ttl : x - 1)), 1000);
     return () => clearTimeout(id);
-  }, [hover, n]);
+  }, [hover, n, ttl]);
+  if (title) return (
+    <BannerShellG>
+      <div onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)}
+        style={{ display: "flex", alignItems: "flex-start", gap: "var(--tasty-banner-gap)", padding: "var(--tasty-banner-padding-y) var(--tasty-banner-padding-x)" }}>
+        <span style={{ display: "inline-flex", flex: "none", marginTop: "var(--tasty-banner-glyph-offset)", color: glyphColor || "var(--tasty-banner-icon-fg)" }}>{glyph}</span>
+        <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: "var(--tasty-banner-text-gap)" }}>
+          <span style={{ fontSize: "var(--tasty-banner-title-font-size)", fontWeight: "var(--tasty-font-weight-semibold)", color: "var(--tasty-banner-fg)" }}>{title}</span>
+          {body && <span style={{ fontSize: "var(--tasty-banner-body-font-size)", color: "var(--tasty-text-muted)" }}>{body}</span>}
+        </div>
+        <span style={{ width: "var(--tasty-size-24)", height: "var(--tasty-size-24)", flex: "none", display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
+          {hover
+            ? <IconButton size="sm" aria-label="Dismiss">{ic.x}</IconButton>
+            : <span style={{ fontFamily: "var(--tasty-banner-countdown-font)", fontSize: "var(--tasty-banner-countdown-font-size)",
+                color: "var(--tasty-banner-countdown-fg)", fontVariantNumeric: "tabular-nums" }}>{n}</span>}
+        </span>
+      </div>
+    </BannerShellG>
+  );
   return (
     <BannerShellG>
       <div onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)}

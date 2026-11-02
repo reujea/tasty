@@ -1,8 +1,9 @@
 // Tasty UI kit — Banner: the 4th overlay family (Modal / Popup / Toast / Banner).
 // A floating, top-anchored notice pinned to the top of a scope's content area
 // (View / Workspace / Pane / Tab / Surface) — NEVER over the tab bar. Focus-less,
-// consumes its own mouse, and unlike a Toast it can carry actions. Optional TTL
-// with a top-right countdown that flips to an X on hover (and pauses while hovered
+// consumes its own mouse, and unlike a Toast it can carry actions. Lifetime rule (2026-11-02):
+// a banner with NO user action has a TTL and auto-dismisses; a banner WITH an action
+// (button or ⋯ menu row) has no TTL. × is not an action. TTL shows a top-right countdown that flips to an X on hover (and pauses while hovered
 // or backgrounded). One banner shown per scope; the rest wait in a queue (max 5).
 // Mirrors the proposed zilhak/tasty Banner manager. Standalone preview: banner.html
 const { Button, IconButton, Kbd, Tag, MenuItem } = window.TastyDesignSystem_41fd3f;
@@ -62,12 +63,14 @@ function BannerDismiss({ ttl, bannerHover, backgrounded, onClose }) {
 // disable (never "pause"). The label's fixed text never truncates; the
 // interpolated program name (mono) shrinks and ellipsises, so the menu stays
 // between --tasty-banner-more-menu-min-width and -max-width in every locale.
-function MoreLabel({ text, app }) {
+// 2026-11-02 — prefix / {app} / suffix (en: prefix only; ko/ja: suffix only).
+function MoreLabel({ text, app, after }) {
   return (
     <span style={{ display: "flex", minWidth: 0, whiteSpace: "nowrap" }}>
-      <span style={{ flex: "none" }}>{text}</span>
+      {text && <span style={{ flex: "none" }}>{text}</span>}
       <span title={app} style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis",
         fontFamily: "var(--tasty-banner-more-app-font)", color: "var(--tasty-banner-more-app-fg)" }}>{app}</span>
+      {after && <span style={{ flex: "none" }}>{after}</span>}
     </span>
   );
 }
@@ -97,9 +100,9 @@ function BannerMore({ app, open, setOpen, onAction }) {
           borderRadius: "var(--tasty-banner-more-menu-radius)", padding: "var(--tasty-banner-more-menu-padding)",
           boxShadow: "var(--tasty-banner-more-menu-shadow)" }}>
           <MenuItem icon={bic.bell} onClick={() => act("notice")}
-            label={<MoreLabel text="Turn off this notice for " app={app} />} />
+            label={<MoreLabel text="Don't show again for " app={app} />} />
           <MenuItem icon={<Icon name="mouse" />} onClick={() => act("capture")}
-            label={<MoreLabel text="Disable mouse capture for " app={app} />} />
+            label={<MoreLabel text="Let Tasty handle clicks in " app={app} />} />
         </div>
       )}
     </span>
@@ -107,7 +110,8 @@ function BannerMore({ app, open, setOpen, onAction }) {
 }
 
 function Banner({ data, recessed, zIndex, backgrounded, onClose }) {
-  const { glyph, glyphColor, title, body, actions, ttl, more, app } = data;
+  const { glyph, glyphColor, title, body, actions, ttl, app } = data;
+  const more = data.more && !!app; // 2026-11-02 — program name unknown (remote mirror, before first poll, lookup failed) → no ⋯ at all
   const [hover, setHover] = React.useState(false);
   const [menuOpen, setMenuOpen] = React.useState(false);
   const onAction = (which) => { if (which === "notice") onClose && onClose(); };
@@ -156,6 +160,11 @@ function makeSamples() {
     id: "preset-applied", glyph: bic.check, glyphColor: "var(--tasty-accent-success)", ttl: 6,
     title: (<>Preset <b style={{ color: "var(--tasty-text-primary)" }}>Dev split</b> applied to this tab.</>),
   },
+  shell: {
+    id: "shell-integration-missing", glyph: bic.warn, glyphColor: "var(--tasty-accent-warning)", ttl: 10,
+    title: "Shell integration not detected",
+    body: "Command-completion hooks (docker build, just run, etc.) need OSC 133 shell integration. See docs/features/hooks for setup.",
+  },
   err: {
     id: "write-failed", glyph: bic.warn, glyphColor: "var(--tasty-accent-danger)",
     title: "Couldn’t write ~/.tastyrc",
@@ -196,6 +205,7 @@ function BannerHost() {
           letterSpacing: "var(--tasty-letter-spacing-caps)", color: "var(--tasty-text-muted)" }}>spawn</span>
         <Ctrl onClick={() => spawn("mouse")}>Mouse capture</Ctrl>
         <Ctrl onClick={() => spawn("preset")}>Preset (TTL 6s)</Ctrl>
+        <Ctrl onClick={() => spawn("shell")}>Shell integration (TTL 10s)</Ctrl>
         <Ctrl onClick={() => spawn("err")}>Write error</Ctrl>
         <span style={{ width: "var(--tasty-border-width)", alignSelf: "stretch", background: "var(--tasty-separator)", margin: "0 var(--tasty-space-xs)" }} />
         <Ctrl on={bg} onClick={() => setBg((b) => !b)}>{bg ? "Backgrounded ✓" : "Background scope"}</Ctrl>

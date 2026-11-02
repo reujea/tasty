@@ -132,6 +132,7 @@
   --tasty-size-400: 400px;
   --tasty-size-440: 440px; /* info modal width (boot notice queue) */
   --tasty-size-460: 460px;
+  --tasty-size-480: 480px; /* gallery specimen width for wide (>= 440) HTML surfaces (2026-11-01) */
   --tasty-size-560: 560px;
   --tasty-size-600: 600px; /* explorer sidebar "small surface" threshold */
   --tasty-size-620: 620px; /* settings content column max width */

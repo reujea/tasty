@@ -1,5 +1,5 @@
 // HTML surface — ADDRESS BAR band + remote-mirror size banners + receiving state.
-// Design requests: design-request/html-surface-address-bar.md (2026-10-12).
+// Designed 2026-10-12.
 //
 // Box boundaries (top → bottom, every box is host egui; the WebView rect starts after the last one):
 //   tab strip
@@ -9,7 +9,8 @@
 //   ERROR ROW (only while an address-input error stands) html-address-error-height 24, same bg, part of the band —
 //             the band's 1px rule moves below it. Glyph alertCircle html-address-error-glyph + message text-primary.
 //   BANNERS   inset stack: padding banner-margin (8) on top/left/right, banners banner-inset-gap (8) apart,
-//             banner-inset-gap (8) below the last one. Order: size banner (remote, blocks rendering) → script banner.
+//             banner-inset-gap (8) below the last one. Order: size banner (mirror, blocks rendering) → remote-content
+//             banner (2026-11-01, html_remote_banner.jsx) → script banner.
 //   PAGE      native WebView — or a host state painted in its place (empty · loading · failed · receiving · notice).
 //
 // Field states: idle (address, html-address-value-fg → text-secondary-raised; 2026-10-21 Latte 4.05 → 5.17) · editing (focus edge + caret, text-primary) · placeholder (empty tab)
@@ -63,7 +64,8 @@ const navBtn = (label, name, { disabled, busy } = {}) => (
 );
 
 // kind: empty | local | web | remote · state: idle | editing | loading | error
-function HtmlAddressField({ kind = "local", address = "", state = "idle", skipped = 0 }) {
+// trailing (2026-11-01): optional end-of-field marker slot — the remote-content marker (html_remote_banner.jsx). Order: skipped Tag · marker.
+function HtmlAddressField({ kind = "local", address = "", state = "idle", skipped = 0, trailing = null }) {
   const readOnly = kind === "remote";
   const editing = state === "editing" || state === "error";
   const glyph = { empty: "html", local: "file", web: "link", remote: "remote" }[kind];
@@ -86,12 +88,13 @@ function HtmlAddressField({ kind = "local", address = "", state = "idle", skippe
           <span style={{ display: "inline-flex", flex: "none" }}><Tag>{HA_COPY.skipped(skipped)}</Tag></span>
         </Tooltip>
       )}
+      {trailing}
     </div>
   );
 }
 
 // The band (+ error row). canBack/canForward drive disabled; narrow hides Forward; remote = read-only + Reload only.
-function HtmlAddressBar({ kind = "local", address = "", state = "idle", canBack = true, canForward = false, narrow = false, error = null, skipped = 0, disconnected = false }) {
+function HtmlAddressBar({ kind = "local", address = "", state = "idle", canBack = true, canForward = false, narrow = false, error = null, skipped = 0, disconnected = false, trailing = null }) {
   const remote = kind === "remote";
   return (
     <div style={{ flex: "none", display: "flex", flexDirection: "column", background: "var(--tasty-html-address-bar-bg)", borderBottom: "var(--tasty-border-width) solid var(--tasty-html-address-bar-border)" }}>
@@ -101,7 +104,7 @@ function HtmlAddressBar({ kind = "local", address = "", state = "idle", canBack 
           {!remote && !narrow && navBtn(HA_COPY.forward, "chevronRight", { disabled: !canForward })}
           {navBtn(disconnected ? HA_COPY.disconnected : HA_COPY.reload, "refresh", { busy: state === "loading", disabled: disconnected })}
         </div>
-        <HtmlAddressField kind={kind} address={address} state={state} skipped={skipped} />
+        <HtmlAddressField kind={kind} address={address} state={state} skipped={skipped} trailing={trailing} />
       </div>
       {error && (
         <div role="alert" style={{ display: "flex", alignItems: "center", gap: "var(--tasty-space-sm)", height: "var(--tasty-html-address-error-height)", padding: "0 var(--tasty-html-address-bar-padding-x)", marginTop: "calc(-1 * var(--tasty-space-xs))" }}>

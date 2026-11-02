@@ -122,6 +122,7 @@ function RefusalRailG({ ch, refused, dot, move }) {
 
 const NAV = [
   { id: "banner", label: "Banner" },
+  { id: "shellintegration", label: "Shell integration missing" },
   { id: "mousecapture", label: "Mouse capture" },
   { id: "more", label: "Banner more menu" },
   { id: "blacklist", label: "Capture blacklist" },
@@ -129,7 +130,47 @@ const NAV = [
   { id: "attachrefusal", label: "Auto-attach refused" },
   { id: "attachsizesync", label: "Attach size sync failed" },
   { id: "htmlremotesize", label: "HTML mirror size notices" },
+  { id: "htmlremote", label: "HTML remote content notice" },
 ];
+
+// 2026-11-01 — remote content blocked. §3 variants 1–10 of the request.
+const RC_VARIANTS = [
+  ["1 · remote CSS + images, no scripts — blocked", { remote: "blocked" }],
+  ["2 · loading a new document — Allow disabled (tooltip top)", { remote: "loading" }],
+  ["3 · after Allow — reloading", { remote: "reloading" }],
+  ["4 · allowed — no banner, globe marker in the address field", { remoteMarker: "allowed", page: "styled" }],
+  ["5 · × dismissed — still blocked, globeOff marker (click → banner)", { remoteMarker: "blocked" }],
+  ["6a · scripts + remote — both notices, remote first", { remote: "blocked", script: "blocked" }],
+  ["6b · scripts allowed only — remote notice stays", { remote: "blocked", scriptMarker: "allowed" }],
+  ["6c · remote allowed only — script notice stays", { script: "blocked", remoteMarker: "allowed", page: "styled" }],
+  ["7 · only network-src scripts — remote notice only (nothing runnable yet)", { remote: "blocked" }],
+  ["7′ · …after remote Allow — scripts now runnable, script notice (plain body)", { script: "blocked", remoteMarker: "allowed", page: "styled" }],
+  ["8a · missed by the scan, block OBSERVED (Windows) — marker only", { remoteMarker: "blocked" }],
+  ["8b · missed by the scan, no OS signal (macOS) — nothing to show", {}],
+  ["10 · global “Allow remote content” on — no notice, no marker", { page: "styled" }],
+];
+function RcThemeGrid({ label, attr }) {
+  const { HtmlRemoteSurfaceG } = window.TastyKit;
+  return (
+    <div {...(attr ? { "data-theme": attr } : {})} style={{ display: "flex", flexDirection: "column", gap: "var(--tasty-space-sm)", padding: "var(--tasty-space-md)", background: "var(--tasty-bg-app)", border: "var(--tasty-border-width) solid var(--tasty-border-default)", borderRadius: "var(--tasty-radius)" }}>
+      <span style={{ fontSize: "var(--tasty-font-size-body)", fontWeight: "var(--tasty-font-weight-semibold)", color: "var(--tasty-text-primary)" }}>{label}</span>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: "var(--tasty-space-md)", alignItems: "flex-start" }}>
+        {RC_VARIANTS.map(([cap, p]) => (
+          <div key={cap} style={{ display: "flex", flexDirection: "column", gap: "var(--tasty-space-xs)", width: "var(--tasty-size-480)" }}>
+            <span style={{ fontSize: "var(--tasty-font-size-caption)", color: "var(--tasty-text-muted)" }}>{cap}</span>
+            <div style={{ border: "var(--tasty-border-width) solid var(--tasty-border-frame)", borderRadius: "var(--tasty-radius)", overflow: "hidden" }}><HtmlRemoteSurfaceG {...p} height={p.remote && p.script ? 400 : 300} /></div>
+          </div>
+        ))}
+        {[["9a · narrow (360) — variant 1", { remote: "blocked" }, 340], ["9b · narrow (360) — variant 6a", { remote: "blocked", script: "blocked" }, 520]].map(([cap, p, h]) => (
+          <div key={cap} style={{ display: "flex", flexDirection: "column", gap: "var(--tasty-space-xs)" }}>
+            <span style={{ fontSize: "var(--tasty-font-size-caption)", color: "var(--tasty-text-muted)" }}>{cap}</span>
+            <div style={{ border: "var(--tasty-border-width) solid var(--tasty-border-frame)", borderRadius: "var(--tasty-radius)", overflow: "hidden" }}><HtmlRemoteSurfaceG {...p} narrow width="var(--tasty-size-360)" height={h} /></div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 function Page() {
   return (
@@ -141,27 +182,35 @@ function Page() {
             <BannerScope height={250}><MouseCaptureBannerG /></BannerScope>
           </Stage>
           <Meta
-            specs={[["family", "Modal · Popup · Toast · Banner"], ["position", "top of content, below the tab bar"], ["width", "100% − 16px (8px each side)"], ["margin", "8 top / 8 sides · 0 bottom"], ["radius", <>8px (<span className="tok">--tasty-banner-radius</span>)</>], ["height", "variable — per banner"], ["fires on", "user action only (never IPC/agent)"]]}
+            specs={[["family", "Modal · Popup · Toast · Banner"], ["position", "top of content, below the tab bar"], ["width", "100% − 16px (8px each side)"], ["margin", "8 top / 8 sides · 0 bottom"], ["radius", <>8px (<span className="tok">--tasty-banner-radius</span>)</>], ["height", "variable — per banner"], ["lifetime", "no action → TTL (auto-dismiss) · has action → until the action or ×"], ["fires on", "user action only (never IPC/agent)"]]}
             tokens={[{ tok: "--tasty-banner-bg", use: "surface0 fill", color: "var(--tasty-banner-bg)" }, { tok: "--tasty-banner-border", use: "1px edge", color: "var(--tasty-banner-border)" }, { tok: "--tasty-banner-shadow", use: "floating lift" }, { tok: "--tasty-banner-margin", use: "8px top/sides" }]} />
           <Do><b>Do</b> reach for a Banner when there's an <b>action</b> to attach (Popup = independent feature, Banner = info + action, Toast = info only). If the message is short and action-less, use a <b>Toast</b> instead.</Do>
           <Note>There is <b>no</b> Info/Warning/Error kind — each banner's <b>id is its kind</b>, and it styles its own leading glyph/severity. These tokens are only the shared shell.</Note>
         </Spec>
+        <Spec title="Lifetime — TTL follows whether the banner has an action (2026-11-02)"
+          when={<>A banner exists only while it is valid. While valid: a banner that offers <b>no user action</b> has a <b>TTL</b> and closes on its own; a banner that offers <b>an action</b> (an inline button or a ⋯ menu row) has <b>no TTL</b> and stays until the user picks the action or closes it. The <b>× is not an action</b> — every banner has one, so it never makes a banner persistent. A developer may make an exception for a specific banner id; the exception and its reason are written as a code comment at the banner's definition.</>}>
+          <Meta
+            specs={[["no action", "TTL — countdown, auto-dismiss at 0"], ["has action", "no TTL — until the action or ×"], ["×", "not an action"], ["exception", "developer-directed, code comment at the definition"], ["plugin banners", "same rule as authoring guidance (host can't see plugin content)"]]}
+            tokens={[{ tok: "--tasty-banner-countdown-fg", use: "TTL seconds", color: "var(--tasty-banner-countdown-fg)" }]} />
+          <Note>Host banners today: <b>TTL</b> — preset applied (6 s), shell integration missing (10 s). <b>No TTL</b> — mouse capture (⋯ rows), auto-attach refused (Remove mapping), attach size sync (Retry), HTML script notice (Allow), HTML remote content (Allow), HTML mirror size / aggregate (Allow · Continue).</Note>
+        </Spec>
         <Spec title="Dismiss & TTL countdown — top-right, one slot"
-          when={<>The top-right corner is an <b>affordance column</b> holding <b>one</b> dismiss slot (a banner that carries a ⋯ overflow trigger adds it to the left of that slot — see <i>Banner more menu</i>). A plain banner's <b>×</b> is <b>hidden until you hover</b> the banner. A <b>TTL</b> banner shows a <b>seconds countdown</b> there instead, flipping to the × on hover; at <b>0</b> it auto-dismisses. The countdown <b>pauses</b> while the banner is hovered or its scope is backgrounded, then resumes. Appear/dismiss is a <b>120ms alpha fade</b> — the banner never moves.</>}>
+          when={<>The top-right corner is an <b>affordance column</b> holding <b>one</b> dismiss slot (a banner that carries a ⋯ overflow trigger adds it to the left of that slot — see <i>Banner more menu</i>). A banner <b>with an action</b> (no TTL) keeps its <b>×</b> <b>hidden until you hover</b> the banner. An <b>action-less</b> banner (TTL) shows a <b>seconds countdown</b> there instead, flipping to the × on hover; at <b>0</b> it auto-dismisses. The countdown <b>pauses</b> while the banner is hovered or its scope is backgrounded, then resumes. Appear/dismiss is a <b>120ms alpha fade</b> — the banner never moves.</>}>
           <Stage variant="solo center" style={{ flexDirection: "column", gap: 16, padding: 20, background: "var(--tasty-bg-app)" }}>
             <div style={{ width: "100%", maxWidth: 480 }}>
-              <div style={{ fontSize: 11, color: "var(--tasty-text-muted)", marginBottom: 8 }}>no TTL — hover the banner to reveal ×</div>
+              <div style={{ fontSize: 11, color: "var(--tasty-text-muted)", marginBottom: 8 }}>has an action → no TTL · hover the banner to reveal ×</div>
               <BannerShellG><div style={{ display: "flex", alignItems: "center", gap: 12, padding: "var(--tasty-banner-padding-y) var(--tasty-banner-padding-x)" }}>
-                <span style={{ flex: 1, fontSize: 13, color: "var(--tasty-text-secondary)" }}>Plain banner — × appears on hover (top-right)</span>
+                <span style={{ flex: 1, fontSize: 13, color: "var(--tasty-text-secondary)" }}>Stays until the action or × (× on hover, top-right)</span>
+                <BButton variant="secondary" size="sm" style={{ background: "var(--tasty-banner-button-bg)", borderColor: "var(--tasty-banner-button-border)" }}>Retry</BButton>
                 <IconButton size="sm" aria-label="Dismiss">{ic.x}</IconButton></div></BannerShellG>
             </div>
             <div style={{ width: "100%", maxWidth: 480 }}>
-              <div style={{ fontSize: 11, color: "var(--tasty-text-muted)", marginBottom: 8 }}>TTL 6s — live countdown · hover to pause + show ×</div>
+              <div style={{ fontSize: 11, color: "var(--tasty-text-muted)", marginBottom: 8 }}>no action → TTL 6s · live countdown · hover to pause + show ×</div>
               <TtlBannerG />
             </div>
           </Stage>
           <Meta
-            specs={[["slot", "top-right · one affordance"], ["plain", "× hidden → reveal on hover"], ["TTL", "seconds count → × on hover"], ["expiry", "0 → auto-dismiss"], ["pause", "hover · backgrounded scope"], ["motion", "120ms alpha fade, no move"]]}
+            specs={[["slot", "top-right · one affordance"], ["has action", "no TTL · × hidden → reveal on hover"], ["no action", "TTL · seconds count → × on hover"], ["expiry", "0 → auto-dismiss"], ["pause", "hover · backgrounded scope"], ["motion", "120ms alpha fade, no move"]]}
             tokens={[{ tok: "--tasty-banner-countdown-fg", use: "seconds", color: "var(--tasty-banner-countdown-fg)" }, { tok: "--tasty-banner-countdown-font", use: "mono digits" }, { tok: "--tasty-banner-fade", use: "120ms appear/dismiss" }]} />
         </Spec>
         <Spec title="Queue & stacking — one per scope, rest wait"
@@ -173,6 +222,28 @@ function Page() {
             specs={[["per scope", "1 shown + up to 5 queued"], ["dup (shown)", "resets the countdown"], ["dup (queued)", "ignored"], ["queue full", "new banner dropped"], ["z-order", "View > Workspace > Pane > Tab > Surface"], ["recessed", "lower scope → 40% opacity"]]}
             tokens={[{ tok: "--tasty-banner-recessed-opacity", use: "dimmed lower banner", color: "var(--tasty-banner-bg)" }, { tok: "--tasty-banner-bg", use: "both shells", color: "var(--tasty-banner-bg)" }]} />
           <Note>The interactive manager (spawn / queue / background-pause / dismiss-pops-next) lives in the kit specimen <span className="ic">ui_kits/terminal/overlays/banner.html</span>.</Note>
+        </Spec>
+      </Section>
+
+      <Section id="shellintegration" title="Shell integration missing — action-less, TTL 10 s (2026-11-02)">
+        <Spec title="shell-integration-missing — surface scope, countdown in the dismiss slot"
+          when={<>Raised on a terminal surface when command-completion hooks need OSC 133 and no prompt marks were seen. Title + body, <b>no buttons</b>, so under the lifetime rule it is a <b>TTL</b> banner: the top-right slot shows the seconds, flips to × on hover, and the card closes at 0. The countdown starts when the card is shown, pauses while it is hovered or its scope is backgrounded, resumes where it stopped; re-raising the same id while shown resets it to 10. Card, glyph, title and body are unchanged — only the top-right slot changes.</>}>
+          <Stage variant="solo" style={{ padding: "var(--tasty-space-lg)", background: "var(--tasty-bg-app)", flexDirection: "column", gap: "var(--tasty-space-md)", alignItems: "stretch" }}>
+            {[["Mocha", null], ["Latte", "latte"]].map(([label, attr]) => (
+              <div key={label} {...(attr ? { "data-theme": attr } : {})} style={{ display: "flex", flexDirection: "column", gap: "var(--tasty-space-xs)", padding: "var(--tasty-space-md)", background: "var(--tasty-bg-app)" }}>
+                <span style={{ fontSize: "var(--tasty-font-size-caption)", color: "var(--tasty-text-muted)" }}>{label} · live countdown · hover to pause + show ×</span>
+                <div style={{ width: "100%", maxWidth: "var(--tasty-size-480)" }}>
+                  <TtlBannerG ttl={10} glyph={<BIcon name="alertTriangle" size="var(--tasty-icon-size-md)" />} glyphColor="var(--tasty-accent-warning)"
+                    title="Shell integration not detected" body="Command-completion hooks (docker build, just run, etc.) need OSC 133 shell integration. See docs/features/hooks for setup." />
+                </div>
+              </div>
+            ))}
+          </Stage>
+          <Meta
+            specs={[["scope", "surface"], ["actions", "none → TTL"], ["TTL", "10 s — fixed design constant, not a setting"], ["pause", "hover · scope backgrounded"], ["re-raise (shown)", "countdown resets to 10"], ["copy", "unchanged — banner.shell_integration_missing.* (en/ko/ja)"]]}
+            tokens={[{ tok: "--tasty-banner-countdown-fg", use: "seconds", color: "var(--tasty-banner-countdown-fg)" }, { tok: "--tasty-banner-countdown-font", use: "mono digits" }]} />
+          <Note>Why 10 s: the body is two sentences plus a docs path (~25 words in en, longer in ja) — about 7–8 s of reading at a normal pace, plus time to notice a card that appears over live output. The 2 s toast default is for one-line confirmations and does not apply. Hover pauses the count, so a user who needs longer already has it. No setting: a per-banner TTL setting would be the only one of its kind; if users ask, a single global banner TTL setting is the place for it.</Note>
+          <Note>The glyph shown here is the specimen's; keep whatever the implemented card uses — this request changes only the top-right slot.</Note>
         </Spec>
       </Section>
 
@@ -240,7 +311,7 @@ function Page() {
           <Meta
             specs={[["rows", "2 × 28px MenuItem, leading icon"], ["anchor", "4px below ⋯, right-aligned"], ["overflow", "flip above the trigger"], ["width", "min 200 · max 288 (elastic)"], ["scrim", "none"], ["dismiss", <>outside click · <span className="ic">Esc</span> · row select</>], ["keyboard", "↑↓ · ↵ · Esc"]]}
             tokens={[{ tok: "--tasty-banner-more-menu-bg", use: "menu fill", color: "var(--tasty-banner-more-menu-bg)" }, { tok: "--tasty-banner-more-menu-border", use: "edge", color: "var(--tasty-banner-more-menu-border)" }, { tok: "--tasty-banner-more-menu-shadow", use: "popover lift" }, { tok: "--tasty-banner-more-menu-offset", use: "4px below trigger" }, { tok: "--tasty-banner-more-menu-min-width", use: "200px floor" }, { tok: "--tasty-banner-more-menu-max-width", use: "288px ceiling" }]} />
-          <Note>Both rows write a <b>permanent</b> Settings entry, so the copy says <b>off / disable</b>, never “pause”: <code>Turn off this notice for {"{app}"}</code> → <code>mouse_capture_banner_blacklist</code> (capture stays delegated, only the notice is suppressed) · <code>Disable mouse capture for {"{app}"}</code> → <code>mouse_capture_blacklist</code> (tasty takes the mouse back). “Turn off this notice” also <b>closes the banner it was opened from</b> — suppressing the notice and leaving it on screen would contradict itself. “Disable mouse capture” leaves the banner up (capture is already released; the user dismisses when done reading). Icons: <span className="ic">bell</span> for the notice row, <span className="ic">mouse</span> for the capture row.</Note>
+          <Note>Both rows write a <b>permanent</b>, per-program Settings entry (copy: see <i>Row copy</i> below): <code>Don't show again for {"{app}"}</code> → <code>mouse_capture_banner_blacklist</code> (capture stays delegated, only the notice is suppressed) · <code>Let Tasty handle clicks in {"{app}"}</code> → <code>mouse_capture_blacklist</code> (tasty takes clicks and drags back; the wheel still goes to the program). “Don't show again” also <b>closes the banner it was opened from</b> — suppressing the notice and leaving it on screen would contradict itself. “Let Tasty handle clicks” leaves the banner up (capture is already released; the user dismisses when done reading). Icons: <span className="ic">bell</span> for the notice row, <span className="ic">mouse</span> for the capture row.</Note>
           <Note>While the menu is open the banner is treated as <b>hover-equivalent</b> — a TTL banner would keep its countdown paused, and the affordance column stays drawn even if the pointer has left the card.</Note>
         </Spec>
         <Spec title="Elastic width — the interpolated program name"
@@ -260,7 +331,7 @@ function Page() {
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
               <div style={{ fontSize: 11, color: "var(--tasty-text-muted)" }}>ja — fixed copy alone exceeds 288: that row wraps, menu stays 288 (2026-10-08)</div>
-              <BannerMoreMenuG app="vim" hovered={1} wrapRows={[1]} texts={["vim の通知をオフにする ", "このプログラムのマウスキャプチャを常に無効にする "]} />
+              <BannerMoreMenuG app="vim" hovered={1} wrapRows={[1]} texts={[["", " の通知をオフにする"], ["", " について、このプログラムのマウスキャプチャを常に無効にする"]]} />
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
               <div style={{ fontSize: 11, color: "var(--tasty-text-muted)" }}>rejected — danger tone on the capture row</div>
@@ -271,13 +342,46 @@ function Page() {
             specs={[["label", "fixed text + app name (2 spans)"], ["truncates", "the app name only"], ["app name", <>mono · row ink (<span className="tok">--tasty-banner-more-app-fg</span> → menu-item-fg / -fg-hover)</>], ["width", "content-sized, 200 ≤ w ≤ 288 — never widens past 288"], ["wrap", <>only when the FIXED copy + 1 name glyph does not fit: whole label wraps, row grows (min 28, pad-y <span className="tok">--tasty-menu-item-wrap-padding-y</span>); the fixed copy never ellipsises</>], ["tooltip", "full program name on the row"], ["tone", "both rows neutral (no danger)"]]}
             tokens={[{ tok: "--tasty-banner-more-app-font", use: "mono program name" }, { tok: "--tasty-banner-more-app-fg", use: "program name = row ink", color: "var(--tasty-banner-more-app-fg)" }, { tok: "--tasty-banner-more-app-fg-hover", use: "hover", color: "var(--tasty-banner-more-app-fg-hover)" }, { tok: "--tasty-menu-item-height", use: "28px rows" }, { tok: "--tasty-accent-danger", use: "rejected variant only", color: "var(--tasty-accent-danger)" }]} />
           <Do><b>Do</b> keep the program name as the mono part of the row — it is the one thing the user must verify before writing a permanent per-app setting, and mono marks it as a process name rather than prose.</Do>
-          <Dont><b>Don't</b> paint the “Disable mouse capture” row in <b>danger</b> tone (last card above, shown for the record). Nothing is destroyed and nothing is lost: the setting is reversible from Settings › Terminal, and it <i>returns</i> the mouse to tasty. Danger in this system means delete — spending it here would make the two rows look like different classes of action when they are the same class at two strengths.</Dont>
+          <Dont><b>Don't</b> paint the “Let Tasty handle clicks” row in <b>danger</b> tone (last card above, shown for the record). Nothing is destroyed and nothing is lost: the setting is reversible from Settings › Terminal, and it <i>returns</i> the mouse to tasty. Danger in this system means delete — spending it here would make the two rows look like different classes of action when they are the same class at two strengths.</Dont>
+        </Spec>
+        <Spec title="Row copy — en / ko / ja (2026-11-02)"
+          when={<>Each row names <b>the program</b> and <b>what changes for it</b>, in words a user already has: “show again” for the notice, “clicks” for capture. “Again” / “다시” / “今後” marks the first row as lasting; the second row reads as a standing rule (“in vim, Tasty handles clicks”). The old “~에 대해” and “disable mouse capture” (which read as turning off a feature of the app) are gone. Each row = prefix + <span className="ic">{"{app}"}</span> (mono) + suffix; en uses the prefix only, ko/ja the suffix only (leading space in ja before the particle). Width band 200–288 is unchanged; with this copy no row wraps for a short name in any locale (the old ja wrap is retired, the wrap rule stays for long names and future copy).</>}>
+          <Stage variant="solo center" style={{ padding: 20, background: "var(--tasty-bg-app)", gap: 18, alignItems: "flex-start", flexWrap: "wrap" }}>
+            {[["en", "vim"], ["ko", "vim"], ["ja", "vim"], ["en · long name", "some-very-long-tool-name", "en"], ["ja · long name", "some-very-long-tool-name", "ja"]].map(([cap, app, l]) => (
+              <div key={cap} style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                <div style={{ fontSize: 11, color: "var(--tasty-text-muted)" }}>{cap}</div>
+                <BannerMoreMenuG app={app} lang={l || cap} />
+              </div>
+            ))}
+          </Stage>
+          <Meta
+            specs={[["row 1 en", <>prefix <code>Don't show again for </code> · suffix —</>], ["row 1 ko", <>prefix — · suffix <code>에서 다시 보지 않기</code></>], ["row 1 ja", <>prefix — · suffix <code> では今後表示しない</code></>], ["row 2 en", <>prefix <code>Let Tasty handle clicks in </code> · suffix —</>], ["row 2 ko", <>prefix — · suffix <code>에서 클릭은 Tasty가 처리</code></>], ["row 2 ja", <>prefix — · suffix <code> ではクリックを Tasty で処理</code></>], ["keys", "[popup.mouse_capture_banner_menu] prefix / suffix"]]}
+            tokens={[{ tok: "--tasty-banner-more-menu-max-width", use: "288 — unchanged" }]} />
+          <Note>Settings › Terminal › Mouse Capture and the user guide take the same verbs: list 1 <code>Don't show the capture notice for these programs</code> / <code>캡처 안내를 다시 보지 않을 프로그램</code> / <code>キャプチャ通知を表示しないプログラム</code> · list 2 <code>Let Tasty handle clicks in these programs</code> / <code>클릭을 Tasty가 처리할 프로그램</code> / <code>クリックを Tasty で処理するプログラム</code>, with the existing description (clicks and drags go to selection and the menu; the wheel is still sent).</Note>
+        </Spec>
+        <Spec title="Program name unknown — no ⋯ trigger (2026-11-02)"
+          when={<>Both rows only mean something with a program name. When it is unknown (remote mirror surface — no local PTY; before the first 1 Hz poll; OS lookup failed) the banner draws <b>no ⋯ trigger</b>: the affordance column holds only the × and the body's right reserve drops back to 28. Nothing is shown disabled, so there is nothing to explain and row 1 can't close the banner without saving. If the name becomes known while the banner is up, the ⋯ appears with the next hover; on a remote mirror it never appears.</>}>
+          <Stage variant="solo center" style={{ flexDirection: "column", gap: 16, padding: 20, background: "var(--tasty-bg-app)" }}>
+            <div style={{ width: "100%", maxWidth: 480 }}>
+              <div style={{ fontSize: 11, color: "var(--tasty-text-muted)" }}>name known — hovered: ⋯ then ×</div>
+              <MouseCaptureBannerG forceHover />
+            </div>
+            <div style={{ width: "100%", maxWidth: 480 }}>
+              <div style={{ fontSize: 11, color: "var(--tasty-text-muted)" }}>name unknown — hovered: × only</div>
+              <MouseCaptureBannerG forceHover more={false} />
+            </div>
+          </Stage>
+          <Meta
+            specs={[["unknown when", "remote mirror · before first poll · lookup failed"], ["⋯ trigger", "not drawn"], ["body reserve", "56 → 28"], ["lifetime", "unchanged — no TTL (stays until ×)"], ["name arrives", "⋯ shows on the next hover"]]}
+            tokens={[{ tok: "--tasty-banner-more-reserve", use: "only while ⋯ is drawn" }]} />
+          <Dont><b>Don't</b> show the two rows disabled with a reason tooltip: on a remote mirror they would be disabled every time, and a menu whose every row is disabled is a control that can never be used. <b>Don't</b> substitute a generic row (“this program”) — the setting is keyed by name, so there is nothing to save.</Dont>
+          <Note>Lifetime without ⋯: the banner then offers no action, but it stays persistent — a <b>developer-directed exception</b> to the TTL rule (the notice explains a state that lasts as long as capture does). Record it as a code comment at the mouse-capture banner definition.</Note>
         </Spec>
       </Section>
 
       <Section id="blacklist" title="Mouse-capture blacklist (Settings › Terminal)">
         <Spec title="Per-program capture opt-out — list editor"
-          when={<>The companion setting: a list of process-name patterns where mouse capture is <b>disabled</b>, so clicks/drags are handled locally (select / tasty menu) instead of being sent to the app. Promoted from the old newline textarea to a <b>list editor</b> (rows + Add) — resolved open decision. Grouped with the <b>Show mouse-capture hint</b> switch since both govern the same feature. Default is an <b>empty list</b>. Remove uses <span className="ic">×</span> (it un-lists a program, it doesn't delete anything).</>}>
+          when={<>The companion settings (labels aligned with the ⋯ rows 2026-11-02): <b>Don't show the capture notice for these programs</b> (<code>mouse_capture_banner_blacklist</code>) and <b>Let Tasty handle clicks in these programs</b> (<code>mouse_capture_blacklist</code>) — process-name patterns where mouse capture is <b>disabled</b>, so clicks/drags are handled locally (select / tasty menu) instead of being sent to the app. Promoted from the old newline textarea to a <b>list editor</b> (rows + Add) — resolved open decision. Grouped with the <b>Show mouse-capture hint</b> switch since both govern the same feature. Default is an <b>empty list</b>. Remove uses <span className="ic">×</span> (it un-lists a program, it doesn't delete anything).</>}>
           <Stage variant="solo center" style={{ padding: 20, background: "var(--tasty-bg-app)", gap: 18, flexWrap: "wrap" }}>
             <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
               <div style={{ fontSize: 11, color: "var(--tasty-text-muted)" }}>filled · one row hovered</div>
@@ -502,9 +606,65 @@ function Page() {
               <window.TastyKit.HtmlSizeBanner kind="limit" narrow />
             </div>
           </Stage>
+          <Note><b>2026-11-01:</b> the remote-content notice joins the same stack between the two — <b>size → remote content → script</b>. See <a href="#htmlremote">HTML remote content notice</a>.</Note>
           <Meta
             specs={[["shell", "script-notice inset shell · no ×"], ["large file", "download (info) · title · path left-ellipsis + size Tag warning [+N more waiting] · Decline / Allow"], ["limit", "alertTriangle (warning) · total received · limit sentence · Stop / Continue"], ["order", "size notice above script notice"], ["narrow", "banner-narrow-below 440 → actions wrap"]]}
             tokens={[{ tok: "--tasty-html-size-banner-glyph", use: "→ accent-info", color: "var(--tasty-html-size-banner-glyph)" }, { tok: "--tasty-html-limit-banner-glyph", use: "→ accent-warning", color: "var(--tasty-html-limit-banner-glyph)" }]} />
+        </Spec>
+      </Section>
+      <Section id="htmlremote" title="HTML remote content notice (2026-11-01)">
+        <Spec title="Banner — states"
+          when={<>When the global <b>Allow remote content</b> is off and the document references <code>http(s)</code> stylesheets, images, fonts, frames, media or scripts, the HTML surface shows a second inset notice. Same shell, life rules and state names as the script notice; it is told apart by its glyph, <b>globeOff</b> (new), in the same informational tone (<span className="tok">--tasty-html-remote-banner-glyph</span> → accent-info). The title states the policy (“…is blocked”), which is true whether the reference was found by the static scan or seen blocked by the OS, so the copy never has to tell those apart. The body names the <b>kinds</b>, not counts: a static count can differ from what the page actually loads. Title and body wrap and never clamp (Tasty-owned copy, b12). One action <b>[Allow remote content]</b>, Secondary / Sm — distinct from the script notice's “Allow for this document” so two stacked notices never show the same button label.</>}>
+          <Stage variant="solo" style={{ padding: "var(--tasty-space-lg)", background: "var(--tasty-bg-app)", gap: "var(--tasty-space-lg)", flexWrap: "wrap", alignItems: "flex-start" }}>
+            {[["Mocha", null], ["Latte", "latte"]].map(([label, attr]) => (
+              <div key={label} {...(attr ? { "data-theme": attr } : {})} style={{ display: "flex", flexDirection: "column", gap: "var(--tasty-space-xs)", width: "var(--tasty-size-560)", maxWidth: "100%", padding: "var(--tasty-space-md)", background: "var(--tasty-bg-app)", border: "var(--tasty-border-width) solid var(--tasty-border-default)", borderRadius: "var(--tasty-radius)" }}>
+                {[["blocked", {}], ["hover — × revealed", { hover: true }], ["loading — Allow disabled until commit", { state: "loading" }], ["reloading — spinner, body dimmed, no ×", { state: "reloading" }]].map(([cap, p]) => (
+                  <React.Fragment key={cap}>
+                    <span style={{ fontSize: "var(--tasty-font-size-caption)", color: "var(--tasty-text-muted)" }}>{label} · {cap}</span>
+                    <window.TastyKit.HtmlRemoteBanner {...p} />
+                  </React.Fragment>
+                ))}
+              </div>
+            ))}
+          </Stage>
+          <Meta
+            specs={[["glyph", "globeOff 16 · html-remote-banner-glyph → accent-info"], ["title", "“Remote content in this document is blocked” · 13/600 · wraps"], ["body", "kinds, no counts · 11 · text-muted · wraps"], ["action", "Allow remote content · Secondary / Sm · no wrap"], ["loading", "disabled from load start to commit · tooltip top “Available when the document finishes loading” · × kept"], ["reloading", "Spinner 14 + “Reloading with remote content allowed” · body opacity-dimmed · no × · fades out on commit"], ["×", "hover only · hides the notice for this document, block stays"], ["focus", "never taken · click only"]]}
+            tokens={[{ tok: "--tasty-html-remote-banner-glyph", use: "→ accent-info", color: "var(--tasty-html-remote-banner-glyph)" }, { tok: "--tasty-banner-bg", use: "shell", color: "var(--tasty-banner-bg)" }, { tok: "--tasty-banner-button-bg", use: "Allow", color: "var(--tasty-banner-button-bg)" }]} />
+          <Note>Strings (en): <code>html.remote.title</code> “Remote content in this document is blocked” · <code>html.remote.body</code> “Stylesheets, images, fonts, frames and scripts from the network don't load, so the page may look incomplete. Allowing applies to this document only.” · <code>html.remote.allow</code> “Allow remote content” · <code>html.remote.reloading</code> “Reloading with remote content allowed” · <code>html.remote.allow_loading</code> “Available when the document finishes loading” (same text as the script key) · <code>html.remote.marker_blocked</code> “Remote content blocked. Click for details.” · <code>html.remote.marker_allowed</code> “Remote content allowed for this document”.</Note>
+        </Spec>
+        <Spec title="The address-field marker — always findable"
+          when={<>The persistent signal lives at the <b>end of the address field</b>, after the mirror's “n skipped” Tag: the band is where the document's address and its loading state already are, and the tab cell's right cluster is kept for the script marker. Shown whenever the notice is <b>not</b> on screen. <b>Blocked</b> (× dismissed, or a block the OS observed without a static reference) = <b>globeOff</b> in glyph-dim inside a 20 hit cell with the hover fill; a click <b>shows the notice</b>, it never allows on its own. <b>Allowed</b> = <b>globe</b> in text-muted, tooltip only. Tooltips open <b>top</b>. Agent IPC/CLI queries and allows never change focus, the active tab or the marker drawing beyond the reload result. Failed (uncommitted) documents: no notice, no marker.</>}>
+          <Stage variant="solo" style={{ padding: "var(--tasty-space-lg)", background: "var(--tasty-bg-app)", gap: "var(--tasty-space-lg)", flexWrap: "wrap", alignItems: "flex-start" }}>
+            {[["Mocha", null], ["Latte", "latte"]].map(([label, attr]) => (
+              <div key={label} {...(attr ? { "data-theme": attr } : {})} style={{ display: "flex", flexDirection: "column", gap: "var(--tasty-space-xs)", width: "var(--tasty-size-460)", maxWidth: "100%", padding: "var(--tasty-space-md)", background: "var(--tasty-bg-app)", border: "var(--tasty-border-width) solid var(--tasty-border-default)", borderRadius: "var(--tasty-radius)" }}>
+                {[["blocked", { trailing: <window.TastyKit.HtmlRemoteMarker kind="blocked" /> }], ["blocked · hover", { trailing: <window.TastyKit.HtmlRemoteMarker kind="blocked" hover /> }], ["allowed", { trailing: <window.TastyKit.HtmlRemoteMarker kind="allowed" /> }], ["mirror · after a declined large file — Tag, then marker", { kind: "remote", address: "build-eu:~/reports/q3/report.html", skipped: 2, trailing: <window.TastyKit.HtmlRemoteMarker kind="blocked" /> }]].map(([cap, p]) => (
+                  <React.Fragment key={cap}>
+                    <span style={{ fontSize: "var(--tasty-font-size-caption)", color: "var(--tasty-text-muted)" }}>{label} · {cap}</span>
+                    <div style={{ border: "var(--tasty-border-width) solid var(--tasty-border-frame)", borderRadius: "var(--tasty-radius)", overflow: "hidden" }}><window.TastyKit.HtmlAddressBar kind="local" address="~/reports/q3/report.html" {...p} /></div>
+                  </React.Fragment>
+                ))}
+              </div>
+            ))}
+          </Stage>
+          <Meta
+            specs={[["slot", "address field end · after skipped Tag · field ellipsises the address first"], ["cell", "20 (html-remote-marker-hit) · glyph 14 · radius-sm"], ["blocked", "globeOff · glyph-dim · hover fill · click → notice"], ["allowed", "globe · text-muted · tooltip only"], ["shown when", "notice not on screen · never with the notice"], ["with script marker", "independent places: script = tab cluster, remote = address field · never merged"], ["cleared by", "another document committing · failed load"]]}
+            tokens={[{ tok: "--tasty-html-remote-marker-fg", use: "→ glyph-dim", color: "var(--tasty-html-remote-marker-fg)" }, { tok: "--tasty-html-remote-marker-allowed-fg", use: "→ text-muted", color: "var(--tasty-html-remote-marker-allowed-fg)" }, { tok: "--tasty-html-remote-marker-size", use: "→ icon-size-sm 14" }, { tok: "--tasty-html-remote-marker-hit", use: "→ size-20" }, { tok: "--tasty-html-remote-marker-hover-bg", use: "→ overlay-hover", color: "var(--tasty-html-remote-marker-hover-bg)" }]} />
+          <Dont><b>Don't</b> make the blocked marker allow directly. It re-shows the notice, which explains scope before offering Allow — the same rule as the script lock.</Dont>
+        </Spec>
+        <Spec title="Surface variants 1–10 · stacking with the script and size notices"
+          when={<>Stacking order under the address band, one inset stack (<span className="tok">--tasty-banner-margin</span> 8 above, <span className="tok">--tasty-banner-inset-gap</span> 8 between and below): <b>mirror size notice → remote content → script</b>. Size blocks rendering entirely, remote content decides how the page looks, scripts decide how it behaves — and allowing remote can change what the script notice says. The two notices stay <b>separate cards</b>: the allows are independent and either one can be left standing. <b>Remote-src scripts</b> need both allows, so the script notice is judged on <i>runnable</i> scripts: a document whose only scripts come from the network shows the remote notice alone (7); after remote Allow reloads, those scripts become runnable and the script notice appears with its plain body (7′). With inline and network scripts both present, the script notice uses the revised <code>bodyRemote</code>. <b>Detection:</b> a static reference fires the notice. A block the OS reports without a static reference (Windows; Linux pending) shows the marker only, no late notice (8a). With no OS signal and no reference (macOS) nothing is shown (8b); the global switch in Settings stays the path.</>}>
+          <Stage variant="solo" style={{ padding: "var(--tasty-space-lg)", background: "var(--tasty-bg-app)", flexDirection: "column", gap: "var(--tasty-space-lg)", alignItems: "stretch" }}>
+            <RcThemeGrid label="Mocha" />
+            <RcThemeGrid label="Latte" attr="latte" />
+            <div style={{ display: "flex", flexDirection: "column", gap: "var(--tasty-space-xs)" }}>
+              <span style={{ fontSize: "var(--tasty-font-size-caption)", color: "var(--tasty-text-muted)" }}>mirror · all three notices — size → remote → script</span>
+              <div style={{ alignSelf: "flex-start", border: "var(--tasty-border-width) solid var(--tasty-border-frame)", borderRadius: "var(--tasty-radius)", overflow: "hidden" }}><window.TastyKit.HtmlRemoteSurfaceG mirror size="file" remote="blocked" script="blocked" width="var(--tasty-size-560)" height={460} /></div>
+            </div>
+          </Stage>
+          <Meta
+            specs={[["order", "address band → size (mirror) → remote → script → WebView"], ["gaps", "banner-margin 8 top/sides · banner-inset-gap 8 between + below"], ["merge", "never — two cards, two independent allows"], ["script notice", "judged on runnable scripts (network scripts need remote allowed)"], ["bodyRemote", "kept as a key, copy revised: shown only alongside the remote notice"], ["static ref", "notice (when the user views)"], ["observed block, no ref", "marker only (Windows · Linux TBD)"], ["no signal, no ref", "nothing (macOS)"], ["narrow", "< 440 → each card wraps its action, stack order unchanged"], ["global on", "no notice · no marker"]]}
+            tokens={[{ tok: "--tasty-banner-inset-gap", use: "8 between / below" }, { tok: "--tasty-banner-margin", use: "8 top / sides" }, { tok: "--tasty-banner-narrow-below", use: "→ size-440" }]} />
+          <Note>Script notice <code>bodyRemote</code> (en, revised): “Buttons and menus that need JavaScript may not respond. Allowing runs the scripts inside this document; scripts from the network also need remote content allowed.”</Note>
         </Spec>
       </Section>
     </>
