@@ -89,6 +89,8 @@ const VISIBILITY: &[Entry] = &[
     (EYE, "eye", "reveal value"),
     (EYE_OFF, "eyeOff", "hide value"),
     (LOCK, "lock", "locked / secret held back"),
+    (GLOBE, "globe", "remote content allowed (network)"),
+    (GLOBE_OFF, "globeOff", "remote content blocked (network)"),
 ];
 
 const STATUS: &[Entry] = &[

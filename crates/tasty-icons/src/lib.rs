@@ -331,6 +331,17 @@ stroke_icon!(
     "lock",
     r#"<rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>"#
 );
+// html surface 주소 칸의 원격 콘텐츠 표지: 허용(design `globe`)과 차단(design `globeOff`).
+stroke_icon!(
+    GLOBE,
+    "globe",
+    r#"<circle cx="12" cy="12" r="9"/><path d="M3 12h18"/><path d="M12 3a14 14 0 0 1 0 18a14 14 0 0 1 0-18z"/>"#
+);
+stroke_icon!(
+    GLOBE_OFF,
+    "globe_off",
+    r#"<circle cx="12" cy="12" r="9"/><path d="M3 12h18"/><path d="M12 3a14 14 0 0 1 0 18a14 14 0 0 1 0-18z"/><path d="M3 3l18 18"/>"#
+);
 
 // ── Status & alerts ──
 stroke_icon!(
