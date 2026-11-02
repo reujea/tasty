@@ -137,16 +137,15 @@ fn address_view(
 }
 
 /// 주소 띠 하나를 `width` 폭으로 그린다. 예제라 편집 상태는 매 프레임 새로 만든다.
-fn address_band(ui: &mut egui::Ui, theme: &Theme, salt: &str, width: f32, view: &HtmlAddressView) {
+fn address_band(
+    ui: &mut egui::Ui,
+    theme: &Theme,
+    salt: &str,
+    width: LogicalPx,
+    view: &HtmlAddressView,
+) {
     let mut state = HtmlAddressState::default();
-    html_address_bar(
-        ui,
-        theme,
-        ui.id().with(salt),
-        LogicalPx(width),
-        &mut state,
-        view,
-    );
+    html_address_bar(ui, theme, ui.id().with(salt), width, &mut state, view);
 }
 
 /// 원격 CSS·이미지가 빠진 페이지 자리(디자인 `RcUnstyledPage`). tasty chrome이 아닌 중립 대역이다.
@@ -432,7 +431,7 @@ pub fn draw_markers(ui: &mut egui::Ui, theme: &Theme) {
                                 ui.vertical(|ui| {
                                     ui.spacing_mut().item_spacing.y = th.spacing_xs.value();
                                     caption(ui, th, &format!("{name} · {cap}"));
-                                    let h = theme_band_height(th);
+                                    let h = th.html_address_bar_height().value();
                                     framed(
                                         ui,
                                         th,
@@ -442,7 +441,7 @@ pub fn draw_markers(ui: &mut egui::Ui, theme: &Theme) {
                                                 ui,
                                                 th,
                                                 &format!("{name}-{i}"),
-                                                inner.width(),
+                                                LogicalPx(inner.width()),
                                                 &view,
                                             );
                                         },
@@ -509,11 +508,6 @@ pub fn draw_markers(ui: &mut egui::Ui, theme: &Theme) {
          content per document, so the host shows neither notice nor marker there. The mirror row \
          above is the design's field composition specimen (Tag, then marker).",
     );
-}
-
-/// 주소 띠 한 줄 높이(오류 행 없음).
-fn theme_band_height(theme: &Theme) -> f32 {
-    theme.html_address_bar_height().value()
 }
 
 /// 디자인 변형 1–10. 캡션과 prop은 디자인 `RC_VARIANTS`를 따른다.

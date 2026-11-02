@@ -5,6 +5,7 @@
 //! 다시 보이게 할 뿐 직접 허용하지 않는다.
 
 use tasty_type_appearance::theme::Theme;
+use tasty_type_geometry::length::LogicalPx;
 
 use crate::html_script_banner::{
     HtmlScriptBannerOutput, HtmlScriptBannerState, HtmlScriptBannerView, html_notice_banner,
@@ -55,8 +56,8 @@ pub struct HtmlRemoteMarkerView<'a> {
 }
 
 /// 표지가 차지하는 정사각 칸의 한 변(`html-remote-marker-hit`).
-pub fn html_remote_marker_hit(theme: &Theme) -> f32 {
-    theme.html_remote_marker_hit().value()
+pub fn html_remote_marker_hit(theme: &Theme) -> LogicalPx {
+    theme.html_remote_marker_hit()
 }
 
 /// `rect`(한 변 `html-remote-marker-hit`) 가운데에 표지를 그린다. hover 때 위쪽 툴팁을 보인다.
@@ -160,7 +161,7 @@ mod tests {
         egui_extras::install_image_loaders(&ctx);
         let out = ctx.run(egui::RawInput::default(), |ctx| {
             egui::CentralPanel::default().show(ctx, |ui| {
-                let hit = html_remote_marker_hit(&theme);
+                let hit = html_remote_marker_hit(&theme).value();
                 let rect = egui::Rect::from_min_size(egui::pos2(40.0, 40.0), egui::vec2(hit, hit));
                 html_remote_marker(
                     ui,

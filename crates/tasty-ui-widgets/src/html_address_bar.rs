@@ -264,7 +264,7 @@ pub fn html_address_bar(
     let enter = ui.input(|i| i.key_pressed(egui::Key::Enter));
     // The marker cell ends `space-xs` into the field's right padding (design margin-right).
     let marker_rect = view.remote_marker.map(|_| {
-        let hit = crate::html_remote_marker_hit(theme);
+        let hit = crate::html_remote_marker_hit(theme).value();
         let right =
             (LogicalPx(field_rect.right()) - theme.input_padding_x() + theme.spacing_xs).value();
         egui::Rect::from_min_size(
