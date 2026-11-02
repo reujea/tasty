@@ -358,5 +358,11 @@ fn the_blocked_remote_marker_reshows_the_notice_without_navigating() {
     let out = run(&ctx, &mut bands, &src, vec![press(false)]);
     assert!(out.remote_reshow);
     assert!(out.nav.is_none());
+    assert!(
+        !bands.bands[&3].field.editing,
+        "a marker press must not start address editing"
+    );
+    // 편집이 시작됐다면 요청한 포커스가 다음 프레임에 띠로 온다.
+    run(&ctx, &mut bands, &src, vec![]);
     assert!(!bands.has_keyboard_focus());
 }
