@@ -46,6 +46,7 @@ mod help_hint;
 mod horizontal_tab_bar;
 mod html_address_bar;
 mod html_receive_state;
+mod html_remote_banner;
 mod html_script_banner;
 mod html_size_banner;
 mod icon_button;
@@ -190,6 +191,10 @@ pub use html_address_bar::{
     html_address_height, html_address_surrender_focus,
 };
 pub use html_receive_state::{HtmlReceiveKind, HtmlReceiveView, html_receive_state};
+pub use html_remote_banner::{
+    HtmlRemoteBannerOutput, HtmlRemoteBannerState, HtmlRemoteBannerView, HtmlRemoteMarkerKind,
+    HtmlRemoteMarkerView, html_remote_banner, html_remote_marker, html_remote_marker_hit,
+};
 pub use html_script_banner::{
     HtmlScriptBannerOutput, HtmlScriptBannerState, HtmlScriptBannerView, HtmlScriptMarkerKind,
     html_script_banner, html_script_banner_is_narrow, html_script_marker,

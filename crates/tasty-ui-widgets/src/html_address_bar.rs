@@ -2,7 +2,8 @@
 //! changes a document, or acquires native keyboard focus. Labels are caller supplied.
 
 use crate::{
-    ControlSize, IconButton, Input, Spinner, Tooltip, TooltipPlacement, tooltip_hover_delay_elapsed,
+    ControlSize, HtmlRemoteMarkerView, IconButton, Input, Spinner, Tooltip, TooltipPlacement,
+    tooltip_hover_delay_elapsed,
 };
 use tasty_type_appearance::theme::Theme;
 use tasty_type_geometry::length::LogicalPx;
@@ -66,6 +67,9 @@ pub struct HtmlAddressView<'a> {
     pub disconnected: bool,
     /// Received-design trailing skipped tag and top tooltip, caller supplied.
     pub skipped: Option<(&'a str, &'a str)>,
+    /// Remote content marker at the end of the field, after the skipped Tag. The host shows it
+    /// only while the remote content notice is not on screen.
+    pub remote_marker: Option<HtmlRemoteMarkerView<'a>>,
     /// One-frame, user-origin focus request. Never set this for an agent navigation.
     pub focus: bool,
     pub labels: HtmlAddressLabels<'a>,
@@ -86,6 +90,10 @@ pub struct HtmlAddressOutput {
     pub field_rect: Option<egui::Rect>,
     pub forward_rect: Option<egui::Rect>,
     pub reload_rect: Option<egui::Rect>,
+    /// Hit cell of the remote content marker when one was drawn.
+    pub remote_marker_rect: Option<egui::Rect>,
+    /// The blocked remote content marker was clicked; the host shows the notice again.
+    pub remote_marker_clicked: bool,
     pub action: HtmlAddressAction,
     /// Host uses this to keep keyboard input out of the native WebView.
     pub has_keyboard_focus: bool,
@@ -218,6 +226,8 @@ pub fn html_address_bar(
         field_rect: None,
         forward_rect: None,
         reload_rect: None,
+        remote_marker_rect: None,
+        remote_marker_clicked: false,
         action: HtmlAddressAction::None,
         has_keyboard_focus: false,
     };
@@ -252,8 +262,20 @@ pub fn html_address_bar(
     });
     let escape = ui.input(|i| i.key_pressed(egui::Key::Escape));
     let enter = ui.input(|i| i.key_pressed(egui::Key::Enter));
+    // The marker cell ends `space-xs` into the field's right padding (design margin-right).
+    let marker_rect = view.remote_marker.map(|_| {
+        let hit = crate::html_remote_marker_hit(theme);
+        let right =
+            (LogicalPx(field_rect.right()) - theme.input_padding_x() + theme.spacing_xs).value();
+        egui::Rect::from_min_size(
+            egui::pos2(right - hit, field_rect.center().y - hit / 2.0),
+            egui::vec2(hit, hit),
+        )
+    });
+    let on_marker = marker_rect.is_some_and(|m| ui.rect_contains_pointer(m));
     let clicked_field = ui.input(|i| i.pointer.primary_pressed())
         && ui.rect_contains_pointer(field_rect.intersect(rect))
+        && !on_marker
         && ui.is_enabled();
     if clicked_field && !mirror {
         state.editing = true;
@@ -286,8 +308,16 @@ pub fn html_address_bar(
     let tag_width = view
         .skipped
         .map_or(0.0, |(label, _)| crate::tag_width(ui, theme, label));
-    let trailing = if tag_width > 0.0 {
-        LogicalPx(tag_width) + theme.input_gap()
+    // The marker's visible share inside the content box; its last `space-xs` sits in the padding.
+    let marker_width = marker_rect.map_or(0.0, |m| m.width() - theme.spacing_xs.value());
+    let between = if tag_width > 0.0 && marker_width > 0.0 {
+        theme.input_gap().value()
+    } else {
+        0.0
+    };
+    let trailing_box = tag_width + between + marker_width;
+    let trailing = if trailing_box > 0.0 {
+        LogicalPx(trailing_box) + theme.input_gap()
     } else {
         LogicalPx(0.0)
     };
@@ -339,11 +369,17 @@ pub fn html_address_bar(
             }
             .to_egui(),
         );
-    if tag_width > 0.0 {
-        input = input.trailing_box(&paint_tag, LogicalPx(tag_width), theme.input_height());
+    if trailing_box > 0.0 {
+        input = input.trailing_box(&paint_tag, LogicalPx(trailing_box), theme.input_height());
     }
     let response = input.show(&mut field, theme, &mut display);
     out.field_rect = Some(field_rect);
+    if let (Some(marker), Some(m)) = (view.remote_marker, marker_rect) {
+        let mut cell = field.new_child(egui::UiBuilder::new().id_salt("remote_marker").max_rect(m));
+        out.remote_marker_clicked =
+            crate::html_remote_marker(&mut cell, theme, m, &marker).clicked();
+        out.remote_marker_rect = Some(m);
+    }
     if view.focus && !mirror && ui.is_enabled() {
         select_all(ui, field_id, state.buffer.chars().count());
     }

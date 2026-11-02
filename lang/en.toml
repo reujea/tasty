@@ -1503,12 +1503,21 @@ body = "Command-completion hooks (docker build, just run, etc.) need OSC 133 she
 [banner.html_script]
 title = "Scripts in this document are blocked"
 body = "Buttons and menus that need JavaScript may not respond. Allowing applies to this document only, until Tasty restarts."
-body_remote = "Some of its scripts load from the network, which stays blocked. Allowing runs only the scripts inside this document, until Tasty restarts."
+body_remote = "Buttons and menus that need JavaScript may not respond. Allowing runs the scripts inside this document; scripts from the network also need remote content allowed."
 action = "Allow for this document"
 reloading = "Reloading with scripts allowed"
 action_loading = "Available when the document finishes loading"
 marker_blocked = "Scripts blocked. Click to show the notice again."
 marker_allowed = "Scripts allowed for this document until Tasty restarts"
+
+[banner.html_remote]
+title = "Remote content in this document is blocked"
+body = "Stylesheets, images, fonts, frames and scripts from the network don't load, so the page may look incomplete. Allowing applies to this document only."
+action = "Allow remote content"
+reloading = "Reloading with remote content allowed"
+action_loading = "Available when the document finishes loading"
+marker_blocked = "Remote content blocked. Click for details."
+marker_allowed = "Remote content allowed for this document"
 
 [port_scanner]
 heading = "Listening ports"

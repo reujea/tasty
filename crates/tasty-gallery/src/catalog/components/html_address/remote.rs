@@ -8,7 +8,7 @@ use tasty_ui_widgets::{
     html_size_banner,
 };
 
-pub(super) fn size_card(
+pub(crate) fn size_card(
     ui: &mut egui::Ui,
     theme: &Theme,
     narrow: bool,

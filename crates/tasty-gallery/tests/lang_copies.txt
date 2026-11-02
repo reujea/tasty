@@ -690,6 +690,7 @@ src/catalog/widgets/banner.rs	Add	button.add,explorer.popup.add_favorite.add,set
 src/catalog/widgets/banner.rs	Shift	settings.general.shift_display_style_shift
 src/catalog/widgets/banner.rs	default	file_handler.picker.default_tag
 src/catalog/widgets/hint_text.rs	Reduced motion	settings.accessibility.reduced_motion
+src/catalog/widgets/html_remote_banner.rs	Allow	html_remote.allow
 src/catalog/widgets/html_script_banner.rs	URL	preset.field.url
 src/catalog/widgets/html_script_banner.rs	plugin	file_handler.picker.origin_plugin
 src/catalog/widgets/layout_1depth.rs	Filter…	port_scanner.search_placeholder

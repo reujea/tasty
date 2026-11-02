@@ -66,12 +66,12 @@ fn view(state: HtmlScriptBannerState, remote: bool, hover: bool) -> HtmlScriptBa
     }
 }
 
-fn mocha() -> Theme {
+pub(crate) fn mocha() -> Theme {
     tasty_themes::mocha_fallback()
 }
 
 /// 디자인 Stage의 `bg-app` 바탕과 `space-lg` 여백.
-fn app_backdrop(ui: &mut egui::Ui, theme: &Theme, add: impl FnOnce(&mut egui::Ui)) {
+pub(crate) fn app_backdrop(ui: &mut egui::Ui, theme: &Theme, add: impl FnOnce(&mut egui::Ui)) {
     egui::Frame::new()
         .fill(theme.bg_app().to_egui())
         .inner_margin(egui::Margin::same(theme.spacing_lg.value() as i8))
@@ -81,7 +81,7 @@ fn app_backdrop(ui: &mut egui::Ui, theme: &Theme, add: impl FnOnce(&mut egui::Ui
         });
 }
 
-fn caption(ui: &mut egui::Ui, theme: &Theme, text: &str) {
+pub(crate) fn caption(ui: &mut egui::Ui, theme: &Theme, text: &str) {
     ui.label(
         egui::RichText::new(text)
             .size(theme.font_size_caption.value())
@@ -184,7 +184,7 @@ fn tab(
 }
 
 /// 탭 스트립을 그리고 그 아래 콘텐츠 rect를 돌려준다.
-fn tab_strip(
+pub(crate) fn tab_strip(
     ui: &mut egui::Ui,
     theme: &Theme,
     rect: egui::Rect,
@@ -210,7 +210,7 @@ fn tab_strip(
 }
 
 /// WebView가 그릴 페이지 자리(디자인 `HsPage`). tasty chrome이 아닌 중립 대역이다.
-fn page_stand_in(ui: &egui::Ui, theme: &Theme, rect: egui::Rect) {
+pub(crate) fn page_stand_in(ui: &egui::Ui, theme: &Theme, rect: egui::Rect) {
     let painter = ui.painter_at(rect);
     painter.rect_filled(rect, 0.0, theme.surface("terminal").focused_bg.to_egui());
     let pad = theme.spacing_md.value();
@@ -336,7 +336,7 @@ fn term_surface(ui: &mut egui::Ui, theme: &Theme, rect: egui::Rect) {
 }
 
 /// `border-frame` 1px 테두리와 모서리로 감싼 액자 안에 `paint`를 그린다.
-fn framed(
+pub(crate) fn framed(
     ui: &mut egui::Ui,
     theme: &Theme,
     size: egui::Vec2,
@@ -796,7 +796,7 @@ pub fn draw_load_failed(ui: &mut egui::Ui, theme: &Theme) {
 }
 
 /// 시안 `Themed`: bg-app 카드(border-default 테두리, radius, 여백·간격 space-md)에 예제를 세로로 담는다.
-fn themed_card(ui: &mut egui::Ui, theme: &Theme, add: impl FnOnce(&mut egui::Ui)) {
+pub(crate) fn themed_card(ui: &mut egui::Ui, theme: &Theme, add: impl FnOnce(&mut egui::Ui)) {
     egui::Frame::new()
         .fill(theme.bg_app().to_egui())
         .stroke(egui::Stroke::new(

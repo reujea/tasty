@@ -386,6 +386,7 @@ impl HtmlAddressBands {
                 }),
             disconnected: source.received.is_some_and(|r| !r.connected),
             skipped: skipped.as_deref().zip(declined.as_deref()),
+            remote_marker: None,
             focus,
             labels: HtmlAddressLabels {
                 placeholder: t("html_address.placeholder"),

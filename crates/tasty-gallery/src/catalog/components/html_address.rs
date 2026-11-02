@@ -9,7 +9,7 @@ use tasty_ui_widgets::{
     html_address_content_inset, html_script_banner,
 };
 
-mod remote;
+pub(crate) mod remote;
 
 // Specimen frame sizes from the address-band design; these are not product control sizes.
 const W: LogicalPx = LogicalPx(460.0);
@@ -123,6 +123,7 @@ pub fn draw_states(ui: &mut egui::Ui, theme: &Theme) {
                         disconnected: false,
                         skipped: (kind == Kind::Mirror)
                             .then_some(("1 skipped", "Declined: hero-video.mp4")),
+                        remote_marker: None,
                         focus: false,
                         labels: labels(),
                     },
@@ -188,6 +189,7 @@ pub fn draw_placement(ui: &mut egui::Ui, theme: &Theme) {
                         disconnected: false,
                         skipped: (kind == Kind::Mirror)
                             .then_some(("1 skipped", "Declined: hero-video.mp4")),
+                        remote_marker: None,
                         focus: false,
                         labels: labels(),
                     },
@@ -223,6 +225,7 @@ pub fn draw_live(ui: &mut egui::Ui, theme: &Theme) {
             loading: false,
             disconnected: false,
             skipped: None,
+            remote_marker: None,
             focus: false,
             labels: labels(),
         },

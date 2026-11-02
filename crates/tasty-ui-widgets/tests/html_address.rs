@@ -11,6 +11,7 @@ fn view() -> HtmlAddressView<'static> {
         loading: false,
         disconnected: false,
         skipped: None,
+        remote_marker: None,
         focus: false,
         labels: HtmlAddressLabels {
             placeholder: "Path or URL",
@@ -624,4 +625,76 @@ fn mirror_cycles_without_editing() {
     assert_eq!(ctx.memory(|m| m.focused()), Some(field));
     assert!(!s.editing);
     assert_eq!(s.buffer, v.address);
+}
+
+fn marker(kind: HtmlRemoteMarkerKind) -> HtmlRemoteMarkerView<'static> {
+    HtmlRemoteMarkerView {
+        kind,
+        tooltip: "Remote content blocked. Click for details.",
+        force_hover: false,
+        native: &[],
+    }
+}
+
+/// 원격 표지는 주소 칸 끝(오른쪽 padding으로 space-xs 들어간 자리)의 20 칸이다.
+/// 차단 표지를 누르면 클릭만 알리고 주소 편집을 시작하지 않는다.
+#[test]
+fn the_blocked_remote_marker_sits_at_the_field_end_and_clicks_without_editing() {
+    let theme = tasty_themes::mocha_fallback();
+    let ctx = egui::Context::default();
+    let mut s = HtmlAddressState::default();
+    let mut v = view();
+    v.kind = HtmlAddressKind::Local;
+    v.remote_marker = Some(marker(HtmlRemoteMarkerKind::Blocked));
+    let out = frame(&ctx, &mut s, &v, 460.0, vec![]);
+    let field = out.field_rect.unwrap();
+    let m = out.remote_marker_rect.unwrap();
+    assert_eq!(m.width(), theme.html_remote_marker_hit().value());
+    assert_eq!(m.height(), theme.html_remote_marker_hit().value());
+    assert_eq!(
+        m.right(),
+        field.right() - theme.input_padding_x().value() + theme.spacing_xs.value()
+    );
+    assert_eq!(m.center().y, field.center().y);
+
+    let out = click(&ctx, &mut s, &v, m.center());
+    assert!(out.remote_marker_clicked);
+    assert!(!s.editing, "a marker click must not start address editing");
+    assert!(!out.has_keyboard_focus);
+}
+
+/// 허용 표지는 툴팁만 있어 클릭을 알리지 않는다. 표지가 없으면 칸도 없다.
+#[test]
+fn the_allowed_marker_does_not_click_and_no_marker_draws_no_cell() {
+    let ctx = egui::Context::default();
+    let mut s = HtmlAddressState::default();
+    let mut v = view();
+    v.remote_marker = Some(marker(HtmlRemoteMarkerKind::Allowed));
+    let m = frame(&ctx, &mut s, &v, 460.0, vec![])
+        .remote_marker_rect
+        .unwrap();
+    assert!(!click(&ctx, &mut s, &v, m.center()).remote_marker_clicked);
+    v.remote_marker = None;
+    assert!(
+        frame(&ctx, &mut s, &v, 460.0, vec![])
+            .remote_marker_rect
+            .is_none()
+    );
+}
+
+/// mirror에서 건너뛴 파일 Tag와 함께 있으면 Tag 다음에 표지가 온다.
+#[test]
+fn the_skipped_tag_comes_before_the_remote_marker() {
+    let ctx = egui::Context::default();
+    let mut s = HtmlAddressState::default();
+    let mut v = view();
+    v.kind = HtmlAddressKind::Mirror;
+    v.skipped = Some(("2 skipped", "Declined: hero-video.mp4"));
+    let without = frame(&ctx, &mut s, &v, 460.0, vec![]);
+    v.remote_marker = Some(marker(HtmlRemoteMarkerKind::Blocked));
+    let with = frame(&ctx, &mut s, &v, 460.0, vec![]);
+    let m = with.remote_marker_rect.unwrap();
+    // The field keeps its width; the marker takes the end and the Tag moves left of it.
+    assert_eq!(with.field_rect, without.field_rect);
+    assert!(m.right() > with.field_rect.unwrap().right() - 16.0);
 }

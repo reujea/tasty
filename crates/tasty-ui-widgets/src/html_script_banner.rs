@@ -153,7 +153,13 @@ fn draw_action(
 }
 
 /// 행 내용을 그리고 액션 클릭 여부를 돌려준다. `ui`는 셸 안쪽 여백을 뺀 영역이다.
-fn draw_row(ui: &mut egui::Ui, theme: &Theme, view: &HtmlScriptBannerView<'_>) -> bool {
+fn draw_row(
+    ui: &mut egui::Ui,
+    theme: &Theme,
+    view: &HtmlScriptBannerView<'_>,
+    glyph_icon: tasty_icons::Icon,
+    glyph_color: egui::Color32,
+) -> bool {
     let reloading = view.state == HtmlScriptBannerState::Reloading;
     // 오른쪽은 닫기 슬롯 몫을 비운다. 셸이 이미 좌우 padding을 넣었으므로 그 몫은 뺀다.
     let reserve =
@@ -216,8 +222,8 @@ fn draw_row(ui: &mut egui::Ui, theme: &Theme, view: &HtmlScriptBannerView<'_>) -
     let (row, _) = ui.allocate_exact_size(egui::vec2(row_w, row_h), egui::Sense::hover());
     let glyph_rect =
         egui::Rect::from_min_size(row.min + egui::vec2(0.0, nudge), egui::vec2(glyph, glyph));
-    tasty_icons::LOCK
-        .image(glyph, theme.html_script_banner_glyph().to_egui())
+    glyph_icon
+        .image(glyph, glyph_color)
         .paint_at(ui, glyph_rect);
 
     let text_x = row.left() + glyph + gap;
@@ -245,9 +251,27 @@ pub fn html_script_banner(
     theme: &Theme,
     view: &HtmlScriptBannerView<'_>,
 ) -> HtmlScriptBannerOutput {
+    html_notice_banner(
+        ui,
+        theme,
+        view,
+        tasty_icons::LOCK,
+        theme.html_script_banner_glyph().to_egui(),
+    )
+}
+
+/// 스크립트 안내와 원격 콘텐츠 안내가 함께 쓰는 배너 본체. 두 안내는 글리프만 다르고
+/// 단계·배치·닫기 규칙이 같다(디자인 `HtmlRemoteBanner`가 `HtmlScriptBanner`와 같은 시각 규칙을 쓴다).
+pub(crate) fn html_notice_banner(
+    ui: &mut egui::Ui,
+    theme: &Theme,
+    view: &HtmlScriptBannerView<'_>,
+    glyph: tasty_icons::Icon,
+    glyph_color: egui::Color32,
+) -> HtmlScriptBannerOutput {
     let mut allow_clicked = false;
     let rect = banner_shell(ui, theme, 1.0, |ui| {
-        allow_clicked = draw_row(ui, theme, view);
+        allow_clicked = draw_row(ui, theme, view, glyph, glyph_color);
     });
     let hovered = view.force_hover || ui.rect_contains_pointer(rect);
     let mut dismiss_clicked = false;

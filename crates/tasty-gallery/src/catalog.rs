@@ -1125,6 +1125,36 @@ pub fn pages() -> Vec<Page> {
                         ),
                     ],
                 ),
+                section(
+                    "htmlremote",
+                    "HTML remote content notice",
+                    vec![
+                        spec(
+                            "html-remote-states",
+                            "Banner states",
+                            Some(
+                                "globeOff in accent-info · one Secondary/Sm action \"Allow remote content\" · same states as the script notice",
+                            ),
+                            widgets::html_remote_banner::draw_states,
+                        ),
+                        spec(
+                            "html-remote-markers",
+                            "The address-field marker — always findable",
+                            Some(
+                                "end of the address field, after the skipped Tag · globeOff re-shows the notice on click · globe is tooltip only",
+                            ),
+                            widgets::html_remote_banner::draw_markers,
+                        ),
+                        spec(
+                            "html-remote-variants",
+                            "Surface variants 1–10 · stacking with the script and size notices",
+                            Some(
+                                "address band → size → remote → script → WebView · two separate cards, never merged",
+                            ),
+                            widgets::html_remote_banner::draw_variants,
+                        ),
+                    ],
+                ),
                 single(
                     "attachrefusal",
                     "Auto-attach refused",
