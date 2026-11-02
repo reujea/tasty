@@ -661,8 +661,10 @@ inset banner`, `banner` Section 다음). 배너와 마커는 본체가 호출할
 | `HtmlAddressField` `trailing` | `HtmlAddressView::remote_marker` | 입력란 끝, 건너뛴 파일 Tag 뒤. 표지 칸 오른쪽 끝은 입력란 오른쪽 안쪽 여백에서 `spacing_xs`만큼 바깥. 주소 말줄임 예산에 표지 칸을 먼저 뺀다 |
 | Spec states · marker · variants | `draw_states` · `draw_markers` · `draw_variants` | variants는 디자인 1–10(차단, 로드 중, 재로드, 허용 표지, 닫은 뒤 차단 표지, 원격+스크립트 6a–6c, 원격 스크립트만 7·7′, 스캔 누락 8a·8b, 좁은 폭 9a·9b, 전역 켬 10)과 mirror 3단을 Mocha·Latte로 그린다. 열 폭이 좁아 두 테마 패널은 세로로 쌓는다. mirror 3단은 시안 그대로 그리지만 본체는 mirror view에 원격 안내·표지를 두지 않는다 |
 
-원격 안내의 문구 키는 디자인의 `html.remote.*`가 아니라 `banner.html_remote.*`다. `[html_remote]`는 mirror 원격 수신 문구가
-이미 쓰고 있어서다. 재로드 커밋 뒤 페이드는 정적 예제에서 재현하지 않는다.
+원격 안내의 문구 키는 디자인의 `html.remote.*`가 아니라 `banner.html_remote.*`다. 같은 성격의 `banner.html_script.*` 옆에
+두는 기존 규칙을 따르고, mirror 원격 수신 문구인 `[html_remote]`와 헷갈리지 않게 한다. leaf 이름도 스크립트 안내에 맞춰
+디자인 `allow`·`allow_loading`을 앱 `action`·`action_loading`으로 두고, `title`·`body`·`reloading`·`marker_blocked`·`marker_allowed`는
+디자인과 같다. 재로드 커밋 뒤 페이드는 정적 예제에서 재현하지 않는다.
 
 ## ui-code (Components)
 

@@ -695,7 +695,7 @@ pub fn draw_variants(ui: &mut egui::Ui, theme: &Theme) {
             variant_cell(
                 ui,
                 theme,
-                "mirror · all three notices — size → remote → script",
+                "mirror · all three notices — size → remote → script (design specimen)",
                 egui::vec2(MIRROR_STACK_W.value(), MIRROR_STACK_H.value()),
                 Variant {
                     size: true,
