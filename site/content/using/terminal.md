@@ -156,9 +156,9 @@ vim(`:set mouse=a`) · htop · Claude Code 처럼 마우스를 직접 쓰는 프
 - `Shift+드래그` — 텍스트 선택. `Shift+더블클릭` 은 단어.
 - `Shift+우클릭` — Tasty 의 복사 메뉴.
 - 배너는 프로그램이 끝나면 저절로 닫힙니다. `×` 로 바로 닫아도 됩니다.
-- 배너에 마우스를 올리면 나오는 **더 보기** <!-- en: More options --> 에서 그 프로그램에 대해 **이 안내 끄기** 또는 **마우스 캡처 비활성화** 를 고릅니다. 비활성화하면 그 프로그램 위에서는 클릭이 평소처럼 선택으로 동작하고 휠만 프로그램으로 갑니다.
+- 배너에 마우스를 올리면 나오는 **더 보기** <!-- en: More options --> 에서 **{프로그램}에서 다시 보지 않기** 또는 **{프로그램}에서 클릭은 Tasty가 처리** 를 고릅니다. 클릭을 Tasty가 처리하면 그 프로그램 위에서는 클릭이 평소처럼 선택으로 동작하고 휠만 프로그램으로 갑니다.
 
-같은 항목은 **설정** > **터미널** > **마우스 캡처** <!-- en: Mouse Capture --> 에 있습니다 — **마우스 캡처 안내 표시** <!-- en: Show mouse-capture hint --> 토글, **다음 프로그램에서 마우스 캡처 비활성화** <!-- en: Disable mouse capture for these programs --> 목록, **다음 프로그램에서 캡처 안내 배너만 억제** <!-- en: Suppress the capture hint banner for these programs --> 목록. 이름은 부분 일치이고 `ht*` 같은 와일드카드를 씁니다.
+같은 항목은 **설정** > **터미널** > **마우스 캡처** <!-- en: Mouse Capture --> 에 있습니다 — **마우스 캡처 안내 표시** <!-- en: Show mouse-capture hint --> 토글, **클릭을 Tasty가 처리할 프로그램** <!-- en: Let Tasty handle clicks in these programs --> 목록, **캡처 안내를 다시 보지 않을 프로그램** <!-- en: Don't show the capture notice for these programs --> 목록. 이름은 부분 일치이고 `ht*` 같은 와일드카드를 씁니다.
 
 ## 실행 중 · 확인 필요 표시
 

@@ -1,4 +1,4 @@
-<!-- source-hash: c0408cbf51e2 -->
+<!-- source-hash: 5bf26150d1df -->
 # Working with the terminal
 
 Copy the output you need, search terminal history, and open file paths as you work. You can also select text without a mouse and receive notifications when work finishes.
@@ -158,9 +158,9 @@ When a program that uses the mouse directly, such as vim (`:set mouse=a`) · hto
 - `Shift+drag` — select text. `Shift+double-click` selects a word.
 - `Shift+right-click` — Tasty's copy menu.
 - The banner closes by itself when the program ends. You can also close it right away with `×`.
-- In **More options**, which appears when you hover the banner, choose **Turn off this notice for** or **Disable mouse capture for** that program. When disabled, clicks over that program act as selection as usual and only the wheel goes to the program.
+- In **More options**, which appears when you hover the banner, choose **Don't show again for {program}** or **Let Tasty handle clicks in {program}**. When Tasty handles the clicks, clicks over that program act as selection as usual and only the wheel goes to the program.
 
-The same items are under **Settings** > **Terminal** > **Mouse Capture** — the **Show mouse-capture hint** toggle, the **Disable mouse capture for these programs** list, and the **Suppress the capture hint banner for these programs** list. Names match partially and take wildcards such as `ht*`.
+The same items are under **Settings** > **Terminal** > **Mouse Capture** — the **Show mouse-capture hint** toggle, the **Let Tasty handle clicks in these programs** list, and the **Don't show the capture notice for these programs** list. Names match partially and take wildcards such as `ht*`.
 
 ## Running · attention marks
 

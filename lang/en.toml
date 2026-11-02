@@ -422,16 +422,16 @@ tui = "TUI"
 mouse_capture_hint_label = "Show mouse-capture hint:"
 mouse_capture_hint_note = "When a program turns on mouse tracking (DECSET 1000/1002/1003), a banner explains why drag-to-select stopped and how to bypass it by holding **Shift**. Turn this off to suppress that banner."
 option_as_meta_label = "Use Option as Meta:"
-mouse_capture_blacklist_label = "Disable mouse capture for these programs:"
+mouse_capture_blacklist_label = "Let Tasty handle clicks in these programs"
 mouse_capture_blacklist_empty = "No programs excluded — clicks are sent to capturing apps."
 mouse_capture_blacklist_add_placeholder = "process name or pattern, e.g. htop or ht*"
 mouse_capture_blacklist_add_button = "Add"
 mouse_capture_blacklist_notice = "When a listed program (e.g. htop) is in the foreground, clicks and drags are handled locally (select / context menu) instead of being sent to it. Matching is case-insensitive substring or * wildcard on the process name. The wheel is still sent to the program."
-mouse_capture_banner_blacklist_label = "Suppress the capture hint banner for these programs:"
+mouse_capture_banner_blacklist_label = "Don't show the capture notice for these programs"
 mouse_capture_banner_blacklist_empty = "No programs excluded — the hint banner shows as usual on first capture interaction."
 mouse_capture_banner_blacklist_add_placeholder = "process name or pattern, e.g. vim or vi*"
 mouse_capture_banner_blacklist_add_button = "Add"
-mouse_capture_banner_blacklist_notice = "When a listed program (e.g. vim) is in the foreground, mouse capture stays on (clicks/drags are still sent to it) but the \"mouse capture active\" hint banner is not shown. Matching is case-insensitive substring or * wildcard on the process name, independent of the capture-disable blacklist above."
+mouse_capture_banner_blacklist_notice = "When a listed program (e.g. vim) is in the foreground, mouse capture stays on (clicks/drags are still sent to it) but the \"mouse capture active\" hint banner is not shown. Matching is case-insensitive substring or * wildcard on the process name, independent of the \"Let Tasty handle clicks in these programs\" list above."
 
 [settings.appearance]
 heading = "Appearance"
@@ -1491,9 +1491,9 @@ more_button = "More options"
 
 [popup.mouse_capture_banner_menu]
 title = "Banner options"
-suppress_prefix = "Turn off this notice for "
+suppress_prefix = "Don't show again for "
 suppress_suffix = ""
-disable_prefix = "Disable mouse capture for "
+disable_prefix = "Let Tasty handle clicks in "
 disable_suffix = ""
 
 [banner.shell_integration_missing]

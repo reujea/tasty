@@ -35,8 +35,8 @@ fn disable_text() -> (&'static str, &'static str) {
         crate::i18n::t("popup.mouse_capture_banner_menu.disable_suffix"),
     )
 }
-/// `code`(ko·ja) 로케일의 두 행 고정 문구(앞, 뒤). 본체 `row_labels` 와 같은 키 쌍을 그 언어의
-/// `lang/{code}.toml` 에서 읽으므로 번역이 바뀌면 예제도 따라 바뀐다.
+/// `code`(en·ko·ja) 로케일의 두 행 고정 문구(앞, 뒤). 본체 `row_labels` 와 같은 키 쌍을 그 언어의
+/// `lang/{code}.toml` 에서 읽으므로 번역이 바뀌면 예제도 따라 바뀐다. en 은 갤러리 기본 언어다.
 fn locale_texts(code: &str) -> [(&'static str, &'static str); 2] {
     use crate::i18n::t_lang;
     [
@@ -50,10 +50,13 @@ fn locale_texts(code: &str) -> [(&'static str, &'static str); 2] {
         ),
     ]
 }
-/// ja 줄바꿈 예제의 고정 문구 — 시안 `BannerMoreMenuG` 의 `texts`. 시안이 앞 문구로만 준다.
+/// ja 줄바꿈 예제의 고정 문구 — 시안 `BannerMoreMenuG` 의 `texts`. 긴 고정 문구로 줄바꿈 규칙만 보인다.
 const JA_TEXTS: [(&str, &str); 2] = [
-    ("vim の通知をオフにする ", ""),
-    ("このプログラムのマウスキャプチャを常に無効にする ", ""),
+    ("", " の通知をオフにする"),
+    (
+        "",
+        " について、このプログラムのマウスキャプチャを常に無効にする",
+    ),
 ];
 
 /// bg-app 무대 — 가운데 정렬 세로 묶음.
@@ -198,12 +201,6 @@ pub fn draw_elastic(ui: &mut egui::Ui, theme: &Theme) {
                             more_menu_texts(ui, theme, JA_TEXTS, "vim", Some(1), false);
                         },
                     );
-                    for code in ["ko", "ja"] {
-                        let caption = format!("{code} — app copy (lang/{code}.toml)");
-                        elastic_slot(ui, theme, &caption, |ui| {
-                            more_menu_texts(ui, theme, locale_texts(code), "vim", None, false);
-                        });
-                    }
                     elastic_slot(
                         ui,
                         theme,
@@ -270,13 +267,79 @@ pub fn draw_elastic(ui: &mut egui::Ui, theme: &Theme) {
     spec::dont(
         ui,
         theme,
-        "Don't paint the \u{201c}Disable mouse capture\u{201d} row in danger tone (last card above, \
+        "Don't paint the \u{201c}Let Tasty handle clicks\u{201d} row in danger tone (last card above, \
          shown for the record). Nothing is destroyed and nothing is lost: the setting is \
          reversible from Settings › Terminal, and it returns the mouse to tasty. Danger in this \
          system means delete — spending it here would make the two rows look like different \
          classes of action when they are the same class at two strengths.",
     );
 }
+
+/// 시안 "Row copy — en / ko / ja". 세 언어의 두 행을 본체와 같은 키로 그린다.
+/// en 은 앞 문구만, ko·ja 는 뒤 문구만 쓴다. 긴 이름 예제는 288 상한에서 이름만 줄어드는지 보인다.
+pub fn draw_row_copy(ui: &mut egui::Ui, theme: &Theme) {
+    spec::stage(ui, theme, StageVariant::Tight, |ui| {
+        egui::Frame::new()
+            .fill(theme.bg_app().to_egui())
+            .corner_radius(theme.corner_radius.value())
+            .inner_margin(egui::Margin::same(STAGE_PAD.value() as i8))
+            .show(ui, |ui| {
+                ui.set_width(ui.available_width());
+                ui.horizontal_wrapped(|ui| {
+                    ui.spacing_mut().item_spacing =
+                        egui::vec2(ELASTIC_GAP.value(), ELASTIC_GAP.value());
+                    for (caption, app, code) in ROW_COPY_EXAMPLES {
+                        elastic_slot(ui, theme, caption, |ui| {
+                            more_menu_texts(ui, theme, locale_texts(code), app, None, false);
+                        });
+                    }
+                });
+            });
+    });
+
+    let [en, ko, ja] = ["en", "ko", "ja"].map(locale_texts);
+    let row = |(prefix, suffix): (&str, &str)| format!("prefix \"{prefix}\" · suffix \"{suffix}\"");
+    let specs = [
+        ("row 1 en", row(en[0])),
+        ("row 1 ko", row(ko[0])),
+        ("row 1 ja", row(ja[0])),
+        ("row 2 en", row(en[1])),
+        ("row 2 ko", row(ko[1])),
+        ("row 2 ja", row(ja[1])),
+        (
+            "keys",
+            "[popup.mouse_capture_banner_menu] prefix / suffix".to_string(),
+        ),
+    ];
+    let specs: Vec<(&str, &str)> = specs.iter().map(|(k, v)| (*k, v.as_str())).collect();
+    spec::meta(
+        ui,
+        theme,
+        &specs,
+        &[TokenChip::without_color(
+            "banner-more-menu-max-width",
+            "288 — unchanged",
+        )],
+    );
+    spec::note(
+        ui,
+        theme,
+        "Settings › Terminal › Mouse Capture and the user guide take the same verbs: the banner \
+         list is \u{201c}Don't show the capture notice for these programs\u{201d} and the \
+         capture list is \u{201c}Let Tasty handle clicks in these programs\u{201d}, with the \
+         existing description (clicks and drags go to selection and the menu; the wheel is \
+         still sent).",
+    );
+}
+
+/// "Row copy" 예제 (캡션, 프로그램 이름, 언어). 시안 순서다.
+const ROW_COPY_EXAMPLES: [(&str, &str, &str); 5] = [
+    ("en", "vim", "en"),
+    ("ko", "vim", "ko"),
+    ("ja", "vim", "ja"),
+    ("en · long name", "some-very-long-tool-name", "en"),
+    ("ja · long name", "some-very-long-tool-name", "ja"),
+];
 
 /// 라벨 + 메뉴 한 칸. 줄바꿈 줄에서 칸째로 넘어가도록 wrap_item 으로 감싼다.
 fn elastic_slot(ui: &mut egui::Ui, theme: &Theme, label: &str, add: impl FnOnce(&mut egui::Ui)) {
@@ -381,6 +444,20 @@ mod tests {
                 suppress.1,
                 crate::i18n::t("popup.mouse_capture_banner_menu.suppress_suffix")
             );
+        }
+    }
+
+    /// 시안 "Row copy": en 은 이름 앞 문구만, ko·ja 는 이름 뒤 문구만 쓴다.
+    /// 어느 언어도 빈 이름 자리 앞뒤가 모두 비지 않아 문장이 이름 한쪽에만 붙는다.
+    #[test]
+    fn en_names_the_program_last_and_ko_ja_name_it_first() {
+        for (prefix, suffix) in locale_texts("en") {
+            assert!(prefix.ends_with(' ') && suffix.is_empty(), "{prefix:?}");
+        }
+        for code in ["ko", "ja"] {
+            for (prefix, suffix) in locale_texts(code) {
+                assert!(prefix.is_empty() && !suffix.is_empty(), "{code} {suffix:?}");
+            }
         }
     }
 }

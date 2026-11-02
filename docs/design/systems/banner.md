@@ -143,10 +143,15 @@ mouse-capture 배너(`defs::BANNER_MOUSE_CAPTURE`)에 한해, X 왼쪽에 "더�
   `banner-more-menu-border`(border-strong), radius·그림자는 다른 headless 메뉴와 같다.
 - **항목 2개(순서 고정)**, 클릭 시 즉시 실행 + 메뉴 닫힘, 둘 다 neutral 톤(danger 아님 —
   파괴/유실 없고 Settings 에서 되돌릴 수 있음):
-  1. **"{app}에 대해 이 안내 끄기"**(en "Turn off this notice for {app}")(`icons::BELL`) — `mouse_capture_banner_blacklist` 에
-     foreground 프로그램 이름 추가 + **배너도 즉시 함께 닫힘**.
-  2. **"{app}에 대해 마우스 캡처 비활성화"**(`icons::MOUSE`) — `mouse_capture_blacklist` 에
-     추가. **배너는 남는다** — 캡처가 이미 풀렸음을 사용자가 읽고 직접 닫도록.
+  1. **"{app}에서 다시 보지 않기"**(en "Don't show again for {app}", ja "{app} では今後表示しない")(`icons::BELL`) —
+     `mouse_capture_banner_blacklist` 에 foreground 프로그램 이름 추가 + **배너도 즉시 함께 닫힘**.
+  2. **"{app}에서 클릭은 Tasty가 처리"**(en "Let Tasty handle clicks in {app}", ja "{app} ではクリックを Tasty で処理")(`icons::MOUSE`) —
+     `mouse_capture_blacklist` 에 추가. **배너는 남는다** — 캡처가 이미 풀렸음을 사용자가 읽고 직접 닫도록.
+  - 두 행 모두 어느 프로그램에 무엇이 바뀌는지를 사용자의 말("다시 보지 않기", "클릭")로 적는다. 문구는
+    `[popup.mouse_capture_banner_menu]` 의 prefix·suffix 키다. en 은 이름 앞 문구만, ko·ja 는 이름 뒤 문구만 쓴다.
+  - Settings › Terminal › Mouse Capture 의 목록 라벨도 같은 동사를 쓴다. 배너 목록은 "캡처 안내를 다시 보지 않을
+    프로그램"(en "Don't show the capture notice for these programs"), 캡처 목록은 "클릭을 Tasty가 처리할
+    프로그램"(en "Let Tasty handle clicks in these programs")이다.
 - **라벨 렌더**: 공용 `tasty_ui_widgets::banner_more_row`. 고정 텍스트 + 프로그램 이름(mono) **두 조각**으로
   분리 렌더한다 — 하나의 문자열로 합쳐 ellipsis 하면 로케일에 따라(특히 en) 프로그램 이름부터 잘리기
   때문이다. 두 조각 모두 행 글자색이다(쉼 `menu-item-fg`, hover·active `menu-item-fg-hover`. 이름은
@@ -158,7 +163,7 @@ mouse-capture 배너(`defs::BANNER_MOUSE_CAPTURE`)에 한해, X 왼쪽에 "더�
 - **저장 방어**: 메뉴 항목이 보내는 설정 변경은 프로그램 이름을 trim 해 저장한다. trim 뒤 빈 이름과, 이미 있는
   패턴과 trim·ASCII 대소문자 무시 비교로 같은 이름은 목록을 바꾸지 않는다. 기존 목록의 빈 항목·중복은 자동으로
   정리하지 않는다. 이름을 모를 때(원격 mirror, 첫 foreground 조회 전) 메뉴를 어떻게 보일지는 아직 정해지지 않았고,
-  지금은 빈 이름으로 행을 그린다. 이 상태에서 "이 안내 끄기"는 저장하지 않지만 배너는 닫는다.
+  지금은 빈 이름으로 행을 그린다. 이 상태에서 "다시 보지 않기"는 저장하지 않지만 배너는 닫는다.
 - **메뉴 수명**: 메뉴는 클릭할 때 foreground 이름을 읽는다. foreground 이름이 바뀌거나 사라져 마우스 캡처 배너가
   닫히면, 그 배너에서 연 메뉴도 같은 시점에 닫고 대상 surface 를 비운다. 배너를 띄운 프로그램이 아닌 프로그램에
   설정을 저장하지 않기 위해서다. 다른 surface 의 배너가 닫혀도 열린 메뉴는 그대로다.

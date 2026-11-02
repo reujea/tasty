@@ -1077,6 +1077,18 @@ pub fn pages() -> Vec<Page> {
                             ),
                             widgets::banner_mouse_capture::draw_elastic,
                         ),
+                        spec(
+                            "banner-more-row-copy",
+                            "Row copy — en / ko / ja",
+                            Some(
+                                "Each row names the program and what changes for it: \u{201c}show \
+                                 again\u{201d} for the notice, \u{201c}clicks\u{201d} for capture. \
+                                 Each row = prefix + {app} (mono) + suffix; en uses the prefix \
+                                 only, ko/ja the suffix only. Width band 200–288 is unchanged; \
+                                 with this copy no row wraps for a short name in any locale.",
+                            ),
+                            widgets::banner_mouse_capture::draw_row_copy,
+                        ),
                     ],
                 ),
                 section(

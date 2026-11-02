@@ -1,4 +1,4 @@
-<!-- source-hash: 8019a8f19454 -->
+<!-- source-hash: 0e49adf7267f -->
 # Settings
 
 Adjust your shell, fonts, and workspace preferences to suit the way you work. Use the settings window or edit `~/.tasty/config.toml` directly. For key combinations and colours, see [Keybindings](keybindings.md) and [Themes](themes.md).
@@ -58,7 +58,7 @@ Turn off **Restore surface content on restart** and earlier terminal content no 
 |------|------|
 | **General** | **Shell** · **Startup command** · **Scrollback lines** (default 10000) · **Confirm close running process** · **Inherit working directory** · **Reverse-screen flash (DECSCNM)** · **Show bell notification** · **Link click modifier** (Ctrl / Alt / Disable left-click opening) · macOS: **Use Option as Meta** · Windows: **Shell mode** |
 | **Input** | Per-app **Send a newline with Shift+Enter** rules — add an executable name (for example `claude`) and turn it on, and `Shift+Enter` sends a newline (LF) while that app takes the input. Turned off, or with no rule, it uses the platform's default encoding |
-| **Mouse Capture** | **Show mouse-capture hint** · **Disable mouse capture for these programs** · **Suppress the capture hint banner for these programs** — process names or patterns such as `ht*` |
+| **Mouse Capture** | **Show mouse-capture hint** · **Let Tasty handle clicks in these programs** · **Don't show the capture notice for these programs** — process names or patterns such as `ht*` |
 | **TUI** | **Allow clipboard read (OSC 52)** — off by default. When on, programs inside the terminal can read the clipboard |
 | **Performance** | **Targeted PTY polling** · **Scrollback disk swap** (moves lines past the scrollback line count to disk) · **Lines kept on disk** (default 10000, -1 = unlimited — separate from the scrollback line count; the oldest lines past it are dropped). The unit **lines** follows the field, and at -1 **no limit** takes its place. Type a value outside the range and "Use -1 or a number from 0 to 100000000." appears under the field. As the note at the top of the tab says, all three apply to terminals you open after saving, and terminals that are already open don't change right away |
 
