@@ -2118,6 +2118,42 @@ impl crate::theme::Theme {
         self.glyph_dim()
     }
 
+    /// `component.html-remote-banner-glyph` → `{semantic.accent-info}`
+    #[inline]
+    pub fn html_remote_banner_glyph(&self) -> HexColor {
+        self.accent_info()
+    }
+
+    /// `component.html-remote-marker-allowed-fg` → `{semantic.text-muted}`
+    #[inline]
+    pub fn html_remote_marker_allowed_fg(&self) -> HexColor {
+        self.text_muted()
+    }
+
+    /// `component.html-remote-marker-fg` → `{semantic.glyph-dim}`
+    #[inline]
+    pub fn html_remote_marker_fg(&self) -> HexColor {
+        self.glyph_dim()
+    }
+
+    /// `component.html-remote-marker-hit` → `{primitive.size-20}` = 20px
+    #[inline]
+    pub fn html_remote_marker_hit(&self) -> LogicalPx {
+        LogicalPx((20.0 * self.ui_zoom).round())
+    }
+
+    /// `component.html-remote-marker-hover-bg` → `{semantic.overlay-hover}`
+    #[inline]
+    pub fn html_remote_marker_hover_bg(&self) -> PremulColor {
+        self.overlay_hover()
+    }
+
+    /// `component.html-remote-marker-size` → `{semantic.icon-size-sm}` = 14px
+    #[inline]
+    pub fn html_remote_marker_size(&self) -> LogicalPx {
+        self.icon_glyph_size_sm
+    }
+
     /// `component.html-script-banner-glyph` → `{semantic.accent-info}`
     #[inline]
     pub fn html_script_banner_glyph(&self) -> HexColor {

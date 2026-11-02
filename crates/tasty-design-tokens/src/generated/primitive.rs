@@ -253,6 +253,9 @@ pub(crate) const SIZE_460: LogicalPx = LogicalPx(460.0);
 /// `primitive.size-48` = 48px
 pub(crate) const SIZE_48: LogicalPx = LogicalPx(48.0);
 
+/// `primitive.size-480` = 480px
+pub(crate) const SIZE_480: LogicalPx = LogicalPx(480.0);
+
 /// `primitive.size-52` = 52px
 pub(crate) const SIZE_52: LogicalPx = LogicalPx(52.0);
 

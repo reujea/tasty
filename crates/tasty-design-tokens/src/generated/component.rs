@@ -651,6 +651,12 @@ pub mod html {
     /// `component.html-address-field-min-width` → `{primitive.size-96}` = 96px
     pub const ADDRESS_FIELD_MIN_WIDTH: LogicalPx = crate::generated::primitive::SIZE_96;
 
+    /// `component.html-remote-marker-hit` → `{primitive.size-20}` = 20px
+    pub const REMOTE_MARKER_HIT: LogicalPx = crate::generated::primitive::SIZE_20;
+
+    /// `component.html-remote-marker-size` → `{semantic.icon-size-sm}` = 14px
+    pub const REMOTE_MARKER_SIZE: LogicalPx = crate::generated::semantic::ICON_SIZE_SM;
+
     /// `component.html-script-marker-hit` → `{primitive.size-16}` = 16px
     pub const SCRIPT_MARKER_HIT: LogicalPx = crate::generated::primitive::SIZE_16;
 

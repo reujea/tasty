@@ -461,6 +461,10 @@
       "$type": "dimension",
       "$value": "460px"
     },
+    "size-480": {
+      "$type": "dimension",
+      "$value": "480px"
+    },
     "size-560": {
       "$type": "dimension",
       "$value": "560px"
@@ -2659,6 +2663,30 @@
       "$value": "{primitive.size-16}"
     },
     "html-script-marker-hover-bg": {
+      "$type": "color",
+      "$value": "{semantic.overlay-hover}"
+    },
+    "html-remote-banner-glyph": {
+      "$type": "color",
+      "$value": "{semantic.accent-info}"
+    },
+    "html-remote-marker-fg": {
+      "$type": "color",
+      "$value": "{semantic.glyph-dim}"
+    },
+    "html-remote-marker-allowed-fg": {
+      "$type": "color",
+      "$value": "{semantic.text-muted}"
+    },
+    "html-remote-marker-size": {
+      "$type": "dimension",
+      "$value": "{semantic.icon-size-sm}"
+    },
+    "html-remote-marker-hit": {
+      "$type": "dimension",
+      "$value": "{primitive.size-20}"
+    },
+    "html-remote-marker-hover-bg": {
       "$type": "color",
       "$value": "{semantic.overlay-hover}"
     },
