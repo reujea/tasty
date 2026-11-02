@@ -93,6 +93,7 @@ tasty가 위에 그릴 수 없는 네이티브 레이어(HTML surface의 WebView
 - 배너를 표시하거나 치울 때 콘텐츠 rect는 한 번 바뀐다. rect 변화에 애니메이션을 두지 않는다.
 - 기하는 `tasty_ui_widgets::inset_banner_zone`(배너를 둘 영역)과 `inset_content_rect`(카드 아래 콘텐츠 rect)가 계산한다.
 - 첫 사용처는 HTML surface의 스크립트 차단 안내다. 스코프는 그 surface 하나이며 옆 surface에는 배너가 없다. 배너 view는 `tasty_ui_widgets::html_script_banner`, 닫거나 허용한 뒤 탭 라벨 뒤에 남는 표지는 `html_script_marker`다. 본체는 `src/adapters/ui/surface/html_script_banner.rs`가 webview chrome 위에 배너를 그리고, 카드 아래 `banner_inset_gap`까지의 높이만큼 WebView 영역을 줄인다. surface 폭이 `banner_narrow_below()` 미만이면 narrow 배치를 쓴다. 허용 버튼은 셸 안에서 그리므로 배너 버튼 박스를 쓴다. 닫기(×)는 셸 밖에 겹쳐 그리는 Ghost IconButton이라 이 규칙의 대상이 아니다. surface가 새 문서를 로드하는 동안(commit 전) 허용 버튼은 비활성이며 배너 버튼 박스가 아니라 공용 disabled 규칙(중립 상자, disabled ink, opacity 없음)을 따른다.
+- 같은 surface의 원격 콘텐츠 차단 안내(`tasty_ui_widgets::html_remote_banner`)도 inset 배너다. 셸·단계·좁은 배치·닫기 규칙은 스크립트 안내와 같고 글리프만 globeOff(`html-remote-banner-glyph`)다. 한 surface의 inset 안내는 합치지 않고 크기 안내(mirror) → 원격 → 스크립트 순서로 따로 쌓는다. 카드마다 위 `banner_margin()`, 아래 `banner_inset_gap()`을 두며 카드 사이 간격도 8이다. 본체 배치는 `src/adapters/ui/surface/html_script_banner.rs::draw_stack`이다. 원격 안내를 닫거나 허용한 뒤 남는 표지는 탭이 아니라 주소 입력란 끝(`html_remote_marker`)에 둔다.
 
 ### 탭 스트립 툴팁
 
@@ -107,7 +108,7 @@ tasty가 위에 그릴 수 없는 네이티브 레이어(HTML surface의 WebView
 - 가로는 창 가장자리에서 `tooltip-offset`(4)만큼 안쪽으로 당긴다.
 - 툴팁을 보이는 동안 WebView를 숨기지 않는다. hover마다 페이지가 깜박이기 때문이다. 대기 시간·문안·클릭 동작은 다른 툴팁과 같다.
 
-위젯은 `Tooltip::placement_clear_of_native`이며 피할 영역과 앵커가 든 탭 칸은 호출자가 넘긴다. 칸을 넘기지 않으면 스트립 안 후보는 건너뛴다. 본체는 WebView 동기화가 드러낸 WebView의 영역을 `MainViewState::native_content_rects`에 기록하고 탭 바가 이를 읽는다. 지금 이 규칙을 쓰는 탭 스트립 툴팁은 스크립트 표지(`html_script_marker`)뿐이다. 다른 탭 스트립 요소(닫기·스크롤 화살표·분할 버튼)에는 툴팁이 없다. 갤러리 예제는 Layouts › Tab strips의 `tab-strip-tooltips` spec이다.
+위젯은 `Tooltip::placement_clear_of_native`이며 피할 영역과 앵커가 든 탭 칸은 호출자가 넘긴다. 칸을 넘기지 않으면 스트립 안 후보는 건너뛴다. 본체는 WebView 동기화가 드러낸 WebView의 영역을 `MainViewState::native_content_rects`에 기록하고 탭 바가 이를 읽는다. 지금 이 규칙을 쓰는 탭 스트립 툴팁은 스크립트 표지(`html_script_marker`)뿐이다. 주소 띠의 원격 콘텐츠 표지(`html_remote_marker`) 툴팁도 같은 위젯으로 WebView 영역을 피하지만 탭 칸을 넘기지 않으므로 스트립 안 후보는 쓰지 않는다. 다른 탭 스트립 요소(닫기·스크롤 화살표·분할 버튼)에는 툴팁이 없다. 갤러리 예제는 Layouts › Tab strips의 `tab-strip-tooltips` spec이다.
 
 ## 닫기 버튼 / 카운트다운 (우측 상단, 같은 자리)
 

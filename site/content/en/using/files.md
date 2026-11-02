@@ -1,4 +1,4 @@
-<!-- source-hash: 094c9b297a19 -->
+<!-- source-hash: a08e1123c954 -->
 # Opening files
 
 Read a README or check an image beside your terminal. Tasty can open an Explorer, Markdown documents, images, and HTML pages, with a Git viewer for reviewing changes.
@@ -285,6 +285,16 @@ The top of an HTML view has an address bar: the **Back** · **Forward** · **Rel
 - An empty HTML tab shows a hint for the address field with its shortcut. After a restart, a document opened from the address bar returns to the address the tab was created with (an empty tab stays empty), as does an address an agent opened with `tasty html open`.
 - HTML tabs in a remote workspace have no address bar.
 
+### Documents with blocked remote content
+
+With **Allow remote content** off, viewing a local document that uses stylesheets, images, fonts and the like from the network shows a **Remote content in this document is blocked** notice under the address bar. Remote content is not loaded, so the page may look unstyled. Like the script notice, it does not cover the page; it pushes the page down by its height.
+
+- **Allow remote content** — reloads this document once with its remote content allowed. Navigating to another document, changing the file's contents, or restarting Tasty blocks it again. It is separate from allowing scripts. It can't be pressed while the document is loading.
+- When you close the notice with **×** or allow remote content, a globe icon stays at the right end of the address field. A blocked document shows a crossed-out globe; press it to show the notice again (pressing it does not allow anything). An allowed document shows a globe, and hovering it only says that remote content is allowed.
+- A document with both remote content and scripts blocked shows two separate notices, remote content first, then scripts.
+- A document opened by an agent shows the notice when a person looks at that tab. An agent can allow the remote content of a queried document with `tasty surface html-remote-allow`.
+- With the **Allow remote content** setting on, every document loads remote content and there is no notice or icon. HTML tabs in a remote workspace have no such notice.
+
 ### Documents with blocked scripts
 
 With **Sandbox scripts** on, viewing a document that contains scripts shows a **Scripts in this document are blocked** notice above the page. The notice does not cover the page; it pushes the page down by its height. Its text is never cut off: when a narrow view wraps it onto more lines, the notice grows and the page moves down with it. When the HTML view is narrow, the button moves to the line below the description.
@@ -300,6 +310,7 @@ tasty html open --surface 5 ./dist/index.html
 tasty new tab --pane 1 --type html --url http://localhost:3000
 tasty surface html-script --surface 5   # script detection, allowance and notice state
 tasty surface html-script-allow --surface 5 --url <url> --fingerprint <hex>   # allow the scripts of the queried document
+tasty surface html-remote-allow --surface 5 --url <url> --fingerprint <hex>   # allow the remote content of the queried document
 ```
 
 ## Git view

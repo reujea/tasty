@@ -95,13 +95,14 @@ html surface 위쪽에 host가 주소 띠를 그린다. 띠는 공용 view `tast
 - **오류 행** — 거절하면 입력란 테두리가 `input-border-invalid`가 되고 띠 아래에 24px 오류 행이 생긴다. 편집 중인 입력과 이전 문서·주소는 그대로다. 다음 키 입력, Esc, 성공한 열기에서 지운다. 타이머로 지우지 않는다.
 - **열기** — 확정한 주소만 `WebViewUserNav::Open`으로 사용자 탐색 큐에 넣는다. 사용자 출처 로드이므로 스크립트가 있는 문서는 commit 뒤 배너가 바로 뜬다. `allow_remote_content` 설정은 다른 로드와 같이 적용된다. 연 뒤에는 편집을 끝내 띠가 시도 주소와 commit 주소를 보인다.
 - **빈 탭** — 호스트 주소가 없는 html surface(`tasty new tab --type html`)는 처음에 native WebView가 없다. 띠로 주소를 열어 사용자 탐색 큐에 들어오면 그 redraw에서 WebView를 만들고 같은 큐로 첫 로드를 한다. 그 뒤로 WebView를 유지한다. 빈 상태 chrome은 html 글리프, "No page loaded", 그리고 "Type a path or URL in the address bar · <단축키>" 힌트를 보인다. 힌트의 단축키는 주소창 포커스 바인딩의 첫 값이며 바인딩이 없으면 힌트를 그리지 않는다.
-- **배치** — 쌓는 순서는 탭 스트립 → 띠(+오류 행) → 스크립트 배너 → 페이지다. 첫 배너 위는 `banner_margin`, 배너 아래는 `banner_inset_gap`이다. egui 패스가 띠와 배너의 높이 합을 `MainViewState::html_content_insets`에 남기고, WebView 동기화(`MainView::html_content_top`)가 같은 프레임에 물리 px로 바꿔 페이지를 그만큼 내린다. 배너가 사라지면 페이지는 띠 바로 아래로 돌아온다. 빈 상태·로딩·실패 chrome도 띠 아래에 그린다.
+- **배치** — 쌓는 순서는 탭 스트립 → 띠(+오류 행) → 크기 안내(mirror) → 원격 콘텐츠 안내 → 스크립트 배너 → 페이지다. 안내는 합치지 않고 따로 카드로 쌓는다. 카드마다 위에 `banner_margin`, 아래에 `banner_inset_gap`을 두며 다음 카드는 앞 카드의 간격 끝에서 `banner_inset_gap`만큼 올라가 시작하므로 카드 사이 간격도 8이다(`html_script_banner::draw_stack`). egui 패스가 띠와 배너의 높이 합을 `MainViewState::html_content_insets`에 남기고, WebView 동기화(`MainView::html_content_top`)가 같은 프레임에 물리 px로 바꿔 페이지를 그만큼 내린다. 배너가 사라지면 페이지는 띠 바로 아래로 돌아온다. 빈 상태·로딩·실패 chrome도 띠 아래에 그린다.
 - **포커스와 키** — 입력란을 누르거나 주소창 포커스 단축키를 누르면 egui 입력란이 키보드 포커스를 받는다. 띠가 포커스를 가진 동안에는 host 팝업·복원 안내 입력과 같은 키보드 게이트(`MainViewState::keyboard_overlay_open`)가 열려 실제 키·IME가 egui로 가고, 터미널과 Tasty 단축키로는 가지 않는다. 포커스를 가진 띠가 그 프레임에 그려지지 않으면(탭·workspace 전환) 포커스를 놓아 게이트를 닫는다. 띠가 포커스를 새로 얻으면 WebView 동기화가 그 surface의 native 페이지에서 OS 키보드 포커스를 회수한다. Linux X는 포커스 창의 자손 위에 포인터가 있으면 키를 그 자손에 보내므로, 띠가 포커스를 가진 동안 그 페이지 창 전체를 입력 shape에서 뺀다. 그래서 포인터가 페이지 위에 있어도 키가 페이지로 가지 않는다. 이 동안 페이지는 포인터도 받지 않으며, 페이지 자리를 누르면 그 누름으로 띠의 편집이 끝나고 shape가 돌아온다(XFixes가 없으면 shape를 바꾸지 못한다). macOS·Windows는 키를 키보드 포커스 창에만 보내므로 shape를 바꾸지 않는다. 띠가 포커스를 가진 동안 페이지가 포커스를 새로 얻으면 띠의 편집을 끝낸다. 회수 요청이 늦게 반영되는 동안 남은 페이지 포커스는 새로 얻은 것으로 보지 않는다. OS 포커스 조회는 띠가 포커스를 가진 동안에만 한다. 띠의 포커스는 주소 입력과 사용 가능한 탐색 버튼(뒤로·앞으로·새로고침. 비활성 버튼, 숨은 앞으로, 로딩 중 Spinner는 제외)을 모두 포함한다. 그 안에서 `Tab`·`Shift+Tab`은 버튼과 주소 입력 사이를 순서대로 돈다. Ctrl·Alt·Cmd를 함께 누른 `Tab`은 돌지 않는다. 띠의 위젯은 `Tab`과 방향키를 focus lock filter로 잡아 egui 기본 순회가 띠 밖 host 위젯으로 포커스를 옮기지 않게 하고, 다음 대상은 띠가 고른다. 포커스를 받은 버튼은 `Enter`·`Space`로 눌리고 바깥에 포커스 테두리를 그린다. 테두리는 새 디자인 값 없이 이미 승인된 토큰 `border_focus`·`focus_ring_width`를 쓰며, 플러그인 추가 화면의 포커스 테두리와 egui 선택 테두리가 같은 쌍을 쓴다. 주소 입력에서 Tab으로 떠나면 다른 곳으로 포커스를 옮길 때처럼 거절되지 않은 초안은 지금 주소로 돌아가고 편집 표시가 꺼진다. 주소 입력으로 돌아오면 주소 전체를 고른다. 미러의 읽기 전용 주소는 고르지 않고 편집 상태도 되지 않는다. `Esc`와 페이지의 포커스 획득은 버튼 포커스도 놓는다. 포커스를 가진 버튼이 그 동작으로 사라지거나 비활성이 되면(새로고침이 Spinner로 바뀌거나 뒤로가 히스토리 처음에 닿을 때) 포커스가 풀리고 게이트가 닫힌다.
 - **주소창 포커스 단축키** — 설정 키 `explorer_focus_address`(라벨 "주소창으로 이동", 기본 `Alt+L`, macOS `⌘L`, 단축키 설정의 Surface 탭)를 탐색기와 함께 쓴다. 포커스된 surface가 html이면 그 surface의 띠에 포커스를 주고 주소 전체를 고른다. 다른 surface의 띠는 바꾸지 않는다. 주소 띠가 있는 html 페이지(mirror 제외)가 키보드 포커스를 가진 상태에서도 host가 이 키를 가져간다([WebView 단축키](../../design/systems/webview.md)). markdown 페이지는 주소 입력이 host 띠가 아니라 문서 DOM 안에 있으므로 가져가지 않고 페이지로 보내며, 페이지가 같은 바인딩으로 자기 주소 입력을 고른다([markdown 주소 띠](../markdown/index.md)). 띠가 이미 포커스를 가진 동안 이 키를 다시 누르면 주소 전체를 다시 고른다. 키를 바꾸면 새 키만 가져가고 이전 키는 페이지로 간다. 뒤로·앞으로에는 새 단축키를 두지 않는다. 페이지가 처리하는 `Alt+←`·`Alt+→`와 겹치지 않게 하기 위해서다.
 - **주소 입력의 편집 키** — 띠가 포커스를 가진 동안 단축키 설정의 `copy`·`cut`·`paste`·`select_all`·`page_undo`·`page_redo` 바인딩은 주소 입력에만 적용한다. 바인딩한 키는 그 키의 egui 기본 효과(글자 입력, 기본 복사·잘라내기·붙여넣기, 삭제·이동) 대신 바인딩한 편집 하나만 한 번 실행한다. 예를 들어 `paste`에 `Ctrl+X`를 주면 잘라내지 않고 붙여넣기만 한다. 어느 편집에도 바인딩하지 않은 egui 기본 편집 키(Ctrl/⌘+C·X·V·A 등)는 그대로 동작하므로 바인딩을 지워도 남는다. 실행 취소·다시 실행 바인딩은 egui 입력의 실행 취소·다시 실행 하나로 바뀐다. 단어 이동·삭제, Shift 확장 선택은 egui 입력의 기본 키다. 페이지 본문·터미널·Explorer로 키가 새지 않는다. 읽기 전용 mirror 주소도 눌러 포커스를 준 뒤 전체 선택·복사로 말줄임 라벨이 아닌 원문 전체를 복사하며, 잘라내기·붙여넣기·Enter는 값을 바꾸거나 이동하지 않는다. 페이지 본문의 편집 키는 [WebView 편집 액션](../../design/systems/webview.md#편집-액션)을 따른다.
 - **겹친 바인딩** — 띠가 포커스를 가진 동안 한 키가 편집·주소창 포커스·공통 새로고침 중 여럿에 묶여 있으면 편집, 주소창 포커스, 새로고침 순으로 하나만 실행한다. 예를 들어 `copy`와 새로고침에 같은 `F5`를 주면 복사만 하고 새로고침하지 않는다. 다른 바인딩과 겹치지 않은 새로고침 키(기본 `F5`)는 그대로 그 surface를 새로고침한다.
 - **편집 중 에이전트 변경** — 사용자가 편집하는 동안 에이전트가 `tasty html open`으로 주소를 바꾸면 입력 텍스트와 포커스는 그대로이고 표지도 없다. Esc는 그때의 commit 주소로 되돌린다. 에이전트 경로는 띠에 포커스를 주지 않는다.
 - **Esc** — 편집을 취소하고 기다리던 파일 확인을 버린 뒤 commit 주소로 돌아간다. 실패한 시도 주소로 되돌리지 않는다.
+- **원격 콘텐츠 표지** — 원격 안내가 화면에 없을 때(닫았거나, 정적 참조 없이 OS가 차단을 알렸거나, 허용했을 때) 주소 입력란 끝에 표지를 둔다. mirror의 건너뛴 파일 Tag가 있으면 그 뒤다. 표지 칸(`html-remote-marker-hit`, 20)은 주소 말줄임 예산에 들어가 주소가 먼저 줄고 표지는 줄지 않는다. 차단 표지는 globeOff(`html-remote-marker-fg`)이고 hover 채움(`html-remote-marker-hover-bg`)이 있으며, 누르면 원격 안내를 다시 보일 뿐 허용하지 않는다. 그 누름은 주소 입력 편집을 시작하지 않는다. 허용 표지는 globe(`html-remote-marker-allowed-fg`)이고 툴팁만 있다. 툴팁은 위쪽에 뜨고 WebView 영역을 피한다(`placement_clear_of_native`). 안내가 페이드로 사라지는 동안과 재로드 중에는 표지를 그리지 않는다. mirror·HTTP view에는 원격 안내와 표지가 없다.
 - **mirror** — 협상된 entry mirror에는 원격 경로의 읽기 전용 입력란과 새로고침만 그린다. 미지원 placeholder에는 띠를 숨긴다.
 - **같은 문서 판정** — 띠로 연 주소의 같은 문서 `#fragment` 판정도 위 "사용자 탐색"과 같은 문자열 비교다. 입력 해석은 파일 시스템 정규화를 하지 않으므로 표기가 다른 같은 파일은 새 로드가 된다.
 - **색** — 편집 중이 아닌 실제 주소는 `html-address-value-fg`(text-secondary-raised), 편집 중에는 `input-fg`, mirror의 읽기 전용 주소는 `input-readonly-fg`다. placeholder와 비활성은 기존 역할을 쓴다. 기하는 `html-address-*`·입력·배너 토큰이다.
@@ -361,6 +362,11 @@ backend는 실효값 `전역 설정 || 문서 단위 허용` 하나를 한 곳�
 
 안내 판정은 스크립트 배너와 같은 열람 규칙([사용자가 봤다는 판정](#사용자가-봤다는-판정))을 따른다. 정적 원격 참조가 있고 원격이 막혀 있으며 닫지 않은 문서에서 안내가 필요하다. 정적 참조 없이 OS가 차단을 알린 문서는 안내 대신 표지를 남기고, 표지를 누르면 안내를 보인다(허용하지 않는다). 허용한 문서는 `allowed` 표지가 된다. 전역 설정이 켜져 있으면 안내와 표지가 없다. 상태는 `surface.html_script`의 `remote` 객체로 조회한다.
 
+- **안내 카드** — 공용 view `tasty_ui_widgets::html_remote_banner`다. 스크립트 배너와 같은 inset 셸·단계(`blocked`·`loading`·`reloading`)·좁은 배치·닫기 규칙을 쓰고 글리프만 globeOff(`html-remote-banner-glyph`, accent-info)다. 제목 "Remote content in this document is blocked", 본문은 막는 종류(스타일시트·이미지·글꼴·프레임·스크립트)와 허용 범위(이 문서만)를 말하고, 액션은 [Allow remote content]다. 제목은 정적 참조와 OS 관측을 구분하지 않는다. 문구 키는 `banner.html_remote.*`다(`[html_remote]`는 mirror 원격 수신 문구라 따로 둔다).
+- **위치** — 주소 띠 아래, mirror 크기 안내 뒤, 스크립트 배너 앞이다([주소 표시줄](#주소-표시줄)의 배치). 원격 스크립트가 있는 문서에서 두 안내가 함께 보이면 스크립트 배너 본문은 `bodyRemote` 문구다.
+- **동작** — 허용·닫기·다시 보이기는 스크립트 배너와 같은 문서 묶음 요청(`HtmlActionKind::RemoteAllow`·`RemoteDismiss`·`RemoteReshow`)으로 다음 프레임에 적용한다. 요청을 만든 문서가 바뀌었으면 버린다. 허용은 사용자 출처 요청만 받는다. 허용을 누르면 재로드 중 카드가 스피너를 보이고, 새 문서가 commit되면 `banner_fade` 동안 흐려지며 사라진다. 원격 허용과 스크립트 허용은 서로 바꾸지 않는다. 배너는 키보드 포커스를 가져가지 않는다.
+- **페이드 분리** — 원격·스크립트 카드는 페이드 메모를 따로 둔다. 한 카드가 사라지는 동안 다른 카드의 위치는 사라지는 카드의 높이가 빠진 뒤 한 번 바뀐다.
+
 ## 인터페이스
 
 - **사용자**: html surface 위쪽 [주소 표시줄](#주소-표시줄)에서 경로·URL 입력, 뒤로·앞으로·새로고침, 주소창 포커스 단축키(`Alt+L`, macOS `⌘L`).
@@ -399,6 +405,11 @@ backend는 실효값 `전역 설정 || 문서 단위 허용` 하나를 한 곳�
 - Given 그 문서 When 조회 응답의 `url`·`fingerprint`로 `tasty surface html-remote-allow`를 실행한다 Then `result`는 `allowed`이고, 재로드에서 원격 요청이 서버에 도착하며, 스크립트 허용 기록과 JS 값은 그대로다(Linux 실제 실행).
 - Given 원격을 허용한 문서 When 같은 문서를 재로드하거나, 전역 원격 허용을 켠 채 재로드한 뒤 다시 끈다 Then 허용 기록과 원격 요청이 유지된다(Linux 실제 실행, 모델 시험 `reloading_with_the_global_switch_on_keeps_the_document_allowance`).
 - Given 원격을 허용한 문서 When 파일 내용을 바꾼 뒤 재로드하거나 다른 문서를 연다 Then 허용 기록이 풀리고 새 문서의 원격 요청은 가지 않는다(Linux 실제 실행).
+- Given 에이전트가 원격 참조가 있는 로컬 문서를 html 탭으로 열었다 When 사용자가 그 탭을 선택한다 Then 원격 안내 카드가 주소 띠 아래에 보이고 WebView는 카드 아래 `banner_inset_gap` 뒤에서 시작하며, 원격 요청은 가지 않는다(Linux 실제 실행).
+- Given 원격 안내가 보인다 When 사용자가 ×를 누른다 Then 카드가 사라지고 주소 입력란 끝에 globeOff 표지가 보이며 조회의 `remote.marker`는 `blocked`다. When 그 표지를 누른다 Then 안내가 다시 `blocked`로 보이고 `remote.allowance`는 `null`이며 활성 탭은 그대로다(Linux 실제 실행).
+- Given 원격 안내가 보인다 When 사용자가 [Allow remote content]를 누른다 Then 재로드 중 카드가 스피너를 보인 뒤 사라지고, 원격 요청이 서버에 도착하며, 주소 입력란 끝에 globe 표지가 보이고 스크립트 허용과 JS 값은 그대로다(Linux 실제 실행).
+- Given 원격 참조와 인라인 스크립트가 함께 있는 문서(sandbox 켜짐) When 사용자가 본다 Then 주소 띠 아래에 원격 안내, 그 아래 스크립트 배너 순서로 두 카드가 따로 쌓인다(Linux 실제 실행).
+- Given 전역 원격 허용이 켜져 있다 When 원격 참조가 있는 문서를 본다 Then 원격 안내와 표지가 없다(Linux 실제 실행).
 - Given 전역 원격 허용이 켜져 있거나 대상이 mirror·HTTP view When `surface.html_remote_allow` Then `-32022`와 `reason` `globally_allowed`·`unsupported_view`로 거절하고 상태를 바꾸지 않는다.
 - Given 전역 원격 허용이 켜진 entry mirror에서 `http(s)` `src` 스크립트만 있는 문서 When `surface.html_script` Then `remote.view`는 `mirror`, `remote.effective`는 거짓이고 스크립트 배너가 뜨지 않는다. HTTP view의 같은 문서는 전역 설정과 관계없이 스크립트 배너가 뜬다(모델 시험 `each_view_reports_its_own_remote_policy`).
 - Given html 탭이 `file:///tmp/x/a.html`을 보여 준다 When 페이지 안 `#sec` 링크를 누른다 Then `surface.html_nav`의 `url`은 `file:///tmp/x/a.html#sec`이고 `requested_url`은 그대로다.
@@ -451,6 +462,8 @@ HTML·SVG 파일 열기, 탭 스트립 메뉴 **새 HTML...**(파일 피커), �
 ### UI 요소 인벤토리
 
 - **주소 띠** — 높이 40(`html-address-bar-height`), `bg-sidebar`, 아래 1px separator. 뒤로·앞으로·새로고침(IconButton sm 24)과 주소 입력란(높이 28, 최소 96). 입력 오류 때 24px 오류 행이 더해진다. 동작은 [주소 표시줄](#주소-표시줄).
+- **안내 카드** — 주소 띠 아래 inset 배너. mirror 크기 안내 → 원격 콘텐츠 안내(globeOff) → 스크립트 안내(lock) 순서로 따로 쌓는다. 동작은 [안내와 표지](#안내와-표지)와 스크립트 배너 절.
+- **원격 콘텐츠 표지** — 주소 입력란 끝의 globeOff(차단)·globe(허용) 표지. 칸 20, 글리프 14.
 - **WebView 콘텐츠** — URL/파일의 웹 렌더. 타일 rect 에서 주소 띠와 배너 아래에 오버레이로 정렬.
 - 탭 표시명은 파일명/URL.
 

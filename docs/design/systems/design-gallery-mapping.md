@@ -344,6 +344,7 @@ Spec 하나가 갤러리 예제 둘이거나, 둘이 하나이거나, 경계가 
 | `gallery/layouts.jsx` **Workspace status bar** (하단 24px 바, 좌 요약 / 우 리마인더) | `tasty_ui_widgets::draw_status_bar_view` (`crates/tasty-ui-widgets/src/status_bar.rs`, `StatusBarData`→`StatusBarDrawResult`) | `src/adapters/ui/status_bar.rs::draw_status_bar` (Area·z-order·i18n 라벨 주입·action 적용) | `statusbar` (Layouts › Status bar, `components/status_bar.rs::draw`) · `statusbar-theme-cell` (`components/status_bar_theme_cell.rs::draw`) |
 | `gallery/overlays.jsx` `NumCap` (16px 숫자 키캡) | `tasty_ui_widgets::paint_num_keycap` (`crates/tasty-ui-widgets/src/chip.rs`; 레이아웃 갈래는 같은 파일의 `num_keycap`) | `src/adapters/ui/switch_overlay.rs::paint_keycap` (slot 좌표·등장 페이드 alpha) | `switch` (Overlays, `components/switch_overlay.rs::keycap_at`) |
 | `gallery/overlays-banners.jsx` `BannerShellG` (배너 셸) | `tasty_ui_widgets::banner_shell` (`crates/tasty-ui-widgets/src/banner.rs`; inset 기하 `inset_banner_zone`·`inset_content_rect`) | `src/adapters/ui/banner.rs::BannerManager::draw` (배치·z-order·디밍·hover) | `banner-*` (Overlays, `widgets/banner.rs` · `widgets/banner_mouse_capture.rs`) · `html-script-*` (`widgets/html_script_banner.rs`) |
+| `ui_kits/terminal/overlays/html_remote_banner.jsx` `HtmlRemoteBanner`·`HtmlRemoteMarker` | `tasty_ui_widgets::html_remote_banner`·`html_remote_marker` (`crates/tasty-ui-widgets/src/html_remote_banner.rs`) | `src/adapters/ui/surface/html_script_banner.rs::draw_stack`(크기 → 원격 → 스크립트 inset 쌓기) · `src/adapters/ui/surface/html_address.rs`(주소 입력란 끝 표지) | `html-remote-*` (Overlays, `widgets/html_remote_banner.rs`) |
 | `ui_kits/terminal/overlays/html_script_banner.jsx` `HtmlScriptBanner`·`HtmlScriptMarker` | `tasty_ui_widgets::html_script_banner`·`html_script_marker` (`crates/tasty-ui-widgets/src/html_script_banner.rs`) | `src/adapters/ui/surface/html_script_banner.rs::draw`(webview chrome 위 inset, WebView 영역 축소) · `src/adapters/ui/tab_bar/tab.rs`(탭 오른쪽 묶음의 표지 칸·lock 클릭) | `html-script-*` (Overlays, `widgets/html_script_banner.rs`) |
 | `gallery/overlays-banners.jsx` `AttachRefusalBannerG`·`RefusalRowG`·`RefusalRailG` (자동 attach 거절) | `tasty_ui_widgets::attach_refusal_banner`·`attach_refusal_banner_content`·`attach_refusal_mark`·`paint_attach_refusal_chip`·`attach_refusal_avatar_tooltip` (`crates/tasty-ui-widgets/src/attach_refusal.rs`). 좁은 스코프 배치는 `banner_is_narrow` 판정을 view 의 `narrow` 로 받는다 | `src/adapters/ui/banner.rs`(`BannerContentSource::AttachRefusal`, Workspace 범위) · `src/adapters/ui/attach_notice.rs`(창별 안내·× 숨김) · `src/adapters/ui/sidebar/view.rs::draw_workspace_card`(행 표지, 배지 묶음 왼쪽) · `draw_collapsed_avatar`(레일 왼쪽 위 칩) | `attachrefusal` (Overlays, `widgets/attach_refusal.rs`). 좁은 스코프(360) 표본은 시안 "Narrow — action under the text, × stays top-right" Spec 을 따라 `attachsizesync` 의 Narrow Spec 에 둔다 |
 | `gallery/overlays-banners.jsx` `AttachSizeSyncBannerG` (attach mirror 터미널 크기 동기화 실패) | `tasty_ui_widgets::attach_size_sync_banner`·`attach_size_sync_banner_content` (`crates/tasty-ui-widgets/src/attach_size_sync.rs`). 본문은 두 줄이다. 이름 줄은 한 줄로 두고 이름 칸만 `attach_sync_name_max_width`(160)에서 하한 `attach_sync_name_min_width`(40)까지 본래 폭 비율로 줄인 뒤 말줄임하며, 수·구분자·` ×k`·`+n` 은 줄지 않고 넘치는 끝은 잘라 그린다. 하한은 줄어들 때만 적용한다. 칸 = min(본래 폭, max(40, 줄인 폭))이라 40보다 짧은 이름은 제 폭을 지키고 뒤 조각이 바로 붙는다. 같은 이름은 한 항목으로 묶어 이름 뒤에 ` ×k`(text-muted)를 붙인다. `N surfaces` 는 surface 수, `+n` 은 남은 항목 수다. 제목과 고정 문구는 줄 수를 제한하지 않는다. 고정 문구 줄(`remote.size_sync.hint`)은 감싸고 자르지 않는다. 다시 시도 중의 앞 Spinner 는 `Button::leading_icon_size` 로 14 칸에 `Spinner::paint_in` 을 그린다. 좁은 스코프 배치는 `banner_is_narrow` 판정을 view 의 `narrow` 로 받는다 | `src/adapters/ui/banner.rs`(`BannerContentSource::AttachSizeSync`, Workspace 범위) · `src/adapters/ui/attach_size_sync.rs`(창별 실패 상태·탭 이름) · `src/adapters/ui/overlay.rs`(버튼 → `Intent::AttachSizeSync`) | `attachsizesync` (Overlays, `widgets/attach_size_sync.rs`). 시안의 두 Spec 을 그대로 둔다: 기본·다시 시도 중·세 surface·같은 이름 두 번·같은 이름과 다른 이름 묶음, 그리고 Narrow Spec(360 스코프에 거절 · 한 surface · Retry all · 다시 시도 중을 Mocha·Latte 로). 시안 Meta "body lines"·"plugin body rows"·"plugin tooltip" 의 plugin 쪽은 Stage 가 없어 같은 카드 끝 Banner body lines 에 `plugin_banner_body` 360 표본 둘(세 줄 · 두 줄 높이로 고정한 콘텐츠)로 둔다. 표본은 본체 호스트와 같이 `plugin_banner_body_host_tooltip` 안에서 그리고 `show_plugin_banner_body_tooltip` 으로 카드 아래 툴팁을 그린다 |
@@ -644,6 +645,24 @@ inset banner`, `banner` Section 다음). 배너와 마커는 본체가 호출할
 제목의 semibold는 egui에 굵기 family가 없어 재현하지 않는다([디자인 정합 지침](design-parity-notes.md)).
 글리프 nudge 1과 제목↔본문 간격 2는 디자인이 primitive `size-1`·`size-2`를 직접 써서 역할 토큰이 없으므로
 위젯의 이름 붙은 상수에 배율만 적용한다. 재로드 커밋 뒤 120ms 페이드는 정적 예제에서 재현하지 않는다.
+
+### HTML remote content notice (inset 배너 · 주소 칸 표지)
+
+디자인 `gallery/overlays-banners.jsx`의 `#htmlremote` Section과
+`ui_kits/terminal/overlays/html_remote_banner.jsx`·`html_address_bar.jsx`(`trailing` 슬롯) ↔ 갤러리
+`crates/tasty-gallery/src/catalog/widgets/html_remote_banner.rs` (Overlays › `HTML remote content notice`,
+`htmlscript` 다음). 배너와 표지는 본체가 호출하는 공용 함수를 그대로 쓰고, 주소 띠는 공용
+`html_address_bar`에 `remote_marker`를 넘겨 그린다. 페이지 자리만 갤러리가 흉내 낸다.
+
+| 디자인 jsx 함수 | 공용 함수 / 갤러리 함수 | 비고 |
+|---|---|---|
+| `HtmlRemoteBanner` | `tasty_ui_widgets::html_remote_banner`(`HtmlRemoteBannerView` = 스크립트 배너 view) | 스크립트 배너와 같은 셸·행·단계·narrow·닫기 슬롯(`html_notice_banner` 공유). 글리프만 `GLOBE_OFF` · `html_remote_banner_glyph()`(accent-info) |
+| `HtmlRemoteMarker` | `tasty_ui_widgets::html_remote_marker`(`HtmlRemoteMarkerKind`) | 칸 `html_remote_marker_hit()`(20), 글리프 `html_remote_marker_size()`(14). Blocked = `GLOBE_OFF` · `html_remote_marker_fg()`, hover 채움 `html_remote_marker_hover_bg()` + `corner_radius_sm`, 클릭 가능 / Allowed = `GLOBE` · `html_remote_marker_allowed_fg()`, 툴팁만. 툴팁은 `placement_clear_of_native`(위쪽 우선) |
+| `HtmlAddressField` `trailing` | `HtmlAddressView::remote_marker` | 입력란 끝, 건너뛴 파일 Tag 뒤. 표지 칸 오른쪽 끝은 입력란 오른쪽 안쪽 여백에서 `spacing_xs`만큼 바깥. 주소 말줄임 예산에 표지 칸을 먼저 뺀다 |
+| Spec states · marker · variants | `draw_states` · `draw_markers` · `draw_variants` | variants는 디자인 1–10(차단, 로드 중, 재로드, 허용 표지, 닫은 뒤 차단 표지, 원격+스크립트 6a–6c, 원격 스크립트만 7·7′, 스캔 누락 8a·8b, 좁은 폭 9a·9b, 전역 켬 10)과 mirror 3단을 Mocha·Latte로 그린다. 열 폭이 좁아 두 테마 패널은 세로로 쌓는다. mirror 3단은 시안 그대로 그리지만 본체는 mirror view에 원격 안내·표지를 두지 않는다 |
+
+원격 안내의 문구 키는 디자인의 `html.remote.*`가 아니라 `banner.html_remote.*`다. `[html_remote]`는 mirror 원격 수신 문구가
+이미 쓰고 있어서다. 재로드 커밋 뒤 페이드는 정적 예제에서 재현하지 않는다.
 
 ## ui-code (Components)
 
