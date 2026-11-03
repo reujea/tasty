@@ -126,6 +126,9 @@ pub struct DialogState {
     pub(crate) rename_waiting: Option<RenameWaiting>,
     /// 마우스 캡처 배너 메뉴의 대상 surface ID.
     pub(crate) mouse_capture_banner_menu_target: Option<u32>,
+    /// 열 때 프로그램 이름을 몰라 이름 미상 형태(사유 줄 + 비활성 두 행)로 열었는지.
+    /// 열린 동안 이름이 생겨도 형태를 바꾸지 않고 다음 열기에 정상 행을 보인다.
+    pub(crate) mouse_capture_banner_menu_unknown: bool,
     /// 마우스 캡처 배너 메뉴를 열 때 잰 (셸 안쪽 폭, 셸 높이). 폭은 프로그램 이름에 따라,
     /// 높이는 줄을 바꾼 행(고정 문구가 상한 폭을 넘는 언어)에 따라 달라진다.
     pub(crate) mouse_capture_banner_menu_size: Option<(
@@ -226,6 +229,7 @@ impl DialogState {
             rename_content_height: None,
             rename_waiting: None,
             mouse_capture_banner_menu_target: None,
+            mouse_capture_banner_menu_unknown: false,
             mouse_capture_banner_menu_size: None,
             tools_menu_width: None,
             convert_popup: None,

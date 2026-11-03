@@ -649,7 +649,7 @@ pub fn draw_lifetime(ui: &mut egui::Ui, theme: &Theme) {
             ("×", "not an action"),
             (
                 "exception",
-                "developer-directed, code comment at the definition",
+                "developer-directed, code comment at the definition (none in use for mouse capture)",
             ),
             (
                 "plugin banners",

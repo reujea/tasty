@@ -15,6 +15,7 @@ mod autocomplete;
 mod balanced_wrap;
 mod banner;
 mod banner_more_row;
+mod banner_more_unknown;
 mod boot_error;
 pub mod brand;
 mod button;
@@ -124,6 +125,9 @@ pub use autocomplete::{
 pub use banner::{banner_is_narrow, banner_shell, inset_banner_zone, inset_content_rect};
 pub use banner_more_row::{
     BannerMoreLabel, banner_more_row, banner_more_row_height, banner_more_row_natural_width,
+};
+pub use banner_more_unknown::{
+    BannerMoreUnknownCopy, banner_more_unknown, banner_more_unknown_height,
 };
 pub use boot_error::{BootErrorView, boot_error_screen};
 pub use button::{Button, ButtonVariant, banner_surface, banner_surface_ctx, in_banner_surface};

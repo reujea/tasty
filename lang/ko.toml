@@ -1447,6 +1447,9 @@ suppress_prefix = ""
 suppress_suffix = "에서 다시 보지 않기"
 disable_prefix = ""
 disable_suffix = "에서 클릭은 Tasty가 처리"
+unknown_reason = "실행 중인 프로그램을 확인할 수 없어 저장할 수 없습니다."
+notice_unknown = "이 프로그램에서 다시 보지 않기"
+capture_unknown = "이 프로그램에서 클릭은 Tasty가 처리"
 
 [banner.shell_integration_missing]
 title = "셸 통합이 감지되지 않았습니다"

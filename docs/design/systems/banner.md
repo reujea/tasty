@@ -122,7 +122,9 @@ tasty가 위에 그릴 수 없는 네이티브 레이어(HTML surface의 WebView
 ## "더보기"(⋯) 컨텍스트 메뉴 — mouse-capture 배너 전용
 
 mouse-capture 배너(`defs::BANNER_MOUSE_CAPTURE`)에 한해, X 왼쪽에 "더보기" ⋯ 트리거가
-같은 버튼 열에 나란히 놓인다. 다른 배너 kind 는 이 트리거를 갖지 않는다.
+같은 버튼 열에 나란히 놓인다. 다른 배너 kind 는 이 트리거를 갖지 않는다. 트리거는 foreground 프로그램 이름을
+모를 때(원격 attach mirror, 첫 foreground 조회 전, 조회 실패)도 같은 모습으로 그린다. 그때 메뉴는 아래
+[이름 미상 형태](#프로그램-이름을-모를-때)로 열린다.
 
 - **노출 조건**: X 와 동일 — 배너 hover 시에만. 단 ⋯ 의 컨텍스트 메뉴가 열려 있는 동안은
   hover 여부와 무관하게 **계속 표시 + active(강조) 상태 유지** — 재사용하려면 ⋯ 재클릭.
@@ -162,11 +164,36 @@ mouse-capture 배너(`defs::BANNER_MOUSE_CAPTURE`)에 한해, X 왼쪽에 "더�
 - 두 블랙리스트는 Settings › Terminal › Mouse Capture 탭과 데이터를 공유한다. 메뉴와 설정 화면은 같은 매칭 규칙을 사용한다([터미널 (Terminal)](../../surfaces/terminal/index.md)).
 - **저장 방어**: 메뉴 항목이 보내는 설정 변경은 프로그램 이름을 trim 해 저장한다. trim 뒤 빈 이름과, 이미 있는
   패턴과 trim·ASCII 대소문자 무시 비교로 같은 이름은 목록을 바꾸지 않는다. 기존 목록의 빈 항목·중복은 자동으로
-  정리하지 않는다. 이름을 모를 때(원격 mirror, 첫 foreground 조회 전) 메뉴를 어떻게 보일지는 아직 정해지지 않았고,
-  지금은 빈 이름으로 행을 그린다. 이 상태에서 "다시 보지 않기"는 저장하지 않지만 배너는 닫는다.
+  정리하지 않는다.
 - **메뉴 수명**: 메뉴는 클릭할 때 foreground 이름을 읽는다. foreground 이름이 바뀌거나 사라져 마우스 캡처 배너가
   닫히면, 그 배너에서 연 메뉴도 같은 시점에 닫고 대상 surface 를 비운다. 배너를 띄운 프로그램이 아닌 프로그램에
   설정을 저장하지 않기 위해서다. 다른 surface 의 배너가 닫혀도 열린 메뉴는 그대로다.
+
+### 프로그램 이름을 모를 때
+
+두 행은 foreground 프로그램 이름을 저장한다. 이름이 없거나 trim 뒤 비면(원격 attach mirror — 로컬 PTY 없음, 첫 1Hz
+조회 전, OS 조회 실패) 동작은 있지만 지금 실행할 수 없으므로, 숨기지 않고 **비활성으로 보인다**. 원격 mirror 에서는
+이름이 늘 미상이므로 이 형태가 곧 mirror 의 메뉴다.
+
+- **트리거**: 이름을 알 때와 같다(hover 노출, 열린 동안 active, 본문 예약 `banner_more_reserve()` 56 유지).
+- **구성**: 위에서부터 비대화형 사유 줄 → 구분선 → 같은 두 행(비활성). 공용 `tasty_ui_widgets::banner_more_unknown`
+  이 그리며 갤러리 예제도 같은 함수를 쓴다.
+  - 사유 줄: info 글리프(`icon_glyph_size_sm` 14, 첫 줄 세로 가운데) + caption 크기 `text_muted` 문장. 줄을 바꾸며
+    위아래 `spacing_xs`, 좌우 `spacing_md`, 글리프와 문장 사이 `spacing_sm` 이다. 포커스·hover 가 없다.
+  - 구분선: 위아래 `spacing_xs`, 두께 `border_width`, 색 `separator`.
+  - 행: MenuItem disabled 모습 — 글자·아이콘 `state_disabled_fg`, hover 채움 없음, 클릭·포커스 없음. wrap 을
+    켜 최소 `menu-item-height`, 줄을 바꾸면 위아래 `menu-item-wrap-padding-y`, 줄 높이 `line-height-ui` 다.
+    아이콘은 정상 행과 같은 bell·mouse 다. 툴팁은 없다(사유가 메뉴 안에 보인다).
+- **문구**: `[popup.mouse_capture_banner_menu]` 의 `unknown_reason`·`notice_unknown`·`capture_unknown`. 이름 자리 없이
+  문장 전체를 쓰고 이름 대신 "이 프로그램"이라고 적는다. "(unknown)" 같은 자리 표시는 그런 이름의 프로세스로
+  읽히므로 쓰지 않는다.
+- **폭**: `banner-more-menu-max-width`(288) 고정. 줄을 바꾸는 문장을 담으므로 내용 폭에 맞추지 않는다. 셸 높이는
+  열 때 그 폭에서 잰 사유 줄·구분선·두 행의 합이다.
+- **상호작용**: 비활성 행을 눌러도 아무 일도 없다 — 저장하지 않고 메뉴와 배너가 남는다. Esc·바깥 클릭은 평소처럼
+  닫는다. 키보드 내비게이션은 비활성 행을 건너뛰며, 두 행이 모두 비활성이라 고를 행이 없다.
+- **형태 고정**: 형태는 열 때 정한다. 열린 메뉴는 이름 미상 형태를 정상 행으로 바꾸지 않고, 다음에 열 때 정상 행을 보인다.
+  로컬 surface 에서는 메뉴가 열린 동안 이름이 확인되면 다음 foreground 확인(약 1초 주기)에서 foreground 세대가 바뀌므로,
+  위 "메뉴 수명" 규칙대로 배너와 메뉴가 함께 닫힌다. 원격 mirror 는 이름이 계속 없어 비활성 형태가 유지된다.
 
 ## TTL (살아있는 시간)
 
@@ -212,7 +239,7 @@ mouse-capture 배너(`defs::BANNER_MOUSE_CAPTURE`)에 한해, X 왼쪽에 "더�
 
 | id | 범위 | 언제 | 내용 |
 |---|---|---|---|
-| `mouse-capture` | Surface | 마우스를 캡처한 TUI에서 사용자가 드래그 선택을 시도했을 때 | 정적 `content_fn` + 더보기(⋯)·닫기 |
+| `mouse-capture` | Surface | 마우스를 캡처한 TUI에서 사용자가 드래그 선택을 시도했을 때 | 정적 `content_fn` + 더보기(⋯)·닫기. 프로그램 이름을 몰라도 ⋯ 메뉴가 있어 TTL 없이 동작이나 ×까지 남는다 |
 | `shell-integration-missing` | Surface | 사용자가 본 로컬 셸 surface가 출력은 있는데 PromptBoundary를 받지 못할 때. 로컬 PTY가 없는 원격 attach mirror에는 띄우지 않는다 | 정적 `content_fn` + 카운트다운·닫기. 동작이 없어 TTL 10초 뒤 닫힌다. TTL은 디자인 고정값이며 설정으로 노출하지 않는다 |
 | `attach-refusal` | Workspace | 사용자가 활성화한 워크스페이스의 자동 attach 매핑을 연결하지 않았을 때 | `BannerContentSource::AttachRefusal`(대상·이유)을 `tasty_ui_widgets::attach_refusal_banner_content`로 그린다. 매핑 지우기·닫기 버튼이 내용 안에 있어 모서리 닫기 슬롯을 쓰지 않는다. 스코프가 좁으면 매핑 지우기 버튼만 본문 아래 줄로 내리고 ×는 오른쪽 위에 남는다([좁은 스코프](#좁은-스코프)). ×는 그 창의 이번 활성화에만 숨긴다. 상세는 [원격 attach](../../features/remote-attach/index.md) |
 | `attach-size-sync` | Workspace | 활성 워크스페이스가 mirror 이고 그 터미널 크기 동기화가 자동 재시도 뒤에도 실패했을 때 | `BannerContentSource::AttachSizeSync`(탭 이름·다시 시도 중 여부)를 `tasty_ui_widgets::attach_size_sync_banner_content`로 그린다. 다시 시도·닫기 버튼이 내용 안에 있어 모서리 닫기 슬롯을 쓰지 않으며, 좁으면 다시 시도만 아래 줄로 내린다. 버튼은 App 이 그 세션에 적용하고 × 는 실패 목록을 비운다. 상세는 [attach 동작](../../dev-guide/attach-behavior.md#크기-요청의-응답과-재시도) |

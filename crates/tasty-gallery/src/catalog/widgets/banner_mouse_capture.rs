@@ -4,7 +4,8 @@
 use tasty_type_appearance::theme::Theme;
 use tasty_type_geometry::length::LogicalPx;
 use tasty_ui_widgets::{
-    BannerMoreLabel, banner_more_row, banner_more_row_natural_width, banner_shell,
+    BannerMoreLabel, BannerMoreUnknownCopy, banner_more_row, banner_more_row_natural_width,
+    banner_more_unknown, banner_shell,
 };
 
 use super::banner::{MoreTriggerState, caption_label, mouse_capture_banner_body};
@@ -332,6 +333,149 @@ pub fn draw_row_copy(ui: &mut egui::Ui, theme: &Theme) {
     );
 }
 
+/// `code`(en·ko·ja) 로케일의 이름 미상 문구. 본체 `unknown_copy` 와 같은 키를 그 언어 파일에서 읽는다.
+fn unknown_texts(code: &str) -> BannerMoreUnknownCopy<'static> {
+    use crate::i18n::t_lang;
+    BannerMoreUnknownCopy {
+        reason: t_lang(code, "popup.mouse_capture_banner_menu.unknown_reason"),
+        rows: [
+            t_lang(code, "popup.mouse_capture_banner_menu.notice_unknown"),
+            t_lang(code, "popup.mouse_capture_banner_menu.capture_unknown"),
+        ],
+    }
+}
+
+/// 이름 미상 메뉴 — 시안 `BannerMoreMenuUnknownG`. 폭은 `banner-more-menu-max-width` 고정이고,
+/// 사유 줄·구분선·비활성 두 행은 본체와 같은 공용 `banner_more_unknown` 이 그린다.
+fn unknown_menu(ui: &mut egui::Ui, theme: &Theme, copy: BannerMoreUnknownCopy<'_>) {
+    let pad = theme.banner_more_menu_padding().value();
+    let bw = theme.border_width.value();
+    let inner = theme.banner_more_menu_max_width().value() - (pad + bw) * 2.0;
+    egui::Frame::new()
+        .fill(theme.banner_more_menu_bg().to_egui())
+        .stroke(egui::Stroke::new(
+            bw,
+            theme.banner_more_menu_border().to_egui(),
+        ))
+        .corner_radius(theme.banner_more_menu_radius().value())
+        .shadow(theme.shadow_popover().to_egui())
+        .inner_margin(egui::Margin::same(pad as i8))
+        .show(ui, |ui| {
+            ui.set_width(inner);
+            ui.set_max_width(inner);
+            ui.spacing_mut().item_spacing.y = 0.0;
+            let paint = |icon: tasty_icons::Icon| {
+                move |ui: &mut egui::Ui, rect: egui::Rect, c: egui::Color32| {
+                    icon.image(rect.height(), c).paint_at(ui, rect)
+                }
+            };
+            let (info, bell, mouse) = (paint(icons::INFO), paint(icons::BELL), paint(icons::MOUSE));
+            let _rows = banner_more_unknown(ui, theme, &info, [&bell, &mouse], copy);
+        });
+}
+
+/// 시안 "Program name unknown — rows shown disabled". 이름을 모를 때도 ⋯ 는 그대로 그리고(예약 56),
+/// 메뉴는 사유 줄 + 구분선 + 비활성 두 행이다. 원격 mirror 는 이름이 늘 미상이라 이 메뉴가 곧 mirror 의
+/// 메뉴다(별도 예제 없음).
+pub fn draw_unknown_name(ui: &mut egui::Ui, theme: &Theme) {
+    app_stage(ui, theme, |ui| {
+        card_slot(ui, theme, "name unknown — menu open (en)", |ui| {
+            banner_shell(ui, theme, 1.0, |ui| {
+                mouse_capture_banner_body(ui, theme, MoreTriggerState::Open, None);
+            });
+            ui.add_space(theme.banner_more_menu_offset().value());
+            // 메뉴는 트리거 아래 오른쪽 정렬이다. 카드 오른쪽 끝에 메뉴(288)의 오른쪽 끝을 맞춘다.
+            let menu_w = theme.banner_more_menu_max_width().value();
+            let right = ui.min_rect().right();
+            let slot = egui::Rect::from_min_size(
+                egui::pos2(right - menu_w, ui.cursor().top()),
+                egui::vec2(menu_w, 0.0),
+            );
+            ui.scope_builder(egui::UiBuilder::new().max_rect(slot), |ui| {
+                unknown_menu(ui, theme, unknown_texts("en"));
+            });
+        });
+    });
+    spec::stage(ui, theme, StageVariant::Tight, |ui| {
+        egui::Frame::new()
+            .fill(theme.bg_app().to_egui())
+            .corner_radius(theme.corner_radius.value())
+            .inner_margin(egui::Margin::same(STAGE_PAD.value() as i8))
+            .show(ui, |ui| {
+                ui.set_width(ui.available_width());
+                ui.horizontal_wrapped(|ui| {
+                    ui.spacing_mut().item_spacing =
+                        egui::vec2(ELASTIC_GAP.value(), ELASTIC_GAP.value());
+                    for code in ["en", "ko", "ja"] {
+                        elastic_slot(ui, theme, &format!("{code} · unknown"), |ui| {
+                            unknown_menu(ui, theme, unknown_texts(code));
+                        });
+                    }
+                });
+            });
+    });
+
+    spec::meta(
+        ui,
+        theme,
+        &[
+            (
+                "unknown when",
+                "remote mirror · before first poll · lookup failed",
+            ),
+            ("⋯ trigger", "always drawn — same as known name"),
+            ("body reserve", "56 (unchanged)"),
+            (
+                "reason line",
+                "info glyph 14 · caption · text-muted · wraps · not focusable, no hover",
+            ),
+            ("rows", "MenuItem disabled as is · wrap on"),
+            (
+                "row ink",
+                "text + icon state-disabled-fg · no overlay · no click",
+            ),
+            ("tooltip", "none — the reason is already in the menu"),
+            ("click", "no-op · menu stays open · nothing saved"),
+            ("keyboard", "arrows skip disabled rows"),
+            ("live update", "no — next open"),
+            ("lifetime", "has ⋯ → no TTL (normal rule, no exception)"),
+            ("keys", "[popup.mouse_capture_banner_menu]"),
+            (
+                "key names",
+                "unknown_reason · notice_unknown · capture_unknown (whole strings)",
+            ),
+        ],
+        &[
+            TokenChip::without_color("banner-more-reserve", "56 — always"),
+            TokenChip::new(
+                "state-disabled-fg",
+                "disabled rows",
+                theme.state_disabled_fg().to_egui(),
+            ),
+            TokenChip::new("text-muted", "reason line", theme.text_muted().to_egui()),
+            TokenChip::without_color("font-size-caption", "reason line 11"),
+            TokenChip::new(
+                "separator",
+                "reason ↔ rows",
+                theme.separator.to_egui_premultiplied(),
+            ),
+        ],
+    );
+    spec::do_(
+        ui,
+        theme,
+        "Do keep the rows the user would see with a known name, disabled, so the menu teaches \
+         what exists; the reason line says why it can't run now, without a hover.",
+    );
+    spec::dont(
+        ui,
+        theme,
+        "Don't hide the ⋯ or the rows when the name is unknown. Don't carry the reason in a \
+         tooltip on a disabled row — a disabled row takes no pointer, and a tooltip is invisible \
+         to anyone who doesn't hover.",
+    );
+}
+
 /// "Row copy" 예제 (캡션, 프로그램 이름, 언어). 시안 순서다.
 const ROW_COPY_EXAMPLES: [(&str, &str, &str); 5] = [
     ("en", "vim", "en"),
@@ -444,6 +588,24 @@ mod tests {
                 suppress.1,
                 crate::i18n::t("popup.mouse_capture_banner_menu.suppress_suffix")
             );
+        }
+    }
+
+    /// 이름 미상 예제는 본체와 같은 세 키를 그 언어 파일에서 읽는다.
+    #[test]
+    fn unknown_examples_read_the_app_copy_of_that_language() {
+        for (code, src) in [
+            ("en", include_str!("../../../../../lang/en.toml")),
+            ("ko", include_str!("../../../../../lang/ko.toml")),
+            ("ja", include_str!("../../../../../lang/ja.toml")),
+        ] {
+            let lang: toml::Value = toml::from_str(src).expect("lang file parses");
+            let menu = &lang["popup"]["mouse_capture_banner_menu"];
+            let key = |k: &str| menu[k].as_str().expect("menu key").to_string();
+            let copy = super::unknown_texts(code);
+            assert_eq!(copy.reason, key("unknown_reason"), "{code}");
+            assert_eq!(copy.rows[0], key("notice_unknown"), "{code}");
+            assert_eq!(copy.rows[1], key("capture_unknown"), "{code}");
         }
     }
 

@@ -1389,4 +1389,118 @@ mod tests {
         assert!(!mgr.has_any());
         assert!(!mgr.close_by_instance(1)); // 더 없음
     }
+
+    /// mouse-capture 배너를 그리고 hover 한 채 × 왼쪽의 ⋯ 자리(`banner-more-reserve` 열)를 차례로 누른다.
+    /// 더보기 버튼이 눌린 범위를 돌려준다. × 자리(오른쪽 끝 한 칸)는 누르지 않는다.
+    /// 배너는 프로그램 이름을 받지 않으므로 이름을 모르는 surface(원격 mirror 포함)도 같은 결과다.
+    fn click_across_the_more_column() -> Option<BannerScope> {
+        let theme = crate::theme::theme();
+        let scope = BannerScope::Surface(42);
+        let mut mgr = BannerManager::new();
+        mgr.push(BannerState::persistent(
+            defs::BANNER_MOUSE_CAPTURE,
+            scope.clone(),
+        ));
+        let surface = egui::Rect::from_min_size(egui::pos2(0.0, 0.0), egui::vec2(800.0, 400.0));
+        let layout = crate::adapters::ui::LayoutContext {
+            active_workspace: 0,
+            active_workspace_id: 0,
+            pane_rects: Vec::new(),
+            surface_rects: vec![(42, surface)],
+            active_tabs: Vec::new(),
+            active_tab_ids: Vec::new(),
+        };
+        let ctx = egui::Context::default();
+        let run = |events: Vec<egui::Event>, mgr: &mut BannerManager| {
+            let mut clicked = None;
+            let _frame = ctx.run(
+                egui::RawInput {
+                    events,
+                    ..Default::default()
+                },
+                |ctx| {
+                    let r = mgr.draw(ctx, &layout, &theme, None, false, None);
+                    clicked = r.more_clicked.map(|(s, _)| s);
+                },
+            );
+            clicked
+        };
+        run(vec![], &mut mgr);
+        let card = mgr
+            .card_rect(&scope, &BannerKey::Host(defs::BANNER_MOUSE_CAPTURE))
+            .expect("card drawn");
+        let y =
+            card.top() + theme.banner_padding_y().value() + ControlSize::Sm.height(&theme) * 0.5;
+        let close = theme.item_height_interactive;
+        let column_left = card.right() - (close + theme.banner_more_reserve()).value();
+        let column_right = card.right() - close.value();
+        let mut x = column_left;
+        while x < column_right {
+            let at = egui::pos2(x, y);
+            for events in [
+                vec![egui::Event::PointerMoved(at)],
+                vec![egui::Event::PointerMoved(at)],
+                vec![egui::Event::PointerButton {
+                    pos: at,
+                    button: egui::PointerButton::Primary,
+                    pressed: true,
+                    modifiers: egui::Modifiers::NONE,
+                }],
+                vec![egui::Event::PointerButton {
+                    pos: at,
+                    button: egui::PointerButton::Primary,
+                    pressed: false,
+                    modifiers: egui::Modifiers::NONE,
+                }],
+            ] {
+                if let Some(s) = run(events, &mut mgr) {
+                    return Some(s);
+                }
+            }
+            x += 2.0;
+        }
+        None
+    }
+
+    /// 프로그램 이름과 관계없이 mouse-capture 배너는 hover 때 ⋯ 를 그리고, 누르면 그 범위로 메뉴를 연다.
+    #[test]
+    fn the_mouse_capture_more_button_is_always_drawn_and_clickable() {
+        assert_eq!(
+            click_across_the_more_column(),
+            Some(BannerScope::Surface(42))
+        );
+    }
+
+    /// 본문은 ⋯·× 두 버튼 열(56)을 항상 비운다. 이름 미상 상태에서도 줄지 않는다.
+    /// 단어 단위 줄바꿈은 줄 끝에 여유를 남기므로 폭을 1px 씩 바꿔 가며 가장 작은 오른쪽 여유를 잰다.
+    #[test]
+    fn the_mouse_capture_body_always_reserves_the_two_button_column() {
+        let theme = crate::theme::theme();
+        let reserve = theme.banner_more_reserve();
+        assert_eq!(reserve, tasty_type_geometry::length::LogicalPx(56.0));
+        let def = defs::find(defs::BANNER_MOUSE_CAPTURE).expect("def");
+        let ctx = egui::Context::default();
+        let mut least_slack = f32::MAX;
+        for width in 240..480 {
+            let width = width as f32;
+            let _frame = ctx.run(egui::RawInput::default(), |ctx| {
+                egui::Area::new(egui::Id::new(("mouse_capture_body", width.to_bits())))
+                    .fixed_pos(egui::Pos2::ZERO)
+                    .show(ctx, |ui| {
+                        // 최소 폭은 두지 않아 그린 내용의 오른쪽 끝이 min_rect 에 드러난다.
+                        ui.set_max_width(width);
+                        (def.content_fn)(ui, &theme);
+                        least_slack = least_slack.min(width - ui.min_rect().right());
+                    });
+            });
+        }
+        assert!(
+            least_slack >= reserve.value() - 0.5,
+            "least right slack {least_slack}"
+        );
+        assert!(
+            least_slack < reserve.value() + 8.0,
+            "the sweep reaches the reserve: {least_slack}"
+        );
+    }
 }

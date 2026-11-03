@@ -1,6 +1,8 @@
 //! 마우스 캡처 배너의 더보기 메뉴. 대상 surface는 dialogs에 보관한다.
 //! 알림 끄기는 배너를 닫고, 캡처 비활성화는 배너를 남긴다.
 //! 행은 공용 `banner_more_row` 다. 프로그램 이름만 줄이고, 고정 문구가 상한 폭을 넘으면 그 행만 줄을 바꾼다.
+//! 프로그램 이름을 모르면(원격 mirror, 첫 foreground 조회 전, 조회 실패) 같은 메뉴를 이름 미상 형태로 연다.
+//! 사유 줄과 비활성 두 행이며(공용 `banner_more_unknown`), 행을 눌러도 저장·닫기 없이 메뉴와 배너가 남는다.
 
 use crate::adapters::ui::banner::BannerScope;
 use crate::adapters::ui::icons;
@@ -12,7 +14,8 @@ use crate::theme::{self, Theme};
 use tasty_icons::Icon;
 use tasty_type_geometry::length::LogicalPx;
 use tasty_ui_widgets::{
-    BannerMoreLabel, banner_more_row, banner_more_row_height, banner_more_row_natural_width,
+    BannerMoreLabel, BannerMoreUnknownCopy, banner_more_row, banner_more_row_height,
+    banner_more_row_natural_width, banner_more_unknown, banner_more_unknown_height,
 };
 
 pub const MOUSE_CAPTURE_BANNER_MENU_POPUP_ID: crate::adapters::ui::popup::PopupId =
@@ -76,6 +79,35 @@ fn row_labels(app_name: &str) -> [BannerMoreLabel<'_>; 2] {
     ]
 }
 
+/// 이름 미상 형태의 문구. 이름 자리 없이 문장 전체를 쓴다.
+fn unknown_copy() -> BannerMoreUnknownCopy<'static> {
+    BannerMoreUnknownCopy {
+        reason: t("popup.mouse_capture_banner_menu.unknown_reason"),
+        rows: [
+            t("popup.mouse_capture_banner_menu.notice_unknown"),
+            t("popup.mouse_capture_banner_menu.capture_unknown"),
+        ],
+    }
+}
+
+/// 이름 미상 형태의 셸 크기. 줄을 바꾸는 문장을 담으므로 폭은 `banner-more-menu-max-width` 로 고정하고,
+/// 높이는 그 폭에서 잰 사유 줄·구분선·두 행이다.
+fn unknown_size(ctx: &egui::Context, th: &Theme) -> (LogicalPx, LogicalPx) {
+    let width = th.banner_more_menu_max_width() - th.border_width * 2.0;
+    let body = banner_more_unknown_height(ctx, th, unknown_copy(), LogicalPx(row_width(th, width)));
+    (width, LogicalPx(menu_size_for(th, width, body.value()).y))
+}
+
+/// 메뉴 행이 저장할 foreground 프로그램 이름. trim 뒤 빈 이름은 모르는 것으로 본다.
+pub(crate) fn known_app_name<'a>(
+    engine: &'a crate::runtime::engine_read::EngineRead<'_>,
+    surface_id: u32,
+) -> Option<&'a str> {
+    engine
+        .foreground_name(surface_id)
+        .filter(|name| !name.trim().is_empty())
+}
+
 /// 프로그램 이름에 맞춘 셸 크기. 폭은 넓은 행의 한 줄 폭을 상하한으로 묶고, 높이는 그 폭에서 잰 두 행이다.
 fn measured_size(
     ctx: &egui::Context,
@@ -108,8 +140,12 @@ pub fn open(
     state.dialogs.mouse_capture_banner_menu_target = Some(*surface_id);
 
     let th = theme::theme();
-    let app_name = engine.foreground_name(*surface_id).unwrap_or("");
-    let (width, height) = measured_size(ctx, &th, &row_labels(app_name));
+    let app_name = known_app_name(engine, *surface_id);
+    state.dialogs.mouse_capture_banner_menu_unknown = app_name.is_none();
+    let (width, height) = match app_name {
+        Some(name) => measured_size(ctx, &th, &row_labels(name)),
+        None => unknown_size(ctx, &th),
+    };
     state.dialogs.mouse_capture_banner_menu_size = Some((width, height));
     let size = egui::vec2(width.value(), height.value());
     // 셸 테두리는 바깥으로 그리므로 border-box 의 오른쪽 끝이 트리거 오른쪽에 맞도록 테두리만큼 당긴다.
@@ -146,6 +182,11 @@ pub fn draw_menu(
         return PopupAction::Close;
     };
     let th = theme::theme();
+    if state.dialogs.mouse_capture_banner_menu_unknown {
+        // 비활성 행은 클릭을 받지 않는다. 저장·닫기 없이 메뉴를 유지하고 Esc·바깥 클릭으로만 닫는다.
+        let _rows = draw_unknown_rows(ui, &th);
+        return PopupAction::None;
+    }
     let app_name = engine.foreground_name(surface_id).unwrap_or("").to_string();
     let (suppress_resp, disable_resp) = draw_menu_rows(ui, &th, row_labels(&app_name));
 
@@ -184,6 +225,18 @@ fn draw_menu_rows(
     let suppress = draw_menu_row(ui, th, icons::BELL, suppress);
     let disable = draw_menu_row(ui, th, icons::MOUSE, disable);
     (suppress, disable)
+}
+
+/// 이름 미상 형태 — 사유 줄, 구분선, 비활성 두 행(알림 bell, 캡처 mouse). 행 사이 간격은 없다.
+fn draw_unknown_rows(ui: &mut egui::Ui, th: &Theme) -> [egui::Response; 2] {
+    ui.spacing_mut().item_spacing.y = 0.0;
+    let paint = |icon: Icon| {
+        move |ui: &mut egui::Ui, rect: egui::Rect, c: egui::Color32| {
+            icon.image(rect.height(), c).paint_at(ui, rect)
+        }
+    };
+    let (info, bell, mouse) = (paint(icons::INFO), paint(icons::BELL), paint(icons::MOUSE));
+    banner_more_unknown(ui, th, &info, [&bell, &mouse], unknown_copy())
 }
 
 fn draw_menu_row(
@@ -359,32 +412,215 @@ mod tests {
         );
     }
 
-    /// 첫 busy 폴링 전에는 foreground 이름이 없다(`foreground_names` 항목 없음).
-    /// 이 상태에서 두 행을 눌러도 어느 목록에도 항목이 생기지 않는다.
+    /// 메뉴를 실제처럼 연다. `open` 이 이름으로 형태(정상·이름 미상)와 크기를 정한다.
+    fn open_menu(
+        state: &mut crate::state::MainViewState,
+        engine: &crate::runtime::engine_read::EngineRead<'_>,
+        surface_id: u32,
+    ) {
+        let ctx = egui::Context::default();
+        let trigger = egui::Rect::from_min_size(egui::pos2(600.0, 40.0), egui::vec2(24.0, 24.0));
+        let _frame = ctx.run(egui::RawInput::default(), |ctx| {
+            open(
+                state,
+                engine,
+                ctx,
+                &BannerScope::Surface(surface_id),
+                trigger,
+            );
+        });
+        let _open_intents = state.take_pending_intents();
+    }
+
+    /// 열린 메뉴(열 때 잰 크기)를 그리고 `events` 프레임을 차례로 보낸다. 나온 요청과 Close 여부를 돌려준다.
+    fn run_menu(
+        state: &mut crate::state::MainViewState,
+        engine: &crate::runtime::engine_read::EngineRead<'_>,
+        frames: Vec<Vec<egui::Event>>,
+    ) -> (Vec<crate::intent::DispatchedIntent>, bool) {
+        let (width, _) = state
+            .dialogs
+            .mouse_capture_banner_menu_size
+            .expect("opened");
+        let ctx = egui::Context::default();
+        let mut closed = false;
+        for events in std::iter::once(vec![]).chain(frames) {
+            let input = egui::RawInput {
+                events,
+                ..Default::default()
+            };
+            let _frame = ctx.run(input, |ctx| {
+                egui::Area::new(egui::Id::new("mouse_capture_menu_test"))
+                    .fixed_pos(egui::Pos2::ZERO)
+                    .show(ctx, |ui| {
+                        ui.set_width(width.value());
+                        ui.set_max_width(width.value());
+                        if matches!(draw_menu(ui, state, engine), PopupAction::Close) {
+                            closed = true;
+                        }
+                    });
+            });
+        }
+        (state.take_pending_intents(), closed)
+    }
+
+    /// 메뉴 높이 전체를 위에서 아래로 4px 간격으로 누르고 떼는 프레임들. 사유 줄·구분선·두 행을 모두 지난다.
+    fn sweep_clicks(state: &crate::state::MainViewState) -> Vec<Vec<egui::Event>> {
+        let (width, height) = state
+            .dialogs
+            .mouse_capture_banner_menu_size
+            .expect("opened");
+        let x = width.value() * 0.5;
+        let mut frames = Vec::new();
+        let mut y = 1.0;
+        while y < height.value() {
+            let at = egui::pos2(x, y);
+            frames.push(vec![egui::Event::PointerMoved(at)]);
+            frames.push(vec![egui::Event::PointerButton {
+                pos: at,
+                button: egui::PointerButton::Primary,
+                pressed: true,
+                modifiers: egui::Modifiers::NONE,
+            }]);
+            frames.push(vec![egui::Event::PointerButton {
+                pos: at,
+                button: egui::PointerButton::Primary,
+                pressed: false,
+                modifiers: egui::Modifiers::NONE,
+            }]);
+            y += 4.0;
+        }
+        frames
+    }
+
+    fn key(key: egui::Key) -> Vec<egui::Event> {
+        vec![egui::Event::Key {
+            key,
+            physical_key: None,
+            pressed: true,
+            repeat: false,
+            modifiers: egui::Modifiers::NONE,
+        }]
+    }
+
+    fn push_banner(state: &mut crate::state::MainViewState, surface_id: u32) {
+        state
+            .banners
+            .push(crate::adapters::ui::banner::BannerState::persistent(
+                crate::adapters::ui::banner::defs::BANNER_MOUSE_CAPTURE,
+                BannerScope::Surface(surface_id),
+            ));
+    }
+
+    fn banner_shown(state: &crate::state::MainViewState, surface_id: u32) -> bool {
+        state.banners.shown_banners().any(|b| {
+            b.id == crate::adapters::ui::banner::defs::BANNER_MOUSE_CAPTURE
+                && b.scope == BannerScope::Surface(surface_id)
+        })
+    }
+
+    /// 이름이 없거나(원격 mirror·첫 조회 전·조회 실패) 공백뿐이면 이름 미상 형태로 열고 폭은 288 이다.
+    /// 이름을 알면 정상 형태다.
     #[test]
-    fn menu_rows_save_nothing_before_the_first_foreground_poll() {
+    fn open_picks_the_unknown_form_without_a_name_at_the_max_width() {
+        let th = theme::theme();
+        let (mut state, mut session) = crate::state::tests::test_state();
+        let e = session.borrow_mut();
+        e.live.foreground_names.insert(43, "vim".into());
+        e.live.foreground_names.insert(44, "  ".into());
+        for (sid, unknown) in [(42, true), (43, false), (44, true)] {
+            open_menu(&mut state, &e.read(), sid);
+            assert_eq!(state.dialogs.mouse_capture_banner_menu_target, Some(sid));
+            assert_eq!(
+                state.dialogs.mouse_capture_banner_menu_unknown, unknown,
+                "{sid}"
+            );
+            if unknown {
+                let (width, height) = state.dialogs.mouse_capture_banner_menu_size.expect("size");
+                assert_eq!(
+                    width.value() + th.border_width.value() * 2.0,
+                    th.banner_more_menu_max_width().value()
+                );
+                // 사유 줄과 구분선이 두 행 위에 더해진다.
+                assert!(
+                    height.value()
+                        > th.banner_more_menu_padding().value() * 2.0
+                            + th.menu_item_height().value() * 2.0
+                );
+            }
+        }
+    }
+
+    /// 첫 busy 폴링 전에는 foreground 이름이 없다(`foreground_names` 항목 없음).
+    /// 이 상태에서 연 메뉴의 어디를 눌러도 어느 목록에도 항목이 생기지 않고, 메뉴와 배너가 그대로 남는다.
+    #[test]
+    fn unknown_form_clicks_save_nothing_and_keep_the_menu_and_the_banner() {
         let (mut state, mut session) = crate::state::tests::test_state();
         let e = session.borrow_mut();
         assert_eq!(e.foreground_name(42), None);
-        let banner_before = e
-            .runtime
-            .settings
-            .general
-            .mouse_capture_banner_blacklist
-            .clone();
-        let capture_before = e.runtime.settings.general.mouse_capture_blacklist.clone();
-        for row in 0..2 {
-            let intents = click_menu_row(&mut state, &e.read(), 42, row);
-            apply_patches(&intents, &mut e.runtime.settings);
-        }
-        assert_eq!(
-            e.runtime.settings.general.mouse_capture_banner_blacklist,
-            banner_before
-        );
-        assert_eq!(
-            e.runtime.settings.general.mouse_capture_blacklist,
-            capture_before
-        );
+        push_banner(&mut state, 42);
+        open_menu(&mut state, &e.read(), 42);
+        let frames = sweep_clicks(&state);
+        let (intents, closed) = run_menu(&mut state, &e.read(), frames);
+        assert!(intents.is_empty(), "{} intents", intents.len());
+        assert!(!closed, "the menu stays open");
+        assert_eq!(state.dialogs.mouse_capture_banner_menu_target, Some(42));
+        assert!(banner_shown(&state, 42), "the banner stays");
+    }
+
+    /// 대조군: 이름을 알면 같은 훑기가 행을 눌러 설정을 저장하고 메뉴를 닫는다.
+    /// 위 시험의 클릭이 행 자리에 닿는다는 근거다.
+    #[test]
+    fn the_same_sweep_acts_when_the_name_is_known() {
+        let (mut state, mut session) = crate::state::tests::test_state();
+        let e = session.borrow_mut();
+        e.live.foreground_names.insert(42, "vimtest".into());
+        push_banner(&mut state, 42);
+        open_menu(&mut state, &e.read(), 42);
+        let frames = sweep_clicks(&state);
+        let (intents, closed) = run_menu(&mut state, &e.read(), frames);
+        assert!(!intents.is_empty());
+        assert!(closed);
+    }
+
+    /// 열린 동안 이름이 생겨도 형태를 바꾸지 않는다. 같은 메뉴는 계속 비활성이고, 다음 열기에 정상 행이다.
+    #[test]
+    fn a_name_arriving_while_open_waits_for_the_next_open() {
+        let (mut state, mut session) = crate::state::tests::test_state();
+        let e = session.borrow_mut();
+        open_menu(&mut state, &e.read(), 42);
+        e.live.foreground_names.insert(42, "vimtest".into());
+        let frames = sweep_clicks(&state);
+        let (intents, closed) = run_menu(&mut state, &e.read(), frames);
+        assert!(intents.is_empty() && !closed);
+        assert!(state.dialogs.mouse_capture_banner_menu_unknown);
+        open_menu(&mut state, &e.read(), 42);
+        assert!(!state.dialogs.mouse_capture_banner_menu_unknown);
+    }
+
+    /// 이름 미상 형태에서 화살표·Tab·Enter·Space 는 저장도 닫기도 하지 않고, Esc 만 평소처럼 닫는다.
+    /// 비활성 행이 포커스를 받지 않는다는 근거는 위젯 시험 `the_disabled_rows_never_take_focus` 다.
+    #[test]
+    fn unknown_form_keys_save_nothing_and_escape_closes() {
+        let (mut state, mut session) = crate::state::tests::test_state();
+        let e = session.borrow_mut();
+        push_banner(&mut state, 42);
+        open_menu(&mut state, &e.read(), 42);
+        let keys = [
+            egui::Key::ArrowDown,
+            egui::Key::Enter,
+            egui::Key::ArrowDown,
+            egui::Key::Space,
+            egui::Key::ArrowUp,
+            egui::Key::Tab,
+            egui::Key::Enter,
+        ];
+        let (intents, closed) = run_menu(&mut state, &e.read(), keys.map(key).to_vec());
+        assert!(intents.is_empty() && !closed);
+        assert!(banner_shown(&state, 42));
+        let (intents, closed) = run_menu(&mut state, &e.read(), vec![key(egui::Key::Escape)]);
+        assert!(intents.is_empty());
+        assert!(closed);
     }
 
     /// ja 처럼 고정 문구가 상한 폭을 넘는 행이 있으면 메뉴는 288 에 머물고 셸이 그 행만큼 높아진다.

@@ -189,7 +189,7 @@ pub fn draw_terminal_tui_tab(ui: &mut egui::Ui, settings: &mut Settings) {
 }
 
 /// 마우스 캡처 안내와 제외 목록을 편집한다.
-/// 캡처 비활성화 목록과 안내 배너만 숨기는 목록은 별도로 적용한다.
+/// "클릭을 Tasty가 처리할 프로그램" 목록과 "캡처 안내를 다시 보지 않을 프로그램" 목록은 별도로 적용한다.
 pub fn draw_terminal_mouse_capture_tab(ui: &mut egui::Ui, settings: &mut Settings) {
     let th = crate::theme::theme();
     vspace(ui, th.spacing_sm);

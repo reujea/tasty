@@ -1447,6 +1447,9 @@ suppress_prefix = ""
 suppress_suffix = " では今後表示しない"
 disable_prefix = ""
 disable_suffix = " ではクリックを Tasty で処理"
+unknown_reason = "実行中のプログラムを特定できないため、保存できません。"
+notice_unknown = "このプログラムでは今後表示しない"
+capture_unknown = "このプログラムではクリックを Tasty で処理"
 
 [banner.shell_integration_missing]
 title = "シェル統合が検出されませんでした"

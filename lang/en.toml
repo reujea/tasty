@@ -1495,6 +1495,9 @@ suppress_prefix = "Don't show again for "
 suppress_suffix = ""
 disable_prefix = "Let Tasty handle clicks in "
 disable_suffix = ""
+unknown_reason = "Can't tell which program is running, so nothing can be saved."
+notice_unknown = "Don't show again for this program"
+capture_unknown = "Let Tasty handle clicks in this program"
 
 [banner.shell_integration_missing]
 title = "Shell integration not detected"

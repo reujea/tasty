@@ -1089,6 +1089,23 @@ pub fn pages() -> Vec<Page> {
                             ),
                             widgets::banner_mouse_capture::draw_row_copy,
                         ),
+                        spec(
+                            "banner-more-unknown-name",
+                            "Program name unknown — rows shown disabled",
+                            Some(
+                                "When the program name is unknown (remote attach mirror — no local \
+                                 PTY; before the first 1 Hz poll; OS lookup failed) the actions \
+                                 still exist but can't run, so they are shown disabled, not hidden. \
+                                 The ⋯ trigger is drawn exactly as with a known name. The menu opens \
+                                 with a non-interactive reason line, a separator, then the same two \
+                                 rows disabled, worded with \u{201c}this program\u{201d}. Clicking a \
+                                 disabled row does nothing; Esc / outside click close as usual. If \
+                                 the name arrives while the menu is open the menu does not change; \
+                                 the next open shows the normal rows. On a remote mirror the name is \
+                                 always unknown, so this is the menu there.",
+                            ),
+                            widgets::banner_mouse_capture::draw_unknown_name,
+                        ),
                     ],
                 ),
                 section(
