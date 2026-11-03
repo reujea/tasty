@@ -190,7 +190,7 @@ function Page() {
         <Spec title="Lifetime — TTL follows whether the banner has an action (2026-11-02)"
           when={<>A banner exists only while it is valid. While valid: a banner that offers <b>no user action</b> has a <b>TTL</b> and closes on its own; a banner that offers <b>an action</b> (an inline button or a ⋯ menu row) has <b>no TTL</b> and stays until the user picks the action or closes it. The <b>× is not an action</b> — every banner has one, so it never makes a banner persistent. A developer may make an exception for a specific banner id; the exception and its reason are written as a code comment at the banner's definition.</>}>
           <Meta
-            specs={[["no action", "TTL — countdown, auto-dismiss at 0"], ["has action", "no TTL — until the action or ×"], ["×", "not an action"], ["exception", "developer-directed, code comment at the definition"], ["plugin banners", "same rule as authoring guidance (host can't see plugin content)"]]}
+            specs={[["no action", "TTL — countdown, auto-dismiss at 0"], ["has action", "no TTL — until the action or ×"], ["×", "not an action"], ["exception", "developer-directed, code comment at the definition (none in use for mouse capture since 2026-11-03)"], ["plugin banners", "same rule as authoring guidance (host can't see plugin content)"]]}
             tokens={[{ tok: "--tasty-banner-countdown-fg", use: "TTL seconds", color: "var(--tasty-banner-countdown-fg)" }]} />
           <Note>Host banners today: <b>TTL</b> — preset applied (6 s), shell integration missing (10 s). <b>No TTL</b> — mouse capture (⋯ rows), auto-attach refused (Remove mapping), attach size sync (Retry), HTML script notice (Allow), HTML remote content (Allow), HTML mirror size / aggregate (Allow · Continue).</Note>
         </Spec>
@@ -359,23 +359,27 @@ function Page() {
             tokens={[{ tok: "--tasty-banner-more-menu-max-width", use: "288 — unchanged" }]} />
           <Note>Settings › Terminal › Mouse Capture and the user guide take the same verbs: list 1 <code>Don't show the capture notice for these programs</code> / <code>캡처 안내를 다시 보지 않을 프로그램</code> / <code>キャプチャ通知を表示しないプログラム</code> · list 2 <code>Let Tasty handle clicks in these programs</code> / <code>클릭을 Tasty가 처리할 프로그램</code> / <code>クリックを Tasty で処理するプログラム</code>, with the existing description (clicks and drags go to selection and the menu; the wheel is still sent).</Note>
         </Spec>
-        <Spec title="Program name unknown — no ⋯ trigger (2026-11-02)"
-          when={<>Both rows only mean something with a program name. When it is unknown (remote mirror surface — no local PTY; before the first 1 Hz poll; OS lookup failed) the banner draws <b>no ⋯ trigger</b>: the affordance column holds only the × and the body's right reserve drops back to 28. Nothing is shown disabled, so there is nothing to explain and row 1 can't close the banner without saving. If the name becomes known while the banner is up, the ⋯ appears with the next hover; on a remote mirror it never appears.</>}>
-          <Stage variant="solo center" style={{ flexDirection: "column", gap: 16, padding: 20, background: "var(--tasty-bg-app)" }}>
+        <Spec title="Program name unknown — rows shown disabled (2026-11-03)"
+          when={<>When the program name is unknown (remote attach mirror — no local PTY; before the first 1 Hz poll; OS lookup failed) the actions still exist but can't run, so they are <b>shown disabled, not hidden</b>. The ⋯ trigger is drawn exactly as with a known name (same hover reveal, lit while open, same 56 body reserve). The menu opens with a non-interactive <b>reason line</b> on top, a separator, then the <b>same two rows disabled</b> — worded with “this program” in place of the name. No “(unknown)” placeholder: a mono “(unknown)” would read as a process called that. Clicking a disabled row does nothing: nothing is saved, the menu stays open, the banner stays. Esc / outside click close as usual. Keyboard arrow navigation skips disabled rows (with both disabled, focus stays on the menu). If the name arrives while the menu is open the menu does not change; the next open shows the normal rows. On a remote mirror the name is always unknown, so this is the menu there — a note, no separate example.</>}>
+          <Stage variant="solo center" style={{ flexDirection: "column", gap: 16, padding: 20, paddingBottom: 150, background: "var(--tasty-bg-app)" }}>
             <div style={{ width: "100%", maxWidth: 480 }}>
-              <div style={{ fontSize: 11, color: "var(--tasty-text-muted)" }}>name known — hovered: ⋯ then ×</div>
-              <MouseCaptureBannerG forceHover />
-            </div>
-            <div style={{ width: "100%", maxWidth: 480 }}>
-              <div style={{ fontSize: 11, color: "var(--tasty-text-muted)" }}>name unknown — hovered: × only</div>
-              <MouseCaptureBannerG forceHover more={false} />
+              <div style={{ fontSize: 11, color: "var(--tasty-text-muted)", marginBottom: 8 }}>name unknown — menu open (en)</div>
+              <MouseCaptureBannerG app={null} open />
             </div>
           </Stage>
+          <Stage variant="solo center" style={{ padding: 20, background: "var(--tasty-bg-app)", gap: 18, alignItems: "flex-start", flexWrap: "wrap" }}>
+            {["en", "ko", "ja"].map((l) => (
+              <div key={l} style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                <div style={{ fontSize: 11, color: "var(--tasty-text-muted)" }}>{l} · unknown</div>
+                <BannerMoreMenuG app={null} lang={l} />
+              </div>
+            ))}
+          </Stage>
           <Meta
-            specs={[["unknown when", "remote mirror · before first poll · lookup failed"], ["⋯ trigger", "not drawn"], ["body reserve", "56 → 28"], ["lifetime", "unchanged — no TTL (stays until ×)"], ["name arrives", "⋯ shows on the next hover"]]}
-            tokens={[{ tok: "--tasty-banner-more-reserve", use: "only while ⋯ is drawn" }]} />
-          <Dont><b>Don't</b> show the two rows disabled with a reason tooltip: on a remote mirror they would be disabled every time, and a menu whose every row is disabled is a control that can never be used. <b>Don't</b> substitute a generic row (“this program”) — the setting is keyed by name, so there is nothing to save.</Dont>
-          <Note>Lifetime without ⋯: the banner then offers no action, but it stays persistent — a <b>developer-directed exception</b> to the TTL rule (the notice explains a state that lasts as long as capture does). Record it as a code comment at the mouse-capture banner definition.</Note>
+            specs={[["unknown when", "remote mirror · before first poll · lookup failed"], ["⋯ trigger", "always drawn — same as known name"], ["body reserve", "56 (unchanged)"], ["reason line", <>info glyph 14 · caption · <span className="tok">--tasty-text-muted</span> · wraps · not focusable, no hover</>], ["rows", <>MenuItem <b>disabled</b> as is (pointer-events none, text + icon <span className="tok">--tasty-state-disabled-fg</span>, no overlay) · <b>wrap</b> on</>], ["tooltip", "none — the reason is in the menu, so pointer-events none costs nothing"], ["click", "no-op · menu stays open · nothing saved"], ["keyboard", "arrows skip disabled rows"], ["live update", "no — next open"], ["lifetime", "has ⋯ → no TTL (normal rule, no exception)"], ["keys", <>[popup.mouse_capture_banner_menu] <code>unknown_reason</code> · <code>notice_unknown</code> · <code>capture_unknown</code> (whole strings, no prefix/suffix)</>]]}
+            tokens={[{ tok: "--tasty-banner-more-reserve", use: "56 — always" }, { tok: "--tasty-state-disabled-fg", use: "disabled rows", color: "var(--tasty-state-disabled-fg)" }, { tok: "--tasty-text-muted", use: "reason line", color: "var(--tasty-text-muted)" }, { tok: "--tasty-font-size-caption", use: "reason line 11" }, { tok: "--tasty-separator", use: "reason ↔ rows" }]} />
+          <Do><b>Do</b> keep the rows the user would see with a known name, disabled, so the menu teaches what exists; the reason line says why it can't run now, without a hover.</Do>
+          <Dont><b>Don't</b> hide the ⋯ or the rows when the name is unknown (2026-11-02 option a, withdrawn). <b>Don't</b> carry the reason in a tooltip on a disabled row — pointer-events none on the row blocks it, and a tooltip is invisible to anyone who doesn't hover.</Dont>
         </Spec>
       </Section>
 

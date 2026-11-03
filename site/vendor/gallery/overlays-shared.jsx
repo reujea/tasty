@@ -1455,7 +1455,35 @@ const MORE_COPY = {
   ko: [["", "에서 다시 보지 않기"], ["", "에서 클릭은 Tasty가 처리"]],
   ja: [["", " では今後表示しない"], ["", " ではクリックを Tasty で処理"]],
 };
+// 2026-11-03 (mouse-capture-menu-unknown-name) — program name unknown → same two rows, DISABLED, worded
+// without a name ("this program"), under a non-interactive reason line. No "(unknown)" placeholder.
+const MORE_COPY_UNKNOWN = {
+  en: { reason: "Can't tell which program is running, so nothing can be saved.", rows: ["Don't show again for this program", "Let Tasty handle clicks in this program"] },
+  ko: { reason: "실행 중인 프로그램을 확인할 수 없어 저장할 수 없습니다.", rows: ["이 프로그램에서 다시 보지 않기", "이 프로그램에서 클릭은 Tasty가 처리"] },
+  ja: { reason: "実行中のプログラムを特定できないため、保存できません。", rows: ["このプログラムでは今後表示しない", "このプログラムではクリックを Tasty で処理"] },
+};
+function BannerMoreMenuUnknownG({ lang = "en", style }) {
+  const c = MORE_COPY_UNKNOWN[lang];
+  return (
+    <div role="menu" aria-label="Banner options" style={{
+      width: "var(--tasty-banner-more-menu-max-width)", boxSizing: "border-box",
+      background: "var(--tasty-banner-more-menu-bg)", border: "1px solid var(--tasty-banner-more-menu-border)",
+      borderRadius: "var(--tasty-banner-more-menu-radius)", padding: "var(--tasty-banner-more-menu-padding)",
+      boxShadow: "var(--tasty-banner-more-menu-shadow)", ...style }}>
+      <div role="note" style={{ display: "flex", alignItems: "flex-start", gap: "var(--tasty-space-sm)",
+        padding: "var(--tasty-space-xs) var(--tasty-space-md)", color: "var(--tasty-text-muted)",
+        fontSize: "var(--tasty-font-size-caption)", lineHeight: "var(--tasty-line-height-ui)" }}>
+        <span style={{ display: "inline-flex", flex: "none", marginTop: "var(--tasty-size-1)" }}><Icon name="info" size={14} /></span>
+        <span style={{ minWidth: 0 }}>{c.reason}</span>
+      </div>
+      <MenuItem separator />
+      <MenuItem disabled wrap aria-disabled="true" icon={<Icon name="bell" />} label={c.rows[0]} />
+      <MenuItem disabled wrap aria-disabled="true" icon={<Icon name="mouse" />} label={c.rows[1]} />
+    </div>
+  );
+}
 function BannerMoreMenuG({ app = "vim", hovered = -1, danger = false, lang = "en", texts = null, wrapRows = [], style }) {
+  if (!app) return <BannerMoreMenuUnknownG lang={lang} style={style} />;
   const copy = texts || MORE_COPY[lang];
   const rows = [
     { icon: <Icon name="bell" />, danger: false },
@@ -1479,7 +1507,9 @@ function BannerMoreMenuG({ app = "vim", hovered = -1, danger = false, lang = "en
 // Fires once per tracking session, on a real user click while an app holds the
 // mouse. Content = title + shift-bypass hint; the two per-app opt-outs live
 // behind the ⋯ trigger, so the card body is never crowded by action buttons.
-function MouseCaptureBannerG({ glyph = true, body, lines, app = "vim", more = true, open = false, hovered = -1, danger = false, forceHover = false }) {
+// 2026-11-03 — ⋯ is ALWAYS drawn (also when app is null = name unknown → disabled menu form).
+function MouseCaptureBannerG({ glyph = true, body, lines, app = "vim", lang = "en", open = false, hovered = -1, danger = false, forceHover = false }) {
+  const more = true;
   const [hover, setHover] = React.useState(false);
   const shown = hover || forceHover || open;
   const defBody = (
@@ -1492,7 +1522,7 @@ function MouseCaptureBannerG({ glyph = true, body, lines, app = "vim", more = tr
           padding: "var(--tasty-banner-padding-y) var(--tasty-banner-padding-x)" }}>
         {glyph && <span style={{ display: "inline-flex", flex: "none", marginTop: "var(--tasty-banner-glyph-offset)", color: "var(--tasty-banner-icon-fg)" }}>{ic.mouse}</span>}
         <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: "var(--tasty-banner-text-gap)",
-          paddingRight: more ? "var(--tasty-banner-more-reserve)" : 28 }}>
+          paddingRight: "var(--tasty-banner-more-reserve)" }}>
           <div style={{ fontSize: "var(--tasty-banner-title-font-size)", fontWeight: 600, color: "var(--tasty-banner-fg)", lineHeight: 1.4 }}>Mouse input captured</div>
           <div style={{ fontSize: "var(--tasty-banner-body-font-size)", color: "var(--tasty-text-muted)", lineHeight: 1.45 }}>{body || defBody}</div>
         </div>
@@ -1504,7 +1534,7 @@ function MouseCaptureBannerG({ glyph = true, body, lines, app = "vim", more = tr
               <IconButton size="sm" aria-label="More options" aria-expanded={open} active={open}><Icon name="more" /></IconButton>
               {open && (
                 <div style={{ position: "absolute", top: "calc(100% + var(--tasty-banner-more-menu-offset))", right: 0, zIndex: 2 }}>
-                  <BannerMoreMenuG app={app} hovered={hovered} danger={danger} />
+                  <BannerMoreMenuG app={app} hovered={hovered} danger={danger} lang={lang} />
                 </div>
               )}
             </span>

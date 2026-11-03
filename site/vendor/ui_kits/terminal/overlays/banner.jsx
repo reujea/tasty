@@ -4,7 +4,8 @@
 // consumes its own mouse, and unlike a Toast it can carry actions. Lifetime rule (2026-11-02):
 // a banner with NO user action has a TTL and auto-dismisses; a banner WITH an action
 // (button or ⋯ menu row) has no TTL. × is not an action. TTL shows a top-right countdown that flips to an X on hover (and pauses while hovered
-// or backgrounded). One banner shown per scope; the rest wait in a queue (max 5).
+// or backgrounded). Mouse-capture always has its ⋯ (2026-11-03 — also with an unknown program name, where
+// the menu shows its rows disabled), so it has no TTL under the normal rule; no exception. One banner shown per scope; the rest wait in a queue (max 5).
 // Mirrors the proposed zilhak/tasty Banner manager. Standalone preview: banner.html
 const { Button, IconButton, Kbd, Tag, MenuItem } = window.TastyDesignSystem_41fd3f;
 const { Icon } = window.TastyKit;
@@ -86,6 +87,10 @@ function BannerMore({ app, open, setOpen, onAction }) {
     return () => { document.removeEventListener("mousedown", onDown); document.removeEventListener("keydown", onKey); };
   }, [open]);
   const act = (which) => { setOpen(false); onAction && onAction(which); };
+  // 2026-11-03 — name unknown (remote mirror, before first poll, lookup failed): the actions exist but can't run.
+  // Same two rows, disabled (no hover, no click, menu stays open, nothing saved, keyboard skips them),
+  // worded without a name, under a non-interactive reason line. Not updated live if the name arrives while open.
+  const known = !!app;
   return (
     <span ref={wrap} style={{ position: "relative", width: "var(--tasty-size-24)", height: "var(--tasty-size-24)", flex: "none",
       display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
@@ -95,14 +100,27 @@ function BannerMore({ app, open, setOpen, onAction }) {
         <div role="menu" aria-label="Banner options" style={{ position: "absolute",
           top: "calc(100% + var(--tasty-banner-more-menu-offset))", right: 0, zIndex: 3,
           minWidth: "var(--tasty-banner-more-menu-min-width)", maxWidth: "var(--tasty-banner-more-menu-max-width)",
+          width: known ? "max-content" : "var(--tasty-banner-more-menu-max-width)", boxSizing: "border-box",
           background: "var(--tasty-banner-more-menu-bg)",
           border: "var(--tasty-border-width) solid var(--tasty-banner-more-menu-border)",
           borderRadius: "var(--tasty-banner-more-menu-radius)", padding: "var(--tasty-banner-more-menu-padding)",
           boxShadow: "var(--tasty-banner-more-menu-shadow)" }}>
-          <MenuItem icon={bic.bell} onClick={() => act("notice")}
-            label={<MoreLabel text="Don't show again for " app={app} />} />
-          <MenuItem icon={<Icon name="mouse" />} onClick={() => act("capture")}
-            label={<MoreLabel text="Let Tasty handle clicks in " app={app} />} />
+          {known ? (<>
+            <MenuItem icon={bic.bell} onClick={() => act("notice")}
+              label={<MoreLabel text="Don't show again for " app={app} />} />
+            <MenuItem icon={<Icon name="mouse" />} onClick={() => act("capture")}
+              label={<MoreLabel text="Let Tasty handle clicks in " app={app} />} />
+          </>) : (<>
+            <div role="note" style={{ display: "flex", alignItems: "flex-start", gap: "var(--tasty-space-sm)",
+              padding: "var(--tasty-space-xs) var(--tasty-space-md)", color: "var(--tasty-text-muted)",
+              fontSize: "var(--tasty-font-size-caption)", lineHeight: "var(--tasty-line-height-ui)" }}>
+              <span style={{ display: "inline-flex", flex: "none", marginTop: "var(--tasty-size-1)" }}><Icon name="info" size={14} /></span>
+              <span style={{ minWidth: 0 }}>Can't tell which program is running, so nothing can be saved.</span>
+            </div>
+            <MenuItem separator />
+            <MenuItem disabled wrap aria-disabled="true" icon={bic.bell} label="Don't show again for this program" />
+            <MenuItem disabled wrap aria-disabled="true" icon={<Icon name="mouse" />} label="Let Tasty handle clicks in this program" />
+          </>)}
         </div>
       )}
     </span>
@@ -111,7 +129,7 @@ function BannerMore({ app, open, setOpen, onAction }) {
 
 function Banner({ data, recessed, zIndex, backgrounded, onClose }) {
   const { glyph, glyphColor, title, body, actions, ttl, app } = data;
-  const more = data.more && !!app; // 2026-11-02 — program name unknown (remote mirror, before first poll, lookup failed) → no ⋯ at all
+  const more = !!data.more; // 2026-11-03 — drawn whether or not the program name is known (unknown → disabled menu form)
   const [hover, setHover] = React.useState(false);
   const [menuOpen, setMenuOpen] = React.useState(false);
   const onAction = (which) => { if (which === "notice") onClose && onClose(); };
@@ -123,7 +141,7 @@ function Banner({ data, recessed, zIndex, backgrounded, onClose }) {
         <span style={{ display: "inline-flex", flex: "none", marginTop: "var(--tasty-size-1)",
           color: glyphColor || "var(--tasty-banner-icon-fg)" }}>{glyph}</span>
         <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: "var(--tasty-size-2)",
-          paddingRight: more ? "var(--tasty-banner-more-reserve)" : "var(--tasty-size-32)" }}>
+          paddingRight: "var(--tasty-banner-more-reserve)" }}>
           <div style={{ fontSize: "var(--tasty-banner-title-font-size)", fontWeight: "var(--tasty-font-weight-semibold)",
             color: "var(--tasty-text-primary)", lineHeight: "var(--tasty-line-height-ui)" }}>{title}</div>
           {body && <div style={{ fontSize: "var(--tasty-banner-body-font-size)", color: "var(--tasty-text-muted)",
@@ -155,6 +173,11 @@ function makeSamples() {
     id: "mouse-capture", glyph: bic.mouse, glyphColor: "var(--tasty-text-secondary)", more: true, app: "vim",
     title: "Mouse reporting captured your drag",
     body: (<><b style={{ color: "var(--tasty-text-secondary)" }}>vim</b> has mouse tracking on, so drag-to-select is disabled. Hold <Kbd keys="Shift" /> to select anyway.</>),
+  },
+  mouseUnknown: {
+    id: "mouse-capture", glyph: bic.mouse, glyphColor: "var(--tasty-text-secondary)", more: true, app: null,
+    title: "Mouse reporting captured your drag",
+    body: (<>The running program has mouse tracking on, so drag-to-select is disabled. Hold <Kbd keys="Shift" /> to select anyway.</>),
   },
   preset: {
     id: "preset-applied", glyph: bic.check, glyphColor: "var(--tasty-accent-success)", ttl: 6,
@@ -204,6 +227,7 @@ function BannerHost() {
         <span style={{ fontFamily: "var(--tasty-font-mono)", fontSize: "var(--tasty-font-size-micro)", textTransform: "uppercase",
           letterSpacing: "var(--tasty-letter-spacing-caps)", color: "var(--tasty-text-muted)" }}>spawn</span>
         <Ctrl onClick={() => spawn("mouse")}>Mouse capture</Ctrl>
+        <Ctrl onClick={() => spawn("mouseUnknown")}>Mouse capture (name unknown)</Ctrl>
         <Ctrl onClick={() => spawn("preset")}>Preset (TTL 6s)</Ctrl>
         <Ctrl onClick={() => spawn("shell")}>Shell integration (TTL 10s)</Ctrl>
         <Ctrl onClick={() => spawn("err")}>Write error</Ctrl>
