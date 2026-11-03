@@ -10,10 +10,31 @@ use tasty_plugin_sdk::i18n::Translator;
 use crate::hook::{HostCall, RESTORE_COMMAND_META_KEY};
 use crate::profile_attach::{self, AttachRecord};
 
-/// 입력을 기다리는 화면으로 시작한 세션인가. `compact` 는 턴 도중 자동 압축에서도 오므로 제외하고,
+/// 입력을 기다리는 화면으로 시작한 세션인가. `compact` 는 [`is_compaction`] 이 따로 다루고,
 /// 값이 없거나 모르는 값이면 판단하지 않는다.
 fn session_start_waits_for_input(source: Option<&str>) -> bool {
     matches!(source, Some("startup" | "resume" | "clear" | "fork"))
+}
+
+/// 압축 뒤에 오는 SessionStart(`source: compact`)인가. 압축은 턴 도중에도, 턴이 끝나 쉬는 중에도
+/// (Claude Code 의 idle compaction) 일어나며 같은 세션이 이어진다. 턴의 시작도 끝도 아니므로
+/// 상태와 턴 경계 처리를 바꾸지 않는다.
+pub(crate) fn is_compaction(event: &str, params: &Value) -> bool {
+    event == "session-start" && params.get("source").and_then(Value::as_str) == Some("compact")
+}
+
+/// 압축의 SessionStart 에서 턴에 속한 호출을 뺀다. 상태 보고와 새 턴이 지우는 meta(직전 턴의 API 오류,
+/// 백그라운드 작업 대기)를 남기지 않고, 세션 id·복원 명령 같은 세션 기록만 둔다.
+/// 쉬는 중의 압축이 idle 을 active 로 바꾸면 그 뒤 Stop 이 오지 않아 active 가 계속 남는다.
+pub(crate) fn keep_turn_state_across_compaction(calls: &mut Vec<HostCall>) {
+    calls.retain(|call| match call {
+        HostCall::SetState { .. } => false,
+        HostCall::MetaUnset { key, .. } => !matches!(
+            *key,
+            crate::hook::STOP_FAILURE_META_KEY | crate::hook::BACKGROUND_WAIT_META_KEY
+        ),
+        _ => true,
+    });
 }
 
 /// surface meta 키 — 플러그인이 프롬프트를 실어 Claude 를 실행했다는 표시. 실행 기록이 쓰고 지우며,

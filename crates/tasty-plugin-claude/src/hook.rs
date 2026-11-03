@@ -294,6 +294,9 @@ pub(crate) fn handle_claude_hook<H: HostCallSink>(
     {
         return Ok(response);
     }
+    if crate::session_start::is_compaction(event, params) {
+        return compaction_start(host, params, surface_id, session.as_deref(), data_dir, tr);
+    }
     lock_state(state)
         .background
         .track(event, surface_id, params);
@@ -432,6 +435,41 @@ fn hook_outside_the_turn(
         }));
     }
     None
+}
+
+/// 압축 뒤의 SessionStart. 같은 세션의 기록(세션 id·복원 명령·프로필)만 갱신하고, 상태 보고와
+/// 턴 경계 처리(보류 Stop 확정·백그라운드 작업 기록·자동 재개·wall_time·정지 관측 초기화)는 하지 않는다.
+/// 턴 도중의 압축이면 앞선 prompt-submit 의 active 가, 쉬는 중의 압축이면 Stop 의 idle 이 그대로 남는다.
+fn compaction_start<H: HostCallSink>(
+    host: &H,
+    params: &Value,
+    surface_id: u32,
+    session: Option<&str>,
+    data_dir: Option<&Path>,
+    tr: &Translator,
+) -> Result<Value, IpcMethodError> {
+    let mut calls = apply_hook("session-start", surface_id, session, None, None, tr)?;
+    crate::session_start::keep_turn_state_across_compaction(&mut calls);
+    session_lifecycle_calls(
+        &mut calls,
+        host,
+        "session-start",
+        surface_id,
+        session,
+        params,
+        data_dir,
+        tr,
+    );
+    tracing::info!(
+        "claude hook session-start s{surface_id}: compaction — state and turn left unchanged"
+    );
+    Ok(json!({
+        "ok": true,
+        "surface_id": surface_id,
+        "event": "session-start",
+        "compaction": true,
+        "host_call_failures": deliver_all(host, &calls),
+    }))
 }
 
 /// 세션 종료 시 모든 게이트의 회차 상태와 결과 경로를 정리한다.
@@ -2298,14 +2336,122 @@ mod tests {
         }
     }
 
-    /// 압축(`compact`)은 턴 도중에도 오고, source 가 없거나 모르는 값이면 판단하지 않는다.
+    /// source 가 없거나 모르는 값이면 판단하지 않고 active 로 둔다.
     #[test]
-    fn a_compaction_or_an_unknown_start_stays_active() {
-        for source in [Some("compact"), None, Some("future")] {
+    fn an_unknown_start_stays_active() {
+        for source in [None, Some("future")] {
             let mut rig = HookRig::new();
             rig.run(session_start(source));
             assert_eq!(rig.host.states(), vec!["active"], "{source:?}");
         }
+    }
+
+    fn compaction(session: &str) -> Value {
+        json!({ "event": "session-start", "surface": HookRig::SURFACE, "session": session, "source": "compact" })
+    }
+
+    /// 턴이 끝나 쉬는 중의 압축(Claude Code idle compaction)은 Stop 의 idle 을 바꾸지 않는다.
+    /// 그 뒤 Stop 이 오지 않으므로 active 로 바꾸면 끝난 자식이 계속 active·stale 로 남는다.
+    /// 완료 훅·화면 알림·wall_time 시작도 새로 만들지 않고, 세션 기록은 그대로 갱신한다.
+    #[test]
+    fn a_compaction_while_idle_keeps_the_idle_state() {
+        let mut rig = HookRig::new();
+        rig.run(json!({ "event": "stop", "surface": HookRig::SURFACE, "session": "s-9" }));
+        assert_eq!(rig.host.states(), vec!["idle"]);
+        let fired = rig.host.fired().len();
+        let completions = rig
+            .host
+            .methods()
+            .iter()
+            .filter(|m| *m == "surface.completion")
+            .count();
+
+        let resp = rig.run(compaction("s-9"));
+        assert_eq!(
+            rig.host.states(),
+            vec!["idle"],
+            "압축은 상태를 보고하지 않는다"
+        );
+        assert_eq!(resp["compaction"], true);
+        assert_eq!(rig.host.fired().len(), fired, "claude-idle 등 새 훅 없음");
+        assert_eq!(
+            rig.host
+                .methods()
+                .iter()
+                .filter(|m| *m == "surface.completion")
+                .count(),
+            completions,
+            "새 화면 알림 없음"
+        );
+        assert!(!rig.wall_time_open(), "wall_time 을 다시 열지 않는다");
+        assert!(
+            rig.host
+                .seen
+                .borrow()
+                .iter()
+                .any(|(m, p)| m == "surface.meta.set"
+                    && p["key"] == "claude-session-id"
+                    && p["value"] == "s-9"),
+            "세션 기록은 갱신한다"
+        );
+    }
+
+    /// 턴 도중의 압축은 prompt-submit 의 active 를 그대로 두고 턴 경계 처리도 하지 않는다.
+    /// 새 세션처럼 다루면 자동 재개의 연속 실패 수와 직전 턴 오류 기록이 턴 중간에 지워진다.
+    #[test]
+    fn a_compaction_during_a_turn_keeps_the_turn_running() {
+        let mut rig = HookRig::new();
+        rig.run(json!({ "event": "prompt-submit", "surface": HookRig::SURFACE, "session": "s-9" }));
+        let unsets = rig.host.unset_keys().len();
+        rig.run(compaction("s-9"));
+        assert!(
+            rig.resume_attempts_kept(),
+            "자동 재개 계수를 새 세션처럼 지우지 않는다"
+        );
+        assert_eq!(
+            rig.host.unset_keys().len(),
+            unsets,
+            "턴 meta 를 지우지 않는다"
+        );
+        assert_eq!(rig.host.states(), vec!["active"]);
+    }
+
+    /// 백그라운드 작업을 기다리는 중의 압축은 대기를 끝내지 않는다.
+    #[test]
+    fn a_compaction_while_waiting_on_background_work_keeps_the_wait() {
+        let mut rig = HookRig::new();
+        rig.run(json!({
+            "event": "stop", "surface": HookRig::SURFACE, "session": "s-9",
+            "background_tasks": running_subagent(),
+        }));
+        assert!(rig.is_waiting());
+        rig.run(compaction("s-9"));
+        assert!(rig.is_waiting(), "대기 기록 유지");
+        assert!(
+            !rig.host
+                .unset_keys()
+                .iter()
+                .any(|k| k == BACKGROUND_WAIT_META_KEY),
+            "대기 meta 유지"
+        );
+        assert_eq!(rig.host.states(), vec!["active"]);
+    }
+
+    /// 게이트 판정을 기다리는 Stop 은 압축으로 턴 종료가 확정되지 않는다. 판정이 와야 확정된다.
+    #[test]
+    fn a_compaction_does_not_settle_a_stop_waiting_for_its_gate() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut rig = HookRig::with_gates(dir.path(), 1);
+        rig.run(gated_stop("p1"));
+        assert_eq!(rig.host.states(), vec!["active"]);
+        rig.run(compaction("sess-1"));
+        assert_eq!(
+            rig.host.states(),
+            vec!["active"],
+            "압축은 보류 Stop 을 확정하지 않는다"
+        );
+        rig.gate(json!({}), "p1");
+        assert_eq!(rig.host.states(), vec!["active", "idle"]);
     }
 
     /// 프롬프트를 실어 실행한 세션은 곧 그 턴을 시작하므로 active 로 두고 표시를 지운다.

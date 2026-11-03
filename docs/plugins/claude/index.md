@@ -326,7 +326,7 @@ if [ -n "$TASTY_SURFACE_ID" ]; then tasty claude hook <token> || true; fi
 | `SessionEnd` | `""`(전체) | `session-end` | `idle` | `claude-idle` | `claude-session-id`·`restore.command`·`claude-last-stop-failure`·`claude-background-wait` **unset**. stdin `reason`이 `clear`·`resume`이 아니고(값이 없을 때 포함) 이 세션이 `claude-settings-session`과 같으면 `claude-settings-file`·`claude-settings-session`도 **unset** (프로필 meta 2키는 건드리지 않는다. 프로필 **부착 기록**에는 종료 표시만 하고 유예 뒤 회수 — 아래 "복원을 건너 프로필이 유지되는 방식") | `completion` |
 | `Notification` | `""`(전체) | `notification` | `notification_type`별(아래 "Notification 유형별 상태"). `needs_input`·`active`·변경 없음 | `needs-input`(`needs_input` 유형만) | — | `needs_input`(`needs_input` 유형만) |
 | `UserPromptSubmit` | `""`(전체) | `prompt-submit` | `active` | — | `claude-last-stop-failure`·`claude-background-wait` **unset** | — |
-| `SessionStart` | `""`(전체) | `session-start` | stdin `source`가 `startup`·`resume`·`clear`·`fork`이면 `idle`(입력 대기 화면). 단 플러그인이 프롬프트를 실어 실행한 세션(`claude-launch-prompt` meta)은 곧 그 턴을 시작하므로 `active`. `compact`(턴 도중 자동 압축에서도 온다)나 값이 없거나 모르는 값이면 `active`. idle 이어도 턴이 끝난 것이 아니므로 `claude-idle`·화면 알림·telemetry 는 없다 | — | `claude-last-stop-failure`·`claude-background-wait` **unset**. `claude-launch-prompt`가 있으면 **unset**(spawn·respawn 이 프롬프트를 실어 실행할 때 **set**, 프롬프트 없이 실행하면 **unset**). `claude-session-id`·`claude-settings-session` = 세션 ID, `restore.command` = `claude -r <id>` **set**(stdin JSON에 `session_id`가 없으면 건너뜀). 프로필이 부착돼 있으면 `claude -r <id> --settings "<경로>"` 로 쓰고, stdin `source`가 `resume`이면 그 경로를 `claude-settings-file`에 **set**하며, 복원으로 프로필 meta 가 사라졌으면 부착 기록에서 **복구**한다(아래 "복원을 건너 프로필이 유지되는 방식") | — |
+| `SessionStart` | `""`(전체) | `session-start` | stdin `source`가 `startup`·`resume`·`clear`·`fork`이면 `idle`(입력 대기 화면). 단 플러그인이 프롬프트를 실어 실행한 세션(`claude-launch-prompt` meta)은 곧 그 턴을 시작하므로 `active`. 값이 없거나 모르는 값이면 `active`. idle 이어도 턴이 끝난 것이 아니므로 `claude-idle`·화면 알림·telemetry 는 없다. `compact`(대화 압축 뒤의 시작)는 상태를 바꾸지 않는다. 압축은 턴 도중에도, 턴이 끝나 쉬는 중에도 일어나고(Claude Code의 idle compaction, 화면에 "Compacted while idle, before the prompt cache expired") 같은 세션이 이어진다. 쉬는 중의 압축 뒤에는 Stop 이 오지 않으므로 `active`로 바꾸면 끝난 자식이 계속 `active`·`stale`로 남는다. 그래서 턴 도중이면 `prompt-submit`의 `active`가, 쉬는 중이면 Stop 의 `idle`이 그대로 남는다. 새 턴 처리(보류 Stop 확정·백그라운드 작업 기록 정리·자동 재개 예약 취소와 연속 시도 수 초기화·wall_time 시작·정지 관측 초기화)도 하지 않는다 | — | `claude-last-stop-failure`·`claude-background-wait` **unset**(`compact`는 제외). `claude-launch-prompt`가 있으면 **unset**(spawn·respawn 이 프롬프트를 실어 실행할 때 **set**, 프롬프트 없이 실행하면 **unset**). `claude-session-id`·`claude-settings-session` = 세션 ID, `restore.command` = `claude -r <id>` **set**(stdin JSON에 `session_id`가 없으면 건너뜀). 프로필이 부착돼 있으면 `claude -r <id> --settings "<경로>"` 로 쓰고, stdin `source`가 `resume`이면 그 경로를 `claude-settings-file`에 **set**하며, 복원으로 프로필 meta 가 사라졌으면 부착 기록에서 **복구**한다(아래 "복원을 건너 프로필이 유지되는 방식") | — |
 | `PreToolUse` | `AskUserQuestion` | `pre-tool-use` | `needs_input` | `needs-input` | — | `needs_input` |
 | `PostToolUse` | `AskUserQuestion` | `post-tool-use` | `active` | — | — | — |
 | `PostToolUse` | `Bash\|Agent\|Task` | `background-start` | — (백그라운드 작업 기록만) | — | — | — |
@@ -384,7 +384,7 @@ if [ -n "$TASTY_SURFACE_ID" ]; then tasty claude hook <token> || true; fi
 `rate_limit`·`overloaded`·`authentication_failed`·`billing_error`·`invalid_request`·
 `server_error`·`max_output_tokens`·`unknown` 등이다. Surface의 Custom 훅은 값 없이
 이벤트 키만 전달하므로 이 meta를 사용한다([훅](../../features/hooks/index.md)).
-Meta를 먼저 쓴 뒤 이벤트를 보내며 새 턴(`prompt-submit`/`session-start`/`active`)과
+Meta를 먼저 쓴 뒤 이벤트를 보내며 새 턴(`prompt-submit`/`session-start`/`active`, 압축 뒤의 `session-start`는 제외)과
 `session-end`에서는 지운다. `notify-done`은 meta가 있고 자식 상태가 `idle`이면 상태 알림 뒤에 오류 종류를 붙인다. `needs_input`·종료 등 다른 상태의 줄에는 붙이지 않는다.
 
 **백그라운드 작업이 남은 `StopFailure`는 턴 종료가 아니다.** `StopFailure` payload에는 `background_tasks`가
@@ -399,7 +399,7 @@ Meta를 먼저 쓴 뒤 이벤트를 보내며 새 턴(`prompt-submit`/`session-s
   실측 지연과 한계는 docs/features/child-terminal/index.md 결과 절에 있다.
 - 끝: `UserPromptSubmit`의 `prompt`가 `<task-notification>`으로 시작하면 그 안의 `<task-id>` 작업을 지운다.
 - `Stop`의 `background_tasks`를 읽을 수 있으면 기록을 그 목록의 끝나지 않은 항목으로 바꾼다.
-  `SessionStart`·`SessionEnd`는 기록을 버린다.
+  `SessionStart`(압축 뒤의 `compact`는 제외)·`SessionEnd`는 기록을 버린다.
 - 기록이 남은 채 `StopFailure`가 오면 대기 Stop과 같이 `active`와 `claude-background-wait`를 보내고,
   `claude-last-stop-failure`를 기록한 뒤 `claude-stop-failure`만 fire한다. 두 meta는 이벤트보다 먼저 기록한다.
   `claude-idle`·`surface.completion`·telemetry `wall_time_ms`·자동 재개 처리는 하지 않는다.
@@ -425,7 +425,7 @@ Meta를 먼저 쓴 뒤 이벤트를 보내며 새 턴(`prompt-submit`/`session-s
 대기 Stop은 surface meta `claude-background-wait`에 대기 시작 시각(`since_ms`, Unix ms)·끝나지 않은 작업 수(`tasks`)·
 작업 종류(`types`)·정지 알림 여부(`notified`)·출력 파일 단서(`watch`: `session`·`cwd`·작업 `id`와 이름)를 JSON으로 남긴다. 같은 대기에서 이어진 대기 Stop은 시작 시각과 알림 여부를 유지한다.
 정지 알림을 보내면 `notified`를 `true`로 다시 쓴다. 대기가 아닌 `Stop`·백그라운드 작업이 남지 않은 `StopFailure`·
-새 턴(`UserPromptSubmit`·`SessionStart`)·`SessionEnd`가 이 meta를 지운다. 정지 알림은 이 대기를 따로 다룬다(아래 "정지 알림").
+새 턴(`UserPromptSubmit`·`SessionStart`, 압축 뒤의 `compact`는 제외)·`SessionEnd`가 이 meta를 지운다. 정지 알림은 이 대기를 따로 다룬다(아래 "정지 알림").
 Claude Code 2.1.283 실측 payload에는 `background_tasks`(항목 `id`·`type`·`status`·`description`·
 `agent_type` 또는 `command`)만 있고 `waiting_on_background_work`는 없었다. 공식 hooks 문서
 (2026-09-28 확인)의 `background_tasks` 항목 필드도 실측과 같은 모양이다. 문서는 `status`를 값 목록 없이
@@ -465,7 +465,7 @@ Claude Code는 한 Stop의 훅을 병렬로 실행하므로 상태 훅(`claude h
   플러그인은 `prompt_id`별로 연속 block을 세고 상한에 닿은 block은 통과로 본다. 게이트 명령은 환경 변수 값을 `--block-cap`으로 넘긴다.
   Claude Code의 상한은 tasty 게이트가 아닌 Stop 훅의 continuation도 세지만 플러그인은 tasty 게이트의 block만 센다. 그런 훅이 함께
   턴을 이어 가게 하면 상한으로 끝난 턴의 idle이 기록되지 않을 수 있다.
-- 보류 중에 같은 세션의 새 턴(`prompt-submit`·`session-start`·`active`)이 오면 보류한 Stop에서 턴이 끝난 것이므로
+- 보류 중에 같은 세션의 새 턴(`prompt-submit`·`session-start`·`active`, 압축 뒤의 `session-start`는 제외)이 오면 보류한 Stop에서 턴이 끝난 것이므로
   새 턴의 `active`보다 먼저 idle을 기록한다. 판정이 모이기 전에 다음 Stop이 오면 앞 Stop은 block된 것으로 확정한다.
   `session-end`는 보류 기록을 버린다.
 - 백그라운드 작업을 기다리는 Stop도 게이트가 판정한다. 그 판정은 연속 block 수에만 쓰고 상태는 이미 보고한 `active`다.
@@ -490,7 +490,7 @@ install은 marker substring(`tasty claude hook <token>`)으로 자기 entry를 �
 이 플러그인이 fire하는 surface hook 이벤트는 `claude-idle`/`needs-input`/`claude-stop-failure`/`claude-error`/`claude-error-stalled` 5개이며, 매니페스트 `contributes.hook_events`로 선언한다 — host가 (내장 ∪ 활성 plugin 선언) 집합으로 `hook.set` 등록을 검증하므로([hooks](../../features/hooks/index.md)), 이 플러그인이 비활성이면 저 5개 키로의 hook 등록도 거부된다.
 **이 5개가 전부 위 설치 훅에서 나오는 건 아니다** — `claude-idle`은 위 `apply_hook`(Stop/StopFailure/SessionEnd)에서, `claude-stop-failure`는 `StopFailure`에서, `needs-input`은 `Notification`(`needs_input` 유형)과 `PreToolUse`(matcher `AskUserQuestion`) 두 경로에서 나오지만, `claude-error`/`claude-error-stalled`는 이 훅 메커니즘과 무관한 별도 producer다: `error_scan.rs`가 surface 출력 텍스트를 패턴 매칭해 매치 시 직접 `surface.fire_hook`으로 보낸다(정지 판정은 아래 절).
 API 에러로 턴이 **끝나면** `StopFailure`가 구조적 신호를 주지만, 요청이 응답 없이 매달리면 턴이 끝나지 않아 `Stop`도 `StopFailure`도 **발생하지 않는다** — 그때는 PTY에 찍히는 에러 문자열과 출력 정적이 얻을 수 있는 유일한 신호다.
-`claude-idle`/`needs-input`은 [surface-highlight](../../features/surface-highlight/index.md)(Stop hook → highlight)와 [telemetry](../../features/telemetry/index.md)(`session-start`→`stop`의 `wall_time_ms`, `notification`의 `input_tokens`)가 소비하고, `SessionStart`/`SessionEnd`의 meta set/unset은 [layout-persistence](../../features/layout-persistence/index.md)의 `restore.command` 복원이 소비한다.
+`claude-idle`/`needs-input`은 [surface-highlight](../../features/surface-highlight/index.md)(Stop hook → highlight)와 [telemetry](../../features/telemetry/index.md)(`session-start`→`stop`의 `wall_time_ms`, 압축 뒤의 `session-start`는 시작으로 치지 않음, `notification`의 `input_tokens`)가 소비하고, `SessionStart`/`SessionEnd`의 meta set/unset은 [layout-persistence](../../features/layout-persistence/index.md)의 `restore.command` 복원이 소비한다.
 
 ### API 에러 뒤 자동 재개 (`auto_resume.rs`)
 
@@ -537,7 +537,7 @@ API 오류에서 실제 이벤트를 받은 실험까지 완료한 것은 아니
 
 ### PTY 에러 스캔 (`claude-error`) 범위
 
-`error_scan.rs`는 추적 중인 surface의 `surface.read_since_scan_mark` 결과를 읽고 알려진 오류 패턴을 찾는다. 패턴은 `API Error`, `Output blocked by content filtering policy`, `overloaded_error`, `rate_limit_error`, `Internal Server Error`, `network error`, `Bad Request`다. 매칭되면 `claude-error`를 발생시킨다. 같은 오류 텍스트의 반복 알림은 생략하며 새 턴 신호(`prompt-submit`/`session-start`/`active`)에서 이 기록을 초기화한다.
+`error_scan.rs`는 추적 중인 surface의 `surface.read_since_scan_mark` 결과를 읽고 알려진 오류 패턴을 찾는다. 패턴은 `API Error`, `Output blocked by content filtering policy`, `overloaded_error`, `rate_limit_error`, `Internal Server Error`, `network error`, `Bad Request`다. 매칭되면 `claude-error`를 발생시킨다. 같은 오류 텍스트의 반복 알림은 생략하며 새 턴 신호(`prompt-submit`/`session-start`/`active`, 압축 뒤의 `session-start`는 제외)에서 이 기록을 초기화한다.
 
 회차 사이에는 800ms를 기다린다. 파일·IPC·잠금 대기 시간은 별도이므로 800ms 안에 감지한다는 보장은 아니다.
 
@@ -584,7 +584,7 @@ API 오류에서 실제 이벤트를 받은 실험까지 완료한 것은 아니
 | 누적 출력의 해시가 기준 시간 동안 같음 | 오류 문구가 있으면 30초, 없으면 120초. 비교 대상은 스캐너가 보관한 크기 제한 안의 누적 텍스트이며 화면 전체나 프로세스 진행 상태가 아니다. 오류 없는 120초 기준은 호스트의 `CHILD_OUTPUT_SILENCE`와 맞춘다 |
 | `terminal.state`가 `active` 또는 `stale` | `idle`·`needs_input`·`exited`는 별도 상태 훅이 다루므로 제외한다. 그 훅이나 알림이 실제 전달됐음을 확인하는 조건은 아니다. `stale`은 `confidence`와 무관하게 포함한다 |
 
-상태는 출력 조건을 넘긴 뒤에만 조회한다. 조회한 상태가 `idle`·`needs_input`·`exited`이면 그 조용한 구간에서는 다시 조회하지 않는다. 대기 meta 복원 조회도 함께 멈춘다. 이 세 상태는 hook이 보고한 값이라 출력이 바뀌거나 그 surface에 hook이 와야 바뀐다. 누적 출력이 바뀌거나 그 surface의 hook(종류 무관)이 플러그인에 오면 다음 회차에 다시 조회한다. 그래서 상태가 `active`로 돌아온 뒤 알리는 시점은 매 회차 조회할 때와 같다. 새 턴 신호(`prompt-submit`/`session-start`/`active`)는 `active`를 호스트에 보고하기 **전에** 정지 관측을 초기화한다. 순서가 반대면 그 사이의 스캔 회차가 이전 턴의 조용한 구간과 새 상태 `active`를 함께 보고 재개 직후 거짓 정지 알림을 낼 수 있다. 상태 조회에 실패하면(빈 값) 확인하지 않은 것으로 보고 다음 회차에 다시 묻는다. hook을 거치지 않고 `terminal.set_state`로 상태를 바꾸면 다음 출력 변화나 hook까지 반영되지 않는다. 추적 유지 판단(`terminal.parent`·`surface.locate`)은 이 규칙과 무관하게 매 회차 한다.
+상태는 출력 조건을 넘긴 뒤에만 조회한다. 조회한 상태가 `idle`·`needs_input`·`exited`이면 그 조용한 구간에서는 다시 조회하지 않는다. 대기 meta 복원 조회도 함께 멈춘다. 이 세 상태는 hook이 보고한 값이라 출력이 바뀌거나 그 surface에 hook이 와야 바뀐다. 누적 출력이 바뀌거나 그 surface의 hook(종류 무관)이 플러그인에 오면 다음 회차에 다시 조회한다. 그래서 상태가 `active`로 돌아온 뒤 알리는 시점은 매 회차 조회할 때와 같다. 새 턴 신호(`prompt-submit`/`session-start`/`active`, 압축 뒤의 `session-start`는 제외)는 `active`를 호스트에 보고하기 **전에** 정지 관측을 초기화한다. 순서가 반대면 그 사이의 스캔 회차가 이전 턴의 조용한 구간과 새 상태 `active`를 함께 보고 재개 직후 거짓 정지 알림을 낼 수 있다. 상태 조회에 실패하면(빈 값) 확인하지 않은 것으로 보고 다음 회차에 다시 묻는다. hook을 거치지 않고 `terminal.set_state`로 상태를 바꾸면 다음 출력 변화나 hook까지 반영되지 않는다. 추적 유지 판단(`terminal.parent`·`surface.locate`)은 이 규칙과 무관하게 매 회차 한다.
 
 **백그라운드 작업을 기다리는 자식**(대기 Stop 뒤, 위 "백그라운드 작업을 기다리는 Stop")은 기준을 따로 둔다.
 먼저 기다리는 작업의 출력 파일을 찾아 그 파일의 활동으로 판정한다.
@@ -650,6 +650,7 @@ API 오류에서 실제 이벤트를 받은 실험까지 완료한 것은 아니
 - Given Codex 플러그인이 없거나 꺼진 상태 When Codex 대화에서 `claude spawn` Then 자식을 만들지 않고 `codex.parent` 오류를 돌려준다. 다른 부모로 대신하지 않는다.
 - Given `codex.deliver`가 실패한 결과 When `tasty claude codex-returns` Then 그 결과가 본문·수신처와 함께 보이고, `--retry` 뒤 송신 스레드가 넘기는 데 성공하면 다음 조회의 목록에서 사라진다.
 - Given 게이트 판정을 기다리는 Stop When 판정 전에 새 프롬프트가 오거나 시간 초과 확정의 보고가 새 턴 뒤로 밀림 Then 그 Stop의 답은 그 턴의 키로 한 번, 새 턴의 답은 새 턴의 키로 한 번 `codex.deliver`된다.
+- Given Stop 으로 `idle`이 된 Claude 자식 When Claude Code가 쉬는 중에 대화를 압축해 SessionStart(`source: compact`)가 옴 Then 상태는 `idle`로 남고 `claude-idle`·화면 알림·정지 알림이 새로 생기지 않는다. 턴 도중의 압축이면 `active`가 그대로 남고, 백그라운드 작업 대기·게이트 판정을 기다리는 Stop 도 그대로 이어진다.
 - Given `/clear`로 새 세션에 넘어간 Codex 경로 When 넘어간 세션의 늦은 SessionStart(`resume`)와 그 세션의 늦은 Stop·SessionEnd가 옴 Then 경로는 새 세션에 남고, 새 세션의 답만 새 세션의 턴 키로 간다.
 - Given SessionEnd가 오지 않은 채 `/clear`로 시작한 세션 When 프롬프트 없이 넘어간 세션으로 `/resume`한 뒤 그 세션이 프롬프트를 받음 Then 그 resume 세션의 답이 Codex 대화로 간다.
 - Given 판정을 기다리는 Stop When 다른 Codex 부모가 같은 자식에게 tell Then 그 Stop의 답은 원래 부모의 수신처로 간다.

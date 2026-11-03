@@ -409,7 +409,7 @@ Local 호출자는 이 게이트에서 돌려보내지지 않으므로 없는 �
 
 - **AI Agent / CLI**: `telemetry.record(_batch)`(`telemetry` 권한) · `summary/timeseries/top` · `cap.{set,list,remove,status,reset}` · `anomaly.list` · `session_summary`. [reference/api](../../reference/api.md#텔레메트리-telemetry).
 - **로컬 운영자 / CLI**: `system.pressure` (local-only) · `tasty list pressure` — 위 "요청 압력 게이지" 절.
-- **Claude Code 통합**: `tasty claude install` hook 이 `session-start`→`stop` 의 `wall_time_ms`, notification 의 `input_tokens`(`tokens: N` 패턴)를 `com_tasty_claude` agent 로 자동 적재. [claude plugin](../../plugins/claude/index.md).
+- **Claude Code 통합**: `tasty claude install` hook 이 `session-start`→`stop` 의 `wall_time_ms`(대화 압축 뒤의 `session-start` 는 시작으로 치지 않는다), notification 의 `input_tokens`(`tokens: N` 패턴)를 `com_tasty_claude` agent 로 자동 적재. [claude plugin](../../plugins/claude/index.md).
 
 ## 관련
 

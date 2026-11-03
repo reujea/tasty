@@ -1271,6 +1271,32 @@ mod tests {
         }
     }
 
+    /// 쉬는 Claude 는 하단 상태줄(업데이트 확인 등)을 가끔 다시 그린다. 출력이 바뀔 때마다 새 조용한
+    /// 구간이 시작되지만, idle 로 남아 있는 한 구간이 몇 번 반복돼도 정지 알림은 없다.
+    /// 같은 출력 변화가 active 대상에는 구간마다 알림을 만든다(대조군).
+    #[test]
+    fn status_line_redraws_of_an_idle_target_never_fire_a_stall() {
+        for (state, expected) in [("idle", 0), ("active", 3)] {
+            let host = ScanHost::new("TASK COMPLETE\n", state);
+            let mut s = ErrorScanner::new();
+            let mut t = Instant::now();
+            s.scan_one_at(&host, 1, t);
+            for redraw in [
+                "\rChecking for updates",
+                "\rRestart to update",
+                "\r/restart to apply",
+            ] {
+                t += STALL_NOTIFY_COOLDOWN + STALL_QUIET_NO_ERROR;
+                s.scan_one_at(&host, 1, t);
+                host.set_text(redraw);
+                s.scan_one_at(&host, 1, t);
+            }
+            t += STALL_QUIET_NO_ERROR;
+            s.scan_one_at(&host, 1, t);
+            assert_eq!(host.stalled_count(), expected, "state={state}");
+        }
+    }
+
     /// 800ms tick 을 `n` 번 돌린다.
     fn ticks(s: &mut ErrorScanner, host: &ScanHost, from: Instant, n: u32) -> Instant {
         let mut t = from;
