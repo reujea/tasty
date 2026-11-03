@@ -90,7 +90,7 @@
               ["trigger states", "rest select-border · hover border-strong · open/focus select-border-focus + 1px ring · disabled state-disabled-fill/-border/-fg · placeholder text-placeholder · long value end-ellipsis, never grows"],
               ["popup", "4 below trigger · min-width = trigger · max-width 320 · max-height 300 (whole popup) · menu-bg · 1px menu-border · menu-radius · shadow-popover · padding 4"],
               ["search field", "content width (popup − 2 × 4) · 28 tall · pad-x 8 · search icon 14 + gap 8 · input-raised-bg / input-raised-border · focus = border-focus edge, NO ring · body 14 · placeholder text-placeholder"],
-              ["separator", "1px separator · 4 above · 4 below (menu-sep) · a second one under pinned rows"],
+              ["separator", "1px menu-separator (border-strong) · 4 above · 4 below (menu-sep) · a second one under pinned rows"],
               ["option row", "MenuItem · 28 · pad-x 12 · rest text-secondary · hover menu-item-bg-hover · keyboard-active surface-active · selected = menu-item-selected-fg + trailing check 14 (no fill) · label ellipsis"],
               ["status rows", "no match / loading · 28 · pad-x 12 · body 14 · text-secondary-raised · no hover, cursor default, aria-disabled · loading = Spinner 14 + gap 8 + text, after any rows already present"],
               ["scroll", "only the option list scrolls (.tasty-scroll); field, separators, pinned rows stay put"],

@@ -1473,7 +1473,7 @@ function BannerMoreMenuUnknownG({ lang = "en", style }) {
       <div role="note" style={{ display: "flex", alignItems: "flex-start", gap: "var(--tasty-space-sm)",
         padding: "var(--tasty-space-xs) var(--tasty-space-md)", color: "var(--tasty-text-muted)",
         fontSize: "var(--tasty-font-size-caption)", lineHeight: "var(--tasty-line-height-ui)" }}>
-        <span style={{ display: "inline-flex", flex: "none", marginTop: "var(--tasty-size-1)" }}><Icon name="info" size={14} /></span>
+        <span style={{ display: "inline-flex", flex: "none", marginTop: "var(--tasty-banner-more-reason-glyph-offset)" }}><Icon name="info" size={14} /></span>
         <span style={{ minWidth: 0 }}>{c.reason}</span>
       </div>
       <MenuItem separator />

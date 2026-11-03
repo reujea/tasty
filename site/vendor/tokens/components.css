@@ -297,6 +297,7 @@
   --tasty-menu-bg:                 var(--tasty-surface-raised);
   --tasty-menu-border:             var(--tasty-border-strong); /* was border-default (= surface-raised, invisible) — 2026-10-07: every menu-shaped popover draws a visible edge */
   --tasty-menu-radius:             var(--tasty-radius);
+  --tasty-menu-separator:          var(--tasty-border-strong); /* 2026-11-03 — .tasty-menu-sep fill. A menu divider is a partition INSIDE a popup → border-strong (semantic.css border rule), not separator (white/black 8% = in-surface hairline) */
   --tasty-menu-item-height:        var(--tasty-control-height);
   --tasty-menu-item-padding-x:     var(--tasty-space-md);
   --tasty-menu-item-radius:        var(--tasty-radius-sm);
@@ -467,6 +468,7 @@
   --tasty-html-receiving-fg:          var(--tasty-text-muted);        /* receiving / paused / notice copy in the page rect */
   --tasty-html-receiving-glyph:       var(--tasty-glyph-dim);         /* static glyph while paused */
   --tasty-banner-glyph-offset:        var(--tasty-size-1);            /* 1 — leading glyph nudge onto the title's cap line */
+  --tasty-banner-more-reason-glyph-offset: var(--tasty-size-1);       /* 1 — 2026-11-03: info glyph (14) top offset on the ⋯ menu reason line (caption 11 × line-height-ui). Separate role from banner-glyph-offset */
   --tasty-banner-text-gap:            var(--tasty-label-detail-gap);  /* 2 — title ↔ body (every banner) */
   --tasty-banner-narrow-below:        var(--tasty-size-440);          /* SCOPE content width (before banner margins) below which the action wraps under the body — surface / tab / pane = that content, workspace = union of panes under the tab bar; × stays top-right (2026-10-09 b10) */
 
