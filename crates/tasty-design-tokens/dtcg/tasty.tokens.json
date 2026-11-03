@@ -2314,6 +2314,10 @@
       "$type": "dimension",
       "$value": "{semantic.radius}"
     },
+    "menu-separator": {
+      "$type": "color",
+      "$value": "{semantic.border-strong}"
+    },
     "menu-item-height": {
       "$type": "dimension",
       "$value": "{semantic.control-height}"
@@ -2743,6 +2747,10 @@
       "$value": "{semantic.glyph-dim}"
     },
     "banner-glyph-offset": {
+      "$type": "dimension",
+      "$value": "{primitive.size-1}"
+    },
+    "banner-more-reason-glyph-offset": {
       "$type": "dimension",
       "$value": "{primitive.size-1}"
     },

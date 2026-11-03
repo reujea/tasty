@@ -376,6 +376,12 @@ impl crate::theme::Theme {
         self.menu_radius()
     }
 
+    /// `component.banner-more-reason-glyph-offset` → `{primitive.size-1}` = 1px
+    #[inline]
+    pub fn banner_more_reason_glyph_offset(&self) -> LogicalPx {
+        LogicalPx((1.0 * self.ui_zoom).round())
+    }
+
     /// `component.banner-more-reserve` → `{primitive.size-56}` = 56px
     #[inline]
     pub fn banner_more_reserve(&self) -> LogicalPx {
@@ -3148,6 +3154,12 @@ impl crate::theme::Theme {
     #[inline]
     pub fn menu_radius(&self) -> LogicalPx {
         self.corner_radius
+    }
+
+    /// `component.menu-separator` → `{semantic.border-strong}`
+    #[inline]
+    pub fn menu_separator(&self) -> HexColor {
+        self.border_strong()
     }
 
     /// `component.modhint-empty-row-min-height` → `{primitive.size-20}` = 20px

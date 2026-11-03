@@ -178,9 +178,11 @@ mouse-capture 배너(`defs::BANNER_MOUSE_CAPTURE`)에 한해, X 왼쪽에 "더�
 - **트리거**: 이름을 알 때와 같다(hover 노출, 열린 동안 active, 본문 예약 `banner_more_reserve()` 56 유지).
 - **구성**: 위에서부터 비대화형 사유 줄 → 구분선 → 같은 두 행(비활성). 공용 `tasty_ui_widgets::banner_more_unknown`
   이 그리며 갤러리 예제도 같은 함수를 쓴다.
-  - 사유 줄: info 글리프(`icon_glyph_size_sm` 14, 첫 줄 세로 가운데) + caption 크기 `text_muted` 문장. 줄을 바꾸며
+  - 사유 줄: info 글리프(`icon_glyph_size_sm` 14) + caption 크기 `text_muted` 문장. 글리프와 문장은 위쪽에 맞추고
+    글리프만 `banner_more_reason_glyph_offset()`(1)만큼 내린다. 이 값은 배너 앞 글리프의 `banner_glyph_offset()` 과
+    역할이 다른 별도 토큰이다. 줄 높이는 문장과 글리프(+오프셋) 중 높은 쪽이다. 줄을 바꾸며
     위아래 `spacing_xs`, 좌우 `spacing_md`, 글리프와 문장 사이 `spacing_sm` 이다. 포커스·hover 가 없다.
-  - 구분선: 위아래 `spacing_xs`, 두께 `border_width`, 색 `separator`.
+  - 구분선: 위아래 `spacing_xs`, 두께 `border_width`, 색은 모든 메뉴 구분선과 같은 `menu_separator()`(→ border-strong).
   - 행: MenuItem disabled 모습 — 글자·아이콘 `state_disabled_fg`, hover 채움 없음, 클릭·포커스 없음. wrap 을
     켜 최소 `menu-item-height`, 줄을 바꾸면 위아래 `menu-item-wrap-padding-y`, 줄 높이 `line-height-ui` 다.
     아이콘은 정상 행과 같은 bell·mouse 다. 툴팁은 없다(사유가 메뉴 안에 보인다).

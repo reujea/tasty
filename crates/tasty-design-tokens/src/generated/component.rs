@@ -104,6 +104,9 @@ pub mod banner {
     /// `component.banner-more-menu-radius` → `{component.menu-radius}` = 4px
     pub const MORE_MENU_RADIUS: LogicalPx = super::menu::RADIUS;
 
+    /// `component.banner-more-reason-glyph-offset` → `{primitive.size-1}` = 1px
+    pub const MORE_REASON_GLYPH_OFFSET: LogicalPx = crate::generated::primitive::SIZE_1;
+
     /// `component.banner-more-reserve` → `{primitive.size-56}` = 56px
     pub const MORE_RESERVE: LogicalPx = crate::generated::primitive::SIZE_56;
 

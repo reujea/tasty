@@ -389,6 +389,11 @@ fn search_field(
     changed
 }
 
+/// 검색칸 아래와 고정 행 아래의 구분선. 모든 메뉴 구분선과 같은 `menu-separator` 색이다.
+fn menu_list_separator(ui: &mut egui::Ui, theme: &Theme) {
+    crate::multi_select::list_separator(ui, theme, theme.menu_separator().to_egui());
+}
+
 /// 결과 없음·로딩 상태 행. 누를 수 없다. 로딩은 Spinner + 간격 + 문구다.
 fn status_row(ui: &mut egui::Ui, theme: &Theme, label: &str, loading: bool) {
     let height = theme.menu_item_height();
@@ -520,7 +525,7 @@ fn menu_body(
         &mut field,
         focus_search,
     );
-    crate::multi_select::all_toggle_separator(ui, theme);
+    menu_list_separator(ui, theme);
 
     let rows = visible_rows(menu.pinned, menu.options, field.text());
     let pinned_len = menu.pinned.len();
@@ -568,7 +573,7 @@ fn menu_body(
         row(ui, i, &mut out, active);
     }
     if pinned_len > 0 {
-        crate::multi_select::all_toggle_separator(ui, theme);
+        menu_list_separator(ui, theme);
     }
 
     // 팝업 전체가 select-search-list-max-height 를 넘지 않도록 옵션 목록 높이를 남은 만큼으로 제한한다.

@@ -407,7 +407,7 @@ pub fn menu_label_galley(
     ui.painter().layout_job(job)
 }
 
-/// 메뉴 구분선 (디자인 `.tasty-menu-sep` — 1px separator, 상하 space-xs).
+/// 메뉴 구분선 (디자인 `.tasty-menu-sep` — 1px `menu-separator`, 상하 space-xs).
 pub fn menu_separator(ui: &mut egui::Ui, theme: &Theme) {
     let xs = theme.spacing_xs.value();
     ui.add_space(xs);
@@ -416,7 +416,7 @@ pub fn menu_separator(ui: &mut egui::Ui, theme: &Theme) {
     ui.painter().hline(
         r.x_range(),
         y,
-        egui::Stroke::new(theme.border_width.value(), theme.border_strong().to_egui()),
+        egui::Stroke::new(theme.border_width.value(), theme.menu_separator().to_egui()),
     );
     ui.add_space(xs);
 }

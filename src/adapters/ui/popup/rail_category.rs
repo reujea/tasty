@@ -209,8 +209,9 @@ pub fn draw_rail_category_popup(
             egui::vec2(width, th.border_width.value()),
             egui::Sense::hover(),
         );
+        // 메뉴 구분선 — 모든 메뉴와 같은 menu-separator 색.
         ui.painter()
-            .rect_filled(sep_rect, 0.0, th.separator.to_egui_premultiplied());
+            .rect_filled(sep_rect, 0.0, th.menu_separator().to_egui());
         ui.add_space(th.spacing_xs.value());
 
         if menu_row(

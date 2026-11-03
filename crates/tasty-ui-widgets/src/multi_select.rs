@@ -230,16 +230,19 @@ fn all_toggle_width(ui: &egui::Ui, theme: &Theme, label: &str) -> f32 {
     .width()
 }
 
-/// 일괄 토글 아래의 구분선. 행 사이 간격이 0이므로 위아래 `space-xs` 여백을 직접 둔다.
+/// 일괄 토글 아래의 구분선. 파생 separator 색은 premultiplied 표현 그대로 그린다.
 pub(crate) fn all_toggle_separator(ui: &mut egui::Ui, theme: &Theme) {
+    list_separator(ui, theme, theme.separator.to_egui_premultiplied());
+}
+
+/// 목록 안 1px 구분선. 행 사이 간격이 0이므로 위아래 `space-xs` 여백을 직접 둔다.
+pub(crate) fn list_separator(ui: &mut egui::Ui, theme: &Theme, color: egui::Color32) {
     let bw = theme.border_width.value();
     let margin = theme.spacing_xs.value();
     ui.add_space(margin);
     let (rect, _) =
         ui.allocate_exact_size(egui::vec2(ui.available_width(), bw), egui::Sense::hover());
-    // 파생 separator 색은 premultiplied 표현 그대로 그린다.
-    ui.painter()
-        .rect_filled(rect, 0.0, theme.separator.to_egui_premultiplied());
+    ui.painter().rect_filled(rect, 0.0, color);
     ui.add_space(margin);
 }
 

@@ -2,8 +2,9 @@
 //! 비대화형 사유 줄, 구분선, 이름 대신 "이 프로그램"으로 쓴 두 행을 비활성으로 그린다.
 //!
 //! - 사유 줄: info 글리프(`icon-glyph-size-sm`) + caption 크기 `text-muted` 문장. 줄을 바꾸며
-//!   위아래 `space-xs`, 좌우 `space-md`, 글리프와 문장 사이 `space-sm` 이다. 포커스·호버가 없다.
-//! - 구분선: 위아래 `space-xs`, 두께 `border-width`, 색 `separator`.
+//!   위아래 `space-xs`, 좌우 `space-md`, 글리프와 문장 사이 `space-sm` 이다. 글리프는 문장 위쪽에 맞춘 뒤
+//!   `banner-more-reason-glyph-offset` 만큼 내린다. 포커스·호버가 없다.
+//! - 구분선: 위아래 `space-xs`, 두께 `border-width`, 색은 모든 메뉴 구분선과 같은 `menu-separator`.
 //! - 행: MenuItem disabled(글자·아이콘 `state-disabled-fg`, 호버 채움 없음, 클릭 없음)에 wrap 을 켠 모습.
 //!   최소 `menu-item-height`, 줄을 바꾸면 위아래 `menu-item-wrap-padding-y`, 줄 높이 `line-height-ui`.
 //!   툴팁은 없다(사유가 메뉴 안에 보인다).
@@ -91,8 +92,10 @@ fn row_galley(
     )
 }
 
+/// 사유 줄 높이. 글리프와 문장을 위쪽에 맞춰 나란히 두므로 둘 중 높은 쪽에 위아래 `space-xs` 를 더한다.
 fn reason_height(theme: &Theme, galley: &egui::Galley) -> LogicalPx {
-    LogicalPx(galley.size().y) + theme.spacing_xs * 2.0
+    let glyph = theme.icon_glyph_size_sm + theme.banner_more_reason_glyph_offset();
+    LogicalPx(galley.size().y).max(glyph) + theme.spacing_xs * 2.0
 }
 
 fn separator_height(theme: &Theme) -> LogicalPx {
@@ -134,7 +137,7 @@ pub fn banner_more_unknown(
     let muted = theme.text_muted().to_egui();
     let disabled = theme.state_disabled_fg().to_egui();
 
-    // 사유 줄 — 글리프는 첫 줄 높이의 세로 가운데에 둔다.
+    // 사유 줄 — 글리프는 문장 위쪽에서 사유 글리프 오프셋만큼 내린다.
     let reason = ui
         .ctx()
         .fonts(|f| reason_galley(f, theme, copy.reason, width, muted));
@@ -144,12 +147,11 @@ pub fn banner_more_unknown(
     );
     let glyph = theme.icon_glyph_size_sm.value();
     let top = rect.top() + theme.spacing_xs.value();
-    let first_line = theme.font_size_caption.value() * theme.line_height_ui;
     let x = rect.left() + theme.spacing_md.value();
     info(
         ui,
-        egui::Rect::from_center_size(
-            egui::pos2(x + glyph * 0.5, top + first_line * 0.5),
+        egui::Rect::from_min_size(
+            egui::pos2(x, top + theme.banner_more_reason_glyph_offset().value()),
             egui::vec2(glyph, glyph),
         ),
         muted,
@@ -160,7 +162,7 @@ pub fn banner_more_unknown(
         muted,
     );
 
-    // 구분선 — 메뉴 행 폭 전체.
+    // 구분선 — 메뉴 행 폭 전체, 공용 메뉴 구분선 색.
     let (rect, _) = ui.allocate_exact_size(
         egui::vec2(width.value(), separator_height(theme).value()),
         egui::Sense::hover(),
@@ -170,7 +172,7 @@ pub fn banner_more_unknown(
         egui::vec2(width.value(), theme.border_width.value()),
     );
     ui.painter()
-        .rect_filled(line, 0.0, theme.separator.to_egui_premultiplied());
+        .rect_filled(line, 0.0, theme.menu_separator().to_egui());
 
     let [first, second] = row_icons;
     [
@@ -318,6 +320,67 @@ mod tests {
             );
         }
         seen
+    }
+
+    /// 이름 미상 메뉴를 한 프레임 그린다. (사유 줄 위쪽, info 글리프 사각형, 그린 도형 목록).
+    fn draw_shapes(th: &Theme, w: f32) -> (f32, egui::Rect, Vec<egui::epaint::ClippedShape>) {
+        let ctx = egui::Context::default();
+        let glyph = std::cell::Cell::new(None);
+        let mut top = 0.0;
+        // 새 Area 의 첫 프레임은 크기만 재고 그리지 않으므로 두 번째 프레임의 도형을 본다.
+        // 등장 페이드가 색을 곱하지 않도록 끈다.
+        let mut shapes = Vec::new();
+        for _ in 0..2 {
+            let frame = ctx.run(egui::RawInput::default(), |ctx| {
+                egui::Area::new(egui::Id::new("unknown"))
+                    .fixed_pos(egui::Pos2::ZERO)
+                    .fade_in(false)
+                    .show(ctx, |ui| {
+                        ui.set_width(w);
+                        ui.set_max_width(w);
+                        ui.spacing_mut().item_spacing.y = 0.0;
+                        top = ui.cursor().top();
+                        let info =
+                            |_: &mut egui::Ui, r: egui::Rect, _: egui::Color32| glyph.set(Some(r));
+                        let noop = |_: &mut egui::Ui, _: egui::Rect, _: egui::Color32| {};
+                        let _rows = banner_more_unknown(ui, th, &info, [&noop, &noop], EN);
+                    });
+            });
+            shapes = frame.shapes;
+        }
+        (top, glyph.get().expect("info glyph painted"), shapes)
+    }
+
+    /// 사유 줄 info 글리프는 문장 위쪽(사유 줄 위 `space-xs`)에서 `banner-more-reason-glyph-offset` 만큼 내린
+    /// 자리에 놓인다. 첫 줄 세로 가운데에 두면 오프셋과 어긋난다.
+    #[test]
+    fn the_reason_glyph_sits_at_the_reason_glyph_offset_below_the_text_top() {
+        let th = theme();
+        let (top, glyph, _) = draw_shapes(&th, max_row_width(&th));
+        let expected = top + (th.spacing_xs + th.banner_more_reason_glyph_offset()).value();
+        assert_eq!(glyph.top(), expected);
+        assert_eq!(glyph.left(), th.spacing_md.value());
+        assert_eq!(glyph.height(), th.icon_glyph_size_sm.value());
+    }
+
+    /// 사유 줄과 행 사이 구분선은 모든 메뉴 구분선과 같은 `menu-separator` 색으로 그린다.
+    /// 카드 안 hairline 색 `separator` 로 그리지 않는다.
+    #[test]
+    fn the_separator_uses_the_menu_separator_color() {
+        let th = theme();
+        assert_ne!(
+            th.menu_separator().to_egui(),
+            th.separator.to_egui_premultiplied()
+        );
+        let (_, _, shapes) = draw_shapes(&th, max_row_width(&th));
+        let fills: Vec<egui::Color32> = shapes
+            .iter()
+            .filter_map(|c| match &c.shape {
+                egui::Shape::Rect(r) if r.rect.height() == th.border_width.value() => Some(r.fill),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(fills, vec![th.menu_separator().to_egui()]);
     }
 
     /// 비활성 행은 누름·뗌을 받아도 클릭으로 응답하지 않는다.

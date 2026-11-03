@@ -108,6 +108,7 @@ host UI와 공용 위젯은 semantic 접근자를 사용한다. 원시 팔레트
 | 약하게 표시하는 chrome 글리프 | `glyph_dim()` |
 | popup 프레임·pane divider·GPU 비활성 보더 | `border_frame()` |
 | popup 내부 구분선 | `border_strong()` |
+| 메뉴 구분선(Tools 메뉴 · 컨텍스트 메뉴 견본 · 레일 카테고리 메뉴 · Select/SearchableSelect 목록 · 배너 ⋯ 메뉴) | `menu_separator()`(→ border-strong). 카드·탭 스트립·표·목록 안의 hairline 은 `separator` 로 남는다 |
 | 장식 accent | `accent_decorative()` |
 | 주의 환기 accent | `accent_attention()` |
 | 이동 대기 대상 표시 | `accent_move()` (component `move_source_ring()`·`move_source_glyph()`) |

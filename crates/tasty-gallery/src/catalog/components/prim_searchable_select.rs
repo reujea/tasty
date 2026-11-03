@@ -167,7 +167,7 @@ pub fn draw(ui: &mut egui::Ui, theme: &Theme) {
             ),
             (
                 "separator",
-                "1px separator · 4 above · 4 below · a second one under pinned rows",
+                "1px menu-separator (border-strong) · 4 above · 4 below · a second one under pinned rows",
             ),
             (
                 "option row",

@@ -454,10 +454,11 @@ pub fn draw_unknown_name(ui: &mut egui::Ui, theme: &Theme) {
             ),
             TokenChip::new("text-muted", "reason line", theme.text_muted().to_egui()),
             TokenChip::without_color("font-size-caption", "reason line 11"),
+            TokenChip::without_color("banner-more-reason-glyph-offset", "reason glyph top 1"),
             TokenChip::new(
-                "separator",
-                "reason ↔ rows",
-                theme.separator.to_egui_premultiplied(),
+                "menu-separator",
+                "reason ↔ rows (border-strong)",
+                theme.menu_separator().to_egui(),
             ),
         ],
     );
