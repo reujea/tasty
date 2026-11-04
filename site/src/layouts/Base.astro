@@ -4,6 +4,7 @@ import "../styles/tokens.css";
 import "../styles/global.css";
 import { stringsFor } from "../lib/strings";
 import { REPO, appVersion, url } from "../lib/site";
+import Analytics from "../components/Analytics.astro";
 import * as icon from "../components/icons";
 
 interface Props {
@@ -51,6 +52,7 @@ const mark = (name: string) => (active === name ? "page" : undefined);
       })();
     </script>
     <slot name="head" />
+    <Analytics />
   </head>
   <body>
     <a class="visually-hidden" href="#content">{s.skipToContent}</a>

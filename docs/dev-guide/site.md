@@ -165,6 +165,18 @@ npm run stamp content/en/index.md
 기본 URL과 랜딩 `/`는 영어로 제공한다.
 정본이 한국어인 것과는 별개다 — 작성은 한국어로, 노출 기본은 영어로.
 
+## 방문자 분석
+
+방문 통계는 Cloudflare Web Analytics로 수집한다. `tasty.zilhak.org`는 프록시를 거치지 않는 DNS 전용
+레코드라 자동 삽입이 동작하지 않으므로, 비콘 스크립트를 페이지에 직접 넣는다.
+
+- 스크립트와 사이트 토큰은 `site/src/components/Analytics.astro` 한 곳에 둔다. 토큰은 발행된 모든
+  페이지에 노출되는 공개 값이다.
+- `<head>`를 가진 두 레이아웃(`Base.astro`, `GalleryPage.astro`)이 이 컴포넌트를 싣는다. `Design.astro`와
+  `Guide.astro`는 `Base.astro`를 통해 함께 포함된다. iframe으로 싣는 `/design/cards/*.html`은 집계하지 않는다.
+- production 빌드에만 포함되어 `astro dev` 방문은 집계되지 않는다.
+- 통계는 Cloudflare 대시보드의 Web Analytics에서 본다. 저장소 Insights의 Traffic은 Pages 방문을 집계하지 않는다.
+
 ## 콘텐츠 구조
 
 `site/content/` 의 디렉토리가 사이드바 섹션이고, 페이지 순서는 `site/src/lib/guide.ts` 의 `ORDER` 가

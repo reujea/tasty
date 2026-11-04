@@ -1,0 +1,10 @@
+---
+/** Cloudflare Web Analytics beacon. Only production builds report, so local
+ * preview and development visits stay out of the counts. The token is public:
+ * it appears in every published page. */
+const TOKEN = "e339c97001644af3b6fd464815f8da8b";
+const beacon = JSON.stringify({ token: TOKEN });
+---
+{import.meta.env.PROD && (
+  <script is:inline type="module" src="https://static.cloudflareinsights.com/beacon.min.js" data-cf-beacon={beacon}></script>
+)}

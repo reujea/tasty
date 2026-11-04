@@ -7,6 +7,7 @@ import "../../vendor/gallery/gallery.css";
 import "../styles/gallery-site.css";
 import "../styles/vendor-stamp.css";
 import { url } from "../lib/site";
+import Analytics from "../components/Analytics.astro";
 
 interface Props {
   title: string;
@@ -44,6 +45,7 @@ const { active, title, description } = Astro.props;
           });
       } catch (e) {}
     </script>
+    <Analytics />
   </head>
   <body>
     <slot />
