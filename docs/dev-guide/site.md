@@ -138,6 +138,7 @@ npm run stamp content/en/index.md
 | `/ko/` | 한국어 랜딩 |
 | `/guide/**` | 영어 가이드. `site/content/en/**.md` 가 있으면 번역, 없으면 한국어 본문 + 배너 |
 | `/ko/guide/**` | 한국어 가이드 (`site/content/**.md`, canonical) |
+| `/privacy/` · `/ko/privacy/` | 개인정보 안내. 본문은 `site/src/components/Privacy.astro` 에 두 언어로 있고 푸터에서 연결한다 |
 | `/design/` · `/ko/design/` | 디자인 가이드라인 (브랜드 · 색 · 타이포 · 간격). 크롬만 이중언어고 싣는 문서는 같다 |
 | `/design/tokens/` · `/ko/design/tokens/` | 3티어 토큰 문서 |
 | `/design/gallery/**` | 레퍼런스 갤러리 13 페이지. 갤러리 자체 크롬을 쓰므로 언어별로 나누지 않는다 |
@@ -175,6 +176,7 @@ npm run stamp content/en/index.md
 - `<head>`를 가진 두 레이아웃(`Base.astro`, `GalleryPage.astro`)이 이 컴포넌트를 싣는다. `Design.astro`와
   `Guide.astro`는 `Base.astro`를 통해 함께 포함된다. iframe으로 싣는 `/design/cards/*.html`은 집계하지 않는다.
 - production 빌드에만 포함되어 `astro dev` 방문은 집계되지 않는다.
+- 수집 항목이나 처리 주체가 바뀌면 개인정보 안내(`site/src/components/Privacy.astro`)의 두 언어 본문과 최종 수정일을 함께 고친다. 앱에 외부 전송 기능을 추가할 때도 안내의 앱 항목을 확인한다.
 - 통계는 Cloudflare 대시보드의 Web Analytics에서 본다. 저장소 Insights의 Traffic은 Pages 방문을 집계하지 않는다.
 
 ## 콘텐츠 구조

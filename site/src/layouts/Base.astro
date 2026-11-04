@@ -122,6 +122,7 @@ const mark = (name: string) => (active === name ? "page" : undefined);
             <li><a href={`${REPO}/releases/latest`}>{s.footerReleases}</a></li>
             <li><a href={`${REPO}/issues`}>{s.footerIssues}</a></li>
             <li><a href={`${REPO}/blob/main/CHANGELOG.md`}>{s.navChangelog}</a></li>
+            <li><a href={url(lang === "en" ? "privacy/" : "ko/privacy/")}>{s.footerPrivacy}</a></li>
           </ul>
         </div>
       </div>

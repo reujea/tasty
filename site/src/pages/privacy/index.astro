@@ -1,0 +1,9 @@
+---
+import Base from "../../layouts/Base.astro";
+import Privacy from "../../components/Privacy.astro";
+import { stringsFor } from "../../lib/strings";
+const s = stringsFor("en");
+---
+<Base lang="en" title={`${s.privacyTitle} · Tasty`} description={s.privacyDescription} enHref="privacy/" koHref="ko/privacy/">
+  <Privacy lang="en" />
+</Base>

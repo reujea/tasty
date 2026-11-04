@@ -393,6 +393,13 @@ code, kbd, pre, samp { font-family: var(--font-mono); }
   max-width: var(--content-max);
 }
 
+/* Standalone text page with no sidebar or table of contents. */
+.page-single {
+  max-width: var(--content-max);
+  margin: 0 auto;
+  padding: 0 var(--sp-5);
+}
+
 .breadcrumb {
   font-size: 12px;
   font-family: var(--font-mono);
