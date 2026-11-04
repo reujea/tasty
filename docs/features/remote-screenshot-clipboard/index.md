@@ -82,7 +82,7 @@ preflight 는 **캡처 직전**에 부른다 — 부팅 시점 값을 캐시해�
 
 - 결과는 `CaptureCopy` 셋 중 하나다. 경로 텍스트와 이미지를 함께 올리면 `TextAndImage`. 디코딩 실패, 함께 게시 실패, 이미지 미지원 어댑터면 경로 텍스트만 다시 써서 `TextOnly`(이미지 실패 사유 포함). 텍스트도 쓰지 못하면 `Failed`. 일부 형식만 남았을 수 있는 실패를 성공으로 보고하지 않으려고 텍스트를 다시 쓴다.
 - 헤드리스 빌드의 클립보드 어댑터는 이미지를 지원하지 않고 텍스트 쓰기도 실패하므로 `Failed` 다. 성공을 가장하지 않는다.
-- 터미널 붙여넣기는 텍스트 형식을 먼저 읽으므로(`ClipboardContext::read_paste`) 저장 경로가 들어가고, 이미지 붙여넣기를 받는 앱은 이미지 형식을 읽는다. Clipboard Viewer 는 열 때 읽는 snapshot 에 Text 와 Image 를 함께 보인다.
+- 터미널 붙여넣기는 텍스트 형식을 먼저 읽으므로(`ClipboardContext::read_paste`) 저장 경로가 들어가고, 이미지 붙여넣기를 받는 앱은 이미지 형식을 읽는다. 원격(mirror) 터미널의 예외는 아래 "mirror 터미널에 붙여넣기"에 있다. Clipboard Viewer 는 열 때 읽는 snapshot 에 Text 와 Image 를 함께 보인다.
 - 클립보드 소유는 다른 앱이 복사하거나 Tasty 가 다른 내용을 쓸 때까지 이어진다. Linux 는 그동안 소유 스레드가 PNG 바이트를 들고 있다.
 - 디코딩 비용: 3840×2160 PNG(무작위 픽셀, 33MB)에 약 26~30ms(이 저장소의 dev 프로필은 의존 크레이트를 최적화한다). 로컬은 캡처 워커에서 디코딩한다. GUI 원격 서버는 저장·재읽기·PNG 디코딩을 App 의 이미지 worker(`src/app/image_jobs.rs`, 아래 "서버측 처리")에서 하므로 서버 화면이 그동안 멈추지 않는다. 클립보드 게시는 macOS·Linux 는 worker 에서, Windows 는 이벤트 루프에서 한다(아래 "스레드 제약"). 헤드리스 서버는 이미지를 디코딩하지 않고 저장까지 그 자리에서 끝낸다.
 - 스레드 제약: Windows 의 클립보드 소유 창은 호출 스레드마다 만드는 메시지 전용 창(`thread_local`)이다. 다른 프로그램이 `EmptyClipboard` 하면 소유 창에 `WM_DESTROYCLIPBOARD` 가 가는데, worker 스레드는 작업을 기다리며 막혀 창 메시지를 처리하지 않으므로 소유자가 되면 그 프로그램의 복사가 늦어지거나 멈출 수 있다. 그래서 Windows 는 worker 가 저장·디코딩만 하고, 게시는 완료를 받은 이벤트 루프(메시지를 처리하는 스레드)가 한다(`image_jobs::capture::PUBLISH_ON_EVENT_LOOP`). macOS 는 `objc2-app-kit` 이 `NSPasteboard` 를 main thread 전용으로 표시하지 않고, Linux X11 은 선택 소유를 별도 스레드가 맡으므로 worker 에서 게시한다. Windows 의 이벤트 루프 게시와 macOS 의 worker 게시는 실 기기에서 재지 않았다.
@@ -110,6 +110,15 @@ client 는 `capture_commit` 까지 보낸 업로드를 세션의 `capture_upload
 
 - 목록에 없는 `upload_id` 의 회신(이미 답한 업로드의 중복 회신, 연결 정리 뒤의 늦은 회신)은 안내하지 않는다. 동시에 올린 여러 캡처는 회신 순서와 관계없이 각자의 요청에 대응한다.
 - 회신 전에 연결이 끊기면(`enter_reconnecting`, 끊김으로 인한 mirror 정리, 재연결·재동기화로 transport 교체) 남은 업로드마다 `attach.toast.mirror_capture_unconfirmed` 를 요청한 View 에 띄운다. 사용자가 mirror 를 직접 닫은 경우는 끊김 안내와 마찬가지로 띄우지 않는다.
+
+### mirror 터미널에 붙여넣기
+
+Tasty 의 붙여넣기 단축키는 항상 로컬 클립보드를 읽고, 그 키를 원격 앱에 전달하지 않는다. 그래서 원격 클립보드에만 올라간 캡처는 단축키로 꺼낼 수 없다. 이 틈을 다음 규칙으로 메운다.
+
+- **원격으로 보낸 캡처**: 캡처 워커는 화면을 찍기 전에 로컬 클립보드 내용의 지문(`clipboard::context::paste_fingerprint`)을 구한다. 업로드를 보내면 mirror workspace 별 기록(`RemoteState.mirror_capture_pastes`)에 지문을 남기고, 회신에 저장 경로가 있으면 기록에 더한다. 클립보드 쓰기만 실패한 회신(`ok:false`)에도 경로가 있으면 쓴다.
+- **판정**: 그 mirror 의 터미널에 붙여넣을 때 지금 로컬 클립보드의 지문이 기록과 같으면 로컬 내용 대신 원격 경로를 bracketed paste 규칙대로 입력한다. 다르면 사용자가 캡처 뒤에 새로 복사한 것이므로 로컬 내용을 쓴다. 기록은 새 캡처가 덮어쓰고 mirror 를 제거할 때 지운다. 같은 캡처를 여러 번 붙여넣을 수 있다.
+- **로컬에서 찍은 캡처**: 로컬 캡처는 이 머신의 저장 경로를 텍스트로 올리므로 원격은 그 경로를 읽지 못한다. mirror 터미널에 붙여넣을 때 텍스트가 이 머신의 캡처 저장 폴더 바로 아래 경로이고 이미지를 읽을 수 있으면, 이미지 붙여넣기와 같이 업로드해 원격 경로를 입력한다.
+- **한계**: 내용 지문이라 캡처 전과 같은 내용을 다시 복사하면 바뀌지 않은 것으로 본다. 캡처 전에 로컬 클립보드를 읽지 못하면 그 캡처는 기록하지 않는다. RDP 처럼 원격 클립보드를 로컬로 옮기는 프로그램이 있으면 지문이 달라져 옮겨 온 로컬 내용을 쓴다.
 
 ### 결과 안내 (토스트)
 
@@ -153,6 +162,10 @@ mirror 캡처는 전송을 접수한 것만으로 성공을 알리지 않는다.
 - Given 로컬(비-mirror) surface 에 포커스 When `screenshot_to_clipboard` 트리거 Then OS 인터랙티브 캡처 후 캡처 파일 경로 텍스트와 같은 그림의 이미지가 로컬 클립보드에 함께 올라간다.
 - Given 저장 PNG 를 디코딩하지 못하거나 이미지 게시가 실패 When 캡처를 게시 Then 경로 텍스트만 올라가고 결과는 경로만 복사한 부분 성공이다.
 - Given mirror 워크스페이스의 surface 에 포커스 When `screenshot_to_clipboard` 트리거 Then 캡처 파일이 attach 채널로 원격에 전송되고, 원격 인스턴스의 클립보드에 그 원격 경로 텍스트와 이미지가 올라간다(로컬 클립보드는 바뀌지 않는다).
+- Given mirror 에서 캡처했고 그 뒤 로컬 클립보드가 그대로임 When 그 mirror 의 터미널에서 붙여넣기 Then 로컬 내용이 아니라 원격 저장 경로가 입력된다.
+- Given mirror 에서 캡처한 뒤 로컬에서 다른 내용을 복사함 When 그 mirror 의 터미널에서 붙여넣기 Then 새로 복사한 로컬 내용이 입력된다.
+- Given mirror 에서 캡처했고 원격 클립보드 쓰기만 실패함 When 로컬 클립보드가 그대로인 채 붙여넣기 Then 원격 저장 경로가 입력된다.
+- Given 로컬 surface 에서 캡처해 로컬 클립보드에 이 머신의 경로와 이미지가 있음 When mirror 터미널에서 붙여넣기 Then 이미지를 원격에 올리고 원격 경로가 입력된다.
 - Given 원격 서버가 `capture_result` 에 `image` 를 싣지 않는 옛 버전 When mirror 캡처가 성공 Then 클라이언트는 이미지까지 복사한 성공이 아니라 경로만 복사한 성공으로 안내한다.
 - Given 캡처가 사용자에 의해 취소됨(Esc 등) Then 로컬/원격 어느 클립보드도 바뀌지 않는다.
 - Given Linux 에서 첫 캡처 도구가 비정상 종료하고 다음 후보가 설치됨 When 캡처 트리거 Then 다음 후보를 실행하고 그 결과를 사용한다. 모든 후보가 실패하면 결과는 취소가 아니라 도구 실패다.
@@ -182,13 +195,16 @@ mirror 캡처는 전송을 접수한 것만으로 성공을 알리지 않는다.
 (`crates/tasty-platform/src/screen_capture/linux_tests.rs`). shim 결과는 OS 네이티브 취소의 검증이 아니다.
 실제 도구로는 Linux X11(Xvfb)에서 scrot 1.10 의 Esc 취소·영역 선택 성공, 그리고 실행 중인
 gnome-screenshot 41.0 이 비정상 종료한 뒤 scrot 으로 넘어가 Esc 로 취소되는 흐름을 확인했다.
-Wayland 도구(grim·slurp)와 macOS·Windows 는 실제 실행하지 않았고 소스 기준이다.
+Wayland 도구(grim·slurp)와 macOS 는 실제 실행하지 않았고 소스 기준이다.
+
+Windows client 에서 Xvfb 디스플레이의 Linux GUI 서버로 SSH 터널을 거쳐 mirror 캡처와 붙여넣기를 실행해, 원격 경로가 bracketed paste 로 입력되고 원격 X11 클립보드에 `image/png` 와 텍스트가 올라가는 것을 확인했다. 캡처 뒤 로컬 복사가 우선하는 판정과 기록 갱신은 단위 시험으로 확인한다. 로컬 캡처를 mirror 에 붙여넣는 경로와 macOS client 는 실제 실행하지 않았다.
 
 ## 구현
 
 - 캡처: `crates/tasty-platform/src/screen_capture.rs`(`capture_interactive`, 플랫폼별 `capture_to_path`, `validate_png`, Linux 후보 실행 `linux::run_candidates`).
 - App 폴링/스레딩: `src/app/screenshot_capture.rs`(`poll_screenshot_captures`/`trigger_pending_screenshot_captures`/`drain_screenshot_capture_results`), `src/app.rs`(`screenshot_capture_tx/rx`), `src/app/event.rs`(`AppEvent::ScreenshotCaptureReady`).
 - 큐: `src/remote/state.rs`의 `RemoteState.pending_screenshot_captures` — 원 mirror workspace와 View를 보관하며 `src/app/engine_action.rs`에서 채운다.
+- mirror 붙여넣기: `src/view/main/clipboard.rs`(`paste_to_terminal`, `replace_local_capture_path`), `src/clipboard/context.rs`(`paste_fingerprint`), `src/remote/state.rs`(`MirrorCapturePaste`), `src/app/screenshot_capture.rs`(`remember_mirror_capture`), `src/app/attach_client/output.rs`(`apply_capture_result`).
 - 키바인딩: `crates/tasty-settings/src/keybindings.rs`(`screenshot_to_clipboard` 필드 + `default_screenshot_to_clipboard`), `presets.rs`(4 프리셋 공통값), `crud.rs`(`GENERAL_BINDING_FIELDS`/`get_bindings(_mut)`), 매치는 `src/adapters/ui/input/shortcuts/keybinding.rs`(`match_capture_bindings`). Settings UI: `src/view/settings/ui/keybindings_tab.rs`(Clipboard 서브탭).
 - 클립보드 게시: `src/ports/clipboard.rs`(`ClipboardImage`, `CaptureCopy`, `publish_text_with_image`), `src/clipboard/capture_image.rs`(`decode_png`), `src/clipboard/files.rs`(`write_text_and_image`)와 `files/x11.rs`·`files/windows.rs`·`files/format.rs`(`dib`, `unicode_text`), `crates/tasty-platform/src/pasteboard.rs`(macOS), `src/adapters/production/arboard_clip.rs`.
 - 원격 전송(client): `src/app/attach_client/bulk.rs`(`forward_capture_to_remote_clipboard`), `src/app/attach_client/wire.rs`(`send_control_frame`, `parse_capture_result`), `src/app/attach_client/output/apply_event.rs`(`MirrorEvent::CaptureResult`).

@@ -93,3 +93,69 @@ fn concurrent_uploads_are_answered_out_of_order() {
     );
     assert!(sess.state.capture_uploads.is_empty());
 }
+
+/// 기록이 있는 mirror에 회신을 적용한 뒤의 기록.
+fn paste_after_reply(
+    workspace: u32,
+    recorded_for: u32,
+    events: Vec<MirrorEvent>,
+) -> Option<crate::remote::state::MirrorCapturePaste> {
+    let view = Arc::new(());
+    let mut sess = test_session(workspace, HashMap::new());
+    sess.state.capture_uploads.insert(7, Arc::downgrade(&view));
+    let (mut state, mut engine_session) = crate::state::tests::test_state();
+    let mut engine = engine_session.borrow_mut();
+    supply_ids(&engine);
+    engine.remote.mirror_capture_pastes.insert(
+        recorded_for,
+        crate::remote::state::MirrorCapturePaste {
+            clipboard_before: 42,
+            remote_path: None,
+        },
+    );
+    let mut plugin_manager: Option<crate::plugin::PluginManager> = None;
+    {
+        let mut host =
+            MirrorHost::windowed(&mut state, &mut engine).for_view(Arc::downgrade(&view));
+        apply_mirror_events(&mut sess, &mut host, &mut plugin_manager, events);
+    }
+    engine
+        .remote
+        .mirror_capture_pastes
+        .get(&recorded_for)
+        .cloned()
+}
+
+#[test]
+fn a_reply_makes_the_capture_pasteable_until_the_local_clipboard_changes() {
+    let paste = paste_after_reply(9_000, 9_000, vec![capture_result(7)]).expect("record");
+    assert_eq!(paste.path_for(42), Some("/srv/shot-7.png"));
+    assert_eq!(paste.path_for(43), None, "새로 복사한 로컬 내용이 우선한다");
+}
+
+#[test]
+fn an_unanswered_capture_is_not_pasteable() {
+    let paste = paste_after_reply(9_000, 9_000, vec![capture_result(8)]).expect("record");
+    assert_eq!(paste.path_for(42), None);
+}
+
+#[test]
+fn a_saved_capture_stays_pasteable_when_the_remote_clipboard_write_failed() {
+    let payload = serde_json::to_vec(&serde_json::json!({
+        "event": "capture_result",
+        "upload_id": 7,
+        "ok": false,
+        "path": "/srv/saved.png",
+        "reason": "no display",
+    }))
+    .unwrap();
+    let event = mirror_event_from_control(&payload).expect("캡처 회신은 이벤트가 된다");
+    let paste = paste_after_reply(9_000, 9_000, vec![event]).expect("record");
+    assert_eq!(paste.path_for(42), Some("/srv/saved.png"));
+}
+
+#[test]
+fn a_reply_does_not_change_another_mirrors_record() {
+    let paste = paste_after_reply(9_000, 9_001, vec![capture_result(7)]).expect("record");
+    assert_eq!(paste.remote_path, None);
+}

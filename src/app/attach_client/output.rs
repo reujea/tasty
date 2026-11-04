@@ -498,6 +498,16 @@ fn apply_capture_result(
         );
         return;
     };
+    // 클립보드 쓰기만 실패한 회신에도 저장 경로가 있으며, 그 경로는 붙여넣을 수 있다.
+    if let (Some(paste), Some(path)) = (
+        host.engine
+            .remote
+            .mirror_capture_pastes
+            .get_mut(&sess.state.local_workspace),
+        result.path.as_ref(),
+    ) {
+        paste.remote_path = Some(path.clone());
+    }
     show_mirror_capture_result(host, &origin, result);
 }
 

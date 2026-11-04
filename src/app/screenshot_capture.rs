@@ -30,8 +30,11 @@ pub(crate) struct CapturedFile {
 pub(crate) enum CapturePayload {
     /// 로컬 클립보드에 올릴 이미지. 디코딩하지 못했으면 그 사유다.
     Local(Result<crate::ports::clipboard::ClipboardImage, String>),
-    /// 원격에 올릴 파일 바이트.
-    Mirror(Vec<u8>),
+    /// 원격에 올릴 파일 바이트와 캡처 전의 로컬 클립보드 지문. 읽지 못했으면 지문이 없다.
+    Mirror {
+        bytes: Vec<u8>,
+        clipboard_before: Option<u64>,
+    },
 }
 
 impl App {
@@ -182,8 +185,17 @@ impl App {
                     let (message, kind) = local_copy_toast(&copy, &path);
                     self.toast_screenshot_origin(&origin, message, kind);
                 }
-                CapturePayload::Mirror(bytes) => {
-                    self.send_capture_to_mirror(&origin, remote_target, &path, bytes);
+                CapturePayload::Mirror {
+                    bytes,
+                    clipboard_before,
+                } => {
+                    self.send_capture_to_mirror(
+                        &origin,
+                        remote_target,
+                        &path,
+                        bytes,
+                        clipboard_before,
+                    );
                 }
             }
         }
@@ -196,9 +208,16 @@ impl App {
         remote_target: Option<crate::app::attach_client::RemoteTarget>,
         path: &std::path::Path,
         bytes: Vec<u8>,
+        clipboard_before: Option<u64>,
     ) {
         let sent = match remote_target.filter(|target| self.remote_target_is_current(target)) {
-            Some(target) => self.upload_capture_to_mirror(&target, path, bytes, origin.clone()),
+            Some(target) => {
+                let sent = self.upload_capture_to_mirror(&target, path, bytes, origin.clone());
+                if sent {
+                    self.remember_mirror_capture(&target, clipboard_before);
+                }
+                sent
+            }
             None => {
                 tracing::debug!("capture remote connection retired before upload");
                 false
@@ -213,6 +232,38 @@ impl App {
                 ),
                 ToastKind::Warning,
             );
+        }
+    }
+
+    /// 이전 캡처의 경로는 새 캡처가 대신한다. 지문이 없으면 변경을 판정할 수 없어 기록하지 않는다.
+    fn remember_mirror_capture(
+        &mut self,
+        target: &crate::app::attach_client::RemoteTarget,
+        clipboard_before: Option<u64>,
+    ) {
+        let Some(engine) = self
+            .engines
+            .all_sessions_mut()
+            .find(|session| session.id == target.engine)
+        else {
+            return;
+        };
+        match clipboard_before {
+            Some(clipboard_before) => {
+                engine.remote.mirror_capture_pastes.insert(
+                    target.workspace,
+                    crate::remote::state::MirrorCapturePaste {
+                        clipboard_before,
+                        remote_path: None,
+                    },
+                );
+            }
+            None => {
+                engine
+                    .remote
+                    .mirror_capture_pastes
+                    .remove(&target.workspace);
+            }
         }
     }
 
@@ -393,15 +444,35 @@ fn log_capture_failure(err: &CaptureError) {
 
 /// 캡처한 파일을 읽어 목적지에 맞게 준비한다. 큰 그림의 디코딩도 여기(워커)에서 한다.
 fn capture_and_maybe_read(for_mirror: bool) -> Result<CapturedFile, CaptureError> {
+    // 사용자가 영역을 고르는 동안 복사한 내용을 캡처 이전 상태로 잘못 기록하지 않게 먼저 읽는다.
+    let clipboard_before = for_mirror.then(local_clipboard_fingerprint).flatten();
     let path = crate::platform::screen_capture::capture_interactive()?;
     // 캡처 뒤 파일 읽기 실패는 사용자 취소·캡처 권한 거절과 구별한다.
     let bytes = std::fs::read(&path).map_err(|e| CaptureError::Storage(e.into()))?;
     let payload = if for_mirror {
-        CapturePayload::Mirror(bytes)
+        CapturePayload::Mirror {
+            bytes,
+            clipboard_before,
+        }
     } else {
         CapturePayload::Local(crate::clipboard::capture_image::decode_png(bytes))
     };
     Ok(CapturedFile { path, payload })
+}
+
+/// 읽지 못하면 없음으로 돌려준다. 이 캡처만 붙여넣기 대상에서 빠지고 전송은 그대로 진행한다.
+fn local_clipboard_fingerprint() -> Option<u64> {
+    let mut clipboard =
+        crate::clipboard::ClipboardContext::new(crate::clipboard::error::DisplayBackend::Unknown);
+    match clipboard.read_paste() {
+        Ok(content) => Some(crate::clipboard::context::paste_fingerprint(
+            content.as_ref(),
+        )),
+        Err(error) => {
+            tracing::warn!("screenshot capture: local clipboard read failed: {error}");
+            None
+        }
+    }
 }
 
 /// Native capture may wait for the user. No timeout is treated as completion or OS cancellation.

@@ -34,6 +34,8 @@ pub(crate) struct EngineRead<'a> {
     explorer_writable: &'a HashSet<u32>,
     #[cfg(feature = "gui")]
     explorer_hosts: &'a HashMap<u32, crate::remote::state::ExplorerRemoteHost>,
+    #[cfg(feature = "gui")]
+    mirror_capture_pastes: &'a HashMap<u32, crate::remote::state::MirrorCapturePaste>,
     surfaces: &'a HashMap<u32, Box<dyn Surface>>,
     mirror_cwd: &'a HashMap<u32, crate::core::state::RemoteCwd>,
     #[cfg(feature = "gui")]
@@ -101,6 +103,8 @@ impl<'a> EngineRef<'a> {
             explorer_writable: &self.remote.explorer_writable,
             #[cfg(feature = "gui")]
             explorer_hosts: &self.remote.explorer_hosts,
+            #[cfg(feature = "gui")]
+            mirror_capture_pastes: &self.remote.mirror_capture_pastes,
             surfaces: &self.runtime.surfaces,
             mirror_cwd: &self.remote.mirror_surface_cwd,
             #[cfg(feature = "gui")]
@@ -121,6 +125,15 @@ impl EngineRead<'_> {
         self.workspace_at(idx)
             .filter(|ws| ws.mirror)
             .map(|ws| ws.id)
+    }
+
+    /// 이 mirror workspace에 아직 붙여넣을 수 있는 스크린샷 기록.
+    #[cfg(feature = "gui")]
+    pub(crate) fn mirror_capture_paste(
+        &self,
+        workspace: u32,
+    ) -> Option<&crate::remote::state::MirrorCapturePaste> {
+        self.mirror_capture_pastes.get(&workspace)
     }
 
     /// 이 explorer 칸의 파일을 바꿀 수 없는가. 원격 칸인데 그 연결의 서버가 원격 쓰기를 알리지 않았거나

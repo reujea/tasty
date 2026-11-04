@@ -609,6 +609,7 @@ fn remove_mirror_workspace_from_engine(
         engine.forget_closed_surface(local);
         super::agent_children::forget_mirror_child(engine, local);
     }
+    engine.remote.mirror_capture_pastes.remove(&local_workspace);
     engine.remove_mirror_workspace(local_workspace);
     state.reconcile_presentation(engine);
     // mirror만 남았다면 원격 끊김 때문에 사용자 창을 닫는 대신 기본 workspace를 만든다.

@@ -74,24 +74,35 @@ impl MainView {
             .map(crate::adapters::ui::ToastScope::Surface)
             .unwrap_or(crate::adapters::ui::ToastScope::Window);
         let content = match self.clipboard.read_paste() {
-            Ok(Some(content)) => content,
-            Ok(None) => return,
+            Ok(content) => content,
             Err(error) => {
                 self.state.clipboard_error_toast(&error, scope);
                 return;
             }
         };
+        let mirror = self
+            .state
+            .focused_surface_id(engine)
+            .and_then(|surface| engine.mirror_workspace_of(surface));
+        if let Some(path) = mirror.and_then(|workspace| {
+            let paste = engine.mirror_capture_paste(workspace)?;
+            let now = crate::clipboard::context::paste_fingerprint(content.as_ref());
+            paste.path_for(now).map(str::to_string)
+        }) {
+            self.paste_text_to_focused(engine, path);
+            return;
+        }
+        let Some(content) = content else {
+            return;
+        };
+        let content = if mirror.is_some() {
+            self.replace_local_capture_path(content)
+        } else {
+            content
+        };
         let image = match content {
             crate::clipboard::context::PasteContent::Text(text) => {
-                let surface_id = self.state.focused_surface_id(engine);
-                let bracketed = self
-                    .state
-                    .focused_terminal(&engine.as_ref())
-                    .map(|t| t.bracketed_paste());
-                if let (Some(sid), Some(bracketed)) = (surface_id, bracketed) {
-                    dispatch_paste(self, sid, bracketed, text);
-                    self.last_terminal_paste_at = Some(std::time::Instant::now());
-                }
+                self.paste_text_to_focused(engine, text);
                 return;
             }
             crate::clipboard::context::PasteContent::Image(image) => image,
@@ -133,6 +144,49 @@ impl MainView {
             ),
         }
     }
+}
+
+impl MainView {
+    fn paste_text_to_focused(&mut self, engine: &EngineRead<'_>, text: String) {
+        let surface_id = self.state.focused_surface_id(engine);
+        let bracketed = self
+            .state
+            .focused_terminal(&engine.as_ref())
+            .map(|t| t.bracketed_paste());
+        if let (Some(sid), Some(bracketed)) = (surface_id, bracketed) {
+            dispatch_paste(self, sid, bracketed, text);
+            self.last_terminal_paste_at = Some(std::time::Instant::now());
+        }
+    }
+
+    /// 로컬 캡처는 이 머신의 저장 경로와 이미지를 함께 올린다. 원격은 그 경로를 읽지 못하므로
+    /// mirror에는 텍스트 대신 이미지를 보낸다. 이미지를 읽지 못하면 원래 텍스트를 쓴다.
+    fn replace_local_capture_path(
+        &mut self,
+        content: crate::clipboard::context::PasteContent,
+    ) -> crate::clipboard::context::PasteContent {
+        use crate::clipboard::context::PasteContent;
+        let PasteContent::Text(text) = &content else {
+            return content;
+        };
+        let captures = tasty_utils::path::tasty_home().map(|home| home.join("screenshots"));
+        if !captures.is_some_and(|dir| is_capture_path(text, &dir)) {
+            return content;
+        }
+        match self.clipboard.get_image() {
+            Ok(Some(image)) => PasteContent::Image(image),
+            Ok(None) => content,
+            Err(error) => {
+                tracing::warn!("mirror paste: capture image read failed: {error}");
+                content
+            }
+        }
+    }
+}
+
+/// 캡처 저장 폴더 바로 아래의 파일 경로인가.
+fn is_capture_path(text: &str, captures: &std::path::Path) -> bool {
+    std::path::Path::new(text).parent() == Some(captures)
 }
 
 /// `paste-<ms>.png` 파일명 규약 — 로컬 temp 파일명과 원격 저장 basename 이 공유.
@@ -216,6 +270,19 @@ impl crate::state::MainViewState {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn only_a_file_directly_in_the_capture_folder_is_a_capture_path() {
+        let captures = std::env::temp_dir().join("tasty-captures");
+        let shot = captures.join("screenshot-1.png");
+        assert!(is_capture_path(&shot.to_string_lossy(), &captures));
+        assert!(!is_capture_path("screenshot-1.png", &captures));
+        assert!(!is_capture_path(
+            &captures.join("nested").join("a.png").to_string_lossy(),
+            &captures
+        ));
+        assert!(!is_capture_path("some copied text", &captures));
+    }
 
     /// PNG로 인코딩한 크기·RGBA 픽셀이 원본과 같은지 확인한다.
     #[test]

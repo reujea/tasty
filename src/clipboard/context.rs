@@ -65,6 +65,27 @@ impl ClipboardContext {
     }
 }
 
+/// 붙여넣을 내용의 지문. 캡처 뒤 로컬 클립보드가 바뀌었는지 비교한다.
+/// 같은 내용을 다시 복사한 경우는 바뀌지 않은 것과 구별하지 못한다.
+pub(crate) fn paste_fingerprint(content: Option<&PasteContent>) -> u64 {
+    use std::hash::{Hash, Hasher};
+    let mut hasher = std::collections::hash_map::DefaultHasher::new();
+    match content {
+        None => 0u8.hash(&mut hasher),
+        Some(PasteContent::Text(text)) => {
+            1u8.hash(&mut hasher);
+            text.hash(&mut hasher);
+        }
+        Some(PasteContent::Image(image)) => {
+            2u8.hash(&mut hasher);
+            image.width.hash(&mut hasher);
+            image.height.hash(&mut hasher);
+            image.bytes.hash(&mut hasher);
+        }
+    }
+    hasher.finish()
+}
+
 fn read_paste(
     text: Result<Option<String>, ClipboardError>,
     image: impl FnOnce() -> Result<Option<arboard::ImageData<'static>>, ClipboardError>,
@@ -114,6 +135,31 @@ mod tests {
             )
             .is_err()
         );
+    }
+
+    #[test]
+    fn fingerprints_follow_the_content_and_its_kind() {
+        let text = |value: &str| PasteContent::Text(value.into());
+        let image = |bytes: Vec<u8>| {
+            PasteContent::Image(arboard::ImageData {
+                width: 1,
+                height: 1,
+                bytes: bytes.into(),
+            })
+        };
+        assert_eq!(
+            paste_fingerprint(Some(&text("a"))),
+            paste_fingerprint(Some(&text("a")))
+        );
+        assert_ne!(
+            paste_fingerprint(Some(&text("a"))),
+            paste_fingerprint(Some(&text("b")))
+        );
+        assert_ne!(
+            paste_fingerprint(Some(&image(vec![1, 2, 3, 4]))),
+            paste_fingerprint(Some(&image(vec![1, 2, 3, 5])))
+        );
+        assert_ne!(paste_fingerprint(None), paste_fingerprint(Some(&text(""))));
     }
 
     #[test]

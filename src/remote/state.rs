@@ -18,6 +18,26 @@ pub(crate) struct ExplorerRemoteHost {
     pub(crate) needs_update: bool,
 }
 
+/// 원격으로 보낸 캡처를 붙여넣을 수 있는 동안의 기록.
+#[cfg(feature = "gui")]
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct MirrorCapturePaste {
+    /// 캡처를 시작할 때의 로컬 클립보드 지문. 달라지면 사용자가 그 뒤에 새로 복사한 것이다.
+    pub(crate) clipboard_before: u64,
+    /// 원격 저장 경로. 원격이 회신하기 전에는 없다.
+    pub(crate) remote_path: Option<String>,
+}
+
+#[cfg(feature = "gui")]
+impl MirrorCapturePaste {
+    /// 캡처 뒤 로컬 클립보드가 그대로면 붙여넣을 원격 경로다.
+    pub(crate) fn path_for(&self, clipboard_now: u64) -> Option<&str> {
+        (self.clipboard_before == clipboard_now)
+            .then_some(self.remote_path.as_deref())
+            .flatten()
+    }
+}
+
 /// 원격 explorer 칸의 쓰기를 거절하는 이유. 옛 Tasty 면 업데이트를 안내하고, 연결 정보가 없으면
 /// (연결이 끊기는 중) 원격 탐색기에서 지원하지 않는다는 문구를 쓴다.
 #[cfg(feature = "gui")]
@@ -60,6 +80,10 @@ pub(crate) struct RemoteState {
     /// mirror 이미지 붙여넣기 요청. App이 업로드하고 저장 경로를 미리 정한 surface로 보낸다.
     #[cfg(feature = "gui")]
     pub(crate) pending_image_uploads: Vec<PendingImageUpload>,
+    /// mirror workspace별 마지막 스크린샷 단축키 결과. 붙여넣기는 로컬 클립보드를 읽으므로
+    /// 원격 클립보드에만 올라간 캡처를 여기서 찾아 원격 경로를 입력한다.
+    #[cfg(feature = "gui")]
+    pub(crate) mirror_capture_pastes: std::collections::HashMap<u32, MirrorCapturePaste>,
     /// 로컬 터미널 이미지 붙여넣기의 저장 요청. App 이 worker 에 넘기고 완료 때 경로를 입력한다.
     #[cfg(feature = "gui")]
     pub(crate) pending_image_saves: Vec<crate::app::image_jobs::paste::PendingImageSave>,
@@ -152,6 +176,8 @@ impl RemoteState {
             pending_image_uploads: Vec::new(),
             #[cfg(feature = "gui")]
             pending_image_saves: Vec::new(),
+            #[cfg(feature = "gui")]
+            mirror_capture_pastes: std::collections::HashMap::new(),
             capture_uploads: crate::remote::capture_upload::CaptureUploadRegistry::new(),
             bulk_transfers: crate::remote::bulk_transfer::BulkTransferRegistry::new(),
             #[cfg(feature = "gui")]
