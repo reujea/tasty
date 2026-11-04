@@ -79,7 +79,7 @@ const CSS = `
   font-family: var(--tasty-font-ui); font-size: var(--tasty-select-font-size); color: var(--tasty-select-search-field-fg);
 }
 .tasty-sselect__field input::placeholder { color: var(--tasty-select-search-placeholder); }
-.tasty-sselect__sep { flex: none; height: var(--tasty-border-width); margin: var(--tasty-space-xs) 0; background: var(--tasty-separator); }
+.tasty-sselect__sep { flex: none; height: var(--tasty-border-width); margin: var(--tasty-space-xs) 0; background: var(--tasty-menu-separator); }
 .tasty-sselect__list { flex: 1 1 auto; min-height: 0; overflow-y: auto; overflow-x: hidden; display: flex; flex-direction: column; }
 .tasty-sselect__list > .tasty-menuitem, .tasty-sselect__pinned > .tasty-menuitem { flex: none; }
 .tasty-sselect__pinned { flex: none; display: flex; flex-direction: column; }
