@@ -2,7 +2,23 @@
 import Base from "../layouts/Base.astro";
 import Landing from "../components/Landing.astro";
 import meta from "../lib/meta.json";
+import { url } from "../lib/site";
+
+const korean = url("ko/");
 ---
 <Base lang="en" title={meta.en.title} description={meta.en.description} enHref="" koHref="ko/">
+  <Fragment slot="head">
+    <script is:inline define:vars={{ korean }}>
+      /* Runs before first paint. A saved choice outranks the browser language. */
+      (function () {
+        var saved = null;
+        try { saved = localStorage.getItem("tasty-lang"); } catch (e) { /* private mode */ }
+        var language = saved || navigator.language || "";
+        if (language.toLowerCase().indexOf("ko") === 0) {
+          location.replace(korean + location.search + location.hash);
+        }
+      })();
+    </script>
+  </Fragment>
   <Landing lang="en" />
 </Base>

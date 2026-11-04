@@ -23,6 +23,14 @@
     return window.matchMedia("(prefers-color-scheme: light)").matches ? "latte" : "mocha";
   }
 
+  /* A language picked here outranks the browser language on the next visit to
+     the landing page. See the redirect in pages/index.astro. */
+  document.querySelectorAll(".lang-switch a[data-lang]").forEach(function (link) {
+    link.addEventListener("click", function () {
+      try { localStorage.setItem("tasty-lang", link.getAttribute("data-lang")); } catch (e) { /* private mode */ }
+    });
+  });
+
   /* Let the React demo read and update the shared page theme. */
   window.tastyTheme = { get: currentTheme, set: applyTheme };
 

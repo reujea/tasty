@@ -23,6 +23,7 @@ const version = appVersion(process.cwd());
 const guidePrefix = lang === "en" ? "guide/" : "ko/guide/";
 const landing = lang === "en" ? url("") : url("ko/");
 const mark = (name: string) => (active === name ? "page" : undefined);
+const absolute = (path: string) => new URL(url(path), Astro.site).href;
 ---
 <html lang={s.lang} data-theme-default="mocha">
   <head>
@@ -35,6 +36,9 @@ const mark = (name: string) => (active === name ? "page" : undefined);
     <meta property="og:description" content={description} />
     <meta property="og:type" content="website" />
     <link rel="icon" href={url("tasty-melon.svg")} type="image/svg+xml" />
+    <link rel="alternate" hreflang="en" href={absolute(enHref)} />
+    <link rel="alternate" hreflang="ko" href={absolute(koHref)} />
+    <link rel="alternate" hreflang="x-default" href={absolute(enHref)} />
     <script is:inline>
       /* Apply the saved or system theme while parsing the document head. */
       (function () {
@@ -85,8 +89,8 @@ const mark = (name: string) => (active === name ? "page" : undefined);
           <div class="search__results" role="listbox"></div>
         </div>
         <div class="lang-switch">
-          <a href={url(enHref)} aria-current={lang === "en" ? "true" : undefined}>EN</a>
-          <a href={url(koHref)} aria-current={lang === "ko" ? "true" : undefined}>KO</a>
+          <a href={url(enHref)} data-lang="en" aria-current={lang === "en" ? "true" : undefined}>EN</a>
+          <a href={url(koHref)} data-lang="ko" aria-current={lang === "ko" ? "true" : undefined}>KO</a>
         </div>
         <button class="icon-btn theme-toggle" type="button" aria-label={s.toggleTheme}>
           <Fragment set:html={icon.MOON} /><Fragment set:html={icon.SUN} />

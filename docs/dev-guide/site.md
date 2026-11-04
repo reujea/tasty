@@ -166,6 +166,12 @@ npm run stamp content/en/index.md
 기본 URL과 랜딩 `/`는 영어로 제공한다.
 정본이 한국어인 것과는 별개다 — 작성은 한국어로, 노출 기본은 영어로.
 
+랜딩 `/`는 첫 화면을 그리기 전에 언어를 판단한다(`site/src/pages/index.astro`).
+헤더의 EN/KO로 고른 값(`localStorage`의 `tasty-lang`)이 있으면 그 값을, 없으면 `navigator.language`를 따르며
+`ko`로 시작하면 `/ko/`로 이동한다. 다른 페이지는 이동하지 않아 공유한 링크가 그 언어로 열린다. JS가 꺼져 있으면
+영어 랜딩이 그대로 보인다. 페이지마다 `Base.astro`가 두 언어 주소를 `hreflang`으로 알리며, 절대 주소는
+`site/src/lib/base.mjs`의 `SITE`로 만든다.
+
 ## 방문자 분석
 
 방문 통계는 Cloudflare Web Analytics로 수집한다. `tasty.zilhak.org`는 프록시를 거치지 않는 DNS 전용

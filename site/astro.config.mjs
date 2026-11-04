@@ -5,9 +5,10 @@ import react from "@astrojs/react";
 import { satteri } from "@astrojs/markdown-satteri";
 import { createGuideLinkPlugin } from "./src/lib/satteri-guide-links.mjs";
 import { createDiagramPlugin } from "./src/lib/satteri-diagrams.mjs";
-import { BASE } from "./src/lib/base.mjs";
+import { BASE, SITE } from "./src/lib/base.mjs";
 
 export default defineConfig({
+  site: SITE,
   base: BASE,
   integrations: [react()],
   vite: {
