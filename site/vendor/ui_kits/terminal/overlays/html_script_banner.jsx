@@ -7,8 +7,7 @@
 // + dismiss slot (absolute, top-right). Narrow: when the SURFACE width is below
 // --tasty-banner-narrow-below (440), the action wraps under the body, aligned to the
 // body's left edge. Re-judged on every surface resize, no animation. Content never
-// overrides the threshold: at 440 the longest locale label still fits beside a
-// two-line body (the title and body clamp at 2 lines, so the row height is bounded).
+// overrides the threshold. The body wraps and never clamps, so the row grows with the copy.
 // Button on the shell: Secondary reads the banner-button tokens via [data-surface="banner"]
 // (surface-hover fill · border-frame edge · hover = the usual overlay). Applies to every banner.
 //
@@ -22,7 +21,7 @@ const HS_COPY = {
   title: "Scripts in this document are blocked",
   body: "Buttons and menus that need JavaScript may not respond. Allowing applies to this document only, until Tasty restarts.",
   // 2026-11-01: shown only while the remote-content notice is also up (remote scripts need both allows).
-  bodyRemote: "Buttons and menus that need JavaScript may not respond. Allowing runs the scripts inside this document; scripts from the network also need remote content allowed.",
+  bodyRemote: "Buttons and menus that need JavaScript may not respond. Allowing applies to this document only, until Tasty restarts. Scripts inside it run; scripts from the network also need remote content allowed.",
   action: "Allow for this document",
   reloading: "Reloading with scripts allowed",
   actionLoading: "Available when the document finishes loading",
@@ -65,8 +64,7 @@ function HtmlScriptBanner({ state = "blocked", remote = false, hover = false, na
         <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: "var(--tasty-banner-text-gap)", opacity: reloading ? "var(--tasty-opacity-dimmed)" : 1 }}>
           <div style={{ fontSize: "var(--tasty-banner-title-font-size)", fontWeight: "var(--tasty-font-weight-semibold)", lineHeight: "var(--tasty-line-height-ui)",
             display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{HS_COPY.title}</div>
-          <div style={{ fontSize: "var(--tasty-banner-body-font-size)", lineHeight: "var(--tasty-line-height-ui)", color: "var(--tasty-text-muted)", textWrap: "pretty",
-            display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{remote ? HS_COPY.bodyRemote : HS_COPY.body}</div>
+          <div style={{ fontSize: "var(--tasty-banner-body-font-size)", lineHeight: "var(--tasty-line-height-ui)", color: "var(--tasty-text-muted)", textWrap: "pretty" }}>{remote ? HS_COPY.bodyRemote : HS_COPY.body}</div>
         </div>
         <span style={{ flex: "none", display: "flex", marginLeft: narrow ? "calc(var(--tasty-icon-size-md) + var(--tasty-banner-gap))" : 0, width: narrow ? "100%" : "auto" }}>{action}</span>
       </div>

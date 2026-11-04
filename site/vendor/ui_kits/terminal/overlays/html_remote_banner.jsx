@@ -19,12 +19,12 @@ const RcIcon = window.TastyDesignSystem_41fd3f.Icon;
 
 const RC_COPY = {
   title: "Remote content in this document is blocked",
-  body: "Stylesheets, images, fonts, frames and scripts from the network don't load, so the page may look incomplete. Allowing applies to this document only.",
+  body: "Stylesheets, images, fonts, frames and scripts from the network don't load, so the page may look incomplete. Allowing applies to this document only, until Tasty restarts.",
   action: "Allow remote content",
   reloading: "Reloading with remote content allowed",
   actionLoading: "Available when the document finishes loading",
   markerBlocked: "Remote content blocked. Click for details.",
-  markerAllowed: "Remote content allowed for this document",
+  markerAllowed: "Remote content allowed for this document until Tasty restarts",
 };
 
 // state: "blocked" | "loading" | "reloading" — identical visual rules to HtmlScriptBanner.
