@@ -273,7 +273,7 @@ mod tests {
 
     #[test]
     fn only_a_file_directly_in_the_capture_folder_is_a_capture_path() {
-        let captures = std::env::temp_dir().join("tasty-captures");
+        let captures = std::path::Path::new("fixture-home").join("screenshots");
         let shot = captures.join("screenshot-1.png");
         assert!(is_capture_path(&shot.to_string_lossy(), &captures));
         assert!(!is_capture_path("screenshot-1.png", &captures));
