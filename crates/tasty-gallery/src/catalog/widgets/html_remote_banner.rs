@@ -338,7 +338,10 @@ pub fn draw_states(ui: &mut egui::Ui, theme: &Theme) {
                 "globeOff 16 · html-remote-banner-glyph → accent-info",
             ),
             ("title", title_spec.as_str()),
-            ("body", "kinds, no counts · 11 · text-muted · wraps"),
+            (
+                "body",
+                "kinds, no counts · 11 · text-muted · wraps · scope and lifetime last",
+            ),
             ("action", "Secondary / Sm · no wrap"),
             (
                 "loading",
@@ -473,7 +476,10 @@ pub fn draw_markers(ui: &mut egui::Ui, theme: &Theme) {
                 "with script marker",
                 "independent places: script = tab cluster, remote = address field",
             ),
-            ("cleared by", "another document committing · failed load"),
+            (
+                "cleared by",
+                "another document committing · failed load · app restart",
+            ),
         ],
         &[
             TokenChip::new(
@@ -725,7 +731,7 @@ pub fn draw_variants(ui: &mut egui::Ui, theme: &Theme) {
                 "script notice",
                 "judged on runnable scripts (network scripts need remote allowed)",
             ),
-            ("bodyRemote", "shown only alongside the remote notice"),
+            ("body_remote", "shown only alongside the remote notice"),
             ("static ref", "notice (when the user views)"),
             ("observed block, no ref", "marker only (Windows)"),
             ("no signal, no ref", "nothing (macOS)"),

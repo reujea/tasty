@@ -363,7 +363,7 @@ backend는 실효값 `전역 설정 || 문서 단위 허용` 하나를 한 곳�
 안내 판정은 스크립트 배너와 같은 열람 규칙([사용자가 봤다는 판정](#사용자가-봤다는-판정))을 따른다. 정적 원격 참조가 있고 원격이 막혀 있으며 닫지 않은 문서에서 안내가 필요하다. 정적 참조 없이 OS가 차단을 알린 문서는 안내 대신 표지를 남기고, 표지를 누르면 안내를 보인다(허용하지 않는다). 허용한 문서는 `allowed` 표지가 된다. 전역 설정이 켜져 있으면 안내와 표지가 없다. 상태는 `surface.html_script`의 `remote` 객체로 조회한다.
 
 - **안내 카드** — 공용 view `tasty_ui_widgets::html_remote_banner`다. 스크립트 배너와 같은 inset 셸·단계(`blocked`·`loading`·`reloading`)·좁은 배치·닫기 규칙을 쓰고 글리프만 globeOff(`html-remote-banner-glyph`, accent-info)다. 제목 "Remote content in this document is blocked", 본문은 막는 종류(스타일시트·이미지·글꼴·프레임·스크립트)와 허용 범위(이 문서만)를 말하고, 액션은 [Allow remote content]다. 제목은 정적 참조와 OS 관측을 구분하지 않는다. 문구 키는 `banner.html_script.*` 옆의 `banner.html_remote.*`다. mirror 원격 수신 문구 `[html_remote]`와 헷갈리지 않게 하려는 이름이며, 디자인 leaf `allow`·`allow_loading`은 앱 `action`·`action_loading`에 대응한다.
-- **위치** — 주소 띠 아래, mirror 크기 안내 뒤, 스크립트 배너 앞이다([주소 표시줄](#주소-표시줄)의 배치). 원격 스크립트가 있는 문서에서 두 안내가 함께 보이면 스크립트 배너 본문은 `bodyRemote` 문구다.
+- **위치** — 주소 띠 아래, mirror 크기 안내 뒤, 스크립트 배너 앞이다([주소 표시줄](#주소-표시줄)의 배치). 원격 스크립트가 있는 문서에서 두 안내가 함께 보이면 스크립트 배너 본문은 `banner.html_script.body_remote` 문구다.
 - **동작** — 허용·닫기·다시 보이기는 스크립트 배너와 같은 문서 묶음 요청(`HtmlActionKind::RemoteAllow`·`RemoteDismiss`·`RemoteReshow`)으로 다음 프레임에 적용한다. 요청을 만든 문서가 바뀌었으면 버린다. 허용은 사용자 출처 요청만 받는다. 허용을 누르면 재로드 중 카드가 스피너를 보이고, 새 문서가 commit되면 `banner_fade` 동안 흐려지며 사라진다. 원격 허용과 스크립트 허용은 서로 바꾸지 않는다. 배너는 키보드 포커스를 가져가지 않는다.
 - **페이드 분리** — 원격·스크립트 카드는 페이드 메모를 따로 둔다. 한 카드가 사라지는 동안 다른 카드의 위치는 사라지는 카드의 높이가 빠진 뒤 한 번 바뀐다.
 
