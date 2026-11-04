@@ -92,8 +92,8 @@ cargo build --release
 ## 문서
 
 - 인덱스: [`docs/index.md`](docs/index.md)
-- 사용자 가이드(설치해서 쓰는 사람): [Tasty 가이드](https://zilhak.github.io/tasty/ko/guide/) — 설치부터 화면 구성·설정까지
-- 에이전트 입문: [tasty CLI 로 터미널 조작하기](https://zilhak.github.io/tasty/ko/guide/agents/cli/) — 작업용 터미널을 만들고 명령을 보내 출력을 읽는 첫 실습. 나머지 명령은 [CLI 명령 참조](https://zilhak.github.io/tasty/ko/guide/agents/cli-reference/)
+- 사용자 가이드(설치해서 쓰는 사람): [Tasty 가이드](https://tasty.zilhak.org/ko/guide/) — 설치부터 화면 구성·설정까지
+- 에이전트 입문: [tasty CLI 로 터미널 조작하기](https://tasty.zilhak.org/ko/guide/agents/cli/) — 작업용 터미널을 만들고 명령을 보내 출력을 읽는 첫 실습. 나머지 명령은 [CLI 명령 참조](https://tasty.zilhak.org/ko/guide/agents/cli-reference/)
 - 기능 명세: [`docs/installation.md`](docs/installation.md), [`docs/features/`](docs/features/index.md)
 - API·스키마 참조: [`docs/reference/`](docs/reference/index.md) (api / event-catalog / output-parsers / environments / plan.schema.json)
 - 개발 가이드: [`docs/dev-guide/`](docs/dev-guide/)

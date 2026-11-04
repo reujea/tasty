@@ -146,21 +146,21 @@ npm run stamp content/en/index.md
 
 ### 배포 경로 (base)
 
-레포는 GitHub **프로젝트 페이지**로 발행된다 — `https://zilhak.github.io/tasty/` 라 도메인
-루트가 아니라 **레포 이름 아래**에서 서빙된다. 그 경로는 [`site/src/lib/base.mjs`](../../site/src/lib/base.mjs)
-**한 곳에만** 적고, 나머지는 전부 거기서 파생한다.
+사이트는 GitHub Pages의 커스텀 도메인 `https://tasty.zilhak.org/`의 **루트**에서 서빙한다. 도메인은
+저장소의 Pages 설정에 지정하며, Actions로 배포하므로 `CNAME` 파일을 두지 않는다. 경로 접두사는
+[`site/src/lib/base.mjs`](../../site/src/lib/base.mjs) **한 곳에만** 적고(현재 빈 문자열), 나머지는
+전부 거기서 파생한다.
 
 | 소비자 | 어떻게 받는가 |
 |--------|---------------|
 | 페이지·컴포넌트의 모든 내부 링크 | `astro.config.mjs` 의 `base` → `import.meta.env.BASE_URL` → `site/src/lib/site.ts` 의 `url()` |
-| 개발 서버 | 같은 `base` — `astro dev` 도 그 경로 아래에 마운트한다 (`/tasty/`). **로컬과 배포가 같은 값으로 돈다** |
+| 개발 서버 | 같은 `base` — `astro dev` 도 그 경로 아래에 마운트한다. **로컬과 배포가 같은 값으로 돈다** |
 | 마크다운 파이프라인의 다이어그램 | 직접 주입받는다. Astro 설정에서 로드돼 `BASE_URL` 이 닿지 않는 컨텍스트라 그 경계에서 한 번 적용한다 |
 | `npm run check-links` | 직접 import 한다. 여기서 base 를 모르면 배포가 못 여는 링크를 통과시킨다 |
 | vendor 변환기가 만든 킷·갤러리 모듈 | `import.meta.env.BASE_URL` 을 읽는 `BASE` 상수를 헤더에 넣어준다 |
 | `public/design/cards/*.html` (정적 파일) | 상대경로. `import.meta.env` 를 못 읽으므로 문서 위치 기준으로 쓴다 |
 
-**어떤 경로도 두 번 적지 않는다.** 커스텀 도메인으로 옮기면 `base.mjs` 의 값을 `""` 로 바꾸는
-것이 전부다.
+**어떤 경로도 두 번 적지 않는다.** 도메인 루트가 아닌 경로로 옮기면 `base.mjs` 의 값만 바꾼다.
 
 기본 URL과 랜딩 `/`는 영어로 제공한다.
 정본이 한국어인 것과는 별개다 — 작성은 한국어로, 노출 기본은 영어로.

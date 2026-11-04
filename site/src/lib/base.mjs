@@ -1,3 +1,3 @@
 /** Deployment path shared by Astro, Markdown rendering and link checks.
- * Use an empty string when serving from a domain root. */
-export const BASE = "/tasty";
+ * Empty because the site is served from the root of its custom domain. */
+export const BASE = "";
