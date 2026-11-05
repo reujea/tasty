@@ -2,7 +2,6 @@
 //! 그래프 좌표는 canvas.min + offset + graph * zoom으로 화면 좌표에 옮긴다.
 
 use tasty_dag_layout::GraphLayout;
-use tasty_design_tokens::generated::component::dag::EDGE_DIM_OPACITY;
 use tasty_model::DagDirection;
 use tasty_type_appearance::theme::Theme;
 
@@ -129,7 +128,9 @@ pub fn draw_canvas(
 
     // 주기 조회는 egui 지연 repaint 가 아니라 타이머 허브에 보이는 뷰만 예약한다. 지연 repaint 는 그려질 때만 갱신된다.
 
-    super::chrome::draw_canvas_chrome(ui, theme, rect, cluster, view, layout, direction, lod)
+    super::chrome::draw_canvas_chrome(
+        ui, theme, rect, cluster, view, graph, layout, direction, lod,
+    )
 }
 
 /// pan / zoom / 선택.
@@ -239,21 +240,7 @@ fn paint_edge(
     highlight: bool,
 ) {
     let relation = edge.relation;
-    let base = if highlight {
-        theme.dag_edge_highlight()
-    } else {
-        match relation {
-            DagRelation::DependsOn => theme.dag_edge_depends(),
-            DagRelation::Fallback => theme.dag_edge_fallback(),
-            DagRelation::Reduce => theme.dag_edge_reduce(),
-            DagRelation::Binding => theme.dag_edge_binding(),
-            DagRelation::Transition => theme.dag_edge_transition(),
-        }
-    };
-    let mut color = base.to_egui();
-    if dim {
-        color = color.gamma_multiply(EDGE_DIM_OPACITY);
-    }
+    let color = edge_ink(theme, relation, dim, highlight).to_egui();
     // 선택된 전이 경로만 굵게 그린다.
     let width = if edge.selection == Some(EdgeSelection::Selected) {
         theme.dag_edge_selected_width()
@@ -372,6 +359,29 @@ fn paint_arrow(painter: &egui::Painter, size: f32, color: egui::Color32, points:
     ));
 }
 
+/// 엣지 잉크. 선택 노드의 강조색이 가장 앞서고, 쓸 수 없는 경로는 관계 색을 버린 `dag-edge-dim` 실선 잉크다.
+/// 관계는 그대로 그리는 파선 무늬가 알린다.
+fn edge_ink(
+    theme: &Theme,
+    relation: DagRelation,
+    dim: bool,
+    highlight: bool,
+) -> tasty_type_appearance::color::HexColor {
+    if highlight {
+        return theme.dag_edge_highlight();
+    }
+    if dim {
+        return theme.dag_edge_dim();
+    }
+    match relation {
+        DagRelation::DependsOn => theme.dag_edge_depends(),
+        DagRelation::Fallback => theme.dag_edge_fallback(),
+        DagRelation::Reduce => theme.dag_edge_reduce(),
+        DagRelation::Binding => theme.dag_edge_binding(),
+        DagRelation::Transition => theme.dag_edge_transition(),
+    }
+}
+
 /// 실패·취소·스킵 노드의 하류 중 흐리게 표시할 노드를 고른다.
 /// fallback 연결과 종료된 노드는 제외하며, 실제 실행 가능 여부를 판정하는 함수는 아니다.
 fn dead_path(graph: &DagGraphData) -> Vec<bool> {
@@ -411,4 +421,18 @@ fn cycle_set(graph: &DagGraphData) -> std::collections::HashSet<String> {
         .as_ref()
         .map(|ids| ids.iter().cloned().collect())
         .unwrap_or_default()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_selected_node_highlight_wins_over_the_dead_path_ink() {
+        let th = tasty_themes::mocha_fallback();
+        let t = DagRelation::Transition;
+        assert_eq!(edge_ink(&th, t, true, true), th.dag_edge_highlight());
+        assert_eq!(edge_ink(&th, t, true, false), th.dag_edge_dim());
+        assert_eq!(edge_ink(&th, t, false, false), th.dag_edge_transition());
+    }
 }

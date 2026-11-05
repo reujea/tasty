@@ -1,6 +1,5 @@
 //! 의존 관계를 색과 파선 패턴으로 함께 구분한다. 화살촉은 의존하는 작업을 가리킨다.
 
-use tasty_design_tokens::generated::component::dag::EDGE_DIM_OPACITY;
 use tasty_type_appearance::theme::Theme;
 
 use super::Rel;
@@ -125,17 +124,14 @@ pub fn paint_arrow(
     painter.add(egui::Shape::convex_polygon(pts, color, egui::Stroke::NONE));
 }
 
-/// 죽은 경로 감쇠 계수 (`--tasty-dag-edge-dim-opacity`).
-pub fn dim_factor() -> f32 {
-    EDGE_DIM_OPACITY
-}
-
-/// 엣지 견본 한 줄의 그리기 값. 선택 상태가 바꾸는 것은 굵기와 불투명도뿐이다.
+/// 엣지 견본 한 줄의 그리기 값. 선택 상태가 바꾸는 것은 굵기와 선 잉크뿐이다.
 pub(super) struct EdgeLook {
+    /// 견본 이름의 색. 관계의 색이다.
     pub color: egui::Color32,
+    /// 선과 화살표의 색.
+    pub ink: egui::Color32,
     pub dash: Option<&'static [f32]>,
     pub width: f32,
-    pub alpha: f32,
 }
 
 /// 디자인 `EdgeSpecimen` — 시안 뷰박스 120×56 안의 elbow 한 줄 + 이름 + 라벨.
@@ -165,7 +161,7 @@ pub(super) fn specimen(
     let inset = theme.spacing_md.value();
     let s = egui::pos2(rect.min.x + inset, rect.min.y + gap);
     let t = egui::pos2(rect.max.x - inset, rect.max.y - gap);
-    let color = stroke.color.gamma_multiply(stroke.alpha);
+    let color = stroke.ink;
     let path = elbow(s, t, true, theme.dag_edge_corner_radius().value());
     paint_path(ui.painter(), &path, color, stroke.width, stroke.dash);
     paint_arrow(
@@ -198,9 +194,9 @@ pub(super) fn specimen(
 fn edge_specimen(ui: &mut egui::Ui, theme: &Theme, rel: Rel) {
     let stroke = EdgeLook {
         color: rel.color(theme).to_egui(),
+        ink: rel.color(theme).to_egui(),
         dash: rel.dash(),
         width: theme.dag_edge_width().value(),
-        alpha: 1.0,
     };
     specimen(ui, theme, stroke, rel.key(), Some(rel.label()));
 }
@@ -256,7 +252,7 @@ pub fn draw(ui: &mut egui::Ui, theme: &Theme) {
                 "transition \u{2192} accent-route",
                 theme.dag_edge_transition().to_egui(),
             ),
-            TokenChip::without_color("dag-edge-dim-opacity", "dead path"),
+            TokenChip::new("dag-edge-dim", "dead path", theme.dag_edge_dim().to_egui()),
             TokenChip::new(
                 "dag-edge-highlight",
                 "selected",

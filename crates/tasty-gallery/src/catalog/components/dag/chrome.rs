@@ -130,10 +130,12 @@ pub fn paint_minimap(
 
     for (i, p) in layout.nodes.iter().enumerate() {
         let status = graph.nodes[i].status;
-        let mut c = status.accent(theme).to_egui();
-        if status.is_dim() {
-            c = c.gamma_multiply(super::edges::dim_factor());
+        let c = if status.is_dim() {
+            theme.dag_minimap_node_dim()
+        } else {
+            status.accent(theme)
         }
+        .to_egui();
         ui.painter().rect_filled(
             egui::Rect::from_min_size(
                 egui::pos2(dx + p.x.value() * k, dy + p.y.value() * k),

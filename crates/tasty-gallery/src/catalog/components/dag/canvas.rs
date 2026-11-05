@@ -161,16 +161,14 @@ pub fn paint(
         let hot = selected
             .as_deref()
             .is_some_and(|s| s == graph.nodes[route.from].id || s == graph.nodes[route.to].id);
-        let dim = graph.edge_is_dim(route.from, route.to);
-        let base = if hot {
+        let color = if hot {
             theme.dag_edge_highlight()
+        } else if graph.edge_is_dim(route.from, route.to) {
+            theme.dag_edge_dim()
         } else {
             rel.color(theme)
-        };
-        let mut color = base.to_egui();
-        if dim {
-            color = color.gamma_multiply(edges::dim_factor());
         }
+        .to_egui();
         let raw: Vec<egui::Pos2> = route
             .points
             .iter()

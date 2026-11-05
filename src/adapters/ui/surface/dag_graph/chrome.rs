@@ -509,6 +509,7 @@ pub fn draw_canvas_chrome(
     // 팝업이 back bar에 줌 버튼을 두면 미니맵은 캔버스 하단에 놓는다.
     cluster: Option<egui::Rect>,
     view: &DagGraphView,
+    graph: &DagGraphData,
     layout: &GraphLayout,
     direction: DagDirection,
     lod: Lod,
@@ -518,7 +519,12 @@ pub fn draw_canvas_chrome(
         Some(c) => c.min.y,
         None => canvas.max.y - theme.dag_chrome_inset().value(),
     };
-    paint_minimap(ui, theme, canvas, stack_bottom, view, layout, graph_size);
+    let plot = MinimapPlot {
+        graph,
+        layout,
+        graph_size,
+    };
+    paint_minimap(ui, theme, canvas, stack_bottom, view, plot);
     let action = cluster.and_then(|c| draw_zoom_cluster(ui, theme, c, view, direction));
     paint_lod_chip(&ui.painter_at(canvas), theme, canvas, lod);
     action
@@ -614,6 +620,13 @@ pub fn paint_lod_chip(painter: &egui::Painter, theme: &Theme, rect: egui::Rect, 
     );
 }
 
+/// 미니맵이 그릴 그래프. `layout.nodes` 는 `graph.nodes` 와 순서가 같다.
+struct MinimapPlot<'a> {
+    graph: &'a DagGraphData,
+    layout: &'a GraphLayout,
+    graph_size: egui::Vec2,
+}
+
 /// 좁은 화면에서는 숨기는 미니맵. 줌 버튼 위에 배치한다.
 fn paint_minimap(
     ui: &egui::Ui,
@@ -621,9 +634,13 @@ fn paint_minimap(
     canvas: egui::Rect,
     stack_bottom: f32,
     view: &DagGraphView,
-    layout: &GraphLayout,
-    graph_size: egui::Vec2,
+    plot: MinimapPlot<'_>,
 ) {
+    let MinimapPlot {
+        graph,
+        layout,
+        graph_size,
+    } = plot;
     if canvas.width() < theme.dag_minimap_min_surface().value()
         || graph_size.x <= 0.0
         || graph_size.y <= 0.0
@@ -656,14 +673,19 @@ fn paint_minimap(
         theme.dag_node_width().value() * k,
         theme.dag_node_height().value() * k,
     );
-    for n in &layout.nodes {
+    let node_dim = theme.dag_minimap_node_dim().to_egui();
+    for (n, data) in layout.nodes.iter().zip(&graph.nodes) {
         painter.rect_filled(
             egui::Rect::from_min_size(
                 base + egui::vec2(n.x.value() * k, n.y.value() * k),
                 egui::vec2(nw.max(1.0), nh.max(1.0)),
             ),
             0.0,
-            node,
+            if data.status.is_dimmed() {
+                node_dim
+            } else {
+                node
+            },
         );
     }
 

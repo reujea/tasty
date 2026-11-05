@@ -41,12 +41,13 @@ impl Selection {
         }
     }
 
-    /// 불투명도. 선택되지 않은 경로와 쓸 수 없는 경로는 죽은 경로와 같이 흐리게 둔다.
-    pub fn alpha(self) -> f32 {
+    /// 선 잉크. 선택되지 않은 경로와 쓸 수 없는 경로는 죽은 경로와 같은 `dag-edge-dim` 이다.
+    pub fn ink(self, theme: &Theme) -> egui::Color32 {
         match self {
-            Selection::Pending | Selection::Selected => 1.0,
-            Selection::NotSelected | Selection::Unavailable => edges::dim_factor(),
+            Selection::Pending | Selection::Selected => theme.dag_edge_transition(),
+            Selection::NotSelected | Selection::Unavailable => theme.dag_edge_dim(),
         }
+        .to_egui()
     }
 }
 
@@ -69,9 +70,9 @@ pub fn draw(ui: &mut egui::Ui, theme: &Theme) {
         for sel in Selection::ALL {
             let stroke = EdgeLook {
                 color: Rel::Transition.color(theme).to_egui(),
+                ink: sel.ink(theme),
                 dash: Rel::Transition.dash(),
                 width: sel.width(theme),
-                alpha: sel.alpha(),
             };
             edges::specimen(ui, theme, stroke, sel.key(), None);
         }
@@ -141,8 +142,11 @@ pub fn draw(ui: &mut egui::Ui, theme: &Theme) {
         &[
             ("pending", "1px \u{b7} full opacity"),
             ("selected", "2px \u{b7} dag-edge-selected-width"),
-            ("not_selected", "1px \u{b7} dim 0.4"),
-            ("unavailable", "dead-path dim, as from a failed task"),
+            ("not_selected", "1px \u{b7} dag-edge-dim \u{b7} long dash"),
+            (
+                "unavailable",
+                "1px \u{b7} dag-edge-dim, as from a failed task",
+            ),
             (
                 "not-selected node",
                 "skipped look \u{b7} label NOT SELECTED \u{b7} tooltip = kit nodeTitle(): \u{201c}{name} \u{2014} not selected\u{201d} + \u{201c}Why: Not selected by the upstream result\u{201d}",
@@ -164,7 +168,11 @@ pub fn draw(ui: &mut egui::Ui, theme: &Theme) {
                 theme.dag_edge_transition().to_egui(),
             ),
             TokenChip::without_color("dag-edge-selected-width", "\u{2192} focus-ring-width 2"),
-            TokenChip::without_color("dag-edge-dim-opacity", "not selected / unavailable"),
+            TokenChip::new(
+                "dag-edge-dim",
+                "not selected / unavailable",
+                theme.dag_edge_dim().to_egui(),
+            ),
             TokenChip::new(
                 "dag-status-skipped",
                 "both skip reasons",
