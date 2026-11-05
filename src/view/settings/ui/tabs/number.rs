@@ -88,7 +88,7 @@ impl<'a> NumberSpec<'a> {
         self
     }
 
-    fn format(&self, v: f64) -> String {
+    pub(super) fn format(&self, v: f64) -> String {
         format!("{v:.*}", self.decimals)
     }
 }

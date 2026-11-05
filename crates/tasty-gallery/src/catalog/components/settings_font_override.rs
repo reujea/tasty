@@ -83,21 +83,36 @@ fn font_family(ui: &mut egui::Ui, th: &Theme, buf: &mut String, enabled: bool) {
 }
 
 fn control(ui: &mut egui::Ui, th: &Theme, row: usize, buf: &mut String, enabled: bool) {
+    // 기본값을 따르는 행은 적용 값을 읽기 전용 상자에 보인다. 적용 값이 없으면 빈 칸이다.
+    if !enabled {
+        let width = match row {
+            0 | 1 => th.field_width_lg,
+            2 | 3 => th.field_width_xs,
+            _ => th.field_width_md,
+        };
+        let mut shown = if row == 4 {
+            "Follow display".to_owned()
+        } else {
+            buf.clone()
+        };
+        Input::new()
+            .mono(row != 0 && row != 4)
+            .read_only(true)
+            .width(width.value())
+            .show(ui, th, &mut shown);
+        return;
+    }
     match row {
         0 => font_family(ui, th, buf, enabled),
         1 => {
             Input::new()
                 .mono(true)
-                .enabled(enabled)
                 .placeholder("~/fonts/MyFont.ttf")
                 .width(th.field_width_lg.value())
                 .show(ui, th, buf);
         }
         2 | 3 => {
-            let mut input = Input::new()
-                .mono(true)
-                .enabled(enabled)
-                .width(th.field_width_xs.value());
+            let mut input = Input::new().mono(true).width(th.field_width_xs.value());
             if row == 2 {
                 input = input.addon("px");
             }

@@ -80,11 +80,6 @@ fn color_row(ui: &mut egui::Ui, th: &Theme, row: (&str, &str, Option<&str>), buf
                 let sw = th.swatch_size().value();
                 let (sw_rect, _) = ui.allocate_exact_size(egui::vec2(sw, sw), egui::Sense::hover());
                 let fill = hex_color(ov.unwrap_or(base));
-                let fill = if ov.is_some() {
-                    fill
-                } else {
-                    fill.gamma_multiply(th.state_dim_opacity())
-                };
                 let radius = th.swatch_radius().value();
                 ui.painter().rect_filled(sw_rect, radius, fill);
                 ui.painter().rect_stroke(

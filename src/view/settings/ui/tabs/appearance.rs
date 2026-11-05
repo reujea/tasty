@@ -521,6 +521,17 @@ fn default_hex_field(ui: &mut egui::Ui, th: &Theme, hex: &mut String) -> egui::R
         .show(ui, th, hex)
 }
 
+/// 기본값을 따르는 글꼴 행의 컨트롤. 지금 적용된 값을 읽기 전용 상자에 보인다.
+/// 적용된 값이 없으면 빈 칸이며 플레이스홀더를 두지 않는다.
+fn default_value_field(ui: &mut egui::Ui, th: &Theme, value: &str, width: LogicalPx, mono: bool) {
+    let mut shown = value.to_owned();
+    Input::new()
+        .mono(mono)
+        .read_only(true)
+        .width(width.value())
+        .show(ui, th, &mut shown);
+}
+
 /// 색 override 행의 입력값. 행마다 다른 것은 이름 표기, hex 버퍼 id, 체크박스 문구, 저장 위치다.
 struct OverrideRow<'a> {
     name: egui::RichText,
@@ -533,7 +544,7 @@ struct OverrideRow<'a> {
 }
 
 /// 한 색 행: [override dot] 이름 · hex 입력 · swatch · 기본값 체크박스.
-/// 기본값 체크 = `None`(base 추종, 입력 비활성+swatch dim) / 해제 = `Some(hex)`.
+/// 기본값 체크 = `None`(base 추종, 읽기 전용 입력) / 해제 = `Some(hex)`.
 fn draw_override_row(
     ui: &mut egui::Ui,
     th: &Theme,
@@ -586,16 +597,11 @@ fn draw_override_row(
             default_hex_field(ui, th, &mut base.to_hex());
         }
 
-        // ── swatch (override 시 full, base 시 40% dim) ──
+        // ── swatch ──
         let sw = COLOR_SWATCH_SIZE.value();
         let (sw_rect, _) = ui.allocate_exact_size(egui::vec2(sw, sw), egui::Sense::hover());
-        let fill = if is_ov {
-            egui::Color32::from(val)
-        } else {
-            // opacity 0.4 (디자인) — 패널 위에 얹혀 dim 하게 보인다.
-            val.with_alpha(SWATCH_INHERITED_ALPHA).to_egui()
-        };
-        ui.painter().rect_filled(sw_rect, 3.0, fill);
+        ui.painter()
+            .rect_filled(sw_rect, 3.0, egui::Color32::from(val));
         ui.painter().rect_stroke(
             sw_rect,
             3.0,
@@ -820,7 +826,7 @@ fn draw_terminal_surface_colors(ui: &mut egui::Ui, settings: &mut Settings) {
 /// ([override dot] label · hex input · swatch · "Use default" checkbox) but
 /// binds to the nested `surface_themes["terminal"]` override instead of a flat
 /// `PartialColors` field. "Use default" checked = base-following (input
-/// disabled, swatch dim) / unchecked = `Some(hex)` override.
+/// read-only) / unchecked = `Some(hex)` override.
 fn draw_surface_bg_row(
     ui: &mut egui::Ui,
     th: &Theme,
@@ -938,10 +944,6 @@ fn draw_surface_font_section(
 
 /// 색 스와치 한 변 (디자인 jsx: 18px). 4px 그리드 밖이고 대응 치수 토큰이 없다.
 const COLOR_SWATCH_SIZE: LogicalPx = LogicalPx(18.0);
-
-/// 오버라이드되지 않은(= 테마에서 상속받은) 색 스와치의 알파. 디자인이 적은
-/// opacity 0.4 를 알파로 옮긴 값(102/255)이다. 대응 토큰이 없어 이름만 둔다.
-const SWATCH_INHERITED_ALPHA: u8 = 102;
 
 /// 색 override 여부를 표시하는 점. 상태 점과 역할·크기가 달라 별도 치수를 유지한다(docs/design/systems/theme.md).
 const COLOR_OVERRIDE_DOT_SIZE: LogicalPx = LogicalPx(5.0);
@@ -1469,7 +1471,6 @@ fn font_family_picker(
     value: &mut String,
     font_families: &Option<Vec<String>>,
     salt: &str,
-    enabled: bool,
 ) -> egui::Response {
     let th = crate::theme::theme();
     let pinned = [SearchableSelectOption::with_value(
@@ -1496,7 +1497,6 @@ fn font_family_picker(
         .pinned(&pinned)
         .loading(font_families.is_none())
         .width(width)
-        .enabled(enabled)
         .show_response(ui, &th, &mut selected);
     *value = selected.unwrap_or_default();
     out.response
@@ -1569,7 +1569,6 @@ fn font_settings_grid(
             &mut font.font_family,
             font_families,
             salt,
-            true,
         ));
     });
     let mut custom_field = None;
@@ -1596,7 +1595,7 @@ fn font_settings_grid(
         );
     });
     scale_mode.show(ui, &th, col, |ui| {
-        font_scale_mode_combo(ui, &mut font.font_scale_mode, salt, true, None);
+        font_scale_mode_combo(ui, &mut font.font_scale_mode, salt, None);
     });
     (
         family_combo.expect("SettingsRow::show runs its control"),
@@ -1643,22 +1642,18 @@ fn font_override_grid(
                 OverrideCell::Label => {
                     family.show_label(ui, &th, col, row_h);
                 }
-                OverrideCell::Control => {
-                    let mut family_value = ov
-                        .font_family
-                        .clone()
-                        .unwrap_or_else(|| default.font_family.clone());
-                    font_family_picker(
-                        ui,
-                        &mut family_value,
-                        font_families,
-                        salt,
-                        ov.font_family.is_some(),
-                    );
-                    if let Some(stored) = ov.font_family.as_mut() {
-                        *stored = family_value;
+                OverrideCell::Control => match ov.font_family.as_mut() {
+                    Some(stored) => {
+                        font_family_picker(ui, stored, font_families, salt);
                     }
-                }
+                    None if default.font_family.is_empty() => {
+                        let shown = t("settings.appearance.font_family_default");
+                        default_value_field(ui, &th, shown, th.field_width_lg, false);
+                    }
+                    None => {
+                        default_value_field(ui, &th, &default.font_family, th.field_width_lg, false)
+                    }
+                },
                 OverrideCell::UseDefault => {
                     override_checkbox(ui, &mut ov.font_family, || default.font_family.clone())
                 }
@@ -1676,20 +1671,21 @@ fn font_override_grid(
                 OverrideCell::Label => {
                     custom.show_label(ui, &th, col, row_h);
                 }
-                OverrideCell::Control => {
-                    let mut path_value = ov
-                        .custom_font_path
-                        .clone()
-                        .unwrap_or_else(|| default.custom_font_path.clone());
-                    Input::new()
-                        .mono(true)
-                        .enabled(ov.custom_font_path.is_some())
-                        .width(th.field_width_lg.value())
-                        .show(ui, &th, &mut path_value);
-                    if let Some(stored) = ov.custom_font_path.as_mut() {
-                        *stored = path_value;
+                OverrideCell::Control => match ov.custom_font_path.as_mut() {
+                    Some(stored) => {
+                        Input::new()
+                            .mono(true)
+                            .width(th.field_width_lg.value())
+                            .show(ui, &th, stored);
                     }
-                }
+                    None => default_value_field(
+                        ui,
+                        &th,
+                        &default.custom_font_path,
+                        th.field_width_lg,
+                        true,
+                    ),
+                },
                 OverrideCell::UseDefault => override_checkbox(ui, &mut ov.custom_font_path, || {
                     default.custom_font_path.clone()
                 }),
@@ -1707,17 +1703,21 @@ fn font_override_grid(
                 OverrideCell::Label => {
                     size.show_label(ui, &th, col, row_h);
                 }
-                OverrideCell::Control => {
-                    let mut size_value = ov.font_size.unwrap_or(default.font_size);
-                    super::number::number_field_f32(
-                        ui,
-                        &th,
-                        ("appearance_override_font_size", salt),
-                        &font_size_spec().enabled(ov.font_size.is_some()),
-                        &mut size_value,
-                    );
-                    ov.font_size = ov.font_size.map(|_| size_value);
-                }
+                OverrideCell::Control => match ov.font_size.as_mut() {
+                    Some(stored) => {
+                        super::number::number_field_f32(
+                            ui,
+                            &th,
+                            ("appearance_override_font_size", salt),
+                            &font_size_spec(),
+                            stored,
+                        );
+                    }
+                    None => {
+                        let shown = font_size_spec().format(f64::from(default.font_size));
+                        default_value_field(ui, &th, &shown, th.field_width_xs, true);
+                    }
+                },
                 OverrideCell::UseDefault => {
                     override_checkbox(ui, &mut ov.font_size, || default.font_size)
                 }
@@ -1735,17 +1735,21 @@ fn font_override_grid(
                 OverrideCell::Label => {
                     line_height.show_label(ui, &th, col, row_h);
                 }
-                OverrideCell::Control => {
-                    let mut lh_value = ov.line_height.unwrap_or(default.line_height);
-                    super::number::number_field_f32(
-                        ui,
-                        &th,
-                        ("appearance_override_line_height", salt),
-                        &line_height_spec().enabled(ov.line_height.is_some()),
-                        &mut lh_value,
-                    );
-                    ov.line_height = ov.line_height.map(|_| lh_value);
-                }
+                OverrideCell::Control => match ov.line_height.as_mut() {
+                    Some(stored) => {
+                        super::number::number_field_f32(
+                            ui,
+                            &th,
+                            ("appearance_override_line_height", salt),
+                            &line_height_spec(),
+                            stored,
+                        );
+                    }
+                    None => {
+                        let shown = line_height_spec().format(f64::from(default.line_height));
+                        default_value_field(ui, &th, &shown, th.field_width_xs, true);
+                    }
+                },
                 OverrideCell::UseDefault => {
                     override_checkbox(ui, &mut ov.line_height, || default.line_height)
                 }
@@ -1763,22 +1767,19 @@ fn font_override_grid(
                 OverrideCell::Label => {
                     scale_mode.show_label(ui, &th, col, row_h);
                 }
-                OverrideCell::Control => {
-                    let mut mode_value = ov
-                        .font_scale_mode
-                        .clone()
-                        .unwrap_or_else(|| default.font_scale_mode.clone());
-                    font_scale_mode_combo(
-                        ui,
-                        &mut mode_value,
-                        salt,
-                        ov.font_scale_mode.is_some(),
-                        Some(th.field_width_md.value()),
-                    );
-                    if let Some(stored) = ov.font_scale_mode.as_mut() {
-                        *stored = mode_value;
+                OverrideCell::Control => match ov.font_scale_mode.as_mut() {
+                    Some(stored) => {
+                        font_scale_mode_combo(ui, stored, salt, Some(th.field_width_md.value()))
                     }
-                }
+                    None => {
+                        let shown = if default.font_scale_mode == "auto" {
+                            t("settings.appearance.font_scale_mode_auto")
+                        } else {
+                            t("settings.appearance.font_scale_mode_fixed")
+                        };
+                        default_value_field(ui, &th, shown, th.field_width_md, false);
+                    }
+                },
                 OverrideCell::UseDefault => override_checkbox(ui, &mut ov.font_scale_mode, || {
                     default.font_scale_mode.clone()
                 }),
@@ -1815,13 +1816,7 @@ where
 }
 
 /// `width` 가 없으면 이전 egui ComboBox 의 기본 폭을 쓴다.
-fn font_scale_mode_combo(
-    ui: &mut egui::Ui,
-    value: &mut String,
-    salt: &str,
-    enabled: bool,
-    width: Option<f32>,
-) {
+fn font_scale_mode_combo(ui: &mut egui::Ui, value: &mut String, salt: &str, width: Option<f32>) {
     const MODES: [&str; 2] = ["auto", "fixed"];
     let th = crate::theme::theme();
     let labels = [
@@ -1831,7 +1826,7 @@ fn font_scale_mode_combo(
     let mut idx = usize::from(value.as_str() != "auto");
     let width = width.unwrap_or(ui.spacing().combo_width);
     let salt = format!("font_scale_mode_{salt}");
-    if tasty_ui_widgets::select(ui, &th, &salt, &mut idx, &labels, width, enabled) {
+    if tasty_ui_widgets::select(ui, &th, &salt, &mut idx, &labels, width, true) {
         *value = MODES[idx].to_string();
     }
 }
@@ -2682,9 +2677,9 @@ mod default_font_section_tests {
         );
     }
 
-    /// 꺼진 글꼴 override 의 글꼴 콤보는 egui fade 가 아니라 Select disabled 토큰으로 그린다.
+    /// 기본값을 따르는 글꼴 행은 비활성 콤보가 아니라 적용 값을 담은 읽기 전용 상자다.
     #[test]
-    fn a_disabled_override_family_uses_the_select_disabled_tokens() {
+    fn a_default_override_family_shows_the_value_in_a_read_only_box() {
         let th = crate::theme::theme();
         let ctx = egui::Context::default();
         let mut ov = FontOverride::default();
@@ -2715,17 +2710,16 @@ mod default_font_section_tests {
                 egui::Shape::Text(t) if t.galley.text() == label => Some(t.fallback_color),
                 _ => None,
             })
-            .expect("the disabled family trigger shows the default label");
-        assert_eq!(ink, th.state_disabled_fg().to_egui());
-        let fill = th.state_disabled_fill().to_egui();
+            .expect("the read-only box shows the default family");
+        assert_eq!(ink, th.input_readonly_fg().to_egui());
+        let fill = th.input_readonly_bg().to_egui();
         assert!(
             out.shapes.iter().any(|s| matches!(
                 &s.shape,
                 egui::Shape::Rect(r) if r.fill == fill
                     && r.rect.width() == th.field_width_lg.value()
-                    && r.rect.height() == th.select_height().value()
             )),
-            "no disabled Select box for the family trigger"
+            "no read-only box for the family row"
         );
     }
 }
