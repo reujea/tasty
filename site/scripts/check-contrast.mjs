@@ -5,7 +5,9 @@
  *   npm run build && npm run check-contrast [-- --json <file>] [-- --page <key>]
  *
  * Fails on: a contract row with no frozen cell, a part that cannot be found, an ink that is not the row's token,
- * an ink below its grade, other text below 4.5, other glyphs below 3, an unknown exempt id, or nothing measured.
+ * an ink below its grade, other text below 4.5, any painted shape of another glyph below 3, an unknown exempt id,
+ * or nothing measured. An ink inside a disabled ancestor is measured at its grade unless it is a no-grade token.
+ * Shapes composite through their own fill or stroke opacity and every opacity above them, a g inside the svg included.
  * Browser: CHROMIUM_PATH, else the Playwright browser, else /snap/bin/chromium.
  */
 import { createServer } from "node:http";
@@ -121,14 +123,29 @@ function measure({ rows, tokens, grades, partMap, exemptIds, noGradeTokens, them
     const r = el.getBoundingClientRect();
     return r.width > 0 && r.height > 0;
   };
-  const svgInk = (svg) => {
-    const shape = svg.querySelector("path, circle, rect, line, polyline, polygon, ellipse, use") || svg;
-    const s = getComputedStyle(shape);
-    const stroke = s.stroke !== "none" && s.strokeWidth !== "0px" ? parse(s.stroke) : null;
-    return stroke && stroke[3] > 0 ? stroke : parse(s.fill);
+  const out = { cells: 0, rows: [], text: 0, svgs: 0, glyph: 0, inputs: 0, below: [], exemptUses: {}, badExempt: [], gradeNone: [], picture: 0, paintServer: 0, keys: [] };
+  // Each stroke and fill the svg itself paints, in document order. A nested svg reports its own. What a defs entry or a
+  // use target holds is not walked: a use counts through its own inherited paint.
+  const svgInks = (svg) => {
+    const inks = [];
+    svg.querySelectorAll("path, circle, rect, line, polyline, polygon, ellipse, use, text").forEach((shape) => {
+      if (shape.closest("svg") !== svg || shape.closest("defs, clipPath, mask, symbol, pattern, marker")) return;
+      const s = getComputedStyle(shape);
+      if (s.display === "none" || s.visibility !== "visible" || opacityOf(shape) === 0) return;
+      const r = shape.getBoundingClientRect();
+      if (r.width === 0 && r.height === 0) return;
+      const add = (paint, alpha) => {
+        if (paint === "none") return;
+        if (paint.startsWith("url(")) { out.paintServer += 1; return; }
+        const ink = parse(paint);
+        if (ink && ink[3] * alpha > 0) inks.push({ shape, ink: [ink[0], ink[1], ink[2], ink[3] * alpha] });
+      };
+      if (s.strokeWidth !== "0px") add(s.stroke, Number(s.strokeOpacity));
+      if (shape.tagName.toLowerCase() !== "line") add(s.fill, Number(s.fillOpacity));
+    });
+    return inks;
   };
 
-  const out = { cells: 0, rows: [], text: 0, glyph: 0, inputs: 0, below: [], exemptUses: {}, badExempt: [], gradeNone: [], picture: 0, keys: [] };
   const inkOn = (ink, el, ground) => over([ink[0], ink[1], ink[2], ink[3] * opacityOf(el)], ground);
   const label = (el) => {
     const spec = el.closest("[data-spec]");
@@ -161,17 +178,18 @@ function measure({ rows, tokens, grades, partMap, exemptIds, noGradeTokens, them
       }
       if (r.part === "ring" && prop === "outlineColor" && cs.outlineStyle === "none") { out.rows.push({ ...base, status: "mismatch", got: "none", expect: want }); return; }
       const shadow = () => { const m = /(rgba?\([^)]+\)|color\([^)]+\))/.exec(cs.boxShadow); return m ? parse(m[1]) : null; };
-      const raw = prop === "svg" ? svgInk(el.tagName.toLowerCase() === "svg" ? el : el.querySelector("svg")) : prop === "shadow" ? shadow() : parse(cs[prop]);
+      const glyphInks = prop === "svg" ? svgInks(el.tagName.toLowerCase() === "svg" ? el : el.querySelector("svg")) : [];
+      const raw = prop === "svg" ? glyphInks[0]?.ink : prop === "shadow" ? shadow() : parse(cs[prop]);
       // An edge, a ring or a filled part stands on what is under it, not on itself.
       const ownFill = /^(border|outline|shadow|backgroundColor)/.test(prop);
       const ground = groundOf(ownFill ? el.parentElement : el).color;
       if (!raw || raw[3] === 0) { out.rows.push({ ...base, status: "mismatch", got: "none", expect: want, ground: hex(ground) }); return; }
-      const got = inkOn(raw, el, ground);
+      const got = inkOn(raw, prop === "svg" ? glyphInks[0].shape : el, ground);
       const exp = want && parse(want) ? over(parse(want), ground) : null;
       const rt = ratio(got, ground);
       const row = { ...base, got: hex(got), expect: want, ground: hex(ground), ratio: +rt.toFixed(2) };
       if (exp && !near(got, exp)) row.status = "mismatch";
-      else if (role.grade && rt < role.grade) row.status = "below";
+      else if (role.grade && (rt < role.grade || glyphInks.some((g) => ratio(inkOn(g.ink, g.shape, ground), ground) < role.grade))) row.status = "below";
       else row.status = "ok";
       out.rows.push(row);
     });
@@ -204,10 +222,9 @@ function measure({ rows, tokens, grades, partMap, exemptIds, noGradeTokens, them
     const rt = ratio(got, ground);
     if (marked || native) {
       const why = marked ? marked.getAttribute("data-ink-why") : "disabled";
-      const isNoGrade = noGradeValues(el).some((v) => near(over(v, ground), over(ink, ground)));
-      if (why === "disabled" && !isNoGrade) out.below.push({ kind, ratio: +rt.toFixed(2), grade: "disabled", got: hex(got), ground: hex(ground), spec: label(el), text });
-      out.gradeNone.push({ why, spec: label(el) });
-      return;
+      // Disabled frees the disabled tokens from a grade, not every ink under a disabled ancestor.
+      const noGrade = why !== "disabled" || noGradeValues(el).some((v) => near(over(v, ground), over(ink, ground)));
+      if (noGrade) { out.gradeNone.push({ why, spec: label(el) }); return; }
     }
     if (picture) { out.picture += 1; return; }
     if (rt < grade) out.below.push({ kind, ratio: +rt.toFixed(2), grade, got: hex(got), ground: hex(ground), spec: label(el), text });
@@ -217,7 +234,7 @@ function measure({ rows, tokens, grades, partMap, exemptIds, noGradeTokens, them
     const t = n.textContent.trim();
     if (!t) continue;
     const el = n.parentElement;
-    if (skip(el) || exemptOf(el) || !visible(el)) continue;
+    if (el.closest("svg") || skip(el) || exemptOf(el) || !visible(el)) continue;
     const ink = parse(getComputedStyle(el).color);
     if (!ink || ink[3] === 0) continue;
     judge("text", el, ink, 4.5, t.slice(0, 40));
@@ -231,9 +248,11 @@ function measure({ rows, tokens, grades, partMap, exemptIds, noGradeTokens, them
   });
   scope.querySelectorAll("svg").forEach((el) => {
     if (skip(el) || exemptOf(el) || !visible(el)) return;
-    const ink = svgInk(el);
-    if (!ink || ink[3] === 0) return;
-    judge("glyph", el, ink, 3, el.getAttribute("aria-label") || "svg");
+    out.svgs += 1;
+    svgInks(el).forEach(({ shape, ink }) => {
+      const isText = shape.tagName.toLowerCase() === "text";
+      judge(isText ? "text" : "glyph", shape, ink, isText ? 4.5 : 3, isText ? shape.textContent.trim().slice(0, 40) : el.getAttribute("aria-label") || "svg");
+    });
   });
   out.hscroll = document.documentElement.scrollWidth > document.documentElement.clientWidth;
   return out;
@@ -251,7 +270,7 @@ async function run() {
   const noGrade = [...noGradeTokens];
   for (const theme of THEMES) {
     const seen = new Set();
-    const t = { cells: 0, rows: 0, ok: 0, unlocated: [], mismatch: [], below: [], text: 0, glyph: 0, inputs: 0, other: [], exemptUses: {}, badExempt: [], gradeNone: {}, picture: 0, hscroll: [], errors: [] };
+    const t = { cells: 0, rows: 0, ok: 0, unlocated: [], mismatch: [], below: [], text: 0, svgs: 0, glyph: 0, inputs: 0, other: [], exemptUses: {}, badExempt: [], gradeNone: {}, picture: 0, paintServer: 0, hscroll: [], errors: [] };
     const context = await browser.newContext({ viewport: { width: 1440, height: 1000 } });
     await context.addInitScript((name) => localStorage.setItem("tasty-theme", name), theme);
     for (const page of pages) {
@@ -275,7 +294,7 @@ async function run() {
         if (r.status === "ok") t.ok += 1;
         else t[r.status].push({ ...r, page: page.key });
       }
-      t.text += m.text; t.glyph += m.glyph; t.inputs += m.inputs; t.picture += m.picture;
+      t.text += m.text; t.svgs += m.svgs; t.glyph += m.glyph; t.inputs += m.inputs; t.picture += m.picture; t.paintServer += m.paintServer;
       m.below.forEach((b) => t.other.push({ ...b, page: page.key }));
       for (const [id, n] of Object.entries(m.exemptUses)) t.exemptUses[id] = (t.exemptUses[id] || 0) + n;
       m.badExempt.forEach((b) => t.badExempt.push({ ...b, page: page.key }));
@@ -289,7 +308,7 @@ async function run() {
     report.themes[theme] = t;
     const measured = t.rows + t.text + t.glyph + t.inputs;
     const bad = t.unlocated.length + t.mismatch.length + t.below.length + t.other.length + t.badExempt.length + t.missingCells.length + t.errors.length;
-    console.log(`${theme}: cells ${t.cells}, rows ${t.rows} (ok ${t.ok}, unlocated ${t.unlocated.length}, mismatch ${t.mismatch.length}, below ${t.below.length}), text ${t.text}, glyphs ${t.glyph}, inputs ${t.inputs}, below on page ${t.other.length}, on a picture ${t.picture}, missing cells ${t.missingCells.length}, page errors ${t.errors.length}`);
+    console.log(`${theme}: cells ${t.cells}, rows ${t.rows} (ok ${t.ok}, unlocated ${t.unlocated.length}, mismatch ${t.mismatch.length}, below ${t.below.length}), text ${t.text}, svgs ${t.svgs} (${t.glyph} painted shapes, ${t.paintServer} gradient or pattern paints not measured), inputs ${t.inputs}, below on page ${t.other.length}, on a picture ${t.picture}, missing cells ${t.missingCells.length}, page errors ${t.errors.length}`);
     console.log(`  exempt: ${Object.entries(t.exemptUses).map(([k, v]) => `${k} ${v}`).join(", ") || "none"}`);
     console.log(`  no grade: ${Object.entries(t.gradeNone).map(([k, v]) => `${k} ${v}`).join(", ") || "none"}`);
     if (measured === 0) { console.error(`${theme}: nothing measured`); failed = true; }
