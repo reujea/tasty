@@ -19,7 +19,7 @@ export const SECTIONS: { dir: string; ko: string; en: string }[] = [
   { dir: "getting-started", ko: "시작하기", en: "Getting started" },
   { dir: "using", ko: "사용하기", en: "Using Tasty" },
   { dir: "customize", ko: "맞춤 설정", en: "Customize" },
-  { dir: "agents", ko: "AI 에이전트", en: "AI agents" },
+  { dir: "agents", ko: "CLI와 에이전트", en: "CLI and agents" },
   { dir: "remote", ko: "원격", en: "Remote" },
   { dir: "plugins", ko: "플러그인", en: "Plugins" },
   { dir: "help", ko: "도움말", en: "Help" },
@@ -81,6 +81,29 @@ export function titleOf(source: string, fallback: string): string {
   return fallback;
 }
 
+/** First sentence of the paragraph under the title, as plain text for search and link previews. */
+export function descriptionOf(source: string, fallback: string): string {
+  const lines = source.split("\n");
+  const start = lines.findIndex((l) => l.trim().startsWith("# ")) + 1;
+  const para: string[] = [];
+  for (const line of lines.slice(start)) {
+    if (line.trim() === "") {
+      if (para.length) break;
+      continue;
+    }
+    para.push(line.trim());
+  }
+  const text = para
+    .join(" ")
+    .replace(/<!--.*?-->/g, "")
+    .replace(/\[([^\]]*)\]\([^)]*\)/g, "$1")
+    .replace(/[`*]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+  const sentence = text.match(/^.+?[.!?](?=\s|$)/);
+  return (sentence ? sentence[0] : text) || fallback;
+}
+
 /** Sidebar label: the title without a trailing parenthetical or dash clause. */
 export function navLabel(title: string, rel: string): string {
   let label = title;
@@ -98,9 +121,10 @@ export type Page = {
   section: number;
   title: string;
   navLabel: string;
+  description: string;
   /** Hash of the Korean source; a translation is stamped with it. */
   sourceHash: string;
-  translation: { title: string; navLabel: string; stamp: string | null } | null;
+  translation: { title: string; navLabel: string; description: string; stamp: string | null } | null;
 };
 
 const read = (root: string, rel: string): string | null => {
@@ -129,9 +153,15 @@ export function buildPages(root: string): Page[] {
       section,
       title,
       navLabel: navLabel(title, rel),
+      description: descriptionOf(source, title),
       sourceHash: contentHash(source),
       translation: translated
-        ? { title: tTitle!, navLabel: navLabel(tTitle!, rel), stamp: readStamp(translated) }
+        ? {
+            title: tTitle!,
+            navLabel: navLabel(tTitle!, rel),
+            description: descriptionOf(translated, tTitle!),
+            stamp: readStamp(translated),
+          }
         : null,
     };
   });
@@ -161,6 +191,8 @@ export function entryIdFor(page: Page, lang: Lang): string {
 
 export const titleIn = (p: Page, lang: Lang) =>
   lang === "en" && p.translation ? p.translation.title : p.title;
+export const descriptionIn = (p: Page, lang: Lang) =>
+  lang === "en" && p.translation ? p.translation.description : p.description;
 export const navLabelIn = (p: Page, lang: Lang) =>
   lang === "en" && p.translation ? p.translation.navLabel : p.navLabel;
 

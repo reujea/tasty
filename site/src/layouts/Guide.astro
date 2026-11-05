@@ -1,7 +1,7 @@
 ---
 /** Guide page: sidebar, article, table of contents. */
 import Base from "./Base.astro";
-import { SECTIONS, titleIn, navLabelIn, stateOf, TRANSLATION_DIR } from "../lib/guide";
+import { SECTIONS, titleIn, navLabelIn, descriptionIn, stateOf, TRANSLATION_DIR } from "../lib/guide";
 import type { Page, Lang } from "../lib/guide";
 import { pathOf } from "../lib/urls";
 import { stringsFor } from "../lib/strings";
@@ -42,7 +42,7 @@ const toc = headings.filter((h) => h.depth === 2 || h.depth === 3);
 <Base
   lang={lang}
   title={`${title} · Tasty`}
-  description={`${title} — Tasty ${s.dirDocs}`}
+  description={descriptionIn(page, lang)}
   active="guide"
   enHref={pathOf(page, "en")}
   koHref={pathOf(page, "ko")}
@@ -74,7 +74,7 @@ const toc = headings.filter((h) => h.depth === 2 || h.depth === 3);
     </aside>
 
     <main class="content" id="content">
-      <nav class="breadcrumb" aria-label="breadcrumb">
+      <nav class="breadcrumb" aria-label={s.breadcrumb}>
         <a href={url(`${lang === "en" ? "guide" : "ko/guide"}/`)}>{s.dirDocs}</a>
         <span class="sep">/</span>
         <span>{category}</span>

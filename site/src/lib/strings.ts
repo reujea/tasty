@@ -18,7 +18,9 @@ export const EN = {
   skipToContent: "Skip to content",
   toggleTheme: "Toggle theme",
   toggleNav: "Open menu",
-  footerBlurb: "A GPU-accelerated terminal where you and your AI agents work together.",
+  siteNav: "Site navigation",
+  breadcrumb: "Breadcrumb",
+  footerBlurb: "A GPU-accelerated terminal for Windows, macOS, and Linux.",
   footerDocs: "Guide",
   footerProject: "Project",
   footerReleases: "Releases",
@@ -29,9 +31,9 @@ export const EN = {
   privacyTitle: "Privacy notice",
   privacyDescription: "What this site collects for its visitor statistics and who handles it.",
   footerNote: "MIT licensed",
-  untranslated: "This page is not available in English yet. You can read the Korean original below.",
-  stale: "The Korean page has been updated. Check the source for changes that are not yet included in this translation.",
-  translateCta: "Read the Korean source",
+  untranslated: "This page is not available in English yet. The Korean original is shown below.",
+  stale: "The Korean original has changed. This English translation may be missing recent updates. Read the Korean original for the latest content.",
+  translateCta: "Read the Korean original",
 };
 
 export const KO: Strings = {
@@ -51,7 +53,9 @@ export const KO: Strings = {
   skipToContent: "본문으로 건너뛰기",
   toggleTheme: "테마 전환",
   toggleNav: "메뉴 열기",
-  footerBlurb: "나와 AI 에이전트가 함께 일하는 GPU 가속 터미널.",
+  siteNav: "사이트 메뉴",
+  breadcrumb: "현재 위치",
+  footerBlurb: "Windows, macOS, Linux에서 사용하는 GPU 가속 터미널.",
   footerDocs: "가이드",
   footerProject: "프로젝트",
   footerReleases: "릴리스",
@@ -62,8 +66,8 @@ export const KO: Strings = {
   privacyTitle: "개인정보 안내",
   privacyDescription: "이 사이트가 방문 통계를 위해 수집하는 정보와 처리 주체를 안내합니다.",
   footerNote: "MIT 라이선스",
-  untranslated: "아직 영어 번역을 준비하지 못했습니다. 우선 한국어 원문을 참고해 주세요.",
-  stale: "한국어 원문이 업데이트되어 번역과 내용이 다를 수 있습니다. 최신 내용은 원문을 확인해 주세요.",
+  untranslated: "아직 영어 번역이 없습니다. 아래에 한국어 원문을 표시합니다.",
+  stale: "한국어 원문이 바뀌어 영어 번역에 최신 내용이 빠져 있을 수 있습니다. 최신 내용은 한국어 원문에서 확인하세요.",
   translateCta: "한국어 원문 보기",
 };
 

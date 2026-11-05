@@ -71,11 +71,11 @@ const absolute = (path: string) => new URL(url(path), Astro.site).href;
         <span>Tasty</span>
         {version && <span class="brand__version">v{version}</span>}
       </a>
-      <nav class="site-nav" aria-label={s.navGuide}>
+      <nav class="site-nav" aria-label={s.siteNav}>
         <a href={url(guidePrefix)} aria-current={mark("guide")}>{s.navGuide}</a>
         <a href={url(`${guidePrefix}getting-started/install/`)} aria-current={mark("install")}>{s.navInstall}</a>
         <a href={`${REPO}/releases/latest`}>{s.navDownload}</a>
-        <a href={url("design/")} aria-current={mark("design")}>{s.navDesign}</a>
+        <a href={url(lang === "en" ? "design/" : "ko/design/")} aria-current={mark("design")}>{s.navDesign}</a>
         <a href={`${REPO}/blob/main/CHANGELOG.md`}>{s.navChangelog}</a>
       </nav>
       <div class="header-tools">
