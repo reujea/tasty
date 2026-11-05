@@ -138,7 +138,7 @@ pub(super) fn selected_bar(ui: &mut egui::Ui, theme: &Theme, rect: egui::Rect) {
         .rect_filled(bar, 0.0, theme.accent_primary().to_egui());
 }
 
-pub(super) fn ws_row(ui: &mut egui::Ui, theme: &Theme, w: &Ws, selected: bool) {
+pub(super) fn ws_row(ui: &mut egui::Ui, theme: &Theme, w: &Ws, selected: bool, muted: bool) {
     let width = ui.available_width();
     let (rect, _) =
         ui.allocate_exact_size(egui::vec2(width, WS_ROW_H.value()), egui::Sense::hover());
@@ -163,8 +163,8 @@ pub(super) fn ws_row(ui: &mut egui::Ui, theme: &Theme, w: &Ws, selected: bool) {
         StatusKind::Idle
     };
     dot_slot_status(&mut child, theme, kind, w.busy, selected);
-    let name_c = if w.attached {
-        theme.text_disabled()
+    let name_c = if w.attached || muted {
+        theme.text_muted()
     } else if selected {
         theme.text_on_active()
     } else {

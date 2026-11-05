@@ -240,7 +240,7 @@ fn tag_disabled_colors(theme: &Theme, ground: Ground) -> TagColors {
     )
 }
 
-fn tag_colors(theme: &Theme, variant: TagVariant) -> TagColors {
+pub(crate) fn tag_colors(theme: &Theme, variant: TagVariant) -> TagColors {
     // 상태 variant 테두리의 color-mix 비율. 대응 토큰이 없다.
     const TAG_BORDER_OPACITY: f32 = 0.4;
     match variant {

@@ -114,7 +114,12 @@ pub(super) fn draw_list_tab(
                             egui::Align2::LEFT_TOP,
                             &name_text,
                             egui::FontId::proportional(th.font_size_body.value()),
-                            visuals.text_color(),
+                            // 꺼진 plugin 도 고를 수 있으므로 이름은 읽는 글자다. 선택 잉크가 앞선다.
+                            if entry.enabled || selected {
+                                visuals.text_color()
+                            } else {
+                                th.text_muted().to_egui()
+                            },
                         );
                         let sub_pos = name_pos + egui::vec2(0.0, 18.0);
                         ui.painter().text(

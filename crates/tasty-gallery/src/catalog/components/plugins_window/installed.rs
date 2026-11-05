@@ -154,8 +154,10 @@ pub(super) fn list_pane(ui: &mut egui::Ui, theme: &Theme, rect: egui::Rect, deta
             egui::FontId::proportional(theme.font_size_body.value()),
             if on_row {
                 theme.text_on_active()
-            } else {
+            } else if row.enabled {
                 theme.text_primary()
+            } else {
+                theme.text_muted()
             }
             .to_egui(),
         );

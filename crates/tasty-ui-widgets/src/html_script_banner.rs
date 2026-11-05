@@ -160,7 +160,6 @@ fn draw_row(
     glyph_icon: tasty_icons::Icon,
     glyph_color: egui::Color32,
 ) -> bool {
-    let reloading = view.state == HtmlScriptBannerState::Reloading;
     // 오른쪽은 닫기 슬롯 몫을 비운다. 셸이 이미 좌우 padding을 넣었으므로 그 몫은 뺀다.
     let reserve =
         (theme.icon_button_size_sm().value() + theme.spacing_sm.value() + theme.spacing_xs.value()
@@ -179,17 +178,12 @@ fn draw_row(
         row_w - glyph - gap - gap - action.x
     }
     .max(0.0);
-    let text_opacity = if reloading {
-        theme.opacity_dimmed()
-    } else {
-        1.0
-    };
     let title = text_galley(
         ui,
         theme,
         view.title,
         theme.banner_title_font_size().value(),
-        theme.banner_fg().to_egui().gamma_multiply(text_opacity),
+        theme.banner_fg().to_egui(),
         body_w,
     );
     let body = text_galley(
@@ -197,10 +191,7 @@ fn draw_row(
         theme,
         view.body,
         theme.banner_body_font_size().value(),
-        theme
-            .banner_body_fg()
-            .to_egui()
-            .gamma_multiply(text_opacity),
+        theme.banner_body_fg().to_egui(),
         body_w,
     );
     let text_h = title.size().y + text_gap + body.size().y;

@@ -9,8 +9,7 @@ use tasty_type_appearance::theme::Theme;
 use tasty_type_geometry::length::LogicalPx;
 
 use crate::{
-    Button, ButtonVariant, ControlSize, Ground, TagVariant, Tooltip, tag, tag_disabled,
-    tag_truncated, tag_width,
+    Button, ButtonVariant, ControlSize, Ground, TagVariant, Tooltip, tag, tag_truncated, tag_width,
 };
 
 /// 행의 출처 Tag 하나.
@@ -736,14 +735,14 @@ fn row_left(
         }
     } else {
         for o in &view.origins {
-            if o.struck {
-                struck_tag(ui, theme, &o.label);
+            let variant = if o.plugin {
+                TagVariant::Agent
             } else {
-                let variant = if o.plugin {
-                    TagVariant::Agent
-                } else {
-                    TagVariant::Default
-                };
+                TagVariant::Default
+            };
+            if o.struck {
+                struck_tag(ui, theme, &o.label, variant);
+            } else {
                 tag(ui, theme, &o.label, variant, false);
             }
         }
@@ -761,9 +760,9 @@ fn row_left(
     dropped
 }
 
-/// 저장하면 사라질 출처 — disabled Tag 위에 라벨 폭만큼 취소선을 긋는다.
-fn struck_tag(ui: &mut egui::Ui, theme: &Theme, label: &str) {
-    let r = tag_disabled(ui, theme, label, false, Ground::Panel);
+/// 저장하면 사라질 출처 — 평소 Tag 잉크 위에 라벨 폭만큼 취소선을 긋는다. 읽어야 하는 글자라 흐리지 않는다.
+fn struck_tag(ui: &mut egui::Ui, theme: &Theme, label: &str, variant: TagVariant) {
+    let r = tag(ui, theme, label, variant, false);
     let pad = theme.tag_padding_x();
     let y = r.rect.center().y;
     ui.painter().hline(
@@ -771,7 +770,7 @@ fn struck_tag(ui: &mut egui::Ui, theme: &Theme, label: &str) {
         y,
         egui::Stroke::new(
             theme.border_width.value(),
-            theme.tag_disabled_fg().to_egui(),
+            crate::chip::tag_colors(theme, variant).2,
         ),
     );
 }

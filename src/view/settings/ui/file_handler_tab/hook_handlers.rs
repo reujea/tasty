@@ -378,9 +378,6 @@ fn draw_hook_row(
     };
 
     let resp = ui.scope(|ui| {
-        if !on {
-            ui.set_opacity(th.state_dim_opacity());
-        }
         // jsx padding: sm(상하) xs(좌우), 내부 행간 gap xs.
         egui::Frame::NONE
             .inner_margin(egui::Margin {
@@ -438,7 +435,11 @@ fn draw_hook_row(
                                         .monospace()
                                         .strong()
                                         .size(th.font_size_body.value())
-                                        .color(th.text_primary()),
+                                        .color(if on {
+                                            th.text_primary()
+                                        } else {
+                                            th.text_muted()
+                                        }),
                                 )
                                 .truncate(),
                             );

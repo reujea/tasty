@@ -701,22 +701,17 @@ fn draw_ws_list(
                 empty_line(ui, th, profile_name);
                 return;
             }
-            // 생성 중에는 목록을 디밍 항목으로 남기고 다른 행 선택을 막는다.
-            // egui disabled fade가 디밍 위에 겹치지 않도록 입력은 행의 Sense로만 막는다.
+            // 생성 중에는 목록을 읽을 수 있게 두고(행 이름 text-muted) 다른 행 선택만 막는다.
+            // egui disabled fade가 잉크에 겹치지 않도록 입력은 행의 Sense로만 막는다.
             let creating = *phase == NewWsPhase::Creating;
-            ui.scope(|ui| {
-                if creating {
-                    ui.set_opacity(th.state_dim_opacity());
+            for w in ws {
+                let top = ui.cursor().top();
+                let selected = ws_sel == Some(WsSel::Existing(w.id));
+                if ws_row(ui, th, w, selected, !creating) {
+                    action = Some(ListAction::Select(WsSel::Existing(w.id)));
                 }
-                for w in ws {
-                    let top = ui.cursor().top();
-                    let selected = ws_sel == Some(WsSel::Existing(w.id));
-                    if ws_row(ui, th, w, selected, !creating) {
-                        action = Some(ListAction::Select(WsSel::Existing(w.id)));
-                    }
-                    nav::scroll_to_row(ui, top, scroll_to_sel && selected);
-                }
-            });
+                nav::scroll_to_row(ui, top, scroll_to_sel && selected);
+            }
         });
     action
 }
@@ -997,8 +992,9 @@ fn ws_row(
         StatusKind::Idle
     };
     dot_slot_status(&mut child, th, kind, w.busy_count > 0, selected);
-    let name_c = if disabled {
-        th.text_disabled()
+    // 다른 클라이언트가 쓰는 워크스페이스도 이름은 읽으므로 text-muted다. 상태는 "in use" Tag가 알린다.
+    let name_c = if disabled || !interactive {
+        th.text_muted()
     } else {
         state.label(th, RowParent::Base, th.text_secondary())
     };

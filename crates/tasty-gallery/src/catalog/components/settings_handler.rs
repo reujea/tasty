@@ -729,9 +729,6 @@ fn draw_hook_row(
 ) {
     let on = st.hooks[i].on;
     let resp = ui.scope(|ui| {
-        if !on {
-            ui.set_opacity(theme.state_dim_opacity());
-        }
         egui::Frame::NONE
             .inner_margin(egui::Margin {
                 left: theme.spacing_xs.value() as i8,
@@ -768,7 +765,14 @@ fn draw_hook_row(
                                         .monospace()
                                         .strong()
                                         .size(theme.font_size_body.value())
-                                        .color(theme.text_primary().to_egui()),
+                                        .color(
+                                            if on {
+                                                theme.text_primary()
+                                            } else {
+                                                theme.text_muted()
+                                            }
+                                            .to_egui(),
+                                        ),
                                 )
                                 .truncate(),
                             );

@@ -311,7 +311,7 @@ pub fn draw_states(ui: &mut egui::Ui, theme: &Theme) {
                                     false,
                                 ),
                                 (
-                                    "reloading — spinner, body dimmed, no ×",
+                                    "reloading — spinner, no ×",
                                     HtmlRemoteBannerState::Reloading,
                                     false,
                                 ),
@@ -349,7 +349,7 @@ pub fn draw_states(ui: &mut egui::Ui, theme: &Theme) {
             ),
             (
                 "reloading",
-                "Spinner 14 + label · body opacity-dimmed · no × · fades out on commit",
+                "Spinner 14 + label · title and body keep their ink · no × · fades out on commit",
             ),
             (
                 "×",

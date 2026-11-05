@@ -43,7 +43,7 @@ pub fn draw_new_row(ui: &mut egui::Ui, theme: &Theme) {
             ),
             (
                 "creating",
-                "Spinner + muted 'Creating workspace…'; list dims",
+                "Spinner + muted 'Creating workspace…'; list names in text-muted, no opacity",
             ),
             ("failed", "danger warn glyph + inline reason + Try again"),
             ("group", "1px separator below, xs margin above and below"),
@@ -118,11 +118,7 @@ fn new_row_strip(ui: &mut egui::Ui, theme: &Theme, state: NewRow) {
                 ui.set_width(STRIP_W.value());
                 ui.spacing_mut().item_spacing = egui::vec2(0.0, 0.0);
                 new_ws_row(ui, theme, state);
-                let dim = if state.creating() { 0.5 } else { 1.0 };
-                ui.scope(|ui| {
-                    ui.set_opacity(dim);
-                    ws_row(ui, theme, peek, false);
-                });
+                ws_row(ui, theme, peek, false, state.creating());
             });
         });
 }

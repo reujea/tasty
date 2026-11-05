@@ -134,7 +134,7 @@ fn loaded_pane(
         empty_line(&mut col, theme, profile);
     } else {
         for w in ws {
-            ws_row(&mut col, theme, w, sel_ws == Some(w.name));
+            ws_row(&mut col, theme, w, sel_ws == Some(w.name), false);
         }
     }
 }

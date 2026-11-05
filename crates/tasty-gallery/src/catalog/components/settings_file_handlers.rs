@@ -380,11 +380,6 @@ fn row_tokens(th: &Theme) -> Vec<TokenChip> {
             "→ text-muted",
             th.file_handler_empty_fg().to_egui(),
         ),
-        TokenChip::new(
-            "tag-disabled-bg",
-            "added / removed on save Tag",
-            th.tag_disabled_bg().to_egui(),
-        ),
     ]
 }
 

@@ -67,10 +67,7 @@ fn plugin_row(
     let h = avatar + pad * 2.0;
     let (rect, _) =
         ui.allocate_exact_size(egui::vec2(PLUGIN_ROW_W.value(), h), egui::Sense::hover());
-    let mut p = ui.painter().clone();
-    if disabled {
-        p.set_opacity(theme.state_dim_opacity());
-    }
+    let p = ui.painter().clone();
     let r = theme.corner_radius.value();
     match state {
         RowState::Rest => {}
@@ -96,6 +93,8 @@ fn plugin_row(
     let x = rect.left() + pad + avatar + pad;
     let (name_fg, meta_fg) = if matches!(state, RowState::Selected) {
         (theme.text_on_active(), theme.text_on_active())
+    } else if disabled {
+        (theme.text_muted(), theme.text_muted())
     } else {
         (theme.text_primary(), theme.text_muted())
     };
