@@ -496,7 +496,7 @@ fn preset_list(ui: &mut egui::Ui, theme: &Theme, rect: egui::Rect, st: &mut WinS
     for (i, p) in list.iter().enumerate() {
         let on = i == st.pick;
         let name_ink = if on {
-            theme.text_primary().to_egui()
+            theme.text_on_active().to_egui()
         } else {
             theme.text_secondary().to_egui()
         };
@@ -505,7 +505,12 @@ fn preset_list(ui: &mut egui::Ui, theme: &Theme, rect: egui::Rect, st: &mut WinS
         let mut sub_job = egui::text::LayoutJob::simple_singleline(
             p.subtitle.to_owned(),
             sub_font.clone(),
-            theme.text_muted().to_egui(),
+            if on {
+                theme.text_on_active()
+            } else {
+                theme.text_muted()
+            }
+            .to_egui(),
         );
         sub_job.wrap = egui::text::TextWrapping::truncate_at_width(text_w);
         let sub = ui.fonts(|f| f.layout_job(sub_job));
@@ -542,7 +547,12 @@ fn preset_list(ui: &mut egui::Ui, theme: &Theme, rect: egui::Rect, st: &mut WinS
         ui.painter().galley(
             egui::pos2(nx, r.top() + ROW_PAD.1 + name_h + ROW_GAP.value()),
             sub,
-            theme.text_muted().to_egui(),
+            if on {
+                theme.text_on_active()
+            } else {
+                theme.text_muted()
+            }
+            .to_egui(),
         );
         y += row_h;
     }

@@ -411,11 +411,20 @@ fn candidate_row(
 
     let highlighted = keyboard_active || resp.hovered();
     let fg = if highlighted {
-        theme.text_primary().to_egui()
+        theme.autocomplete_row_fg_active().to_egui()
     } else {
         theme.text_secondary().to_egui()
     };
-    let match_fg = theme.accent_primary().to_egui();
+    // 키보드 활성 행의 아이콘과 일치 구간은 surface-active 위 글자색이다.
+    let (icon_fg, match_fg) = if keyboard_active {
+        let part = theme.autocomplete_part_fg_active().to_egui();
+        (part, part)
+    } else {
+        (
+            theme.text_muted().to_egui(),
+            theme.accent_primary().to_egui(),
+        )
+    };
 
     let mut x = rect.left() + pad_x;
     if let Some(paint) = row_icon {
@@ -423,7 +432,7 @@ fn candidate_row(
             egui::pos2(x + icon_glyph * 0.5, rect.center().y),
             egui::vec2(icon_glyph, icon_glyph),
         );
-        paint(ui, irect, theme.text_muted().to_egui());
+        paint(ui, irect, icon_fg);
         x += icon_glyph + gap;
     }
 

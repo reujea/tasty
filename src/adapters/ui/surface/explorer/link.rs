@@ -14,8 +14,13 @@ pub(super) fn glyph_size(th: &Theme) -> f32 {
     th.explorer_link_glyph_size().value()
 }
 
-fn glyph_color(th: &Theme) -> egui::Color32 {
-    th.explorer_link_glyph().to_egui()
+/// 선택 행은 surface-active 위라 항목 글자와 같은 색이다.
+fn glyph_color(th: &Theme, selected: bool) -> egui::Color32 {
+    if selected {
+        th.text_on_active().to_egui()
+    } else {
+        th.explorer_link_glyph().to_egui()
+    }
 }
 
 /// 대상이 없는 링크의 항목 글리프와 색. 링크가 아니거나 대상이 있으면 `None`.
@@ -44,6 +49,7 @@ pub(super) fn paint_tail(
     th: &Theme,
     text_right: f32,
     center_y: f32,
+    selected: bool,
     fade: impl Fn(egui::Color32) -> egui::Color32,
 ) {
     let s = glyph_size(th);
@@ -52,7 +58,7 @@ pub(super) fn paint_tail(
         egui::vec2(s, s),
     );
     icons::LINK
-        .image(s, fade(glyph_color(th)))
+        .image(s, fade(glyph_color(th, selected)))
         .paint_at(ui, rect);
 }
 
@@ -60,12 +66,13 @@ pub(super) fn paint_tail(
 pub(super) fn add_tail(
     ui: &mut egui::Ui,
     th: &Theme,
+    selected: bool,
     fade: impl Fn(egui::Color32) -> egui::Color32,
 ) {
     let s = glyph_size(th);
     let (rect, _) = ui.allocate_exact_size(egui::vec2(s, s), egui::Sense::hover());
     icons::LINK
-        .image(s, fade(glyph_color(th)))
+        .image(s, fade(glyph_color(th, selected)))
         .paint_at(ui, rect);
 }
 
@@ -151,7 +158,8 @@ mod tests {
     fn the_tail_glyph_reads_the_link_tokens() {
         let th = crate::theme::theme();
         assert_eq!(glyph_size(&th), th.explorer_link_glyph_size().value());
-        assert_eq!(glyph_color(&th), th.explorer_link_glyph().to_egui());
+        assert_eq!(glyph_color(&th, false), th.explorer_link_glyph().to_egui());
+        assert_eq!(glyph_color(&th, true), th.text_on_active().to_egui());
     }
 
     /// 원격 항목의 경로는 원격 호스트의 경로다. 같은 경로에 로컬 링크가 있어도 읽지 않는다.

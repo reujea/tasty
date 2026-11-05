@@ -112,7 +112,7 @@ function BannerMore({ app, open, setOpen, onAction }) {
               label={<MoreLabel text="Let Tasty handle clicks in " app={app} />} />
           </>) : (<>
             <div role="note" style={{ display: "flex", alignItems: "flex-start", gap: "var(--tasty-space-sm)",
-              padding: "var(--tasty-space-xs) var(--tasty-space-md)", color: "var(--tasty-text-muted)",
+              padding: "var(--tasty-space-xs) var(--tasty-space-md)", color: "var(--tasty-banner-more-reason-fg)",
               fontSize: "var(--tasty-font-size-caption)", lineHeight: "var(--tasty-line-height-ui)" }}>
               <span style={{ display: "inline-flex", flex: "none", marginTop: "var(--tasty-banner-more-reason-glyph-offset)" }}><Icon name="info" size={14} /></span>
               <span style={{ minWidth: 0 }}>Can't tell which program is running, so nothing can be saved.</span>
@@ -172,7 +172,7 @@ function makeSamples() {
   mouse: {
     id: "mouse-capture", glyph: bic.mouse, glyphColor: "var(--tasty-text-secondary)", more: true, app: "vim",
     title: "Mouse reporting captured your drag",
-    body: (<><b style={{ color: "var(--tasty-text-secondary)" }}>vim</b> has mouse tracking on, so drag-to-select is disabled. Hold <Kbd keys="Shift" /> to select anyway.</>),
+    body: (<><b style={{ color: "var(--tasty-text-secondary-raised)" }}>vim</b> has mouse tracking on, so drag-to-select is disabled. Hold <Kbd keys="Shift" /> to select anyway.</>),
   },
   mouseUnknown: {
     id: "mouse-capture", glyph: bic.mouse, glyphColor: "var(--tasty-text-secondary)", more: true, app: null,
@@ -192,7 +192,7 @@ function makeSamples() {
     id: "write-failed", glyph: bic.warn, glyphColor: "var(--tasty-accent-danger)",
     title: "Couldn’t write ~/.tastyrc",
     body: "Permission denied. Check the file owner, or open it to resolve the conflict.",
-    actions: (<><Button variant="secondary" size="sm">Retry</Button><Button variant="ghost" size="sm">Open file</Button></>),
+    actions: (<><Button variant="secondary" size="sm">Retry</Button><Button variant="ghost" ground="raised" size="sm">Open file</Button></>),
   },
   };
 }

@@ -1,8 +1,8 @@
 //! `TreeRow` — 사이드바/트리 행 (디자인 `components/navigation/TreeRow`).
 //!
 //! [chevron] [icon] label [meta]. height control-height-tree(22), depth 들여쓰기.
-//! hover overlay-hover+text-primary, selected surface-active+text-primary(아이콘
-//! accent-primary). chevron 은 has_children 일 때만, open 이면 90° 회전.
+//! hover overlay-hover+text-primary, selected surface-active+tree-row-fg-active(아이콘
+//! tree-row-icon-fg-active, chevron·meta tree-row-part-fg-active). chevron 은 has_children 일 때만, open 이면 90° 회전.
 //! disabled 상태는 없다. 열 수 없는 항목도 일반 행으로 두고, 여는 쪽이 이유를 알린다.
 
 use tasty_type_appearance::theme::Theme;
@@ -164,7 +164,12 @@ fn draw(
     } else {
         rest_fg.unwrap_or_else(|| theme.tree_row_fg().to_egui())
     };
-    let muted = theme.text_muted().to_egui();
+    // 선택 행의 chevron·meta는 surface-active 위에서 읽히는 글자색이다.
+    let part = if selected {
+        theme.tree_row_part_fg_active().to_egui()
+    } else {
+        theme.text_muted().to_egui()
+    };
 
     let mut x = rect.left() + pad_l + depth as f32 * indent_per_depth;
 
@@ -186,16 +191,16 @@ fn draw(
         };
         ui.painter().add(egui::Shape::line(
             pts,
-            egui::Stroke::new(theme.icon_stroke_width.value(), muted),
+            egui::Stroke::new(theme.icon_stroke_width.value(), part),
         ));
     }
     x += CHEVRON_SLOT + GAP;
 
     if let Some(paint) = icon {
         let icon_color = if selected {
-            theme.accent_primary().to_egui()
+            theme.tree_row_icon_fg_active().to_egui()
         } else {
-            muted
+            theme.text_muted().to_egui()
         };
         let irect = egui::Rect::from_center_size(
             egui::pos2(x + ICON_GLYPH * 0.5, rect.center().y),
@@ -216,7 +221,7 @@ fn draw(
             right - g.rect.width(),
             rect.center().y - g.rect.height() * 0.5,
         );
-        ui.painter().galley(pos, g.clone(), muted);
+        ui.painter().galley(pos, g.clone(), part);
         right -= g.rect.width() + GAP;
     }
 
@@ -226,6 +231,7 @@ fn draw(
         query,
         egui::FontId::proportional(body),
         egui::Color32::PLACEHOLDER,
+        selected,
     ));
     let right = (right - tail).max(x);
     let label_rect =

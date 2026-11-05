@@ -145,13 +145,19 @@ pub(super) fn list_pane(ui: &mut egui::Ui, theme: &Theme, rect: egui::Rect, deta
             PluginAvatarSize::Row,
         );
 
+        let on_row = detail.selected_row() == Some(i);
         let name_pos = r.min + pad + egui::vec2(avatar + theme.spacing_sm.value(), 0.0);
         p.text(
             name_pos,
             egui::Align2::LEFT_TOP,
             &name,
             egui::FontId::proportional(theme.font_size_body.value()),
-            theme.text_primary().to_egui(),
+            if on_row {
+                theme.text_on_active()
+            } else {
+                theme.text_primary()
+            }
+            .to_egui(),
         );
 
         let mut sub = format!("v{}", row.version);
@@ -165,7 +171,12 @@ pub(super) fn list_pane(ui: &mut egui::Ui, theme: &Theme, rect: egui::Rect, deta
             egui::Align2::LEFT_TOP,
             &sub,
             egui::FontId::proportional(theme.font_size_micro.value()),
-            theme.text_muted().to_egui(),
+            if on_row {
+                theme.text_on_active()
+            } else {
+                theme.text_muted()
+            }
+            .to_egui(),
         );
 
         if row.health_error && row.enabled {

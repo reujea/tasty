@@ -40,6 +40,14 @@ impl Kind {
             Kind::Folder | Kind::File => muted,
         }
     }
+
+    /// 선택 행의 글리프 색. 본체 `entry_icon` 과 같다.
+    fn selected_tint(self, theme: &Theme) -> egui::Color32 {
+        match self {
+            Kind::Image | Kind::Thumb => theme.accent_primary_on_active().into(),
+            Kind::Folder | Kind::File => theme.text_on_active().into(),
+        }
+    }
 }
 
 /// 시안이 정적으로 보여 주는 셀 상태. 선택은 클릭으로 바뀌므로 여기 두지 않는다.
@@ -188,6 +196,7 @@ pub fn draw(ui: &mut egui::Ui, theme: &Theme) {
                                         static_row_hover(ui, theme);
                                     }
                                     let kind = e.kind;
+                                    let selected = i == *sel;
                                     tree_row(
                                         ui,
                                         theme,
@@ -195,9 +204,12 @@ pub fn draw(ui: &mut egui::Ui, theme: &Theme) {
                                         false,
                                         false,
                                         Some(&|ui, rect, c| {
-                                            kind.glyph()
-                                                .image(rect.height(), kind.tint(theme, c))
-                                                .paint_at(ui, rect)
+                                            let fg = if selected {
+                                                kind.selected_tint(theme)
+                                            } else {
+                                                kind.tint(theme, c)
+                                            };
+                                            kind.glyph().image(rect.height(), fg).paint_at(ui, rect)
                                         }),
                                         e.name,
                                         None,
@@ -372,7 +384,11 @@ pub(super) fn grid_cell_parts(
         kind.glyph()
             .image(
                 glyph,
-                fg_dim(kind.tint(theme, egui::Color32::from(theme.text_muted()))),
+                fg_dim(if selected {
+                    kind.selected_tint(theme)
+                } else {
+                    kind.tint(theme, egui::Color32::from(theme.text_muted()))
+                }),
             )
             .paint_at(
                 ui,
@@ -381,7 +397,7 @@ pub(super) fn grid_cell_parts(
     }
 
     let label_color = fg_dim(if selected {
-        egui::Color32::from(theme.text_primary())
+        egui::Color32::from(theme.text_on_active())
     } else {
         egui::Color32::from(theme.text_secondary())
     });
@@ -479,7 +495,12 @@ pub(super) fn detail_table(
                     c
                 }
             };
-            let muted = dim(egui::Color32::from(th.text_muted()));
+            let sel = is_sel(row);
+            let muted = dim(egui::Color32::from(if sel {
+                th.table_row_fg_selected()
+            } else {
+                th.text_muted()
+            }));
             match col {
                 0 => {
                     ui.horizontal(|ui| {
@@ -491,12 +512,15 @@ pub(super) fn detail_table(
                             .glyph()
                             .image(
                                 sz,
-                                dim(row.kind.tint(th, egui::Color32::from(th.text_muted()))),
+                                dim(if sel {
+                                    row.kind.selected_tint(th)
+                                } else {
+                                    row.kind.tint(th, egui::Color32::from(th.text_muted()))
+                                }),
                             )
                             .paint_at(ui, rect);
-                        // 선택 행 이름만 text-primary, 나머지는 `table-row-fg`로 그린다.
-                        let name_fg = if is_sel(row) {
-                            th.text_primary()
+                        let name_fg = if sel {
+                            th.text_on_active()
                         } else {
                             th.table_row_fg()
                         };

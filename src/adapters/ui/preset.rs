@@ -456,9 +456,14 @@ fn draw_list_row(
         p.rect_filled(rect, radius, theme.overlay_hover().to_egui_premultiplied());
     }
     let name_color = if selected {
-        theme.text_primary().to_egui()
+        theme.text_on_active().to_egui()
     } else {
         theme.text_secondary().to_egui()
+    };
+    let sub_color = if selected {
+        theme.text_on_active().to_egui()
+    } else {
+        theme.text_muted().to_egui()
     };
     let text_x = rect.min.x + ROW_PAD_X.value();
     let name_y = rect.min.y + ROW_PAD_Y.value();
@@ -474,7 +479,7 @@ fn draw_list_row(
         egui::Align2::LEFT_TOP,
         sub,
         egui::FontId::monospace(sub_h.value()),
-        theme.text_muted().to_egui(),
+        sub_color,
     );
     if resp.hovered() {
         ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);

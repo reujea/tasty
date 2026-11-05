@@ -208,7 +208,19 @@ fn option_row(
             .max_rect(inner)
             .layout(egui::Layout::left_to_right(egui::Align::Center)),
     );
-    let check = crate::checkbox(&mut slot, theme, flag, label, enabled);
+    let label_fg = if active {
+        theme.multiselect_row_fg_active()
+    } else {
+        theme.multiselect_row_fg()
+    };
+    let check = crate::checkbox_with_label_color(
+        &mut slot,
+        theme,
+        flag,
+        label,
+        enabled,
+        label_fg.to_egui(),
+    );
     let mut changed = check.changed();
     if row.clicked() {
         *flag = !*flag;

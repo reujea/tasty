@@ -307,7 +307,7 @@ fn wt_row(
     let name_color = if invalid {
         theme.text_disabled()
     } else if selected {
-        theme.text_primary()
+        theme.text_on_active()
     } else {
         theme.text_secondary()
     };
@@ -361,7 +361,12 @@ fn wt_row(
             egui::Align2::LEFT_CENTER,
             oid,
             egui::FontId::monospace(theme.font_size_caption.value()),
-            theme.accent_info().to_egui(),
+            if selected {
+                theme.text_on_active()
+            } else {
+                theme.accent_info()
+            }
+            .to_egui(),
         );
     }
     hline(
@@ -452,23 +457,25 @@ fn ch_row(
     let x = cui.cursor().left() + theme.spacing_sm.value();
     let p = ui.painter();
     let cy = rect.center().y;
+    let (dir_fg, file_fg) = if selected {
+        let ink = theme.text_on_active().to_egui();
+        (ink, ink)
+    } else {
+        (theme.text_muted().to_egui(), theme.text_primary().to_egui())
+    };
     let g = p.layout_no_wrap(
         dir.to_owned(),
         egui::FontId::monospace(theme.font_size_term_sm.value()),
-        theme.text_muted().to_egui(),
+        dir_fg,
     );
     let dw = g.rect.width();
-    p.galley(
-        egui::pos2(x, cy - g.rect.height() * 0.5),
-        g,
-        theme.text_muted().to_egui(),
-    );
+    p.galley(egui::pos2(x, cy - g.rect.height() * 0.5), g, dir_fg);
     p.text(
         egui::pos2(x + dw, cy),
         egui::Align2::LEFT_CENTER,
         file,
         egui::FontId::monospace(theme.font_size_term_sm.value()),
-        theme.text_primary().to_egui(),
+        file_fg,
     );
     y + h
 }

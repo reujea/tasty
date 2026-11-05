@@ -25,6 +25,8 @@
   --tasty-surface-raised: var(--tasty-color-neutral-300); /* cards, inputs, menus */
   --tasty-surface-hover:  var(--tasty-color-neutral-400); /* hovered list rows */
   --tasty-surface-active: var(--tasty-color-neutral-500); /* selected / pressed rows */
+  /* a control fill sitting ON surface-raised (banner Secondary), 2026-11-05. Mocha one step up (n400, 6.31); Latte steps to n200, because n400 under n1100 is 4.39. */
+  --tasty-surface-on-raised: var(--tasty-surface-hover);
 
   /* ── Text ─────────────────────────────────────────────────── */
   --tasty-text-primary:     var(--tasty-color-neutral-1100);
@@ -43,6 +45,9 @@
   /* muted ink on a RAISED ground (2026-11-05, banner body first). Mocha = text-muted (5.65:1 on surface0, unchanged);
      Latte → neutral-1100 because n900 on surface0 is 3.65:1 and n1000 is 4.05:1. */
   --tasty-text-muted-raised: var(--tasty-color-neutral-900);
+  /* every ink on a SELECTED or keyboard-active row (surface-active), 2026-11-05. All row inks collapse to this one, so no
+     text-secondary (Mocha 3.77 · Latte 2.89) or text-muted (3.00 · 2.61) stays on the fill. Mocha = text-primary (4.62). */
+  --tasty-text-on-active: var(--tasty-text-primary);
   --tasty-text-on-accent:   var(--tasty-color-neutral-0); /* dark text atop a filled accent (Latte → white) */
   --tasty-text-on-window-close: var(--tasty-color-white); /* glyph atop the (dark) Windows close-hover fill — white in both themes */
 
@@ -56,6 +61,13 @@
   /* 2026-10-21: danger INK (error text + its glyph) on a RAISED ground (surface-raised cards). Mocha = accent-danger
      (5.43:1 on surface0); Latte remaps (red #d20f39 on surface0 = 3.52:1). Fills / invalid edges keep accent-danger. */
   --tasty-accent-danger-raised: var(--tasty-accent-danger);
+  /* 2026-11-05: status INK on a RAISED ground (Tag). Mocha = the accent; Latte remaps, because each hue alone misses 4.5 on surface0
+     (warning 1.70 · attention 1.93 · info 1.81). Success reuses accent-success-ink (Latte 4.91). Fills / edges keep the accent. */
+  --tasty-accent-warning-raised: var(--tasty-accent-warning);
+  --tasty-accent-attention-raised: var(--tasty-accent-attention);
+  --tasty-accent-info-raised: var(--tasty-accent-info);
+  /* 2026-11-05: an accent GLYPH on a surface-active row (check, selected icon, unread dot). Mocha = accent-primary (3.17); Latte blue is 2.27 there. */
+  --tasty-accent-primary-on-active: var(--tasty-accent-primary);
   /* 2026-10-27: success INK (text + its glyph) on a success TINT box (accent-success × tint-fill over mantle/base).
      Mocha = accent-success (≈ 8.3–9.0:1); Latte remaps (green #40a02b on its own tint = 2.45:1). Fills / borders keep accent-success. */
   --tasty-accent-success-ink: var(--tasty-accent-success);
@@ -405,6 +417,16 @@
   --tasty-text-secondary-raised: var(--tasty-color-neutral-1100);
   /* muted-on-raised (2026-11-05) — n900 3.65:1, n1000 4.05:1, n1100 5.17:1 on surface0: one ramp step clears 4.5. Same theme rule as above. */
   --tasty-text-muted-raised: var(--tasty-color-neutral-1100);
+  /* on-active (2026-11-05) — n1100 on n500 is 3.69 and the ramp has no darker step, so mix toward black: 70% = #35374a, 5.39 at rest, 4.57 when the row is also hovered. */
+  --tasty-text-on-active: color-mix(in srgb, var(--tasty-color-neutral-1100) 70%, var(--tasty-color-black));
+  /* blue 70% toward black = #1547ac — 3.83 on surface-active, 5.37 on surface-raised. */
+  --tasty-accent-primary-on-active: color-mix(in srgb, var(--tasty-color-blue) 70%, var(--tasty-color-black));
+  /* status ink on raised (2026-11-05), toward black like accent-success-ink: yellow 50% = #70470e 5.25 · peach 55% = #8c3706 5.12 · sky 55% = #025b7e 4.87 on surface0. */
+  --tasty-accent-warning-raised: color-mix(in srgb, var(--tasty-color-yellow) 50%, var(--tasty-color-black));
+  --tasty-accent-attention-raised: color-mix(in srgb, var(--tasty-color-peach) 55%, var(--tasty-color-black));
+  --tasty-accent-info-raised: color-mix(in srgb, var(--tasty-color-sky) 55%, var(--tasty-color-black));
+  /* control on raised (2026-11-05) — lighter than the shell in Latte: n1100 on n200 7.06, hover 5.91, active 5.39; fill difference from the shell 1.37 (n400 was 1.18). */
+  --tasty-surface-on-raised: var(--tasty-color-neutral-200);
 
   --tasty-overlay-hover:  var(--tasty-alpha-black-8);
   --tasty-overlay-active: var(--tasty-alpha-black-12);

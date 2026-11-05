@@ -116,14 +116,22 @@ fn layout(ui: &mut egui::Ui, theme: &Theme) {
             );
         }
         let dc = egui::pos2(row.min.x + theme.spacing_sm.value() + dot_r, row.center().y);
-        p.circle_filled(dc, dot_r, egui::Color32::from(theme.accent_agent()));
+        p.circle_filled(
+            dc,
+            dot_r,
+            egui::Color32::from(if *selected {
+                theme.accent_primary_on_active()
+            } else {
+                theme.accent_agent()
+            }),
+        );
         p.text(
             egui::pos2(dc.x + dot_r + theme.spacing_sm.value(), row.center().y),
             egui::Align2::LEFT_CENTER,
             name,
             egui::FontId::proportional(theme.font_size_body.value()),
             egui::Color32::from(if *selected {
-                theme.text_primary()
+                theme.text_on_active()
             } else {
                 theme.text_secondary()
             }),

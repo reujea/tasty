@@ -23,16 +23,16 @@ const CSS = `
   font-size: var(--tasty-tag-font-size);
   font-weight: var(--tasty-font-weight-medium);
   line-height: var(--tasty-line-height-tight);
-  color: var(--tasty-text-secondary);
+  color: var(--tasty-tag-fg);
   white-space: nowrap;
 }
 .tasty-tag--accent { border-color: transparent; color: var(--tasty-text-on-accent); background: var(--tasty-accent-primary); }
 .tasty-tag--agent  { border-color: transparent; color: var(--tasty-text-on-accent); background: var(--tasty-accent-agent); }
-.tasty-tag--success{ color: var(--tasty-accent-success); border-color: color-mix(in srgb, var(--tasty-accent-success) 40%, transparent); }
-.tasty-tag--warning{ color: var(--tasty-accent-warning); border-color: color-mix(in srgb, var(--tasty-accent-warning) 40%, transparent); }
-.tasty-tag--attention{ color: var(--tasty-accent-attention); border-color: color-mix(in srgb, var(--tasty-accent-attention) 40%, transparent); }
-.tasty-tag--danger { color: var(--tasty-accent-danger);  border-color: color-mix(in srgb, var(--tasty-accent-danger) 40%, transparent); }
-.tasty-tag--info   { color: var(--tasty-accent-info);    border-color: color-mix(in srgb, var(--tasty-accent-info) 40%, transparent); }
+.tasty-tag--success{ color: var(--tasty-tag-success-fg); border-color: color-mix(in srgb, var(--tasty-accent-success) 40%, transparent); }
+.tasty-tag--warning{ color: var(--tasty-tag-warning-fg); border-color: color-mix(in srgb, var(--tasty-accent-warning) 40%, transparent); }
+.tasty-tag--attention{ color: var(--tasty-tag-attention-fg); border-color: color-mix(in srgb, var(--tasty-accent-attention) 40%, transparent); }
+.tasty-tag--danger { color: var(--tasty-tag-danger-fg);  border-color: color-mix(in srgb, var(--tasty-accent-danger) 40%, transparent); }
+.tasty-tag--info   { color: var(--tasty-tag-info-fg);    border-color: color-mix(in srgb, var(--tasty-accent-info) 40%, transparent); }
 .tasty-tag--caps { text-transform: uppercase; letter-spacing: var(--tasty-letter-spacing-caps); }
 .tasty-tag--disabled { background: var(--tasty-tag-disabled-bg); border-color: var(--tasty-tag-disabled-border); color: var(--tasty-tag-disabled-fg); }
 .tasty-tag__dot { width: var(--tasty-tag-dot-size); height: var(--tasty-tag-dot-size); border-radius: var(--tasty-radius-pill); background: currentColor; flex: none; }

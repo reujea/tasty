@@ -3,8 +3,30 @@
 //! 헤더의 정렬 클릭은 유지하며 행 선택을 끈 표는 egui의 텍스트 선택 설정을 따른다.
 
 use egui_extras::{Column, TableBuilder};
+use tasty_type_appearance::color::HexColor;
 use tasty_type_appearance::theme::Theme;
 use tasty_type_geometry::length::LogicalPx;
+
+/// 지금 그리는 셀이 선택 행인지 기록하는 egui 임시 데이터 키.
+fn selected_row_id() -> egui::Id {
+    egui::Id::new("tasty_ui_widgets::table::selected_row")
+}
+
+/// 지금 그리는 셀이 선택 행 안인지. 글자색을 명시하는 셀은 표의 기본 글자색을 받지 못하므로 이 값을 읽는다.
+pub fn in_selected_table_row(ui: &egui::Ui) -> bool {
+    ui.ctx()
+        .data(|d| d.get_temp::<bool>(selected_row_id()))
+        .unwrap_or(false)
+}
+
+/// 글자색을 명시하는 셀의 글자색. 선택 행이면 `table-row-fg-selected`, 아니면 `rest`다.
+pub fn table_cell_ink(ui: &egui::Ui, theme: &Theme, rest: HexColor) -> egui::Color32 {
+    if in_selected_table_row(ui) {
+        theme.table_row_fg_selected().to_egui()
+    } else {
+        rest.to_egui()
+    }
+}
 
 /// 컬럼 폭 (egui_extras [`Column`] 매핑).
 #[derive(Clone, Copy)]
@@ -311,10 +333,12 @@ impl<'a, K> Table<'a, K> {
                     tr.col(|ui| {
                         ui.visuals_mut().selection.bg_fill = text_selection_fill;
                         ui.visuals_mut().widgets.hovered.bg_fill = widget_hover_fill;
-                        // 시안의 행 글자색은 table-row-fg 이고 선택 행과 hover 행에서 text-primary 가
-                        // 된다. egui_extras 가 선택 행에 거는 선택 테두리색(accent)도 여기서 덮는다.
-                        // 색을 명시한 라벨에는 영향이 없다.
-                        let ink = if selected || hovered {
+                        // 시안의 행 글자색은 table-row-fg 이고 선택 행은 table-row-fg-selected, hover 행은
+                        // text-primary 다. egui_extras 가 선택 행에 거는 선택 테두리색(accent)도 여기서
+                        // 덮는다. 색을 명시한 라벨에는 영향이 없으므로 그 셀은 호출자가 선택 색을 쓴다.
+                        let ink = if selected {
+                            theme.table_row_fg_selected()
+                        } else if hovered {
                             theme.text_primary()
                         } else {
                             theme.table_row_fg()
@@ -324,6 +348,8 @@ impl<'a, K> Table<'a, K> {
                         if selectable {
                             ui.style_mut().interaction.selectable_labels = false;
                         }
+                        let flag = selected_row_id();
+                        ui.ctx().data_mut(|d| d.insert_temp(flag, selected));
                         match col.align {
                             TableAlign::Left => cell(ui, theme, row, c),
                             TableAlign::Right => {
@@ -333,6 +359,7 @@ impl<'a, K> Table<'a, K> {
                                 );
                             }
                         }
+                        ui.ctx().data_mut(|d| d.insert_temp(flag, false));
                     });
                 }
                 let row_resp = tr.response();

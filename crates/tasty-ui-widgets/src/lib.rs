@@ -329,6 +329,7 @@ pub use status_dot::{StatusKind, status_dot};
 pub use tab_content_frame::{settings_content_column, tab_content_frame};
 pub use table::{
     Table, TableAlign, TableColumn, TableColumnWidth, TableOutput, TableSortDir, fixed_total_width,
+    in_selected_table_row, table_cell_ink,
 };
 pub use toast::{
     CardColors as ToastCardColors, FADE_IN_MS as TOAST_FADE_IN_MS,
@@ -338,7 +339,10 @@ pub use toast::{
     fade_alpha as toast_fade_alpha, layout_card as toast_layout_card,
     stack_anchor as toast_stack_anchor,
 };
-pub use toggle::{checkbox, checkbox_width, checkbox_wrapping, switch, switch_with_label_color};
+pub use toggle::{
+    checkbox, checkbox_width, checkbox_with_label_color, checkbox_wrapping, switch,
+    switch_with_label_color,
+};
 pub use tooltip::{Tooltip, TooltipPlacement, tooltip_hover_delay_elapsed};
 pub use tree_row::{
     tree_row, tree_row_icon_center, tree_row_matching, tree_row_with_tail, tree_row_with_tail_fg,

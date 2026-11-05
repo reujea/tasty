@@ -295,16 +295,18 @@ fn menu_item_inner(
         );
     }
 
+    // 키보드 활성 행은 surface-active 위이므로 아이콘·단축키·danger 라벨도 같은 글자색이다.
+    let active_part = active.then(|| theme.menu_item_part_fg_active().to_egui());
     let fg = match variant {
         MenuItemVariant::Normal if active || hovered => theme.menu_item_fg_hover().to_egui(),
         MenuItemVariant::Normal if selected => theme.menu_item_selected_fg().to_egui(),
         MenuItemVariant::Normal => theme.menu_item_fg().to_egui(),
-        MenuItemVariant::Danger => theme.accent_danger().to_egui(),
+        MenuItemVariant::Danger => active_part.unwrap_or_else(|| theme.accent_danger().to_egui()),
     };
-    let icon_color = match variant {
+    let icon_color = active_part.unwrap_or_else(|| match variant {
         MenuItemVariant::Normal => theme.text_muted().to_egui(),
         MenuItemVariant::Danger => theme.accent_danger().to_egui(),
-    };
+    });
 
     let mut x = rect.left() + pad_x;
     if let Some(paint) = icon {
@@ -340,15 +342,27 @@ fn menu_item_inner(
                 right - g.rect.width(),
                 rect.center().y - g.rect.height() * 0.5,
             );
-            ui.painter()
-                .galley(pos, g.clone(), dim(theme.text_muted().to_egui()));
+            ui.painter().galley(
+                pos,
+                g.clone(),
+                dim(active_part.unwrap_or_else(|| theme.text_muted().to_egui())),
+            );
             right -= g.rect.width() + gap;
         }
         Some(Shortcut::Keys(keys)) => {
             let parts: Vec<crate::KbdKey<'_>> =
                 keys.iter().map(|k| crate::KbdKey::Text(k)).collect();
-            let ink = (!enabled).then(|| theme.state_disabled_fg().to_egui());
-            let w = crate::chip::kbd_parts_at_ink(ui, theme, &parts, right, rect.center().y, ink);
+            let key_ink = (!enabled).then(|| theme.state_disabled_fg().to_egui());
+            let plus_ink = key_ink.or(active_part);
+            let w = crate::chip::kbd_parts_at_ink(
+                ui,
+                theme,
+                &parts,
+                right,
+                rect.center().y,
+                key_ink,
+                plus_ink,
+            );
             right -= w.value() + gap;
         }
         None => {}

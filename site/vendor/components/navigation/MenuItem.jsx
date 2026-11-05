@@ -39,6 +39,8 @@ const CSS = `
 .tasty-menuitem--wrap { height: auto; min-height: var(--tasty-menu-item-height); padding-top: var(--tasty-menu-item-wrap-padding-y); padding-bottom: var(--tasty-menu-item-wrap-padding-y); white-space: normal; line-height: var(--tasty-line-height-ui); }
 .tasty-menuitem--wrap .tasty-menuitem__label { overflow: visible; }
 .tasty-menuitem__shortcut { flex: none; font-family: var(--tasty-font-mono); font-size: var(--tasty-menu-item-shortcut-font-size); color: var(--tasty-text-muted); }
+/* 2026-11-05 — a keyboard-active row: one ink for every part, danger included (the row's fill is surface-active) */
+.tasty-menuitem--active .tasty-menuitem__icon, .tasty-menuitem--active .tasty-menuitem__shortcut, .tasty-menuitem--danger.tasty-menuitem--active, .tasty-menuitem--danger.tasty-menuitem--active .tasty-menuitem__icon { color: var(--tasty-menu-item-part-fg-active); }
 .tasty-menuitem[data-disabled="true"] { pointer-events: none; }
 .tasty-menuitem[data-disabled="true"], .tasty-menuitem[data-disabled="true"] * { color: var(--tasty-state-disabled-fg); }
 .tasty-menu-sep { height: var(--tasty-border-width); margin: var(--tasty-space-xs) 0; background: var(--tasty-menu-separator); }

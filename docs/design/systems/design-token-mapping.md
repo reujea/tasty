@@ -33,6 +33,33 @@ Design System의 `tokens/semantic.css`·`tokens/primitives.css`와 Tasty Theme�
 | `os-macos-min` | `accent_macos_min()` | `#f4bf4f` | macOS 신호등 minimize (const `OS_MACOS_MIN`) |
 | `os-macos-zoom` | `accent_macos_zoom()` | `#61c554` | macOS 신호등 zoom (const `OS_MACOS_ZOOM`) |
 
+## 채움이 정해진 자리의 글자 역할
+
+`tasty-type-appearance/src/state_ink.rs`의 수기 접근자가 Latte의 color-mix를 계산하고 Mocha는 원래 역할을 쓴다.
+
+| 역할 | 값 | 쓰는 자리 |
+|---|---|---|
+| `text-on-active` | Mocha `text-primary`, Latte `text-primary`를 검정 쪽으로 혼합 | `surface-active` 위 모든 글자와 일반 글리프 |
+| `accent-primary-on-active` | Mocha `accent-primary`, Latte `accent-primary`를 검정 쪽으로 혼합 | `surface-active` 위 강조 글리프 |
+| `surface-on-raised` | Mocha `surface-hover`, Latte neutral-200 | `banner-button-bg` |
+| `accent-warning-raised` · `accent-attention-raised` · `accent-info-raised` | Mocha 각 accent, Latte 각 accent를 검정 쪽으로 혼합 | `tag-warning-fg` · `tag-attention-fg` · `tag-info-fg` |
+
+선택·키보드 활성 행은 위젯별 토큰이 있으면 그 토큰을 읽는다. 모두 `text-on-active`나 `accent-primary-on-active`로 끝난다.
+
+| 위젯 | 글자 | 글리프 |
+|---|---|---|
+| TreeRow | `tree_row_fg_active()`, chevron·meta `tree_row_part_fg_active()` | `tree_row_icon_fg_active()` |
+| Table | `table_row_fg_selected()` | 셀이 색을 명시하면 `table_cell_ink()`로 읽는다 |
+| ListCtrl | `listctrl_label_fg_active()`, 설명 `listctrl_part_fg_selected()` | 아이콘·chevron `listctrl_part_fg_selected()` |
+| MultiSelect | `multiselect_row_fg_active()` | 없음 |
+| MenuItem | `menu_item_fg_hover()`, 단축키·danger `menu_item_part_fg_active()` | 아이콘 `menu_item_part_fg_active()`, 체크 `menu_item_check_fg()` |
+| AutoComplete | `autocomplete_row_fg_active()`, 일치 구간 `autocomplete_part_fg_active()` | 아이콘 `autocomplete_part_fg_active()` |
+| 수식키 안내 역할 행 | `modhint_role_text_fg()` | `modhint_role_fg()` |
+
+Notification 행의 `notification_item_fg_selected()`·`notification_item_unread_dot_selected()`와 `button_ghost_active_fg()`는 접근자만 있다. 앱의 Notification 행에는 선택 상태가 없고, 활성 행 위에 놓이는 ghost 버튼도 없다.
+
+Tag는 모든 상태 variant가 `tag_bg()` 위에 그리고 테두리는 accent 40%를 유지한다. 글자는 `tag_success_fg()`·`tag_warning_fg()`·`tag_danger_fg()`·`tag_info_fg()`이고 상태 점도 같은 색이다. `TagVariant::Remote`는 디자인 Tag에 대응 variant가 없어 accent-remote 틴트를 쓴다. `tag_attention_fg()`는 대응 variant가 앱에 없어 읽는 곳이 없다.
+
 ## 불투명도
 
 | 디자인 토큰 | tasty Theme | 값 | 비고 |
@@ -89,12 +116,14 @@ Design System의 `tokens/semantic.css`·`tokens/primitives.css`와 Tasty Theme�
 |---|---|---|---|
 | `--tasty-switch-overlay-size` | → `kbd-size` → `size-16` (16px) | `switch_overlay_size()` (생성) | 키캡 footprint = 아이콘/dot slot |
 | `--tasty-switch-overlay-bg` | → `kbd-bg` → `surface-raised` | `switch_overlay_bg()` (생성) | 비active 키캡 fill |
-| `--tasty-switch-overlay-fg` | → `kbd-fg` → `text-secondary` | `switch_overlay_fg()` (생성) | 비active 키캡 숫자 |
+| `--tasty-switch-overlay-fg` | → `kbd-fg` → `text-secondary-raised` | `switch_overlay_fg()` (생성) | 비active 키캡 숫자 |
 | `--tasty-switch-overlay-border` | → `kbd-border` → `border-strong` | `switch_overlay_border()` (생성) | 키캡 외곽선 |
 | `--tasty-switch-overlay-shadow-depth` | → `kbd-shadow-depth` → `size-2` (2px) | `switch_overlay_shadow_depth()` (생성) | 키캡 하단 3D edge |
 | `--tasty-switch-overlay-active-bg` | → `accent-primary` → `color-blue` | `switch_overlay_active_bg()` (생성) | **현재 항목 = accent-filled 키캡 bg.** |
 | `--tasty-switch-overlay-active-fg` | → `text-on-accent` → `color-neutral-0` | `switch_overlay_active_fg()` (생성) | accent fill 위 숫자 (`text_on_accent` 는 dark 테마면 `crust`, light 테마면 `#ffffff`(`TEXT_ON_ACCENT_LIGHT`) — button-primary-fg/checkbox-check 등과 공유) |
 | `--tasty-switch-overlay-fade` | → `motion-ui-fast` → `duration-90` (90ms) | `switch_overlay_fade()` (생성, `Millis`) | 등장 90ms, release 0ms. `src/adapters/ui/switch_overlay.rs` 가 소비 |
+
+> `kbd-fg`는 키캡 채움(`kbd-bg` → surface-raised) 위 글자이고, 키캡 사이 `+`는 `kbd_plus_fg()`(→ `text-muted-raised`)다.
 
 > **결론**: switch-number overlay 8 토큰 모두 **생성 접근자 `switch_overlay_*()` 로 커버** → 신규 Theme 필드 없음. 키캡은 `tasty-ui-widgets` `chip.rs` 의 `paint_num_keycap` 한 벌이 그린다(radius·글자 크기는 `kbd-*`).
 
@@ -242,8 +271,9 @@ modifier-hint는 보조키를 누르는 동안 유지되며 키보드 포커스 
 | `--tasty-modhint-separator` | → `separator` | `modhint_separator()` | 스트립/헤더 하단 구분선 |
 | `--tasty-modhint-held-fg` | → `text-muted` | `modhint_held_fg()` | 스트립 "held" 라벨 |
 | `--tasty-modhint-role-bg` | → `surface-active` | `modhint_role_bg()` | 특수 역할 행 washed 배경 |
-| `--tasty-modhint-role-fg` | → `accent-primary` | `modhint_role_fg()` | 역할 행 leading 글리프 |
-| `--tasty-modhint-row-fg` | → `text-secondary` | `modhint_row_fg()` | 액션/역할 행 텍스트 |
+| `--tasty-modhint-role-fg` | → `accent-primary-on-active` | `modhint_role_fg()` | 역할 행 leading 글리프 |
+| `--tasty-modhint-role-text-fg` | → `text-on-active` | `modhint_role_text_fg()` | 역할 행 텍스트 |
+| `--tasty-modhint-row-fg` | → `text-secondary` | `modhint_row_fg()` | 액션 행 텍스트 |
 | `--tasty-modhint-empty-fg` | → `text-muted` | `modhint_empty_fg()` | 빈 조합 플레이스홀더("바인딩 없음") 텍스트 — row-fg(text-secondary)보다 한 단계 절제(§6-2) |
 | `--tasty-modhint-agent-dot` | → `accent-agent` | `modhint_agent_dot()` | plugin 행 leading agent dot |
 
@@ -316,7 +346,8 @@ semantic/primitive 종착.
 | `--tasty-listctrl-radius` | → `radius-sm` (2) | `listctrl_radius()` | divided 시 헤어라인 행 radius 0 |
 | `--tasty-listctrl-font-size` | → `font-size-body` (13) | `listctrl_font_size()` | 라벨 |
 | `--tasty-listctrl-label-fg` | → `text-secondary` | `listctrl_label_fg()` | |
-| `--tasty-listctrl-label-fg-active` | → `text-primary` | `listctrl_label_fg_active()` | hover/selected |
+| `--tasty-listctrl-label-fg-active` | → `text-on-active` | `listctrl_label_fg_active()` | hover/selected |
+| `--tasty-listctrl-part-fg-selected` | → `text-on-active` | `listctrl_part_fg_selected()` | 선택 행의 설명·아이콘·chevron |
 | `--tasty-listctrl-desc-fg` | → `text-muted` | `listctrl_desc_fg()` | |
 | `--tasty-listctrl-desc-font-size` | → `font-size-caption` (11) | `listctrl_desc_font_size()` | |
 | `--tasty-listctrl-icon-fg` | → `text-muted` | `listctrl_icon_fg()` | leading 글리프 (icon-size-md = `icon_glyph_size_md`) |
@@ -516,7 +547,7 @@ max 를 이긴다(트리거가 320 보다 넓으면 트리거를 따른다). 행
 
 디자인 시스템의 DTCG 토큰과 Rust `Theme` 필드, 그리고 실제 `th.*`/`theme.*` 호출처를 잇는 매핑 참조. [theme.md](theme.md) 의 토큰 구조를 호출처 관점에서 보충한다.
 
-> **vendor 상태**: DTCG 토큰 파일은 `crates/tasty-design-tokens/dtcg/tasty.tokens.json` 으로 **vendor 되어 있다** (1354 토큰 = primitive 140 / semantic 176 / component 1038 — 수는 `crates/tasty-design-tokens/tests/freshness.rs` 가 고정). 치수 계열은 `crates/tasty-design-tokens/src/generated/` 에 const 로 생성되고 freshness·정합·색 드리프트 테스트가 CI 에서 일치를 강제한다. vendor 갱신 절차는 `crates/tasty-design-tokens/README.md`. **component tier(치수+색)는 `&Theme` 접근자로 생성돼**(`tasty-type-appearance/src/generated_component.rs`, [theme.md](theme.md) "Component tier 접근자") `tasty-ui-widgets` 위젯과 host chrome(`src/adapters/ui/`)이 소비 중.
+> **vendor 상태**: DTCG 토큰 파일은 `crates/tasty-design-tokens/dtcg/tasty.tokens.json` 으로 **vendor 되어 있다** (1378 토큰 = primitive 140 / semantic 182 / component 1056 — 수는 `crates/tasty-design-tokens/tests/freshness.rs` 가 고정). 치수 계열은 `crates/tasty-design-tokens/src/generated/` 에 const 로 생성되고 freshness·정합·색 드리프트 테스트가 CI 에서 일치를 강제한다. vendor 갱신 절차는 `crates/tasty-design-tokens/README.md`. **component tier(치수+색)는 `&Theme` 접근자로 생성돼**(`tasty-type-appearance/src/generated_component.rs`, [theme.md](theme.md) "Component tier 접근자") `tasty-ui-widgets` 위젯과 host chrome(`src/adapters/ui/`)이 소비 중.
 
 ### 구조 모델
 

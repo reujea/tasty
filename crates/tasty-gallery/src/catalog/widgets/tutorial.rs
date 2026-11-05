@@ -84,7 +84,7 @@ fn paint_faux_app(p: &egui::Painter, r: egui::Rect, theme: &Theme) {
             label,
             egui::FontId::proportional(cap),
             if active {
-                theme.text_primary().to_egui()
+                theme.text_on_active().to_egui()
             } else {
                 theme.text_muted().to_egui()
             },
@@ -378,15 +378,20 @@ fn topic_row(
                 );
                 ui.vertical(|ui| {
                     ui.spacing_mut().item_spacing.y = STRUCT_GAP_2.value();
+                    let (title_fg, desc_fg) = if sel {
+                        (theme.text_on_active(), theme.text_on_active())
+                    } else {
+                        (theme.text_primary(), theme.text_muted())
+                    };
                     ui.label(
                         egui::RichText::new(title)
                             .size(theme.font_size_body.value())
-                            .color(theme.text_primary().to_egui()),
+                            .color(title_fg.to_egui()),
                     );
                     ui.label(
                         egui::RichText::new(desc)
                             .size(theme.font_size_caption.value())
-                            .color(theme.text_muted().to_egui()),
+                            .color(desc_fg.to_egui()),
                     );
                 });
                 if done {
@@ -394,7 +399,14 @@ fn topic_row(
                         ui.label(
                             egui::RichText::new("✓")
                                 .size(theme.font_size_caption.value())
-                                .color(theme.accent_success().to_egui()),
+                                .color(
+                                    if sel {
+                                        theme.accent_primary_on_active()
+                                    } else {
+                                        theme.accent_success()
+                                    }
+                                    .to_egui(),
+                                ),
                         );
                     });
                 }

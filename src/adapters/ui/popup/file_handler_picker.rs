@@ -507,7 +507,13 @@ fn handler_row(
         ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
     }
 
-    let glyph_color: egui::Color32 = if e.plugin {
+    let glyph_color: egui::Color32 = if sel {
+        if e.plugin {
+            th.accent_primary_on_active().into()
+        } else {
+            th.text_on_active().into()
+        }
+    } else if e.plugin {
         th.accent_agent().into()
     } else {
         let c: egui::Color32 = th.text_muted().into();
@@ -542,14 +548,29 @@ fn handler_row(
         egui::pos2(left, top),
         &e.name,
         name_font,
-        th.text_primary().into(),
+        if sel {
+            th.text_on_active()
+        } else {
+            th.text_primary()
+        }
+        .into(),
         avail,
     );
 
     // 둘째 줄: 출처 · id · (언제). id 만 말줄임 — 나머지 조각은 고정 폭.
-    let sep: egui::Color32 = th.text_disabled().into();
-    let muted: egui::Color32 = th.text_muted().into();
-    let origin_color: egui::Color32 = if e.plugin {
+    // 선택 행은 surface-active 위이므로 둘째 줄 조각도 한 글자색이다.
+    let on_active: egui::Color32 = th.text_on_active().into();
+    let sep: egui::Color32 = if sel {
+        on_active
+    } else {
+        th.text_disabled().into()
+    };
+    let muted: egui::Color32 = if sel {
+        on_active
+    } else {
+        th.text_muted().into()
+    };
+    let origin_color: egui::Color32 = if e.plugin && !sel {
         th.accent_agent().into()
     } else {
         muted

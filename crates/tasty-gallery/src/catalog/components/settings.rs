@@ -318,7 +318,7 @@ fn l2_item(ui: &mut egui::Ui, theme: &Theme, label: &str, active: bool) {
         );
     }
     let fg = if active {
-        theme.text_primary()
+        theme.text_on_active()
     } else {
         theme.text_muted()
     };

@@ -35,10 +35,11 @@ pub(super) fn entry_row(
     if resp.hovered() && !inert {
         ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
     }
-    let (glyph, mut glyph_color) = if entry.is_dir {
-        (icons::FOLDER, th.accent_primary())
-    } else {
-        (icons::FILE, th.text_muted())
+    let (glyph, mut glyph_color) = match (entry.is_dir, selected) {
+        (true, true) => (icons::FOLDER, th.accent_primary_on_active()),
+        (true, false) => (icons::FOLDER, th.accent_primary()),
+        (false, true) => (icons::FILE, th.text_on_active()),
+        (false, false) => (icons::FILE, th.text_muted()),
     };
     let c = cols(rect, th);
     let glyph_size = th.icon_glyph_size_md.value();
@@ -62,7 +63,7 @@ pub(super) fn entry_row(
     let name_color = if inert {
         th.fp_folder_file_fg().to_egui()
     } else if selected {
-        th.text_primary().to_egui()
+        th.text_on_active().to_egui()
     } else {
         th.text_secondary().to_egui()
     };
@@ -81,29 +82,26 @@ pub(super) fn entry_row(
         name_color,
     );
     let mono = egui::FontId::monospace(th.font_size_caption.value());
+    let meta_fg = if inert {
+        th.fp_folder_file_fg()
+    } else if selected {
+        th.text_on_active()
+    } else {
+        th.text_muted()
+    };
     ui.painter().text(
         egui::pos2(size_right.value(), rect.center().y),
         egui::Align2::RIGHT_CENTER,
         &entry.size_display,
         mono.clone(),
-        if inert {
-            th.fp_folder_file_fg()
-        } else {
-            th.text_muted()
-        }
-        .into(),
+        meta_fg.into(),
     );
     ui.painter().text(
         egui::pos2(modified_right.value(), rect.center().y),
         egui::Align2::RIGHT_CENTER,
         &entry.modified_display,
         mono,
-        if inert {
-            th.fp_folder_file_fg()
-        } else {
-            th.text_muted()
-        }
-        .into(),
+        meta_fg.into(),
     );
     if inert {
         if let FilePickerMode::Folder { file_tooltip, .. } = props.mode {

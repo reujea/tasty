@@ -26,7 +26,21 @@ pub fn checkbox(
     label: &str,
     enabled: bool,
 ) -> egui::Response {
-    draw_checkbox(ui, theme, checked, label, enabled, None)
+    let label_fg = theme.text_primary().to_egui();
+    draw_checkbox(ui, theme, checked, label, enabled, None, label_fg)
+}
+
+/// [`checkbox`] 와 같지만 활성 상태의 라벨 색을 호출자가 정한다.
+/// 채움이 정해진 행 위에 놓일 때 쓴다. disabled 라벨은 disabled ink 다.
+pub fn checkbox_with_label_color(
+    ui: &mut egui::Ui,
+    theme: &Theme,
+    checked: &mut bool,
+    label: &str,
+    enabled: bool,
+    label_fg: egui::Color32,
+) -> egui::Response {
+    draw_checkbox(ui, theme, checked, label, enabled, None, label_fg)
 }
 
 /// 라벨이 남은 폭을 넘으면 말줄임 대신 어디서나 줄바꿈하는 [`checkbox`]. 위젯 id 는 호출자가 정한다.
@@ -39,7 +53,8 @@ pub fn checkbox_wrapping(
     label: &str,
     enabled: bool,
 ) -> egui::Response {
-    draw_checkbox(ui, theme, checked, label, enabled, Some(id))
+    let label_fg = theme.text_primary().to_egui();
+    draw_checkbox(ui, theme, checked, label, enabled, Some(id), label_fg)
 }
 
 /// `id` 가 있으면 그 id 로 반응하고 라벨을 줄바꿈한다. 없으면 자동 id 와 한 줄 말줄임이다.
@@ -50,6 +65,7 @@ fn draw_checkbox(
     label: &str,
     enabled: bool,
     id: Option<egui::Id>,
+    label_fg: egui::Color32,
 ) -> egui::Response {
     // gap(라벨)·body 는 대응 checkbox component 토큰 없음 → semantic.
     let gap = theme.spacing_sm.value();
@@ -156,8 +172,7 @@ fn draw_checkbox(
         rect.left() + box_sz + gap,
         rect.center().y - galley.rect.height() * 0.5,
     );
-    ui.painter()
-        .galley(label_pos, galley, ink(theme.text_primary().to_egui()));
+    ui.painter().galley(label_pos, galley, ink(label_fg));
     resp
 }
 

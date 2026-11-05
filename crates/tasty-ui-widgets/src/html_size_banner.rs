@@ -1,5 +1,5 @@
 //! Remote HTML receive decisions. Host and gallery share the received banner layout.
-use crate::{Button, ButtonVariant, ControlSize, TagVariant, banner_shell, tag};
+use crate::{Button, ButtonVariant, ControlSize, Ground, TagVariant, banner_shell, tag};
 use std::sync::Arc;
 use tasty_type_appearance::theme::Theme;
 use tasty_type_geometry::length::LogicalPx;
@@ -87,6 +87,7 @@ fn buttons(ui: &mut egui::Ui, theme: &Theme, view: &HtmlSizeBannerView<'_>) -> H
     let decline = Button::new(view.decline)
         .size(ControlSize::Sm)
         .variant(ButtonVariant::Ghost)
+        .ground(Ground::Raised)
         .show(ui, theme)
         .clicked();
     let allow = Button::new(view.allow)
@@ -323,6 +324,43 @@ mod tests {
             assert!(out.shapes.iter().any(|s| matches!(&s.shape, egui::Shape::Rect(r) if r.fill == theme.banner_button_bg().to_egui())));
         }
     }
+    /// 배너 셸은 surface-raised 다. Decline(Stop) ghost는 raised 바탕 글자색을 읽는다.
+    #[test]
+    fn the_decline_ghost_reads_the_raised_ink() {
+        let file = tasty_themes::ThemeFile::parse(tasty_themes::LATTE_TOML_TEXT).unwrap();
+        let (partial, is_light) = file.to_partial();
+        let mut colors = tasty_themes::mocha_fallback_colors();
+        colors.apply_partial(&partial);
+        let theme = Theme::with_colors(colors, is_light.unwrap_or(true));
+        assert_ne!(theme.button_ghost_raised_fg(), theme.button_ghost_fg());
+        let ctx = egui::Context::default();
+        let out = ctx.run(egui::RawInput::default(), |ctx| {
+            egui::CentralPanel::default().show(ctx, |ui| {
+                ui.set_width(560.0);
+                html_size_banner(
+                    ui,
+                    &theme,
+                    &HtmlSizeBannerView {
+                        title: "The remote wants to send a large file",
+                        detail: HtmlSizeDetail::Limit { body: "Limit" },
+                        decline: "Stop",
+                        allow: "Continue",
+                        narrow: false,
+                    },
+                );
+            });
+        });
+        let ink = out
+            .shapes
+            .iter()
+            .find_map(|s| match &s.shape {
+                egui::Shape::Text(t) if t.galley.text() == "Stop" => Some(t.fallback_color),
+                _ => None,
+            })
+            .expect("Stop drawn");
+        assert_eq!(ink, theme.button_ghost_raised_fg().to_egui());
+    }
+
     #[test]
     fn left_ellipsis_keeps_unicode_tail_at_a_character_boundary() {
         let theme = Theme::with_colors_and_zoom(tasty_themes::mocha_fallback_colors(), false, 1.0);

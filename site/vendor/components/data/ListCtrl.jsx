@@ -50,6 +50,7 @@ const CSS = `
 .tasty-listctrl__row.is-selected .tasty-listctrl__label { color: var(--tasty-listctrl-label-fg-active); }
 .tasty-listctrl__desc { overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   font-size: var(--tasty-listctrl-desc-font-size); color: var(--tasty-listctrl-desc-fg); }
+.tasty-listctrl__row.is-selected .tasty-listctrl__desc, .tasty-listctrl__row.is-selected .tasty-listctrl__icon, .tasty-listctrl__row.is-selected .tasty-listctrl__chev { color: var(--tasty-listctrl-part-fg-selected); }
 .tasty-listctrl__trailing { flex: none; display: inline-flex; align-items: center; gap: var(--tasty-space-sm); }
 .tasty-listctrl__chev { flex: none; display: inline-flex; width: var(--tasty-icon-size-sm); height: var(--tasty-icon-size-sm); color: var(--tasty-listctrl-chevron-fg); }
 .tasty-listctrl__chev svg { width: var(--tasty-icon-size-sm); height: var(--tasty-icon-size-sm); display: block; }

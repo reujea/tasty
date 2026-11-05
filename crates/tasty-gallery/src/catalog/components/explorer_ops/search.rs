@@ -201,13 +201,18 @@ fn name_cell(ui: &mut egui::Ui, th: &Theme, g: MockGlyph, name: &str, query: &st
         ui.spacing_mut().item_spacing.x = th.spacing_sm.value();
         let sz = th.icon_glyph_size_md.value();
         let (rect, _) = ui.allocate_exact_size(egui::Vec2::splat(sz), egui::Sense::hover());
-        g.image(sz, th.text_muted().to_egui()).paint_at(ui, rect);
+        g.image(
+            sz,
+            tasty_ui_widgets::table_cell_ink(ui, th, th.text_muted()),
+        )
+        .paint_at(ui, rect);
         ui.label(explorer_match_job(
             th,
             name,
             query,
             egui::FontId::proportional(th.font_size_body.value()),
-            th.table_row_fg().to_egui(),
+            tasty_ui_widgets::table_cell_ink(ui, th, th.table_row_fg()),
+            tasty_ui_widgets::in_selected_table_row(ui),
         ));
     });
 }
@@ -249,7 +254,7 @@ fn hit_table(ui: &mut egui::Ui, theme: &Theme, rows: &[(&str, &str, &str, &str)]
             rows,
             |r| sel.is_some_and(|s| rows[s].0 == r.0),
             |ui, th, r, col| {
-                let muted = th.text_muted().to_egui();
+                let muted = tasty_ui_widgets::table_cell_ink(ui, th, th.text_muted());
                 let mono = egui::FontId::monospace(th.font_size_caption.value());
                 match col {
                     0 => name_cell(ui, th, icons::FILE, r.0, "report"),

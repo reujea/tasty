@@ -118,7 +118,8 @@ function HtmlAddressBar({ kind = "local", address = "", state = "idle", canBack 
 
 // Remote size banners — same inset shell + button boxes as the script banner. No × : each is a decision.
 // kind: file (one large file at a time; "+N more" waiting) · limit (cumulative 2 MB per entry document)
-function HtmlSizeBanner({ kind = "file", name = "assets/hero-video.mp4", size = "3.2 MB", more = 0, narrow = false }) {
+// The title wraps and never clamps, like every other banner. title overrides the copy for the long-title specimen.
+function HtmlSizeBanner({ kind = "file", name = "assets/hero-video.mp4", size = "3.2 MB", more = 0, narrow = false, title }) {
   const file = kind === "file";
   return (
     <div data-surface="banner" style={{ background: "var(--tasty-banner-bg)", color: "var(--tasty-banner-fg)", border: "var(--tasty-border-width) solid var(--tasty-banner-border)",
@@ -128,8 +129,8 @@ function HtmlSizeBanner({ kind = "file", name = "assets/hero-video.mp4", size = 
           <HaIcon name={file ? "download" : "alertTriangle"} size="var(--tasty-icon-size-md)" />
         </span>
         <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: "var(--tasty-banner-text-gap)" }}>
-          <div style={{ fontSize: "var(--tasty-banner-title-font-size)", fontWeight: "var(--tasty-font-weight-semibold)", lineHeight: "var(--tasty-line-height-ui)", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>
-            {file ? HA_COPY.sizeTitle : HA_COPY.limitTitle}
+          <div style={{ fontSize: "var(--tasty-banner-title-font-size)", fontWeight: "var(--tasty-font-weight-semibold)", lineHeight: "var(--tasty-line-height-ui)" }}>
+            {title || (file ? HA_COPY.sizeTitle : HA_COPY.limitTitle)}
           </div>
           {file ? (
             <div style={{ display: "flex", alignItems: "center", gap: "var(--tasty-space-sm)", minWidth: 0 }}>
@@ -142,7 +143,7 @@ function HtmlSizeBanner({ kind = "file", name = "assets/hero-video.mp4", size = 
           )}
         </div>
         <span style={{ flex: "none", display: "flex", gap: "var(--tasty-space-sm)", marginLeft: narrow ? "calc(var(--tasty-icon-size-md) + var(--tasty-banner-gap))" : 0, width: narrow ? "100%" : "auto" }}>
-          <Button size="sm" variant="ghost" style={{ whiteSpace: "nowrap" }}>{file ? HA_COPY.decline : HA_COPY.stop}</Button>
+          <Button size="sm" variant="ghost" ground="raised" style={{ whiteSpace: "nowrap" }}>{file ? HA_COPY.decline : HA_COPY.stop}</Button>
           <Button size="sm" variant="secondary" style={{ whiteSpace: "nowrap" }}>{file ? HA_COPY.allow : HA_COPY.cont}</Button>
         </span>
       </div>

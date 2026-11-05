@@ -132,7 +132,7 @@ fn toggle_chip(ui: &mut egui::Ui, theme: &Theme, label: &str, active: bool) {
     let (fill, fg) = if active {
         (
             theme.surface_active().to_egui(),
-            theme.text_primary().to_egui(),
+            theme.text_on_active().to_egui(),
         )
     } else {
         (egui::Color32::TRANSPARENT, theme.text_muted().to_egui())

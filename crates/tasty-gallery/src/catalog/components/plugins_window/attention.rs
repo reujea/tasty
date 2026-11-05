@@ -195,14 +195,23 @@ pub(super) fn list_pane(ui: &mut egui::Ui, theme: &Theme, rect: egui::Rect, sele
             egui::Align2::LEFT_TOP,
             entry.name,
             egui::FontId::proportional(theme.font_size_body.value()),
-            theme.text_primary().to_egui(),
+            if i == selected {
+                theme.text_on_active()
+            } else {
+                theme.text_primary()
+            }
+            .to_egui(),
         );
         p.text(
             name_pos + egui::vec2(0.0, theme.spacing_lg.value() + STRUCT_GAP_2.value()),
             egui::Align2::LEFT_TOP,
             entry.kind.label(),
             egui::FontId::proportional(theme.font_size_micro.value()),
-            sev_color(theme, entry.kind),
+            if i == selected {
+                theme.text_on_active().to_egui()
+            } else {
+                sev_color(theme, entry.kind)
+            },
         );
         p.circle_filled(
             egui::pos2(r.max.x - theme.spacing_md.value(), r.center().y),

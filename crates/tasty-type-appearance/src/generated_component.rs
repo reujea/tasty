@@ -94,6 +94,12 @@ impl crate::theme::Theme {
         self.menu_radius()
     }
 
+    /// `component.autocomplete-part-fg-active` → `{semantic.text-on-active}`
+    #[inline]
+    pub fn autocomplete_part_fg_active(&self) -> HexColor {
+        self.text_on_active()
+    }
+
     /// `component.autocomplete-row-bg-active` → `{semantic.surface-active}`
     #[inline]
     pub fn autocomplete_row_bg_active(&self) -> HexColor {
@@ -202,10 +208,10 @@ impl crate::theme::Theme {
         self.surface_active()
     }
 
-    /// `component.badge-neutral-fg` → `{semantic.text-primary}`
+    /// `component.badge-neutral-fg` → `{semantic.text-on-active}`
     #[inline]
     pub fn badge_neutral_fg(&self) -> HexColor {
-        self.text_primary()
+        self.text_on_active()
     }
 
     /// `component.badge-padding-x` → `{semantic.space-xs}` = 4px
@@ -274,10 +280,10 @@ impl crate::theme::Theme {
         self.font_size_caption
     }
 
-    /// `component.banner-button-bg` → `{semantic.surface-hover}`
+    /// `component.banner-button-bg` → `{semantic.surface-on-raised}`
     #[inline]
     pub fn banner_button_bg(&self) -> HexColor {
-        self.surface_hover()
+        self.surface_on_raised()
     }
 
     /// `component.banner-button-border` → `{semantic.border-frame}`
@@ -380,6 +386,12 @@ impl crate::theme::Theme {
     #[inline]
     pub fn banner_more_menu_radius(&self) -> LogicalPx {
         self.menu_radius()
+    }
+
+    /// `component.banner-more-reason-fg` → `{semantic.text-muted-raised}`
+    #[inline]
+    pub fn banner_more_reason_fg(&self) -> HexColor {
+        self.text_muted_raised()
     }
 
     /// `component.banner-more-reason-glyph-offset` → `{primitive.size-1}` = 1px
@@ -502,6 +514,12 @@ impl crate::theme::Theme {
         self.spacing_sm
     }
 
+    /// `component.button-ghost-active-fg` → `{semantic.text-on-active}`
+    #[inline]
+    pub fn button_ghost_active_fg(&self) -> HexColor {
+        self.text_on_active()
+    }
+
     /// `component.button-ghost-fg` → `{semantic.text-secondary}`
     #[inline]
     pub fn button_ghost_fg(&self) -> HexColor {
@@ -520,10 +538,10 @@ impl crate::theme::Theme {
         self.text_secondary_raised()
     }
 
-    /// `component.button-ghost-raised-fg-hover` → `{semantic.text-primary}`
+    /// `component.button-ghost-raised-fg-hover` → `{semantic.text-on-active}`
     #[inline]
     pub fn button_ghost_raised_fg_hover(&self) -> HexColor {
-        self.text_primary()
+        self.text_on_active()
     }
 
     /// `component.button-height` → `{semantic.control-height}` = 28px
@@ -2682,10 +2700,10 @@ impl crate::theme::Theme {
         self.border_strong()
     }
 
-    /// `component.kbd-fg` → `{semantic.text-secondary}`
+    /// `component.kbd-fg` → `{semantic.text-secondary-raised}`
     #[inline]
     pub fn kbd_fg(&self) -> HexColor {
-        self.text_secondary()
+        self.text_secondary_raised()
     }
 
     /// `component.kbd-font-size` → `{semantic.font-size-micro}` = 10px
@@ -2704,6 +2722,12 @@ impl crate::theme::Theme {
     #[inline]
     pub fn kbd_padding_x(&self) -> LogicalPx {
         self.spacing_xs
+    }
+
+    /// `component.kbd-plus-fg` → `{semantic.text-muted-raised}`
+    #[inline]
+    pub fn kbd_plus_fg(&self) -> HexColor {
+        self.text_muted_raised()
     }
 
     /// `component.kbd-radius` → `{semantic.radius-sm}` = 2px
@@ -2766,10 +2790,16 @@ impl crate::theme::Theme {
         self.text_secondary()
     }
 
-    /// `component.listctrl-label-fg-active` → `{semantic.text-primary}`
+    /// `component.listctrl-label-fg-active` → `{semantic.text-on-active}`
     #[inline]
     pub fn listctrl_label_fg_active(&self) -> HexColor {
-        self.text_primary()
+        self.text_on_active()
+    }
+
+    /// `component.listctrl-part-fg-selected` → `{semantic.text-on-active}`
+    #[inline]
+    pub fn listctrl_part_fg_selected(&self) -> HexColor {
+        self.text_on_active()
     }
 
     /// `component.listctrl-radius` → `{semantic.radius-sm}` = 2px
@@ -3096,10 +3126,10 @@ impl crate::theme::Theme {
         self.overlay_hover()
     }
 
-    /// `component.menu-item-check-fg` → `{semantic.accent-primary}`
+    /// `component.menu-item-check-fg` → `{semantic.accent-primary-on-active}`
     #[inline]
     pub fn menu_item_check_fg(&self) -> HexColor {
-        self.accent_primary()
+        self.accent_primary_on_active()
     }
 
     /// `component.menu-item-check-size` → `{semantic.icon-size-sm}` = 14px
@@ -3114,10 +3144,10 @@ impl crate::theme::Theme {
         self.text_secondary_raised()
     }
 
-    /// `component.menu-item-fg-hover` → `{semantic.text-primary}`
+    /// `component.menu-item-fg-hover` → `{semantic.text-on-active}`
     #[inline]
     pub fn menu_item_fg_hover(&self) -> HexColor {
-        self.text_primary()
+        self.text_on_active()
     }
 
     /// `component.menu-item-height` → `{semantic.control-height}` = 28px
@@ -3130,6 +3160,12 @@ impl crate::theme::Theme {
     #[inline]
     pub fn menu_item_padding_x(&self) -> LogicalPx {
         self.spacing_md
+    }
+
+    /// `component.menu-item-part-fg-active` → `{semantic.text-on-active}`
+    #[inline]
+    pub fn menu_item_part_fg_active(&self) -> HexColor {
+        self.text_on_active()
     }
 
     /// `component.menu-item-radius` → `{semantic.radius-sm}` = 2px
@@ -3220,6 +3256,12 @@ impl crate::theme::Theme {
     #[inline]
     pub fn modhint_radius(&self) -> LogicalPx {
         self.corner_radius
+    }
+
+    /// `component.modhint-role-text-fg` → `{semantic.text-on-active}`
+    #[inline]
+    pub fn modhint_role_text_fg(&self) -> HexColor {
+        self.text_on_active()
     }
 
     /// `component.modhint-row-font-size` → `{semantic.font-size-caption}` = 11px
@@ -3426,6 +3468,12 @@ impl crate::theme::Theme {
         self.text_primary()
     }
 
+    /// `component.multiselect-row-fg-active` → `{semantic.text-on-active}`
+    #[inline]
+    pub fn multiselect_row_fg_active(&self) -> HexColor {
+        self.text_on_active()
+    }
+
     /// `component.multiselect-row-gap` → `{semantic.space-sm}` = 8px
     #[inline]
     pub fn multiselect_row_gap(&self) -> LogicalPx {
@@ -3576,6 +3624,12 @@ impl crate::theme::Theme {
         self.accent_danger()
     }
 
+    /// `component.notification-item-fg-selected` → `{semantic.text-on-active}`
+    #[inline]
+    pub fn notification_item_fg_selected(&self) -> HexColor {
+        self.text_on_active()
+    }
+
     /// `component.notification-item-glyph-gap` → `{semantic.space-sm}` = 8px
     #[inline]
     pub fn notification_item_glyph_gap(&self) -> LogicalPx {
@@ -3646,6 +3700,12 @@ impl crate::theme::Theme {
     #[inline]
     pub fn notification_item_unread_dot(&self) -> HexColor {
         self.accent_primary()
+    }
+
+    /// `component.notification-item-unread-dot-selected` → `{semantic.accent-primary-on-active}`
+    #[inline]
+    pub fn notification_item_unread_dot_selected(&self) -> HexColor {
+        self.accent_primary_on_active()
     }
 
     /// `component.notification-item-unread-dot-size` → `{component.badge-dot-size}` = 8px
@@ -5184,6 +5244,18 @@ impl crate::theme::Theme {
         self.text_secondary()
     }
 
+    /// `component.table-row-fg-selected` → `{semantic.text-on-active}`
+    #[inline]
+    pub fn table_row_fg_selected(&self) -> HexColor {
+        self.text_on_active()
+    }
+
+    /// `component.tag-attention-fg` → `{semantic.accent-attention-raised}`
+    #[inline]
+    pub fn tag_attention_fg(&self) -> HexColor {
+        self.accent_attention_raised()
+    }
+
     /// `component.tag-bg` → `{semantic.surface-raised}`
     #[inline]
     pub fn tag_bg(&self) -> HexColor {
@@ -5194,6 +5266,12 @@ impl crate::theme::Theme {
     #[inline]
     pub fn tag_border(&self) -> HexColor {
         self.border_default()
+    }
+
+    /// `component.tag-danger-fg` → `{semantic.accent-danger-raised}`
+    #[inline]
+    pub fn tag_danger_fg(&self) -> HexColor {
+        self.accent_danger_raised()
     }
 
     /// `component.tag-disabled-bg` → `{semantic.state-disabled-fill}`
@@ -5220,10 +5298,10 @@ impl crate::theme::Theme {
         LogicalPx((8.0 * self.ui_zoom).round())
     }
 
-    /// `component.tag-fg` → `{semantic.text-secondary}`
+    /// `component.tag-fg` → `{semantic.text-secondary-raised}`
     #[inline]
     pub fn tag_fg(&self) -> HexColor {
-        self.text_secondary()
+        self.text_secondary_raised()
     }
 
     /// `component.tag-font-size` → `{semantic.font-size-micro}` = 10px
@@ -5236,6 +5314,12 @@ impl crate::theme::Theme {
     #[inline]
     pub fn tag_gap(&self) -> LogicalPx {
         self.spacing_xs
+    }
+
+    /// `component.tag-info-fg` → `{semantic.accent-info-raised}`
+    #[inline]
+    pub fn tag_info_fg(&self) -> HexColor {
+        self.accent_info_raised()
     }
 
     /// `component.tag-padding-x` → `{semantic.space-sm}` = 8px
@@ -5254,6 +5338,18 @@ impl crate::theme::Theme {
     #[inline]
     pub fn tag_size(&self) -> LogicalPx {
         LogicalPx((16.0 * self.ui_zoom).round())
+    }
+
+    /// `component.tag-success-fg` → `{semantic.accent-success-ink}`
+    #[inline]
+    pub fn tag_success_fg(&self) -> HexColor {
+        self.accent_success_ink()
+    }
+
+    /// `component.tag-warning-fg` → `{semantic.accent-warning-raised}`
+    #[inline]
+    pub fn tag_warning_fg(&self) -> HexColor {
+        self.accent_warning_raised()
     }
 
     /// `component.titlebar-button-active-bg` → `{semantic.overlay-active}`
@@ -5592,10 +5688,10 @@ impl crate::theme::Theme {
         self.text_secondary()
     }
 
-    /// `component.tree-row-fg-active` → `{semantic.text-primary}`
+    /// `component.tree-row-fg-active` → `{semantic.text-on-active}`
     #[inline]
     pub fn tree_row_fg_active(&self) -> HexColor {
-        self.text_primary()
+        self.text_on_active()
     }
 
     /// `component.tree-row-font-size` → `{semantic.font-size-body}` = 13px
@@ -5616,6 +5712,12 @@ impl crate::theme::Theme {
         self.item_height_tree
     }
 
+    /// `component.tree-row-icon-fg-active` → `{semantic.accent-primary-on-active}`
+    #[inline]
+    pub fn tree_row_icon_fg_active(&self) -> HexColor {
+        self.accent_primary_on_active()
+    }
+
     /// `component.tree-row-indent` → `{semantic.space-md}` = 12px
     #[inline]
     pub fn tree_row_indent(&self) -> LogicalPx {
@@ -5626,6 +5728,12 @@ impl crate::theme::Theme {
     #[inline]
     pub fn tree_row_meta_font_size(&self) -> LogicalPx {
         self.font_size_micro
+    }
+
+    /// `component.tree-row-part-fg-active` → `{semantic.text-on-active}`
+    #[inline]
+    pub fn tree_row_part_fg_active(&self) -> HexColor {
+        self.text_on_active()
     }
 
     /// `component.trigger-menu-max-height` → `{component.autocomplete-max-height}` = 220px

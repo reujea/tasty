@@ -541,6 +541,7 @@ pub(super) fn hit_folder(root: &Path, hit: &Path) -> String {
 }
 
 /// 이름 글자 배치. 검색어와 맞는 부분을 explorer-match-fg 로 칠한다. 검색어가 없으면 한 색이다.
+/// 선택 행은 일치 구간도 선택 색이다.
 pub(super) fn name_job(
     theme: &Theme,
     name: &str,
@@ -548,8 +549,9 @@ pub(super) fn name_job(
     font: egui::FontId,
     color: egui::Color32,
     line_height: Option<f32>,
+    selected: bool,
 ) -> egui::text::LayoutJob {
-    let mut job = explorer_match_job(theme, name, query, font, color);
+    let mut job = explorer_match_job(theme, name, query, font, color, selected);
     for section in &mut job.sections {
         section.format.line_height = line_height;
     }

@@ -93,6 +93,7 @@ const CSS = `
 .tasty-ac__row-head { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .tasty-ac__row-tail { flex: none; white-space: nowrap; }
 .tasty-ac__mark { color: var(--tasty-autocomplete-match-fg); font-weight: var(--tasty-font-weight-semibold); }
+.tasty-ac__row--active .tasty-ac__row-icon, .tasty-ac__row--active .tasty-ac__mark { color: var(--tasty-autocomplete-part-fg-active); }
 .tasty-ac__empty {
   height: var(--tasty-autocomplete-row-height);
   display: flex; align-items: center; padding: 0 var(--tasty-autocomplete-row-padding-x);

@@ -1,7 +1,7 @@
 //! 배너 ⋯ 메뉴의 이름 미상 형태. 행이 저장할 프로그램 이름을 모를 때 메뉴는 숨기지 않고
 //! 비대화형 사유 줄, 구분선, 이름 대신 "이 프로그램"으로 쓴 두 행을 비활성으로 그린다.
 //!
-//! - 사유 줄: info 글리프(`icon-glyph-size-sm`) + caption 크기 `text-muted` 문장. 줄을 바꾸며
+//! - 사유 줄: `banner-more-reason-fg` 색의 info 글리프(`icon-glyph-size-sm`)와 caption 크기 문장. 줄을 바꾸며
 //!   위아래 `space-xs`, 좌우 `space-md`, 글리프와 문장 사이 `space-sm` 이다. 글리프는 문장 위쪽에 맞춘 뒤
 //!   `banner-more-reason-glyph-offset` 만큼 내린다. 포커스·호버가 없다.
 //! - 구분선: 위아래 `space-xs`, 두께 `border-width`, 색은 모든 메뉴 구분선과 같은 `menu-separator`.
@@ -134,13 +134,13 @@ pub fn banner_more_unknown(
     copy: BannerMoreUnknownCopy<'_>,
 ) -> [egui::Response; 2] {
     let width = LogicalPx(ui.available_width());
-    let muted = theme.text_muted().to_egui();
+    let reason_ink = theme.banner_more_reason_fg().to_egui();
     let disabled = theme.state_disabled_fg().to_egui();
 
     // 사유 줄 — 글리프는 문장 위쪽에서 사유 글리프 오프셋만큼 내린다.
     let reason = ui
         .ctx()
-        .fonts(|f| reason_galley(f, theme, copy.reason, width, muted));
+        .fonts(|f| reason_galley(f, theme, copy.reason, width, reason_ink));
     let (rect, _) = ui.allocate_exact_size(
         egui::vec2(width.value(), reason_height(theme, &reason).value()),
         egui::Sense::hover(),
@@ -154,12 +154,12 @@ pub fn banner_more_unknown(
             egui::pos2(x, top + theme.banner_more_reason_glyph_offset().value()),
             egui::vec2(glyph, glyph),
         ),
-        muted,
+        reason_ink,
     );
     ui.painter().galley(
         egui::pos2(x + glyph + theme.spacing_sm.value(), top),
         reason,
-        muted,
+        reason_ink,
     );
 
     // 구분선 — 메뉴 행 폭 전체, 공용 메뉴 구분선 색.
@@ -361,6 +361,41 @@ mod tests {
         assert_eq!(glyph.top(), expected);
         assert_eq!(glyph.left(), th.spacing_md.value());
         assert_eq!(glyph.height(), th.icon_glyph_size_sm.value());
+    }
+
+    /// 사유 문장은 `banner-more-reason-fg` 다. info 글리프도 같은 색으로 받는다.
+    #[test]
+    fn the_reason_text_and_glyph_read_the_reason_token() {
+        let th = theme();
+        let want = th.banner_more_reason_fg().to_egui();
+        let glyph_ink = std::cell::Cell::new(None);
+        let ctx = egui::Context::default();
+        let mut shapes = Vec::new();
+        for _ in 0..2 {
+            let frame = ctx.run(egui::RawInput::default(), |ctx| {
+                egui::Area::new(egui::Id::new("unknown"))
+                    .fixed_pos(egui::Pos2::ZERO)
+                    .fade_in(false)
+                    .show(ctx, |ui| {
+                        ui.set_width(max_row_width(&th));
+                        let info = |_: &mut egui::Ui, _: egui::Rect, c: egui::Color32| {
+                            glyph_ink.set(Some(c));
+                        };
+                        let noop = |_: &mut egui::Ui, _: egui::Rect, _: egui::Color32| {};
+                        let _rows = banner_more_unknown(ui, &th, &info, [&noop, &noop], EN);
+                    });
+            });
+            shapes = frame.shapes;
+        }
+        assert_eq!(glyph_ink.get(), Some(want));
+        let text = shapes
+            .iter()
+            .find_map(|c| match &c.shape {
+                egui::Shape::Text(t) if t.galley.text() == EN.reason => Some(t.fallback_color),
+                _ => None,
+            })
+            .expect("reason drawn");
+        assert_eq!(text, want);
     }
 
     /// 사유 줄과 행 사이 구분선은 모든 메뉴 구분선과 같은 `menu-separator` 색으로 그린다.

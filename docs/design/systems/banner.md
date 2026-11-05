@@ -178,7 +178,7 @@ mouse-capture 배너(`defs::BANNER_MOUSE_CAPTURE`)에 한해, X 왼쪽에 "더�
 - **트리거**: 이름을 알 때와 같다(hover 노출, 열린 동안 active, 본문 예약 `banner_more_reserve()` 56 유지).
 - **구성**: 위에서부터 비대화형 사유 줄 → 구분선 → 같은 두 행(비활성). 공용 `tasty_ui_widgets::banner_more_unknown`
   이 그리며 갤러리 예제도 같은 함수를 쓴다.
-  - 사유 줄: info 글리프(`icon_glyph_size_sm` 14) + caption 크기 `text_muted` 문장. 글리프와 문장은 위쪽에 맞추고
+  - 사유 줄: info 글리프(`icon_glyph_size_sm` 14) + caption 크기 문장. 둘 다 `banner_more_reason_fg()` 색이다. 글리프와 문장은 위쪽에 맞추고
     글리프만 `banner_more_reason_glyph_offset()`(1)만큼 내린다. 이 값은 배너 앞 글리프의 `banner_glyph_offset()` 과
     역할이 다른 별도 토큰이다. 줄 높이는 문장과 글리프(+오프셋) 중 높은 쪽이다. 줄을 바꾸며
     위아래 `spacing_xs`, 좌우 `spacing_md`, 글리프와 문장 사이 `spacing_sm` 이다. 포커스·hover 가 없다.
@@ -293,4 +293,4 @@ mouse-capture 배너(`defs::BANNER_MOUSE_CAPTURE`)에 한해, X 왼쪽에 "더�
 
 ## HTML 원격 수신 카드
 
-공용 `tasty_ui_widgets::html_size_banner`는 큰 파일의 Decline/Allow와 문서 누적 정지의 Stop/Continue를 그린다. 같은 inset 셸과 배너 버튼 박스를 사용하고 닫기 버튼이나 자동 포커스를 두지 않는다. 파일 경로는 mono 왼쪽 말줄임, 크기는 warning Tag, 추가 대기 수는 muted 문구다. 좁은 surface에서는 두 버튼을 본문 왼쪽 가장자리에 맞춰 다음 줄에 둔다. `html_receive_state`는 receiving 스피너·paused 다운로드 glyph·끊김·macOS 웹주소 미지원 안내를 같은 토큰으로 그린다. 갤러리의 HTML 주소 배치 예제가 두 위젯을 소비하며, native 전송 연결 여부는 [전송 계약](../../dev-guide/html-transfer.md)이 정한다.
+공용 `tasty_ui_widgets::html_size_banner`는 큰 파일의 Decline/Allow와 문서 누적 정지의 Stop/Continue를 그린다. 같은 inset 셸과 배너 버튼 박스를 사용하고 닫기 버튼이나 자동 포커스를 두지 않는다. Decline·Stop은 `Ground::Raised` ghost라 쉴 때 `button_ghost_raised_fg()`, hover 때 `button_ghost_raised_fg_hover()`를 읽는다. 파일 경로는 mono 왼쪽 말줄임, 크기는 warning Tag(`tag_bg()` 위 `tag_warning_fg()`), 추가 대기 수는 본문 글자색이다. 좁은 surface에서는 두 버튼을 본문 왼쪽 가장자리에 맞춰 다음 줄에 둔다. `html_receive_state`는 receiving 스피너·paused 다운로드 glyph·끊김·macOS 웹주소 미지원 안내를 같은 토큰으로 그린다. 갤러리의 HTML 주소 배치 예제가 두 위젯을 소비하며, native 전송 연결 여부는 [전송 계약](../../dev-guide/html-transfer.md)이 정한다.

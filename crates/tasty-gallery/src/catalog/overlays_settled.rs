@@ -94,19 +94,24 @@ fn plugin_row(
         PluginAvatarSize::Row,
     );
     let x = rect.left() + pad + avatar + pad;
+    let (name_fg, meta_fg) = if matches!(state, RowState::Selected) {
+        (theme.text_on_active(), theme.text_on_active())
+    } else {
+        (theme.text_primary(), theme.text_muted())
+    };
     p.text(
         egui::pos2(x, rect.center().y - theme.spacing_xs.value() * 0.5),
         egui::Align2::LEFT_BOTTOM,
         name,
         egui::FontId::proportional(theme.font_size_body.value()),
-        ec(theme.text_primary()),
+        ec(name_fg),
     );
     p.text(
         egui::pos2(x, rect.center().y + theme.spacing_xs.value() * 0.5),
         egui::Align2::LEFT_TOP,
         meta_text,
         egui::FontId::monospace(theme.font_size_micro.value()),
-        ec(theme.text_muted()),
+        ec(meta_fg),
     );
 }
 

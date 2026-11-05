@@ -541,10 +541,15 @@ fn profile_row(ui: &mut egui::Ui, th: &Theme, p: &ProfileSummary, selected: bool
         egui::pos2(inner.right(), rect.bottom()),
     ));
     child.spacing_mut().item_spacing.y = STRUCT_GAP_2.value();
+    let meta_c = if selected {
+        th.text_on_active()
+    } else {
+        th.text_muted()
+    };
     child.horizontal(|ui| {
         ui.spacing_mut().item_spacing.x = th.spacing_sm.value();
         let name_c = if selected {
-            th.text_primary()
+            th.text_on_active()
         } else {
             th.text_secondary()
         };
@@ -562,7 +567,7 @@ fn profile_row(ui: &mut egui::Ui, th: &Theme, p: &ProfileSummary, selected: bool
                 egui::Label::new(
                     egui::RichText::new(format!("({})", p.label))
                         .size(th.font_size_body.value())
-                        .color(th.text_muted()),
+                        .color(meta_c),
                 )
                 .truncate(),
             );
@@ -583,7 +588,7 @@ fn profile_row(ui: &mut egui::Ui, th: &Theme, p: &ProfileSummary, selected: bool
         egui::RichText::new(&p.target)
             .monospace()
             .size(th.font_size_caption.value())
-            .color(th.text_muted()),
+            .color(meta_c),
     );
     resp.clicked()
 }
@@ -758,7 +763,13 @@ fn new_ws_row(
         egui::Sense::click()
     };
     let (resp, mut child) = ws_row_frame(ui, th, sense, selected, !creating);
-    let glyph_c: egui::Color32 = if creating {
+    let glyph_c: egui::Color32 = if selected {
+        if creating || failed {
+            th.text_on_active().into()
+        } else {
+            th.accent_primary_on_active().into()
+        }
+    } else if creating {
         th.text_muted().into()
     } else if failed {
         th.accent_danger().into()
@@ -767,10 +778,10 @@ fn new_ws_row(
     };
     dot_slot_glyph(&mut child, th, creating, failed, glyph_c);
     // 선택 배경에서 대비를 확보하도록 라벨 색을 바꾼다. 아이콘·구분선도 행 구분에 사용한다.
-    let label_c = if creating {
+    let label_c = if selected {
+        th.text_on_active()
+    } else if creating {
         th.text_muted()
-    } else if selected {
-        th.text_primary()
     } else {
         th.accent_primary()
     };
@@ -792,7 +803,11 @@ fn new_ws_row(
             ui.label(
                 egui::RichText::new(t("remote_attach.new_workspace_on_remote"))
                     .size(th.font_size_caption.value())
-                    .color(th.text_muted()),
+                    .color(if selected {
+                        th.text_on_active()
+                    } else {
+                        th.text_muted()
+                    }),
             );
         }
     });
@@ -974,9 +989,14 @@ fn ws_row(
     let name_c = if disabled {
         th.text_disabled()
     } else if selected {
-        th.text_primary()
+        th.text_on_active()
     } else {
         th.text_secondary()
+    };
+    let meta_c = if selected {
+        th.text_on_active()
+    } else {
+        th.text_muted()
     };
     child.add(
         egui::Label::new(
@@ -986,11 +1006,11 @@ fn ws_row(
         )
         .truncate(),
     );
-    child.add(icons::SPLIT.image(th.font_size_caption.value(), th.text_muted().into()));
+    child.add(icons::SPLIT.image(th.font_size_caption.value(), meta_c.into()));
     child.label(
         egui::RichText::new(w.pane_count.to_string())
             .size(th.font_size_caption.value())
-            .color(th.text_muted()),
+            .color(meta_c),
     );
     child.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
         if disabled {
@@ -1007,7 +1027,7 @@ fn ws_row(
             ui.label(
                 egui::RichText::new(t("remote_attach.busy"))
                     .size(th.font_size_caption.value())
-                    .color(th.text_muted()),
+                    .color(meta_c),
             );
         }
     });

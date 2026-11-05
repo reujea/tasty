@@ -102,7 +102,8 @@ pub fn explorer_name_row_in(
     let row_h = theme.table_cell_height().value();
     let glyph_size = theme.icon_glyph_size_md.value();
     let gap = theme.spacing_sm.value();
-    let muted = theme.text_muted().to_egui();
+    // 입력 줄 전체가 surface-active 위다. 글리프와 안내 글자도 그 위에서 읽히는 색이다.
+    let ink = theme.text_on_active().to_egui();
     match layout {
         ExplorerNameLayout::Detail { .. } | ExplorerNameLayout::List => {
             let (row, _) = ui.allocate_exact_size(
@@ -127,7 +128,7 @@ pub fn explorer_name_row_in(
                 ui.painter().layout_no_wrap(
                     text.to_owned(),
                     egui::FontId::proportional(theme.font_size_caption.value()),
-                    muted,
+                    ink,
                 )
             });
             let field_right = match &caption {
@@ -142,7 +143,7 @@ pub fn explorer_name_row_in(
                 egui::pos2(row.left() + inset + glyph_size * 0.5, row.center().y),
                 egui::vec2(glyph_size, glyph_size),
             );
-            glyph.image(glyph_size, muted).paint_at(ui, glyph_rect);
+            glyph.image(glyph_size, ink).paint_at(ui, glyph_rect);
             let field_left = glyph_rect.right() + gap;
             let mut field_end = (field_right - pad).max(field_left);
             if caption.is_some() {
@@ -158,7 +159,7 @@ pub fn explorer_name_row_in(
                     field.right() + spinner_slot + gap,
                     row.center().y - g.size().y * 0.5,
                 );
-                ui.painter().with_clip_rect(row).galley(pos, g, muted);
+                ui.painter().with_clip_rect(row).galley(pos, g, ink);
             }
             let event = field_ui(ui, theme, field, edit, invalid, options);
             (row, field, event)
@@ -175,7 +176,7 @@ pub fn explorer_name_row_in(
                 egui::pos2(rect.center().x, rect.top() + pad + slot * 0.5),
                 egui::vec2(glyph_size, glyph_size),
             );
-            glyph.image(glyph_size, muted).paint_at(ui, glyph_rect);
+            glyph.image(glyph_size, ink).paint_at(ui, glyph_rect);
             // 입력은 칸보다 넓어 양옆 칸 위로 나온다. 목록 가장자리의 칸이면 보이는 영역 안으로 민다.
             let width = theme.field_width_md.value();
             let field = egui::Rect::from_min_size(

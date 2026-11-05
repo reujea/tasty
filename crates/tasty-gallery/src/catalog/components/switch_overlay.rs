@@ -300,7 +300,7 @@ fn full_ws(ui: &mut egui::Ui, theme: &Theme, held: bool) {
             name,
             egui::FontId::proportional(theme.font_size_body.value()),
             egui::Color32::from(if *active {
-                theme.text_primary()
+                theme.text_on_active()
             } else {
                 theme.text_secondary()
             }),
@@ -314,7 +314,11 @@ fn full_ws(ui: &mut egui::Ui, theme: &Theme, held: bool) {
             egui::Align2::LEFT_CENTER,
             sub,
             egui::FontId::proportional(theme.font_size_caption.value()),
-            egui::Color32::from(theme.text_muted()),
+            egui::Color32::from(if *active {
+                theme.text_on_active()
+            } else {
+                theme.text_muted()
+            }),
         );
         y += row_h;
     }
@@ -377,7 +381,11 @@ fn rail_ws(ui: &mut egui::Ui, theme: &Theme) {
                     egui::Align2::CENTER_CENTER,
                     letter,
                     egui::FontId::monospace(theme.font_size_body.value()),
-                    egui::Color32::from(theme.text_secondary()),
+                    egui::Color32::from(if *active {
+                        theme.text_on_active()
+                    } else {
+                        theme.text_secondary()
+                    }),
                 );
             }
         }
@@ -607,7 +615,7 @@ fn full_cat(ui: &mut egui::Ui, theme: &Theme, held: bool) {
                 name,
                 egui::FontId::proportional(theme.font_size_body.value()),
                 egui::Color32::from(if *active {
-                    theme.text_primary()
+                    theme.text_on_active()
                 } else {
                     theme.text_secondary()
                 }),
@@ -701,7 +709,11 @@ fn rail_cat(ui: &mut egui::Ui, theme: &Theme, held: bool) {
                     egui::Align2::CENTER_CENTER,
                     letter,
                     egui::FontId::monospace(theme.font_size_body.value()),
-                    egui::Color32::from(theme.text_secondary()),
+                    egui::Color32::from(if *active {
+                        theme.text_on_active()
+                    } else {
+                        theme.text_secondary()
+                    }),
                 );
                 y += slot + gap;
             }

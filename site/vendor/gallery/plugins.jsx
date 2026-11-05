@@ -170,10 +170,10 @@ function TreeNode({ label, depth = 0, open, leaf, active }) {
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 4, height: 22, paddingRight: 8, paddingLeft: 6 + depth * 12,
       borderRadius: "var(--tasty-radius-sm)", fontSize: 13, cursor: "default",
-      color: active ? "var(--tasty-text-primary)" : "var(--tasty-text-secondary)",
+      color: active ? "var(--tasty-text-on-active)" : "var(--tasty-text-secondary)",
       background: active ? "var(--tasty-surface-active)" : "transparent" }}>
-      <span style={{ width: 12, display: "inline-flex", color: "var(--tasty-text-muted)", flex: "none" }}>{leaf ? null : (open ? ic.chevD : ic.chevRsm)}</span>
-      <span style={{ display: "inline-flex", color: "var(--tasty-text-muted)", flex: "none" }}>{ic.folder}</span>
+      <span style={{ width: 12, display: "inline-flex", color: active ? "var(--tasty-text-on-active)" : "var(--tasty-text-muted)", flex: "none" }}>{leaf ? null : (open ? ic.chevD : ic.chevRsm)}</span>
+      <span style={{ display: "inline-flex", color: active ? "var(--tasty-text-on-active)" : "var(--tasty-text-muted)", flex: "none" }}>{ic.folder}</span>
       <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{label}</span>
     </div>
   );
@@ -254,8 +254,8 @@ const FAVS_MANY = [["tasty", true], ["crates", false], ["design-system", false],
 function FavRow({ name, active }) {
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 6, height: 22, flex: "none", padding: "0 6px", borderRadius: "var(--tasty-radius-sm)",
-      fontSize: 13, color: active ? "var(--tasty-text-primary)" : "var(--tasty-text-secondary)", background: active ? "var(--tasty-surface-active)" : "transparent" }}>
-      <span style={{ display: "inline-flex", color: "var(--tasty-accent-warning)", flex: "none" }}>{ic.starFill}</span>
+      fontSize: 13, color: active ? "var(--tasty-text-on-active)" : "var(--tasty-text-secondary)", background: active ? "var(--tasty-surface-active)" : "transparent" }}>
+      <span style={{ display: "inline-flex", color: active ? "var(--tasty-text-on-active)" : "var(--tasty-accent-warning)", flex: "none" }}>{ic.starFill}</span>
       <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{name}</span>
     </div>
   );
@@ -300,14 +300,14 @@ function DetailRow({ glyph, name, size, date, type, state, glyphColor }) {
   return (
     <div style={{ display: "grid", gridTemplateColumns: "1fr 80px 132px 92px", alignItems: "center", height: "var(--tasty-table-cell-height)", padding: "0 10px",
       fontSize: 13, background: bg, opacity: state === "cut" ? 0.5 : 1, cursor: "default",
-      color: state === "selected" ? "var(--tasty-text-primary)" : "var(--tasty-text-secondary)" }}>
+      color: state === "selected" ? "var(--tasty-text-on-active)" : "var(--tasty-text-secondary)" }}>
       <span style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
-        <span style={{ display: "inline-flex", flex: "none", color: glyphColor || "var(--tasty-text-muted)" }}>{glyph}</span>
+        <span style={{ display: "inline-flex", flex: "none", color: state === "selected" ? "var(--tasty-text-on-active)" : glyphColor || "var(--tasty-text-muted)" }}>{glyph}</span>
         <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{name}</span>
       </span>
-      <span style={{ fontFamily: "var(--tasty-font-mono)", fontSize: 11, color: "var(--tasty-text-muted)", textAlign: "right", paddingRight: 8 }}>{size}</span>
-      <span style={{ fontFamily: "var(--tasty-font-mono)", fontSize: 11, color: "var(--tasty-text-muted)" }}>{date}</span>
-      <span style={{ fontSize: 12, color: "var(--tasty-text-muted)" }}>{type}</span>
+      <span style={{ fontFamily: "var(--tasty-font-mono)", fontSize: 11, color: state === "selected" ? "var(--tasty-text-on-active)" : "var(--tasty-text-muted)", textAlign: "right", paddingRight: 8 }}>{size}</span>
+      <span style={{ fontFamily: "var(--tasty-font-mono)", fontSize: 11, color: state === "selected" ? "var(--tasty-text-on-active)" : "var(--tasty-text-muted)" }}>{date}</span>
+      <span style={{ fontSize: 12, color: state === "selected" ? "var(--tasty-text-on-active)" : "var(--tasty-text-muted)" }}>{type}</span>
     </div>
   );
 }
@@ -374,9 +374,9 @@ function GridCell({ glyph, name, state, glyphColor }) {
   return (
     <div style={{ width: GRID_CELL_W, display: "flex", flexDirection: "column", alignItems: "center", gap: 4, padding: "8px 4px",
       borderRadius: "var(--tasty-radius)", background: bg, opacity: state === "cut" ? 0.5 : 1, cursor: "default" }}>
-      <span style={{ display: "inline-flex", color: glyphColor || "var(--tasty-text-muted)", height: 16, alignItems: "center" }}>{glyph}</span>
+      <span style={{ display: "inline-flex", color: state === "selected" ? "var(--tasty-text-on-active)" : glyphColor || "var(--tasty-text-muted)", height: 16, alignItems: "center" }}>{glyph}</span>
       <span style={{ fontSize: 11, textAlign: "center", lineHeight: `${GRID_LABEL_LINE_H}px`, height: GRID_LABEL_LINES * GRID_LABEL_LINE_H,
-        color: state === "selected" ? "var(--tasty-text-primary)" : "var(--tasty-text-secondary)", wordBreak: "break-word",
+        color: state === "selected" ? "var(--tasty-text-on-active)" : "var(--tasty-text-secondary)", wordBreak: "break-word",
         display: "-webkit-box", WebkitLineClamp: GRID_LABEL_LINES, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{name}</span>
     </div>
   );
@@ -402,9 +402,9 @@ function ExpListMini() {
       {rows.map(([g, n, st], i) => (
         <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, height: "var(--tasty-tree-row-height)", padding: "0 8px", borderRadius: "var(--tasty-radius-sm)",
           fontSize: 13, opacity: st === "cut" ? 0.5 : 1,
-          color: st === "selected" ? "var(--tasty-text-primary)" : "var(--tasty-text-secondary)",
+          color: st === "selected" ? "var(--tasty-text-on-active)" : "var(--tasty-text-secondary)",
           background: st === "selected" ? "var(--tasty-surface-active)" : st === "hover" ? "var(--tasty-overlay-hover)" : "transparent" }}>
-          <span style={{ display: "inline-flex", flex: "none", color: g === ic.image ? "var(--tasty-accent-info)" : "var(--tasty-text-muted)" }}>{g}</span>{n}
+          <span style={{ display: "inline-flex", flex: "none", color: st === "selected" ? "var(--tasty-text-on-active)" : g === ic.image ? "var(--tasty-accent-info)" : "var(--tasty-text-muted)" }}>{g}</span>{n}
         </div>
       ))}
     </div>

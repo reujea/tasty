@@ -295,7 +295,7 @@ fn paint_ws_row(ui: &mut egui::Ui, theme: &Theme, rect: egui::Rect, w: &WsCfg) {
     let dot_c = egui::pos2(rect.min.x + pad + slot * 0.5, rect.center().y);
     p.circle_filled(dot_c, theme.status_dot_size().value() * 0.5, c(dot));
     let fg = if w.active {
-        theme.text_primary()
+        theme.text_on_active()
     } else {
         theme.text_secondary()
     };

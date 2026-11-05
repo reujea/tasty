@@ -25,10 +25,10 @@
 
 - **worktree rail** — main + 모든 linked worktree 를 2줄 행으로. line1 = 이름(mono) + 타입 pill
   (`main`=sky / `linked`=neutral), line2 = short oid(sky) + 상태 pill(`current`/`locked`/`invalid`, dot).
-  선택 행 = `surface-active` + 좌측 2px inset accent bar. 선택 시 우측 내용을 그 worktree 기준으로 갱신.
+  선택 행 = `surface-active` + 좌측 2px inset accent bar, 이름과 oid는 `text-on-active`. 선택 시 우측 내용을 그 worktree 기준으로 갱신.
   invalid 행은 흐림 + 전환 불가.
 - **Changes** — 변경된 파일 목록. 고정폭 상태 pill(`M/A/D/R/?/U`) + 경로(dir `text-muted` / file
-  `text-primary`). 행 선택 시 하단 pane 이 diff 로 교체(선택 행에 inset bar).
+  `text-primary`, 선택 행은 둘 다 `text-on-active`). 행 선택 시 하단 pane 이 diff 로 교체(선택 행에 inset bar).
 - **Commits** — 커밋 히스토리. oid(sky) + refs pills(sky, 있을 때만) + summary(flex) + author + time.
 - **Diff** — 선택 파일의 unified hunk. 툴바(`Back` ghost + 파일 경로) + recessed `bg-app` well:
   old/new 라인번호 거터 + `+`/`-`/context 부호 컬럼 + ±-라인 배경 tint + hunk header 밴드(sky).

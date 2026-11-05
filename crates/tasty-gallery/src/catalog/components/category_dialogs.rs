@@ -193,7 +193,7 @@ fn rail_avatar(
         );
     }
     let ink = if active {
-        theme.text_primary()
+        theme.text_on_active()
     } else {
         theme.text_secondary()
     };

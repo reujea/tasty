@@ -38,10 +38,14 @@ fn row(ui: &mut egui::Ui, theme: &Theme, name: &str, folder: bool, selected: boo
         egui::vec2(g, g),
     );
     let icon = if folder { icons::FOLDER } else { icons::FILE };
-    icon.image(g, theme.text_muted().to_egui())
-        .paint_at(ui, glyph);
+    let glyph_fg = if selected {
+        theme.text_on_active()
+    } else {
+        theme.text_muted()
+    };
+    icon.image(g, glyph_fg.to_egui()).paint_at(ui, glyph);
     let fg = if selected {
-        theme.text_primary()
+        theme.text_on_active()
     } else {
         theme.text_secondary()
     };
@@ -81,7 +85,8 @@ pub fn draw(ui: &mut egui::Ui, theme: &Theme) {
                 area.min + egui::vec2(col * (side + gap), line * (side + gap)),
                 egui::vec2(side, side),
             );
-            if matches!(k, 1 | 2 | 4 | 5) {
+            let picked = matches!(k, 1 | 2 | 4 | 5);
+            if picked {
                 ui.painter().rect_filled(
                     cell,
                     theme.corner_radius.value(),
@@ -90,9 +95,12 @@ pub fn draw(ui: &mut egui::Ui, theme: &Theme) {
             }
             let g = theme.icon_glyph_size_lg.value();
             let glyph = egui::Rect::from_center_size(cell.center(), egui::vec2(g, g));
-            icons::FILE
-                .image(g, theme.text_muted().to_egui())
-                .paint_at(ui, glyph);
+            let glyph_fg = if picked {
+                theme.text_on_active()
+            } else {
+                theme.text_muted()
+            };
+            icons::FILE.image(g, glyph_fg.to_egui()).paint_at(ui, glyph);
         }
         // 첫 열 오른쪽 간격 위에서 시작해 오른쪽 아래 빈 곳까지 끈 사각형이다.
         let start = area.min + egui::vec2(side + gap / 2.0, -gap / 2.0);

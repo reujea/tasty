@@ -720,6 +720,15 @@
       "$type": "color",
       "$value": "{primitive.color-neutral-500}"
     },
+    "surface-on-raised": {
+      "$type": "color",
+      "$value": "{semantic.surface-hover}",
+      "$extensions": {
+        "com.tasty.mode": {
+          "latte": "{primitive.color-neutral-200}"
+        }
+      }
+    },
     "text-primary": {
       "$type": "color",
       "$value": "{primitive.color-neutral-1100}"
@@ -764,6 +773,15 @@
       "$extensions": {
         "com.tasty.mode": {
           "latte": "{primitive.color-neutral-1100}"
+        }
+      }
+    },
+    "text-on-active": {
+      "$type": "color",
+      "$value": "{semantic.text-primary}",
+      "$extensions": {
+        "com.tasty.mode": {
+          "latte": "color-mix(in srgb, var(--tasty-color-neutral-1100) 70%, var(--tasty-color-black))"
         }
       }
     },
@@ -876,6 +894,42 @@
       "$extensions": {
         "com.tasty.mode": {
           "latte": "color-mix(in srgb, var(--tasty-color-red) 60%, var(--tasty-color-neutral-1100))"
+        }
+      }
+    },
+    "accent-warning-raised": {
+      "$type": "color",
+      "$value": "{semantic.accent-warning}",
+      "$extensions": {
+        "com.tasty.mode": {
+          "latte": "color-mix(in srgb, var(--tasty-color-yellow) 50%, var(--tasty-color-black))"
+        }
+      }
+    },
+    "accent-attention-raised": {
+      "$type": "color",
+      "$value": "{semantic.accent-attention}",
+      "$extensions": {
+        "com.tasty.mode": {
+          "latte": "color-mix(in srgb, var(--tasty-color-peach) 55%, var(--tasty-color-black))"
+        }
+      }
+    },
+    "accent-info-raised": {
+      "$type": "color",
+      "$value": "{semantic.accent-info}",
+      "$extensions": {
+        "com.tasty.mode": {
+          "latte": "color-mix(in srgb, var(--tasty-color-sky) 55%, var(--tasty-color-black))"
+        }
+      }
+    },
+    "accent-primary-on-active": {
+      "$type": "color",
+      "$value": "{semantic.accent-primary}",
+      "$extensions": {
+        "com.tasty.mode": {
+          "latte": "color-mix(in srgb, var(--tasty-color-blue) 70%, var(--tasty-color-black))"
         }
       }
     },
@@ -1584,7 +1638,7 @@
     },
     "banner-button-bg": {
       "$type": "color",
-      "$value": "{semantic.surface-hover}"
+      "$value": "{semantic.surface-on-raised}"
     },
     "banner-button-border": {
       "$type": "color",
@@ -1696,7 +1750,7 @@
     },
     "badge-neutral-fg": {
       "$type": "color",
-      "$value": "{semantic.text-primary}"
+      "$value": "{semantic.text-on-active}"
     },
     "badge-disabled-bg": {
       "$type": "color",
@@ -1740,7 +1794,27 @@
     },
     "tag-fg": {
       "$type": "color",
-      "$value": "{semantic.text-secondary}"
+      "$value": "{semantic.text-secondary-raised}"
+    },
+    "tag-success-fg": {
+      "$type": "color",
+      "$value": "{semantic.accent-success-ink}"
+    },
+    "tag-warning-fg": {
+      "$type": "color",
+      "$value": "{semantic.accent-warning-raised}"
+    },
+    "tag-attention-fg": {
+      "$type": "color",
+      "$value": "{semantic.accent-attention-raised}"
+    },
+    "tag-danger-fg": {
+      "$type": "color",
+      "$value": "{semantic.accent-danger-raised}"
+    },
+    "tag-info-fg": {
+      "$type": "color",
+      "$value": "{semantic.accent-info-raised}"
     },
     "tag-border": {
       "$type": "color",
@@ -1792,7 +1866,11 @@
     },
     "kbd-fg": {
       "$type": "color",
-      "$value": "{semantic.text-secondary}"
+      "$value": "{semantic.text-secondary-raised}"
+    },
+    "kbd-plus-fg": {
+      "$type": "color",
+      "$value": "{semantic.text-muted-raised}"
     },
     "kbd-border": {
       "$type": "color",
@@ -2034,6 +2112,10 @@
     "multiselect-row-bg-active": {
       "$type": "color",
       "$value": "{semantic.surface-active}"
+    },
+    "multiselect-row-fg-active": {
+      "$type": "color",
+      "$value": "{semantic.text-on-active}"
     },
     "multiselect-all-fg": {
       "$type": "color",
@@ -2301,7 +2383,15 @@
     },
     "tree-row-fg-active": {
       "$type": "color",
-      "$value": "{semantic.text-primary}"
+      "$value": "{semantic.text-on-active}"
+    },
+    "tree-row-part-fg-active": {
+      "$type": "color",
+      "$value": "{semantic.text-on-active}"
+    },
+    "tree-row-icon-fg-active": {
+      "$type": "color",
+      "$value": "{semantic.accent-primary-on-active}"
     },
     "tree-row-bg-hover": {
       "$type": "color",
@@ -2345,7 +2435,11 @@
     },
     "menu-item-fg-hover": {
       "$type": "color",
-      "$value": "{semantic.text-primary}"
+      "$value": "{semantic.text-on-active}"
+    },
+    "menu-item-part-fg-active": {
+      "$type": "color",
+      "$value": "{semantic.text-on-active}"
     },
     "menu-item-bg-hover": {
       "$type": "color",
@@ -2357,7 +2451,7 @@
     },
     "menu-item-check-fg": {
       "$type": "color",
-      "$value": "{semantic.accent-primary}"
+      "$value": "{semantic.accent-primary-on-active}"
     },
     "menu-item-check-size": {
       "$type": "dimension",
@@ -2406,6 +2500,10 @@
     "autocomplete-row-fg-active": {
       "$type": "color",
       "$value": "{component.menu-item-fg-hover}"
+    },
+    "autocomplete-part-fg-active": {
+      "$type": "color",
+      "$value": "{semantic.text-on-active}"
     },
     "autocomplete-row-bg-hover": {
       "$type": "color",
@@ -2645,7 +2743,7 @@
     },
     "banner-countdown-fg": {
       "$type": "color",
-      "$value": "{semantic.text-muted}"
+      "$value": "{semantic.text-muted-raised}"
     },
     "banner-recessed-opacity": {
       "$type": "number",
@@ -2766,6 +2864,10 @@
     "banner-more-reason-glyph-offset": {
       "$type": "dimension",
       "$value": "{primitive.size-1}"
+    },
+    "banner-more-reason-fg": {
+      "$type": "color",
+      "$value": "{semantic.text-muted-raised}"
     },
     "banner-text-gap": {
       "$type": "dimension",
@@ -3249,6 +3351,14 @@
       "$type": "color",
       "$value": "{semantic.surface-active}"
     },
+    "notification-item-fg-selected": {
+      "$type": "color",
+      "$value": "{semantic.text-on-active}"
+    },
+    "notification-item-unread-dot-selected": {
+      "$type": "color",
+      "$value": "{semantic.accent-primary-on-active}"
+    },
     "notification-item-separator": {
       "$type": "color",
       "$value": "{semantic.separator}"
@@ -3341,6 +3451,10 @@
       "$type": "color",
       "$value": "{semantic.surface-active}"
     },
+    "table-row-fg-selected": {
+      "$type": "color",
+      "$value": "{semantic.text-on-active}"
+    },
     "table-border": {
       "$type": "color",
       "$value": "{semantic.separator}"
@@ -3375,7 +3489,11 @@
     },
     "listctrl-label-fg-active": {
       "$type": "color",
-      "$value": "{semantic.text-primary}"
+      "$value": "{semantic.text-on-active}"
+    },
+    "listctrl-part-fg-selected": {
+      "$type": "color",
+      "$value": "{semantic.text-on-active}"
     },
     "listctrl-desc-fg": {
       "$type": "color",
@@ -4050,7 +4168,11 @@
     },
     "modhint-role-fg": {
       "$type": "color",
-      "$value": "{semantic.accent-primary}"
+      "$value": "{semantic.accent-primary-on-active}"
+    },
+    "modhint-role-text-fg": {
+      "$type": "color",
+      "$value": "{semantic.text-on-active}"
     },
     "modhint-empty-fg": {
       "$type": "color",
@@ -5700,8 +5822,12 @@
     },
     "button-ghost-raised-fg-hover": {
       "$type": "color",
-      "$value": "{semantic.text-primary}",
+      "$value": "{semantic.text-on-active}",
       "$description": "ghost Button label on a raised ground, hover"
+    },
+    "button-ghost-active-fg": {
+      "$type": "color",
+      "$value": "{semantic.text-on-active}"
     },
     "select-raised-bg": {
       "$type": "color",

@@ -357,7 +357,7 @@ fn scene_c(ui: &mut egui::Ui, th: &Theme, mode: Mode) {
             egui::Align2::LEFT_CENTER,
             crate::i18n::t("sidebar.tools_button"),
             egui::FontId::proportional(th.font_size_caption.value()),
-            th.text_primary().to_egui(),
+            th.text_on_active().to_egui(),
         );
         // 메뉴는 버튼 위, 왼쪽 정렬이다. 높이는 직전 프레임에 잰 값을 쓴다.
         let id = ui.id().with("tools_h");

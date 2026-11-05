@@ -94,6 +94,16 @@ fn preset(ui: &mut egui::Ui, theme: &Theme, name: &str, meta: &str, selected: bo
         ui.painter()
             .rect_filled(bar, 0.0, theme.accent_primary().to_egui());
     }
+    let (icon_fg, name_fg, meta_fg) = if selected {
+        let ink = theme.text_on_active();
+        (ink, ink, ink)
+    } else {
+        (
+            theme.text_secondary(),
+            theme.text_primary(),
+            theme.text_muted(),
+        )
+    };
     let mut child = ui.new_child(
         egui::UiBuilder::new()
             .max_rect(rect.shrink2(egui::vec2(theme.spacing_md.value(), 0.0)))
@@ -104,20 +114,20 @@ fn preset(ui: &mut egui::Ui, theme: &Theme, name: &str, meta: &str, selected: bo
         &mut child,
         icons::SPLIT,
         theme.icon_glyph_size_md,
-        theme.text_secondary().to_egui(),
+        icon_fg.to_egui(),
     );
     child.vertical(|ui| {
         ui.spacing_mut().item_spacing.y = STRUCT_GAP_1.value();
         ui.label(
             egui::RichText::new(name)
                 .size(theme.font_size_body.value())
-                .color(theme.text_primary().to_egui()),
+                .color(name_fg.to_egui()),
         );
         ui.label(
             egui::RichText::new(meta)
                 .monospace()
                 .size(theme.font_size_caption.value())
-                .color(theme.text_muted().to_egui()),
+                .color(meta_fg.to_egui()),
         );
     });
 }
@@ -152,7 +162,7 @@ fn seg(ui: &mut egui::Ui, theme: &Theme, items: &[&str], active: usize) {
                     }
                     let (fg, bg) = if i == active {
                         (
-                            theme.text_primary().to_egui(),
+                            theme.text_on_active().to_egui(),
                             theme.surface_active().to_egui(),
                         )
                     } else {

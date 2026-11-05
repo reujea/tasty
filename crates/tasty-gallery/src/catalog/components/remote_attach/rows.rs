@@ -32,10 +32,16 @@ pub(super) fn profile_row(ui: &mut egui::Ui, theme: &Theme, p: &Prof, selected: 
             .layout(egui::Layout::top_down(egui::Align::Min)),
     );
     child.spacing_mut().item_spacing.y = STRUCT_GAP_2.value();
+    let meta_c = if selected {
+        theme.text_on_active()
+    } else {
+        theme.text_muted()
+    }
+    .to_egui();
     child.horizontal(|ui| {
         ui.spacing_mut().item_spacing.x = theme.spacing_sm.value();
         let name_c = if selected {
-            theme.text_primary()
+            theme.text_on_active()
         } else {
             theme.text_secondary()
         };
@@ -49,7 +55,7 @@ pub(super) fn profile_row(ui: &mut egui::Ui, theme: &Theme, p: &Prof, selected: 
             ui.label(
                 egui::RichText::new(format!("({})", p.label))
                     .size(theme.font_size_body.value())
-                    .color(theme.text_muted().to_egui()),
+                    .color(meta_c),
             );
         }
         if p.inactive {
@@ -68,7 +74,7 @@ pub(super) fn profile_row(ui: &mut egui::Ui, theme: &Theme, p: &Prof, selected: 
         egui::RichText::new(p.target)
             .monospace()
             .size(theme.font_size_caption.value())
-            .color(theme.text_muted().to_egui()),
+            .color(meta_c),
     );
 }
 
@@ -151,25 +157,26 @@ pub(super) fn ws_row(ui: &mut egui::Ui, theme: &Theme, w: &Ws, selected: bool) {
     let name_c = if w.attached {
         theme.text_disabled()
     } else if selected {
-        theme.text_primary()
+        theme.text_on_active()
     } else {
         theme.text_secondary()
     };
+    let meta_c = if selected {
+        theme.text_on_active()
+    } else {
+        theme.text_muted()
+    }
+    .to_egui();
     child.label(
         egui::RichText::new(w.name)
             .size(theme.font_size_body.value())
             .color(name_c.to_egui()),
     );
-    kit::icon(
-        &mut child,
-        icons::SPLIT,
-        theme.font_size_caption,
-        theme.text_muted().to_egui(),
-    );
+    kit::icon(&mut child, icons::SPLIT, theme.font_size_caption, meta_c);
     child.label(
         egui::RichText::new(w.panes.to_string())
             .size(theme.font_size_caption.value())
-            .color(theme.text_muted().to_egui()),
+            .color(meta_c),
     );
     child.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
         if w.attached {
@@ -186,7 +193,7 @@ pub(super) fn ws_row(ui: &mut egui::Ui, theme: &Theme, w: &Ws, selected: bool) {
             ui.label(
                 egui::RichText::new("busy")
                     .size(theme.font_size_caption.value())
-                    .color(theme.text_muted().to_egui()),
+                    .color(meta_c),
             );
         }
     });

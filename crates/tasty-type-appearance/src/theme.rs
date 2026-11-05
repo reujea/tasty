@@ -1761,7 +1761,7 @@ impl Theme {
     /// 특수 역할 행 leading 글리프 색. `--tasty-modhint-role-fg` → `accent-primary`.
     #[inline]
     pub fn modhint_role_fg(&self) -> HexColor {
-        self.accent_primary()
+        self.accent_primary_on_active()
     }
     /// 액션/역할 행 텍스트 색. `--tasty-modhint-row-fg` → `text-secondary`.
     #[inline]

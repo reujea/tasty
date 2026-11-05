@@ -179,7 +179,7 @@ function SettingsFrame() {
           <div style={{ padding: 6 }}>
             {L2.map((s, i) => (
               <div key={s} style={{ padding: "5px 8px", borderRadius: "var(--tasty-radius-sm)", fontSize: 13,
-                color: i === 0 ? "var(--tasty-text-primary)" : "var(--tasty-text-muted)", background: i === 0 ? "var(--tasty-surface-active)" : "transparent" }}>{s}</div>
+                color: i === 0 ? "var(--tasty-text-on-active)" : "var(--tasty-text-muted)", background: i === 0 ? "var(--tasty-surface-active)" : "transparent" }}>{s}</div>
             ))}
           </div>
         </div>
@@ -1471,7 +1471,7 @@ function BannerMoreMenuUnknownG({ lang = "en", style }) {
       borderRadius: "var(--tasty-banner-more-menu-radius)", padding: "var(--tasty-banner-more-menu-padding)",
       boxShadow: "var(--tasty-banner-more-menu-shadow)", ...style }}>
       <div role="note" style={{ display: "flex", alignItems: "flex-start", gap: "var(--tasty-space-sm)",
-        padding: "var(--tasty-space-xs) var(--tasty-space-md)", color: "var(--tasty-text-muted)",
+        padding: "var(--tasty-space-xs) var(--tasty-space-md)", color: "var(--tasty-banner-more-reason-fg)",
         fontSize: "var(--tasty-font-size-caption)", lineHeight: "var(--tasty-line-height-ui)" }}>
         <span style={{ display: "inline-flex", flex: "none", marginTop: "var(--tasty-banner-more-reason-glyph-offset)" }}><Icon name="info" size={14} /></span>
         <span style={{ minWidth: 0 }}>{c.reason}</span>
@@ -1727,7 +1727,7 @@ function TtlBannerG({ ttl = 6, glyph, glyphColor, title, body }) {
         style={{ display: "flex", alignItems: "center", gap: "var(--tasty-banner-gap)",
           padding: "var(--tasty-banner-padding-y) var(--tasty-banner-padding-x)" }}>
         <span style={{ display: "inline-flex", flex: "none", color: "var(--tasty-accent-success)" }}>{ic.check}</span>
-        <div style={{ flex: 1, fontSize: "var(--tasty-banner-title-font-size)", color: "var(--tasty-text-secondary)" }}>
+        <div style={{ flex: 1, fontSize: "var(--tasty-banner-title-font-size)", color: "var(--tasty-banner-fg)" }}>
           Preset <b style={{ color: "var(--tasty-text-primary)" }}>Dev split</b> applied to this tab.
         </div>
         <span style={{ width: 24, height: 24, flex: "none", display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
@@ -1759,7 +1759,7 @@ function StackDemoG() {
         <BannerShellG zIndex={2}>
           <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "var(--tasty-banner-padding-y) var(--tasty-banner-padding-x)" }}>
             <span style={{ display: "inline-flex", flex: "none", color: "var(--tasty-accent-warning)" }}>{ic.warn}</span>
-            <span style={{ flex: 1, fontSize: "var(--tasty-banner-title-font-size)", color: "var(--tasty-text-secondary)" }}>Workspace banner — in front, full opacity, higher z-index</span>
+            <span style={{ flex: 1, fontSize: "var(--tasty-banner-title-font-size)", color: "var(--tasty-banner-fg)" }}>Workspace banner — in front, full opacity, higher z-index</span>
           </div>
         </BannerShellG>
       </div>
@@ -2418,7 +2418,7 @@ function RoleRow({ icon, children }) {
     <div style={{ display: "flex", alignItems: "flex-start", gap: 8, padding: "var(--tasty-modhint-row-gap) var(--tasty-space-sm)", borderRadius: "var(--tasty-radius-sm)",
       background: "var(--tasty-modhint-role-bg)" }}>
       <span style={{ display: "inline-flex", flex: "none", marginTop: 1, color: "var(--tasty-modhint-role-fg)" }}>{icon}</span>
-      <span style={{ flex: 1, fontSize: "var(--tasty-modhint-row-font-size)", lineHeight: "var(--tasty-line-height-ui)", color: "var(--tasty-text-secondary)" }}>{children}</span>
+      <span style={{ flex: 1, fontSize: "var(--tasty-modhint-row-font-size)", lineHeight: "var(--tasty-line-height-ui)", color: "var(--tasty-modhint-role-text-fg)" }}>{children}</span>
     </div>
   );
 }

@@ -896,12 +896,22 @@ fn row(ui: &mut egui::Ui, theme: &Theme, r: &Row, state: RowState) {
         checkbox(&mut child, theme, &mut chk, "", true);
     }
     let (icon_glyph, icon_color): (MockGlyph, egui::Color32) = if r.folder {
-        (icons::FOLDER, theme.accent_primary().to_egui())
+        (
+            icons::FOLDER,
+            if selected {
+                theme.accent_primary_on_active()
+            } else {
+                theme.accent_primary()
+            }
+            .to_egui(),
+        )
     } else {
         (
             icons::FILE,
             if inert {
                 theme.fp_folder_file_fg()
+            } else if selected {
+                theme.text_on_active()
             } else {
                 theme.text_muted()
             }
@@ -916,7 +926,7 @@ fn row(ui: &mut egui::Ui, theme: &Theme, r: &Row, state: RowState) {
     let name_color = if inert {
         theme.fp_folder_file_fg()
     } else if selected {
-        theme.text_primary()
+        theme.text_on_active()
     } else {
         theme.text_secondary()
     };
@@ -932,6 +942,8 @@ fn row(ui: &mut egui::Ui, theme: &Theme, r: &Row, state: RowState) {
     let mono_caption = egui::FontId::monospace(theme.font_size_caption.value());
     let muted = if inert {
         theme.fp_folder_file_fg()
+    } else if selected {
+        theme.text_on_active()
     } else {
         theme.text_muted()
     }

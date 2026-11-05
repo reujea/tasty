@@ -69,7 +69,14 @@ fn mirror_pill_line_h(theme: &Theme) -> f32 {
 }
 
 /// 원격 미러는 이름 아래에 REMOTE 배지를 표시한다. 호출자가 추가 행 높이를 확보해야 한다.
-fn mirror_pill_line(ui: &mut egui::Ui, theme: &Theme, row: egui::Rect, name_x: f32, mirror: bool) {
+fn mirror_pill_line(
+    ui: &mut egui::Ui,
+    theme: &Theme,
+    row: egui::Rect,
+    name_x: f32,
+    mirror: bool,
+    active: bool,
+) {
     if !mirror {
         return;
     }
@@ -81,7 +88,11 @@ fn mirror_pill_line(ui: &mut egui::Ui, theme: &Theme, row: egui::Rect, name_x: f
         REMOTE,
         egui::pos2(name_x + sz * 0.5, cy),
         sz,
-        egui::Color32::from(theme.workspace_mirror_fg()),
+        egui::Color32::from(if active {
+            theme.accent_primary_on_active()
+        } else {
+            theme.workspace_mirror_fg()
+        }),
     );
     let mut tag_ui = ui.new_child(egui::UiBuilder::new().max_rect(egui::Rect::from_min_size(
         egui::pos2(name_x + sz + theme.workspace_mirror_gap().value(), y),
@@ -291,7 +302,7 @@ fn rail(ui: &mut egui::Ui, theme: &Theme) {
             theme.icon_glyph_size_md.value(),
             // 비활성 레일 아이콘은 본체와 같은 glyph-dim 색을 쓴다.
             egui::Color32::from(if i == 0 {
-                theme.text_primary()
+                theme.text_on_active()
             } else {
                 theme.glyph_dim()
             }),
@@ -458,7 +469,7 @@ pub(crate) fn paint_ws_row(ui: &mut egui::Ui, theme: &Theme, card: egui::Rect, r
         row.name,
         egui::FontId::proportional(theme.font_size_body.value()),
         egui::Color32::from(if active {
-            theme.text_primary()
+            theme.text_on_active()
         } else {
             theme.text_secondary()
         }),
@@ -466,7 +477,7 @@ pub(crate) fn paint_ws_row(ui: &mut egui::Ui, theme: &Theme, card: egui::Rect, r
     if let Some(b) = row.badge {
         paint_ws_count_badge(&p, theme, title, b);
     }
-    mirror_pill_line(ui, theme, title, name_x, row.mirror);
+    mirror_pill_line(ui, theme, title, name_x, row.mirror, active);
     if let Some(sub) = row.subtitle {
         let pill = if row.mirror {
             theme.spacing_xs.value() + mirror_pill_line_h(theme)
@@ -479,11 +490,15 @@ pub(crate) fn paint_ws_row(ui: &mut egui::Ui, theme: &Theme, card: egui::Rect, r
             egui::Align2::LEFT_CENTER,
             sub,
             egui::FontId::proportional(theme.sidebar_button_label_font_size.value()),
-            egui::Color32::from(theme.text_muted()),
+            egui::Color32::from(if active {
+                theme.text_on_active()
+            } else {
+                theme.text_muted()
+            }),
         );
     }
     if let Some(description) = row.description {
-        paint_ws_description(ui, theme, card, name_x, description);
+        paint_ws_description(ui, theme, card, name_x, description, active);
     }
 }
 
@@ -494,6 +509,7 @@ fn paint_ws_description(
     card: egui::Rect,
     name_x: f32,
     description: &str,
+    active: bool,
 ) {
     let size = theme.font_size_caption.value();
     let mut job = egui::text::LayoutJob {
@@ -509,7 +525,11 @@ fn paint_ws_description(
         0.0,
         egui::TextFormat {
             font_id: egui::FontId::proportional(size),
-            color: egui::Color32::from(theme.text_placeholder()),
+            color: egui::Color32::from(if active {
+                theme.text_on_active()
+            } else {
+                theme.text_placeholder()
+            }),
             line_height: Some(description_line_h(theme)),
             ..Default::default()
         },
@@ -727,7 +747,7 @@ fn rail_categories(ui: &mut egui::Ui, theme: &Theme) {
                     letter,
                     egui::FontId::monospace(theme.font_size_body.value()),
                     egui::Color32::from(if *active {
-                        theme.accent_primary()
+                        theme.accent_primary_on_active()
                     } else {
                         theme.text_muted()
                     }),

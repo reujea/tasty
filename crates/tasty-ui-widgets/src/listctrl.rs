@@ -241,6 +241,15 @@ impl<'a> ListCtrl<'a> {
             }
         };
 
+        // 선택 행의 아이콘·설명·chevron은 surface-active 위 글자색 하나로 모은다.
+        let part = |c: egui::Color32| {
+            if is_selected {
+                theme.listctrl_part_fg_selected().to_egui()
+            } else {
+                c
+            }
+        };
+
         let mut x = rect.left() + pad_x;
 
         if let Some(paint) = item.icon {
@@ -249,7 +258,7 @@ impl<'a> ListCtrl<'a> {
                 egui::pos2(x + glyph * 0.5, rect.center().y),
                 egui::vec2(glyph, glyph),
             );
-            paint(ui, irect, dim(theme.listctrl_icon_fg().to_egui()));
+            paint(ui, irect, dim(part(theme.listctrl_icon_fg().to_egui())));
             x += glyph + gap;
         }
 
@@ -260,7 +269,7 @@ impl<'a> ListCtrl<'a> {
                 ui,
                 theme,
                 egui::pos2(right - glyph * 0.5, rect.center().y),
-                theme.listctrl_chevron_fg().to_egui(),
+                part(theme.listctrl_chevron_fg().to_egui()),
             );
             right -= glyph + theme.spacing_sm.value();
         }
@@ -297,7 +306,7 @@ impl<'a> ListCtrl<'a> {
                 ui,
                 d,
                 desc_font,
-                dim(theme.listctrl_desc_fg().to_egui()),
+                dim(part(theme.listctrl_desc_fg().to_egui())),
                 text_w,
             )
         });

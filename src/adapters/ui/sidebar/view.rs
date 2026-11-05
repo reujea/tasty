@@ -1393,7 +1393,7 @@ fn draw_workspace_card(
             loading_shown = slot.loading;
             occupied_dot = slot.occupied_dot;
             let name_color = if ws.is_active {
-                th.text_primary()
+                th.text_on_active()
             } else {
                 th.text_secondary()
             };
@@ -1442,10 +1442,15 @@ fn draw_workspace_card(
             let resp = ui.horizontal(|ui| {
                 ui.add_space(body_indent);
                 ui.spacing_mut().item_spacing.x = th.workspace_mirror_gap().value();
-                ui.add(icons::TERMINAL_PROMPT.image(
-                    th.workspace_mirror_icon_size().value(),
-                    th.workspace_mirror_fg().into(),
-                ));
+                let mirror_fg = if ws.is_active {
+                    th.accent_primary_on_active()
+                } else {
+                    th.workspace_mirror_fg()
+                };
+                ui.add(
+                    icons::TERMINAL_PROMPT
+                        .image(th.workspace_mirror_icon_size().value(), mirror_fg.into()),
+                );
                 tag_caps(ui, th, mirror_pill_label, TagVariant::Remote, false);
             });
             remote_line = Some(resp.response.rect);
@@ -1460,7 +1465,11 @@ fn draw_workspace_card(
                     egui::Label::new(
                         egui::RichText::new(&ws.subtitle)
                             .size(th.sidebar_button_label_font_size.value())
-                            .color(th.text_muted()),
+                            .color(if ws.is_active {
+                                th.text_on_active()
+                            } else {
+                                th.text_muted()
+                            }),
                     )
                     .truncate(),
                 );
@@ -1486,7 +1495,12 @@ fn draw_workspace_card(
                     0.0,
                     egui::TextFormat {
                         font_id: egui::FontId::proportional(size),
-                        color: th.text_placeholder().into(),
+                        color: if ws.is_active {
+                            th.text_on_active()
+                        } else {
+                            th.text_placeholder()
+                        }
+                        .into(),
                         line_height: Some(size * th.line_height_ui),
                         ..Default::default()
                     },

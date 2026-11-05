@@ -72,12 +72,12 @@ fn segment_tab(
         selected,
     } = *seg;
     let label_color = if selected {
-        theme.text_primary().to_egui()
+        theme.text_on_active().to_egui()
     } else {
         theme.text_muted().to_egui()
     };
     let count_color = if selected {
-        theme.text_secondary().to_egui()
+        theme.text_on_active().to_egui()
     } else {
         theme.text_muted().to_egui()
     };

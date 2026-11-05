@@ -326,7 +326,13 @@ fn fh_row(ui: &mut egui::Ui, theme: &Theme, r: &Row, sel: bool, dim: bool) {
             .rect_filled(bar, 0.0, theme.listctrl_selected_bar().to_egui());
     }
 
-    let glyph_color = if plugin {
+    let glyph_color = if sel {
+        if plugin {
+            theme.accent_primary_on_active().to_egui()
+        } else {
+            theme.text_on_active().to_egui()
+        }
+    } else if plugin {
         theme.accent_agent().to_egui()
     } else {
         let c = theme.text_muted().to_egui();
@@ -361,18 +367,34 @@ fn fh_row(ui: &mut egui::Ui, theme: &Theme, r: &Row, sel: bool, dim: bool) {
         egui::pos2(text_left, top),
         row_name(r),
         name_font,
-        theme.text_primary().to_egui(),
+        if sel {
+            theme.text_on_active()
+        } else {
+            theme.text_primary()
+        }
+        .to_egui(),
         text_w,
     );
 
     // 둘째 줄: 출처 · id · (언제). id 만 말줄임, 나머지는 고정 폭.
     let mut x = text_left;
     let y = top + name_h;
-    let sep_color = theme.text_disabled().to_egui();
-    let owner_color = if plugin {
-        theme.accent_agent().to_egui()
+    // 선택 행은 surface-active 위이므로 둘째 줄 조각도 한 글자색이다. 본체 행과 같다.
+    let on_active = theme.text_on_active().to_egui();
+    let sep_color = if sel {
+        on_active
+    } else {
+        theme.text_disabled().to_egui()
+    };
+    let muted = if sel {
+        on_active
     } else {
         theme.text_muted().to_egui()
+    };
+    let owner_color = if plugin && !sel {
+        theme.accent_agent().to_egui()
+    } else {
+        muted
     };
     x += paint_truncated(
         ui,
@@ -403,7 +425,7 @@ fn fh_row(ui: &mut egui::Ui, theme: &Theme, r: &Row, sel: bool, dim: bool) {
         egui::pos2(x, y),
         &fh_model::elide_id_front(r.id),
         id_font,
-        theme.text_muted().to_egui(),
+        muted,
         id_avail,
     ) + FH_ID_LINE_GAP.value();
     if let Some(when) = r.when {
@@ -420,7 +442,7 @@ fn fh_row(ui: &mut egui::Ui, theme: &Theme, r: &Row, sel: bool, dim: bool) {
             egui::pos2(x, y),
             when,
             meta_font,
-            theme.text_muted().to_egui(),
+            muted,
             theme.fh_when_width().value(),
         );
     }

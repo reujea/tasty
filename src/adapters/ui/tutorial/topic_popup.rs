@@ -219,15 +219,20 @@ fn topic_row(
                 );
                 ui.vertical(|ui| {
                     ui.spacing_mut().item_spacing.y = STRUCT_GAP_2.value();
+                    let (title_fg, desc_fg) = if sel {
+                        (th.text_on_active(), th.text_on_active())
+                    } else {
+                        (th.text_primary(), th.text_muted())
+                    };
                     ui.label(
                         egui::RichText::new(title)
                             .size(th.font_size_body.value())
-                            .color(th.text_primary().to_egui()),
+                            .color(title_fg.to_egui()),
                     );
                     ui.label(
                         egui::RichText::new(desc)
                             .size(th.font_size_caption.value())
-                            .color(th.text_muted().to_egui()),
+                            .color(desc_fg.to_egui()),
                     );
                 });
             });

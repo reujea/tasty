@@ -232,6 +232,7 @@ pub fn banner_more_row(
     }
     let lit = active || hovered;
     let ink = match (danger, lit) {
+        (true, _) if active => theme.menu_item_part_fg_active().to_egui(),
         (true, _) => theme.accent_danger().to_egui(),
         (false, true) => theme.menu_item_fg_hover().to_egui(),
         (false, false) => theme.menu_item_fg().to_egui(),
@@ -241,7 +242,9 @@ pub fn banner_more_row(
     } else {
         theme.banner_more_app_fg().to_egui()
     };
-    let icon_ink = if danger {
+    let icon_ink = if active {
+        theme.menu_item_part_fg_active().to_egui()
+    } else if danger {
         theme.accent_danger().to_egui()
     } else {
         theme.text_muted().to_egui()

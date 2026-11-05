@@ -1591,12 +1591,17 @@ fn sidebar_row(
         ui.painter().circle_filled(
             egui::pos2(x + d * 0.5, rect.center().y),
             d * 0.5,
-            th.accent_agent().to_egui(),
+            if selected {
+                th.accent_primary_on_active()
+            } else {
+                th.accent_agent()
+            }
+            .to_egui(),
         );
         x += d + th.spacing_sm.value();
     }
     let color = if selected {
-        th.text_primary().to_egui()
+        th.text_on_active().to_egui()
     } else {
         th.text_muted().to_egui()
     };

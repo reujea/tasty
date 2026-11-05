@@ -23,9 +23,9 @@ const CSS = `
   font-size: var(--tasty-kbd-font-size);
   font-weight: var(--tasty-font-weight-medium);
   line-height: var(--tasty-line-height-tight);
-  color: var(--tasty-text-secondary);
+  color: var(--tasty-kbd-fg);
 }
-.tasty-kbd__plus { color: var(--tasty-text-muted); font-size: var(--tasty-font-size-micro); font-family: var(--tasty-font-mono); }
+.tasty-kbd__plus { color: var(--tasty-kbd-plus-fg); font-size: var(--tasty-font-size-micro); font-family: var(--tasty-font-mono); }
 `;
 
 let injected = false;

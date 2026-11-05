@@ -539,7 +539,7 @@ fn role_row(ui: &mut egui::Ui, theme: &Theme, desc: &str, glyph: RoleGlyph) {
                     egui::Label::new(
                         egui::RichText::new(desc)
                             .size(theme.modhint_row_font_size().value())
-                            .color(theme.modhint_row_fg().to_egui()),
+                            .color(theme.modhint_role_text_fg().to_egui()),
                     )
                     .wrap(),
                 );

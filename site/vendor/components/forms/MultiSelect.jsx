@@ -88,12 +88,13 @@ const CSS = `
   transition: background var(--tasty-motion-ui-fast) var(--tasty-ease-ui);
 }
 .tasty-mselect__row:hover { background: var(--tasty-multiselect-row-bg-hover); }
-.tasty-mselect__row[data-active="true"] { background: var(--tasty-multiselect-row-bg-active); }
+.tasty-mselect__row[data-active="true"] { background: var(--tasty-multiselect-row-bg-active); color: var(--tasty-multiselect-row-fg-active); }
 .tasty-mselect__row .tasty-check { flex: 1; min-width: 0; height: 100%; }
 .tasty-mselect__row .tasty-check__label {
   flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   color: var(--tasty-multiselect-row-fg);
 }
+.tasty-mselect__row[data-active="true"] .tasty-check__label { color: var(--tasty-multiselect-row-fg-active); }
 .tasty-mselect__all {
   all: unset; box-sizing: border-box;
   display: flex; align-items: center;

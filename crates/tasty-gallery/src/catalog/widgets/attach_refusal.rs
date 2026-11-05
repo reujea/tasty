@@ -142,7 +142,7 @@ fn row(ui: &mut egui::Ui, theme: &Theme, name: &str, active: bool, marks: RowMar
                     }
                     ui.with_layout(egui::Layout::left_to_right(egui::Align::Center), |ui| {
                         let color = if active {
-                            theme.text_primary()
+                            theme.text_on_active()
                         } else {
                             theme.text_secondary()
                         };

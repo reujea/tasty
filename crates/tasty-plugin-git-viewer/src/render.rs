@@ -360,7 +360,7 @@ fn wt_row(
     let name_color = if !wt.is_valid {
         theme.text_disabled()
     } else if selected {
-        theme.text_primary()
+        theme.text_on_active()
     } else {
         theme.text_secondary()
     };
@@ -414,7 +414,12 @@ fn wt_row(
             Align2::LEFT_CENTER,
             oid,
             mono(theme.font_size_caption.value()),
-            theme.accent_info().to_egui(),
+            if selected {
+                theme.text_on_active()
+            } else {
+                theme.accent_info()
+            }
+            .to_egui(),
         );
     }
 
@@ -565,29 +570,19 @@ fn ch_row(ui: &mut egui::Ui, theme: &Theme, entry: &StatusEntry, selected: bool)
     let p = ui.painter().with_clip_rect(path_clip);
     let cy = rect.center().y;
     let mut x = cui.cursor().left();
+    let (dir_fg, file_fg) = if selected {
+        let ink = theme.text_on_active().to_egui();
+        (ink, ink)
+    } else {
+        (theme.text_muted().to_egui(), theme.text_primary().to_egui())
+    };
     if !dir.is_empty() {
-        let g = p.layout_no_wrap(
-            dir,
-            mono(theme.font_size_term_sm.value()),
-            theme.text_muted().to_egui(),
-        );
-        p.galley(
-            egui::pos2(x, cy - g.rect.height() * 0.5),
-            g.clone(),
-            theme.text_muted().to_egui(),
-        );
+        let g = p.layout_no_wrap(dir, mono(theme.font_size_term_sm.value()), dir_fg);
+        p.galley(egui::pos2(x, cy - g.rect.height() * 0.5), g.clone(), dir_fg);
         x += g.rect.width();
     }
-    let gf = p.layout_no_wrap(
-        file,
-        mono(theme.font_size_term_sm.value()),
-        theme.text_primary().to_egui(),
-    );
-    p.galley(
-        egui::pos2(x, cy - gf.rect.height() * 0.5),
-        gf,
-        theme.text_primary().to_egui(),
-    );
+    let gf = p.layout_no_wrap(file, mono(theme.font_size_term_sm.value()), file_fg);
+    p.galley(egui::pos2(x, cy - gf.rect.height() * 0.5), gf, file_fg);
 
     if selected {
         ui.painter().rect_filled(

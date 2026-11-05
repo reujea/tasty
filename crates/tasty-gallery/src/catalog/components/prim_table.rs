@@ -148,7 +148,11 @@ pub fn draw(ui: &mut egui::Ui, theme: &Theme) {
                                     ui.label(
                                         egui::RichText::new(row.proc)
                                             .size(th.font_size_body.value())
-                                            .color(egui::Color32::from(th.text_primary())),
+                                            .color(tasty_ui_widgets::table_cell_ink(
+                                                ui,
+                                                th,
+                                                th.text_primary(),
+                                            )),
                                     );
                                     tag(ui, th, &row.pid.to_string(), TagVariant::Default, false);
                                 });
@@ -173,7 +177,11 @@ pub fn draw(ui: &mut egui::Ui, theme: &Theme) {
                                     egui::RichText::new(text)
                                         .size(th.font_size_body.value())
                                         .monospace()
-                                        .color(egui::Color32::from(th.text_primary())),
+                                        .color(tasty_ui_widgets::table_cell_ink(
+                                            ui,
+                                            th,
+                                            th.text_primary(),
+                                        )),
                                 );
                             }
                         },

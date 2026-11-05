@@ -190,6 +190,18 @@ pub const SEMANTIC_COLOR_TO_THEME_ACCESSOR: &[(&str, &str)] = &[
     ("semantic.text-secondary", "text_secondary()"),
     ("semantic.text-secondary-raised", "text_secondary_raised()"),
     ("semantic.text-muted-raised", "text_muted_raised()"),
+    ("semantic.surface-on-raised", "surface_on_raised()"),
+    ("semantic.text-on-active", "text_on_active()"),
+    (
+        "semantic.accent-primary-on-active",
+        "accent_primary_on_active()",
+    ),
+    ("semantic.accent-warning-raised", "accent_warning_raised()"),
+    (
+        "semantic.accent-attention-raised",
+        "accent_attention_raised()",
+    ),
+    ("semantic.accent-info-raised", "accent_info_raised()"),
 ];
 
 /// 생성할 semantic 색 접근자: 토큰 경로, 메서드명, 반환할 Theme 필드.
@@ -306,6 +318,30 @@ const SEMANTIC_COLOR_HAND_WRITTEN: &[(&str, &str)] = &[
     (
         "semantic.text-muted-raised",
         "is_light role-remap (Mocha=subtext0 / Latte=text) — 단순 alias 아님",
+    ),
+    (
+        "semantic.surface-on-raised",
+        "is_light role-remap (Mocha=surface-hover / Latte=base) — 단순 alias 아님",
+    ),
+    (
+        "semantic.text-on-active",
+        "Latte neutral-1100 70% + primitive black 합성색",
+    ),
+    (
+        "semantic.accent-primary-on-active",
+        "Latte blue 70% + primitive black 합성색",
+    ),
+    (
+        "semantic.accent-warning-raised",
+        "Latte yellow 50% + primitive black 합성색",
+    ),
+    (
+        "semantic.accent-attention-raised",
+        "Latte peach 55% + primitive black 합성색",
+    ),
+    (
+        "semantic.accent-info-raised",
+        "Latte sky 55% + primitive black 합성색",
     ),
     (
         "semantic.overlay-hover",

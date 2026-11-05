@@ -129,6 +129,7 @@ fn nfd_display_maps_raw_highlights_without_splitting_utf8_or_composed_letters() 
             query,
             egui::FontId::monospace(theme.font_size_caption.value()),
             ink,
+            false,
         );
         assert_eq!(job.text, display, "{raw:?}");
         let mut selected = String::new();
@@ -154,6 +155,7 @@ fn composing_display_does_not_normalize_name_matching() {
         "café",
         egui::FontId::monospace(theme.font_size_caption.value()),
         theme.text_primary().to_egui(),
+        false,
     );
     assert_eq!(job.text, "café.rs");
     assert!(

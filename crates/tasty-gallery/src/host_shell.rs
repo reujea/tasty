@@ -186,7 +186,7 @@ fn header_ui(ui: &mut egui::Ui, state: &mut GalleryState) {
         border,
         surf_raised,
         surf_active,
-        primary,
+        on_active: egui::Color32::from(state.theme.text_on_active()),
         muted,
         radius: state.theme.corner_radius.value(),
         border_w: state.theme.border_width.value(),
@@ -341,10 +341,10 @@ fn decode_brand_logo() -> egui::ColorImage {
 
 /// 페이지 목록과 현재 페이지의 구역 앵커를 표시한다.
 fn nav_ui(ui: &mut egui::Ui, state: &mut GalleryState) {
-    let (primary, muted, secondary, surf_active, separator) = {
+    let (on_active, muted, secondary, surf_active, separator) = {
         let t = &state.theme;
         (
-            egui::Color32::from(t.text_primary()),
+            egui::Color32::from(t.text_on_active()),
             egui::Color32::from(t.text_muted()),
             egui::Color32::from(t.text_secondary()),
             egui::Color32::from(t.surface_active()),
@@ -386,7 +386,7 @@ fn nav_ui(ui: &mut egui::Ui, state: &mut GalleryState) {
                 if nav_link(
                     ui,
                     NavLinkStyle {
-                        primary,
+                        on_active,
                         muted,
                         surf_active,
                         radius: radius_sm,
@@ -546,7 +546,7 @@ fn nav_heading(ui: &mut egui::Ui, text: &str, size: f32, color: egui::Color32) {
 
 #[derive(Clone, Copy)]
 struct NavLinkStyle {
-    primary: egui::Color32,
+    on_active: egui::Color32,
     muted: egui::Color32,
     surf_active: egui::Color32,
     radius: f32,
@@ -558,7 +558,7 @@ struct NavLinkStyle {
 
 /// nav Catalog 링크 한 줄 — 좌 lbl + 우 desc, 활성 시 surface-active 배경.
 fn nav_link(ui: &mut egui::Ui, s: NavLinkStyle, lbl: &str, desc: &str, active: bool) -> bool {
-    let fg = if active { s.primary } else { s.muted };
+    let fg = if active { s.on_active } else { s.muted };
     let bg = if active {
         s.surf_active
     } else {
@@ -588,7 +588,7 @@ struct SegStyle {
     border: egui::Color32,
     surf_raised: egui::Color32,
     surf_active: egui::Color32,
-    primary: egui::Color32,
+    on_active: egui::Color32,
     muted: egui::Color32,
     radius: f32,
     border_w: f32,
@@ -636,7 +636,7 @@ fn seg(ui: &mut egui::Ui, s: &SegStyle, items: &[(&str, bool)]) -> Option<usize>
                             egui::Stroke::new(s.border_w, s.border),
                         );
                     }
-                    let fg = if *active { s.primary } else { s.muted };
+                    let fg = if *active { s.on_active } else { s.muted };
                     let bg = if *active {
                         s.surf_active
                     } else {

@@ -159,12 +159,13 @@ pub fn ports_process_cell(
         ui.spacing_mut().item_spacing.x = gap;
         let tag_reserve = pid.map_or(0.0, |p| tag_width(ui, theme, p) + gap);
         let name_max = (ui.available_width() - tag_reserve).max(0.0);
+        let name_fg = crate::table_cell_ink(ui, theme, theme.text_primary());
         ui.scope(|ui| {
             ui.set_max_width(name_max);
             ui.add(
                 egui::Label::new(
                     egui::RichText::new(name)
-                        .color(theme.text_primary().to_egui())
+                        .color(name_fg)
                         .size(theme.font_size_body.value()),
                 )
                 .truncate(),

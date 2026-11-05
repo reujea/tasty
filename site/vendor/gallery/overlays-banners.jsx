@@ -91,7 +91,7 @@ function AttachSizeSyncBannerG({ names = ["build"], retrying = false, narrow }) 
 function RefusalRowG({ name, active, refused, move, ni, done }) {
   return (
     <div title={refused ? "Remote not attached — 127.0.0.1:7420 points at this Tasty." : undefined} style={{ display: "flex", alignItems: "center", gap: "var(--tasty-space-sm)", height: "var(--tasty-size-28)", padding: "0 var(--tasty-space-sm)", borderRadius: "var(--tasty-radius-sm)",
-      background: active ? "var(--tasty-surface-active)" : "transparent", color: active ? "var(--tasty-text-primary)" : "var(--tasty-text-secondary)", fontSize: "var(--tasty-font-size-body)" }}>
+      background: active ? "var(--tasty-surface-active)" : "transparent", color: active ? "var(--tasty-text-on-active)" : "var(--tasty-text-secondary)", fontSize: "var(--tasty-font-size-body)" }}>
       <span style={{ width: "var(--tasty-status-dot-size)", height: "var(--tasty-status-dot-size)", borderRadius: "var(--tasty-radius-pill)", background: "var(--tasty-status-idle)", flex: "none" }} />
       <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{name}</span>
       {move && <span aria-label="Move source inside" style={{ display: "inline-flex", flex: "none", color: "var(--tasty-move-source-glyph)" }}><BIcon name="move" size="var(--tasty-move-source-glyph-size)" /></span>}
@@ -200,6 +200,66 @@ function BodyInkGrid({ label, theme }) {
   );
 }
 
+function RemainingInkGrid({ label, theme }) {
+  const { HtmlSizeBanner } = window.TastyKit;
+  const rows = [
+    ["TTL countdown", <TtlBannerG ttl={10} glyph={<BIcon name="alertTriangle" size="var(--tasty-icon-size-md)" />} glyphColor="var(--tasty-accent-warning)" title="Shell integration not detected" />],
+    ["⋯ menu · program name unknown · reason line", <BannerMoreMenuG app={null} />],
+    ["large file · ghost Decline", <HtmlSizeBanner />],
+    ["cumulative limit · ghost Stop", <HtmlSizeBanner kind="limit" />],
+    ["long title · wraps, no clamp", <HtmlSizeBanner title="Long title sample: a longer translation or a future string wraps to as many lines as it needs and is never cut off, whether it runs to two lines, to three, or to more than that at this card width" />],
+    ["sample title ink", <TtlBannerG />],
+  ];
+  return (
+    <div data-theme={theme} style={{ flex: "1 1 var(--tasty-size-440)", minWidth: 0, display: "flex", flexDirection: "column", gap: "var(--tasty-space-sm)", padding: "var(--tasty-space-md)", background: "var(--tasty-bg-app)", border: "var(--tasty-border-width) solid var(--tasty-border-frame)", borderRadius: "var(--tasty-radius)" }}>
+      <span style={{ fontSize: "var(--tasty-font-size-body)", fontWeight: "var(--tasty-font-weight-semibold)", color: "var(--tasty-text-primary)" }}>{label}</span>
+      {rows.map(([cap, el]) => (
+        <div key={cap} style={{ display: "flex", flexDirection: "column", gap: "var(--tasty-space-xs)" }}>
+          <span style={{ fontSize: "var(--tasty-font-size-caption)", color: "var(--tasty-text-muted)" }}>{cap}</span>
+          {el}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// Ink over its composited ground, token by token. Tag and Kbd rows are swatches because their live specimens come from
+// components/bundle.js; the size notice beside them is live and reads the banner button token directly.
+const CLOSED_INK = [
+  ["Banner Secondary", "banner-button-bg", null, "text-primary", "Allow", "6.31", "7.06"],
+  ["Kbd", "kbd-bg", null, "kbd-fg", "Ctrl", "7.10", "5.17"],
+  ["Kbd +", "surface-raised", null, "kbd-plus-fg", "+", "5.65", "5.17"],
+  ["Tag default", "tag-bg", null, "tag-fg", "terminal", "7.10", "5.17"],
+  ["Tag success", "tag-bg", null, "tag-success-fg", "running", "8.46", "4.91"],
+  ["Tag warning", "tag-bg", null, "tag-warning-fg", "3.2 MB", "9.89", "5.25"],
+  ["Tag attention", "tag-bg", null, "tag-attention-fg", "attention", "7.10", "5.12"],
+  ["Tag danger", "tag-bg", null, "tag-danger-fg", "danger", "5.43", "4.79"],
+  ["Tag info", "tag-bg", null, "tag-info-fg", "built-in", "8.08", "4.87"],
+  ["Menu row, hover", "surface-raised", "overlay-hover", "menu-item-fg-hover", "Don't ask for this app", "6.78", "6.36"],
+  ["Ghost on raised, hover", "surface-raised", "overlay-hover", "button-ghost-raised-fg-hover", "Decline", "6.78", "6.36"],
+  ["Selected row", "surface-active", null, "text-on-active", "report.html", "4.62", "5.39"],
+  ["Selected row, hover", "surface-active", "overlay-hover", "text-on-active", "report.html", "3.79", "4.57"],
+  ["Accent glyph on selected row", "surface-active", null, "accent-primary-on-active", "✓", "3.17", "3.83"],
+  ["Secondary on raised, pressed (3:1 floor)", "surface-raised", "overlay-active", "text-primary", "Add", "5.97", "3.98"],
+];
+function ClosedInkTable({ label, theme }) {
+  const col = theme === "latte" ? 6 : 5;
+  return (
+    <div data-theme={theme} style={{ flex: "1 1 var(--tasty-size-440)", minWidth: 0, display: "flex", flexDirection: "column", gap: "var(--tasty-space-xs)", padding: "var(--tasty-space-md)", background: "var(--tasty-bg-app)", border: "var(--tasty-border-width) solid var(--tasty-border-default)", borderRadius: "var(--tasty-radius)" }}>
+      <span style={{ fontSize: "var(--tasty-font-size-body)", fontWeight: "var(--tasty-font-weight-semibold)", color: "var(--tasty-text-primary)" }}>{label}</span>
+      {CLOSED_INK.map((r) => (
+        <div key={r[0]} data-ink-row={r[0]} style={{ display: "flex", alignItems: "center", gap: "var(--tasty-space-sm)", minWidth: 0 }}>
+          <span style={{ flex: 1, minWidth: 0, fontSize: "var(--tasty-font-size-caption)", color: "var(--tasty-text-primary)" }}>{r[0]}</span>
+          <span data-ink-sample="" style={{ flex: "none", padding: "var(--tasty-space-xs) var(--tasty-space-sm)", borderRadius: "var(--tasty-radius-sm)", fontSize: "var(--tasty-font-size-caption)", whiteSpace: "nowrap",
+            color: "var(--tasty-" + r[3] + ")", backgroundColor: "var(--tasty-" + r[1] + ")",
+            backgroundImage: r[2] ? "linear-gradient(var(--tasty-" + r[2] + "), var(--tasty-" + r[2] + "))" : "none" }}>{r[4]}</span>
+          <span style={{ flex: "none", width: "var(--tasty-size-32)", textAlign: "right", fontFamily: "var(--tasty-font-mono)", fontSize: "var(--tasty-font-size-caption)", color: "var(--tasty-text-primary)" }}>{r[col]}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function Page() {
   return (
     <>
@@ -228,7 +288,7 @@ function Page() {
             <div style={{ width: "100%", maxWidth: 480 }}>
               <div style={{ fontSize: 11, color: "var(--tasty-text-muted)", marginBottom: 8 }}>has an action → no TTL · hover the banner to reveal ×</div>
               <BannerShellG><div style={{ display: "flex", alignItems: "center", gap: 12, padding: "var(--tasty-banner-padding-y) var(--tasty-banner-padding-x)" }}>
-                <span style={{ flex: 1, fontSize: 13, color: "var(--tasty-text-secondary)" }}>Stays until the action or × (× on hover, top-right)</span>
+                <span style={{ flex: 1, fontSize: 13, color: "var(--tasty-banner-fg)" }}>Stays until the action or × (× on hover, top-right)</span>
                 <BButton variant="secondary" size="sm" style={{ background: "var(--tasty-banner-button-bg)", borderColor: "var(--tasty-banner-button-border)" }}>Retry</BButton>
                 <IconButton size="sm" aria-label="Dismiss">{ic.x}</IconButton></div></BannerShellG>
             </div>
@@ -404,8 +464,8 @@ function Page() {
             ))}
           </Stage>
           <Meta
-            specs={[["unknown when", "remote mirror · before first poll · lookup failed"], ["⋯ trigger", "always drawn — same as known name"], ["body reserve", "56 (unchanged)"], ["reason line", <>info glyph 14 (top <span className="tok">--tasty-banner-more-reason-glyph-offset</span> 1) · caption · <span className="tok">--tasty-text-muted</span> · wraps · not focusable, no hover</>], ["rows", <>MenuItem <b>disabled</b> as is (pointer-events none, text + icon <span className="tok">--tasty-state-disabled-fg</span>, no overlay) · <b>wrap</b> on</>], ["tooltip", "none — the reason is in the menu, so pointer-events none costs nothing"], ["click", "no-op · menu stays open · nothing saved"], ["keyboard", "arrows skip disabled rows"], ["live update", "no — next open"], ["lifetime", "has ⋯ → no TTL (normal rule, no exception)"], ["keys", <>[popup.mouse_capture_banner_menu] <code>unknown_reason</code> · <code>notice_unknown</code> · <code>capture_unknown</code> (whole strings, no prefix/suffix)</>]]}
-            tokens={[{ tok: "--tasty-banner-more-reserve", use: "56 — always" }, { tok: "--tasty-state-disabled-fg", use: "disabled rows", color: "var(--tasty-state-disabled-fg)" }, { tok: "--tasty-text-muted", use: "reason line", color: "var(--tasty-text-muted)" }, { tok: "--tasty-font-size-caption", use: "reason line 11" }, { tok: "--tasty-banner-more-reason-glyph-offset", use: "reason glyph top 1" }, { tok: "--tasty-menu-separator", use: "reason ↔ rows" }]} />
+            specs={[["unknown when", "remote mirror · before first poll · lookup failed"], ["⋯ trigger", "always drawn — same as known name"], ["body reserve", "56 (unchanged)"], ["reason line", <>info glyph 14 (top <span className="tok">--tasty-banner-more-reason-glyph-offset</span> 1) · caption · <span className="tok">--tasty-banner-more-reason-fg</span> · wraps · not focusable, no hover</>], ["rows", <>MenuItem <b>disabled</b> as is (pointer-events none, text + icon <span className="tok">--tasty-state-disabled-fg</span>, no overlay) · <b>wrap</b> on</>], ["tooltip", "none — the reason is in the menu, so pointer-events none costs nothing"], ["click", "no-op · menu stays open · nothing saved"], ["keyboard", "arrows skip disabled rows"], ["live update", "no — next open"], ["lifetime", "has ⋯ → no TTL (normal rule, no exception)"], ["keys", <>[popup.mouse_capture_banner_menu] <code>unknown_reason</code> · <code>notice_unknown</code> · <code>capture_unknown</code> (whole strings, no prefix/suffix)</>]]}
+            tokens={[{ tok: "--tasty-banner-more-reserve", use: "56 — always" }, { tok: "--tasty-state-disabled-fg", use: "disabled rows", color: "var(--tasty-state-disabled-fg)" }, { tok: "--tasty-banner-more-reason-fg", use: "reason line", color: "var(--tasty-banner-more-reason-fg)" }, { tok: "--tasty-font-size-caption", use: "reason line 11" }, { tok: "--tasty-banner-more-reason-glyph-offset", use: "reason glyph top 1" }, { tok: "--tasty-menu-separator", use: "reason ↔ rows" }]} />
           <Do><b>Do</b> keep the rows the user would see with a known name, disabled, so the menu teaches what exists; the reason line says why it can't run now, without a hover.</Do>
           <Dont><b>Don't</b> hide the ⋯ or the rows when the name is unknown (2026-11-02 option a, withdrawn). <b>Don't</b> carry the reason in a tooltip on a disabled row — pointer-events none on the row blocks it, and a tooltip is invisible to anyone who doesn't hover.</Dont>
         </Spec>
@@ -481,8 +541,8 @@ function Page() {
             ))}
           </Stage>
           <Meta
-            specs={[["where", "Secondary inside any banner shell"], ["fill", "surface-hover (one step above banner-bg)"], ["edge", "border-frame (one step above banner-border)"], ["hover", "overlay-hover · edge unchanged"], ["variant", "none new — context rule in Button"]]}
-            tokens={[{ tok: "--tasty-banner-button-bg", use: "→ surface-hover", color: "var(--tasty-banner-button-bg)" }, { tok: "--tasty-banner-button-border", use: "→ border-frame", color: "var(--tasty-banner-button-border)" }, { tok: "--tasty-banner-bg", use: "shell", color: "var(--tasty-banner-bg)" }]} />
+            specs={[["where", "Secondary inside any banner shell"], ["fill", "surface-on-raised: Mocha one step above banner-bg (n400), Latte n200 (2026-11-05)"], ["edge", "border-frame (one step above banner-border)"], ["hover", "overlay-hover · edge unchanged"], ["variant", "none new — context rule in Button"]]}
+            tokens={[{ tok: "--tasty-banner-button-bg", use: "→ surface-on-raised", color: "var(--tasty-banner-button-bg)" }, { tok: "--tasty-banner-button-border", use: "→ border-frame", color: "var(--tasty-banner-button-border)" }, { tok: "--tasty-banner-bg", use: "shell", color: "var(--tasty-banner-bg)" }]} />
         </Spec>
         <Spec title="Load failed — no banner, no marker (2026-10-06)"
           when={<>When the document never commits (the web process dies first, or the load errors), the host chrome's <b>Failed to load</b> state takes the body. The script banner and the tab's lock / script marker are <b>both removed</b> in that state: they describe the previous document, and Allow would allow nothing. Only the failure state shows. A reload that commits decides banner and marker again from the new document. Same on every OS; only Linux is measured today.</>}>
@@ -640,7 +700,7 @@ function Page() {
           </Stage>
           <Note><b>2026-11-01:</b> the remote-content notice joins the same stack between the two — <b>size → remote content → script</b>. See <a href="#htmlremote">HTML remote content notice</a>.</Note>
           <Meta
-            specs={[["shell", "script-notice inset shell · no ×"], ["large file", "download (info) · title · path left-ellipsis + size Tag warning [+N more waiting] · Decline / Allow"], ["limit", "alertTriangle (warning) · total received · limit sentence · Stop / Continue"], ["order", "size notice above script notice"], ["narrow", "banner-narrow-below 440 → actions wrap"]]}
+            specs={[["shell", "script-notice inset shell · no ×"], ["title", "13/600 · wraps, never clamps"], ["large file", "download (info) · title · path left-ellipsis + size Tag warning [+N more waiting] · Decline / Allow"], ["limit", "alertTriangle (warning) · total received · limit sentence · Stop / Continue"], ["order", "size notice above script notice"], ["narrow", "banner-narrow-below 440 → actions wrap"]]}
             tokens={[{ tok: "--tasty-html-size-banner-glyph", use: "→ accent-info", color: "var(--tasty-html-size-banner-glyph)" }, { tok: "--tasty-html-limit-banner-glyph", use: "→ accent-warning", color: "var(--tasty-html-limit-banner-glyph)" }]} />
         </Spec>
       </Section>
@@ -707,9 +767,30 @@ function Page() {
             <BodyInkGrid label="Latte" theme="latte" />
           </Stage>
           <Meta
-            specs={[["body", "banner-body-fg → text-muted-raised · Mocha n900 5.65 (unchanged) · Latte n1100 5.17 (was 3.65)"], ["reloading status", "same token · Spinner + label in the action slot"], ["reloading, dimmed", "× opacity-dimmed 0.75 · body Mocha 3.89 · Latte 3.20 · title Mocha 5.65 · Latte 3.20 — not judged against 4.5"], ["sync name", "text-secondary-raised · Mocha n1000 7.10 · Latte n1100 5.17 (was 4.05)"], ["hierarchy", "title 13/600 · body 11/400 — in Latte both use n1100, so size and weight carry the order"], ["unchanged here", "countdown and ⋯ menu reason line keep text-muted"]]}
+            specs={[["body", "banner-body-fg → text-muted-raised · Mocha n900 5.65 (unchanged) · Latte n1100 5.17 (was 3.65)"], ["reloading status", "same token · Spinner + label in the action slot"], ["reloading, dimmed", "× opacity-dimmed 0.75 · body Mocha 3.89 · Latte 3.20 · title Mocha 5.65 · Latte 3.20 — not judged against 4.5"], ["sync name", "text-secondary-raised · Mocha n1000 7.10 · Latte n1100 5.17 (was 4.05)"], ["hierarchy", "title 13/600 · body 11/400 — in Latte both use n1100, so size and weight carry the order"], ["countdown, reason line", "same role, next spec"]]}
             tokens={[{ tok: "--tasty-banner-body-fg", use: "new · → text-muted-raised", color: "var(--tasty-banner-body-fg)" }, { tok: "--tasty-text-muted-raised", use: "new · Mocha n900 · Latte n1100", color: "var(--tasty-text-muted-raised)" }, { tok: "--tasty-text-secondary-raised", use: "sync name", color: "var(--tasty-text-secondary-raised)" }, { tok: "--tasty-banner-bg", use: "ground · unchanged", color: "var(--tasty-banner-bg)" }]} />
           <Dont><b>Don't</b> darken <code>banner-bg</code> or swap it for bg-panel to gain contrast. Banners float over panels; the fill and the banner buttons are tuned for surface-raised.</Dont>
+        </Spec>
+        <Spec title="Countdown, reason line, ghost buttons, sample titles"
+          when={<>The rest of the ink that sits on surface-raised. Every item moves to an existing <code>-raised</code> role; the only new token is the one component part the reason line never had. The size notice title now wraps like every other banner.</>}>
+          <Stage variant="solo" style={{ padding: "var(--tasty-space-lg)", background: "var(--tasty-bg-app)", gap: "var(--tasty-space-lg)", flexWrap: "wrap", alignItems: "flex-start" }}>
+            <RemainingInkGrid label="Mocha" theme="mocha" />
+            <RemainingInkGrid label="Latte" theme="latte" />
+          </Stage>
+          <Meta
+            specs={[["countdown", "banner-countdown-fg → text-muted-raised · Mocha n900 5.65 (unchanged) · Latte n1100 5.17 (was 3.65)"], ["reason line + glyph", "banner-more-reason-fg (new) → text-muted-raised · Mocha 5.65 (unchanged) · Latte 5.17 (was 3.65)"], ["Decline · Stop · other ghost on a banner", "Button ground=raised → button-ghost-raised-fg → text-secondary-raised · Mocha n1000 7.10 (unchanged) · Latte n1100 5.17 (was 4.05)"], ["sample titles", "banner-fg → text-primary · Mocha 8.69 · Latte 5.17 (was text-secondary 4.05)"], ["size notice title", "13/600 · wraps, never clamps (was ≤ 2 lines in the sample)"], ["hierarchy", "in Latte title, body and countdown all use n1100, so size, weight and the mono face carry the order"], ["not changed", "Allow / Continue on banner-button-bg (Latte 4.39) · Kbd on a banner (Latte 4.05) · size Tag warning (Latte 1.70) · ghost hover overlay (Latte 4.35) — open questions"]]}
+            tokens={[{ tok: "--tasty-banner-countdown-fg", use: "→ text-muted-raised", color: "var(--tasty-banner-countdown-fg)" }, { tok: "--tasty-banner-more-reason-fg", use: "new · → text-muted-raised", color: "var(--tasty-banner-more-reason-fg)" }, { tok: "--tasty-button-ghost-raised-fg", use: "existing · Decline, Stop", color: "var(--tasty-button-ghost-raised-fg)" }, { tok: "--tasty-banner-fg", use: "sample titles", color: "var(--tasty-banner-fg)" }]} />
+        </Spec>
+        <Spec title="Secondary, Kbd, Tag and state ink (2026-11-05)"
+          when={<>The last pairs below 4.5:1, and the rule for states. A selected or keyboard-active row draws every ink in <code>text-on-active</code>. Hover and pressed stay transient with a 3:1 floor, except rows people read while hovering. <code>README.md</code> holds the rule.</>}>
+          <Stage variant="solo" style={{ padding: "var(--tasty-space-lg)", background: "var(--tasty-bg-app)", gap: "var(--tasty-space-lg)", flexWrap: "wrap", alignItems: "flex-start" }}>
+            <ClosedInkTable label="Mocha" theme="mocha" />
+            <ClosedInkTable label="Latte" theme="latte" />
+          </Stage>
+          <Meta
+            specs={[["banner Secondary", "banner-button-bg → surface-on-raised · Latte n200, lighter than the shell"], ["Kbd", "kbd-fg → text-secondary-raised · switch-overlay-fg follows"], ["Tag", "tag-<variant>-fg · the accent stays on the edge"], ["selected row", "every ink → text-on-active"], ["accent glyph on it", "accent-primary-on-active"], ["hover, pressed", "3:1 floor · menu row and ghost on raised hold 4.5"]]}
+            tokens={[{ tok: "--tasty-surface-on-raised", use: "new · Mocha n400 · Latte n200", color: "var(--tasty-surface-on-raised)" }, { tok: "--tasty-text-on-active", use: "new · Mocha n1100 · Latte #35374a", color: "var(--tasty-text-on-active)" }, { tok: "--tasty-accent-primary-on-active", use: "new · Mocha blue · Latte #1547ac", color: "var(--tasty-accent-primary-on-active)" }, { tok: "--tasty-tag-warning-fg", use: "new · → accent-warning-raised", color: "var(--tasty-tag-warning-fg)" }, { tok: "--tasty-kbd-fg", use: "→ text-secondary-raised", color: "var(--tasty-kbd-fg)" }]} />
+          <Note>The Tag and Kbd specimens on the live pages keep their old ink until <code>components/bundle.js</code> is rebuilt from <code>components/core/</code>. The swatches above read the new tokens. The app reads the tokens, so it does not wait for that rebuild.</Note>
         </Spec>
       </Section>
     </>

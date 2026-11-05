@@ -36,7 +36,7 @@ export function NotificationItem({
     return () => ro.disconnect();
   }, [body, expanded, wide]);
   const bg = selected ? "var(--tasty-notification-item-bg-selected)" : hover ? "var(--tasty-notification-item-bg-hover)" : "transparent";
-  const meta = { fontFamily: "var(--tasty-font-mono)", fontSize: "var(--tasty-font-size-micro)", color: "var(--tasty-notification-item-meta-fg)", whiteSpace: "nowrap", flex: "none" };
+  const meta = { fontFamily: "var(--tasty-font-mono)", fontSize: "var(--tasty-font-size-micro)", color: selected ? "var(--tasty-notification-item-fg-selected)" : "var(--tasty-notification-item-meta-fg)", whiteSpace: "nowrap", flex: "none" };
   const stop = (fn) => (e) => { e.stopPropagation(); fn && fn(e); };
   return (
     <div role="listitem" aria-label={(unread ? "Unread " : "") + L.one + ": " + (title || "")} aria-expanded={expanded} {...rest}
@@ -44,7 +44,7 @@ export function NotificationItem({
       style={{ display: "flex", gap: "var(--tasty-notification-item-glyph-gap)", padding: "var(--tasty-notification-item-pad-y) var(--tasty-notification-item-pad-x)",
         background: bg, cursor: "pointer", borderBottom: "var(--tasty-border-width) solid var(--tasty-notification-item-separator)", minWidth: 0, ...style }}>
       <span title={L.one} style={{ flex: "none", display: "inline-flex", alignItems: "center", height: "calc(var(--tasty-font-size-body) * var(--tasty-line-height-ui))",
-        color: "var(--tasty-notification-item-" + level + "-glyph)" }}>
+        color: selected ? "var(--tasty-notification-item-fg-selected)" : "var(--tasty-notification-item-" + level + "-glyph)" }}>
         <Icon name={L.glyph} size="var(--tasty-notification-item-glyph-size)" aria-hidden="true" />
       </span>
       <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: "var(--tasty-notification-item-line-gap)" }}>
@@ -52,14 +52,14 @@ export function NotificationItem({
           <span title={title} style={{ flex: 1, minWidth: 0, overflow: expanded ? "visible" : "hidden", textOverflow: "ellipsis", whiteSpace: expanded ? "normal" : "nowrap",
             fontSize: "var(--tasty-font-size-body)", lineHeight: "var(--tasty-line-height-ui)",
             fontWeight: unread ? "var(--tasty-notification-item-title-weight)" : "var(--tasty-font-weight-normal)",
-            color: unread ? "var(--tasty-notification-item-title-fg)" : "var(--tasty-notification-item-title-fg-read)" }}>{title}</span>
+            color: selected ? "var(--tasty-notification-item-fg-selected)" : unread ? "var(--tasty-notification-item-title-fg)" : "var(--tasty-notification-item-title-fg-read)" }}>{title}</span>
           {time && <span style={meta}>{time}</span>}
           <span aria-hidden="true" style={{ flex: "none", width: "var(--tasty-notification-item-unread-dot-size)", height: "var(--tasty-notification-item-unread-dot-size)",
-            borderRadius: "var(--tasty-radius-pill)", background: unread ? "var(--tasty-notification-item-unread-dot)" : "transparent" }} />
+            borderRadius: "var(--tasty-radius-pill)", background: !unread ? "transparent" : selected ? "var(--tasty-notification-item-unread-dot-selected)" : "var(--tasty-notification-item-unread-dot)" }} />
         </div>
         {body && (
           <div ref={bodyRef} style={{ fontSize: "var(--tasty-font-size-caption)", lineHeight: "var(--tasty-line-height-ui)", textWrap: "pretty",
-            color: unread ? "var(--tasty-notification-item-body-fg)" : "var(--tasty-notification-item-body-fg-read)",
+            color: selected ? "var(--tasty-notification-item-fg-selected)" : unread ? "var(--tasty-notification-item-body-fg)" : "var(--tasty-notification-item-body-fg-read)",
             whiteSpace: expanded ? "pre-wrap" : "normal", wordBreak: "break-word", userSelect: expanded ? "text" : "none",
             ...(expanded ? {} : { display: "-webkit-box", WebkitLineClamp: lines, WebkitBoxOrient: "vertical", overflow: "hidden" }) }}>{body}</div>
         )}
@@ -67,16 +67,16 @@ export function NotificationItem({
           <span style={{ alignSelf: "flex-start", display: "flex" }}>
             <button type="button" onClick={stop(onToggle)} aria-expanded={expanded}
               style={{ appearance: "none", border: 0, background: "transparent", padding: 0, cursor: "pointer", font: "inherit",
-                fontSize: "var(--tasty-font-size-caption)", color: "var(--tasty-notification-item-more-fg)" }}>{expanded ? "Less" : "More"}</button>
+                fontSize: "var(--tasty-font-size-caption)", color: selected ? "var(--tasty-notification-item-fg-selected)" : "var(--tasty-notification-item-more-fg)" }}>{expanded ? "Less" : "More"}</button>
           </span>
         )}
         <div style={{ display: "flex", alignItems: "center", gap: "var(--tasty-space-xs)", minWidth: 0, minHeight: "var(--tasty-icon-button-size-sm)" }}>
           <span title={source} style={{ ...meta, flex: "0 1 auto", minWidth: 0, overflow: "hidden", textOverflow: "ellipsis" }}>{source}</span>
-          {sourceClosed && <span style={{ ...meta, color: "var(--tasty-notification-item-closed-fg)" }}>· closed</span>}
+          {sourceClosed && <span style={{ ...meta, color: selected ? "var(--tasty-notification-item-fg-selected)" : "var(--tasty-notification-item-closed-fg)" }}>· closed</span>}
           <span style={{ flex: 1 }} />
-          {unread && <span onClick={(e) => e.stopPropagation()} style={{ display: "flex" }}><IconButton size="sm" aria-label="Mark as read" title="Mark as read" onClick={onMarkRead}><Icon name="check" /></IconButton></span>}
+          {unread && <span onClick={(e) => e.stopPropagation()} style={{ display: "flex" }}><IconButton size="sm" aria-label="Mark as read" title="Mark as read" onClick={onMarkRead} style={selected ? { color: "var(--tasty-notification-item-fg-selected)" } : undefined}><Icon name="check" /></IconButton></span>}
           <span onClick={(e) => e.stopPropagation()} title={sourceClosed ? "Source closed" : undefined} style={{ display: "flex" }}>
-            <Button variant="ghost" size="sm" disabled={sourceClosed} onClick={onJump}>Jump</Button>
+            <Button variant="ghost" size="sm" ground={selected ? "active" : "panel"} disabled={sourceClosed} onClick={onJump}>Jump</Button>
           </span>
         </div>
       </div>

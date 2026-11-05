@@ -82,8 +82,11 @@ pub fn status_dot(
             rect.left() + dot + gap,
             rect.center().y - galley.rect.height() * 0.5,
         );
-        ui.painter()
-            .galley(pos, galley, theme.text_secondary().to_egui());
+        ui.painter().galley(
+            pos,
+            galley,
+            crate::table_cell_ink(ui, theme, theme.text_secondary()),
+        );
     }
     resp
 }

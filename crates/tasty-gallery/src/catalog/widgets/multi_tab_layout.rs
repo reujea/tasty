@@ -51,7 +51,7 @@ fn window(ui: &mut egui::Ui, theme: &Theme) {
             name,
             font.clone(),
             egui::Color32::from(if *active {
-                theme.text_primary()
+                theme.text_on_active()
             } else {
                 theme.text_secondary()
             }),

@@ -7,16 +7,16 @@ use tasty_type_geometry::length::LogicalPx;
 /// Tag variant (디자인 `core/Tag`).
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum TagVariant {
-    /// 외곽선 chip (기본) — surface-raised + border-default + text-secondary.
+    /// 외곽선 chip (기본) — tag-bg + tag-border + tag-fg.
     Default,
     Accent,
     Agent,
-    /// 투명 배경의 정보 태그. git-viewer에서 사용한다.
+    /// 정보 태그. git-viewer에서 사용한다.
     Info,
     Success,
     Warning,
     Danger,
-    /// 원격 미러 워크스페이스용 채운 태그. 투명 배경의 Info와 구분한다.
+    /// 원격 미러 워크스페이스용 태그. 디자인 Tag에 대응 variant가 없어 accent-remote 틴트로 칠한다.
     Remote,
 }
 
@@ -205,14 +205,14 @@ fn tag_colors(theme: &Theme, variant: TagVariant) -> TagColors {
             theme.text_on_accent().to_egui(),
         ),
         TagVariant::Info => (
-            egui::Color32::TRANSPARENT,
+            theme.tag_bg().to_egui(),
             Some(
                 theme
                     .accent_info()
                     .to_egui()
                     .gamma_multiply(TAG_BORDER_OPACITY),
             ),
-            theme.accent_info().to_egui(),
+            theme.tag_info_fg().to_egui(),
         ),
         TagVariant::Remote => (
             theme
@@ -228,34 +228,34 @@ fn tag_colors(theme: &Theme, variant: TagVariant) -> TagColors {
             theme.accent_remote().to_egui(),
         ),
         TagVariant::Success => (
-            egui::Color32::TRANSPARENT,
+            theme.tag_bg().to_egui(),
             Some(
                 theme
                     .accent_success()
                     .to_egui()
                     .gamma_multiply(TAG_BORDER_OPACITY),
             ),
-            theme.accent_success().to_egui(),
+            theme.tag_success_fg().to_egui(),
         ),
         TagVariant::Warning => (
-            egui::Color32::TRANSPARENT,
+            theme.tag_bg().to_egui(),
             Some(
                 theme
                     .accent_warning()
                     .to_egui()
                     .gamma_multiply(TAG_BORDER_OPACITY),
             ),
-            theme.accent_warning().to_egui(),
+            theme.tag_warning_fg().to_egui(),
         ),
         TagVariant::Danger => (
-            egui::Color32::TRANSPARENT,
+            theme.tag_bg().to_egui(),
             Some(
                 theme
                     .accent_danger()
                     .to_egui()
                     .gamma_multiply(TAG_BORDER_OPACITY),
             ),
-            theme.accent_danger().to_egui(),
+            theme.tag_danger_fg().to_egui(),
         ),
     }
 }
@@ -352,8 +352,8 @@ fn badge_colors(theme: &Theme, variant: BadgeVariant) -> (egui::Color32, egui::C
             theme.text_on_accent().to_egui(),
         ),
         BadgeVariant::Neutral => (
-            theme.surface_active().to_egui(),
-            theme.text_primary().to_egui(),
+            theme.badge_neutral_bg().to_egui(),
+            theme.badge_neutral_fg().to_egui(),
         ),
     }
 }
@@ -561,7 +561,7 @@ pub fn kbd_parts(ui: &mut egui::Ui, theme: &Theme, keys: &[KbdKey<'_>]) {
     let border = theme.kbd_border().to_egui();
     let fill = theme.kbd_bg().to_egui();
     let fg = theme.kbd_fg().to_egui();
-    let plus = theme.text_muted().to_egui(); // 키캡 사이 "+" — muted 텍스트 역할.
+    let plus = theme.kbd_plus_fg().to_egui();
     let micro = theme.kbd_font_size().value();
     let icon_glyph = theme.icon_glyph_size_sm.value();
     let gap = theme.kbd_gap().value();
@@ -612,18 +612,19 @@ pub fn kbd_parts_at(
     right_x: f32,
     center_y: f32,
 ) -> LogicalPx {
-    kbd_parts_at_ink(ui, theme, keys, right_x, center_y, None)
+    kbd_parts_at_ink(ui, theme, keys, right_x, center_y, None, None)
 }
 
-/// `kbd_parts_at`과 같지만 `ink`가 있으면 키 글자·글리프와 `+`를 그 색으로 그린다.
-/// disabled 메뉴 항목이 키캡 상자는 두고 글자만 disabled ink로 바꿀 때 쓴다.
+/// `kbd_parts_at`과 같지만 `key_ink`가 있으면 키 글자·글리프를, `plus_ink`가 있으면 `+`를 그 색으로 그린다.
+/// disabled 메뉴 항목은 둘 다 disabled ink로 바꾼다. 키보드 활성 행은 행 채움 위에 놓이는 `+`만 바꾼다.
 pub(crate) fn kbd_parts_at_ink(
     ui: &egui::Ui,
     theme: &Theme,
     keys: &[KbdKey<'_>],
     right_x: f32,
     center_y: f32,
-    ink: Option<egui::Color32>,
+    key_ink: Option<egui::Color32>,
+    plus_ink: Option<egui::Color32>,
 ) -> LogicalPx {
     let total = kbd_parts_width(ui.ctx(), theme, keys);
     if keys.is_empty() {
@@ -633,8 +634,8 @@ pub(crate) fn kbd_parts_at_ink(
     let bw = theme.border_width.value();
     let border = theme.kbd_border().to_egui();
     let fill = theme.kbd_bg().to_egui();
-    let fg = ink.unwrap_or_else(|| theme.kbd_fg().to_egui());
-    let plus = ink.unwrap_or_else(|| theme.text_muted().to_egui());
+    let fg = key_ink.unwrap_or_else(|| theme.kbd_fg().to_egui());
+    let plus = plus_ink.unwrap_or_else(|| theme.kbd_plus_fg().to_egui());
     let micro = theme.kbd_font_size().value();
     let icon_glyph = theme.icon_glyph_size_sm.value();
     let gap = theme.kbd_gap().value();
@@ -701,7 +702,7 @@ pub fn kbd_text_parts_painted(
     let border: egui::Color32 = theme.kbd_border().gamma_multiply(alpha).into();
     let fill: egui::Color32 = theme.kbd_bg().gamma_multiply(alpha).into();
     let fg: egui::Color32 = theme.kbd_fg().gamma_multiply(alpha).into();
-    let plus: egui::Color32 = theme.text_muted().gamma_multiply(alpha).into();
+    let plus: egui::Color32 = theme.kbd_plus_fg().gamma_multiply(alpha).into();
     let micro = theme.kbd_font_size().value();
     let gap = theme.kbd_gap().value();
     let pad_x = theme.kbd_padding_x().value();
@@ -770,6 +771,31 @@ mod tests {
     }
 
     use super::*;
+
+    /// 디자인 Tag는 variant와 관계없이 tag-bg 위에 그리고 글자만 variant별로 다르다.
+    /// 틴트 채움을 쓰면 대비 측정값이 맞지 않는다.
+    #[test]
+    fn status_tags_paint_tag_bg_with_their_own_ink() {
+        let file = tasty_themes::ThemeFile::parse(tasty_themes::LATTE_TOML_TEXT).unwrap();
+        let (partial, is_light) = file.to_partial();
+        let mut colors = tasty_themes::mocha_fallback_colors();
+        colors.apply_partial(&partial);
+        let latte = Theme::with_colors(colors, is_light.unwrap_or(true));
+        for theme in [tasty_themes::mocha_fallback(), latte] {
+            let cases = [
+                (TagVariant::Info, theme.tag_info_fg()),
+                (TagVariant::Success, theme.tag_success_fg()),
+                (TagVariant::Warning, theme.tag_warning_fg()),
+                (TagVariant::Danger, theme.tag_danger_fg()),
+            ];
+            for (variant, ink) in cases {
+                let (fill, border, fg) = tag_colors(&theme, variant);
+                assert_eq!(fill, theme.tag_bg().to_egui());
+                assert_eq!(fg, ink.to_egui());
+                assert!(border.is_some(), "status tag keeps its accent edge");
+            }
+        }
+    }
 
     /// 그려진 Tag 라벨과 그 자간을 모은다.
     fn tag_texts(draw: impl Fn(&mut egui::Ui)) -> Vec<(String, f32)> {

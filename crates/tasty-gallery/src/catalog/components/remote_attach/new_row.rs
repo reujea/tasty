@@ -150,7 +150,13 @@ pub(super) fn new_ws_row(ui: &mut egui::Ui, theme: &Theme, state: NewRow) {
             .layout(egui::Layout::left_to_right(egui::Align::Center)),
     );
     child.spacing_mut().item_spacing.x = theme.spacing_sm.value();
-    let glyph_c = if state.creating() {
+    let glyph_c = if state.selected() {
+        if state.creating() || state.failed() {
+            theme.text_on_active()
+        } else {
+            theme.accent_primary_on_active()
+        }
+    } else if state.creating() {
         theme.text_muted()
     } else if state.failed() {
         theme.accent_danger()
@@ -158,11 +164,11 @@ pub(super) fn new_ws_row(ui: &mut egui::Ui, theme: &Theme, state: NewRow) {
         theme.accent_primary()
     };
     dot_slot_glyph(&mut child, theme, state, glyph_c.to_egui());
-    // 선택 배경 위에서 읽기 쉽도록 라벨을 text-primary로 바꾼다.
-    let label_c = if state.creating() {
+    // 선택 배경 위에서 읽기 쉽도록 라벨을 text-on-active로 바꾼다.
+    let label_c = if state.selected() {
+        theme.text_on_active()
+    } else if state.creating() {
         theme.text_muted()
-    } else if state.selected() {
-        theme.text_primary()
     } else {
         theme.accent_primary()
     };
@@ -181,7 +187,14 @@ pub(super) fn new_ws_row(ui: &mut egui::Ui, theme: &Theme, state: NewRow) {
             ui.label(
                 egui::RichText::new("on remote")
                     .size(theme.font_size_caption.value())
-                    .color(theme.text_muted().to_egui()),
+                    .color(
+                        if state.selected() {
+                            theme.text_on_active()
+                        } else {
+                            theme.text_muted()
+                        }
+                        .to_egui(),
+                    ),
             );
         }
     });

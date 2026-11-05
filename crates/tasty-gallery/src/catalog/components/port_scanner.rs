@@ -596,12 +596,20 @@ fn star(ui: &mut egui::Ui, theme: &Theme, on: bool) {
     let glyph = theme.icon_glyph_size_sm.value();
     let icon_rect = egui::Rect::from_center_size(rect.center(), egui::vec2(glyph, glyph));
     if on {
+        let fg = if tasty_ui_widgets::in_selected_table_row(ui) {
+            theme.accent_primary_on_active()
+        } else {
+            theme.accent_warning()
+        };
         icons::STAR_FILL
-            .image(glyph, theme.accent_warning().to_egui())
+            .image(glyph, fg.to_egui())
             .paint_at(ui, icon_rect);
     } else {
         icons::STAR
-            .image(glyph, theme.text_muted().to_egui())
+            .image(
+                glyph,
+                tasty_ui_widgets::table_cell_ink(ui, theme, theme.text_muted()),
+            )
             .paint_at(ui, icon_rect);
     }
 }
@@ -611,7 +619,11 @@ fn cell(ui: &mut egui::Ui, theme: &Theme, row: &PortRow, col: Option<PortsColumn
     let text = |ui: &mut egui::Ui, text: &str, mono: bool| {
         let rich = egui::RichText::new(text)
             .size(theme.font_size_body.value())
-            .color(theme.text_primary().to_egui());
+            .color(tasty_ui_widgets::table_cell_ink(
+                ui,
+                theme,
+                theme.text_primary(),
+            ));
         ui.label(if mono { rich.monospace() } else { rich });
     };
     let Some(col) = col else {
@@ -638,7 +650,10 @@ fn cell(ui: &mut egui::Ui, theme: &Theme, row: &PortRow, col: Option<PortsColumn
                 ""
             };
             if value.is_empty() {
-                ui.colored_label(theme.text_muted().to_egui(), "—");
+                ui.colored_label(
+                    tasty_ui_widgets::table_cell_ink(ui, theme, theme.text_muted()),
+                    "—",
+                );
             } else {
                 ui.label(egui::RichText::new(value).size(theme.font_size_body.value()));
             }

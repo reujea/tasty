@@ -59,6 +59,8 @@ const CSS = `
 /* 2026-10-21 — ghost on a raised ground (ground="raised"): Latte text-secondary on surface0 is 4.05:1 */
 .tasty-btn--ghost.tasty-btn--on-raised { color: var(--tasty-button-ghost-raised-fg); }
 .tasty-btn--ghost.tasty-btn--on-raised:hover { color: var(--tasty-button-ghost-raised-fg-hover); }
+/* 2026-11-05 — ghost nested on a surface-active row (ground="active") */
+.tasty-btn--ghost.tasty-btn--on-active, .tasty-btn--ghost.tasty-btn--on-active:hover { color: var(--tasty-button-ghost-active-fg); }
 
 /* disabled = ink, never opacity (2026-09-29): every variant draws the same neutral box,
    accent fills drop out, label + icons take the disabled ink, no hover / active overlay. */
@@ -99,6 +101,7 @@ export function Button({
     size !== "md" ? `tasty-btn--${size}` : "",
     block ? "tasty-btn--block" : "",
     ground === "raised" ? "tasty-btn--on-raised" : "",
+    ground === "active" ? "tasty-btn--on-active" : "",
     className,
   ].filter(Boolean).join(" ");
   return (

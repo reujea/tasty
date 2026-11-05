@@ -42,13 +42,14 @@
   /* 2026-10-21 — ghost on a RAISED ground (Button ground="raised": add cards, menus' inline buttons). Latte text-secondary
      on surface0 = 4.05:1; the raised role = 5.17:1 (Mocha 7.10). Hover ink unchanged. */
   --tasty-button-ghost-raised-fg:       var(--tasty-text-secondary-raised);
-  --tasty-button-ghost-raised-fg-hover: var(--tasty-text-primary);
+  --tasty-button-ghost-raised-fg-hover: var(--tasty-text-on-active); /* 2026-11-05 Latte on hover fill 6.36 (was 4.36) */
+  --tasty-button-ghost-active-fg:       var(--tasty-text-on-active); /* 2026-11-05 ghost nested on a surface-active row */
   /* disabled — every variant draws the same neutral box (2026-09-29); ghost keeps no fill/edge */
   --tasty-button-disabled-bg:      var(--tasty-state-disabled-fill);
   --tasty-button-disabled-border:  var(--tasty-state-disabled-border);
   --tasty-button-disabled-fg:      var(--tasty-state-disabled-fg);   /* label + leading/trailing icons */
   /* Secondary on a banner shell (banner-bg = surface-raised): one ramp step up so the box reads */
-  --tasty-banner-button-bg:        var(--tasty-surface-hover);
+  --tasty-banner-button-bg:        var(--tasty-surface-on-raised); /* 2026-11-05 Mocha n400 6.31 (unchanged) · Latte n200 7.06 (was n400 4.39) */
   --tasty-banner-button-border:    var(--tasty-border-frame);
 
   /* IconButton — square */
@@ -84,7 +85,7 @@
   --tasty-badge-success-bg:        var(--tasty-accent-success);
   --tasty-badge-success-fg:        var(--tasty-text-on-accent);
   --tasty-badge-neutral-bg:        var(--tasty-surface-active);
-  --tasty-badge-neutral-fg:        var(--tasty-text-primary);
+  --tasty-badge-neutral-fg:        var(--tasty-text-on-active); /* 2026-11-05 fill is surface-active: Mocha 4.62 (unchanged) · Latte 5.39 (was 3.69) */
   /* disabled host row (ListCtrl) — the ink rule: neutral fill, disabled ink, no accent fill (2026-09-29) */
   --tasty-badge-disabled-bg:       var(--tasty-state-disabled-fill);
   --tasty-badge-disabled-fg:       var(--tasty-state-disabled-fg);
@@ -98,7 +99,12 @@
   --tasty-tag-radius:              var(--tasty-radius-sm);
   --tasty-tag-font-size:           var(--tasty-font-size-micro);
   --tasty-tag-bg:                  var(--tasty-surface-raised);
-  --tasty-tag-fg:                  var(--tasty-text-secondary);
+  --tasty-tag-fg:                  var(--tasty-text-secondary-raised); /* 2026-11-05 Tag fill is surface-raised: Mocha 7.10 (unchanged) · Latte 5.17 (was 4.05) */
+  --tasty-tag-success-fg:          var(--tasty-accent-success-ink);    /* 2026-11-05 Mocha 8.46 · Latte 4.91 (was 2.17) */
+  --tasty-tag-warning-fg:          var(--tasty-accent-warning-raised); /* 2026-11-05 Mocha 9.89 · Latte 5.25 (was 1.70) */
+  --tasty-tag-attention-fg:        var(--tasty-accent-attention-raised); /* 2026-11-05 Mocha 7.10 · Latte 5.12 (was 1.93) */
+  --tasty-tag-danger-fg:           var(--tasty-accent-danger-raised);  /* 2026-11-05 Mocha 5.43 · Latte 4.79 (was 3.52) */
+  --tasty-tag-info-fg:             var(--tasty-accent-info-raised);    /* 2026-11-05 Mocha 8.08 · Latte 4.87 (was 1.81) */
   --tasty-tag-border:              var(--tasty-border-default);
   /* disabled (own prop or a disabled ListCtrl row) — neutral box + disabled ink; accent fill and tint edge drop out (2026-09-29) */
   --tasty-tag-disabled-bg:         var(--tasty-state-disabled-fill);
@@ -114,7 +120,8 @@
   --tasty-kbd-font:                var(--tasty-font-mono);
   --tasty-kbd-font-size:           var(--tasty-font-size-micro);
   --tasty-kbd-bg:                  var(--tasty-surface-raised);
-  --tasty-kbd-fg:                  var(--tasty-text-secondary);
+  --tasty-kbd-fg:                  var(--tasty-text-secondary-raised); /* 2026-11-05 keycap fill is surface-raised: Mocha 7.10 (unchanged) · Latte 5.17 (was 4.05). switch-overlay-fg follows */
+  --tasty-kbd-plus-fg:             var(--tasty-text-muted-raised);     /* 2026-11-05 the + between keycaps, on whatever ground holds the Kbd. Worst ground surface-raised: Mocha 5.65 · Latte 5.17 */
   --tasty-kbd-border:              var(--tasty-border-strong);
 
   /* ─────────────────  FORMS  ───────────────── */
@@ -201,6 +208,7 @@
   --tasty-multiselect-row-fg:           var(--tasty-text-primary);           /* NOT muted — Latte contrast on surface-raised */
   --tasty-multiselect-row-bg-hover:     var(--tasty-overlay-hover);          /* pointer hover wash */
   --tasty-multiselect-row-bg-active:    var(--tasty-surface-active);         /* keyboard ↑/↓ row only — never "checked" */
+  --tasty-multiselect-row-fg-active:    var(--tasty-text-on-active);         /* 2026-11-05 label on that row */
   --tasty-multiselect-all-fg:           var(--tasty-accent-primary);         /* bulk select/clear action row */
   --tasty-multiselect-separator:        var(--tasty-separator);              /* under the bulk row */
 
@@ -289,7 +297,9 @@
   --tasty-tree-row-font-size:      var(--tasty-font-size-body);
   --tasty-tree-row-meta-font-size: var(--tasty-font-size-micro);
   --tasty-tree-row-fg:             var(--tasty-text-secondary);
-  --tasty-tree-row-fg-active:      var(--tasty-text-primary);
+  --tasty-tree-row-fg-active:      var(--tasty-text-on-active); /* 2026-11-05 Mocha 4.62 (unchanged) · Latte 5.39 (was 3.69) */
+  --tasty-tree-row-part-fg-active: var(--tasty-text-on-active); /* 2026-11-05 chevron + meta on the selected row (text-muted was Mocha 3.00 · Latte 2.61) */
+  --tasty-tree-row-icon-fg-active: var(--tasty-accent-primary-on-active); /* 2026-11-05 selected leading icon — Mocha 3.17 · Latte 3.83 (was 2.27) */
   --tasty-tree-row-bg-hover:       var(--tasty-overlay-hover);
   --tasty-tree-row-bg-active:      var(--tasty-surface-active);
 
@@ -302,13 +312,14 @@
   --tasty-menu-item-padding-x:     var(--tasty-space-md);
   --tasty-menu-item-radius:        var(--tasty-radius-sm);
   --tasty-menu-item-fg:            var(--tasty-text-secondary-raised); /* 2026-10-08 (batch 8) — was text-secondary: Latte 4.05:1 on surface-raised. The raised-ground role is secondary in Mocha (7.1) and primary in Latte (5.17) */
-  --tasty-menu-item-fg-hover:      var(--tasty-text-primary);
+  --tasty-menu-item-fg-hover:      var(--tasty-text-on-active); /* 2026-11-05 hover + keyboard-active label. Latte on hover fill 6.36 (was 4.36), on surface-active 5.39 (was 3.69). Mocha unchanged. Selected ink and autocomplete active follow */
+  --tasty-menu-item-part-fg-active: var(--tasty-text-on-active); /* 2026-11-05 icon, shortcut and danger label on a keyboard-active row */
   --tasty-menu-item-bg-hover:      var(--tasty-overlay-hover);
   /* 2026-10-08 (batch 8) — SELECTED option row (Select / dropdown open list: the current value).
      Selection = ink + trailing check, NO fill. Fills stay reserved for pointer hover (overlay-hover)
      and keyboard-active (surface-active), so a selected row that is also hovered reads both. */
-  --tasty-menu-item-selected-fg:   var(--tasty-menu-item-fg-hover);  /* → text-primary */
-  --tasty-menu-item-check-fg:      var(--tasty-accent-primary);      /* trailing check glyph */
+  --tasty-menu-item-selected-fg:   var(--tasty-menu-item-fg-hover);  /* → text-on-active */
+  --tasty-menu-item-check-fg:      var(--tasty-accent-primary-on-active); /* trailing check glyph. 2026-11-05 Latte 5.37 on the menu, 3.83 on an active row */
   --tasty-menu-item-check-size:    var(--tasty-icon-size-sm);        /* 14 */
   /* a label that cannot fit even its FIXED copy inside the menu's max width wraps; the row grows */
   --tasty-menu-item-wrap-padding-y: var(--tasty-space-xs);           /* 4 top/bottom on a wrapped row (min-height stays menu-item-height) */
@@ -329,7 +340,8 @@
   --tasty-autocomplete-row-height:      var(--tasty-menu-item-height);   /* → control-height 28 */
   --tasty-autocomplete-row-padding-x:   var(--tasty-menu-item-padding-x); /* → space-md */
   --tasty-autocomplete-row-fg:          var(--tasty-menu-item-fg);       /* → text-secondary */
-  --tasty-autocomplete-row-fg-active:   var(--tasty-menu-item-fg-hover); /* → text-primary */
+  --tasty-autocomplete-row-fg-active:   var(--tasty-menu-item-fg-hover); /* → text-on-active */
+  --tasty-autocomplete-part-fg-active:  var(--tasty-text-on-active);     /* 2026-11-05 row icon + match mark on the keyboard-active row. The mark stays semibold */
   --tasty-autocomplete-row-bg-hover:    var(--tasty-overlay-hover);      /* pointer hover wash */
   --tasty-autocomplete-row-bg-active:   var(--tasty-surface-active);     /* keyboard-active (stronger) */
   --tasty-autocomplete-match-fg:        var(--tasty-accent-primary);     /* typeahead match highlight */
@@ -415,7 +427,7 @@
   --tasty-banner-body-fg:             var(--tasty-text-muted-raised); /* supporting line + reloading status on banner-bg — Mocha 5.65 · Latte 5.17 (was text-muted: Latte 3.65) */
   --tasty-banner-countdown-font:      var(--tasty-font-mono);         /* TTL seconds, top-right */
   --tasty-banner-countdown-font-size: var(--tasty-font-size-micro);   /* 10 */
-  --tasty-banner-countdown-fg:        var(--tasty-text-muted);
+  --tasty-banner-countdown-fg:        var(--tasty-text-muted-raised); /* 2026-11-05 TTL seconds on banner-bg — Mocha 5.65 · Latte 5.17 (was text-muted: Latte 3.65) */
   --tasty-banner-recessed-opacity:    var(--tasty-opacity-recessed);  /* lower-scope banner dimmed behind a higher one (≈60% transparent) */
   --tasty-banner-fade:                var(--tasty-motion-ui);         /* 120ms alpha appear / dismiss — position never moves (non-terminal, so fade is allowed) */
   /* INSET placement — for a scope whose content is a native layer tasty cannot
@@ -470,6 +482,7 @@
   --tasty-html-receiving-glyph:       var(--tasty-glyph-dim);         /* static glyph while paused */
   --tasty-banner-glyph-offset:        var(--tasty-size-1);            /* 1 — leading glyph nudge onto the title's cap line */
   --tasty-banner-more-reason-glyph-offset: var(--tasty-size-1);       /* 1 — 2026-11-03: info glyph (14) top offset on the ⋯ menu reason line (caption 11 × line-height-ui). Separate role from banner-glyph-offset */
+  --tasty-banner-more-reason-fg:      var(--tasty-text-muted-raised); /* 2026-11-05 ⋯ menu reason line + its info glyph on banner-more-menu-bg — Mocha 5.65 · Latte 5.17 (was text-muted: Latte 3.65) */
   --tasty-banner-text-gap:            var(--tasty-label-detail-gap);  /* 2 — title ↔ body (every banner) */
   --tasty-banner-narrow-below:        var(--tasty-size-440);          /* SCOPE content width (before banner margins) below which the action wraps under the body — surface / tab / pane = that content, workspace = union of panes under the tab bar; × stays top-right (2026-10-09 b10) */
 
@@ -658,6 +671,8 @@
   --tasty-notification-item-body-lines-wide: 3; /* @kind other */  /* fullscreen stage */
   --tasty-notification-item-bg-hover:       var(--tasty-overlay-hover);
   --tasty-notification-item-bg-selected:    var(--tasty-surface-active);
+  --tasty-notification-item-fg-selected:    var(--tasty-text-on-active);  /* 2026-11-05 every line, the level glyph, More and the row's ghost and icon buttons on a selected row. Glyph shape still carries the level */
+  --tasty-notification-item-unread-dot-selected: var(--tasty-accent-primary-on-active); /* 2026-11-05 Mocha 3.17 · Latte 3.83 */
   --tasty-notification-item-separator:      var(--tasty-separator);
   --tasty-notifications-popup-height:       var(--tasty-size-400);  /* 352 × 400 default */
   --tasty-notifications-toolbar-height:     var(--tasty-control-height);  /* 28 — counts + Mark all read */
@@ -704,6 +719,7 @@
   --tasty-table-row-fg:            var(--tasty-text-secondary);
   --tasty-table-row-bg-hover:      var(--tasty-overlay-hover);
   --tasty-table-row-bg-selected:   var(--tasty-surface-active);
+  --tasty-table-row-fg-selected:   var(--tasty-text-on-active); /* 2026-11-05 every cell on the selected row */
   --tasty-table-border:            var(--tasty-separator);
 
   /* ListCtrl — full-width, row-selectable NAVIGATION list (a "pick one to
@@ -720,7 +736,8 @@
   --tasty-listctrl-radius:           var(--tasty-radius-sm);
   --tasty-listctrl-font-size:        var(--tasty-font-size-body);  /* 13 — label */
   --tasty-listctrl-label-fg:         var(--tasty-text-secondary);
-  --tasty-listctrl-label-fg-active:  var(--tasty-text-primary);    /* hover / selected label */
+  --tasty-listctrl-label-fg-active:  var(--tasty-text-on-active);  /* hover / selected label. 2026-11-05 Latte selected 5.39 (was 3.69) */
+  --tasty-listctrl-part-fg-selected: var(--tasty-text-on-active);  /* 2026-11-05 description, icon and chevron on the selected row */
   --tasty-listctrl-desc-fg:          var(--tasty-text-muted);
   --tasty-listctrl-desc-font-size:   var(--tasty-font-size-caption); /* 11 — secondary line */
   --tasty-listctrl-icon-fg:          var(--tasty-text-muted);
@@ -1034,7 +1051,8 @@
   --tasty-modhint-header-height: var(--tasty-size-28);
   --tasty-modhint-section-gap:   var(--tasty-space-md);   /* 12 — between chord sections */
   --tasty-modhint-role-bg:       var(--tasty-surface-active); /* special-role row wash — distinguishes it from a keycap row */
-  --tasty-modhint-role-fg:       var(--tasty-accent-primary); /* special-role leading glyph */
+  --tasty-modhint-role-fg:       var(--tasty-accent-primary-on-active); /* special-role leading glyph. 2026-11-05 Mocha 3.17 · Latte 3.83 (was 2.27) */
+  --tasty-modhint-role-text-fg:  var(--tasty-text-on-active);  /* 2026-11-05 special-role line (text-secondary was Mocha 3.77 · Latte 2.89) */
   --tasty-modhint-empty-fg:      var(--tasty-text-muted);     /* empty-chord placeholder text ("No shortcuts bound") — one step below a keycap row's text-secondary; no wash, no glyph, no keycap */
   --tasty-modhint-grip-fg:       var(--tasty-border-strong);  /* bottom-right resize grip lines */
   --tasty-modhint-fade:          var(--tasty-motion-ui-fade); /* 200ms opacity 0.2→1 on appear */

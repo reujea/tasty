@@ -713,7 +713,7 @@ fn draw_role_row(ui: &mut egui::Ui, theme: &Theme, role: HintRole) {
                     egui::Label::new(
                         egui::RichText::new(t(role.desc_key()))
                             .size(theme.modhint_row_font_size().value())
-                            .color(theme.modhint_row_fg().to_egui()),
+                            .color(theme.modhint_role_text_fg().to_egui()),
                     )
                     .wrap(),
                 );

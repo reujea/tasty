@@ -229,3 +229,68 @@ fn notification_warning_badge_is_readable_in_both_shipped_themes() {
         }
     }
 }
+
+/// 수기로 옮긴 Latte color-mix가 디자인 측 CSS의 계산값과 같고 Mocha는 원래 역할을 유지하는지 본다.
+/// 대비 하한은 평상 상태에서 화면에 머무는 글자 4.5:1, 글리프 3:1이다.
+#[test]
+fn state_ink_matches_the_design_values_and_clears_contrast() {
+    use tasty_type_appearance::color::HexColor;
+    use tasty_type_appearance::theme::Theme;
+
+    let hex = |s: &str| HexColor::from_hex(s).expect("valid hex");
+    let build = |toml: &str, light: bool| {
+        let file = ThemeFile::parse(toml).expect("embedded theme must parse");
+        let (partial, _) = file.to_partial();
+        let mut colors = mocha_fallback_colors();
+        colors.apply_partial(&partial);
+        Theme::with_colors(colors, light)
+    };
+
+    let latte = build(LATTE_TOML_TEXT, true);
+    assert_eq!(latte.surface_on_raised(), hex("#eff1f5"));
+    assert_eq!(latte.text_on_active(), hex("#35374a"));
+    assert_eq!(latte.accent_primary_on_active(), hex("#1547ac"));
+    // 파란 채널이 14.5라 앱은 15로 반올림한다. 디자인 측 표기는 #70470e이다.
+    assert_eq!(latte.accent_warning_raised(), hex("#70470f"));
+    assert_eq!(latte.accent_attention_raised(), hex("#8c3706"));
+    assert_eq!(latte.accent_info_raised(), hex("#025b7e"));
+
+    let mocha = build(MOCHA_TOML_TEXT, false);
+    assert_eq!(mocha.surface_on_raised(), mocha.surface_hover());
+    assert_eq!(mocha.text_on_active(), mocha.text_primary());
+    assert_eq!(mocha.accent_primary_on_active(), mocha.accent_primary());
+    assert_eq!(mocha.accent_warning_raised(), mocha.accent_warning());
+    assert_eq!(mocha.accent_attention_raised(), mocha.accent_attention());
+    assert_eq!(mocha.accent_info_raised(), mocha.accent_info());
+
+    for (name, th) in [("mocha", &mocha), ("latte", &latte)] {
+        let active = th.surface_active();
+        assert!(
+            contrast_ratio(active, th.text_on_active()) >= 4.5,
+            "{name} text on active"
+        );
+        assert!(
+            contrast_ratio(active, th.accent_primary_on_active()) >= 3.0,
+            "{name} glyph on active"
+        );
+        let raised = th.tag_bg();
+        for (tag, ink) in [
+            ("default", th.tag_fg()),
+            ("success", th.tag_success_fg()),
+            ("warning", th.tag_warning_fg()),
+            ("attention", th.tag_attention_fg()),
+            ("danger", th.tag_danger_fg()),
+            ("info", th.tag_info_fg()),
+        ] {
+            assert!(contrast_ratio(raised, ink) >= 4.5, "{name} tag {tag}");
+        }
+        assert!(
+            contrast_ratio(th.surface_raised(), th.kbd_fg()) >= 4.5,
+            "{name} kbd"
+        );
+        assert!(
+            contrast_ratio(th.banner_button_bg(), th.text_primary()) >= 4.5,
+            "{name} banner button"
+        );
+    }
+}

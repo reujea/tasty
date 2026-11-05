@@ -29,9 +29,9 @@ function WsRowG({ name, active, hover, attached, pill, sub, geom = "settled" }) 
         <StatusDot status="running" attached={attached} />
       </span>
       <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: "var(--tasty-label-detail-gap)" }}>
-        <span style={{ fontSize: "var(--tasty-font-size-body)", fontWeight: "var(--tasty-font-weight-medium)", lineHeight: "var(--tasty-line-height-ui)", color: active ? "var(--tasty-text-primary)" : "var(--tasty-text-secondary)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{name}</span>
+        <span style={{ fontSize: "var(--tasty-font-size-body)", fontWeight: "var(--tasty-font-weight-medium)", lineHeight: "var(--tasty-line-height-ui)", color: active ? "var(--tasty-text-on-active)" : "var(--tasty-text-secondary)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{name}</span>
         {pill && <span style={{ alignSelf: "flex-start" }}><Tag variant="info">remote</Tag></span>}
-        {sub && <span style={{ fontSize: "var(--tasty-font-size-term-sm)", lineHeight: "var(--tasty-line-height-ui)", color: "var(--tasty-text-muted)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{sub}</span>}
+        {sub && <span style={{ fontSize: "var(--tasty-font-size-term-sm)", lineHeight: "var(--tasty-line-height-ui)", color: active ? "var(--tasty-text-on-active)" : "var(--tasty-text-muted)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{sub}</span>}
       </div>
     </div>
   );
@@ -500,9 +500,9 @@ function Components() {
           </Stage>
           <Meta
             specs={[["height", <>28px <span className="tok">--tasty-control-height</span></>], ["label · rest", <span className="tok">--tasty-menu-item-fg</span>], ["label · hover/active", <span className="tok">--tasty-menu-item-fg-hover</span>], ["row pitch", "28 — rows flush, no gap (every menu incl. the … menu)"], ["active", <span className="tok">--tasty-surface-active</span>], ["danger", <span className="tok">--tasty-accent-danger</span>]]}
-            tokens={[{ tok: "--tasty-menu-item-fg", use: "resting label → text-secondary", color: "var(--tasty-menu-item-fg)" }, { tok: "--tasty-menu-item-fg-hover", use: "hover / active label → text-primary", color: "var(--tasty-menu-item-fg-hover)" }, { tok: "--tasty-surface-active", use: "highlighted", color: "var(--tasty-surface-active)" }, { tok: "--tasty-accent-danger", use: "destructive", color: "var(--tasty-accent-danger)" }, { tok: "--tasty-text-muted", use: "shortcut", color: "var(--tasty-text-muted)" }]} />
+            tokens={[{ tok: "--tasty-menu-item-fg", use: "resting label → text-secondary-raised", color: "var(--tasty-menu-item-fg)" }, { tok: "--tasty-menu-item-fg-hover", use: "hover / active label → text-on-active", color: "var(--tasty-menu-item-fg-hover)" }, { tok: "--tasty-surface-active", use: "highlighted", color: "var(--tasty-surface-active)" }, { tok: "--tasty-accent-danger", use: "destructive", color: "var(--tasty-accent-danger)" }, { tok: "--tasty-text-muted", use: "shortcut", color: "var(--tasty-text-muted)" }]} />
           <Note><b>Label colour (2026-10-07).</b> The token is canonical: a resting row reads <code>--tasty-menu-item-fg</code> (text-secondary), hover and keyboard-active lift to <code>--tasty-menu-item-fg-hover</code> (text-primary) on top of the background change. The command palette is a list, not a menu, and keeps its own row colours.</Note>
-          <Note><b>Latte contrast (2026-10-08).</b> <code>--tasty-menu-item-fg</code> now reads the semantic role <code>--tasty-text-secondary-raised</code>: Mocha = neutral-1000 (7.1:1 on surface-raised), Latte = neutral-1100 (5.17:1; neutral-1000 was 4.05:1). In Latte the resting and hover inks are the same; hover still reads by the <code>--tasty-menu-item-bg-hover</code> fill.</Note>
+          <Note><b>Latte contrast (2026-10-08).</b> <code>--tasty-menu-item-fg</code> now reads the semantic role <code>--tasty-text-secondary-raised</code>: Mocha = neutral-1000 (7.1:1 on surface-raised), Latte = neutral-1100 (5.17:1; neutral-1000 was 4.05:1). Hover and keyboard-active read <code>--tasty-menu-item-fg-hover</code> → <code>--tasty-text-on-active</code> since 2026-11-05 (Latte 6.36 on the hover fill, 5.39 on surface-active), because a menu row is read while it is hovered.</Note>
         </Spec>
 
         <Spec title="MenuItem — selected option (2026-10-08)"

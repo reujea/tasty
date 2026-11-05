@@ -23,8 +23,8 @@ use tasty_ui_widgets::tokens::{STRUCT_GAP_1, STRUCT_GAP_2, STRUCT_GAP_4, TAG_PIL
 use tasty_ui_widgets::{
     Button, ButtonVariant, IconButton, IconButtonVariant, Input, PORTS_PANEL_PAD_X, PortsColumn,
     StatusKind, TableAlign, TableColumn, TableColumnWidth, TableSortDir, checkbox, hspace,
-    margin_sym, ports_favorite_detail_and_state, ports_process_cell, ports_star_column_width,
-    ports_table, status_dot, vspace,
+    in_selected_table_row, margin_sym, ports_favorite_detail_and_state, ports_process_cell,
+    ports_star_column_width, ports_table, status_dot, table_cell_ink, vspace,
 };
 
 /// popup 좌우 안쪽 여백. 갤러리 예제와 같은 값을 쓰도록 공용 위젯 크레이트에 둔다.
@@ -1510,12 +1510,17 @@ fn draw_port_star(ui: &mut egui::Ui, th: &Theme, on: bool) -> egui::Response {
     let glyph = th.icon_glyph_size_sm.value();
     let icon_rect = egui::Rect::from_center_size(rect.center(), egui::vec2(glyph, glyph));
     if on {
+        let fg = if in_selected_table_row(ui) {
+            th.accent_primary_on_active()
+        } else {
+            th.accent_warning()
+        };
         icons::STAR_FILL
-            .image(glyph, th.accent_warning().into())
+            .image(glyph, fg.into())
             .paint_at(ui, icon_rect);
     } else {
         icons::STAR
-            .image(glyph, th.text_muted().into())
+            .image(glyph, table_cell_ink(ui, th, th.text_muted()))
             .paint_at(ui, icon_rect);
     }
     resp
@@ -1865,12 +1870,13 @@ fn draw_table(
                 // kit 의 mono 열(Port·Proto·Address)은 font-mono 이고, strong 열(Process)은 UI 글꼴이다.
                 // 둘 다 text-primary 다.
                 // Workspace·Tab 은 색을 두지 않아 표의 행 글자색을 따른다.
+                let value_fg = table_cell_ink(ui, th, th.text_primary());
                 match visible[col_index - 1] {
                     ColumnId::Port => {
                         hspace(ui, th.spacing_md);
                         ui.label(
                             egui::RichText::new(row.port.to_string())
-                                .color(th.text_primary())
+                                .color(value_fg)
                                 .size(th.font_size_body.value())
                                 .monospace(),
                         );
@@ -1885,7 +1891,7 @@ fn draw_table(
                         };
                         ui.label(
                             egui::RichText::new(proto)
-                                .color(th.text_primary())
+                                .color(value_fg)
                                 .size(th.font_size_body.value())
                                 .monospace(),
                         );
@@ -1893,7 +1899,7 @@ fn draw_table(
                     ColumnId::Address => cell_l(ui, |ui| {
                         ui.label(
                             egui::RichText::new(&row.addr_display)
-                                .color(th.text_primary())
+                                .color(value_fg)
                                 .size(th.font_size_body.value())
                                 .monospace(),
                         );
@@ -1963,12 +1969,12 @@ fn draw_process_cell(ui: &mut egui::Ui, th: &Theme, row: &PortRowView, pid_toolt
 /// Workspace 셀: Tasty → workspace_name, External → dash.
 fn draw_workspace_cell(ui: &mut egui::Ui, th: &Theme, row: &PortRowView, dash: &str) {
     match &row.source {
-        // 글자색은 표가 정한다(쉬는 행 table-row-fg, hover·선택 행 text-primary).
+        // 글자색은 표가 정한다(쉬는 행 table-row-fg, hover 행 text-primary, 선택 행 table-row-fg-selected).
         SourceTag::Tasty { workspace_name, .. } => {
             ui.label(egui::RichText::new(workspace_name).size(th.font_size_body.value()));
         }
         SourceTag::External => {
-            ui.colored_label(th.text_muted(), dash);
+            ui.colored_label(table_cell_ink(ui, th, th.text_muted()), dash);
         }
     }
 }
@@ -1982,12 +1988,12 @@ fn draw_tab_cell(ui: &mut egui::Ui, th: &Theme, row: &PortRowView, dash: &str) {
         _ => None,
     };
     match tab_name {
-        // 글자색은 표가 정한다(쉬는 행 table-row-fg, hover·선택 행 text-primary).
+        // 글자색은 표가 정한다(쉬는 행 table-row-fg, hover 행 text-primary, 선택 행 table-row-fg-selected).
         Some(name) => {
             ui.label(egui::RichText::new(name).size(th.font_size_body.value()));
         }
         None => {
-            ui.colored_label(th.text_muted(), dash);
+            ui.colored_label(table_cell_ink(ui, th, th.text_muted()), dash);
         }
     }
 }

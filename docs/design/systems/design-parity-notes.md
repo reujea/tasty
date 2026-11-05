@@ -484,7 +484,7 @@ State 셀은 `status_dot`(점 `status_dot_size` 8 + `space-xs` 4 + caption 11px 
 
 `CELL_W`는 80, 유효 라벨 폭은 72다. 줄 높이 `round(11×1.3)`인 14를 3줄 예약해 짧은 이름도 같은 셀 높이를 사용한다. 아이콘과 라벨 간격은 `spacing_xs`(4), 블록 상하 간격은 `spacing_sm`(8)이다.
 
-아이콘은 `icon_glyph_size_md`(16), 라벨은 `font_size_caption`(11)을 사용하고 사용자 Explorer 글꼴 크기도 caption 상한으로 제한한다. 선택한 라벨은 `text_primary`, 나머지는 `text_secondary`다. 폴더·파일 글리프는 text-muted, 이미지는 accent-info이며 선택·호버·잘라내기 표시는 기존 규칙을 따른다.
+아이콘은 `icon_glyph_size_md`(16), 라벨은 `font_size_caption`(11)을 사용하고 사용자 Explorer 글꼴 크기도 caption 상한으로 제한한다. 선택한 라벨은 `text_on_active`, 나머지는 `text_secondary`다. 폴더·파일 글리프는 text-muted, 이미지는 accent-info이고 선택 행에서는 각각 `text_on_active`, `accent_primary_on_active`다. 호버·잘라내기 표시는 기존 규칙을 따른다.
 
 `Galley::text()`는 원문이므로 말줄임 여부를 확인할 수 없다. 실제 배치 결과의 `galley.rows[].glyphs[].chr`와 캡처를 확인한다. 구현은 `src/adapters/ui/surface/explorer.rs`와 갤러리 `explorer_view_cells.rs`의 `grid_cell()`에 있다.
 

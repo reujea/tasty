@@ -25,6 +25,7 @@ mod approval_danger;
 
 /// 경고 알림 배지의 테마별 대비를 위한 수기 접근자 (`impl Theme`).
 mod notification_ink;
+mod state_ink;
 
 /// DAG 표시 색의 color-mix 수기 접근자 (`impl Theme`).
 mod dag_mix;
