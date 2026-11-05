@@ -6,14 +6,16 @@ import { REPO, url } from "../../lib/site";
 interface Props {
   cards: Card[];
   sourceLabel: string;
+  /** Translated group headings; the card content stays in English. */
+  groupLabels?: Record<string, string>;
 }
-const { cards, sourceLabel } = Astro.props;
+const { cards, sourceLabel, groupLabels } = Astro.props;
 const groups = byGroup(cards);
 const anchor = (g: string) => g.toLowerCase().replace(/[^a-z0-9]+/g, "-");
 ---
 {groups.map((g) => (
   <section class="ds-group" id={anchor(g.group)}>
-    <h2>{g.group}</h2>
+    <h2>{groupLabels?.[g.group] ?? g.group}</h2>
     {g.cards.map((c) => (
       <figure class="ds-card">
         <figcaption class="ds-card__head">
