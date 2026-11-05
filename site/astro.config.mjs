@@ -5,6 +5,7 @@ import react from "@astrojs/react";
 import { satteri } from "@astrojs/markdown-satteri";
 import { createGuideLinkPlugin } from "./src/lib/satteri-guide-links.mjs";
 import { createDiagramPlugin } from "./src/lib/satteri-diagrams.mjs";
+import { createTableWrapPlugin } from "./src/lib/satteri-table-wrap.mjs";
 import { BASE, SITE } from "./src/lib/base.mjs";
 
 export default defineConfig({
@@ -27,6 +28,7 @@ export default defineConfig({
         createGuideLinkPlugin(fileURLToPath(new URL("content", import.meta.url)), fileURLToPath(new URL("..", import.meta.url))),
         // The English tree is `content/en/`; everything else is the Korean source,
         // which also serves untranslated English pages.
+        createTableWrapPlugin(),
         createDiagramPlugin((url) => (url && fileURLToPath(url).includes("/content/en/") ? "en" : "ko"), BASE),
       ],
     }),

@@ -81,12 +81,12 @@ const toc = headings.filter((h) => h.depth === 2 || h.depth === 3);
       </nav>
 
       {state === "untranslated" && (
-        <div class="banner banner--info">
+        <div class="note note--untranslated">
           <p>{s.untranslated}</p>
         </div>
       )}
       {state === "stale" && (
-        <div class="banner banner--warn">
+        <div class="note">
           <p>{s.stale}</p>
           <a href={url(pathOf(page, "ko"))}>{s.translateCta} →</a>
         </div>

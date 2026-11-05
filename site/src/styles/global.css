@@ -118,6 +118,21 @@ code, kbd, pre, samp { font-family: var(--font-mono); }
   clip: rect(0 0 0 0); white-space: nowrap; border: 0;
 }
 
+/* The skip link appears over the header on keyboard focus, with the focus ring around its own fill. */
+a.visually-hidden:focus-visible {
+  position: fixed;
+  top: var(--sp-2); left: var(--sp-2);
+  z-index: 60;
+  width: auto; height: auto;
+  padding: var(--sp-2) var(--sp-3);
+  margin: 0;
+  overflow: visible;
+  clip: auto;
+  background: var(--tasty-bg-panel);
+  border: 1px solid var(--tasty-border-default);
+  color: var(--tasty-accent-primary-raised);
+}
+
 
 
 .site-header {
@@ -443,18 +458,6 @@ code, kbd, pre, samp { font-family: var(--font-mono); }
   color: var(--tasty-text-secondary);
 }
 
-.heading-anchor {
-  margin-left: var(--sp-2);
-  color: var(--tasty-text-muted);
-  opacity: 0;
-  font-weight: 400;
-  transition: opacity 120ms ease;
-}
-.prose h2:hover .heading-anchor,
-.prose h3:hover .heading-anchor,
-.prose h4:hover .heading-anchor { opacity: 1; }
-.heading-anchor:hover { color: var(--tasty-brand-ink); text-decoration: none; }
-
 .prose p { margin: var(--sp-4) 0; }
 .prose ul, .prose ol { margin: var(--sp-4) 0; padding-left: var(--sp-6); }
 .prose li { margin: var(--sp-2) 0; }
@@ -484,8 +487,8 @@ code, kbd, pre, samp { font-family: var(--font-mono); }
   font-size: 0.875em;
   padding: 0.15em 0.4em;
   border-radius: 4px; /* no site radius: the radius scale is 6/8/14 */
-  background: var(--tasty-surface-raised);
-  border: 1px solid color-mix(in srgb, var(--tasty-color-neutral-400) 45%, transparent);
+  background: var(--tasty-site-inline-code-bg);
+  border: 1px solid var(--tasty-border-default);
   color: var(--tasty-text-primary);
   word-break: break-word;
 }
@@ -604,22 +607,14 @@ pre.astro-code span[style*="#6A737D"] { color: var(--tasty-site-code-comment) !i
   margin: var(--sp-5) 0;
   padding: var(--sp-4) var(--sp-5);
   border: var(--border);
-  border-left: 3px solid var(--tasty-accent-warning-raised);
   border-radius: var(--radius);
   background: var(--tasty-tint-warning-bg);
   font-size: 14px;
 }
-.note strong:first-child { color: var(--tasty-accent-warning-raised); }
-.note a { color: var(--tasty-text-primary); font-weight: 600; margin-left: var(--sp-1); text-decoration: underline; }
-.note--untranslated {
-  border-left-color: var(--tasty-accent-primary-raised);
-  background: var(--tasty-tint-primary-bg);
-}
-.note--untranslated strong:first-child { color: var(--tasty-accent-primary-raised); }
-.note--stale {
-  border-left-color: var(--tasty-accent-warning-raised);
-  background: var(--tasty-tint-warning-bg);
-}
+.note p { margin: 0; }
+.note a { color: var(--tasty-text-primary); font-weight: 600; text-decoration: underline; }
+.note p + a { display: inline-block; margin-top: var(--sp-2); }
+.note--untranslated { background: var(--tasty-tint-primary-bg); }
 
 
 .page-nav {

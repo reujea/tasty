@@ -253,10 +253,7 @@
   line-height: 1.9;
   color: var(--tasty-surface-terminal-focused-fg);
 }
-.term .p { color: var(--tasty-accent-agent-raised); }
-.term .c { color: var(--tasty-text-muted); }
 .term .g { color: var(--tasty-accent-success-raised); }
-.term .y { color: var(--tasty-accent-warning-raised); }
 
 
 
