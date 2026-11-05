@@ -1,4 +1,4 @@
-<!-- source-hash: 6634ea94f977 -->
+<!-- source-hash: d52404a7c85c -->
 <a id="task-dag"></a>
 
 # Task workflows (DAG)
@@ -299,7 +299,7 @@ There are two screens for seeing how the work flows. Both look at the same data.
 - **Task DAGs** window — `Ctrl+Shift+G` (`Cmd+Shift+G` with the Mac preset), or the sidebar **Tools** menu. It is for picking one from a list, taking a quick look, and closing it. It has search and a state filter. Pick one and the same area becomes the graph, with zoom in and out, fit to view, direction switching, and the runner pill sitting on the top line next to the back arrow.
 - **DAG tab** — a graph that takes up a whole Tab and stays open. Open it with `tasty new tab --pane <ID> --type dag_graph`, or press `Alt+'` on an existing Surface and switch it to **DAG**. It has zoom in and out, fit to view, and direction switching, and clicking a node shows the command, dependencies, elapsed time, exit code, and output.
 
-The lines in the graph differ by relation. A dependency that only sets the order is solid, an input connection (`bindings`) is a teal dash-dot line, and a branch chosen from a result (`transitions`) is a lavender dashed line. A branch that was chosen is drawn thicker, and branches that were not chosen or did not run are faded. When two tasks have both an order dependency and an input connection, only the input connection is drawn. A task skipped because its branch was not chosen is marked **Not selected**. Hovering over a node shows the task name and state, plus one more line with the reason when the task was skipped, has an unknown result, or is waiting for input. `task-graph --format dot` draws the same distinctions.
+The lines in the graph differ by relation. A dependency that only sets the order is solid, an input connection (`bindings`) is a teal dash-dot line, and a branch chosen from a result (`transitions`) is a lavender dashed line. A chosen branch is drawn thicker. Paths that were not chosen or will not run use a neutral color without reduced opacity, while keeping the solid, dash-dot or dashed pattern for their relation. When two tasks have both an order dependency and an input connection, only the input connection is drawn. A task skipped because its branch was not chosen is marked **Not selected**. Hovering over a node shows the task name and state, plus one more line with the reason when the task was skipped, has an unknown result, or is waiting for input. `task-graph --format dot` draws the same distinctions.
 
 The small picture at the top left of a node is the task kind: a terminal for a shell command, a plug for an internal call, stacked layers for collecting results, a padlock for a wait, and a speech bubble for one Claude or Codex turn. Claude and Codex share the speech bubble; click the node to see which one ran it in the details.
 
