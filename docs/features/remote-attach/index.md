@@ -397,7 +397,7 @@ Remote는 원 attempt의 SSH 취소와 터널 회수를 요청하고 worker의 �
 - **원격 ws 가 0개여도 이 행은 나온다.** loaded 렌더 경로가 하나라서, 목록이 비면 caps 헤더 + 이 행 하나 + muted 한 줄로 degrade 한다(전용 center-state 는 없다). 그때는 이 행이 **미리 선택**돼 있어 pane 이 뜬 순간부터 확정 버튼이 살아 있다 — 빈 원격이 막다른 길이 아니다.
 - **생성 왕복 중 / 실패는 행 안에서** 표현한다. 팝업의 `start_create`는 생성 중이거나 준비되지 않았으면 요청을 추가하지 않고, 준비된 요청 ID로 `BrowserRequest::Create`를 큐에 넣는다. App은 원 engine·window·View identity를 확인한 뒤 Remote에 실행을 맡긴다. 터널과 진행 중 attempt는 팝업이 아니라 `tasty_remote::browser`의 세션이 소유하며, 생성 워커에는 포트와 원 attempt token을 넘긴다. Remote도 진행 중 attempt가 있으면 새 생성을 오류로 거절한다.
   생성 대기는 Remote의 `poll_browsers`가 10초 경과 시 취소하고 실패 값으로 돌린다. 소켓의 5초 `PROBE_TIMEOUT`은 개별 read/write 제한이며, 연결과 여러 부분 읽기를 합친 전체 호출의 절대 상한은 아니다. 취소 요청을 worker 종료·회수 완료로 간주하지 않는다.
-  생성 중에는 행의 글리프가 스피너로, 라벨이 "워크스페이스 만드는 중…"으로 바뀌고 아래 목록과 확정 버튼은 비활성이다. App이 원 View를 확인하고 팝업이 같은 요청 ID인지 확인한 결과만 표시한다. 실패하면 행 하단에 원격 메시지와 "다시 시도"가 붙고, 응답에 유효한 워크스페이스 ID가 없으면 `remote_attach.create_failed_generic`로 안내한다. **팝업은 열린 채 기존 목록을 유지한다.**
+  생성 중에는 행의 글리프가 스피너로, 라벨이 "워크스페이스 만드는 중…"으로 바뀌고 확정 버튼은 비활성이다. 아래 목록은 이름을 `text-muted`로 읽을 수 있게 두고 선택만 막는다. App이 원 View를 확인하고 팝업이 같은 요청 ID인지 확인한 결과만 표시한다. 실패하면 행 하단에 원격 메시지와 "다시 시도"가 붙고, 응답에 유효한 워크스페이스 ID가 없으면 `remote_attach.create_failed_generic`로 안내한다. **팝업은 열린 채 기존 목록을 유지한다.**
   실행·시간 제한은 [`browser.rs`](../../../crates/tasty-remote/src/browser.rs)와 [`browse.rs`](../../../crates/tasty-remote/src/browse.rs), 원 View 전달은 [`remote_browser.rs`](../../../src/app/remote_browser.rs), 요청·표시 값은 [`remote_attach.rs`](../../../src/adapters/ui/popup/remote_attach.rs)가 담당한다.
 
 **알려진 제약 (이 경로 한정)**:

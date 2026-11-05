@@ -84,7 +84,7 @@ Tag는 모든 상태 variant가 `tag_bg()` 위에 그리고 테두리는 accent 
 
 | 디자인 토큰 | tasty Theme | 값 | 비고 |
 |---|---|---|---|
-| `state-dim-opacity` | `state_dim_opacity()` | `0.5` | 흐리게 표시하는 **항목**(꺼진 hook 행 · 잘라내기 대기 · preset 편집 중 비활성 영역)의 디밍. const `OPACITY_DISABLED`. `cut-pending-opacity`(`cut_pending_opacity()`)와 `preset-cfg-dim-opacity`(`preset_cfg_dim_opacity()`)가 이 값을 가리킨다. **disabled 컨트롤 신호가 아니다** — disabled 컨트롤은 아래 `state-disabled-*` 박스와 잉크로 그리고 opacity를 곱하지 않는다 |
+| `state-dim-opacity` | `state_dim_opacity()` | `0.5` | 흐리게 표시하는 **항목**(preset 편집 중 비활성 영역)의 디밍. const `OPACITY_DISABLED`. `preset-cfg-dim-opacity`(`preset_cfg_dim_opacity()`)가 이 값을 가리킨다. 사용자가 읽는 글자는 곱하지 않는다. 꺼진 hook 행과 plugin 행은 `text-muted`, 잘라내기 대기는 `cut-pending-fg`(→ `text-muted`)와 `cut-pending-font-style`(italic)을 쓴다. `cut-pending-opacity`와 `dag-edge-dim-opacity`는 DEPRECATED이며 읽는 코드가 없다. **disabled 컨트롤 신호가 아니다** — disabled 컨트롤은 아래 `state-disabled-*` 박스와 잉크로 그리고 opacity를 곱하지 않는다 |
 | `opacity-dimmed` | `opacity_dimmed()` | `0.75` | 진행 중이라 물러난 내용(재로드 중인 배너 본문). const `OPACITY_DIMMED`. 흐려져도 4.5:1 대비를 유지한다 |
 | `tint-fill-alpha` | `tint_fill_alpha()` | `0.12` | accent 로 옅게 깐 채움. const `TINT_FILL_ALPHA` |
 | `tint-border-alpha` | `tint_border_alpha()` | `0.36` | 같은 accent 의 테두리. const `TINT_BORDER_ALPHA`. **짝으로 쓰는 것이 기본**이고 승인된 부분 사용 하나(채움만: warning callout·misc/remote/script 배지) |

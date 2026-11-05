@@ -54,8 +54,8 @@ tasty split --level surface --surface <SID> --type dag_graph
   `transition`(v2 전이) 10·4 긴 파선. 같은 원본에서 `depends_on` 과 `binding` 이 함께 오면
   binding 한 줄만 그린다(binding 이 순서를 이미 뜻한다). 이 축약은 그리기에서만 하고
   `agent.task_graph` JSON 엣지는 두 선언을 모두 낸다. `one_of` binding 은 원본마다 한 줄이다.
-  전이 엣지는 선택 상태에 따라 굵기와 불투명도만 바뀐다: `pending` 1px, `selected` 2px,
-  `not_selected`·`unavailable` 은 죽은 경로처럼 흐리게 둔다(숨기지 않는다).
+  전이 엣지는 선택 상태에 따라 굵기와 잉크만 바뀐다: `pending` 1px, `selected` 2px,
+  `not_selected`·`unavailable` 은 죽은 경로와 같은 `dag-edge-dim` 실선 잉크로 둔다(숨기지 않는다). 관계는 파선 무늬가 알리고, 선택 노드의 강조색이 가장 앞선다.
 - 파선 배열은 vendor 토큰 `dag-edge-dash-*`(strokeStyle)를 본체 `DagRelation::dash` 와 갤러리
   `Rel::dash` 두 곳에 옮겨 둔 것이다. 루트 패키지 시험 `edge_dashes_match_the_vendor_tokens` 와
   갤러리 `dash_tokens` 시험(`crates/tasty-gallery/src/catalog/components/dag.rs`)이 각각 토큰 JSON 원본과 양방향으로 대조한다(토큰마다 관계 하나,
@@ -134,7 +134,7 @@ tasty split --level surface --surface <SID> --type dag_graph
 | workspace 에 task 없음 | "No tasks in this workspace" + 해당 workspace id 가 박힌 `task-create` 명령 |
 | 지정한 DAG 가 사라짐 | "DAG not found: `<id>`" + 헤더에서 다른 DAG 를 고르라는 안내. **다른 DAG 로 자동 전환하지 않는다** |
 | 사이클 | 배너 + 사이클 노드 테두리 경고색. 그래프는 그대로 그린다(레이아웃 엔진이 역엣지를 걷어내고 배치한다) |
-| 죽은 경로 | 실패/취소/스킵의 하류 중 아직 terminal 이 아닌 노드는 흐리게. `fallback` 엣지는 상류 실패가 발동 조건이라 전파하지 않는다 |
+| 죽은 경로 | 실패/취소/스킵의 하류 중 아직 terminal 이 아닌 노드는 흐리게, 그 엣지는 불투명도 없이 `dag-edge-dim` 잉크로. `fallback` 엣지는 상류 실패가 발동 조건이라 전파하지 않는다 |
 | 폴링 실패 | 마지막으로 성공한 그래프를 그대로 둔다(일시적 실패로 그래프가 사라졌다 나타나면 더 혼란스럽다) |
 
 task 없음과 사라진 DAG 두 빈 상태는 공용 `tasty_ui_widgets::paint_dag_empty`로 그린다. 갤러리 `dag-states` 예제도 같은 함수와 같은 문구 키를 쓴다. 글리프(24, text-disabled) · 제목(body, text-secondary) · 안내(caption, text-muted, measure-sm 폭 줄바꿈)를 `spacing_sm` 간격으로 가운데에 쌓고, 안내의 백틱 구간은 code run으로 그린다. 안내는 줄마다 가운데에 맞추므로 다음 줄로 넘어간 명령도 가운데에 온다.

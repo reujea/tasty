@@ -49,6 +49,7 @@
 
 ### Changed
 
+- **읽는 글자를 불투명도로 흐리지 않는다.** 잘라낸 항목은 흐린 잉크와 이탤릭 이름으로, 꺼진 훅·비활성 플러그인·사용 중인 워크스페이스 이름은 흐린 잉크로 그린다. 글꼴 override 가 기본값이면 지금 적용된 값을 읽기 전용 칸에 보이고, DAG 의 쓸 수 없는 경로는 중립 실선 잉크로 그린다. 바쁜 버튼은 라벨을 유지하고 진행 표시를 버튼 옆에 둔다.
 - (BREAK) **`tasty hook-handler dispatch`·`tasty file-handler dispatch` 가 최종 결과를 기다린다.** 접수 줄 뒤에 최종 결과 줄을 출력하고, `succeeded` 가 아니거나 기다리는 상한(훅 단계당 10초, 파일 30초) 안에 끝나지 않으면 종료 코드 1로 끝난다. Tasty가 결과 조회에 답하지 않아도 상한에서 멈추고 `"timed_out": true` 를 붙인다. 결과를 기다릴 때는 루트 옵션 `--response-timeout-ms` 를 받지 않는다(종료 코드 2). 예전처럼 접수만 받으려면 `--no-wait` 를 붙인다. 세션 토큰과 에이전트 ID는 결과 조회에도 실린다.
 - **mirror 대상의 파일 열기·markdown 이동이 원격 결과로 끝난다.** 원격 큐에 넣은 것을 성공으로 보지 않고 원격이 실제로 적용했는지 기다린다. 성공하면 새 탭의 로컬 `surface_id` 와 `remote_surface_id` 를, 원격이 거절하면 원격 사유를 남긴다. 결과 전에 연결이 끊기면 원격 적용 여부를 모르므로 `unknown` 이다.
 - **같은 대상의 수동 attach 요청은 앞선 요청을 대체한다.** `attach.into_gui`(같은 `port`·`workspace`)나 기존 워크스페이스 `remote.attach`(같은 `profile`·`ssh`·`remote_workspace`)를 다시 보내면 아직 끝나지 않은 앞 요청은 `cancelled`("replaced by a newer attach to the same target")로 끝나고 새 요청이 결과를 받는다.
