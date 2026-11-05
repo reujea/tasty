@@ -21,8 +21,6 @@ const CARD_MAX_W: LogicalPx = LogicalPx(480.0);
 const ELASTIC_GAP: LogicalPx = LogicalPx(18.0);
 /// 탄력 폭 예제 라벨과 메뉴 사이 — `gap: 6`.
 const ELASTIC_LABEL_GAP: LogicalPx = LogicalPx(6.0);
-/// 기각된 기록용 메뉴의 흐림 — `opacity: 0.75`.
-const REJECTED_OPACITY: f32 = 0.75;
 /// 메뉴 행의 고정 문구(앞, 뒤) — 시안 `BannerMoreMenuG` 의 행 문구. 본체 `row_labels` 와 같은 키 쌍이다.
 fn suppress_text() -> (&'static str, &'static str) {
     (
@@ -207,7 +205,6 @@ pub fn draw_elastic(ui: &mut egui::Ui, theme: &Theme) {
                         theme,
                         "rejected — danger tone on the capture row",
                         |ui| {
-                            ui.multiply_opacity(REJECTED_OPACITY);
                             more_menu(ui, theme, "vim", None, true);
                         },
                     );

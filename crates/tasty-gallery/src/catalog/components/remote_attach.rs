@@ -358,7 +358,7 @@ pub fn draw_decisions(ui: &mut egui::Ui, theme: &Theme) {
          (4/4 margins). Weight stays 500, size stays 13 — the row must read as a peer of the \
          rows below it, not as a header.\n\
          3 · creating — inline in the row (glyph → Spinner, label → \u{201c}Creating \
-         workspace…\u{201d}), list below dimmed to 50% and inert. A full-pane connecting \
+         workspace…\u{201d}), list below stays readable, names in text-muted, and inert. A full-pane connecting \
          takeover would throw away the list for a 1–3s roundtrip.\n\
          4 · failure — inline under the row, message clamped to 3 lines (full string in \
          title) + Try again. The connect-error center-state is right for \u{201c}we never got \
