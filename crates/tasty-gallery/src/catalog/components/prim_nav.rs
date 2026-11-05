@@ -347,7 +347,7 @@ pub fn draw_tree_row(ui: &mut egui::Ui, theme: &Theme) {
          read permission or a favourite on a dropped remote stays a normal row: selectable, \
          expandable, and opening it reports the reason (CenterState error in the explorer body). \
          Greying it would hide the one row the user needs to act on. The product's enabled \
-         argument is removed. A pending cut is a dimmed item (cut-pending-opacity), not \
-         disabled.",
+         argument is removed. A pending cut reads cut-pending-fg with an italic name, not \
+         opacity, and is not disabled.",
     );
 }

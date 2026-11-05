@@ -347,7 +347,8 @@ pub use toggle::{
 };
 pub use tooltip::{Tooltip, TooltipPlacement, tooltip_hover_delay_elapsed};
 pub use tree_row::{
-    tree_row, tree_row_icon_center, tree_row_matching, tree_row_with_tail, tree_row_with_tail_fg,
+    italicize_name, tree_row, tree_row_cut, tree_row_icon_center, tree_row_matching,
+    tree_row_with_tail, tree_row_with_tail_fg,
 };
 pub use two_depth::{two_depth_layout, two_depth_layout_filtered};
 pub use ui_code::{

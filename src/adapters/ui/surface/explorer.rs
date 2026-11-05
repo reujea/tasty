@@ -24,7 +24,7 @@ use tasty_type_geometry::length::LogicalPx;
 
 use tasty_model::{ExplorerPanel, ExplorerViewMode, SortColumn, SortDir};
 use tasty_type_appearance::theme::Theme;
-use tasty_ui_widgets::{Table, TableSortDir, tree_row, tree_row_with_tail_fg};
+use tasty_ui_widgets::{Table, TableSortDir, tree_row, tree_row_cut, tree_row_with_tail_fg};
 
 use crate::adapters::ui::icons::{self, Icon};
 use crate::core::explorer_favorites as favorites;
@@ -1189,16 +1189,7 @@ fn grid_entry(
     }
 }
 
-/// 잘라내기 대기 중인 항목의 전경 색을 흐리게 한다. 선택·호버 배경에는 쓰지 않는다.
-fn cut_dim(theme: &Theme, cut: bool, c: egui::Color32) -> egui::Color32 {
-    if cut {
-        c.gamma_multiply(theme.cut_pending_opacity())
-    } else {
-        c
-    }
-}
-
-/// 그리드 셀. 잘라내기 대기 중에는 전경만 흐리게 하며 선택·호버 배경은 유지한다.
+/// 그리드 셀. 잘라내기 대기 중인 이름은 `cut-pending-fg` 이탤릭이고 선택·호버 배경은 유지한다.
 fn grid_cell(
     ui: &mut egui::Ui,
     ctx: &EntryCtx<'_>,
@@ -1215,7 +1206,6 @@ fn grid_cell(
     let state = tasty_ui_widgets::RowState::from_response(selected, &resp);
     state.paint_fill(&p, rect, theme.corner_radius.value(), theme);
 
-    let fg_dim = |c| cut_dim(theme, cut, c);
     let (icon, glyph_color) = entry_style::entry_icon(theme, e, selected);
     // 선택 행의 모양 글리프만 hover·press 잉크로 바꾼다. hue 글리프는 on-active 띠를 유지한다.
     let glyph_color = if glyph_color == theme.text_on_active().to_egui() {
@@ -1230,16 +1220,21 @@ fn grid_cell(
         ),
         egui::vec2(slot, slot),
     );
-    thumbs::paint_slot(ui, theme, glyph_rect, thumb, icon, fg_dim(glyph_color));
+    thumbs::paint_slot(ui, theme, glyph_rect, thumb, icon, glyph_color);
 
     // 이름은 위에서부터 최대 세 줄로 표시하고 넘치면 끝을 줄인다.
     let parent = tasty_ui_widgets::RowParent::Base;
-    let rest = state.label(theme, parent, theme.text_secondary()).to_egui();
-    let label_color = fg_dim(if state.is_selected() {
+    let rest_ink = if cut {
+        theme.cut_pending_fg()
+    } else {
+        theme.text_secondary()
+    };
+    let rest = state.label(theme, parent, rest_ink).to_egui();
+    let label_color = if state.is_selected() || cut {
         rest
     } else {
         entry_style::name_fg(theme, e, selected, rest)
-    });
+    };
     let mut job = find::name_job(
         theme,
         &e.name,
@@ -1249,6 +1244,9 @@ fn grid_cell(
         Some(ctx.metrics.label_line_h),
         selected,
     );
+    if cut {
+        tasty_ui_widgets::italicize_name(&mut job);
+    }
     job.halign = egui::Align::Center;
     // 링크는 마지막 줄 끝에 link 글리프가 들어갈 폭을 남긴다.
     let tail = link::has_tail(e).then(|| link::tail_width(theme, e));
@@ -1265,7 +1263,7 @@ fn grid_cell(
     );
     if let (Some(_), Some(row)) = (tail, galley.rows.last()) {
         let row = row.rect.translate(label_at.to_vec2());
-        link::paint_tail(ui, theme, row.right(), row.center().y, selected, fg_dim);
+        link::paint_tail(ui, theme, row.right(), row.center().y, selected);
     }
     p.galley(label_at, galley, label_color);
 
@@ -1317,26 +1315,38 @@ fn list_view(
         let selected = view.selected.contains(&e.path);
         let (icon, glyph_color) = entry_style::entry_icon(theme, e, selected);
         let cut = cut_pending.contains(&e.path);
-        // cut-pending 행은 행 전체를 cut_pending_opacity(50%) 로 디밍(스코프 opacity 로 통째 디밍).
         // 보이는 줄만 그리므로 줄의 위젯 id 를 화면 위치가 아니라 항목 경로에 묶는다.
         let resp = ui
             .push_id(&e.path, |ui| {
-                if cut {
-                    ui.set_opacity(theme.cut_pending_opacity());
-                }
                 let tail = link::tail_width(theme, e);
-                let (resp, name_end) = tree_row_with_tail_fg(
-                    ui,
-                    theme,
-                    Some(&|ui, rect, _c| icon.image(rect.height(), glyph_color).paint_at(ui, rect)),
-                    &e.name,
-                    &query,
-                    selected,
-                    tail,
-                    entry_style::rest_fg(theme, e),
-                );
+                let paint_icon = |ui: &mut egui::Ui, rect: egui::Rect, _c: egui::Color32| {
+                    icon.image(rect.height(), glyph_color).paint_at(ui, rect);
+                };
+                let (resp, name_end) = if cut {
+                    tree_row_cut(
+                        ui,
+                        theme,
+                        Some(&paint_icon),
+                        &e.name,
+                        &query,
+                        selected,
+                        tail,
+                    )
+                } else {
+                    let rest = entry_style::rest_fg(theme, e);
+                    tree_row_with_tail_fg(
+                        ui,
+                        theme,
+                        Some(&paint_icon),
+                        &e.name,
+                        &query,
+                        selected,
+                        tail,
+                        rest,
+                    )
+                };
                 if tail > 0.0 {
-                    link::paint_tail(ui, theme, name_end, resp.rect.center().y, selected, |c| c);
+                    link::paint_tail(ui, theme, name_end, resp.rect.center().y, selected);
                 }
                 resp
             })
@@ -1427,9 +1437,7 @@ fn detail_view(
                 if col == 0 && drawn_name_cell.get().is_none() {
                     drawn_name_cell.set(Some((index, ui.max_rect())));
                 }
-                // cut-pending 행은 전경(아이콘+텍스트)을 cut_pending_opacity(50%) 로 디밍.
-                // Table 이 그리는 선택/hover 배경은 그대로 유지.
-                let dim = |c| cut_dim(th, cut_pending.contains(&row.path), c);
+                let cut = cut_pending.contains(&row.path);
                 let sel = row.name != ".." && view.selected.contains(&row.path);
                 // 하위 폴더 검색은 Name 뒤에 Folder 를 두고 Type 을 뺀다. 열 번호를 평소 배치로 옮긴다.
                 let col = match (&search_root, col) {
@@ -1449,18 +1457,24 @@ fn detail_view(
                             let (rect, _) =
                                 ui.allocate_exact_size(egui::vec2(sz, sz), egui::Sense::hover());
                             let (icon, c) = entry_style::entry_icon(th, row, sel);
-                            icon.image(sz, dim(c)).paint_at(ui, rect);
-                            let name_fg =
-                                entry_style::name_fg(th, row, sel, th.table_row_fg().to_egui());
-                            let job = find::name_job(
+                            icon.image(sz, c).paint_at(ui, rect);
+                            let name_fg = if cut && !sel {
+                                th.cut_pending_fg().to_egui()
+                            } else {
+                                entry_style::name_fg(th, row, sel, th.table_row_fg().to_egui())
+                            };
+                            let mut job = find::name_job(
                                 th,
                                 &row.name,
                                 &query,
                                 egui::FontId::proportional(th.font_size_body.value()),
-                                dim(name_fg),
+                                name_fg,
                                 None,
                                 sel,
                             );
+                            if cut {
+                                tasty_ui_widgets::italicize_name(&mut job);
+                            }
                             // 꼬리 글리프 폭을 먼저 빼고 이름을 그 앞에서 말줄임한다. 폭은 열의 clip 끝으로
                             // 잰다(남은 폭을 다 채우면 이름 열이 스크롤 안에서 넓어진다).
                             let room = ui.clip_rect().right() - ui.cursor().left();
@@ -1475,7 +1489,7 @@ fn detail_view(
                                 .inner;
                             link::broken_tooltip(row, remote, name);
                             if link::has_tail(row) {
-                                link::add_tail(ui, th, sel, dim);
+                                link::add_tail(ui, th, sel);
                             }
                         });
                         return;
@@ -1494,11 +1508,11 @@ fn detail_view(
                 // Type 열만 본문 글꼴 크기로, 나머지 값은 고정폭으로 쓴다.
                 let text =
                     egui::RichText::new(display_text::nfc(&text.unwrap_or_default()).into_owned())
-                        .color(dim(if sel {
+                        .color(if sel {
                             th.table_row_fg_selected().to_egui()
                         } else {
                             th.text_muted().to_egui()
-                        }));
+                        });
                 let size = th.font_size_caption.value();
                 // Type 열은 좁아 낱말을 말줄임하고, 줄였으면 호버에 전체 낱말이 보인다.
                 if col == 3 {

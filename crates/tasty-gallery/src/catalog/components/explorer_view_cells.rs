@@ -5,7 +5,7 @@ use std::cell::RefCell;
 use tasty_type_appearance::theme::Theme;
 use tasty_type_geometry::length::LogicalPx;
 use tasty_ui_widgets::{
-    ExplorerDetailHeads, Table, TableSortDir, explorer_detail_columns, tree_row,
+    ExplorerDetailHeads, Table, TableSortDir, explorer_detail_columns, tree_row, tree_row_cut,
 };
 
 use crate::catalog::icons::{FILE, FOLDER, IMAGE, MockGlyph};
@@ -93,7 +93,7 @@ pub(super) struct DetailRow {
     pub(super) size: &'static str,
     pub(super) modified: &'static str,
     pub(super) kind_label: &'static str,
-    /// 잘라내기 대기 행 — 전경을 `cut_pending_opacity` 로 낮춘다.
+    /// 잘라내기 대기 행 — 이름을 `cut-pending-fg` 이탤릭으로 그린다.
     pub(super) cut: bool,
 }
 
@@ -153,19 +153,24 @@ pub fn draw(ui: &mut egui::Ui, theme: &Theme) {
     });
 
     // 잘라내기 대기는 전경만 흐리게 하고 선택·호버 배경은 유지한다.
-    cluster(ui, theme, "cut (50% opacity until paste)", |ui| {
-        egui::Frame::new()
-            .fill(egui::Color32::from(theme.bg_panel()))
-            .inner_margin(egui::Margin::same(theme.spacing_md.value() as i8))
-            .show(ui, |ui| {
-                ui.horizontal_wrapped(|ui| {
-                    ui.spacing_mut().item_spacing =
-                        egui::vec2(theme.spacing_md.value(), theme.spacing_md.value());
-                    grid_cell(ui, theme, &GRID[0], true, true);
-                    grid_cell(ui, theme, &GRID[2], false, true);
+    cluster(
+        ui,
+        theme,
+        "cut (cut-pending-fg, italic name until paste)",
+        |ui| {
+            egui::Frame::new()
+                .fill(egui::Color32::from(theme.bg_panel()))
+                .inner_margin(egui::Margin::same(theme.spacing_md.value() as i8))
+                .show(ui, |ui| {
+                    ui.horizontal_wrapped(|ui| {
+                        ui.spacing_mut().item_spacing =
+                            egui::vec2(theme.spacing_md.value(), theme.spacing_md.value());
+                        grid_cell(ui, theme, &GRID[0], true, true);
+                        grid_cell(ui, theme, &GRID[2], false, true);
+                    });
                 });
-            });
-    });
+        },
+    );
 
     cluster(ui, theme, "list — single column (tree_row reuse)", |ui| {
         egui::Frame::new()
@@ -186,33 +191,47 @@ pub fn draw(ui: &mut egui::Ui, theme: &Theme) {
                         for (i, e) in LIST.iter().enumerate() {
                             let clicked = ui
                                 .scope(|ui| {
-                                    if e.mark == Mark::Cut {
-                                        ui.multiply_opacity(theme.cut_pending_opacity());
-                                    }
                                     if e.mark == Mark::Hover {
                                         static_row_hover(ui, theme);
                                     }
                                     let kind = e.kind;
                                     let selected = i == *sel;
-                                    tree_row(
-                                        ui,
-                                        theme,
-                                        0,
-                                        false,
-                                        false,
-                                        Some(&|ui, rect, c| {
+                                    let glyph =
+                                        |ui: &mut egui::Ui, rect: egui::Rect, c: egui::Color32| {
                                             let fg = if selected {
                                                 kind.selected_tint(theme)
                                             } else {
                                                 kind.tint(theme, c)
                                             };
-                                            kind.glyph().image(rect.height(), fg).paint_at(ui, rect)
-                                        }),
-                                        e.name,
-                                        None,
-                                        i == *sel,
-                                    )
-                                    .clicked()
+                                            kind.glyph()
+                                                .image(rect.height(), fg)
+                                                .paint_at(ui, rect);
+                                        };
+                                    let resp = if e.mark == Mark::Cut {
+                                        tree_row_cut(
+                                            ui,
+                                            theme,
+                                            Some(&glyph),
+                                            e.name,
+                                            "",
+                                            selected,
+                                            0.0,
+                                        )
+                                        .0
+                                    } else {
+                                        tree_row(
+                                            ui,
+                                            theme,
+                                            0,
+                                            false,
+                                            false,
+                                            Some(&glyph),
+                                            e.name,
+                                            None,
+                                            selected,
+                                        )
+                                    };
+                                    resp.clicked()
                                 })
                                 .inner;
                             if clicked {
@@ -265,7 +284,10 @@ pub fn draw(ui: &mut egui::Ui, theme: &Theme) {
             ("selected", "surface-active (no border)"),
             ("detail name", "table-row-fg · selected text-primary"),
             ("glyph", "folder/file text-muted · image accent-info"),
-            ("cut", "foreground 50% opacity until paste"),
+            (
+                "cut",
+                "cut-pending-fg · italic name until paste · no opacity",
+            ),
             ("sort", "header indicator (accent-primary)"),
         ],
         &[
@@ -307,7 +329,7 @@ pub fn draw(ui: &mut egui::Ui, theme: &Theme) {
     );
 }
 
-/// 그리드 셀을 그린다. 클릭하면 true를 반환하며 cut 상태는 전경만 흐리게 한다.
+/// 그리드 셀을 그린다. 클릭하면 true를 반환하며 cut 상태는 이름만 바뀐다.
 fn grid_cell(ui: &mut egui::Ui, theme: &Theme, e: &Entry, selected: bool, cut: bool) -> bool {
     grid_cell_parts(
         ui,
@@ -361,13 +383,6 @@ pub(super) fn grid_cell_parts(
         );
     }
 
-    let fg_dim = |c: egui::Color32| {
-        if cut {
-            c.gamma_multiply(theme.cut_pending_opacity())
-        } else {
-            c
-        }
-    };
     let slot_rect = egui::Rect::from_center_size(
         egui::pos2(
             rect.center().x,
@@ -381,11 +396,11 @@ pub(super) fn grid_cell_parts(
         kind.glyph()
             .image(
                 glyph,
-                fg_dim(if selected {
+                if selected {
                     kind.selected_tint(theme)
                 } else {
                     kind.tint(theme, egui::Color32::from(theme.text_muted()))
-                }),
+                },
             )
             .paint_at(
                 ui,
@@ -393,10 +408,12 @@ pub(super) fn grid_cell_parts(
             );
     }
 
-    let label_color = fg_dim(if selected {
-        egui::Color32::from(theme.text_on_active())
+    let label_color = egui::Color32::from(if selected {
+        theme.text_on_active()
+    } else if cut {
+        theme.cut_pending_fg()
     } else {
-        egui::Color32::from(theme.text_secondary())
+        theme.text_secondary()
     });
     let mut job = egui::text::LayoutJob {
         halign: egui::Align::Center,
@@ -415,6 +432,7 @@ pub(super) fn grid_cell_parts(
             font_id: egui::FontId::proportional(label_font),
             color: label_color,
             line_height: Some(label_line_h),
+            italics: cut,
             ..Default::default()
         },
     );
@@ -456,7 +474,7 @@ pub(super) fn thumb_stand_in(ui: &egui::Ui, theme: &Theme, slot: egui::Rect) {
 }
 
 /// 상세 보기 표. 공용 `Table` 로 그리며 클릭한 행 번호를 돌려준다.
-/// `cut` 행은 본체처럼 전경(글리프 + 글자)을 `cut_pending_opacity` 로 낮춘다.
+/// `cut` 행은 본체처럼 이름을 `cut-pending-fg` 이탤릭으로 그린다.
 pub(super) fn detail_table(
     ui: &mut egui::Ui,
     theme: &Theme,
@@ -485,19 +503,12 @@ pub(super) fn detail_table(
         .max_scroll_height(max_height)
         .id_salt(id_salt)
         .show(ui, theme, rows, is_sel, |ui, th, row, col| {
-            let dim = |c: egui::Color32| {
-                if row.cut {
-                    c.gamma_multiply(th.cut_pending_opacity())
-                } else {
-                    c
-                }
-            };
             let sel = is_sel(row);
-            let muted = dim(egui::Color32::from(if sel {
+            let muted = egui::Color32::from(if sel {
                 th.table_row_fg_selected()
             } else {
                 th.text_muted()
-            }));
+            });
             match col {
                 0 => {
                     ui.horizontal(|ui| {
@@ -509,23 +520,24 @@ pub(super) fn detail_table(
                             .glyph()
                             .image(
                                 sz,
-                                dim(if sel {
+                                if sel {
                                     row.kind.selected_tint(th)
                                 } else {
                                     row.kind.tint(th, egui::Color32::from(th.text_muted()))
-                                }),
+                                },
                             )
                             .paint_at(ui, rect);
                         let name_fg = if sel {
                             th.text_on_active()
+                        } else if row.cut {
+                            th.cut_pending_fg()
                         } else {
                             th.table_row_fg()
                         };
-                        ui.label(
-                            egui::RichText::new(row.name)
-                                .size(th.font_size_body.value())
-                                .color(dim(egui::Color32::from(name_fg))),
-                        );
+                        let name = egui::RichText::new(row.name)
+                            .size(th.font_size_body.value())
+                            .color(egui::Color32::from(name_fg));
+                        ui.label(if row.cut { name.italics() } else { name });
                     });
                 }
                 1 => {

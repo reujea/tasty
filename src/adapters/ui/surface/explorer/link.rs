@@ -43,14 +43,13 @@ pub(super) fn tail_width(th: &Theme, e: &DirEntryInfo) -> f32 {
     }
 }
 
-/// 글자 끝 `text_right` 에서 `space-xs` 띄운 자리에 link 글리프를 그린다. `fade` 는 잘라내기 디밍 같은 색 보정이다.
+/// 글자 끝 `text_right` 에서 `space-xs` 띄운 자리에 link 글리프를 그린다.
 pub(super) fn paint_tail(
     ui: &egui::Ui,
     th: &Theme,
     text_right: f32,
     center_y: f32,
     selected: bool,
-    fade: impl Fn(egui::Color32) -> egui::Color32,
 ) {
     let s = glyph_size(th);
     let rect = egui::Rect::from_min_size(
@@ -58,21 +57,16 @@ pub(super) fn paint_tail(
         egui::vec2(s, s),
     );
     icons::LINK
-        .image(s, fade(glyph_color(th, selected)))
+        .image(s, glyph_color(th, selected))
         .paint_at(ui, rect);
 }
 
 /// 이름 칸에 link 글리프를 한 칸 더 잡아 그린다(Detail 의 가로 배치 안에서 쓴다).
-pub(super) fn add_tail(
-    ui: &mut egui::Ui,
-    th: &Theme,
-    selected: bool,
-    fade: impl Fn(egui::Color32) -> egui::Color32,
-) {
+pub(super) fn add_tail(ui: &mut egui::Ui, th: &Theme, selected: bool) {
     let s = glyph_size(th);
     let (rect, _) = ui.allocate_exact_size(egui::vec2(s, s), egui::Sense::hover());
     icons::LINK
-        .image(s, fade(glyph_color(th, selected)))
+        .image(s, glyph_color(th, selected))
         .paint_at(ui, rect);
 }
 

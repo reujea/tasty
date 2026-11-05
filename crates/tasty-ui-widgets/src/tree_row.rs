@@ -67,6 +67,7 @@ pub fn tree_row_matching(
         selected,
         tail: 0.0,
         rest_fg: None,
+        italic: false,
     };
     draw(ui, theme, row, icon, label, query).0
 }
@@ -106,8 +107,41 @@ pub fn tree_row_with_tail_fg(
         selected,
         tail,
         rest_fg,
+        italic: false,
     };
     draw(ui, theme, row, icon, label, query)
+}
+
+/// `tree_row_with_tail` 과 같고, 잘라내기 대기 항목으로 그린다. 쉴 때 이름은 `cut-pending-fg` 이고
+/// 이름은 언제나 이탤릭이다. 선택·호버 잉크가 쉴 때 색보다 앞선다.
+pub fn tree_row_cut(
+    ui: &mut egui::Ui,
+    theme: &Theme,
+    icon: Option<IconPainter<'_>>,
+    label: &str,
+    query: &str,
+    selected: bool,
+    tail: f32,
+) -> (egui::Response, f32) {
+    let row = Row {
+        depth: 0,
+        has_children: false,
+        open: false,
+        meta: None,
+        selected,
+        tail,
+        rest_fg: Some(theme.cut_pending_fg().to_egui()),
+        italic: true,
+    };
+    draw(ui, theme, row, icon, label, query)
+}
+
+/// 이름을 `cut-pending-font-style`(italic)로 바꾼다. 생성기가 이 토큰을 상수로 만들지 않아
+/// 값은 여기 고정하며, `tasty-design-tokens` 시험이 토큰과 대조한다.
+pub fn italicize_name(job: &mut egui::text::LayoutJob) {
+    for section in &mut job.sections {
+        section.format.italics = true;
+    }
 }
 
 /// 행 모양. `tail` 은 이름 오른쪽에 남겨 둘 폭이고, `rest_fg` 는 선택·호버가 아닐 때의 이름 색이다.
@@ -119,6 +153,7 @@ struct Row<'a> {
     selected: bool,
     tail: f32,
     rest_fg: Option<egui::Color32>,
+    italic: bool,
 }
 
 fn draw(
@@ -137,6 +172,7 @@ fn draw(
         selected,
         tail,
         rest_fg,
+        italic,
     } = row;
     let height = theme.tree_row_height().value();
     let pad_l = theme.tree_row_gap().value();
@@ -234,14 +270,18 @@ fn draw(
         right -= g.rect.width() + GAP;
     }
 
-    let g = ui.painter().layout_job(crate::explorer_match_job(
+    let mut job = crate::explorer_match_job(
         theme,
         label,
         query,
         egui::FontId::proportional(body),
         egui::Color32::PLACEHOLDER,
         selected,
-    ));
+    );
+    if italic {
+        italicize_name(&mut job);
+    }
+    let g = ui.painter().layout_job(job);
     let right = (right - tail).max(x);
     let label_rect =
         egui::Rect::from_min_max(egui::pos2(x, rect.top()), egui::pos2(right, rect.bottom()));
@@ -270,6 +310,23 @@ mod tests {
             });
         }));
         out.expect("drawn")
+    }
+
+    /// 잘라낸 항목의 이름은 검색 일치 구간까지 모두 이탤릭이다.
+    #[test]
+    fn italicize_name_covers_every_section() {
+        let theme = Theme::with_colors_and_zoom(tasty_themes::mocha_fallback_colors(), false, 1.0);
+        let mut job = crate::explorer_match_job(
+            &theme,
+            "archive.zip",
+            "chi",
+            egui::FontId::proportional(theme.font_size_body.value()),
+            egui::Color32::PLACEHOLDER,
+            false,
+        );
+        assert!(job.sections.len() > 1, "일치 구간이 나뉘어야 한다");
+        italicize_name(&mut job);
+        assert!(job.sections.iter().all(|s| s.format.italics));
     }
 
     #[test]

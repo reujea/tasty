@@ -1606,13 +1606,6 @@ impl Theme {
         if self.is_light { 1.0 } else { OPACITY_DIMMED }
     }
 
-    /// 잘라내기 대기 중인 파일의 아이콘·라벨을 흐리게 한다.
-    /// design `--tasty-cut-pending-opacity` → `state-dim-opacity`.
-    #[inline]
-    pub fn cut_pending_opacity(&self) -> f32 {
-        self.state_dim_opacity()
-    }
-
     // ── 컴포넌트 토큰 (banner) — 기존 semantic 접근자 / 신규 primitive 조합 ──
     /// 배너 셸 배경. `--tasty-banner-bg` → `surface-raised` (surface0).
     #[inline]
