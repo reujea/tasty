@@ -298,8 +298,17 @@ export function summarize(t, rules, theme, pageCount, report) {
   console.log(`  no grade: ${Object.entries(t.gradeNone).map(([k, v]) => `${k} ${v}`).join(", ") || "none"}`);
   unlocated.forEach((id) => console.log(`  no element for row ${id}`));
   unmeasured.forEach((id) => console.log(`  nothing measured for row ${id}`));
-  [...new Set(below)].slice(0, 200).forEach((l) => console.log(`  below ${l}`));
-  [...new Set(mismatch)].slice(0, 200).forEach((l) => console.log(`  wrong ink ${l}`));
+  // A few lines per row, so one broad failure does not hide another row.
+  const perRow = (lines, tag) => {
+    const shown = new Map();
+    new Set(lines).forEach((l) => {
+      const id = l.split(/[ :]/)[0];
+      shown.set(id, (shown.get(id) || 0) + 1);
+      if (shown.get(id) <= 5) console.log(`  ${tag} ${l}`);
+    });
+  };
+  perRow(below, "below");
+  perRow(mismatch, "wrong ink");
   const seen = new Set();
   t.below.forEach((b) => {
     const key = `${b.at} ${b.text} ${b.got} ${b.ground}`;
