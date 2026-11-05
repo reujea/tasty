@@ -41,7 +41,7 @@ Design System Artifact **Tasty Design System**에서 받아온 디자인 사본�
    - 아이콘 검사는 `icons/*.svg`, `components/core/Icon.jsx`의 `ICON_PATHS`, 앱의 `crates/tasty-icons/src/lib.rs`에 있는 기하를 비교한다. 이름 대응은 명부를 사용한다. 킷의 `list`는 앱의 `log`에, `listView`는 앱의 `list`에 해당한다. 아이콘 추가·삭제 시 명부도 갱신한다.
    - `<svg>`의 `viewBox`, 선 굵기, cap/join도 비교한다. 의도적인 색(`stroke`/`fill`) 차이는 사유와 함께 명부에 남기고, 해소되면 지운다.
    - 이 검사들은 토큰·아이콘을 바꾸지 않는 문구·구성·컨트롤 변경을 검출하지 않는다. **최신 여부는 1~4단계에서 원격과 직접 비교한다.**
-6. **사이트를 빌드하고 검사한다.** `cd site && npm run build && npm run check-links`. 사이트는 사본을 변환 없이 import하므로 사본의 JSX는 ES 모듈이어야 한다.
+6. **사이트를 빌드하고 검사한다.** `cd site && npm run build && npm run check-links && npm run check-contrast`. 사이트는 사본을 변환 없이 import하므로 사본의 JSX는 ES 모듈이어야 한다.
 7. `site/vendor/` 변경과 `MANIFEST`, 필요한 명부 갱신을 같은 커밋에 담는다.
 
 ## 구성
@@ -65,7 +65,7 @@ Design System Artifact **Tasty Design System**에서 받아온 디자인 사본�
 - **`components/<이름>/README.md`, `components/<이름>/preview.html`**: 디자인 시스템 페이지의 안내와 미리보기다.
 - **`icons.json`**: `icons/*.svg`에서 생성한 아이콘 이름·그룹·역할·`paths`·`fill` 명부다. 사이트는 `ICON_PATHS`를 사용하므로 추가 사본을 두지 않는다. 앱 아이콘은 이 명부를 참고해 옮긴 것이며, `crates/tasty-doc-guards/tests/site_vendor_icons_match_the_app_transcription.rs`가 `ICON_PATHS`와 앱 구현을 비교한다.
 - **킷 `README.md`, 컴포넌트 번들**: `ui_kits/terminal/README.md`와 `components/bundle.js`는 디자인 도구용이다. 사이트는 `.jsx`를 직접 import한다.
-- **갤러리 보조 파일**: `gallery/coverage.md`와 `gallery/contract-audit.js`는 디자인 검토용이다.
+- **갤러리 보조 파일**: `gallery/coverage.md`와 `gallery/contract-audit.js`는 디자인 검토용이다. 사이트의 검사는 `scripts/check-contrast.mjs`다.
 - **`tokens/tasty.tokens.json`**: DTCG 원본이다. 앱이 가져오는 사본은 `crates/tasty-design-tokens/dtcg/tasty.tokens.json`에 두고(갱신 절차는 `crates/tasty-design-tokens/README.md`), 사이트는 CSS 토큰만 쓴다. `tokens/fonts.css`는 위 웹폰트 항목으로 제외한다.
 - **컴포넌트 보조 파일**: `components/**/*.prompt.md`(디자인 도구용 사용 안내)와 `components/*/*.card.html`(디자인 시스템 패널 카드)은 사이트가 쓰지 않는다.
 - **`changelog/`**: 원격 디자인 결정문이다. 저장소의 결정은 `docs/`와 ADR에 둔다.

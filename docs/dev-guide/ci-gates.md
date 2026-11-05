@@ -213,6 +213,8 @@ GitHub 조건식의 의미나 단계 간 의존성을 증명하지 않는다.
 `check-links.mjs`는 생성 HTML의 내부 링크를 검사한다. 외부 GitHub URL로 바뀐 소스 링크의
 실재 여부까지 검사하지는 않는다. 사용자 가이드에 내부 소스 경로를 넣지 않는 규칙은 유지한다.
 
+`npm run check-contrast`는 브라우저가 필요하고 사본이 릴리스 때만 갱신되므로 `pages.yml`에 넣지 않고 [릴리스 절차](release.md#3-사이트-갱신)에서 실행한다.
+
 `site/vendor/` 사본이 `site/vendor/MANIFEST`의 해시와 같은지는 pages가 아니라
 `doc-guards.yml`의 `site_vendor_manifest_matches.rs`가 확인한다. 이 워크플로는 경로 필터가 없으므로
 vendor만 바꾼 push에서도 실행된다. `MANIFEST`를 쓰는 `site/scripts/vendor-manifest.mjs`는 원격 원본을

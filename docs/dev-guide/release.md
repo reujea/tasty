@@ -54,9 +54,10 @@ CLAUDE.md 정책의 운영 형태:
 
 1. **기획서 반영:** 로컬 지침이 정한 홈페이지 기획서를 랜딩, 디자인 소개, 사용자 가이드(`site/content/`)에 반영하고 명령어·설정 키·메뉴 이름을 이번 버전과 대조한다. 영어 번역을 고쳤으면 `--stamp` 한다.
 2. **디자인 사본:** [`site/vendor/README.md`](../../site/vendor/README.md)의 "vendor 갱신 절차"로 갤러리와 토큰 사본을 Artifact에서 가져온다.
-3. **검사:** 사이트 빌드와 링크 검사를 실행하고, 앱 사본과 대조하는 시험을 실행한다.
+3. **검사:** 사이트 빌드, 링크 검사, 렌더링 대비 검사를 실행하고, 앱 사본과 대조하는 시험을 실행한다. 대비 검사는 브라우저가 필요해 CI가 아니라 이 단계에서 실행한다. 실패 목록은 [사이트 가이드](site.md#렌더링-대비-검사)의 기준으로 판정한다.
 
 ```bash
+(cd site && npm run build && npm run check-links && npm run check-contrast)
 cargo test -p tasty-doc-guards --locked --test site_vendor_tokens_track_the_app_export --test site_vendor_icons_match_the_app_transcription -- --ignored
 ```
 

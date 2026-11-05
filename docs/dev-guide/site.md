@@ -47,7 +47,7 @@ site/
   package.json          astro · @astrojs/react · react 18
   astro.config.mjs      정적 출력, React 아일랜드
   vendor/               Design System Artifact의 사본. 사이트가 그대로 import한다
-  scripts/              check-links · vendor-manifest · stamp
+  scripts/              check-links · check-contrast · vendor-manifest · stamp
   src/pages/            라우트
   src/components/ src/layouts/ src/lib/ src/styles/
 ```
@@ -70,6 +70,16 @@ site/
 - `site/src/pages/design/gallery/*/index.astro`: 라우트마다 `vendor/gallery/<페이지>/index.jsx`의 `page`와 기본 내보내기를 싣는다.
 - 표본의 범위는 `[data-gallery-page]`다. 사이트 전역 규칙 중 표본과 부딪히는 것(`img`, `:focus-visible`)은 이 범위를 뺀다.
 - `parts/specimen.jsx`의 `Spec`이 제목, 데모, 상태 격자, 숨은 상태의 프레임, 명세 표 순서로 그린다. `?audit=1`을 붙이면 지연 마운트 없이 모든 데모를 그린다.
+
+### 렌더링 대비 검사
+
+`npm run check-contrast`는 빌드 결과를 띄워 갤러리 전 페이지를 Mocha와 Latte로 렌더링하고 다음을 잰다.
+
+- 고정 셀: `tokens/ground-ink-rules.json`의 행마다 부품의 잉크가 지정 토큰인지(채널당 1/255 허용), 합성 바탕에서 등급을 넘는지 본다. 행에 셀이 없거나 부품을 찾지 못해도 실패한다. 부품 위치는 `parts/part-map.js`에 있다.
+- 나머지 글자·글리프·입력: 글자는 4.5, 글리프는 3을 기준으로 잰다. `data-audit-exempt`와 `data-ink-grade`의 규칙은 사본 `RULES.md` 14절을 따르고, 쓰인 예외 id와 횟수를 출력한다. 완전히 투명한 요소만 화면에 없는 것으로 보며 그 밖의 opacity는 합성해 잰다.
+- 측정 0건, 알 수 없는 예외 id, 페이지 오류도 실패다.
+
+브라우저는 `CHROMIUM_PATH`, Playwright 캐시의 Chromium, `/snap/bin/chromium` 순으로 찾는다. `playwright-core`만 의존성으로 두고 브라우저는 내려받지 않는다. 그래서 이 검사는 `pages.yml`이 아니라 [릴리스 절차](release.md#3-사이트-갱신)에서 실행한다.
 
 ### vendor 자신은 어디서 오는가
 
@@ -111,7 +121,8 @@ npm install          # 최초 1 회
 npm run build        # astro build -> site/dist/
 npm run dev          # 개발 서버
 npm run preview      # 빌드 결과 확인
-npm run check-links  # 빌드 결과의 내부 링크·앵커 검사
+npm run check-links     # 빌드 결과의 내부 링크·앵커 검사
+npm run check-contrast  # 빌드 결과의 갤러리 렌더링 대비 검사
 
 # 번역 파일에 원본 해시 스탬프 (아래 "번역 모델")
 npm run stamp content/en/index.md
