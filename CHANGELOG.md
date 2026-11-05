@@ -17,6 +17,8 @@
 
 ## [Unreleased]
 
+## [0.13.2] - 2026-11-06
+
 ### Added
 
 - **HTML 로컬 문서의 원격 콘텐츠 차단 안내와 주소 칸 표지를 추가했다.** 원격 콘텐츠 허용 설정이 꺼진 채 네트워크의 스타일시트·이미지·글꼴·프레임·스크립트를 참조하는 로컬 문서를 사용자가 보면 주소 표시줄 아래에 "Remote content in this document is blocked" 안내와 [Allow remote content]가 뜬다. 허용은 그 문서(주소와 내용 지문)에만 적용되고 다시 불러오며, 스크립트 허용과 서로 바꾸지 않는다. 안내를 닫거나 허용하면 주소 입력란 끝에 globeOff(차단, 누르면 안내를 다시 보인다)·globe(허용, 툴팁만) 표지가 남는다. 한 화면의 안내는 크기 안내(mirror) → 원격 → 스크립트 순서로 따로 쌓는다. 원격 스크립트가 있는 문서에서 두 안내가 함께 보이면 스크립트 안내 본문이 바뀐다. 에이전트는 `tasty surface html-script`의 `remote` 객체로 상태를 조회하고 `tasty surface html-remote-allow --surface <id> [--url <url> --fingerprint <hex>]`(IPC `surface.html_remote_allow`, 권한 `surface.write`)로 허용한다. mirror·HTTP view와 전역 허용이 켜진 경우에는 안내와 표지가 없다. Linux 실제 실행으로 확인했고 Windows·macOS는 실 기기 미측정이다.
