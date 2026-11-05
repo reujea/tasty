@@ -149,7 +149,7 @@ pub(super) fn addr_css(theme: &Theme) -> String {
 #tasty-addr-field:not(:focus-within) #tasty-addr-input{{color:transparent;}}
 #tasty-addr-field:focus-within .tasty-addr-display{{visibility:hidden;}}
 #tasty-addr-field.tasty-addr-invalid .tasty-addr-display{{color:{in_fg};}}
-#tasty-addr-field.tasty-addr-off .tasty-addr-display{{color:{disabled_fg};}}
+#tasty-addr-field.tasty-addr-off .tasty-addr-display{{color:{off_path_fg};}}
 #tasty-addr-error{{display:flex;align-items:center;gap:{space_sm}px;height:{err_h}px;margin-top:-{space_xs}px;padding:0 {pad}px;box-sizing:border-box;}}
 .tasty-addr-error-glyph{{flex:none;width:{kind}px;height:{kind}px;background-color:{err_glyph};-webkit-mask:url("{g_alert}") center/{kind}px {kind}px no-repeat;mask:url("{g_alert}") center/{kind}px {kind}px no-repeat;}}
 .tasty-addr-error-text{{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:{caption}px;color:{err_fg};}}
@@ -182,6 +182,7 @@ pub(super) fn addr_css(theme: &Theme) -> String {
         ring_w = theme.focus_ring_width.value(),
         focus = theme.border_focus().to_hex(),
         disabled_fg = theme.state_disabled_fg().to_hex(),
+        off_path_fg = theme.text_muted_raised().to_hex(),
         stale_bg = theme.md_address_stale_bg().to_hex(),
         stale_fg = theme.md_address_stale_fg().to_hex(),
         glyph = theme.icon_glyph_size_md.value(),

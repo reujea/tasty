@@ -2,7 +2,7 @@
 //!
 //! [chevron] [icon] label [meta]. height control-height-tree(22), depth 들여쓰기.
 //! hover overlay-hover+text-primary, selected surface-active+tree-row-fg-active(아이콘
-//! tree-row-icon-fg-active, chevron·meta tree-row-part-fg-active). chevron 은 has_children 일 때만, open 이면 90° 회전.
+//! tree-row-icon-fg-active, hover·press 때 accent-primary-on-active, chevron·meta tree-row-part-fg-active). chevron 은 has_children 일 때만, open 이면 90° 회전.
 //! disabled 상태는 없다. 열 수 없는 항목도 일반 행으로 두고, 여는 쪽이 이유를 알린다.
 
 use tasty_type_appearance::theme::Theme;
@@ -204,10 +204,12 @@ fn draw(
     x += CHEVRON_SLOT + GAP;
 
     if let Some(paint) = icon {
-        let icon_color = if selected {
-            theme.tree_row_icon_fg_active().to_egui()
-        } else {
-            part
+        let icon_color = match state {
+            crate::RowState::Selected => theme.tree_row_icon_fg_active().to_egui(),
+            crate::RowState::SelectedHover | crate::RowState::SelectedPress => {
+                theme.accent_primary_on_active().to_egui()
+            }
+            _ => part,
         };
         let irect = egui::Rect::from_center_size(
             egui::pos2(x + ICON_GLYPH * 0.5, rect.center().y),

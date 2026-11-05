@@ -124,7 +124,7 @@ fn dependency_row(
         egui::Align2::RIGHT_CENTER,
         rel.label(),
         rel_font,
-        rel.color(theme).to_egui(),
+        theme.text_muted().to_egui(),
     );
     let name_font = egui::FontId::proportional(caption(theme));
     let name_x = rect.min.x + pad + glyph_w + gap;

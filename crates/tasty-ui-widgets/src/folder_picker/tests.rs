@@ -85,7 +85,7 @@ fn translated_footer_keeps_buttons_and_path_tail_inside_the_minimum_width() {
     }
 }
 #[test]
-fn unread_folder_omits_hint_and_uses_disabled_ink_without_opacity() {
+fn unread_folder_omits_hint_and_uses_muted_ink_without_opacity() {
     let theme = Theme::with_colors_and_zoom(tasty_themes::mocha_fallback_colors(), false, 1.0);
     let ctx = egui::Context::default();
     let footer = FolderPickerFooter {
@@ -115,7 +115,9 @@ fn unread_folder_omits_hint_and_uses_disabled_ink_without_opacity() {
         .collect();
     assert!(!texts.iter().any(|t| t.galley.text() == footer.hint));
     assert!(
-        texts.iter().any(|t| t.galley.text() == "/chosen"
-            && t.fallback_color == theme.state_disabled_fg().to_egui())
+        texts
+            .iter()
+            .any(|t| t.galley.text() == "/chosen"
+                && t.fallback_color == theme.text_muted().to_egui())
     );
 }

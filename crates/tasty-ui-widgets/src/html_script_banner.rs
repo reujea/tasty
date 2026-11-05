@@ -340,6 +340,11 @@ pub fn html_script_marker(
         ),
     };
     let (rect, resp) = ui.allocate_exact_size(egui::vec2(hit, hit), sense);
+    let color = if kind == HtmlScriptMarkerKind::Blocked && resp.hovered() {
+        theme.html_script_marker_fg_hover()
+    } else {
+        color
+    };
     if kind == HtmlScriptMarkerKind::Blocked && resp.hovered() {
         ui.painter().rect_filled(
             rect,

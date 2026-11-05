@@ -157,7 +157,7 @@ impl FolderPickerFooter<'_> {
         let color = if self.ready {
             theme.fp_folder_path_fg()
         } else {
-            theme.state_disabled_fg()
+            theme.text_muted()
         }
         .to_egui();
         let path = elide_front(ui, self.path, &font, LogicalPx(inner.width()));

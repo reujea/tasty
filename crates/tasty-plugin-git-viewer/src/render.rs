@@ -354,7 +354,7 @@ fn wt_row(
     state.paint_fill(ui.painter(), rect, 0.0, theme);
 
     let name_color = if !wt.is_valid {
-        theme.text_disabled()
+        state.meta(theme, RowParent::Mantle)
     } else {
         state.label(theme, RowParent::Mantle, theme.text_secondary())
     };

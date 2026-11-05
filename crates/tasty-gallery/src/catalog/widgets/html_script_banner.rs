@@ -256,7 +256,7 @@ fn failed_stand_in(ui: &mut egui::Ui, theme: &Theme, rect: egui::Rect) {
     let mut url_job = egui::text::LayoutJob::simple_singleline(
         FAILED_URL.to_owned(),
         egui::FontId::monospace(theme.font_size_caption.value()),
-        theme.text_disabled().to_egui(),
+        theme.text_muted().to_egui(),
     );
     url_job.wrap.max_width = inner.width();
     url_job.wrap.max_rows = 1;
@@ -284,7 +284,7 @@ fn failed_stand_in(ui: &mut egui::Ui, theme: &Theme, rect: egui::Rect) {
     painter.galley(
         egui::pos2(cx - url_w / 2.0, y),
         url,
-        theme.text_disabled().to_egui(),
+        theme.text_muted().to_egui(),
     );
 }
 
@@ -790,7 +790,7 @@ pub fn draw_load_failed(ui: &mut egui::Ui, theme: &Theme) {
                 "glyph + title",
                 theme.accent_danger().to_egui(),
             ),
-            TokenChip::new("text-disabled", "URL", theme.text_disabled().to_egui()),
+            TokenChip::new("text-muted", "URL", theme.text_muted().to_egui()),
         ],
     );
 }

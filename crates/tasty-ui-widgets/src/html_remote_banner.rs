@@ -83,6 +83,11 @@ pub fn html_remote_marker(
     };
     let resp = ui.interact(rect, ui.id().with("html_remote_marker"), sense);
     let blocked = view.kind == HtmlRemoteMarkerKind::Blocked;
+    let color = if blocked && resp.hovered() {
+        theme.html_remote_marker_fg_hover()
+    } else {
+        color
+    };
     if blocked && (resp.hovered() || view.force_hover) {
         ui.painter().rect_filled(
             rect,

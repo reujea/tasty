@@ -65,8 +65,20 @@ pub fn notification_summary(
             color.to_egui_premultiplied(),
         );
     }
-    let fg = if any {
+    // 채움이 켜지면 글자와 글리프는 그 칸을 통과하는 raised 잉크로 바뀐다.
+    let lit = props.open || response.hovered();
+    let label_ink = if lit {
+        th.text_secondary_raised()
+    } else {
         th.notification_summary_label_fg()
+    };
+    let meta_ink = if lit {
+        th.text_muted_raised()
+    } else {
+        th.notification_summary_meta_fg()
+    };
+    let fg = if any {
+        label_ink
     } else {
         th.notification_summary_label_fg_empty()
     }
@@ -124,19 +136,17 @@ pub fn notification_summary(
                 egui::pos2(x + glyph * 0.5, y),
                 egui::vec2(glyph, glyph),
             );
-            tone.icon()
-                .image(glyph, th.notification_summary_meta_fg().into())
-                .paint_at(ui, icon);
+            tone.icon().image(glyph, meta_ink.into()).paint_at(ui, icon);
             let clock = ui.painter().layout_no_wrap(
                 time.into(),
                 egui::FontId::monospace(th.font_size_micro.value()),
-                th.notification_summary_meta_fg().into(),
+                meta_ink.into(),
             );
             let tx = inner.right() - clock.size().x;
             ui.painter().galley(
                 egui::pos2(tx, y - clock.size().y * 0.5),
                 clock,
-                th.notification_summary_meta_fg().into(),
+                meta_ink.into(),
             );
             let x = icon.right() + th.spacing_xs.value();
             let title = text_job(
@@ -144,14 +154,14 @@ pub fn notification_summary(
                 th,
                 title,
                 th.notification_summary_preview_font_size(),
-                th.notification_summary_preview_fg().into(),
+                label_ink.into(),
                 LogicalPx((tx - th.spacing_xs.value() - x).max(0.0)),
                 1,
             );
             ui.painter().galley(
                 egui::pos2(x, y - title.size().y * 0.5),
                 title,
-                th.notification_summary_preview_fg().into(),
+                label_ink.into(),
             );
         }
     }

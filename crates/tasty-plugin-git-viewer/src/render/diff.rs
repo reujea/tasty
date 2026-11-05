@@ -225,7 +225,7 @@ fn diff_line(ui: &mut egui::Ui, theme: &Theme, row: DiffRow<'_>, row_w: f32) {
     }
     let p = ui.painter();
     let cy = rect.center().y;
-    let disabled = theme.text_disabled().to_egui();
+    let gutter = theme.text_muted_raised().to_egui();
     if !is_hunk {
         let old_s = old_no.map(|n| n.to_string()).unwrap_or_default();
         let new_s = new_no.map(|n| n.to_string()).unwrap_or_default();
@@ -234,14 +234,14 @@ fn diff_line(ui: &mut egui::Ui, theme: &Theme, row: DiffRow<'_>, row_w: f32) {
             Align2::RIGHT_CENTER,
             old_s,
             mono(sz),
-            disabled,
+            gutter,
         );
         p.text(
             egui::pos2(rect.left() + DIFF_GUTTER_W * 2.0 - 8.0, cy),
             Align2::RIGHT_CENTER,
             new_s,
             mono(sz),
-            disabled,
+            gutter,
         );
         let sign = match kind {
             DiffLineKind::Addition => "+",

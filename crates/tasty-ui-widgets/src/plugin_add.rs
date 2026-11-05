@@ -553,7 +553,7 @@ pub fn plugin_fingerprint_line(
                 egui::RichText::new(view.label)
                     .monospace()
                     .size(caption)
-                    .color(theme.text_secondary().to_egui()),
+                    .color(theme.plugin_trust_body_fg().to_egui()),
             );
             let shown = short_fingerprint(view.value);
             let resp = ui.add(
@@ -561,7 +561,7 @@ pub fn plugin_fingerprint_line(
                     egui::RichText::new(shown.as_ref())
                         .monospace()
                         .size(caption)
-                        .color(theme.text_muted().to_egui()),
+                        .color(theme.plugin_trust_body_fg().to_egui()),
                 )
                 .sense(egui::Sense::hover()),
             );

@@ -304,8 +304,8 @@ fn wt_row(
             theme.accent_primary().to_egui(),
         );
     }
-    let name_color = if invalid {
-        theme.text_disabled()
+    let name_color = if invalid && !selected {
+        theme.text_muted()
     } else if selected {
         theme.text_on_active()
     } else {
@@ -724,21 +724,21 @@ fn diff_line(
     }
     let p = ui.painter();
     let cy = rect.center().y;
-    let disabled = theme.text_disabled().to_egui();
+    let gutter = theme.text_muted_raised().to_egui();
     let mono = |s| egui::FontId::monospace(s);
     p.text(
         egui::pos2(rect.left() + DIFF_OLD_LINE_NUMBER_RIGHT_X.value(), cy),
         egui::Align2::RIGHT_CENTER,
         old,
         mono(sz),
-        disabled,
+        gutter,
     );
     p.text(
         egui::pos2(rect.left() + 60.0, cy),
         egui::Align2::RIGHT_CENTER,
         new,
         mono(sz),
-        disabled,
+        gutter,
     );
     p.text(
         egui::pos2(rect.left() + 75.0, cy),

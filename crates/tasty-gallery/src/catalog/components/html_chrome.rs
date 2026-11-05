@@ -81,7 +81,7 @@ pub fn draw(ui: &mut egui::Ui, theme: &Theme) {
             ),
             TokenChip::new(
                 "text-disabled",
-                "placeholder / URL",
+                "placeholder glyph",
                 theme.text_disabled().to_egui(),
             ),
             TokenChip::new(
@@ -143,13 +143,13 @@ fn label(ui: &mut egui::Ui, theme: &Theme, text: &str, color: impl Into<egui::Co
     );
 }
 
-/// URL 줄 — 시안 `HtmlTile`의 sub 줄(mono caption 11 · text-disabled · 한 줄 말줄임).
+/// URL 줄 — 시안 `HtmlTile`의 sub 줄(mono caption 11 · text-muted · 한 줄 말줄임).
 fn url_line(ui: &mut egui::Ui, theme: &Theme, text: &str) {
     ui.add(
         egui::Label::new(
             egui::RichText::new(text)
                 .font(egui::FontId::monospace(theme.font_size_caption.value()))
-                .color(theme.text_disabled().to_egui()),
+                .color(theme.text_muted().to_egui()),
         )
         .truncate(),
     );

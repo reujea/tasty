@@ -241,7 +241,7 @@ fn stale_reload(ui: &mut egui::Ui, theme: &Theme) -> egui::Response {
 }
 
 /// 필드 — kind 글리프(file | remote) + mono 경로. editing 은 focus 테두리, error 는 invalid 테두리,
-/// disconnected 는 읽기 전용 상자에 `state-disabled-fg` 경로다.
+/// disconnected 는 읽기 전용 상자에 `text-muted-raised` 경로다.
 fn field(ui: &mut egui::Ui, theme: &Theme, width: f32, bar: &Bar<'_>) {
     let mut buf = bar.path.to_string();
     let glyph = if bar.remote {
@@ -264,7 +264,7 @@ fn field(ui: &mut egui::Ui, theme: &Theme, width: f32, bar: &Bar<'_>) {
         .read_only(off)
         .focus_look(editing);
     input = if off {
-        input.text_color(theme.state_disabled_fg().to_egui())
+        input.text_color(theme.text_muted_raised().to_egui())
     } else if editing {
         input
     } else {
@@ -527,7 +527,7 @@ pub fn draw(ui: &mut egui::Ui, theme: &Theme) {
             ),
             (
                 "disconnected",
-                "field = input-readonly box, path in state-disabled-fg · Folder · Reload · Go disabled · tooltip “Disconnected from the remote”",
+                "field = input-readonly box, path in text-muted-raised · Folder · Reload · Go disabled · tooltip “Disconnected from the remote”",
             ),
             (
                 "navigate failed",
