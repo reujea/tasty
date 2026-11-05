@@ -11,7 +11,6 @@ use tasty_type_geometry::length::LogicalPx;
 
 use crate::button::{Button, ButtonVariant};
 use crate::control::ControlSize;
-use crate::spinner::Spinner;
 use crate::toggle::checkbox_wrapping;
 
 /// 상자 문구. 모두 번역된 값이다.
@@ -42,7 +41,7 @@ pub struct PermBoxProps<'a> {
     pub note: Option<&'a str>,
     /// 적용 실패 이유(OS 오류). 있으면 실패 줄을 보인다.
     pub failure: Option<&'a str>,
-    /// 적용 중. 모든 컨트롤을 잠그고 Apply 에 Spinner 를 단다.
+    /// 적용 중. 모든 컨트롤을 잠그고 버튼 옆에 Spinner 와 진행 문구를 둔다.
     pub busy: bool,
     /// 값이 읽은 값과 다르다. 아니면 Apply 를 끈다.
     pub changed: bool,
@@ -424,7 +423,7 @@ fn failure_line(ui: &mut egui::Ui, theme: &Theme, title: &str, reason: &str) {
 }
 
 /// 오른쪽 정렬 Cancel(ghost sm) · Apply(primary sm). 한 줄에 들어가지 않으면 Apply 가 다음 줄로 내려간다.
-/// Tab 순서가 Cancel → Apply 가 되도록 왼쪽부터 만든다. 적용 중이면 둘 다 잠그고 Apply 에 Spinner 를 단다.
+/// Tab 순서가 Cancel → Apply 가 되도록 왼쪽부터 만든다. 적용 중이면 둘 다 잠그고 라벨은 그대로 둔 채 왼쪽에 Spinner 와 진행 문구를 둔다.
 fn buttons(
     ui: &mut egui::Ui,
     theme: &Theme,
@@ -434,24 +433,15 @@ fn buttons(
 ) -> PermBoxClick {
     let mut click = PermBoxClick::None;
     let gap = theme.spacing_sm;
-    let spinner_size = theme.icon_glyph_size_sm;
-    let spinner = |ui: &mut egui::Ui, rect: egui::Rect, _: egui::Color32| {
-        Spinner::new()
-            .size(spinner_size.value())
-            .color(theme.spinner_indicator().to_egui())
-            .paint_in(ui, theme, rect);
-    };
+    let spinner_size = theme.icon_glyph_size_sm.value();
     let cancel = Button::new(text.cancel)
         .variant(ButtonVariant::Ghost)
         .size(ControlSize::Sm)
         .enabled(!busy);
-    let mut apply = Button::new(if busy { text.applying } else { text.apply })
+    let apply = Button::new(text.apply)
         .variant(ButtonVariant::Primary)
         .size(ControlSize::Sm)
         .enabled(!busy && changed);
-    if busy {
-        apply = apply.leading_icon(&spinner).leading_icon_size(spinner_size);
-    }
     let widths = [
         cancel.desired_width(ui, theme),
         apply.desired_width(ui, theme),
@@ -464,9 +454,28 @@ fn buttons(
         ui.spacing_mut().item_spacing.x = gap.value();
         ui.add_space((avail - used).max(LogicalPx(0.0)).value());
     };
-    if widths[0] + gap + widths[1] <= avail {
+    let word = busy.then(|| {
+        LogicalPx(crate::busy_caption_width(
+            ui,
+            theme,
+            text.applying,
+            spinner_size,
+        ))
+    });
+    let both = widths[0] + gap + widths[1];
+    let inline_word = word.filter(|w| *w + gap + both <= avail);
+    if let (Some(w), None) = (word, inline_word) {
         ui.allocate_ui_with_layout(size, layout, |ui| {
-            start(ui, widths[0] + gap + widths[1]);
+            start(ui, w);
+            crate::busy_caption(ui, theme, text.applying, spinner_size);
+        });
+    }
+    if both <= avail {
+        ui.allocate_ui_with_layout(size, layout, |ui| {
+            start(ui, both + inline_word.map_or(LogicalPx(0.0), |w| w + gap));
+            if inline_word.is_some() {
+                crate::busy_caption(ui, theme, text.applying, spinner_size);
+            }
             if cancel.show(ui, theme).clicked() {
                 click = PermBoxClick::Cancel;
             }

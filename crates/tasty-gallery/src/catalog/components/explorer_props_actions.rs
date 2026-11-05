@@ -339,7 +339,7 @@ fn permissions(ui: &mut egui::Ui, theme: &Theme) {
             ),
             (
                 "apply",
-                "primary sm, off until changed · applying: spinner + Applying…, every control off · success closes and re-reads · failure keeps the box, shows the OS reason and re-reads the real mode",
+                "primary sm, off until changed · applying: labels unchanged, spinner + Applying… beside them in text-muted, every control off · success closes and re-reads · failure keeps the box, shows the OS reason and re-reads the real mode",
             ),
             (
                 "scope",

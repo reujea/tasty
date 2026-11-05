@@ -209,13 +209,7 @@ fn draw_add_footer(
         (Some(_), Some(key)) => t(key).to_owned(),
         (Some(preview), None) => grants_label(preview.permissions.len()),
     };
-    let add = preview.map(|p| {
-        if busy {
-            t("plugins.add_adding")
-        } else {
-            t(add_button_key(p, blocked_key))
-        }
-    });
+    let add = preview.map(|p| t(add_button_key(p, blocked_key)));
     plugin_add_bar(
         ui,
         &th,
@@ -226,6 +220,7 @@ fn draw_add_footer(
             add_enabled: blocked_key.is_none(),
             danger: blocked_key.is_none() && preview.is_some_and(|p| p.trust_state.is_unverified()),
             busy,
+            progress: t("plugins.add_adding"),
             focus_cancel,
         },
     )

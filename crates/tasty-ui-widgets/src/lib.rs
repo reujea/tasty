@@ -324,7 +324,7 @@ pub use shell_setup::{
     SHELL_SETUP_FORM_WIDTH, ShellSetupCheck, ShellSetupOutput, ShellSetupView, shell_setup_screen,
 };
 pub use spacing::{hspace, margin_all, margin_sym, vspace};
-pub use spinner::Spinner;
+pub use spinner::{Spinner, busy_caption, busy_caption_width};
 pub use state_screen::{GlyphPainter, StateGlyph, StateScreenView, state_screen};
 pub use status_bar::{StatusBarAction, StatusBarData, StatusBarDrawResult, draw_status_bar_view};
 pub use status_dot::{StatusKind, status_dot};

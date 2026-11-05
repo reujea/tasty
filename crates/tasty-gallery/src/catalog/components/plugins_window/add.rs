@@ -88,6 +88,7 @@ pub(super) fn form_pane(ui: &mut egui::Ui, theme: &Theme, rect: egui::Rect, veri
                 add_enabled: false,
                 danger: false,
                 busy: false,
+                progress: "",
                 focus_cancel: false,
             },
         );
@@ -256,9 +257,7 @@ impl BarSpec {
 fn action_bar(ui: &mut egui::Ui, theme: &Theme, spec: BarSpec) {
     let t = crate::i18n::t;
     let grants = grants(spec.perms);
-    let label = if spec.busy {
-        t("plugins.add_adding")
-    } else if spec.blocked {
+    let label = if spec.blocked {
         t("plugins.add_button")
     } else {
         match spec.kind {
@@ -282,6 +281,7 @@ fn action_bar(ui: &mut egui::Ui, theme: &Theme, spec: BarSpec) {
             add_enabled: !spec.blocked,
             danger: !spec.blocked && spec.kind.is_unverified(),
             busy: spec.busy,
+            progress: t("plugins.add_adding"),
             focus_cancel: spec.focus_cancel,
         },
     );

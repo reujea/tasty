@@ -11,6 +11,34 @@ const TRACK_ALPHA: f32 = 0.22;
 /// arc 가 도는 각도(디자인 `a r r 0 0 1 r r` = 90° 호).
 const ARC_SWEEP: f32 = std::f32::consts::FRAC_PI_2;
 
+/// [`busy_caption`] 이 차지하는 폭. 줄 배치를 미리 정할 때 쓴다.
+pub fn busy_caption_width(ui: &egui::Ui, theme: &Theme, word: &str, size: f32) -> f32 {
+    let font = egui::FontId::proportional(theme.font_size_caption.value());
+    let text = ui.fonts(|f| {
+        f.layout_no_wrap(word.to_owned(), font, egui::Color32::PLACEHOLDER)
+            .size()
+            .x
+    });
+    size + theme.spacing_sm.value() + text
+}
+
+/// 바쁜 버튼 옆의 진행 표시. Spinner 와 caption 크기의 `text-muted` 문구다.
+/// 버튼은 라벨과 폭을 그대로 둔 채 비활성이 되고, 진행은 이 표시가 알린다.
+pub fn busy_caption(ui: &mut egui::Ui, theme: &Theme, word: &str, size: f32) {
+    ui.horizontal(|ui| {
+        ui.spacing_mut().item_spacing.x = theme.spacing_sm.value();
+        Spinner::new().size(size).show(ui, theme);
+        ui.add(
+            egui::Label::new(
+                egui::RichText::new(word)
+                    .size(theme.font_size_caption.value())
+                    .color(theme.text_muted().to_egui()),
+            )
+            .truncate(),
+        );
+    });
+}
+
 /// Spinner 빌더.
 pub struct Spinner {
     size: Option<f32>,

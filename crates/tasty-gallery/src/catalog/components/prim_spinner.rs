@@ -1,7 +1,7 @@
 //! Spinner의 크기·색·동작 줄이기 예제. 기본 크기는 위젯과 같은 icon-size-md에서 읽는다.
 
 use tasty_type_appearance::theme::Theme;
-use tasty_ui_widgets::{Button, ButtonVariant, Spinner};
+use tasty_ui_widgets::{Button, ButtonVariant, Spinner, busy_caption};
 
 use crate::catalog::spec::{StageVariant, TokenChip, cluster, meta, stage};
 
@@ -23,13 +23,12 @@ pub fn draw(ui: &mut egui::Ui, theme: &Theme) {
                     .color(egui::Color32::from(theme.text_muted())),
             );
         });
-        cluster(ui, theme, "in a button · detecting row", |ui| {
-            // Button.leading_icon은 정적 아이콘만 받으므로 스피너를 버튼 앞에 별도로 그린다.
-            Spinner::new().size(14.0).show(ui, theme);
-            Button::new("Installing…")
+        cluster(ui, theme, "beside a button · detecting row", |ui| {
+            Button::new(crate::i18n::t("plugins.install"))
                 .variant(ButtonVariant::Secondary)
                 .enabled(false)
                 .show(ui, theme);
+            busy_caption(ui, theme, "Installing…", 14.0);
             ui.add_space(theme.spacing_md.value());
             ui.spacing_mut().item_spacing.x = theme.spacing_sm.value();
             Spinner::new().size(12.0).show(ui, theme);

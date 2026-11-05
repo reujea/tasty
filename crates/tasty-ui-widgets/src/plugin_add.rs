@@ -418,13 +418,15 @@ pub struct PluginAddBarView<'a> {
     /// 왼쪽 문구. 추가할 수 없으면 이유, 아니면 부여할 권한 수. 매니페스트가 없으면 빈 문자열.
     pub left: &'a str,
     pub cancel: &'a str,
-    /// 추가 버튼 문구. 매니페스트를 확인하기 전에는 `None`이다. `busy` 면 진행 문구다.
+    /// 추가 버튼 문구. 매니페스트를 확인하기 전에는 `None`이다. 추가 중에도 바뀌지 않는다.
     pub add: Option<&'a str>,
     pub add_enabled: bool,
     /// 미인증 판정. 추가 버튼을 danger 로 그린다.
     pub danger: bool,
-    /// 추가 처리 중. 두 버튼을 끄고 추가 버튼 앞에 Spinner 를 둔다.
+    /// 추가 처리 중. 두 버튼을 끄고 버튼 왼쪽에 Spinner 와 `progress` 를 둔다.
     pub busy: bool,
+    /// 추가 중에 버튼 옆에 적는 진행 문구.
+    pub progress: &'a str,
     /// 이 프레임에 Cancel 로 포커스를 옮긴다. 미인증 판정을 처음 보일 때 쓴다.
     pub focus_cancel: bool,
 }
@@ -470,19 +472,11 @@ pub fn plugin_add_bar(
                             } else {
                                 ButtonVariant::Primary
                             };
-                            let spinner =
-                                |ui: &mut egui::Ui, rect: egui::Rect, c: egui::Color32| {
-                                    crate::spinner::Spinner::new()
-                                        .color(c)
-                                        .paint_in(ui, theme, rect)
-                                };
-                            let mut button = Button::new(add)
+                            clicks.add = Button::new(add)
                                 .variant(variant)
-                                .enabled(view.add_enabled && !view.busy);
-                            if view.busy {
-                                button = button.leading_icon(&spinner);
-                            }
-                            clicks.add = button.show(ui, theme).clicked();
+                                .enabled(view.add_enabled && !view.busy)
+                                .show(ui, theme)
+                                .clicked();
                         }
                         let cancel = Button::new(view.cancel)
                             .variant(ButtonVariant::Ghost)
@@ -492,6 +486,18 @@ pub fn plugin_add_bar(
                             cancel.request_focus();
                         }
                         clicks.cancel = cancel.clicked();
+                        if view.busy {
+                            ui.with_layout(
+                                egui::Layout::left_to_right(egui::Align::Center),
+                                |ui| {
+                                    let size = theme.icon_glyph_size_sm.value();
+                                    let word =
+                                        crate::busy_caption_width(ui, theme, view.progress, size);
+                                    ui.add_space((ui.available_width() - word).max(0.0));
+                                    crate::busy_caption(ui, theme, view.progress, size);
+                                },
+                            );
+                        }
                     });
                 },
             );
