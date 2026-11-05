@@ -253,7 +253,7 @@ function measure({ rows, tokens, grades, partMap, exemptIds, noGradeTokens, them
     if (inks.length === 0) out.emptySvgs += 1;
     inks.forEach(({ shape, ink }) => {
       const isText = shape.tagName.toLowerCase() === "text";
-      judge(isText ? "text" : "glyph", shape, ink, isText ? 4.5 : 3, isText ? shape.textContent.trim().slice(0, 40) : el.getAttribute("aria-label") || "svg");
+      judge(isText ? "text" : "glyph", shape, ink, isText ? 4.5 : 3, isText ? shape.textContent.trim().slice(0, 40) : el.getAttribute("aria-label") || shape.getAttribute("class") || "svg");
     });
   });
   out.hscroll = document.documentElement.scrollWidth > document.documentElement.clientWidth;
@@ -317,7 +317,7 @@ async function run() {
     if (bad > 0) failed = true;
     const pairs = new Map();
     for (const b of [...t.mismatch, ...t.below]) pairs.set(`${b.contract} ${b.part}: got ${b.got} want ${b.token} (${b.expect}) on ${b.ground}`, b);
-    for (const b of t.other) pairs.set(`${b.page}#${b.spec}: ${b.kind} ${b.got} on ${b.ground} ${b.ratio} < ${b.grade}`, b);
+    for (const b of t.other) pairs.set(`${b.page}#${b.spec}: ${b.kind} ${b.text} ${b.got} on ${b.ground} ${b.ratio} < ${b.grade}`, b);
     [...pairs.keys()].slice(0, 400).forEach((p) => console.log(`  ${p}`));
     t.unlocated.slice(0, 200).forEach((b) => console.log(`  unlocated ${b.contract} ${b.part}`));
     t.badExempt.forEach((b) => console.log(`  unknown exempt id ${b.id} at ${b.page}#${b.spec}`));
