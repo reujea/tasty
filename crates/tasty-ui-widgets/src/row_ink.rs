@@ -1,6 +1,6 @@
 //! 행의 상태 우선순위와 상태별 글자·글리프 토큰.
 //! 순서는 disabled, 선택+press, 선택+hover, 선택, press, hover, rest다.
-//! 부모 바탕에 따라 hover 칸이 달라지므로 호출자가 [`RowParent`]를 넘긴다.
+//! 메타의 hover 칸은 부모 바탕에 따라 달라지므로 호출자가 [`RowParent`]를 넘긴다.
 
 use tasty_type_appearance::color::HexColor;
 use tasty_type_appearance::theme::Theme;
@@ -76,14 +76,13 @@ impl RowState {
     }
 
     /// 행 라벨. `rest`는 그 행의 평상 토큰이다.
-    pub fn label(self, theme: &Theme, parent: RowParent, rest: HexColor) -> HexColor {
+    /// 라벨의 hover 칸은 부모 바탕과 무관하게 같다. 인자는 `meta`와 호출 형태를 맞추려고 둔다.
+    pub fn label(self, theme: &Theme, _parent: RowParent, rest: HexColor) -> HexColor {
         match self {
             Self::Disabled => theme.state_disabled_fg(),
             Self::SelectedPress | Self::SelectedHover => theme.text_on_active_hover(),
             Self::Selected => theme.text_on_active(),
-            Self::Press => theme.text_secondary_raised(),
-            Self::Hover if parent == RowParent::Base => theme.text_secondary(),
-            Self::Hover => theme.text_secondary_raised(),
+            Self::Press | Self::Hover => theme.text_secondary_raised(),
             Self::Rest => rest,
         }
     }

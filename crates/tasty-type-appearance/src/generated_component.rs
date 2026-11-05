@@ -538,10 +538,10 @@ impl crate::theme::Theme {
         self.text_secondary()
     }
 
-    /// `component.button-ghost-fg-hover` → `{semantic.text-primary}`
+    /// `component.button-ghost-fg-hover` → `{semantic.text-secondary-raised}`
     #[inline]
     pub fn button_ghost_fg_hover(&self) -> HexColor {
-        self.text_primary()
+        self.text_secondary_raised()
     }
 
     /// `component.button-ghost-raised-fg` → `{semantic.text-secondary-raised}`
@@ -2262,10 +2262,10 @@ impl crate::theme::Theme {
         self.text_secondary()
     }
 
-    /// `component.icon-button-fg-hover` → `{semantic.text-primary}`
+    /// `component.icon-button-fg-hover` → `{semantic.text-secondary}`
     #[inline]
     pub fn icon_button_fg_hover(&self) -> HexColor {
-        self.text_primary()
+        self.text_secondary()
     }
 
     /// `component.icon-button-overlay-hover` → `{semantic.overlay-hover}`

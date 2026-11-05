@@ -1971,7 +1971,7 @@
     },
     "button-ghost-fg-hover": {
       "$type": "color",
-      "$value": "{semantic.text-primary}"
+      "$value": "{semantic.text-secondary-raised}"
     },
     "button-disabled-bg": {
       "$type": "color",
@@ -2011,7 +2011,7 @@
     },
     "icon-button-fg-hover": {
       "$type": "color",
-      "$value": "{semantic.text-primary}"
+      "$value": "{semantic.text-secondary}"
     },
     "icon-button-overlay-hover": {
       "$type": "color",

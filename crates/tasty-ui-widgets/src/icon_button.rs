@@ -229,9 +229,11 @@ mod tests {
         let accent = theme.accent_primary().to_egui();
         let fg_hover = theme.icon_button_fg_hover().to_egui();
         let fg = theme.icon_button_fg().to_egui();
-        // 같은 값이 섞이면 표가 순서를 가르지 못한다.
+        // 같은 값이 섞이면 표가 순서를 가르지 못한다. hover 글리프는 평상과 같은 잉크이고
+        // hover 표시는 overlay가 맡으므로 글리프 칸은 셋이다.
         assert_ne!(bg_active, bg_hover);
-        let glyphs = [disabled, accent, fg_hover, fg];
+        assert_eq!(fg_hover, fg);
+        let glyphs = [disabled, accent, fg];
         for (i, a) in glyphs.iter().enumerate() {
             for b in &glyphs[i + 1..] {
                 assert_ne!(a, b, "glyph colours must differ: {glyphs:?}");

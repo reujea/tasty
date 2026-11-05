@@ -129,3 +129,18 @@ fn trusted_body_paints_the_ink_role_while_fill_and_border_keep_the_original_tone
         );
     }
 }
+
+#[test]
+fn hovered_row_label_reads_the_raised_secondary_on_every_parent() {
+    use tasty_ui_widgets::{RowParent, RowState};
+    for th in themes() {
+        for parent in [RowParent::Mantle, RowParent::Base] {
+            assert_eq!(
+                RowState::Hover.label(&th, parent, th.tree_row_fg()),
+                th.text_secondary_raised()
+            );
+        }
+        assert_eq!(th.icon_button_fg_hover(), th.text_secondary());
+        assert_eq!(th.button_ghost_fg_hover(), th.text_secondary_raised());
+    }
+}

@@ -104,6 +104,25 @@ pub(super) fn plan(
     }
 }
 
+/// hover는 바탕에 overlay를 얹으므로 안 읽은 본문을 `text-secondary-raised`로 다시 배치한다.
+/// 계획 단계의 배치는 hover 여부를 모른다. 읽은 본문의 잉크는 hover에도 그대로다.
+fn body_galley(
+    ui: &egui::Ui,
+    th: &Theme,
+    row: &NotificationRow<'_>,
+    plan: &ItemPlan,
+    hovered: bool,
+) -> std::sync::Arc<egui::Galley> {
+    if !hovered || !row.unread {
+        return plan.body.clone();
+    }
+    let mut job = (*plan.body.job).clone();
+    for section in &mut job.sections {
+        section.format.color = th.text_secondary_raised().to_egui();
+    }
+    ui.fonts(|fonts| fonts.layout_job(job))
+}
+
 pub(super) fn draw(
     ui: &mut egui::Ui,
     th: &Theme,
@@ -174,6 +193,7 @@ pub(super) fn draw(
             .max(th.font_size_body.value() * th.line_height_ui)
         + th.notification_item_line_gap().value();
     if !row.body.is_empty() {
+        let body = body_galley(ui, th, row, plan, response.hovered());
         if expanded {
             let mut body_ui = ui.new_child(
                 egui::UiBuilder::new()
@@ -183,11 +203,11 @@ pub(super) fn draw(
                         plan.body.size(),
                     )),
             );
-            body_ui.add(egui::Label::new(plan.body.clone()).selectable(true));
+            body_ui.add(egui::Label::new(body).selectable(true));
         } else {
             ui.painter().galley(
                 egui::pos2(x, y),
-                plan.body.clone(),
+                body,
                 th.notification_item_body_fg().into(),
             );
         }
