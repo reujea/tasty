@@ -1,4 +1,5 @@
 //! 앱의 DTCG JSON과 사이트의 CSS 토큰 이름을 티어별로 비교한다.
+//! 사이트 사본은 릴리스할 때만 갱신하므로 비교 시험은 평소에 건너뛰고 릴리스 절차에서 실행한다.
 //! 앱에만 있는 이름은 LAGGING의 기록과 같아야 하고 사이트에만 있는 이름은 없어야 한다.
 //! 두 사본은 저장소 안에서 읽으며 원격 디자인은 조회하지 않는다.
 //!
@@ -192,6 +193,7 @@ fn every_ledger_entry_names_a_real_tier() {
 }
 
 #[test]
+#[ignore = "사이트 사본은 릴리스할 때만 갱신한다. release.md 절차에서 --ignored로 실행한다"]
 fn the_site_copy_lags_the_app_export_by_exactly_the_recorded_set() {
     let json = read("crates/tasty-design-tokens/dtcg/tasty.tokens.json");
     let mut problems: Vec<String> = Vec::new();

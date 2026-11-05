@@ -1,4 +1,5 @@
 //! 사이트의 SVG 파일·Icon.jsx와 앱의 아이콘 사본을 대조한다.
+//! 사이트 사본은 릴리스할 때만 갱신하므로 앱과 비교하는 시험은 평소에 건너뛰고 릴리스 절차에서 실행한다.
 //! 사이트는 SVG 파일 대신 Icon.jsx의 ICON_PATHS를 그리므로 두 사이트 사본도 서로 비교해야 한다.
 //! 원격 디자인은 조회하지 않는다. 사본끼리 맞아도 최신 원본이라는 뜻은 아니다.
 //!
@@ -462,6 +463,7 @@ fn the_envelope_readers_see_all_three_copies() {
 
 /// 값이 같아진 속성을 차이 허용 목록에 남기면 이후 차이를 놓칠 수 있다.
 #[test]
+#[ignore = "사이트 사본은 릴리스할 때만 갱신한다. release.md 절차에서 --ignored로 실행한다"]
 fn the_divergence_roster_has_no_dead_weight() {
     let files = vendor_svg_envelopes();
     let app = app_envelopes(&read(APP_ICONS));
@@ -563,6 +565,7 @@ fn every_envelope_attribute_is_classified() {
 
 /// 내부 마크업과 별개로 여는 SVG 태그의 속성을 비교한다.
 #[test]
+#[ignore = "사이트 사본은 릴리스할 때만 갱신한다. release.md 절차에서 --ignored로 실행한다"]
 fn the_three_copies_share_one_render_envelope() {
     let files = vendor_svg_envelopes();
     let registry = registry_envelope(&read(VENDOR_REGISTRY));
@@ -645,6 +648,7 @@ fn the_judge_actually_parses_all_three_copies() {
 }
 
 #[test]
+#[ignore = "사이트 사본은 릴리스할 때만 갱신한다. release.md 절차에서 --ignored로 실행한다"]
 fn every_roster_entry_names_a_real_glyph() {
     let files = vendor_files();
     let registry = vendor_registry(&read(VENDOR_REGISTRY));
@@ -729,6 +733,7 @@ fn the_two_vendor_copies_carry_the_same_geometry() {
 }
 
 #[test]
+#[ignore = "사이트 사본은 릴리스할 때만 갱신한다. release.md 절차에서 --ignored로 실행한다"]
 fn the_app_transcription_matches_the_vendored_kit() {
     let registry = vendor_registry(&read(VENDOR_REGISTRY));
     let app = app_icons(&read(APP_ICONS));
@@ -765,6 +770,7 @@ fn the_app_transcription_matches_the_vendored_kit() {
 }
 
 #[test]
+#[ignore = "사이트 사본은 릴리스할 때만 갱신한다. release.md 절차에서 --ignored로 실행한다"]
 fn the_app_has_exactly_the_recorded_extra_glyphs() {
     let app = app_icons(&read(APP_ICONS));
     let paired: BTreeSet<&str> = PAIRS.iter().map(|(_, a)| *a).collect();
@@ -798,6 +804,7 @@ fn every_site_glyph_is_paired_with_the_app() {
 }
 
 #[test]
+#[ignore = "사이트 사본은 릴리스할 때만 갱신한다. release.md 절차에서 --ignored로 실행한다"]
 fn external_matches_the_explorer_kit_glyph() {
     let kit = read("site/vendor/gallery/plugins.jsx");
     let row = kit

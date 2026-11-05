@@ -2,6 +2,8 @@ name: Pages
 
 # site/ (Astro 앱 + 사용자 가이드 site/content/) 로 GitHub Pages 정적 사이트를 만들어
 # 배포한다. docs/ 는 발행하지 않는다. 절차·구조: docs/dev-guide/site.md
+# push는 빌드와 링크만 검사한다. 사이트는 받을 수 있는 버전을 설명하므로 배포는
+# 릴리스 공개(release.yml)와 수동 실행 때만 한다.
 
 on:
   push:
@@ -9,7 +11,6 @@ on:
     paths:
       - "site/**"
       - "assets/icons/tasty-melon.svg"
-      - "Cargo.toml"
       - ".github/workflows/pages.yml"
   workflow_dispatch:
 
@@ -61,6 +62,7 @@ jobs:
           path: site/dist
 
   deploy:
+    if: github.event_name == 'workflow_dispatch'
     needs: build
     runs-on: ubuntu-latest
     # 실측 최대 0.6분 × 3. 기준: docs/dev-guide/ci-gates.md#잡-시간-상한

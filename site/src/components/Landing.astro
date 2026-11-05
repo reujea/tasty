@@ -2,7 +2,8 @@
 
 import { copyFor } from "../lib/landing";
 import { downloads, RELEASES_URL } from "../lib/release";
-import { REPO, appVersion, url } from "../lib/site";
+import { REPO, url } from "../lib/site";
+import { releaseVersion } from "../lib/release";
 import { Icon } from "../ds/core/Icon.jsx";
 import { AppShell } from "./AppShell.jsx";
 import * as icon from "./icons";
@@ -13,7 +14,7 @@ import "../styles/landing.css";
 interface Props { lang: "ko" | "en" }
 const { lang } = Astro.props;
 const c = copyFor(lang);
-const version = appVersion(process.cwd());
+const version = releaseVersion(process.cwd());
 const guide = lang === "en" ? "guide/" : "ko/guide/";
 const { items } = downloads(process.cwd());
 
@@ -27,7 +28,7 @@ const dataAttrs = Object.fromEntries(
 <main class="landing" id="content">
 
   <section class="hero">
-    <span class="hero__eyebrow"><span class="dot"></span>{c.badge} · v{version}</span>
+    <span class="hero__eyebrow"><span class="dot"></span>{c.badge}{version && ` · v${version}`}</span>
     <p class="hero__tagline"><span class="wordmark">Tasty<b>.</b></span> {c.tagline}</p>
     <h1>{c.titleLead} <span class="accent">{c.titleAccent}</span> {c.titleTail}</h1>
     <div class="cta-row">

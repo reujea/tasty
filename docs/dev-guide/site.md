@@ -6,13 +6,13 @@
 - 콘텐츠: `site/content/` (한국어 정본) · `site/content/en/` (영어 번역)
 - 산출물: `site/` 아래 `dist/` — 빌드가 만들며 Git에서 제외한다(경로 인용으로 안 적는다. 갓 클론한
   트리에는 없어서 좌표를 실재로 판정하는 CI의 경로 검사가 실패할 수 있다)
-- 배포: `.github/workflows/pages.yml`. main의 `site/**`, `assets/icons/tasty-melon.svg`, `Cargo.toml`, 해당 워크플로 변경 시 자동 실행하며 수동 실행도 가능하다. 빌드 명령은 `npm run build`다.
+- 배포: `.github/workflows/pages.yml`. main의 `site/**`, `assets/icons/tasty-melon.svg`, 해당 워크플로 변경 시 빌드와 링크 검사를 실행한다. **배포는 릴리스를 공개할 때(`release.yml`이 실행)와 수동 실행 때만** 한다. 사이트 전체가 사용자가 받을 수 있는 버전을 설명해야 하기 때문이다. 표시 버전은 `Cargo.toml`이 아니라 공개된 최신 릴리스(`release.json`)이고, 이 파일이 없는 로컬 빌드는 버전을 표시하지 않는다. 빌드 명령은 `npm run build`다.
   다음에 `npm run check-links` 로 산출물의 내부 링크·앵커를 전수 판정하고 나서 올린다.
   이 단계는 `site/content/` 앵커의 실제 HTML 결과를 검사한다([링크와 표](../documentation-model.md#링크와-표))
 
 **`docs/` 는 발행하지 않는다.** `docs/` 는 코드를 고치는 사람과 에이전트를 위한 명세·설계·ADR 이고,
 사이트는 Tasty 를 받아서 쓰는 사람을 위한 것이라 독자가 다르다. 사이트가 실을 내용은 전부
-`site/content/` 에 사용자 시점으로 따로 쓴다. 명세가 바뀌면 가이드도 같은 커밋에서 손본다
+`site/content/` 에 사용자 시점으로 따로 쓴다. 명세가 바뀌면 기획서를 고치고, 가이드는 릴리스할 때 기획서에 따라 손본다
 ([`CLAUDE.md`](../../CLAUDE.md) "문서 갱신").
 
 ## 사이트 문구와 어조
@@ -85,13 +85,13 @@ site/
 
 위 변환은 `vendor → src` 한 방향만 말한다. 그 앞에 **`원격 → vendor`** 방향이 하나 더 있고,
 그쪽이 사람이 도는 단계다 — `site/vendor/` 는 원격 Design System 프로젝트의 사본이라,
-디자인이 확정되면 누군가 그것을 받아와야 한다. 절차는
+릴리스할 때 그것을 받아와야 한다. 절차는
 [`site/vendor/README.md`](../../site/vendor/README.md) 의 "vendor 갱신 절차" 에 있고,
 정합 루프에서 이 단계가 차지하는 자리는
 [design-change-workflow](design-change-workflow.md#정합-대상--사이트-사본-필수) 에 있다. 결정 근거는
 [테마 시스템 (운영 상세)](../design/systems/theme.md).
 
-오래된 vendor 사본도 정상 빌드할 수 있다. 저장소의 두 사본을 대조하는 검사는
+오래된 vendor 사본도 정상 빌드할 수 있다. 저장소의 두 사본을 대조하는 다음 검사는 릴리스 사이에 사본이 뒤처지는 것이 정상이라 `#[ignore]`이고 릴리스 절차에서 실행한다.
 `site_vendor_tokens_track_the_app_export.rs`(토큰 이름)와
 `site_vendor_icons_match_the_app_transcription.rs`(아이콘 기하·채움·viewBox·선 굵기·cap/join)다.
 문구·구성·컨트롤 삭제는 검사 범위 밖이므로 원격 디자인과 직접 비교한다.

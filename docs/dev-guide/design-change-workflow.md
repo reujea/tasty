@@ -21,7 +21,7 @@ Artifact 주소와 `designer` Agent 정의는 커밋하지 않는 로컬 전용 
                          project/design-request/<slug>.md    (Artifact를 고침)
                                                                 │  │
                                                  결정표·변경 목록 ▼  │
-                 [4] 정합: 갤러리 specimen → 본체 구현 → 사이트 사본 ─┘
+                 [4] 정합: 갤러리 specimen → 본체 구현 ─┘
                                                                 │
                                               [5] 원격 요청·완료 문서·changelog 정리
 ```
@@ -31,7 +31,7 @@ Artifact 주소와 `designer` Agent 정의는 커밋하지 않는 로컬 전용 
 | 1 | 구현 세션 | 무엇을 어떻게 보이게 할지 정의한 요청문서를 Artifact에 게시 | `project/design-request/<slug>.md` |
 | 2 | 구현 세션 | `designer` Agent를 Artifact 주소와 요청문서 경로로 호출. **사용자 허락을 따로 받지 않는다** | |
 | 3 | `designer` Agent | 디자인을 결정하고 범위 안의 파일을 게시 | 결정표, 게시 경로, `project/design-tasks/*.DONE.md`, changelog |
-| 4 | 구현 세션 | 보고를 게시본과 대조한 뒤 갤러리 specimen → 본체 → **사이트 사본** 순서로 반영 | 코드 + 사본 |
+| 4 | 구현 세션 | 보고를 게시본과 대조한 뒤 갤러리 specimen → 본체 순서로 반영. 사이트 사본은 릴리스할 때 갱신한다 | 코드 |
 | 5 | 구현 세션 | 반영이 끝난 요청문서·완료 문서·changelog 토픽 삭제 | |
 
 시안이 요청문서에 없던 구조를 드러내거나 4단계에서 부족분이 나오면 다음 요청문서로 다시 돈다.
@@ -99,18 +99,18 @@ designer가 답을 정할 수 없는 항목은 `project/design-tasks/<YYYYMMDD-h
 
 ## 정합 대상 — 사이트 사본 (필수)
 
-레포에는 같은 원격 원본의 vendored 사본이 **둘** 있고, 디자인 결정은 **둘 다** 따라와야 한다.
+레포에는 같은 원격 원본의 vendored 사본이 **둘** 있다. 앱 사본은 디자인을 반영할 때 갱신하고, 사이트 사본은 **릴리스할 때** 갱신한다. 사이트는 사용자가 받을 수 있는 버전을 보여 주므로 릴리스 사이에는 앱 사본보다 뒤처지는 것이 정상이다. 절차는 [릴리스 절차](release.md#3-사이트-갱신)에 있다.
 
 | 사본 | 무엇이 받는가 | 갱신 절차 | 안 따라오면 |
 |------|--------------|-----------|-------------|
 | 앱 — `crates/tasty-design-tokens/dtcg/tasty.tokens.json` | 토큰(DTCG) | [`crates/tasty-design-tokens/README.md`](../../crates/tasty-design-tokens/README.md) "vendor 갱신 절차" | `crates/tasty-design-tokens/tests/freshness.rs` 의 목록 검사에 실패한다 |
-| 사이트 — `site/vendor/` | 킷 전부(토큰 · 컴포넌트 · UI kit · 갤러리 · 가이드라인) | [`site/vendor/README.md`](../../site/vendor/README.md) "vendor 갱신 절차" | **공개 사이트가 결정 이전 UI 를 현재형으로 전시한다** |
+| 사이트 — `site/vendor/` | 킷 전부(토큰 · 컴포넌트 · UI kit · 갤러리 · 가이드라인) | [`site/vendor/README.md`](../../site/vendor/README.md) "vendor 갱신 절차" | **릴리스 후에도 공개 사이트가 결정 이전 UI 를 현재형으로 전시한다** |
 
 사이트는 오래된 사본도 정상 빌드할 수 있으므로 빌드 통과만으로 최신 여부를 판단하지 않는다.
 `site_vendor_tokens_track_the_app_export`는 두 사본의 토큰 이름을,
 `site_vendor_icons_match_the_app_transcription`은 아이콘 기하·채움·viewBox·선 굵기·
 cap/join을 비교한다. `site_vendor_manifest_matches`는 사이트 사본이 `site/vendor/MANIFEST`에
-기록한 원격 해시(또는 이유를 적은 변형 해시)와 같은지 확인한다. 세 검사는 `crates/tasty-doc-guards/tests/`에 있다.
+기록한 원격 해시(또는 이유를 적은 변형 해시)와 같은지 확인한다. 세 검사는 `crates/tasty-doc-guards/tests/`에 있다. 앱과 사이트를 비교하는 앞의 두 검사의 해당 시험은 `#[ignore]`이며 릴리스 절차에서 `--ignored`로 실행한다.
 문구·구성·컨트롤 삭제처럼 그 값들을 바꾸지 않는 변경은 검사하지 않으므로 원격 디자인과
 직접 대조해 사이트 사본도 갱신한다.
 

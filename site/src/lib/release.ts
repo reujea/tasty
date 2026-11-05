@@ -49,6 +49,13 @@ function load(siteDir: string): Manifest {
   }
 }
 
+/** Version of the latest published release, without the "v" prefix. The site
+ * shows this one because it is the version visitors can download. Undefined
+ * when release.json is absent, as in a local build. */
+export function releaseVersion(siteDir: string): string | undefined {
+  return load(siteDir).tag?.replace(/^v/, "");
+}
+
 export function downloads(siteDir: string): { tag?: string; items: Download[] } {
   const { tag, assets } = load(siteDir);
   const items = ASSETS.map(([platform, arch, suffix]) => {

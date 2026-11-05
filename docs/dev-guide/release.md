@@ -48,7 +48,21 @@ CLAUDE.md 정책의 운영 형태:
 
 생성/갱신되는 `*.toml.sig`(번들 plugin 매니페스트 전부 — `--all-builtins` 가 `crates/tasty-plugin-*/tasty-plugin.toml` 을 자동 검색한다)는 **`.gitignore` 로 제외된 빌드 산출물**이라 커밋되지 않는다 — 로컬 release 빌드·dev 검증용이며, CI 정식 release는 각 러너가 선택한 로컬 키로 재서명한다. 키가 없으면 생성하고 기존 개인키는 재사용한다. dev/debug 빌드는 서명을 검증하지 않는다. 따라서 매니페스트 version bump 시 커밋되는 건 `tasty-plugin.toml` 자체뿐이고 `.sig` 재생성은 커밋 절차 밖이다. 알고리즘·키 보관은 [plugin-packaging](plugin-packaging.md).
 
-### 3. 커밋 — body 가 곧 릴리스 노트
+### 3. 사이트 갱신
+
+공개 사이트는 릴리스한 버전을 설명한다. main에 push해도 배포되지 않고, 이 단계에서 고친 내용이 릴리스 공개와 함께 배포된다. 태그를 만들기 전에 다음을 수행한다.
+
+1. **기획서 반영:** 로컬 지침이 정한 홈페이지 기획서를 랜딩, 디자인 소개, 사용자 가이드(`site/content/`)에 반영하고 명령어·설정 키·메뉴 이름을 이번 버전과 대조한다. 영어 번역을 고쳤으면 `--stamp` 한다.
+2. **디자인 사본:** [`site/vendor/README.md`](../../site/vendor/README.md)의 "vendor 갱신 절차"로 갤러리와 토큰 사본을 Artifact에서 가져온다.
+3. **검사:** 사이트 빌드와 링크 검사를 실행하고, 앱 사본과 대조하는 시험을 실행한다.
+
+```bash
+cargo test -p tasty-doc-guards --locked --test site_vendor_tokens_track_the_app_export --test site_vendor_icons_match_the_app_transcription -- --ignored
+```
+
+기획서나 Artifact를 읽을 수 없으면 태그를 만들지 않고 사용자에게 알린다.
+
+### 4. 커밋 — body 가 곧 릴리스 노트
 
 `Cargo.toml` + `Cargo.lock` 을 함께 커밋한다. **커밋 body에 변경 내용을 영어 평문으로 적는다** — 워크플로가 `git log -1 --format=%b` 로 추출해 GitHub Release 노트로 쓴다.
 
@@ -62,20 +76,20 @@ Fix the reported issue and describe the corrected behavior.
 
 이전 태그 이후 커밋: `git log v<이전>..HEAD --oneline`.
 
-### 4. 태그 + push
+### 5. 태그 + push
 
 ```bash
 git tag vX.Y.Z          # 'v' 접두사 + Cargo.toml 버전과 정확히 일치 (불일치 시 워크플로 fail)
 git push origin main --tags
 ```
 
-### 5. 워크플로 (release.yml)
+### 6. 워크플로 (release.yml)
 
 1. **create-release** — 버전 검증 → draft release 생성(body = 릴리스 노트).
 2. **build-macos / build-windows / build-windows-arm64 / build-linux-x64 / build-linux-arm64** — 각 빌드 스크립트가 로컬 키를 준비해(Linux·macOS 는 `ensure-sign-key.sh`, Windows 는 `build-windows.ps1` 이 직접) plugin 재서명 → 빌드(`--profile dist`) → GUI 패키징 → 헤드리스 압축 파일(아래 "헤드리스 산출물") → 아티팩트 업로드. GitHub Secret 관여 없음(배경은 [plugin-packaging](plugin-packaging.md) "영구 release 키를 두지 않는 이유").
-3. **publish-release** — draft 해제(공개). 파일을 올리지 않는다.
+3. **publish-release** — draft 해제(공개)하고 사이트 배포(`pages.yml`)를 실행한다. 파일을 올리지 않는다.
 
-### 6. 검증
+### 7. 검증
 
 GitHub Releases 에서 노트를 확인하고, 자산이 아래 [릴리스 자산](#릴리스-자산) 표의 23개와 정확히 같은지 확인한다. 빠진 파일과 표에 없는 파일 모두 결함이다.
 

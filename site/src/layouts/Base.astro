@@ -3,7 +3,8 @@
 import "../styles/tokens.css";
 import "../styles/global.css";
 import { stringsFor } from "../lib/strings";
-import { REPO, appVersion, url } from "../lib/site";
+import { REPO, url } from "../lib/site";
+import { releaseVersion } from "../lib/release";
 import Analytics from "../components/Analytics.astro";
 import * as icon from "../components/icons";
 
@@ -19,7 +20,7 @@ interface Props {
 }
 const { lang, title, description, active = null, enHref, koHref } = Astro.props;
 const s = stringsFor(lang);
-const version = appVersion(process.cwd());
+const version = releaseVersion(process.cwd());
 const guidePrefix = lang === "en" ? "guide/" : "ko/guide/";
 const landing = lang === "en" ? url("") : url("ko/");
 const mark = (name: string) => (active === name ? "page" : undefined);
@@ -68,7 +69,7 @@ const absolute = (path: string) => new URL(url(path), Astro.site).href;
       <a class="brand" href={landing}>
         <img class="brand__mark" src={url("tasty-melon.svg")} alt="" width="24" height="24" />
         <span>Tasty</span>
-        <span class="brand__version">v{version}</span>
+        {version && <span class="brand__version">v{version}</span>}
       </a>
       <nav class="site-nav" aria-label={s.navGuide}>
         <a href={url(guidePrefix)} aria-current={mark("guide")}>{s.navGuide}</a>

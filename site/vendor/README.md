@@ -6,7 +6,7 @@ Design System Artifact **Tasty Design System**에서 받아온 디자인 사본�
 
 ## vendor 갱신 절차
 
-디자인이 바뀌면 사이트 사본도 갱신한다. 빌드와 아래 비교 검사는 일부 차이만 검출하므로, 통과했다고 사본이 최신인 것은 아니다.
+사이트 사본은 **릴리스할 때** 갱신한다([릴리스 절차](../../docs/dev-guide/release.md#3-사이트-갱신)). 디자인이 바뀔 때마다 갱신하지 않는다. 빌드와 아래 비교 검사는 일부 차이만 검출하므로, 통과했다고 사본이 최신인 것은 아니다.
 
 앱 토큰 사본의 갱신 절차는 `crates/tasty-design-tokens/README.md`에 있다. 앱은 `tokens/tasty.tokens.json` 한 파일을 가져오지만, 사이트는 원격 파일 목록을 비교하고 트리 전체를 가져온 뒤 로컬 변형을 다시 적용한다. 결정 이유와 대안은 `docs/design/systems/theme.md`에 있다.
 
