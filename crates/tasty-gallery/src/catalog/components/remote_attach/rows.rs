@@ -1,11 +1,11 @@
 //! Profile/workspace rows and their shared selection and dot-slot geometry.
 
-use super::{BADGE_H, PROFILE_ROW_H, Prof, WS_ROW_H, Ws};
+use super::{PROFILE_ROW_H, Prof, WS_ROW_H, Ws};
 use crate::catalog::icons;
 use crate::catalog::widgets::dialog as kit;
 use tasty_type_appearance::theme::Theme;
 use tasty_ui_widgets::tokens::STRUCT_GAP_2;
-use tasty_ui_widgets::{StatusKind, status_dot};
+use tasty_ui_widgets::{StatusKind, TagVariant, status_dot_in_row, tag, tag_with_icon};
 
 pub(super) fn profile_row(ui: &mut egui::Ui, theme: &Theme, p: &Prof, selected: bool) {
     let w = ui.available_width();
@@ -59,14 +59,12 @@ pub(super) fn profile_row(ui: &mut egui::Ui, theme: &Theme, p: &Prof, selected: 
             );
         }
         if p.inactive {
-            badge(
+            tag_with_icon(
                 ui,
                 theme,
                 "inactive",
-                theme.accent_warning().to_egui(),
-                0.12,
-                0.40,
-                true,
+                TagVariant::Warning,
+                icons::ALERT_TRIANGLE,
             );
         }
     });
@@ -109,14 +107,20 @@ pub(super) fn dot_slot(ui: &mut egui::Ui, theme: &Theme) -> egui::Rect {
 }
 
 /// StatusDot이 추가하는 라벨 간격이 열 정렬을 밀지 않도록 고정 슬롯 안에 그린다.
-fn dot_slot_status(ui: &mut egui::Ui, theme: &Theme, kind: StatusKind, pulse: bool) {
+fn dot_slot_status(
+    ui: &mut egui::Ui,
+    theme: &Theme,
+    kind: StatusKind,
+    pulse: bool,
+    selected: bool,
+) {
     let slot = dot_slot(ui, theme);
     let mut c = ui.new_child(
         egui::UiBuilder::new()
             .max_rect(slot)
             .layout(egui::Layout::left_to_right(egui::Align::Center)),
     );
-    status_dot(&mut c, theme, kind, "", pulse, false);
+    status_dot_in_row(&mut c, theme, kind, "", pulse, false, selected);
 }
 
 /// 선택 행의 inset accent 좌측바. 한쪽 변 선택 띠라 hairline selection_edge_width를 쓴다.
@@ -153,7 +157,7 @@ pub(super) fn ws_row(ui: &mut egui::Ui, theme: &Theme, w: &Ws, selected: bool) {
     } else {
         StatusKind::Idle
     };
-    dot_slot_status(&mut child, theme, kind, w.busy);
+    dot_slot_status(&mut child, theme, kind, w.busy, selected);
     let name_c = if w.attached {
         theme.text_disabled()
     } else if selected {
@@ -180,15 +184,7 @@ pub(super) fn ws_row(ui: &mut egui::Ui, theme: &Theme, w: &Ws, selected: bool) {
     );
     child.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
         if w.attached {
-            badge(
-                ui,
-                theme,
-                "in use",
-                theme.border_attached().to_egui(),
-                theme.tint_fill_alpha(),
-                theme.tint_border_alpha(),
-                false,
-            );
+            tag(ui, theme, "in use", TagVariant::Attached, false);
         } else if w.busy {
             ui.label(
                 egui::RichText::new("busy")
@@ -197,56 +193,4 @@ pub(super) fn ws_row(ui: &mut egui::Ui, theme: &Theme, w: &Ws, selected: bool) {
             );
         }
     });
-}
-
-/// 원격/inactive pill — fill/border alpha 는 디자인 color-mix(% transparent) 근사.
-fn badge(
-    ui: &mut egui::Ui,
-    theme: &Theme,
-    text: &str,
-    color: egui::Color32,
-    fill_a: f32,
-    border_a: f32,
-    warn_icon: bool,
-) {
-    let font = egui::FontId::monospace(theme.font_size_micro.value());
-    let galley = ui
-        .painter()
-        .layout_no_wrap(text.to_owned(), font, egui::Color32::PLACEHOLDER);
-    let pad_x = theme.spacing_sm.value();
-    // 경고 글리프는 아이콘 스케일 xs(12), 글리프↔라벨 간격은 spacing_xs(4).
-    let warn_glyph = theme.icon_glyph_size_xs.value();
-    let warn_gap = theme.spacing_xs.value();
-    let icon_w = if warn_icon {
-        warn_glyph + warn_gap
-    } else {
-        0.0
-    };
-    let w = pad_x * 2.0 + icon_w + galley.rect.width();
-    let (rect, _) = ui.allocate_exact_size(egui::vec2(w, BADGE_H.value()), egui::Sense::hover());
-    let radius = theme.corner_radius_sm.value();
-    ui.painter()
-        .rect_filled(rect, radius, color.gamma_multiply(fill_a));
-    ui.painter().rect_stroke(
-        rect,
-        radius,
-        egui::Stroke::new(theme.border_width.value(), color.gamma_multiply(border_a)),
-        egui::StrokeKind::Inside,
-    );
-    let mut tx = rect.left() + pad_x;
-    if warn_icon {
-        let ir = egui::Rect::from_min_size(
-            egui::pos2(tx, rect.center().y - warn_glyph * 0.5),
-            egui::vec2(warn_glyph, warn_glyph),
-        );
-        icons::ALERT_TRIANGLE
-            .image(warn_glyph, color)
-            .paint_at(ui, ir);
-        tx += warn_glyph + warn_gap;
-    }
-    ui.painter().galley(
-        egui::pos2(tx, rect.center().y - galley.rect.height() * 0.5),
-        galley,
-        color,
-    );
 }

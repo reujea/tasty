@@ -40,10 +40,11 @@ pub(super) fn paint_dot_slot(
     let (dot_rect, _) = ui.allocate_exact_size(dot_slot, egui::Sense::hover());
     let mut occupied_dot = None;
     if switch_digit.is_none() {
-        let dot_color: egui::Color32 = if ws.busy_count > 0 {
-            th.accent_success().into()
-        } else {
-            th.status_dot_idle().into()
+        let dot_color: egui::Color32 = match (ws.busy_count > 0, ws.is_active) {
+            (true, true) => th.status_dot_success_active().into(),
+            (true, false) => th.accent_success().into(),
+            (false, true) => th.status_dot_idle_active().into(),
+            (false, false) => th.status_dot_idle().into(),
         };
         // 키캡과 배율을 맞추도록 토큰 지름을 쓴다. idle에 맞는 BadgeVariant가 없어 직접 그린다.
         let dot_r = th.badge_dot_size().value() * 0.5;
@@ -55,7 +56,14 @@ pub(super) fn paint_dot_slot(
             ui.painter().circle_stroke(
                 dot_rect.center(),
                 dot_r + th.status_dot_attached_ring_offset().value() + ring_w * 0.5,
-                egui::Stroke::new(ring_w, th.border_attached()),
+                egui::Stroke::new(
+                    ring_w,
+                    if ws.is_active {
+                        th.status_dot_attached_ring_active()
+                    } else {
+                        th.border_attached()
+                    },
+                ),
             );
         }
         if ws.attached && ws.busy_count == 0 {

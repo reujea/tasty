@@ -43,10 +43,7 @@ impl Kind {
 
     /// 선택 행의 글리프 색. 본체 `entry_icon` 과 같다.
     fn selected_tint(self, theme: &Theme) -> egui::Color32 {
-        match self {
-            Kind::Image | Kind::Thumb => theme.accent_primary_on_active().into(),
-            Kind::Folder | Kind::File => theme.text_on_active().into(),
-        }
+        theme.text_on_active().into()
     }
 }
 

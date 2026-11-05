@@ -66,7 +66,13 @@ function WorkspaceRow({ ws, active, onClick, onContextMenu }) {
         padding: "var(--tasty-space-sm) var(--tasty-space-sm) var(--tasty-space-sm) var(--tasty-workspace-row-padding-x)",
         cursor: "pointer", position: "relative",
         background: active ? "var(--tasty-surface-active)" : hover ? "var(--tasty-overlay-hover)" : "transparent",
-        boxShadow: active ? "inset var(--tasty-workspace-row-active-bar-width) 0 0 var(--tasty-accent-primary)" : "none" }}>
+        boxShadow: active ? "inset var(--tasty-workspace-row-active-bar-width) 0 0 var(--tasty-accent-primary)" : "none",
+        ...(active ? {
+          "--tasty-status-dot-idle": "var(--tasty-status-dot-idle-active)", "--tasty-status-dot-success": "var(--tasty-status-dot-success-active)",
+          "--tasty-status-dot-warning": "var(--tasty-status-dot-warning-active)", "--tasty-status-dot-danger": "var(--tasty-status-dot-danger-active)",
+          "--tasty-status-dot-agent": "var(--tasty-status-dot-agent-active)", "--tasty-status-dot-needs-input": "var(--tasty-status-dot-needs-input-active)",
+          "--tasty-status-dot-completion": "var(--tasty-status-dot-completion-active)", "--tasty-status-dot-attached-ring": "var(--tasty-status-dot-attached-ring-active)",
+        } : null) }}>
       {/* dot slot = the attached mark's full bbox (16), reserved on EVERY row so the
           title x (8 + 16 + 4 = 28) never shifts; the ring can't reach the card edge,
           the 2px active accent bar, or the label. See --tasty-workspace-dot-slot. */}
@@ -80,7 +86,7 @@ function WorkspaceRow({ ws, active, onClick, onContextMenu }) {
             own line below, so the title never loses room) */}
         <div style={{ display: "flex", alignItems: "center", minWidth: 0 }}>
           <span style={{ fontSize: "var(--tasty-font-size-body)", fontWeight: "var(--tasty-font-weight-medium)", lineHeight: "var(--tasty-line-height-ui)",
-            color: active ? "var(--tasty-text-primary)" : "var(--tasty-text-secondary)", minWidth: 0,
+            color: active ? "var(--tasty-text-on-active)" : "var(--tasty-text-secondary)", minWidth: 0,
             overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{ws.name}</span>
         </div>
         {/* remote pill = local mirror of a remote instance. Own line between title
@@ -89,25 +95,19 @@ function WorkspaceRow({ ws, active, onClick, onContextMenu }) {
             remote_attach "in use" pill vocabulary. Separate from the status dot. */}
         {ws.mirror && (
           <div style={{ marginTop: "var(--tasty-size-2)" }}>
-            <span title={ws.mirrorTarget ? `Mirror of remote → ${ws.mirrorTarget}` : "Mirror of a remote workspace"}
-              aria-label="Remote mirror" style={{ display: "inline-flex", alignItems: "center", gap: "var(--tasty-workspace-mirror-gap)",
-              height: "var(--tasty-size-16)", padding: "0 var(--tasty-space-sm)", borderRadius: "var(--tasty-radius-sm)", whiteSpace: "nowrap",
-              fontFamily: "var(--tasty-font-mono)", fontSize: "var(--tasty-font-size-micro)", fontWeight: 600, lineHeight: 1,
-              letterSpacing: "var(--tasty-letter-spacing-caps)", textTransform: "uppercase",
-              color: "var(--tasty-workspace-mirror-fg)",
-              border: "var(--tasty-border-width) solid color-mix(in srgb, var(--tasty-workspace-mirror-fg) 45%, transparent)",
-              background: "color-mix(in srgb, var(--tasty-workspace-mirror-fg) 16%, transparent)" }}>
+            <Tag variant="info" caps title={ws.mirrorTarget ? `Mirror of remote → ${ws.mirrorTarget}` : "Mirror of a remote workspace"}
+              aria-label="Remote mirror" style={{ color: "var(--tasty-tag-info-fg)" }}>
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.4} strokeLinecap="round" strokeLinejoin="round"
                 style={{ width: "var(--tasty-workspace-mirror-icon-size)", height: "var(--tasty-workspace-mirror-icon-size)", display: "block" }}>
                 <path d="M4 17l6-6-6-6" /><path d="M12 19h8" />
               </svg>
               remote
-            </span>
+            </Tag>
           </div>
         )}
         {/* subtitle = short secondary label, one notch below the title */}
         {ws.subtitle && (
-          <div style={{ fontSize: "var(--tasty-font-size-term-sm)", lineHeight: "var(--tasty-line-height-ui)", marginTop: "var(--tasty-size-1)", color: "var(--tasty-text-muted)",
+          <div style={{ fontSize: "var(--tasty-font-size-term-sm)", lineHeight: "var(--tasty-line-height-ui)", marginTop: "var(--tasty-size-1)", color: active ? "var(--tasty-text-on-active)" : "var(--tasty-text-muted)",
             overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{ws.subtitle}</div>
         )}
         {/* description = longer explanatory prose, dimmest tone, wraps up to 2 lines */}

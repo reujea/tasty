@@ -169,7 +169,7 @@ fn status(
 }
 
 /// 이름 글자 배치. `query` 와 대소문자 없이 처음 맞는 부분을 `explorer-match-fg` 로 칠한다.
-/// `selected` 행은 surface-active 위라 일치 구간도 `text-on-active` 다.
+/// `selected` 행은 surface-active 위라 일치 구간을 `explorer-match-fg-active` 글자와 밑줄로 구분한다.
 pub fn explorer_match_job(
     theme: &Theme,
     name: &str,
@@ -179,9 +179,15 @@ pub fn explorer_match_job(
     selected: bool,
 ) -> egui::text::LayoutJob {
     let match_fg = if selected {
-        theme.text_on_active()
+        theme.explorer_match_fg_active()
     } else {
         theme.explorer_match_fg()
+    }
+    .to_egui();
+    let match_underline = if selected {
+        egui::Stroke::new(theme.autocomplete_match_underline_width().value(), match_fg)
+    } else {
+        egui::Stroke::NONE
     };
     let (name, range) = crate::display_text::highlighted(name, match_range(name, query));
     let mut job = egui::text::LayoutJob::default();
@@ -191,7 +197,16 @@ pub fn explorer_match_job(
     match range {
         Some(range) => {
             plain(&mut job, &name[..range.start], color);
-            plain(&mut job, &name[range.clone()], match_fg.to_egui());
+            job.append(
+                &name[range.clone()],
+                0.0,
+                egui::TextFormat {
+                    font_id: font.clone(),
+                    color: match_fg,
+                    underline: match_underline,
+                    ..Default::default()
+                },
+            );
             plain(&mut job, &name[range.end..], color);
         }
         None => plain(&mut job, &name, color),

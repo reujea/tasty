@@ -416,13 +416,16 @@ fn candidate_row(
         theme.text_secondary().to_egui()
     };
     // 키보드 활성 행의 아이콘과 일치 구간은 surface-active 위 글자색이다.
-    let (icon_fg, match_fg) = if keyboard_active {
+    // 일치 구간을 나머지 글자와 구분하는 것은 밑줄이다.
+    let (icon_fg, match_fg, match_underline) = if keyboard_active {
         let part = theme.autocomplete_part_fg_active().to_egui();
-        (part, part)
+        let width = theme.autocomplete_match_underline_width().value();
+        (part, part, egui::Stroke::new(width, part))
     } else {
         (
             theme.text_muted().to_egui(),
-            theme.accent_primary().to_egui(),
+            theme.autocomplete_match_fg().to_egui(),
+            egui::Stroke::NONE,
         )
     };
 
@@ -458,11 +461,21 @@ fn candidate_row(
             let pre: String = chars[..s].iter().collect();
             let mid: String = chars[s..e].iter().collect();
             let post: String = chars[e..].iter().collect();
-            for (seg, color) in [(pre, fg), (mid, match_fg), (post, fg)] {
+            for (seg, color, underline) in [
+                (pre, fg, egui::Stroke::NONE),
+                (mid, match_fg, match_underline),
+                (post, fg, egui::Stroke::NONE),
+            ] {
                 if seg.is_empty() {
                     continue;
                 }
-                let g = painter.layout_no_wrap(seg, font.clone(), egui::Color32::PLACEHOLDER);
+                let mut job = egui::text::LayoutJob::simple_singleline(
+                    seg,
+                    font.clone(),
+                    egui::Color32::PLACEHOLDER,
+                );
+                job.sections[0].format.underline = underline;
+                let g = painter.layout_job(job);
                 let pos = egui::pos2(x, center_y - g.rect.height() * 0.5);
                 let w = g.rect.width();
                 painter.galley(pos, g, color);
@@ -576,6 +589,53 @@ fn elide_middle(text: &str, max_w: f32, measure: impl Fn(&str) -> f32) -> String
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// 후보 행의 일치 구간을 그려 그 글자의 밑줄과 글자 mesh 정점 수를 돌려준다.
+    fn match_run_paint(theme: &Theme, keyboard_active: bool) -> (egui::Stroke, usize) {
+        let ctx = egui::Context::default();
+        let mut out = None;
+        for _ in 0..2 {
+            let frame = ctx.run(egui::RawInput::default(), |ctx| {
+                egui::CentralPanel::default().show(ctx, |ui| {
+                    candidate_row(
+                        ui,
+                        theme,
+                        "~/notes/readme.md",
+                        false,
+                        None,
+                        keyboard_active,
+                        "read",
+                        true,
+                    );
+                });
+            });
+            out = frame.shapes.iter().find_map(|c| match &c.shape {
+                egui::Shape::Text(text) if text.galley.text() == "read" => Some((
+                    text.galley.job.sections[0].format.underline,
+                    text.galley.rows[0].visuals.mesh.vertices.len(),
+                )),
+                _ => None,
+            });
+        }
+        out.expect("match run painted")
+    }
+
+    /// 활성 행의 일치 구간은 행 글자색이라 밑줄만이 구분해 준다. 글자 mesh에 선이 실제로 들어가야 한다.
+    #[test]
+    fn the_keyboard_active_row_underlines_its_match_run() {
+        let theme = tasty_themes::mocha_fallback();
+        let (underline, active_vertices) = match_run_paint(&theme, true);
+        let (rest_underline, rest_vertices) = match_run_paint(&theme, false);
+        assert_eq!(
+            underline,
+            egui::Stroke::new(
+                theme.autocomplete_match_underline_width().value(),
+                theme.autocomplete_part_fg_active().to_egui(),
+            )
+        );
+        assert_eq!(rest_underline, egui::Stroke::NONE);
+        assert!(active_vertices > rest_vertices);
+    }
 
     #[test]
     fn elide_middle_keeps_head_and_tail() {

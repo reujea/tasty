@@ -105,6 +105,7 @@
   --tasty-tag-attention-fg:        var(--tasty-accent-attention-raised); /* 2026-11-05 Mocha 7.10 · Latte 5.12 (was 1.93) */
   --tasty-tag-danger-fg:           var(--tasty-accent-danger-raised);  /* 2026-11-05 Mocha 5.43 · Latte 4.79 (was 3.52) */
   --tasty-tag-info-fg:             var(--tasty-accent-info-raised);    /* 2026-11-05 Mocha 8.08 · Latte 4.87 (was 1.81) */
+  --tasty-tag-attached-fg:         var(--tasty-accent-attached-raised); /* 2026-11-05 claimed by another client: Mocha 7.03 · Latte 5.29. The Tag keeps its own fill, so a selected row changes nothing */
   --tasty-tag-border:              var(--tasty-border-default);
   /* disabled (own prop or a disabled ListCtrl row) — neutral box + disabled ink; accent fill and tint edge drop out (2026-09-29) */
   --tasty-tag-disabled-bg:         var(--tasty-state-disabled-fill);
@@ -121,7 +122,8 @@
   --tasty-kbd-font-size:           var(--tasty-font-size-micro);
   --tasty-kbd-bg:                  var(--tasty-surface-raised);
   --tasty-kbd-fg:                  var(--tasty-text-secondary-raised); /* 2026-11-05 keycap fill is surface-raised: Mocha 7.10 (unchanged) · Latte 5.17 (was 4.05). switch-overlay-fg follows */
-  --tasty-kbd-plus-fg:             var(--tasty-text-muted-raised);     /* 2026-11-05 the + between keycaps, on whatever ground holds the Kbd. Worst ground surface-raised: Mocha 5.65 · Latte 5.17 */
+  --tasty-kbd-plus-fg:             var(--tasty-text-muted-raised);     /* 2026-11-05 the + between keycaps on every resting ground: crust, mantle, base, surface0. Worst surface0: Mocha 5.65 · Latte 5.17 */
+  --tasty-kbd-plus-fg-active:      var(--tasty-text-on-active);        /* 2026-11-05 the + on a surface-active row: Mocha 4.62 (kbd-plus-fg 3.00) · Latte 5.39 (3.69) */
   --tasty-kbd-border:              var(--tasty-border-strong);
 
   /* ─────────────────  FORMS  ───────────────── */
@@ -341,10 +343,13 @@
   --tasty-autocomplete-row-padding-x:   var(--tasty-menu-item-padding-x); /* → space-md */
   --tasty-autocomplete-row-fg:          var(--tasty-menu-item-fg);       /* → text-secondary */
   --tasty-autocomplete-row-fg-active:   var(--tasty-menu-item-fg-hover); /* → text-on-active */
-  --tasty-autocomplete-part-fg-active:  var(--tasty-text-on-active);     /* 2026-11-05 row icon + match mark on the keyboard-active row. The mark stays semibold */
+  --tasty-autocomplete-part-fg-active:  var(--tasty-text-on-active);     /* 2026-11-05 row icon + match mark on the keyboard-active row */
+  /* 2026-11-05 the match run on a selected row: no accent ink reaches 4.5 on surface-active and still differs from the row ink, so the run takes an underline in the row ink. */
+  --tasty-autocomplete-match-underline-width:  var(--tasty-border-width);
+  --tasty-autocomplete-match-underline-offset: var(--tasty-size-2);
   --tasty-autocomplete-row-bg-hover:    var(--tasty-overlay-hover);      /* pointer hover wash */
   --tasty-autocomplete-row-bg-active:   var(--tasty-surface-active);     /* keyboard-active (stronger) */
-  --tasty-autocomplete-match-fg:        var(--tasty-accent-primary);     /* typeahead match highlight */
+  --tasty-autocomplete-match-fg:        var(--tasty-accent-primary-on-active); /* typeahead match highlight. 2026-11-05 Mocha 5.97 (unchanged) · Latte 5.37 on the menu (was 3.18); pointer hover 4.66 · 4.52 */
   --tasty-autocomplete-empty-fg:        var(--tasty-text-muted);         /* no-match / empty row */
 
   /* DrillDown — generic master→detail CONTENT-SWAP layout (list view ⇄ detail
@@ -530,6 +535,15 @@
   --tasty-status-dot-attached-ring: var(--tasty-accent-attached);
   --tasty-status-dot-attached-ring-width:  var(--tasty-size-2);
   --tasty-status-dot-attached-ring-offset: var(--tasty-size-2);
+  /* 2026-11-05 the same dot on a surface-active row. Idle takes the row ink, because the idle tone is 1.37 · 1.20 on the fill. */
+  --tasty-status-dot-idle-active:        var(--tasty-text-on-active);
+  --tasty-status-dot-success-active:     var(--tasty-accent-success-on-active);
+  --tasty-status-dot-warning-active:     var(--tasty-accent-warning-on-active);
+  --tasty-status-dot-danger-active:      var(--tasty-accent-danger-on-active);
+  --tasty-status-dot-agent-active:       var(--tasty-accent-agent-on-active);
+  --tasty-status-dot-needs-input-active: var(--tasty-accent-warning-on-active);
+  --tasty-status-dot-completion-active:  var(--tasty-accent-primary-on-active);
+  --tasty-status-dot-attached-ring-active: var(--tasty-accent-attached-on-active);
   --tasty-status-dot-pulse-duration: var(--tasty-duration-1600);
   /* Collapsed-rail cut-out ring (2026-10-07 batch 4): drawn on EVERY rail dot,
      busy included, so the dot separates from the avatar it overlaps. OFF-SCALE
@@ -557,6 +571,7 @@
      ring (claimed by another client), and the notification badge — so it never
      collides with any of them. Collapsed rail reuses the same fg on a corner chip. */
   --tasty-workspace-mirror-fg:     var(--tasty-accent-remote);
+  --tasty-workspace-mirror-fg-active: var(--tasty-accent-remote-on-active); /* 2026-11-05 mirror glyph on the selected row: Mocha 4.29 · Latte 3.48 */
   --tasty-workspace-mirror-icon-size: var(--tasty-icon-size-xs);
   --tasty-workspace-mirror-gap:    var(--tasty-space-xs);
   /* 2026-10-12 — collapsed-rail mirror chip: a full-strength 1px sky edge so the chip
@@ -808,6 +823,8 @@
   --tasty-port-addr-col-min-width:   var(--tasty-size-140);            /* 2026-10-08 (batch 8) — Address floor AND width: Address stays here; ALL spare width goes to Process */
   --tasty-port-star-on:              var(--tasty-accent-warning);      /* registered — gold, as Explorer favorites */
   --tasty-port-star-off:             var(--tasty-text-muted);          /* unregistered — muted outline */
+  --tasty-port-star-on-active:       var(--tasty-accent-warning-on-active); /* 2026-11-05 selected row, registered: Mocha 5.25 · Latte 3.75 */
+  --tasty-port-star-off-active:      var(--tasty-text-on-active);      /* 2026-11-05 selected row, unregistered outline. Fill vs outline tells the two apart */
   --tasty-port-state-none-dot:       var(--tasty-status-dot-idle);     /* NONE badge (favorite not in the scan) */
 
   /* ─────────────────  OVERLAYS (gallery specimen layouts)  ───────────────── */
@@ -1403,6 +1420,7 @@
   --tasty-explorer-search-bar-height: var(--tasty-size-36); /* filter / search bar under the toolbar */
   --tasty-explorer-search-folder-col-width: var(--tasty-size-160); /* Detail “Folder” column in recursive results */
   --tasty-explorer-match-fg: var(--tasty-autocomplete-match-fg); /* matched part of a name while filtering */
+  --tasty-explorer-match-fg-active: var(--tasty-autocomplete-part-fg-active); /* 2026-11-05 the same run on a selected row, with autocomplete-match-underline-* */
   /* 2026-10-09 batch 10 */
   --tasty-image-too-large-fg: var(--tasty-accent-warning); /* image canvas "too large" glyph — refused by limit, file is fine (warning tone) */
   --tasty-explorer-name-error-max-width: var(--tasty-size-240); /* name error message box max width (new item / rename) */

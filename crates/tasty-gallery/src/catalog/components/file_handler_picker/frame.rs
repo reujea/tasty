@@ -328,7 +328,7 @@ fn fh_row(ui: &mut egui::Ui, theme: &Theme, r: &Row, sel: bool, dim: bool) {
 
     let glyph_color = if sel {
         if plugin {
-            theme.accent_primary_on_active().to_egui()
+            theme.accent_agent_on_active().to_egui()
         } else {
             theme.text_on_active().to_egui()
         }

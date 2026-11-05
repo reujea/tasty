@@ -1987,6 +1987,8 @@ mod tests {
         // light(Latte): surface-raised 위 보조 글자는 neutral-1100(text)으로 role-remap.
         assert_eq!(light.text_secondary_raised(), light.text);
         assert_ne!(light.text_secondary_raised(), light.subtext1);
+        assert_eq!(light.text_muted(), light.subtext1);
+        assert_ne!(light.text_muted(), light.subtext0);
         assert_eq!(light.text_muted_raised(), light.text);
         assert_ne!(light.text_muted_raised(), light.subtext0);
 

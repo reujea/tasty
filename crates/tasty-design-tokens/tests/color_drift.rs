@@ -6,6 +6,7 @@ use tasty_design_tokens::DTCG_JSON;
 use tasty_design_tokens::dtcg::{self, ThemeMode};
 use tasty_themes::{LATTE_TOML_TEXT, MOCHA_TOML_TEXT, ThemeFile, mocha_fallback_colors};
 use tasty_type_appearance::color::HexColor;
+use tasty_type_appearance::theme::Theme;
 
 #[test]
 fn primitive_colors_match_embedded_themes() {
@@ -199,8 +200,6 @@ fn the_frame_line_outranks_the_strong_border_by_contrast_not_lightness() {
 /// 실제 배지 접근자의 대비를 검사하므로 alias를 전역 강조색으로 되돌리면 Latte에서 실패한다.
 #[test]
 fn notification_warning_badge_is_readable_in_both_shipped_themes() {
-    use tasty_type_appearance::theme::Theme;
-
     for (name, toml, light) in [
         ("mocha", MOCHA_TOML_TEXT, false),
         ("latte", LATTE_TOML_TEXT, true),
@@ -234,10 +233,6 @@ fn notification_warning_badge_is_readable_in_both_shipped_themes() {
 /// 대비 하한은 평상 상태에서 화면에 머무는 글자 4.5:1, 글리프 3:1이다.
 #[test]
 fn state_ink_matches_the_design_values_and_clears_contrast() {
-    use tasty_type_appearance::color::HexColor;
-    use tasty_type_appearance::theme::Theme;
-
-    let hex = |s: &str| HexColor::from_hex(s).expect("valid hex");
     let build = |toml: &str, light: bool| {
         let file = ThemeFile::parse(toml).expect("embedded theme must parse");
         let (partial, _) = file.to_partial();
@@ -245,8 +240,22 @@ fn state_ink_matches_the_design_values_and_clears_contrast() {
         colors.apply_partial(&partial);
         Theme::with_colors(colors, light)
     };
-
     let latte = build(LATTE_TOML_TEXT, true);
+    let mocha = build(MOCHA_TOML_TEXT, false);
+
+    assert_latte_state_ink(&latte);
+    assert_mocha_state_ink(&mocha);
+    for (name, th) in [("mocha", &mocha), ("latte", &latte)] {
+        assert_ink_on_active(name, th);
+        assert_ink_on_raised(name, th);
+    }
+}
+
+fn hex(s: &str) -> HexColor {
+    HexColor::from_hex(s).expect("valid hex")
+}
+
+fn assert_latte_state_ink(latte: &Theme) {
     assert_eq!(latte.surface_on_raised(), hex("#eff1f5"));
     assert_eq!(latte.text_on_active(), hex("#35374a"));
     assert_eq!(latte.accent_primary_on_active(), hex("#1547ac"));
@@ -254,43 +263,86 @@ fn state_ink_matches_the_design_values_and_clears_contrast() {
     assert_eq!(latte.accent_warning_raised(), hex("#70470f"));
     assert_eq!(latte.accent_attention_raised(), hex("#8c3706"));
     assert_eq!(latte.accent_info_raised(), hex("#025b7e"));
+    assert_eq!(latte.text_muted(), hex("#5c5f77"));
+    // accent-warning-raised를 따르므로 같은 반올림이다. 디자인 측 표기는 #70470e이다.
+    assert_eq!(latte.accent_warning_on_active(), hex("#70470f"));
+    assert_eq!(latte.accent_success_on_active(), hex("#26601a"));
+    assert_eq!(latte.accent_danger_on_active(), hex("#9c294c"));
+    assert_eq!(latte.accent_agent_on_active(), hex("#6d2ebf"));
+    assert_eq!(latte.accent_remote_on_active(), hex("#025b7e"));
+    assert_eq!(latte.accent_attached_raised(), hex("#3f4a8b"));
+    assert_eq!(latte.accent_attached_on_active(), hex("#3f4a8b"));
+}
 
-    let mocha = build(MOCHA_TOML_TEXT, false);
+fn assert_mocha_state_ink(mocha: &Theme) {
     assert_eq!(mocha.surface_on_raised(), mocha.surface_hover());
     assert_eq!(mocha.text_on_active(), mocha.text_primary());
     assert_eq!(mocha.accent_primary_on_active(), mocha.accent_primary());
     assert_eq!(mocha.accent_warning_raised(), mocha.accent_warning());
     assert_eq!(mocha.accent_attention_raised(), mocha.accent_attention());
     assert_eq!(mocha.accent_info_raised(), mocha.accent_info());
+    assert_eq!(mocha.text_muted(), hex("#a6adc8"));
+    assert_eq!(mocha.accent_warning_on_active(), hex("#f9e2af"));
+    assert_eq!(mocha.accent_success_on_active(), hex("#a6e3a1"));
+    assert_eq!(mocha.accent_danger_on_active(), hex("#f59cb5"));
+    assert_eq!(mocha.accent_agent_on_active(), hex("#cba6f7"));
+    assert_eq!(mocha.accent_remote_on_active(), hex("#89dceb"));
+    assert_eq!(mocha.accent_attached_raised(), hex("#b4befe"));
+    assert_eq!(mocha.accent_attached_on_active(), hex("#b4befe"));
+}
 
-    for (name, th) in [("mocha", &mocha), ("latte", &latte)] {
-        let active = th.surface_active();
+fn assert_ink_on_active(name: &str, th: &Theme) {
+    let active = th.surface_active();
+    for (text, ink) in [
+        ("text", th.text_on_active()),
+        ("match run", th.explorer_match_fg_active()),
+        ("kbd plus", th.kbd_plus_fg_active()),
+    ] {
         assert!(
-            contrast_ratio(active, th.text_on_active()) >= 4.5,
-            "{name} text on active"
-        );
-        assert!(
-            contrast_ratio(active, th.accent_primary_on_active()) >= 3.0,
-            "{name} glyph on active"
-        );
-        let raised = th.tag_bg();
-        for (tag, ink) in [
-            ("default", th.tag_fg()),
-            ("success", th.tag_success_fg()),
-            ("warning", th.tag_warning_fg()),
-            ("attention", th.tag_attention_fg()),
-            ("danger", th.tag_danger_fg()),
-            ("info", th.tag_info_fg()),
-        ] {
-            assert!(contrast_ratio(raised, ink) >= 4.5, "{name} tag {tag}");
-        }
-        assert!(
-            contrast_ratio(th.surface_raised(), th.kbd_fg()) >= 4.5,
-            "{name} kbd"
-        );
-        assert!(
-            contrast_ratio(th.banner_button_bg(), th.text_primary()) >= 4.5,
-            "{name} banner button"
+            contrast_ratio(active, ink) >= 4.5,
+            "{name} {text} on active"
         );
     }
+    for (glyph, ink) in [
+        ("primary", th.accent_primary_on_active()),
+        ("warning", th.accent_warning_on_active()),
+        ("success", th.accent_success_on_active()),
+        ("danger", th.accent_danger_on_active()),
+        ("agent", th.accent_agent_on_active()),
+        ("remote", th.accent_remote_on_active()),
+        ("attached", th.accent_attached_on_active()),
+        ("completion dot", th.status_dot_completion_active()),
+    ] {
+        assert!(
+            contrast_ratio(active, ink) >= 3.0,
+            "{name} {glyph} glyph on active"
+        );
+    }
+}
+
+fn assert_ink_on_raised(name: &str, th: &Theme) {
+    assert!(
+        contrast_ratio(th.bg_app(), th.text_muted()) >= 4.5,
+        "{name} muted on bg-app"
+    );
+    let raised = th.tag_bg();
+    for (tag, ink) in [
+        ("default", th.tag_fg()),
+        ("success", th.tag_success_fg()),
+        ("warning", th.tag_warning_fg()),
+        ("attention", th.tag_attention_fg()),
+        ("danger", th.tag_danger_fg()),
+        ("info", th.tag_info_fg()),
+        ("attached", th.tag_attached_fg()),
+    ] {
+        assert!(contrast_ratio(raised, ink) >= 4.5, "{name} tag {tag}");
+    }
+    assert!(
+        contrast_ratio(th.surface_raised(), th.kbd_fg()) >= 4.5,
+        "{name} kbd"
+    );
+    assert!(
+        contrast_ratio(th.banner_button_bg(), th.text_primary()) >= 4.5,
+        "{name} banner button"
+    );
 }

@@ -2560,16 +2560,15 @@ function ModifierHintPanelG({ style, held = "Ctrl", sections = MH_SECTIONS, show
 // Consumes the tasty-attach profiles (left) → lists a remote instance's workspaces
 // (right) across 4 states. Same shell language as RemoteFrame (remote_tool).
 function RaBadge({ tone, children, title }) {
-  const c = tone === "attached" ? "var(--tasty-accent-attached)" : "var(--tasty-accent-warning)";
-  const pct = tone === "attached" ? "45%" : "40%";
-  const bg = tone === "attached" ? "14%" : "12%";
+  // The Tag recipe: its own fill keeps the ink readable on a selected row. The explicit styles hold until bundle.js is rebuilt.
+  const attached = tone === "attached";
+  const style = attached
+    ? { color: "var(--tasty-tag-attached-fg)", borderColor: "color-mix(in srgb, var(--tasty-accent-attached) 40%, transparent)" }
+    : { color: "var(--tasty-tag-warning-fg)" };
   return (
-    <span title={title} style={{ display: "inline-flex", alignItems: "center", gap: tone === "attached" ? 0 : 4,
-      height: 16, padding: "0 var(--tasty-space-sm)", borderRadius: "var(--tasty-radius-sm)", whiteSpace: "nowrap",
-      fontFamily: "var(--tasty-font-mono)", fontSize: "var(--tasty-font-size-micro)", fontWeight: 500, lineHeight: 1, color: c,
-      border: `1px solid color-mix(in srgb, ${c} ${pct}, transparent)`, background: `color-mix(in srgb, ${c} ${bg}, transparent)` }}>
-      {tone !== "attached" && <span style={{ display: "inline-flex" }}>{ic.warn}</span>}{children}
-    </span>
+    <Tag variant={attached ? "attached" : "warning"} title={title} style={style}>
+      {!attached && <span style={{ display: "inline-flex" }}>{ic.warn}</span>}{children}
+    </Tag>
   );
 }
 function RaProfile({ name, label, target, selected, inactive }) {

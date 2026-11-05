@@ -899,7 +899,7 @@ fn row(ui: &mut egui::Ui, theme: &Theme, r: &Row, state: RowState) {
         (
             icons::FOLDER,
             if selected {
-                theme.accent_primary_on_active()
+                theme.text_on_active()
             } else {
                 theme.accent_primary()
             }

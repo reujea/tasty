@@ -84,25 +84,16 @@ const raCaption = { fontSize: 11, color: "var(--tasty-text-muted)" };
 //    Uses accent-attached (the same axis as the sidebar attached ring), NOT danger. ──
 function RaInUseBadge() {
   return (
-    <span title="Already attached on another client — can't mirror it here." style={{ display: "inline-flex", alignItems: "center",
-      height: "var(--tasty-size-16)", padding: "0 var(--tasty-space-sm)", borderRadius: "var(--tasty-radius-sm)", whiteSpace: "nowrap",
-      fontFamily: "var(--tasty-font-mono)", fontSize: "var(--tasty-font-size-micro)", fontWeight: 500, lineHeight: 1,
-      color: "var(--tasty-accent-attached)",
-      border: "var(--tasty-border-width) solid color-mix(in srgb, var(--tasty-accent-attached) 45%, transparent)",
-      background: "color-mix(in srgb, var(--tasty-accent-attached) 14%, transparent)" }}>in use</span>
+    <Tag variant="attached" title="Already attached on another client — can't mirror it here."
+      style={{ color: "var(--tasty-tag-attached-fg)", borderColor: "color-mix(in srgb, var(--tasty-accent-attached) 40%, transparent)" }}>in use</Tag>
   );
 }
 
 function RaInactiveBadge() {
   return (
-    <span title="Inactive — last detection failed." style={{ display: "inline-flex", alignItems: "center", gap: 4,
-      height: "var(--tasty-size-16)", padding: "0 var(--tasty-space-sm)", borderRadius: "var(--tasty-radius-sm)", whiteSpace: "nowrap",
-      fontFamily: "var(--tasty-font-mono)", fontSize: "var(--tasty-font-size-micro)", fontWeight: 500, lineHeight: 1,
-      color: "var(--tasty-accent-warning)",
-      border: "var(--tasty-border-width) solid color-mix(in srgb, var(--tasty-accent-warning) 40%, transparent)",
-      background: "color-mix(in srgb, var(--tasty-accent-warning) 12%, transparent)" }}>
+    <Tag variant="warning" title="Inactive — last detection failed." style={{ color: "var(--tasty-tag-warning-fg)" }}>
       <span style={{ display: "inline-flex" }}><Icon name={RA_IC.warn} size={12} /></span>inactive
-    </span>
+    </Tag>
   );
 }
 

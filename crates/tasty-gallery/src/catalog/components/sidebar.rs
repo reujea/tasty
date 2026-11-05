@@ -89,7 +89,7 @@ fn mirror_pill_line(
         egui::pos2(name_x + sz * 0.5, cy),
         sz,
         egui::Color32::from(if active {
-            theme.accent_primary_on_active()
+            theme.workspace_mirror_fg_active()
         } else {
             theme.workspace_mirror_fg()
         }),
@@ -98,7 +98,7 @@ fn mirror_pill_line(
         egui::pos2(name_x + sz + theme.workspace_mirror_gap().value(), y),
         egui::vec2(ui.available_width(), mirror_pill_line_h(theme)),
     )));
-    tag_caps(&mut tag_ui, theme, "remote", TagVariant::Remote, false);
+    tag_caps(&mut tag_ui, theme, "remote", TagVariant::Info, false);
 }
 
 /// 오른쪽 끝에서 offset만큼 떨어진 곳에 개수 배지를 그린다.
@@ -549,13 +549,15 @@ fn paint_ws_dot(
     dc: egui::Pos2,
     dot_r: f32,
 ) {
+    let active = row.state == RowState::Active;
     p.circle_filled(
         dc,
         dot_r,
-        egui::Color32::from(if row.busy {
-            theme.accent_success()
-        } else {
-            theme.status_dot_idle()
+        egui::Color32::from(match (row.busy, active) {
+            (true, true) => theme.status_dot_success_active(),
+            (true, false) => theme.accent_success(),
+            (false, true) => theme.status_dot_idle_active(),
+            (false, false) => theme.status_dot_idle(),
         }),
     );
     // 링의 offset은 점의 바깥쪽에서 링 안쪽까지의 거리다(본체와 같은 식).
@@ -566,7 +568,11 @@ fn paint_ws_dot(
             dot_r + theme.status_dot_attached_ring_offset().value() + ring_w * 0.5,
             egui::Stroke::new(
                 ring_w,
-                egui::Color32::from(theme.status_dot_attached_ring()),
+                egui::Color32::from(if active {
+                    theme.status_dot_attached_ring_active()
+                } else {
+                    theme.status_dot_attached_ring()
+                }),
             ),
         );
     }

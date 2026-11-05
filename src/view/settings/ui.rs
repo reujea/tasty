@@ -1592,7 +1592,7 @@ fn sidebar_row(
             egui::pos2(x + d * 0.5, rect.center().y),
             d * 0.5,
             if selected {
-                th.accent_primary_on_active()
+                th.accent_agent_on_active()
             } else {
                 th.accent_agent()
             }

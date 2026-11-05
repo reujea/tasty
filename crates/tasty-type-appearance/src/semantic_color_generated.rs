@@ -56,12 +56,6 @@ impl crate::theme::Theme {
         self.subtext1
     }
 
-    /// `semantic.text-muted` → `{primitive.color-neutral-900}`
-    #[inline]
-    pub fn text_muted(&self) -> HexColor {
-        self.subtext0
-    }
-
     /// `semantic.text-placeholder` → `{primitive.color-neutral-600}`
     #[inline]
     pub fn text_placeholder(&self) -> HexColor {

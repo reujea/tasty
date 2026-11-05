@@ -202,6 +202,34 @@ pub const SEMANTIC_COLOR_TO_THEME_ACCESSOR: &[(&str, &str)] = &[
         "accent_attention_raised()",
     ),
     ("semantic.accent-info-raised", "accent_info_raised()"),
+    (
+        "semantic.accent-warning-on-active",
+        "accent_warning_on_active()",
+    ),
+    (
+        "semantic.accent-success-on-active",
+        "accent_success_on_active()",
+    ),
+    (
+        "semantic.accent-danger-on-active",
+        "accent_danger_on_active()",
+    ),
+    (
+        "semantic.accent-agent-on-active",
+        "accent_agent_on_active()",
+    ),
+    (
+        "semantic.accent-remote-on-active",
+        "accent_remote_on_active()",
+    ),
+    (
+        "semantic.accent-attached-raised",
+        "accent_attached_raised()",
+    ),
+    (
+        "semantic.accent-attached-on-active",
+        "accent_attached_on_active()",
+    ),
 ];
 
 /// 생성할 semantic 색 접근자: 토큰 경로, 메서드명, 반환할 Theme 필드.
@@ -220,7 +248,6 @@ pub const SEMANTIC_COLOR_ACCESSOR_GEN: &[(&str, &str, &str)] = &[
     // 텍스트 (text-*)
     ("semantic.text-primary", "text_primary", "text"),
     ("semantic.text-secondary", "text_secondary", "subtext1"),
-    ("semantic.text-muted", "text_muted", "subtext0"),
     (
         "semantic.text-placeholder",
         "text_placeholder",
@@ -342,6 +369,38 @@ const SEMANTIC_COLOR_HAND_WRITTEN: &[(&str, &str)] = &[
     (
         "semantic.accent-info-raised",
         "Latte sky 55% + primitive black 합성색",
+    ),
+    (
+        "semantic.text-muted",
+        "is_light role-remap (Mocha=subtext0 / Latte=subtext1) — 단순 alias 아님",
+    ),
+    (
+        "semantic.accent-warning-on-active",
+        "accent-warning-raised alias, 대응 Theme 필드 없음",
+    ),
+    (
+        "semantic.accent-success-on-active",
+        "accent-success-ink alias, 대응 Theme 필드 없음",
+    ),
+    (
+        "semantic.accent-danger-on-active",
+        "Mocha red 85% + primitive white 합성색 / Latte=accent-danger-raised",
+    ),
+    (
+        "semantic.accent-agent-on-active",
+        "Latte mauve 80% + primitive black 합성색",
+    ),
+    (
+        "semantic.accent-remote-on-active",
+        "accent-info-raised alias, 대응 Theme 필드 없음",
+    ),
+    (
+        "semantic.accent-attached-raised",
+        "Latte lavender 55% + primitive black 합성색",
+    ),
+    (
+        "semantic.accent-attached-on-active",
+        "accent-attached-raised alias, 대응 Theme 필드 없음",
     ),
     (
         "semantic.overlay-hover",

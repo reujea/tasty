@@ -24,6 +24,12 @@ pub mod attach {
 pub mod autocomplete {
     use tasty_type_geometry::length::LogicalPx;
 
+    /// `component.autocomplete-match-underline-offset` → `{primitive.size-2}` = 2px
+    pub const MATCH_UNDERLINE_OFFSET: LogicalPx = crate::generated::primitive::SIZE_2;
+
+    /// `component.autocomplete-match-underline-width` → `{semantic.border-width}` = 1px
+    pub const MATCH_UNDERLINE_WIDTH: LogicalPx = crate::generated::semantic::BORDER_WIDTH;
+
     /// `component.autocomplete-max-height` → `{primitive.size-220}` = 220px
     pub const MAX_HEIGHT: LogicalPx = crate::generated::primitive::SIZE_220;
 

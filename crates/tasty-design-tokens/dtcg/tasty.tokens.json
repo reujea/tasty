@@ -739,7 +739,12 @@
     },
     "text-muted": {
       "$type": "color",
-      "$value": "{primitive.color-neutral-900}"
+      "$value": "{primitive.color-neutral-900}",
+      "$extensions": {
+        "com.tasty.mode": {
+          "latte": "{primitive.color-neutral-1000}"
+        }
+      }
     },
     "text-disabled": {
       "$type": "color",
@@ -930,6 +935,49 @@
       "$extensions": {
         "com.tasty.mode": {
           "latte": "color-mix(in srgb, var(--tasty-color-blue) 70%, var(--tasty-color-black))"
+        }
+      }
+    },
+    "accent-warning-on-active": {
+      "$type": "color",
+      "$value": "{semantic.accent-warning-raised}"
+    },
+    "accent-success-on-active": {
+      "$type": "color",
+      "$value": "{semantic.accent-success-ink}"
+    },
+    "accent-danger-on-active": {
+      "$type": "color",
+      "$value": "color-mix(in srgb, var(--tasty-color-red) 85%, var(--tasty-color-white))",
+      "$extensions": {
+        "com.tasty.mode": {
+          "latte": "{semantic.accent-danger-raised}"
+        }
+      }
+    },
+    "accent-agent-on-active": {
+      "$type": "color",
+      "$value": "{semantic.accent-agent}",
+      "$extensions": {
+        "com.tasty.mode": {
+          "latte": "color-mix(in srgb, var(--tasty-color-mauve) 80%, var(--tasty-color-black))"
+        }
+      }
+    },
+    "accent-remote-on-active": {
+      "$type": "color",
+      "$value": "{semantic.accent-info-raised}"
+    },
+    "accent-attached-on-active": {
+      "$type": "color",
+      "$value": "{semantic.accent-attached-raised}"
+    },
+    "accent-attached-raised": {
+      "$type": "color",
+      "$value": "{semantic.accent-attached}",
+      "$extensions": {
+        "com.tasty.mode": {
+          "latte": "color-mix(in srgb, var(--tasty-color-lavender) 55%, var(--tasty-color-black))"
         }
       }
     },
@@ -1816,6 +1864,10 @@
       "$type": "color",
       "$value": "{semantic.accent-info-raised}"
     },
+    "tag-attached-fg": {
+      "$type": "color",
+      "$value": "{semantic.accent-attached-raised}"
+    },
     "tag-border": {
       "$type": "color",
       "$value": "{semantic.border-default}"
@@ -1871,6 +1923,10 @@
     "kbd-plus-fg": {
       "$type": "color",
       "$value": "{semantic.text-muted-raised}"
+    },
+    "kbd-plus-fg-active": {
+      "$type": "color",
+      "$value": "{semantic.text-on-active}"
     },
     "kbd-border": {
       "$type": "color",
@@ -2505,6 +2561,14 @@
       "$type": "color",
       "$value": "{semantic.text-on-active}"
     },
+    "autocomplete-match-underline-width": {
+      "$type": "dimension",
+      "$value": "{semantic.border-width}"
+    },
+    "autocomplete-match-underline-offset": {
+      "$type": "dimension",
+      "$value": "{primitive.size-2}"
+    },
     "autocomplete-row-bg-hover": {
       "$type": "color",
       "$value": "{semantic.overlay-hover}"
@@ -2515,7 +2579,7 @@
     },
     "autocomplete-match-fg": {
       "$type": "color",
-      "$value": "{semantic.accent-primary}"
+      "$value": "{semantic.accent-primary-on-active}"
     },
     "autocomplete-empty-fg": {
       "$type": "color",
@@ -2977,6 +3041,38 @@
       "$type": "dimension",
       "$value": "{primitive.size-2}"
     },
+    "status-dot-idle-active": {
+      "$type": "color",
+      "$value": "{semantic.text-on-active}"
+    },
+    "status-dot-success-active": {
+      "$type": "color",
+      "$value": "{semantic.accent-success-on-active}"
+    },
+    "status-dot-warning-active": {
+      "$type": "color",
+      "$value": "{semantic.accent-warning-on-active}"
+    },
+    "status-dot-danger-active": {
+      "$type": "color",
+      "$value": "{semantic.accent-danger-on-active}"
+    },
+    "status-dot-agent-active": {
+      "$type": "color",
+      "$value": "{semantic.accent-agent-on-active}"
+    },
+    "status-dot-needs-input-active": {
+      "$type": "color",
+      "$value": "{semantic.accent-warning-on-active}"
+    },
+    "status-dot-completion-active": {
+      "$type": "color",
+      "$value": "{semantic.accent-primary-on-active}"
+    },
+    "status-dot-attached-ring-active": {
+      "$type": "color",
+      "$value": "{semantic.accent-attached-on-active}"
+    },
     "status-dot-pulse-duration": {
       "$type": "duration",
       "$value": "{primitive.duration-1600}"
@@ -3012,6 +3108,10 @@
     "workspace-mirror-fg": {
       "$type": "color",
       "$value": "{semantic.accent-remote}"
+    },
+    "workspace-mirror-fg-active": {
+      "$type": "color",
+      "$value": "{semantic.accent-remote-on-active}"
     },
     "workspace-mirror-icon-size": {
       "$type": "dimension",
@@ -3654,6 +3754,14 @@
     "port-star-off": {
       "$type": "color",
       "$value": "{semantic.text-muted}"
+    },
+    "port-star-on-active": {
+      "$type": "color",
+      "$value": "{semantic.accent-warning-on-active}"
+    },
+    "port-star-off-active": {
+      "$type": "color",
+      "$value": "{semantic.text-on-active}"
     },
     "port-state-none-dot": {
       "$type": "color",
@@ -5220,6 +5328,10 @@
       "$type": "color",
       "$value": "{component.autocomplete-match-fg}",
       "$description": "matched part of a name while filtering"
+    },
+    "explorer-match-fg-active": {
+      "$type": "color",
+      "$value": "{component.autocomplete-part-fg-active}"
     },
     "image-too-large-fg": {
       "$type": "color",

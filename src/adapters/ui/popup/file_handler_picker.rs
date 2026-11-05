@@ -509,7 +509,7 @@ fn handler_row(
 
     let glyph_color: egui::Color32 = if sel {
         if e.plugin {
-            th.accent_primary_on_active().into()
+            th.accent_agent_on_active().into()
         } else {
             th.text_on_active().into()
         }

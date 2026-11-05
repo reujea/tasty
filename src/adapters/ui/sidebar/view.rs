@@ -1443,7 +1443,7 @@ fn draw_workspace_card(
                 ui.add_space(body_indent);
                 ui.spacing_mut().item_spacing.x = th.workspace_mirror_gap().value();
                 let mirror_fg = if ws.is_active {
-                    th.accent_primary_on_active()
+                    th.workspace_mirror_fg_active()
                 } else {
                     th.workspace_mirror_fg()
                 };
@@ -1451,7 +1451,7 @@ fn draw_workspace_card(
                     icons::TERMINAL_PROMPT
                         .image(th.workspace_mirror_icon_size().value(), mirror_fg.into()),
                 );
-                tag_caps(ui, th, mirror_pill_label, TagVariant::Remote, false);
+                tag_caps(ui, th, mirror_pill_label, TagVariant::Info, false);
             });
             remote_line = Some(resp.response.rect);
         }

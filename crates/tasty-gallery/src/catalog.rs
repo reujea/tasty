@@ -402,6 +402,12 @@ pub fn pages() -> Vec<Page> {
                             components::prim_chips::draw_kbd,
                         ),
                         spec(
+                            "selected-row",
+                            "Selected row",
+                            Some("Meaning glyphs, chips, match run and Kbd + on surface-active, Mocha and Latte"),
+                            components::selected_row::draw,
+                        ),
+                        spec(
                             "kbd-one-keycap",
                             "One keycap, no palette variant",
                             Some("the palette converges on Kbd — 16 / 4 / 3 / 10"),

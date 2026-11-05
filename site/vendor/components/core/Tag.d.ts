@@ -2,7 +2,7 @@ import * as React from "react";
 
 export interface TagProps extends React.HTMLAttributes<HTMLSpanElement> {
   /** Color treatment. default = outlined neutral. */
-  variant?: "default" | "accent" | "agent" | "success" | "warning" | "attention" | "danger" | "info";
+  variant?: "default" | "accent" | "agent" | "success" | "warning" | "attention" | "danger" | "info" | "attached";
   /** Prefix with a small status dot in the current color. */
   dot?: boolean;
   /** Disabled ink rule — neutral box + text-disabled for every variant (accent fill / tint edge drop out). Automatic inside a disabled ListCtrl row. */

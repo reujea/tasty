@@ -165,3 +165,45 @@ fn composing_display_does_not_normalize_name_matching() {
     );
     assert_eq!(raw.as_bytes(), b"cafe\xcc\x81.rs");
 }
+
+#[test]
+fn a_selected_row_underlines_the_match_run_and_a_resting_row_does_not() {
+    let theme = tasty_themes::mocha_fallback();
+    let font = egui::FontId::proportional(theme.font_size_body.value());
+    let ink = theme.text_on_active().to_egui();
+    let underlines = |selected: bool| {
+        explorer_match_job(&theme, "report.pdf", "po", font.clone(), ink, selected)
+            .sections
+            .iter()
+            .map(|s| s.format.underline)
+            .collect::<Vec<_>>()
+    };
+    let run = egui::Stroke::new(
+        theme.autocomplete_match_underline_width().value(),
+        theme.explorer_match_fg_active().to_egui(),
+    );
+    assert_eq!(
+        underlines(true),
+        [egui::Stroke::NONE, run, egui::Stroke::NONE]
+    );
+    assert_eq!(underlines(false), [egui::Stroke::NONE; 3]);
+}
+
+/// 서식 필드만 보면 렌더러가 무시해도 통과하므로 글자 mesh에 선이 들어갔는지 본다.
+#[test]
+fn the_match_underline_reaches_the_text_mesh() {
+    let theme = tasty_themes::mocha_fallback();
+    let font = egui::FontId::proportional(theme.font_size_body.value());
+    let ink = theme.text_on_active().to_egui();
+    let ctx = egui::Context::default();
+    drop(ctx.run(egui::RawInput::default(), |_| {}));
+    let vertices = |selected: bool| {
+        let job = explorer_match_job(&theme, "report.pdf", "po", font.clone(), ink, selected);
+        ctx.fonts(|f| f.layout_job(job)).rows[0]
+            .visuals
+            .mesh
+            .vertices
+            .len()
+    };
+    assert!(vertices(true) > vertices(false));
+}

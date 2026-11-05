@@ -1509,19 +1509,23 @@ fn draw_port_star(ui: &mut egui::Ui, th: &Theme, on: bool) -> egui::Response {
     }
     let glyph = th.icon_glyph_size_sm.value();
     let icon_rect = egui::Rect::from_center_size(rect.center(), egui::vec2(glyph, glyph));
+    let selected = in_selected_table_row(ui);
     if on {
-        let fg = if in_selected_table_row(ui) {
-            th.accent_primary_on_active()
+        let fg = if selected {
+            th.port_star_on_active()
         } else {
-            th.accent_warning()
+            th.port_star_on()
         };
         icons::STAR_FILL
             .image(glyph, fg.into())
             .paint_at(ui, icon_rect);
     } else {
-        icons::STAR
-            .image(glyph, table_cell_ink(ui, th, th.text_muted()))
-            .paint_at(ui, icon_rect);
+        let fg = if selected {
+            th.port_star_off_active()
+        } else {
+            th.port_star_off()
+        };
+        icons::STAR.image(glyph, fg.into()).paint_at(ui, icon_rect);
     }
     resp
 }

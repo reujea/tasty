@@ -317,21 +317,13 @@ Latte의 일부 어두운 배경과 글자 조합은 4.5:1 대비를 충족하�
 
 | 전경 \ 배경 | crust `#dce0e8` | mantle `#e6e9ef` | base `#eff1f5` | surface0 `#ccd0da` | surface1 `#bcc0cc` | surface2 `#acb0be` | `#ffffff` |
 |---|---|---|---|---|---|---|---|
-| `subtext0` (text-muted) `#63667c` | 4.26 | 4.64\* | 4.99\* | 3.65 | 3.10 | 2.61 | 5.64\* |
-| `subtext1` (text-secondary) `#5c5f77` | 4.73\* | 5.14\* | 5.53\* | 4.05 | 3.44 | 2.89 | 6.25\* |
+| `subtext0` (neutral-900) `#63667c` | 4.26 | 4.64\* | 4.99\* | 3.65 | 3.10 | 2.61 | 5.64\* |
+| `subtext1` (text-secondary, Latte text-muted) `#5c5f77` | 4.73\* | 5.14\* | 5.53\* | 4.05 | 3.44 | 2.89 | 6.25\* |
 | `text` (text-primary) `#4c4f69` | 6.04\* | 6.57\* | 7.06\* | 5.17\* | 4.39 | 3.69 | 7.99\* |
 
-실제로 미달 조합을 그리는 상시 노출 화면은 둘이다.
+`text_muted()`는 Latte에서 neutral-1000(`subtext1`)을 읽는다. neutral-900은 `bg_app`(=crust) 위 상태바에서 4.26으로 미달하고, 4.5를 겨우 넘기는 혼합색은 neutral-1000과 눈으로 구분되지 않기 때문이다. 그래서 Latte의 text-muted와 text-secondary는 같은 색이고 크기와 굵기가 순서를 나타낸다. Mocha는 neutral-900 그대로다.
 
-- **상태바** — `bg_app`(=crust) 위 `text_muted` = **4.26:1**.
-- **탭바** — 포커스된 pane 의 탭 스트립이 `surface_raised`(=surface0), 비활성 탭 제목이 `text_muted` = **3.65:1**.
-
-text-muted 하나만 어둡게 조정하면 다음 문제가 생긴다.
-
-- `subtext0` 을 crust 통과선(`#5f6279`, 4.52:1)까지 더 내리면 `subtext1`(`#5c5f77`)과의 차가 `(3,3,2)` 로 줄어 text-muted 와 text-secondary 가 사실상 같은 색이 된다 — Latte에서 3단계 텍스트 구분이 2단계로 줄어든다. 그러고도 surface0 는 여전히 미달(3.88)이다.
-- surface0 를 통과시키려면 `subtext0` 이 `#555870` 근처여야 하는데 이는 `subtext1` 보다 **어둡다** — 램프 순서가 뒤집힌다.
-
-즉 surface0 위에서 AA 를 넘는 중성 전경은 `text` 하나뿐이고, surface1/surface2 는 `text` 조차 미달이다. 이는 catppuccin latte 의 raised/hover 배경단이 라이트 테마치고 어둡기 때문이며, 고치려면 중성색 팔레트 전체를 다시 설계하고 저장소의 팔레트 사본과 DTCG export를 함께 갱신해야 한다. 컴포넌트별 회피(해당 화면만 `text_secondary`/`text_primary` 로 승격)는 가능하지만 상태바·탭바의 확정 시안을 바꾸는 일이라 디자인 요청 없이 진행하지 않는다.
+포커스된 pane의 탭 스트립처럼 `surface_raised`(=surface0) 위에 `text_muted`를 그리는 자리는 4.05로 남는다. surface0 위에서 AA를 넘는 중성 전경은 `text` 하나뿐이고 surface1/surface2는 `text`조차 미달이다. catppuccin latte의 raised/hover 배경단이 라이트 테마치고 어둡기 때문이며, 고치려면 중성색 팔레트 전체를 다시 설계하고 저장소의 팔레트 사본과 DTCG export를 함께 갱신해야 한다. 컴포넌트별 승격은 상태바·탭바의 확정 시안을 바꾸는 일이라 디자인 요청 없이 진행하지 않는다.
 
 메뉴 행 글자는 이 규칙을 역할로 반영한다. `menu_item_fg()`는 semantic `text-secondary-raised`를 가리키며, 이 역할은 Mocha에서 neutral-1000(subtext1), Latte에서 neutral-1100(text, surface0 위 5.17:1)이다. hover 글자 `menu_item_fg_hover()`는 `text_on_active()`이고 hover는 `menu_item_bg_hover()` 채움으로도 구분한다.
 
@@ -339,10 +331,10 @@ text-muted 하나만 어둡게 조정하면 다음 문제가 생긴다.
 
 글자는 화면에 머무는 상태(평상·선택·키보드 활성·포커스)에서 4.5:1, 글리프는 3:1을 지킨다. hover와 눌림은 잠시 지나가는 상태라 3:1을 하한으로 둔다. 메뉴 행 hover와 raised 위 ghost hover는 hover한 채 읽는 자리라 4.5:1을 유지한다. disabled는 목표가 없다.
 
-선택·키보드 활성 행의 채움 `surface_active()`는 Latte에서 surface2(`#acb0be`)이고 text-primary도 3.69로 미달한다. 어떤 채움도 세 글자 단계를 함께 통과시키지 못하므로 그 위의 글자는 secondary·muted를 구분하지 않고 `text_on_active()` 하나로 합친다(Mocha 4.6, Latte 5.4). 강조 글리프는 `accent_primary_on_active()`(Mocha 3.2, Latte 3.8)다. 강조 글리프는 원래 색이 달라도(plugin 표지, 켜진 별, 이미지 글리프) 선택 행에서 이 역할로 합치고 모양으로 구분한다. 전용 역할이 없는 상태 점과 Tag 틴트는 자기 색을 유지한다. 위젯별 토큰은 [디자인 토큰 매핑](design-token-mapping.md#채움이-정해진-자리의-글자-역할)에 있다.
+선택·키보드 활성 행의 채움 `surface_active()`는 Latte에서 surface2(`#acb0be`)이고 text-primary도 3.69로 미달한다. 어떤 채움도 세 글자 단계를 함께 통과시키지 못하므로 그 위의 글자는 secondary·muted를 구분하지 않고 `text_on_active()` 하나로 합친다(Mocha 4.6, Latte 5.4). 글리프는 무엇이 뜻을 나르는지에 따라 나눈다. 색이 뜻을 나르면(즐겨찾기 별, plugin, 원격, 상태 점, 점유 고리) 자기 `-on-active` 역할로 색을 유지하고 3:1을 지킨다. 모양이 뜻을 나르면(파일 종류, 꺼진 별) `text_on_active()`다. 선택 표지와 일반 강조 글리프는 `accent_primary_on_active()`(Mocha 3.2, Latte 3.8)다. 상태·출처 칩은 쉬는 행과 선택 행 모두 Tag 조립을 쓴다. 자체 채움이 있어 행 상태와 무관하게 대비를 지키므로 틴트 pill을 쓰지 않는다. 어떤 accent도 이 채움 위에서 4.5:1을 넘으면서 행 글자색과 달라지지 못하므로 일치 구간은 행 글자색에 1px 밑줄로 구분한다. 밑줄 위치는 egui 글자 서식을 따른다. 위젯별 토큰은 [디자인 토큰 매핑](design-token-mapping.md#채움이-정해진-자리의-글자-역할)에 있다.
 
 - 일반 행은 호출자가 선택 분기에서 이 역할을 읽는다. 자체 채움이 있는 Tag·Badge·키캡의 글자는 바꾸지 않는다.
-- 공용 `Table`은 표 기본 글자색을 선택 행에서 `table_row_fg_selected()`로 바꾼다. 색을 명시하는 셀은 기본 글자색을 받지 못하므로 `table_cell_ink()`나 `in_selected_table_row()`를 읽는다.
+- 공용 `Table`은 표 기본 글자색을 선택 행에서 `table_row_fg_selected()`로 바꾼다. 색을 명시하는 셀은 기본 글자색을 받지 못하므로 `table_cell_ink()`나 `in_selected_table_row()`를 읽는다. `status_dot`과 키캡 `+`는 공용 표의 선택 행을 스스로 알아챈다. 표 밖의 행은 `status_dot_in_row`와 `kbd_parts_at_row`에 선택 여부를 넘긴다.
 - `surface_active()`를 칠하기만 하는 자리(스위치·슬라이더 트랙, 튜토리얼 진행 점, 뱃지 점)와 hover·눌림 일시 채움(preset 편집기 핸들, 누르는 동안의 홀드 버튼)은 이 규칙의 대상이 아니다.
 
 **새 UI 를 그릴 때는 이 표를 근거로 배경을 고른다** — muted 캡션을 얹을 배경은 `base`/`mantle`/`#ffffff` 로 한정하고, `surface0` 위에는 `text_primary` 나 `-raised` 역할을, `surface_active()` 위에는 `text_on_active()` 를 쓴다.

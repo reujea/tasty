@@ -26,7 +26,6 @@ const FOOTER_H: LogicalPx = LogicalPx(49.0);
 const BODY_H: LogicalPx = FRAME_H.minus(HEADER_H).minus(FOOTER_H);
 const PROFILE_ROW_H: LogicalPx = LogicalPx(50.0); // name(2 lines) + padding sm
 const WS_ROW_H: LogicalPx = LogicalPx(34.0);
-const BADGE_H: LogicalPx = LogicalPx(16.0); // design size-16
 const STRIP_W: LogicalPx = LogicalPx(440.0); // 새 행 상태 specimen 의 pane 폭
 
 /// 두 열의 caps 헤더("ATTACH PROFILES" / "REMOTE WORKSPACES") 행 높이 —
@@ -163,7 +162,7 @@ pub fn draw(ui: &mut egui::Ui, theme: &Theme) {
                 "new row",
                 "first row · plus glyph in dot slot · accent label · 'on remote'",
             ),
-            ("ws row", "StatusDot · name · panes · busy / in-use badge"),
+            ("ws row", "StatusDot · name · panes · busy / in-use Tag"),
             ("selected", "surface-active + 2px accent left bar"),
             ("footer", "Connect (primary, conditional) · Cancel (ghost)"),
         ],
@@ -185,9 +184,9 @@ pub fn draw(ui: &mut egui::Ui, theme: &Theme) {
                 theme.separator.to_egui_premultiplied(),
             ),
             TokenChip::new(
-                "accent-attached",
-                "in-use badge (lavender)",
-                theme.border_attached().to_egui(),
+                "tag-attached-fg",
+                "in-use Tag",
+                theme.tag_attached_fg().to_egui(),
             ),
         ],
     );
@@ -196,8 +195,8 @@ pub fn draw(ui: &mut egui::Ui, theme: &Theme) {
         ui,
         theme,
         "The picker consumes the tasty-attach profiles edited in remote_tool — one store, \
-         listed here. A remote workspace already attached elsewhere shows a lavender \
-         'in use' badge and can't be selected (prevents a double-mirror.)",
+         listed here. A remote workspace already attached elsewhere shows an attached \
+         'in use' Tag and can't be selected (prevents a double-mirror.)",
     );
 
     spec::note(

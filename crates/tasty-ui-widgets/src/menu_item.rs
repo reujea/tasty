@@ -353,7 +353,7 @@ fn menu_item_inner(
             let parts: Vec<crate::KbdKey<'_>> =
                 keys.iter().map(|k| crate::KbdKey::Text(k)).collect();
             let key_ink = (!enabled).then(|| theme.state_disabled_fg().to_egui());
-            let plus_ink = key_ink.or(active_part);
+            let plus_ink = key_ink.or(active.then(|| theme.kbd_plus_fg_active().to_egui()));
             let w = crate::chip::kbd_parts_at_ink(
                 ui,
                 theme,

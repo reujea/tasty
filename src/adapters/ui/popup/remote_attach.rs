@@ -10,7 +10,10 @@ use tasty_type_geometry::length::LogicalPx;
 use crate::app::remote_browser::BrowserRequest;
 use tasty_remote::browse::RemoteWorkspace;
 use tasty_remote_profiles::{AttachView, RemoteProfiles};
-use tasty_ui_widgets::{Button, ButtonVariant, CenterState, StatusKind, status_dot};
+use tasty_ui_widgets::{
+    Button, ButtonVariant, CenterState, StatusKind, TagVariant, status_dot_in_row, tag,
+    tag_with_icon,
+};
 
 use crate::adapters::ui::icons;
 use crate::adapters::ui::popup::PopupAction;
@@ -37,7 +40,6 @@ use tasty_ui_widgets::tokens::STRUCT_GAP_2;
 const CAPS_H: LogicalPx = LogicalPx(30.0);
 const PROFILE_ROW_H: LogicalPx = LogicalPx(50.0);
 const WS_ROW_H: LogicalPx = LogicalPx(34.0);
-const BADGE_H: LogicalPx = LogicalPx(16.0);
 const HEADER_PAD_L: LogicalPx = LogicalPx(14.0);
 
 /// 조회 화면 상태. 목록이 비어도 새 워크스페이스를 만드는 행은 표시한다.
@@ -573,14 +575,12 @@ fn profile_row(ui: &mut egui::Ui, th: &Theme, p: &ProfileSummary, selected: bool
             );
         }
         if p.inactive {
-            badge(
+            tag_with_icon(
                 ui,
                 th,
                 t("remote_attach.inactive"),
-                th.accent_warning().into(),
-                0.12,
-                0.40,
-                true,
+                TagVariant::Warning,
+                icons::ALERT_TRIANGLE,
             );
         }
     });
@@ -863,14 +863,14 @@ fn dot_slot_glyph(
 }
 
 /// 공용 아이콘 공간 안에 상태 점을 그린다. 빈 라벨의 status_dot은 점 폭만 사용한다.
-fn dot_slot_status(ui: &mut egui::Ui, th: &Theme, kind: StatusKind, pulse: bool) {
+fn dot_slot_status(ui: &mut egui::Ui, th: &Theme, kind: StatusKind, pulse: bool, selected: bool) {
     let slot = dot_slot(ui, th);
     let mut c = ui.new_child(
         egui::UiBuilder::new()
             .max_rect(slot)
             .layout(egui::Layout::left_to_right(egui::Align::Center)),
     );
-    status_dot(&mut c, th, kind, "", pulse, false);
+    status_dot_in_row(&mut c, th, kind, "", pulse, false, selected);
 }
 
 /// 생성 실패는 목록을 가리지 않고 행 아래 표시한다. 긴 오류는 줄바꿈하며 툴팁으로 전문을 제공한다.
@@ -985,7 +985,7 @@ fn ws_row(
     } else {
         StatusKind::Idle
     };
-    dot_slot_status(&mut child, th, kind, w.busy_count > 0);
+    dot_slot_status(&mut child, th, kind, w.busy_count > 0, selected);
     let name_c = if disabled {
         th.text_disabled()
     } else if selected {
@@ -1014,13 +1014,11 @@ fn ws_row(
     );
     child.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
         if disabled {
-            badge(
+            tag(
                 ui,
                 th,
                 t("remote_attach.in_use"),
-                th.border_attached().into(),
-                th.tint_fill_alpha(),
-                th.tint_border_alpha(),
+                TagVariant::Attached,
                 false,
             );
         } else if w.busy_count > 0 {
@@ -1121,50 +1119,4 @@ fn caps_header(ui: &mut egui::Ui, th: &Theme, label: &str, suffix: Option<&str>)
             th.text_muted().into(),
         );
     }
-}
-
-/// 원격/inactive pill — fill/border alpha 는 디자인 color-mix(% transparent) 근사.
-fn badge(
-    ui: &mut egui::Ui,
-    th: &Theme,
-    text: &str,
-    color: egui::Color32,
-    fill_a: f32,
-    border_a: f32,
-    warn_icon: bool,
-) {
-    let font = egui::FontId::monospace(th.font_size_micro.value());
-    let galley = ui
-        .painter()
-        .layout_no_wrap(text.to_owned(), font, egui::Color32::PLACEHOLDER);
-    let pad_x = th.spacing_sm.value();
-    // 아이콘 폭 + 라벨과의 간격. 아래 그리기·전진과 **같은 값**이어야 한다.
-    let icon_sz = th.icon_glyph_size_xs.value();
-    let icon_gap = th.spacing_xs.value();
-    let icon_w = if warn_icon { icon_sz + icon_gap } else { 0.0 };
-    let w = pad_x * 2.0 + icon_w + galley.rect.width();
-    let (rect, _) = ui.allocate_exact_size(egui::vec2(w, BADGE_H.value()), egui::Sense::hover());
-    let radius = th.corner_radius_sm.value();
-    ui.painter()
-        .rect_filled(rect, radius, color.gamma_multiply(fill_a));
-    ui.painter().rect_stroke(
-        rect,
-        radius,
-        egui::Stroke::new(th.border_width.value(), color.gamma_multiply(border_a)),
-        egui::StrokeKind::Inside,
-    );
-    let mut tx = rect.left() + pad_x;
-    if warn_icon {
-        let ir = egui::Rect::from_min_size(
-            egui::pos2(tx, rect.center().y - icon_sz * 0.5),
-            egui::vec2(icon_sz, icon_sz),
-        );
-        icons::ALERT_TRIANGLE.image(icon_sz, color).paint_at(ui, ir);
-        tx += icon_sz + icon_gap;
-    }
-    ui.painter().galley(
-        egui::pos2(tx, rect.center().y - galley.rect.height() * 0.5),
-        galley,
-        color,
-    );
 }

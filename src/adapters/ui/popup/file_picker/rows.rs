@@ -36,7 +36,7 @@ pub(super) fn entry_row(
         ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
     }
     let (glyph, mut glyph_color) = match (entry.is_dir, selected) {
-        (true, true) => (icons::FOLDER, th.accent_primary_on_active()),
+        (true, true) => (icons::FOLDER, th.text_on_active()),
         (true, false) => (icons::FOLDER, th.accent_primary()),
         (false, true) => (icons::FILE, th.text_on_active()),
         (false, false) => (icons::FILE, th.text_muted()),

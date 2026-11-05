@@ -11,13 +11,13 @@ pub enum TagVariant {
     Default,
     Accent,
     Agent,
-    /// 정보 태그. git-viewer에서 사용한다.
+    /// 정보 태그. git-viewer와 원격 미러 워크스페이스에서 사용한다.
     Info,
     Success,
     Warning,
     Danger,
-    /// 원격 미러 워크스페이스용 태그. 디자인 Tag에 대응 variant가 없어 accent-remote 틴트로 칠한다.
-    Remote,
+    /// 다른 클라이언트가 점유한 항목.
+    Attached,
 }
 
 /// Badge variant (디자인 `core/Badge`).
@@ -110,7 +110,23 @@ pub fn tag(
     } else {
         tag_colors(theme, variant)
     };
-    paint_tag(ui, theme, label, dot, colors, None, None)
+    paint_tag(ui, theme, label, TagLead::dot(dot), colors, None, None)
+}
+
+/// [`tag`]와 같고 라벨 앞에 글자색 글리프를 둔다.
+pub fn tag_with_icon(
+    ui: &mut egui::Ui,
+    theme: &Theme,
+    label: &str,
+    variant: TagVariant,
+    icon: tasty_icons::Icon,
+) -> egui::Response {
+    let colors = if in_disabled_chip_scope(ui) {
+        tag_disabled_colors(theme)
+    } else {
+        tag_colors(theme, variant)
+    };
+    paint_tag(ui, theme, label, TagLead::Icon(icon), colors, None, None)
 }
 
 /// 대문자 Tag(디자인 `Tag caps`) — 라벨을 대문자로 바꾸고 `letter-spacing-caps` 자간으로 그린다.
@@ -132,7 +148,7 @@ pub fn tag_caps(
         ui,
         theme,
         &label.to_uppercase(),
-        dot,
+        TagLead::dot(dot),
         colors,
         Some(tracking),
         None,
@@ -146,7 +162,7 @@ pub fn tag_disabled(ui: &mut egui::Ui, theme: &Theme, label: &str, dot: bool) ->
         ui,
         theme,
         label,
-        dot,
+        TagLead::dot(dot),
         tag_disabled_colors(theme),
         None,
         None,
@@ -166,11 +182,24 @@ pub fn tag_disabled_truncated(
         ui,
         theme,
         label,
-        false,
+        TagLead::None,
         tag_disabled_colors(theme),
         None,
         Some(text_w),
     )
+}
+
+/// 라벨 앞에 오는 표지. 점과 글리프 모두 글자색으로 그린다.
+enum TagLead {
+    None,
+    Dot,
+    Icon(tasty_icons::Icon),
+}
+
+impl TagLead {
+    fn dot(dot: bool) -> Self {
+        if dot { Self::Dot } else { Self::None }
+    }
 }
 
 /// Tag 채움·테두리·글자색.
@@ -185,9 +214,8 @@ fn tag_disabled_colors(theme: &Theme) -> TagColors {
 }
 
 fn tag_colors(theme: &Theme, variant: TagVariant) -> TagColors {
-    // 테두리의 공통 비율은 Theme에서 읽고 대응 토큰이 없는 두 비율만 아래에 둔다.
+    // 상태 variant 테두리의 color-mix 비율. 대응 토큰이 없다.
     const TAG_BORDER_OPACITY: f32 = 0.4;
-    const TAG_REMOTE_FILL_OPACITY: f32 = 0.16;
     match variant {
         TagVariant::Default => (
             theme.tag_bg().to_egui(),
@@ -213,19 +241,6 @@ fn tag_colors(theme: &Theme, variant: TagVariant) -> TagColors {
                     .gamma_multiply(TAG_BORDER_OPACITY),
             ),
             theme.tag_info_fg().to_egui(),
-        ),
-        TagVariant::Remote => (
-            theme
-                .accent_remote()
-                .to_egui()
-                .gamma_multiply(TAG_REMOTE_FILL_OPACITY),
-            Some(
-                theme
-                    .accent_remote()
-                    .to_egui()
-                    .gamma_multiply(theme.tint_border_alpha()),
-            ),
-            theme.accent_remote().to_egui(),
         ),
         TagVariant::Success => (
             theme.tag_bg().to_egui(),
@@ -257,6 +272,16 @@ fn tag_colors(theme: &Theme, variant: TagVariant) -> TagColors {
             ),
             theme.tag_danger_fg().to_egui(),
         ),
+        TagVariant::Attached => (
+            theme.tag_bg().to_egui(),
+            Some(
+                theme
+                    .border_attached()
+                    .to_egui()
+                    .gamma_multiply(TAG_BORDER_OPACITY),
+            ),
+            theme.tag_attached_fg().to_egui(),
+        ),
     }
 }
 
@@ -264,7 +289,7 @@ fn paint_tag(
     ui: &mut egui::Ui,
     theme: &Theme,
     label: &str,
-    dot: bool,
+    lead: TagLead,
     (fill, border, fg): TagColors,
     tracking: Option<LogicalPx>,
     max_text_w: Option<f32>,
@@ -276,8 +301,13 @@ fn paint_tag(
     let dot_sz = theme.tag_dot_size().value();
     let tag_h = theme.tag_size().value();
     let galley = tag_galley(ui, theme, label, tracking, max_text_w);
-    let dot_w = if dot { dot_sz + gap } else { 0.0 };
-    let w = galley.rect.width() + dot_w + 2.0 * pad_x;
+    let icon_sz = theme.icon_glyph_size_xs.value();
+    let lead_w = match lead {
+        TagLead::None => 0.0,
+        TagLead::Dot => dot_sz + gap,
+        TagLead::Icon(_) => icon_sz + gap,
+    };
+    let w = galley.rect.width() + lead_w + 2.0 * pad_x;
     let (rect, resp) = ui.allocate_exact_size(egui::vec2(w, tag_h), egui::Sense::hover());
     if fill != egui::Color32::TRANSPARENT {
         ui.painter().rect_filled(rect, radius, fill);
@@ -291,10 +321,21 @@ fn paint_tag(
         );
     }
     let mut x = rect.left() + pad_x;
-    if dot {
-        let c = egui::pos2(x + dot_sz * 0.5, rect.center().y);
-        ui.painter().circle_filled(c, dot_sz * 0.5, fg);
-        x += dot_sz + gap;
+    match lead {
+        TagLead::None => {}
+        TagLead::Dot => {
+            let c = egui::pos2(x + dot_sz * 0.5, rect.center().y);
+            ui.painter().circle_filled(c, dot_sz * 0.5, fg);
+            x += dot_sz + gap;
+        }
+        TagLead::Icon(icon) => {
+            let r = egui::Rect::from_min_size(
+                egui::pos2(x, rect.center().y - icon_sz * 0.5),
+                egui::vec2(icon_sz, icon_sz),
+            );
+            icon.image(icon_sz, fg).paint_at(ui, r);
+            x += icon_sz + gap;
+        }
     }
     let pos = egui::pos2(x, rect.center().y - galley.rect.height() * 0.5);
     ui.painter().galley(pos, galley, fg);
@@ -554,6 +595,15 @@ pub enum KbdKey<'a> {
     Icon(tasty_icons::Icon),
 }
 
+/// 키캡 사이 `+`의 색. 선택 행 채움 위에서는 전용 토큰을 읽는다.
+fn kbd_plus_ink(theme: &Theme, on_active: bool) -> egui::Color32 {
+    if on_active {
+        theme.kbd_plus_fg_active().to_egui()
+    } else {
+        theme.kbd_plus_fg().to_egui()
+    }
+}
+
 /// 텍스트·아이콘 키캡을 함께 그린다. 두 종류는 같은 패딩·반경·테두리를 사용한다.
 pub fn kbd_parts(ui: &mut egui::Ui, theme: &Theme, keys: &[KbdKey<'_>]) {
     let radius = theme.kbd_radius().value();
@@ -561,7 +611,7 @@ pub fn kbd_parts(ui: &mut egui::Ui, theme: &Theme, keys: &[KbdKey<'_>]) {
     let border = theme.kbd_border().to_egui();
     let fill = theme.kbd_bg().to_egui();
     let fg = theme.kbd_fg().to_egui();
-    let plus = theme.kbd_plus_fg().to_egui();
+    let plus = kbd_plus_ink(theme, crate::in_selected_table_row(ui));
     let micro = theme.kbd_font_size().value();
     let icon_glyph = theme.icon_glyph_size_sm.value();
     let gap = theme.kbd_gap().value();
@@ -615,6 +665,19 @@ pub fn kbd_parts_at(
     kbd_parts_at_ink(ui, theme, keys, right_x, center_y, None, None)
 }
 
+/// `kbd_parts_at`과 같고 `on_active` 행이면 `+`를 선택 행 색으로 그린다.
+pub fn kbd_parts_at_row(
+    ui: &egui::Ui,
+    theme: &Theme,
+    keys: &[KbdKey<'_>],
+    right_x: f32,
+    center_y: f32,
+    on_active: bool,
+) -> LogicalPx {
+    let plus = kbd_plus_ink(theme, on_active);
+    kbd_parts_at_ink(ui, theme, keys, right_x, center_y, None, Some(plus))
+}
+
 /// `kbd_parts_at`과 같지만 `key_ink`가 있으면 키 글자·글리프를, `plus_ink`가 있으면 `+`를 그 색으로 그린다.
 /// disabled 메뉴 항목은 둘 다 disabled ink로 바꾼다. 키보드 활성 행은 행 채움 위에 놓이는 `+`만 바꾼다.
 pub(crate) fn kbd_parts_at_ink(
@@ -635,7 +698,7 @@ pub(crate) fn kbd_parts_at_ink(
     let border = theme.kbd_border().to_egui();
     let fill = theme.kbd_bg().to_egui();
     let fg = key_ink.unwrap_or_else(|| theme.kbd_fg().to_egui());
-    let plus = plus_ink.unwrap_or_else(|| theme.kbd_plus_fg().to_egui());
+    let plus = plus_ink.unwrap_or_else(|| kbd_plus_ink(theme, crate::in_selected_table_row(ui)));
     let micro = theme.kbd_font_size().value();
     let icon_glyph = theme.icon_glyph_size_sm.value();
     let gap = theme.kbd_gap().value();
@@ -816,6 +879,16 @@ mod tests {
             .collect()
     }
 
+    /// 상태 variant는 어느 행에 놓여도 같은 Tag 채움 위에 자기 글자색을 쓴다.
+    #[test]
+    fn the_attached_tag_uses_the_tag_recipe() {
+        let theme = tasty_themes::mocha_fallback();
+        let (fill, border, fg) = tag_colors(&theme, TagVariant::Attached);
+        assert_eq!(fill, theme.tag_bg().to_egui());
+        assert!(border.is_some());
+        assert_eq!(fg, theme.tag_attached_fg().to_egui());
+    }
+
     /// 대문자 Tag만 라벨을 대문자로 바꾸고 caps 자간을 그린다. 일반 Tag는 받은 그대로다.
     #[test]
     fn caps_tag_uppercases_and_spaces_the_label() {
@@ -823,7 +896,7 @@ mod tests {
         let caps = theme.letter_spacing_caps(theme.tag_font_size()).value();
         assert!(caps > 0.0);
         let texts = tag_texts(|ui| {
-            tag_caps(ui, &theme, "remote", TagVariant::Remote, false);
+            tag_caps(ui, &theme, "remote", TagVariant::Info, false);
             tag(ui, &theme, "plain", TagVariant::Default, false);
         });
         assert_eq!(

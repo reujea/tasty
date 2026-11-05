@@ -22,20 +22,29 @@ pub enum StatusKind {
 }
 
 impl StatusKind {
-    fn color(self, theme: &Theme) -> egui::Color32 {
-        match self {
-            StatusKind::Running => theme.status_dot_success().to_egui(),
-            StatusKind::Idle => theme.status_dot_idle().to_egui(),
-            StatusKind::Agent => theme.status_dot_agent().to_egui(),
-            StatusKind::Waiting => theme.status_dot_warning().to_egui(),
-            StatusKind::Error => theme.status_dot_danger().to_egui(),
-            StatusKind::NeedsInput => theme.status_dot_needs_input().to_egui(),
-            StatusKind::Completion => theme.status_dot_completion().to_egui(),
-        }
+    fn color(self, theme: &Theme, on_active: bool) -> egui::Color32 {
+        let color = match (self, on_active) {
+            (StatusKind::Running, false) => theme.status_dot_success(),
+            (StatusKind::Running, true) => theme.status_dot_success_active(),
+            (StatusKind::Idle, false) => theme.status_dot_idle(),
+            (StatusKind::Idle, true) => theme.status_dot_idle_active(),
+            (StatusKind::Agent, false) => theme.status_dot_agent(),
+            (StatusKind::Agent, true) => theme.status_dot_agent_active(),
+            (StatusKind::Waiting, false) => theme.status_dot_warning(),
+            (StatusKind::Waiting, true) => theme.status_dot_warning_active(),
+            (StatusKind::Error, false) => theme.status_dot_danger(),
+            (StatusKind::Error, true) => theme.status_dot_danger_active(),
+            (StatusKind::NeedsInput, false) => theme.status_dot_needs_input(),
+            (StatusKind::NeedsInput, true) => theme.status_dot_needs_input_active(),
+            (StatusKind::Completion, false) => theme.status_dot_completion(),
+            (StatusKind::Completion, true) => theme.status_dot_completion_active(),
+        };
+        color.to_egui()
     }
 }
 
 /// 상태 점과 라벨을 그린다. 라벨이 비면 간격 없이 점 하나의 폭만 사용한다.
+/// 공용 표의 선택 행 안이면 [`status_dot_in_row`]의 선택 행 색을 쓴다.
 pub fn status_dot(
     ui: &mut egui::Ui,
     theme: &Theme,
@@ -43,6 +52,21 @@ pub fn status_dot(
     label: &str,
     pulse: bool,
     reduced_motion: bool,
+) -> egui::Response {
+    let selected = crate::in_selected_table_row(ui);
+    status_dot_in_row(ui, theme, kind, label, pulse, reduced_motion, selected)
+}
+
+/// [`status_dot`]과 같고 공용 표 밖의 행이 선택 여부를 직접 넘긴다.
+/// `selected`면 surface-active 위에서 대비를 지키는 `status-dot-*-active` 색을 쓴다.
+pub fn status_dot_in_row(
+    ui: &mut egui::Ui,
+    theme: &Theme,
+    kind: StatusKind,
+    label: &str,
+    pulse: bool,
+    reduced_motion: bool,
+    selected: bool,
 ) -> egui::Response {
     let dot = theme.status_dot_size().value();
     // 디자인 `.tasty-statusdot`의 점과 라벨 사이 `space-xs`.
@@ -63,7 +87,7 @@ pub fn status_dot(
     let (rect, resp) = ui.allocate_exact_size(egui::vec2(w, h), egui::Sense::hover());
 
     let dot_center = egui::pos2(rect.left() + dot * 0.5, rect.center().y);
-    let color = kind.color(theme);
+    let color = kind.color(theme, selected);
 
     if pulse && !reduced_motion {
         let t = ui.ctx().input(|i| i.time);
@@ -118,6 +142,52 @@ mod tests {
             }));
         }
         out.expect("drawn")
+    }
+
+    /// 선택 행의 모든 상태가 자기 `-active` 토큰을 읽는다. idle은 행 글자색이다.
+    #[test]
+    fn a_selected_row_reads_the_active_dot_tokens() {
+        let theme = tasty_themes::mocha_fallback();
+        for (kind, rest, active) in [
+            (
+                StatusKind::Running,
+                theme.status_dot_success(),
+                theme.status_dot_success_active(),
+            ),
+            (
+                StatusKind::Idle,
+                theme.status_dot_idle(),
+                theme.text_on_active(),
+            ),
+            (
+                StatusKind::Agent,
+                theme.status_dot_agent(),
+                theme.status_dot_agent_active(),
+            ),
+            (
+                StatusKind::Waiting,
+                theme.status_dot_warning(),
+                theme.status_dot_warning_active(),
+            ),
+            (
+                StatusKind::Error,
+                theme.status_dot_danger(),
+                theme.status_dot_danger_active(),
+            ),
+            (
+                StatusKind::NeedsInput,
+                theme.status_dot_needs_input(),
+                theme.status_dot_needs_input_active(),
+            ),
+            (
+                StatusKind::Completion,
+                theme.status_dot_completion(),
+                theme.status_dot_completion_active(),
+            ),
+        ] {
+            assert_eq!(kind.color(&theme, false), rest.to_egui());
+            assert_eq!(kind.color(&theme, true), active.to_egui());
+        }
     }
 
     #[test]

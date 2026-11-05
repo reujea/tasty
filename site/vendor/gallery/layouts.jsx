@@ -52,22 +52,16 @@ const railHead = (txt) => (
 
 // ── Sidebar (full) ──
 function FullSidebar() {
-  // Remote-mirror indicator = a sky "remote" PILL (label + glyph), matching
-  // chrome.jsx WorkspaceRow. Replaces the former near-invisible 12px leading
-  // glyph; same --tasty-workspace-mirror-fg (accent-remote) axis, higher visibility.
+  // Remote-mirror indicator = the info Tag (label + glyph), matching chrome.jsx WorkspaceRow.
+  // Its own fill keeps the ink readable on every row state. The explicit color holds until bundle.js is rebuilt.
   const MirrorMark = () => (
-    <span title="Mirror of a remote workspace" style={{ flex: "none", display: "inline-flex", alignItems: "center", gap: "var(--tasty-workspace-mirror-gap)",
-      height: "var(--tasty-size-16)", padding: "0 var(--tasty-space-sm)", borderRadius: "var(--tasty-radius-sm)", whiteSpace: "nowrap",
-      fontFamily: "var(--tasty-font-mono)", fontSize: "var(--tasty-font-size-micro)", fontWeight: 600, lineHeight: 1,
-      letterSpacing: "var(--tasty-letter-spacing-caps)", textTransform: "uppercase", color: "var(--tasty-workspace-mirror-fg)",
-      border: "var(--tasty-border-width) solid color-mix(in srgb, var(--tasty-workspace-mirror-fg) 45%, transparent)",
-      background: "color-mix(in srgb, var(--tasty-workspace-mirror-fg) 16%, transparent)" }}>
+    <Tag variant="info" caps title="Mirror of a remote workspace" style={{ flex: "none", color: "var(--tasty-tag-info-fg)" }}>
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.4} strokeLinecap="round" strokeLinejoin="round"
         style={{ width: "var(--tasty-workspace-mirror-icon-size)", height: "var(--tasty-workspace-mirror-icon-size)", display: "block" }}>
         <path d="M4 17l6-6-6-6" /><path d="M12 19h8" />
       </svg>
       remote
-    </span>
+    </Tag>
   );
   return (
     <div className="anno" style={{ width: 212, flex: "none", display: "flex", flexDirection: "column",

@@ -33,6 +33,7 @@ const CSS = `
 .tasty-tag--attention{ color: var(--tasty-tag-attention-fg); border-color: color-mix(in srgb, var(--tasty-accent-attention) 40%, transparent); }
 .tasty-tag--danger { color: var(--tasty-tag-danger-fg);  border-color: color-mix(in srgb, var(--tasty-accent-danger) 40%, transparent); }
 .tasty-tag--info   { color: var(--tasty-tag-info-fg);    border-color: color-mix(in srgb, var(--tasty-accent-info) 40%, transparent); }
+.tasty-tag--attached { color: var(--tasty-tag-attached-fg); border-color: color-mix(in srgb, var(--tasty-accent-attached) 40%, transparent); }
 .tasty-tag--caps { text-transform: uppercase; letter-spacing: var(--tasty-letter-spacing-caps); }
 .tasty-tag--disabled { background: var(--tasty-tag-disabled-bg); border-color: var(--tasty-tag-disabled-border); color: var(--tasty-tag-disabled-fg); }
 .tasty-tag__dot { width: var(--tasty-tag-dot-size); height: var(--tasty-tag-dot-size); border-radius: var(--tasty-radius-pill); background: currentColor; flex: none; }

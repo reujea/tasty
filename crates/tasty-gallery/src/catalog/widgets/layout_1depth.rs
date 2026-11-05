@@ -120,7 +120,7 @@ fn layout(ui: &mut egui::Ui, theme: &Theme) {
             dc,
             dot_r,
             egui::Color32::from(if *selected {
-                theme.accent_primary_on_active()
+                theme.accent_agent_on_active()
             } else {
                 theme.accent_agent()
             }),

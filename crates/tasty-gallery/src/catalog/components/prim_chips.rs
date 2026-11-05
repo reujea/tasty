@@ -98,6 +98,13 @@ pub fn draw_tag(ui: &mut egui::Ui, theme: &Theme) {
             tag(ui, theme, "main", TagVariant::Info, false);
             tag(ui, theme, "running", TagVariant::Success, true);
             tag(ui, theme, "readonly", TagVariant::Warning, true);
+            tag(
+                ui,
+                theme,
+                crate::i18n::t("remote_attach.in_use"),
+                TagVariant::Attached,
+                false,
+            );
             tag(ui, theme, "error", TagVariant::Danger, true);
         });
         // 시안 Tag `disabled` — accent 채움과 tint 테두리가 빠지고 점도 같은 ink다.

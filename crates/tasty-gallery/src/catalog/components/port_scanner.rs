@@ -595,21 +595,24 @@ fn star(ui: &mut egui::Ui, theme: &Theme, on: bool) {
     let (rect, _) = ui.allocate_exact_size(egui::vec2(side, side), egui::Sense::hover());
     let glyph = theme.icon_glyph_size_sm.value();
     let icon_rect = egui::Rect::from_center_size(rect.center(), egui::vec2(glyph, glyph));
+    let selected = tasty_ui_widgets::in_selected_table_row(ui);
     if on {
-        let fg = if tasty_ui_widgets::in_selected_table_row(ui) {
-            theme.accent_primary_on_active()
+        let fg = if selected {
+            theme.port_star_on_active()
         } else {
-            theme.accent_warning()
+            theme.port_star_on()
         };
         icons::STAR_FILL
             .image(glyph, fg.to_egui())
             .paint_at(ui, icon_rect);
     } else {
+        let fg = if selected {
+            theme.port_star_off_active()
+        } else {
+            theme.port_star_off()
+        };
         icons::STAR
-            .image(
-                glyph,
-                tasty_ui_widgets::table_cell_ink(ui, theme, theme.text_muted()),
-            )
+            .image(glyph, fg.to_egui())
             .paint_at(ui, icon_rect);
     }
 }

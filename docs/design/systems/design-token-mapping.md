@@ -40,11 +40,18 @@ Design System의 `tokens/semantic.css`·`tokens/primitives.css`와 Tasty Theme�
 | 역할 | 값 | 쓰는 자리 |
 |---|---|---|
 | `text-on-active` | Mocha `text-primary`, Latte `text-primary`를 검정 쪽으로 혼합 | `surface-active` 위 모든 글자와 일반 글리프 |
-| `accent-primary-on-active` | Mocha `accent-primary`, Latte `accent-primary`를 검정 쪽으로 혼합 | `surface-active` 위 강조 글리프 |
+| `accent-primary-on-active` | Mocha `accent-primary`, Latte `accent-primary`를 검정 쪽으로 혼합 | `surface-active` 위 선택 표지와 일반 강조 글리프, 쉬는 일치 구간 |
+| `accent-warning-on-active` · `accent-success-on-active` · `accent-remote-on-active` | `accent-warning-raised` · `accent-success-ink` · `accent-info-raised` | `surface-active` 위 경고·성공·원격 글리프 |
+| `accent-danger-on-active` | Mocha red를 흰색 쪽으로 혼합, Latte `accent-danger-raised` | `surface-active` 위 오류 글리프 |
+| `accent-agent-on-active` | Mocha `accent-agent`, Latte mauve를 검정 쪽으로 혼합 | `surface-active` 위 plugin 글리프와 점 |
+| `accent-attached-raised` | Mocha `accent-attached`, Latte lavender를 검정 쪽으로 혼합 | `tag-attached-fg` |
+| `accent-attached-on-active` | `accent-attached-raised` | `surface-active` 위 점유 고리 |
 | `surface-on-raised` | Mocha `surface-hover`, Latte neutral-200 | `banner-button-bg` |
 | `accent-warning-raised` · `accent-attention-raised` · `accent-info-raised` | Mocha 각 accent, Latte 각 accent를 검정 쪽으로 혼합 | `tag-warning-fg` · `tag-attention-fg` · `tag-info-fg` |
 
-선택·키보드 활성 행은 위젯별 토큰이 있으면 그 토큰을 읽는다. 모두 `text-on-active`나 `accent-primary-on-active`로 끝난다.
+`text-muted`는 Latte에서 neutral-1000, Mocha에서 neutral-900이다. `text_muted()`는 분기가 있어 `state_ink.rs`에 수기로 쓴다.
+
+선택·키보드 활성 행은 위젯별 토큰이 있으면 그 토큰을 읽는다.
 
 | 위젯 | 글자 | 글리프 |
 |---|---|---|
@@ -53,12 +60,18 @@ Design System의 `tokens/semantic.css`·`tokens/primitives.css`와 Tasty Theme�
 | ListCtrl | `listctrl_label_fg_active()`, 설명 `listctrl_part_fg_selected()` | 아이콘·chevron `listctrl_part_fg_selected()` |
 | MultiSelect | `multiselect_row_fg_active()` | 없음 |
 | MenuItem | `menu_item_fg_hover()`, 단축키·danger `menu_item_part_fg_active()` | 아이콘 `menu_item_part_fg_active()`, 체크 `menu_item_check_fg()` |
-| AutoComplete | `autocomplete_row_fg_active()`, 일치 구간 `autocomplete_part_fg_active()` | 아이콘 `autocomplete_part_fg_active()` |
+| AutoComplete | `autocomplete_row_fg_active()`, 일치 구간 `autocomplete_part_fg_active()`에 `autocomplete_match_underline_width()` 밑줄 | 아이콘 `autocomplete_part_fg_active()` |
+| Explorer 이름 | `text_on_active()`, 일치 구간 `explorer_match_fg_active()`에 같은 밑줄 | 파일 종류 글리프 `text_on_active()` |
+| StatusDot | 라벨 `table_row_fg_selected()` | `status_dot_<idle, success, warning, danger, agent, needs_input, completion>_active()`, 점유 고리 `status_dot_attached_ring_active()` |
+| 포트 즐겨찾기 별 | 없음 | 켜짐 `port_star_on_active()`, 꺼짐 `port_star_off_active()` |
+| plugin 표지 | 없음 | `accent_agent_on_active()` |
+| 사이드바 미러 | 없음 | `workspace_mirror_fg_active()` |
+| Kbd | 키 글자는 키캡 채움 위라 그대로 | 사이 `+` `kbd_plus_fg_active()` |
 | 수식키 안내 역할 행 | `modhint_role_text_fg()` | `modhint_role_fg()` |
 
 Notification 행의 `notification_item_fg_selected()`·`notification_item_unread_dot_selected()`와 `button_ghost_active_fg()`는 접근자만 있다. 앱의 Notification 행에는 선택 상태가 없고, 활성 행 위에 놓이는 ghost 버튼도 없다.
 
-Tag는 모든 상태 variant가 `tag_bg()` 위에 그리고 테두리는 accent 40%를 유지한다. 글자는 `tag_success_fg()`·`tag_warning_fg()`·`tag_danger_fg()`·`tag_info_fg()`이고 상태 점도 같은 색이다. `TagVariant::Remote`는 디자인 Tag에 대응 variant가 없어 accent-remote 틴트를 쓴다. `tag_attention_fg()`는 대응 variant가 앱에 없어 읽는 곳이 없다.
+Tag는 모든 상태 variant가 `tag_bg()` 위에 그리고 테두리는 accent 40%를 유지한다. 글자는 `tag_success_fg()`·`tag_warning_fg()`·`tag_danger_fg()`·`tag_info_fg()`·`tag_attached_fg()`이고 상태 점과 앞 글리프도 같은 색이다. 자체 채움이 있어 선택 행에서도 바뀌지 않는다. 원격 미러 Tag는 `info`, remote attach의 점유 표시는 `attached`, inactive 표시는 `warning` variant다. `tag_attention_fg()`는 대응 variant가 앱에 없어 읽는 곳이 없다.
 
 ## 불투명도
 
@@ -67,7 +80,7 @@ Tag는 모든 상태 variant가 `tag_bg()` 위에 그리고 테두리는 accent 
 | `state-dim-opacity` | `state_dim_opacity()` | `0.5` | 흐리게 표시하는 **항목**(꺼진 hook 행 · 잘라내기 대기 · preset 편집 중 비활성 영역)의 디밍. const `OPACITY_DISABLED`. `cut-pending-opacity`(`cut_pending_opacity()`)와 `preset-cfg-dim-opacity`(`preset_cfg_dim_opacity()`)가 이 값을 가리킨다. **disabled 컨트롤 신호가 아니다** — disabled 컨트롤은 아래 `state-disabled-*` 박스와 잉크로 그리고 opacity를 곱하지 않는다 |
 | `opacity-dimmed` | `opacity_dimmed()` | `0.75` | 진행 중이라 물러난 내용(재로드 중인 배너 본문). const `OPACITY_DIMMED`. 흐려져도 4.5:1 대비를 유지한다 |
 | `tint-fill-alpha` | `tint_fill_alpha()` | `0.12` | accent 로 옅게 깐 채움. const `TINT_FILL_ALPHA` |
-| `tint-border-alpha` | `tint_border_alpha()` | `0.36` | 같은 accent 의 테두리. const `TINT_BORDER_ALPHA`. **짝으로 쓰는 것이 기본**이고 승인된 부분 사용 둘(채움만: warning callout·misc/remote/script 배지 · 테두리만: chip remote 태그) |
+| `tint-border-alpha` | `tint_border_alpha()` | `0.36` | 같은 accent 의 테두리. const `TINT_BORDER_ALPHA`. **짝으로 쓰는 것이 기본**이고 승인된 부분 사용 하나(채움만: warning callout·misc/remote/script 배지) |
 
 ## 치수 (px → LogicalPx)
 
@@ -123,7 +136,7 @@ Tag는 모든 상태 variant가 `tag_bg()` 위에 그리고 테두리는 accent 
 | `--tasty-switch-overlay-active-fg` | → `text-on-accent` → `color-neutral-0` | `switch_overlay_active_fg()` (생성) | accent fill 위 숫자 (`text_on_accent` 는 dark 테마면 `crust`, light 테마면 `#ffffff`(`TEXT_ON_ACCENT_LIGHT`) — button-primary-fg/checkbox-check 등과 공유) |
 | `--tasty-switch-overlay-fade` | → `motion-ui-fast` → `duration-90` (90ms) | `switch_overlay_fade()` (생성, `Millis`) | 등장 90ms, release 0ms. `src/adapters/ui/switch_overlay.rs` 가 소비 |
 
-> `kbd-fg`는 키캡 채움(`kbd-bg` → surface-raised) 위 글자이고, 키캡 사이 `+`는 `kbd_plus_fg()`(→ `text-muted-raised`)다.
+> `kbd-fg`는 키캡 채움(`kbd-bg` → surface-raised) 위 글자이고, 키캡 사이 `+`는 쉬는 바탕에서 `kbd_plus_fg()`(→ `text-muted-raised`), 선택 행에서 `kbd_plus_fg_active()`(→ `text-on-active`)다.
 
 > **결론**: switch-number overlay 8 토큰 모두 **생성 접근자 `switch_overlay_*()` 로 커버** → 신규 Theme 필드 없음. 키캡은 `tasty-ui-widgets` `chip.rs` 의 `paint_num_keycap` 한 벌이 그린다(radius·글자 크기는 `kbd-*`).
 
@@ -547,7 +560,7 @@ max 를 이긴다(트리거가 320 보다 넓으면 트리거를 따른다). 행
 
 디자인 시스템의 DTCG 토큰과 Rust `Theme` 필드, 그리고 실제 `th.*`/`theme.*` 호출처를 잇는 매핑 참조. [theme.md](theme.md) 의 토큰 구조를 호출처 관점에서 보충한다.
 
-> **vendor 상태**: DTCG 토큰 파일은 `crates/tasty-design-tokens/dtcg/tasty.tokens.json` 으로 **vendor 되어 있다** (1378 토큰 = primitive 140 / semantic 182 / component 1056 — 수는 `crates/tasty-design-tokens/tests/freshness.rs` 가 고정). 치수 계열은 `crates/tasty-design-tokens/src/generated/` 에 const 로 생성되고 freshness·정합·색 드리프트 테스트가 CI 에서 일치를 강제한다. vendor 갱신 절차는 `crates/tasty-design-tokens/README.md`. **component tier(치수+색)는 `&Theme` 접근자로 생성돼**(`tasty-type-appearance/src/generated_component.rs`, [theme.md](theme.md) "Component tier 접근자") `tasty-ui-widgets` 위젯과 host chrome(`src/adapters/ui/`)이 소비 중.
+> **vendor 상태**: DTCG 토큰 파일은 `crates/tasty-design-tokens/dtcg/tasty.tokens.json` 으로 **vendor 되어 있다** (1401 토큰 = primitive 140 / semantic 189 / component 1072 — 수는 `crates/tasty-design-tokens/tests/freshness.rs` 가 고정). 치수 계열은 `crates/tasty-design-tokens/src/generated/` 에 const 로 생성되고 freshness·정합·색 드리프트 테스트가 CI 에서 일치를 강제한다. vendor 갱신 절차는 `crates/tasty-design-tokens/README.md`. **component tier(치수+색)는 `&Theme` 접근자로 생성돼**(`tasty-type-appearance/src/generated_component.rs`, [theme.md](theme.md) "Component tier 접근자") `tasty-ui-widgets` 위젯과 host chrome(`src/adapters/ui/`)이 소비 중.
 
 ### 구조 모델
 

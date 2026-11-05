@@ -22,7 +22,7 @@ Design System Artifact의 DTCG 토큰을 저장하고 Rust 상수와 Theme 접�
    요청 절차는 [디자인 변경 워크플로](../../docs/dev-guide/design-change-workflow.md)를 따른다.
 3. 생성기를 실행한다: `cargo run -p tasty-design-tokens --bin generate`
 4. `cargo test -p tasty-design-tokens`로 검증한다.
-   - 토큰 census(1378 = 140/182/1056)가 바뀌면 추가·삭제 항목을 확인하고
+   - 토큰 census(1401 = 140/189/1072)가 바뀌면 추가·삭제 항목을 확인하고
      `tests/freshness.rs`의 스냅샷도 갱신한다.
    - `sizing_parity`나 `color_drift`가 실패하면 디자인 변경 내용을 확인한다.
      검사를 통과시키려고 값을 임의로 맞추지 않는다.
@@ -42,7 +42,7 @@ python3 scripts/design-tokens/verify_tokens_json.py <프로젝트 폴더> <출�
 ```
 
 Latte만 값이 달라지는 새 semantic 역할은 생성기가 접근자를 만들지 못한다.
-`theme.rs`에 접근자를 쓰고 `src/dtcg/accessor.rs`의 `SEMANTIC_COLOR_TO_THEME_ACCESSOR`와
+`tasty-type-appearance`의 `state_ink.rs`에 접근자를 쓰고 `src/dtcg/accessor.rs`의 `SEMANTIC_COLOR_TO_THEME_ACCESSOR`와
 `SEMANTIC_COLOR_HAND_WRITTEN`에 추가한다. 대응이 없으면 그 역할을 가리키는 component 접근자는
 스킵 사유만 로그에 남기고 생성되지 않는다.
 

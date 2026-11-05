@@ -64,10 +64,22 @@ impl crate::theme::Theme {
         self.text_muted()
     }
 
-    /// `component.autocomplete-match-fg` → `{semantic.accent-primary}`
+    /// `component.autocomplete-match-fg` → `{semantic.accent-primary-on-active}`
     #[inline]
     pub fn autocomplete_match_fg(&self) -> HexColor {
-        self.accent_primary()
+        self.accent_primary_on_active()
+    }
+
+    /// `component.autocomplete-match-underline-offset` → `{primitive.size-2}` = 2px
+    #[inline]
+    pub fn autocomplete_match_underline_offset(&self) -> LogicalPx {
+        LogicalPx((2.0 * self.ui_zoom).round())
+    }
+
+    /// `component.autocomplete-match-underline-width` → `{semantic.border-width}` = 1px
+    #[inline]
+    pub fn autocomplete_match_underline_width(&self) -> LogicalPx {
+        self.border_width
     }
 
     /// `component.autocomplete-max-height` → `{primitive.size-220}` = 220px
@@ -1564,6 +1576,12 @@ impl crate::theme::Theme {
         self.autocomplete_match_fg()
     }
 
+    /// `component.explorer-match-fg-active` → `{component.autocomplete-part-fg-active}`
+    #[inline]
+    pub fn explorer_match_fg_active(&self) -> HexColor {
+        self.autocomplete_part_fg_active()
+    }
+
     /// `component.explorer-min-height` → `{primitive.size-180}` = 180px
     #[inline]
     pub fn explorer_min_height(&self) -> LogicalPx {
@@ -2728,6 +2746,12 @@ impl crate::theme::Theme {
     #[inline]
     pub fn kbd_plus_fg(&self) -> HexColor {
         self.text_muted_raised()
+    }
+
+    /// `component.kbd-plus-fg-active` → `{semantic.text-on-active}`
+    #[inline]
+    pub fn kbd_plus_fg_active(&self) -> HexColor {
+        self.text_on_active()
     }
 
     /// `component.kbd-radius` → `{semantic.radius-sm}` = 2px
@@ -4122,10 +4146,22 @@ impl crate::theme::Theme {
         self.text_muted()
     }
 
+    /// `component.port-star-off-active` → `{semantic.text-on-active}`
+    #[inline]
+    pub fn port_star_off_active(&self) -> HexColor {
+        self.text_on_active()
+    }
+
     /// `component.port-star-on` → `{semantic.accent-warning}`
     #[inline]
     pub fn port_star_on(&self) -> HexColor {
         self.accent_warning()
+    }
+
+    /// `component.port-star-on-active` → `{semantic.accent-warning-on-active}`
+    #[inline]
+    pub fn port_star_on_active(&self) -> HexColor {
+        self.accent_warning_on_active()
     }
 
     /// `component.port-state-none-dot` → `{component.status-dot-idle}`
@@ -4758,10 +4794,22 @@ impl crate::theme::Theme {
         self.accent_agent()
     }
 
+    /// `component.status-dot-agent-active` → `{semantic.accent-agent-on-active}`
+    #[inline]
+    pub fn status_dot_agent_active(&self) -> HexColor {
+        self.accent_agent_on_active()
+    }
+
     /// `component.status-dot-attached-ring` → `{semantic.accent-attached}`
     #[inline]
     pub fn status_dot_attached_ring(&self) -> HexColor {
         self.border_attached()
+    }
+
+    /// `component.status-dot-attached-ring-active` → `{semantic.accent-attached-on-active}`
+    #[inline]
+    pub fn status_dot_attached_ring_active(&self) -> HexColor {
+        self.accent_attached_on_active()
     }
 
     /// `component.status-dot-attached-ring-offset` → `{primitive.size-2}` = 2px
@@ -4782,10 +4830,22 @@ impl crate::theme::Theme {
         self.attention_completion()
     }
 
+    /// `component.status-dot-completion-active` → `{semantic.accent-primary-on-active}`
+    #[inline]
+    pub fn status_dot_completion_active(&self) -> HexColor {
+        self.accent_primary_on_active()
+    }
+
     /// `component.status-dot-danger` → `{semantic.accent-danger}`
     #[inline]
     pub fn status_dot_danger(&self) -> HexColor {
         self.accent_danger()
+    }
+
+    /// `component.status-dot-danger-active` → `{semantic.accent-danger-on-active}`
+    #[inline]
+    pub fn status_dot_danger_active(&self) -> HexColor {
+        self.accent_danger_on_active()
     }
 
     /// `component.status-dot-idle` → `{semantic.status-idle}`
@@ -4794,10 +4854,22 @@ impl crate::theme::Theme {
         self.status_idle()
     }
 
+    /// `component.status-dot-idle-active` → `{semantic.text-on-active}`
+    #[inline]
+    pub fn status_dot_idle_active(&self) -> HexColor {
+        self.text_on_active()
+    }
+
     /// `component.status-dot-needs-input` → `{semantic.attention-needs-input}`
     #[inline]
     pub fn status_dot_needs_input(&self) -> HexColor {
         self.attention_needs_input()
+    }
+
+    /// `component.status-dot-needs-input-active` → `{semantic.accent-warning-on-active}`
+    #[inline]
+    pub fn status_dot_needs_input_active(&self) -> HexColor {
+        self.accent_warning_on_active()
     }
 
     /// `component.status-dot-pulse-duration` → `{primitive.duration-1600}` = 1600ms
@@ -4836,10 +4908,22 @@ impl crate::theme::Theme {
         self.accent_success()
     }
 
+    /// `component.status-dot-success-active` → `{semantic.accent-success-on-active}`
+    #[inline]
+    pub fn status_dot_success_active(&self) -> HexColor {
+        self.accent_success_on_active()
+    }
+
     /// `component.status-dot-warning` → `{semantic.accent-warning}`
     #[inline]
     pub fn status_dot_warning(&self) -> HexColor {
         self.accent_warning()
+    }
+
+    /// `component.status-dot-warning-active` → `{semantic.accent-warning-on-active}`
+    #[inline]
+    pub fn status_dot_warning_active(&self) -> HexColor {
+        self.accent_warning_on_active()
     }
 
     /// `component.statusbar-dot-size` → `{component.status-dot-size-compact}` = 6px
@@ -5248,6 +5332,12 @@ impl crate::theme::Theme {
     #[inline]
     pub fn table_row_fg_selected(&self) -> HexColor {
         self.text_on_active()
+    }
+
+    /// `component.tag-attached-fg` → `{semantic.accent-attached-raised}`
+    #[inline]
+    pub fn tag_attached_fg(&self) -> HexColor {
+        self.accent_attached_raised()
     }
 
     /// `component.tag-attention-fg` → `{semantic.accent-attention-raised}`
@@ -5812,6 +5902,12 @@ impl crate::theme::Theme {
     #[inline]
     pub fn workspace_mirror_fg(&self) -> HexColor {
         self.accent_remote()
+    }
+
+    /// `component.workspace-mirror-fg-active` → `{semantic.accent-remote-on-active}`
+    #[inline]
+    pub fn workspace_mirror_fg_active(&self) -> HexColor {
+        self.accent_remote_on_active()
     }
 
     /// `component.workspace-mirror-gap` → `{semantic.space-xs}` = 4px

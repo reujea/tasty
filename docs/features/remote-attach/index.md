@@ -190,7 +190,7 @@ client→server 요청 채널은 `ClientResize`(geometry 구동), `ClientAttenti
 ### GUI mirror
 
 `tasty remote attach --into-gui --target-port <원격포트> --workspace <원격ws>` → 이 명령을 받은 **로컬 GUI 인스턴스**가 client 가 되어 원격 워크스페이스를 mirror 로 재구성한다(`attach.into_gui`).
-mirror Workspace 는 일반 워크스페이스로 사이드바에 노출되되 **이름과 subtitle 사이 별도 줄의 하늘색 "REMOTE" pill**(`>_→` glyph 포함; collapsed 레일은 아바타 우하단 하늘색 corner chip)로 로컬과 구분(`Workspace.mirror`).
+mirror Workspace 는 일반 워크스페이스로 사이드바에 노출되되 **이름과 subtitle 사이 별도 줄의 `>_→` glyph 와 Tag `info` "REMOTE"**(collapsed 레일은 아바타 우하단 하늘색 corner chip)로 로컬과 구분(`Workspace.mirror`).
 status dot 은 실행상태(running/idle) 전용이며 mirror 색을 싣지 않는다 — 원격 origin 은 별도 시각 축(디자인 `workspace-mirror-fg`, notif=우상단 / attached=둘레 ring 과 채널 분리).
 mirror 콘텐츠(grid) 갱신은 원격 출력이 올 때 즉시, 3초 tick 은 backstop.
 실행상태(status dot 의 초록/회색)는 별도 채널로, 원격이 1Hz 로 자신의 busy 상태를 계산해 attach 스트림으로 forward 하고(mirror 터미널은 로컬 PTY 가 없어 스스로 계산할 방법이 없다 — 이 forward 가 유일한 소스) client 가 그 값을 반영한다.
@@ -381,7 +381,7 @@ Auto 체인이 전 단계 실패하면 가장 확정적인 분류(취소 > 타�
 워크스페이스 카드 우클릭에는 없다(카테고리 ON/OFF 에 따라 노출 위치가 갈리도록 재배치 — [`sidebar/screens/sidebar.md`](../sidebar/index.md#화면) 참고).
 좌측은 `tasty-attach` 프로필 목록(remote_tool 이 편집하는 같은 스토어를 **소비만** 함), 우측은 선택 프로필의 원격 워크스페이스를 **4상태**(initial / connecting / error+retry / loaded[+empty])로 표시한다.
 조회 워커와 SSH 터널은 `tasty_remote::browser`의 세션이 소유한다. 팝업은 요청 ID와 표시 값만 보관하고, App이 원 engine·View를 확인한 결과를 전달받는다.
-이미 타 client 가 점유한 원격 ws 는 lavender `in use` 배지 + 선택 불가(중복 mirror 방지).
+이미 타 client 가 점유한 원격 ws 는 Tag `attached` 의 `in use` 표시 + 선택 불가(중복 mirror 방지). inactive 프로필은 Tag `warning` 이다. 두 칩은 자체 채움이 있어 선택 행에서도 바뀌지 않는다. 선택 행의 상태 점은 `status-dot-*-active` 색이다.
 
 **Connect 확정 = 사용자 동작 → focus 이동**: 원격 workspace를 골라 Connect하면 팝업은 `BrowserRequest::Connect`를 사용자 의도로 전달한다. App은 원 browse의 engine·window·View identity를 확인하고, 그 대상의 mirror 설치 요청에 사용자 활성화 의도를 고정한다. Remote가 보관한 조회 터널은 연결에 재사용된다. 설치가 완료되고 원 View와 선택 generation이 여전히 유효할 때 새 mirror를 선택하며, IPC `remote.attach`의 선택 중립 경로와 구분한다. 자기 인스턴스 연결은 공용 `dispatch_attach` 입구에서 거절한다.
 
@@ -580,13 +580,13 @@ bulk 파일 전송과 mirror 터미널 이미지 붙여넣기 업로드에 대�
 
 ### UI 요소 인벤토리
 
-- **mirror 워크스페이스** — 사이드바에 일반 워크스페이스처럼 노출되되 **이름과 subtitle 사이 별도 줄의 하늘색 "REMOTE" pill**(`>_→` glyph 포함, collapsed 레일은 아바타 우하단 하늘색 corner chip)로 로컬과 구분한다(`Workspace.mirror`). status dot 은 실행상태 전용이라 mirror 색을 싣지 않는다. 사이드바 표현 → [`features/sidebar/`](../sidebar/index.md).
+- **mirror 워크스페이스** — 사이드바에 일반 워크스페이스처럼 노출되되 **이름과 subtitle 사이 별도 줄의 `>_→` glyph 와 Tag `info` "REMOTE"**(collapsed 레일은 아바타 우하단 하늘색 corner chip)로 로컬과 구분한다(`Workspace.mirror`). status dot 은 실행상태 전용이라 mirror 색을 싣지 않는다. 사이드바 표현 → [`features/sidebar/`](../sidebar/index.md).
 - **mirror 콘텐츠** — 원격 트리(Pane/Tab/Surface)를 그대로 재구성해 [작업 영역](../work-area/index.md#화면) 렌더러가 그린다. 별도 위젯 없음.
 - **점유된 대상의 readonly 표시** — 서버측에서 다른 client 가 점유한 surface 는 내용은 보이되 조작이 차단된 readonly 로 렌더(작업영역의 deferred/readonly 상태와 동일 경로).
 
 ### 상태별 시각
 
-- **mirror 활성** — 이름·subtitle 사이 하늘색 REMOTE pill(레일=우하단 chip). 원격 출력이 오면 즉시 갱신(3초 tick 은 backstop). status dot 은 별개로 실행상태(running/idle)만 표시.
+- **mirror 활성** — 이름·subtitle 사이 Tag `info` REMOTE(레일=우하단 chip). 원격 출력이 오면 즉시 갱신(3초 tick 은 backstop). status dot 은 별개로 실행상태(running/idle)만 표시.
 - **점유 중(서버측)** — 그 surface 는 readonly. force-detach 되면 일반 surface 로 복귀.
 - **강제 끊기 확인 팝업** — 사이드바 워크스페이스 행 우클릭의 강제 끊기가 여는 380px destructive confirm(헤더 close 글리프 danger + 대상 이름이 든 본문 + 취소/강제 끊기(danger)). headless · window scope · 중앙 정렬이라 대상 워크스페이스가 비활성이어도 보인다. 갤러리 specimen 은 점유 테두리와 같은 카드에 있다(`crates/tasty-gallery/src/catalog/components/occupancy_borders.rs`).
 - **세션 끊김** — 자동 재연결(지수 백오프) 동안의 표시도 mirror 워크스페이스 상태로 흡수.

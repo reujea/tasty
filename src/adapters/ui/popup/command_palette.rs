@@ -256,6 +256,7 @@ pub fn draw_command_palette_view(
                             rect.max.x - pad_x,
                             rect.center().y,
                             &item.shortcut_keys,
+                            is_selected,
                         );
                         if resp.clicked() {
                             action = CommandPaletteAction::Execute { index: i };
@@ -310,13 +311,20 @@ fn row_highlighted(query_empty: bool, row: usize, selected: usize) -> bool {
     !query_empty && row == selected
 }
 
-/// 공용 kbd_parts_at 위젯으로 키캡을 오른쪽 정렬한다.
-fn draw_keycaps(ui: &egui::Ui, theme: &Theme, right_x: f32, center_y: f32, keys: &[String]) {
+/// 공용 키캡 위젯으로 키캡을 오른쪽 정렬한다. 강조 행이면 `+`를 선택 행 색으로 그린다.
+fn draw_keycaps(
+    ui: &egui::Ui,
+    theme: &Theme,
+    right_x: f32,
+    center_y: f32,
+    keys: &[String],
+    on_active: bool,
+) {
     if keys.is_empty() {
         return;
     }
     let parts: Vec<KbdKey<'_>> = keys.iter().map(|k| KbdKey::Text(k.as_str())).collect();
-    tasty_ui_widgets::kbd_parts_at(ui, theme, &parts, right_x, center_y);
+    tasty_ui_widgets::kbd_parts_at_row(ui, theme, &parts, right_x, center_y, on_active);
 }
 
 /// 화면 항목과 실행할 명령을 같은 순서로 반환한다.

@@ -12,6 +12,94 @@ const {
 
 const CIcon = window.TastyDesignSystem_41fd3f.Icon;
 
+// Selected row (2026-11-05). The row re-points tier-3 dot tokens, as TOKENS.md describes, so the dot keeps one source.
+const SEL_ROW_VARS = {
+  "--tasty-status-dot-idle": "var(--tasty-status-dot-idle-active)",
+  "--tasty-status-dot-success": "var(--tasty-status-dot-success-active)",
+  "--tasty-status-dot-warning": "var(--tasty-status-dot-warning-active)",
+  "--tasty-status-dot-danger": "var(--tasty-status-dot-danger-active)",
+  "--tasty-status-dot-agent": "var(--tasty-status-dot-agent-active)",
+  "--tasty-status-dot-needs-input": "var(--tasty-status-dot-needs-input-active)",
+  "--tasty-status-dot-completion": "var(--tasty-status-dot-completion-active)",
+  "--tasty-status-dot-attached-ring": "var(--tasty-status-dot-attached-ring-active)",
+};
+function SelRow({ active, children }) {
+  return (
+    <div data-sel-row={active ? "active" : "rest"} style={{ display: "flex", alignItems: "center", gap: "var(--tasty-space-sm)", minWidth: 0, height: "var(--tasty-control-height)", padding: "0 var(--tasty-space-sm)", borderRadius: "var(--tasty-radius-sm)", whiteSpace: "nowrap", overflow: "hidden", fontSize: "var(--tasty-font-size-body)",
+      background: active ? "var(--tasty-surface-active)" : "transparent", color: active ? "var(--tasty-text-on-active)" : "var(--tasty-text-secondary)", ...(active ? SEL_ROW_VARS : null) }}>{children}</div>
+  );
+}
+const SelGlyph = ({ name, color }) => <span style={{ display: "inline-flex", flex: "none", color }}><CIcon name={name} size="var(--tasty-icon-size-sm)" /></span>;
+const SelTag = ({ variant, children }) => <Tag variant={variant} style={{ flex: "none", color: "var(--tasty-tag-" + variant + "-fg)", ...(variant === "attached" ? { borderColor: "color-mix(in srgb, var(--tasty-accent-attached) 40%, transparent)" } : null) }}>{children}</Tag>;
+const SEL_CASES = [
+  ["Port popup · favorite star", (a) => <><SelGlyph name="starFill" color={a ? "var(--tasty-port-star-on-active)" : "var(--tasty-port-star-on)"} /><SelGlyph name="star" color={a ? "var(--tasty-port-star-off-active)" : "var(--tasty-port-star-off)"} /><span style={{ fontFamily: "var(--tasty-font-mono)", fontSize: "var(--tasty-font-size-caption)" }}>127.0.0.1:5173</span></>],
+  ["Settings list · plugin dot", (a) => <><span style={{ flex: "none", width: "var(--tasty-size-6)", height: "var(--tasty-size-6)", borderRadius: "var(--tasty-radius-pill)", background: a ? "var(--tasty-accent-agent-on-active)" : "var(--tasty-accent-agent)" }} /><span>git-helper</span></>],
+  ["File handlers · plugin glyph", (a) => <><SelGlyph name="plug" color={a ? "var(--tasty-accent-agent-on-active)" : "var(--tasty-accent-agent)"} /><span>Open with image viewer</span></>],
+  ["Sidebar · dot, mirror glyph, Remote Tag", (a) => <><StatusDot status="running" /><SelGlyph name="remote" color={a ? "var(--tasty-workspace-mirror-fg-active)" : "var(--tasty-workspace-mirror-fg)"} /><span>Project A</span><SelTag variant="info">remote</SelTag></>],
+  ["Remote attach · chips", () => <><StatusDot status="idle" attached /><span>build</span><SelTag variant="attached">in use</SelTag><SelTag variant="warning">inactive</SelTag></>],
+  ["Explorer, file picker · kind glyph, match run", (a) => <><SelGlyph name="folder" color={a ? "var(--tasty-text-on-active)" : "var(--tasty-text-muted)"} /><SelGlyph name="image" color={a ? "var(--tasty-text-on-active)" : "var(--tasty-accent-info)"} /><span>dia<span data-match-run="" style={a ? { color: "var(--tasty-explorer-match-fg-active)", textDecoration: "underline", textDecorationThickness: "var(--tasty-autocomplete-match-underline-width)", textUnderlineOffset: "var(--tasty-autocomplete-match-underline-offset)" } : { color: "var(--tasty-explorer-match-fg)" }}>gram</span>.png</span></>],
+  ["Shortcut · Kbd +", (a) => <><span style={{ flex: 1 }}>Split pane right</span><Kbd keys="Ctrl" /><span style={{ color: a ? "var(--tasty-kbd-plus-fg-active)" : "var(--tasty-kbd-plus-fg)", fontSize: "var(--tasty-font-size-micro)", fontFamily: "var(--tasty-font-mono)" }}>+</span><Kbd keys="D" /></>],
+  ["Status dots", () => <><StatusDot status="running" /><StatusDot status="waiting" /><StatusDot status="error" /><StatusDot status="agent" /><StatusDot status="needs-input" /><StatusDot status="completion" /><StatusDot status="idle" /></>],
+];
+function SelRowGrid({ label, theme }) {
+  return (
+    <div data-theme={theme} style={{ flex: "1 1 var(--tasty-size-320)", minWidth: 0, display: "flex", flexDirection: "column", gap: "var(--tasty-space-sm)", padding: "var(--tasty-space-md)", background: "var(--tasty-bg-panel)", border: "var(--tasty-border-width) solid var(--tasty-border-default)", borderRadius: "var(--tasty-radius)" }}>
+      <span style={{ fontSize: "var(--tasty-font-size-body)", fontWeight: "var(--tasty-font-weight-semibold)", color: "var(--tasty-text-primary)" }}>{label}</span>
+      {SEL_CASES.map(([cap, draw]) => (
+        <div key={cap} style={{ display: "flex", flexDirection: "column", gap: "var(--tasty-space-xs)", minWidth: 0 }}>
+          <span style={{ fontSize: "var(--tasty-font-size-caption)", color: "var(--tasty-text-muted)" }}>{cap}</span>
+          <SelRow active={false}>{draw(false)}</SelRow>
+          <SelRow active>{draw(true)}</SelRow>
+        </div>
+      ))}
+    </div>
+  );
+}
+// Ink over its composited ground: label, ground, overlay, ink, sample, Mocha, Latte.
+const SEL_INK = [
+  ["Favorite star", "surface-active", null, "port-star-on-active", "★", "5.25", "3.75"],
+  ["Plugin dot, glyph", "surface-active", null, "accent-agent-on-active", "●", "3.29", "3.48"],
+  ["Mirror glyph", "surface-active", null, "workspace-mirror-fg-active", "●", "4.29", "3.48"],
+  ["Dot, running", "surface-active", null, "status-dot-success-active", "●", "4.49", "3.50"],
+  ["Dot, waiting, needs input", "surface-active", null, "status-dot-warning-active", "●", "5.25", "3.75"],
+  ["Dot, error", "surface-active", null, "status-dot-danger-active", "●", "3.28", "3.42"],
+  ["Dot, agent", "surface-active", null, "status-dot-agent-active", "●", "3.29", "3.48"],
+  ["Dot, completion", "surface-active", null, "status-dot-completion-active", "●", "3.17", "3.83"],
+  ["Dot, idle", "surface-active", null, "status-dot-idle-active", "●", "4.62", "5.39"],
+  ["Attached ring", "surface-active", null, "status-dot-attached-ring-active", "○", "3.73", "3.78"],
+  ["Match run on selected row", "surface-active", null, "explorer-match-fg-active", "gram", "4.62", "5.39"],
+  ["Kbd + on selected row", "surface-active", null, "kbd-plus-fg-active", "+", "4.62", "5.39"],
+  ["Match run at rest, menu", "surface-raised", null, "autocomplete-match-fg", "gram", "5.97", "5.37"],
+  ["Match run, pointer hover", "surface-raised", "overlay-hover", "autocomplete-match-fg", "gram", "4.66", "4.52"],
+  ["Match run at rest, panel", "bg-panel", null, "explorer-match-fg", "gram", "7.79", "7.32"],
+  ["Tag attached", "tag-bg", null, "tag-attached-fg", "in use", "7.03", "5.29"],
+  ["Muted on bg-app", "bg-app", null, "text-muted", "muted", "8.42", "4.73"],
+  ["Muted on bg-sidebar", "bg-sidebar", null, "text-muted", "muted", "7.89", "5.14"],
+  ["Muted on bg-panel", "bg-panel", null, "text-muted", "muted", "7.37", "5.53"],
+  ["Kbd + on bg-app", "bg-app", null, "kbd-plus-fg", "+", "8.42", "6.04"],
+  ["Kbd + on bg-sidebar", "bg-sidebar", null, "kbd-plus-fg", "+", "7.89", "6.57"],
+  ["Kbd + on bg-panel", "bg-panel", null, "kbd-plus-fg", "+", "7.37", "7.06"],
+  ["Kbd + on surface-raised", "surface-raised", null, "kbd-plus-fg", "+", "5.65", "5.17"],
+];
+function SelInkTable({ label, theme }) {
+  const col = theme === "latte" ? 6 : 5;
+  return (
+    <div data-theme={theme} style={{ flex: "1 1 var(--tasty-size-320)", minWidth: 0, display: "flex", flexDirection: "column", gap: "var(--tasty-space-xs)", padding: "var(--tasty-space-md)", background: "var(--tasty-bg-panel)", border: "var(--tasty-border-width) solid var(--tasty-border-default)", borderRadius: "var(--tasty-radius)" }}>
+      <span style={{ fontSize: "var(--tasty-font-size-body)", fontWeight: "var(--tasty-font-weight-semibold)", color: "var(--tasty-text-primary)" }}>{label}</span>
+      {SEL_INK.map((r) => (
+        <div key={r[0]} data-ink-row={r[0]} data-ink-ground={r[1]} data-ink-overlay={r[2] || ""} data-ink-token={r[3]} data-ink-value={r[col]} style={{ display: "flex", alignItems: "center", gap: "var(--tasty-space-sm)", minWidth: 0 }}>
+          <span style={{ flex: 1, minWidth: 0, fontSize: "var(--tasty-font-size-caption)", color: "var(--tasty-text-primary)" }}>{r[0]}</span>
+          <span style={{ flex: "none", padding: "var(--tasty-space-xs) var(--tasty-space-sm)", borderRadius: "var(--tasty-radius-sm)", fontSize: "var(--tasty-font-size-caption)", whiteSpace: "nowrap",
+            color: "var(--tasty-" + r[3] + ")", backgroundColor: "var(--tasty-" + r[1] + ")",
+            backgroundImage: r[2] ? "linear-gradient(var(--tasty-" + r[2] + "), var(--tasty-" + r[2] + "))" : "none" }}>{r[4]}</span>
+          <span style={{ flex: "none", width: "var(--tasty-size-32)", textAlign: "right", fontFamily: "var(--tasty-font-mono)", fontSize: "var(--tasty-font-size-caption)", color: "var(--tasty-text-primary)" }}>{r[col]}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+
 // Workspace row (expanded sidebar) — attached-ring slot specimen. geom="product"
 // reproduces the rejected 4 / 8 / 4 geometry for comparison only.
 function WsColG({ children }) {
@@ -546,6 +634,24 @@ function Components() {
           <Meta
             specs={[["dot", "7px"], ["pulse", "expanding ring"], ["agent", <span className="tok">--tasty-accent-agent</span>], ["attention rank", "needs-input › completion › activity"]]}
             tokens={[{ tok: "--tasty-accent-success", use: "running", color: "var(--tasty-accent-success)" }, { tok: "--tasty-accent-agent", use: "agent", color: "var(--tasty-accent-agent)" }, { tok: "--tasty-accent-warning", use: "waiting", color: "var(--tasty-accent-warning)" }, { tok: "--tasty-accent-danger", use: "error", color: "var(--tasty-accent-danger)" }, { tok: "--tasty-status-dot-needs-input", use: "needs input", color: "var(--tasty-status-dot-needs-input)" }, { tok: "--tasty-status-dot-completion", use: "completion", color: "var(--tasty-status-dot-completion)" }]} />
+        </Spec>
+
+        <Spec id="selected-row" title="Selected row — meaning glyphs, match run, Kbd + (2026-11-05)"
+          when={<>A selected or keyboard-active row keeps what each glyph means. <b>Hue carries the meaning</b> (favorite, plugin, remote, status): the glyph keeps its hue through its own <code>-on-active</code> role. <b>Shape carries the meaning</b> (file kinds, the unregistered star): the glyph takes the row ink. A <b>Tag</b> keeps its own fill and does not change. A <b>match run</b> takes an underline, because no accent ink reaches 4.5:1 on this fill and still differs from the row ink.</>}>
+          <Stage variant="solo" style={{ padding: "var(--tasty-space-lg)", background: "var(--tasty-bg-app)", gap: "var(--tasty-space-lg)", flexWrap: "wrap", alignItems: "flex-start" }}>
+            <SelRowGrid label="Mocha" theme="mocha" />
+            <SelRowGrid label="Latte" theme="latte" />
+          </Stage>
+          <Stage variant="solo" style={{ padding: "var(--tasty-space-lg)", background: "var(--tasty-bg-app)", gap: "var(--tasty-space-lg)", flexWrap: "wrap", alignItems: "flex-start" }}>
+            <SelInkTable label="Mocha" theme="mocha" />
+            <SelInkTable label="Latte" theme="latte" />
+          </Stage>
+          <Meta
+            specs={[["hue glyph", "accent-<role>-on-active · 3:1 or better at rest on the row"], ["shape glyph", "text-on-active"], ["selection mark", "accent-primary-on-active, unchanged"], ["chip", "Tag recipe · never a tinted pill"], ["match run", "1px underline in the row ink · weight not used"], ["Kbd +", "kbd-plus-fg on resting grounds · kbd-plus-fg-active on the row"], ["hover over the row", "transient · text-on-active holds 3:1 · glyphs carry no target"], ["Latte muted", "n1000 · shares its ink with text-secondary"]]}
+            tokens={[{ tok: "--tasty-accent-warning-on-active", use: "star, waiting, needs input", color: "var(--tasty-accent-warning-on-active)" }, { tok: "--tasty-accent-success-on-active", use: "running", color: "var(--tasty-accent-success-on-active)" }, { tok: "--tasty-accent-danger-on-active", use: "error", color: "var(--tasty-accent-danger-on-active)" }, { tok: "--tasty-accent-agent-on-active", use: "plugin, agent", color: "var(--tasty-accent-agent-on-active)" }, { tok: "--tasty-accent-remote-on-active", use: "mirror", color: "var(--tasty-accent-remote-on-active)" }, { tok: "--tasty-accent-attached-on-active", use: "attached ring", color: "var(--tasty-accent-attached-on-active)" }, { tok: "--tasty-tag-attached-fg", use: "in use Tag", color: "var(--tasty-tag-attached-fg)" }, { tok: "--tasty-kbd-plus-fg-active", use: "+ on the row", color: "var(--tasty-kbd-plus-fg-active)" }, { tok: "--tasty-explorer-match-fg-active", use: "match run on the row", color: "var(--tasty-explorer-match-fg-active)" }, { tok: "--tasty-text-muted", use: "Latte n1000", color: "var(--tasty-text-muted)" }]} />
+          <Do><b>Do</b> re-point the dot tokens on the row. The dot draws the same way, and only its token changes.</Do>
+          <Dont><b>Don't</b> lay an accent tint on a selected row. Over surface-active a 12–16% tint leaves Latte ink at 1.2–1.4:1, so a chip takes the Tag recipe.</Dont>
+          <Note>The keycap ink and the AutoComplete underline on live pages wait for a rebuild of <code>components/bundle.js</code>. This specimen sets them directly from the tokens. The app reads the tokens, so it does not wait.</Note>
         </Spec>
 
         <Spec title="Status resolution — always exactly one dot"
