@@ -268,6 +268,20 @@ pub fn report_child_overlay_rect(
     });
 }
 
+/// egui popup `dropdown_id` 의 열림 상태와 영역을 [`report_child_overlay_rect`] 로 보고한다.
+pub fn report_dropdown_overlay(
+    ui: &egui::Ui,
+    popup_id: PopupId,
+    overlay_key: &'static str,
+    dropdown_id: egui::Id,
+) {
+    let rect = ui
+        .memory(|m| m.is_popup_open(dropdown_id))
+        .then(|| ui.memory(|m| m.area_rect(dropdown_id)))
+        .flatten();
+    report_child_overlay_rect(ui.ctx(), popup_id, overlay_key, rect);
+}
+
 /// 자식 드롭다운이 열려 있는지 확인한다. 부모의 Escape 처리가 본문보다 먼저 실행되므로
 /// 이 값이 true면 부모를 닫지 않고 드롭다운에 Escape 처리를 맡긴다.
 pub fn child_overlay_open(

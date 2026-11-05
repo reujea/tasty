@@ -521,25 +521,29 @@ fn default_hex_field(ui: &mut egui::Ui, th: &Theme, hex: &mut String) -> egui::R
         .show(ui, th, hex)
 }
 
-/// A single Tasty curated color row — friendly label (i18n), hex input, swatch,
-/// and a "Default" checkbox. `base`/`get`/`set` point at one field of
-/// `theme_base`/`theme_overrides`, giving identical set/clear semantics to the
-/// Colors picker's [`draw_color_picker_row`] but with a friendly label instead
-/// of the raw mono token name.
-fn draw_tasty_color_row(
+/// 색 override 행의 입력값. 행마다 다른 것은 이름 표기, hex 버퍼 id, 체크박스 문구, 저장 위치다.
+struct OverrideRow<'a> {
+    name: egui::RichText,
+    /// hex 입력 버퍼는 egui 메모리에 행별로 보관 — override 값을 매 프레임 문자열로
+    /// 되돌리면 편집 중 부분 입력(`#89b4f`)이 즉시 덮어써져 타이핑이 불가능해진다.
+    buf_id: egui::Id,
+    default_label: &'a str,
+    base: HexColor,
+    cur: Option<HexColor>,
+}
+
+/// 한 색 행: [override dot] 이름 · hex 입력 · swatch · 기본값 체크박스.
+/// 기본값 체크 = `None`(base 추종, 입력 비활성+swatch dim) / 해제 = `Some(hex)`.
+fn draw_override_row(
     ui: &mut egui::Ui,
     th: &Theme,
-    settings: &mut Settings,
-    label_key: &str,
-    base: fn(&ThemeColors) -> HexColor,
-    get: fn(&PartialColors) -> Option<HexColor>,
-    set: fn(&mut PartialColors, Option<HexColor>),
+    overrides: &mut PartialColors,
+    row: OverrideRow<'_>,
+    set: impl Fn(&mut PartialColors, Option<HexColor>),
 ) {
-    let base_color = base(&settings.appearance.theme_base);
-    let cur = get(&settings.appearance.theme_overrides);
-    let is_ov = cur.is_some();
-    let val = cur.unwrap_or(base_color);
-    let buf_id = ui.make_persistent_id(("appearance_tasty_hex", label_key));
+    let OverrideRow { buf_id, base, .. } = row;
+    let is_ov = row.cur.is_some();
+    let val = row.cur.unwrap_or(base);
 
     color_row_line(ui, th, |ui| {
         // ── override dot ──
@@ -553,10 +557,10 @@ fn draw_tasty_color_row(
             );
         }
 
-        // ── friendly label ──
+        // ── 행 이름 (override 시 강조) ──
         ui.add_sized(
             egui::vec2(COLOR_FIELD_NAME_WIDTH.value(), COLOR_SWATCH_SIZE.value()),
-            egui::Label::new(egui::RichText::new(t(label_key)).color(if is_ov {
+            egui::Label::new(row.name.color(if is_ov {
                 th.text_primary()
             } else {
                 th.text_muted()
@@ -575,11 +579,11 @@ fn draw_tasty_color_row(
             if resp.changed()
                 && let Some(parsed) = HexColor::from_hex(text.trim())
             {
-                set(&mut settings.appearance.theme_overrides, Some(parsed));
+                set(overrides, Some(parsed));
             }
             ui.data_mut(|d| d.insert_temp(buf_id, text));
         } else {
-            default_hex_field(ui, th, &mut base_color.to_hex());
+            default_hex_field(ui, th, &mut base.to_hex());
         }
 
         // ── swatch (override 시 full, base 시 40% dim) ──
@@ -588,6 +592,7 @@ fn draw_tasty_color_row(
         let fill = if is_ov {
             egui::Color32::from(val)
         } else {
+            // opacity 0.4 (디자인) — 패널 위에 얹혀 dim 하게 보인다.
             val.with_alpha(SWATCH_INHERITED_ALPHA).to_egui()
         };
         ui.painter().rect_filled(sw_rect, 3.0, fill);
@@ -601,29 +606,54 @@ fn draw_tasty_color_row(
             egui::StrokeKind::Inside,
         );
 
-        // ── "Default" 체크박스 (디자인 settings_window.jsx:113 = <Checkbox>) ──
+        // ── 기본값 체크박스 (디자인 settings_window.jsx:113 = <Checkbox>) ──
         let mut use_default = !is_ov;
-        let default_label = t("settings.appearance.colors.default");
         if tasty_ui_widgets::checkbox(
             ui,
             th,
             &mut use_default,
-            default_label,
+            row.default_label,
             true,
             tasty_ui_widgets::Ground::Panel,
         )
         .changed()
         {
-            let ov = &mut settings.appearance.theme_overrides;
             if use_default {
-                set(ov, None);
+                set(overrides, None);
             } else {
-                set(ov, Some(base_color));
-                let seed = base_color.to_hex();
+                // override 활성화: base 값으로 시드 + 입력 버퍼도 base 로 재설정해
+                // 이전 세션의 stale 버퍼가 base 시드를 덮어쓰지 않게 한다.
+                set(overrides, Some(base));
+                let seed = base.to_hex();
                 ui.data_mut(|d| d.insert_temp(buf_id, seed));
             }
         }
     });
+}
+
+/// A single Tasty curated color row — friendly label (i18n), hex input, swatch,
+/// and a "Default" checkbox. `base`/`get`/`set` point at one field of
+/// `theme_base`/`theme_overrides`, giving identical set/clear semantics to the
+/// Colors picker's [`draw_color_picker_row`] but with a friendly label instead
+/// of the raw mono token name.
+fn draw_tasty_color_row(
+    ui: &mut egui::Ui,
+    th: &Theme,
+    settings: &mut Settings,
+    label_key: &str,
+    base: fn(&ThemeColors) -> HexColor,
+    get: fn(&PartialColors) -> Option<HexColor>,
+    set: fn(&mut PartialColors, Option<HexColor>),
+) {
+    let row = OverrideRow {
+        name: egui::RichText::new(t(label_key)),
+        buf_id: ui.make_persistent_id(("appearance_tasty_hex", label_key)),
+        default_label: t("settings.appearance.colors.default"),
+        base: base(&settings.appearance.theme_base),
+        cur: get(&settings.appearance.theme_overrides),
+    };
+    let overrides = &mut settings.appearance.theme_overrides;
+    draw_override_row(ui, th, overrides, row, set);
 }
 
 /// Appearance > Terminal: font override + preview + colors
@@ -798,98 +828,16 @@ fn draw_surface_bg_row(
     label: &str,
     field: SurfaceBgField,
 ) {
-    let base = surface_bg_base(&settings.appearance.theme_base, field);
-    let cur = surface_bg_override(&settings.appearance.theme_overrides, field);
-    let is_ov = cur.is_some();
-    let val = cur.unwrap_or(base);
-    let buf_id = ui.make_persistent_id(("appearance_surface_hex", field.key()));
-
-    color_row_line(ui, th, |ui| {
-        // ── override dot ──
-        let dot = COLOR_OVERRIDE_DOT_SIZE.value();
-        let (dot_rect, _) = ui.allocate_exact_size(egui::vec2(dot, dot), egui::Sense::hover());
-        if is_ov {
-            ui.painter().circle_filled(
-                dot_rect.center(),
-                dot / 2.0,
-                egui::Color32::from(th.accent_primary()),
-            );
-        }
-
-        // ── 행 라벨 (자연어 — 번역) ──
-        ui.add_sized(
-            egui::vec2(COLOR_FIELD_NAME_WIDTH.value(), COLOR_SWATCH_SIZE.value()),
-            egui::Label::new(egui::RichText::new(label).color(if is_ov {
-                th.text_primary()
-            } else {
-                th.text_muted()
-            })),
-        );
-
-        // ── hex 입력 ──
-        if is_ov {
-            let mut text = ui
-                .data(|d| d.get_temp::<String>(buf_id))
-                .unwrap_or_else(|| val.to_hex());
-            let resp = Input::new()
-                .mono(true)
-                .width(th.field_width_xs.value())
-                .show(ui, th, &mut text);
-            if resp.changed()
-                && let Some(parsed) = HexColor::from_hex(text.trim())
-            {
-                set_surface_bg_override(
-                    &mut settings.appearance.theme_overrides,
-                    field,
-                    Some(parsed),
-                );
-            }
-            ui.data_mut(|d| d.insert_temp(buf_id, text));
-        } else {
-            default_hex_field(ui, th, &mut base.to_hex());
-        }
-
-        // ── swatch (override 시 full, base 시 40% dim) ──
-        let sw = COLOR_SWATCH_SIZE.value();
-        let (sw_rect, _) = ui.allocate_exact_size(egui::vec2(sw, sw), egui::Sense::hover());
-        let fill = if is_ov {
-            egui::Color32::from(val)
-        } else {
-            val.with_alpha(SWATCH_INHERITED_ALPHA).to_egui()
-        };
-        ui.painter().rect_filled(sw_rect, 3.0, fill);
-        ui.painter().rect_stroke(
-            sw_rect,
-            3.0,
-            egui::Stroke::new(
-                th.border_width.value(),
-                egui::Color32::from(th.border_strong()),
-            ),
-            egui::StrokeKind::Inside,
-        );
-
-        // ── "Use default" 체크박스 ──
-        let mut use_default = !is_ov;
-        let default_label = t("settings.appearance.terminal.use_default");
-        if tasty_ui_widgets::checkbox(
-            ui,
-            th,
-            &mut use_default,
-            default_label,
-            true,
-            tasty_ui_widgets::Ground::Panel,
-        )
-        .changed()
-        {
-            let ov = &mut settings.appearance.theme_overrides;
-            if use_default {
-                set_surface_bg_override(ov, field, None);
-            } else {
-                set_surface_bg_override(ov, field, Some(base));
-                let seed = base.to_hex();
-                ui.data_mut(|d| d.insert_temp(buf_id, seed));
-            }
-        }
+    let row = OverrideRow {
+        name: egui::RichText::new(label),
+        buf_id: ui.make_persistent_id(("appearance_surface_hex", field.key())),
+        default_label: t("settings.appearance.terminal.use_default"),
+        base: surface_bg_base(&settings.appearance.theme_base, field),
+        cur: surface_bg_override(&settings.appearance.theme_overrides, field),
+    };
+    let overrides = &mut settings.appearance.theme_overrides;
+    draw_override_row(ui, th, overrides, row, |ov, value| {
+        set_surface_bg_override(ov, field, value)
     });
 }
 
@@ -1251,108 +1199,22 @@ fn draw_color_group(ui: &mut egui::Ui, th: &Theme, settings: &mut Settings, grou
     });
 }
 
-/// 한 색 행: [override dot] 이름(mono) · hex 입력 · swatch · "Default" 체크박스.
-/// "Default" 체크 = `None`(base 추종, 입력 비활성+swatch dim) / 해제 = `Some(hex)`.
+/// 색 토큰 행: 이름은 mono, 체크박스 문구는 "Default".
 fn draw_color_picker_row(
     ui: &mut egui::Ui,
     th: &Theme,
     settings: &mut Settings,
     row: &ColorRowDef,
 ) {
-    let base = (row.base)(&settings.appearance.theme_base);
-    let cur = (row.get)(&settings.appearance.theme_overrides);
-    let is_ov = cur.is_some();
-    let val = cur.unwrap_or(base);
-    // hex 입력 버퍼는 egui 메모리에 행별로 보관 — override 값을 매 프레임 문자열로
-    // 되돌리면 편집 중 부분 입력(`#89b4f`)이 즉시 덮어써져 타이핑이 불가능해진다.
-    let buf_id = ui.make_persistent_id(("appearance_colors_hex", row.name));
-
-    color_row_line(ui, th, |ui| {
-        // ── override dot ──
-        let dot = COLOR_OVERRIDE_DOT_SIZE.value();
-        let (dot_rect, _) = ui.allocate_exact_size(egui::vec2(dot, dot), egui::Sense::hover());
-        if is_ov {
-            ui.painter().circle_filled(
-                dot_rect.center(),
-                dot / 2.0,
-                egui::Color32::from(th.accent_primary()),
-            );
-        }
-
-        // ── 색 토큰 이름 (mono, override 시 강조) ──
-        ui.add_sized(
-            egui::vec2(COLOR_FIELD_NAME_WIDTH.value(), COLOR_SWATCH_SIZE.value()),
-            egui::Label::new(egui::RichText::new(row.name).monospace().color(if is_ov {
-                th.text_primary()
-            } else {
-                th.text_muted()
-            })),
-        );
-
-        // ── hex 입력 ──
-        if is_ov {
-            let mut text = ui
-                .data(|d| d.get_temp::<String>(buf_id))
-                .unwrap_or_else(|| val.to_hex());
-            let resp = Input::new()
-                .mono(true)
-                .width(th.field_width_xs.value())
-                .show(ui, th, &mut text);
-            if resp.changed()
-                && let Some(parsed) = HexColor::from_hex(text.trim())
-            {
-                (row.set)(&mut settings.appearance.theme_overrides, Some(parsed));
-            }
-            ui.data_mut(|d| d.insert_temp(buf_id, text));
-        } else {
-            default_hex_field(ui, th, &mut base.to_hex());
-        }
-
-        // ── swatch (override 시 full, base 시 40% dim) ──
-        let sw = COLOR_SWATCH_SIZE.value();
-        let (sw_rect, _) = ui.allocate_exact_size(egui::vec2(sw, sw), egui::Sense::hover());
-        let fill = if is_ov {
-            egui::Color32::from(val)
-        } else {
-            // opacity 0.4 (디자인) — 패널 위에 얹혀 dim 하게 보인다.
-            val.with_alpha(SWATCH_INHERITED_ALPHA).to_egui()
-        };
-        ui.painter().rect_filled(sw_rect, 3.0, fill);
-        ui.painter().rect_stroke(
-            sw_rect,
-            3.0,
-            egui::Stroke::new(
-                th.border_width.value(),
-                egui::Color32::from(th.border_strong()),
-            ),
-            egui::StrokeKind::Inside,
-        );
-
-        // ── "Default" 체크박스 (디자인 settings_window.jsx:113 = <Checkbox>) ──
-        let mut use_default = !is_ov;
-        let default_label = t("settings.appearance.colors.default");
-        if tasty_ui_widgets::checkbox(
-            ui,
-            th,
-            &mut use_default,
-            default_label,
-            true,
-            tasty_ui_widgets::Ground::Panel,
-        )
-        .changed()
-        {
-            let ov = &mut settings.appearance.theme_overrides;
-            if use_default {
-                (row.set)(ov, None);
-            } else {
-                // override 활성화: base 값으로 시드 + 입력 버퍼도 base 로 재설정해
-                // 이전 세션의 stale 버퍼가 base 시드를 덮어쓰지 않게 한다.
-                (row.set)(ov, Some(base));
-                let seed = base.to_hex();
-                ui.data_mut(|d| d.insert_temp(buf_id, seed));
-            }
-        }
-    });
+    let row_def = OverrideRow {
+        name: egui::RichText::new(row.name).monospace(),
+        buf_id: ui.make_persistent_id(("appearance_colors_hex", row.name)),
+        default_label: t("settings.appearance.colors.default"),
+        base: (row.base)(&settings.appearance.theme_base),
+        cur: (row.get)(&settings.appearance.theme_overrides),
+    };
+    let overrides = &mut settings.appearance.theme_overrides;
+    draw_override_row(ui, th, overrides, row_def, row.set);
 }
 
 /// plugin이 선언한 FontOverride·Toggle·Select·Number 항목을 공통 위젯으로 그린다.

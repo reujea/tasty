@@ -398,15 +398,11 @@ fn draw_list(
                 );
                 // 팝업 밖으로 나온 드롭다운도 안쪽 클릭으로 인식하도록 영역을 보고한다.
                 let overlay_id = multi_select_popup_id(ui, STATUS_SELECT_SALT);
-                let overlay_rect = ui
-                    .memory(|m| m.is_popup_open(overlay_id))
-                    .then(|| ui.memory(|m| m.area_rect(overlay_id)))
-                    .flatten();
-                super::report_child_overlay_rect(
-                    ui.ctx(),
+                super::report_dropdown_overlay(
+                    ui,
                     DAG_LIST_POPUP_ID,
                     STATUS_SELECT_OVERLAY_KEY,
-                    overlay_rect,
+                    overlay_id,
                 );
             });
         });

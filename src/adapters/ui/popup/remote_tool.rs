@@ -766,16 +766,7 @@ fn draw_protocol_filter(
         });
     });
     // 부모 밖으로 나온 드롭다운도 안쪽 클릭으로 인식하도록 영역을 보고한다.
-    let overlay_rect = ui
-        .memory(|m| m.is_popup_open(popup_id))
-        .then(|| ui.memory(|m| m.area_rect(popup_id)))
-        .flatten();
-    super::report_child_overlay_rect(
-        ui.ctx(),
-        REMOTE_TOOL_POPUP_ID,
-        FILTER_POPUP_ID,
-        overlay_rect,
-    );
+    super::report_dropdown_overlay(ui, REMOTE_TOOL_POPUP_ID, FILTER_POPUP_ID, popup_id);
     if applied.is_some() {
         ui.memory_mut(|m| m.close_popup());
     }
