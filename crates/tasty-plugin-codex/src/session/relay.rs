@@ -195,6 +195,11 @@ impl Relay {
                                 drop(socket);
                                 continue;
                             }
+                            // Windows와 BSD 계열에서는 accept한 소켓이 listener의 nonblocking을 물려받는다.
+                            if let Err(error) = socket.set_nonblocking(false) {
+                                tracing::warn!("codex relay socket: {error}");
+                                continue;
+                            }
                             connections.push(spawn_connection(
                                 socket, &endpoint, &settings, &chosen, &bind, &secret, &sockets,
                             ));

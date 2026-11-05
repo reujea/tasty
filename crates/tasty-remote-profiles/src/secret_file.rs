@@ -113,10 +113,16 @@ if ($actual.GetOwner([System.Security.Principal.SecurityIdentifier]) -ne $sid -o
     let result = std::process::Command::new("powershell.exe")
         .args(["-NoProfile", "-NonInteractive", "-Command", script])
         .env("TASTY_PRIVATE_TEMP_PATH", path)
+        // A PSModulePath inherited from PowerShell 7 makes Windows PowerShell load modules it
+        // cannot use, so Set-Acl and Get-Acl are missing. Without it the child uses its defaults.
+        .env_remove("PSModulePath")
         .output()
         .context("configure private secret ACL")?;
     if !result.status.success() {
-        bail!("private secret ACL setup/verification failed; no payload written");
+        bail!(
+            "private secret ACL setup/verification failed; no payload written: {}",
+            String::from_utf8_lossy(&result.stderr).trim()
+        );
     }
     Ok(())
 }
