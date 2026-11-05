@@ -71,15 +71,45 @@ site/
 - 표본의 범위는 `[data-gallery-page]`다. 사이트 전역 규칙 중 표본과 부딪히는 것(`img`, `:focus-visible`)은 이 범위를 뺀다.
 - `parts/specimen.jsx`의 `Spec`이 제목, 데모, 상태 격자, 숨은 상태의 프레임, 명세 표 순서로 그린다. `?audit=1`을 붙이면 지연 마운트 없이 모든 데모를 그린다.
 
+### 사이트 페이지의 바탕과 잉크
+
+사이트 스타일은 1단계 색을 직접 읽지 않고 앱과 같은 역할 토큰을 읽는다. 위치마다 쓸 토큰은 사본 `tokens/ground-ink-rules.json`의 `site.places`가 정한다. 1단계 색을 읽으면 Mocha에서 통과한 값이 Latte에서 미달할 수 있기 때문이다.
+
+- 브랜드: 표식은 `brand-melon-*` 색을 유지한다. 브랜드 색 글자와 글리프는 `brand-ink`를 읽는다. 워드마크 점은 글자가 아니라 표식이므로 `data-audit-exempt="brand"`를 붙인다.
+- 주요 버튼: 바탕은 두 테마 모두 표식의 과육(`site-cta-bg`), 글자는 씨앗(`site-cta-fg`)이다. 포인터 올림과 누름도 과육의 색조다. 가이드 그림 라벨(`.anat::after`)도 같은 짝이다.
+- 링크: `accent-primary-raised`다. 본문 안 링크는 평소에도 밑줄을 긋는다. Latte에서 이 잉크는 밝기만으로 본문과 구분하기 어렵다. 메모 안 링크는 본문 잉크에 밑줄이다. 틴트 위에 두 번째 색상을 쓰지 않기 위해서다.
+- 머리글: 불투명한 `bg-sidebar`다. 뒤로 지나가는 내용이 잉크에 영향을 주지 않는다.
+- 포커스 링: 앱과 같은 `border-focus`다.
+- 구분자: 이동 경로의 `/`는 장식이다. `aria-hidden`과 `data-ink-grade="none" data-ink-why="ornament"`를 붙이고 `glyph-dim`을 쓴다.
+- 코드 블록: 두 테마에서 같은 어두운 팔레트(`site-code-*`)다. 하이라이터가 색을 인라인으로 쓰므로 `global.css`의 `pre.astro-code` 규칙이 `!important`로 바탕, 기본 잉크, 주석 색을 덮는다. 주석은 `style` 속성의 `#6A737D`로 찾으므로 하이라이터 테마를 바꾸면 이 선택자도 함께 고친다. 다른 하이라이터 잉크는 예외 없이 일반 기준으로 잰다.
+- 앱 그림: 페이지가 직접 그리는 터미널과 창 그림은 프로그램 출력이 아니므로 `ansi-content` 예외를 쓰지 않는다. 선은 `term`과 `base` 바탕의 글자 셀을 읽는다. `AppShell.jsx`와 `WindowAnatomy.jsx`는 킷 `work.jsx`의 `C`와 같은 잉크를 쓴다.
+
+가이드의 그림은 Markdown 렌더링 단계에서 킷을 정적 HTML로 그려 콘텐츠 캐시(`node_modules/.astro/data-store.json`)에 들어간다. Astro는 이 캐시를 본문과 설정의 해시로만 판단해 킷이 바뀌어도 다시 그리지 않으므로, `npm run build`는 `astro build --force`로 캐시를 비운다. 개발 서버에서 킷을 고친 뒤 가이드 그림이 그대로면 `astro dev --force`로 시작한다.
+
 ### 렌더링 대비 검사
 
-`npm run check-contrast`는 빌드 결과를 띄워 갤러리 전 페이지를 Mocha와 Latte로 렌더링하고 다음을 잰다.
+`npm run check-contrast`는 빌드 결과를 띄워 갤러리 페이지와 사이트 페이지를 Mocha와 Latte로 렌더링한다. `--site-only`와 `--gallery-only`로 한쪽만 실행하고, `--page <키>`는 갤러리 한 페이지만 잰다. 코드는 `site/scripts/check-contrast.mjs`(갤러리), `contrast-site.mjs`(사이트), `contrast-page.mjs`(페이지 안에서 실행하는 측정)에 있다.
+
+갤러리 페이지에서는 다음을 잰다.
 
 - 고정 셀: `tokens/ground-ink-rules.json`의 행마다 부품의 잉크가 지정 토큰인지(채널당 1/255 허용), 합성 바탕에서 등급을 넘는지 본다. 행에 셀이 없거나 부품을 찾지 못해도 실패한다. 부품 위치는 `parts/part-map.js`에 있다.
 - 나머지 글자·글리프·입력: 글자는 4.5, 글리프는 3을 기준으로 잰다. `data-audit-exempt`와 `data-ink-grade`의 규칙은 사본 `RULES.md` 14절을 따르고, 쓰인 예외 id와 횟수를 출력한다. 완전히 투명한 요소만 화면에 없는 것으로 보며 그 밖의 opacity는 합성해 잰다.
 - SVG: 보이는 도형의 stroke와 fill을 각각 재고 도형 수를 출력한다. 도형 자신의 `stroke-opacity`·`fill-opacity`와 SVG 안 `<g>`를 포함한 모든 조상의 opacity를 곱한다. SVG 안 `<text>`는 fill을 글자 기준으로 잰다. 아무것도 칠하지 않는 SVG의 수도 출력한다. 바탕은 DOM 조상에서 읽으므로 같은 SVG 안에서 도형 아래 깔린 다른 도형은 바탕으로 보지 않는다. `<use>`의 대상 내부와 그라데이션·패턴 칠은 재지 않으며 그라데이션·패턴 칠의 수를 출력한다.
 - 비활성 조상(`:disabled`, `aria-disabled="true"`, `data-ink-why="disabled"`) 안: 등급 없는 비활성 토큰만 등급을 면제한다. 그 밖의 잉크는 일반 기준으로 잰다.
 - 측정 0건, 알 수 없는 예외 id, 페이지 오류도 실패다.
+- 표본 밖의 머리글·사이드바·푸터도 같은 기준으로 잰다.
+
+사이트 페이지는 갤러리 밖의 빌드된 페이지 전부(랜딩, 가이드, 디자인, privacy, 양쪽 언어, `design/cards/`의 지침 문서)다. 기준은 사본 `tokens/ground-ink-rules.json`의 `site.places`이고 사본 `RULES.md` 15절이 같은 내용을 설명한다.
+
+- 패스: 각 페이지를 넓은 화면(1440px)과 좁은 화면(390px)에서 잰다. 넓은 화면에서는 랜딩 창의 나머지 탭, 포인터 올림과 누름, 키보드 포커스, 검색 결과도 잰다.
+- 행: 선택자가 어느 페이지에서도 요소를 찾지 못하면 실패한다. 요소를 하나도 재지 못해도, 등급에 못 미쳐도, 어떤 행도 지정하지 않은 잉크를 보여도 실패한다.
+- 여러 잉크를 묶는 행: 한 선택자를 여러 행이 나눠 쓰거나 `a`처럼 범위가 넓거나 `.shell`처럼 창 그림 전체를 가리키는 행이다. 해당 잉크가 한 번 이상 나타나면 되고, 요소마다 등급은 그대로 잰다.
+- 행이 없는 것: 보이는 글자, 생성 내용(`::before`, `::after`), 입력값, placeholder는 4.5로 잰다. 24px 이상 또는 18.66px 이상 굵은 글자는 3이다. SVG 도형은 3이다.
+- 바탕: 불투명한 칠까지 조상을 합성한다. 그라데이션은 색 지점마다 재서 가장 낮은 값을 쓰고, 그림 바탕 위 글자는 값을 잴 수 없어 실패한다. 재는 값은 바탕의 실제 값이며 행의 `grounds`와 대조하지는 않는다.
+- 예외: 규칙 파일의 `exceptions` id를 쓴 `data-audit-exempt`와 `data-ink-grade="none"`만 인정한다. 쓰인 횟수를 출력한다.
+- 고정 마크업: 릴리스 버전, 번역 상태, 가이드 본문에 따라 달라 빌드 결과에 없는 행(메모, 표, 제목 앵커, 작은 제목, 링크 속 코드, 인용 속 링크, 버전 칩, 터미널 그림의 `.p`·`.c`·`.y`)은 `contrast-site.mjs`의 `FIXTURES`로 넣어 재고, 출력에 행 이름을 적는다. 규칙이 깨지면 다른 잉크가 나와 실패한다. 실제 페이지에 그 요소가 있다는 뜻은 아니다.
+- `design/cards/`의 지침 문서는 자체 CSS를 쓰고 클래스 이름이 행과 겹칠 수 있어 행을 적용하지 않고 글자와 도형만 잰다.
+- 재지 않는 것: 데모의 오버레이(설정 창, 명령 팔레트 등)는 갤러리에서 잰다. 포인터 패스는 행마다 첫 요소 하나만 잰다.
 
 브라우저는 `CHROMIUM_PATH`, Playwright 캐시의 Chromium, `/snap/bin/chromium` 순으로 찾는다. `playwright-core`만 의존성으로 두고 브라우저는 내려받지 않는다. 그래서 이 검사는 `pages.yml`이 아니라 [릴리스 절차](release.md#3-사이트-갱신)에서 실행한다.
 
@@ -120,11 +150,11 @@ site/
 cd site
 npm install          # 최초 1 회
 
-npm run build        # astro build -> site/dist/
+npm run build        # astro build --force -> site/dist/
 npm run dev          # 개발 서버
 npm run preview      # 빌드 결과 확인
 npm run check-links     # 빌드 결과의 내부 링크·앵커 검사
-npm run check-contrast  # 빌드 결과의 갤러리 렌더링 대비 검사
+npm run check-contrast  # 빌드 결과의 갤러리·사이트 페이지 렌더링 대비 검사
 
 # 번역 파일에 원본 해시 스탬프 (아래 "번역 모델")
 npm run stamp content/en/index.md

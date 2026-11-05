@@ -1,13 +1,15 @@
 /**
- * Renders every gallery page of the built site in Mocha and Latte and measures what is on screen.
- * Rules: RULES.md section 14 and gallery/README.md "The check", in the Artifact.
+ * Renders the built site in Mocha and Latte and measures what is on screen: every gallery page against the contract, as
+ * RULES.md section 14 and gallery/README.md "The check" in the Artifact say, and the site's own pages against
+ * RULES.md section 15, in contrast-site.mjs.
  *
- *   npm run build && npm run check-contrast [-- --json <file>] [-- --page <key>]
+ *   npm run build && npm run check-contrast [-- --json <file>] [-- --page <key>] [-- --site-only] [-- --gallery-only]
  *
- * Fails on: a contract row with no frozen cell, a part that cannot be found, an ink that is not the row's token,
- * an ink below its grade, other text below 4.5, any painted shape of another glyph below 3, an unknown exempt id,
+ * On a gallery page, fails on: a contract row with no frozen cell, a part that cannot be found, an ink that is not the row's
+ * token, an ink below its grade, other text below 4.5, any painted shape of another glyph below 3, an unknown exempt id,
  * or nothing measured. An ink inside a disabled ancestor is measured at its grade unless it is a no-grade token.
  * Shapes composite through their own fill or stroke opacity and every opacity above them, a g inside the svg included.
+ * --page names one gallery page and leaves the site pages out.
  * Browser: CHROMIUM_PATH, else the Playwright browser, else /snap/bin/chromium.
  */
 import { createServer } from "node:http";
@@ -17,6 +19,8 @@ import { fileURLToPath } from "node:url";
 import { chromium } from "playwright-core";
 import { BASE } from "../src/lib/base.mjs";
 import { PART_MAP } from "../vendor/gallery/parts/part-map.js";
+import { installPageLib } from "./contrast-page.mjs";
+import { emptySiteTally, measureRest, runSite, siteRules } from "./contrast-site.mjs";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const dist = join(root, "dist");
@@ -72,33 +76,7 @@ async function launch() {
 
 // Runs in the page. Colors round per channel to 8 bits and a translucent layer composites source-over, as RULES.md says.
 function measure({ rows, tokens, grades, partMap, exemptIds, noGradeTokens, theme }) {
-  const parse = (s) => {
-    let m = /rgba?\(([^)]+)\)/.exec(s);
-    if (m) { const p = m[1].split(/[ ,/]+/).filter(Boolean).map(Number); return [p[0], p[1], p[2], p[3] === undefined ? 1 : p[3]]; }
-    m = /color\(srgb ([^)]+)\)/.exec(s);
-    if (m) { const q = m[1].split(/[ /]+/).filter(Boolean).map(Number); return [q[0] * 255, q[1] * 255, q[2] * 255, q[3] === undefined ? 1 : q[3]]; }
-    m = /^#([0-9a-f]{6})([0-9a-f]{2})?$/i.exec(s);
-    if (m) return [parseInt(m[1].slice(0, 2), 16), parseInt(m[1].slice(2, 4), 16), parseInt(m[1].slice(4, 6), 16), m[2] ? parseInt(m[2], 16) / 255 : 1];
-    return null;
-  };
-  const over = (t, u) => [0, 1, 2].map((i) => Math.floor(t[i] * t[3] + u[i] * (1 - t[3]) + 0.5)).concat(1);
-  const lum = (c) => {
-    const f = (v) => { const x = v / 255; return x <= 0.03928 ? x / 12.92 : ((x + 0.055) / 1.055) ** 2.4; };
-    return 0.2126 * f(c[0]) + 0.7152 * f(c[1]) + 0.0722 * f(c[2]);
-  };
-  const ratio = (a, b) => { const x = lum(a), y = lum(b); return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05); };
-  const hex = (c) => "#" + c.slice(0, 3).map((v) => Math.round(v).toString(16).padStart(2, "0")).join("");
-  const near = (a, b) => [0, 1, 2].every((i) => Math.abs(a[i] - b[i]) <= 1);
-
-  const overlays = (e) => ["::before", "::after"].map((pseudo) => {
-    const p = getComputedStyle(e, pseudo);
-    if (p.content === "none" || p.position !== "absolute") return null;
-    // A bar or a ring is not the ground. Only a pseudo-element that covers its box is.
-    const box = e.getBoundingClientRect();
-    if (parseFloat(p.width) < box.width - 1 || parseFloat(p.height) < box.height - 1) return null;
-    const c = parse(p.backgroundColor);
-    return c && c[3] > 0 ? c : null;
-  }).filter(Boolean);
+  const { parse, over, ratio, hex, near, overlays, opacityOf, visible, inkOn } = window.__contrast;
   // The ground under an element: its own fill and overlays, then each ancestor's, down to the first opaque fill.
   const groundOf = (el, includeSelf = true) => {
     const stack = [];
@@ -114,39 +92,9 @@ function measure({ rows, tokens, grades, partMap, exemptIds, noGradeTokens, them
     for (let i = stack.length - 1; i >= 0; i -= 1) base = over(stack[i], base);
     return { color: base, picture };
   };
-  const opacityOf = (el) => { let o = 1; for (let e = el; e; e = e.parentElement) o *= Number(getComputedStyle(e).opacity); return o; };
-  const visible = (el) => {
-    const s = getComputedStyle(el);
-    if (s.visibility !== "visible" || s.display === "none") return false;
-    // Fully transparent is not on screen. Any other opacity is measured, composited.
-    if (opacityOf(el) === 0) return false;
-    const r = el.getBoundingClientRect();
-    return r.width > 0 && r.height > 0;
-  };
   const out = { cells: 0, rows: [], text: 0, svgs: 0, emptySvgs: 0, glyph: 0, inputs: 0, below: [], exemptUses: {}, badExempt: [], gradeNone: [], picture: 0, paintServer: 0, keys: [] };
-  // Each stroke and fill the svg itself paints, in document order. A nested svg reports its own. What a defs entry or a
-  // use target holds is not walked: a use counts through its own inherited paint.
-  const svgInks = (svg) => {
-    const inks = [];
-    svg.querySelectorAll("path, circle, rect, line, polyline, polygon, ellipse, use, text").forEach((shape) => {
-      if (shape.closest("svg") !== svg || shape.closest("defs, clipPath, mask, symbol, pattern, marker")) return;
-      const s = getComputedStyle(shape);
-      if (s.display === "none" || s.visibility !== "visible" || opacityOf(shape) === 0) return;
-      const r = shape.getBoundingClientRect();
-      if (r.width === 0 && r.height === 0) return;
-      const add = (paint, alpha) => {
-        if (paint === "none") return;
-        if (paint.startsWith("url(")) { out.paintServer += 1; return; }
-        const ink = parse(paint);
-        if (ink && ink[3] * alpha > 0) inks.push({ shape, ink: [ink[0], ink[1], ink[2], ink[3] * alpha] });
-      };
-      if (s.strokeWidth !== "0px") add(s.stroke, Number(s.strokeOpacity));
-      if (shape.tagName.toLowerCase() !== "line") add(s.fill, Number(s.fillOpacity));
-    });
-    return inks;
-  };
+  const svgInks = (svg) => window.__contrast.svgInks(svg, () => { out.paintServer += 1; });
 
-  const inkOn = (ink, el, ground) => over([ink[0], ink[1], ink[2], ink[3] * opacityOf(el)], ground);
   const label = (el) => {
     const spec = el.closest("[data-spec]");
     return spec ? spec.getAttribute("data-spec") : "";
@@ -261,8 +209,10 @@ function measure({ rows, tokens, grades, partMap, exemptIds, noGradeTokens, them
 }
 
 async function run() {
-  const pages = galleryPages().filter((p) => !argOf("--page") || p.key === argOf("--page"));
-  if (!argOf("--page") && pages.length !== EXPECTED_PAGES) fail(`Expected ${EXPECTED_PAGES} gallery pages, found ${pages.length}.`);
+  const siteOnly = args.includes("--site-only");
+  const galleryOnly = args.includes("--gallery-only") || argOf("--page") !== null;
+  const pages = siteOnly ? [] : galleryPages().filter((p) => !argOf("--page") || p.key === argOf("--page"));
+  if (!siteOnly && !argOf("--page") && pages.length !== EXPECTED_PAGES) fail(`Expected ${EXPECTED_PAGES} gallery pages, found ${pages.length}.`);
   const server = await serve();
   const port = server.address().port;
   const browser = await launch();
@@ -270,7 +220,14 @@ async function run() {
   let failed = false;
   const prefix = BASE.replace(/\/$/, "");
   const noGrade = [...noGradeTokens];
+  const rules = siteRules(data);
+  const origin = `http://127.0.0.1:${port}${prefix}`;
   for (const theme of THEMES) {
+    const chrome = emptySiteTally(rules);
+    if (!galleryOnly) {
+      if (!(await runSite({ browser, origin, dist, rules, theme, report }))) failed = true;
+    }
+    if (siteOnly) continue;
     const seen = new Set();
     const t = { cells: 0, rows: 0, ok: 0, unlocated: [], mismatch: [], below: [], text: 0, svgs: 0, emptySvgs: 0, glyph: 0, inputs: 0, other: [], exemptUses: {}, badExempt: [], gradeNone: {}, picture: 0, paintServer: 0, hscroll: [], errors: [] };
     const context = await browser.newContext({ viewport: { width: 1440, height: 1000 } });
@@ -278,7 +235,7 @@ async function run() {
     for (const page of pages) {
       const tab = await context.newPage();
       tab.on("pageerror", (e) => t.errors.push(`${page.key}: ${String(e).slice(0, 200)}`));
-      await tab.goto(`http://127.0.0.1:${port}${prefix}/${page.path}?audit=1`, { waitUntil: "load", timeout: 180000 });
+      await tab.goto(`${origin}/${page.path}?audit=1`, { waitUntil: "load", timeout: 180000 });
       await tab.waitForLoadState("networkidle", { timeout: 180000 }).catch(() => {});
       // Hydration, then stages and fetched tables. Measure once the page stops growing.
       let last = -1;
@@ -288,6 +245,7 @@ async function run() {
         if (size === last && !(await tab.evaluate(() => document.querySelector("astro-island[ssr]") !== null))) break;
         last = size;
       }
+      await installPageLib(tab);
       const m = await tab.evaluate(measure, { rows: data.components, tokens, grades, partMap: PART_MAP, exemptIds, noGradeTokens: noGrade, theme });
       m.keys.forEach((k) => seen.add(k));
       t.cells += m.cells;
@@ -302,9 +260,15 @@ async function run() {
       m.badExempt.forEach((b) => t.badExempt.push({ ...b, page: page.key }));
       m.gradeNone.forEach((g) => { t.gradeNone[g.why] = (t.gradeNone[g.why] || 0) + 1; });
       if (m.hscroll) t.hscroll.push(page.key);
+      await measureRest(tab, chrome, rules, theme, page.path, "gallery chrome");
       await tab.close();
     }
     await context.close();
+    // The chrome around the specimens is the same layout, measured here on the pages the site pass leaves out.
+    const chromeBad = chrome.below.length + chrome.badExempt.length + chrome.picture.length;
+    console.log(`${theme} gallery chrome: pages ${chrome.pages}, text ${chrome.text}, shapes ${chrome.glyph}, below ${chrome.below.length}`);
+    chrome.below.slice(0, 100).forEach((b) => console.log(`  chrome ${b.page} ${b.at}: ${b.kind} "${b.text}" ${b.got} on ${b.ground} ${b.ratio} < ${b.grade}`));
+    if (chromeBad > 0) failed = true;
     const missing = [...new Set(data.components.map((r) => `${r.component}|${r.state}|${r.host}`))].filter((k) => !seen.has(k));
     t.missingCells = argOf("--page") ? [] : missing;
     report.themes[theme] = t;
