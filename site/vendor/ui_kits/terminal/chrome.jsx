@@ -1,7 +1,7 @@
 // Tasty UI kit — screen chrome (title bar, sidebar, tab strip, terminal, status bar).
 // Composes the DS component library (window.TastyDesignSystem_41fd3f).
 const { IconButton, Button, Tab, TreeRow, StatusDot, Tag, Kbd, Badge } = window.TastyDesignSystem_41fd3f;
-// Resolved at render, not at load: inside _ds_bundle.js this file runs before the DS
+// Resolved at render, not at load: inside components/bundle.js this file runs before the DS
 // namespace is filled, so an eager `Icon` read is undefined and the module-level `ic`
 // map below would hold elements with an undefined type.
 const DSIcon = (p) => React.createElement(window.TastyDesignSystem_41fd3f.Icon, p);

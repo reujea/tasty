@@ -5,7 +5,7 @@
  *   node scripts/vendor-manifest.mjs --remote <dir> [--reason <path>=<text>]... [--check]
  *
  * <dir> holds the files fetched from the remote project in this re-vendor,
- * laid out at their remote paths (local `screens/X` is remote `assets/screens/X`).
+ * laid out at their remote paths without the leading `project/` (see remotePathOf).
  * A file whose local bytes differ from the remote keeps the reason already in
  * MANIFEST, or takes one from --reason; without either the script fails and
  * writes nothing. --check compares instead of writing and fails on a change.
@@ -67,7 +67,13 @@ function walk(dir, root, acc) {
 }
 
 const sha256 = (path) => createHash("sha256").update(readFileSync(path)).digest("hex");
-const remotePathOf = (local) => (local.startsWith("screens/") ? `assets/${local}` : local);
+// The Artifact keeps some files at other paths than the copy does.
+const remotePathOf = (local) => {
+  if (local.startsWith("screens/")) return `assets/${local}`;
+  if (local === "guidelines/brand-logo.html") return `archived/${local}`;
+  const typings = local.match(/^components\/[^/]+\/([^/]+)\.d\.ts$/);
+  return typings ? `components/${typings[1]}/${typings[1]}.d.ts` : local;
+};
 
 // Reasons recorded by the previous run, keyed by local path.
 function recordedReasons() {

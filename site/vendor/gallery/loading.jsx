@@ -3,7 +3,7 @@
 // render_shell_setup): app-bg fill + centered brand lockup → spinner → phase
 // slot. App chrome, NOT terminal content, so the spinner may spin (reduced-
 // motion → static). Reuses components/feedback/Spinner.jsx (size bumped to 32)
-// and the guidelines/brand-logo.html lockup verbatim.
+// and the components/BrandLogo/preview.html lockup verbatim.
 const { Section, Spec, Stage, Meta, Note } = window.Gallery;
 const { Spinner } = window.TastyDesignSystem_41fd3f;
 const LButton = window.TastyDesignSystem_41fd3f.Button;
@@ -21,7 +21,7 @@ const NAV = [
   { id: "booterror", label: "Boot error screen" },
 ];
 
-// Brand lockup — guidelines/brand-logo.html (branding exception to the 14px UI cap,
+// Brand lockup — components/BrandLogo/preview.html (branding exception to the 14px UI cap,
 // like --tasty-font-size-brand-wordmark). Mark → text gap = space-sm (8), the same gap
 // as the sidebar wordmark; the old −10px overlap is retired (2026-10-07).
 function Lockup() {

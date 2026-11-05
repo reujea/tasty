@@ -26,7 +26,7 @@ exact dimensions, and the tokens it consumes — and why.
 ## How to read a specimen
 Every `<Spec>` carries three things, in this order:
 1. **When to use** — a plain statement of the role (not just "what it looks like").
-2. **The live demo** — built from the real DS components (`_ds_bundle.js`).
+2. **The live demo** — built from the real DS components (`components/bundle.js`).
 3. **Layout spec + Tokens used** — fixed dimensions and the exact tokens it
    consumes, each annotated with its job.
 
@@ -44,7 +44,7 @@ Surfaces / Chrome / Plugins) in
 page commits only a few demos at a time.
 
 ## Build
-Each page loads `../styles.css` + `../_ds_bundle.js`, then `shell.jsx` (shared
+Each page loads `../styles.css` + `../components/bundle.js`, then `shell.jsx` (shared
 chrome + specimen primitives, exposed on `window.Gallery`) and one content
 script (`foundations.jsx` / `icons.jsx` / `components.jsx` / `layouts.jsx` /
 `dag.jsx` / `loading.jsx` / `plugins.jsx` (+ `plugins-md-address.jsx`, the Markdown address bar, and `plugins-html-address-contrast.jsx`, HTML address field ink, 2026-10-21) — `explorer-ops` loads `plugins.jsx` + `explorer-ops-parts.jsx` + `explorer-ops-b11.jsx` + `explorer-ops-b12.jsx` + `explorer-delete-frame.jsx` + `explorer-ops-remote.jsx` + `explorer-ops-delete.jsx` + `explorer-ops-staging.jsx` + `explorer-ops.jsx` —, or an `overlays-*.jsx` page preceded by

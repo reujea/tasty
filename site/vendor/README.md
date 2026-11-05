@@ -1,6 +1,6 @@
 # 디자인 시스템 vendor
 
-Claude Design 프로젝트 **Tasty Design System**에서 받아온 디자인 사본이다. 사이트의 랜딩 데모와 가이드 그림은 이 사본의 컴포넌트를 사용한다. 실제 앱 구현과 자동으로 동기화되지는 않는다.
+Design System Artifact **Tasty Design System**에서 받아온 디자인 사본이다. 사이트의 랜딩 데모와 가이드 그림은 이 사본의 컴포넌트를 사용한다. 실제 앱 구현과 자동으로 동기화되지는 않는다.
 
 디자인 수정은 원격 킷에 먼저 반영한 뒤 이 사본을 갱신한다. **이 디렉토리의 파일을 직접 고치지 않는다.** 아래 "원본과 다르게 둔 자리"의 예외와 이 README만 직접 수정할 수 있다. `MANIFEST`는 갱신 절차의 스크립트가 쓴다.
 
@@ -10,15 +10,17 @@ Claude Design 프로젝트 **Tasty Design System**에서 받아온 디자인 사
 
 앱 토큰 사본의 갱신 절차는 `crates/tasty-design-tokens/README.md`에 있다. 앱은 `tokens/tasty.tokens.json` 한 파일을 가져오지만, 사이트는 원격 파일 목록을 비교하고 트리 전체를 가져온 뒤 로컬 변형을 다시 적용한다. 결정 이유와 대안은 `docs/design/systems/theme.md`에 있다.
 
-1~4단계는 DesignSync로 원격 프로젝트에 접근할 수 있어야 한다. 접근할 수 없으면 갱신하지 못한 범위를 보고한다. 5단계부터는 로컬 사본만으로 실행할 수 있다.
+1~4단계는 Artifact를 읽을 수 있어야 한다. 주소는 커밋하지 않는 로컬 지침에 있다. 접근할 수 없으면 갱신하지 못한 범위를 보고한다. 5단계부터는 로컬 사본만으로 실행할 수 있다.
 
-1. **파일 목록을 비교한다.** `DesignSync.list_files`로 받은 원격 경로와 `find site/vendor -type f`로 얻은 로컬 목록을 비교한다. 새 파일, 삭제된 파일, 이름이 바뀐 파일을 확인한다. 아래 "원본에서 제외한 것"에 해당하는 경로는 비교에서 뺀다.
-2. **변경된 파일을 받는다.** `DesignSync.get_file`로 파일을 하나씩 받아 같은 상대 경로에 쓴다. 받은 원본은 4단계에서 해시를 다시 계산하므로 저장소 밖 임시 폴더에도 원격 경로 그대로 남긴다. 원격에서 삭제된 파일은 사본에서도 지운다. `get_file`의 256 KiB 상한을 넘는 파일은 별도로 처리하고 그 사실을 기록한다.
-   - 사본에는 이번 갱신 작업을 시작한 뒤 받은 `get_file` 결과만 쓴다. 같은 세션에서 앞선 작업이 받은 결과는 원격의 옛 판일 수 있다.
-   - 같은 경로를 두 번 이상 받았다면 시간순으로 마지막 결과를 쓰고, 중복된 경로와 횟수를 출력해 확인한다. 결과를 파일에서 다시 모으는 방식은 시간순을 보장하지 않으므로 순서를 직접 확인한다.
+1. **파일 목록을 비교한다.** `Artifact`의 `list`(`scope: "files"`)로 받은 `project/` 아래 경로와 `find site/vendor -type f`로 얻은 로컬 목록을 비교한다. 새 파일, 삭제된 파일, 이름이 바뀐 파일을 확인한다. 아래 "원본에서 제외한 것"에 해당하는 경로는 비교에서 뺀다.
+2. **변경된 파일을 받는다.** `Artifact`의 `read`에 `url`과 `paths`(`project/…`, 호출당 최대 256개), `out_dir`을 넘긴다. 파일은 `<out_dir>/project/…`에 저장된다. 앞의 `project/`를 뗀 폴더를 4단계에 넘기고, 변경된 파일을 사본의 대응 경로에 쓴다. 원격에서 삭제된 파일은 사본에서도 지운다.
+   - 응답에 작은 텍스트 파일 본문이 함께 붙어 대화 문맥을 쓰므로 하위 Agent에 맡기는 편이 낫다. 없는 경로는 그 항목만 실패한다.
+   - 사본과 원격의 경로가 다른 곳은 `screens/X`(원격 `assets/screens/X`), `components/<그룹>/X.d.ts`(원격 `components/X/X.d.ts`), `guidelines/brand-logo.html`(원격 `archived/guidelines/brand-logo.html`)이다. 대응은 `site/scripts/vendor-manifest.mjs`의 `remotePathOf`에 있다.
+   - 사본에는 이번 갱신 작업을 시작한 뒤 받은 결과만 쓴다.
 3. **로컬 변형을 다시 적용한다.** 아래 "원본과 다르게 둔 자리"의 세 가지(로컬 문서 인용, 옛 ADR 번호 인용, 출처 메타데이터 제거)를 적용한다. `cargo test -p tasty-doc-guards --test no_todo_file_citation`으로 로컬 작업 문서 인용이 남지 않았는지 확인한다.
    - 그다음 사본을 원격과 대조한다. 범위는 최소한 디자인 작업 결과(`.DONE`)가 적은 파일과, 그 파일을 쓰는 갤러리 페이지가 불러오는 파일이다. 가능하면 vendor 전체를 원격과 바이트 단위로 비교한다.
    - 다른 곳이 있으면 각 차이가 "원본과 다르게 둔 자리"의 변형인지 줄 단위로 확인한다. 변형으로 설명되지 않는 차이는 옛 판이 남은 것이므로 원격 판으로 다시 받는다.
+   - `MANIFEST`에 이유가 적힌 `variant` 파일은 원격이 크게 바뀌어도 4단계 스크립트가 실패하지 않는다. 원격 해시가 달라진 `variant`는 반드시 이번 차이를 직접 읽는다.
 4. **`MANIFEST`를 다시 쓴다.** 2단계에서 받은 원본 폴더를 넘겨 스크립트를 실행한다.
 
    ```sh
@@ -58,20 +60,23 @@ Claude Design 프로젝트 **Tasty Design System**에서 받아온 디자인 사
 ## 원본에서 제외한 것
 
 - **웹폰트(D2Coding, 8.3MB)**: `styles.css`의 `@import url("tokens/fonts.css")`를 제외한다. sans는 시스템 폰트를 사용하고 mono는 `"SF Mono"`, `"Cascadia Code"` 등의 대체 폰트를 사용한다. 브랜드 글꼴 통일이 필요하면 woff2 서브셋 도입을 검토한다.
-- **`_ds_bundle.js`**: 브라우저에서 직접 실행하는 전역 번들이다. 사이트는 `components/`를 직접 번들하므로 필요 없다.
+- **`components/bundle.js`, `components/bundle.css`, `components/index.d.ts`**: 브라우저에서 직접 실행하는 전역 번들과 합본이다. 사이트는 `components/`를 직접 번들하므로 필요 없다.
+- **`tokens.css`, `tokens.json`, `design-system.json`, `assets/notes/`, `archived/` 중 사본 경로에 없는 파일**: Artifact 형식 파일과 보존용 자료다. 1단계 토큰은 사본에서 `tokens/primitives.css`에 함께 둔다.
+- **`components/<이름>/README.md`, `components/<이름>/preview.html`**: 디자인 시스템 페이지의 안내와 미리보기다.
 - **`icons.json`**: `icons/*.svg`에서 생성한 아이콘 이름·그룹·역할·`paths`·`fill` 명부다. 사이트는 `ICON_PATHS`를 사용하므로 추가 사본을 두지 않는다. 앱 아이콘은 이 명부를 참고해 옮긴 것이며, `crates/tasty-doc-guards/tests/site_vendor_icons_match_the_app_transcription.rs`가 `ICON_PATHS`와 앱 구현을 비교한다.
 - **프리뷰 `index.html`**: 원격 킷의 번들에 의존한다. `ui_kits/terminal/overlays/*.html`, `titlebar/*.html`의 단독 미리보기와 킷 `README.md`도 제외한다. 사이트는 `.jsx`를 변환해 사용한다.
 - **`tokens/tasty.tokens.json`**: DTCG 원본이다. 앱이 가져오는 사본은 `crates/tasty-design-tokens/dtcg/tasty.tokens.json`에 두고(갱신 절차는 `crates/tasty-design-tokens/README.md`), 사이트는 CSS 토큰만 쓴다. `tokens/fonts.css`는 위 웹폰트 항목으로 제외한다.
 - **컴포넌트 보조 파일**: `components/**/*.prompt.md`(디자인 도구용 사용 안내)와 `components/*/*.card.html`(디자인 시스템 패널 카드)은 사이트가 쓰지 않는다.
 - **`changelog/`**: 원격 디자인 결정문이다. 저장소의 결정은 `docs/`와 ADR에 둔다.
-- **루트 문서와 도구 파일**: `readme.md`, `FEATURES.md`, `CLAUDE.md`, `SKILL.md`, `TOKENS.md`, `Canvas.dc.html`, `thumbnail.html`, `.thumbnail`, `support.js`, `_ds_manifest.json`, `_adherence.oxlintrc.json`. 원격 프로젝트 운영용이며 사이트가 쓰지 않는다. 진입점 `styles.css`만 가져온다.
-- **작업 폴더**: `design-request/`, `design-tasks/`, `explorations/`, `scraps/`, `screenshots/`, `uploads/`. 요청·작업 기록과 시안 초안이다.
+- **루트 문서와 도구 파일**: `README.md`, `FEATURES.md`, `CLAUDE.md`, `SKILL.md`, `TOKENS.md`, `Canvas.dc.html`, `thumbnail.html`, `.thumbnail`, `support.js`, `_ds_manifest.json`, `_adherence.oxlintrc.json`. 원격 프로젝트 운영용이며 사이트가 쓰지 않는다. 진입점 `styles.css`만 가져온다.
+- **작업 폴더**: `design-request/`, `design-tasks/`, `explorations/`, `assets/explorations/`, `assets/scraps/`, `assets/screenshots/`, `assets/uploads/`. 요청·작업 기록과 시안 초안이다.
 - **`fonts/`, `assets/icons/`**: 폰트 원본은 웹폰트 항목으로 제외한다. `assets/icons/`는 앱 아이콘 원본(`.icns`·`.ico`·PNG·멜론 SVG)과 보조 SVG라 사이트가 쓰지 않는다. `assets/screens/`는 `screens/`로 가져온다.
 
 ## 원본과 다르게 둔 자리
 
 기본적으로 원격 파일을 그대로 가져온다. 갱신할 때는 다음 예외를 다시 적용한다. 변형한 파일은 `MANIFEST`에 `variant`로 기록되며, 파일별 이유는 그 줄에 있다.
 
+- **`tokens/primitives.css`**: 원격은 1단계 값을 `tokens.css`로 분리하고 `@import`한다. 사본은 값을 이 파일 한 곳에 둔다. 갱신할 때 두 원격 파일과 값이 같은지 비교한다.
 - **커밋되지 않는 로컬 문서 인용**: 원격 주석·노트에 있는 로컬 작업 폴더와 티켓 인용은 뜻만 남기고 고친다. `crates/tasty-doc-guards/tests/no_todo_file_citation.rs`가 검사한다. 렌더링 구조와 값은 유지한다.
   - `ui_kits/terminal/overlays/settings_window.jsx`: Hook Handlers 서브탭 설명의 "see … todo"를 "not yet built"로 바꾼다.
   - `gallery/components.jsx`: AutoComplete 노트의 "tracked as a separate implementation TODO"를 "tracked as separate implementation work"로 바꾼다.
