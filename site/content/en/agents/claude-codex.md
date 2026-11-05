@@ -1,4 +1,4 @@
-<!-- source-hash: 2bc36e1f5a52 -->
+<!-- source-hash: ce251fd16a8e -->
 # Working with Claude and Codex
 
 Run Claude Code and Codex CLI in Tasty terminals and follow their status. Install each CLI separately. To delegate work across agents, configure both the hooks and the parent’s result delivery path.
@@ -149,7 +149,7 @@ interruptions, errors, and process exits are state notifications too; they do no
 When a Claude child ended its turn on an API error, the end of the completion line says so and names the error kind (for example `overloaded`). If background work is still running and the child keeps waiting, a single line saying so is written instead of a completion line.
 While a child waits on a background shell or subagent and that work's output has not grown for 2 minutes, one line naming the work is written (`background work <name> has written no output for <min> min`). If Tasty cannot find that work's output, it writes one line after 10 minutes without screen output instead.
 
-A supported Codex parent conversation receives a result reference when the child’s response ends. Use the event ID in that reference with `tasty codex result` to read the answer. Follow the [Codex result delivery section](#automatic-delivery-to-a-codex-parent) below for connection requirements and supported paths.
+A supported Codex parent conversation receives a result reference when the child’s response ends. Use the event ID in that reference with `tasty codex result` to read the answer. See [Automatic delivery to a Codex parent](#automatic-delivery-to-a-codex-parent) below for connection requirements and supported paths.
 
 ### Receive automatically in Claude Code
 
@@ -362,6 +362,8 @@ tasty claude spawn --workspace w --profile continue-checklist
 - To create your own gate: `tasty claude gate-register <name> --body-file <file> [--sentinel <string>] [--rounds N]`. The body must contain the sentinel string. Check with `gate-list` / `gate-show`.
 
 ## Troubleshooting
+
+Fixed an issue on Windows and macOS where Codex sessions in Tasty terminals disconnected immediately after connecting.
 
 - **No completion notification arrives** — check the child CLI’s hook installation and execution, then [receiving setup](#4-receiving-completion-notifications). For a Claude Code parent, check the notification mod marker and delivery; check Monitor only when the mod is unavailable. Hook delivery failures are recorded in `~/.tasty/hook-failures.log`. Plugin logs: `tasty plugin logs com.tasty.claude --follow`.
 - **`reboot` fails with "claude-session-id meta not set"** — the session-start hook failed to record the session ID. Set it directly with `tasty surface-meta set --key claude-session-id --value <session ID>`.

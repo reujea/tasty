@@ -1,4 +1,4 @@
-<!-- source-hash: c47e72291b83 -->
+<!-- source-hash: f447d6aef045 -->
 <a id="remote-attach"></a>
 
 # Working remotely (attach)
@@ -41,6 +41,8 @@ When editing a Passkey, typing and then clearing the value prevents a delayed pr
 CLI profile and Passkey mutations apply their changes to the latest list under a file lock. Corrupt or unreadable lists are preserved. SSH detection for `add-ssh` starts after the save succeeds and cannot overwrite a profile changed by another command during detection.
 
 An inline Passkey file, the credential list and a profile reference are saved in that order, without a transaction across files. If an error reports that an earlier stage was saved, check the list and reference state. Removing a list entry may succeed even if cleanup of its managed file fails. User files registered as `path` are never deleted. Windows inline storage requires PowerShell ACL setup and verification; failure prevents the secret payload from being written.
+
+Fixed an issue where passkeys could not be saved in Windows PowerShell 7. If setting file access permissions (ACLs) fails, the error message now includes the cause.
 
 
 ```sh
@@ -221,7 +223,7 @@ Other write errors, such as a permission problem on the output device, are repor
 
 ## While waiting for a response
 
-When you create a new Tab or split in a mirror, its space appears on the next frame. You cannot send input to that new area until the server confirms it, but you can select an existing Tab or area and keep working. If you select somewhere else while waiting, a late completion does not move your selection back. A failed request removes only its own temporary area.
+When you create a new tab or split in a mirror, Tasty shows its place from the next frame. You cannot send input to that new area until the server confirms it, but you can select an existing Tab or area and keep working. If you select somewhere else while waiting, a late completion does not move your selection back. A failed request removes only its own temporary area.
 
 After 200 ms without a response, spinners appear in the Tab and sidebar, and **Waiting for response** with the elapsed time appears at the top-right of the Workspace. With several requests, it shows their count and the longest wait. Hover over it to see the longest wait for each request kind on its own line. Closing, moving, reopening, converting, and folder, document, or Git queries also show a wait without blocking the screen or input. Native WebViews stay visible and use the Tab and sidebar indicators.
 

@@ -1,4 +1,4 @@
-<!-- source-hash: 4684001e8a41 -->
+<!-- source-hash: e3156defd855 -->
 # Workspaces
 
 A workspace keeps the terminals and layout for a project or task together. Use names and categories to organize workspaces and switch between them in the sidebar.
@@ -78,7 +78,7 @@ goes through a confirmation first.
 
 Press `Ctrl+Shift+T` to restore workspaces, panes, tabs, and surfaces you closed, starting with the most recent item. Tasty keeps up to 10 records and retains them when the same layout slot is resumed normally. Terminal history is restored according to the content restoration setting. Shells start again, and saved session resume commands run when present. Items closed through the CLI are not added to this list.
 
-A terminal whose scrollback is very large (beyond about 64 MiB across everything being closed) is kept in the list without its scrollback, and the close goes ahead. A warning is left in the notification panel. If you closed it in a Workspace opened over remote attach, a warning notice appears once in the window you closed it from. Restoring it opens that terminal in the same directory with an empty scrollback, while the other terminals closed with it get their scrollback back.
+Terminal history for items being closed is kept within a 64 MiB pending-request budget, minus the space used by other pending requests and the close record itself. Even scrollback smaller than 64 MiB can therefore be omitted if it does not fit the remaining budget. The terminal is still added to the restore list without its scrollback, and closing continues. A warning is left in the notification panel; for a workspace opened over remote attach, a warning notice appears once in the window that requested the close. Restoring a terminal whose history was omitted opens it in the same directory with empty scrollback. History retained for the other terminals is restored according to the content restoration setting. This warning does not mean that all ongoing saving of layouts and contents has stopped.
 
 ## Grouping into categories (folders)
 

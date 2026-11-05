@@ -1,4 +1,4 @@
-<!-- source-hash: 12bcd176e6cf -->
+<!-- source-hash: 39ed8f66f8af -->
 # Troubleshooting
 
 Find help by symptom for installation, input, display, restoration, and notification issues. For CLI connection failures or slow responses, also see connection diagnostics. If the problem remains, report it with your environment details and logs.
@@ -123,7 +123,7 @@ If your layout does not return, first check **Restore layout on startup** and th
 - **"Part of the saved layout could not be restored"** — Tasty could not read the saved records of one window. Only that window is not restored and starts with a new layout; other windows are restored as usual. The unreadable records are kept, not deleted. The notification gives the layout number and the cause.
 - **"Restored from an earlier save point"** — the latest save point could not be read, so Tasty rebuilt the layout from an earlier save point and the records after it. Every later record is applied again, so the layout is unchanged.
 - **A tab opened as an empty terminal with "A tab could not be restored"** — Tasty could not read what was saved for that tab (working folder, earlier output, restore command). Other tabs and workspaces are restored as usual, and that tab starts fresh with your current shell settings. The unreadable original stays in the store; it is not deleted. The notification names the workspace and tab and gives the cause.
-- **"Layout is no longer being saved"** — the terminal output history of the workspaces named in the notification is too large (the save limit is 64 MiB), so their layout and contents could not be saved. The last saved state is kept, but later changes will not be restored at the next start. Tasty tries again after the layout changes or the history gets smaller, but does not save while the size is still over the limit. Clear the scrollback of the terminal with a lot of output so the size drops within the limit, and saving resumes. For the same cause the notification appears only once until a save succeeds again.
+- **"Layout is no longer being saved"** — a surface capture request collecting the current layout and terminal contents exceeded the 64 MiB limit. The limit applies to one request saving all surfaces in the same running engine; it is not a disk space limit for the entire store or an individual workspace. Tasty skips the whole request rather than saving part of it. The last saved state is kept, but later changes will not be restored at the next start. Clear the scrollback of terminals with a lot of output. Tasty tries again when the layout changes or the history gets smaller, and resumes saving once the request fits within the limit. For the same cause, the notification appears only once until a save succeeds again.
 - **"Saving keeps failing"** — saving the layout or the selected tabs failed 3 times in a row without a success. One or two passing failures are retried at the next save and are not reported. Tasty keeps retrying, but until a save succeeds, changes since the last save will not be restored at the next start. Fix the cause shown in the notification (low disk space, permissions and so on) and the next save returns to normal. The full cause is also written to `~/.tasty/debug.log`.
 - **A notification said saving is blocked until you move or delete the `.bak` files** — Tasty tried to move your original settings file (`config.toml`) aside but all nine slots (`.bak` through `.bak.9`) are already taken, so there is nowhere to put it. It stops saving rather than delete your file, and it stays that way for the whole session. Move or delete the backups you no longer need, then start Tasty again.
 - **A notification said the settings file could not be read** — the file is there but Tasty could **not read** it (a permission problem or a disk error). In that case Tasty leaves the file alone and does not save over it, so the defaults on screen never replace your real settings. Fix the permissions or move the file aside, then start Tasty again.
@@ -167,6 +167,8 @@ tasty codex install     # ~/.codex/config.toml
 
 If that still does not help, look at `~/.tasty/hook-failures.log` and `tasty plugin logs com.tasty.claude --follow`. Details are in [Working with Claude and Codex](../agents/claude-codex.md#troubleshooting).
 
+Fixed an issue on Windows and macOS where Codex sessions in Tasty terminals disconnected immediately after connecting.
+
 ### The parent agent does not receive a child result
 
 Child attention indicators and parent delivery are separate. For a Claude Code parent, re-run install and check the notification mod marker and delivery in a new session. Check Monitor only when the mod is unavailable; do not enable both. See [connection and recovery](../agents/claude-codex.md).
@@ -182,7 +184,9 @@ The name contains a character that is not allowed, such as an uppercase letter o
 - **A bundled plugin is broken** — copy it again from the bundle with `tasty plugin upgrade-builtins --force`. Plugin data (bookmarks · profiles and so on) is kept.
 - **macOS: built-in plugins do not run** — the Gatekeeper quarantine flag left on the app may have been carried over to the plugin copies and blocked them. Tasty does not remove this flag by itself. Check the cause with `tasty plugin logs <id>`; to remove it yourself, run `xattr -dr com.apple.quarantine /Applications/Tasty.app ~/.tasty/plugins` in a terminal and restart Tasty.
 
-## Files to check first
+<a id="files-to-check-first"></a>
+
+## Log and settings file locations
 
 All of them live under `~/.tasty/` (on Windows, `%USERPROFILE%\.tasty\`).
 

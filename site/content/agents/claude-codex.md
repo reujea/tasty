@@ -147,7 +147,7 @@ tasty claude spawn --workspace workers --cwd ~/proj --model opus --effort high \
 Claude 자식이 API 에러로 턴을 끝냈으면 완료 알림 줄 끝에 그 사실과 에러 종류(예: `overloaded`)가 붙습니다. 백그라운드 작업이 남아 자식이 계속 기다리는 경우에는 완료 줄 대신 그 사실을 적은 줄이 한 번 남습니다.
 자식이 백그라운드 셸이나 서브에이전트를 기다리는 동안 그 작업의 출력이 2분 동안 늘지 않으면, 작업 이름을 적은 줄(`background work <이름> has written no output for <분> min`)이 한 번 남습니다. Tasty가 그 작업의 출력을 찾지 못하면 10분 동안 화면 출력이 없을 때 한 번 남깁니다.
 
-지원되는 Codex 부모 대화에는 자식의 응답이 끝났음을 알리는 결과 참조가 전달됩니다. 참조에 나온 이벤트 ID로 `tasty codex result`를 실행해 답변을 읽습니다. 연결 조건과 지원 경로는 아래 [Codex 결과 수신 절](#codex-부모에게-자동으로-전달하기)을 따르세요.
+지원되는 Codex 부모 대화에는 자식의 응답이 끝났음을 알리는 결과 참조가 전달됩니다. 참조에 나온 이벤트 ID로 `tasty codex result`를 실행해 답변을 읽습니다. 연결 조건과 지원 경로는 아래 [Codex 부모에게 자동으로 전달하기](#codex-부모에게-자동으로-전달하기) 절을 따르세요.
 
 ### Claude Code에서 자동으로 받기
 
