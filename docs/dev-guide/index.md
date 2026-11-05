@@ -37,7 +37,7 @@ Tasty 개발자를 위한 가이드다. Tasty를 사용하는 에이전트용 �
 | [release](release.md) | 버전·lockfile·README 배지 정합 · 릴리스 워크플로(태그 → CI) · self-hosted 러너 인벤토리·운영 |
 | [dep-issues](dep-issues.md) | 의존성 future-incompat 모니터링과 포크 핀 |
 | [x11-ime-recovery](x11-ime-recovery.md) | 원격 XIM 응답 기한, 서버 종료·교체 복구와 입력 수명 |
-| [site](site.md) | 공개 사이트(GitHub Pages) 생성·배포 — `site/` 생성기, 사용자 가이드 `site/content/`(docs/ 는 발행 안 함), 집필 규칙과 사이트 어조, URL 구조, 영어 번역 모델(`site/content/en/` + 폴백 + 스탬프) |
+| [site](site.md) | 공개 사이트(GitHub Pages) 생성·배포 — `site/` 생성기, 사용자 가이드 `site/content/`(docs/ 는 발행 안 함), 집필 규칙과 기능 중심의 랜딩 문구, URL 구조, 영어 번역 모델(`site/content/en/` + 폴백 + 스탬프) |
 
 ## 구현 패턴
 
