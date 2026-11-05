@@ -226,6 +226,11 @@
   --tasty-color-code-fixed-bg:      #24292e;
   --tasty-color-code-fixed-fg:      #e1e4e8;
   --tasty-color-code-fixed-comment: #959da5;
+
+  /* ── Brand ink on a light ground (2026-11-06) ──────────────── */
+  /* The flesh is 2.83 on Latte base, and mixed toward black it reads brick. This keeps its hue and more of its
+     saturation. It has no Latte value of its own: brand-ink points here in the Latte block. */
+  --tasty-color-melon-flesh-deep: #b03241;
 }
 
 /* ============================================================

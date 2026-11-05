@@ -1574,6 +1574,7 @@
   --tasty-site-code-bg:        var(--tasty-code-fixed-bg);
   --tasty-site-code-fg:        var(--tasty-code-fixed-fg);
   --tasty-site-code-comment:   var(--tasty-code-fixed-comment);
+  --tasty-site-inline-code-bg: var(--tasty-code-inline-bg);
 }
 
 

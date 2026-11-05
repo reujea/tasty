@@ -399,6 +399,7 @@
   --tasty-code-fixed-bg:      var(--tasty-color-code-fixed-bg);
   --tasty-code-fixed-fg:      var(--tasty-color-code-fixed-fg);
   --tasty-code-fixed-comment: var(--tasty-color-code-fixed-comment);
+  --tasty-code-inline-bg:     var(--tasty-surface-raised); /* inline code chip on a page. Latte value below */
 
   /* ── Ground-ink rules (2026-11-05). project/RULES.md is the source; each cell of the matrix names one of these. ── */
   /* the fill of an enterable control. Mocha = surface-raised; Latte steps to n200, because on surface0 no placeholder clears 4.5 and still differs from the value */
@@ -515,7 +516,8 @@
   --tasty-separator:      var(--tasty-alpha-black-8);
 
   --tasty-surface-terminal-focused-bg: var(--tasty-color-white);
-  --tasty-brand-ink: color-mix(in srgb, var(--tasty-color-melon-flesh) 68%, var(--tasty-color-black)); /* 2026-11-06 flesh is 2.83 on base, 2.42 on crust. This holds 4.5 on crust, mantle and base */
+  --tasty-brand-ink: var(--tasty-color-melon-flesh-deep); /* 2026-11-06 flesh is 2.83 on base, 2.42 on crust. This holds 4.5 on crust, mantle and base */
+  --tasty-code-inline-bg: var(--tasty-bg-sidebar); /* 2026-11-06 raised stands out from the body in Latte, so the chip steps back one level */
 
   /* Ground-ink rules (2026-11-05). Contrast for each is in project/tokens/ground-ink-rules.json. */
   --tasty-surface-field: var(--tasty-color-neutral-200);

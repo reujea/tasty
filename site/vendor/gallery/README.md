@@ -105,6 +105,8 @@ The check walks ancestors for the ground, so a specimen paints its ground on an 
 
 **Structure: one folder per page, one file per section where a section is large.** A page imports from `parts/` and never from another page. `parts/` is for what two or more pages share. `window.*` globals and `window.__EXPLORER_KIT_ONLY` go with the move to modules.
 
+**Format: ES modules, no exceptions for "old" files.** Every `.jsx` under `gallery/`, `ui_kits/terminal/` and `components/` imports what it uses and exports what it offers. Nothing registers itself on `window`, and nothing is loaded by a script tag. `ui_kits/terminal/chrome.jsx` and `work.jsx` are modules like the rest, and `app.jsx` imports them by name: a window-global version of either breaks the page. None of these files is a local variant of something else. To change one, read the current published file and edit that. Never republish a working copy from an earlier session.
+
 | Now | Becomes |
 |---|---|
 | `shell.jsx` | `parts/specimen.jsx` (Section, Spec, Stage, Cluster, Meta, Note, Do, Dont). Page shell goes to the site layout |
@@ -233,11 +235,7 @@ Surfaces / Chrome / Plugins) in
 page commits only a few demos at a time.
 
 ## Build
-Each page loads `../styles.css` + `../components/bundle.js`, then `shell.jsx` (shared
-chrome + specimen primitives, exposed on `window.Gallery`) and one content
-script (`foundations.jsx` / `icons.jsx` / `components.jsx` / `layouts.jsx` /
-`dag.jsx` / `loading.jsx` / `plugins.jsx` (+ `plugins-md-address.jsx`, the Markdown address bar, and `plugins-html-address-contrast.jsx`, HTML address field ink, 2026-10-21) — `explorer-ops` loads `plugins.jsx` + `explorer-ops-parts.jsx` + `explorer-ops-b11.jsx` + `explorer-ops-b12.jsx` + `explorer-delete-frame.jsx` + `explorer-ops-remote.jsx` + `explorer-ops-delete.jsx` + `explorer-ops-staging.jsx` + `explorer-ops.jsx` —, or an `overlays-*.jsx` page preceded by
-`overlays-shared.jsx`; `overlays-windows` additionally loads `preset_editor.jsx`, `overlays-windows-perf.jsx` (Performance apply note, 2026-10-21; number field fits its value, 2026-10-22), `overlays-windows-b12.jsx` and `notifications.jsx` (+ kit `overlays/info_modal.jsx`, `overlays/notifications.jsx`); `layouts` also loads `notifications.jsx` + kit `notification_summary.jsx` (narrow settings rows · Plugins record slots · Win / Super as option)).
+Each page is a folder of ES modules, `gallery/<page>/`, and the site renders it. `index.jsx` imports its section files, `parts/`, and the component and kit modules it shows, and the tokens come from `styles.css`.
 No tokens or component visuals are redefined here — specimens reference the
 design system only.
 
