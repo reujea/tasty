@@ -784,6 +784,12 @@ impl crate::theme::Theme {
         LogicalPx((240.0 * self.ui_zoom).round())
     }
 
+    /// `component.cut-pending-fg` → `{semantic.text-muted}`
+    #[inline]
+    pub fn cut_pending_fg(&self) -> HexColor {
+        self.text_muted()
+    }
+
     /// `component.dag-canvas-bg` → `{semantic.bg-panel}`
     #[inline]
     pub fn dag_canvas_bg(&self) -> HexColor {
@@ -928,6 +934,12 @@ impl crate::theme::Theme {
         self.border_control()
     }
 
+    /// `component.dag-edge-dim` → `{semantic.border-control}`
+    #[inline]
+    pub fn dag_edge_dim(&self) -> HexColor {
+        self.border_control()
+    }
+
     /// `component.dag-edge-fallback` → `{semantic.accent-attention-raised}`
     #[inline]
     pub fn dag_edge_fallback(&self) -> HexColor {
@@ -997,6 +1009,12 @@ impl crate::theme::Theme {
     /// `component.dag-minimap-node` → `{semantic.border-control}`
     #[inline]
     pub fn dag_minimap_node(&self) -> HexColor {
+        self.border_control()
+    }
+
+    /// `component.dag-minimap-node-dim` → `{semantic.border-control}`
+    #[inline]
+    pub fn dag_minimap_node_dim(&self) -> HexColor {
         self.border_control()
     }
 
@@ -1986,10 +2004,10 @@ impl crate::theme::Theme {
         self.field_width_md
     }
 
-    /// `component.fp-folder-file-fg` → `{semantic.state-disabled-fg}`
+    /// `component.fp-folder-file-fg` → `{semantic.text-muted}`
     #[inline]
     pub fn fp_folder_file_fg(&self) -> HexColor {
-        self.state_disabled_fg()
+        self.text_muted()
     }
 
     /// `component.fp-folder-hint-fg` → `{semantic.text-muted}`

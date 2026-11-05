@@ -4512,6 +4512,14 @@
       "$type": "number",
       "$value": "{semantic.state-dim-opacity}"
     },
+    "cut-pending-fg": {
+      "$type": "color",
+      "$value": "{semantic.text-muted}"
+    },
+    "cut-pending-font-style": {
+      "$type": "strokeStyle",
+      "$value": "italic"
+    },
     "switch-overlay-size": {
       "$type": "dimension",
       "$value": "{component.kbd-size}"
@@ -5039,6 +5047,14 @@
     "dag-edge-dim-opacity": {
       "$type": "number",
       "$value": "{primitive.opacity-recessed}"
+    },
+    "dag-edge-dim": {
+      "$type": "color",
+      "$value": "{semantic.border-control}"
+    },
+    "dag-minimap-node-dim": {
+      "$type": "color",
+      "$value": "{semantic.border-control}"
     },
     "dag-edge-highlight": {
       "$type": "color",
@@ -6212,7 +6228,7 @@
     },
     "fp-folder-file-fg": {
       "$type": "color",
-      "$value": "{semantic.state-disabled-fg}",
+      "$value": "{semantic.text-muted}",
       "$description": "file picker folder mode — inert file row ink"
     },
     "fp-folder-path-fg": {

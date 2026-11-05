@@ -353,3 +353,17 @@ fn assert_ink_on_raised(name: &str, th: &Theme) {
         "{name} banner button"
     );
 }
+
+/// 생성기는 strokeStyle을 상수로 만들지 않으므로 앱이 잘라낸 항목 이름에 이탤릭을 직접 건다.
+/// 디자인이 값을 바꾸면 그 코드(`tasty_ui_widgets::italicize_name`)도 함께 바꾼다.
+#[test]
+fn cut_pending_font_style_is_the_italic_the_app_applies() {
+    let set = dtcg::parse(DTCG_JSON).expect("vendor json must parse");
+    for mode in [ThemeMode::Mocha, ThemeMode::Latte] {
+        assert_eq!(
+            set.resolve("component.cut-pending-font-style", mode)
+                .expect("token must resolve"),
+            "italic"
+        );
+    }
+}
