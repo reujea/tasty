@@ -1,3 +1,13 @@
+import React from "react";
+import { Button } from "../../../components/core/Button.jsx";
+import { IconButton } from "../../../components/core/IconButton.jsx";
+import { Tag } from "../../../components/core/Tag.jsx";
+import { Checkbox } from "../../../components/forms/Checkbox.jsx";
+import { Input } from "../../../components/forms/Input.jsx";
+import { Select } from "../../../components/forms/Select.jsx";
+import { ic, Icon } from "../chrome.jsx";
+import { Scrim, Spinner } from "./shared.jsx";
+
 // Tasty UI kit — Remote connections popup (Tools › Remote connections…).
 // Redesign of the former single-SSH ssh_tool into a TYPE-AGNOSTIC remote-profile
 // store + an Attach (tasty-attach) store + a separate credential (Passkey) store,
@@ -9,9 +19,8 @@
 //   Profiles: ~/.tasty/remote-profiles.toml (no secrets — passkey referenced by name).
 //   Passkeys: ~/.tasty/passkeys.toml (path|inline; value never shown unless Reveal).
 // Each tab routes List · Form (add/edit) · ConfirmDelete off the common header.
-// Standalone preview: remote_tool.html
-const { Input, Select, Button, IconButton, Tag, Checkbox } = window.TastyDesignSystem_41fd3f;
-const { ic, Icon, Scrim, Spinner } = window.TastyKit;
+
+
 
 // Types with a dedicated form. Everything else (incl. smb/http for now) uses the
 // generic key-value editor. The list is OPEN — users may type any string.
@@ -108,9 +117,9 @@ function WarnBadge({ children, title }) {
     <span title={title} style={{ display: "inline-flex", alignItems: "center", gap: 4, height: 16,
       padding: "0 var(--tasty-space-sm)", borderRadius: "var(--tasty-radius-sm)", whiteSpace: "nowrap",
       fontFamily: "var(--tasty-font-mono)", fontSize: "var(--tasty-font-size-micro)", fontWeight: 500, lineHeight: 1,
-      color: "var(--tasty-accent-warning)",
+      color: "var(--tasty-tag-warning-fg)",
       border: "var(--tasty-border-width) solid color-mix(in srgb, var(--tasty-accent-warning) 40%, transparent)",
-      background: "color-mix(in srgb, var(--tasty-accent-warning) 12%, transparent)" }}>
+      background: "var(--tasty-tag-bg)" }}>
       <span style={{ display: "inline-flex" }}><Icon name={RD.warn} size={12} /></span>{children}
     </span>
   );
@@ -225,7 +234,7 @@ function ProfileForm({ draft, isNew, error, passkeys, onField, onFields, onSave,
         </div>
         {unknown && (
           <p style={{ margin: "var(--tasty-space-sm) 0 0 calc(var(--tasty-remote-label-col) + var(--tasty-space-md))", display: "flex", alignItems: "flex-start", gap: "var(--tasty-space-sm)",
-            fontSize: 11, lineHeight: "var(--tasty-line-height-ui)", color: "var(--tasty-accent-warning)", maxWidth: 320 }}>
+            fontSize: 11, lineHeight: "var(--tasty-line-height-ui)", color: "var(--tasty-accent-warning-raised)", maxWidth: 320 }}>
             <span style={{ flex: "none", marginTop: 1 }}><Icon name={RD.warn} size={12} /></span>
             Unknown type — will be saved but not handled until a plugin or core supports it.
           </p>
@@ -886,4 +895,4 @@ function RemoteTool({ onClose, onFlash }) {
   );
 }
 
-window.TastyKit = Object.assign(window.TastyKit || {}, { RemoteTool, LocalSshSection });
+export { RemoteTool, LocalSshSection };

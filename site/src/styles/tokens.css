@@ -1,0 +1,5 @@
+/* The token tiers, in order: each reads the one above. fonts.css stays out because the site ships no webfont. */
+@import "../../vendor/tokens/primitives.css";
+@import "../../vendor/tokens/semantic.css";
+@import "../../vendor/tokens/components.css";
+@import "../../vendor/tokens/base.css";

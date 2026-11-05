@@ -29,7 +29,7 @@
 | `ConfirmDelete` | `draw_confirm_delete` | — |
 | `PasskeySelect` | `passkey_dropdown_row` | — |
 
-Attach 갤러리 specimen 은 디자인 **gallery 미러**(`gallery/overlays-shared.jsx` `RemoteFrame
+Attach 갤러리 specimen 은 디자인 **gallery 미러**(`gallery/parts/overlay-frames.jsx` `RemoteFrame
 tab="attach"` / `RemoteFormFrame` variant `attach-ref`·`attach-inline`)를 전사한 것이다.
 
 탭 스트립과 세그먼트는 역할과 색이 다르다. 화면을 전환하는 탭은 2px `accent-primary` 밑줄과 weight 600을 사용한다. 값을 선택하는 세그먼트는 `accent-primary` 채움과 `text-on-accent` 글자를 쓴다. `surface-active`는 행 선택용이므로 두 컴포넌트에 대신 쓰지 않는다. 본체의 `tasty_ui_widgets::segmented`와 갤러리의 `seg_chip`, explorer 툴바의 view-mode 토글(본체 `seg_toggle`와 갤러리 미러, `segtoggle-on-bg`·`segtoggle-on-fg` 토큰)이 같은 규칙을 따른다.
@@ -53,7 +53,7 @@ tab="attach"` / `RemoteFormFrame` variant `attach-ref`·`attach-inline`)를 전�
 ## remote_attach — RA02 "Add remote workspace" (Overlays)
 
 디자인 `ui_kits/terminal/overlays/remote_attach.jsx` `RemoteAttach` (+ 갤러리 미러
-`gallery/overlays-shared.jsx` `RemoteAttachFrame({state})`) ↔ 본체
+`gallery/parts/overlay-frames.jsx` `RemoteAttachFrame({state})`) ↔ 본체
 `src/adapters/ui/popup/remote_attach.rs`.
 
 갤러리 공개 진입점 `remote_attach::{draw, draw_new_row, draw_states, draw_empty_plans, draw_decisions}`와 본체 대조용
@@ -102,7 +102,7 @@ tab="attach"` / `RemoteFormFrame` variant `attach-ref`·`attach-inline`)를 전�
 
 ## switch_overlay (Overlays)
 
-디자인 `gallery/overlays.jsx` "Switch-number overlay" 섹션 ↔ 본체 draw
+디자인 `gallery/layouts/index.jsx` "Switch-number overlay" 섹션 ↔ 본체 draw
 (`src/adapters/ui/tab_bar.rs` 탭 스트립 + `sidebar/view.rs` full/collapsed). 탭·사이드바의 본체와 갤러리 대응은 아래 표와 같다.
 
 | 디자인 jsx 컴포넌트 | 갤러리 항목 (`catalog/components/switch_overlay.rs`) | 본체 함수 |
@@ -146,7 +146,7 @@ held-full / released-rail / held-rail cluster.
 
 ## preset demo-layout (Overlays)
 
-디자인 `gallery/preset_editor.jsx` (`SurfaceView`/`Pane`/`PaneTree`/`SurfaceBox`) ↔ 갤러리
+디자인 `gallery/overlays-windows/preset-editor.jsx` (`SurfaceView`/`Pane`/`PaneTree`/`SurfaceBox`) ↔ 갤러리
 `catalog/components/preset_editor.rs` ↔ 본체 `src/adapters/ui/preset/demo_layout.rs`. 저장된
 `Preset*` 트리를 **구조만** 축소 렌더하는 read-only 미리보기다. 라이브 surface
 렌더(터미널 GPU/WebView)는 재사용하지 않고 전용 placeholder 위젯으로 그린다.
@@ -176,7 +176,7 @@ held-full / released-rail / held-rail cluster.
 
 ### surface 설정 화면
 
-디자인 `gallery/preset_editor.jsx` 의 `SurfaceSettings` / `useSurfaceCfg` / `locate` /
+디자인 `gallery/overlays-windows/preset-editor.jsx` 의 `SurfaceSettings` / `useSurfaceCfg` / `locate` /
 `SettingsDemo` ↔ 갤러리 `catalog/components/preset_surface_settings.rs` ↔ 본체
 `src/adapters/ui/preset/surface_settings.rs` + `src/adapters/ui/preset/demo_layout/surface_draft.rs`.
 
@@ -245,7 +245,7 @@ mock 데이터로 주입한다. 앵커 메뉴 팝업(Tools 메뉴·레일 카테
 
 ## 디자인 Spec 제목과 갤러리 예제
 
-시안 카탈로그(`site/vendor/gallery/*.jsx`)의 `<Spec title>` 과 갤러리 예제 제목은 맞추지 않는다. 디자인
+시안 카탈로그(`site/vendor/gallery/<페이지>/index.jsx`)의 `<Spec title>` 과 갤러리 예제 제목은 맞추지 않는다. 디자인
 Spec 하나가 갤러리 예제 둘이거나, 둘이 하나이거나, 경계가 다른 경우가 있어 제목만 바꿔서는 1:1 이 되지
 않기 때문이다. 아래는 제목이 서로 달라 제목 대조로는 찾을 수 없는 Spec 의 대응이다. 제목 전체나 " — " 앞부분이
 같은 Spec 은 제목으로 찾을 수 있어 싣지 않는다. 컴포넌트·본체 함수 대응이 이미 다른 절에 있으면 마지막 열이
@@ -253,83 +253,83 @@ Spec 하나가 갤러리 예제 둘이거나, 둘이 하나이거나, 경계가 
 
 | 디자인 Spec | 갤러리 예제 | 컴포넌트 대응 · 비고 |
 |---|---|---|
-| `gallery/dag.jsx` "Transition selection — four states on one edge style" | `dag-routes` | 아래 Task DAG 절 `routes` 행 |
-| `gallery/dag.jsx` "One row per DAG — across all workspaces" | `dag-rows` | 아래 Task DAG 절 `dagRowItems` 행 |
-| `gallery/foundations.jsx` "Depth reads through surface tint, never shadow" | `elevation` | 떠 있는 표면의 두 그림자는 `floating` |
-| `gallery/layouts.jsx` "Full sidebar ↔ collapsed rail" | `sidebar` |  |
-| `gallery/layouts.jsx` "Workspace categories (sidebar folders)" | `sidebar` "Categories · full" · "Categories · rail" | [workspace-category](#workspace-category-layouts--overlays) |
-| `gallery/layouts.jsx` "Rail marks — category line and mirror chip (2026-10-12)" | `rail-marks` (`components/rail_marks.rs`) | Mocha·Latte 보드마다 카테고리 경계 셋을 둔 레일 조각, 선 상태(idle·hover·pressed·modifier held 키캡·카테고리를 끈 레일의 맨 위 구분선 28 × 2), mirror 칩 상태(idle·active·hover·+notif·+attached ring)를 그린다. 선·맨 위 구분선·칩은 본체 레일과 같은 `tasty_ui_widgets` 함수(`paint_rail_category_line`·`paint_rail_flat_divider`·`paint_workspace_mirror_chip`)로 그리며, 길이·크기는 전용 토큰 `rail-category-line-length`(24)·`rail-flat-divider-length`(28)·`workspace-mirror-chip-size`(12)다. 아바타·버튼은 본체 레일 슬롯 32 × 28 · 32 × 16이다(시안 보드는 36 × 36 · 36 × 16) |
-| `gallery/layouts.jsx` "Category quick-switch — Ctrl+Shift held" | `switch-cat` (Overlays) | [switch_overlay](#switch_overlay-overlays) `CatSwitchSidebarMock` 행. 디자인은 Layouts, 갤러리는 Overlays 페이지 |
-| `gallery/layouts.jsx` "One sidebar, one detail pane" | `onedepth` | [1 depth](#1-depth-general-list--detail) |
-| `gallery/layouts.jsx` "Top tabs over a filterable section list" | `twodepth` | [2 depth](#2-depth-settings-idiom) |
-| `gallery/layouts.jsx` "Stacked tab tiers — workspace over panes" | `multitab` |  |
-| `gallery/layouts.jsx` "Focused · unfocused · agent" | `surface` | `components/surface_highlights.rs` |
-| `gallery/layouts.jsx` "Occupancy & completion borders" | `occupancy` | `components/occupancy_borders.rs` |
-| `gallery/layouts.jsx` "What the 24px bar carries, and what goes first when it can't" | `statusbar` | [공용 그리기 함수](#공용-crate-view-specimen-복제-0--본체와-같은-함수-호출) status bar 행. 탈락 단계는 `components/status_bar.rs` 의 cluster 셋 |
-| `gallery/loading.jsx` "Boot screen — full client area, centered stack" | `boot-loading-default` |  |
-| `gallery/loading.jsx` "Same stack, no responsive shrink" | `boot-loading-min` |  |
-| `gallery/loading.jsx` "Fixed-height phase slot — swap/omit never shifts the stack" | `boot-loading-phases` · `boot-loading-no-text` | 디자인 한 Spec ↔ 갤러리 둘 |
-| `gallery/loading.jsx` "Spinner.jsx reused — size 16 → 32 for boot hero" | `boot-loading-spinner` |  |
-| `gallery/overlays-banners.jsx` "Per-program capture opt-out — list editor" | `banner-blacklist` |  |
-| `gallery/overlays-dialogs.jsx` "Every overlay sits on the same scrim" | `scrim` |  |
-| `gallery/overlays-dialogs.jsx` "Scope — a surface-bound popup dims its surface, not the window" | `scrim-scope` | 디자인의 rejected 비교 두 장(window scrim·scrim 없음)은 갤러리에 없고 "window scope" 장을 둔다 |
-| `gallery/overlays-dialogs.jsx` "Both split directions, a clamped popup, and a child picker" | `scrim-scope`(top/bottom split · narrow clamp) · `scrim-scope-child` | 디자인 두 Spec 과 갤러리 두 예제의 경계가 다르다(N:M) |
-| `gallery/overlays-dialogs.jsx` "Approval popup — the mauve gate" | `approval` |  |
-| `gallery/overlays-dialogs.jsx` "Danger choice — tinted fill with readable ink (2026-10-10 b12)" | `approval` | 같은 예제 페이지 아래 단. 선택지는 본체와 같은 `approval_choice` 가 그린다 |
-| `gallery/overlays-dialogs.jsx` "New / rename category — the Rename dialog, reused" | `workspace-categories` | [workspace-category](#workspace-category-layouts--overlays) `CategoryEditFrame` 행 |
-| `gallery/overlays-popups.jsx` "Tab switch overlay — modifier held" | `switch-tab` | [switch_overlay](#switch_overlay-overlays) |
-| `gallery/overlays-popups.jsx` "Workspace switch overlay — modifier held" | `switch-ws` | [switch_overlay](#switch_overlay-overlays) |
-| `gallery/overlays-popups.jsx` "Category switch overlay — Ctrl+Shift held" | `switch-cat` | [switch_overlay](#switch_overlay-overlays) |
-| `gallery/overlays-popups-webview.jsx` "Contract — popup over a page in opaque mode" | `webview-opaque` (`components/webview_opaque.rs`) | 여섯 결정·토큰·입력 경로 Note. 상자 가장자리 판정은 본체와 같은 `tasty_egui_theme::overlay_edge::BoxEdge` 다 |
-| `gallery/overlays-popups-webview.jsx` "A — convert_surface over a full-pane markdown page" | `webview-opaque-convert` | 셸은 `convert` 예제와 같은 그리기 함수(`convert::card`)에 가장자리만 바꿔 그린다. Mocha·Latte 줄은 툴바 테마와 관계없이 고정이다 |
-| `gallery/overlays-popups-webview.jsx` "B — command palette across markdown page \| terminal" | `webview-opaque-palette` | 네 번째 열이 기각안(페이지 밖에만 scrim)이다 |
-| `gallery/overlays-popups-webview.jsx` "C — Tools menu straddling sidebar \| page" | `webview-opaque-tools` | 메뉴는 `tools-menu` 예제와 같은 `tools_card` 다 |
-| `gallery/overlays-popups-webview.jsx` "D — file picker with the path-bar dropdown hanging over the page" | `webview-opaque-file-picker` | 카드와 `…` 메뉴는 `filepicker` 예제와 같은 함수다. 메뉴 항목은 갤러리 경로 데이터가 숨긴 조상(3개)이라 시안(6개)과 달리 카드 아래로 늘어지지 않는다. 두 상자의 점선은 따로 그린다 |
-| `gallery/overlays-tutorial.jsx` "Step 1 / 4 — 워크스페이스" | `tutorial-composite` | `widgets/tutorial.rs` |
-| `gallery/overlays-windows.jsx` "Two-pane remote-workspace picker — 4 states" | `remote-workspace-attach` · `remote-workspace-attach-states` | 아래 remote_attach 절(디자인 한 Spec ↔ 갤러리 둘) |
-| `gallery/overlays-windows.jsx` "“+ New workspace” row — the escape from a dead-end remote" | `remote-workspace-attach-new-row` | 아래 remote_attach 절 `RaNewWsRow` 행 |
-| `gallery/overlays-windows.jsx` "Gestures & folder targets — the six open branches" | `filepicker-gesture-table` | [파일 피커](#파일-피커-overlays) |
-| `gallery/overlays-windows.jsx` "Settings · General › Remote transfer — 5th L2 subtab" | `settings-remote-transfer` | [Remote transfer](#settings--general--remote-transfer) |
-| `gallery/overlays-windows.jsx` "General › General — row grid, row captions, webhook row" | `settings-general-row-grid` | [행 격자와 웹훅 외부 수신 행](#settings--general--general--행-격자와-웹훅-외부-수신-행) |
-| `gallery/overlays-windows.jsx` "FileHandler › File Extension Mapping — order + Add" | `settings-file-extension-mapping` | [Handler 하위 탭](#settings--handler-하위-탭) |
-| `gallery/overlays-windows.jsx` "Status table, one action per row, one request button" | `settings-macos-permissions` | [Permissions (macOS)](#settings--general--permissions-macos) |
-| `gallery/overlays-windows.jsx` "Copy fingerprint · Add plugin that can't be added" | `plugins-window` · `plugin-add-hint-slot` | [plugins window](#overlays--plugins-window) |
-| `gallery/overlays-windows.jsx` "Diff variant — file row → unified diff" | `git-viewer`(diff cluster) · `git-diff-toolbar` | [git-viewer](#git-viewer-plugins) |
-| `gallery/plugins.jsx` "Sidebar Favorites — populated vs. empty state" | `explorer-sidebar` |  |
-| `gallery/plugins.jsx` "Sidebar layout — Favorites PINNED to the bottom (2-region split)" | `explorer-sidebar` | 디자인 두 Spec ↔ 갤러리 하나 |
-| `gallery/plugins.jsx` "Short cell — Favorites drops below 240, the cell stops at 180" | `explorer-sidebar-short-cell` | 하한 180(`explorer-min-height`)·표본 body 84·compact 무대 "content body 84 (cell at 180)" 까지 반영. 라벨·Meta·Note 의 하한 숫자는 Theme 토큰에서 읽는다. Meta 의 split·refusal·scope 줄과 Note 는 시안 문구를 따르고 형제 칸 최소 56 은 `split-sibling-min-height` 토큰에서 읽는다. 본체 판정은 [분할 비율과 탐색기 칸 하한](../../features/work-area/index.md#분할-비율과-탐색기-칸-하한)에 있다 |
-| `gallery/plugins.jsx` "Right-click context menu — target resolves to 4 shapes" | `explorer-context` (Overlays) |  |
-| `gallery/explorer-ops-parts.jsx` "Toolbar — create group and view group (wide · narrow · remote · read-only)" | `explorer-commands` | 명령 묶음은 공용 `explorer_commands`. 시안의 Preview panel 토글과 More 메뉴의 체크 표시는 그리지 않는다(Spec Note) |
-| `gallery/explorer-ops-b12.jsx` "Undo / Redo rows — copy · empty history · Windows · shortcuts" | `explorer-context` (Overlays) | 설정의 첫 바인딩과 빈 이력의 고정된 두 행을 공용 `menu_item`으로 전시. 줄바꿈 무대의 available·empty 열 옆에 Linux·macOS 툴팁과 Windows 이유 라벨의 한 행짜리 stale 메뉴를 세 번째 열로 묶는다. 각 메뉴 폭은 240 |
-| `gallery/explorer-ops-parts.jsx` "Context menu — create rows (empty area · folder) and Properties" | `explorer-context` (Overlays) | 빈 영역 첫 묶음과 폴더 파일 조작 묶음의 New folder · New file |
-| `gallery/explorer-ops-parts.jsx` "Name input — inline, at the top of the list (Detail · List · Grid)" | `explorer-name-input` | 편집 줄은 공용 `explorer_name_row`. 상세 열은 공용 `explorer_detail_columns` |
-| `gallery/explorer-ops-parts.jsx` "Name errors — empty · invalid character · already exists" | `explorer-name-errors` | 오류 상자는 공용 `explorer_name_error` |
-| `gallery/explorer-ops-b11.jsx` "Hidden files · show in enclosing folder · undo / redo" 의 숨김 파일 부분 | `explorer-hidden-files` | 이름·글리프 색은 본체와 같은 `explorer_hidden_fg`. 시안 More 행의 단축키 칸은 본체 네이티브 메뉴에 없어 그리지 않는다. 들어 있는 폴더에서 보기는 `explorer-context` 의 search result 메뉴(Open · 들어 있는 폴더에서 보기 · 구분선 · Copy path, `folderOpen` 글리프)가, Redo 는 같은 예제의 실행 취소 행이 맡는다. 본체 네이티브 메뉴도 열기 · 들어 있는 폴더에서 보기 · 구분선 순서지만 글리프가 없고 구분선 뒤에 일반 파일 메뉴 행이 이어진다([디자인과 구현의 차이](design-parity-notes.md#explorer--검색-결과-메뉴)) |
-| `gallery/explorer-ops-b11.jsx` "Create inside a folder — input under the target row" | `explorer-create-in-folder` | 편집 줄은 공용 `explorer_name_row_in`(들여쓰기·caption), 대상 표시는 `paint_drop_target` |
-| `gallery/explorer-ops-parts.jsx` "Find bar — filter the current folder" | `explorer-find-bar` | Find 바는 공용 `explorer_find_bar`, 이름 강조는 `explorer_match_job` |
-| `gallery/explorer-ops-parts.jsx` "Subfolders — recursive search · searching · no results · errors · stopped" | `explorer-subfolder-search` | Folder 열은 공용 `explorer_detail_columns` 의 검색 구성. Size·Date 열 폭은 상세 보기와 같다 |
-| `gallery/explorer-ops-b12.jsx` "Properties — own path · folder permissions · links · partial size" | `explorer-properties` | 단일 항목 Path·폴더 권한, 대상 메타데이터, 끊긴 링크와 Size 아래 부분 집계 경고 |
-| `gallery/explorer-ops-b12.jsx` "Preview panel in a low cell — header only" | `explorer-preview` | 본문 높이 임계값 바로 아래·동일·위 예제. 120 미만이면 머리만 표시하고 아래 구분선을 숨긴다 |
-| `gallery/explorer-ops-b12.jsx` "Progress — counting stage · zero-byte work" | `explorer-ops-progress` | 복사·이동 집계는 막대 없이, 0바이트 파일 전송은 파일 수 기반 막대를 공용 `op_status_line`으로 전시 |
-| `gallery/explorer-ops-remote.jsx` "D1 · A remote that can't write — rows shown disabled, reason in the tooltip and toast" | `explorer-remote-write-refused` (Plugins) | 쓸 수 있는 원격 메뉴와 꺼진 쓰기 행 메뉴, 툴팁 표본, 단축키 info 카드. 이유 문구는 옛 Tasty 의 `explorer.remote.write_needs_update` 하나다. 화면 없는 server 도 원격 쓰기를 실행하므로 시안의 `write_headless` 문구가 가리키는 상태가 없어 옮기지 않았다([디자인 정합 지침](design-parity-notes.md#explorer--원격-쓰기와-응답-대기)). 툴바의 꺼진 create 묶음은 `explorer-commands` 의 원격 행이 맡는다 |
-| `gallery/explorer-ops-remote.jsx` "D2 · Waiting for the remote — the input row stays, read-only, with a spinner" | `explorer-remote-waiting` (Plugins) | 입력 줄은 공용 `explorer_name_row_in` 의 `pending`(읽기 전용 Input, 칸 뒤 icon-size-sm Spinner 와 툴팁). 이름 변경 팝업은 본체와 예제가 같은 공용 view(`tasty_ui_widgets::rename_popup`)를 부른다: 기다리는 동안 공용 Input readOnly(input-readonly-bg·border·fg)와 Spinner 대기 줄, 평소 input-bg·input-border(포커스 input-border-focus)다. 팝업 바탕은 dialog-bg 다 |
-| `gallery/explorer-ops-remote.jsx` "Rename popup — the read-only field against the popup ground" | `explorer-rename-popup-ground` (Plugins) | 평소·대기 두 팝업을 본체와 같은 공용 rename view 로 dialog-bg 위에 그린다. 시안의 평소 팝업에 있는 Kbd 안내 줄은 본체 팝업에 없어 그리지 않는다(Spec Note). 같은 Spec 의 surface-raised 위 Input 비교(기본 바탕 vs raised)는 공용 Input 예제의 raised 행이 맡는다 |
-| `gallery/explorer-ops-remote.jsx` "D3 · Connection lost — result unknown" | `explorer-remote-connection-lost` (Plugins) | 경고 카드의 설명 문단은 공용 `result_card` 의 `body`. 본체는 같은 props 로 칸의 알림 카드(`view/ops_notice.rs`, `NoticeKind::Lost`)를 그린다. 되돌리기·남은 원본 지우기는 시안 동사 목록에 없어 오류 토스트로 남는다 |
-| `gallery/explorer-ops-remote.jsx` "D4 · Remote progress line and queue — host shown" | `explorer-remote-progress` (Plugins) | 공용 `op_status_line` 의 `host`(`HostMark`)와 `op_queue_popover` 의 `QueueHeader`. 머리 줄 세 조각(On · 호스트 · 나머지 문구) 사이는 `explorer-remote-queue-head-gap` 이다. 본체와 같은 위젯이다 |
-| `gallery/explorer-ops-remote.jsx` "D5 · Drag chip — new refusal reasons · conflict popup unchanged" | `explorer-remote-drag` (Plugins) | 거절 이유는 `explorer.drag.other_computer`·`explorer.drag.remote` 의 새 문구 |
-| `gallery/explorer-ops.jsx` "Running — on the explorer's own status line · queue" | `explorer-ops-progress` | 상태줄은 공용 `op_status_line`, 대기열은 `op_queue_popover` |
-| `gallery/explorer-ops.jsx` "Name conflict — surface-scoped prompt · apply to all · waiting" | `explorer-ops-conflict` | 카드는 공용 `conflict_card`(바깥 틀 없음). 본체는 칸 범위 popup 이 틀과 scrim 을 그린다 |
-| `gallery/explorer-ops.jsx` "Results — done · cancelled · partial + retry · failed · trash unavailable · undo" | `explorer-ops-results` | 카드는 공용 `result_card` |
-| `gallery/explorer-ops-staging.jsx` "Result card — one extra line, kind raised to at least Warning" | `explorer-ops-results-staging-left` | 네 카드(모두 끝난 복사 · 취소 · 부분 실패 이동 · 복사 되돌리기)를 en·ko·ja 세 묶음으로 그린다. 카드는 공용 `result_card`, 줄 문구는 `explorer.result.staging_left` 이고 문구는 본체 번역표를 읽는다. 동작 버튼은 본체 `card_actions` 를 따른다: 순서는 Retry · Copy paths · Undo 이고, 취소 카드는 하지 않은 28개를 세는 Retry 28 을 둔다. 부분 실패 카드는 실패 줄 셋이 줄 상한(3)을 채워 폴더 줄이 "and 1 more" 에 든다(시안 Meta 의 "after item failure lines · counts toward and N more" 규칙). 시안 표본은 이 카드에서 폴더 줄을 보이고 Undo 를 Copy paths 앞에 두며 취소 카드에 Retry 가 없다([정합 지침](design-parity-notes.md#explorer--남은-임시-폴더-카드)) |
-| `gallery/explorer-ops-parts.jsx` "Drag chip — one item · many items · move / copy / refused" · "Drop targets — folder row · grid cell · tree node · favorite · current folder" · "Files from the OS — copy into the explorer, not open" | `explorer-ops-drag` | 디자인 세 Spec ↔ 갤러리 하나. 칩은 공용 `drag_chip`, 대상 표시는 `paint_drop_target` |
-| `gallery/explorer-ops-b11.jsx` "Requests refused — queue full · request too large" | `explorer-ops-refused` | 카드는 공용 `result_card`. 본체는 칸 안 상태줄 위에 경고 카드로 띄우고, Show queue 는 그 칸의 작업이 돌 때만 붙는다 |
-| `gallery/explorer-ops-b11.jsx` "Retry of originals — its own progress words · one result card · leftover reasons" | `explorer-ops-remove-originals` | 상태줄은 공용 `op_status_line`, 카드는 `result_card` |
-| `gallery/explorer-ops-b11.jsx` "Keyboard current item" · "Drag-select rectangle" | `explorer-keyboard-select` | 디자인 두 Spec ↔ 갤러리 하나. 테두리는 공용 `paint_cursor_ring`, 사각형은 `paint_marquee`(본체 `view/cursor.rs`·`view/marquee.rs` 와 같은 함수) |
-| `gallery/plugins.jsx` "HTML — address bar band" · `gallery/plugins-html-address-contrast.jsx` (idle·read-only ink) | `html-address-states` · `html-address-placement` · `html-address-live` | shared `html_address_bar`; host `src/adapters/ui/surface/html_address.rs` |
-| `gallery/plugins.jsx` "HTML — webview chrome (4 states)" | `html-chrome` | [surface viewers](#surface-viewers-plugins) |
-| `gallery/plugins.jsx` "HTML — settings (Appearance › HTML viewer)" | `plugin-settings` (Components) | [플러그인 설정 페이지](#플러그인-설정-페이지) |
-| `gallery/plugins.jsx` "Image — viewer & edit (paint) modes" | `image-viewer` · `image-paint` | [surface viewers](#surface-viewers-plugins)(디자인 한 Spec ↔ 갤러리 둘) |
-| `gallery/preset_editor.jsx` "WYSIWYG edit mode — direct manipulation of STRUCTURE" | `preseteditor` | [preset demo-layout](#preset-demo-layout-overlays) |
+| `gallery/dag/index.jsx` "Transition selection — four states on one edge style" | `dag-routes` | 아래 Task DAG 절 `routes` 행 |
+| `gallery/dag/index.jsx` "One row per DAG — across all workspaces" | `dag-rows` | 아래 Task DAG 절 `dagRowItems` 행 |
+| `gallery/foundations/index.jsx` "Depth reads through surface tint, never shadow" | `elevation` | 떠 있는 표면의 두 그림자는 `floating` |
+| `gallery/layouts/index.jsx` "Full sidebar ↔ collapsed rail" | `sidebar` |  |
+| `gallery/layouts/index.jsx` "Workspace categories (sidebar folders)" | `sidebar` "Categories · full" · "Categories · rail" | [workspace-category](#workspace-category-layouts--overlays) |
+| `gallery/layouts/index.jsx` "Rail marks — category line and mirror chip (2026-10-12)" | `rail-marks` (`components/rail_marks.rs`) | Mocha·Latte 보드마다 카테고리 경계 셋을 둔 레일 조각, 선 상태(idle·hover·pressed·modifier held 키캡·카테고리를 끈 레일의 맨 위 구분선 28 × 2), mirror 칩 상태(idle·active·hover·+notif·+attached ring)를 그린다. 선·맨 위 구분선·칩은 본체 레일과 같은 `tasty_ui_widgets` 함수(`paint_rail_category_line`·`paint_rail_flat_divider`·`paint_workspace_mirror_chip`)로 그리며, 길이·크기는 전용 토큰 `rail-category-line-length`(24)·`rail-flat-divider-length`(28)·`workspace-mirror-chip-size`(12)다. 아바타·버튼은 본체 레일 슬롯 32 × 28 · 32 × 16이다(시안 보드는 36 × 36 · 36 × 16) |
+| `gallery/layouts/index.jsx` "Category quick-switch — Ctrl+Shift held" | `switch-cat` (Overlays) | [switch_overlay](#switch_overlay-overlays) `CatSwitchSidebarMock` 행. 디자인은 Layouts, 갤러리는 Overlays 페이지 |
+| `gallery/layouts/index.jsx` "One sidebar, one detail pane" | `onedepth` | [1 depth](#1-depth-general-list--detail) |
+| `gallery/layouts/index.jsx` "Top tabs over a filterable section list" | `twodepth` | [2 depth](#2-depth-settings-idiom) |
+| `gallery/layouts/index.jsx` "Stacked tab tiers — workspace over panes" | `multitab` |  |
+| `gallery/layouts/index.jsx` "Focused · unfocused · agent" | `surface` | `components/surface_highlights.rs` |
+| `gallery/layouts/index.jsx` "Occupancy & completion borders" | `occupancy` | `components/occupancy_borders.rs` |
+| `gallery/layouts/index.jsx` "What the 24px bar carries, and what goes first when it can't" | `statusbar` | [공용 그리기 함수](#공용-crate-view-specimen-복제-0--본체와-같은-함수-호출) status bar 행. 탈락 단계는 `components/status_bar.rs` 의 cluster 셋 |
+| `gallery/loading/index.jsx` "Boot screen — full client area, centered stack" | `boot-loading-default` |  |
+| `gallery/loading/index.jsx` "Same stack, no responsive shrink" | `boot-loading-min` |  |
+| `gallery/loading/index.jsx` "Fixed-height phase slot — swap/omit never shifts the stack" | `boot-loading-phases` · `boot-loading-no-text` | 디자인 한 Spec ↔ 갤러리 둘 |
+| `gallery/loading/index.jsx` "Spinner.jsx reused — size 16 → 32 for boot hero" | `boot-loading-spinner` |  |
+| `gallery/overlays-banners/index.jsx` "Per-program capture opt-out — list editor" | `banner-blacklist` |  |
+| `gallery/overlays-dialogs/index.jsx` "Every overlay sits on the same scrim" | `scrim` |  |
+| `gallery/overlays-dialogs/index.jsx` "Scope — a surface-bound popup dims its surface, not the window" | `scrim-scope` | 디자인의 rejected 비교 두 장(window scrim·scrim 없음)은 갤러리에 없고 "window scope" 장을 둔다 |
+| `gallery/overlays-dialogs/index.jsx` "Both split directions, a clamped popup, and a child picker" | `scrim-scope`(top/bottom split · narrow clamp) · `scrim-scope-child` | 디자인 두 Spec 과 갤러리 두 예제의 경계가 다르다(N:M) |
+| `gallery/overlays-dialogs/index.jsx` "Approval popup — the mauve gate" | `approval` |  |
+| `gallery/overlays-dialogs/index.jsx` "Danger choice — tinted fill with readable ink (2026-10-10 b12)" | `approval` | 같은 예제 페이지 아래 단. 선택지는 본체와 같은 `approval_choice` 가 그린다 |
+| `gallery/overlays-dialogs/index.jsx` "New / rename category — the Rename dialog, reused" | `workspace-categories` | [workspace-category](#workspace-category-layouts--overlays) `CategoryEditFrame` 행 |
+| `gallery/overlays-popups/index.jsx` "Tab switch overlay — modifier held" | `switch-tab` | [switch_overlay](#switch_overlay-overlays) |
+| `gallery/overlays-popups/index.jsx` "Workspace switch overlay — modifier held" | `switch-ws` | [switch_overlay](#switch_overlay-overlays) |
+| `gallery/overlays-popups/index.jsx` "Category switch overlay — Ctrl+Shift held" | `switch-cat` | [switch_overlay](#switch_overlay-overlays) |
+| `gallery/overlays-popups/opaque-over-page.jsx` "Contract — popup over a page in opaque mode" | `webview-opaque` (`components/webview_opaque.rs`) | 여섯 결정·토큰·입력 경로 Note. 상자 가장자리 판정은 본체와 같은 `tasty_egui_theme::overlay_edge::BoxEdge` 다 |
+| `gallery/overlays-popups/opaque-over-page.jsx` "A — convert_surface over a full-pane markdown page" | `webview-opaque-convert` | 셸은 `convert` 예제와 같은 그리기 함수(`convert::card`)에 가장자리만 바꿔 그린다. Mocha·Latte 줄은 툴바 테마와 관계없이 고정이다 |
+| `gallery/overlays-popups/opaque-over-page.jsx` "B — command palette across markdown page \| terminal" | `webview-opaque-palette` | 네 번째 열이 기각안(페이지 밖에만 scrim)이다 |
+| `gallery/overlays-popups/opaque-over-page.jsx` "C — Tools menu straddling sidebar \| page" | `webview-opaque-tools` | 메뉴는 `tools-menu` 예제와 같은 `tools_card` 다 |
+| `gallery/overlays-popups/opaque-over-page.jsx` "D — file picker with the path-bar dropdown hanging over the page" | `webview-opaque-file-picker` | 카드와 `…` 메뉴는 `filepicker` 예제와 같은 함수다. 메뉴 항목은 갤러리 경로 데이터가 숨긴 조상(3개)이라 시안(6개)과 달리 카드 아래로 늘어지지 않는다. 두 상자의 점선은 따로 그린다 |
+| `gallery/overlays-tutorial/index.jsx` "Step 1 / 4 — 워크스페이스" | `tutorial-composite` | `widgets/tutorial.rs` |
+| `gallery/overlays-windows/index.jsx` "Two-pane remote-workspace picker — 4 states" | `remote-workspace-attach` · `remote-workspace-attach-states` | 아래 remote_attach 절(디자인 한 Spec ↔ 갤러리 둘) |
+| `gallery/overlays-windows/index.jsx` "“+ New workspace” row — the escape from a dead-end remote" | `remote-workspace-attach-new-row` | 아래 remote_attach 절 `RaNewWsRow` 행 |
+| `gallery/overlays-windows/index.jsx` "Gestures & folder targets — the six open branches" | `filepicker-gesture-table` | [파일 피커](#파일-피커-overlays) |
+| `gallery/overlays-windows/index.jsx` "Settings · General › Remote transfer — 5th L2 subtab" | `settings-remote-transfer` | [Remote transfer](#settings--general--remote-transfer) |
+| `gallery/overlays-windows/index.jsx` "General › General — row grid, row captions, webhook row" | `settings-general-row-grid` | [행 격자와 웹훅 외부 수신 행](#settings--general--general--행-격자와-웹훅-외부-수신-행) |
+| `gallery/overlays-windows/index.jsx` "FileHandler › File Extension Mapping — order + Add" | `settings-file-extension-mapping` | [Handler 하위 탭](#settings--handler-하위-탭) |
+| `gallery/overlays-windows/index.jsx` "Status table, one action per row, one request button" | `settings-macos-permissions` | [Permissions (macOS)](#settings--general--permissions-macos) |
+| `gallery/overlays-windows/index.jsx` "Copy fingerprint · Add plugin that can't be added" | `plugins-window` · `plugin-add-hint-slot` | [plugins window](#overlays--plugins-window) |
+| `gallery/overlays-windows/index.jsx` "Diff variant — file row → unified diff" | `git-viewer`(diff cluster) · `git-diff-toolbar` | [git-viewer](#git-viewer-plugins) |
+| `gallery/plugins/index.jsx` "Sidebar Favorites — populated vs. empty state" | `explorer-sidebar` |  |
+| `gallery/plugins/index.jsx` "Sidebar layout — Favorites PINNED to the bottom (2-region split)" | `explorer-sidebar` | 디자인 두 Spec ↔ 갤러리 하나 |
+| `gallery/plugins/index.jsx` "Short cell — Favorites drops below 240, the cell stops at 180" | `explorer-sidebar-short-cell` | 하한 180(`explorer-min-height`)·표본 body 84·compact 무대 "content body 84 (cell at 180)" 까지 반영. 라벨·Meta·Note 의 하한 숫자는 Theme 토큰에서 읽는다. Meta 의 split·refusal·scope 줄과 Note 는 시안 문구를 따르고 형제 칸 최소 56 은 `split-sibling-min-height` 토큰에서 읽는다. 본체 판정은 [분할 비율과 탐색기 칸 하한](../../features/work-area/index.md#분할-비율과-탐색기-칸-하한)에 있다 |
+| `gallery/plugins/index.jsx` "Right-click context menu — target resolves to 4 shapes" | `explorer-context` (Overlays) |  |
+| `gallery/explorer-ops/create-drag-search.jsx` "Toolbar — create group and view group (wide · narrow · remote · read-only)" | `explorer-commands` | 명령 묶음은 공용 `explorer_commands`. 시안의 Preview panel 토글과 More 메뉴의 체크 표시는 그리지 않는다(Spec Note) |
+| `gallery/explorer-ops/address-and-toolbar.jsx` "Undo / Redo rows — copy · empty history · Windows · shortcuts" | `explorer-context` (Overlays) | 설정의 첫 바인딩과 빈 이력의 고정된 두 행을 공용 `menu_item`으로 전시. 줄바꿈 무대의 available·empty 열 옆에 Linux·macOS 툴팁과 Windows 이유 라벨의 한 행짜리 stale 메뉴를 세 번째 열로 묶는다. 각 메뉴 폭은 240 |
+| `gallery/explorer-ops/create-drag-search.jsx` "Context menu — create rows (empty area · folder) and Properties" | `explorer-context` (Overlays) | 빈 영역 첫 묶음과 폴더 파일 조작 묶음의 New folder · New file |
+| `gallery/explorer-ops/create-drag-search.jsx` "Name input — inline, at the top of the list (Detail · List · Grid)" | `explorer-name-input` | 편집 줄은 공용 `explorer_name_row`. 상세 열은 공용 `explorer_detail_columns` |
+| `gallery/explorer-ops/create-drag-search.jsx` "Name errors — empty · invalid character · already exists" | `explorer-name-errors` | 오류 상자는 공용 `explorer_name_error` |
+| `gallery/explorer-ops/remaining-states.jsx` "Hidden files · show in enclosing folder · undo / redo" 의 숨김 파일 부분 | `explorer-hidden-files` | 이름·글리프 색은 본체와 같은 `explorer_hidden_fg`. 시안 More 행의 단축키 칸은 본체 네이티브 메뉴에 없어 그리지 않는다. 들어 있는 폴더에서 보기는 `explorer-context` 의 search result 메뉴(Open · 들어 있는 폴더에서 보기 · 구분선 · Copy path, `folderOpen` 글리프)가, Redo 는 같은 예제의 실행 취소 행이 맡는다. 본체 네이티브 메뉴도 열기 · 들어 있는 폴더에서 보기 · 구분선 순서지만 글리프가 없고 구분선 뒤에 일반 파일 메뉴 행이 이어진다([디자인과 구현의 차이](design-parity-notes.md#explorer--검색-결과-메뉴)) |
+| `gallery/explorer-ops/remaining-states.jsx` "Create inside a folder — input under the target row" | `explorer-create-in-folder` | 편집 줄은 공용 `explorer_name_row_in`(들여쓰기·caption), 대상 표시는 `paint_drop_target` |
+| `gallery/explorer-ops/create-drag-search.jsx` "Find bar — filter the current folder" | `explorer-find-bar` | Find 바는 공용 `explorer_find_bar`, 이름 강조는 `explorer_match_job` |
+| `gallery/explorer-ops/create-drag-search.jsx` "Subfolders — recursive search · searching · no results · errors · stopped" | `explorer-subfolder-search` | Folder 열은 공용 `explorer_detail_columns` 의 검색 구성. Size·Date 열 폭은 상세 보기와 같다 |
+| `gallery/explorer-ops/properties-and-preview.jsx` "Properties — own path · folder permissions · links · partial size" | `explorer-properties` | 단일 항목 Path·폴더 권한, 대상 메타데이터, 끊긴 링크와 Size 아래 부분 집계 경고 |
+| `gallery/explorer-ops/properties-and-preview.jsx` "Preview panel in a low cell — header only" | `explorer-preview` | 본문 높이 임계값 바로 아래·동일·위 예제. 120 미만이면 머리만 표시하고 아래 구분선을 숨긴다 |
+| `gallery/explorer-ops/properties-and-preview.jsx` "Progress — counting stage · zero-byte work" | `explorer-ops-progress` | 복사·이동 집계는 막대 없이, 0바이트 파일 전송은 파일 수 기반 막대를 공용 `op_status_line`으로 전시 |
+| `gallery/explorer-ops/remote-writes.jsx` "D1 · A remote that can't write — rows shown disabled, reason in the tooltip and toast" | `explorer-remote-write-refused` (Plugins) | 쓸 수 있는 원격 메뉴와 꺼진 쓰기 행 메뉴, 툴팁 표본, 단축키 info 카드. 이유 문구는 옛 Tasty 의 `explorer.remote.write_needs_update` 하나다. 화면 없는 server 도 원격 쓰기를 실행하므로 시안의 `write_headless` 문구가 가리키는 상태가 없어 옮기지 않았다([디자인 정합 지침](design-parity-notes.md#explorer--원격-쓰기와-응답-대기)). 툴바의 꺼진 create 묶음은 `explorer-commands` 의 원격 행이 맡는다 |
+| `gallery/explorer-ops/remote-writes.jsx` "D2 · Waiting for the remote — the input row stays, read-only, with a spinner" | `explorer-remote-waiting` (Plugins) | 입력 줄은 공용 `explorer_name_row_in` 의 `pending`(읽기 전용 Input, 칸 뒤 icon-size-sm Spinner 와 툴팁). 이름 변경 팝업은 본체와 예제가 같은 공용 view(`tasty_ui_widgets::rename_popup`)를 부른다: 기다리는 동안 공용 Input readOnly(input-readonly-bg·border·fg)와 Spinner 대기 줄, 평소 input-bg·input-border(포커스 input-border-focus)다. 팝업 바탕은 dialog-bg 다 |
+| `gallery/explorer-ops/remote-writes.jsx` "Rename popup — the read-only field against the popup ground" | `explorer-rename-popup-ground` (Plugins) | 평소·대기 두 팝업을 본체와 같은 공용 rename view 로 dialog-bg 위에 그린다. 시안의 평소 팝업에 있는 Kbd 안내 줄은 본체 팝업에 없어 그리지 않는다(Spec Note). 같은 Spec 의 surface-raised 위 Input 비교(기본 바탕 vs raised)는 공용 Input 예제의 raised 행이 맡는다 |
+| `gallery/explorer-ops/remote-writes.jsx` "D3 · Connection lost — result unknown" | `explorer-remote-connection-lost` (Plugins) | 경고 카드의 설명 문단은 공용 `result_card` 의 `body`. 본체는 같은 props 로 칸의 알림 카드(`view/ops_notice.rs`, `NoticeKind::Lost`)를 그린다. 되돌리기·남은 원본 지우기는 시안 동사 목록에 없어 오류 토스트로 남는다 |
+| `gallery/explorer-ops/remote-writes.jsx` "D4 · Remote progress line and queue — host shown" | `explorer-remote-progress` (Plugins) | 공용 `op_status_line` 의 `host`(`HostMark`)와 `op_queue_popover` 의 `QueueHeader`. 머리 줄 세 조각(On · 호스트 · 나머지 문구) 사이는 `explorer-remote-queue-head-gap` 이다. 본체와 같은 위젯이다 |
+| `gallery/explorer-ops/remote-writes.jsx` "D5 · Drag chip — new refusal reasons · conflict popup unchanged" | `explorer-remote-drag` (Plugins) | 거절 이유는 `explorer.drag.other_computer`·`explorer.drag.remote` 의 새 문구 |
+| `gallery/explorer-ops/index.jsx` "Running — on the explorer's own status line · queue" | `explorer-ops-progress` | 상태줄은 공용 `op_status_line`, 대기열은 `op_queue_popover` |
+| `gallery/explorer-ops/index.jsx` "Name conflict — surface-scoped prompt · apply to all · waiting" | `explorer-ops-conflict` | 카드는 공용 `conflict_card`(바깥 틀 없음). 본체는 칸 범위 popup 이 틀과 scrim 을 그린다 |
+| `gallery/explorer-ops/index.jsx` "Results — done · cancelled · partial + retry · failed · trash unavailable · undo" | `explorer-ops-results` | 카드는 공용 `result_card` |
+| `gallery/explorer-ops/staging-left.jsx` "Result card — one extra line, kind raised to at least Warning" | `explorer-ops-results-staging-left` | 네 카드(모두 끝난 복사 · 취소 · 부분 실패 이동 · 복사 되돌리기)를 en·ko·ja 세 묶음으로 그린다. 카드는 공용 `result_card`, 줄 문구는 `explorer.result.staging_left` 이고 문구는 본체 번역표를 읽는다. 동작 버튼은 본체 `card_actions` 를 따른다: 순서는 Retry · Copy paths · Undo 이고, 취소 카드는 하지 않은 28개를 세는 Retry 28 을 둔다. 부분 실패 카드는 실패 줄 셋이 줄 상한(3)을 채워 폴더 줄이 "and 1 more" 에 든다(시안 Meta 의 "after item failure lines · counts toward and N more" 규칙). 시안 표본은 이 카드에서 폴더 줄을 보이고 Undo 를 Copy paths 앞에 두며 취소 카드에 Retry 가 없다([정합 지침](design-parity-notes.md#explorer--남은-임시-폴더-카드)) |
+| `gallery/explorer-ops/create-drag-search.jsx` "Drag chip — one item · many items · move / copy / refused" · "Drop targets — folder row · grid cell · tree node · favorite · current folder" · "Files from the OS — copy into the explorer, not open" | `explorer-ops-drag` | 디자인 세 Spec ↔ 갤러리 하나. 칩은 공용 `drag_chip`, 대상 표시는 `paint_drop_target` |
+| `gallery/explorer-ops/results-and-refusals.jsx` "Requests refused — queue full · request too large" | `explorer-ops-refused` | 카드는 공용 `result_card`. 본체는 칸 안 상태줄 위에 경고 카드로 띄우고, Show queue 는 그 칸의 작업이 돌 때만 붙는다 |
+| `gallery/explorer-ops/results-and-refusals.jsx` "Retry of originals — its own progress words · one result card · leftover reasons" | `explorer-ops-remove-originals` | 상태줄은 공용 `op_status_line`, 카드는 `result_card` |
+| `gallery/explorer-ops/remaining-states.jsx` "Keyboard current item" · "Drag-select rectangle" | `explorer-keyboard-select` | 디자인 두 Spec ↔ 갤러리 하나. 테두리는 공용 `paint_cursor_ring`, 사각형은 `paint_marquee`(본체 `view/cursor.rs`·`view/marquee.rs` 와 같은 함수) |
+| `gallery/plugins/index.jsx` "HTML — address bar band" · `gallery/plugins/html-address-ink.jsx` (idle·read-only ink) | `html-address-states` · `html-address-placement` · `html-address-live` | shared `html_address_bar`; host `src/adapters/ui/surface/html_address.rs` |
+| `gallery/plugins/index.jsx` "HTML — webview chrome (4 states)" | `html-chrome` | [surface viewers](#surface-viewers-plugins) |
+| `gallery/plugins/index.jsx` "HTML — settings (Appearance › HTML viewer)" | `plugin-settings` (Components) | [플러그인 설정 페이지](#플러그인-설정-페이지) |
+| `gallery/plugins/index.jsx` "Image — viewer & edit (paint) modes" | `image-viewer` · `image-paint` | [surface viewers](#surface-viewers-plugins)(디자인 한 Spec ↔ 갤러리 둘) |
+| `gallery/overlays-windows/preset-editor.jsx` "WYSIWYG edit mode — direct manipulation of STRUCTURE" | `preseteditor` | [preset demo-layout](#preset-demo-layout-overlays) |
 
 <a id="공용-crate-view-specimen-복제-0--본체와-같은-함수-호출"></a>
 
@@ -342,14 +342,14 @@ Spec 하나가 갤러리 예제 둘이거나, 둘이 하나이거나, 경계가 
 
 | 디자인 원본 | 공용 crate view | 본체 wrapper | 갤러리 specimen |
 |---|---|---|---|
-| `gallery/layouts.jsx` **Workspace status bar** (하단 24px 바, 좌 요약 / 우 리마인더) | `tasty_ui_widgets::draw_status_bar_view` (`crates/tasty-ui-widgets/src/status_bar.rs`, `StatusBarData`→`StatusBarDrawResult`) | `src/adapters/ui/status_bar.rs::draw_status_bar` (Area·z-order·i18n 라벨 주입·action 적용) | `statusbar` (Layouts › Status bar, `components/status_bar.rs::draw`) · `statusbar-theme-cell` (`components/status_bar_theme_cell.rs::draw`) |
-| `gallery/overlays.jsx` `NumCap` (16px 숫자 키캡) | `tasty_ui_widgets::paint_num_keycap` (`crates/tasty-ui-widgets/src/chip.rs`; 레이아웃 갈래는 같은 파일의 `num_keycap`) | `src/adapters/ui/switch_overlay.rs::paint_keycap` (slot 좌표·등장 페이드 alpha) | `switch` (Overlays, `components/switch_overlay.rs::keycap_at`) |
-| `gallery/overlays-banners.jsx` `BannerShellG` (배너 셸) | `tasty_ui_widgets::banner_shell` (`crates/tasty-ui-widgets/src/banner.rs`; inset 기하 `inset_banner_zone`·`inset_content_rect`) | `src/adapters/ui/banner.rs::BannerManager::draw` (배치·z-order·디밍·hover) | `banner-*` (Overlays, `widgets/banner.rs` · `widgets/banner_mouse_capture.rs`) · `html-script-*` (`widgets/html_script_banner.rs`) |
+| `gallery/layouts/index.jsx` **Workspace status bar** (하단 24px 바, 좌 요약 / 우 리마인더) | `tasty_ui_widgets::draw_status_bar_view` (`crates/tasty-ui-widgets/src/status_bar.rs`, `StatusBarData`→`StatusBarDrawResult`) | `src/adapters/ui/status_bar.rs::draw_status_bar` (Area·z-order·i18n 라벨 주입·action 적용) | `statusbar` (Layouts › Status bar, `components/status_bar.rs::draw`) · `statusbar-theme-cell` (`components/status_bar_theme_cell.rs::draw`) |
+| `gallery/parts/overlay-frames.jsx` `NumCap` (16px 숫자 키캡) | `tasty_ui_widgets::paint_num_keycap` (`crates/tasty-ui-widgets/src/chip.rs`; 레이아웃 갈래는 같은 파일의 `num_keycap`) | `src/adapters/ui/switch_overlay.rs::paint_keycap` (slot 좌표·등장 페이드 alpha) | `switch` (Overlays, `components/switch_overlay.rs::keycap_at`) |
+| `gallery/overlays-banners/index.jsx` `BannerShellG` (배너 셸) | `tasty_ui_widgets::banner_shell` (`crates/tasty-ui-widgets/src/banner.rs`; inset 기하 `inset_banner_zone`·`inset_content_rect`) | `src/adapters/ui/banner.rs::BannerManager::draw` (배치·z-order·디밍·hover) | `banner-*` (Overlays, `widgets/banner.rs` · `widgets/banner_mouse_capture.rs`) · `html-script-*` (`widgets/html_script_banner.rs`) |
 | `ui_kits/terminal/overlays/html_remote_banner.jsx` `HtmlRemoteBanner`·`HtmlRemoteMarker` | `tasty_ui_widgets::html_remote_banner`·`html_remote_marker` (`crates/tasty-ui-widgets/src/html_remote_banner.rs`) | `src/adapters/ui/surface/html_script_banner.rs::draw_stack`(크기 → 원격 → 스크립트 inset 쌓기) · `src/adapters/ui/surface/html_address.rs`(주소 입력란 끝 표지) | `html-remote-*` (Overlays, `widgets/html_remote_banner.rs`) |
 | `ui_kits/terminal/overlays/html_script_banner.jsx` `HtmlScriptBanner`·`HtmlScriptMarker` | `tasty_ui_widgets::html_script_banner`·`html_script_marker` (`crates/tasty-ui-widgets/src/html_script_banner.rs`) | `src/adapters/ui/surface/html_script_banner.rs::draw`(webview chrome 위 inset, WebView 영역 축소) · `src/adapters/ui/tab_bar/tab.rs`(탭 오른쪽 묶음의 표지 칸·lock 클릭) | `html-script-*` (Overlays, `widgets/html_script_banner.rs`) |
-| `gallery/overlays-banners.jsx` `AttachRefusalBannerG`·`RefusalRowG`·`RefusalRailG` (자동 attach 거절) | `tasty_ui_widgets::attach_refusal_banner`·`attach_refusal_banner_content`·`attach_refusal_mark`·`paint_attach_refusal_chip`·`attach_refusal_avatar_tooltip` (`crates/tasty-ui-widgets/src/attach_refusal.rs`). 좁은 스코프 배치는 `banner_is_narrow` 판정을 view 의 `narrow` 로 받는다 | `src/adapters/ui/banner.rs`(`BannerContentSource::AttachRefusal`, Workspace 범위) · `src/adapters/ui/attach_notice.rs`(창별 안내·× 숨김) · `src/adapters/ui/sidebar/view.rs::draw_workspace_card`(행 표지, 배지 묶음 왼쪽) · `draw_collapsed_avatar`(레일 왼쪽 위 칩) | `attachrefusal` (Overlays, `widgets/attach_refusal.rs`). 좁은 스코프(360) 표본은 시안 "Narrow — action under the text, × stays top-right" Spec 을 따라 `attachsizesync` 의 Narrow Spec 에 둔다 |
-| `gallery/overlays-banners.jsx` `AttachSizeSyncBannerG` (attach mirror 터미널 크기 동기화 실패) | `tasty_ui_widgets::attach_size_sync_banner`·`attach_size_sync_banner_content` (`crates/tasty-ui-widgets/src/attach_size_sync.rs`). 본문은 두 줄이다. 이름 줄은 한 줄로 두고 이름 칸만 `attach_sync_name_max_width`(160)에서 하한 `attach_sync_name_min_width`(40)까지 본래 폭 비율로 줄인 뒤 말줄임하며, 수·구분자·` ×k`·`+n` 은 줄지 않고 넘치는 끝은 잘라 그린다. 하한은 줄어들 때만 적용한다. 칸 = min(본래 폭, max(40, 줄인 폭))이라 40보다 짧은 이름은 제 폭을 지키고 뒤 조각이 바로 붙는다. 같은 이름은 한 항목으로 묶어 이름 뒤에 ` ×k`(`banner_body_fg`)를 붙인다. `N surfaces` 는 surface 수, `+n` 은 남은 항목 수다. 제목과 고정 문구는 줄 수를 제한하지 않는다. 고정 문구 줄(`remote.size_sync.hint`)은 감싸고 자르지 않는다. 다시 시도 중의 앞 Spinner 는 `Button::leading_icon_size` 로 14 칸에 `Spinner::paint_in` 을 그린다. 좁은 스코프 배치는 `banner_is_narrow` 판정을 view 의 `narrow` 로 받는다 | `src/adapters/ui/banner.rs`(`BannerContentSource::AttachSizeSync`, Workspace 범위) · `src/adapters/ui/attach_size_sync.rs`(창별 실패 상태·탭 이름) · `src/adapters/ui/overlay.rs`(버튼 → `Intent::AttachSizeSync`) | `attachsizesync` (Overlays, `widgets/attach_size_sync.rs`). 시안의 두 Spec 을 그대로 둔다: 기본·다시 시도 중·세 surface·같은 이름 두 번·같은 이름과 다른 이름 묶음, 그리고 Narrow Spec(360 스코프에 거절 · 한 surface · Retry all · 다시 시도 중을 Mocha·Latte 로). 시안 Meta "body lines"·"plugin body rows"·"plugin tooltip" 의 plugin 쪽은 Stage 가 없어 같은 카드 끝 Banner body lines 에 `plugin_banner_body` 360 표본 둘(세 줄 · 두 줄 높이로 고정한 콘텐츠)로 둔다. 표본은 본체 호스트와 같이 `plugin_banner_body_host_tooltip` 안에서 그리고 `show_plugin_banner_body_tooltip` 으로 카드 아래 툴팁을 그린다 |
-| `gallery/overlays-banners.jsx` `BodyInkGrid` (`#bodyink`, 배너 본문 글자색 Mocha·Latte 대조) | 새 위젯 없음. 배너 본문은 `banner_body_fg()`, 크기 동기화 줄의 이름은 `text_secondary_raised()`를 읽는다 | 없음 | 별도 카드를 만들지 않는다. 같은 글자색은 각 배너 카드의 Mocha·Latte 표본과 `TASTY_GALLERY_THEME=latte` 캡처로 확인한다 |
+| `gallery/overlays-banners/index.jsx` `AttachRefusalBannerG`·`RefusalRowG`·`RefusalRailG` (자동 attach 거절) | `tasty_ui_widgets::attach_refusal_banner`·`attach_refusal_banner_content`·`attach_refusal_mark`·`paint_attach_refusal_chip`·`attach_refusal_avatar_tooltip` (`crates/tasty-ui-widgets/src/attach_refusal.rs`). 좁은 스코프 배치는 `banner_is_narrow` 판정을 view 의 `narrow` 로 받는다 | `src/adapters/ui/banner.rs`(`BannerContentSource::AttachRefusal`, Workspace 범위) · `src/adapters/ui/attach_notice.rs`(창별 안내·× 숨김) · `src/adapters/ui/sidebar/view.rs::draw_workspace_card`(행 표지, 배지 묶음 왼쪽) · `draw_collapsed_avatar`(레일 왼쪽 위 칩) | `attachrefusal` (Overlays, `widgets/attach_refusal.rs`). 좁은 스코프(360) 표본은 시안 "Narrow — action under the text, × stays top-right" Spec 을 따라 `attachsizesync` 의 Narrow Spec 에 둔다 |
+| `gallery/overlays-banners/index.jsx` `AttachSizeSyncBannerG` (attach mirror 터미널 크기 동기화 실패) | `tasty_ui_widgets::attach_size_sync_banner`·`attach_size_sync_banner_content` (`crates/tasty-ui-widgets/src/attach_size_sync.rs`). 본문은 두 줄이다. 이름 줄은 한 줄로 두고 이름 칸만 `attach_sync_name_max_width`(160)에서 하한 `attach_sync_name_min_width`(40)까지 본래 폭 비율로 줄인 뒤 말줄임하며, 수·구분자·` ×k`·`+n` 은 줄지 않고 넘치는 끝은 잘라 그린다. 하한은 줄어들 때만 적용한다. 칸 = min(본래 폭, max(40, 줄인 폭))이라 40보다 짧은 이름은 제 폭을 지키고 뒤 조각이 바로 붙는다. 같은 이름은 한 항목으로 묶어 이름 뒤에 ` ×k`(`banner_body_fg`)를 붙인다. `N surfaces` 는 surface 수, `+n` 은 남은 항목 수다. 제목과 고정 문구는 줄 수를 제한하지 않는다. 고정 문구 줄(`remote.size_sync.hint`)은 감싸고 자르지 않는다. 다시 시도 중의 앞 Spinner 는 `Button::leading_icon_size` 로 14 칸에 `Spinner::paint_in` 을 그린다. 좁은 스코프 배치는 `banner_is_narrow` 판정을 view 의 `narrow` 로 받는다 | `src/adapters/ui/banner.rs`(`BannerContentSource::AttachSizeSync`, Workspace 범위) · `src/adapters/ui/attach_size_sync.rs`(창별 실패 상태·탭 이름) · `src/adapters/ui/overlay.rs`(버튼 → `Intent::AttachSizeSync`) | `attachsizesync` (Overlays, `widgets/attach_size_sync.rs`). 시안의 두 Spec 을 그대로 둔다: 기본·다시 시도 중·세 surface·같은 이름 두 번·같은 이름과 다른 이름 묶음, 그리고 Narrow Spec(360 스코프에 거절 · 한 surface · Retry all · 다시 시도 중을 Mocha·Latte 로). 시안 Meta "body lines"·"plugin body rows"·"plugin tooltip" 의 plugin 쪽은 Stage 가 없어 같은 카드 끝 Banner body lines 에 `plugin_banner_body` 360 표본 둘(세 줄 · 두 줄 높이로 고정한 콘텐츠)로 둔다. 표본은 본체 호스트와 같이 `plugin_banner_body_host_tooltip` 안에서 그리고 `show_plugin_banner_body_tooltip` 으로 카드 아래 툴팁을 그린다 |
+| `gallery/overlays-banners/index.jsx` `BodyInkGrid` (`#bodyink`, 배너 본문 글자색 Mocha·Latte 대조) | 새 위젯 없음. 배너 본문은 `banner_body_fg()`, 크기 동기화 줄의 이름은 `text_secondary_raised()`를 읽는다 | 없음 | 별도 카드를 만들지 않는다. 같은 글자색은 각 배너 카드의 Mocha·Latte 표본과 `TASTY_GALLERY_THEME=latte` 캡처로 확인한다 |
 
 crate 쪽 view 가 **소유하지 않는 것**(=본체 wrapper 잔류): `egui::Area` 와 `LayerId`
 (부유 배치·z-order 는 본체 정책), i18n 라벨·tooltip 문자열(위젯 crate 는 `tasty-i18n`
@@ -368,10 +368,10 @@ crate 쪽 view 가 **소유하지 않는 것**(=본체 wrapper 잔류): `egui::A
 | `overlays/search_bar.jsx` (CSS 셸 360×38 · Input 높이 28, 배율 1) | `src/adapters/ui/search_bar.rs::draw_search_bar` | `search_bar` (Overlays) |
 | `overlays/tools_menu.jsx` (내용 폭, `tools-menu-min-width` 160 ~ `tools-menu-max-width` 240) | `src/adapters/ui/tools_menu.rs::draw_tools_menu`(공용 `menu_item` 행) | `tools_menu` (Overlays) |
 | `overlays/command_palette.jsx` (`palette-width` 540, × UI 배율) | `src/adapters/ui/popup/command_palette.rs::draw_command_palette_view` | `command_palette` (Overlays "Command palette") |
-| `gallery/overlays-dialogs.jsx` §`convert` · kit `info_modal.jsx` `ConvertSurfacePopup` (`convert-popup-width` 240 × ui_scale) | `src/adapters/ui/popup/convert.rs::draw_convert_view`(공용 `menu_item_kbd` 행 — 끝에 단축키 키캡) | `convert` · `convert-shortcut` · `convert-narrow` (Overlays "Convert surface", `components/convert.rs::draw`·`draw_shortcut`·`draw_narrow`) |
-| `gallery/overlays-dialogs.jsx` §`filehandler` (420px · 프레임은 `gallery/overlays-shared.jsx` `FileHandlerFrame`) | `src/adapters/ui/popup/file_handler_picker.rs::draw_file_handler_picker_view` | `file_handler_picker` (Overlays "File handler picker", `components/file_handler_picker.rs::draw`) |
+| `gallery/overlays-dialogs/index.jsx` §`convert` · kit `info_modal.jsx` `ConvertSurfacePopup` (`convert-popup-width` 240 × ui_scale) | `src/adapters/ui/popup/convert.rs::draw_convert_view`(공용 `menu_item_kbd` 행 — 끝에 단축키 키캡) | `convert` · `convert-shortcut` · `convert-narrow` (Overlays "Convert surface", `components/convert.rs::draw`·`draw_shortcut`·`draw_narrow`) |
+| `gallery/overlays-dialogs/index.jsx` §`filehandler` (420px · 프레임은 `gallery/parts/overlay-frames.jsx` `FileHandlerFrame`) | `src/adapters/ui/popup/file_handler_picker.rs::draw_file_handler_picker_view` | `file_handler_picker` (Overlays "File handler picker", `components/file_handler_picker.rs::draw`) |
 | (시안 없음 — 확정 토큰 + `icons.json` `close`/`fit` 조합뿐이라 신규 시각 결정이 없었다, 근거 → [fullscreen-stage §디자인 소스](fullscreen-stage.md#디자인-소스--신규-시안-없이-만든-이유)) | `src/adapters/ui/fullscreen.rs::draw_fullscreen_stage`(셸: scrim+제목+종료 버튼) | `fullscreen-stage` (Overlays, `components/fullscreen_stage.rs::draw`) |
-| `ui_kits/terminal/overlays/info_modal.jsx` `PopupTitleBar`(fullscreen) · `gallery/overlays-dialogs.jsx` "Popup title bar" Spec | `src/adapters/ui/popup/draw.rs`(타이틀바 전체화면 버튼 — `fit` 아이콘, 24 칸) | `fullscreen-stage-titlebar` (Overlays, `components/fullscreen_stage.rs::draw_titlebar`) |
+| `ui_kits/terminal/overlays/info_modal.jsx` `PopupTitleBar`(fullscreen) · `gallery/overlays-dialogs/index.jsx` "Popup title bar" Spec | `src/adapters/ui/popup/draw.rs`(타이틀바 전체화면 버튼 — `fit` 아이콘, 24 칸) | `fullscreen-stage-titlebar` (Overlays, `components/fullscreen_stage.rs::draw_titlebar`) |
 
 팔레트와 검색 바의 입력 칸은 본체와 갤러리 모두 공용 `Input`의 `Ground::Raised`를 쓴다. 채움은 `input-raised-bg`, 휴지·호버 테두리는 `input-raised-border`, 포커스는 `border-focus` 테두리와 1px 링이다. 검색 바의 정규식 오류는 포커스 유무와 관계없이 `accent-danger` 테두리를 쓰며 포커스 시 같은 색 링을 더한다. `command_palette` 견본은 normal·focused, `search_bar` 견본은 normal·focused·invalid focused·invalid blurred를 제공하며 현재 갤러리 테마(Mocha·Latte)를 따른다. 본체 검색 바 sizer는 `input-height` 28 + 상하 `popup-content-margin` 4씩으로 할당 높이 36을 만들고, 매니저가 그 바깥에 1px 테두리를 그려 외곽 높이는 38이다(배율 1). 본문 높이는 28이며 링은 패딩 영역까지 그릴 수 있다. 기존 할당 폭 360은 유지하므로 본체의 테두리 포함 폭은 362이고 CSS 셸의 border-box 폭은 360이다. 갤러리도 Input 28과 패딩·프레임 테두리를 사용하고, 오류 견본의 `.*`는 켜짐·`ab`는 꺼짐이다. 견본 포커스 표시는 `Input::focus_look`이고 실제 입력의 포커스는 TextEdit가 관리한다.
 
@@ -466,7 +466,7 @@ specimen 간 중복 chrome 을 한 곳으로 모은 카탈로그 헬퍼 (`crates
 
 갤러리가 그리는 글자(Meta의 Layout spec 값과 Tokens used 칩, Spec 제목·설명, 예제 안의 라벨)에는 토큰 이름을 시안 CSS 변수에서 `--tasty-` 접두를 뗀 이름으로 쓴다. 시안 칩의 `--tasty-bg-app`은 갤러리에서 `bg-app`이다. 갤러리 UI 글꼴은 하이픈 두 개를 붙여 그리므로 접두를 그대로 두면 `-tasty-bg-app`처럼 한 줄로 읽힌다. 소스 주석에서 시안 CSS 변수를 가리킬 때는 접두를 둔 원래 이름을 쓴다.
 
-시안도 Meta에서는 같은 표기를 쓴다. 시안 소스는 `--tasty-` 이름을 그대로 두고, `gallery/shell.jsx`의 `Meta`가 칩과 Layout spec 값을 그릴 때 접두를 떼며 칩 툴팁에는 전체 이름을 보인다. Meta 밖의 설명문(Spec 본문 등)은 시안에서 접두를 유지한다. 갤러리는 글꼴 때문에 설명문에서도 접두를 떼므로, 이 부분은 그리는 방식만 다르다.
+시안도 Meta에서는 같은 표기를 쓴다. 시안 소스는 `--tasty-` 이름을 그대로 두고, `gallery/parts/specimen.jsx`의 `Meta`가 칩과 Layout spec 값을 그릴 때 접두를 떼며 칩 툴팁에는 전체 이름을 보인다. Meta 밖의 설명문(Spec 본문 등)은 시안에서 접두를 유지한다. 갤러리는 글꼴 때문에 설명문에서도 접두를 떼므로, 이 부분은 그리는 방식만 다르다.
 
 `crates/tasty-gallery/tests/meta_token_notation.rs`가 모든 Spec을 GPU 없이 한 프레임 그리고, 출력 shape의 글자와 Section·Spec 제목에 `--tasty-`가 있으면 실패한다. 그리지 않는 문자열과 주석은 보지 않는다.
 
@@ -489,20 +489,20 @@ specimen 간 중복 chrome 을 한 곳으로 모은 카탈로그 헬퍼 (`crates
 | `core/Badge` | `badge` / `badge_dot` · disabled `badge_disabled` — `badge-disabled-*` 중립 채움과 ink | `prim_chips` (클러스터 "disabled") |
 | `core/Tag`·`core/Badge` disabled 문맥 | `disabled_chip_scope` / `in_disabled_chip_scope` — 문맥 안의 `tag`·`badge`·`badge_dot`은 variant와 관계없이 disabled 변형으로 그린다 | disabled ListCtrl 행의 trailing(아래 `data/ListCtrl`) |
 | `core/Kbd` | `kbd`(키캡 시퀀스, 키 글자 `kbd-fg`, 사이 `+`는 `kbd-plus-fg`, 선택 행은 `kbd-plus-fg-active`) | `prim_chips` |
-| `gallery/components.jsx` "Selected row — meaning glyphs, match run, Kbd +" | 쉬는 행과 활성 행의 글리프 색, Tag, 일치 구간 밑줄, 키캡 `+` | `selected-row` (`components/selected_row.rs`) |
+| `gallery/components/index.jsx` "Selected row — meaning glyphs, match run, Kbd +" | 쉬는 행과 활성 행의 글리프 색, Tag, 일치 구간 밑줄, 키캡 `+` | `selected-row` (`components/selected_row.rs`) |
 | `forms/Checkbox` | `checkbox` | `prim_forms` |
 | `forms/Switch` | `switch` | `prim_forms` |
 | `forms/Select` | `select`(토큰 트리거 + egui popup 안의 공용 옵션 행 `menu_option` — 현재 값만 selected. 트리거 테두리는 쉴 때 `select-border`, 호버 `border-strong`, 목록이 열려 있는 동안 MultiSelect 와 같은 `select-border-focus` 에 시안 focus box-shadow 와 같은 바깥 1px ring. 글자는 값 `select-fg` · 미선택 `select-placeholder` · disabled 는 값 유무와 관계없이 `state-disabled-fg`(chevron 도). 회귀 검사 `crates/tasty-ui-widgets/tests/select_open_border.rs`) · `select_pinned`(상호작용 없이 같은 칠로 normal·hover·open 모양을 고정한 트리거 — 갤러리 상태 견본용) · `select_on`·`select_or_placeholder_on`(바탕 `Ground` 를 받는 같은 트리거 — `Ground::Raised` 면 상자 `select-raised-bg`·쉬는 테두리 `select-raised-border`, disabled `select-raised-disabled-bg`·`select-raised-disabled-border`, hover·open·글자는 그대로) · `select_or_placeholder`(같은 트리거 + "아직 안 고름" 상태 — 트리거에만 placeholder 를 `text_placeholder` 색으로. placeholder 는 목록의 행이 아니다 — 열린 목록은 실제 옵션만, 체크 없음. 값을 지울 수 있어야 하는 Select 는 "None" 같은 실제 옵션을 둔다) | `prim_forms`(시안 "Select states": Mocha·Latte 칸마다 value · hover · focus/open · no value · disabled+value · disabled+no value 여섯 칸, 칸 폭 `field-width-lg`. 아래 surface-raised 줄은 ground="raised" 의 value · focus/open · no value · disabled 와 비교용 panel 칸) · `prim_nav::draw_menu_item_selected` 의 "no value" 패널 |
 | `forms/MultiSelect` | `multi_select` / `multi_select_summary` / `multi_select_popup_id` (`select` 와 같은 트리거 토큰 + checkbox 행 팝업(프레임은 `multiselect-menu-bg`·`multiselect-menu-border`·`multiselect-menu-radius`·안쪽 여백 `multiselect-menu-padding`·`shadow-popover`, 트리거 아래 `multiselect-menu-gap`; 행 높이 `multiselect-row-height`·좌우 `multiselect-row-padding-x`, 행 사이 간격 0, 포인터가 올라간 행 전체 `multiselect-row-bg-hover`, 행 어디를 눌러도 그 행만 토글) + `CloseOnClickOutside` + 요약 라벨 3분기 + 메뉴 max-height 스크롤/max-width 클램프 + 행 단위 disabled 마스크 + 일괄 선택/해제 액션 행(opt-in, accent + separator, 스크롤 밖 고정) + 키보드 내비(↓/Enter/Space 열기 · ↑↓/Home/End active 행 이동(disabled 건너뜀) · Space/Enter 토글(안 닫힘) · Esc 닫기(포커스 유지) · Tab 닫고 이동, active 행은 `multiselect-row-bg-active`(→ surface-active) 배경)) | `prim_multiselect` |
-| `forms/SearchableSelect` · `gallery/components-searchselect.jsx` `#searchable-select` | `SearchableSelect`(builder: `pinned`·`loading`·`width`·`enabled`, `show(ui, theme, &mut Option<String>)` 은 값이 바뀌면 true, `show_response` 는 같은 동작에 트리거 상자의 `egui::Response` 를 더한 `SearchableSelectResponse` — 행 배치처럼 트리거 자리가 필요한 호출자용, 응답 rect 에 팝업은 들어가지 않는다) / `SearchableSelectOption`(value·label·disabled) / `SearchableSelectLabels`(placeholder·검색 안내·결과 없음·로딩 — 위젯은 번역을 소유하지 않는다) / `searchable_select_filter`(앞뒤 공백을 뺀 대소문자 무시 부분 문자열) / `searchable_select_popup_id`·`searchable_select_search_id`. 트리거는 Select 부품(높이 `select-height`, 쉴 때 `select-border`, 호버 `select-search-trigger-border-hover`, 열림·포커스 `select-border-focus` + 바깥 1px ring, chevron 은 열리면 위, disabled 는 `state-disabled-*`, 값 없음은 placeholder 색, 끝 말줄임). 목록에 없는 값과 검색으로 숨은 현재 값도 트리거에 그대로 보인다. 팝업은 메뉴 popover(`with_popover_frame_ring`, 둘레 `select-search-inset`, 트리거 아래 `select-search-menu-gap`, 폭은 트리거~`select-search-menu-max-width`, 전체 높이 `select-search-list-max-height`)이고 검색칸 · 구분선 · 고정 행(+구분선) · 필터한 옵션 행(MenuItem, 키보드 활성 `surface-active`) · 상태 행(결과 없음 · Spinner 14 + 로딩, `select-search-status-fg`, 누를 수 없음)을 쌓으며 옵션 목록만 스크롤한다. 열면 검색칸 포커스, ↑↓ 는 보이는 활성 행(고정 행 먼저)을 끝에서 멈추며 이동, Enter 확정·닫기, Esc 닫고 트리거 포커스, Tab 닫기, 열 때 활성 행 = 현재 값, 입력마다 첫 일치 행, 닫을 때마다 검색어 초기화. 옵션 클릭만 닫고 검색칸 클릭은 닫지 않는다(`CloseOnClickOutside`). 열린 채로 `enabled(false)`가 되거나 감싼 Ui가 비활성이 되면 자기 목록만 닫아 비활성인 동안 값이 바뀌지 않는다(다른 위젯의 팝업은 그대로). `show_specimen` 은 시안 specimen hook(`open`·`query`·`activeIndex`·`hoverIndex`·`focusSearch`·`hoverTrigger`) 상태를 같은 그리기 코드로 정적으로 그린다. 회귀 검사 `crates/tasty-ui-widgets/tests/searchable_select.rs` | `prim_searchable_select`(세 무대 × Mocha·Latte: 트리거 짝 비교 · 트리거 상태 6칸 · 열린 목록 9칸) · `prim_forms` 의 "Searchable Select" live 칸 · 본체 소비자는 Appearance 글꼴 행(아래 Appearance › General · Font override 행) |
+| `forms/SearchableSelect` · `gallery/components/searchable-select.jsx` `#searchable-select` | `SearchableSelect`(builder: `pinned`·`loading`·`width`·`enabled`, `show(ui, theme, &mut Option<String>)` 은 값이 바뀌면 true, `show_response` 는 같은 동작에 트리거 상자의 `egui::Response` 를 더한 `SearchableSelectResponse` — 행 배치처럼 트리거 자리가 필요한 호출자용, 응답 rect 에 팝업은 들어가지 않는다) / `SearchableSelectOption`(value·label·disabled) / `SearchableSelectLabels`(placeholder·검색 안내·결과 없음·로딩 — 위젯은 번역을 소유하지 않는다) / `searchable_select_filter`(앞뒤 공백을 뺀 대소문자 무시 부분 문자열) / `searchable_select_popup_id`·`searchable_select_search_id`. 트리거는 Select 부품(높이 `select-height`, 쉴 때 `select-border`, 호버 `select-search-trigger-border-hover`, 열림·포커스 `select-border-focus` + 바깥 1px ring, chevron 은 열리면 위, disabled 는 `state-disabled-*`, 값 없음은 placeholder 색, 끝 말줄임). 목록에 없는 값과 검색으로 숨은 현재 값도 트리거에 그대로 보인다. 팝업은 메뉴 popover(`with_popover_frame_ring`, 둘레 `select-search-inset`, 트리거 아래 `select-search-menu-gap`, 폭은 트리거~`select-search-menu-max-width`, 전체 높이 `select-search-list-max-height`)이고 검색칸 · 구분선 · 고정 행(+구분선) · 필터한 옵션 행(MenuItem, 키보드 활성 `surface-active`) · 상태 행(결과 없음 · Spinner 14 + 로딩, `select-search-status-fg`, 누를 수 없음)을 쌓으며 옵션 목록만 스크롤한다. 열면 검색칸 포커스, ↑↓ 는 보이는 활성 행(고정 행 먼저)을 끝에서 멈추며 이동, Enter 확정·닫기, Esc 닫고 트리거 포커스, Tab 닫기, 열 때 활성 행 = 현재 값, 입력마다 첫 일치 행, 닫을 때마다 검색어 초기화. 옵션 클릭만 닫고 검색칸 클릭은 닫지 않는다(`CloseOnClickOutside`). 열린 채로 `enabled(false)`가 되거나 감싼 Ui가 비활성이 되면 자기 목록만 닫아 비활성인 동안 값이 바뀌지 않는다(다른 위젯의 팝업은 그대로). `show_specimen` 은 시안 specimen hook(`open`·`query`·`activeIndex`·`hoverIndex`·`focusSearch`·`hoverTrigger`) 상태를 같은 그리기 코드로 정적으로 그린다. 회귀 검사 `crates/tasty-ui-widgets/tests/searchable_select.rs` | `prim_searchable_select`(세 무대 × Mocha·Latte: 트리거 짝 비교 · 트리거 상태 6칸 · 열린 목록 9칸) · `prim_forms` 의 "Searchable Select" live 칸 · 본체 소비자는 Appearance 글꼴 행(아래 Appearance › General · Font override 행) |
 | `forms/AutoComplete` | `AutoComplete` / `autocomplete_dropdown` (Input 트리거 + menu container + MenuItem 행 middle-ellipsis + substring 필터 + match highlight, 활성 행은 밑줄 + max-height 스크롤) | `prim_autocomplete` |
 | `plugins.jsx/PathField`(:59) | `PathField` / `PathFieldOutcome` (AutoComplete 트리거 + Go IconButton, 편집/이동/원복 결정 = markdown `addr_outcome` 포팅, idle=secondary/editing=primary) | `prim_path_field` |
 | `feedback/StatusDot` | `status_dot`(kind+pulse, 점과 라벨 사이 `space-xs`, 공용 표 선택 행은 `-active` 색) · `status_dot_in_row`(표 밖 행이 선택 여부를 넘김) | `prim_status_dot` · `selected-row` |
-| `components/feedback/LoadingOverlay.jsx` · `gallery/layouts-loading.jsx` | `paint_loading_overlay` / `LoadingPlacement`, `Spinner::still_arc`, `Tooltip::second_line`(로딩 둘째 줄) | `attach-loading` (Components): 시안 일곱 Spec을 Mocha·Latte로 그린다. 네 자리 on/off와 rect 점선 · 탭 상태(비활성·활성·hover·attention 둘·busy·move+표지·좁은 120·Ctrl 키캡·넘침 줄) · LNB 카드 상태(REMOTE·부제·설명·배지·Alt 키캡) · 레일 아바타 상태(모서리 칩 넷·attached ring·키캡) · surface(터미널·검색줄+move ring·빈 surface·WebView 의도) · 세 자리 동시·모션 감소·UI 배율 ×1/×1.25/×1.5 · 문구와 툴팁. 탭·카드·아바타는 갤러리 kit의 `tab_cell`·`paint_ws_row`·`paint_avatar`로 그리고, 시안의 markdown egui 예제는 Tasty에서 WebView이므로 빈 surface로 대신한다. 시안 a11y 항목의 `role=status`는 제공하지 않는다. 네이티브 앱은 AccessKit을 빌드하지 않아 오버레이에 이 역할을 붙일 경로가 없다([접근성](../../features/accessibility/index.md#목적)) |
+| `components/feedback/LoadingOverlay.jsx` · `gallery/layouts/loading-overlay.jsx` | `paint_loading_overlay` / `LoadingPlacement`, `Spinner::still_arc`, `Tooltip::second_line`(로딩 둘째 줄) | `attach-loading` (Components): 시안 일곱 Spec을 Mocha·Latte로 그린다. 네 자리 on/off와 rect 점선 · 탭 상태(비활성·활성·hover·attention 둘·busy·move+표지·좁은 120·Ctrl 키캡·넘침 줄) · LNB 카드 상태(REMOTE·부제·설명·배지·Alt 키캡) · 레일 아바타 상태(모서리 칩 넷·attached ring·키캡) · surface(터미널·검색줄+move ring·빈 surface·WebView 의도) · 세 자리 동시·모션 감소·UI 배율 ×1/×1.25/×1.5 · 문구와 툴팁. 탭·카드·아바타는 갤러리 kit의 `tab_cell`·`paint_ws_row`·`paint_avatar`로 그리고, 시안의 markdown egui 예제는 Tasty에서 WebView이므로 빈 surface로 대신한다. 시안 a11y 항목의 `role=status`는 제공하지 않는다. 네이티브 앱은 AccessKit을 빌드하지 않아 오버레이에 이 역할을 붙일 경로가 없다([접근성](../../features/accessibility/index.md#목적)) |
 | `components/feedback/PendingIndicator.jsx` | `PendingIndicator` (count/time은 호출자 문구, compact, reduced motion) | `attach-loading` (Components) |
-| `gallery/layouts-loading-prelayout.jsx` | View 전용 생성 draft와 공용 loading 표시 | `attach-prelayout` (Components): 새 탭·surface/pane 양축 분할 |
+| `gallery/layouts/loading-prelayout.jsx` | View 전용 생성 draft와 공용 loading 표시 | `attach-prelayout` (Components): 새 탭·surface/pane 양축 분할 |
 | `feedback/Spinner` | `Spinner`(size/color, 모션은 `Theme` 이 결정 · reduced_motion 은 override) | `prim_spinner` |
-| `feedback/CenterState` · `gallery/components.jsx` `CenterStateG`(Section `centerstate`) | `CenterState` / `CenterStateVariant` / `CenterStateOutput` / `CENTER_STATE_ERROR_GLYPH` (loading·empty·error, 글리프 24 · 제목 · 보조 줄 슬롯 항상 예약, 받은 영역 안 세로 가운데, 오류 글리프 alertTriangle 부품 소유, 선택 액션은 가운데 정렬 밖 보조 슬롯 아래 `center-state-action-gap`, 높이 없는 호스트는 대칭 자연 높이 — 액션이 있으면 위아래 48) | `prim_center_state` (Components `CenterState — empty · loading · error` 의 `center-state` · `center-state-action` · `center-state-unsized` spec) |
+| `feedback/CenterState` · `gallery/components/index.jsx` `CenterStateG`(Section `centerstate`) | `CenterState` / `CenterStateVariant` / `CenterStateOutput` / `CENTER_STATE_ERROR_GLYPH` (loading·empty·error, 글리프 24 · 제목 · 보조 줄 슬롯 항상 예약, 받은 영역 안 세로 가운데, 오류 글리프 alertTriangle 부품 소유, 선택 액션은 가운데 정렬 밖 보조 슬롯 아래 `center-state-action-gap`, 높이 없는 호스트는 대칭 자연 높이 — 액션이 있으면 위아래 48) | `prim_center_state` (Components `CenterState — empty · loading · error` 의 `center-state` · `center-state-action` · `center-state-unsized` spec) |
 | `feedback/Tooltip` | `Tooltip`(text/placement/id_source · `placement_top_then_bottom` · 탭 스트립 규칙 `placement_clear_of_native` · painter 전용 호출부의 `show_in`) · 호버 지연 `tooltip_hover_delay_elapsed` | `prim_help_hint` · convert(잘린 제목) |
 | `feedback/HelpHint` | `HelpHint`(text/placement/open/id_source) — `(?)` 글리프 painter 직접 드로잉 + `Tooltip` 조합. `open`은 글리프가 클립 안에 보일 때만 버블을 띄운다 | `prim_help_hint` |
 | `navigation/MenuItem` | `menu_item` / `menu_separator`(`.tasty-menu-sep`, 색 `menu-separator` → border-strong. 모든 메뉴 구분선이 같은 색이다)(글자 `menu-item-fg`, 호버·선택 `menu-item-fg-hover`, 키보드 활성 행의 아이콘·단축키·danger 라벨 `menu-item-part-fg-active`. 넘친 라벨은 끝 말줄임). 포인터 없이 호버 모습을 보이는 상태 견본은 `menu_item_with_hover`(마지막 인자 `hovered`)로 같은 호버 배경·글자를 그린다 — Foundations 떠 있는 메뉴와 파일 피커 경로 `…` 메뉴의 첫 행. `selected` 는 `menu_option` / `menu_option_icon` / `menu_option_value`(선택 목록의 옵션 행 — 공용 Select, 본체 egui ComboBox 열린 목록, macOS 수식키 표시 목록): 글자 `menu-item-selected-fg` + 오른쪽 끝 `check`(`menu-item-check-size` 14 · `menu-item-check-fg`), 채움 없음. 옵션 행은 라벨을 줄이지 않는 폭(행 패딩 · 아이콘 · 라벨 · 체크 자리)만큼 목록의 최소 폭을 넓혀 열린 목록이 트리거 폭에 묶이지 않는다 — 갤러리 `menu-item-selected`(Mocha·Latte) | `prim_nav` |
@@ -603,7 +603,7 @@ form-control 폭: `field-width-{xs,color,md,range,lg}` = 90/110/160/180/200 (디
 
 ## 배너
 
-디자인 `gallery/overlays.jsx` 의 `#banner` Section(3 Spec) ↔ 갤러리
+디자인 `gallery/overlays-banners/index.jsx` 의 `#banner` Section(3 Spec) ↔ 갤러리
 `crates/tasty-gallery/src/catalog/widgets/banner.rs` (Overlays › `Banner — the floating
 top notice`). 배너의 상태별 예제를 제공한다.
 
@@ -630,7 +630,7 @@ Section 1개(6 Spec) — `fullscreen-stage` 다음.
 
 ### HTML script notice (inset 배너)
 
-디자인 `gallery/overlays-banners.jsx`의 `#htmlscript` Section(5 Spec)과
+디자인 `gallery/overlays-banners/index.jsx`의 `#htmlscript` Section(5 Spec)과
 `ui_kits/terminal/overlays/html_script_banner.jsx` ↔ 갤러리
 `crates/tasty-gallery/src/catalog/widgets/html_script_banner.rs` (Overlays › `HTML script notice — the first
 inset banner`, `banner` Section 다음). 배너와 마커는 본체가 호출할 공용 함수를 그대로 쓰고,
@@ -653,7 +653,7 @@ inset banner`, `banner` Section 다음). 배너와 마커는 본체가 호출할
 
 ### HTML remote content notice (inset 배너 · 주소 칸 표지)
 
-디자인 `gallery/overlays-banners.jsx`의 `#htmlremote` Section과
+디자인 `gallery/overlays-banners/index.jsx`의 `#htmlremote` Section과
 `ui_kits/terminal/overlays/html_remote_banner.jsx`·`html_address_bar.jsx`(`trailing` 슬롯) ↔ 갤러리
 `crates/tasty-gallery/src/catalog/widgets/html_remote_banner.rs` (Overlays › `HTML remote content notice`,
 `htmlscript` 다음). 배너와 표지는 본체가 호출하는 공용 함수를 그대로 쓰고, 주소 띠는 공용
@@ -672,7 +672,7 @@ inset banner`, `banner` Section 다음). 배너와 마커는 본체가 호출할
 
 ## ui-code (Components)
 
-디자인 `gallery/components.jsx`의 Hint text Section 두 번째 Spec "CLI runs inside UI copy" ↔ 위젯
+디자인 `gallery/components/index.jsx`의 Hint text Section 두 번째 Spec "CLI runs inside UI copy" ↔ 위젯
 `crates/tasty-ui-widgets/src/ui_code.rs::ui_copy` ↔ 갤러리 `catalog/widgets/ui_code.rs::draw`.
 UI 글꼴은 하이픈 두 개를 대시 하나로 이어 그리므로, UI 문장 안의 CLI 명령·옵션·인자는 code run 으로 그린다.
 번역 문자열은 그 구간을 백틱으로 감싸고 옵션 글자는 그대로 둔다.
@@ -794,7 +794,7 @@ specimen 이 아니라) 실제 CSS 출력 내용까지 손으로 전사한다 �
 
 glyph: `crates/tasty-icons` 의 `IMAGE`(image fallback) · `HTML`(webview) — 갤러리 아이콘 페이지 SURFACES 그룹에 전시. image 는
 `viewer`/`no-image` 2 cluster, image 편집 모드(`image-paint`)는 시안 Spec 무대(paint bar · floating selection · New Image · Save As 팝업)를 공용 `Button`·`IconButton`으로 전사한 Wrap 무대, html 은 `boundary`/`placeholder`/`loading`/`error` 4 cluster,
-markdown 주소 띠는 시안 `gallery/plugins-md-address.jsx` 의 네 Spec 을 `components/md_address.rs` 의 `markdown-address-bar`(Mocha·Latte 띠 상태 일곱 장: 로컬 편집+최근 목록, 로컬·원격 idle, 원격 편집·stale·끊김·이동 실패) · `markdown-address-folder`(폴더 버튼 상태와 세 언어 tooltip) · `markdown-address-failures`(원격 이동 실패 종류별 문장 다섯 가지와 30초 대기 행, en 과 ko·ja) · `markdown-address-narrow`(좁은 폭에서 Go 숨김, 필드 하한) 로 옮긴다. 쉬는 경로 글자는 `md-address-value-fg`, 대기 행 글자는 `md-address-pending-fg` 다. 본체 `render/address.rs` 와 같은 `md-address-*`·`input-*`·`icon-button-*` 토큰을 쓰고, 버튼은 공용 `IconButton` sm, 필드는 공용 `Input`(테두리 고리는 egui 위젯 규칙)이다. 플러그인 문구는 본체 번역표에 없어 시안 문구를 상수로 둔다.
+markdown 주소 띠는 시안 `gallery/plugins/markdown-address.jsx` 의 네 Spec 을 `components/md_address.rs` 의 `markdown-address-bar`(Mocha·Latte 띠 상태 일곱 장: 로컬 편집+최근 목록, 로컬·원격 idle, 원격 편집·stale·끊김·이동 실패) · `markdown-address-folder`(폴더 버튼 상태와 세 언어 tooltip) · `markdown-address-failures`(원격 이동 실패 종류별 문장 다섯 가지와 30초 대기 행, en 과 ko·ja) · `markdown-address-narrow`(좁은 폭에서 Go 숨김, 필드 하한) 로 옮긴다. 쉬는 경로 글자는 `md-address-value-fg`, 대기 행 글자는 `md-address-pending-fg` 다. 본체 `render/address.rs` 와 같은 `md-address-*`·`input-*`·`icon-button-*` 토큰을 쓰고, 버튼은 공용 `IconButton` sm, 필드는 공용 `Input`(테두리 고리는 egui 위젯 규칙)이다. 플러그인 문구는 본체 번역표에 없어 시안 문구를 상수로 둔다.
 markdown 본 spec 은 Column · Solo · Wrap 세 무대이고, 제목 단계 견본은 `markdown-heading-hierarchy` spec 의 Column 무대에 있다. 화면 전용 고정값(560/360/300, control 버튼 24×20/30×20)은
 용도를 명시한 모듈 상수.
 
@@ -806,7 +806,7 @@ markdown 본 spec 은 Column · Solo · Wrap 세 무대이고, 제목 단계 견
 
 설정 modal Misc 탭 › Scripts 관리 창. 디자인: `ui_kits/terminal/overlays/settings_window.jsx`
 (`ScriptManager`/`ScriptRow`/`ScriptPath`/`ScriptChangedBadge`). 갤러리 미러:
-`gallery/overlays-shared.jsx` `ScriptManagerFrame({empty})`.
+`gallery/parts/overlay-frames.jsx` `ScriptManagerFrame({empty})`.
 
 | 디자인 컴포넌트 | 본체 draw | 갤러리 specimen | 핵심 토큰 |
 |---|---|---|---|
@@ -853,8 +853,8 @@ i18n: `settings.keybindings.preset_*` 신규 10키 + `select_preset_label`/`pres
 
 ## Settings › Keybindings › Plugins (kbplugins)
 
-디자인 `ui_kits/terminal/overlays/kb_plugins_subtab.jsx` + `gallery/overlays-windows.jsx` Spec
-"Keybindings › Plugins" + `gallery/overlays-windows-b12.jsx` Spec "Keybindings › Plugins — Custom = record slots"
+디자인 `ui_kits/terminal/overlays/kb_plugins_subtab.jsx` + `gallery/overlays-windows/index.jsx` Spec
+"Keybindings › Plugins" + `gallery/overlays-windows/kb-plugin-records.jsx` Spec "Keybindings › Plugins — Custom = record slots"
 ↔ 갤러리 `catalog/components/kb_plugins.rs`(Overlays › `kbplugins`, 견본 다섯:
 기본 · 초안과 해석 실패(OS 키 이름 포함) · 녹화 중 · 좁은 폭 460 줄바꿈 · OS 예약 조합(Windows 표기) · 빈 상태). 화면은 공용 view
 `tasty_ui_widgets::kb_plugins_subtab`(`crates/tasty-ui-widgets/src/kb_plugins.rs`)이 그리고 본체 wrapper
@@ -886,7 +886,7 @@ Icons › `keys-in-use`(`catalog/icons_keys.rs`)의 "option per OS" 묶음에 �
 ## Settings › Keybindings › Import / Export (kbimportexport)
 
 디자인 `ui_kits/terminal/overlays/kb_import_export.jsx` + `settings_window.jsx`(`KB_L2_SEPARATED` ·
-창 자체 toast) + `gallery/overlays-windows.jsx` Section `kbimportexport` ↔ 갤러리
+창 자체 toast) + `gallery/overlays-windows/index.jsx` Section `kbimportexport` ↔ 갤러리
 `catalog/components/kb_import_export.rs`(Overlays › `kbimportexport` 섹션, Spec 4 종 — 하위 모듈은 본체와 같은 이름 `entry` · `diff_table` · `notices` · `paint`, 갤러리의 추가 상태 예제인 `open_values` 와 나머지 상태 예제인 `remaining_values`). 갤러리는
 본체 미의존이라 같은 위젯·토큰으로 미러한다. 본체는 `src/view/settings/ui/keybindings_tab/import_export.rs`
 와 그 하위 모듈(`import_export/` 의 `entry.rs` · `diff_table.rs` · `notices.rs` · `paint.rs`, 계산은 `labels.rs` · `view_model.rs` · `model.rs` · `bundle_notices.rs`.
@@ -1008,7 +1008,7 @@ TCC 상태 하나만 그린다. 손쉬운 사용 행은 본체에서 debug 빌�
 보인다([플러그인 권한 모델](../../dev-guide/plugin-permissions.md)).
 
 안내 모달은 제목을 공용 팝업 타이틀바에 둔다. 시안도 이 모양이다: 채움 `bg-sidebar`,
-높이 `control-height`, 한 줄 제목(넘치면 말줄임하고 잘렸을 때만 호버 Tooltip 으로 전체 제목, 위 → 아래 배치), 오른쪽 닫기 ×. 제목은 양쪽에 버튼 예약 폭을 대칭으로 비운 스트립 전체 기준 가운데에 온다(`tasty_ui_widgets::popup_title_text_rect`, 본체와 갤러리 공용). 예약 폭은 버튼 하나면 32, 전체화면 버튼까지 둘이면 60이고, 버튼은 IconButton sm(24 칸, `close`·`fit` 글리프, 호버·누름 표시)으로 그린다. 갤러리 Overlays "Info modal shell" 절의 `popup-title-bar` spec(`components/info_modal.rs::draw_title_bar`)이 시안 `gallery/overlays-dialogs.jsx` 의 두 버튼 Spec(알림 popup 머리, 짧은/긴 제목, Mocha·Latte)을 옮긴다. 제목은 모든 popup 에서 `font-size-max` 크기다(`tasty_ui_widgets::popup_title_font`, 본체와 갤러리 공용). 디자인의 semibold 는 굵기를 재현하지 않는다. 이 spec 의 머리는 본체 알림 popup 처럼 `border-frame` 선으로 그린다. 안내 모달만
+높이 `control-height`, 한 줄 제목(넘치면 말줄임하고 잘렸을 때만 호버 Tooltip 으로 전체 제목, 위 → 아래 배치), 오른쪽 닫기 ×. 제목은 양쪽에 버튼 예약 폭을 대칭으로 비운 스트립 전체 기준 가운데에 온다(`tasty_ui_widgets::popup_title_text_rect`, 본체와 갤러리 공용). 예약 폭은 버튼 하나면 32, 전체화면 버튼까지 둘이면 60이고, 버튼은 IconButton sm(24 칸, `close`·`fit` 글리프, 호버·누름 표시)으로 그린다. 갤러리 Overlays "Info modal shell" 절의 `popup-title-bar` spec(`components/info_modal.rs::draw_title_bar`)이 시안 `gallery/overlays-dialogs/index.jsx` 의 두 버튼 Spec(알림 popup 머리, 짧은/긴 제목, Mocha·Latte)을 옮긴다. 제목은 모든 popup 에서 `font-size-max` 크기다(`tasty_ui_widgets::popup_title_font`, 본체와 갤러리 공용). 디자인의 semibold 는 굵기를 재현하지 않는다. 이 spec 의 머리는 본체 알림 popup 처럼 `border-frame` 선으로 그린다. 안내 모달만
 아래 선에 `info-modal-title-edge`를 쓴다. ×는 dismiss 버튼·Enter·Esc와
 같은 동작이고, 바깥 클릭으로는 닫히지 않는다.
 
@@ -1021,7 +1021,7 @@ TCC 상태 하나만 그린다. 손쉬운 사용 행은 본체에서 debug 빌�
 ## Settings › General › General — 행 격자와 웹훅 외부 수신 행
 
 General L1 의 첫 L2 "General". 디자인: `ui_kits/terminal/overlays/settings_window.jsx`(General/General 의
-`Row` · `RowCaption` · `WarnCallout`) · `gallery/overlays-windows.jsx` "General › General — row grid, row captions, webhook row" spec.
+`Row` · `RowCaption` · `WarnCallout`) · `gallery/overlays-windows/index.jsx` "General › General — row grid, row captions, webhook row" spec.
 
 | 디자인 jsx 컴포넌트 | 본체 함수 | 갤러리 항목 |
 |---|---|---|
@@ -1037,8 +1037,8 @@ General L1 의 첫 L2 "General". 디자인: `ui_kits/terminal/overlays/settings_
 
 ## Settings › General › Overlay — toast duration
 
-General L1 의 4번째 L2 "Overlay" 의 한 행. 디자인: `gallery/overlays-shared.jsx` `ToastDragValue`(= `ToastDurationField`) ·
-`SettingsGeneralOverlayFrame` + `gallery/overlays-windows.jsx` "General › Overlay — toast duration" spec.
+General L1 의 4번째 L2 "Overlay" 의 한 행. 디자인: `gallery/parts/overlay-frames.jsx` `ToastDragValue`(= `ToastDurationField`) ·
+`SettingsGeneralOverlayFrame` + `gallery/overlays-windows/index.jsx` "General › Overlay — toast duration" spec.
 
 | 디자인 jsx 컴포넌트 | 본체 함수 | 갤러리 항목 |
 |---|---|---|
@@ -1048,7 +1048,7 @@ General L1 의 4번째 L2 "Overlay" 의 한 행. 디자인: `gallery/overlays-sh
 
 General L1 에 5번째 L2 서브탭 "Remote transfer" 추가 — 원격 mirror 파일 전송(bulk, [원격 attach (Remote attach)](../../features/remote-attach/index.md))
 수신측 저장 정책(`RemoteTransferSettings{dir, max_mb}`) 편집. 디자인:
-`gallery/overlays-shared.jsx` `SettingsRemoteTransferFrame` + `gallery/overlays-windows.jsx`
+`gallery/parts/overlay-frames.jsx` `SettingsRemoteTransferFrame` + `gallery/overlays-windows/index.jsx`
 "Settings · General › Remote transfer" spec. 저장 정책을 편집하는 화면이다.
 
 | 디자인 jsx 컴포넌트 | 본체 함수 | 갤러리 항목 |
@@ -1065,7 +1065,7 @@ General L1 에 5번째 L2 서브탭 "Remote transfer" 추가 — 원격 mirror �
 - 행은 설정 공용 행 격자다(라벨 열 = 가장 긴 라벨을 150 … 240 으로 clamp, gap 16, 행 높이
   `settings_row_min_height`(32), 설명은 행 아래 caption). 콘텐츠 wrapper 패딩은 공유 `tab_content_frame`(space-lg)
   가 제공(형제 탭 관례 — 재패딩 안 함).
-- 최대 크기 입력은 정수 칸이라 값에 맞춰 자라며 하한이 `number-field-min-width`(→ `field_width_xs` 90)다(아래 Performance 절의 공용 규칙). 하한 90 은 승인된 값이다. field-width 토큰 세트는 90/110/160/180/200이다. 2026-09-17 결정에서 예제의 88px 대신 90px를 승인했다. 2026-09-20 확인한 `gallery/overlays-shared.jsx`의 `style={{ width: 88 }}`에는 아직 반영되지 않았으므로 그 값으로 되돌리지 않는다.
+- 최대 크기 입력은 정수 칸이라 값에 맞춰 자라며 하한이 `number-field-min-width`(→ `field_width_xs` 90)다(아래 Performance 절의 공용 규칙). 하한 90 은 승인된 값이다. field-width 토큰 세트는 90/110/160/180/200이다. 2026-09-17 결정에서 예제의 88px 대신 90px를 승인했다. 2026-09-20 확인한 `gallery/parts/overlay-frames.jsx`의 `style={{ width: 88 }}`에는 아직 반영되지 않았으므로 그 값으로 되돌리지 않는다.
 
 - **"MiB" 는 필드 밖 정적 mono suffix**(Toast 의 " s" 와 동형, addon/Tag 아님). i18n 단위
   기호 예외로 리터럴.
@@ -1077,7 +1077,7 @@ General L1 에 5번째 L2 서브탭 "Remote transfer" 추가 — 원격 mirror �
 
 ## 포트 스캐너 (Overlays) — Table 열 정의 공유
 
-디자인 `ui_kits/terminal/overlays/port_scanner.jsx` `PortsWindow` + `gallery/overlays-shared.jsx` `PORTS_COLUMNS`·`PortsFrame` + `gallery/overlays-windows.jsx` Listening ports Section ↔ 갤러리 `catalog/components/port_scanner.rs`(`draw`·`draw_process_column`) ↔ 본체 `src/adapters/ui/popup/port_scanner.rs`의 `draw_table`.
+디자인 `ui_kits/terminal/overlays/port_scanner.jsx` `PortsWindow` + `gallery/parts/overlay-frames.jsx` `PORTS_COLUMNS`·`PortsFrame` + `gallery/overlays-windows/index.jsx` Listening ports Section ↔ 갤러리 `catalog/components/port_scanner.rs`(`draw`·`draw_process_column`) ↔ 본체 `src/adapters/ui/popup/port_scanner.rs`의 `draw_table`.
 
 - 시안의 `PORTS_COLUMNS`처럼 본체와 갤러리가 같은 열 정의를 쓴다. 갤러리는 본체에 의존하지 않으므로 정의는 `tasty-ui-widgets`의 `PortsColumn`·`ports_table`·`ports_process_cell`에 있다. 본체 `ColumnId`는 열 선택 상태와 정렬 키를 맡고 `ColumnId::shared`로 이 정의를 찾는다.
 - 열 폭은 본체 값이다(Port 84 · Proto 76 · Address `port-addr-col-min-width` · Process `port-process-col-min-width` · Workspace 120 · Tab 80 · State 140). 시안 갤러리 세트(72·64·104·132, Tab 없음)와 시안 popup 세트(84·76·120·140, Tab 포함)가 다르며, 회신은 앱 갤러리가 popup 정의를 미러하도록 정했다.
@@ -1092,7 +1092,7 @@ General L1 에 5번째 L2 서브탭 "Remote transfer" 추가 — 원격 mirror �
 
 Misc L1 의 두 번째 L2 서브탭 "Task pipeline" — 작업 그래프 report 의 두 크기 상한
 (`TaskPipelineSettings{report_append_bytes, report_block_bytes}`) 편집. 디자인 카탈로그 프레임은
-`gallery/overlays-windows.jsx` 의 "Settings · Misc › Task pipeline — Report limits" Spec 이다
+`gallery/overlays-windows/index.jsx` 의 "Settings · Misc › Task pipeline — Report limits" Spec 이다
 (갤러리 spec id `settings-task-pipeline`, Remote transfer 뒤). 새 시각 값 없이 Remote transfer 의 숫자 행
 (`SettingsRow` + `number_field`)을 그대로 쓰고 단위만 `B` 다.
 
@@ -1110,7 +1110,7 @@ Misc L1 의 두 번째 L2 서브탭 "Task pipeline" — 작업 그래프 report 
 
 ## Settings › Misc › Anomaly detection
 
-`ui_kits/terminal/overlays/settings_anomaly.jsx`와 `gallery/overlays-windows-anomaly.jsx`의 설정 본문이다. Misc의 Task pipeline 뒤, Windows에서는 Tastyrc 앞에 둔다.
+`ui_kits/terminal/overlays/settings_anomaly.jsx`와 `gallery/overlays-windows/settings-anomaly.jsx`의 설정 본문이다. Misc의 Task pipeline 뒤, Windows에서는 Tastyrc 앞에 둔다.
 
 | 디자인 구성 | 본체 | 갤러리 |
 |---|---|---|
@@ -1125,7 +1125,7 @@ Misc L1 의 두 번째 L2 서브탭 "Task pipeline" — 작업 그래프 report 
 
 ## Settings › Terminal › Performance
 
-성능 탭의 적용 시점 안내와 세 행이다. 디자인 시안은 `gallery/overlays-windows-perf.jsx`(`#perfapply`)와
+성능 탭의 적용 시점 안내와 세 행이다. 디자인 시안은 `gallery/overlays-windows/settings-performance.jsx`(`#perfapply`)와
 `ui_kits/terminal/overlays/settings_window.jsx` 의 Performance 본문이다. 갤러리 spec id 는 `settings-performance`(Task pipeline 뒤)다.
 
 | 구성 | 본체 함수 | 갤러리 항목 |
@@ -1140,7 +1140,7 @@ Misc L1 의 두 번째 L2 서브탭 "Task pipeline" — 작업 그래프 report 
 
 ### 값에 맞춰 자라는 숫자 칸
 
-시안 `gallery/overlays-windows-perf.jsx` `PfLinesSpec`(`PfNumField`)이다. 갤러리 spec id 는 `settings-performance-number`(`settings_performance::draw_number_field`)다.
+시안 `gallery/overlays-windows/settings-performance.jsx` `PfLinesSpec`(`PfNumField`)이다. 갤러리 spec id 는 `settings-performance-number`(`settings_performance::draw_number_field`)다.
 
 | 구성 | 본체 함수 | 갤러리 항목 |
 |---|---|---|
@@ -1156,8 +1156,8 @@ Misc L1 의 두 번째 L2 서브탭 "Task pipeline" — 작업 그래프 report 
 
 ## 파일 피커 (Overlays)
 
-디자인 `gallery/overlays-shared.jsx` `FilePickerFrame`/`FpRow`/`FpCrumbs`/`FpCrumbMenu`/`FpHostBadge`
-+ `gallery/overlays-windows.jsx` `#filepicker` Section ↔ 갤러리
+디자인 `gallery/parts/overlay-frames.jsx` `FilePickerFrame`/`FpRow`/`FpCrumbs`/`FpCrumbMenu`/`FpHostBadge`
++ `gallery/overlays-windows/index.jsx` `#filepicker` Section ↔ 갤러리
 `catalog/components/file_picker.rs`.
 본체는 `src/adapters/ui/popup/file_picker.rs`의 `draw_file_picker`를 사용한다. `FILE_PICKER_POPUP_ID = "file_picker"`인 egui `PopupDef`가 `defs.rs`에 등록돼 있다. 디자인처럼 헤더는 하나다 — `PopupDef`가 `headless`라 셸 타이틀바가 없고, 뷰가 그린 헤더 줄을 이동 손잡이(`DragHandle::Region`)로 보고한다. 셸 공통 내부 여백을 두지 않는 popup 이라 구역의 배경·구분선(path bar 의 `bg-sidebar` 띠 포함)은 창 좌우 끝까지 닿는다.
 
@@ -1216,7 +1216,7 @@ C 프레임보더) 중 **A 배지가 사용자 확정**되었다. 본체와 갤�
 
 ## Remote file transfer 팝업 (Overlays) — 진행 + 실패
 
-디자인 `gallery/overlays-shared.jsx` `TransferProgressFrame` / `TransferErrorFrame`
+디자인 `gallery/parts/overlay-frames.jsx` `TransferProgressFrame` / `TransferErrorFrame`
 ↔ 본체 `src/adapters/ui/popup/transfer.rs`(PopupDef `transfer_progress` / `transfer_error`)
 ↔ 갤러리 `catalog/components/transfer.rs`. bulk 파일 전송 + mirror 터미널 이미지 붙여넣기 업로드에 대한
 사용자 피드백 UI. 진행률 막대는 완료 비율을 표시하며, 비율을 알 수 없는 작업의 `Spinner`와 구분한다.
@@ -1253,7 +1253,7 @@ i18n 6키(`transfer.progress.{title,cancel}` · `transfer.error.{title,body_suff
 ## Attention kind — NeedsInput 배지/dot/테두리/탭 제목
 
 디자인 `components/core/Badge.jsx`(variant `warning`) + `components/feedback/StatusDot.jsx`
-(status `needs-input`/`completion`), 시안 `gallery/layouts.jsx` Section `attention` ↔ 본체
+(status `needs-input`/`completion`), 시안 `gallery/layouts/index.jsx` Section `attention` ↔ 본체
 `src/adapters/ui/{divider,egui_panels,tab_bar/tab,sidebar/view}.rs` ↔ 갤러리 Layouts ›
 Attention kinds(`catalog/layouts_attention.rs`). 순위와 색 토큰의 판정은 공용
 `tasty_ui_widgets` attention 함수(`crates/tasty-ui-widgets/src/attention.rs`)에 있고 본체와 갤러리가
@@ -1281,11 +1281,11 @@ hairline이라 UI 배율을 적용하지 않는다.
 
 ## 부팅 오류 화면 (Chrome)
 
-디자인 `gallery/loading.jsx` Section `booterror`의 `BootErrorFrame`(b12) ↔ 갤러리 `catalog/chrome_loading/boot_error.rs::draw`(Chrome › First-run shell setup 구역의 두 번째 Spec "Boot error screen". 구역 목록 `catalog.rs`는 동결 파일이라 Spec 행을 늘리지 않고 앞 Spec 뒤에 이어 그린다) ↔ 본체 `src/gfx/gpu/boot_error.rs` `render_boot_error`. 본체와 갤러리는 공용 view `tasty_ui_widgets::boot_error_screen`을 함께 호출한다. 시안처럼 카드 없이 락업과 `boot-form-width` 폼을 쓰고 Quit은 공용 `Button` Secondary md다. 시안의 네 장(엔진·데이터 폴더·웹훅 포트 Mocha, 데이터 폴더 Latte)을 같은 순서로 그린다. 동작은 [부팅 순서](../../architecture/boot-sequence.md)에 있다.
+디자인 `gallery/loading/index.jsx` Section `booterror`의 `BootErrorFrame`(b12) ↔ 갤러리 `catalog/chrome_loading/boot_error.rs::draw`(Chrome › First-run shell setup 구역의 두 번째 Spec "Boot error screen". 구역 목록 `catalog.rs`는 동결 파일이라 Spec 행을 늘리지 않고 앞 Spec 뒤에 이어 그린다) ↔ 본체 `src/gfx/gpu/boot_error.rs` `render_boot_error`. 본체와 갤러리는 공용 view `tasty_ui_widgets::boot_error_screen`을 함께 호출한다. 시안처럼 카드 없이 락업과 `boot-form-width` 폼을 쓰고 Quit은 공용 `Button` Secondary md다. 시안의 네 장(엔진·데이터 폴더·웹훅 포트 Mocha, 데이터 폴더 Latte)을 같은 순서로 그린다. 동작은 [부팅 순서](../../architecture/boot-sequence.md)에 있다.
 
 ## 첫 실행 셸 설정 (Chrome)
 
-디자인 `gallery/loading.jsx` Section `shellsetup`의 `ShellSetupFrame` ↔ 갤러리 `catalog/chrome_loading.rs::draw_shell_setup`(Chrome › First-run shell setup, `shell-setup-form` spec) ↔ 본체 `src/gfx/gpu/shell_setup.rs` `render_shell_setup`. 본체와 갤러리는 공용 view `tasty_ui_widgets::shell_setup_screen`을 함께 호출한다. 동작은 [부팅 순서 §첫 실행 셸 설정 화면](../../architecture/boot-sequence.md)에 있다.
+디자인 `gallery/loading/index.jsx` Section `shellsetup`의 `ShellSetupFrame` ↔ 갤러리 `catalog/chrome_loading.rs::draw_shell_setup`(Chrome › First-run shell setup, `shell-setup-form` spec) ↔ 본체 `src/gfx/gpu/shell_setup.rs` `render_shell_setup`. 본체와 갤러리는 공용 view `tasty_ui_widgets::shell_setup_screen`을 함께 호출한다. 동작은 [부팅 순서 §첫 실행 셸 설정 화면](../../architecture/boot-sequence.md)에 있다.
 
 | 디자인 요소 | 공용 view | 비고 |
 |---|---|---|
@@ -1301,7 +1301,7 @@ hairline이라 UI 배율을 적용하지 않는다.
 
 ## 탭 스트립 툴팁 — 네이티브 콘텐츠 위로 (Layouts)
 
-디자인 `gallery/layouts-tabstrip.jsx` Spec "Tooltips in the strip open upward — native content below" ↔ 갤러리 `catalog/widgets/html_script_banner.rs::draw_strip_tooltips`(Layouts › Tab strips, `tab-strip-tooltips` spec) ↔ 본체 `src/adapters/ui/tab_bar/tab.rs`의 표지 툴팁. 규칙은 [배너 시스템 §탭 스트립 툴팁](banner.md#탭-스트립-툴팁)에 있다.
+디자인 `gallery/layouts/tab-strip.jsx` Spec "Tooltips in the strip open upward — native content below" ↔ 갤러리 `catalog/widgets/html_script_banner.rs::draw_strip_tooltips`(Layouts › Tab strips, `tab-strip-tooltips` spec) ↔ 본체 `src/adapters/ui/tab_bar/tab.rs`의 표지 툴팁. 규칙은 [배너 시스템 §탭 스트립 툴팁](banner.md#탭-스트립-툴팁)에 있다.
 
 | 디자인 요소 | 갤러리 | 본체 | 비고 |
 |---|---|---|---|
@@ -1315,7 +1315,7 @@ hairline이라 UI 배율을 적용하지 않는다.
 
 ## 탭 스트립 스크롤 화살표 — disabled ink (Layouts)
 
-디자인 `gallery/foundations.jsx` Spec "Disabled ink — no contrast target, Latte one step up"의 C4 행과 순서 사다리 ↔ 갤러리 `catalog/components/tab_bar.rs::draw_scroll_arrows`(Layouts › Tab strips, `tab-scroll-arrows` spec) ↔ 본체 `src/adapters/ui/tab_bar/view.rs`의 스크롤 화살표.
+디자인 `gallery/foundations/index.jsx` Spec "Disabled ink — no contrast target, Latte one step up"의 C4 행과 순서 사다리 ↔ 갤러리 `catalog/components/tab_bar.rs::draw_scroll_arrows`(Layouts › Tab strips, `tab-scroll-arrows` spec) ↔ 본체 `src/adapters/ui/tab_bar/view.rs`의 스크롤 화살표.
 
 | 디자인 요소 | 갤러리 | 본체 | 비고 |
 |---|---|---|---|
@@ -1328,7 +1328,7 @@ C3(port scanner 푸터) 행은 이 specimen에 넣지 않는다. Mocha·Latte는
 
 ## 페인 탭 스트립 — 스크롤 화살표 모양 (Layouts)
 
-디자인 `gallery/layouts-tabstrip.jsx` Spec "Scroll arrows — chevron icon, square cell, no own fill" ↔ 갤러리 `catalog/components/tab_bar/kit_strip.rs::draw_scroll_shape`(Layouts › Tab strips, `tab-scroll-arrow-shape` spec) ↔ 본체 `src/adapters/ui/tab_bar/view.rs`의 스크롤 화살표.
+디자인 `gallery/layouts/tab-strip.jsx` Spec "Scroll arrows — chevron icon, square cell, no own fill" ↔ 갤러리 `catalog/components/tab_bar/kit_strip.rs::draw_scroll_shape`(Layouts › Tab strips, `tab-scroll-arrow-shape` spec) ↔ 본체 `src/adapters/ui/tab_bar/view.rs`의 스크롤 화살표.
 
 | 디자인 요소 | 갤러리 | 본체 | 비고 |
 |---|---|---|---|
@@ -1366,7 +1366,7 @@ Mocha·Latte는 고정 테마(`mocha_fallback`·`latte_theme`)로 위아래에 �
 
 ## Move source highlight (Layouts)
 
-디자인 `gallery/layouts-move.jsx`(Layouts › Move source highlight, `#movesource`) ↔ 본체 `src/adapters/ui/{move_source,tab_bar,sidebar/view}.rs` ↔ 갤러리 `catalog/components/move_source.rs`(`movesource` 섹션). 링·글리프·레일 칩은 본체와 갤러리가 같은 `tasty_ui_widgets` painter를 호출한다. 주변 화면(사이드바·탭 바·서피스)은 갤러리가 정적 데이터로 흉내 낸다.
+디자인 `gallery/layouts/move-source.jsx`(Layouts › Move source highlight, `#movesource`) ↔ 본체 `src/adapters/ui/{move_source,tab_bar,sidebar/view}.rs` ↔ 갤러리 `catalog/components/move_source.rs`(`movesource` 섹션). 링·글리프·레일 칩은 본체와 갤러리가 같은 `tasty_ui_widgets` painter를 호출한다. 주변 화면(사이드바·탭 바·서피스)은 갤러리가 정적 데이터로 흉내 낸다.
 
 | 디자인 컴포넌트 | 본체 함수 | 갤러리 함수 | 비고 |
 |---|---|---|---|
@@ -1379,7 +1379,7 @@ Mocha·Latte는 고정 테마(`mocha_fallback`·`latte_theme`)로 위아래에 �
 
 ## Task DAG — surface · canvas · node (Layouts)
 
-디자인 `gallery/dag.jsx` (카탈로그 페이지) + `ui_kits/terminal/overlays/dag_view.jsx`
+디자인 `gallery/dag/index.jsx` (카탈로그 페이지) + `ui_kits/terminal/overlays/dag_view.jsx`
 (상태 어휘 · 노드 카드 · 러너 배지 · 크롬 · 빈 상태) + `dag_surfaces.jsx` (캔버스 · 노드
 상세 · 풀탭 서피스 · 워크스페이스 popup) ↔ 본체 `src/adapters/ui/surface/dag_graph/` +
 `src/adapters/ui/popup/dag_list.rs` ↔ 갤러리 `catalog/components/dag/` (Layouts 페이지
@@ -1476,7 +1476,7 @@ Mocha·Latte는 고정 테마(`mocha_fallback`·`latte_theme`)로 위아래에 �
 
 ### 폴더 선택 모드
 
-`gallery/overlays-shared.jsx`의 `FilePickerFrame mode="folder"`는 기존 open/save의 `folderSel`과 별개다.
+`gallery/parts/overlay-frames.jsx`의 `FilePickerFrame mode="folder"`는 기존 open/save의 `folderSel`과 별개다.
 갤러리 `filepicker-folder-mode`(`components/file_picker/folder.rs`)는 현재 폴더·선택 폴더·비활성 파일·
 빈 폴더·읽기 오류·로딩·Latte와 en/ko/ja의 긴 경로를 표시한다. 기본640×480, 설정 견본480×360,
 최소폭320(일본어 견본 높이420)을 유지한다. `FolderPickerFooter`(`folder_picker` 모듈, crate 루트 재수출)를 실제 view와 공유한다.

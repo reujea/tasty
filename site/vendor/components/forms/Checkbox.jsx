@@ -10,7 +10,7 @@ const CSS = `
 .tasty-check input { position: absolute; opacity: 0; width: 0; height: 0; }
 .tasty-check__box {
   width: var(--tasty-checkbox-size); height: var(--tasty-checkbox-size); flex: none;
-  border: var(--tasty-border-width) solid var(--tasty-border-strong);
+  border: var(--tasty-border-width) solid var(--tasty-border-control);
   border-radius: var(--tasty-radius-sm);
   background: var(--tasty-surface-raised);
   display: inline-flex; align-items: center; justify-content: center;

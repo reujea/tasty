@@ -1,3 +1,6 @@
+import React from "react";
+const BASE = `${import.meta.env.BASE_URL.replace(/\/$/, "")}/`;
+
 // Tasty UI kit — CSD titlebar · Windows
 // ─────────────────────────────────────────────────────────────────────────
 // ⚠ NON-PRODUCT / EXPLORATION. Shipping Tasty uses the NATIVE Windows titlebar.
@@ -49,7 +52,7 @@ function TitlebarWindows({ active = true, variant = "split", title = "agents-pro
     return (
       <div className="tb-win" data-active={active}>
         <div style={{ display: "flex", alignItems: "center", gap: "var(--tasty-space-sm)", padding: "0 var(--tasty-space-sm) 0 var(--tasty-space-md)", flex: "none", WebkitAppRegion: "drag" }}>
-          <img src="../../../assets/icons/icon_256.png" width="16" height="16" alt="" />
+          <img src={`${BASE}tasty-icon.png`} width="16" height="16" alt="" />
         </div>
         <div style={{ display: "flex", gap: "var(--tasty-space-xs)", alignItems: "flex-end", flex: 1, minWidth: 0 }}>
           {tabs.map((t, i) => (
@@ -69,7 +72,7 @@ function TitlebarWindows({ active = true, variant = "split", title = "agents-pro
   return (
     <div className="tb-win" data-active={active}>
       <div className="tb-win__title" style={{ flex: 1, minWidth: 0 }}>
-        <img src="../../../assets/icons/icon_256.png" width="16" height="16" alt="" />
+        <img src={`${BASE}tasty-icon.png`} width="16" height="16" alt="" />
         <span style={{ fontSize: "var(--tasty-font-size-term-sm)", color: fg }}>{title}</span>
         <span style={{ fontFamily: "var(--tasty-font-mono)", fontSize: "var(--tasty-font-size-caption)", color: "var(--tasty-text-muted)" }}>— tasty</span>
       </div>
@@ -83,4 +86,5 @@ function TitlebarWindows({ active = true, variant = "split", title = "agents-pro
     const el = document.createElement("style"); el.id = "tb-win-css"; el.textContent = TB_WIN_CSS; document.head.appendChild(el);
   }
 })();
-window.TastyKit = Object.assign(window.TastyKit || {}, { TitlebarWindows });
+
+export { TitlebarWindows };

@@ -1,9 +1,7 @@
 ---
 import GalleryPage from "../../../../layouts/GalleryPage.astro";
-import Route from "../../../../gallery/pages/overlays-banners.jsx";
-import { galleryNav, GALLERY_INTROS } from "../../../../lib/design";
-import { url } from "../../../../lib/site";
+import Route, { page } from "../../../../../vendor/gallery/overlays-banners/index.jsx";
 ---
-<GalleryPage title="Banners" description={GALLERY_INTROS["overlays-banners"]}>
-  <Route client:load groups={galleryNav(url)} brandHref={url("design/")} backLabel="Design" />
+<GalleryPage pageKey="overlays-banners" page={page}>
+  <Route client:load />
 </GalleryPage>

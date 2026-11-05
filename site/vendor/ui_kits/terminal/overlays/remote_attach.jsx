@@ -1,3 +1,12 @@
+import React from "react";
+import { Button } from "../../../components/core/Button.jsx";
+import { IconButton } from "../../../components/core/IconButton.jsx";
+import { Tag } from "../../../components/core/Tag.jsx";
+import { CenterState } from "../../../components/feedback/CenterState.jsx";
+import { StatusDot } from "../../../components/feedback/StatusDot.jsx";
+import { ic, Icon } from "../chrome.jsx";
+import { Scrim, Spinner } from "./shared.jsx";
+
 // Tasty UI kit — Add remote workspace popup.
 // NEW surface. Lets the user browse a remote tasty instance's workspaces and attach
 // (mirror) one locally, instead of having to know the remote workspace id up front.
@@ -16,9 +25,8 @@
 //           a dead end. Select-then-confirm like any other row; footer says which.
 //   Footer: Connect (enabled only when a selectable remote workspace is chosen) ·
 //           Cancel (always enabled — closes, aborting any in-flight connect).
-// Standalone preview: remote_attach.html
-const { Button, IconButton, Tag, StatusDot, CenterState } = window.TastyDesignSystem_41fd3f;
-const { ic, Icon, Scrim, Spinner } = window.TastyKit;
+
+
 
 // ── icons (lucide-style, drawn through TastyKit.Icon) ──
 // glyph names from the canonical set (icons/*.svg via <Icon name>)
@@ -110,7 +118,7 @@ function RaAttachProfileRow({ a, selected, onSelect }) {
         boxShadow: selected ? "inset var(--tasty-listctrl-selected-bar-width) 0 0 var(--tasty-listctrl-selected-bar)" : "none" }}>
       <div style={{ display: "flex", alignItems: "center", gap: "var(--tasty-space-sm)", minWidth: 0 }}>
         <span style={{ fontSize: 13, fontWeight: 600, lineHeight: "var(--tasty-line-height-ui)", flex: "0 1 auto",
-          color: selected ? "var(--tasty-text-primary)" : "var(--tasty-text-secondary)",
+          color: selected ? "var(--tasty-text-on-active)" : "var(--tasty-text-secondary)",
           overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
           {a.name}{a.label && <span style={{ fontWeight: 400, color: "var(--tasty-text-muted)" }}>  ({a.label})</span>}
         </span>
@@ -347,4 +355,4 @@ function RemoteAttach({ onClose, onFlash }) {
   );
 }
 
-window.TastyKit = Object.assign(window.TastyKit || {}, { RemoteAttach });
+export { RemoteAttach };

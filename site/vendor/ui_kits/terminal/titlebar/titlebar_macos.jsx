@@ -1,3 +1,6 @@
+import React from "react";
+const BASE = `${import.meta.env.BASE_URL.replace(/\/$/, "")}/`;
+
 // Tasty UI kit — CSD titlebar · macOS
 // ─────────────────────────────────────────────────────────────────────────
 // ⚠ NON-PRODUCT / EXPLORATION. The shipping product uses the NATIVE titlebar on
@@ -63,7 +66,7 @@ function TitlebarMacOS({ active = true, variant = "split", title = "agents-prod"
     <div className="tb-mac" data-active={active}>
       {lights}
       <div className="tb-mac__drag" style={{ display: "flex", alignItems: "center", gap: "var(--tasty-space-sm)", margin: "0 auto" }}>
-        <img src="../../../assets/icons/icon_256.png" width="16" height="16" alt="" />
+        <img src={`${BASE}tasty-icon.png`} width="16" height="16" alt="" />
         <span style={{ fontSize: "var(--tasty-font-size-term-sm)", color: fg }}>{title}</span>
         <span style={{ fontFamily: "var(--tasty-font-mono)", fontSize: "var(--tasty-font-size-caption)", color: "var(--tasty-text-muted)" }}>— tasty</span>
       </div>
@@ -77,4 +80,5 @@ function TitlebarMacOS({ active = true, variant = "split", title = "agents-prod"
     const el = document.createElement("style"); el.id = "tb-mac-css"; el.textContent = TB_MAC_CSS; document.head.appendChild(el);
   }
 })();
-window.TastyKit = Object.assign(window.TastyKit || {}, { TitlebarMacOS });
+
+export { TitlebarMacOS };

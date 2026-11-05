@@ -15,7 +15,8 @@ export interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElemen
   /** Icon element rendered after the label. */
   trailingIcon?: React.ReactNode;
   /** 2026-10-21 — the ground the button sits on. "raised" (surface-raised: add cards, menus) swaps the ghost label to
-   *  --tasty-button-ghost-raised-fg so it keeps 4.5:1 in Latte. Other variants are unchanged. */
+   *  --tasty-button-ghost-raised-fg so it keeps 4.5:1 in Latte. Other variants are unchanged.
+   *  2026-11-05 — "active" (a selected row's surface-active fill) reads text-on-active the same way. */
   ground?: "panel" | "raised" | "active";
   children?: React.ReactNode;
 }

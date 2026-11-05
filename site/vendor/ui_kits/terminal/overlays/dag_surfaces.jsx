@@ -1,13 +1,26 @@
+import React from "react";
+import { Button } from "../../../components/core/Button.jsx";
+import { Icon } from "../../../components/core/Icon.jsx";
+import { IconButton } from "../../../components/core/IconButton.jsx";
+import { Tag } from "../../../components/core/Tag.jsx";
+import { ListCtrl } from "../../../components/data/ListCtrl.jsx";
+import { StatusDot } from "../../../components/feedback/StatusDot.jsx";
+import { Checkbox } from "../../../components/forms/Checkbox.jsx";
+import { Input } from "../../../components/forms/Input.jsx";
+import { Select } from "../../../components/forms/Select.jsx";
+import { DrillDown } from "../../../components/navigation/DrillDown.jsx";
+import { DAG_STATUS, DAG_STATUS_ORDER, DAG_ROLLUP_ORDER, nodeLook, DAG_KIND, DAG_REL, DIM_STATUS, sTok, sLabel, DAG_LIST, dagLayout, elbow, DagNode, RunnerBadge, ZoomCluster, Minimap, CycleBanner, DagEmpty, NODE_W, NODE_H, DAG_BUILD } from "./dag_view.jsx";
+import { Scrim } from "./shared.jsx";
+
 // Tasty UI kit — Task DAG canvas + the two surfaces that host it.
 // Load AFTER dag_view.jsx (parts) and overlays/shared.jsx (Scrim).
 //   DagCanvas   pan / zoom / select, orthogonal edges, LOD, minimap, chrome
 //   DagDetail   selected-node detail (side panel · bottom sheet)
 //   DagSurface  full-tab surface: header + canvas + detail
 //   DagWindow   workspace popup: DrillDown list ⇄ single-DAG detail
-const { Icon, Tag, StatusDot, Input, Select, Checkbox, IconButton, Button, ListCtrl, DrillDown } = window.TastyDesignSystem_41fd3f;
-const { Scrim } = window.TastyKit;
-const { DAG_STATUS, DAG_STATUS_ORDER, DAG_ROLLUP_ORDER, nodeLook, DAG_KIND, DAG_REL, DIM_STATUS, sTok, sLabel, DAG_LIST,
-  dagLayout, elbow, DagNode, RunnerBadge, ZoomCluster, Minimap, CycleBanner, DagEmpty, NODE_W, NODE_H } = window.TastyDag;
+
+
+
 
 const Z_MIN = 0.2, Z_MAX = 1.5, Z_STEP = 0.1;
 const lodOf = (z) => (z >= 0.7 ? "full" : z >= 0.4 ? "compact" : "block");
@@ -299,7 +312,7 @@ function dagHeaderCount(dag) {
 }
 
 // ── Full-tab surface ────────────────────────────────────────────────
-function DagSurface({ dags = [window.TastyDag.DAG_BUILD], initialId, narrow: forceNarrow, style }) {
+function DagSurface({ dags = [DAG_BUILD], initialId, narrow: forceNarrow, style }) {
   const [dagId, setDagId] = React.useState(initialId || dags[0].id);
   const [dir, setDir] = React.useState("td");
   const [z, setZ] = React.useState(1); // detail-view zoom — lives in the back bar (S2)
@@ -493,4 +506,4 @@ function DagWindow({ onClose, entries = DAG_LIST, scope = "tasty" }) {
   );
 }
 
-window.TastyDag = Object.assign(window.TastyDag || {}, { DagCanvas, DagDetail, DagSurface, DagWindow, dagRowItems, lodOf });
+export { DagCanvas, DagDetail, DagSurface, DagWindow, dagRowItems, lodOf };

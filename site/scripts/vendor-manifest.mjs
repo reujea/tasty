@@ -124,7 +124,8 @@ if (args.localVariants.size) {
 const remoteDir = resolve(args.remote);
 if (!existsSync(remoteDir)) fail(`no remote directory at ${remoteDir}`);
 
-const locals = walk(vendor, vendor, []).filter((p) => !OWN_FILES.has(p));
+// Whole paths in byte order: site_vendor_manifest_matches.rs reads this order, and a per-folder walk puts "a/" before "a-b/".
+const locals = walk(vendor, vendor, []).filter((p) => !OWN_FILES.has(p)).sort();
 const reasons = recordedReasons();
 for (const [p, r] of args.reasons) reasons.set(p, r);
 

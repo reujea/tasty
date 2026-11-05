@@ -1,3 +1,9 @@
+import React from "react";
+import { Button } from "../../../components/core/Button.jsx";
+import { IconButton } from "../../../components/core/IconButton.jsx";
+import { ic, Icon } from "../chrome.jsx";
+import { Scrim, Spinner } from "./shared.jsx";
+
 // Tasty UI kit — Git Viewer popup (Tools › Git, contributed by com.tasty.git-viewer).
 // NEW visual design (no prior design existed — replaces the raw splitter+label mock
 // reverse-transcribed from plugin structure). Brought up to the same visual language
@@ -12,9 +18,8 @@
 // select a changed file (→ diff), and the diff Back button. No staging/commit/checkout.
 // All widgets map to host primitives: splitter · button · label(body/caption/heading/
 // mono) · selectable_row · tag · scroll · vbox/hbox · spacer · center.
-// Standalone preview: git_viewer.html
-const { Button, IconButton } = window.TastyDesignSystem_41fd3f;
-const { ic, Icon, Scrim, Spinner } = window.TastyKit;
+
+
 
 // glyph names from the canonical set (icons/*.svg via <Icon name>)
 const GV = {
@@ -33,17 +38,22 @@ const GV_TONE = {
   warning: "var(--tasty-accent-warning)", danger: "var(--tasty-accent-danger)",
   primary: "var(--tasty-accent-primary)",
 };
+const GV_TONE_FG = {
+  info: "var(--tasty-tag-info-fg)", success: "var(--tasty-tag-success-fg)",
+  warning: "var(--tasty-tag-warning-fg)", danger: "var(--tasty-tag-danger-fg)",
+  primary: "var(--tasty-accent-primary-raised)",
+};
 function GBadge({ tone, dot, width, title, children }) {
   const c = GV_TONE[tone];
   const base = { display: "inline-flex", alignItems: "center", justifyContent: width ? "center" : "flex-start",
     gap: 4, height: 16, padding: width ? 0 : "0 var(--tasty-space-sm)", width, flex: "none",
     borderRadius: "var(--tasty-radius-sm)", fontFamily: "var(--tasty-font-mono)", fontSize: "var(--tasty-font-size-micro)",
     fontWeight: 500, lineHeight: 1, whiteSpace: "nowrap", borderStyle: "solid", borderWidth: "var(--tasty-border-width)" };
-  if (!c) return <span title={title} style={{ ...base, color: "var(--tasty-text-secondary)",
-    borderColor: "var(--tasty-border-default)", background: "var(--tasty-surface-raised)" }}>{children}</span>;
+  if (!c) return <span title={title} style={{ ...base, color: "var(--tasty-tag-fg)",
+    borderColor: "var(--tasty-border-default)", background: "var(--tasty-tag-bg)" }}>{children}</span>;
   return (
-    <span title={title} style={{ ...base, color: c, borderColor: `color-mix(in srgb, ${c} 40%, transparent)`,
-      background: `color-mix(in srgb, ${c} 12%, transparent)` }}>
+    <span title={title} style={{ ...base, color: GV_TONE_FG[tone], borderColor: `color-mix(in srgb, ${c} 40%, transparent)`,
+      background: "var(--tasty-tag-bg)" }}>
       {dot && <span style={{ width: 5, height: 5, borderRadius: "var(--tasty-radius-pill)", background: "currentColor", flex: "none" }} />}
       {children}
     </span>
@@ -68,7 +78,7 @@ function EmptyLine({ children }) {
 // ── worktree rail row — 2 lines so name + oid + badges never overflow 232px ──
 function WtRow({ wt, selected, onSelect }) {
   const invalid = wt.state === "invalid";
-  const nameColor = invalid ? "var(--tasty-text-disabled)" : selected ? "var(--tasty-text-primary)" : "var(--tasty-text-secondary)";
+  const nameColor = invalid ? "var(--tasty-text-disabled)" : selected ? "var(--tasty-text-on-active)" : "var(--tasty-text-secondary)";
   return (
     <button className="gv-row" onClick={() => onSelect(wt)} aria-pressed={selected}
       style={{ appearance: "none", textAlign: "left", cursor: "pointer", width: "100%", display: "flex", flexDirection: "column", gap: 3,
@@ -81,7 +91,7 @@ function WtRow({ wt, selected, onSelect }) {
         {wt.type === "main" ? <GBadge tone="info">main</GBadge> : <GBadge>linked</GBadge>}
       </div>
       <div style={{ display: "flex", alignItems: "center", gap: "var(--tasty-space-sm)", minWidth: 0 }}>
-        {wt.oid && <span style={{ ...gvMono, fontSize: 11, color: "var(--tasty-accent-info)" }}>{wt.oid}</span>}
+        {wt.oid && <span style={{ ...gvMono, fontSize: 11, color: selected ? "var(--tasty-text-on-active)" : "var(--tasty-accent-info-raised)" }}>{wt.oid}</span>}
         <div style={{ flex: 1 }} />
         {wt.state === "current" && <GBadge tone="success" dot>current</GBadge>}
         {wt.state === "locked" && <GBadge tone="warning" dot title={wt.reason}>locked</GBadge>}
@@ -117,7 +127,7 @@ function ChRow({ ch, selected, onSelect }) {
 function CmRow({ c }) {
   return (
     <div className="gv-row" style={{ display: "flex", alignItems: "center", gap: "var(--tasty-space-sm)", height: 28, padding: "0 var(--tasty-space-md)", whiteSpace: "nowrap", overflow: "hidden" }}>
-      <span style={{ ...gvMono, fontSize: 11, color: "var(--tasty-accent-info)", flex: "none" }}>{c.oid}</span>
+      <span style={{ ...gvMono, fontSize: 11, color: "var(--tasty-accent-info-raised)", flex: "none" }}>{c.oid}</span>
       {c.refs && c.refs.length > 0 && c.refs.map((r) => <GBadge key={r} tone="info">{r}</GBadge>)}
       <span style={{ fontSize: 13, color: "var(--tasty-text-primary)", flex: 1, minWidth: 40, overflow: "hidden", textOverflow: "ellipsis" }}>{c.summary}</span>
       <span style={{ fontSize: 12, color: "var(--tasty-text-muted)", flex: "none" }}>{c.author}</span>
@@ -131,7 +141,7 @@ function DiffLine({ d }) {
   const hunk = d.kind === "@";
   const add = d.kind === "+";
   const del = d.kind === "-";
-  const fg = hunk ? "var(--tasty-accent-info)" : add ? "var(--tasty-accent-success)" : del ? "var(--tasty-accent-danger)" : "var(--tasty-text-primary)";
+  const fg = hunk ? "var(--tasty-accent-info-raised)" : add ? "var(--tasty-accent-success-raised)" : del ? "var(--tasty-accent-danger-raised)" : "var(--tasty-text-primary)";
   const bg = hunk ? "color-mix(in srgb, var(--tasty-accent-info) 9%, transparent)"
     : add ? "color-mix(in srgb, var(--tasty-accent-success) 10%, transparent)"
     : del ? "color-mix(in srgb, var(--tasty-accent-danger) 10%, transparent)" : "transparent";
@@ -271,7 +281,7 @@ function GitViewer({ onClose, onFlash, repo }) {
         {r.error && (
           <div style={{ display: "flex", alignItems: "center", gap: "var(--tasty-space-sm)", padding: "var(--tasty-space-sm) var(--tasty-size-14)", flex: "none",
             background: "color-mix(in srgb, var(--tasty-accent-danger) 10%, transparent)",
-            borderBottom: "var(--tasty-border-width) solid var(--tasty-separator)", fontSize: 12, color: "var(--tasty-accent-danger)" }}>
+            borderBottom: "var(--tasty-border-width) solid var(--tasty-separator)", fontSize: 12, color: "var(--tasty-accent-danger-raised)" }}>
             <Icon name={GV.warn} size={14} />{r.error}
           </div>
         )}
@@ -282,4 +292,4 @@ function GitViewer({ onClose, onFlash, repo }) {
   );
 }
 
-window.TastyKit = Object.assign(window.TastyKit || {}, { GitViewer });
+export { GitViewer };

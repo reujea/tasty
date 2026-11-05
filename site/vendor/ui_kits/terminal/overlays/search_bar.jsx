@@ -1,8 +1,12 @@
+import React from "react";
+import { Icon } from "../../../components/core/Icon.jsx";
+import { IconButton } from "../../../components/core/IconButton.jsx";
+import { Input } from "../../../components/forms/Input.jsx";
+
 // Tasty UI kit — terminal search bar (Ctrl+F / ⌘F, top-right of the focused surface).
 // Mirrors zilhak/tasty → src/adapters/ui/search_bar.rs
 //   PopupDef: id "search_bar", 360×28, headless, sticky_focus, stays open on outside click.
-// Standalone preview: search_bar.html
-const { Input, IconButton, Icon } = window.TastyDesignSystem_41fd3f;
+
 
 // ── Search bar — mirrors src/adapters/ui/search_bar.rs (popup id "search_bar") ──
 // Headless popup floating at the top-right of the FOCUSED terminal surface.
@@ -51,12 +55,12 @@ function SearchBar({ lines = [], onClose }) {
   const hasQuery = q.length > 0;
   const counterText = count > 0 ? `${cur + 1}/${count}` : "0/0";
   const counterColor = hasQuery && (error || count === 0)
-    ? "var(--tasty-accent-danger)" : "var(--tasty-text-muted)";
+    ? "var(--tasty-accent-danger-raised)" : "var(--tasty-text-muted-raised)";
 
   const Toggle = ({ label, active, title, onClick }) => (
     <IconButton size="sm" active={active} aria-label={title} title={title} onClick={onClick}>
       <span style={{ fontFamily: "var(--tasty-font-mono)", fontSize: 11, fontWeight: 600, lineHeight: 1,
-        color: active ? "var(--tasty-text-primary)" : "var(--tasty-text-muted)" }}>{label}</span>
+        color: active ? "var(--tasty-text-on-active)" : "var(--tasty-text-muted-raised)" }}>{label}</span>
     </IconButton>
   );
 
@@ -93,4 +97,4 @@ function SearchBar({ lines = [], onClose }) {
   );
 }
 
-window.TastyKit = Object.assign(window.TastyKit || {}, { SearchBar });
+export { SearchBar };

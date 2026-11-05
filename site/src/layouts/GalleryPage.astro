@@ -1,53 +1,58 @@
 ---
-/** Use the gallery layout to avoid duplicate navigation and scrollbars.
- * Share the site theme and provide a link back to the design pages. */
-import "../styles/tokens.css";
-import "../styles/kit.css";
-import "../../vendor/gallery/gallery.css";
+/** Gallery page: the site's header, theme and footer, the guide's sidebar and previous/next, and a wide main column. */
+import Base from "./Base.astro";
+import "../../vendor/gallery/parts/specimen.css";
 import "../styles/gallery-site.css";
-import "../styles/vendor-stamp.css";
+import { GALLERY_GROUPS, GALLERY_PAGES, GALLERY_INTROS, galleryPath } from "../lib/design";
 import { url } from "../lib/site";
-import Analytics from "../components/Analytics.astro";
+import { stringsFor } from "../lib/strings";
 
 interface Props {
-  title: string;
-  description: string;
+  pageKey: string;
+  /** The page descriptor the vendored page exports: its title, intro and sections. */
+  page: { head: { title: string; intro?: string }; nav?: { id: string; label: string }[] };
 }
-const { active, title, description } = Astro.props;
+const { pageKey, page } = Astro.props;
+const s = stringsFor("en");
+const idx = GALLERY_PAGES.findIndex((p) => p.key === pageKey);
+const current = GALLERY_PAGES[idx];
+const prev = idx > 0 ? GALLERY_PAGES[idx - 1] : null;
+const next = idx + 1 < GALLERY_PAGES.length ? GALLERY_PAGES[idx + 1] : null;
+const intro = GALLERY_INTROS[pageKey] ?? page.head.intro ?? "";
+const path = galleryPath(current.slug);
 ---
-<html lang="en" data-theme-default="mocha">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>{title} · Tasty Gallery</title>
-    <meta name="description" content={description} />
-    <meta name="color-scheme" content="dark light" />
-    <link rel="icon" href={url("tasty-melon.svg")} type="image/svg+xml" />
-    <script is:inline>
-      /* Same rule as the rest of the site, applied before first paint. */
-      (function () {
-        try {
-          var saved = localStorage.getItem("tasty-theme");
-          if (saved === "latte" || saved === "light") {
-            document.documentElement.setAttribute("data-theme", "latte");
-            return;
-          }
-          if (saved === "mocha" || saved === "dark") return;
-        } catch (e) {}
-        if (window.matchMedia("(prefers-color-scheme: light)").matches) {
-          document.documentElement.setAttribute("data-theme", "latte");
-        }
-      })();
-      try {
-        if (localStorage.getItem("tasty-gallery-specs") === "1")
-          document.addEventListener("DOMContentLoaded", function () {
-            document.body.setAttribute("data-specs", "");
-          });
-      } catch (e) {}
-    </script>
-    <Analytics />
-  </head>
-  <body>
-    <slot />
-  </body>
-</html>
+<Base lang="en" title={`${page.head.title} · Tasty Gallery`} description={intro} active="design" enHref={path} koHref={path}>
+  <Fragment slot="head"><link rel="stylesheet" href={url("design/kit.css")} /></Fragment>
+  <div class="layout layout--gallery">
+    <aside class="sidebar" aria-label="Gallery" data-site-chrome>
+      {GALLERY_GROUPS.map((group) => (
+        <details class="nav-section" open data-current={group.pages.includes(current) ? "" : undefined}>
+          <summary>{group.group}</summary>
+          <ul class="nav-list">
+            {group.pages.map((item) => (
+              <li>
+                <a href={url(galleryPath(item.slug))} aria-current={item === current ? "page" : undefined} style="--indent:0">{item.label}</a>
+                {item === current && page.nav && page.nav.length > 0 && (
+                  <ul class="nav-list nav-list--sections">
+                    {page.nav.map((n) => <li><a href={`#${n.id}`} style="--indent:1">{n.label}</a></li>)}
+                  </ul>
+                )}
+              </li>
+            ))}
+          </ul>
+        </details>
+      ))}
+    </aside>
+    <main class="content" id="content">
+      <div data-gallery-page={pageKey}>
+        <h1>{page.head.title}</h1>
+        <p class="g-intro">{intro}</p>
+        <slot />
+      </div>
+      <nav class="page-nav" data-site-chrome>
+        {prev && <a class="prev" href={url(galleryPath(prev.slug))}><span class="dir">← {s.prev}</span>{prev.label}</a>}
+        {next && <a class="next" href={url(galleryPath(next.slug))}><span class="dir">{s.next} →</span>{next.label}</a>}
+      </nav>
+    </main>
+  </div>
+</Base>

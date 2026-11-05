@@ -1,0 +1,22 @@
+---
+/** Show the last vendor change, excluding README edits; omit unavailable Git data. */
+import { vendorStamp } from "../../lib/vendor-stamp";
+
+interface Props { lang?: "en" | "ko" }
+const { lang = "en" } = Astro.props;
+const COPY = {
+  en: {
+    lead: "This page uses a saved copy of the design system, last changed on ",
+    tail: ". It may differ from the current design source.",
+  },
+  ko: {
+    lead: "이 페이지는 저장소에 보관한 디자인 사본을 사용합니다. 사본의 마지막 수정일은 ",
+    tail: "입니다. 현재 디자인 원본과 다를 수 있습니다.",
+  },
+};
+const stamp = vendorStamp();
+const c = COPY[lang];
+---
+{stamp && (
+  <p class="vendor-stamp">{c.lead}<time datetime={stamp.date}>{stamp.date}</time>{c.tail}</p>
+)}

@@ -33,7 +33,7 @@
   --tasty-text-secondary:   var(--tasty-color-neutral-1000);
   --tasty-text-muted:       var(--tasty-color-neutral-900);
   --tasty-text-disabled:    var(--tasty-color-neutral-700);
-  --tasty-text-placeholder: var(--tasty-color-neutral-600);
+  --tasty-text-placeholder: var(--tasty-color-neutral-900); /* 2026-11-05 was n600 (2.57 on surface0): a placeholder is text that stays on screen. It is the only hint of what goes in the field. */
   /* dim/secondary GLYPH ink — decorative or orienting marks that must recede:
      sidebar collapse chevrons, dim category icons, inert list affordances.
      Same ramp step as placeholder, a DIFFERENT role: placeholder is unentered
@@ -66,16 +66,15 @@
   --tasty-accent-warning-raised: var(--tasty-accent-warning);
   --tasty-accent-attention-raised: var(--tasty-accent-attention);
   --tasty-accent-info-raised: var(--tasty-accent-info);
-  /* 2026-11-05: an accent GLYPH on a surface-active row (check, selected icon, unread dot). Mocha = accent-primary (3.17); Latte blue is 2.27 there. */
-  --tasty-accent-primary-on-active: var(--tasty-accent-primary);
-  /* 2026-11-05: a glyph whose HUE carries the meaning on a surface-active row (favorite, plugin, remote, status). Each stays its own hue at 3:1 or better.
-     Mocha: warning 5.25 · success 4.49 · danger 3.28 · agent 3.29 · remote 4.29 · attached 3.73. Latte: 3.75 · 3.50 · 3.42 · 3.48 · 3.48 · 3.78. A kind glyph, whose SHAPE carries the meaning, takes text-on-active instead. */
-  --tasty-accent-warning-on-active: var(--tasty-accent-warning-raised);
-  --tasty-accent-success-on-active: var(--tasty-accent-success-ink);
-  --tasty-accent-danger-on-active: color-mix(in srgb, var(--tasty-color-red) 85%, var(--tasty-color-white)); /* Mocha red alone is 2.88 on the fill */
-  --tasty-accent-agent-on-active: var(--tasty-accent-agent);
-  --tasty-accent-remote-on-active: var(--tasty-accent-info-raised);
-  --tasty-accent-attached-on-active: var(--tasty-accent-attached-raised);
+  /* an accent GLYPH on a surface-active row (check, selected icon, unread dot). Holds 3:1 at rest, under hover and under press. Measured values: tokens/ground-ink-rules.json. */
+  --tasty-accent-primary-on-active: color-mix(in srgb, var(--tasty-color-blue) 65%, var(--tasty-color-white)); /* 2026-11-05 lifted so it holds 3:1 under hover and press */
+  /* a glyph whose HUE carries the meaning on a surface-active row (favorite, plugin, remote, status). Holds 3:1 at rest, under hover and under press. A kind glyph, whose SHAPE carries the meaning, takes text-on-active instead. Measured values: tokens/ground-ink-rules.json. */
+  --tasty-accent-warning-on-active: var(--tasty-accent-warning);
+  --tasty-accent-success-on-active: var(--tasty-accent-success);
+  --tasty-accent-danger-on-active: color-mix(in srgb, var(--tasty-color-red) 60%, var(--tasty-color-white)); /* 2026-11-05 lifted so it holds 3:1 under hover and press */
+  --tasty-accent-agent-on-active: color-mix(in srgb, var(--tasty-color-mauve) 70%, var(--tasty-color-white));
+  --tasty-accent-remote-on-active: var(--tasty-accent-info-on-active);
+  --tasty-accent-attached-on-active: color-mix(in srgb, var(--tasty-color-lavender) 85%, var(--tasty-color-white));
   /* 2026-11-05: attached ink on a RAISED ground (Tag). Mocha = the accent, 7.03 on surface0; Latte lavender alone is 2.14 there. */
   --tasty-accent-attached-raised: var(--tasty-accent-attached);
   /* 2026-10-27: success INK (text + its glyph) on a success TINT box (accent-success × tint-fill over mantle/base).
@@ -147,7 +146,7 @@
   /* fg = readable text/glyph atop the filled kind color (both live kinds are
      bright fills, so both take the on-accent tone; a future dark-fill kind may
      override its own slot) */
-  --tasty-attention-needs-input-fg: var(--tasty-text-on-accent);
+  --tasty-attention-needs-input-fg: var(--tasty-notify-warning-fg); /* 2026-11-05 Latte white on yellow was 2.62 */
   --tasty-attention-completion-fg:  var(--tasty-text-on-accent);
   /* notification levels (2026-10-17, notification-center) — the channel's three levels. info is the
      completion blue ON PURPOSE (same hue as the LNB completion count). The counts are a separate axis:
@@ -386,6 +385,58 @@
   --tasty-brand-melon-flesh: var(--tasty-color-melon-flesh);
   --tasty-brand-melon-rind:  var(--tasty-color-melon-rind);
   --tasty-brand-melon-seed:  var(--tasty-color-melon-seed);
+
+  /* ── Ground-ink rules (2026-11-05). project/RULES.md is the source; each cell of the matrix names one of these. ── */
+  /* the fill of an enterable control. Mocha = surface-raised; Latte steps to n200, because on surface0 no placeholder clears 4.5 and still differs from the value */
+  --tasty-surface-field: var(--tasty-surface-raised);
+  /* the edge that alone identifies an empty control (field, select, checkbox, switch track). 3:1 on its parent */
+  --tasty-border-control: var(--tasty-color-neutral-600);
+  --tasty-border-control-raised: var(--tasty-color-neutral-700);
+  /* switch thumb on those tracks */
+  --tasty-control-thumb: var(--tasty-color-neutral-1100);
+  --tasty-control-thumb-raised: var(--tasty-color-white);
+  --tasty-scrollbar-thumb: var(--tasty-border-control);
+  --tasty-scrollbar-thumb-raised: var(--tasty-border-control-raised);
+  --tasty-scrollbar-thumb-hover: var(--tasty-text-muted-raised);
+  /* every ink on a selected row under hover or press. Mocha text-on-active is 3.79 and 3.44 there */
+  --tasty-text-on-active-hover: var(--tasty-color-white);
+  /* a count on the two deepest grounds only. Mocha keeps its step; Latte n800 was 2.99 */
+  --tasty-text-quiet: var(--tasty-color-neutral-700);
+  --tasty-glyph-dim-raised: var(--tasty-color-neutral-700);
+  /* -raised: hue ink that holds 4.5 on surface-raised and on every lower ground */
+  --tasty-accent-primary-raised: var(--tasty-accent-primary);
+  --tasty-accent-agent-raised: var(--tasty-accent-agent);
+  --tasty-accent-success-raised: var(--tasty-accent-success-ink);
+  --tasty-accent-remote-raised: var(--tasty-accent-info-raised);
+  --tasty-accent-move-raised: var(--tasty-accent-move);
+  --tasty-accent-route-raised: var(--tasty-accent-attached-raised);
+  /* -strong: hue ink that holds 4.5 under hover and press too, and on an opaque status tint */
+  --tasty-accent-primary-strong: color-mix(in srgb, var(--tasty-color-blue) 85%, var(--tasty-color-white));
+  --tasty-accent-info-strong: var(--tasty-accent-info);
+  --tasty-accent-success-strong: var(--tasty-accent-success);
+  --tasty-accent-warning-strong: var(--tasty-accent-warning);
+  --tasty-accent-attention-strong: var(--tasty-accent-attention);
+  --tasty-accent-danger-strong: color-mix(in srgb, var(--tasty-color-red) 75%, var(--tasty-color-white));
+  --tasty-accent-agent-strong: color-mix(in srgb, var(--tasty-color-mauve) 90%, var(--tasty-color-white));
+  --tasty-accent-attached-strong: var(--tasty-accent-attached);
+  --tasty-accent-remote-strong: var(--tasty-accent-info-strong);
+  /* on-active roles the older set left out */
+  --tasty-accent-info-on-active: var(--tasty-accent-info);
+  --tasty-accent-attention-on-active: color-mix(in srgb, var(--tasty-color-peach) 85%, var(--tasty-color-white));
+  --tasty-accent-move-on-active: var(--tasty-accent-move);
+  --tasty-accent-route-on-active: var(--tasty-accent-attached-on-active);
+  /* filled pills that need their own ink pair */
+  --tasty-accent-success-fill: var(--tasty-accent-success);
+  --tasty-attention-needs-input-fill: var(--tasty-notify-warning-fill);
+  /* the accent-box idiom as tokens: accent × tint-fill-alpha, composited over its parent */
+  --tasty-tint-primary-bg: color-mix(in srgb, var(--tasty-accent-primary) calc(var(--tasty-tint-fill-alpha) * 100%), transparent);
+  --tasty-tint-info-bg: color-mix(in srgb, var(--tasty-accent-info) calc(var(--tasty-tint-fill-alpha) * 100%), transparent);
+  --tasty-tint-success-bg: color-mix(in srgb, var(--tasty-accent-success) calc(var(--tasty-tint-fill-alpha) * 100%), transparent);
+  --tasty-tint-warning-bg: color-mix(in srgb, var(--tasty-accent-warning) calc(var(--tasty-tint-fill-alpha) * 100%), transparent);
+  --tasty-tint-danger-bg: color-mix(in srgb, var(--tasty-accent-danger) calc(var(--tasty-tint-fill-alpha) * 100%), transparent);
+  --tasty-tint-agent-bg: color-mix(in srgb, var(--tasty-accent-agent) calc(var(--tasty-tint-fill-alpha) * 100%), transparent);
+  --tasty-vi-cursor-fg: var(--tasty-color-neutral-0);
+
 }
 
 /* ============================================================
@@ -422,7 +473,7 @@
      sit within 1.2:1 of each other), so the same ramp step reads fainter than in
      Mocha. One step up restores parity: Mocha n700 on panel 4.44 · Latte n800 3.49.
      Still strictly below text-muted (n900) → the enabled > disabled order holds.
-     No contrast TARGET for disabled (WCAG 1.4.3 / 1.4.11 exempt it) — */
+     No contrast TARGET for disabled (WCAG 1.4.3 / 1.4.11 exempt it). */
   --tasty-text-disabled: var(--tasty-color-neutral-800);
 
   /* secondary-on-raised — Latte n1000 on surface0 = 4.05:1 (< 4.5). n1100 = 5.17:1. The theme rule
@@ -433,11 +484,10 @@
   --tasty-text-muted-raised: var(--tasty-color-neutral-1100);
   /* on-active (2026-11-05) — n1100 on n500 is 3.69 and the ramp has no darker step, so mix toward black: 70% = #35374a, 5.39 at rest, 4.57 when the row is also hovered. */
   --tasty-text-on-active: color-mix(in srgb, var(--tasty-color-neutral-1100) 70%, var(--tasty-color-black));
-  /* blue 70% toward black = #1547ac — 3.83 on surface-active, 5.37 on surface-raised. */
-  --tasty-accent-primary-on-active: color-mix(in srgb, var(--tasty-color-blue) 70%, var(--tasty-color-black));
-  /* meaning glyphs on a selected row (2026-11-05), toward black as above. danger reuses accent-danger-raised. mauve 80% = #6d2ebf 3.48 · lavender 55% = #3f4a8b 3.78 on surface-active, 5.29 on surface-raised. */
-  --tasty-accent-danger-on-active: var(--tasty-accent-danger-raised);
-  --tasty-accent-agent-on-active: color-mix(in srgb, var(--tasty-color-mauve) 80%, var(--tasty-color-black));
+  --tasty-accent-primary-on-active: color-mix(in srgb, var(--tasty-color-blue) 65%, var(--tasty-color-black));
+  /* attached on raised: lavender 55% toward black, 5.29 on surface-raised. */
+  --tasty-accent-danger-on-active: color-mix(in srgb, var(--tasty-color-red) 70%, var(--tasty-color-black));
+  --tasty-accent-agent-on-active: color-mix(in srgb, var(--tasty-color-mauve) 70%, var(--tasty-color-black));
   --tasty-accent-attached-raised: color-mix(in srgb, var(--tasty-color-lavender) 55%, var(--tasty-color-black));
   /* status ink on raised (2026-11-05), toward black like accent-success-ink: yellow 50% = #70470e 5.25 · peach 55% = #8c3706 5.12 · sky 55% = #025b7e 4.87 on surface0. */
   --tasty-accent-warning-raised: color-mix(in srgb, var(--tasty-color-yellow) 50%, var(--tasty-color-black));
@@ -451,5 +501,38 @@
   --tasty-separator:      var(--tasty-alpha-black-8);
 
   --tasty-surface-terminal-focused-bg: var(--tasty-color-white);
+
+  /* Ground-ink rules (2026-11-05). Contrast for each is in project/tokens/ground-ink-rules.json. */
+  --tasty-surface-field: var(--tasty-color-neutral-200);
+  --tasty-border-control: color-mix(in srgb, var(--tasty-color-neutral-800) 85%, var(--tasty-color-neutral-1100));
+  --tasty-border-control-raised: var(--tasty-color-neutral-900);
+  --tasty-control-thumb: var(--tasty-color-white);
+  --tasty-text-on-active-hover: color-mix(in srgb, var(--tasty-color-neutral-1100) 60%, var(--tasty-color-black));
+  --tasty-text-quiet: var(--tasty-color-neutral-1000);
+  --tasty-glyph-dim: var(--tasty-color-neutral-900);
+  --tasty-glyph-dim-raised: var(--tasty-color-neutral-900);
+  --tasty-status-idle: var(--tasty-color-neutral-900);
+  --tasty-text-placeholder: var(--tasty-color-neutral-1000);
+  --tasty-accent-primary-raised: color-mix(in srgb, var(--tasty-color-blue) 70%, var(--tasty-color-black));
+  --tasty-accent-agent-raised: color-mix(in srgb, var(--tasty-color-mauve) 80%, var(--tasty-color-black));
+  --tasty-accent-move-raised: color-mix(in srgb, var(--tasty-color-pink) 55%, var(--tasty-color-black));
+  --tasty-accent-primary-strong: color-mix(in srgb, var(--tasty-color-blue) 65%, var(--tasty-color-black));
+  --tasty-accent-info-strong: color-mix(in srgb, var(--tasty-color-sky) 45%, var(--tasty-color-black));
+  --tasty-accent-success-strong: color-mix(in srgb, var(--tasty-color-green) 50%, var(--tasty-color-black));
+  --tasty-accent-warning-strong: color-mix(in srgb, var(--tasty-color-yellow) 45%, var(--tasty-color-black));
+  --tasty-accent-attention-strong: color-mix(in srgb, var(--tasty-color-peach) 45%, var(--tasty-color-black));
+  --tasty-accent-danger-strong: color-mix(in srgb, var(--tasty-color-red) 70%, var(--tasty-color-black));
+  --tasty-accent-agent-strong: color-mix(in srgb, var(--tasty-color-mauve) 65%, var(--tasty-color-black));
+  --tasty-accent-attached-strong: color-mix(in srgb, var(--tasty-color-lavender) 50%, var(--tasty-color-black));
+  /* on-active: 3:1 under hover and press on the selected row, not only at rest */
+  --tasty-accent-warning-on-active: color-mix(in srgb, var(--tasty-color-yellow) 45%, var(--tasty-color-black));
+  --tasty-accent-success-on-active: color-mix(in srgb, var(--tasty-color-green) 55%, var(--tasty-color-black));
+  --tasty-accent-info-on-active: color-mix(in srgb, var(--tasty-color-sky) 50%, var(--tasty-color-black));
+  --tasty-accent-attention-on-active: color-mix(in srgb, var(--tasty-color-peach) 50%, var(--tasty-color-black));
+  --tasty-accent-move-on-active: color-mix(in srgb, var(--tasty-color-pink) 45%, var(--tasty-color-black));
+  --tasty-accent-attached-on-active: color-mix(in srgb, var(--tasty-color-lavender) 50%, var(--tasty-color-black));
+  --tasty-accent-success-fill: color-mix(in srgb, var(--tasty-color-green) 75%, var(--tasty-color-black));
+  --tasty-vi-cursor-fg: var(--tasty-color-black);
+
   /* markdown-focused-bg intentionally NOT overridden here — it tracks bg-app (Latte crust). */
 }

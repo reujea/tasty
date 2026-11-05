@@ -1,3 +1,8 @@
+import React from "react";
+import { Button } from "../../../components/core/Button.jsx";
+import { Icon } from "../../../components/core/Icon.jsx";
+import { Select } from "../../../components/forms/Select.jsx";
+
 // Settings › Keybindings › Plugins subtab (2026-10-08, batch 8).
 // Box boundaries for the implementer (all component tokens, --tasty-kb-plugin-*):
 //   picker row:  [title column 150 "Plugin:"] gap 16 [Select 200]
@@ -10,8 +15,8 @@
 // The title column is the settings Row label column (settings-label-width), so the picker Select and every
 // mode Select start at the same x. Reset is a ghost md button: same 28 height as the line, disabled when
 // there is no override. A draft (unsaved) change shows a 6px accent dot after the title. Save/Cancel = footer.
-(() => {
-const { Select, Button, Icon } = window.TastyDesignSystem_41fd3f;
+
+
 
 const KBP_SOURCES = [
   { value: "clipboard.copy", label: "clipboard.copy" },
@@ -139,5 +144,4 @@ function KbPluginsSubtab({ plugins = KBP_PLUGINS, saved = { "clipboard-viewer/cl
   );
 }
 
-window.TastyKit = Object.assign(window.TastyKit || {}, { KbPluginsSubtab, KBP_PLUGINS });
-})();
+export { KbPluginsSubtab, KBP_PLUGINS };

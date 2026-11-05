@@ -7,6 +7,8 @@ export interface IconButtonProps extends React.ButtonHTMLAttributes<HTMLButtonEl
   variant?: "ghost" | "solid";
   /** Show the persistent active/selected state (accent color). */
   active?: boolean;
+  /** Host ground. "active" reads text-on-active on a selected row. */
+  ground?: "panel" | "active";
   /** The icon element — normally `<Icon name="…" />` from components/core/Icon. */
   children?: React.ReactNode;
 }

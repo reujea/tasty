@@ -1,3 +1,7 @@
+import React from "react";
+import * as DS_ns from "../../../components/index.js";
+import { PopupTitleBar } from "./info_modal.jsx";
+
 // Notifications popup + fullscreen stage (2026-10-17).
 // Extends the existing popup (src/adapters/ui/notification.rs · fullscreen/notifications.rs):
 // same shared PopupTitleBar (title centred, fullscreen fit + close ×), 352 × 400 default.
@@ -13,8 +17,8 @@
 // New items are inserted at the top; selection, scroll offset and keyboard focus are kept
 // (when scrolled away from the top, the list does not jump).
 // Fullscreen: same list and actions on the wide stage; body clamp 3 lines instead of 2.
-(() => {
-const DS = () => window.TastyDesignSystem_41fd3f;
+
+const DS = () => DS_ns;
 
 const NOTIFICATION_SAMPLES = [
   { id: "n1", level: "error", unread: true, time: "2m", source: "api-gateway › build", title: "Build failed: cargo build exited with status 101",
@@ -36,7 +40,7 @@ function unreadCounts(items) {
 function NotificationsPopup({ items = NOTIFICATION_SAMPLES, fullscreen = false, expandedId = null, selectedId = null, hoverId = null,
   onToggle, onMarkRead, onMarkAllRead, onJump, width, height, style }) {
   const { Button, NotificationBadgeGroup, NotificationItem } = DS();
-  const TitleBar = window.TastyKit && window.TastyKit.PopupTitleBar;
+  const TitleBar = PopupTitleBar;
   const c = unreadCounts(items);
   const any = c.error + c.warning + c.info > 0;
   return (
@@ -81,5 +85,6 @@ function useNotifications(initial = NOTIFICATION_SAMPLES) {
   };
 }
 
-window.TastyKit = Object.assign(window.TastyKit || {}, { NotificationsPopup, useNotifications, notificationUnreadCounts: unreadCounts, NOTIFICATION_SAMPLES });
-})();
+const notificationUnreadCounts = unreadCounts;
+
+export { NotificationsPopup, useNotifications, notificationUnreadCounts, NOTIFICATION_SAMPLES };

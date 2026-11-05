@@ -1,10 +1,24 @@
+import React from "react";
+const BASE = `${import.meta.env.BASE_URL.replace(/\/$/, "")}/`;
+import { Badge } from "../../components/core/Badge.jsx";
+import { Button } from "../../components/core/Button.jsx";
+import { Icon as TastyDesignSystem_41fd3f_Icon } from "../../components/core/Icon.jsx";
+import { IconButton } from "../../components/core/IconButton.jsx";
+import { Kbd } from "../../components/core/Kbd.jsx";
+import { Tag } from "../../components/core/Tag.jsx";
+import { StatusDot } from "../../components/feedback/StatusDot.jsx";
+import { Tab } from "../../components/navigation/Tab.jsx";
+import { TreeRow } from "../../components/navigation/TreeRow.jsx";
+import { RailNotificationSummary, NotificationSummary } from "./notification_summary.jsx";
+import { RailCategoryPopup, SidebarContextMenu } from "./overlays/sidebar_context_menu.jsx";
+
 // Tasty UI kit — screen chrome (title bar, sidebar, tab strip, terminal, status bar).
-// Composes the DS component library (window.TastyDesignSystem_41fd3f).
-const { IconButton, Button, Tab, TreeRow, StatusDot, Tag, Kbd, Badge } = window.TastyDesignSystem_41fd3f;
+// Composes the DS component library (components/index.js).
+
 // Resolved at render, not at load: inside components/bundle.js this file runs before the DS
 // namespace is filled, so an eager `Icon` read is undefined and the module-level `ic`
 // map below would hold elements with an undefined type.
-const DSIcon = (p) => React.createElement(window.TastyDesignSystem_41fd3f.Icon, p);
+const DSIcon = (p) => React.createElement(TastyDesignSystem_41fd3f_Icon, p);
 
 // ── icons — canonical set, by name from icons/*.svg via the DS <Icon/> ──
 // `Icon` is a thin compatibility shim: pass `name` (preferred — renders the
@@ -48,7 +62,7 @@ function TitleBar({ workspace }) {
         <span style={{ width: "var(--tasty-titlebar-traffic-size)", height: "var(--tasty-titlebar-traffic-size)", borderRadius: "var(--tasty-radius-pill)", background: "var(--tasty-titlebar-traffic-zoom)" }} />
       </div>
       <div style={{ display: "flex", alignItems: "center", gap: "var(--tasty-space-sm)", margin: "0 auto" }}>
-        <img src="../../assets/icons/icon_256.png" width="16" height="16" alt="" />
+        <img src={`${BASE}tasty-icon.png`} width="16" height="16" alt="" />
         <span style={{ fontSize: "var(--tasty-font-size-term-sm)", color: "var(--tasty-text-secondary)" }}>{workspace}</span>
         <span style={{ fontFamily: "var(--tasty-font-mono)", fontSize: "var(--tasty-font-size-caption)", color: "var(--tasty-text-muted)" }}>— tasty</span>
       </div>
@@ -58,7 +72,7 @@ function TitleBar({ workspace }) {
 }
 
 function WorkspaceRow({ ws, active, onClick, onContextMenu }) {
-  const { StatusDot, Badge } = window.TastyDesignSystem_41fd3f;
+  
   const [hover, setHover] = React.useState(false);
   return (
     <div onClick={onClick} onContextMenu={onContextMenu} onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)}
@@ -219,10 +233,10 @@ function useCategoryCollapse(categories) {
 // (notification_summary.jsx, 2026-10-17). Always drawn; all-zero = muted label / bell only.
 const NO_NOTIFS = { counts: { error: 0, warning: 0, info: 0 }, latest: null, open: false };
 function CollapsedSidebar({ workspaces, activeWs, onWs, onSettings, onPlugins, onTools, onToggle, pluginAlert = 0, categories = null, workspacesHeading = "Workspaces", notifications = NO_NOTIFS, onNotifications }) {
-  const RailNotif = window.TastyKit && window.TastyKit.RailNotificationSummary;
+  const RailNotif = RailNotificationSummary;
   const { isCollapsed, toggle } = useCategoryCollapse(categories);
   const [popup, setPopup] = React.useState(null); // { anchor, cat }
-  const Popup = window.TastyKit && window.TastyKit.RailCategoryPopup;
+  const Popup = RailCategoryPopup;
   const Avatar = (w) => (
     <div key={w.id} style={{ position: "relative", display: "flex", justifyContent: "center" }}>
       <RailBtn title={w.name} active={w.id === activeWs} onClick={() => onWs(w.id)}>
@@ -263,7 +277,7 @@ function CollapsedSidebar({ workspaces, activeWs, onWs, onSettings, onPlugins, o
     <div style={{ width: 52, flex: "none", height: "100%", zoom: "var(--tasty-ui-scale)",
       display: "flex", flexDirection: "column", alignItems: "center",
       background: "var(--tasty-bg-sidebar)", borderRight: "var(--tasty-border-width) solid var(--tasty-separator)", padding: "var(--tasty-space-sm) 0", gap: "var(--tasty-size-2)" }}>
-      <img src="../../assets/icons/icon_256.png" width="24" height="24" alt="Tasty" style={{ marginBottom: "var(--tasty-space-xs)" }} />
+      <img src={`${BASE}tasty-icon.png`} width="24" height="24" alt="Tasty" style={{ marginBottom: "var(--tasty-space-xs)" }} />
       <div title="Expand sidebar" style={{ marginBottom: "var(--tasty-space-sm)" }}>
         <IconButton size="sm" aria-label="Expand" onClick={onToggle}>
           <Icon d={<path d="m13 17 5-5-5-5M6 17l5-5-5-5" />} />
@@ -309,14 +323,14 @@ function CollapsedSidebar({ workspaces, activeWs, onWs, onSettings, onPlugins, o
 }
 
 function Sidebar({ workspaces, activeWs, onWs, onSettings, onPlugins, onTools, collapsed, onToggle, pluginAlert = 0, categories = null, workspacesHeading = "Workspaces", notifications = NO_NOTIFS, onNotifications }) {
-  const NotifSummary = window.TastyKit && window.TastyKit.NotificationSummary;
+  const NotifSummary = NotificationSummary;
   const Heading = ({ children }) => (
     <div style={{ fontFamily: "var(--tasty-font-mono)", fontSize: "var(--tasty-font-size-micro)", textTransform: "uppercase",
       letterSpacing: "var(--tasty-sidebar-section-heading-tracking)", color: "var(--tasty-text-muted)", padding: "var(--tasty-space-md) var(--tasty-space-sm) var(--tasty-space-xs)" }}>{children}</div>
   );
   const { isCollapsed, toggle } = useCategoryCollapse(categories);
   const [menu, setMenu] = React.useState(null); // { x, y, target }
-  const Menu = window.TastyKit && window.TastyKit.SidebarContextMenu;
+  const Menu = SidebarContextMenu;
   const openMenu = (e, target) => { e.preventDefault(); e.stopPropagation(); setMenu({ x: e.clientX, y: e.clientY, target }); };
   const rowList = (items, cat, bottomBorder = true, topBorder = true) => (
     <div style={{ display: "flex", flexDirection: "column",
@@ -339,7 +353,7 @@ function Sidebar({ workspaces, activeWs, onWs, onSettings, onPlugins, onTools, c
       display: "flex", flexDirection: "column",
       background: "var(--tasty-bg-sidebar)", borderRight: "var(--tasty-border-width) solid var(--tasty-separator)" }}>
       <div style={{ display: "flex", alignItems: "center", gap: "var(--tasty-space-sm)", padding: "var(--tasty-space-md) var(--tasty-space-md) var(--tasty-space-xs)" }}>
-        <img src="../../assets/icons/icon_256.png" width="22" height="22" alt="Tasty" />
+        <img src={`${BASE}tasty-icon.png`} width="22" height="22" alt="Tasty" />
         <span style={{ fontFamily: "var(--tasty-font-mono)", fontWeight: "var(--tasty-font-weight-bold)", fontSize: "var(--tasty-sidebar-wordmark-font-size)", color: "var(--tasty-text-primary)",
           letterSpacing: "var(--tasty-sidebar-wordmark-tracking)" }}>tasty<span style={{ color: "var(--tasty-brand-melon-flesh)" }}>.</span></span>
         <span style={{ marginLeft: "auto" }}>
@@ -392,4 +406,4 @@ function Sidebar({ workspaces, activeWs, onWs, onSettings, onPlugins, onTools, c
   );
 }
 
-window.TastyKit = Object.assign(window.TastyKit || {}, { Icon, ic, TitleBar, Sidebar });
+export { Icon, ic, TitleBar, Sidebar };

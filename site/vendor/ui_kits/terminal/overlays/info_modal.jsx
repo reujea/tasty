@@ -1,3 +1,10 @@
+import React from "react";
+import { Button } from "../../../components/core/Button.jsx";
+import { Icon } from "../../../components/core/Icon.jsx";
+import { IconButton } from "../../../components/core/IconButton.jsx";
+import { Kbd } from "../../../components/core/Kbd.jsx";
+import { MenuItem } from "../../../components/navigation/MenuItem.jsx";
+
 // Info modal SHELL — the boot / runtime notice queue (one message at a time).
 // Repo: src/adapters/ui/info_modal.rs (shell) + popup/defs.rs (title in the popup title bar).
 // Designed 2026-09-28.
@@ -27,8 +34,8 @@
 //     cut, shows the full title in a Tooltip on hover (shared placement: top, then bottom).
 // Buttons are IconButton sm (24, popup-title-btn-size) — the product's 20 goes. Fullscreen (glyph fit)
 // sits left of ×, popup-title-btn-gap (4) apart, and only on popups that declare a fullscreen stage.
-(() => {
-const { Button, IconButton, Icon, MenuItem, Kbd } = window.TastyDesignSystem_41fd3f;
+
+
 
 const TITLE_RESERVE = (n) => `calc(var(--tasty-popup-title-edge-inset) + ${n} * var(--tasty-popup-title-btn-size) + ${n - 1} * var(--tasty-popup-title-btn-gap) + var(--tasty-popup-title-text-gap))`;
 
@@ -141,5 +148,4 @@ function ConvertSurfacePopup({ title = "Surface Type", kinds = CONVERT_KINDS, ac
   );
 }
 
-window.TastyKit = Object.assign(window.TastyKit || {}, { ConvertSurfacePopup, InfoModalShell, ThemeNotFoundModal, DbInitErrorModal, PopupTitleBar, NotificationsPopupHead });
-})();
+export { ConvertSurfacePopup, InfoModalShell, ThemeNotFoundModal, DbInitErrorModal, PopupTitleBar, NotificationsPopupHead };

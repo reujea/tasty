@@ -1,3 +1,17 @@
+import React from "react";
+import { Button } from "../../../components/core/Button.jsx";
+import { Icon } from "../../../components/core/Icon.jsx";
+import { IconButton } from "../../../components/core/IconButton.jsx";
+import { Kbd } from "../../../components/core/Kbd.jsx";
+import { Tag } from "../../../components/core/Tag.jsx";
+import { ListCtrl } from "../../../components/data/ListCtrl.jsx";
+import { StatusDot } from "../../../components/feedback/StatusDot.jsx";
+import { Checkbox } from "../../../components/forms/Checkbox.jsx";
+import { Input } from "../../../components/forms/Input.jsx";
+import { Select } from "../../../components/forms/Select.jsx";
+import { DrillDown } from "../../../components/navigation/DrillDown.jsx";
+import { Scrim } from "./shared.jsx";
+
 // Tasty UI kit — Task DAG view.
 // Two surfaces, ONE canvas: a full-tab graph surface (DagSurface) and a
 // workspace-scoped popup that drills list → detail (DagWindow).
@@ -19,8 +33,8 @@
 //
 // Layout is computed from the graph SHAPE only (ids + deps), never from status,
 // so the 0.5s poll can repaint colours without moving a single node.
-const { Icon, Tag, StatusDot, Input, Select, Checkbox, IconButton, Button, ListCtrl, DrillDown, Kbd } = window.TastyDesignSystem_41fd3f;
-const { Scrim } = window.TastyKit;
+
+
 
 // ── State vocabulary ────────────────────────────────────────────────
 // glyph = the non-colour channel (bare unicode, never emoji); label = the i18n
@@ -295,7 +309,7 @@ function DagNode({ node, lod = "full", selected = false, dimmed = false, onSelec
     outline: selected ? `var(--tasty-dag-node-selected-ring-width) solid var(--tasty-dag-node-selected-ring)` : "none",
     outlineOffset: "var(--tasty-size-1)",
     opacity: dimmed ? "var(--tasty-dag-node-dim-opacity)" : 1,
-    fontFamily: "var(--tasty-font-ui)", color: "var(--tasty-dag-node-fg)",
+    fontFamily: "var(--tasty-font-ui)", color: "var(--tasty-text-on-active)",
     ...style,
   };
   if (lod === "block") {
@@ -316,7 +330,7 @@ function DagNode({ node, lod = "full", selected = false, dimmed = false, onSelec
         gap: "var(--tasty-dag-node-row-gap)", padding: "var(--tasty-dag-node-padding-y) var(--tasty-dag-node-padding-x)",
         background: hot ? "var(--tasty-dag-node-hover-bg)" : "transparent" }}>
         <span style={{ display: "flex", alignItems: "center", gap: "var(--tasty-dag-node-gap)", minWidth: 0 }}>
-          <span style={{ flex: "none", display: "inline-flex", color: "var(--tasty-dag-node-meta-fg)" }}>
+          <span style={{ flex: "none", display: "inline-flex", color: "var(--tasty-dag-node-meta-status-fg)" }}>
             <Icon name={kind.icon} size="var(--tasty-icon-size-sm)" />
           </span>
           <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
@@ -332,7 +346,7 @@ function DagNode({ node, lod = "full", selected = false, dimmed = false, onSelec
               textTransform: "uppercase", color: st.lbl }}>{st.label}</span>
             {node.dur && (
               <span style={{ flex: "none", fontFamily: "var(--tasty-font-mono)", letterSpacing: "var(--tasty-letter-spacing-ui)",
-                color: "var(--tasty-dag-node-meta-fg)" }}>{node.dur}</span>
+                color: "var(--tasty-dag-node-meta-status-fg)" }}>{node.dur}</span>
             )}
           </span>
         )}
@@ -465,9 +479,4 @@ function DagEmpty({ variant = "surface", query = "" }) {
   );
 }
 
-window.TastyDag = Object.assign(window.TastyDag || {}, {
-  DAG_STATUS, DAG_STATUS_ORDER, DAG_ROLLUP_ORDER, DAG_PHASE, dagRollup, nodeLook, nodeTitle, DAG_KIND, DAG_REL, DIM_STATUS, sTok, sBg, sLabel,
-  DAG_BUILD, DAG_INDEX, DAG_CYCLE, DAG_DENSE, DAG_PARTIAL, DAG_LIST, ERR_TAIL,
-  dagLayout, elbow, DagNode, RunnerBadge, ZoomCluster, Minimap, CycleBanner, DagEmpty,
-  NODE_W, NODE_H,
-});
+export { DAG_STATUS, DAG_STATUS_ORDER, DAG_ROLLUP_ORDER, DAG_PHASE, dagRollup, nodeLook, nodeTitle, DAG_KIND, DAG_REL, DIM_STATUS, sTok, sBg, sLabel, DAG_BUILD, DAG_INDEX, DAG_CYCLE, DAG_DENSE, DAG_PARTIAL, DAG_LIST, ERR_TAIL, dagLayout, elbow, DagNode, RunnerBadge, ZoomCluster, Minimap, CycleBanner, DagEmpty, NODE_W, NODE_H };

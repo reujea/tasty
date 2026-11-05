@@ -20,27 +20,10 @@ const COMMON_PRUNED: &[&str] = &["target", ".git"];
 /// 공통 제외 경로 밖에 두는 캐시 이름과 그 이유·처리 근거.
 /// 로컬 빌드에 따라 존재 여부가 달라지므로 미존재를 오류로 보지는 않는다.
 /// 표식 판독을 하지 않는 순회까지 안전하다고 보장하는 목록은 아니다.
-const KNOWN_OUTSIDE: &[(&str, &str)] = &[
-    (
-        "target-e2e-headless",
-        "문서의 E2E 전용 CARGO_TARGET_DIR이다(docs/dev-guide/e2e-tests.md). ensure_dev_bundle이 실행 파일 디렉터리의 조부모를 워크스페이스로 사용하므로 target/ 아래에 한 단계 더 넣으면 번들 plugin을 스테이징하지 못한다. Cargo의 CACHEDIR.TAG가 있어 is_build_cache_dir를 호출하는 순회에서는 이름에 관계없이 제외된다.",
-    ),
-    // Astro가 site/src에서 읽는 세 생성 디렉터리는 각각 등록한다.
-    (
-        "ds",
-        "site/scripts/vendor-to-esm.mjs가 site/vendor/components/를 변환해 site/src/ds/에 생성한다. gitignored이며 prebuild마다 다시 만든다. Astro가 site/src/에서 임포트를 해석하므로 target/ 아래로 옮기지 않는다. 생성기가 CACHEDIR.TAG를 기록하므로 표식 판독을 하는 순회는 제외한다. 표식을 보지 않는 순회는 원본 대신 이 생성 사본을 검사할 수 있다.",
-    ),
-    (
-        "kit",
-        "위 `ds` 와 같은 계약 — `site/vendor/ui_kits/` 의 변환본(`site/src/kit/`)이고 같은 \
-         스크립트가 같은 표식을 쓴다. 못 옮기는 이유도 안전한 이유도 같다.",
-    ),
-    (
-        "gallery",
-        "위 `ds` 와 같은 계약 — `site/vendor/gallery/` 의 변환본(`site/src/gallery/`)이고 \
-         같은 스크립트가 같은 표식을 쓴다. 못 옮기는 이유도 안전한 이유도 같다.",
-    ),
-];
+const KNOWN_OUTSIDE: &[(&str, &str)] = &[(
+    "target-e2e-headless",
+    "문서의 E2E 전용 CARGO_TARGET_DIR이다(docs/dev-guide/e2e-tests.md). ensure_dev_bundle이 실행 파일 디렉터리의 조부모를 워크스페이스로 사용하므로 target/ 아래에 한 단계 더 넣으면 번들 plugin을 스테이징하지 못한다. Cargo의 CACHEDIR.TAG가 있어 is_build_cache_dir를 호출하는 순회에서는 이름에 관계없이 제외된다.",
+)];
 
 /// 표식 수는 빌드 전이나 외부 target 경로를 사용할 때 0일 수 있어 순회한 디렉터리 수에 하한을 둔다.
 /// Pick에는 수집과 하위 순회를 모두 건너뛰는 선택지가 없어, 순회를 줄이는 변이는 표식 목록도 바꾼다.

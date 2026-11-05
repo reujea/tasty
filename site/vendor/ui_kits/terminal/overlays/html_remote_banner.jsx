@@ -1,3 +1,12 @@
+import React from "react";
+import { Button } from "../../../components/core/Button.jsx";
+import { Icon as RcIcon } from "../../../components/core/Icon.jsx";
+import { IconButton } from "../../../components/core/IconButton.jsx";
+import { Spinner } from "../../../components/feedback/Spinner.jsx";
+import { Tooltip } from "../../../components/feedback/Tooltip.jsx";
+import { HtmlAddressBar, HtmlSizeBanner } from "./html_address_bar.jsx";
+import { HsTab, HsPage, HtmlScriptBanner } from "./html_script_banner.jsx";
+
 // HTML surface — REMOTE CONTENT blocked notice (inset banner) + address-field marker.
 // Designed 2026-11-01.
 //
@@ -13,9 +22,9 @@
 // Marker = 20 cell (html-remote-marker-hit) at the END of the address field. Shown when the banner is NOT:
 //   blocked (dismissed, or blocked-observed with no static reference) = globeOff glyph-dim, click → banner shows
 //   (never allows on its own); allowed = globe text-muted, tooltip only. Tooltip TOP.
-(() => {
-const { Button, IconButton, Spinner, Tooltip } = window.TastyDesignSystem_41fd3f;
-const RcIcon = window.TastyDesignSystem_41fd3f.Icon;
+
+
+
 
 const RC_COPY = {
   title: "Remote content in this document is blocked",
@@ -106,7 +115,7 @@ function RcUnstyledPage() {
 // remote / script: banner state or null · remoteMarker: "blocked" | "allowed" | null · scriptMarker: tab marker kind or null
 // size: mirror size banner on top ("file" | "limit" | null) · page: "unstyled" | "styled"
 function HtmlRemoteSurfaceG({ width, height = 300, narrow = false, remote = null, script = null, remoteMarker = null, scriptMarker = null, size = null, page = "unstyled", mirror = false }) {
-  const { HsTab, HsPage, HtmlScriptBanner, HtmlAddressBar, HtmlSizeBanner } = window.TastyKit;
+  
   const stack = [
     size && <HtmlSizeBanner key="size" kind={size} narrow={narrow} />,
     remote && <HtmlRemoteBanner key="remote" state={remote} narrow={narrow} />,
@@ -127,5 +136,4 @@ function HtmlRemoteSurfaceG({ width, height = 300, narrow = false, remote = null
   );
 }
 
-window.TastyKit = Object.assign(window.TastyKit || {}, { HtmlRemoteBanner, HtmlRemoteMarker, HtmlRemoteSurfaceG, RC_COPY });
-})();
+export { HtmlRemoteBanner, HtmlRemoteMarker, HtmlRemoteSurfaceG, RC_COPY };

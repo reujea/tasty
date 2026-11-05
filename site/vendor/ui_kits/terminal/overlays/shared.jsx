@@ -1,6 +1,9 @@
+import React from "react";
+import * as _TDS from "../../../components/index.js";
+
 // Tasty UI kit — shared overlay scaffolding: modal Scrim + Spinner fallback.
 // Every popup in this folder composes these. Load BEFORE the other overlay files.
-const _TDS = window.TastyDesignSystem_41fd3f;
+
 // Spinner is a newly-added DS component. Until the bundle recompiles to include
 // it (first turn after it was added), fall back to an equivalent local copy so
 // this kit never hard-crashes. Once present, the DS component is used verbatim.
@@ -34,4 +37,4 @@ function Scrim({ onClose, children, align = "center" }) {
   );
 }
 
-window.TastyKit = Object.assign(window.TastyKit || {}, { Scrim, Spinner });
+export { Scrim, Spinner };

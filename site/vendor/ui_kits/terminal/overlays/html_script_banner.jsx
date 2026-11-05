@@ -1,3 +1,10 @@
+import React from "react";
+import { Button } from "../../../components/core/Button.jsx";
+import { Icon as HsIcon, Icon as DsIcon } from "../../../components/core/Icon.jsx";
+import { IconButton } from "../../../components/core/IconButton.jsx";
+import { Spinner } from "../../../components/feedback/Spinner.jsx";
+import { Tooltip } from "../../../components/feedback/Tooltip.jsx";
+
 // HTML surface — script-blocked notice (INSET banner) + tab-strip marker.
 // Designed 2026-09-28.
 //
@@ -13,9 +20,9 @@
 //
 // Fires only when the USER views the document (opened it, or selected the surface).
 // Agent/IPC opens, session restore and background tabs only record "has scripts".
-(() => {
-const { Button, IconButton, Spinner, Tooltip } = window.TastyDesignSystem_41fd3f;
-const HsIcon = window.TastyDesignSystem_41fd3f.Icon;
+
+
+
 
 const HS_COPY = {
   title: "Scripts in this document are blocked",
@@ -134,7 +141,7 @@ function HsPage() {
 // marker — both describe a document that is not there, and Allow would allow nothing. A reload that commits
 // re-derives banner + marker from the new document. (Passing banner/marker with failed draws the old, wrong mix.)
 function HsFailed({ url = "file:///Users/me/report.html" }) {
-  const DsIcon = window.TastyDesignSystem_41fd3f.Icon;
+
   return (
     <div style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: "var(--tasty-space-sm)", padding: "var(--tasty-space-md)" }}>
       <span style={{ display: "inline-flex", color: "var(--tasty-accent-danger)" }}><DsIcon name="alertCircle" size="var(--tasty-icon-size-md)" /></span>
@@ -171,6 +178,4 @@ function TermSurfaceG({ height = 260 }) {
   );
 }
 
-window.TastyKit = Object.assign(window.TastyKit || {}, { HtmlScriptBanner, HtmlScriptMarker, HtmlSurfaceG, TermSurfaceG, HsTab, HsPage, HS_COPY });
-
-})();
+export { HtmlScriptBanner, HtmlScriptMarker, HtmlSurfaceG, TermSurfaceG, HsTab, HsPage, HS_COPY };

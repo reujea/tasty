@@ -10,7 +10,7 @@ import { Spinner } from "../feedback/Spinner.jsx";
  *   search field (inset 4) · separator · [pinned rows · separator] · option rows (MenuItem)
  * Rows are the shared MenuItem option row (selected = ink + trailing check, no fill).
  *
- * Decisions (design-request/searchable-select.md §6):
+ * Decisions:
  *  1. Opening focuses the search field. The field draws border-focus as its EDGE only
  *     (no ring) — the trigger already carries the open ring.
  *  2. Keyboard cursor: ↑/↓ move the active row over visible enabled rows, Enter commits

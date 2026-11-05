@@ -1,9 +1,21 @@
+import React from "react";
+import { Badge } from "../../../components/core/Badge.jsx";
+import { Button } from "../../../components/core/Button.jsx";
+import { Icon as DsIcon } from "../../../components/core/Icon.jsx";
+import { IconButton } from "../../../components/core/IconButton.jsx";
+import { Kbd } from "../../../components/core/Kbd.jsx";
+import { Tag } from "../../../components/core/Tag.jsx";
+import { Spinner } from "../../../components/feedback/Spinner.jsx";
+import { Input } from "../../../components/forms/Input.jsx";
+import { Switch } from "../../../components/forms/Switch.jsx";
+import { ic, Icon } from "../chrome.jsx";
+import { Scrim, Spinner as TastyKit_Spinner } from "./shared.jsx";
+
 // Tasty UI kit — Plugins window (lifecycle: install / enable / uninstall).
 // Mirrors zilhak/tasty → src/view/plugins.rs + src/view/plugins/ui/{list,add}.rs
-// Standalone preview: plugins_window.html
-const { Input, Switch, Button, IconButton, Tag, Kbd, Badge } = window.TastyDesignSystem_41fd3f;
-const PwSpinner = window.TastyDesignSystem_41fd3f.Spinner || window.TastyKit.Spinner;
-const { ic, Icon, Scrim } = window.TastyKit;
+
+const PwSpinner = Spinner || TastyKit_Spinner;
+
 
 // ── Plugins — installed list + add/install new plugins ──────────────────
 // Opened from the sidebar "Plugins" entry. The Settings › Plugins tab is for
@@ -137,7 +149,7 @@ function shortFingerprint(v) {
   return parts.length > 16 ? parts.slice(0, 8).join(":") + " … " + parts.slice(-8).join(":") : v;
 }
 function FingerprintLine({ value, onCopy }) {
-  const DsIcon = window.TastyDesignSystem_41fd3f.Icon;
+
   if (!value) return null;
   return (
     <div style={{ display: "flex", alignItems: "center", gap: "var(--tasty-space-sm)", fontFamily: "var(--tasty-font-mono)",
@@ -395,9 +407,9 @@ function AttentionPanel({ items, onFlash, onConfigure }) {
               boxShadow: on ? `inset var(--tasty-selection-edge-width) 0 0 ${pc}` : "none" }}>
               <PluginAvatar plugin={p} size="sm" />
               <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: 13, color: on ? "var(--tasty-text-primary)" : "var(--tasty-text-secondary)",
+                <div style={{ fontSize: 13, color: on ? "var(--tasty-text-on-active)" : "var(--tasty-text-secondary)",
                   overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.name}</div>
-                <div style={{ fontFamily: "var(--tasty-font-mono)", fontSize: "var(--tasty-font-size-micro)", color: pc,
+                <div style={{ fontFamily: "var(--tasty-font-mono)", fontSize: "var(--tasty-font-size-micro)", color: on ? "var(--tasty-text-on-active)" : pc,
                   overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{ATTN[p.reason].label}</div>
               </div>
               <span style={{ flex: "none", width: "var(--tasty-status-dot-size)", height: "var(--tasty-status-dot-size)", borderRadius: "50%", background: pc }} />
@@ -422,7 +434,7 @@ function AttentionPanel({ items, onFlash, onConfigure }) {
               <div style={{ marginTop: 4, fontFamily: "var(--tasty-font-mono)", fontSize: 11, color: "var(--tasty-text-muted)",
                 display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
 {/* 2026-10-09 b10 — each separator travels WITH the item after it (one nowrap span), so a wrapped item never leaves a dangling · */}
-                {[sel.author, sel.id, sel.reason !== "signature-invalid" && sel.homepage && /^https?:\/\//.test(sel.homepage) && <a href={sel.homepage} target="_blank" rel="noreferrer" style={{ color: "var(--tasty-accent-primary)", textDecoration: "underline", textUnderlineOffset: 2 }}>{sel.homepage.replace(/^https?:\/\//, "")}</a>].filter(Boolean).map((part, i) => (
+                {[sel.author, sel.id, sel.reason !== "signature-invalid" && sel.homepage && /^https?:\/\//.test(sel.homepage) && <a href={sel.homepage} target="_blank" rel="noreferrer" style={{ color: "var(--tasty-accent-primary-raised)", textDecoration: "underline", textUnderlineOffset: 2 }}>{sel.homepage.replace(/^https?:\/\//, "")}</a>].filter(Boolean).map((part, i) => (
                   <span key={i} style={{ display: "inline-flex", gap: 8, whiteSpace: "nowrap" }}>{i > 0 && <span>·</span>}{part}</span>
                 ))}
               </div>
@@ -573,12 +585,12 @@ function PluginsWindow({ onClose, onFlash, onConfigure }) {
       <button onClick={() => setTab(value)} style={{ appearance: "none", cursor: "pointer", border: 0,
         height: 26, padding: "0 var(--tasty-space-md)", borderRadius: "var(--tasty-radius-sm)", display: "inline-flex",
         alignItems: "center", gap: "var(--tasty-space-sm)", fontFamily: "var(--tasty-font-ui)", fontSize: "var(--tasty-font-size-term-sm)",
-        fontWeight: on ? 600 : 400, color: on ? "var(--tasty-text-primary)" : "var(--tasty-text-muted)",
+        fontWeight: on ? 600 : 400, color: on ? "var(--tasty-text-primary)" : "var(--tasty-text-on-active)",
         background: on ? "var(--tasty-surface-raised)" : "transparent",
         boxShadow: on ? "inset 0 0 0 var(--tasty-border-width) var(--tasty-border-default)" : "none" }}>
         {label}
         {count != null && !danger && <span style={{ fontFamily: "var(--tasty-font-mono)", fontSize: "var(--tasty-font-size-micro)",
-          color: on ? "var(--tasty-text-secondary)" : "var(--tasty-text-muted)" }}>{count}</span>}
+          color: on ? "var(--tasty-text-secondary-raised)" : "var(--tasty-text-on-active)" }}>{count}</span>}
         {danger && count > 0 && <Badge variant="danger">{count}</Badge>}
       </button>
     );
@@ -617,7 +629,7 @@ function PluginsWindow({ onClose, onFlash, onConfigure }) {
               <div style={{ marginTop: 4, fontFamily: "var(--tasty-font-mono)", fontSize: 11, color: "var(--tasty-text-muted)",
                 display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
 {/* 2026-10-09 b10 — each separator travels WITH the item after it (one nowrap span), so a wrapped item never leaves a dangling · */}
-                {[sel.author, sel.id, sel.homepage && <a href={sel.homepage} target="_blank" rel="noreferrer" style={{ color: "var(--tasty-accent-primary)", textDecoration: "underline", textUnderlineOffset: 2 }}>{sel.homepage.replace(/^https?:\/\//, "")}</a>].filter(Boolean).map((part, i) => (
+                {[sel.author, sel.id, sel.homepage && <a href={sel.homepage} target="_blank" rel="noreferrer" style={{ color: "var(--tasty-accent-primary-raised)", textDecoration: "underline", textUnderlineOffset: 2 }}>{sel.homepage.replace(/^https?:\/\//, "")}</a>].filter(Boolean).map((part, i) => (
                   <span key={i} style={{ display: "inline-flex", gap: 8, whiteSpace: "nowrap" }}>{i > 0 && <span>·</span>}{part}</span>
                 ))}
               </div>
@@ -709,7 +721,7 @@ function PluginsWindow({ onClose, onFlash, onConfigure }) {
               <Button variant="ghost" leadingIcon={ic.settings}
                 onClick={() => onConfigure && onConfigure()}>Configure</Button>
               <Button variant="secondary" onClick={() => setConfirmId(sel.id)}
-                style={{ color: "var(--tasty-accent-danger)" }}>Uninstall</Button>
+                style={{ color: "var(--tasty-accent-danger-raised)" }}>Uninstall</Button>
             </>
           )}
         </div>
@@ -770,17 +782,17 @@ function PluginsWindow({ onClose, onFlash, onConfigure }) {
                   <PluginAvatar plugin={p} size="sm" />
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ display: "flex", alignItems: "center", gap: "var(--tasty-space-sm)" }}>
-                      <span style={{ fontSize: 13, color: on ? "var(--tasty-text-primary)" : "var(--tasty-text-secondary)",
+                      <span style={{ fontSize: 13, color: on ? "var(--tasty-text-on-active)" : "var(--tasty-text-secondary)",
                         overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.name}</span>
                     </div>
-                    <div style={{ fontFamily: "var(--tasty-font-mono)", fontSize: "var(--tasty-font-size-micro)", color: "var(--tasty-text-muted)",
+                    <div style={{ fontFamily: "var(--tasty-font-mono)", fontSize: "var(--tasty-font-size-micro)", color: on ? "var(--tasty-text-on-active)" : "var(--tasty-text-muted)",
                       overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                       {p.author} · v{p.version}
                     </div>
                   </div>
                   {installed[p.id] ? (
                     !isOn && <span style={{ flex: "none", fontFamily: "var(--tasty-font-mono)", fontSize: 10,
-                      color: "var(--tasty-text-muted)" }}>off</span>
+                      color: on ? "var(--tasty-text-on-active)" : "var(--tasty-text-muted)" }}>off</span>
                   ) : (
                     <span style={{ flex: "none", fontFamily: "var(--tasty-font-mono)", fontSize: 10,
                       color: "var(--tasty-text-muted)" }}>{p.cat}</span>
@@ -807,5 +819,6 @@ function PluginsWindow({ onClose, onFlash, onConfigure }) {
   );
 }
 
-window.TastyKit = Object.assign(window.TastyKit || {}, { PluginsWindow, TrustBox, ADD_BLOCKED, SAMPLE_MANIFEST,
-  pluginAttentionCount: ATTENTION_LIST.length + PLUGIN_LIST.filter((p) => p.installed && p.status === "error").length });
+const pluginAttentionCount = ATTENTION_LIST.length + PLUGIN_LIST.filter((p) => p.installed && p.status === "error").length;
+
+export { PluginsWindow, TrustBox, ADD_BLOCKED, SAMPLE_MANIFEST, pluginAttentionCount };

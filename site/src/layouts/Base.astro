@@ -62,7 +62,7 @@ const absolute = (path: string) => new URL(url(path), Astro.site).href;
   <body>
     <a class="visually-hidden" href="#content">{s.skipToContent}</a>
 
-    <header class="site-header">
+    <header class="site-header" data-site-chrome>
       <button class="icon-btn menu-btn" type="button" aria-label={s.toggleNav} aria-expanded="false">
         <Fragment set:html={icon.MENU} />
       </button>
@@ -102,7 +102,7 @@ const absolute = (path: string) => new URL(url(path), Astro.site).href;
 
     <slot />
 
-    <footer class="site-footer">
+    <footer class="site-footer" data-site-chrome>
       <div class="site-footer__inner">
         <div>
           <a class="brand" href={landing}>

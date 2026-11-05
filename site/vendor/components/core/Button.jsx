@@ -52,21 +52,30 @@ const CSS = `
 .tasty-btn--danger  { background: var(--tasty-accent-danger);  color: var(--tasty-text-on-accent); font-weight: var(--tasty-font-weight-semibold); }
 
 .tasty-btn--secondary { background: var(--tasty-surface-raised); border-color: var(--tasty-border-default); }
-.tasty-btn--secondary:hover { border-color: var(--tasty-border-strong); }
+.tasty-btn--secondary svg { color: var(--tasty-text-secondary); }
+.tasty-btn--secondary:hover { border-color: var(--tasty-button-secondary-border-hover); color: var(--tasty-text-on-active); }
+.tasty-btn--secondary:active { border-color: var(--tasty-border-default); color: var(--tasty-text-on-active); }
 
-.tasty-btn--ghost { background: transparent; color: var(--tasty-text-secondary); }
-.tasty-btn--ghost:hover { color: var(--tasty-text-primary); }
+.tasty-btn--ghost { background: transparent; color: var(--tasty-button-ghost-fg); }
+.tasty-btn--ghost svg { color: var(--tasty-text-secondary); }
+.tasty-btn--ghost:hover, .tasty-btn--ghost:active { color: var(--tasty-button-ghost-fg-hover); }
 /* 2026-10-21 — ghost on a raised ground (ground="raised"): Latte text-secondary on surface0 is 4.05:1 */
+.tasty-btn--secondary.tasty-btn--on-raised { border-color: var(--tasty-banner-button-border); }
+.tasty-btn--secondary.tasty-btn--on-raised:hover { border-color: var(--tasty-border-frame); color: var(--tasty-text-primary); }
+.tasty-btn--secondary.tasty-btn--on-raised:active { border-color: var(--tasty-border-frame); color: var(--tasty-text-on-active-hover); }
 .tasty-btn--ghost.tasty-btn--on-raised { color: var(--tasty-button-ghost-raised-fg); }
 .tasty-btn--ghost.tasty-btn--on-raised:hover { color: var(--tasty-button-ghost-raised-fg-hover); }
-/* 2026-11-05 — ghost nested on a surface-active row (ground="active") */
-.tasty-btn--ghost.tasty-btn--on-active, .tasty-btn--ghost.tasty-btn--on-active:hover { color: var(--tasty-button-ghost-active-fg); }
+.tasty-btn--ghost.tasty-btn--on-active { color: var(--tasty-button-ghost-active-fg); }
+.tasty-btn--ghost.tasty-btn--on-active:hover, .tasty-btn--ghost.tasty-btn--on-active:active { color: var(--tasty-text-on-active-hover); }
+.tasty-btn--ghost.tasty-btn--on-active svg { color: var(--tasty-text-on-active); }
+.tasty-btn--ghost.tasty-btn--on-active:focus-visible { outline-color: var(--tasty-accent-primary-raised); }
 
 /* disabled = ink, never opacity (2026-09-29): every variant draws the same neutral box,
    accent fills drop out, label + icons take the disabled ink, no hover / active overlay. */
 .tasty-btn[disabled] { background: var(--tasty-button-disabled-bg); border-color: var(--tasty-button-disabled-border);
   color: var(--tasty-button-disabled-fg); cursor: default; pointer-events: none; }
 .tasty-btn--ghost[disabled] { background: transparent; border-color: transparent; }
+.tasty-btn[disabled] svg { color: var(--tasty-button-disabled-fg); }
 .tasty-btn[disabled]::after { background: transparent; }
 /* Secondary on a banner shell — one ramp step up from banner-bg so the box reads */
 [data-surface="banner"] .tasty-btn--secondary:not([disabled]) { background: var(--tasty-banner-button-bg); border-color: var(--tasty-banner-button-border); }

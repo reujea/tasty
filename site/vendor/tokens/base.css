@@ -38,7 +38,7 @@ samp {
 /* selection mirrors the terminal selection color */
 ::selection {
   background: var(--tasty-selection-bg);
-  color: var(--tasty-text-primary);
+  color: var(--tasty-text-on-active);
 }
 
 /* a thin, on-brand focus ring used across components */
@@ -50,19 +50,19 @@ samp {
 /* scrollbars — subtle, surface-tinted */
 .tasty-scroll {
   scrollbar-width: thin;
-  scrollbar-color: var(--tasty-color-neutral-400) transparent;
+  scrollbar-color: var(--tasty-scrollbar-thumb) transparent;
 }
 .tasty-scroll::-webkit-scrollbar {
   width: 10px;
   height: 10px;
 }
 .tasty-scroll::-webkit-scrollbar-thumb {
-  background: var(--tasty-color-neutral-400);
+  background: var(--tasty-scrollbar-thumb);
   border-radius: var(--tasty-radius-pill);
   border: 2px solid transparent;
   background-clip: content-box;
 }
 .tasty-scroll::-webkit-scrollbar-thumb:hover {
-  background: var(--tasty-color-neutral-500);
+  background: var(--tasty-scrollbar-thumb-hover);
   background-clip: content-box;
 }

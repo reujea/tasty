@@ -13,9 +13,9 @@ const CSS = `
   height: var(--tasty-control-height);
   width: 100%;
   padding: 0 var(--tasty-select-chevron-room) 0 var(--tasty-space-md);
-  border: var(--tasty-border-width) solid var(--tasty-border-default);
+  border: var(--tasty-border-width) solid var(--tasty-select-border);
   border-radius: var(--tasty-radius);
-  background: var(--tasty-surface-raised);
+  background: var(--tasty-surface-field);
   color: var(--tasty-text-primary);
   font-family: var(--tasty-font-ui);
   font-size: var(--tasty-font-size-body);
@@ -23,7 +23,7 @@ const CSS = `
   transition: border-color var(--tasty-motion-ui-fast) var(--tasty-ease-ui),
               box-shadow var(--tasty-motion-ui-fast) var(--tasty-ease-ui);
 }
-.tasty-select select:hover { border-color: var(--tasty-border-strong); }
+.tasty-select select:hover { border-color: var(--tasty-border-control); }
 .tasty-select select:focus { outline: 0; border-color: var(--tasty-border-focus); box-shadow: 0 0 0 var(--tasty-border-width) var(--tasty-border-focus); }
 .tasty-select select:disabled { color: var(--tasty-state-disabled-fg); background: var(--tasty-state-disabled-fill); border-color: var(--tasty-state-disabled-border); cursor: default; }
 /* 2026-10-21 — no value: trigger ink = select-placeholder; disabled (with or without a value) = state-disabled-fg.
@@ -33,12 +33,14 @@ const CSS = `
 .tasty-select select option { color: var(--tasty-text-primary); }
 /* 2026-10-21 — ground="raised": border-default = surface-raised, so the normal box vanished on a raised card */
 .tasty-select--raised select { background: var(--tasty-select-raised-bg); border-color: var(--tasty-select-raised-border); }
+.tasty-select--raised select:hover { border-color: var(--tasty-border-control-raised); }
 .tasty-select--raised select:focus { border-color: var(--tasty-border-focus); }
 .tasty-select--raised select:disabled { background: var(--tasty-select-raised-disabled-bg); border-color: var(--tasty-select-raised-disabled-border); }
 .tasty-select__chevron {
   position: absolute; right: var(--tasty-select-chevron-offset); top: 50%; transform: translateY(-50%);
   pointer-events: none; color: var(--tasty-text-muted);
 }
+.tasty-select:hover .tasty-select__chevron { color: var(--tasty-text-secondary); }
 .tasty-select:has(select:disabled) .tasty-select__chevron { color: var(--tasty-state-disabled-fg); }
 .tasty-select__chevron svg { width: var(--tasty-icon-size-sm); height: var(--tasty-icon-size-sm); display: block; }
 `;

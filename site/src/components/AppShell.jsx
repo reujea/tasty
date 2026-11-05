@@ -1,14 +1,14 @@
 import React from "react";
 import { createPortal } from "react-dom";
-import { Toast } from "../ds/feedback/Toast.jsx";
-import { TitleBar, Sidebar } from "../kit/chrome.jsx";
-import { CommandPalette } from "../kit/overlays/command_palette.jsx";
-import { PluginsWindow, pluginAttentionCount } from "../kit/overlays/plugins_window.jsx";
-import { PortsWindow } from "../kit/overlays/port_scanner.jsx";
-import { RemoteTool } from "../kit/overlays/remote_tool.jsx";
-import { SettingsWindow } from "../kit/overlays/settings_window.jsx";
-import { ToolsMenu } from "../kit/overlays/tools_menu.jsx";
-import { TabStrip, TerminalPane, MarkdownSurface, StatusBar, Prompt } from "../kit/work.jsx";
+import { Toast } from "../../vendor/components/feedback/Toast.jsx";
+import { TitleBar, Sidebar } from "../../vendor/ui_kits/terminal/chrome.jsx";
+import { CommandPalette } from "../../vendor/ui_kits/terminal/overlays/command_palette.jsx";
+import { PluginsWindow, pluginAttentionCount } from "../../vendor/ui_kits/terminal/overlays/plugins_window.jsx";
+import { PortsWindow } from "../../vendor/ui_kits/terminal/overlays/port_scanner.jsx";
+import { RemoteTool } from "../../vendor/ui_kits/terminal/overlays/remote_tool.jsx";
+import { SettingsWindow } from "../../vendor/ui_kits/terminal/overlays/settings_window.jsx";
+import { ToolsMenu } from "../../vendor/ui_kits/terminal/overlays/tools_menu.jsx";
+import { TabStrip, TerminalPane, MarkdownSurface, StatusBar, Prompt } from "../../vendor/ui_kits/terminal/work.jsx";
 
 /** Interactive landing-page demo built from the vendored UI kit. */
 const c = {

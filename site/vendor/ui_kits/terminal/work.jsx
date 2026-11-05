@@ -1,7 +1,18 @@
+import React from "react";
+import { Icon as MdI } from "../../components/core/Icon.jsx";
+import { IconButton } from "../../components/core/IconButton.jsx";
+import { Kbd } from "../../components/core/Kbd.jsx";
+import { Tag } from "../../components/core/Tag.jsx";
+import { StatusDot } from "../../components/feedback/StatusDot.jsx";
+import { Input } from "../../components/forms/Input.jsx";
+import { Tab } from "../../components/navigation/Tab.jsx";
+import { ic, Icon as KIcon } from "./chrome.jsx";
+import { SearchBar } from "./overlays/search_bar.jsx";
+
 // Tasty UI kit — work area (tab strip, terminal/markdown surfaces, status bar).
-const { Tab, IconButton, Tag, StatusDot, Kbd, Input } = window.TastyDesignSystem_41fd3f;
-const { ic, SearchBar } = window.TastyKit; // SearchBar ← overlays/search_bar.jsx
-const { Icon: KIcon } = window.TastyKit;
+
+ // SearchBar ← overlays/search_bar.jsx
+
 
 // colored terminal line helpers
 const C = {
@@ -89,7 +100,7 @@ function TerminalPane({ session, focused, searchOpen, onSearchClose }) {
 // 2026-10-21 — address band = gallery Plugins › Markdown:
 // [Folder (· Reload when remote)] gap 8 [field: kind glyph + path] gap 8 [Go]. remote = editable mirror field.
 function MarkdownSurface({ focused, path = "~/work/tasty/README.md", remote = false, stale = false, children }) {
-  const MdI = window.TastyDesignSystem_41fd3f.Icon;
+
   return (
     <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column",
       background: focused ? "var(--tasty-surface-markdown-focused-bg)" : "var(--tasty-surface-markdown-unfocused-bg)",
@@ -134,7 +145,7 @@ function StatusBar({ surfaceId, theme = "Mocha", onTheme, onPalette }) {
   return (
     <div style={{ display: "flex", alignItems: "center", height: "var(--tasty-control-height-tab)", flex: "none",
       background: "var(--tasty-bg-app)", borderTop: "var(--tasty-border-width) solid var(--tasty-separator)" }}>
-      <div style={{ ...cell, color: "var(--tasty-accent-success)" }}><span style={{ width: "var(--tasty-size-8)", height: "var(--tasty-size-8)",
+      <div style={{ ...cell, color: "var(--tasty-accent-success-raised)" }}><span style={{ width: "var(--tasty-size-8)", height: "var(--tasty-size-8)",
         borderRadius: "var(--tasty-radius-pill)", background: "currentColor" }} /> main</div>
       <div style={cell}>{surfaceId}</div>
       <div style={cell}>bash · 80×24</div>
@@ -156,6 +167,4 @@ function StatusBar({ surfaceId, theme = "Mocha", onTheme, onPalette }) {
   );
 }
 
-window.TastyKit = Object.assign(window.TastyKit || {}, {
-  TabStrip, TerminalPane, MarkdownSurface, StatusBar, Prompt, C, S, resolveStatus, tabBusy, shouldPulse,
-});
+export { TabStrip, TerminalPane, MarkdownSurface, StatusBar, Prompt, C, S, resolveStatus, tabBusy, shouldPulse };

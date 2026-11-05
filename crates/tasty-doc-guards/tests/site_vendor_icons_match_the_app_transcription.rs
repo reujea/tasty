@@ -806,7 +806,7 @@ fn every_site_glyph_is_paired_with_the_app() {
 #[test]
 #[ignore = "사이트 사본은 릴리스할 때만 갱신한다. release.md 절차에서 --ignored로 실행한다"]
 fn external_matches_the_explorer_kit_glyph() {
-    let kit = read("site/vendor/gallery/plugins.jsx");
+    let kit = read("site/vendor/gallery/parts/explorer-kit.jsx");
     let row = kit
         .lines()
         .find(|line| line.trim_start().starts_with("external:"))
@@ -821,9 +821,9 @@ fn external_matches_the_explorer_kit_glyph() {
         normalize(&row[begin..end]).replace(" />", "/>")
     );
     assert!(!filled);
-    let shell = read("site/vendor/gallery/shell.jsx");
+    let shell = read("site/vendor/gallery/parts/specimen.jsx");
     let gicon = shell
-        .split("function GIcon(")
+        .split("export function GIcon(")
         .nth(1)
         .unwrap()
         .split("\n}")

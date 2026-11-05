@@ -1,6 +1,17 @@
+import React from "react";
+import { Toast } from "../../components/feedback/Toast.jsx";
+import { TitleBar, Sidebar } from "./chrome.jsx";
+import { CommandPalette } from "./overlays/command_palette.jsx";
+import { useNotifications, NotificationsPopup } from "./overlays/notifications.jsx";
+import { PluginsWindow, pluginAttentionCount } from "./overlays/plugins_window.jsx";
+import { PortsWindow } from "./overlays/port_scanner.jsx";
+import { RemoteTool } from "./overlays/remote_tool.jsx";
+import { SettingsWindow } from "./overlays/settings_window.jsx";
+import { ToolsMenu } from "./overlays/tools_menu.jsx";
+import { TabStrip, TerminalPane, MarkdownSurface, StatusBar, Prompt, S } from "./work.jsx";
+
 // Tasty UI kit — interactive app shell.
-const { TitleBar, Sidebar, TabStrip, TerminalPane, MarkdownSurface, StatusBar,
-        Prompt, S, CommandPalette, SettingsWindow, PortsWindow, PluginsWindow, RemoteTool, ToolsMenu } = window.TastyKit;
+
 
 const line = {
   green: S("var(--tasty-color-green)"), blue: S("var(--tasty-color-blue)"), mauve: S("var(--tasty-color-mauve)"),
@@ -68,7 +79,7 @@ function App() {
   const [activeWs, setActiveWs] = React.useState("prod");
   const [activeTab, setActiveTab] = React.useState("t1");
   const [toast, setToast] = React.useState(null);
-  const notifs = window.TastyKit.useNotifications();
+  const notifs = useNotifications();
   const [notifAnchor, setNotifAnchor] = React.useState(null); // DOMRect of the LNB notification summary
   const [sidebarCollapsed, setSidebarCollapsed] = React.useState(false);
   const [uiScale, setUiScale] = React.useState("md"); // sm | md | lg — chrome zoom
@@ -175,7 +186,7 @@ function App() {
         <Sidebar workspaces={workspaces} activeWs={activeWs} onWs={setActiveWs}
           categories={categories} workspacesHeading="Workspaces"
           collapsed={sidebarCollapsed} onToggle={() => setSidebarCollapsed((v) => !v)}
-          pluginAlert={(window.TastyKit && window.TastyKit.pluginAttentionCount) || 0}
+          pluginAlert={(pluginAttentionCount) || 0}
           onSettings={() => setOverlay("settings")} onPlugins={() => setOverlay("plugins")}
           onTools={(rect) => setToolsAnchor((a) => (a ? null : rect))}
           notifications={{ counts: notifs.counts, latest: notifs.latest, open: !!notifAnchor }}
@@ -218,7 +229,7 @@ function App() {
 
       {notifAnchor && (
         <div style={{ position: "absolute", left: notifAnchor.right + 4, bottom: Math.max(8, window.innerHeight - notifAnchor.bottom), zIndex: 50 }}>
-          <window.TastyKit.NotificationsPopup items={notifs.items} expandedId={notifs.expandedId}
+          <NotificationsPopup items={notifs.items} expandedId={notifs.expandedId}
             onToggle={notifs.onToggle} onMarkRead={notifs.onMarkRead} onMarkAllRead={notifs.onMarkAllRead}
             onJump={(n) => { setNotifAnchor(null); flash("Jump → " + n.source); }} />
         </div>
@@ -234,11 +245,11 @@ function App() {
 
       {toast && (
         <div style={{ position: "absolute", bottom: "var(--tasty-toast-stack-offset-bottom)", left: "50%", transform: "translateX(-50%)", zIndex: 60 }}>
-          {React.createElement(window.TastyDesignSystem_41fd3f.Toast, { variant: "info" }, toast)}
+          {React.createElement(Toast, { variant: "info" }, toast)}
         </div>
       )}
     </div>
   );
 }
 
-ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+export { App };

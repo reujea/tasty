@@ -1,3 +1,6 @@
+import React from "react";
+import * as DSA from "../../../components/index.js";
+
 // Tasty UI kit — Settings › Misc › Anomaly detection (2026-10-27).
 // Mirrors zilhak/tasty → crates/tasty-settings/src/anomaly_detection.rs ([anomaly_detection], 9 fields).
 // L2 order under Misc: Scripts → Task pipeline → Anomaly detection → Tastyrc (Windows only).
@@ -7,8 +10,8 @@
 // Number rows reuse the settings number field (number-field-*): no clamp while typing; Enter / blur commits,
 // clamping into range; a non-number reverts to the last committed value. The range line shows only while
 // the typed value is out of range and names the value it will commit as.
-(() => {
-const DSA = window.TastyDesignSystem_41fd3f;
+
+
 
 const ANOMALY_FIELDS = [
   { id: "rss_surge", rows: [
@@ -170,5 +173,4 @@ function AnomalySubtab({ lang = "en", values, texts, focusKey, stacked = false, 
   );
 }
 
-window.TastyKit = Object.assign(window.TastyKit || {}, { AnomalySubtab, ANOMALY_FIELDS, ANOMALY_DEFAULTS, ANOMALY_COPY });
-})();
+export { AnomalySubtab, ANOMALY_FIELDS, ANOMALY_DEFAULTS, ANOMALY_COPY };

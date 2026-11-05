@@ -38,7 +38,7 @@
   --tasty-button-secondary-border: var(--tasty-border-default);
   --tasty-button-secondary-border-hover: var(--tasty-border-strong);
   --tasty-button-ghost-fg:         var(--tasty-text-secondary);
-  --tasty-button-ghost-fg-hover:   var(--tasty-text-primary);
+  --tasty-button-ghost-fg-hover:   var(--tasty-text-secondary-raised);
   /* 2026-10-21 — ghost on a RAISED ground (Button ground="raised": add cards, menus' inline buttons). Latte text-secondary
      on surface0 = 4.05:1; the raised role = 5.17:1 (Mocha 7.10). Hover ink unchanged. */
   --tasty-button-ghost-raised-fg:       var(--tasty-text-secondary-raised);
@@ -57,7 +57,7 @@
   --tasty-icon-button-size-sm:     var(--tasty-size-24);
   --tasty-icon-button-radius:      var(--tasty-radius);
   --tasty-icon-button-fg:          var(--tasty-text-secondary);
-  --tasty-icon-button-fg-hover:    var(--tasty-text-primary);
+  --tasty-icon-button-fg-hover:    var(--tasty-text-secondary);
   --tasty-icon-button-overlay-hover:  var(--tasty-overlay-hover);
   --tasty-icon-button-bg-active:   var(--tasty-overlay-active);
 
@@ -69,7 +69,7 @@
   --tasty-badge-font-size:         var(--tasty-font-size-micro);  /* 10 — count pills read smaller than caption */
   --tasty-badge-font-weight:       var(--tasty-font-weight-bold);
   --tasty-badge-bg:                var(--tasty-surface-raised);
-  --tasty-badge-fg:                var(--tasty-text-secondary);
+  --tasty-badge-fg:                var(--tasty-text-secondary-raised); /* 2026-11-05 ground-ink rules */
   /* Badge VARIANTS — every variant is a bg/fg PAIR at the component tier, so a
      badge never reaches into an accent role by hand. attention-* variants are
      the ones the attention scale drives (workspace row counts); the rest are
@@ -78,11 +78,11 @@
   --tasty-badge-danger-fg:         var(--tasty-text-on-accent);
   --tasty-badge-primary-bg:        var(--tasty-attention-completion);      /* completion count — blue */
   --tasty-badge-primary-fg:        var(--tasty-attention-completion-fg);
-  --tasty-badge-warning-bg:        var(--tasty-attention-needs-input);     /* needs-input count — yellow */
+  --tasty-badge-warning-bg:        var(--tasty-attention-needs-input-fill); /* 2026-11-05 ground-ink rules */
   --tasty-badge-warning-fg:        var(--tasty-attention-needs-input-fg);
   --tasty-badge-agent-bg:          var(--tasty-accent-agent);
   --tasty-badge-agent-fg:          var(--tasty-text-on-accent);
-  --tasty-badge-success-bg:        var(--tasty-accent-success);
+  --tasty-badge-success-bg:        var(--tasty-accent-success-fill); /* 2026-11-05 ground-ink rules */
   --tasty-badge-success-fg:        var(--tasty-text-on-accent);
   --tasty-badge-neutral-bg:        var(--tasty-surface-active);
   --tasty-badge-neutral-fg:        var(--tasty-text-on-active); /* 2026-11-05 fill is surface-active: Mocha 4.62 (unchanged) · Latte 5.39 (was 3.69) */
@@ -114,7 +114,7 @@
 
   /* Kbd — keycap */
   --tasty-kbd-size:                var(--tasty-size-16);
-  --tasty-kbd-gap:                 var(--tasty-size-3);
+  --tasty-kbd-gap:                 var(--tasty-space-xs); /* 2026-11-05 ground-ink rules */
   --tasty-kbd-shadow-depth:        var(--tasty-size-2);  /* 3D keycap bottom edge */
   --tasty-kbd-padding-x:           var(--tasty-space-xs);
   --tasty-kbd-radius:              var(--tasty-radius-sm);
@@ -134,10 +134,10 @@
   --tasty-input-gap:               var(--tasty-space-sm);
   --tasty-input-radius:            var(--tasty-radius);
   --tasty-input-font-size:         var(--tasty-font-size-body);
-  --tasty-input-bg:                var(--tasty-surface-raised);
+  --tasty-input-bg:                var(--tasty-surface-field); /* 2026-11-05 ground-ink rules */
   --tasty-input-fg:                var(--tasty-text-primary);
   --tasty-input-placeholder:       var(--tasty-text-placeholder);
-  --tasty-input-border:            var(--tasty-border-default);
+  --tasty-input-border:            var(--tasty-border-control); /* 2026-11-05 ground-ink rules */
   --tasty-input-border-focus:      var(--tasty-border-focus);
   --tasty-input-border-invalid:    var(--tasty-accent-danger);
   --tasty-input-icon-fg:           var(--tasty-text-muted);
@@ -151,7 +151,7 @@
   /* 2026-10-14 — Input on a RAISED ground (Input ground="raised"): every state steps the box down
      one ramp step + strong edge so it never merges with surface-raised. Ink is unchanged per state. */
   --tasty-input-raised-bg:              var(--tasty-bg-panel);
-  --tasty-input-raised-border:          var(--tasty-border-strong);
+  --tasty-input-raised-border:          var(--tasty-border-control-raised); /* 2026-11-05 ground-ink rules */
   --tasty-input-readonly-raised-bg:     var(--tasty-state-disabled-fill-raised);
   --tasty-input-readonly-raised-border: var(--tasty-state-disabled-border-raised);
   /* 2026-10-14 — centred confirm/edit dialog ground (rename popup: workspace · tab · category ·
@@ -163,15 +163,15 @@
   --tasty-select-padding-x:        var(--tasty-space-md);
   --tasty-select-radius:           var(--tasty-radius);
   --tasty-select-font-size:        var(--tasty-font-size-body);
-  --tasty-select-bg:               var(--tasty-surface-raised);
+  --tasty-select-bg:               var(--tasty-surface-field); /* 2026-11-05 ground-ink rules */
   --tasty-select-fg:               var(--tasty-text-primary);
-  --tasty-select-border:           var(--tasty-border-default);
+  --tasty-select-border:           var(--tasty-border-control); /* 2026-11-05 ground-ink rules */
   --tasty-select-border-focus:     var(--tasty-border-focus);
   --tasty-select-chevron-fg:       var(--tasty-text-muted);
   --tasty-select-chevron-room:     var(--tasty-size-28); /* right padding reserved for the chevron */
   /* 2026-10-21 — Select on a RAISED ground (Select ground="raised"), same step-down as Input raised. */
   --tasty-select-raised-bg:              var(--tasty-bg-panel);
-  --tasty-select-raised-border:          var(--tasty-border-strong);
+  --tasty-select-raised-border:          var(--tasty-border-control-raised); /* 2026-11-05 ground-ink rules */
   --tasty-select-raised-disabled-bg:     var(--tasty-state-disabled-fill-raised);
   --tasty-select-raised-disabled-border: var(--tasty-state-disabled-border-raised);
   --tasty-select-chevron-offset:   var(--tasty-space-sm);
@@ -189,7 +189,7 @@
   --tasty-multiselect-bg:               var(--tasty-select-bg);              /* → surface-raised */
   --tasty-multiselect-fg:               var(--tasty-select-fg);              /* → text-primary */
   --tasty-multiselect-border:           var(--tasty-select-border);          /* → border-default */
-  --tasty-multiselect-border-hover:     var(--tasty-border-strong);          /* same hover as Select */
+  --tasty-multiselect-border-hover:     var(--tasty-border-control-raised); /* 2026-11-05 ground-ink rules */
   --tasty-multiselect-border-focus:     var(--tasty-select-border-focus);    /* → border-focus (also the OPEN state) */
   --tasty-multiselect-chevron-fg:       var(--tasty-select-chevron-fg);      /* → text-muted */
   --tasty-multiselect-chevron-room:     var(--tasty-select-chevron-room);    /* → 28 reserved right padding */
@@ -211,12 +211,12 @@
   --tasty-multiselect-row-bg-hover:     var(--tasty-overlay-hover);          /* pointer hover wash */
   --tasty-multiselect-row-bg-active:    var(--tasty-surface-active);         /* keyboard ↑/↓ row only — never "checked" */
   --tasty-multiselect-row-fg-active:    var(--tasty-text-on-active);         /* 2026-11-05 label on that row */
-  --tasty-multiselect-all-fg:           var(--tasty-accent-primary);         /* bulk select/clear action row */
+  --tasty-multiselect-all-fg:           var(--tasty-accent-primary-raised); /* 2026-11-05 ground-ink rules */
   --tasty-multiselect-separator:        var(--tasty-separator);              /* under the bulk row */
 
   /* SearchableSelect (2026-10-19) — Select trigger (select-* tokens, unchanged) over a menu popover
      whose top is a search field. Generalises the font combo; font-combo-* now alias these. */
-  --tasty-select-search-trigger-border-hover: var(--tasty-border-strong);       /* same hover as Select */
+  --tasty-select-search-trigger-border-hover: var(--tasty-border-control-raised); /* 2026-11-05 ground-ink rules */
   --tasty-select-search-value-placeholder:    var(--tasty-text-placeholder);    /* no value selected */
   --tasty-select-search-menu-gap:             var(--tasty-space-xs);            /* 4 trigger → popup */
   --tasty-select-search-menu-max-width:       var(--tasty-size-320);            /* popup may outgrow the trigger up to this */
@@ -236,8 +236,8 @@
   /* Checkbox */
   --tasty-checkbox-size:           var(--tasty-size-16);
   --tasty-checkbox-radius:         var(--tasty-radius-sm);
-  --tasty-checkbox-bg:             var(--tasty-surface-raised);
-  --tasty-checkbox-border:         var(--tasty-border-strong);
+  --tasty-checkbox-bg:             var(--tasty-surface-field); /* 2026-11-05 ground-ink rules */
+  --tasty-checkbox-border:         var(--tasty-border-control); /* 2026-11-05 ground-ink rules */
   --tasty-checkbox-bg-checked:     var(--tasty-accent-primary);
   --tasty-checkbox-check-fg:       var(--tasty-text-on-accent);
   --tasty-checkbox-border-focus:   var(--tasty-border-focus);
@@ -249,9 +249,9 @@
   --tasty-switch-thumb-inset:      var(--tasty-size-2);
   --tasty-switch-thumb-travel:     var(--tasty-size-12); /* track-width − thumb − 2×inset = 28−12−4 */
   --tasty-switch-radius:           var(--tasty-radius-pill);
-  --tasty-switch-track-bg:         var(--tasty-surface-active);
+  --tasty-switch-track-bg:         var(--tasty-border-control); /* 2026-11-05 ground-ink rules */
   --tasty-switch-track-bg-on:      var(--tasty-accent-primary);
-  --tasty-switch-thumb-bg:         var(--tasty-text-muted);     /* off — dim thumb */
+  --tasty-switch-thumb-bg:         var(--tasty-control-thumb); /* 2026-11-05 ground-ink rules */
   --tasty-switch-thumb-bg-on:      var(--tasty-text-on-accent); /* on  — thumb atop accent */
 
   /* ─────────────────  NAVIGATION  ───────────────── */
@@ -270,8 +270,8 @@
      channel; resolution order is needs-input → completion → active → rest.
      Attention clears on focus, so an active tab never shows an attention tint
      (the ordering is defensive, not a live collision). */
-  --tasty-tab-fg-needs-input:      var(--tasty-attention-needs-input);
-  --tasty-tab-fg-completion:       var(--tasty-attention-completion);
+  --tasty-tab-fg-needs-input:      var(--tasty-accent-warning-raised); /* 2026-11-05 ground-ink rules */
+  --tasty-tab-fg-completion:       var(--tasty-accent-primary-raised); /* 2026-11-05 ground-ink rules */
   --tasty-tab-indicator:           var(--tasty-accent-primary);
   --tasty-tab-separator:           var(--tasty-separator);
   --tasty-tab-close-size:          var(--tasty-size-16);
@@ -349,8 +349,8 @@
   --tasty-autocomplete-match-underline-offset: var(--tasty-size-2);
   --tasty-autocomplete-row-bg-hover:    var(--tasty-overlay-hover);      /* pointer hover wash */
   --tasty-autocomplete-row-bg-active:   var(--tasty-surface-active);     /* keyboard-active (stronger) */
-  --tasty-autocomplete-match-fg:        var(--tasty-accent-primary-on-active); /* typeahead match highlight. 2026-11-05 Mocha 5.97 (unchanged) · Latte 5.37 on the menu (was 3.18); pointer hover 4.66 · 4.52 */
-  --tasty-autocomplete-empty-fg:        var(--tasty-text-muted);         /* no-match / empty row */
+  --tasty-autocomplete-match-fg:        var(--tasty-accent-primary-strong); /* 2026-11-05 ground-ink rules */
+  --tasty-autocomplete-empty-fg:        var(--tasty-text-muted-raised); /* 2026-11-05 ground-ink rules */
 
   /* DrillDown — generic master→detail CONTENT-SWAP layout (list view ⇄ detail
      view, no side-by-side split). The detail view carries a pinned BACK BAR:
@@ -376,15 +376,15 @@
   --tasty-toast-padding-y:         var(--tasty-space-sm);
   --tasty-toast-gap:               var(--tasty-space-sm);
   --tasty-toast-radius:            var(--tasty-radius);
-  --tasty-toast-accent-width:      var(--tasty-size-3);
+  --tasty-toast-accent-width:      var(--tasty-tint-edge-width); /* 2026-11-05 ground-ink rules */
   --tasty-toast-max-width:         var(--tasty-size-320);
   --tasty-toast-hint-font-size:    var(--tasty-font-size-micro);
   --tasty-toast-bg:                var(--tasty-surface-raised);
   --tasty-toast-fg:                var(--tasty-text-primary);
   --tasty-toast-border:            var(--tasty-border-strong);   /* surface1 — a Toast is a FLOATING overlay (like Tooltip / Banner, which both use border-strong); it needs the stronger edge to lift off content. Corrected from border-default: source already paints surface1, so this is the value-preserving, family-consistent choice. */
-  --tasty-toast-accent-info:       var(--tasty-accent-info);
-  --tasty-toast-accent-success:    var(--tasty-accent-success);
-  --tasty-toast-accent-warning:    var(--tasty-accent-warning);
+  --tasty-toast-accent-info:       var(--tasty-accent-info-raised); /* 2026-11-05 ground-ink rules */
+  --tasty-toast-accent-success:    var(--tasty-accent-success-raised); /* 2026-11-05 ground-ink rules */
+  --tasty-toast-accent-warning:    var(--tasty-accent-warning-raised); /* 2026-11-05 ground-ink rules */
   --tasty-toast-accent-danger:     var(--tasty-accent-danger);
   --tasty-toast-accent-agent:      var(--tasty-accent-agent);
 
@@ -392,7 +392,7 @@
      1px edge, popover lift; no arrow. Copy is muted, terse. */
   --tasty-tooltip-bg:              var(--tasty-surface-raised);
   --tasty-tooltip-border:          var(--tasty-border-strong);
-  --tasty-tooltip-fg:              var(--tasty-text-secondary);
+  --tasty-tooltip-fg:              var(--tasty-text-secondary-raised); /* 2026-11-05 ground-ink rules */
   --tasty-tooltip-radius:          var(--tasty-radius);
   --tasty-tooltip-shadow:          var(--tasty-shadow-popover);
   --tasty-tooltip-padding-x:       var(--tasty-space-sm);   /* 8 */
@@ -420,7 +420,7 @@
   --tasty-banner-bg:                  var(--tasty-surface-raised);    /* surface0 fill */
   --tasty-banner-fg:                  var(--tasty-text-primary);
   --tasty-banner-border:              var(--tasty-border-strong);     /* 1px edge */
-  --tasty-banner-radius:              var(--tasty-radius-8);          /* 8px — softer than the 4px system default, reads as a floating panel */
+  --tasty-banner-radius:              var(--tasty-radius); /* 2026-11-05 ground-ink rules */
   --tasty-banner-shadow:              var(--tasty-shadow-popover);    /* floating lift (reuses the popover scrim — no new shadow system) */
   --tasty-banner-margin:              var(--tasty-space-sm);          /* 8px top / left / right — NO bottom margin (it floats) */
   --tasty-banner-padding-x:           var(--tasty-space-md);          /* 12 */
@@ -441,15 +441,15 @@
   --tasty-banner-inset-gap:           var(--tasty-space-sm);          /* 8 — banner bottom → page top (inset only) */
 
   /* HTML surface — script-blocked notice (inset banner) + tab marker */
-  --tasty-html-script-banner-glyph:   var(--tasty-accent-info);       /* lock glyph — informational, not a warning */
+  --tasty-html-script-banner-glyph:   var(--tasty-accent-info-raised); /* 2026-11-05 ground-ink rules */
   --tasty-html-script-marker-fg:      var(--tasty-glyph-dim);         /* tab-strip lock after dismiss (blocked, notice hidden) */
   --tasty-html-script-marker-allowed-fg: var(--tasty-text-muted);     /* tab-strip script glyph while allowed this session */
   --tasty-html-script-marker-size:    var(--tasty-icon-size-xs);      /* 12 — sits inside the 24px tab strip */
   --tasty-html-script-marker-hit:     var(--tasty-size-16);           /* 16 square cell around the 12 glyph — lock click / hover target */
   --tasty-html-script-marker-hover-bg: var(--tasty-overlay-hover);    /* lock only; scriptFile has no hover fill */
   /* HTML surface — remote-content-blocked notice (inset banner) + address-field marker — 2026-11-01 */
-  --tasty-html-remote-banner-glyph:   var(--tasty-accent-info);       /* globeOff — informational, same tone as the script notice */
-  --tasty-html-remote-marker-fg:      var(--tasty-glyph-dim);         /* globeOff in the address field while blocked + notice hidden */
+  --tasty-html-remote-banner-glyph:   var(--tasty-accent-info-raised); /* 2026-11-05 ground-ink rules */
+  --tasty-html-remote-marker-fg:      var(--tasty-glyph-dim-raised); /* 2026-11-05 ground-ink rules */
   --tasty-html-remote-marker-allowed-fg: var(--tasty-text-muted);     /* globe in the address field while allowed for this document */
   --tasty-html-remote-marker-size:    var(--tasty-icon-size-sm);      /* 14 — same as the field's leading kind glyph */
   --tasty-html-remote-marker-hit:     var(--tasty-size-20);           /* 20 square cell inside the 28 field — click / hover target */
@@ -481,8 +481,8 @@
   --tasty-md-address-stale-bg:        var(--tasty-accent-primary);             /* stale Reload fill (mirror doc changed) */
   --tasty-md-address-stale-fg:        var(--tasty-text-on-accent);             /* stale Reload glyph */
   /* HTML mirror — remote size banners + receiving state (2026-10-12) */
-  --tasty-html-size-banner-glyph:     var(--tasty-accent-info);       /* large-file ask — a question, not a warning */
-  --tasty-html-limit-banner-glyph:    var(--tasty-accent-warning);    /* cumulative limit reached — auto receive paused */
+  --tasty-html-size-banner-glyph:     var(--tasty-accent-info-raised); /* 2026-11-05 ground-ink rules */
+  --tasty-html-limit-banner-glyph:    var(--tasty-accent-warning-raised); /* 2026-11-05 ground-ink rules */
   --tasty-html-receiving-fg:          var(--tasty-text-muted);        /* receiving / paused / notice copy in the page rect */
   --tasty-html-receiving-glyph:       var(--tasty-glyph-dim);         /* static glyph while paused */
   --tasty-banner-glyph-offset:        var(--tasty-size-1);            /* 1 — leading glyph nudge onto the title's cap line */
@@ -523,16 +523,16 @@
      family. NOT a second meaning — same colors, smaller footprint. */
   --tasty-status-dot-size-compact: var(--tasty-size-6);
   --tasty-status-dot-idle:         var(--tasty-status-idle);
-  --tasty-status-dot-success:      var(--tasty-accent-success);
-  --tasty-status-dot-warning:      var(--tasty-accent-warning);
+  --tasty-status-dot-success:      var(--tasty-accent-success-raised); /* 2026-11-05 ground-ink rules */
+  --tasty-status-dot-warning:      var(--tasty-accent-warning-raised); /* 2026-11-05 ground-ink rules */
   --tasty-status-dot-danger:       var(--tasty-accent-danger);
   --tasty-status-dot-agent:        var(--tasty-accent-agent);
   /* Attention kinds on the dot channel (collapsed rail). ONE dot, one color:
      needs-input > completion > running/busy. Two dots were rejected — at the
      compact 6px rail dot a second dot reads as noise and still can't carry a count. */
-  --tasty-status-dot-needs-input:  var(--tasty-attention-needs-input);
+  --tasty-status-dot-needs-input:  var(--tasty-accent-warning-raised); /* 2026-11-05 ground-ink rules */
   --tasty-status-dot-completion:   var(--tasty-attention-completion);
-  --tasty-status-dot-attached-ring: var(--tasty-accent-attached);
+  --tasty-status-dot-attached-ring: var(--tasty-accent-attached-raised); /* 2026-11-05 ground-ink rules */
   --tasty-status-dot-attached-ring-width:  var(--tasty-size-2);
   --tasty-status-dot-attached-ring-offset: var(--tasty-size-2);
   /* 2026-11-05 the same dot on a surface-active row. Idle takes the row ink, because the idle tone is 1.37 · 1.20 on the fill. */
@@ -570,7 +570,7 @@
      instance. It is a separate axis from the status dot (execution), the attached
      ring (claimed by another client), and the notification badge — so it never
      collides with any of them. Collapsed rail reuses the same fg on a corner chip. */
-  --tasty-workspace-mirror-fg:     var(--tasty-accent-remote);
+  --tasty-workspace-mirror-fg:     var(--tasty-accent-remote-raised); /* 2026-11-05 ground-ink rules */
   --tasty-workspace-mirror-fg-active: var(--tasty-accent-remote-on-active); /* 2026-11-05 mirror glyph on the selected row: Mocha 4.29 · Latte 3.48 */
   --tasty-workspace-mirror-icon-size: var(--tasty-icon-size-xs);
   --tasty-workspace-mirror-gap:    var(--tasty-space-xs);
@@ -606,24 +606,24 @@
      CONTAINS it    → the nearest VISIBLE container (inactive tab cell, or workspace row
                       / rail avatar when it lives in another workspace) shows the move
                       glyph. Static — no motion, so no reduced-motion variant. */
-  --tasty-move-source-ring:        var(--tasty-accent-move);
+  --tasty-move-source-ring:        var(--tasty-accent-move-raised); /* 2026-11-05 ground-ink rules */
   --tasty-move-source-ring-width:  var(--tasty-focus-ring-width);  /* 2 — the "pointing ring" weight */
   --tasty-move-source-dash:        var(--tasty-size-4);            /* 4 on */
   --tasty-move-source-dash-gap:    var(--tasty-size-4);            /* 4 off */
-  --tasty-move-source-glyph:       var(--tasty-accent-move);
+  --tasty-move-source-glyph:       var(--tasty-accent-move-raised); /* 2026-11-05 ground-ink rules */
   --tasty-move-source-glyph-size:  var(--tasty-icon-size-xs);      /* 12 — tab cell · workspace row */
   --tasty-move-source-chip-size:   var(--tasty-size-12);           /* rail avatar corner chip (bottom-left) */
   --tasty-move-source-chip-glyph-size: var(--tasty-size-8);
 
   /* Auto-attach refused — rail avatar corner chip (top-left) · 2026-10-07 batch 5 */
-  --tasty-attach-refusal-glyph:           var(--tasty-accent-warning);
+  --tasty-attach-refusal-glyph:           var(--tasty-accent-warning-glyph); /* 2026-11-05 ground-ink rules */
   --tasty-attach-refusal-chip-size:       var(--tasty-move-source-chip-size);       /* 12 */
   --tasty-attach-refusal-chip-glyph-size: var(--tasty-move-source-chip-glyph-size); /* 8 */
 
   /* Spinner — indeterminate scan/install progress */
   --tasty-spinner-size:            var(--tasty-size-16);
   --tasty-spinner-track:           var(--tasty-surface-active);
-  --tasty-spinner-indicator:       var(--tasty-accent-primary);
+  --tasty-spinner-indicator:       var(--tasty-accent-primary-on-active); /* 2026-11-05 ground-ink rules */
   --tasty-spinner-duration:        var(--tasty-duration-900); /* 900ms full rotation — matches source SPIN_PERIOD=0.9s. Corrected from duration-90 (a dropped digit; 90ms strobes at ~11 rev/s). */
 
   /* Loading overlay — a Spinner laid over EXISTING content (surface · tab · LNB card · rail avatar),
@@ -679,7 +679,7 @@
   --tasty-notification-item-body-fg-read:   var(--tasty-text-muted);
   --tasty-notification-item-meta-fg:        var(--tasty-text-muted);
   --tasty-notification-item-closed-fg:      var(--tasty-text-placeholder); /* "closed" source tag */
-  --tasty-notification-item-more-fg:        var(--tasty-accent-primary);   /* "More" / "Less" text toggle */
+  --tasty-notification-item-more-fg:        var(--tasty-accent-primary-raised); /* 2026-11-05 ground-ink rules */
   --tasty-notification-item-unread-dot:     var(--tasty-notify-unread);
   --tasty-notification-item-unread-dot-size: var(--tasty-badge-dot-size);
   --tasty-notification-item-body-lines:     2; /* @kind other */   /* popup — clamp, "More" expands */
@@ -704,8 +704,8 @@
      too close to occupied-soft green at a thin border. Source priority (occupancy
      suppresses the completion border while a surface is held) is an implementation
      rule, not a token. */
-  --tasty-surface-occupied-soft-border:  var(--tasty-accent-occupied-soft);
-  --tasty-surface-occupied-hard-border:  var(--tasty-accent-occupied-hard);
+  --tasty-surface-occupied-soft-border:  var(--tasty-accent-success-raised); /* 2026-11-05 ground-ink rules */
+  --tasty-surface-occupied-hard-border:  var(--tasty-accent-attention-raised); /* 2026-11-05 ground-ink rules */
   --tasty-surface-occupied-border-width: var(--tasty-border-width);      /* 1px */
   --tasty-surface-highlight-done-border: var(--tasty-attention-completion); /* blue — completion notice */
   /* NeedsInput edge — same 2px weight as completion (both are attention, one
@@ -714,7 +714,7 @@
      NeedsInput outranks occupancy because occupancy means "held, working, as
      expected" — exactly the reading that would hide a session that has STOPPED
      to ask the human something. Completion stays below occupancy (completion is drawn under the occupancy edge). */
-  --tasty-surface-highlight-input-border: var(--tasty-attention-needs-input);
+  --tasty-surface-highlight-input-border: var(--tasty-accent-warning-raised); /* 2026-11-05 ground-ink rules */
   --tasty-surface-highlight-input-width:  var(--tasty-focus-ring-width);  /* 2px */
   --tasty-surface-highlight-done-width:  var(--tasty-focus-ring-width);  /* 2px */
 
@@ -759,7 +759,7 @@
   --tasty-listctrl-chevron-fg:       var(--tasty-text-muted);      /* trailing drill-in affordance */
   --tasty-listctrl-row-bg-hover:     var(--tasty-overlay-hover);
   --tasty-listctrl-row-bg-selected:  var(--tasty-surface-active);
-  --tasty-listctrl-selected-bar:     var(--tasty-accent-primary);  /* 2px accent left bar on the selected row */
+  --tasty-listctrl-selected-bar:     var(--tasty-accent-primary-on-active); /* 2026-11-05 ground-ink rules */
   --tasty-listctrl-selected-bar-width: var(--tasty-selection-edge-width); /* 2 — hairline, zoom-exempt. Same role as tab indicator / workspace row (2026-09-29) */
   --tasty-listctrl-divider:          var(--tasty-separator);
 
@@ -821,7 +821,7 @@
   --tasty-port-star-col-width:       var(--tasty-size-28);             /* leading tight column in the table */
   --tasty-port-process-col-min-width: var(--tasty-size-200);           /* Process column — a MINIMUM, not a fixed width: the column grows with the table and never shrinks below this. The gallery specimen pins 200 only because its stage is fixed. */
   --tasty-port-addr-col-min-width:   var(--tasty-size-140);            /* 2026-10-08 (batch 8) — Address floor AND width: Address stays here; ALL spare width goes to Process */
-  --tasty-port-star-on:              var(--tasty-accent-warning);      /* registered — gold, as Explorer favorites */
+  --tasty-port-star-on:              var(--tasty-accent-warning-glyph); /* 2026-11-05 ground-ink rules */
   --tasty-port-star-off:             var(--tasty-text-muted);          /* unregistered — muted outline */
   --tasty-port-star-on-active:       var(--tasty-accent-warning-on-active); /* 2026-11-05 selected row, registered: Mocha 5.25 · Latte 3.75 */
   --tasty-port-star-off-active:      var(--tasty-text-on-active);      /* 2026-11-05 selected row, unregistered outline. Fill vs outline tells the two apart */
@@ -841,7 +841,7 @@
   --tasty-plugin-avatar-size-sm:    var(--tasty-size-32); /* Installed / Attention list row */
   --tasty-plugin-avatar-size-lg:    var(--tasty-size-46); /* detail identity + Add-plugin manifest preview */
   --tasty-plugin-avatar-radius:     var(--tasty-radius);
-  --tasty-plugin-avatar-fg:         var(--tasty-accent-primary); /* the initial */
+  --tasty-plugin-avatar-fg:         var(--tasty-accent-primary-strong); /* 2026-11-05 ground-ink rules */
   --tasty-plugin-avatar-bg:         color-mix(in srgb, var(--tasty-accent-primary) 18%, var(--tasty-surface-raised));
   --tasty-plugin-avatar-border:     color-mix(in srgb, var(--tasty-accent-primary) 38%, transparent);
   --tasty-plugin-avatar-border-width: var(--tasty-border-width);
@@ -859,8 +859,8 @@
   /* Settings › General › Permissions (macOS) — four states, told apart by
      GLYPH + WORD, colour only as a third channel. Unknown and Not observable
      share the muted ink but never the glyph. */
-  --tasty-perm-granted-fg:      var(--tasty-accent-success);   /* check */
-  --tasty-perm-missing-fg:      var(--tasty-accent-warning);   /* alertCircle */
+  --tasty-perm-granted-fg:      var(--tasty-accent-success-raised); /* 2026-11-05 ground-ink rules */
+  --tasty-perm-missing-fg:      var(--tasty-accent-warning-glyph); /* 2026-11-05 ground-ink rules */
   --tasty-perm-unknown-fg:      var(--tasty-text-muted);       /* helpCircle */
   --tasty-perm-unobservable-fg: var(--tasty-text-muted);       /* eyeOff */
   --tasty-perm-status-gap:      var(--tasty-space-xs);         /* glyph ↔ word */
@@ -972,12 +972,12 @@
   --tasty-transfer-popup-width:     var(--tasty-size-400); /* progress + error frame width */
   /* Transfer popup insets (2026-10-06) — ON-SCALE: multiply by ui_scale with the width. Line heights are
      NOT tokens: derive each text line from its font (line-height-ui × font-size). */
-  --tasty-transfer-pad-x:           var(--tasty-size-14);  /* header · body · footer left/right inset, body padding */
+  --tasty-transfer-pad-x:           var(--tasty-space-md); /* 2026-11-05 ground-ink rules */
   --tasty-transfer-header-pad-y:    var(--tasty-space-md); /* 12 */
-  --tasty-transfer-body-gap:        var(--tasty-size-10);  /* between body blocks / file-row lines */
-  --tasty-transfer-footer-pad-y:    var(--tasty-size-10);
+  --tasty-transfer-body-gap:        var(--tasty-space-sm); /* 2026-11-05 ground-ink rules */
+  --tasty-transfer-footer-pad-y:    var(--tasty-space-sm); /* 2026-11-05 ground-ink rules */
   --tasty-transfer-well-pad-y:      var(--tasty-space-sm); /* 8 — failure-reason well */
-  --tasty-transfer-well-pad-x:      var(--tasty-size-10);
+  --tasty-transfer-well-pad-x:      var(--tasty-space-md); /* 2026-11-05 ground-ink rules */
   --tasty-progress-height:          var(--tasty-size-4);   /* bar thickness */
   --tasty-progress-radius:          var(--tasty-radius-sm);
   --tasty-progress-track-bg:        var(--tasty-bg-app);   /* recessed track (darker than the panel) */
@@ -987,7 +987,7 @@
      Accent-tinted (this is the same intent as a live split/drop preview) —
      translucent fill + a stronger leading edge marking the new split line. */
   --tasty-preset-split-zone-bg:     color-mix(in srgb, var(--tasty-accent-primary) 22%, transparent);
-  --tasty-preset-split-zone-border: color-mix(in srgb, var(--tasty-accent-primary) 55%, transparent);
+  --tasty-preset-split-zone-border: var(--tasty-accent-primary-raised); /* 2026-11-05 ground-ink rules */
   --tasty-preset-split-divider-width: var(--tasty-selection-edge-width); /* 2 — the one-edge split line inside the zone band; hairline, zoom-exempt (2026-10-06) */
   --tasty-preset-leaf-selected-ring-width: var(--tasty-focus-ring-width); /* 2 — ring AROUND the selected leaf; on-scale like dag-node-selected-ring-width (2026-10-06) */
   /* Preset editor — surface-leaf preview VALUE SUMMARY. On an UNSELECTED leaf
@@ -1019,11 +1019,11 @@
      draft). */
   --tasty-preset-cfg-header-height:   var(--tasty-size-44);   /* = detail toolbar it replaces */
   --tasty-preset-cfg-footer-height:   var(--tasty-size-52);   /* fixed: 28 control + 12 top/bottom */
-  --tasty-preset-cfg-footer-padding-x: var(--tasty-size-14);  /* same as Settings footer */
+  --tasty-preset-cfg-footer-padding-x: var(--tasty-space-md); /* 2026-11-05 ground-ink rules */
   --tasty-preset-cfg-form-max-width:  var(--tasty-size-460);  /* form column cap on wide windows */
   --tasty-preset-cfg-form-padding:    var(--tasty-space-lg);  /* 16 around the body */
   --tasty-preset-cfg-field-gap:       var(--tasty-space-md);  /* 12 between fields */
-  --tasty-preset-cfg-draft-fg:        var(--tasty-accent-warning); /* "unsaved" dot + caption in the header */
+  --tasty-preset-cfg-draft-fg:        var(--tasty-accent-warning-raised); /* 2026-11-05 ground-ink rules */
   --tasty-preset-cfg-dim-opacity:     var(--tasty-state-dim-opacity); /* list + scope tabs while open (inert, not disabled) */
   --tasty-cut-pending-opacity:        var(--tasty-state-dim-opacity); /* explorer: file cut, waiting for paste (icon + label) */
 
@@ -1068,10 +1068,10 @@
   --tasty-modhint-header-height: var(--tasty-size-28);
   --tasty-modhint-section-gap:   var(--tasty-space-md);   /* 12 — between chord sections */
   --tasty-modhint-role-bg:       var(--tasty-surface-active); /* special-role row wash — distinguishes it from a keycap row */
-  --tasty-modhint-role-fg:       var(--tasty-accent-primary-on-active); /* special-role leading glyph. 2026-11-05 Mocha 3.17 · Latte 3.83 (was 2.27) */
+  --tasty-modhint-role-fg:       var(--tasty-accent-primary-on-active); /* 2026-11-05 ground-ink rules */
   --tasty-modhint-role-text-fg:  var(--tasty-text-on-active);  /* 2026-11-05 special-role line (text-secondary was Mocha 3.77 · Latte 2.89) */
   --tasty-modhint-empty-fg:      var(--tasty-text-muted);     /* empty-chord placeholder text ("No shortcuts bound") — one step below a keycap row's text-secondary; no wash, no glyph, no keycap */
-  --tasty-modhint-grip-fg:       var(--tasty-border-strong);  /* bottom-right resize grip lines */
+  --tasty-modhint-grip-fg:       var(--tasty-glyph-dim); /* 2026-11-05 ground-ink rules */
   --tasty-modhint-fade:          var(--tasty-motion-ui-fade); /* 200ms opacity 0.2→1 on appear */
   --tasty-modhint-hold-delay:    var(--tasty-motion-hold-reveal); /* 500ms hold before it appears */
 
@@ -1157,7 +1157,7 @@
   --tasty-sidebar-category-header-weight:    var(--tasty-font-weight-bold);
   --tasty-sidebar-category-header-pad-y:     var(--tasty-space-sm);
   --tasty-sidebar-category-header-pad-x:     var(--tasty-space-sm);
-  --tasty-sidebar-category-header-count-fg:  var(--tasty-text-disabled);
+  --tasty-sidebar-category-header-count-fg:  var(--tasty-text-quiet); /* 2026-11-05 ground-ink rules */
   --tasty-sidebar-category-header-count-font-size: var(--tasty-font-size-micro);
 
   /* ─────────────────  SURFACE · TASK DAG VIEW  ───────────────── */
@@ -1179,7 +1179,7 @@
   --tasty-dag-node-bg:               var(--tasty-surface-raised);
   --tasty-dag-node-border:           var(--tasty-border-strong);
   --tasty-dag-node-fg:               var(--tasty-text-primary);   /* task name */
-  --tasty-dag-node-meta-fg:          var(--tasty-text-muted);     /* kind + duration */
+  --tasty-dag-node-meta-fg:          var(--tasty-text-muted-raised); /* 2026-11-05 ground-ink rules */
   --tasty-dag-node-name-font-size:   var(--tasty-font-size-body);    /* 13 */
   --tasty-dag-node-meta-font-size:   var(--tasty-font-size-micro);   /* 10 — status caps + duration */
   --tasty-dag-node-hover-bg:         var(--tasty-overlay-hover);
@@ -1190,15 +1190,15 @@
   /* Task status — the 8 execution states. Colour is ONE of two channels; the
      glyph (◦ ❯ ◑ ✓ ✗ − ⊘ ?) + the spelled label carry the same information, so
      nothing here is colour-only. Every value points at an accent role. */
-  --tasty-dag-status-waiting:      var(--tasty-status-idle);
-  --tasty-dag-status-ready:        var(--tasty-accent-info);
-  --tasty-dag-status-running:      var(--tasty-accent-primary);
-  --tasty-dag-status-succeeded:    var(--tasty-accent-success);
-  --tasty-dag-status-failed:       var(--tasty-accent-danger);
-  --tasty-dag-status-cancelled:    var(--tasty-text-disabled);
-  --tasty-dag-status-skipped:      var(--tasty-text-disabled);
-  --tasty-dag-status-unknown:      var(--tasty-accent-warning);
-  --tasty-dag-status-partially-failed: var(--tasty-accent-attention); /* 2026-10-07 — ROLLUP only: finished, mixed outcome. Peach = between danger red and success green; not failed red */
+  --tasty-dag-status-waiting:      var(--tasty-glyph-dim-raised); /* 2026-11-05 ground-ink rules */
+  --tasty-dag-status-ready:        var(--tasty-accent-info-raised); /* 2026-11-05 ground-ink rules */
+  --tasty-dag-status-running:      var(--tasty-accent-primary-raised); /* 2026-11-05 ground-ink rules */
+  --tasty-dag-status-succeeded:    var(--tasty-accent-success-raised); /* 2026-11-05 ground-ink rules */
+  --tasty-dag-status-failed:       var(--tasty-accent-danger-raised); /* 2026-11-05 ground-ink rules */
+  --tasty-dag-status-cancelled:    var(--tasty-glyph-dim-raised); /* 2026-11-05 ground-ink rules */
+  --tasty-dag-status-skipped:      var(--tasty-glyph-dim-raised); /* 2026-11-05 ground-ink rules */
+  --tasty-dag-status-unknown:      var(--tasty-accent-warning-raised); /* 2026-11-05 ground-ink rules */
+  --tasty-dag-status-partially-failed: var(--tasty-accent-attention-raised); /* 2026-11-05 ground-ink rules */
   /* node fill per state — only the states that must WIN attention get a wash;
      terminal + idle states stay on the plain raised surface. */
   --tasty-dag-status-waiting-bg:   var(--tasty-dag-node-bg);
@@ -1215,20 +1215,20 @@
      label has its own role. waiting borrows text-muted; the two DIMMED states
      (cancelled / skipped) must clear 4.5:1 AFTER the 0.75 card dim, so they take
      text-secondary — muted would land at 3.3:1 once multiplied. */
-  --tasty-dag-status-waiting-label:   var(--tasty-text-muted);
+  --tasty-dag-status-waiting-label:   var(--tasty-text-muted-raised); /* 2026-11-05 ground-ink rules */
   --tasty-dag-status-ready-label:     var(--tasty-dag-status-ready);
-  --tasty-dag-status-running-label:   var(--tasty-dag-status-running);
+  --tasty-dag-status-running-label:   var(--tasty-accent-primary-strong); /* 2026-11-05 ground-ink rules */
   --tasty-dag-status-succeeded-label: var(--tasty-dag-status-succeeded);
-  --tasty-dag-status-failed-label:    var(--tasty-dag-status-failed);
-  --tasty-dag-status-cancelled-label: var(--tasty-text-secondary);
-  --tasty-dag-status-skipped-label:   var(--tasty-text-secondary);
-  --tasty-dag-status-unknown-label:   var(--tasty-dag-status-unknown);
-  --tasty-dag-status-partially-failed-label: var(--tasty-dag-status-partially-failed);
+  --tasty-dag-status-failed-label:    var(--tasty-accent-danger-strong); /* 2026-11-05 ground-ink rules */
+  --tasty-dag-status-cancelled-label: var(--tasty-text-secondary-raised); /* 2026-11-05 ground-ink rules */
+  --tasty-dag-status-skipped-label:   var(--tasty-text-secondary-raised); /* 2026-11-05 ground-ink rules */
+  --tasty-dag-status-unknown-label:   var(--tasty-accent-warning-strong); /* 2026-11-05 ground-ink rules */
+  --tasty-dag-status-partially-failed-label: var(--tasty-accent-attention-strong); /* 2026-11-05 ground-ink rules */
   /* 2026-10-07 — running PHASE: awaiting_input is the only phase with its own tone (needs-input yellow,
      the same signal as the attention channel). postprocessing / retry_wait keep the running tokens. */
-  --tasty-dag-phase-awaiting:       var(--tasty-attention-needs-input);
+  --tasty-dag-phase-awaiting:       var(--tasty-accent-warning-strong); /* 2026-11-05 ground-ink rules */
   --tasty-dag-phase-awaiting-bg:    color-mix(in srgb, var(--tasty-attention-needs-input) 12%, var(--tasty-surface-raised));
-  --tasty-dag-phase-awaiting-label: var(--tasty-dag-phase-awaiting);
+  --tasty-dag-phase-awaiting-label: var(--tasty-accent-warning-strong); /* 2026-11-05 ground-ink rules */
   --tasty-dag-header-count-fg:      var(--tasty-dag-row-count-fg); /* 2026-10-07 — tab header "6/8 done" = list row counter */
 
   /* Graph geometry — layer depth + sibling gap (4px grid). */
@@ -1242,9 +1242,9 @@
 
   /* Edges — relation is carried by DASH PATTERN + colour together. */
   --tasty-dag-edge-width:            var(--tasty-size-1);
-  --tasty-dag-edge-depends:          var(--tasty-border-strong);
-  --tasty-dag-edge-fallback:         var(--tasty-accent-attention);
-  --tasty-dag-edge-reduce:           var(--tasty-accent-info);
+  --tasty-dag-edge-depends:          var(--tasty-border-control); /* 2026-11-05 ground-ink rules */
+  --tasty-dag-edge-fallback:         var(--tasty-accent-attention-raised); /* 2026-11-05 ground-ink rules */
+  --tasty-dag-edge-reduce:           var(--tasty-accent-info-raised); /* 2026-11-05 ground-ink rules */
   --tasty-dag-edge-dash-fallback:    6 3; /* @kind other */
   --tasty-dag-edge-dash-reduce:      2 3; /* @kind other */
   --tasty-dag-edge-corner-radius:    var(--tasty-radius);   /* orthogonal elbow */
@@ -1261,7 +1261,7 @@
   --tasty-dag-minimap-width:         var(--tasty-size-160);
   --tasty-dag-minimap-height:        var(--tasty-size-112);
   --tasty-dag-minimap-bg:            var(--tasty-bg-sidebar);
-  --tasty-dag-minimap-node:          var(--tasty-border-strong);
+  --tasty-dag-minimap-node:          var(--tasty-border-control); /* 2026-11-05 ground-ink rules */
   --tasty-dag-minimap-viewport:      var(--tasty-accent-primary);
   --tasty-dag-minimap-min-surface:   var(--tasty-size-560); /* below this the minimap is dropped */
 
@@ -1274,12 +1274,12 @@
   --tasty-dag-runner-radius:         var(--tasty-radius-sm);
   --tasty-dag-runner-bg:             var(--tasty-surface-raised);
   --tasty-dag-runner-border:         var(--tasty-border-strong);
-  --tasty-dag-runner-fg:             var(--tasty-text-secondary);
-  --tasty-dag-runner-idle-fg:        var(--tasty-text-muted);
-  --tasty-dag-runner-stalled-fg:     var(--tasty-accent-warning);
+  --tasty-dag-runner-fg:             var(--tasty-text-secondary-raised); /* 2026-11-05 ground-ink rules */
+  --tasty-dag-runner-idle-fg:        var(--tasty-text-muted-raised); /* 2026-11-05 ground-ink rules */
+  --tasty-dag-runner-stalled-fg:     var(--tasty-accent-warning-strong); /* 2026-11-05 ground-ink rules */
   --tasty-dag-runner-stalled-border: color-mix(in srgb, var(--tasty-accent-warning) 45%, transparent);
   --tasty-dag-runner-stalled-bg:     color-mix(in srgb, var(--tasty-accent-warning) 10%, var(--tasty-surface-raised));
-  --tasty-dag-runner-crashed-fg:     var(--tasty-accent-danger);
+  --tasty-dag-runner-crashed-fg:     var(--tasty-accent-danger-strong); /* 2026-11-05 ground-ink rules */
   --tasty-dag-runner-crashed-border: color-mix(in srgb, var(--tasty-accent-danger) 45%, transparent);
   --tasty-dag-runner-crashed-bg:     color-mix(in srgb, var(--tasty-accent-danger) 12%, var(--tasty-surface-raised));
 
@@ -1287,7 +1287,7 @@
      keeps rendering behind it (this surface observes, it never hides state). */
   --tasty-dag-cycle-bg:              color-mix(in srgb, var(--tasty-accent-warning) 14%, var(--tasty-bg-panel));
   --tasty-dag-cycle-border:          color-mix(in srgb, var(--tasty-accent-warning) 45%, transparent);
-  --tasty-dag-cycle-fg:              var(--tasty-accent-warning);
+  --tasty-dag-cycle-fg:              var(--tasty-accent-warning-strong); /* 2026-11-05 ground-ink rules */
   --tasty-dag-cycle-height:          var(--tasty-control-height); /* 28 */
 
   /* Node detail — right-side panel on a wide surface, bottom sheet when narrow. */
@@ -1331,7 +1331,7 @@
   --tasty-codearea-gutter-bg:          var(--tasty-bg-sidebar);
   --tasty-codearea-gutter-fg:          var(--tasty-text-muted);
   --tasty-codearea-gutter-border:      var(--tasty-separator);
-  --tasty-codearea-error-fg:           var(--tasty-accent-danger); /* gutter number + message glyph on the error line */
+  --tasty-codearea-error-fg:           var(--tasty-accent-danger-raised); /* 2026-11-05 ground-ink rules */
   --tasty-codearea-max-height:         var(--tasty-size-200);  /* then scrolls */
 
   /* 2026-10-07 (batch 3) */
@@ -1342,19 +1342,19 @@
   --tasty-modhint-row-font-size:       var(--tasty-font-size-caption); /* 11 — chord row label · role row text · empty row (was raw 12) */
   --tasty-modhint-row-min-height:      var(--tasty-size-24);       /* chord row */
   --tasty-modhint-empty-row-min-height: var(--tasty-size-20);     /* empty-chord placeholder row */
-  --tasty-modhint-row-gap:             var(--tasty-size-6);        /* role row padding-y (padding-x = space-sm) */
+  --tasty-modhint-row-gap:             var(--tasty-space-sm); /* 2026-11-05 ground-ink rules */
   --tasty-trigger-menu-min-width:      var(--tasty-field-width-lg);      /* Scripts "Add trigger…" menu — 200 */
   --tasty-trigger-menu-max-height:     var(--tasty-autocomplete-max-height); /* → 220, then scrolls */
   --tasty-image-handle-size:           var(--tasty-size-6);        /* floating-selection corner handle; ON-SCALE; centred on the corner (offset = −size/2) */
   --tasty-image-popup-width:           var(--tasty-size-300);      /* New Image · Save As card */
   --tasty-image-popup-pad-top:         var(--tasty-space-md);      /* 12 */
-  --tasty-image-popup-pad-x:           var(--tasty-size-14);
-  --tasty-image-popup-gap:             var(--tasty-size-10);       /* title → body and body → buttons */
+  --tasty-image-popup-pad-x:           var(--tasty-space-md); /* 2026-11-05 ground-ink rules */
+  --tasty-image-popup-gap:             var(--tasty-space-sm); /* 2026-11-05 ground-ink rules */
   --tasty-image-popup-btn-gap:         var(--tasty-space-sm);      /* 8 between buttons and between size fields */
   --tasty-image-popup-title-font-size: var(--tasty-font-size-max); /* 14 */
   --tasty-image-popup-title-weight:    var(--tasty-font-weight-semibold);
   --tasty-image-size-input-width:      var(--tasty-size-64);
-  --tasty-image-path-row-gap:          var(--tasty-size-6);        /* path input → browse IconButton */
+  --tasty-image-path-row-gap:          var(--tasty-space-sm); /* 2026-11-05 ground-ink rules */
   --tasty-image-zoom-font-size:        var(--tasty-font-size-caption); /* "100%" — mono 11 */
   --tasty-image-zoom-min-width:        var(--tasty-size-40);
   --tasty-explorer-min-height:         var(--tasty-size-180);      /* split-drag stops here (2026-10-08, was 160): internal tabs 28 + toolbar 44 + Detail header 28 + 2 rows 56 + status line 24 */
@@ -1362,7 +1362,7 @@
   --tasty-explorer-error-fg:           var(--tasty-accent-danger); /* folder read error glyph */
   --tasty-dag-edge-binding:            var(--tasty-accent-data);   /* input binding — data handed downstream */
   --tasty-dag-edge-dash-binding:       8 2 2 2;                    /* @kind other */ /* dash-dot — apart from reduce 2 3 / fallback 6 3 */
-  --tasty-dag-edge-transition:         var(--tasty-accent-route);  /* result-chosen route */
+  --tasty-dag-edge-transition:         var(--tasty-accent-route-raised); /* 2026-11-05 ground-ink rules */
   --tasty-dag-edge-dash-transition:    10 4;                       /* @kind other */ /* long dash */
   --tasty-dag-edge-selected-width:     var(--tasty-focus-ring-width); /* the SELECTED transition draws 2 */
   --tasty-toast-stack-offset-bottom-settings: var(--tasty-size-64); /* Settings window-scope stack: footer 52 + 12. ON-SCALE — the footer is inside the UI zoom */
@@ -1389,21 +1389,21 @@
   --tasty-kb-plugin-list-gap:       var(--tasty-space-md);             /* 12 picker row → first command */
   --tasty-kb-plugin-caption-fg:     var(--tasty-text-muted);           /* "Inherited (Ctrl+C)" */
   --tasty-kb-plugin-none-fg:        var(--tasty-text-muted);           /* "(Unassigned)" */
-  --tasty-kb-plugin-error-fg:       var(--tasty-accent-danger);        /* key parse error caption */
-  --tasty-kb-plugin-draft-dot:      var(--tasty-accent-primary);       /* unsaved draft change on this command */
+  --tasty-kb-plugin-error-fg:       var(--tasty-accent-danger-raised); /* 2026-11-05 ground-ink rules */
+  --tasty-kb-plugin-draft-dot:      var(--tasty-accent-primary-raised); /* 2026-11-05 ground-ink rules */
   --tasty-kb-plugin-draft-dot-size: var(--tasty-status-dot-size-compact); /* 6 */
   /* 2026-10-09 (batch 9) — attach size sync · split sibling · image load failed · settings row gap · explorer file operations */
-  --tasty-attach-sync-glyph: var(--tasty-accent-warning); /* attach size-sync failure banner glyph (same tone as the refusal banner) */
+  --tasty-attach-sync-glyph: var(--tasty-accent-warning-glyph); /* 2026-11-05 ground-ink rules */
   --tasty-attach-sync-name-max-width: var(--tasty-size-160); /* one surface name in the banner body ellipsises here; fixed copy never cut */
   --tasty-split-sibling-min-height: var(--tasty-size-56); /* a new split never leaves a non-explorer sibling under this (tab strip 28 + one 28 row); else refused */
-  --tasty-image-error-fg: var(--tasty-accent-danger); /* image canvas load-failed glyph + title (missing / decode) */
+  --tasty-image-error-fg: var(--tasty-accent-danger-raised); /* 2026-11-05 ground-ink rules */
   --tasty-settings-row-gap: var(--tasty-space-md); /* 12 between settings rows (was 8 in app, 14 literal in kit) */
   --tasty-explorer-toolbar-compact-below: var(--tasty-size-440); /* cell width under which the toolbar file-command group folds into one More menu */
-  --tasty-explorer-name-error-fg: var(--tasty-accent-danger); /* new-item / inline-rename name error (border + message) */
+  --tasty-explorer-name-error-fg: var(--tasty-accent-danger-raised); /* 2026-11-05 ground-ink rules */
   --tasty-explorer-drop-target-border: var(--tasty-accent-primary); /* 1px inset ring on the folder row / cell / tree node / list body under a drag */
   --tasty-explorer-drop-target-bg: color-mix(in srgb, var(--tasty-accent-primary) calc(var(--tasty-tint-fill-alpha) * 100%), transparent); /* drop target fill */
   --tasty-explorer-drag-move-fg: var(--tasty-accent-primary); /* drag chip badge — move */
-  --tasty-explorer-drag-copy-fg: var(--tasty-accent-success); /* drag chip badge — copy */
+  --tasty-explorer-drag-copy-fg: var(--tasty-accent-success-raised); /* 2026-11-05 ground-ink rules */
   --tasty-explorer-drag-refused-fg: var(--tasty-accent-danger); /* drag chip badge — refused */
   --tasty-explorer-drag-chip-max-width: var(--tasty-size-240); /* drag chip next to the pointer */
   --tasty-explorer-progress-height: var(--tasty-size-2); /* progress bar on the status line top edge */
@@ -1422,17 +1422,17 @@
   --tasty-explorer-match-fg: var(--tasty-autocomplete-match-fg); /* matched part of a name while filtering */
   --tasty-explorer-match-fg-active: var(--tasty-autocomplete-part-fg-active); /* 2026-11-05 the same run on a selected row, with autocomplete-match-underline-* */
   /* 2026-10-09 batch 10 */
-  --tasty-image-too-large-fg: var(--tasty-accent-warning); /* image canvas "too large" glyph — refused by limit, file is fine (warning tone) */
+  --tasty-image-too-large-fg: var(--tasty-accent-warning-raised); /* 2026-11-05 ground-ink rules */
   --tasty-explorer-name-error-max-width: var(--tasty-size-240); /* name error message box max width (new item / rename) */
   --tasty-explorer-list-min-width: var(--tasty-size-200); /* listing min width beside the preview panel; panel hides under preview-min + this (400) */
-  --tasty-explorer-props-padding-x: var(--tasty-size-14); /* Properties popup inner side padding (popup family inset, as conflict / rename) */
+  --tasty-explorer-props-padding-x: var(--tasty-space-md); /* 2026-11-05 ground-ink rules */
   --tasty-explorer-props-row-min-height: var(--tasty-size-24); /* Properties field row min height */
   --tasty-explorer-props-row-line: var(--tasty-size-20); /* Properties field label / value line height */
   --tasty-explorer-props-row-pad-top: var(--tasty-size-2); /* Properties field row top nudge */
   --tasty-explorer-preview-header-height: var(--tasty-size-40); /* preview panel header (name + kind · size) */
   --tasty-file-drop-overlay-bg: color-mix(in srgb, var(--tasty-accent-primary) calc(var(--tasty-tint-fill-alpha) * 100%), transparent); /* window file-drop overlay fill (0.12, same as explorer-drop-target-bg) */
   --tasty-file-drop-overlay-border: color-mix(in srgb, var(--tasty-accent-primary) calc(var(--tasty-tint-border-alpha) * 100%), transparent); /* window file-drop overlay 1px edge (0.36 tint-border; was local alpha 153) */
-  --tasty-file-drop-overlay-fg: var(--tasty-accent-primary); /* window file-drop overlay glyph + label (full ink for 4.5:1; was 60% alpha) */
+  --tasty-file-drop-overlay-fg: var(--tasty-accent-primary-strong); /* 2026-11-05 ground-ink rules */
   --tasty-kb-record-width: var(--tasty-kb-ie-slot-min-width); /* Keybindings shortcut record button width (140, same as Import/Export slot) */
   --tasty-kb-record-height: var(--tasty-kb-ie-slot-height); /* Keybindings shortcut record button height (24) */
   --tasty-kb-record-add-width: var(--tasty-size-32); /* Keybindings add-shortcut (+) button width */
@@ -1443,16 +1443,16 @@
   --tasty-attach-sync-name-min-width: var(--tasty-size-40); /* names-line floor: a name shrinks to here before ellipsis; a shorter name keeps its own width (no padding box) */
   --tasty-explorer-link-glyph: var(--tasty-text-muted); /* trailing link glyph after a symlink name (all views) */
   --tasty-explorer-link-glyph-size: var(--tasty-icon-size-xs); /* trailing link glyph size (12) */
-  --tasty-explorer-link-broken-fg: var(--tasty-accent-warning); /* broken symlink: link glyph replaces the item glyph in this tone; name stays text-secondary */
-  --tasty-explorer-cursor-ring: var(--tasty-border-focus); /* keyboard current item: 1px inset ring (keyboard-driven only), drawn over selection too */
+  --tasty-explorer-link-broken-fg: var(--tasty-accent-warning-raised); /* 2026-11-05 ground-ink rules */
+  --tasty-explorer-cursor-ring: var(--tasty-accent-primary-raised); /* 2026-11-05 ground-ink rules */
   --tasty-explorer-cursor-ring-width: var(--tasty-border-width); /* keyboard current item ring width (1, inset — never moves layout) */
   --tasty-explorer-marquee-bg: color-mix(in srgb, var(--tasty-accent-primary) calc(var(--tasty-tint-fill-alpha) * 100%), transparent); /* drag-select rectangle fill (0.12 tint-fill) */
   --tasty-explorer-marquee-border: color-mix(in srgb, var(--tasty-accent-primary) calc(var(--tasty-tint-border-alpha) * 100%), transparent); /* drag-select rectangle 1px edge (0.36 tint-border) */
   --tasty-explorer-autoscroll-zone: var(--tasty-size-24); /* drag-select / drag auto-scroll band at the list top and bottom edges; no visual indicator */
   --tasty-explorer-hidden-fg: var(--tasty-text-muted); /* hidden item name + glyph while Show hidden files is on (no opacity — cut items keep 0.5) */
   --tasty-explorer-create-indent: var(--tasty-space-lg); /* create-in-folder input row indent under the target folder row (16) */
-  --tasty-kb-record-border: var(--tasty-border-default); /* shortcut record button / add / None slot border at rest */
-  --tasty-kb-record-border-hover: var(--tasty-border-strong); /* shortcut record button / add / None slot border on hover (fill unchanged) */
+  --tasty-kb-record-border: var(--tasty-border-control); /* 2026-11-05 ground-ink rules */
+  --tasty-kb-record-border-hover: var(--tasty-border-control-raised); /* 2026-11-05 ground-ink rules */
   --tasty-kb-record-empty-fg: var(--tasty-text-muted); /* “None” slot label on a shortcut row with no binding */
   --tasty-ui-code-font: var(--tasty-font-mono); /* CLI command / option run inside UI copy (size = the sentence size) */
   --tasty-ui-code-bg: var(--tasty-surface-raised); /* CLI run fill inside UI copy */
@@ -1470,13 +1470,13 @@
   --tasty-explorer-address-pending-size: var(--tasty-icon-size-sm); /* remote address check spinner in the address field trailing slot */
   --tasty-explorer-create-field-max-width: var(--tasty-size-240); /* create-in-folder / new item name field max width; caption follows at space-sm */
   --tasty-explorer-drag-expand-delay: var(--tasty-duration-800); /* dragging over a closed tree folder expands it after this hover time */
-  --tasty-explorer-props-partial-fg: var(--tasty-accent-warning); /* Properties folder size: “some folders couldn’t be read” glyph + line */
+  --tasty-explorer-props-partial-fg: var(--tasty-accent-warning-raised); /* 2026-11-05 ground-ink rules */
   --tasty-explorer-preview-body-min-height: var(--tasty-size-120); /* preview panel body under this height → body hidden, header only */
   --tasty-settings-row-stack-gap: var(--tasty-space-xs); /* settings Row stacked (narrow): label → control vertical gap */
   --tasty-settings-row-stack-hysteresis: var(--tasty-space-lg); /* settings Row returns side by side only when the control fits with this much spare width */
   --tasty-ui-code-bg-on-raised: var(--tasty-bg-panel); /* CLI run fill when the container is surface-raised (toast, tooltip, raised card) — ink on it Mocha 11.34 · Latte 7.06 */
   --tasty-kb-plugin-record-height: var(--tasty-kb-plugin-control-height); /* Keybindings › Plugins Custom record slots — 28, one height per control line */
-  --tasty-kb-os-reserved-fg: var(--tasty-accent-warning); /* “may be taken by the OS” caption on a text-entered shortcut */
+  --tasty-kb-os-reserved-fg: var(--tasty-accent-warning-raised); /* 2026-11-05 ground-ink rules */
   /* 2026-10-19 — plugin trust box (unverified warning) · notice column · restore / save-halt notice · pending indicator */
   --tasty-plugin-trust-title-fg: var(--tasty-text-primary); /* trust box title ink (all kinds except trusted) — tone moves to the glyph only */
   --tasty-plugin-trust-body-fg: var(--tasty-text-secondary); /* trust box cause + risk paragraphs */
@@ -1504,7 +1504,7 @@
   --tasty-pending-indicator-border: var(--tasty-border-strong); /* chip 1px edge (floating, like Toast / Banner) */
   --tasty-pending-indicator-fg: var(--tasty-text-secondary-raised); /* label ink on surface-raised */
   --tasty-pending-indicator-time-fg: var(--tasty-text-primary); /* elapsed time ink */
-  --tasty-pending-indicator-sep-fg: var(--tasty-text-muted); /* “·” separator */
+  --tasty-pending-indicator-sep-fg: var(--tasty-text-muted-raised); /* 2026-11-05 ground-ink rules */
   --tasty-pending-indicator-spinner-size: var(--tasty-icon-size-sm); /* chip spinner 14 */
   --tasty-pending-indicator-compact-below: var(--tasty-size-200); /* notice column narrower than this → spinner + time only */
   --tasty-pending-indicator-delay: var(--tasty-loading-overlay-delay); /* show only if still pending after 200ms (same as LoadingOverlay) */
@@ -1531,7 +1531,7 @@
   --tasty-explorer-props-footer-border: var(--tasty-separator); /* rule above the Open footer */
   --tasty-explorer-props-perm-border: var(--tasty-border-strong); /* permission editor box edge on bg-panel */
   --tasty-explorer-props-perm-cell-width: var(--tasty-size-56); /* role label column + each r / w / x column — 2026-10-21: box spans the CONTENT width (label column included), 4 × 56 + 2 × 8 + 2 × 1 = 242 ≤ 330 */
-  --tasty-explorer-props-perm-error-fg: var(--tasty-accent-danger); /* apply failed line on bg-panel — Mocha 7.08 · Latte 4.80 */
+  --tasty-explorer-props-perm-error-fg: var(--tasty-accent-danger-raised); /* 2026-11-05 ground-ink rules */
   --tasty-explorer-props-perm-locked-fg: var(--tasty-text-muted); /* "Only the owner can change permissions" under the value */
   --tasty-explorer-props-value-fg: var(--tasty-text-secondary); /* field value ink (names the literal the rows already used) */
   /* 2026-10-21 — Settings › Terminal › Performance: when saved values apply (replaces the warning-yellow restart notice) */
@@ -1547,6 +1547,13 @@
   --tasty-number-field-unit-gap: var(--tasty-space-sm); /* field → unit word → "no limit" */
   --tasty-number-field-unit-fg: var(--tasty-text-secondary); /* unit word / "no limit" after the field — on bg-panel Mocha ≈ 8.0 · Latte ≈ 5.1 */
   --tasty-number-field-note-fg: var(--tasty-text-secondary); /* range line under the field */
+
+  /* Ground-ink rules (2026-11-05). */
+  --tasty-switch-track-raised-bg:  var(--tasty-border-control-raised); /* switch on a raised ground */
+  --tasty-dag-node-meta-status-fg: var(--tasty-text-on-active); /* meta line on a status-tinted node */
+  --tasty-switch-thumb-raised-bg:  var(--tasty-control-thumb-raised);
+  --tasty-tab-bg-hover:            color-mix(in srgb, var(--tasty-bg-panel) 60%, var(--tasty-bg-sidebar)); /* the one tab hover fill, now a token */
+
 }
 
 

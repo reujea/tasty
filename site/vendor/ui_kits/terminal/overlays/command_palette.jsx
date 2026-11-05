@@ -1,3 +1,10 @@
+import React from "react";
+import { Kbd } from "../../../components/core/Kbd.jsx";
+import { Input } from "../../../components/forms/Input.jsx";
+import { MenuItem } from "../../../components/navigation/MenuItem.jsx";
+import { ic, Icon } from "../chrome.jsx";
+import { Scrim } from "./shared.jsx";
+
 // Tasty UI kit — command palette popup (⌘K / Ctrl+K, also Tools › Command palette…).
 // Mirrors zilhak/tasty → src/adapters/ui/popup/command_palette.rs
 //   Popup: id "command_palette", CenteredFocused, sticky_focus.
@@ -14,9 +21,8 @@
 // command falls back to `ic.command`. The 2 rows here without a binding field
 // (Toggle Theme / Listening ports…) are ILLUSTRATIVE only
 // — they won't appear in the live palette; they show intended iconography.
-// Standalone preview: command_palette.html
-const { MenuItem, Input, Kbd } = window.TastyDesignSystem_41fd3f;
-const { ic, Icon, Scrim } = window.TastyKit;
+
+
 
 // fallback glyph for any command without a specific icon (the ~41 other fields)
 const icCommand = <Icon name="command" />;
@@ -54,7 +60,7 @@ function CommandPalette({ onClose, onRun }) {
           ))}
         </div>
         <div style={{ display: "flex", gap: 14, padding: "var(--tasty-space-sm) var(--tasty-space-md)", borderTop: "var(--tasty-border-width) solid var(--tasty-separator)",
-          fontFamily: "var(--tasty-font-mono)", fontSize: "var(--tasty-font-size-micro)", color: "var(--tasty-text-muted)" }}>
+          fontFamily: "var(--tasty-font-mono)", fontSize: "var(--tasty-font-size-micro)", color: "var(--tasty-text-muted-raised)" }}>
           <span>↑↓ navigate</span><span>↵ run</span><span>esc close</span>
         </div>
       </div>
@@ -62,4 +68,4 @@ function CommandPalette({ onClose, onRun }) {
   );
 }
 
-window.TastyKit = Object.assign(window.TastyKit || {}, { CommandPalette });
+export { CommandPalette };

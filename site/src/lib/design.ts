@@ -37,12 +37,13 @@ export const designPath = (slug: string, lang: Lang) =>
 
 export const pick = <T>(v: { en: T; ko: T }, lang: Lang) => (lang === "ko" ? v.ko : v.en);
 
-/** The gallery uses shared routes. `key` matches the identifier in each example. */
+/** The gallery uses shared routes. `key` matches the page folder in site/vendor/gallery/. */
 export interface GalleryPage {
   key: string;
   /** Route under `design/gallery/`; "" is the gallery root. */
   slug: string;
   label: string;
+  /** A short note on the /design/ tiles. The gallery sidebar is text only and does not show it. */
   desc: string;
 }
 
@@ -52,6 +53,8 @@ export const GALLERY_GROUPS: { group: string; pages: GalleryPage[] }[] = [
     pages: [
       { key: "foundations", slug: "", label: "Foundations", desc: "tokens" },
       { key: "icons", slug: "icons/", label: "Icons", desc: "glyphs" },
+      { key: "rules", slug: "rules/", label: "Rules", desc: "ground × ink" },
+      { key: "rules-map", slug: "rules-map/", label: "Location map", desc: "what nests where" },
     ],
   },
   {
@@ -63,26 +66,22 @@ export const GALLERY_GROUPS: { group: string; pages: GalleryPage[] }[] = [
     pages: [
       { key: "overlays-dialogs", slug: "overlays-dialogs/", label: "Dialogs", desc: "modal confirms" },
       { key: "overlays-windows", slug: "overlays-windows/", label: "Windows", desc: "big surfaces" },
-      { key: "overlays-popups", slug: "overlays-popups/", label: "Popups & menus", desc: "anchored" },
+      { key: "overlays-popups", slug: "overlays-popups/", label: "Popups and menus", desc: "anchored" },
       { key: "overlays-banners", slug: "overlays-banners/", label: "Banners", desc: "floating" },
       { key: "overlays-tutorial", slug: "overlays-tutorial/", label: "Tutorial", desc: "marker · guide" },
     ],
   },
   {
-    group: "Layouts",
-    pages: [{ key: "layouts", slug: "layouts/", label: "Layouts", desc: "shells" }],
+    group: "Shell",
+    pages: [
+      { key: "layouts", slug: "layouts/", label: "Layouts", desc: "shells" },
+      { key: "loading", slug: "loading/", label: "Startup", desc: "boot screen" },
+    ],
   },
   {
     group: "Surfaces",
-    pages: [{ key: "dag", slug: "dag/", label: "Task DAG", desc: "graph surface" }],
-  },
-  {
-    group: "Chrome",
-    pages: [{ key: "loading", slug: "loading/", label: "Startup", desc: "boot screen" }],
-  },
-  {
-    group: "Plugins",
     pages: [
+      { key: "dag", slug: "dag/", label: "Task DAG", desc: "graph surface" },
       { key: "plugins", slug: "plugins/", label: "Plugin surfaces", desc: "surfaces" },
       { key: "explorer-ops", slug: "explorer-ops/", label: "Explorer file ops", desc: "create · drag · progress · props · search" },
     ],
@@ -93,13 +92,6 @@ export const GALLERY_PAGES: GalleryPage[] = GALLERY_GROUPS.flatMap((g) => g.page
 
 /** Route of a gallery page. The gallery is published once, not per language. */
 export const galleryPath = (slug: string) => `design/gallery/${slug}`;
-
-/** The gallery nav as plain data, so it can cross into the React island. */
-export const galleryNav = (url: (p: string) => string) =>
-  GALLERY_GROUPS.map((g) => ({
-    group: g.group,
-    pages: g.pages.map((p) => ({ key: p.key, label: p.label, desc: p.desc, href: url(galleryPath(p.slug)) })),
-  }));
 
 /** Introductory copy for the site; specimen content comes from the design kit. */
 export const GALLERY_INTROS: Record<string, string> = {

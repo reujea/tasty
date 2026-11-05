@@ -1,3 +1,7 @@
+import React from "react";
+import { Icon as TastyDesignSystem_41fd3f_Icon } from "../../../components/core/Icon.jsx";
+import { MenuItem } from "../../../components/navigation/MenuItem.jsx";
+
 // Tasty UI kit — sidebar workspace-category context menu + collapsed-rail popup.
 // Used by chrome.jsx Sidebar (right-click → SidebarContextMenu) and CollapsedSidebar
 // (`---` category button → RailCategoryPopup). Mirrors the tools_menu anchored-popup
@@ -9,9 +13,9 @@
 //   workspace_category.collapse       — "접기"
 //   workspace_category.expand         — "펼치기"
 // Existing keys reused: new_category / rename_category / delete_category / move_to_category.
-const { MenuItem } = window.TastyDesignSystem_41fd3f;
+
 // Resolved at render (see chrome.jsx DSIcon): the module-level `cx` map must not capture an undefined Icon.
-const Icon = (p) => React.createElement(window.TastyDesignSystem_41fd3f.Icon, p);
+const Icon = (p) => React.createElement(TastyDesignSystem_41fd3f_Icon, p);
 
 // glyphs by name from the canonical set (icons/*.svg via <Icon name>)
 const cx = {
@@ -131,4 +135,4 @@ function RailCategoryPopup({ anchor, label, reserved, collapsed, count = 0, onTo
   );
 }
 
-window.TastyKit = Object.assign(window.TastyKit || {}, { SidebarContextMenu, RailCategoryPopup });
+export { SidebarContextMenu, RailCategoryPopup };

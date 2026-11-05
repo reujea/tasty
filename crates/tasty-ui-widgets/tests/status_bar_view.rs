@@ -9,7 +9,7 @@ use tasty_ui_widgets::{
 };
 
 const BAR_W: f32 = 600.0;
-// view 의 디자인 inline 레이아웃 값(`gallery/layouts.jsx` statusbar: 컨테이너
+// view 의 디자인 inline 레이아웃 값(`gallery/layouts/index.jsx` statusbar: 컨테이너
 // `padding: "0 10px"` + `gap: 10`) — 셀 좌표를 테스트에서 독립적으로 재계산해
 // 배치 계약을 고정한다.
 const BAR_PAD_X: f32 = 10.0;

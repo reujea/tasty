@@ -46,45 +46,34 @@
 site/
   package.json          astro · @astrojs/react · react 18
   astro.config.mjs      정적 출력, React 아일랜드
-  scripts/vendor-to-esm.mjs   vendor -> ES module 변환기
+  vendor/               Design System Artifact의 사본. 사이트가 그대로 import한다
+  scripts/              check-links · vendor-manifest · stamp
   src/pages/            라우트
   src/components/ src/layouts/ src/lib/ src/styles/
-  src/ds/ src/kit/ src/gallery/          ← 생성물 (gitignore)
-  src/styles/tokens.css src/styles/kit.css  ← 생성물 (gitignore)
-  public/design/                          ← 생성물 (gitignore)
 ```
 
-킷은 브라우저가 Babel standalone 으로 통째로 읽는 것을 전제로 쓰였다. 파일마다 필요한 것을
-전역에서 꺼내고 정의한 것을 전역에 얹는다 — **전역으로 쓰인 모듈 그래프**라 규칙적이고,
-그래서 기계적으로 다시 쓸 수 있다.
+사본의 컴포넌트와 표본은 ES 모듈이다. 사이트는 변환 단계 없이 `site/vendor/`를 Astro 프로젝트 안에서 직접 import한다. 정본은 `site/vendor/` 하나이고 생성 트리는 없다.
 
-| 원본 | 변환 |
+토큰과 정적 파일은 빌드할 때 사본에서 파생한다.
+
+| 산출물 | 만드는 곳 |
 |------|------|
-| `const { Tab } = window.TastyDesignSystem_41fd3f;` | `import { Tab } from …/ds/…` |
-| `const { Sidebar } = window.TastyKit;` | `import { Sidebar } from …/kit/…` |
-| `window.TastyKit = Object.assign(window.TastyKit \|\| {}, { A, B });` | `export { A, B };` |
-| 갤러리 함수 안의 `const T = window.TastyKit;` 와 `T.X` | 파일이 읽는 `X` 만 별칭으로 import 해 `const T = { X: Kit_X };` |
-| `pluginAttentionCount: <식>` (계산값 등록) | `const pluginAttentionCount = <식>;` + export |
-| `ReactDOM.createRoot(...).render(<App />)` (프리뷰 부트스트랩) | 제거하고 `App` 을 export |
-| `const CSS = \`…\`` + 런타임 `<style>` 주입 | 생성되는 `styles/kit.css` 로 뽑아낸다 (주입은 그대로 둔다) |
-| `const { Section } = window.Gallery;` | `import { Section } from "./shell.jsx"` |
-| 갤러리의 `const Y = () => window.ExplorerOpsY;` (나중에 읽는 전역) | 네임스페이스 import 후 `const Y = () => ExplorerOpsY_ns;`. 서로 import 하는 두 파일도 렌더 시점에 읽으므로 동작한다 |
-| 갤러리 JSX 속성 등에서 읽는 `window.<전역>.X` | `X` 를 `<전역>_X` 별칭으로 import |
-| `Gallery.mount(active, nav, head, <Page/>)` | `export const page = { … }` + 라우트용 엔트리 컴포넌트 생성 |
-| `preset_editor.jsx` 전체를 감싼 IIFE | 벗긴다 (import 는 최상위여야 한다) |
-| 갤러리 산문의 `href="components.html#forms"` | `/design/gallery/components/#forms` |
-| 가이드라인 문서의 `href="../styles.css"` | `public/design/tokens.css` + 테마 동기화 스크립트 주입 |
+| 페이지 토큰 | `site/src/styles/tokens.css`. tier 순서로 사본을 `@import`한다 |
+| `/design/tokens.css` · `/design/kit.css` · `/design/cards/*.html` | `site/src/lib/vendor-assets.ts`와 이를 읽는 엔드포인트 |
+| `/tasty-melon.svg` · `/tasty-icon.png` | `assets/icons/`의 원본을 읽는 엔드포인트 |
 
-`site/vendor/components/` 는 손대지 않는다 — 이미 제대로 export 한다. Astro 프로젝트 루트
-밖은 import 할 수 없어서 복사만 한다.
+### 갤러리 페이지
 
-**생성물은 커밋하지 않는다.** 파생물이고 `npm run build` 가 `prebuild` 로 매번 다시 만든다.
-정본은 `site/vendor/` 하나다.
+갤러리는 앱이 따르는 정본이다. 페이지 규칙은 사본의 `site/vendor/gallery/README.md`에 있고 사이트 구현은 다음과 같다.
+
+- `site/src/layouts/GalleryPage.astro`: 공용 머리글·테마·푸터(`Base.astro`), 가이드 형식의 사이드바, 이전·다음을 그린다. 페이지 순서와 묶음은 `site/src/lib/design.ts`의 `GALLERY_GROUPS`가 정한다.
+- `site/src/pages/design/gallery/*/index.astro`: 라우트마다 `vendor/gallery/<페이지>/index.jsx`의 `page`와 기본 내보내기를 싣는다.
+- 표본의 범위는 `[data-gallery-page]`다. 사이트 전역 규칙 중 표본과 부딪히는 것(`img`, `:focus-visible`)은 이 범위를 뺀다.
+- `parts/specimen.jsx`의 `Spec`이 제목, 데모, 상태 격자, 숨은 상태의 프레임, 명세 표 순서로 그린다. `?audit=1`을 붙이면 지연 마운트 없이 모든 데모를 그린다.
 
 ### vendor 자신은 어디서 오는가
 
-위 변환은 `vendor → src` 한 방향만 말한다. 그 앞에 **`원격 → vendor`** 방향이 하나 더 있고,
-그쪽이 사람이 도는 단계다 — `site/vendor/` 는 원격 Design System 프로젝트의 사본이라,
+`site/vendor/` 는 원격 Design System 프로젝트의 사본이라,
 릴리스할 때 그것을 받아와야 한다. 절차는
 [`site/vendor/README.md`](../../site/vendor/README.md) 의 "vendor 갱신 절차" 에 있고,
 정합 루프에서 이 단계가 차지하는 자리는
@@ -103,10 +92,10 @@ site/
 파일 집합과 해시가 `MANIFEST`와 같은지 원격 조회 없이 확인한다. 옛 판 파일이나 기록 없는
 직접 수정은 검출하지만, 원격이 마지막 갱신 뒤에 바뀐 것은 알 수 없다.
 
-갤러리와 디자인 페이지는 `VendorStamp`로 vendor의 마지막 변경 날짜를 표시한다.
-변환기가 `git log -1 -- site/vendor`에서 README와 `MANIFEST`를 제외한 최신 변경을 읽는다.
+디자인 페이지는 `VendorStamp`로 vendor의 마지막 변경 날짜를 표시한다.
+빌드할 때 `site/src/lib/vendor-stamp.ts`가 `git log -1 -- site/vendor`에서 README와 `MANIFEST`를 제외한 최신 변경을 읽는다.
 두 파일은 사본을 설명하는 파일이며 디자인 사본 자체가 아니기 때문이다. 문구와 스타일은
-각각 `site/src/components/design/VendorStamp.jsx`와
+각각 `site/src/components/design/VendorStamp.astro`와
 `site/src/styles/vendor-stamp.css`에서 함께 관리한다.
 
 이 날짜는 원격 파일을 처음 받은 날짜나 모든 파일의 동기화 날짜가 아니다. 사본을
@@ -119,20 +108,14 @@ site/
 cd site
 npm install          # 최초 1 회
 
-npm run build        # prebuild(vendor 변환) 후 astro build -> site/dist/
+npm run build        # astro build -> site/dist/
 npm run dev          # 개발 서버
 npm run preview      # 빌드 결과 확인
-npm run vendor-to-esm  # prebuild 없이 변환만 다시 돌린다
+npm run check-links  # 빌드 결과의 내부 링크·앵커 검사
 
 # 번역 파일에 원본 해시 스탬프 (아래 "번역 모델")
 npm run stamp content/en/index.md
 ```
-
-`npm run build` 는 `prebuild` 로 [`site/scripts/vendor-to-esm.mjs`](../../site/scripts/vendor-to-esm.mjs)
-를 먼저 돌린다 — `site/vendor/` 를 ES module 과 토큰 CSS 로 바꾸고 로고를 `public/` 에 놓는다.
-`npm run vendor-to-esm` 은 같은 변환을 단독으로 돌리는 별칭이다. **재-vendoring 이 아니다** —
-`site/vendor/` 를 갱신하지 않고 그것을 읽어 생성 트리만 다시 만든다(원격에서 받아오는 쪽은
-위 "vendor 자신은 어디서 오는가").
 
 ## URL 구조
 
@@ -145,8 +128,8 @@ npm run stamp content/en/index.md
 | `/privacy/` · `/ko/privacy/` | 개인정보 안내. 본문은 `site/src/components/Privacy.astro` 에 두 언어로 있고 푸터에서 연결한다 |
 | `/design/` · `/ko/design/` | 디자인 가이드라인 (브랜드 · 색 · 타이포 · 간격). 크롬만 이중언어고 싣는 문서는 같다 |
 | `/design/tokens/` · `/ko/design/tokens/` | 3티어 토큰 문서 |
-| `/design/gallery/**` | 레퍼런스 갤러리 13 페이지. 갤러리 자체 크롬을 쓰므로 언어별로 나누지 않는다 |
-| `/design/cards/*.html` | 가이드라인 원본 문서. 페이지가 iframe 으로 싣는다 (생성물) |
+| `/design/gallery/**` | 레퍼런스 갤러리 15 페이지. 사이트 머리글과 푸터를 쓰며 언어별로 나누지 않는다 |
+| `/design/cards/*.html` | 가이드라인 원본 문서. 페이지가 iframe 으로 싣는다 |
 | `/search-index.json` (en) · `/search-index.ko.json` | 검색 인덱스. 페이지마다 제목·섹션과 본문 앞 600자를 싣는다(`site/src/lib/search.ts`). 코드 블록과 HTML 태그는 빼고, 인라인 코드는 글자로 남기며, 단어 안의 하이픈은 지워지지 않아 `task-await` 같은 명령 이름이 입력한 그대로 맞는다. 명령 이름으로 찾게 하려면 그 이름을 제목이나 첫 문단에 쓴다 |
 
 ### 배포 경로 (base)
@@ -162,8 +145,8 @@ npm run stamp content/en/index.md
 | 개발 서버 | 같은 `base` — `astro dev` 도 그 경로 아래에 마운트한다. **로컬과 배포가 같은 값으로 돈다** |
 | 마크다운 파이프라인의 다이어그램 | 직접 주입받는다. Astro 설정에서 로드돼 `BASE_URL` 이 닿지 않는 컨텍스트라 그 경계에서 한 번 적용한다 |
 | `npm run check-links` | 직접 import 한다. 여기서 base 를 모르면 배포가 못 여는 링크를 통과시킨다 |
-| vendor 변환기가 만든 킷·갤러리 모듈 | `import.meta.env.BASE_URL` 을 읽는 `BASE` 상수를 헤더에 넣어준다 |
-| `public/design/cards/*.html` (정적 파일) | 상대경로. `import.meta.env` 를 못 읽으므로 문서 위치 기준으로 쓴다 |
+| 킷·갤러리 모듈 | `import.meta.env.BASE_URL` 을 읽는 `BASE` 상수를 파일 머리에 둔다 |
+| `/design/cards/*.html` | 상대경로. 문서 안에서 `import.meta.env` 를 못 읽으므로 문서 위치 기준으로 쓴다 |
 
 **어떤 경로도 두 번 적지 않는다.** 도메인 루트가 아닌 경로로 옮기면 `base.mjs` 의 값만 바꾼다.
 
@@ -183,8 +166,7 @@ npm run stamp content/en/index.md
 
 - 스크립트와 사이트 토큰은 `site/src/components/Analytics.astro` 한 곳에 둔다. 토큰은 발행된 모든
   페이지에 노출되는 공개 값이다.
-- `<head>`를 가진 두 레이아웃(`Base.astro`, `GalleryPage.astro`)이 이 컴포넌트를 싣는다. `Design.astro`와
-  `Guide.astro`는 `Base.astro`를 통해 함께 포함된다. iframe으로 싣는 `/design/cards/*.html`은 집계하지 않는다.
+- `<head>`를 가진 `Base.astro`가 이 컴포넌트를 싣는다. `Design.astro`, `Guide.astro`, `GalleryPage.astro`는 `Base.astro`를 통해 함께 포함된다. iframe으로 싣는 `/design/cards/*.html`은 집계하지 않는다.
 - production 빌드에만 포함되어 `astro dev` 방문은 집계되지 않는다.
 - 수집 항목이나 처리 주체가 바뀌면 개인정보 안내(`site/src/components/Privacy.astro`)의 두 언어 본문과 최종 수정일을 함께 고친다. 앱에 외부 전송 기능을 추가할 때도 안내의 앱 항목을 확인한다.
 - 통계는 Cloudflare 대시보드의 Web Analytics에서 본다. 저장소 Insights의 Traffic은 Pages 방문을 집계하지 않는다.
@@ -286,8 +268,7 @@ Sätteri 의 hast 플러그인(`src/lib/satteri-*.mjs`)에서 일어난다.
 
 **사이트는 색을 정의하지 않는다.** 팔레트는 `site/vendor/tokens/` 에서 오고, 그것이
 앱 UI 킷이 렌더하는 것과 같은 원본이다 ([`site/vendor/README.md`](../../site/vendor/README.md)).
-변환기가 tier 순서(`primitives` → `semantic` → `components` → `base`)로 이어붙여
-생성되는 `styles/tokens.css` 한 파일로 내보내고, 레이아웃이 사이트 스타일보다 **먼저** import 한다.
+`site/src/styles/tokens.css`가 tier 순서(`primitives` → `semantic` → `components` → `base`)로 사본을 import하고, 레이아웃이 사이트 스타일보다 **먼저** import 한다.
 
 - 테마 이름은 앱의 것을 그대로 쓴다 — **mocha**(다크, 기본) · **latte**(라이트).
   latte 만 `data-theme="latte"` 를 달고, mocha 는 속성 없는 `:root` 다.
@@ -309,7 +290,7 @@ Sätteri 의 hast 플러그인(`src/lib/satteri-*.mjs`)에서 일어난다.
 
 | 출처 | 대상 | 쓰는 척도 |
 |------|------|-----------|
-| Design System | `site/vendor/` 사본과 거기서 생성한 파일(`kit.css` · `tokens.css` · 갤러리). 사이트 스타일시트 안에서는 킷 컴포넌트가 그리는 앱 화면을 재현하거나 그 값을 그대로 옮기는 규칙 — 랜딩·가이드의 제품 창 chrome(`app-shell.css` 의 `.shell` · `.shell__*` · `.shell-overlays*`), 킷 창 크기를 옮긴 Settings 무대(`.anat-settings__stage`), 갤러리 경로의 `gallery-site.css` · `vendor-stamp.css`, 디자인 섹션에서 iframe 으로 띄우는 킷 문서 | Design System 토큰 `--tasty-*` 의 semantic 층(`--tasty-space-*`, `--tasty-radius*`, `--tasty-font-size-<역할>` …). 토큰 파일 머리말대로 primitive(`--tasty-size-N` 등)는 직접 읽지 않는다 |
+| Design System | `site/vendor/` 사본과 거기서 파생한 파일(`kit.css` · `tokens.css` · 갤러리). 사이트 스타일시트 안에서는 킷 컴포넌트가 그리는 앱 화면을 재현하거나 그 값을 그대로 옮기는 규칙 — 랜딩·가이드의 제품 창 chrome(`app-shell.css` 의 `.shell` · `.shell__*` · `.shell-overlays*`), 킷 창 크기를 옮긴 Settings 무대(`.anat-settings__stage`), 갤러리 경로의 `gallery-site.css` · `vendor-stamp.css`, 디자인 섹션에서 iframe 으로 띄우는 킷 문서 | Design System 토큰 `--tasty-*` 의 semantic 층(`--tasty-space-*`, `--tasty-radius*`, `--tasty-font-size-<역할>` …). 토큰 파일 머리말대로 primitive(`--tasty-size-N` 등)는 직접 읽지 않는다 |
 | 사이트 독자 | 사이트가 스스로 디자인한 것 — 페이지 레이아웃, 헤더 · 사이드바 · 목차, 본문 타이포그래피(`global.css`), 랜딩 섹션과 제품 창을 감싸는 카드(`landing.css` 의 `.window` 포함), 디자인 섹션의 머리 · 카드 · 타일 틀(`design.css`), 가이드 그림의 영역 라벨(`.anat*`)과 배치(`.workflow-diagram*`) | 사이트 척도 — 간격 `--sp-1`(4px) ~ `--sp-24`(96px), 반경 `--radius-sm` · `--radius` · `--radius-lg`, 요소 크기 `--size-control-sm` · `-md` · `-lg`(32 · 36 · 44px)와 `--size-icon-sm` · `-md` · `-lg` · `-xl`(16 · 18 · 20 · 24px), 레이아웃 변수(`--header-h`, 여러 규칙이 함께 쓰는 폭 `--page-max` 1440px · `--landing-max` 1180px 등). `global.css` 의 `:root` 가 정의한다 |
 
 - 선언 단위로 갈리는 경우 — 제품 창을 **페이지에 얼마나 크게 보일지**(`.shell` 의 높이
@@ -318,8 +299,7 @@ Sätteri 의 hast 플러그인(`src/lib/satteri-*.mjs`)에서 일어난다.
   820px, 작업 흐름 패인 최소 높이 190px). 반대로 킷이 정한 창 크기를 옮긴 값은 Design System 출처다 —
   Settings 무대는 `--tasty-settings-window-width` · `-height`, 제품 창 토스트의 하단 거리는
   `--tasty-toast-stack-offset-bottom` 을 읽는다.
-- 갤러리 경로는 `Base.astro` 를 거치지 않아 `global.css` 를 싣지 않는다. 그 경로에는 `--sp-*` 가
-  없으므로 갤러리 스타일시트는 위 표와 별개로도 `--tasty-*` 만 쓸 수 있다.
+- 갤러리 표본의 스타일시트(`vendor/gallery/parts/specimen.css`)는 `--tasty-*`만 쓴다. 갤러리의 페이지 배치(`site/src/styles/gallery-site.css`)는 사이트 독자 규칙이다.
 - primitive 직접 참조 금지는 Design System 출처 규칙의 **치수**에만 적용한다. 색 토큰을 어느 층에서
   읽는지는 이 절이 다루지 않는다.
 - 요소 크기 척도는 용도로 나눈다. `--size-control-*` 는 컨트롤의 높이 · 너비다 — `sm` 은 헤더의

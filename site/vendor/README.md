@@ -41,8 +41,8 @@ Design System Artifact **Tasty Design System**에서 받아온 디자인 사본�
    - 아이콘 검사는 `icons/*.svg`, `components/core/Icon.jsx`의 `ICON_PATHS`, 앱의 `crates/tasty-icons/src/lib.rs`에 있는 기하를 비교한다. 이름 대응은 명부를 사용한다. 킷의 `list`는 앱의 `log`에, `listView`는 앱의 `list`에 해당한다. 아이콘 추가·삭제 시 명부도 갱신한다.
    - `<svg>`의 `viewBox`, 선 굵기, cap/join도 비교한다. 의도적인 색(`stroke`/`fill`) 차이는 사유와 함께 명부에 남기고, 해소되면 지운다.
    - 이 검사들은 토큰·아이콘을 바꾸지 않는 문구·구성·컨트롤 변경을 검출하지 않는다. **최신 여부는 1~4단계에서 원격과 직접 비교한다.**
-6. **사이트를 빌드한다.** `cd site && npm run build`. 변환기(`scripts/vendor-to-esm.mjs`)가 처리하지 못하는 파일 형식이 없는지 확인한다. 변환기는 파일 전체를 감싼 IIFE, `window.TastyKit`의 구조 분해와 `<window.TastyKit.X />`, 갤러리 함수 안의 `const T = window.TastyKit;` 별칭(파일이 읽는 `T.X`만 가져온다), `window.TastyKit && window.TastyKit.X` 로드 순서 가드, `const X = window.<전역>.Y;` 한 줄 별칭, 전역 전체를 받는 `const X = window.<전역>;`(네임스페이스 import), 함수로 나중에 읽는 `const X = () => window.<전역>;`(네임스페이스 import), `const K = () => window.TastyKit || {}`의 지연 구조 분해·멤버 참조와 알려진 전역의 삼항 로드 순서 가드, 태그 이름 밖에서 읽는 `window.<전역>.Y`, 갤러리 파일이 `window.<이름> = <이름>;`으로 내보낸 컴포넌트를 모듈 import로 바꾼다. 킷 파일이 `window.<전역>.Y`를 직접 참조하면서 같은 이름을 로컬로 선언했거나 다른 모듈에서 가져왔다면 import에 별칭을 붙인다. 갤러리 파일이 `const X = (p) => <window.TastyKit.X {...p} />;`처럼 킷 이름을 로컬로 다시 선언하면 태그의 import에도 별칭을 붙인다. 알려진 갤러리 전역의 빈 객체 fallback과 존재 확인도 모듈 import에 맞게 변환한다. 갤러리의 지연 kit 조회는 로컬 변수와 충돌하지 않는 별칭으로 가져온다. 다른 페이지가 내보내기만 쓰려고 불러오는 페이지의 `if (!window.__플래그) Gallery.mount(` 조건은 지우고 페이지 정의를 내보낸다. 새 갤러리 페이지는 `site/src/lib/design.ts`의 목록과 소개 문구, `site/src/pages/design/gallery/<페이지>/index.astro` 경로 파일을 함께 추가한다. 갤러리의 Stage는 화면 근처에 올 때만 그리므로 빌드 성공만으로 예제가 그려진다고 보지 않는다. 새 절은 `npm run preview`로 띄워 해당 앵커로 이동해 확인한다.
-7. `site/vendor/` 변경과 `MANIFEST`, 필요한 명부 갱신과 변환기 수정을 같은 커밋에 담는다. 생성된 `site/src/{ds,kit,gallery}/` 등은 커밋하지 않는다.
+6. **사이트를 빌드하고 검사한다.** `cd site && npm run build && npm run check-links`. 사이트는 사본을 변환 없이 import하므로 사본의 JSX는 ES 모듈이어야 한다.
+7. `site/vendor/` 변경과 `MANIFEST`, 필요한 명부 갱신을 같은 커밋에 담는다.
 
 ## 구성
 
@@ -55,7 +55,7 @@ Design System Artifact **Tasty Design System**에서 받아온 디자인 사본�
 | `icons/` | 아이콘 SVG |
 | `screens/` | mocha UI 스크린샷. 라이트 테마 대응본은 없음 |
 | `guidelines/` | 독립 HTML 디자인 문서. 첫 줄 `@dsCard` 주석에 그룹·이름·뷰포트를 기록함 |
-| `gallery/` | 컴포넌트 갤러리. 전역 객체 참조를 모듈로 변환해 사용함. `gallery.css`는 갤러리 페이지에서만 로드함 |
+| `gallery/` | 컴포넌트 갤러리. 페이지마다 `<페이지>/index.jsx`가 있고 공용 부품은 `parts/`에 있다 |
 
 ## 원본에서 제외한 것
 
@@ -64,7 +64,8 @@ Design System Artifact **Tasty Design System**에서 받아온 디자인 사본�
 - **`tokens.css`, `tokens.json`, `design-system.json`, `assets/notes/`, `archived/` 중 사본 경로에 없는 파일**: Artifact 형식 파일과 보존용 자료다. 1단계 토큰은 사본에서 `tokens/primitives.css`에 함께 둔다.
 - **`components/<이름>/README.md`, `components/<이름>/preview.html`**: 디자인 시스템 페이지의 안내와 미리보기다.
 - **`icons.json`**: `icons/*.svg`에서 생성한 아이콘 이름·그룹·역할·`paths`·`fill` 명부다. 사이트는 `ICON_PATHS`를 사용하므로 추가 사본을 두지 않는다. 앱 아이콘은 이 명부를 참고해 옮긴 것이며, `crates/tasty-doc-guards/tests/site_vendor_icons_match_the_app_transcription.rs`가 `ICON_PATHS`와 앱 구현을 비교한다.
-- **프리뷰 `index.html`**: 원격 킷의 번들에 의존한다. `ui_kits/terminal/overlays/*.html`, `titlebar/*.html`의 단독 미리보기와 킷 `README.md`도 제외한다. 사이트는 `.jsx`를 변환해 사용한다.
+- **킷 `README.md`, 컴포넌트 번들**: `ui_kits/terminal/README.md`와 `components/bundle.js`는 디자인 도구용이다. 사이트는 `.jsx`를 직접 import한다.
+- **갤러리 보조 파일**: `gallery/coverage.md`와 `gallery/contract-audit.js`는 디자인 검토용이다.
 - **`tokens/tasty.tokens.json`**: DTCG 원본이다. 앱이 가져오는 사본은 `crates/tasty-design-tokens/dtcg/tasty.tokens.json`에 두고(갱신 절차는 `crates/tasty-design-tokens/README.md`), 사이트는 CSS 토큰만 쓴다. `tokens/fonts.css`는 위 웹폰트 항목으로 제외한다.
 - **컴포넌트 보조 파일**: `components/**/*.prompt.md`(디자인 도구용 사용 안내)와 `components/*/*.card.html`(디자인 시스템 패널 카드)은 사이트가 쓰지 않는다.
 - **`changelog/`**: 원격 디자인 결정문이다. 저장소의 결정은 `docs/`와 ADR에 둔다.
@@ -78,25 +79,9 @@ Design System Artifact **Tasty Design System**에서 받아온 디자인 사본�
 
 - **`tokens/primitives.css`**: 원격은 1단계 값을 `tokens.css`로 분리하고 `@import`한다. 사본은 값을 이 파일 한 곳에 둔다. 갱신할 때 두 원격 파일과 값이 같은지 비교한다.
 - **커밋되지 않는 로컬 문서 인용**: 원격 주석·노트에 있는 로컬 작업 폴더와 티켓 인용은 뜻만 남기고 고친다. `crates/tasty-doc-guards/tests/no_todo_file_citation.rs`가 검사한다. 렌더링 구조와 값은 유지한다.
-  - `ui_kits/terminal/overlays/settings_window.jsx`: Hook Handlers 서브탭 설명의 "see … todo"를 "not yet built"로 바꾼다.
-  - `gallery/components.jsx`: AutoComplete 노트의 "tracked as a separate implementation TODO"를 "tracked as separate implementation work"로 바꾼다.
   - `tokens/semantic.css`: `--tasty-text-disabled` 주석 끝의 원격 changelog 인용("see changelog/…")을 지운다.
-  - 원격 요청문서 인용(`design-request/…`)을 지운다. 날짜가 함께 적혀 있으면 날짜만 남긴다("Design request: … (날짜 answer)." 줄은 "Designed 날짜."로 바꾼다). 대상은 다음과 같다.
-    - `ui_kits/terminal/overlays/info_modal.jsx`: 머리 주석, Title bar buttons 주석, Narrow popups 주석.
-    - `ui_kits/terminal/overlays/settings_window.jsx`: File Extension Mapping 주석.
-    - `ui_kits/terminal/overlays/html_script_banner.jsx`, `ui_kits/terminal/overlays/macos_permissions.jsx`: 머리 주석의 "Design request:" 줄.
-    - `ui_kits/terminal/overlays/dag_view.jsx`, `gallery/dag.jsx`, `ui_kits/terminal/overlays/kb_import_export.jsx`, `ui_kits/terminal/overlays/kb_plugins_subtab.jsx`: 머리 주석.
-    - `ui_kits/terminal/overlays/port_scanner.jsx`: FAVORITES 주석.
-    - `ui_kits/terminal/notification_summary.jsx`, `ui_kits/terminal/overlays/notifications.jsx`, `gallery/notifications.jsx`: 요청문서 머리 주석.
-    - `ui_kits/terminal/overlays/restore_notice.jsx`, `gallery/components-searchselect.jsx`, `gallery/layouts-loading-prelayout.jsx`, `gallery/overlays-popups-notices.jsx`, `gallery/overlays-windows-plugin-trust.jsx`: 요청문서 머리 주석.
-    - `ui_kits/terminal/overlays/file_handlers.jsx`, `gallery/overlays-windows-file-handlers.jsx`, `gallery/plugins-md-address.jsx`: 요청문서 머리 주석(날짜는 남긴다).
-    - `gallery/overlays-shared.jsx`: 폴더 모드 주석. `ui_kits/terminal/work.jsx`: 주소 띠 주석.
-    - `gallery/overlays-popups-webview.jsx`: 머리 주석. `tokens/components.css`: `--tasty-webview-opaque-*` 주석과 2026-10-22 권한 상자·숫자 칸 토큰 묶음 주석(날짜는 남긴다).
-    - `gallery/explorer-ops-props-actions.jsx`: 머리 주석, 권한 편집 상자 주석, 좁은 칸 배치 주석(날짜는 남긴다). `ui_kits/terminal/overlays/settings_window.jsx`: Properties 시각 형식 행 주석.
-    - `ui_kits/terminal/overlays/settings_anomaly.jsx`, `gallery/overlays-windows-anomaly.jsx`: 머리 주석의 원격 요청문서 인용(날짜는 남긴다).
-    - `gallery/overlays-windows-perf.jsx`: 머리 주석과 숫자 칸 주석. `gallery/plugins-html-address-contrast.jsx`: 머리 주석(날짜는 남긴다).
-    - `ui_kits/terminal/overlays/html_address_bar.jsx`, `ui_kits/terminal/overlays/html_remote_banner.jsx`: 머리 주석의 원격 요청문서 인용(날짜는 남긴다). `gallery/overlays-banners.jsx`: 2026-11-01 원격 콘텐츠 절 주석의 요청문서 경로를 "the request"로 바꾼다.
-- **옛 ADR 번호 인용**: 원격 사본은 저장소의 ADR을 재정리하기 전 번호를 인용한다. 이 번호는 지금 저장소의 ADR과 맞지 않으므로 인용을 지우거나 현재 원칙·기능 문서로 바꾸고 뜻은 남긴다. `gallery/components.jsx`, `gallery/overlays-windows.jsx`, `ui_kits/terminal/overlays/settings_window.jsx`, `ui_kits/terminal/overlays/plugins_window.jsx`, `tokens/primitives.css`에 있다. 갱신할 때는 `git diff`로 이전 사본의 처리 방식을 확인해 같은 방식으로 적용한다.
+  - `tokens/components.css`: 주석의 원격 요청문서 인용(`design-request/…`)을 지운다. 날짜는 남긴다.
+  - `tokens/ground-ink-rules.json`: `measure.boundary`의 원격 changelog 인용을 지운다.
 - **출처 메타데이터**: 렌더링에 쓰지 않는 base64 C2PA 매니페스트가 사본 크기를 늘리므로 `<metadata>` 요소와 `xmlns:c2pa` 속성을 제거한다. 원격에서 이 메타데이터가 있는 아이콘은 일부(`icons/` 아래 agent·arrowRight·filePlus·fit·folderPlus·globe·globeOff·info·link·sun)다. 렌더링 구조와 값은 유지한다. `grep -rl c2pa site/vendor/ --exclude=README.md`의 출력이 없어야 한다. README와 `MANIFEST`는 사본을 설명하는 파일이므로 이 검사와 사본 수정일 계산에서 제외한다.
 
 ## 통합 시 주의

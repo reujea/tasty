@@ -1,9 +1,7 @@
 ---
 import GalleryPage from "../../../../layouts/GalleryPage.astro";
-import Route from "../../../../gallery/pages/plugins.jsx";
-import { galleryNav, GALLERY_INTROS } from "../../../../lib/design";
-import { url } from "../../../../lib/site";
+import Route, { page } from "../../../../../vendor/gallery/plugins/index.jsx";
 ---
-<GalleryPage title="Plugin surfaces" description={GALLERY_INTROS["plugins"]}>
-  <Route client:load groups={galleryNav(url)} brandHref={url("design/")} backLabel="Design" />
+<GalleryPage pageKey="plugins" page={page}>
+  <Route client:load />
 </GalleryPage>

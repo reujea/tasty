@@ -25,10 +25,11 @@ const CSS = `
 }
 .tasty-menuitem:hover { background: var(--tasty-menu-item-bg-hover); color: var(--tasty-menu-item-fg-hover); }
 .tasty-menuitem--active { background: var(--tasty-surface-active); color: var(--tasty-menu-item-fg-hover); }
-.tasty-menuitem--danger:hover { color: var(--tasty-accent-danger); }
-.tasty-menuitem--danger { color: var(--tasty-accent-danger); }
-.tasty-menuitem__icon { flex: none; display: inline-flex; color: var(--tasty-text-muted); }
-.tasty-menuitem--danger .tasty-menuitem__icon { color: var(--tasty-accent-danger); }
+.tasty-menuitem--danger:hover { color: var(--tasty-accent-danger-strong); }
+.tasty-menuitem--danger { color: var(--tasty-accent-danger-raised); }
+.tasty-menuitem--active .tasty-kbd__plus { color: var(--tasty-kbd-plus-fg-active); }
+.tasty-menuitem__icon { flex: none; display: inline-flex; color: var(--tasty-text-secondary); }
+.tasty-menuitem--danger .tasty-menuitem__icon { color: var(--tasty-accent-danger-strong); }
 .tasty-menuitem__icon svg { width: var(--tasty-icon-size-md); height: var(--tasty-icon-size-md); display: block; }
 .tasty-menuitem__label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 /* 2026-10-08 (batch 8) — selected option (the current value of a Select-style list): ink + trailing check, no fill */
@@ -38,7 +39,9 @@ const CSS = `
 /* wrap — the label wraps instead of ellipsising (fixed copy wider than the menu's max width); row grows */
 .tasty-menuitem--wrap { height: auto; min-height: var(--tasty-menu-item-height); padding-top: var(--tasty-menu-item-wrap-padding-y); padding-bottom: var(--tasty-menu-item-wrap-padding-y); white-space: normal; line-height: var(--tasty-line-height-ui); }
 .tasty-menuitem--wrap .tasty-menuitem__label { overflow: visible; }
-.tasty-menuitem__shortcut { flex: none; font-family: var(--tasty-font-mono); font-size: var(--tasty-menu-item-shortcut-font-size); color: var(--tasty-text-muted); }
+.tasty-menuitem__shortcut { flex: none; font-family: var(--tasty-font-mono); font-size: var(--tasty-menu-item-shortcut-font-size); color: var(--tasty-text-muted-raised); }
+.tasty-menuitem:hover .tasty-menuitem__shortcut { color: var(--tasty-text-on-active); }
+.tasty-menuitem:hover .tasty-menuitem__check { color: var(--tasty-accent-primary-raised); }
 /* 2026-11-05 — a keyboard-active row: one ink for every part, danger included (the row's fill is surface-active) */
 .tasty-menuitem--active .tasty-menuitem__icon, .tasty-menuitem--active .tasty-menuitem__shortcut, .tasty-menuitem--danger.tasty-menuitem--active, .tasty-menuitem--danger.tasty-menuitem--active .tasty-menuitem__icon { color: var(--tasty-menu-item-part-fg-active); }
 .tasty-menuitem[data-disabled="true"] { pointer-events: none; }

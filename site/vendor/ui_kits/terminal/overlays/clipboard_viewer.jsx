@@ -1,3 +1,11 @@
+import React from "react";
+import { Button } from "../../../components/core/Button.jsx";
+import { IconButton } from "../../../components/core/IconButton.jsx";
+import { Tag } from "../../../components/core/Tag.jsx";
+import { Checkbox } from "../../../components/forms/Checkbox.jsx";
+import { ic, Icon } from "../chrome.jsx";
+import { Scrim, Spinner } from "./shared.jsx";
+
 // Tasty UI kit — Clipboard Viewer popup (Tools › Clipboard Viewer / toggle shortcut).
 // NEW visual design (no prior design existed — replaces the reverse-transcribed
 // master-detail mock with a giant accent "Text" button). Mirrors (planned)
@@ -16,9 +24,8 @@
 // isn't text/image/files/html as name + textualized content rows.
 // All widgets map to host primitives: label · tag · text_preview · button ·
 // segmented(button group) · center · vbox/hbox/scroll · spacer.
-// Standalone preview: clipboard_viewer.html
-const { Tag, Button, IconButton, Checkbox } = window.TastyDesignSystem_41fd3f;
-const { ic, Icon, Scrim, Spinner } = window.TastyKit;
+
+
 
 // glyph names from the canonical set (icons/*.svg via <Icon name>)
 const CB = {
@@ -246,4 +253,4 @@ function ClipboardViewer({ onClose, snapshot }) {
   );
 }
 
-window.TastyKit = Object.assign(window.TastyKit || {}, { ClipboardViewer });
+export { ClipboardViewer };

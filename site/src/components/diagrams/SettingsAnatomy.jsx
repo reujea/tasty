@@ -1,5 +1,5 @@
 import React from "react";
-import { SettingsWindow } from "../../kit/overlays/settings_window.jsx";
+import { SettingsWindow } from "../../../vendor/ui_kits/terminal/overlays/settings_window.jsx";
 
 /** The kit Scrim fills this positioned frame; CSS scales the fixed-size window. */
 export function SettingsAnatomy() {

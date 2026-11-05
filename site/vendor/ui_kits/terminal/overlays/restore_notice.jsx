@@ -1,3 +1,9 @@
+import React from "react";
+import { Button } from "../../../components/core/Button.jsx";
+import { Icon } from "../../../components/core/Icon.jsx";
+import { IconButton } from "../../../components/core/IconButton.jsx";
+import { PopupTitleBar } from "./info_modal.jsx";
+
 // Restore-failure / save-halt NON-FOCUS notice (2026-10-19).
 // Composed from the shared popup parts: PopupTitleBar (title + ×), DS Icon / IconButton / Button.
 // No Scrim, no modal, no autofocus. Sits in the window's top-right NOTICE COLUMN:
@@ -9,8 +15,8 @@
 // to the surface it came from). × and Continue are the same action: dismiss and keep working in the
 // initial state. Dismissing never quits the app and never touches the saved layout. The error stays
 // in Notifications.
-(() => {
-const { Button, IconButton, Icon } = window.TastyDesignSystem_41fd3f;
+
+
 
 const RESTORE_COPY = {
   en: {
@@ -36,7 +42,7 @@ const RESTORE_COPY = {
 // variant: "restore" (boot: store unreadable) | "halt" (running: saving stopped)
 // cause:   "denied" | "corrupt" | "write"
 function RestoreNotice({ variant = "restore", cause = "denied", path = "~/.local/share/tasty/session/layout.journal", lang = "en", onContinue, onCopy, width, style }) {
-  const TitleBar = window.TastyKit && window.TastyKit.PopupTitleBar;
+  const TitleBar = PopupTitleBar;
   const c = RESTORE_COPY[lang] || RESTORE_COPY.en;
   const v = c[variant];
   return (
@@ -80,5 +86,4 @@ function NoticeColumn({ children, topOffset = "0px", style }) {
   );
 }
 
-window.TastyKit = Object.assign(window.TastyKit || {}, { RestoreNotice, NoticeColumn, RESTORE_COPY });
-})();
+export { RestoreNotice, NoticeColumn, RESTORE_COPY };

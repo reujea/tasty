@@ -42,9 +42,9 @@ export function PendingIndicator({ count = 1, elapsed = 0, label, time, compact 
         fontFamily: "var(--tasty-font-ui)", fontSize: "var(--tasty-font-size-caption)", lineHeight: 1, whiteSpace: "nowrap", userSelect: "none", ...style }}>
       <Spinner size="var(--tasty-pending-indicator-spinner-size)" label={text} paused={reducedMotion} reducedMotion="arc"
         style={{ color: "var(--tasty-loading-overlay-indicator)" }} />
-      {!compact && <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis" }}>{text}</span>}
-      {!compact && <span aria-hidden="true" style={{ color: "var(--tasty-pending-indicator-sep-fg)" }}>·</span>}
-      <span style={{ flex: "none", fontFamily: "var(--tasty-font-mono)", fontVariantNumeric: "tabular-nums", color: "var(--tasty-pending-indicator-time-fg)" }}>{t}</span>
+      {!compact && <span data-part="label" style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis" }}>{text}</span>}
+      {!compact && <span data-part="sep" aria-hidden="true" style={{ color: "var(--tasty-pending-indicator-sep-fg)" }}>·</span>}
+      <span data-part="time" style={{ flex: "none", fontFamily: "var(--tasty-font-mono)", fontVariantNumeric: "tabular-nums", color: "var(--tasty-pending-indicator-time-fg)" }}>{t}</span>
     </span>
   );
 }

@@ -26,17 +26,20 @@ const CSS = `
   white-space: nowrap;
   transition: background var(--tasty-motion-ui-fast) var(--tasty-ease-ui), color var(--tasty-motion-ui-fast) var(--tasty-ease-ui);
 }
-.tasty-treerow:hover { background: var(--tasty-overlay-hover); color: var(--tasty-text-primary); }
+.tasty-treerow:hover { background: var(--tasty-overlay-hover); color: var(--tasty-text-secondary-raised); }
+.tasty-treerow:hover .tasty-treerow__meta { color: var(--tasty-text-muted-raised); }
 .tasty-treerow--selected { background: var(--tasty-tree-row-bg-active); color: var(--tasty-tree-row-fg-active); }
+.tasty-treerow--selected:hover { background: var(--tasty-tree-row-bg-active); color: var(--tasty-text-on-active-hover); }
+.tasty-treerow--selected:hover .tasty-treerow__meta { color: var(--tasty-text-on-active-hover); }
 .tasty-treerow--selected .tasty-treerow__chevron, .tasty-treerow--selected .tasty-treerow__meta { color: var(--tasty-tree-row-part-fg-active); }
 .tasty-treerow__chevron {
   flex: none; width: var(--tasty-icon-size-sm); height: var(--tasty-icon-size-sm); display: inline-flex; align-items: center; justify-content: center;
-  color: var(--tasty-text-muted); transition: transform var(--tasty-motion-ui-fast) var(--tasty-ease-ui);
+  color: var(--tasty-text-secondary); transition: transform var(--tasty-motion-ui-fast) var(--tasty-ease-ui);
 }
 .tasty-treerow__chevron svg { width: var(--tasty-icon-size-xs); height: var(--tasty-icon-size-xs); }
 .tasty-treerow__chevron--open { transform: rotate(90deg); }
 .tasty-treerow__chevron--leaf { visibility: hidden; }
-.tasty-treerow__icon { flex: none; display: inline-flex; color: var(--tasty-text-muted); }
+.tasty-treerow__icon { flex: none; display: inline-flex; color: var(--tasty-text-secondary); }
 .tasty-treerow__icon svg { width: var(--tasty-icon-size-sm); height: var(--tasty-icon-size-sm); display: block; }
 .tasty-treerow--selected .tasty-treerow__icon { color: var(--tasty-tree-row-icon-fg-active); }
 .tasty-treerow__label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }

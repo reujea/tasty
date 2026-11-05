@@ -53,9 +53,12 @@ const CSS = `
 .tasty-table__row td.is-mono   { font-family: var(--tasty-font-mono); color: var(--tasty-text-primary); }
 .tasty-table__row td.is-strong { color: var(--tasty-text-primary); }
 .tasty-table--hover .tasty-table__row:hover { background: var(--tasty-overlay-hover); }
-.tasty-table--hover .tasty-table__row:hover td { color: var(--tasty-text-primary); }
-.tasty-table__row.is-selected { background: var(--tasty-table-row-bg-selected); }
-.tasty-table__row.is-selected td { color: var(--tasty-table-row-fg-selected); }
+.tasty-table--hover .tasty-table__row:hover td { color: var(--tasty-text-secondary-raised); }
+.tasty-table__row.is-selected { background: var(--tasty-surface-active); }
+.tasty-table__row.is-selected td { color: var(--tasty-text-on-active); }
+.tasty-table--hover .tasty-table__row.is-selected:hover { background: var(--tasty-surface-active); }
+.tasty-table--hover .tasty-table__row.is-selected:hover td { color: var(--tasty-text-on-active-hover); }
+.tasty-table__row.is-selected td .tasty-statusdot { color: var(--tasty-text-on-active); }
 .tasty-table__row.is-clickable { cursor: pointer; }
 .tasty-table__row:last-child td { border-bottom: 0; }
 

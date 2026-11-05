@@ -3,12 +3,9 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "predev": "node scripts/vendor-to-esm.mjs",
     "dev": "astro dev",
-    "prebuild": "node scripts/vendor-to-esm.mjs",
     "build": "astro build",
     "preview": "astro preview",
-    "vendor-to-esm": "node scripts/vendor-to-esm.mjs",
     "stamp": "node --experimental-strip-types scripts/stamp.mjs",
     "check-links": "node scripts/check-links.mjs"
   },

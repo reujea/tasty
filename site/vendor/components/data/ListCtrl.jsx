@@ -54,6 +54,11 @@ const CSS = `
 .tasty-listctrl__trailing { flex: none; display: inline-flex; align-items: center; gap: var(--tasty-space-sm); }
 .tasty-listctrl__chev { flex: none; display: inline-flex; width: var(--tasty-icon-size-sm); height: var(--tasty-icon-size-sm); color: var(--tasty-listctrl-chevron-fg); }
 .tasty-listctrl__chev svg { width: var(--tasty-icon-size-sm); height: var(--tasty-icon-size-sm); display: block; }
+.tasty-listctrl__row:hover .tasty-listctrl__icon, .tasty-listctrl__row:hover .tasty-listctrl__chev { color: var(--tasty-text-secondary); }
+.tasty-listctrl__row:active .tasty-listctrl__label { color: var(--tasty-text-secondary-raised); }
+.tasty-listctrl__row:active .tasty-listctrl__desc { color: var(--tasty-text-muted-raised); }
+.tasty-listctrl__row:focus-visible .tasty-listctrl__label, .tasty-listctrl__row:focus-visible .tasty-listctrl__desc, .tasty-listctrl__row:focus-visible .tasty-listctrl__icon, .tasty-listctrl__row:focus-visible .tasty-listctrl__chev { color: var(--tasty-text-on-active); }
+.tasty-listctrl__row.is-selected:hover .tasty-listctrl__label, .tasty-listctrl__row.is-selected:hover .tasty-listctrl__desc { color: var(--tasty-text-on-active-hover); }
 .tasty-listctrl__empty { padding: var(--tasty-space-lg); text-align: center;
   color: var(--tasty-text-muted); font-size: var(--tasty-font-size-body); }
 `;

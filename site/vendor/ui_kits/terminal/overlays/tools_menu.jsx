@@ -1,8 +1,10 @@
+import React from "react";
+import { MenuItem } from "../../../components/navigation/MenuItem.jsx";
+
 // Tasty UI kit — tools menu popup (sidebar "Tools" button).
 // Mirrors zilhak/tasty → src/adapters/ui/tools_menu.rs (+ sidebar/tools.rs anchor math).
 //   PopupDef: id "tools_menu", 160px wide, headless, close_on_outside_click.
-// Standalone preview: tools_menu.html
-const { MenuItem } = window.TastyDesignSystem_41fd3f;
+
 
 // ── Tools menu — mirrors src/adapters/ui/tools_menu.rs ──────────────────
 // 160px popup anchored ABOVE the sidebar Tools button, left-aligned with it
@@ -39,8 +41,8 @@ function ToolsMenu({ anchor, onClose, onAction }) {
   return (
     <div onClick={onClose} onContextMenu={(e) => { e.preventDefault(); onClose(); }}
       style={{ position: "absolute", inset: 0, zIndex: 55 }}>
-      <style>{`.tasty-toolsmenu-item{color:var(--tasty-text-secondary)}
-.tasty-toolsmenu-item:hover{color:var(--tasty-text-primary)}`}</style>
+      <style>{`.tasty-toolsmenu-item{color:var(--tasty-menu-item-fg)}
+.tasty-toolsmenu-item:hover{color:var(--tasty-menu-item-fg-hover)}`}</style>
       <div onClick={(e) => e.stopPropagation()} role="menu" aria-label="Tools"
         style={{ position: "absolute", left: anchor.left,
           bottom: window.innerHeight - anchor.top + 2, width: 160,
@@ -55,4 +57,4 @@ function ToolsMenu({ anchor, onClose, onAction }) {
   );
 }
 
-window.TastyKit = Object.assign(window.TastyKit || {}, { ToolsMenu });
+export { ToolsMenu };

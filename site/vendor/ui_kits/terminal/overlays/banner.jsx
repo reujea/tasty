@@ -1,3 +1,11 @@
+import React from "react";
+import { Button } from "../../../components/core/Button.jsx";
+import { IconButton } from "../../../components/core/IconButton.jsx";
+import { Kbd } from "../../../components/core/Kbd.jsx";
+import { Tag } from "../../../components/core/Tag.jsx";
+import { MenuItem } from "../../../components/navigation/MenuItem.jsx";
+import { Icon } from "../chrome.jsx";
+
 // Tasty UI kit — Banner: the 4th overlay family (Modal / Popup / Toast / Banner).
 // A floating, top-anchored notice pinned to the top of a scope's content area
 // (View / Workspace / Pane / Tab / Surface) — NEVER over the tab bar. Focus-less,
@@ -7,8 +15,8 @@
 // or backgrounded). Mouse-capture always has its ⋯ (2026-11-03 — also with an unknown program name, where
 // the menu shows its rows disabled), so it has no TTL under the normal rule; no exception. One banner shown per scope; the rest wait in a queue (max 5).
 // Mirrors the proposed zilhak/tasty Banner manager. Standalone preview: banner.html
-const { Button, IconButton, Kbd, Tag, MenuItem } = window.TastyDesignSystem_41fd3f;
-const { Icon } = window.TastyKit;
+
+
 
 const bic = {
   mouse: <Icon name="mouse" size={16} />,
@@ -271,4 +279,4 @@ function BannerHost() {
   );
 }
 
-window.TastyKit = Object.assign(window.TastyKit || {}, { Banner, BannerShell, BannerHost });
+export { Banner, BannerShell, BannerHost };

@@ -1,8 +1,28 @@
+import React from "react";
+import { Button } from "../../../components/core/Button.jsx";
+import { Icon as DsIcon } from "../../../components/core/Icon.jsx";
+import { IconButton } from "../../../components/core/IconButton.jsx";
+import { Kbd } from "../../../components/core/Kbd.jsx";
+import { Tag } from "../../../components/core/Tag.jsx";
+import { ListCtrl } from "../../../components/data/ListCtrl.jsx";
+import { HelpHint } from "../../../components/feedback/HelpHint.jsx";
+import { Checkbox } from "../../../components/forms/Checkbox.jsx";
+import { Input } from "../../../components/forms/Input.jsx";
+import { Select } from "../../../components/forms/Select.jsx";
+import { Switch } from "../../../components/forms/Switch.jsx";
+import { DrillDown } from "../../../components/navigation/DrillDown.jsx";
+import { ic, Icon } from "../chrome.jsx";
+import { FileDetectorsPane, FileHandlersPane } from "./file_handlers.jsx";
+import { KbImportExportSubtab } from "./kb_import_export.jsx";
+import { KbPluginsSubtab } from "./kb_plugins_subtab.jsx";
+import { MacPermissionsPane } from "./macos_permissions.jsx";
+import { AnomalySubtab } from "./settings_anomaly.jsx";
+import { Scrim } from "./shared.jsx";
+
 // Tasty UI kit — Settings window (L1 top tabs + L2 sidebar + content).
 // Mirrors zilhak/tasty → src/view/settings/ui.rs (+ settings/ui/tabs/*, keybindings_tab.rs).
-// Standalone preview: settings_window.html
-const { Input, Select, Switch, Button, IconButton, Tag, Kbd, Checkbox, HelpHint, ListCtrl, DrillDown } = window.TastyDesignSystem_41fd3f;
-const { ic, Icon, Scrim } = window.TastyKit;
+
+
 
 function ThemeSwatch({ id, label, colors, active, onClick }) {
   return (
@@ -727,7 +747,7 @@ const EXT_SEED = [
 // min-height button-height-sm. Reset shows only once the order differs from install order (custom); Remove only on a
 // not-installed group (no enabled detector supports it), which has no rows. Both edit the draft; no confirm.
 function ExtensionMapping({ detectors = true }) {
-  const DsIcon = window.TastyDesignSystem_41fd3f.Icon;
+
   const [map, setMap] = React.useState(EXT_SEED);
   const [draft, setDraft] = React.useState("");
   const move = (gi, i, d) => setMap((m) => m.map((g, j) => {
@@ -1006,10 +1026,10 @@ function SettingsWindow({ theme, onTheme, uiScale, onUiScale, onClose }) {
           {l2 === "Explorer" && <><KeyRow action="Explorer: open surface" keys="Ctrl+Shift+E" /><KeyRow action="Explorer: reveal current path" keys="Ctrl+Alt+E" /><KeyRow action="Explorer: toggle favorites" keys="None" /></>}
           {l2 === "Scripts" && <><KeyRow action="deploy-staging.lua" keys="Ctrl+Alt+1" /><KeyRow action="rotate-logs.lua" keys="Ctrl+Alt+2" /></>}
           {l2 === "Preset" && <PresetSubtab />}
-          {l2 === "Import / Export" && window.TastyKit.KbImportExportSubtab &&
-            <window.TastyKit.KbImportExportSubtab onFlash={setToast} />}
+          {l2 === "Import / Export" && KbImportExportSubtab &&
+            <KbImportExportSubtab onFlash={setToast} />}
           {/* 2026-10-08 (batch 8) — real structure: plugin picker + per-command mode / slot / Reset (kb_plugins_subtab.jsx). */}
-          {l2 === "Plugins" && window.TastyKit.KbPluginsSubtab && <window.TastyKit.KbPluginsSubtab />}
+          {l2 === "Plugins" && KbPluginsSubtab && <KbPluginsSubtab />}
         </>
       );
 
@@ -1025,13 +1045,13 @@ function SettingsWindow({ theme, onTheme, uiScale, onUiScale, onClose }) {
         );
       // 2026-10-20 (file-handler-forms) — registered list + user add card + Save-pending add/remove: file_handlers.jsx
       if (l2 === "File Detectors") {
-        const FileDetectorsPane = window.TastyKit.FileDetectorsPane;
+
         return <FileDetectorsPane />;
       }
       if (l2 === "Hook Handlers")
         return <HookHandlers />;
       // File Handlers
-      const FileHandlersPane = window.TastyKit.FileHandlersPane;
+
       return <FileHandlersPane />;
     }
 
@@ -1047,8 +1067,8 @@ function SettingsWindow({ theme, onTheme, uiScale, onUiScale, onClose }) {
             <Row label="Attempt report limit" caption={<RowCaption>Total note text kept for one task attempt. Notes past it are not stored, only counted.</RowCaption>}><Input mono defaultValue="16384" style={{ width: "var(--tasty-field-width-xs)" }} /><span style={{ fontFamily: "var(--tasty-font-mono)", fontSize: "var(--tasty-font-size-caption)", color: "var(--tasty-number-field-unit-fg)" }}>B</span></Row>
           </>
         );
-      if (l2 === "Anomaly detection" && window.TastyKit.AnomalySubtab)
-        return <window.TastyKit.AnomalySubtab />;
+      if (l2 === "Anomaly detection" && AnomalySubtab)
+        return <AnomalySubtab />;
       if (l2 === "Tastyrc")
         return (
           <>
@@ -1118,7 +1138,7 @@ function SettingsWindow({ theme, onTheme, uiScale, onUiScale, onClose }) {
         </>
       );
     if (l2 === "Permissions") {
-      const MacPermissionsPane = window.TastyKit.MacPermissionsPane;
+
       return <MacPermissionsPane scenario="none" />;
     }
     // General/General
@@ -1177,7 +1197,7 @@ function SettingsWindow({ theme, onTheme, uiScale, onUiScale, onClose }) {
                   )}
                   <div onClick={() => setL2(s)} style={{ display: "flex", alignItems: "center", gap: "var(--tasty-space-sm)",
                   padding: "var(--tasty-space-xs) var(--tasty-space-sm)", borderRadius: "var(--tasty-radius-sm)", fontSize: 13, cursor: "pointer",
-                  color: s === l2 ? "var(--tasty-text-primary)" : "var(--tasty-text-muted)",
+                  color: s === l2 ? "var(--tasty-text-on-active)" : "var(--tasty-text-muted)",
                   background: s === l2 ? "var(--tasty-surface-active)" : "transparent" }}>
                   {isPluginSection(s) && <span style={{ width: "var(--tasty-status-dot-size)", height: "var(--tasty-status-dot-size)", borderRadius: "50%",
                     background: "var(--tasty-accent-agent)", flex: "none" }} />}
@@ -1229,4 +1249,4 @@ function SettingsWindow({ theme, onTheme, uiScale, onUiScale, onClose }) {
   );
 }
 
-window.TastyKit = Object.assign(window.TastyKit || {}, { SettingsWindow });
+export { SettingsWindow };

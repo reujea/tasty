@@ -99,12 +99,13 @@ body {
   overflow-wrap: break-word;
 }
 
-img, svg, video { max-width: 100%; height: auto; display: block; }
+/* Gallery specimens size their own media, as the app does. */
+:where(img, svg, video):not([data-gallery-page] *) { max-width: 100%; height: auto; display: block; }
 
 a { color: var(--link); text-decoration: none; }
 a:hover { text-decoration: underline; text-underline-offset: 3px; }
 
-:focus-visible {
+:not([data-gallery-page] *):focus-visible {
   outline: 2px solid var(--brand);
   outline-offset: 2px;
   border-radius: var(--radius-sm);

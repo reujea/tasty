@@ -944,7 +944,7 @@ fn p7_is_out_of_scope_in_markdown_only() {
         "src/core/state/attention.rs",
         "scripts/bench/perf-10-surfaces.sh",
         ".github/workflows/test.yml",
-        "site/vendor/gallery/components.jsx",
+        "site/vendor/gallery/components/index.jsx",
         "Justfile",
     ] {
         assert!(

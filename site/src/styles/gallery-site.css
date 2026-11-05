@@ -1,36 +1,8 @@
-/* Gallery pages do not load global.css, so use semantic design tokens
-   instead of the site-specific --sp-* scale. */
-.g-brand a {
-  display: flex;
-  align-items: center;
-  gap: 9px; /* no token: the length axis has no 9 */
-  text-decoration: none;
-  color: inherit;
-}
-.g-back {
-  font-family: var(--tasty-font-mono);
-  font-size: var(--tasty-font-size-caption);
-  color: var(--tasty-text-muted);
-  text-decoration: none;
-  padding: var(--tasty-space-xs) var(--tasty-space-sm);
-  border-radius: var(--tasty-radius-sm);
-  white-space: nowrap;
-}
-.g-back:hover { color: var(--tasty-text-secondary); background: var(--tasty-overlay-hover); }
-
-/* The breakpoints below stay literal for a reason that is not a preference: a
-   media feature cannot read a custom property — `@media (max-width: var(--x))`
-   does not parse — so no token form of these exists to move to. */
-
-/* With the brand and sidebar hidden below 900px, retain the link back to the site. */
+/* Gallery layout on the site. Specimens need the width, so the body fills the space beside the sidebar. */
+.layout--gallery { grid-template-columns: var(--sidebar-w) minmax(0, 1fr); max-width: none; }
+.layout--gallery .content { max-width: none; }
+.nav-list--sections { margin: var(--sp-1) 0 var(--sp-2) var(--sp-3); }
+.nav-list--sections a { font-size: var(--tasty-font-size-12); }
 @media (max-width: 900px) {
-  .g-crumb { display: none; }
-  .g-top { gap: 10px; } /* no token: the length axis has no 10 */
-}
-
-/* Hide labels on narrow screens while keeping the controls. */
-@media (max-width: 560px) {
-  .g-top .g-seglabel { display: none; }
-  /* 10px as above — no token on the length axis. */
-  .g-top { padding: 0 10px; gap: var(--tasty-space-sm); }
+  .layout--gallery { grid-template-columns: minmax(0, 1fr); }
 }

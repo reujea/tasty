@@ -20,7 +20,7 @@ const CSS = `
   gap: var(--tasty-space-sm);
   min-height: var(--tasty-control-height);
   padding: var(--tasty-space-sm) var(--tasty-space-md);
-  border: var(--tasty-border-width) solid var(--tasty-border-default);
+  border: var(--tasty-border-width) solid var(--tasty-toast-border);
   border-left-width: var(--tasty-toast-accent-width);
   border-left-color: var(--tasty-accent-primary);
   border-radius: var(--tasty-radius);
@@ -36,11 +36,11 @@ const CSS = `
 .tasty-toast--agent   { border-left-color: var(--tasty-accent-agent); }
 .tasty-toast__icon { flex: none; display: inline-flex; }
 .tasty-toast__icon svg { width: var(--tasty-icon-size-md); height: var(--tasty-icon-size-md); display: block; }
-.tasty-toast--success .tasty-toast__icon { color: var(--tasty-accent-success); }
-.tasty-toast--warning .tasty-toast__icon { color: var(--tasty-accent-warning); }
-.tasty-toast--danger  .tasty-toast__icon { color: var(--tasty-accent-danger); }
-.tasty-toast--agent   .tasty-toast__icon { color: var(--tasty-accent-agent); }
-.tasty-toast--info    .tasty-toast__icon { color: var(--tasty-accent-primary); }
+.tasty-toast--success .tasty-toast__icon { color: var(--tasty-toast-accent-success); }
+.tasty-toast--warning .tasty-toast__icon { color: var(--tasty-toast-accent-warning); }
+.tasty-toast--danger  .tasty-toast__icon { color: var(--tasty-toast-accent-danger); }
+.tasty-toast--agent   .tasty-toast__icon { color: var(--tasty-toast-accent-agent); }
+.tasty-toast--info    .tasty-toast__icon { color: var(--tasty-toast-accent-info); }
 .tasty-toast__msg { flex: 1; min-width: 0; line-height: var(--tasty-line-height-ui); }
 /* hint (2026-10-06): display-only, never truncates — the body wraps first. Pinned to the FIRST line
    of the body (align-self start + one body line box), so a two-line notice keeps the key beside its verb. */

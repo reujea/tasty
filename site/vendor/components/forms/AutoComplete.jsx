@@ -84,10 +84,10 @@ const CSS = `
   transition: background var(--tasty-motion-ui-fast) var(--tasty-ease-ui);
 }
 .tasty-ac--mono .tasty-ac__row { font-family: var(--tasty-font-mono); font-size: var(--tasty-font-size-caption); }
-.tasty-ac__row:hover { background: var(--tasty-autocomplete-row-bg-hover); }
+.tasty-ac__row:hover { background: var(--tasty-autocomplete-row-bg-hover); color: var(--tasty-autocomplete-row-fg-active); }
 .tasty-ac__row--active,
 .tasty-ac__row--active:hover { background: var(--tasty-autocomplete-row-bg-active); color: var(--tasty-autocomplete-row-fg-active); }
-.tasty-ac__row-icon { display: inline-flex; flex: none; color: var(--tasty-input-icon-fg); }
+.tasty-ac__row-icon { display: inline-flex; flex: none; color: var(--tasty-text-secondary); }
 .tasty-ac__row-icon svg { width: var(--tasty-icon-size-md); height: var(--tasty-icon-size-md); display: block; }
 .tasty-ac__row-label { flex: 1; min-width: 0; display: flex; align-items: center; overflow: hidden; }
 .tasty-ac__row-head { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

@@ -1,3 +1,13 @@
+import React from "react";
+import { Button } from "../../../components/core/Button.jsx";
+import { Icon as HaIcon } from "../../../components/core/Icon.jsx";
+import { IconButton } from "../../../components/core/IconButton.jsx";
+import { Kbd } from "../../../components/core/Kbd.jsx";
+import { Tag } from "../../../components/core/Tag.jsx";
+import { Spinner } from "../../../components/feedback/Spinner.jsx";
+import { Tooltip } from "../../../components/feedback/Tooltip.jsx";
+import { HsTab, HsPage, HtmlScriptBanner } from "./html_script_banner.jsx";
+
 // HTML surface — ADDRESS BAR band + remote-mirror size banners + receiving state.
 // Designed 2026-10-12.
 //
@@ -24,9 +34,9 @@
 // Narrow: surface width < banner-narrow-below (440) → Forward is hidden (Back + Reload stay; shortcuts still work).
 //   Field floor html-address-field-min-width (96); below that the field ellipsises from the left, buttons never shrink.
 // Tooltips on band buttons open TOP (never down into the native WebView).
-(() => {
-const { IconButton, Spinner, Tooltip, Button, Tag, Kbd } = window.TastyDesignSystem_41fd3f;
-const HaIcon = window.TastyDesignSystem_41fd3f.Icon;
+
+
+
 
 const HA_COPY = {
   placeholder: "Enter a file path or URL",
@@ -176,7 +186,7 @@ function HtmlPageState({ kind = "empty", progress = "1.4 MB · 12 files", url })
 
 // Whole surface: tab strip → band → inset banner stack → page. banners: ["size" | "size-more" | "limit" | "script"]
 function HtmlAddressSurfaceG({ width, height = 300, label = "report.html", bar = {}, banners = [], page = "page", pageLabel, progress, url, narrow = false, noBand = false }) {
-  const { HsTab, HsPage, HtmlScriptBanner } = window.TastyKit;
+  
   return (
     <div style={{ width, height, flex: width ? "none" : 1, minWidth: 0, display: "flex", flexDirection: "column", background: "var(--tasty-bg-panel)", overflow: "hidden" }}>
       <div style={{ display: "flex", flex: "none", background: "var(--tasty-bg-sidebar)", borderBottom: "var(--tasty-border-width) solid var(--tasty-separator)" }}>
@@ -195,5 +205,4 @@ function HtmlAddressSurfaceG({ width, height = 300, label = "report.html", bar =
   );
 }
 
-window.TastyKit = Object.assign(window.TastyKit || {}, { HtmlAddressBar, HtmlAddressField, HtmlSizeBanner, HtmlPageState, HtmlAddressSurfaceG, HA_COPY });
-})();
+export { HtmlAddressBar, HtmlAddressField, HtmlSizeBanner, HtmlPageState, HtmlAddressSurfaceG, HA_COPY };

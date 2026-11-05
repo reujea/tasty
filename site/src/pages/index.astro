@@ -8,6 +8,7 @@ const korean = url("ko/");
 ---
 <Base lang="en" title={meta.en.title} description={meta.en.description} enHref="" koHref="ko/">
   <Fragment slot="head">
+    <link rel="stylesheet" href={url("design/kit.css")} />
     <script is:inline define:vars={{ korean }}>
       /* Runs before first paint. A saved choice outranks the browser language. */
       (function () {

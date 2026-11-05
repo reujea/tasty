@@ -2,7 +2,9 @@
 import Base from "../../layouts/Base.astro";
 import Landing from "../../components/Landing.astro";
 import meta from "../../lib/meta.json";
+import { url } from "../../lib/site";
 ---
 <Base lang="ko" title={meta.ko.title} description={meta.ko.description} enHref="" koHref="ko/">
+  <Fragment slot="head"><link rel="stylesheet" href={url("design/kit.css")} /></Fragment>
   <Landing lang="ko" />
 </Base>

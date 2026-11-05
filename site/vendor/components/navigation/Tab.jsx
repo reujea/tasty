@@ -46,18 +46,18 @@ const CSS = `
   user-select: none;
   transition: background var(--tasty-motion-ui-fast) var(--tasty-ease-ui), color var(--tasty-motion-ui-fast) var(--tasty-ease-ui);
 }
-.tasty-tab:hover { background: color-mix(in srgb, var(--tasty-bg-panel) 60%, var(--tasty-bg-sidebar)); color: var(--tasty-text-secondary); }
+.tasty-tab:hover { background: var(--tasty-tab-bg-hover); color: var(--tasty-tab-fg-hover); }
 .tasty-tab--active { background: var(--tasty-bg-panel); color: var(--tasty-text-primary); }
 .tasty-tab--active::before {
   content: ""; position: absolute; left: 0; right: 0; top: 0; height: var(--tasty-tab-indicator-width); background: var(--tasty-accent-primary);
 }
 .tasty-tab__label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.tasty-tab__icon { flex: none; display: inline-flex; color: var(--tasty-text-muted); }
+.tasty-tab__icon { flex: none; display: inline-flex; color: var(--tasty-text-secondary); }
 .tasty-tab__icon svg { width: var(--tasty-tab-icon-size); height: var(--tasty-tab-icon-size); display: block; }
 .tasty-tab__close {
   flex: none; display: inline-flex; align-items: center; justify-content: center;
   width: var(--tasty-tab-close-size); height: var(--tasty-tab-close-size); border: 0; padding: 0; border-radius: var(--tasty-radius-sm);
-  background: transparent; color: var(--tasty-text-muted); cursor: pointer; opacity: 0;
+  background: transparent; color: var(--tasty-text-secondary); cursor: pointer; opacity: 0;
   transition: opacity var(--tasty-motion-ui-fast), background var(--tasty-motion-ui-fast);
 }
 .tasty-tab:hover .tasty-tab__close, .tasty-tab--active .tasty-tab__close { opacity: 1; }

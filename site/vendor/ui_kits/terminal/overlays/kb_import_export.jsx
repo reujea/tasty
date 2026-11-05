@@ -1,3 +1,13 @@
+import React from "react";
+import { Button } from "../../../components/core/Button.jsx";
+import { IconButton } from "../../../components/core/IconButton.jsx";
+import { Tag } from "../../../components/core/Tag.jsx";
+import { Checkbox } from "../../../components/forms/Checkbox.jsx";
+import { Input } from "../../../components/forms/Input.jsx";
+import { Select } from "../../../components/forms/Select.jsx";
+import { DrillDown } from "../../../components/navigation/DrillDown.jsx";
+import { Icon } from "../chrome.jsx";
+
 // Tasty UI kit — Settings › Keybindings › Import / Export.
 // Borrows the Preset
 // drill-down skeleton (list-position entry → detail with a back bar whose RIGHT
@@ -9,8 +19,8 @@
 //    option binding matches on every OS and nothing needs migrating.)
 // Apply writes the draft; the window footer's Save commits it (same 2-stage
 // contract as Preset). Rendered full-bleed — it owns its own scroll.
-const { Button, IconButton, Input, Select, Tag, Checkbox, DrillDown } = window.TastyDesignSystem_41fd3f;
-const { Icon } = window.TastyKit;
+
+
 
 const IE_FILE = "tasty-keybindings-2026-09-09.toml";
 
@@ -300,7 +310,4 @@ function KbImportExportSubtab({ variant = "ready", onFlash, failLine = 1, failCa
   );
 }
 
-window.TastyKit = Object.assign(window.TastyKit || {}, {
-  KbImportExportSubtab, IeDiffTable, IeActionRow, IePickerPopup,
-  IE_GROUPS, IE_FILE, IE_DISCARDED, MODIFIER_COMBOS,
-});
+export { KbImportExportSubtab, IeDiffTable, IeActionRow, IePickerPopup, IE_GROUPS, IE_FILE, IE_DISCARDED, MODIFIER_COMBOS };

@@ -1,3 +1,11 @@
+import React from "react";
+import { Button } from "../../../components/core/Button.jsx";
+import { Icon as MpIcon } from "../../../components/core/Icon.jsx";
+import { Tag } from "../../../components/core/Tag.jsx";
+import { HelpHint } from "../../../components/feedback/HelpHint.jsx";
+import { Spinner } from "../../../components/feedback/Spinner.jsx";
+import { InfoModalShell as Shell } from "./info_modal.jsx";
+
 // macOS permissions — Settings › General › Permissions (L2, macOS builds only)
 // and the boot "Some permissions are not granted" info modal.
 // Designed 2026-09-28.
@@ -6,9 +14,9 @@
 //   pane:  content column (settings 620 cap) > status table [label | status | row action]
 //          > detection note > button row > request note (↔ requesting line)
 //   modal: InfoModalShell (info_modal.jsx) — title bar > body scroll area > button row
-(() => {
-const { Button, HelpHint, Spinner, Tag } = window.TastyDesignSystem_41fd3f;
-const MpIcon = window.TastyDesignSystem_41fd3f.Icon;
+
+
+
 
 // four states, one glyph each — Unknown and Not observable share the ink, never the glyph
 const PERM_STATES = {
@@ -133,7 +141,7 @@ function PermNoticeBody({ fda = "never", selfBuilt = true } = {}) {
 // One message in the shared InfoModalShell. The ONLY queue message with authored
 // emphasis (paths · lead-ins · command chip) and a second button.
 function PermissionNoticeModal({ scroll = "top", fda = "never", selfBuilt = true }) {
-  const Shell = window.TastyKit.InfoModalShell;
+
   return (
     <Shell id="perm-notice" title="Some permissions are not granted" scroll={scroll}
       actions={<><Button variant="secondary">Open permission settings</Button><Button variant="primary">OK</Button></>}>
@@ -142,6 +150,4 @@ function PermissionNoticeModal({ scroll = "top", fda = "never", selfBuilt = true
   );
 }
 
-window.TastyKit = Object.assign(window.TastyKit || {}, { MacPermissionsPane, PermissionNoticeModal, PermStatus, PERM_STATES });
-
-})();
+export { MacPermissionsPane, PermissionNoticeModal, PermStatus, PERM_STATES };

@@ -1,3 +1,14 @@
+import React from "react";
+import { Button } from "../../../components/core/Button.jsx";
+import { IconButton } from "../../../components/core/IconButton.jsx";
+import { Tag } from "../../../components/core/Tag.jsx";
+import { Table } from "../../../components/data/Table.jsx";
+import { StatusDot } from "../../../components/feedback/StatusDot.jsx";
+import { Checkbox } from "../../../components/forms/Checkbox.jsx";
+import { Input } from "../../../components/forms/Input.jsx";
+import { ic, Icon } from "../chrome.jsx";
+import { Scrim, Spinner } from "./shared.jsx";
+
 // 2026-10-06 — table metrics: header AND body rows = --tasty-table-cell-height (28, on-scale); header pad-x =
 // --tasty-table-cell-padding-x (12); body scroll min height = one row (table-cell-height). No port-scanner-only sizes.
 // Tasty UI kit — Listening ports popup (Tools › Listening ports...).
@@ -5,7 +16,6 @@
 //   Popup: id "port_scanner", headless, close_on_outside_click.
 //   Size = 660×520 (DESIGN CANONICAL — spec §1 marks this "preserve"; the 7-col
 //   table needs the width). Source now matches: defs.rs:124 = 660×520.
-// Standalone preview: port_scanner.html
 //
 // FAVORITES — resolved open decisions:
 //   §6.1 frame stays 660×520. The favorites region is BOUNDED (caption 22 +
@@ -26,8 +36,8 @@
 //        scroll policy absorbs it.
 // 2026-10-08 — Process floor (--tasty-port-process-col-min-width) via Table minWidth; fixed widths are floors.
 //        Column budget > 660, so the table body scrolls horizontally at the default size (accepted).
-const { Input, Checkbox, Button, IconButton, Tag, Table, StatusDot } = window.TastyDesignSystem_41fd3f;
-const { ic, Icon, Scrim, Spinner } = window.TastyKit;
+
+
 
 // ── Listening ports — system ports popup, built on the Table component ──
 // ws/tab name the Tasty workspace + tab that opened the port; null = an
@@ -281,4 +291,4 @@ function PortsWindow({ onClose, onFlash, favorites = FAVS_DEFAULT }) {
   );
 }
 
-window.TastyKit = Object.assign(window.TastyKit || {}, { PortsWindow, PortStar, FAVS_DEFAULT, FAVS_MANY });
+export { PortsWindow, PortStar, FAVS_DEFAULT, FAVS_MANY };

@@ -1,5 +1,5 @@
 import React from "react";
-import { TabStrip, TerminalPane } from "../../kit/work.jsx";
+import { TabStrip, TerminalPane } from "../../../vendor/ui_kits/terminal/work.jsx";
 
 const noop = () => {};
 

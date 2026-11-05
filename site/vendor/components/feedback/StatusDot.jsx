@@ -21,7 +21,7 @@ const CSS = `
 .tasty-statusdot--running .tasty-statusdot__dot { background: var(--tasty-status-dot-success); }
 .tasty-statusdot--idle    .tasty-statusdot__dot { background: var(--tasty-status-dot-idle); }
 .tasty-statusdot--agent   .tasty-statusdot__dot { background: var(--tasty-status-dot-agent); }
-.tasty-statusdot--waiting .tasty-statusdot__dot { background: var(--tasty-status-dot-warning); }
+.tasty-statusdot--waiting .tasty-statusdot__dot { background: var(--tasty-accent-warning-glyph); }
 .tasty-statusdot--error   .tasty-statusdot__dot { background: var(--tasty-status-dot-danger); }
 .tasty-statusdot--needs-input .tasty-statusdot__dot { background: var(--tasty-status-dot-needs-input); }
 .tasty-statusdot--completion  .tasty-statusdot__dot { background: var(--tasty-status-dot-completion); }

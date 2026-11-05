@@ -15,8 +15,8 @@ import React from "react";
 
 const CSS = `
 .tasty-codearea { position: relative; display: flex; width: 100%; max-height: var(--tasty-codearea-max-height); overflow: auto;
-  border: var(--tasty-border-width) solid var(--tasty-border-default); border-radius: var(--tasty-radius);
-  background: var(--tasty-surface-raised); color: var(--tasty-text-primary);
+  border: var(--tasty-border-width) solid var(--tasty-border-control); border-radius: var(--tasty-radius);
+  background: var(--tasty-surface-field); color: var(--tasty-text-primary);
   font-family: var(--tasty-font-mono); font-size: var(--tasty-codearea-font-size); line-height: var(--tasty-codearea-line-height);
   transition: border-color var(--tasty-motion-ui-fast) var(--tasty-ease-ui), box-shadow var(--tasty-motion-ui-fast) var(--tasty-ease-ui); }
 .tasty-codearea:focus-within { border-color: var(--tasty-border-focus); box-shadow: 0 0 0 var(--tasty-border-width) var(--tasty-border-focus); }

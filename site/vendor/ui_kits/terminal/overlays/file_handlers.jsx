@@ -1,3 +1,11 @@
+import React from "react";
+import { Button } from "../../../components/core/Button.jsx";
+import { Icon as FhIcon } from "../../../components/core/Icon.jsx";
+import { Tag } from "../../../components/core/Tag.jsx";
+import { Input } from "../../../components/forms/Input.jsx";
+import { Select } from "../../../components/forms/Select.jsx";
+import { Switch } from "../../../components/forms/Switch.jsx";
+
 // Tasty UI kit — Settings › Handler › File Detectors · File Handlers (2026-10-20;
 // 2026-10-21 follow-up: unprefixed detector ids, char rules,
 // 2026-10-21 contract + contrast: run-order sort, raised-ground
@@ -5,9 +13,9 @@
 // several sources per detector, existing id = patch / replace, Remove drops only the user contribution).
 // Registered list (2-line rows) + user add card + Save-pending states with Undo (File Extension Mapping idiom).
 // Initial-state props exist only so the gallery can pin each state; the live kit passes none.
-(() => {
-const { Button, Input, Select, Switch, Tag } = window.TastyDesignSystem_41fd3f;
-const FhIcon = window.TastyDesignSystem_41fd3f.Icon;
+
+
+
 
 const FH_COPY = {
   en: {
@@ -433,5 +441,4 @@ function FileHandlersPane({ lang = "en", empty = false, pending = false, tie = f
   );
 }
 
-window.TastyKit = Object.assign(window.TastyKit || {}, { FileDetectorsPane, FileHandlersPane });
-})();
+export { FileDetectorsPane, FileHandlersPane };

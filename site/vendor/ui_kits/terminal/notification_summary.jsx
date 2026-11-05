@@ -1,3 +1,6 @@
+import React from "react";
+import * as DS_ns from "../../components/index.js";
+
 // Tasty UI kit — LNB notification summary (2026-10-17).
 // A small block directly ABOVE the Tools · Plugins · Settings block, in both sidebar modes.
 // The whole block is ONE button: click (or the existing notifications shortcut) toggles the popup.
@@ -11,8 +14,8 @@
 // muted ink, no line 2 (expanded) / bell only (rail). Arrival only updates counts + line 2:
 // the popup never opens by itself and focus/selection/scroll stay where they are.
 // Tooltip (title stand-in): "Notifications — 2 errors · 1 warning · 14 info" / "Notifications — no unread".
-(() => {
-const DS = () => window.TastyDesignSystem_41fd3f;
+
+const DS = () => DS_ns;
 const LEVEL_GLYPH = { error: "alertCircle", warning: "alertTriangle", info: "info" };
 
 function summaryLabel({ error = 0, warning = 0, info = 0 } = {}) {
@@ -43,12 +46,12 @@ function NotificationSummary({ counts = {}, latest = null, open = false, hover: 
         <span style={{ display: "flex", alignItems: "center", gap: "var(--tasty-notification-summary-icon-gap)", height: "var(--tasty-notification-summary-row-height)", minWidth: 0 }}>
           <span style={{ display: "inline-flex", flex: "none", color: any ? "var(--tasty-notification-summary-label-fg)" : "var(--tasty-notification-summary-label-fg-empty)" }}><Icon name="bell" size={16} /></span>
           <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: "var(--tasty-font-size-body)",
-            color: any ? "var(--tasty-notification-summary-label-fg)" : "var(--tasty-notification-summary-label-fg-empty)" }}>Notifications</span>
+            color: any ? "var(--tasty-notification-summary-label-fg)" : "var(--tasty-notification-summary-label-fg-empty)" }} data-part="label">Notifications</span>
           {NotificationBadgeGroup && <NotificationBadgeGroup error={error} warning={warning} info={info} />}
         </span>
         {any && latest && (
           <span style={{ display: "flex", alignItems: "center", gap: "var(--tasty-space-xs)", minWidth: 0, paddingLeft: "calc(var(--tasty-size-16) + var(--tasty-notification-summary-icon-gap))" }}>
-            <span style={{ display: "inline-flex", flex: "none", color: "var(--tasty-notification-summary-meta-fg)" }}><Icon name={LEVEL_GLYPH[latest.level] || "info"} size={12} /></span>
+            <span data-part="meta" style={{ display: "inline-flex", flex: "none", color: hover ? "var(--tasty-text-muted-raised)" : "var(--tasty-notification-summary-meta-fg)" }}><Icon name={LEVEL_GLYPH[latest.level] || "info"} size={12} /></span>
             <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
               fontSize: "var(--tasty-notification-summary-preview-font-size)", lineHeight: "var(--tasty-line-height-ui)", color: "var(--tasty-notification-summary-preview-fg)" }}>{latest.title}</span>
             {latest.time && <span style={{ flex: "none", fontFamily: "var(--tasty-font-mono)", fontSize: "var(--tasty-font-size-micro)", color: "var(--tasty-notification-summary-meta-fg)" }}>{latest.time}</span>}
@@ -77,5 +80,6 @@ function RailNotificationSummary({ counts = {}, open = false, hover: forceHover,
   );
 }
 
-window.TastyKit = Object.assign(window.TastyKit || {}, { NotificationSummary, RailNotificationSummary, notificationSummaryLabel: summaryLabel });
-})();
+const notificationSummaryLabel = summaryLabel;
+
+export { NotificationSummary, RailNotificationSummary, notificationSummaryLabel };

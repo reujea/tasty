@@ -8,7 +8,7 @@ import React from "react";
  */
 
 const CSS = `
-.tasty-spinner { display: inline-block; flex: none; color: var(--tasty-text-muted);
+.tasty-spinner { display: inline-block; flex: none; color: var(--tasty-spinner-indicator);
   width: var(--tasty-spinner-size, var(--tasty-size-16)); height: var(--tasty-spinner-size, var(--tasty-size-16)); }
 .tasty-spinner svg { display: block; width: 100%; height: 100%; animation: tasty-spin 0.9s linear infinite; }
 .tasty-spinner__track { opacity: 0.22; }
