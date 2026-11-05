@@ -262,6 +262,12 @@ impl crate::theme::Theme {
         self.attention_needs_input_fg()
     }
 
+    /// `component.banner-body-fg` → `{semantic.text-muted-raised}`
+    #[inline]
+    pub fn banner_body_fg(&self) -> HexColor {
+        self.text_muted_raised()
+    }
+
     /// `component.banner-body-font-size` → `{semantic.font-size-caption}` = 11px
     #[inline]
     pub fn banner_body_font_size(&self) -> LogicalPx {

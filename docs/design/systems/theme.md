@@ -104,6 +104,7 @@ host UI와 공용 위젯은 semantic 접근자를 사용한다. 원시 팔레트
 | 비활성 라벨·글리프 | `text_disabled()` |
 | 탭 스트립 스크롤 화살표 | `tab_scroll_arrow_fg()`(스크롤할 수 있음) · `tab_scroll_arrow_fg_disabled()`(끝에 닿음). 이동 대기 대상 탭 칸이 가려진 쪽은 `tab_scroll_arrow_move_fg()`. hover 채움 `tab_scroll_arrow_hover_bg()`는 disabled가 아닌 쪽에만 깐다 |
 | surface-raised(메뉴·드롭다운 목록) 위의 보조 글자 | `text_secondary_raised()`. Mocha는 `text_secondary()`와 같고 Latte는 `text_primary()`와 같다 |
+| 배너 본문 | `banner_body_fg()`(→ `text_muted_raised()`). Mocha는 `text_muted()`와 같고 Latte는 `text_primary()`와 같다 |
 | 입력 전 안내 | `text_placeholder()` |
 | 약하게 표시하는 chrome 글리프 | `glyph_dim()` |
 | popup 프레임·pane divider·GPU 비활성 보더 | `border_frame()` |

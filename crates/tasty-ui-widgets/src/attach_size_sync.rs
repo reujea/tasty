@@ -218,8 +218,8 @@ fn names_galley(
         valign: egui::Align::BOTTOM,
         ..Default::default()
     };
-    let muted = theme.text_muted().to_egui();
-    let name_color = theme.text_secondary().to_egui();
+    let muted = theme.banner_body_fg().to_egui();
+    let name_color = theme.text_secondary_raised().to_egui();
     let mut job = egui::text::LayoutJob::default();
     let mut boxes = boxes.into_iter();
     let mut pad = 0.0;
@@ -253,7 +253,7 @@ fn hint_galley(
         text.to_owned(),
         egui::TextFormat {
             font_id: egui::FontId::proportional(size),
-            color: theme.text_muted().to_egui(),
+            color: theme.banner_body_fg().to_egui(),
             line_height: Some(size * theme.line_height_ui),
             ..Default::default()
         },
@@ -522,11 +522,11 @@ mod tests {
         let (_, line) = text_shape(&shapes, |t| t.starts_with("3 surfaces"));
         assert_eq!(line.text(), "3 surfaces — release, build +1");
         assert_eq!(
-            colored(&line, theme.text_secondary().to_egui()),
+            colored(&line, theme.text_secondary_raised().to_egui()),
             ["release", "build"]
         );
         assert_eq!(
-            colored(&line, theme.text_muted().to_egui()),
+            colored(&line, theme.banner_body_fg().to_egui()),
             ["3 surfaces — ", ", ", " +1"]
         );
         // "build" 는 하한 40 보다 짧지만 칸이 제 폭이라 뒤 " +1" 이 이름 바로 뒤에 붙는다.
@@ -546,7 +546,7 @@ mod tests {
         let long = "release-pipeline-watch-logs-eu-west-with-a-very-long-tab-title";
         let (_, shapes) = render(460.0, &view(&[long, "build", "tests"], false));
         let (_, line) = text_shape(&shapes, |t| t.starts_with("3 surfaces"));
-        let shown = colored(&line, theme.text_secondary().to_egui());
+        let shown = colored(&line, theme.text_secondary_raised().to_egui());
         assert!(shown[0].ends_with('\u{2026}'), "{shown:?}");
         assert!(shown[0].len() < long.len());
         assert_eq!(shown[1], "build");
@@ -591,9 +591,12 @@ mod tests {
         let (_, shapes) = render(460.0, &view(&["Shell", "Shell"], false));
         let (_, line) = text_shape(&shapes, |t| t.starts_with("2 surfaces"));
         assert_eq!(line.text(), "2 surfaces — Shell \u{d7}2");
-        assert_eq!(colored(&line, theme.text_secondary().to_egui()), ["Shell"]);
         assert_eq!(
-            colored(&line, theme.text_muted().to_egui()),
+            colored(&line, theme.text_secondary_raised().to_egui()),
+            ["Shell"]
+        );
+        assert_eq!(
+            colored(&line, theme.banner_body_fg().to_egui()),
             ["2 surfaces — ", " \u{d7}2"]
         );
         assert!(texts(&shapes).iter().any(|t| t == "Retry all"));

@@ -118,7 +118,7 @@ fn detail(ui: &mut egui::Ui, theme: &Theme, view: &HtmlSizeBannerView<'_>, rect:
                 body,
                 theme.banner_body_font_size(),
                 LogicalPx(rect.width()),
-                theme.text_muted().to_egui(),
+                theme.banner_body_fg().to_egui(),
             );
             child
                 .painter()
@@ -137,7 +137,7 @@ fn detail(ui: &mut egui::Ui, theme: &Theme, view: &HtmlSizeBannerView<'_>, rect:
                     s,
                     theme.banner_body_font_size(),
                     LogicalPx(f32::INFINITY),
-                    theme.text_muted().to_egui(),
+                    theme.banner_body_fg().to_egui(),
                 )
                 .size()
                 .x + theme.spacing_sm.value()
@@ -154,14 +154,14 @@ fn detail(ui: &mut egui::Ui, theme: &Theme, view: &HtmlSizeBannerView<'_>, rect:
                 egui::Align2::LEFT_CENTER,
                 label,
                 egui::FontId::monospace(theme.banner_body_font_size().value()),
-                theme.text_muted().to_egui(),
+                theme.banner_body_fg().to_egui(),
             );
             tag(&mut child, theme, size, TagVariant::Warning, false);
             if let Some(waiting) = waiting {
                 child.label(
                     egui::RichText::new(*waiting)
                         .size(theme.banner_body_font_size().value())
-                        .color(theme.text_muted().to_egui()),
+                        .color(theme.banner_body_fg().to_egui()),
                 );
             }
         }
@@ -213,7 +213,7 @@ pub fn html_size_banner(
                     body,
                     theme.banner_body_font_size(),
                     text_w,
-                    theme.text_muted().to_egui(),
+                    theme.banner_body_fg().to_egui(),
                 )
                 .size()
                 .y

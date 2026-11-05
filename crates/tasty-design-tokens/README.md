@@ -32,7 +32,7 @@ Claude Design의 DTCG 토큰을 저장하고 Rust 상수와 Theme 접근자를 �
    요청 절차는 [디자인 변경 워크플로](../../docs/dev-guide/design-change-workflow.md)를 따른다.
 3. 생성기를 실행한다: `cargo run -p tasty-design-tokens --bin generate`
 4. `cargo test -p tasty-design-tokens`로 검증한다.
-   - 토큰 census(1352 = 140/175/1037)가 바뀌면 추가·삭제 항목을 확인하고
+   - 토큰 census(1354 = 140/176/1038)가 바뀌면 추가·삭제 항목을 확인하고
      `tests/freshness.rs`의 스냅샷도 갱신한다.
    - `sizing_parity`나 `color_drift`가 실패하면 디자인 변경 내용을 확인한다.
      검사를 통과시키려고 값을 임의로 맞추지 않는다.

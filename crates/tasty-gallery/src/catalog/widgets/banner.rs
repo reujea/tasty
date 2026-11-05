@@ -46,7 +46,7 @@ fn body_line(ui: &mut egui::Ui, theme: &Theme, text: &str) {
     ui.label(
         egui::RichText::new(text)
             .size(theme.font_size_caption.value())
-            .color(theme.text_muted().to_egui()),
+            .color(theme.banner_body_fg().to_egui()),
     );
 }
 

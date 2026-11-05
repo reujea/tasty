@@ -974,7 +974,7 @@ pub mod defs {
                 ui.label(
                     egui::RichText::new(t("banner.mouse_capture.body"))
                         .size(theme.font_size_caption.value())
-                        .color(theme.text_muted().to_egui()),
+                        .color(theme.banner_body_fg().to_egui()),
                 );
             });
         });
@@ -1023,7 +1023,7 @@ pub mod defs {
                 ui.label(
                     egui::RichText::new(t("banner.shell_integration_missing.body"))
                         .size(theme.font_size_caption.value())
-                        .color(theme.text_muted().to_egui()),
+                        .color(theme.banner_body_fg().to_egui()),
                 );
             });
         });

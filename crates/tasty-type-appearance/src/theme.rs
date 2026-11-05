@@ -1381,6 +1381,16 @@ impl Theme {
             self.subtext1
         }
     }
+    /// surface-raised(배너 본문) 위의 약한 글자. 밝은 테마는 neutral-900이 surface0 위에서
+    /// 4.5:1에 못 미쳐 neutral-1100(text)을 사용한다. `semantic.text-muted-raised`의 Latte remap이다.
+    #[inline]
+    pub fn text_muted_raised(&self) -> HexColor {
+        if self.is_light {
+            self.text
+        } else {
+            self.subtext0
+        }
+    }
 
     // ── disabled 컨트롤 (state-disabled-*) — opacity 없이 중립 상자와 disabled ink ──
 
@@ -1961,6 +1971,7 @@ mod tests {
         assert_eq!(th.text_muted(), th.subtext0);
         assert_eq!(th.text_disabled(), th.overlay1);
         assert_eq!(th.text_secondary_raised(), th.subtext1);
+        assert_eq!(th.text_muted_raised(), th.subtext0);
         assert_eq!(th.text_placeholder(), th.placeholder);
 
         // 상태 표시
@@ -1976,6 +1987,8 @@ mod tests {
         // light(Latte): surface-raised 위 보조 글자는 neutral-1100(text)으로 role-remap.
         assert_eq!(light.text_secondary_raised(), light.text);
         assert_ne!(light.text_secondary_raised(), light.subtext1);
+        assert_eq!(light.text_muted_raised(), light.text);
+        assert_ne!(light.text_muted_raised(), light.subtext0);
 
         // 보더
         assert_eq!(th.border_default(), th.surface0);

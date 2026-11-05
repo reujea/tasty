@@ -73,7 +73,7 @@ fn body_galley(
         text.to_owned(),
         egui::TextFormat {
             font_id: egui::FontId::proportional(size),
-            color: theme.text_muted().to_egui(),
+            color: theme.banner_body_fg().to_egui(),
             line_height: Some(size * theme.line_height_ui),
             ..Default::default()
         },

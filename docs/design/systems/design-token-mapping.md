@@ -192,6 +192,7 @@ semantic 필드를 그대로 재사용한다(신규 필드 없음). 정본 소�
 | `--tasty-banner-icon-fg` | → `text-muted` (default) | `text_muted()` (per-banner severity override) | 기존 접근자 |
 | `--tasty-banner-title-font-size` | → `font-size-body` (13) | `font_size_body` | 기존 토큰 |
 | `--tasty-banner-body-font-size` | → `font-size-caption` (11) | `font_size_caption` | 기존 토큰 |
+| `--tasty-banner-body-fg` | → `text-muted-raised` (Mocha `text-muted`, Latte `text-primary`) | `banner_body_fg()` | 본문과 재로딩 라벨. `banner-bg` 위 Mocha 5.65:1, Latte 5.17:1 |
 | `--tasty-banner-countdown-font` | → `font-mono` | `FontId::monospace` | 기존 |
 | `--tasty-banner-countdown-font-size` | → `font-size-micro` (10) | `font_size_micro` | 기존 토큰 |
 | `--tasty-banner-countdown-fg` | → `text-muted` | `text_muted()` | 기존 접근자 |
@@ -515,7 +516,7 @@ max 를 이긴다(트리거가 320 보다 넓으면 트리거를 따른다). 행
 
 디자인 시스템의 DTCG 토큰과 Rust `Theme` 필드, 그리고 실제 `th.*`/`theme.*` 호출처를 잇는 매핑 참조. [theme.md](theme.md) 의 토큰 구조를 호출처 관점에서 보충한다.
 
-> **vendor 상태**: DTCG 토큰 파일은 `crates/tasty-design-tokens/dtcg/tasty.tokens.json` 으로 **vendor 되어 있다** (1352 토큰 = primitive 140 / semantic 175 / component 1037 — 수는 `crates/tasty-design-tokens/tests/freshness.rs` 가 고정). 치수 계열은 `crates/tasty-design-tokens/src/generated/` 에 const 로 생성되고 freshness·정합·색 드리프트 테스트가 CI 에서 일치를 강제한다. vendor 갱신 절차는 `crates/tasty-design-tokens/README.md`. **component tier(치수+색)는 `&Theme` 접근자로 생성돼**(`tasty-type-appearance/src/generated_component.rs`, [theme.md](theme.md) "Component tier 접근자") `tasty-ui-widgets` 위젯과 host chrome(`src/adapters/ui/`)이 소비 중.
+> **vendor 상태**: DTCG 토큰 파일은 `crates/tasty-design-tokens/dtcg/tasty.tokens.json` 으로 **vendor 되어 있다** (1354 토큰 = primitive 140 / semantic 176 / component 1038 — 수는 `crates/tasty-design-tokens/tests/freshness.rs` 가 고정). 치수 계열은 `crates/tasty-design-tokens/src/generated/` 에 const 로 생성되고 freshness·정합·색 드리프트 테스트가 CI 에서 일치를 강제한다. vendor 갱신 절차는 `crates/tasty-design-tokens/README.md`. **component tier(치수+색)는 `&Theme` 접근자로 생성돼**(`tasty-type-appearance/src/generated_component.rs`, [theme.md](theme.md) "Component tier 접근자") `tasty-ui-widgets` 위젯과 host chrome(`src/adapters/ui/`)이 소비 중.
 
 ### 구조 모델
 

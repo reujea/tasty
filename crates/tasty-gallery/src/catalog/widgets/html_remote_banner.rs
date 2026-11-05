@@ -340,7 +340,7 @@ pub fn draw_states(ui: &mut egui::Ui, theme: &Theme) {
             ("title", title_spec.as_str()),
             (
                 "body",
-                "kinds, no counts · 11 · text-muted · wraps · scope and lifetime last",
+                "kinds, no counts · 11 · banner-body-fg · wraps · scope and lifetime last",
             ),
             ("action", "Secondary / Sm · no wrap"),
             (

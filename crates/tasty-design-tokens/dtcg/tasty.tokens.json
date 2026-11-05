@@ -758,6 +758,15 @@
         }
       }
     },
+    "text-muted-raised": {
+      "$type": "color",
+      "$value": "{primitive.color-neutral-900}",
+      "$extensions": {
+        "com.tasty.mode": {
+          "latte": "{primitive.color-neutral-1100}"
+        }
+      }
+    },
     "text-on-accent": {
       "$type": "color",
       "$value": "{primitive.color-neutral-0}",
@@ -2621,6 +2630,10 @@
     "banner-body-font-size": {
       "$type": "dimension",
       "$value": "{semantic.font-size-caption}"
+    },
+    "banner-body-fg": {
+      "$type": "color",
+      "$value": "{semantic.text-muted-raised}"
     },
     "banner-countdown-font": {
       "$type": "fontFamily",

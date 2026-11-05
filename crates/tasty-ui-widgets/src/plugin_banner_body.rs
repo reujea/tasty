@@ -77,7 +77,7 @@ fn body_galley(
         text.to_owned(),
         egui::TextFormat {
             font_id: egui::FontId::proportional(size),
-            color: theme.text_muted().to_egui(),
+            color: theme.banner_body_fg().to_egui(),
             line_height: Some(plugin_banner_body_line_height(theme)),
             ..Default::default()
         },
@@ -97,7 +97,7 @@ pub fn plugin_banner_body(ui: &mut egui::Ui, theme: &Theme, text: &str) -> egui:
     let clamped = galley.elided;
     let (rect, resp) = ui.allocate_exact_size(galley.size(), egui::Sense::hover());
     ui.painter()
-        .galley(rect.min, galley, theme.text_muted().to_egui());
+        .galley(rect.min, galley, theme.banner_body_fg().to_egui());
     if !clamped {
         return resp;
     }

@@ -189,6 +189,7 @@ pub const SEMANTIC_COLOR_TO_THEME_ACCESSOR: &[(&str, &str)] = &[
     ("semantic.text-primary", "text_primary()"),
     ("semantic.text-secondary", "text_secondary()"),
     ("semantic.text-secondary-raised", "text_secondary_raised()"),
+    ("semantic.text-muted-raised", "text_muted_raised()"),
 ];
 
 /// 생성할 semantic 색 접근자: 토큰 경로, 메서드명, 반환할 Theme 필드.
@@ -301,6 +302,10 @@ const SEMANTIC_COLOR_HAND_WRITTEN: &[(&str, &str)] = &[
     (
         "semantic.text-secondary-raised",
         "is_light role-remap (Mocha=subtext1 / Latte=text) — 단순 alias 아님",
+    ),
+    (
+        "semantic.text-muted-raised",
+        "is_light role-remap (Mocha=subtext0 / Latte=text) — 단순 alias 아님",
     ),
     (
         "semantic.overlay-hover",

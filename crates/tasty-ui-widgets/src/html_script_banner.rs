@@ -145,7 +145,7 @@ fn draw_action(
                 egui::Align2::LEFT_CENTER,
                 view.reloading,
                 egui::FontId::proportional(theme.banner_body_font_size().value()),
-                theme.text_muted().to_egui(),
+                theme.banner_body_fg().to_egui(),
             );
             false
         }
@@ -197,7 +197,10 @@ fn draw_row(
         theme,
         view.body,
         theme.banner_body_font_size().value(),
-        theme.text_muted().to_egui().gamma_multiply(text_opacity),
+        theme
+            .banner_body_fg()
+            .to_egui()
+            .gamma_multiply(text_opacity),
         body_w,
     );
     let text_h = title.size().y + text_gap + body.size().y;

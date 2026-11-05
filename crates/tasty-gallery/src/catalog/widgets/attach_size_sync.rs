@@ -219,7 +219,7 @@ pub fn draw(ui: &mut egui::Ui, theme: &Theme) {
             ),
             (
                 "same name",
-                "equal display names collapse into one entry + “ ×k” (text-muted, never shrinks) · “N surfaces” counts surfaces · +n counts remaining entries · Retry all retries every surface",
+                "equal display names collapse into one entry + “ ×k” (banner-body-fg, never shrinks) · “N surfaces” counts surfaces · +n counts remaining entries · Retry all retries every surface",
             ),
             (
                 "body lines",
