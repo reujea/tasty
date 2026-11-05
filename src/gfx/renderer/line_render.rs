@@ -28,7 +28,7 @@ impl CellRenderer {
         ansi: &[GpuRgb; 16],
         queue: &wgpu::Queue,
         selection: Option<&(NormalizedSelection, GpuRgba)>,
-        vi_cursor: Option<&(SelectionPoint, GpuRgba)>,
+        vi_cursor: Option<&(SelectionPoint, GpuRgba, GpuRgba)>,
         absolute_row: usize,
         link: Option<&LinkHighlight>,
         search: Option<&super::SearchHighlights<'_>>,
@@ -40,11 +40,12 @@ impl CellRenderer {
         {
             bg_color = composite_over(*sel_bg, bg_color);
         }
-        if let Some((pt, cursor_bg)) = vi_cursor
+        if let Some((pt, cursor_bg, cursor_fg)) = vi_cursor
             && pt.col == col_idx
             && pt.absolute_row == absolute_row
         {
             bg_color = composite_over(*cursor_bg, bg_color);
+            fg_color = *cursor_fg;
         }
         if let Some(link) = link
             && link.covers(col_idx, absolute_row)
@@ -111,7 +112,7 @@ impl CellRenderer {
         ansi: &[GpuRgb; 16],
         queue: &wgpu::Queue,
         selection: Option<&(NormalizedSelection, GpuRgba)>,
-        vi_cursor: Option<&(SelectionPoint, GpuRgba)>,
+        vi_cursor: Option<&(SelectionPoint, GpuRgba, GpuRgba)>,
         absolute_row: usize,
         link: Option<&LinkHighlight>,
         search: Option<&super::SearchHighlights<'_>>,
@@ -146,8 +147,8 @@ impl CellRenderer {
         let off = self.current_viewport_offset;
         for c in col_idx..cols {
             let bg_color = vi_cursor
-                .filter(|(pt, _)| pt.col == c && pt.absolute_row == absolute_row)
-                .map(|(_, cursor_bg)| composite_over(*cursor_bg, default_bg))
+                .filter(|(pt, ..)| pt.col == c && pt.absolute_row == absolute_row)
+                .map(|(_, cursor_bg, _)| composite_over(*cursor_bg, default_bg))
                 .unwrap_or(default_bg);
             self.bg_instances.push(BgInstance {
                 pos: [c as f32, row_idx as f32],
@@ -170,7 +171,7 @@ impl CellRenderer {
         ansi: &[GpuRgb; 16],
         queue: &wgpu::Queue,
         selection: Option<&(NormalizedSelection, GpuRgba)>,
-        vi_cursor: Option<&(SelectionPoint, GpuRgba)>,
+        vi_cursor: Option<&(SelectionPoint, GpuRgba, GpuRgba)>,
         absolute_row: usize,
         link: Option<&LinkHighlight>,
         search: Option<&super::SearchHighlights<'_>>,
@@ -211,8 +212,8 @@ impl CellRenderer {
         let off = self.current_viewport_offset;
         for c in last_col..cols {
             let bg_color = vi_cursor
-                .filter(|(pt, _)| pt.col == c && pt.absolute_row == absolute_row)
-                .map(|(_, cursor_bg)| composite_over(*cursor_bg, default_bg))
+                .filter(|(pt, ..)| pt.col == c && pt.absolute_row == absolute_row)
+                .map(|(_, cursor_bg, _)| composite_over(*cursor_bg, default_bg))
                 .unwrap_or(default_bg);
             self.bg_instances.push(BgInstance {
                 pos: [c as f32, row_idx as f32],

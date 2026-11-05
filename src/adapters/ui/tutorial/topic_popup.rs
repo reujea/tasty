@@ -206,7 +206,10 @@ fn topic_row(
                 let (cap_bg, cap_fg) = if sel {
                     (th.accent_primary().to_egui(), th.text_on_accent().to_egui())
                 } else {
-                    (th.surface_raised().to_egui(), th.text_muted().to_egui())
+                    (
+                        th.surface_raised().to_egui(),
+                        th.text_muted_raised().to_egui(),
+                    )
                 };
                 ui.painter()
                     .rect_filled(cap, th.corner_radius_sm.value(), cap_bg);

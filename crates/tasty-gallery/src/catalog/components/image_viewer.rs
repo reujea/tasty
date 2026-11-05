@@ -310,7 +310,7 @@ fn save_as_clash_popup(ui: &mut egui::Ui, theme: &Theme) {
         ui.label(
             egui::RichText::new("diagram.png already exists. Save the PNG under another name.")
                 .size(theme.font_size_caption.value())
-                .color(theme.accent_warning().to_egui()),
+                .color(theme.accent_warning_raised().to_egui()),
         );
         ui.add_space(theme.spacing_xs.value());
         ui.horizontal(|ui| {
@@ -386,7 +386,7 @@ fn draw(ui: &mut egui::Ui, theme: &Theme) {
             TokenChip::new(
                 "text-muted",
                 "filename · zoom %",
-                theme.text_muted().to_egui(),
+                theme.text_muted_raised().to_egui(),
             ),
             TokenChip::new(
                 "border-default",

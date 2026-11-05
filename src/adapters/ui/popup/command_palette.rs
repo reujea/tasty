@@ -191,7 +191,7 @@ pub fn draw_command_palette_view(
             if props.items.is_empty() {
                 ui.label(
                     egui::RichText::new(&props.no_results_text)
-                        .color(theme.text_muted().to_egui())
+                        .color(theme.text_muted_raised().to_egui())
                         .italics(),
                 );
                 return;
@@ -230,9 +230,9 @@ pub fn draw_command_palette_view(
                             );
                         }
                         let color: egui::Color32 = if is_selected || resp.hovered() {
-                            theme.text_primary().into()
+                            theme.text_on_active().into()
                         } else {
-                            theme.text_muted().into()
+                            theme.text_muted_raised().into()
                         };
 
                         if let Some(icon) = item.icon {
@@ -278,7 +278,7 @@ pub fn draw_command_palette_view(
             bottom: theme.spacing_sm.value() as i8,
         })
         .show(ui, |ui| {
-            let hint_color = theme.text_muted().to_egui();
+            let hint_color = theme.text_muted_raised().to_egui();
             let hint_font = egui::FontId::monospace(theme.font_size_caption.value());
             ui.horizontal(|ui| {
                 ui.spacing_mut().item_spacing.x = PALETTE_HINT_GAP_X.value();

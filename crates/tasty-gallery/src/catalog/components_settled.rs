@@ -116,7 +116,7 @@ fn keycap_panel(ui: &mut egui::Ui, theme: &Theme, label: &str, canonical: bool) 
         let color = if canonical {
             theme.accent_success()
         } else {
-            theme.text_muted()
+            theme.text_muted_raised()
         };
         caption(ui, theme, label, ec(color));
         egui::Frame::new()
@@ -145,7 +145,7 @@ fn keycap_panel(ui: &mut egui::Ui, theme: &Theme, label: &str, canonical: bool) 
                     child.label(
                         egui::RichText::new(cmd)
                             .size(theme.font_size_body.value())
-                            .color(ec(theme.text_secondary())),
+                            .color(ec(theme.text_secondary_raised())),
                     );
                     // 오른쪽 정렬 레이아웃은 키 순서까지 뒤집으므로 폭을 먼저 재고 왼쪽부터 그린다.
                     let keys_w = if canonical {
@@ -168,7 +168,7 @@ fn keycap_panel(ui: &mut egui::Ui, theme: &Theme, label: &str, canonical: bool) 
 /// Components › Kbd — 팔레트 전용 키캡을 없애고 Kbd 하나로 맞춘다.
 pub fn draw_one_keycap(ui: &mut egui::Ui, theme: &Theme) {
     stage(ui, theme, StageVariant::Column, |ui| {
-        keycap_panel(ui, theme, "settled — Kbd (16 / 4 / 3 / 10)", true);
+        keycap_panel(ui, theme, "settled — Kbd (16 / 4 / 4 / 10)", true);
         keycap_panel(
             ui,
             theme,

@@ -855,7 +855,7 @@ fn strip_tooltip_window(ui: &mut egui::Ui, theme: &Theme, id: &str, stacked: boo
             egui::Align2::CENTER_CENTER,
             "upper pane WebView",
             mono.clone(),
-            theme.text_muted().to_egui(),
+            theme.text_muted_raised().to_egui(),
         );
         painter.hline(
             above.x_range(),
@@ -870,7 +870,7 @@ fn strip_tooltip_window(ui: &mut egui::Ui, theme: &Theme, id: &str, stacked: boo
             egui::Align2::LEFT_CENTER,
             "title area",
             mono.clone(),
-            theme.text_muted().to_egui(),
+            theme.text_muted_raised().to_egui(),
         );
     }
 
@@ -915,7 +915,7 @@ fn strip_tooltip_window(ui: &mut egui::Ui, theme: &Theme, id: &str, stacked: boo
             "WebView — native, drawn above Tasty"
         },
         mono,
-        theme.text_muted().to_egui(),
+        theme.text_muted_raised().to_egui(),
     );
     native.push(webview);
 

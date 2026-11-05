@@ -304,7 +304,7 @@ fn form_card(ui: &mut egui::Ui, theme: &Theme, variant: Variant, width: LogicalP
                 ui.label(
                     egui::RichText::new("Host is required.")
                         .size(theme.font_size_caption.value())
-                        .color(theme.accent_danger().to_egui()),
+                        .color(theme.accent_danger_raised().to_egui()),
                 );
             }
         });

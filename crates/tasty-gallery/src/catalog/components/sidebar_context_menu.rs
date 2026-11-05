@@ -124,7 +124,7 @@ pub fn draw(ui: &mut egui::Ui, theme: &Theme) {
                             egui::RichText::new(caption)
                                 .monospace()
                                 .size(theme.font_size_micro.value())
-                                .color(egui::Color32::from(theme.text_muted())),
+                                .color(egui::Color32::from(theme.text_muted_raised())),
                         );
                         menu(ui, theme, rows);
                     });

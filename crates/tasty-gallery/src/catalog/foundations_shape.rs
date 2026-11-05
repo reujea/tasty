@@ -93,7 +93,7 @@ fn height_box(ui: &mut egui::Ui, theme: &Theme, label: &str, h: f32) {
                     egui::RichText::new(label)
                         .monospace()
                         .size(theme.font_size_caption.value())
-                        .color(ec(theme.text_secondary())),
+                        .color(ec(theme.text_secondary_raised())),
                 );
             });
         });

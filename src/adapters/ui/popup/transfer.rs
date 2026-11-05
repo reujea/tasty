@@ -499,7 +499,7 @@ fn reason_well(ui: &mut egui::Ui, th: &theme::Theme, reason: &str) {
                 egui::RichText::new(reason)
                     .monospace()
                     .size(th.font_size_caption.value())
-                    .color(th.accent_danger()),
+                    .color(th.accent_danger_raised()),
             );
         });
 }
@@ -599,10 +599,10 @@ mod tests {
             let th = theme::Theme::with_colors_and_zoom(base.to_colors(), false, zoom);
             let z = |px: f32| (px * zoom).round();
             assert_eq!(th.transfer_popup_width().value(), z(400.0), "zoom {zoom}");
-            assert_eq!(th.transfer_pad_x().value(), z(14.0), "zoom {zoom}");
-            assert_eq!(th.transfer_body_gap().value(), z(10.0), "zoom {zoom}");
-            assert_eq!(th.transfer_footer_pad_y().value(), z(10.0), "zoom {zoom}");
-            assert_eq!(th.transfer_well_pad_x().value(), z(10.0), "zoom {zoom}");
+            assert_eq!(th.transfer_pad_x(), th.spacing_md, "zoom {zoom}");
+            assert_eq!(th.transfer_body_gap(), th.spacing_sm, "zoom {zoom}");
+            assert_eq!(th.transfer_footer_pad_y(), th.spacing_sm, "zoom {zoom}");
+            assert_eq!(th.transfer_well_pad_x(), th.spacing_md, "zoom {zoom}");
             assert_eq!(th.transfer_header_pad_y(), th.spacing_md, "zoom {zoom}");
             assert_eq!(th.transfer_well_pad_y(), th.spacing_sm, "zoom {zoom}");
             assert_eq!(

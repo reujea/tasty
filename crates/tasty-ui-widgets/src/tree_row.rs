@@ -148,9 +148,21 @@ fn draw(
     let (rect, resp) = ui.allocate_exact_size(egui::vec2(width, height), egui::Sense::click());
     let indent_per_depth = theme.tree_row_indent().value();
 
+    let state = crate::RowState::from_response(selected, &resp);
+    // 트리 행은 mantle·base 양쪽에 놓인다. hover·press 글자는 두 칸에서 모두 등급을 지키는 쪽을 읽는다.
+    let parent = crate::RowParent::Mantle;
     if selected {
         ui.painter()
             .rect_filled(rect, radius, theme.tree_row_bg_active().to_egui());
+        if state != crate::RowState::Selected {
+            let overlay = if state == crate::RowState::SelectedPress {
+                theme.overlay_active()
+            } else {
+                theme.overlay_hover()
+            };
+            ui.painter()
+                .rect_filled(rect, radius, overlay.to_egui_premultiplied());
+        }
     } else if resp.hovered() {
         ui.painter().rect_filled(
             rect,
@@ -159,17 +171,12 @@ fn draw(
         );
     }
 
-    let fg = if selected || resp.hovered() {
-        theme.tree_row_fg_active().to_egui()
-    } else {
-        rest_fg.unwrap_or_else(|| theme.tree_row_fg().to_egui())
+    let fg = match (state, rest_fg) {
+        (crate::RowState::Rest, Some(rest)) => rest,
+        _ => state.label(theme, parent, theme.tree_row_fg()).to_egui(),
     };
-    // 선택 행의 chevron·meta는 surface-active 위에서 읽히는 글자색이다.
-    let part = if selected {
-        theme.tree_row_part_fg_active().to_egui()
-    } else {
-        theme.text_muted().to_egui()
-    };
+    let meta_fg = state.meta(theme, parent).to_egui();
+    let part = state.glyph(theme).to_egui();
 
     let mut x = rect.left() + pad_l + depth as f32 * indent_per_depth;
 
@@ -200,7 +207,7 @@ fn draw(
         let icon_color = if selected {
             theme.tree_row_icon_fg_active().to_egui()
         } else {
-            theme.text_muted().to_egui()
+            part
         };
         let irect = egui::Rect::from_center_size(
             egui::pos2(x + ICON_GLYPH * 0.5, rect.center().y),
@@ -221,7 +228,7 @@ fn draw(
             right - g.rect.width(),
             rect.center().y - g.rect.height() * 0.5,
         );
-        ui.painter().galley(pos, g.clone(), part);
+        ui.painter().galley(pos, g.clone(), meta_fg);
         right -= g.rect.width() + GAP;
     }
 

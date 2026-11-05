@@ -92,7 +92,7 @@ pub fn draw_menu_item(ui: &mut egui::Ui, theme: &Theme) {
             TokenChip::new(
                 "text-muted",
                 "shortcut",
-                egui::Color32::from(theme.text_muted()),
+                egui::Color32::from(theme.text_muted_raised()),
             ),
         ],
     );
@@ -163,7 +163,7 @@ fn selected_option_panel(ui: &mut egui::Ui, th: &Theme, name: &str) {
                         "{name} — rest · selected · rest · keyboard-active"
                     ))
                     .size(th.font_size_caption.value())
-                    .color(egui::Color32::from(th.text_muted())),
+                    .color(egui::Color32::from(th.text_muted_raised())),
                 );
                 let bw = th.border_width.value();
                 egui::Frame::new()
@@ -216,7 +216,7 @@ fn no_value_panel(ui: &mut egui::Ui, th: &Theme) {
                         "No value yet — trigger in placeholder ink, list = real options only",
                     )
                     .size(th.font_size_caption.value())
-                    .color(egui::Color32::from(th.text_muted())),
+                    .color(egui::Color32::from(th.text_muted_raised())),
                 );
                 let options = no_value_options();
                 let mut none = None;

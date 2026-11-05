@@ -595,6 +595,9 @@ impl PopupManager {
                     .sense(egui::Sense::hover())
                     .constrain(false)
                     .show(ctx, |ui| {
+                        if bg_fill == egui::Color32::from(th.surface_raised()) {
+                            tasty_egui_theme::apply_raised_scrollbar(&th, ui.visuals_mut());
+                        }
                         // 푸터와 빈 공간도 포인터 영역에 포함한다.
                         ui.set_min_size(content_rect.size());
                         ui.set_max_size(content_rect.size());
@@ -819,7 +822,7 @@ mod tests {
         assert_eq!(shell, egui::Color32::from(th.bg_panel()));
     }
 
-    /// rename 팝업은 dialog-bg 위에 있어야 읽기 전용·평소 이름 칸의 상자가 바탕과 구분된다. 두 테마 모두 본다.
+    /// rename 팝업의 읽기 전용 칸은 채움으로, 평소 이름 칸은 테두리로 바탕과 구분된다. 두 테마 모두 본다.
     #[test]
     fn the_rename_popup_ground_keeps_the_name_field_box_visible() {
         for text in [tasty_themes::MOCHA_TOML_TEXT, tasty_themes::LATTE_TOML_TEXT] {
@@ -833,7 +836,7 @@ mod tests {
             assert_eq!(shell, egui::Color32::from(th.dialog_bg()));
             for (what, fill) in [
                 ("readonly", th.input_readonly_bg()),
-                ("normal", th.input_bg()),
+                ("normal", th.input_border()),
             ] {
                 assert_ne!(
                     shell,
@@ -844,7 +847,7 @@ mod tests {
         }
     }
 
-    /// DAG 목록 팝업의 검색 칸(기본 바탕 Input)은 bg-panel 셸 위에서 채움·테두리가 바탕과 구분된다. 두 테마 모두 본다.
+    /// DAG 목록 팝업의 검색 칸은 bg-panel 셸 위에서 테두리로 구분된다. Latte의 채움은 셸과 같은 색이다.
     #[test]
     fn the_dag_list_shell_keeps_the_search_field_box_visible() {
         for text in [tasty_themes::MOCHA_TOML_TEXT, tasty_themes::LATTE_TOML_TEXT] {
@@ -856,13 +859,11 @@ mod tests {
                 tasty_type_appearance::theme::Theme::with_colors(colors, is_light.unwrap_or(false));
             let shell = popup_bg_fill(super::super::dag_list::DAG_LIST_POPUP_ID, &th);
             assert_eq!(shell, egui::Color32::from(th.bg_panel()));
-            for (what, color) in [("fill", th.input_bg()), ("border", th.input_border())] {
-                assert_ne!(
-                    shell,
-                    egui::Color32::from(color),
-                    "검색 칸 {what} 이 바탕과 같은 색이다"
-                );
-            }
+            assert_ne!(
+                shell,
+                egui::Color32::from(th.input_border()),
+                "검색 칸 테두리가 바탕과 같은 색이다"
+            );
         }
     }
 

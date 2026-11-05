@@ -190,7 +190,7 @@ pub fn draw(ui: &mut egui::Ui, theme: &Theme) {
             TokenChip::new(
                 "modhint-strip-bg",
                 "drag strip",
-                theme.modhint_strip_bg().to_egui(),
+                theme.modhint_header_bg().to_egui(),
             ),
             TokenChip::new(
                 "modhint-role-bg",
@@ -343,7 +343,7 @@ fn drag_strip(ui: &mut egui::Ui, theme: &Theme, w: f32, held: &str) {
     let bw = theme.border_width.value();
     let (rect, _) = ui.allocate_exact_size(egui::vec2(w, strip_h), egui::Sense::hover());
     ui.painter()
-        .rect_filled(rect, 0.0, theme.modhint_strip_bg().to_egui());
+        .rect_filled(rect, 0.0, theme.modhint_header_bg().to_egui());
     ui.painter().hline(
         rect.x_range(),
         rect.bottom() - bw * 0.5,

@@ -1,31 +1,22 @@
-//! 채움이 정해진 자리의 글자·글리프 역할. Mocha는 원래 역할을 쓰고 Latte만 값을 바꾼다.
-//! 선택·키보드 활성 행과 raised 바탕에서 텍스트 4.5:1, 글리프 3:1을 맞추기 위한 값이다.
+//! 채움이 정해진 자리의 글자·글리프 역할과, 생성기가 만들지 못하는 semantic 역할.
+//! Mocha·Latte 값이 서로 다른 색 조합이나 color-mix라 Theme 필드 하나로 대응되지 않는다.
+//! `-raised`는 raised와 그 아래 바탕, `-strong`은 hover·press와 불투명 틴트까지,
+//! `-on-active`는 선택 행과 그 hover·press에서 등급을 유지한다.
 
 use crate::color::HexColor;
-use crate::theme::{Theme, mix_srgb};
+use crate::theme::{TINT_FILL_ALPHA, Theme, mix_srgb};
 
-/// DTCG `semantic.text-on-active`의 Latte color-mix 비율.
-const TEXT_ON_ACTIVE_RATIO: f32 = 0.7;
-/// DTCG `semantic.accent-primary-on-active`의 Latte color-mix 비율.
-const PRIMARY_ON_ACTIVE_RATIO: f32 = 0.7;
-/// DTCG `semantic.accent-warning-raised`의 Latte color-mix 비율.
-const WARNING_RAISED_RATIO: f32 = 0.5;
-/// DTCG `semantic.accent-attention-raised`의 Latte color-mix 비율.
-const ATTENTION_RAISED_RATIO: f32 = 0.55;
-/// DTCG `semantic.accent-info-raised`의 Latte color-mix 비율.
-const INFO_RAISED_RATIO: f32 = 0.55;
-/// DTCG `semantic.accent-danger-on-active`의 Mocha color-mix 비율.
-const DANGER_ON_ACTIVE_RATIO: f32 = 0.85;
-/// DTCG `semantic.accent-agent-on-active`의 Latte color-mix 비율.
-const AGENT_ON_ACTIVE_RATIO: f32 = 0.8;
-/// DTCG `semantic.accent-attached-raised`의 Latte color-mix 비율.
-const ATTACHED_RAISED_RATIO: f32 = 0.55;
-/// 위 역할이 섞는 DTCG `primitive.color-black`.
+/// color-mix가 섞는 DTCG `primitive.color-black`.
 const BLACK: HexColor = crate::hex!("#000000");
-/// `semantic.accent-danger-on-active`가 Mocha에서 섞는 DTCG `primitive.color-white`.
+/// color-mix가 섞는 DTCG `primitive.color-white`.
 const WHITE: HexColor = crate::hex!("#ffffff");
 
 impl Theme {
+    #[inline]
+    fn band(&self, mocha: HexColor, latte: HexColor) -> HexColor {
+        if self.is_light { latte } else { mocha }
+    }
+
     /// surface-raised 위 채움. Latte는 neutral-200으로 바꿔 n1100 글자의 대비를 확보한다.
     #[inline]
     pub fn surface_on_raised(&self) -> HexColor {
@@ -39,51 +30,46 @@ impl Theme {
     /// surface-active 행의 모든 글자. 어떤 채움도 세 글자 단계를 함께 통과시키지 못해 하나로 합친다.
     #[inline]
     pub fn text_on_active(&self) -> HexColor {
-        if self.is_light {
-            mix_srgb(self.text_primary(), TEXT_ON_ACTIVE_RATIO, BLACK)
-        } else {
-            self.text_primary()
-        }
+        self.band(
+            self.text_primary(),
+            mix_srgb(self.text_primary(), 0.7, BLACK),
+        )
     }
 
     /// surface-active 행의 강조 글리프.
     #[inline]
     pub fn accent_primary_on_active(&self) -> HexColor {
-        if self.is_light {
-            mix_srgb(self.accent_primary(), PRIMARY_ON_ACTIVE_RATIO, BLACK)
-        } else {
-            self.accent_primary()
-        }
+        self.band(
+            mix_srgb(self.accent_primary(), 0.65, WHITE),
+            mix_srgb(self.accent_primary(), 0.65, BLACK),
+        )
     }
 
     /// raised 바탕 위 경고 글자. 채움과 테두리는 accent-warning을 유지한다.
     #[inline]
     pub fn accent_warning_raised(&self) -> HexColor {
-        if self.is_light {
-            mix_srgb(self.accent_warning(), WARNING_RAISED_RATIO, BLACK)
-        } else {
-            self.accent_warning()
-        }
+        self.band(
+            self.accent_warning(),
+            mix_srgb(self.accent_warning(), 0.5, BLACK),
+        )
     }
 
     /// raised 바탕 위 주의 글자. 채움과 테두리는 accent-attention을 유지한다.
     #[inline]
     pub fn accent_attention_raised(&self) -> HexColor {
-        if self.is_light {
-            mix_srgb(self.accent_attention(), ATTENTION_RAISED_RATIO, BLACK)
-        } else {
-            self.accent_attention()
-        }
+        self.band(
+            self.accent_attention(),
+            mix_srgb(self.accent_attention(), 0.55, BLACK),
+        )
     }
 
     /// raised 바탕 위 안내 글자. 채움과 테두리는 accent-info를 유지한다.
     #[inline]
     pub fn accent_info_raised(&self) -> HexColor {
-        if self.is_light {
-            mix_srgb(self.accent_info(), INFO_RAISED_RATIO, BLACK)
-        } else {
-            self.accent_info()
-        }
+        self.band(
+            self.accent_info(),
+            mix_srgb(self.accent_info(), 0.55, BLACK),
+        )
     }
 
     /// 약한 글자. Latte는 neutral-900이 bg-app 위에서 4.5:1에 못 미쳐 neutral-1000으로 올린다.
@@ -99,54 +85,359 @@ impl Theme {
     /// surface-active 행의 경고 글리프. `semantic.accent-warning-on-active`.
     #[inline]
     pub fn accent_warning_on_active(&self) -> HexColor {
-        self.accent_warning_raised()
+        self.band(
+            self.accent_warning(),
+            mix_srgb(self.accent_warning(), 0.45, BLACK),
+        )
     }
 
     /// surface-active 행의 성공 글리프. `semantic.accent-success-on-active`.
     #[inline]
     pub fn accent_success_on_active(&self) -> HexColor {
-        self.accent_success_ink()
+        self.band(
+            self.accent_success(),
+            mix_srgb(self.accent_success(), 0.55, BLACK),
+        )
     }
 
     /// surface-active 행의 위험 글리프. `semantic.accent-danger-on-active`.
     #[inline]
     pub fn accent_danger_on_active(&self) -> HexColor {
-        if self.is_light {
-            self.accent_danger_raised()
-        } else {
-            mix_srgb(self.accent_danger(), DANGER_ON_ACTIVE_RATIO, WHITE)
-        }
+        self.band(
+            mix_srgb(self.accent_danger(), 0.6, WHITE),
+            mix_srgb(self.accent_danger(), 0.7, BLACK),
+        )
     }
 
     /// surface-active 행의 agent·plugin 글리프. `semantic.accent-agent-on-active`.
     #[inline]
     pub fn accent_agent_on_active(&self) -> HexColor {
-        if self.is_light {
-            mix_srgb(self.accent_agent(), AGENT_ON_ACTIVE_RATIO, BLACK)
-        } else {
-            self.accent_agent()
-        }
+        self.band(
+            mix_srgb(self.accent_agent(), 0.7, WHITE),
+            mix_srgb(self.accent_agent(), 0.7, BLACK),
+        )
     }
 
     /// surface-active 행의 원격 글리프. `semantic.accent-remote-on-active`.
     #[inline]
     pub fn accent_remote_on_active(&self) -> HexColor {
-        self.accent_info_raised()
+        self.accent_info_on_active()
     }
 
     /// raised 바탕 위 attached 글자. 고리는 accent-attached를 유지한다.
     #[inline]
     pub fn accent_attached_raised(&self) -> HexColor {
-        if self.is_light {
-            mix_srgb(self.border_attached(), ATTACHED_RAISED_RATIO, BLACK)
-        } else {
-            self.border_attached()
-        }
+        self.band(
+            self.border_attached(),
+            mix_srgb(self.border_attached(), 0.55, BLACK),
+        )
     }
 
     /// surface-active 행의 attached 고리. `semantic.accent-attached-on-active`.
     #[inline]
     pub fn accent_attached_on_active(&self) -> HexColor {
+        self.band(
+            mix_srgb(self.border_attached(), 0.85, WHITE),
+            mix_srgb(self.border_attached(), 0.5, BLACK),
+        )
+    }
+
+    /// 입력 컨트롤의 채움. `semantic.surface-field`.
+    #[inline]
+    pub fn surface_field(&self) -> HexColor {
+        self.band(self.surface_raised(), self.base)
+    }
+
+    /// 빈 컨트롤을 알아보게 하는 테두리. `semantic.border-control`.
+    #[inline]
+    pub fn border_control(&self) -> HexColor {
+        self.band(self.overlay0, mix_srgb(self.overlay2, 0.85, self.text))
+    }
+
+    /// raised 위 컨트롤 테두리. `semantic.border-control-raised`.
+    #[inline]
+    pub fn border_control_raised(&self) -> HexColor {
+        self.band(self.overlay1, self.subtext0)
+    }
+
+    /// 꺼진 스위치의 손잡이. `semantic.control-thumb`.
+    #[inline]
+    pub fn control_thumb(&self) -> HexColor {
+        self.band(self.text, WHITE)
+    }
+
+    /// raised 위 꺼진 스위치의 손잡이. `semantic.control-thumb-raised`.
+    #[inline]
+    pub fn control_thumb_raised(&self) -> HexColor {
+        WHITE
+    }
+
+    /// 스크롤바 손잡이. `semantic.scrollbar-thumb`.
+    #[inline]
+    pub fn scrollbar_thumb(&self) -> HexColor {
+        self.border_control()
+    }
+
+    /// raised 위 스크롤바 손잡이. `semantic.scrollbar-thumb-raised`.
+    #[inline]
+    pub fn scrollbar_thumb_raised(&self) -> HexColor {
+        self.border_control_raised()
+    }
+
+    /// 포인터가 올라간 스크롤바 손잡이. `semantic.scrollbar-thumb-hover`.
+    #[inline]
+    pub fn scrollbar_thumb_hover(&self) -> HexColor {
+        self.text_muted_raised()
+    }
+
+    /// 선택 행의 hover·press 글자. `semantic.text-on-active-hover`.
+    #[inline]
+    pub fn text_on_active_hover(&self) -> HexColor {
+        self.band(WHITE, mix_srgb(self.text, 0.6, BLACK))
+    }
+
+    /// 한발 물러난 글자. `semantic.text-quiet`.
+    #[inline]
+    pub fn text_quiet(&self) -> HexColor {
+        self.band(self.overlay1, self.subtext1)
+    }
+
+    /// 물러나는 글리프. `semantic.glyph-dim`.
+    #[inline]
+    pub fn glyph_dim(&self) -> HexColor {
+        self.band(self.overlay0, self.subtext0)
+    }
+
+    /// raised 위 물러나는 글리프. `semantic.glyph-dim-raised`.
+    #[inline]
+    pub fn glyph_dim_raised(&self) -> HexColor {
+        self.band(self.overlay1, self.subtext0)
+    }
+
+    /// 유휴 상태 점. `semantic.status-idle`.
+    #[inline]
+    pub fn status_idle(&self) -> HexColor {
+        self.band(self.overlay0, self.subtext0)
+    }
+
+    /// `semantic.accent-primary-raised`.
+    #[inline]
+    pub fn accent_primary_raised(&self) -> HexColor {
+        self.band(
+            self.accent_primary(),
+            mix_srgb(self.accent_primary(), 0.7, BLACK),
+        )
+    }
+
+    /// `semantic.accent-agent-raised`.
+    #[inline]
+    pub fn accent_agent_raised(&self) -> HexColor {
+        self.band(
+            self.accent_agent(),
+            mix_srgb(self.accent_agent(), 0.8, BLACK),
+        )
+    }
+
+    /// `semantic.accent-success-raised`.
+    #[inline]
+    pub fn accent_success_raised(&self) -> HexColor {
+        self.accent_success_ink()
+    }
+
+    /// `semantic.accent-remote-raised`.
+    #[inline]
+    pub fn accent_remote_raised(&self) -> HexColor {
+        self.accent_info_raised()
+    }
+
+    /// `semantic.accent-move-raised`.
+    #[inline]
+    pub fn accent_move_raised(&self) -> HexColor {
+        self.band(
+            self.accent_move(),
+            mix_srgb(self.accent_move(), 0.55, BLACK),
+        )
+    }
+
+    /// `semantic.accent-route-raised`.
+    #[inline]
+    pub fn accent_route_raised(&self) -> HexColor {
         self.accent_attached_raised()
     }
+
+    /// `semantic.accent-primary-strong`.
+    #[inline]
+    pub fn accent_primary_strong(&self) -> HexColor {
+        self.band(
+            mix_srgb(self.accent_primary(), 0.85, WHITE),
+            mix_srgb(self.accent_primary(), 0.65, BLACK),
+        )
+    }
+
+    /// `semantic.accent-info-strong`.
+    #[inline]
+    pub fn accent_info_strong(&self) -> HexColor {
+        self.band(
+            self.accent_info(),
+            mix_srgb(self.accent_info(), 0.45, BLACK),
+        )
+    }
+
+    /// `semantic.accent-success-strong`.
+    #[inline]
+    pub fn accent_success_strong(&self) -> HexColor {
+        self.band(
+            self.accent_success(),
+            mix_srgb(self.accent_success(), 0.5, BLACK),
+        )
+    }
+
+    /// `semantic.accent-warning-strong`.
+    #[inline]
+    pub fn accent_warning_strong(&self) -> HexColor {
+        self.band(
+            self.accent_warning(),
+            mix_srgb(self.accent_warning(), 0.45, BLACK),
+        )
+    }
+
+    /// `semantic.accent-attention-strong`.
+    #[inline]
+    pub fn accent_attention_strong(&self) -> HexColor {
+        self.band(
+            self.accent_attention(),
+            mix_srgb(self.accent_attention(), 0.45, BLACK),
+        )
+    }
+
+    /// `semantic.accent-danger-strong`.
+    #[inline]
+    pub fn accent_danger_strong(&self) -> HexColor {
+        self.band(
+            mix_srgb(self.accent_danger(), 0.75, WHITE),
+            mix_srgb(self.accent_danger(), 0.7, BLACK),
+        )
+    }
+
+    /// `semantic.accent-agent-strong`.
+    #[inline]
+    pub fn accent_agent_strong(&self) -> HexColor {
+        self.band(
+            mix_srgb(self.accent_agent(), 0.9, WHITE),
+            mix_srgb(self.accent_agent(), 0.65, BLACK),
+        )
+    }
+
+    /// `semantic.accent-attached-strong`.
+    #[inline]
+    pub fn accent_attached_strong(&self) -> HexColor {
+        self.band(
+            self.border_attached(),
+            mix_srgb(self.border_attached(), 0.5, BLACK),
+        )
+    }
+
+    /// `semantic.accent-remote-strong`.
+    #[inline]
+    pub fn accent_remote_strong(&self) -> HexColor {
+        self.accent_info_strong()
+    }
+
+    /// `semantic.accent-info-on-active`.
+    #[inline]
+    pub fn accent_info_on_active(&self) -> HexColor {
+        self.band(self.accent_info(), mix_srgb(self.accent_info(), 0.5, BLACK))
+    }
+
+    /// `semantic.accent-attention-on-active`.
+    #[inline]
+    pub fn accent_attention_on_active(&self) -> HexColor {
+        self.band(
+            mix_srgb(self.accent_attention(), 0.85, WHITE),
+            mix_srgb(self.accent_attention(), 0.5, BLACK),
+        )
+    }
+
+    /// `semantic.accent-move-on-active`.
+    #[inline]
+    pub fn accent_move_on_active(&self) -> HexColor {
+        self.band(
+            self.accent_move(),
+            mix_srgb(self.accent_move(), 0.45, BLACK),
+        )
+    }
+
+    /// `semantic.accent-route-on-active`.
+    #[inline]
+    pub fn accent_route_on_active(&self) -> HexColor {
+        self.accent_attached_on_active()
+    }
+
+    /// `semantic.accent-success-fill`.
+    #[inline]
+    pub fn accent_success_fill(&self) -> HexColor {
+        self.band(
+            self.accent_success(),
+            mix_srgb(self.accent_success(), 0.75, BLACK),
+        )
+    }
+
+    /// `semantic.attention-needs-input-fill`.
+    #[inline]
+    pub fn attention_needs_input_fill(&self) -> HexColor {
+        self.notify_warning_fill()
+    }
+
+    /// `semantic.tint-primary-bg`.
+    #[inline]
+    pub fn tint_primary_bg(&self) -> HexColor {
+        tint(self.accent_primary())
+    }
+
+    /// `semantic.tint-info-bg`.
+    #[inline]
+    pub fn tint_info_bg(&self) -> HexColor {
+        tint(self.accent_info())
+    }
+
+    /// `semantic.tint-success-bg`.
+    #[inline]
+    pub fn tint_success_bg(&self) -> HexColor {
+        tint(self.accent_success())
+    }
+
+    /// `semantic.tint-warning-bg`.
+    #[inline]
+    pub fn tint_warning_bg(&self) -> HexColor {
+        tint(self.accent_warning())
+    }
+
+    /// `semantic.tint-danger-bg`.
+    #[inline]
+    pub fn tint_danger_bg(&self) -> HexColor {
+        tint(self.accent_danger())
+    }
+
+    /// `semantic.tint-agent-bg`.
+    #[inline]
+    pub fn tint_agent_bg(&self) -> HexColor {
+        tint(self.accent_agent())
+    }
+
+    /// 터미널 vi 커서 칸의 글자. `semantic.vi-cursor-fg`.
+    #[inline]
+    pub fn vi_cursor_fg(&self) -> HexColor {
+        self.band(self.crust, BLACK)
+    }
+
+    /// 포인터가 올라간 비활성 탭. `component.tab-bg-hover`.
+    #[inline]
+    pub fn tab_bg_hover(&self) -> HexColor {
+        mix_srgb(self.bg_panel(), 0.6, self.bg_sidebar())
+    }
+}
+
+/// 강조색을 틴트 채움 비율로 낮춘다. 비율은 8비트 alpha로 반올림한다.
+fn tint(accent: HexColor) -> HexColor {
+    accent.with_alpha((TINT_FILL_ALPHA * 255.0).round() as u8)
 }

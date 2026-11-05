@@ -174,7 +174,7 @@ pub fn draw_apply_preset_view(
         if names.is_empty() {
             ui.label(
                 egui::RichText::new(props.empty_label)
-                    .color(th.text_muted())
+                    .color(th.text_muted_raised())
                     .italics(),
             );
         } else {
@@ -207,10 +207,10 @@ pub fn draw_apply_preset_view(
                             egui::Align2::LEFT_CENTER,
                             name,
                             egui::FontId::proportional(PRESET_ROW_LABEL_PRIMITIVE_12.value()),
-                            if is_selected {
-                                th.text_primary().into()
+                            if is_selected || resp.hovered() {
+                                th.text_on_active().into()
                             } else {
-                                th.text_muted().into()
+                                th.text_muted_raised().into()
                             },
                         );
                         if resp.clicked() {

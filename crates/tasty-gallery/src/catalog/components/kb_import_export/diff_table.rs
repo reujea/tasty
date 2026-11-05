@@ -257,7 +257,7 @@ fn group_header(
                 ui,
                 &g.label.to_uppercase(),
                 egui::FontId::monospace(theme.font_size_micro.value()),
-                theme.text_secondary().to_egui(),
+                theme.text_secondary_raised().to_egui(),
                 f32::INFINITY,
                 theme.letter_spacing_caps(theme.font_size_micro),
             );
@@ -274,7 +274,7 @@ fn group_header(
                 egui::vec2(glyph, glyph),
             );
             chevron
-                .image(glyph, theme.text_muted().to_egui())
+                .image(glyph, theme.text_muted_raised().to_egui())
                 .paint_at(ui, cr);
             ui.painter().galley(
                 egui::pos2(
@@ -296,7 +296,7 @@ fn group_header(
                 egui::RichText::new(format!("{changed} changed · {} total", g.rows.len()))
                     .monospace()
                     .size(theme.font_size_caption.value())
-                    .color(theme.text_muted().to_egui()),
+                    .color(theme.text_muted_raised().to_egui()),
             );
         },
     );

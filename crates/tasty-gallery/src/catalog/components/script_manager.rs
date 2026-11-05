@@ -276,7 +276,7 @@ fn script_row(ui: &mut egui::Ui, theme: &Theme, s: &Seed) {
                                     "settings.scripts.changed_help",
                                 ))
                                 .size(theme.font_size_caption.value())
-                                .color(theme.accent_warning().to_egui()),
+                                .color(theme.accent_warning_raised().to_egui()),
                             );
                         }
                         trigger_row(ui, theme, s.triggers);

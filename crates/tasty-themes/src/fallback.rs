@@ -29,7 +29,7 @@ pub fn mocha_fallback_colors() -> ThemeColors {
         text: HexColor::from_rgb(0xcd, 0xd6, 0xf4),
         subtext1: HexColor::from_rgb(0xba, 0xc2, 0xde),
         subtext0: HexColor::from_rgb(0xa6, 0xad, 0xc8),
-        placeholder: HexColor::from_rgb(0x6c, 0x70, 0x86), // = overlay0
+        placeholder: HexColor::from_rgb(0xa6, 0xad, 0xc8), // = subtext0
         // Accent
         blue: HexColor::from_rgb(0x89, 0xb4, 0xfa),
         green: HexColor::from_rgb(0xa6, 0xe3, 0xa1),

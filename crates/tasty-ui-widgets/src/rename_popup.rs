@@ -150,7 +150,7 @@ fn content(
             egui::Label::new(
                 egui::RichText::new(err)
                     .size(theme.font_size_caption.value())
-                    .color(theme.accent_danger().to_egui()),
+                    .color(theme.accent_danger_raised().to_egui()),
             )
             .wrap(),
         );

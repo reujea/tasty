@@ -159,7 +159,7 @@ fn status(
             ui.label(
                 egui::RichText::new(*skipped)
                     .font(font.clone())
-                    .color(theme.accent_warning().to_egui()),
+                    .color(theme.accent_warning_raised().to_egui()),
             )
             .on_hover_text(*tooltip);
             ui.label(egui::RichText::new("·").font(font.clone()).color(muted));

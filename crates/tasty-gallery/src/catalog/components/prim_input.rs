@@ -96,11 +96,11 @@ pub fn draw(ui: &mut egui::Ui, theme: &Theme) {
                         .show(ui, theme, &mut bufs[7]);
                 },
             );
-            // 시안 ground="raised": surface-raised 위에서는 상자가 bg-panel + border-strong으로 내려선다.
+            // 시안 ground="raised": surface-raised 위에서는 상자가 bg-panel + border-control-raised로 내려선다.
             cluster(
                 ui,
                 theme,
-                "ground=\"raised\" — on surface-raised, box steps down to bg-panel + border-strong",
+                "ground=\"raised\" — on surface-raised, box steps down to bg-panel + border-control-raised",
                 |ui| {
                     egui::Frame::new()
                         .fill(theme.surface_raised().to_egui())

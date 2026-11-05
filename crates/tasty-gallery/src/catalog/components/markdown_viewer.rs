@@ -63,7 +63,7 @@ pub fn draw(ui: &mut egui::Ui, theme: &Theme) {
                     egui::RichText::new("notes.md: No such file")
                         .monospace()
                         .size(theme.font_size_caption.value())
-                        .color(theme.text_muted().to_egui()),
+                        .color(theme.text_muted_raised().to_egui()),
                 );
             });
         });
@@ -73,7 +73,7 @@ pub fn draw(ui: &mut egui::Ui, theme: &Theme) {
                     theme,
                     "This file is empty",
                     theme.font_size_body.value(),
-                    theme.text_muted().to_egui(),
+                    theme.text_muted_raised().to_egui(),
                 ));
             });
         });
@@ -84,7 +84,7 @@ pub fn draw(ui: &mut egui::Ui, theme: &Theme) {
                     theme,
                     "This file is larger than 1\u{a0}MiB and has not been loaded",
                     theme.font_size_body.value(),
-                    theme.text_muted().to_egui(),
+                    theme.text_muted_raised().to_egui(),
                 ));
                 ui.add_space(theme.spacing_sm.value());
                 Button::new("Open file…")
@@ -103,7 +103,7 @@ pub fn draw(ui: &mut egui::Ui, theme: &Theme) {
                     theme,
                     "Loading…",
                     theme.font_size_body.value(),
-                    theme.text_muted().to_egui(),
+                    theme.text_muted_raised().to_egui(),
                 ));
             });
         });
@@ -179,8 +179,12 @@ pub fn draw(ui: &mut egui::Ui, theme: &Theme) {
                 "headings · strong",
                 theme.text_primary().to_egui(),
             ),
-            TokenChip::new("text-secondary", "body", theme.text_secondary().to_egui()),
-            TokenChip::new("text-muted", "caption", theme.text_muted().to_egui()),
+            TokenChip::new(
+                "text-secondary",
+                "body",
+                theme.text_secondary_raised().to_egui(),
+            ),
+            TokenChip::new("text-muted", "caption", theme.text_muted_raised().to_egui()),
             TokenChip::new(
                 "accent-primary",
                 "link · note alert",

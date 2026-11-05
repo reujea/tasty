@@ -129,16 +129,16 @@ pub fn draw(ui: &mut egui::Ui, theme: &Theme) {
             ),
             (
                 "header",
-                "pad-y transfer-header-pad-y 12 · pad-x transfer-pad-x 14 · gap space-sm",
+                "pad-y transfer-header-pad-y 12 · pad-x transfer-pad-x 12 · gap space-sm",
             ),
             (
                 "body",
-                "padding transfer-pad-x 14 · block gap transfer-body-gap 10",
+                "padding transfer-pad-x 12 · block gap transfer-body-gap 8",
             ),
-            ("footer", "pad-y transfer-footer-pad-y 10 · pad-x 14"),
+            ("footer", "pad-y transfer-footer-pad-y 8 · pad-x 12"),
             (
                 "reason well",
-                "transfer-well-pad-y 8 · transfer-well-pad-x 10",
+                "transfer-well-pad-y 8 · transfer-well-pad-x 12",
             ),
             (
                 "line heights",
@@ -147,12 +147,12 @@ pub fn draw(ui: &mut egui::Ui, theme: &Theme) {
             ),
         ],
         &[
-            TokenChip::without_color("transfer-pad-x", "14 inset"),
+            TokenChip::without_color("transfer-pad-x", "→ space-md 12"),
             TokenChip::without_color("transfer-header-pad-y", "→ space-md 12"),
-            TokenChip::without_color("transfer-body-gap", "→ size-10"),
-            TokenChip::without_color("transfer-footer-pad-y", "→ size-10"),
+            TokenChip::without_color("transfer-body-gap", "→ space-sm 8"),
+            TokenChip::without_color("transfer-footer-pad-y", "→ space-sm 8"),
             TokenChip::without_color("transfer-well-pad-y", "→ space-sm 8"),
-            TokenChip::without_color("transfer-well-pad-x", "→ size-10"),
+            TokenChip::without_color("transfer-well-pad-x", "→ space-md 12"),
         ],
     );
 }
@@ -432,7 +432,7 @@ fn reason_well(ui: &mut egui::Ui, theme: &Theme, reason: &str) {
                 egui::RichText::new(reason)
                     .monospace()
                     .size(theme.font_size_caption.value())
-                    .color(theme.accent_danger().to_egui()),
+                    .color(theme.accent_danger_raised().to_egui()),
             );
         });
 }

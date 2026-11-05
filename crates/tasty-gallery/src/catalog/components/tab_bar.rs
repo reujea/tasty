@@ -192,7 +192,7 @@ fn scroll_strip(ui: &mut egui::Ui, theme: &Theme) {
         egui::Align2::LEFT_CENTER,
         "server · dev · vim · logs",
         egui::FontId::proportional(theme.font_size_caption.value()),
-        egui::Color32::from(theme.text_secondary()),
+        egui::Color32::from(theme.text_secondary_raised()),
     );
 }
 

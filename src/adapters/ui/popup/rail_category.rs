@@ -69,12 +69,11 @@ fn menu_row(
         ui.painter()
             .rect_filled(rect, radius, th.hover_overlay.to_egui_premultiplied());
     }
-    let color: egui::Color32 = if danger {
-        th.accent_danger().into()
-    } else if resp.hovered() {
-        th.text_primary().into()
-    } else {
-        th.text_muted().into()
+    let color: egui::Color32 = match (danger, resp.hovered()) {
+        (true, true) => th.accent_danger_strong().into(),
+        (true, false) => th.accent_danger_raised().into(),
+        (false, true) => th.text_on_active().into(),
+        (false, false) => th.text_muted_raised().into(),
     };
     let icon_size = th.icon_glyph_size_md.value();
     let icon_rect = egui::Rect::from_min_size(

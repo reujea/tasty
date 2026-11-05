@@ -57,6 +57,32 @@ pub fn checkbox_wrapping(
     draw_checkbox(ui, theme, checked, label, enabled, Some(id), label_fg)
 }
 
+/// [`checkbox_on_raised`] 와 같고 라벨 색을 호출자가 정한다.
+pub fn checkbox_on_raised_with_label_color(
+    ui: &mut egui::Ui,
+    theme: &Theme,
+    checked: &mut bool,
+    label: &str,
+    enabled: bool,
+    label_fg: egui::Color32,
+) -> egui::Response {
+    let edge = theme.border_control_raised().to_egui();
+    draw_checkbox_on(ui, theme, checked, label, enabled, None, label_fg, edge)
+}
+
+/// [`checkbox`] 와 같고 raised 바탕의 테두리를 쓴다.
+pub fn checkbox_on_raised(
+    ui: &mut egui::Ui,
+    theme: &Theme,
+    checked: &mut bool,
+    label: &str,
+    enabled: bool,
+) -> egui::Response {
+    let label_fg = theme.text_primary().to_egui();
+    let edge = theme.border_control_raised().to_egui();
+    draw_checkbox_on(ui, theme, checked, label, enabled, None, label_fg, edge)
+}
+
 /// `id` 가 있으면 그 id 로 반응하고 라벨을 줄바꿈한다. 없으면 자동 id 와 한 줄 말줄임이다.
 fn draw_checkbox(
     ui: &mut egui::Ui,
@@ -66,6 +92,21 @@ fn draw_checkbox(
     enabled: bool,
     id: Option<egui::Id>,
     label_fg: egui::Color32,
+) -> egui::Response {
+    let edge = theme.checkbox_border().to_egui();
+    draw_checkbox_on(ui, theme, checked, label, enabled, id, label_fg, edge)
+}
+
+#[allow(clippy::too_many_arguments)] // reason: 공개 변형 넷이 같은 그리기를 공유하는 내부 함수다.
+fn draw_checkbox_on(
+    ui: &mut egui::Ui,
+    theme: &Theme,
+    checked: &mut bool,
+    label: &str,
+    enabled: bool,
+    id: Option<egui::Id>,
+    label_fg: egui::Color32,
+    off_edge: egui::Color32,
 ) -> egui::Response {
     // gap(라벨)·body 는 대응 checkbox component 토큰 없음 → semantic.
     let gap = theme.spacing_sm.value();
@@ -145,10 +186,7 @@ fn draw_checkbox(
             theme.checkbox_bg_checked().to_egui(),
         )
     } else {
-        (
-            theme.checkbox_bg().to_egui(),
-            theme.checkbox_border().to_egui(),
-        )
+        (theme.checkbox_bg().to_egui(), off_edge)
     };
     ui.painter().rect(
         box_rect,
@@ -188,6 +226,18 @@ pub fn switch(
     switch_with_label_color(ui, theme, checked, label, enabled, label_color)
 }
 
+/// [`switch`] 와 같고 raised 바탕의 꺼진 트랙과 손잡이를 쓴다.
+pub fn switch_on_raised(
+    ui: &mut egui::Ui,
+    theme: &Theme,
+    checked: &mut bool,
+    label: Option<&str>,
+    enabled: bool,
+) -> egui::Response {
+    let label_color = theme.text_primary().to_egui();
+    draw_switch(ui, theme, checked, label, enabled, label_color, true)
+}
+
 /// [`switch`] 와 같지만 활성 상태의 라벨 색을 호출자가 정한다. 트랙과 라벨이 한 클릭 영역이라
 /// 키보드 초점도 한 칸이다. disabled 라벨은 다른 컨트롤과 같은 disabled ink 를 쓴다.
 pub fn switch_with_label_color(
@@ -197,6 +247,18 @@ pub fn switch_with_label_color(
     label: Option<&str>,
     enabled: bool,
     label_color: egui::Color32,
+) -> egui::Response {
+    draw_switch(ui, theme, checked, label, enabled, label_color, false)
+}
+
+fn draw_switch(
+    ui: &mut egui::Ui,
+    theme: &Theme,
+    checked: &mut bool,
+    label: Option<&str>,
+    enabled: bool,
+    label_color: egui::Color32,
+    on_raised: bool,
 ) -> egui::Response {
     // gap(라벨)·body 는 대응 switch component 토큰 없음 → semantic.
     let gap = theme.spacing_sm.value();
@@ -239,8 +301,7 @@ pub fn switch_with_label_color(
         egui::pos2(rect.left(), rect.center().y - track_h * 0.5),
         egui::vec2(track_w, track_h),
     );
-    // checked on-track 은 switch-track-bg-on 이 fill=border 겸함. unchecked 는
-    // switch-track-bg + border-default(switch track-border 토큰 없음 → semantic).
+    // 트랙은 채움이 곧 테두리다. 별도의 테두리 색이 없다.
     let (track_fill, track_border) = if !enabled {
         (
             theme.state_disabled_fill().to_egui(),
@@ -252,10 +313,12 @@ pub fn switch_with_label_color(
             theme.switch_track_bg_on().to_egui(),
         )
     } else {
-        (
-            theme.switch_track_bg().to_egui(),
-            theme.border_default().to_egui(),
-        )
+        let off = if on_raised {
+            theme.switch_track_raised_bg()
+        } else {
+            theme.switch_track_bg()
+        };
+        (off.to_egui(), off.to_egui())
     };
     // 완전히 둥근 트랙이 되도록 높이의 절반을 반경으로 사용한다.
     ui.painter().rect(
@@ -272,6 +335,8 @@ pub fn switch_with_label_color(
     };
     let thumb_color = if *checked {
         theme.switch_thumb_bg_on().to_egui()
+    } else if on_raised {
+        theme.switch_thumb_raised_bg().to_egui()
     } else {
         theme.switch_thumb_bg().to_egui()
     };

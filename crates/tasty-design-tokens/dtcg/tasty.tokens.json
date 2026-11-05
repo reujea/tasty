@@ -757,11 +757,21 @@
     },
     "text-placeholder": {
       "$type": "color",
-      "$value": "{primitive.color-neutral-600}"
+      "$value": "{primitive.color-neutral-900}",
+      "$extensions": {
+        "com.tasty.mode": {
+          "latte": "{primitive.color-neutral-1000}"
+        }
+      }
     },
     "glyph-dim": {
       "$type": "color",
-      "$value": "{primitive.color-neutral-600}"
+      "$value": "{primitive.color-neutral-600}",
+      "$extensions": {
+        "com.tasty.mode": {
+          "latte": "{primitive.color-neutral-900}"
+        }
+      }
     },
     "text-secondary-raised": {
       "$type": "color",
@@ -877,7 +887,7 @@
     },
     "attention-needs-input-fg": {
       "$type": "color",
-      "$value": "{semantic.text-on-accent}"
+      "$value": "{semantic.notify-warning-fg}"
     },
     "attention-completion-fg": {
       "$type": "color",
@@ -931,46 +941,61 @@
     },
     "accent-primary-on-active": {
       "$type": "color",
-      "$value": "{semantic.accent-primary}",
+      "$value": "color-mix(in srgb, var(--tasty-color-blue) 65%, var(--tasty-color-white))",
       "$extensions": {
         "com.tasty.mode": {
-          "latte": "color-mix(in srgb, var(--tasty-color-blue) 70%, var(--tasty-color-black))"
+          "latte": "color-mix(in srgb, var(--tasty-color-blue) 65%, var(--tasty-color-black))"
         }
       }
     },
     "accent-warning-on-active": {
       "$type": "color",
-      "$value": "{semantic.accent-warning-raised}"
+      "$value": "{semantic.accent-warning}",
+      "$extensions": {
+        "com.tasty.mode": {
+          "latte": "color-mix(in srgb, var(--tasty-color-yellow) 45%, var(--tasty-color-black))"
+        }
+      }
     },
     "accent-success-on-active": {
       "$type": "color",
-      "$value": "{semantic.accent-success-ink}"
+      "$value": "{semantic.accent-success}",
+      "$extensions": {
+        "com.tasty.mode": {
+          "latte": "color-mix(in srgb, var(--tasty-color-green) 55%, var(--tasty-color-black))"
+        }
+      }
     },
     "accent-danger-on-active": {
       "$type": "color",
-      "$value": "color-mix(in srgb, var(--tasty-color-red) 85%, var(--tasty-color-white))",
+      "$value": "color-mix(in srgb, var(--tasty-color-red) 60%, var(--tasty-color-white))",
       "$extensions": {
         "com.tasty.mode": {
-          "latte": "{semantic.accent-danger-raised}"
+          "latte": "color-mix(in srgb, var(--tasty-color-red) 70%, var(--tasty-color-black))"
         }
       }
     },
     "accent-agent-on-active": {
       "$type": "color",
-      "$value": "{semantic.accent-agent}",
+      "$value": "color-mix(in srgb, var(--tasty-color-mauve) 70%, var(--tasty-color-white))",
       "$extensions": {
         "com.tasty.mode": {
-          "latte": "color-mix(in srgb, var(--tasty-color-mauve) 80%, var(--tasty-color-black))"
+          "latte": "color-mix(in srgb, var(--tasty-color-mauve) 70%, var(--tasty-color-black))"
         }
       }
     },
     "accent-remote-on-active": {
       "$type": "color",
-      "$value": "{semantic.accent-info-raised}"
+      "$value": "{semantic.accent-info-on-active}"
     },
     "accent-attached-on-active": {
       "$type": "color",
-      "$value": "{semantic.accent-attached-raised}"
+      "$value": "color-mix(in srgb, var(--tasty-color-lavender) 85%, var(--tasty-color-white))",
+      "$extensions": {
+        "com.tasty.mode": {
+          "latte": "color-mix(in srgb, var(--tasty-color-lavender) 50%, var(--tasty-color-black))"
+        }
+      }
     },
     "accent-attached-raised": {
       "$type": "color",
@@ -1055,7 +1080,12 @@
     },
     "status-idle": {
       "$type": "color",
-      "$value": "{primitive.color-neutral-600}"
+      "$value": "{primitive.color-neutral-600}",
+      "$extensions": {
+        "com.tasty.mode": {
+          "latte": "{primitive.color-neutral-900}"
+        }
+      }
     },
     "border-default": {
       "$type": "color",
@@ -1580,6 +1610,277 @@
     "brand-melon-seed": {
       "$type": "color",
       "$value": "{primitive.color-melon-seed}"
+    },
+    "surface-field": {
+      "$type": "color",
+      "$value": "{semantic.surface-raised}",
+      "$extensions": {
+        "com.tasty.mode": {
+          "latte": "{primitive.color-neutral-200}"
+        }
+      }
+    },
+    "border-control": {
+      "$type": "color",
+      "$value": "{primitive.color-neutral-600}",
+      "$extensions": {
+        "com.tasty.mode": {
+          "latte": "color-mix(in srgb, var(--tasty-color-neutral-800) 85%, var(--tasty-color-neutral-1100))"
+        }
+      }
+    },
+    "border-control-raised": {
+      "$type": "color",
+      "$value": "{primitive.color-neutral-700}",
+      "$extensions": {
+        "com.tasty.mode": {
+          "latte": "{primitive.color-neutral-900}"
+        }
+      }
+    },
+    "control-thumb": {
+      "$type": "color",
+      "$value": "{primitive.color-neutral-1100}",
+      "$extensions": {
+        "com.tasty.mode": {
+          "latte": "{primitive.color-white}"
+        }
+      }
+    },
+    "control-thumb-raised": {
+      "$type": "color",
+      "$value": "{primitive.color-white}"
+    },
+    "scrollbar-thumb": {
+      "$type": "color",
+      "$value": "{semantic.border-control}"
+    },
+    "scrollbar-thumb-raised": {
+      "$type": "color",
+      "$value": "{semantic.border-control-raised}"
+    },
+    "scrollbar-thumb-hover": {
+      "$type": "color",
+      "$value": "{semantic.text-muted-raised}"
+    },
+    "text-on-active-hover": {
+      "$type": "color",
+      "$value": "{primitive.color-white}",
+      "$extensions": {
+        "com.tasty.mode": {
+          "latte": "color-mix(in srgb, var(--tasty-color-neutral-1100) 60%, var(--tasty-color-black))"
+        }
+      }
+    },
+    "text-quiet": {
+      "$type": "color",
+      "$value": "{primitive.color-neutral-700}",
+      "$extensions": {
+        "com.tasty.mode": {
+          "latte": "{primitive.color-neutral-1000}"
+        }
+      }
+    },
+    "glyph-dim-raised": {
+      "$type": "color",
+      "$value": "{primitive.color-neutral-700}",
+      "$extensions": {
+        "com.tasty.mode": {
+          "latte": "{primitive.color-neutral-900}"
+        }
+      }
+    },
+    "accent-primary-raised": {
+      "$type": "color",
+      "$value": "{semantic.accent-primary}",
+      "$extensions": {
+        "com.tasty.mode": {
+          "latte": "color-mix(in srgb, var(--tasty-color-blue) 70%, var(--tasty-color-black))"
+        }
+      }
+    },
+    "accent-agent-raised": {
+      "$type": "color",
+      "$value": "{semantic.accent-agent}",
+      "$extensions": {
+        "com.tasty.mode": {
+          "latte": "color-mix(in srgb, var(--tasty-color-mauve) 80%, var(--tasty-color-black))"
+        }
+      }
+    },
+    "accent-success-raised": {
+      "$type": "color",
+      "$value": "{semantic.accent-success-ink}"
+    },
+    "accent-remote-raised": {
+      "$type": "color",
+      "$value": "{semantic.accent-info-raised}"
+    },
+    "accent-move-raised": {
+      "$type": "color",
+      "$value": "{semantic.accent-move}",
+      "$extensions": {
+        "com.tasty.mode": {
+          "latte": "color-mix(in srgb, var(--tasty-color-pink) 55%, var(--tasty-color-black))"
+        }
+      }
+    },
+    "accent-route-raised": {
+      "$type": "color",
+      "$value": "{semantic.accent-attached-raised}"
+    },
+    "accent-primary-strong": {
+      "$type": "color",
+      "$value": "color-mix(in srgb, var(--tasty-color-blue) 85%, var(--tasty-color-white))",
+      "$extensions": {
+        "com.tasty.mode": {
+          "latte": "color-mix(in srgb, var(--tasty-color-blue) 65%, var(--tasty-color-black))"
+        }
+      }
+    },
+    "accent-info-strong": {
+      "$type": "color",
+      "$value": "{semantic.accent-info}",
+      "$extensions": {
+        "com.tasty.mode": {
+          "latte": "color-mix(in srgb, var(--tasty-color-sky) 45%, var(--tasty-color-black))"
+        }
+      }
+    },
+    "accent-success-strong": {
+      "$type": "color",
+      "$value": "{semantic.accent-success}",
+      "$extensions": {
+        "com.tasty.mode": {
+          "latte": "color-mix(in srgb, var(--tasty-color-green) 50%, var(--tasty-color-black))"
+        }
+      }
+    },
+    "accent-warning-strong": {
+      "$type": "color",
+      "$value": "{semantic.accent-warning}",
+      "$extensions": {
+        "com.tasty.mode": {
+          "latte": "color-mix(in srgb, var(--tasty-color-yellow) 45%, var(--tasty-color-black))"
+        }
+      }
+    },
+    "accent-attention-strong": {
+      "$type": "color",
+      "$value": "{semantic.accent-attention}",
+      "$extensions": {
+        "com.tasty.mode": {
+          "latte": "color-mix(in srgb, var(--tasty-color-peach) 45%, var(--tasty-color-black))"
+        }
+      }
+    },
+    "accent-danger-strong": {
+      "$type": "color",
+      "$value": "color-mix(in srgb, var(--tasty-color-red) 75%, var(--tasty-color-white))",
+      "$extensions": {
+        "com.tasty.mode": {
+          "latte": "color-mix(in srgb, var(--tasty-color-red) 70%, var(--tasty-color-black))"
+        }
+      }
+    },
+    "accent-agent-strong": {
+      "$type": "color",
+      "$value": "color-mix(in srgb, var(--tasty-color-mauve) 90%, var(--tasty-color-white))",
+      "$extensions": {
+        "com.tasty.mode": {
+          "latte": "color-mix(in srgb, var(--tasty-color-mauve) 65%, var(--tasty-color-black))"
+        }
+      }
+    },
+    "accent-attached-strong": {
+      "$type": "color",
+      "$value": "{semantic.accent-attached}",
+      "$extensions": {
+        "com.tasty.mode": {
+          "latte": "color-mix(in srgb, var(--tasty-color-lavender) 50%, var(--tasty-color-black))"
+        }
+      }
+    },
+    "accent-remote-strong": {
+      "$type": "color",
+      "$value": "{semantic.accent-info-strong}"
+    },
+    "accent-info-on-active": {
+      "$type": "color",
+      "$value": "{semantic.accent-info}",
+      "$extensions": {
+        "com.tasty.mode": {
+          "latte": "color-mix(in srgb, var(--tasty-color-sky) 50%, var(--tasty-color-black))"
+        }
+      }
+    },
+    "accent-attention-on-active": {
+      "$type": "color",
+      "$value": "color-mix(in srgb, var(--tasty-color-peach) 85%, var(--tasty-color-white))",
+      "$extensions": {
+        "com.tasty.mode": {
+          "latte": "color-mix(in srgb, var(--tasty-color-peach) 50%, var(--tasty-color-black))"
+        }
+      }
+    },
+    "accent-move-on-active": {
+      "$type": "color",
+      "$value": "{semantic.accent-move}",
+      "$extensions": {
+        "com.tasty.mode": {
+          "latte": "color-mix(in srgb, var(--tasty-color-pink) 45%, var(--tasty-color-black))"
+        }
+      }
+    },
+    "accent-route-on-active": {
+      "$type": "color",
+      "$value": "{semantic.accent-attached-on-active}"
+    },
+    "accent-success-fill": {
+      "$type": "color",
+      "$value": "{semantic.accent-success}",
+      "$extensions": {
+        "com.tasty.mode": {
+          "latte": "color-mix(in srgb, var(--tasty-color-green) 75%, var(--tasty-color-black))"
+        }
+      }
+    },
+    "attention-needs-input-fill": {
+      "$type": "color",
+      "$value": "{semantic.notify-warning-fill}"
+    },
+    "tint-primary-bg": {
+      "$type": "color",
+      "$value": "color-mix(in srgb, var(--tasty-accent-primary) calc(var(--tasty-tint-fill-alpha) * 100%), transparent)"
+    },
+    "tint-info-bg": {
+      "$type": "color",
+      "$value": "color-mix(in srgb, var(--tasty-accent-info) calc(var(--tasty-tint-fill-alpha) * 100%), transparent)"
+    },
+    "tint-success-bg": {
+      "$type": "color",
+      "$value": "color-mix(in srgb, var(--tasty-accent-success) calc(var(--tasty-tint-fill-alpha) * 100%), transparent)"
+    },
+    "tint-warning-bg": {
+      "$type": "color",
+      "$value": "color-mix(in srgb, var(--tasty-accent-warning) calc(var(--tasty-tint-fill-alpha) * 100%), transparent)"
+    },
+    "tint-danger-bg": {
+      "$type": "color",
+      "$value": "color-mix(in srgb, var(--tasty-accent-danger) calc(var(--tasty-tint-fill-alpha) * 100%), transparent)"
+    },
+    "tint-agent-bg": {
+      "$type": "color",
+      "$value": "color-mix(in srgb, var(--tasty-accent-agent) calc(var(--tasty-tint-fill-alpha) * 100%), transparent)"
+    },
+    "vi-cursor-fg": {
+      "$type": "color",
+      "$value": "{primitive.color-neutral-0}",
+      "$extensions": {
+        "com.tasty.mode": {
+          "latte": "{primitive.color-black}"
+        }
+      }
     }
   },
   "component": {
@@ -1750,7 +2051,7 @@
     },
     "badge-fg": {
       "$type": "color",
-      "$value": "{semantic.text-secondary}"
+      "$value": "{semantic.text-secondary-raised}"
     },
     "badge-danger-bg": {
       "$type": "color",
@@ -1770,7 +2071,7 @@
     },
     "badge-warning-bg": {
       "$type": "color",
-      "$value": "{semantic.attention-needs-input}"
+      "$value": "{semantic.attention-needs-input-fill}"
     },
     "badge-warning-fg": {
       "$type": "color",
@@ -1786,7 +2087,7 @@
     },
     "badge-success-bg": {
       "$type": "color",
-      "$value": "{semantic.accent-success}"
+      "$value": "{semantic.accent-success-fill}"
     },
     "badge-success-fg": {
       "$type": "color",
@@ -1890,7 +2191,7 @@
     },
     "kbd-gap": {
       "$type": "dimension",
-      "$value": "{primitive.size-3}"
+      "$value": "{semantic.space-xs}"
     },
     "kbd-shadow-depth": {
       "$type": "dimension",
@@ -1954,7 +2255,7 @@
     },
     "input-bg": {
       "$type": "color",
-      "$value": "{semantic.surface-raised}"
+      "$value": "{semantic.surface-field}"
     },
     "input-fg": {
       "$type": "color",
@@ -1966,7 +2267,7 @@
     },
     "input-border": {
       "$type": "color",
-      "$value": "{semantic.border-default}"
+      "$value": "{semantic.border-control}"
     },
     "input-border-focus": {
       "$type": "color",
@@ -1999,7 +2300,7 @@
     },
     "input-raised-border": {
       "$type": "color",
-      "$value": "{semantic.border-strong}"
+      "$value": "{semantic.border-control-raised}"
     },
     "input-readonly-raised-bg": {
       "$type": "color",
@@ -2031,7 +2332,7 @@
     },
     "select-bg": {
       "$type": "color",
-      "$value": "{semantic.surface-raised}"
+      "$value": "{semantic.surface-field}"
     },
     "select-fg": {
       "$type": "color",
@@ -2039,7 +2340,7 @@
     },
     "select-border": {
       "$type": "color",
-      "$value": "{semantic.border-default}"
+      "$value": "{semantic.border-control}"
     },
     "select-border-focus": {
       "$type": "color",
@@ -2087,7 +2388,7 @@
     },
     "multiselect-border-hover": {
       "$type": "color",
-      "$value": "{semantic.border-strong}"
+      "$value": "{semantic.border-control-raised}"
     },
     "multiselect-border-focus": {
       "$type": "color",
@@ -2175,7 +2476,7 @@
     },
     "multiselect-all-fg": {
       "$type": "color",
-      "$value": "{semantic.accent-primary}"
+      "$value": "{semantic.accent-primary-raised}"
     },
     "multiselect-separator": {
       "$type": "color",
@@ -2183,7 +2484,7 @@
     },
     "select-search-trigger-border-hover": {
       "$type": "color",
-      "$value": "{semantic.border-strong}"
+      "$value": "{semantic.border-control-raised}"
     },
     "select-search-value-placeholder": {
       "$type": "color",
@@ -2255,11 +2556,11 @@
     },
     "checkbox-bg": {
       "$type": "color",
-      "$value": "{semantic.surface-raised}"
+      "$value": "{semantic.surface-field}"
     },
     "checkbox-border": {
       "$type": "color",
-      "$value": "{semantic.border-strong}"
+      "$value": "{semantic.border-control}"
     },
     "checkbox-bg-checked": {
       "$type": "color",
@@ -2299,7 +2600,7 @@
     },
     "switch-track-bg": {
       "$type": "color",
-      "$value": "{semantic.surface-active}"
+      "$value": "{semantic.border-control}"
     },
     "switch-track-bg-on": {
       "$type": "color",
@@ -2307,7 +2608,7 @@
     },
     "switch-thumb-bg": {
       "$type": "color",
-      "$value": "{semantic.text-muted}"
+      "$value": "{semantic.control-thumb}"
     },
     "switch-thumb-bg-on": {
       "$type": "color",
@@ -2351,11 +2652,11 @@
     },
     "tab-fg-needs-input": {
       "$type": "color",
-      "$value": "{semantic.attention-needs-input}"
+      "$value": "{semantic.accent-warning-raised}"
     },
     "tab-fg-completion": {
       "$type": "color",
-      "$value": "{semantic.attention-completion}"
+      "$value": "{semantic.accent-primary-raised}"
     },
     "tab-indicator": {
       "$type": "color",
@@ -2579,11 +2880,11 @@
     },
     "autocomplete-match-fg": {
       "$type": "color",
-      "$value": "{semantic.accent-primary-on-active}"
+      "$value": "{semantic.accent-primary-strong}"
     },
     "autocomplete-empty-fg": {
       "$type": "color",
-      "$value": "{semantic.text-muted}"
+      "$value": "{semantic.text-muted-raised}"
     },
     "drilldown-backbar-height": {
       "$type": "dimension",
@@ -2639,7 +2940,7 @@
     },
     "toast-accent-width": {
       "$type": "dimension",
-      "$value": "{primitive.size-3}"
+      "$value": "{semantic.tint-edge-width}"
     },
     "toast-max-width": {
       "$type": "dimension",
@@ -2663,15 +2964,15 @@
     },
     "toast-accent-info": {
       "$type": "color",
-      "$value": "{semantic.accent-info}"
+      "$value": "{semantic.accent-info-raised}"
     },
     "toast-accent-success": {
       "$type": "color",
-      "$value": "{semantic.accent-success}"
+      "$value": "{semantic.accent-success-raised}"
     },
     "toast-accent-warning": {
       "$type": "color",
-      "$value": "{semantic.accent-warning}"
+      "$value": "{semantic.accent-warning-raised}"
     },
     "toast-accent-danger": {
       "$type": "color",
@@ -2691,7 +2992,7 @@
     },
     "tooltip-fg": {
       "$type": "color",
-      "$value": "{semantic.text-secondary}"
+      "$value": "{semantic.text-secondary-raised}"
     },
     "tooltip-radius": {
       "$type": "dimension",
@@ -2759,7 +3060,7 @@
     },
     "banner-radius": {
       "$type": "dimension",
-      "$value": "{primitive.radius-8}"
+      "$value": "{semantic.radius}"
     },
     "banner-shadow": {
       "$type": "shadow",
@@ -2823,7 +3124,7 @@
     },
     "html-script-banner-glyph": {
       "$type": "color",
-      "$value": "{semantic.accent-info}"
+      "$value": "{semantic.accent-info-raised}"
     },
     "html-script-marker-fg": {
       "$type": "color",
@@ -2847,11 +3148,11 @@
     },
     "html-remote-banner-glyph": {
       "$type": "color",
-      "$value": "{semantic.accent-info}"
+      "$value": "{semantic.accent-info-raised}"
     },
     "html-remote-marker-fg": {
       "$type": "color",
-      "$value": "{semantic.glyph-dim}"
+      "$value": "{semantic.glyph-dim-raised}"
     },
     "html-remote-marker-allowed-fg": {
       "$type": "color",
@@ -2907,11 +3208,11 @@
     },
     "html-size-banner-glyph": {
       "$type": "color",
-      "$value": "{semantic.accent-info}"
+      "$value": "{semantic.accent-info-raised}"
     },
     "html-limit-banner-glyph": {
       "$type": "color",
-      "$value": "{semantic.accent-warning}"
+      "$value": "{semantic.accent-warning-raised}"
     },
     "html-receiving-fg": {
       "$type": "color",
@@ -3007,11 +3308,11 @@
     },
     "status-dot-success": {
       "$type": "color",
-      "$value": "{semantic.accent-success}"
+      "$value": "{semantic.accent-success-raised}"
     },
     "status-dot-warning": {
       "$type": "color",
-      "$value": "{semantic.accent-warning}"
+      "$value": "{semantic.accent-warning-raised}"
     },
     "status-dot-danger": {
       "$type": "color",
@@ -3023,7 +3324,7 @@
     },
     "status-dot-needs-input": {
       "$type": "color",
-      "$value": "{semantic.attention-needs-input}"
+      "$value": "{semantic.accent-warning-raised}"
     },
     "status-dot-completion": {
       "$type": "color",
@@ -3031,7 +3332,7 @@
     },
     "status-dot-attached-ring": {
       "$type": "color",
-      "$value": "{semantic.accent-attached}"
+      "$value": "{semantic.accent-attached-raised}"
     },
     "status-dot-attached-ring-width": {
       "$type": "dimension",
@@ -3107,7 +3408,7 @@
     },
     "workspace-mirror-fg": {
       "$type": "color",
-      "$value": "{semantic.accent-remote}"
+      "$value": "{semantic.accent-remote-raised}"
     },
     "workspace-mirror-fg-active": {
       "$type": "color",
@@ -3171,7 +3472,7 @@
     },
     "move-source-ring": {
       "$type": "color",
-      "$value": "{semantic.accent-move}"
+      "$value": "{semantic.accent-move-raised}"
     },
     "move-source-ring-width": {
       "$type": "dimension",
@@ -3187,7 +3488,7 @@
     },
     "move-source-glyph": {
       "$type": "color",
-      "$value": "{semantic.accent-move}"
+      "$value": "{semantic.accent-move-raised}"
     },
     "move-source-glyph-size": {
       "$type": "dimension",
@@ -3203,7 +3504,7 @@
     },
     "attach-refusal-glyph": {
       "$type": "color",
-      "$value": "{semantic.accent-warning}"
+      "$value": "{semantic.accent-warning-glyph}"
     },
     "attach-refusal-chip-size": {
       "$type": "dimension",
@@ -3223,7 +3524,7 @@
     },
     "spinner-indicator": {
       "$type": "color",
-      "$value": "{semantic.accent-primary}"
+      "$value": "{semantic.accent-primary-on-active}"
     },
     "spinner-duration": {
       "$type": "duration",
@@ -3425,7 +3726,7 @@
     },
     "notification-item-more-fg": {
       "$type": "color",
-      "$value": "{semantic.accent-primary}"
+      "$value": "{semantic.accent-primary-raised}"
     },
     "notification-item-unread-dot": {
       "$type": "color",
@@ -3473,11 +3774,11 @@
     },
     "surface-occupied-soft-border": {
       "$type": "color",
-      "$value": "{semantic.accent-occupied-soft}"
+      "$value": "{semantic.accent-success-raised}"
     },
     "surface-occupied-hard-border": {
       "$type": "color",
-      "$value": "{semantic.accent-occupied-hard}"
+      "$value": "{semantic.accent-attention-raised}"
     },
     "surface-occupied-border-width": {
       "$type": "dimension",
@@ -3489,7 +3790,7 @@
     },
     "surface-highlight-input-border": {
       "$type": "color",
-      "$value": "{semantic.attention-needs-input}"
+      "$value": "{semantic.accent-warning-raised}"
     },
     "surface-highlight-input-width": {
       "$type": "dimension",
@@ -3621,7 +3922,7 @@
     },
     "listctrl-selected-bar": {
       "$type": "color",
-      "$value": "{semantic.accent-primary}"
+      "$value": "{semantic.accent-primary-on-active}"
     },
     "listctrl-selected-bar-width": {
       "$type": "dimension",
@@ -3749,7 +4050,7 @@
     },
     "port-star-on": {
       "$type": "color",
-      "$value": "{semantic.accent-warning}"
+      "$value": "{semantic.accent-warning-glyph}"
     },
     "port-star-off": {
       "$type": "color",
@@ -3789,7 +4090,7 @@
     },
     "plugin-avatar-fg": {
       "$type": "color",
-      "$value": "{semantic.accent-primary}"
+      "$value": "{semantic.accent-primary-strong}"
     },
     "plugin-avatar-bg": {
       "$type": "color",
@@ -3845,11 +4146,11 @@
     },
     "perm-granted-fg": {
       "$type": "color",
-      "$value": "{semantic.accent-success}"
+      "$value": "{semantic.accent-success-raised}"
     },
     "perm-missing-fg": {
       "$type": "color",
-      "$value": "{semantic.accent-warning}"
+      "$value": "{semantic.accent-warning-glyph}"
     },
     "perm-unknown-fg": {
       "$type": "color",
@@ -4084,7 +4385,7 @@
     },
     "transfer-pad-x": {
       "$type": "dimension",
-      "$value": "{primitive.size-14}"
+      "$value": "{semantic.space-md}"
     },
     "transfer-header-pad-y": {
       "$type": "dimension",
@@ -4092,11 +4393,11 @@
     },
     "transfer-body-gap": {
       "$type": "dimension",
-      "$value": "{primitive.size-10}"
+      "$value": "{semantic.space-sm}"
     },
     "transfer-footer-pad-y": {
       "$type": "dimension",
-      "$value": "{primitive.size-10}"
+      "$value": "{semantic.space-sm}"
     },
     "transfer-well-pad-y": {
       "$type": "dimension",
@@ -4104,7 +4405,7 @@
     },
     "transfer-well-pad-x": {
       "$type": "dimension",
-      "$value": "{primitive.size-10}"
+      "$value": "{semantic.space-md}"
     },
     "progress-height": {
       "$type": "dimension",
@@ -4128,7 +4429,7 @@
     },
     "preset-split-zone-border": {
       "$type": "color",
-      "$value": "color-mix(in srgb, var(--tasty-accent-primary) 55%, transparent)"
+      "$value": "{semantic.accent-primary-raised}"
     },
     "preset-split-divider-width": {
       "$type": "dimension",
@@ -4168,7 +4469,7 @@
     },
     "preset-cfg-footer-padding-x": {
       "$type": "dimension",
-      "$value": "{primitive.size-14}"
+      "$value": "{semantic.space-md}"
     },
     "preset-cfg-form-max-width": {
       "$type": "dimension",
@@ -4184,7 +4485,7 @@
     },
     "preset-cfg-draft-fg": {
       "$type": "color",
-      "$value": "{semantic.accent-warning}"
+      "$value": "{semantic.accent-warning-raised}"
     },
     "preset-cfg-dim-opacity": {
       "$type": "number",
@@ -4288,7 +4589,7 @@
     },
     "modhint-grip-fg": {
       "$type": "color",
-      "$value": "{semantic.border-strong}"
+      "$value": "{semantic.glyph-dim}"
     },
     "modhint-fade": {
       "$type": "duration",
@@ -4456,7 +4757,7 @@
     },
     "sidebar-category-header-count-fg": {
       "$type": "color",
-      "$value": "{semantic.text-disabled}"
+      "$value": "{semantic.text-quiet}"
     },
     "sidebar-category-header-count-font-size": {
       "$type": "dimension",
@@ -4508,7 +4809,7 @@
     },
     "dag-node-meta-fg": {
       "$type": "color",
-      "$value": "{semantic.text-muted}"
+      "$value": "{semantic.text-muted-raised}"
     },
     "dag-node-name-font-size": {
       "$type": "dimension",
@@ -4536,39 +4837,39 @@
     },
     "dag-status-waiting": {
       "$type": "color",
-      "$value": "{semantic.status-idle}"
+      "$value": "{semantic.glyph-dim-raised}"
     },
     "dag-status-ready": {
       "$type": "color",
-      "$value": "{semantic.accent-info}"
+      "$value": "{semantic.accent-info-raised}"
     },
     "dag-status-running": {
       "$type": "color",
-      "$value": "{semantic.accent-primary}"
+      "$value": "{semantic.accent-primary-raised}"
     },
     "dag-status-succeeded": {
       "$type": "color",
-      "$value": "{semantic.accent-success}"
+      "$value": "{semantic.accent-success-raised}"
     },
     "dag-status-failed": {
       "$type": "color",
-      "$value": "{semantic.accent-danger}"
+      "$value": "{semantic.accent-danger-raised}"
     },
     "dag-status-cancelled": {
       "$type": "color",
-      "$value": "{semantic.text-disabled}"
+      "$value": "{semantic.glyph-dim-raised}"
     },
     "dag-status-skipped": {
       "$type": "color",
-      "$value": "{semantic.text-disabled}"
+      "$value": "{semantic.glyph-dim-raised}"
     },
     "dag-status-unknown": {
       "$type": "color",
-      "$value": "{semantic.accent-warning}"
+      "$value": "{semantic.accent-warning-raised}"
     },
     "dag-status-partially-failed": {
       "$type": "color",
-      "$value": "{semantic.accent-attention}"
+      "$value": "{semantic.accent-attention-raised}"
     },
     "dag-status-waiting-bg": {
       "$type": "color",
@@ -4608,7 +4909,7 @@
     },
     "dag-status-waiting-label": {
       "$type": "color",
-      "$value": "{semantic.text-muted}"
+      "$value": "{semantic.text-muted-raised}"
     },
     "dag-status-ready-label": {
       "$type": "color",
@@ -4616,7 +4917,7 @@
     },
     "dag-status-running-label": {
       "$type": "color",
-      "$value": "{component.dag-status-running}"
+      "$value": "{semantic.accent-primary-strong}"
     },
     "dag-status-succeeded-label": {
       "$type": "color",
@@ -4624,27 +4925,27 @@
     },
     "dag-status-failed-label": {
       "$type": "color",
-      "$value": "{component.dag-status-failed}"
+      "$value": "{semantic.accent-danger-strong}"
     },
     "dag-status-cancelled-label": {
       "$type": "color",
-      "$value": "{semantic.text-secondary}"
+      "$value": "{semantic.text-secondary-raised}"
     },
     "dag-status-skipped-label": {
       "$type": "color",
-      "$value": "{semantic.text-secondary}"
+      "$value": "{semantic.text-secondary-raised}"
     },
     "dag-status-unknown-label": {
       "$type": "color",
-      "$value": "{component.dag-status-unknown}"
+      "$value": "{semantic.accent-warning-strong}"
     },
     "dag-status-partially-failed-label": {
       "$type": "color",
-      "$value": "{component.dag-status-partially-failed}"
+      "$value": "{semantic.accent-attention-strong}"
     },
     "dag-phase-awaiting": {
       "$type": "color",
-      "$value": "{semantic.attention-needs-input}"
+      "$value": "{semantic.accent-warning-strong}"
     },
     "dag-phase-awaiting-bg": {
       "$type": "color",
@@ -4652,7 +4953,7 @@
     },
     "dag-phase-awaiting-label": {
       "$type": "color",
-      "$value": "{component.dag-phase-awaiting}"
+      "$value": "{semantic.accent-warning-strong}"
     },
     "dag-header-count-fg": {
       "$type": "color",
@@ -4692,15 +4993,15 @@
     },
     "dag-edge-depends": {
       "$type": "color",
-      "$value": "{semantic.border-strong}"
+      "$value": "{semantic.border-control}"
     },
     "dag-edge-fallback": {
       "$type": "color",
-      "$value": "{semantic.accent-attention}"
+      "$value": "{semantic.accent-attention-raised}"
     },
     "dag-edge-reduce": {
       "$type": "color",
-      "$value": "{semantic.accent-info}"
+      "$value": "{semantic.accent-info-raised}"
     },
     "dag-edge-dash-fallback": {
       "$type": "strokeStyle",
@@ -4760,7 +5061,7 @@
     },
     "dag-minimap-node": {
       "$type": "color",
-      "$value": "{semantic.border-strong}"
+      "$value": "{semantic.border-control}"
     },
     "dag-minimap-viewport": {
       "$type": "color",
@@ -4796,15 +5097,15 @@
     },
     "dag-runner-fg": {
       "$type": "color",
-      "$value": "{semantic.text-secondary}"
+      "$value": "{semantic.text-secondary-raised}"
     },
     "dag-runner-idle-fg": {
       "$type": "color",
-      "$value": "{semantic.text-muted}"
+      "$value": "{semantic.text-muted-raised}"
     },
     "dag-runner-stalled-fg": {
       "$type": "color",
-      "$value": "{semantic.accent-warning}"
+      "$value": "{semantic.accent-warning-strong}"
     },
     "dag-runner-stalled-border": {
       "$type": "color",
@@ -4816,7 +5117,7 @@
     },
     "dag-runner-crashed-fg": {
       "$type": "color",
-      "$value": "{semantic.accent-danger}"
+      "$value": "{semantic.accent-danger-strong}"
     },
     "dag-runner-crashed-border": {
       "$type": "color",
@@ -4836,7 +5137,7 @@
     },
     "dag-cycle-fg": {
       "$type": "color",
-      "$value": "{semantic.accent-warning}"
+      "$value": "{semantic.accent-warning-strong}"
     },
     "dag-cycle-height": {
       "$type": "dimension",
@@ -4976,7 +5277,7 @@
     },
     "codearea-error-fg": {
       "$type": "color",
-      "$value": "{semantic.accent-danger}"
+      "$value": "{semantic.accent-danger-raised}"
     },
     "codearea-max-height": {
       "$type": "dimension",
@@ -5012,7 +5313,7 @@
     },
     "modhint-row-gap": {
       "$type": "dimension",
-      "$value": "{primitive.size-6}"
+      "$value": "{semantic.space-sm}"
     },
     "trigger-menu-min-width": {
       "$type": "dimension",
@@ -5036,11 +5337,11 @@
     },
     "image-popup-pad-x": {
       "$type": "dimension",
-      "$value": "{primitive.size-14}"
+      "$value": "{semantic.space-md}"
     },
     "image-popup-gap": {
       "$type": "dimension",
-      "$value": "{primitive.size-10}"
+      "$value": "{semantic.space-sm}"
     },
     "image-popup-btn-gap": {
       "$type": "dimension",
@@ -5060,7 +5361,7 @@
     },
     "image-path-row-gap": {
       "$type": "dimension",
-      "$value": "{primitive.size-6}"
+      "$value": "{semantic.space-sm}"
     },
     "image-zoom-font-size": {
       "$type": "dimension",
@@ -5092,7 +5393,7 @@
     },
     "dag-edge-transition": {
       "$type": "color",
-      "$value": "{semantic.accent-route}"
+      "$value": "{semantic.accent-route-raised}"
     },
     "dag-edge-dash-transition": {
       "$type": "strokeStyle",
@@ -5184,11 +5485,11 @@
     },
     "kb-plugin-error-fg": {
       "$type": "color",
-      "$value": "{semantic.accent-danger}"
+      "$value": "{semantic.accent-danger-raised}"
     },
     "kb-plugin-draft-dot": {
       "$type": "color",
-      "$value": "{semantic.accent-primary}"
+      "$value": "{semantic.accent-primary-raised}"
     },
     "kb-plugin-draft-dot-size": {
       "$type": "dimension",
@@ -5196,7 +5497,7 @@
     },
     "attach-sync-glyph": {
       "$type": "color",
-      "$value": "{semantic.accent-warning}",
+      "$value": "{semantic.accent-warning-glyph}",
       "$description": "attach size-sync failure banner glyph (same tone as the refusal banner)"
     },
     "attach-sync-name-max-width": {
@@ -5211,7 +5512,7 @@
     },
     "image-error-fg": {
       "$type": "color",
-      "$value": "{semantic.accent-danger}",
+      "$value": "{semantic.accent-danger-raised}",
       "$description": "image canvas load-failed glyph + title (missing / decode)"
     },
     "settings-row-gap": {
@@ -5226,7 +5527,7 @@
     },
     "explorer-name-error-fg": {
       "$type": "color",
-      "$value": "{semantic.accent-danger}",
+      "$value": "{semantic.accent-danger-raised}",
       "$description": "new-item / inline-rename name error (border + message)"
     },
     "explorer-drop-target-border": {
@@ -5246,7 +5547,7 @@
     },
     "explorer-drag-copy-fg": {
       "$type": "color",
-      "$value": "{semantic.accent-success}",
+      "$value": "{semantic.accent-success-raised}",
       "$description": "drag chip badge — copy"
     },
     "explorer-drag-refused-fg": {
@@ -5335,7 +5636,7 @@
     },
     "image-too-large-fg": {
       "$type": "color",
-      "$value": "{semantic.accent-warning}",
+      "$value": "{semantic.accent-warning-raised}",
       "$description": "image canvas \"too large\" glyph — refused by limit, file is fine (warning tone)"
     },
     "explorer-name-error-max-width": {
@@ -5350,7 +5651,7 @@
     },
     "explorer-props-padding-x": {
       "$type": "dimension",
-      "$value": "{primitive.size-14}",
+      "$value": "{semantic.space-md}",
       "$description": "Properties popup inner side padding (popup family inset, as conflict / rename)"
     },
     "explorer-props-row-min-height": {
@@ -5385,7 +5686,7 @@
     },
     "file-drop-overlay-fg": {
       "$type": "color",
-      "$value": "{semantic.accent-primary}",
+      "$value": "{semantic.accent-primary-strong}",
       "$description": "window file-drop overlay glyph + label (full ink for 4.5:1; was 60% alpha)"
     },
     "kb-record-width": {
@@ -5435,12 +5736,12 @@
     },
     "explorer-link-broken-fg": {
       "$type": "color",
-      "$value": "{semantic.accent-warning}",
+      "$value": "{semantic.accent-warning-raised}",
       "$description": "broken symlink: link glyph replaces the item glyph in this tone; name stays text-secondary"
     },
     "explorer-cursor-ring": {
       "$type": "color",
-      "$value": "{semantic.border-focus}",
+      "$value": "{semantic.accent-primary-raised}",
       "$description": "keyboard current item: 1px inset ring (keyboard-driven only), drawn over selection too"
     },
     "explorer-cursor-ring-width": {
@@ -5475,12 +5776,12 @@
     },
     "kb-record-border": {
       "$type": "color",
-      "$value": "{semantic.border-default}",
+      "$value": "{semantic.border-control}",
       "$description": "shortcut record button / add / None slot border at rest"
     },
     "kb-record-border-hover": {
       "$type": "color",
-      "$value": "{semantic.border-strong}",
+      "$value": "{semantic.border-control-raised}",
       "$description": "shortcut record button / add / None slot border on hover (fill unchanged)"
     },
     "kb-record-empty-fg": {
@@ -5564,7 +5865,7 @@
     },
     "explorer-props-partial-fg": {
       "$type": "color",
-      "$value": "{semantic.accent-warning}",
+      "$value": "{semantic.accent-warning-raised}",
       "$description": "Properties folder size: “some folders couldn’t be read” glyph + line"
     },
     "explorer-preview-body-min-height": {
@@ -5594,7 +5895,7 @@
     },
     "kb-os-reserved-fg": {
       "$type": "color",
-      "$value": "{semantic.accent-warning}",
+      "$value": "{semantic.accent-warning-raised}",
       "$description": "“may be taken by the OS” caption on a text-entered shortcut"
     },
     "plugin-trust-title-fg": {
@@ -5729,7 +6030,7 @@
     },
     "pending-indicator-sep-fg": {
       "$type": "color",
-      "$value": "{semantic.text-muted}",
+      "$value": "{semantic.text-muted-raised}",
       "$description": "“·” separator"
     },
     "pending-indicator-spinner-size": {
@@ -5948,7 +6249,7 @@
     },
     "select-raised-border": {
       "$type": "color",
-      "$value": "{semantic.border-strong}",
+      "$value": "{semantic.border-control-raised}",
       "$description": "Select edge on a raised ground"
     },
     "select-raised-disabled-bg": {
@@ -5983,7 +6284,7 @@
     },
     "explorer-props-perm-error-fg": {
       "$type": "color",
-      "$value": "{semantic.accent-danger}",
+      "$value": "{semantic.accent-danger-raised}",
       "$description": "permission apply failed line"
     },
     "explorer-props-perm-locked-fg": {
@@ -6045,6 +6346,22 @@
       "$type": "color",
       "$value": "{semantic.text-secondary}",
       "$description": "range line under the field"
+    },
+    "switch-track-raised-bg": {
+      "$type": "color",
+      "$value": "{semantic.border-control-raised}"
+    },
+    "dag-node-meta-status-fg": {
+      "$type": "color",
+      "$value": "{semantic.text-on-active}"
+    },
+    "switch-thumb-raised-bg": {
+      "$type": "color",
+      "$value": "{semantic.control-thumb-raised}"
+    },
+    "tab-bg-hover": {
+      "$type": "color",
+      "$value": "color-mix(in srgb, var(--tasty-bg-panel) 60%, var(--tasty-bg-sidebar))"
     }
   }
 }

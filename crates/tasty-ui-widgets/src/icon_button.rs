@@ -22,6 +22,7 @@ pub struct IconButton {
     size: ControlSize,
     active: bool,
     enabled: bool,
+    ground: crate::Ground,
 }
 
 impl Default for IconButton {
@@ -31,6 +32,7 @@ impl Default for IconButton {
             size: ControlSize::Md,
             active: false,
             enabled: true,
+            ground: crate::Ground::Panel,
         }
     }
 }
@@ -58,6 +60,12 @@ impl IconButton {
 
     pub fn enabled(mut self, enabled: bool) -> Self {
         self.enabled = enabled;
+        self
+    }
+
+    /// 놓인 바탕. 선택 행 위에서는 `Ground::Active`를 넘긴다.
+    pub fn ground(mut self, ground: crate::Ground) -> Self {
+        self.ground = ground;
         self
     }
 
@@ -104,6 +112,7 @@ impl IconButton {
                 active: self.active,
                 hovered: resp.hovered(),
                 pressed: resp.is_pointer_button_down_on(),
+                ground: self.ground,
             },
         );
 
@@ -123,6 +132,7 @@ pub struct IconButtonState {
     pub active: bool,
     pub hovered: bool,
     pub pressed: bool,
+    pub ground: crate::Ground,
 }
 
 impl IconButtonState {
@@ -134,6 +144,7 @@ impl IconButtonState {
             active: false,
             hovered,
             pressed,
+            ground: crate::Ground::Panel,
         }
     }
 }
@@ -165,10 +176,16 @@ pub fn paint_icon_button_state(
     // disabled 글리프는 opacity 없이 disabled ink를 쓴다.
     if !state.enabled {
         theme.state_disabled_fg().to_egui()
+    } else if state.ground == crate::Ground::Active {
+        theme.text_on_active().to_egui()
     } else if state.active {
-        theme.accent_primary().to_egui()
-    } else if state.variant == IconButtonVariant::Solid || state.hovered {
-        theme.icon_button_fg_hover().to_egui()
+        // 켜진 도구는 active overlay 위 글리프다.
+        match state.ground {
+            crate::Ground::Raised => theme.accent_primary_raised().to_egui(),
+            _ => theme.accent_primary().to_egui(),
+        }
+    } else if state.hovered || state.pressed {
+        theme.text_secondary().to_egui()
     } else {
         theme.icon_button_fg().to_egui()
     }
@@ -233,6 +250,7 @@ mod tests {
                                 active,
                                 hovered,
                                 pressed,
+                                ground: crate::Ground::Panel,
                             };
                             let want_bg = match (enabled, active || pressed, hovered) {
                                 (false, _, _) => vec![],
@@ -245,7 +263,7 @@ mod tests {
                             } else if active {
                                 accent
                             } else if variant == IconButtonVariant::Solid || hovered {
-                                fg_hover
+                                theme.text_secondary().to_egui()
                             } else {
                                 fg
                             };
@@ -267,6 +285,7 @@ mod tests {
         let theme = tasty_themes::mocha_fallback();
         let bg_active = theme.icon_button_bg_active().to_egui_premultiplied();
         let all_on = |variant, enabled| IconButtonState {
+            ground: crate::control::Ground::Panel,
             variant,
             enabled,
             active: true,
@@ -283,6 +302,7 @@ mod tests {
         let (bg, glyph) = paint(
             &theme,
             IconButtonState {
+                ground: crate::control::Ground::Panel,
                 pressed: false,
                 ..all_on(IconButtonVariant::Ghost, true)
             },
@@ -293,17 +313,18 @@ mod tests {
         // pressed 는 overlay-active 를 칠하지만 글리프는 hover 규칙을 따른다.
         let (bg, glyph) = paint(&theme, IconButtonState::ghost(true, true));
         assert_eq!(bg, vec![bg_active]);
-        assert_eq!(glyph, theme.icon_button_fg_hover().to_egui());
+        assert_eq!(glyph, theme.text_secondary().to_egui());
 
         // solid 는 hover 없이도 fg-hover 글리프다.
         let (bg, glyph) = paint(
             &theme,
             IconButtonState {
+                ground: crate::control::Ground::Panel,
                 variant: IconButtonVariant::Solid,
                 ..IconButtonState::ghost(false, false)
             },
         );
         assert!(bg.is_empty());
-        assert_eq!(glyph, theme.icon_button_fg_hover().to_egui());
+        assert_eq!(glyph, theme.text_secondary().to_egui());
     }
 }

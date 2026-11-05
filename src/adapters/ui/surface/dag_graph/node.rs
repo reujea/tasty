@@ -102,6 +102,19 @@ pub fn node_colors(theme: &Theme, node: &DagNodeData) -> (HexColor, HexColor, He
 }
 
 /// dim 을 적용해 egui 색으로. `dimmed` 가 아니면 원색 그대로다.
+/// 제목과 메타 글자색. 불투명 상태 틴트와 hover 채움 위에서는 띠가 달라진다.
+fn node_ink(theme: &Theme, status: DagStatus, hovered: bool) -> (HexColor, HexColor) {
+    if hovered {
+        (theme.text_on_active(), theme.text_on_active())
+    } else if matches!(status, DagStatus::Running | DagStatus::Failed) {
+        (theme.text_on_active(), theme.dag_node_meta_status_fg())
+    } else if matches!(status, DagStatus::Unknown | DagStatus::PartiallyFailed) {
+        (theme.text_primary(), theme.dag_node_meta_status_fg())
+    } else {
+        (theme.dag_node_fg(), theme.dag_node_meta_fg())
+    }
+}
+
 fn tone(color: HexColor, dimmed: bool) -> egui::Color32 {
     let c = color.to_egui();
     if dimmed {
@@ -242,8 +255,9 @@ pub fn paint_node(
     };
     let top = inner.center().y - total / 2.0;
 
+    let (title_fg, meta_fg) = node_ink(theme, node.status, vis.hovered);
     kind_icon(node.command_kind)
-        .image(icon_side, tone(theme.dag_node_meta_fg(), dim))
+        .image(icon_side, tone(meta_fg, dim))
         .paint_at(
             ui,
             egui::Rect::from_min_size(
@@ -257,7 +271,7 @@ pub fn paint_node(
         egui::Align2::LEFT_CENTER,
         ellipsize(painter, &node.name, &name_font, inner.max.x - name_x),
         name_font,
-        tone(theme.dag_node_fg(), dim),
+        tone(title_fg, dim),
     );
 
     if lod != Lod::Full {
@@ -286,7 +300,7 @@ pub fn paint_node(
                 egui::Align2::RIGHT_CENTER,
                 d,
                 meta_font.clone(),
-                tone(theme.dag_node_meta_fg(), dim),
+                tone(meta_fg, dim),
             );
             right -= dw + gap;
         }

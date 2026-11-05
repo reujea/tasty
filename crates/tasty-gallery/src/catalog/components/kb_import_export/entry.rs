@@ -222,7 +222,7 @@ pub(super) fn action_row(
                     ui,
                     glyph,
                     theme.icon_glyph_size_md,
-                    theme.text_muted().to_egui(),
+                    theme.text_muted_raised().to_egui(),
                 );
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Min), |ui| {
                     Button::new(button)
@@ -243,7 +243,7 @@ pub(super) fn action_row(
                             ui.label(
                                 egui::RichText::new(desc)
                                     .size(theme.font_size_term_sm.value())
-                                    .color(theme.text_muted().to_egui()),
+                                    .color(theme.text_muted_raised().to_egui()),
                             );
                         });
                     });

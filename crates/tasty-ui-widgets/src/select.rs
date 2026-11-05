@@ -260,9 +260,10 @@ fn paint_trigger(
     let chevron_room = theme.select_chevron_room().value();
     let border = match (look, ground) {
         (SelectLook::Open, _) => theme.select_border_focus(),
-        (SelectLook::Hover, _) => theme.border_strong(),
-        (SelectLook::Normal, Ground::Panel) => theme.select_border(),
+        (SelectLook::Hover, Ground::Raised) => theme.border_control_raised(),
+        (SelectLook::Hover, _) => theme.border_control(),
         (SelectLook::Normal, Ground::Raised) => theme.select_raised_border(),
+        (SelectLook::Normal, _) => theme.select_border(),
     };
     paint_trigger_box(ui.painter(), theme, ground, rect, border, enabled);
     if enabled && look == SelectLook::Open {
@@ -331,13 +332,13 @@ pub(crate) fn paint_trigger_box(
 ) {
     // disabled 트리거는 상태별 테두리 대신 disabled 상자 role을 쓴다.
     let (fill, edge) = match (enabled, ground) {
-        (true, Ground::Panel) => (theme.select_bg(), border),
         (true, Ground::Raised) => (theme.select_raised_bg(), border),
-        (false, Ground::Panel) => (theme.state_disabled_fill(), theme.state_disabled_border()),
+        (true, _) => (theme.select_bg(), border),
         (false, Ground::Raised) => (
             theme.select_raised_disabled_bg(),
             theme.select_raised_disabled_border(),
         ),
+        (false, _) => (theme.state_disabled_fill(), theme.state_disabled_border()),
     };
     painter.rect(
         rect,

@@ -86,7 +86,7 @@ pub fn kb_record_slot_sized(
             KbRecordSlot::Recording(_) => {
                 (Some(theme.surface_hover()), border, theme.text_disabled())
             }
-            KbRecordSlot::Add => (None, border, theme.text_muted()),
+            KbRecordSlot::Add => (None, border, theme.text_muted_raised()),
             KbRecordSlot::Empty(_) => (None, border, theme.kb_record_empty_fg()),
             KbRecordSlot::Invalid(_) => (
                 Some(theme.surface_raised()),

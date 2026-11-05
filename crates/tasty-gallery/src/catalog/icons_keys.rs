@@ -45,7 +45,7 @@ pub fn draw(ui: &mut egui::Ui, theme: &Theme) {
                 ui.label(
                     egui::RichText::new("→")
                         .size(theme.font_size_caption.value())
-                        .color(theme.text_muted().to_egui()),
+                        .color(theme.text_muted_raised().to_egui()),
                 );
                 kbd_parts(
                     ui,
@@ -88,7 +88,7 @@ pub fn draw(ui: &mut egui::Ui, theme: &Theme) {
                             ui.label(
                                 egui::RichText::new(os)
                                     .size(theme.font_size_caption.value())
-                                    .color(theme.text_secondary().to_egui()),
+                                    .color(theme.text_secondary_raised().to_egui()),
                             );
                         });
                         kb_record_slot(
@@ -133,7 +133,7 @@ pub fn draw(ui: &mut egui::Ui, theme: &Theme) {
             TokenChip::new(
                 "text-secondary",
                 "keycap glyph",
-                theme.text_secondary().to_egui(),
+                theme.text_secondary_raised().to_egui(),
             ),
             TokenChip::new(
                 "surface-raised",

@@ -3,7 +3,7 @@
 use std::collections::BTreeSet;
 
 use tasty_type_appearance::theme::Theme;
-use tasty_ui_widgets::checkbox;
+use tasty_ui_widgets::{checkbox, checkbox_on_raised};
 
 use crate::adapters::ui::icons;
 use crate::i18n::{t, t_fmt2};
@@ -175,7 +175,7 @@ fn group_header(
         |ui| {
             ui.spacing_mut().item_spacing.x = th.spacing_sm.value();
             let mut all = !shown.is_empty() && shown.iter().all(|r| !deselected.contains(&r.key));
-            if checkbox(ui, th, &mut all, "", true).changed() {
+            if checkbox_on_raised(ui, th, &mut all, "", true).changed() {
                 for r in &g.rows {
                     if all {
                         deselected.remove(&r.key);
@@ -190,7 +190,7 @@ fn group_header(
                 ui,
                 &t(g.group.label_key()).to_uppercase(),
                 egui::FontId::monospace(th.font_size_micro.value()),
-                th.text_secondary().to_egui(),
+                th.text_secondary_raised().to_egui(),
                 f32::INFINITY,
                 th.letter_spacing_caps(th.font_size_micro),
             );
@@ -207,7 +207,7 @@ fn group_header(
                 egui::vec2(glyph, glyph),
             );
             chevron
-                .image(glyph, th.text_muted().to_egui())
+                .image(glyph, th.text_muted_raised().to_egui())
                 .paint_at(ui, cr);
             ui.painter().galley(
                 egui::pos2(
@@ -233,7 +233,7 @@ fn group_header(
                 ))
                 .monospace()
                 .size(th.font_size_caption.value())
-                .color(th.text_muted()),
+                .color(th.text_muted_raised()),
             );
         },
     );

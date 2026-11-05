@@ -224,7 +224,7 @@ fn tone_colors(theme: &Theme, tone: Tone) -> (egui::Color32, egui::Color32) {
             theme.text_secondary().to_egui(),
         ),
         Tone::Warning => {
-            let c = theme.accent_warning().to_egui();
+            let c = theme.accent_warning_raised().to_egui();
             (c, c)
         }
         Tone::Error => {

@@ -413,7 +413,7 @@ fn candidate_row(
     let fg = if highlighted {
         theme.autocomplete_row_fg_active().to_egui()
     } else {
-        theme.text_secondary().to_egui()
+        theme.autocomplete_row_fg().to_egui()
     };
     // 키보드 활성 행의 아이콘과 일치 구간은 surface-active 위 글자색이다.
     // 일치 구간을 나머지 글자와 구분하는 것은 밑줄이다.
@@ -423,7 +423,7 @@ fn candidate_row(
         (part, part, egui::Stroke::new(width, part))
     } else {
         (
-            theme.text_muted().to_egui(),
+            theme.text_secondary().to_egui(),
             theme.autocomplete_match_fg().to_egui(),
             egui::Stroke::NONE,
         )

@@ -301,10 +301,14 @@ fn menu_item_inner(
         MenuItemVariant::Normal if active || hovered => theme.menu_item_fg_hover().to_egui(),
         MenuItemVariant::Normal if selected => theme.menu_item_selected_fg().to_egui(),
         MenuItemVariant::Normal => theme.menu_item_fg().to_egui(),
-        MenuItemVariant::Danger => active_part.unwrap_or_else(|| theme.accent_danger().to_egui()),
+        MenuItemVariant::Danger if hovered => theme.accent_danger_strong().to_egui(),
+        MenuItemVariant::Danger => {
+            active_part.unwrap_or_else(|| theme.accent_danger_raised().to_egui())
+        }
     };
     let icon_color = active_part.unwrap_or_else(|| match variant {
-        MenuItemVariant::Normal => theme.text_muted().to_egui(),
+        MenuItemVariant::Normal => theme.text_secondary().to_egui(),
+        MenuItemVariant::Danger if hovered => theme.accent_danger_raised().to_egui(),
         MenuItemVariant::Danger => theme.accent_danger().to_egui(),
     });
 
@@ -327,7 +331,14 @@ fn menu_item_inner(
             egui::vec2(size, size),
         );
         tasty_icons::CHECK
-            .image(size, dim(theme.menu_item_check_fg().to_egui()))
+            .image(
+                size,
+                dim(if hovered && !active {
+                    theme.accent_primary_raised().to_egui()
+                } else {
+                    theme.menu_item_check_fg().to_egui()
+                }),
+            )
             .paint_at(ui, crect);
         right -= size + gap;
     }
@@ -345,7 +356,13 @@ fn menu_item_inner(
             ui.painter().galley(
                 pos,
                 g.clone(),
-                dim(active_part.unwrap_or_else(|| theme.text_muted().to_egui())),
+                dim(active_part.unwrap_or_else(|| {
+                    if hovered {
+                        theme.text_on_active().to_egui()
+                    } else {
+                        theme.text_muted_raised().to_egui()
+                    }
+                })),
             );
             right -= g.rect.width() + gap;
         }

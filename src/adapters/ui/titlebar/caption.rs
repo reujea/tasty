@@ -72,9 +72,9 @@ pub fn draw_caption_buttons(
         let glyph_color = if is_close && btn_hovered {
             th.text_on_window_close().to_egui()
         } else if btn_hovered {
-            th.text_primary().to_egui()
+            th.titlebar_button_fg_hover().to_egui()
         } else if props.active {
-            th.titlebar_fg().to_egui()
+            th.titlebar_button_fg().to_egui()
         } else {
             th.titlebar_fg_inactive().to_egui()
         };

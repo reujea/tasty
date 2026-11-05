@@ -50,7 +50,7 @@ Popup은 독립 기능, Banner는 안내와 조치, Toast는 짧은 정보 표�
 - **floating overlay** — parent 영역을 나눠 차지하지 않고 그 **위에 떠서 덮는다**(Toast/Popup 과 동일). 배너 height 이외의 모든 공간이 그대로 하단 콘텐츠 공간이 된다.
 - 너비: parent 폭 **100% − 좌우 margin**.
 - margin: **상 8px / 좌 8px / 우 8px**, **하단 margin 없음**(`spacing_sm`).
-- border-radius: **8px**(약간 둥근 사각형 패널) — `corner_radius_lg`(= `--tasty-radius-8`, 시스템 기본 4px 의 의도적 2배). 기본 반경과 구분된 토큰을 사용한다.
+- border-radius: **4px** — `banner_radius()`(`--tasty-banner-radius` → 시스템 기본 반경).
 - 높이: **콘텐츠에 따라 가변** — 각 배너 구현체가 자체 결정. 시스템은 "프레임/셸"(`banner_shell`) 과 내부 패딩(좌우 `spacing_md` 12 / 상하 `spacing_sm` 8) 규칙만 정의.
 - host 배너의 본문(제목 + 설명)은 줄 사이를 `banner_text_gap()`(2)로 두고, 앞 글리프는 `banner_glyph_offset()`(1)만큼 내려 제목 줄에 맞춘다.
 - 제목의 디자인 굵기(semibold·600)는 재현하지 않는다. egui UI에 굵은 글꼴을 등록하지 않으므로 제목은 `banner_title_font_size()`(13)와 `banner_fg()`(text-primary)로, 본문은 `banner_body_font_size()`(11)와 `banner_body_fg()`(→ `text_muted_raised`)로 구분한다. Latte에서는 본문과 제목의 글자색이 같아 크기와 굵기로만 구분한다. 디자인이 받아들인 크기·색 근사([디자인 정합 지침 §타이포그래피](design-parity-notes.md#타이포그래피--font-weight-세분화-미지원-letter-spacing--line-height-는-지원된다))이며 HTML 스크립트 차단·자동 attach 거절·크기 동기 실패 배너 모두 같다.

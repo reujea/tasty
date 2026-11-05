@@ -125,7 +125,7 @@ fn read_only_and_idle_address_values_meet_the_body_text_contrast() {
                 "{name} {measured:.2} ≠ {design}"
             );
         }
-        assert_eq!(theme.input_readonly_bg(), theme.input_bg());
+        assert_eq!(theme.input_readonly_bg(), theme.state_disabled_fill());
     }
 }
 
@@ -134,7 +134,7 @@ fn read_only_and_idle_address_values_meet_the_body_text_contrast() {
 fn performance_apply_note_meets_text_and_glyph_contrast() {
     let mocha = tasty_themes::mocha_fallback();
     let latte = latte();
-    for (theme, text, glyph) in [(&mocha, 9.26, 7.37), (&latte, 5.53, 4.99)] {
+    for (theme, text, glyph) in [(&mocha, 9.26, 7.37), (&latte, 5.53, 5.53)] {
         let ground = rgb(theme.bg_panel());
         let measured = contrast(theme.settings_apply_note_fg(), ground);
         assert!(

@@ -223,7 +223,7 @@ pub fn draw_callout(
                         egui::RichText::new(format!("{} / {}", props.step, props.total))
                             .monospace()
                             .size(theme.font_size_micro.value())
-                            .color(theme.accent_primary().to_egui()),
+                            .color(theme.accent_primary_raised().to_egui()),
                     );
                     let body_height = (props.size.y
                         - theme.item_height_interactive.value() * 3.0
@@ -243,7 +243,7 @@ pub fn draw_callout(
                             ui.label(
                                 egui::RichText::new(props.body)
                                     .size(theme.font_size_caption.value())
-                                    .color(theme.text_secondary().to_egui()),
+                                    .color(theme.text_secondary_raised().to_egui()),
                             );
                         });
                     ui.horizontal(|ui| {

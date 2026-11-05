@@ -725,7 +725,7 @@ fn seg_chip(ui: &mut egui::Ui, theme: &Theme, label: &str, active: bool) {
         (
             theme.surface_raised(),
             theme.border_default(),
-            theme.text_secondary(),
+            theme.text_secondary_raised(),
         )
     };
     let radius = theme.corner_radius.value();
@@ -803,7 +803,7 @@ fn profile_row(ui: &mut egui::Ui, theme: &Theme, p: &Profile) {
                     ui.label(
                         egui::RichText::new(crate::i18n::t("remote_tool.detect_failed"))
                             .size(theme.font_size_caption.value())
-                            .color(theme.accent_danger().to_egui()),
+                            .color(theme.accent_danger_raised().to_egui()),
                     );
                 }
             });

@@ -155,7 +155,7 @@ pub fn draw(ui: &mut egui::Ui, theme: &Theme) {
             ),
             (
                 "trigger states",
-                "rest select-border · hover border-strong · open/focus select-border-focus + 1px ring · disabled state-disabled-* · placeholder text-placeholder · long value end-ellipsis",
+                "rest select-border · hover border-control-raised · open/focus select-border-focus + 1px ring · disabled state-disabled-* · placeholder text-placeholder · long value end-ellipsis",
             ),
             (
                 "popup",
@@ -421,7 +421,7 @@ fn trigger_states(ui: &mut egui::Ui, th: &Theme, ti: usize, st: &mut LiveState) 
                 false,
             );
         });
-        cell(ui, th, "hover — border-strong", h, |ui| {
+        cell(ui, th, "hover — border-control-raised", h, |ui| {
             let hover = SearchableSelectSpecimen {
                 hover_trigger: true,
                 ..closed

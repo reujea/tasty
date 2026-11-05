@@ -18,7 +18,7 @@ pub struct Spinner {
     stroke: f32,
     /// 설정을 무시하는 override. `None` 이면 `theme.reduced_motion` 을 따른다.
     reduced_motion: Option<bool>,
-    /// 호출부 지정 색. `None` 이면 `theme.text_muted()`.
+    /// 호출부 지정 색. `None` 이면 `theme.spinner_indicator()`.
     color: Option<egui::Color32>,
 }
 
@@ -85,7 +85,9 @@ impl Spinner {
     pub fn paint_in(self, ui: &mut egui::Ui, theme: &Theme, rect: egui::Rect) {
         let size = self.size.unwrap_or_else(|| rect.width().min(rect.height()));
         let rect = egui::Rect::from_center_size(rect.center(), egui::vec2(size, size));
-        let color = self.color.unwrap_or_else(|| theme.text_muted().to_egui());
+        let color = self
+            .color
+            .unwrap_or_else(|| theme.spinner_indicator().to_egui());
 
         if !ui.is_rect_visible(rect) {
             return;

@@ -18,7 +18,7 @@ overlay2 = "#9399b2"
 text     = "#cdd6f4"
 subtext1 = "#bac2de"
 subtext0 = "#a6adc8"
-placeholder = "#6c7086"
+placeholder = "#a6adc8"
 
 [accent]
 blue      = "#89b4fa"

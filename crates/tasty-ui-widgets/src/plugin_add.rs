@@ -214,7 +214,7 @@ pub fn plugin_manifest_card(
                         egui::RichText::new(view.description)
                             .size(body)
                             .line_height(Some(body * theme.line_height_ui))
-                            .color(theme.text_secondary().to_egui()),
+                            .color(theme.text_secondary_raised().to_egui()),
                     )
                     .wrap(),
                 );
@@ -239,7 +239,7 @@ pub fn plugin_manifest_card(
                         egui::RichText::new(view.source)
                             .monospace()
                             .size(theme.font_size_term_sm.value())
-                            .color(theme.text_secondary().to_egui()),
+                            .color(theme.text_secondary_raised().to_egui()),
                     )
                     .truncate(),
                 );
@@ -255,7 +255,7 @@ pub fn plugin_manifest_card(
                                 egui::RichText::new(view.homepage)
                                     .monospace()
                                     .size(theme.font_size_caption.value())
-                                    .color(theme.text_secondary().to_egui()),
+                                    .color(theme.text_secondary_raised().to_egui()),
                             )
                             .truncate(),
                         );
@@ -293,9 +293,9 @@ fn homepage_link(ui: &mut egui::Ui, theme: &Theme, url: &str) -> egui::Response 
     let (rect, resp) = ui.allocate_exact_size(probe.size(), egui::Sense::click());
     let resp = resp.on_hover_cursor(egui::CursorIcon::PointingHand);
     let color = if resp.hovered() {
-        theme.text_primary()
+        theme.text_on_active()
     } else {
-        theme.text_secondary()
+        theme.text_secondary_raised()
     };
     ui.painter()
         .galley(rect.min, layout(color.to_egui()), color.to_egui());
@@ -339,7 +339,7 @@ fn identity(ui: &mut egui::Ui, theme: &Theme, view: &PluginManifestCardView<'_>)
                     egui::RichText::new(id_line(view.id, view.authors))
                         .monospace()
                         .size(theme.font_size_caption.value())
-                        .color(theme.text_muted().to_egui()),
+                        .color(theme.text_muted_raised().to_egui()),
                 )
                 .truncate()
                 .sense(egui::Sense::hover()),
@@ -373,7 +373,7 @@ pub fn mono_header(ui: &mut egui::Ui, theme: &Theme, text: &str) {
         0.0,
         egui::TextFormat {
             font_id: egui::FontId::monospace(size.value()),
-            color: theme.text_muted().to_egui(),
+            color: theme.text_muted_raised().to_egui(),
             extra_letter_spacing: theme.letter_spacing_caps(size).value(),
             ..Default::default()
         },
@@ -400,7 +400,7 @@ fn tag_list(ui: &mut egui::Ui, theme: &Theme, label: &str, items: &[String], non
             ui.label(
                 egui::RichText::new(none)
                     .size(theme.font_size_caption.value())
-                    .color(theme.text_muted().to_egui()),
+                    .color(theme.text_muted_raised().to_egui()),
             );
             return;
         }

@@ -18,28 +18,29 @@ pub(super) fn entry_row(
             egui::Sense::click()
         },
     );
+    let state = tasty_ui_widgets::RowState::of(
+        true,
+        selected,
+        !inert && resp.hovered(),
+        !inert && resp.is_pointer_button_down_on(),
+    );
+    let parent = tasty_ui_widgets::RowParent::Base;
+    state.paint_fill(ui.painter(), rect, 0.0, th);
     if selected {
-        ui.painter()
-            .rect_filled(rect, 0.0, th.surface_active().to_egui());
-        // 한쪽 선택 bar — kit FpRow `inset selection-edge-width 0 0 accent-primary`.
         let bar = egui::Rect::from_min_size(
             rect.min,
             egui::vec2(th.selection_edge_width.value(), rect.height()),
         );
         ui.painter()
-            .rect_filled(bar, 0.0, th.accent_primary().to_egui());
-    } else if resp.hovered() && !inert {
-        ui.painter()
-            .rect_filled(rect, 0.0, th.hover_overlay.to_egui_premultiplied());
+            .rect_filled(bar, 0.0, th.accent_primary_on_active().to_egui());
     }
     if resp.hovered() && !inert {
         ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
     }
-    let (glyph, mut glyph_color) = match (entry.is_dir, selected) {
-        (true, true) => (icons::FOLDER, th.text_on_active()),
-        (true, false) => (icons::FOLDER, th.accent_primary()),
-        (false, true) => (icons::FILE, th.text_on_active()),
-        (false, false) => (icons::FILE, th.text_muted()),
+    let (glyph, mut glyph_color) = match entry.is_dir {
+        true if selected => (icons::FOLDER, state.glyph(th)),
+        true => (icons::FOLDER, th.accent_primary()),
+        false => (icons::FILE, state.glyph(th)),
     };
     let c = cols(rect, th);
     let glyph_size = th.icon_glyph_size_md.value();
@@ -62,10 +63,8 @@ pub(super) fn entry_row(
     } = c;
     let name_color = if inert {
         th.fp_folder_file_fg().to_egui()
-    } else if selected {
-        th.text_on_active().to_egui()
     } else {
-        th.text_secondary().to_egui()
+        state.label(th, parent, th.text_secondary()).to_egui()
     };
     let mut job = egui::text::LayoutJob::simple_singleline(
         entry.name.clone(),
@@ -84,10 +83,8 @@ pub(super) fn entry_row(
     let mono = egui::FontId::monospace(th.font_size_caption.value());
     let meta_fg = if inert {
         th.fp_folder_file_fg()
-    } else if selected {
-        th.text_on_active()
     } else {
-        th.text_muted()
+        state.meta(th, parent)
     };
     ui.painter().text(
         egui::pos2(size_right.value(), rect.center().y),

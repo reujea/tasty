@@ -105,7 +105,9 @@ host UI와 공용 위젯은 semantic 접근자를 사용한다. 원시 팔레트
 | 탭 스트립 스크롤 화살표 | `tab_scroll_arrow_fg()`(스크롤할 수 있음) · `tab_scroll_arrow_fg_disabled()`(끝에 닿음). 이동 대기 대상 탭 칸이 가려진 쪽은 `tab_scroll_arrow_move_fg()`. hover 채움 `tab_scroll_arrow_hover_bg()`는 disabled가 아닌 쪽에만 깐다 |
 | surface-raised(메뉴·드롭다운 목록) 위의 보조 글자 | `text_secondary_raised()`. Mocha는 `text_secondary()`와 같고 Latte는 `text_primary()`와 같다 |
 | 배너 본문 | `banner_body_fg()`(→ `text_muted_raised()`). Mocha는 `text_muted()`와 같고 Latte는 `text_primary()`와 같다 |
-| 입력 전 안내 | `text_placeholder()` |
+| 입력 전 안내 | `text_placeholder()`. 입력 상자 안의 일반 글자 등급이다 |
+| 입력 상자 채움·테두리 | `surface_field()` · `border_control()`, raised 바탕은 `border_control_raised()`. Latte의 채움은 base와 같은 색이라 상자는 테두리로 보인다. hover는 채움을 바꾸지 않고 테두리만 바꾼다 |
+| 스크롤바 thumb | `scrollbar_thumb()`, raised 바탕은 `scrollbar_thumb_raised()`, hover·drag는 `scrollbar_thumb_hover()`. egui `ScrollArea`는 상태별 `fg_stroke`를 읽으므로 전역 visuals에 넣고, raised 바탕은 `apply_raised_scrollbar()`가 호출 범위에서 바꾼다 |
 | 약하게 표시하는 chrome 글리프 | `glyph_dim()` |
 | popup 프레임·pane divider·GPU 비활성 보더 | `border_frame()` |
 | popup 내부 구분선 | `border_strong()` |
@@ -323,27 +325,41 @@ Latte의 일부 어두운 배경과 글자 조합은 4.5:1 대비를 충족하�
 
 `text_muted()`는 Latte에서 neutral-1000(`subtext1`)을 읽는다. neutral-900은 `bg_app`(=crust) 위 상태바에서 4.26으로 미달하고, 4.5를 겨우 넘기는 혼합색은 neutral-1000과 눈으로 구분되지 않기 때문이다. 그래서 Latte의 text-muted와 text-secondary는 같은 색이고 크기와 굵기가 순서를 나타낸다. Mocha는 neutral-900 그대로다.
 
-포커스된 pane의 탭 스트립처럼 `surface_raised`(=surface0) 위에 `text_muted`를 그리는 자리는 4.05로 남는다. surface0 위에서 AA를 넘는 중성 전경은 `text` 하나뿐이고 surface1/surface2는 `text`조차 미달이다. catppuccin latte의 raised/hover 배경단이 라이트 테마치고 어둡기 때문이며, 고치려면 중성색 팔레트 전체를 다시 설계하고 저장소의 팔레트 사본과 DTCG export를 함께 갱신해야 한다. 컴포넌트별 승격은 상태바·탭바의 확정 시안을 바꾸는 일이라 디자인 요청 없이 진행하지 않는다.
+표의 미달 칸은 그 바탕 전용 역할로 해결한다. 역할과 바탕의 전체 표는 Design System Artifact의 `RULES.md`가 정본이다.
+
+| 잉크 띠 | 버티는 바탕 | 예 |
+|---|---|---|
+| 기본 역할 | crust·mantle·base와 surface-field | `text_muted()` · `text_secondary()` · `glyph_dim()` |
+| `-raised` | surface-raised와 그보다 낮은 바탕, mantle·base의 hover·press | `text_muted_raised()` · `accent_primary_raised()` · `glyph_dim_raised()` |
+| `-strong` | surface-raised의 hover·press처럼 불투명 틴트가 깔린 바탕 | `accent_danger_strong()` |
+| `text_on_active()` · `-on-active` | surface-active. 글자는 hue 없이 `text_on_active()`, 글리프는 3:1의 `-on-active` | `accent_primary_on_active()` |
+| `text_on_active_hover()` | surface-active의 hover·press | 선택 행 라벨과 모양 글리프 |
+
+자체 채움이 있는 자식은 그 채움이 바탕이고, 채움이 없는 자식은 호스트의 현재 바탕을 읽는다. 대비 시험은 내장 Mocha와 Latte만 잰다. 사용자 테마에는 제한·경고·보정이 없다.
 
 메뉴 행 글자는 이 규칙을 역할로 반영한다. `menu_item_fg()`는 semantic `text-secondary-raised`를 가리키며, 이 역할은 Mocha에서 neutral-1000(subtext1), Latte에서 neutral-1100(text, surface0 위 5.17:1)이다. hover 글자 `menu_item_fg_hover()`는 `text_on_active()`이고 hover는 `menu_item_bg_hover()` 채움으로도 구분한다.
 
 ### 상태별 대비 기준
 
-글자는 화면에 머무는 상태(평상·선택·키보드 활성·포커스)에서 4.5:1, 글리프는 3:1을 지킨다. hover와 눌림은 잠시 지나가는 상태라 3:1을 하한으로 둔다. 메뉴 행 hover와 raised 위 ghost hover는 hover한 채 읽는 자리라 4.5:1을 유지한다. disabled는 목표가 없다.
+글자는 hover와 눌림을 포함해 4.5:1, 글리프·컨트롤 테두리·포커스 링·스크롤바 thumb 같은 비텍스트는 3:1을 지킨다. disabled, 장식, 구획선은 목표가 없다. 값은 채널별 half-up 반올림으로 합성한 뒤 8비트 색으로 잰다. 반투명 overlay의 알파도 n/255로 반올림한다.
 
-선택·키보드 활성 행의 채움 `surface_active()`는 Latte에서 surface2(`#acb0be`)이고 text-primary도 3.69로 미달한다. 어떤 채움도 세 글자 단계를 함께 통과시키지 못하므로 그 위의 글자는 secondary·muted를 구분하지 않고 `text_on_active()` 하나로 합친다(Mocha 4.6, Latte 5.4). 글리프는 무엇이 뜻을 나르는지에 따라 나눈다. 색이 뜻을 나르면(즐겨찾기 별, plugin, 원격, 상태 점, 점유 고리) 자기 `-on-active` 역할로 색을 유지하고 3:1을 지킨다. 모양이 뜻을 나르면(파일 종류, 꺼진 별) `text_on_active()`다. 선택 표지와 일반 강조 글리프는 `accent_primary_on_active()`(Mocha 3.2, Latte 3.8)다. 상태·출처 칩은 쉬는 행과 선택 행 모두 Tag 조립을 쓴다. 자체 채움이 있어 행 상태와 무관하게 대비를 지키므로 틴트 pill을 쓰지 않는다. 어떤 accent도 이 채움 위에서 4.5:1을 넘으면서 행 글자색과 달라지지 못하므로 일치 구간은 행 글자색에 1px 밑줄로 구분한다. 밑줄 위치는 egui 글자 서식을 따른다. 위젯별 토큰은 [디자인 토큰 매핑](design-token-mapping.md#채움이-정해진-자리의-글자-역할)에 있다.
+앱의 화면 합성도 같은 축이다. 표면 포맷은 sRGB가 아닌 포맷을 고르고(`src/gfx/gpu.rs`), egui는 premultiplied `Color32`를 감마 공간에서 source-over로 합성해 8비트로 저장한다. 그래서 `to_egui()`의 straight 알파와 `to_egui_premultiplied()`의 overlay 모두 sRGB 바이트 합성으로 재면 된다. 불투명하게 미리 합성해야 하는 선택 행 hover·press 채움은 `RowState::fill()`이 같은 계산을 한다.
+
+행의 상태는 `RowState`(`tasty-ui-widgets`)로 고른다. 우선순위는 disabled, 선택+눌림, 선택+hover, 선택, 눌림, hover, 평상이다. 채움과 라벨·메타·글리프 잉크를 한 값에서 읽으므로 호출자가 선택 분기를 따로 만들지 않는다.
+
+선택·키보드 활성 행의 채움 `surface_active()`는 Latte에서 surface2(`#acb0be`)이고 text-primary도 3.69로 미달한다. 어떤 채움도 세 글자 단계를 함께 통과시키지 못하므로 그 위의 글자는 secondary·muted를 구분하지 않고 `text_on_active()` 하나로 합친다(Mocha 4.62, Latte 5.40). 글리프는 무엇이 뜻을 나르는지에 따라 나눈다. 색이 뜻을 나르면(즐겨찾기 별, plugin, 원격, 상태 점, 점유 고리, 이미지 파일, 깨진 링크) 자기 `-on-active` 역할로 색을 유지하고 3:1을 지킨다. 모양이 뜻을 나르면(폴더·파일, 꺼진 별) 행 잉크다. 선택 표지와 일반 강조 글리프는 `accent_primary_on_active()`(Mocha 4.17, Latte 4.20)다. 상태·출처 칩은 쉬는 행과 선택 행 모두 Tag 조립을 쓴다. 자체 채움이 있어 행 상태와 무관하게 대비를 지키므로 틴트 pill을 쓰지 않는다. 어떤 accent도 이 채움 위에서 4.5:1을 넘으면서 행 글자색과 달라지지 못하므로 일치 구간은 행 글자색에 1px 밑줄로 구분한다. 밑줄 위치는 egui 글자 서식을 따른다. 위젯별 토큰은 [디자인 토큰 매핑](design-token-mapping.md#채움이-정해진-자리의-글자-역할)에 있다.
 
 - 일반 행은 호출자가 선택 분기에서 이 역할을 읽는다. 자체 채움이 있는 Tag·Badge·키캡의 글자는 바꾸지 않는다.
 - 공용 `Table`은 표 기본 글자색을 선택 행에서 `table_row_fg_selected()`로 바꾼다. 색을 명시하는 셀은 기본 글자색을 받지 못하므로 `table_cell_ink()`나 `in_selected_table_row()`를 읽는다. `status_dot`과 키캡 `+`는 공용 표의 선택 행을 스스로 알아챈다. 표 밖의 행은 `status_dot_in_row`와 `kbd_parts_at_row`에 선택 여부를 넘긴다.
 - `surface_active()`를 칠하기만 하는 자리(스위치·슬라이더 트랙, 튜토리얼 진행 점, 뱃지 점)와 hover·눌림 일시 채움(preset 편집기 핸들, 누르는 동안의 홀드 버튼)은 이 규칙의 대상이 아니다.
 
-**새 UI 를 그릴 때는 이 표를 근거로 배경을 고른다** — muted 캡션을 얹을 배경은 `base`/`mantle`/`#ffffff` 로 한정하고, `surface0` 위에는 `text_primary` 나 `-raised` 역할을, `surface_active()` 위에는 `text_on_active()` 를 쓴다.
+**새 UI 를 그릴 때는 이 표를 근거로 잉크를 고른다** — muted 캡션을 얹을 배경은 `base`/`mantle`/`#ffffff` 로 한정하고, `surface0` 위에는 `text_primary` 나 `-raised` 역할을, `surface_active()` 위에는 `text_on_active()` 를 쓴다.
 
 ### disabled 잉크 — 대비 목표 없음
 
 비활성 라벨·글리프(`text_disabled()`와 이를 가리키는 component 역할)에는 대비 목표를 두지 않는다. WCAG 1.4.3과 1.4.11은 비활성 UI 구성요소를 대비 요구에서 제외한다. 대신 두 규칙을 지킨다.
 
-- **순서**: 잉크 강도는 `text_placeholder()` < `text_disabled()` < `text_muted()`다. 잉크 단계가 라벨의 유일한 disabled 신호이므로 disabled 라벨에 opacity를 추가로 곱하지 않는다. 라벨과 글리프는 같은 disabled 잉크를 쓴다.
+- **순서**: 잉크 강도는 `text_disabled()` < `text_placeholder()` ≤ `text_muted()`다. 잉크 단계가 라벨의 유일한 disabled 신호이므로 disabled 라벨에 opacity를 추가로 곱하지 않는다. 라벨과 글리프는 같은 disabled 잉크를 쓴다.
 - **패리티**: Mocha의 text-disabled는 neutral-700(overlay1), Latte의 text-disabled는 neutral-800(overlay2)이다. Latte 램프의 밝은 끝은 neutral-600~800이 서로 가까워 같은 단계가 Mocha보다 흐리게 읽히므로 한 단계 위를 쓴다. 그래도 text-muted(neutral-900)보다는 약해 순서 규칙이 유지된다.
 
 ### disabled 컨트롤 — 중립 박스와 잉크
@@ -362,10 +378,10 @@ disabled 컨트롤은 opacity로 흐리게 그리지 않는다. 변형과 관계
 
 활성 상태의 컨트롤 글리프는 이 예외에 들지 않는다. 탭 스트립의 스크롤할 수 있는 화살표(`tab_scroll_arrow_fg()`)는 1.4.11의 3:1 대상이다. 화살표 칸 바탕 `surface_raised`(본체는 포커스된 pane 의 스트립 배경, 비포커스 pane 은 `bg_sidebar`) 위에서 WCAG 공식으로 계산한 평면색 비율은 다음과 같다.
 
-| 테마 | placeholder | disabled | muted(활성 화살표) |
-|---|---|---|---|
-| Mocha (`#313244`) | 2.57 | 3.40 | 5.65 |
-| Latte (`#ccd0da`) | 1.69 | 2.56 | 3.65 |
+| 테마 | disabled | placeholder·muted(활성 화살표) |
+|---|---|---|
+| Mocha (`#313244`) | 3.40 | 5.65 |
+| Latte (`#ccd0da`) | 2.56 | 4.05 |
 
 ### Host UI zoom
 

@@ -21,7 +21,7 @@ pub fn banner_shell(
             theme.border_width.value(),
             dim(theme.banner_border().to_egui()),
         ))
-        .corner_radius(theme.corner_radius_lg.value())
+        .corner_radius(theme.banner_radius().value())
         .shadow(shadow)
         .inner_margin(egui::Margin::symmetric(
             theme.spacing_md.value() as i8,

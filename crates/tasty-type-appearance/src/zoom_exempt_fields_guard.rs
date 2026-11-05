@@ -495,8 +495,8 @@ mod tests {
             "focus_ring_width(2.0)는 지원 배율에서 반올림 결과가 같아야 한다"
         );
         assert!(
-            !free("toast_accent_width"),
-            "toast_accent_width(3.0)는 지원 배율에서 반올림 결과가 달라져야 한다"
+            !free("status_dot_size"),
+            "status_dot_size(8.0)는 지원 배율에서 반올림 결과가 달라져야 한다"
         );
         assert!(
             !free("icon_stroke_width"),

@@ -36,12 +36,12 @@ pub fn warning_callout(
                 ui.spacing_mut().item_spacing.x = theme.spacing_sm.value();
                 let (rect, _) =
                     ui.allocate_exact_size(egui::vec2(glyph, glyph), egui::Sense::hover());
-                paint_icon(ui, rect, warning);
+                paint_icon(ui, rect, theme.accent_warning_glyph().to_egui());
                 ui.add(
                     egui::Label::new(
                         egui::RichText::new(text)
                             .size(theme.font_size_caption.value())
-                            .color(theme.text_secondary().to_egui()),
+                            .color(theme.text_primary().to_egui()),
                     )
                     .wrap(),
                 );

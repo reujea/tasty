@@ -375,7 +375,7 @@ fn field(
                     ui.label(
                         egui::RichText::new(range_line(spec, &settled))
                             .size(theme.font_size_caption.value())
-                            .color(theme.accent_danger()),
+                            .color(theme.accent_danger_raised()),
                     );
                 }
             }

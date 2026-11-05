@@ -176,7 +176,7 @@ fn a_pinned_trigger_paints_the_same_borders_as_the_live_select() {
     );
     assert_eq!(
         pinned(SelectLook::Hover, true),
-        (vec![th.border_strong().to_egui()], vec![])
+        (vec![th.border_control().to_egui()], vec![])
     );
     assert_eq!(pinned(SelectLook::Open, true), (vec![focus], vec![focus]));
     assert_eq!(

@@ -104,7 +104,13 @@ impl GpuState {
                 let vi_cursor_info = vi_cursor
                     .filter(|_| !is_readonly)
                     .filter(|(sid, _)| sid == surface_id)
-                    .map(|(_, pt)| (pt, theme.vi_cursor_bg.to_gpu_rgba()));
+                    .map(|(_, pt)| {
+                        (
+                            pt,
+                            theme.vi_cursor_bg.to_gpu_rgba(),
+                            theme.vi_cursor_fg().to_gpu_rgba(),
+                        )
+                    });
                 let vi_cursor_ref = vi_cursor_info.as_ref();
 
                 let render_preedit = preedit

@@ -151,8 +151,10 @@ pub(super) fn new_ws_row(ui: &mut egui::Ui, theme: &Theme, state: NewRow) {
     );
     child.spacing_mut().item_spacing.x = theme.spacing_sm.value();
     let glyph_c = if state.selected() {
-        if state.creating() || state.failed() {
+        if state.creating() {
             theme.text_on_active()
+        } else if state.failed() {
+            theme.accent_danger_on_active()
         } else {
             theme.accent_primary_on_active()
         }
@@ -170,7 +172,7 @@ pub(super) fn new_ws_row(ui: &mut egui::Ui, theme: &Theme, state: NewRow) {
     } else if state.creating() {
         theme.text_muted()
     } else {
-        theme.accent_primary()
+        theme.accent_primary_raised()
     };
     child.label(
         egui::RichText::new(if state.creating() {
@@ -255,7 +257,7 @@ fn new_ws_error(ui: &mut egui::Ui, theme: &Theme) {
     col.label(
         egui::RichText::new(CREATE_ERROR)
             .size(theme.font_size_caption.value())
-            .color(theme.accent_danger().to_egui()),
+            .color(theme.accent_danger_raised().to_egui()),
     );
     Button::new("Try again")
         .variant(ButtonVariant::Secondary)

@@ -21,7 +21,7 @@ subtext1 = "#5c5f77"
 # 본문 대비를 확보하도록 조정한 색이다. base와 4.99:1, mantle과 4.64:1 대비를 갖는다.
 # docs/design/systems/theme.md의 텍스트 대비 규칙을 따른다.
 subtext0 = "#63667c"
-placeholder = "#9ca0b0"
+placeholder = "#5c5f77"
 
 [accent]
 blue      = "#1e66f5"

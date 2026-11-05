@@ -35,7 +35,7 @@ fn tag(p: &egui::Painter, theme: &Theme, pos: egui::Pos2, text: &str) -> f32 {
         egui::Align2::CENTER_CENTER,
         text,
         font,
-        egui::Color32::from(theme.text_secondary()),
+        egui::Color32::from(theme.text_secondary_raised()),
     );
     r.width()
 }

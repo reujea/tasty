@@ -333,13 +333,14 @@ impl<'a, K> Table<'a, K> {
                     tr.col(|ui| {
                         ui.visuals_mut().selection.bg_fill = text_selection_fill;
                         ui.visuals_mut().widgets.hovered.bg_fill = widget_hover_fill;
-                        // 시안의 행 글자색은 table-row-fg 이고 선택 행은 table-row-fg-selected, hover 행은
-                        // text-primary 다. egui_extras 가 선택 행에 거는 선택 테두리색(accent)도 여기서
+                        // 시안의 행 글자색은 table-row-fg 이고 선택 행은 table-row-fg-selected 다.
+                        // hover 칸은 mantle·base 양쪽에서 등급을 지키는 text-secondary-raised를 읽는다.
+                        // egui_extras 가 선택 행에 거는 선택 테두리색(accent)도 여기서
                         // 덮는다. 색을 명시한 라벨에는 영향이 없으므로 그 셀은 호출자가 선택 색을 쓴다.
                         let ink = if selected {
                             theme.table_row_fg_selected()
                         } else if hovered {
-                            theme.text_primary()
+                            theme.text_secondary_raised()
                         } else {
                             theme.table_row_fg()
                         };

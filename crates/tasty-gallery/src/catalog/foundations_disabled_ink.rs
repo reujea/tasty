@@ -71,7 +71,7 @@ fn c4_strip(ui: &mut egui::Ui, th: &Theme) {
         egui::Align2::LEFT_CENTER,
         "server · dev · vim · logs",
         egui::FontId::proportional(th.font_size_caption.value()),
-        ec(th.text_secondary()),
+        ec(th.text_secondary_raised()),
     );
 }
 

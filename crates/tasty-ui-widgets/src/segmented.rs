@@ -65,8 +65,10 @@ pub fn segmented(
 
                     let text_color = if active {
                         theme.text_on_accent().to_egui()
+                    } else if resp.hovered() {
+                        theme.text_on_active().to_egui()
                     } else {
-                        theme.text_secondary().to_egui()
+                        theme.text_secondary_raised().to_egui()
                     };
                     ui.painter().text(
                         rect.center(),

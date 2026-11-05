@@ -34,16 +34,16 @@ impl crate::theme::Theme {
         self.move_source_chip_size()
     }
 
-    /// `component.attach-refusal-glyph` → `{semantic.accent-warning}`
+    /// `component.attach-refusal-glyph` → `{semantic.accent-warning-glyph}`
     #[inline]
     pub fn attach_refusal_glyph(&self) -> HexColor {
-        self.accent_warning()
+        self.accent_warning_glyph()
     }
 
-    /// `component.attach-sync-glyph` → `{semantic.accent-warning}`
+    /// `component.attach-sync-glyph` → `{semantic.accent-warning-glyph}`
     #[inline]
     pub fn attach_sync_glyph(&self) -> HexColor {
-        self.accent_warning()
+        self.accent_warning_glyph()
     }
 
     /// `component.attach-sync-name-max-width` → `{primitive.size-160}` = 160px
@@ -58,16 +58,16 @@ impl crate::theme::Theme {
         LogicalPx((40.0 * self.ui_zoom).round())
     }
 
-    /// `component.autocomplete-empty-fg` → `{semantic.text-muted}`
+    /// `component.autocomplete-empty-fg` → `{semantic.text-muted-raised}`
     #[inline]
     pub fn autocomplete_empty_fg(&self) -> HexColor {
-        self.text_muted()
+        self.text_muted_raised()
     }
 
-    /// `component.autocomplete-match-fg` → `{semantic.accent-primary-on-active}`
+    /// `component.autocomplete-match-fg` → `{semantic.accent-primary-strong}`
     #[inline]
     pub fn autocomplete_match_fg(&self) -> HexColor {
-        self.accent_primary_on_active()
+        self.accent_primary_strong()
     }
 
     /// `component.autocomplete-match-underline-offset` → `{primitive.size-2}` = 2px
@@ -196,10 +196,10 @@ impl crate::theme::Theme {
         self.status_dot_size
     }
 
-    /// `component.badge-fg` → `{semantic.text-secondary}`
+    /// `component.badge-fg` → `{semantic.text-secondary-raised}`
     #[inline]
     pub fn badge_fg(&self) -> HexColor {
-        self.text_secondary()
+        self.text_secondary_raised()
     }
 
     /// `component.badge-font-size` → `{semantic.font-size-micro}` = 10px
@@ -256,10 +256,10 @@ impl crate::theme::Theme {
         LogicalPx((16.0 * self.ui_zoom).round())
     }
 
-    /// `component.badge-success-bg` → `{semantic.accent-success}`
+    /// `component.badge-success-bg` → `{semantic.accent-success-fill}`
     #[inline]
     pub fn badge_success_bg(&self) -> HexColor {
-        self.accent_success()
+        self.accent_success_fill()
     }
 
     /// `component.badge-success-fg` → `{semantic.text-on-accent}`
@@ -268,10 +268,10 @@ impl crate::theme::Theme {
         self.text_on_accent()
     }
 
-    /// `component.badge-warning-bg` → `{semantic.attention-needs-input}`
+    /// `component.badge-warning-bg` → `{semantic.attention-needs-input-fill}`
     #[inline]
     pub fn badge_warning_bg(&self) -> HexColor {
-        self.attention_needs_input()
+        self.attention_needs_input_fill()
     }
 
     /// `component.badge-warning-fg` → `{semantic.attention-needs-input-fg}`
@@ -436,10 +436,10 @@ impl crate::theme::Theme {
         self.spacing_sm
     }
 
-    /// `component.banner-radius` → `{primitive.radius-8}` = 8px
+    /// `component.banner-radius` → `{semantic.radius}` = 4px
     #[inline]
     pub fn banner_radius(&self) -> LogicalPx {
-        LogicalPx((8.0 * self.ui_zoom).round())
+        self.corner_radius
     }
 
     /// `component.banner-text-gap` → `{semantic.label-detail-gap}` = 2px
@@ -682,10 +682,10 @@ impl crate::theme::Theme {
         self.text_secondary()
     }
 
-    /// `component.checkbox-bg` → `{semantic.surface-raised}`
+    /// `component.checkbox-bg` → `{semantic.surface-field}`
     #[inline]
     pub fn checkbox_bg(&self) -> HexColor {
-        self.surface_raised()
+        self.surface_field()
     }
 
     /// `component.checkbox-bg-checked` → `{semantic.accent-primary}`
@@ -694,10 +694,10 @@ impl crate::theme::Theme {
         self.accent_primary()
     }
 
-    /// `component.checkbox-border` → `{semantic.border-strong}`
+    /// `component.checkbox-border` → `{semantic.border-control}`
     #[inline]
     pub fn checkbox_border(&self) -> HexColor {
-        self.border_strong()
+        self.border_control()
     }
 
     /// `component.checkbox-border-focus` → `{semantic.border-focus}`
@@ -724,10 +724,10 @@ impl crate::theme::Theme {
         LogicalPx((16.0 * self.ui_zoom).round())
     }
 
-    /// `component.codearea-error-fg` → `{semantic.accent-danger}`
+    /// `component.codearea-error-fg` → `{semantic.accent-danger-raised}`
     #[inline]
     pub fn codearea_error_fg(&self) -> HexColor {
-        self.accent_danger()
+        self.accent_danger_raised()
     }
 
     /// `component.codearea-font-size` → `{semantic.font-size-caption}` = 11px
@@ -844,10 +844,10 @@ impl crate::theme::Theme {
         self.spacing_sm
     }
 
-    /// `component.dag-cycle-fg` → `{semantic.accent-warning}`
+    /// `component.dag-cycle-fg` → `{semantic.accent-warning-strong}`
     #[inline]
     pub fn dag_cycle_fg(&self) -> HexColor {
-        self.accent_warning()
+        self.accent_warning_strong()
     }
 
     /// `component.dag-cycle-height` → `{semantic.control-height}` = 28px
@@ -922,16 +922,16 @@ impl crate::theme::Theme {
         self.corner_radius
     }
 
-    /// `component.dag-edge-depends` → `{semantic.border-strong}`
+    /// `component.dag-edge-depends` → `{semantic.border-control}`
     #[inline]
     pub fn dag_edge_depends(&self) -> HexColor {
-        self.border_strong()
+        self.border_control()
     }
 
-    /// `component.dag-edge-fallback` → `{semantic.accent-attention}`
+    /// `component.dag-edge-fallback` → `{semantic.accent-attention-raised}`
     #[inline]
     pub fn dag_edge_fallback(&self) -> HexColor {
-        self.accent_attention()
+        self.accent_attention_raised()
     }
 
     /// `component.dag-edge-highlight` → `{semantic.accent-primary}`
@@ -940,10 +940,10 @@ impl crate::theme::Theme {
         self.accent_primary()
     }
 
-    /// `component.dag-edge-reduce` → `{semantic.accent-info}`
+    /// `component.dag-edge-reduce` → `{semantic.accent-info-raised}`
     #[inline]
     pub fn dag_edge_reduce(&self) -> HexColor {
-        self.accent_info()
+        self.accent_info_raised()
     }
 
     /// `component.dag-edge-selected-width` → `{semantic.focus-ring-width}` = 2px
@@ -952,10 +952,10 @@ impl crate::theme::Theme {
         self.focus_ring_width
     }
 
-    /// `component.dag-edge-transition` → `{semantic.accent-route}`
+    /// `component.dag-edge-transition` → `{semantic.accent-route-raised}`
     #[inline]
     pub fn dag_edge_transition(&self) -> HexColor {
-        self.accent_route()
+        self.accent_route_raised()
     }
 
     /// `component.dag-edge-width` → `{primitive.size-1}` = 1px
@@ -994,10 +994,10 @@ impl crate::theme::Theme {
         LogicalPx((560.0 * self.ui_zoom).round())
     }
 
-    /// `component.dag-minimap-node` → `{semantic.border-strong}`
+    /// `component.dag-minimap-node` → `{semantic.border-control}`
     #[inline]
     pub fn dag_minimap_node(&self) -> HexColor {
-        self.border_strong()
+        self.border_control()
     }
 
     /// `component.dag-minimap-viewport` → `{semantic.accent-primary}`
@@ -1054,16 +1054,22 @@ impl crate::theme::Theme {
         self.overlay_hover()
     }
 
-    /// `component.dag-node-meta-fg` → `{semantic.text-muted}`
+    /// `component.dag-node-meta-fg` → `{semantic.text-muted-raised}`
     #[inline]
     pub fn dag_node_meta_fg(&self) -> HexColor {
-        self.text_muted()
+        self.text_muted_raised()
     }
 
     /// `component.dag-node-meta-font-size` → `{semantic.font-size-micro}` = 10px
     #[inline]
     pub fn dag_node_meta_font_size(&self) -> LogicalPx {
         self.font_size_micro
+    }
+
+    /// `component.dag-node-meta-status-fg` → `{semantic.text-on-active}`
+    #[inline]
+    pub fn dag_node_meta_status_fg(&self) -> HexColor {
+        self.text_on_active()
     }
 
     /// `component.dag-node-name-font-size` → `{semantic.font-size-body}` = 13px
@@ -1114,16 +1120,16 @@ impl crate::theme::Theme {
         LogicalPx((168.0 * self.ui_zoom).round())
     }
 
-    /// `component.dag-phase-awaiting` → `{semantic.attention-needs-input}`
+    /// `component.dag-phase-awaiting` → `{semantic.accent-warning-strong}`
     #[inline]
     pub fn dag_phase_awaiting(&self) -> HexColor {
-        self.attention_needs_input()
+        self.accent_warning_strong()
     }
 
-    /// `component.dag-phase-awaiting-label` → `{component.dag-phase-awaiting}`
+    /// `component.dag-phase-awaiting-label` → `{semantic.accent-warning-strong}`
     #[inline]
     pub fn dag_phase_awaiting_label(&self) -> HexColor {
-        self.dag_phase_awaiting()
+        self.accent_warning_strong()
     }
 
     /// `component.dag-popup-height` → `{primitive.size-460}` = 460px
@@ -1174,16 +1180,16 @@ impl crate::theme::Theme {
         self.border_strong()
     }
 
-    /// `component.dag-runner-crashed-fg` → `{semantic.accent-danger}`
+    /// `component.dag-runner-crashed-fg` → `{semantic.accent-danger-strong}`
     #[inline]
     pub fn dag_runner_crashed_fg(&self) -> HexColor {
-        self.accent_danger()
+        self.accent_danger_strong()
     }
 
-    /// `component.dag-runner-fg` → `{semantic.text-secondary}`
+    /// `component.dag-runner-fg` → `{semantic.text-secondary-raised}`
     #[inline]
     pub fn dag_runner_fg(&self) -> HexColor {
-        self.text_secondary()
+        self.text_secondary_raised()
     }
 
     /// `component.dag-runner-gap` → `{semantic.space-sm}` = 8px
@@ -1198,10 +1204,10 @@ impl crate::theme::Theme {
         self.item_height_tree
     }
 
-    /// `component.dag-runner-idle-fg` → `{semantic.text-muted}`
+    /// `component.dag-runner-idle-fg` → `{semantic.text-muted-raised}`
     #[inline]
     pub fn dag_runner_idle_fg(&self) -> HexColor {
-        self.text_muted()
+        self.text_muted_raised()
     }
 
     /// `component.dag-runner-padding-x` → `{semantic.space-sm}` = 8px
@@ -1216,10 +1222,10 @@ impl crate::theme::Theme {
         self.corner_radius_sm
     }
 
-    /// `component.dag-runner-stalled-fg` → `{semantic.accent-warning}`
+    /// `component.dag-runner-stalled-fg` → `{semantic.accent-warning-strong}`
     #[inline]
     pub fn dag_runner_stalled_fg(&self) -> HexColor {
-        self.accent_warning()
+        self.accent_warning_strong()
     }
 
     /// `component.dag-sibling-gap` → `{primitive.size-24}` = 24px
@@ -1228,10 +1234,10 @@ impl crate::theme::Theme {
         LogicalPx((24.0 * self.ui_zoom).round())
     }
 
-    /// `component.dag-status-cancelled` → `{semantic.text-disabled}`
+    /// `component.dag-status-cancelled` → `{semantic.glyph-dim-raised}`
     #[inline]
     pub fn dag_status_cancelled(&self) -> HexColor {
-        self.text_disabled()
+        self.glyph_dim_raised()
     }
 
     /// `component.dag-status-cancelled-bg` → `{component.dag-node-bg}`
@@ -1240,40 +1246,40 @@ impl crate::theme::Theme {
         self.dag_node_bg()
     }
 
-    /// `component.dag-status-cancelled-label` → `{semantic.text-secondary}`
+    /// `component.dag-status-cancelled-label` → `{semantic.text-secondary-raised}`
     #[inline]
     pub fn dag_status_cancelled_label(&self) -> HexColor {
-        self.text_secondary()
+        self.text_secondary_raised()
     }
 
-    /// `component.dag-status-failed` → `{semantic.accent-danger}`
+    /// `component.dag-status-failed` → `{semantic.accent-danger-raised}`
     #[inline]
     pub fn dag_status_failed(&self) -> HexColor {
-        self.accent_danger()
+        self.accent_danger_raised()
     }
 
-    /// `component.dag-status-failed-label` → `{component.dag-status-failed}`
+    /// `component.dag-status-failed-label` → `{semantic.accent-danger-strong}`
     #[inline]
     pub fn dag_status_failed_label(&self) -> HexColor {
-        self.dag_status_failed()
+        self.accent_danger_strong()
     }
 
-    /// `component.dag-status-partially-failed` → `{semantic.accent-attention}`
+    /// `component.dag-status-partially-failed` → `{semantic.accent-attention-raised}`
     #[inline]
     pub fn dag_status_partially_failed(&self) -> HexColor {
-        self.accent_attention()
+        self.accent_attention_raised()
     }
 
-    /// `component.dag-status-partially-failed-label` → `{component.dag-status-partially-failed}`
+    /// `component.dag-status-partially-failed-label` → `{semantic.accent-attention-strong}`
     #[inline]
     pub fn dag_status_partially_failed_label(&self) -> HexColor {
-        self.dag_status_partially_failed()
+        self.accent_attention_strong()
     }
 
-    /// `component.dag-status-ready` → `{semantic.accent-info}`
+    /// `component.dag-status-ready` → `{semantic.accent-info-raised}`
     #[inline]
     pub fn dag_status_ready(&self) -> HexColor {
-        self.accent_info()
+        self.accent_info_raised()
     }
 
     /// `component.dag-status-ready-bg` → `{component.dag-node-bg}`
@@ -1288,22 +1294,22 @@ impl crate::theme::Theme {
         self.dag_status_ready()
     }
 
-    /// `component.dag-status-running` → `{semantic.accent-primary}`
+    /// `component.dag-status-running` → `{semantic.accent-primary-raised}`
     #[inline]
     pub fn dag_status_running(&self) -> HexColor {
-        self.accent_primary()
+        self.accent_primary_raised()
     }
 
-    /// `component.dag-status-running-label` → `{component.dag-status-running}`
+    /// `component.dag-status-running-label` → `{semantic.accent-primary-strong}`
     #[inline]
     pub fn dag_status_running_label(&self) -> HexColor {
-        self.dag_status_running()
+        self.accent_primary_strong()
     }
 
-    /// `component.dag-status-skipped` → `{semantic.text-disabled}`
+    /// `component.dag-status-skipped` → `{semantic.glyph-dim-raised}`
     #[inline]
     pub fn dag_status_skipped(&self) -> HexColor {
-        self.text_disabled()
+        self.glyph_dim_raised()
     }
 
     /// `component.dag-status-skipped-bg` → `{component.dag-node-bg}`
@@ -1312,16 +1318,16 @@ impl crate::theme::Theme {
         self.dag_node_bg()
     }
 
-    /// `component.dag-status-skipped-label` → `{semantic.text-secondary}`
+    /// `component.dag-status-skipped-label` → `{semantic.text-secondary-raised}`
     #[inline]
     pub fn dag_status_skipped_label(&self) -> HexColor {
-        self.text_secondary()
+        self.text_secondary_raised()
     }
 
-    /// `component.dag-status-succeeded` → `{semantic.accent-success}`
+    /// `component.dag-status-succeeded` → `{semantic.accent-success-raised}`
     #[inline]
     pub fn dag_status_succeeded(&self) -> HexColor {
-        self.accent_success()
+        self.accent_success_raised()
     }
 
     /// `component.dag-status-succeeded-bg` → `{component.dag-node-bg}`
@@ -1336,22 +1342,22 @@ impl crate::theme::Theme {
         self.dag_status_succeeded()
     }
 
-    /// `component.dag-status-unknown` → `{semantic.accent-warning}`
+    /// `component.dag-status-unknown` → `{semantic.accent-warning-raised}`
     #[inline]
     pub fn dag_status_unknown(&self) -> HexColor {
-        self.accent_warning()
+        self.accent_warning_raised()
     }
 
-    /// `component.dag-status-unknown-label` → `{component.dag-status-unknown}`
+    /// `component.dag-status-unknown-label` → `{semantic.accent-warning-strong}`
     #[inline]
     pub fn dag_status_unknown_label(&self) -> HexColor {
-        self.dag_status_unknown()
+        self.accent_warning_strong()
     }
 
-    /// `component.dag-status-waiting` → `{semantic.status-idle}`
+    /// `component.dag-status-waiting` → `{semantic.glyph-dim-raised}`
     #[inline]
     pub fn dag_status_waiting(&self) -> HexColor {
-        self.status_idle()
+        self.glyph_dim_raised()
     }
 
     /// `component.dag-status-waiting-bg` → `{component.dag-node-bg}`
@@ -1360,10 +1366,10 @@ impl crate::theme::Theme {
         self.dag_node_bg()
     }
 
-    /// `component.dag-status-waiting-label` → `{semantic.text-muted}`
+    /// `component.dag-status-waiting-label` → `{semantic.text-muted-raised}`
     #[inline]
     pub fn dag_status_waiting_label(&self) -> HexColor {
-        self.text_muted()
+        self.text_muted_raised()
     }
 
     /// `component.dialog-bg` → `{semantic.bg-panel}`
@@ -1450,10 +1456,10 @@ impl crate::theme::Theme {
         self.spacing_lg
     }
 
-    /// `component.explorer-cursor-ring` → `{semantic.border-focus}`
+    /// `component.explorer-cursor-ring` → `{semantic.accent-primary-raised}`
     #[inline]
     pub fn explorer_cursor_ring(&self) -> HexColor {
-        self.border_focus()
+        self.accent_primary_raised()
     }
 
     /// `component.explorer-cursor-ring-width` → `{semantic.border-width}` = 1px
@@ -1474,10 +1480,10 @@ impl crate::theme::Theme {
         LogicalPx((240.0 * self.ui_zoom).round())
     }
 
-    /// `component.explorer-drag-copy-fg` → `{semantic.accent-success}`
+    /// `component.explorer-drag-copy-fg` → `{semantic.accent-success-raised}`
     #[inline]
     pub fn explorer_drag_copy_fg(&self) -> HexColor {
-        self.accent_success()
+        self.accent_success_raised()
     }
 
     /// `component.explorer-drag-expand-delay` → `{primitive.duration-800}` = 800ms
@@ -1546,10 +1552,10 @@ impl crate::theme::Theme {
         self.text_muted()
     }
 
-    /// `component.explorer-link-broken-fg` → `{semantic.accent-warning}`
+    /// `component.explorer-link-broken-fg` → `{semantic.accent-warning-raised}`
     #[inline]
     pub fn explorer_link_broken_fg(&self) -> HexColor {
-        self.accent_warning()
+        self.accent_warning_raised()
     }
 
     /// `component.explorer-link-glyph` → `{semantic.text-muted}`
@@ -1588,10 +1594,10 @@ impl crate::theme::Theme {
         LogicalPx((180.0 * self.ui_zoom).round())
     }
 
-    /// `component.explorer-name-error-fg` → `{semantic.accent-danger}`
+    /// `component.explorer-name-error-fg` → `{semantic.accent-danger-raised}`
     #[inline]
     pub fn explorer_name_error_fg(&self) -> HexColor {
-        self.accent_danger()
+        self.accent_danger_raised()
     }
 
     /// `component.explorer-name-error-max-width` → `{primitive.size-240}` = 240px
@@ -1660,16 +1666,16 @@ impl crate::theme::Theme {
         LogicalPx((96.0 * self.ui_zoom).round())
     }
 
-    /// `component.explorer-props-padding-x` → `{primitive.size-14}` = 14px
+    /// `component.explorer-props-padding-x` → `{semantic.space-md}` = 12px
     #[inline]
     pub fn explorer_props_padding_x(&self) -> LogicalPx {
-        LogicalPx((14.0 * self.ui_zoom).round())
+        self.spacing_md
     }
 
-    /// `component.explorer-props-partial-fg` → `{semantic.accent-warning}`
+    /// `component.explorer-props-partial-fg` → `{semantic.accent-warning-raised}`
     #[inline]
     pub fn explorer_props_partial_fg(&self) -> HexColor {
-        self.accent_warning()
+        self.accent_warning_raised()
     }
 
     /// `component.explorer-props-perm-border` → `{semantic.border-strong}`
@@ -1684,10 +1690,10 @@ impl crate::theme::Theme {
         LogicalPx((56.0 * self.ui_zoom).round())
     }
 
-    /// `component.explorer-props-perm-error-fg` → `{semantic.accent-danger}`
+    /// `component.explorer-props-perm-error-fg` → `{semantic.accent-danger-raised}`
     #[inline]
     pub fn explorer_props_perm_error_fg(&self) -> HexColor {
-        self.accent_danger()
+        self.accent_danger_raised()
     }
 
     /// `component.explorer-props-perm-grid-min-width` → `calc(4 * var(--tasty-explorer-props-perm-cell-width) + 2 * var(--tasty-space-sm) + 2 * var(--tasty-border-width))` = 242px
@@ -1800,10 +1806,10 @@ impl crate::theme::Theme {
         LogicalPx((56.0 * self.ui_zoom).round())
     }
 
-    /// `component.file-drop-overlay-fg` → `{semantic.accent-primary}`
+    /// `component.file-drop-overlay-fg` → `{semantic.accent-primary-strong}`
     #[inline]
     pub fn file_drop_overlay_fg(&self) -> HexColor {
-        self.accent_primary()
+        self.accent_primary_strong()
     }
 
     /// `component.file-handler-empty-fg` → `{semantic.text-muted}`
@@ -2148,10 +2154,10 @@ impl crate::theme::Theme {
         self.text_secondary_raised()
     }
 
-    /// `component.html-limit-banner-glyph` → `{semantic.accent-warning}`
+    /// `component.html-limit-banner-glyph` → `{semantic.accent-warning-raised}`
     #[inline]
     pub fn html_limit_banner_glyph(&self) -> HexColor {
-        self.accent_warning()
+        self.accent_warning_raised()
     }
 
     /// `component.html-receiving-fg` → `{semantic.text-muted}`
@@ -2166,10 +2172,10 @@ impl crate::theme::Theme {
         self.glyph_dim()
     }
 
-    /// `component.html-remote-banner-glyph` → `{semantic.accent-info}`
+    /// `component.html-remote-banner-glyph` → `{semantic.accent-info-raised}`
     #[inline]
     pub fn html_remote_banner_glyph(&self) -> HexColor {
-        self.accent_info()
+        self.accent_info_raised()
     }
 
     /// `component.html-remote-marker-allowed-fg` → `{semantic.text-muted}`
@@ -2178,10 +2184,10 @@ impl crate::theme::Theme {
         self.text_muted()
     }
 
-    /// `component.html-remote-marker-fg` → `{semantic.glyph-dim}`
+    /// `component.html-remote-marker-fg` → `{semantic.glyph-dim-raised}`
     #[inline]
     pub fn html_remote_marker_fg(&self) -> HexColor {
-        self.glyph_dim()
+        self.glyph_dim_raised()
     }
 
     /// `component.html-remote-marker-hit` → `{primitive.size-20}` = 20px
@@ -2202,10 +2208,10 @@ impl crate::theme::Theme {
         self.icon_glyph_size_sm
     }
 
-    /// `component.html-script-banner-glyph` → `{semantic.accent-info}`
+    /// `component.html-script-banner-glyph` → `{semantic.accent-info-raised}`
     #[inline]
     pub fn html_script_banner_glyph(&self) -> HexColor {
-        self.accent_info()
+        self.accent_info_raised()
     }
 
     /// `component.html-script-marker-allowed-fg` → `{semantic.text-muted}`
@@ -2238,10 +2244,10 @@ impl crate::theme::Theme {
         self.icon_glyph_size_xs
     }
 
-    /// `component.html-size-banner-glyph` → `{semantic.accent-info}`
+    /// `component.html-size-banner-glyph` → `{semantic.accent-info-raised}`
     #[inline]
     pub fn html_size_banner_glyph(&self) -> HexColor {
-        self.accent_info()
+        self.accent_info_raised()
     }
 
     /// `component.icon-button-bg-active` → `{semantic.overlay-active}`
@@ -2286,10 +2292,10 @@ impl crate::theme::Theme {
         LogicalPx((24.0 * self.ui_zoom).round())
     }
 
-    /// `component.image-error-fg` → `{semantic.accent-danger}`
+    /// `component.image-error-fg` → `{semantic.accent-danger-raised}`
     #[inline]
     pub fn image_error_fg(&self) -> HexColor {
-        self.accent_danger()
+        self.accent_danger_raised()
     }
 
     /// `component.image-handle-size` → `{primitive.size-6}` = 6px
@@ -2298,10 +2304,10 @@ impl crate::theme::Theme {
         LogicalPx((6.0 * self.ui_zoom).round())
     }
 
-    /// `component.image-path-row-gap` → `{primitive.size-6}` = 6px
+    /// `component.image-path-row-gap` → `{semantic.space-sm}` = 8px
     #[inline]
     pub fn image_path_row_gap(&self) -> LogicalPx {
-        LogicalPx((6.0 * self.ui_zoom).round())
+        self.spacing_sm
     }
 
     /// `component.image-popup-btn-gap` → `{semantic.space-sm}` = 8px
@@ -2310,10 +2316,10 @@ impl crate::theme::Theme {
         self.spacing_sm
     }
 
-    /// `component.image-popup-gap` → `{primitive.size-10}` = 10px
+    /// `component.image-popup-gap` → `{semantic.space-sm}` = 8px
     #[inline]
     pub fn image_popup_gap(&self) -> LogicalPx {
-        LogicalPx((10.0 * self.ui_zoom).round())
+        self.spacing_sm
     }
 
     /// `component.image-popup-pad-top` → `{semantic.space-md}` = 12px
@@ -2322,10 +2328,10 @@ impl crate::theme::Theme {
         self.spacing_md
     }
 
-    /// `component.image-popup-pad-x` → `{primitive.size-14}` = 14px
+    /// `component.image-popup-pad-x` → `{semantic.space-md}` = 12px
     #[inline]
     pub fn image_popup_pad_x(&self) -> LogicalPx {
-        LogicalPx((14.0 * self.ui_zoom).round())
+        self.spacing_md
     }
 
     /// `component.image-popup-title-font-size` → `{semantic.font-size-max}` = 14px
@@ -2346,10 +2352,10 @@ impl crate::theme::Theme {
         LogicalPx((64.0 * self.ui_zoom).round())
     }
 
-    /// `component.image-too-large-fg` → `{semantic.accent-warning}`
+    /// `component.image-too-large-fg` → `{semantic.accent-warning-raised}`
     #[inline]
     pub fn image_too_large_fg(&self) -> HexColor {
-        self.accent_warning()
+        self.accent_warning_raised()
     }
 
     /// `component.image-zoom-font-size` → `{semantic.font-size-caption}` = 11px
@@ -2400,16 +2406,16 @@ impl crate::theme::Theme {
         LogicalPx((440.0 * self.ui_zoom).round())
     }
 
-    /// `component.input-bg` → `{semantic.surface-raised}`
+    /// `component.input-bg` → `{semantic.surface-field}`
     #[inline]
     pub fn input_bg(&self) -> HexColor {
-        self.surface_raised()
+        self.surface_field()
     }
 
-    /// `component.input-border` → `{semantic.border-default}`
+    /// `component.input-border` → `{semantic.border-control}`
     #[inline]
     pub fn input_border(&self) -> HexColor {
-        self.border_default()
+        self.border_control()
     }
 
     /// `component.input-border-focus` → `{semantic.border-focus}`
@@ -2478,10 +2484,10 @@ impl crate::theme::Theme {
         self.bg_panel()
     }
 
-    /// `component.input-raised-border` → `{semantic.border-strong}`
+    /// `component.input-raised-border` → `{semantic.border-control-raised}`
     #[inline]
     pub fn input_raised_border(&self) -> HexColor {
-        self.border_strong()
+        self.border_control_raised()
     }
 
     /// `component.input-readonly-bg` → `{semantic.state-disabled-fill}`
@@ -2550,10 +2556,10 @@ impl crate::theme::Theme {
         LogicalPx((140.0 * self.ui_zoom).round())
     }
 
-    /// `component.kb-os-reserved-fg` → `{semantic.accent-warning}`
+    /// `component.kb-os-reserved-fg` → `{semantic.accent-warning-raised}`
     #[inline]
     pub fn kb_os_reserved_fg(&self) -> HexColor {
-        self.accent_warning()
+        self.accent_warning_raised()
     }
 
     /// `component.kb-plugin-caption-fg` → `{semantic.text-muted}`
@@ -2580,10 +2586,10 @@ impl crate::theme::Theme {
         self.item_height_interactive
     }
 
-    /// `component.kb-plugin-draft-dot` → `{semantic.accent-primary}`
+    /// `component.kb-plugin-draft-dot` → `{semantic.accent-primary-raised}`
     #[inline]
     pub fn kb_plugin_draft_dot(&self) -> HexColor {
-        self.accent_primary()
+        self.accent_primary_raised()
     }
 
     /// `component.kb-plugin-draft-dot-size` → `{component.status-dot-size-compact}` = 6px
@@ -2592,10 +2598,10 @@ impl crate::theme::Theme {
         self.status_dot_size_compact()
     }
 
-    /// `component.kb-plugin-error-fg` → `{semantic.accent-danger}`
+    /// `component.kb-plugin-error-fg` → `{semantic.accent-danger-raised}`
     #[inline]
     pub fn kb_plugin_error_fg(&self) -> HexColor {
-        self.accent_danger()
+        self.accent_danger_raised()
     }
 
     /// `component.kb-plugin-list-gap` → `{semantic.space-md}` = 12px
@@ -2670,16 +2676,16 @@ impl crate::theme::Theme {
         LogicalPx((32.0 * self.ui_zoom).round())
     }
 
-    /// `component.kb-record-border` → `{semantic.border-default}`
+    /// `component.kb-record-border` → `{semantic.border-control}`
     #[inline]
     pub fn kb_record_border(&self) -> HexColor {
-        self.border_default()
+        self.border_control()
     }
 
-    /// `component.kb-record-border-hover` → `{semantic.border-strong}`
+    /// `component.kb-record-border-hover` → `{semantic.border-control-raised}`
     #[inline]
     pub fn kb_record_border_hover(&self) -> HexColor {
-        self.border_strong()
+        self.border_control_raised()
     }
 
     /// `component.kb-record-empty-fg` → `{semantic.text-muted}`
@@ -2730,10 +2736,10 @@ impl crate::theme::Theme {
         self.font_size_micro
     }
 
-    /// `component.kbd-gap` → `{primitive.size-3}` = 3px
+    /// `component.kbd-gap` → `{semantic.space-xs}` = 4px
     #[inline]
     pub fn kbd_gap(&self) -> LogicalPx {
-        LogicalPx((3.0 * self.ui_zoom).round())
+        self.spacing_xs
     }
 
     /// `component.kbd-padding-x` → `{semantic.space-xs}` = 4px
@@ -2868,10 +2874,10 @@ impl crate::theme::Theme {
         self.spacing_sm
     }
 
-    /// `component.listctrl-selected-bar` → `{semantic.accent-primary}`
+    /// `component.listctrl-selected-bar` → `{semantic.accent-primary-on-active}`
     #[inline]
     pub fn listctrl_selected_bar(&self) -> HexColor {
-        self.accent_primary()
+        self.accent_primary_on_active()
     }
 
     /// `component.listctrl-selected-bar-width` → `{semantic.selection-edge-width}` = 2px
@@ -3240,10 +3246,10 @@ impl crate::theme::Theme {
         Millis(200.0)
     }
 
-    /// `component.modhint-grip-fg` → `{semantic.border-strong}`
+    /// `component.modhint-grip-fg` → `{semantic.glyph-dim}`
     #[inline]
     pub fn modhint_grip_fg(&self) -> HexColor {
-        self.border_strong()
+        self.glyph_dim()
     }
 
     /// `component.modhint-grip-inset` → `{primitive.size-2}` = 2px
@@ -3294,10 +3300,10 @@ impl crate::theme::Theme {
         self.font_size_caption
     }
 
-    /// `component.modhint-row-gap` → `{primitive.size-6}` = 6px
+    /// `component.modhint-row-gap` → `{semantic.space-sm}` = 8px
     #[inline]
     pub fn modhint_row_gap(&self) -> LogicalPx {
-        LogicalPx((6.0 * self.ui_zoom).round())
+        self.spacing_sm
     }
 
     /// `component.modhint-row-min-height` → `{primitive.size-24}` = 24px
@@ -3330,10 +3336,10 @@ impl crate::theme::Theme {
         LogicalPx((4.0 * self.ui_zoom).round())
     }
 
-    /// `component.move-source-glyph` → `{semantic.accent-move}`
+    /// `component.move-source-glyph` → `{semantic.accent-move-raised}`
     #[inline]
     pub fn move_source_glyph(&self) -> HexColor {
-        self.accent_move()
+        self.accent_move_raised()
     }
 
     /// `component.move-source-glyph-size` → `{semantic.icon-size-xs}` = 12px
@@ -3342,10 +3348,10 @@ impl crate::theme::Theme {
         self.icon_glyph_size_xs
     }
 
-    /// `component.move-source-ring` → `{semantic.accent-move}`
+    /// `component.move-source-ring` → `{semantic.accent-move-raised}`
     #[inline]
     pub fn move_source_ring(&self) -> HexColor {
-        self.accent_move()
+        self.accent_move_raised()
     }
 
     /// `component.move-source-ring-width` → `{semantic.focus-ring-width}` = 2px
@@ -3354,10 +3360,10 @@ impl crate::theme::Theme {
         self.focus_ring_width
     }
 
-    /// `component.multiselect-all-fg` → `{semantic.accent-primary}`
+    /// `component.multiselect-all-fg` → `{semantic.accent-primary-raised}`
     #[inline]
     pub fn multiselect_all_fg(&self) -> HexColor {
-        self.accent_primary()
+        self.accent_primary_raised()
     }
 
     /// `component.multiselect-bg` → `{component.select-bg}`
@@ -3378,10 +3384,10 @@ impl crate::theme::Theme {
         self.select_border_focus()
     }
 
-    /// `component.multiselect-border-hover` → `{semantic.border-strong}`
+    /// `component.multiselect-border-hover` → `{semantic.border-control-raised}`
     #[inline]
     pub fn multiselect_border_hover(&self) -> HexColor {
-        self.border_strong()
+        self.border_control_raised()
     }
 
     /// `component.multiselect-chevron-fg` → `{component.select-chevron-fg}`
@@ -3684,10 +3690,10 @@ impl crate::theme::Theme {
         self.text_muted()
     }
 
-    /// `component.notification-item-more-fg` → `{semantic.accent-primary}`
+    /// `component.notification-item-more-fg` → `{semantic.accent-primary-raised}`
     #[inline]
     pub fn notification_item_more_fg(&self) -> HexColor {
-        self.accent_primary()
+        self.accent_primary_raised()
     }
 
     /// `component.notification-item-pad-x` → `{semantic.space-md}` = 12px
@@ -3924,10 +3930,10 @@ impl crate::theme::Theme {
         self.corner_radius
     }
 
-    /// `component.pending-indicator-sep-fg` → `{semantic.text-muted}`
+    /// `component.pending-indicator-sep-fg` → `{semantic.text-muted-raised}`
     #[inline]
     pub fn pending_indicator_sep_fg(&self) -> HexColor {
-        self.text_muted()
+        self.text_muted_raised()
     }
 
     /// `component.pending-indicator-spinner-size` → `{semantic.icon-size-sm}` = 14px
@@ -3942,16 +3948,16 @@ impl crate::theme::Theme {
         self.text_primary()
     }
 
-    /// `component.perm-granted-fg` → `{semantic.accent-success}`
+    /// `component.perm-granted-fg` → `{semantic.accent-success-raised}`
     #[inline]
     pub fn perm_granted_fg(&self) -> HexColor {
-        self.accent_success()
+        self.accent_success_raised()
     }
 
-    /// `component.perm-missing-fg` → `{semantic.accent-warning}`
+    /// `component.perm-missing-fg` → `{semantic.accent-warning-glyph}`
     #[inline]
     pub fn perm_missing_fg(&self) -> HexColor {
-        self.accent_warning()
+        self.accent_warning_glyph()
     }
 
     /// `component.perm-row-height` → `{component.settings-row-min-height}` = 32px
@@ -3984,10 +3990,10 @@ impl crate::theme::Theme {
         self.border_width
     }
 
-    /// `component.plugin-avatar-fg` → `{semantic.accent-primary}`
+    /// `component.plugin-avatar-fg` → `{semantic.accent-primary-strong}`
     #[inline]
     pub fn plugin_avatar_fg(&self) -> HexColor {
-        self.accent_primary()
+        self.accent_primary_strong()
     }
 
     /// `component.plugin-avatar-initial-font-size-lg` → `{semantic.font-size-max}` = 14px
@@ -4152,10 +4158,10 @@ impl crate::theme::Theme {
         self.text_on_active()
     }
 
-    /// `component.port-star-on` → `{semantic.accent-warning}`
+    /// `component.port-star-on` → `{semantic.accent-warning-glyph}`
     #[inline]
     pub fn port_star_on(&self) -> HexColor {
-        self.accent_warning()
+        self.accent_warning_glyph()
     }
 
     /// `component.port-star-on-active` → `{semantic.accent-warning-on-active}`
@@ -4170,10 +4176,10 @@ impl crate::theme::Theme {
         self.status_dot_idle()
     }
 
-    /// `component.preset-cfg-draft-fg` → `{semantic.accent-warning}`
+    /// `component.preset-cfg-draft-fg` → `{semantic.accent-warning-raised}`
     #[inline]
     pub fn preset_cfg_draft_fg(&self) -> HexColor {
-        self.accent_warning()
+        self.accent_warning_raised()
     }
 
     /// `component.preset-cfg-field-gap` → `{semantic.space-md}` = 12px
@@ -4188,10 +4194,10 @@ impl crate::theme::Theme {
         LogicalPx((52.0 * self.ui_zoom).round())
     }
 
-    /// `component.preset-cfg-footer-padding-x` → `{primitive.size-14}` = 14px
+    /// `component.preset-cfg-footer-padding-x` → `{semantic.space-md}` = 12px
     #[inline]
     pub fn preset_cfg_footer_padding_x(&self) -> LogicalPx {
-        LogicalPx((14.0 * self.ui_zoom).round())
+        self.spacing_md
     }
 
     /// `component.preset-cfg-form-max-width` → `{primitive.size-460}` = 460px
@@ -4240,6 +4246,12 @@ impl crate::theme::Theme {
     #[inline]
     pub fn preset_split_divider_width(&self) -> LogicalPx {
         self.selection_edge_width
+    }
+
+    /// `component.preset-split-zone-border` → `{semantic.accent-primary-raised}`
+    #[inline]
+    pub fn preset_split_zone_border(&self) -> HexColor {
+        self.accent_primary_raised()
     }
 
     /// `component.progress-fill-bg` → `{semantic.accent-primary}`
@@ -4386,16 +4398,16 @@ impl crate::theme::Theme {
         self.text_on_accent()
     }
 
-    /// `component.select-bg` → `{semantic.surface-raised}`
+    /// `component.select-bg` → `{semantic.surface-field}`
     #[inline]
     pub fn select_bg(&self) -> HexColor {
-        self.surface_raised()
+        self.surface_field()
     }
 
-    /// `component.select-border` → `{semantic.border-default}`
+    /// `component.select-border` → `{semantic.border-control}`
     #[inline]
     pub fn select_border(&self) -> HexColor {
-        self.border_default()
+        self.border_control()
     }
 
     /// `component.select-border-focus` → `{semantic.border-focus}`
@@ -4464,10 +4476,10 @@ impl crate::theme::Theme {
         self.bg_panel()
     }
 
-    /// `component.select-raised-border` → `{semantic.border-strong}`
+    /// `component.select-raised-border` → `{semantic.border-control-raised}`
     #[inline]
     pub fn select_raised_border(&self) -> HexColor {
-        self.border_strong()
+        self.border_control_raised()
     }
 
     /// `component.select-raised-disabled-bg` → `{semantic.state-disabled-fill-raised}`
@@ -4566,10 +4578,10 @@ impl crate::theme::Theme {
         self.text_secondary_raised()
     }
 
-    /// `component.select-search-trigger-border-hover` → `{semantic.border-strong}`
+    /// `component.select-search-trigger-border-hover` → `{semantic.border-control-raised}`
     #[inline]
     pub fn select_search_trigger_border_hover(&self) -> HexColor {
-        self.border_strong()
+        self.border_control_raised()
     }
 
     /// `component.select-search-value-placeholder` → `{semantic.text-placeholder}`
@@ -4686,10 +4698,10 @@ impl crate::theme::Theme {
         self.separator
     }
 
-    /// `component.sidebar-category-header-count-fg` → `{semantic.text-disabled}`
+    /// `component.sidebar-category-header-count-fg` → `{semantic.text-quiet}`
     #[inline]
     pub fn sidebar_category_header_count_fg(&self) -> HexColor {
-        self.text_disabled()
+        self.text_quiet()
     }
 
     /// `component.sidebar-category-header-count-font-size` → `{semantic.font-size-micro}` = 10px
@@ -4764,10 +4776,10 @@ impl crate::theme::Theme {
         Millis(900.0)
     }
 
-    /// `component.spinner-indicator` → `{semantic.accent-primary}`
+    /// `component.spinner-indicator` → `{semantic.accent-primary-on-active}`
     #[inline]
     pub fn spinner_indicator(&self) -> HexColor {
-        self.accent_primary()
+        self.accent_primary_on_active()
     }
 
     /// `component.spinner-size` → `{primitive.size-16}` = 16px
@@ -4800,10 +4812,10 @@ impl crate::theme::Theme {
         self.accent_agent_on_active()
     }
 
-    /// `component.status-dot-attached-ring` → `{semantic.accent-attached}`
+    /// `component.status-dot-attached-ring` → `{semantic.accent-attached-raised}`
     #[inline]
     pub fn status_dot_attached_ring(&self) -> HexColor {
-        self.border_attached()
+        self.accent_attached_raised()
     }
 
     /// `component.status-dot-attached-ring-active` → `{semantic.accent-attached-on-active}`
@@ -4860,10 +4872,10 @@ impl crate::theme::Theme {
         self.text_on_active()
     }
 
-    /// `component.status-dot-needs-input` → `{semantic.attention-needs-input}`
+    /// `component.status-dot-needs-input` → `{semantic.accent-warning-raised}`
     #[inline]
     pub fn status_dot_needs_input(&self) -> HexColor {
-        self.attention_needs_input()
+        self.accent_warning_raised()
     }
 
     /// `component.status-dot-needs-input-active` → `{semantic.accent-warning-on-active}`
@@ -4902,10 +4914,10 @@ impl crate::theme::Theme {
         LogicalPx((6.0 * self.ui_zoom).round())
     }
 
-    /// `component.status-dot-success` → `{semantic.accent-success}`
+    /// `component.status-dot-success` → `{semantic.accent-success-raised}`
     #[inline]
     pub fn status_dot_success(&self) -> HexColor {
-        self.accent_success()
+        self.accent_success_raised()
     }
 
     /// `component.status-dot-success-active` → `{semantic.accent-success-on-active}`
@@ -4914,10 +4926,10 @@ impl crate::theme::Theme {
         self.accent_success_on_active()
     }
 
-    /// `component.status-dot-warning` → `{semantic.accent-warning}`
+    /// `component.status-dot-warning` → `{semantic.accent-warning-raised}`
     #[inline]
     pub fn status_dot_warning(&self) -> HexColor {
-        self.accent_warning()
+        self.accent_warning_raised()
     }
 
     /// `component.status-dot-warning-active` → `{semantic.accent-warning-on-active}`
@@ -4962,10 +4974,10 @@ impl crate::theme::Theme {
         self.focus_ring_width
     }
 
-    /// `component.surface-highlight-input-border` → `{semantic.attention-needs-input}`
+    /// `component.surface-highlight-input-border` → `{semantic.accent-warning-raised}`
     #[inline]
     pub fn surface_highlight_input_border(&self) -> HexColor {
-        self.attention_needs_input()
+        self.accent_warning_raised()
     }
 
     /// `component.surface-highlight-input-width` → `{semantic.focus-ring-width}` = 2px
@@ -4980,16 +4992,16 @@ impl crate::theme::Theme {
         self.border_width
     }
 
-    /// `component.surface-occupied-hard-border` → `{semantic.accent-occupied-hard}`
+    /// `component.surface-occupied-hard-border` → `{semantic.accent-attention-raised}`
     #[inline]
     pub fn surface_occupied_hard_border(&self) -> HexColor {
-        self.accent_occupied_hard()
+        self.accent_attention_raised()
     }
 
-    /// `component.surface-occupied-soft-border` → `{semantic.accent-occupied-soft}`
+    /// `component.surface-occupied-soft-border` → `{semantic.accent-success-raised}`
     #[inline]
     pub fn surface_occupied_soft_border(&self) -> HexColor {
-        self.accent_occupied_soft()
+        self.accent_success_raised()
     }
 
     /// `component.swatch-radius` → `{semantic.radius-sm}` = 2px
@@ -5058,10 +5070,10 @@ impl crate::theme::Theme {
         LogicalPx((9999.0 * self.ui_zoom).round())
     }
 
-    /// `component.switch-thumb-bg` → `{semantic.text-muted}`
+    /// `component.switch-thumb-bg` → `{semantic.control-thumb}`
     #[inline]
     pub fn switch_thumb_bg(&self) -> HexColor {
-        self.text_muted()
+        self.control_thumb()
     }
 
     /// `component.switch-thumb-bg-on` → `{semantic.text-on-accent}`
@@ -5076,6 +5088,12 @@ impl crate::theme::Theme {
         LogicalPx((2.0 * self.ui_zoom).round())
     }
 
+    /// `component.switch-thumb-raised-bg` → `{semantic.control-thumb-raised}`
+    #[inline]
+    pub fn switch_thumb_raised_bg(&self) -> HexColor {
+        self.control_thumb_raised()
+    }
+
     /// `component.switch-thumb-size` → `{primitive.size-12}` = 12px
     #[inline]
     pub fn switch_thumb_size(&self) -> LogicalPx {
@@ -5088,10 +5106,10 @@ impl crate::theme::Theme {
         LogicalPx((12.0 * self.ui_zoom).round())
     }
 
-    /// `component.switch-track-bg` → `{semantic.surface-active}`
+    /// `component.switch-track-bg` → `{semantic.border-control}`
     #[inline]
     pub fn switch_track_bg(&self) -> HexColor {
-        self.surface_active()
+        self.border_control()
     }
 
     /// `component.switch-track-bg-on` → `{semantic.accent-primary}`
@@ -5104,6 +5122,12 @@ impl crate::theme::Theme {
     #[inline]
     pub fn switch_track_height(&self) -> LogicalPx {
         LogicalPx((16.0 * self.ui_zoom).round())
+    }
+
+    /// `component.switch-track-raised-bg` → `{semantic.border-control-raised}`
+    #[inline]
+    pub fn switch_track_raised_bg(&self) -> HexColor {
+        self.border_control_raised()
     }
 
     /// `component.switch-track-width` → `{primitive.size-28}` = 28px
@@ -5154,10 +5178,10 @@ impl crate::theme::Theme {
         self.text_primary()
     }
 
-    /// `component.tab-fg-completion` → `{semantic.attention-completion}`
+    /// `component.tab-fg-completion` → `{semantic.accent-primary-raised}`
     #[inline]
     pub fn tab_fg_completion(&self) -> HexColor {
-        self.attention_completion()
+        self.accent_primary_raised()
     }
 
     /// `component.tab-fg-hover` → `{semantic.text-secondary}`
@@ -5166,10 +5190,10 @@ impl crate::theme::Theme {
         self.text_secondary()
     }
 
-    /// `component.tab-fg-needs-input` → `{semantic.attention-needs-input}`
+    /// `component.tab-fg-needs-input` → `{semantic.accent-warning-raised}`
     #[inline]
     pub fn tab_fg_needs_input(&self) -> HexColor {
-        self.attention_needs_input()
+        self.accent_warning_raised()
     }
 
     /// `component.tab-gap` → `{semantic.space-sm}` = 8px
@@ -5550,25 +5574,25 @@ impl crate::theme::Theme {
         self.accent_danger()
     }
 
-    /// `component.toast-accent-info` → `{semantic.accent-info}`
+    /// `component.toast-accent-info` → `{semantic.accent-info-raised}`
     #[inline]
     pub fn toast_accent_info(&self) -> HexColor {
-        self.accent_info()
+        self.accent_info_raised()
     }
 
-    /// `component.toast-accent-success` → `{semantic.accent-success}`
+    /// `component.toast-accent-success` → `{semantic.accent-success-raised}`
     #[inline]
     pub fn toast_accent_success(&self) -> HexColor {
-        self.accent_success()
+        self.accent_success_raised()
     }
 
-    /// `component.toast-accent-warning` → `{semantic.accent-warning}`
+    /// `component.toast-accent-warning` → `{semantic.accent-warning-raised}`
     #[inline]
     pub fn toast_accent_warning(&self) -> HexColor {
-        self.accent_warning()
+        self.accent_warning_raised()
     }
 
-    /// `component.toast-accent-width` → `{primitive.size-3}` = 3px
+    /// `component.toast-accent-width` → `{semantic.tint-edge-width}` = 2px
     #[inline]
     pub fn toast_accent_width(&self) -> LogicalPx {
         self.toast_accent_width
@@ -5676,10 +5700,10 @@ impl crate::theme::Theme {
         Millis(150.0)
     }
 
-    /// `component.tooltip-fg` → `{semantic.text-secondary}`
+    /// `component.tooltip-fg` → `{semantic.text-secondary-raised}`
     #[inline]
     pub fn tooltip_fg(&self) -> HexColor {
-        self.text_secondary()
+        self.text_secondary_raised()
     }
 
     /// `component.tooltip-font-size` → `{semantic.font-size-caption}` = 11px
@@ -5718,16 +5742,16 @@ impl crate::theme::Theme {
         self.corner_radius
     }
 
-    /// `component.transfer-body-gap` → `{primitive.size-10}` = 10px
+    /// `component.transfer-body-gap` → `{semantic.space-sm}` = 8px
     #[inline]
     pub fn transfer_body_gap(&self) -> LogicalPx {
-        LogicalPx((10.0 * self.ui_zoom).round())
+        self.spacing_sm
     }
 
-    /// `component.transfer-footer-pad-y` → `{primitive.size-10}` = 10px
+    /// `component.transfer-footer-pad-y` → `{semantic.space-sm}` = 8px
     #[inline]
     pub fn transfer_footer_pad_y(&self) -> LogicalPx {
-        LogicalPx((10.0 * self.ui_zoom).round())
+        self.spacing_sm
     }
 
     /// `component.transfer-header-pad-y` → `{semantic.space-md}` = 12px
@@ -5736,10 +5760,10 @@ impl crate::theme::Theme {
         self.spacing_md
     }
 
-    /// `component.transfer-pad-x` → `{primitive.size-14}` = 14px
+    /// `component.transfer-pad-x` → `{semantic.space-md}` = 12px
     #[inline]
     pub fn transfer_pad_x(&self) -> LogicalPx {
-        LogicalPx((14.0 * self.ui_zoom).round())
+        self.spacing_md
     }
 
     /// `component.transfer-popup-width` → `{primitive.size-400}` = 400px
@@ -5748,10 +5772,10 @@ impl crate::theme::Theme {
         LogicalPx((400.0 * self.ui_zoom).round())
     }
 
-    /// `component.transfer-well-pad-x` → `{primitive.size-10}` = 10px
+    /// `component.transfer-well-pad-x` → `{semantic.space-md}` = 12px
     #[inline]
     pub fn transfer_well_pad_x(&self) -> LogicalPx {
-        LogicalPx((10.0 * self.ui_zoom).round())
+        self.spacing_md
     }
 
     /// `component.transfer-well-pad-y` → `{semantic.space-sm}` = 8px
@@ -5898,10 +5922,10 @@ impl crate::theme::Theme {
         LogicalPx((12.0 * self.ui_zoom).round())
     }
 
-    /// `component.workspace-mirror-fg` → `{semantic.accent-remote}`
+    /// `component.workspace-mirror-fg` → `{semantic.accent-remote-raised}`
     #[inline]
     pub fn workspace_mirror_fg(&self) -> HexColor {
-        self.accent_remote()
+        self.accent_remote_raised()
     }
 
     /// `component.workspace-mirror-fg-active` → `{semantic.accent-remote-on-active}`

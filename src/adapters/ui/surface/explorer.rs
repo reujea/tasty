@@ -533,7 +533,7 @@ fn seg_toggle(
         let fg = if active {
             theme.segtoggle_on_fg().to_egui()
         } else {
-            theme.text_muted().to_egui()
+            theme.text_muted_raised().to_egui()
         };
         let ir = egui::Rect::from_center_size(seg_rect.center(), egui::vec2(icon, icon));
         ic.image(icon, fg).paint_at(ui, ir);
@@ -704,7 +704,7 @@ fn favorite_row(
     action: &mut Option<ExplorerAction>,
 ) {
     let star = icons::STAR_FILL;
-    let star_color = theme.accent_warning().to_egui();
+    let star_color = theme.accent_warning_glyph().to_egui();
     let selected = fav.path == current;
     let resp = tree_row(
         ui,
@@ -1212,17 +1212,17 @@ fn grid_cell(
         ui.allocate_exact_size(egui::vec2(CELL_W.value(), cell_h), egui::Sense::click());
     let p = ui.painter_at(rect);
 
-    if selected || resp.hovered() {
-        let bg = if selected {
-            theme.surface_active().to_egui()
-        } else {
-            theme.overlay_hover().to_egui_premultiplied()
-        };
-        p.rect_filled(rect, theme.corner_radius.value(), bg);
-    }
+    let state = tasty_ui_widgets::RowState::from_response(selected, &resp);
+    state.paint_fill(&p, rect, theme.corner_radius.value(), theme);
 
     let fg_dim = |c| cut_dim(theme, cut, c);
     let (icon, glyph_color) = entry_style::entry_icon(theme, e, selected);
+    // 선택 행의 모양 글리프만 hover·press 잉크로 바꾼다. hue 글리프는 on-active 띠를 유지한다.
+    let glyph_color = if glyph_color == theme.text_on_active().to_egui() {
+        state.glyph(theme).to_egui()
+    } else {
+        glyph_color
+    };
     let glyph_rect = egui::Rect::from_center_size(
         egui::pos2(
             rect.center().x,
@@ -1233,8 +1233,13 @@ fn grid_cell(
     thumbs::paint_slot(ui, theme, glyph_rect, thumb, icon, fg_dim(glyph_color));
 
     // 이름은 위에서부터 최대 세 줄로 표시하고 넘치면 끝을 줄인다.
-    let rest = theme.text_secondary().to_egui();
-    let label_color = fg_dim(entry_style::name_fg(theme, e, selected, rest));
+    let parent = tasty_ui_widgets::RowParent::Base;
+    let rest = state.label(theme, parent, theme.text_secondary()).to_egui();
+    let label_color = fg_dim(if state.is_selected() {
+        rest
+    } else {
+        entry_style::name_fg(theme, e, selected, rest)
+    });
     let mut job = find::name_job(
         theme,
         &e.name,

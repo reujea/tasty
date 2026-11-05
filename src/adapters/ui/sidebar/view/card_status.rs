@@ -42,7 +42,7 @@ pub(super) fn paint_dot_slot(
     if switch_digit.is_none() {
         let dot_color: egui::Color32 = match (ws.busy_count > 0, ws.is_active) {
             (true, true) => th.status_dot_success_active().into(),
-            (true, false) => th.accent_success().into(),
+            (true, false) => th.status_dot_success().into(),
             (false, true) => th.status_dot_idle_active().into(),
             (false, false) => th.status_dot_idle().into(),
         };
@@ -61,7 +61,7 @@ pub(super) fn paint_dot_slot(
                     if ws.is_active {
                         th.status_dot_attached_ring_active()
                     } else {
-                        th.border_attached()
+                        th.status_dot_attached_ring()
                     },
                 ),
             );

@@ -197,7 +197,7 @@ impl<'a> Tooltip<'a> {
             0.0,
             egui::TextFormat {
                 font_id: egui::FontId::proportional(caption),
-                color: theme.text_secondary().to_egui(),
+                color: theme.tooltip_fg().to_egui(),
                 // 줄 높이는 caption 글꼴 크기에 line_height_ui를 곱한다.
                 line_height: Some(caption * theme.line_height_ui),
                 ..Default::default()
@@ -209,7 +209,7 @@ impl<'a> Tooltip<'a> {
                 0.0,
                 egui::TextFormat {
                     font_id: egui::FontId::proportional(caption),
-                    color: theme.text_muted().to_egui(),
+                    color: theme.text_muted_raised().to_egui(),
                     line_height: Some(caption * theme.line_height_ui),
                     ..Default::default()
                 },
@@ -508,11 +508,11 @@ mod tests {
         let two = Tooltip::new("build-server").second_line("Attaching…");
         let job = two.layout_job(&theme);
         assert_eq!(job.sections.len(), 2);
+        assert_eq!(job.sections[0].format.color, theme.tooltip_fg().to_egui());
         assert_eq!(
-            job.sections[0].format.color,
-            theme.text_secondary().to_egui()
+            job.sections[1].format.color,
+            theme.text_muted_raised().to_egui()
         );
-        assert_eq!(job.sections[1].format.color, theme.text_muted().to_egui());
         assert_eq!(
             &job.text[job.sections[1].byte_range.clone()],
             "\nAttaching…"

@@ -174,7 +174,7 @@ fn header_ui(ui: &mut egui::Ui, state: &mut GalleryState) {
         let t = &state.theme;
         (
             egui::Color32::from(t.text_primary()),
-            egui::Color32::from(t.text_muted()),
+            egui::Color32::from(t.text_muted_raised()),
             egui::Color32::from(t.brand_melon_flesh()),
             egui::Color32::from(t.border_default()),
             egui::Color32::from(t.surface_raised()),

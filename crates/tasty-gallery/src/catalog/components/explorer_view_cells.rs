@@ -295,7 +295,7 @@ pub fn draw(ui: &mut egui::Ui, theme: &Theme) {
             TokenChip::new(
                 "text-muted",
                 "detail meta",
-                egui::Color32::from(theme.text_muted()),
+                egui::Color32::from(theme.text_muted_raised()),
             ),
         ],
     );

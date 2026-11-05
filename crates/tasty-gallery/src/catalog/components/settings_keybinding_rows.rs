@@ -127,7 +127,11 @@ pub fn draw(ui: &mut egui::Ui, theme: &Theme) {
             TokenChip::without_color("kb-record-height", "→ kb-ie-slot-height 24"),
             TokenChip::without_color("kb-record-add-width", "→ size-32"),
             TokenChip::without_color("kb-row-gap", "→ space-sm 8"),
-            TokenChip::new("text-secondary", "label", theme.text_secondary().to_egui()),
+            TokenChip::new(
+                "text-secondary",
+                "label",
+                theme.text_secondary_raised().to_egui(),
+            ),
             TokenChip::new("surface-raised", "slot", theme.surface_raised().to_egui()),
             TokenChip::new(
                 "kb-record-border",

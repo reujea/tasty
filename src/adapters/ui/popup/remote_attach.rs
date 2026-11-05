@@ -6,6 +6,7 @@ mod nav;
 
 use tasty_remote::browser::BROWSE_DEADLINE;
 use tasty_type_geometry::length::LogicalPx;
+use tasty_ui_widgets::{RowParent, RowState};
 
 use crate::app::remote_browser::BrowserRequest;
 use tasty_remote::browse::RemoteWorkspace;
@@ -511,16 +512,15 @@ fn profile_row(ui: &mut egui::Ui, th: &Theme, p: &ProfileSummary, selected: bool
     let w = ui.available_width();
     let (rect, resp) =
         ui.allocate_exact_size(egui::vec2(w, PROFILE_ROW_H.value()), egui::Sense::click());
+    let state = RowState::from_response(selected, &resp);
+    state.paint_fill(ui.painter(), rect, 0.0, th);
     if selected {
-        ui.painter().rect_filled(rect, 0.0, th.surface_active());
         let bar = egui::Rect::from_min_size(
             rect.min,
             egui::vec2(th.selection_edge_width.value(), rect.height()),
         );
-        ui.painter().rect_filled(bar, 0.0, th.accent_primary());
-    } else if resp.hovered() {
         ui.painter()
-            .rect_filled(rect, 0.0, th.hover_overlay.to_egui_premultiplied());
+            .rect_filled(bar, 0.0, th.accent_primary_on_active());
     }
     let inner = egui::Rect::from_min_max(
         egui::pos2(
@@ -543,18 +543,10 @@ fn profile_row(ui: &mut egui::Ui, th: &Theme, p: &ProfileSummary, selected: bool
         egui::pos2(inner.right(), rect.bottom()),
     ));
     child.spacing_mut().item_spacing.y = STRUCT_GAP_2.value();
-    let meta_c = if selected {
-        th.text_on_active()
-    } else {
-        th.text_muted()
-    };
+    let meta_c = state.meta(th, RowParent::Base);
     child.horizontal(|ui| {
         ui.spacing_mut().item_spacing.x = th.spacing_sm.value();
-        let name_c = if selected {
-            th.text_on_active()
-        } else {
-            th.text_secondary()
-        };
+        let name_c = state.label(th, RowParent::Base, th.text_secondary());
         ui.add(
             egui::Label::new(
                 egui::RichText::new(&p.name)
@@ -763,27 +755,37 @@ fn new_ws_row(
         egui::Sense::click()
     };
     let (resp, mut child) = ws_row_frame(ui, th, sense, selected, !creating);
-    let glyph_c: egui::Color32 = if selected {
-        if creating || failed {
-            th.text_on_active().into()
-        } else {
-            th.accent_primary_on_active().into()
-        }
-    } else if creating {
-        th.text_muted().into()
+    let state = ws_row_state(selected, !creating, &resp);
+    // 새 행의 글리프는 색이 뜻을 담는다. 실패와 생성 중은 뜻이 바뀌므로 hue를 따로 고른다.
+    let glyph_c: egui::Color32 = if creating {
+        state.glyph(th).into()
     } else if failed {
-        th.accent_danger().into()
+        state
+            .hue(
+                th,
+                th.accent_danger(),
+                th.accent_danger(),
+                th.accent_danger_on_active(),
+            )
+            .into()
     } else {
-        th.accent_primary().into()
+        state
+            .hue(
+                th,
+                th.accent_primary(),
+                th.accent_primary(),
+                th.accent_primary_on_active(),
+            )
+            .into()
     };
     dot_slot_glyph(&mut child, th, creating, failed, glyph_c);
     // 선택 배경에서 대비를 확보하도록 라벨 색을 바꾼다. 아이콘·구분선도 행 구분에 사용한다.
-    let label_c = if selected {
-        th.text_on_active()
+    let label_c = if state.is_selected() {
+        state.label(th, RowParent::Base, th.text_on_active())
     } else if creating {
-        th.text_muted()
+        state.meta(th, RowParent::Base)
     } else {
-        th.accent_primary()
+        th.accent_primary_raised()
     };
     child.add(
         egui::Label::new(
@@ -803,11 +805,7 @@ fn new_ws_row(
             ui.label(
                 egui::RichText::new(t("remote_attach.new_workspace_on_remote"))
                     .size(th.font_size_caption.value())
-                    .color(if selected {
-                        th.text_on_active()
-                    } else {
-                        th.text_muted()
-                    }),
+                    .color(state.meta(th, RowParent::Base)),
             );
         }
     });
@@ -905,7 +903,7 @@ fn new_ws_error(ui: &mut egui::Ui, th: &Theme, msg: &str) -> bool {
         egui::Label::new(
             egui::RichText::new(msg)
                 .size(th.font_size_caption.value())
-                .color(th.accent_danger()),
+                .color(th.accent_danger_raised()),
         )
         .wrap(),
     )
@@ -932,6 +930,16 @@ fn row_separator(ui: &mut egui::Ui, th: &Theme) {
 }
 
 /// 워크스페이스 행의 바탕(선택 막대·호버)을 그리고 안쪽 가로 배치 영역을 돌려준다.
+/// 입력을 받지 않는 행은 선택 채움만 유지하고 hover·press를 그리지 않는다.
+fn ws_row_state(selected: bool, hoverable: bool, resp: &egui::Response) -> RowState {
+    RowState::of(
+        true,
+        selected,
+        hoverable && resp.hovered(),
+        hoverable && resp.is_pointer_button_down_on(),
+    )
+}
+
 fn ws_row_frame(
     ui: &mut egui::Ui,
     th: &Theme,
@@ -941,16 +949,14 @@ fn ws_row_frame(
 ) -> (egui::Response, egui::Ui) {
     let width = ui.available_width();
     let (rect, resp) = ui.allocate_exact_size(egui::vec2(width, WS_ROW_H.value()), sense);
+    ws_row_state(selected, hoverable, &resp).paint_fill(ui.painter(), rect, 0.0, th);
     if selected {
-        ui.painter().rect_filled(rect, 0.0, th.surface_active());
         let bar = egui::Rect::from_min_size(
             rect.min,
             egui::vec2(th.selection_edge_width.value(), rect.height()),
         );
-        ui.painter().rect_filled(bar, 0.0, th.accent_primary());
-    } else if hoverable && resp.hovered() {
         ui.painter()
-            .rect_filled(rect, 0.0, th.hover_overlay.to_egui_premultiplied());
+            .rect_filled(bar, 0.0, th.accent_primary_on_active());
     }
     let inner = egui::Rect::from_min_max(
         egui::pos2(rect.left() + th.spacing_md.value(), rect.top()),
@@ -980,6 +986,7 @@ fn ws_row(
         egui::Sense::click()
     };
     let (resp, mut child) = ws_row_frame(ui, th, sense, selected, !disabled && interactive);
+    let state = ws_row_state(selected, !disabled && interactive, &resp);
     let kind = if w.busy_count > 0 {
         StatusKind::Running
     } else {
@@ -988,16 +995,10 @@ fn ws_row(
     dot_slot_status(&mut child, th, kind, w.busy_count > 0, selected);
     let name_c = if disabled {
         th.text_disabled()
-    } else if selected {
-        th.text_on_active()
     } else {
-        th.text_secondary()
+        state.label(th, RowParent::Base, th.text_secondary())
     };
-    let meta_c = if selected {
-        th.text_on_active()
-    } else {
-        th.text_muted()
-    };
+    let meta_c = state.meta(th, RowParent::Base);
     child.add(
         egui::Label::new(
             egui::RichText::new(&w.name)

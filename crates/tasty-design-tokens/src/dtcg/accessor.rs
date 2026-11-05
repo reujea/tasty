@@ -230,11 +230,68 @@ pub const SEMANTIC_COLOR_TO_THEME_ACCESSOR: &[(&str, &str)] = &[
         "semantic.accent-attached-on-active",
         "accent_attached_on_active()",
     ),
+    ("semantic.surface-field", "surface_field()"),
+    ("semantic.border-control", "border_control()"),
+    ("semantic.border-control-raised", "border_control_raised()"),
+    ("semantic.control-thumb", "control_thumb()"),
+    ("semantic.control-thumb-raised", "control_thumb_raised()"),
+    ("semantic.scrollbar-thumb", "scrollbar_thumb()"),
+    (
+        "semantic.scrollbar-thumb-raised",
+        "scrollbar_thumb_raised()",
+    ),
+    ("semantic.scrollbar-thumb-hover", "scrollbar_thumb_hover()"),
+    ("semantic.text-on-active-hover", "text_on_active_hover()"),
+    ("semantic.text-quiet", "text_quiet()"),
+    ("semantic.glyph-dim-raised", "glyph_dim_raised()"),
+    ("semantic.accent-primary-raised", "accent_primary_raised()"),
+    ("semantic.accent-agent-raised", "accent_agent_raised()"),
+    ("semantic.accent-success-raised", "accent_success_raised()"),
+    ("semantic.accent-remote-raised", "accent_remote_raised()"),
+    ("semantic.accent-move-raised", "accent_move_raised()"),
+    ("semantic.accent-route-raised", "accent_route_raised()"),
+    ("semantic.accent-primary-strong", "accent_primary_strong()"),
+    ("semantic.accent-info-strong", "accent_info_strong()"),
+    ("semantic.accent-success-strong", "accent_success_strong()"),
+    ("semantic.accent-warning-strong", "accent_warning_strong()"),
+    (
+        "semantic.accent-attention-strong",
+        "accent_attention_strong()",
+    ),
+    ("semantic.accent-danger-strong", "accent_danger_strong()"),
+    ("semantic.accent-agent-strong", "accent_agent_strong()"),
+    (
+        "semantic.accent-attached-strong",
+        "accent_attached_strong()",
+    ),
+    ("semantic.accent-remote-strong", "accent_remote_strong()"),
+    ("semantic.accent-info-on-active", "accent_info_on_active()"),
+    (
+        "semantic.accent-attention-on-active",
+        "accent_attention_on_active()",
+    ),
+    ("semantic.accent-move-on-active", "accent_move_on_active()"),
+    (
+        "semantic.accent-route-on-active",
+        "accent_route_on_active()",
+    ),
+    ("semantic.accent-success-fill", "accent_success_fill()"),
+    (
+        "semantic.attention-needs-input-fill",
+        "attention_needs_input_fill()",
+    ),
+    ("semantic.tint-primary-bg", "tint_primary_bg()"),
+    ("semantic.tint-info-bg", "tint_info_bg()"),
+    ("semantic.tint-success-bg", "tint_success_bg()"),
+    ("semantic.tint-warning-bg", "tint_warning_bg()"),
+    ("semantic.tint-danger-bg", "tint_danger_bg()"),
+    ("semantic.tint-agent-bg", "tint_agent_bg()"),
+    ("semantic.vi-cursor-fg", "vi_cursor_fg()"),
 ];
 
 /// 생성할 semantic 색 접근자: 토큰 경로, 메서드명, 반환할 Theme 필드.
 /// 토큰과 필드가 항상 일대일로 대응하지 않으므로 명시적으로 연결한다.
-/// 예를 들어 text-placeholder는 overlay0와 기본값이 같지만 별도 placeholder 필드를 쓴다.
+/// 예를 들어 text-placeholder는 테마 파일의 placeholder 필드를 그대로 쓴다.
 /// color_drift 시험은 값, semantic_accessors_map_to_primitives 시험은 필드 연결을 확인한다.
 pub const SEMANTIC_COLOR_ACCESSOR_GEN: &[(&str, &str, &str)] = &[
     // 배경 (bg-*)
@@ -294,11 +351,6 @@ pub const SEMANTIC_COLOR_ACCESSOR_GEN: &[(&str, &str, &str)] = &[
         "attention_completion",
         "blue",
     ),
-    // 상태 표시 (status-*)
-    // 입력 placeholder의 사용자 설정이 상태 표시 색에 영향을 주지 않게 한다.
-    ("semantic.status-idle", "status_idle", "overlay0"),
-    // 약하게 표시할 창 아이콘 색. 입력 placeholder 설정이나 비활성 색과 구분한다.
-    ("semantic.glyph-dim", "glyph_dim", "overlay0"),
     // 보더 (border-*)
     ("semantic.border-default", "border_default", "surface0"),
     ("semantic.border-strong", "border_strong", "surface1"),
@@ -356,7 +408,7 @@ const SEMANTIC_COLOR_HAND_WRITTEN: &[(&str, &str)] = &[
     ),
     (
         "semantic.accent-primary-on-active",
-        "Latte blue 70% + primitive black 합성색",
+        "Mocha blue 65% + white / Latte blue 65% + black 합성색",
     ),
     (
         "semantic.accent-warning-raised",
@@ -376,23 +428,23 @@ const SEMANTIC_COLOR_HAND_WRITTEN: &[(&str, &str)] = &[
     ),
     (
         "semantic.accent-warning-on-active",
-        "accent-warning-raised alias, 대응 Theme 필드 없음",
+        "Latte yellow 45% + black 합성색",
     ),
     (
         "semantic.accent-success-on-active",
-        "accent-success-ink alias, 대응 Theme 필드 없음",
+        "Latte green 55% + black 합성색",
     ),
     (
         "semantic.accent-danger-on-active",
-        "Mocha red 85% + primitive white 합성색 / Latte=accent-danger-raised",
+        "Mocha red 60% + white / Latte red 70% + black 합성색",
     ),
     (
         "semantic.accent-agent-on-active",
-        "Latte mauve 80% + primitive black 합성색",
+        "Mocha mauve 70% + white / Latte mauve 70% + black 합성색",
     ),
     (
         "semantic.accent-remote-on-active",
-        "accent-info-raised alias, 대응 Theme 필드 없음",
+        "accent-info-on-active alias, 대응 Theme 필드 없음",
     ),
     (
         "semantic.accent-attached-raised",
@@ -400,7 +452,7 @@ const SEMANTIC_COLOR_HAND_WRITTEN: &[(&str, &str)] = &[
     ),
     (
         "semantic.accent-attached-on-active",
-        "accent-attached-raised alias, 대응 Theme 필드 없음",
+        "Mocha lavender 85% + white / Latte lavender 50% + black 합성색",
     ),
     (
         "semantic.overlay-hover",
@@ -421,12 +473,59 @@ const SEMANTIC_COLOR_HAND_WRITTEN: &[(&str, &str)] = &[
     ("semantic.text-on-window-close", "리터럴 const (white 고정)"),
     (
         "semantic.attention-needs-input-fg",
-        "text-on-accent alias — is_light role-remap을 따른다",
+        "notify-warning-fg alias — Mocha=text-on-accent / Latte=text",
     ),
     (
         "semantic.attention-completion-fg",
         "text-on-accent alias — is_light role-remap을 따른다",
     ),
+    ("semantic.surface-field", "state_ink.rs 수기 역할"),
+    ("semantic.border-control", "state_ink.rs 수기 역할"),
+    ("semantic.border-control-raised", "state_ink.rs 수기 역할"),
+    ("semantic.control-thumb", "state_ink.rs 수기 역할"),
+    ("semantic.control-thumb-raised", "state_ink.rs 수기 역할"),
+    ("semantic.scrollbar-thumb", "state_ink.rs 수기 역할"),
+    ("semantic.scrollbar-thumb-raised", "state_ink.rs 수기 역할"),
+    ("semantic.scrollbar-thumb-hover", "state_ink.rs 수기 역할"),
+    ("semantic.text-on-active-hover", "state_ink.rs 수기 역할"),
+    ("semantic.text-quiet", "state_ink.rs 수기 역할"),
+    ("semantic.glyph-dim", "state_ink.rs 수기 역할"),
+    ("semantic.glyph-dim-raised", "state_ink.rs 수기 역할"),
+    ("semantic.status-idle", "state_ink.rs 수기 역할"),
+    ("semantic.accent-primary-raised", "state_ink.rs 수기 역할"),
+    ("semantic.accent-agent-raised", "state_ink.rs 수기 역할"),
+    ("semantic.accent-success-raised", "state_ink.rs 수기 역할"),
+    ("semantic.accent-remote-raised", "state_ink.rs 수기 역할"),
+    ("semantic.accent-move-raised", "state_ink.rs 수기 역할"),
+    ("semantic.accent-route-raised", "state_ink.rs 수기 역할"),
+    ("semantic.accent-primary-strong", "state_ink.rs 수기 역할"),
+    ("semantic.accent-info-strong", "state_ink.rs 수기 역할"),
+    ("semantic.accent-success-strong", "state_ink.rs 수기 역할"),
+    ("semantic.accent-warning-strong", "state_ink.rs 수기 역할"),
+    ("semantic.accent-attention-strong", "state_ink.rs 수기 역할"),
+    ("semantic.accent-danger-strong", "state_ink.rs 수기 역할"),
+    ("semantic.accent-agent-strong", "state_ink.rs 수기 역할"),
+    ("semantic.accent-attached-strong", "state_ink.rs 수기 역할"),
+    ("semantic.accent-remote-strong", "state_ink.rs 수기 역할"),
+    ("semantic.accent-info-on-active", "state_ink.rs 수기 역할"),
+    (
+        "semantic.accent-attention-on-active",
+        "state_ink.rs 수기 역할",
+    ),
+    ("semantic.accent-move-on-active", "state_ink.rs 수기 역할"),
+    ("semantic.accent-route-on-active", "state_ink.rs 수기 역할"),
+    ("semantic.accent-success-fill", "state_ink.rs 수기 역할"),
+    (
+        "semantic.attention-needs-input-fill",
+        "state_ink.rs 수기 역할",
+    ),
+    ("semantic.tint-primary-bg", "state_ink.rs 수기 역할"),
+    ("semantic.tint-info-bg", "state_ink.rs 수기 역할"),
+    ("semantic.tint-success-bg", "state_ink.rs 수기 역할"),
+    ("semantic.tint-warning-bg", "state_ink.rs 수기 역할"),
+    ("semantic.tint-danger-bg", "state_ink.rs 수기 역할"),
+    ("semantic.tint-agent-bg", "state_ink.rs 수기 역할"),
+    ("semantic.vi-cursor-fg", "state_ink.rs 수기 역할"),
     ("semantic.accent-macos-close", "OS 리터럴 const"),
     ("semantic.accent-macos-min", "OS 리터럴 const"),
     ("semantic.accent-macos-zoom", "OS 리터럴 const"),

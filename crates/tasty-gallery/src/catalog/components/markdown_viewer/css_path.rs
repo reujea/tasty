@@ -98,7 +98,11 @@ fn draw_content_colour(ui: &mut egui::Ui, theme: &Theme) {
             ),
         ],
         &[
-            TokenChip::new("text-secondary", "body", theme.text_secondary().to_egui()),
+            TokenChip::new(
+                "text-secondary",
+                "body",
+                theme.text_secondary_raised().to_egui(),
+            ),
             TokenChip::new(
                 "text-primary",
                 "headings / strong",

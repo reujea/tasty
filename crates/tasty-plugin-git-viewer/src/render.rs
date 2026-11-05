@@ -7,6 +7,7 @@ use egui::{Align, Align2, Color32, FontId, Layout, Rect, Sense, Stroke, UiBuilde
 use tasty_plugin_sdk::Translator;
 use tasty_type_appearance::theme::Theme;
 use tasty_ui_widgets::{Button, ButtonVariant, ControlSize, TagVariant, tag, tag_width};
+use tasty_ui_widgets::{RowParent, RowState};
 
 use diff::{diff_toolbar, draw_diff};
 
@@ -349,20 +350,13 @@ fn wt_row(
     let h = wt_row_h(theme);
     let (rect, resp) = ui.allocate_exact_size(vec2(full_w, h), Sense::click());
 
-    if selected {
-        ui.painter()
-            .rect_filled(rect, 0.0, theme.surface_active().to_egui());
-    } else if resp.hovered() {
-        ui.painter()
-            .rect_filled(rect, 0.0, theme.overlay_hover().to_egui_premultiplied());
-    }
+    let state = RowState::from_response(selected, &resp);
+    state.paint_fill(ui.painter(), rect, 0.0, theme);
 
     let name_color = if !wt.is_valid {
         theme.text_disabled()
-    } else if selected {
-        theme.text_on_active()
     } else {
-        theme.text_secondary()
+        state.label(theme, RowParent::Mantle, theme.text_secondary())
     };
 
     let l1 = Rect::from_min_size(
@@ -415,9 +409,9 @@ fn wt_row(
             oid,
             mono(theme.font_size_caption.value()),
             if selected {
-                theme.text_on_active()
+                state.meta(theme, RowParent::Mantle)
             } else {
-                theme.accent_info()
+                theme.accent_info_raised()
             }
             .to_egui(),
         );
@@ -430,7 +424,7 @@ fn wt_row(
                 vec2(theme.listctrl_selected_bar_width().value(), rect.height()),
             ),
             0.0,
-            theme.accent_primary().to_egui(),
+            theme.accent_primary_on_active().to_egui(),
         );
     }
     bottom_separator(ui, theme, rect);
@@ -536,13 +530,8 @@ fn ch_row(ui: &mut egui::Ui, theme: &Theme, entry: &StatusEntry, selected: bool)
     let full_w = ui.available_width();
     let pad_x = theme.spacing_md.value();
     let (rect, resp) = ui.allocate_exact_size(vec2(full_w, CH_ROW_H), Sense::click());
-    if selected {
-        ui.painter()
-            .rect_filled(rect, 0.0, theme.surface_active().to_egui());
-    } else if resp.hovered() {
-        ui.painter()
-            .rect_filled(rect, 0.0, theme.overlay_hover().to_egui_premultiplied());
-    }
+    let state = RowState::from_response(selected, &resp);
+    state.paint_fill(ui.painter(), rect, 0.0, theme);
 
     let (glyph, variant) = status_pill(entry.status);
     let content = Rect::from_min_size(
@@ -571,10 +560,13 @@ fn ch_row(ui: &mut egui::Ui, theme: &Theme, entry: &StatusEntry, selected: bool)
     let cy = rect.center().y;
     let mut x = cui.cursor().left();
     let (dir_fg, file_fg) = if selected {
-        let ink = theme.text_on_active().to_egui();
+        let ink = state.meta(theme, RowParent::Mantle).to_egui();
         (ink, ink)
     } else {
-        (theme.text_muted().to_egui(), theme.text_primary().to_egui())
+        (
+            state.meta(theme, RowParent::Mantle).to_egui(),
+            theme.text_primary().to_egui(),
+        )
     };
     if !dir.is_empty() {
         let g = p.layout_no_wrap(dir, mono(theme.font_size_term_sm.value()), dir_fg);
@@ -591,7 +583,7 @@ fn ch_row(ui: &mut egui::Ui, theme: &Theme, entry: &StatusEntry, selected: bool)
                 vec2(theme.listctrl_selected_bar_width().value(), rect.height()),
             ),
             0.0,
-            theme.accent_primary().to_egui(),
+            theme.accent_primary_on_active().to_egui(),
         );
     }
     resp.clicked()
@@ -739,7 +731,7 @@ fn cm_row(ui: &mut egui::Ui, theme: &Theme, tr: &Translator, entry: &LogEntry) {
     left.label(
         egui::RichText::new(&entry.oid_short)
             .font(mono(theme.font_size_caption.value()))
-            .color(theme.accent_info().to_egui()),
+            .color(theme.accent_info_raised().to_egui()),
     );
     let pill_limit = (right_start - gap).max(left.min_rect().right());
     let mut cursor_x = left.min_rect().right();

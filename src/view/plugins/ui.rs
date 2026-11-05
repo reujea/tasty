@@ -465,7 +465,7 @@ fn segment_tab(
         egui::Color32::from(th.text_muted())
     };
     let count_color = if selected {
-        egui::Color32::from(th.text_secondary())
+        egui::Color32::from(th.text_secondary_raised())
     } else {
         egui::Color32::from(th.text_muted())
     };

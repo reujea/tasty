@@ -272,7 +272,7 @@ fn range_line(ui: &mut egui::Ui, theme: &Theme, input_left: Option<f32>, text: S
         ui.label(
             egui::RichText::new(text)
                 .size(theme.font_size_caption.value())
-                .color(theme.accent_danger().to_egui()),
+                .color(theme.accent_danger_raised().to_egui()),
         );
     });
 }

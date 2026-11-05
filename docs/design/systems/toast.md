@@ -67,7 +67,7 @@ rg -n 'toasts|report_apply_error|push_toast' src/adapters/ipc src/app/ipc src/ap
 
 ## 시각 / 레이아웃
 
-모든 색·치수는 Theme 토큰([theme.md](theme.md)). 배경 `surface-raised` + 1px `toast-border`(= `border-strong`) 보더 + `corner_radius`, 본문 `font_size_body`, 스코프 우측 하단 정렬·스택, 카드 사이 간격 `space-sm`(8). 종류 강조는 좌측 컬러 바다. 바 두께는 `toast_accent_width`(`toast-accent-width` = 3px)이며 본문 줄바꿈 폭과 카드 폭 계산에도 같은 값을 쓴다:
+모든 색·치수는 Theme 토큰([theme.md](theme.md)). 배경 `surface-raised` + 1px `toast-border`(= `border-strong`) 보더 + `corner_radius`, 본문 `font_size_body`, 스코프 우측 하단 정렬·스택, 카드 사이 간격 `space-sm`(8). 종류 강조는 좌측 컬러 바다. 바 두께는 `toast_accent_width`(`toast-accent-width` = 2px)이며 본문 줄바꿈 폭과 카드 폭 계산에도 같은 값을 쓴다:
 
 | 종류 | 바 색 | 용도 |
 |------|-------|------|

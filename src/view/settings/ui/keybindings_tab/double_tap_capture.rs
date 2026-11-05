@@ -96,7 +96,11 @@ pub(super) fn draw_notices(
     }
     for line in lines {
         tasty_ui_widgets::vspace(ui, th.spacing_xs);
-        ui.label(egui::RichText::new(line).small().color(th.accent_warning()));
+        ui.label(
+            egui::RichText::new(line)
+                .small()
+                .color(th.accent_warning_raised()),
+        );
     }
 }
 

@@ -338,7 +338,7 @@ pub fn draw_shortcut(ui: &mut egui::Ui, theme: &Theme) {
             TokenChip::new(
                 "text-secondary",
                 "letter ink",
-                theme.text_secondary().to_egui(),
+                theme.text_secondary_raised().to_egui(),
             ),
         ],
     );

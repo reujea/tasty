@@ -66,7 +66,7 @@ pub fn draw(ui: &mut egui::Ui, theme: &Theme) {
             TokenChip::new(
                 "text-secondary",
                 "idle label",
-                egui::Color32::from(theme.text_secondary()),
+                egui::Color32::from(theme.text_secondary_raised()),
             ),
         ],
     );

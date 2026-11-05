@@ -25,7 +25,7 @@
 
 - **worktree rail** — main + 모든 linked worktree 를 2줄 행으로. line1 = 이름(mono) + 타입 pill
   (`main`=sky / `linked`=neutral), line2 = short oid(sky) + 상태 pill(`current`/`locked`/`invalid`, dot).
-  선택 행 = `surface-active` + 좌측 2px inset accent bar, 이름과 oid는 `text-on-active`. 선택 시 우측 내용을 그 worktree 기준으로 갱신.
+  선택 행 = `surface-active` + 좌측 2px inset `accent-primary-on-active` bar, 이름과 oid는 `text-on-active`(hover·press는 `text-on-active-hover`). 선택 시 우측 내용을 그 worktree 기준으로 갱신.
   invalid 행은 흐림 + 전환 불가.
 - **Changes** — 변경된 파일 목록. 고정폭 상태 pill(`M/A/D/R/?/U`) + 경로(dir `text-muted` / file
   `text-primary`, 선택 행은 둘 다 `text-on-active`). 행 선택 시 하단 pane 이 diff 로 교체(선택 행에 inset bar).

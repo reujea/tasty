@@ -32,7 +32,7 @@ fn menu(ui: &mut egui::Ui, theme: &Theme, caption: &str, rows: &[Option<Row<'_>>
         ui.label(
             egui::RichText::new(caption.to_uppercase())
                 .size(theme.font_size_micro.value())
-                .color(theme.text_muted().to_egui()),
+                .color(theme.text_muted_raised().to_egui()),
         );
         egui::Frame::new()
             .fill(theme.surface_raised().to_egui())

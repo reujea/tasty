@@ -1,0 +1,162 @@
+//! 행의 상태 우선순위와 상태별 글자·글리프 토큰.
+//! 순서는 disabled, 선택+press, 선택+hover, 선택, press, hover, rest다.
+//! 부모 바탕에 따라 hover 칸이 달라지므로 호출자가 [`RowParent`]를 넘긴다.
+
+use tasty_type_appearance::color::HexColor;
+use tasty_type_appearance::theme::Theme;
+
+/// 행이 놓인 바탕. crust는 mantle과 같은 칸을 읽는다.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum RowParent {
+    Mantle,
+    Base,
+}
+
+/// 겹칠 수 있는 행 상태를 우선순위로 정리한 값 하나.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum RowState {
+    Disabled,
+    SelectedPress,
+    SelectedHover,
+    Selected,
+    Press,
+    Hover,
+    Rest,
+}
+
+impl RowState {
+    pub fn of(enabled: bool, selected: bool, hovered: bool, pressed: bool) -> Self {
+        match (enabled, selected, pressed, hovered) {
+            (false, ..) => Self::Disabled,
+            (_, true, true, _) => Self::SelectedPress,
+            (_, true, _, true) => Self::SelectedHover,
+            (_, true, ..) => Self::Selected,
+            (_, _, true, _) => Self::Press,
+            (_, _, _, true) => Self::Hover,
+            _ => Self::Rest,
+        }
+    }
+
+    /// egui 응답에서 활성 행의 상태를 읽는다.
+    pub fn from_response(selected: bool, resp: &egui::Response) -> Self {
+        Self::of(
+            true,
+            selected,
+            resp.hovered(),
+            resp.is_pointer_button_down_on(),
+        )
+    }
+
+    pub fn is_selected(self) -> bool {
+        matches!(
+            self,
+            Self::SelectedPress | Self::SelectedHover | Self::Selected
+        )
+    }
+
+    /// 행의 채움. 선택 행의 hover·press는 surface-active 위에 overlay를 합성한 불투명 색이다.
+    pub fn fill(self, theme: &Theme) -> egui::Color32 {
+        let active = theme.surface_active().to_egui();
+        match self {
+            Self::Disabled | Self::Rest => egui::Color32::TRANSPARENT,
+            Self::Selected => active,
+            Self::SelectedHover => over(theme.overlay_hover().to_egui_premultiplied(), active),
+            Self::SelectedPress => over(theme.overlay_active().to_egui_premultiplied(), active),
+            Self::Hover => theme.overlay_hover().to_egui_premultiplied(),
+            Self::Press => theme.overlay_active().to_egui_premultiplied(),
+        }
+    }
+
+    /// 행의 채움을 칠한다.
+    pub fn paint_fill(self, painter: &egui::Painter, rect: egui::Rect, radius: f32, theme: &Theme) {
+        let fill = self.fill(theme);
+        if fill != egui::Color32::TRANSPARENT {
+            painter.rect_filled(rect, radius, fill);
+        }
+    }
+
+    /// 행 라벨. `rest`는 그 행의 평상 토큰이다.
+    pub fn label(self, theme: &Theme, parent: RowParent, rest: HexColor) -> HexColor {
+        match self {
+            Self::Disabled => theme.state_disabled_fg(),
+            Self::SelectedPress | Self::SelectedHover => theme.text_on_active_hover(),
+            Self::Selected => theme.text_on_active(),
+            Self::Press => theme.text_secondary_raised(),
+            Self::Hover if parent == RowParent::Base => theme.text_secondary(),
+            Self::Hover => theme.text_secondary_raised(),
+            Self::Rest => rest,
+        }
+    }
+
+    /// 메타·설명처럼 라벨보다 약한 글자.
+    pub fn meta(self, theme: &Theme, parent: RowParent) -> HexColor {
+        match self {
+            Self::Disabled => theme.state_disabled_fg(),
+            Self::SelectedPress | Self::SelectedHover => theme.text_on_active_hover(),
+            Self::Selected => theme.text_on_active(),
+            Self::Press => theme.text_muted_raised(),
+            Self::Hover if parent == RowParent::Base => theme.text_muted(),
+            Self::Hover => theme.text_muted_raised(),
+            Self::Rest => theme.text_muted(),
+        }
+    }
+
+    /// 모양이 뜻을 담는 글리프(chevron, 닫기, 파일 종류).
+    pub fn glyph(self, theme: &Theme) -> HexColor {
+        match self {
+            Self::Disabled => theme.state_disabled_fg(),
+            Self::SelectedPress | Self::SelectedHover | Self::Selected => theme.text_on_active(),
+            Self::Press | Self::Hover | Self::Rest => theme.text_secondary(),
+        }
+    }
+
+    /// 색이 뜻을 담는 글리프. 선택 행은 `on_active`, hover·press는 `raised`, 평상은 `rest`다.
+    pub fn hue(
+        self,
+        theme: &Theme,
+        rest: HexColor,
+        raised: HexColor,
+        on_active: HexColor,
+    ) -> HexColor {
+        match self {
+            Self::Disabled => theme.state_disabled_fg(),
+            Self::SelectedPress | Self::SelectedHover | Self::Selected => on_active,
+            Self::Press | Self::Hover => raised,
+            Self::Rest => rest,
+        }
+    }
+}
+
+/// premultiplied 색을 불투명 바탕 위에 합성한다. GPU 블렌딩과 같은 8비트 source-over다.
+#[allow(clippy::disallowed_methods)] // reason: Theme 색의 합성 결과이며 새 색을 정의하지 않는다.
+fn over(top: egui::Color32, ground: egui::Color32) -> egui::Color32 {
+    let keep = 255 - u32::from(top.a());
+    let channel = |t: u8, g: u8| (u32::from(t) + (u32::from(g) * keep + 127) / 255).min(255) as u8;
+    egui::Color32::from_rgb(
+        channel(top.r(), ground.r()),
+        channel(top.g(), ground.g()),
+        channel(top.b(), ground.b()),
+    )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn overlapping_states_resolve_in_the_contract_order() {
+        assert_eq!(RowState::of(false, true, true, true), RowState::Disabled);
+        assert_eq!(
+            RowState::of(true, true, true, true),
+            RowState::SelectedPress
+        );
+        assert_eq!(
+            RowState::of(true, true, true, false),
+            RowState::SelectedHover
+        );
+        assert_eq!(RowState::of(true, true, false, false), RowState::Selected);
+        assert_eq!(RowState::of(true, false, true, true), RowState::Press);
+        assert_eq!(RowState::of(true, false, true, false), RowState::Hover);
+        assert_eq!(RowState::of(true, false, false, false), RowState::Rest);
+    }
+}

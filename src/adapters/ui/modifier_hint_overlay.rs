@@ -488,7 +488,7 @@ fn draw_content(
     ui.painter().rect_filled(
         strip_rect,
         0.0,
-        theme.modhint_strip_bg().to_egui().gamma_multiply(alpha),
+        theme.modhint_header_bg().to_egui().gamma_multiply(alpha),
     );
     ui.painter().hline(
         strip_rect.x_range(),

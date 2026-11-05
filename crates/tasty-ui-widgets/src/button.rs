@@ -148,9 +148,26 @@ impl<'a> Button<'a> {
     /// variant 가 정한 글자색에 `danger_ink` 를 적용한다.
     fn label_ink(&self, theme: &Theme, fg: egui::Color32) -> egui::Color32 {
         if self.enabled && self.danger_ink {
-            theme.accent_danger().to_egui()
+            match self.ground {
+                crate::Ground::Active => fg,
+                _ => theme.accent_danger_raised().to_egui(),
+            }
         } else {
             fg
+        }
+    }
+
+    /// 채움 없는 버튼과 Secondary의 아이콘. 채움 버튼의 아이콘은 라벨과 같은 잉크다.
+    fn icon_ink(&self, theme: &Theme, label: egui::Color32) -> egui::Color32 {
+        if !self.enabled || self.danger_ink {
+            return label;
+        }
+        match self.variant {
+            ButtonVariant::Ghost if self.ground == crate::Ground::Active => {
+                theme.text_on_active().to_egui()
+            }
+            ButtonVariant::Ghost | ButtonVariant::Secondary => theme.text_secondary().to_egui(),
+            _ => label,
         }
     }
 
@@ -213,6 +230,7 @@ impl<'a> Button<'a> {
         };
         let (rect, resp) = ui.allocate_exact_size(egui::vec2(desired_w, height), sense);
 
+        let pressed = resp.is_pointer_button_down_on();
         let (fill, border, fg) = if !self.enabled {
             // accent 채움은 빠지고 모든 variant가 같은 중립 상자를 쓴다. Ghost는 상자가 없다.
             let fg = theme.button_disabled_fg().to_egui();
@@ -242,31 +260,44 @@ impl<'a> Button<'a> {
                     theme.button_danger_fg().to_egui(),
                 ),
                 // 배너 위에서는 채움과 테두리가 배너 배경보다 한 단계 위이며 hover에도 테두리가 그대로다.
-                ButtonVariant::Secondary if on_banner_surface(ui) => (
-                    Some(theme.banner_button_bg().to_egui()),
-                    Some(theme.banner_button_border().to_egui()),
-                    theme.button_fg().to_egui(),
-                ),
-                ButtonVariant::Secondary => {
-                    let b = if resp.hovered() {
-                        theme.button_secondary_border_hover()
+                ButtonVariant::Secondary
+                    if on_banner_surface(ui) || self.ground == crate::Ground::Raised =>
+                {
+                    let edge = if resp.hovered() || pressed {
+                        theme.border_frame()
                     } else {
-                        theme.button_secondary_border()
+                        theme.banner_button_border()
+                    };
+                    let label = if pressed {
+                        theme.text_on_active_hover()
+                    } else {
+                        theme.text_primary()
+                    };
+                    (
+                        Some(theme.banner_button_bg().to_egui()),
+                        Some(edge.to_egui()),
+                        label.to_egui(),
+                    )
+                }
+                ButtonVariant::Secondary => {
+                    let (edge, label) = if pressed {
+                        (theme.border_default(), theme.text_on_active())
+                    } else if resp.hovered() {
+                        (
+                            theme.button_secondary_border_hover(),
+                            theme.text_on_active(),
+                        )
+                    } else {
+                        (theme.button_secondary_border(), theme.button_fg())
                     };
                     (
                         Some(theme.button_secondary_bg().to_egui()),
-                        Some(b.to_egui()),
-                        theme.button_fg().to_egui(),
+                        Some(edge.to_egui()),
+                        label.to_egui(),
                     )
                 }
                 ButtonVariant::Ghost => {
-                    let raised = self.ground == crate::Ground::Raised;
-                    let f = match (resp.hovered(), raised) {
-                        (true, false) => theme.button_ghost_fg_hover(),
-                        (false, false) => theme.button_ghost_fg(),
-                        (true, true) => theme.button_ghost_raised_fg_hover(),
-                        (false, true) => theme.button_ghost_raised_fg(),
-                    };
+                    let f = ghost_label(theme, self.ground, resp.hovered(), pressed);
                     (None, None, f.to_egui())
                 }
             }
@@ -284,7 +315,7 @@ impl<'a> Button<'a> {
             );
         }
         if self.enabled {
-            if resp.is_pointer_button_down_on() {
+            if pressed {
                 ui.painter().rect_filled(
                     rect,
                     radius,
@@ -310,13 +341,14 @@ impl<'a> Button<'a> {
         let mut x = rect.center().x - group_w * 0.5;
         let cy = rect.center().y;
         let fg_col = self.label_ink(theme, fg);
+        let icon_col = self.icon_ink(theme, fg_col);
 
         if let Some(paint) = self.leading_icon {
             let irect = egui::Rect::from_center_size(
                 egui::pos2(x + leading_glyph * 0.5, cy),
                 egui::vec2(leading_glyph, leading_glyph),
             );
-            paint(ui, irect, fg_col);
+            paint(ui, irect, icon_col);
             x += leading_glyph + gap;
         }
         let text_pos = egui::pos2(x, cy - galley.rect.size().y * 0.5);
@@ -328,10 +360,28 @@ impl<'a> Button<'a> {
                 egui::pos2(x + icon_glyph * 0.5, cy),
                 egui::vec2(icon_glyph, icon_glyph),
             );
-            paint(ui, irect, fg_col);
+            paint(ui, irect, icon_col);
         }
 
         resp
+    }
+}
+
+/// ghost 라벨. 채움이 없어 놓인 바탕과 상태로 칸을 고른다.
+/// `Panel`의 hover·press는 crust와 mantle 칸을 읽으며 base+hover에서도 등급을 지킨다.
+fn ghost_label(
+    theme: &Theme,
+    ground: crate::Ground,
+    hovered: bool,
+    pressed: bool,
+) -> tasty_type_appearance::color::HexColor {
+    match (ground, hovered || pressed) {
+        (crate::Ground::Panel, false) => theme.button_ghost_fg(),
+        (crate::Ground::Panel, true) => theme.text_secondary_raised(),
+        (crate::Ground::Raised, false) => theme.button_ghost_raised_fg(),
+        (crate::Ground::Raised, true) => theme.button_ghost_raised_fg_hover(),
+        (crate::Ground::Active, false) => theme.text_on_active(),
+        (crate::Ground::Active, true) => theme.text_on_active_hover(),
     }
 }
 

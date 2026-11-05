@@ -181,7 +181,7 @@ impl CellRenderer {
         default_fg: GpuRgba,
         show_cursor: bool,
         selection: Option<&(NormalizedSelection, GpuRgba)>,
-        vi_cursor: Option<&(SelectionPoint, GpuRgba)>,
+        vi_cursor: Option<&(SelectionPoint, GpuRgba, GpuRgba)>,
         preedit: Option<&RenderPreedit>,
         link: Option<&LinkHighlight>,
         search: Option<&SearchHighlights<'_>>,
@@ -198,7 +198,7 @@ impl CellRenderer {
             let epoch = view.cut().epoch;
             let selection =
                 selection.filter(|(s, _)| s.start.epoch == epoch && s.end.epoch == epoch);
-            let vi_cursor = vi_cursor.filter(|(p, _)| p.epoch == epoch);
+            let vi_cursor = vi_cursor.filter(|(p, ..)| p.epoch == epoch);
             let link = link.filter(|l| l.epoch == epoch);
             let search = search.filter(|s| s.epoch == epoch);
             let preedit = preedit.filter(|p| p.anchor.epoch == epoch);
@@ -352,7 +352,7 @@ impl CellRenderer {
         ansi: &[GpuRgb; 16],
         cursor: Option<(usize, usize, bool, CursorPaint)>,
         selection: Option<&(NormalizedSelection, GpuRgba)>,
-        vi_cursor: Option<&(SelectionPoint, GpuRgba)>,
+        vi_cursor: Option<&(SelectionPoint, GpuRgba, GpuRgba)>,
         row_offset: usize,
         preedit: Option<&RenderPreedit>,
         link: Option<&LinkHighlight>,
@@ -398,11 +398,12 @@ impl CellRenderer {
                     bg_color = composite_over(*sel_bg, bg_color);
                 }
                 // vi copy mode cursor cell: selection 보다 우선.
-                if let Some((pt, cursor_bg)) = vi_cursor
+                if let Some((pt, cursor_bg, cursor_fg)) = vi_cursor
                     && pt.col == col_idx
                     && pt.absolute_row == abs_row
                 {
                     bg_color = composite_over(*cursor_bg, bg_color);
+                    fg_color = *cursor_fg;
                 }
                 if let Some(link) = link
                     && link.covers(col_idx, abs_row)
@@ -484,7 +485,7 @@ impl CellRenderer {
                     default_bg
                 };
                 // vi copy mode cursor cell: trailing 영역 (콘텐츠 없는 row 끝) 에 vi cursor 가 위치한 경우 강조.
-                if let Some((pt, cursor_bg)) = vi_cursor
+                if let Some((pt, cursor_bg, _)) = vi_cursor
                     && pt.col == col_idx
                     && pt.absolute_row == abs_row
                 {

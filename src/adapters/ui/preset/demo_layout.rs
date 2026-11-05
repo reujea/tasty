@@ -1921,7 +1921,7 @@ fn mini_handle(
         egui::StrokeKind::Inside,
     );
     let color = if danger {
-        theme.accent_danger().to_egui()
+        theme.accent_danger_raised().to_egui()
     } else {
         theme.text_secondary().to_egui()
     };

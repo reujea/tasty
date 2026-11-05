@@ -119,7 +119,7 @@ pub(super) fn after_title(ui: &mut egui::Ui, theme: &Theme, v: Variant) {
                     .font(egui::FontId::monospace(
                         GLYPH_HOST_FONT_PRIMITIVE_12.value(),
                     ))
-                    .color(theme.accent_info().to_egui()),
+                    .color(theme.accent_info_raised().to_egui()),
             );
         }
         Indicator::Border => {}

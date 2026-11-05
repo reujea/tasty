@@ -118,7 +118,7 @@ fn faux_popup(
         let fg = if *disabled {
             ec(theme.text_disabled())
         } else {
-            ec(theme.text_muted())
+            ec(theme.text_muted_raised())
         };
         // 시안 본문처럼 팝업 폭 안에서 줄바꿈한다.
         let wrap = rect.width() - POPUP_BODY_PAD.value() * 2.0;

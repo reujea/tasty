@@ -470,6 +470,8 @@ pub(crate) fn paint_ws_row(ui: &mut egui::Ui, theme: &Theme, card: egui::Rect, r
         egui::FontId::proportional(theme.font_size_body.value()),
         egui::Color32::from(if active {
             theme.text_on_active()
+        } else if row.state == RowState::Hover {
+            theme.text_secondary_raised()
         } else {
             theme.text_secondary()
         }),
@@ -555,7 +557,7 @@ fn paint_ws_dot(
         dot_r,
         egui::Color32::from(match (row.busy, active) {
             (true, true) => theme.status_dot_success_active(),
-            (true, false) => theme.accent_success(),
+            (true, false) => theme.status_dot_success(),
             (false, true) => theme.status_dot_idle_active(),
             (false, false) => theme.status_dot_idle(),
         }),
@@ -753,7 +755,7 @@ fn rail_categories(ui: &mut egui::Ui, theme: &Theme) {
                     letter,
                     egui::FontId::monospace(theme.font_size_body.value()),
                     egui::Color32::from(if *active {
-                        theme.accent_primary_on_active()
+                        theme.accent_primary_raised()
                     } else {
                         theme.text_muted()
                     }),

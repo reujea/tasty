@@ -1949,7 +1949,7 @@ fn draw_confirm_delete(
             .add_enabled(
                 !pending,
                 egui::Button::new(
-                    egui::RichText::new(t("remote_tool.delete")).color(th.accent_danger()),
+                    egui::RichText::new(t("remote_tool.delete")).color(th.accent_danger_raised()),
                 ),
             )
             .clicked()

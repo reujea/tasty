@@ -322,7 +322,7 @@ pub(super) fn draw_quick_switch_section(
                 &conflicts.join(", "),
             ))
             .small()
-            .color(th.accent_warning()),
+            .color(th.accent_warning_raised()),
         );
     }
 }

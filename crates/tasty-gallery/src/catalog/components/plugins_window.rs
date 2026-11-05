@@ -273,7 +273,7 @@ fn header(ui: &mut egui::Ui, theme: &Theme, rect: egui::Rect, tab: Tab) {
     CLOSE
         .image(
             theme.icon_glyph_size_md.value(),
-            theme.text_secondary().to_egui(),
+            theme.text_secondary_raised().to_egui(),
         )
         .paint_at(
             ui,

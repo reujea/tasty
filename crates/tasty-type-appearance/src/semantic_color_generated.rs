@@ -56,7 +56,7 @@ impl crate::theme::Theme {
         self.subtext1
     }
 
-    /// `semantic.text-placeholder` → `{primitive.color-neutral-600}`
+    /// `semantic.text-placeholder` → `{primitive.color-neutral-900}`
     #[inline]
     pub fn text_placeholder(&self) -> HexColor {
         self.placeholder
@@ -162,18 +162,6 @@ impl crate::theme::Theme {
     #[inline]
     pub fn attention_completion(&self) -> HexColor {
         self.blue
-    }
-
-    /// `semantic.status-idle` → `{primitive.color-neutral-600}`
-    #[inline]
-    pub fn status_idle(&self) -> HexColor {
-        self.overlay0
-    }
-
-    /// `semantic.glyph-dim` → `{primitive.color-neutral-600}`
-    #[inline]
-    pub fn glyph_dim(&self) -> HexColor {
-        self.overlay0
     }
 
     /// `semantic.border-default` → `{primitive.color-neutral-300}`

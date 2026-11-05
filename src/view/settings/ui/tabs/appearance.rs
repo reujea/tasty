@@ -368,7 +368,7 @@ fn display_scale_card(
     let text_color = egui::Color32::from(if is_active {
         th.text_primary()
     } else {
-        th.text_muted()
+        th.text_muted_raised()
     });
 
     // "Aa" 프리뷰 — 실제 배율로 스케일된 글리프 샘플 (자연어 아님 → i18n 예외).
@@ -1214,7 +1214,7 @@ fn draw_color_group(ui: &mut egui::Ui, th: &Theme, settings: &mut Settings, grou
                 ))
                 .monospace()
                 .size(th.font_size_caption.value())
-                .color(th.accent_primary()),
+                .color(th.accent_primary_raised()),
             );
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 if ui.button(t("settings.appearance.colors.reset")).clicked() {

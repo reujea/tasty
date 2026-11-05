@@ -112,7 +112,7 @@ fn choice(
             let icon_color = if selected {
                 theme.accent_primary()
             } else {
-                theme.text_secondary()
+                theme.text_secondary_raised()
             };
             kit::icon(ui, glyph, theme.icon_glyph_size_md, icon_color.to_egui());
             ui.label(
@@ -124,7 +124,7 @@ fn choice(
             ui.label(
                 egui::RichText::new(sub)
                     .size(theme.font_size_caption.value())
-                    .color(theme.text_muted().to_egui()),
+                    .color(theme.text_muted_raised().to_egui()),
             );
         });
 }

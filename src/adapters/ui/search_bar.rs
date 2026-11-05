@@ -182,7 +182,7 @@ pub fn draw_search_bar(
         let has_query = !state.search.query.is_empty();
         let (counter_text, counter_color) = if state.search.matches.is_empty() {
             let color = if has_query {
-                theme.accent_danger()
+                theme.accent_danger_raised()
             } else {
                 theme.text_muted()
             };

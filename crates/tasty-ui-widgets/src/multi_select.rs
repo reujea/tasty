@@ -188,9 +188,10 @@ fn option_row(
     };
     let (rect, row) = ui.allocate_exact_size(egui::vec2(width, height), sense);
     // 체크박스가 행 위에 놓여 행 응답의 hovered가 꺼질 수 있으므로 포인터 위치로 판정한다.
+    let hovered = enabled && ui.rect_contains_pointer(rect);
     let fill = if active {
         Some(theme.multiselect_row_bg_active().to_egui())
-    } else if enabled && ui.rect_contains_pointer(rect) {
+    } else if hovered {
         Some(theme.multiselect_row_bg_hover().to_egui_premultiplied())
     } else {
         None
@@ -210,10 +211,12 @@ fn option_row(
     );
     let label_fg = if active {
         theme.multiselect_row_fg_active()
+    } else if hovered {
+        theme.text_on_active()
     } else {
         theme.multiselect_row_fg()
     };
-    let check = crate::checkbox_with_label_color(
+    let check = crate::checkbox_on_raised_with_label_color(
         &mut slot,
         theme,
         flag,

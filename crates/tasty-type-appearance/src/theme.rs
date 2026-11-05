@@ -205,10 +205,6 @@ pub const SCRIM_ALPHA: u8 = 128;
 /// hover-split 존 밴드 채움 알파(22%×255≈56). accent 색은 테마 가변 → 알파만 파생.
 pub const PRESET_SPLIT_ZONE_BG_ALPHA: u8 = 56;
 
-/// design `--tasty-preset-split-zone-border` = accent-primary 55%. split 존 안쪽 변의
-/// 2px 분할선 알파(55%×255≈140).
-pub const PRESET_SPLIT_ZONE_BORDER_ALPHA: u8 = 140;
-
 /// `color-mix(in srgb, <accent> 45%, transparent)` 의 알파(45%×255≈115). DAG surface
 /// 의 경고/위험 pill 테두리 3 종이 공유한다 — 두 번째 항이 `transparent` 인 합성은
 /// 색을 섞지 않고 알파만 낮추는 것과 같다.
@@ -448,7 +444,7 @@ pub const SIZING: ThemeSizing = ThemeSizing {
     tooltip_max_width: LogicalPx(240.0),
     status_dot_size: LogicalPx(8.0),
     spinner_size: LogicalPx(16.0),
-    toast_accent_width: LogicalPx(3.0),
+    toast_accent_width: LogicalPx(2.0),
     selection_edge_width: LogicalPx(2.0),
     tint_edge_width: LogicalPx(2.0),
     border_dash: LogicalPx(4.0),
@@ -1346,10 +1342,10 @@ impl Theme {
     }
 
     /// NeedsInput 알림 배지·점 위의 글자. `semantic.attention-needs-input-fg`는
-    /// text-on-accent의 별칭이므로 같은 밝기 분기를 따른다.
+    /// notify-warning-fg의 별칭이므로 같은 밝기 분기를 따른다.
     #[inline]
     pub fn attention_needs_input_fg(&self) -> HexColor {
-        self.text_on_accent()
+        self.notify_warning_fg()
     }
 
     /// Completion 알림 배지·점 위의 글자. `semantic.attention-completion-fg`는
@@ -1449,7 +1445,7 @@ impl Theme {
     }
 
     /// 모달/팝업 뒤 무대를 덮는 scrim 색. design `--tasty-scrim-bg`(black 50%) — 테마
-    /// 무관 고정 검정 + [`SCRIM_ALPHA`]. 갤러리 dialog 레시피와 동일 토큰.
+    /// `scrim-bg`. 무관 고정 검정 + [`SCRIM_ALPHA`]. 갤러리 dialog 레시피와 동일 토큰.
     #[inline]
     #[allow(clippy::disallowed_methods)] // reason: 테마 무관 고정 scrim 색 정의
     pub fn scrim(&self) -> HexColor {
@@ -1460,15 +1456,6 @@ impl Theme {
     #[inline]
     pub fn preset_split_zone_bg(&self) -> HexColor {
         self.accent_primary().with_alpha(PRESET_SPLIT_ZONE_BG_ALPHA)
-    }
-
-    /// split 존의 안쪽 변에 그리는 2px 분할선 색. design
-    /// `--tasty-preset-split-zone-border` = accent-primary 55%
-    /// ([`PRESET_SPLIT_ZONE_BORDER_ALPHA`]).
-    #[inline]
-    pub fn preset_split_zone_border(&self) -> HexColor {
-        self.accent_primary()
-            .with_alpha(PRESET_SPLIT_ZONE_BORDER_ALPHA)
     }
 
     /// 드래그 중 놓을 수 있는 폴더 행·셀·트리 노드·목록 본문의 채움. design
@@ -1641,10 +1628,10 @@ impl Theme {
     pub fn banner_icon_fg(&self) -> HexColor {
         self.text_muted()
     }
-    /// 배너 우상단 TTL 카운트다운 색. `--tasty-banner-countdown-fg` → `text-muted`.
+    /// 배너 우상단 TTL 카운트다운 색. `--tasty-banner-countdown-fg` → `text-muted-raised`.
     #[inline]
     pub fn banner_countdown_fg(&self) -> HexColor {
-        self.text_muted()
+        self.text_muted_raised()
     }
     /// 떠 있는 패널 그림자. `--tasty-banner-shadow` → `--tasty-shadow-popover`.
     #[inline]
@@ -1738,11 +1725,6 @@ impl Theme {
     pub fn modhint_border(&self) -> HexColor {
         self.border_strong()
     }
-    /// 드래그 스트립 배경. `--tasty-modhint-strip-bg` → `bg-sidebar`.
-    #[inline]
-    pub fn modhint_strip_bg(&self) -> HexColor {
-        self.bg_sidebar()
-    }
     /// 스트립 하단 / 조합 헤더 하단 구분선. `--tasty-modhint-separator` → `separator`.
     #[inline]
     pub fn modhint_separator(&self) -> PremulColor {
@@ -1758,7 +1740,7 @@ impl Theme {
     pub fn modhint_role_bg(&self) -> HexColor {
         self.surface_active()
     }
-    /// 특수 역할 행 leading 글리프 색. `--tasty-modhint-role-fg` → `accent-primary`.
+    /// 특수 역할 행 leading 글리프 색. `--tasty-modhint-role-fg` → `accent-primary-on-active`.
     #[inline]
     pub fn modhint_role_fg(&self) -> HexColor {
         self.accent_primary_on_active()
@@ -2672,7 +2654,7 @@ mod tests {
         assert_eq!(t.switch_thumb_inset().value(), 2.0); // toggle.rs SWITCH_INSET
         assert_eq!(t.tag_size().value(), 16.0); // chip.rs TAG_HEIGHT
         assert_eq!(t.tag_dot_size().value(), 8.0); // chip.rs TAG_DOT
-        assert_eq!(t.kbd_gap().value(), 3.0); // chip.rs KBD_GAP
+        assert_eq!(t.kbd_gap().value(), 4.0); // chip.rs KBD_GAP
         assert_eq!(t.kbd_shadow_depth().value(), 2.0); // chip.rs KBD_BOTTOM_BORDER
         assert_eq!(t.select_chevron_room().value(), 28.0); // select.rs CHEVRON_PAD
         assert_eq!(t.port_columns_menu_min_width().value(), 180.0);
@@ -2707,7 +2689,7 @@ mod tests {
         assert_eq!(t.checkbox_size().value(), 24.0); // 16 * 1.5
         assert_eq!(t.switch_track_width().value(), 42.0); // 28 * 1.5
         assert_eq!(t.tag_size().value(), 24.0); // 16 * 1.5
-        assert_eq!(t.kbd_gap().value(), 5.0); // 3 * 1.5 = 4.5 → round 5
+        assert_eq!(t.kbd_gap().value(), 6.0); // 4 * 1.5
         assert_eq!(t.select_chevron_room().value(), 42.0); // 28 * 1.5
         assert_eq!(t.button_gap().value(), t.spacing_sm.value()); // 12
         assert_eq!(t.tree_row_height().value(), t.item_height_tree.value()); // 33

@@ -412,7 +412,7 @@ fn draw_script_row(
                         ui.label(
                             egui::RichText::new(t("settings.scripts.changed_help"))
                                 .size(th.font_size_caption.value())
-                                .color(th.accent_warning()),
+                                .color(th.accent_warning_raised()),
                         );
                     }
                     draw_trigger_row(ui, th, id, &triggers, pending);
@@ -671,7 +671,7 @@ fn draw_add_card(
                 egui::RichText::new(t("settings.scripts.new_card").to_uppercase())
                     .size(th.font_size_micro.value())
                     .monospace()
-                    .color(th.text_muted()),
+                    .color(th.text_muted_raised()),
             );
             // File 행 — 라벨(100) + 경로 Input + Browse….
             ui.horizontal(|ui| {

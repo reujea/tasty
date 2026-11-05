@@ -35,19 +35,26 @@ Design System의 `tokens/semantic.css`·`tokens/primitives.css`와 Tasty Theme�
 
 ## 채움이 정해진 자리의 글자 역할
 
-`tasty-type-appearance/src/state_ink.rs`의 수기 접근자가 Latte의 color-mix를 계산하고 Mocha는 원래 역할을 쓴다.
+`tasty-type-appearance/src/state_ink.rs`의 수기 접근자가 Mocha·Latte의 값을 `band()`로 나누고 color-mix를 계산한다. 값의 정본은 `dtcg/tasty.tokens.json`이다.
 
 | 역할 | 값 | 쓰는 자리 |
 |---|---|---|
-| `text-on-active` | Mocha `text-primary`, Latte `text-primary`를 검정 쪽으로 혼합 | `surface-active` 위 모든 글자와 일반 글리프 |
-| `accent-primary-on-active` | Mocha `accent-primary`, Latte `accent-primary`를 검정 쪽으로 혼합 | `surface-active` 위 선택 표지와 일반 강조 글리프, 쉬는 일치 구간 |
-| `accent-warning-on-active` · `accent-success-on-active` · `accent-remote-on-active` | `accent-warning-raised` · `accent-success-ink` · `accent-info-raised` | `surface-active` 위 경고·성공·원격 글리프 |
-| `accent-danger-on-active` | Mocha red를 흰색 쪽으로 혼합, Latte `accent-danger-raised` | `surface-active` 위 오류 글리프 |
-| `accent-agent-on-active` | Mocha `accent-agent`, Latte mauve를 검정 쪽으로 혼합 | `surface-active` 위 plugin 글리프와 점 |
-| `accent-attached-raised` | Mocha `accent-attached`, Latte lavender를 검정 쪽으로 혼합 | `tag-attached-fg` |
-| `accent-attached-on-active` | `accent-attached-raised` | `surface-active` 위 점유 고리 |
+| `text-on-active` · `text-on-active-hover` | Mocha `text-primary`·white, Latte neutral-1100을 검정 쪽으로 혼합 | `surface-active`와 그 hover·press 위 글자와 모양 글리프 |
+| `accent-primary-on-active` | blue와 white 혼합, Latte는 blue를 검정 쪽으로 혼합 | `surface-active` 위 선택 표지와 일반 강조 글리프, 쉬는 일치 구간 |
+| `accent-warning-on-active` · `accent-success-on-active` · `accent-info-on-active` · `accent-remote-on-active` | Mocha 각 accent, Latte 각 hue를 검정 쪽으로 혼합. remote는 info를 따른다 | `surface-active` 위 경고·성공·이미지·원격 글리프 |
+| `accent-danger-on-active` · `accent-agent-on-active` · `accent-attached-on-active` | hue와 white 혼합, Latte는 검정 쪽으로 혼합 | `surface-active` 위 오류·plugin·점유 글리프 |
+| `accent-*-raised` | Mocha 각 accent, Latte 각 hue를 검정 쪽으로 혼합 | hue 글자. 모든 평상 바탕과 surface-raised |
+| `accent-*-strong` | hue를 Mocha는 white, Latte는 검정 쪽으로 더 혼합 | surface-raised의 hover·press 위 hue 글자 |
+| `text-muted-raised` · `text-secondary-raised` | Mocha 각 역할, Latte neutral-1100 | surface-raised와 mantle·base의 hover·press 위 글자 |
+| `text-quiet` | Mocha neutral-700, Latte neutral-1000 | 조용한 글자 역할 |
+| `glyph-dim` · `glyph-dim-raised` · `status-idle` | Mocha neutral-600·700·600, Latte neutral-900 | 약한 글리프와 idle 점 |
+| `surface-field` | Mocha `surface-raised`, Latte neutral-200 | 입력 상자 채움 |
+| `border-control` · `border-control-raised` | Mocha neutral-600·700, Latte neutral-800 혼합·neutral-900 | 컨트롤 테두리. 3:1 |
+| `control-thumb` · `control-thumb-raised` | Mocha neutral-1100·white, Latte white | Switch thumb |
+| `scrollbar-thumb` · `-raised` · `-hover` | `border-control` · `border-control-raised` · `text-muted-raised` | 스크롤바 thumb |
+| `accent-success-fill` · `attention-needs-input-fill` · `tint-*-bg` | Mocha 원 역할, Latte 혼합. 틴트는 tint-fill 비율의 알파 | 틴트 상자와 채움 |
+| `vi-cursor-fg` | Mocha neutral-0, Latte black | 터미널 vi 커서 칸의 글자 |
 | `surface-on-raised` | Mocha `surface-hover`, Latte neutral-200 | `banner-button-bg` |
-| `accent-warning-raised` · `accent-attention-raised` · `accent-info-raised` | Mocha 각 accent, Latte 각 accent를 검정 쪽으로 혼합 | `tag-warning-fg` · `tag-attention-fg` · `tag-info-fg` |
 
 `text-muted`는 Latte에서 neutral-1000, Mocha에서 neutral-900이다. `text_muted()`는 분기가 있어 `state_ink.rs`에 수기로 쓴다.
 
@@ -268,19 +275,19 @@ modifier-hint는 보조키를 누르는 동안 유지되며 키보드 포커스 
 | `--tasty-modhint-strip-height` | → `size-28` (= item-height-interactive) | `modhint_strip_height()` | 드래그 스트립 높이 |
 | `--tasty-modhint-pad` | → 10px | `modhint_pad()` | 스크롤 리스트 안쪽 패딩 |
 | `--tasty-modhint-section-gap` | → `space-md` (12) | `modhint_section_gap()` | 섹션 사이 |
-| `--tasty-modhint-row-gap` | → `size-6` (6px) | `modhint_row_gap()` (생성) | 섹션 내부 행 사이 |
+| `--tasty-modhint-row-gap` | → `size-8` (8px) | `modhint_row_gap()` (생성) | 섹션 내부 행 사이 |
 | `--tasty-modhint-row-font-size` | → `font-size-caption` (11) | `modhint_row_font_size()` (생성) | 키캡 행 라벨·역할 행 설명·빈 행 문구의 글자 크기 |
 | `--tasty-modhint-row-min-height` | → `size-24` (24px) | `modhint_row_min_height()` (생성) | 키캡 행 최소 높이 |
 | `--tasty-modhint-empty-row-gap` | → 3px | `modhint_empty_row_gap()` | 빈 조합 섹션 내부 간격(채워진 6px보다 좁게, §6-5). 디자인은 인라인 px(`.mh-section--empty{gap:3px}`) — 코드에서 토큰화 |
 | `--tasty-modhint-empty-row-min-height` | → `size-20` (20px) | `modhint_empty_row_min_height()` (생성) | 빈 조합 플레이스홀더 행 최소 높이(키캡 행 24px보다 타이트) |
 | `--tasty-modhint-grip-size` | → `icon-size-xs` (12) | `modhint_grip_size()` (생성) | 코너 리사이즈 그립 |
 | `--tasty-modhint-grip-inset` | → `size-2` (2px) | `modhint_grip_inset()` (생성) | 그립 상자와 패널 오른쪽·아래 변 사이 여백. UI 배율을 따른다 |
-| `--tasty-modhint-grip-fg` | → `border-strong` | `modhint_grip_fg()` | 코너 그립 대각선 두 획의 색. 본체와 갤러리가 `tasty_ui_widgets::modhint_resize_grip` 으로 시안 SVG(`M11 5 5 11M11 9 9 11`, 12 상자, 오른쪽·아래 `modhint-grip-inset` 안쪽)를 그린다 |
+| `--tasty-modhint-grip-fg` | → `glyph-dim` | `modhint_grip_fg()` | 코너 그립 대각선 두 획의 색. 본체와 갤러리가 `tasty_ui_widgets::modhint_resize_grip` 으로 시안 SVG(`M11 5 5 11M11 9 9 11`, 12 상자, 오른쪽·아래 `modhint-grip-inset` 안쪽)를 그린다 |
 | `--tasty-modhint-bg` | → `bg-panel` (불투명) | `modhint_bg()` | 라이브 출력 위 불투명 셸 |
 | `--tasty-modhint-border` | → `border-strong` | `modhint_border()` | 1px 셸 보더 |
 | `--tasty-modhint-radius` | → `radius` (4) | `corner_radius` | 셸 코너 |
 | `--tasty-modhint-shadow` | → `shadow-popover` | `shadow_popover()` | anchored + scrim-less lift(banner 와 공유). 디자인 체인이 한때 `shadow-modal` 을 가리켜 구현과 갈려 있었으나, [`tasty-ui-widgets` — 본체·갤러리 공유 UI primitive](../../architecture/ui-widgets-crate.md) 의 그림자 선택 기준에 맞춰 디자인이 `components.css` 의 이 토큰을 `shadow-popover` 로 재타깃했다 — 발산은 남아 있지 않다 |
-| `--tasty-modhint-strip-bg` | → `bg-sidebar` | `modhint_strip_bg()` | 드래그 스트립 배경 |
+| `--tasty-modhint-header-bg` | → `bg-sidebar` | `modhint_header_bg()` (생성) | 드래그 스트립 배경 |
 | `--tasty-modhint-separator` | → `separator` | `modhint_separator()` | 스트립/헤더 하단 구분선 |
 | `--tasty-modhint-held-fg` | → `text-muted` | `modhint_held_fg()` | 스트립 "held" 라벨 |
 | `--tasty-modhint-role-bg` | → `surface-active` | `modhint_role_bg()` | 특수 역할 행 washed 배경 |
@@ -488,7 +495,7 @@ max 를 이긴다(트리거가 320 보다 넓으면 트리거를 따른다). 행
 
 | 디자인 토큰 | 디자인 체인 | Theme 접근자 | 쓰는 곳 |
 |---|---|---|---|
-| `--tasty-select-search-trigger-border-hover` | → `border-strong` | `select_search_trigger_border_hover()` | 호버한 트리거 테두리 |
+| `--tasty-select-search-trigger-border-hover` | → `border-control-raised` | `select_search_trigger_border_hover()` | 호버한 트리거 테두리 |
 | `--tasty-select-search-value-placeholder` | → `text-placeholder` | `select_search_value_placeholder()` | 값이 없을 때 트리거 문구 |
 | `--tasty-select-search-menu-gap` | → `space-xs` (4) | `select_search_menu_gap()` | 트리거와 팝업 사이 |
 | `--tasty-select-search-menu-max-width` | → `size-320` | `select_search_menu_max_width()` | 팝업 상자 전체 폭 상한(하한은 트리거 폭) |
@@ -560,7 +567,7 @@ max 를 이긴다(트리거가 320 보다 넓으면 트리거를 따른다). 행
 
 디자인 시스템의 DTCG 토큰과 Rust `Theme` 필드, 그리고 실제 `th.*`/`theme.*` 호출처를 잇는 매핑 참조. [theme.md](theme.md) 의 토큰 구조를 호출처 관점에서 보충한다.
 
-> **vendor 상태**: DTCG 토큰 파일은 `crates/tasty-design-tokens/dtcg/tasty.tokens.json` 으로 **vendor 되어 있다** (1401 토큰 = primitive 140 / semantic 189 / component 1072 — 수는 `crates/tasty-design-tokens/tests/freshness.rs` 가 고정). 치수 계열은 `crates/tasty-design-tokens/src/generated/` 에 const 로 생성되고 freshness·정합·색 드리프트 테스트가 CI 에서 일치를 강제한다. vendor 갱신 절차는 `crates/tasty-design-tokens/README.md`. **component tier(치수+색)는 `&Theme` 접근자로 생성돼**(`tasty-type-appearance/src/generated_component.rs`, [theme.md](theme.md) "Component tier 접근자") `tasty-ui-widgets` 위젯과 host chrome(`src/adapters/ui/`)이 소비 중.
+> **vendor 상태**: DTCG 토큰 파일은 `crates/tasty-design-tokens/dtcg/tasty.tokens.json` 으로 **vendor 되어 있다** (1444 토큰 = primitive 140 / semantic 228 / component 1076 — 수는 `crates/tasty-design-tokens/tests/freshness.rs` 가 고정). 치수 계열은 `crates/tasty-design-tokens/src/generated/` 에 const 로 생성되고 freshness·정합·색 드리프트 테스트가 CI 에서 일치를 강제한다. vendor 갱신 절차는 `crates/tasty-design-tokens/README.md`. **component tier(치수+색)는 `&Theme` 접근자로 생성돼**(`tasty-type-appearance/src/generated_component.rs`, [theme.md](theme.md) "Component tier 접근자") `tasty-ui-widgets` 위젯과 host chrome(`src/adapters/ui/`)이 소비 중.
 
 ### 구조 모델
 

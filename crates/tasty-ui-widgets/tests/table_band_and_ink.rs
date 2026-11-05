@@ -189,7 +189,7 @@ fn render_hovering(
 
 /// 시안의 행 글자색은 table-row-fg 이고, hover 행에서 text-primary 가 된다.
 #[test]
-fn an_uncoloured_label_uses_table_row_fg_and_text_primary_when_hovered() {
+fn an_uncoloured_label_uses_table_row_fg_and_the_raised_band_when_hovered() {
     let theme = tasty_themes::mocha_fallback();
     let primary = theme.text_primary().to_egui();
     let row_fg = theme.table_row_fg().to_egui();
@@ -201,7 +201,11 @@ fn an_uncoloured_label_uses_table_row_fg_and_text_primary_when_hovered() {
     assert_eq!(idle["alpha"].0, row_fg, "rest row ink");
     let target = idle["alpha"].1.center();
     let hovered = render_hovering(&theme, Some(target));
-    assert_eq!(hovered["alpha"].0, primary, "hovered row ink");
+    assert_eq!(
+        hovered["alpha"].0,
+        theme.text_secondary_raised().to_egui(),
+        "hovered row ink"
+    );
     assert_eq!(
         hovered["charlie"].0, row_fg,
         "a row the pointer is not on keeps the row ink"

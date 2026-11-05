@@ -18,7 +18,7 @@ pub fn script_trigger_add_control(
     open: bool,
 ) -> egui::Response {
     let fg = if enabled {
-        theme.text_muted()
+        theme.text_muted_raised()
     } else {
         theme.state_disabled_fg()
     }
@@ -112,9 +112,9 @@ pub fn script_trigger_menu<'a>(
                     );
                 }
                 let fg = if hovered {
-                    theme.text_primary()
+                    theme.menu_item_fg_hover()
                 } else {
-                    theme.text_secondary()
+                    theme.menu_item_fg()
                 };
                 ui.painter().text(
                     egui::pos2(rect.left() + pad_x, rect.center().y),

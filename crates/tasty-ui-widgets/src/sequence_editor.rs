@@ -140,7 +140,7 @@ fn error_line(
             egui::RichText::new(&e.sentence)
                 .size(caption)
                 .line_height(Some(line_h))
-                .color(theme.accent_danger().to_egui()),
+                .color(theme.accent_danger_raised().to_egui()),
         );
         if let Some(reason) = &e.reason {
             ui.label(

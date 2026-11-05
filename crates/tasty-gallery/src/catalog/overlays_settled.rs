@@ -374,12 +374,12 @@ fn faux_popup(ui: &mut egui::Ui, theme: &Theme, handle: Handle, title: &str, bod
                     &mut row,
                     icons::PORT,
                     theme.icon_glyph_size_md,
-                    ec(theme.text_muted()),
+                    ec(theme.text_muted_raised()),
                 );
                 row.label(
                     egui::RichText::new("Ports")
                         .size(theme.font_size_term_sm.value())
-                        .color(ec(theme.text_secondary())),
+                        .color(ec(theme.text_secondary_raised())),
                 );
                 row.add_space(theme.spacing_sm.value());
                 let band = egui::Rect::from_min_max(
@@ -407,7 +407,7 @@ fn faux_popup(ui: &mut egui::Ui, theme: &Theme, handle: Handle, title: &str, bod
                 egui::RichText::new(body)
                     .monospace()
                     .size(theme.font_size_caption.value())
-                    .color(ec(theme.text_muted())),
+                    .color(ec(theme.text_muted_raised())),
             )
             .wrap(),
         );

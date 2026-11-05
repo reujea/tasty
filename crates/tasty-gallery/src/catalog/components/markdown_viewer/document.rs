@@ -167,7 +167,7 @@ impl Run {
 /// 본문 문단 — inline run 들을 wrap 행에 배치(공백은 run 텍스트에 포함).
 fn body_inline(ui: &mut egui::Ui, theme: &Theme, runs: &[Run]) {
     let body = theme.font_size_body.value();
-    let secondary = theme.text_secondary().to_egui();
+    let secondary = theme.text_secondary_raised().to_egui();
     ui.horizontal_wrapped(|ui| {
         ui.spacing_mut().item_spacing = egui::vec2(0.0, body * 0.6);
         for r in runs {
@@ -182,7 +182,7 @@ fn body_inline(ui: &mut egui::Ui, theme: &Theme, runs: &[Run]) {
                     .italics(),
                 RunKind::Strike => egui::RichText::new(&r.text)
                     .size(body)
-                    .color(theme.text_muted().to_egui())
+                    .color(theme.text_muted_raised().to_egui())
                     .strikethrough(),
                 RunKind::Code => egui::RichText::new(&r.text)
                     .monospace()
@@ -191,7 +191,7 @@ fn body_inline(ui: &mut egui::Ui, theme: &Theme, runs: &[Run]) {
                     .background_color(theme.surface_raised().to_egui()),
                 RunKind::Link => egui::RichText::new(&r.text)
                     .size(body)
-                    .color(theme.accent_primary().to_egui())
+                    .color(theme.accent_primary_raised().to_egui())
                     .underline(),
             };
             ui.label(rt);
@@ -235,7 +235,7 @@ fn image_block(ui: &mut egui::Ui, theme: &Theme, alt: &str) {
                 egui::Align2::CENTER_CENTER,
                 "image",
                 egui::FontId::monospace(theme.font_size_caption.value()),
-                theme.text_muted().to_egui(),
+                theme.text_muted_raised().to_egui(),
             );
         });
     ui.add_space(theme.spacing_xs.value());
@@ -243,7 +243,7 @@ fn image_block(ui: &mut egui::Ui, theme: &Theme, alt: &str) {
         theme,
         alt,
         theme.font_size_caption.value(),
-        theme.text_muted().to_egui(),
+        theme.text_muted_raised().to_egui(),
     ));
 }
 
@@ -283,7 +283,7 @@ fn rust_snippet_tokens() -> [Vec<CodeToken>; 3] {
 fn code_block(ui: &mut egui::Ui, theme: &Theme, lines: &[Vec<CodeToken>]) {
     let body = theme.font_size_body.value();
     let token_color = |kind: TokenKind| match kind {
-        TokenKind::Plain => theme.text_secondary().to_egui(),
+        TokenKind::Plain => theme.text_secondary_raised().to_egui(),
         TokenKind::Keyword => theme.mauve.to_egui(),
         TokenKind::Title => theme.blue.to_egui(),
         TokenKind::Builtin => theme.red.to_egui(),

@@ -731,7 +731,7 @@ fn preview_panel(ui: &mut egui::Ui, theme: &Theme, kind: PreviewKind, height: f3
     let facts_g = ui.painter().layout_no_wrap(
         facts.to_owned(),
         egui::FontId::proportional(theme.font_size_caption.value()),
-        theme.text_muted().to_egui(),
+        theme.text_muted_raised().to_egui(),
     );
     let block_h = name_g.rect.height() + facts_g.rect.height();
     let top = head.center().y - block_h / 2.0;
@@ -744,7 +744,7 @@ fn preview_panel(ui: &mut egui::Ui, theme: &Theme, kind: PreviewKind, height: f3
     p.galley(
         egui::pos2(head.left() + pad, top + name_h),
         facts_g,
-        theme.text_muted().to_egui(),
+        theme.text_muted_raised().to_egui(),
     );
     ui.painter().vline(rect.left(), rect.y_range(), line);
     if LogicalPx(rect.height()) - theme.explorer_preview_header_height()
@@ -760,12 +760,12 @@ fn preview_panel(ui: &mut egui::Ui, theme: &Theme, kind: PreviewKind, height: f3
             let g = ui.painter().layout_no_wrap(
                 PREVIEW_TEXT.to_owned(),
                 egui::FontId::monospace(theme.font_size_caption.value()),
-                theme.text_secondary().to_egui(),
+                theme.text_secondary_raised().to_egui(),
             );
             p.galley(
                 body.min + egui::vec2(pad, pad),
                 g,
-                theme.text_secondary().to_egui(),
+                theme.text_secondary_raised().to_egui(),
             );
         }
         PreviewKind::Image => {
@@ -789,7 +789,7 @@ fn preview_panel(ui: &mut egui::Ui, theme: &Theme, kind: PreviewKind, height: f3
                 egui::Align2::CENTER_CENTER,
                 "image · fit",
                 egui::FontId::monospace(theme.font_size_micro.value()),
-                theme.text_muted().to_egui(),
+                theme.text_muted_raised().to_egui(),
             );
         }
         _ => {

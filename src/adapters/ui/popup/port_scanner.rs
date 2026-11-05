@@ -1748,7 +1748,7 @@ fn draw_failed_body(ui: &mut egui::Ui, props: &PortScannerProps<'_>, message: &s
         vspace(ui, th.spacing_xl * 2.0);
         ui.label(
             egui::RichText::new(props.label_failed)
-                .color(th.accent_danger())
+                .color(th.accent_danger_raised())
                 .size(th.font_size_body.value())
                 .strong(),
         );

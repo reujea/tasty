@@ -57,14 +57,11 @@ pub(super) fn draw_tab(
     let is_busy = info.tab_is_busy.get(i).copied().unwrap_or(false);
     // Fill 스타일만 활성 탭 배경을 채운다. Underline/Dot 은
     // 배경을 비활성과 동일하게 두고 별도 마커로 표시.
-    let tab_bg =
-        if is_active && props.active_tab_indicator == crate::settings::ActiveTabIndicator::Fill {
-            th.bg_panel()
-        } else {
-            bg
-        };
-    // 제목 색 우선순위: NeedsInput > Completion > 활성 탭 > 기본.
-    let text_color = tasty_ui_widgets::tab_title_color(th, tab_kind.map(Into::into), is_active);
+    let tab_id = egui::Id::new(("tab", info.pane_id, info.draft_pane, i));
+    let fill_active =
+        is_active && props.active_tab_indicator == crate::settings::ActiveTabIndicator::Fill;
+    let (tab_bg, text_color) =
+        tab_fill_and_ink(ui, th, tab_id, bg, is_active, fill_active, tab_kind);
 
     let tab_rect =
         egui::Rect::from_min_size(egui::pos2(x, clip_rect.min.y), egui::vec2(tab_w, bar_h));
@@ -79,13 +76,13 @@ pub(super) fn draw_tab(
                     egui::pos2(tab_rect.min.x, tab_rect.min.y),
                     egui::vec2(tab_w, active_indicator_h),
                 );
-                painter.rect_filled(line_rect, 0.0, th.accent_primary());
+                painter.rect_filled(line_rect, 0.0, th.tab_indicator());
             }
             ActiveTabIndicator::Fill => {}
             ActiveTabIndicator::Dot => {
                 let r = zoomed_px(th, TAB_ACTIVE_DOT_SIZE).value() * 0.5;
                 let center = egui::pos2(tab_rect.center().x, tab_rect.min.y + r * 2.0);
-                painter.circle_filled(center, r, th.accent_primary());
+                painter.circle_filled(center, r, th.tab_indicator());
             }
         }
     }
@@ -108,7 +105,7 @@ pub(super) fn draw_tab(
         )
     };
     if let Some(x) = cluster.busy {
-        let color: egui::Color32 = th.accent_success().into();
+        let color: egui::Color32 = th.accent_success_raised().into();
         painter.circle_filled(egui::pos2(x.center(), cy), x.span() / 2.0, color);
     }
 
@@ -140,7 +137,7 @@ pub(super) fn draw_tab(
         // 아이콘이 화살표·버튼 위로 넘치지 않게 그리는 동안 clip을 좁힌다.
         let prev_clip = ui.clip_rect();
         ui.set_clip_rect(clip_rect.intersect(prev_clip));
-        icon.image(icon_size, text_color.into())
+        icon.image(icon_size, th.text_secondary().into())
             .paint_at(ui, icon_rect);
         ui.set_clip_rect(prev_clip);
     }
@@ -184,7 +181,7 @@ pub(super) fn draw_tab(
     if !tab_clip.is_negative() {
         let resp = ui.interact(
             tab_clip,
-            egui::Id::new(("tab", info.pane_id, info.draft_pane, i)),
+            tab_id,
             if pending {
                 egui::Sense::click()
             } else {
@@ -222,7 +219,7 @@ pub(super) fn draw_tab(
             let cc: egui::Color32 = if cr.hovered() {
                 th.text_primary().into()
             } else {
-                th.text_muted().into()
+                th.text_secondary().into()
             };
             let glyph = th.icon_glyph_size_xs.value();
             icons::CLOSE.image(glyph, cc).paint_at(
@@ -285,6 +282,37 @@ fn paint_move_glyph(ui: &mut egui::Ui, context: &TabRenderContext<'_, '_>, slot:
     ui.set_clip_rect(context.clip_rect.intersect(prev_clip));
     tasty_ui_widgets::paint_move_source_glyph(ui, context.props.theme, slot);
     ui.set_clip_rect(prev_clip);
+}
+
+/// 탭 채움과 제목 색. 제목 우선순위는 NeedsInput > Completion > 활성 탭 > hover > 기본이다.
+/// 응답은 라벨 뒤에 만들므로 지난 프레임의 hover를 읽는다.
+fn tab_fill_and_ink(
+    ui: &egui::Ui,
+    th: &tasty_type_appearance::theme::Theme,
+    tab_id: egui::Id,
+    bg: tasty_type_appearance::color::HexColor,
+    is_active: bool,
+    fill_active: bool,
+    kind: Option<crate::core::AttentionKind>,
+) -> (
+    tasty_type_appearance::color::HexColor,
+    tasty_type_appearance::color::HexColor,
+) {
+    let hovered = !is_active
+        && ui
+            .ctx()
+            .read_response(tab_id)
+            .is_some_and(|response| response.hovered());
+    let fill = match (fill_active, hovered) {
+        (true, _) => th.bg_panel(),
+        (false, true) => th.tab_bg_hover(),
+        (false, false) => bg,
+    };
+    let ink = match kind {
+        None if hovered => th.tab_fg_hover(),
+        kind => tasty_ui_widgets::tab_title_color(th, kind.map(Into::into), is_active),
+    };
+    (fill, ink)
 }
 
 /// 로딩 중인 탭에 hover하면 제목 아래 둘째 줄로 로딩 문구를 보인다. 오버레이 자체에는 툴팁이 없다.

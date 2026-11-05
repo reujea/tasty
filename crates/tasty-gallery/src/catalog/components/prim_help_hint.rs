@@ -80,12 +80,12 @@ pub fn draw(ui: &mut egui::Ui, theme: &Theme) {
             TokenChip::new(
                 "text-muted",
                 "rest glyph",
-                egui::Color32::from(theme.text_muted()),
+                egui::Color32::from(theme.text_muted_raised()),
             ),
             TokenChip::new(
                 "text-secondary",
                 "hover glyph · bubble text",
-                egui::Color32::from(theme.text_secondary()),
+                egui::Color32::from(theme.text_secondary_raised()),
             ),
             TokenChip::new(
                 "surface-raised",

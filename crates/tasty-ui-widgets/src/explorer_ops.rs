@@ -273,7 +273,7 @@ pub fn op_status_line(
         );
     }
     let color = if props.waiting {
-        theme.accent_warning()
+        theme.accent_warning_raised()
     } else {
         theme.text_secondary()
     };
@@ -934,7 +934,7 @@ pub fn drag_chip(
                     ui.spacing_mut().item_spacing = egui::vec2(sm, 0.0);
                     let g = theme.icon_glyph_size_sm.value();
                     let (rect, _) = ui.allocate_exact_size(egui::vec2(g, g), egui::Sense::hover());
-                    paint_item(ui, rect, theme.text_muted().to_egui());
+                    paint_item(ui, rect, theme.text_secondary().to_egui());
                     let w = (text_max - g - sm).max(1.0);
                     one_line(
                         ui,
@@ -962,7 +962,7 @@ pub fn drag_chip(
                             0.0,
                             egui::TextFormat::simple(
                                 caption(theme),
-                                theme.text_secondary().to_egui(),
+                                theme.text_secondary_raised().to_egui(),
                             ),
                         );
                     }

@@ -147,7 +147,7 @@ pub(crate) fn tab_cell(ui: &egui::Ui, theme: &Theme, rect: egui::Rect, cfg: Cell
     let (bg, fg) = if cfg.active {
         (theme.tab_bg_active(), theme.tab_fg_active())
     } else if cfg.hover {
-        (theme.surface_hover(), theme.tab_fg_hover())
+        (theme.tab_bg_hover(), theme.tab_fg_hover())
     } else {
         (theme.tab_bg(), theme.tab_fg())
     };

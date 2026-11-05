@@ -78,6 +78,7 @@ mod remote_tool;
 mod rename_popup;
 mod resize_grip;
 mod restore_notice;
+mod row_ink;
 mod script_confirm;
 mod script_trigger;
 mod searchable_select;
@@ -295,6 +296,7 @@ pub use resize_grip::{modhint_resize_grip, resize_grip_segments};
 pub use restore_notice::{
     RestoreNoticeOutput, RestoreNoticeView, notice_column_rect, restore_notice,
 };
+pub use row_ink::{RowParent, RowState};
 pub use script_confirm::{
     SCRIPT_CONFIRM_PAD_X, ScriptConfirmOutput, ScriptConfirmView, script_confirm,
 };
@@ -340,7 +342,8 @@ pub use toast::{
     stack_anchor as toast_stack_anchor,
 };
 pub use toggle::{
-    checkbox, checkbox_width, checkbox_with_label_color, checkbox_wrapping, switch,
+    checkbox, checkbox_on_raised, checkbox_on_raised_with_label_color, checkbox_width,
+    checkbox_with_label_color, checkbox_wrapping, switch, switch_on_raised,
     switch_with_label_color,
 };
 pub use tooltip::{Tooltip, TooltipPlacement, tooltip_hover_delay_elapsed};

@@ -155,7 +155,7 @@ Port / Proto / Address / Process / Workspace / Tab / State.
   - 정렬 가능 헤더(Port/Address/Process/Workspace/Tab) 클릭 시 `▲`/`▼` 인디케이터. Proto/State 헤더는 비정렬.
   - State 셀: 상태 dot(색 + pulse) + 상태 텍스트.
   - 셀 글꼴: Port·Proto·Address 는 mono 열이라 고정폭 글꼴이고, Process 이름과 나머지 열은 UI 글꼴이다. 크기는 모두 font-size-body 다. Process 셀의 PID Tag 는 숫자만 보이고(이름과 spacing-sm 간격), 포인터를 올리면 `PID {pid}` 툴팁(`port_scanner.pid_tooltip`)으로 뜻을 알린다. 컬럼이 좁으면 프로세스 이름만 말줄임하고 PID Tag 는 그대로 보인다. 말줄임한 이름은 포인터를 올리면 전체가 보인다.
-  - 셀 글자색: Port·Proto·Address(mono 열)와 Process 이름은 text-primary 다. Workspace·Tab 이름은 색을 두지 않아 공용 표의 행 글자색(쉬는 행 table-row-fg, hover 행 text-primary, 선택 행 table-row-fg-selected)을 따른다. 빈 값 대시는 text-muted, State 라벨은 StatusDot 의 글자색이다. 선택 행에서는 모든 칸의 글자가 table-row-fg-selected, 켜진 별이 port-star-on-active, 꺼진 별이 port-star-off-active, 상태 점이 status-dot-*-active 다. PID Tag는 자체 채움이라 그대로다.
+  - 셀 글자색: Port·Proto·Address(mono 열)와 Process 이름은 text-primary 다. Workspace·Tab 이름은 색을 두지 않아 공용 표의 행 글자색(쉬는 행 table-row-fg, hover 행 text-secondary-raised, 선택 행 table-row-fg-selected)을 따른다. 빈 값 대시는 text-muted, State 라벨은 StatusDot 의 글자색이다. 선택 행에서는 모든 칸의 글자가 table-row-fg-selected, 켜진 별이 port-star-on-active, 꺼진 별이 port-star-off-active, 상태 점이 status-dot-*-active 다. PID Tag는 자체 채움이라 그대로다.
   - 행 클릭: 선택 토글(선택 행 강조). 브라우저 오픈 없음. 별 클릭은 행 선택에 영향을 주지 않는다.
 - **footer**: `{shown} of {total} ports` 카운터 + `Copy address`(선택 없으면 disabled) + `Close`.
 

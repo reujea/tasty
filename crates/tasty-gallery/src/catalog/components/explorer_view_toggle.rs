@@ -82,7 +82,11 @@ pub fn draw(ui: &mut egui::Ui, theme: &Theme) {
                 "selected segment glyph",
                 theme.segtoggle_on_fg().to_egui(),
             ),
-            TokenChip::new("text-muted", "off glyph", theme.text_muted().to_egui()),
+            TokenChip::new(
+                "text-muted",
+                "off glyph",
+                theme.text_muted_raised().to_egui(),
+            ),
             TokenChip::new(
                 "surface-raised",
                 "container",

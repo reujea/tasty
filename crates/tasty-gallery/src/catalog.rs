@@ -410,7 +410,7 @@ pub fn pages() -> Vec<Page> {
                         spec(
                             "kbd-one-keycap",
                             "One keycap, no palette variant",
-                            Some("the palette converges on Kbd — 16 / 4 / 3 / 10"),
+                            Some("the palette converges on Kbd — 16 / 4 / 4 / 10"),
                             components_settled::draw_one_keycap,
                         ),
                         spec(

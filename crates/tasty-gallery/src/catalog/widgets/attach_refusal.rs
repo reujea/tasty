@@ -183,7 +183,7 @@ fn rail_avatar(
         egui::Align2::CENTER_CENTER,
         ch,
         egui::FontId::monospace(theme.font_size_body.value()),
-        theme.text_secondary().to_egui(),
+        theme.text_secondary_raised().to_egui(),
     );
     let bed: egui::Color32 = theme.bg_sidebar().into();
     if let Some(dot) = dot {
@@ -359,7 +359,7 @@ pub fn draw(ui: &mut egui::Ui, theme: &Theme) {
                 ui.label(
                     egui::RichText::new("other mapping errors — same banner, own reason")
                         .size(theme.font_size_caption.value())
-                        .color(theme.text_muted().to_egui()),
+                        .color(theme.text_muted_raised().to_egui()),
                 );
                 for reason in [Reason::ProfileMissing, Reason::Unresolved] {
                     ui.scope(|ui| {

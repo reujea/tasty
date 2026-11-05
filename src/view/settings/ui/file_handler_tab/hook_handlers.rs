@@ -899,7 +899,7 @@ fn draw_add_card(
                 ui.label(
                     egui::RichText::new(err)
                         .size(th.font_size_caption.value())
-                        .color(th.accent_danger()),
+                        .color(th.accent_danger_raised()),
                 );
             }
             // 세로 중앙 정렬은 Frame의 남은 높이를 차지하므로 상단 정렬을 사용한다.

@@ -236,7 +236,7 @@ pub fn draw_pane_tab_bars_view(
                                     egui::Align2::CENTER_CENTER,
                                     "+",
                                     egui::FontId::proportional(plus_font_size),
-                                    th.text_muted().into(),
+                                    th.text_secondary().into(),
                                 );
                                 if resp.clicked() {
                                     output.actions.push(TabBarAction::AddTab {
@@ -297,7 +297,7 @@ pub fn draw_pane_tab_bars_view(
                             let color = if resp.hovered() {
                                 th.text_primary()
                             } else {
-                                th.text_muted()
+                                th.text_secondary()
                             };
                             if resp.hovered() {
                                 ui.painter().rect_filled(

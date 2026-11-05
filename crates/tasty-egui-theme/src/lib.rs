@@ -61,6 +61,7 @@ pub fn with_popover_frame_ring<R>(
             opaque: parent_opaque,
         });
     let visuals = &mut ui.style_mut().visuals;
+    apply_raised_scrollbar(theme, visuals);
     visuals.window_fill = theme.menu_bg().into();
     visuals.window_stroke = stroke1(theme, theme.menu_border());
     visuals.menu_corner_radius = edge.radius(theme, theme.menu_radius()).value().into();
@@ -88,6 +89,11 @@ pub fn with_popover_frame_ring<R>(
 pub fn apply_theme_to_egui(theme: &Theme, ctx: &egui::Context) {
     ctx.set_visuals(theme_visuals(theme));
     apply_theme_style(theme, ctx);
+}
+
+/// surface-raised 위에 그리는 스크롤 영역의 thumb 색. 호출 범위의 `Ui` visuals에 적용한다.
+pub fn apply_raised_scrollbar(theme: &Theme, visuals: &mut egui::Visuals) {
+    visuals.widgets.inactive.fg_stroke = stroke1(theme, theme.scrollbar_thumb_raised());
 }
 
 /// Theme 의 egui 색 설정. 다른 테마로 고정해 그리는 영역(갤러리의 테마별 열)은
@@ -135,6 +141,11 @@ pub fn theme_visuals(theme: &Theme) -> egui::Visuals {
     visuals.widgets.active.weak_bg_fill = theme.surface1.into();
     visuals.widgets.active.bg_stroke = stroke1(theme, theme.surface2);
     visuals.widgets.active.fg_stroke = stroke1(theme, theme.text);
+
+    // 떠 있는 스크롤바의 thumb는 상태별 fg_stroke를 읽는다. 글자는 override_text_color가 정한다.
+    visuals.widgets.inactive.fg_stroke = stroke1(theme, theme.scrollbar_thumb());
+    visuals.widgets.hovered.fg_stroke = stroke1(theme, theme.scrollbar_thumb_hover());
+    visuals.widgets.active.fg_stroke = stroke1(theme, theme.scrollbar_thumb_hover());
 
     visuals.widgets.open.bg_fill = theme.surface1.into();
     visuals.widgets.open.weak_bg_fill = theme.surface1.into();
@@ -199,6 +210,9 @@ fn apply_theme_style(theme: &Theme, ctx: &egui::Context) {
         theme.tooltip_padding_x().value().round() as i8,
         theme.tooltip_padding_y().value().round() as i8,
     );
+    // thumb는 3:1 등급이라 반투명으로 낮추지 않는다. 표시·숨김 동작은 그대로다.
+    style.spacing.scroll.active_handle_opacity = 1.0;
+    style.spacing.scroll.interact_handle_opacity = 1.0;
     // 스크롤에는 transition을 적용하지 않는다.
     style.scroll_animation = egui::style::ScrollAnimation::none();
     ctx.set_style(style);

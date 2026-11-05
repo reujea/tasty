@@ -332,7 +332,7 @@ pub fn draw_attention_scale(ui: &mut egui::Ui, theme: &Theme) {
                                 egui::RichText::new(head)
                                     .monospace()
                                     .size(theme.font_size_micro.value())
-                                    .color(ec(theme.text_muted())),
+                                    .color(ec(theme.text_muted_raised())),
                             );
                         });
                     }
@@ -373,7 +373,7 @@ pub fn draw_attention_scale(ui: &mut egui::Ui, theme: &Theme) {
                             egui::RichText::new(format!("{}", k.rank))
                                 .monospace()
                                 .size(theme.font_size_term_sm.value())
-                                .color(ec(theme.text_muted())),
+                                .color(ec(theme.text_muted_raised())),
                         );
                     });
                     scale_cell(&mut child, SCALE_COLS[1], |ui| {
@@ -387,7 +387,7 @@ pub fn draw_attention_scale(ui: &mut egui::Ui, theme: &Theme) {
                             ui.label(
                                 egui::RichText::new("· reserved")
                                     .size(theme.font_size_micro.value())
-                                    .color(ec(theme.text_muted())),
+                                    .color(ec(theme.text_muted_raised())),
                             );
                         }
                     });
@@ -395,7 +395,7 @@ pub fn draw_attention_scale(ui: &mut egui::Ui, theme: &Theme) {
                         ui.label(
                             egui::RichText::new(k.what)
                                 .size(theme.font_size_term_sm.value())
-                                .color(ec(theme.text_secondary())),
+                                .color(ec(theme.text_secondary_raised())),
                         );
                     });
                     scale_cell(&mut child, SCALE_COLS[3], |ui| {
@@ -403,7 +403,7 @@ pub fn draw_attention_scale(ui: &mut egui::Ui, theme: &Theme) {
                             egui::RichText::new(k.role)
                                 .monospace()
                                 .size(theme.font_size_caption.value())
-                                .color(ec(theme.text_secondary())),
+                                .color(ec(theme.text_secondary_raised())),
                         );
                     });
                     scale_cell(&mut child, SCALE_COLS[4], |ui| {

@@ -551,12 +551,12 @@ pub fn draw_gesture_table(ui: &mut egui::Ui, theme: &Theme) {
             TokenChip::new(
                 "text-muted",
                 "folder-target line",
-                theme.text_muted().to_egui(),
+                theme.text_muted_raised().to_egui(),
             ),
             TokenChip::new(
                 "text-secondary",
                 "the button named in the open line",
-                theme.text_secondary().to_egui(),
+                theme.text_secondary_raised().to_egui(),
             ),
             TokenChip::new(
                 "overlay-active",

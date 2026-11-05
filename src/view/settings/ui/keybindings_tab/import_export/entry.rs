@@ -37,7 +37,12 @@ pub(super) fn action_row(
             ui.spacing_mut().item_spacing.y = th.spacing_sm.value();
             ui.horizontal_top(|ui| {
                 ui.spacing_mut().item_spacing.x = th.spacing_md.value();
-                glyph_at(ui, glyph, th.icon_glyph_size_md, th.text_muted().to_egui());
+                glyph_at(
+                    ui,
+                    glyph,
+                    th.icon_glyph_size_md,
+                    th.text_muted_raised().to_egui(),
+                );
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Min), |ui| {
                     clicked = Button::new(button)
                         .variant(variant)
@@ -58,7 +63,7 @@ pub(super) fn action_row(
                             ui.label(
                                 egui::RichText::new(desc)
                                     .size(th.font_size_term_sm.value())
-                                    .color(th.text_muted()),
+                                    .color(th.text_muted_raised()),
                             );
                         });
                     });

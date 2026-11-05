@@ -253,13 +253,13 @@ fn select_states(ui: &mut egui::Ui, theme: &Theme, raised: bool) {
                     th.surface_raised(),
                     th.text_secondary_raised(),
                     format!(
-                        "{label} — Select ground=\"raised\": box bg-panel + border-strong in every state; ink and focus unchanged"
+                        "{label} — Select ground=\"raised\": box bg-panel + select-raised-border, hover border-control-raised; ink and focus unchanged"
                     ),
                 )
             } else {
                 (
                     th.bg_panel(),
-                    th.text_muted(),
+                    th.text_muted_raised(),
                     format!(
                         "{label} — Select states: hover / focus are pinned with the same border values the widget applies"
                     ),

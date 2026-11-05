@@ -579,7 +579,7 @@ fn fh_fallback_strip(ui: &mut egui::Ui, theme: &Theme) {
                              This screen shows again next time.",
                         )
                         .size(theme.font_size_caption.value())
-                        .color(theme.text_secondary().to_egui()),
+                        .color(theme.text_secondary_raised().to_egui()),
                     )
                     .wrap(),
                 );

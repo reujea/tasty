@@ -2,13 +2,14 @@
 
 use tasty_type_appearance::theme::Theme;
 
-/// 컨트롤이 놓인 바탕(시안 `ground`). surface-raised 카드·메뉴·배너 위에서는 `Raised`를 써서
-/// 테두리와 상자, ghost 글자를 그 바탕에서 보이는 raised 토큰으로 바꾼다.
+/// 컨트롤이 놓인 바탕(시안 `ground`). surface-raised 카드·메뉴·배너 위에서는 `Raised`,
+/// 선택 행 위의 채움 없는 버튼은 `Active`를 써서 그 바탕에서 보이는 토큰으로 바꾼다.
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
 pub enum Ground {
     #[default]
     Panel,
     Raised,
+    Active,
 }
 
 /// 디자인 control-height 축. md = 28(기본), sm = 24, lg = 32.

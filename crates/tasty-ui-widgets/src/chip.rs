@@ -373,24 +373,24 @@ fn badge_disabled_colors(theme: &Theme) -> (egui::Color32, egui::Color32) {
 fn badge_colors(theme: &Theme, variant: BadgeVariant) -> (egui::Color32, egui::Color32) {
     match variant {
         BadgeVariant::Danger => (
-            theme.accent_danger().to_egui(),
-            theme.text_on_accent().to_egui(),
+            theme.badge_danger_bg().to_egui(),
+            theme.badge_danger_fg().to_egui(),
         ),
         BadgeVariant::Primary => (
-            theme.accent_primary().to_egui(),
-            theme.text_on_accent().to_egui(),
+            theme.badge_primary_bg().to_egui(),
+            theme.badge_primary_fg().to_egui(),
         ),
         BadgeVariant::Warning => (
             theme.badge_warning_bg().to_egui(),
             theme.badge_warning_fg().to_egui(),
         ),
         BadgeVariant::Agent => (
-            theme.accent_agent().to_egui(),
-            theme.text_on_accent().to_egui(),
+            theme.badge_agent_bg().to_egui(),
+            theme.badge_agent_fg().to_egui(),
         ),
         BadgeVariant::Success => (
-            theme.accent_success().to_egui(),
-            theme.text_on_accent().to_egui(),
+            theme.badge_success_bg().to_egui(),
+            theme.badge_success_fg().to_egui(),
         ),
         BadgeVariant::Neutral => (
             theme.badge_neutral_bg().to_egui(),
@@ -446,11 +446,11 @@ pub fn paint_badge_dot(
     variant: BadgeVariant,
 ) {
     let fill = match variant {
-        BadgeVariant::Danger => theme.accent_danger().to_egui(),
-        BadgeVariant::Primary => theme.accent_primary().to_egui(),
+        BadgeVariant::Danger => theme.badge_danger_bg().to_egui(),
+        BadgeVariant::Primary => theme.badge_primary_bg().to_egui(),
         BadgeVariant::Warning => theme.badge_warning_bg().to_egui(),
-        BadgeVariant::Agent => theme.accent_agent().to_egui(),
-        BadgeVariant::Success => theme.accent_success().to_egui(),
+        BadgeVariant::Agent => theme.badge_agent_bg().to_egui(),
+        BadgeVariant::Success => theme.badge_success_bg().to_egui(),
         BadgeVariant::Neutral => theme.surface_active().to_egui(),
     };
     painter.circle_filled(center, theme.badge_dot_size().value() * 0.5, fill);

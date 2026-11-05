@@ -127,8 +127,8 @@ fn the_accent_rail_is_toast_accent_width_thick() {
     assert_eq!(rails.len(), 1, "one warning rail: {rails:?}");
     let rail = rails[0];
     assert_eq!(rail.width(), theme.toast_accent_width.value());
-    // 시안 `toast-accent-width` = size-3.
-    assert_eq!(rail.width(), 3.0);
+    // 시안 `toast-accent-width` = size-2.
+    assert_eq!(rail.width(), 2.0);
     assert_eq!(rail.left(), cards[0].left());
     assert_eq!(rail.height(), cards[0].height());
 }

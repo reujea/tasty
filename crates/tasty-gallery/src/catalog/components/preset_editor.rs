@@ -675,7 +675,7 @@ fn mini_handle_mock(
     let color = if danger {
         theme.accent_danger().to_egui()
     } else {
-        theme.text_secondary().to_egui()
+        theme.text_secondary_raised().to_egui()
     };
     paint_glyph(ui, glyph, rect.center(), E_HANDLE_SZ.scaled(0.62), color);
 }

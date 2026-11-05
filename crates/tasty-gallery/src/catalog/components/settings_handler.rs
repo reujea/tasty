@@ -608,7 +608,11 @@ pub fn draw_hook_handlers(ui: &mut egui::Ui, theme: &Theme) {
         ],
         &[
             TokenChip::new("text", "handler id (mono)", theme.text_primary().to_egui()),
-            TokenChip::new("text-muted", "prio · intro", theme.text_muted().to_egui()),
+            TokenChip::new(
+                "text-muted",
+                "prio · intro",
+                theme.text_muted_raised().to_egui(),
+            ),
             TokenChip::new(
                 "accent-agent",
                 "plugin origin tag",

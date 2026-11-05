@@ -319,7 +319,7 @@ fn reason_detail(ui: &mut egui::Ui, theme: &Theme, kind: Kind) {
                         egui::RichText::new("exited with status 101 (panicked at doc.rs:88)")
                             .monospace()
                             .size(ATTN_PRIMITIVE_12.value())
-                            .color(theme.accent_danger().to_egui()),
+                            .color(theme.accent_danger_raised().to_egui()),
                     );
                 });
         }

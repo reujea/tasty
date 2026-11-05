@@ -9,7 +9,9 @@ use card_status::CardPaint;
 use tasty_type_geometry::length::LogicalPx;
 use tasty_ui_widgets::LoadingPlacement;
 use tasty_ui_widgets::tokens::{STRUCT_GAP_1, STRUCT_GAP_2, STRUCT_GAP_3};
-use tasty_ui_widgets::{ControlSize, IconButton, TagVariant, hspace, tag_caps, vspace};
+use tasty_ui_widgets::{
+    ControlSize, IconButton, RowParent, RowState, TagVariant, hspace, tag_caps, vspace,
+};
 
 /// 드래그 중 표시되는 ghost workspace 이름. DTCG primitive `font-size-12` 는 있으나
 /// semantic role 이 없어 `Theme` 필드가 없다 — docs/design/systems/theme.md 대로 **이름에 primitive 임을 남긴다**.
@@ -597,7 +599,7 @@ pub fn draw_full_sidebar_view(
                     ui.painter().rect_stroke(
                         new_ws_resp.rect,
                         4.0,
-                        egui::Stroke::new(th.focus_ring_width.value(), th.accent_success()),
+                        egui::Stroke::new(th.focus_ring_width.value(), th.accent_success_raised()),
                         egui::StrokeKind::Inside,
                     );
                 }
@@ -810,7 +812,7 @@ pub fn draw_collapsed_sidebar_view(
                 ui.painter().rect_stroke(
                     rect,
                     4.0,
-                    egui::Stroke::new(th.focus_ring_width.value(), th.accent_success()),
+                    egui::Stroke::new(th.focus_ring_width.value(), th.accent_success_raised()),
                     egui::StrokeKind::Inside,
                 );
             }
@@ -1100,7 +1102,7 @@ fn draw_ws_row(
         ui.painter().rect_stroke(
             card_rect,
             4.0,
-            egui::Stroke::new(th.focus_ring_width.value(), th.accent_success()),
+            egui::Stroke::new(th.focus_ring_width.value(), th.accent_success_raised()),
             egui::StrokeKind::Inside,
         );
     }
@@ -1249,13 +1251,15 @@ fn draw_collapsed_avatar(
         .next()
         .map(|c| c.to_uppercase().to_string())
         .unwrap_or_default();
+    let (rect, resp) = ui.allocate_exact_size(collapsed_ws_size(th), egui::Sense::click());
+    // 선택 아바타는 mantle+press 채움이라 hue 글자는 raised 띠를 읽는다.
     let text_color: egui::Color32 = if ws.is_active {
-        th.accent_primary().into()
+        th.accent_primary_raised().into()
+    } else if resp.hovered() {
+        th.text_muted_raised().into()
     } else {
         th.text_muted().into()
     };
-
-    let (rect, resp) = ui.allocate_exact_size(collapsed_ws_size(th), egui::Sense::click());
     *resize_priority_hovered |= resp.hovered();
     let radius = th.corner_radius.value();
     if ws.is_active {
@@ -1319,7 +1323,7 @@ fn draw_collapsed_avatar(
             radius,
             egui::Stroke::new(
                 th.status_dot_attached_ring_width().value(),
-                th.border_attached(),
+                th.accent_attached_raised(),
             ),
             egui::StrokeKind::Inside,
         );
@@ -1364,13 +1368,9 @@ fn draw_workspace_card(
     switch_fade: f32,
 ) -> CardPaint {
     // hover 채움은 받침에 들어가고 점·스피너·키캡·글자는 그 위에 그린다.
-    let bg = if ws.is_active {
-        th.surface_active().to_egui()
-    } else if hovered {
-        th.hover_overlay.to_egui_premultiplied()
-    } else {
-        egui::Color32::TRANSPARENT
-    };
+    let pressed = hovered && ui.input(|i| i.pointer.primary_down());
+    let state = RowState::of(true, ws.is_active, hovered, pressed);
+    let bg = state.fill(th);
 
     // 행 배경은 모서리와 바깥 여백 없이 사이드바 폭을 채운다.
     // 제목·REMOTE 줄·부제·설명은 모두 점 슬롯과 간격 뒤에서 시작한다.
@@ -1392,11 +1392,7 @@ fn draw_workspace_card(
             let slot = card_status::paint_dot_slot(ui, th, ws, bg, switch_digit, switch_fade);
             loading_shown = slot.loading;
             occupied_dot = slot.occupied_dot;
-            let name_color = if ws.is_active {
-                th.text_on_active()
-            } else {
-                th.text_secondary()
-            };
+            let name_color = state.label(th, RowParent::Mantle, th.text_secondary());
 
             // 배지 폭을 먼저 확보하고 남은 폭에 이름을 줄여 표시한다.
             // 오른쪽부터 그리므로 Completion 뒤에 NeedsInput을 넣어 왼쪽에 배치한다.
@@ -1442,10 +1438,14 @@ fn draw_workspace_card(
             let resp = ui.horizontal(|ui| {
                 ui.add_space(body_indent);
                 ui.spacing_mut().item_spacing.x = th.workspace_mirror_gap().value();
-                let mirror_fg = if ws.is_active {
-                    th.workspace_mirror_fg_active()
-                } else {
-                    th.workspace_mirror_fg()
+                let mirror_fg = match state {
+                    RowState::Selected => th.workspace_mirror_fg_active(),
+                    _ => state.hue(
+                        th,
+                        th.workspace_mirror_fg(),
+                        th.accent_remote_raised(),
+                        th.accent_remote_on_active(),
+                    ),
                 };
                 ui.add(
                     icons::TERMINAL_PROMPT
@@ -1465,11 +1465,7 @@ fn draw_workspace_card(
                     egui::Label::new(
                         egui::RichText::new(&ws.subtitle)
                             .size(th.sidebar_button_label_font_size.value())
-                            .color(if ws.is_active {
-                                th.text_on_active()
-                            } else {
-                                th.text_muted()
-                            }),
+                            .color(state.meta(th, RowParent::Mantle)),
                     )
                     .truncate(),
                 );

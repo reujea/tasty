@@ -588,7 +588,7 @@ fn off_screen(ui: &mut egui::Ui, theme: &Theme) {
                     egui::Align2::CENTER_CENTER,
                     ch,
                     egui::FontId::monospace(theme.font_size_body.value()),
-                    c(theme.text_secondary()),
+                    c(theme.text_secondary_raised()),
                 );
                 if cue {
                     paint_move_source_chip(ui, theme, r, c(theme.bg_sidebar()));

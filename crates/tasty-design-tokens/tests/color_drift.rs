@@ -73,21 +73,15 @@ fn primitive_colors_match_embedded_themes() {
     }
 }
 
-/// 내장 Mocha·Latte의 placeholder와 overlay0는 같은 값이다.
+/// 내장 테마의 placeholder는 입력 상자 위 일반 글자 등급을 넘는 subtext다.
 /// 사용자 설정에서는 별도 필드로 바꿀 수 있다.
 #[test]
-fn placeholder_matches_overlay0_in_shipped_themes() {
+fn placeholder_uses_the_subtext_band_in_shipped_themes() {
     let mocha = mocha_fallback_colors();
-    assert_eq!(
-        mocha.placeholder, mocha.overlay0,
-        "mocha placeholder와 overlay0의 기본 색이 다르다"
-    );
+    assert_eq!(mocha.placeholder, HexColor::from_hex("#a6adc8").unwrap());
     let latte_file = ThemeFile::parse(LATTE_TOML_TEXT).expect("latte.toml must parse");
     let (latte, _) = latte_file.to_partial();
-    assert_eq!(
-        latte.placeholder, latte.overlay0,
-        "latte placeholder와 overlay0의 기본 색이 다르다"
-    );
+    assert_eq!(latte.placeholder, HexColor::from_hex("#5c5f77"));
 }
 
 /// 내장 테마의 표면 전경은 focused_fg=text, unfocused_fg=subtext0를 따른다.
@@ -258,37 +252,35 @@ fn hex(s: &str) -> HexColor {
 fn assert_latte_state_ink(latte: &Theme) {
     assert_eq!(latte.surface_on_raised(), hex("#eff1f5"));
     assert_eq!(latte.text_on_active(), hex("#35374a"));
-    assert_eq!(latte.accent_primary_on_active(), hex("#1547ac"));
-    // 파란 채널이 14.5라 앱은 15로 반올림한다. 디자인 측 표기는 #70470e이다.
+    assert_eq!(latte.accent_primary_on_active(), hex("#14429f"));
     assert_eq!(latte.accent_warning_raised(), hex("#70470f"));
     assert_eq!(latte.accent_attention_raised(), hex("#8c3706"));
     assert_eq!(latte.accent_info_raised(), hex("#025b7e"));
     assert_eq!(latte.text_muted(), hex("#5c5f77"));
-    // accent-warning-raised를 따르므로 같은 반올림이다. 디자인 측 표기는 #70470e이다.
-    assert_eq!(latte.accent_warning_on_active(), hex("#70470f"));
-    assert_eq!(latte.accent_success_on_active(), hex("#26601a"));
-    assert_eq!(latte.accent_danger_on_active(), hex("#9c294c"));
-    assert_eq!(latte.accent_agent_on_active(), hex("#6d2ebf"));
-    assert_eq!(latte.accent_remote_on_active(), hex("#025b7e"));
+    assert_eq!(latte.accent_warning_on_active(), hex("#64400d"));
+    assert_eq!(latte.accent_success_on_active(), hex("#235818"));
+    assert_eq!(latte.accent_danger_on_active(), hex("#930b28"));
+    assert_eq!(latte.accent_agent_on_active(), hex("#5f28a7"));
+    assert_eq!(latte.accent_remote_on_active(), hex("#025373"));
     assert_eq!(latte.accent_attached_raised(), hex("#3f4a8b"));
-    assert_eq!(latte.accent_attached_on_active(), hex("#3f4a8b"));
+    assert_eq!(latte.accent_attached_on_active(), hex("#39447f"));
 }
 
 fn assert_mocha_state_ink(mocha: &Theme) {
-    assert_eq!(mocha.surface_on_raised(), mocha.surface_hover());
-    assert_eq!(mocha.text_on_active(), mocha.text_primary());
-    assert_eq!(mocha.accent_primary_on_active(), mocha.accent_primary());
-    assert_eq!(mocha.accent_warning_raised(), mocha.accent_warning());
-    assert_eq!(mocha.accent_attention_raised(), mocha.accent_attention());
-    assert_eq!(mocha.accent_info_raised(), mocha.accent_info());
+    assert_eq!(mocha.surface_on_raised(), hex("#45475a"));
+    assert_eq!(mocha.text_on_active(), hex("#cdd6f4"));
+    assert_eq!(mocha.accent_primary_on_active(), hex("#b2cefc"));
+    assert_eq!(mocha.accent_warning_raised(), hex("#f9e2af"));
+    assert_eq!(mocha.accent_attention_raised(), hex("#fab387"));
+    assert_eq!(mocha.accent_info_raised(), hex("#89dceb"));
     assert_eq!(mocha.text_muted(), hex("#a6adc8"));
     assert_eq!(mocha.accent_warning_on_active(), hex("#f9e2af"));
     assert_eq!(mocha.accent_success_on_active(), hex("#a6e3a1"));
-    assert_eq!(mocha.accent_danger_on_active(), hex("#f59cb5"));
-    assert_eq!(mocha.accent_agent_on_active(), hex("#cba6f7"));
+    assert_eq!(mocha.accent_danger_on_active(), hex("#f8b9cb"));
+    assert_eq!(mocha.accent_agent_on_active(), hex("#dbc1f9"));
     assert_eq!(mocha.accent_remote_on_active(), hex("#89dceb"));
     assert_eq!(mocha.accent_attached_raised(), hex("#b4befe"));
-    assert_eq!(mocha.accent_attached_on_active(), hex("#b4befe"));
+    assert_eq!(mocha.accent_attached_on_active(), hex("#bfc8fe"));
 }
 
 fn assert_ink_on_active(name: &str, th: &Theme) {

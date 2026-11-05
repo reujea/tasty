@@ -38,7 +38,7 @@ pub fn draw(ui: &mut egui::Ui, theme: &Theme) {
                     ui.label(
                         egui::RichText::new("Card body")
                             .size(theme.font_size_body.value())
-                            .color(ec(theme.text_secondary())),
+                            .color(ec(theme.text_secondary_raised())),
                     );
                 });
         });
@@ -141,7 +141,7 @@ fn region_block(ui: &mut egui::Ui, theme: &Theme, label: &str) {
             ui.label(
                 egui::RichText::new(label)
                     .size(theme.font_size_caption.value())
-                    .color(ec(theme.text_muted())),
+                    .color(ec(theme.text_muted_raised())),
             );
         });
 }

@@ -166,7 +166,10 @@ fn seg(ui: &mut egui::Ui, theme: &Theme, items: &[&str], active: usize) {
                             theme.surface_active().to_egui(),
                         )
                     } else {
-                        (theme.text_muted().to_egui(), egui::Color32::TRANSPARENT)
+                        (
+                            theme.text_muted_raised().to_egui(),
+                            egui::Color32::TRANSPARENT,
+                        )
                     };
                     let galley = ui.painter().layout_no_wrap(
                         (*label).to_owned(),

@@ -251,7 +251,7 @@ fn hidden_crumbs(
     let galley = crumb_galley(ui, th, "…", false, false, natural_width(ui, th, "…", false));
     let (rect, resp) = ui.allocate_exact_size(galley.size(), egui::Sense::click());
     ui.painter()
-        .galley(rect.min, galley, th.accent_primary().into());
+        .galley(rect.min, galley, th.accent_primary_raised().into());
     if resp.hovered() {
         ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
     }

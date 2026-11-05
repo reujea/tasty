@@ -861,7 +861,7 @@ fn footer_row(ui: &mut egui::Ui, theme: &Theme, mime: impl ToString) {
         egui::Align2::LEFT_CENTER,
         mime,
         egui::FontId::monospace(theme.font_size_caption.value()),
-        theme.text_muted().to_egui(),
+        theme.text_muted_raised().to_egui(),
     );
 
     let btn_w = 64.0;
@@ -881,7 +881,7 @@ fn footer_row(ui: &mut egui::Ui, theme: &Theme, mime: impl ToString) {
         egui::Align2::CENTER_CENTER,
         "Close",
         egui::FontId::proportional(theme.font_size_term_sm.value()),
-        theme.text_secondary().to_egui(),
+        theme.text_secondary_raised().to_egui(),
     );
 }
 

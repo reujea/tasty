@@ -680,7 +680,7 @@ fn the_selected_row_has_one_edge_selection_bar() {
         "file-1.toml",
     );
     let (row1, _) = text_shape(&shapes, "file-1.toml");
-    let accent = th.accent_primary().to_egui();
+    let accent = th.accent_primary_on_active().to_egui();
     let bars: Vec<egui::Rect> = shapes
         .iter()
         .filter_map(|c| match &c.shape {

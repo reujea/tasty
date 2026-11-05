@@ -99,7 +99,17 @@ pub fn status_dot_in_row(
         ui.painter().circle_filled(dot_center, radius, ring);
         ui.ctx().request_repaint();
     }
-    ui.painter().circle_filled(dot_center, dot * 0.5, color);
+    if selected && kind == StatusKind::Idle {
+        // 선택 행에서 유휴 점과 완료 점은 색 차이가 작아 모양으로 구분한다.
+        let width = theme.status_dot_ring_width().value();
+        ui.painter().circle_stroke(
+            dot_center,
+            dot * 0.5 - width * 0.5,
+            egui::Stroke::new(width, color),
+        );
+    } else {
+        ui.painter().circle_filled(dot_center, dot * 0.5, color);
+    }
 
     if !label.is_empty() {
         let pos = egui::pos2(

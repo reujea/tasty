@@ -683,7 +683,7 @@ fn draw_save_path_popup(ui: &mut egui::Ui, theme: &Theme, tr: &Translator, doc: 
                 ui.label(
                     egui::RichText::new(tr.t_fmt("image.save_as.exists", taken))
                         .size(theme.font_size_caption.value())
-                        .color(theme.accent_warning().to_egui()),
+                        .color(theme.accent_warning_raised().to_egui()),
                 );
                 ui.add_space(theme.spacing_xs.value());
             }

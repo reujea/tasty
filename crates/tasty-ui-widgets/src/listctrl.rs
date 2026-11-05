@@ -199,6 +199,12 @@ impl<'a> ListCtrl<'a> {
         };
         let (rect, resp) = ui.allocate_exact_size(egui::vec2(width, row_h), sense);
         let hovered = !item.disabled && resp.hovered();
+        let state = crate::RowState::of(
+            !item.disabled,
+            is_selected,
+            hovered,
+            !item.disabled && resp.is_pointer_button_down_on(),
+        );
         let radius = row_radius(theme.listctrl_radius(), self.divided, is_last).value();
 
         if is_selected {
@@ -232,23 +238,18 @@ impl<'a> ListCtrl<'a> {
             );
         }
 
-        // disabled 행의 아이콘·라벨·설명은 opacity 없이 disabled ink를 쓴다.
-        let dim = |c: egui::Color32| {
-            if item.disabled {
-                theme.state_disabled_fg().to_egui()
-            } else {
-                c
-            }
-        };
-
-        // 선택 행의 아이콘·설명·chevron은 surface-active 위 글자색 하나로 모은다.
-        let part = |c: egui::Color32| {
-            if is_selected {
-                theme.listctrl_part_fg_selected().to_egui()
-            } else {
-                c
-            }
-        };
+        // 목록은 mantle·base 양쪽에 놓인다. hover·press는 두 칸에서 등급을 지키는 쪽을 읽는다.
+        let parent = crate::RowParent::Mantle;
+        let glyph_fg = match state {
+            crate::RowState::Rest => theme.listctrl_icon_fg(),
+            _ => state.glyph(theme),
+        }
+        .to_egui();
+        let chevron_fg = match state {
+            crate::RowState::Rest => theme.listctrl_chevron_fg(),
+            _ => state.glyph(theme),
+        }
+        .to_egui();
 
         let mut x = rect.left() + pad_x;
 
@@ -258,7 +259,7 @@ impl<'a> ListCtrl<'a> {
                 egui::pos2(x + glyph * 0.5, rect.center().y),
                 egui::vec2(glyph, glyph),
             );
-            paint(ui, irect, dim(part(theme.listctrl_icon_fg().to_egui())));
+            paint(ui, irect, glyph_fg);
             x += glyph + gap;
         }
 
@@ -269,7 +270,7 @@ impl<'a> ListCtrl<'a> {
                 ui,
                 theme,
                 egui::pos2(right - glyph * 0.5, rect.center().y),
-                part(theme.listctrl_chevron_fg().to_egui()),
+                chevron_fg,
             );
             right -= glyph + theme.spacing_sm.value();
         }
@@ -295,18 +296,20 @@ impl<'a> ListCtrl<'a> {
         }
 
         let text_w = (right - x - gap).max(0.0);
-        let label_fg = if is_selected || hovered {
-            theme.listctrl_label_fg_active().to_egui()
-        } else {
-            theme.listctrl_label_fg().to_egui()
-        };
-        let label_galley = truncated_galley(ui, item.label, label_font, dim(label_fg), text_w);
+        let label_fg = state
+            .label(theme, parent, theme.listctrl_label_fg())
+            .to_egui();
+        let label_galley = truncated_galley(ui, item.label, label_font, label_fg, text_w);
         let desc_galley = item.description.map(|d| {
             truncated_galley(
                 ui,
                 d,
                 desc_font,
-                dim(part(theme.listctrl_desc_fg().to_egui())),
+                match state {
+                    crate::RowState::Rest => theme.listctrl_desc_fg(),
+                    _ => state.meta(theme, parent),
+                }
+                .to_egui(),
                 text_w,
             )
         });

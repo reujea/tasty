@@ -50,7 +50,7 @@ fn draw_frame(ui: &mut egui::Ui, theme: &Theme, canvas: egui::Vec2, phase_text: 
     child.add_space(theme.spacing_xl.value());
     Spinner::new()
         .size(theme.loading_screen_spinner_size().value())
-        .color(theme.accent_primary().to_egui())
+        .color(theme.accent_primary_raised().to_egui())
         .show(&mut child, theme);
     child.add_space(theme.spacing_lg.value());
     let (slot_rect, _) = child.allocate_exact_size(

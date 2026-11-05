@@ -82,8 +82,11 @@ pub fn draw_type_segments(
                         );
                     }
                     if on {
-                        ui.painter()
-                            .rect_filled(rect, 0.0, theme.accent_primary().to_egui());
+                        ui.painter().rect_filled(
+                            rect,
+                            0.0,
+                            theme.accent_primary_raised().to_egui(),
+                        );
                     }
                     let fg = if on {
                         theme.text_on_accent()

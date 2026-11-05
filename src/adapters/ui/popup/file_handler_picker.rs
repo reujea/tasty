@@ -11,6 +11,7 @@ use tasty_ui_widgets::tokens::{
     FH_RECENT_DIM_OPACITY, FH_ROW_GAP, FH_ROW_PAD_X, STRUCT_GAP_2,
 };
 use tasty_ui_widgets::{Button, ButtonVariant, ControlSize, TagVariant, tag, tag_width};
+use tasty_ui_widgets::{RowParent, RowState};
 
 use crate::adapters::ui::icons;
 use crate::adapters::ui::popup::PopupAction;
@@ -402,13 +403,13 @@ fn fallback_strip(ui: &mut egui::Ui, props: &FileHandlerPickerProps<'_>) {
                 let gs = th.icon_glyph_size_md.value();
                 let (grect, _) = ui.allocate_exact_size(egui::vec2(gs, gs), egui::Sense::hover());
                 icons::ALERT_TRIANGLE
-                    .image(gs, th.accent_attention().into())
+                    .image(gs, th.accent_attention_raised().into())
                     .paint_at(ui, grect);
                 ui.add(
                     egui::Label::new(
                         egui::RichText::new(props.fallback_notice)
                             .size(th.font_size_caption.value())
-                            .color(th.text_secondary()),
+                            .color(th.text_secondary_raised()),
                     )
                     .wrap(),
                 );
@@ -486,9 +487,9 @@ fn handler_row(
     let (rect, resp) =
         ui.allocate_exact_size(egui::vec2(ui.available_width(), h), egui::Sense::click());
 
+    let state = RowState::from_response(sel, &resp);
+    state.paint_fill(ui.painter(), rect, th.corner_radius_sm.value(), th);
     if sel {
-        ui.painter()
-            .rect_filled(rect, th.corner_radius_sm.value(), th.surface_active());
         // 목록 선택 막대이므로 값이 같은 탭 토큰 대신 listctrl 토큰을 사용한다.
         let bar = egui::Rect::from_min_size(
             rect.min,
@@ -496,27 +497,24 @@ fn handler_row(
         );
         ui.painter()
             .rect_filled(bar, 0.0, th.listctrl_selected_bar());
-    } else if resp.hovered() {
-        ui.painter().rect_filled(
-            rect,
-            th.corner_radius_sm.value(),
-            th.hover_overlay.to_egui_premultiplied(),
-        );
     }
     if resp.hovered() {
         ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
     }
 
-    let glyph_color: egui::Color32 = if sel {
-        if e.plugin {
-            th.accent_agent_on_active().into()
-        } else {
-            th.text_on_active().into()
-        }
-    } else if e.plugin {
-        th.accent_agent().into()
+    let glyph_color: egui::Color32 = if e.plugin {
+        state
+            .hue(
+                th,
+                th.accent_agent(),
+                th.accent_agent(),
+                th.accent_agent_on_active(),
+            )
+            .into()
+    } else if sel {
+        state.glyph(th).into()
     } else {
-        let c: egui::Color32 = th.text_muted().into();
+        let c: egui::Color32 = state.glyph(th).into();
         if dim {
             c.gamma_multiply(FH_RECENT_DIM_OPACITY)
         } else {
@@ -549,7 +547,7 @@ fn handler_row(
         &e.name,
         name_font,
         if sel {
-            th.text_on_active()
+            state.label(th, RowParent::Base, th.text_on_active())
         } else {
             th.text_primary()
         }
@@ -559,19 +557,15 @@ fn handler_row(
 
     // 둘째 줄: 출처 · id · (언제). id 만 말줄임 — 나머지 조각은 고정 폭.
     // 선택 행은 surface-active 위이므로 둘째 줄 조각도 한 글자색이다.
-    let on_active: egui::Color32 = th.text_on_active().into();
+    let on_active: egui::Color32 = state.meta(th, RowParent::Base).into();
     let sep: egui::Color32 = if sel {
         on_active
     } else {
         th.text_disabled().into()
     };
-    let muted: egui::Color32 = if sel {
-        on_active
-    } else {
-        th.text_muted().into()
-    };
+    let muted: egui::Color32 = state.meta(th, RowParent::Base).into();
     let origin_color: egui::Color32 = if e.plugin && !sel {
-        th.accent_agent().into()
+        th.accent_agent_raised().into()
     } else {
         muted
     };

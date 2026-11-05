@@ -288,7 +288,7 @@ fn token_chip(ui: &mut egui::Ui, theme: &Theme, t: &TokenChip, font: &egui::Font
             f.layout(
                 format!("— {}", t.use_),
                 font.clone(),
-                col(theme.text_muted()),
+                col(theme.text_muted_raised()),
                 use_wrap,
             )
         })
@@ -329,7 +329,11 @@ fn token_chip(ui: &mut egui::Ui, theme: &Theme, t: &TokenChip, font: &egui::Font
     painter.galley(egui::pos2(x, tok_y), tok, col(theme.text_primary()));
     if let Some(g) = use_ {
         let y = rect.min.y + pad.y;
-        painter.galley(egui::pos2(x + tok_w + gap, y), g, col(theme.text_muted()));
+        painter.galley(
+            egui::pos2(x + tok_w + gap, y),
+            g,
+            col(theme.text_muted_raised()),
+        );
     }
 }
 

@@ -150,7 +150,7 @@ pub fn draw(ui: &mut egui::Ui, theme: &Theme) {
             TokenChip::new(
                 "text-secondary",
                 "idle path",
-                egui::Color32::from(theme.text_secondary()),
+                egui::Color32::from(theme.text_secondary_raised()),
             ),
             TokenChip::new(
                 "segtoggle-on-bg",
@@ -165,7 +165,7 @@ pub fn draw(ui: &mut egui::Ui, theme: &Theme) {
             TokenChip::new(
                 "text-muted",
                 "folder / inactive",
-                egui::Color32::from(theme.text_muted()),
+                egui::Color32::from(theme.text_muted_raised()),
             ),
         ],
     );
@@ -237,7 +237,7 @@ pub(super) fn seg_toggle(
         let fg = if active {
             egui::Color32::from(theme.segtoggle_on_fg())
         } else {
-            egui::Color32::from(theme.text_muted())
+            egui::Color32::from(theme.text_muted_raised())
         };
         let ir = egui::Rect::from_center_size(seg_rect.center(), egui::vec2(icon, icon));
         g.image(icon, fg).paint_at(ui, ir);

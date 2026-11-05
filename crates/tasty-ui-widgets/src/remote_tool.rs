@@ -716,7 +716,7 @@ pub fn draw_protocol_filter_button(
         th.text_primary().into()
     };
     let fill: egui::Color32 = if filtered {
-        th.accent_primary().into()
+        th.accent_primary_raised().into()
     } else {
         th.surface_raised().into()
     };
@@ -865,7 +865,7 @@ fn filter_link(ui: &mut egui::Ui, th: &Theme, label: &str) -> egui::Response {
     ui.add(
         egui::Label::new(
             egui::RichText::new(label)
-                .color(th.accent_primary())
+                .color(th.accent_primary_raised())
                 .size(th.font_size_caption.value()),
         )
         .selectable(false)

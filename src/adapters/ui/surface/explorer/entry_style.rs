@@ -15,11 +15,11 @@ fn hidden_fg(theme: &Theme) -> egui::Color32 {
 /// 엔트리의 아이콘 + glyph 색 (design GridCell/DetailRow/ExpListMini):
 /// 폴더/파일 = text-muted, 이미지 파일 = IMAGE 아이콘 + accent-info, 숨김 항목 = explorer-hidden-fg.
 /// 대상이 없는 링크는 숨김 여부와 관계없이 링크 경고 글리프와 색을 그대로 쓴다.
-/// 선택한 항목의 글리프는 종류와 관계없이 text-on-active 다. 종류와 경고는 글리프 모양이 나타낸다.
+/// 선택한 항목의 모양 글리프는 행 잉크(text-on-active)이고, 색이 뜻을 담는 이미지와 깨진 링크는 on-active 띠를 쓴다.
 pub(super) fn entry_icon(theme: &Theme, e: &DirEntryInfo, selected: bool) -> (Icon, egui::Color32) {
     if let Some((icon, color)) = super::link::broken_icon(theme, e) {
         let color = if selected {
-            theme.text_on_active().to_egui()
+            theme.accent_warning_on_active().to_egui()
         } else {
             color
         };
@@ -29,7 +29,7 @@ pub(super) fn entry_icon(theme: &Theme, e: &DirEntryInfo, selected: bool) -> (Ic
         return if e.is_dir {
             (icons::FOLDER, theme.text_on_active().to_egui())
         } else if super::is_image_ext(&e.ext) {
-            (icons::IMAGE, theme.text_on_active().to_egui())
+            (icons::IMAGE, theme.accent_info_on_active().to_egui())
         } else {
             (icons::FILE, theme.text_on_active().to_egui())
         };
@@ -37,7 +37,7 @@ pub(super) fn entry_icon(theme: &Theme, e: &DirEntryInfo, selected: bool) -> (Ic
     let (icon, color) = if e.is_dir {
         (icons::FOLDER, theme.text_muted().to_egui())
     } else if super::is_image_ext(&e.ext) {
-        (icons::IMAGE, theme.accent_info().to_egui())
+        (icons::IMAGE, theme.accent_info_raised().to_egui())
     } else {
         (icons::FILE, theme.text_muted().to_egui())
     };

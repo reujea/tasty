@@ -364,7 +364,7 @@ fn theme_card(ui: &mut egui::Ui, theme: &Theme, label: &str) {
                 ui,
                 label,
                 theme.font_size_caption,
-                ec(theme.text_muted()),
+                ec(theme.text_muted_raised()),
                 false,
             );
             ui.horizontal_top(|ui| {
@@ -380,7 +380,7 @@ fn theme_card(ui: &mut egui::Ui, theme: &Theme, label: &str) {
                     ui,
                     theme,
                     "rejected — border-strong",
-                    ec(theme.text_muted()),
+                    ec(theme.text_muted_raised()),
                     |ui| mini_popup(ui, theme, ec(theme.border_strong())),
                 );
                 let pad = MINI_PAD_X.value();
@@ -388,7 +388,7 @@ fn theme_card(ui: &mut egui::Ui, theme: &Theme, label: &str) {
                     ui,
                     theme,
                     "appearance cards — inactive → border-strong",
-                    ec(theme.text_muted()),
+                    ec(theme.text_muted_raised()),
                     |ui| {
                         side_box(
                             ui,
@@ -432,7 +432,7 @@ fn theme_card(ui: &mut egui::Ui, theme: &Theme, label: &str) {
                     ui,
                     theme,
                     "pane divider — unchanged",
-                    ec(theme.text_muted()),
+                    ec(theme.text_muted_raised()),
                     |ui| {
                         side_box(ui, theme, DIVIDER_BOX_H.value(), |p, inner| {
                             p.rect_filled(inner, 0.0, ec(theme.bg_app()));

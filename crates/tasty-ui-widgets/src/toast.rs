@@ -74,10 +74,10 @@ pub struct ToastViewProps<'a> {
 /// kind → 좌측 accent 바 색.
 pub fn accent_color(kind: ToastKind, th: &Theme) -> egui::Color32 {
     match kind {
-        ToastKind::Info => th.accent_primary().into(),
-        ToastKind::Success => th.accent_success().into(),
-        ToastKind::Warning => th.accent_warning().into(),
-        ToastKind::Error => th.accent_danger().into(),
+        ToastKind::Info => th.toast_accent_info().into(),
+        ToastKind::Success => th.toast_accent_success().into(),
+        ToastKind::Warning => th.toast_accent_warning().into(),
+        ToastKind::Error => th.toast_accent_danger().into(),
     }
 }
 
@@ -167,7 +167,7 @@ pub fn card_colors(theme: &Theme, kind: ToastKind, alpha: f32) -> CardColors {
         // toast 보더 — canonical `toast-border`.
         border: theme.toast_border().gamma_multiply(alpha).into(),
         accent: accent_color(kind, theme).gamma_multiply(alpha),
-        text: theme.text_primary().gamma_multiply(alpha).into(),
+        text: theme.toast_fg().gamma_multiply(alpha).into(),
     }
 }
 

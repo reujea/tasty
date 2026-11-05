@@ -178,7 +178,7 @@ fn bytes_control(ui: &mut egui::Ui, theme: &Theme, buf: &mut String, (min, max):
             ui.label(
                 egui::RichText::new(line)
                     .size(theme.font_size_caption.value())
-                    .color(theme.accent_danger().to_egui()),
+                    .color(theme.accent_danger_raised().to_egui()),
             );
         }
     });

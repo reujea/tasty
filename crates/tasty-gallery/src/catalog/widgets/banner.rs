@@ -547,7 +547,7 @@ fn blacklist_editor(ui: &mut egui::Ui, theme: &Theme, empty: bool) {
                      the wheel is still sent.",
                 )
                 .size(theme.font_size_caption.value())
-                .color(theme.accent_warning().to_egui()),
+                .color(theme.accent_warning_raised().to_egui()),
             );
         });
 }

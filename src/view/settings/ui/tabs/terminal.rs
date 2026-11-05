@@ -316,7 +316,7 @@ pub fn draw_terminal_mouse_capture_tab(ui: &mut egui::Ui, settings: &mut Setting
     ui.label(
         egui::RichText::new(t("settings.terminal.mouse_capture_blacklist_notice"))
             .small()
-            .color(th.accent_warning()),
+            .color(th.accent_warning_raised()),
     );
 
     // 캡처 블랙리스트와 배너 억제 블랙리스트를 구분하는 1px 구분선(위와 동일 패턴).
@@ -413,7 +413,7 @@ pub fn draw_terminal_mouse_capture_tab(ui: &mut egui::Ui, settings: &mut Setting
     ui.label(
         egui::RichText::new(t("settings.terminal.mouse_capture_banner_blacklist_notice"))
             .small()
-            .color(th.accent_warning()),
+            .color(th.accent_warning_raised()),
     );
 }
 

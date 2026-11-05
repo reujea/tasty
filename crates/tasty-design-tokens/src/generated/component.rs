@@ -125,8 +125,8 @@ pub mod banner {
     /// `component.banner-padding-y` → `{semantic.space-sm}` = 8px
     pub const PADDING_Y: LogicalPx = crate::generated::semantic::SPACE_SM;
 
-    /// `component.banner-radius` → `{primitive.radius-8}` = 8px
-    pub const RADIUS: LogicalPx = crate::generated::primitive::RADIUS_8;
+    /// `component.banner-radius` → `{semantic.radius}` = 4px
+    pub const RADIUS: LogicalPx = crate::generated::semantic::RADIUS;
 
     /// `component.banner-recessed-opacity` → `{primitive.opacity-recessed}` = 0.4
     pub const RECESSED_OPACITY: f32 = crate::generated::primitive::OPACITY_RECESSED;
@@ -473,8 +473,8 @@ pub mod explorer {
     /// `component.explorer-props-label-width` → `{primitive.size-96}` = 96px
     pub const PROPS_LABEL_WIDTH: LogicalPx = crate::generated::primitive::SIZE_96;
 
-    /// `component.explorer-props-padding-x` → `{primitive.size-14}` = 14px
-    pub const PROPS_PADDING_X: LogicalPx = crate::generated::primitive::SIZE_14;
+    /// `component.explorer-props-padding-x` → `{semantic.space-md}` = 12px
+    pub const PROPS_PADDING_X: LogicalPx = crate::generated::semantic::SPACE_MD;
 
     /// `component.explorer-props-perm-cell-width` → `{primitive.size-56}` = 56px
     pub const PROPS_PERM_CELL_WIDTH: LogicalPx = crate::generated::primitive::SIZE_56;
@@ -692,20 +692,20 @@ pub mod image {
     /// `component.image-handle-size` → `{primitive.size-6}` = 6px
     pub const HANDLE_SIZE: LogicalPx = crate::generated::primitive::SIZE_6;
 
-    /// `component.image-path-row-gap` → `{primitive.size-6}` = 6px
-    pub const PATH_ROW_GAP: LogicalPx = crate::generated::primitive::SIZE_6;
+    /// `component.image-path-row-gap` → `{semantic.space-sm}` = 8px
+    pub const PATH_ROW_GAP: LogicalPx = crate::generated::semantic::SPACE_SM;
 
     /// `component.image-popup-btn-gap` → `{semantic.space-sm}` = 8px
     pub const POPUP_BTN_GAP: LogicalPx = crate::generated::semantic::SPACE_SM;
 
-    /// `component.image-popup-gap` → `{primitive.size-10}` = 10px
-    pub const POPUP_GAP: LogicalPx = crate::generated::primitive::SIZE_10;
+    /// `component.image-popup-gap` → `{semantic.space-sm}` = 8px
+    pub const POPUP_GAP: LogicalPx = crate::generated::semantic::SPACE_SM;
 
     /// `component.image-popup-pad-top` → `{semantic.space-md}` = 12px
     pub const POPUP_PAD_TOP: LogicalPx = crate::generated::semantic::SPACE_MD;
 
-    /// `component.image-popup-pad-x` → `{primitive.size-14}` = 14px
-    pub const POPUP_PAD_X: LogicalPx = crate::generated::primitive::SIZE_14;
+    /// `component.image-popup-pad-x` → `{semantic.space-md}` = 12px
+    pub const POPUP_PAD_X: LogicalPx = crate::generated::semantic::SPACE_MD;
 
     /// `component.image-popup-title-font-size` → `{semantic.font-size-max}` = 14px
     pub const POPUP_TITLE_FONT_SIZE: LogicalPx = crate::generated::semantic::FONT_SIZE_MAX;
@@ -840,8 +840,8 @@ pub mod kbd {
     /// `component.kbd-font-size` → `{semantic.font-size-micro}` = 10px
     pub const FONT_SIZE: LogicalPx = crate::generated::semantic::FONT_SIZE_MICRO;
 
-    /// `component.kbd-gap` → `{primitive.size-3}` = 3px
-    pub const GAP: LogicalPx = crate::generated::primitive::SIZE_3;
+    /// `component.kbd-gap` → `{semantic.space-xs}` = 4px
+    pub const GAP: LogicalPx = crate::generated::semantic::SPACE_XS;
 
     /// `component.kbd-padding-x` → `{semantic.space-xs}` = 4px
     pub const PADDING_X: LogicalPx = crate::generated::semantic::SPACE_XS;
@@ -1013,8 +1013,8 @@ pub mod modhint {
     /// `component.modhint-row-font-size` → `{semantic.font-size-caption}` = 11px
     pub const ROW_FONT_SIZE: LogicalPx = crate::generated::semantic::FONT_SIZE_CAPTION;
 
-    /// `component.modhint-row-gap` → `{primitive.size-6}` = 6px
-    pub const ROW_GAP: LogicalPx = crate::generated::primitive::SIZE_6;
+    /// `component.modhint-row-gap` → `{semantic.space-sm}` = 8px
+    pub const ROW_GAP: LogicalPx = crate::generated::semantic::SPACE_SM;
 
     /// `component.modhint-row-min-height` → `{primitive.size-24}` = 24px
     pub const ROW_MIN_HEIGHT: LogicalPx = crate::generated::primitive::SIZE_24;
@@ -1321,8 +1321,8 @@ pub mod preset {
     /// `component.preset-cfg-footer-height` → `{primitive.size-52}` = 52px
     pub const CFG_FOOTER_HEIGHT: LogicalPx = crate::generated::primitive::SIZE_52;
 
-    /// `component.preset-cfg-footer-padding-x` → `{primitive.size-14}` = 14px
-    pub const CFG_FOOTER_PADDING_X: LogicalPx = crate::generated::primitive::SIZE_14;
+    /// `component.preset-cfg-footer-padding-x` → `{semantic.space-md}` = 12px
+    pub const CFG_FOOTER_PADDING_X: LogicalPx = crate::generated::semantic::SPACE_MD;
 
     /// `component.preset-cfg-form-max-width` → `{primitive.size-460}` = 460px
     pub const CFG_FORM_MAX_WIDTH: LogicalPx = crate::generated::primitive::SIZE_460;
@@ -1741,8 +1741,8 @@ pub mod titlebar {
 pub mod toast {
     use tasty_type_geometry::length::LogicalPx;
 
-    /// `component.toast-accent-width` → `{primitive.size-3}` = 3px
-    pub const ACCENT_WIDTH: LogicalPx = crate::generated::primitive::SIZE_3;
+    /// `component.toast-accent-width` → `{semantic.tint-edge-width}` = 2px
+    pub const ACCENT_WIDTH: LogicalPx = crate::generated::semantic::TINT_EDGE_WIDTH;
 
     /// `component.toast-gap` → `{semantic.space-sm}` = 8px
     pub const GAP: LogicalPx = crate::generated::semantic::SPACE_SM;
@@ -1813,23 +1813,23 @@ pub mod tooltip {
 pub mod transfer {
     use tasty_type_geometry::length::LogicalPx;
 
-    /// `component.transfer-body-gap` → `{primitive.size-10}` = 10px
-    pub const BODY_GAP: LogicalPx = crate::generated::primitive::SIZE_10;
+    /// `component.transfer-body-gap` → `{semantic.space-sm}` = 8px
+    pub const BODY_GAP: LogicalPx = crate::generated::semantic::SPACE_SM;
 
-    /// `component.transfer-footer-pad-y` → `{primitive.size-10}` = 10px
-    pub const FOOTER_PAD_Y: LogicalPx = crate::generated::primitive::SIZE_10;
+    /// `component.transfer-footer-pad-y` → `{semantic.space-sm}` = 8px
+    pub const FOOTER_PAD_Y: LogicalPx = crate::generated::semantic::SPACE_SM;
 
     /// `component.transfer-header-pad-y` → `{semantic.space-md}` = 12px
     pub const HEADER_PAD_Y: LogicalPx = crate::generated::semantic::SPACE_MD;
 
-    /// `component.transfer-pad-x` → `{primitive.size-14}` = 14px
-    pub const PAD_X: LogicalPx = crate::generated::primitive::SIZE_14;
+    /// `component.transfer-pad-x` → `{semantic.space-md}` = 12px
+    pub const PAD_X: LogicalPx = crate::generated::semantic::SPACE_MD;
 
     /// `component.transfer-popup-width` → `{primitive.size-400}` = 400px
     pub const POPUP_WIDTH: LogicalPx = crate::generated::primitive::SIZE_400;
 
-    /// `component.transfer-well-pad-x` → `{primitive.size-10}` = 10px
-    pub const WELL_PAD_X: LogicalPx = crate::generated::primitive::SIZE_10;
+    /// `component.transfer-well-pad-x` → `{semantic.space-md}` = 12px
+    pub const WELL_PAD_X: LogicalPx = crate::generated::semantic::SPACE_MD;
 
     /// `component.transfer-well-pad-y` → `{semantic.space-sm}` = 8px
     pub const WELL_PAD_Y: LogicalPx = crate::generated::semantic::SPACE_SM;

@@ -198,7 +198,7 @@ fn danger_column(ui: &mut egui::Ui, theme: &Theme, label: &str) {
             ui.label(
                 egui::RichText::new(label)
                     .size(theme.font_size_caption.value())
-                    .color(theme.text_muted().to_egui()),
+                    .color(theme.text_muted_raised().to_egui()),
             );
             for (choice, destructive) in DANGER_CHOICES {
                 approval_choice(ui, theme, choice, destructive);

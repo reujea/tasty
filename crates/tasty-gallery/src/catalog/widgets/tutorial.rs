@@ -220,7 +220,7 @@ fn callout(
                     .monospace()
                     .size(theme.font_size_micro.value())
                     .strong()
-                    .color(theme.accent_primary().to_egui()),
+                    .color(theme.accent_primary_raised().to_egui()),
             );
             vspace(ui, theme.spacing_xs);
             ui.label(
@@ -234,7 +234,7 @@ fn callout(
             ui.label(
                 egui::RichText::new(body)
                     .size(theme.font_size_caption.value())
-                    .color(theme.text_secondary().to_egui()),
+                    .color(theme.text_secondary_raised().to_egui()),
             );
             ui.add_space(theme.spacing_md.value());
             ui.horizontal(|ui| {
@@ -263,7 +263,7 @@ fn callout(
                     ui.label(
                         egui::RichText::new("Skip")
                             .size(theme.font_size_caption.value())
-                            .color(theme.text_muted().to_egui()),
+                            .color(theme.text_muted_raised().to_egui()),
                     );
                 });
             });
@@ -364,7 +364,7 @@ fn topic_row(
                 } else {
                     (
                         theme.surface_raised().to_egui(),
-                        theme.text_muted().to_egui(),
+                        theme.text_muted_raised().to_egui(),
                     )
                 };
                 ui.painter()
@@ -381,7 +381,7 @@ fn topic_row(
                     let (title_fg, desc_fg) = if sel {
                         (theme.text_on_active(), theme.text_on_active())
                     } else {
-                        (theme.text_primary(), theme.text_muted())
+                        (theme.text_primary(), theme.text_muted_raised())
                     };
                     ui.label(
                         egui::RichText::new(title)
@@ -401,7 +401,7 @@ fn topic_row(
                                 .size(theme.font_size_caption.value())
                                 .color(
                                     if sel {
-                                        theme.accent_primary_on_active()
+                                        theme.accent_success_on_active()
                                     } else {
                                         theme.accent_success()
                                     }
