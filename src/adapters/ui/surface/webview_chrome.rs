@@ -107,14 +107,14 @@ pub fn draw_webview_chrome(
     );
 }
 
-/// URL 줄(mono caption · text-disabled · 한 줄 말줄임).
+/// URL 줄(mono caption · text-muted · 한 줄 말줄임).
 fn url_line(ui: &mut egui::Ui, text: &str) {
     let th = theme::theme();
     ui.add(
         egui::Label::new(
             egui::RichText::new(text)
                 .font(egui::FontId::monospace(th.font_size_caption.value()))
-                .color(th.text_disabled().to_egui()),
+                .color(th.text_muted().to_egui()),
         )
         .truncate(),
     );

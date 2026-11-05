@@ -168,7 +168,11 @@ pub fn draw_kbd(ui: &mut egui::Ui, theme: &Theme) {
                     ui.label(
                         egui::RichText::new(name)
                             .size(theme.font_size_caption.value())
-                            .color(theme.text_muted().to_egui()),
+                            .color(if ground == tasty_ui_widgets::Ground::Active {
+                                theme.text_on_active().to_egui()
+                            } else {
+                                theme.text_muted().to_egui()
+                            }),
                     );
                     kbd(ui, theme, "Ctrl+K", ground);
                 });
