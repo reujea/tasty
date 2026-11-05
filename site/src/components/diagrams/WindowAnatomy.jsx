@@ -19,7 +19,7 @@ const tabs = [
 
 const session = {
   id: "s_01",
-  lines: [<Prompt branch="main" />, <><span style={{ color: "var(--tasty-color-mauve)" }}>❯</span> tasty list tree</>],
+  lines: [<Prompt branch="main" />, <><span style={{ color: "var(--tasty-accent-agent-raised)" }}>❯</span> tasty list tree</>],
 };
 
 /** `grow` marks the one region that should absorb the leftover height. */

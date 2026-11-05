@@ -54,8 +54,8 @@
   z-index: 5;
   padding: 1px 6px; /* no site step: --sp-* has no 1 or 6 */
   border-radius: 4px; /* no site radius: the radius scale is 6/8/14 */
-  background: var(--brand);
-  color: var(--tasty-color-neutral-100);
+  background: var(--tasty-site-cta-bg);
+  color: var(--tasty-site-cta-fg);
   font-family: var(--font-mono);
   font-size: 11px;
   line-height: 1.6;

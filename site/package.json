@@ -4,7 +4,7 @@
   "type": "module",
   "scripts": {
     "dev": "astro dev",
-    "build": "astro build",
+    "build": "astro build --force",
     "preview": "astro preview",
     "stamp": "node --experimental-strip-types scripts/stamp.mjs",
     "check-links": "node scripts/check-links.mjs",

@@ -17,10 +17,11 @@
   display: block;
   font-family: var(--font-mono);
   font-size: 11px;
-  color: var(--tasty-color-neutral-700);
+  color: var(--tasty-text-muted);
   line-height: 1.4;
 }
-.nav-list a[aria-current="page"] .nav-desc { color: inherit; opacity: 0.75; }
+.nav-list a:hover .nav-desc { color: var(--tasty-text-muted-raised); }
+.nav-list a[aria-current="page"] .nav-desc { color: var(--tasty-text-muted-raised); }
 
 
 
@@ -30,14 +31,14 @@
   font-size: 12px;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: var(--brand);
+  color: var(--tasty-brand-ink);
   margin: 0 0 var(--sp-2);
 }
 .design-head h1 { margin: 0 0 var(--sp-3); }
 .design-head__intro {
   margin: 0;
   max-width: 62ch;
-  color: var(--tasty-color-neutral-900);
+  color: var(--tasty-text-muted);
   font-size: 16px;
   line-height: 1.65;
 }
@@ -62,16 +63,16 @@
 .ds-card__head p {
   margin: 2px 0 0; /* no site step: --sp-* has no 2 */
   font-size: 13px;
-  color: var(--tasty-color-neutral-800);
+  color: var(--tasty-text-muted);
 }
 .ds-card__src {
   display: inline-block;
   margin-top: var(--sp-2);
   font-family: var(--font-mono);
   font-size: 11px;
-  color: var(--tasty-color-neutral-700);
+  color: var(--tasty-text-muted);
 }
-.ds-card__src:hover { color: var(--brand); }
+.ds-card__src:hover { color: var(--tasty-brand-ink); }
 
 /* Preserve each document's declared width and scroll narrow containers horizontally. */
 .ds-card__frame {
@@ -100,7 +101,7 @@
 .ds-lede {
   margin: 0 0 var(--sp-5);
   max-width: 62ch;
-  color: var(--tasty-color-neutral-900);
+  color: var(--tasty-text-muted);
 }
 .ds-tiles {
   list-style: none;
@@ -121,8 +122,8 @@
 }
 .ds-tiles a:hover {
   text-decoration: none;
-  border-color: var(--brand);
-  background: color-mix(in srgb, var(--brand) 6%, var(--tasty-bg-panel));
+  border-color: var(--tasty-brand-ink);
+  background: var(--tasty-site-tile-hover-bg);
 }
 .ds-tiles__label { display: block; font-weight: 600; }
 .ds-tiles__desc {
@@ -130,5 +131,5 @@
   margin-top: 2px; /* no site step: --sp-* has no 2 */
   font-family: var(--font-mono);
   font-size: 11px;
-  color: var(--tasty-color-neutral-700);
+  color: var(--tasty-text-muted);
 }

@@ -76,7 +76,7 @@ const toc = headings.filter((h) => h.depth === 2 || h.depth === 3);
     <main class="content" id="content">
       <nav class="breadcrumb" aria-label={s.breadcrumb}>
         <a href={url(`${lang === "en" ? "guide" : "ko/guide"}/`)}>{s.dirDocs}</a>
-        <span class="sep">/</span>
+        <span class="sep" aria-hidden="true" data-ink-grade="none" data-ink-why="ornament">/</span>
         <span>{category}</span>
       </nav>
 

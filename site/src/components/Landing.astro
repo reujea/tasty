@@ -30,7 +30,7 @@ const dataAttrs = Object.fromEntries(
 
   <section class="hero">
     <span class="hero__eyebrow"><span class="dot"></span>{c.badge}{version && ` · v${version}`}</span>
-    <p class="hero__tagline"><span class="wordmark">Tasty<b>.</b></span> {c.tagline}</p>
+    <p class="hero__tagline"><span class="wordmark">Tasty<b data-audit-exempt="brand">.</b></span> {c.tagline}</p>
     <h1>{c.titleLead} <span class="accent">{c.titleAccent}</span> {c.titleTail}</h1>
     <p class="hero__body">{c.body}</p>
     <div class="cta-row">

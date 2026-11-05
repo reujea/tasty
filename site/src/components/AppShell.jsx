@@ -12,8 +12,8 @@ import { TabStrip, TerminalPane, MarkdownSurface, StatusBar, Prompt } from "../.
 
 /** Interactive landing-page demo built from the vendored UI kit. */
 const c = {
-  green: "var(--tasty-color-green)", blue: "var(--tasty-color-blue)", mauve: "var(--tasty-color-mauve)",
-  yellow: "var(--tasty-color-yellow)", dim: "var(--tasty-color-neutral-700)", teal: "var(--tasty-color-teal)",
+  green: "var(--tasty-accent-success-raised)", blue: "var(--tasty-accent-primary-raised)", mauve: "var(--tasty-accent-agent-raised)",
+  yellow: "var(--tasty-accent-warning-raised)", dim: "var(--tasty-text-muted)", teal: "var(--tasty-accent-info-raised)",
 };
 const t = (color) => (txt) => <span style={{ color }}>{txt}</span>;
 
@@ -216,7 +216,7 @@ export function AppShell({ heading = "Workspaces", task = "run tests", lang = "e
                     <p style={{ fontSize: "var(--tasty-font-size-body)", color: "var(--tasty-text-secondary)" }}>
                       {ko ? "한 탭 안에 터미널과 문서를 나란히 두세요. 명령을 실행하면서 필요한 설명을 바로 확인할 수 있습니다." : "Keep a terminal and a document side by side in one tab. Run a command while keeping its instructions in view."}
                     </p>
-                    <h3 style={{ fontSize: "var(--tasty-font-size-body)", color: "var(--tasty-accent-primary)" }}>
+                    <h3 style={{ fontSize: "var(--tasty-font-size-body)", color: "var(--tasty-accent-primary-raised)" }}>
                       {ko ? "같이 두고, 함께 전환하세요" : "Keep them together"}
                     </h3>
                     <p style={{ fontSize: "var(--tasty-font-size-body)", color: "var(--tasty-text-secondary)" }}>
