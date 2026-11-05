@@ -1,4 +1,4 @@
-<!-- source-hash: e15ef8c3d53b -->
+<!-- source-hash: 587f7c7f1a17 -->
 # CLI response delays and connection diagnostics
 
 Read this page when a `tasty` command replies slowly, cannot connect, or ends with an error such as `Error (-32061)`. It covers the difference between the reply wait bound and the task wait time, what to do for each error code, checking what this Tasty supports, and the connection counts, request queues and database state shown by `tasty list pressure`. If you are new to the CLI, start with [Driving terminals with the tasty CLI](../agents/cli.md).

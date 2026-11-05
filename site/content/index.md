@@ -1,44 +1,16 @@
 # Tasty 가이드
 
-Tasty는 나와 AI 에이전트가 함께 일하는 GPU 가속 터미널입니다. Windows, macOS, Linux에서 프로젝트별로 워크스페이스를 나누고, 여러 터미널을 나란히 열어 작업할 수 있습니다. 에이전트도 `tasty` CLI로 터미널을 만들고 명령을 실행하며 결과를 확인합니다.
+Tasty는 Windows, macOS, Linux에서 사용하는 GPU 가속 터미널입니다. 워크스페이스로 프로젝트를 구분하고, 페인과 탭으로 여러 터미널과 문서를 배치할 수 있습니다.
 
-처음이라면 설치와 첫 화면 둘러보기부터 시작하세요. 이미 사용 중이라면 아래에서 필요한 기능을 골라 살펴보세요.
+처음이라면 [설치](getting-started/install.md) → [첫 화면 둘러보기](getting-started/first-look.md) → [작업 배치 만들기](using/workflow-layouts.md) 순서로 시작하세요.
 
-## 시작하기
+## 필요한 작업 찾기
 
-- [설치](getting-started/install.md) — OS 별 설치 파일, 설치 절차, 첫 실행, 업데이트와 제거.
-- [첫 화면 둘러보기](getting-started/first-look.md) — 사이드바 · 워크스페이스 · 페인 · 탭 · 분할 · 상태바가 각각 무엇인지.
-
-## 사용하기
-
-- [워크스페이스](using/workspaces.md) — 만들기, 이름 붙이기, 카테고리로 묶기, 전환, 닫기, 복원.
-- [작업 배치 만들고 다시 쓰기](using/workflow-layouts.md) — 구현과 테스트를 나란히 두고, 프리셋으로 다시 사용하세요.
-- [페인 · 탭 · 분할](using/panes-tabs-splits.md) — 화면 나누기, 옮기기, 종류 바꾸기, 전체화면, 레이아웃 저장.
-- [터미널 다루기](using/terminal.md) — 복사/붙여넣기, 검색, 링크 열기, 스크롤, 마우스 캡처, 셸 통합.
-- [파일 열기](using/files.md) — 탐색기 · 마크다운 · 이미지 · HTML · git 보기 등 터미널이 아닌 화면. 탐색기의 파일 관리(복사 · 이동 · 이름 변경 · 휴지통, 실행 취소, OS 파일 클립보드, 외부 앱으로 끌어내기, 원격 탐색기에서 파일 변경, 미리보기 · 속성).
-
-## 내 취향대로
-
-- [단축키](customize/keybindings.md) — 기본 단축키 표, 프리셋, 바꾸는 법.
-- [설정](customize/settings.md) — 설정 윈도우와 `~/.tasty/config.toml` 의 주요 항목.
-- [테마](customize/themes.md) — 번들 테마, 전환, 직접 만들기.
-- [Lua 스크립트](customize/scripts.md) — 스크립트 등록, 단축키와 이벤트로 자동 실행.
-
-## AI 에이전트와 함께
-
-- [tasty CLI 로 터미널 조작하기](agents/cli.md) — 작업용 터미널을 만들고 명령을 보내 출력을 읽는 첫 실습과 기본 패턴.
-- [CLI 명령 참조](agents/cli-reference.md) — 읽기 위치 지정, 메타데이터, 큐, 메모리, 관찰자 등 입문 밖의 명령.
-- [백그라운드 작업을 탭으로 가져오기](agents/background-tasks.md) — 숨겨진 PTY의 출력과 종료 상태를 확인하고 실행 중인 작업을 탭으로 옮기세요.
-- [Claude · Codex 와 함께 쓰기](agents/claude-codex.md) — 훅 설치, spawn과 tell, Claude 완료 알림 mod와 Monitor 대체 경로.
-- [작업 순서 관리](agents/tasks.md) — 할 일을 의존 관계로 묶어 순서대로 실행하고 진행을 그래프로 보기.
-- [훅 · 알림 · 웹훅](agents/hooks-notifications.md) — 서피스 훅, 글로벌 훅, 알림, 외부 HTTP 트리거.
-
-## 원격 · 플러그인
-
-- [원격 작업 이어가기](remote/attach.md) — 프로필과 SSH로 다른 컴퓨터에서 실행 중인 Tasty에 연결하기.
-- [플러그인](plugins/index.md) — 설치, 권한, 번들 플러그인 소개.
-
-## 도움말
-
-- [문제 해결](help/troubleshooting.md) — macOS 권한, 로그 파일 위치, 포트 파일, 자주 묻는 것.
-- [CLI 응답 지연과 연결 진단](help/cli-diagnostics.md) — 응답 대기와 작업 대기 구분, 오류 코드별 조치, `tasty list pressure` 읽는 법.
+- 프로젝트와 화면 배치 관리: [워크스페이스](using/workspaces.md) · [페인 · 탭 · 분할](using/panes-tabs-splits.md)
+- [터미널 출력 검색과 복사](using/terminal.md)
+- [파일 관리와 문서 보기](using/files.md)
+- 단축키·테마·설정 바꾸기: [단축키](customize/keybindings.md) · [테마](customize/themes.md) · [설정](customize/settings.md)
+- [CLI로 작업 자동화](agents/cli.md)
+- [Claude·Codex 연결](agents/claude-codex.md)
+- [원격 Tasty에 연결](remote/attach.md)
+- [문제 해결](help/troubleshooting.md)

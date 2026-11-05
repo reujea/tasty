@@ -1,9 +1,9 @@
-<!-- source-hash: c009d67a694c -->
+<!-- source-hash: 2bc36e1f5a52 -->
 # Working with Claude and Codex
 
-Connect Claude Code and Codex CLI to share work across several agents. One agent can launch others and receive their results, so implementation, testing, and review can run alongside each other.
+Run Claude Code and Codex CLI in Tasty terminals and follow their status. Install each CLI separately. To delegate work across agents, configure both the hooks and the parent’s result delivery path.
 
-Install Claude Code and Codex CLI separately. Tasty manages launching, placement, and the connection to the agent that delegated the work. Set up both the hooks and the parent’s receiving channel. Completion lands in the same completion log whatever the parent is, and a supported Claude Code parent receives that log through the notification mod, with Monitor as fallback. Follow [Receiving completion notifications](#4-receiving-completion-notifications).
+A child ending its response is different from a successful task. Result delivery depends on whether the parent is Claude Code or Codex. Hooks report state, while the parent’s delivery path brings state or a result reference into the conversation. Read the result and compare it with the actual changes and execution output.
 
 ## Quick start
 
@@ -105,7 +105,7 @@ tasty codex spawn --workspace workers --cwd ~/proj --sandbox read-only \
 
 `spawn` **returns immediately**. There is no separate wait command. With the child’s hooks and [receiving setup](#4-receiving-completion-notifications) in place, the child’s reported idle state is delivered to the parent. Idle does not establish task success. A Claude child is not idle when one of its subagents finishes or when it ends a response while background work is still running. It is reported once the background work finishes and the response that follows ends. The same holds when a [Stop gate](#8-claude-session-profiles-and-the-stop-gate) sends the checklist back and the response continues: the child is reported idle once the response passes the gate and ends. If it leaves a command running in the background that never ends, such as a dev server, it never becomes idle. While it waits on background work, if there is no output for 10 minutes, one line naming the kind of work and the minutes waited is added to the parent’s completion log.
 
-It is safer for the parent to put children in a **different Workspace** than its own. You cannot spawn into a remote mirror Workspace.
+It is safer for the parent to put children in a **different Workspace** than its own. See “[Creating children in an attached remote workspace](#creating-children-in-an-attached-remote-workspace)” below for remote child execution and result delivery requirements. Children run with the tools and settings on the remote computer.
 
 Afterwards, send further instructions to the child or inspect its state.
 
@@ -148,6 +148,8 @@ Input requests,
 interruptions, errors, and process exits are state notifications too; they do not establish task success.
 When a Claude child ended its turn on an API error, the end of the completion line says so and names the error kind (for example `overloaded`). If background work is still running and the child keeps waiting, a single line saying so is written instead of a completion line.
 While a child waits on a background shell or subagent and that work's output has not grown for 2 minutes, one line naming the work is written (`background work <name> has written no output for <min> min`). If Tasty cannot find that work's output, it writes one line after 10 minutes without screen output instead.
+
+A supported Codex parent conversation receives a result reference when the child’s response ends. Use the event ID in that reference with `tasty codex result` to read the answer. Follow the [Codex result delivery section](#automatic-delivery-to-a-codex-parent) below for connection requirements and supported paths.
 
 ### Receive automatically in Claude Code
 
@@ -374,6 +376,6 @@ tasty claude spawn --workspace w --profile continue-checklist
 ## Keep exploring
 
 - [Task workflows](tasks.md) — Running spawn and tell as one dependency graph.
-- [Hooks · notifications · webhooks](hooks-notifications.md) — Completion notices and approval gates.
+- [Hooks, notifications, and webhooks](hooks-notifications.md) — Completion notices and approval gates.
 
 Reinstalling the Codex integration also registers SessionEnd. When the current execution ends, the completion wait for that task ends with it.

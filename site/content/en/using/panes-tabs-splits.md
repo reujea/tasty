@@ -1,7 +1,7 @@
-<!-- source-hash: 8597252a675b -->
-# Panes · Tabs · splits
+<!-- source-hash: b8f9a7869da6 -->
+# Panes, tabs, and splits
 
-Keep an agent, your code, and the logs side by side. Divide the window with panes and surfaces, switch tasks with tabs, and save layouts you use often as presets. [A first look](../getting-started/first-look.md) explains how the parts fit together.
+Panes create areas whose tabs switch independently. Surface splits divide the content you view together within one tab. Choose either level to build the layout you need.
 
 The shortcuts below use the default **Tasty** preset. On macOS, read `Alt` as `Cmd` and `Ctrl` as `Control`.
 
@@ -35,7 +35,7 @@ tasty split --level surface --surface 5 --type explorer --path ~/proj
 
 - The `+` button or `Alt+T` — a new terminal Tab.
 - Right-click `+` — **Create tab from preset...** / **Create pane from preset...**.
-- Right-click an empty area of the tab strip — **New Terminal** · **New Markdown...** · **New HTML...** · **New Image** create a new Tab. **New HTML...** opens a Tab in that Pane once you pick an HTML or SVG file in the file chooser. The same menu also has **Save as pane preset**, **Create tab from preset...** and **Create pane from preset...**. Each kind is described in [Opening files](files.md).
+- Right-click an empty area of the tab strip — **New Terminal** · **New Markdown...** · **New HTML...** · **New Image** create a new Tab. **New HTML...** opens a Tab in that Pane once you pick an HTML or SVG file in the file chooser. The same menu also has **Save as pane preset**, **Create tab from preset...** and **Create pane from preset...**. Each kind is described in [Managing and viewing files](files.md).
 - The Tab's `×`, right-click the Tab > **Close Tab**, or `Ctrl+W`. The last remaining Tab of a Pane does not close. To close the whole Pane, use Close Pane (`Ctrl+Shift+W`).
 
 ```sh
@@ -127,6 +127,8 @@ Press the fullscreen button on the title bar of the notification window (tooltip
 ## Saving layouts — presets
 
 Save a layout you use often as a preset and pull it out when creating a new Workspace · Tab · Pane. What is saved is the split structure and each cell's kind · working directory · startup command · file path · URL.
+
+A preset applies a layout and startup settings to new work. It does not clone running processes. See [workspace restoration](workspaces.md#restoring-after-a-restart) for reopening the layout and history of previous work.
 
 ### Saving
 

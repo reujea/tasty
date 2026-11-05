@@ -1,6 +1,6 @@
 # 플러그인
 
-마크다운과 이미지 보기, AI 에이전트 연동처럼 필요한 도구를 플러그인으로 사용해 보세요. 기본 제공 플러그인의 기능을 살펴보고, 새 플러그인을 추가하거나 사용 여부와 권한을 관리할 수 있습니다.
+마크다운·이미지·HTML 보기와 Claude Code·Codex 연동 등은 플러그인으로 제공합니다. 기본 제공 플러그인을 관리하거나 새 플러그인을 설치하고, 필요한 권한을 확인할 수 있습니다.
 
 ## 플러그인이란
 
@@ -21,10 +21,10 @@
 | **HTML Viewer** | `com.tasty.html` | HTML·SVG 파일과 URL 을 내장 웹뷰로 보여주는 서피스 | **새 HTML...** <!-- en: New HTML... -->, `.html` · `.svg` 열기, `tasty html open` |
 | **Clipboard Viewer** | `com.tasty.clipboard-viewer` | 지금 클립보드에 든 내용을 텍스트 · 파일 · 이미지 · HTML 로 분류해 보여주는 팝업. 이력은 저장하지 않습니다 | **도구** <!-- en: Tools --> > **클립보드 뷰어** <!-- en: Clipboard Viewer -->, `Ctrl+Shift+H` |
 | **Git Viewer** | `com.tasty.git-viewer` | 현재 디렉터리 저장소의 status · log · diff 를 읽기 전용으로 보여주는 팝업. worktree 가 여러 개면 왼쪽에서 고릅니다 | **도구** > **Git**, 단축키는 직접 지정 |
-| **Claude Code** | `com.tasty.claude` | Claude Code 를 Tasty 안에서 띄우고, 자식 인스턴스를 만들어 메시지를 보내고 완료를 알려 받는 멀티에이전트 명령 | `tasty claude launch` · `spawn` · `tell` … — [Claude · Codex 와 함께 쓰기](../agents/claude-codex.md) |
+| **Claude Code** | `com.tasty.claude` | Claude Code 를 Tasty 안에서 띄우고, 자식 인스턴스를 만들어 메시지를 보내고 완료를 알려 받는 멀티에이전트 명령 | `tasty claude launch` · `spawn` · `tell` … — [Claude·Codex와 함께 쓰기](../agents/claude-codex.md) |
 | **Codex** | `com.tasty.codex` | Codex CLI 에 대해 위와 같은 일을 합니다 | `tasty codex launch` · `spawn` · `tell` … — 같은 페이지 |
 
-서피스 종류별 사용법은 [파일 열기](../using/files.md). 이 밖에 개발 빌드에만 실리는 데모 · 실험용 플러그인이 있는데, 배포판에는 포함되지 않습니다.
+서피스 종류별 사용법은 [파일 관리와 보기](../using/files.md). 이 밖에 개발 빌드에만 실리는 데모 · 실험용 플러그인이 있는데, 배포판에는 포함되지 않습니다.
 
 ### 플러그인이 추가하는 설정
 
@@ -84,7 +84,11 @@
 
 ## 권한
 
-플러그인은 필요한 권한을 미리 선언합니다. Tasty에 보내는 요청에 필요한 권한이 없으면 해당 요청을 거절합니다. 권한은 플러그인이 Tasty에 보내는 요청만 제한하며, 플러그인 프로세스가 직접 파일을 읽고 쓰거나 네트워크에 접속하는 것은 막지 않습니다. 믿을 수 있는 플러그인만 설치하세요. 자주 보이는 이름과 뜻:
+플러그인은 필요한 권한을 미리 선언합니다. Tasty에 보내는 요청에 필요한 권한이 없으면 해당 요청을 거절합니다.
+
+권한은 플러그인이 Tasty에 요청할 수 있는 기능의 범위를 정합니다. 플러그인 프로세스의 모든 파일·네트워크 접근을 격리한다는 뜻은 아닙니다. 설치하려는 플러그인의 출처와 설명을 확인하세요.
+
+자주 보이는 이름과 뜻:
 
 | 권한 | 허용되는 일 |
 |------|-------------|
@@ -179,6 +183,6 @@ tasty plugin logs com.tasty.markdown --follow
 
 ## 함께 살펴보기
 
-- [파일 열기](../using/files.md) — 마크다운 · 이미지 · HTML 서피스 사용법.
-- [Claude · Codex 와 함께 쓰기](../agents/claude-codex.md) — Claude Code · Codex 플러그인.
+- [파일 관리와 보기](../using/files.md) — 마크다운 · 이미지 · HTML 서피스 사용법.
+- [Claude·Codex와 함께 쓰기](../agents/claude-codex.md) — Claude Code · Codex 플러그인.
 - [설정](../customize/settings.md) — 플러그인 설정 페이지 위치.

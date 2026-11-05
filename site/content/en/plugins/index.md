@@ -1,7 +1,7 @@
-<!-- source-hash: e3ecec87c391 -->
+<!-- source-hash: 44378f729d23 -->
 # Plugins
 
-Use plugins for tools such as Markdown and image viewers or AI agent integrations. Explore the bundled plugins, add new ones, and manage which tools run and what permissions they have.
+Plugins provide Markdown, image, and HTML viewers, along with Claude Code and Codex integrations. Manage bundled plugins or install new ones and review the permissions they need.
 
 ## What a plugin is
 
@@ -22,10 +22,10 @@ When you enable or disable a plugin or change its permissions, Tasty confirms th
 | **HTML Viewer** | `com.tasty.html` | A Surface that shows HTML and SVG files and URLs in an embedded webview | **New HTML...**, opening an `.html` or `.svg`, `tasty html open` |
 | **Clipboard Viewer** | `com.tasty.clipboard-viewer` | A popup that shows what is currently on the clipboard, classified as text · file · image · HTML. Keeps no history | **Tools** > **Clipboard Viewer**, `Ctrl+Shift+H` |
 | **Git Viewer** | `com.tasty.git-viewer` | A read-only popup showing the status · log · diff of the repository in the current directory. With several worktrees, pick one on the left | **Tools** > **Git**, keybinding assigned by you |
-| **Claude Code** | `com.tasty.claude` | Multi-agent commands that launch Claude Code inside Tasty, spawn child instances, send them messages and get notified on completion | `tasty claude launch` · `spawn` · `tell` … — [Working with Claude · Codex](../agents/claude-codex.md) |
+| **Claude Code** | `com.tasty.claude` | Multi-agent commands that launch Claude Code inside Tasty, spawn child instances, send them messages and get notified on completion | `tasty claude launch` · `spawn` · `tell` … — [Working with Claude and Codex](../agents/claude-codex.md) |
 | **Codex** | `com.tasty.codex` | Does the same as above for the Codex CLI | `tasty codex launch` · `spawn` · `tell` … — same page |
 
-How to use each Surface kind is in [Opening files](../using/files.md). There are also demo · experimental plugins that ship only in development builds; they are not included in the distribution.
+How to use each Surface kind is in [Managing and viewing files](../using/files.md). There are also demo · experimental plugins that ship only in development builds; they are not included in the distribution.
 
 ### Settings added by plugins
 
@@ -85,7 +85,11 @@ Installing grants the permissions the plugin requests. Review the permission lis
 
 ## Permissions
 
-A plugin declares the permissions it needs in advance. Tasty rejects requests to the host when the required permission has not been granted. Permissions only limit the requests a plugin sends to Tasty; they do not stop the plugin process from reading and writing files or connecting to the network on its own. Install only plugins you trust. Common names and their meanings:
+A plugin declares the permissions it needs in advance. Tasty rejects requests to the host when the required permission has not been granted.
+
+Permissions define which features a plugin can request from Tasty. They do not isolate every file or network operation performed by the plugin process. Check the source and description of a plugin before installing it.
+
+Common names and their meanings:
 
 | Permission | What it allows |
 |------|-------------|
@@ -180,6 +184,6 @@ Example output of `tasty plugin permissions com.tasty.git-viewer`:
 
 ## Keep exploring
 
-- [Opening files](../using/files.md) — How to use the Markdown · image · HTML Surfaces.
-- [Working with Claude · Codex](../agents/claude-codex.md) — The Claude Code · Codex plugins.
+- [Managing and viewing files](../using/files.md) — How to use the Markdown · image · HTML Surfaces.
+- [Working with Claude and Codex](../agents/claude-codex.md) — The Claude Code · Codex plugins.
 - [Settings](../customize/settings.md) — Where the plugin settings pages are.

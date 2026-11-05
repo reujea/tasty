@@ -1,7 +1,7 @@
-<!-- source-hash: dec47dddf771 -->
-# Install
+<!-- source-hash: 1f752da03c3a -->
+# Installation
 
-Install Tasty for your computer and open your first terminal. Below you will find installation steps for each OS, along with how to update or uninstall.
+Choose the installation file for your OS and architecture. macOS support is for Apple Silicon. Installation files are available on the GitHub releases page.
 
 Download the installer from the [GitHub releases page](https://github.com/zilhak/tasty/releases). Install scripts and package-manager distribution (apt repositories, Homebrew, winget, and so on) are not currently available.
 
@@ -74,6 +74,8 @@ After the first launch, macOS may show permission prompts for the Downloads, Doc
 ## Windows
 
 On a Windows ARM device, download the files with `windows-arm64` in the name. ARM64 files ship in releases newer than 0.12.2, and installing and running them on a Windows ARM device has not been checked yet. Running the x64 files of releases up to 0.12.2, which have no ARM64 files, on a Windows ARM device has not been checked either.
+
+Windows ARM is supported. The developer’s access to hardware for direct testing is limited. Platform support and the scope verified for an individual release are separate.
 
 - **`.msi` (recommended)** — Double-click and follow the setup wizard. A Start menu shortcut and an "Apps & features" uninstall entry are registered.
 - **`.zip`** — Extract to any folder and run `tasty.exe`.

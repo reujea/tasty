@@ -1,7 +1,7 @@
-<!-- source-hash: b7b21475e1a1 -->
+<!-- source-hash: 4684001e8a41 -->
 # Workspaces
 
-Give each project or task its own workspace. Keep its terminals and layout together, then use names and categories to find it easily. If the window structure is new to you, start with [A first look](../getting-started/first-look.md).
+A workspace keeps the terminals and layout for a project or task together. Use names and categories to organize workspaces and switch between them in the sidebar.
 
 ## Creating
 
@@ -76,7 +76,7 @@ badge, then close again. If you would rather not switch to that Workspace, right
 sidebar card instead — a **Force detach** item appears only while it is occupied, and it
 goes through a confirmation first.
 
-Closed Workspaces · Panes · Tabs · Surfaces are restored with `Ctrl+Shift+T` (**Restore closed**), most recently closed first. A terminal's scrollback comes back with it. The shell is started fresh, though, so a program that was running does not come back. This list lives only in memory and is gone when Tasty exits.
+Press `Ctrl+Shift+T` to restore workspaces, panes, tabs, and surfaces you closed, starting with the most recent item. Tasty keeps up to 10 records and retains them when the same layout slot is resumed normally. Terminal history is restored according to the content restoration setting. Shells start again, and saved session resume commands run when present. Items closed through the CLI are not added to this list.
 
 A terminal whose scrollback is very large (beyond about 64 MiB across everything being closed) is kept in the list without its scrollback, and the close goes ahead. A warning is left in the notification panel. If you closed it in a Workspace opened over remote attach, a warning notice appears once in the window you closed it from. Restoring it opens that terminal in the same directory with an empty scrollback, while the other terminals closed with it get their scrollback back.
 
@@ -115,16 +115,13 @@ Naming a category that does not exist is an error, and the Workspace is neither 
 
 ## Restoring after a restart
 
-When you run Tasty again, the Workspace · Pane · Tab · Surface layout of the previous window comes back as it was. The related settings are under **Settings** > **General**.
+**Restore layout on startup** reopens the saved workspace, pane, tab, and surface layout. **Restore surface content on restart** controls whether terminal history is shown again. Running processes and environment variables are not restored as they were. Agent sessions reconnect when their integration is configured and a resume command has been saved.
 
-- **Restore layout on startup** (on by default) — when off, the saved copy is deleted when the window closes.
-- **Restore surface content on restart** (on by default) — also preserves each terminal's scrollback. Scroll up and the previous session's output is there. Turning it off deletes all stored scrollback files.
+Current layouts are stored in `~/.tasty/structure/journal.db`. Files such as `layouts/01.json` from older versions are read only during initial migration. If your layout does not return, follow the [restoration advice in Troubleshooting](../help/troubleshooting.md#my-settings-or-window-layout-look-like-they-were-reset).
 
-If the saved size of one window's terminal scrollback adds up to more than 64 MiB, that window's layout and content are not saved and the previous save is kept. The saved size holds color and cell information besides the characters, so it is larger than the text that was printed. Clear the scrollback with `printf '\e[3J'` in the terminal that holds the large scrollback and saving resumes shortly.
+Only one window appears on restart; the remaining slots are restored when you open a new window (`Alt+Shift+N`).
 
-What is not restored — programs that were running, environment variables, popups that were open. The shell starts fresh in the same directory. Programs that leave a session-resume command, such as Claude Code, are run again automatically ([Working with Claude · Codex](../agents/claude-codex.md)).
-
-The save file is `~/.tasty/layouts/01.json`. With several windows open, each window gets its own `02.json`, `03.json`, and the next time you open a new window it takes over the empty slots in order. Only one window appears on restart; the remaining slots are restored when you open a new window (`Alt+Shift+N`).
+A [headless build](../getting-started/install.md#headless-build) of Tasty, which runs without a window, neither saves nor restores the arrangement, whatever this setting says — its workspaces last only for that run. If the setting is on, it logs a one-line warning about this at startup.
 
 Running Tasty again while it is already running does not start a second Tasty. Launched from the app menu or a launcher, the open window comes forward; running `tasty` in a terminal opens one new window that takes over the next empty slot (on Windows, launching from the terminal in front may bring the open window forward instead). See [Running Tasty again](../help/troubleshooting.md#running-tasty-again) for details.
 

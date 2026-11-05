@@ -1,6 +1,6 @@
 # 설치
 
-내 컴퓨터에 맞는 Tasty를 설치하고 첫 터미널을 열어보세요. 아래에서 OS별 설치 방법과 업데이트, 제거 방법을 확인할 수 있습니다.
+OS와 아키텍처에 맞는 설치 파일을 고르세요. macOS는 Apple Silicon을 지원합니다. 설치 파일은 GitHub 릴리스 페이지에서 받을 수 있습니다.
 
 설치 파일은 [GitHub 릴리스 페이지](https://github.com/zilhak/tasty/releases)에서 받으세요. 현재는 설치 스크립트나 패키지 매니저(apt 저장소, Homebrew, winget 등)를 통한 설치는 제공하지 않습니다.
 
@@ -73,6 +73,8 @@ xattr -dr com.apple.quarantine /Applications/Tasty.app
 ## Windows
 
 Windows ARM 기기에서는 이름에 `windows-arm64` 가 들어간 파일을 받으세요. ARM64 파일은 0.12.2 보다 새 릴리스부터 들어가며, Windows ARM 기기에서 설치와 실행은 아직 확인하지 않았습니다. ARM64 파일이 없는 0.12.2 이하 릴리스의 x64 파일을 Windows ARM 기기에서 실행하는 것도 확인하지 않았습니다.
+
+Windows ARM도 지원 대상입니다. 개발자의 직접 동작 검증 환경은 제한되어 있습니다. 지원 대상과 각 릴리스에서 확인한 범위는 구분합니다.
 
 - **`.msi` (권장)** — 더블클릭해서 설치 마법사를 따릅니다. 시작 메뉴 바로가기와 "앱 및 기능" 제거 항목이 등록됩니다.
 - **`.zip`** — 원하는 폴더에 풀고 `tasty.exe` 를 실행합니다.

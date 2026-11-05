@@ -1,6 +1,6 @@
 # CLI 명령 참조
 
-[입문](cli.md)에서 다루지 않은 `tasty` 명령의 사용법입니다. `read since-mark` 의 읽기 위치 지정, 서피스 상태 조회, 권한 토큰, 알림, 메타데이터, 서피스 사이의 큐, 여러 터미널 관리, 화면 없는 PTY, 공유 메모리, 관찰자, 사용량 기록과 그 밖의 조회·설정을 목적별로 찾아보세요. 명령마다 받는 인자 전체는 `tasty help <명령>` 으로 확인합니다.
+읽기 위치를 지정하는 `read since-mark`, 서피스 상태, 메시지 큐, 공유 메모리 등 입문 밖의 명령을 목적별로 설명합니다. 전체 인자와 옵션은 `tasty help`에서 확인할 수 있습니다.
 
 ## 명령 찾기
 
@@ -255,6 +255,6 @@ tasty file-handler detectors            # 파일 형식 판별 규칙이 지금 
 
 ## 함께 살펴보기
 
-- [tasty CLI 로 터미널 조작하기](cli.md) — 처음 쓰는 순서와 기본 패턴.
+- [tasty CLI로 터미널 조작하기](cli.md) — 처음 쓰는 순서와 기본 패턴.
 - [CLI 응답 지연과 연결 진단](../help/cli-diagnostics.md) — `tasty list pressure` 읽는 법과 오류 코드별 조치.
-- [백그라운드 작업을 탭으로 가져오기](background-tasks.md) · [Claude · Codex 와 함께 쓰기](claude-codex.md) · [작업 순서 관리](tasks.md) · [훅 · 알림 · 웹훅](hooks-notifications.md)
+- [백그라운드 작업을 탭으로 가져오기](background-tasks.md) · [Claude·Codex와 함께 쓰기](claude-codex.md) · [작업 순서 관리](tasks.md) · [훅 · 알림 · 웹훅](hooks-notifications.md)

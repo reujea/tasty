@@ -1,6 +1,6 @@
 # 설정
 
-셸, 글꼴, 화면 배치 등 자주 쓰는 환경을 내 작업 방식에 맞춰보세요. 설정 윈도우에서 항목을 바꾸거나 `~/.tasty/config.toml`을 직접 편집할 수 있습니다. 키 조합과 색을 바꾸는 방법은 [단축키](keybindings.md)와 [테마](themes.md)에서 자세히 안내합니다.
+셸, 글꼴, 언어 등 Tasty의 동작과 표시를 설정합니다. 설정 윈도우에서 바꾸거나 `~/.tasty/config.toml`을 직접 편집할 수 있습니다. 단축키와 테마는 각각의 가이드에서 자세히 설명합니다.
 
 ## 설정 윈도우 열기
 
@@ -327,6 +327,8 @@ tasty settings set-remote-transfer --dir ~/incoming --max-mb 1000
 설정을 바꾸는 명령(`set-remote-transfer`, `set-input-rule`, `tasty webhook allow-external` 등)은 설정을 적용하고 `config.toml` 에 저장한 뒤에 결과를 출력합니다. 저장하지 못했으면 성공 대신 오류로 끝납니다. 이 경우 값은 이번 실행에만 적용됩니다.
 
 ## `~/.tasty` 폴더에 있는 것
+
+`~/.tasty/config.toml`은 설정 파일입니다. 배치 저장소와 플러그인 자료는 별도로 관리합니다. 배치 복원 문제를 해결하기 위해 저장소 파일을 직접 편집하거나 지우지 마세요.
 
 | 경로 | 내용 |
 |------|------|

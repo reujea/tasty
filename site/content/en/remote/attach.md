@@ -1,9 +1,9 @@
-<!-- source-hash: 5383669aabe7 -->
+<!-- source-hash: c47e72291b83 -->
 <a id="remote-attach"></a>
 
 # Working remotely (attach)
 
-Connect to work running on another computer and continue it in your own Tasty window. SSH connects you to a remote Tasty workspace, where you can view its terminal layout and output and operate it. This connection is called **attach**, and the remote workspace shown locally is a **mirror**.
+Connect over SSH to a workspace in Tasty running on another computer. The remote workspace displayed locally is called a mirror. While connected, the mirror holds the workspace; users on the remote side can view it but cannot type into it.
 
 ## Concepts
 
@@ -182,6 +182,8 @@ tasty set workspace --id 5 --clear-mapping                              # remove
 - Closing the last terminal of a mirror removes the remote Workspace itself and disconnects.
 
 ## Closing and disconnecting a mirror
+
+**Disconnect Workspace** closes your mirror and leaves the remote work in place. **Close Workspace** closes the workspace on the remote computer. Choose Disconnect to leave the remote work running.
 
 Right-clicking a mirror card shows two items together. Your own regular Workspace cards only have **Close Workspace**.
 

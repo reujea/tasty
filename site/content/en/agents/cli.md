@@ -1,29 +1,9 @@
-<!-- source-hash: 120883690f82 -->
+<!-- source-hash: f0bf5336457d -->
 # Driving terminals with the tasty CLI
 
-Use the `tasty` CLI to create terminals, send commands, and read results. Control a running Tasty from a script, or let an AI agent set up the terminals it needs. Agents such as Claude Code and Codex use the same commands.
+Use the `tasty` CLI to create and control terminals in a running Tasty instance. Start by checking the connection and target IDs, then send a command and read its output. Scripts and AI agents can use the same commands.
 
 Follow this page in order the first time. Check the connection, find target IDs, create a working terminal, send a command, read its output, and clean up. The remaining commands, such as reading from a saved position, metadata, queues and memory, are in the [CLI command reference](cli-reference.md). Response delays, connections, and what to do for each error code are in [CLI response delays and connection diagnostics](../help/cli-diagnostics.md).
-
-## Frequently used commands
-
-| What you want | Command |
-|---|---|
-| Show the hierarchy | `tasty list tree` |
-| Surface list | `tasty list surfaces` |
-| Create a working tab | `tasty new tab --pane ID` |
-| Send text (including Enter) | `tasty send text "ls\r" --surface ID` |
-| Send a key | `tasty send key enter --surface ID` |
-| Set a mark | `tasty set mark --surface ID` |
-| Read since the mark | `tasty read since-mark --surface ID --strip-ansi` |
-| Exit record of the last command | `tasty read last-command --surface ID` |
-| Read the screen | `tasty read screen --surface ID --lines N` |
-| Close a Surface | `tasty close surface --surface ID` |
-| Notification | `tasty notify "body" --title "title"` |
-| Screenshot | `tasty screenshot --path out.png [--surface ID] [--window ID]` |
-| Help | `tasty help`, `tasty help <command>` (= `tasty <command> --help`), `tasty -a` (every command path with a short description; arguments are in each command’s `--help`) |
-
-`tasty help` groups commands by purpose, such as basic operations, agent collaboration, and background and remote, and starts with a short first-task walkthrough. `-h` shows short descriptions; `--help` and `tasty help <command>` show the long ones. The last "Internal integration" group in the Claude and Codex help lists commands that hooks call, so you do not type them yourself.
 
 ## Prerequisites
 
@@ -83,6 +63,26 @@ tasty close surface --surface 57               # clean up the terminal you made
 - A tab made with `new tab` does not change the tab the person was looking at. Use the reply's `surface_id`, not `active_tab`.
 - Do not decide that a command finished by waiting a fixed time or by seeing empty output. In bash and zsh, shell integration records each command's end, so compare `ended_at` in the `read last-command` reply before and after sending, and check `exit_code`. In a shell without integration, check with `read screen` that the prompt is back.
 - To see every argument of one command, run `tasty help <command>`, for example `tasty help read since-mark`.
+
+## Frequently used commands
+
+| What you want | Command |
+|---|---|
+| Show the hierarchy | `tasty list tree` |
+| Surface list | `tasty list surfaces` |
+| Create a working tab | `tasty new tab --pane ID` |
+| Send text (including Enter) | `tasty send text "ls\r" --surface ID` |
+| Send a key | `tasty send key enter --surface ID` |
+| Set a mark | `tasty set mark --surface ID` |
+| Read since the mark | `tasty read since-mark --surface ID --strip-ansi` |
+| Exit record of the last command | `tasty read last-command --surface ID` |
+| Read the screen | `tasty read screen --surface ID --lines N` |
+| Close a Surface | `tasty close surface --surface ID` |
+| Notification | `tasty notify "body" --title "title"` |
+| Screenshot | `tasty screenshot --path out.png [--surface ID] [--window ID]` |
+| Help | `tasty help`, `tasty help <command>` (= `tasty <command> --help`), `tasty -a` (every command path with a short description; arguments are in each command’s `--help`) |
+
+`tasty help` groups commands by purpose, such as basic operations, agent collaboration, and background and remote, and starts with a short first-task walkthrough. `-h` shows short descriptions; `--help` and `tasty help <command>` show the long ones. The last "Internal integration" group in the Claude and Codex help lists commands that hooks call, so you do not type them yourself.
 
 ## Basic pattern: mark → send → read since mark
 
@@ -159,7 +159,7 @@ tasty close self                                        # close this very Surfac
 
 The older forms `split --target-surface` · `--target-pane` and `close workspace|window --id` are still accepted. Giving both forms at once is refused as the same option given twice.
 
-`--surface this` means yourself (`TASTY_SURFACE_ID`). You can also create non-terminal surfaces, for example `--type markdown --file README.md` ([Opening files](../using/files.md)). The `--cwd` of `new workspace` · `new tab` · `split` works for an Explorer (`--type explorer`) too: without `--path` it opens that folder as the root. With both, `--path` wins. An Explorer does not inherit another surface's working directory when `--cwd` is omitted; it opens your home folder.
+`--surface this` means yourself (`TASTY_SURFACE_ID`). You can also create non-terminal surfaces, for example `--type markdown --file README.md` ([Managing and viewing files](../using/files.md)). The `--cwd` of `new workspace` · `new tab` · `split` works for an Explorer (`--type explorer`) too: without `--path` it opens that folder as the root. With both, `--path` wins. An Explorer does not inherit another surface's working directory when `--cwd` is omitted; it opens your home folder.
 
 A tab opened with `tasty new tab` does not change the tab the person was looking at, whatever its kind. The new tab is added at the end of the pane and stays in the background until the person picks it. The reply's `active_tab` is the tab currently selected in that pane, not the new one, so use the reply's `surface_id` to work with the new tab. A tab the person opens by shortcut or menu is selected right away.
 
@@ -226,6 +226,6 @@ Commands this introduction does not cover are on pages organised by purpose.
 
 - [Claude · Codex](claude-codex.md) — Spawning child agents and receiving completion notifications.
 - [Task workflows](tasks.md) — Tying several pieces of work together by dependency.
-- [Hooks · notifications · webhooks](hooks-notifications.md) — Running commands automatically on an event.
+- [Hooks, notifications, and webhooks](hooks-notifications.md) — Running commands automatically on an event.
 - [CLI command reference](cli-reference.md) — Finding commands beyond the introduction by purpose.
 - [CLI response delays and connection diagnostics](../help/cli-diagnostics.md) — Response delays, connection counts, and what to do for each error code.

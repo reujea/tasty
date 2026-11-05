@@ -488,6 +488,7 @@ code, kbd, pre, samp { font-family: var(--font-mono); }
   word-break: break-word;
 }
 .prose a > code { color: var(--link); }
+.prose summary { font-weight: 600; cursor: pointer; }
 
 .prose img { border-radius: var(--radius); border: var(--border); margin: var(--sp-5) 0; }
 

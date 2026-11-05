@@ -1,9 +1,9 @@
-<!-- source-hash: 160f9e8560d6 -->
+<!-- source-hash: 6634ea94f977 -->
 <a id="task-dag"></a>
 
 # Task workflows (DAG)
 
-Run tests after a build finishes, then pass the results to the next task. Register each step as a **task** and connect it to the work it depends on. Tasty handles the order and failure policy. These connected tasks form a **DAG**, a graph of task dependencies.
+Register tasks and connect their dependencies to run steps in the required order. Start with one task using `task-run`, `task-create`, and `task-await`, then add ordering and failure handling.
 
 Create and manage tasks with the `tasty` CLI. If you are new to it, follow [Starting the runner](#starting-the-runner), [Creating a task](#creating-a-task) and [Checking the result](#checking-the-result) to run one task end to end with `task-run`, `task-create` and `task-await`. Read the later sections on ordering, passing results, branching and synchronisation when you need them. To follow them in the app, see [Watching progress](#watching-progress).
 
@@ -292,6 +292,8 @@ Find the DAG id with `tasty agent dag-list`. Earlier runs that were retried keep
 
 ## Watching progress
 
+The task graph is a view of progress. Create and change tasks through the CLI. Check each node’s execution state together with the result produced by the task.
+
 There are two screens for seeing how the work flows. Both look at the same data.
 
 - **Task DAGs** window — `Ctrl+Shift+G` (`Cmd+Shift+G` with the Mac preset), or the sidebar **Tools** menu. It is for picking one from a list, taking a quick look, and closing it. It has search and a state filter. Pick one and the same area becomes the graph, with zoom in and out, fit to view, direction switching, and the runner pill sitting on the top line next to the back arrow.
@@ -409,4 +411,4 @@ The full list is in `tasty agent --help`.
 
 - [Driving Tasty from the CLI](cli.md) — The commands agents use in general
 - [Claude · Codex](claude-codex.md) — Spawning child agents and receiving completion notifications
-- [Hooks · notifications · webhooks](hooks-notifications.md) — Getting notified when a command finishes
+- [Hooks, notifications, and webhooks](hooks-notifications.md) — Getting notified when a command finishes

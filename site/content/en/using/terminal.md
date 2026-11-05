@@ -1,4 +1,4 @@
-<!-- source-hash: 1a52f00507c3 -->
+<!-- source-hash: c98a458a1e4e -->
 # Working with the terminal
 
 Copy the output you need, search terminal history, and open file paths as you work. You can also select text without a mouse and receive notifications when work finishes.
@@ -138,7 +138,7 @@ Even while a program that uses the mouse (vim · tmux and so on) is running, rig
 
 Under **Settings** > **Terminal** > **Link click modifier**, choose `Ctrl`, `Alt`, or **Disable left-click opening**. The last option prevents left-clicks from opening links. You can still hover a link without a modifier and use its right-click menu. Popups and banners can block link highlighting.
 
-How files are opened (Markdown · image · Explorer) is in [Opening files](files.md). Dropping a file onto the terminal (**Drop to open**) opens it by the same rules.
+How files are opened (Markdown · image · Explorer) is in [Managing and viewing files](files.md). Dropping a file onto the terminal (**Drop to open**) opens it by the same rules.
 
 ## Scrolling
 

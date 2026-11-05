@@ -1,7 +1,7 @@
-<!-- source-hash: a08e1123c954 -->
-# Opening files
+<!-- source-hash: a6ba67217392 -->
+# Managing and viewing files
 
-Read a README or check an image beside your terminal. Tasty can open an Explorer, Markdown documents, images, and HTML pages, with a Git viewer for reviewing changes.
+Find and manage files in the Explorer, and view Markdown, images, and HTML beside the terminal. Inspect changes in the Git viewer. The viewers and Git tools require their respective plugins to be enabled.
 
 ## Ways to open
 

@@ -1,7 +1,7 @@
-<!-- source-hash: ac32efbd7378 -->
+<!-- source-hash: 6734368d217b -->
 # CLI command reference
 
-How to use the `tasty` commands the [introduction](cli.md) does not cover: reading `read since-mark` from a saved position, looking into a surface, permission tokens, notifications, metadata, queues between Surfaces, running several terminals, headless PTYs, shared memory, observers, usage records, and other queries and settings, organised by purpose. Check every argument a command takes with `tasty help <command>`.
+Find commands beyond the introduction, including `read since-mark`, surface state, message queues, and shared memory, organized by purpose. Use `tasty help` for the full list of arguments and options.
 
 ## Finding commands
 
@@ -236,4 +236,4 @@ The workspace count and active index in `list info` describe the queried window.
 
 - [Driving terminals with the tasty CLI](cli.md) — The first-time order and the basic pattern.
 - [CLI response delays and connection diagnostics](../help/cli-diagnostics.md) — Reading `tasty list pressure` and what to do for each error code.
-- [Bringing background tasks into a tab](background-tasks.md) · [Claude · Codex](claude-codex.md) · [Task workflows](tasks.md) · [Hooks · notifications · webhooks](hooks-notifications.md)
+- [Bringing background tasks into a tab](background-tasks.md) · [Claude · Codex](claude-codex.md) · [Task workflows](tasks.md) · [Hooks, notifications, and webhooks](hooks-notifications.md)

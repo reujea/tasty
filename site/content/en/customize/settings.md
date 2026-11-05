@@ -1,7 +1,7 @@
-<!-- source-hash: 0e49adf7267f -->
+<!-- source-hash: 9f2ca925f5ba -->
 # Settings
 
-Adjust your shell, fonts, and workspace preferences to suit the way you work. Use the settings window or edit `~/.tasty/config.toml` directly. For key combinations and colours, see [Keybindings](keybindings.md) and [Themes](themes.md).
+Configure Tasty’s shell, fonts, language, and other preferences. Use the settings window or edit `~/.tasty/config.toml` directly. Keybindings and themes have their own guides.
 
 ## Opening the settings window
 
@@ -92,7 +92,7 @@ The tables that decide how to "identify what kind of file it is" when opening a 
 - **File Extension Mapping** — Priority when several detectors claim the same extension.
 - **File Detectors** — Rules that identify a file's type by extension · path pattern. The list shows detectors in the order they are tried. You can add your own rules; adding with an id that already exists adds your rules to that detector. Remove deletes only what you added, and built-in · plugin rules stay. Changes apply on Save, and until then Undo on each row cancels them.
 - **File Handlers** — Which Surface opens an identified type, or whether to hand it to the OS default app. The list is in run order: lower priority first, and on a tie user handlers, then plugin handlers, then built-in ones.
-- **Hook Handlers** — Shell commands and internal action lists to run when a hook · webhook event arrives. [Hooks · notifications · webhooks](../agents/hooks-notifications.md).
+- **Hook Handlers** — Shell commands and internal action lists to run when a hook · webhook event arrives. [Hooks, notifications, and webhooks](../agents/hooks-notifications.md).
 
 These tables are stored not in `config.toml` but in `~/.tasty/file-handlers.toml` and `~/.tasty/hook-handlers.toml`.
 
@@ -337,6 +337,8 @@ tasty settings set-remote-transfer --dir ~/incoming --max-mb 1000
 Commands that change settings (`set-remote-transfer`, `set-input-rule`, `tasty webhook allow-external`, and so on) print their result only after the setting is applied and saved to `config.toml`. If it could not be saved, the command ends with an error instead of success, and the value applies to this run only.
 
 ## What is in the `~/.tasty` folder
+
+`~/.tasty/config.toml` stores settings. Layouts and plugin data are managed separately. Do not edit or delete the layout store to troubleshoot restoration.
 
 | Path | Contents |
 |------|------|

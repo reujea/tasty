@@ -1,28 +1,8 @@
-# tasty CLI 로 터미널 조작하기
+# tasty CLI로 터미널 조작하기
 
-`tasty` CLI로 터미널을 만들고, 명령을 보내고, 결과를 확인해 보세요. 실행 중인 Tasty를 스크립트에서 조작하거나 AI 에이전트가 작업할 터미널을 직접 준비하게 할 수 있습니다. Claude Code와 Codex 같은 에이전트도 같은 명령을 사용합니다.
+`tasty` CLI로 실행 중인 Tasty의 터미널을 만들고 조작합니다. 연결과 대상 ID를 확인한 뒤 명령을 보내고 출력을 읽는 순서로 시작하세요. 스크립트와 AI 에이전트가 같은 명령을 사용할 수 있습니다.
 
 이 페이지는 처음 쓰는 순서대로 따라가면 됩니다. 연결을 확인하고, 대상 ID를 찾고, 작업용 터미널을 하나 만들어 명령을 보내고 출력을 읽은 뒤 정리합니다. 읽기 위치 지정·메타데이터·큐·메모리 같은 나머지 명령은 [CLI 명령 참조](cli-reference.md)에, 응답 지연·연결·오류 코드별 조치는 [CLI 응답 지연과 연결 진단](../help/cli-diagnostics.md)에 있습니다.
-
-## 자주 쓰는 명령 표
-
-| 하고 싶은 것 | 명령 |
-|---|---|
-| 계층 구조 보기 | `tasty list tree` |
-| 서피스 목록 | `tasty list surfaces` |
-| 작업용 탭 만들기 | `tasty new tab --pane ID` |
-| 텍스트 보내기 (Enter 포함) | `tasty send text "ls\r" --surface ID` |
-| 키 보내기 | `tasty send key enter --surface ID` |
-| 마크 찍기 | `tasty set mark --surface ID` |
-| 마크 이후 읽기 | `tasty read since-mark --surface ID --strip-ansi` |
-| 마지막 명령의 종료 기록 | `tasty read last-command --surface ID` |
-| 화면 읽기 | `tasty read screen --surface ID --lines N` |
-| 서피스 닫기 | `tasty close surface --surface ID` |
-| 알림 | `tasty notify "본문" --title "제목"` |
-| 스크린샷 | `tasty screenshot --path out.png [--surface ID] [--window ID]` |
-| 도움말 | `tasty help`, `tasty help <명령>`(= `tasty <명령> --help`), `tasty -a` (모든 명령 경로와 짧은 설명. 인자는 각 명령의 `--help`) |
-
-`tasty help`는 명령을 기본 조작·에이전트 협업·백그라운드·원격처럼 목적별로 묶어 보여 주고, 맨 앞에 첫 작업 순서를 안내합니다. `-h`는 짧은 설명, `--help`와 `tasty help <명령>`은 긴 설명을 보여 줍니다. Claude·Codex 도움말의 마지막 "내부 연동" 그룹은 훅이 부르는 명령이라 직접 입력하지 않습니다.
 
 ## 준비
 
@@ -82,6 +62,26 @@ tasty close surface --surface 57               # 다 쓴 터미널 정리
 - `new tab`으로 만든 탭은 사용자가 보던 탭을 바꾸지 않습니다. 응답의 `active_tab`이 아니라 `surface_id`를 사용하세요.
 - 명령이 끝났는지는 정해진 시간만큼 기다리거나 출력이 비었는지만 보고 판단하지 마세요. bash·zsh에서는 셸 통합이 명령마다 종료 기록을 남기므로, 보내기 전과 후의 `read last-command` 응답에서 `ended_at`이 바뀌었는지와 `exit_code`를 확인합니다. 셸 통합이 없는 셸에서는 `read screen`으로 프롬프트가 돌아왔는지 확인합니다.
 - 명령 하나의 인자를 모두 보려면 `tasty help <명령>`을 실행합니다. 예: `tasty help read since-mark`.
+
+## 자주 쓰는 명령 표
+
+| 하고 싶은 것 | 명령 |
+|---|---|
+| 계층 구조 보기 | `tasty list tree` |
+| 서피스 목록 | `tasty list surfaces` |
+| 작업용 탭 만들기 | `tasty new tab --pane ID` |
+| 텍스트 보내기 (Enter 포함) | `tasty send text "ls\r" --surface ID` |
+| 키 보내기 | `tasty send key enter --surface ID` |
+| 마크 찍기 | `tasty set mark --surface ID` |
+| 마크 이후 읽기 | `tasty read since-mark --surface ID --strip-ansi` |
+| 마지막 명령의 종료 기록 | `tasty read last-command --surface ID` |
+| 화면 읽기 | `tasty read screen --surface ID --lines N` |
+| 서피스 닫기 | `tasty close surface --surface ID` |
+| 알림 | `tasty notify "본문" --title "제목"` |
+| 스크린샷 | `tasty screenshot --path out.png [--surface ID] [--window ID]` |
+| 도움말 | `tasty help`, `tasty help <명령>`(= `tasty <명령> --help`), `tasty -a` (모든 명령 경로와 짧은 설명. 인자는 각 명령의 `--help`) |
+
+`tasty help`는 명령을 기본 조작·에이전트 협업·백그라운드·원격처럼 목적별로 묶어 보여 주고, 맨 앞에 첫 작업 순서를 안내합니다. `-h`는 짧은 설명, `--help`와 `tasty help <명령>`은 긴 설명을 보여 줍니다. Claude·Codex 도움말의 마지막 "내부 연동" 그룹은 훅이 부르는 명령이라 직접 입력하지 않습니다.
 
 ## 기본 패턴: 마크 → 보내기 → 마크 이후 읽기
 
@@ -158,7 +158,7 @@ tasty close self                                        # 지금 이 서피스 �
 
 예전 표기 `split --target-surface`·`--target-pane`, `close workspace|window --id`도 그대로 받습니다. 두 표기를 함께 주면 같은 옵션을 두 번 준 것으로 거절합니다.
 
-`--surface this` 는 자기 자신(`TASTY_SURFACE_ID`)입니다. `--type markdown --file README.md` 처럼 터미널이 아닌 표면도 만들 수 있습니다 ([파일 열기](../using/files.md)). `new workspace` · `new tab` · `split` 의 `--cwd` 는 탐색기(`--type explorer`)에서도 통해, `--path` 가 없으면 그 폴더를 루트로 엽니다. 둘 다 적으면 `--path` 가 이깁니다. 탐색기는 `--cwd` 를 생략해도 다른 서피스의 작업 디렉토리를 이어받지 않고 홈을 엽니다.
+`--surface this` 는 자기 자신(`TASTY_SURFACE_ID`)입니다. `--type markdown --file README.md` 처럼 터미널이 아닌 표면도 만들 수 있습니다 ([파일 관리와 보기](../using/files.md)). `new workspace` · `new tab` · `split` 의 `--cwd` 는 탐색기(`--type explorer`)에서도 통해, `--path` 가 없으면 그 폴더를 루트로 엽니다. 둘 다 적으면 `--path` 가 이깁니다. 탐색기는 `--cwd` 를 생략해도 다른 서피스의 작업 디렉토리를 이어받지 않고 홈을 엽니다.
 
 `tasty new tab` 으로 연 탭은 종류와 상관없이 사용자가 보던 탭을 바꾸지 않습니다. 새 탭은 페인의 맨 뒤에 붙고, 사용자가 고를 때까지 뒤에 있습니다. 응답의 `active_tab` 은 새 탭이 아니라 그 페인에서 지금 선택된 탭이므로, 새 탭을 다룰 때는 응답의 `surface_id` 를 씁니다. 단축키나 메뉴로 사용자가 직접 연 탭은 바로 선택됩니다.
 
@@ -222,7 +222,7 @@ tasty send text "make test\r" --surface 42 --wait-idle
 
 ## 함께 살펴보기
 
-- [Claude · Codex 와 함께 쓰기](claude-codex.md) — 자식 에이전트를 띄우고 완료를 통지받기.
+- [Claude·Codex와 함께 쓰기](claude-codex.md) — 자식 에이전트를 띄우고 완료를 통지받기.
 - [작업 순서 관리](tasks.md) — 여러 작업을 의존 관계로 묶어 순서대로 실행하기.
 - [훅 · 알림 · 웹훅](hooks-notifications.md) — 이벤트로 명령을 자동 실행하기.
 - [CLI 명령 참조](cli-reference.md) — 입문 밖의 명령을 목적별로 찾기.

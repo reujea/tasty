@@ -1,15 +1,33 @@
-<!-- source-hash: d84e6f24f60f -->
+<!-- source-hash: a8a66164ab60 -->
 # A first look
 
-Start by looking at the sidebar and work area. Learn how workspaces organize your projects and how panes, tabs, and surfaces fit together, then arrange them to suit your work.
+Choose a workspace in the sidebar and use its terminals in the work area. Each pane has a tab bar, and each tab contains surfaces for terminals or documents.
 
 ## Learn directly on the screen
 
-Open **Tools** > **Tutorial** in the sidebar for screen structure, splitting practice, and finding commands and shortcuts. Learn how each pane has its own tab bar and each tab has its own surface layout.
+Open **Tools** > **Tutorial…** in the sidebar to explore the window structure and practise splitting.
 
 Splitting practice creates a separate workspace. Click the work area, then use the displayed shortcut or menu. Once the action is confirmed, choose **Next**. The practice workspace stays open afterward; keep using it or close it yourself.
 
 Choose **Topics** or press `Esc` to stop, and **Resume** to continue later. Completion and progress survive restarting the app. Resuming splitting practice creates a new practice workspace. Shortcut hints follow your current settings.
+
+## The four terms — Workspace · Pane · Tab · Surface
+
+These parts of the screen fit inside one another in this order. If it is confusing at first, open **Tools** > **Tutorial…** in the sidebar and follow the guidance drawn directly on the screen.
+
+| Term | Meaning | Similar concept |
+|------|----|------------|
+| **Workspace** | The largest unit, holding all Tabs · Panes · Surfaces. You switch between them in the sidebar | tmux session, iTerm2 window |
+| **Pane** | A physical division of a Workspace. Each Pane has **its own tab strip** | A Tasty-specific concept with no counterpart in tmux · iTerm2 |
+| **Tab** | One tab inside a Pane | tmux window, iTerm2 tab |
+| **Surface** | The area where a terminal · Markdown · explorer is actually drawn. One Tab can be split into several | tmux · iTerm2 pane |
+
+What sets Tasty apart is that **splitting happens on two levels**.
+
+- **Pane split** — Divides the Workspace left/right or top/bottom. Switching Tabs in one Pane leaves the other Panes untouched. Example: the left Pane is dedicated to Claude Code, the right Pane holds several log · build Tabs.
+- **Surface split** — Divides the inside of a single Tab. Switching Tabs swaps the whole split with it.
+
+For detailed operation see [Panes, tabs, and splits](../using/panes-tabs-splits.md).
 
 ## Window layout
 
@@ -31,24 +49,6 @@ Choose **Topics** or press `Esc` to stop, and **Resume** to continue later. Comp
 - **Work area** — Where you arrange terminals and documents, using the four components below.
 - **Status bar** — The state of the current terminal and quick buttons.
 
-## The four terms — Workspace · Pane · Tab · Surface
-
-These parts of the screen fit inside one another in this order. If it is confusing at first, open **Tools** > **Tutorial…** in the sidebar and follow the guidance drawn directly on the screen.
-
-| Term | Meaning | Similar concept |
-|------|----|------------|
-| **Workspace** | The largest unit, holding all Tabs · Panes · Surfaces. You switch between them in the sidebar | tmux session, iTerm2 window |
-| **Pane** | A physical division of a Workspace. Each Pane has **its own tab strip** | A Tasty-specific concept with no counterpart in tmux · iTerm2 |
-| **Tab** | One tab inside a Pane | tmux window, iTerm2 tab |
-| **Surface** | The area where a terminal · Markdown · explorer is actually drawn. One Tab can be split into several | tmux · iTerm2 pane |
-
-What sets Tasty apart is that **splitting happens on two levels**.
-
-- **Pane split** — Divides the Workspace left/right or top/bottom. Switching Tabs in one Pane leaves the other Panes untouched. Example: the left Pane is dedicated to Claude Code, the right Pane holds several log · build Tabs.
-- **Surface split** — Divides the inside of a single Tab. Switching Tabs swaps the whole split with it.
-
-For detailed operation see [Panes · Tabs · splits](../using/panes-tabs-splits.md).
-
 ## Sidebar
 
 Three areas, top to bottom.
@@ -67,11 +67,14 @@ At the top of each Pane.
 - A **green dot** appears while a program is producing output, and the name changes colour when it waits for input or finishes ([Names and marks](../using/panes-tabs-splits.md#names-and-marks)).
 - `+` is a new Tab. Right-click to create from a preset. The split · search icons next to it split this Pane or search inside the current Surface.
 - When Tabs overflow, left/right arrows appear. Drag to reorder.
-- Right-click an empty spot to create a new Tab with **New Terminal** · **New Markdown...** · **New HTML...** · **New Image**. **New HTML...** opens a Tab in that Pane once you pick an HTML or SVG file in the file chooser. The same menu also has **Save as pane preset**, **Create tab from preset...** and **Create pane from preset...**. Each type is described in [Opening files](../using/files.md).
+- Right-click an empty spot to create a new Tab with **New Terminal** · **New Markdown...** · **New HTML...** · **New Image**. **New HTML...** opens a Tab in that Pane once you pick an HTML or SVG file in the file chooser. The same menu also has **Save as pane preset**, **Create tab from preset...** and **Create pane from preset...**. Each type is described in [Managing and viewing files](../using/files.md).
 
 The last remaining Tab of a Pane cannot be closed with Close Tab. Closing a Surface is different: closing the last Surface in a Tab closes that Tab, and if it was the last Tab of its Pane the Pane closes too, and if that was the last Pane of the Workspace the Workspace closes as well.
 
-## Status bar
+<a id="status-bar"></a>
+
+<details>
+<summary>Status bar</summary>
 
 The single line at the bottom of the work area. The left side shows information about the currently focused Surface, the right side holds buttons.
 
@@ -84,6 +87,8 @@ The single line at the bottom of the work area. The left side shows information 
 
 **An item with no value disappears rather than leaving a gap.** As the window narrows, the grid size goes first, then the shell, the Surface ID, the palette shortcut and finally the branch name; the theme icon stays to the end.
 
+</details>
+
 ## Shortcuts to know first
 
 These are the values of the default preset (**Tasty**). In the notation, `Alt` is `Cmd(⌘)` on macOS and `Ctrl` is `Control(⌃)`. How to change them and the full table are in [Keybindings](../customize/keybindings.md).
@@ -92,20 +97,10 @@ These are the values of the default preset (**Tasty**). In the notation, `Alt` i
 |---------|-----------------|-------|
 | New Workspace | `Alt+N` | `Cmd+N` |
 | New Tab | `Alt+T` | `Cmd+T` |
-| Close current Tab | `Ctrl+W` | `Ctrl+W` |
-| Close current Surface | `Alt+W` | `Cmd+W` |
-| Restore closed item | `Ctrl+Shift+T` | `Ctrl+Shift+T` |
 | Pane split (left/right / top/bottom) | `Alt+E` / `Alt+Shift+E` | `Cmd+E` / `Cmd+Shift+E` |
 | Surface split (left/right / top/bottom) | `Alt+D` / `Alt+Shift+D` | `Cmd+D` / `Cmd+Shift+D` |
-| Next · previous Pane | `Ctrl+]` / `Ctrl+[` | `Ctrl+]` / `Ctrl+[` |
-| Next · previous Surface | `Alt+]` / `Alt+[` | `Cmd+]` / `Cmd+[` |
-| Go to Tab n | `Ctrl+1` ~ `Ctrl+0` | `Ctrl+1` ~ `Ctrl+0` |
-| Go to Workspace n | `Alt+1` ~ `Alt+9` | `Cmd+1` ~ `Cmd+9` |
-| Collapse / hide sidebar | `Ctrl+B` / `Ctrl+Shift+B` | `Ctrl+B` / `Ctrl+Shift+B` |
-| Notification panel | `Ctrl+Shift+I` | `Ctrl+Shift+I` |
 | Command palette | `Ctrl+Shift+P` | `Ctrl+Shift+P` |
 | Settings | `Ctrl+,` | `Ctrl+,` |
-| New window | `Alt+Shift+N` | `Cmd+Shift+N` |
 
 If you want iTerm2-style `⌘`-centric combinations on macOS, pick the **Mac** preset under **Settings** > **Keybindings**.
 
@@ -115,7 +110,7 @@ With several windows open, the close button closes only that window. On the last
 
 Once you confirm quitting, web pages and Markdown documents in all windows are hidden so the progress screen can be shown while shutdown is pending. If you cancel the confirmation or return after minimizing to the background, you can continue using the documents.
 
-When you launch Tasty again, the Workspace · Pane · Tab arrangement of the last window is restored as it was (**Settings** > **General** > **Restore layout on startup**, on by default). A [headless build](install.md#headless-build) of Tasty, which runs without a window, neither saves nor restores the arrangement, whatever this setting says — its workspaces last only for that run. If the setting is on, it logs a one-line warning about this at startup.
+Tasty can [restore](../using/workspaces.md#restoring-after-a-restart) layouts and terminal history when it starts again. This differs from restoring running processes and depends on your settings and the program’s session resume support.
 
 <a id="what-to-read-next"></a>
 

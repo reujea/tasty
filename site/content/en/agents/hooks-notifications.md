@@ -1,7 +1,12 @@
-<!-- source-hash: 1e4012970dc5 -->
-# Hooks, notifications and webhooks
+<!-- source-hash: 81c53eca203a -->
+# Hooks, notifications, and webhooks
 
-Get a notification when a build finishes, or run a command when a message appears in the logs. **Hooks** run commands in response to events, and **notifications** let you know when to check back. Use **webhooks** to send requests to Tasty from an external service.
+Hooks run actions in response to Tasty events, notifications show items to check in the app, and webhooks receive HTTP requests from external services. Choose the path that fits your task.
+
+- Configure a hook to react to an event.
+- Check notifications in the notification panel and surface indicators.
+- Receive external requests through webhooks. An acknowledgement does not mean execution has completed.
+- Use an approval request when you need a person’s decision and response.
 
 ## Surface hooks
 

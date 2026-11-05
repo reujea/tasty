@@ -205,6 +205,7 @@ site/content/
 - 새 디렉토리(섹션)를 만들면 `SECTIONS` 에 (디렉토리, 한국어 라벨, 영어 라벨) 을 추가한다.
   등록되지 않은 디렉토리에 페이지를 두면 빌드가 실패한다.
 - 페이지 첫 줄 `# 제목` 이 사이드바 라벨이다 (괄호 · 대시 이후는 잘린다).
+- `# 제목` 바로 아래 문단의 첫 문장이 그 페이지의 검색 · 공유 설명(`description`, `og:description`)이다(`site/src/lib/guide.ts`의 `descriptionOf`). 첫 문장은 페이지를 혼자서 설명하게 쓴다.
 
 ### 집필 규칙
 
@@ -398,18 +399,15 @@ Plugins · Ports · Remote · 커맨드 팔레트를 연다. 페이지이기 때
   iframe 으로 싣는다. 선언한 뷰포트는 상한이 아니라 **하한**이다 — 프레임은 컬럼을 채우되
   그 폭 아래로는 안 내려가고, 좁으면 가로로 스크롤한다(두 줄로 접힌 색 램프는 램프가 아니다).
   `data-theme` 을 스스로 박은 카드(Latte 계열)는 그대로 두고, 나머지는 사이트 테마를 따른다.
-- **갤러리** (`/design/gallery/**`) — `vendor/gallery/*.jsx` 13 페이지. 살아 있는 표본이라
+- **갤러리** (`/design/gallery/**`) — `vendor/gallery/<페이지>/` 15 페이지. 살아 있는 표본이라
   호버 · 포커스 · 열고 닫기가 실제로 동작하고, 각 표본이 레이아웃 스펙과 소비하는 토큰을
-  함께 적는다. 갤러리는 자기 크롬(좌측 레일 · 상단 토글)을 가진 **애플리케이션**이라 사이트
-  문서 레이아웃에 얹지 않는다 — 내비게이션과 스크롤바가 둘씩 생기고, `gallery.css` 가
-  `html, body` 를 잡는다. 바꾸는 것은 크롬 주변뿐이다: 내비는 이 사이트 라우트를 가리키고,
-  브랜드와 상단 바에 `/design/` 로 돌아가는 길이 있고, 테마 토글은 사이트 키를 쓴다.
+  함께 적는다. 사이트 공용 머리글과 푸터를 쓰며 구현은 위 [갤러리 페이지](#갤러리-페이지) 절에 있다.
 
 ## 작업 흐름 가이드의 그림
 
 `using/workflow-layouts`는 페인별 작업 배치와 프리셋 재사용을, `agents/background-tasks`는 숨겨진 PTY의 생성·입력·조회·탭 전환·정리를 안내한다. 두 페이지는 한국어와 영어로 제공한다.
 
-`site/src/components/diagrams/WorkflowLayout.jsx`는 vendor의 TabStrip과 TerminalPane을 조합한 정적 예시다. Markdown의 `tasty-diagram: workflow-layout` 및 `tasty-diagram: background-task` 표식을 통해 렌더한다. 캡션에 실제 앱이 아닌 배치 예시임을 명시하고, 비활성 컨트롤은 inert 처리한다. 좁은 화면에서는 페인을 세로로 배치한다. 문서의 실제 조작 순서와 명령이 그림의 설명을 보완한다.
+`site/src/components/diagrams/WorkflowLayout.jsx`는 vendor의 TabStrip과 TerminalPane을 조합한 정적 예시다. Markdown의 `tasty-diagram: workflow-layout` 및 `tasty-diagram: background-task` 표식을 통해 렌더한다. 가이드의 캡션은 실제 앱이 아닌 배치 예시임을 명시하고, 랜딩은 `caption` 값으로 자기 문구를 넘긴다. 비활성 컨트롤은 inert 처리한다. 좁은 화면에서는 페인을 세로로 배치한다. 문서의 실제 조작 순서와 명령이 그림의 설명을 보완한다.
 
 ## 갤러리 개발 서버와 빌드 캐시
 

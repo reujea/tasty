@@ -272,6 +272,6 @@ The `+` key itself is written as `ctrl++` or `ctrl+plus`, `-` as `ctrl+-` or `ct
 ## Keep exploring
 
 - [Settings](settings.md) — The settings window structure and `config.toml`.
-- [Panes · Tabs · splits](../using/panes-tabs-splits.md) — What the split · move actions in the tables above actually do.
+- [Panes, tabs, and splits](../using/panes-tabs-splits.md) — What the split · move actions in the tables above actually do.
 - [Working in the terminal](../using/terminal.md) — Copy mode · search · mouse capture.
 - [Lua scripts](scripts.md) — How to register the scripts that show up in the **Run Scripts** subtab.
