@@ -6,7 +6,7 @@ use tasty_type_appearance::theme::Theme;
 use tasty_type_geometry::length::LogicalPx;
 use tasty_ui_widgets::{BadgeVariant, ListCtrl, ListCtrlItem, TagVariant, badge, tag};
 
-use crate::catalog::spec::{StageVariant, TokenChip, cluster, meta, stage};
+use crate::catalog::spec::{StageVariant, TokenChip, meta, stage};
 
 /// 시안 Spec 패널의 바깥 폭 `--tasty-size-320`(시안은 border-box라 padding·border 포함).
 /// 공개 토큰 접근자가 없어 갤러리 무대 치수로 둔다.
