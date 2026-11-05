@@ -410,7 +410,7 @@ Settings › Keybindings › **Import / Export** 는 위 [이식 번들](#이식
 - **내보내기** — 설정 창의 로컬 파일 선택([native-file-picker](../native-file-picker/index.md#설정-창에서의-로컬-전용-재사용))을 저장 모드로 연다.
   기본 파일명 `tasty-keybindings-<YYYY-MM-DD>.toml`, `.toml` 필터.
   내보내는 원본은 **현재 draft**(저장 전 편집 포함)와 `plugins.toml` 의 override 전량(`PluginsConfig::shortcut_overrides`)이다.
-  소유한 bundle text/path를 공용 file writer에 명령으로 제출한다. 파일 I/O를 기다리는 동안 Export 버튼은 비활성화된 **Exporting…** 표시이며 나머지 UI는 계속 동작한다. 사용자 Export 시도는 snapshot 병합 대상이 아니다.
+  소유한 bundle text/path를 공용 file writer에 명령으로 제출한다. 파일 I/O를 기다리는 동안 **Export…** 버튼은 라벨과 폭을 유지한 채 비활성화되고, 버튼 왼쪽에 Spinner와 **Exporting…** 문구를 표시한다. 나머지 UI는 계속 동작한다. 사용자 Export 시도는 snapshot 병합 대상이 아니다.
   알려진 쓰기 성공 receipt를 받은 뒤 원래 설정 윈도우 자체 toast(Success)가 경로를 보여 준다. 닫기·Cancel·재열기·bundle draft 편집 뒤에는 예전 완료를 표시하지 않으며, 이미 접수한 쓰기는 완료한다.
   쓰기에 실패하면 **Export 행 안**에 danger 알림 블록(경로 · 이유 · "Nothing was written.")이 뜨고 **Try again**(같은 경로로 다시 쓰기) · **Choose another location…**(블록을 닫고 저장 선택기를 다시 연다)을 싣는다.
   블록이 떠 있는 동안 행의 **Export…** 버튼은 꺼진다 — 재시도 입구가 둘이 되지 않게.

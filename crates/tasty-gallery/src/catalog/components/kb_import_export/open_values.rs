@@ -149,6 +149,7 @@ fn export_failure_row(ui: &mut egui::Ui, theme: &Theme, st: &mut State) {
         "Export…",
         ButtonVariant::Secondary,
         !failed,
+        None,
         failed.then_some(&mut notice as &mut dyn FnMut(&mut egui::Ui)),
     );
     if dismissed {

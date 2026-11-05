@@ -471,13 +471,13 @@ pub(crate) fn draw_import_export_subtab(
                                 icons::DOWNLOAD,
                                 t("settings.keybindings.ie_export_title"),
                                 t("settings.keybindings.ie_export_desc"),
-                                t(if state.export_observation.pending() {
-                                    "settings.keybindings.ie_export_pending"
-                                } else {
-                                    "settings.keybindings.ie_export_button"
-                                }),
+                                t("settings.keybindings.ie_export_button"),
                                 ButtonVariant::Secondary,
                                 export_fail.is_none() && !state.export_observation.pending(),
+                                state
+                                    .export_observation
+                                    .pending()
+                                    .then(|| t("settings.keybindings.ie_export_pending")),
                                 export_fail
                                     .map(|_| &mut export_notice as &mut dyn FnMut(&mut egui::Ui)),
                             ) {
@@ -492,6 +492,7 @@ pub(crate) fn draw_import_export_subtab(
                                 t("settings.keybindings.ie_import_button"),
                                 ButtonVariant::Primary,
                                 true,
+                                None,
                                 None,
                             ) {
                                 import_clicked.set(true);

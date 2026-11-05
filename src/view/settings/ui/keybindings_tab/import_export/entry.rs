@@ -9,6 +9,7 @@ use super::paint::glyph_at;
 
 /// 아이콘·제목·설명·버튼과 해당 작업의 실패 안내를 표시한다.
 /// 실패 안내의 재시도를 사용하는 동안 기존 버튼은 비활성화한다.
+/// `busy`가 있으면 버튼은 라벨과 폭을 유지하고 왼쪽에 진행 표시와 그 문구를 둔다.
 // reason: jsx `IeActionRow` 의 prop(glyph · title · desc · action · notice)을 그대로 받는다 —
 // 묶으면 두 호출부가 같은 구조체를 채우는 코드만 늘어난다.
 #[allow(clippy::too_many_arguments)]
@@ -21,6 +22,7 @@ pub(super) fn action_row(
     button: &str,
     variant: ButtonVariant,
     enabled: bool,
+    busy: Option<&str>,
     notice: Option<&mut dyn FnMut(&mut egui::Ui)>,
 ) -> bool {
     let mut clicked = false;
@@ -44,12 +46,31 @@ pub(super) fn action_row(
                     th.text_muted_raised().to_egui(),
                 );
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Min), |ui| {
-                    clicked = Button::new(button)
+                    let response = Button::new(button)
                         .variant(variant)
                         .size(ControlSize::Sm)
                         .enabled(enabled)
-                        .show(ui, th)
-                        .clicked();
+                        .show(ui, th);
+                    clicked = response.clicked();
+                    if let Some(word) = busy {
+                        let size = th.icon_glyph_size_sm.value();
+                        ui.allocate_ui_with_layout(
+                            egui::vec2(
+                                tasty_ui_widgets::busy_caption_width(ui, th, word, size),
+                                response.rect.height(),
+                            ),
+                            egui::Layout::left_to_right(egui::Align::Center),
+                            |ui| {
+                                tasty_ui_widgets::busy_caption_in_ink(
+                                    ui,
+                                    th,
+                                    word,
+                                    size,
+                                    th.text_muted_raised().to_egui(),
+                                );
+                            },
+                        );
+                    }
                     ui.with_layout(egui::Layout::top_down(egui::Align::Min), |ui| {
                         ui.spacing_mut().item_spacing.y =
                             tasty_ui_widgets::tokens::STRUCT_GAP_2.value();

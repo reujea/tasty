@@ -177,6 +177,19 @@ fn entry(ui: &mut egui::Ui, theme: &Theme) {
         ButtonVariant::Secondary,
         true,
         None,
+        None,
+    );
+    action_row(
+        ui,
+        theme,
+        icons::DOWNLOAD,
+        "Export",
+        crate::i18n::t("settings.keybindings.ie_export_desc"),
+        "Export…",
+        ButtonVariant::Secondary,
+        false,
+        Some(crate::i18n::t("settings.keybindings.ie_export_pending")),
+        None,
     );
     action_row(
         ui,
@@ -187,6 +200,7 @@ fn entry(ui: &mut egui::Ui, theme: &Theme) {
         "Import…",
         ButtonVariant::Primary,
         true,
+        None,
         None,
     );
 }
@@ -204,6 +218,7 @@ pub(super) fn action_row(
     button: &str,
     variant: ButtonVariant,
     enabled: bool,
+    busy: Option<&str>,
     notice: Option<&mut dyn FnMut(&mut egui::Ui)>,
 ) {
     egui::Frame::new()
@@ -226,11 +241,30 @@ pub(super) fn action_row(
                     theme.text_muted_raised().to_egui(),
                 );
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Min), |ui| {
-                    Button::new(button)
+                    let response = Button::new(button)
                         .variant(variant)
                         .size(ControlSize::Sm)
                         .enabled(enabled)
                         .show(ui, theme);
+                    if let Some(word) = busy {
+                        let size = theme.icon_glyph_size_sm.value();
+                        ui.allocate_ui_with_layout(
+                            egui::vec2(
+                                tasty_ui_widgets::busy_caption_width(ui, theme, word, size),
+                                response.rect.height(),
+                            ),
+                            egui::Layout::left_to_right(egui::Align::Center),
+                            |ui| {
+                                tasty_ui_widgets::busy_caption_in_ink(
+                                    ui,
+                                    theme,
+                                    word,
+                                    size,
+                                    theme.text_muted_raised().to_egui(),
+                                );
+                            },
+                        );
+                    }
                     ui.with_layout(egui::Layout::top_down(egui::Align::Min), |ui| {
                         ui.spacing_mut().item_spacing.y =
                             tasty_ui_widgets::tokens::STRUCT_GAP_2.value();

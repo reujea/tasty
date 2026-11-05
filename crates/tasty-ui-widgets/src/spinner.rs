@@ -25,6 +25,17 @@ pub fn busy_caption_width(ui: &egui::Ui, theme: &Theme, word: &str, size: f32) -
 /// 바쁜 버튼 옆의 진행 표시. Spinner 와 caption 크기의 `text-muted` 문구다.
 /// 버튼은 라벨과 폭을 그대로 둔 채 비활성이 되고, 진행은 이 표시가 알린다.
 pub fn busy_caption(ui: &mut egui::Ui, theme: &Theme, word: &str, size: f32) {
+    busy_caption_in_ink(ui, theme, word, size, theme.text_muted().to_egui());
+}
+
+/// `surface-raised` 처럼 `text-muted` 가 등급에 못 미치는 바탕에서 그 바탕의 잉크를 넘긴다.
+pub fn busy_caption_in_ink(
+    ui: &mut egui::Ui,
+    theme: &Theme,
+    word: &str,
+    size: f32,
+    ink: egui::Color32,
+) {
     ui.horizontal(|ui| {
         ui.spacing_mut().item_spacing.x = theme.spacing_sm.value();
         Spinner::new().size(size).show(ui, theme);
@@ -32,7 +43,7 @@ pub fn busy_caption(ui: &mut egui::Ui, theme: &Theme, word: &str, size: f32) {
             egui::Label::new(
                 egui::RichText::new(word)
                     .size(theme.font_size_caption.value())
-                    .color(theme.text_muted().to_egui()),
+                    .color(ink),
             )
             .truncate(),
         );
