@@ -47,7 +47,7 @@ plugin 은 header~footer content 영역만 그린다(`cbFrame`/`Scrim` 은 desig
 
 ## 디자인 토큰 매핑
 
-시각 수치·토큰의 단일 출처는 `design-system/ui_kits/terminal/overlays/clipboard_viewer.jsx` 다 — [시각 소스](#시각-소스).
+시각 수치·토큰의 단일 출처는 Design System Artifact의 `project/ui_kits/terminal/overlays/clipboard_viewer.jsx` 다 — [시각 소스](#시각-소스).
 
 ## HTML prettify 인덴터
 

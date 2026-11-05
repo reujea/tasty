@@ -45,7 +45,7 @@
 
 ## 화면
 
-- **시각 소스**: `design-system/.../<x>.jsx` (Design System)
+- **시각 소스**: `project/.../<x>.jsx` (Design System Artifact)
 
 ### 트리거
 

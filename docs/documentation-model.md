@@ -29,9 +29,9 @@ Tasty는 화면 없이도 동작한다. 기능 문서는 내부 동작을 먼저
 | 용어 | `docs/concepts/` | 프로젝트 공통 용어 | 문서를 직접 갱신 |
 | 제품 원칙 | `docs/principles/` | 판단 기준·적용 범위·충돌 시 우선순위 | 최신 유효 내용만 유지 |
 | 예외 결정(ADR) | `docs/adr/` | 원칙의 예외·미충족을 채택한 범위와 이유 | [ADR 작성 규칙](adr/template.md)을 따름 |
-| 디자인 원본 | `design-system/…` (vendor) | 픽셀·토큰·컴포넌트 정의 | `designer` Agent에 design-request로 변경 요청 |
+| 디자인 원본 | Design System Artifact (사이트 사본 `site/vendor/`) | 픽셀·토큰·컴포넌트 정의 | `designer` Agent에 design-request로 변경 요청 |
 
-화면정의서는 요소 목록과 상태별 표시 관계를 적는다. 픽셀·토큰 값을 다시 정의하지 않고 `design-system/`의 디자인 원본을 연결한다. 값을 복사해 적으면 원본이 바뀔 때 설명 사본이 서로 달라질 수 있다.
+화면정의서는 요소 목록과 상태별 표시 관계를 적는다. 픽셀·토큰 값을 다시 정의하지 않고 Design System Artifact의 디자인 원본을 연결한다. 값을 복사해 적으면 원본이 바뀔 때 설명 사본이 서로 달라질 수 있다.
 
 ### B. 개발·운영 가이드 — "tasty 를 어떻게 다루나"
 
@@ -97,7 +97,7 @@ docs/features/<feature>/
 
 ## 5. design ↔ code 연계 (Design System 협업)
 
-`design-system/`은 Design System Artifact의 사본이다. 코드 작업자가 직접 수정하지 않는다. docs에는 화면 요소와 동작 관계를 설명하고 픽셀·토큰 정의는 디자인 원본으로 연결한다.
+디자인 원본은 Design System Artifact에 있고, `site/vendor/`는 그 사본이다. 코드 작업자는 원본과 사본을 직접 수정하지 않는다. docs에는 화면 요소와 동작 관계를 설명하고 픽셀·토큰 정의는 디자인 원본으로 연결한다.
 
 디자인 변경은 [디자인 변경 워크플로](dev-guide/design-change-workflow.md)대로 `designer` Agent에 요청한 뒤 받은 결과를 코드에 반영한다. 소스를 먼저 바꾸어 새 디자인 값을 정하지 않는다. 문서는 §6의 배치 규칙에 따라 동작을 features·surfaces에, 디자인 원본 링크를 화면 설명에, 일반 선택의 이유는 해당 명세에, 원칙의 예외·미충족 결정은 ADR에 반영한다. 요청 제출과 결과 확인은 [디자인 변경 절차](dev-guide/design-change-workflow.md)를 따른다.
 

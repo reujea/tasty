@@ -101,7 +101,7 @@ popup을 닫으면 핸들을 해제한다. 다중 thread dispatch나 저장소 �
 
 ## 디자인 토큰 매핑
 
-시각 수치·토큰의 단일 출처는 `design-system/ui_kits/terminal/overlays/git_viewer.jsx` 다 — [시각 소스](#시각-소스).
+시각 수치·토큰의 단일 출처는 Design System Artifact의 `project/ui_kits/terminal/overlays/git_viewer.jsx` 다 — [시각 소스](#시각-소스).
 
 ## 갤러리 specimen
 
