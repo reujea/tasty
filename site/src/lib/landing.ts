@@ -1,60 +1,61 @@
 /**
  * Landing-page copy, one set per site language. Chrome strings live in `strings.ts`.
  *
- * Describe terminal features and agent integration in concrete, everyday terms.
+ * Describe the terminal first, then extension and agent integration, in concrete terms.
  */
-export interface Point {
-  key: string;
-  title: string;
-  body: string;
-}
 export interface Card {
-  /** A name from the design system's icon registry (`src/ds/core/Icon.jsx`). */
+  /** A name from the design system's icon registry. */
   icon: string;
   title: string;
   body: string;
   /** Guide page this card leads to, relative to the guide root. */
   href: string;
 }
+export interface GuideLink {
+  label: string;
+  /** Guide page, relative to the guide root. */
+  href: string;
+}
 export interface Copy {
   badge: string;
-  /** The wordmark line: the pun only lands in English. */
   tagline: string;
   titleLead: string;
   titleAccent: string;
   titleTail: string;
+  body: string;
   ctaPrimary: string;
   ctaSecondary: string;
   ctaOther: string;
   /** Primary button label once the visitor's OS is known; `{os}` is replaced. */
   dlFor: string;
   installNote: string;
-  installNoteLink: string;
+  shellCaption: string;
 
-  whyTitle: string;
-  whyBody: string;
-  whyPoints: Point[];
+  layoutTitle: string;
+  layoutBody: string;
+  layoutCaption: string;
+  layoutLink: GuideLink;
 
-  featuresKicker: string;
   featuresTitle: string;
   featuresBody: string;
   cards: Card[];
+  moreLinks: GuideLink[];
 
-  agentsKicker: string;
   agentsTitle: string;
+  /** Holds inline `<code>`. */
   agentsBody: string;
+  agentsIntegration: string;
+  agentsNote: string;
+  agentsLinks: GuideLink[];
   agentsCaption: string;
-  agentsTab: string;
 
-  platformKicker: string;
   platformTitle: string;
   platformBody: string;
-  stats: [string, string][];
 
   ctaTitle: string;
   ctaBody: string;
-  ctaDocs: string;
   ctaDownload: string;
+  ctaInstall: string;
 
   /** Strings rendered inside the app mockup itself. */
   shellHeading: string;
@@ -63,61 +64,57 @@ export interface Copy {
 
 export const KO: Copy = {
   badge: "Windows · macOS · Linux",
-  tagline: "맛있는 터미널.",
-  titleLead: "입맛에 맞게 쓰는",
-  titleAccent: "터미널,",
-  titleTail: "Tasty.",
+  tagline: "내 입맛에 맞는 터미널",
+  titleLead: "작업을 나누고 배치하는",
+  titleAccent: "GPU 가속 터미널",
+  titleTail: "",
+  body: "Tasty는 프로젝트별로 워크스페이스를 나누고, 여러 터미널과 문서를 한 화면에 배치합니다. Windows, macOS, Linux에서 사용할 수 있습니다.",
   ctaPrimary: "다운로드",
-  ctaSecondary: "가이드 보기",
-  ctaOther: "다른 플랫폼",
+  ctaSecondary: "설치 가이드",
+  ctaOther: "모든 설치 파일",
   dlFor: "{os}용 다운로드",
-  installNote: "설치가 처음이라면",
-  installNoteLink: "설치 가이드를 참고하세요 →",
+  installNote: "OS와 아키텍처에 맞는 파일을 설치 가이드에서 확인하세요.",
+  shellCaption: "Tasty의 화면 배치 예시입니다. 탭과 메뉴를 살펴볼 수 있으며, 표시된 명령은 실행되지 않습니다.",
 
-  whyTitle: "에이전트가 터미널을 직접 조작합니다",
-  whyBody:
-    "AI 에이전트가 tasty CLI로 터미널을 만들고, 명령을 실행하고, 출력을 읽을 수 있습니다. 사용자가 열어둔 터미널과 에이전트의 작업용 터미널을 함께 관리합니다.",
-  whyPoints: [
-    { key: "01", title: "보고 있던 탭 유지", body: "에이전트가 새 탭을 열어도 보고 있던 탭의 포커스, 선택한 텍스트, 스크롤 위치는 바뀌지 않습니다." },
-    { key: "02", title: "ID로 터미널 지정", body: "각 터미널에는 고유한 ID가 있습니다. 에이전트는 이 ID로 작업할 터미널을 지정합니다." },
-    { key: "03", title: "화면 분할과 출력 확인", body: "tasty CLI로 화면을 나누고, 명령을 보내고, 실행 결과를 읽습니다." },
-    { key: "04", title: "서버에서 실행", body: "윈도우 없이 실행하는 헤드리스 모드를 지원합니다. 서버나 CI에서도 CLI로 터미널을 만들고 작업을 실행할 수 있습니다." },
-  ],
+  layoutTitle: "탭을 따로 바꾸거나, 함께 바꾸는 두 단계 분할",
+  layoutBody: "페인은 각각의 탭 바를 가집니다. 한쪽에서 탭을 바꿔도 다른 페인의 화면은 남습니다. 탭 안에서는 여러 서피스를 나란히 배치하고, 탭을 바꿀 때 함께 전환할 수 있습니다.",
+  layoutCaption: "왼쪽에는 작업 터미널을, 오른쪽에는 테스트 로그나 문서를 둡니다.",
+  layoutLink: { label: "작업 배치 만들기", href: "using/workflow-layouts/" },
 
-  featuresKicker: "기능",
-  featuresTitle: "화면 배치부터 파일 보기까지",
-  featuresBody: "프로젝트마다 작업 공간을 나누고, 터미널 옆에 문서와 이미지를 열어둘 수 있습니다. 자주 쓰는 배치는 저장하고, 반복하는 동작은 스크립트로 실행합니다.",
+  featuresTitle: "작업에 맞춰 구성하는 터미널",
+  featuresBody: "작업별 배치를 저장하고, 터미널 옆에서 파일을 확인하고, 자주 쓰는 조작을 설정할 수 있습니다.",
   cards: [
-    { icon: "layoutGrid", title: "GPU 가속 터미널", body: "GPU로 터미널 화면을 그립니다. 여러 터미널을 나란히 배치할 수 있습니다.", href: "using/workflow-layouts/" },
-    { icon: "layers", title: "프로젝트별 작업 공간", body: "워크스페이스마다 터미널과 화면 배치를 따로 관리합니다. 자주 쓰는 배치는 프리셋으로 저장해 다시 불러옵니다.", href: "using/workspaces/" },
-    { icon: "folderOpen", title: "문서와 이미지 보기", body: "마크다운, 이미지, 웹 페이지를 터미널 옆에 열어둘 수 있습니다. 탐색기에서는 파일을 찾고 복사하거나 옮깁니다.", href: "using/files/" },
-    { icon: "rocket", title: "Claude와 Codex 연동", body: "여러 에이전트를 각각의 터미널에서 실행합니다. 연동을 설정하면 작업 완료와 입력 요청을 알림으로 받습니다.", href: "agents/claude-codex/" },
-    { icon: "gitTree", title: "작업 순서 관리", body: "먼저 끝나야 할 작업을 연결하면 그 순서에 맞춰 실행합니다. 진행 상황은 그래프로 표시합니다.", href: "agents/tasks/" },
-    { icon: "terminal", title: "터미널 조작용 CLI", body: "터미널 생성, 화면 분할, 명령 실행, 출력 확인을 CLI로 처리합니다. 스크립트와 AI 에이전트에서 사용할 수 있습니다.", href: "agents/cli/" },
-    { icon: "textLeft", title: "명령별 출력 확인", body: "셸 연동으로 각 명령의 출력을 구분합니다. 긴 로그에서 필요한 명령의 결과를 찾아볼 수 있습니다.", href: "using/terminal/" },
-    { icon: "bell", title: "명령 완료 알림", body: "명령이 끝나거나 출력에 특정 문구가 나타날 때 알림을 받도록 설정할 수 있습니다.", href: "agents/hooks-notifications/" },
-    { icon: "scriptFile", title: "Lua 스크립트", body: "반복하는 동작을 스크립트로 작성합니다. 단축키로 실행하거나 윈도우와 탭이 열리고 닫힐 때 실행하도록 설정할 수 있습니다.", href: "customize/scripts/" },
-    { icon: "remote", title: "SSH 원격 연결", body: "다른 컴퓨터의 Tasty에 SSH로 연결합니다. 그곳에서 실행 중인 워크스페이스를 보고 조작할 수 있습니다.", href: "remote/attach/" },
-    { icon: "plug", title: "플러그인", body: "마크다운과 이미지 뷰어, Git 보기 등을 플러그인으로 제공합니다. 필요한 기능을 켜고 권한을 관리합니다.", href: "plugins/" },
-    { icon: "theme", title: "테마 설정", body: "어두운 Mocha와 밝은 Latte 테마를 제공합니다. TOML 파일로 직접 테마를 만들 수도 있습니다.", href: "customize/themes/" },
+    { icon: "layers", title: "프로젝트별 워크스페이스", body: "터미널과 배치를 프로젝트별로 관리합니다. 이름과 카테고리로 작업을 구분할 수 있습니다.", href: "using/workspaces/" },
+    { icon: "layoutGrid", title: "다시 쓰는 배치", body: "자주 쓰는 배치와 시작 설정을 프리셋으로 저장해 새 작업에 적용합니다.", href: "using/workflow-layouts/" },
+    { icon: "folderOpen", title: "파일 관리와 보기", body: "탐색기에서 파일을 관리하고, 마크다운·이미지·HTML을 터미널 옆에서 확인합니다. 뷰어는 플러그인으로 제공합니다.", href: "using/files/" },
+    { icon: "textLeft", title: "출력 검색과 복사", body: "터미널 기록을 검색하고 필요한 출력을 복사합니다. 셸 통합이 있으면 CLI로 명령별 출력도 확인할 수 있습니다.", href: "using/terminal/" },
+    { icon: "keyboard", title: "내 손에 맞는 단축키", body: "프리셋을 고르거나 자주 쓰는 동작의 키 조합을 바꿉니다.", href: "customize/keybindings/" },
+    { icon: "theme", title: "밝고 어두운 테마", body: "밝은 Latte와 어두운 Mocha를 고르고, TOML 파일로 테마를 만들 수 있습니다.", href: "customize/themes/" },
+  ],
+  moreLinks: [
+    { label: "반복 작업을 Lua로 설정하기", href: "customize/scripts/" },
+    { label: "원격 작업 연결하기", href: "remote/attach/" },
+    { label: "필요한 플러그인 관리하기", href: "plugins/" },
   ],
 
-  agentsKicker: "AI 에이전트 연동",
-  agentsTitle: "Claude Code와 Codex를 같은 작업 공간에서",
-  agentsBody:
-    "여러 에이전트를 각각의 터미널에서 실행하고 상태를 확인합니다. 연동 가이드에 따라 알림을 설정하면 작업이 끝나거나 입력이 필요할 때 알려줍니다.",
-  agentsCaption: "Claude Code와 Codex CLI는 별도로 설치해야 합니다. 에이전트끼리 작업을 맡기고 결과를 받는 방법은 연동 가이드에서 설명합니다.",
-  agentsTab: "작업 관리",
+  agentsTitle: "CLI로 터미널을 조작하고 에이전트를 연결합니다",
+  agentsBody: "스크립트와 AI 에이전트는 <code>tasty</code> CLI로 대상 ID를 지정해 터미널을 만들고, 명령을 보내고, 출력을 읽습니다. CLI로 새 탭을 열어도 사용자가 보던 탭과 포커스·선택·스크롤 위치는 바뀌지 않습니다.",
+  agentsIntegration: "Claude Code와 Codex CLI는 별도로 설치합니다. Tasty 플러그인과 훅을 설정하면 에이전트의 상태를 확인할 수 있습니다. 자식 에이전트의 응답을 부모에게 전달하는 절차는 연동 가이드에서 설명합니다.",
+  agentsNote: "응답이 끝났다는 알림은 작업이 성공했다는 판정과 다릅니다.",
+  agentsLinks: [
+    { label: "CLI 시작하기", href: "agents/cli/" },
+    { label: "Claude·Codex 연결하기", href: "agents/claude-codex/" },
+    { label: "작업 순서 관리", href: "agents/tasks/" },
+  ],
+  agentsCaption: "실행 중인 Tasty의 연결 정보와 작업 대상을 조회합니다.",
 
-  platformKicker: "플랫폼",
-  platformTitle: "Windows · macOS · Linux 지원",
-  platformBody: "세 운영체제에서 워크스페이스, 탭, 화면 분할을 같은 방식으로 사용합니다. 운영체제별 설치 방법과 지원 아키텍처는 설치 가이드에 정리했습니다.",
-  stats: [["3", "운영체제"], ["GPU", "화면 렌더링"], ["3", "UI 언어"], ["MIT", "라이선스"]],
+  platformTitle: "Windows · macOS · Linux에서",
+  platformBody: "워크스페이스, 탭, 화면 분할로 작업을 구성합니다. macOS는 Apple Silicon을 지원합니다. OS와 아키텍처별 설치 파일과 실행 조건은 설치 가이드에 정리했습니다.",
 
-  ctaTitle: "Tasty 다운로드",
-  ctaBody: "설치 파일은 릴리스 페이지에서 받을 수 있습니다. 설치 방법과 기본 사용법은 가이드에서 설명합니다.",
-  ctaDocs: "가이드 읽기",
+  ctaTitle: "Tasty 설치하기",
+  ctaBody: "내 컴퓨터에 맞는 설치 파일을 고르고, 첫 워크스페이스를 열어보세요.",
   ctaDownload: "다운로드",
+  ctaInstall: "설치 가이드",
 
   shellHeading: "워크스페이스",
   shellTask: "다음 릴리스 준비",
@@ -125,61 +122,57 @@ export const KO: Copy = {
 
 export const EN: Copy = {
   badge: "Windows · macOS · Linux",
-  tagline: "Tasty terminal.",
-  titleLead: "A terminal",
-  titleAccent: "to your taste.",
-  titleTail: "",
+  tagline: "A terminal to your taste.",
+  titleLead: "A",
+  titleAccent: "GPU-accelerated terminal",
+  titleTail: "for organizing your work",
+  body: "Tasty organizes projects into workspaces and arranges terminals and documents side by side. Available on Windows, macOS, and Linux.",
   ctaPrimary: "Download",
-  ctaSecondary: "Read the guide",
-  ctaOther: "Other platforms",
+  ctaSecondary: "Installation guide",
+  ctaOther: "All installation files",
   dlFor: "Download for {os}",
-  installNote: "Setting up for the first time?",
-  installNoteLink: "Follow the installation guide →",
+  installNote: "Check the installation guide for the file that matches your OS and architecture.",
+  shellCaption: "An example Tasty layout. Explore tabs and menus; the displayed commands do not run.",
 
-  whyTitle: "Agents can operate terminals directly",
-  whyBody:
-    "AI agents can use the tasty CLI to create terminals, run commands, and read output. Tasty manages the terminals you use alongside those your agents work in.",
-  whyPoints: [
-    { key: "01", title: "Keep the current tab", body: "When an agent opens a tab, your focus, selected text, and scroll position stay unchanged." },
-    { key: "02", title: "Address terminals by ID", body: "Each terminal has its own ID. Agents use that ID to select the terminal for a task." },
-    { key: "03", title: "Create splits and read output", body: "The tasty CLI can split the screen, send commands, and read their results." },
-    { key: "04", title: "Run on a server", body: "Headless mode runs without a window. The CLI can create terminals and run tasks on servers or in CI." },
-  ],
+  layoutTitle: "Two levels of splitting, with independent or shared tab switching",
+  layoutBody: "Each pane has its own tab bar, so switching tabs in one pane leaves the others in place. Within a tab, arrange several surfaces side by side and switch them together.",
+  layoutCaption: "Keep a working terminal on the left, with test logs or documents on the right.",
+  layoutLink: { label: "Build a working layout", href: "using/workflow-layouts/" },
 
-  featuresKicker: "Features",
-  featuresTitle: "Layouts, files, and terminal tools",
-  featuresBody: "Each project can have its own workspace, with documents and images beside the terminal. Layouts can be saved for reuse, and scripts can run repeated actions.",
+  featuresTitle: "A terminal you can configure around your work",
+  featuresBody: "Save layouts for your tasks, inspect files beside the terminal, and configure the actions you use often.",
   cards: [
-    { icon: "layoutGrid", title: "GPU-accelerated terminal", body: "Tasty uses the GPU to draw the terminal. Multiple terminals can be arranged side by side.", href: "using/workflow-layouts/" },
-    { icon: "layers", title: "Workspaces for each project", body: "Each workspace has its own terminals and layout. Layouts can be saved as presets and loaded again.", href: "using/workspaces/" },
-    { icon: "folderOpen", title: "Documents and images", body: "Markdown, images, and web pages can open beside the terminal. The file explorer supports browsing, copying, and moving files.", href: "using/files/" },
-    { icon: "rocket", title: "Claude and Codex integration", body: "Multiple agents can run in separate terminals. Once configured, the integration notifies you when work finishes or input is needed.", href: "agents/claude-codex/" },
-    { icon: "gitTree", title: "Task dependencies", body: "Tasks run in the order set by their dependencies. A graph shows their progress.", href: "agents/tasks/" },
-    { icon: "terminal", title: "Terminal CLI", body: "The CLI can create terminals, split the screen, run commands, and read output. Scripts and AI agents can use these commands.", href: "agents/cli/" },
-    { icon: "textLeft", title: "Output by command", body: "Shell integration identifies each command’s output, making individual results easier to find in a long log.", href: "using/terminal/" },
-    { icon: "bell", title: "Command notifications", body: "Notifications can be configured for a command finishing or a specific message appearing in its output.", href: "agents/hooks-notifications/" },
-    { icon: "scriptFile", title: "Lua scripts", body: "Scripts can automate repeated actions. They can run from a shortcut or when windows and tabs open or close.", href: "customize/scripts/" },
-    { icon: "remote", title: "Remote access over SSH", body: "Connect to Tasty on another computer over SSH to view and operate the workspace running there.", href: "remote/attach/" },
-    { icon: "plug", title: "Plugins", body: "Plugins provide Markdown and image viewers, Git views, and other tools. Features can be enabled individually, with permissions managed for each plugin.", href: "plugins/" },
-    { icon: "theme", title: "Themes", body: "Tasty includes the dark Mocha and light Latte themes. Custom themes can be written in TOML files.", href: "customize/themes/" },
+    { icon: "layers", title: "Project workspaces", body: "Keep each project’s terminals and layout together. Use names and categories to organize your work.", href: "using/workspaces/" },
+    { icon: "layoutGrid", title: "Reusable layouts", body: "Save layouts and startup settings as presets, then apply them to new work.", href: "using/workflow-layouts/" },
+    { icon: "folderOpen", title: "File management and viewers", body: "Manage files in the Explorer and view Markdown, images, and HTML beside the terminal. Viewers are provided by plugins.", href: "using/files/" },
+    { icon: "textLeft", title: "Search and copy output", body: "Search terminal history and copy the output you need. With shell integration, the CLI can also read output by command.", href: "using/terminal/" },
+    { icon: "keyboard", title: "Keybindings that fit", body: "Choose a preset or change shortcuts for the actions you use often.", href: "customize/keybindings/" },
+    { icon: "theme", title: "Light and dark themes", body: "Choose light Latte or dark Mocha, or create a theme in a TOML file.", href: "customize/themes/" },
+  ],
+  moreLinks: [
+    { label: "Automate repeated actions with Lua", href: "customize/scripts/" },
+    { label: "Connect to remote work", href: "remote/attach/" },
+    { label: "Manage plugins", href: "plugins/" },
   ],
 
-  agentsKicker: "AI agent integration",
-  agentsTitle: "Claude Code and Codex in the same workspace",
-  agentsBody:
-    "Run multiple agents in separate terminals and check their status. After notifications are set up using the integration guide, Tasty lets you know when work finishes or an agent needs input.",
-  agentsCaption: "Claude Code and Codex CLI require separate installation. The integration guide also covers how agents delegate tasks and receive results.",
-  agentsTab: "task coordinator",
+  agentsTitle: "Control terminals through the CLI and connect your agents",
+  agentsBody: "Scripts and AI agents use the <code>tasty</code> CLI to address terminals by ID, create them, send commands, and read output. Opening a tab through the CLI keeps your current tab, focus, selection, and scroll position.",
+  agentsIntegration: "Install Claude Code and Codex CLI separately. Configure the Tasty plugins and hooks to follow agent status. The integration guide explains how to deliver a child agent’s response to its parent.",
+  agentsNote: "A notification that a response ended does not mean the task succeeded.",
+  agentsLinks: [
+    { label: "Start with the CLI", href: "agents/cli/" },
+    { label: "Connect Claude and Codex", href: "agents/claude-codex/" },
+    { label: "Task workflows", href: "agents/tasks/" },
+  ],
+  agentsCaption: "Inspect the running Tasty instance and find your targets.",
 
-  platformKicker: "Platforms",
-  platformTitle: "Available on Windows, macOS, and Linux",
-  platformBody: "Workspaces, tabs, and splits work the same way across all three operating systems. The installation guide covers setup and supported architectures for each OS.",
-  stats: [["3", "operating systems"], ["GPU", "rendering"], ["3", "UI languages"], ["MIT", "license"]],
+  platformTitle: "On Windows, macOS, and Linux",
+  platformBody: "Organize your work with workspaces, tabs, and splits. macOS support is for Apple Silicon. The installation guide lists files and requirements for each OS and architecture.",
 
-  ctaTitle: "Download Tasty",
-  ctaBody: "Installation files are available on the releases page. The guide covers installation and basic use.",
-  ctaDocs: "Read the guide",
+  ctaTitle: "Install Tasty",
+  ctaBody: "Choose the installation file for your computer and open your first workspace.",
   ctaDownload: "Download",
+  ctaInstall: "Installation guide",
 
   shellHeading: "Workspaces",
   shellTask: "prepare the next release",

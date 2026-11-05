@@ -1,10 +1,10 @@
 {
   "en": {
-    "title": "Tasty",
-    "description": "A GPU-accelerated terminal where you and your AI agents work together. Organize projects into workspaces and let agents run commands and check results. Available on Windows, macOS, and Linux."
+    "title": "Tasty — GPU-accelerated terminal",
+    "description": "A GPU-accelerated terminal for Windows, macOS, and Linux. Arrange terminals and documents with project workspaces and two levels of splitting, then add what you need with settings and plugins."
   },
   "ko": {
-    "title": "Tasty",
-    "description": "AI 에이전트와 함께 일하는 GPU 가속 터미널. 프로젝트별로 작업 공간을 나누고, 에이전트에게 명령 실행과 결과 확인을 맡기세요. Windows, macOS, Linux를 지원합니다."
+    "title": "Tasty — GPU 가속 터미널",
+    "description": "Windows, macOS, Linux에서 사용하는 GPU 가속 터미널. 프로젝트별 워크스페이스와 두 단계 화면 분할로 터미널과 문서를 배치하고, 설정과 플러그인으로 필요한 기능을 더합니다."
   }
 }

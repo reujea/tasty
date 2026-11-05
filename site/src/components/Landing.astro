@@ -6,6 +6,7 @@ import { REPO, url } from "../lib/site";
 import { releaseVersion } from "../lib/release";
 import { Icon } from "../../vendor/components/core/Icon.jsx";
 import { AppShell } from "./AppShell.jsx";
+import { WorkflowLayout } from "./diagrams/WorkflowLayout.jsx";
 import * as icon from "./icons";
 import "../styles/app-shell.css";
 import "../styles/landing.css";
@@ -15,6 +16,7 @@ const { lang } = Astro.props;
 const c = copyFor(lang);
 const version = releaseVersion(process.cwd());
 const guide = lang === "en" ? "guide/" : "ko/guide/";
+const install = `${guide}getting-started/install/`;
 const { items } = downloads(process.cwd());
 
 // `site.js` swaps the primary button to the visitor's own OS and architecture
@@ -30,39 +32,30 @@ const dataAttrs = Object.fromEntries(
     <span class="hero__eyebrow"><span class="dot"></span>{c.badge}{version && ` · v${version}`}</span>
     <p class="hero__tagline"><span class="wordmark">Tasty<b>.</b></span> {c.tagline}</p>
     <h1>{c.titleLead} <span class="accent">{c.titleAccent}</span> {c.titleTail}</h1>
+    <p class="hero__body">{c.body}</p>
     <div class="cta-row">
       <a class="btn btn--primary" id="dl-primary" href={RELEASES_URL}
          data-label={c.dlFor} {...dataAttrs}>{c.ctaPrimary}</a>
+      <a class="btn btn--ghost" href={url(install)}>{c.ctaSecondary}</a>
       <a class="btn btn--ghost" href={RELEASES_URL}>{c.ctaOther}</a>
-      <a class="btn btn--ghost" href={url(guide)}>{c.ctaSecondary}</a>
       <a class="btn btn--ghost" href={REPO}><Fragment set:html={icon.GITHUB} />GitHub</a>
     </div>
-    <p class="hero__note">
-      {c.installNote} <a href={url(`${guide}getting-started/install/`)}>{c.installNoteLink}</a>
-    </p>
+    <p class="hero__note">{c.installNote}</p>
     <div class="window"><AppShell lang={lang} heading={c.shellHeading} task={c.shellTask} client:visible /></div>
-  </section>
-
-  <section class="section">
-    <div class="split">
-      <div class="section__head" style="margin-bottom:0">
-        <h2>{c.whyTitle}</h2>
-        <p>{c.whyBody}</p>
-      </div>
-      <ul class="feature-list">
-        {c.whyPoints.map((p) => (
-          <li>
-            <span class="k">{p.key}</span>
-            <span class="v"><strong>{p.title}</strong><span>{p.body}</span></span>
-          </li>
-        ))}
-      </ul>
-    </div>
+    <p class="caption">{c.shellCaption}</p>
   </section>
 
   <section class="section">
     <div class="section__head">
-      <div class="section__kicker">{c.featuresKicker}</div>
+      <h2>{c.layoutTitle}</h2>
+      <p>{c.layoutBody}</p>
+    </div>
+    <WorkflowLayout lang={lang} caption={c.layoutCaption} />
+    <p class="link-row"><a href={url(guide + c.layoutLink.href)}>{c.layoutLink.label} →</a></p>
+  </section>
+
+  <section class="section">
+    <div class="section__head">
       <h2>{c.featuresTitle}</h2>
       <p>{c.featuresBody}</p>
     </div>
@@ -76,38 +69,36 @@ const dataAttrs = Object.fromEntries(
         </a>
       ))}
     </div>
+    <p class="link-row">
+      {c.moreLinks.map((l) => <a href={url(guide + l.href)}>{l.label} →</a>)}
+    </p>
   </section>
 
   <section class="section">
     <div class="split split--rev">
       <div>
         <div class="term">
-          <div class="term__bar"><span class="term__dots"><i></i><i></i><i></i></span> {c.agentsTab}</div>
-          <pre><code><span class="g">$</span> tasty claude spawn --workspace build \
-    --role <span class="y">implementer</span> --prompt <span class="g">"fix the flaky test"</span> \
-    | jq .child_surface_id
-<span class="c">52</span>
-
-<span class="g">$</span> tasty agent barrier-state --workspace 2 --name <span class="y">review-ready</span> \
-    | jq -c <span class="g">'&#123;state, count_signaled, count_required&#125;'</span>
-<span class="c">&#123;"state":"open","count_signaled":2,"count_required":3&#125;</span>
-
-<span class="g">$</span> tasty read queue --from 52 | jq -r <span class="g">'.messages[].content'</span>
-<span class="p">done · 1 file changed, 12 insertions</span></code></pre>
+          <div class="term__bar"><span class="term__dots"><i></i><i></i><i></i></span> tasty</div>
+          <pre><code><span class="g">$</span> tasty list info
+<span class="g">$</span> tasty list workspaces
+<span class="g">$</span> tasty list surfaces</code></pre>
         </div>
+        <p class="caption term-caption">{c.agentsCaption}</p>
       </div>
       <div class="section__head" style="margin-bottom:0">
-        <div class="section__kicker">{c.agentsKicker}</div>
         <h2>{c.agentsTitle}</h2>
-        <p>{c.agentsBody}</p>
-        <p class="caption">{c.agentsCaption}</p>
+        <p set:html={c.agentsBody} />
+        <p>{c.agentsIntegration}</p>
+        <p class="caption">{c.agentsNote}</p>
+        <p class="link-row">
+          {c.agentsLinks.map((l) => <a href={url(guide + l.href)}>{l.label} →</a>)}
+        </p>
       </div>
     </div>
   </section>
 
   <section class="section">
     <div class="section__head">
-      <div class="section__kicker">{c.platformKicker}</div>
       <h2>{c.platformTitle}</h2>
       <p>{c.platformBody}</p>
     </div>
@@ -116,19 +107,14 @@ const dataAttrs = Object.fromEntries(
       <span class="platform"><Fragment set:html={icon.APPLE} />macOS</span>
       <span class="platform"><Fragment set:html={icon.LINUX} />Linux</span>
     </div>
-    <div class="stat-row">
-      {c.stats.map(([n, l]) => (
-        <div class="stat"><div class="stat__n">{n}</div><div class="stat__l">{l}</div></div>
-      ))}
-    </div>
   </section>
 
   <section class="cta-band">
     <h2>{c.ctaTitle}</h2>
     <p>{c.ctaBody}</p>
     <div class="cta-row">
-      <a class="btn btn--primary" href={url(guide)}>{c.ctaDocs}</a>
-      <a class="btn btn--ghost" href={RELEASES_URL}>{c.ctaDownload}</a>
+      <a class="btn btn--primary" href={RELEASES_URL}>{c.ctaDownload}</a>
+      <a class="btn btn--ghost" href={url(install)}>{c.ctaInstall}</a>
     </div>
   </section>
 

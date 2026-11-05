@@ -4,7 +4,7 @@ import { TabStrip, TerminalPane } from "../../../vendor/ui_kits/terminal/work.js
 const noop = () => {};
 
 /** A static composition of the design kit, not a running terminal. */
-export function WorkflowLayout({ lang = "en", background = false }) {
+export function WorkflowLayout({ lang = "en", background = false, caption: captionOverride }) {
   const ko = lang === "ko";
   const labels = background
     ? (ko ? ["내가 읽는 로그", "탭으로 가져온 작업"] : ["The log I am reading", "Task brought into a tab"])
@@ -24,6 +24,6 @@ export function WorkflowLayout({ lang = "en", background = false }) {
         <TerminalPane session={{ id: String(i + 1), lines: lines[i] }} focused={false} />
       </div>)}
     </div>
-    <figcaption>{labels.join(" / ")} — {caption}</figcaption>
+    <figcaption>{captionOverride ?? `${labels.join(" / ")} — ${caption}`}</figcaption>
   </figure>;
 }
