@@ -196,13 +196,13 @@ function Page() {
 
       <Section id="routes" title="Transitions · not selected">
         <Spec id="transition-selection-four-states-on-one-edge-style" title="Transition selection — four states on one edge style"
-          when={<>A transition edge always keeps its lavender long dash; its <b>selection</b> changes weight and opacity only. <b>pending</b> (producer not finished) = 1px, full opacity. <b>selected</b> = <b>2px</b> (<span className="tok">--tasty-dag-edge-selected-width</span>). <b>not_selected</b> = 1px at <span className="tok">--tasty-dag-edge-dim-opacity</span>. <b>unavailable</b> (producer failed) = the existing dead-path dim, like any edge leaving a failed task. Nothing is hidden: the unchosen route stays readable.</>}>
+          when={<>A transition edge always keeps its lavender long dash; its <b>selection</b> changes weight and ink only. <b>pending</b> (producer not finished) = 1px, full opacity. <b>selected</b> = <b>2px</b> (<span className="tok">--tasty-dag-edge-selected-width</span>). <b>not_selected</b> = 1px in <span className="tok">--tasty-dag-edge-dim</span>, a solid neutral with a 3:1 floor. <b>unavailable</b> (producer failed) = the same dead-path ink, like any edge leaving a failed task. The hue drops and the long dash stays, so the relation still reads. Nothing is hidden: the unchosen route stays readable, on a running run and on a finished one.</>}>
           <Stage variant="grid" style={{ display: "flex", gap: 32, padding: 20, alignItems: "flex-start", flexWrap: "wrap" }}>
             {[["pending", 1, 1], ["selected", 2, 1], ["not_selected", 1, 0.4], ["unavailable", 1, 0.4]].map(([s, w, o]) => (
               <div key={s} style={{ display: "flex", flexDirection: "column", gap: 6, alignItems: "center" }}>
-                <svg data-audit-exempt={o < 1 ? "dimmed" : undefined} width="120" height="56" viewBox="0 0 120 56" aria-hidden="true" style={{ opacity: o < 1 ? "var(--tasty-dag-edge-dim-opacity)" : 1 }}>
-                  <path d={elbow({ x: 12, y: 8 }, { x: 108, y: 48 }, true, 4)} fill="none" stroke="var(--tasty-dag-edge-transition)" strokeWidth={w} strokeDasharray="10 4" />
-                  <polygon points="104,41 112,41 108,48" fill="var(--tasty-dag-edge-transition)" />
+                <svg width="120" height="56" viewBox="0 0 120 56" aria-hidden="true">
+                  <path d={elbow({ x: 12, y: 8 }, { x: 108, y: 48 }, true, 4)} fill="none" stroke={o < 1 ? "var(--tasty-dag-edge-dim)" : "var(--tasty-dag-edge-transition)"} strokeWidth={w} strokeDasharray="10 4" />
+                  <polygon points="104,41 112,41 108,48" fill={o < 1 ? "var(--tasty-dag-edge-dim)" : "var(--tasty-dag-edge-transition)"} />
                 </svg>
                 <span style={{ fontFamily: "var(--tasty-font-mono)", fontSize: 11, color: "var(--tasty-dag-edge-transition)" }}>{s}</span>
               </div>
@@ -215,8 +215,8 @@ function Page() {
             <NodeBox node={mk({ status: "skipped", name: "notify:ops", kind: "custom", dur: null })} dimmed caption="skipped — upstream unavailable" />
           </Stage>
           <Meta
-            specs={[["pending", "1px · full opacity"], ["selected", "2px · dag-edge-selected-width"], ["not_selected", "1px · dim 0.4"], ["unavailable", "dead-path dim, as from a failed task"], ["not-selected node", "skipped look (dimmed card, ⊘ glyph — canonical for both skip reasons; − is cancelled) · label NOT SELECTED · tooltip = kit nodeTitle(): “{name} — not selected” + “Why: Not selected by the upstream result” (2026-10-09)"], ["upstream-unavailable node", "skipped look · label SKIPPED · tooltip = nodeTitle(): “{name} — skipped” + “Why: An upstream task did not succeed”"], ["rollup", "succeeded + not selected only → succeeded"], ["skip count", "DAG list row + DAG tab header, after done/total: “{done} / {total} · {n} skipped ({k} not selected)” — shown only when n > 0, parenthesis only when k > 0 · same mono caption, dag-row-count-fg · not clickable"], ["filter", "no new list filter"], ["legend", "none — the relation reads from the dependency rows in Node detail; the canvas carries no legend"]]}
-            tokens={[{ tok: "--tasty-dag-edge-transition", use: "route", color: "var(--tasty-dag-edge-transition)" }, { tok: "--tasty-dag-edge-selected-width", use: "→ focus-ring-width 2" }, { tok: "--tasty-dag-edge-dim-opacity", use: "not selected / unavailable" }, { tok: "--tasty-dag-status-skipped", use: "both skip reasons", color: "var(--tasty-dag-status-skipped)" }]} />
+            specs={[["pending", "1px · full opacity"], ["selected", "2px · dag-edge-selected-width"], ["not_selected", "1px · dag-edge-dim · long dash"], ["unavailable", "1px · dag-edge-dim, as from a failed task"], ["not-selected node", "skipped look (dimmed card, ⊘ glyph — canonical for both skip reasons; − is cancelled) · label NOT SELECTED · tooltip = kit nodeTitle(): “{name} — not selected” + “Why: Not selected by the upstream result” (2026-10-09)"], ["upstream-unavailable node", "skipped look · label SKIPPED · tooltip = nodeTitle(): “{name} — skipped” + “Why: An upstream task did not succeed”"], ["rollup", "succeeded + not selected only → succeeded"], ["skip count", "DAG list row + DAG tab header, after done/total: “{done} / {total} · {n} skipped ({k} not selected)” — shown only when n > 0, parenthesis only when k > 0 · same mono caption, dag-row-count-fg · not clickable"], ["filter", "no new list filter"], ["legend", "none — the relation reads from the dependency rows in Node detail; the canvas carries no legend"]]}
+            tokens={[{ tok: "--tasty-dag-edge-transition", use: "route", color: "var(--tasty-dag-edge-transition)" }, { tok: "--tasty-dag-edge-selected-width", use: "→ focus-ring-width 2" }, { tok: "--tasty-dag-edge-dim", use: "not selected / unavailable", color: "var(--tasty-dag-edge-dim)" }, { tok: "--tasty-dag-status-skipped", use: "both skip reasons", color: "var(--tasty-dag-status-skipped)" }]} />
           <Note>A branch that was not taken is a normal outcome, so it gets <b>no new colour</b>: it shares the skipped card and differs only in its spelled label and tooltip. i18n: <code>dag.status.not_selected</code> “not selected” · <code>dag.why.branch_not_selected</code> · <code>dag.why.upstream_unavailable</code> (2026-10-09 — replaces the retired <code>dag.skip.*</code> keys) · <code>dag.rel.binding</code> “binds input” · <code>dag.rel.transition</code> “transition”.</Note>
         </Spec>
       </Section>
@@ -394,7 +394,7 @@ export const page = {
   nav: NAV,
   head: {
   title: "Task DAG",
-  intro: "The read-only view onto an agent-built task graph — a full-tab surface and a workspace popup, sharing one canvas. Observation only: no ports, no drag-to-connect, no editing.",
+  intro: "Inspect a task graph in a tab or workspace popup. Compare execution states, edges, lists, and detail views. Create and edit tasks through the CLI.",
   
 },
   content: <Page />,

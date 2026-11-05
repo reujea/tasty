@@ -510,7 +510,7 @@ export const page = {
   nav: NAV,
   head: {
     title: "Explorer — file operations",
-    intro: "Design for the explorer file-operation contract (2026-10-09): creating items and where commands live, drag & drop, progress / conflicts / results / undo, properties and preview, and filter / search. Builds on the explorer surface on the Plugin surfaces page and reuses its parts.",
+    intro: "See how the Explorer creates, moves, and inspects files. Compare examples of search, remote writes, deletion, progress, name conflicts, properties, and operation results.",
     
   },
   content: <Page />,

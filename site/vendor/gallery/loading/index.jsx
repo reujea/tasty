@@ -303,7 +303,7 @@ export const page = {
   nav: NAV,
   head: {
   title: "Chrome · Startup",
-  intro: "The boot loading screen shown from the first GPU frame to Ready — app-background fill, centered brand lockup + spinner + phase slot. App chrome (spinner may animate), non-interactive, frame-drop tolerant. Mirrors egui render_loading.",
+  intro: "Explore startup screens through to readiness, first-run shell setup, shutdown, and boot errors. Compare the guidance and progress indicators at each stage.",
   
 },
   content: <Page />,

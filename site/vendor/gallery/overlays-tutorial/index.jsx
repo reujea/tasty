@@ -211,7 +211,7 @@ export const page = {
   nav: NAV,
   head: {
   title: "Overlays · Tutorial",
-  intro: "The 6th overlay family — a message-less geometric Marker, its guidance Callout, and the Topic-list popup that launches them. Opened from Tools → Tutorial.",
+  intro: "Explore tutorial markers, callouts, and the topic list. See how these elements work together to guide someone through the parts of the app.",
   
 },
   content: <Page />,

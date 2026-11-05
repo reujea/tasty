@@ -705,7 +705,7 @@ export const page = {
   nav: NAV,
   head: {
     title: "Foundations",
-    intro: "Tasty's tokens — but never in a vacuum. Each value is shown inside the thing it builds, with a plain statement of what it's for. A token with no usage is just a number; here every one earns its place.",
+    intro: "See how Tasty's colours, spacing, and typography work in context. Each example shows where a token is used and what it controls.",
     
   },
   content: <Foundations />,

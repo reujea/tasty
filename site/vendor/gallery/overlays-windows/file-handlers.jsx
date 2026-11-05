@@ -57,7 +57,7 @@ const CONTRAST_SPECS = [
 const NARROW_SPECS = [
   ["line 1 fit order", "1 origin Tags collapse → “N sources” · 2 pending Tag leaves line 1 · 3 id ellipsizes — each step only while the id would ellipsize; undone once the line is back to the width it had when the step was taken"],
   ["id floor", "min(file-handler-id-min-width 96, full id width) once the pending Tag has dropped · tooltip = full id"],
-  ["dropped pending Tag", "own line between line 1 and the summary, gap space-xs · Tag disabled · max-width 100%, ellipsis, tooltip = full text"],
+  ["dropped pending Tag", "own line between line 1 and the summary, gap space-xs · neutral Tag · max-width 100%, ellipsis, tooltip = full text"],
   ["never shrink", "Switch + trailing slot (Remove / Undo / lock) · prio"],
 ];
 const ROW_SPECS = [["row", "2 lines · padding space-sm space-xs · gap space-xs · bottom 1px separator"], ["line 1", "min-height button-height-sm · gap space-sm · id mono body 13 semibold (ellipsis, full id in tooltip) · origin Tag · [prio N micro] · [pending Tag] · spacer · Switch · trailing slot"],
@@ -80,8 +80,7 @@ const TOKENS = [
   { tok: "--tasty-file-handler-prio-fg", use: "→ text-muted", color: "var(--tasty-file-handler-prio-fg)" },
   { tok: "--tasty-file-handler-summary-fg", use: "→ text-secondary", color: "var(--tasty-file-handler-summary-fg)" },
   { tok: "--tasty-file-handler-empty-fg", use: "→ text-muted", color: "var(--tasty-file-handler-empty-fg)" },
-  { tok: "--tasty-tag-disabled-bg", use: "added / removed on save Tag", color: "var(--tasty-tag-disabled-bg)" },
-  { tok: "--tasty-file-handler-form-info-fg", use: "new · → text-secondary-raised", color: "var(--tasty-file-handler-form-info-fg)" },
+    { tok: "--tasty-file-handler-form-info-fg", use: "new · → text-secondary-raised", color: "var(--tasty-file-handler-form-info-fg)" },
   { tok: "--tasty-file-handler-summary-removed-fg", use: "new · → text-muted", color: "var(--tasty-file-handler-summary-removed-fg)" },
 ];
 
@@ -124,7 +123,7 @@ function FileHandlerSection() {
       </Spec>
 
       <Spec id="remove-a-user-contribution-the-row-stays" title="Remove a user contribution — the row stays"
-        when={<>On a row with other sources, Remove takes out <b>only the user part</b>. The row is <b>not struck</b>: only the <b>user Tag</b> is struck (Tag disabled), the user rule pieces in line 2 are struck in <code>summary-removed-fg</code>, and the pending Tag says what goes: <b>your rules removed on save</b>, or <b>your override removed on save</b> for a rule-less patch. The Switch is disabled and shows the state the row will have <b>after Save</b> (the plugin default for <code>notebook</code>). Undo restores the row. A row with <b>only</b> a user contribution keeps the old idiom: whole id struck, <b>removed on save</b>.</>}>
+        when={<>On a row with other sources, Remove takes out <b>only the user part</b>. The row is <b>not struck</b>: only the <b>user Tag</b> is struck, in its normal ink, the user rule pieces in line 2 are struck in <code>summary-removed-fg</code>, and the pending Tag says what goes: <b>your rules removed on save</b>, or <b>your override removed on save</b> for a rule-less patch. The Switch is disabled and shows the state the row will have <b>after Save</b> (the plugin default for <code>notebook</code>). Undo restores the row. A row with <b>only</b> a user contribution keeps the old idiom: whole id struck, <b>removed on save</b>.</>}>
         <Stage variant="solo" style={st}><Pane k="det" unpatch /></Stage>
         <Stage variant="solo" style={st}><Pane k="det" unpatch pending /></Stage>
         <Note>Strings: <code>file_detector.pending.yours_removed</code> “your rules removed on save” · <code>.pending.override_removed</code> “your override removed on save” · <code>.pending.removed</code> “removed on save”.</Note>
@@ -177,7 +176,7 @@ function FileHandlerSection() {
       </Spec>
 
       <Spec id="pending-added-on-save-removed-on-save" title="Pending — added on save · removed on save"
-        when={<>Nothing is written until the Settings <b>Save</b>; Cancel drops it. Add <b>closes the card</b> and puts the entry <b>in the list at its sort position</b> with a disabled Tag <b>added on save</b>; Undo (same slot as Remove) takes it out. Remove keeps the row, strikes the id, shows <b>removed on save</b>, disables its Switch and turns Remove into Undo. Same pair as File Extension Mapping and Hook Handlers.</>}>
+        when={<>Nothing is written until the Settings <b>Save</b>; Cancel drops it. Add <b>closes the card</b> and puts the entry <b>in the list at its sort position</b> with a neutral Tag <b>added on save</b>; Undo (same slot as Remove) takes it out. Remove keeps the row, strikes the id, shows <b>removed on save</b>, disables its Switch and turns Remove into Undo. Same pair as File Extension Mapping and Hook Handlers.</>}>
         <Stage variant="solo" style={st}><Pane k="det" pending /></Stage>
         <Stage variant="solo" style={st}><Pane k="hdl" pending /></Stage>
       </Spec>

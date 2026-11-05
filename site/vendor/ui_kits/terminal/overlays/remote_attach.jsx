@@ -192,13 +192,13 @@ function RaRemoteWsRow({ w, selected, onSelect }) {
         background: selected ? "var(--tasty-surface-active)" : (!disabled && hover) ? "var(--tasty-overlay-hover)" : "transparent",
         boxShadow: selected ? "inset var(--tasty-listctrl-selected-bar-width) 0 0 var(--tasty-listctrl-selected-bar)" : "none" }}>
       {/* execution dot — busy=running(green), else idle */}
-      <span style={{ flex: "none", display: "inline-flex", alignItems: "center", opacity: disabled ? 0.5 : 1 }}>
+      <span style={{ flex: "none", display: "inline-flex", alignItems: "center" }}>
         <StatusDot status={w.busy ? "running" : "idle"} pulse={w.busy} />
       </span>
       <span style={{ flex: "0 1 auto", minWidth: 0, fontSize: 13, fontWeight: 500, lineHeight: "var(--tasty-line-height-ui)",
-        color: disabled ? "var(--tasty-text-disabled)" : selected ? "var(--tasty-text-primary)" : "var(--tasty-text-secondary)",
+        color: disabled ? "var(--tasty-text-muted)" : selected ? "var(--tasty-text-primary)" : "var(--tasty-text-secondary)",
         overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{w.name}</span>
-      <span style={{ flex: "none", display: "inline-flex", alignItems: "center", gap: 4, ...raCaption, opacity: disabled ? 0.6 : 1 }}>
+      <span style={{ flex: "none", display: "inline-flex", alignItems: "center", gap: 4, ...raCaption }}>
         <Icon name={RA_IC.panes} size={12} />{w.panes}
       </span>
       <div style={{ flex: 1 }} />

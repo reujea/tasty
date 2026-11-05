@@ -142,13 +142,13 @@ function DagCanvas({ dag, dir = "td", onDirChange, selected, onSelect, minimap =
         transform: `translate(${o.x}px, ${o.y}px) scale(${z})`, transformOrigin: "0 0" }}>
         <svg width={g.width} height={g.height} style={{ position: "absolute", top: 0, left: 0, overflow: "visible" }} aria-hidden="true">
           {edges.map((e) => {
-            const color = e.hot ? "var(--tasty-dag-edge-highlight)" : DAG_REL[e.rel].color;
+            const color = e.hot ? "var(--tasty-dag-edge-highlight)" : e.dim ? "var(--tasty-dag-edge-dim)" : DAG_REL[e.rel].color;
             const dash = DAG_REL[e.rel].dash;
             const head = e.td
               ? `${e.t.x - 4},${e.t.y - 7} ${e.t.x + 4},${e.t.y - 7} ${e.t.x},${e.t.y}`
               : `${e.t.x - 7},${e.t.y - 4} ${e.t.x - 7},${e.t.y + 4} ${e.t.x},${e.t.y}`;
             return (
-              <g key={e.key} style={{ opacity: e.dim ? "var(--tasty-dag-edge-dim-opacity)" : 1 }}>
+              <g key={e.key}>
                 <path d={e.d} fill="none" stroke={color} strokeWidth="1" strokeDasharray={dash || undefined} />
                 <polygon points={head} fill={color} />
               </g>

@@ -926,7 +926,7 @@
   --tasty-fp-footer-pad-y:            var(--tasty-space-sm);  /* 8 — footer x inset = fp-inset-start on both sides */
   --tasty-fp-footer-label-width:      var(--tasty-size-64);   /* "File name" label column */
   --tasty-fp-filter-height:           var(--tasty-control-height); /* 28 — the file-type filter chip matches the Input beside it (was 30) */
-  --tasty-fp-folder-file-fg:          var(--tasty-state-disabled-fg); /* 2026-10-21 folder mode — inert file row ink (glyph, name, size, date); no opacity */
+  --tasty-fp-folder-file-fg:          var(--tasty-text-muted); /* 2026-11-05 folder mode — file row ink (glyph, name, size, date). Not selectable, but read for orientation, so it meets 4.5. No opacity */
   --tasty-fp-folder-path-fg:          var(--tasty-input-readonly-fg); /* folder mode — target path readout ink (text-secondary) in the read-only box */
   --tasty-fp-folder-hint-fg:          var(--tasty-text-muted);        /* folder mode — footer hint line under the Folder row */
   --tasty-fp-filter-max-width:        var(--tasty-field-width-md); /* 160 — READ-ONLY filter chip: content width up to this, then front-kept ellipsis + tooltip with the full list (2026-10-06) */
@@ -1027,7 +1027,9 @@
   --tasty-preset-cfg-field-gap:       var(--tasty-space-md);  /* 12 between fields */
   --tasty-preset-cfg-draft-fg:        var(--tasty-accent-warning-raised); /* 2026-11-05 ground-ink rules */
   --tasty-preset-cfg-dim-opacity:     var(--tasty-state-dim-opacity); /* list + scope tabs while open (inert, not disabled) */
-  --tasty-cut-pending-opacity:        var(--tasty-state-dim-opacity); /* explorer: file cut, waiting for paste (icon + label) */
+  --tasty-cut-pending-opacity:        var(--tasty-state-dim-opacity); /* DEPRECATED 2026-11-05: no reader. A cut row reads cut-pending-fg */
+  --tasty-cut-pending-fg:             var(--tasty-text-muted); /* 2026-11-05 explorer: file cut, waiting for paste. Glyph and every text cell */
+  --tasty-cut-pending-font-style:     italic; /* @kind other */ /* the name of a cut row, so the state does not rest on ink alone */
 
   /* ─────────────────  CHROME · SWITCH-NUMBER OVERLAY  ───────────────── */
   /* Transient number keycaps painted over tabs / workspaces WHILE the
@@ -1251,7 +1253,9 @@
   --tasty-dag-edge-dash-reduce:      2 3; /* @kind other */
   --tasty-dag-edge-corner-radius:    var(--tasty-radius);   /* orthogonal elbow */
   --tasty-dag-edge-arrow-size:       var(--tasty-size-8);
-  --tasty-dag-edge-dim-opacity:      var(--tasty-opacity-recessed);
+  --tasty-dag-edge-dim-opacity:      var(--tasty-opacity-recessed); /* DEPRECATED 2026-11-05: no reader. A dim edge reads dag-edge-dim */
+  --tasty-dag-edge-dim:              var(--tasty-border-control); /* 2026-11-05 not selected, dead path. Solid, 3:1 floor. Hue drops, the dash keeps the relation */
+  --tasty-dag-minimap-node-dim:      var(--tasty-border-control); /* 2026-11-05 skipped and cancelled nodes on the minimap. Solid, 3:1 floor */
   --tasty-dag-edge-highlight:        var(--tasty-accent-primary); /* edges of the selected node */
 
   /* Canvas chrome — zoom cluster + minimap, bottom-right overlay. */

@@ -17,7 +17,7 @@ const GROUNDS = [
 
 function GalleryScrimGrounds() {
   return (
-    <Spec id="scrim-grounds" title="Scrim over each ground">
+    <Spec id="scrim-grounds" title="Scrim over each ground" when="Use a scrim to distinguish the inactive region behind a modal or popup. Compare the same scrim over each ground, with the frame above it on the panel ground.">
       <Stage variant="solo" eager style={{ padding: "var(--tasty-space-md)", background: "var(--tasty-bg-panel)", gap: "var(--tasty-space-sm)" }}>
         {GROUNDS.map(([id, ground]) => (
           <figure key={id} style={{ margin: 0 }}>

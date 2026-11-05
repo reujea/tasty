@@ -62,7 +62,7 @@ function HtmlRemoteBanner({ state = "blocked", hover = false, narrow = false }) 
         <span style={{ display: "inline-flex", flex: "none", alignSelf: "flex-start", marginTop: "var(--tasty-banner-glyph-offset)", color: "var(--tasty-html-remote-banner-glyph)" }}>
           <RcIcon name="globeOff" size="var(--tasty-icon-size-md)" />
         </span>
-        <div data-audit-exempt={reloading ? "dimmed" : undefined} style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: "var(--tasty-banner-text-gap)", opacity: reloading ? "var(--tasty-opacity-dimmed)" : 1 }}>
+        <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: "var(--tasty-banner-text-gap)" }}>
           <div style={{ fontSize: "var(--tasty-banner-title-font-size)", fontWeight: "var(--tasty-font-weight-semibold)", lineHeight: "var(--tasty-line-height-ui)", textWrap: "pretty" }}>{RC_COPY.title}</div>
           <div style={{ fontSize: "var(--tasty-banner-body-font-size)", lineHeight: "var(--tasty-line-height-ui)", color: "var(--tasty-banner-body-fg)", textWrap: "pretty" }}>{RC_COPY.body}</div>
         </div>

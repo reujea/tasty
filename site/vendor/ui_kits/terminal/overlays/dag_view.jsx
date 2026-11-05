@@ -433,7 +433,7 @@ function Minimap({ g, dag, z, ox, oy, vw, vh, dir }) {
         {dag.nodes.map((n) => {
           const p = g.pos[n.id];
           return <rect key={n.id} x={dx + p.x * k} y={dy + p.y * k} width={Math.max(2, NODE_W * k)} height={Math.max(2, NODE_H * k)}
-            fill={sTok(n.status)} style={{ opacity: DIM_STATUS.has(n.status) ? "var(--tasty-dag-edge-dim-opacity)" : 1 }} />;
+            fill={DIM_STATUS.has(n.status) ? "var(--tasty-dag-minimap-node-dim)" : sTok(n.status)} />;
         })}
         <rect x={dx + (-ox / z) * k} y={dy + (-oy / z) * k} width={(vw / z) * k} height={(vh / z) * k}
           fill="none" stroke="var(--tasty-dag-minimap-viewport)" strokeWidth="1" />

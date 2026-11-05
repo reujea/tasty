@@ -106,9 +106,10 @@ function PermEditor({ L, mode, from, folder, state = "editing", special, reason,
   const box = { position: "relative", boxSizing: "border-box", maxWidth: "100%", minWidth: 0, display: "flex", flexDirection: "column", gap: "var(--tasty-space-sm)", marginTop: "var(--tasty-space-xs)", marginBottom: "var(--tasty-space-xs)", padding: "var(--tasty-space-sm)",
     border: "var(--tasty-border-width) solid var(--tasty-explorer-props-perm-border)", borderRadius: "var(--tasty-radius)" };
   const buttons = (changed) => (
-    <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "flex-end", gap: "var(--tasty-space-sm)" }}>
+    <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "flex-end", alignItems: "center", gap: "var(--tasty-space-sm)" }}>
+      {busy && <span style={{ display: "inline-flex", alignItems: "center", gap: "var(--tasty-space-sm)", fontSize: "var(--tasty-font-size-caption)", color: "var(--tasty-text-muted)" }}><Spinner size="var(--tasty-icon-size-sm)" />{L.applying}</span>}
       <Button variant="ghost" size="sm" disabled={busy}>{L.cancel}</Button>
-      <Button variant="primary" size="sm" disabled={busy || !changed} leadingIcon={busy ? <Spinner size="var(--tasty-icon-size-sm)" /> : null}>{busy ? L.applying : L.apply}</Button>
+      <Button variant="primary" size="sm" disabled={busy || !changed}>{L.apply}</Button>
     </div>
   );
   const err = state === "failed" && (

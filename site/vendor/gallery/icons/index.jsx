@@ -303,7 +303,7 @@ export const page = {
   nav: NAV,
   head: {
     title: "Icons",
-    intro: "The canonical glyph set — every icon the product draws, by name, one file per glyph in icons/*.svg. One geometry (24px box, 2px stroke, currentColor), grouped by the job it does. Reach for <Icon name=\"…\"/> instead of re-inlining an SVG path in a new overlay; hover a tile for its role.",
+    intro: "Find an icon by its name or purpose. Hover over a tile to learn its role, and use the shared Icon component to keep icons consistent across the app.",
     
   },
   content: <Icons />,

@@ -306,7 +306,7 @@ export const page = {
   nav: NAV,
   head: {
     title: "Popups & menus",
-    intro: "Anchored, scrim-less surfaces — they never dim the app. Lightweight menus, the headless search bar, the transient switch-number keycaps, and the held-modifier hint panel. None take the modal layer; each has its own dismissal (outside click, Esc, or key release).",
+    intro: "Explore menus, search bars, switch overlays, and modifier hints. Check their placement and dismissal, and compare opaque overlays above a web page.",
     
   },
   content: <Page />,

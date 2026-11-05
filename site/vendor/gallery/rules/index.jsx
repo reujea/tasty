@@ -139,7 +139,7 @@ function Rules() {
 export const page = {
   active: "rules",
   nav: [{ id: "table", label: "Ground by role" }, { id: "groups", label: "Colors told apart" }],
-  head: { title: "Ground and ink rules", intro: "The table behind every color choice. The rules are in RULES.md and the data is in tokens/ground-ink-rules.json." },
+  head: { title: "Ground and ink rules", intro: "See which colours text and icons use on each ground. Work through the nine groups to compare role tokens and contrast in the current theme." },
   content: <Rules />,
 };
 

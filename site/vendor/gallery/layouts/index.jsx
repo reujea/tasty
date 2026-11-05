@@ -1062,7 +1062,7 @@ export const page = {
   nav: NAV,
   head: {
     title: "Layouts",
-    intro: "The structural shells — how regions are sized and composed. Two navigation idioms (1-depth list→detail, 2-depth tabs→sections) cover most surfaces. Turn on Specs to overlay the 4px grid and width rails on each region.",
+    intro: "Explore how sidebars, tabs, split regions, status bars, and title bars form the app shell. Compare states and views, then check dimensions and tokens in the always-visible Specs.",
     
   },
   content: <Layouts />,

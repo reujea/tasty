@@ -69,7 +69,7 @@ const statusDots = (state, host) => (
 );
 const toasts = () => (
   <>
-    {[["info", "info"], ["success", "check"], ["warning", "alertTriangle"], ["danger", "x"], ["agent", "sparkles"]].map(([variant, name]) => (
+    {[["info", "info"], ["success", "check"], ["warning", "alertTriangle"], ["danger", "close"], ["agent", "agent"]].map(([variant, name]) => (
       <Toast key={variant} variant={variant} data-part={"accent." + variant} icon={<Icon name={name} />}>Toast</Toast>
     ))}
   </>

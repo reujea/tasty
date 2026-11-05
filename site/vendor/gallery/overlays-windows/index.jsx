@@ -89,10 +89,10 @@ function FontOverrideG({ long = false }) {
   const ud = long ? "既定値を使用" : "Use default";
   const rows = [
     ["Font family", <span style={{ display: "flex", width: "var(--tasty-field-width-lg)" }}><Input block defaultValue="D2Coding" icon={<WIcon name="search" />} /></span>, false],
-    ["Custom font file", <span style={{ display: "flex", width: "var(--tasty-field-width-lg)" }}><Input block mono readOnly placeholder="~/fonts/MyFont.ttf" /></span>, true],
+    ["Custom font file", <span style={{ display: "flex", width: "var(--tasty-field-width-lg)" }}><Input block mono readOnly /></span>, true],
     ["Font size", <span style={{ display: "flex", width: "var(--tasty-field-width-xs)" }}><Input block mono defaultValue="14" addon="px" /></span>, false],
     ["Line height", <span style={{ display: "flex", width: "var(--tasty-field-width-xs)" }}><Input block mono readOnly defaultValue="1.2" /></span>, true],
-    ["Font DPI scaling", <WSelect options={["Follow display"]} style={{ width: "var(--tasty-field-width-md)" }} />, true],
+    ["Font DPI scaling", <span style={{ display: "flex", width: "var(--tasty-field-width-md)" }}><Input block readOnly defaultValue="Follow display" /></span>, true],
   ];
   // 2026-10-06 (b2) — preview content: the surface's EFFECTIVE background + effective font, four sample lines
   // (latin · hangul · digits · kana), inside the kit box edge. bg-app / bg-panel are stand-ins for the runtime
@@ -112,7 +112,7 @@ function FontOverrideG({ long = false }) {
         {rows.map(([label, ctl, def]) => (
           <div key={label} style={{ display: "flex", alignItems: "center", flexWrap: "wrap", columnGap: "var(--tasty-space-lg)", rowGap: "var(--tasty-space-xs)", minHeight: "var(--tasty-settings-row-min-height)", padding: "var(--tasty-space-xs) 0" }}>
             <span style={{ flex: "none", width: "var(--tasty-settings-label-width)", fontSize: "var(--tasty-font-size-body)", color: "var(--tasty-text-secondary)" }}>{label}</span>
-            <span data-audit-exempt={def ? "dimmed" : undefined} style={{ flex: "none", display: "flex", opacity: def ? "var(--tasty-state-dim-opacity)" : undefined }}>{ctl}</span>
+            <span style={{ flex: "none", display: "flex" }}>{ctl}</span>
             <WCheckbox label={ud} checked={def} />
           </div>
         ))}
@@ -287,13 +287,12 @@ function PluginAvatarG({ initial, size = "sm" }) {
 function PluginRowG({ name, meta, state = "rest", disabled }) {
   const bg = state === "selected" ? "var(--tasty-surface-active)" : state === "hover" ? "var(--tasty-overlay-hover)" : "transparent";
   return (
-    <div data-audit-exempt={disabled ? "dimmed" : undefined} style={{ display: "flex", alignItems: "center", gap: "var(--tasty-space-sm)", width: 260,
+    <div style={{ display: "flex", alignItems: "center", gap: "var(--tasty-space-sm)", width: 260,
       padding: "var(--tasty-space-sm)", borderRadius: "var(--tasty-radius)", background: bg,
-      boxShadow: state === "selected" ? "inset var(--tasty-selection-edge-width) 0 0 var(--tasty-accent-primary)" : "none",
-      opacity: disabled ? "var(--tasty-state-dim-opacity)" : 1 /* disabled PLUGIN = dimmed item, still selectable */ }}>
+      boxShadow: state === "selected" ? "inset var(--tasty-selection-edge-width) 0 0 var(--tasty-accent-primary)" : "none" /* disabled PLUGIN stays selectable, so its name is read: muted ink, never opacity */ }}>
       <PluginAvatarG initial={name.charAt(0).toUpperCase()} />
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontSize: "var(--tasty-font-size-body)", color: "var(--tasty-text-primary)" }}>{name}</div>
+        <div style={{ fontSize: "var(--tasty-font-size-body)", color: disabled ? "var(--tasty-text-muted)" : "var(--tasty-text-primary)" }}>{name}</div>
         <div style={{ marginTop: 2, fontFamily: "var(--tasty-font-mono)", fontSize: "var(--tasty-font-size-micro)", color: "var(--tasty-text-muted)" }}>{meta}</div>
       </div>
     </div>
@@ -684,9 +683,9 @@ function ClampDemo() {
 function ZOrderDemo() {
   return (
     <div style={{ position: "relative", width: 320, height: 200 }}>
-      <div data-audit-exempt="dimmed" style={{ position: "absolute", left: 0, top: 0, opacity: "var(--tasty-state-dim-opacity)" }}>
-        <FauxPopup w={190} h={66} title="behind — inert" grab={false}>
-          <div style={{ color: "var(--tasty-text-disabled)" }}>handles don't respond</div>
+      <div style={{ position: "absolute", left: 0, top: 0 }}>
+        <FauxPopup w={190} h={66} title="behind" grab={false}>
+          <div style={{ color: "var(--tasty-text-muted)" }}>handles don't respond</div>
         </FauxPopup>
       </div>
       <div style={{ position: "absolute", right: 0, bottom: 0 }}>
@@ -925,20 +924,18 @@ function Page() {
         <Spec id="new-workspace-row-rest-hover-selected-creating-failed" title="New-workspace row — rest · hover · selected · creating · failed"
           when={<>All five row states at pane width (440px), each with the first real ws row beneath so the shared alignment line is visible. <b>Creating</b> swaps the glyph for a 14px <b>Spinner</b> and the label for “Creating workspace…” (§6-3: inline, not a full-pane takeover — the user keeps the list they were reading, and the roundtrip is seconds, not minutes). <b>Failed</b> keeps the row and hangs the remote's own message under it with a <b>Try again</b> button (§6-4), clamped to 3 lines with the full text in <span className="tok">title</span>.</>}>
           <Stage variant="solo center" style={{ padding: 20, background: "var(--tasty-bg-app)", gap: 16, flexWrap: "wrap", alignItems: "flex-start" }}>
-            {[["rest", {}], ["hover", { hover: true }], ["selected", { selected: true }], ["creating (list dims, Connect disabled)", { selected: true, phase: "creating" }], ["create failed — inline, list kept", { selected: true, phase: "failed" }]].map(([label, p]) => (
+            {[["rest", {}], ["hover", { hover: true }], ["selected", { selected: true }], ["creating (list muted, Connect disabled)", { selected: true, phase: "creating" }], ["create failed — inline, list kept", { selected: true, phase: "failed" }]].map(([label, p]) => (
               <div key={label} style={{ display: "flex", flexDirection: "column", gap: 6, width: 440 }}>
                 <div style={{ fontSize: 11, color: "var(--tasty-text-muted)" }}>{label}</div>
                 <div style={{ background: "var(--tasty-bg-panel)", border: "1px solid var(--tasty-border-strong)", borderRadius: "var(--tasty-radius)", overflow: "hidden" }}>
                   <RaNewRow {...p} />
-                  <div data-audit-exempt={p.phase === "creating" ? "dimmed" : undefined} style={{ opacity: p.phase === "creating" ? "var(--tasty-state-dim-opacity)" : 1 }}>
-                    <RaWsPeek />
-                  </div>
+                  <RaWsPeek muted={p.phase === "creating"} />
                 </div>
               </div>
             ))}
           </Stage>
           <Meta
-            specs={[["rest", "transparent · accent glyph + label"], ["hover", <span className="tok">--tasty-overlay-hover</span>], ["selected", <>+ 2px inset accent bar · label switches to <span className="tok">--tasty-text-primary</span> (accent on <span className="tok">--tasty-surface-active</span> is only 3.17:1) — identical to a ws row</>], ["creating", "Spinner 14 in the glyph slot · label muted · list dimmed, not replaced"], ["failed", "danger glyph · message clamp 3 lines · Try again (secondary sm)"], ["motion", "state swaps are instant (0ms) — the Spinner is the one allowed exception"]]}
+            specs={[["rest", "transparent · accent glyph + label"], ["hover", <span className="tok">--tasty-overlay-hover</span>], ["selected", <>+ 2px inset accent bar · label switches to <span className="tok">--tasty-text-primary</span> (accent on <span className="tok">--tasty-surface-active</span> is only 3.17:1) — identical to a ws row</>], ["creating", "Spinner 14 in the glyph slot · label muted · list names in text-muted, not replaced, no opacity"], ["failed", "danger glyph · message clamp 3 lines · Try again (secondary sm)"], ["motion", "state swaps are instant (0ms) — the Spinner is the one allowed exception"]]}
             tokens={[{ tok: "--tasty-accent-primary", use: "rest / selected label", color: "var(--tasty-accent-primary-raised)" }, { tok: "--tasty-text-muted", use: "creating label", color: "var(--tasty-text-muted)" }, { tok: "--tasty-accent-danger", use: "failed glyph + message", color: "var(--tasty-accent-danger-raised)" }]} />
           <Note><b>i18n.</b> “New workspace” grows to “Neuer Arbeitsbereich” / “새 워킬스페이스”. The label is <span className="tok">flex: 0 1 auto; min-width: 0</span> with single-line ellipsis and the trailing “on remote” caption is the first thing to be pushed out — the row never wraps and never grows past 34px.</Note>
         </Spec>
@@ -960,7 +957,7 @@ function Page() {
           <Note>
             <b>1 · empty state</b> — <b>plan B</b> (list path, one pre-selected row). One render branch, one confirm route.<br />
             <b>2 · distinction</b> — <span className="ic">plus</span> glyph in the dot slot <b>+</b> accent label <b>+</b> 1px separator below (4/4 margins). Weight stays 500, size stays 13 — the row must read as a peer of the rows below it, not as a header.<br />
-            <b>3 · creating</b> — <b>inline in the row</b> (glyph → Spinner, label → “Creating workspace…”), list below dimmed to 50% and inert. A full-pane <i>connecting</i> takeover would throw away the list for a 1–3s roundtrip.<br />
+            <b>3 · creating</b> — <b>inline in the row</b> (glyph → Spinner, label → “Creating workspace…”), list below stays readable, names in text-muted, and inert. A full-pane <i>connecting</i> takeover would throw away the list for a 1–3s roundtrip.<br />
             <b>4 · failure</b> — <b>inline under the row</b>, message clamped to 3 lines (full string in <span className="tok">title</span>) + <b>Try again</b>. The connect-error center-state is right for “we never got a list”; here we <i>have</i> the list and the user's next move is usually to pick an existing workspace instead — don't hide it.<br />
             <b>5 · confirm (core)</b> — <b>select, then footer</b>. The user chose a placement <i>inside a list</i>; a single row that fires on click while its neighbours only select is the inconsistency, and it also loses the reversible “I clicked it, now what?” moment before a remote-mutating action. Cost accepted: the row carries a selected state.<br />
             <b>6 · height &amp; sticky</b> — <b>34px, not sticky</b>. Same box as a ws row; sticky would stack a second frozen band under the caps header for a list that rarely exceeds ~8 rows.<br />
@@ -1089,7 +1086,7 @@ function Page() {
         </Spec>
 
         <Spec id="folder-mode-mode-folder-returns-a-folder" title={"Folder mode — mode=\"folder\" returns a folder"}
-          when={<>The third mode of the same frame, for the three callers that used the OS folder dialog (Settings › Remote transfer › Save folder, Plugins › Add › Find folder…, Preset editor <code>dir</code>). Local only. The <b>target</b> is the selected folder row, or the <b>current folder</b> when nothing is selected, so <b>Select folder</b> is enabled whenever the folder reads (also when it is empty) and disabled while loading or on an error. The footer swaps the File name input for a <b>read-only Folder readout</b> of the full target path (front ellipsis, tooltip = full path) and one muted hint line. <b>Files stay listed</b> so the folder is recognisable, but they are <b>inert</b>: disabled ink, no hover, skipped by ↑↓, tooltip "Only folders can be selected." The filter chip is hidden: filters don't apply to folders. Not the same thing as <code>folderSel</code> above, which is a folder row in open / save mode.</>}>
+          when={<>The third mode of the same frame, for the three callers that used the OS folder dialog (Settings › Remote transfer › Save folder, Plugins › Add › Find folder…, Preset editor <code>dir</code>). Local only. The <b>target</b> is the selected folder row, or the <b>current folder</b> when nothing is selected, so <b>Select folder</b> is enabled whenever the folder reads (also when it is empty) and disabled while loading or on an error. The footer swaps the File name input for a <b>read-only Folder readout</b> of the full target path (front ellipsis, tooltip = full path) and one muted hint line. <b>Files stay listed</b> so the folder is recognisable. They are not selectable but they are read: <span className="tok">--tasty-fp-folder-file-fg</span> (text-muted), no hover, skipped by ↑↓, tooltip "Only folders can be selected." The filter chip is hidden: filters don't apply to folders. Not the same thing as <code>folderSel</code> above, which is a folder row in open / save mode.</>}>
           <Stage variant="solo center" style={{ padding: 20, background: "var(--tasty-bg-app)", gap: 16, flexWrap: "wrap", alignItems: "flex-start" }}>
             <div style={{ display: "flex", flexDirection: "column", gap: 6 }}><div style={{ fontSize: 11, color: "var(--tasty-text-muted)" }}>no row selected — target = current folder</div><FilePickerFrame mode="folder" /></div>
             <div style={{ display: "flex", flexDirection: "column", gap: 6 }}><div style={{ fontSize: 11, color: "var(--tasty-text-muted)" }}>subfolder selected — target = configs</div><FilePickerFrame mode="folder" folderPick="row" /></div>
@@ -1108,9 +1105,9 @@ function Page() {
           <Meta
             specs={[["target", "selected folder row, else current folder — one path returned, picker closes"], ["header", "folder glyph + “Select folder” (14 semibold) — same header box"], ["footer row 1", "label fp-footer-label-width 64 (caption, ellipsis) · gap fp-section-gap 8 · readout flex 1, control-height 28, pad-x space-md, input-readonly-bg / -border, mono caption, fp-folder-path-fg, FRONT ellipsis, tooltip full path, not editable"],
               ["footer row 2", "hint: folder glyph icon-size-sm + micro, fp-folder-hint-fg, wraps; hidden on loading / error"], ["footer row 3", "spacer · Cancel ghost · Select folder primary, gap space-sm; never shrinks — rows 1–2 give way"],
-              ["Select folder", "enabled: loaded or empty · disabled: loading, error (path readout in state-disabled-fg)"], ["file rows", "inert: glyph + name + size + date in fp-folder-file-fg, no hover / selection overlay, ↑↓ skip, tooltip"], ["filter chip", "hidden — the caller's filter is ignored in this mode"],
+              ["Select folder", "enabled: loaded or empty · disabled: loading, error (path readout in state-disabled-fg)"], ["file rows", "not selectable, read for orientation: glyph + name + size + date in fp-folder-file-fg (text-muted, 4.5), no hover / selection overlay, ↑↓ skip, tooltip"], ["filter chip", "hidden — the caller's filter is ignored in this mode"],
               ["single click folder", "selects (target = that folder)"], ["click selected row again / empty area", "clears → target = current folder"], ["double click folder · →", "enters it (selection cleared)"], ["Enter", "Select folder — confirms the target"], ["Up · Alt+↑ · breadcrumb", "unchanged"]]}
-            tokens={[{ tok: "--tasty-fp-folder-file-fg", use: "new · → state-disabled-fg", color: "var(--tasty-fp-folder-file-fg)" }, { tok: "--tasty-fp-folder-path-fg", use: "new · → input-readonly-fg", color: "var(--tasty-fp-folder-path-fg)" }, { tok: "--tasty-fp-folder-hint-fg", use: "new · → text-muted", color: "var(--tasty-fp-folder-hint-fg)" }, { tok: "--tasty-input-readonly-bg", use: "readout box", color: "var(--tasty-input-readonly-bg)" }, { tok: "--tasty-fp-footer-label-width", use: "64 label column" }]} />
+            tokens={[{ tok: "--tasty-fp-folder-file-fg", use: "→ text-muted", color: "var(--tasty-fp-folder-file-fg)" }, { tok: "--tasty-fp-folder-path-fg", use: "new · → input-readonly-fg", color: "var(--tasty-fp-folder-path-fg)" }, { tok: "--tasty-fp-folder-hint-fg", use: "new · → text-muted", color: "var(--tasty-fp-folder-hint-fg)" }, { tok: "--tasty-input-readonly-bg", use: "readout box", color: "var(--tasty-input-readonly-bg)" }, { tok: "--tasty-fp-footer-label-width", use: "64 label column" }]} />
           <Note>Strings (<code>picker.folder.*</code>) — <b>title / confirm</b>: Select folder · 폴더 선택 · フォルダーを選択 — <b>label</b>: Folder · 폴더 · フォルダー — <b>hint.current</b>: Using the current folder. Select a subfolder to use it instead. · 현재 폴더를 사용합니다. 하위 폴더를 고르면 그 폴더를 사용합니다. · 現在のフォルダーを使用します。サブフォルダーを選ぶとそのフォルダーを使用します。 — <b>hint.selected</b>: Double-click {"{name}"} to open it. · {"{name}"} 폴더를 열려면 더블클릭하세요. · {"{name}"} を開くにはダブルクリックします。 — <b>file.tooltip</b>: Only folders can be selected. · 폴더만 선택할 수 있습니다. · 選択できるのはフォルダーだけです。 — <b>empty</b>: No subfolders here · 하위 폴더가 없습니다 · サブフォルダーはありません. Width check: the longest label (フォルダー) fits 64 at caption; the longest button (フォルダーを選択) fits beside Cancel at the 320 floor; hints wrap to two lines at 320, never clip.</Note>
           <Dont><b>Don't</b> make Enter descend in this mode: Enter presses the primary button in every mode (in open mode Open happens to descend into a selected folder); here the primary button is Select folder, so Enter confirms. Descending is double-click or →.</Dont>
         </Spec>
@@ -1368,7 +1365,7 @@ function Page() {
                     <span style={{ width: "var(--tasty-status-dot-size)", height: "var(--tasty-status-dot-size)", borderRadius: "var(--tasty-radius-pill)", flex: "none", background: ov ? "var(--tasty-accent-primary)" : "transparent" }} />
                     <span style={{ flex: 1, fontFamily: "var(--tasty-font-mono)", fontSize: "var(--tasty-font-size-term-sm)", color: ov ? "var(--tasty-text-primary)" : "var(--tasty-text-muted)" }}>{field}</span>
                     <span style={{ flex: "none", display: "flex", width: "var(--tasty-field-width-xs)" }}><Input block mono readOnly={!ov} defaultValue={ov || base} /></span>
-                    <span style={{ width: "var(--tasty-swatch-size)", height: "var(--tasty-swatch-size)", borderRadius: "var(--tasty-swatch-radius)", flex: "none", background: ov || base, opacity: ov ? 1 : "var(--tasty-state-dim-opacity)", border: "var(--tasty-border-width) solid var(--tasty-border-strong)" }} />
+                    <span style={{ width: "var(--tasty-swatch-size)", height: "var(--tasty-swatch-size)", borderRadius: "var(--tasty-swatch-radius)", flex: "none", background: ov || base, border: "var(--tasty-border-width) solid var(--tasty-border-strong)" }} />
                     <WCheckbox label="Default" checked={!ov} />
                   </div>
                 ))}
@@ -1390,7 +1387,7 @@ function Page() {
                     <span style={{ width: "var(--tasty-status-dot-size)", height: "var(--tasty-status-dot-size)", borderRadius: "var(--tasty-radius-pill)", flex: "none" }} />
                     <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontFamily: "var(--tasty-font-mono)", fontSize: "var(--tasty-font-size-term-sm)", color: field === "search_match_active_fg" ? "var(--tasty-text-primary)" : "var(--tasty-text-muted)" }}>{field}</span>
                     <span style={{ flex: "none", display: "flex", width: "var(--tasty-field-width-xs)" }}><Input block mono readOnly defaultValue={base} /></span>
-                    <span style={{ width: "var(--tasty-swatch-size)", height: "var(--tasty-swatch-size)", borderRadius: "var(--tasty-swatch-radius)", flex: "none", background: base, opacity: "var(--tasty-state-dim-opacity)", border: "var(--tasty-border-width) solid var(--tasty-border-strong)" }} />
+                    <span style={{ width: "var(--tasty-swatch-size)", height: "var(--tasty-swatch-size)", borderRadius: "var(--tasty-swatch-radius)", flex: "none", background: base, border: "var(--tasty-border-width) solid var(--tasty-border-strong)" }} />
                     <WCheckbox label="Default" checked />
                   </div>
                 ))}
@@ -1409,7 +1406,7 @@ function Page() {
             <ThemePair><div style={{ width: "var(--tasty-size-360)" }}><FontOverrideG long /></div></ThemePair>
           </Stage>
           <Meta
-            specs={[["row", "label 150 · control · Use default — gap space-lg, min-h settings-row 32 (same as Settings Row)"], ["Font family", "searchable combo · field-width-lg 200"], ["Custom font file", "path Input mono · field-width-lg 200"], ["Font size · Line height", "number Input · field-width-xs 90"], ["DPI scaling", "Select · field-width-md 160"], ["Use default", "Checkbox + label, trailing, never truncated"], ["narrow", "row wraps: the checkbox drops under the control (row-gap space-xs)"], ["preview", "below the grid · space-lg above · Focused / Unfocused flex 1 each"], ["preview box (b2)", "the surface's effective bg (runtime colour, not a token) + effective font & size · 4 lines: latin · hangul · digits · kana · ink = surface focused fg · edge Focused border-strong / Unfocused separator · radius"], ["padding", "font-preview-padding-y space-sm · -x space-md"], ["line height", "font-preview-line-height → line-height-ui 1.4 × effective size; box height follows (no height token)"], ["stack", "a box narrower than font-preview-min-width (→ field-width-lg 200) wraps under the other — content width < 2 × 200 + space-md"], ["summary", "mono caption · text-muted"]]}
+            specs={[["row", "label 150 · control · Use default — gap space-lg, min-h settings-row 32 (same as Settings Row)"], ["on default", "control is a read-only box with the value in effect, no opacity · empty when no value is in effect, no placeholder"], ["Font family", "searchable combo · field-width-lg 200"], ["Custom font file", "path Input mono · field-width-lg 200"], ["Font size · Line height", "number Input · field-width-xs 90"], ["DPI scaling", "Select · field-width-md 160"], ["Use default", "Checkbox + label, trailing, never truncated"], ["narrow", "row wraps: the checkbox drops under the control (row-gap space-xs)"], ["preview", "below the grid · space-lg above · Focused / Unfocused flex 1 each"], ["preview box (b2)", "the surface's effective bg (runtime colour, not a token) + effective font & size · 4 lines: latin · hangul · digits · kana · ink = surface focused fg · edge Focused border-strong / Unfocused separator · radius"], ["padding", "font-preview-padding-y space-sm · -x space-md"], ["line height", "font-preview-line-height → line-height-ui 1.4 × effective size; box height follows (no height token)"], ["stack", "a box narrower than font-preview-min-width (→ field-width-lg 200) wraps under the other — content width < 2 × 200 + space-md"], ["summary", "mono caption · text-muted"]]}
             tokens={[{ tok: "--tasty-settings-label-width", use: "150 label column (new name)" }, { tok: "--tasty-field-width-lg", use: "family · file" }, { tok: "--tasty-field-width-md", use: "DPI" }, { tok: "--tasty-field-width-xs", use: "numbers" }, { tok: "--tasty-settings-row-min-height", use: "row" }]} />
         </Spec>
         <Spec id="filehandler-file-extension-mapping-order-add" title="FileHandler › File Extension Mapping — order + Add"
@@ -1801,7 +1798,7 @@ export const page = {
   nav: NAV,
   head: {
     title: "Windows",
-    intro: "Large modal surfaces — launchers, data tables, tabbed and two-tier windows. Bigger frames carrying their own internal navigation; the canonical dimensions are spelled out so they stay consistent across the app.",
+    intro: "Browse the larger windows used for settings, launchers, and data tables. Compare their navigation, dimensions, and tab views to choose a layout for your content.",
     
   },
   content: <Page />,

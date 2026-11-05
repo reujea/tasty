@@ -191,7 +191,7 @@ function BodyInkGrid({ label, theme }) {
   const rows = [
     ["mouse capture", <MouseCaptureBannerG />],
     ["HTML script", <HtmlScriptBanner />],
-    ["HTML script · reloading (body opacity-dimmed, outside the 4.5 judgement)", <HtmlScriptBanner state="reloading" />],
+    ["HTML script · reloading", <HtmlScriptBanner state="reloading" />],
     ["HTML remote content", <HtmlRemoteBanner />],
     ["HTML mirror · large file, more waiting", <HtmlSizeBanner more={2} />],
     ["HTML mirror · cumulative limit", <HtmlSizeBanner kind="limit" />],
@@ -436,7 +436,7 @@ function Page() {
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
               <div style={{ fontSize: 11, color: "var(--tasty-text-muted)" }}>rejected — danger tone on the capture row</div>
-              <div data-audit-exempt="dimmed" style={{ opacity: "var(--tasty-opacity-dimmed)" }}><BannerMoreMenuG app="vim" danger /></div>
+              <BannerMoreMenuG app="vim" danger />
             </div>
           </Stage>
           <Meta
@@ -723,7 +723,7 @@ function Page() {
           <Stage variant="solo" style={{ padding: "var(--tasty-space-lg)", background: "var(--tasty-bg-app)", gap: "var(--tasty-space-lg)", flexWrap: "wrap", alignItems: "flex-start" }}>
             {[["Mocha", "mocha"], ["Latte", "latte"]].map(([label, attr]) => (
               <div key={label} {...(attr ? { "data-theme": attr } : {})} style={{ display: "flex", flexDirection: "column", gap: "var(--tasty-space-xs)", width: "var(--tasty-size-560)", maxWidth: "100%", padding: "var(--tasty-space-md)", background: "var(--tasty-bg-app)", border: "var(--tasty-border-width) solid var(--tasty-border-default)", borderRadius: "var(--tasty-radius)" }}>
-                {[["blocked", {}], ["hover — × revealed", { hover: true }], ["loading — Allow disabled until commit", { state: "loading" }], ["reloading — spinner, body dimmed, no ×", { state: "reloading" }]].map(([cap, p]) => (
+                {[["blocked", {}], ["hover — × revealed", { hover: true }], ["loading — Allow disabled until commit", { state: "loading" }], ["reloading — spinner, no ×", { state: "reloading" }]].map(([cap, p]) => (
                   <React.Fragment key={cap}>
                     <span style={{ fontSize: "var(--tasty-font-size-caption)", color: "var(--tasty-text-muted)" }}>{label} · {cap}</span>
                     <HtmlRemoteBanner {...p} />
@@ -780,7 +780,7 @@ function Page() {
             <BodyInkGrid label="Latte" theme="latte" />
           </Stage>
           <Meta
-            specs={[["body", "banner-body-fg → text-muted-raised · Mocha n900 5.65 (unchanged) · Latte n1100 5.17 (was 3.65)"], ["reloading status", "same token · Spinner + label in the action slot"], ["reloading, dimmed", "× opacity-dimmed 0.75 · body Mocha 3.89 · Latte 3.20 · title Mocha 5.65 · Latte 3.20 — not judged against 4.5"], ["sync name", "text-secondary-raised · Mocha n1000 7.10 · Latte n1100 5.17 (was 4.05)"], ["hierarchy", "title 13/600 · body 11/400 — in Latte both use n1100, so size and weight carry the order"], ["countdown, reason line", "same role, next spec"]]}
+            specs={[["body", "banner-body-fg → text-muted-raised · Mocha n900 5.65 (unchanged) · Latte n1100 5.17 (was 3.65)"], ["reloading status", "same token · Spinner + label in the action slot"], ["reloading", "no dim · title and body keep their ink · Spinner + label carry the state"], ["sync name", "text-secondary-raised · Mocha n1000 7.10 · Latte n1100 5.17 (was 4.05)"], ["hierarchy", "title 13/600 · body 11/400 — in Latte both use n1100, so size and weight carry the order"], ["countdown, reason line", "same role, next spec"]]}
             tokens={[{ tok: "--tasty-banner-body-fg", use: "new · → text-muted-raised", color: "var(--tasty-banner-body-fg)" }, { tok: "--tasty-text-muted-raised", use: "new · Mocha n900 · Latte n1100", color: "var(--tasty-text-muted-raised)" }, { tok: "--tasty-text-secondary-raised", use: "sync name", color: "var(--tasty-text-secondary-raised)" }, { tok: "--tasty-banner-bg", use: "ground · unchanged", color: "var(--tasty-banner-bg)" }]} />
           <Dont><b>Don't</b> darken <code>banner-bg</code> or swap it for bg-panel to gain contrast. Banners float over panels; the fill and the banner buttons are tuned for surface-raised.</Dont>
         </Spec>
@@ -814,7 +814,7 @@ export const page = {
   nav: NAV,
   head: {
     title: "Banners",
-    intro: "The 4th overlay family (Modal · Popup · Toast · Banner). A floating, top-anchored, focus-less notice pinned to the top of a scope’s content area — never over the tab bar. Unlike a Toast it consumes its own mouse and can carry actions; unlike a Popup it takes no keyboard focus.",
+    intro: "See how banners bring messages and actions into the work area. Compare their scopes and queues, and try mouse actions that leave keyboard focus with your work.",
     
   },
   content: <Page />,

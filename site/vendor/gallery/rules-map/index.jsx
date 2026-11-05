@@ -67,7 +67,7 @@ function RulesMap() {
 export const page = {
   active: "rules-map",
   nav: [{ id: "map", label: "All locations" }],
-  head: { title: "Location map", intro: "Where each ground sits and what it may hold. A nesting that is not here is forbidden. The rules are in RULES.md." },
+  head: { title: "Location map", intro: "See which ground belongs at each location and which grounds it can contain. Compare Mocha and Latte side by side to see the same structure in both themes." },
   content: <RulesMap />,
 };
 

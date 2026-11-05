@@ -339,12 +339,12 @@ function AddPluginForm({ onAdded, onCancel }) {
           </span>
         )}
         {!manifest && <div style={{ flex: 1 }} />}
-        <div style={{ display: "flex", gap: "var(--tasty-space-sm)", marginLeft: "auto" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "var(--tasty-space-sm)", marginLeft: "auto" }}>
+          {busy && <span style={{ display: "inline-flex", alignItems: "center", gap: "var(--tasty-space-sm)", fontSize: "var(--tasty-font-size-caption)", color: "var(--tasty-text-muted)" }}><PwSpinner size={14} label="Adding" />Adding…</span>}
           <Button key={manifest ? manifest.path + trustKindOf(manifest) : "none"} variant="ghost" autoFocus={!!manifest && TRUST_KIND[trustKindOf(manifest)].unverified} disabled={busy} onClick={onCancel}>Cancel</Button>
           {manifest && (manifest.blocked
             ? <Button variant="primary" disabled>Add plugin</Button>
-            : <Button variant={TRUST_KIND[trustKindOf(manifest)].unverified ? "danger" : "primary"} disabled={busy} aria-busy={busy || undefined} onClick={add}
-                leadingIcon={busy ? <PwSpinner size={14} label="Adding" /> : null}>{busy ? "Adding…" : addActionLabel(manifest)}</Button>)}
+            : <Button variant={TRUST_KIND[trustKindOf(manifest)].unverified ? "danger" : "primary"} disabled={busy} aria-busy={busy || undefined} onClick={add}>{addActionLabel(manifest)}</Button>)}
         </div>
       </div>
     </div>
@@ -356,11 +356,13 @@ function RegisterAnyway({ name, onFlash }) {
   const [busy, setBusy] = React.useState(false);
   React.useEffect(() => setBusy(false), [name]);
   return (
-    <Button variant="danger" disabled={busy} aria-busy={busy || undefined}
-      leadingIcon={busy ? <PwSpinner size={14} label="Registering" /> : null}
-      onClick={() => { setBusy(true); setTimeout(() => { setBusy(false); onFlash && onFlash("Registered " + name); }, 900); }}>
-      {busy ? "Registering…" : "Register anyway"}
-    </Button>
+    <span style={{ display: "inline-flex", alignItems: "center", gap: "var(--tasty-space-sm)" }}>
+      {busy && <span style={{ display: "inline-flex", alignItems: "center", gap: "var(--tasty-space-sm)", fontSize: "var(--tasty-font-size-caption)", color: "var(--tasty-text-muted)" }}><PwSpinner size={14} label="Registering" />Registering…</span>}
+      <Button variant="danger" disabled={busy} aria-busy={busy || undefined}
+        onClick={() => { setBusy(true); setTimeout(() => { setBusy(false); onFlash && onFlash("Registered " + name); }, 900); }}>
+        Register anyway
+      </Button>
+    </span>
   );
 }
 function AttentionPanel({ items, onFlash, onConfigure }) {
@@ -523,7 +525,7 @@ function AttentionPanel({ items, onFlash, onConfigure }) {
               onClick={() => onConfigure && onConfigure()}>Configure</Button>
           )}
           {/* unknown-key · signature-invalid (2026-10-19): explicit "Register anyway" (danger). Not focused on selection;
-              not acting = stays unregistered. Busy → Spinner + "Registering…", disabled. */}
+              not acting = stays unregistered. Busy → button disabled, Spinner + "Registering…" beside it. */}
           {meta.unverified && <RegisterAnyway name={sel.name} onFlash={onFlash} />}
         </div>
       </div>

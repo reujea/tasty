@@ -1,5 +1,5 @@
 import React from "react";
-import { Icon, StatusDot, Badge, LoadingOverlay as TastyDesignSystem_41fd3f_LoadingOverlay } from "../../components/index.js";
+import { Icon, StatusDot, Badge, Tag, LoadingOverlay as TastyDesignSystem_41fd3f_LoadingOverlay } from "../../components/index.js";
 import { Spec, Stage, Meta, Dont } from "../parts/specimen.jsx";
 
 // Tasty Gallery — Layouts › Loading overlay (2026-10-16, request loading-spinner-overlay).
@@ -98,11 +98,9 @@ function LRow({ name = "build-farm", status = "running", active, hover, attached
         <div style={{ fontSize: "var(--tasty-font-size-body)", fontWeight: "var(--tasty-font-weight-medium)", lineHeight: "var(--tasty-line-height-ui)", color: active ? "var(--tasty-text-primary)" : "var(--tasty-text-secondary)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{name}</div>
         {mirror && (
           <div style={{ marginTop: "var(--tasty-size-2)" }}>
-            <span style={{ display: "inline-flex", alignItems: "center", gap: "var(--tasty-workspace-mirror-gap)", height: "var(--tasty-size-16)", padding: "0 var(--tasty-space-sm)", borderRadius: "var(--tasty-radius-sm)",
-              fontFamily: "var(--tasty-font-mono)", fontSize: "var(--tasty-font-size-micro)", fontWeight: 600, lineHeight: 1, letterSpacing: "var(--tasty-letter-spacing-caps)", textTransform: "uppercase", color: active ? "var(--tasty-text-on-active)" : "var(--tasty-workspace-mirror-fg)",
-              border: "var(--tasty-border-width) solid color-mix(in srgb, var(--tasty-workspace-mirror-fg) 45%, transparent)", background: active ? "transparent" : "color-mix(in srgb, var(--tasty-workspace-mirror-fg) 16%, transparent)" }}>
+            <Tag variant="info" caps aria-label="Remote mirror" style={{ color: "var(--tasty-tag-info-fg)" }}>
               <Icon name="remote" size="var(--tasty-workspace-mirror-icon-size)" />remote
-            </span>
+            </Tag>
           </div>
         )}
         {subtitle && <div style={{ fontSize: "var(--tasty-font-size-term-sm)", lineHeight: "var(--tasty-line-height-ui)", marginTop: "var(--tasty-size-1)", color: "var(--tasty-text-muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{subtitle}</div>}

@@ -132,7 +132,7 @@ function ColorOverridePicker() {
                       {/* Default (no override) = readOnly, not disabled: the base hex is information (2026-09-29) */}
                       <Input mono value={val} readOnly={!ov} onChange={(e) => setField(field, e.target.value)} style={{ width: "var(--tasty-field-width-xs)" }} />
                       <span style={{ width: "var(--tasty-swatch-size)", height: "var(--tasty-swatch-size)", borderRadius: "var(--tasty-swatch-radius)", flex: "none", background: val,
-                        opacity: ov ? 1 : 0.4, border: "var(--tasty-border-width) solid var(--tasty-border-strong)" }} />
+                        border: "var(--tasty-border-width) solid var(--tasty-border-strong)" }} />
                       <Checkbox label="Default" checked={!ov} onChange={() => toggle(field, base)} />
                     </div>
                   );
@@ -486,10 +486,10 @@ function HookRow({ h, onToggle, onCmd, onDelete }) {
   const o = HOOK_ORIGIN[h.origin] || HOOK_ORIGIN.user;
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "var(--tasty-space-xs)", padding: "var(--tasty-space-sm) var(--tasty-space-xs)",
-      borderBottom: "var(--tasty-border-width) solid var(--tasty-separator)", opacity: h.on ? 1 : "var(--tasty-state-dim-opacity)" /* switched-off hook = dimmed ITEM (still editable), not a disabled control */ }}>
+      borderBottom: "var(--tasty-border-width) solid var(--tasty-separator)", /* a switched-off hook stays editable, so it is read: muted id, no opacity */ }}>
       {/* line 1 — id · origin · priority · status · remove */}
       <div style={{ display: "flex", alignItems: "center", gap: "var(--tasty-space-sm)", minWidth: 0 }}>
-        <span style={{ flex: "0 1 auto", fontFamily: "var(--tasty-font-mono)", fontSize: 13, fontWeight: 600, color: "var(--tasty-text-primary)",
+        <span style={{ flex: "0 1 auto", fontFamily: "var(--tasty-font-mono)", fontSize: 13, fontWeight: 600, color: h.on ? "var(--tasty-text-primary)" : "var(--tasty-text-muted)",
           overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{h.id}</span>
         <Tag variant={o.variant}>{o.label}</Tag>
         <span style={{ flex: "none", fontFamily: "var(--tasty-font-mono)", fontSize: "var(--tasty-font-size-micro)", color: "var(--tasty-text-muted)" }}>prio {h.prio}</span>

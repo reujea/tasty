@@ -46,7 +46,7 @@ const STAGE = { padding: "var(--tasty-space-md)", background: "var(--tasty-bg-pa
 
 function GalleryTitleBar() {
   return (
-    <Spec id="titlebar-states" title="Title bar: active and inactive, rest, hover, press, close">
+    <Spec id="titlebar-states" title="Title bar: active and inactive, rest, hover, press, close" when="Use a title bar to show whether a window is active. Compare the title and buttons in active and inactive windows, including rest, hover, and press states and the close button's hover treatment.">
       <Stage variant="solo" eager style={STAGE}>
         {WINDOWS.map((w) => (
           <div key={w.label} style={{ width: "100%", minWidth: 0 }}>

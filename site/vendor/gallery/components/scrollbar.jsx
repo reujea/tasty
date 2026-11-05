@@ -16,7 +16,7 @@ const HOSTS = [
 
 function GalleryScrollbar() {
   return (
-    <Spec id="scrollbar-hosts" title="Scrollbar: thumb on each host">
+    <Spec id="scrollbar-hosts" title="Scrollbar: thumb on each host" when="Use a scrollbar to show the scroll position when content exceeds its region. Compare the thumb on app, sidebar, panel, raised, and terminal grounds to find the token for each host.">
       <Stage variant="solo" eager style={{ padding: "var(--tasty-space-md)", background: "var(--tasty-bg-panel)", gap: "var(--tasty-space-sm)" }}>
         {HOSTS.map(([host, ground, thumb]) => (
           <figure key={host} style={{ margin: 0 }}>

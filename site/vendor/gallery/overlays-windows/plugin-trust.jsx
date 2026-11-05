@@ -87,8 +87,9 @@ function Bar({ kind, lang = "en", state = "rest", focus = false }) {
     <div style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: "var(--tasty-space-sm)", padding: "var(--tasty-space-md) var(--tasty-size-14)", borderTop: "var(--tasty-border-width) solid var(--tasty-separator)", background: "var(--tasty-bg-panel)" }}>
       <span style={{ flex: "1 1 auto", minWidth: 0, fontSize: "var(--tasty-font-size-caption)", color: "var(--tasty-text-muted)" }}>{c.grants}</span>
       <div style={{ display: "flex", gap: "var(--tasty-space-sm)", marginLeft: "auto" }}>
+        {busy && <span style={{ display: "inline-flex", alignItems: "center", gap: "var(--tasty-space-sm)", fontSize: "var(--tasty-font-size-caption)", color: "var(--tasty-text-muted)" }}><Spinner size={14} label={c.adding} />{c.adding}</span>}
         <Button variant="ghost" disabled={busy} style={focus && !busy ? { boxShadow: "0 0 0 var(--tasty-focus-ring-width) var(--tasty-border-focus)" } : undefined}>{c.cancel}</Button>
-        <Button variant={k.unverified ? "danger" : "primary"} disabled={busy} leadingIcon={busy ? <Spinner size={14} label={c.adding} /> : null}>{busy ? c.adding : label}</Button>
+        <Button variant={k.unverified ? "danger" : "primary"} disabled={busy}>{label}</Button>
       </div>
     </div>
   );
@@ -130,7 +131,8 @@ function AttentionDetail({ reason = "unknown-key", state = "rest" }) {
       <div style={{ display: "flex", alignItems: "center", gap: "var(--tasty-space-sm)", padding: "var(--tasty-space-md) var(--tasty-size-14)", borderTop: "var(--tasty-border-width) solid var(--tasty-separator)" }}>
         <span style={{ fontSize: 12, color: "var(--tasty-accent-danger-raised)", display: "inline-flex", alignItems: "center", gap: "var(--tasty-space-sm)" }}><span style={{ width: "var(--tasty-status-dot-size)", height: "var(--tasty-status-dot-size)", borderRadius: "50%", background: "var(--tasty-accent-danger)" }} />Not registered</span>
         <div style={{ flex: 1 }} />
-        <Button variant="danger" disabled={busy} leadingIcon={busy ? <Spinner size={14} label="Registering" /> : null}>{busy ? "Registering…" : "Register anyway"}</Button>
+        {busy && <span style={{ display: "inline-flex", alignItems: "center", gap: "var(--tasty-space-sm)", fontSize: "var(--tasty-font-size-caption)", color: "var(--tasty-text-muted)" }}><Spinner size={14} label="Registering" />Registering…</span>}
+        <Button variant="danger" disabled={busy}>Register anyway</Button>
       </div>
     </div>
   );
@@ -187,7 +189,7 @@ function PluginTrustSpecs() {
       </Spec>
 
       <Spec id="plugin-unverified-states" title="Adding · failure · narrow window · ko / ja · Needs attention › Register anyway"
-        when={<>While adding, both buttons are disabled and the primary shows a 14 <b>Spinner + “Adding…”</b> — a second click or Enter cannot start a second install. A failure uses the <b>existing result path</b> (toast, buttons back to rest). In a narrow window the bar wraps: reason on its own line, buttons right-aligned under it; long names and paths wrap anywhere. A plugin found in the plugins folder sits in <b>Needs attention</b> with the same box (no fingerprint in the box; the Signature section below keeps it) and a <b>Register anyway</b> danger button. Not clicking it = it stays unregistered; selecting the row never focuses the button.</>}>
+        when={<>While adding, both buttons are disabled and keep their labels, with a 14 <b>Spinner + “Adding…” beside the buttons, in text-muted</b> — a second click or Enter cannot start a second install. A failure uses the <b>existing result path</b> (toast, buttons back to rest). In a narrow window the bar wraps: reason on its own line, buttons right-aligned under it; long names and paths wrap anywhere. A plugin found in the plugins folder sits in <b>Needs attention</b> with the same box (no fingerprint in the box; the Signature section below keeps it) and a <b>Register anyway</b> danger button. Not clicking it = it stays unregistered; selecting the row never focuses the button.</>}>
         <Stage variant="solo" style={{ padding: "var(--tasty-space-lg)", background: "var(--tasty-bg-app)", gap: "var(--tasty-space-lg)", flexWrap: "wrap", alignItems: "flex-start" }}>
           {THEMES.map(([label, attr]) => (
             <Themed key={label} attr={attr}>
@@ -204,7 +206,7 @@ function PluginTrustSpecs() {
             <AddPanel kind="signature-error" lang="ja" width="var(--tasty-size-440)" />
           </Themed>
         </Stage>
-        <Meta specs={[["busy", "Cancel + primary disabled · Spinner 14 + Adding… / Registering…"], ["failure", "existing toast · buttons back to rest · verdict stays"], ["narrow", "bar flex-wrap · reason flex 1 · buttons margin-left auto"], ["attention", "same box (no fingerprint inside) · Signature section keeps fingerprint · Register anyway danger · no auto focus"], ["permissions changed", "copy adds the isolation limit · Re-approve flow unchanged"]]} />
+        <Meta specs={[["busy", "Cancel + primary disabled, labels unchanged · Spinner 14 + Adding… / Registering… beside them, caption, text-muted"], ["failure", "existing toast · buttons back to rest · verdict stays"], ["narrow", "bar flex-wrap · reason flex 1 · buttons margin-left auto"], ["attention", "same box (no fingerprint inside) · Signature section keeps fingerprint · Register anyway danger · no auto focus"], ["permissions changed", "copy adds the isolation limit · Re-approve flow unchanged"]]} />
         <Note>English is the source copy. ko / ja above are the meaning reference for translators (keys: <code>plugins.trust.unverified_title</code> · <code>…unverified_risk</code> · <code>…cause_unknown_key / _missing_pubkey / _unsigned / _signature_error</code> · <code>…trust_key_note</code> · <code>plugins.add.add_anyway</code> · <code>…trust_add_anyway</code> · <code>…adding</code> · <code>plugins.attention.register_anyway</code> · <code>…registering</code>).</Note>
         <Dont><b>Don't</b> say the plugin was reviewed, certified or sandboxed, and don't let Enter on a freshly shown verdict install it.</Dont>
       </Spec>

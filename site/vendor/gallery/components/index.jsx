@@ -690,8 +690,9 @@ function Components() {
                 <Spinner size={14} /> Collecting…
               </span>
             </Cluster>
-            <Cluster label="in a button · detecting row">
-              <Button variant="secondary" disabled leadingIcon={<Spinner size={14} />}>Installing…</Button>
+            <Cluster label="beside a button · detecting row">
+              <Button variant="secondary" disabled>Install</Button>
+              <span style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: "var(--tasty-font-size-caption)", color: "var(--tasty-text-muted)" }}><Spinner size={14} />Installing…</span>
               <span style={{ display: "inline-flex", alignItems: "center", gap: 6, fontFamily: "var(--tasty-font-mono)", fontSize: 11, color: "var(--tasty-text-muted)" }}>
                 <Spinner size={12} /> detecting shell…
               </span>
@@ -1128,7 +1129,7 @@ export const page = {
   nav: NAV,
   head: {
     title: "Components",
-    intro: "The reusable primitives, live. Hover and focus respond for real — that's how you read the interaction states. Each specimen states when to reach for it, its fixed dimensions, and the exact tokens it's built from.",
+    intro: "Explore reusable components, from buttons and fields to lists and scrollbars. Try the demos, compare the fixed states, then check the usage notes, dimensions, and tokens.",
     
   },
   content: <Components />,

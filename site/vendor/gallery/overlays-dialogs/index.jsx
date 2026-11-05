@@ -587,7 +587,7 @@ export const page = {
   nav: NAV,
   head: {
     title: "Dialogs",
-    intro: "Centered modal dialogs on the shared scrim — confirm and edit surfaces. Small-to-medium frames, each a pattern to copy: show the stakes, name the actor, keep the dismiss contract. Start with the scrim recipe every overlay is built on.",
+    intro: "Explore dialogs for confirming an action or editing a value. Check their messages, actions, and dismissal, then compare the scrim and frame over different grounds.",
     
   },
   content: <Page />,

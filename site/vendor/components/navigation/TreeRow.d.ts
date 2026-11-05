@@ -23,6 +23,6 @@ export interface TreeRowProps extends React.HTMLAttributes<HTMLDivElement> {
  *
  * There is deliberately NO disabled state (2026-09-29): an entry that can't be
  * opened stays a normal, selectable, expandable row and the open reports the
- * reason. A pending cut is a dimmed ITEM (cut-pending-opacity), not disabled.
+ * reason. A pending cut reads cut-pending-fg, not opacity, and is not disabled.
  */
 export function TreeRow(props: TreeRowProps): JSX.Element;

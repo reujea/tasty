@@ -123,7 +123,7 @@ function measure({ rows, tokens, grades, partMap, exemptIds, noGradeTokens, them
     const r = el.getBoundingClientRect();
     return r.width > 0 && r.height > 0;
   };
-  const out = { cells: 0, rows: [], text: 0, svgs: 0, glyph: 0, inputs: 0, below: [], exemptUses: {}, badExempt: [], gradeNone: [], picture: 0, paintServer: 0, keys: [] };
+  const out = { cells: 0, rows: [], text: 0, svgs: 0, emptySvgs: 0, glyph: 0, inputs: 0, below: [], exemptUses: {}, badExempt: [], gradeNone: [], picture: 0, paintServer: 0, keys: [] };
   // Each stroke and fill the svg itself paints, in document order. A nested svg reports its own. What a defs entry or a
   // use target holds is not walked: a use counts through its own inherited paint.
   const svgInks = (svg) => {
@@ -249,7 +249,9 @@ function measure({ rows, tokens, grades, partMap, exemptIds, noGradeTokens, them
   scope.querySelectorAll("svg").forEach((el) => {
     if (skip(el) || exemptOf(el) || !visible(el)) return;
     out.svgs += 1;
-    svgInks(el).forEach(({ shape, ink }) => {
+    const inks = svgInks(el);
+    if (inks.length === 0) out.emptySvgs += 1;
+    inks.forEach(({ shape, ink }) => {
       const isText = shape.tagName.toLowerCase() === "text";
       judge(isText ? "text" : "glyph", shape, ink, isText ? 4.5 : 3, isText ? shape.textContent.trim().slice(0, 40) : el.getAttribute("aria-label") || "svg");
     });
@@ -270,7 +272,7 @@ async function run() {
   const noGrade = [...noGradeTokens];
   for (const theme of THEMES) {
     const seen = new Set();
-    const t = { cells: 0, rows: 0, ok: 0, unlocated: [], mismatch: [], below: [], text: 0, svgs: 0, glyph: 0, inputs: 0, other: [], exemptUses: {}, badExempt: [], gradeNone: {}, picture: 0, paintServer: 0, hscroll: [], errors: [] };
+    const t = { cells: 0, rows: 0, ok: 0, unlocated: [], mismatch: [], below: [], text: 0, svgs: 0, emptySvgs: 0, glyph: 0, inputs: 0, other: [], exemptUses: {}, badExempt: [], gradeNone: {}, picture: 0, paintServer: 0, hscroll: [], errors: [] };
     const context = await browser.newContext({ viewport: { width: 1440, height: 1000 } });
     await context.addInitScript((name) => localStorage.setItem("tasty-theme", name), theme);
     for (const page of pages) {
@@ -294,7 +296,7 @@ async function run() {
         if (r.status === "ok") t.ok += 1;
         else t[r.status].push({ ...r, page: page.key });
       }
-      t.text += m.text; t.svgs += m.svgs; t.glyph += m.glyph; t.inputs += m.inputs; t.picture += m.picture; t.paintServer += m.paintServer;
+      t.text += m.text; t.svgs += m.svgs; t.emptySvgs += m.emptySvgs; t.glyph += m.glyph; t.inputs += m.inputs; t.picture += m.picture; t.paintServer += m.paintServer;
       m.below.forEach((b) => t.other.push({ ...b, page: page.key }));
       for (const [id, n] of Object.entries(m.exemptUses)) t.exemptUses[id] = (t.exemptUses[id] || 0) + n;
       m.badExempt.forEach((b) => t.badExempt.push({ ...b, page: page.key }));
@@ -308,7 +310,7 @@ async function run() {
     report.themes[theme] = t;
     const measured = t.rows + t.text + t.glyph + t.inputs;
     const bad = t.unlocated.length + t.mismatch.length + t.below.length + t.other.length + t.badExempt.length + t.missingCells.length + t.errors.length;
-    console.log(`${theme}: cells ${t.cells}, rows ${t.rows} (ok ${t.ok}, unlocated ${t.unlocated.length}, mismatch ${t.mismatch.length}, below ${t.below.length}), text ${t.text}, svgs ${t.svgs} (${t.glyph} painted shapes, ${t.paintServer} gradient or pattern paints not measured), inputs ${t.inputs}, below on page ${t.other.length}, on a picture ${t.picture}, missing cells ${t.missingCells.length}, page errors ${t.errors.length}`);
+    console.log(`${theme}: cells ${t.cells}, rows ${t.rows} (ok ${t.ok}, unlocated ${t.unlocated.length}, mismatch ${t.mismatch.length}, below ${t.below.length}), text ${t.text}, svgs ${t.svgs} (${t.glyph} painted shapes, ${t.emptySvgs} svgs painting nothing, ${t.paintServer} gradient or pattern paints not measured), inputs ${t.inputs}, below on page ${t.other.length}, on a picture ${t.picture}, missing cells ${t.missingCells.length}, page errors ${t.errors.length}`);
     console.log(`  exempt: ${Object.entries(t.exemptUses).map(([k, v]) => `${k} ${v}`).join(", ") || "none"}`);
     console.log(`  no grade: ${Object.entries(t.gradeNone).map(([k, v]) => `${k} ${v}`).join(", ") || "none"}`);
     if (measured === 0) { console.error(`${theme}: nothing measured`); failed = true; }

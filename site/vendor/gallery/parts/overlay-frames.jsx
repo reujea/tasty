@@ -126,8 +126,8 @@ function ApprovalFrame() {
         <p style={{ margin: 0, fontSize: 13, color: "var(--tasty-text-secondary)", lineHeight: 1.5 }}>
           The agent <b style={{ color: "var(--tasty-text-primary)" }}>ai-review</b> wants to run a command in <span className="ic">s_01HXK9</span>:
         </p>
-        <pre data-audit-exempt="ansi-content" style={{ margin: 0, background: "var(--tasty-surface-terminal-focused-bg)", border: "1px solid var(--tasty-separator)", borderRadius: "var(--tasty-radius)",
-          padding: "10px 12px", fontFamily: "var(--tasty-font-mono)", fontSize: 12.5, color: "var(--tasty-color-green)", overflow: "auto" }}>
+        <pre style={{ margin: 0, background: "var(--tasty-surface-terminal-focused-bg)", border: "1px solid var(--tasty-separator)", borderRadius: "var(--tasty-radius)",
+          padding: "10px 12px", fontFamily: "var(--tasty-font-mono)", fontSize: 12.5, color: "var(--tasty-text-primary)", overflow: "auto" }}>
 git push --force origin main</pre>
         <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
           <Tag variant="danger" dot>destructive</Tag><Tag>fs:write</Tag><Tag>net</Tag>
@@ -2591,13 +2591,13 @@ function RaProfile({ name, label, target, selected, inactive }) {
     </div>
   );
 }
-function RaWs({ name, panes, busy, selected, attached }) {
+function RaWs({ name, panes, busy, selected, attached, muted }) {
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "var(--tasty-space-sm) var(--tasty-space-md)", position: "relative",
       background: selected ? "var(--tasty-surface-active)" : "transparent",
       boxShadow: selected ? "inset var(--tasty-selection-edge-width) 0 0 var(--tasty-accent-primary)" : "none" }}>
       <span style={{ display: "inline-flex" }}><StatusDot status={busy ? "running" : "idle"} pulse={busy} /></span>
-      <span data-ink-grade={attached ? "none" : undefined} data-ink-why={attached ? "disabled" : undefined} style={{ fontSize: 13, fontWeight: 500, color: attached ? "var(--tasty-text-disabled)" : selected ? "var(--tasty-text-on-active)" : "var(--tasty-text-secondary)" }}>{name}</span>
+      <span style={{ fontSize: 13, fontWeight: 500, color: attached || muted ? "var(--tasty-text-muted)" : selected ? "var(--tasty-text-on-active)" : "var(--tasty-text-secondary)" }}>{name}</span>
       <span style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 11, color: "var(--tasty-text-muted)" }}>{ic.split}{panes}</span>
       <div style={{ flex: 1 }} />
       {busy && !attached && <span style={{ fontSize: 11, color: "var(--tasty-text-muted)" }}>busy</span>}
@@ -2641,8 +2641,8 @@ function RaNewRow({ selected, hover, phase = "rest", error, sep = true }) {
   );
 }
 // one real remote-ws row, for the new-workspace row-state specimens (alignment check)
-function RaWsPeek() {
-  return <RaWs name="agents-prod" panes={3} busy />;
+function RaWsPeek({ muted }) {
+  return <RaWs name="agents-prod" panes={3} busy muted={muted} />;
 }
 function RemoteAttachFrame({ state = "loaded", newPhase = "rest", newSelected, emptyPlan = "B" }) {
   const caps = { fontFamily: "var(--tasty-font-mono)", fontSize: 10, textTransform: "uppercase", letterSpacing: ".06em", color: "var(--tasty-text-muted)" };
@@ -2743,13 +2743,13 @@ function FpRow({ kind, name, size, mod, selected, focus, multi, checked, dim, in
       outline: focus ? "1px solid var(--tasty-accent-primary)" : "none", outlineOffset: -1,
       opacity: dim ? 0.5 : 1 }}>
       {multi && <span style={{ display: "inline-flex", flex: "none" }}><Checkbox checked={!!checked} /></span>}
-      <span data-ink-grade={inert ? "none" : undefined} data-ink-why={inert ? "disabled" : undefined} style={{ flex: "none", display: "inline-flex", color: inert ? "var(--tasty-fp-folder-file-fg)" : isFolder ? "var(--tasty-accent-primary-raised)" : "var(--tasty-text-muted)" }}>
+      <span style={{ flex: "none", display: "inline-flex", color: inert ? "var(--tasty-fp-folder-file-fg)" : isFolder ? "var(--tasty-accent-primary-raised)" : "var(--tasty-text-muted)" }}>
         <Icon name={isFolder ? "folder" : "file"} size={16} />
       </span>
-      <span data-ink-grade={inert ? "none" : undefined} data-ink-why={inert ? "disabled" : undefined} style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+      <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
         fontSize: 13, fontWeight: isFolder ? 500 : 400, color: inert ? "var(--tasty-fp-folder-file-fg)" : selected ? "var(--tasty-text-on-active)" : "var(--tasty-text-secondary)" }}>{name}</span>
-      <span data-ink-grade={inert ? "none" : undefined} data-ink-why={inert ? "disabled" : undefined} style={{ flex: "none", width: 68, textAlign: "right", fontFamily: "var(--tasty-font-mono)", fontSize: 11, color: inert ? "var(--tasty-fp-folder-file-fg)" : selected ? "var(--tasty-text-on-active)" : "var(--tasty-text-muted)" }}>{size}</span>
-      <span data-ink-grade={inert ? "none" : undefined} data-ink-why={inert ? "disabled" : undefined} style={{ flex: "none", width: 108, textAlign: "right", fontFamily: "var(--tasty-font-mono)", fontSize: 11, color: inert ? "var(--tasty-fp-folder-file-fg)" : selected ? "var(--tasty-text-on-active)" : "var(--tasty-text-muted)" }}>{mod}</span>
+      <span style={{ flex: "none", width: 68, textAlign: "right", fontFamily: "var(--tasty-font-mono)", fontSize: 11, color: inert ? "var(--tasty-fp-folder-file-fg)" : selected ? "var(--tasty-text-on-active)" : "var(--tasty-text-muted)" }}>{size}</span>
+      <span style={{ flex: "none", width: 108, textAlign: "right", fontFamily: "var(--tasty-font-mono)", fontSize: 11, color: inert ? "var(--tasty-fp-folder-file-fg)" : selected ? "var(--tasty-text-on-active)" : "var(--tasty-text-muted)" }}>{mod}</span>
       {tip && (
         <span role="tooltip" style={{ position: "absolute", left: "calc(var(--tasty-fp-inset-start) + var(--tasty-size-96))", top: "100%", marginTop: "var(--tasty-space-xs)", zIndex: 4, whiteSpace: "nowrap",
           padding: "var(--tasty-tooltip-padding-y) var(--tasty-tooltip-padding-x)", background: "var(--tasty-tooltip-bg)", border: "var(--tasty-border-width) solid var(--tasty-tooltip-border)",

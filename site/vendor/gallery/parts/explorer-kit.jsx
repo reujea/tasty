@@ -127,12 +127,12 @@ function FavRow({ name, active }) {
 function DetailRow({ glyph, name, size, date, type, state, glyphColor }) {
   const bg = state === "selected" ? "var(--tasty-surface-active)" : state === "hover" ? "var(--tasty-overlay-hover)" : "transparent";
   return (
-    <div data-audit-exempt={state === "cut" ? "dimmed" : undefined} style={{ display: "grid", gridTemplateColumns: "1fr 80px 132px 92px", alignItems: "center", height: "var(--tasty-table-cell-height)", padding: "0 10px",
-      fontSize: 13, background: bg, opacity: state === "cut" ? "var(--tasty-state-dim-opacity)" : 1, cursor: "default",
-      color: state === "selected" ? "var(--tasty-text-on-active)" : "var(--tasty-text-secondary)" }}>
+    <div style={{ display: "grid", gridTemplateColumns: "1fr 80px 132px 92px", alignItems: "center", height: "var(--tasty-table-cell-height)", padding: "0 10px",
+      fontSize: 13, background: bg, cursor: "default",
+      color: state === "selected" ? "var(--tasty-text-on-active)" : state === "cut" ? "var(--tasty-cut-pending-fg)" : "var(--tasty-text-secondary)" }}>
       <span style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
         <span style={{ display: "inline-flex", flex: "none", color: state === "selected" ? "var(--tasty-text-on-active)" : glyphColor || "var(--tasty-text-muted)" }}>{glyph}</span>
-        <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{name}</span>
+        <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontStyle: state === "cut" ? "var(--tasty-cut-pending-font-style)" : undefined }}>{name}</span>
       </span>
       <span style={{ fontFamily: "var(--tasty-font-mono)", fontSize: 11, color: state === "selected" ? "var(--tasty-text-on-active)" : "var(--tasty-text-muted)", textAlign: "right", paddingRight: 8 }}>{size}</span>
       <span style={{ fontFamily: "var(--tasty-font-mono)", fontSize: 11, color: state === "selected" ? "var(--tasty-text-on-active)" : "var(--tasty-text-muted)" }}>{date}</span>
@@ -173,10 +173,10 @@ function GridCell({ glyph, name, state, glyphColor }) {
   const bg = state === "selected" ? "var(--tasty-surface-active)" : state === "hover" ? "var(--tasty-overlay-hover)" : "transparent";
   return (
     <div style={{ width: GRID_CELL_W, display: "flex", flexDirection: "column", alignItems: "center", gap: 4, padding: "8px 4px",
-      borderRadius: "var(--tasty-radius)", background: bg, opacity: state === "cut" ? "var(--tasty-state-dim-opacity)" : 1, cursor: "default" }}>
+      borderRadius: "var(--tasty-radius)", background: bg, cursor: "default" }}>
       <span style={{ display: "inline-flex", color: state === "selected" ? "var(--tasty-text-on-active)" : glyphColor || "var(--tasty-text-muted)", height: 16, alignItems: "center" }}>{glyph}</span>
       <span style={{ fontSize: 11, textAlign: "center", lineHeight: `${GRID_LABEL_LINE_H}px`, height: GRID_LABEL_LINES * GRID_LABEL_LINE_H,
-        color: state === "selected" ? "var(--tasty-text-on-active)" : "var(--tasty-text-secondary)", wordBreak: "break-word",
+        color: state === "selected" ? "var(--tasty-text-on-active)" : state === "cut" ? "var(--tasty-cut-pending-fg)" : "var(--tasty-text-secondary)", fontStyle: state === "cut" ? "var(--tasty-cut-pending-font-style)" : undefined, wordBreak: "break-word",
         display: "-webkit-box", WebkitLineClamp: GRID_LABEL_LINES, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{name}</span>
     </div>
   );

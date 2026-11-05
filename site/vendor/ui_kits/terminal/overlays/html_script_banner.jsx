@@ -68,7 +68,7 @@ function HtmlScriptBanner({ state = "blocked", remote = false, hover = false, na
         <span style={{ display: "inline-flex", flex: "none", alignSelf: "flex-start", marginTop: "var(--tasty-banner-glyph-offset)", color: "var(--tasty-html-script-banner-glyph)" }}>
           <HsIcon name="lock" size="var(--tasty-icon-size-md)" />
         </span>
-        <div data-audit-exempt={reloading ? "dimmed" : undefined} style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: "var(--tasty-banner-text-gap)", opacity: reloading ? "var(--tasty-opacity-dimmed)" : 1 }}>
+        <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: "var(--tasty-banner-text-gap)" }}>
           <div style={{ fontSize: "var(--tasty-banner-title-font-size)", fontWeight: "var(--tasty-font-weight-semibold)", lineHeight: "var(--tasty-line-height-ui)", textWrap: "pretty" }}>{HS_COPY.title}</div>
           <div style={{ fontSize: "var(--tasty-banner-body-font-size)", lineHeight: "var(--tasty-line-height-ui)", color: "var(--tasty-banner-body-fg)", textWrap: "pretty" }}>{remote ? HS_COPY.bodyRemote : HS_COPY.body}</div>
         </div>

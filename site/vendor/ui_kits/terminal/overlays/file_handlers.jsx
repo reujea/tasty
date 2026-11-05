@@ -217,7 +217,7 @@ function FhRow({ L, id, origins, prio, pendingLabel, strikeId, on, switchOn, swi
     ? [<span key="n" title={origins.map((o) => o.label).join(", ")} style={{ flex: "none", display: "inline-flex" }}><Tag>{L.sources(origins.length)}</Tag></span>]
     : origins.map((o) => (
       <span key={o.label} style={{ flex: "none", display: "inline-flex" }}>
-        <Tag variant={o.plugin ? "agent" : undefined} disabled={o.struck}>{o.struck ? <s>{o.label}</s> : o.label}</Tag>
+        <Tag variant={o.plugin ? "agent" : undefined}>{o.struck ? <s>{o.label}</s> : o.label}</Tag>
       </span>
     ));
   return (
