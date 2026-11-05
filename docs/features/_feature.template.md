@@ -45,7 +45,7 @@
 
 ## 화면
 
-- **시각 소스**: `design-system/.../<x>.jsx` (claude design)
+- **시각 소스**: `design-system/.../<x>.jsx` (Design System)
 
 ### 트리거
 

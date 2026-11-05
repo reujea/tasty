@@ -1,6 +1,6 @@
 # Design Token → tasty Theme 매핑
 
-Claude Design의 `tokens/semantic.css`·`tokens/primitives.css`와 Tasty Theme의 대응표다. 색의 hex 값은 mocha 기준이며 테마마다 달라지므로 코드에서는 Theme 접근자를 사용한다.
+Design System의 `tokens/semantic.css`·`tokens/primitives.css`와 Tasty Theme의 대응표다. 색의 hex 값은 mocha 기준이며 테마마다 달라지므로 코드에서는 Theme 접근자를 사용한다.
 
 아이콘 SVG는 `tasty-icons`에서 정의하며 사용하는 곳에서 도형을 다시 만들지 않는다. [아이콘 가이드](icons.md)를 따른다.
 
@@ -384,7 +384,7 @@ text-gap(버튼 하나 32, 둘 60).
 ## Attention kind — NeedsInput/Completion (surface-highlight)
 
 디자인 `tokens/semantic.css` + `tokens/components.css` + `components/core/Badge.jsx` +
-`components/feedback/StatusDot.jsx`(원본: Claude Design "attention-visuals", 2026-08-10
+`components/feedback/StatusDot.jsx`(원본: Design System "attention-visuals", 2026-08-10
 확정). 색은 기존 semantic 색과 같은 Theme 필드를 쓴다 — **신규 Theme 필드 0**
 ([Theme 접근자 선택](design-parity-notes.md)).
 생성기는 아래 토큰마다 같은 이름의 접근자를 만든다. `attention_needs_input()`·`attention_completion()` 은

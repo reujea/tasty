@@ -90,7 +90,7 @@ full 의 폭은 `appearance.ui_scale` 이 정한다(small 150 · medium 180 · l
 화면정의서 — **사이드바 화면**.
 
 - **상위 화면**: [MainView 전체 레이아웃](../main-view/index.md#화면) 의 좌측 영역
-- **시각 소스**: `site/vendor/ui_kits/terminal/chrome.jsx` — claude design
+- **시각 소스**: `site/vendor/ui_kits/terminal/chrome.jsx` — Design System
 
 아래에서는 영역의 위치와 역할을 설명한다. 버튼이 여는 기능은 각 문서에서 다룬다.
 

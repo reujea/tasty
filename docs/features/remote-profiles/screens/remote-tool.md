@@ -2,7 +2,7 @@
 
 - **부모 기획**: [../index.md](../index.md)
 - **트리거 위치**: [도구 메뉴](../../tools-menu/index.md#화면) `Remote connections`
-- **시각 소스**: `site/vendor/ui_kits/terminal/overlays/remote_tool.jsx` — claude design.
+- **시각 소스**: `site/vendor/ui_kits/terminal/overlays/remote_tool.jsx` — Design System.
 - **구조**: 공통 헤더 + 상단 3탭 `[원격 접속 프로필] [Attach] [Passkey]`, 각 탭이 List / Form / ConfirmDelete 라우팅. 520×460, headless.
 
 ## 트리거

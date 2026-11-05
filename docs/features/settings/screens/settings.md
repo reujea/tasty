@@ -2,7 +2,7 @@
 
 - **부모 기획**: [../index.md](../index.md)
 - **트리거 위치**: [사이드바](../../sidebar/index.md#화면) 하단 **설정 버튼**
-- **시각 소스**: `site/vendor/ui_kits/terminal/overlays/settings_window.jsx` — claude design
+- **시각 소스**: `site/vendor/ui_kits/terminal/overlays/settings_window.jsx` — Design System
 
 ## 트리거
 

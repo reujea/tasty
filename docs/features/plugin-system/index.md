@@ -107,7 +107,7 @@ kind 대기 placeholder 로 두었다가 다시 켜면 채운다.
 화면정의서 — **플러그인 관리 창 화면**.
 
 - **트리거 위치**: [사이드바](../sidebar/index.md#화면) 하단 **플러그인 버튼**
-- **시각 소스**: `site/vendor/ui_kits/terminal/overlays/plugins_window.jsx` — claude design
+- **시각 소스**: `site/vendor/ui_kits/terminal/overlays/plugins_window.jsx` — Design System
 
 ### 트리거
 

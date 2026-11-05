@@ -74,7 +74,7 @@
 화면정의서 — **도구 메뉴 화면**.
 
 - **트리거 위치**: [사이드바](../sidebar/index.md#화면) 하단 **도구 버튼**
-- **시각 소스**: `site/vendor/ui_kits/terminal/overlays/tools_menu.jsx` — claude design
+- **시각 소스**: `site/vendor/ui_kits/terminal/overlays/tools_menu.jsx` — Design System
 
 아래에서는 메뉴의 배치를 설명한다. 항목별 동작은 연결된 기능 문서를 참고한다.
 

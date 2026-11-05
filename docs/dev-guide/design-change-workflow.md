@@ -6,90 +6,100 @@
 > 디자인에 *이미 있는데* 소스만 못 따라간 경우(구현 누락/불일치)는 이 워크플로가 필요 없다 —
 > 디자인 변경이 아니므로 바로 [gallery-first](gallery-first.md) 의 구조 전사(1단계)로 간다.
 
-이 워크플로의 도구 분담(Claude design 디자인 / claude code 구현)·정합 순서와 그 근거·재검토 조건은
-[테마 시스템 (운영 상세)](../design/systems/theme.md) 에 있다. 본 문서는 그 결정의 *현재 운영 절차* 만 기술한다.
-
-## 요청문서 전달 경로 (직접 접근 우선 / 로컬 fallback)
-
-요청문서를 designer(Claude design)에게 넘기는 방법은 **claude design 프로젝트 직접 접근 수단(예: DesignSync MCP)의 유무**에 따라 갈린다. 어느 경로든 요청문서의 내용·구성(§0~§8)·changelog 는 동일하다.
-
-| | **A. 직접 접근 가능 (우선)** | **B. fallback (직접 접근 없음/실패/미인증)** |
-|---|---|---|
-| 요청문서 위치 | 원격 프로젝트의 **전용 요청 인박스**(경로는 로컬 전용 지침이 정한다)에 직접 write | 로컬 작업 폴더의 `design-request/MMDDhhmm-design-request-<slug>.md`(gitignored — 폴더 위치는 로컬 전용 지침이 정한다) |
-| 넣는 주체 | claude code 가 write (요청 md 한정 — 실제 디자인 파일 산출은 아님) | claude code 가 로컬 파일로 작성 |
-| designer 에게 전달 | 사용자가 Claude design 을 열어 직접 지시 | 사용자가 요청문서를 Claude design 에 직접 제출 |
-| 시안 수령 | 갱신 디자인과 완료 표지를 직접 접근 수단으로 읽어 정합(폴더 경로 수령 불필요) | 사용자가 받아온 디자인 폴더 경로를 넘겨받아 정합 |
-
-- **직접 접근 수단으로 write 하는 대상은 요청 인박스의 요청 md 뿐**이다. 토큰/컴포넌트/UI kit 등 실제 디자인 산출물은 여전히 designer(Claude design)만 만든다 — claude code 가 직접 수정하지 않는다는 원칙은 불변.
-- **A 경로 지시는 항상 사용자 몫**이다 — claude code 는 원격 인박스에 요청문서를 write 할 뿐, designer 에게 실제로 알리는 것(지시)은 사용자가 Claude design 을 열어 직접 한다.
-- 이 저장소의 직접 접근 설정(접근 수단·projectId 등)은 커밋되지 않는 로컬 전용 지침(Claude Code 가 세션 시작 시 함께 로드하는 프로젝트 로컬 CLAUDE.md)에 기록한다(세션 고유값이라 커밋 문서에 박지 않는다).
-
-아래 다이어그램·표·라이프사이클은 **B(fallback)** 경로를 기준으로 그린 것이다. A 경로에서는 `[2] 사용자 제출`이 "claude code 가 원격 요청 인박스에 write → 사용자가 Claude design 을 열어 직접 지시"로 대체되고, 시안 수령이 직접 읽기가 된다.
+디자인 원본은 Design System Artifact `Tasty Design System`이고 파일은 `project/` 아래에 있다.
+Artifact 주소와 `designer` Agent 정의는 커밋하지 않는 로컬 전용 지침에 있다.
+정합 순서와 그 근거·재검토 조건은 [테마 시스템 (운영 상세)](../design/systems/theme.md) 에 있다.
 
 <a id="뱅글뱅글-도는-루프"></a>
 
 ## 요청부터 반영까지
 
 ```
-   ┌──────────────────────── 재요청 (부족·불일치 발견 시) ────────────────────────┐
-   │                                                                              │
-   ▼                                                                              │
-[1] planner ──작성──▶  디자인 요청문서  ──[2] 사용자 제출──▶  [3] Claude design       │
- (요청 산출물 정의)     (로컬 작업 폴더/            (사용자가 직접 제출)    (고충실 HTML/CSS 시안)  │
-                        design-request/*.md)                                  │            │
-                                                                              │ 시안 수령   │
-                                                                              ▼            │
-                              [4] 정합: 갤러리 specimen → 본체 구현 → 사이트 사본 ─────────┘
-                                  (구조 전사 + 토큰 정합)     (site/vendor 재-vendoring)
+   ┌───────────────── 재요청 (부족·불일치 발견 시) ─────────────────┐
+   ▼                                                               │
+[1] 구현 세션 ──작성·게시──▶ 요청문서 ──[2] 호출──▶ [3] designer Agent  │
+                         project/design-request/<slug>.md    (Artifact를 고침)
+                                                                │  │
+                                                 결정표·변경 목록 ▼  │
+                 [4] 정합: 갤러리 specimen → 본체 구현 → 사이트 사본 ─┘
+                                                                │
+                                              [5] 원격 요청·완료 문서·changelog 정리
 ```
 
 | 단계 | 행위자 | 하는 일 | 산출물 |
 |------|--------|---------|--------|
-| 1 | **planner** | 무엇을·어떻게 보이게 할지 정의한 **디자인 요청문서** 작성 | 로컬 작업 폴더의 `design-request/MMDDhhmm-design-request-<slug>.md` |
-| 2 | **사용자** | 요청문서를 **Claude design 에 직접 제출** | (제출) |
-| 3 | **designer** (Claude design) | 색·간격·인터랙션을 표현한 **고충실 시안** 생성 | HTML/CSS 시안 (원격 프로젝트의 파일) |
-| 4 | **구현** (claude code) | 갤러리 specimen → 본체 반영 → **사이트 사본 재-vendoring**(`site/vendor/`) | 코드 + vendor 사본 |
-| → 재요청 | planner | 4 에서 부족·불일치가 드러나면 **추가 요청문서**로 다시 2 로 | 새/갱신 요청문서 |
+| 1 | 구현 세션 | 무엇을 어떻게 보이게 할지 정의한 요청문서를 Artifact에 게시 | `project/design-request/<slug>.md` |
+| 2 | 구현 세션 | `designer` Agent를 Artifact 주소와 요청문서 경로로 호출. **사용자 허락을 따로 받지 않는다** | |
+| 3 | `designer` Agent | 디자인을 결정하고 범위 안의 파일을 게시 | 결정표, 게시 경로, `project/design-tasks/*.DONE.md`, changelog |
+| 4 | 구현 세션 | 보고를 게시본과 대조한 뒤 갤러리 specimen → 본체 → **사이트 사본** 순서로 반영 | 코드 + 사본 |
+| 5 | 구현 세션 | 반영이 끝난 요청문서·완료 문서·changelog 토픽 삭제 | |
 
-루프인 이유: 한 번에 끝나지 않는다. 시안이 열린 결정(아래 §6)을 확정하거나
-요청문서에 없던 구조를 드러내면, 부족분은 다음 요청문서로 다시 돈다.
+시안이 요청문서에 없던 구조를 드러내거나 4단계에서 부족분이 나오면 다음 요청문서로 다시 돈다.
+
+## 책임 경계
+
+| 대상 | 정하는 쪽 | 예 |
+|------|----------|-----|
+| 제품 동작 | 사용자. 요청문서에 확정 사항으로 적는다 | 언제 풀리는지, 기능을 넣을지, 어떤 동작을 제공할지 |
+| 동작의 표현 | designer | 레이아웃, 상태별 모양, 문구, 비활성 표시 방식 |
+| 정해진 동작 안의 흐름 표현 | designer. 동작이 달라지면 멈춘다 | 버튼 위치, 안내 순서, 포커스 표시 |
+| 기술 사실 | 구현 세션 | 키 이름, 현재 구현 동작, 토큰 사용 범위 |
+
+구현 세션은 디자인 값을 스스로 정하지 않는다. designer는 저장소 소스를 읽지 않으므로 요청문서에 필요한 구현 사실을 실제 코드에서 확인해 적는다.
+
+### `.NEEDS-INPUT` 처리
+
+designer가 답을 정할 수 없는 항목은 `project/design-tasks/<YYYYMMDD-hhmm>-<slug>.NEEDS-INPUT.md`로 게시하고 질문마다 종류를 표시한다. 호출한 구현 세션이 먼저 처리한다.
+
+| 종류 | 처리 |
+|------|------|
+| 사실 확인 | 구현 세션이 코드에서 확인해 답하고 designer를 다시 호출한다 |
+| 디자인 판단 | 요청문서를 보강해 designer를 다시 호출한다 |
+| 제품 결정 | 사용자에게 묻는다. 분류가 애매하면 제품 결정으로 본다 |
 
 ## 디자인 요청문서란
 
-**planner 가 작성하는 입력 산출물.** "이번에 무엇을, 어떤 화면·컴포넌트·상태·인터랙션으로 보이게 할지"를
-디자이너(Claude design)가 고충실 시안으로 옮길 수 있도록 정의한 문서다. *왜/구현 내부 구조*이 아니라 **무엇을 어떻게 보이게 할지**만 담는다.
+구현 세션이 작성하는 입력 산출물이다. *왜/구현 내부 구조*가 아니라 **무엇을 어떻게 보이게 할지**와 designer가 알 수 없는 사실을 담는다.
 
-- **위치**: 전달 경로에 따라 다르다(위 "요청문서 전달 경로" 참조) — A(직접 접근)면 원격 프로젝트의 전용 요청 인박스(경로는 로컬 전용 지침이 정한다), B(fallback)면 로컬 작업 폴더의 `design-request/`(gitignored, 커밋 대상 아님 — 폴더 위치는 로컬 전용 지침이 정한다).
-- **파일명 규칙**: `MMDDhhmm-design-request-<slug>.md` — 맨 앞에 **월일시분(MMDDhhmm)**, 이어서 **`design-request`**, 마지막에 내용 slug 를 붙인다(예: `07101430-design-request-explorer-file-manager.md`). 날짜·시간을 선두에 둬 파일이 시간순으로 정렬되게 하고, `design-request` 접두로 문서 종류를 명시한다.
+- **위치**: `project/design-request/<slug>.md`. 일부 값이 비어 있어도 게시하며 여러 요청을 동시에 둘 수 있다.
 - **기준 구성**: 아래 §0~§8 구성을 그대로 따른다.
 
 ### 요청문서 구성 (§0~§8)
 
 | 섹션 | 내용 |
 |------|------|
-| 헤더 메타 | 작성일 · 요청자(planner) · 수행자(designer) · **상태** · 연계 계획 |
+| 헤더 메타 | 작성일 · 요청자 · 수행자(designer) · **상태** · 범위 |
 | §0 한 줄 요약 | 이 요청이 만들려는 것 한 줄 |
-| §1 맥락 / 제약 | 토큰은 코드 기준(Catppuccin Mocha, raw hex 금지) · 4px 그리드/14px 폰트 상한/1px 보더 · gallery-first 부품 재사용 · i18n 가변폭 · 기존 구현과의 관계 |
-| §2 인벤토리 | 디자이너가 만들 화면/컴포넌트/팝업/상태 목록 표 (신규/기존 구분) |
+| §1 맥락 / 제약 | 확인한 구현 사실(확인 날짜 포함) · 토큰 규칙 · 기존 구현과의 관계 |
+| §2 인벤토리 | 다룰 화면/컴포넌트/상태 목록 표 (신규/기존 구분) |
 | §3 화면별 요구사항 | 화면 단위 레이아웃·영역 구성 |
 | §4 컴포넌트별 요구사항 | 컴포넌트 단위 상태·변형 |
-| §5 인터랙션 / 동작 | 시안에 주석으로 달 조작·상태전이 규칙 |
-| §6 열린 결정 | 디자이너/사용자가 확정해야 할 미결 사항 |
-| §7 산출물 형식 | 디자이너에게: 고충실 HTML/CSS, 상태 변형 포함, 토큰 안에서만, 구현 친화 박스 경계 |
-| §8 참고 | 계획 문서, 토큰/팝업 정책 링크 |
+| §5 인터랙션 / 동작 | 사용자가 확정한 동작과 상태 전이 규칙 |
+| §6 열린 결정 | designer가 판단할 항목 |
+| §7 산출물 형식 | 결정표, 토큰 변경표, 영향 목록처럼 보고받을 것 |
+| §8 참고 | 표본 경로, 토큰 안내 |
 
 ### 요청문서가 강제하는 디자인 규칙 (시안 단계부터)
 
-요청문서 §1·§7 은 시안이 본체 토큰·정책과 어긋나지 않도록 다음을 **시안 단계에서부터** 못박는다:
+- **토큰 기준** — 색·간격·치수·보더는 토큰 안에서만 정한다. 토큰은 3계층이고 추가만 한다. ([theme UI 규칙](../design/systems/theme.md#ui-디자인-규칙-필수))
+- **레이아웃 규칙** — 4px 그리드 · 폰트 14px 상한 · 보더 1px · 호버/액티브 오버레이는 자동 도출한다.
+- **대비** — 텍스트 4.5:1, 테두리·포커스·아이콘 3:1을 Mocha와 Latte 양쪽에서 지킨다.
+- **gallery-first 부품 재사용** — 보편 부품은 [공용 위젯](../architecture/ui-widgets-crate.md#무엇을-공용-위젯으로)·기존 카탈로그와 시각 일관을 유지한다. ([gallery-first](gallery-first.md))
+- **i18n 가변폭** — 문구는 번역 키마다 en, ko, ja를 모두 정하고 길이 차이를 감안한다. ([`t()`](i18n.md))
 
-- **토큰 기준은 코드(`Theme`)** — 색·간격·치수·보더는 모두 Catppuccin Mocha 토큰 안에서만. raw hex 하드코딩 금지(시안에서도 토큰 의미 이름으로 표기). ([theme UI 규칙](../design/systems/theme.md#ui-디자인-규칙-필수))
-- **레이아웃 규칙** — 4px 그리드 · 폰트 14px 상한 · 보더 1px · 호버(흰색 +8%)/액티브(+12%) 오버레이는 직접 값 금지(자동 도출).
-- **gallery-first 부품 재사용** — 보편 부품(버튼/입력/표/스크롤바/컨텍스트 메뉴/팝업)은 [공용 위젯](../architecture/ui-widgets-crate.md#무엇을-공용-위젯으로)·기존 카탈로그와 시각 일관. ([gallery-first](gallery-first.md))
-- **i18n 가변폭** — 모든 문자열은 [`t()`](i18n.md) 번역 키로 노출될 예정. 시안 텍스트는 영어 기준이되 독/일/한 가변 길이를 감안해 여유 폭.
+## 토큰이 바뀌는 요청
+
+앱은 `project/tokens/tasty.tokens.json` 한 파일만 받아 Rust 상수와 Theme 접근자를 생성하므로, CSS만 고치면 앱에 들어오지 않는다.
+
+1. designer는 토큰 CSS와 같은 게시에서 JSON을 재생성한다. 도구는 `scripts/design-tokens/gen_tokens_json.py`와 `verify_tokens_json.py`이고, 값을 손으로 옮겨 적지 않는다. 절차는 [`crates/tasty-design-tokens/README.md`](../../crates/tasty-design-tokens/README.md)에 있다.
+2. Latte만 값이 달라지는 새 semantic 역할(`-raised` 등)은 단순 별칭이 아니므로 구현 세션이 `crates/tasty-design-tokens/src/dtcg/accessor.rs`의 `SEMANTIC_COLOR_TO_THEME_ACCESSOR`와 `SEMANTIC_COLOR_HAND_WRITTEN`에 Theme 접근자를 함께 추가한다. 대응이 없으면 생성기가 그 토큰을 쓰는 component 접근자를 건너뛴다.
+3. `components/bundle.js`는 Artifact 안에서 재빌드할 도구가 없다. 갤러리 페이지는 `.jsx` 소스를 번들 뒤에 불러오므로 구현 기준은 `.jsx`다.
+
+<a id="정합-대상--사이트-사본-필수"></a>
 
 ## 정합 대상 — 사이트 사본 (필수)
 
-레포에는 같은 원격 canonical 의 vendored 사본이 **둘** 있고, 디자인 결정은 **둘 다** 따라와야 한다.
+레포에는 같은 원격 원본의 vendored 사본이 **둘** 있고, 디자인 결정은 **둘 다** 따라와야 한다.
 
 | 사본 | 무엇이 받는가 | 갱신 절차 | 안 따라오면 |
 |------|--------------|-----------|-------------|
@@ -106,61 +116,48 @@ cap/join을 비교한다. `site_vendor_manifest_matches`는 사이트 사본이 
 
 이 정합 대상을 세운 근거·대안·재검토 조건은 [테마 시스템 (운영 상세)](../design/systems/theme.md).
 
-재-vendoring 은 원격 프로젝트 접근(DesignSync 세션)을 쓰므로, 그 권한이 없는 세션에서는 이 단계를 **미완으로 남기고 그 사실을 적는다** — 조용히 건너뛰지 않는다.
+재-vendoring 은 Artifact 읽기 권한이 필요하다. 그 권한이 없는 세션에서는 이 단계를 **미완으로 남기고 그 사실을 적는다** — 조용히 건너뛰지 않는다.
 
 ## 상태 라이프사이클
 
 요청문서 헤더 메타의 `상태:` 필드로 추적한다.
 
-```
-requested ──(사용자 제출·시안 수령)──▶ received ──(갤러리/본체/사이트 정합)──▶ reconciled
-    ▲                                                                          │
-    └────────────────── re-requested (부족·불일치 발견 시 새 요청으로) ─────────────┘
-```
-
 | 상태 | 의미 |
 |------|------|
-| `requested` | planner 가 요청문서를 작성·확정. 아직 시안 없음 (제출 대기). |
-| `received` | 사용자가 Claude design 시안을 받아옴. 정합 작업 대기/진행. |
-| `reconciled` | 시안을 갤러리 specimen + 본체 + **사이트 사본(`site/vendor/`)** 에 반영 완료 — 사이트 사본이 빠지면 코드가 따라와도 **공개 사이트는 결정 이전 UI 를 계속 전시한다**(위 [정합 대상 — 사이트 사본](#정합-대상--사이트-사본-필수)). 이 시점에 **요청문서와 완료 문서·changelog 를 삭제한다**(아래 [정합 완료 후 정리](#정합-완료-후-정리-필수)). |
+| `requested` | 요청문서를 게시함. designer 호출 전이거나 실행 중. |
+| `received` | designer가 게시를 마치고 보고함. 정합 작업 대기/진행. |
+| `reconciled` | 시안을 갤러리 specimen + 본체 + **사이트 사본(`site/vendor/`)** 에 반영 완료. 이 시점에 정리한다(아래 [정합 완료 후 정리](#정합-완료-후-정리-필수)). |
 | `re-requested` | 정합 중 부족·불일치가 드러나 추가/갱신 요청문서로 루프 재진입. |
 
 <a id="정합-완료-후-요청문서-삭제-필수"></a>
 
 ## 정합 완료 후 정리 (필수)
 
-요청문서는 designer 에게 "무엇을 만들지"를 넘기기 위한 **입력 산출물**일 뿐, 정합이 끝나면 더 이상 쓸모가 없다. 그래서 `reconciled` 에 도달하면(디자인 작업이 수락·완료되고 시안이 갤러리/본체/사이트 사본에 반영 완료) **그 작업을 유발한 요청문서를 삭제한다.** designer 가 남긴 원격 완료 문서(`design-tasks/*.DONE.md`)와 changelog 토픽 파일(`changelog/<날짜>-<토픽>.md`)도 그 배치의 요청이 모두 반영됐으면 함께 삭제하고, `changelog/README.md` 는 남기되 목차 표의 해당 행을 비운다. 이력이 필요한 결정은 이미 ADR·docs 에 남으므로 이 파일들을 붙잡아 둘 이유가 없다.
+`reconciled`에 도달하면 요청문서, designer가 남긴 완료 문서(`project/design-tasks/*.DONE.md`), changelog 토픽 파일(`project/changelog/<날짜>-<토픽>.md`)을 삭제한다. `project/changelog/README.md`는 남기고 목차 표의 해당 행만 지운다. 이력이 필요한 결정은 이미 ADR·docs 에 남는다.
 
-**전제 (삭제 조건).** 아래를 모두 만족할 때만 삭제한다:
+- **삭제 조건**: 상태가 확정적으로 `reconciled`이고, 삭제할 파일을 게시본 목록에서 확인했다. `re-requested`로 루프가 도는 중이면 지우지 않는다.
+- **삭제 방법**: 한 게시 호출의 `files`에 `"project/<경로>": null`을 넣는다. 같은 호출에서 `project/design-system.json`의 `lastChange`를 갱신한다.
+- **남기는 것**: 완료 문서의 요청 중 반영되지 않은 것이 있으면 그 완료 문서와 changelog 토픽은 남긴다. `.FAILED`·`.NEEDS-INPUT` 문서는 처리가 끝나기 전까지 지우지 않는다. 토큰·갤러리·ui_kits 같은 확정 디자인은 삭제하지 않는다.
 
-1. 상태가 확정적으로 `reconciled` 다 — 아직 `re-requested` 로 루프가 도는 중이면 삭제하지 않는다(다음 turn 에 다시 쓰인다).
-2. 삭제할 파일이 로컬 또는 원격에 **실제로 존재함을 확인**했다(A=원격 `list_files`, B=로컬 파일 존재 확인).
-3. claude code 가 그것을 **직접 삭제하거나 삭제를 요청할 수단이 있다**(아래 경로별). 수단이 없거나 실패하면 강제하지 않고 상태만 `reconciled` 로 두고 넘어간다(능력 없음 ≠ 미완).
+## Artifact 게시 규칙
 
-**경로별 삭제 방법.**
-
-| 경로 | 요청문서 위치 | 삭제 방법 |
-|------|--------------|-----------|
-| **B. 로컬 (fallback)** | 로컬 작업 폴더의 `design-request/MMDDhhmm-design-request-<slug>.md` | 로컬 파일을 **직접 삭제**한다(gitignored 라 이력 남길 필요 없음). |
-| **A. 원격 (직접 접근)** | 원격 전용 인박스의 요청문서 | **DesignSync `delete_files`** 로 삭제한다 — `list_files`(존재 확인) → `finalize_plan` 의 `deletes`(+ `writes` 는 빈 배열) 에 그 경로를 넣어 `planId` 획득(권한 프롬프트) → `delete_files`(`planId`) 순. 원격 파일 삭제는 이 메서드로 가능하다. |
-
-**삭제 대상 = 요청문서 · 완료 문서 · changelog 토픽 파일.** 완료 문서 하나가 여러 요청을 묶으므로, 그 문서의 요청 중 아직 반영되지 않은 것이 있으면 완료 문서와 해당 changelog 토픽은 남긴다. `.FAILED`·`.NEEDS-INPUT` 문서는 처리가 끝나기 전까지 지우지 않는다. 확정 시안(원격 프로젝트의 토큰·갤러리·ui_kits 등 시안 파일 · `docs/design/` 에 보존한 HTML)은 **삭제하지 않는다** — 그것은 아래 "누가 무엇을 하나"·docs/design/systems/theme.md 의 **보존** 대상이다.
+- 게시가 낡은 판이라고 거부되면 `url`만 넘겨 다시 읽는다. 파일 경로 읽기로는 풀리지 않는다. `force`는 쓰지 않는다.
+- 게시할 파일은 한 폴더 아래 `project/<경로>`로 두고 `root`, `file_path`, `files`를 함께 넘긴다. `.jsx`는 `files`에 `{from, contentType: "text/plain"}`으로 넣는다.
+- 인덱스 `project/design-system.json`은 작업의 마지막 호출에서 직전에 다시 읽어 `lastChange`만 고친다.
 
 ## 누가 무엇을 하나 (역할 분리)
 
 | 역할 | 누가 | 책임 |
 |------|------|------|
-| **planner** | claude code(todo-maker 겸) 또는 사용자 | 요청문서 작성 — 인벤토리·제약·열린 결정 정의. |
-| **사용자** | 사람 | 요청문서를 **Claude design 에 직접 제출**하고 시안 결과를 받아온다. (이 제출은 사용자 행위 — 에이전트가 대행하지 않는다.) |
-| **designer** | Claude Design (claude.ai/design) | 고충실 HTML/CSS 시안 생성. 색·치수는 요청문서가 준 토큰 팔레트 안에서만. |
-| **구현** | claude code | 확정 시안을 [gallery-first](gallery-first.md) 순서로 — 갤러리 specimen(구조 전사+토큰 정합) → 본체 반영 → 사이트 사본 재-vendoring. |
+| **사용자** | 사람 | 제품 동작 결정. 디자인 작업 시작을 따로 승인하지 않는다. |
+| **구현 세션** | Claude Code 메인 세션 | 요청문서 작성·게시, designer 호출, 보고 대조, [gallery-first](gallery-first.md) 순서의 반영, 원격 정리. |
+| **designer** | `designer` Agent | 디자인 결정과 Artifact 수정. 지정된 Artifact 외에는 쓰지 않는다. |
 
-> 확정 시안은 원격 Claude design 프로젝트에 파일로 남는다(정합 뒤 지우는 것은 요청문서·완료 문서·changelog 토픽뿐이다). 레포 안에
-> 근거로 남겨야 하는 시안은 HTML 을 `docs/design/` 에 보존한다(docs/design/systems/theme.md).
+> 레포 안에 근거로 남겨야 하는 시안은 HTML 을 `docs/design/` 에 보존한다(docs/design/systems/theme.md).
 
 ## 관련
 
-- [테마 시스템 (운영 상세)](../design/systems/theme.md) — 도구 분담·정합 순서·갤러리 완전성·사이트 사본 결정 근거와 재검토 조건.
+- [테마 시스템 (운영 상세)](../design/systems/theme.md) — 정합 순서·갤러리 완전성·사이트 사본 결정 근거와 재검토 조건.
 - [gallery-first](gallery-first.md) — 확보한 디자인을 갤러리→본체로 내리는 순서(0단계 "디자인 확보"가 이 워크플로).
 - [design/policies/gallery-completeness](../design/policies/gallery-completeness.md) — cut 금지 시 디자인 보강(=이 워크플로로 재요청).
 - [design/systems/design-parity-notes](../design/systems/design-parity-notes.md) · [design-gallery-mapping](../design/systems/design-gallery-mapping.md) — 시안→소스 구조 전사 원칙·매핑.

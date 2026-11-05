@@ -79,7 +79,7 @@
 
 화면정의서 — **윈도우 크롬 화면 (CSD 타이틀바)**.
 
-- **시각 소스**: `site/vendor/ui_kits/terminal/` (`chrome.jsx`, `titlebar/titlebar_linux.jsx`) — claude design
+- **시각 소스**: `site/vendor/ui_kits/terminal/` (`chrome.jsx`, `titlebar/titlebar_linux.jsx`) — Design System
 
 [MainView](../main-view/index.md#화면) 최상단의 OS별 타이틀바. 동작은 부모 기획, 여기선 OS별 시각 배치.
 

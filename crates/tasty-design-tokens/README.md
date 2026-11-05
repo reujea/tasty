@@ -1,31 +1,21 @@
 # tasty-design-tokens
 
-Claude Design의 DTCG 토큰을 저장하고 Rust 상수와 Theme 접근자를 생성한다.
+Design System Artifact의 DTCG 토큰을 저장하고 Rust 상수와 Theme 접근자를 생성한다.
 배율 적용과 색 접근 규칙은 `src/lib.rs`의 크레이트 문서를 따른다.
 
 ## vendor 갱신 절차
 
-디자인 원본은 원격 Claude Design 프로젝트에서 관리한다. projectId와 인증 방법은
-커밋하지 않는 로컬 지침을 확인한다.
+디자인 원본은 Design System Artifact에서 관리한다. 주소는 커밋하지 않는 로컬 지침을 확인한다.
 
-1. DesignSync의 `get_file`로 `tokens/tasty.tokens.json`을 받아
+1. Artifact 읽기로 `project/tokens/tasty.tokens.json`을 받아
    `dtcg/tasty.tokens.json`을 교체한다. 이 JSON은 디자인 측 CSS에서 생성하므로
    누락된 토큰이나 값을 직접 채우지 않는다.
 2. 함께 받은 CSS와 JSON을 비교한다. CSS만 수정되고 JSON이 재생성되지 않았을 수 있다.
-   아래 예제는 JSON에 빠진 component 이름을 찾는다. 값·별칭의 일치나 반대 방향의
-   누락까지 검사하지는 않으므로 해당 변경도 별도로 대조한다.
+   Artifact의 `project/tokens.css`와 `project/tokens/{primitives,semantic,components}.css`를
+   받은 폴더를 넘긴다. 이름·값·별칭·Latte 값을 양방향으로 비교하고 차이가 있으면 1로 끝난다.
 
    ```sh
-   # 원격 tokens/components.css를 /tmp/components.css에 저장한 뒤 실행한다.
-   python3 - <<'EOF'
-   import json, re
-   css = open('/tmp/components.css', encoding='utf-8').read()
-   names = set(re.findall(r'^\s*--tasty-([a-z0-9-]+)\s*:', css, re.M))
-   comp = {k for k in json.load(open('dtcg/tasty.tokens.json'))['component']
-           if not k.startswith('$')}
-   print('css', len(names), 'json', len(comp))
-   print('JSON에 없는 CSS 토큰:', sorted(names - comp))
-   EOF
+   python3 scripts/design-tokens/verify_tokens_json.py <받은 폴더> crates/tasty-design-tokens/dtcg/tasty.tokens.json
    ```
 
    차이가 있으면 갱신을 중단하고 디자인 측에 JSON 재생성을 요청한다.
@@ -38,6 +28,23 @@ Claude Design의 DTCG 토큰을 저장하고 Rust 상수와 Theme 접근자를 �
      검사를 통과시키려고 값을 임의로 맞추지 않는다.
 5. JSON, 재생성된 토큰 상수와 `tasty-type-appearance` 접근자, 필요한 시험 변경을
    같은 커밋으로 저장한다.
+
+## JSON 재생성
+
+디자인 측이 토큰 CSS를 바꾸면 같은 게시에서 JSON도 다시 만든다.
+`scripts/design-tokens/gen_tokens_json.py`가 이름·값·별칭·Latte 값을 CSS에서 읽는다.
+CSS에 없는 키 순서·`$description`·`$type`·숫자 표기는 이전 JSON에서 가져온다.
+CSS에서 사라진 토큰이 있으면 실패한다. 값이나 별칭을 손으로 옮겨 적지 않는다.
+
+```sh
+python3 scripts/design-tokens/gen_tokens_json.py <프로젝트 폴더> <이전 JSON> <출력 JSON>
+python3 scripts/design-tokens/verify_tokens_json.py <프로젝트 폴더> <출력 JSON>
+```
+
+Latte만 값이 달라지는 새 semantic 역할은 생성기가 접근자를 만들지 못한다.
+`theme.rs`에 접근자를 쓰고 `src/dtcg/accessor.rs`의 `SEMANTIC_COLOR_TO_THEME_ACCESSOR`와
+`SEMANTIC_COLOR_HAND_WRITTEN`에 추가한다. 대응이 없으면 그 역할을 가리키는 component 접근자는
+스킵 사유만 로그에 남기고 생성되지 않는다.
 
 ## calc 토큰
 

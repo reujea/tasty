@@ -1,7 +1,7 @@
 # Clipboard Viewer popup 화면
 
 - **부모 기획**: [../index.md](../index.md)
-- **시각 소스**: Claude Design 프로젝트 `Tasty Design System`(projectId `41fd3f5a-4bb9-4877-999f-db5124dc2925`)
+- **시각 소스**: Design System Artifact `Tasty Design System`
   `ui_kits/terminal/overlays/clipboard_viewer.jsx`.
 
 도구 메뉴/단축키로 뜨는 클립보드 뷰어 popup. header → type-bar → body → footer 4단 수직 배치.
@@ -52,7 +52,7 @@ plugin 은 header~footer content 영역만 그린다(`cbFrame`/`Scrim` 은 desig
 ## HTML prettify 인덴터
 
 `crates/tasty-plugin-clipboard-viewer/src/html_format.rs::prettify` — 정규 HTML5 파서가 아니라
-태그 깊이를 세는 휴리스틱 토크나이저(새 외부 의존성 없음). Claude Design 시안이 검증한 참조
+태그 깊이를 세는 휴리스틱 토크나이저(새 외부 의존성 없음). Design System 시안이 검증한 참조
 알고리즘(`>\s+<` 공백 정규화 → `<...>` 태그 경계 split → 닫는 태그는 먼저 depth 감소, 여는
 태그는 출력 후 depth 증가, void element/self-closing 은 증가 없음)을 그대로 포팅했다. 단
 `<script>`/`<style>`/`<pre>` 내부는 별도로 완전한 span 을 추출해 verbatim 보존한다 — 참조
@@ -106,7 +106,7 @@ specimen 에 있다. 디자인·갤러리·제품 구현의 대응표:
 
 ## 시각 소스
 
-Claude Design 프로젝트 `Tasty Design System`(projectId `41fd3f5a-4bb9-4877-999f-db5124dc2925`)
+Design System Artifact `Tasty Design System`
 `ui_kits/terminal/overlays/clipboard_viewer.jsx`(구조 전사 소스) ·
 `clipboard_viewer.html`(standalone 프리뷰) · `shared.jsx`(`Scrim`/`Icon`/`Spinner` 공용
 프리미티브). popup 은 egui-mesh 채널로 plugin 이 자가 렌더한다

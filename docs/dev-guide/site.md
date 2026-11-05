@@ -80,7 +80,7 @@ site/
 ### vendor 자신은 어디서 오는가
 
 위 변환은 `vendor → src` 한 방향만 말한다. 그 앞에 **`원격 → vendor`** 방향이 하나 더 있고,
-그쪽이 사람이 도는 단계다 — `site/vendor/` 는 원격 Claude Design 프로젝트의 사본이라,
+그쪽이 사람이 도는 단계다 — `site/vendor/` 는 원격 Design System 프로젝트의 사본이라,
 디자인이 확정되면 누군가 그것을 받아와야 한다. 절차는
 [`site/vendor/README.md`](../../site/vendor/README.md) 의 "vendor 갱신 절차" 에 있고,
 정합 루프에서 이 단계가 차지하는 자리는
@@ -300,23 +300,23 @@ Sätteri 의 hast 플러그인(`src/lib/satteri-*.mjs`)에서 일어난다.
 ### 치수 척도의 두 출처
 
 판정 단위는 파일이 아니라 **규칙(선택자 블록)** 이다. 한 파일에 두 출처가 섞이면 규칙마다
-판정하고, 한 규칙 안에서 출처가 갈리는 선언이 있으면 그 선언만 따로 판정한다. 물음은 하나다 — *Claude Design 이 킷에서 이 값을 바꾸면 이 규칙도 따라 바뀌어야
-하는가.* 그렇다면 Claude Design 출처, 아니면 사이트 독자다.
+판정하고, 한 규칙 안에서 출처가 갈리는 선언이 있으면 그 선언만 따로 판정한다. 물음은 하나다 — *Design System 이 킷에서 이 값을 바꾸면 이 규칙도 따라 바뀌어야
+하는가.* 그렇다면 Design System 출처, 아니면 사이트 독자다.
 
 | 출처 | 대상 | 쓰는 척도 |
 |------|------|-----------|
-| Claude Design | `site/vendor/` 사본과 거기서 생성한 파일(`kit.css` · `tokens.css` · 갤러리). 사이트 스타일시트 안에서는 킷 컴포넌트가 그리는 앱 화면을 재현하거나 그 값을 그대로 옮기는 규칙 — 랜딩·가이드의 제품 창 chrome(`app-shell.css` 의 `.shell` · `.shell__*` · `.shell-overlays*`), 킷 창 크기를 옮긴 Settings 무대(`.anat-settings__stage`), 갤러리 경로의 `gallery-site.css` · `vendor-stamp.css`, 디자인 섹션에서 iframe 으로 띄우는 킷 문서 | Claude Design 토큰 `--tasty-*` 의 semantic 층(`--tasty-space-*`, `--tasty-radius*`, `--tasty-font-size-<역할>` …). 토큰 파일 머리말대로 primitive(`--tasty-size-N` 등)는 직접 읽지 않는다 |
+| Design System | `site/vendor/` 사본과 거기서 생성한 파일(`kit.css` · `tokens.css` · 갤러리). 사이트 스타일시트 안에서는 킷 컴포넌트가 그리는 앱 화면을 재현하거나 그 값을 그대로 옮기는 규칙 — 랜딩·가이드의 제품 창 chrome(`app-shell.css` 의 `.shell` · `.shell__*` · `.shell-overlays*`), 킷 창 크기를 옮긴 Settings 무대(`.anat-settings__stage`), 갤러리 경로의 `gallery-site.css` · `vendor-stamp.css`, 디자인 섹션에서 iframe 으로 띄우는 킷 문서 | Design System 토큰 `--tasty-*` 의 semantic 층(`--tasty-space-*`, `--tasty-radius*`, `--tasty-font-size-<역할>` …). 토큰 파일 머리말대로 primitive(`--tasty-size-N` 등)는 직접 읽지 않는다 |
 | 사이트 독자 | 사이트가 스스로 디자인한 것 — 페이지 레이아웃, 헤더 · 사이드바 · 목차, 본문 타이포그래피(`global.css`), 랜딩 섹션과 제품 창을 감싸는 카드(`landing.css` 의 `.window` 포함), 디자인 섹션의 머리 · 카드 · 타일 틀(`design.css`), 가이드 그림의 영역 라벨(`.anat*`)과 배치(`.workflow-diagram*`) | 사이트 척도 — 간격 `--sp-1`(4px) ~ `--sp-24`(96px), 반경 `--radius-sm` · `--radius` · `--radius-lg`, 요소 크기 `--size-control-sm` · `-md` · `-lg`(32 · 36 · 44px)와 `--size-icon-sm` · `-md` · `-lg` · `-xl`(16 · 18 · 20 · 24px), 레이아웃 변수(`--header-h`, 여러 규칙이 함께 쓰는 폭 `--page-max` 1440px · `--landing-max` 1180px 등). `global.css` 의 `:root` 가 정의한다 |
 
 - 선언 단위로 갈리는 경우 — 제품 창을 **페이지에 얼마나 크게 보일지**(`.shell` 의 높이
-  `clamp(…, vw, …)`, 가이드 그림의 높이 · 너비)는 킷이 정하지 않는 페이지 배치라 Claude Design
+  `clamp(…, vw, …)`, 가이드 그림의 높이 · 너비)는 킷이 정하지 않는 페이지 배치라 Design System
   출처 규칙 안의 선언이어도 사이트 독자 값으로 본다(hero 높이 clamp, 그림 높이 420 · 400 · 620px, 그림 폭
-  820px, 작업 흐름 패인 최소 높이 190px). 반대로 킷이 정한 창 크기를 옮긴 값은 Claude Design 출처다 —
+  820px, 작업 흐름 패인 최소 높이 190px). 반대로 킷이 정한 창 크기를 옮긴 값은 Design System 출처다 —
   Settings 무대는 `--tasty-settings-window-width` · `-height`, 제품 창 토스트의 하단 거리는
   `--tasty-toast-stack-offset-bottom` 을 읽는다.
 - 갤러리 경로는 `Base.astro` 를 거치지 않아 `global.css` 를 싣지 않는다. 그 경로에는 `--sp-*` 가
   없으므로 갤러리 스타일시트는 위 표와 별개로도 `--tasty-*` 만 쓸 수 있다.
-- primitive 직접 참조 금지는 Claude Design 출처 규칙의 **치수**에만 적용한다. 색 토큰을 어느 층에서
+- primitive 직접 참조 금지는 Design System 출처 규칙의 **치수**에만 적용한다. 색 토큰을 어느 층에서
   읽는지는 이 절이 다루지 않는다.
 - 요소 크기 척도는 용도로 나눈다. `--size-control-*` 는 컨트롤의 높이 · 너비다 — `sm` 은 헤더의
   아이콘 버튼 · 언어 전환 · 검색 입력과 검색 아이콘 칸(좁은 화면에서 접힌 검색 폭 포함), `md` 는
@@ -336,7 +336,7 @@ Sätteri 의 hast 플러그인(`src/lib/satteri-*.mjs`)에서 일어난다.
   (`.prose img` · `.anat-window` · `.anat-settings` · `.workflow-diagram`)과 그림과 캡션 사이 여백이
   여기에 든다.
 - 고른 척도에 대응 값이 없으면 값이 우연히 같은 다른 토큰·변수를 부르지 않고 숫자로 둔 채
-  "대응 값 없음" 주석을 단다 — 없는 관계가 생기기 때문이다. Claude Design 출처인데 토큰이 없으면
+  "대응 값 없음" 주석을 단다 — 없는 관계가 생기기 때문이다. Design System 출처인데 토큰이 없으면
   값을 로컬에서 정하지 않고 디자인 요청으로 올린다. 사이트 독자 척도에 필요한 값이 없어도 변수를
   즉석에서 만들지 않는다.
 - 미디어 쿼리와 컨테이너 쿼리의 **조건**은 숫자로 남긴다. media feature 는 custom property 를

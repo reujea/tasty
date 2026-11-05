@@ -79,7 +79,7 @@
 
 화면정의서 — **탭 스트립 화면**.
 
-- **시각 소스**: `site/vendor/ui_kits/terminal/work.jsx` (탭 바 부분) — claude design
+- **시각 소스**: `site/vendor/ui_kits/terminal/work.jsx` (탭 바 부분) — Design System
 
 [작업 영역](../work-area/index.md#화면) 안, 각 Pane 머리의 탭 바. 동작은 부모 기획, 여기선 시각.
 

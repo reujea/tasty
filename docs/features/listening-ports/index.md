@@ -137,7 +137,7 @@ Port / Proto / Address / Process / Workspace / Tab / State.
 
 화면정의서 — **리스닝 포트 팝업 (화면)**.
 
-- **시각 소스**: `site/vendor/ui_kits/terminal/overlays/port_scanner.jsx` (claude design)
+- **시각 소스**: `site/vendor/ui_kits/terminal/overlays/port_scanner.jsx` (Design System)
 
 ### 트리거
 

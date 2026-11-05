@@ -224,7 +224,7 @@ source 별 `source_cwd()` 는 [cwd 정책](../../design/policies/cwd.md). 이 �
 
 화면정의서 — **작업 영역 화면**.
 
-- **시각 소스**: `site/vendor/ui_kits/terminal/work.jsx` — claude design
+- **시각 소스**: `site/vendor/ui_kits/terminal/work.jsx` — Design System
 
 [MainView](../main-view/index.md#화면) 중앙. 이 화면은 위에서 설명한 **두 레벨 레이아웃**(상위 Pane / 하위 Surface)을 표시한다. 아래에서는 시각 배치를 설명한다.
 
