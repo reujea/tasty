@@ -62,7 +62,7 @@ const EGUI_LENGTH_HEADS: &[&str] = &[
 const DECLARATION_SITES: &[(&str, usize, &str)] = &[
     (
         "crates/tasty-design-tokens/src/generated/",
-        65,
+        66,
         "스케일 자신 — 이 파일이 곧 size-* 의 정본이다",
     ),
     (
@@ -100,9 +100,10 @@ fn is_in_unit_space(hit: &Hit) -> bool {
 const AREAS: &[(&str, Option<usize>, &str)] = &[
     (
         "src/adapters/ui/popup/",
-        Some(44),
+        Some(47),
         // popup의 기본 크기·열 최소폭·스크롤 상한 중 대응하는 역할의 토큰이 없는 값이 남아 있다.
         // 같은 숫자의 폭·점 크기 토큰을 높이·간격에 대신 쓰지 않는다.
+        // size-480은 갤러리 표본 폭이라 popup의 480 자리에 대신 쓰지 않는다.
         "popup 기본 크기표 — vec2(400.0, 320.0) 처럼 정의 옆에 값이 그대로 박혀 있다",
     ),
     (
@@ -653,10 +654,10 @@ fn the_gallery_share_splits_into_four_kinds() {
         let masked = mask_non_code(raw);
         if is_a_varied_specimen_value(&masked, h) {
             displayed += 1;
-        } else if !named_values.contains(&h.value) {
-            nameless += 1;
         } else if declares_a_named_dimension(&masked, h.line) {
             // 이름 붙은 선언은 역할을 사람이 판단하는 자리라 수를 기록하지 않는다.
+        } else if !named_values.contains(&h.value) {
+            nameless += 1;
         } else {
             named_value += 1;
         }
