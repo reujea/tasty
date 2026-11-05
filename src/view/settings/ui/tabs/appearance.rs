@@ -604,7 +604,16 @@ fn draw_tasty_color_row(
         // ── "Default" 체크박스 (디자인 settings_window.jsx:113 = <Checkbox>) ──
         let mut use_default = !is_ov;
         let default_label = t("settings.appearance.colors.default");
-        if tasty_ui_widgets::checkbox(ui, th, &mut use_default, default_label, true).changed() {
+        if tasty_ui_widgets::checkbox(
+            ui,
+            th,
+            &mut use_default,
+            default_label,
+            true,
+            tasty_ui_widgets::Ground::Panel,
+        )
+        .changed()
+        {
             let ov = &mut settings.appearance.theme_overrides;
             if use_default {
                 set(ov, None);
@@ -862,7 +871,16 @@ fn draw_surface_bg_row(
         // ── "Use default" 체크박스 ──
         let mut use_default = !is_ov;
         let default_label = t("settings.appearance.terminal.use_default");
-        if tasty_ui_widgets::checkbox(ui, th, &mut use_default, default_label, true).changed() {
+        if tasty_ui_widgets::checkbox(
+            ui,
+            th,
+            &mut use_default,
+            default_label,
+            true,
+            tasty_ui_widgets::Ground::Panel,
+        )
+        .changed()
+        {
             let ov = &mut settings.appearance.theme_overrides;
             if use_default {
                 set_surface_bg_override(ov, field, None);
@@ -1313,7 +1331,16 @@ fn draw_color_picker_row(
         // ── "Default" 체크박스 (디자인 settings_window.jsx:113 = <Checkbox>) ──
         let mut use_default = !is_ov;
         let default_label = t("settings.appearance.colors.default");
-        if tasty_ui_widgets::checkbox(ui, th, &mut use_default, default_label, true).changed() {
+        if tasty_ui_widgets::checkbox(
+            ui,
+            th,
+            &mut use_default,
+            default_label,
+            true,
+            tasty_ui_widgets::Ground::Panel,
+        )
+        .changed()
+        {
             let ov = &mut settings.appearance.theme_overrides;
             if use_default {
                 (row.set)(ov, None);
@@ -1907,7 +1934,16 @@ where
     let th = crate::theme::theme();
     let mut use_default = slot.is_none();
     let label = t("settings.appearance.font.use_default_label");
-    if tasty_ui_widgets::checkbox(ui, &th, &mut use_default, label, true).changed() {
+    if tasty_ui_widgets::checkbox(
+        ui,
+        &th,
+        &mut use_default,
+        label,
+        true,
+        tasty_ui_widgets::Ground::Panel,
+    )
+    .changed()
+    {
         if use_default {
             *slot = None;
         } else if slot.is_none() {

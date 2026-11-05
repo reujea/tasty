@@ -26,6 +26,7 @@ pub fn draw_entry(ui: &mut egui::Ui, theme: &Theme) {
                         &mut st.l2_filter_active,
                         "filter active (separator hidden)",
                         true,
+                        tasty_ui_widgets::Ground::Panel,
                     );
                 });
             });

@@ -511,7 +511,12 @@ fn draw_content(
     strip_ui.set_opacity(alpha);
     strip_ui.horizontal_centered(|ui| {
         ui.spacing_mut().item_spacing.x = theme.spacing_sm.value();
-        kbd_parts(ui, theme, &combo_keycap_parts(held, general));
+        kbd_parts(
+            ui,
+            theme,
+            &combo_keycap_parts(held, general),
+            tasty_ui_widgets::Ground::Panel,
+        );
         ui.label(
             egui::RichText::new(t("modifier_hint.held"))
                 .size(theme.font_size_caption.value())
@@ -593,7 +598,12 @@ fn draw_section(
     sec: &HintSection,
     general: &tasty_settings::GeneralSettings,
 ) {
-    kbd_parts(ui, theme, &combo_key_parts(sec, general));
+    kbd_parts(
+        ui,
+        theme,
+        &combo_key_parts(sec, general),
+        tasty_ui_widgets::Ground::Panel,
+    );
     ui.add_space(theme.modhint_row_gap().value());
     let w = ui.available_width();
     let (hr, _) = ui.allocate_exact_size(
@@ -661,7 +671,12 @@ fn draw_row(
                 .circle_filled(r.center(), d * 0.5, theme.modhint_agent_dot().to_egui());
         }
         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-            kbd(ui, theme, &row_key_text(&row.binding));
+            kbd(
+                ui,
+                theme,
+                &row_key_text(&row.binding),
+                tasty_ui_widgets::Ground::Panel,
+            );
             ui.with_layout(egui::Layout::left_to_right(egui::Align::Center), |ui| {
                 ui.add(
                     egui::Label::new(

@@ -168,7 +168,14 @@ fn list_view(ui: &mut egui::Ui, theme: &Theme, body: egui::Rect, entries: &[Entr
         .inner_margin(margin_sym(theme.spacing_md, theme.spacing_xs))
         .show(&mut tu, |ui| {
             let mut on = false;
-            checkbox(ui, theme, &mut on, "This workspace only", true);
+            checkbox(
+                ui,
+                theme,
+                &mut on,
+                "This workspace only",
+                true,
+                tasty_ui_widgets::Ground::Panel,
+            );
         });
     ui.painter().hline(body.x_range(), toggle.max.y, sep);
 

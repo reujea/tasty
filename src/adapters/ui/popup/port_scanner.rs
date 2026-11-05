@@ -1255,7 +1255,16 @@ fn draw_column_chooser(
                 for col in ColumnId::ALL {
                     let mut checked = props.filter.columns.is_visible(col);
                     let enabled = !col.mandatory();
-                    if checkbox(ui, th, &mut checked, column_label(col, props), enabled).changed() {
+                    if checkbox(
+                        ui,
+                        th,
+                        &mut checked,
+                        column_label(col, props),
+                        enabled,
+                        tasty_ui_widgets::Ground::Raised,
+                    )
+                    .changed()
+                    {
                         out = Some(PortScannerAction::SetColumnVisible(col, checked));
                     }
                 }
@@ -1391,7 +1400,16 @@ fn draw_state_filter(ui: &mut egui::Ui, props: &PortScannerProps<'_>) -> Option<
                     .show(ui, |ui| {
                         for st in present {
                             let mut checked = draft.contains(st);
-                            if checkbox(ui, th, &mut checked, st.label(), true).changed() {
+                            if checkbox(
+                                ui,
+                                th,
+                                &mut checked,
+                                st.label(),
+                                true,
+                                tasty_ui_widgets::Ground::Raised,
+                            )
+                            .changed()
+                            {
                                 if checked {
                                     draft.insert(*st);
                                 } else {
@@ -1475,6 +1493,7 @@ fn draw_filter_row(ui: &mut egui::Ui, props: &PortScannerProps<'_>) -> Option<Po
             &mut checked,
             props.label_filter_show_all_system,
             true,
+            tasty_ui_widgets::Ground::Panel,
         )
         .changed()
         {
@@ -2014,7 +2033,15 @@ fn draw_state_cell(ui: &mut egui::Ui, th: &Theme, reduced_motion: bool, state: P
     } else {
         StatusKind::Waiting
     };
-    status_dot(ui, th, kind, state.label(), is_listen, reduced_motion);
+    status_dot(
+        ui,
+        th,
+        kind,
+        state.label(),
+        is_listen,
+        reduced_motion,
+        tasty_ui_widgets::Ground::Panel,
+    );
 }
 
 /// Bracketless display form. IPv6 is shown bare (e.g. wildcard `::`) per the

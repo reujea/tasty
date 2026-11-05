@@ -747,7 +747,14 @@ fn type_bar_row_html(
             .layout(egui::Layout::right_to_left(egui::Align::Center)),
     );
     pretty_on.with_borrow_mut(|checked| {
-        checkbox(&mut rui, theme, checked, "Pretty print", true);
+        checkbox(
+            &mut rui,
+            theme,
+            checked,
+            "Pretty print",
+            true,
+            tasty_ui_widgets::Ground::Panel,
+        );
     });
 
     hline(ui, theme, rect.bottom());

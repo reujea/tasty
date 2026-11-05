@@ -129,6 +129,37 @@ pub fn stage(
 }
 
 /// 라벨과 예제들을 한 묶음으로 배치한다.
+/// 바탕 칸 하나를 칠하고 그 위에 내용을 그린다. 바탕을 받는 위젯의 칸별 잉크를 보여 준다.
+pub fn on_ground(
+    ui: &mut egui::Ui,
+    theme: &Theme,
+    ground: tasty_ui_widgets::Ground,
+    add_contents: impl FnOnce(&mut egui::Ui),
+) {
+    let fill = match ground {
+        tasty_ui_widgets::Ground::Panel => theme.bg_panel(),
+        tasty_ui_widgets::Ground::Raised => theme.surface_raised(),
+        tasty_ui_widgets::Ground::Active => theme.surface_active(),
+    };
+    egui::Frame::new()
+        .fill(fill.to_egui())
+        .corner_radius(theme.corner_radius.value())
+        .inner_margin(theme.spacing_sm.value())
+        .show(ui, |ui| {
+            ui.horizontal(|ui| {
+                ui.spacing_mut().item_spacing.x = theme.spacing_sm.value();
+                add_contents(ui);
+            });
+        });
+}
+
+/// 호스트 바탕 세 칸의 이름.
+pub const GROUND_CELLS: [(tasty_ui_widgets::Ground, &str); 3] = [
+    (tasty_ui_widgets::Ground::Panel, "panel"),
+    (tasty_ui_widgets::Ground::Raised, "raised"),
+    (tasty_ui_widgets::Ground::Active, "active"),
+];
+
 pub fn cluster(
     ui: &mut egui::Ui,
     theme: &Theme,

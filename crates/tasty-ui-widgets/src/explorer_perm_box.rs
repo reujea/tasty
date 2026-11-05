@@ -156,6 +156,7 @@ pub fn perm_box(ui: &mut egui::Ui, theme: &Theme, props: PermBoxProps<'_>) -> Pe
                         read_only,
                         text.read_only,
                         !busy,
+                        crate::Ground::Panel,
                     );
                     muted_line(ui, theme, text.windows_hint);
                 }
@@ -351,6 +352,7 @@ impl Cells<'_> {
             &mut on,
             label,
             !self.busy,
+            crate::Ground::Panel,
         )
         .changed()
         {

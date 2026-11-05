@@ -359,7 +359,7 @@ fn drag_strip(ui: &mut egui::Ui, theme: &Theme, w: f32, held: &str) {
     let mut child = ui.new_child(egui::UiBuilder::new().max_rect(inner));
     child.horizontal_centered(|ui| {
         ui.spacing_mut().item_spacing.x = theme.spacing_sm.value();
-        kbd(ui, theme, held);
+        kbd(ui, theme, held, tasty_ui_widgets::Ground::Panel);
         ui.label(
             egui::RichText::new("held")
                 .size(theme.font_size_caption.value())
@@ -433,7 +433,7 @@ fn section_body(ui: &mut egui::Ui, theme: &Theme, sections: &[Section], label: R
 /// 조합 헤더 — Kbd 키캡 + 하단 separator.
 fn chord_head(ui: &mut egui::Ui, theme: &Theme, chord: &str) {
     ui.add_space(theme.modhint_row_gap().value());
-    kbd(ui, theme, chord);
+    kbd(ui, theme, chord, tasty_ui_widgets::Ground::Panel);
     ui.add_space(theme.modhint_row_gap().value());
     let w = ui.available_width();
     let (rect, _) = ui.allocate_exact_size(
@@ -469,7 +469,7 @@ fn hint_row(
                 .circle_filled(r.center(), d * 0.5, theme.modhint_agent_dot().to_egui());
         }
         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-            kbd(ui, theme, binding);
+            kbd(ui, theme, binding, tasty_ui_widgets::Ground::Panel);
             ui.with_layout(egui::Layout::left_to_right(egui::Align::Center), |ui| {
                 let text = egui::Label::new(
                     egui::RichText::new(label)
@@ -761,7 +761,7 @@ fn hold_button(ui: &mut egui::Ui, theme: &Theme) {
             ui.set_height(h - bw * 2.0);
             ui.horizontal_centered(|ui| {
                 ui.spacing_mut().item_spacing.x = theme.spacing_sm.value();
-                kbd(ui, theme, "Ctrl");
+                kbd(ui, theme, "Ctrl", tasty_ui_widgets::Ground::Panel);
                 ui.label(
                     egui::RichText::new("Hold")
                         .size(theme.font_size_body.value())

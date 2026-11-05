@@ -10,7 +10,7 @@ use tasty_type_geometry::length::LogicalPx;
 
 use crate::{
     Button, ButtonVariant, ControlSize, Ground, TagVariant, Tooltip, tag, tag_disabled,
-    tag_disabled_truncated, tag_width,
+    tag_truncated, tag_width,
 };
 
 /// 행의 출처 Tag 하나.
@@ -570,7 +570,7 @@ pub fn fh_row(ui: &mut egui::Ui, theme: &Theme, view: &FhRowView<'_>) -> FhRowEv
         ui.add_space(theme.spacing_xs.value());
         ui.horizontal(|ui| {
             ui.add_space(pad_x.value());
-            let r = tag_disabled_truncated(ui, theme, p, inner_w);
+            let r = tag_truncated(ui, theme, p, inner_w);
             if crate::tooltip_hover_delay_elapsed(ui.ctx(), theme, r.id, r.hovered()) {
                 Tooltip::new(p).show(ui, theme, r.rect);
             }
@@ -756,14 +756,14 @@ fn row_left(
         );
     }
     if let (false, Some(p)) = (dropped, view.pending) {
-        tag_disabled(ui, theme, p, false);
+        tag(ui, theme, p, TagVariant::Default, false);
     }
     dropped
 }
 
 /// 저장하면 사라질 출처 — disabled Tag 위에 라벨 폭만큼 취소선을 긋는다.
 fn struck_tag(ui: &mut egui::Ui, theme: &Theme, label: &str) {
-    let r = tag_disabled(ui, theme, label, false);
+    let r = tag_disabled(ui, theme, label, false, Ground::Panel);
     let pad = theme.tag_padding_x();
     let y = r.rect.center().y;
     ui.painter().hline(

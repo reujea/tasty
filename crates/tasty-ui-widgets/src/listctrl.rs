@@ -5,6 +5,7 @@
 use tasty_type_appearance::theme::Theme;
 use tasty_type_geometry::length::LogicalPx;
 
+use crate::control::Ground;
 use crate::icon_button::IconPainter;
 use crate::tokens::STRUCT_GAP_1;
 
@@ -61,6 +62,14 @@ impl<'a> ListCtrlItem<'a> {
     }
 }
 
+/// 행 하나의 표시 상태.
+#[derive(Clone, Copy)]
+struct RowMark {
+    selected: bool,
+    active: bool,
+    is_last: bool,
+}
+
 /// `ListCtrl::show` 결과.
 pub struct ListCtrlOutput {
     /// 이번 프레임에 클릭된 행의 인덱스 (`items` 기준). disabled 행은 제외.
@@ -74,6 +83,10 @@ pub struct ListCtrl<'a> {
     empty_label: &'a str,
     /// 리스트 폭. `None` 이면 가용 폭(디자인 기본 — 풀폭).
     width: Option<f32>,
+    /// 키보드 활성 행. 선택과 별개이며 선택 막대 없이 선택 행 채움과 잉크를 쓴다.
+    active: Option<usize>,
+    /// 목록이 놓인 바탕. disabled 행의 표지 테두리가 따른다.
+    ground: Ground,
 }
 
 impl Default for ListCtrl<'_> {
@@ -83,6 +96,8 @@ impl Default for ListCtrl<'_> {
             divided: true,
             empty_label: "",
             width: None,
+            active: None,
+            ground: Ground::Panel,
         }
     }
 }
@@ -90,6 +105,18 @@ impl Default for ListCtrl<'_> {
 impl<'a> ListCtrl<'a> {
     pub fn new() -> Self {
         Self::default()
+    }
+
+    /// 키보드 활성 행의 인덱스 (`items` 기준). disabled 행에는 적용하지 않는다.
+    pub fn active(mut self, active: Option<usize>) -> Self {
+        self.active = active;
+        self
+    }
+
+    /// 목록이 놓인 바탕. 기본 `Panel`.
+    pub fn ground(mut self, ground: Ground) -> Self {
+        self.ground = ground;
+        self
     }
 
     /// 우측 drill-in chevron 표시 여부. 기본 true.
@@ -136,7 +163,12 @@ impl<'a> ListCtrl<'a> {
             ui.spacing_mut().item_spacing.y = 0.0;
             for (i, item) in items.iter().enumerate() {
                 let is_last = i + 1 == items.len();
-                if self.row(ui, theme, item, width, selected == Some(i), is_last) {
+                let state = RowMark {
+                    selected: selected == Some(i),
+                    active: self.active == Some(i),
+                    is_last,
+                };
+                if self.row(ui, theme, item, width, state) {
                     clicked = Some(i);
                 }
             }
@@ -170,9 +202,14 @@ impl<'a> ListCtrl<'a> {
         theme: &Theme,
         item: &ListCtrlItem<'_>,
         width: f32,
-        is_selected: bool,
-        is_last: bool,
+        mark: RowMark,
     ) -> bool {
+        let RowMark {
+            selected: is_selected,
+            active,
+            is_last,
+        } = mark;
+        let keyboard_active = active && !item.disabled;
         let pad_x = theme.listctrl_row_padding_x().value();
         let pad_y = theme.listctrl_row_padding_y().value();
         let gap = theme.listctrl_row_gap().value();
@@ -199,12 +236,16 @@ impl<'a> ListCtrl<'a> {
         };
         let (rect, resp) = ui.allocate_exact_size(egui::vec2(width, row_h), sense);
         let hovered = !item.disabled && resp.hovered();
-        let state = crate::RowState::of(
-            !item.disabled,
-            is_selected,
-            hovered,
-            !item.disabled && resp.is_pointer_button_down_on(),
-        );
+        let state = if keyboard_active && !is_selected {
+            crate::RowState::Selected
+        } else {
+            crate::RowState::of(
+                !item.disabled,
+                is_selected,
+                hovered,
+                !item.disabled && resp.is_pointer_button_down_on(),
+            )
+        };
         let radius = row_radius(theme.listctrl_radius(), self.divided, is_last).value();
 
         if is_selected {
@@ -219,6 +260,9 @@ impl<'a> ListCtrl<'a> {
             );
             ui.painter()
                 .rect_filled(bar, 0.0, theme.listctrl_selected_bar().to_egui());
+        } else if keyboard_active {
+            ui.painter()
+                .rect_filled(rect, radius, theme.listctrl_row_bg_selected().to_egui());
         } else if hovered {
             ui.painter().rect_filled(
                 rect,
@@ -288,7 +332,7 @@ impl<'a> ListCtrl<'a> {
                 // egui의 비활성 Ui는 색을 흐리므로 쓰지 않는다. 표지는 disabled 변형으로 그리고
                 // 선택 가능한 라벨만 끈다. 행 자체는 위에서 hover만 감지한다.
                 child.style_mut().interaction.selectable_labels = false;
-                crate::chip::disabled_chip_scope(&mut child, |ui| trailing(ui, theme));
+                crate::chip::disabled_chip_scope(&mut child, self.ground, |ui| trailing(ui, theme));
             } else {
                 trailing(&mut child, theme);
             }

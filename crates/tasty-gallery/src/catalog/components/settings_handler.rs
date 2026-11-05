@@ -7,7 +7,7 @@ use tasty_type_geometry::length::LogicalPx;
 use tasty_type_appearance::theme::Theme;
 use tasty_ui_widgets::{
     Button, ButtonVariant, ControlSize, Ground, IconButton, IconButtonVariant, Input, TagVariant,
-    switch, tag, tag_disabled,
+    switch, tag,
 };
 
 use crate::catalog::icons;
@@ -139,7 +139,7 @@ fn ext_group_header(ui: &mut egui::Ui, theme: &Theme, ext: &str, head: ExtHeader
                 ui.set_min_height(theme.button_height_sm().value());
                 ui.spacing_mut().item_spacing.x = theme.spacing_sm.value();
                 let ext_fg = if head.not_installed {
-                    theme.text_disabled()
+                    theme.text_muted()
                 } else {
                     theme.text_secondary()
                 };
@@ -152,7 +152,7 @@ fn ext_group_header(ui: &mut egui::Ui, theme: &Theme, ext: &str, head: ExtHeader
                 }
                 ui.label(label);
                 if let Some(tag_label) = head.tag {
-                    tag_disabled(ui, theme, tag_label, false);
+                    tag(ui, theme, tag_label, TagVariant::Default, false);
                 }
                 if let Some(label) = head.button {
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
@@ -197,7 +197,7 @@ fn ext_detector_row(
         let name_fg = if candidate {
             theme.text_secondary()
         } else {
-            theme.text_disabled()
+            theme.text_muted()
         };
         ui.label(
             egui::RichText::new(name)
@@ -223,7 +223,7 @@ fn ext_detector_row(
                     icons::CHEVRON_UP.image(rect.width(), c).paint_at(ui, rect);
                 });
             if !candidate {
-                tag_disabled(ui, theme, "off", false);
+                tag(ui, theme, "off", TagVariant::Default, false);
             }
         });
     });

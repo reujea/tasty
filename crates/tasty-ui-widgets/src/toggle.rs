@@ -3,6 +3,8 @@
 
 use tasty_type_appearance::theme::Theme;
 
+use crate::control::Ground;
+
 /// 체크마크 선 굵기. 창 버튼용 icon_stroke_width와 역할이 달라 별도로 둔다.
 const CHECK_STROKE: f32 = 2.0;
 
@@ -18,16 +20,17 @@ pub fn checkbox_width(ui: &egui::Ui, theme: &Theme, label: &str) -> f32 {
     theme.checkbox_size().value() + theme.spacing_sm.value() + galley.rect.width()
 }
 
-/// Checkbox — 16px 박스 + 라벨. 클릭 시 토글.
+/// Checkbox — 16px 박스 + 라벨. 클릭 시 토글. `ground`는 박스가 놓인 바탕이다.
 pub fn checkbox(
     ui: &mut egui::Ui,
     theme: &Theme,
     checked: &mut bool,
     label: &str,
     enabled: bool,
+    ground: Ground,
 ) -> egui::Response {
     let label_fg = theme.text_primary().to_egui();
-    draw_checkbox(ui, theme, checked, label, enabled, None, label_fg)
+    draw_checkbox(ui, theme, checked, label, enabled, None, label_fg, ground)
 }
 
 /// [`checkbox`] 와 같지만 활성 상태의 라벨 색을 호출자가 정한다.
@@ -38,13 +41,15 @@ pub fn checkbox_with_label_color(
     checked: &mut bool,
     label: &str,
     enabled: bool,
+    ground: Ground,
     label_fg: egui::Color32,
 ) -> egui::Response {
-    draw_checkbox(ui, theme, checked, label, enabled, None, label_fg)
+    draw_checkbox(ui, theme, checked, label, enabled, None, label_fg, ground)
 }
 
 /// 라벨이 남은 폭을 넘으면 말줄임 대신 어디서나 줄바꿈하는 [`checkbox`]. 위젯 id 는 호출자가 정한다.
 /// 같은 체크박스를 다른 배치에 다시 그려도 id 가 같으므로 키보드 포커스가 남는다.
+#[allow(clippy::too_many_arguments)] // reason: checkbox의 인자에 위젯 id 하나를 더한 형태를 유지한다.
 pub fn checkbox_wrapping(
     ui: &mut egui::Ui,
     theme: &Theme,
@@ -52,38 +57,23 @@ pub fn checkbox_wrapping(
     checked: &mut bool,
     label: &str,
     enabled: bool,
+    ground: Ground,
 ) -> egui::Response {
     let label_fg = theme.text_primary().to_egui();
-    draw_checkbox(ui, theme, checked, label, enabled, Some(id), label_fg)
-}
-
-/// [`checkbox_on_raised`] 와 같고 라벨 색을 호출자가 정한다.
-pub fn checkbox_on_raised_with_label_color(
-    ui: &mut egui::Ui,
-    theme: &Theme,
-    checked: &mut bool,
-    label: &str,
-    enabled: bool,
-    label_fg: egui::Color32,
-) -> egui::Response {
-    let edge = theme.border_control_raised().to_egui();
-    draw_checkbox_on(ui, theme, checked, label, enabled, None, label_fg, edge)
-}
-
-/// [`checkbox`] 와 같고 raised 바탕의 테두리를 쓴다.
-pub fn checkbox_on_raised(
-    ui: &mut egui::Ui,
-    theme: &Theme,
-    checked: &mut bool,
-    label: &str,
-    enabled: bool,
-) -> egui::Response {
-    let label_fg = theme.text_primary().to_egui();
-    let edge = theme.border_control_raised().to_egui();
-    draw_checkbox_on(ui, theme, checked, label, enabled, None, label_fg, edge)
+    draw_checkbox(
+        ui,
+        theme,
+        checked,
+        label,
+        enabled,
+        Some(id),
+        label_fg,
+        ground,
+    )
 }
 
 /// `id` 가 있으면 그 id 로 반응하고 라벨을 줄바꿈한다. 없으면 자동 id 와 한 줄 말줄임이다.
+#[allow(clippy::too_many_arguments)] // reason: 공개 변형 셋이 같은 그리기를 공유하는 내부 함수다.
 fn draw_checkbox(
     ui: &mut egui::Ui,
     theme: &Theme,
@@ -92,21 +82,7 @@ fn draw_checkbox(
     enabled: bool,
     id: Option<egui::Id>,
     label_fg: egui::Color32,
-) -> egui::Response {
-    let edge = theme.checkbox_border().to_egui();
-    draw_checkbox_on(ui, theme, checked, label, enabled, id, label_fg, edge)
-}
-
-#[allow(clippy::too_many_arguments)] // reason: 공개 변형 넷이 같은 그리기를 공유하는 내부 함수다.
-fn draw_checkbox_on(
-    ui: &mut egui::Ui,
-    theme: &Theme,
-    checked: &mut bool,
-    label: &str,
-    enabled: bool,
-    id: Option<egui::Id>,
-    label_fg: egui::Color32,
-    off_edge: egui::Color32,
+    ground: Ground,
 ) -> egui::Response {
     // gap(라벨)·body 는 대응 checkbox component 토큰 없음 → semantic.
     let gap = theme.spacing_sm.value();
@@ -176,17 +152,24 @@ fn draw_checkbox_on(
     // checked 는 accent 채움(checkbox-bg-checked)이 fill=border 를 겸한다(별도
     // checkbox-border-checked 토큰 없음). unchecked 는 checkbox-bg/-border.
     let (fill, border) = if !enabled {
-        (
-            theme.state_disabled_fill().to_egui(),
-            theme.state_disabled_border().to_egui(),
-        )
+        let edge = match ground {
+            Ground::Panel => theme.state_disabled_border(),
+            Ground::Raised => theme.border_strong(),
+            Ground::Active => theme.border_frame(),
+        };
+        (theme.state_disabled_fill().to_egui(), edge.to_egui())
     } else if *checked {
         (
             theme.checkbox_bg_checked().to_egui(),
             theme.checkbox_bg_checked().to_egui(),
         )
     } else {
-        (theme.checkbox_bg().to_egui(), off_edge)
+        let edge = match ground {
+            Ground::Panel => theme.checkbox_border(),
+            Ground::Raised => theme.border_control_raised(),
+            Ground::Active => theme.text_on_active(),
+        };
+        (theme.checkbox_bg().to_egui(), edge.to_egui())
     };
     ui.painter().rect(
         box_rect,
@@ -351,4 +334,50 @@ fn draw_switch(
         ui.painter().galley(pos, g, ink(label_color));
     }
     resp
+}
+
+#[cfg(test)]
+mod ground_tests {
+    use super::*;
+
+    /// 해제 상자의 테두리 색을 그려서 읽는다.
+    fn edge(theme: &Theme, enabled: bool, ground: Ground) -> egui::Color32 {
+        let ctx = egui::Context::default();
+        let out = ctx.run(egui::RawInput::default(), |ctx| {
+            egui::CentralPanel::default().show(ctx, |ui| {
+                checkbox(ui, theme, &mut false, "", enabled, ground);
+            });
+        });
+        out.shapes
+            .iter()
+            .filter_map(|s| match &s.shape {
+                egui::Shape::Rect(r) if r.stroke.width > 0.0 => Some(r.stroke.color),
+                _ => None,
+            })
+            .last()
+            .expect("box stroke")
+    }
+
+    #[test]
+    fn the_box_edge_follows_the_host_ground() {
+        for light in [false, true] {
+            let th = Theme::with_colors(tasty_themes::mocha_fallback_colors(), light);
+            for (ground, off, disabled) in [
+                (
+                    Ground::Panel,
+                    th.checkbox_border(),
+                    th.state_disabled_border(),
+                ),
+                (
+                    Ground::Raised,
+                    th.border_control_raised(),
+                    th.border_strong(),
+                ),
+                (Ground::Active, th.text_on_active(), th.border_frame()),
+            ] {
+                assert_eq!(edge(&th, true, ground), off.to_egui());
+                assert_eq!(edge(&th, false, ground), disabled.to_egui());
+            }
+        }
+    }
 }

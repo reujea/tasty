@@ -655,7 +655,14 @@ pub fn conflict_card(
                     );
                 }
                 if let Some(label) = props.apply_all {
-                    crate::toggle::checkbox(ui, theme, apply_all, label, true);
+                    crate::toggle::checkbox(
+                        ui,
+                        theme,
+                        apply_all,
+                        label,
+                        true,
+                        crate::Ground::Panel,
+                    );
                 }
             });
         egui::Frame::new()

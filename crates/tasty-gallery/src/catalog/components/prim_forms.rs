@@ -115,9 +115,31 @@ pub fn draw(ui: &mut egui::Ui, theme: &Theme) {
                     .width(theme.field_width_md)
                     .show(ui, theme, &mut st.font);
             });
+            cluster(ui, theme, "Checkbox on a ground", |ui| {
+                for (ground, name) in crate::catalog::spec::GROUND_CELLS {
+                    crate::catalog::spec::on_ground(ui, theme, ground, |ui| {
+                        checkbox(ui, theme, &mut false, name, true, ground);
+                        checkbox(ui, theme, &mut false, "disabled", false, ground);
+                    });
+                }
+            });
             cluster(ui, theme, "Checkbox", |ui| {
-                checkbox(ui, theme, &mut st.check_a, "Confirm on close", true);
-                checkbox(ui, theme, &mut st.check_b, "Restore layout", true);
+                checkbox(
+                    ui,
+                    theme,
+                    &mut st.check_a,
+                    "Confirm on close",
+                    true,
+                    Ground::Panel,
+                );
+                checkbox(
+                    ui,
+                    theme,
+                    &mut st.check_b,
+                    "Restore layout",
+                    true,
+                    Ground::Panel,
+                );
             });
             cluster(ui, theme, "Switch", |ui| {
                 switch(ui, theme, &mut st.switch_a, Some("Ligatures"), true);

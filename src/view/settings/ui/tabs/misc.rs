@@ -376,7 +376,7 @@ fn draw_script_row(
                             egui::RichText::new(t("settings.scripts.unbound"))
                                 .size(th.font_size_term_sm.value())
                                 .italics()
-                                .color(th.text_disabled()),
+                                .color(th.text_muted()),
                         );
                     } else {
                         // 이 클러스터는 RTL 이라 kbd 키캡이 역순으로 그려진다 → 파트를
@@ -388,6 +388,7 @@ fn draw_script_row(
                                 &combo,
                                 &settings.general,
                             )),
+                            tasty_ui_widgets::Ground::Panel,
                         );
                     }
                 }

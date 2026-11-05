@@ -668,7 +668,15 @@ fn cell(ui: &mut egui::Ui, theme: &Theme, row: &PortRow, col: Option<PortsColumn
             } else {
                 StatusKind::Waiting
             };
-            status_dot(ui, theme, kind, row.state, listen, false);
+            status_dot(
+                ui,
+                theme,
+                kind,
+                row.state,
+                listen,
+                false,
+                tasty_ui_widgets::Ground::Panel,
+            );
         }
     }
 }

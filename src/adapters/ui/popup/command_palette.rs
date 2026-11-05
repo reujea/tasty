@@ -324,7 +324,12 @@ fn draw_keycaps(
         return;
     }
     let parts: Vec<KbdKey<'_>> = keys.iter().map(|k| KbdKey::Text(k.as_str())).collect();
-    tasty_ui_widgets::kbd_parts_at_row(ui, theme, &parts, right_x, center_y, on_active);
+    let ground = if on_active {
+        tasty_ui_widgets::Ground::Active
+    } else {
+        tasty_ui_widgets::Ground::Raised
+    };
+    tasty_ui_widgets::kbd_parts_at(ui, theme, &parts, right_x, center_y, ground);
 }
 
 /// 화면 항목과 실행할 명령을 같은 순서로 반환한다.

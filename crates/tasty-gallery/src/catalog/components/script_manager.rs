@@ -249,11 +249,16 @@ fn script_row(ui: &mut egui::Ui, theme: &Theme, s: &Seed) {
                             egui::RichText::new("Unbound")
                                 .size(theme.font_size_term_sm.value())
                                 .italics()
-                                .color(theme.text_disabled().to_egui()),
+                                .color(theme.text_muted().to_egui()),
                         );
                     } else {
                         // RTL 배치에서도 보조 키 순서가 유지되도록 조각을 역순으로 전달한다.
-                        kbd(ui, theme, &rtl_combo(s.shortcut));
+                        kbd(
+                            ui,
+                            theme,
+                            &rtl_combo(s.shortcut),
+                            tasty_ui_widgets::Ground::Panel,
+                        );
                     }
                     ui.with_layout(egui::Layout::top_down(egui::Align::Min), |ui| {
                         ui.spacing_mut().item_spacing.y = ROW_LINE_GAP.value();
@@ -465,7 +470,7 @@ fn meta_note(ui: &mut egui::Ui, theme: &Theme) {
                 "chip hover / menu open",
                 theme.overlay_active().to_egui_premultiplied(),
             ),
-            TokenChip::new("text-disabled", "Unbound", theme.text_disabled().to_egui()),
+            TokenChip::new("text-muted", "Unbound", theme.text_muted().to_egui()),
             TokenChip::without_color("font-mono", "path · trigger chips"),
             TokenChip::without_color("border-dash", "→ size-4"),
             TokenChip::without_color("border-dash-gap", "→ size-4"),

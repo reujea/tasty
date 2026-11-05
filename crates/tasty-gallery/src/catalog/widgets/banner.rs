@@ -261,9 +261,9 @@ pub(super) fn mouse_capture_banner_body(
             ui.horizontal_wrapped(|ui| {
                 ui.spacing_mut().item_spacing.x = theme.spacing_xs.value();
                 body_line(ui, theme, "This app is capturing the mouse. Hold");
-                kbd(ui, theme, "Shift");
+                kbd(ui, theme, "Shift", tasty_ui_widgets::Ground::Raised);
                 body_line(ui, theme, "+drag to select text,");
-                kbd(ui, theme, "Shift");
+                kbd(ui, theme, "Shift", tasty_ui_widgets::Ground::Raised);
                 body_line(ui, theme, "+Right-click for the tasty menu.");
             });
         });

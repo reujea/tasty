@@ -208,7 +208,14 @@ fn font_override(ui: &mut egui::Ui, th: &Theme, long: bool, state: &mut [(String
                     }
                     OverrideCell::Control => control(ui, th, i, buf, !*def),
                     OverrideCell::UseDefault => {
-                        checkbox(ui, th, def, use_default, true);
+                        checkbox(
+                            ui,
+                            th,
+                            def,
+                            use_default,
+                            true,
+                            tasty_ui_widgets::Ground::Panel,
+                        );
                     }
                 });
             });

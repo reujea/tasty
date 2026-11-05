@@ -4,6 +4,8 @@
 use tasty_type_appearance::theme::Theme;
 use tasty_type_geometry::length::LogicalPx;
 
+use crate::control::Ground;
+
 /// Tag variant (디자인 `core/Tag`).
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum TagVariant {
@@ -38,20 +40,27 @@ fn mono(size: f32) -> egui::FontId {
     egui::FontId::monospace(size)
 }
 
-/// disabled 행 문맥을 기록하는 egui 임시 데이터 키. 값은 중첩 깊이다.
+/// disabled 행 문맥을 기록하는 egui 임시 데이터 키. 값은 중첩 깊이와 행이 놓인 바탕이다.
 fn disabled_chip_scope_id() -> egui::Id {
     egui::Id::new("tasty_ui_widgets::chip::disabled_chip_scope")
 }
 
 /// `content`를 disabled 문맥(시안 `.is-disabled` 행)에서 그린다.
 /// 이 안의 [`tag`]·[`badge`]·[`badge_dot`]은 variant와 관계없이 disabled 변형으로 그린다.
-/// disabled ListCtrl 행이 trailing 슬롯에 적용한다.
-pub fn disabled_chip_scope<R>(ui: &mut egui::Ui, content: impl FnOnce(&mut egui::Ui) -> R) -> R {
+/// disabled ListCtrl 행이 trailing 슬롯에 적용한다. `ground`는 행이 놓인 바탕이다.
+pub fn disabled_chip_scope<R>(
+    ui: &mut egui::Ui,
+    ground: Ground,
+    content: impl FnOnce(&mut egui::Ui) -> R,
+) -> R {
     let id = disabled_chip_scope_id();
-    let prev = ui.ctx().data(|d| d.get_temp::<u32>(id)).unwrap_or(0);
-    ui.ctx().data_mut(|d| d.insert_temp(id, prev + 1));
+    let prev = ui.ctx().data(|d| d.get_temp::<(u32, Ground)>(id));
+    let depth = prev.map_or(0, |(depth, _)| depth);
+    ui.ctx()
+        .data_mut(|d| d.insert_temp(id, (depth + 1, ground)));
     let out = content(ui);
-    ui.ctx().data_mut(|d| d.insert_temp(id, prev));
+    ui.ctx()
+        .data_mut(|d| d.insert_temp(id, prev.unwrap_or((0, Ground::Panel))));
     out
 }
 
@@ -59,9 +68,15 @@ pub fn disabled_chip_scope<R>(ui: &mut egui::Ui, content: impl FnOnce(&mut egui:
 /// 자기 글자·글리프를 disabled ink로 바꿀 때 읽는다.
 pub fn in_disabled_chip_scope(ui: &egui::Ui) -> bool {
     ui.ctx()
-        .data(|d| d.get_temp::<u32>(disabled_chip_scope_id()))
-        .unwrap_or(0)
-        > 0
+        .data(|d| d.get_temp::<(u32, Ground)>(disabled_chip_scope_id()))
+        .is_some_and(|(depth, _)| depth > 0)
+}
+
+/// [`disabled_chip_scope`]가 받은 바탕. disabled Tag의 테두리가 바탕마다 다르다.
+fn disabled_chip_ground(ui: &egui::Ui) -> Ground {
+    ui.ctx()
+        .data(|d| d.get_temp::<(u32, Ground)>(disabled_chip_scope_id()))
+        .map_or(Ground::Panel, |(_, ground)| ground)
 }
 
 /// 상태 점 없는 태그의 폭을 계산한다. 그리기 전 가용 폭과 비교할 때 사용한다.
@@ -106,7 +121,7 @@ pub fn tag(
     dot: bool,
 ) -> egui::Response {
     let colors = if in_disabled_chip_scope(ui) {
-        tag_disabled_colors(theme)
+        tag_disabled_colors(theme, disabled_chip_ground(ui))
     } else {
         tag_colors(theme, variant)
     };
@@ -122,7 +137,7 @@ pub fn tag_with_icon(
     icon: tasty_icons::Icon,
 ) -> egui::Response {
     let colors = if in_disabled_chip_scope(ui) {
-        tag_disabled_colors(theme)
+        tag_disabled_colors(theme, disabled_chip_ground(ui))
     } else {
         tag_colors(theme, variant)
     };
@@ -139,7 +154,7 @@ pub fn tag_caps(
     dot: bool,
 ) -> egui::Response {
     let colors = if in_disabled_chip_scope(ui) {
-        tag_disabled_colors(theme)
+        tag_disabled_colors(theme, disabled_chip_ground(ui))
     } else {
         tag_colors(theme, variant)
     };
@@ -155,23 +170,30 @@ pub fn tag_caps(
     )
 }
 
-/// disabled Tag — 모든 variant가 중립 상자(tag-disabled-bg·border)와 disabled ink를 쓴다.
-/// accent 채움과 tint 테두리는 빠지고 상태 점도 같은 ink다. opacity는 쓰지 않는다.
-pub fn tag_disabled(ui: &mut egui::Ui, theme: &Theme, label: &str, dot: bool) -> egui::Response {
+/// disabled Tag — 모든 variant가 중립 상자와 disabled ink를 쓴다. `ground`는 Tag가 놓인 바탕이며
+/// 테두리가 그 바탕을 따른다. accent 채움과 tint 테두리는 빠지고 상태 점도 같은 ink다.
+/// 조건을 알리는 Tag에는 쓰지 않는다. 그런 문구는 비활성 컨트롤이 아니라 기본 [`tag`]다.
+pub fn tag_disabled(
+    ui: &mut egui::Ui,
+    theme: &Theme,
+    label: &str,
+    dot: bool,
+    ground: Ground,
+) -> egui::Response {
     paint_tag(
         ui,
         theme,
         label,
         TagLead::dot(dot),
-        tag_disabled_colors(theme),
+        tag_disabled_colors(theme, ground),
         None,
         None,
     )
 }
 
-/// [`tag_disabled`]를 `max_w`(Tag 전체 폭) 안에 그린다. 라벨이 넘치면 말줄임한다(시안
+/// 기본 [`tag`]를 `max_w`(Tag 전체 폭) 안에 그린다. 라벨이 넘치면 말줄임한다(시안
 /// `maxWidth: 100%` + ellipsis). 전체 라벨 툴팁은 호출자가 붙인다.
-pub fn tag_disabled_truncated(
+pub fn tag_truncated(
     ui: &mut egui::Ui,
     theme: &Theme,
     label: &str,
@@ -183,7 +205,7 @@ pub fn tag_disabled_truncated(
         theme,
         label,
         TagLead::None,
-        tag_disabled_colors(theme),
+        tag_colors(theme, TagVariant::Default),
         None,
         Some(text_w),
     )
@@ -205,10 +227,15 @@ impl TagLead {
 /// Tag 채움·테두리·글자색.
 type TagColors = (egui::Color32, Option<egui::Color32>, egui::Color32);
 
-fn tag_disabled_colors(theme: &Theme) -> TagColors {
+fn tag_disabled_colors(theme: &Theme, ground: Ground) -> TagColors {
+    let edge = match ground {
+        Ground::Panel => theme.tag_disabled_border(),
+        Ground::Raised => theme.border_strong(),
+        Ground::Active => theme.border_frame(),
+    };
     (
         theme.tag_disabled_bg().to_egui(),
-        Some(theme.tag_disabled_border().to_egui()),
+        Some(edge.to_egui()),
         theme.tag_disabled_fg().to_egui(),
     )
 }
@@ -524,9 +551,10 @@ pub fn paint_num_keycap(
 
 /// Kbd — 키캡 시퀀스. `keys` 는 `"+"` 로 분할(예: `"Ctrl+K"`), 각 키를 키캡으로.
 /// `+` 키 자체는 [`split_keys`] 규칙으로 키캡 하나가 된다(`"+"`, `"Ctrl++"`).
-pub fn kbd(ui: &mut egui::Ui, theme: &Theme, keys: &str) {
+/// `ground`는 키캡이 놓인 바탕이다.
+pub fn kbd(ui: &mut egui::Ui, theme: &Theme, keys: &str, ground: Ground) {
     let owned: Vec<KbdKey<'_>> = split_keys(keys).into_iter().map(KbdKey::Text).collect();
-    kbd_parts(ui, theme, &owned);
+    kbd_parts(ui, theme, &owned, ground);
 }
 
 /// 키 조합 문자열을 키 이름으로 나눈다. 구분자와 같은 `+` 키는 분할 결과에 빈 조각 두 개로
@@ -595,9 +623,10 @@ pub enum KbdKey<'a> {
     Icon(tasty_icons::Icon),
 }
 
-/// 키캡 사이 `+`의 색. 선택 행 채움 위에서는 전용 토큰을 읽는다.
-fn kbd_plus_ink(theme: &Theme, on_active: bool) -> egui::Color32 {
-    if on_active {
+/// 키캡 사이 `+`의 색. 키캡 상자는 자기 채움을 가지므로 바탕을 따르는 것은 `+`뿐이다.
+/// 공용 표의 선택 행은 셀 내용이 행 상태를 모르므로 표 문맥을 함께 읽는다.
+fn kbd_plus_ink(ui: &egui::Ui, theme: &Theme, ground: Ground) -> egui::Color32 {
+    if ground == Ground::Active || crate::in_selected_table_row(ui) {
         theme.kbd_plus_fg_active().to_egui()
     } else {
         theme.kbd_plus_fg().to_egui()
@@ -605,13 +634,13 @@ fn kbd_plus_ink(theme: &Theme, on_active: bool) -> egui::Color32 {
 }
 
 /// 텍스트·아이콘 키캡을 함께 그린다. 두 종류는 같은 패딩·반경·테두리를 사용한다.
-pub fn kbd_parts(ui: &mut egui::Ui, theme: &Theme, keys: &[KbdKey<'_>]) {
+pub fn kbd_parts(ui: &mut egui::Ui, theme: &Theme, keys: &[KbdKey<'_>], ground: Ground) {
     let radius = theme.kbd_radius().value();
     let bw = theme.border_width.value();
     let border = theme.kbd_border().to_egui();
     let fill = theme.kbd_bg().to_egui();
     let fg = theme.kbd_fg().to_egui();
-    let plus = kbd_plus_ink(theme, crate::in_selected_table_row(ui));
+    let plus = kbd_plus_ink(ui, theme, ground);
     let micro = theme.kbd_font_size().value();
     let icon_glyph = theme.icon_glyph_size_sm.value();
     let gap = theme.kbd_gap().value();
@@ -661,24 +690,13 @@ pub fn kbd_parts_at(
     keys: &[KbdKey<'_>],
     right_x: f32,
     center_y: f32,
+    ground: Ground,
 ) -> LogicalPx {
-    kbd_parts_at_ink(ui, theme, keys, right_x, center_y, None, None)
+    let plus = kbd_plus_ink(ui, theme, ground);
+    kbd_parts_at_ink(ui, theme, keys, right_x, center_y, None, plus)
 }
 
-/// `kbd_parts_at`과 같고 `on_active` 행이면 `+`를 선택 행 색으로 그린다.
-pub fn kbd_parts_at_row(
-    ui: &egui::Ui,
-    theme: &Theme,
-    keys: &[KbdKey<'_>],
-    right_x: f32,
-    center_y: f32,
-    on_active: bool,
-) -> LogicalPx {
-    let plus = kbd_plus_ink(theme, on_active);
-    kbd_parts_at_ink(ui, theme, keys, right_x, center_y, None, Some(plus))
-}
-
-/// `kbd_parts_at`과 같지만 `key_ink`가 있으면 키 글자·글리프를, `plus_ink`가 있으면 `+`를 그 색으로 그린다.
+/// `kbd_parts_at`과 같지만 `key_ink`가 있으면 키 글자·글리프를 그 색으로 그리고 `+`는 `plus`로 그린다.
 /// disabled 메뉴 항목은 둘 다 disabled ink로 바꾼다. 키보드 활성 행은 행 채움 위에 놓이는 `+`만 바꾼다.
 pub(crate) fn kbd_parts_at_ink(
     ui: &egui::Ui,
@@ -687,7 +705,7 @@ pub(crate) fn kbd_parts_at_ink(
     right_x: f32,
     center_y: f32,
     key_ink: Option<egui::Color32>,
-    plus_ink: Option<egui::Color32>,
+    plus: egui::Color32,
 ) -> LogicalPx {
     let total = kbd_parts_width(ui.ctx(), theme, keys);
     if keys.is_empty() {
@@ -698,7 +716,6 @@ pub(crate) fn kbd_parts_at_ink(
     let border = theme.kbd_border().to_egui();
     let fill = theme.kbd_bg().to_egui();
     let fg = key_ink.unwrap_or_else(|| theme.kbd_fg().to_egui());
-    let plus = plus_ink.unwrap_or_else(|| kbd_plus_ink(theme, crate::in_selected_table_row(ui)));
     let micro = theme.kbd_font_size().value();
     let icon_glyph = theme.icon_glyph_size_sm.value();
     let gap = theme.kbd_gap().value();
@@ -911,9 +928,11 @@ mod tests {
         let _output = ctx.run(egui::RawInput::default(), |ctx| {
             egui::CentralPanel::default().show(ctx, |ui| {
                 assert!(!in_disabled_chip_scope(ui));
-                disabled_chip_scope(ui, |ui| {
+                disabled_chip_scope(ui, Ground::Panel, |ui| {
                     assert!(in_disabled_chip_scope(ui));
-                    disabled_chip_scope(ui, |ui| assert!(in_disabled_chip_scope(ui)));
+                    disabled_chip_scope(ui, Ground::Panel, |ui| {
+                        assert!(in_disabled_chip_scope(ui))
+                    });
                     assert!(in_disabled_chip_scope(ui));
                 });
                 assert!(!in_disabled_chip_scope(ui));
@@ -925,7 +944,15 @@ mod tests {
     #[test]
     fn disabled_variants_drop_accent_fill_and_tint_edge() {
         let theme = tasty_themes::mocha_fallback();
-        let (fill, border, fg) = tag_disabled_colors(&theme);
+        let (fill, border, fg) = tag_disabled_colors(&theme, Ground::Panel);
+        assert_eq!(
+            tag_disabled_colors(&theme, Ground::Raised).1,
+            Some(theme.border_strong().to_egui())
+        );
+        assert_eq!(
+            tag_disabled_colors(&theme, Ground::Active).1,
+            Some(theme.border_frame().to_egui())
+        );
         assert_eq!(fill, theme.state_disabled_fill().to_egui());
         assert_eq!(border, Some(theme.state_disabled_border().to_egui()));
         assert_eq!(fg, theme.state_disabled_fg().to_egui());
@@ -946,7 +973,7 @@ mod tests {
         let ctx = egui::Context::default();
         let output = ctx.run(egui::RawInput::default(), |ctx| {
             egui::CentralPanel::default().show(ctx, |ui| {
-                disabled_chip_scope(ui, |ui| {
+                disabled_chip_scope(ui, Ground::Panel, |ui| {
                     tag(ui, &theme, "edited", TagVariant::Accent, false);
                     badge(ui, &theme, "3", BadgeVariant::Primary);
                 });

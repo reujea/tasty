@@ -699,6 +699,14 @@ pub fn pages() -> Vec<Page> {
                             ),
                             components::prim_listctrl::draw_disabled_trailing,
                         ),
+                        spec(
+                            "keyboard-active",
+                            "Keyboard-active row",
+                            Some(
+                                "Selected fill and inks without the bar. A disabled row has no chevron",
+                            ),
+                            components::prim_listctrl::draw_keyboard_active,
+                        ),
                     ],
                 ),
                 single(

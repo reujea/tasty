@@ -233,7 +233,15 @@ pub fn accents(ui: &mut egui::Ui, theme: &Theme) {
             "accent-success",
             "running / ok",
             |ui, theme| {
-                status_dot(ui, theme, StatusKind::Running, "running", false, false);
+                status_dot(
+                    ui,
+                    theme,
+                    StatusKind::Running,
+                    "running",
+                    false,
+                    false,
+                    tasty_ui_widgets::Ground::Panel,
+                );
             },
         );
         accent_row(
@@ -265,7 +273,15 @@ pub fn accents(ui: &mut egui::Ui, theme: &Theme) {
             "accent-agent",
             "agent — always mauve",
             |ui, theme| {
-                status_dot(ui, theme, StatusKind::Agent, "agent", false, false);
+                status_dot(
+                    ui,
+                    theme,
+                    StatusKind::Agent,
+                    "agent",
+                    false,
+                    false,
+                    tasty_ui_widgets::Ground::Panel,
+                );
                 tag(ui, theme, "plugin", TagVariant::Agent, false);
             },
         );

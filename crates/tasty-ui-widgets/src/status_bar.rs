@@ -383,7 +383,7 @@ fn kbd_cell(ui: &mut egui::Ui, th: &Theme, h: LogicalPx, keys: &str) -> egui::Re
             .max_rect(r)
             .layout(egui::Layout::left_to_right(egui::Align::Center)),
     );
-    kbd(&mut inner, th, keys);
+    kbd(&mut inner, th, keys, crate::Ground::Panel);
     resp
 }
 

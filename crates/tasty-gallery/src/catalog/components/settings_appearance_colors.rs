@@ -69,7 +69,14 @@ fn color_row(ui: &mut egui::Ui, th: &Theme, row: (&str, &str, Option<&str>), buf
             );
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 let mut use_default = ov.is_none();
-                checkbox(ui, th, &mut use_default, "Default", true);
+                checkbox(
+                    ui,
+                    th,
+                    &mut use_default,
+                    "Default",
+                    true,
+                    tasty_ui_widgets::Ground::Panel,
+                );
                 let sw = th.swatch_size().value();
                 let (sw_rect, _) = ui.allocate_exact_size(egui::vec2(sw, sw), egui::Sense::hover());
                 let fill = hex_color(ov.unwrap_or(base));

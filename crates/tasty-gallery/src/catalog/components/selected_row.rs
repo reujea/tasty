@@ -3,7 +3,7 @@
 
 use tasty_type_appearance::theme::Theme;
 use tasty_ui_widgets::{
-    KbdKey, StatusKind, TagVariant, explorer_match_job, kbd_parts_at_row, status_dot_in_row, tag,
+    KbdKey, StatusKind, TagVariant, explorer_match_job, kbd_parts_at, status_dot, tag,
     tag_with_icon,
 };
 
@@ -134,7 +134,15 @@ fn rows(ui: &mut egui::Ui, th: &Theme, active: bool) {
         label(ui, "git-helper");
     });
     row(ui, th, active, |ui| {
-        status_dot_in_row(ui, th, StatusKind::Running, "", false, true, active);
+        status_dot(
+            ui,
+            th,
+            StatusKind::Running,
+            "",
+            false,
+            true,
+            row_ground(active),
+        );
         glyph(
             ui,
             th,
@@ -192,7 +200,7 @@ fn rows(ui: &mut egui::Ui, th: &Theme, active: bool) {
         ));
     });
     let keys = row(ui, th, active, |ui| label(ui, "Split pane right"));
-    kbd_parts_at_row(
+    kbd_parts_at(
         ui,
         th,
         &[
@@ -201,7 +209,7 @@ fn rows(ui: &mut egui::Ui, th: &Theme, active: bool) {
         ],
         keys.right() - th.spacing_sm.value(),
         keys.center().y,
-        active,
+        row_ground(active),
     );
     row(ui, th, active, |ui| {
         for kind in [
@@ -213,7 +221,7 @@ fn rows(ui: &mut egui::Ui, th: &Theme, active: bool) {
             StatusKind::Completion,
             StatusKind::Idle,
         ] {
-            status_dot_in_row(ui, th, kind, "", false, true, active);
+            status_dot(ui, th, kind, "", false, true, row_ground(active));
         }
     });
 }
@@ -273,4 +281,13 @@ fn attached_dot(ui: &mut egui::Ui, th: &Theme, active: bool) {
         dot_r + th.status_dot_attached_ring_offset().value() + ring_w * 0.5,
         egui::Stroke::new(ring_w, ring.to_egui()),
     );
+}
+
+/// 행이 선택됐으면 active 칸, 아니면 패널 칸이다.
+fn row_ground(active: bool) -> tasty_ui_widgets::Ground {
+    if active {
+        tasty_ui_widgets::Ground::Active
+    } else {
+        tasty_ui_widgets::Ground::Panel
+    }
 }

@@ -41,7 +41,12 @@ pub fn draw(ui: &mut egui::Ui, theme: &Theme) {
             "keycap chip — text style vs. symbol style",
             |ui| {
                 ui.spacing_mut().item_spacing.x = CHIP_ROW_GAP.value();
-                kbd_parts(ui, theme, &[KbdKey::Text("Cmd"), KbdKey::Text("Option")]);
+                kbd_parts(
+                    ui,
+                    theme,
+                    &[KbdKey::Text("Cmd"), KbdKey::Text("Option")],
+                    tasty_ui_widgets::Ground::Panel,
+                );
                 ui.label(
                     egui::RichText::new("→")
                         .size(theme.font_size_caption.value())
@@ -51,8 +56,14 @@ pub fn draw(ui: &mut egui::Ui, theme: &Theme) {
                     ui,
                     theme,
                     &[KbdKey::Icon(CMD_KEY), KbdKey::Icon(OPTION_KEY)],
+                    tasty_ui_widgets::Ground::Panel,
                 );
-                kbd_parts(ui, theme, &[KbdKey::Icon(SHIFT_KEY), KbdKey::Text("4")]);
+                kbd_parts(
+                    ui,
+                    theme,
+                    &[KbdKey::Icon(SHIFT_KEY), KbdKey::Text("4")],
+                    tasty_ui_widgets::Ground::Panel,
+                );
             },
         );
         cluster(
@@ -98,7 +109,12 @@ pub fn draw(ui: &mut egui::Ui, theme: &Theme) {
                             theme.kb_record_width(),
                             true,
                         );
-                        kbd_parts(ui, theme, &[KbdKey::Text(word)]);
+                        kbd_parts(
+                            ui,
+                            theme,
+                            &[KbdKey::Text(word)],
+                            tasty_ui_widgets::Ground::Panel,
+                        );
                     });
                 }
             });

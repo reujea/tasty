@@ -187,6 +187,7 @@ fn data_state(
                 &mut html_pretty,
                 tr.t("clipboard_viewer.popup.pretty_print"),
                 true,
+                tasty_ui_widgets::Ground::Panel,
             );
         } else if let Some(meta) = &active_meta {
             meta_label(ui, theme, meta);

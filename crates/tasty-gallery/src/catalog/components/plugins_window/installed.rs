@@ -464,7 +464,9 @@ pub(super) fn keycap_platforms(ui: &mut egui::Ui, theme: &Theme) {
                 for chord in ["ctrl + shift + h", "alt + k"] {
                     let caps = plugin_keycap_parts(chord, &style);
                     let keys: Vec<_> = caps.iter().map(PluginKeycap::as_kbd_key).collect();
-                    ui.horizontal(|ui| kbd_parts(ui, theme, &keys));
+                    ui.horizontal(|ui| {
+                        kbd_parts(ui, theme, &keys, tasty_ui_widgets::Ground::Panel)
+                    });
                 }
                 ui.end_row();
             }

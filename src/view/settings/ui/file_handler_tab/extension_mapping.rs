@@ -7,8 +7,8 @@ use crate::i18n::t;
 use super::draw_intro_block;
 use crate::adapters::ui::icons;
 use tasty_ui_widgets::{
-    Button, ButtonVariant, ControlSize, IconButton, IconButtonVariant, Input, Tooltip,
-    tag_disabled, tooltip_hover_delay_elapsed, vspace,
+    Button, ButtonVariant, ControlSize, IconButton, IconButtonVariant, Input, TagVariant, Tooltip,
+    tooltip_hover_delay_elapsed, vspace,
 };
 
 /// 등록된 확장자와 편집 중인 확장자를 표시하고 detector 우선순위를 조정한다.
@@ -246,7 +246,7 @@ fn group_header(
                 ui.set_min_height(th.button_height_sm().value());
                 ui.spacing_mut().item_spacing.x = th.spacing_sm.value();
                 let ext_fg = if kind.not_installed() {
-                    th.text_disabled()
+                    th.text_muted()
                 } else {
                     th.text_secondary()
                 };
@@ -271,7 +271,7 @@ fn group_header(
                     GroupHeader::Default | GroupHeader::Custom => None,
                 };
                 if let Some(tag) = tag {
-                    tag_disabled(ui, th, tag, false);
+                    tasty_ui_widgets::tag(ui, th, tag, TagVariant::Default, false);
                 }
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                     let (label, tooltip) = match kind {
@@ -357,7 +357,7 @@ fn detector_row(
         let name_fg = if candidate {
             th.text_secondary()
         } else {
-            th.text_disabled()
+            th.text_muted()
         };
         ui.label(
             egui::RichText::new(name)
@@ -385,10 +385,11 @@ fn detector_row(
                 })
                 .clicked();
             if !candidate {
-                tag_disabled(
+                tasty_ui_widgets::tag(
                     ui,
                     th,
                     t("settings.file_handler.extension_mapping.off"),
+                    TagVariant::Default,
                     false,
                 );
             }

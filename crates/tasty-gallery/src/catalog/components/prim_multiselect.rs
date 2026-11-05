@@ -637,7 +637,14 @@ fn option_row(
         |ui| {
             // 정적 칸이라 토글 결과는 버린다 — 상태는 칸마다 고정이다.
             let mut v = checked;
-            checkbox(ui, theme, &mut v, label, enabled);
+            checkbox(
+                ui,
+                theme,
+                &mut v,
+                label,
+                enabled,
+                tasty_ui_widgets::Ground::Panel,
+            );
         },
     );
 }

@@ -164,7 +164,15 @@ pub fn draw(ui: &mut egui::Ui, theme: &Theme) {
                                 } else {
                                     StatusKind::Waiting
                                 };
-                                status_dot(ui, th, kind, row.state, listen, false);
+                                status_dot(
+                                    ui,
+                                    th,
+                                    kind,
+                                    row.state,
+                                    listen,
+                                    false,
+                                    tasty_ui_widgets::Ground::Panel,
+                                );
                             }
                             // kit 의 Port·Proto·Address 는 mono 열이라 text-primary 다.
                             _ => {

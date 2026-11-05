@@ -3,6 +3,8 @@
 
 use tasty_type_appearance::theme::Theme;
 
+use crate::control::Ground;
+
 const RING_INSET: f32 = 3.0; // CSS inset:-3px → base 반경 dot/2 + 3
 const PULSE_SCALE_MIN: f32 = 0.6;
 const PULSE_SCALE_RANGE: f32 = 1.2;
@@ -22,29 +24,33 @@ pub enum StatusKind {
 }
 
 impl StatusKind {
-    fn color(self, theme: &Theme, on_active: bool) -> egui::Color32 {
-        let color = match (self, on_active) {
-            (StatusKind::Running, false) => theme.status_dot_success(),
-            (StatusKind::Running, true) => theme.status_dot_success_active(),
-            (StatusKind::Idle, false) => theme.status_dot_idle(),
-            (StatusKind::Idle, true) => theme.status_dot_idle_active(),
-            (StatusKind::Agent, false) => theme.status_dot_agent(),
-            (StatusKind::Agent, true) => theme.status_dot_agent_active(),
-            (StatusKind::Waiting, false) => theme.status_dot_warning(),
-            (StatusKind::Waiting, true) => theme.status_dot_warning_active(),
-            (StatusKind::Error, false) => theme.status_dot_danger(),
-            (StatusKind::Error, true) => theme.status_dot_danger_active(),
-            (StatusKind::NeedsInput, false) => theme.status_dot_needs_input(),
-            (StatusKind::NeedsInput, true) => theme.status_dot_needs_input_active(),
-            (StatusKind::Completion, false) => theme.status_dot_completion(),
-            (StatusKind::Completion, true) => theme.status_dot_completion_active(),
+    /// 바탕 `ground` 위의 점 색. raised에서는 유휴와 대기 점만 그 칸의 잉크로 바뀐다.
+    fn color(self, theme: &Theme, ground: Ground) -> egui::Color32 {
+        let color = match (self, ground) {
+            (StatusKind::Running, Ground::Active) => theme.status_dot_success_active(),
+            (StatusKind::Running, _) => theme.status_dot_success(),
+            (StatusKind::Idle, Ground::Active) => theme.status_dot_idle_active(),
+            (StatusKind::Idle, Ground::Raised) => theme.glyph_dim_raised(),
+            (StatusKind::Idle, Ground::Panel) => theme.status_dot_idle(),
+            (StatusKind::Agent, Ground::Active) => theme.status_dot_agent_active(),
+            (StatusKind::Agent, _) => theme.status_dot_agent(),
+            (StatusKind::Waiting, Ground::Active) => theme.status_dot_warning_active(),
+            (StatusKind::Waiting, Ground::Raised) => theme.accent_warning_raised(),
+            (StatusKind::Waiting, Ground::Panel) => theme.status_dot_warning(),
+            (StatusKind::Error, Ground::Active) => theme.status_dot_danger_active(),
+            (StatusKind::Error, _) => theme.status_dot_danger(),
+            (StatusKind::NeedsInput, Ground::Active) => theme.status_dot_needs_input_active(),
+            (StatusKind::NeedsInput, _) => theme.status_dot_needs_input(),
+            (StatusKind::Completion, Ground::Active) => theme.status_dot_completion_active(),
+            (StatusKind::Completion, _) => theme.status_dot_completion(),
         };
         color.to_egui()
     }
 }
 
 /// 상태 점과 라벨을 그린다. 라벨이 비면 간격 없이 점 하나의 폭만 사용한다.
-/// 공용 표의 선택 행 안이면 [`status_dot_in_row`]의 선택 행 색을 쓴다.
+/// `ground`는 점이 놓인 바탕이다. `Active`면 surface-active 위의 `status-dot-*-active` 색을 쓴다.
+/// 공용 표의 선택 행은 셀 내용이 행 상태를 모르므로 표 문맥도 `Active`로 읽는다.
 pub fn status_dot(
     ui: &mut egui::Ui,
     theme: &Theme,
@@ -52,22 +58,14 @@ pub fn status_dot(
     label: &str,
     pulse: bool,
     reduced_motion: bool,
+    ground: Ground,
 ) -> egui::Response {
-    let selected = crate::in_selected_table_row(ui);
-    status_dot_in_row(ui, theme, kind, label, pulse, reduced_motion, selected)
-}
-
-/// [`status_dot`]과 같고 공용 표 밖의 행이 선택 여부를 직접 넘긴다.
-/// `selected`면 surface-active 위에서 대비를 지키는 `status-dot-*-active` 색을 쓴다.
-pub fn status_dot_in_row(
-    ui: &mut egui::Ui,
-    theme: &Theme,
-    kind: StatusKind,
-    label: &str,
-    pulse: bool,
-    reduced_motion: bool,
-    selected: bool,
-) -> egui::Response {
+    let ground = if crate::in_selected_table_row(ui) {
+        Ground::Active
+    } else {
+        ground
+    };
+    let selected = ground == Ground::Active;
     let dot = theme.status_dot_size().value();
     // 디자인 `.tasty-statusdot`의 점과 라벨 사이 `space-xs`.
     let gap = theme.spacing_xs.value();
@@ -87,7 +85,7 @@ pub fn status_dot_in_row(
     let (rect, resp) = ui.allocate_exact_size(egui::vec2(w, h), egui::Sense::hover());
 
     let dot_center = egui::pos2(rect.left() + dot * 0.5, rect.center().y);
-    let color = kind.color(theme, selected);
+    let color = kind.color(theme, ground);
 
     if pulse && !reduced_motion {
         let t = ui.ctx().input(|i| i.time);
@@ -116,11 +114,12 @@ pub fn status_dot_in_row(
             rect.left() + dot + gap,
             rect.center().y - galley.rect.height() * 0.5,
         );
-        ui.painter().galley(
-            pos,
-            galley,
-            crate::table_cell_ink(ui, theme, theme.text_secondary()),
-        );
+        let ink = if selected {
+            theme.text_on_active().to_egui()
+        } else {
+            crate::table_cell_ink(ui, theme, theme.text_secondary())
+        };
+        ui.painter().galley(pos, galley, ink);
     }
     resp
 }
@@ -137,7 +136,15 @@ mod tests {
         for _ in 0..2 {
             drop(ctx.run(egui::RawInput::default(), |ctx| {
                 egui::CentralPanel::default().show(ctx, |ui| {
-                    let resp = status_dot(ui, &theme, StatusKind::Idle, label, false, true);
+                    let resp = status_dot(
+                        ui,
+                        &theme,
+                        StatusKind::Idle,
+                        label,
+                        false,
+                        true,
+                        Ground::Panel,
+                    );
                     let label_w = ui
                         .painter()
                         .layout_no_wrap(
@@ -195,9 +202,27 @@ mod tests {
                 theme.status_dot_completion_active(),
             ),
         ] {
-            assert_eq!(kind.color(&theme, false), rest.to_egui());
-            assert_eq!(kind.color(&theme, true), active.to_egui());
+            assert_eq!(kind.color(&theme, Ground::Panel), rest.to_egui());
+            assert_eq!(kind.color(&theme, Ground::Active), active.to_egui());
         }
+    }
+
+    /// raised에서는 유휴와 대기 점만 그 칸의 잉크로 바뀐다.
+    #[test]
+    fn only_idle_and_waiting_change_on_raised() {
+        let theme = Theme::with_colors_and_zoom(tasty_themes::mocha_fallback_colors(), false, 1.0);
+        assert_eq!(
+            StatusKind::Idle.color(&theme, Ground::Raised),
+            theme.glyph_dim_raised().to_egui()
+        );
+        assert_eq!(
+            StatusKind::Waiting.color(&theme, Ground::Raised),
+            theme.accent_warning_raised().to_egui()
+        );
+        assert_eq!(
+            StatusKind::Running.color(&theme, Ground::Raised),
+            StatusKind::Running.color(&theme, Ground::Panel)
+        );
     }
 
     #[test]

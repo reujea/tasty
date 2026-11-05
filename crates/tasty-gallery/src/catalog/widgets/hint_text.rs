@@ -61,9 +61,9 @@ pub fn draw(ui: &mut egui::Ui, theme: &Theme) {
             ui.horizontal(|ui| {
                 ui.spacing_mut().item_spacing.x = theme.spacing_xs.value();
                 hint_line(ui, theme, "Press");
-                kbd(ui, theme, "↵");
+                kbd(ui, theme, "↵", tasty_ui_widgets::Ground::Panel);
                 hint_line(ui, theme, "to confirm,");
-                kbd(ui, theme, "Esc");
+                kbd(ui, theme, "Esc", tasty_ui_widgets::Ground::Panel);
                 hint_line(ui, theme, "to cancel.");
             });
         });

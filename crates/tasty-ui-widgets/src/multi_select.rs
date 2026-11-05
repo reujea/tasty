@@ -216,12 +216,18 @@ fn option_row(
     } else {
         theme.multiselect_row_fg()
     };
-    let check = crate::checkbox_on_raised_with_label_color(
+    let ground = if active {
+        crate::Ground::Active
+    } else {
+        crate::Ground::Raised
+    };
+    let check = crate::checkbox_with_label_color(
         &mut slot,
         theme,
         flag,
         label,
         enabled,
+        ground,
         label_fg.to_egui(),
     );
     let mut changed = check.changed();

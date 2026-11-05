@@ -203,7 +203,7 @@ fn disabled_grid(ui: &mut egui::Ui, th: &Theme, name: &str) {
                                     glyph::SEARCH.image(rect.height(), c).paint_at(ui, rect)
                                 });
                             let mut wrap = true;
-                            checkbox(ui, th, &mut wrap, "Wrap", enabled);
+                            checkbox(ui, th, &mut wrap, "Wrap", enabled, Ground::Panel);
                             let mut on = true;
                             switch(ui, th, &mut on, None, enabled);
                         });

@@ -214,7 +214,14 @@ fn bullet_row(ui: &mut egui::Ui, theme: &Theme, depth: usize, marker: &str, text
 fn task_row(ui: &mut egui::Ui, theme: &Theme, mut done: bool, text: &str) {
     ui.horizontal(|ui| {
         ui.add_space(theme.spacing_lg.value());
-        checkbox(ui, theme, &mut done, text, false);
+        checkbox(
+            ui,
+            theme,
+            &mut done,
+            text,
+            false,
+            tasty_ui_widgets::Ground::Panel,
+        );
     });
 }
 

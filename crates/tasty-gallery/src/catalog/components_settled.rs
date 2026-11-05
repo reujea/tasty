@@ -156,7 +156,7 @@ fn keycap_panel(ui: &mut egui::Ui, theme: &Theme, label: &str, canonical: bool) 
                     };
                     child.add_space((child.available_width() - keys_w).max(0.0));
                     if canonical {
-                        kbd(&mut child, theme, keys);
+                        kbd(&mut child, theme, keys, tasty_ui_widgets::Ground::Panel);
                     } else {
                         dropped_caps(&mut child, theme, keys);
                     }

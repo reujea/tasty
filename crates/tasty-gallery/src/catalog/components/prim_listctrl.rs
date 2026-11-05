@@ -6,7 +6,7 @@ use tasty_type_appearance::theme::Theme;
 use tasty_type_geometry::length::LogicalPx;
 use tasty_ui_widgets::{BadgeVariant, ListCtrl, ListCtrlItem, TagVariant, badge, tag};
 
-use crate::catalog::spec::{StageVariant, TokenChip, meta, stage};
+use crate::catalog::spec::{StageVariant, TokenChip, cluster, meta, stage};
 
 /// 시안 Spec 패널의 바깥 폭 `--tasty-size-320`(시안은 border-box라 padding·border 포함).
 /// 공개 토큰 접근자가 없어 갤러리 무대 치수로 둔다.
@@ -174,6 +174,26 @@ fn disabled_trailing_rows(ui: &mut egui::Ui, th: &Theme, name: &str) {
     ];
     ui.push_id(("listctrl_disabled_trailing", name), |ui| {
         ListCtrl::new().show(ui, th, &items, Some(0));
+    });
+}
+
+/// 키보드 활성 행 — 선택 막대 없이 선택 행 채움과 잉크를 쓴다. disabled 행에는 chevron이 없다.
+pub fn draw_keyboard_active(ui: &mut egui::Ui, theme: &Theme) {
+    stage(ui, theme, StageVariant::Column, |ui| {
+        crate::catalog::spec::cluster(ui, theme, "keyboard-active row", |ui| {
+            ui.set_width(theme.measure_md.value());
+            let items = [
+                ListCtrlItem::new("Selected").description("surface-active + bar"),
+                ListCtrlItem::new("Keyboard active").description("surface-active, no bar"),
+                ListCtrlItem::new("Rest").description("not touched"),
+                ListCtrlItem::new("Archived")
+                    .description("no chevron")
+                    .disabled(true),
+            ];
+            ListCtrl::new()
+                .active(Some(1))
+                .show(ui, theme, &items, Some(0));
+        });
     });
 }
 

@@ -55,9 +55,9 @@ pub(super) fn rename(ui: &mut egui::Ui, theme: &Theme) {
                 );
             };
             hint(ui, "Press ");
-            kbd(ui, theme, "↵");
+            kbd(ui, theme, "↵", tasty_ui_widgets::Ground::Raised);
             hint(ui, " to confirm, ");
-            kbd(ui, theme, "Esc");
+            kbd(ui, theme, "Esc", tasty_ui_widgets::Ground::Raised);
             hint(ui, " to cancel.");
         });
         ui.add_space(BLOCK_GAP.value());

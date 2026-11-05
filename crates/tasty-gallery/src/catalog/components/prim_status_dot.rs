@@ -7,12 +7,68 @@ use crate::catalog::spec::{StageVariant, TokenChip, cluster, meta, stage};
 
 pub fn draw(ui: &mut egui::Ui, theme: &Theme) {
     stage(ui, theme, StageVariant::Column, |ui| {
+        for (ground, name) in crate::catalog::spec::GROUND_CELLS {
+            cluster(ui, theme, name, |ui| {
+                crate::catalog::spec::on_ground(ui, theme, ground, |ui| {
+                    for (kind, label) in [
+                        (StatusKind::Idle, "idle"),
+                        (StatusKind::Running, "running"),
+                        (StatusKind::Waiting, "waiting"),
+                        (StatusKind::Error, "error"),
+                        (StatusKind::Agent, "agent"),
+                        (StatusKind::Completion, "completion"),
+                    ] {
+                        status_dot(ui, theme, kind, label, false, true, ground);
+                    }
+                });
+            });
+        }
         cluster(ui, theme, "states", |ui| {
-            status_dot(ui, theme, StatusKind::Running, "running", true, false);
-            status_dot(ui, theme, StatusKind::Agent, "agent", true, false);
-            status_dot(ui, theme, StatusKind::Waiting, "waiting", false, false);
-            status_dot(ui, theme, StatusKind::Idle, "idle", false, false);
-            status_dot(ui, theme, StatusKind::Error, "error", false, false);
+            status_dot(
+                ui,
+                theme,
+                StatusKind::Running,
+                "running",
+                true,
+                false,
+                tasty_ui_widgets::Ground::Panel,
+            );
+            status_dot(
+                ui,
+                theme,
+                StatusKind::Agent,
+                "agent",
+                true,
+                false,
+                tasty_ui_widgets::Ground::Panel,
+            );
+            status_dot(
+                ui,
+                theme,
+                StatusKind::Waiting,
+                "waiting",
+                false,
+                false,
+                tasty_ui_widgets::Ground::Panel,
+            );
+            status_dot(
+                ui,
+                theme,
+                StatusKind::Idle,
+                "idle",
+                false,
+                false,
+                tasty_ui_widgets::Ground::Panel,
+            );
+            status_dot(
+                ui,
+                theme,
+                StatusKind::Error,
+                "error",
+                false,
+                false,
+                tasty_ui_widgets::Ground::Panel,
+            );
         });
         cluster(ui, theme, "attention kinds", |ui| {
             status_dot(
@@ -22,6 +78,7 @@ pub fn draw(ui: &mut egui::Ui, theme: &Theme) {
                 "needs input",
                 false,
                 false,
+                tasty_ui_widgets::Ground::Panel,
             );
             status_dot(
                 ui,
@@ -30,6 +87,7 @@ pub fn draw(ui: &mut egui::Ui, theme: &Theme) {
                 "completion",
                 false,
                 false,
+                tasty_ui_widgets::Ground::Panel,
             );
         });
     });

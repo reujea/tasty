@@ -183,7 +183,10 @@ pub fn draw_controls(ui: &mut egui::Ui, theme: &Theme) {
                 "capped at settings-content-max-width (620)",
             ),
             ("row", "label 150 · gap 16 · control"),
-            ("boolean", "switch() — Colors Default = checkbox()"),
+            (
+                "boolean",
+                "switch() — Colors Default = checkbox(, tasty_ui_widgets::Ground::Panel)",
+            ),
             (
                 "language",
                 "language_select() — built-in 3 + packs · code fallback · missing row",
@@ -531,7 +534,14 @@ fn override_row(ui: &mut egui::Ui, theme: &Theme, field: &str, value: &str, defa
             egui::Stroke::new(theme.border_width.value(), theme.border_strong().to_egui()),
             egui::StrokeKind::Inside,
         );
-        checkbox(ui, theme, default, "Default", true);
+        checkbox(
+            ui,
+            theme,
+            default,
+            "Default",
+            true,
+            tasty_ui_widgets::Ground::Panel,
+        );
     });
 }
 

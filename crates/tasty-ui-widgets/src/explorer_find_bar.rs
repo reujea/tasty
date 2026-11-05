@@ -98,8 +98,15 @@ pub fn explorer_find_bar(
     events.close = close.clicked();
     status(&mut row, theme, &bar.status, &mut events);
     if let Some(sub) = bar.subfolders {
-        events.subfolders_toggled =
-            checkbox(&mut row, theme, sub, bar.labels.subfolders, true).clicked();
+        events.subfolders_toggled = checkbox(
+            &mut row,
+            theme,
+            sub,
+            bar.labels.subfolders,
+            true,
+            crate::Ground::Panel,
+        )
+        .clicked();
     }
     let field_w = row.available_width();
     let resp = row

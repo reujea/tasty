@@ -41,7 +41,7 @@ pub fn draw_badge(ui: &mut egui::Ui, theme: &Theme) {
             badge_disabled(ui, theme, "3");
             badge_disabled(ui, theme, "12");
             badge_disabled(ui, theme, "ok");
-            disabled_chip_scope(ui, |ui| {
+            disabled_chip_scope(ui, tasty_ui_widgets::Ground::Panel, |ui| {
                 badge_dot(ui, theme, BadgeVariant::Danger);
             });
         });
@@ -108,10 +108,29 @@ pub fn draw_tag(ui: &mut egui::Ui, theme: &Theme) {
             tag(ui, theme, "error", TagVariant::Danger, true);
         });
         // 시안 Tag `disabled` — accent 채움과 tint 테두리가 빠지고 점도 같은 ink다.
+        cluster(ui, theme, "disabled edge on a ground", |ui| {
+            for (ground, name) in crate::catalog::spec::GROUND_CELLS {
+                crate::catalog::spec::on_ground(ui, theme, ground, |ui| {
+                    tag_disabled(ui, theme, name, false, ground);
+                });
+            }
+        });
         cluster(ui, theme, "disabled", |ui| {
-            tag_disabled(ui, theme, "terminal", false);
-            tag_disabled(ui, theme, "markdown", false);
-            tag_disabled(ui, theme, "running", true);
+            tag_disabled(
+                ui,
+                theme,
+                "terminal",
+                false,
+                tasty_ui_widgets::Ground::Panel,
+            );
+            tag_disabled(
+                ui,
+                theme,
+                "markdown",
+                false,
+                tasty_ui_widgets::Ground::Panel,
+            );
+            tag_disabled(ui, theme, "running", true, tasty_ui_widgets::Ground::Panel);
         });
     });
 
@@ -143,11 +162,23 @@ pub fn draw_tag(ui: &mut egui::Ui, theme: &Theme) {
 /// Kbd — keycaps.
 pub fn draw_kbd(ui: &mut egui::Ui, theme: &Theme) {
     stage(ui, theme, StageVariant::Column, |ui| {
+        cluster(ui, theme, "plus on a ground", |ui| {
+            for (ground, name) in crate::catalog::spec::GROUND_CELLS {
+                crate::catalog::spec::on_ground(ui, theme, ground, |ui| {
+                    ui.label(
+                        egui::RichText::new(name)
+                            .size(theme.font_size_caption.value())
+                            .color(theme.text_muted().to_egui()),
+                    );
+                    kbd(ui, theme, "Ctrl+K", ground);
+                });
+            }
+        });
         cluster(ui, theme, "shortcuts", |ui| {
-            kbd(ui, theme, "Ctrl+K");
-            kbd(ui, theme, "Ctrl+Shift+N");
-            kbd(ui, theme, "⌘,");
-            kbd(ui, theme, "Esc");
+            kbd(ui, theme, "Ctrl+K", tasty_ui_widgets::Ground::Panel);
+            kbd(ui, theme, "Ctrl+Shift+N", tasty_ui_widgets::Ground::Panel);
+            kbd(ui, theme, "⌘,", tasty_ui_widgets::Ground::Panel);
+            kbd(ui, theme, "Esc", tasty_ui_widgets::Ground::Panel);
         });
     });
 

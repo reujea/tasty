@@ -5,7 +5,7 @@ use crate::catalog::icons;
 use crate::catalog::widgets::dialog as kit;
 use tasty_type_appearance::theme::Theme;
 use tasty_ui_widgets::tokens::STRUCT_GAP_2;
-use tasty_ui_widgets::{StatusKind, TagVariant, status_dot_in_row, tag, tag_with_icon};
+use tasty_ui_widgets::{StatusKind, TagVariant, status_dot, tag, tag_with_icon};
 
 pub(super) fn profile_row(ui: &mut egui::Ui, theme: &Theme, p: &Prof, selected: bool) {
     let w = ui.available_width();
@@ -120,7 +120,12 @@ fn dot_slot_status(
             .max_rect(slot)
             .layout(egui::Layout::left_to_right(egui::Align::Center)),
     );
-    status_dot_in_row(&mut c, theme, kind, "", pulse, false, selected);
+    let ground = if selected {
+        tasty_ui_widgets::Ground::Active
+    } else {
+        tasty_ui_widgets::Ground::Panel
+    };
+    status_dot(&mut c, theme, kind, "", pulse, false, ground);
 }
 
 /// 선택 행의 inset accent 좌측바. 한쪽 변 선택 띠라 hairline selection_edge_width를 쓴다.

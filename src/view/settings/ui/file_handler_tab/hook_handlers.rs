@@ -16,7 +16,7 @@ use tasty_type_geometry::length::LogicalPx;
 use tasty_ui_widgets::{
     Button, ButtonVariant, CodeAreaKeys, ControlSize, Ground, IconButton, IconButtonVariant, Input,
     SequenceEditorAction, SequenceEditorError, SequenceEditorView, TagVariant, sequence_editor,
-    switch, tag, tag_disabled, vspace,
+    switch, tag, vspace,
 };
 
 use crate::adapters::ui::icons;
@@ -627,13 +627,14 @@ fn lock_slot(ui: &mut egui::Ui, th: &tasty_type_appearance::theme::Theme) {
 }
 
 /// 출처 Tag 뒤의 표시 — 평소 "edited"(툴팁: 기본값 갱신이 더는 적용되지 않음),
-/// 되돌리기 대기 중이면 disabled Tag "reverts on save".
+/// 되돌리기 대기 중이면 기본 Tag "reverts on save".
 fn edited_tag(ui: &mut egui::Ui, th: &tasty_type_appearance::theme::Theme, pending: bool) {
     if pending {
-        tag_disabled(
+        tag(
             ui,
             th,
             t("settings.file_handler.hook_handlers.reverts_on_save"),
+            TagVariant::Default,
             false,
         );
     } else {

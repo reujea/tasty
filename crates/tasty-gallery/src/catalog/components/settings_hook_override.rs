@@ -4,7 +4,7 @@
 use std::cell::RefCell;
 
 use tasty_type_appearance::theme::Theme;
-use tasty_ui_widgets::{Button, ButtonVariant, ControlSize, TagVariant, switch, tag, tag_disabled};
+use tasty_ui_widgets::{Button, ButtonVariant, ControlSize, TagVariant, switch, tag};
 
 use crate::catalog::icons;
 use crate::catalog::spec::{self, StageVariant, TokenChip};
@@ -199,7 +199,7 @@ fn draw_row(ui: &mut egui::Ui, th: &Theme, r: &mut Row) {
                         };
                         tag(ui, th, r.origin, variant, false);
                         if r.edited && r.pending {
-                            tag_disabled(ui, th, "reverts on save", false);
+                            tag(ui, th, "reverts on save", TagVariant::Default, false);
                         } else if r.edited {
                             tag(ui, th, "edited", TagVariant::Default, false).on_hover_text(
                                 crate::i18n::t("settings.file_handler.hook_handlers.edited_tip"),

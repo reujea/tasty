@@ -342,7 +342,7 @@ pub fn remote_row_title(
             .sum();
         let name_w = (width - chips_w).max(0.0);
         let name_color = if dim {
-            th.text_disabled()
+            th.text_muted()
         } else {
             th.text_primary()
         };
@@ -783,7 +783,16 @@ pub fn draw_protocol_filter_body(
                     ui.horizontal(|ui| {
                         ui.spacing_mut().item_spacing.x = th.spacing_sm.value();
                         let mut checked = !draft.contains(item.name);
-                        if crate::checkbox(ui, th, &mut checked, item.name, true).changed() {
+                        if crate::checkbox(
+                            ui,
+                            th,
+                            &mut checked,
+                            item.name,
+                            true,
+                            crate::Ground::Raised,
+                        )
+                        .changed()
+                        {
                             if checked {
                                 draft.remove(item.name);
                             } else {

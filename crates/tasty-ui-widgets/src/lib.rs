@@ -137,9 +137,9 @@ pub use center_state::{
 };
 pub use chip::{
     BadgeVariant, KbdKey, TagVariant, badge, badge_disabled, badge_dot, disabled_chip_scope,
-    in_disabled_chip_scope, kbd, kbd_parts, kbd_parts_at, kbd_parts_at_row, kbd_parts_width,
-    kbd_text_parts_painted, kbd_width, num_keycap, paint_badge_dot, paint_num_keycap, tag,
-    tag_caps, tag_disabled, tag_disabled_truncated, tag_width, tag_with_icon,
+    in_disabled_chip_scope, kbd, kbd_parts, kbd_parts_at, kbd_parts_width, kbd_text_parts_painted,
+    kbd_width, num_keycap, paint_badge_dot, paint_num_keycap, tag, tag_caps, tag_disabled,
+    tag_truncated, tag_width, tag_with_icon,
 };
 pub use chrome_slot::top_right_inset_square;
 pub use clipboard_viewer::{
@@ -327,7 +327,7 @@ pub use spacing::{hspace, margin_all, margin_sym, vspace};
 pub use spinner::Spinner;
 pub use state_screen::{GlyphPainter, StateGlyph, StateScreenView, state_screen};
 pub use status_bar::{StatusBarAction, StatusBarData, StatusBarDrawResult, draw_status_bar_view};
-pub use status_dot::{StatusKind, status_dot, status_dot_in_row};
+pub use status_dot::{StatusKind, status_dot};
 pub use tab_content_frame::{settings_content_column, tab_content_frame};
 pub use table::{
     Table, TableAlign, TableColumn, TableColumnWidth, TableOutput, TableSortDir, fixed_total_width,
@@ -342,9 +342,8 @@ pub use toast::{
     stack_anchor as toast_stack_anchor,
 };
 pub use toggle::{
-    checkbox, checkbox_on_raised, checkbox_on_raised_with_label_color, checkbox_width,
-    checkbox_with_label_color, checkbox_wrapping, switch, switch_on_raised,
-    switch_with_label_color,
+    checkbox, checkbox_width, checkbox_with_label_color, checkbox_wrapping, switch,
+    switch_on_raised, switch_with_label_color,
 };
 pub use tooltip::{Tooltip, TooltipPlacement, tooltip_hover_delay_elapsed};
 pub use tree_row::{

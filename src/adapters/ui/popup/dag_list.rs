@@ -422,6 +422,7 @@ fn draw_list(
                 &mut dag.this_workspace_only,
                 t("dag_list.this_workspace_only"),
                 true,
+                tasty_ui_widgets::Ground::Panel,
             );
         });
     ui.painter()

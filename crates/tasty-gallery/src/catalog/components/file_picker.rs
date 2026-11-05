@@ -893,7 +893,14 @@ fn row(ui: &mut egui::Ui, theme: &Theme, r: &Row, state: RowState) {
             egui::vec2(glyph_size, glyph_size),
         );
         let mut child = ui.new_child(egui::UiBuilder::new().max_rect(cb_rect));
-        checkbox(&mut child, theme, &mut chk, "", true);
+        checkbox(
+            &mut child,
+            theme,
+            &mut chk,
+            "",
+            true,
+            tasty_ui_widgets::Ground::Panel,
+        );
     }
     let (icon_glyph, icon_color): (MockGlyph, egui::Color32) = if r.folder {
         (

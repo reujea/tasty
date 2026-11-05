@@ -3,7 +3,7 @@
 use std::collections::BTreeSet;
 
 use tasty_type_appearance::theme::Theme;
-use tasty_ui_widgets::{checkbox, checkbox_on_raised};
+use tasty_ui_widgets::checkbox;
 
 use crate::adapters::ui::icons;
 use crate::i18n::{t, t_fmt2};
@@ -103,7 +103,9 @@ pub(super) fn diff_table(
                         .max_rect(sel_rect)
                         .layout(egui::Layout::left_to_right(egui::Align::Center)),
                     |ui| {
-                        if checkbox(ui, th, &mut on, "", true).changed() {
+                        if checkbox(ui, th, &mut on, "", true, tasty_ui_widgets::Ground::Panel)
+                            .changed()
+                        {
                             if on {
                                 deselected.remove(&r.key);
                             } else {
@@ -175,7 +177,7 @@ fn group_header(
         |ui| {
             ui.spacing_mut().item_spacing.x = th.spacing_sm.value();
             let mut all = !shown.is_empty() && shown.iter().all(|r| !deselected.contains(&r.key));
-            if checkbox_on_raised(ui, th, &mut all, "", true).changed() {
+            if checkbox(ui, th, &mut all, "", true, tasty_ui_widgets::Ground::Raised).changed() {
                 for r in &g.rows {
                     if all {
                         deselected.remove(&r.key);

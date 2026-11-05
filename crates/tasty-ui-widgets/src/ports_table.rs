@@ -127,7 +127,15 @@ pub fn ports_favorite_detail_and_state(
             .max_rect(state_rect)
             .layout(egui::Layout::right_to_left(egui::Align::Center)),
     );
-    let state = status_dot(&mut state_ui, theme, kind, state, pulse, reduced_motion);
+    let state = status_dot(
+        &mut state_ui,
+        theme,
+        kind,
+        state,
+        pulse,
+        reduced_motion,
+        crate::Ground::Panel,
+    );
     (detail, state)
 }
 

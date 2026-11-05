@@ -279,7 +279,7 @@ pub fn plugin_command_row(
                     },
                 );
                 if let Some(keys) = keys.as_deref() {
-                    kbd_parts(ui, theme, keys);
+                    kbd_parts(ui, theme, keys, crate::Ground::Panel);
                 }
             },
         )

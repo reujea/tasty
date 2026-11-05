@@ -26,9 +26,17 @@ fn allocated_width(theme: &Theme, label: &str) -> f32 {
             egui::Area::new(egui::Id::new("host"))
                 .fixed_pos(pos2(10.0, 10.0))
                 .show(c, |ui| {
-                    w = status_dot(ui, theme, StatusKind::Running, label, false, true)
-                        .rect
-                        .width();
+                    w = status_dot(
+                        ui,
+                        theme,
+                        StatusKind::Running,
+                        label,
+                        false,
+                        true,
+                        tasty_ui_widgets::Ground::Panel,
+                    )
+                    .rect
+                    .width();
                 });
         },
     );

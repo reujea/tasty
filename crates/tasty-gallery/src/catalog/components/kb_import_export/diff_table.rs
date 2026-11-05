@@ -169,7 +169,16 @@ fn diff_table(ui: &mut egui::Ui, theme: &Theme, st: &mut State) {
                         .max_rect(sel_rect)
                         .layout(egui::Layout::left_to_right(egui::Align::Center)),
                     |ui| {
-                        if checkbox(ui, theme, &mut on, "", true).changed() {
+                        if checkbox(
+                            ui,
+                            theme,
+                            &mut on,
+                            "",
+                            true,
+                            tasty_ui_widgets::Ground::Panel,
+                        )
+                        .changed()
+                        {
                             if on {
                                 st.deselected.remove(&key);
                             } else {
@@ -243,7 +252,16 @@ fn group_header(
                 && shown
                     .iter()
                     .all(|r| !st.deselected.contains(&(g.id, r.action)));
-            if checkbox(ui, theme, &mut all, "", true).changed() {
+            if checkbox(
+                ui,
+                theme,
+                &mut all,
+                "",
+                true,
+                tasty_ui_widgets::Ground::Panel,
+            )
+            .changed()
+            {
                 for r in g.rows {
                     if all {
                         st.deselected.remove(&(g.id, r.action));

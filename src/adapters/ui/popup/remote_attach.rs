@@ -12,8 +12,7 @@ use crate::app::remote_browser::BrowserRequest;
 use tasty_remote::browse::RemoteWorkspace;
 use tasty_remote_profiles::{AttachView, RemoteProfiles};
 use tasty_ui_widgets::{
-    Button, ButtonVariant, CenterState, StatusKind, TagVariant, status_dot_in_row, tag,
-    tag_with_icon,
+    Button, ButtonVariant, CenterState, StatusKind, TagVariant, status_dot, tag, tag_with_icon,
 };
 
 use crate::adapters::ui::icons;
@@ -868,7 +867,12 @@ fn dot_slot_status(ui: &mut egui::Ui, th: &Theme, kind: StatusKind, pulse: bool,
             .max_rect(slot)
             .layout(egui::Layout::left_to_right(egui::Align::Center)),
     );
-    status_dot_in_row(&mut c, th, kind, "", pulse, false, selected);
+    let ground = if selected {
+        tasty_ui_widgets::Ground::Active
+    } else {
+        tasty_ui_widgets::Ground::Panel
+    };
+    status_dot(&mut c, th, kind, "", pulse, false, ground);
 }
 
 /// 생성 실패는 목록을 가리지 않고 행 아래 표시한다. 긴 오류는 줄바꿈하며 툴팁으로 전문을 제공한다.

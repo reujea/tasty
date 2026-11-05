@@ -65,10 +65,26 @@ pub fn draw(ui: &mut egui::Ui, theme: &Theme) {
             let resolved = resolve(owner, activity);
             ui.horizontal(|ui| {
                 cell(ui, cw, |ui| {
-                    status_dot(ui, theme, owner, owner_label, false, true);
+                    status_dot(
+                        ui,
+                        theme,
+                        owner,
+                        owner_label,
+                        false,
+                        true,
+                        tasty_ui_widgets::Ground::Panel,
+                    );
                 });
                 cell(ui, cw, |ui| {
-                    status_dot(ui, theme, activity, label(activity), false, true);
+                    status_dot(
+                        ui,
+                        theme,
+                        activity,
+                        label(activity),
+                        false,
+                        true,
+                        tasty_ui_widgets::Ground::Panel,
+                    );
                 });
                 cell(ui, cw, |ui| {
                     ui.label(
@@ -78,7 +94,15 @@ pub fn draw(ui: &mut egui::Ui, theme: &Theme) {
                     );
                 });
                 cell(ui, cw, |ui| {
-                    status_dot(ui, theme, resolved, label(resolved), false, true);
+                    status_dot(
+                        ui,
+                        theme,
+                        resolved,
+                        label(resolved),
+                        false,
+                        true,
+                        tasty_ui_widgets::Ground::Panel,
+                    );
                 });
             });
         }
