@@ -243,7 +243,7 @@ screens/tools_menu.png	e7309a3496d9313f6cf29f7b0aac12d7303ad46a5c18cc6a09caa2862
 styles.css	a8151bd1dc8e45e1730850802e332bf9648cc450842dbac607337066d80c2236
 tokens/base.css	4663e6e578b22c1ca3b616348a6425548f5301b6de7cd9f2fe0858176473089d
 tokens/components.css	50720a4a5225049d3ad072b935bcccd08d75f0fec6b7542f628b13438523d8b3	variant	a452719f3aae07e98f1b5e488b4baf8d5f891c811348de3e8be1b9604f28521d	원격 요청문서 인용을 지웠다.
-tokens/primitives.css	093163e305df5fe2909533049a66e32828c7bf6c469f7cf6d064d4230894314e	variant	abb58c364910b4a1f35f94570f9aec0b0b2cf32c67f134769ff6b6a6e8017cbb	The remote moved tier 1 values to tokens.css; the copy keeps them in this file with the same values, and a retired ADR citation points to the current theme policy
+tokens/primitives.css	093163e305df5fe2909533049a66e32828c7bf6c469f7cf6d064d4230894314e	variant	259e8a026bbd070d7583ed5abc4f84779837fbd7bc096695d0c229943c96020a	The remote moved tier 1 values to tokens.css; the copy keeps them in this file with the same values, and a retired ADR citation points to the current theme policy
 tokens/semantic.css	c26fd0b6e47056780349855efbd84725aec8c688f5762d57df973c913ecd7e98	variant	9526a9d23874989332b2793987e2088231b555ae2d585f2bd8e05ee6955b7d97	로컬 요청문서·변경 기록 또는 옛 ADR 인용을 정정하고 렌더링 구조와 값은 유지했다
 ui_kits/terminal/app.jsx	655221834fe4e95878dcec123778971b0d0363fe005ef1a851d75447ac7f2cda
 ui_kits/terminal/chrome.jsx	2dba8039d6a96f3a20092952456e0b8ac6c62a3ca02fe493754337f0210d0f2e

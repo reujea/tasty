@@ -25,7 +25,7 @@
      --tasty-duration-<ms>          motion duration scale
    ============================================================ */
 
-:root {
+:root, [data-theme="mocha"] {
   /* ── Neutral ramp — Mocha (bg 0 → fg 1100) ────────────────── */
   --tasty-color-neutral-0:    #11111b; /* crust    */
   --tasty-color-neutral-100:  #181825; /* mantle   */
