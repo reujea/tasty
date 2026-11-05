@@ -151,6 +151,9 @@ pub const MOTION_UI_FAST: f32 = super::primitive::DURATION_90;
 /// `semantic.motion-ui-med` → `{primitive.duration-150}` = 150ms (ms)
 pub const MOTION_UI_MED: f32 = super::primitive::DURATION_150;
 
+/// `semantic.node-dim-opacity` → `{primitive.opacity-dimmed}` = 0.75
+pub const NODE_DIM_OPACITY: f32 = super::primitive::OPACITY_DIMMED;
+
 /// `semantic.overlay-top-offset` → `{primitive.size-88}` = 88px
 pub const OVERLAY_TOP_OFFSET: LogicalPx = super::primitive::SIZE_88;
 

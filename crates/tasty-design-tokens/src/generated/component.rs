@@ -303,8 +303,8 @@ pub mod dag {
     /// `component.dag-node-bar-width` → `{primitive.size-3}` = 3px
     pub const NODE_BAR_WIDTH: LogicalPx = crate::generated::primitive::SIZE_3;
 
-    /// `component.dag-node-dim-opacity` → `{primitive.opacity-dimmed}` = 0.75
-    pub const NODE_DIM_OPACITY: f32 = crate::generated::primitive::OPACITY_DIMMED;
+    /// `component.dag-node-dim-opacity` → `{semantic.node-dim-opacity}` = 0.75
+    pub const NODE_DIM_OPACITY: f32 = crate::generated::semantic::NODE_DIM_OPACITY;
 
     /// `component.dag-node-gap` → `{semantic.space-sm}` = 8px
     pub const NODE_GAP: LogicalPx = crate::generated::semantic::SPACE_SM;

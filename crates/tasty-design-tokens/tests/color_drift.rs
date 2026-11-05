@@ -73,6 +73,21 @@ fn primitive_colors_match_embedded_themes() {
     }
 }
 
+/// 생성 상수는 Mocha 값만 담으므로, 흐린 노드는 Theme 접근자로 Latte 값까지 읽어야 한다.
+#[test]
+fn node_dim_opacity_follows_the_token_in_both_modes() {
+    let set = dtcg::parse(DTCG_JSON).expect("vendor json must parse");
+    let build = |light: bool| Theme::with_colors(mocha_fallback_colors(), light);
+    for (mode, light) in [(ThemeMode::Mocha, false), (ThemeMode::Latte, true)] {
+        let token: f32 = set
+            .resolve("component.dag-node-dim-opacity", mode)
+            .expect("token must resolve")
+            .parse()
+            .expect("opacity must be a number");
+        assert_eq!(build(light).node_dim_opacity(), token);
+    }
+}
+
 /// 내장 테마의 placeholder는 입력 상자 위 일반 글자 등급을 넘는 subtext다.
 /// 사용자 설정에서는 별도 필드로 바꿀 수 있다.
 #[test]

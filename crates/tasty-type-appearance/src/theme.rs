@@ -1599,6 +1599,13 @@ impl Theme {
         OPACITY_DIMMED
     }
 
+    /// 흐려진 DAG 노드의 opacity. `semantic.node-dim-opacity`.
+    /// 노드는 선택할 수 있고 글자를 읽어야 해서 Latte에서는 흐리지 않는다.
+    #[inline]
+    pub fn node_dim_opacity(&self) -> f32 {
+        if self.is_light { 1.0 } else { OPACITY_DIMMED }
+    }
+
     /// 잘라내기 대기 중인 파일의 아이콘·라벨을 흐리게 한다.
     /// design `--tasty-cut-pending-opacity` → `state-dim-opacity`.
     #[inline]

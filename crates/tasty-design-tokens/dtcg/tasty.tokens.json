@@ -1295,6 +1295,15 @@
       "$type": "color",
       "$value": "{semantic.border-strong}"
     },
+    "node-dim-opacity": {
+      "$type": "number",
+      "$value": "{primitive.opacity-dimmed}",
+      "$extensions": {
+        "com.tasty.mode": {
+          "latte": "1"
+        }
+      }
+    },
     "state-dim-opacity": {
       "$type": "number",
       "$value": "{primitive.opacity-disabled}"
@@ -3126,6 +3135,10 @@
       "$type": "color",
       "$value": "{semantic.accent-info-raised}"
     },
+    "html-script-marker-fg-hover": {
+      "$type": "color",
+      "$value": "{semantic.text-muted-raised}"
+    },
     "html-script-marker-fg": {
       "$type": "color",
       "$value": "{semantic.glyph-dim}"
@@ -3149,6 +3162,10 @@
     "html-remote-banner-glyph": {
       "$type": "color",
       "$value": "{semantic.accent-info-raised}"
+    },
+    "html-remote-marker-fg-hover": {
+      "$type": "color",
+      "$value": "{semantic.text-muted-raised}"
     },
     "html-remote-marker-fg": {
       "$type": "color",
@@ -3504,7 +3521,7 @@
     },
     "attach-refusal-glyph": {
       "$type": "color",
-      "$value": "{semantic.accent-warning-glyph}"
+      "$value": "{semantic.accent-warning-raised}"
     },
     "attach-refusal-chip-size": {
       "$type": "dimension",
@@ -4833,7 +4850,7 @@
     },
     "dag-node-dim-opacity": {
       "$type": "number",
-      "$value": "{primitive.opacity-dimmed}"
+      "$value": "{semantic.node-dim-opacity}"
     },
     "dag-status-waiting": {
       "$type": "color",
@@ -5381,7 +5398,7 @@
     },
     "explorer-error-fg": {
       "$type": "color",
-      "$value": "{semantic.accent-danger}"
+      "$value": "{semantic.accent-danger-raised}"
     },
     "dag-edge-binding": {
       "$type": "color",
@@ -5497,7 +5514,7 @@
     },
     "attach-sync-glyph": {
       "$type": "color",
-      "$value": "{semantic.accent-warning-glyph}",
+      "$value": "{semantic.accent-warning-raised}",
       "$description": "attach size-sync failure banner glyph (same tone as the refusal banner)"
     },
     "attach-sync-name-max-width": {
@@ -5542,7 +5559,7 @@
     },
     "explorer-drag-move-fg": {
       "$type": "color",
-      "$value": "{semantic.accent-primary}",
+      "$value": "{semantic.accent-primary-raised}",
       "$description": "drag chip badge — move"
     },
     "explorer-drag-copy-fg": {
@@ -5552,7 +5569,7 @@
     },
     "explorer-drag-refused-fg": {
       "$type": "color",
-      "$value": "{semantic.accent-danger}",
+      "$value": "{semantic.accent-danger-raised}",
       "$description": "drag chip badge — refused"
     },
     "explorer-drag-chip-max-width": {
@@ -5786,7 +5803,7 @@
     },
     "kb-record-empty-fg": {
       "$type": "color",
-      "$value": "{semantic.text-muted}",
+      "$value": "{semantic.text-muted-raised}",
       "$description": "“None” slot label on a shortcut row with no binding"
     },
     "ui-code-font": {
@@ -5905,7 +5922,7 @@
     },
     "plugin-trust-body-fg": {
       "$type": "color",
-      "$value": "{semantic.text-secondary}",
+      "$value": "{semantic.text-secondary-raised}",
       "$description": "trust box cause + risk paragraphs"
     },
     "plugin-trust-glyph-danger": {

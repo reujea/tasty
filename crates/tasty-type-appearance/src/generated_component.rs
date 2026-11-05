@@ -34,16 +34,16 @@ impl crate::theme::Theme {
         self.move_source_chip_size()
     }
 
-    /// `component.attach-refusal-glyph` → `{semantic.accent-warning-glyph}`
+    /// `component.attach-refusal-glyph` → `{semantic.accent-warning-raised}`
     #[inline]
     pub fn attach_refusal_glyph(&self) -> HexColor {
-        self.accent_warning_glyph()
+        self.accent_warning_raised()
     }
 
-    /// `component.attach-sync-glyph` → `{semantic.accent-warning-glyph}`
+    /// `component.attach-sync-glyph` → `{semantic.accent-warning-raised}`
     #[inline]
     pub fn attach_sync_glyph(&self) -> HexColor {
-        self.accent_warning_glyph()
+        self.accent_warning_raised()
     }
 
     /// `component.attach-sync-name-max-width` → `{primitive.size-160}` = 160px
@@ -1492,16 +1492,16 @@ impl crate::theme::Theme {
         Millis(800.0)
     }
 
-    /// `component.explorer-drag-move-fg` → `{semantic.accent-primary}`
+    /// `component.explorer-drag-move-fg` → `{semantic.accent-primary-raised}`
     #[inline]
     pub fn explorer_drag_move_fg(&self) -> HexColor {
-        self.accent_primary()
+        self.accent_primary_raised()
     }
 
-    /// `component.explorer-drag-refused-fg` → `{semantic.accent-danger}`
+    /// `component.explorer-drag-refused-fg` → `{semantic.accent-danger-raised}`
     #[inline]
     pub fn explorer_drag_refused_fg(&self) -> HexColor {
-        self.accent_danger()
+        self.accent_danger_raised()
     }
 
     /// `component.explorer-drop-target-border` → `{semantic.accent-primary}`
@@ -1510,10 +1510,10 @@ impl crate::theme::Theme {
         self.accent_primary()
     }
 
-    /// `component.explorer-error-fg` → `{semantic.accent-danger}`
+    /// `component.explorer-error-fg` → `{semantic.accent-danger-raised}`
     #[inline]
     pub fn explorer_error_fg(&self) -> HexColor {
-        self.accent_danger()
+        self.accent_danger_raised()
     }
 
     /// `component.explorer-favorites-hide-below` → `{primitive.size-240}` = 240px
@@ -2190,6 +2190,12 @@ impl crate::theme::Theme {
         self.glyph_dim_raised()
     }
 
+    /// `component.html-remote-marker-fg-hover` → `{semantic.text-muted-raised}`
+    #[inline]
+    pub fn html_remote_marker_fg_hover(&self) -> HexColor {
+        self.text_muted_raised()
+    }
+
     /// `component.html-remote-marker-hit` → `{primitive.size-20}` = 20px
     #[inline]
     pub fn html_remote_marker_hit(&self) -> LogicalPx {
@@ -2224,6 +2230,12 @@ impl crate::theme::Theme {
     #[inline]
     pub fn html_script_marker_fg(&self) -> HexColor {
         self.glyph_dim()
+    }
+
+    /// `component.html-script-marker-fg-hover` → `{semantic.text-muted-raised}`
+    #[inline]
+    pub fn html_script_marker_fg_hover(&self) -> HexColor {
+        self.text_muted_raised()
     }
 
     /// `component.html-script-marker-hit` → `{primitive.size-16}` = 16px
@@ -2688,10 +2700,10 @@ impl crate::theme::Theme {
         self.border_control_raised()
     }
 
-    /// `component.kb-record-empty-fg` → `{semantic.text-muted}`
+    /// `component.kb-record-empty-fg` → `{semantic.text-muted-raised}`
     #[inline]
     pub fn kb_record_empty_fg(&self) -> HexColor {
-        self.text_muted()
+        self.text_muted_raised()
     }
 
     /// `component.kb-record-height` → `{component.kb-ie-slot-height}` = 24px
@@ -4026,10 +4038,10 @@ impl crate::theme::Theme {
         LogicalPx((32.0 * self.ui_zoom).round())
     }
 
-    /// `component.plugin-trust-body-fg` → `{semantic.text-secondary}`
+    /// `component.plugin-trust-body-fg` → `{semantic.text-secondary-raised}`
     #[inline]
     pub fn plugin_trust_body_fg(&self) -> HexColor {
-        self.text_secondary()
+        self.text_secondary_raised()
     }
 
     /// `component.plugin-trust-body-trusted-fg` → `{semantic.accent-success-ink}`

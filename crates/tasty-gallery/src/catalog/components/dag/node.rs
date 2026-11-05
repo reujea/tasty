@@ -1,7 +1,6 @@
 //! 상태 바, 작업 이름, 상태 라벨, 소요 시간을 표시하는 DAG 노드 예제.
 //! 표시 상세도는 카드의 내용만 바꾸며 카드 크기는 유지한다.
 
-use tasty_design_tokens::generated::component::dag::NODE_DIM_OPACITY;
 use tasty_design_tokens::generated::semantic::ICON_SIZE_SM;
 use tasty_type_appearance::color::HexColor;
 use tasty_type_appearance::theme::Theme;
@@ -55,10 +54,10 @@ impl Default for NodeVis {
     }
 }
 
-fn tone(color: HexColor, dimmed: bool) -> egui::Color32 {
+fn tone(theme: &Theme, color: HexColor, dimmed: bool) -> egui::Color32 {
     let c = color.to_egui();
     if dimmed {
-        c.gamma_multiply(NODE_DIM_OPACITY)
+        c.gamma_multiply(theme.node_dim_opacity())
     } else {
         c
     }
@@ -82,7 +81,7 @@ pub fn paint_card(ui: &mut egui::Ui, theme: &Theme, rect: egui::Rect, node: &Nod
         ui.painter().rect_stroke(
             rect,
             radius,
-            egui::Stroke::new(bw, tone(accent, dim)),
+            egui::Stroke::new(bw, tone(theme, accent, dim)),
             egui::StrokeKind::Inside,
         );
         if vis.selected {
@@ -92,11 +91,11 @@ pub fn paint_card(ui: &mut egui::Ui, theme: &Theme, rect: egui::Rect, node: &Nod
     }
 
     ui.painter()
-        .rect_filled(rect, radius, tone(node.bg(theme), dim));
+        .rect_filled(rect, radius, tone(theme, node.bg(theme), dim));
     ui.painter().rect_stroke(
         rect,
         radius,
-        egui::Stroke::new(bw, tone(node.border(theme), dim)),
+        egui::Stroke::new(bw, tone(theme, node.border(theme), dim)),
         egui::StrokeKind::Inside,
     );
 
@@ -105,7 +104,7 @@ pub fn paint_card(ui: &mut egui::Ui, theme: &Theme, rect: egui::Rect, node: &Nod
     ui.painter().rect_filled(
         bar,
         (theme.corner_radius_sm.value() * zoom).round(),
-        tone(accent, dim),
+        tone(theme, accent, dim),
     );
 
     let pad_x = theme.dag_node_padding_x().value() * zoom;
@@ -128,7 +127,7 @@ pub fn paint_card(ui: &mut egui::Ui, theme: &Theme, rect: egui::Rect, node: &Nod
                 se: r,
             },
             if dim {
-                wash.gamma_multiply(NODE_DIM_OPACITY)
+                wash.gamma_multiply(theme.node_dim_opacity())
             } else {
                 wash
             },
@@ -163,7 +162,7 @@ pub fn paint_card(ui: &mut egui::Ui, theme: &Theme, rect: egui::Rect, node: &Nod
     );
     node.kind
         .icon()
-        .image(icon_side, tone(theme.dag_node_meta_fg(), dim))
+        .image(icon_side, tone(theme, theme.dag_node_meta_fg(), dim))
         .paint_at(ui, icon_rect);
     let name_x = inner.min.x + icon_side + gap;
     ui.painter().text(
@@ -171,7 +170,7 @@ pub fn paint_card(ui: &mut egui::Ui, theme: &Theme, rect: egui::Rect, node: &Nod
         egui::Align2::LEFT_CENTER,
         ellipsize(ui, &node.name, &name_font, inner.max.x - name_x),
         name_font,
-        tone(theme.dag_node_fg(), dim),
+        tone(theme, theme.dag_node_fg(), dim),
     );
 
     if vis.lod != Lod::Full {
@@ -190,7 +189,7 @@ pub fn paint_card(ui: &mut egui::Ui, theme: &Theme, rect: egui::Rect, node: &Nod
         egui::Align2::LEFT_CENTER,
         glyph,
         meta_font.clone(),
-        tone(label_fg, dim),
+        tone(theme, label_fg, dim),
     );
 
     // 소요 시간은 다른 곳에 없으므로 상태 라벨을 먼저 줄인다.
@@ -203,7 +202,7 @@ pub fn paint_card(ui: &mut egui::Ui, theme: &Theme, rect: egui::Rect, node: &Nod
                 egui::Align2::RIGHT_CENTER,
                 d,
                 meta_font.clone(),
-                tone(theme.dag_node_meta_fg(), dim),
+                tone(theme, theme.dag_node_meta_fg(), dim),
             );
             right -= dw + gap;
         }
@@ -215,7 +214,7 @@ pub fn paint_card(ui: &mut egui::Ui, theme: &Theme, rect: egui::Rect, node: &Nod
             egui::Align2::LEFT_CENTER,
             ellipsize(ui, &node.status_label().to_uppercase(), &meta_font, label_w),
             meta_font,
-            tone(label_fg, dim),
+            tone(theme, label_fg, dim),
         );
     }
 

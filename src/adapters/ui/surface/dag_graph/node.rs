@@ -2,7 +2,6 @@
 //! 기본 표시에서는 상태색·기호·문구를 함께 쓰고, 가장 작게 보일 때는 색만 남긴다.
 //! 이름 앞 아이콘은 상태가 아니라 task 종류를 나타낸다.
 
-use tasty_design_tokens::generated::component::dag::NODE_DIM_OPACITY;
 use tasty_type_appearance::color::HexColor;
 use tasty_type_appearance::theme::Theme;
 
@@ -115,10 +114,10 @@ fn node_ink(theme: &Theme, status: DagStatus, hovered: bool) -> (HexColor, HexCo
     }
 }
 
-fn tone(color: HexColor, dimmed: bool) -> egui::Color32 {
+fn tone(theme: &Theme, color: HexColor, dimmed: bool) -> egui::Color32 {
     let c = color.to_egui();
     if dimmed {
-        c.gamma_multiply(NODE_DIM_OPACITY)
+        c.gamma_multiply(theme.node_dim_opacity())
     } else {
         c
     }
@@ -185,7 +184,7 @@ pub fn paint_node(
             rect,
             radius,
             if dim {
-                fill.gamma_multiply(NODE_DIM_OPACITY)
+                fill.gamma_multiply(theme.node_dim_opacity())
             } else {
                 fill
             },
@@ -193,17 +192,17 @@ pub fn paint_node(
         painter.rect_stroke(
             rect,
             radius,
-            egui::Stroke::new(stroke_w, tone(border, dim)),
+            egui::Stroke::new(stroke_w, tone(theme, border, dim)),
             egui::StrokeKind::Inside,
         );
         return;
     }
 
-    painter.rect_filled(rect, radius, tone(status_bg, dim));
+    painter.rect_filled(rect, radius, tone(theme, status_bg, dim));
     painter.rect_stroke(
         rect,
         radius,
-        egui::Stroke::new(stroke_w, tone(border, dim)),
+        egui::Stroke::new(stroke_w, tone(theme, border, dim)),
         egui::StrokeKind::Inside,
     );
 
@@ -211,7 +210,7 @@ pub fn paint_node(
     painter.rect_filled(
         egui::Rect::from_min_max(rect.min, egui::pos2(rect.min.x + bar_w, rect.max.y)),
         radius,
-        tone(accent, dim),
+        tone(theme, accent, dim),
     );
 
     // hover wash 는 바를 덮지 않는다 — 상태 바는 hover 중에도 원색이어야 한다.
@@ -257,7 +256,7 @@ pub fn paint_node(
 
     let (title_fg, meta_fg) = node_ink(theme, node.status, vis.hovered);
     kind_icon(node.command_kind)
-        .image(icon_side, tone(meta_fg, dim))
+        .image(icon_side, tone(theme, meta_fg, dim))
         .paint_at(
             ui,
             egui::Rect::from_min_size(
@@ -271,7 +270,7 @@ pub fn paint_node(
         egui::Align2::LEFT_CENTER,
         ellipsize(painter, &node.name, &name_font, inner.max.x - name_x),
         name_font,
-        tone(title_fg, dim),
+        tone(theme, title_fg, dim),
     );
 
     if lod != Lod::Full {
@@ -286,7 +285,7 @@ pub fn paint_node(
         egui::Align2::LEFT_CENTER,
         glyph,
         meta_font.clone(),
-        tone(label_fg, dim),
+        tone(theme, label_fg, dim),
     );
 
     // 시간 폭을 먼저 확보한다. 상태는 기호·색으로도 나타내므로 문구를 먼저 줄인다.
@@ -300,7 +299,7 @@ pub fn paint_node(
                 egui::Align2::RIGHT_CENTER,
                 d,
                 meta_font.clone(),
-                tone(meta_fg, dim),
+                tone(theme, meta_fg, dim),
             );
             right -= dw + gap;
         }
@@ -312,7 +311,7 @@ pub fn paint_node(
             egui::Align2::LEFT_CENTER,
             ellipsize(painter, &node.status_label(), &meta_font, label_w),
             meta_font,
-            tone(label_fg, dim),
+            tone(theme, label_fg, dim),
         );
     }
 }
