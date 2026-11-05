@@ -133,12 +133,12 @@ function HtmlSizeBanner({ kind = "file", name = "assets/hero-video.mp4", size = 
           </div>
           {file ? (
             <div style={{ display: "flex", alignItems: "center", gap: "var(--tasty-space-sm)", minWidth: 0 }}>
-              <span style={{ flex: "0 1 auto", minWidth: 0, fontFamily: "var(--tasty-font-mono)", fontSize: "var(--tasty-banner-body-font-size)", color: "var(--tasty-text-muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", direction: "rtl", textAlign: "left" }}><bdi>{name}</bdi></span>
+              <span style={{ flex: "0 1 auto", minWidth: 0, fontFamily: "var(--tasty-font-mono)", fontSize: "var(--tasty-banner-body-font-size)", color: "var(--tasty-banner-body-fg)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", direction: "rtl", textAlign: "left" }}><bdi>{name}</bdi></span>
               <span style={{ display: "inline-flex", flex: "none" }}><Tag variant="warning">{size}</Tag></span>
-              {more > 0 && <span style={{ flex: "none", fontSize: "var(--tasty-banner-body-font-size)", color: "var(--tasty-text-muted)", whiteSpace: "nowrap" }}>+{more} more waiting</span>}
+              {more > 0 && <span style={{ flex: "none", fontSize: "var(--tasty-banner-body-font-size)", color: "var(--tasty-banner-body-fg)", whiteSpace: "nowrap" }}>+{more} more waiting</span>}
             </div>
           ) : (
-            <div style={{ fontSize: "var(--tasty-banner-body-font-size)", lineHeight: "var(--tasty-line-height-ui)", color: "var(--tasty-text-muted)" }}>{HA_COPY.limitBody}</div>
+            <div style={{ fontSize: "var(--tasty-banner-body-font-size)", lineHeight: "var(--tasty-line-height-ui)", color: "var(--tasty-banner-body-fg)" }}>{HA_COPY.limitBody}</div>
           )}
         </div>
         <span style={{ flex: "none", display: "flex", gap: "var(--tasty-space-sm)", marginLeft: narrow ? "calc(var(--tasty-icon-size-md) + var(--tasty-banner-gap))" : 0, width: narrow ? "100%" : "auto" }}>

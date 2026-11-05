@@ -40,6 +40,9 @@
   /* secondary ink on a RAISED ground (surface-raised: menus, dropdown lists). 2026-10-08 (batch 8):
      Mocha = text-secondary (7.1:1); Latte → neutral-1100 because n1000 on surface0 is 4.05:1. */
   --tasty-text-secondary-raised: var(--tasty-color-neutral-1000);
+  /* muted ink on a RAISED ground (2026-11-05, banner body first). Mocha = text-muted (5.65:1 on surface0, unchanged);
+     Latte → neutral-1100 because n900 on surface0 is 3.65:1 and n1000 is 4.05:1. */
+  --tasty-text-muted-raised: var(--tasty-color-neutral-900);
   --tasty-text-on-accent:   var(--tasty-color-neutral-0); /* dark text atop a filled accent (Latte → white) */
   --tasty-text-on-window-close: var(--tasty-color-white); /* glyph atop the (dark) Windows close-hover fill — white in both themes */
 
@@ -400,6 +403,8 @@
      "on surface0 or darker, text-primary" applied as a role remap; rest = hover ink in Latte, hover
      still reads by the overlay-hover fill. */
   --tasty-text-secondary-raised: var(--tasty-color-neutral-1100);
+  /* muted-on-raised (2026-11-05) — n900 3.65:1, n1000 4.05:1, n1100 5.17:1 on surface0: one ramp step clears 4.5. Same theme rule as above. */
+  --tasty-text-muted-raised: var(--tasty-color-neutral-1100);
 
   --tasty-overlay-hover:  var(--tasty-alpha-black-8);
   --tasty-overlay-active: var(--tasty-alpha-black-12);

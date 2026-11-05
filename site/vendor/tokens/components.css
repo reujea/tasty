@@ -412,6 +412,7 @@
   --tasty-banner-icon-fg:             var(--tasty-text-muted);        /* default leading glyph tone (a banner may override per severity) */
   --tasty-banner-title-font-size:     var(--tasty-font-size-body);    /* 13 — primary line */
   --tasty-banner-body-font-size:      var(--tasty-font-size-caption); /* 11 — supporting line */
+  --tasty-banner-body-fg:             var(--tasty-text-muted-raised); /* supporting line + reloading status on banner-bg — Mocha 5.65 · Latte 5.17 (was text-muted: Latte 3.65) */
   --tasty-banner-countdown-font:      var(--tasty-font-mono);         /* TTL seconds, top-right */
   --tasty-banner-countdown-font-size: var(--tasty-font-size-micro);   /* 10 */
   --tasty-banner-countdown-fg:        var(--tasty-text-muted);

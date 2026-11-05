@@ -1524,7 +1524,7 @@ function MouseCaptureBannerG({ glyph = true, body, lines, app = "vim", lang = "e
         <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: "var(--tasty-banner-text-gap)",
           paddingRight: "var(--tasty-banner-more-reserve)" }}>
           <div style={{ fontSize: "var(--tasty-banner-title-font-size)", fontWeight: 600, color: "var(--tasty-banner-fg)", lineHeight: 1.4 }}>Mouse input captured</div>
-          <div style={{ fontSize: "var(--tasty-banner-body-font-size)", color: "var(--tasty-text-muted)", lineHeight: 1.45 }}>{body || defBody}</div>
+          <div style={{ fontSize: "var(--tasty-banner-body-font-size)", color: "var(--tasty-banner-body-fg)", lineHeight: 1.45 }}>{body || defBody}</div>
         </div>
         <span style={{ position: "absolute", top: "var(--tasty-banner-padding-y)", right: "var(--tasty-space-sm)",
           display: "flex", alignItems: "center", gap: "var(--tasty-banner-more-column-gap)",
@@ -1571,7 +1571,7 @@ function BannerMoreDemoG() {
                 <span style={{ display: "inline-flex", flex: "none", marginTop: 1, color: "var(--tasty-banner-icon-fg)" }}>{ic.mouse}</span>
                 <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 2, paddingRight: "var(--tasty-banner-more-reserve)" }}>
                   <div style={{ fontSize: "var(--tasty-banner-title-font-size)", fontWeight: 600, color: "var(--tasty-banner-fg)", lineHeight: 1.4 }}>Mouse input captured</div>
-                  <div style={{ fontSize: "var(--tasty-banner-body-font-size)", color: "var(--tasty-text-muted)", lineHeight: 1.45 }}>
+                  <div style={{ fontSize: "var(--tasty-banner-body-font-size)", color: "var(--tasty-banner-body-fg)", lineHeight: 1.45 }}>
                     This app is capturing the mouse. Hold <Kbd keys="Shift" />+drag to select text, <Kbd keys="Shift" />+Right-click for the tasty menu.
                   </div>
                 </div>
@@ -1710,7 +1710,7 @@ function TtlBannerG({ ttl = 6, glyph, glyphColor, title, body }) {
         <span style={{ display: "inline-flex", flex: "none", marginTop: "var(--tasty-banner-glyph-offset)", color: glyphColor || "var(--tasty-banner-icon-fg)" }}>{glyph}</span>
         <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: "var(--tasty-banner-text-gap)" }}>
           <span style={{ fontSize: "var(--tasty-banner-title-font-size)", fontWeight: "var(--tasty-font-weight-semibold)", color: "var(--tasty-banner-fg)" }}>{title}</span>
-          {body && <span style={{ fontSize: "var(--tasty-banner-body-font-size)", color: "var(--tasty-text-muted)" }}>{body}</span>}
+          {body && <span style={{ fontSize: "var(--tasty-banner-body-font-size)", color: "var(--tasty-banner-body-fg)" }}>{body}</span>}
         </div>
         <span style={{ width: "var(--tasty-size-24)", height: "var(--tasty-size-24)", flex: "none", display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
           {hover
@@ -1743,7 +1743,7 @@ function TtlBannerG({ ttl = 6, glyph, glyphColor, title, body }) {
 
 // cross-scope stacking — a higher-scope banner sits in front; the lower one is dimmed behind
 function StackDemoG() {
-  const line = (txt) => (<span style={{ fontSize: "var(--tasty-banner-body-font-size)", color: "var(--tasty-text-muted)" }}>{txt}</span>);
+  const line = (txt) => (<span style={{ fontSize: "var(--tasty-banner-body-font-size)", color: "var(--tasty-banner-body-fg)" }}>{txt}</span>);
   return (
     <div style={{ position: "relative", width: "100%", maxWidth: 520, height: 116 }}>
       {/* lower-tier (Pane) banner — taller, recessed behind */}

@@ -144,7 +144,7 @@ function Banner({ data, recessed, zIndex, backgrounded, onClose }) {
           paddingRight: "var(--tasty-banner-more-reserve)" }}>
           <div style={{ fontSize: "var(--tasty-banner-title-font-size)", fontWeight: "var(--tasty-font-weight-semibold)",
             color: "var(--tasty-text-primary)", lineHeight: "var(--tasty-line-height-ui)" }}>{title}</div>
-          {body && <div style={{ fontSize: "var(--tasty-banner-body-font-size)", color: "var(--tasty-text-muted)",
+          {body && <div style={{ fontSize: "var(--tasty-banner-body-font-size)", color: "var(--tasty-banner-body-fg)",
             lineHeight: "var(--tasty-line-height-ui)" }}>{body}</div>}
           {actions && <div style={{ display: "flex", gap: "var(--tasty-space-sm)", marginTop: "var(--tasty-space-xs)" }}>{actions}</div>}
         </div>

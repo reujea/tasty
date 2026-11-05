@@ -33,7 +33,7 @@ function HtmlRemoteBanner({ state = "blocked", hover = false, narrow = false }) 
   const showX = (hover || h) && state !== "reloading";
   const reloading = state === "reloading";
   const action = reloading ? (
-    <span style={{ display: "inline-flex", alignItems: "center", gap: "var(--tasty-space-sm)", height: "var(--tasty-button-height-sm)", fontSize: "var(--tasty-banner-body-font-size)", color: "var(--tasty-text-muted)", whiteSpace: "nowrap" }}>
+    <span style={{ display: "inline-flex", alignItems: "center", gap: "var(--tasty-space-sm)", height: "var(--tasty-button-height-sm)", fontSize: "var(--tasty-banner-body-font-size)", color: "var(--tasty-banner-body-fg)", whiteSpace: "nowrap" }}>
       <Spinner size="var(--tasty-icon-size-sm)" />{RC_COPY.reloading}
     </span>
   ) : state === "loading" ? (
@@ -55,7 +55,7 @@ function HtmlRemoteBanner({ state = "blocked", hover = false, narrow = false }) 
         </span>
         <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: "var(--tasty-banner-text-gap)", opacity: reloading ? "var(--tasty-opacity-dimmed)" : 1 }}>
           <div style={{ fontSize: "var(--tasty-banner-title-font-size)", fontWeight: "var(--tasty-font-weight-semibold)", lineHeight: "var(--tasty-line-height-ui)", textWrap: "pretty" }}>{RC_COPY.title}</div>
-          <div style={{ fontSize: "var(--tasty-banner-body-font-size)", lineHeight: "var(--tasty-line-height-ui)", color: "var(--tasty-text-muted)", textWrap: "pretty" }}>{RC_COPY.body}</div>
+          <div style={{ fontSize: "var(--tasty-banner-body-font-size)", lineHeight: "var(--tasty-line-height-ui)", color: "var(--tasty-banner-body-fg)", textWrap: "pretty" }}>{RC_COPY.body}</div>
         </div>
         <span style={{ flex: "none", display: "flex", marginLeft: narrow ? "calc(var(--tasty-icon-size-md) + var(--tasty-banner-gap))" : 0, width: narrow ? "100%" : "auto" }}>{action}</span>
       </div>

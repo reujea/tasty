@@ -7,7 +7,7 @@
 // + dismiss slot (absolute, top-right). Narrow: when the SURFACE width is below
 // --tasty-banner-narrow-below (440), the action wraps under the body, aligned to the
 // body's left edge. Re-judged on every surface resize, no animation. Content never
-// overrides the threshold. The body wraps and never clamps, so the row grows with the copy.
+// overrides the threshold. The title and body wrap and never clamp, so the row grows with the copy.
 // Button on the shell: Secondary reads the banner-button tokens via [data-surface="banner"]
 // (surface-hover fill · border-frame edge · hover = the usual overlay). Applies to every banner.
 //
@@ -41,7 +41,7 @@ function HtmlScriptBanner({ state = "blocked", remote = false, hover = false, na
   const showX = (hover || h) && (state === "blocked" || state === "loading");
   const reloading = state === "reloading";
   const action = reloading ? (
-    <span style={{ display: "inline-flex", alignItems: "center", gap: "var(--tasty-space-sm)", height: "var(--tasty-button-height-sm)", fontSize: "var(--tasty-banner-body-font-size)", color: "var(--tasty-text-muted)", whiteSpace: "nowrap" }}>
+    <span style={{ display: "inline-flex", alignItems: "center", gap: "var(--tasty-space-sm)", height: "var(--tasty-button-height-sm)", fontSize: "var(--tasty-banner-body-font-size)", color: "var(--tasty-banner-body-fg)", whiteSpace: "nowrap" }}>
       <Spinner size="var(--tasty-icon-size-sm)" />{HS_COPY.reloading}
     </span>
   ) : state === "loading" ? (
@@ -62,9 +62,8 @@ function HtmlScriptBanner({ state = "blocked", remote = false, hover = false, na
           <HsIcon name="lock" size="var(--tasty-icon-size-md)" />
         </span>
         <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: "var(--tasty-banner-text-gap)", opacity: reloading ? "var(--tasty-opacity-dimmed)" : 1 }}>
-          <div style={{ fontSize: "var(--tasty-banner-title-font-size)", fontWeight: "var(--tasty-font-weight-semibold)", lineHeight: "var(--tasty-line-height-ui)",
-            display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{HS_COPY.title}</div>
-          <div style={{ fontSize: "var(--tasty-banner-body-font-size)", lineHeight: "var(--tasty-line-height-ui)", color: "var(--tasty-text-muted)", textWrap: "pretty" }}>{remote ? HS_COPY.bodyRemote : HS_COPY.body}</div>
+          <div style={{ fontSize: "var(--tasty-banner-title-font-size)", fontWeight: "var(--tasty-font-weight-semibold)", lineHeight: "var(--tasty-line-height-ui)", textWrap: "pretty" }}>{HS_COPY.title}</div>
+          <div style={{ fontSize: "var(--tasty-banner-body-font-size)", lineHeight: "var(--tasty-line-height-ui)", color: "var(--tasty-banner-body-fg)", textWrap: "pretty" }}>{remote ? HS_COPY.bodyRemote : HS_COPY.body}</div>
         </div>
         <span style={{ flex: "none", display: "flex", marginLeft: narrow ? "calc(var(--tasty-icon-size-md) + var(--tasty-banner-gap))" : 0, width: narrow ? "100%" : "auto" }}>{action}</span>
       </div>

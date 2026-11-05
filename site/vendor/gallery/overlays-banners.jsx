@@ -38,7 +38,7 @@ function AttachRefusalBannerG({ kind = "self", narrow }) {
         <span style={{ display: "inline-flex", flex: "none", marginTop: "var(--tasty-banner-glyph-offset)", color: "var(--tasty-accent-warning)" }}><BIcon name="alertTriangle" size="var(--tasty-icon-size-md)" /></span>
         <div style={{ display: "flex", flexDirection: "column", gap: "var(--tasty-banner-text-gap)" }}>
           <span style={{ fontSize: "var(--tasty-banner-title-font-size)", fontWeight: "var(--tasty-font-weight-semibold)" }}>Remote not attached — <span style={{ fontFamily: "var(--tasty-font-mono)", fontWeight: "var(--tasty-font-weight-normal)" }}>{r.target}</span></span>
-          <span style={{ fontSize: "var(--tasty-banner-body-font-size)", color: "var(--tasty-text-muted)" }}>{r.reason} Change or remove the mapping for this workspace.</span>
+          <span style={{ fontSize: "var(--tasty-banner-body-font-size)", color: "var(--tasty-banner-body-fg)" }}>{r.reason} Change or remove the mapping for this workspace.</span>
         </div>
       </BannerActionsG>
     </BannerShellG>
@@ -58,7 +58,7 @@ function SyncNameG({ n }) {
     const nat = el.scrollWidth; el.style.minWidth = prev;
     if (nat < fl) setFloor(nat + "px");
   }, [n]);
-  return <span ref={ref} style={{ flex: "0 1 auto", minWidth: floor, maxWidth: "var(--tasty-attach-sync-name-max-width)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", color: "var(--tasty-text-secondary)" }}>{n}</span>;
+  return <span ref={ref} style={{ flex: "0 1 auto", minWidth: floor, maxWidth: "var(--tasty-attach-sync-name-max-width)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", color: "var(--tasty-text-secondary-raised)" }}>{n}</span>;
 }
 // b11 (attach-sync-duplicate-names): equal display names collapse into one entry + a muted “×k” that never shrinks.
 // “N surfaces” still counts surfaces; +n counts the remaining entries.
@@ -69,7 +69,7 @@ function AttachSizeSyncBannerG({ names = ["build"], retrying = false, narrow }) 
   names.forEach((n) => { const g = groups.find((x) => x.n === n); g ? g.k++ : groups.push({ n, k: 1 }); });
   const shown = groups.slice(0, 2);
   const rest = groups.length - shown.length;
-  const body = { fontSize: "var(--tasty-banner-body-font-size)", color: "var(--tasty-text-muted)" };
+  const body = { fontSize: "var(--tasty-banner-body-font-size)", color: "var(--tasty-banner-body-fg)" };
   return (
     <BannerShellG>
       <BannerActionsG narrow={narrow} action={<BButton variant="secondary" size="sm" disabled={retrying} leadingIcon={retrying ? <BSpinner size="var(--tasty-icon-size-sm)" /> : undefined}
@@ -79,7 +79,7 @@ function AttachSizeSyncBannerG({ names = ["build"], retrying = false, narrow }) 
           <span style={{ fontSize: "var(--tasty-banner-title-font-size)", fontWeight: "var(--tasty-font-weight-semibold)" }}>Couldn't sync the terminal size with the remote</span>
           <span style={{ ...body, display: "flex", alignItems: "baseline", whiteSpace: "nowrap", minWidth: 0, overflow: "hidden" }}>
             {many ? <span style={{ flex: "none" }}>{names.length} surfaces —&nbsp;</span> : null}
-            {shown.map(({ n, k }, i) => <React.Fragment key={n}>{i > 0 ? <span style={{ flex: "none" }}>,&nbsp;</span> : null}<SyncNameG n={n} />{k > 1 ? <span style={{ flex: "none", color: "var(--tasty-text-muted)" }}>&nbsp;×{k}</span> : null}</React.Fragment>)}
+            {shown.map(({ n, k }, i) => <React.Fragment key={n}>{i > 0 ? <span style={{ flex: "none" }}>,&nbsp;</span> : null}<SyncNameG n={n} />{k > 1 ? <span style={{ flex: "none", color: "var(--tasty-banner-body-fg)" }}>&nbsp;×{k}</span> : null}</React.Fragment>)}
             {rest > 0 ? <span style={{ flex: "none" }}>&nbsp;+{rest}</span> : null}
           </span>
           <span style={body}>The remote may still be using the old size.</span>
@@ -131,6 +131,7 @@ const NAV = [
   { id: "attachsizesync", label: "Attach size sync failed" },
   { id: "htmlremotesize", label: "HTML mirror size notices" },
   { id: "htmlremote", label: "HTML remote content notice" },
+  { id: "bodyink", label: "Body ink · Mocha / Latte" },
 ];
 
 // 2026-11-01 — remote content blocked. §3 variants 1–10 of the request.
@@ -168,6 +169,33 @@ function RcThemeGrid({ label, attr }) {
           </div>
         ))}
       </div>
+    </div>
+  );
+}
+
+// 2026-11-05 — body ink on the banner shell, every banner kind in both themes.
+function BodyInkGrid({ label, theme }) {
+  const { HtmlScriptBanner, HtmlRemoteBanner, HtmlSizeBanner } = window.TastyKit;
+  const rows = [
+    ["mouse capture", <MouseCaptureBannerG />],
+    ["HTML script", <HtmlScriptBanner />],
+    ["HTML script · reloading (body opacity-dimmed, outside the 4.5 judgement)", <HtmlScriptBanner state="reloading" />],
+    ["HTML remote content", <HtmlRemoteBanner />],
+    ["HTML mirror · large file, more waiting", <HtmlSizeBanner more={2} />],
+    ["HTML mirror · cumulative limit", <HtmlSizeBanner kind="limit" />],
+    ["auto-attach refused", <AttachRefusalBannerG />],
+    ["attach size sync · names line", <AttachSizeSyncBannerG names={["build", "build", "logs"]} />],
+    ["shell integration missing · TTL", <TtlBannerG ttl={10} glyph={<BIcon name="alertTriangle" size="var(--tasty-icon-size-md)" />} glyphColor="var(--tasty-accent-warning)" title="Shell integration not detected" body="Command-completion hooks (docker build, just run, etc.) need OSC 133 shell integration. See docs/features/hooks for setup." />],
+  ];
+  return (
+    <div data-theme={theme} style={{ flex: "1 1 var(--tasty-size-440)", minWidth: 0, display: "flex", flexDirection: "column", gap: "var(--tasty-space-sm)", padding: "var(--tasty-space-md)", background: "var(--tasty-bg-app)", border: "var(--tasty-border-width) solid var(--tasty-border-frame)", borderRadius: "var(--tasty-radius)" }}>
+      <span style={{ fontSize: "var(--tasty-font-size-body)", fontWeight: "var(--tasty-font-weight-semibold)", color: "var(--tasty-text-primary)" }}>{label}</span>
+      {rows.map(([cap, el]) => (
+        <div key={cap} style={{ display: "flex", flexDirection: "column", gap: "var(--tasty-space-xs)" }}>
+          <span style={{ fontSize: "var(--tasty-font-size-caption)", color: "var(--tasty-text-muted)" }}>{cap}</span>
+          {el}
+        </div>
+      ))}
     </div>
   );
 }
@@ -265,7 +293,7 @@ function Page() {
             </div>
           </Stage>
           <Meta
-            specs={[["title", <>"Mouse input captured" · 13/600 <span className="tok">--tasty-banner-fg</span></>], ["body", <>caption · <span className="tok">--tasty-text-muted</span> · 1–3 lines</>], ["glyph", <>mouse · <span className="tok">--tasty-banner-icon-fg</span></>], ["affordance", "⋯ + × on hover (no TTL / countdown)"], ["fires", "once per tracking session · user click only"], ["dismiss", "suppresses for the session"]]}
+            specs={[["title", <>"Mouse input captured" · 13/600 <span className="tok">--tasty-banner-fg</span></>], ["body", <>caption · <span className="tok">--tasty-banner-body-fg</span> · 1–3 lines</>], ["glyph", <>mouse · <span className="tok">--tasty-banner-icon-fg</span></>], ["affordance", "⋯ + × on hover (no TTL / countdown)"], ["fires", "once per tracking session · user click only"], ["dismiss", "suppresses for the session"]]}
             tokens={[{ tok: "--tasty-banner-bg", use: "card fill", color: "var(--tasty-banner-bg)" }, { tok: "--tasty-banner-icon-fg", use: "mouse glyph", color: "var(--tasty-banner-icon-fg)" }, { tok: "--tasty-banner-recessed-opacity", use: "dimmed variant" }]} />
           <Note>The bypass keys (<span className="ic">Shift+drag</span> / <span className="ic">Shift+Right-click</span>) are the message — keep them in the body. <b>No inline action buttons</b>: the body stays text-only, and the two per-app opt-outs live behind the <b>⋯</b> trigger next to the × (see <i>Banner more menu</i> below).</Note>
         </Spec>
@@ -437,7 +465,7 @@ function Page() {
             </div>
           </Stage>
           <Meta
-            specs={[["title", "\"Scripts in this document are blocked\" · 13/600"], ["body", "caption · text-muted · wraps, never clamps (b12 — was ≤ 2 lines)"], ["remote branch", "network scripts stay blocked — says so"], ["action", "Secondary / Sm · no wrap"], ["reloading", "spinner + label · no × · fade out on commit"], ["loading (still blocked)", "Allow disabled from load start to commit · no delay · tooltip (top) \"Available when the document finishes loading\" · × kept"], ["narrow", "surface width < 440 (--tasty-banner-narrow-below) → action on its own line, body-aligned"], ["glyph nudge", "1 · --tasty-banner-glyph-offset"], ["title ↔ body", "2 · --tasty-banner-text-gap (every banner)"]]}
+            specs={[["title", "\"Scripts in this document are blocked\" · 13/600"], ["body", "caption · banner-body-fg · wraps, never clamps (b12 — was ≤ 2 lines)"], ["remote branch", "network scripts stay blocked — says so"], ["action", "Secondary / Sm · no wrap"], ["reloading", "spinner + label · no × · fade out on commit"], ["loading (still blocked)", "Allow disabled from load start to commit · no delay · tooltip (top) \"Available when the document finishes loading\" · × kept"], ["narrow", "surface width < 440 (--tasty-banner-narrow-below) → action on its own line, body-aligned"], ["glyph nudge", "1 · --tasty-banner-glyph-offset"], ["title ↔ body", "2 · --tasty-banner-text-gap (every banner)"]]}
             tokens={[{ tok: "--tasty-html-script-banner-glyph", use: "lock → accent-info", color: "var(--tasty-html-script-banner-glyph)" }, { tok: "--tasty-banner-title-font-size", use: "13" }, { tok: "--tasty-banner-body-font-size", use: "11" }]} />
         </Spec>
         <Spec title="A button on the banner shell (2026-09-29)"
@@ -565,7 +593,7 @@ function Page() {
             ))}
           </Stage>
           <Meta
-            specs={[["boxes", "glyph 16 · text column (flex 1) · action group (Retry + ×, gap 4)"], ["glyph", "alertTriangle 16 · attach-sync-glyph → accent-warning (same as refusal)"], ["title", "banner-title 13 · semibold · never truncated"], ["body", "banner-body 11 · muted · TWO lines (b10): ① names — one line ② “The remote may still be using the old size.” — wraps, never cut"], ["name", "text-secondary · each name ≤ attach-sync-name-max-width 160, shrinks to fit the line down to attach-sync-name-min-width 40, then ellipsis · the floor applies only while shrinking: box = min(natural, max(40, shrunk)) — a short name keeps its own width (b11) · first two entries, then +n; separators, ×k and +n never shrink"], ["same name (b11)", "equal display names collapse into one entry + “ ×k” (text-muted, never shrinks) · “N surfaces” counts surfaces · +n counts remaining entries · Retry all retries every surface"], ["body lines (b11 · b12)", "Tasty-owned banner copy (refusal · size sync · mouse capture · HTML script) never clamps — the card grows · plugin-supplied body clamps at 3 lines, then ellipsis + full text in the tooltip"], ["plugin body rows (b12)", "rows = min(3, floor(content height ÷ body line height)) — a fixed size_hint that holds fewer lines clamps at what fits; the ellipsis sits on the last row that fits"], ["plugin tooltip (b12)", "drawn by the HOST, not inside the plugin mesh: the widget reports “truncated + full text” for the frame and the host shows the standard Tooltip BELOW the banner card (left = body x, offset tooltip-offset 4, max tooltip-max-width 240, delay tooltip-delay) — never over the pointer, never clipped by the content rect · interim (no channel yet): the widget opens its tooltip below the body inside the content rect, never above"], ["retrying", "Retry disabled + leading Spinner 14, label unchanged"], ["many", "one card · “N surfaces — a, b +n” · Retry all"], ["×", "IconButton sm · hides this card; a new failure shows it again"], ["clears", "Retry success · later resize success · surface closed"], ["priority", "reconnect notice wins the slot"]]}
+            specs={[["boxes", "glyph 16 · text column (flex 1) · action group (Retry + ×, gap 4)"], ["glyph", "alertTriangle 16 · attach-sync-glyph → accent-warning (same as refusal)"], ["title", "banner-title 13 · semibold · never truncated"], ["body", "banner-body 11 · banner-body-fg · TWO lines (b10): ① names — one line ② “The remote may still be using the old size.” — wraps, never cut"], ["name", "text-secondary-raised · each name ≤ attach-sync-name-max-width 160, shrinks to fit the line down to attach-sync-name-min-width 40, then ellipsis · the floor applies only while shrinking: box = min(natural, max(40, shrunk)) — a short name keeps its own width (b11) · first two entries, then +n; separators, ×k and +n never shrink"], ["same name (b11)", "equal display names collapse into one entry + “ ×k” (text-muted, never shrinks) · “N surfaces” counts surfaces · +n counts remaining entries · Retry all retries every surface"], ["body lines (b11 · b12)", "Tasty-owned banner copy (refusal · size sync · mouse capture · HTML script) never clamps — the card grows · plugin-supplied body clamps at 3 lines, then ellipsis + full text in the tooltip"], ["plugin body rows (b12)", "rows = min(3, floor(content height ÷ body line height)) — a fixed size_hint that holds fewer lines clamps at what fits; the ellipsis sits on the last row that fits"], ["plugin tooltip (b12)", "drawn by the HOST, not inside the plugin mesh: the widget reports “truncated + full text” for the frame and the host shows the standard Tooltip BELOW the banner card (left = body x, offset tooltip-offset 4, max tooltip-max-width 240, delay tooltip-delay) — never over the pointer, never clipped by the content rect · interim (no channel yet): the widget opens its tooltip below the body inside the content rect, never above"], ["retrying", "Retry disabled + leading Spinner 14, label unchanged"], ["many", "one card · “N surfaces — a, b +n” · Retry all"], ["×", "IconButton sm · hides this card; a new failure shows it again"], ["clears", "Retry success · later resize success · surface closed"], ["priority", "reconnect notice wins the slot"]]}
             tokens={[{ tok: "--tasty-attach-sync-glyph", use: "→ accent-warning", color: "var(--tasty-attach-sync-glyph)" }, { tok: "--tasty-attach-sync-name-max-width", use: "→ size-160" }, { tok: "--tasty-attach-sync-name-min-width", use: "→ size-40 (new, b11)" }, { tok: "--tasty-banner-button-bg", use: "Retry", color: "var(--tasty-banner-button-bg)" }, { tok: "--tasty-spinner-indicator", use: "retrying", color: "var(--tasty-spinner-indicator)" }]} />
           <Note>Strings (en): <code>remote.size_sync.title</code> “Couldn't sync the terminal size with the remote” · <code>remote.size_sync.names</code> “{"{names}"}” (line 1) · <code>remote.size_sync.hint</code> “The remote may still be using the old size.” (line 2; replaces <code>remote.size_sync.body</code>) · <code>remote.size_sync.many</code> “{"{n}"} surfaces — {"{names}"}” · <code>remote.size_sync.retry</code> “Retry” · <code>remote.size_sync.retry_all</code> “Retry all”.</Note>
         </Spec>
@@ -632,7 +660,7 @@ function Page() {
             ))}
           </Stage>
           <Meta
-            specs={[["glyph", "globeOff 16 · html-remote-banner-glyph → accent-info"], ["title", "“Remote content in this document is blocked” · 13/600 · wraps"], ["body", "kinds, no counts · scope and lifetime last · 11 · text-muted · wraps"], ["action", "Allow remote content · Secondary / Sm · no wrap"], ["loading", "disabled from load start to commit · tooltip top “Available when the document finishes loading” · × kept"], ["reloading", "Spinner 14 + “Reloading with remote content allowed” · body opacity-dimmed · no × · fades out on commit"], ["×", "hover only · hides the notice for this document, block stays"], ["focus", "never taken · click only"]]}
+            specs={[["glyph", "globeOff 16 · html-remote-banner-glyph → accent-info"], ["title", "“Remote content in this document is blocked” · 13/600 · wraps"], ["body", "kinds, no counts · scope and lifetime last · 11 · banner-body-fg · wraps"], ["action", "Allow remote content · Secondary / Sm · no wrap"], ["loading", "disabled from load start to commit · tooltip top “Available when the document finishes loading” · × kept"], ["reloading", "Spinner 14 + “Reloading with remote content allowed” · body opacity-dimmed · no × · fades out on commit"], ["×", "hover only · hides the notice for this document, block stays"], ["focus", "never taken · click only"]]}
             tokens={[{ tok: "--tasty-html-remote-banner-glyph", use: "→ accent-info", color: "var(--tasty-html-remote-banner-glyph)" }, { tok: "--tasty-banner-bg", use: "shell", color: "var(--tasty-banner-bg)" }, { tok: "--tasty-banner-button-bg", use: "Allow", color: "var(--tasty-banner-button-bg)" }]} />
           <Note>Strings (en): <code>banner.html_remote.title</code> “Remote content in this document is blocked” · <code>banner.html_remote.body</code> “Stylesheets, images, fonts, frames and scripts from the network don't load, so the page may look incomplete. Allowing applies to this document only, until Tasty restarts.” · <code>banner.html_remote.action</code> “Allow remote content” · <code>banner.html_remote.reloading</code> “Reloading with remote content allowed” · <code>banner.html_remote.action_loading</code> “Available when the document finishes loading” (same text as the script key) · <code>banner.html_remote.marker_blocked</code> “Remote content blocked. Click for details.” · <code>banner.html_remote.marker_allowed</code> “Remote content allowed for this document until Tasty restarts”.</Note>
         </Spec>
@@ -669,6 +697,19 @@ function Page() {
             specs={[["order", "address band → size (mirror) → remote → script → WebView"], ["gaps", "banner-margin 8 top/sides · banner-inset-gap 8 between + below"], ["merge", "never — two cards, two independent allows"], ["script notice", "judged on runnable scripts (network scripts need remote allowed)"], ["bodyRemote", "kept as a key, copy revised: shown only alongside the remote notice"], ["static ref", "notice (when the user views)"], ["observed block, no ref", "marker only (Windows · Linux TBD)"], ["no signal, no ref", "nothing (macOS)"], ["narrow", "< 440 → each card wraps its action, stack order unchanged"], ["global on", "no notice · no marker"]]}
             tokens={[{ tok: "--tasty-banner-inset-gap", use: "8 between / below" }, { tok: "--tasty-banner-margin", use: "8 top / sides" }, { tok: "--tasty-banner-narrow-below", use: "→ size-440" }]} />
           <Note>Script notice <code>banner.html_script.body_remote</code> (en, revised): “Buttons and menus that need JavaScript may not respond. Allowing applies to this document only, until Tasty restarts. Scripts inside it run; scripts from the network also need remote content allowed.”</Note>
+        </Spec>
+      </Section>
+      <Section id="bodyink" title="Body ink — every banner, both themes (2026-11-05)">
+        <Spec title="banner-body-fg — the supporting line on the banner shell"
+          when={<>The banner shell is <span className="tok">--tasty-banner-bg</span> = surface-raised. In Latte <code>text-muted</code> reaches only 3.65:1 on it, at 11px. The shell stays put, because it is what separates the banner from the page; the ink moves. Every banner body takes <span className="tok">--tasty-banner-body-fg</span>.</>}>
+          <Stage variant="solo" style={{ padding: "var(--tasty-space-lg)", background: "var(--tasty-bg-app)", gap: "var(--tasty-space-lg)", flexWrap: "wrap", alignItems: "flex-start" }}>
+            <BodyInkGrid label="Mocha" theme="mocha" />
+            <BodyInkGrid label="Latte" theme="latte" />
+          </Stage>
+          <Meta
+            specs={[["body", "banner-body-fg → text-muted-raised · Mocha n900 5.65 (unchanged) · Latte n1100 5.17 (was 3.65)"], ["reloading status", "same token · Spinner + label in the action slot"], ["reloading, dimmed", "× opacity-dimmed 0.75 · body Mocha 3.89 · Latte 3.20 · title Mocha 5.65 · Latte 3.20 — not judged against 4.5"], ["sync name", "text-secondary-raised · Mocha n1000 7.10 · Latte n1100 5.17 (was 4.05)"], ["hierarchy", "title 13/600 · body 11/400 — in Latte both use n1100, so size and weight carry the order"], ["unchanged here", "countdown and ⋯ menu reason line keep text-muted"]]}
+            tokens={[{ tok: "--tasty-banner-body-fg", use: "new · → text-muted-raised", color: "var(--tasty-banner-body-fg)" }, { tok: "--tasty-text-muted-raised", use: "new · Mocha n900 · Latte n1100", color: "var(--tasty-text-muted-raised)" }, { tok: "--tasty-text-secondary-raised", use: "sync name", color: "var(--tasty-text-secondary-raised)" }, { tok: "--tasty-banner-bg", use: "ground · unchanged", color: "var(--tasty-banner-bg)" }]} />
+          <Dont><b>Don't</b> darken <code>banner-bg</code> or swap it for bg-panel to gain contrast. Banners float over panels; the fill and the banner buttons are tuned for surface-raised.</Dont>
         </Spec>
       </Section>
     </>
