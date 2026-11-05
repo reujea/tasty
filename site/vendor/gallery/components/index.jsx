@@ -699,7 +699,7 @@ function Components() {
             </Cluster>
           </Stage>
           <Meta
-            specs={[["sizes", "12 / 16 / 20 / 24px"], ["stroke", "2px arc + faint track"], ["spin", "0.9s linear"], ["color", <span className="tok">currentColor</span>], ["reduced motion", "→ 3 static dots"]]}
+            specs={[["sizes", "12 / 16 / 20 / 24px"], ["stroke", "2px arc + faint track"], ["track", "arc ink at 22%, ornament, no grade"], ["spin", "0.9s linear"], ["color", <span className="tok">currentColor</span>], ["reduced motion", "→ 3 static dots"]]}
             tokens={[{ tok: "--tasty-text-muted", use: "default color", color: "var(--tasty-text-muted)" }, { tok: "--tasty-spinner-size", use: "diameter" }, { tok: "--tasty-size-16", use: "16px default" }]} />
           <Note>It inherits <span className="ic">color</span> — drop it on a filled button and it turns <span className="ic">--tasty-text-on-accent</span> automatically. Used by the Port Scanner scan state and the Remote tool’s shell-detection row.</Note>
         </Spec>
@@ -1129,7 +1129,7 @@ export const page = {
   nav: NAV,
   head: {
     title: "Components",
-    intro: "Explore reusable components, from buttons and fields to lists and scrollbars. Try the demos, compare the fixed states, then check the usage notes, dimensions, and tokens.",
+    intro: "The reusable primitives, live. Hover and focus respond for real — that's how you read the interaction states. Each specimen states when to reach for it, its fixed dimensions, and the exact tokens it's built from.",
     
   },
   content: <Components />,

@@ -45,6 +45,23 @@ function Ink({ role, token }) {
   return <span style={{ display: "block", width: "var(--tasty-size-24)", height: "var(--tasty-size-12)", border: `var(--tasty-border-width) solid ${c}`, borderRadius: "var(--tasty-radius-sm)" }} />;
 }
 
+// One row of the site section. The sample paints the row's ground, then its ink. A gradient ground paints its strong end.
+function SiteSample({ p, gid, map }) {
+  const c = `var(--tasty-${p.token})`;
+  const ink = p.kind === "mark"
+    ? <span data-audit-exempt="brand" style={{ color: c, fontSize: "var(--tasty-font-size-body)" }}>.</span>
+    : p.kind === "ornament"
+      ? <span data-ink-grade="none" data-ink-why="ornament" style={{ color: c, fontSize: "var(--tasty-font-size-body)" }}>/</span>
+      : p.kind === "glyph"
+        ? <span style={{ color: c, display: "inline-flex" }}><RIcon name="check" size="var(--tasty-icon-size-sm)" /></span>
+        : p.kind === "edge"
+          ? <span style={{ display: "block", width: "var(--tasty-size-24)", height: "var(--tasty-size-12)", border: `var(--tasty-border-width) solid ${c}`, borderRadius: "var(--tasty-radius-sm)" }} />
+          : <span style={{ color: c, fontSize: "var(--tasty-font-size-body)" }}>Aa</span>;
+  return (
+    <Ground id={gid} map={map} style={{ width: cellW, height: "var(--tasty-control-height)", display: "flex", alignItems: "center", justifyContent: "center" }}>{ink}</Ground>
+  );
+}
+
 const cellW = "var(--tasty-size-88)";
 const th = { position: "sticky", top: 0, background: "var(--tasty-bg-sidebar)", color: "var(--tasty-text-secondary)", fontFamily: "var(--tasty-font-mono)", fontSize: "var(--tasty-font-size-micro)", fontWeight: "var(--tasty-font-weight-normal)", padding: "var(--tasty-space-xs)", textAlign: "left", minWidth: cellW, width: cellW, borderBottom: "var(--tasty-border-width) solid var(--tasty-separator)", zIndex: 1, wordBreak: "break-all", verticalAlign: "bottom" };
 const rowh = { position: "sticky", left: 0, background: "var(--tasty-bg-sidebar)", color: "var(--tasty-text-primary)", fontFamily: "var(--tasty-font-mono)", fontSize: "var(--tasty-font-size-caption)", padding: "var(--tasty-space-xs) var(--tasty-space-sm)", whiteSpace: "nowrap", zIndex: 1, textAlign: "left", fontWeight: "var(--tasty-font-weight-normal)" };
@@ -76,6 +93,7 @@ function Rules() {
   if (err) return <Note>Could not load tokens/ground-ink-rules.json: {err}</Note>;
   if (!data) return <>{page.nav.map((n) => <Section key={n.id} id={n.id} title={n.label} />)}<Note>Loading the table.</Note></>;
   const map = Object.fromEntries(data.grounds.map((g) => [g.id, g]));
+  const siteMap = { ...map, ...Object.fromEntries(data.site.grounds.map((g) => [g.id, g])) };
   const cells = {};
   data.matrix.forEach((c) => { cells[c.ground + "|" + c.role] = c; });
   const total = data.matrix.length;
@@ -112,6 +130,26 @@ function Rules() {
           })}
         </Spec>
       </Section>
+      <Section id="site" title="Site pages">
+        <Spec id="site-places" title="One ink per place, on each ground it stands on" when="The site's own header, sidebar, pages and footer, in the current theme. RULES.md section 15 says which values are new and why. The number is the lowest across the row's grounds.">
+          <table style={{ borderCollapse: "collapse", fontSize: "var(--tasty-font-size-caption)" }}>
+            <tbody>
+              {data.site.places.map((p) => (
+                <tr key={p.id}>
+                  <td style={{ padding: "var(--tasty-space-xs) var(--tasty-space-sm)", color: "var(--tasty-text-primary)" }}>{p.name}</td>
+                  <td style={{ padding: "var(--tasty-space-xs) var(--tasty-space-sm)" }}>
+                    <span style={{ display: "inline-flex", gap: "var(--tasty-space-xs)" }}>
+                      {p.grounds.map((gid) => <SiteSample key={gid} p={p} gid={gid} map={siteMap} />)}
+                    </span>
+                  </td>
+                  <td style={{ padding: "var(--tasty-space-xs) var(--tasty-space-sm)", fontFamily: "var(--tasty-font-mono)", color: "var(--tasty-text-secondary)" }}>{p.token}</td>
+                  <td style={{ padding: "var(--tasty-space-xs) var(--tasty-space-sm)", fontFamily: "var(--tasty-font-mono)", color: "var(--tasty-text-secondary)" }}>{p.grade ? p.contrast[theme].toFixed(2) : "no target"}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </Spec>
+      </Section>
       <Section id="groups" title="Colors told apart">
         <Spec id="distinct" title="Closest pair in each group" when="A pair under OKLab ΔE 0.08 must have a second channel.">
           <table style={{ borderCollapse: "collapse", fontSize: "var(--tasty-font-size-caption)" }}>
@@ -138,8 +176,8 @@ function Rules() {
 
 export const page = {
   active: "rules",
-  nav: [{ id: "table", label: "Ground by role" }, { id: "groups", label: "Colors told apart" }],
-  head: { title: "Ground and ink rules", intro: "See which colours text and icons use on each ground. Work through the nine groups to compare role tokens and contrast in the current theme." },
+  nav: [{ id: "table", label: "Ground by role" }, { id: "site", label: "Site pages" }, { id: "groups", label: "Colors told apart" }],
+  head: { title: "Ground and ink rules", intro: "The table behind every color choice. The rules are in RULES.md and the data is in tokens/ground-ink-rules.json." },
   content: <Rules />,
 };
 

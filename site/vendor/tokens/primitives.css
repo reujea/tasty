@@ -219,6 +219,13 @@
      coefficient alone; fill-only variants (warning callout) take the fill alone. */
   --tasty-opacity-tint-fill:   0.12; /* @kind other */
   --tasty-opacity-tint-border: 0.36; /* @kind other */
+
+  /* ── Fixed code ground (2026-11-06) ─────────────────────────── */
+  /* Site code blocks keep one dark palette in both themes, so these have no Latte value.
+     Ground and default ink are the highlighter's own. The comment replaces its #6a737d, 3.05 here. */
+  --tasty-color-code-fixed-bg:      #24292e;
+  --tasty-color-code-fixed-fg:      #e1e4e8;
+  --tasty-color-code-fixed-comment: #959da5;
 }
 
 /* ============================================================

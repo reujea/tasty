@@ -1560,6 +1560,20 @@
   --tasty-switch-thumb-raised-bg:  var(--tasty-control-thumb-raised);
   --tasty-tab-bg-hover:            color-mix(in srgb, var(--tasty-bg-panel) 60%, var(--tasty-bg-sidebar)); /* the one tab hover fill, now a token */
 
+  /* ── Site pages (2026-11-06). RULES.md section 15. Every other site ink reads a role token through the same table. ── */
+  --tasty-site-cta-bg:         var(--tasty-brand-fill);
+  --tasty-site-cta-bg-hover:   var(--tasty-brand-fill-hover);
+  --tasty-site-cta-bg-press:   var(--tasty-brand-fill-press);
+  --tasty-site-cta-fg:         var(--tasty-brand-on-fill);
+  --tasty-site-wordmark-dot:   var(--tasty-brand-melon-flesh); /* part of the mark, exception id brand */
+  --tasty-site-eyebrow-dot:    var(--tasty-brand-melon-flesh); /* a small piece of flesh beside the release word, exception id brand */
+  --tasty-site-quote-bg:       var(--tasty-brand-wash);
+  --tasty-site-tile-hover-bg:  var(--tasty-brand-wash);
+  --tasty-site-card-icon-bg:   var(--tasty-brand-tint);
+  --tasty-site-band-glow:      var(--tasty-brand-glow); /* radial stop over bg-panel, measured at both ends */
+  --tasty-site-code-bg:        var(--tasty-code-fixed-bg);
+  --tasty-site-code-fg:        var(--tasty-code-fixed-fg);
+  --tasty-site-code-comment:   var(--tasty-code-fixed-comment);
 }
 
 

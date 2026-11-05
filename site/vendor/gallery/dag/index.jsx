@@ -190,7 +190,7 @@ function Page() {
           <Meta
             specs={[["routing", "orthogonal, 4px elbow"], ["width", "1px"], ["fallback dash", "6 3"], ["reduce dash", "2 3"], ["binding dash", "8 2 2 2"], ["transition dash", "10 4"], ["same pair", "binding replaces depends_on"], ["detail label", "binding → “binds input” · transition → “transition”"], ["arrow", "8px triangle at target"], ["selected node", "its edges take the accent"]]}
             tokens={[{ tok: "--tasty-dag-edge-depends", use: "depends_on", color: "var(--tasty-dag-edge-depends)" }, { tok: "--tasty-dag-edge-fallback", use: "fallback", color: "var(--tasty-dag-edge-fallback)" }, { tok: "--tasty-dag-edge-reduce", use: "reduce", color: "var(--tasty-dag-edge-reduce)" }, { tok: "--tasty-dag-edge-binding", use: "binding → accent-data", color: "var(--tasty-dag-edge-binding)" }, { tok: "--tasty-dag-edge-transition", use: "transition → accent-route", color: "var(--tasty-dag-edge-transition)" }, { tok: "--tasty-dag-edge-dim-opacity", use: "dead path" }]} />
-          <Do>Dim the <b>dead path</b>: an edge leaving a failed/cancelled task, or entering a skipped one, drops to 0.4 along with the node. The failure stays loud; everything it stranded recedes.</Do>
+          <Do>Recede the <b>dead path</b>: an edge leaving a failed or cancelled task, or entering a skipped one, loses its hue and reads <span className="tok">dag-edge-dim</span>, solid neutral ink at 3:1 or better. Its dash stays, so the relation still reads. The failure stays loud; everything it stranded recedes.</Do>
         </Spec>
       </Section>
 

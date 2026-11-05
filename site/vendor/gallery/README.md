@@ -1,6 +1,6 @@
 # Tasty Gallery
 
-The gallery is the canon the app follows. Its source lives in this system and is copied to the site at release. This page is the page contract, followed by the catalog as it stands. Companions: [`coverage.md`](coverage.md) (contract and location against specimen), `site-form-mock.html` (one page in the new form), `state-grid.jsx` and `contract-audit.js` (reference code).
+The gallery is the canon the app follows. Its source lives in this system and is copied to the site at release. This page is the brief for that move, followed by the catalog as it stands. Companions: [`coverage.md`](coverage.md) (contract and location against specimen), `site-form-mock.html` (one page in the new form), `state-grid.jsx` and `contract-audit.js` (reference code).
 
 ## The site form
 
@@ -22,7 +22,7 @@ The 15 URLs do not change, so `/design/gallery/<key>/` keeps its current path. T
 |---|---|---|---|
 | Foundations | Foundations | `foundations` (`index.html`) | Elevation, floating surfaces, text, accents, ANSI, type, spacing, shape, UI scale, role gaps, tint box |
 | Foundations | Icons | `icons` | The icon system, modifier symbols, every glyph |
-| Foundations | Rules | `rules` | Every ground by role, all 9 groups stacked with no tabs. Colors told apart |
+| Foundations | Rules | `rules` | Every ground by role, all 9 groups stacked with no tabs. Site pages. Colors told apart |
 | Foundations | Location map | `rules-map` | Every location in Mocha and Latte |
 | Components | Components | `components` | Buttons, Badge, Tag, Kbd, form controls, Tab, TreeRow, MenuItem, feedback, CenterState, HelpHint, Tooltip, hint text, Table, ListCtrl, Scrollbar |
 | Overlays | Dialogs | `overlays-dialogs` | Scrim and frame, scrim over each ground, approval, convert, file handler, preset, markdown open, rename, category, transfer, info modal, script confirm, delete permanently |
@@ -77,14 +77,14 @@ Rows below a scroll fold stay in the DOM and are measured, so a list needs no fr
 
 The toggle goes. Specs are always on, because they are what the app is built from.
 
-- **Layout table:** property, token, resolved value. Read the value from the token at render, as `parts/specimen.jsx` and `parts/state-grid.jsx` do, so it cannot drift. A value with no token needs a design request.
+- **Layout table:** property, token, resolved value. Read the value from the token at render, as the mock's `Resolved` does, so it cannot drift. A value with no token needs a design request.
 - **Contract table:** part, token, states, Mocha, Latte, for specimens with a contract, generated from the file.
 - **Tokens table** for the rest: the same columns as chips carry today, as a table so it holds at 390.
 - **The grid and rail overlay** becomes opt-in per stage: a small control on the stages that have `grid` or `anno` parts, rendered only while on, so it never sits in the DOM for the check. Layouts is the only page using `anno`.
 
 ### The check
 
-The rules are in `RULES.md` section 14. The site's `scripts/check-contrast.mjs` implements them over every page. `contract-audit.js` is the browser-console form of its frozen-cell part. The ratios it computes match the file's to 0.03.
+The rules are in `RULES.md` section 14. `contract-audit.js` is a reference for the frozen-cell part and covers the Button family's parts. It runs on the mock at 113 cells and 241 rows, with no mismatch in either theme against the sources. The ratios it computes match the file's to 0.03.
 
 | What | Rule |
 |---|---|
@@ -93,7 +93,6 @@ The rules are in `RULES.md` section 14. The site's `scripts/check-contrast.mjs` 
 | A cell's part with a grade | Meets the grade |
 | Other text on the page | 4.5, composited through any opacity |
 | Other glyphs | 3 |
-| Ground scope | `parts/specimen.css` re-points role tokens inside a raised, active, solid or hover fill to the matrix cell. Frozen cells are outside it. The app reads the cell directly |
 | `data-audit-exempt="<id>"` | Skips its subtree. The id must be in `exceptions[].id` with `audit: "subtree"`. Each use is listed in the output |
 | `data-ink-grade="none" data-ink-why="disabled\|ornament"` | Outside a cell, marks an ink with no grade. It is not an exception, as `RULES.md` section 12 says |
 | Scope | `[data-gallery-page]`. Site header, sidebar and footer carry `data-site-chrome` and are not part of these rules |
@@ -156,7 +155,7 @@ The check walks ancestors for the ground, so a specimen paints its ground on an 
 | `explorer-ops-staging.jsx` | `explorer-ops/staging-left.jsx` |
 | `explorer-ops-props-actions.jsx` | `explorer-ops/properties-actions.jsx` |
 
-`ui_kits/terminal/` keeps its paths: gallery pages import what they use from it.
+The page `.html` files go, and `site-form-mock.*` goes once the first real page exists. `ui_kits/terminal/` keeps its paths: gallery pages import what they use from it.
 
 ### What stays in this system
 
@@ -166,11 +165,11 @@ The check walks ancestors for the ground, so a specimen paints its ground on an 
 | `gallery/*.html` | Removed after the move | Once the sources are modules they do not render on the Artifact page. The site is where they render |
 | `components/<Name>/preview.html`, `README.md`, `.d.ts` | Stay | The Artifact's component tab reads them |
 | `components/bundle.js`, `bundle.css` | Stay | The previews load them. The site does not: it imports `components/**/*.jsx` |
-| `components/**/*.jsx` | Canon for both | `bundle.js` is a build of these |
+| `components/**/*.jsx` | Canon for both | `bundle.js` is a build of these and can lag them, as it does now |
 
 ### Prose slots, for Codex
 
-The gallery's prose is not design's. The existing English stays as the draft until Codex replaces it.
+The gallery's prose is not design's. Each slot carries `data-prose-slot` in the mock. The existing English stays as the draft until Codex replaces it.
 
 | Slot | Where | Count today |
 |---|---|---|

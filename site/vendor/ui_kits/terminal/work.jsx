@@ -16,9 +16,10 @@ import { SearchBar } from "./overlays/search_bar.jsx";
 
 // colored terminal line helpers
 const C = {
-  blue: "var(--tasty-color-blue)", green: "var(--tasty-color-green)", mauve: "var(--tasty-color-mauve)",
-  yellow: "var(--tasty-color-yellow)", peach: "var(--tasty-color-peach)", red: "var(--tasty-color-red)",
-  teal: "var(--tasty-color-teal)", dim: "var(--tasty-color-neutral-700)", text: "var(--tasty-color-neutral-1100)",
+  // The kit draws these lines itself, so they read the text cells for the terminal ground. RULES.md section 15.
+  blue: "var(--tasty-accent-primary-raised)", green: "var(--tasty-accent-success-raised)", mauve: "var(--tasty-accent-agent-raised)",
+  yellow: "var(--tasty-accent-warning-raised)", peach: "var(--tasty-accent-attention-raised)", red: "var(--tasty-accent-danger-raised)",
+  teal: "var(--tasty-accent-info-raised)", dim: "var(--tasty-text-muted)", text: "var(--tasty-text-primary)",
 };
 const S = (color) => (txt, key) => <span key={key} style={{ color }}>{txt}</span>;
 
@@ -80,7 +81,6 @@ function TerminalPane({ session, focused, searchOpen, onSearchClose }) {
       color: focused ? "var(--tasty-surface-terminal-focused-fg)" : "var(--tasty-surface-terminal-unfocused-fg)",
       fontFamily: "var(--tasty-font-mono)", fontSize: "var(--tasty-font-size-body)", lineHeight: 1.6,
       border: "var(--tasty-border-width) solid var(--tasty-separator)", borderRadius: "var(--tasty-radius)", overflow: "hidden",
-      opacity: focused ? 1 : 0.92,
     }}>
       {focused && searchOpen && (
         <SearchBar lines={session.plainLines || []} onClose={onSearchClose} />

@@ -617,6 +617,18 @@
       "$type": "cubicBezier",
       "$value": "cubic-bezier(0.2, 0, 0, 1)"
     },
+    "color-code-fixed-bg": {
+      "$type": "color",
+      "$value": "#24292e"
+    },
+    "color-code-fixed-fg": {
+      "$type": "color",
+      "$value": "#e1e4e8"
+    },
+    "color-code-fixed-comment": {
+      "$type": "color",
+      "$value": "#959da5"
+    },
     "scale-80": {
       "$type": "number",
       "$value": "0.8"
@@ -1619,6 +1631,55 @@
     "brand-melon-seed": {
       "$type": "color",
       "$value": "{primitive.color-melon-seed}"
+    },
+    "brand-ink": {
+      "$type": "color",
+      "$value": "{primitive.color-melon-flesh}",
+      "$extensions": {
+        "com.tasty.mode": {
+          "latte": "color-mix(in srgb, var(--tasty-color-melon-flesh) 68%, var(--tasty-color-black))"
+        }
+      }
+    },
+    "brand-fill": {
+      "$type": "color",
+      "$value": "{primitive.color-melon-flesh}"
+    },
+    "brand-fill-hover": {
+      "$type": "color",
+      "$value": "color-mix(in srgb, var(--tasty-color-melon-flesh) 92%, var(--tasty-color-white))"
+    },
+    "brand-fill-press": {
+      "$type": "color",
+      "$value": "color-mix(in srgb, var(--tasty-color-melon-flesh) 88%, var(--tasty-color-white))"
+    },
+    "brand-on-fill": {
+      "$type": "color",
+      "$value": "{primitive.color-melon-seed}"
+    },
+    "brand-wash": {
+      "$type": "color",
+      "$value": "color-mix(in srgb, var(--tasty-color-melon-flesh) 6%, transparent)"
+    },
+    "brand-tint": {
+      "$type": "color",
+      "$value": "color-mix(in srgb, var(--tasty-color-melon-flesh) 14%, transparent)"
+    },
+    "brand-glow": {
+      "$type": "color",
+      "$value": "color-mix(in srgb, var(--tasty-color-melon-flesh) 12%, transparent)"
+    },
+    "code-fixed-bg": {
+      "$type": "color",
+      "$value": "{primitive.color-code-fixed-bg}"
+    },
+    "code-fixed-fg": {
+      "$type": "color",
+      "$value": "{primitive.color-code-fixed-fg}"
+    },
+    "code-fixed-comment": {
+      "$type": "color",
+      "$value": "{primitive.color-code-fixed-comment}"
     },
     "surface-field": {
       "$type": "color",
@@ -6395,6 +6456,58 @@
     "tab-bg-hover": {
       "$type": "color",
       "$value": "color-mix(in srgb, var(--tasty-bg-panel) 60%, var(--tasty-bg-sidebar))"
+    },
+    "site-cta-bg": {
+      "$type": "color",
+      "$value": "{semantic.brand-fill}"
+    },
+    "site-cta-bg-hover": {
+      "$type": "color",
+      "$value": "{semantic.brand-fill-hover}"
+    },
+    "site-cta-bg-press": {
+      "$type": "color",
+      "$value": "{semantic.brand-fill-press}"
+    },
+    "site-cta-fg": {
+      "$type": "color",
+      "$value": "{semantic.brand-on-fill}"
+    },
+    "site-wordmark-dot": {
+      "$type": "color",
+      "$value": "{semantic.brand-melon-flesh}"
+    },
+    "site-eyebrow-dot": {
+      "$type": "color",
+      "$value": "{semantic.brand-melon-flesh}"
+    },
+    "site-quote-bg": {
+      "$type": "color",
+      "$value": "{semantic.brand-wash}"
+    },
+    "site-tile-hover-bg": {
+      "$type": "color",
+      "$value": "{semantic.brand-wash}"
+    },
+    "site-card-icon-bg": {
+      "$type": "color",
+      "$value": "{semantic.brand-tint}"
+    },
+    "site-band-glow": {
+      "$type": "color",
+      "$value": "{semantic.brand-glow}"
+    },
+    "site-code-bg": {
+      "$type": "color",
+      "$value": "{semantic.code-fixed-bg}"
+    },
+    "site-code-fg": {
+      "$type": "color",
+      "$value": "{semantic.code-fixed-fg}"
+    },
+    "site-code-comment": {
+      "$type": "color",
+      "$value": "{semantic.code-fixed-comment}"
     }
   }
 }

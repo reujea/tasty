@@ -68,8 +68,9 @@ export function Spinner({ size = 16, stroke = 2, label = null, paused = false, r
       {...rest}
     >
       <svg viewBox="0 0 24 24" fill="none">
+        {/* The arc carries the meaning. The track is an ornament with no grade: RULES.md, Spinner. */}
         <circle className="tasty-spinner__track" cx="12" cy="12" r={r}
-          stroke="currentColor" strokeWidth={stroke} />
+          stroke="currentColor" strokeWidth={stroke} data-ink-grade="none" data-ink-why="ornament" />
         <path className="tasty-spinner__arc"
           d={`M12 ${12 - r} a ${r} ${r} 0 0 1 ${r} ${r}`}
           stroke="currentColor" strokeWidth={stroke} strokeLinecap="round" />

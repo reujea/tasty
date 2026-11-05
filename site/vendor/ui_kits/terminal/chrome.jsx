@@ -355,7 +355,7 @@ function Sidebar({ workspaces, activeWs, onWs, onSettings, onPlugins, onTools, c
       <div style={{ display: "flex", alignItems: "center", gap: "var(--tasty-space-sm)", padding: "var(--tasty-space-md) var(--tasty-space-md) var(--tasty-space-xs)" }}>
         <img src={`${BASE}tasty-icon.png`} width="22" height="22" alt="Tasty" />
         <span style={{ fontFamily: "var(--tasty-font-mono)", fontWeight: "var(--tasty-font-weight-bold)", fontSize: "var(--tasty-sidebar-wordmark-font-size)", color: "var(--tasty-text-primary)",
-          letterSpacing: "var(--tasty-sidebar-wordmark-tracking)" }}>tasty<span style={{ color: "var(--tasty-brand-melon-flesh)" }}>.</span></span>
+          letterSpacing: "var(--tasty-sidebar-wordmark-tracking)" }}>tasty<span data-audit-exempt="brand" style={{ color: "var(--tasty-brand-melon-flesh)" }}>.</span></span>
         <span style={{ marginLeft: "auto" }}>
           <IconButton size="sm" aria-label="Collapse" onClick={onToggle}>{ic.chevrons}</IconButton>
         </span>
