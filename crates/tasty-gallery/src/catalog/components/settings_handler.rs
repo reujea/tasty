@@ -602,7 +602,10 @@ pub fn draw_hook_handlers(ui: &mut egui::Ui, theme: &Theme) {
                 "not text-representable",
                 "a stored method name the line format cannot carry → the row keeps caption \"Edit with CLI\" + copy; copies tasty hook-handler get --id <id>",
             ),
-            ("disabled", "row 전체 opacity-disabled"),
+            (
+                "switched off",
+                "id in text-muted, no opacity; the Switch and a disabled command state it",
+            ),
             ("add card", "surface-raised + border + radius · caps 헤드"),
             ("priority", "낮을수록 먼저 (레지스트리 규약)"),
         ],

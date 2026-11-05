@@ -325,7 +325,7 @@ pub fn draw(ui: &mut egui::Ui, theme: &Theme) {
     note(
         ui,
         theme,
-        "Every grid cell reserves the 40 thumbnail slot; this example draws glyphs only (thumbnails are under Explorer properties and preview). List and detail views use the shared tree_row and Table widgets. Cut-pending cells dim the icon and label to 50% while preserving the selection or hover background. No explorer-specific row height: the list reuses the tree row (22), and the detail header and body rows reuse the shared Table height (28).",
+        "Every grid cell reserves the 40 thumbnail slot; this example draws glyphs only (thumbnails are under Explorer properties and preview). List and detail views use the shared tree_row and Table widgets. Cut-pending cells use cut-pending-fg with an italic name and keep the selection or hover background. No explorer-specific row height: the list reuses the tree row (22), and the detail header and body rows reuse the shared Table height (28).",
     );
 }
 

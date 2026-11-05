@@ -581,7 +581,6 @@ src/catalog/components/settings_handler.rs	Reset	remote_tool.filter_reset,settin
 src/catalog/components/settings_handler.rs	Shell cmd:	settings.file_handler.hook_handlers.shell_cmd_label
 src/catalog/components/settings_handler.rs	Shell command:	settings.file_handler.hook_handlers.field_shell_command
 src/catalog/components/settings_handler.rs	Undo	explorer.menu.undo_none,explorer.result.undo,image_viewer.undo,settings.file_handler.common.undo,settings.file_handler.extension_mapping.undo,settings.file_handler.hook_handlers.undo
-src/catalog/components/settings_handler.rs	disabled	settings.file_handler.common.disabled
 src/catalog/components/settings_handler.rs	not installed	settings.file_handler.extension_mapping.unregistered
 src/catalog/components/settings_handler.rs	off	settings.file_handler.extension_mapping.off
 src/catalog/components/settings_handler.rs	prio {}	settings.file_handler.hook_handlers.prio

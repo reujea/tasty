@@ -270,6 +270,6 @@ pub fn draw(ui: &mut egui::Ui, theme: &Theme) {
         ui,
         theme,
         "Dim the dead path: an edge leaving a failed/cancelled task, or entering a skipped one, \
-         drops to 0.4 along with the node. The failure stays loud; everything it stranded recedes.",
+         takes dag-edge-dim while its node recedes. The failure stays loud; everything it stranded recedes.",
     );
 }

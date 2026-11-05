@@ -2335,7 +2335,7 @@ pub fn pages() -> Vec<Page> {
                             "dag-routes",
                             "Transitions · not selected",
                             Some(
-                                "전이 선택 4 상태는 굵기·불투명도만 바뀐다 · 미선택 노드는 skipped 카드에 라벨·툴팁만 다르다",
+                                "전이 선택 4 상태는 굵기·잉크만 바뀐다 · 미선택 노드는 skipped 카드에 라벨·툴팁만 다르다",
                             ),
                             components::dag::routes::draw,
                         ),
