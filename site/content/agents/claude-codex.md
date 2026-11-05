@@ -361,6 +361,8 @@ tasty claude spawn --workspace w --profile continue-checklist
 
 ## 문제 해결
 
+Windows와 macOS에서 Tasty 터미널의 Codex 세션이 연결 직후 끊기던 문제를 수정했습니다.
+
 - **완료 알림이 안 옵니다** — 자식 CLI의 훅 설치·실행과 [수신 설정](#4-완료-알림-받기)을 확인하세요. 부모가 Claude Code이면 완료 알림 mod가 활성화됐는지 확인하세요. mod가 없을 때는 Monitor 구독을 확인하세요. 훅 전달 실패는 `~/.tasty/hook-failures.log` 에 남습니다. 플러그인 로그는 `tasty plugin logs com.tasty.claude --follow`.
 - **`reboot` 가 "claude-session-id meta not set" 으로 실패합니다** — 세션 시작 훅이 세션 ID 를 못 남긴 것입니다. `tasty surface-meta set --key claude-session-id --value <세션ID>` 로 직접 넣습니다.
 - **자식이 spawn 되지 않고 "occupied" 오류** — 대상 워크스페이스가 원격에서 attach 중이거나 mirror 입니다. 다른 워크스페이스를 씁니다.
