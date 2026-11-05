@@ -85,6 +85,12 @@ if ($Arch -eq "arm64") {
             Write-Error "MSVC ARM64 build tools not found. Add the Visual Studio component Microsoft.VisualStudio.Component.VC.Tools.ARM64 (MSVC ARM64 build tools)."
             exit 1
         }
+        # aws-lc-sys assembles its AArch64 .S files with clang-cl. cl.exe skips them and the link then fails.
+        $Arm64Clang = & $Vswhere -latest -products * -requires Microsoft.VisualStudio.Component.VC.Llvm.Clang -property installationPath
+        if (-not $Arm64Clang) {
+            Write-Error "clang-cl not found. Add the Visual Studio component Microsoft.VisualStudio.Component.VC.Llvm.Clang (C++ Clang Compiler for Windows)."
+            exit 1
+        }
     } else {
         Write-Warning "vswhere.exe not found; cannot confirm the MSVC ARM64 build tools before building."
     }

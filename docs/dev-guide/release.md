@@ -172,7 +172,8 @@ which cargo-deb cargo-generate-rpm linuxdeploy   # 검증
 # Windows
 cargo install cargo-wix; winget install WiXToolset.WiXToolset
 # Windows ARM64 교차 빌드: Visual Studio 구성 요소 "MSVC ARM64 빌드 도구"
-# (Microsoft.VisualStudio.Component.VC.Tools.ARM64)를 Visual Studio Installer에서 추가한다.
+# (Microsoft.VisualStudio.Component.VC.Tools.ARM64)와 "C++ Clang Compiler for Windows"
+# (Microsoft.VisualStudio.Component.VC.Llvm.Clang)를 Visual Studio Installer에서 추가한다.
 # Rust 타깃 aarch64-pc-windows-msvc는 build-windows.ps1이 없으면 rustup으로 추가한다.
 ```
 
@@ -188,7 +189,7 @@ WiX winget 은 `WIX` env 만 등록(`%WIX%\bin` PATH 추가 안 함) — `build-
 Windows ARM64 산출물은 기존 x64 Windows 러너에서 `build-windows.ps1 -Arch arm64`로 교차 빌드한다. ARM64 Windows 러너를 따로 두지 않는 이유는 저장소 밖 인프라를 늘리지 않고 같은 MSVC·WiX 환경에서 두 아키텍처를 만들 수 있기 때문이다. 이 방식은 러너에서 ARM64 실행 파일을 실행할 수 없다는 한계가 있어 아래처럼 실행 검사를 대신한다.
 
 - 두 Windows 잡 모두 `--target`(`x86_64-pc-windows-msvc` / `aarch64-pc-windows-msvc`)을 명시한다. 러너 호스트 아키텍처와 관계없이 파일 이름의 아키텍처와 실제 바이너리가 일치한다. 산출물은 `target\<triple>\<프로필>\`에 생기고 cargo-wix에도 같은 `--target`을 넘긴다.
-- 사전 조건: Rust 타깃(없으면 스크립트가 `rustup target add`로 추가), MSVC ARM64 빌드 도구(스크립트가 `vswhere`로 확인하고 없으면 중단), ARM64 MSI를 만드는 WiX 3.14 이상(스크립트가 `candle.exe` 버전을 확인). `wix/main.wxs`는 ARM64에서 64비트 Program Files와 Windows Installer 5.0(`InstallerVersion` 500)을 쓴다. x64 MSI의 `InstallerVersion` 450과 UpgradeCode는 그대로다.
+- 사전 조건: Rust 타깃(없으면 스크립트가 `rustup target add`로 추가), MSVC ARM64 빌드 도구와 clang-cl(`aws-lc-sys`의 AArch64 어셈블리에 필요하다. 스크립트가 `vswhere`로 둘 다 확인하고 없으면 중단), ARM64 MSI를 만드는 WiX 3.14 이상(스크립트가 `candle.exe` 버전을 확인). `wix/main.wxs`는 ARM64에서 64비트 Program Files와 Windows Installer 5.0(`InstallerVersion` 500)을 쓴다. x64 MSI의 `InstallerVersion` 450과 UpgradeCode는 그대로다.
 - 산출물 검사는 빌드 스크립트 안에서 dist를 지우기 전에 실행하고 결과를 잡 로그에 남긴다. 태그 없는 `workflow_dispatch` 실행도 같은 로그로 확인한다.
   - ZIP·헤드리스 ZIP·MSI를 풀어 모든 `.exe`(본체와 번들 plugin)의 PE 헤더 Machine 값이 x64는 0x8664, ARM64는 0xAA64인지 확인한다. 실행 파일 수가 본체와 번들 plugin 수보다 적어도 실패한다.
   - `tasty.exe --version` 실행과 MSI 관리 설치(`msiexec /a`)는 호스트와 같은 아키텍처일 때만 한다. x64 러너의 ARM64 빌드는 실행 검사를 건너뛴다는 줄을 남기고 PE 검사로 아키텍처를 확인한다. MSI 안의 파일은 WiX `dark.exe -x`로 꺼내 `main.wxs`의 File Id·Source 짝으로 원래 경로에 놓은 뒤 고지 세트 대조와 PE 검사를 한다.
@@ -233,6 +234,7 @@ cd ~/actions-runner && ./config.sh remove --token <REMOVAL_TOKEN>   # token: Set
 | release upload 실패 | `GH_TOKEN` 권한/tag 이름 확인 (`--clobber` 재업로드) |
 | Windows `candle could not be found` | WiX 3.x 미설치/`WIX` env 누락 → `winget install` 후 서비스 재시작 |
 | Windows ARM64 `MSVC ARM64 build tools not found` | Visual Studio Installer 에서 `Microsoft.VisualStudio.Component.VC.Tools.ARM64` 추가 |
+| Windows ARM64 `clang-cl not found` 또는 `aws-lc-sys` 링크 `LNK1181` | Visual Studio Installer 에서 `Microsoft.VisualStudio.Component.VC.Llvm.Clang` 추가 |
 | Windows ARM64 `cannot build ARM64 MSI packages` | WiX 3.14 이상으로 갱신 |
 | AppImage `fuse: failed to exec fusermount` | 타깃 환경 FUSE 미지원 → `--appimage-extract-and-run` |
 
