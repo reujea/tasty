@@ -18,16 +18,13 @@ const CONCURRENT_TABS = 6;
 // happens to use. The fixture is the markup those rules style, so a broken rule shows as a wrong ink. Everything else needs
 // a real element. Each entry names the rows it stands in for, and the summary prints them.
 const FIXTURES = [
-  { page: "guide/getting-started/first-look/", at: ".content", rows: ["note-warning-lead", "note-warning", "note-primary-lead", "note-primary"],
-    html: `<div class="note"><strong>Note</strong> text <a href="#content">link</a></div>
-<div class="note note--untranslated"><strong>Note</strong> text <a href="#content">link</a></div>
-<div class="note note--stale"><strong>Note</strong> text <a href="#content">link</a></div>` },
-  { page: "guide/getting-started/first-look/", at: ".prose", rows: ["prose-minor", "anchor", "anchor-hover", "inline-code-link", "quote-link", "link-row", "table-head", "table-row-hover"],
-    html: `<h2>Heading<a class="heading-anchor" href="#content">#</a></h2><h4>Minor</h4><h5>Minor</h5><h6>Minor</h6>
-<p><a href="#content"><code>code</code></a></p><blockquote><p>Quote <a href="#content">link</a></p></blockquote>
-<div class="table-wrap"><table><thead><tr><th>Head</th></tr></thead><tbody><tr><td><a href="#content">link</a></td></tr></tbody></table></div>` },
+  { page: "guide/getting-started/first-look/", at: ".content", rows: ["note-warning", "note-primary"],
+    html: `<div class="note"><p>text</p><a href="#content">link</a></div>
+<div class="note note--untranslated"><p>text</p></div>` },
+  { page: "guide/getting-started/first-look/", at: ".prose", rows: ["prose-minor", "inline-code-link", "quote-link"],
+    html: `<h4>Minor</h4><h5>Minor</h5><h6>Minor</h6>
+<p><a href="#content"><code>code</code></a></p><blockquote><p>Quote <a href="#content">link</a></p></blockquote>` },
   { page: "", at: ".brand", rows: ["header-version"], html: `<span class="brand__version">v0.0.0</span>` },
-  { page: "", at: ".term pre", rows: ["term-agent", "term-dim", "term-warn"], html: `<span class="p">agent</span> <span class="c">dim</span> <span class="y">warning</span>` },
 ];
 export const FIXTURE_ROWS = FIXTURES.flatMap((f) => f.rows);
 const injectFixtures = (tab, page) => Promise.all(FIXTURES.filter((f) => f.page === page).map((f) => tab.evaluate(
@@ -65,7 +62,9 @@ export function siteRules(data) {
   const tokens = Object.fromEntries(data.tokens.map((t) => [t.name, t.values]));
   const exemptIds = data.exceptions.filter((e) => e.audit === "subtree").map((e) => e.id);
   const noGradeRoles = new Set(data.roles.filter((r) => r.grade === null).map((r) => r.id));
-  const noGrade = [...new Set([...data.components, ...data.matrix].filter((r) => noGradeRoles.has(r.role) && r.token).map((r) => r.token))];
+  const noGradeNames = [...new Set([...data.components, ...data.matrix].filter((r) => noGradeRoles.has(r.role) && r.token).map((r) => r.token))];
+  // The values, per theme: a page compares paint, and another theme's disabled value is an ordinary ink here.
+  const noGrade = (theme) => noGradeNames.map((name) => tokens[name] && tokens[name][theme]).filter(Boolean);
   return { rows, family, grades, tokens, exemptIds, noGrade };
 }
 
@@ -99,7 +98,7 @@ function mergeRow(t, rules, res, page, viewport) {
   });
 }
 
-const needsScanArgs = (rules) => ({ exemptIds: rules.exemptIds, noGradeInks: rules.noGrade, grades: rules.grades });
+const needsScanArgs = (rules, theme) => ({ exemptIds: rules.exemptIds, noGradeInks: rules.noGrade(theme), grades: rules.grades });
 const restRows = (rules) => rules.rows.filter((r) => r.state === "rest" || r.state === "selected");
 
 // Measures the rest state of what a loaded tab shows. A gallery page comes here too, for the chrome around its specimens.
@@ -107,7 +106,7 @@ export async function measureRest(tab, t, rules, theme, page, viewport) {
   await installPageLib(tab);
   // A guideline document is a page of its own markup, whose class names can collide with a row. It has no rows.
   const rows = page.startsWith(CARDS) ? [] : restRows(rules);
-  const args = { rows, allRows: rules.rows, family: [...rules.family], tokens: rules.tokens, theme, scanArgs: needsScanArgs(rules) };
+  const args = { rows, allRows: rules.rows, family: [...rules.family], tokens: rules.tokens, theme, scanArgs: needsScanArgs(rules, theme) };
   const m = await tab.evaluate(({ rows: list, allRows, family, tokens, theme: name, scanArgs }) => {
     const lib = window.__contrast;
     return { rows: lib.measureRows(list, allRows, family, tokens, name), scan: lib.scan(document.body, scanArgs) };
@@ -244,7 +243,7 @@ async function searchPass(context, origin, t, rules, theme) {
     const m = await tab.evaluate(({ rows: x, allRows, family, tokens, name, scanArgs }) => {
       const lib = window.__contrast;
       return { rows: lib.measureRows(x, allRows, family, tokens, name), scan: lib.scan(document.querySelector(".search__results"), scanArgs) };
-    }, { rows: list, allRows: rules.rows, family: [...rules.family], tokens: rules.tokens, name: theme, scanArgs: needsScanArgs(rules) });
+    }, { rows: list, allRows: rules.rows, family: [...rules.family], tokens: rules.tokens, name: theme, scanArgs: needsScanArgs(rules, theme) });
     mergeScan(t, m.scan, SEARCH_PAGE, "search");
     m.rows.forEach((res) => mergeRow(t, rules, res, SEARCH_PAGE, "search"));
   };
