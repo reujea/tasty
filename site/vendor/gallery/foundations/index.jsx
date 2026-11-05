@@ -125,7 +125,7 @@ function SpaceUse({ token, px, usedFor, children }) {
     <div style={{ borderBottom: "1px solid var(--tasty-separator)", padding: "16px 0" }}>
       <div style={{ display: "flex", alignItems: "baseline", gap: 10, marginBottom: 10 }}>
         <span style={{ fontFamily: "var(--tasty-font-mono)", fontSize: 12.5, color: "var(--tasty-text-primary)" }}>{token}</span>
-        <span style={{ fontFamily: "var(--tasty-font-mono)", fontSize: 11, color: "var(--tasty-accent-info)" }}>{px}</span>
+        <span style={{ fontFamily: "var(--tasty-font-mono)", fontSize: 11, color: "var(--tasty-accent-info-raised)" }}>{px}</span>
         <span style={{ fontSize: 12, color: "var(--tasty-text-muted)" }}>used for {usedFor}</span>
       </div>
       <div style={{ position: "relative" }}>
@@ -187,7 +187,7 @@ function AnsiCol({ heading, rows }) {
 }
 // state fill rendered onto a faux terminal line
 function Hi({ tok, children }) {
-  return <span style={{ background: `var(${tok})`, color: "var(--tasty-text-primary)", borderRadius: 2, padding: "0 1px" }}>{children}</span>;
+  return <span style={{ background: `var(${tok})`, color: tok.includes("match-active") ? "var(--tasty-search-match-active-fg)" : tok.includes("selection") ? "var(--tasty-text-on-active)" : "var(--tasty-text-primary)", borderRadius: 2, padding: "0 1px" }}>{children}</span>;
 }
 function SemRow({ tok, role }) {
   return (
@@ -266,7 +266,7 @@ function Foundations() {
             <div style={{ fontSize: 13, fontWeight: 600, color: "var(--tasty-text-primary)" }}>--tasty-text-primary — headings, active labels, terminal foreground</div>
             <div style={{ fontSize: 13, color: "var(--tasty-text-secondary)" }}>--tasty-text-secondary — body labels, descriptions, settings rows</div>
             <div style={{ fontSize: 13, color: "var(--tasty-text-muted)" }}>--tasty-text-muted — meta, captions, hints, monospace IDs</div>
-            <div style={{ fontSize: 13, color: "var(--tasty-text-disabled)" }}>--tasty-text-disabled — disabled controls and rows</div>
+            <div data-ink-grade="none" data-ink-why="disabled" style={{ fontSize: 13, color: "var(--tasty-text-disabled)" }}>--tasty-text-disabled — disabled controls and rows</div>
             <Input placeholder="--tasty-text-placeholder — empty field hint" style={{ width: 320 }} />
           </Stage>
           <Meta tokens={[
@@ -284,31 +284,31 @@ function Foundations() {
         <Spec id="accents-map-to-roles-not-decoration" title="Accents map to roles, not decoration"
           when={<>Each accent owns one meaning. The standout rule: <b>mauve = AI agent</b>. Anything agent-driven is tinted mauve so user-vs-agent stays visible at a glance. Don't reach for an accent for looks — reach for the role.</>}>
           <Stage variant="solo column" style={{ gap: 0, padding: "8px 26px" }}>
-            <AccentRow tok="--tasty-accent-primary" color="var(--tasty-accent-primary)" role="primary actions, focus ring"
+            <AccentRow tok="--tasty-accent-primary" color="var(--tasty-accent-primary-raised)" role="primary actions, focus ring"
               demo={<Button variant="primary" size="sm">Save</Button>} />
-            <AccentRow tok="--tasty-accent-info" color="var(--tasty-accent-info)" role="informational, neutral status"
+            <AccentRow tok="--tasty-accent-info" color="var(--tasty-accent-info-raised)" role="informational, neutral status"
               demo={<Tag variant="accent" dot>info</Tag>} />
-            <AccentRow tok="--tasty-accent-success" color="var(--tasty-accent-success)" role="running / ok / success"
+            <AccentRow tok="--tasty-accent-success" color="var(--tasty-accent-success-raised)" role="running / ok / success"
               demo={<StatusDot status="running" pulse label="running" />} />
-            <AccentRow tok="--tasty-accent-warning" color="var(--tasty-accent-warning)" role="warnings, validation"
+            <AccentRow tok="--tasty-accent-warning" color="var(--tasty-accent-warning-raised)" role="warnings, validation"
               demo={<Tag variant="warning" dot>warning</Tag>} />
-            <AccentRow tok="--tasty-accent-attention" color="var(--tasty-accent-attention)" role="needs-attention notice (plugins, occupied) — peach, NOT yellow"
+            <AccentRow tok="--tasty-accent-attention" color="var(--tasty-accent-attention-raised)" role="needs-attention notice (plugins, occupied) — peach, NOT yellow"
               demo={<Tag variant="attention" dot>attention</Tag>} />
-            <AccentRow tok="--tasty-accent-danger" color="var(--tasty-accent-danger)" role="destructive, errors"
+            <AccentRow tok="--tasty-accent-danger" color="var(--tasty-accent-danger-raised)" role="destructive, errors"
               demo={<Button variant="danger" size="sm">Force detach</Button>} />
-            <AccentRow tok="--tasty-accent-agent" color="var(--tasty-accent-agent)" role="AI-agent surfaces & actions"
+            <AccentRow tok="--tasty-accent-agent" color="var(--tasty-accent-agent-raised)" role="AI-agent surfaces & actions"
               demo={<><StatusDot status="agent" pulse /><Tag variant="agent">agent</Tag></>} />
           </Stage>
           <Meta
             specs={[["fill text", <span className="tok">--tasty-text-on-accent</span>], ["focus ring", <>2px <span className="tok">--tasty-accent-primary</span></>], ["agent rule", "mauve = always agent"]]}
             tokens={[
-              { tok: "--tasty-accent-primary", use: "blue", color: "var(--tasty-accent-primary)" },
-              { tok: "--tasty-accent-info", use: "sky", color: "var(--tasty-accent-info)" },
-              { tok: "--tasty-accent-success", use: "green", color: "var(--tasty-accent-success)" },
-              { tok: "--tasty-accent-warning", use: "yellow", color: "var(--tasty-accent-warning)" },
-              { tok: "--tasty-accent-attention", use: "peach", color: "var(--tasty-accent-attention)" },
-              { tok: "--tasty-accent-danger", use: "red", color: "var(--tasty-accent-danger)" },
-              { tok: "--tasty-accent-agent", use: "mauve", color: "var(--tasty-accent-agent)" },
+              { tok: "--tasty-accent-primary", use: "blue", color: "var(--tasty-accent-primary-raised)" },
+              { tok: "--tasty-accent-info", use: "sky", color: "var(--tasty-accent-info-raised)" },
+              { tok: "--tasty-accent-success", use: "green", color: "var(--tasty-accent-success-raised)" },
+              { tok: "--tasty-accent-warning", use: "yellow", color: "var(--tasty-accent-warning-raised)" },
+              { tok: "--tasty-accent-attention", use: "peach", color: "var(--tasty-accent-attention-raised)" },
+              { tok: "--tasty-accent-danger", use: "red", color: "var(--tasty-accent-danger-raised)" },
+              { tok: "--tasty-accent-agent", use: "mauve", color: "var(--tasty-accent-agent-raised)" },
             ]} />
         </Spec>
       </Section>
@@ -328,10 +328,10 @@ function Foundations() {
             <div>
               <div style={{ fontFamily: "var(--tasty-font-mono)", fontSize: 10, textTransform: "uppercase",
                 letterSpacing: ".06em", color: "var(--tasty-text-muted)", marginBottom: 8 }}>terminal state fills — painted onto cells</div>
-              <div style={{ background: "#000", border: "1px solid var(--tasty-separator)", borderRadius: "var(--tasty-radius)",
+              <div style={{ background: "var(--tasty-surface-terminal-focused-bg)", border: "1px solid var(--tasty-separator)", borderRadius: "var(--tasty-radius)",
                 padding: "12px 14px", fontFamily: "var(--tasty-font-mono)", fontSize: 13, lineHeight: 1.8,
                 color: "var(--tasty-color-neutral-1100, #cdd6f4)" }}>
-                <div><span style={{ color: "var(--tasty-ansi-green)" }}>~/tasty</span> $ vi notes.md</div>
+                <div><span data-audit-exempt="ansi-content" style={{ color: "var(--tasty-ansi-green)" }}>~/tasty</span> $ vi notes.md</div>
                 <div>
                   The <Hi tok="--tasty-selection-bg">selected words</Hi> wrap the <Hi tok="--tasty-search-match-bg">match</Hi> and
                   the <Hi tok="--tasty-search-match-active-bg">active match</Hi> sit&nbsp;
@@ -526,7 +526,7 @@ function Foundations() {
                 <span style={{ flex: "none", width: 190, fontFamily: "var(--tasty-font-mono)", fontSize: 11, color: "var(--tasty-text-muted)" }}>{was}</span>
                 <span style={{ flex: "none", width: 20, height: 20, borderRadius: "var(--tasty-radius-sm)", background: color, border: "1px solid var(--tasty-border-default)" }} />
                 <span style={{ flex: "none", width: 210, fontFamily: "var(--tasty-font-mono)", fontSize: 11, color: "var(--tasty-text-primary)" }}>{now}</span>
-                <span style={{ flex: "none", width: 200, fontSize: 11, color: /MOVES/.test(verdict) ? "var(--tasty-accent-warning)" : "var(--tasty-text-muted)" }}>{verdict}</span>
+                <span style={{ flex: "none", width: 200, fontSize: 11, color: /MOVES/.test(verdict) ? "var(--tasty-accent-warning-raised)" : "var(--tasty-text-muted)" }}>{verdict}</span>
               </div>
             ))}
           </Stage>
@@ -547,7 +547,7 @@ function Foundations() {
                 <div style={{ display: "flex", gap: 14, alignItems: "flex-start" }}>
                   {[["settled — border-frame", "var(--tasty-border-frame)", true], ["rejected — border-strong", "var(--tasty-border-strong)", false]].map(([cap, edge, on]) => (
                     <div key={cap} style={{ display: "flex", flexDirection: "column", gap: 5 }}>
-                      <div style={{ fontSize: 11, color: on ? "var(--tasty-accent-success)" : "var(--tasty-text-muted)" }}>{cap}</div>
+                      <div style={{ fontSize: 11, color: on ? "var(--tasty-accent-success-raised)" : "var(--tasty-text-muted)" }}>{cap}</div>
                       <div style={{ width: 216, background: "var(--tasty-bg-panel)", border: "1px solid " + edge, borderRadius: "var(--tasty-radius)", overflow: "hidden" }}>
                         <div style={{ height: 28, display: "flex", alignItems: "center", padding: "0 10px", fontSize: 12,
                           color: "var(--tasty-text-secondary)", background: "var(--tasty-bg-sidebar)", borderBottom: "1px solid " + edge }}>Listening ports</div>
@@ -625,7 +625,7 @@ function Foundations() {
                 <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
                   {[["info", "var(--tasty-accent-info)"], ["warning", "var(--tasty-accent-warning)"], ["danger", "var(--tasty-accent-danger)"], ["success", "var(--tasty-accent-success)"]].map(([name, col]) => (
                     <span key={name} style={{ display: "inline-flex", alignItems: "center", height: 24, padding: "0 10px", borderRadius: "var(--tasty-radius)",
-                      fontFamily: "var(--tasty-font-mono)", fontSize: 11, color: col,
+                      fontFamily: "var(--tasty-font-mono)", fontSize: 11, color: col.replace(")", "-strong)"),
                       background: fill ? `color-mix(in srgb, ${col} calc(var(--tasty-tint-fill-alpha) * 100%), transparent)` : "transparent",
                       border: border ? `1px solid color-mix(in srgb, ${col} calc(var(--tasty-tint-border-alpha) * 100%), transparent)` : "1px solid transparent" }}>{name}</span>
                   ))}
@@ -648,21 +648,21 @@ function Foundations() {
                   <span style={{ fontFamily: "var(--tasty-font-mono)", fontSize: "var(--tasty-font-size-micro)", color: "var(--tasty-text-muted)" }}>C3 · port scanner footer (ink example; the footer stays Close + Copy address) — disabled {now.c3}:1 (was {was.c3})</span>
                   <div style={{ display: "flex", gap: "var(--tasty-space-sm)", padding: "var(--tasty-space-md)", background: "var(--tasty-bg-panel)", borderRadius: "var(--tasty-radius)" }}>
                     {[["Close", false, true], ["Copy address", true, false]].map(([l, dis, box]) => (
-                      <span key={l} style={{ height: "var(--tasty-control-height)", display: "inline-flex", alignItems: "center", padding: "0 var(--tasty-space-md)", borderRadius: "var(--tasty-radius)", background: box ? "var(--tasty-surface-raised)" : "transparent", border: "var(--tasty-border-width) solid " + (box ? "var(--tasty-border-default)" : "transparent"), fontSize: "var(--tasty-font-size-body)", fontWeight: "var(--tasty-font-weight-medium)", color: dis ? "var(--tasty-text-disabled)" : "var(--tasty-text-primary)" }}>{l}</span>
+                      <span key={l} data-ink-grade={dis ? "none" : undefined} data-ink-why={dis ? "disabled" : undefined} style={{ height: "var(--tasty-control-height)", display: "inline-flex", alignItems: "center", padding: "0 var(--tasty-space-md)", borderRadius: "var(--tasty-radius)", background: box ? "var(--tasty-surface-raised)" : "transparent", border: "var(--tasty-border-width) solid " + (box ? "var(--tasty-border-default)" : "transparent"), fontSize: "var(--tasty-font-size-body)", fontWeight: "var(--tasty-font-weight-medium)", color: dis ? "var(--tasty-text-disabled)" : "var(--tasty-text-primary)" }}>{l}</span>
                     ))}
                   </div>
                 </div>
                 <div style={{ display: "flex", flexDirection: "column", gap: "var(--tasty-space-xs)" }}>
                   <span style={{ fontFamily: "var(--tasty-font-mono)", fontSize: "var(--tasty-font-size-micro)", color: "var(--tasty-text-muted)" }}>C4 · tab-strip scroll — disabled {now.c4}:1 · enabled {now.en}:1 (was {was.en})</span>
                   <div style={{ display: "flex", alignItems: "stretch", height: "var(--tasty-control-height-tab)", width: "var(--tasty-size-288)", background: "var(--tasty-surface-raised)", borderRadius: "var(--tasty-radius-sm)", overflow: "hidden" }}>
-                    <span style={{ width: "var(--tasty-tab-scroll-arrow-width)", display: "inline-flex", alignItems: "center", justifyContent: "center", color: "var(--tasty-tab-scroll-arrow-fg-disabled)" }}><FIcon name="chevronLeft" size="var(--tasty-tab-scroll-arrow-glyph-size)" /></span>
+                    <span data-ink-grade="none" data-ink-why="disabled" style={{ width: "var(--tasty-tab-scroll-arrow-width)", display: "inline-flex", alignItems: "center", justifyContent: "center", color: "var(--tasty-tab-scroll-arrow-fg-disabled)" }}><FIcon name="chevronLeft" size="var(--tasty-tab-scroll-arrow-glyph-size)" /></span>
                     <span style={{ flex: 1, display: "flex", alignItems: "center", padding: "0 var(--tasty-space-sm)", fontSize: "var(--tasty-font-size-caption)", color: "var(--tasty-text-secondary)" }}>server · dev · vim · logs</span>
                     <span style={{ width: "var(--tasty-tab-scroll-arrow-width)", display: "inline-flex", alignItems: "center", justifyContent: "center", color: "var(--tasty-tab-scroll-arrow-fg)" }}><FIcon name="chevronRight" size="var(--tasty-tab-scroll-arrow-glyph-size)" /></span>
                   </div>
                 </div>
                 <div style={{ display: "flex", gap: "var(--tasty-space-xs)", alignItems: "center" }}>
                   {[["placeholder", "var(--tasty-text-placeholder)"], ["disabled", "var(--tasty-text-disabled)"], ["muted", "var(--tasty-text-muted)"], ["secondary", "var(--tasty-text-secondary)"], ["primary", "var(--tasty-text-primary)"]].map(([n, v]) => (
-                    <span key={n} style={{ padding: "var(--tasty-space-xs) var(--tasty-space-sm)", background: "var(--tasty-bg-panel)", borderRadius: "var(--tasty-radius-sm)", fontSize: "var(--tasty-font-size-caption)", color: v }}>{n}</span>
+                    <span key={n} data-ink-grade={n === "disabled" ? "none" : undefined} data-ink-why={n === "disabled" ? "disabled" : undefined} style={{ padding: "var(--tasty-space-xs) var(--tasty-space-sm)", background: "var(--tasty-bg-panel)", borderRadius: "var(--tasty-radius-sm)", fontSize: "var(--tasty-font-size-caption)", color: v }}>{n}</span>
                   ))}
                 </div>
               </div>
@@ -683,7 +683,7 @@ function Foundations() {
                   <tr key={n}>
                     <td style={{ padding: "var(--tasty-space-xs) var(--tasty-space-md)", borderBottom: "var(--tasty-border-width) solid var(--tasty-border-default)" }}>{n}</td>
                     <td style={{ padding: "var(--tasty-space-xs) var(--tasty-space-md)", fontFamily: "var(--tasty-font-mono)", color: "var(--tasty-text-muted)", borderBottom: "var(--tasty-border-width) solid var(--tasty-border-default)" }}>{a}</td>
-                    <td style={{ padding: "var(--tasty-space-xs) var(--tasty-space-md)", fontFamily: "var(--tasty-font-mono)", color: a === b ? "var(--tasty-text-primary)" : "var(--tasty-accent-warning)", borderBottom: "var(--tasty-border-width) solid var(--tasty-border-default)" }}>{b}</td>
+                    <td style={{ padding: "var(--tasty-space-xs) var(--tasty-space-md)", fontFamily: "var(--tasty-font-mono)", color: a === b ? "var(--tasty-text-primary)" : "var(--tasty-accent-warning-raised)", borderBottom: "var(--tasty-border-width) solid var(--tasty-border-default)" }}>{b}</td>
                     <td style={{ padding: "var(--tasty-space-xs) var(--tasty-space-md)", color: "var(--tasty-text-muted)", borderBottom: "var(--tasty-border-width) solid var(--tasty-border-default)" }}>{note}</td>
                   </tr>
                 ))}

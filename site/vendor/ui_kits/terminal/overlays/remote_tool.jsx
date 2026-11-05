@@ -95,7 +95,7 @@ const rtScrollPad = { flex: 1, minHeight: 0, overflow: "auto", padding: "var(--t
 const rtFooter = { display: "flex", justifyContent: "flex-end", gap: 8, padding: "var(--tasty-space-md) var(--tasty-space-lg)", flex: "none",
   borderTop: "var(--tasty-border-width) solid var(--tasty-separator)" };
 const rtLinkBtn = { appearance: "none", border: 0, background: "transparent", cursor: "pointer", padding: 0,
-  fontFamily: "var(--tasty-font-ui)", fontSize: 11, color: "var(--tasty-accent-primary)" };
+  fontFamily: "var(--tasty-font-ui)", fontSize: 11, color: "var(--tasty-accent-primary-raised)" };
 
 // icons (lucide-style, drawn through TastyKit.Icon)
 // glyph names from the canonical set (icons/*.svg via <Icon name>)
@@ -169,7 +169,7 @@ function ProfileRow({ p, passkeyNames, onRedetect, onEdit, onDelete }) {
                 </span>
               )}
               {p.state === "failed" && (
-                <span style={{ fontSize: 11, color: "var(--tasty-accent-danger)" }}>detection failed (disabled)</span>
+                <span style={{ fontSize: 11, color: "var(--tasty-accent-danger-raised)" }}>detection failed (disabled)</span>
               )}
             </span>
           )}
@@ -296,7 +296,7 @@ function ProfileForm({ draft, isNew, error, passkeys, onField, onFields, onSave,
             Auto-detects the remote shell once when saved (runs an SSH probe).
           </p>
         )}
-        {error && <p style={{ margin: "var(--tasty-space-md) 0 0 calc(var(--tasty-remote-label-col) + var(--tasty-space-md))", fontSize: 11, color: "var(--tasty-accent-danger)" }}>{error}</p>}
+        {error && <p style={{ margin: "var(--tasty-space-md) 0 0 calc(var(--tasty-remote-label-col) + var(--tasty-space-md))", fontSize: 11, color: "var(--tasty-accent-danger-raised)" }}>{error}</p>}
       </div>
       <div style={rtFooter}>
         <Button variant="ghost" onClick={onCancel}>Cancel</Button>
@@ -399,7 +399,7 @@ function PasskeyForm({ draft, isNew, error, onField, onSave, onCancel, onBrowse 
         <p style={{ margin: "var(--tasty-space-md) 0 0 calc(var(--tasty-remote-label-col) + var(--tasty-space-md))", ...rtCaption, lineHeight: "var(--tasty-line-height-ui)", maxWidth: 320 }}>
           The value is local-only. Profiles reference this passkey by name; the secret is never shared.
         </p>
-        {error && <p style={{ margin: "var(--tasty-space-md) 0 0 calc(var(--tasty-remote-label-col) + var(--tasty-space-md))", fontSize: 11, color: "var(--tasty-accent-danger)" }}>{error}</p>}
+        {error && <p style={{ margin: "var(--tasty-space-md) 0 0 calc(var(--tasty-remote-label-col) + var(--tasty-space-md))", fontSize: 11, color: "var(--tasty-accent-danger-raised)" }}>{error}</p>}
       </div>
       <div style={rtFooter}>
         <Button variant="ghost" onClick={onCancel}>Cancel</Button>
@@ -525,7 +525,7 @@ function AttachForm({ draft, isNew, error, sshProfiles, passkeys, onField, onSav
         <p style={{ margin: "var(--tasty-space-md) 0 0 calc(var(--tasty-remote-label-col) + var(--tasty-space-md))", ...rtCaption, lineHeight: "var(--tasty-line-height-ui)", maxWidth: "var(--tasty-measure-sm)" }}>
           Point <span style={{ fontFamily: "var(--tasty-font-mono)" }}>Executable</span> at the remote <span style={{ fontFamily: "var(--tasty-font-mono)" }}>tasty</span> binary when it isn't on <span style={{ fontFamily: "var(--tasty-font-mono)" }}>PATH</span>. A <span style={{ fontFamily: "var(--tasty-font-mono)" }}>Port file</span> path takes precedence over the selected port mode.
         </p>
-        {error && <p style={{ margin: "var(--tasty-space-md) 0 0 calc(var(--tasty-remote-label-col) + var(--tasty-space-md))", fontSize: 11, color: "var(--tasty-accent-danger)" }}>{error}</p>}
+        {error && <p style={{ margin: "var(--tasty-space-md) 0 0 calc(var(--tasty-remote-label-col) + var(--tasty-space-md))", fontSize: 11, color: "var(--tasty-accent-danger-raised)" }}>{error}</p>}
       </div>
       <div style={rtFooter}>
         <Button variant="ghost" onClick={onCancel}>Cancel</Button>
@@ -548,7 +548,7 @@ function ConfirmDelete({ noun, name, hint, onConfirm, onCancel }) {
       </div>
       <div style={rtFooter}>
         <Button variant="ghost" onClick={onCancel}>Cancel</Button>
-        <Button variant="secondary" onClick={onConfirm} style={{ color: "var(--tasty-accent-danger)" }}>Delete</Button>
+        <Button variant="secondary" onClick={onConfirm} style={{ color: "var(--tasty-accent-danger-raised)" }}>Delete</Button>
       </div>
     </>
   );
@@ -607,7 +607,7 @@ function ProtocolFilter({ protocols, hidden, onApply }) {
             <div style={{ display: "flex", alignItems: "center", gap: "var(--tasty-space-sm)", padding: "var(--tasty-space-sm) var(--tasty-space-md)",
               borderTop: "var(--tasty-border-width) solid var(--tasty-separator)" }}>
               <button onClick={() => setDraft(new Set())} style={rtLinkBtn}>Select all</button>
-              <span style={{ color: "var(--tasty-separator)" }}>·</span>
+              <span data-ink-grade="none" data-ink-why="ornament" style={{ color: "var(--tasty-separator)" }}>·</span>
               <button onClick={() => setDraft(new Set(protocols))} style={rtLinkBtn}>Deselect all</button>
             </div>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "var(--tasty-space-sm)",

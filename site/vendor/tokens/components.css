@@ -442,6 +442,7 @@
 
   /* HTML surface — script-blocked notice (inset banner) + tab marker */
   --tasty-html-script-banner-glyph:   var(--tasty-accent-info-raised); /* 2026-11-05 ground-ink rules */
+  --tasty-html-script-marker-fg-hover: var(--tasty-text-muted-raised); /* 2026-11-05 the marker on its hover wash */
   --tasty-html-script-marker-fg:      var(--tasty-glyph-dim);         /* tab-strip lock after dismiss (blocked, notice hidden) */
   --tasty-html-script-marker-allowed-fg: var(--tasty-text-muted);     /* tab-strip script glyph while allowed this session */
   --tasty-html-script-marker-size:    var(--tasty-icon-size-xs);      /* 12 — sits inside the 24px tab strip */
@@ -449,6 +450,7 @@
   --tasty-html-script-marker-hover-bg: var(--tasty-overlay-hover);    /* lock only; scriptFile has no hover fill */
   /* HTML surface — remote-content-blocked notice (inset banner) + address-field marker — 2026-11-01 */
   --tasty-html-remote-banner-glyph:   var(--tasty-accent-info-raised); /* 2026-11-05 ground-ink rules */
+  --tasty-html-remote-marker-fg-hover: var(--tasty-text-muted-raised); /* 2026-11-05 the marker on its hover wash */
   --tasty-html-remote-marker-fg:      var(--tasty-glyph-dim-raised); /* 2026-11-05 ground-ink rules */
   --tasty-html-remote-marker-allowed-fg: var(--tasty-text-muted);     /* globe in the address field while allowed for this document */
   --tasty-html-remote-marker-size:    var(--tasty-icon-size-sm);      /* 14 — same as the field's leading kind glyph */
@@ -616,7 +618,7 @@
   --tasty-move-source-chip-glyph-size: var(--tasty-size-8);
 
   /* Auto-attach refused — rail avatar corner chip (top-left) · 2026-10-07 batch 5 */
-  --tasty-attach-refusal-glyph:           var(--tasty-accent-warning-glyph); /* 2026-11-05 ground-ink rules */
+  --tasty-attach-refusal-glyph:           var(--tasty-accent-warning-raised); /* 2026-11-05 ground-ink rules */
   --tasty-attach-refusal-chip-size:       var(--tasty-move-source-chip-size);       /* 12 */
   --tasty-attach-refusal-chip-glyph-size: var(--tasty-move-source-chip-glyph-size); /* 8 */
 
@@ -1185,7 +1187,7 @@
   --tasty-dag-node-hover-bg:         var(--tasty-overlay-hover);
   --tasty-dag-node-selected-ring:    var(--tasty-accent-primary);
   --tasty-dag-node-selected-ring-width: var(--tasty-focus-ring-width); /* 2 */
-  --tasty-dag-node-dim-opacity:      var(--tasty-opacity-dimmed);      /* skipped / cancelled node — 0.75, still 4.5:1 */
+  --tasty-dag-node-dim-opacity:      var(--tasty-node-dim-opacity);      /* skipped / cancelled node — 0.75 Mocha, 1 Latte */
 
   /* Task status — the 8 execution states. Colour is ONE of two channels; the
      glyph (◦ ❯ ◑ ✓ ✗ − ⊘ ?) + the spelled label carry the same information, so
@@ -1359,7 +1361,7 @@
   --tasty-image-zoom-min-width:        var(--tasty-size-40);
   --tasty-explorer-min-height:         var(--tasty-size-180);      /* split-drag stops here (2026-10-08, was 160): internal tabs 28 + toolbar 44 + Detail header 28 + 2 rows 56 + status line 24 */
   --tasty-explorer-favorites-hide-below: var(--tasty-size-240);    /* body height under which Favorites hides (Files only): fav floor 120 + Files 120 */
-  --tasty-explorer-error-fg:           var(--tasty-accent-danger); /* folder read error glyph */
+  --tasty-explorer-error-fg:           var(--tasty-accent-danger-raised); /* folder read error glyph */
   --tasty-dag-edge-binding:            var(--tasty-accent-data);   /* input binding — data handed downstream */
   --tasty-dag-edge-dash-binding:       8 2 2 2;                    /* @kind other */ /* dash-dot — apart from reduce 2 3 / fallback 6 3 */
   --tasty-dag-edge-transition:         var(--tasty-accent-route-raised); /* 2026-11-05 ground-ink rules */
@@ -1393,7 +1395,7 @@
   --tasty-kb-plugin-draft-dot:      var(--tasty-accent-primary-raised); /* 2026-11-05 ground-ink rules */
   --tasty-kb-plugin-draft-dot-size: var(--tasty-status-dot-size-compact); /* 6 */
   /* 2026-10-09 (batch 9) — attach size sync · split sibling · image load failed · settings row gap · explorer file operations */
-  --tasty-attach-sync-glyph: var(--tasty-accent-warning-glyph); /* 2026-11-05 ground-ink rules */
+  --tasty-attach-sync-glyph: var(--tasty-accent-warning-raised); /* 2026-11-05 ground-ink rules */
   --tasty-attach-sync-name-max-width: var(--tasty-size-160); /* one surface name in the banner body ellipsises here; fixed copy never cut */
   --tasty-split-sibling-min-height: var(--tasty-size-56); /* a new split never leaves a non-explorer sibling under this (tab strip 28 + one 28 row); else refused */
   --tasty-image-error-fg: var(--tasty-accent-danger-raised); /* 2026-11-05 ground-ink rules */
@@ -1402,9 +1404,9 @@
   --tasty-explorer-name-error-fg: var(--tasty-accent-danger-raised); /* 2026-11-05 ground-ink rules */
   --tasty-explorer-drop-target-border: var(--tasty-accent-primary); /* 1px inset ring on the folder row / cell / tree node / list body under a drag */
   --tasty-explorer-drop-target-bg: color-mix(in srgb, var(--tasty-accent-primary) calc(var(--tasty-tint-fill-alpha) * 100%), transparent); /* drop target fill */
-  --tasty-explorer-drag-move-fg: var(--tasty-accent-primary); /* drag chip badge — move */
+  --tasty-explorer-drag-move-fg: var(--tasty-accent-primary-raised); /* drag chip badge — move */
   --tasty-explorer-drag-copy-fg: var(--tasty-accent-success-raised); /* 2026-11-05 ground-ink rules */
-  --tasty-explorer-drag-refused-fg: var(--tasty-accent-danger); /* drag chip badge — refused */
+  --tasty-explorer-drag-refused-fg: var(--tasty-accent-danger-raised); /* drag chip badge — refused */
   --tasty-explorer-drag-chip-max-width: var(--tasty-size-240); /* drag chip next to the pointer */
   --tasty-explorer-progress-height: var(--tasty-size-2); /* progress bar on the status line top edge */
   --tasty-explorer-progress-track: var(--tasty-surface-raised); /* progress track */
@@ -1453,7 +1455,7 @@
   --tasty-explorer-create-indent: var(--tasty-space-lg); /* create-in-folder input row indent under the target folder row (16) */
   --tasty-kb-record-border: var(--tasty-border-control); /* 2026-11-05 ground-ink rules */
   --tasty-kb-record-border-hover: var(--tasty-border-control-raised); /* 2026-11-05 ground-ink rules */
-  --tasty-kb-record-empty-fg: var(--tasty-text-muted); /* “None” slot label on a shortcut row with no binding */
+  --tasty-kb-record-empty-fg: var(--tasty-text-muted-raised); /* “None” slot label on a shortcut row with no binding */
   --tasty-ui-code-font: var(--tasty-font-mono); /* CLI command / option run inside UI copy (size = the sentence size) */
   --tasty-ui-code-bg: var(--tasty-surface-raised); /* CLI run fill inside UI copy */
   --tasty-ui-code-fg: var(--tasty-text-primary); /* CLI run ink inside UI copy */
@@ -1479,7 +1481,7 @@
   --tasty-kb-os-reserved-fg: var(--tasty-accent-warning-raised); /* 2026-11-05 ground-ink rules */
   /* 2026-10-19 — plugin trust box (unverified warning) · notice column · restore / save-halt notice · pending indicator */
   --tasty-plugin-trust-title-fg: var(--tasty-text-primary); /* trust box title ink (all kinds except trusted) — tone moves to the glyph only */
-  --tasty-plugin-trust-body-fg: var(--tasty-text-secondary); /* trust box cause + risk paragraphs */
+  --tasty-plugin-trust-body-fg: var(--tasty-text-secondary-raised); /* trust box cause + risk paragraphs */
   --tasty-plugin-trust-glyph-danger: var(--tasty-accent-danger); /* unverified (unknown key · missing .pub · unsigned · signature error) glyph */
   --tasty-plugin-trust-glyph-warning: var(--tasty-accent-warning-glyph); /* permissions-changed glyph */
   --tasty-plugin-trust-glyph-success: var(--tasty-accent-success-ink); /* trusted glyph — 2026-10-27: was accent-success (Latte 2.45:1); Mocha identical */

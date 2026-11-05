@@ -243,7 +243,7 @@ export function AutoComplete({
                 const n = norm(it);
                 const rowCls = "tasty-ac__row" + (i === active ? " tasty-ac__row--active" : "");
                 const forcedHover = i === hoverIndex && i !== active
-                  ? { background: "var(--tasty-autocomplete-row-bg-hover)" } : undefined;
+                  ? { background: "var(--tasty-autocomplete-row-bg-hover)", color: "var(--tasty-autocomplete-row-fg-active)" } : undefined;
                 return (
                   <div key={n.value + i} className={rowCls} role="option" aria-selected={i === active}
                     style={forcedHover} onMouseDown={(e) => { e.preventDefault(); commit(it); }}>

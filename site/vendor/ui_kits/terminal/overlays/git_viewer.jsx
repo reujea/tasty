@@ -197,7 +197,7 @@ function GitViewer({ onClose, onFlash, repo }) {
         background: "var(--tasty-bg-sidebar)", borderBottom: "var(--tasty-border-width) solid var(--tasty-separator)" }}>
         <span style={{ display: "inline-flex", color: "var(--tasty-text-muted)" }}><Icon name={GV.tree} size={13} /></span>
         <span style={{ ...gvMono, color: "var(--tasty-text-primary)" }}>{ctxName}</span>
-        <span style={{ color: "var(--tasty-text-disabled)" }}>·</span>
+        <span data-ink-grade="none" data-ink-why="ornament" style={{ color: "var(--tasty-text-disabled)" }}>·</span>
         <span style={{ ...gvMono, color: "var(--tasty-text-secondary)" }}>{ctxBranch}</span>
         {ctxOid && <GBadge tone="info">{ctxOid}</GBadge>}
         <div style={{ flex: 1 }} />

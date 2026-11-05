@@ -40,13 +40,13 @@ import { Section, Spec, Stage, Meta, Note, Do, Dont } from "../parts/specimen.js
 
   // ── surface-kind registry (display_name + accent) ─────────
   const KINDS = {
-    terminal: { label: "Terminal", icon: I.term, accent: "var(--tasty-accent-success)" },
-    markdown: { label: "Markdown", icon: I.md, accent: "var(--tasty-accent-primary)" },
-    editor: { label: "Editor", icon: I.editor, accent: "var(--tasty-accent-agent)" },
-    log: { label: "Log", icon: I.log, accent: "var(--tasty-accent-warning)" },
-    image: { label: "Image", icon: I.image, accent: "var(--tasty-accent-info)" },
+    terminal: { label: "Terminal", icon: I.term, accent: "var(--tasty-accent-success-raised)" },
+    markdown: { label: "Markdown", icon: I.md, accent: "var(--tasty-accent-primary-raised)" },
+    editor: { label: "Editor", icon: I.editor, accent: "var(--tasty-accent-agent-raised)" },
+    log: { label: "Log", icon: I.log, accent: "var(--tasty-accent-warning-raised)" },
+    image: { label: "Image", icon: I.image, accent: "var(--tasty-accent-info-raised)" },
     html: { label: "HTML", icon: I.html, accent: "var(--tasty-accent-attached)" },
-    "plugin:portscan": { label: "Port scanner", icon: I.port, accent: "var(--tasty-accent-attention)" }, // a plugin kind — N fields, labels from the plugin
+    "plugin:portscan": { label: "Port scanner", icon: I.port, accent: "var(--tasty-accent-attention-raised)" }, // a plugin kind — N fields, labels from the plugin
   };
   const KIND_KEYS = Object.keys(KINDS);
   const kindOf = (k) => KINDS[k] || KINDS.terminal;
@@ -314,7 +314,7 @@ import { Section, Spec, Stage, Meta, Note, Do, Dont } from "../parts/specimen.js
       <button title={title} onClick={onClick} style={{
         appearance: "none", cursor: "pointer", width: 18, height: 18, display: "inline-flex", alignItems: "center", justifyContent: "center",
         padding: 0, borderRadius: "var(--tasty-radius-sm)", border: "1px solid var(--tasty-border-strong)",
-        background: "var(--tasty-surface-raised)", color: danger ? "var(--tasty-accent-danger)" : "var(--tasty-text-secondary)",
+        background: "var(--tasty-surface-raised)", color: danger ? "var(--tasty-accent-danger-raised)" : "var(--tasty-text-secondary)",
       }}>
         <span style={{ display: "inline-flex", transform: "scale(.62)" }}>{children}</span>
       </button>
@@ -718,7 +718,7 @@ import { Section, Spec, Stage, Meta, Note, Do, Dont } from "../parts/specimen.js
               {edit ? (
                 <>
                   <span style={{ display: "inline-flex", alignItems: "center", gap: "var(--tasty-space-xs)", fontSize: 11, color: "var(--tasty-text-muted)", marginRight: 4 }}>
-                    <span style={{ display: "inline-flex", color: "var(--tasty-accent-success)", transform: "scale(.8)" }}>{I.check}</span> saved automatically
+                    <span style={{ display: "inline-flex", color: "var(--tasty-accent-success-raised)", transform: "scale(.8)" }}>{I.check}</span> saved automatically
                   </span>
                   <Button size="sm" variant="primary" leadingIcon={I.check} onClick={() => { setEdit(false); setSel(null); }}>Done</Button>
                 </>
@@ -770,7 +770,7 @@ import { Section, Spec, Stage, Meta, Note, Do, Dont } from "../parts/specimen.js
           <Stage variant="solo center" style={{ padding: 20, background: "var(--tasty-bg-app)" }}><PresetWindow /></Stage>
           <Meta
             specs={[["frame", "up to 680 × 452 (adaptive)"], ["L1 tabs", "40px, accent underline"], ["list", "196px, fill + 2px bar"], ["toolbar", "44px, Edit on the right"], ["preview", "flex, on --tasty-bg-app"]]}
-            tokens={[{ tok: "--tasty-bg-sidebar", use: "L1 + list", color: "var(--tasty-bg-sidebar)" }, { tok: "--tasty-bg-panel", use: "detail", color: "var(--tasty-bg-panel)" }, { tok: "--tasty-surface-active", use: "selected preset", color: "var(--tasty-surface-active)" }, { tok: "--tasty-accent-primary", use: "active tab / select bar", color: "var(--tasty-accent-primary)" }]} />
+            tokens={[{ tok: "--tasty-bg-sidebar", use: "L1 + list", color: "var(--tasty-bg-sidebar)" }, { tok: "--tasty-bg-panel", use: "detail", color: "var(--tasty-bg-panel)" }, { tok: "--tasty-surface-active", use: "selected preset", color: "var(--tasty-surface-active)" }, { tok: "--tasty-accent-primary", use: "active tab / select bar", color: "var(--tasty-accent-primary-raised)" }]} />
           <Note>This is the <b>2-depth idiom</b> (L1 fixed scope tabs → growable L2 list → detail), reused from Settings — not a new shell. The detail column has two fillings: the demo-layout preview (below) and, while a surface is being configured, the <b>surface settings screen</b> (last spec). Try <b>six</b> › Edit › select a small cell › gear.</Note>
         </Spec>
 
@@ -806,7 +806,7 @@ import { Section, Spec, Stage, Meta, Note, Do, Dont } from "../parts/specimen.js
           </Stage>
           <Meta
             specs={[["split", "hover 30% edge band → click"], ["selected", "2px accent inset + gear · remove handles"], ["settings", "gear or double-click → settings screen"], ["tabs", "trailing + add · hover/active × close"], ["last tab", "close × hidden (guard)"], ["persistence", "structure auto-saves · parameters via OK"]]}
-            tokens={[{ tok: "--tasty-preset-split-zone-bg", use: "edge split band", color: "var(--tasty-accent-primary)" }, { tok: "--tasty-preset-split-zone-border", use: "split line", color: "var(--tasty-accent-primary)" }, { tok: "--tasty-accent-primary", use: "selection outline", color: "var(--tasty-accent-primary)" }, { tok: "--tasty-accent-danger", use: "remove handle", color: "var(--tasty-accent-danger)" }]} />
+            tokens={[{ tok: "--tasty-preset-split-zone-bg", use: "edge split band", color: "var(--tasty-accent-primary-raised)" }, { tok: "--tasty-preset-split-zone-border", use: "split line", color: "var(--tasty-accent-primary-raised)" }, { tok: "--tasty-accent-primary", use: "selection outline", color: "var(--tasty-accent-primary-raised)" }, { tok: "--tasty-accent-danger", use: "remove handle", color: "var(--tasty-accent-danger-raised)" }]} />
           <Note>Split direction follows the edge: left/top add the new surface <i>before</i> (left / above), right/bottom <i>after</i>. Below <b>~46px</b> on an axis that axis's bands drop out (degrade) so tiny leaves stay selectable. Every leaf — selected or not — keeps its kind + <b>field-value summary</b>; nothing is ever drawn <i>inside</i> a cell that could clip. Empty-list scope shows <span className="ic">"No presets saved yet."</span> in the left list.</Note>
         </Spec>
 
@@ -828,7 +828,7 @@ import { Section, Spec, Stage, Meta, Note, Do, Dont } from "../parts/specimen.js
           </Stage>
           <Meta
             specs={[["boxes", "header / scroll body / fixed footer"], ["header", "44px — same as the toolbar it replaces"], ["body", "16px padding · 12px field gap · max 460"], ["footer", "52px fixed · 0 14px · Cancel ghost + OK primary"], ["OK", "disabled until draft ≠ saved"], ["keys", "Esc = Cancel · Enter in an input = OK"], ["structure keys", "inert while open (preview hidden)"], ["after OK/Cancel", "back to preview, leaf stays selected"]]}
-            tokens={[{ tok: "--tasty-preset-cfg-header-height", use: "header (44)" }, { tok: "--tasty-preset-cfg-footer-height", use: "footer (52)" }, { tok: "--tasty-preset-cfg-form-max-width", use: "form column cap (460)" }, { tok: "--tasty-preset-cfg-draft-fg", use: "unsaved dot", color: "var(--tasty-accent-warning)" }, { tok: "--tasty-preset-cfg-dim-opacity", use: "list + scope while open" }, { tok: "--tasty-bg-panel", use: "screen fill", color: "var(--tasty-bg-panel)" }, { tok: "--tasty-separator", use: "header / footer rule", color: "var(--tasty-separator)" }]} />
+            tokens={[{ tok: "--tasty-preset-cfg-header-height", use: "header (44)" }, { tok: "--tasty-preset-cfg-footer-height", use: "footer (52)" }, { tok: "--tasty-preset-cfg-form-max-width", use: "form column cap (460)" }, { tok: "--tasty-preset-cfg-draft-fg", use: "unsaved dot", color: "var(--tasty-accent-warning-raised)" }, { tok: "--tasty-preset-cfg-dim-opacity", use: "list + scope while open" }, { tok: "--tasty-bg-panel", use: "screen fill", color: "var(--tasty-bg-panel)" }, { tok: "--tasty-separator", use: "header / footer rule", color: "var(--tasty-separator)" }]} />
           <Do><b>Do</b> keep the three boxes independent: only the body scrolls; header and footer never move, so Cancel / OK sit in the same place for a two-field terminal and a twenty-field plugin.</Do>
           <Dont><b>Don't</b> show “saved automatically” while the screen is open — it is not true for the draft. The toolbar is replaced wholesale (decision B) so the two save models never appear side by side; the header's <b>unsaved</b> dot is the only persistence cue on this screen.</Dont>
         </Spec>

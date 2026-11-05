@@ -56,15 +56,15 @@ const notificationItem = (state) => (
     ))}
   </>
 );
-const statusDots = () => (
+const statusDots = (state, host) => (
   <>
-    <StatusDot data-part="idle" status="idle" />
-    <StatusDot data-part="success" status="running" />
-    <StatusDot data-part="warning" status="waiting" />
-    <StatusDot data-part="danger" status="error" />
-    <StatusDot data-part="agent" status="agent" />
-    <StatusDot data-part="completion" status="completion" />
-    <StatusDot data-part="attached-ring" status="idle" attached />
+    <StatusDot data-part="idle" status="idle" ground={host} />
+    <StatusDot data-part="success" status="running" ground={host} />
+    <StatusDot data-part="warning" status="waiting" ground={host} />
+    <StatusDot data-part="danger" status="error" ground={host} />
+    <StatusDot data-part="agent" status="agent" ground={host} />
+    <StatusDot data-part="completion" status="completion" ground={host} />
+    <StatusDot data-part="attached-ring" status="idle" attached ground={host} />
   </>
 );
 const toasts = () => (
@@ -90,13 +90,13 @@ const CELLS = {
   "Badge.agent": chipHost("agent"),
   "Badge.success": chipHost("success"),
   "Badge.neutral": chipHost("neutral"),
-  Tag: (state) => (
+  Tag: (state, host) => (
     <>
-      <Tag data-part="label" disabled={state === "disabled"}>Tag</Tag>
+      <Tag data-part="label" ground={host} disabled={state === "disabled"}>Tag</Tag>
       {state === "rest" && ["success", "warning", "attention", "danger", "info", "attached"].map((v) => <Tag key={v} variant={v} data-part={"label." + v}>{v}</Tag>)}
     </>
   ),
-  Kbd: () => <Kbd keys={["Ctrl", "K"]} />,
+  Kbd: (state, host) => <Kbd keys={["Ctrl", "K"]} ground={host} />,
   Input: inputCell("panel"),
   "Input (on raised)": inputCell("raised"),
   "Select trigger": selectCell("panel"),
@@ -121,8 +121,8 @@ const CELLS = {
       activeIndex={state === "keyboard-active" ? 0 : -1} hoverIndex={state === "hover" ? 0 : null} />
   ),
   "SearchableSelect status row": () => <SearchableSelect open loading options={[]} />,
-  "Checkbox.off": (state) => <Checkbox aria-label="Off" {...off(state)} checked={false} onChange={noop} />,
-  "Checkbox.on": (state) => <Checkbox aria-label="On" {...off(state)} checked onChange={noop} />,
+  "Checkbox.off": (state, host) => <Checkbox aria-label="Off" ground={host} {...off(state)} checked={false} onChange={noop} />,
+  "Checkbox.on": (state, host) => <Checkbox aria-label="On" ground={host} {...off(state)} checked onChange={noop} />,
   "Switch.off": (state, host) => <Switch aria-label="Off" ground={host === "raised" ? "raised" : undefined} checked={false} onChange={noop} />,
   "Switch.off (on raised)": () => <Switch aria-label="Off" ground="raised" checked={false} onChange={noop} />,
   "Switch.on": (state, host) => <Switch aria-label="On" ground={host === "raised" ? "raised" : undefined} checked onChange={noop} />,
@@ -130,7 +130,7 @@ const CELLS = {
   "Tab.hover": tabParts({ "data-force": "hover" }),
   "Tab.active": tabParts({ active: true }),
   TreeRow: treeRow,
-  "ListCtrl row": (state) => <ListCtrl items={listItems(state)} selectedId={selected(state) ? "a" : null} onSelect={noop} />,
+  "ListCtrl row": (state) => <ListCtrl items={listItems(state)} selectedId={selected(state) ? "a" : null} activeId={state === "keyboard-active" ? "a" : null} onSelect={noop} />,
   "Table row": (state) => (
     <Table columns={[{ key: "a", header: "Name" }]} rows={[{ a: "Cell" }, { a: "Second" }]} rowKey="a" selectedKey={selected(state) ? "Cell" : null} onRowClick={noop} />
   ),

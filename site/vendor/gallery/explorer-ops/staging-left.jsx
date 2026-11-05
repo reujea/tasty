@@ -21,8 +21,8 @@ const stagingLine = (path, err, lang = "en") => [path, STAGING_COPY[lang].replac
 
 function StagingLeftSection() {
   const { YResult } = Y();
-  const copyPaths = <Button variant="ghost" size="sm">Copy paths</Button>;
-  const undo = <Button variant="ghost" size="sm">Undo</Button>;
+  const copyPaths = <Button variant="ghost" ground="raised" size="sm">Copy paths</Button>;
+  const undo = <Button variant="ghost" ground="raised" size="sm">Undo</Button>;
   return (
     <Section id="stagingleft" title="Temporary folder left behind">
       <Spec id="result-card-one-extra-line-kind-raised-to-at-least-warning" title="Result card — one extra line, kind raised to at least Warning"
@@ -47,8 +47,8 @@ function StagingLeftSection() {
           )} />
           <div style={{ display: "flex", flexDirection: "column", gap: "var(--tasty-space-sm)", width: "var(--tasty-toast-max-width)" }}>
             <span style={{ fontSize: "var(--tasty-font-size-caption)", color: "var(--tasty-text-secondary)" }}>ko · ja reason line</span>
-            <YResult variant="warning" title="문서로 항목 2개를 복사했습니다" lines={[stagingLine("~/Documents/.tasty-copy-AbC123", "Permission denied", "ko")]} actions={<><Button variant="ghost" size="sm">실행 취소</Button><Button variant="ghost" size="sm">경로 복사</Button></>} />
-            <YResult variant="warning" title="2 項目を書類にコピーしました" lines={[stagingLine("~/Documents/.tasty-copy-AbC123", "Permission denied", "ja")]} actions={<><Button variant="ghost" size="sm">元に戻す</Button><Button variant="ghost" size="sm">パスをコピー</Button></>} />
+            <YResult variant="warning" title="문서로 항목 2개를 복사했습니다" lines={[stagingLine("~/Documents/.tasty-copy-AbC123", "Permission denied", "ko")]} actions={<><Button variant="ghost" ground="raised" size="sm">실행 취소</Button><Button variant="ghost" ground="raised" size="sm">경로 복사</Button></>} />
+            <YResult variant="warning" title="2 項目を書類にコピーしました" lines={[stagingLine("~/Documents/.tasty-copy-AbC123", "Permission denied", "ja")]} actions={<><Button variant="ghost" ground="raised" size="sm">元に戻す</Button><Button variant="ghost" ground="raised" size="sm">パスをコピー</Button></>} />
           </div>
         </Stage>
         <Meta

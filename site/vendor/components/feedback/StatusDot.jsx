@@ -26,6 +26,16 @@ const CSS = `
 .tasty-statusdot--needs-input .tasty-statusdot__dot { background: var(--tasty-status-dot-needs-input); }
 .tasty-statusdot--completion  .tasty-statusdot__dot { background: var(--tasty-status-dot-completion); }
 .tasty-statusdot--attached .tasty-statusdot__dot { outline: var(--tasty-status-dot-attached-ring-width) solid var(--tasty-status-dot-attached-ring); outline-offset: var(--tasty-status-dot-attached-ring-offset); }
+.tasty-statusdot[data-ground="raised"].tasty-statusdot--idle .tasty-statusdot__dot { background: var(--tasty-glyph-dim-raised); }
+.tasty-statusdot[data-ground="raised"].tasty-statusdot--waiting .tasty-statusdot__dot { background: var(--tasty-accent-warning-raised); }
+.tasty-statusdot[data-ground="active"].tasty-statusdot--idle .tasty-statusdot__dot { background: var(--tasty-status-dot-idle-active); }
+.tasty-statusdot[data-ground="active"].tasty-statusdot--running .tasty-statusdot__dot { background: var(--tasty-status-dot-success-active); }
+.tasty-statusdot[data-ground="active"].tasty-statusdot--waiting .tasty-statusdot__dot { background: var(--tasty-status-dot-warning-active); }
+.tasty-statusdot[data-ground="active"].tasty-statusdot--error .tasty-statusdot__dot { background: var(--tasty-status-dot-danger-active); }
+.tasty-statusdot[data-ground="active"].tasty-statusdot--agent .tasty-statusdot__dot { background: var(--tasty-status-dot-agent-active); }
+.tasty-statusdot[data-ground="active"].tasty-statusdot--needs-input .tasty-statusdot__dot { background: var(--tasty-status-dot-needs-input-active); }
+.tasty-statusdot[data-ground="active"].tasty-statusdot--completion .tasty-statusdot__dot { background: var(--tasty-status-dot-completion-active); }
+.tasty-statusdot[data-ground="active"].tasty-statusdot--attached .tasty-statusdot__dot { outline-color: var(--tasty-status-dot-attached-ring-active); }
 .tasty-statusdot--pulse .tasty-statusdot__dot::after {
   content: ""; position: absolute; inset: calc(-1 * var(--tasty-size-3)); border-radius: var(--tasty-radius-pill);
   background: inherit; opacity: 0.4; animation: tasty-pulse var(--tasty-status-dot-pulse-duration) ease-out infinite;
@@ -44,7 +54,7 @@ function ensureCss() {
   injected = true;
 }
 
-export function StatusDot({ status = "idle", pulse = false, attached = false, label = null, className = "", ...rest }) {
+export function StatusDot({ status = "idle", pulse = false, attached = false, label = null, ground, className = "", ...rest }) {
   ensureCss();
   const cls = [
     "tasty-statusdot",
@@ -54,7 +64,7 @@ export function StatusDot({ status = "idle", pulse = false, attached = false, la
     className,
   ].filter(Boolean).join(" ");
   return (
-    <span className={cls} {...rest}>
+    <span className={cls} data-ground={ground} {...rest}>
       <span className="tasty-statusdot__dot" />
       {label != null && <span>{label}</span>}
     </span>

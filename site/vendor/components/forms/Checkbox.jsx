@@ -22,11 +22,16 @@ const CSS = `
 .tasty-check input:checked + .tasty-check__box { background: var(--tasty-accent-primary); border-color: var(--tasty-accent-primary); }
 .tasty-check input:checked + .tasty-check__box svg { opacity: 1; }
 .tasty-check input:focus-visible + .tasty-check__box { outline: var(--tasty-focus-ring-width) solid var(--tasty-border-focus); outline-offset: 1px; }
+.tasty-check[data-ground="raised"] .tasty-check__box { border-color: var(--tasty-border-control-raised); }
+.tasty-check[data-ground="active"] .tasty-check__box { border-color: var(--tasty-text-on-active); }
+.tasty-check[data-ground="active"] input:focus-visible + .tasty-check__box { outline-color: var(--tasty-accent-primary-raised); }
 .tasty-check__label { font-size: var(--tasty-font-size-body); color: var(--tasty-text-primary); }
 .tasty-check[data-disabled="true"] { cursor: default; pointer-events: none; }
 .tasty-check[data-disabled="true"] input + .tasty-check__box,
 .tasty-check[data-disabled="true"] input:checked + .tasty-check__box { background: var(--tasty-state-disabled-fill); border-color: var(--tasty-state-disabled-border); color: var(--tasty-state-disabled-fg); }
 .tasty-check[data-disabled="true"] .tasty-check__label { color: var(--tasty-state-disabled-fg); }
+.tasty-check[data-disabled="true"][data-ground="raised"] input + .tasty-check__box { border-color: var(--tasty-border-strong); }
+.tasty-check[data-disabled="true"][data-ground="active"] input + .tasty-check__box { border-color: var(--tasty-border-frame); }
 `;
 
 let injected = false;
@@ -39,10 +44,10 @@ function ensureCss() {
   injected = true;
 }
 
-export function Checkbox({ label, checked, defaultChecked, disabled = false, className = "", ...rest }) {
+export function Checkbox({ label, checked, defaultChecked, disabled = false, ground, className = "", ...rest }) {
   ensureCss();
   return (
-    <label className={["tasty-check", className].filter(Boolean).join(" ")} data-disabled={disabled}>
+    <label className={["tasty-check", className].filter(Boolean).join(" ")} data-disabled={disabled} data-ground={ground} aria-disabled={disabled || undefined}>
       <input type="checkbox" checked={checked} defaultChecked={defaultChecked} disabled={disabled} {...rest} />
       <span className="tasty-check__box">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">

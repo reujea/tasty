@@ -51,7 +51,7 @@ export const PART_MAP = {
   },
   "AutoComplete row": { label: { sel: ".tasty-ac__row-label" }, match: { sel: ".tasty-ac__mark" }, icon: { sel: ".tasty-ac__row-icon", prop: "svg" } },
   "MultiSelect row": { label: { sel: ".tasty-mselect__row .tasty-check__label" }, bulk: { sel: ".tasty-mselect__all" } },
-  "SearchableSelect status row": { status: { sel: ".tasty-sselect__status" } },
+  "SearchableSelect status row": { status: { sel: ".tasty-sselect__status", prop: "color" } },
   "Checkbox.off": check, "Checkbox.on": check,
   "Switch.off": sw, "Switch.off (on raised)": sw, "Switch.on": sw,
   "Tab.inactive": tab, "Tab.hover": tab, "Tab.active": tab,

@@ -40,7 +40,7 @@ function PfNumField({ value, unit, unlimited, disabled, note, invalid }) {
         <span data-number-field style={{ display: "inline-flex", flex: "none", maxWidth: "100%", fontFamily: "var(--tasty-font-mono)", fontSize: "var(--tasty-font-size-caption)", width: "max(var(--tasty-number-field-min-width), calc(" + n + "ch + 2 * var(--tasty-input-padding-x) + 2 * var(--tasty-border-width)))" }}>
           <PfInput block mono value={value} onChange={() => {}} disabled={disabled} invalid={invalid} />
         </span>
-        <span style={{ fontFamily: value === "-1" ? "var(--tasty-font-ui)" : "var(--tasty-font-mono)", fontSize: "var(--tasty-font-size-caption)", color: ink, whiteSpace: "nowrap" }}>{value === "-1" ? unlimited : unit}</span>
+        <span data-ink-grade={disabled ? "none" : undefined} data-ink-why={disabled ? "disabled" : undefined} style={{ fontFamily: value === "-1" ? "var(--tasty-font-ui)" : "var(--tasty-font-mono)", fontSize: "var(--tasty-font-size-caption)", color: ink, whiteSpace: "nowrap" }}>{value === "-1" ? unlimited : unit}</span>
       </span>
       {note && <span style={{ fontSize: "var(--tasty-font-size-caption)", lineHeight: "var(--tasty-line-height-ui)", color: "var(--tasty-number-field-note-fg)", maxWidth: "var(--tasty-measure-md)" }}>{note}</span>}
     </span>

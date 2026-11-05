@@ -377,7 +377,7 @@ function AttentionPanel({ items, onFlash, onConfigure }) {
       <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center",
         justifyContent: "center", gap: 12, color: "var(--tasty-text-muted)", padding: 24 }}>
         <span style={{ display: "inline-flex", width: 46, height: 46, borderRadius: "var(--tasty-radius)",
-          alignItems: "center", justifyContent: "center", color: "var(--tasty-accent-success)",
+          alignItems: "center", justifyContent: "center", color: "var(--tasty-accent-success-raised)",
           background: "color-mix(in srgb, var(--tasty-accent-success) 12%, transparent)",
           border: "var(--tasty-border-width) solid color-mix(in srgb, var(--tasty-accent-success) 30%, transparent)" }}>
           <Icon name="shieldCheck" size={20} />
@@ -468,7 +468,7 @@ function AttentionPanel({ items, onFlash, onConfigure }) {
                 {(sel.detail.added || []).map((p) => (
                   <div key={p} style={{ display: "flex", alignItems: "center", gap: 8,
                     fontFamily: "var(--tasty-font-mono)", fontSize: 12 }}>
-                    <span style={{ color: "var(--tasty-accent-success)", fontWeight: 700, width: 10 }}>+</span>
+                    <span style={{ color: "var(--tasty-accent-success-raised)", fontWeight: 700, width: 10 }}>+</span>
                     <span style={{ color: "var(--tasty-text-secondary)" }}>{p}</span>
                     <span style={{ fontSize: 11, color: "var(--tasty-text-muted)" }}>newly requested</span>
                   </div>
@@ -502,7 +502,7 @@ function AttentionPanel({ items, onFlash, onConfigure }) {
               <Mono>Error</Mono>
               <pre style={{ margin: 0, background: "var(--tasty-bg-app)", border: "var(--tasty-border-width) solid var(--tasty-separator)",
                 borderRadius: "var(--tasty-radius)", padding: "var(--tasty-space-md) var(--tasty-space-md)", fontFamily: "var(--tasty-font-mono)",
-                fontSize: 12, lineHeight: "var(--tasty-line-height-ui)", color: "var(--tasty-accent-danger)", whiteSpace: "pre-wrap" }}>{sel.detail.error}</pre>
+                fontSize: 12, lineHeight: "var(--tasty-line-height-ui)", color: "var(--tasty-accent-danger-raised)", whiteSpace: "pre-wrap" }}>{sel.detail.error}</pre>
             </div>
           )}
         </div>
@@ -641,7 +641,7 @@ function PluginsWindow({ onClose, onFlash, onConfigure }) {
 
           {sel.status === "error" && isInstalled && isOn && (
             <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "var(--tasty-space-sm) var(--tasty-space-md)",
-              borderRadius: "var(--tasty-radius)", fontSize: "var(--tasty-font-size-term-sm)", color: "var(--tasty-accent-danger)",
+              borderRadius: "var(--tasty-radius)", fontSize: "var(--tasty-font-size-term-sm)", color: "var(--tasty-accent-danger-raised)",
               background: "color-mix(in srgb, var(--tasty-accent-danger) 12%, transparent)",
               border: "var(--tasty-border-width) solid color-mix(in srgb, var(--tasty-accent-danger) 35%, transparent)" }}>
               <Icon name="alertCircle" size={16} />
@@ -700,7 +700,7 @@ function PluginsWindow({ onClose, onFlash, onConfigure }) {
           {isInstalled && confirmId === sel.id && (
             <>
               {/* 2026-10-09 — uninstall confirm REPLACES the bar contents in place. b10: the bar grows with its text (max(text, control 28) + space-md × 2); the note may wrap. */}
-              <span style={{ display: "inline-flex", flex: "none", color: "var(--tasty-accent-attention)" }}><Icon name="alertTriangle" size={16} /></span>
+              <span style={{ display: "inline-flex", flex: "none", color: "var(--tasty-accent-attention-raised)" }}><Icon name="alertTriangle" size={16} /></span>
               <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column" }}>
                 <span style={{ fontSize: "var(--tasty-font-size-body)", color: "var(--tasty-text-primary)" }}>Uninstall {sel.name}?</span>
                 <span style={{ fontSize: "var(--tasty-font-size-caption)", color: "var(--tasty-text-muted)" }}>

@@ -87,7 +87,8 @@ const CSS = `
   font-size: var(--tasty-multiselect-font-size);
   transition: background var(--tasty-motion-ui-fast) var(--tasty-ease-ui);
 }
-.tasty-mselect__row:hover { background: var(--tasty-multiselect-row-bg-hover); }
+.tasty-mselect__row:hover, .tasty-mselect__row[data-hover="true"] { background: var(--tasty-multiselect-row-bg-hover); }
+.tasty-mselect__row:hover .tasty-check__label, .tasty-mselect__row[data-hover="true"] .tasty-check__label { color: var(--tasty-text-on-active); }
 .tasty-mselect__row[data-active="true"] { background: var(--tasty-multiselect-row-bg-active); color: var(--tasty-multiselect-row-fg-active); }
 .tasty-mselect__row .tasty-check { flex: 1; min-width: 0; height: 100%; }
 .tasty-mselect__row .tasty-check__label {
@@ -246,7 +247,7 @@ export function MultiSelect({
                 role="option"
                 aria-selected={selected.includes(o.value)}
                 data-active={i === active ? "true" : undefined}
-                style={i === hoverIndex ? { background: "var(--tasty-multiselect-row-bg-hover)" } : undefined}
+                data-hover={i === hoverIndex ? "true" : undefined}
               >
                 <Checkbox
                   label={<span title={o.label}>{o.label}</span>}

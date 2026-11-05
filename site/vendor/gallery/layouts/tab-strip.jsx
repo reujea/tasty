@@ -25,7 +25,7 @@ function Marker({ kind, hover }) {
       style={{ flex: "none", width: "var(--tasty-html-script-marker-hit)", height: "var(--tasty-html-script-marker-hit)", display: "inline-flex", alignItems: "center", justifyContent: "center",
         borderRadius: "var(--tasty-radius-sm)", cursor: lock ? "pointer" : "default",
         background: lock && hover ? "var(--tasty-html-script-marker-hover-bg)" : "transparent",
-        color: lock ? "var(--tasty-html-script-marker-fg)" : "var(--tasty-html-script-marker-allowed-fg)" }}>
+        color: lock ? (hover ? "var(--tasty-html-script-marker-fg-hover)" : "var(--tasty-html-script-marker-fg)") : "var(--tasty-html-script-marker-allowed-fg)" }}>
       <Icon name={lock ? "lock" : "scriptFile"} size="var(--tasty-html-script-marker-size)" />
     </span>
   );

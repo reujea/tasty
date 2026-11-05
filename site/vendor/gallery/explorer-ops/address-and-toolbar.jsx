@@ -20,7 +20,7 @@ const QROWS = [
   { glyph: QK.ic.folder, name: "Documents", size: "—", date: "2026-10-02 10:14", type: "Folder" },
   { glyph: QK.ic.folder, name: "mockup-exports", size: "—", date: "2026-06-20 14:30", type: "Folder" },
   { glyph: QK.ic.file, name: "report.pdf", size: "2.4 MB", date: "2026-06-24 09:12", type: "PDF document" },
-  { glyph: QK.ic.image, name: "diagram.png", size: "488 KB", date: "2026-06-26 18:05", type: "PNG image", glyphColor: "var(--tasty-accent-info)" },
+  { glyph: QK.ic.image, name: "diagram.png", size: "488 KB", date: "2026-06-26 18:05", type: "PNG image", glyphColor: "var(--tasty-accent-info-raised)" },
   { glyph: QK.ic.file, name: "notes.md", size: "12 KB", date: "2026-06-27 11:40", type: "Markdown" },
 ];
 function QBody({ children }) {

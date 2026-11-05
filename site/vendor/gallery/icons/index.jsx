@@ -180,9 +180,9 @@ function Icons() {
               <span className="lbl">inherits currentColor</span>
               <div className="row" style={{ gap: 18 }}>
                 <span style={{ color: "var(--tasty-text-muted)", display: "inline-flex" }}><Icon name="refresh" size={18} /></span>
-                <span style={{ color: "var(--tasty-accent-warning)", display: "inline-flex" }}><Icon name="alertTriangle" size={18} /></span>
-                <span style={{ color: "var(--tasty-accent-success)", display: "inline-flex" }}><Icon name="shieldCheck" size={18} /></span>
-                <span style={{ color: "var(--tasty-accent-danger)", display: "inline-flex" }}><Icon name="alertCircle" size={18} /></span>
+                <span style={{ color: "var(--tasty-accent-warning-raised)", display: "inline-flex" }}><Icon name="alertTriangle" size={18} /></span>
+                <span style={{ color: "var(--tasty-accent-success-raised)", display: "inline-flex" }}><Icon name="shieldCheck" size={18} /></span>
+                <span style={{ color: "var(--tasty-accent-danger-raised)", display: "inline-flex" }}><Icon name="alertCircle" size={18} /></span>
               </div>
             </div>
             <div className="cluster">
@@ -206,9 +206,9 @@ function Icons() {
             ]}
             tokens={[
               { tok: "--tasty-text-muted", use: "rest glyph", color: "var(--tasty-text-muted)" },
-              { tok: "--tasty-accent-warning", use: "warn tint", color: "var(--tasty-accent-warning)" },
-              { tok: "--tasty-accent-success", use: "ok tint", color: "var(--tasty-accent-success)" },
-              { tok: "--tasty-accent-danger", use: "error tint", color: "var(--tasty-accent-danger)" },
+              { tok: "--tasty-accent-warning", use: "warn tint", color: "var(--tasty-accent-warning-raised)" },
+              { tok: "--tasty-accent-success", use: "ok tint", color: "var(--tasty-accent-success-raised)" },
+              { tok: "--tasty-accent-danger", use: "error tint", color: "var(--tasty-accent-danger-raised)" },
             ]} />
           <Note>Geometry lives in the <b>icons/*.svg</b> files (exported to <code>icons.json</code>); <span className="ic">&lt;Icon/&gt;</span> embeds the same registry so it renders synchronously and recolors from the wrapping control. Pull a glyph <b>by name</b> — never paste a new <span className="ic">&lt;path&gt;</span>, never <span className="ic">&lt;img&gt;</span> an .svg (that loses currentColor). Each entry also carries a machine-readable <code>fill</code> boolean so codegen (and <span className="ic">&lt;Icon/&gt;</span>) can tell a filled glyph from a stroke one — today only <code>starFill</code> is <code>fill:true</code> (the solid ★ for an active favorite); its outline twin <code>star</code> stays stroke-only.</Note>
           <Dont><b>Don't</b> bake a color into a glyph or mix stroke widths. Filled glyphs are the rare exception (flagged <code>fill:true</code> in icons.json, e.g. <code>starFill</code>) — for a filled <i>state dot</i>, reach for <span className="ic">StatusDot</span> / <span className="ic">Badge</span> instead, not a new icon.</Dont>

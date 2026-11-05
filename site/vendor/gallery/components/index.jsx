@@ -40,7 +40,7 @@ const SEL_CASES = [
   ["File handlers · plugin glyph", (a) => <><SelGlyph name="plug" color={a ? "var(--tasty-accent-agent-on-active)" : "var(--tasty-accent-agent)"} /><span>Open with image viewer</span></>],
   ["Sidebar · dot, mirror glyph, Remote Tag", (a) => <><StatusDot status="running" /><SelGlyph name="remote" color={a ? "var(--tasty-workspace-mirror-fg-active)" : "var(--tasty-workspace-mirror-fg)"} /><span>Project A</span><SelTag variant="info">remote</SelTag></>],
   ["Remote attach · chips", () => <><StatusDot status="idle" attached /><span>build</span><SelTag variant="attached">in use</SelTag><SelTag variant="warning">inactive</SelTag></>],
-  ["Explorer, file picker · kind glyph, match run", (a) => <><SelGlyph name="folder" color={a ? "var(--tasty-text-on-active)" : "var(--tasty-text-muted)"} /><SelGlyph name="image" color={a ? "var(--tasty-text-on-active)" : "var(--tasty-accent-info)"} /><span>dia<span data-match-run="" style={a ? { color: "var(--tasty-explorer-match-fg-active)", textDecoration: "underline", textDecorationThickness: "var(--tasty-autocomplete-match-underline-width)", textUnderlineOffset: "var(--tasty-autocomplete-match-underline-offset)" } : { color: "var(--tasty-explorer-match-fg)" }}>gram</span>.png</span></>],
+  ["Explorer, file picker · kind glyph, match run", (a) => <><SelGlyph name="folder" color={a ? "var(--tasty-text-on-active)" : "var(--tasty-text-muted)"} /><SelGlyph name="image" color={a ? "var(--tasty-text-on-active)" : "var(--tasty-accent-info-raised)"} /><span>dia<span data-match-run="" style={a ? { color: "var(--tasty-explorer-match-fg-active)", textDecoration: "underline", textDecorationThickness: "var(--tasty-autocomplete-match-underline-width)", textUnderlineOffset: "var(--tasty-autocomplete-match-underline-offset)" } : { color: "var(--tasty-explorer-match-fg)" }}>gram</span>.png</span></>],
   ["Shortcut · Kbd +", (a) => <><span style={{ flex: 1 }}>Split pane right</span><Kbd keys="Ctrl" /><span style={{ color: a ? "var(--tasty-kbd-plus-fg-active)" : "var(--tasty-kbd-plus-fg)", fontSize: "var(--tasty-font-size-micro)", fontFamily: "var(--tasty-font-mono)" }}>+</span><Kbd keys="D" /></>],
   ["Status dots", () => <><StatusDot status="running" /><StatusDot status="waiting" /><StatusDot status="error" /><StatusDot status="agent" /><StatusDot status="needs-input" /><StatusDot status="completion" /><StatusDot status="idle" /></>],
 ];
@@ -94,7 +94,7 @@ function SelInkTable({ label, theme }) {
           <span style={{ flex: 1, minWidth: 0, fontSize: "var(--tasty-font-size-caption)", color: "var(--tasty-text-primary)" }}>{r[0]}</span>
           <span style={{ flex: "none", padding: "var(--tasty-space-xs) var(--tasty-space-sm)", borderRadius: "var(--tasty-radius-sm)", fontSize: "var(--tasty-font-size-caption)", whiteSpace: "nowrap",
             color: "var(--tasty-" + r[3] + ")", backgroundColor: "var(--tasty-" + r[1] + ")",
-            backgroundImage: r[2] ? "linear-gradient(var(--tasty-" + r[2] + "), var(--tasty-" + r[2] + "))" : "none" }}>{r[4]}</span>
+            backgroundImage: r[2] ? "linear-gradient(var(--tasty-" + r[2] + "), var(--tasty-" + r[2] + "))" : "none" }}>{inkSample(r[4])}</span>
           <span style={{ flex: "none", width: "var(--tasty-size-32)", textAlign: "right", fontFamily: "var(--tasty-font-mono)", fontSize: "var(--tasty-font-size-caption)", color: "var(--tasty-text-primary)" }}>{r[col]}</span>
         </div>
       ))}
@@ -228,9 +228,9 @@ function Components() {
           <Meta
             specs={[["height", "28 / 24 / 32px"], ["padding", <>0 <span className="tok">--tasty-space-md</span></>], ["radius", <>4px <span className="tok">--tasty-radius</span></>], ["hover / active", "8% / 12% overlay"], ["focus", "2px accent ring"]]}
             tokens={[
-              { tok: "--tasty-accent-primary", use: "primary fill", color: "var(--tasty-accent-primary)" },
-              { tok: "--tasty-accent-danger", use: "danger fill", color: "var(--tasty-accent-danger)" },
-              { tok: "--tasty-accent-agent", use: "agent fill", color: "var(--tasty-accent-agent)" },
+              { tok: "--tasty-accent-primary", use: "primary fill", color: "var(--tasty-accent-primary-raised)" },
+              { tok: "--tasty-accent-danger", use: "danger fill", color: "var(--tasty-accent-danger-raised)" },
+              { tok: "--tasty-accent-agent", use: "agent fill", color: "var(--tasty-accent-agent-raised)" },
               { tok: "--tasty-overlay-hover", use: "8% hover" },
               { tok: "--tasty-text-on-accent", use: "filled label" },
             ]} />
@@ -275,7 +275,7 @@ function Components() {
           </Stage>
           <Meta
             specs={[["size", "28px (sm 24)"], ["shape", "square, 4px radius"], ["active", <span className="tok">--tasty-accent-primary</span>]]}
-            tokens={[{ tok: "--tasty-overlay-hover", use: "hover tint" }, { tok: "--tasty-accent-primary", use: "active", color: "var(--tasty-accent-primary)" }, { tok: "--tasty-text-muted", use: "rest icon", color: "var(--tasty-text-muted)" }]} />
+            tokens={[{ tok: "--tasty-overlay-hover", use: "hover tint" }, { tok: "--tasty-accent-primary", use: "active", color: "var(--tasty-accent-primary-raised)" }, { tok: "--tasty-text-muted", use: "rest icon", color: "var(--tasty-text-muted)" }]} />
         </Spec>
       </Section>
 
@@ -303,7 +303,7 @@ function Components() {
             </Cluster>
           </Stage>
           <Meta specs={[["font", <span className="tok">--tasty-font-mono</span>], ["radius", <span className="tok">--tasty-radius-sm</span>], ["dot", "leading state dot"]]}
-            tokens={[{ tok: "--tasty-font-mono", use: "label" }, { tok: "--tasty-border-default", use: "outline" }, { tok: "--tasty-accent-agent", use: "agent", color: "var(--tasty-accent-agent)" }]} />
+            tokens={[{ tok: "--tasty-font-mono", use: "label" }, { tok: "--tasty-border-default", use: "outline" }, { tok: "--tasty-accent-agent", use: "agent", color: "var(--tasty-accent-agent-raised)" }]} />
         </Spec>
 
         <Spec id="kbd" title="Kbd"
@@ -317,7 +317,7 @@ function Components() {
           <Stage variant="solo" style={{ padding: 20, background: "var(--tasty-bg-app)", flexDirection: "column", gap: 14, alignItems: "flex-start" }}>
             {[["settled — Kbd (16 / 4 / 3 / 10)", true], ["dropped — palette-only cap (18 / 5 / 4 / 11)", false]].map(([label, canonical]) => (
               <div key={label} style={{ display: "flex", flexDirection: "column", gap: 6, width: 380 }}>
-                <div style={{ fontSize: 11, color: canonical ? "var(--tasty-accent-success)" : "var(--tasty-text-muted)" }}>{label}</div>
+                <div style={{ fontSize: 11, color: canonical ? "var(--tasty-accent-success-raised)" : "var(--tasty-text-muted)" }}>{label}</div>
                 <div style={{ background: "var(--tasty-surface-raised)", border: "1px solid var(--tasty-border-strong)", borderRadius: "var(--tasty-radius)", padding: 4 }}>
                   {[["Split pane right", "Ctrl+Shift+D"], ["Open file…", "Ctrl+P"]].map(([cmd, keys]) => (
                     <div key={cmd} style={{ height: 28, display: "flex", alignItems: "center", gap: 8, padding: "0 8px", borderRadius: "var(--tasty-radius-sm)" }}>
@@ -391,7 +391,7 @@ function Components() {
           </Stage>
           <Meta
             specs={[["height", <>28px <span className="tok">--tasty-control-height</span></>], ["border", "1px → focus ring 2px"], ["padding", <>0 <span className="tok">--tasty-space-sm</span></>]]}
-            tokens={[{ tok: "--tasty-surface-raised", use: "fill", color: "var(--tasty-surface-raised)" }, { tok: "--tasty-border-focus", use: "ring", color: "var(--tasty-border-focus)" }, { tok: "--tasty-accent-danger", use: "invalid", color: "var(--tasty-accent-danger)" }, { tok: "--tasty-text-placeholder", use: "hint" }, { tok: "--tasty-input-readonly-fg", use: "read-only value → text-secondary-raised", color: "var(--tasty-input-readonly-fg)" }]} />
+            tokens={[{ tok: "--tasty-surface-raised", use: "fill", color: "var(--tasty-surface-raised)" }, { tok: "--tasty-border-focus", use: "ring", color: "var(--tasty-border-focus)" }, { tok: "--tasty-accent-danger", use: "invalid", color: "var(--tasty-accent-danger-raised)" }, { tok: "--tasty-text-placeholder", use: "hint" }, { tok: "--tasty-input-readonly-fg", use: "read-only value → text-secondary-raised", color: "var(--tasty-input-readonly-fg)" }]} />
         </Spec>
 
         <Spec id="select-checkbox-switch" title="Select · Checkbox · Switch"
@@ -444,7 +444,7 @@ function Components() {
           <Meta
             specs={[["control height", "28px"], ["checkbox", "16px square"], ["accent", <span className="tok">--tasty-accent-primary</span>],
               ["Select ink (2026-10-21)", "value = text-primary · no value = select-placeholder · disabled (value or not) = state-disabled-fg, chevron state-disabled-fg (else text-muted) · open list options always text-primary · no hover/active overlay when disabled"]]}
-            tokens={[{ tok: "--tasty-accent-primary", use: "checked / on", color: "var(--tasty-accent-primary)" }, { tok: "--tasty-surface-raised", use: "track / box", color: "var(--tasty-surface-raised)" }, { tok: "--tasty-border-default", use: "outline" }]} />
+            tokens={[{ tok: "--tasty-accent-primary", use: "checked / on", color: "var(--tasty-accent-primary-raised)" }, { tok: "--tasty-surface-raised", use: "track / box", color: "var(--tasty-surface-raised)" }, { tok: "--tasty-border-default", use: "outline" }]} />
         </Spec>
 
         <Spec id="multiselect-many-values-in-one-control" title="MultiSelect — many values in one control" badges={<HoverBadge label="click me" />}
@@ -560,7 +560,7 @@ function Components() {
           </Stage>
           <Meta
             specs={[["height", <>24px <span className="tok">--tasty-control-height-tab</span></>], ["width", <>150px <span className="tok">--tasty-tab-width</span></>], ["active", "accent top bar + panel fill"], ["close", "hover-revealed"], ["title", "needs-input › completion › active › rest"], ["cluster", <>busy dot · close, 4 apart · <span className="tok">--tasty-tab-status-gap</span></>]]}
-            tokens={[{ tok: "--tasty-bg-panel", use: "active fill", color: "var(--tasty-bg-panel)" }, { tok: "--tasty-accent-primary", use: "active bar", color: "var(--tasty-accent-primary)" }, { tok: "--tasty-tab-fg-needs-input", use: "needs-input title", color: "var(--tasty-tab-fg-needs-input)" }, { tok: "--tasty-tab-fg-completion", use: "completion title", color: "var(--tasty-tab-fg-completion)" }, { tok: "--tasty-tab-status-gap", use: "→ space-xs 4" }, { tok: "--tasty-separator", use: "dividers" }]} />
+            tokens={[{ tok: "--tasty-bg-panel", use: "active fill", color: "var(--tasty-bg-panel)" }, { tok: "--tasty-accent-primary", use: "active bar", color: "var(--tasty-accent-primary-raised)" }, { tok: "--tasty-tab-fg-needs-input", use: "needs-input title", color: "var(--tasty-tab-fg-needs-input)" }, { tok: "--tasty-tab-fg-completion", use: "completion title", color: "var(--tasty-tab-fg-completion)" }, { tok: "--tasty-tab-status-gap", use: "→ space-xs 4" }, { tok: "--tasty-separator", use: "dividers" }]} />
         </Spec>
 
         <Spec id="treerow" title="TreeRow"
@@ -592,7 +592,7 @@ function Components() {
           </Stage>
           <Meta
             specs={[["height", <>28px <span className="tok">--tasty-control-height</span></>], ["label · rest", <span className="tok">--tasty-menu-item-fg</span>], ["label · hover/active", <span className="tok">--tasty-menu-item-fg-hover</span>], ["row pitch", "28 — rows flush, no gap (every menu incl. the … menu)"], ["active", <span className="tok">--tasty-surface-active</span>], ["danger", <span className="tok">--tasty-accent-danger</span>]]}
-            tokens={[{ tok: "--tasty-menu-item-fg", use: "resting label → text-secondary-raised", color: "var(--tasty-menu-item-fg)" }, { tok: "--tasty-menu-item-fg-hover", use: "hover / active label → text-on-active", color: "var(--tasty-menu-item-fg-hover)" }, { tok: "--tasty-surface-active", use: "highlighted", color: "var(--tasty-surface-active)" }, { tok: "--tasty-accent-danger", use: "destructive", color: "var(--tasty-accent-danger)" }, { tok: "--tasty-text-muted", use: "shortcut", color: "var(--tasty-text-muted)" }]} />
+            tokens={[{ tok: "--tasty-menu-item-fg", use: "resting label → text-secondary-raised", color: "var(--tasty-menu-item-fg)" }, { tok: "--tasty-menu-item-fg-hover", use: "hover / active label → text-on-active", color: "var(--tasty-menu-item-fg-hover)" }, { tok: "--tasty-surface-active", use: "highlighted", color: "var(--tasty-surface-active)" }, { tok: "--tasty-accent-danger", use: "destructive", color: "var(--tasty-accent-danger-raised)" }, { tok: "--tasty-text-muted", use: "shortcut", color: "var(--tasty-text-muted)" }]} />
           <Note><b>Label colour (2026-10-07).</b> The token is canonical: a resting row reads <code>--tasty-menu-item-fg</code> (text-secondary), hover and keyboard-active lift to <code>--tasty-menu-item-fg-hover</code> (text-primary) on top of the background change. The command palette is a list, not a menu, and keeps its own row colours.</Note>
           <Note><b>Latte contrast (2026-10-08).</b> <code>--tasty-menu-item-fg</code> now reads the semantic role <code>--tasty-text-secondary-raised</code>: Mocha = neutral-1000 (7.1:1 on surface-raised), Latte = neutral-1100 (5.17:1; neutral-1000 was 4.05:1). Hover and keyboard-active read <code>--tasty-menu-item-fg-hover</code> → <code>--tasty-text-on-active</code> since 2026-11-05 (Latte 6.36 on the hover fill, 5.39 on surface-active), because a menu row is read while it is hovered.</Note>
         </Spec>
@@ -613,7 +613,7 @@ function Components() {
             ))}
             <div style={{ display: "flex", flexDirection: "column", gap: "var(--tasty-space-sm)", padding: "var(--tasty-space-md)", background: "var(--tasty-bg-panel)", borderRadius: "var(--tasty-radius)" }}>
               <span style={{ fontSize: "var(--tasty-font-size-caption)", color: "var(--tasty-text-muted)" }}>No value yet (2026-10-09) — trigger in placeholder ink, list = real options only</span>
-              <div style={{ width: "var(--tasty-field-width-lg)", height: "var(--tasty-control-height)", boxSizing: "border-box", display: "flex", alignItems: "center", padding: "0 var(--tasty-space-md)", border: "var(--tasty-border-width) solid var(--tasty-border-focus)", borderRadius: "var(--tasty-radius)", background: "var(--tasty-surface-raised)", fontSize: "var(--tasty-font-size-body)", color: "var(--tasty-text-placeholder)" }}>Choose an action</div>
+              <div style={{ width: "var(--tasty-field-width-lg)", height: "var(--tasty-control-height)", boxSizing: "border-box", display: "flex", alignItems: "center", padding: "0 var(--tasty-space-md)", border: "var(--tasty-border-width) solid var(--tasty-border-focus)", borderRadius: "var(--tasty-radius)", background: "var(--tasty-surface-field)", fontSize: "var(--tasty-font-size-body)", color: "var(--tasty-text-placeholder)" }}>Choose an action</div>
               <div role="menu" style={{ width: "var(--tasty-field-width-lg)", background: "var(--tasty-menu-bg)", border: "var(--tasty-border-width) solid var(--tasty-menu-border)", borderRadius: "var(--tasty-menu-radius)", padding: "var(--tasty-space-xs)", boxShadow: "var(--tasty-shadow-popover)" }}>
                 <MenuItem label="Ask" active />
                 <MenuItem label="Minimize to background" />
@@ -637,7 +637,7 @@ function Components() {
           </Stage>
           <Meta
             specs={[["dot", "7px"], ["pulse", "expanding ring"], ["agent", <span className="tok">--tasty-accent-agent</span>], ["attention rank", "needs-input › completion › activity"]]}
-            tokens={[{ tok: "--tasty-accent-success", use: "running", color: "var(--tasty-accent-success)" }, { tok: "--tasty-accent-agent", use: "agent", color: "var(--tasty-accent-agent)" }, { tok: "--tasty-accent-warning", use: "waiting", color: "var(--tasty-accent-warning)" }, { tok: "--tasty-accent-danger", use: "error", color: "var(--tasty-accent-danger)" }, { tok: "--tasty-status-dot-needs-input", use: "needs input", color: "var(--tasty-status-dot-needs-input)" }, { tok: "--tasty-status-dot-completion", use: "completion", color: "var(--tasty-status-dot-completion)" }]} />
+            tokens={[{ tok: "--tasty-accent-success", use: "running", color: "var(--tasty-accent-success-raised)" }, { tok: "--tasty-accent-agent", use: "agent", color: "var(--tasty-accent-agent-raised)" }, { tok: "--tasty-accent-warning", use: "waiting", color: "var(--tasty-accent-warning-raised)" }, { tok: "--tasty-accent-danger", use: "error", color: "var(--tasty-accent-danger-raised)" }, { tok: "--tasty-status-dot-needs-input", use: "needs input", color: "var(--tasty-status-dot-needs-input)" }, { tok: "--tasty-status-dot-completion", use: "completion", color: "var(--tasty-status-dot-completion)" }]} />
         </Spec>
 
         <Spec id="selected-row" title="Selected row — meaning glyphs, match run, Kbd +"
@@ -655,7 +655,6 @@ function Components() {
             tokens={[{ tok: "--tasty-accent-warning-on-active", use: "star, waiting, needs input", color: "var(--tasty-accent-warning-on-active)" }, { tok: "--tasty-accent-success-on-active", use: "running", color: "var(--tasty-accent-success-on-active)" }, { tok: "--tasty-accent-danger-on-active", use: "error", color: "var(--tasty-accent-danger-on-active)" }, { tok: "--tasty-accent-agent-on-active", use: "plugin, agent", color: "var(--tasty-accent-agent-on-active)" }, { tok: "--tasty-accent-remote-on-active", use: "mirror", color: "var(--tasty-accent-remote-on-active)" }, { tok: "--tasty-accent-attached-on-active", use: "attached ring", color: "var(--tasty-accent-attached-on-active)" }, { tok: "--tasty-tag-attached-fg", use: "in use Tag", color: "var(--tasty-tag-attached-fg)" }, { tok: "--tasty-kbd-plus-fg-active", use: "+ on the row", color: "var(--tasty-kbd-plus-fg-active)" }, { tok: "--tasty-explorer-match-fg-active", use: "match run on the row", color: "var(--tasty-explorer-match-fg-active)" }, { tok: "--tasty-text-muted", use: "Latte n1000", color: "var(--tasty-text-muted)" }]} />
           <Do><b>Do</b> re-point the dot tokens on the row. The dot draws the same way, and only its token changes.</Do>
           <Dont><b>Don't</b> lay an accent tint on a selected row. Over surface-active a 12–16% tint leaves Latte ink at 1.2–1.4:1, so a chip takes the Tag recipe.</Dont>
-          <Note>The keycap ink and the AutoComplete underline on live pages wait for a rebuild of <code>components/bundle.js</code>. This specimen sets them directly from the tokens. The app reads the tokens, so it does not wait.</Note>
         </Spec>
 
         <Spec id="status-resolution-always-exactly-one-dot" title="Status resolution — always exactly one dot"
@@ -676,7 +675,7 @@ function Components() {
           </Stage>
           <Meta
             specs={[["priority", "error › waiting › running › agent › idle"], ["rule", "live activity beats ownership"], ["dots shown", "always exactly 1"], ["helper", <span className="ic">resolveStatus(owner, activity)</span>]]}
-            tokens={[{ tok: "--tasty-accent-success", use: "running (wins)", color: "var(--tasty-accent-success)" }, { tok: "--tasty-accent-agent", use: "agent (idle only)", color: "var(--tasty-accent-agent)" }, { tok: "--tasty-accent-danger", use: "error (top)", color: "var(--tasty-accent-danger)" }]} />
+            tokens={[{ tok: "--tasty-accent-success", use: "running (wins)", color: "var(--tasty-accent-success-raised)" }, { tok: "--tasty-accent-agent", use: "agent (idle only)", color: "var(--tasty-accent-agent-raised)" }, { tok: "--tasty-accent-danger", use: "error (top)", color: "var(--tasty-accent-danger-raised)" }]} />
           <Dont><b>Don't</b> stack an ownership dot next to an activity dot. One surface = one dot. If you think you need two, you're encoding two facts that the priority order already resolves into one.</Dont>
         </Spec>
 
@@ -716,7 +715,7 @@ function Components() {
           </Stage>
           <Meta
             specs={[["rail", "3px accent left edge"], ["radius", <span className="tok">--tasty-radius</span>], ["fill", <span className="tok">--tasty-surface-raised</span>], ["boxes", "rail · body (flex 1) · hint (flex none) · gap space-sm · pad space-sm / space-md"], ["hint", "Kbd of the action's binding · menu / mouse origin only · none when unbound"], ["hint position", "right end, first line · never truncated — body wraps first"], ["platform", "Kbd rule: ⌘ ⇧ ⌥ on macOS, Ctrl+Shift+ on Windows / Linux"], ["agent", "catalog only — host does not emit"], ["icon", "catalog only — host card has no icon"]]}
-            tokens={[{ tok: "--tasty-accent-success", use: "ok rail", color: "var(--tasty-accent-success)" }, { tok: "--tasty-toast-hint-font-size", use: "hint · micro mono" }, { tok: "--tasty-surface-raised", use: "card", color: "var(--tasty-surface-raised)" }]} />
+            tokens={[{ tok: "--tasty-accent-success", use: "ok rail", color: "var(--tasty-accent-success-raised)" }, { tok: "--tasty-toast-hint-font-size", use: "hint · micro mono" }, { tok: "--tasty-surface-raised", use: "card", color: "var(--tasty-surface-raised)" }]} />
         </Spec>
 
         <Spec id="toast-stack" title="Toast stack"
@@ -764,7 +763,7 @@ function Components() {
             <div style={{ display: "flex", gap: 18, flexWrap: "wrap" }}>
               {[["toast gap 6 — the product today", 6], ["toast gap 8 — settled", 8]].map(([label, g]) => (
                 <div key={label} style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                  <span style={{ fontFamily: "var(--tasty-font-mono)", fontSize: 10, color: g === 8 ? "var(--tasty-accent-success)" : "var(--tasty-text-muted)" }}>{label}</span>
+                  <span style={{ fontFamily: "var(--tasty-font-mono)", fontSize: 10, color: g === 8 ? "var(--tasty-accent-success-raised)" : "var(--tasty-text-muted)" }}>{label}</span>
                   <div style={{ display: "flex", flexDirection: "column", gap: g, width: 260 }}>
                     <Toast variant="success">Keybindings exported.</Toast>
                     <Toast variant="info">Two notices while importing the bundle — open Import / Export to read them.</Toast>
@@ -805,11 +804,11 @@ function Components() {
                 </div>
               ))}
               <div style={{ display: "flex", flexDirection: "column", gap: "var(--tasty-space-xs)" }}>
-                <span style={{ fontFamily: "var(--tasty-font-mono)", fontSize: "var(--tasty-font-size-micro)", color: "var(--tasty-accent-danger)" }}>rejected — product today (inset 4 · slot 8 · gap 4)</span>
+                <span style={{ fontFamily: "var(--tasty-font-mono)", fontSize: "var(--tasty-font-size-micro)", color: "var(--tasty-accent-danger-raised)" }}>rejected — product today (inset 4 · slot 8 · gap 4)</span>
                 <div style={{ zoom: 2 }}><WsColG><WsRowG geom="product" active attached name="second" /></WsColG></div>
               </div>
               <div style={{ display: "flex", flexDirection: "column", gap: "var(--tasty-space-xs)" }}>
-                <span style={{ fontFamily: "var(--tasty-font-mono)", fontSize: "var(--tasty-font-size-micro)", color: "var(--tasty-accent-success)" }}>settled — 2× zoom (inset 8 · slot 16 · gap 4)</span>
+                <span style={{ fontFamily: "var(--tasty-font-mono)", fontSize: "var(--tasty-font-size-micro)", color: "var(--tasty-accent-success-raised)" }}>settled — 2× zoom (inset 8 · slot 16 · gap 4)</span>
                 <div style={{ zoom: 2 }}><WsColG><WsRowG active attached name="second" /></WsColG></div>
               </div>
             </div>
@@ -1019,7 +1018,7 @@ function Components() {
               { tok: "--tasty-bg-sidebar", use: "header row", color: "var(--tasty-bg-sidebar)" },
               { tok: "--tasty-surface-active", use: "selected row", color: "var(--tasty-surface-active)" },
               { tok: "--tasty-overlay-hover", use: "row hover" },
-              { tok: "--tasty-accent-primary", use: "sort arrow", color: "var(--tasty-accent-primary)" },
+              { tok: "--tasty-accent-primary", use: "sort arrow", color: "var(--tasty-accent-primary-raised)" },
               { tok: "--tasty-font-mono", use: "port/addr/pid cells" },
             ]} />
           <Note>Columns can be marked <span className="ic">tight</span> — zero horizontal padding + centered — for narrow icon/control columns (the Listening-ports star toggle sits in a tight 28px leading column).</Note>
@@ -1039,7 +1038,7 @@ function Components() {
             tokens={[
               { tok: "--tasty-listctrl-row-bg-hover", use: "row hover", color: "var(--tasty-overlay-hover)" },
               { tok: "--tasty-listctrl-row-bg-selected", use: "selected row", color: "var(--tasty-surface-active)" },
-              { tok: "--tasty-listctrl-selected-bar", use: "accent left bar", color: "var(--tasty-accent-primary)" },
+              { tok: "--tasty-listctrl-selected-bar", use: "accent left bar", color: "var(--tasty-accent-primary-raised)" },
               { tok: "--tasty-listctrl-label-fg", use: "label", color: "var(--tasty-text-secondary)" },
               { tok: "--tasty-listctrl-desc-fg", use: "description", color: "var(--tasty-text-muted)" },
               { tok: "--tasty-listctrl-chevron-fg", use: "drill-in chevron", color: "var(--tasty-text-muted)" },
@@ -1137,4 +1136,14 @@ export const page = {
 
 export default function GalleryRoute() {
   return <PageStates value={STATES}>{page.content}</PageStates>;
+}
+
+// The tokens these rows sample are glyph ink, grade 3. A glyph sample is a shape, not a text character.
+function inkSample(s) {
+  const dot = { display: "inline-block", width: "var(--tasty-status-dot-size)", height: "var(--tasty-status-dot-size)", borderRadius: "var(--tasty-radius-pill)" };
+  if (s === "●") return <span style={{ ...dot, background: "currentColor" }} />;
+  if (s === "○") return <span style={{ ...dot, boxSizing: "border-box", border: "var(--tasty-border-width) solid currentColor" }} />;
+  if (s === "★") return <CIcon name="starFill" size="var(--tasty-icon-size-sm)" />;
+  if (s === "✓") return <CIcon name="check" size="var(--tasty-icon-size-sm)" />;
+  return s;
 }

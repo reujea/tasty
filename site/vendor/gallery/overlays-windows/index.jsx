@@ -112,7 +112,7 @@ function FontOverrideG({ long = false }) {
         {rows.map(([label, ctl, def]) => (
           <div key={label} style={{ display: "flex", alignItems: "center", flexWrap: "wrap", columnGap: "var(--tasty-space-lg)", rowGap: "var(--tasty-space-xs)", minHeight: "var(--tasty-settings-row-min-height)", padding: "var(--tasty-space-xs) 0" }}>
             <span style={{ flex: "none", width: "var(--tasty-settings-label-width)", fontSize: "var(--tasty-font-size-body)", color: "var(--tasty-text-secondary)" }}>{label}</span>
-            <span style={{ flex: "none", display: "flex", opacity: def ? "var(--tasty-state-disabled-opacity)" : undefined }}>{ctl}</span>
+            <span data-audit-exempt={def ? "dimmed" : undefined} style={{ flex: "none", display: "flex", opacity: def ? "var(--tasty-state-dim-opacity)" : undefined }}>{ctl}</span>
             <WCheckbox label={ud} checked={def} />
           </div>
         ))}
@@ -144,9 +144,9 @@ function ExtMapG({ draft = "", detectors = true, custom = false, missing = false
         return (
           <div key={g.ext} style={{ display: "flex", flexDirection: "column" }}>
             <div style={{ display: "flex", alignItems: "center", gap: "var(--tasty-space-sm)", minHeight: "var(--tasty-button-height-sm)", padding: "var(--tasty-space-xs) 0", borderBottom: g.missing ? "var(--tasty-border-width) solid var(--tasty-separator)" : undefined }}>
-              <span style={{ fontFamily: "var(--tasty-font-mono)", fontSize: "var(--tasty-font-size-caption)", color: g.missing ? "var(--tasty-text-disabled)" : "var(--tasty-text-secondary)", textDecoration: g.missing && pendingRemove ? "line-through" : undefined }}>{g.ext}</span>
-              {g.missing && <WTag disabled>{pendingRemove ? P.removed : L.ni}</WTag>}
-              {g.custom && pendingReset && <WTag disabled>{P.reset}</WTag>}
+              <span style={{ fontFamily: "var(--tasty-font-mono)", fontSize: "var(--tasty-font-size-caption)", color: g.missing ? "var(--tasty-text-muted)" : "var(--tasty-text-secondary)", textDecoration: g.missing && pendingRemove ? "line-through" : undefined }}>{g.ext}</span>
+              {g.missing && <WTag>{pendingRemove ? P.removed : L.ni}</WTag>}
+              {g.custom && pendingReset && <WTag>{P.reset}</WTag>}
               <span style={{ flex: 1 }} />
               {g.custom && (pendingReset ? <Button variant="ghost" size="sm">{P.undo}</Button> : <span title="Remove the custom priority for this extension (revert to install order)."><Button variant="ghost" size="sm">{L.reset}</Button></span>)}
               {g.missing && <Button variant="ghost" size="sm">{pendingRemove ? P.undo : L.remove}</Button>}
@@ -154,8 +154,8 @@ function ExtMapG({ draft = "", detectors = true, custom = false, missing = false
             {g.rows.map(([name, c], i) => (
               <div key={name} style={{ display: "flex", alignItems: "center", gap: "var(--tasty-space-sm)", minHeight: "var(--tasty-settings-row-min-height)", borderBottom: "var(--tasty-border-width) solid var(--tasty-separator)" }}>
                 <span style={{ width: "var(--tasty-space-lg)", fontFamily: "var(--tasty-font-mono)", fontSize: "var(--tasty-font-size-caption)", color: "var(--tasty-text-muted)" }}>{i + 1}</span>
-                <span style={{ flex: 1, minWidth: 0, fontSize: "var(--tasty-font-size-body)", color: c ? "var(--tasty-text-secondary)" : "var(--tasty-text-disabled)" }}>{name}</span>
-                {!c && <WTag disabled>off</WTag>}
+                <span style={{ flex: 1, minWidth: 0, fontSize: "var(--tasty-font-size-body)", color: c ? "var(--tasty-text-secondary)" : "var(--tasty-text-muted)" }}>{name}</span>
+                {!c && <WTag>off</WTag>}
                 <IconButton size="sm" aria-label="Move up" disabled={!c || i === 0}><WIcon name="chevronUp" /></IconButton>
                 <IconButton size="sm" aria-label="Move down" disabled={!c || i >= cand - 1}><WIcon name="chevronDown" /></IconButton>
               </div>
@@ -185,9 +185,9 @@ function HookOverrideG() {
           <div key={i} style={{ display: "flex", flexDirection: "column", gap: "var(--tasty-space-xs)", padding: "var(--tasty-space-sm) var(--tasty-space-md)", borderBottom: "var(--tasty-border-width) solid var(--tasty-separator)" }}>
             <div style={{ display: "flex", alignItems: "center", gap: "var(--tasty-space-sm)" }}>
               <span style={{ fontFamily: "var(--tasty-font-mono)", fontSize: "var(--tasty-font-size-caption)", color: "var(--tasty-text-secondary)" }}>{r.ev}</span>
-              <span style={{ color: plugin ? "var(--tasty-accent-agent)" : undefined, display: "inline-flex" }}><WTag>{r.origin}</WTag></span>
+              <span style={{ color: plugin ? "var(--tasty-accent-agent-raised)" : undefined, display: "inline-flex" }}><WTag>{r.origin}</WTag></span>
               {r.edited && !r.pending && <span title="Changed in your settings. Updates to the default no longer apply." style={{ display: "inline-flex" }}><WTag>edited</WTag></span>}
-              {r.pending && <WTag disabled>reverts on save</WTag>}
+              {r.pending && <WTag>reverts on save</WTag>}
               <span style={{ flex: 1 }} />
               <span title={r.pending ? "Reverts on save. Undo to change it." : undefined} style={{ display: "inline-flex" }}><WSwitch checked={shownOn} disabled={r.pending} onChange={() => {}} aria-label="Enabled" /></span>
               <span title={"Provided by " + r.origin + " — can't be removed"} style={{ display: "inline-flex", color: "var(--tasty-glyph-dim)" }}><WIcon name="lock" size="var(--tasty-icon-size-sm)" /></span>
@@ -226,8 +226,8 @@ function HookSeqEditorG({ state = "normal" }) {
         {WCodeArea && <WCodeArea minRows={4} defaultValue={text} errorLine={state === "error" ? 3 : null} placeholder="system.info" />}
         {state === "error"
           ? <div style={{ ...cap, display: "flex", alignItems: "baseline", gap: "var(--tasty-space-xs)", flexWrap: "wrap" }}>
-              <span style={{ display: "inline-flex", alignSelf: "center", color: "var(--tasty-accent-danger)" }}><WIcon name="alertCircle" size={12} /></span>
-              <span style={{ color: "var(--tasty-accent-danger)" }}>Line 3, column 38: invalid params JSON.</span>
+              <span style={{ display: "inline-flex", alignSelf: "center", color: "var(--tasty-accent-danger-raised)" }}><WIcon name="alertCircle" size={12} /></span>
+              <span style={{ color: "var(--tasty-accent-danger-raised)" }}>Line 3, column 38: invalid params JSON.</span>
               <span style={{ fontFamily: "var(--tasty-font-mono)", color: "var(--tasty-text-muted)" }}>key must be a string</span>
             </div>
           : state === "empty"
@@ -287,7 +287,7 @@ function PluginAvatarG({ initial, size = "sm" }) {
 function PluginRowG({ name, meta, state = "rest", disabled }) {
   const bg = state === "selected" ? "var(--tasty-surface-active)" : state === "hover" ? "var(--tasty-overlay-hover)" : "transparent";
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: "var(--tasty-space-sm)", width: 260,
+    <div data-audit-exempt={disabled ? "dimmed" : undefined} style={{ display: "flex", alignItems: "center", gap: "var(--tasty-space-sm)", width: 260,
       padding: "var(--tasty-space-sm)", borderRadius: "var(--tasty-radius)", background: bg,
       boxShadow: state === "selected" ? "inset var(--tasty-selection-edge-width) 0 0 var(--tasty-accent-primary)" : "none",
       opacity: disabled ? "var(--tasty-state-dim-opacity)" : 1 /* disabled PLUGIN = dimmed item, still selectable */ }}>
@@ -368,7 +368,7 @@ function IeGrid() {
         <span>{action}</span>{extra}
       </div>
       <div style={{ ...cell, ...ieMono, color: "var(--tasty-text-muted)" }}>{cur}</div>
-      <div style={{ ...cell, ...ieMono, color: cur === next ? "var(--tasty-text-muted)" : "var(--tasty-accent-primary)" }}>{next}</div>
+      <div style={{ ...cell, ...ieMono, color: cur === next ? "var(--tasty-text-muted)" : "var(--tasty-accent-primary-raised)" }}>{next}</div>
     </React.Fragment>
   );
   return (
@@ -397,7 +397,7 @@ function IeBackBarG({ unresolved }) {
       <span style={{ fontSize: 13, color: "var(--tasty-text-primary)" }}>Import keybindings</span>
       <span style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 8 }}>
         <Button variant="ghost" size="sm">{unresolved ? "Show all 73" : "Changed only"}</Button>
-        {unresolved > 0 && <span style={{ ...ieMono, fontSize: 11, color: "var(--tasty-accent-warning)" }}>{unresolved} unresolved</span>}
+        {unresolved > 0 && <span style={{ ...ieMono, fontSize: 11, color: "var(--tasty-accent-warning-raised)" }}>{unresolved} unresolved</span>}
         <Button variant="primary" size="sm" disabled={unresolved > 0}>Apply</Button>
       </span>
     </div>
@@ -418,7 +418,7 @@ function IeNotices() {
       <div style={{ borderRadius: "var(--tasty-radius)", padding: "12px 14px",
         background: "color-mix(in srgb, var(--tasty-accent-danger) 12%, transparent)",
         border: "1px solid color-mix(in srgb, var(--tasty-accent-danger) 35%, transparent)" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 8, color: "var(--tasty-accent-danger)", fontSize: 13, fontWeight: 600 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, color: "var(--tasty-accent-danger-raised)", fontSize: 13, fontWeight: 600 }}>
           <WIcon name="alertCircle" size={16} /><span>This file can't be read as keybindings</span>
         </div>
         <p style={{ margin: "4px 0 8px", fontSize: 12, color: "var(--tasty-text-secondary)", lineHeight: "var(--tasty-line-height-ui)" }}>
@@ -443,7 +443,7 @@ function IeBlockG({ tone, glyph, title, count, children, action }) {
         <WIcon name={glyph} size={16} /><span>{title}</span>
         {count && <span style={{ marginLeft: "auto", ...ieMono, fontSize: 11, color: tone }}>{count}</span>}
       </div>
-      <div style={{ margin: "4px 0 0", fontSize: 12, color: "var(--tasty-text-secondary)", lineHeight: "var(--tasty-line-height-ui)" }}>{children}</div>
+      <div style={{ margin: "4px 0 0", fontSize: 12, color: "var(--tasty-text-on-active)", lineHeight: "var(--tasty-line-height-ui)" }}>{children}</div>
       {action && <div style={{ marginTop: 8, display: "flex", gap: 8 }}>{action}</div>}
     </div>
   );
@@ -472,11 +472,11 @@ function IeExportFailG({ reason = "readonly" }) {
         </div>
         <span style={{ flex: "none" }}><Button variant="secondary" size="sm" disabled>Export…</Button></span>
       </div>
-      <IeBlockG tone="var(--tasty-accent-danger)" glyph="alertCircle" title="The export wasn't written"
-        action={<><Button variant="secondary" size="sm">Try again</Button><Button variant="ghost" size="sm">Choose another location…</Button></>}>
+      <IeBlockG tone="var(--tasty-accent-danger-strong)" glyph="alertCircle" title="The export wasn't written"
+        action={<><Button variant="secondary" size="sm">Try again</Button><Button variant="ghost" ground="active" size="sm">Choose another location…</Button></>}>
         <span style={ieMono}>~/tasty/tasty-keybindings-2026-09-14.toml</span> — {clause} Nothing was written.
         {reason === "other" && (
-          <div style={{ ...ieMono, marginTop: 4, fontSize: 11, color: "var(--tasty-text-muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
+          <div style={{ ...ieMono, marginTop: 4, fontSize: 11, color: "var(--tasty-text-on-active)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
             title="os error 28: No space left on device (os reported)">os error 28: No space left on device</div>
         )}
       </IeBlockG>
@@ -499,7 +499,7 @@ function IeBundleNoticesG({ one = false }) {
         <span style={{ display: "inline-flex", flex: "none", marginTop: 1 }}><WIcon name="helpCircle" size={14} /></span>
         <span>2 plugin overrides were dropped — those plugins aren't installed here (<span style={ieMono}>k8s-lens, s3-browser</span>).</span>
       </div>
-      <IeBlockG tone="var(--tasty-accent-warning)" glyph="alertTriangle" title="Read with warnings" count={one ? "1 notice" : "4 notices"}
+      <IeBlockG tone="var(--tasty-accent-warning-raised)" glyph="alertTriangle" title="Read with warnings" count={one ? "1 notice" : "4 notices"}
         action={one ? null : <Button variant="ghost" size="sm">Show 1 more</Button>}>
         {one
           ? line(<>1 unknown action was skipped (<span style={ieMono}>tab.pin</span>).</>)
@@ -516,7 +516,7 @@ function IeBundleNoticesG({ one = false }) {
 // §3 — parsing failure with and without a line number.
 function IeParseFailG({ line = true }) {
   return (
-    <IeBlockG tone="var(--tasty-accent-danger)" glyph="alertCircle" title="This file can't be read as keybindings"
+    <IeBlockG tone="var(--tasty-accent-danger-strong)" glyph="alertCircle" title="This file can't be read as keybindings"
       action={<Button variant="secondary" size="sm">Choose another file</Button>}>
       <span style={ieMono}>~/Downloads/settings.json</span> — expected a keybinding export (TOML, a <span style={ieMono}>[keybindings]</span> table);
       {line ? <> parsing stopped at line 1.</> : <> the file isn't TOML.</>} Nothing was changed.
@@ -538,7 +538,7 @@ function IeConflictSummaryG() {
           padding: "0 8px", ...ieMono, background: "var(--tasty-surface-raised)", color: "var(--tasty-text-primary)",
           border: "1px solid var(--tasty-accent-danger)", borderRadius: "var(--tasty-radius)" }}>{to}</span>
       </div>
-      <div style={{ paddingLeft: "var(--tasty-kb-ie-action-column-width)", display: "flex", alignItems: "center", gap: 6, fontSize: 11, color: "var(--tasty-accent-danger)" }}>
+      <div style={{ paddingLeft: "var(--tasty-kb-ie-action-column-width)", display: "flex", alignItems: "center", gap: 6, fontSize: 11, color: "var(--tasty-accent-danger-raised)" }}>
         <WIcon name="alertTriangle" size={14} /><span>{reason}</span>
       </div>
     </div>
@@ -547,12 +547,12 @@ function IeConflictSummaryG() {
     <div style={{ width: "100%", maxWidth: "var(--tasty-settings-content-max-width)", borderRadius: "var(--tasty-radius)", padding: "var(--tasty-kb-ie-notice-inset)",
       background: "color-mix(in srgb, var(--tasty-accent-warning) 11%, transparent)",
       border: "1px solid color-mix(in srgb, var(--tasty-accent-warning) 36%, transparent)" }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 8, color: "var(--tasty-accent-warning)", fontSize: 13, fontWeight: 600 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, color: "var(--tasty-accent-warning-raised)", fontSize: 13, fontWeight: 600 }}>
         <WIcon name="alertTriangle" size={16} /><span>Option bindings need a replacement</span>
         <span style={{ marginLeft: "auto", ...ieMono, fontSize: 11 }}>3 of 4 unresolved</span>
       </div>
       <p style={{ margin: "4px 0 0", fontSize: 12, color: "var(--tasty-text-secondary)", lineHeight: "var(--tasty-line-height-ui)" }}>
-        <span style={{ color: "var(--tasty-accent-danger)", fontWeight: 600 }}>3 conflicts</span> — those shortcuts are already bound.
+        <span style={{ color: "var(--tasty-accent-danger-raised)", fontWeight: 600 }}>3 conflicts</span> — those shortcuts are already bound.
         The shortcut-conflict popup opens on Apply.
       </p>
       <div style={{ marginTop: 8 }}>
@@ -573,8 +573,8 @@ function IeModifierSelectG({ chosen = false }) {
       <WSelect options={chosen ? ["Ctrl+Alt"] : ["Select a modifier"]} style={{ width: "var(--tasty-field-width-md)",
         color: chosen ? "var(--tasty-text-primary)" : "var(--tasty-text-placeholder)" }} />
       {chosen
-        ? <span style={{ display: "inline-flex", color: "var(--tasty-accent-success)" }}><WIcon name="check" size={14} /></span>
-        : <span style={{ fontSize: 11, color: "var(--tasty-accent-warning)" }}>Not set</span>}
+        ? <span style={{ display: "inline-flex", color: "var(--tasty-accent-success-raised)" }}><WIcon name="check" size={14} /></span>
+        : <span style={{ fontSize: 11, color: "var(--tasty-accent-warning-raised)" }}>Not set</span>}
     </div>
   );
 }
@@ -615,14 +615,14 @@ function ResizeMap() {
   const zone = (style, cursor, label) => (
     <div className="rz-zone" style={{ position: "absolute", cursor, ...style }} title={label}>
       {label && <span style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center",
-        fontSize: 9, fontFamily: "var(--tasty-font-mono)", color: "var(--tasty-accent-info)" }}>{label}</span>}
+        fontSize: 9, fontFamily: "var(--tasty-font-mono)", color: "var(--tasty-accent-info-raised)" }}>{label}</span>}
     </div>
   );
   return (
     <div style={{ position: "relative", width: 280, height: 180 }}>
       <FauxPopup w={280} h={104} title="remote_tool — resizable" style={{ position: "absolute", inset: 0 }}>
         <div>min 420×320 · drag any edge or corner</div>
-        <div style={{ color: "var(--tasty-text-disabled)" }}>no visual grip — cursor only</div>
+        <div style={{ color: "var(--tasty-text-muted)" }}>no visual grip — cursor only</div>
       </FauxPopup>
       {/* edges */}
       {zone({ top: 0, left: corner, right: corner, height: band }, "ns-resize", "N")}
@@ -670,7 +670,7 @@ function ClampDemo() {
   return (
     <div style={{ position: "relative", width: 300, height: 200, background: "var(--tasty-bg-app)",
       border: "1px dashed var(--tasty-border-strong)", borderRadius: "var(--tasty-radius)", overflow: "hidden" }}>
-      <span style={{ position: "absolute", top: 4, left: 6, fontFamily: "var(--tasty-font-mono)", fontSize: 9, color: "var(--tasty-text-disabled)" }}>scope rect</span>
+      <span style={{ position: "absolute", top: 4, left: 6, fontFamily: "var(--tasty-font-mono)", fontSize: 9, color: "var(--tasty-text-muted)" }}>scope rect</span>
       <div style={{ position: "absolute", right: 0, bottom: 0 }}>
         <FauxPopup w={188} h={70} title="popup" grab>
           <div>clamped — no part leaves the scope</div>
@@ -684,7 +684,7 @@ function ClampDemo() {
 function ZOrderDemo() {
   return (
     <div style={{ position: "relative", width: 320, height: 200 }}>
-      <div style={{ position: "absolute", left: 0, top: 0, opacity: 0.55 }}>
+      <div data-audit-exempt="dimmed" style={{ position: "absolute", left: 0, top: 0, opacity: "var(--tasty-state-dim-opacity)" }}>
         <FauxPopup w={190} h={66} title="behind — inert" grab={false}>
           <div style={{ color: "var(--tasty-text-disabled)" }}>handles don't respond</div>
         </FauxPopup>
@@ -731,7 +731,7 @@ function Page() {
           <Stage variant="solo center" style={{ padding: 20, background: "var(--tasty-bg-app)" }}><PortsFrame /></Stage>
           <Meta
             specs={[["frame", "660 × 520 (canonical)"], ["built on", <span className="ic">Table</span>], ["header", "filter Input + refresh"], ["scan", <>Spinner \u2192 \u201cCollecting\u2026\u201d</>], ["footer", "count · Copy address · Close"]]}
-            tokens={[{ tok: "--tasty-bg-panel", use: "frame", color: "var(--tasty-bg-panel)" }, { tok: "--tasty-surface-active", use: "selected row", color: "var(--tasty-surface-active)" }, { tok: "--tasty-accent-success", use: "LISTEN dot", color: "var(--tasty-accent-success)" }, { tok: "--tasty-font-mono", use: "port/addr/pid" }]} />
+            tokens={[{ tok: "--tasty-bg-panel", use: "frame", color: "var(--tasty-bg-panel)" }, { tok: "--tasty-surface-active", use: "selected row", color: "var(--tasty-surface-active)" }, { tok: "--tasty-accent-success", use: "LISTEN dot", color: "var(--tasty-accent-success-raised)" }, { tok: "--tasty-font-mono", use: "port/addr/pid" }]} />
           <Note>The 660px width is <b>design-canonical</b> — the 7-column table (Port · Proto · Address · Process · Workspace · Tab · State) needs it, plus a <b>tight 28px leading star column</b>. Don't narrow the frame; let columns truncate instead.</Note>
         </Spec>
         <Spec id="favorites-star-toggle-pinned-section-none-badge" title="Favorites — star toggle, pinned section, NONE badge"
@@ -791,7 +791,7 @@ function Page() {
           <Stage variant="solo center" style={{ padding: 20, background: "var(--tasty-bg-app)" }}><RemoteFrame /></Stage>
           <Meta
             specs={[["frame", "520 × 460"], ["tabs", "Remote profiles · Attach · Passkeys"], ["routes", "list → form → confirm"], ["filter", <>protocol dropdown (Profiles only) · menu <span className="tok">--tasty-remote-filter-menu-width</span> = 240, measured as the <b>border box</b></>], ["dismiss", <>×/Close/<span className="ic">Esc</span> only</>]]}
-            tokens={[{ tok: "--tasty-bg-panel", use: "frame", color: "var(--tasty-bg-panel)" }, { tok: "--tasty-bg-sidebar", use: "tab bar", color: "var(--tasty-bg-sidebar)" }, { tok: "--tasty-accent-primary", use: "active tab / filter on", color: "var(--tasty-accent-primary)" }, { tok: "--tasty-accent-warning", use: "unknown-type / dangling-ref", color: "var(--tasty-accent-warning)" }]} />
+            tokens={[{ tok: "--tasty-bg-panel", use: "frame", color: "var(--tasty-bg-panel)" }, { tok: "--tasty-bg-sidebar", use: "tab bar", color: "var(--tasty-bg-sidebar)" }, { tok: "--tasty-accent-primary", use: "active tab / filter on", color: "var(--tasty-accent-primary-raised)" }, { tok: "--tasty-accent-warning", use: "unknown-type / dangling-ref", color: "var(--tasty-accent-warning-raised)" }]} />
           <Do><b>Do</b> keep secrets in the Passkey store and reference them by name. A profile never holds a secret inline.</Do>
           <Note>The protocol filter is <b>Profiles-only</b> (Passkeys has no filter) and <b>session-only</b> — never persisted; Tasty restarts with every protocol selected. The button reads <span className="ic">Filter</span> when off and turns accent with a <span className="ic">selected/total</span> count when a filter is applied.</Note>
         </Spec>
@@ -803,14 +803,14 @@ function Page() {
           </Stage>
           <Meta
             specs={[["row", "name 600 + Tag / warn badge · mono caption kind · value"], ["mask", "fixed 8-dot mask while hidden"], ["revealed", "IconButton active + eyeOff"], ["long value", "ellipsis at the end · actions flex none, never pushed out"], ["actions", "reveal · edit · trash · IconButton sm, gap 1"], ["add-bar", "Add passkey (Button secondary sm) · no filter"]]}
-            tokens={[{ tok: "--tasty-accent-warning", use: "unknown kind", color: "var(--tasty-accent-warning)" }, { tok: "--tasty-text-muted", use: "value line", color: "var(--tasty-text-muted)" }]} />
+            tokens={[{ tok: "--tasty-accent-warning", use: "unknown kind", color: "var(--tasty-accent-warning-raised)" }, { tok: "--tasty-text-muted", use: "value line", color: "var(--tasty-text-muted)" }]} />
         </Spec>
         <Spec id="attach-tab-tasty-attach-targets" title="Attach tab — tasty-attach targets"
           when={<>The <b>middle tab</b>. An <b>Attach</b> holds everything needed to attach to a <b>remote tasty instance</b> — it either <b>references</b> an ssh profile (<span className="ic">→ prod-web</span>) or carries <b>inline</b> ssh info, plus a <b>remote tasty</b> executable path and a <b>port discovery</b> mode. Splitting this off the ssh profile keeps ssh profiles pure connection info. Rows show name + (label), the reference/host summary, remote-tasty + port-mode captions, and an <b>inactive</b> badge when the referenced profile or inline shell isn't reachable.</>}>
           <Stage variant="solo center" style={{ padding: 20, background: "var(--tasty-bg-app)" }}><RemoteFrame tab="attach" /></Stage>
           <Meta
             specs={[["rows", "name+label · target · tasty/port"], ["mode", "profile (→ ref) · inline"], ["target", <><span className="ic">→ profile</span> or <span className="ic">user@host</span></>], ["inactive", "peach badge (unreachable)"], ["add-bar", "Add attach (no protocol filter)"]]}
-            tokens={[{ tok: "--tasty-accent-warning", use: "inactive / profile-missing", color: "var(--tasty-accent-warning)" }, { tok: "--tasty-text-disabled", use: "inactive name", color: "var(--tasty-text-disabled)" }, { tok: "--tasty-separator", use: "row dividers" }]} />
+            tokens={[{ tok: "--tasty-accent-warning", use: "inactive / profile-missing", color: "var(--tasty-accent-warning-raised)" }, { tok: "--tasty-text-disabled", use: "inactive name", color: "var(--tasty-text-disabled)" }, { tok: "--tasty-separator", use: "row dividers" }]} />
           <Do><b>Do</b> keep <span className="ic">remote_tasty</span> and port discovery on the Attach, not the ssh profile — an ssh profile is reusable connection info; how to find the remote tasty binary is attach-specific.</Do>
         </Spec>
         <Spec id="attach-form-reference-vs-inline" title="Attach form — reference vs. inline"
@@ -821,7 +821,7 @@ function Page() {
           </Stage>
           <Meta
             specs={[["toggle", "SSH profile ↔ Direct (inline)"], ["ref", "ssh_ref dropdown of ssh profiles"], ["inline", "host · user · port · shell · passkey"], ["remote tasty", "Executable (def. tasty)"], ["port", "auto / subcommand / file-unix / file-windows"], ["port file", "optional — overrides port mode"]]}
-            tokens={[{ tok: "--tasty-remote-label-col", use: "shared 112 label column" }, { tok: "--tasty-accent-primary", use: "active tab / segment", color: "var(--tasty-accent-primary)" }, { tok: "--tasty-text-muted", use: "labels / hints", color: "var(--tasty-text-muted)" }]} />
+            tokens={[{ tok: "--tasty-remote-label-col", use: "shared 112 label column" }, { tok: "--tasty-accent-primary", use: "active tab / segment", color: "var(--tasty-accent-primary-raised)" }, { tok: "--tasty-text-muted", use: "labels / hints", color: "var(--tasty-text-muted)" }]} />
         </Spec>
         <Spec id="profile-form-ssh-the-112px-1fr-row-grid" title="Profile form — SSH (the [112px · 1fr] row grid)"
           when={<>The add/edit route inside the popup. Every row is the same grid: a <b>fixed 112px right-aligned label</b> + a <b>1fr</b> control (columnGap 12, rowGap 8) so labels never collapse/truncate and all controls share one left edge. SSH gets the dedicated fields (Type · Name · Host · User · Port · Label · Shell + hint · Passkey) — <b>remote_tasty moved to the Attach tab</b>. Body scrolls; the footer is pinned with a <b>full-width</b> separator and right-aligned <b>Cancel (ghost) / Save (primary)</b>. Right: the same form with a <b>validation error</b>.</>}>
@@ -831,7 +831,7 @@ function Page() {
           </Stage>
           <Meta
             specs={[["frame", "520 × 460 · resizable · headless"], ["row", <>[<span className="tok">--tasty-remote-label-col</span> 112 · 1fr] · gap 12/8</>], ["label", "right-aligned · text-muted · 13"], ["body/footer", "flex:1 scroll · pinned footer"], ["footer sep", "full-width 1px · buttons inset 16/12"], ["error", "accent-danger caption (11)"]]}
-            tokens={[{ tok: "--tasty-remote-label-col", use: "112px label column" }, { tok: "--tasty-text-muted", use: "labels / hints", color: "var(--tasty-text-muted)" }, { tok: "--tasty-separator", use: "footer + tab divider" }, { tok: "--tasty-accent-primary", use: "active tab · Save", color: "var(--tasty-accent-primary)" }, { tok: "--tasty-accent-danger", use: "validation error", color: "var(--tasty-accent-danger)" }]} />
+            tokens={[{ tok: "--tasty-remote-label-col", use: "112px label column" }, { tok: "--tasty-text-muted", use: "labels / hints", color: "var(--tasty-text-muted)" }, { tok: "--tasty-separator", use: "footer + tab divider" }, { tok: "--tasty-accent-primary", use: "active tab · Save", color: "var(--tasty-accent-primary-raised)" }, { tok: "--tasty-accent-danger", use: "validation error", color: "var(--tasty-accent-danger-raised)" }]} />
           <Do><b>Do</b> keep the label column fixed at 112px (not 1fr-negotiated) — egui's auto grid collapsed it and truncated labels, so the form uses a manual two-column row.</Do>
         </Spec>
         <Spec id="generic-passkey-forms-badges" title="Generic & Passkey forms · badges"
@@ -843,7 +843,7 @@ function Page() {
           </Stage>
           <Meta
             specs={[["generic", "Type · Name · FIELDS · Passkey"], ["field row", "[112 key · 1fr value · 28 ✕]"], ["unknown type", "peach badge (saves anyway)"], ["passkey kind", "path = singleline · inline = 3-row"], ["secret", "name-reference only · note always shown"], ["footer", "ghost Cancel / primary Save (both forms)"]]}
-            tokens={[{ tok: "--tasty-accent-warning", use: "unknown-type / dangling badge", color: "var(--tasty-accent-warning)" }, { tok: "--tasty-accent-primary", use: "selected kind segment (accent fill)", color: "var(--tasty-accent-primary)" }, { tok: "--tasty-input-bg", use: "inline secret field", color: "var(--tasty-input-bg)" }, { tok: "--tasty-remote-label-col", use: "shared 112 column" }]} />
+            tokens={[{ tok: "--tasty-accent-warning", use: "unknown-type / dangling badge", color: "var(--tasty-accent-warning-raised)" }, { tok: "--tasty-accent-primary", use: "selected kind segment (accent fill)", color: "var(--tasty-accent-primary-raised)" }, { tok: "--tasty-input-bg", use: "inline secret field", color: "var(--tasty-input-bg)" }, { tok: "--tasty-remote-label-col", use: "shared 112 column" }]} />
           <Note>Other states (brief §5/§ST): <b>dangling passkey</b> reuses the same peach badge ("passkey missing"); <b>detecting</b> shows "detecting…" / "detection failed (disabled)" + Re-detect after a shell=auto save. Secrets live only in passkeys — a profile holds a <b>name reference</b>, never an inline secret.</Note>
         </Spec>
         <Spec id="segmented-active-is-an-accent-fill-tab-strips-keep-the-underline" title="Segmented active is an accent fill — tab strips keep the underline"
@@ -860,7 +860,7 @@ function Page() {
           </Stage>
           <Meta
             specs={[["tab strip", <>2px <span className="tok">--tasty-accent-primary</span> underline · weight 600</>], ["segmented", <>fill <span className="tok">--tasty-accent-primary</span> · ink <span className="tok">--tasty-text-on-accent</span></>], ["inactive segment", <span className="tok">--tasty-surface-raised</span>], ["scope", "every remote segment + clipboard type + preset scope"], ["not used", <><span className="tok">--tasty-surface-active</span> (row selection)</>]]}
-            tokens={[{ tok: "--tasty-accent-primary", use: "active segment / underline", color: "var(--tasty-accent-primary)" }, { tok: "--tasty-text-on-accent", use: "active segment ink", color: "var(--tasty-text-on-accent)" }, { tok: "--tasty-surface-raised", use: "inactive segment", color: "var(--tasty-surface-raised)" }]} />
+            tokens={[{ tok: "--tasty-accent-primary", use: "active segment / underline", color: "var(--tasty-accent-primary-raised)" }, { tok: "--tasty-text-on-accent", use: "active segment ink", color: "var(--tasty-text-on-accent)" }, { tok: "--tasty-surface-raised", use: "inactive segment", color: "var(--tasty-surface-raised)" }]} />
           <Note>Rule of thumb: an <b>underline</b> switches a <b>view</b>, a <b>fill</b> switches a <b>value</b>. The remote tab bar navigates; the attach switch sets a field.</Note>
         </Spec>
 
@@ -896,7 +896,7 @@ function Page() {
           <Stage variant="solo center" style={{ padding: 20, background: "var(--tasty-bg-app)" }}><RemoteAttachFrame state="loaded" /></Stage>
           <Meta
             specs={[["frame", "680 × 460"], ["left", "240px attach-profile list (single select)"], ["right", "remote workspaces — 4 states"], ["ws row", "dot · name · panes · busy / in-use"], ["connect", "enabled only with a selectable ws"], ["cancel", "always enabled · aborts connect"], ["dismiss", <>×/Cancel/<span className="ic">Esc</span></>]]}
-            tokens={[{ tok: "--tasty-bg-panel", use: "frame", color: "var(--tasty-bg-panel)" }, { tok: "--tasty-bg-sidebar", use: "left pane", color: "var(--tasty-bg-sidebar)" }, { tok: "--tasty-surface-active", use: "selected row", color: "var(--tasty-surface-active)" }, { tok: "--tasty-accent-primary", use: "selected bar · Connect", color: "var(--tasty-accent-primary)" }, { tok: "--tasty-accent-attached", use: "in-use (claimed elsewhere)", color: "var(--tasty-accent-attached)" }, { tok: "--tasty-accent-success", use: "busy dot", color: "var(--tasty-accent-success)" }]} />
+            tokens={[{ tok: "--tasty-bg-panel", use: "frame", color: "var(--tasty-bg-panel)" }, { tok: "--tasty-bg-sidebar", use: "left pane", color: "var(--tasty-bg-sidebar)" }, { tok: "--tasty-surface-active", use: "selected row", color: "var(--tasty-surface-active)" }, { tok: "--tasty-accent-primary", use: "selected bar · Connect", color: "var(--tasty-accent-primary-raised)" }, { tok: "--tasty-accent-attached", use: "in-use (claimed elsewhere)", color: "var(--tasty-accent-attached)" }, { tok: "--tasty-accent-success", use: "busy dot", color: "var(--tasty-accent-success-raised)" }]} />
           <Do><b>Do</b> block selection of a remote workspace already <b>attached on another client</b> (lavender <span className="ic">in use</span> badge, dot dimmed) — mirror it there, not twice. This is the same <span className="tok">--tasty-accent-attached</span> axis as the sidebar attached ring.</Do>
           <Note>The right pane runs four states off the left selection: <b>initial</b> (nothing picked — placeholder), <b>connecting</b> (Spinner — SSH tunnel + list can take seconds), <b>error</b> (danger glyph + reason + <b>Retry</b>), and <b>loaded</b> (the workspace list, or a muted “no workspaces” empty when the remote is reachable but idle).</Note>
         </Spec>
@@ -910,14 +910,14 @@ function Page() {
           </Stage>
           <Meta
             specs={[["initial", "remote glyph + prompt · Connect disabled"], ["connecting", "Spinner + “Connecting…”"], ["error", "danger glyph + reason + Retry"], ["empty", "caps header + pre-selected “+ New workspace” row + one muted line · Create & connect enabled"]]}
-            tokens={[{ tok: "--tasty-text-placeholder", use: "initial glyph", color: "var(--tasty-text-placeholder)" }, { tok: "--tasty-accent-danger", use: "error glyph", color: "var(--tasty-accent-danger)" }, { tok: "--tasty-spinner-track", use: "connecting spinner" }]} />
+            tokens={[{ tok: "--tasty-text-placeholder", use: "initial glyph", color: "var(--tasty-text-placeholder)" }, { tok: "--tasty-accent-danger", use: "error glyph", color: "var(--tasty-accent-danger-raised)" }, { tok: "--tasty-spinner-track", use: "connecting spinner" }]} />
         </Spec>
         <Spec id="new-workspace-row-the-escape-from-a-dead-end-remote" title="“+ New workspace” row — the escape from a dead-end remote"
           when={<>The <b>first row</b> of the loaded list opens the other path: instead of mirroring a workspace the remote already has, <b>create one there</b> and mirror that. It is deliberately a <b>row in the list</b>, not a button or a second tab — so it inherits the list's <b>select-then-confirm</b> contract: clicking selects, the footer confirms (§6-5). No name or cwd is ever asked for; the remote's defaults are used, which the row's tooltip states outright.</>}>
           <Stage variant="solo center" style={{ padding: 20, background: "var(--tasty-bg-app)" }}><RemoteAttachFrame state="loaded" newSelected /></Stage>
           <Meta
             specs={[["position", "first row of the scroll area, under the caps header"], ["height", "34 — identical to a ws row (8/12 padding, 13px/500)"], ["glyph", <><span className="ic">plus</span> 14px inside the <b>status-dot slot</b> → same name-column left edge</>], ["right slot", "muted “on remote” instead of panes/busy"], ["separator", <>1px <span className="tok">--tasty-separator</span>, 4 above / 4 below</>], ["sticky", "no — scrolls with the list"], ["footer", "label becomes Create & connect while selected"]]}
-            tokens={[{ tok: "--tasty-accent-primary", use: "glyph + label + select bar", color: "var(--tasty-accent-primary)" }, { tok: "--tasty-overlay-hover", use: "hover", color: "var(--tasty-overlay-hover)" }, { tok: "--tasty-surface-active", use: "selected", color: "var(--tasty-surface-active)" }, { tok: "--tasty-separator", use: "group divider", color: "var(--tasty-separator)" }, { tok: "--tasty-accent-danger", use: "create failed", color: "var(--tasty-accent-danger)" }]} />
+            tokens={[{ tok: "--tasty-accent-primary", use: "glyph + label + select bar", color: "var(--tasty-accent-primary-raised)" }, { tok: "--tasty-overlay-hover", use: "hover", color: "var(--tasty-overlay-hover)" }, { tok: "--tasty-surface-active", use: "selected", color: "var(--tasty-surface-active)" }, { tok: "--tasty-separator", use: "group divider", color: "var(--tasty-separator)" }, { tok: "--tasty-accent-danger", use: "create failed", color: "var(--tasty-accent-danger-raised)" }]} />
           <Do><b>Do</b> separate it from the real workspaces on <b>three channels at once</b> — glyph, accent label, and the divider. Colour alone would fail both colour-blind users and the 4.5:1 rule; the <span className="ic">plus</span> glyph and the divider carry the meaning without it. When the row is <b>selected</b> the label drops the accent for <span className="tok">--tasty-text-primary</span> (accent over <span className="tok">--tasty-surface-active</span> measures 3.17:1) — the glyph and the 2px bar keep the accent, so nothing is lost.</Do>
           <Dont><b>Don't</b> give it a status dot, pane count, or a busy/in-use badge — none of them exist for a workspace that hasn't been created. The dot slot is <b>reused</b> (not padded out) so the name column still lines up.</Dont>
         </Spec>
@@ -930,7 +930,7 @@ function Page() {
                 <div style={{ fontSize: 11, color: "var(--tasty-text-muted)" }}>{label}</div>
                 <div style={{ background: "var(--tasty-bg-panel)", border: "1px solid var(--tasty-border-strong)", borderRadius: "var(--tasty-radius)", overflow: "hidden" }}>
                   <RaNewRow {...p} />
-                  <div style={{ opacity: p.phase === "creating" ? 0.5 : 1 }}>
+                  <div data-audit-exempt={p.phase === "creating" ? "dimmed" : undefined} style={{ opacity: p.phase === "creating" ? "var(--tasty-state-dim-opacity)" : 1 }}>
                     <RaWsPeek />
                   </div>
                 </div>
@@ -939,7 +939,7 @@ function Page() {
           </Stage>
           <Meta
             specs={[["rest", "transparent · accent glyph + label"], ["hover", <span className="tok">--tasty-overlay-hover</span>], ["selected", <>+ 2px inset accent bar · label switches to <span className="tok">--tasty-text-primary</span> (accent on <span className="tok">--tasty-surface-active</span> is only 3.17:1) — identical to a ws row</>], ["creating", "Spinner 14 in the glyph slot · label muted · list dimmed, not replaced"], ["failed", "danger glyph · message clamp 3 lines · Try again (secondary sm)"], ["motion", "state swaps are instant (0ms) — the Spinner is the one allowed exception"]]}
-            tokens={[{ tok: "--tasty-accent-primary", use: "rest / selected label", color: "var(--tasty-accent-primary)" }, { tok: "--tasty-text-muted", use: "creating label", color: "var(--tasty-text-muted)" }, { tok: "--tasty-accent-danger", use: "failed glyph + message", color: "var(--tasty-accent-danger)" }]} />
+            tokens={[{ tok: "--tasty-accent-primary", use: "rest / selected label", color: "var(--tasty-accent-primary-raised)" }, { tok: "--tasty-text-muted", use: "creating label", color: "var(--tasty-text-muted)" }, { tok: "--tasty-accent-danger", use: "failed glyph + message", color: "var(--tasty-accent-danger-raised)" }]} />
           <Note><b>i18n.</b> “New workspace” grows to “Neuer Arbeitsbereich” / “새 워킬스페이스”. The label is <span className="tok">flex: 0 1 auto; min-width: 0</span> with single-line ellipsis and the trailing “on remote” caption is the first thing to be pushed out — the row never wraps and never grows past 34px.</Note>
         </Spec>
 
@@ -947,11 +947,11 @@ function Page() {
           when={<>§6-1, the decision that sets the implementation's render branch. Before this change a reachable-but-empty remote ended at a center-state with nothing but <b>Cancel</b>. <b>Plan A</b> keeps that center-state and adds a CTA button. <b>Plan B</b> takes the <b>list</b> path even when empty: caps header + the one “+ New workspace” row, with a muted line explaining why nothing follows it.</>}>
           <Stage variant="solo center" style={{ padding: 20, background: "var(--tasty-bg-app)", gap: 16, flexWrap: "wrap", alignItems: "flex-start" }}>
             <div style={{ display: "flex", flexDirection: "column", gap: 6 }}><div style={{ fontSize: 11, color: "var(--tasty-text-muted)" }}>plan A — center-state + CTA</div><RemoteAttachFrame state="empty" emptyPlan="A" /></div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}><div style={{ fontSize: 11, color: "var(--tasty-accent-primary)" }}>plan B — list path (recommended)</div><RemoteAttachFrame state="empty" emptyPlan="B" /></div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}><div style={{ fontSize: 11, color: "var(--tasty-accent-primary-raised)" }}>plan B — list path (recommended)</div><RemoteAttachFrame state="empty" emptyPlan="B" /></div>
           </Stage>
           <Meta
             specs={[["recommendation", "plan B"], ["why", "one render path, one affordance, one confirm route"], ["plan B copy", "“‹host› is reachable but has no workspaces yet.”"], ["footer", "Create & connect, enabled (the row is pre-selected)"], ["plan A cost", "a second way to trigger the same action, confirmed differently"]]}
-            tokens={[{ tok: "--tasty-text-muted", use: "explanatory line", color: "var(--tasty-text-muted)" }, { tok: "--tasty-accent-primary", use: "row label", color: "var(--tasty-accent-primary)" }]} />
+            tokens={[{ tok: "--tasty-text-muted", use: "explanatory line", color: "var(--tasty-text-muted)" }, { tok: "--tasty-accent-primary", use: "row label", color: "var(--tasty-accent-primary-raised)" }]} />
           <Note><b>Recommended: plan B.</b> Plan A's CTA is a <i>button</i>, so it fires immediately — the same action would then be confirmed two different ways depending on whether the remote happened to be empty, and the implementation would carry two render branches plus two handlers. Plan B has one list, one row, one confirm route, and the empty case degrades to “the list has exactly one row.” In plan B the row is <b>pre-selected</b> on an empty remote, so <b>Create &amp; connect</b> is live the moment the pane loads — the dead end is gone without adding a control.</Note>
         </Spec>
 
@@ -981,7 +981,7 @@ function Page() {
           </Stage>
           <Meta
             specs={[["frame", "640 × 480 · PopupDef"], ["header", "glyph · title · host indicator · ✕"], ["path bar", "breadcrumb + refresh · bg-sidebar"], ["row", "checkbox? · icon · name · size · modified"], ["footer", "name field · type filter · Cancel / Open"], ["open", "enabled only with a selection"], ["dismiss", <>×/Cancel/<span className="ic">Esc</span> · Open = <span className="ic">Enter</span></>]]}
-            tokens={[{ tok: "--tasty-bg-panel", use: "frame", color: "var(--tasty-bg-panel)" }, { tok: "--tasty-bg-sidebar", use: "path / list-header bar", color: "var(--tasty-bg-sidebar)" }, { tok: "--tasty-surface-active", use: "selected row", color: "var(--tasty-surface-active)" }, { tok: "--tasty-accent-primary", use: "selected bar · folder glyph · Open · crumb link", color: "var(--tasty-accent-primary)" }, { tok: "--tasty-accent-info", use: "remote host indicator", color: "var(--tasty-accent-info)" }, { tok: "--tasty-accent-danger", use: "error glyph", color: "var(--tasty-accent-danger)" }]} />
+            tokens={[{ tok: "--tasty-bg-panel", use: "frame", color: "var(--tasty-bg-panel)" }, { tok: "--tasty-bg-sidebar", use: "path / list-header bar", color: "var(--tasty-bg-sidebar)" }, { tok: "--tasty-surface-active", use: "selected row", color: "var(--tasty-surface-active)" }, { tok: "--tasty-accent-primary", use: "selected bar · folder glyph · Open · crumb link", color: "var(--tasty-accent-primary-raised)" }, { tok: "--tasty-accent-info", use: "remote host indicator", color: "var(--tasty-accent-info-raised)" }, { tok: "--tasty-accent-danger", use: "error glyph", color: "var(--tasty-accent-danger-raised)" }]} />
           <Do><b>Do</b> keep local and remote a single component with a single set of states — the target only changes the <b>host indicator</b> and the <b>breadcrumb root</b> (<span className="tok">--tasty-font-mono</span> <span className="ic">user@host</span> vs. <span className="ic">/</span>), never the layout.</Do>
           <Note>Out of scope this pass (deferred, not designed): a favorites/recent-locations rail and per-host history. Multi-select is spec'd below but ships behind single-select by default.</Note>
         </Spec>
@@ -995,7 +995,7 @@ function Page() {
           </Stage>
           <Meta
             specs={[["A badge", "mono host chip · info-tinted · explicit"], ["B glyph", "remote icon + inline host · lightest"], ["C border", "info edge + 2px top strip · loudest"], ["shared axis", "--tasty-accent-info (never danger)"], ["local", "no indicator · file glyph · / root"]]}
-            tokens={[{ tok: "--tasty-accent-info", use: "all three indicators", color: "var(--tasty-accent-info)" }, { tok: "--tasty-font-mono", use: "host string", color: "var(--tasty-text-secondary)" }]} />
+            tokens={[{ tok: "--tasty-accent-info", use: "all three indicators", color: "var(--tasty-accent-info-raised)" }, { tok: "--tasty-font-mono", use: "host string", color: "var(--tasty-text-secondary)" }]} />
           <Dont><b>Don't</b> use a danger/warning tone for the remote indicator — remote is a normal, expected mode, not an error. Reserve peach/red for the connection-lost state below.</Dont>
         </Spec>
 
@@ -1010,7 +1010,7 @@ function Page() {
           </Stage>
           <Meta
             specs={[["loading", "Spinner · reads dir (remote: over SSH)"], ["empty", "folderOpen glyph + muted line"], ["error", "danger glyph · title · reason · action"], ["perm vs. conn", "Retry vs. Reconnect (resumes)"], ["multi", "checkbox col · joined names · N selected"], ["Open", "disabled while loading / error / empty"]]}
-            tokens={[{ tok: "--tasty-accent-danger", use: "error glyph", color: "var(--tasty-accent-danger)" }, { tok: "--tasty-text-placeholder", use: "empty glyph", color: "var(--tasty-text-placeholder)" }, { tok: "--tasty-spinner-track", use: "loading spinner" }]} />
+            tokens={[{ tok: "--tasty-accent-danger", use: "error glyph", color: "var(--tasty-accent-danger-raised)" }, { tok: "--tasty-text-placeholder", use: "empty glyph", color: "var(--tasty-text-placeholder)" }, { tok: "--tasty-spinner-track", use: "loading spinner" }]} />
           <Note>Row focus ring (keyboard nav) is shown on <span className="ic">pipeline.yaml</span> in the loaded frames — 1px <span className="tok">--tasty-accent-primary</span> outline, distinct from the filled selection background so focus and selection never merge visually.</Note>
         </Spec>
 
@@ -1024,7 +1024,7 @@ function Page() {
           </Stage>
           <Meta
             specs={[["title", "Save file (open mode: Open file)"], ["confirm", "footer primary only — one control"], ["labels", "Save · Overwrite when the name exists"], ["input", "editable · placeholder “Type a file name”"], ["list pick", "writes the name into the input → Overwrite"], ["selection", "clears as soon as the name diverges → Save"], ["overwrite", "11px warning line above the buttons"], ["disabled", "Save disabled while the name is empty"], ["breadcrumb", "folds only when the measured row doesn't fit — see Path bar"], ["footer", "never shrinks — the input absorbs it"]]}
-            tokens={[{ tok: "--tasty-accent-warning", use: "overwrite line", color: "var(--tasty-accent-warning)" }, { tok: "--tasty-input-bg", use: "name field", color: "var(--tasty-input-bg)" }, { tok: "--tasty-text-placeholder", use: "empty name", color: "var(--tasty-text-placeholder)" }, { tok: "--tasty-separator", use: "footer rule", color: "var(--tasty-separator)" }]} />
+            tokens={[{ tok: "--tasty-accent-warning", use: "overwrite line", color: "var(--tasty-accent-warning-raised)" }, { tok: "--tasty-input-bg", use: "name field", color: "var(--tasty-input-bg)" }, { tok: "--tasty-text-placeholder", use: "empty name", color: "var(--tasty-text-placeholder)" }, { tok: "--tasty-separator", use: "footer rule", color: "var(--tasty-separator)" }]} />
           <Note><b>Long-path shrink rule (fixes a defect in open mode too).</b> Overflow is absorbed <b>in the path bar</b>, never by the footer: the breadcrumb is the only flexible child (<code>flex:1; min-width:0</code>) and elides in the <b>middle</b> — root + <span className="ic">…</span> + the last two segments, since the current folder and its parent are what orient you; the <span className="ic">…</span> lists the hidden ancestors on click. Footer label, filter chip and both buttons are <code>flex:none</code>; only the name input shrinks. No horizontal scroll, and Cancel / Open / Save can never be clipped.</Note>
           <Dont><b>Don't</b> append a save row under the list. Two confirm controls in one dialog means two targets — pick <span className="ic">package.json</span>, then type a different name, and the screen holds two answers with no rule for which wins.</Dont>
         </Spec>
@@ -1123,7 +1123,7 @@ function Page() {
           <Stage variant="solo center"><Backdrop height={420}><SettingsFrame /></Backdrop></Stage>
           <Meta
             specs={[["frame", "1100 × 700 (canonical)"], ["L1 tabs", "44px bar, accent underline"], ["L2 sidebar", "200px, filter + list"], ["footer", "Cancel / Save, right"]]}
-            tokens={[{ tok: "--tasty-bg-sidebar", use: "L1 + L2", color: "var(--tasty-bg-sidebar)" }, { tok: "--tasty-bg-panel", use: "content", color: "var(--tasty-bg-panel)" }, { tok: "--tasty-accent-primary", use: "active tab", color: "var(--tasty-accent-primary)" }, { tok: "--tasty-surface-active", use: "active section", color: "var(--tasty-surface-active)" }]} />
+            tokens={[{ tok: "--tasty-bg-sidebar", use: "L1 + L2", color: "var(--tasty-bg-sidebar)" }, { tok: "--tasty-bg-panel", use: "content", color: "var(--tasty-bg-panel)" }, { tok: "--tasty-accent-primary", use: "active tab", color: "var(--tasty-accent-primary-raised)" }, { tok: "--tasty-surface-active", use: "active section", color: "var(--tasty-surface-active)" }]} />
           <Note>L1 stays small forever; growth happens only in L2. Plugins are their <b>own</b> L1 tab — never crammed into another group's sidebar.</Note>
         </Spec>
 
@@ -1142,7 +1142,7 @@ function Page() {
                   {cap && <p style={{ margin: 0, fontSize: 12, color: "var(--tasty-text-muted)", maxWidth: "var(--tasty-measure-md)", lineHeight: "var(--tasty-line-height-ui)" }}>{cap}</p>}
                   {warn && <div style={{ display: "flex", gap: "var(--tasty-space-sm)", padding: "var(--tasty-space-sm) var(--tasty-space-md)", borderRadius: "var(--tasty-radius)", maxWidth: "var(--tasty-measure-md)",
                     border: "var(--tasty-border-width) solid color-mix(in srgb, var(--tasty-accent-warning) 40%, transparent)", background: "color-mix(in srgb, var(--tasty-accent-warning) 12%, transparent)" }}>
-                    <span style={{ display: "inline-flex", flex: "none", marginTop: 1, color: "var(--tasty-accent-warning)" }}><WIcon name="alertTriangle" size={16} /></span>
+                    <span style={{ display: "inline-flex", flex: "none", marginTop: 1, color: "var(--tasty-accent-warning-raised)" }}><WIcon name="alertTriangle" size={16} /></span>
                     <p style={{ margin: 0, fontSize: 12, color: "var(--tasty-text-secondary)", lineHeight: "var(--tasty-line-height-ui)" }}>When on, the webhook listener takes every network interface, so anyone who can reach its port can call your registered webhooks. When off, only programs on this computer can. Applies from the next start.</p>
                   </div>}
                 </div>
@@ -1151,7 +1151,7 @@ function Page() {
           </Stage>
           <Meta
             specs={[["label column", "longest label of the subtab, clamp 150 … 240, wraps past 240 (en: webhook label → 240, 2 lines)"], ["gap", "16 label → control"], ["row caption", "directly under its row · gap 4 · left edge · measure-md · caption 12 muted"], ["callout", "same slot as a caption · warning · alertTriangle 16 · always visible · measure-md"], ["placement", "webhook row last (after Language)"], ["setting", "[webhook] allow_external · default off · Save / Cancel · from next start"]]}
-            tokens={[{ tok: "--tasty-settings-label-width", use: "label column floor 150" }, { tok: "--tasty-settings-label-max-width", use: "label column cap 240" }, { tok: "--tasty-settings-label-gap", use: "16" }, { tok: "--tasty-settings-row-caption-gap", use: "row → caption 4" }, { tok: "--tasty-accent-warning", use: "callout edge + icon", color: "var(--tasty-accent-warning)" }, { tok: "--tasty-measure-md", use: "caption / callout width" }]} />
+            tokens={[{ tok: "--tasty-settings-label-width", use: "label column floor 150" }, { tok: "--tasty-settings-label-max-width", use: "label column cap 240" }, { tok: "--tasty-settings-label-gap", use: "16" }, { tok: "--tasty-settings-row-caption-gap", use: "row → caption 4" }, { tok: "--tasty-accent-warning", use: "callout edge + icon", color: "var(--tasty-accent-warning-raised)" }, { tok: "--tasty-measure-md", use: "caption / callout width" }]} />
           <Note>Copy is confirmed as shipped: label “Accept webhook calls from other computers:”, callout as above (<code>settings.general.webhook_allow_external_*</code>). Wheel / language caption copy here is placeholder for the app's existing strings — keep the app's text, move only the position.</Note>
         </Spec>
 
@@ -1195,7 +1195,7 @@ function Page() {
           </Stage>
           <Meta
             specs={[["L2 position", "4th — after Accessibility"], ["label", "Toast duration"], ["unit", "seconds — mono “2.0 s”"], ["range / step", "1.0–10.0 s, step 0.5"], ["default", "2.0 s (= DEFAULT_LIFETIME 2000ms)"], ["control", "mono Input (90) + static “s” — the Numbers in settings shape"], ["commit", "blur / ↵ · clamps to 1.0–10.0 and snaps to 0.5"], ["out of range", "danger border + “Between 1.0 and 10.0.” line"], ["hint", "12px muted line below the grid"]]}
-            tokens={[{ tok: "--tasty-surface-active", use: "active L2 row", color: "var(--tasty-surface-active)" }, { tok: "--tasty-field-width-xs", use: "field width 90" }, { tok: "--tasty-border-focus", use: "editing border", color: "var(--tasty-border-focus)" }, { tok: "--tasty-accent-danger", use: "out of range", color: "var(--tasty-accent-danger)" }, { tok: "--tasty-font-mono", use: "value text" }]} />
+            tokens={[{ tok: "--tasty-surface-active", use: "active L2 row", color: "var(--tasty-surface-active)" }, { tok: "--tasty-field-width-xs", use: "field width 90" }, { tok: "--tasty-border-focus", use: "editing border", color: "var(--tasty-border-focus)" }, { tok: "--tasty-accent-danger", use: "out of range", color: "var(--tasty-accent-danger-raised)" }, { tok: "--tasty-font-mono", use: "value text" }]} />
           <Note>Scope is <b>this one row only</b> — the tab name is the umbrella so future overlay settings (banner, marker…) can land here without inventing a new section. Existing General / Notifications / Accessibility content is untouched. Store the value in ms internally; only the display is in seconds.</Note>
         </Spec>
         <Spec id="settings-general-remote-transfer-5th-l2-subtab" title="Settings · General › Remote transfer — 5th L2 subtab"
@@ -1223,7 +1223,7 @@ function Page() {
                         <span style={{ width: "var(--tasty-field-width-xs)" }}><Input block defaultValue={val} aria-invalid={err ? true : undefined} style={{ fontFamily: "var(--tasty-font-mono)", textAlign: "right", ...(err ? { borderColor: "var(--tasty-accent-danger)" } : null) }} /></span>
                         <span style={{ marginLeft: "calc(var(--tasty-space-sm) - var(--tasty-settings-label-gap))", fontFamily: "var(--tasty-font-mono)", fontSize: "var(--tasty-font-size-caption)", color: "var(--tasty-text-muted)" }}>B</span>
                       </div>
-                      {err && <div style={{ marginLeft: "calc(var(--tasty-settings-label-width) + var(--tasty-settings-label-gap))", fontSize: "var(--tasty-font-size-caption)", color: "var(--tasty-accent-danger)" }}>{err}</div>}
+                      {err && <div style={{ marginLeft: "calc(var(--tasty-settings-label-width) + var(--tasty-settings-label-gap))", fontSize: "var(--tasty-font-size-caption)", color: "var(--tasty-accent-danger-raised)" }}>{err}</div>}
                       <p style={{ margin: 0, fontSize: "var(--tasty-font-size-caption)", color: "var(--tasty-text-muted)", maxWidth: "var(--tasty-measure-md)", lineHeight: "var(--tasty-line-height-ui)" }}>{desc}</p>
                     </div>
                   </React.Fragment>
@@ -1233,7 +1233,7 @@ function Page() {
           </Stage>
           <Meta
             specs={[["L2 position", "Misc · after Scripts · before Tastyrc (Windows)"], ["heading", "REPORT LIMITS · mono micro uppercase · muted"], ["row grid", "label [150 … 240] · gap 16 (settings-label-gap — the request's 12 is superseded)"], ["field", "mono Input · field-width-xs 90 · right-aligned · unit B (static, muted, 8 after the field)"], ["caption", "under its row · gap 4 · caption 11 · muted · measure-md"], ["between rows", "1px separator · settings-row-gap 12"], ["ranges", "note 64 … min(65536, attempt − 1) · attempt max(128, note + 1) … 131072"], ["range line", "only when out of range (danger) · clamp on commit · directly UNDER THE INPUT, in the control column (label width + label gap) — b10, every numeric field"], ["numbers", "raw bytes, no grouping, no KiB"]]}
-            tokens={[{ tok: "--tasty-settings-row-gap", use: "→ space-md 12 (2026-10-09)" }, { tok: "--tasty-settings-row-caption-gap", use: "row → caption 4" }, { tok: "--tasty-field-width-xs", use: "90" }, { tok: "--tasty-accent-danger", use: "out of range", color: "var(--tasty-accent-danger)" }]} />
+            tokens={[{ tok: "--tasty-settings-row-gap", use: "→ space-md 12 (2026-10-09)" }, { tok: "--tasty-settings-row-caption-gap", use: "row → caption 4" }, { tok: "--tasty-field-width-xs", use: "90" }, { tok: "--tasty-accent-danger", use: "out of range", color: "var(--tasty-accent-danger-raised)" }]} />
           <Note>i18n (given): en “Note size limit” / “Attempt report limit” · ko “기록 한 건 상한” / “회차 report 상한” · ja “記録 1 件の上限” / “試行 report 上限” · heading “Report limits”. Gallery spec id: <code>settings-task-pipeline</code>.</Note>
         </Spec>
         <Spec id="numbers-in-settings-one-shape-mono-input-a-static-suffix" title="Numbers in settings — one shape: mono Input + a static suffix"
@@ -1243,20 +1243,20 @@ function Page() {
               <div key={label} style={{ display: "flex", flexDirection: "column", gap: 6, width: 420 }}>
                 <div style={{ fontSize: 11, color: "var(--tasty-text-muted)" }}>{label}</div>
                 <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                  <span style={{ flex: 1, fontSize: 13, color: dis ? "var(--tasty-text-disabled)" : "var(--tasty-text-secondary)" }}>Default zoom</span>
+                  <span style={{ flex: 1, fontSize: 13, color: dis ? "var(--tasty-text-disabled)" : "var(--tasty-text-secondary)" }} aria-disabled={dis || undefined}>Default zoom</span>
                   <span style={{ flex: "none", width: "var(--tasty-field-width-xs)" }}>
                     <Input block defaultValue={val} disabled={dis} aria-invalid={bad || undefined}
                       style={{ fontFamily: "var(--tasty-font-mono)", textAlign: "right", ...(bad ? { borderColor: "var(--tasty-accent-danger)" } : null) }} />
                   </span>
                   <span style={{ flex: "none", width: 28, fontSize: 12, color: "var(--tasty-text-muted)" }}>%</span>
                 </div>
-                {bad && <div style={{ fontSize: 11, color: "var(--tasty-accent-danger)", alignSelf: "flex-end", width: "calc(var(--tasty-field-width-xs) + 38px)" }}>Between 25 and 200. Commits as 200.</div>}
+                {bad && <div style={{ fontSize: 11, color: "var(--tasty-accent-danger-raised)", alignSelf: "flex-end", width: "calc(var(--tasty-field-width-xs) + 38px)" }}>Between 25 and 200. Commits as 200.</div>}
               </div>
             ))}
           </Stage>
           <Meta
             specs={[["control", "existing Input — no new component"], ["font", <span className="tok">--tasty-font-mono</span>], ["align", "right — digits line up down a settings column"], ["width", <>90 (<span className="tok">--tasty-field-width-xs</span>) — <b>88 is dropped</b></>], ["suffix", "static text outside the field, muted"], ["clamp", "on commit (blur / ↵), never mid-typing"], ["out of range", "danger border + one inline line with the range, under the input (control column), above the description caption (b10)"], ["scope", "every numeric field in Settings and in plugin settings"]]}
-            tokens={[{ tok: "--tasty-field-width-xs", use: "numeric field width", }, { tok: "--tasty-accent-danger", use: "out-of-range edge + line", color: "var(--tasty-accent-danger)" }, { tok: "--tasty-text-muted", use: "unit suffix", color: "var(--tasty-text-muted)" }]} />
+            tokens={[{ tok: "--tasty-field-width-xs", use: "numeric field width", }, { tok: "--tasty-accent-danger", use: "out-of-range edge + line", color: "var(--tasty-accent-danger-raised)" }, { tok: "--tasty-text-muted", use: "unit suffix", color: "var(--tasty-text-muted)" }]} />
           <Note><b>Maximum size keeps 90.</b> The 88 in the earlier mock was a drawing accident, not a role — the field-width set stays 90 / 110 / 160 / 180 / 200 with no new member. Two-pixel gain, one more name to maintain: not worth it.</Note>
           <Dont><b>Don't</b> put a drag-to-change number inside a scrollable settings pane. The gesture collides with the scroll and the range stays invisible until you overshoot it.</Dont>
         </Spec>
@@ -1314,7 +1314,7 @@ function Page() {
                   <div key={i} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 12px", borderBottom: "1px solid var(--tasty-separator)" }}>
                     <span style={{ flex: "none", width: 88, fontFamily: "var(--tasty-font-mono)", fontSize: 12, color: "var(--tasty-text-secondary)" }}>{r.ev}</span>
                     <span style={{ flex: 1, minWidth: 0, fontFamily: "var(--tasty-font-mono)", fontSize: 12, color: "var(--tasty-text-primary)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.act}</span>
-                    <span style={{ flex: "none", color: plugin ? "var(--tasty-accent-agent)" : undefined }}><WTag>{r.origin}</WTag></span>
+                    <span style={{ flex: "none", color: plugin ? "var(--tasty-accent-agent-raised)" : undefined }}><WTag>{r.origin}</WTag></span>
                     {r.seq && !r.cli && <Button variant="ghost" size="sm">Edit</Button>}
                     {r.cli && <span title="tasty hook-handler get --id ci-notify" style={{ flex: "none", fontSize: "var(--tasty-font-size-caption)", color: "var(--tasty-text-muted)" }}>Edit with CLI</span>}{r.cli && <IconButton size="sm" aria-label="Copy edit command"><WIcon name="copy" size={13} /></IconButton>}
                     <span style={{ flex: "none", width: 24, display: "inline-flex", justifyContent: "center" }}>
@@ -1329,7 +1329,7 @@ function Page() {
           </Stage>
           <Meta
             specs={[["origin", <>Tag: <b>host</b> · <b>you</b> · plugin id (<span className="tok">--tasty-accent-agent</span>)</>], ["remove", "user rows only"], ["not removable", <>lock glyph, <span className="tok">--tasty-glyph-dim</span>, with tooltip</>], ["not a disabled button", "nothing is pending — an affordance would lie"], ["IpcSequence", "mono one-line summary, steps joined by →"], ["sequence editing (2026-10-06 b2)", "Edit (ghost sm) on EVERY IpcSequence row (host / plugin edits save as a user override, like ShellCommand) → opens the inline text editor below"], ["not text-representable", "a stored method name the line format cannot carry → the row keeps caption \"Edit with CLI\" + copy; copies tasty hook-handler get --id <id>"], ["registry", "unchanged — defaults re-seed on start"]]}
-            tokens={[{ tok: "--tasty-glyph-dim", use: "lock glyph", color: "var(--tasty-glyph-dim)" }, { tok: "--tasty-accent-agent", use: "plugin origin", color: "var(--tasty-accent-agent)" }, { tok: "--tasty-font-mono", use: "event · action · sequence" }]} />
+            tokens={[{ tok: "--tasty-glyph-dim", use: "lock glyph", color: "var(--tasty-glyph-dim)" }, { tok: "--tasty-accent-agent", use: "plugin origin", color: "var(--tasty-accent-agent-raised)" }, { tok: "--tasty-font-mono", use: "event · action · sequence" }]} />
           <Note>The design's earlier “remove on every row” is dropped: the registry policy wins, and the lock is the honest reading of it.</Note>
         </Spec>
         <Spec id="hook-handlers-ipcsequence-text-editor" title="Hook Handlers — IpcSequence text editor"
@@ -1354,7 +1354,7 @@ function Page() {
           </Stage>
           <Meta
             specs={[["mark", "Tag (neutral) “edited” after the origin Tag — host / plugin rows with a user patch only"], ["mark tooltip", "Changed in your settings. Updates to the default no longer apply."], ["action", "Revert · ghost Button sm · action line, left of Edit"], ["Revert tooltip", "Go back to the default from {origin}."], ["pending", "button → Undo (same slot) · Tag “reverts on save” (disabled) · summary shows the default · Switch (at the default) and Edit disabled until Undo or Save — tooltip “Reverts on save. Undo to change it.” (batch 5)"], ["summary line", "mono term-sm · text-secondary — the Handler › Hook Handlers HookRow type on every row (batch 5)"], ["scope", "sequence edit · Switch off · both — any user patch"], ["Save / Cancel", "Save removes the patch · Cancel restores it"], ["user rows", "never marked — they are the user's own"]]}
-            tokens={[{ tok: "--tasty-tag-disabled-bg", use: "pending Tag", color: "var(--tasty-tag-disabled-bg)" }, { tok: "--tasty-glyph-dim", use: "padlock", color: "var(--tasty-glyph-dim)" }, { tok: "--tasty-accent-agent", use: "plugin origin", color: "var(--tasty-accent-agent)" }]} />
+            tokens={[{ tok: "--tasty-tag-disabled-bg", use: "pending Tag", color: "var(--tasty-tag-disabled-bg)" }, { tok: "--tasty-glyph-dim", use: "padlock", color: "var(--tasty-glyph-dim)" }, { tok: "--tasty-accent-agent", use: "plugin origin", color: "var(--tasty-accent-agent-raised)" }]} />
           <Note>No new tokens: the mark is the shared Tag, the pending state reuses the extension-mapping Undo + disabled Tag pair. Strings: <code>hook_handler.edited</code> “edited” · <code>hook_handler.edited_tip</code> · <code>hook_handler.revert</code> “Revert” · <code>hook_handler.revert_tip</code> · <code>hook_handler.reverts_on_save</code> “reverts on save” · <code>hook_handler.pending_locked_tip</code> “Reverts on save. Undo to change it.” · <code>common.undo</code>.</Note>
         </Spec>
         <Spec id="appearance-colour-rows-the-default-hex-is-read-only-not-disabled" title="Appearance › colour rows — the Default hex is read-only, not disabled"
@@ -1441,7 +1441,7 @@ function Page() {
           when={<>macOS builds only, the last L2 under General. A three-column table: <b>permission</b> · <b>status</b> · <b>row action</b>. The four states are told apart by <b>glyph + word</b>, with colour as a third channel: <b>Granted</b> check / success, <b>Not granted</b> alertCircle / warning, <b>Unknown</b> helpCircle / muted, <b>Cannot check automatically</b> eyeOff / muted. Unknown (inference failed) and Cannot check (deliberately not looked at) share the muted ink but never the glyph, and neither can be misread as granted. The Full Disk Access shortcut moves <b>into its own row</b> as Secondary / Sm <b>[Open System Settings]</b>. What needs explaining per row now lives in HelpHints, so the two notes under the table are short. <b>[Request all permissions]</b> stays Primary / Md under the table. While requesting it is disabled and the line below becomes a spinner + <i>requesting</i> copy; the button carries no spinner. The debug-only Accessibility row carries a <b>debug</b> Tag.</>}>
           <Stage variant="solo" style={{ padding: "var(--tasty-space-lg)", background: "var(--tasty-bg-app)", gap: "var(--tasty-space-lg)", flexWrap: "wrap", alignItems: "flex-start" }}>
             {[["A · nothing granted — Mocha", "none", false, null], ["A · nothing granted — Latte", "none", false, "latte"], ["B · all granted", "all", false, null], ["C · FDA unknown, screen granted", "fdaUnknown", false, null], ["F · FDA granted before an update — Mocha", "fdaStale", false, null], ["F · FDA granted before an update — Latte", "fdaStale", false, "latte"], ["G · FDA turned off outside Tasty (revoked, 2026-10-08)", "fdaRevoked", false, null], ["D · requesting", "requesting", false, null], ["E · debug build (4 rows)", "none", true, null], ["E · debug build — Latte", "all", true, "latte"]].map(([cap, sc, dbg, theme]) => (
-              <div key={cap} {...(theme ? { "data-theme": theme } : {})} style={{ width: "var(--tasty-size-560)", display: "flex", flexDirection: "column", gap: "var(--tasty-space-xs)" }}>
+              <div key={cap} {...(theme ? { "data-theme": theme } : {})} style={{ width: "var(--tasty-size-560)", display: "flex", flexDirection: "column", gap: "var(--tasty-space-xs)", background: "var(--tasty-bg-app)" }}>
                 <span style={{ fontSize: "var(--tasty-font-size-caption)", color: "var(--tasty-text-muted)" }}>{cap}</span>
                 <div style={{ padding: "var(--tasty-space-lg)", background: "var(--tasty-bg-panel)", border: "var(--tasty-border-width) solid var(--tasty-border-frame)", borderRadius: "var(--tasty-radius)" }}>
                   <MacPermissionsPane scenario={sc} debug={dbg} />
@@ -1513,7 +1513,7 @@ function Page() {
           </Stage>
           <Meta
             specs={[["tone", "success add · warning add + trust · danger blocked"], ["box", "tint-fill + tint-border of the tone · pad space-md / 14 · radius"], ["title", "glyph 16 + 13/600 in the tone"], ["body", "term-sm · text-secondary"], ["fingerprint", "after the body · absent for signature-error"], ["installed", "trust box as judged · bar reason 'Already installed' only (no second notice)"], ["Attention › signature invalid", "no fingerprint line (the signature it would identify is the broken part)"], ["homepage", "mono caption row 'Homepage' under Source · link text, opens the default browser"], ["homepage link (b2)", "text-secondary · 1px underline always · hover text-primary · focus = focus ring · pointer cursor (no accent: the row sits on surface-raised and text-secondary already clears 4.5:1)"], ["authors", "id · first author · +N (tooltip lists all)"], ["empty lists", "Permissions / Surface kinds: 'None' in text-muted, no Tag · font-size-caption (same as the mono caption rows it replaces)"], ["long fingerprint (b2)", "colon-hex over 16 bytes → first 8 + ' … ' + last 8 bytes, one line; tooltip + copy = full value"], ["Signature invalid (b2)", "header kept · fixed note 'The signature does not match this plugin's files.' · cause (key missing / mismatch …) as a mono caption text-muted line under it"], ["action-bar left text (b2)", "font-size-caption — the kit's 12 is corrected"], ["flow (b2)", "kit structure: path input, preview card directly under it, no 'Plugin information' title / second step"]]}
-            tokens={[{ tok: "--tasty-tint-fill-alpha", use: "box fill" }, { tok: "--tasty-tint-border-alpha", use: "box edge" }, { tok: "--tasty-accent-warning", use: "add + trust", color: "var(--tasty-accent-warning)" }, { tok: "--tasty-accent-danger", use: "blocked", color: "var(--tasty-accent-danger)" }, { tok: "--tasty-accent-success", use: "trusted", color: "var(--tasty-accent-success)" }]} />
+            tokens={[{ tok: "--tasty-tint-fill-alpha", use: "box fill" }, { tok: "--tasty-tint-border-alpha", use: "box edge" }, { tok: "--tasty-accent-warning", use: "add + trust", color: "var(--tasty-accent-warning-raised)" }, { tok: "--tasty-accent-danger", use: "blocked", color: "var(--tasty-accent-danger-raised)" }, { tok: "--tasty-accent-success", use: "trusted", color: "var(--tasty-accent-success-raised)" }]} />
         </Spec>
         {<OverlaysWindowsPluginTrust_PluginTrustSpecs />}
         <Spec id="add-plugin-dashed-empty-hint-manifest-read-error" title="Add plugin — dashed empty hint · manifest read error"
@@ -1524,16 +1524,16 @@ function Page() {
                 <WIcon name="folder" size="var(--tasty-icon-size-md)" /><span>Choose a folder and press <b style={{ color: "var(--tasty-text-secondary)" }}>Verify</b> to read its manifest.</span>
               </div>
               <div style={{ width: "var(--tasty-size-400)", display: "flex", alignItems: "flex-start", gap: "var(--tasty-space-sm)", padding: "var(--tasty-size-14) var(--tasty-space-lg)", borderRadius: "var(--tasty-radius)", border: "var(--tasty-border-width) solid var(--tasty-accent-danger)" }}>
-                <span style={{ display: "inline-flex", flex: "none", color: "var(--tasty-accent-danger)" }}><WIcon name="alertTriangle" size="var(--tasty-icon-size-md)" /></span>
+                <span style={{ display: "inline-flex", flex: "none", color: "var(--tasty-accent-danger-raised)" }}><WIcon name="alertTriangle" size="var(--tasty-icon-size-md)" /></span>
                 <span style={{ display: "flex", flexDirection: "column", gap: "var(--tasty-label-detail-gap)", minWidth: 0 }}>
-                  <span style={{ fontSize: "var(--tasty-font-size-body)", color: "var(--tasty-accent-danger)" }}>Can't read tasty-plugin.toml</span>
+                  <span style={{ fontSize: "var(--tasty-font-size-body)", color: "var(--tasty-accent-danger-raised)" }}>Can't read tasty-plugin.toml</span>
                   <span style={{ fontFamily: "var(--tasty-font-mono)", fontSize: "var(--tasty-font-size-caption)", color: "var(--tasty-text-muted)", overflowWrap: "anywhere" }}>TOML parse error at line 4, column 9: expected `=`</span>
                 </span>
               </div>
               <div style={{ width: "var(--tasty-size-400)", display: "flex", alignItems: "flex-start", gap: "var(--tasty-space-sm)", padding: "var(--tasty-size-14) var(--tasty-space-lg)", borderRadius: "var(--tasty-radius)", border: "var(--tasty-border-width) solid var(--tasty-accent-danger)" }}>
-                <span style={{ display: "inline-flex", flex: "none", color: "var(--tasty-accent-danger)" }}><WIcon name="alertTriangle" size="var(--tasty-icon-size-md)" /></span>
+                <span style={{ display: "inline-flex", flex: "none", color: "var(--tasty-accent-danger-raised)" }}><WIcon name="alertTriangle" size="var(--tasty-icon-size-md)" /></span>
                 <span style={{ display: "flex", flexDirection: "column", gap: "var(--tasty-label-detail-gap)", minWidth: 0 }}>
-                  <span style={{ fontSize: "var(--tasty-font-size-body)", color: "var(--tasty-accent-danger)" }}>tasty-plugin.toml is not valid</span>
+                  <span style={{ fontSize: "var(--tasty-font-size-body)", color: "var(--tasty-accent-danger-raised)" }}>tasty-plugin.toml is not valid</span>
                   <span style={{ fontFamily: "var(--tasty-font-mono)", fontSize: "var(--tasty-font-size-caption)", color: "var(--tasty-text-muted)", overflowWrap: "anywhere" }}>binary "bin/imgview" not found in the plugin folder</span>
                 </span>
               </div>
@@ -1541,7 +1541,7 @@ function Page() {
           </Stage>
           <Meta
             specs={[["empty hint", "dashed 1px border-default · radius · pad 14 / 16"], ["dash", <>4 on / 4 off · <span className="tok">--tasty-border-dash</span> · <span className="tok">--tasty-border-dash-gap</span> · OFF-SCALE</>], ["corners", "solid arc; dashes on straight edges only, centred"], ["read error", "same box · solid accent-danger edge · no fill"], ["title", "Can't read tasty-plugin.toml · body · accent-danger"], ["reason", "mono caption · text-muted · untranslated"], ["invalid", "read but fails validation (binary path · extras) — same box · title “tasty-plugin.toml is not valid” · reason = validation message (batch 5)"], ["slot width", "measure-xl (560) capped by the column — unchanged (batch 5)"], ["action", "none — fix the path above and Verify again"]]}
-            tokens={[{ tok: "--tasty-border-dash", use: "→ size-4" }, { tok: "--tasty-border-dash-gap", use: "→ size-4" }, { tok: "--tasty-border-default", use: "hint edge", color: "var(--tasty-border-default)" }, { tok: "--tasty-accent-danger", use: "read error", color: "var(--tasty-accent-danger)" }]} />
+            tokens={[{ tok: "--tasty-border-dash", use: "→ size-4" }, { tok: "--tasty-border-dash-gap", use: "→ size-4" }, { tok: "--tasty-border-default", use: "hint edge", color: "var(--tasty-border-default)" }, { tok: "--tasty-accent-danger", use: "read error", color: "var(--tasty-accent-danger-raised)" }]} />
           <Note>The same dash pair draws the Scripts <b>Add trigger…</b> control (Misc › Scripts). Strings: <code>plugins.add.read_error</code> “Can't read tasty-plugin.toml” · <code>plugins.add.invalid</code> “tasty-plugin.toml is not valid”.</Note>
         </Spec>
         <Spec id="installed-detail-install-path-log-path-open-folder" title="Installed detail — install path · log path · Open folder"
@@ -1615,7 +1615,7 @@ function Page() {
           </Stage>
           <Meta
             specs={[["columns", "32px select · 1.6fr action · 1fr current · 1fr imported"], ["group header", "spans all columns, on surface-raised"], ["group content", "select-all · name (mono 10 caps) · counts · chevron"], ["groups", "general · quick switch · scripts · plugin overrides"], ["default view", "changed only"], ["toggle", "“Show all {n}” in the back bar"], ["quick switch", "1 row per axis (3), slot count as sub-line"], ["plugin row", "command name + agent-dot plugin name, two lines"], ["changed cell", "accent-primary, colour only (no bold)"]]}
-            tokens={[{ tok: "--tasty-surface-raised", use: "group header bed", color: "var(--tasty-surface-raised)" }, { tok: "--tasty-accent-primary", use: "changed imported value", color: "var(--tasty-accent-primary)" }, { tok: "--tasty-accent-agent", use: "plugin dot", color: "var(--tasty-accent-agent)" }, { tok: "--tasty-separator", use: "cell rules" }, { tok: "--tasty-letter-spacing-caps", use: "header + group name tracking" }]} />
+            tokens={[{ tok: "--tasty-surface-raised", use: "group header bed", color: "var(--tasty-surface-raised)" }, { tok: "--tasty-accent-primary", use: "changed imported value", color: "var(--tasty-accent-primary-raised)" }, { tok: "--tasty-accent-agent", use: "plugin dot", color: "var(--tasty-accent-agent-raised)" }, { tok: "--tasty-separator", use: "cell rules" }, { tok: "--tasty-letter-spacing-caps", use: "header + group name tracking" }]} />
           <Note><b>Apply writes the draft, Save commits it</b> — the same two-stage contract as Preset, and the intro line says so. The two never share a row: Apply sits in the back bar, Save in the window footer.</Note>
         </Spec>
 
@@ -1639,7 +1639,7 @@ function Page() {
           </Stage>
           <Meta
             specs={[["export success", "toast with the resolved path"], ["export failure", "inline danger block in the Export row"], ["failure actions", "Try again · Choose another location…"], ["info line", "dropped overrides — muted, unchanged"], ["warning block", "one block, 1 line per notice, count in header"], ["notice order", "schema → unknown actions → empty groups"], ["fold", "3 lines, then “Show {n} more”"], ["parse copy", "line clause replaced by “the file isn't TOML.”"], ["conflicts", "count-first line from 2 up; row lines always"], ["placeholder", "“Select a modifier” · text-placeholder"]]}
-            tokens={[{ tok: "--tasty-settings-content-max-width", use: "620 — content column cap (NEW)" }, { tok: "--tasty-kb-ie-select-column-width", use: "32 — diff select column (NEW)" }, { tok: "--tasty-kb-ie-action-column-width", use: "288 — action label column + sub-line indent (NEW)" }, { tok: "--tasty-kb-ie-from-column-width", use: "120 — original shortcut column (NEW)" }, { tok: "--tasty-kb-ie-slot-height", use: "24 — replacement slot chip (NEW)" }, { tok: "--tasty-kb-ie-slot-min-width", use: "140 — slot chip min width (NEW)" }, { tok: "--tasty-kb-ie-notice-inset", use: "12 — notice / card inset, both axes (NEW, was off-grid 14)" }, { tok: "--tasty-accent-warning", use: "warning block + Not set", color: "var(--tasty-accent-warning)" }, { tok: "--tasty-accent-danger", use: "failure blocks + conflict count", color: "var(--tasty-accent-danger)" }]} />
+            tokens={[{ tok: "--tasty-settings-content-max-width", use: "620 — content column cap (NEW)" }, { tok: "--tasty-kb-ie-select-column-width", use: "32 — diff select column (NEW)" }, { tok: "--tasty-kb-ie-action-column-width", use: "288 — action label column + sub-line indent (NEW)" }, { tok: "--tasty-kb-ie-from-column-width", use: "120 — original shortcut column (NEW)" }, { tok: "--tasty-kb-ie-slot-height", use: "24 — replacement slot chip (NEW)" }, { tok: "--tasty-kb-ie-slot-min-width", use: "140 — slot chip min width (NEW)" }, { tok: "--tasty-kb-ie-notice-inset", use: "12 — notice / card inset, both axes (NEW, was off-grid 14)" }, { tok: "--tasty-accent-warning", use: "warning block + Not set", color: "var(--tasty-accent-warning-raised)" }, { tok: "--tasty-accent-danger", use: "failure blocks + conflict count", color: "var(--tasty-accent-danger-raised)" }]} />
           <Note><b>Why the notices are one block and the info line is not in it.</b> Tone is the sorting key, not topic: a reader scans for "is anything wrong". Merging an unactionable fact into a warning-toned block makes the whole block unactionable-looking; splitting the four warnings into four blocks makes a wall where one thing is needed — read it, then go look at the table.</Note>
           <Dont><b>Don't</b> toast an export failure. A toast auto-dismisses and carries no retry, so the one case where the user must act is the one case that disappears on its own.</Dont>
         </Spec>
@@ -1654,7 +1654,7 @@ function Page() {
           </Stage>
           <Meta
             specs={[["clause set", "read-only · permission · disk full · the write didn't finish."], ["OS text", "own line, mono 11, muted — never inside the sentence"], ["first / last sentence", "never change (same as parse failure)"], ["singular", "1 notice · 1 unknown action was skipped (…)"], ["fold link", "absent at 1 notice — nothing to fold"], ["620 cap", "the settings scroll column, every non-full-bleed subtab"], ["prose", "keeps --tasty-measure-md (reading measure, narrower)"]]}
-            tokens={[{ tok: "--tasty-settings-content-max-width", use: "620 — now set once on the settings content column" }, { tok: "--tasty-text-muted", use: "OS reason line", color: "var(--tasty-text-muted)" }, { tok: "--tasty-accent-danger", use: "failure block", color: "var(--tasty-accent-danger)" }]} />
+            tokens={[{ tok: "--tasty-settings-content-max-width", use: "620 — now set once on the settings content column" }, { tok: "--tasty-text-muted", use: "OS reason line", color: "var(--tasty-text-muted)" }, { tok: "--tasty-accent-danger", use: "failure block", color: "var(--tasty-accent-danger-raised)" }]} />
           <Note><b>Where the 620 cap lives.</b> On the <b>settings content column itself</b> — the scrolling pane inside the Settings window — so every non-full-bleed L2 subtab inherits it, UI-kit subtabs included, and no block carries its own width. <b>Full-bleed subtabs are exempt</b>: they replace the column with their own layout (diff tables, editors). Body prose keeps <span className="tok">--tasty-measure-md</span> — a line-length measure, a different axis from the column cap and narrower than it.</Note>
           <Dont><b>Don't</b> build the OS message into the sentence (“… — os error 28: No space left on device.”). It breaks the sentence's grammar in three languages and buries the two parts the user can act on: which path, and that nothing was written.</Dont>
         </Spec>
@@ -1670,7 +1670,7 @@ function Page() {
           </Stage>
           <Meta
             specs={[["home", "Settings › Misc › Scripts (subsection)"], ["row", "name · path · shortcut · actions · auto-run"], ["shortcut", <><span className="ic">Kbd</span> badge or italic Unbound</>], ["changed", "peach badge + help line (SHA mismatch)"], ["auto-run", "trigger chips + Add trigger… (13 lifecycle events)"], ["Add trigger… edge", <>dashed · <span className="tok">--tasty-border-dash</span> / <span className="tok">--tasty-border-dash-gap</span> 4 / 4 · corners solid (2026-10-07)</>], ["trigger menu", <>min 200 · max 220 then scrolls · <span className="tok">--tasty-trigger-menu-min-width</span> / <span className="tok">-max-height</span> · menu-* container</>], ["all bound", "control stays, DISABLED (disabled ink) · tooltip All events already bound"], ["chip", "mono event · click removes · hover 12% overlay"], ["actions", "bind · rename · remove"], ["empty", "glyph + Add script prompt"]]}
-            tokens={[{ tok: "--tasty-accent-warning", use: "changed badge + help", color: "var(--tasty-accent-warning)" }, { tok: "--tasty-border-default", use: "chip + add-control border", color: "var(--tasty-border-default)" }, { tok: "--tasty-overlay-active", use: "chip hover / menu open", color: "var(--tasty-overlay-active)" }, { tok: "--tasty-text-disabled", use: "Unbound", color: "var(--tasty-text-disabled)" }, { tok: "--tasty-font-mono", use: "path · trigger chips" }]} />
+            tokens={[{ tok: "--tasty-accent-warning", use: "changed badge + help", color: "var(--tasty-accent-warning-raised)" }, { tok: "--tasty-border-default", use: "chip + add-control border", color: "var(--tasty-border-default)" }, { tok: "--tasty-overlay-active", use: "chip hover / menu open", color: "var(--tasty-overlay-active)" }, { tok: "--tasty-text-disabled", use: "Unbound", color: "var(--tasty-text-disabled)" }, { tok: "--tasty-font-mono", use: "path · trigger chips" }]} />
           <Note>Two independent run paths: a <b>manual shortcut</b> (bound in the Keybindings tab, shown as the <span className="ic">Kbd</span> badge) and <b>auto-run triggers</b> (edited inline here — the script fires when the host emits a bound lifecycle event). A script can have either, both, or neither. The <span className="ic">changed</span> state is informational — the script still runs, but re-confirms once (TOFU) because the on-disk file drifted from the registered hash.</Note>
         </Spec>
       </Section>
@@ -1681,7 +1681,7 @@ function Page() {
           <Stage variant="solo center" style={{ padding: 20, background: "var(--tasty-bg-app)" }}><GitViewerFrame /></Stage>
           <Meta
             specs={[["frame", "960 × 640 · dismiss on outside click"], ["header", "Git + Refresh · context strip (wt · branch · oid · path)"], ["rail", "232px — 2-line rows: name+type / oid+state"], ["right", "50/50 split — Changes over Commits"], ["badges", "Tag-style pills: main · linked · current · locked · invalid"], ["status", "M·A·D·R·?·U fixed-width pill prefix"], ["read-only", "Refresh · select · Back only"]]}
-            tokens={[{ tok: "--tasty-accent-info", use: "oid · main · refs · R", color: "var(--tasty-accent-info)" }, { tok: "--tasty-accent-success", use: "current · A", color: "var(--tasty-accent-success)" }, { tok: "--tasty-accent-warning", use: "locked · M", color: "var(--tasty-accent-warning)" }, { tok: "--tasty-accent-danger", use: "invalid · D · U", color: "var(--tasty-accent-danger)" }, { tok: "--tasty-surface-active", use: "selected row", color: "var(--tasty-surface-active)" }, { tok: "--tasty-bg-sidebar", use: "section / context strips", color: "var(--tasty-bg-sidebar)" }]} />
+            tokens={[{ tok: "--tasty-accent-info", use: "oid · main · refs · R", color: "var(--tasty-accent-info-raised)" }, { tok: "--tasty-accent-success", use: "current · A", color: "var(--tasty-accent-success-raised)" }, { tok: "--tasty-accent-warning", use: "locked · M", color: "var(--tasty-accent-warning-raised)" }, { tok: "--tasty-accent-danger", use: "invalid · D · U", color: "var(--tasty-accent-danger-raised)" }, { tok: "--tasty-surface-active", use: "selected row", color: "var(--tasty-surface-active)" }, { tok: "--tasty-bg-sidebar", use: "section / context strips", color: "var(--tasty-bg-sidebar)" }]} />
           <Do><b>Do</b> distinguish <b>"current"</b> worktree (green badge — where cwd lives) from the <b>selected</b> row (surface-active fill — what you're viewing). They can differ: you can inspect a non-current worktree without switching anything.</Do>
         </Spec>
         <Spec id="diff-variant-file-row-unified-diff" title="Diff variant — file row → unified diff"
@@ -1689,7 +1689,7 @@ function Page() {
           <Stage variant="solo center" style={{ padding: 20, background: "var(--tasty-bg-app)" }}><GitViewerFrame diff /></Stage>
           <Meta
             specs={[["trigger", "select a Changes row → diff"], ["toolbar", "Back + file path (muted/mono)"], ["gutter", "old / new line numbers (mono)"], ["hunk header", <span className="tok">--tasty-accent-info</span>], ["empty diff", "Back + 'No changes.'"], ["states", "non-repo · error · loading · already-open · 0 worktrees"]]}
-            tokens={[{ tok: "--tasty-accent-info", use: "hunk header", color: "var(--tasty-accent-info)" }, { tok: "--tasty-accent-success", use: "added line", color: "var(--tasty-accent-success)" }, { tok: "--tasty-accent-danger", use: "deleted line", color: "var(--tasty-accent-danger)" }, { tok: "--tasty-text-disabled", use: "line-number gutter", color: "var(--tasty-text-disabled)" }]} />
+            tokens={[{ tok: "--tasty-accent-info", use: "hunk header", color: "var(--tasty-accent-info-raised)" }, { tok: "--tasty-accent-success", use: "added line", color: "var(--tasty-accent-success-raised)" }, { tok: "--tasty-accent-danger", use: "deleted line", color: "var(--tasty-accent-danger-raised)" }, { tok: "--tasty-text-disabled", use: "line-number gutter", color: "var(--tasty-text-disabled)" }]} />
           <Note>Empty/edge states reuse <span className="ic">--tasty-text-muted</span> one-liners: "No git repository…", "No changes.", "No commits.", "No worktrees.", "Git viewer is already open." Errors are a single <span className="ic">--tasty-accent-danger</span> line above the (still shown) panes.</Note>
         </Spec>
         <Spec id="diff-toolbar-a-container-height-not-a-button-height" title="Diff toolbar — a container height, not a button height"
@@ -1705,8 +1705,8 @@ function Page() {
               </div>
               <div style={{ padding: "10px 12px", fontFamily: "var(--tasty-font-mono)", fontSize: 11, color: "var(--tasty-text-muted)", lineHeight: 1.7 }}>
                 <div>@@ -12,7 +12,9 @@ fn draw_path_bar()</div>
-                <div style={{ color: "var(--tasty-accent-success)" }}>+    let avail = bar_w - buttons_w - gap;</div>
-                <div style={{ color: "var(--tasty-accent-danger)" }}>-    let avail = popup_w;</div>
+                <div style={{ color: "var(--tasty-accent-success-raised)" }}>+    let avail = bar_w - buttons_w - gap;</div>
+                <div style={{ color: "var(--tasty-accent-danger-raised)" }}>-    let avail = popup_w;</div>
               </div>
             </div>
           </Stage>
@@ -1731,7 +1731,7 @@ function Page() {
           </Stage>
           <Meta
             specs={[["frame", "480 × 360 · screen-center · dismiss outside"], ["layout", "single column — no rail"], ["type bar", "1 type = badge + meta · 2–4 = segmented · ≥5 = icon-only"], ["segment", "h 26 · pad 0 10 (icon-only 0 8, min-w 30)"], ["metadata", "chars · lines · encoding (mono 11, right) — moves to footer on HTML"], ["HTML body", "source only, never rendered · Pretty print = re-indent, 0ms"], ["Other body", "per format: mono 11 name + size / mono 12 content · 1px rules"], ["body", "recessed code well — bg-app · mono 12 · scroll"], ["empty / fail", "centered glyph + muted / danger one-liner"]]}
-            tokens={[{ tok: "--tasty-bg-panel", use: "frame", color: "var(--tasty-bg-panel)" }, { tok: "--tasty-bg-app", use: "code well", color: "var(--tasty-bg-app)" }, { tok: "--tasty-bg-sidebar", use: "type bar", color: "var(--tasty-bg-sidebar)" }, { tok: "--tasty-accent-primary", use: "selected type segment", color: "var(--tasty-accent-primary)" }, { tok: "--tasty-accent-danger", use: "read-failed", color: "var(--tasty-accent-danger)" }]} />
+            tokens={[{ tok: "--tasty-bg-panel", use: "frame", color: "var(--tasty-bg-panel)" }, { tok: "--tasty-bg-app", use: "code well", color: "var(--tasty-bg-app)" }, { tok: "--tasty-bg-sidebar", use: "type bar", color: "var(--tasty-bg-sidebar)" }, { tok: "--tasty-accent-primary", use: "selected type segment", color: "var(--tasty-accent-primary-raised)" }, { tok: "--tasty-accent-danger", use: "read-failed", color: "var(--tasty-accent-danger-raised)" }]} />
           <Dont><b>Don't</b> add any mutate action (copy / re-copy / clear) or a master-detail type rail — this is a one-column snapshot inspector. Snapshot is taken once at open; no live polling, no history. <b>Don't</b> render the HTML payload (no live preview, no styled output) and <b>don't</b> let the type bar scroll horizontally or truncate labels with ellipsis — compact to icon-only instead.</Dont>
         </Spec>
       </Section>
@@ -1770,7 +1770,7 @@ function Page() {
           </Stage>
           <Meta
             specs={[["zones", "N · S · E · W + NW · NE · SW · SE"], ["band", "inside the border (token-width)"], ["corner", "wins over edge at the crossing"], ["edge drag", "that edge moves, opposite fixed"], ["grip", "none — cursor only"], ["persist", "user size sticks until the popup closes"]]}
-            tokens={[{ tok: "--tasty-accent-info", use: "zone labels (demo only)", color: "var(--tasty-accent-info)" }, { tok: "--tasty-border-strong", use: "popup edge", color: "var(--tasty-border-strong)" }]} />
+            tokens={[{ tok: "--tasty-accent-info", use: "zone labels (demo only)", color: "var(--tasty-accent-info-raised)" }, { tok: "--tasty-border-strong", use: "popup edge", color: "var(--tasty-border-strong)" }]} />
           <Note>Once you resize, the size <b>sticks</b> (the sizer won't overwrite it); closing the popup resets it to its default size on next open.</Note>
         </Spec>
         <Spec id="constraints-z-order-quiet-limits-top-most-wins" title="Constraints & z-order — quiet limits, top-most wins"

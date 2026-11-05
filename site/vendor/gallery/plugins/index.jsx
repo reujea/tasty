@@ -42,7 +42,7 @@ function ExpTab({ label, active, closable = true }) {
       boxShadow: active ? "inset 0 2px 0 var(--tasty-accent-primary)" : "none" }}>
       <span style={{ display: "inline-flex", flex: "none", color: "var(--tasty-text-muted)" }}>{ic.folder}</span>
       <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{label}</span>
-      {closable && <span style={{ display: "inline-flex", flex: "none", opacity: 0.6 }}>{ic.x}</span>}
+      {closable && <span style={{ display: "inline-flex", flex: "none" }}>{ic.x}</span>}
     </div>
   );
 }
@@ -87,7 +87,7 @@ function FavoritesEmpty() {
   return (
     <div style={{ padding: "2px 10px 10px", display: "flex", flexDirection: "column", gap: 3 }}>
       <div style={{ display: "flex", alignItems: "center", gap: 6, color: "var(--tasty-text-muted)" }}>
-        <span style={{ display: "inline-flex", flex: "none", opacity: 0.55 }}>{ic.star}</span>
+        <span style={{ display: "inline-flex", flex: "none" }}>{ic.star}</span>
         <span style={{ fontSize: 12 }}>No favorites yet</span>
       </div>
       <div style={{ fontSize: 11, lineHeight: 1.45, color: "var(--tasty-text-placeholder)" }}>
@@ -192,7 +192,7 @@ function ExpDetail() {
       <div style={{ flex: 1, overflow: "hidden" }}>
         <DetailRow glyph={ic.folder} name="mockup-exports" size="—" date="2026-06-20 14:30" type="Folder" />
         <DetailRow glyph={ic.file} name="report.pdf" size="2.4 MB" date="2026-06-24 09:12" type="PDF" />
-        <DetailRow glyph={ic.image} name="diagram.png" size="488 KB" date="2026-06-26 18:05" type="PNG" state="selected" glyphColor="var(--tasty-accent-info)" />
+        <DetailRow glyph={ic.image} name="diagram.png" size="488 KB" date="2026-06-26 18:05" type="PNG" state="selected" glyphColor="var(--tasty-accent-info-raised)" />
         <DetailRow glyph={ic.file} name="notes.md" size="12 KB" date="2026-06-27 11:40" type="Markdown" state="hover" />
         <DetailRow glyph={ic.file} name="archive.zip" size="64 MB" date="2026-06-18 22:01" type="Archive" state="cut" />
       </div>
@@ -219,7 +219,7 @@ function ExpGridMini() {
     <div style={{ flex: 1, background: "var(--tasty-bg-panel)", padding: 8, display: "flex", flexWrap: "wrap", gap: 4, alignContent: "flex-start" }}>
       <GridCell glyph={ic.folder} name="mockup-exports" />
       <GridCell glyph={ic.file} name="rust-toolchain.toml" />
-      <GridCell glyph={ic.image} name="diagram.png" state="selected" glyphColor="var(--tasty-accent-info)" />
+      <GridCell glyph={ic.image} name="diagram.png" state="selected" glyphColor="var(--tasty-accent-info-raised)" />
       <GridCell glyph={ic.file} name="notes.md" state="hover" />
       <GridCell glyph={ic.file} name="THIRD_PARTY_LICENSES.md" />
       <GridCell glyph={ic.folder} name="node_modules" />
@@ -232,8 +232,8 @@ function ExpListMini() {
   return (
     <div style={{ flex: 1, background: "var(--tasty-bg-panel)", padding: "6px 4px" }}>
       {rows.map(([g, n, st], i) => (
-        <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, height: "var(--tasty-tree-row-height)", padding: "0 8px", borderRadius: "var(--tasty-radius-sm)",
-          fontSize: 13, opacity: st === "cut" ? 0.5 : 1,
+        <div key={i} data-audit-exempt={st === "cut" ? "dimmed" : undefined} style={{ display: "flex", alignItems: "center", gap: 8, height: "var(--tasty-tree-row-height)", padding: "0 8px", borderRadius: "var(--tasty-radius-sm)",
+          fontSize: 13, opacity: st === "cut" ? "var(--tasty-state-dim-opacity)" : 1,
           color: st === "selected" ? "var(--tasty-text-on-active)" : "var(--tasty-text-secondary)",
           background: st === "selected" ? "var(--tasty-surface-active)" : st === "hover" ? "var(--tasty-overlay-hover)" : "transparent" }}>
           <span style={{ display: "inline-flex", flex: "none", color: st === "selected" ? "var(--tasty-text-on-active)" : g === ic.image ? "var(--tasty-accent-info)" : "var(--tasty-text-muted)" }}>{g}</span>{n}
@@ -274,7 +274,7 @@ const mdBody = { fontSize: "var(--tasty-font-size-body)", color: "var(--tasty-te
 function InlineCode({ children }) {
   return <code style={{ fontFamily: "var(--tasty-font-mono)", fontSize: 12, background: "var(--tasty-md-code-bg)", color: "var(--tasty-text-primary)", padding: "1px 5px", borderRadius: "var(--tasty-radius-sm)" }}>{children}</code>;
 }
-function MdLink({ children }) { return <span style={{ color: "var(--tasty-accent-primary)", textDecoration: "underline", textUnderlineOffset: 2, cursor: "pointer" }}>{children}</span>; }
+function MdLink({ children }) { return <span style={{ color: "var(--tasty-accent-primary-raised)", textDecoration: "underline", textUnderlineOffset: 2, cursor: "pointer" }}>{children}</span>; }
 
 // Markdown inline GFM table — grid + zebra, read-only (no hover/selection/sort;
 // SEPARATE from the shared Table widget). Every color/size reads a --tasty-md-table-*
@@ -411,9 +411,9 @@ function MarkdownDoc({ editing = false }) {
       {/* 2026-10-07: drawn as the renderer does — type colour at tint-fill-alpha, 16px type icon before the label, radius; note = accent-primary */}
       {[["Note", "var(--tasty-accent-primary)", "alertCircle", "Non-collapsible: > [!note]", false], ["Warning", "var(--tasty-accent-warning)", "alertTriangle", "Collapsible: > [!warning]- (closed until clicked)", true]].map(([t, c, glyph, body, fold]) => (
         <div key={t} style={{ borderLeft: "var(--tasty-md-quote-bar-width) solid " + c, borderRadius: "var(--tasty-radius)", background: "color-mix(in srgb, " + c + " calc(var(--tasty-tint-fill-alpha) * 100%), transparent)", padding: "var(--tasty-space-sm) var(--tasty-space-md)", margin: "0 0 12px", fontSize: 13, lineHeight: 1.6, color: "var(--tasty-md-quote-fg)" }}>
-          <div style={{ color: c, fontWeight: 600, display: "flex", alignItems: "center", gap: "var(--tasty-md-callout-icon-gap)" }}>{fold ? <PIcon name="chevronRight" size="var(--tasty-md-callout-marker-size)" /> : null}<PIcon name={glyph} size="var(--tasty-icon-size-md)" />{t}</div>
-          {!fold && <div>{body}</div>}
-          {fold && <div style={{ fontSize: 11, color: "var(--tasty-text-muted)" }}>{body}</div>}
+          <div style={{ color: c.replace(")", "-raised)"), fontWeight: 600, display: "flex", alignItems: "center", gap: "var(--tasty-md-callout-icon-gap)" }}>{fold ? <PIcon name="chevronRight" size="var(--tasty-md-callout-marker-size)" /> : null}<PIcon name={glyph} size="var(--tasty-icon-size-md)" />{t}</div>
+          {!fold && <div style={{ color: "var(--tasty-text-primary)" }}>{body}</div>}
+          {fold && <div style={{ fontSize: 11, color: "var(--tasty-text-primary)" }}>{body}</div>}
         </div>
       ))}
       <div style={{ height: 1, background: "var(--tasty-md-rule)", margin: "16px 0" }} />
@@ -463,7 +463,7 @@ function MdInjectionMap() {
             <tbody>
               {MD_VAR_MAP.map(([f, d, t], i) => (
                 <tr key={i}>
-                  <td style={{ ...cell, ...mono, color: "var(--tasty-accent-agent)" }}>{f}</td>
+                  <td style={{ ...cell, ...mono, color: "var(--tasty-accent-agent-raised)" }}>{f}</td>
                   <td style={cell}>{d}</td>
                   <td style={{ ...cell, borderBottom: i === MD_VAR_MAP.length - 1 ? "none" : cell.borderBottom }}>
                     <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}><Sw c={`var(${t})`} /><span style={mono}>{t}</span></span>
@@ -483,7 +483,7 @@ function MdInjectionMap() {
                 <tr key={i}>
                   <td style={{ ...cell, fontFamily: "var(--tasty-font-mono)", fontSize: 11, borderBottom: i === HLJS_MAP.length - 1 ? "none" : cell.borderBottom }}>{role}</td>
                   <td style={{ ...cell, textAlign: "right", borderBottom: i === HLJS_MAP.length - 1 ? "none" : cell.borderBottom }}>
-                    <span style={{ display: "inline-flex", alignItems: "center", gap: 6, justifyContent: "flex-end" }}><span style={{ ...mono, color: `var(${t})` }}>{t.replace("--tasty-", "")}</span><Sw c={`var(${t})`} /></span>
+                    <span style={{ display: "inline-flex", alignItems: "center", gap: 6, justifyContent: "flex-end" }}><span data-audit-exempt="code-highlight" style={{ ...mono, color: `var(${t})` }}>{t.replace("--tasty-", "")}</span><Sw c={`var(${t})`} /></span>
                   </td>
                 </tr>
               ))}
@@ -500,14 +500,14 @@ function HtmlTile({ state }) {
     <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 8, textAlign: "center", padding: 16 }}>
       <span style={{ display: "inline-flex", color: glyphColor, transform: "scale(1.5)" }}>{glyph}</span>
       <div style={{ fontSize: 13, color: titleColor }}>{title}</div>
-      {sub && <div style={{ fontSize: 11, fontFamily: "var(--tasty-font-mono)", color: "var(--tasty-text-disabled)", maxWidth: 220, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{sub}</div>}
+      {sub && <div style={{ fontSize: 11, fontFamily: "var(--tasty-font-mono)", color: "var(--tasty-text-muted)", maxWidth: 220, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{sub}</div>}
     </div>
   );
   const body = {
     boundary: <div style={{ flex: 1 }} />, /* 2026-10-06: plain tile while an egui overlay hides the loaded WebView — no glyph, no text */
     placeholder: center(ic.globe, "var(--tasty-text-disabled)", "No page loaded", "var(--tasty-text-muted)"),
     loading: center(<Spinner />, "var(--tasty-spinner-indicator)", "Loading…", "var(--tasty-text-muted)"),
-    error: center(ic.alert, "var(--tasty-accent-danger)", "Failed to load", "var(--tasty-accent-danger)", "https://offline.example"),
+    error: center(ic.alert, "var(--tasty-accent-danger-raised)", "Failed to load", "var(--tasty-accent-danger-raised)", "https://offline.example"),
   }[state];
   return (
     <div style={{ width: 220, height: 150, display: "flex", flexDirection: "column", background: "var(--tasty-bg-panel)",
@@ -642,7 +642,7 @@ function Page() {
           </Stage>
           <Meta
             specs={[["display", "mono path · ellipsis · text-secondary"], ["editing", "focus ring (2px) + caret · text-primary"], ["suggestions", <>editing → <a href={`${BASE}design/gallery/components/#forms`}>AutoComplete</a> dropdown (recent paths)</>], ["leading icon", "per-surface slot — folderOpen / file"], ["candidates", "per-surface — recent dirs / recent files"], ["Go", "arrow-right · IconButton sm · ↵ also confirms"], ["navigate", "↵ / Go → typed path · Esc reverts"], ["height / radius", <>28 · <span className="tok">--tasty-radius</span></>]]}
-            tokens={[{ tok: "--tasty-input-bg", use: "field fill", color: "var(--tasty-input-bg)" }, { tok: "--tasty-input-border", use: "idle border", color: "var(--tasty-input-border)" }, { tok: "--tasty-input-border-focus", use: "editing border", color: "var(--tasty-input-border-focus)" }, { tok: "--tasty-border-focus", use: "focus ring (35%)", color: "var(--tasty-border-focus)" }, { tok: "--tasty-autocomplete-menu-bg", use: "dropdown fill", color: "var(--tasty-autocomplete-menu-bg)" }, { tok: "--tasty-autocomplete-row-bg-active", use: "keyboard-active row", color: "var(--tasty-autocomplete-row-bg-active)" }, { tok: "--tasty-input-icon-fg", use: "leading icon", color: "var(--tasty-input-icon-fg)" }, { tok: "--tasty-accent-primary", use: "caret + Go glyph", color: "var(--tasty-accent-primary)" }]} />
+            tokens={[{ tok: "--tasty-input-bg", use: "field fill", color: "var(--tasty-input-bg)" }, { tok: "--tasty-input-border", use: "idle border", color: "var(--tasty-input-border)" }, { tok: "--tasty-input-border-focus", use: "editing border", color: "var(--tasty-input-border-focus)" }, { tok: "--tasty-border-focus", use: "focus ring (35%)", color: "var(--tasty-border-focus)" }, { tok: "--tasty-autocomplete-menu-bg", use: "dropdown fill", color: "var(--tasty-autocomplete-menu-bg)" }, { tok: "--tasty-autocomplete-row-bg-active", use: "keyboard-active row", color: "var(--tasty-autocomplete-row-bg-active)" }, { tok: "--tasty-input-icon-fg", use: "leading icon", color: "var(--tasty-input-icon-fg)" }, { tok: "--tasty-accent-primary", use: "caret + Go glyph", color: "var(--tasty-accent-primary-raised)" }]} />
           <Note>Open questions resolved (design SoT): <b>(1) leading icon</b> is a per-surface slot — Explorer <span className="ic">folderOpen</span>, Markdown <span className="ic">file</span> — mirroring <code>forms/Input</code>'s leading-icon slot. <b>(2)</b> Explorer's <b>breadcrumb</b> (<code>Crumb</code> + chevron) is <b>dropped</b> for the plain editable field; a hybrid crumb↔edit form was <b>rejected</b>. <b>(3) Go</b> button on both surfaces. <b>(4)</b> only the field + dropdown are shared; the outer bar stays per-surface. <b>(5 — new)</b> the edit-time candidate dropdown is the formal <b><a href={`${BASE}design/gallery/components/#forms`}>AutoComplete</a></b> component (full state matrix — filtered / overflow-scroll / empty / hover vs keyboard-active — lives on the Components page), replacing the source-only <code>Combobox</code>. Source home: extract <code>PathField</code> into <code>crates/tasty-ui-widgets</code> composing the renamed <code>AutoComplete</code> (was <code>Combobox</code>); recent-path candidate source + wiring/i18n tracked separately from this design pass.</Note>
         </Spec>
         <Spec id="explorer-surface-full-layout-detail-view" title="Explorer surface — full layout (Detail view)"
@@ -652,7 +652,7 @@ function Page() {
           </Stage>
           <Meta
             specs={[["surface", "fills a work-area tile"], ["internal tabs", <>28px · per-cwd, with <span className="ic">×</span> + <span className="ic">＋</span></>], ["toolbar", "44px · nav · path field · view toggle"], ["sidebar", <>196px — Files tree + Favorites</>], ["splitter", <>1px <span className="tok">--tasty-separator</span>, drag to resize</>], ["row height", <>28 (Detail) · <span className="tok">--tasty-table-cell-height</span> — the shared Table</>], ["detail header", "shared Table header — UI font · table-header-font-size 11 · weight medium · caps"], ["min height", <>180 · <span className="tok">--tasty-explorer-min-height</span> — the split drag stops here (tabs 28 + toolbar 44 + header 28 + 2 rows + status 24)</>], ["selected row", <span className="tok">--tasty-surface-active</span>]]}
-            tokens={[{ tok: "--tasty-bg-panel", use: "surface + content", color: "var(--tasty-bg-panel)" }, { tok: "--tasty-bg-sidebar", use: "tabs + sidebar + header", color: "var(--tasty-bg-sidebar)" }, { tok: "--tasty-surface-raised", use: "view toggle container", color: "var(--tasty-surface-raised)" }, { tok: "--tasty-segtoggle-on-bg", use: "view toggle — selected segment", color: "var(--tasty-segtoggle-on-bg)" }, { tok: "--tasty-input-bg", use: "path field", color: "var(--tasty-input-bg)" }, { tok: "--tasty-surface-active", use: "selected row (rows only)", color: "var(--tasty-surface-active)" }, { tok: "--tasty-accent-warning", use: "favorite star", color: "var(--tasty-accent-warning)" }, { tok: "--tasty-accent-primary", use: "active tab bar", color: "var(--tasty-accent-primary)" }]} />
+            tokens={[{ tok: "--tasty-bg-panel", use: "surface + content", color: "var(--tasty-bg-panel)" }, { tok: "--tasty-bg-sidebar", use: "tabs + sidebar + header", color: "var(--tasty-bg-sidebar)" }, { tok: "--tasty-surface-raised", use: "view toggle container", color: "var(--tasty-surface-raised)" }, { tok: "--tasty-segtoggle-on-bg", use: "view toggle — selected segment", color: "var(--tasty-segtoggle-on-bg)" }, { tok: "--tasty-input-bg", use: "path field", color: "var(--tasty-input-bg)" }, { tok: "--tasty-surface-active", use: "selected row (rows only)", color: "var(--tasty-surface-active)" }, { tok: "--tasty-accent-warning", use: "favorite star", color: "var(--tasty-accent-warning-raised)" }, { tok: "--tasty-accent-primary", use: "active tab bar", color: "var(--tasty-accent-primary-raised)" }]} />
           <Note>Defaults chosen (briefs left these open): <b>Detail</b> is the default view; the right-hand preview panel is <b>dropped</b> in favour of a wider content area (re-add later as a toggle if needed); no in-toolbar filter search in this pass; the tree is rooted at <b>Home</b>. Favorites are global across surfaces.</Note>
         </Spec>
 
@@ -697,7 +697,7 @@ function Page() {
           </Stage>
           <Meta
             specs={[["caption", "always shown — micro caps, text-muted"], ["empty line", <>outline star + "No favorites yet" · <span className="tok">--tasty-text-muted</span></>], ["hint", <>1 line · <span className="tok">--tasty-text-placeholder</span></>], ["align", "left, inside 196px column"], ["condition", "was: hide section at 0 → now: always show"]]}
-            tokens={[{ tok: "--tasty-text-muted", use: "caption + empty line", color: "var(--tasty-text-muted)" }, { tok: "--tasty-text-placeholder", use: "hint line", color: "var(--tasty-text-placeholder)" }, { tok: "--tasty-accent-warning", use: "filled star (populated)", color: "var(--tasty-accent-warning)" }]} />
+            tokens={[{ tok: "--tasty-text-muted", use: "caption + empty line", color: "var(--tasty-text-muted)" }, { tok: "--tasty-text-placeholder", use: "hint line", color: "var(--tasty-text-placeholder)" }, { tok: "--tasty-accent-warning", use: "filled star (populated)", color: "var(--tasty-accent-warning-raised)" }]} />
           <Note>New string <InlineCode>explorer.sidebar.favorites_empty</InlineCode> — en "No favorites yet" · ko "아직 즐겨찾기가 없습니다" · add to <InlineCode>lang/&#123;en,ko,ja&#125;.toml</InlineCode>. The hint reuses existing "Add to favorites" copy. Implementer: replace <InlineCode>if !favorites.is_empty()</InlineCode> in <InlineCode>explorer.rs sidebar()</InlineCode> with an always-rendered caption + empty branch.</Note>
         </Spec>
 
@@ -732,7 +732,7 @@ function Page() {
           </Stage>
           <Meta
             specs={[["structure", "2 regions · independent scroll state"], ["Files region", "flex 1 · own scroll · caption pinned at its top"], ["Favorites region", <>fixed height, bottom-pinned · <span className="tok">--tasty-explorer-favorites-pin-height</span></>], ["pin height", "body ≥ 600 → 240 · else 40% (4px-snapped) · min 120"], ["boundary", <>1px <span className="tok">--tasty-explorer-split-border</span> at a fixed coordinate</>], ["sidebar width", <>196 unchanged · <span className="tok">--tasty-explorer-sidebar-width</span></>], ["resize", "recomputed from the live body height — no drag handle"], ["row visuals", "unchanged (tree row · star row · empty state)"]]}
-            tokens={[{ tok: "--tasty-explorer-sidebar-width", use: "196 column" }, { tok: "--tasty-explorer-favorites-pin-height", use: "pinned region height" }, { tok: "--tasty-explorer-favorites-pin-threshold", use: "small-surface switch" }, { tok: "--tasty-explorer-favorites-pin-min-height", use: "lower clamp" }, { tok: "--tasty-explorer-split-border", use: "fixed boundary line", color: "var(--tasty-separator)" }, { tok: "--tasty-bg-sidebar", use: "both regions' fill", color: "var(--tasty-bg-sidebar)" }, { tok: "--tasty-accent-warning", use: "filled star", color: "var(--tasty-accent-warning)" }]} />
+            tokens={[{ tok: "--tasty-explorer-sidebar-width", use: "196 column" }, { tok: "--tasty-explorer-favorites-pin-height", use: "pinned region height" }, { tok: "--tasty-explorer-favorites-pin-threshold", use: "small-surface switch" }, { tok: "--tasty-explorer-favorites-pin-min-height", use: "lower clamp" }, { tok: "--tasty-explorer-split-border", use: "fixed boundary line", color: "var(--tasty-separator)" }, { tok: "--tasty-bg-sidebar", use: "both regions' fill", color: "var(--tasty-bg-sidebar)" }, { tok: "--tasty-accent-warning", use: "filled star", color: "var(--tasty-accent-warning-raised)" }]} />
           <Note>Open decisions resolved (design SoT): <b>(1) threshold basis</b> = the <b>sidebar body height</b> (the split container itself), not the whole explorer tab — the pin only competes with the tree, and this keeps the rule local to <InlineCode>sidebar()</InlineCode>. <b>(2) scrollbar</b> = the shared <InlineCode>.tasty-scroll</InlineCode> behaviour, hover-revealed like every other scroll area — the pinned region gets no special always-on bar. <b>(3) slack space</b> at 0–1 favorites stays <b>empty <span className="tok">--tasty-bg-sidebar</span></b>: no filler padding, no vertical centering, so rows always start directly under the caption. <b>(4) boundary weight</b> = the <b>same</b> 1px separator as before — no shadow, no tint; "pinned" is communicated by behaviour (the line never moves, each side scrolls alone), not by extra decoration. <b>(5) 240 ↔ 40% jump</b> is left as a <b>hard switch</b> (no interpolation) as the requester allows, with a <b>120 floor</b> added so a very short surface still shows caption + ~3 rows. Implementer: split the single <InlineCode>ScrollArea</InlineCode> in <InlineCode>explorer.rs sidebar()</InlineCode> into two — <InlineCode>ScrollArea::vertical().id_salt("exp_tree")</InlineCode> in the top allocation and <InlineCode>id_salt("exp_favs")</InlineCode> inside a bottom-up allocated strip of the computed height — and draw the separator as the strip's top edge instead of an inline <InlineCode>ui.separator()</InlineCode>.</Note>
         </Spec>
 
@@ -753,7 +753,7 @@ function Page() {
             <div style={{ display: "flex", flexDirection: "column", gap: 12, width: "100%", maxWidth: 440 }}>
               <ExpState compact glyph={<PIcon name="alertTriangle" size="var(--tasty-icon-size-md)" />} glyphColor="var(--tasty-explorer-error-fg)" title="Can't read this folder" reason="No such file or directory (os error 2)"
                 actions={<><Button variant="secondary" size="sm">Retry</Button><Button variant="ghost" size="sm">Go up</Button></>} />
-              <ExpState compact glyph={ic.lock} glyphColor="var(--tasty-accent-warning)" title="Permission denied" sub="You don't have access to read this folder." />
+              <ExpState compact glyph={ic.lock} glyphColor="var(--tasty-accent-warning-raised)" title="Permission denied" sub="You don't have access to read this folder." />
               <ExpState compact glyph={ic.folderOpen} title="This folder is empty" />
             </div>
           </Stage>
@@ -768,12 +768,12 @@ function Page() {
             <div style={{ display: "flex", gap: 16, padding: 14, background: "var(--tasty-bg-panel)" }}>
               <ViewModeColumn title="Grid (icons)" sub="icon 16 + 3-line name (…); image = thumbnail slot"><ExpGridMini /></ViewModeColumn>
               <ViewModeColumn title="List" sub="small icon + name, one dense column"><ExpListMini /></ViewModeColumn>
-              <ViewModeColumn title="Detail" sub="sortable columns: Name · Size · Date · Type"><div style={{ display: "flex", flexDirection: "column", flex: 1 }}><DetailHeader /><div style={{ flex: 1, background: "var(--tasty-bg-panel)" }}><DetailRow glyph={ic.folder} name="mockup-exports" size="—" date="06-20 14:30" type="Folder" /><DetailRow glyph={ic.file} name="report.pdf" size="2.4 MB" date="06-24 09:12" type="PDF" /><DetailRow glyph={ic.image} name="diagram.png" size="488 KB" date="06-26 18:05" type="PNG" state="selected" glyphColor="var(--tasty-accent-info)" /></div></div></ViewModeColumn>
+              <ViewModeColumn title="Detail" sub="sortable columns: Name · Size · Date · Type"><div style={{ display: "flex", flexDirection: "column", flex: 1 }}><DetailHeader /><div style={{ flex: 1, background: "var(--tasty-bg-panel)" }}><DetailRow glyph={ic.folder} name="mockup-exports" size="—" date="06-20 14:30" type="Folder" /><DetailRow glyph={ic.file} name="report.pdf" size="2.4 MB" date="06-24 09:12" type="PDF" /><DetailRow glyph={ic.image} name="diagram.png" size="488 KB" date="06-26 18:05" type="PNG" state="selected" glyphColor="var(--tasty-accent-info-raised)" /></div></div></ViewModeColumn>
             </div>
           </Stage>
           <Meta
             specs={[["grid cell", "80px · icon 16 + 3-line label wrap (…)"], ["list row", <>22 · <span className="tok">--tasty-tree-row-height</span> (same row as the file tree) · icon + name</>], ["detail row / header", <>28 · <span className="tok">--tasty-table-cell-height</span> (same as the shared Table) · 4 columns</>], ["cell states", "default · hover (8%) · selected (12%) · cut (50%) · renaming"], ["sort", "click a column header → ▲ / ▼"]]}
-            tokens={[{ tok: "--tasty-tree-row-height", use: "List row (22)" }, { tok: "--tasty-table-cell-height", use: "Detail row + header (28)" }, { tok: "--tasty-overlay-hover", use: "row hover (8%)" }, { tok: "--tasty-surface-active", use: "selected (12%)", color: "var(--tasty-surface-active)" }, { tok: "--tasty-accent-info", use: "image-file glyph", color: "var(--tasty-accent-info)" }]} />
+            tokens={[{ tok: "--tasty-tree-row-height", use: "List row (22)" }, { tok: "--tasty-table-cell-height", use: "Detail row + header (28)" }, { tok: "--tasty-overlay-hover", use: "row hover (8%)" }, { tok: "--tasty-surface-active", use: "selected (12%)", color: "var(--tasty-surface-active)" }, { tok: "--tasty-accent-info", use: "image-file glyph", color: "var(--tasty-accent-info-raised)" }]} />
           <Note><b>Grid cell</b> (updated): icon shrinks to <span className="tok">icon_glyph_size_md</span> (16, was 28) and the label wraps up to <b>3 lines</b> at <span className="tok">font_size_caption</span> (11) with <b>… overflow</b> on the last line — replacing the old 12-char hard cut. Height is <b>fixed to 3 label lines</b> so grid rows stay uniform (short names reserve the space, label top-aligned). CELL_W stays 80. Real side: <InlineCode>LayoutJob</InlineCode> with <InlineCode>wrap.max_rows = 3</InlineCode> + <InlineCode>overflow_character = '…'</InlineCode>, drop <InlineCode>truncate(&amp;e.name, 12)</InlineCode>, recompute <InlineCode>cell_h</InlineCode>. <b>Cut</b> items dim to ~50% until pasted. A <b>renaming</b> cell swaps its label for an inline Input (extension preserved). Image cells show a thumbnail in the icon slot at implementation time — here a tinted glyph stands in. <b>Row heights (2026-09-29)</b>: no Explorer-specific height. List reuses the tree row (<span className="tok">--tasty-tree-row-height</span> 22), Detail reuses the shared Table (<span className="tok">--tasty-table-cell-height</span> 28 for both header and body rows). The old 24 / 26 literals are retired. Implementer: the Table widget must read <InlineCode>table_cell_height</InlineCode> for <InlineCode>row_height</InlineCode> and <InlineCode>header_height</InlineCode> instead of its font-derived default (~35).</Note>
         </Spec>
 
@@ -817,7 +817,7 @@ function Page() {
           </Stage>
           <Meta
             specs={[["target", "in-selection → all · out → that one · empty → cwd"], ["favorites", "folder + cwd only"], ["paste", "shown when the clipboard holds files"], ["open in system", "single folder only"], ["groups", "clipboard · file ops · system (dividers)"]]}
-            tokens={[{ tok: "--tasty-menu-bg", use: "menu fill", color: "var(--tasty-menu-bg)" }, { tok: "--tasty-menu-border", use: "1px edge" }, { tok: "--tasty-shadow-popover", use: "float" }, { tok: "--tasty-accent-danger", use: "Trash (danger item)", color: "var(--tasty-accent-danger)" }]} />
+            tokens={[{ tok: "--tasty-menu-bg", use: "menu fill", color: "var(--tasty-menu-bg)" }, { tok: "--tasty-menu-border", use: "1px edge" }, { tok: "--tasty-shadow-popover", use: "float" }, { tok: "--tasty-accent-danger", use: "Trash (danger item)", color: "var(--tasty-accent-danger-raised)" }]} />
           <Note>Reuses the shared <span className="ic">MenuItem</span> / Popup visual language — no bespoke menu chrome. Shortcut hints are representative; real keys come from Keybindings settings.</Note>
         </Spec>
 
@@ -826,7 +826,7 @@ function Page() {
           <Stage variant="solo center" style={{ padding: 20, background: "var(--tasty-bg-app)", flexDirection: "column", gap: 16 }}>
             <div style={{ display: "flex", gap: 12, width: "100%", maxWidth: 700 }}>
               <ExpState glyph={ic.folderOpen} title="This folder is empty" />
-              <ExpState glyph={ic.lock} glyphColor="var(--tasty-accent-warning)" title="Permission denied" sub="You don't have access to read this folder." />
+              <ExpState glyph={ic.lock} glyphColor="var(--tasty-accent-warning-raised)" title="Permission denied" sub="You don't have access to read this folder." />
               <ExpState glyph={<Spinner />} title="Loading…" />
               <ExpState glyph={<PIcon name="alertTriangle" size="var(--tasty-icon-size-md)" />} glyphColor="var(--tasty-explorer-error-fg)" title="Can't read this folder" reason="No such file or directory (os error 2)"
                 actions={<><Button variant="secondary" size="sm">Retry</Button><Button variant="ghost" size="sm">Go up</Button></>} />
@@ -859,7 +859,7 @@ function Page() {
           </Stage>
           <Meta
             specs={[["empty", "centered glyph + line"], ["permission", "warning (peach) tone"], ["loading", <>Spinner — busy-indicator policy</>], ["popups", "Popup language · ghost + primary footer"]]}
-            tokens={[{ tok: "--tasty-accent-warning", use: "permission tone", color: "var(--tasty-accent-warning)" }, { tok: "--tasty-spinner-indicator", use: "loading", color: "var(--tasty-spinner-indicator)" }, { tok: "--tasty-shadow-modal", use: "popup lift" }]} />
+            tokens={[{ tok: "--tasty-accent-warning", use: "permission tone", color: "var(--tasty-accent-warning-raised)" }, { tok: "--tasty-spinner-indicator", use: "loading", color: "var(--tasty-spinner-indicator)" }, { tok: "--tasty-shadow-modal", use: "popup lift" }]} />
           <Note>Explorer font (family + size, 14px cap) gets an <b>Appearance › Explorer</b> sub-tab mirroring the Terminal/Markdown font sections — same control layout, deferred to the Settings specimen.</Note>
         </Spec>
       </Section>
@@ -872,7 +872,7 @@ function Page() {
           </Stage>
           <Meta
             specs={[["chrome", <>40px address bar + Go, on <span className="tok">--tasty-bg-sidebar</span></>], ["body", <>13px · CSS line-height 1.6</>], ["headings", "h1 20 → h6 13, 5-step CSS interpolation (20 · 18.6 · 17.2 · 15.8 · 14.4 · 13)"], ["heading style", "600 · text-primary at every level"], ["h1", "prose-h1 — the only cap-exempt content size"], ["code", <>mono on <span className="tok">--tasty-surface-raised</span></>], ["link", <span className="tok">--tasty-accent-primary</span>], ["table", <>grid + zebra, read-only — <span className="tok">--tasty-md-table-*</span></>]]}
-            tokens={[{ tok: "--tasty-bg-sidebar", use: "chrome bar", color: "var(--tasty-bg-sidebar)" }, { tok: "--tasty-md-doc-bg", use: "document bed (crust)", color: "var(--tasty-md-doc-bg)" }, { tok: "--tasty-input-bg", use: "address field", color: "var(--tasty-input-bg)" }, { tok: "--tasty-text-secondary", use: "body", color: "var(--tasty-text-secondary)" }, { tok: "--tasty-text-primary", use: "headings · strong", color: "var(--tasty-text-primary)" }, { tok: "--tasty-surface-raised", use: "code bg + inline chip", color: "var(--tasty-surface-raised)" }, { tok: "--tasty-accent-primary", use: "links + Go", color: "var(--tasty-accent-primary)" }, { tok: "--tasty-md-table-border", use: "table grid (surface1)", color: "var(--tasty-md-table-border)" }, { tok: "--tasty-md-table-header-bg", use: "table header (surface0)", color: "var(--tasty-md-table-header-bg)" }, { tok: "--tasty-md-table-row-bg-zebra", use: "zebra row (mantle)", color: "var(--tasty-md-table-row-bg-zebra)" }, { tok: "--tasty-font-size-prose-h1", use: "h1 (cap-exempt)" }]} />
+            tokens={[{ tok: "--tasty-bg-sidebar", use: "chrome bar", color: "var(--tasty-bg-sidebar)" }, { tok: "--tasty-md-doc-bg", use: "document bed (crust)", color: "var(--tasty-md-doc-bg)" }, { tok: "--tasty-input-bg", use: "address field", color: "var(--tasty-input-bg)" }, { tok: "--tasty-text-secondary", use: "body", color: "var(--tasty-text-secondary)" }, { tok: "--tasty-text-primary", use: "headings · strong", color: "var(--tasty-text-primary)" }, { tok: "--tasty-surface-raised", use: "code bg + inline chip", color: "var(--tasty-surface-raised)" }, { tok: "--tasty-accent-primary", use: "links + Go", color: "var(--tasty-accent-primary-raised)" }, { tok: "--tasty-md-table-border", use: "table grid (surface1)", color: "var(--tasty-md-table-border)" }, { tok: "--tasty-md-table-header-bg", use: "table header (surface0)", color: "var(--tasty-md-table-header-bg)" }, { tok: "--tasty-md-table-row-bg-zebra", use: "zebra row (mantle)", color: "var(--tasty-md-table-row-bg-zebra)" }, { tok: "--tasty-font-size-prose-h1", use: "h1 (cap-exempt)" }]} />
           <Note>The surface leads with a browser-style <b>address bar</b> (path display/edit) + <b>Go</b> button. The body follows the WebView/CSS path (2026-10-07); the earlier egui_commonmark renderer and its library-owned sizes are retired. Removed/redefined content tokens (<span className="tok">--tasty-font-size-prose-h2</span>, <span className="tok">--tasty-line-height-prose</span> removed; <span className="tok">--tasty-font-size-prose-h1</span> → Heading anchor) are covered in the heading-hierarchy specimen.</Note>
         </Spec>
         <Spec id="markdown-document-background-single-bed-webview-render-path" title="Markdown — document background (single bed, webview render path)"
@@ -902,7 +902,7 @@ function Page() {
           </Stage>
           <Meta
             specs={[["path", "WebView · theme_css() → CSS variables"], ["--md-fg", <><span className="tok">--tasty-text-secondary</span></>], ["--md-strong", <><span className="tok">--tasty-text-primary</span></>], ["--md-link", <><span className="tok">--tasty-accent-primary</span></>], ["--md-code-bg / -border", <><span className="tok">--tasty-surface-raised</span> / <span className="tok">--tasty-separator</span></>], ["--md-quote-bar · --md-rule", <><span className="tok">--tasty-border-strong</span> · <span className="tok">--tasty-separator</span></>], ["hljs", "keyword mauve · string green · title/function blue · number peach · type yellow · comment text-muted italic · tag teal · variable lavender · built_in red"], ["diff", "deletion / addition bg = accent-danger / accent-success at tint-fill-alpha"], ["callouts", "type colour bar (md-quote-bar-width) + type colour fill at tint-fill-alpha + radius + 16px type icon before the label · gaps 4 (md-callout-icon-gap) · collapsible: chevronRight at md-callout-marker-size (→ icon-size-sm) in the type colour, chevronDown when open, default <details> marker hidden · note accent-primary · tip accent-success · important accent-agent · warning accent-warning · caution accent-danger"]]}
-            tokens={[{ tok: "--tasty-text-secondary", use: "body", color: "var(--tasty-text-secondary)" }, { tok: "--tasty-text-primary", use: "headings / strong", color: "var(--tasty-text-primary)" }, { tok: "--tasty-accent-primary", use: "links", color: "var(--tasty-accent-primary)" }, { tok: "--tasty-surface-raised", use: "code fills", color: "var(--tasty-surface-raised)" }, { tok: "--tasty-border-strong", use: "blockquote bar", color: "var(--tasty-border-strong)" }, { tok: "--tasty-separator", use: "code-block border", color: "var(--tasty-separator)" }]} />
+            tokens={[{ tok: "--tasty-text-secondary", use: "body", color: "var(--tasty-text-secondary)" }, { tok: "--tasty-text-primary", use: "headings / strong", color: "var(--tasty-text-primary)" }, { tok: "--tasty-accent-primary", use: "links", color: "var(--tasty-accent-primary-raised)" }, { tok: "--tasty-surface-raised", use: "code fills", color: "var(--tasty-surface-raised)" }, { tok: "--tasty-border-strong", use: "blockquote bar", color: "var(--tasty-border-strong)" }, { tok: "--tasty-separator", use: "code-block border", color: "var(--tasty-separator)" }]} />
           <Note>Both tables follow <code>theme_css()</code> / <code>hljs_css()</code> one row per variable or class; the two diff backgrounds are in the Meta. Both themes follow automatically because the palette roles re-point per theme.</Note>
         </Spec>
         <Spec id="address-bar-states-large-file-confirm" title="Address bar states · large-file confirm"
@@ -917,7 +917,7 @@ function Page() {
             <div style={{ position: "relative", width: 440, maxWidth: "100%", height: 232, background: "var(--tasty-bg-panel)",
               border: "1px solid var(--tasty-border-default)", borderRadius: "var(--tasty-radius)", overflow: "hidden" }}>
               <MdAddressBar path="~/work/tasty/docs/CHANGELOG-full.md" />
-              <div style={{ padding: "14px 18px", opacity: 0.35 }}><div style={{ ...MD_H[1], margin: 0 }}>Changelog</div><div style={mdBody}>A very long history…</div></div>
+              <div data-audit-exempt="dimmed" style={{ padding: "14px 18px", opacity: "var(--tasty-state-dim-opacity)" }}><div style={{ ...MD_H[1], margin: 0 }}>Changelog</div><div style={mdBody}>A very long history…</div></div>
               <div style={{ position: "absolute", inset: "40px 0 0 0", background: "rgba(0,0,0,.5)", display: "flex", alignItems: "center", justifyContent: "center", padding: 12 }}>
                 <MdLargeFilePopup />
               </div>
@@ -925,7 +925,7 @@ function Page() {
           </Stage>
           <Meta
             specs={[["field", "mono path · click to edit"], ["idle", <>secondary text, <span className="tok">--tasty-input-border</span></>], ["editing", <>focus ring + caret, <span className="tok">--tasty-input-border-focus</span></>], ["Go", "IconButton · ↵ also confirms"], ["popup scope", "surface (clamped to tile)"], ["popup", "360px · Open / Cancel"]]}
-            tokens={[{ tok: "--tasty-input-bg", use: "field fill", color: "var(--tasty-input-bg)" }, { tok: "--tasty-input-border-focus", use: "edit border", color: "var(--tasty-input-border-focus)" }, { tok: "--tasty-border-focus", use: "focus ring", color: "var(--tasty-border-focus)" }, { tok: "--tasty-accent-warning", use: "size chip", color: "var(--tasty-accent-warning)" }, { tok: "--tasty-shadow-modal", use: "popup lift" }, { tok: "--tasty-accent-primary", use: "Open (primary)", color: "var(--tasty-accent-primary)" }]} />
+            tokens={[{ tok: "--tasty-input-bg", use: "field fill", color: "var(--tasty-input-bg)" }, { tok: "--tasty-input-border-focus", use: "edit border", color: "var(--tasty-input-border-focus)" }, { tok: "--tasty-border-focus", use: "focus ring", color: "var(--tasty-border-focus)" }, { tok: "--tasty-accent-warning", use: "size chip", color: "var(--tasty-accent-warning-raised)" }, { tok: "--tasty-shadow-modal", use: "popup lift" }, { tok: "--tasty-accent-primary", use: "Open (primary)", color: "var(--tasty-accent-primary-raised)" }]} />
           <Note>The address bar is the <b>shared editable path field</b> (see Explorer section) with a <span className="ic">file</span> leading icon — same field, same edit/navigate/revert contract as the Explorer toolbar, and the same edit-time <b><a href={`${BASE}design/gallery/components/#forms`}>AutoComplete</a></b> dropdown (candidates = recent files). Copy: title “Open large file?” · body “Over 1 MB — rendering may be slow.” · size chip formatted (e.g. “3.2 MB”). Surface-scoped (<code>PopupScope::Surface</code>) so it dims only this tile; Cancel replaces nothing. New i18n keys when wiring: <code>markdown.large_file.title / body</code>.</Note>
         </Spec>
         <Spec id="large-file-read-deferred-after-cancel" title="Large file — read deferred after Cancel"
@@ -974,7 +974,7 @@ function Page() {
           </Stage>
           <Meta
             specs={[["content", "native OS WebView (token-agnostic)"], ["tile", <><span className="tok">--tasty-bg-panel</span> + 1px <span className="tok">--tasty-border-default</span></>], ["boundary (2026-10-06)", "plain tile only (bg-panel + 1px border) — shown only while an egui overlay hides a loaded page; no glyph, label or URL / path"], ["placeholder", "GLOBE (disabled) + 'No page loaded'"], ["loading", "Spinner + 'Loading…'"], ["error", "ALERT (danger) + URL"]]}
-            tokens={[{ tok: "--tasty-text-muted", use: "placeholder / loading label", color: "var(--tasty-text-muted)" }, { tok: "--tasty-text-disabled", use: "placeholder / URL", color: "var(--tasty-text-disabled)" }, { tok: "--tasty-spinner-indicator", use: "loading", color: "var(--tasty-spinner-indicator)" }, { tok: "--tasty-accent-danger", use: "error", color: "var(--tasty-accent-danger)" }]} />
+            tokens={[{ tok: "--tasty-text-muted", use: "placeholder / loading label", color: "var(--tasty-text-muted)" }, { tok: "--tasty-text-disabled", use: "placeholder / URL", color: "var(--tasty-text-disabled)" }, { tok: "--tasty-spinner-indicator", use: "loading", color: "var(--tasty-spinner-indicator)" }, { tok: "--tasty-accent-danger", use: "error", color: "var(--tasty-accent-danger-raised)" }]} />
         </Spec>
         <Spec id="html-address-bar-band" title="HTML — address bar band"
           when={<>The page is a native WebView that tasty cannot paint over, so the address bar is a <b>host band above it</b> and the WebView rect starts below the band (same inset idea as the script banner). Composition = the Explorer toolbar recipe: <b>Back · Forward · Reload</b> (IconButton sm) then the <b>PathField box</b> — without the Go button (Enter opens; the band already carries three buttons). Height 40 and <span className="tok">--tasty-bg-sidebar</span> + 1px separator match the markdown address bar. Local files show as a <b>path</b> (<code>file://</code> input is accepted and shown as the path after open); web pages show the full URL. Loading swaps Reload for a Spinner in the same 24 cell. Input errors stand in a 24px row <b>inside the band</b> (danger edge on the field, glyph + message below); they clear on the next keystroke, on Esc, or on a successful open — never on a timer. Stack order under the band: <b>size banner → script banner → page</b>, banner-margin 8 above the first, banner-inset-gap 8 between and below.</>}>
@@ -1117,7 +1117,7 @@ function Page() {
           </Stage>
           <Meta
             specs={[["paint bar", "Save · Cancel · ↶ ↷ · brush · color · zoom"], ["undo/redo", "enabled / disabled (text-disabled)"], ["floating sel", <>accent border + 8 handles · 6 · <span className="tok">--tasty-image-handle-size</span> (on-scale), centred on the edge</>], ["popup card", <>300 · pad 12 / 14 / 10 · title 14 semibold, 10 below · buttons gap 8 · <span className="tok">--tasty-image-popup-*</span></>], ["size field", <>64 · <span className="tok">--tasty-image-size-input-width</span></>], ["path row gap", <>6 · <span className="tok">--tasty-image-path-row-gap</span></>], ["zoom %", <>mono 11 · min 40 · <span className="tok">--tasty-image-zoom-font-size</span></>], ["commit", "click outside = composite · Esc = cancel"], ["New Image", "Width × Height (1–8192)"], ["Save As", "path input + browse · PNG"]]}
-            tokens={[{ tok: "--tasty-accent-primary", use: "floating selection + handles", color: "var(--tasty-accent-primary)" }, { tok: "--tasty-accent-danger", use: "default brush color", color: "var(--tasty-accent-danger)" }, { tok: "--tasty-surface-active", use: "brush slider track", color: "var(--tasty-surface-active)" }, { tok: "--tasty-shadow-modal", use: "popups" }]} />
+            tokens={[{ tok: "--tasty-accent-primary", use: "floating selection + handles", color: "var(--tasty-accent-primary-raised)" }, { tok: "--tasty-accent-danger", use: "default brush color", color: "var(--tasty-accent-danger-raised)" }, { tok: "--tasty-surface-active", use: "brush slider track", color: "var(--tasty-surface-active)" }, { tok: "--tasty-shadow-modal", use: "popups" }]} />
           <Note>Defaults (brief §6): metadata status-bar, filmstrip, async loading indicator, rotate/flip/crop tools, and transparency checkerboard are <b>out of scope</b> this pass — viewer + brush/paste paint only. The two canvas states (empty · load failed) are the next spec.</Note>
         </Spec>
         <Spec id="image-empty-canvas-vs-load-failed-save-as-name-clash" title="Image — empty canvas vs load failed · Save As name clash"
@@ -1126,7 +1126,7 @@ function Page() {
             <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 12, width: "100%", maxWidth: 760 }}>
               <ExpState bg="var(--tasty-bg-sidebar)" glyph={ic.image} title="No image loaded" />
               <ExpState bg="var(--tasty-bg-sidebar)" glyph={<PIcon name="alertTriangle" size="var(--tasty-icon-size-md)" />} glyphColor="var(--tasty-image-error-fg)" title="Image not found" sub="It may have been moved or deleted." reason="~/Pictures/diagram.png" actions={<Button variant="secondary" size="sm">Retry</Button>} />
-              <ExpState bg="var(--tasty-bg-sidebar)" glyph={ic.lock} glyphColor="var(--tasty-accent-warning)" title="Permission denied" sub="You don't have access to read this file." actions={<Button variant="secondary" size="sm">Retry</Button>} />
+              <ExpState bg="var(--tasty-bg-sidebar)" glyph={ic.lock} glyphColor="var(--tasty-accent-warning-raised)" title="Permission denied" sub="You don't have access to read this file." actions={<Button variant="secondary" size="sm">Retry</Button>} />
               <ExpState bg="var(--tasty-bg-sidebar)" glyph={<PIcon name="alertTriangle" size="var(--tasty-icon-size-md)" />} glyphColor="var(--tasty-image-error-fg)" title="Can't open this image" sub="The file is damaged or in an unsupported format." reason="Format error decoding Png: invalid signature" actions={<Button variant="secondary" size="sm">Retry</Button>} />
               <ExpState bg="var(--tasty-bg-sidebar)" glyph={ic.image} glyphColor="var(--tasty-image-too-large-fg)" title="Image is too large to open" sub="Over 16384 px on a side, or needs more than 512 MiB to decode." reason="20000 × 300 px" />
             </div>
@@ -1137,7 +1137,7 @@ function Page() {
             <div style={{ width: "var(--tasty-image-popup-width)", background: "var(--tasty-bg-panel)", border: "var(--tasty-border-width) solid var(--tasty-border-strong)", borderRadius: "var(--tasty-radius)", boxShadow: "var(--tasty-shadow-modal)", overflow: "hidden" }}>
               <div style={{ padding: "var(--tasty-image-popup-pad-top) var(--tasty-image-popup-pad-x) var(--tasty-image-popup-gap)" }}>
                 <div style={{ fontSize: "var(--tasty-image-popup-title-font-size)", fontWeight: "var(--tasty-image-popup-title-weight)", marginBottom: "var(--tasty-image-popup-gap)" }}>Save As</div>
-                <div style={{ fontSize: "var(--tasty-font-size-caption)", color: "var(--tasty-accent-warning)", marginBottom: "var(--tasty-space-xs)" }}>diagram.png already exists. Save the PNG under another name.</div>
+                <div style={{ fontSize: "var(--tasty-font-size-caption)", color: "var(--tasty-accent-warning-raised)", marginBottom: "var(--tasty-space-xs)" }}>diagram.png already exists. Save the PNG under another name.</div>
                 <div style={{ display: "flex", alignItems: "center", gap: "var(--tasty-image-path-row-gap)" }}>
                   <div style={{ flex: 1 }}><Input block defaultValue="~/Pictures/diagram-1.png" /></div>
                   <IconButton size="sm" aria-label="Browse">{ic.folderOpen}</IconButton>
@@ -1148,7 +1148,7 @@ function Page() {
           </Stage>
           <Meta
             specs={[["states", "image-empty · image-load-failed-missing · -permission · -decode · -too-large (b10)"], ["gallery grid", "3 per row (b10) — never squeeze five into one row"], ["too large", "image glyph · image-too-large-fg (→ accent-warning; refused by limit, the file is fine) · title text-primary · sub with the limits · reason = real size “{w} × {h} px” (or “needs {mem}”) · NO Retry (same file, same result)"], ["units", "binary — MiB (also the explorer preview: 256 MiB, and its byte limit “Over 1 MiB.” b11)"], ["line breaks (b11)", "number + unit joined by NBSP in every language (“512 MiB”, “16384 px”) · state title + sub use balanced wrap (lines of near-equal length — no 1–2 character tail; CSS text-wrap: balance) · same rule for the explorer preview state"], ["layout", "explorer state screen on bg-sidebar · compact under explorer-state-compact-below 120"], ["empty", "image glyph · “No image loaded” · muted · no button"], ["missing / decode", <>alertTriangle · <span className="tok">--tasty-image-error-fg</span> (→ accent-danger) title</>], ["permission", "lock · accent-warning (same as explorer)"], ["reason", "mono caption · muted · path (missing) or decoder message (decode)"], ["button", "Retry · secondary sm · = refresh"], ["recovery", "watcher reload ≤ 1 s → viewer; ◀ ▶ still step the folder"], ["Save As clash", "caption 11 · accent-warning · above the field · field = next free name (name-1.png), stem selected"]]}
-            tokens={[{ tok: "--tasty-image-error-fg", use: "→ accent-danger", color: "var(--tasty-image-error-fg)" }, { tok: "--tasty-image-too-large-fg", use: "→ accent-warning (b10)", color: "var(--tasty-image-too-large-fg)" }, { tok: "--tasty-accent-warning", use: "permission · name clash", color: "var(--tasty-accent-warning)" }, { tok: "--tasty-bg-sidebar", use: "canvas", color: "var(--tasty-bg-sidebar)" }, { tok: "--tasty-explorer-state-compact-below", use: "compact switch" }]} />
+            tokens={[{ tok: "--tasty-image-error-fg", use: "→ accent-danger", color: "var(--tasty-image-error-fg)" }, { tok: "--tasty-image-too-large-fg", use: "→ accent-warning (b10)", color: "var(--tasty-image-too-large-fg)" }, { tok: "--tasty-accent-warning", use: "permission · name clash", color: "var(--tasty-accent-warning-raised)" }, { tok: "--tasty-bg-sidebar", use: "canvas", color: "var(--tasty-bg-sidebar)" }, { tok: "--tasty-explorer-state-compact-below", use: "compact switch" }]} />
           <Note>Strings (en / ko / ja): <code>image.state.missing</code> “Image not found” / “이미지를 찾을 수 없습니다” / “画像が見つかりません” · sub “It may have been moved or deleted.” · <code>image.state.permission</code> “Permission denied” / “권한이 없습니다” / “アクセス権がありません” · <code>image.state.decode</code> “Can't open this image” / “이미지를 열 수 없습니다” / “この画像を開けません” · sub “The file is damaged or in an unsupported format.” · <code>image.save_as.exists</code> “{"{name}"} already exists. Save the PNG under another name.”</Note>
           <Note>ko / ja confirmed (b10): <code>missing_sub</code> “이동했거나 삭제되었을 수 있습니다.” / “移動または削除された可能性があります。” · <code>permission_sub</code> “이 파일을 읽을 권한이 없습니다.” / “このファイルを読み取る権限がありません。” · <code>decode_sub</code> “파일이 손상되었거나 지원하지 않는 형식입니다.” / “ファイルが破損しているか、対応していない形式です。” · Retry “다시 시도” / “再試行” · <code>save_as.exists</code> “{"{name}"} 파일이 이미 있습니다. 다른 이름으로 PNG를 저장하세요.” / “{"{name}"} は既に存在します。別の名前で PNG を保存してください。” · <code>too_large</code> “이미지가 너무 커서 열 수 없습니다” / “画像が大きすぎて開けません” · <code>too_large_sub</code> “한 변이 {"{px}"} px를 넘거나 디코딩에 {"{mem}"}보다 많은 메모리가 필요합니다.” / “一辺が {"{px}"} px を超えるか、デコードに {"{mem}"} を超えるメモリが必要です。” · markdown <code>large_deferred_open</code> “파일 열기…” / “ファイルを開く…” (kept). Gallery stays <b>en-only</b>; ko/ja live in these notes and the app's lang files.</Note>
         </Spec>

@@ -48,7 +48,7 @@ const cap = { fontSize: "var(--tasty-font-size-caption)", color: "var(--tasty-te
 function FpLine({ value }) {
   return (
     <div style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: "var(--tasty-space-sm)", fontFamily: "var(--tasty-font-mono)", fontSize: "var(--tasty-font-size-caption)", color: "var(--tasty-text-muted)" }}>
-      <span style={{ color: "var(--tasty-text-secondary)" }}>fingerprint</span><span>{value}</span>
+      <span style={{ color: "var(--tasty-plugin-trust-body-fg)" }}>fingerprint</span><span style={{ color: "var(--tasty-plugin-trust-body-fg)" }}>{value}</span>
       <IconButton size="sm" aria-label="Copy fingerprint"><Icon name="copy" /></IconButton>
     </div>
   );
@@ -128,7 +128,7 @@ function AttentionDetail({ reason = "unknown-key", state = "rest" }) {
         {reason === "unknown-key" && <FpLine value="a13c 4e7f 2b08 9d51  ·  ed25519" />}
       </div>
       <div style={{ display: "flex", alignItems: "center", gap: "var(--tasty-space-sm)", padding: "var(--tasty-space-md) var(--tasty-size-14)", borderTop: "var(--tasty-border-width) solid var(--tasty-separator)" }}>
-        <span style={{ fontSize: 12, color: "var(--tasty-accent-danger)", display: "inline-flex", alignItems: "center", gap: "var(--tasty-space-sm)" }}><span style={{ width: "var(--tasty-status-dot-size)", height: "var(--tasty-status-dot-size)", borderRadius: "50%", background: "var(--tasty-accent-danger)" }} />Not registered</span>
+        <span style={{ fontSize: 12, color: "var(--tasty-accent-danger-raised)", display: "inline-flex", alignItems: "center", gap: "var(--tasty-space-sm)" }}><span style={{ width: "var(--tasty-status-dot-size)", height: "var(--tasty-status-dot-size)", borderRadius: "50%", background: "var(--tasty-accent-danger)" }} />Not registered</span>
         <div style={{ flex: 1 }} />
         <Button variant="danger" disabled={busy} leadingIcon={busy ? <Spinner size={14} label="Registering" /> : null}>{busy ? "Registering…" : "Register anyway"}</Button>
       </div>
@@ -181,7 +181,7 @@ function PluginTrustSpecs() {
         </Stage>
         <Meta
           specs={[["fill", "accent-success × tint-fill-alpha 0.12 (egui 31/255) — unchanged"], ["border", "accent-success × tint-border-alpha 0.36 — unchanged"], ["body", "term-sm · plugin-trust-body-trusted-fg · target 4.5:1"], ["shield", "16 · plugin-trust-glyph-success · target 3:1 (same goal as the warning / danger trust glyphs)"], ["hover", "no change — the shield is Sense::hover display only"]]}
-          tokens={[{ tok: "--tasty-accent-success-ink", use: "new semantic · Mocha → accent-success · Latte green 60% toward black ≈ #26601a", color: "var(--tasty-accent-success-ink)" }, { tok: "--tasty-plugin-trust-body-trusted-fg", use: "new · → accent-success-ink", color: "var(--tasty-plugin-trust-body-trusted-fg)" }, { tok: "--tasty-plugin-trust-glyph-success", use: "was accent-success → accent-success-ink", color: "var(--tasty-plugin-trust-glyph-success)" }, { tok: "--tasty-accent-success", use: "fill + border only (unchanged, global)", color: "var(--tasty-accent-success)" }]} />
+          tokens={[{ tok: "--tasty-accent-success-ink", use: "new semantic · Mocha → accent-success · Latte green 60% toward black ≈ #26601a", color: "var(--tasty-accent-success-ink)" }, { tok: "--tasty-plugin-trust-body-trusted-fg", use: "new · → accent-success-ink", color: "var(--tasty-plugin-trust-body-trusted-fg)" }, { tok: "--tasty-plugin-trust-glyph-success", use: "was accent-success → accent-success-ink", color: "var(--tasty-plugin-trust-glyph-success)" }, { tok: "--tasty-accent-success", use: "fill + border only (unchanged, global)", color: "var(--tasty-accent-success-raised)" }]} />
         <Note><b>Contrast (WCAG relative luminance, specified colours).</b> Box grounds: Latte mantle+tint #d2e0d7 (CSS 0.12 and egui 31/255 byte path give the same bytes) · base+tint CSS #dae7dd / egui #dae7dc. Latte body and shield, ink #26601a: mantle+tint <b>5.55:1</b> (both methods) · base+tint <b>5.94:1</b> CSS / 5.94:1 egui. Before (#40a02b): 2.45 / 2.62. Mocha (ink = accent-success #a6e3a1, unchanged): mantle+tint 9.02:1 CSS / 8.91:1 egui · base+tint 8.26:1 both. egui path = round(src × 31/255) + dst × (1 − 31/255), rounded per channel.</Note>
         <Note><b>Why a new role.</b> accent-success is shared by many green consumers (status dots, Tags, fills), so it can't change; text-secondary would meet 4.5 but turns Mocha's green line grey. Mixing toward n1100 (the accent-warning-glyph move) greys the green before it clears 4.5 (30% = #486756, 4.59:1), so the Latte remap mixes toward black instead and stays visibly green.</Note>
       </Spec>

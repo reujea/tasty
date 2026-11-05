@@ -14,7 +14,7 @@ const lbl = { fontFamily: "var(--tasty-font-mono)", fontSize: "var(--tasty-font-
 // a settings content column: bg-panel, content inset space-lg (as the real page)
 function AnFrame({ theme, label, w = "var(--tasty-size-560)", children }) {
   return (
-    <div data-theme={theme || undefined} style={{ display: "flex", flexDirection: "column", gap: "var(--tasty-space-xs)", minWidth: 0, maxWidth: "100%" }}>
+    <div data-theme={theme || undefined} style={{ display: "flex", flexDirection: "column", gap: "var(--tasty-space-xs)", minWidth: 0, maxWidth: "100%", background: "var(--tasty-bg-app)" }}>
       <span style={lbl}>{label}</span>
       <div style={{ width: w, maxWidth: "100%", boxSizing: "border-box", padding: "var(--tasty-space-lg)", background: "var(--tasty-bg-panel)", border: "var(--tasty-border-width) solid var(--tasty-border-frame)", borderRadius: "var(--tasty-radius)" }}>{children}</div>
     </div>
@@ -58,7 +58,7 @@ function AnomalySection() {
           <AnFrame theme="latte" label="Latte · every upper bound (valid, no range line)"><A values={Object.assign({}, MAX, ALL_ON)} /></AnFrame>
         </>)}
         <Meta specs={[["while typing", "no clamp · out of range → invalid edge + range line"], ["range line", "under the field, in the control column · caption 11 · number-field-note-fg · “Between 2 and 10000. Commits as 2.”"], ["commit", "Enter or blur · clamp into range · line removed"], ["non-number", "reverts to last committed value · no popup"], ["bounds", "3–20 · 0–65536 MiB · 30–3600 s · 2–10000 · 1–600 s · 10–100000"]]}
-          tokens={[{ tok: "--tasty-number-field-note-fg", use: "range line → text-secondary", color: "var(--tasty-number-field-note-fg)" }, { tok: "--tasty-accent-danger", use: "invalid field edge (Input invalid)", color: "var(--tasty-accent-danger)" }]} />
+          tokens={[{ tok: "--tasty-number-field-note-fg", use: "range line → text-secondary", color: "var(--tasty-number-field-note-fg)" }, { tok: "--tasty-accent-danger", use: "invalid field edge (Input invalid)", color: "var(--tasty-accent-danger-raised)" }]} />
       </Spec>
 
       <Spec id="settings-anomaly-narrow" title="Narrow · ko / ja"

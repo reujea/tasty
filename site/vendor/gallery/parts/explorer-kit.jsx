@@ -118,7 +118,7 @@ function FavRow({ name, active }) {
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 6, height: 22, flex: "none", padding: "0 6px", borderRadius: "var(--tasty-radius-sm)",
       fontSize: 13, color: active ? "var(--tasty-text-on-active)" : "var(--tasty-text-secondary)", background: active ? "var(--tasty-surface-active)" : "transparent" }}>
-      <span style={{ display: "inline-flex", color: active ? "var(--tasty-text-on-active)" : "var(--tasty-accent-warning)", flex: "none" }}>{ic.starFill}</span>
+      <span style={{ display: "inline-flex", color: active ? "var(--tasty-text-on-active)" : "var(--tasty-accent-warning-raised)", flex: "none" }}>{ic.starFill}</span>
       <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{name}</span>
     </div>
   );
@@ -127,8 +127,8 @@ function FavRow({ name, active }) {
 function DetailRow({ glyph, name, size, date, type, state, glyphColor }) {
   const bg = state === "selected" ? "var(--tasty-surface-active)" : state === "hover" ? "var(--tasty-overlay-hover)" : "transparent";
   return (
-    <div style={{ display: "grid", gridTemplateColumns: "1fr 80px 132px 92px", alignItems: "center", height: "var(--tasty-table-cell-height)", padding: "0 10px",
-      fontSize: 13, background: bg, opacity: state === "cut" ? 0.5 : 1, cursor: "default",
+    <div data-audit-exempt={state === "cut" ? "dimmed" : undefined} style={{ display: "grid", gridTemplateColumns: "1fr 80px 132px 92px", alignItems: "center", height: "var(--tasty-table-cell-height)", padding: "0 10px",
+      fontSize: 13, background: bg, opacity: state === "cut" ? "var(--tasty-state-dim-opacity)" : 1, cursor: "default",
       color: state === "selected" ? "var(--tasty-text-on-active)" : "var(--tasty-text-secondary)" }}>
       <span style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
         <span style={{ display: "inline-flex", flex: "none", color: state === "selected" ? "var(--tasty-text-on-active)" : glyphColor || "var(--tasty-text-muted)" }}>{glyph}</span>
@@ -173,7 +173,7 @@ function GridCell({ glyph, name, state, glyphColor }) {
   const bg = state === "selected" ? "var(--tasty-surface-active)" : state === "hover" ? "var(--tasty-overlay-hover)" : "transparent";
   return (
     <div style={{ width: GRID_CELL_W, display: "flex", flexDirection: "column", alignItems: "center", gap: 4, padding: "8px 4px",
-      borderRadius: "var(--tasty-radius)", background: bg, opacity: state === "cut" ? 0.5 : 1, cursor: "default" }}>
+      borderRadius: "var(--tasty-radius)", background: bg, opacity: state === "cut" ? "var(--tasty-state-dim-opacity)" : 1, cursor: "default" }}>
       <span style={{ display: "inline-flex", color: state === "selected" ? "var(--tasty-text-on-active)" : glyphColor || "var(--tasty-text-muted)", height: 16, alignItems: "center" }}>{glyph}</span>
       <span style={{ fontSize: 11, textAlign: "center", lineHeight: `${GRID_LABEL_LINE_H}px`, height: GRID_LABEL_LINES * GRID_LABEL_LINE_H,
         color: state === "selected" ? "var(--tasty-text-on-active)" : "var(--tasty-text-secondary)", wordBreak: "break-word",
@@ -198,7 +198,7 @@ function CtxMenu({ title, children }) {
 // glyph (unscaled 16) · title (ellipsis; reason / sub move to its tooltip) · actions. Retry / Go up stay.
 function ExpState({ glyph, glyphColor, title, sub, reason, actions, compact, bodyHeight, bg }) {
   // b11 (image-too-large-title-tone): refused-by-limit states colour only the glyph; the title is text-primary.
-  const titleFg = glyphColor === "var(--tasty-image-too-large-fg)" ? "var(--tasty-text-primary)" : glyphColor === "var(--tasty-accent-warning)" || glyphColor === "var(--tasty-explorer-error-fg)" || glyphColor === "var(--tasty-image-error-fg)" ? glyphColor : "var(--tasty-text-secondary)";
+  const titleFg = glyphColor === "var(--tasty-image-too-large-fg)" ? "var(--tasty-text-primary)" : glyphColor === "var(--tasty-accent-warning-raised)" || glyphColor === "var(--tasty-explorer-error-fg)" || glyphColor === "var(--tasty-image-error-fg)" ? glyphColor : "var(--tasty-text-secondary)";
   if (compact) return (
     <div style={{ flex: 1, minWidth: 0, height: bodyHeight || 62, display: "flex", alignItems: "center", justifyContent: "center", boxSizing: "border-box",
       background: bg || "var(--tasty-bg-panel)", border: "1px solid var(--tasty-separator)", borderRadius: "var(--tasty-radius)", padding: "0 var(--tasty-space-sm)" }}>

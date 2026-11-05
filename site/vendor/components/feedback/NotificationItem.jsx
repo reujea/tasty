@@ -45,7 +45,7 @@ export function NotificationItem({
       style={{ display: "flex", gap: "var(--tasty-notification-item-glyph-gap)", padding: "var(--tasty-notification-item-pad-y) var(--tasty-notification-item-pad-x)",
         background: bg, cursor: "pointer", borderBottom: "var(--tasty-border-width) solid var(--tasty-notification-item-separator)", minWidth: 0, ...style }}>
       <span data-part="glyph" title={L.one} style={{ flex: "none", display: "inline-flex", alignItems: "center", height: "calc(var(--tasty-font-size-body) * var(--tasty-line-height-ui))",
-        color: selected ? "var(--tasty-notification-item-fg-selected)" : "var(--tasty-notification-item-" + level + "-glyph)" }}>
+        color: selected ? "var(--tasty-accent-" + ({ error: "danger", warning: "warning", info: "primary" }[level] || "primary") + "-on-active)" : "var(--tasty-notification-item-" + level + "-glyph)" }}>
         <Icon name={L.glyph} size="var(--tasty-notification-item-glyph-size)" aria-hidden="true" />
       </span>
       <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: "var(--tasty-notification-item-line-gap)" }}>

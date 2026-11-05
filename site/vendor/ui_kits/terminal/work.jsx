@@ -128,7 +128,7 @@ function MarkdownSurface({ focused, path = "~/work/tasty/README.md", remote = fa
         <h1 style={{ fontFamily: "var(--tasty-font-mono)", fontSize: "var(--tasty-font-size-prose-h1)", margin: "0 0 var(--tasty-space-xs)" }}>Tasty</h1>
         <p style={{ color: "var(--tasty-text-secondary)", fontSize: "var(--tasty-font-size-body)", margin: "0 0 var(--tasty-space-lg)" }}>
           A cross-platform, GPU-accelerated terminal emulator purpose-built for AI coding agents.</p>
-        <h2 style={{ fontSize: "var(--tasty-font-size-max)", margin: "0 0 var(--tasty-space-sm)", color: "var(--tasty-accent-primary)" }}>Identity</h2>
+        <h2 style={{ fontSize: "var(--tasty-font-size-max)", margin: "0 0 var(--tasty-space-sm)", color: "var(--tasty-accent-primary-raised)" }}>Identity</h2>
         <p style={{ fontSize: "var(--tasty-font-size-body)", color: "var(--tasty-text-secondary)", margin: 0 }}>
           User actions and agent actions are strictly separated. An agent can open and close a
           hundred surfaces without ever touching your focus, history, or selection.</p>

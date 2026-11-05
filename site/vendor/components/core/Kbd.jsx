@@ -26,6 +26,7 @@ const CSS = `
   color: var(--tasty-kbd-fg);
 }
 .tasty-kbd__plus { color: var(--tasty-kbd-plus-fg); font-size: var(--tasty-font-size-micro); font-family: var(--tasty-font-mono); }
+.tasty-kbd[data-ground="active"] .tasty-kbd__plus { color: var(--tasty-kbd-plus-fg-active); }
 `;
 
 let injected = false;
@@ -38,11 +39,11 @@ function ensureCss() {
   injected = true;
 }
 
-export function Kbd({ keys = [], className = "", ...rest }) {
+export function Kbd({ keys = [], ground, className = "", ...rest }) {
   ensureCss();
   const list = Array.isArray(keys) ? keys : String(keys).split("+").map((s) => s.trim());
   return (
-    <span className={["tasty-kbd", className].filter(Boolean).join(" ")} {...rest}>
+    <span className={["tasty-kbd", className].filter(Boolean).join(" ")} data-ground={ground} {...rest}>
       {list.map((k, i) => (
         <React.Fragment key={i}>
           {i > 0 && <span className="tasty-kbd__plus">+</span>}

@@ -62,7 +62,7 @@ function HtmlRemoteBanner({ state = "blocked", hover = false, narrow = false }) 
         <span style={{ display: "inline-flex", flex: "none", alignSelf: "flex-start", marginTop: "var(--tasty-banner-glyph-offset)", color: "var(--tasty-html-remote-banner-glyph)" }}>
           <RcIcon name="globeOff" size="var(--tasty-icon-size-md)" />
         </span>
-        <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: "var(--tasty-banner-text-gap)", opacity: reloading ? "var(--tasty-opacity-dimmed)" : 1 }}>
+        <div data-audit-exempt={reloading ? "dimmed" : undefined} style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: "var(--tasty-banner-text-gap)", opacity: reloading ? "var(--tasty-opacity-dimmed)" : 1 }}>
           <div style={{ fontSize: "var(--tasty-banner-title-font-size)", fontWeight: "var(--tasty-font-weight-semibold)", lineHeight: "var(--tasty-line-height-ui)", textWrap: "pretty" }}>{RC_COPY.title}</div>
           <div style={{ fontSize: "var(--tasty-banner-body-font-size)", lineHeight: "var(--tasty-line-height-ui)", color: "var(--tasty-banner-body-fg)", textWrap: "pretty" }}>{RC_COPY.body}</div>
         </div>
@@ -87,7 +87,7 @@ function HtmlRemoteMarker({ kind = "blocked", hover = false }) {
         style={{ display: "inline-flex", flex: "none", alignItems: "center", justifyContent: "center", marginRight: "calc(-1 * var(--tasty-space-xs))",
           width: "var(--tasty-html-remote-marker-hit)", height: "var(--tasty-html-remote-marker-hit)", borderRadius: "var(--tasty-radius-sm)",
           cursor: allowed ? "default" : "pointer", background: !allowed && (hover || h) ? "var(--tasty-html-remote-marker-hover-bg)" : "transparent",
-          color: allowed ? "var(--tasty-html-remote-marker-allowed-fg)" : "var(--tasty-html-remote-marker-fg)" }}>
+          color: allowed ? "var(--tasty-html-remote-marker-allowed-fg)" : hover || h ? "var(--tasty-html-remote-marker-fg-hover)" : "var(--tasty-html-remote-marker-fg)" }}>
         <RcIcon name={allowed ? "globe" : "globeOff"} size="var(--tasty-html-remote-marker-size)" />
       </span>
     </Tooltip>

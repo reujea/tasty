@@ -67,7 +67,7 @@ function ExplorerDeleteFrame({ lang = "en", items, focus = "cancel", okState, wi
     <div role="alertdialog" aria-label={c.title} style={{ width: width || "var(--tasty-info-modal-width)", maxWidth: "100%", maxHeight: "var(--tasty-info-modal-max-height)", display: "flex", flexDirection: "column", background: "var(--tasty-bg-panel)", border: "var(--tasty-border-width) solid var(--tasty-border-strong)", borderRadius: "var(--tasty-radius)", boxShadow: "var(--tasty-shadow-modal)", overflow: "hidden", textAlign: "left" }}>
       <div style={{ display: "flex", flexDirection: "column", gap: "var(--tasty-space-sm)", padding: "var(--tasty-space-md) var(--tasty-size-14) 0", minHeight: 0, flex: "1 1 auto" }}>
         <div style={{ display: "flex", alignItems: "center", gap: "var(--tasty-space-sm)" }}>
-          <span style={{ display: "inline-flex", color: "var(--tasty-accent-danger)" }}><Icon name="trash" size="var(--tasty-icon-size-md)" /></span>
+          <span style={{ display: "inline-flex", color: "var(--tasty-accent-danger-raised)" }}><Icon name="trash" size="var(--tasty-icon-size-md)" /></span>
           <span style={{ fontSize: "var(--tasty-font-size-max)", fontWeight: "var(--tasty-font-weight-semibold)", color: "var(--tasty-text-primary)" }}>{c.title}</span>
         </div>
         <p style={{ margin: 0, fontSize: "var(--tasty-font-size-body)", lineHeight: "var(--tasty-line-height-ui)", color: "var(--tasty-text-secondary)", textWrap: "pretty" }}>{summary}</p>
@@ -75,7 +75,7 @@ function ExplorerDeleteFrame({ lang = "en", items, focus = "cancel", okState, wi
           {items.map((it, i) => <XDRow key={i} lang={lang} {...it} />)}
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: "var(--tasty-space-sm)", fontSize: "var(--tasty-font-size-body)", fontWeight: "var(--tasty-font-weight-semibold)", color: "var(--tasty-text-primary)" }}>
-          <span style={{ display: "inline-flex", color: "var(--tasty-accent-danger)" }}><Icon name="alertTriangle" size="var(--tasty-icon-size-sm)" /></span>{c.warn}
+          <span style={{ display: "inline-flex", color: "var(--tasty-accent-danger-raised)" }}><Icon name="alertTriangle" size="var(--tasty-icon-size-sm)" /></span>{c.warn}
         </div>
       </div>
       <div style={{ display: "flex", justifyContent: "flex-end", flexWrap: "wrap", gap: "var(--tasty-space-sm)", padding: "var(--tasty-space-md) var(--tasty-size-14)", flex: "none" }}>

@@ -289,7 +289,7 @@ function DagDetail({ dag, id, onClose, onSelect, sheet = false }) {
               color: sLabel(d.node.status) }}>{DAG_STATUS[d.node.status].glyph}</span>
             <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{d.node.name}</span>
             <span style={{ flex: "none", fontFamily: "var(--tasty-font-mono)", fontSize: "var(--tasty-font-size-micro)",
-              color: DAG_REL[d.rel].color }}>{DAG_REL[d.rel].label}</span>
+              color: "var(--tasty-text-muted)" }}>{DAG_REL[d.rel].label}</span>
           </button>
         ))}
       </div>

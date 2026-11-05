@@ -67,7 +67,7 @@ export function Select({ options = [], block = false, placeholder, ground = "pan
   if (placeholder != null && !controlled && props.defaultValue === undefined) props.defaultValue = "";
   const cls = ["tasty-select", block ? "tasty-select--block" : "", empty ? "tasty-select--empty" : "", ground === "raised" ? "tasty-select--raised" : "", className].filter(Boolean).join(" ");
   return (
-    <div className={cls}>
+    <div className={cls} aria-disabled={rest.disabled || undefined}>
       <select {...props} onChange={(e) => { if (!controlled) setInner(e.target.value); if (onChange) onChange(e); }}>
         {placeholder != null && <option value="" disabled hidden>{placeholder}</option>}
         {children ||

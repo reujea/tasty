@@ -56,7 +56,7 @@ function ModHintHoldDemo() {
       {/* faux app: sidebar + terminal surface */}
       <div style={{ position: "absolute", inset: 0, display: "flex" }}>
         <div style={{ width: 180, flex: "none", background: "var(--tasty-bg-sidebar)", borderRight: "var(--tasty-border-width) solid var(--tasty-separator)" }} />
-        <div style={{ flex: 1, background: "#000" }} />
+        <div style={{ flex: 1, background: "var(--tasty-surface-terminal-focused-bg)" }} />
       </div>
       {/* the hold control, centred on the surface */}
       <div style={{ position: "absolute", top: 20, left: 200, display: "flex", alignItems: "center", gap: 10 }}>
@@ -103,7 +103,7 @@ function Page() {
           <Stage variant="solo center"><SearchBarFrame /></Stage>
           <Meta
             specs={[["frame", "360 × 28 row"], ["anchor", "top-right of focused surface"], ["counter", "cur/total · red on 0"], ["toggles", "Aa · .* · ab"], ["dismiss", <span className="ic">Esc</span>]]}
-            tokens={[{ tok: "--tasty-surface-raised", use: "bar fill", color: "var(--tasty-surface-raised)" }, { tok: "--tasty-search-bar-border", use: "edge → menu-border", color: "var(--tasty-search-bar-border)" }, { tok: "--tasty-accent-danger", use: "no-match counter", color: "var(--tasty-accent-danger)" }, { tok: "--tasty-shadow-popover", use: "lift" }]} />
+            tokens={[{ tok: "--tasty-surface-raised", use: "bar fill", color: "var(--tasty-surface-raised)" }, { tok: "--tasty-search-bar-border", use: "edge → menu-border", color: "var(--tasty-search-bar-border)" }, { tok: "--tasty-accent-danger", use: "no-match counter", color: "var(--tasty-accent-danger-raised)" }, { tok: "--tasty-shadow-popover", use: "lift" }]} />
           <Note>Sticky-focus popover: the input keeps focus and the bar persists through clicks in the terminal — it closes only on <span className="ic">Esc</span> or its × button.</Note>
         </Spec>
         <Spec id="query-field-ground-normal-focused-invalid" title="Query field ground — normal · focused · invalid"
@@ -120,7 +120,7 @@ function Page() {
           </Stage>
           <Meta
             specs={[["field ground", <>ground="raised" · no exception</>], ["normal", <>input-raised-bg → bg-panel · input-raised-border → border-strong</>], ["focused", <>border-focus edge + 1px border-focus ring</>], ["invalid", <>accent-danger edge · focused adds 1px accent-danger ring · counter 0/0 accent-danger</>], ["Mocha / Latte", "bg-panel = base · border-strong = surface1 · bar surface-raised = surface0"]]}
-            tokens={[{ tok: "--tasty-input-raised-bg", use: "field fill", color: "var(--tasty-input-raised-bg)" }, { tok: "--tasty-input-raised-border", use: "field edge", color: "var(--tasty-input-raised-border)" }, { tok: "--tasty-border-focus", use: "focused", color: "var(--tasty-border-focus)" }, { tok: "--tasty-accent-danger", use: "invalid", color: "var(--tasty-accent-danger)" }]} />
+            tokens={[{ tok: "--tasty-input-raised-bg", use: "field fill", color: "var(--tasty-input-raised-bg)" }, { tok: "--tasty-input-raised-border", use: "field edge", color: "var(--tasty-input-raised-border)" }, { tok: "--tasty-border-focus", use: "focused", color: "var(--tasty-border-focus)" }, { tok: "--tasty-accent-danger", use: "invalid", color: "var(--tasty-accent-danger-raised)" }]} />
         </Spec>
       </Section>
 
@@ -217,7 +217,7 @@ function Page() {
           </Stage>
           <Meta
             specs={[["drag strip", "muted sidebar fill — NOT a titlebar"], ["X button", "dismiss for this hold only"], ["section order", "size ↑, then Ctrl→Cmd/Alt→Option→Shift"], ["keycap row", "action + Kbd"], ["role row", "washed, leading glyph, no keycap"], ["plugin row", "agent dot, context-dependent"], ["row text", <>11 · <span className="tok">--tasty-modhint-row-font-size</span> (chord · role · empty rows)</>], ["chord row", <>min 24 · <span className="tok">--tasty-modhint-row-min-height</span></>], ["role row pad", <>6 / 8 · <span className="tok">--tasty-modhint-row-gap</span> / <span className="tok">--tasty-space-sm</span></>], ["grip", <>12 · inset 2 from right/bottom · <span className="tok">--tasty-modhint-grip-size</span> · <span className="tok">--tasty-modhint-grip-inset</span> (on-scale)</>], ["min size", "180 × 240"]]}
-            tokens={[{ tok: "--tasty-modhint-header-bg", use: "drag strip", color: "var(--tasty-modhint-header-bg)" }, { tok: "--tasty-modhint-role-bg", use: "role-row wash", color: "var(--tasty-modhint-role-bg)" }, { tok: "--tasty-modhint-role-fg", use: "role glyph", color: "var(--tasty-modhint-role-fg)" }, { tok: "--tasty-accent-agent", use: "plugin dot", color: "var(--tasty-accent-agent)" }, { tok: "--tasty-modhint-grip-fg", use: "resize grip", color: "var(--tasty-modhint-grip-fg)" }]} />
+            tokens={[{ tok: "--tasty-modhint-header-bg", use: "drag strip", color: "var(--tasty-modhint-header-bg)" }, { tok: "--tasty-modhint-role-bg", use: "role-row wash", color: "var(--tasty-modhint-role-bg)" }, { tok: "--tasty-modhint-role-fg", use: "role glyph", color: "var(--tasty-modhint-role-fg)" }, { tok: "--tasty-accent-agent", use: "plugin dot", color: "var(--tasty-accent-agent-raised)" }, { tok: "--tasty-modhint-grip-fg", use: "resize grip", color: "var(--tasty-modhint-grip-fg)" }]} />
           <Do><b>Do</b> keep it opaque and low-chrome — it floats over live terminal output, and the muted drag strip (not a titlebar) is the promise that it will never steal focus.</Do>
           <Dont><b>Don't</b> hide a chord that a key combo <i>could</i> reach — a bound-empty chord shows its ChordHead with a muted <b>“No shortcuts bound”</b> placeholder (see below), never nothing, so holding an all-empty combo still surfaces the panel.</Dont>
           <Note>When <b>Workspace categories (folders)</b> is on, the <Kbd keys="Ctrl+Shift" /> chord carries a <b>“Switch category”</b> role row (folder glyph) — the discoverability entry for the category quick-switch (see Switch-number overlay). A chord's role row is how a numeric switch announces itself, exactly like <Kbd keys="Ctrl" /> = tab-switch numbers.</Note>
@@ -277,7 +277,7 @@ function Page() {
           </Stage>
           <Meta
             specs={[["trigger", "right-click, no dedicated button"], ["width", "176px min"], ["background", "New category"], ["category", "Add ws · Rename · Delete · New"], ["reserved", "Add ws · New (additive-only)"], ["workspace", "Move to category (inert header) · targets · New"], ["targets", "every category except the current one · normal = “Workspaces”"]]}
-            tokens={[{ tok: "--tasty-surface-raised", use: "menu fill", color: "var(--tasty-surface-raised)" }, { tok: "--tasty-border-strong", use: "edge", color: "var(--tasty-border-strong)" }, { tok: "--tasty-accent-danger", use: "delete row", color: "var(--tasty-accent-danger)" }, { tok: "--tasty-shadow-popover", use: "lift" }]} />
+            tokens={[{ tok: "--tasty-surface-raised", use: "menu fill", color: "var(--tasty-surface-raised)" }, { tok: "--tasty-border-strong", use: "edge", color: "var(--tasty-border-strong)" }, { tok: "--tasty-accent-danger", use: "delete row", color: "var(--tasty-accent-danger-raised)" }, { tok: "--tasty-shadow-popover", use: "lift" }]} />
           <Note>“Move to category” is an <b>inert header</b> with the target categories listed <b>flat</b> beneath it (current category omitted) — no submenu, because the product draws this menu with the OS-native context menu (2026-10-07). Drag-and-drop reorder stays the primary path; this is the menu fallback. New strings: <code>workspace_category.add_workspace</code> · <code>collapse</code> · <code>expand</code>. Existing: <code>new_category</code> · <code>rename_category</code> · <code>delete_category</code> · <code>move_to_category</code>.</Note>
         </Spec>
         <Spec id="collapsed-rail-category-button-anchored-popup" title="Collapsed rail — `---` category button + anchored popup"
@@ -287,7 +287,7 @@ function Page() {
           </Stage>
           <Meta
             specs={[["boundary", <><code>---</code> full-width button</>], ["anchor", "popup to the right of the button"], ["header", "category name — non-clickable"], ["items", "Add workspace · Collapse · Rename · Delete"], ["collapsed/empty", <><code>---</code> only, no avatars</>], ["reserved", "no Rename/Delete"]]}
-            tokens={[{ tok: "--tasty-separator", use: <><code>---</code> line (idle)</>, color: "var(--tasty-separator)" }, { tok: "--tasty-text-muted", use: <><code>---</code> line (hover)</>, color: "var(--tasty-text-muted)" }, { tok: "--tasty-surface-raised", use: "popup fill", color: "var(--tasty-surface-raised)" }, { tok: "--tasty-menu-border", use: "edge", color: "var(--tasty-menu-border)" }, { tok: "--tasty-popup-content-margin", use: "inner ring 4 (all sides)" }, { tok: "--tasty-accent-danger", use: "delete row", color: "var(--tasty-accent-danger)" }]} />
+            tokens={[{ tok: "--tasty-separator", use: <><code>---</code> line (idle)</>, color: "var(--tasty-separator)" }, { tok: "--tasty-text-muted", use: <><code>---</code> line (hover)</>, color: "var(--tasty-text-muted)" }, { tok: "--tasty-surface-raised", use: "popup fill", color: "var(--tasty-surface-raised)" }, { tok: "--tasty-menu-border", use: "edge", color: "var(--tasty-menu-border)" }, { tok: "--tasty-popup-content-margin", use: "inner ring 4 (all sides)" }, { tok: "--tasty-accent-danger", use: "delete row", color: "var(--tasty-accent-danger-raised)" }]} />
           <Note>Collapse state is per-category and <b>shared</b> with the full sidebar (both seed from the persisted <code>collapsed</code> flag in <code>layout.json</code>). Toggling here or in the full header updates the same state.</Note>
         </Spec>
       </Section>

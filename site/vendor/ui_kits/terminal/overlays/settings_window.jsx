@@ -113,7 +113,7 @@ function ColorOverridePicker() {
               <Icon name={open ? "chevronDown" : "chevronRight"} size={14} />
               <span style={headStyle}>{g.name}</span>
               {g.note && <span style={{ fontSize: 11, color: "var(--tasty-text-muted)" }}>· {g.note}</span>}
-              {ovN > 0 && <span style={{ fontFamily: "var(--tasty-font-mono)", fontSize: 10, color: "var(--tasty-accent-primary)" }}>{ovN} changed</span>}
+              {ovN > 0 && <span style={{ fontFamily: "var(--tasty-font-mono)", fontSize: 10, color: "var(--tasty-accent-primary-raised)" }}>{ovN} changed</span>}
               <span style={{ marginLeft: "auto" }}>
                 {ovN > 0 && <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); resetGroup(g); }}>Reset</Button>}
               </span>
@@ -190,7 +190,7 @@ function ScriptChangedBadge() {
     <span title="File changed since registration — you'll be asked to confirm on next run."
       style={{ display: "inline-flex", alignItems: "center", gap: 4, height: 16, padding: "0 var(--tasty-space-sm)",
         borderRadius: "var(--tasty-radius-sm)", whiteSpace: "nowrap", fontFamily: "var(--tasty-font-mono)",
-        fontSize: "var(--tasty-font-size-micro)", fontWeight: 500, lineHeight: 1, color: "var(--tasty-accent-warning)",
+        fontSize: "var(--tasty-font-size-micro)", fontWeight: 500, lineHeight: 1, color: "var(--tasty-accent-warning-raised)",
         border: "var(--tasty-border-width) solid color-mix(in srgb, var(--tasty-accent-warning) 40%, transparent)",
         background: "color-mix(in srgb, var(--tasty-accent-warning) 12%, transparent)" }}>
       <span style={{ display: "inline-flex" }}><Icon name={SD.warn} size={12} /></span>changed
@@ -307,7 +307,7 @@ function ScriptRow({ s, renaming, confirming, onStartRename, onCommitRename, onC
         {!renaming && <ScriptPath path={s.path} />}
         {/* row 3 — changed help text */}
         {!renaming && s.changed && (
-          <span style={{ fontSize: 11, color: "var(--tasty-accent-warning)", lineHeight: "var(--tasty-line-height-ui)" }}>
+          <span style={{ fontSize: 11, color: "var(--tasty-accent-warning-raised)", lineHeight: "var(--tasty-line-height-ui)" }}>
             File changed since registration — you'll be asked to confirm on next run.
           </span>
         )}
@@ -319,7 +319,7 @@ function ScriptRow({ s, renaming, confirming, onStartRename, onCommitRename, onC
         <div style={{ display: "flex", alignItems: "center", gap: "var(--tasty-space-sm)", flex: "none" }}>
           <span style={{ fontSize: 12, color: "var(--tasty-text-secondary)" }}>Remove?</span>
           <Button variant="ghost" size="sm" onClick={onCancelDelete}>Cancel</Button>
-          <Button variant="secondary" size="sm" style={{ color: "var(--tasty-accent-danger)" }} onClick={onConfirmDelete}>Remove</Button>
+          <Button variant="secondary" size="sm" style={{ color: "var(--tasty-accent-danger-raised)" }} onClick={onConfirmDelete}>Remove</Button>
         </div>
       ) : (
         <div style={{ display: "flex", alignItems: "center", gap: "var(--tasty-space-sm)", flex: "none" }}>
@@ -455,7 +455,7 @@ function CaptureBlacklist() {
           onChange={(e) => setDraft(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") add(); }} />
         <Button variant="secondary" size="sm" disabled={!draft.trim()} onClick={add}>Add</Button>
       </div>
-      <p style={{ fontSize: 11, color: "var(--tasty-accent-warning)", margin: 0, lineHeight: "var(--tasty-line-height-ui)", maxWidth: "var(--tasty-measure-md)" }}>
+      <p style={{ fontSize: 11, color: "var(--tasty-accent-warning-raised)", margin: 0, lineHeight: "var(--tasty-line-height-ui)", maxWidth: "var(--tasty-measure-md)" }}>
         Case-insensitive substring or <b>*</b> wildcard on the process name. When a listed program is foreground, clicks/drags are handled locally (select / tasty menu); the wheel is still sent.
       </p>
     </div>
@@ -633,7 +633,7 @@ function PresetDiffTable({ preset, presetName }) {
             <div style={{ ...cell, color: "var(--tasty-text-secondary)" }}>{r.action}</div>
             <div style={{ ...cell, fontFamily: "var(--tasty-font-mono)", fontSize: "var(--tasty-font-size-caption)", color: "var(--tasty-text-muted)" }}>{r.cur}</div>
             <div style={{ ...cell, fontFamily: "var(--tasty-font-mono)", fontSize: 12,
-              color: changed ? "var(--tasty-accent-primary)" : "var(--tasty-text-muted)" }}>{r.next}</div>
+              color: changed ? "var(--tasty-accent-primary-raised)" : "var(--tasty-text-muted)" }}>{r.next}</div>
           </React.Fragment>
         );
       })}
@@ -769,7 +769,7 @@ function ExtensionMapping({ detectors = true }) {
           <div key={g.ext} style={{ display: "flex", flexDirection: "column" }}>
             <div style={{ display: "flex", alignItems: "center", gap: "var(--tasty-space-sm)", minHeight: "var(--tasty-button-height-sm)", padding: "var(--tasty-space-xs) 0", borderBottom: g.missing ? "var(--tasty-border-width) solid var(--tasty-separator)" : undefined }}>
               <span style={{ fontFamily: "var(--tasty-font-mono)", fontSize: "var(--tasty-font-size-caption)", color: g.missing ? "var(--tasty-text-disabled)" : "var(--tasty-text-secondary)" }}>{g.ext}</span>
-              {g.missing && <Tag disabled>not installed</Tag>}
+              {g.missing && <Tag>not installed</Tag>}
               <span style={{ flex: 1 }} />
               {g.custom && <Button variant="ghost" size="sm" title="Remove the custom priority for this extension (revert to install order)." onClick={() => reset(gi)}>Reset</Button>}
               {g.missing && <Button variant="ghost" size="sm" onClick={() => remove(gi)}>Remove</Button>}
@@ -779,7 +779,7 @@ function ExtensionMapping({ detectors = true }) {
                 borderBottom: "var(--tasty-border-width) solid var(--tasty-separator)" }}>
                 <span style={{ width: "var(--tasty-space-lg)", fontFamily: "var(--tasty-font-mono)", fontSize: "var(--tasty-font-size-caption)", color: "var(--tasty-text-muted)" }}>{i + 1}</span>
                 <span style={{ flex: 1, minWidth: 0, fontSize: "var(--tasty-font-size-body)", color: c ? "var(--tasty-text-secondary)" : "var(--tasty-text-disabled)" }}>{name}</span>
-                {!c && <Tag disabled>off</Tag>}
+                {!c && <Tag>off</Tag>}
                 <IconButton size="sm" aria-label="Move up" disabled={!c || i === 0} onClick={() => move(gi, i, -1)}><DsIcon name="chevronUp" /></IconButton>
                 <IconButton size="sm" aria-label="Move down" disabled={!c || i >= cand - 1} onClick={() => move(gi, i, 1)}><DsIcon name="chevronDown" /></IconButton>
               </div>
@@ -843,7 +843,7 @@ function SettingsWindow({ theme, onTheme, uiScale, onUiScale, onClose }) {
     <div style={{ display: "flex", gap: "var(--tasty-space-sm)", padding: "var(--tasty-space-sm) var(--tasty-space-md)", borderRadius: "var(--tasty-radius)", maxWidth: "var(--tasty-measure-md)",
       border: "var(--tasty-border-width) solid color-mix(in srgb, var(--tasty-accent-warning) 40%, transparent)",
       background: "color-mix(in srgb, var(--tasty-accent-warning) 12%, transparent)" }}>
-      <span style={{ display: "inline-flex", flex: "none", marginTop: 1, color: "var(--tasty-accent-warning)" }}>
+      <span style={{ display: "inline-flex", flex: "none", marginTop: 1, color: "var(--tasty-accent-warning-raised)" }}>
         <Icon name="alertTriangle" size={16} />
       </span>
       <p style={{ margin: 0, fontSize: "var(--tasty-font-size-caption)", color: "var(--tasty-text-secondary)", lineHeight: "var(--tasty-line-height-ui)" }}>{children}</p>
@@ -954,7 +954,7 @@ function SettingsWindow({ theme, onTheme, uiScale, onUiScale, onClose }) {
       return (
         <>
           <Mono>Surface colors — terminal</Mono>
-          <Row label="Focused background:"><Input mono defaultValue="#000000" style={{ width: "var(--tasty-field-width-color)" }} /><span style={{ width: "var(--tasty-swatch-size)", height: "var(--tasty-swatch-size)", borderRadius: "var(--tasty-swatch-radius)", background: "#000", border: "var(--tasty-border-width) solid var(--tasty-border-strong)" }} /></Row>
+          <Row label="Focused background:"><Input mono defaultValue="#000000" style={{ width: "var(--tasty-field-width-color)" }} /><span style={{ width: "var(--tasty-swatch-size)", height: "var(--tasty-swatch-size)", borderRadius: "var(--tasty-swatch-radius)", background: "var(--tasty-surface-terminal-focused-bg)", border: "var(--tasty-border-width) solid var(--tasty-border-strong)" }} /></Row>
           <Row label="Unfocused background:"><Input mono defaultValue="#1e1e2e" style={{ width: "var(--tasty-field-width-color)" }} /><span style={{ width: "var(--tasty-swatch-size)", height: "var(--tasty-swatch-size)", borderRadius: "var(--tasty-swatch-radius)", background: "#1e1e2e", border: "var(--tasty-border-width) solid var(--tasty-border-strong)" }} /></Row>
           <Row label="Use default:"><Switch defaultChecked /></Row>
           <Note>Per-kind surface backgrounds. Like the Tasty section, these write to the same theme overrides as the full <b style={{ color: "var(--tasty-text-secondary)" }}>Colors</b> palette.</Note>
@@ -1233,7 +1233,7 @@ function SettingsWindow({ theme, onTheme, uiScale, onUiScale, onClose }) {
                 padding: "var(--tasty-space-sm) var(--tasty-space-md)", borderRadius: "var(--tasty-radius)",
                 background: "var(--tasty-surface-raised)", border: "var(--tasty-border-width) solid var(--tasty-border-strong)",
                 boxShadow: "var(--tasty-shadow-modal)", fontSize: 12, color: "var(--tasty-text-secondary)" }}>
-                <span style={{ display: "inline-flex", flex: "none", color: "var(--tasty-accent-success)" }}><Icon name="check" size={14} /></span>
+                <span style={{ display: "inline-flex", flex: "none", color: "var(--tasty-accent-success-raised)" }}><Icon name="check" size={14} /></span>
                 <span style={{ fontFamily: "var(--tasty-font-mono)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{toast}</span>
               </div>
             )}

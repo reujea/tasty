@@ -70,7 +70,7 @@ function Backdrop({ height = 360, blur = false, children }) {
         <div style={{ height: 28, background: "var(--tasty-bg-sidebar)", borderRadius: "var(--tasty-radius)", marginBottom: 10 }} />
         <div style={{ display: "flex", gap: 10, height: "calc(100% - 38px)" }}>
           <div style={{ width: 120, background: "var(--tasty-bg-sidebar)", borderRadius: "var(--tasty-radius)" }} />
-          <div style={{ flex: 1, background: "#000", borderRadius: "var(--tasty-radius)" }} />
+          <div style={{ flex: 1, background: "var(--tasty-surface-terminal-focused-bg)", borderRadius: "var(--tasty-radius)" }} />
         </div>
       </div>
       {/* scrim — flat fill by default; the 1px blur (documented recipe) is opt-in
@@ -126,7 +126,7 @@ function ApprovalFrame() {
         <p style={{ margin: 0, fontSize: 13, color: "var(--tasty-text-secondary)", lineHeight: 1.5 }}>
           The agent <b style={{ color: "var(--tasty-text-primary)" }}>ai-review</b> wants to run a command in <span className="ic">s_01HXK9</span>:
         </p>
-        <pre style={{ margin: 0, background: "#000", border: "1px solid var(--tasty-separator)", borderRadius: "var(--tasty-radius)",
+        <pre data-audit-exempt="ansi-content" style={{ margin: 0, background: "var(--tasty-surface-terminal-focused-bg)", border: "1px solid var(--tasty-separator)", borderRadius: "var(--tasty-radius)",
           padding: "10px 12px", fontFamily: "var(--tasty-font-mono)", fontSize: 12.5, color: "var(--tasty-color-green)", overflow: "auto" }}>
 git push --force origin main</pre>
         <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
@@ -368,7 +368,7 @@ function TransferErrorFrame({ retry = false, name = "sprint-42-demo.mp4", reason
     <div style={{ width: "var(--tasty-transfer-popup-width)", background: "var(--tasty-bg-panel)", border: "1px solid var(--tasty-border-strong)",
       borderRadius: "var(--tasty-radius)", overflow: "hidden", boxShadow: "var(--tasty-shadow-modal)" }}>
       <div style={{ display: "flex", alignItems: "center", gap: "var(--tasty-space-sm)", padding: "var(--tasty-transfer-header-pad-y) var(--tasty-transfer-pad-x)", borderBottom: "1px solid var(--tasty-separator)" }}>
-        <span style={{ display: "inline-flex", color: "var(--tasty-accent-danger)" }}>{ic.warn}</span>
+        <span style={{ display: "inline-flex", color: "var(--tasty-accent-danger-raised)" }}>{ic.warn}</span>
         <span style={{ fontSize: 14, fontWeight: 600 }}>Transfer failed</span>
       </div>
       <div style={{ padding: "var(--tasty-transfer-pad-x)", display: "flex", flexDirection: "column", gap: "var(--tasty-transfer-body-gap)" }}>
@@ -376,7 +376,7 @@ function TransferErrorFrame({ retry = false, name = "sprint-42-demo.mp4", reason
           <b style={{ color: "var(--tasty-text-primary)", fontFamily: "var(--tasty-font-mono)", fontWeight: 600 }}>{name}</b> could not be received.
         </p>
         <div style={{ background: "var(--tasty-bg-app)", border: "1px solid var(--tasty-separator)", borderRadius: "var(--tasty-radius)",
-          padding: "var(--tasty-transfer-well-pad-y) var(--tasty-transfer-well-pad-x)", fontFamily: "var(--tasty-font-mono)", fontSize: 12, color: "var(--tasty-accent-danger)" }}>{reason}</div>
+          padding: "var(--tasty-transfer-well-pad-y) var(--tasty-transfer-well-pad-x)", fontFamily: "var(--tasty-font-mono)", fontSize: 12, color: "var(--tasty-accent-danger-raised)" }}>{reason}</div>
       </div>
       <div style={{ display: "flex", justifyContent: "flex-end", gap: "var(--tasty-space-sm)", padding: "var(--tasty-transfer-footer-pad-y) var(--tasty-transfer-pad-x)", borderTop: "1px solid var(--tasty-separator)" }}>
         {retry ? <Button variant="ghost">Dismiss</Button> : null}
@@ -454,7 +454,7 @@ function PortsFavoritesG({ favorites = "mixed" }) {
       </div>
       {rows.length === 0 ? (
         <div style={{ display: "flex", alignItems: "center", gap: 4, height: "var(--tasty-control-height-tree)", padding: "0 14px", color: "var(--tasty-text-muted)" }}>
-          <span style={{ display: "inline-flex", flex: "none", opacity: 0.55 }}><Icon name="star" size="var(--tasty-icon-size-xs)" /></span>
+          <span style={{ display: "inline-flex", flex: "none" }}><Icon name="star" size="var(--tasty-icon-size-xs)" /></span>
           <span style={{ fontSize: 12 }}>No favorites yet</span>
           <span style={{ fontSize: 12, color: "var(--tasty-text-placeholder)" }}>— click a star in the list below to pin a port.</span>
         </div>
@@ -561,16 +561,16 @@ function RemoteFrame({ tab = "profiles", ssh = "hosts" }) {
     <div style={{ display: "flex", alignItems: "flex-start", gap: 8, padding: "10px 4px", borderBottom: "1px solid var(--tasty-separator)" }}>
       <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 2 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <span style={{ fontSize: 13, fontWeight: 600, color: inactive ? "var(--tasty-text-disabled)" : "var(--tasty-text-primary)" }}>{name}{label && <span style={{ fontWeight: 400, color: "var(--tasty-text-muted)" }}>  ({label})</span>}</span>
+          <span style={{ fontSize: 13, fontWeight: 600, color: inactive ? "var(--tasty-text-muted)" : "var(--tasty-text-primary)" }}>{name}{label && <span style={{ fontWeight: 400, color: "var(--tasty-text-muted)" }}>  ({label})</span>}</span>
           <Tag>{mode}</Tag>
           {inactive && <span style={{ display: "inline-flex", alignItems: "center", gap: 3, height: 16, padding: "0 6px", borderRadius: "var(--tasty-radius-sm)",
-            fontFamily: "var(--tasty-font-mono)", fontSize: 10, fontWeight: 500, color: "var(--tasty-accent-warning)",
+            fontFamily: "var(--tasty-font-mono)", fontSize: 10, fontWeight: 500, color: "var(--tasty-accent-warning-raised)",
             border: "1px solid color-mix(in srgb, var(--tasty-accent-warning) 40%, transparent)",
             background: "color-mix(in srgb, var(--tasty-accent-warning) 12%, transparent)" }}>inactive</span>}
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           <span style={{ fontFamily: "var(--tasty-font-mono)", fontSize: 11, color: "var(--tasty-text-muted)" }}>{target}</span>
-          {missing && <span style={{ fontFamily: "var(--tasty-font-mono)", fontSize: 10, color: "var(--tasty-accent-warning)" }}>profile missing</span>}
+          {missing && <span style={{ fontFamily: "var(--tasty-font-mono)", fontSize: 10, color: "var(--tasty-accent-warning-raised)" }}>profile missing</span>}
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
           <Caption>tasty: {tasty}</Caption><Caption>port: {port}</Caption>
@@ -614,7 +614,7 @@ function RemoteFrame({ tab = "profiles", ssh = "hosts" }) {
                   <div style={{ display: "flex", alignItems: "center", gap: "var(--tasty-space-sm)", minWidth: 0 }}>
                     <span style={{ fontSize: 13, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{k.name}</span>
                     {k.unknown
-                      ? <span title="Unknown kind." style={{ flex: "none", display: "inline-flex", alignItems: "center", gap: 3, height: 16, padding: "0 6px", borderRadius: "var(--tasty-radius-sm)", fontFamily: "var(--tasty-font-mono)", fontSize: 10, fontWeight: 500, color: "var(--tasty-accent-warning)", border: "1px solid color-mix(in srgb, var(--tasty-accent-warning) 40%, transparent)", background: "color-mix(in srgb, var(--tasty-accent-warning) 12%, transparent)" }}>{k.kind}</span>
+                      ? <span title="Unknown kind." style={{ flex: "none", display: "inline-flex", alignItems: "center", gap: 3, height: 16, padding: "0 6px", borderRadius: "var(--tasty-radius-sm)", fontFamily: "var(--tasty-font-mono)", fontSize: 10, fontWeight: 500, color: "var(--tasty-accent-warning-raised)", border: "1px solid color-mix(in srgb, var(--tasty-accent-warning) 40%, transparent)", background: "color-mix(in srgb, var(--tasty-accent-warning) 12%, transparent)" }}>{k.kind}</span>
                       : <span style={{ flex: "none", display: "inline-flex" }}><Tag>{k.kind}</Tag></span>}
                   </div>
                   <span style={{ fontFamily: "var(--tasty-font-mono)", fontSize: 11, color: "var(--tasty-text-muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{k.kind} · {k.revealed ? k.value : "••••••••"}</span>
@@ -655,19 +655,19 @@ function RemoteFrame({ tab = "profiles", ssh = "hosts" }) {
                 <div key={p} style={{ display: "flex", alignItems: "center", gap: 8 }}>
                   <Checkbox checked={on} readOnly label={p} />
                   {unknown && <span style={{ display: "inline-flex", alignItems: "center", gap: 3, height: 16, padding: "0 6px", borderRadius: "var(--tasty-radius-sm)",
-                    fontFamily: "var(--tasty-font-mono)", fontSize: 10, fontWeight: 500, color: "var(--tasty-accent-warning)",
+                    fontFamily: "var(--tasty-font-mono)", fontSize: 10, fontWeight: 500, color: "var(--tasty-accent-warning-raised)",
                     border: "1px solid color-mix(in srgb, var(--tasty-accent-warning) 40%, transparent)",
                     background: "color-mix(in srgb, var(--tasty-accent-warning) 12%, transparent)" }}>unknown</span>}
                 </div>
               ))}
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 12px", borderTop: "1px solid var(--tasty-separator)" }}>
-              <span style={{ fontSize: 11, color: "var(--tasty-accent-primary)" }}>Select all</span>
-              <span style={{ color: "var(--tasty-separator)" }}>·</span>
-              <span style={{ fontSize: 11, color: "var(--tasty-accent-primary)" }}>Deselect all</span>
+              <span style={{ fontSize: 11, color: "var(--tasty-accent-primary-raised)" }}>Select all</span>
+              <span data-ink-grade="none" data-ink-why="ornament" style={{ color: "var(--tasty-separator)" }}>·</span>
+              <span style={{ fontSize: 11, color: "var(--tasty-accent-primary-raised)" }}>Deselect all</span>
             </div>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 12px", borderTop: "1px solid var(--tasty-separator)" }}>
-              <Button variant="ghost" size="sm">Reset</Button>
+              <Button variant="ghost" ground="raised" size="sm">Reset</Button>
               <Button variant="primary" size="sm">Apply</Button>
             </div>
           </div>
@@ -856,10 +856,10 @@ function SearchBarFrame({ value = "tasty", focused = false, invalid = false, hei
   );
   return (
     <div style={{ position: "relative", width: "100%", height, borderRadius: "var(--tasty-radius)", overflow: "hidden",
-      border: "1px solid var(--tasty-border-default)", background: "#000" }}>
+      border: "1px solid var(--tasty-border-default)", background: "var(--tasty-surface-terminal-focused-bg)" }}>
       {/* faux terminal text */}
-      <div style={{ padding: "12px 14px", fontFamily: "var(--tasty-font-mono)", fontSize: 12.5, lineHeight: 1.7, color: "var(--tasty-color-neutral-1100, #cdd6f4)", opacity: 0.85 }}>
-        <div><span style={{ color: "var(--tasty-color-green)" }}>~/tasty</span> $ cargo build --release</div>
+      <div style={{ padding: "12px 14px", fontFamily: "var(--tasty-font-mono)", fontSize: 12.5, lineHeight: 1.7, color: "var(--tasty-surface-terminal-focused-fg)" }}>
+        <div><span data-audit-exempt="ansi-content" style={{ color: "var(--tasty-color-green)" }}>~/tasty</span> $ cargo build --release</div>
         <div>   Compiling tasty-core v0.5.0</div>
         <div>   Compiling <mark style={{ background: "var(--tasty-accent-warning)", color: "#000" }}>tasty</mark>-ui-widgets v0.5.0</div>
         <div>   Compiling <mark style={{ background: "var(--tasty-search-match-active-bg)", color: "var(--tasty-search-match-active-fg)" }}>tasty</mark>-gallery v0.5.0</div>
@@ -977,15 +977,15 @@ function FhRow({ h, sel, dim }) {
     <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 10px", borderRadius: "var(--tasty-radius-sm)",
       background: sel ? "var(--tasty-surface-active)" : "transparent",
       boxShadow: sel ? "inset var(--tasty-selection-edge-width) 0 0 var(--tasty-accent-primary)" : "none" }}>
-      <span style={{ display: "inline-flex", color: plugin ? "var(--tasty-accent-agent)" : "var(--tasty-text-muted)", opacity: dim && !plugin ? 0.8 : 1 }}>{fhIcon(h)}</span>
+      <span style={{ display: "inline-flex", color: plugin ? "var(--tasty-accent-agent-raised)" : "var(--tasty-text-muted)", opacity: dim && !plugin ? 0.8 : 1 }}>{fhIcon(h)}</span>
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ fontSize: 13, color: "var(--tasty-text-primary)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
           fontFamily: h.name ? "var(--tasty-font-ui)" : "var(--tasty-font-mono)" }}>{fhName(h)}</div>
         <div style={{ fontSize: 11, color: "var(--tasty-text-muted)", whiteSpace: "nowrap", overflow: "hidden", display: "flex", gap: 5, minWidth: 0 }}>
-          <span style={{ flex: "none", color: plugin ? "var(--tasty-accent-agent)" : "var(--tasty-text-muted)" }}>{FH_OWNER_WORD[h.owner]}</span>
-          <span style={{ flex: "none", color: "var(--tasty-text-disabled)" }}>·</span>
+          <span style={{ flex: "none", color: plugin ? "var(--tasty-accent-agent-raised)" : "var(--tasty-text-muted)" }}>{FH_OWNER_WORD[h.owner]}</span>
+          <span data-ink-grade="none" data-ink-why="ornament" style={{ flex: "none", color: "var(--tasty-text-disabled)" }}>·</span>
           <span style={{ fontFamily: "var(--tasty-font-mono)", overflow: "hidden", textOverflow: "ellipsis" }}>{idText}</span>
-          {h.when && <><span style={{ flex: "none", color: "var(--tasty-text-disabled)" }}>·</span><span style={{ flex: "none", width: "var(--tasty-fh-when-width)" }}>{h.when}</span></>}
+          {h.when && <><span data-ink-grade="none" data-ink-why="ornament" style={{ flex: "none", color: "var(--tasty-text-disabled)" }}>·</span><span style={{ flex: "none", width: "var(--tasty-fh-when-width)" }}>{h.when}</span></>}
         </div>
       </div>
       {h.dflt && <Tag variant="accent">default</Tag>}
@@ -999,7 +999,7 @@ function FhGroup({ label, count, caption, tone }) {
     <div style={{ padding: "8px 10px 4px" }}>
       <div style={{ display: "flex", alignItems: "baseline", gap: 6 }}>
         <span style={{ fontSize: 11, letterSpacing: "0.06em", textTransform: "uppercase",
-          color: tone === "attention" ? "var(--tasty-accent-attention)" : "var(--tasty-text-secondary)" }}>{label}</span>
+          color: tone === "attention" ? "var(--tasty-accent-attention-raised)" : "var(--tasty-text-secondary)" }}>{label}</span>
         {count != null && <span style={{ fontSize: 11, color: "var(--tasty-text-muted)", fontFamily: "var(--tasty-font-mono)" }}>{count}</span>}
       </div>
       {caption && <div style={{ fontSize: 11, color: "var(--tasty-text-muted)", marginTop: 2 }}>{caption}</div>}
@@ -1056,7 +1056,7 @@ function FhFooter({ variant = "actions", canOpen = true }) {
     <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 14px", borderTop: "1px solid var(--tasty-separator)" }}>
       {variant === "checkbox" && <Checkbox label="Always open .md with this" defaultChecked />}
       {variant === "disabled" && (
-        <span style={{ display: "inline-flex", alignItems: "center", gap: 6, opacity: 0.5 }}>
+        <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
           <Checkbox label="Always open .md with this" disabled />
           <Tag>soon</Tag>
         </span>
@@ -1081,7 +1081,7 @@ function FileHandlerFrame({ state = "default", headless = true, footer = "action
       {state === "fallback" && (
         <div style={{ display: "flex", alignItems: "flex-start", gap: 8, padding: "8px 14px",
           background: "var(--tasty-surface-raised)", borderBottom: "1px solid var(--tasty-separator)" }}>
-          <span style={{ display: "inline-flex", color: "var(--tasty-accent-attention)", flex: "0 0 auto" }}>{ic.warn}</span>
+          <span style={{ display: "inline-flex", color: "var(--tasty-accent-attention-raised)", flex: "0 0 auto" }}>{ic.warn}</span>
           <span style={{ fontSize: 11, color: "var(--tasty-text-secondary)", lineHeight: 1.5 }}>
             One-time choice — nothing is registered for this format. This screen shows again next time.
           </span>
@@ -1178,7 +1178,7 @@ function MarkdownOpenFrame() {
       padding: 12, borderRadius: "var(--tasty-radius)", background: "var(--tasty-surface-raised)",
       border: on ? "1px solid var(--tasty-accent-primary)" : "1px solid var(--tasty-border-default)",
       boxShadow: on ? "0 0 0 1px var(--tasty-accent-primary)" : "none" }}>
-      <span style={{ display: "inline-flex", color: on ? "var(--tasty-accent-primary)" : "var(--tasty-text-muted)" }}>{icon}</span>
+      <span style={{ display: "inline-flex", color: on ? "var(--tasty-accent-primary-raised)" : "var(--tasty-text-muted)" }}>{icon}</span>
       <span style={{ fontSize: 13, fontWeight: 600, color: "var(--tasty-text-primary)" }}>{title}</span>
       <span style={{ fontSize: 11, color: "var(--tasty-text-muted)", lineHeight: 1.5 }}>{sub}</span>
     </button>
@@ -1396,7 +1396,7 @@ function CatSwitchRailMock({ held }) {
 // Shared shell; sits at the top of a scope's content area, never over the tab bar.
 function BannerShellG({ recessed, zIndex, children }) {
   return (
-    <div data-surface="banner" style={{ width: "100%", position: "relative", zIndex,
+    <div data-surface="banner" data-audit-exempt={recessed ? "dimmed" : undefined} style={{ width: "100%", position: "relative", zIndex,
       background: "var(--tasty-banner-bg)", color: "var(--tasty-banner-fg)",
       border: "1px solid var(--tasty-banner-border)", borderRadius: "var(--tasty-banner-radius)",
       boxShadow: "var(--tasty-banner-shadow)", opacity: recessed ? "var(--tasty-banner-recessed-opacity)" : 1 }}>
@@ -1409,7 +1409,7 @@ function BannerShellG({ recessed, zIndex, children }) {
 function BannerScope({ height = 240, tab = "vim", children }) {
   return (
     <div style={{ position: "relative", width: "100%", maxWidth: 600, height, borderRadius: "var(--tasty-radius)", overflow: "hidden",
-      border: "1px solid var(--tasty-border-default)", background: "#000" }}>
+      border: "1px solid var(--tasty-border-default)", background: "var(--tasty-surface-terminal-focused-bg)" }}>
       <div style={{ display: "flex", alignItems: "stretch", height: 28, background: "var(--tasty-bg-sidebar)", borderBottom: "1px solid var(--tasty-separator)" }}>
         {["server", "dev", tab].map((t, i) => (
           <div key={t} style={{ display: "flex", alignItems: "center", padding: "0 12px", fontSize: 13, borderRight: "1px solid var(--tasty-separator)",
@@ -1417,8 +1417,8 @@ function BannerScope({ height = 240, tab = "vim", children }) {
             boxShadow: i === 2 ? "inset 0 -2px 0 var(--tasty-accent-primary)" : "none" }}>{t}</div>
         ))}
       </div>
-      <div style={{ padding: "12px 14px", fontFamily: "var(--tasty-font-mono)", fontSize: 12, lineHeight: 1.7, color: "#cdd6f4", opacity: 0.4 }}>
-        <div><span style={{ color: "var(--tasty-color-green)" }}>~/tasty</span> $ vim src/main.rs</div>
+      <div style={{ padding: "12px 14px", fontFamily: "var(--tasty-font-mono)", fontSize: 12, lineHeight: 1.7, color: "var(--tasty-surface-terminal-focused-fg)" }}>
+        <div><span data-audit-exempt="ansi-content" style={{ color: "var(--tasty-color-green)" }}>~/tasty</span> $ vim src/main.rs</div>
         <div>-- VISUAL --   1,1   Top</div>
       </div>
       <div style={{ position: "absolute", top: "calc(28px + var(--tasty-banner-margin))",
@@ -1621,7 +1621,7 @@ function BannerMoreDemoG({ defaultOpen = false }) {
 function MouseCaptureHitZone() {
   return (
     <div style={{ position: "relative", width: "100%", maxWidth: 560, height: 250, borderRadius: "var(--tasty-radius)", overflow: "hidden",
-      border: "1px solid var(--tasty-border-default)", background: "#000" }}>
+      border: "1px solid var(--tasty-border-default)", background: "var(--tasty-surface-terminal-focused-bg)" }}>
       {/* tab bar — banner must never cover this */}
       <div style={{ display: "flex", alignItems: "stretch", height: 28, background: "var(--tasty-bg-sidebar)", borderBottom: "1px solid var(--tasty-separator)" }}>
         {["server", "dev", "htop"].map((t, i) => (
@@ -1632,14 +1632,14 @@ function MouseCaptureHitZone() {
       </div>
       {/* surface body — pass-through */}
       <div style={{ position: "absolute", inset: "28px 0 0 0", display: "flex", alignItems: "flex-end", padding: 12 }}>
-        <span style={{ fontFamily: "var(--tasty-font-mono)", fontSize: 11, color: "var(--tasty-text-disabled)" }}>↑ surface body — pass-through · clicks/drag reach the app</span>
+        <span style={{ fontFamily: "var(--tasty-font-mono)", fontSize: 11, color: "var(--tasty-text-muted)" }}>↑ surface body — pass-through · clicks/drag reach the app</span>
       </div>
       {/* the banner card, with an explicit consume-zone outline */}
       <div style={{ position: "absolute", top: "calc(28px + var(--tasty-banner-margin))", left: "var(--tasty-banner-margin)", right: "var(--tasty-banner-margin)" }}>
         <div style={{ position: "relative" }}>
           <MouseCaptureBannerG />
           <span style={{ position: "absolute", top: -7, left: 8, fontFamily: "var(--tasty-font-mono)", fontSize: 9, letterSpacing: ".04em",
-            background: "var(--tasty-bg-app)", color: "var(--tasty-accent-info)", padding: "0 4px", borderRadius: 2 }}>CARD RECT = mouse-consume + hover zone</span>
+            background: "var(--tasty-bg-app)", color: "var(--tasty-accent-info-raised)", padding: "0 4px", borderRadius: 2 }}>CARD RECT = mouse-consume + hover zone</span>
         </div>
       </div>
     </div>
@@ -1690,7 +1690,7 @@ function BlacklistEditorG({ empty }) {
         <Input block placeholder="process name or pattern, e.g. htop or ht*" />
         <Button variant="secondary" size="sm" disabled={empty}>Add</Button>
       </div>
-      <div style={{ fontSize: 11, color: "var(--tasty-accent-warning)", lineHeight: 1.5 }}>
+      <div style={{ fontSize: 11, color: "var(--tasty-accent-warning-raised)", lineHeight: 1.5 }}>
         Case-insensitive substring or <b>*</b> wildcard on the process name. When a listed program is foreground, clicks/drags are handled locally; the wheel is still sent.
       </div>
     </div>
@@ -1730,7 +1730,7 @@ function TtlBannerG({ ttl = 6, glyph, glyphColor, title, body }) {
       <div onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)}
         style={{ display: "flex", alignItems: "center", gap: "var(--tasty-banner-gap)",
           padding: "var(--tasty-banner-padding-y) var(--tasty-banner-padding-x)" }}>
-        <span style={{ display: "inline-flex", flex: "none", color: "var(--tasty-accent-success)" }}>{ic.check}</span>
+        <span style={{ display: "inline-flex", flex: "none", color: "var(--tasty-accent-success-raised)" }}>{ic.check}</span>
         <div style={{ flex: 1, fontSize: "var(--tasty-banner-title-font-size)", color: "var(--tasty-banner-fg)" }}>
           Preset <b style={{ color: "var(--tasty-text-primary)" }}>Dev split</b> applied to this tab.
         </div>
@@ -1762,7 +1762,7 @@ function StackDemoG() {
       <div style={{ position: "absolute", top: 0, left: 0, right: 0 }}>
         <BannerShellG zIndex={2}>
           <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "var(--tasty-banner-padding-y) var(--tasty-banner-padding-x)" }}>
-            <span style={{ display: "inline-flex", flex: "none", color: "var(--tasty-accent-warning)" }}>{ic.warn}</span>
+            <span style={{ display: "inline-flex", flex: "none", color: "var(--tasty-accent-warning-raised)" }}>{ic.warn}</span>
             <span style={{ flex: 1, fontSize: "var(--tasty-banner-title-font-size)", color: "var(--tasty-banner-fg)" }}>Workspace banner — in front, full opacity, higher z-index</span>
           </div>
         </BannerShellG>
@@ -1778,12 +1778,13 @@ const GV_TONE = { info: "var(--tasty-accent-info)", success: "var(--tasty-accent
   warning: "var(--tasty-accent-warning)", danger: "var(--tasty-accent-danger)", primary: "var(--tasty-accent-primary)" };
 function gvPill(txt, tone, dot, width) {
   const c = GV_TONE[tone];
+  const ink = c && c.replace(")", "-raised)");
   const base = { display: "inline-flex", alignItems: "center", justifyContent: width ? "center" : "flex-start", gap: 4,
     height: 16, padding: width ? 0 : "0 6px", width, flex: "none", borderRadius: "var(--tasty-radius-sm)",
     fontFamily: "var(--tasty-font-mono)", fontSize: 10, fontWeight: 500, lineHeight: 1, whiteSpace: "nowrap", border: "1px solid" };
   const dotEl = dot ? <span style={{ width: 5, height: 5, borderRadius: "var(--tasty-radius-pill)", background: "currentColor" }} /> : null;
   if (!c) return <span key={txt} style={{ ...base, color: "var(--tasty-text-secondary)", borderColor: "var(--tasty-border-default)", background: "var(--tasty-surface-raised)" }}>{txt}</span>;
-  return <span key={txt} style={{ ...base, color: c, borderColor: `color-mix(in srgb, ${c} 40%, transparent)`, background: `color-mix(in srgb, ${c} 12%, transparent)` }}>{dotEl}{txt}</span>;
+  return <span key={txt} style={{ ...base, color: ink, borderColor: `color-mix(in srgb, ${c} 40%, transparent)`, background: `color-mix(in srgb, ${c} 12%, var(--sg-chip-base, transparent))` }}>{dotEl}{txt}</span>;
 }
 const gvStrip = { display: "flex", alignItems: "center", gap: 8, height: 26, flex: "none", padding: "0 12px",
   background: "var(--tasty-bg-sidebar)", borderBottom: "1px solid var(--tasty-separator)",
@@ -1794,14 +1795,14 @@ function GitViewerFrame({ diff }) {
   const mono = { fontFamily: "var(--tasty-font-mono)", fontSize: 12 };
   const WtRow = ({ name, oid, type, state, reason, active, dim }) => (
     <div style={{ display: "flex", flexDirection: "column", gap: 3, padding: "7px 10px", borderBottom: "1px solid var(--tasty-separator)",
-      background: active ? "var(--tasty-surface-active)" : "transparent", boxShadow: active ? "inset var(--tasty-selection-edge-width) 0 0 var(--tasty-accent-primary)" : "none", opacity: dim ? 0.7 : 1 }}>
+      background: active ? "var(--tasty-surface-active)" : "transparent", boxShadow: active ? "inset var(--tasty-selection-edge-width) 0 0 var(--tasty-accent-primary)" : "none" }}>
       <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
         <span style={{ ...mono, fontWeight: 600, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-          color: dim ? "var(--tasty-text-disabled)" : active ? "var(--tasty-text-primary)" : "var(--tasty-text-secondary)" }}>{name}</span>
+          color: dim ? "var(--tasty-text-muted)" : active ? "var(--tasty-text-primary)" : "var(--tasty-text-secondary)" }}>{name}</span>
         {type === "main" ? gvPill("main", "info") : gvPill("linked")}
       </div>
       <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-        {oid && <span style={{ ...mono, fontSize: 11, color: "var(--tasty-accent-info)" }}>{oid}</span>}
+        {oid && <span style={{ ...mono, fontSize: 11, color: active ? "var(--tasty-text-on-active)" : "var(--tasty-accent-info-raised)" }}>{oid}</span>}
         <span style={{ flex: 1 }} />
         {state && gvPill(state, state === "current" ? "success" : state === "locked" ? "warning" : "danger", true)}
       </div>
@@ -1819,13 +1820,13 @@ function GitViewerFrame({ diff }) {
   const Head = ({ children }) => <div style={gvStrip}>{children}</div>;
   const dl = (oldn, newn, kind, content) => {
     const hunk = kind === "@", add = kind === "+", del = kind === "-";
-    const fg = hunk ? "var(--tasty-accent-info)" : add ? "var(--tasty-accent-success)" : del ? "var(--tasty-accent-danger)" : "var(--tasty-text-primary)";
+    const fg = hunk ? "var(--tasty-accent-info-raised)" : add ? "var(--tasty-accent-success-raised)" : del ? "var(--tasty-accent-danger-raised)" : "var(--tasty-text-primary)";
     const bg = hunk ? "color-mix(in srgb, var(--tasty-accent-info) 9%, transparent)" : add ? "color-mix(in srgb, var(--tasty-accent-success) 10%, transparent)" : del ? "color-mix(in srgb, var(--tasty-accent-danger) 10%, transparent)" : "transparent";
     return (
       <div style={{ display: "flex", ...mono, fontSize: 11, lineHeight: 1.65, background: bg, color: fg }}>
-        <span style={{ width: 30, textAlign: "right", color: "var(--tasty-text-disabled)", paddingRight: 6 }}>{hunk ? "" : oldn}</span>
-        <span style={{ width: 30, textAlign: "right", color: "var(--tasty-text-disabled)", paddingRight: 8 }}>{hunk ? "" : newn}</span>
-        <span style={{ width: 12, textAlign: "center", opacity: 0.8 }}>{hunk || kind === " " ? "" : kind}</span>
+        <span style={{ width: 30, textAlign: "right", color: "var(--tasty-text-muted-raised)", paddingRight: 6 }}>{hunk ? "" : oldn}</span>
+        <span style={{ width: 30, textAlign: "right", color: "var(--tasty-text-muted-raised)", paddingRight: 8 }}>{hunk ? "" : newn}</span>
+        <span style={{ width: 12, textAlign: "center" }}>{hunk || kind === " " ? "" : kind}</span>
         <span style={{ whiteSpace: "pre" }}>{content}</span>
       </div>
     );
@@ -1844,7 +1845,7 @@ function GitViewerFrame({ diff }) {
       {/* context strip */}
       <div style={{ display: "flex", alignItems: "center", gap: 8, height: 28, flex: "none", padding: "0 12px", background: "var(--tasty-bg-sidebar)", borderBottom: "1px solid var(--tasty-separator)" }}>
         <span style={{ ...mono, color: "var(--tasty-text-primary)" }}>tasty</span>
-        <span style={{ color: "var(--tasty-text-disabled)" }}>·</span>
+        <span data-ink-grade="none" data-ink-why="ornament" style={{ color: "var(--tasty-text-disabled)" }}>·</span>
         <span style={{ ...mono, color: "var(--tasty-text-secondary)" }}>main</span>
         {gvPill("a1b2c3d", "info")}
         <span style={{ flex: 1 }} />
@@ -1897,7 +1898,7 @@ function GitViewerFrame({ diff }) {
                     ["9f8e7d6", [], "fix: align diff gutter line numbers", "5h"],
                     ["3c4d5e6", ["release/0.6"], "docs: read-only viewer note", "1d"]].map(([o, refs, s, t]) => (
                     <div key={o} style={{ display: "flex", alignItems: "center", gap: 8, height: 28, padding: "0 12px", whiteSpace: "nowrap", overflow: "hidden" }}>
-                      <span style={{ ...mono, fontSize: 11, color: "var(--tasty-accent-info)" }}>{o}</span>
+                      <span style={{ ...mono, fontSize: 11, color: "var(--tasty-accent-info-raised)" }}>{o}</span>
                       {refs.map((r) => gvPill(r, "info"))}
                       <span style={{ flex: 1, fontSize: 13, color: "var(--tasty-text-primary)", overflow: "hidden", textOverflow: "ellipsis" }}>{s}</span>
                       <span style={{ fontSize: 12, color: "var(--tasty-text-muted)" }}>zilhak</span>
@@ -1922,8 +1923,8 @@ tasty read screen --surface 3 --json
 ~/work/tasty/crates/tasty-gallery/src/catalog`;
   const center = (glyph, title, sub, danger) => (
     <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 8, padding: 24, textAlign: "center" }}>
-      <span style={{ display: "inline-flex", color: danger ? "var(--tasty-accent-danger)" : "var(--tasty-text-muted)", opacity: danger ? 0.9 : 0.5 }}>{glyph}</span>
-      <span style={{ fontSize: 13, fontWeight: 600, color: danger ? "var(--tasty-accent-danger)" : "var(--tasty-text-secondary)" }}>{title}</span>
+      <span style={{ display: "inline-flex", color: danger ? "var(--tasty-accent-danger-raised)" : "var(--tasty-text-muted)" }}>{glyph}</span>
+      <span style={{ fontSize: 13, fontWeight: 600, color: danger ? "var(--tasty-accent-danger-raised)" : "var(--tasty-text-secondary)" }}>{title}</span>
       {sub && <span style={{ fontSize: 12, color: "var(--tasty-text-muted)", maxWidth: 280, lineHeight: 1.5 }}>{sub}</span>}
     </div>
   );
@@ -2057,7 +2058,7 @@ function RemoteFormFrame({ variant = "ssh", error }) {
   );
   const peach = (txt) => (
     <span style={{ display: "inline-flex", alignItems: "center", height: 16, padding: "0 6px", borderRadius: "var(--tasty-radius-sm)",
-      fontFamily: "var(--tasty-font-mono)", fontSize: 10, fontWeight: 500, color: "var(--tasty-accent-warning)", border: "1px solid var(--tasty-accent-warning)" }}>{txt}</span>
+      fontFamily: "var(--tasty-font-mono)", fontSize: 10, fontWeight: 500, color: "var(--tasty-accent-warning-raised)", border: "1px solid var(--tasty-accent-warning)" }}>{txt}</span>
   );
   const seg = (label, active) => (
     <div style={{ display: "flex", alignItems: "center", height: "var(--tasty-control-height)", padding: "0 12px", borderRadius: "var(--tasty-radius)", fontSize: 13, cursor: "pointer",
@@ -2147,7 +2148,7 @@ function RemoteFormFrame({ variant = "ssh", error }) {
             <div style={{ display: "grid", gridTemplateColumns: "var(--tasty-remote-label-col) 1fr", columnGap: 12 }}><span /><span style={{ fontSize: 11, color: "var(--tasty-text-muted)", lineHeight: 1.4 }}>Local-only. Profiles reference this passkey by name; the secret is never shared.</span></div>
           </>
         )}
-        {error && <div style={{ fontSize: 11, color: "var(--tasty-accent-danger)", marginTop: 4 }}>{error === "type" ? "Type is required." : error === "host" ? "Host is required." : "Port must be 1–65535."}</div>}
+        {error && <div style={{ fontSize: 11, color: "var(--tasty-accent-danger-raised)", marginTop: 4 }}>{error === "type" ? "Type is required." : error === "host" ? "Host is required." : "Port must be 1–65535."}</div>}
       </div>
       {/* footer — full-width separator, buttons inset */}
       <div style={{ flex: "none", borderTop: "1px solid var(--tasty-separator)", padding: "12px 16px", display: "flex", justifyContent: "flex-end", gap: 8 }}>
@@ -2164,7 +2165,7 @@ function ScriptManagerFrame({ empty }) {
   const kbdIcon = <Icon name="keyboard" size={16} />;
   const changedBadge = (
     <span style={{ display: "inline-flex", alignItems: "center", gap: 3, height: 16, padding: "0 6px", borderRadius: "var(--tasty-radius-sm)",
-      fontFamily: "var(--tasty-font-mono)", fontSize: 10, fontWeight: 500, color: "var(--tasty-accent-warning)",
+      fontFamily: "var(--tasty-font-mono)", fontSize: 10, fontWeight: 500, color: "var(--tasty-accent-warning-raised)",
       border: "1px solid color-mix(in srgb, var(--tasty-accent-warning) 40%, transparent)",
       background: "color-mix(in srgb, var(--tasty-accent-warning) 12%, transparent)" }}>changed</span>
   );
@@ -2205,11 +2206,11 @@ function ScriptManagerFrame({ empty }) {
           {changed && changedBadge}
         </div>
         <Path dir={dir} file={file} />
-        {changed && <span style={{ fontSize: 11, color: "var(--tasty-accent-warning)", lineHeight: 1.4 }}>File changed since registration — you'll be asked to confirm on next run.</span>}
+        {changed && <span style={{ fontSize: 11, color: "var(--tasty-accent-warning-raised)", lineHeight: 1.4 }}>File changed since registration — you'll be asked to confirm on next run.</span>}
         <TriggerRow triggers={triggers || []} />
       </div>
       <div style={{ display: "flex", alignItems: "center", gap: 6, flex: "none" }}>
-        {shortcut ? <Kbd keys={shortcut} /> : <span style={{ fontSize: 12, color: "var(--tasty-text-disabled)", fontStyle: "italic" }}>Unbound</span>}
+        {shortcut ? <Kbd keys={shortcut} /> : <span style={{ fontSize: 12, color: "var(--tasty-text-muted)", fontStyle: "italic" }}>Unbound</span>}
         <IconButton size="sm" aria-label="Bind shortcut">{kbdIcon}</IconButton>
         <IconButton size="sm" aria-label="Rename">{ic.edit}</IconButton>
         <IconButton size="sm" aria-label="Remove">{ic.x}</IconButton>
@@ -2349,7 +2350,7 @@ function CategoryEditFrame({ mode = "new", error }) {
         <div style={{ fontSize: 12, color: "var(--tasty-text-muted)", marginBottom: 12 }}>Press <Kbd keys="↵" /> to confirm, <Kbd keys="Esc" /> to cancel.</div>
         <Input block autoFocus defaultValue={mode === "new" ? "" : "Services"} placeholder="Category name"
           style={errText ? { borderColor: "var(--tasty-accent-danger)" } : undefined} />
-        {errText && <div style={{ fontSize: 11, color: "var(--tasty-accent-danger)", marginTop: 6 }}>{errText}</div>}
+        {errText && <div style={{ fontSize: 11, color: "var(--tasty-accent-danger-raised)", marginTop: 6 }}>{errText}</div>}
       </div>
       <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, padding: 14 }}>
         <Button variant="ghost">Cancel</Button>
@@ -2365,7 +2366,7 @@ function CategoryDeleteFrame() {
     <div style={{ width: 380, background: "var(--tasty-bg-panel)", border: "1px solid var(--tasty-border-strong)",
       borderRadius: "var(--tasty-radius)", overflow: "hidden", boxShadow: "var(--tasty-shadow-modal)" }}>
       <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "14px 14px 0" }}>
-        <span style={{ display: "inline-flex", color: "var(--tasty-accent-danger)" }}>{catIc.trash}</span>
+        <span style={{ display: "inline-flex", color: "var(--tasty-accent-danger-raised)" }}>{catIc.trash}</span>
         <span style={{ fontSize: 14, fontWeight: 600 }}>Delete category?</span>
       </div>
       <p style={{ margin: "10px 14px 0", fontSize: 13, color: "var(--tasty-text-secondary)", lineHeight: 1.5 }}>
@@ -2564,7 +2565,7 @@ function ModifierHintPanelG({ style, held = "Ctrl", sections = MH_SECTIONS, show
 // Consumes the tasty-attach profiles (left) → lists a remote instance's workspaces
 // (right) across 4 states. Same shell language as RemoteFrame (remote_tool).
 function RaBadge({ tone, children, title }) {
-  // The Tag recipe: its own fill keeps the ink readable on a selected row. The explicit styles hold until bundle.js is rebuilt.
+  // The Tag recipe: its own fill keeps the ink readable on a selected row.
   const attached = tone === "attached";
   const style = attached
     ? { color: "var(--tasty-tag-attached-fg)", borderColor: "color-mix(in srgb, var(--tasty-accent-attached) 40%, transparent)" }
@@ -2595,9 +2596,9 @@ function RaWs({ name, panes, busy, selected, attached }) {
     <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "var(--tasty-space-sm) var(--tasty-space-md)", position: "relative",
       background: selected ? "var(--tasty-surface-active)" : "transparent",
       boxShadow: selected ? "inset var(--tasty-selection-edge-width) 0 0 var(--tasty-accent-primary)" : "none" }}>
-      <span style={{ opacity: attached ? 0.5 : 1, display: "inline-flex" }}><StatusDot status={busy ? "running" : "idle"} pulse={busy} /></span>
-      <span style={{ fontSize: 13, fontWeight: 500, color: attached ? "var(--tasty-text-disabled)" : selected ? "var(--tasty-text-on-active)" : "var(--tasty-text-secondary)" }}>{name}</span>
-      <span style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 11, color: "var(--tasty-text-muted)", opacity: attached ? 0.6 : 1 }}>{ic.split}{panes}</span>
+      <span style={{ display: "inline-flex" }}><StatusDot status={busy ? "running" : "idle"} pulse={busy} /></span>
+      <span data-ink-grade={attached ? "none" : undefined} data-ink-why={attached ? "disabled" : undefined} style={{ fontSize: 13, fontWeight: 500, color: attached ? "var(--tasty-text-disabled)" : selected ? "var(--tasty-text-on-active)" : "var(--tasty-text-secondary)" }}>{name}</span>
+      <span style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 11, color: "var(--tasty-text-muted)" }}>{ic.split}{panes}</span>
       <div style={{ flex: 1 }} />
       {busy && !attached && <span style={{ fontSize: 11, color: "var(--tasty-text-muted)" }}>busy</span>}
       {attached && <RaBadge tone="attached" title="Already attached on another client">in use</RaBadge>}
@@ -2613,11 +2614,11 @@ function RaNewRow({ selected, hover, phase = "rest", error, sep = true }) {
         background: selected ? "var(--tasty-surface-active)" : hover ? "var(--tasty-overlay-hover)" : "transparent",
         boxShadow: selected ? "inset var(--tasty-selection-edge-width) 0 0 var(--tasty-accent-primary)" : "none" }}>
         <span style={{ flex: "none", width: "var(--tasty-status-dot-size)", display: "inline-flex", alignItems: "center", justifyContent: "center",
-          color: creating ? "var(--tasty-text-muted)" : failed ? "var(--tasty-accent-danger)" : "var(--tasty-accent-primary)" }}>
+          color: creating ? "var(--tasty-text-muted)" : failed ? "var(--tasty-accent-danger-raised)" : "var(--tasty-accent-primary-raised)" }}>
           {creating ? <Spinner size={14} /> : <Icon name={failed ? "alertTriangle" : "plus"} size={14} />}
         </span>
         <span style={{ fontSize: 13, fontWeight: 500, whiteSpace: "nowrap",
-          color: creating ? "var(--tasty-text-muted)" : selected ? "var(--tasty-text-primary)" : "var(--tasty-accent-primary)" }}>
+          color: creating ? "var(--tasty-text-muted)" : selected ? "var(--tasty-text-primary)" : "var(--tasty-accent-primary-raised)" }}>
           {creating ? "Creating workspace…" : "New workspace"}
         </span>
         <div style={{ flex: 1 }} />
@@ -2627,7 +2628,7 @@ function RaNewRow({ selected, hover, phase = "rest", error, sep = true }) {
         <div style={{ display: "flex", alignItems: "flex-start", gap: 8, padding: "var(--tasty-space-xs) var(--tasty-space-md) var(--tasty-space-sm)" }}>
           <span style={{ flex: "none", width: "var(--tasty-status-dot-size)" }} />
           <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 4 }}>
-            <span style={{ fontSize: 11, color: "var(--tasty-accent-danger)", lineHeight: 1.5,
+            <span style={{ fontSize: 11, color: "var(--tasty-accent-danger-raised)", lineHeight: 1.5,
               display: "-webkit-box", WebkitLineClamp: 3, WebkitBoxOrient: "vertical", overflow: "hidden" }}>
               {error || "Remote refused: workspace quota reached (8/8) on edge.example.com. Close a workspace there, or raise `limits.workspaces` in the remote's tasty.toml, then try again."}
             </span>
@@ -2681,7 +2682,7 @@ function RemoteAttachFrame({ state = "loaded", newPhase = "rest", newSelected, e
           {state === "error" && <CenterState variant="error" title="Can't connect" sub="SSH authentication failed — passkey “old-rsa” was rejected by legacy-box." action={<Button variant="secondary" size="sm" leadingIcon={<Icon name="refresh" size="var(--tasty-icon-size-sm)" />}>Retry</Button>} />}
           {state === "loaded" && (<>
             <div style={{ ...caps, padding: "10px 12px 4px", display: "flex", alignItems: "center", gap: 8 }}>
-              <span>Remote workspaces</span><span style={{ color: "var(--tasty-text-disabled)" }}>·</span>
+              <span>Remote workspaces</span><span data-ink-grade="none" data-ink-why="ornament" style={{ color: "var(--tasty-text-disabled)" }}>·</span>
               <span style={{ textTransform: "none", letterSpacing: 0, fontFamily: "var(--tasty-font-ui)", fontSize: 11 }}>prod-web</span>
             </div>
             <div style={{ flex: 1, minHeight: 0, overflow: "hidden" }}>
@@ -2693,7 +2694,7 @@ function RemoteAttachFrame({ state = "loaded", newPhase = "rest", newSelected, e
           </>)}
           {state === "empty" && emptyPlan === "B" && (<>
             <div style={{ ...caps, padding: "10px 12px 4px", display: "flex", alignItems: "center", gap: 8 }}>
-              <span>Remote workspaces</span><span style={{ color: "var(--tasty-text-disabled)" }}>·</span>
+              <span>Remote workspaces</span><span data-ink-grade="none" data-ink-why="ornament" style={{ color: "var(--tasty-text-disabled)" }}>·</span>
               <span style={{ textTransform: "none", letterSpacing: 0, fontFamily: "var(--tasty-font-ui)", fontSize: 11 }}>media-nas</span>
             </div>
             <div style={{ flex: 1, minHeight: 0, overflow: "hidden" }}>
@@ -2742,13 +2743,13 @@ function FpRow({ kind, name, size, mod, selected, focus, multi, checked, dim, in
       outline: focus ? "1px solid var(--tasty-accent-primary)" : "none", outlineOffset: -1,
       opacity: dim ? 0.5 : 1 }}>
       {multi && <span style={{ display: "inline-flex", flex: "none" }}><Checkbox checked={!!checked} /></span>}
-      <span style={{ flex: "none", display: "inline-flex", color: inert ? "var(--tasty-fp-folder-file-fg)" : isFolder ? "var(--tasty-accent-primary)" : "var(--tasty-text-muted)" }}>
+      <span data-ink-grade={inert ? "none" : undefined} data-ink-why={inert ? "disabled" : undefined} style={{ flex: "none", display: "inline-flex", color: inert ? "var(--tasty-fp-folder-file-fg)" : isFolder ? "var(--tasty-accent-primary-raised)" : "var(--tasty-text-muted)" }}>
         <Icon name={isFolder ? "folder" : "file"} size={16} />
       </span>
-      <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+      <span data-ink-grade={inert ? "none" : undefined} data-ink-why={inert ? "disabled" : undefined} style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
         fontSize: 13, fontWeight: isFolder ? 500 : 400, color: inert ? "var(--tasty-fp-folder-file-fg)" : selected ? "var(--tasty-text-on-active)" : "var(--tasty-text-secondary)" }}>{name}</span>
-      <span style={{ flex: "none", width: 68, textAlign: "right", fontFamily: "var(--tasty-font-mono)", fontSize: 11, color: inert ? "var(--tasty-fp-folder-file-fg)" : selected ? "var(--tasty-text-on-active)" : "var(--tasty-text-muted)" }}>{size}</span>
-      <span style={{ flex: "none", width: 108, textAlign: "right", fontFamily: "var(--tasty-font-mono)", fontSize: 11, color: inert ? "var(--tasty-fp-folder-file-fg)" : selected ? "var(--tasty-text-on-active)" : "var(--tasty-text-muted)" }}>{mod}</span>
+      <span data-ink-grade={inert ? "none" : undefined} data-ink-why={inert ? "disabled" : undefined} style={{ flex: "none", width: 68, textAlign: "right", fontFamily: "var(--tasty-font-mono)", fontSize: 11, color: inert ? "var(--tasty-fp-folder-file-fg)" : selected ? "var(--tasty-text-on-active)" : "var(--tasty-text-muted)" }}>{size}</span>
+      <span data-ink-grade={inert ? "none" : undefined} data-ink-why={inert ? "disabled" : undefined} style={{ flex: "none", width: 108, textAlign: "right", fontFamily: "var(--tasty-font-mono)", fontSize: 11, color: inert ? "var(--tasty-fp-folder-file-fg)" : selected ? "var(--tasty-text-on-active)" : "var(--tasty-text-muted)" }}>{mod}</span>
       {tip && (
         <span role="tooltip" style={{ position: "absolute", left: "calc(var(--tasty-fp-inset-start) + var(--tasty-size-96))", top: "100%", marginTop: "var(--tasty-space-xs)", zIndex: 4, whiteSpace: "nowrap",
           padding: "var(--tasty-tooltip-padding-y) var(--tasty-tooltip-padding-x)", background: "var(--tasty-tooltip-bg)", border: "var(--tasty-border-width) solid var(--tasty-tooltip-border)",
@@ -2812,7 +2813,7 @@ function FpCrumbMenu({ items, opaque = false, style }) {
       {items.map((l, i) => (
         <div key={l} style={{ display: "flex", alignItems: "center", gap: 8, height: "var(--tasty-menu-item-height)", padding: "0 var(--tasty-menu-item-padding-x)", borderRadius: "var(--tasty-menu-item-radius)",
           fontSize: "var(--tasty-font-size-body)", background: i === 0 ? "var(--tasty-menu-item-bg-hover)" : "transparent", color: i === 0 ? "var(--tasty-menu-item-fg-hover)" : "var(--tasty-menu-item-fg)" }}>
-          <span style={{ display: "inline-flex", flex: "none", color: "var(--tasty-accent-primary)" }}><Icon name="folder" size="var(--tasty-icon-size-md)" /></span>
+          <span style={{ display: "inline-flex", flex: "none", color: "var(--tasty-accent-primary-raised)" }}><Icon name="folder" size="var(--tasty-icon-size-md)" /></span>
           <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{l}</span>
         </div>
       ))}
@@ -2824,7 +2825,7 @@ function FpHostBadge({ host }) {
   return (
     <span style={{ display: "inline-flex", alignItems: "center", gap: 5, height: 22, padding: "0 8px", borderRadius: "var(--tasty-radius)",
       background: "color-mix(in srgb, var(--tasty-accent-info) 14%, transparent)", border: "1px solid color-mix(in srgb, var(--tasty-accent-info) 45%, transparent)",
-      color: "var(--tasty-accent-info)", fontFamily: "var(--tasty-font-mono)", fontSize: 11, whiteSpace: "nowrap" }}>
+      color: "var(--tasty-accent-info-raised)", fontFamily: "var(--tasty-font-mono)", fontSize: 11, whiteSpace: "nowrap" }}>
       <span style={{ display: "inline-flex" }}><Icon name="remote" size={13} /></span>{host}
     </span>
   );
@@ -2894,12 +2895,12 @@ function FilePickerFrame({ state = "loaded", remote = false, indicator = "badge"
       {/* header */}
       {/* section insets (2026-09-29): every section starts on fp-inset-start (12) — header glyph, first crumb, Name, row icon and footer label share one column */}
       <div style={{ display: "flex", alignItems: "center", gap: "var(--tasty-fp-section-gap)", padding: "var(--tasty-fp-header-pad-y) var(--tasty-fp-inset-end) var(--tasty-fp-header-pad-y) var(--tasty-fp-inset-start)", flex: "none", borderBottom: "1px solid var(--tasty-separator)" }}>
-        <span style={{ display: "inline-flex", color: remote && indicator === "glyph" ? "var(--tasty-accent-info)" : "var(--tasty-text-muted)" }}>
+        <span style={{ display: "inline-flex", color: remote && indicator === "glyph" ? "var(--tasty-accent-info-raised)" : "var(--tasty-text-muted)" }}>
           {remote && (indicator === "glyph" || indicator === "border") ? <Icon name="remote" /> : <Icon name={folderMode ? "folder" : "file"} />}
         </span>
         <span style={{ fontSize: 14, fontWeight: 600, color: "var(--tasty-text-primary)" }}>{folderMode ? FC.title : saving ? "Save file" : "Open file"}</span>
         {remote && indicator === "badge" && <FpHostBadge host={host} />}
-        {remote && indicator === "glyph" && <span style={{ fontSize: 12, fontFamily: "var(--tasty-font-mono)", color: "var(--tasty-accent-info)" }}>{host}</span>}
+        {remote && indicator === "glyph" && <span style={{ fontSize: 12, fontFamily: "var(--tasty-font-mono)", color: "var(--tasty-accent-info-raised)" }}>{host}</span>}
         <div style={{ flex: 1 }} />
         <IconButton size="sm" aria-label="Close">{ic.x}</IconButton>
       </div>
@@ -2953,7 +2954,7 @@ function FilePickerFrame({ state = "loaded", remote = false, indicator = "badge"
               <span title={target} style={{ flex: 1, minWidth: 0, height: "var(--tasty-control-height)", display: "flex", alignItems: "center", boxSizing: "border-box", padding: "0 var(--tasty-space-md)",
                 background: "var(--tasty-input-readonly-bg)", border: "var(--tasty-border-width) solid var(--tasty-input-readonly-border)", borderRadius: "var(--tasty-radius)" }}>
                 <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", direction: "rtl", textAlign: "left",
-                  fontFamily: "var(--tasty-font-mono)", fontSize: "var(--tasty-font-size-caption)", color: live ? "var(--tasty-fp-folder-path-fg)" : "var(--tasty-state-disabled-fg)" }}>
+                  fontFamily: "var(--tasty-font-mono)", fontSize: "var(--tasty-font-size-caption)", color: live ? "var(--tasty-fp-folder-path-fg)" : "var(--tasty-text-muted)" }}>
                   <span style={{ direction: "ltr", unicodeBidi: "isolate" }}>{target}</span>
                 </span>
               </span>
@@ -2993,7 +2994,7 @@ function FilePickerFrame({ state = "loaded", remote = false, indicator = "badge"
           </div>
         )}
         {overwrite && (
-          <div style={{ display: "flex", alignItems: "flex-start", gap: 6, fontSize: 11, lineHeight: 1.5, color: "var(--tasty-accent-warning)" }}>
+          <div style={{ display: "flex", alignItems: "flex-start", gap: 6, fontSize: 11, lineHeight: 1.5, color: "var(--tasty-accent-warning-raised)" }}>
             <span style={{ display: "inline-flex", flex: "none", marginTop: 1 }}><Icon name="alertTriangle" size={13} /></span>
             <span><span style={{ fontFamily: "var(--tasty-font-mono)" }}>{saveName}</span> already exists in this folder. Saving replaces it.</span>
           </div>

@@ -36,6 +36,8 @@ const CSS = `
 .tasty-tag--attached { color: var(--tasty-tag-attached-fg); border-color: color-mix(in srgb, var(--tasty-accent-attached) 40%, transparent); }
 .tasty-tag--caps { text-transform: uppercase; letter-spacing: var(--tasty-letter-spacing-caps); }
 .tasty-tag--disabled { background: var(--tasty-tag-disabled-bg); border-color: var(--tasty-tag-disabled-border); color: var(--tasty-tag-disabled-fg); }
+.tasty-tag--disabled[data-ground="raised"] { border-color: var(--tasty-border-strong); }
+.tasty-tag--disabled[data-ground="active"] { border-color: var(--tasty-border-frame); }
 .tasty-tag__dot { width: var(--tasty-tag-dot-size); height: var(--tasty-tag-dot-size); border-radius: var(--tasty-radius-pill); background: currentColor; flex: none; }
 `;
 
@@ -49,7 +51,7 @@ function ensureCss() {
   injected = true;
 }
 
-export function Tag({ variant = "default", dot = false, disabled = false, caps = false, className = "", children, ...rest }) {
+export function Tag({ variant = "default", dot = false, disabled = false, caps = false, ground, className = "", children, ...rest }) {
   ensureCss();
   const cls = [
     "tasty-tag",
@@ -59,7 +61,7 @@ export function Tag({ variant = "default", dot = false, disabled = false, caps =
     className,
   ].filter(Boolean).join(" ");
   return (
-    <span className={cls} {...rest}>
+    <span className={cls} data-ground={ground} aria-disabled={disabled || undefined} {...rest}>
       {dot && <span className="tasty-tag__dot" />}
       {children}
     </span>

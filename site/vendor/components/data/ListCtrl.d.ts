@@ -21,6 +21,8 @@ export interface ListCtrlProps
   items: ListCtrlItem[];
   /** Selected row id (renders --tasty-surface-active + accent left bar). */
   selectedId?: React.Key | null;
+  /** The row the keyboard is on. Paints the selected ground without selecting it. */
+  activeId?: React.Key | null;
   /** Row click handler; receives (id, item). */
   onSelect?: (id: React.Key, item: ListCtrlItem) => void;
   /** Show the trailing drill-in chevron. Default true. */

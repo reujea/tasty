@@ -47,7 +47,7 @@ function AttachRefusalBannerG({ kind = "self", narrow }) {
   return (
     <BannerShellG>
       <BannerActionsG narrow={narrow} action={<BButton variant="secondary" size="sm" style={{ background: "var(--tasty-banner-button-bg)", borderColor: "var(--tasty-banner-button-border)" }}>Remove mapping</BButton>}>
-        <span style={{ display: "inline-flex", flex: "none", marginTop: "var(--tasty-banner-glyph-offset)", color: "var(--tasty-accent-warning)" }}><BIcon name="alertTriangle" size="var(--tasty-icon-size-md)" /></span>
+        <span style={{ display: "inline-flex", flex: "none", marginTop: "var(--tasty-banner-glyph-offset)", color: "var(--tasty-accent-warning-raised)" }}><BIcon name="alertTriangle" size="var(--tasty-icon-size-md)" /></span>
         <div style={{ display: "flex", flexDirection: "column", gap: "var(--tasty-banner-text-gap)" }}>
           <span style={{ fontSize: "var(--tasty-banner-title-font-size)", fontWeight: "var(--tasty-font-weight-semibold)" }}>Remote not attached — <span style={{ fontFamily: "var(--tasty-font-mono)", fontWeight: "var(--tasty-font-weight-normal)" }}>{r.target}</span></span>
           <span style={{ fontSize: "var(--tasty-banner-body-font-size)", color: "var(--tasty-banner-body-fg)" }}>{r.reason} Change or remove the mapping for this workspace.</span>
@@ -197,7 +197,7 @@ function BodyInkGrid({ label, theme }) {
     ["HTML mirror · cumulative limit", <HtmlSizeBanner kind="limit" />],
     ["auto-attach refused", <AttachRefusalBannerG />],
     ["attach size sync · names line", <AttachSizeSyncBannerG names={["build", "build", "logs"]} />],
-    ["shell integration missing · TTL", <TtlBannerG ttl={10} glyph={<BIcon name="alertTriangle" size="var(--tasty-icon-size-md)" />} glyphColor="var(--tasty-accent-warning)" title="Shell integration not detected" body="Command-completion hooks (docker build, just run, etc.) need OSC 133 shell integration. See docs/features/hooks for setup." />],
+    ["shell integration missing · TTL", <TtlBannerG ttl={10} glyph={<BIcon name="alertTriangle" size="var(--tasty-icon-size-md)" />} glyphColor="var(--tasty-accent-warning-raised)" title="Shell integration not detected" body="Command-completion hooks (docker build, just run, etc.) need OSC 133 shell integration. See docs/features/hooks for setup." />],
   ];
   return (
     <div data-theme={theme} style={{ flex: "1 1 var(--tasty-size-440)", minWidth: 0, display: "flex", flexDirection: "column", gap: "var(--tasty-space-sm)", padding: "var(--tasty-space-md)", background: "var(--tasty-bg-app)", border: "var(--tasty-border-width) solid var(--tasty-border-frame)", borderRadius: "var(--tasty-radius)" }}>
@@ -215,7 +215,7 @@ function BodyInkGrid({ label, theme }) {
 function RemainingInkGrid({ label, theme }) {
 
   const rows = [
-    ["TTL countdown", <TtlBannerG ttl={10} glyph={<BIcon name="alertTriangle" size="var(--tasty-icon-size-md)" />} glyphColor="var(--tasty-accent-warning)" title="Shell integration not detected" />],
+    ["TTL countdown", <TtlBannerG ttl={10} glyph={<BIcon name="alertTriangle" size="var(--tasty-icon-size-md)" />} glyphColor="var(--tasty-accent-warning-raised)" title="Shell integration not detected" />],
     ["⋯ menu · program name unknown · reason line", <BannerMoreMenuG app={null} />],
     ["large file · ghost Decline", <HtmlSizeBanner />],
     ["cumulative limit · ghost Stop", <HtmlSizeBanner kind="limit" />],
@@ -264,7 +264,7 @@ function ClosedInkTable({ label, theme }) {
           <span style={{ flex: 1, minWidth: 0, fontSize: "var(--tasty-font-size-caption)", color: "var(--tasty-text-primary)" }}>{r[0]}</span>
           <span data-ink-sample="" style={{ flex: "none", padding: "var(--tasty-space-xs) var(--tasty-space-sm)", borderRadius: "var(--tasty-radius-sm)", fontSize: "var(--tasty-font-size-caption)", whiteSpace: "nowrap",
             color: "var(--tasty-" + r[3] + ")", backgroundColor: "var(--tasty-" + r[1] + ")",
-            backgroundImage: r[2] ? "linear-gradient(var(--tasty-" + r[2] + "), var(--tasty-" + r[2] + "))" : "none" }}>{r[4]}</span>
+            backgroundImage: r[2] ? "linear-gradient(var(--tasty-" + r[2] + "), var(--tasty-" + r[2] + "))" : "none" }}>{inkSample(r[4])}</span>
           <span style={{ flex: "none", width: "var(--tasty-size-32)", textAlign: "right", fontFamily: "var(--tasty-font-mono)", fontSize: "var(--tasty-font-size-caption)", color: "var(--tasty-text-primary)" }}>{r[col]}</span>
         </div>
       ))}
@@ -333,7 +333,7 @@ function Page() {
               <div key={label} {...(attr ? { "data-theme": attr } : {})} style={{ display: "flex", flexDirection: "column", gap: "var(--tasty-space-xs)", padding: "var(--tasty-space-md)", background: "var(--tasty-bg-app)" }}>
                 <span style={{ fontSize: "var(--tasty-font-size-caption)", color: "var(--tasty-text-muted)" }}>{label} · live countdown · hover to pause + show ×</span>
                 <div style={{ width: "100%", maxWidth: "var(--tasty-size-480)" }}>
-                  <TtlBannerG ttl={10} glyph={<BIcon name="alertTriangle" size="var(--tasty-icon-size-md)" />} glyphColor="var(--tasty-accent-warning)"
+                  <TtlBannerG ttl={10} glyph={<BIcon name="alertTriangle" size="var(--tasty-icon-size-md)" />} glyphColor="var(--tasty-accent-warning-raised)"
                     title="Shell integration not detected" body="Command-completion hooks (docker build, just run, etc.) need OSC 133 shell integration. See docs/features/hooks for setup." />
                 </div>
               </div>
@@ -361,7 +361,7 @@ function Page() {
             </div>
             <div style={{ width: "100%", maxWidth: 480 }}>
               <div style={{ fontSize: 11, color: "var(--tasty-text-muted)", marginBottom: 8 }}>recessed — dimmed behind a higher-scope banner</div>
-              <div style={{ opacity: "var(--tasty-banner-recessed-opacity)" }}><MouseCaptureBannerG /></div>
+              <div data-audit-exempt="dimmed" style={{ opacity: "var(--tasty-banner-recessed-opacity)" }}><MouseCaptureBannerG /></div>
             </div>
           </Stage>
           <Meta
@@ -376,7 +376,7 @@ function Page() {
           </Stage>
           <Meta
             specs={[["anchor", "surface content top, under tab bar"], ["margins", "8 top / 8 sides · 0 bottom"], ["consume zone", "the drawn card rect only"], ["below card", "pass-through to the app"], ["focus", "never steals keyboard focus"], ["inactive surface", "first click only focuses the surface"]]}
-            tokens={[{ tok: "--tasty-banner-margin", use: "8px gap", color: "var(--tasty-banner-bg)" }, { tok: "--tasty-accent-info", use: "consume-zone label", color: "var(--tasty-accent-info)" }]} />
+            tokens={[{ tok: "--tasty-banner-margin", use: "8px gap", color: "var(--tasty-banner-bg)" }, { tok: "--tasty-accent-info", use: "consume-zone label", color: "var(--tasty-accent-info-raised)" }]} />
         </Spec>
       </Section>
 
@@ -399,7 +399,7 @@ function Page() {
           </Stage>
           <Meta
             specs={[["trigger", <>IconButton <b>ghost / sm</b> · 24px · <span className="ic">more</span> glyph</>], ["placement", "affordance column, left of ×"], ["gap", "4px between ⋯ and ×"], ["reveal", "banner hover — same rule as ×"], ["open state", "active (accent) while menu is open"], ["body reserve", "28 → 56px right padding"], ["card size", "unchanged"]]}
-            tokens={[{ tok: "--tasty-banner-more-column-gap", use: "4px ⋯ ↔ ×" }, { tok: "--tasty-banner-more-reserve", use: "56px body right padding" }, { tok: "--tasty-overlay-active", use: "open-trigger wash", color: "var(--tasty-overlay-active)" }, { tok: "--tasty-accent-primary", use: "open-trigger glyph", color: "var(--tasty-accent-primary)" }]} />
+            tokens={[{ tok: "--tasty-banner-more-column-gap", use: "4px ⋯ ↔ ×" }, { tok: "--tasty-banner-more-reserve", use: "56px body right padding" }, { tok: "--tasty-overlay-active", use: "open-trigger wash", color: "var(--tasty-overlay-active)" }, { tok: "--tasty-accent-primary", use: "open-trigger glyph", color: "var(--tasty-accent-primary-raised)" }]} />
           <Note>New glyph <span className="ic">more</span> (<code>icons/more.svg</code> — three dots, horizontal, same 2px round-cap language as <code>M12 17h.01</code> style glyphs). A unicode <b>⋯</b> was rejected: the system renders every affordance through the <span className="ic">Icon</span> component so it inherits <code>currentColor</code> and the 16px sm size.</Note>
           <Dont><b>Don't</b> keep the trigger permanently visible. A persistent banner with a permanently drawn ⋯ reads as a second dismiss control and adds chrome to a notice that is already at the top of live output — hover is where every other banner affordance lives.</Dont>
         </Spec>
@@ -436,12 +436,12 @@ function Page() {
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
               <div style={{ fontSize: 11, color: "var(--tasty-text-muted)" }}>rejected — danger tone on the capture row</div>
-              <div style={{ opacity: 0.75 }}><BannerMoreMenuG app="vim" danger /></div>
+              <div data-audit-exempt="dimmed" style={{ opacity: "var(--tasty-opacity-dimmed)" }}><BannerMoreMenuG app="vim" danger /></div>
             </div>
           </Stage>
           <Meta
             specs={[["label", "fixed text + app name (2 spans)"], ["truncates", "the app name only"], ["app name", <>mono · row ink (<span className="tok">--tasty-banner-more-app-fg</span> → menu-item-fg / -fg-hover)</>], ["width", "content-sized, 200 ≤ w ≤ 288 — never widens past 288"], ["wrap", <>only when the FIXED copy + 1 name glyph does not fit: whole label wraps, row grows (min 28, pad-y <span className="tok">--tasty-menu-item-wrap-padding-y</span>); the fixed copy never ellipsises</>], ["tooltip", "full program name on the row"], ["tone", "both rows neutral (no danger)"]]}
-            tokens={[{ tok: "--tasty-banner-more-app-font", use: "mono program name" }, { tok: "--tasty-banner-more-app-fg", use: "program name = row ink", color: "var(--tasty-banner-more-app-fg)" }, { tok: "--tasty-banner-more-app-fg-hover", use: "hover", color: "var(--tasty-banner-more-app-fg-hover)" }, { tok: "--tasty-menu-item-height", use: "28px rows" }, { tok: "--tasty-accent-danger", use: "rejected variant only", color: "var(--tasty-accent-danger)" }]} />
+            tokens={[{ tok: "--tasty-banner-more-app-font", use: "mono program name" }, { tok: "--tasty-banner-more-app-fg", use: "program name = row ink", color: "var(--tasty-banner-more-app-fg)" }, { tok: "--tasty-banner-more-app-fg-hover", use: "hover", color: "var(--tasty-banner-more-app-fg-hover)" }, { tok: "--tasty-menu-item-height", use: "28px rows" }, { tok: "--tasty-accent-danger", use: "rejected variant only", color: "var(--tasty-accent-danger-raised)" }]} />
           <Do><b>Do</b> keep the program name as the mono part of the row — it is the one thing the user must verify before writing a permanent per-app setting, and mono marks it as a process name rather than prose.</Do>
           <Dont><b>Don't</b> paint the “Let Tasty handle clicks” row in <b>danger</b> tone (last card above, shown for the record). Nothing is destroyed and nothing is lost: the setting is reversible from Settings › Terminal, and it <i>returns</i> the mouse to tasty. Danger in this system means delete — spending it here would make the two rows look like different classes of action when they are the same class at two strengths.</Dont>
         </Spec>
@@ -499,7 +499,7 @@ function Page() {
           </Stage>
           <Meta
             specs={[["lives in", "Settings › Terminal"], ["group", "hint switch + blacklist (1 section)"], ["row", "28px · pattern (mono) + × remove"], ["add", "Input + Add button (disabled when empty)"], ["match", "case-insensitive substring or * wildcard"], ["default", "empty list"]]}
-            tokens={[{ tok: "--tasty-overlay-hover", use: "row hover (8%)" }, { tok: "--tasty-accent-warning", use: "match-rule notice", color: "var(--tasty-accent-warning)" }, { tok: "--tasty-input-bg", use: "add field", color: "var(--tasty-input-bg)" }]} />
+            tokens={[{ tok: "--tasty-overlay-hover", use: "row hover (8%)" }, { tok: "--tasty-accent-warning", use: "match-rule notice", color: "var(--tasty-accent-warning-raised)" }, { tok: "--tasty-input-bg", use: "add field", color: "var(--tasty-input-bg)" }]} />
           <Note>The wheel is always forwarded to the program even for blacklisted apps — only clicks/drags are intercepted. A blacklisted foreground app also suppresses the capture banner on that surface.</Note>
         </Spec>
       </Section>
@@ -509,7 +509,7 @@ function Page() {
           when={<>The HTML page is a native WebView layered over tasty's GPU frame, so a floating banner would be hidden under it. Approach <b>⒜</b>: tasty paints the banner and the surface's WebView rect <b>shrinks</b> by the banner's height. This is a formal <b>inset</b> placement in the banner system, for any scope whose content is a native layer: same shell, margin <b>8 on all four sides</b> (<span className="tok">--tasty-banner-inset-gap</span> is the new bottom one), and the page starts below it. Floating stays the default everywhere else. Scope is the <b>surface</b>: the terminal beside it is untouched. Showing or clearing the banner resizes the page once; there is no animation on the rect.</>}>
           <Stage variant="solo" style={{ padding: "var(--tasty-space-lg)", background: "var(--tasty-bg-app)", flexDirection: "column", gap: "var(--tasty-space-lg)", alignItems: "stretch" }}>
             {[["Mocha", "mocha"], ["Latte", "latte"]].map(([label, attr]) => (
-              <div key={label} {...(attr ? { "data-theme": attr } : {})} style={{ display: "flex", flexDirection: "column", gap: "var(--tasty-space-xs)" }}>
+              <div key={label} {...(attr ? { "data-theme": attr } : {})} style={{ display: "flex", flexDirection: "column", gap: "var(--tasty-space-xs)", background: "var(--tasty-bg-app)" }}>
                 <span style={{ fontSize: "var(--tasty-font-size-caption)", color: "var(--tasty-text-muted)" }}>{label} · two surfaces side by side, banner on the HTML one only</span>
                 <div style={{ display: "flex", gap: "var(--tasty-border-width)", background: "var(--tasty-border-frame)", border: "var(--tasty-border-width) solid var(--tasty-border-frame)", borderRadius: "var(--tasty-radius)", overflow: "hidden" }}>
                   <HtmlSurfaceG />
@@ -573,7 +573,7 @@ function Page() {
           </Stage>
           <Meta
             specs={[["banner", "removed while failed"], ["tab marker", "lock / script glyph removed while failed"], ["failure state", "alertCircle md + Failed to load (accent-danger) · URL mono caption text-disabled"], ["reload commits", "banner + marker re-derived from the new document"]]}
-            tokens={[{ tok: "--tasty-accent-danger", use: "glyph + title", color: "var(--tasty-accent-danger)" }, { tok: "--tasty-text-disabled", use: "URL", color: "var(--tasty-text-disabled)" }]} />
+            tokens={[{ tok: "--tasty-accent-danger", use: "glyph + title", color: "var(--tasty-accent-danger-raised)" }, { tok: "--tasty-text-disabled", use: "URL", color: "var(--tasty-text-disabled)" }]} />
         </Spec>
         <Spec id="after-and-after-allow-the-tab-strip-marker" title="After × and after Allow — the tab-strip marker"
           when={<>× hides the notice for this load; scripts stay blocked. A <b>lock</b> marker then sits in the surface's tab, first in the tab's right-hand status cluster (Layouts › Pane tab strip; <span className="tok">--tasty-html-script-marker-fg</span> → glyph-dim, 12px). Clicking it <b>shows the banner again</b> — it re-explains before offering Allow, and never allows on its own. Mouse only, no focus change. After Allow, the tab carries a <b>script</b> glyph in text-muted with a tooltip; it is not clickable. Navigating to another document clears both, and the new document starts over. <code>#fragment</code> moves keep them.</>}>
@@ -620,7 +620,7 @@ function Page() {
           </Stage>
           <Meta
             specs={[["row mark", "alertTriangle 14 · accent-warning · trailing slot of the workspace row · tooltip = target + reason"], ["banner scope", "Workspace · shown while that workspace is active"], ["glyph", "alertTriangle 16 · accent-warning"], ["title", "Remote not attached — {target} (target mono)"], ["body", "{reason} Change or remove the mapping for this workspace."], ["action", "Remove mapping · banner button (secondary sm on banner-button tokens)"], ["×", "hides for this activation; the row mark stays"], ["clears", "mapping changed / removed · profile re-check succeeds"], ["focus", "never moved — agent-made mappings included"], ["toast", "none"]]}
-            tokens={[{ tok: "--tasty-accent-warning", use: "glyph + row mark", color: "var(--tasty-accent-warning)" }, { tok: "--tasty-banner-bg", use: "shell", color: "var(--tasty-banner-bg)" }, { tok: "--tasty-banner-button-bg", use: "Remove mapping", color: "var(--tasty-banner-button-bg)" }, { tok: "--tasty-banner-body-font-size", use: "reason 11" }]} />
+            tokens={[{ tok: "--tasty-accent-warning", use: "glyph + row mark", color: "var(--tasty-accent-warning-raised)" }, { tok: "--tasty-banner-bg", use: "shell", color: "var(--tasty-banner-bg)" }, { tok: "--tasty-banner-button-bg", use: "Remove mapping", color: "var(--tasty-banner-button-bg)" }, { tok: "--tasty-banner-body-font-size", use: "reason 11" }]} />
           <Note>Strings (en): <code>remote.refusal.title</code> “Remote not attached — {"{target}"}” · <code>remote.refusal.self</code> “This mapping points at this Tasty, so it was not attached.” · <code>remote.refusal.profile_missing</code> “No SSH profile with this name.” · <code>remote.refusal.unresolved</code> “The endpoint could not be resolved.” · <code>remote.refusal.hint</code> “Change or remove the mapping for this workspace.” · <code>remote.refusal.remove</code> “Remove mapping”. No new tokens.</Note>
         </Spec>
         <Spec id="collapsed-rail-beside-the-attention-badges" title="Collapsed rail · beside the attention badges"
@@ -803,7 +803,6 @@ function Page() {
           <Meta
             specs={[["banner Secondary", "banner-button-bg → surface-on-raised · Latte n200, lighter than the shell"], ["Kbd", "kbd-fg → text-secondary-raised · switch-overlay-fg follows"], ["Tag", "tag-<variant>-fg · the accent stays on the edge"], ["selected row", "every ink → text-on-active"], ["accent glyph on it", "accent-primary-on-active"], ["hover, pressed", "3:1 floor · menu row and ghost on raised hold 4.5"]]}
             tokens={[{ tok: "--tasty-surface-on-raised", use: "new · Mocha n400 · Latte n200", color: "var(--tasty-surface-on-raised)" }, { tok: "--tasty-text-on-active", use: "new · Mocha n1100 · Latte #35374a", color: "var(--tasty-text-on-active)" }, { tok: "--tasty-accent-primary-on-active", use: "new · Mocha blue · Latte #1547ac", color: "var(--tasty-accent-primary-on-active)" }, { tok: "--tasty-tag-warning-fg", use: "new · → accent-warning-raised", color: "var(--tasty-tag-warning-fg)" }, { tok: "--tasty-kbd-fg", use: "→ text-secondary-raised", color: "var(--tasty-kbd-fg)" }]} />
-          <Note>The Tag and Kbd specimens on the live pages keep their old ink until <code>components/bundle.js</code> is rebuilt from <code>components/core/</code>. The swatches above read the new tokens. The app reads the tokens, so it does not wait for that rebuild.</Note>
         </Spec>
       </Section>
     </>
@@ -823,4 +822,14 @@ export const page = {
 
 export default function GalleryRoute() {
   return <PageStates value={STATES}>{page.content}</PageStates>;
+}
+
+// The tokens these rows sample are glyph ink, grade 3. A glyph sample is a shape, not a text character.
+function inkSample(s) {
+  const dot = { display: "inline-block", width: "var(--tasty-status-dot-size)", height: "var(--tasty-status-dot-size)", borderRadius: "var(--tasty-radius-pill)" };
+  if (s === "●") return <span style={{ ...dot, background: "currentColor" }} />;
+  if (s === "○") return <span style={{ ...dot, boxSizing: "border-box", border: "var(--tasty-border-width) solid currentColor" }} />;
+  if (s === "★") return <BIcon name="starFill" size="var(--tasty-icon-size-sm)" />;
+  if (s === "✓") return <BIcon name="check" size="var(--tasty-icon-size-sm)" />;
+  return s;
 }

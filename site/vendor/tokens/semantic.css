@@ -285,6 +285,7 @@
      vanished. On raised, the box steps DOWN one ramp step and takes the strong edge. */
   --tasty-state-disabled-fill-raised:   var(--tasty-bg-panel);
   --tasty-state-disabled-border-raised: var(--tasty-border-strong);
+  --tasty-node-dim-opacity:       var(--tasty-opacity-dimmed);     /* 2026-11-05 finished DAG node. Latte: 1, see below */
   --tasty-state-dim-opacity:      var(--tasty-opacity-disabled);   /* 0.5 — dimmed ITEMS, not disabled controls */
   --tasty-state-disabled-opacity: var(--tasty-opacity-disabled);   /* DEPRECATED alias (2026-09-29): no control reads it; migrate readers to state-dim-opacity or to the ink rule */
 
@@ -507,6 +508,7 @@
   --tasty-border-control: color-mix(in srgb, var(--tasty-color-neutral-800) 85%, var(--tasty-color-neutral-1100));
   --tasty-border-control-raised: var(--tasty-color-neutral-900);
   --tasty-control-thumb: var(--tasty-color-white);
+  --tasty-node-dim-opacity: 1;  /* 2026-11-05 at 0.75 the node label falls to 3.2 on its Latte fill, the state glyph and word carry the status */
   --tasty-text-on-active-hover: color-mix(in srgb, var(--tasty-color-neutral-1100) 60%, var(--tasty-color-black));
   --tasty-text-quiet: var(--tasty-color-neutral-1000);
   --tasty-glyph-dim: var(--tasty-color-neutral-900);

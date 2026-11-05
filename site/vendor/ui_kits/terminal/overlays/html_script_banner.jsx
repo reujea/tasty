@@ -68,7 +68,7 @@ function HtmlScriptBanner({ state = "blocked", remote = false, hover = false, na
         <span style={{ display: "inline-flex", flex: "none", alignSelf: "flex-start", marginTop: "var(--tasty-banner-glyph-offset)", color: "var(--tasty-html-script-banner-glyph)" }}>
           <HsIcon name="lock" size="var(--tasty-icon-size-md)" />
         </span>
-        <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: "var(--tasty-banner-text-gap)", opacity: reloading ? "var(--tasty-opacity-dimmed)" : 1 }}>
+        <div data-audit-exempt={reloading ? "dimmed" : undefined} style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: "var(--tasty-banner-text-gap)", opacity: reloading ? "var(--tasty-opacity-dimmed)" : 1 }}>
           <div style={{ fontSize: "var(--tasty-banner-title-font-size)", fontWeight: "var(--tasty-font-weight-semibold)", lineHeight: "var(--tasty-line-height-ui)", textWrap: "pretty" }}>{HS_COPY.title}</div>
           <div style={{ fontSize: "var(--tasty-banner-body-font-size)", lineHeight: "var(--tasty-line-height-ui)", color: "var(--tasty-banner-body-fg)", textWrap: "pretty" }}>{remote ? HS_COPY.bodyRemote : HS_COPY.body}</div>
         </div>
@@ -144,9 +144,9 @@ function HsFailed({ url = "file:///Users/me/report.html" }) {
 
   return (
     <div style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: "var(--tasty-space-sm)", padding: "var(--tasty-space-md)" }}>
-      <span style={{ display: "inline-flex", color: "var(--tasty-accent-danger)" }}><DsIcon name="alertCircle" size="var(--tasty-icon-size-md)" /></span>
-      <span style={{ fontSize: "var(--tasty-font-size-body)", color: "var(--tasty-accent-danger)" }}>Failed to load</span>
-      <span style={{ fontFamily: "var(--tasty-font-mono)", fontSize: "var(--tasty-font-size-caption)", color: "var(--tasty-text-disabled)", maxWidth: "100%", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{url}</span>
+      <span style={{ display: "inline-flex", color: "var(--tasty-accent-danger-raised)" }}><DsIcon name="alertCircle" size="var(--tasty-icon-size-md)" /></span>
+      <span style={{ fontSize: "var(--tasty-font-size-body)", color: "var(--tasty-accent-danger-raised)" }}>Failed to load</span>
+      <span style={{ fontFamily: "var(--tasty-font-mono)", fontSize: "var(--tasty-font-size-caption)", color: "var(--tasty-text-muted)", maxWidth: "100%", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{url}</span>
     </div>
   );
 }

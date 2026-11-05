@@ -44,7 +44,7 @@ function YProgressStatus({ pct = 30, text, bytes, queued, waiting }) {
       <span style={{ position: "absolute", left: 0, right: 0, top: "calc(-1 * var(--tasty-border-width))", height: "var(--tasty-explorer-progress-height)", background: "var(--tasty-explorer-progress-track)" }}>
         <span style={{ display: "block", width: pct + "%", height: "100%", background: waiting ? "var(--tasty-accent-warning)" : "var(--tasty-explorer-progress-fill)" }} />
       </span>
-      <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", color: waiting ? "var(--tasty-accent-warning)" : "var(--tasty-text-secondary)" }}>{text}</span>
+      <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", color: waiting ? "var(--tasty-accent-warning-raised)" : "var(--tasty-text-secondary)" }}>{text}</span>
     </>
   );
 }
@@ -168,23 +168,23 @@ function ProgressSection() {
         </YStage>
         <YMeta
           specs={[["scope", "popup clamped to the explorer cell · scrim-bg over the body · shadow-modal"], ["width", "explorer-conflict-width 400"], ["title", "14 semibold · “{name}” already exists · caption “in {folder}”"], ["compare", "Existing / Incoming · size · modified · mono caption"], ["buttons", "Cancel the rest (ghost, left) · Skip · Replace (files only) · Keep both (primary, ↵)"], ["apply to all", "Checkbox, only when more conflicts remain"], ["focus", "opens only when the explorer has focus · otherwise the status line waits (accent-warning) + Show"], ["overwrite", "offered for files from v1 · always an explicit choice"]]}
-          tokens={[{ tok: "--tasty-explorer-conflict-width", use: "→ size-400" }, { tok: "--tasty-scrim-bg", use: "cell dim" }, { tok: "--tasty-accent-warning", use: "waiting line + bar", color: "var(--tasty-accent-warning)" }]} />
+          tokens={[{ tok: "--tasty-explorer-conflict-width", use: "→ size-400" }, { tok: "--tasty-scrim-bg", use: "cell dim" }, { tok: "--tasty-accent-warning", use: "waiting line + bar", color: "var(--tasty-accent-warning-raised)" }]} />
       </YSpec>
 
       <YSpec id="results-done-cancelled-partial-retry-failed-trash-unavailable-un" title="Results — done · cancelled · partial + retry · failed · trash unavailable · undo"
         when={<>Results appear as a <b>Toast anchored inside the explorer cell</b>, bottom-right, 8 above the status line (the cell's toasts stack upward). <b>Done</b> and <b>cancelled</b> leave after the standard toast time; anything with a failure <b>stays until dismissed</b>. A partial or failed result lists up to <b>3 failed paths</b> (path ellipsised at the front so the name stays, reason under it) and then “and n more”; <b>Copy paths</b> copies every failed path, <b>Retry</b> runs only the failed and skipped items. A move across disks whose source delete failed is its own line (“copied; original not removed”). Trash never falls back to permanent delete. <b>Undo</b> sits on the done toast for as long as it is visible; its own result reports what could not be undone.</>}>
         <YStage variant="solo center" style={{ padding: 20, background: "var(--tasty-bg-app)", gap: 16, flexWrap: "wrap", alignItems: "flex-start" }}>
           <XCol label="done — in place" w={480}>
-            <XCell w={480} h={210} overlay={<YToastAt><YResult variant="success" title="Copied 40 items to Documents" actions={<YButton variant="ghost" size="sm">Undo</YButton>} /></YToastAt>}><XDetail /></XCell>
+            <XCell w={480} h={210} overlay={<YToastAt><YResult variant="success" title="Copied 40 items to Documents" actions={<YButton variant="ghost" ground="raised" size="sm">Undo</YButton>} /></YToastAt>}><XDetail /></XCell>
           </XCol>
           <XThemes gap="var(--tasty-space-md)" render={() => (
             <div style={{ display: "flex", flexDirection: "column", gap: "var(--tasty-space-sm)", width: "var(--tasty-toast-max-width)" }}>
               <YResult variant="info" title="Copy cancelled · 12 of 40 done" />
               <YResult variant="warning" title="Moved 37 of 40 · 3 failed"
                 lines={[["~/Downloads/build/artifacts/app-release-unsigned.apk", "Permission denied"], ["~/Downloads/archive.zip", "Copied; original not removed (in use)"], ["~/Downloads/raw/IMG_2031.heic", "No space left on device"]]}
-                actions={<><YButton variant="secondary" size="sm">Retry 3</YButton><YButton variant="ghost" size="sm">Copy paths</YButton></>} />
+                actions={<><YButton variant="secondary" size="sm">Retry 3</YButton><YButton variant="ghost" ground="raised" size="sm">Copy paths</YButton></>} />
               <YResult variant="danger" title="Couldn't copy 12 items" lines={[["~/Downloads/raw/IMG_2030.heic", "No space left on device"]]} more={11}
-                actions={<><YButton variant="secondary" size="sm">Retry 12</YButton><YButton variant="ghost" size="sm">Copy paths</YButton></>} />
+                actions={<><YButton variant="secondary" size="sm">Retry 12</YButton><YButton variant="ghost" ground="raised" size="sm">Copy paths</YButton></>} />
               <YResult variant="danger" title="Trash isn't available on this drive. Nothing was deleted." />
               <YResult variant="warning" title="Undid move · 2 items couldn't be put back" lines={[["~/Documents/report.pdf", "A newer file is there now"]]} more={1} />
             </div>
@@ -262,7 +262,7 @@ function YPreview({ kind }) {
 function YThumbCell({ name, kind, state }) {
   const slot = kind === "thumb"
     ? <span style={{ width: "var(--tasty-explorer-grid-thumb-size)", height: "var(--tasty-explorer-grid-thumb-size)", boxSizing: "border-box", border: "var(--tasty-border-width) solid var(--tasty-separator)", borderRadius: "var(--tasty-radius-sm)", background: "var(--tasty-surface-hover)", display: "flex", alignItems: "flex-end", justifyContent: "center", fontFamily: "var(--tasty-font-mono)", fontSize: "var(--tasty-font-size-micro)", color: "var(--tasty-text-muted)" }}>img</span>
-    : <span style={{ display: "inline-flex", color: kind === "loading" ? "var(--tasty-accent-info)" : "var(--tasty-text-muted)" }}>{kind === "folder" ? YK.ic.folder : kind === "loading" ? YK.ic.image : YK.ic.file}</span>;
+    : <span style={{ display: "inline-flex", color: kind === "loading" ? "var(--tasty-accent-info-raised)" : "var(--tasty-text-muted)" }}>{kind === "folder" ? YK.ic.folder : kind === "loading" ? YK.ic.image : YK.ic.file}</span>;
   return (
     <div style={{ width: 80, display: "flex", flexDirection: "column", alignItems: "center", gap: 4, padding: "8px 4px", borderRadius: "var(--tasty-radius)", background: state === "selected" ? "var(--tasty-surface-active)" : "transparent" }}>
       <span style={{ height: "var(--tasty-explorer-grid-thumb-size)", display: "flex", alignItems: "center", justifyContent: "center" }}>{slot}</span>
@@ -360,7 +360,7 @@ function PropertiesSection() {
         </YStage>
         <YMeta
           specs={[["scope", "Grid only · local only"], ["slot", "explorer-grid-thumb-size 40 · every cell"], ["thumbnail", "fit 40 × 40 · 1px separator · radius-sm"], ["loading / over limit", "image glyph 16 · accent-info"], ["cell", "80 wide (unchanged) · +24 tall"]]}
-          tokens={[{ tok: "--tasty-explorer-grid-thumb-size", use: "→ size-40" }, { tok: "--tasty-accent-info", use: "image glyph fallback", color: "var(--tasty-accent-info)" }, { tok: "--tasty-separator", use: "thumb edge", color: "var(--tasty-separator)" }]} />
+          tokens={[{ tok: "--tasty-explorer-grid-thumb-size", use: "→ size-40" }, { tok: "--tasty-accent-info", use: "image glyph fallback", color: "var(--tasty-accent-info-raised)" }, { tok: "--tasty-separator", use: "thumb edge", color: "var(--tasty-separator)" }]} />
         <YNote>“img” stands in for the decoded picture. Real side: <code>grid_cell()</code> reserves the 40 slot for every entry; the thumbnail cache is keyed by path + mtime.</YNote>
       </YSpec>
     </YSection>
@@ -405,7 +405,7 @@ function FollowupsSection() {
             </XCell>
           </XCol>
           <XCol label="search — cap reached · 1 skipped" w={520}>
-            <XCell w={520} h={120} toolbar={<XToolbar search />} bar={<XFindBar value=".rs" deep right={<>5,000+ found · stopped · <span style={{ color: "var(--tasty-accent-warning)" }}>1 folder skipped</span></>} />} status={<span style={{ color: "var(--tasty-text-muted)" }}>Showing the first 5,000. Type more to narrow the search.</span>}>
+            <XCell w={520} h={120} toolbar={<XToolbar search />} bar={<XFindBar value=".rs" deep right={<>5,000+ found · stopped · <span style={{ color: "var(--tasty-accent-warning-raised)" }}>1 folder skipped</span></>} />} status={<span style={{ color: "var(--tasty-text-muted)" }}>Showing the first 5,000. Type more to narrow the search.</span>}>
               <div style={{ flex: 1 }} />
             </XCell>
           </XCol>
@@ -420,7 +420,7 @@ function FollowupsSection() {
         </YStage>
         <YMeta
           specs={[["highlight", "Detail · List · Grid — filter and search"], [".. row", "kept while filtering (not counted) · dropped from recursive results"], ["filter 0", "bar “0 of {total}” · search glyph · “No names match “{query}”” · no sub-line"], ["skipped", "explorer.find.skipped_one “1 folder skipped” · skipped “{n} folders skipped”"], ["cap", "5,000 results · “{n}+ found · stopped” · status line hint · results kept"], ["More rows", "Find ↔ Close find · Show preview ↔ Hide preview · no check marks on any OS"], ["narrow", "< 440: New folder · New file · Find · Preview all fold into More"]]}
-          tokens={[{ tok: "--tasty-explorer-match-fg", use: "all views", color: "var(--tasty-explorer-match-fg)" }, { tok: "--tasty-explorer-toolbar-compact-below", use: "→ 440" }, { tok: "--tasty-accent-warning", use: "skipped", color: "var(--tasty-accent-warning)" }]} />
+          tokens={[{ tok: "--tasty-explorer-match-fg", use: "all views", color: "var(--tasty-explorer-match-fg)" }, { tok: "--tasty-explorer-toolbar-compact-below", use: "→ 440" }, { tok: "--tasty-accent-warning", use: "skipped", color: "var(--tasty-accent-warning-raised)" }]} />
         <YNote>i18n (new): <code>explorer.find.none_filter</code> “No names match “{"{query}"}”” · <code>explorer.find.skipped_one</code> “1 folder skipped” · <code>explorer.find.capped</code> “{"{n}"}+ found · stopped” · <code>explorer.find.capped_hint</code> “Showing the first {"{n}"}. Type more to narrow the search.” · <code>explorer.more.find_close</code> “Close find” · <code>explorer.more.preview_show</code> “Show preview” · <code>explorer.more.preview_hide</code> “Hide preview”.</YNote>
       </YSpec>
 
@@ -445,7 +445,7 @@ function FollowupsSection() {
             <div style={{ display: "flex", flexDirection: "column", gap: "var(--tasty-space-sm)", width: "var(--tasty-toast-max-width)" }}>
               <YResult variant="warning" title="Moved 40 of 40 · 2 originals not fully removed"
                 lines={[["~/Volumes/usb/photos/2026-09", "Copied; the original is still there, in whole or in part (Permission denied)"], ["~/Volumes/usb/archive.zip", "Copied; the original is still there, in whole or in part (in use)"]]}
-                actions={<><YButton variant="secondary" size="sm">Retry 2</YButton><YButton variant="ghost" size="sm">Copy paths</YButton></>} />
+                actions={<><YButton variant="secondary" size="sm">Retry 2</YButton><YButton variant="ghost" ground="raised" size="sm">Copy paths</YButton></>} />
               <YResult variant="warning" title="Undid copy · 1 item kept" lines={[["~/Documents/notes.md", "Changed after the copy, so it was kept"]]} />
             </div>
           )} />

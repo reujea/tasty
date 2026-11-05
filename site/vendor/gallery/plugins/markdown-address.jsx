@@ -64,7 +64,7 @@ function MdField({ remote, path, editing, error, off }) {
       boxShadow: ring ? "0 0 0 var(--tasty-focus-ring-width) color-mix(in srgb, " + (error ? "var(--tasty-input-border-invalid)" : "var(--tasty-border-focus)") + " 35%, transparent)" : "none" }}>
       <span style={{ display: "inline-flex", flex: "none", color: "var(--tasty-input-icon-fg)" }}><MIcon name={remote ? "remote" : "file"} size="var(--tasty-icon-size-sm)" /></span>
       <span style={{ flex: 1, minWidth: 0, fontFamily: "var(--tasty-font-mono)", fontSize: "var(--tasty-input-font-size)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", direction: "rtl", textAlign: "left",
-        color: off ? "var(--tasty-state-disabled-fg)" : editing || error ? "var(--tasty-input-fg)" : "var(--tasty-md-address-value-fg)" }}>
+        color: off ? "var(--tasty-text-muted-raised)" : editing || error ? "var(--tasty-input-fg)" : "var(--tasty-md-address-value-fg)" }}>
         <bdi>{path}</bdi>
         {(editing || error) && <span style={{ display: "inline-block", width: "var(--tasty-border-width)", height: "var(--tasty-size-14)", background: "var(--tasty-accent-primary)", marginLeft: "var(--tasty-border-width)", verticalAlign: "text-bottom" }} />}
       </span>

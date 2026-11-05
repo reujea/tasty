@@ -36,7 +36,7 @@ function Lockup() {
       <img src={`${BASE}tasty-icon.png`} alt="tasty"
         style={{ width: 64, height: 64, imageRendering: "-webkit-optimize-contrast" }} />
       <span style={{ fontFamily: "var(--tasty-font-mono)", fontWeight: 700, fontSize: 38, letterSpacing: "var(--tasty-loading-lockup-tracking)", color: "var(--tasty-text-primary)" }}>
-        tasty<span style={{ color: "var(--tasty-brand-melon-flesh)" }}>.</span>
+        tasty<span data-audit-exempt="brand" style={{ color: "var(--tasty-brand-melon-flesh)" }}>.</span>
       </span>
     </div>
   );
@@ -60,7 +60,7 @@ function BootFrame({ w, h, z = 1, phase, showPhase = true, theme }) {
     <div style={inner}>
       <div style={boot}>
         <Lockup />
-        <span style={{ marginTop: "var(--tasty-space-xl)", color: "var(--tasty-accent-primary)" }}>
+        <span style={{ marginTop: "var(--tasty-space-xl)", color: "var(--tasty-accent-primary-raised)" }}>
           <Spinner size={32} stroke={3} label="Starting tasty" />
         </span>
         <div style={{ marginTop: "var(--tasty-space-lg)", height: "var(--tasty-size-16)", lineHeight: "var(--tasty-size-16)",
@@ -170,7 +170,7 @@ function Page() {
             ]}
             tokens={[
               { tok: "--tasty-bg-app", use: "full surface", color: "var(--tasty-bg-app)" },
-              { tok: "--tasty-accent-primary", use: "spinner arc", color: "var(--tasty-accent-primary)" },
+              { tok: "--tasty-accent-primary", use: "spinner arc", color: "var(--tasty-accent-primary-raised)" },
               { tok: "--tasty-brand-melon-flesh", use: "wordmark dot", color: "var(--tasty-brand-melon-flesh)" },
               { tok: "--tasty-spinner-duration", use: "900ms rotation" },
               { tok: "--tasty-space-xl / -lg", use: "stack gaps" },
@@ -212,8 +212,8 @@ function Page() {
         <Spec id="spinner-jsx-reused-size-16-32-for-boot-hero" title="Spinner.jsx reused — size 16 → 32 for boot hero"
           when={<>Same visual vocabulary as <code>components/feedback/Spinner.jsx</code> (thin arc on a faint track). Only the size is bumped one step to a boot-hero 32px; no new spinner invented. reduced-motion freezes the arc (Spinner's built-in static fallback).</>}>
           <Stage variant="solo" style={{ display: "flex", gap: "var(--tasty-space-xl)", padding: "var(--tasty-space-xl)", background: "var(--tasty-bg-app)", alignItems: "center" }} eager>
-            <span style={{ color: "var(--tasty-accent-primary)" }}><Spinner size={32} stroke={3} label="boot spinner" /></span>
-            <span style={{ color: "var(--tasty-accent-primary)", display: "inline-flex" }}>
+            <span style={{ color: "var(--tasty-accent-primary-raised)" }}><Spinner size={32} stroke={3} label="boot spinner" /></span>
+            <span style={{ color: "var(--tasty-accent-primary-raised)", display: "inline-flex" }}>
               <span className="tasty-spinner--dots" style={{ ["--tasty-spinner-size"]: "32px", width: 32, height: 32, display: "inline-block" }}><svg /></span>
             </span>
             <span style={{ fontSize: "var(--tasty-font-size-caption)", color: "var(--tasty-text-muted)", fontFamily: "var(--tasty-font-mono)" }}>animated · reduced-motion (3-dot fallback)</span>
@@ -227,7 +227,7 @@ function Page() {
               ["reduced-motion", "arc frozen / Spinner 3-dot fallback"],
             ]}
             tokens={[
-              { tok: "--tasty-spinner-indicator", use: "= accent-primary", color: "var(--tasty-accent-primary)" },
+              { tok: "--tasty-spinner-indicator", use: "= accent-primary", color: "var(--tasty-accent-primary-raised)" },
               { tok: "--tasty-spinner-track", use: "0.22 track" },
               { tok: "--tasty-spinner-duration", use: "900ms" },
             ]} />
@@ -258,7 +258,7 @@ function Page() {
           </Stage>
           <Meta
             specs={[["form width", "360 · --tasty-size-360"], ["stack", "lockup → (space-xl) → title · sub · input · validation · buttons (space-sm)"], ["title", "14 / 600 · text-primary"], ["validation (2026-10-06)", "empty → blank line, height reserved · No file at this path · Not a bash or zsh executable (danger) · Shell found (success)"], ["Git Bash notice", "Windows only · caption line alertTriangle + warning ink · between sub and Input · no box"], ["confirm", "Button primary md · Use this shell · disabled unless valid · Enter = confirm when valid"], ["cancel → Quit", "Button secondary md · labelled Quit because it exits the app"], ["no card", "the host's 440 card, 12px literal and 32 input go: control-height Input, caption type, size-360 form"]]}
-            tokens={[{ tok: "--tasty-accent-success", use: "valid line", color: "var(--tasty-accent-success)" }, { tok: "--tasty-accent-danger", use: "invalid line", color: "var(--tasty-accent-danger)" }, { tok: "--tasty-state-disabled-fg", use: "disabled confirm ink", color: "var(--tasty-state-disabled-fg)" }]} />
+            tokens={[{ tok: "--tasty-accent-success", use: "valid line", color: "var(--tasty-accent-success-raised)" }, { tok: "--tasty-accent-danger", use: "invalid line", color: "var(--tasty-accent-danger-raised)" }, { tok: "--tasty-state-disabled-fg", use: "disabled confirm ink", color: "var(--tasty-state-disabled-fg)" }]} />
         </Spec>
       </Section>
       <Section id="shutdown" title="Shutdown screen">
@@ -275,7 +275,7 @@ function Page() {
           </Stage>
           <Meta
             specs={[["surface · stack", "identical to boot (lockup → space-xl → spinner → space-lg → phase slot)"], ["1 · SavingLayout", "Saving layout…"], ["2 · ReclaimingBootWorker", "Stopping background worker…"], ["3 · ClosingSurfaces", "Closing surfaces…"], ["4 · StoppingPlugins", "Stopping plugins…"], ["nothing to wait for", "no frame — the window closes"], ["theme", "follows the saved theme, like boot"]]}
-            tokens={[{ tok: "--tasty-bg-app", use: "full surface", color: "var(--tasty-bg-app)" }, { tok: "--tasty-accent-primary", use: "spinner arc", color: "var(--tasty-accent-primary)" }, { tok: "--tasty-text-muted", use: "phase", color: "var(--tasty-text-muted)" }]} />
+            tokens={[{ tok: "--tasty-bg-app", use: "full surface", color: "var(--tasty-bg-app)" }, { tok: "--tasty-accent-primary", use: "spinner arc", color: "var(--tasty-accent-primary-raised)" }, { tok: "--tasty-text-muted", use: "phase", color: "var(--tasty-text-muted)" }]} />
           <Note>No new tokens. Phase copy is new i18n (<code>shutdown.saving_layout</code> · <code>shutdown.reclaiming_boot_worker</code> · <code>shutdown.closing_surfaces</code> · <code>shutdown.stopping_plugins</code>); keep the trailing ellipsis character.</Note>
         </Spec>
       </Section>

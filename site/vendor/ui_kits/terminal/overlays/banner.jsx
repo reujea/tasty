@@ -261,7 +261,7 @@ function BannerHost() {
         </div>
         <div style={{ padding: "var(--tasty-space-md) var(--tasty-size-14)", fontFamily: "var(--tasty-font-mono)",
           fontSize: "var(--tasty-font-size-term-sm)", lineHeight: 1.6, color: "var(--tasty-color-neutral-1100)", opacity: 0.4 }}>
-          <div><span style={{ color: "var(--tasty-color-green)" }}>~/tasty</span> $ vim src/main.rs</div>
+          <div><span data-audit-exempt="ansi-content" style={{ color: "var(--tasty-color-green)" }}>~/tasty</span> $ vim src/main.rs</div>
           <div>-- VISUAL --   1,1   Top</div>
         </div>
         {/* banner zone — 8px below the tab bar, 8px side margins, no bottom margin */}

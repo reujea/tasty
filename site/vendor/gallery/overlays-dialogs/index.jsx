@@ -129,7 +129,7 @@ function Page() {
           <Stage variant="solo center"><Backdrop height={420}><ApprovalFrame /></Backdrop></Stage>
           <Meta
             specs={[["width", "440px"], ["header dot", <span className="tok">--tasty-accent-agent</span>], ["command", "mono on #000"], ["actions", "ghost / secondary / agent"]]}
-            tokens={[{ tok: "--tasty-accent-agent", use: "agent gate", color: "var(--tasty-accent-agent)" }, { tok: "--tasty-accent-danger", use: "destructive tag", color: "var(--tasty-accent-danger)" }, { tok: "--tasty-bg-panel", use: "frame", color: "var(--tasty-bg-panel)" }]} />
+            tokens={[{ tok: "--tasty-accent-agent", use: "agent gate", color: "var(--tasty-accent-agent-raised)" }, { tok: "--tasty-accent-danger", use: "destructive tag", color: "var(--tasty-accent-danger-raised)" }, { tok: "--tasty-bg-panel", use: "frame", color: "var(--tasty-bg-panel)" }]} />
           <Do><b>Do</b> name the actor and show the literal command. The user is granting authority — make the stakes legible.</Do>
         </Spec>
         <Spec id="danger-choice-tinted-fill-with-readable-ink" title="Danger choice — tinted fill with readable ink"
@@ -225,7 +225,7 @@ function Page() {
           <Stage variant="solo center"><Backdrop height={380}><div align="center"><FileHandlerFrame /></div></Backdrop></Stage>
           <Meta
             specs={[["width", "420px"], ["header", "title + format Tag · path (mono 11)"], ["rows", "icon · name · origin"], ["default", "Tag accent"], ["selected", <>2px accent left bar</>], ["footer", "Cancel / Open — settled F1 (b), see “Footer — settled”"]]}
-            tokens={[{ tok: "--tasty-surface-active", use: "selected", color: "var(--tasty-surface-active)" }, { tok: "--tasty-accent-primary", use: "select bar", color: "var(--tasty-accent-primary)" }, { tok: "--tasty-accent-agent", use: "plugin handler", color: "var(--tasty-accent-agent)" }]} />
+            tokens={[{ tok: "--tasty-surface-active", use: "selected", color: "var(--tasty-surface-active)" }, { tok: "--tasty-accent-primary", use: "select bar", color: "var(--tasty-accent-primary-raised)" }, { tok: "--tasty-accent-agent", use: "plugin handler", color: "var(--tasty-accent-agent-raised)" }]} />
           <Note>Plugin handlers are marked with the mauve agent accent — you always know a third party is handling the open.</Note>
         </Spec>
 
@@ -243,7 +243,7 @@ function Page() {
           </Stage>
           <Meta
             specs={[["place", "title row, right-aligned"], ["detected", <>Tag <span className="tok">accent</span></>], ["unknown", "Tag default (outline)"], ["path", <>mono 11 · <span className="tok">--tasty-text-muted</span></>], ["long path", "elide at the FRONT in the model, then render LTR"]]}
-            tokens={[{ tok: "--tasty-accent-primary", use: "format Tag", color: "var(--tasty-accent-primary)" }, { tok: "--tasty-font-mono", use: "path" }, { tok: "--tasty-text-muted", use: "path ink", color: "var(--tasty-text-muted)" }]} />
+            tokens={[{ tok: "--tasty-accent-primary", use: "format Tag", color: "var(--tasty-accent-primary-raised)" }, { tok: "--tasty-font-mono", use: "path" }, { tok: "--tasty-text-muted", use: "path ink", color: "var(--tasty-text-muted)" }]} />
           <Do><b>Do</b> cut long paths at the <b>front</b> — the filename is the tail and the tail identifies the file. Elide in the <b>model</b> (drop leading segments, prefix <code>…/</code>) and render the result left-to-right. <b>Don't</b> reach for <code>direction: rtl</code> + <code>text-overflow</code>: it reorders the run and clips the informative end.</Do>
         </Spec>
 
@@ -302,7 +302,7 @@ function Page() {
           <Stage variant="solo center"><Backdrop height={470}><div align="center"><FileHandlerFrame state="fallback" /></div></Backdrop></Stage>
           <Meta
             specs={[["label", <>All handlers · <span className="tok">--tasty-accent-attention</span></>], ["strip", <>8/14 on <span className="tok">--tasty-surface-raised</span></>], ["strip icon", "alertTriangle, attention"], ["promise", "one-time dispatch, no registration"]]}
-            tokens={[{ tok: "--tasty-accent-attention", use: "fallback tone", color: "var(--tasty-accent-attention)" }, { tok: "--tasty-surface-raised", use: "notice strip", color: "var(--tasty-surface-raised)" }, { tok: "--tasty-text-secondary", use: "strip copy", color: "var(--tasty-text-secondary)" }]} />
+            tokens={[{ tok: "--tasty-accent-attention", use: "fallback tone", color: "var(--tasty-accent-attention-raised)" }, { tok: "--tasty-surface-raised", use: "notice strip", color: "var(--tasty-surface-raised)" }, { tok: "--tasty-text-secondary", use: "strip copy", color: "var(--tasty-text-secondary)" }]} />
           <Note>Attention-peach, not warning-yellow: nothing is wrong, the system just has no opinion.</Note>
         </Spec>
 
@@ -328,11 +328,11 @@ function Page() {
           when={<>The picker is <b>headless</b> (no common popup titlebar): the frame draws its own header so the path appears <b>once</b>, in mono, truncated from the front. Using the shared titlebar puts the path in two places at two truncations — the reading below. Same precedent as Transfer progress.</>}>
           <Stage variant="solo center" style={{ padding: 20, background: "var(--tasty-bg-app)", gap: 18, flexWrap: "wrap" }}>
             <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-              <div style={{ fontSize: 11, color: "var(--tasty-accent-success)" }}>headless — one header</div>
+              <div style={{ fontSize: 11, color: "var(--tasty-accent-success-raised)" }}>headless — one header</div>
               <FileHandlerFrame />
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-              <div style={{ fontSize: 11, color: "var(--tasty-accent-danger)" }}>titlebar + header — path twice</div>
+              <div style={{ fontSize: 11, color: "var(--tasty-accent-danger-raised)" }}>titlebar + header — path twice</div>
               <FileHandlerFrame headless={false} state="long" />
             </div>
           </Stage>
@@ -349,8 +349,8 @@ function Page() {
               ["rejected (a) — persists a binding with nowhere to undo it", "checkbox"],
               ["rejected (c) — an affordance that does nothing", "disabled"]].map(([label, v], i) => (
               <div key={v} style={{ display: "flex", flexDirection: "column", gap: 6, width: 420 }}>
-                <div style={{ fontSize: 11, color: i === 0 ? "var(--tasty-accent-success)" : "var(--tasty-text-muted)" }}>{label}</div>
-                <div style={{ border: "1px solid var(--tasty-border-strong)", borderRadius: "var(--tasty-radius)", background: "var(--tasty-bg-panel)", overflow: "hidden", opacity: i === 0 ? 1 : 0.55 }}>
+                <div style={{ fontSize: 11, color: i === 0 ? "var(--tasty-accent-success-raised)" : "var(--tasty-text-muted)" }}>{label}</div>
+                <div style={{ border: "1px solid var(--tasty-border-strong)", borderRadius: "var(--tasty-radius)", background: "var(--tasty-bg-panel)", overflow: "hidden" }}>
                   <FhFooter variant={v} />
                 </div>
               </div>
@@ -358,7 +358,7 @@ function Page() {
           </Stage>
           <Meta
             specs={[["footer", "Cancel (ghost) · Open (primary)"], ["footer height", "44px (8/14 padding, 28px controls)"], ["persistence", "none — dispatch is one-time"], ["default binding", "lives in Settings › Handlers, set there"], ["Open", "disabled until a row is selected"]]}
-            tokens={[{ tok: "--tasty-separator", use: "footer rule", color: "var(--tasty-separator)" }, { tok: "--tasty-accent-primary", use: "Open", color: "var(--tasty-accent-primary)" }]} />
+            tokens={[{ tok: "--tasty-separator", use: "footer rule", color: "var(--tasty-separator)" }, { tok: "--tasty-accent-primary", use: "Open", color: "var(--tasty-accent-primary-raised)" }]} />
           <Note>If a persistent “always open with” ever ships, it belongs in <b>Settings › Handlers</b> as a visible, removable row — not as a checkbox on a transient dialog.</Note>
         </Spec>
 
@@ -367,7 +367,7 @@ function Page() {
           <Stage variant="solo center"><Backdrop height={380}><div align="center"><FileHandlerFrame state="mixed" /></div></Backdrop></Stage>
           <Meta
             specs={[["icon", "from action surface kind → icons.json"], ["icon fallback", <code>file</code>], ["name", "id segment after the last “/”"], ["name (raw id)", "mono — signals “no declared name”"], ["id line", "origin · id (mono 11), front-elided at 34 chars"], ["origin words", "built-in · you · plugin"], ["plugin", <>mauve <span className="tok">--tasty-accent-agent</span> on the origin word + glyph</>]]}
-            tokens={[{ tok: "--tasty-accent-agent", use: "plugin origin", color: "var(--tasty-accent-agent)" }, { tok: "--tasty-font-mono", use: "id + undeclared names" }, { tok: "--tasty-text-muted", use: "id line", color: "var(--tasty-text-muted)" }]} />
+            tokens={[{ tok: "--tasty-accent-agent", use: "plugin origin", color: "var(--tasty-accent-agent-raised)" }, { tok: "--tasty-font-mono", use: "id + undeclared names" }, { tok: "--tasty-text-muted", use: "id line", color: "var(--tasty-text-muted)" }]} />
           <Do><b>Do</b> elide a long id at the <b>front</b>. <code>net.example.enterprise.documents…</code> repeats across a vendor's handlers; the tail is what tells them apart — the same rule the header path uses.</Do>
           <Note>The mauve stays on the <b>origin word and the glyph</b>, not on the name — a plugin's handler is still named after what it does.</Note>
         </Spec>
@@ -385,7 +385,7 @@ function Page() {
           </Stage>
           <Meta
             specs={[["single click", "select, frame stays"], ["double click", "select + open"], ["no selection", "Open disabled"], ["selection scope", "one row across all groups"], ["dismiss", "Esc · Cancel · titlebar X"], ["scrim click", "does NOT close"]]}
-            tokens={[{ tok: "--tasty-accent-primary", use: "default Tag fill", color: "var(--tasty-accent-primary)" }, { tok: "--tasty-text-on-accent", use: "default Tag ink", color: "var(--tasty-text-on-accent)" }]} />
+            tokens={[{ tok: "--tasty-accent-primary", use: "default Tag fill", color: "var(--tasty-accent-primary-raised)" }, { tok: "--tasty-text-on-accent", use: "default Tag ink", color: "var(--tasty-text-on-accent)" }]} />
           <Note>Keep the Tag. It answers “what happens if I just press Enter” — the question the picker exists to ask.</Note>
         </Spec>
       </Section>
@@ -396,7 +396,7 @@ function Page() {
           <Stage variant="solo center"><Backdrop height={340}><div align="center"><PresetFrame /></div></Backdrop></Stage>
           <Meta
             specs={[["width", "440px"], ["scope", "Workspace · Tab · Pane (segmented)"], ["rows", "name + mono summary"], ["confirm", "names the scope"]]}
-            tokens={[{ tok: "--tasty-accent-primary", use: "active scope / select", color: "var(--tasty-accent-primary)" }, { tok: "--tasty-surface-active", use: "chosen preset", color: "var(--tasty-surface-active)" }, { tok: "--tasty-font-mono", use: "layout summary" }]} />
+            tokens={[{ tok: "--tasty-accent-primary", use: "active scope / select", color: "var(--tasty-accent-primary-raised)" }, { tok: "--tasty-surface-active", use: "chosen preset", color: "var(--tasty-surface-active)" }, { tok: "--tasty-font-mono", use: "layout summary" }]} />
         </Spec>
       </Section>
 
@@ -406,7 +406,7 @@ function Page() {
           <Stage variant="solo center"><Backdrop height={300}><div align="center"><MarkdownOpenFrame /></div></Backdrop></Stage>
           <Meta
             specs={[["width", "420px"], ["choices", "2 equal card-buttons"], ["default", "accent ring + fill"], ["confirm", "names the choice"]]}
-            tokens={[{ tok: "--tasty-accent-primary", use: "selected choice", color: "var(--tasty-accent-primary)" }, { tok: "--tasty-surface-raised", use: "choice fill", color: "var(--tasty-surface-raised)" }, { tok: "--tasty-border-default", use: "unselected edge" }]} />
+            tokens={[{ tok: "--tasty-accent-primary", use: "selected choice", color: "var(--tasty-accent-primary-raised)" }, { tok: "--tasty-surface-raised", use: "choice fill", color: "var(--tasty-surface-raised)" }, { tok: "--tasty-border-default", use: "unselected edge" }]} />
         </Spec>
       </Section>
 
@@ -416,7 +416,7 @@ function Page() {
           <Stage variant="solo center"><Backdrop height={260}><RenameFrame /></Backdrop></Stage>
           <Meta
             specs={[["width", "360px"], ["field", "autofocus, full-width"], ["confirm", <span className="ic">↵</span>], ["padding", <span className="tok">--tasty-space-md</span>]]}
-            tokens={[{ tok: "--tasty-bg-panel", use: "frame", color: "var(--tasty-bg-panel)" }, { tok: "--tasty-accent-primary", use: "confirm", color: "var(--tasty-accent-primary)" }, { tok: "--tasty-border-focus", use: "field ring", color: "var(--tasty-border-focus)" }]} />
+            tokens={[{ tok: "--tasty-bg-panel", use: "frame", color: "var(--tasty-bg-panel)" }, { tok: "--tasty-accent-primary", use: "confirm", color: "var(--tasty-accent-primary-raised)" }, { tok: "--tasty-border-focus", use: "field ring", color: "var(--tasty-border-focus)" }]} />
         </Spec>
       </Section>
 
@@ -435,7 +435,7 @@ function Page() {
           </Stage>
           <Meta
             specs={[["width", "360px (Rename dialog)"], ["field", "autofocus, full-width"], ["confirm", <span className="ic">↵</span>], ["errors", "empty · reserved ‘normal’ · duplicate"], ["invalid", "inline msg + confirm disabled"]]}
-            tokens={[{ tok: "--tasty-bg-panel", use: "frame", color: "var(--tasty-bg-panel)" }, { tok: "--tasty-accent-primary", use: "confirm", color: "var(--tasty-accent-primary)" }, { tok: "--tasty-accent-danger", use: "error field + text", color: "var(--tasty-accent-danger)" }]} />
+            tokens={[{ tok: "--tasty-bg-panel", use: "frame", color: "var(--tasty-bg-panel)" }, { tok: "--tasty-accent-primary", use: "confirm", color: "var(--tasty-accent-primary-raised)" }, { tok: "--tasty-accent-danger", use: "error field + text", color: "var(--tasty-accent-danger-raised)" }]} />
           <Note>Error copy maps to the existing keys <code>workspace_category.error.empty / reserved / duplicate</code>. No new dialog chrome — this is the Rename template with a validation line.</Note>
         </Spec>
         <Spec id="delete-category-destructive-confirm" title="Delete category — destructive confirm"
@@ -443,7 +443,7 @@ function Page() {
           <Stage variant="solo center"><Backdrop height={260}><div align="center"><CategoryDeleteFrame /></div></Backdrop></Stage>
           <Meta
             specs={[["width", "380px"], ["trigger", "Delete category (menu/popup)"], ["tone", <>destructive — <span className="tok">--tasty-accent-danger</span></>], ["body", "workspaces move to normal (not deleted)"], ["actions", "Cancel / Delete category"]]}
-            tokens={[{ tok: "--tasty-accent-danger", use: "glyph + confirm button", color: "var(--tasty-accent-danger)" }, { tok: "--tasty-bg-panel", use: "frame", color: "var(--tasty-bg-panel)" }, { tok: "--tasty-text-on-accent", use: "button label", color: "var(--tasty-text-on-accent)" }]} />
+            tokens={[{ tok: "--tasty-accent-danger", use: "glyph + confirm button", color: "var(--tasty-accent-danger-raised)" }, { tok: "--tasty-bg-panel", use: "frame", color: "var(--tasty-bg-panel)" }, { tok: "--tasty-text-on-accent", use: "button label", color: "var(--tasty-text-on-accent)" }]} />
           <Do><b>Do</b> reassure in the body: reversible-feeling copy (“workspaces move back to Workspaces”) lowers the stakes of an irreversible-sounding verb.</Do>
         </Spec>
       </Section>
@@ -483,7 +483,7 @@ function Page() {
           </Stage>
           <Meta
             specs={[["width", <span className="tok">--tasty-transfer-popup-width</span>], ["header", "danger glyph · Transfer failed"], ["reason", "verbatim, mono well on bg-app"], ["rejected", "Dismiss only"], ["failed", "Dismiss (ghost) · Retry (secondary)"], ["dismiss", "button · Esc · scrim click"]]}
-            tokens={[{ tok: "--tasty-accent-danger", use: "glyph + reason text", color: "var(--tasty-accent-danger)" }, { tok: "--tasty-bg-app", use: "reason well", color: "var(--tasty-bg-app)" }, { tok: "--tasty-bg-panel", use: "frame", color: "var(--tasty-bg-panel)" }]} />
+            tokens={[{ tok: "--tasty-accent-danger", use: "glyph + reason text", color: "var(--tasty-accent-danger-raised)" }, { tok: "--tasty-bg-app", use: "reason well", color: "var(--tasty-bg-app)" }, { tok: "--tasty-bg-panel", use: "frame", color: "var(--tasty-bg-panel)" }]} />
           <Dont><b>Don't</b> use a danger-filled button here — danger fill is reserved for confirming a destructive act (delete). This popup only acknowledges one; Dismiss stays secondary/ghost.</Dont>
           <Note>Capacity rejection points at its own cure: the reason names the configured limit, which lives in <b>Settings › General › Remote transfer</b> (Overlays › Windows).</Note>
         </Spec>
@@ -565,7 +565,7 @@ function Page() {
           </Stage>
           <Meta
             specs={[["width", "360 × UI scale · all languages"], ["rows", "title (body 13 semibold) · path (mono caption, ellipsis) · Tag warning “changed” · paragraph (caption 11, text-secondary, line-height-ui, full width) · buttons"], ["row gap", "space-sm 8 · Tag → paragraph space-xs 4"], ["body → buttons", "space-md 12"], ["height", "fits content (title bar + padding + rows) · no minimum"], ["padding", "12 top/bottom · 14 sides"], ["buttons", "right-aligned · Cancel ghost sm · Run anyway primary sm · inside 360"]]}
-            tokens={[{ tok: "--tasty-accent-warning", use: "changed Tag", color: "var(--tasty-accent-warning)" }, { tok: "--tasty-text-secondary", use: "paragraph", color: "var(--tasty-text-secondary)" }, { tok: "--tasty-space-md", use: "body → buttons" }, { tok: "--tasty-shadow-modal", use: "popup" }]} />
+            tokens={[{ tok: "--tasty-accent-warning", use: "changed Tag", color: "var(--tasty-accent-warning-raised)" }, { tok: "--tasty-text-secondary", use: "paragraph", color: "var(--tasty-text-secondary)" }, { tok: "--tasty-space-md", use: "body → buttons" }, { tok: "--tasty-shadow-modal", use: "popup" }]} />
         </Spec>
       </Section>
 
@@ -575,7 +575,7 @@ function Page() {
           <Stage variant="solo center"><Backdrop height={380}><div align="center">{<ExplorerDeleteFrame_ExplorerDeleteFrame items={ExplorerDeleteFrame_XD_ITEMS.many.slice(0, 4)} />}</div></Backdrop></Stage>
           <Meta
             specs={[["width", "info-modal-width 440"], ["max height", "info-modal-max-height 360 · list scrolls past explorer-delete-list-max-height 160"], ["buttons", "Cancel ghost (default focus) · Delete permanently danger"], ["dismiss", "Esc · close · scrim click = cancel"]]}
-            tokens={[{ tok: "--tasty-accent-danger", use: "glyph + button", color: "var(--tasty-accent-danger)" }, { tok: "--tasty-explorer-delete-list-max-height", use: "list" }]} />
+            tokens={[{ tok: "--tasty-accent-danger", use: "glyph + button", color: "var(--tasty-accent-danger-raised)" }, { tok: "--tasty-explorer-delete-list-max-height", use: "list" }]} />
         </Spec>
       </Section>
     </>

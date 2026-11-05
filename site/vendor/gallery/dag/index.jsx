@@ -51,7 +51,7 @@ function EdgeSpecimen({ rel }) {
         <path d={elbow({ x: 12, y: 8 }, { x: 108, y: 48 }, true, 4)} fill="none" stroke={meta.color} strokeWidth="1" strokeDasharray={meta.dash || undefined} />
         <polygon points="104,41 112,41 108,48" fill={meta.color} />
       </svg>
-      <span style={{ fontFamily: "var(--tasty-font-mono)", fontSize: 11, color: meta.color }}>{rel}</span>
+      <span style={{ fontFamily: "var(--tasty-font-mono)", fontSize: 11, color: "var(--tasty-text-muted)" }}>{rel}</span>
       <span style={{ fontSize: 11, color: "var(--tasty-text-muted)" }}>{meta.label}</span>
     </div>
   );
@@ -200,7 +200,7 @@ function Page() {
           <Stage variant="grid" style={{ display: "flex", gap: 32, padding: 20, alignItems: "flex-start", flexWrap: "wrap" }}>
             {[["pending", 1, 1], ["selected", 2, 1], ["not_selected", 1, 0.4], ["unavailable", 1, 0.4]].map(([s, w, o]) => (
               <div key={s} style={{ display: "flex", flexDirection: "column", gap: 6, alignItems: "center" }}>
-                <svg width="120" height="56" viewBox="0 0 120 56" aria-hidden="true" style={{ opacity: o }}>
+                <svg data-audit-exempt={o < 1 ? "dimmed" : undefined} width="120" height="56" viewBox="0 0 120 56" aria-hidden="true" style={{ opacity: o < 1 ? "var(--tasty-dag-edge-dim-opacity)" : 1 }}>
                   <path d={elbow({ x: 12, y: 8 }, { x: 108, y: 48 }, true, 4)} fill="none" stroke="var(--tasty-dag-edge-transition)" strokeWidth={w} strokeDasharray="10 4" />
                   <polygon points="104,41 112,41 108,48" fill="var(--tasty-dag-edge-transition)" />
                 </svg>
@@ -327,7 +327,7 @@ function Page() {
           when={<>The list can empty with <b>no search text</b>: the status filter or <b>This workspace only</b> alone filters everything out. There is no query to echo, so this is its own <code>filtered</code> variant: <b>filter</b> glyph (the cause is a filter, not the search field), a title without quotes, and the <b>same hint</b> as the search variant. Variant choice: trimmed query non-empty → <code>search</code> (echo the query only, even when status/scope filters are also on — the hint already says “clear the filter”); trimmed query empty and filters active → <code>filtered</code>; no DAG at all → <code>popup</code>.</>}>
           <Stage variant="solo" style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 16, padding: 20 }}>
             {[["Mocha — status = Failed, no query", null, "filtered", ""], ["Latte — workspace only, no query", "latte", "filtered", ""], ["Mocha — query “deploy” + status filter", null, "search", "deploy"]].map(([cap, th, v, q]) => (
-              <div key={cap} {...(th ? { "data-theme": th } : {})} style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              <div key={cap} {...(th ? { "data-theme": th } : {})} style={{ display: "flex", flexDirection: "column", gap: 6, background: "var(--tasty-bg-panel)" }}>
                 <span style={{ fontSize: "var(--tasty-font-size-caption)", color: "var(--tasty-text-muted)" }}>{cap}</span>
                 <div style={{ display: "flex", height: 220, border: "var(--tasty-border-width) solid var(--tasty-border-default)", borderRadius: "var(--tasty-radius)", background: "var(--tasty-bg-panel)" }}><DagEmpty variant={v} query={q} /></div>
               </div>

@@ -64,7 +64,7 @@ const TabBed = ({ children }) => <div style={{ display: "flex", background: "var
 function Arrow({ dir, disabled }) {
   return (
     <span style={{ flex: "none", width: "var(--tasty-tab-scroll-arrow-width)", height: "var(--tasty-tab-height)", display: "inline-flex", alignItems: "center", justifyContent: "center",
-      color: disabled ? "var(--tasty-tab-scroll-arrow-fg-disabled)" : "var(--tasty-tab-scroll-arrow-fg)" }}><Icon name={dir === "left" ? "chevronLeft" : "chevronRight"} size="var(--tasty-tab-scroll-arrow-glyph-size)" /></span>
+      color: disabled ? "var(--tasty-tab-scroll-arrow-fg-disabled)" : "var(--tasty-tab-scroll-arrow-fg)" }} data-ink-grade={disabled ? "none" : undefined} data-ink-why={disabled ? "disabled" : undefined}><Icon name={dir === "left" ? "chevronLeft" : "chevronRight"} size="var(--tasty-tab-scroll-arrow-glyph-size)" /></span>
   );
 }
 function OverflowStrip({ loadingIdx = [], focused = true }) {
@@ -99,8 +99,8 @@ function LRow({ name = "build-farm", status = "running", active, hover, attached
         {mirror && (
           <div style={{ marginTop: "var(--tasty-size-2)" }}>
             <span style={{ display: "inline-flex", alignItems: "center", gap: "var(--tasty-workspace-mirror-gap)", height: "var(--tasty-size-16)", padding: "0 var(--tasty-space-sm)", borderRadius: "var(--tasty-radius-sm)",
-              fontFamily: "var(--tasty-font-mono)", fontSize: "var(--tasty-font-size-micro)", fontWeight: 600, lineHeight: 1, letterSpacing: "var(--tasty-letter-spacing-caps)", textTransform: "uppercase", color: "var(--tasty-workspace-mirror-fg)",
-              border: "var(--tasty-border-width) solid color-mix(in srgb, var(--tasty-workspace-mirror-fg) 45%, transparent)", background: "color-mix(in srgb, var(--tasty-workspace-mirror-fg) 16%, transparent)" }}>
+              fontFamily: "var(--tasty-font-mono)", fontSize: "var(--tasty-font-size-micro)", fontWeight: 600, lineHeight: 1, letterSpacing: "var(--tasty-letter-spacing-caps)", textTransform: "uppercase", color: active ? "var(--tasty-text-on-active)" : "var(--tasty-workspace-mirror-fg)",
+              border: "var(--tasty-border-width) solid color-mix(in srgb, var(--tasty-workspace-mirror-fg) 45%, transparent)", background: active ? "transparent" : "color-mix(in srgb, var(--tasty-workspace-mirror-fg) 16%, transparent)" }}>
               <Icon name="remote" size="var(--tasty-workspace-mirror-icon-size)" />remote
             </span>
           </div>
@@ -121,7 +121,7 @@ function LAv({ ch = "B", state = "idle", notif, ring, mirror, move, refused, loa
   return (
     <div style={{ position: "relative", display: "inline-flex", flex: "none" }}>
       <span style={{ width: "var(--tasty-size-36)", height: "var(--tasty-size-36)", display: "inline-flex", alignItems: "center", justifyContent: "center", borderRadius: "var(--tasty-radius)", background: bg,
-        fontFamily: "var(--tasty-font-mono)", fontWeight: "var(--tasty-font-weight-bold)", fontSize: "var(--tasty-font-size-body)", color: state === "active" ? "var(--tasty-accent-primary)" : "var(--tasty-text-muted)" }}>{ch}</span>
+        fontFamily: "var(--tasty-font-mono)", fontWeight: "var(--tasty-font-weight-bold)", fontSize: "var(--tasty-font-size-body)", color: state === "active" ? "var(--tasty-accent-primary-raised)" : "var(--tasty-text-muted)" }}>{ch}</span>
       <LoadingOverlay kind="rail" visible={!!loading} reducedMotion={rm} style={boxes ? BOX : undefined} />
       {ring && <span style={{ position: "absolute", inset: 1, borderRadius: "var(--tasty-radius)", outline: "var(--tasty-status-dot-attached-ring-width) solid var(--tasty-accent-attached)", outlineOffset: "var(--tasty-status-dot-attached-ring-offset)", pointerEvents: "none" }} />}
       {notif && <span style={{ position: "absolute", top: -1, right: -1, pointerEvents: "none" }}><Badge dot variant="primary" style={{ boxShadow: "0 0 0 var(--tasty-size-2) var(--tasty-bg-sidebar)" }} /></span>}

@@ -83,7 +83,7 @@ export function MenuItem({
     className,
   ].filter(Boolean).join(" ");
   return (
-    <div className={cls} data-disabled={disabled} role={selected ? "menuitemradio" : "menuitem"} aria-checked={selected || undefined} {...rest}>
+    <div className={cls} data-disabled={disabled} aria-disabled={disabled || undefined} role={selected ? "menuitemradio" : "menuitem"} aria-checked={selected || undefined} {...rest}>
       {icon && <span className="tasty-menuitem__icon">{icon}</span>}
       <span className="tasty-menuitem__label">{label}</span>
       {shortcut != null && <span className="tasty-menuitem__shortcut">{shortcut}</span>}

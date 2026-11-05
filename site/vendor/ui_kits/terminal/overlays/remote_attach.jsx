@@ -168,7 +168,7 @@ function RaNewWsRow({ selected, onSelect, phase = "rest", error, onRetry }) {
           padding: "var(--tasty-space-xs) var(--tasty-space-md) var(--tasty-space-sm)" }}>
           <span style={{ flex: "none", width: "var(--tasty-status-dot-size)" }} />
           <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", alignItems: "flex-start", gap: "var(--tasty-space-xs)" }}>
-            <span title={error} style={{ ...raCaption, color: "var(--tasty-accent-danger)", lineHeight: "var(--tasty-line-height-ui)",
+            <span title={error} style={{ ...raCaption, color: "var(--tasty-accent-danger-raised)", lineHeight: "var(--tasty-line-height-ui)",
               display: "-webkit-box", WebkitLineClamp: 3, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{error}</span>
             <Button variant="secondary" size="sm" leadingIcon={<Icon name={RA_IC.refresh} size={14} />} onClick={onRetry}>Try again</Button>
           </div>
@@ -323,7 +323,7 @@ function RemoteAttach({ onClose, onFlash }) {
               <>
                 <div style={{ ...raCaptionCaps, padding: "var(--tasty-space-md) var(--tasty-space-md) var(--tasty-space-xs)", display: "flex", alignItems: "center", gap: "var(--tasty-space-sm)" }}>
                   <span>Remote workspaces</span>
-                  <span style={{ color: "var(--tasty-text-disabled)" }}>·</span>
+                  <span data-ink-grade="none" data-ink-why="ornament" style={{ color: "var(--tasty-text-disabled)" }}>·</span>
                   <span style={{ textTransform: "none", letterSpacing: 0, fontFamily: "var(--tasty-font-ui)", fontSize: 11, color: "var(--tasty-text-muted)" }}>{selAttach && selAttach.name}</span>
                 </div>
                 <div className="tasty-scroll" style={{ flex: 1, minHeight: 0, overflow: "auto", paddingBottom: "var(--tasty-space-sm)" }}>

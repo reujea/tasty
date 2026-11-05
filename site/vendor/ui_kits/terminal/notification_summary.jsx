@@ -36,6 +36,9 @@ function NotificationSummary({ counts = {}, latest = null, open = false, hover: 
   const { error = 0, warning = 0, info = 0 } = counts;
   const any = error + warning + info > 0;
   const bg = open ? "var(--tasty-notification-summary-bg-open)" : hover ? "var(--tasty-notification-summary-bg-hover)" : "transparent";
+  const lit = hover || open;
+  const label = lit ? "var(--tasty-text-secondary-raised)" : "var(--tasty-notification-summary-label-fg)";
+  const meta = lit ? "var(--tasty-text-muted-raised)" : "var(--tasty-notification-summary-meta-fg)";
   return (
     <div style={{ padding: "var(--tasty-notification-summary-pad)", borderTop: "var(--tasty-border-width) solid var(--tasty-separator)" }}>
       <button type="button" {...hov} onClick={(e) => onOpen && onOpen(e.currentTarget.getBoundingClientRect())}
@@ -44,17 +47,17 @@ function NotificationSummary({ counts = {}, latest = null, open = false, hover: 
           padding: any && latest ? "0 var(--tasty-notification-summary-pad-x) var(--tasty-space-xs)" : "0 var(--tasty-notification-summary-pad-x)",
           borderRadius: "var(--tasty-radius)", background: bg, minWidth: 0 }}>
         <span style={{ display: "flex", alignItems: "center", gap: "var(--tasty-notification-summary-icon-gap)", height: "var(--tasty-notification-summary-row-height)", minWidth: 0 }}>
-          <span style={{ display: "inline-flex", flex: "none", color: any ? "var(--tasty-notification-summary-label-fg)" : "var(--tasty-notification-summary-label-fg-empty)" }}><Icon name="bell" size={16} /></span>
+          <span style={{ display: "inline-flex", flex: "none", color: any ? label : "var(--tasty-notification-summary-label-fg-empty)" }}><Icon name="bell" size={16} /></span>
           <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: "var(--tasty-font-size-body)",
-            color: any ? "var(--tasty-notification-summary-label-fg)" : "var(--tasty-notification-summary-label-fg-empty)" }} data-part="label">Notifications</span>
+            color: any ? label : "var(--tasty-notification-summary-label-fg-empty)" }} data-part="label">Notifications</span>
           {NotificationBadgeGroup && <NotificationBadgeGroup error={error} warning={warning} info={info} />}
         </span>
         {any && latest && (
           <span style={{ display: "flex", alignItems: "center", gap: "var(--tasty-space-xs)", minWidth: 0, paddingLeft: "calc(var(--tasty-size-16) + var(--tasty-notification-summary-icon-gap))" }}>
-            <span data-part="meta" style={{ display: "inline-flex", flex: "none", color: hover ? "var(--tasty-text-muted-raised)" : "var(--tasty-notification-summary-meta-fg)" }}><Icon name={LEVEL_GLYPH[latest.level] || "info"} size={12} /></span>
+            <span data-part="meta" style={{ display: "inline-flex", flex: "none", color: meta }}><Icon name={LEVEL_GLYPH[latest.level] || "info"} size={12} /></span>
             <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-              fontSize: "var(--tasty-notification-summary-preview-font-size)", lineHeight: "var(--tasty-line-height-ui)", color: "var(--tasty-notification-summary-preview-fg)" }}>{latest.title}</span>
-            {latest.time && <span style={{ flex: "none", fontFamily: "var(--tasty-font-mono)", fontSize: "var(--tasty-font-size-micro)", color: "var(--tasty-notification-summary-meta-fg)" }}>{latest.time}</span>}
+              fontSize: "var(--tasty-notification-summary-preview-font-size)", lineHeight: "var(--tasty-line-height-ui)", color: label }}>{latest.title}</span>
+            {latest.time && <span style={{ flex: "none", fontFamily: "var(--tasty-font-mono)", fontSize: "var(--tasty-font-size-micro)", color: meta }}>{latest.time}</span>}
           </span>
         )}
       </button>

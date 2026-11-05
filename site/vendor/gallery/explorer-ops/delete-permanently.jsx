@@ -52,7 +52,7 @@ function PermanentDeleteSection() {
         </Stage>
         <Meta
           specs={[["label", "“Delete permanently…” · danger · trash glyph"], ["position", "right after Move to Trash, same group"], ["shortcut", "first configured binding · none → blank"], ["empty area / no selection", "row hidden · key does nothing"], ["remote", "row hidden · key → info toast"], ["toolbar", "no button"]]}
-          tokens={[{ tok: "--tasty-accent-danger", use: "danger row (MenuItem danger)", color: "var(--tasty-accent-danger)" }]} />
+          tokens={[{ tok: "--tasty-accent-danger", use: "danger row (MenuItem danger)", color: "var(--tasty-accent-danger-raised)" }]} />
       </Spec>
 
       <Spec id="confirm-window-scope-centred-dialog-file-folder-link-many-long-p" title="Confirm — window-scope centred dialog · file · folder · link · many · long paths"
@@ -65,7 +65,7 @@ function PermanentDeleteSection() {
         </Stage>
         <Meta
           specs={[["scope", "Window scrim (existing centred-confirm policy) · bound to the source explorer"], ["frame", "info-modal-width 440 · max info-modal-max-height 360 · bg-panel · 1px border-strong · shadow-modal"], ["padding", "space-md top · size-14 sides (dialog shell)"], ["title", "trash glyph icon-size-md accent-danger · font-size-max semibold"], ["summary", "body · text-secondary · names the one item or counts top-level items + folders"], ["list", "bg-app well · 1px border-default · rows: glyph 14 · name body · tag caption · parent mono caption, front ellipsis · scroll past explorer-delete-list-max-height 160"], ["warning", "alertTriangle accent-danger + “This can't be undone.” text-primary semibold"], ["footer", "Cancel ghost sm · Delete permanently danger sm · right-aligned · wraps on narrow"], ["link", "link glyph · “The item it points to is kept.” · broken link glyph in explorer-link-broken-fg"]]}
-          tokens={[{ tok: "--tasty-info-modal-width", use: "frame width", color: null }, { tok: "--tasty-info-modal-max-height", use: "frame max" }, { tok: "--tasty-explorer-delete-list-max-height", use: "new · → size-160" }, { tok: "--tasty-accent-danger", use: "glyphs", color: "var(--tasty-accent-danger)" }, { tok: "--tasty-scrim-bg", use: "window dim" }]} />
+          tokens={[{ tok: "--tasty-info-modal-width", use: "frame width", color: null }, { tok: "--tasty-info-modal-max-height", use: "frame max" }, { tok: "--tasty-explorer-delete-list-max-height", use: "new · → size-160" }, { tok: "--tasty-accent-danger", use: "glyphs", color: "var(--tasty-accent-danger-raised)" }, { tok: "--tasty-scrim-bg", use: "window dim" }]} />
       </Spec>
 
       <Spec id="confirm-latte-ko-ja-narrow-window-keyboard-focus" title="Confirm — Latte · ko · ja · narrow window · keyboard focus"
@@ -130,12 +130,12 @@ function PermanentDeleteSection() {
               <YResult variant="info" title="Stopped · 5 of 12 deleted. Deleted items can't be restored." />
               <YResult variant="warning" title="Deleted 9 of 12 · 3 left"
                 lines={[["~/work/tasty/target/build", "Folder kept; some of its contents were deleted"], ["~/Downloads/locked.db", "In use by another app"], ["/usr/share/doc/readme", "Permission denied"]]}
-                actions={<><Button variant="secondary" size="sm">Retry 3…</Button><Button variant="ghost" size="sm">Copy paths</Button></>} />
+                actions={<><Button variant="secondary" size="sm">Retry 3…</Button><Button variant="ghost" ground="raised" size="sm">Copy paths</Button></>} />
               <YResult variant="danger" title="Couldn't delete 1 item"
                 lines={[["~/work/tasty/node_modules", "Folder kept; some of its contents were deleted"]]}
-                actions={<><Button variant="secondary" size="sm">Retry…</Button><Button variant="ghost" size="sm">Copy paths</Button></>} />
+                actions={<><Button variant="secondary" size="sm">Retry…</Button><Button variant="ghost" ground="raised" size="sm">Copy paths</Button></>} />
               <YResult variant="danger" title="Couldn't delete 2 items · nothing was deleted" lines={[["~/Downloads/a.iso", "Permission denied"], ["~/Downloads/b.iso", "Permission denied"]]}
-                actions={<><Button variant="secondary" size="sm">Retry 2…</Button><Button variant="ghost" size="sm">Copy paths</Button></>} />
+                actions={<><Button variant="secondary" size="sm">Retry 2…</Button><Button variant="ghost" ground="raised" size="sm">Copy paths</Button></>} />
             </div>
           )} />
         </Stage>

@@ -1,5 +1,5 @@
 import React from "react";
-import { Button } from "../../components/index.js";
+import { Button, Icon as TIcon } from "../../components/index.js";
 import { Section, Spec, Stage, Meta, Note, Do } from "../parts/specimen.jsx";
 
 // Tasty Gallery — Overlays · Tutorial (the 6th overlay family)
@@ -36,7 +36,7 @@ function App({ children, activeWs = 0 }) {
           ))}
         </div>
         <div style={{ flex: 1, background: "var(--tasty-surface-terminal-focused-bg)", color: "var(--tasty-text-muted)", fontFamily: "var(--tasty-font-mono)", fontSize: 11, padding: "10px 12px" }}>
-          <div style={{ opacity: 0.5 }}>$ kubectl get pods -n prod</div>
+          <div data-audit-exempt="terminal-attributes" style={{ opacity: 0.5 }}>$ kubectl get pods -n prod</div>
         </div>
         <div style={{ height: 20, flex: "none", background: "var(--tasty-bg-sidebar)", borderTop: "var(--tasty-border-width) solid var(--tasty-separator)" }} />
       </div>
@@ -102,7 +102,7 @@ function Topic({ n, title, desc, sel, done }) {
         <b style={{ display: "block", fontSize: 13, color: "var(--tasty-text-primary)", fontWeight: 500, marginBottom: 2 }}>{title}</b>
         <span style={{ fontSize: 11, color: "var(--tasty-text-muted)" }}>{desc}</span>
       </div>
-      {done && <span style={{ marginLeft: "auto", color: "var(--tasty-accent-success)", fontSize: 11 }}>✓</span>}
+      {done && <span style={{ marginLeft: "auto", display: "inline-flex", color: "var(--tasty-accent-success-raised)" }}><TIcon name="check" size="var(--tasty-icon-size-sm)" /></span>}
     </div>
   );
 }
@@ -148,7 +148,7 @@ function Page() {
           </Stage>
           <Meta
             specs={[["family", "Modal · Popup · Toast · Banner · Modifier-hint · Marker"], ["z-layer", "top — above all content"], ["pointer", "none (clicks pass through)"], ["ring width", "2px (--tasty-focus-ring-width)"], ["radius", "4px (--tasty-radius)"], ["highlight", "static glow default · pulse opt (reduced-motion → static)"], ["fires on", "Tools → Tutorial only"]]}
-            tokens={[{ tok: "--tasty-accent-primary", use: "ring + halo", color: "var(--tasty-accent-primary)" }, { tok: "--tasty-focus-ring-width", use: "2px stroke" }, { tok: "--tasty-scrim-bg", use: "spotlight dim", color: "var(--tasty-scrim-bg)" }, { tok: "--tasty-radius", use: "corner" }]} />
+            tokens={[{ tok: "--tasty-accent-primary", use: "ring + halo", color: "var(--tasty-accent-primary-raised)" }, { tok: "--tasty-focus-ring-width", use: "2px stroke" }, { tok: "--tasty-scrim-bg", use: "spotlight dim", color: "var(--tasty-scrim-bg)" }, { tok: "--tasty-radius", use: "corner" }]} />
           <Note><b>Decision 3 (강조):</b> default = 2px solid ring + static glow; <b>pulse</b> is opt-in only and falls back to a static ring under <code>prefers-reduced-motion</code>. <b>Decision 1 (딤):</b> spotlight scrim ON by default, user-disableable.</Note>
         </Spec>
       </Section>
@@ -164,7 +164,7 @@ function Page() {
           </Stage>
           <Meta
             specs={[["width", "244px fixed"], ["tail", "up · down · left · right (12px diamond)"], ["progress", "2/5 label + dot rail"], ["buttons", "Skip (link) · Back (secondary) · Next (primary)"], ["first step", "Back hidden"], ["last step", "Next → 'Done', reopens topic popup"], ["placement", "below → above → right → left; flip on overflow; clamp to 8px safe area"]]}
-            tokens={[{ tok: "--tasty-surface-raised", use: "bubble fill", color: "var(--tasty-surface-raised)" }, { tok: "--tasty-border-strong", use: "1px edge + tail", color: "var(--tasty-border-strong)" }, { tok: "--tasty-shadow-modal", use: "floating lift" }, { tok: "--tasty-accent-primary", use: "step · active dot · Next", color: "var(--tasty-accent-primary)" }]} />
+            tokens={[{ tok: "--tasty-surface-raised", use: "bubble fill", color: "var(--tasty-surface-raised)" }, { tok: "--tasty-border-strong", use: "1px edge + tail", color: "var(--tasty-border-strong)" }, { tok: "--tasty-shadow-modal", use: "floating lift" }, { tok: "--tasty-accent-primary", use: "step · active dot · Next", color: "var(--tasty-accent-primary-raised)" }]} />
           <Do><b>Do</b> reuse the DS <b>Button</b> (primary Next / secondary Back) and keep Skip as a low-emphasis link — the callout is guidance, not a decision surface.</Do>
         </Spec>
       </Section>
@@ -182,7 +182,7 @@ function Page() {
           </Stage>
           <Meta
             specs={[["type", "CenteredFocused popup + scrim"], ["width", "360px"], ["list", "max-height 200px → internal scroll"], ["row states", "hover = overlay-hover · selected = surface-active + accent index cap · done = accent-success ✓"], ["footer", "Esc hint + 진행 (primary)"]]}
-            tokens={[{ tok: "--tasty-bg-panel", use: "popup fill", color: "var(--tasty-bg-panel)" }, { tok: "--tasty-scrim-bg", use: "dim behind", color: "var(--tasty-scrim-bg)" }, { tok: "--tasty-surface-active", use: "selected row", color: "var(--tasty-surface-active)" }, { tok: "--tasty-accent-success", use: "done ✓", color: "var(--tasty-accent-success)" }]} />
+            tokens={[{ tok: "--tasty-bg-panel", use: "popup fill", color: "var(--tasty-bg-panel)" }, { tok: "--tasty-scrim-bg", use: "dim behind", color: "var(--tasty-scrim-bg)" }, { tok: "--tasty-surface-active", use: "selected row", color: "var(--tasty-surface-active)" }, { tok: "--tasty-accent-success", use: "done ✓", color: "var(--tasty-accent-success-raised)" }]} />
         </Spec>
       </Section>
 

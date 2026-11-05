@@ -228,7 +228,7 @@ function FhRow({ L, id, origins, prio, pendingLabel, strikeId, on, switchOn, swi
           color: dim ? "var(--tasty-text-secondary)" : "var(--tasty-text-primary)", textDecoration: strikeId ? "line-through" : undefined }}>{id}</span>
         {tags}
         {prio != null && <span style={{ flex: "none", fontFamily: "var(--tasty-font-mono)", fontSize: "var(--tasty-font-size-micro)", color: "var(--tasty-file-handler-prio-fg)" }}>prio {prio}</span>}
-        {pendingLabel && !dropped && <span style={{ flex: "none", display: "inline-flex" }}><Tag disabled>{pendingLabel}</Tag></span>}
+        {pendingLabel && !dropped && <span style={{ flex: "none", display: "inline-flex" }}><Tag>{pendingLabel}</Tag></span>}
         <span style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: "var(--tasty-space-sm)", flex: "none" }}>
           <Switch checked={switchOn} disabled={switchDisabled} onChange={onToggle} aria-label={"Enable " + id} />
           {trailing === "lock"
@@ -239,7 +239,7 @@ function FhRow({ L, id, origins, prio, pendingLabel, strikeId, on, switchOn, swi
       </div>
       {pendingLabel && dropped && (
         <span style={{ display: "flex", minWidth: 0 }}>
-          <Tag disabled title={pendingLabel} style={{ maxWidth: "100%", minWidth: 0 }}><span style={{ ...fhEll, minWidth: 0 }}>{pendingLabel}</span></Tag>
+          <Tag title={pendingLabel} style={{ maxWidth: "100%", minWidth: 0 }}><span style={{ ...fhEll, minWidth: 0 }}>{pendingLabel}</span></Tag>
         </span>
       )}
       <span title={summaryTitle} style={{ ...fhEll, fontFamily: "var(--tasty-font-mono)", fontSize: "var(--tasty-font-size-term-sm)",

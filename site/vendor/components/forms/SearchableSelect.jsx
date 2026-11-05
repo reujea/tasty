@@ -245,13 +245,13 @@ export function SearchableSelect({
           <div className="tasty-sselect__list tasty-scroll">
             {shown.map((o, j) => row(o, pins.length + j))}
             {loading && (
-              <div className="tasty-sselect__status" aria-disabled="true">
+              <div className="tasty-sselect__status">
                 <Spinner size={14} label={loadingLabel} />
                 <span>{loadingLabel}</span>
               </div>
             )}
             {!loading && shown.length === 0 && (
-              <div className="tasty-sselect__status" aria-disabled="true">{emptyLabel}</div>
+              <div className="tasty-sselect__status">{emptyLabel}</div>
             )}
           </div>
         </div>

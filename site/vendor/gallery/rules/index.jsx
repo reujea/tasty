@@ -40,8 +40,8 @@ function Ground({ id, map, children, style }) {
 
 function Ink({ role, token }) {
   const c = `var(--tasty-${token})`;
-  if (role.kind === "text") return <span style={{ color: c, fontSize: "var(--tasty-font-size-body)" }}>Aa</span>;
-  if (role.kind === "glyph") return <span style={{ color: c, display: "inline-flex" }}><RIcon name="check" size="var(--tasty-icon-size-sm)" /></span>;
+  if (role.kind === "text") return <span data-ink-grade={token.includes("disabled") ? "none" : undefined} data-ink-why={token.includes("disabled") ? "disabled" : undefined} style={{ color: c, fontSize: "var(--tasty-font-size-body)" }}>Aa</span>;
+  if (role.kind === "glyph") return <span data-ink-grade={token === "accent-decorative" ? "none" : undefined} data-ink-why={token === "accent-decorative" ? "ornament" : undefined} style={{ color: c, display: "inline-flex" }}><RIcon name="check" size="var(--tasty-icon-size-sm)" /></span>;
   return <span style={{ display: "block", width: "var(--tasty-size-24)", height: "var(--tasty-size-12)", border: `var(--tasty-border-width) solid ${c}`, borderRadius: "var(--tasty-radius-sm)" }} />;
 }
 

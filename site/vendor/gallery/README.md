@@ -93,6 +93,7 @@ The rules are in `RULES.md` section 14. The site's `scripts/check-contrast.mjs` 
 | A cell's part with a grade | Meets the grade |
 | Other text on the page | 4.5, composited through any opacity |
 | Other glyphs | 3 |
+| Ground scope | `parts/specimen.css` re-points role tokens inside a raised, active, solid or hover fill to the matrix cell. Frozen cells are outside it. The app reads the cell directly |
 | `data-audit-exempt="<id>"` | Skips its subtree. The id must be in `exceptions[].id` with `audit: "subtree"`. Each use is listed in the output |
 | `data-ink-grade="none" data-ink-why="disabled\|ornament"` | Outside a cell, marks an ink with no grade. It is not an exception, as `RULES.md` section 12 says |
 | Scope | `[data-gallery-page]`. Site header, sidebar and footer carry `data-site-chrome` and are not part of these rules |
@@ -165,7 +166,7 @@ The check walks ancestors for the ground, so a specimen paints its ground on an 
 | `gallery/*.html` | Removed after the move | Once the sources are modules they do not render on the Artifact page. The site is where they render |
 | `components/<Name>/preview.html`, `README.md`, `.d.ts` | Stay | The Artifact's component tab reads them |
 | `components/bundle.js`, `bundle.css` | Stay | The previews load them. The site does not: it imports `components/**/*.jsx` |
-| `components/**/*.jsx` | Canon for both | `bundle.js` is a build of these and can lag them, as it does now |
+| `components/**/*.jsx` | Canon for both | `bundle.js` is a build of these |
 
 ### Prose slots, for Codex
 

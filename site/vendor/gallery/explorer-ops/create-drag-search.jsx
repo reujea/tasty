@@ -71,7 +71,7 @@ const XROWS = [
   { glyph: XK.ic.folder, name: "Documents", size: "—", date: "2026-10-02 10:14", type: "Folder" },
   { glyph: XK.ic.folder, name: "mockup-exports", size: "—", date: "2026-06-20 14:30", type: "Folder" },
   { glyph: XK.ic.file, name: "report.pdf", size: "2.4 MB", date: "2026-06-24 09:12", type: "PDF" },
-  { glyph: XK.ic.image, name: "diagram.png", size: "488 KB", date: "2026-06-26 18:05", type: "PNG", glyphColor: "var(--tasty-accent-info)" },
+  { glyph: XK.ic.image, name: "diagram.png", size: "488 KB", date: "2026-06-26 18:05", type: "PNG", glyphColor: "var(--tasty-accent-info-raised)" },
   { glyph: XK.ic.file, name: "notes.md", size: "12 KB", date: "2026-06-27 11:40", type: "Markdown" },
 ];
 function XDetail({ rows = XROWS, states = {}, before, ring = {} }) {
@@ -442,7 +442,7 @@ function SearchSection() {
             </XCell>
           </XCol>
           <XCol label="done — 2 folders skipped" w={520}>
-            <XCell w={520} h={140} toolbar={<XToolbar search />} bar={<XFindBar value="report" deep right={<>4 found · <span style={{ color: "var(--tasty-accent-warning)" }} title="~/Downloads/private, ~/Downloads/.Trash">2 folders skipped</span></>} />}>
+            <XCell w={520} h={140} toolbar={<XToolbar search />} bar={<XFindBar value="report" deep right={<>4 found · <span style={{ color: "var(--tasty-accent-warning-raised)" }} title="~/Downloads/private, ~/Downloads/.Trash">2 folders skipped</span></>} />}>
               <div style={{ flex: 1, display: "flex", flexDirection: "column" }}><XHitHeader />{XHITS.slice(0, 1).map(([n, f, s, d]) => <XHitRow key={n} name={n} folder={f} size={s} date={d} q="report" />)}</div>
             </XCell>
           </XCol>
@@ -464,7 +464,7 @@ function SearchSection() {
         </Stage>
         <Meta
           specs={[["switch", "Subfolders checkbox in the bar (hidden on remote)"], ["running", "Spinner 14 · “Searching… {n} found” · Stop (ghost sm) · results stream in"], ["Detail", "Name · Folder (explorer-search-folder-col-width 160, mono, relative) · Size · Date"], ["List / Grid", "unchanged rows · folder in tooltip + status line"], ["skipped", "“{n} folders skipped” · accent-warning · tooltip lists them"], ["no results", "state screen · search glyph · “No matches in {folder}”"], ["error", "state screen · error tone · Retry"], ["stopped", "“Stopped · {n} found” · results kept"], ["leave", "untick → filter · Esc / × / navigation → folder"]]}
-          tokens={[{ tok: "--tasty-explorer-search-folder-col-width", use: "→ size-160" }, { tok: "--tasty-spinner-indicator", use: "searching", color: "var(--tasty-spinner-indicator)" }, { tok: "--tasty-accent-warning", use: "skipped count", color: "var(--tasty-accent-warning)" }, { tok: "--tasty-explorer-error-fg", use: "search failed", color: "var(--tasty-explorer-error-fg)" }]} />
+          tokens={[{ tok: "--tasty-explorer-search-folder-col-width", use: "→ size-160" }, { tok: "--tasty-spinner-indicator", use: "searching", color: "var(--tasty-spinner-indicator)" }, { tok: "--tasty-accent-warning", use: "skipped count", color: "var(--tasty-accent-warning-raised)" }, { tok: "--tasty-explorer-error-fg", use: "search failed", color: "var(--tasty-explorer-error-fg)" }]} />
         <Note>i18n: <code>explorer.find.filter_placeholder</code> · <code>explorer.find.search_placeholder</code> “Search in {"{folder}"} and subfolders” · <code>explorer.find.subfolders</code> · <code>explorer.find.count</code> “{"{shown}"} of {"{total}"}” · <code>explorer.find.searching</code> · <code>explorer.find.stop</code> · <code>explorer.find.stopped</code> · <code>explorer.find.skipped</code> · <code>explorer.find.none</code> “No matches in {"{folder}"}” · <code>explorer.find.failed</code>.</Note>
       </Spec>
     </Section>

@@ -42,7 +42,7 @@ const ZKIND_ROWS = [
   { glyph: ZK.ic.folder, name: "Documents", size: "—", date: "2026-10-02 10:14", type: "Folder" },
   { glyph: ZK.ic.file, name: "backup-2026.tar.gz", size: "1.2 GB", date: "2026-09-30 22:01", type: "Archive" },
   { glyph: ZK.ic.file, name: "report.pdf", size: "2.4 MB", date: "2026-06-24 09:12", type: "PDF document" },
-  { glyph: ZK.ic.image, name: "diagram.png", size: "488 KB", date: "2026-06-26 18:05", type: "PNG image", glyphColor: "var(--tasty-accent-info)" },
+  { glyph: ZK.ic.image, name: "diagram.png", size: "488 KB", date: "2026-06-26 18:05", type: "PNG image", glyphColor: "var(--tasty-accent-info-raised)" },
   { glyph: ZK.ic.file, name: "notes.md", size: "12 KB", date: "2026-06-27 11:40", type: "Markdown" },
   { glyph: ZK.ic.file, name: <ZName text="link.md" link />, size: "6 B", date: "2026-10-01 08:00", type: "Link to Markdown" },
   { glyph: ZK.ic.file, name: "build.rs", size: "3 KB", date: "2026-10-03 16:20", type: "RS file" },
@@ -101,7 +101,7 @@ function FollowupsB11Section() {
               <ZResult variant="success" title="Removed 12 originals" />
               <ZResult variant="warning" title="Moved 40 of 40 · 4 originals not fully removed"
                 lines={[["~/Volumes/usb/notes.md", "The copy is missing or changed type, so the original was kept"], ["~/Volumes/usb/photos", "Kept 3 items that aren't in the copy"], ["~/Volumes/usb/mnt-link", "Kept: the copy is the same file as the original"], ["~/Volumes/usb/archive", "Cancelled; the original is still there, in whole or in part"]]}
-                actions={<><ZButton variant="secondary" size="sm">Retry 4</ZButton><ZButton variant="ghost" size="sm">Copy paths</ZButton></>} />
+                actions={<><ZButton variant="secondary" size="sm">Retry 4</ZButton><ZButton variant="ghost" ground="raised" size="sm">Copy paths</ZButton></>} />
             </div>
           </XCol>
         </ZStage>

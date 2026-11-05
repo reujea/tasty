@@ -22,12 +22,12 @@ const line = {
 const agentSession = {
   id: "s_01HX", label: "build · cargo", owner: "agent", activity: "idle",
   lines: [
-    <><span style={{ color: "var(--tasty-color-mauve)" }}>❯</span> cargo build --release</>,
+    <><span data-audit-exempt="ansi-content" style={{ color: "var(--tasty-color-mauve)" }}>❯</span> cargo build --release</>,
     <span style={{ color: "var(--tasty-color-neutral-700)" }}>   Compiling tasty-themes v0.7.0</span>,
     <span style={{ color: "var(--tasty-color-neutral-700)" }}>   Compiling tasty-type-appearance v0.7.0</span>,
     <span style={{ color: "var(--tasty-color-neutral-700)" }}>   Compiling tasty-agent v0.7.0</span>,
-    <><span style={{ color: "var(--tasty-color-green)" }}>    Finished</span> <span style={{ color: "var(--tasty-color-yellow)" }}>release</span> [optimized] in 42.18s</>,
-    <><span style={{ color: "var(--tasty-color-blue)" }}>agent.task</span> <span style={{ color: "var(--tasty-color-green)" }}>done</span> id=t_build exit=0</>,
+    <><span data-audit-exempt="ansi-content" style={{ color: "var(--tasty-color-green)" }}>    Finished</span> <span data-audit-exempt="ansi-content" style={{ color: "var(--tasty-color-yellow)" }}>release</span> [optimized] in 42.18s</>,
+    <><span data-audit-exempt="ansi-content" style={{ color: "var(--tasty-color-blue)" }}>agent.task</span> <span data-audit-exempt="ansi-content" style={{ color: "var(--tasty-color-green)" }}>done</span> id=t_build exit=0</>,
   ],
 };
 
@@ -46,12 +46,12 @@ const userSession = {
   ],
   lines: [
     <Prompt branch="main" />,
-    <><span style={{ color: "var(--tasty-color-mauve)" }}>❯</span> tasty surface list --json | jq '.[].kind'</>,
-    <span style={{ color: "var(--tasty-color-green)" }}>"terminal"</span>,
-    <span style={{ color: "var(--tasty-color-green)" }}>"markdown"</span>,
-    <span style={{ color: "var(--tasty-color-green)" }}>"terminal"</span>,
+    <><span data-audit-exempt="ansi-content" style={{ color: "var(--tasty-color-mauve)" }}>❯</span> tasty surface list --json | jq '.[].kind'</>,
+    <span data-audit-exempt="ansi-content" style={{ color: "var(--tasty-color-green)" }}>"terminal"</span>,
+    <span data-audit-exempt="ansi-content" style={{ color: "var(--tasty-color-green)" }}>"markdown"</span>,
+    <span data-audit-exempt="ansi-content" style={{ color: "var(--tasty-color-green)" }}>"terminal"</span>,
     <Prompt branch="main" />,
-    <><span style={{ color: "var(--tasty-color-mauve)" }}>❯</span> tasty agent wait --id t_build</>,
+    <><span data-audit-exempt="ansi-content" style={{ color: "var(--tasty-color-mauve)" }}>❯</span> tasty agent wait --id t_build</>,
     <span style={{ color: "var(--tasty-color-neutral-700)" }}>blocking until child claude is idle…</span>,
   ],
 };
@@ -66,7 +66,7 @@ const scratchSession = {
   ],
   lines: [
     <Prompt branch="main" />,
-    <><span style={{ color: "var(--tasty-color-mauve)" }}>❯</span> tasty surface open --kind markdown notes/split-layout.md --right</>,
+    <><span data-audit-exempt="ansi-content" style={{ color: "var(--tasty-color-mauve)" }}>❯</span> tasty surface open --kind markdown notes/split-layout.md --right</>,
     <span style={{ color: "var(--tasty-color-neutral-700)" }}>opened s_05MD in pane 2</span>,
   ],
 };
@@ -207,7 +207,7 @@ function App() {
                   <p style={{ color: "var(--tasty-text-secondary)", fontSize: "var(--tasty-font-size-body)", margin: "0 0 var(--tasty-space-lg)" }}>
                     A pane group holds surfaces of different kinds. Terminal and markdown sit side by side
                     in one tab; only one of them has focus.</p>
-                  <h2 style={{ fontSize: "var(--tasty-font-size-max)", margin: "0 0 var(--tasty-space-sm)", color: "var(--tasty-accent-primary)" }}>Rules</h2>
+                  <h2 style={{ fontSize: "var(--tasty-font-size-max)", margin: "0 0 var(--tasty-space-sm)", color: "var(--tasty-accent-primary-raised)" }}>Rules</h2>
                   <ul style={{ fontSize: "var(--tasty-font-size-body)", color: "var(--tasty-text-secondary)", margin: 0, paddingLeft: "var(--tasty-space-lg)" }}>
                     <li>The status bar reports the focused surface, not the tab.</li>
                     <li>Search (Cmd+F) is scoped to the focused surface.</li>

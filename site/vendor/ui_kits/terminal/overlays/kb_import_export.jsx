@@ -116,7 +116,7 @@ function IeDiffTable({ groups, changedOnly, collapsed, onToggleGroup, sel, onSel
                   </div>
                   <div style={{ ...cell, ...mono, color: "var(--tasty-text-muted)" }}>{r.cur}</div>
                   <div style={{ ...cell, ...mono,
-                    color: r.blocked ? "var(--tasty-accent-warning)" : changed ? "var(--tasty-accent-primary)" : "var(--tasty-text-muted)" }}>{r.next}</div>
+                    color: r.blocked ? "var(--tasty-accent-warning-raised)" : changed ? "var(--tasty-accent-primary)" : "var(--tasty-text-muted)" }}>{r.next}</div>
                 </React.Fragment>
               );
             })}
@@ -205,7 +205,7 @@ function KbImportExportSubtab({ variant = "ready", onFlash, failLine = 1, failCa
       <div style={{ borderRadius: "var(--tasty-radius)", padding: "var(--tasty-kb-ie-notice-inset)",
         background: "color-mix(in srgb, var(--tasty-accent-danger) 12%, transparent)",
         border: "var(--tasty-border-width) solid color-mix(in srgb, var(--tasty-accent-danger) 35%, transparent)" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: "var(--tasty-space-sm)", color: "var(--tasty-accent-danger)", fontSize: 13, fontWeight: 600 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "var(--tasty-space-sm)", color: "var(--tasty-accent-danger-raised)", fontSize: 13, fontWeight: 600 }}>
           <Icon name="alertCircle" size={16} /><span>This file can't be read as keybindings</span>
         </div>
         <p style={{ margin: "4px 0 0", fontSize: 12, color: "var(--tasty-text-secondary)", maxWidth: "var(--tasty-measure-md)", lineHeight: "var(--tasty-line-height-ui)" }}>
@@ -270,7 +270,7 @@ function KbImportExportSubtab({ variant = "ready", onFlash, failLine = 1, failCa
               <div style={{ borderRadius: "var(--tasty-radius)", padding: "var(--tasty-kb-ie-notice-inset)",
                 background: "color-mix(in srgb, var(--tasty-accent-danger) 12%, transparent)",
                 border: "var(--tasty-border-width) solid color-mix(in srgb, var(--tasty-accent-danger) 35%, transparent)" }}>
-                <div style={{ display: "flex", alignItems: "center", gap: "var(--tasty-space-sm)", color: "var(--tasty-accent-danger)", fontSize: 13, fontWeight: 600 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "var(--tasty-space-sm)", color: "var(--tasty-accent-danger-raised)", fontSize: 13, fontWeight: 600 }}>
                   <Icon name="alertCircle" size={16} /><span>The export wasn't written</span>
                 </div>
                 <p style={{ margin: "4px 0 0", fontSize: 12, color: "var(--tasty-text-secondary)", maxWidth: "var(--tasty-measure-md)", lineHeight: "var(--tasty-line-height-ui)" }}>

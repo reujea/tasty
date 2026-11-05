@@ -175,7 +175,7 @@ function HtmlPageState({ kind = "empty", progress = "1.4 MB · 12 files", url })
   switch (kind) {
     case "empty": return <HaCenter glyph="html" glyphColor="var(--tasty-text-disabled)" title={HA_COPY.emptyTitle} sub={<span style={{ display: "inline-flex", alignItems: "center", gap: "var(--tasty-space-xs)" }}>{HA_COPY.emptyHint} · <Kbd keys={["Alt", "L"]} /></span>} />;
     case "loading": return <HaCenter spin title="Loading…" />;
-    case "failed": return <HaCenter glyph="alertCircle" glyphColor="var(--tasty-accent-danger)" title="Failed to load" titleColor="var(--tasty-accent-danger)" sub={url} mono />;
+    case "failed": return <HaCenter glyph="alertCircle" glyphColor="var(--tasty-accent-danger-raised)" title="Failed to load" titleColor="var(--tasty-accent-danger)" sub={url} mono />;
     case "receiving": return <HaCenter spin title={HA_COPY.receiving} sub={progress} mono />;
     case "paused": return <HaCenter glyph="download" glyphColor="var(--tasty-html-receiving-glyph)" title={HA_COPY.receiving} sub={HA_COPY.paused} />;
     case "macos": return <HaCenter glyph="info" glyphColor="var(--tasty-html-receiving-glyph)" title={HA_COPY.macos} sub={HA_COPY.macosSub} />;

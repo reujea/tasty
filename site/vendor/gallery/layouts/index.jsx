@@ -68,7 +68,7 @@ const railHead = (txt) => (
 // ── Sidebar (full) ──
 function FullSidebar() {
   // Remote-mirror indicator = the info Tag (label + glyph), matching chrome.jsx WorkspaceRow.
-  // Its own fill keeps the ink readable on every row state. The explicit color holds until bundle.js is rebuilt.
+  // Its own fill keeps the ink readable on every row state.
   const MirrorMark = () => (
     <Tag variant="info" caps title="Mirror of a remote workspace" style={{ flex: "none", color: "var(--tasty-tag-info-fg)" }}>
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.4} strokeLinecap="round" strokeLinejoin="round"
@@ -84,7 +84,7 @@ function FullSidebar() {
       <Dim style={{ top: -9, left: "50%", transform: "translateX(-50%)" }}>212px</Dim>
       <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "12px 12px 4px" }}>
         <img src={`${BASE}tasty-icon.png`} width="22" height="22" alt="" />
-        <span style={{ fontFamily: "var(--tasty-font-mono)", fontWeight: 700, fontSize: "var(--tasty-sidebar-wordmark-font-size)", letterSpacing: "var(--tasty-sidebar-wordmark-tracking)" }}>tasty<span style={{ color: "var(--tasty-brand-melon-flesh)" }}>.</span></span>
+        <span style={{ fontFamily: "var(--tasty-font-mono)", fontWeight: 700, fontSize: "var(--tasty-sidebar-wordmark-font-size)", letterSpacing: "var(--tasty-sidebar-wordmark-tracking)" }}>tasty<span data-audit-exempt="brand" style={{ color: "var(--tasty-brand-melon-flesh)" }}>.</span></span>
         <span style={{ marginLeft: "auto" }}><IconButton size="sm" aria-label="Collapse">{ic.chevrons}</IconButton></span>
       </div>
       {railHead("Workspaces")}
@@ -131,7 +131,7 @@ function RailAv({ ch, state = "idle", notif, ring, mirror = true }) {
   return (
     <div style={{ position: "relative", display: "inline-flex" }}>
       <span style={{ width: "var(--tasty-size-36)", height: "var(--tasty-size-36)", display: "inline-flex", alignItems: "center", justifyContent: "center", borderRadius: "var(--tasty-radius)", background: bg,
-        fontFamily: "var(--tasty-font-mono)", fontWeight: "var(--tasty-font-weight-bold)", fontSize: "var(--tasty-font-size-body)", color: state === "active" ? "var(--tasty-accent-primary)" : "var(--tasty-text-muted)" }}>{ch}</span>
+        fontFamily: "var(--tasty-font-mono)", fontWeight: "var(--tasty-font-weight-bold)", fontSize: "var(--tasty-font-size-body)", color: state === "active" ? "var(--tasty-accent-primary-raised)" : "var(--tasty-text-muted)" }}>{ch}</span>
       {ring && <span style={{ position: "absolute", inset: 1, borderRadius: "var(--tasty-radius)", outline: "var(--tasty-status-dot-attached-ring-width) solid var(--tasty-accent-attached)", outlineOffset: "var(--tasty-status-dot-attached-ring-offset)", pointerEvents: "none" }} />}
       {notif && <span style={{ position: "absolute", top: -1, right: -1, pointerEvents: "none" }}><Badge dot variant="primary" style={{ boxShadow: "0 0 0 var(--tasty-size-2) var(--tasty-bg-sidebar)" }} /></span>}
       {mirror && <MirrorChip />}
@@ -270,7 +270,7 @@ function CategoryFullSidebar({ held }) {
       <Dim style={{ top: -9, left: "50%", transform: "translateX(-50%)" }}>{held ? "Ctrl+Shift held" : "categories on"}</Dim>
       <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "12px 12px 4px" }}>
         <img src={`${BASE}tasty-icon.png`} width="22" height="22" alt="" />
-        <span style={{ fontFamily: "var(--tasty-font-mono)", fontWeight: 700, fontSize: "var(--tasty-sidebar-wordmark-font-size)", letterSpacing: "var(--tasty-sidebar-wordmark-tracking)" }}>tasty<span style={{ color: "var(--tasty-brand-melon-flesh)" }}>.</span></span>
+        <span style={{ fontFamily: "var(--tasty-font-mono)", fontWeight: 700, fontSize: "var(--tasty-sidebar-wordmark-font-size)", letterSpacing: "var(--tasty-sidebar-wordmark-tracking)" }}>tasty<span data-audit-exempt="brand" style={{ color: "var(--tasty-brand-melon-flesh)" }}>.</span></span>
         <span style={{ marginLeft: "auto" }}><IconButton size="sm" aria-label="Collapse">{ic.chevrons}</IconButton></span>
       </div>
       {catHeader("Workspaces", false, held && { n: "1", active: true }, 2)}
@@ -319,16 +319,16 @@ function fakePane(label, focused, agent) {
   return (
     <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column",
       background: focused ? "#000" : "var(--tasty-surface-terminal-unfocused-bg)",
-      border: "1px solid var(--tasty-separator)", borderRadius: "var(--tasty-radius)", overflow: "hidden", opacity: focused ? 1 : 0.92 }}>
+      border: "1px solid var(--tasty-separator)", borderRadius: "var(--tasty-radius)", overflow: "hidden" }}>
       <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 10px", borderBottom: "1px solid var(--tasty-separator)", background: "var(--tasty-bg-panel)" }}>
         {agent ? <StatusDot status="agent" pulse label={label} /> : <StatusDot status={focused ? "running" : "idle"} label={label} />}
         <span style={{ marginLeft: "auto" }}><Tag>{focused ? "s_01HX" : "s_02KQ"}</Tag></span>
       </div>
       <div style={{ padding: "10px 12px", fontFamily: "var(--tasty-font-mono)", fontSize: 12.5,
         color: focused ? "var(--tasty-color-neutral-1100)" : "var(--tasty-surface-terminal-unfocused-fg)", lineHeight: 1.5 }}>
-        <div><span style={{ color: "var(--tasty-color-green)" }}>~/tasty</span> <span style={{ color: "var(--tasty-color-blue)" }}>main</span></div>
+        <div><span data-audit-exempt="ansi-content" style={{ color: "var(--tasty-color-green)" }}>~/tasty</span> <span data-audit-exempt="ansi-content" style={{ color: "var(--tasty-color-blue)" }}>main</span></div>
         <div style={{ display: "flex", alignItems: "center", marginTop: 2 }}>
-          <span style={{ color: agent ? "var(--tasty-accent-agent)" : "var(--tasty-color-mauve)" }}>❯&nbsp;</span>
+          <span style={{ color: agent ? "var(--tasty-accent-agent-raised)" : "var(--tasty-color-mauve)" }} data-audit-exempt="ansi-content">❯&nbsp;</span>
           {focused && <span style={{ width: 8, height: 15, background: "var(--tasty-color-neutral-1100)", display: "inline-block", animation: "tasty-blink 1.1s step-end infinite" }} />}
         </div>
       </div>
@@ -341,7 +341,7 @@ function fakeDocPane() {
   return (
     <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column",
       background: "var(--tasty-surface-markdown-unfocused-bg)", border: "1px solid var(--tasty-separator)",
-      borderRadius: "var(--tasty-radius)", overflow: "hidden", opacity: 0.92 }}>
+      borderRadius: "var(--tasty-radius)", overflow: "hidden" }}>
       <div style={{ display: "flex", alignItems: "center", gap: 8, height: 36, flex: "none", padding: "0 8px",
         background: "var(--tasty-bg-sidebar)", borderBottom: "1px solid var(--tasty-separator)" }}>
         <div style={{ flex: 1, minWidth: 0, display: "flex", alignItems: "center", gap: 4, height: 28, padding: "0 8px",
@@ -370,20 +370,20 @@ function occPane(kind) {
             label: "completed", sub: "clears on focus", who: "done" },
   }[kind];
   return (
-    <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", background: "#000",
+    <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", background: "var(--tasty-surface-terminal-focused-bg)",
       border: `${cfg.width} solid ${cfg.color}`, borderRadius: "var(--tasty-radius)", overflow: "hidden" }}>
       <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 10px",
         borderBottom: "1px solid var(--tasty-separator)", background: "var(--tasty-bg-panel)" }}>
         {cfg.readonly && <span style={{ display: "inline-flex", color: cfg.color, width: 14, height: 14 }}>{ic.lock}</span>}
-        <span style={{ fontFamily: "var(--tasty-font-mono)", fontSize: 11, fontWeight: 600, color: cfg.color }}>{cfg.label}</span>
+        <span style={{ fontFamily: "var(--tasty-font-mono)", fontSize: 11, fontWeight: 600, color: "var(--tasty-text-primary)" }}>{cfg.label}</span>
         <span style={{ fontSize: 10, color: "var(--tasty-text-muted)" }}>· {cfg.sub}</span>
         {cfg.readonly && <span style={{ marginLeft: "auto" }}><IconButton size="sm" aria-label="Force detach">{ic.close}</IconButton></span>}
       </div>
       <div style={{ padding: "10px 12px", fontFamily: "var(--tasty-font-mono)", fontSize: 12.5,
         color: cfg.readonly ? "var(--tasty-surface-terminal-unfocused-fg)" : "var(--tasty-color-neutral-1100)", lineHeight: 1.5 }}>
-        <div><span style={{ color: "var(--tasty-color-green)" }}>~/tasty</span> <span style={{ color: "var(--tasty-color-blue)" }}>main</span></div>
+        <div><span data-audit-exempt="ansi-content" style={{ color: "var(--tasty-color-green)" }}>~/tasty</span> <span data-audit-exempt="ansi-content" style={{ color: "var(--tasty-color-blue)" }}>main</span></div>
         <div style={{ display: "flex", alignItems: "center", marginTop: 2 }}>
-          <span style={{ color: cfg.who === "agent" ? "var(--tasty-accent-agent)" : "var(--tasty-color-mauve)" }}>❯&nbsp;</span>
+          <span style={{ color: cfg.who === "agent" ? "var(--tasty-accent-agent)" : "var(--tasty-color-mauve)" }} data-audit-exempt="ansi-content">❯&nbsp;</span>
           {cfg.who === "agent" && <span style={{ color: "var(--tasty-text-secondary)" }}>running tests…</span>}
           {cfg.who === "done" && <span style={{ color: "var(--tasty-text-secondary)" }}>build passed ✓</span>}
         </div>
@@ -410,7 +410,7 @@ function AttentionScale() {
         <div key={k.id} style={{ display: "grid", gridTemplateColumns: "44px 120px 1fr 150px 60px", gap: 10, alignItems: "center",
           padding: "7px 8px", background: k.live ? "var(--tasty-surface-raised)" : "transparent",
           border: "var(--tasty-border-width) solid " + (k.live ? "transparent" : "var(--tasty-separator)"),
-          borderRadius: "var(--tasty-radius-sm)", opacity: k.live ? 1 : 0.55 }}>
+          borderRadius: "var(--tasty-radius-sm)" }}>
           <span style={{ fontFamily: "var(--tasty-font-mono)", fontSize: 12, color: "var(--tasty-text-muted)" }}>{k.rank}</span>
           <span style={{ fontSize: 13, color: "var(--tasty-text-primary)" }}>{k.name}{!k.live && <span style={{ fontSize: 10, color: "var(--tasty-text-muted)" }}> · reserved</span>}</span>
           <span style={{ fontSize: 12, color: "var(--tasty-text-secondary)" }}>{k.what}</span>
@@ -525,16 +525,16 @@ function attPane(kind) {
       label: "completed", sub: "rank 10 — clears on focus", line: "build passed ✓" },
   }[kind];
   return (
-    <div key={kind} style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", background: "#000",
+    <div key={kind} style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", background: "var(--tasty-surface-terminal-focused-bg)",
       border: `${cfg.width} solid ${cfg.color}`, borderRadius: "var(--tasty-radius)", overflow: "hidden" }}>
       <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 10px",
         borderBottom: "1px solid var(--tasty-separator)", background: "var(--tasty-bg-panel)" }}>
-        <span style={{ fontFamily: "var(--tasty-font-mono)", fontSize: 11, fontWeight: 600, color: cfg.color }}>{cfg.label}</span>
+        <span style={{ fontFamily: "var(--tasty-font-mono)", fontSize: 11, fontWeight: 600, color: "var(--tasty-text-primary)" }}>{cfg.label}</span>
         <span style={{ fontSize: 10, color: "var(--tasty-text-muted)" }}>· {cfg.sub}</span>
       </div>
       <div style={{ padding: "10px 12px", fontFamily: "var(--tasty-font-mono)", fontSize: 12.5, color: "var(--tasty-color-neutral-1100)", lineHeight: 1.5 }}>
-        <div><span style={{ color: "var(--tasty-color-green)" }}>~/tasty</span> <span style={{ color: "var(--tasty-color-blue)" }}>main</span></div>
-        <div style={{ marginTop: 2 }}><span style={{ color: "var(--tasty-color-mauve)" }}>❯&nbsp;</span><span style={{ color: "var(--tasty-text-secondary)" }}>{cfg.line}</span></div>
+        <div><span data-audit-exempt="ansi-content" style={{ color: "var(--tasty-color-green)" }}>~/tasty</span> <span data-audit-exempt="ansi-content" style={{ color: "var(--tasty-color-blue)" }}>main</span></div>
+        <div style={{ marginTop: 2 }}><span data-audit-exempt="ansi-content" style={{ color: "var(--tasty-color-mauve)" }}>❯&nbsp;</span><span style={{ color: "var(--tasty-text-secondary)" }}>{cfg.line}</span></div>
       </div>
     </div>
   );
@@ -616,12 +616,12 @@ function Layouts() {
             <div style={{ display: "flex" }}>
               <FullSidebar />
               <CollapsedRail />
-              <div style={{ flex: 1, background: "#000", minWidth: 120 }} />
+              <div style={{ flex: 1, background: "var(--tasty-surface-terminal-focused-bg)", minWidth: 120 }} />
             </div>
           </Stage>
           <Meta
             specs={[["full width", "212px"], ["rail width", "52px"], ["row anatomy", "dot · name / [remote pill] · notification"], ["row height", <>~30px, <span className="tok">--tasty-radius-sm</span></>], ["active row", <><span className="tok">--tasty-surface-active</span> + 2px accent bar</>], ["mirror", "sky remote glyph before name / rail corner chip"]]}
-            tokens={[{ tok: "--tasty-accent-success", use: "running dot", color: "var(--tasty-accent-success)" }, { tok: "--tasty-accent-agent", use: "agent dot", color: "var(--tasty-accent-agent)" }, { tok: "--tasty-accent-danger", use: "notification badge", color: "var(--tasty-accent-danger)" }, { tok: "--tasty-workspace-mirror-fg", use: "mirror glyph (→ accent-remote / sky)", color: "var(--tasty-accent-remote)" }, { tok: "--tasty-surface-active", use: "active row", color: "var(--tasty-surface-active)" }, { tok: "--tasty-accent-primary", use: "active left bar", color: "var(--tasty-accent-primary)" }]} />
+            tokens={[{ tok: "--tasty-accent-success", use: "running dot", color: "var(--tasty-accent-success-raised)" }, { tok: "--tasty-accent-agent", use: "agent dot", color: "var(--tasty-accent-agent-raised)" }, { tok: "--tasty-accent-danger", use: "notification badge", color: "var(--tasty-accent-danger-raised)" }, { tok: "--tasty-workspace-mirror-fg", use: "mirror glyph (→ accent-remote / sky)", color: "var(--tasty-accent-remote)" }, { tok: "--tasty-surface-active", use: "active row", color: "var(--tasty-surface-active)" }, { tok: "--tasty-accent-primary", use: "active left bar", color: "var(--tasty-accent-primary-raised)" }]} />
           <Dont><b>Don't</b> give every row the same leading icon — when one kind fills the list, the icon is decoration, not information. Lead with the <b>status dot</b>, which varies per row, and let an unread <b>badge</b> earn the trailing slot instead of a static count.</Dont>
           <Note>Active selection now reads through <b>surface fill + a 2px accent left bar</b> (the folder icon used to carry that accent). Footer order is fixed: <b>Tools → Plugins → Settings</b>, bottom-aligned; in the rail they become 28px IconButtons in the same order. <b>Mirror</b> (remote-linked) moved <b>off the status dot</b> onto its own leading glyph — the dot no longer carries a sky "remote" color, only execution (running / idle / agent); the glyph never collides with the attached <b>lavender ring</b> or the notification badge.</Note>
         </Spec>
@@ -632,12 +632,12 @@ function Layouts() {
             <div style={{ display: "flex" }}>
               <CategoryFullSidebar />
               <CategoryRail />
-              <div style={{ flex: 1, background: "#000", minWidth: 120 }} />
+              <div style={{ flex: 1, background: "var(--tasty-surface-terminal-focused-bg)", minWidth: 120 }} />
             </div>
           </Stage>
           <Meta
             specs={[["header", <>band — <code>bg-app</code> face + hairline top/bottom, label <code>text-secondary</code> bold</>], ["count", "trailing workspace count; hidden on hover (+ takes the gutter)"], ["normal", "reserved · first · label “Workspaces”"], ["empty category", "header only, no rows"], ["rail boundary", <><code>---</code> full-width button</>], ["collapse", "per-category, shared full ↔ rail"], ["reorder", "drag row to another category"], ["gate", "Settings toggle (default off)"]]}
-            tokens={[{ tok: "--tasty-sidebar-category-header-bg", use: "header band face (one tier below the sidebar)", color: "var(--tasty-sidebar-category-header-bg)" }, { tok: "--tasty-sidebar-category-header-fg", use: "label + chevron", color: "var(--tasty-sidebar-category-header-fg)" }, { tok: "--tasty-sidebar-category-header-count-fg", use: "trailing count", color: "var(--tasty-sidebar-category-header-count-fg)" }, { tok: "--tasty-separator", use: <>band hairlines + list rules + <code>---</code> line</>, color: "var(--tasty-separator)" }, { tok: "--tasty-surface-active", use: "active row", color: "var(--tasty-surface-active)" }, { tok: "--tasty-accent-primary", use: "active left bar", color: "var(--tasty-accent-primary)" }]} />
+            tokens={[{ tok: "--tasty-sidebar-category-header-bg", use: "header band face (one tier below the sidebar)", color: "var(--tasty-sidebar-category-header-bg)" }, { tok: "--tasty-sidebar-category-header-fg", use: "label + chevron", color: "var(--tasty-sidebar-category-header-fg)" }, { tok: "--tasty-sidebar-category-header-count-fg", use: "trailing count", color: "var(--tasty-sidebar-category-header-count-fg)" }, { tok: "--tasty-separator", use: <>band hairlines + list rules + <code>---</code> line</>, color: "var(--tasty-separator)" }, { tok: "--tasty-surface-active", use: "active row", color: "var(--tasty-surface-active)" }, { tok: "--tasty-accent-primary", use: "active left bar", color: "var(--tasty-accent-primary-raised)" }]} />
           <Note>Backend invariants honoured: <code>normal</code> reserved &amp; pinned top; category order = section order; <code>collapsed</code> persisted in <code>layout.json</code>; empty categories allowed (no auto-delete). Toggle off → the flat single "Workspaces" list above, unchanged.</Note>
         </Spec>
 
@@ -658,7 +658,7 @@ function Layouts() {
             <div style={{ display: "flex" }}>
               <CategoryFullSidebar held />
               <CategoryRail held />
-              <div style={{ flex: 1, background: "#000", minWidth: 120 }} />
+              <div style={{ flex: 1, background: "var(--tasty-surface-terminal-focused-bg)", minWidth: 120 }} />
             </div>
           </Stage>
           <Meta
@@ -690,7 +690,7 @@ function Layouts() {
           </Stage>
           <Meta
             specs={[["tab height", <>24px <span className="tok">--tasty-control-height-tab</span></>], ["tab width", <>150px <span className="tok">--tasty-tab-width</span></>], ["strip fill", <span className="tok">--tasty-bg-sidebar</span>], ["active", "panel fill + accent top bar"]]}
-            tokens={[{ tok: "--tasty-bg-sidebar", use: "strip", color: "var(--tasty-bg-sidebar)" }, { tok: "--tasty-bg-panel", use: "active tab", color: "var(--tasty-bg-panel)" }, { tok: "--tasty-accent-primary", use: "active bar", color: "var(--tasty-accent-primary)" }]} />
+            tokens={[{ tok: "--tasty-bg-sidebar", use: "strip", color: "var(--tasty-bg-sidebar)" }, { tok: "--tasty-bg-panel", use: "active tab", color: "var(--tasty-bg-panel)" }, { tok: "--tasty-accent-primary", use: "active bar", color: "var(--tasty-accent-primary-raised)" }]} />
         </Spec>
         {GalleryTabStrip ? <GalleryTabStrip /> : null}
       </Section>
@@ -744,7 +744,7 @@ function Layouts() {
               { tok: "--tasty-drilldown-backbar-border", use: "back-bar bottom rule", color: "var(--tasty-separator)" },
               { tok: "--tasty-drilldown-title-fg", use: "detail title", color: "var(--tasty-text-primary)" },
               { tok: "--tasty-surface-active", use: "selected list row", color: "var(--tasty-surface-active)" },
-              { tok: "--tasty-accent-primary", use: "Apply / active bar", color: "var(--tasty-accent-primary)" },
+              { tok: "--tasty-accent-primary", use: "Apply / active bar", color: "var(--tasty-accent-primary-raised)" },
             ]} />
           <Do><b>Do</b> put the detail's own action (<b>Apply</b>) in the <b>back-bar actions slot</b> — it stays clear of a surrounding modal footer's <b>Cancel / Save</b>, so the two button rows never collide. <b>Apply</b> is <b>disabled</b> for the already-active item (nothing to change).</Do>
           <Dont><b>Don't</b> reach for drill-down when items are few and detail is small — a plain <b>1-depth list→detail</b> split shows both at once. Swap only when the detail (or the list) genuinely wants the whole width.</Dont>
@@ -789,7 +789,7 @@ function Layouts() {
           </Stage>
           <Meta
             specs={[["L1 bar", "40–44px, accent underline"], ["L2 list", "168px, filter header"], ["content", "flex, 18px pad"], ["rule", "L1 fixed · L2 grows"]]}
-            tokens={[{ tok: "--tasty-bg-sidebar", use: "L1 + L2", color: "var(--tasty-bg-sidebar)" }, { tok: "--tasty-accent-primary", use: "active tab/preset", color: "var(--tasty-accent-primary)" }, { tok: "--tasty-surface-active", use: "active section", color: "var(--tasty-surface-active)" }]} />
+            tokens={[{ tok: "--tasty-bg-sidebar", use: "L1 + L2", color: "var(--tasty-bg-sidebar)" }, { tok: "--tasty-accent-primary", use: "active tab/preset", color: "var(--tasty-accent-primary-raised)" }, { tok: "--tasty-surface-active", use: "active section", color: "var(--tasty-surface-active)" }]} />
           <Do><b>Do</b> give plugins their own L1 tab. <b>Don't</b> nest a growing plugin list inside another group's L2.</Do>
         </Spec>
       </Section>
@@ -822,12 +822,12 @@ function Layouts() {
                 <div style={{ display: "flex", alignItems: "center", padding: "0 6px" }}><IconButton size="sm" aria-label="New tab">{ic.plus}</IconButton></div>
               </div>
               {/* content */}
-              <div style={{ flex: 1, background: "#000", margin: 8, borderRadius: "var(--tasty-radius)" }} />
+              <div style={{ flex: 1, background: "var(--tasty-surface-terminal-focused-bg)", margin: 8, borderRadius: "var(--tasty-radius)" }} />
             </div>
           </Stage>
           <Meta
             specs={[["tier 1", <>32px, <span className="tok">--tasty-bg-app</span></>], ["tier 2", <>24px Tab strip, <span className="tok">--tasty-bg-sidebar</span></>], ["active path", "one highlight per tier"], ["order", "broadest context on top"]]}
-            tokens={[{ tok: "--tasty-bg-app", use: "tier 1 band", color: "var(--tasty-bg-app)" }, { tok: "--tasty-bg-sidebar", use: "tier 2 band", color: "var(--tasty-bg-sidebar)" }, { tok: "--tasty-surface-active", use: "active workspace", color: "var(--tasty-surface-active)" }, { tok: "--tasty-accent-primary", use: "active pane bar", color: "var(--tasty-accent-primary)" }]} />
+            tokens={[{ tok: "--tasty-bg-app", use: "tier 1 band", color: "var(--tasty-bg-app)" }, { tok: "--tasty-bg-sidebar", use: "tier 2 band", color: "var(--tasty-bg-sidebar)" }, { tok: "--tasty-surface-active", use: "active workspace", color: "var(--tasty-surface-active)" }, { tok: "--tasty-accent-primary", use: "active pane bar", color: "var(--tasty-accent-primary-raised)" }]} />
           <Dont><b>Don't</b> stack more than two tiers — beyond that, move the broadest dimension into the sidebar. Tiers are for <i>switchable</i> context, not deep trees.</Dont>
         </Spec>
       </Section>
@@ -839,7 +839,7 @@ function Layouts() {
           <Stage variant="tight" grid>
             <div style={{ display: "flex", height: 240, padding: 12, gap: 0, background: "var(--tasty-bg-panel)" }}>
               {/* left pane */}
-              <div style={{ flex: 1, background: "#000", borderRadius: "var(--tasty-radius) 0 0 var(--tasty-radius)", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "var(--tasty-font-mono)", fontSize: 12, color: "var(--tasty-text-muted)" }}>pane A</div>
+              <div style={{ flex: 1, background: "var(--tasty-surface-terminal-focused-bg)", borderRadius: "var(--tasty-radius) 0 0 var(--tasty-radius)", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "var(--tasty-font-mono)", fontSize: 12, color: "var(--tasty-text-muted)" }}>pane A</div>
               {/* vertical divider (hover = accent) */}
               <div className="g-divider" title="Drag to resize" style={{ position: "relative", width: 7, cursor: "col-resize", display: "flex", alignItems: "center", justifyContent: "center" }}>
                 <span className="g-divider-line" style={{ width: 1, height: "100%", background: "var(--tasty-separator)", display: "block" }} />
@@ -857,7 +857,7 @@ function Layouts() {
           <style>{`.g-divider:hover .g-divider-line { background: var(--tasty-accent-primary); }`}</style>
           <Meta
             specs={[["line", <>1px <span className="tok">--tasty-separator</span></>], ["hit-band", "~6–8px transparent"], ["hover", <>line \u2192 <span className="tok">--tasty-accent-primary</span></>], ["cursor", "col-resize / row-resize"], ["axes", "vertical & horizontal"]]}
-            tokens={[{ tok: "--tasty-separator", use: "rest line" }, { tok: "--tasty-accent-primary", use: "hover / dragging", color: "var(--tasty-accent-primary)" }]} />
+            tokens={[{ tok: "--tasty-separator", use: "rest line" }, { tok: "--tasty-accent-primary", use: "hover / dragging", color: "var(--tasty-accent-primary-raised)" }]} />
           <Note>Hover either divider above — the hairline turns accent. The <b>hit-band is wider than the visible line</b> so the 1px boundary stays easy to grab without thickening the resting visual.</Note>
         </Spec>
       </Section>
@@ -874,7 +874,7 @@ function Layouts() {
           </Stage>
           <Meta
             specs={[["focused bg", <>#000 <span className="tok">--tasty-surface-terminal-focused-bg</span></>], ["unfocused bg", <span className="tok">--tasty-surface-terminal-unfocused-bg</span>], ["unfocused opacity", "0.92"], ["agent marker", <>pulsing <span className="tok">--tasty-accent-agent</span></>]]}
-            tokens={[{ tok: "--tasty-surface-terminal-focused-bg", use: "#000 focused", color: "#000" }, { tok: "--tasty-surface-terminal-unfocused-bg", use: "dimmed", color: "var(--tasty-surface-terminal-unfocused-bg)" }, { tok: "--tasty-accent-agent", use: "agent dot", color: "var(--tasty-accent-agent)" }, { tok: "--tasty-accent-success", use: "your running dot", color: "var(--tasty-accent-success)" }]} />
+            tokens={[{ tok: "--tasty-surface-terminal-focused-bg", use: "#000 focused", color: "#000" }, { tok: "--tasty-surface-terminal-unfocused-bg", use: "dimmed", color: "var(--tasty-surface-terminal-unfocused-bg)" }, { tok: "--tasty-accent-agent", use: "agent dot", color: "var(--tasty-accent-agent-raised)" }, { tok: "--tasty-accent-success", use: "your running dot", color: "var(--tasty-accent-success-raised)" }]} />
           <Note>This is the soul of the product made visual: <b>user vs. agent</b> and <b>focused vs. not</b> are never ambiguous. Carry these colors into any surface mock.</Note>
         </Spec>
 
@@ -903,7 +903,7 @@ function Layouts() {
           </Stage>
           <Meta
             specs={[["channel", "surface border — color-only"], ["soft", <>green, 1px — held, writable</>], ["hard", <>peach, 1px — readonly + force-detach</>], ["completed", <>blue, 2px — clears on focus</>], ["priority", "occupancy > completion (source rule)"]]}
-            tokens={[{ tok: "--tasty-surface-occupied-soft-border", use: "soft edge (→ green)", color: "var(--tasty-accent-occupied-soft)" }, { tok: "--tasty-surface-occupied-hard-border", use: "hard edge (→ peach)", color: "var(--tasty-accent-occupied-hard)" }, { tok: "--tasty-surface-highlight-done-border", use: "completion edge (→ blue)", color: "var(--tasty-accent-primary)" }, { tok: "--tasty-surface-occupied-border-width", use: "occupancy edge = 1px" }, { tok: "--tasty-surface-highlight-done-width", use: "completion edge = 2px" }]} />
+            tokens={[{ tok: "--tasty-surface-occupied-soft-border", use: "soft edge (→ green)", color: "var(--tasty-accent-occupied-soft)" }, { tok: "--tasty-surface-occupied-hard-border", use: "hard edge (→ peach)", color: "var(--tasty-accent-occupied-hard)" }, { tok: "--tasty-surface-highlight-done-border", use: "completion edge (→ blue)", color: "var(--tasty-accent-primary-raised)" }, { tok: "--tasty-surface-occupied-border-width", use: "occupancy edge = 1px" }, { tok: "--tasty-surface-highlight-done-width", use: "completion edge = 2px" }]} />
           <Note><b>Why blue, not sky, for completion.</b> The ADR describes the completion border as “sky”, but the live source draws it <b>blue</b> (<span className="tok">--tasty-accent-primary</span>) and the design confirms blue as canonical: against the green (soft) and peach (hard) neighbours on the same channel, blue is the most discriminable — sky sits too close to green at a 1px edge. <b>Hard</b> reuses the peach primitive but through its own role (<span className="tok">--tasty-accent-occupied-hard</span>), kept distinct from <span className="tok">--tasty-accent-attention</span> (plugin needs-attention) so the two intents can diverge. Completion is one <b>attention kind</b>; the second kind (<b>NeedsInput</b>, yellow) and the full cross-channel priority live in <b>Attention kinds</b> below.</Note>
         </Spec>
       </Section>
