@@ -641,12 +641,13 @@ fn draw_changed_badge(ui: &mut egui::Ui, th: &tasty_type_appearance::theme::Them
         egui::pos2(rect.left() + pad_x, rect.center().y - glyph * 0.5),
         egui::vec2(glyph, glyph),
     );
-    icons::ALERT_TRIANGLE.image(glyph, warn).paint_at(ui, gy);
+    let ink = th.accent_warning_raised().to_egui();
+    icons::ALERT_TRIANGLE.image(glyph, ink).paint_at(ui, gy);
     let pos = egui::pos2(
         rect.left() + pad_x + glyph + gap,
         rect.center().y - galley.rect.height() * 0.5,
     );
-    ui.painter().galley(pos, galley, warn);
+    ui.painter().galley(pos, galley, ink);
 }
 
 /// Add card — 인라인 카드(surface-raised + border-default + radius). File(경로 +

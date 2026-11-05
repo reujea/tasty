@@ -791,13 +791,14 @@ pub fn plugin_add_empty_hint(
 /// 그 아래 읽기 오류 원문 `reason` 한 줄(mono caption, 번역하지 않음)을 둔다. 채움과 동작은 없다.
 pub fn plugin_add_read_error(ui: &mut egui::Ui, theme: &Theme, title: &str, reason: &str) {
     let danger = theme.accent_danger().to_egui();
+    let ink = theme.accent_danger_raised().to_egui();
     hint_slot_frame(ui, theme, danger, |ui| {
         ui.horizontal_top(|ui| {
             ui.spacing_mut().item_spacing.x = theme.spacing_sm.value();
             let glyph = theme.icon_glyph_size_md.value();
             let (rect, _) = ui.allocate_exact_size(egui::vec2(glyph, glyph), egui::Sense::hover());
             tasty_icons::ALERT_TRIANGLE
-                .image(glyph, danger)
+                .image(glyph, ink)
                 .paint_at(ui, rect);
             ui.vertical(|ui| {
                 ui.spacing_mut().item_spacing.y = theme.label_detail_gap.value();
@@ -805,7 +806,7 @@ pub fn plugin_add_read_error(ui: &mut egui::Ui, theme: &Theme, title: &str, reas
                     egui::Label::new(
                         egui::RichText::new(title)
                             .size(theme.font_size_body.value())
-                            .color(danger),
+                            .color(ink),
                     )
                     .wrap(),
                 );

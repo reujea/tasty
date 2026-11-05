@@ -343,7 +343,7 @@ fn draw_reason_detail(ui: &mut egui::Ui, th: &theme::Theme, entry: &AttentionEnt
                         egui::RichText::new("+")
                             .monospace()
                             .strong()
-                            .color(egui::Color32::from(th.accent_success())),
+                            .color(egui::Color32::from(th.accent_success_raised())),
                     );
                     ui.label(
                         egui::RichText::new(p)
@@ -413,7 +413,7 @@ fn draw_reason_detail(ui: &mut egui::Ui, th: &theme::Theme, entry: &AttentionEnt
                             egui::RichText::new(detail)
                                 .monospace()
                                 .size(ATTN_PRIMITIVE_12.value())
-                                .color(egui::Color32::from(th.accent_danger())),
+                                .color(egui::Color32::from(th.accent_danger_raised())),
                         );
                     });
             }

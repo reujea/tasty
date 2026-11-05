@@ -121,8 +121,8 @@ pub fn draw_approval_view(
 ) -> ApprovalViewAction {
     let sev_color = match props.severity {
         Severity::Info => theme.text_muted().to_egui(),
-        Severity::Warn => theme.accent_warning().to_egui(),
-        Severity::Danger => theme.accent_danger().to_egui(),
+        Severity::Warn => theme.accent_warning_raised().to_egui(),
+        Severity::Danger => theme.accent_danger_raised().to_egui(),
     };
     ui.horizontal(|ui| {
         ui.label(

@@ -323,7 +323,10 @@ fn draw_detail_body(
             .corner_radius(th.corner_radius.value())
             .inner_margin(margin_sym(th.spacing_md, th.spacing_sm))
             .show(ui, |ui| {
-                ui.label(egui::RichText::new(t("plugins.health_error")).color(danger));
+                ui.label(
+                    egui::RichText::new(t("plugins.health_error"))
+                        .color(egui::Color32::from(th.accent_danger_raised())),
+                );
             });
         vspace(ui, th.spacing_sm);
     }

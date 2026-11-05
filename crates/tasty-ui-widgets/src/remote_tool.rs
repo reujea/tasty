@@ -208,14 +208,15 @@ pub fn warn_badge(ui: &mut egui::Ui, th: &Theme, text: &str, tooltip: &str) -> e
         egui::pos2(rect.left() + pad_x, rect.center().y - glyph * 0.5),
         egui::vec2(glyph, glyph),
     );
+    let ink = th.tag_warning_fg().to_egui();
     tasty_icons::ALERT_TRIANGLE
-        .image(glyph, warn)
+        .image(glyph, ink)
         .paint_at(ui, glyph_rect);
     let pos = egui::pos2(
         glyph_rect.right() + gap,
         rect.center().y - galley.rect.height() * 0.5,
     );
-    ui.painter().galley(pos, galley, warn);
+    ui.painter().galley(pos, galley, ink);
     resp.on_hover_text(tooltip)
 }
 

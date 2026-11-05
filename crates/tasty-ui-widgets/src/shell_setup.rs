@@ -179,7 +179,7 @@ fn draw_form(
 
 /// Windows 전용 Git Bash 안내. 상자 없이 경고색 caption 줄이며 글리프는 첫 줄 위쪽에 붙는다.
 fn notice_line(ui: &mut egui::Ui, theme: &Theme, text: &str) {
-    let warning = theme.accent_warning().to_egui();
+    let warning = theme.accent_warning_raised().to_egui();
     let glyph = theme.icon_glyph_size_sm.value();
     let caption = theme.font_size_caption.value();
     ui.horizontal_top(|ui| {
@@ -212,25 +212,29 @@ fn check_line(ui: &mut egui::Ui, theme: &Theme, view: &ShellSetupView<'_>) {
         ShellSetupCheck::Empty => None,
         ShellSetupCheck::Missing => Some((
             tasty_icons::ALERT_CIRCLE,
-            theme.accent_danger(),
+            theme.accent_danger_raised(),
             view.missing,
         )),
         ShellSetupCheck::NotShell => Some((
             tasty_icons::ALERT_CIRCLE,
-            theme.accent_danger(),
+            theme.accent_danger_raised(),
             view.not_shell,
         )),
         ShellSetupCheck::Directory => Some((
             tasty_icons::ALERT_CIRCLE,
-            theme.accent_danger(),
+            theme.accent_danger_raised(),
             view.directory,
         )),
         ShellSetupCheck::NotExecutable => Some((
             tasty_icons::ALERT_CIRCLE,
-            theme.accent_danger(),
+            theme.accent_danger_raised(),
             view.not_executable,
         )),
-        ShellSetupCheck::Valid => Some((tasty_icons::CHECK, theme.accent_success(), view.valid)),
+        ShellSetupCheck::Valid => Some((
+            tasty_icons::CHECK,
+            theme.accent_success_raised(),
+            view.valid,
+        )),
     };
     ui.allocate_ui_with_layout(
         egui::vec2(ui.available_width(), height),

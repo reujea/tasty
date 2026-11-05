@@ -243,7 +243,7 @@ pub fn draw_transfer_error(
             ui,
             &th,
             icons::ALERT_TRIANGLE,
-            th.accent_danger().into(),
+            th.accent_danger_raised().into(),
             t("transfer.error.title"),
             None,
         );

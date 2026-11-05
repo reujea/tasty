@@ -253,7 +253,7 @@ fn draw_preset_diff_table(
             let action = t(label_key).trim_end_matches(':').trim().to_string();
 
             let next_fg = if changed {
-                th.accent_primary().to_egui()
+                th.accent_primary_raised().to_egui()
             } else {
                 th.text_muted().to_egui()
             };

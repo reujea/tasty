@@ -266,7 +266,7 @@ fn failed_stand_in(ui: &mut egui::Ui, theme: &Theme, rect: egui::Rect) {
     let mut y = inner.center().y - block_h / 2.0;
     let cx = inner.center().x;
     tasty_icons::ALERT_CIRCLE
-        .image(glyph, theme.accent_danger().to_egui())
+        .image(glyph, theme.accent_danger_raised().to_egui())
         .paint_at(
             ui,
             egui::Rect::from_min_size(egui::pos2(cx - glyph / 2.0, y), egui::vec2(glyph, glyph)),

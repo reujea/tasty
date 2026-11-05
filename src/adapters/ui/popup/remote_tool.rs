@@ -883,7 +883,7 @@ fn draw_profile_row(
                         selectable_label(
                             ui,
                             t("remote_tool.detect_failed"),
-                            th.accent_danger(),
+                            th.accent_danger_raised(),
                             th.font_size_caption.value(),
                             false,
                         );
@@ -1097,7 +1097,7 @@ fn draw_profile_form(ui: &mut egui::Ui, th: &Theme, st: &mut UiState, passkeys: 
                     ui,
                     th,
                     t("remote_tool.type_unknown_hint"),
-                    th.accent_warning(),
+                    th.accent_warning_raised(),
                     false,
                 );
             }
@@ -1197,7 +1197,7 @@ fn draw_profile_form(ui: &mut egui::Ui, th: &Theme, st: &mut UiState, passkeys: 
             }
 
             if let Some(err) = &st.perr {
-                indented_hint(ui, th, err, th.accent_danger(), false);
+                indented_hint(ui, th, err, th.accent_danger_raised(), false);
             }
         },
     );
@@ -1621,7 +1621,7 @@ fn draw_attach_form(
             );
 
             if let Some(err) = &st.aerr {
-                indented_hint(ui, th, err, th.accent_danger(), false);
+                indented_hint(ui, th, err, th.accent_danger_raised(), false);
             }
         },
     );
@@ -1677,7 +1677,7 @@ fn draw_passkey_list(ui: &mut egui::Ui, th: &Theme, st: &mut UiState, passkeys: 
         selectable_label(
             ui,
             error,
-            th.accent_danger(),
+            th.accent_danger_raised(),
             th.font_size_caption.value(),
             false,
         );
@@ -1905,7 +1905,7 @@ fn draw_passkey_form(ui: &mut egui::Ui, th: &Theme, st: &mut UiState) {
                 selectable_label(
                     ui,
                     err,
-                    th.accent_danger(),
+                    th.accent_danger_raised(),
                     th.font_size_caption.value(),
                     false,
                 );

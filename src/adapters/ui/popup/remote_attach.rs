@@ -763,7 +763,7 @@ fn new_ws_row(
             .hue(
                 th,
                 th.accent_danger(),
-                th.accent_danger(),
+                th.accent_danger_raised(),
                 th.accent_danger_on_active(),
             )
             .into()
@@ -772,7 +772,7 @@ fn new_ws_row(
             .hue(
                 th,
                 th.accent_primary(),
-                th.accent_primary(),
+                th.accent_primary_raised(),
                 th.accent_primary_on_active(),
             )
             .into()
@@ -883,7 +883,7 @@ fn new_ws_error(ui: &mut egui::Ui, th: &Theme, msg: &str) -> bool {
     let galley = ui.painter().layout(
         msg.to_owned(),
         egui::FontId::proportional(th.font_size_caption.value()),
-        th.accent_danger().into(),
+        th.accent_danger_raised().into(),
         inner_w,
     );
     let btn_h = tasty_ui_widgets::ControlSize::Sm.height(th);

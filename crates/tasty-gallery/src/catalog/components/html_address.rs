@@ -401,7 +401,8 @@ fn page_placeholder(ui: &mut egui::Ui, theme: &Theme, rect: egui::Rect, page: &s
         }
         "failed" => {
             body.add(
-                tasty_icons::ALERT_CIRCLE.image(glyph.value(), theme.accent_danger().to_egui()),
+                tasty_icons::ALERT_CIRCLE
+                    .image(glyph.value(), theme.accent_danger_raised().to_egui()),
             );
         }
         _ => {}

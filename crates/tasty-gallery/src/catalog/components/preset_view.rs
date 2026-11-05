@@ -606,7 +606,7 @@ fn detail_column(ui: &mut egui::Ui, theme: &Theme, rect: egui::Rect, st: &mut Wi
         let (r, _) = right.allocate_exact_size(egui::vec2(box_, box_), egui::Sense::hover());
         let g = box_ * SAVED_CHECK_SCALE;
         icons::CHECK
-            .image(g, theme.accent_success().to_egui())
+            .image(g, theme.accent_success_raised().to_egui())
             .paint_at(
                 &right,
                 egui::Rect::from_center_size(r.center(), egui::vec2(g, g)),

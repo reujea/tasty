@@ -57,12 +57,12 @@ pub fn draw_webview_chrome(
             ui.add_space(top_pad);
             match nav {
                 NavState::Failed => {
-                    ui.add(icons::ALERT_CIRCLE.image(glyph, th.accent_danger().to_egui()));
+                    ui.add(icons::ALERT_CIRCLE.image(glyph, th.accent_danger_raised().to_egui()));
                     ui.add_space(th.spacing_sm.value());
                     label(
                         ui,
                         crate::i18n::t("webview.error"),
-                        th.accent_danger().to_egui(),
+                        th.accent_danger_raised().to_egui(),
                     );
                     if let Some(caption) = caption {
                         url_line(ui, caption);

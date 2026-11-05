@@ -42,7 +42,7 @@ pub(super) struct NoticeAction<'a> {
 pub(super) fn notice_block(
     ui: &mut egui::Ui,
     th: &Theme,
-    tone: egui::Color32,
+    (tone, ink): (egui::Color32, egui::Color32),
     glyph: icons::Icon,
     title: &str,
     count: Option<&str>,
@@ -63,11 +63,11 @@ pub(super) fn notice_block(
             ui.spacing_mut().item_spacing.y = th.spacing_xs.value();
             ui.horizontal(|ui| {
                 ui.spacing_mut().item_spacing.x = th.spacing_sm.value();
-                glyph_at(ui, glyph, th.icon_glyph_size_md, tone);
+                glyph_at(ui, glyph, th.icon_glyph_size_md, ink);
                 ui.label(
                     egui::RichText::new(title)
                         .size(th.font_size_body.value())
-                        .color(tone),
+                        .color(ink),
                 );
                 if let Some(count) = count {
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
@@ -75,7 +75,7 @@ pub(super) fn notice_block(
                             egui::RichText::new(count)
                                 .monospace()
                                 .size(th.font_size_caption.value())
-                                .color(tone),
+                                .color(ink),
                         );
                     });
                 }
@@ -145,7 +145,10 @@ pub(super) fn parse_failure(ui: &mut egui::Ui, th: &Theme, failure: &Failure) ->
     notice_block(
         ui,
         th,
-        th.accent_danger().to_egui(),
+        (
+            th.accent_danger().to_egui(),
+            th.accent_danger_raised().to_egui(),
+        ),
         icons::ALERT_CIRCLE,
         t("settings.keybindings.ie_failure_title"),
         None,
@@ -195,7 +198,10 @@ pub(super) fn export_failure(
     notice_block(
         ui,
         th,
-        th.accent_danger().to_egui(),
+        (
+            th.accent_danger().to_egui(),
+            th.accent_danger_raised().to_egui(),
+        ),
         icons::ALERT_CIRCLE,
         t(
             if matches!(failure.reason, ExportFailReason::OutcomeUnknown) {
@@ -259,7 +265,10 @@ pub(super) fn bundle_notices(
     notice_block(
         ui,
         th,
-        th.accent_warning().to_egui(),
+        (
+            th.accent_warning().to_egui(),
+            th.accent_warning_raised().to_egui(),
+        ),
         icons::ALERT_TRIANGLE,
         t("settings.keybindings.ie_notices_title"),
         Some(&count),

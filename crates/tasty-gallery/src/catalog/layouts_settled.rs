@@ -109,7 +109,7 @@ fn terminal_pane(ui: &mut egui::Ui, theme: &Theme, rect: egui::Rect) {
                     ui.label(
                         egui::RichText::new("~/tasty")
                             .font(font.clone())
-                            .color(ec(theme.accent_success())),
+                            .color(ec(theme.accent_success_raised())),
                     );
                     ui.label(
                         egui::RichText::new("main")

@@ -14,9 +14,9 @@ pub fn draw_terminal_tab(ui: &mut egui::Ui, settings: &mut Settings) {
     if let Some((notice, fails)) = shell_notice(settings.general.shell_path_status()) {
         // 대체 셸로 열리는 경우는 경고, 새 터미널이 실패하는 경우는 오류 색이다.
         let color = if fails {
-            th.accent_danger()
+            th.accent_danger_raised()
         } else {
-            th.accent_warning()
+            th.accent_warning_raised()
         };
         ui.label(egui::RichText::new(notice).color(color));
         vspace(ui, th.spacing_xs);
