@@ -354,7 +354,7 @@ mod ground_tests {
                 egui::Shape::Rect(r) if r.stroke.width > 0.0 => Some(r.stroke.color),
                 _ => None,
             })
-            .last()
+            .next_back()
             .expect("box stroke")
     }
 
