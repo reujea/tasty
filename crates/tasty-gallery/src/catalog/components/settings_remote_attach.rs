@@ -15,8 +15,9 @@ use crate::catalog::widgets::dialog as kit;
 
 use super::settings_remote_transfer::WIDTH;
 
-/// 시안의 좁은 칸 폭(`size-320`). 이 폭에서는 칸이 라벨 아래로 내려간다.
-const STACKED_WIDTH: LogicalPx = LogicalPx(320.0);
+/// 칸이 라벨 옆에 들어가지 않는 전시용 프레임 폭. 대응하는 고정 치수는 없고, 쌓을지는 `settings_stack_row`가
+/// 남은 폭으로 정한다.
+const STACKED_WIDTH: LogicalPx = LogicalPx(280.0);
 
 #[derive(Clone, Copy)]
 enum Ground {
