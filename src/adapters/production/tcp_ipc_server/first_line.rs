@@ -6,10 +6,8 @@ use std::io::{BufRead, BufReader, Read};
 use std::net::TcpStream;
 use std::time::{Duration, Instant};
 
-use crate::ipc::stream;
-
-/// 첫 줄의 제한 시간은 같은 소켓 계열의 HEARTBEAT_TIMEOUT을 따른다.
-pub(super) const FIRST_LINE_IDLE_TIMEOUT: Duration = stream::HEARTBEAT_TIMEOUT;
+/// 첫 줄의 제한 시간. 연결 슬롯 보호용 값이며 attach heartbeat와 무관하다.
+pub(super) const FIRST_LINE_IDLE_TIMEOUT: Duration = Duration::from_secs(20);
 
 /// 디버그 시험은 환경변수로 기한을 줄일 수 있다. 제품값은 FIRST_LINE_IDLE_TIMEOUT이다.
 #[cfg(debug_assertions)]

@@ -59,9 +59,9 @@ pub(crate) const MAX_CONCURRENT_CONNECTIONS: usize = 256;
 pub(crate) const DRAIN_BUDGET_PER_ROUND: usize = MAX_CONCURRENT_CONNECTIONS;
 
 /// 응답 소켓의 쓰기 timeout. 응답을 읽지 않는 상대 때문에 연결 스레드가 계속 막히지 않게 한다.
-/// 같은 소켓 계열의 HEARTBEAT_TIMEOUT을 사용한다. 개별 소켓 쓰기에 적용되며
+/// attach heartbeat와 무관한 요청-응답 연결의 상한이다. 개별 소켓 쓰기에 적용되며
 /// 응답 전체를 쓰는 절차의 절대 마감시간은 아니다.
-const RESPONSE_WRITE_TIMEOUT: Duration = stream::HEARTBEAT_TIMEOUT;
+const RESPONSE_WRITE_TIMEOUT: Duration = Duration::from_secs(20);
 
 // 최대 요청 두 건은 대기할 수 있고 연결수×줄크기보다는 작도록 큐 바이트 한도의 관계를 확인한다.
 const _: () = assert!(QUEUED_BYTES_LIMIT >= 2 * MAX_REQUEST_LINE_BYTES);
@@ -585,7 +585,7 @@ impl TcpIpcServer {
         mut writer: std::net::TcpStream,
         sink_rx: tasty_ipc::stream_hub::SinkReceiver,
     ) {
-        if let Err(error) = writer.set_write_timeout(Some(stream::HEARTBEAT_TIMEOUT)) {
+        if let Err(error) = writer.set_write_timeout(Some(RESPONSE_WRITE_TIMEOUT)) {
             tracing::warn!(%error, "failed to bound stream rejection write");
             return;
         }
