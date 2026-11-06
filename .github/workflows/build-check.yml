@@ -14,8 +14,8 @@ concurrency:
 jobs:
   build-macos:
     runs-on: [self-hosted, macOS]
-    # release build-macos 대리 실측 최대 7.9분 × 5. 기준: docs/dev-guide/ci-gates.md#잡-시간-상한
-    timeout-minutes: 40
+    # 업무용 맥과 러너를 함께 쓴다. 부하가 높으면 40분으로 끝나지 않는다. 기준: docs/dev-guide/ci-gates.md#잡-시간-상한
+    timeout-minutes: 180
     steps:
       - uses: actions/checkout@v4
 

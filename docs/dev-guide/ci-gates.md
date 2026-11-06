@@ -262,9 +262,11 @@ checkout의 정리로 `target/`이 삭제되는 구성에는 로컬 증분 빌�
   실행 기록이 없어 같은 러너에서 더 많은 작업(clippy·테스트)을 하는 check-windows의 실측을 쓴다. test-linux-x64도 실행 기록이 없어 같은 러너에서 workspace
   시험을 실행하는 check-headless의 실측을 쓴다.
 
+- macOS dist 빌드 잡은 배수를 쓰지 않는다. 이 러너는 업무용 맥과 함께 쓰며, 부하가 높을 때 40분 안에 끝나지 못해 180분으로 둔다.
+
 | 워크플로 | 잡 | 성공 | 실패 | 실측 최대(분) | 배수 | timeout-minutes |
 |---|---|---|---|---|---|---|
-| build-check.yml | build-macos | 0 | 0 | 7.9 (release 대리) | 5 | 40 |
+| build-check.yml | build-macos | 0 | 0 | 7.9 (release 대리) | 공유 러너 예외 | 180 |
 | build-check.yml | build-windows | 0 | 0 | 11.4 (release 대리) | 5 | 60 |
 | build-check.yml | build-windows-arm64 | 0 | 0 | 11.4 (release build-windows 대리) | 5 | 60 |
 | build-check.yml | build-linux-x64 | 0 | 0 | 9.3 (release 대리) | 5 | 50 |
@@ -281,7 +283,7 @@ checkout의 정리로 `target/`이 삭제되는 구성에는 로컬 증분 빌�
 | pages.yml | deploy | 30 | 0 | 0.6 | 3 | 10 |
 | plugin-version-check.yml | version-bump | 25 | 0 | 0.4 | 3 | 10 |
 | release.yml | create-release | 1 | 0 | 0.2 | 5 | 10 |
-| release.yml | build-macos | 1 | 0 | 7.9 | 5 | 40 |
+| release.yml | build-macos | 1 | 0 | 7.9 | 공유 러너 예외 | 180 |
 | release.yml | build-windows | 1 | 0 | 11.4 | 5 | 60 |
 | release.yml | build-windows-arm64 | 0 | 0 | 11.4 (build-windows 대리) | 5 | 60 |
 | release.yml | build-linux-x64 | 1 | 0 | 9.3 | 5 | 50 |
