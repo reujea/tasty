@@ -226,6 +226,11 @@ browse = "Browse…"
 max_capacity = "Maximum size"
 max_capacity_desc = "Total the folder may hold. A transfer that would push it past this limit is rejected before it starts."
 
+[settings.remote_attach]
+section = "Attach connections"
+heartbeat_timeout = "Disconnect after"
+heartbeat_timeout_desc = "How long an attach connection can receive nothing from the other side before it disconnects. Saved values apply to new connections, no restart needed. Open connections don't change. The other Tasty uses its own value and may disconnect first. Default 30."
+
 [settings.file_handler]
 coming_soon = "This sub-tab will be available in a future update."
 

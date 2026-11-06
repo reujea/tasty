@@ -225,6 +225,11 @@ browse = "찾아보기…"
 max_capacity = "최대 용량"
 max_capacity_desc = "폴더가 보관할 수 있는 총 용량입니다. 이 한도를 넘기게 될 전송은 시작 전에 거부됩니다."
 
+[settings.remote_attach]
+section = "Attach 연결"
+heartbeat_timeout = "끊기 전 대기 시간"
+heartbeat_timeout_desc = "상대에게서 이 시간 동안 아무것도 받지 못하면 attach 연결을 끊습니다. 저장한 값은 재시작 없이 새 연결부터 적용되고, 이미 열린 연결은 바뀌지 않습니다. 상대 Tasty는 자기 값을 쓰므로 먼저 끊을 수 있습니다. 기본값 30."
+
 [settings.file_handler]
 coming_soon = "이 서브탭은 향후 업데이트에서 제공됩니다."
 

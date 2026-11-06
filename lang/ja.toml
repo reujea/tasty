@@ -225,6 +225,11 @@ browse = "参照…"
 max_capacity = "最大サイズ"
 max_capacity_desc = "フォルダが保持できる合計容量です。この上限を超える転送は開始前に拒否されます。"
 
+[settings.remote_attach]
+section = "アタッチ接続"
+heartbeat_timeout = "切断までの待機時間"
+heartbeat_timeout_desc = "相手からこの時間何も受信しなければ、アタッチ接続を切断します。保存した値は再起動なしで新しい接続から適用され、すでに開いている接続は変わりません。相手の Tasty は自身の値を使うため、先に切断することがあります。既定値 30。"
+
 [settings.file_handler]
 coming_soon = "このサブタブは今後のアップデートで利用可能になります。"
 

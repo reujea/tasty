@@ -1839,6 +1839,7 @@ pub fn pages() -> Vec<Page> {
                             ),
                             components::settings_remote_transfer::draw,
                         ),
+                        components::settings_remote_attach::entry(),
                         spec(
                             "settings-task-pipeline",
                             "Misc › Task pipeline",
