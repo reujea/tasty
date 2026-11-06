@@ -520,9 +520,10 @@ attach의 `HEARTBEAT_TIMEOUT`은 별개다. SSH가 살아 있어도 Tasty의 데
 제한 시간 동안 도착하지 않으면 끊김을 처리한다. SSH 없이 loopback에 직접 연결한 경우에도
 적용된다. 두 제한을 더하거나 어느 쪽이 항상 빠르다고 가정하지 않는다.
 
-2026-07-20의 격리 loopback 측정에서는 서버에 SIGSTOP을 보낸 뒤 client가 약 21초에
-종료했고, 정상 서버의 idle raw 세션은 25초 넘게 유지됐다. 이는 attach heartbeat의
-기록이며 실제 SSH 인증·keepalive를 측정한 결과는 아니다.
+2026-11-06의 격리 loopback 측정(GUI 인스턴스 두 개, 서버 또는 client에 SIGSTOP)에서 끊김까지
+기본값 약 29초, 12초 설정의 새 attach 약 11~12초가 걸렸다. 마지막 프레임은 멈추기 최대 5초 전에
+도착하므로 측정값은 설정값보다 짧을 수 있다. 연결 중 12초로 바꾼 뒤 멈춘 기존 연결은 약 29초였다.
+이는 attach heartbeat의 기록이며 실제 SSH 인증·keepalive를 측정한 결과는 아니다.
 
 ## GUI 자동 재연결 스코프
 
