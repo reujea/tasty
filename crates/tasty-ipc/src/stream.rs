@@ -42,10 +42,11 @@ pub const MAX_FRAME_LEN: u32 = 1 << 20;
 /// bare Ping once this long has passed with nothing else to send.
 pub const HEARTBEAT_INTERVAL: Duration = Duration::from_secs(5);
 
-/// Socket read timeout applied to attach streams. Four heartbeats' worth of
-/// slack so transient jitter/scheduling delay doesn't trip a false disconnect —
-/// a peer is declared dead only after missing several heartbeats in a row.
-pub const HEARTBEAT_TIMEOUT: Duration = Duration::from_secs(20);
+/// Default socket read timeout applied to attach streams. Six heartbeats' worth
+/// of slack so transient jitter or a brief network stall doesn't trip a false
+/// disconnect — a peer is declared dead only after missing several heartbeats
+/// in a row.
+pub const HEARTBEAT_TIMEOUT: Duration = Duration::from_secs(30);
 
 /// Frame type tag (first byte of every frame).
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -730,7 +731,7 @@ mod tests {
     fn heartbeat_timeout_has_jitter_margin_over_interval() {
         // 한 번의 지연으로 끊기지 않도록 heartbeat보다 충분히 긴 timeout을 유지한다.
         assert!(HEARTBEAT_TIMEOUT >= HEARTBEAT_INTERVAL * 2);
-        assert_eq!(HEARTBEAT_TIMEOUT, HEARTBEAT_INTERVAL * 4);
+        assert_eq!(HEARTBEAT_TIMEOUT, HEARTBEAT_INTERVAL * 6);
     }
 
     #[test]

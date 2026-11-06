@@ -1484,8 +1484,8 @@ mod raw_bridge_tests {
 
 /// 서버 시한보다 긴 dump에서 Ping으로 연결을 유지하는지 확인한다.
 /// 수집 창과 Ping 주기는 가짜 시계로 잰다 — 실제 시계로 재면 부하로 스레드가 주기보다
-/// 오래 못 돌 때 Ping 이 늦어 시험이 실패한다(제품의 주기 5 s·시한 20 s 와 달리 시험 크기에서는
-/// 여유가 150 ms 뿐이다). 서버의 read timeout 은 Detach 가 오지 않을 때 멈추지 않게 하는 상한이다.
+/// 오래 못 돌 때 Ping 이 늦어 시험이 실패한다(제품의 주기 5 s·시한 30 s 와 달리 시험 크기에서는
+/// 여유가 훨씬 작다). 서버의 read timeout 은 Detach 가 오지 않을 때 멈추지 않게 하는 상한이다.
 #[cfg(test)]
 mod dump_heartbeat_tests {
     use std::cell::Cell;
@@ -1577,7 +1577,7 @@ mod dump_heartbeat_tests {
         })
     }
 
-    /// 수집 창의 주기 수 — 서버 시한(주기 × 4)의 세 배.
+    /// 수집 창의 주기 수 — 서버 시한(주기 × 6)의 두 배.
     const LONG_DUMP_PERIODS: u32 = 12;
 
     fn long_dump_ms() -> u64 {

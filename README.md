@@ -55,7 +55,7 @@ Details: [`docs/features/plugin-system/index.md`](docs/features/plugin-system/in
 
 - Connect to a Tasty instance already running on another machine and keep working in its workspaces from your own window. A single surface or a whole workspace can be attached. It appears locally as a mirror, and your input goes to the remote PTY.
 - One client holds an attached surface at a time. A second attach is refused and told who the holder is, and input from the remote machine's own keyboard and agents is blocked while the hold lasts.
-- The hold is released when the connection closes or when heartbeats stop (sent every 5 seconds, declared dead after 20). The user at the remote machine can force a detach at any time.
+- The hold is released when the connection closes or when heartbeats stop (sent every 5 seconds, declared dead after 30 by default, configurable). The user at the remote machine can force a detach at any time.
 - Tasty adds no network protocol, authentication, or encryption of its own. The server listens on loopback only, and the client reaches it through a tunnel opened with the system `ssh`.
 - A local workspace can be mapped to a remote profile and workspace, and then it attaches automatically when it is activated.
 

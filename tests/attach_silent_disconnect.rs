@@ -16,8 +16,8 @@ use common::TastyInstance;
 use serde_json::json;
 
 // 제품의 heartbeat 제한을 참조하고 회수 폴링에는 추가 여유를 둔다.
-const HEARTBEAT_TIMEOUT_HINT: Duration = Duration::from_secs(20);
-const RELEASE_POLL_TIMEOUT: Duration = Duration::from_secs(45);
+const HEARTBEAT_TIMEOUT_HINT: Duration = tasty_ipc::stream::HEARTBEAT_TIMEOUT;
+const RELEASE_POLL_TIMEOUT: Duration = Duration::from_secs(55);
 
 fn is_attached(instance: &TastyInstance, surface_id: u64) -> bool {
     let surfaces = instance.call("surface.list", json!({}));
