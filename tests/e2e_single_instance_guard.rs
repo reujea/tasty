@@ -25,10 +25,12 @@ const INSTANCE_HARNESS_MARKERS: &[&str] =
 /// 전용 인스턴스가 필요한 파일과 허용 횟수다. 미등록 파일은 허용하지 않는다.
 /// soak_memory는 다른 시험의 활동 없이 RSS를 측정한다. attach_convert_cwd는 기동 시 inherit_cwd 설정이 필요하다.
 /// 웹훅 하네스는 HOME과 설정을 개별 준비하며, webhook_integration은 같은 HOME으로 재시작도 검사한다.
+/// remote_attach_token_caller는 mirror를 받는 쪽과 다른 프로세스의 서버가 필요하다.
 const ALLOWLIST_FILES: &[(&str, usize)] = &[
     ("tests/soak_memory.rs", 1),
     ("tests/attach_convert_cwd_loopback.rs", 1),
     ("tests/hook_env_integration.rs", 1),
+    ("tests/remote_attach_token_caller.rs", 1),
     ("tests/webhook_integration.rs", 2),
 ];
 
@@ -53,6 +55,7 @@ const EXPECTED_INSTANCE_TESTS: &[&str] = &[
     "tests/notification_retry.rs",
     // 플러그인 활성 상태는 프로세스 전역이라 다른 Markdown 시험과 같은 바이너리에 넣지 않는다.
     "tests/plugin_disable_withdraws_surface_kinds.rs",
+    "tests/remote_attach_token_caller.rs",
     "tests/shared_instance_harness.rs",
     "tests/soak_memory.rs",
     "tests/webhook_integration.rs",
@@ -296,11 +299,13 @@ fn daemon_kind_roster_matches_instance_test_roster() {
     // 테스트 코드뿐 아니라 검증 대상 서버 경로가 빌드 조합에 따라 달라도 같은 조합의 서버가 필요하다.
     // attach 구조 변경은 GUI와 헤드리스에서 서로 다른 호출 경로를 거친다.
     // notification_retry는 GUI 빌드에서 GUI 라우터를, 헤드리스 빌드에서 헤드리스 처리기를 검사한다.
+    // remote_attach_token_caller는 GUI에서 mirror 생성을, 헤드리스에서 미지원 응답을 검사한다.
     let same_combo: BTreeSet<String> = [
         "e2e_tests",
         "gui_tests",
         "attach_structure_sync_loopback",
         "notification_retry",
+        "remote_attach_token_caller",
     ]
     .iter()
     .map(|s| (*s).to_string())

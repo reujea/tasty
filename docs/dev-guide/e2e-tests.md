@@ -72,12 +72,13 @@ GUI 테스트 바이너리와 headless 데몬의 혼합을 동종 조합의 검�
 
 **공유 범위는 test binary 단위다 — `cargo test` 전체가 아니다.** `OnceLock` 은 프로세스 로컬 정적 상태이고 cargo 는 test 타겟마다 별도 프로세스를 띄우므로, 이 구조로 도달 가능한 하한은 *바이너리당 1 개*다. 이걸 "저장소 전체 1 개" 로 오해하면 인스턴스 총량을 잘못 계산하게 된다. 총량을 더 줄이려면 test binary 개수 자체를 줄여야 한다.
 
-**전용 인스턴스가 정당한 예외는 두 종류뿐이다** — 둘 다 *프로세스 경계 자체가 검증 대상*인 경우다.
+**전용 인스턴스가 정당한 예외는 세 종류뿐이다** — 모두 *프로세스 경계 자체가 검증 대상*인 경우다.
 
 | 예외 | 사례 | 이유 |
 |------|------|------|
 | 기동 시점 config 이 달라야 함 | `spawn_with_inherit_cwd(true)` — `tests/attach_convert_cwd_loopback.rs` · `spawn_with_env(&[("TASTY_DEBUG_IPC_ROUND_TIME_BUDGET_MS", "0")])` — `tests/e2e_tests.rs` 의 `concurrent_requests_are_all_answered_when_every_round_is_cut` | `inherit_cwd` 는 격리 HOME 의 `config.toml` 에 미리 쓰는 값이라 이미 떠 있는 인스턴스에 런타임으로 바꿔 끼울 수 없다. debug 전용 회차 시간 예산([debug-ipc.md](debug-ipc.md))도 부팅 뒤 한 번 읽는 환경 변수라 같은 이유다 — 공유 인스턴스에 켜면 다른 시험이 모두 잘린 회차 위에서 돈다 |
 | 프로세스 자원을 외부에서 측정 | `tests/soak_memory.rs` | 프로세스 트리 RSS 를 `pid()` 로 밖에서 잰다. 다른 테스트의 활동이 섞이면 측정이 무의미해진다 |
+| 연결 상대가 다른 프로세스여야 함 | `tests/remote_attach_token_caller.rs` | mirror attach 는 자기 자신을 거절하므로 서버를 받는 쪽과 다른 프로세스로 띄운다. 받는 쪽은 공유 인스턴스를 쓴다 |
 
 웹훅 하네스(`tests/webhook_common/mod.rs`)는 인스턴스마다 `TASTY_HOME`/`webhooks.toml` 을 시딩해야 해서 공유 진입점이 없고, 재시작 영속성 테스트는 같은 HOME 을 물려받는 두 번째 인스턴스가 검증 대상 그 자체다.
 
