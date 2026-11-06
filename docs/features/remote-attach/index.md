@@ -359,7 +359,7 @@ Auto 체인이 전 단계 실패하면 가장 확정적인 분류(취소 > 타�
 
 - 새 연결부터 적용한다. 재시작은 필요 없고 이미 열린 연결은 그대로다. 파일을 직접 고치면 다음 시작 때 읽는다.
 - 서버와 GUI client 가 각자 자기 설정을 쓰고 협상하지 않는다. 끊는 쪽은 프레임을 받지 못하는 프로세스이고 그 프로세스의 값을 쓴다. 설정을 읽지 않는 CLI attach 쪽은 30초다.
-- 설정 화면에는 아직 항목이 없다.
+- 설정 창의 General › Remote attach 서브탭(`src/view/settings/ui/tabs/remote_attach.rs`)에서 `Disconnect after` 로 바꿀 수 있다. 범위를 벗어난 입력은 확정할 때 경계값으로 맞춘다. 디자인↔본체 매핑은 [design-gallery-mapping](../../design/systems/design-gallery-mapping.md) 의 Remote attach 절.
 
 세부 계약은 [Attach 메커니즘](../../dev-guide/attach-behavior.md#무응답-제한-설정)에 있다.
 

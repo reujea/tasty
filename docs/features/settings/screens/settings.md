@@ -28,7 +28,7 @@
 
 - **L1 탭바** (상단, 7탭, 이 순서): General / Terminal / Appearance / Keybindings / FileHandler(표시 라벨 **Handler**) / Misc / Plugins.
 - **L2 섹션 목록** (좌측): 현재 L1 의 하위 섹션 + **필터 검색**. (L1 전환 시 필터 클리어.) L1 별 L2:
-  - **General**: General / Notifications / Accessibility / Overlay(토스트 표시 시간 `Toast duration`, 1~10s · 0.5s 눈금) / Remote transfer / Display(macOS 전용) / Permissions(macOS 전용)
+  - **General**: General / Notifications / Accessibility / Overlay(토스트 표시 시간 `Toast duration`, 1~10s · 0.5s 눈금) / Remote transfer / Remote attach(원격 attach 무응답 끊김 시간 `Disconnect after`, 10~600s) / Display(macOS 전용) / Permissions(macOS 전용)
   - **Terminal**: General(터미널 동작 설정) / Input(앱별 Shift+Enter 설정) / Mouse Capture(마우스 캡처 안내 배너 토글 + Shift 우회 Note + 캡처 비활성화 블랙리스트 + 배너만 억제하는 블랙리스트) / TUI(OSC 52 클립보드 읽기 허용 토글 + bordered warning callout) / Performance
   - **Appearance**: Theme / Colors(프리셋 색 개별 override picker) / General / Display(UI 스케일 전용) / Tasty(앱 크롬 색상) / Terminal / Explorer(내장 파일 관리자 폰트) / (플러그인 기여 페이지 동적 — 예: HTML)
   - **Keybindings**: General / Workspace / Pane / Tab / Surface / Clipboard / Zoom / Explorer / Scripts / Preset / Plugins / ─ / Import / Export — 마지막 항목 위에만 1px separator 가 붙고, 필터 검색 중에는 separator 를 숨긴다

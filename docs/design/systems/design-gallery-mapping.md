@@ -1075,6 +1075,24 @@ General L1 에 5번째 L2 서브탭 "Remote transfer" 추가 — 원격 mirror �
 - 갤러리는 본체 미의존이라 host `draw_remote_transfer_tab`(Settings 저장소 의존)을 직접
   못 부르고 같은 위젯·토큰으로 미러(settings_handler 서브탭 specimen 전례). 찾아보기의 폴더 선택 화면은 공용 footer를 쓰는 filepicker-folder-mode specimen으로 대조한다.
 
+## Settings › General › Remote attach
+
+General L1 의 6번째 L2 서브탭이다(Remote transfer 다음, macOS 전용 Display·Permissions 앞). `[remote_attach] heartbeat_timeout_secs` 를 편집하는 행 하나를 담는다. 디자인: `gallery/parts/overlay-frames.jsx` `SettingsRemoteAttachFrame` + `gallery/parts/settings-attach-section.jsx` `AttachConnectionsSection` + `gallery/overlays-windows/index.jsx` "Settings · General › Remote attach" spec.
+
+| 디자인 jsx 컴포넌트 | 본체 함수 | 갤러리 항목 |
+|---|---|---|
+| `SettingsRemoteAttachFrame`(콘텐츠 컬럼) | `src/view/settings/ui/tabs/remote_attach.rs::draw_remote_attach_tab` | `components/settings_remote_attach.rs::draw` (`settings` 섹션 `settings-remote-attach` spec) |
+| 헤딩 "Attach connections" | `settings.remote_attach.section`, mono micro uppercase muted, `letter-spacing-caps` | 동(같은 토큰) |
+| 행 + 설명 | `SettingsRow` + `SettingsRow::caption` | 동 |
+| `Input block mono`(오른쪽 정렬) + 정적 mono `s` | `number::integer_field`(`NumberSpec::int(10.0, 600.0)`, `suffix_mono`, `settings.number.unit_s`). 칸과 단위 사이는 `number-field-unit-gap` | `seconds_control`(같은 `Input`·토큰) |
+| 범위 밖 `role="status"` 줄 | 공용 숫자 칸의 기본 danger 문장 `settings.number.range_between`. `range_note` 없음. 칸 아래 `space-xs` | 동 |
+
+**전사 노트**:
+
+- 설명은 행 전체의 폭을 쓰는 caption 이며 `measure-md` 에서 줄을 바꾼다.
+- 갤러리는 본체 미의존이라 host 함수를 직접 부르지 않고 같은 위젯·토큰으로 미러한다. 시안처럼 Mocha·Latte 의 평소·`5` 입력·`1000` 입력, ko·ja, 좁은 폭의 쌓인 행을 나란히 둔다. 시안은 쌓인 행을 `stacked` 속성으로 강제하고 칸 폭이 320 이지만, 앱 행은 남은 폭으로 쌓임을 정해 320 에서는 쌓이지 않으므로 갤러리 칸은 280 이다. 시안의 창 틀(`SettingsRemoteFrameShell`)과 L2 목록은 옮기지 않았다.
+- **별도 Theme 필드 없음** — 기존 접근자와 기존 위젯만 쓴다. i18n 4키(`settings.tab.remote_attach` + `settings.remote_attach.{section,heartbeat_timeout,heartbeat_timeout_desc}`), 재사용 2키(`settings.number.unit_s`, `settings.number.range_between`).
+
 ## 포트 스캐너 (Overlays) — Table 열 정의 공유
 
 디자인 `ui_kits/terminal/overlays/port_scanner.jsx` `PortsWindow` + `gallery/parts/overlay-frames.jsx` `PORTS_COLUMNS`·`PortsFrame` + `gallery/overlays-windows/index.jsx` Listening ports Section ↔ 갤러리 `catalog/components/port_scanner.rs`(`draw`·`draw_process_column`) ↔ 본체 `src/adapters/ui/popup/port_scanner.rs`의 `draw_table`.

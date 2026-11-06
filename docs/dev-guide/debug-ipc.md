@@ -125,7 +125,7 @@ debug 메서드는 모두 `local_only()` — plugin caller 는 호출 불가, CL
 
 | `tab` | 유효 `subtab` 키 |
 |-------|------------------|
-| `general` | `general` · `notifications` · `accessibility` · `overlay` · `remote_transfer` · `display`(macOS 전용 UI — 키 자체는 크로스플랫폼으로 강제 선택 가능) · `macos_permissions` |
+| `general` | `general` · `notifications` · `accessibility` · `overlay` · `remote_transfer` · `remote_attach` · `display`(macOS 전용 UI — 키 자체는 크로스플랫폼으로 강제 선택 가능) · `macos_permissions` |
 | `terminal` | `general` · `mouse_capture` · `tui` · `performance` |
 | `appearance` | `theme` · `colors` · `general` · `display` · `tasty` · `terminal` · `explorer` |
 | `keybindings` | `general` · `workspace` · `pane` · `tab` · `surface` · `clipboard` · `zoom` · `explorer` · `scripts` · `preset` · `plugins` · `import_export` |

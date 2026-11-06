@@ -120,6 +120,8 @@ pub(crate) enum GeneralSubTab {
     /// 원격(mirror) 파일 전송 수신측 저장 정책(저장 폴더 + 용량 상한). 백엔드는
     /// `RemoteTransferSettings`.
     RemoteTransfer,
+    /// 원격 attach 연결의 무응답 끊김 시간. 백엔드는 `RemoteAttachSettings`.
+    RemoteAttach,
     /// macOS의 Alt/Option/Shift 표시 방식. 다른 플랫폼에서는 목록에 넣지 않는다.
     // 이유: 이 variant 를 push 하는 것이 macOS 전용 분기뿐이다(위).
     #[cfg_attr(not(target_os = "macos"), allow(dead_code))]
@@ -335,6 +337,7 @@ impl SettingsUiState {
                     "accessibility" => GeneralSubTab::Accessibility,
                     "overlay" => GeneralSubTab::Overlay,
                     "remote_transfer" | "remote-transfer" => GeneralSubTab::RemoteTransfer,
+                    "remote_attach" | "remote-attach" => GeneralSubTab::RemoteAttach,
                     "display" => GeneralSubTab::Display,
                     "macos_permissions" | "macos-permissions" => GeneralSubTab::MacosPermissions,
                     _ => return false,
@@ -1029,6 +1032,7 @@ fn build_l2_sections(ui_state: &mut SettingsUiState) -> Vec<L2Section> {
                     GeneralSubTab::RemoteTransfer,
                     t("settings.tab.remote_transfer"),
                 ),
+                (GeneralSubTab::RemoteAttach, t("settings.tab.remote_attach")),
             ];
             #[cfg(target_os = "macos")]
             items.push((GeneralSubTab::Display, t("settings.tab.display")));
@@ -1725,6 +1729,7 @@ fn draw_active_content(
                     );
                 }
             }
+            GeneralSubTab::RemoteAttach => draw_remote_attach_tab(ui, draft),
             #[cfg(target_os = "macos")]
             GeneralSubTab::Display => draw_general_display_tab(ui, draft),
             #[cfg(target_os = "macos")]
@@ -1917,6 +1922,29 @@ mod tab_key_tests {
         ));
         assert_eq!(sections.iter().filter(|s| s.separated).count(), 1);
         assert!(last.separated);
+    }
+
+    /// Remote attach 는 Remote transfer 바로 다음 L2 이며 debug 키로 고를 수 있다.
+    #[test]
+    fn remote_attach_follows_remote_transfer_in_general_sections() {
+        let mut st = SettingsUiState::new();
+        st.active_tab = SettingsTab::General;
+        let sections = build_l2_sections(&mut st);
+        let position = |tab: GeneralSubTab| {
+            sections
+                .iter()
+                .position(|s| matches!(s.select, L2Select::General(t) if t == tab))
+                .expect("section")
+        };
+        assert_eq!(
+            position(GeneralSubTab::RemoteAttach),
+            position(GeneralSubTab::RemoteTransfer) + 1
+        );
+        for key in ["remote_attach", "remote-attach"] {
+            st.general_sub_tab = GeneralSubTab::General;
+            assert!(st.select_section_by_key(key), "key '{key}' should resolve");
+            assert_eq!(st.general_sub_tab, GeneralSubTab::RemoteAttach);
+        }
     }
 
     /// Cancel 은 plugin 단축키 draft 도 버린다 — 모달 close 가 그 draft 를 회수해 적용하므로.
