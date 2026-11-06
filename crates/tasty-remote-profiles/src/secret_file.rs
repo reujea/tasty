@@ -160,6 +160,7 @@ if (!$a.AreAccessRulesProtected -or $r.Count -ne 1 -or $r[0].IdentityReference -
 "#,
             ])
             .env("TASTY_PRIVATE_TEMP_PATH", &path)
+            .env_remove("PSModulePath")
             .output()
             .unwrap();
         assert!(verification.status.success());
