@@ -2,6 +2,8 @@
 //! 프레임은 [tag:u8][len:u32 BE][payload] 형식이다. 점유·mirror 처리는 상위 계층이 맡는다.
 
 use std::io::{self, Read, Write};
+use std::sync::Arc;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Duration;
 
 use serde::{Deserialize, Serialize};
@@ -47,6 +49,28 @@ pub const HEARTBEAT_INTERVAL: Duration = Duration::from_secs(5);
 /// disconnect — a peer is declared dead only after missing several heartbeats
 /// in a row.
 pub const HEARTBEAT_TIMEOUT: Duration = Duration::from_secs(30);
+
+/// New attach connections read their read timeout from this value once. Clones
+/// share it, so a settings change reaches later connections while sockets that
+/// are already open keep the timeout they were given.
+#[derive(Clone, Debug)]
+pub struct SharedHeartbeatTimeout(Arc<AtomicU64>);
+
+impl Default for SharedHeartbeatTimeout {
+    fn default() -> Self {
+        Self(Arc::new(AtomicU64::new(HEARTBEAT_TIMEOUT.as_secs())))
+    }
+}
+
+impl SharedHeartbeatTimeout {
+    pub fn get(&self) -> Duration {
+        Duration::from_secs(self.0.load(Ordering::Relaxed))
+    }
+
+    pub fn set(&self, timeout: Duration) {
+        self.0.store(timeout.as_secs(), Ordering::Relaxed);
+    }
+}
 
 /// Frame type tag (first byte of every frame).
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]

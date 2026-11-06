@@ -41,6 +41,8 @@ pub(crate) struct AppServices {
     pub(crate) approval_store: Arc<tasty_approval::ApprovalStore>,
     pub(crate) telemetry_seq: Arc<tasty_telemetry::TelemetrySeq>,
     pub(crate) anomaly_detector: Arc<tasty_telemetry::AnomalyDetector>,
+    /// 이 프로세스가 맺는 새 attach 연결(서버·클라이언트·bulk)의 무응답 제한.
+    pub(crate) attach_heartbeat: tasty_ipc::stream::SharedHeartbeatTimeout,
     clock: Arc<dyn Clock>,
     clipboard: Arc<dyn ClipboardSystem>,
     home: Arc<dyn HomeDirectory>,

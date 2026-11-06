@@ -2,6 +2,7 @@
 
 use std::io::{BufReader, Write};
 use std::net::TcpStream;
+use std::time::Duration;
 
 use anyhow::{Result, bail};
 
@@ -21,12 +22,19 @@ impl StreamConnection {
     /// `Control` ack frame. Returns the connection and the server-assigned
     /// client id.
     pub fn open(stream: TcpStream, proto: u32) -> Result<(Self, u32)> {
-        Self::open_with(stream, proto, None, None, None)
+        Self::open_with(stream, proto, None, None, None, stream::HEARTBEAT_TIMEOUT)
     }
 
     /// surface를 attach한다. handshake ack 다음의 attached/attach_error Control을 별도로 읽어야 한다.
     pub fn open_attach(stream: TcpStream, proto: u32, target: u32) -> Result<(Self, u32)> {
-        Self::open_with(stream, proto, Some(target), None, None)
+        Self::open_with(
+            stream,
+            proto,
+            Some(target),
+            None,
+            None,
+            stream::HEARTBEAT_TIMEOUT,
+        )
     }
 
     /// workspace 전체를 attach한다. Data payload는 surface ID로 시작하는 mux 형식이다.
@@ -35,14 +43,39 @@ impl StreamConnection {
         proto: u32,
         workspace: u32,
     ) -> Result<(Self, u32)> {
-        Self::open_with(stream, proto, None, Some(workspace), None)
+        Self::open_attach_workspace_with_timeout(
+            stream,
+            proto,
+            workspace,
+            stream::HEARTBEAT_TIMEOUT,
+        )
+    }
+
+    /// [`Self::open_attach_workspace`]와 같고 무응답 제한으로 `timeout`을 쓴다. handshake ack 대기부터 적용된다.
+    pub fn open_attach_workspace_with_timeout(
+        stream: TcpStream,
+        proto: u32,
+        workspace: u32,
+        timeout: Duration,
+    ) -> Result<(Self, u32)> {
+        Self::open_with(stream, proto, None, Some(workspace), None, timeout)
     }
 
     /// workspace holder와 별개의 bulk 연결을 연다. Data는 PTY 입력 대신 파일 청크다.
     /// 대상 workspace에 활성 holder가 있어야 서버가 전송을 허용한다.
     /// 대화형 attach가 파일 전송을 기다리지 않도록 같은 SSH 터널에서 별도 소켓을 쓴다.
     pub fn open_bulk(stream: TcpStream, proto: u32, workspace: u32) -> Result<(Self, u32)> {
-        Self::open_with(stream, proto, None, None, Some(workspace))
+        Self::open_bulk_with_timeout(stream, proto, workspace, stream::HEARTBEAT_TIMEOUT)
+    }
+
+    /// [`Self::open_bulk`]와 같고 무응답 제한으로 `timeout`을 쓴다. handshake ack 대기부터 적용된다.
+    pub fn open_bulk_with_timeout(
+        stream: TcpStream,
+        proto: u32,
+        workspace: u32,
+        timeout: Duration,
+    ) -> Result<(Self, u32)> {
+        Self::open_with(stream, proto, None, None, Some(workspace), timeout)
     }
 
     fn open_with(
@@ -51,11 +84,12 @@ impl StreamConnection {
         target: Option<u32>,
         target_workspace: Option<u32>,
         bulk_workspace: Option<u32>,
+        timeout: Duration,
     ) -> Result<(Self, u32)> {
         // 조용한 네트워크 단절 감지용 read timeout. writer/reader 는 이 소켓의 clone이라
         // 옵션이 공유되므로 여기서 한 번만 걸면 이후 모든 `recv()`(핸드셰이크 ack 대기
         // 포함)에 적용된다.
-        stream.set_read_timeout(Some(stream::HEARTBEAT_TIMEOUT))?;
+        stream.set_read_timeout(Some(timeout))?;
         // 작은 프레임의 분할 전송이 delayed ACK를 기다리지 않도록 Nagle을 끈다.
         if let Err(e) = stream.set_nodelay(true) {
             tracing::warn!("attach stream: TCP_NODELAY 설정 실패(지연 증가 가능): {e}");

@@ -487,7 +487,7 @@ hard 점유의 holder가 원격으로 전달한 구조 명령과, holder가 아�
 
 attach 스트림은 read timeout 이 없는 순수 blocking I/O 라 네트워크가 FIN/RST 없이 **조용히** 끊기면(케이블 단절·NAT 타임아웃 등) 소켓의 read 가 영원히 대기해 어느 쪽도 끊김을 감지하지 못한다. 아래는 이를 감지하는 연결이다 — 상수는 `crates/tasty-ipc/src/stream.rs` 의 `HEARTBEAT_INTERVAL`(5초)/`HEARTBEAT_TIMEOUT`(30초, interval 의 6배 — 일시적 jitter 나 짧은 경로 정체로 인한 오탐 방지).
 
-- **read timeout**: 서버(`tcp_ipc_server.rs::handle_stream_connection`)·GUI client(`crates/tasty-remote/src/transport.rs`의 `PreparedConnection::connect`)·CLI client(`tasty-ipc/src/client/stream.rs::StreamConnection::open_with`) 3곳 모두 소켓에 `HEARTBEAT_TIMEOUT` read timeout 을 건다. **서버는 그것을 attach dispatch 보다 먼저 건다**(`arm_stream_read_timeout` 이 `validate_stream_proto` 앞이다) — 즉 판정은 **연결 단위**이고 점유 유무와 무관하다: 아무 workspace 도 점유하지 않은 단순 upgrade 연결도 제한 시간 동안 침묵하면 닫힌다. 그래서 client 는 점유를 잡았든 안 잡았든 Ping 을 보내야 한다. `try_clone` 된 reader/writer 는 같은 소켓 옵션을 공유하므로 한 번만 걸면 양쪽 다 적용된다. CLI 는 핸드셰이크 ack/`attached(_workspace)` 디스크립터 대기(둘 다 `recv()`)에도 자동으로 적용된다.
+- **read timeout**: 서버(`tcp_ipc_server.rs::handle_stream_connection`)·GUI client(`crates/tasty-remote/src/transport.rs`의 `PreparedConnection::connect`)·CLI client(`tasty-ipc/src/client/stream.rs::StreamConnection::open_with`) 3곳 모두 소켓에 무응답 제한을 read timeout 으로 건다. GUI client·bulk·서버는 연결을 시작할 때의 `[remote_attach] heartbeat_timeout_secs` 를 쓰고, 설정을 읽지 않는 CLI 프로세스는 `HEARTBEAT_TIMEOUT` 을 쓴다([설정](#무응답-제한-설정)). **서버는 그것을 attach dispatch 보다 먼저 건다**(`arm_stream_read_timeout` 이 `validate_stream_proto` 앞이다) — 즉 판정은 **연결 단위**이고 점유 유무와 무관하다: 아무 workspace 도 점유하지 않은 단순 upgrade 연결도 제한 시간 동안 침묵하면 닫힌다. 그래서 client 는 점유를 잡았든 안 잡았든 Ping 을 보내야 한다. `try_clone` 된 reader/writer 는 같은 소켓 옵션을 공유하므로 한 번만 걸면 양쪽 다 적용된다. CLI 는 핸드셰이크 ack/`attached(_workspace)` 디스크립터 대기(둘 다 `recv()`)에도 자동으로 적용된다.
 - **`StreamTag::Ping`**: 빈 payload 의 keepalive 프레임(값 `2`, 코덱은 이전부터 예약돼 있었다). 수신측은 아무 처리도 하지 않는다 — `read_frame` 호출이 성공적으로 리턴하는 것 자체가 read timeout 을 리셋하므로, Ping 이든 실제 Data/Control 이든 도착만 하면 liveness 로 인정된다.
 - **송신은 write 쪽이 idle 할 때만**: 서버의 write thread(`handle_stream_connection`)는 기존 `for frame in sink_rx` blocking iterator 대신 `sink_rx.recv_timeout(HEARTBEAT_INTERVAL)` 루프를 쓴다 — sink 에 실제 Data/Control 프레임이 흐르면 그게 곧 liveness 라 Ping 을 보내지 않고, `HEARTBEAT_INTERVAL` 동안 조용하면 빈 Ping 을 대신 흘린다. GUI/CLI(raw 브리지) client 는 각각 별도 heartbeat 스레드가 `HEARTBEAT_INTERVAL` 마다 무조건 Ping 을 보낸다(활성 트래픽 여부를 별도로 추적하지 않음 — 5바이트 프레임 오버헤드가 그 추적 비용보다 훨씬 싸다).
 - **CLI dump 모드(mirror-dump/workspace-mirror-dump)도 client 발 heartbeat 을 보낸다 — 스레드 없이 수집 루프 안에서**: 수집 대기를 `min(창 끝, 다음 Ping)` 으로 끊고 `HEARTBEAT_INTERVAL` 마다 `Ping` 을 쓴다(`DumpHeartbeat`). 그래서 `--dump-after` 가 `HEARTBEAT_TIMEOUT` 보다 길어도 서버가 창 도중에 끊지 않는다. 첫 Ping 은 창을 연 지 한 주기 뒤라 기본 500 ms 창의 송신 프레임은 heartbeat 이 없던 때와 같다. `Ping` 쓰기가 실패하면 `Disconnected` 로 끝난다. writer 를 루프 하나가 쥐므로 raw 브리지(stdin 라우팅과 writer 공유 → 별도 heartbeat 스레드 + `Mutex`)와 형태가 다르다.
@@ -497,6 +497,18 @@ attach 스트림은 read timeout 이 없는 순수 blocking I/O 라 네트워크
 - **버전 skew 리스크(heartbeat 축은 완화 로직 없음, 의도적)**: read timeout이 걸린 이후부터 이 프로토콜을 도입한 버전이 적용된다. 구버전 프로세스(Ping 미전송)와 신버전 프로세스가 같이 떠 있는 상태(예: 호스트 재시작 없이 CLI/플러그인만 재배포)에서는 idle 상태의 mirror 세션이 제한 시간 뒤 오탐 disconnect 될 수 있다 — 이 프로젝트는 단일 사용자 로컬 앱이라 그런 skew 창이 짧고 드물어 허용 가능하다고 판단했다. 다중 버전 동시운영이 필요해지면 capability 협상을 재검토한다. **단 스트림 프로토콜 버전(`proto`) 자체는 핸드셰이크에서 검증된다** — 위 "점유 레지스트리" 의 `validate_stream_proto` 항목 참고. 지금은 정확히 같은 값만 통과하는 엄격 매칭이라, `STREAM_PROTO` 를 올리면 구버전 client 는 조용한 실패가 아니라 명시적 거절을 받는다.
 
 <a id="클라이언트측-비대칭서버는-점유-유지-클라이언트는-사라짐-원인"></a>
+
+<a id="무응답-제한-설정"></a>
+
+## 무응답 제한 설정
+
+`config.toml` 의 `[remote_attach] heartbeat_timeout_secs` 가 무응답 제한(초)을 정한다. 기본값은 30, 범위는 10~600이다. 하한은 `HEARTBEAT_INTERVAL` 의 2배다. 파일의 값이 범위를 벗어나면 `normalize` 가 30으로 되돌려 저장한다. 송신 주기 5초는 설정과 관계없이 같다.
+
+- **적용 시점**: 새 연결부터다. 값은 `AppServices::attach_heartbeat`(`SharedHeartbeatTimeout`)에 있다. 부팅은 IPC를 열기 전에, 설정 변경은 GUI·headless 의 반영 경로에서 이 값을 바꾼다. 서버는 `StreamContext` 의 같은 핸들을 연결마다 한 번 읽고, GUI client 와 bulk 는 시도를 시작할 때 읽어 재연결도 그 시점의 값을 쓴다. 이미 열린 소켓의 timeout 은 바꾸지 않는다.
+- **handshake**: `StreamConnection::open_with` 가 소켓 read timeout 을 건다. 넘겨받은 값을 쓰므로 handshake ack 대기부터 설정값이 적용된다.
+- **프로세스별 값**: 양쪽 프로세스가 각자 자기 설정을 쓰고 값을 협상하지 않는다. client 가 60초, 서버가 30초면 client→서버 방향의 정체는 서버가 30초에 끊는다. 설정을 읽지 않는 CLI 프로세스의 쪽은 `HEARTBEAT_TIMEOUT`(30초)이다.
+- **쓰기 timeout**: GUI client 와 bulk 는 같은 값을 쓰기 timeout 으로도 건다. 서버 stream writer 에는 쓰기 timeout 이 없다.
+- **별개인 상한**: 연결 직후 첫 줄 기한과 RPC 응답·거절 ack 쓰기 상한은 heartbeat 와 무관한 20초 상수다([IPC 서버](../architecture/ipc-server.md)). raw bridge 가 서버의 점유 해제를 기다리는 기한은 `HEARTBEAT_TIMEOUT` 이다.
 
 ## SSH keepalive와 attach heartbeat의 차이
 

@@ -631,7 +631,7 @@ impl App {
             settings_save: _,
         } = boot;
         let BootProgress {
-            settings: _,
+            settings,
             settings_origin,
             phase: _,
             boot_t0,
@@ -664,6 +664,8 @@ impl App {
         };
         Self::report_boot_init_errors(&mut state, invalid_theme_name);
         Self::report_locale_fallback(&mut state);
+        // 서버가 받는 첫 연결부터 설정값을 쓰도록 IPC를 열기 전에 반영한다.
+        crate::app::attach_heartbeat::apply(&self.services, &settings);
         self.start_boot_ipc_and_webhooks();
         Self::report_persistence_incidents(settings_origin, &mut state);
 
@@ -833,6 +835,7 @@ impl App {
             hub: self.stream_hub.clone(),
             inbound_tx: self.stream_inbound_tx.clone(),
             waker: stream_waker,
+            heartbeat_timeout: self.services.attach_heartbeat.clone(),
         };
         let connections = self.services.connections().clone();
         // Lua 실행 결과도 IPC와 같은 깨우기로 메인 루프에 전달한다.

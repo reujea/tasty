@@ -647,6 +647,7 @@ impl App {
     ) {
         crate::app::task_report::apply(&self.services, &new_settings);
         crate::app::anomaly_settings::apply(&self.services, &new_settings);
+        crate::app::attach_heartbeat::apply(&self.services, &new_settings);
         let prev_settings = self
             .engines()
             .windowed_and_parked()

@@ -517,6 +517,7 @@ fn start_ipc_and_seed(
         hub: app.stream_hub.clone(),
         inbound_tx: app.stream_inbound_tx.clone(),
         waker: waker.stream_waker(),
+        heartbeat_timeout: app.services.attach_heartbeat.clone(),
     };
     let connections = app.services.connections().clone();
     if let Some(lua) = app.lua_engine.as_ref() {
@@ -883,6 +884,8 @@ fn run_headless(cli: cli::Cli) -> anyhow::Result<std::process::ExitCode> {
 
     let mut app = App::new_headless(waker.journal_waker(), cli.port_file, memory_arc)?;
     app.hub.webhook = Some(webhook);
+    // 서버가 받는 첫 연결부터 설정값을 쓰도록 IPC를 열기 전에 반영한다.
+    crate::app::attach_heartbeat::apply(&app.services, &boot_settings);
     start_ipc_and_seed(&mut app, &waker);
 
     // 처음 만든 홈에도 namespace 선언이 있어야 하므로 번들은 부팅 때 설치한다. 프로세스 시작은 지연한다.

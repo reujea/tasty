@@ -515,7 +515,7 @@ impl TcpIpcServer {
         ctx: StreamContext,
         peer: Option<std::net::SocketAddr>,
     ) {
-        Self::arm_stream_read_timeout(&reader);
+        Self::arm_stream_read_timeout(&reader, ctx.heartbeat_timeout.get());
 
         let client_id = ctx.hub.alloc_id();
         let sink_rx = ctx.hub.register(client_id);
@@ -537,11 +537,8 @@ impl TcpIpcServer {
     }
 
     /// FIN/RST 없는 단절을 읽기 timeout으로 감지한다. 유휴 연결도 주기 Ping으로 유지한다.
-    fn arm_stream_read_timeout(reader: &BufReader<std::net::TcpStream>) {
-        if let Err(e) = reader
-            .get_ref()
-            .set_read_timeout(Some(stream::HEARTBEAT_TIMEOUT))
-        {
+    fn arm_stream_read_timeout(reader: &BufReader<std::net::TcpStream>, timeout: Duration) {
+        if let Err(e) = reader.get_ref().set_read_timeout(Some(timeout)) {
             tracing::warn!("stream client: failed to set read timeout: {e}");
         }
     }
@@ -1536,6 +1533,7 @@ mod admission_tests {
             hub: tasty_ipc::stream_hub::StreamHub::new(),
             inbound_tx,
             waker: Arc::new(|| {}),
+            heartbeat_timeout: Default::default(),
         };
         let (done_tx, done_rx) = mpsc::channel();
         std::thread::spawn(move || {
@@ -1870,8 +1868,69 @@ mod handshake_tests {
             hub: StreamHub::new(),
             inbound_tx,
             waker: Arc::new(|| {}),
+            heartbeat_timeout: Default::default(),
         };
         (ctx, inbound_rx)
+    }
+
+    /// 서버 소켓 사본은 timeout을 공유하므로 연결 스레드가 건 값을 시험에서 읽을 수 있다.
+    fn accept_stream(
+        listener: &std::net::TcpListener,
+        ctx: &StreamContext,
+    ) -> (std::net::TcpStream, std::net::TcpStream) {
+        let client =
+            std::net::TcpStream::connect(listener.local_addr().expect("addr")).expect("connect");
+        let (server, peer) = listener.accept().expect("accept");
+        let observed = server.try_clone().expect("clone");
+        let reader = BufReader::new(server.try_clone().expect("clone"));
+        let req = serde_json::from_value(serde_json::json!({
+            "jsonrpc": "2.0",
+            "method": "stream.open",
+            "params": {"proto": stream::STREAM_PROTO},
+            "id": 1,
+        }))
+        .expect("request");
+        let ctx = ctx.clone();
+        std::thread::spawn(move || {
+            TcpIpcServer::handle_stream_connection(reader, server, req, ctx, Some(peer));
+        });
+        (client, observed)
+    }
+
+    /// 프레임을 받은 뒤에는 handshake가 끝났으므로 소켓 값이 최종값이다.
+    fn read_ack(client: &mut std::net::TcpStream) {
+        client
+            .set_read_timeout(Some(Duration::from_secs(5)))
+            .expect("client timeout");
+        let frame = stream::read_frame(client).expect("ack");
+        assert_eq!(frame.tag, StreamTag::Control);
+    }
+
+    #[test]
+    fn a_settings_change_reaches_only_connections_opened_after_it() {
+        let (ctx, _rx) = ctx();
+        ctx.heartbeat_timeout.set(Duration::from_secs(17));
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").expect("bind");
+
+        let (mut first, first_server) = accept_stream(&listener, &ctx);
+        read_ack(&mut first);
+        assert_eq!(
+            first_server.read_timeout().expect("read"),
+            Some(Duration::from_secs(17))
+        );
+
+        ctx.heartbeat_timeout.set(Duration::from_secs(45));
+        let (mut second, second_server) = accept_stream(&listener, &ctx);
+        read_ack(&mut second);
+        assert_eq!(
+            second_server.read_timeout().expect("read"),
+            Some(Duration::from_secs(45))
+        );
+        assert_eq!(
+            first_server.read_timeout().expect("read"),
+            Some(Duration::from_secs(17)),
+            "이미 열린 연결의 제한은 설정 변경으로 바뀌지 않는다"
+        );
     }
 
     #[test]

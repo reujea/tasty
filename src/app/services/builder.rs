@@ -211,6 +211,7 @@ impl AppServicesBuilder {
             approval_store: Arc::new(tasty_approval::ApprovalStore::new()),
             telemetry_seq: Arc::new(tasty_telemetry::TelemetrySeq::new()),
             anomaly_detector: Arc::new(tasty_telemetry::AnomalyDetector::new()),
+            attach_heartbeat: Default::default(),
             clock: self.clock.ok_or_else(|| anyhow::anyhow!("Clock missing"))?,
             clipboard: self
                 .clipboard

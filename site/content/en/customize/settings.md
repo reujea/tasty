@@ -1,4 +1,4 @@
-<!-- source-hash: 4597e04d37b7 -->
+<!-- source-hash: 32da98976ade -->
 # Settings
 
 Configure Tasty’s shell, fonts, language, and other preferences. Use the settings window or edit `~/.tasty/config.toml` directly. Keybindings and themes have their own guides.
@@ -306,6 +306,9 @@ scrollback_disk_lines = 10000     # lines kept on disk, -1 = unlimited
 [remote_transfer]
 dir = ""                         # empty = ~/.tasty/transfers/
 max_mb = 500
+
+[remote_attach]
+heartbeat_timeout_secs = 30      # seconds of peer silence before disconnecting, 10-600, applies to new connections
 
 [webhook]
 allow_external = false           # true = also accept webhook calls from other computers (from the next start)

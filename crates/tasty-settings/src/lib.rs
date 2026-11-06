@@ -6,6 +6,7 @@ pub mod merge;
 mod persistence;
 mod port;
 mod port_impl;
+mod remote_attach;
 mod scripts;
 pub mod shell_path;
 mod task_pipeline;
@@ -20,6 +21,7 @@ use serde::{Deserialize, Serialize};
 
 pub use anomaly_detection::*;
 pub use persistence::FileObservation;
+pub use remote_attach::*;
 
 pub use appearance::{
     ActiveTabIndicator, AppearanceSettings, EffectiveFont, FontOverride, FontSettings, HexColor,
@@ -79,6 +81,8 @@ pub struct Settings {
     /// 원격 전송(bulk 파일 전송 채널, docs/dev-guide/attach-behavior.md#커스텀-이벤트-확장-streamcontrol-밖-raw-json-event-태그) 수신측 저장 폴더 + 용량 상한.
     /// `#[serde(default)]` 로 기존 config.toml 마이그레이션 안전(누락 시 dir="", max_mb=500).
     pub remote_transfer: RemoteTransferSettings,
+    /// 원격 attach 연결의 무응답 끊김 시간.
+    pub remote_attach: RemoteAttachSettings,
     /// 웹훅 리스너의 외부 수신 허용. `#[serde(default)]`로 누락 시 loopback만 받는다.
     pub webhook: WebhookSettings,
     /// 작업 파이프라인의 report 상한. 누락 시 기본값이다.
@@ -107,7 +111,8 @@ impl Settings {
     /// Admission과 live 갱신에서 쓰는 backend 설정 검증. 파일 로드는 normalize로 복구한다.
     pub fn validate_runtime(&self) -> Result<(), String> {
         self.task_pipeline.validate()?;
-        self.anomaly_detection.validate()
+        self.anomaly_detection.validate()?;
+        self.remote_attach.validate()
     }
 
     /// 전역 Theme 설치에 필요한 UI 배율·모션 설정을 함께 반환한다.
@@ -284,6 +289,7 @@ impl Settings {
         self.performance.normalize(&mut report.changed);
         self.task_pipeline.normalize(&mut report.changed);
         self.anomaly_detection.normalize(&mut report.changed);
+        self.remote_attach.normalize(&mut report.changed);
 
         report
     }

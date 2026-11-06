@@ -219,6 +219,7 @@ impl App {
             },
             tunnel,
             attach_wake(&self.view.proxy),
+            self.services.attach_heartbeat.get(),
         )
     }
     pub(crate) fn poll_pending_mirror_installs(&mut self) {
@@ -404,6 +405,7 @@ pub(super) fn queue_on(
     connection: ConnectionTarget,
     tunnel: Option<tasty_ssh::SshTunnel>,
     wake: Arc<dyn Fn() + Send + Sync>,
+    heartbeat_timeout: std::time::Duration,
 ) -> anyhow::Result<()> {
     attempts.supersede_connections(&target, remote);
     attempts.supersede_manual(&target, remote);
@@ -417,6 +419,7 @@ pub(super) fn queue_on(
             tunnel,
             wake,
             mirror_event_from_control,
+            heartbeat_timeout,
         )
         .map_err(|error| {
             target.fail_run(format!(

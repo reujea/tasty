@@ -297,6 +297,9 @@ scrollback_disk_lines = 10000     # 디스크에 남길 줄 수, -1 이면 무�
 dir = ""                         # 비우면 ~/.tasty/transfers/
 max_mb = 500
 
+[remote_attach]
+heartbeat_timeout_secs = 30      # 상대 응답 없이 기다리다 끊는 시간(초), 10~600, 새 연결부터 적용
+
 [webhook]
 allow_external = false           # true 면 다른 컴퓨터의 웹훅 호출도 받음(다음 시작부터)
 

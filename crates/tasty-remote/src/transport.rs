@@ -11,6 +11,7 @@ pub fn attach_handshake(
     workspace: u32,
     log_prefix: &str,
     cancel: &super::outbound::AttemptToken,
+    heartbeat_timeout: std::time::Duration,
 ) -> anyhow::Result<AttachHandshake> {
     if !cancel.is_active() {
         anyhow::bail!("connection attempt retired");
@@ -18,9 +19,13 @@ pub fn attach_handshake(
     let address = std::net::SocketAddr::from(([127, 0, 0, 1], port));
     let sock = TcpStream::connect_timeout(&address, std::time::Duration::from_millis(250))?;
     cancel.register_socket(&sock)?;
-    arm_attach_timeouts(&sock, log_prefix);
-    let (mut conn, client_id) =
-        StreamConnection::open_attach_workspace(sock, STREAM_PROTO, workspace)?;
+    arm_attach_timeouts(&sock, log_prefix, heartbeat_timeout);
+    let (mut conn, client_id) = StreamConnection::open_attach_workspace_with_timeout(
+        sock,
+        STREAM_PROTO,
+        workspace,
+        heartbeat_timeout,
+    )?;
     let first = conn.recv()?;
     if first.tag != StreamTag::Control {
         anyhow::bail!("expected attach Control frame, got {:?}", first.tag);
@@ -87,11 +92,11 @@ pub fn descriptor_has_capability(ctrl: &Value, name: &str) -> bool {
         .is_some_and(|list| list.iter().any(|v| v.as_str() == Some(name)))
 }
 
-pub fn arm_attach_timeouts(sock: &TcpStream, log_prefix: &str) {
-    if let Err(e) = sock.set_read_timeout(Some(stream::HEARTBEAT_TIMEOUT)) {
+pub fn arm_attach_timeouts(sock: &TcpStream, log_prefix: &str, timeout: std::time::Duration) {
+    if let Err(e) = sock.set_read_timeout(Some(timeout)) {
         tracing::warn!("{log_prefix}: failed to set read timeout: {e}");
     }
-    if let Err(e) = sock.set_write_timeout(Some(stream::HEARTBEAT_TIMEOUT)) {
+    if let Err(e) = sock.set_write_timeout(Some(timeout)) {
         tracing::warn!("{log_prefix}: failed to set write timeout: {e}");
     }
 }
@@ -400,6 +405,7 @@ impl PreparedConnection {
         tunnel: Option<tasty_ssh::SshTunnel>,
         wake: Arc<dyn Fn() + Send + Sync>,
         decode: fn(&[u8]) -> Option<MirrorEvent>,
+        heartbeat_timeout: std::time::Duration,
     ) -> anyhow::Result<Self> {
         let AttachHandshake {
             conn,
@@ -415,7 +421,13 @@ impl PreparedConnection {
             agent_children,
             terminal_read,
             html,
-        } = attach_handshake(port, workspace, "remote pending connection", &cancel)?;
+        } = attach_handshake(
+            port,
+            workspace,
+            "remote pending connection",
+            &cancel,
+            heartbeat_timeout,
+        )?;
         let control = write_half.try_clone()?;
         let (frame_tx, frame_rx) = super::connection::channel();
         frame_tx.enable_input_receipts(input_acks);

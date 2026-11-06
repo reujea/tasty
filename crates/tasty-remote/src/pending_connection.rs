@@ -36,6 +36,7 @@ impl Remote {
         tunnel: Option<tasty_ssh::SshTunnel>,
         wake: std::sync::Arc<dyn Fn() + Send + Sync>,
         decode: fn(&[u8]) -> Option<super::client_session::MirrorEvent>,
+        heartbeat_timeout: std::time::Duration,
     ) -> Result<ConnectionTicket, String> {
         let ConnectionTarget {
             port,
@@ -86,6 +87,7 @@ impl Remote {
                 tunnel,
                 worker_wake,
                 decode,
+                heartbeat_timeout,
             )
             .map_err(|error| error.to_string());
             // Deliver cancelled success too: collect_connections tracks the exact I/O retirement

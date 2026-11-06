@@ -82,6 +82,7 @@ fn actual_protocol_rejection_writes_ack_before_cleanup_without_attach() {
                 hub: hub.clone(),
                 inbound_tx: tx,
                 waker: Arc::new(|| {}),
+                heartbeat_timeout: Default::default(),
             };
             let mut params = serde_json::json!({"target_workspace": 7, "bulk_workspace": 7});
             if let Some(proto) = proto {

@@ -338,6 +338,8 @@ pub struct StreamContext {
     pub hub: StreamHub,
     pub inbound_tx: Sender<StreamInbound>,
     pub waker: IpcWaker,
+    /// 새 연결이 소켓에 걸 무응답 제한. 설정 반영 경로가 갱신한다.
+    pub heartbeat_timeout: crate::stream::SharedHeartbeatTimeout,
 }
 
 /// Shared registry of stream-client push sinks. Cloneable (internal `Arc`): the

@@ -97,27 +97,40 @@ fn bulk_chunk_frames(transfer_id: u64, bytes: &[u8]) -> Vec<Vec<u8>> {
         .collect()
 }
 
+/// bulk 채널이 붙을 곳과 소켓에 걸 무응답 제한. 제한은 전송을 시작할 때의 설정값이다.
+#[derive(Clone, Copy)]
+pub(crate) struct BulkEndpoint {
+    pub port: u16,
+    pub remote_ws: u32,
+    pub heartbeat_timeout: std::time::Duration,
+}
+
 /// 기존 workspace 점유에 연결된 bulk 채널을 연다. timeout 설정 실패는 경고만 남긴다.
 #[cfg(test)]
-fn open_bulk_connection(port: u16, remote_ws: u32) -> anyhow::Result<StreamConnection> {
-    open_bulk_connection_bound(port, remote_ws, None)
+fn open_bulk_connection(endpoint: BulkEndpoint) -> anyhow::Result<StreamConnection> {
+    open_bulk_connection_bound(endpoint, None)
 }
 fn open_bulk_connection_bound(
-    port: u16,
-    remote_ws: u32,
+    endpoint: BulkEndpoint,
     attempt: Option<&tasty_remote::outbound::AttemptToken>,
 ) -> anyhow::Result<StreamConnection> {
+    let BulkEndpoint {
+        port,
+        remote_ws,
+        heartbeat_timeout,
+    } = endpoint;
     let sock = TcpStream::connect(("127.0.0.1", port))?;
     if let Some(attempt) = attempt {
         attempt.register_socket(&sock)?;
     }
-    if let Err(e) = sock.set_read_timeout(Some(stream::HEARTBEAT_TIMEOUT)) {
+    if let Err(e) = sock.set_read_timeout(Some(heartbeat_timeout)) {
         tracing::warn!("bulk upload: failed to set read timeout: {e}");
     }
-    if let Err(e) = sock.set_write_timeout(Some(stream::HEARTBEAT_TIMEOUT)) {
+    if let Err(e) = sock.set_write_timeout(Some(heartbeat_timeout)) {
         tracing::warn!("bulk upload: failed to set write timeout: {e}");
     }
-    let (mut conn, _client_id) = StreamConnection::open_bulk(sock, STREAM_PROTO, remote_ws)?;
+    let (mut conn, _client_id) =
+        StreamConnection::open_bulk_with_timeout(sock, STREAM_PROTO, remote_ws, heartbeat_timeout)?;
     declare_bulk_loss_notify(&mut conn);
     Ok(conn)
 }
@@ -224,8 +237,7 @@ fn await_bulk_result(
 
 /// 원격 업로드 전체를 동기로 수행한다. on_progress는 시작과 각 청크 전송 뒤 호출한다.
 pub(crate) fn upload_file_over_bulk(
-    port: u16,
-    remote_ws: u32,
+    endpoint: BulkEndpoint,
     file_name: &str,
     bytes: &[u8],
     on_progress: impl Fn(u64, u64),
@@ -234,7 +246,7 @@ pub(crate) fn upload_file_over_bulk(
 ) -> anyhow::Result<String> {
     ensure_bulk_epoch(epoch)?;
     let transfer_id = next_bulk_transfer_id();
-    let mut conn = open_bulk_connection_bound(port, remote_ws, Some(attempt))?;
+    let mut conn = open_bulk_connection_bound(endpoint, Some(attempt))?;
     send_bulk_payload(&mut conn, transfer_id, file_name, bytes, on_progress, epoch)?;
     await_bulk_result(&mut conn, transfer_id, epoch)
 }

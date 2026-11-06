@@ -29,6 +29,6 @@ pub(crate) mod tests;
 const GIT_VIEWER_PLUGIN_ID: &str = "com.tasty.git-viewer";
 const GIT_VIEWER_QUERY_RESULT_EVENT: &str = "git_viewer.query_result";
 
-pub(crate) use bulk::{BULK_REJECT_PREFIX, upload_file_over_bulk};
+pub(crate) use bulk::{BULK_REJECT_PREFIX, BulkEndpoint, upload_file_over_bulk};
 pub(super) use connection::find_parked_with_workspace;
 pub(crate) use forward::RemoteTarget;

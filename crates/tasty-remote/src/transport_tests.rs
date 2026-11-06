@@ -161,7 +161,14 @@ fn html_transport_is_declared_only_to_servers_advertising_it_and_never_as_viewer
         });
         let mut remote = super::super::outbound::Remote::new();
         let token = remote.begin_attempt(None, None).unwrap();
-        let handshake = attach_handshake(port, 1, "HTML compatibility test", &token).unwrap();
+        let handshake = attach_handshake(
+            port,
+            1,
+            "HTML compatibility test",
+            &token,
+            stream::HEARTBEAT_TIMEOUT,
+        )
+        .unwrap();
         assert_eq!(handshake.html.server_transfer, enabled);
         assert_eq!(handshake.html.server_entry, entry);
         assert_eq!(handshake.html.server_resources, resources);
@@ -169,4 +176,48 @@ fn html_transport_is_declared_only_to_servers_advertising_it_and_never_as_viewer
         remote.cancel_attempt(&token);
         peer.join().unwrap();
     }
+}
+
+/// `StreamConnection`의 handshake가 소켓 timeout을 다시 걸므로, 연결을 연 뒤의 값을 확인한다.
+#[test]
+fn the_heartbeat_timeout_is_still_on_the_socket_after_the_handshake() {
+    use std::io::{BufRead, BufReader, Write};
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let port = listener.local_addr().unwrap().port();
+    let peer = std::thread::spawn(move || {
+        let (sock, _) = listener.accept().unwrap();
+        let mut writer = sock.try_clone().unwrap();
+        let mut request = String::new();
+        BufReader::new(sock).read_line(&mut request).unwrap();
+        stream::write_frame(
+            &mut writer,
+            StreamTag::Control,
+            &serde_json::to_vec(&serde_json::json!({"ok":true,"proto":1,"client_id":7})).unwrap(),
+        )
+        .unwrap();
+        stream::write_frame(
+            &mut writer,
+            StreamTag::Control,
+            &serde_json::to_vec(&serde_json::json!({"event":"attached_workspace"})).unwrap(),
+        )
+        .unwrap();
+        writer.flush().unwrap();
+        writer
+    });
+    let mut remote = super::super::outbound::Remote::new();
+    let token = remote.begin_attempt(None, None).unwrap();
+    let configured = Duration::from_secs(17);
+    let handshake =
+        attach_handshake(port, 1, "heartbeat setting test", &token, configured).unwrap();
+    assert_eq!(
+        handshake.write_half.read_timeout().unwrap(),
+        Some(configured)
+    );
+    assert_eq!(
+        handshake.write_half.write_timeout().unwrap(),
+        Some(configured)
+    );
+    drop(handshake);
+    remote.cancel_attempt(&token);
+    drop(peer.join().unwrap());
 }

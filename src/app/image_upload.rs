@@ -97,9 +97,17 @@ impl App {
             let total = png_bytes.len() as u64;
             self.begin_transfer_progress_row(surface_id, transfer_id, &file_name, total);
             let remote_target = self.capture_remote_target(mirror_ws_id, Some(surface_id));
-            let target = remote_target
-                .as_ref()
-                .map(|target| (target.port, target.remote_workspace, target.sender.epoch()));
+            let heartbeat_timeout = self.services.attach_heartbeat.get();
+            let target = remote_target.as_ref().map(|target| {
+                (
+                    crate::app::attach_client::BulkEndpoint {
+                        port: target.port,
+                        remote_ws: target.remote_workspace,
+                        heartbeat_timeout,
+                    },
+                    target.sender.epoch(),
+                )
+            });
             let tx = self.image_upload_tx.clone();
             let progress_tx = self.transfer_progress_tx.clone();
             let proxy = self.view.proxy.clone();
@@ -108,12 +116,11 @@ impl App {
             let spawned = self.remote.spawn_attempt(attempt, move || {
                 let start = std::time::Instant::now();
                 let result = match target {
-                    Some((port, remote_ws, epoch)) => {
+                    Some((endpoint, epoch)) => {
                         let progress_tx = progress_tx.clone();
                         let proxy = proxy.clone();
                         crate::app::attach_client::upload_file_over_bulk(
-                            port,
-                            remote_ws,
+                            endpoint,
                             &file_name,
                             &png_bytes,
                             move |sent, tot| {

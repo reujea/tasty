@@ -281,6 +281,7 @@ fn apply_settings(
 ) {
     crate::app::task_report::apply(core, &new_settings);
     crate::app::anomaly_settings::apply(core, &new_settings);
+    crate::app::attach_heartbeat::apply(core, &new_settings);
     engine.runtime.settings = new_settings.clone();
     core.submit_settings_save(new_settings, None, done);
     // 접수 거절이나 writer 없는 구성의 결과는 바로 나와 있다.

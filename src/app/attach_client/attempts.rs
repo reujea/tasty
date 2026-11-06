@@ -202,6 +202,7 @@ mod tests {
                 },
                 None,
                 wake.clone(),
+                tasty_ipc::stream::HEARTBEAT_TIMEOUT,
             );
             (run, queued)
         };

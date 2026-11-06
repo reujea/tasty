@@ -73,6 +73,7 @@ mod loop_tests {
             hub: StreamHub::new(),
             inbound_tx,
             waker: Arc::new(|| {}),
+            heartbeat_timeout: Default::default(),
         };
         let stats = Arc::new(ConnectionStats::default());
         let server = TcpIpcServer::start_with_port_file(
