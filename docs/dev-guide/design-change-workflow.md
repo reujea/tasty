@@ -36,6 +36,8 @@ Artifact 주소와 `designer` Agent 정의는 커밋하지 않는 로컬 전용 
 
 시안이 요청문서에 없던 구조를 드러내거나 4단계에서 부족분이 나오면 다음 요청문서로 다시 돈다.
 
+changelog는 덧붙이기만 하므로 뒤 항목이 앞 항목을 대체하면 designer가 앞 항목 제목 끝에 `(철회: <날짜> 항목이 대체)`를 붙인다. 구현 세션은 changelog를 위에서부터 읽을 때 이 표시를 확인한다.
+
 ## 책임 경계
 
 | 대상 | 정하는 쪽 | 예 |
@@ -56,6 +58,8 @@ designer가 답을 정할 수 없는 항목은 `project/design-tasks/<YYYYMMDD-h
 | 사실 확인 | 구현 세션이 코드에서 확인해 답하고 designer를 다시 호출한다 |
 | 디자인 판단 | 요청문서를 보강해 designer를 다시 호출한다 |
 | 제품 결정 | 사용자에게 묻는다. 분류가 애매하면 제품 결정으로 본다 |
+
+처리한 `.NEEDS-INPUT` 파일은 designer가 다음 호출에서 답을 반영할 때 지운다.
 
 ## 디자인 요청문서란
 
@@ -78,6 +82,8 @@ designer가 답을 정할 수 없는 항목은 `project/design-tasks/<YYYYMMDD-h
 | §6 열린 결정 | designer가 판단할 항목 |
 | §7 산출물 형식 | 결정표, 토큰 변경표, 영향 목록처럼 보고받을 것 |
 | §8 참고 | 표본 경로, 토큰 안내 |
+
+위치(어느 탭·섹션·메뉴에 둘지)를 designer에게 맡기는 요청이면 그 위치로 가는 탐색 경로의 사실(예: 설정 섹션 필터가 L2 라벨만 일치한다)을 코드에서 확인해 요청문서에 적는다.
 
 ### 요청문서가 강제하는 디자인 규칙 (시안 단계부터)
 
@@ -106,7 +112,7 @@ designer가 답을 정할 수 없는 항목은 `project/design-tasks/<YYYYMMDD-h
 | 앱 — `crates/tasty-design-tokens/dtcg/tasty.tokens.json` | 토큰(DTCG) | [`crates/tasty-design-tokens/README.md`](../../crates/tasty-design-tokens/README.md) "vendor 갱신 절차" | `crates/tasty-design-tokens/tests/freshness.rs` 의 목록 검사에 실패한다 |
 | 사이트 — `site/vendor/` | 킷 전부(토큰 · 컴포넌트 · UI kit · 갤러리 · 가이드라인) | [`site/vendor/README.md`](../../site/vendor/README.md) "vendor 갱신 절차" | **릴리스 후에도 공개 사이트가 결정 이전 UI 를 현재형으로 전시한다** |
 
-갤러리 파일은 ES 모듈이다. 표본은 `gallery/<페이지>/` 아래에 두고 필요한 것을 `import`하며 전역 객체와 페이지별 `.html`을 쓰지 않는다. 표본의 제목과 순서, 상태 표시, 표 형식은 `gallery/README.md`를 따르고, 새 계약의 칸은 해당 페이지의 `states.jsx`와 `parts/contract-cells.jsx`에 넣는다. 게시 전에 사본을 `site/vendor/`에 맞춰 `cd site && npm run build && npm run check-contrast`로 확인한다.
+갤러리 파일은 ES 모듈이다. 표본은 `gallery/<페이지>/` 아래에 두고 필요한 것을 `import`하며 전역 객체와 페이지별 `.html`을 쓰지 않는다. 표본의 제목과 순서, 상태 표시, 표 형식은 `gallery/README.md`를 따르고, 새 계약의 칸은 해당 페이지의 `states.jsx`와 `parts/contract-cells.jsx`에 넣는다. 사이트 빌드·대비 검증은 호출한 구현 세션이 임시 worktree(또는 Git 제외 임시 폴더)에서 `site/vendor/`를 게시본에 맞춘 뒤 `cd site && npm run build && npm run check-contrast`로 한다. 저장소의 `site/vendor/`는 릴리스 때만 Artifact에서 가져온다. designer는 Artifact 안에서 끝나는 검증만 한다.
 
 사이트는 오래된 사본도 정상 빌드할 수 있으므로 빌드 통과만으로 최신 여부를 판단하지 않는다.
 `site_vendor_tokens_track_the_app_export`는 두 사본의 토큰 이름을,
@@ -126,16 +132,16 @@ cap/join을 비교한다. `site_vendor_manifest_matches`는 사이트 사본이 
 
 | 상태 | 의미 |
 |------|------|
-| `requested` | 요청문서를 게시함. designer 호출 전이거나 실행 중. |
-| `received` | designer가 게시를 마치고 보고함. 정합 작업 대기/진행. |
-| `reconciled` | 시안을 갤러리 specimen + 본체 + **사이트 사본(`site/vendor/`)** 에 반영 완료. 이 시점에 정리한다(아래 [정합 완료 후 정리](#정합-완료-후-정리-필수)). |
+| `requested` | 요청문서를 게시함. designer 호출 전이거나 실행 중, 또는 회신 대조 전. |
+| `received` | designer가 게시를 마치고 보고했고, 구현 세션이 회신을 대조한 뒤 이 상태로 바꿈. 정합 작업 대기/진행. |
+| `reconciled` | 시안을 갤러리 specimen + 본체에 반영 완료. 사이트 사본은 릴리스할 때 갱신하므로 기다리지 않는다. 이 시점에 정리한다(아래 [정합 완료 후 정리](#정합-완료-후-정리-필수)). |
 | `re-requested` | 정합 중 부족·불일치가 드러나 추가/갱신 요청문서로 루프 재진입. |
 
 <a id="정합-완료-후-요청문서-삭제-필수"></a>
 
 ## 정합 완료 후 정리 (필수)
 
-`reconciled`에 도달하면 요청문서, designer가 남긴 완료 문서(`project/design-tasks/*.DONE.md`), changelog 토픽 파일(`project/changelog/<날짜>-<토픽>.md`)을 삭제한다. `project/changelog/README.md`는 남기고 목차 표의 해당 행만 지운다. 이력이 필요한 결정은 이미 ADR·docs 에 남는다.
+구현 세션은 반영을 끝내 `reconciled`에 도달한 뒤 요청문서, designer가 남긴 완료 문서(`project/design-tasks/*.DONE.md`), changelog 토픽 파일(`project/changelog/<날짜>-<토픽>.md`)을 삭제한다. `project/changelog/README.md`는 남기고 목차 표의 해당 행만 지운다. 이력이 필요한 결정은 이미 ADR·docs 에 남는다.
 
 - **삭제 조건**: 상태가 확정적으로 `reconciled`이고, 삭제할 파일을 게시본 목록에서 확인했다. `re-requested`로 루프가 도는 중이면 지우지 않는다.
 - **삭제 방법**: 한 게시 호출의 `files`에 `"project/<경로>": null`을 넣는다. 같은 호출에서 `project/design-system.json`의 `lastChange`를 갱신한다.
