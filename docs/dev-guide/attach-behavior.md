@@ -481,7 +481,7 @@ hard 점유의 holder가 원격으로 전달한 구조 명령과, holder가 아�
   입력 유실은 재연결 중 세션을 바꾸는 구간에서 발생하며, 리더 스레드가 누적돼 시간이 갈수록 커지는 문제는 아니다.
   슬롯이 비어 있는 동안 stdin EOF나 오류가 발생하면 별도 `AtomicBool`에 기록한다. 다음 세션의 `install_sender`가 sender를 설치할 때 `RawEvent::StdinEof`를 바로 전달해, 이미 닫힌 stdin을 계속 기다리지 않도록 한다.
   현재는 재연결 중 보내지 못한 입력을 버퍼에 보관하지 않는다.
-- **loopback 직결 없음**: 이 공용 경로(`remote attach`·`tool attach`·`remote check`)는 인라인 host 가 `127.0.0.1:PORT`·`localhost:PORT`·`[::1]:PORT` 여도 SSH 포트 발견과 터널을 거치므로 SSH 없이 붙지 않는다. loopback 직결 분기는 `tasty_remote::browse::resolve_endpoint`(browse·`remote new-workspace`·IPC `remote.*`·GUI 원격 브라우저 워커)와 자동 attach 의 `src/app/auto_attach.rs` 에만 있다. 같은 머신 다중 인스턴스에서 attach 를 재현할 때는 debug 빌드의 `tasty debug attach` 로 서버 인스턴스의 포트에 직접 붙는다([debug-ipc](debug-ipc.md)).
+- **loopback 직결 없음**: 이 공용 경로(`--into-gui` 없는 `remote attach`·`tool attach`·`remote check`)는 인라인 host 가 `127.0.0.1:PORT`·`localhost:PORT`·`[::1]:PORT` 여도 SSH 포트 발견과 터널을 거치므로 SSH 없이 붙지 않는다. loopback 직결 분기는 `tasty_remote::browse::resolve_endpoint`(browse·`remote new-workspace`·IPC `remote.*`와 이를 부르는 `remote attach --into-gui --ssh`·GUI 원격 브라우저 워커)와 자동 attach 의 `src/app/auto_attach.rs` 에만 있다. 같은 머신 다중 인스턴스에서 attach 를 재현할 때는 debug 빌드의 `tasty debug attach` 로 서버 인스턴스의 포트에 직접 붙는다([debug-ipc](debug-ipc.md)).
 
 ## 연결 생존 확인 (read timeout + heartbeat)
 
@@ -774,7 +774,7 @@ mirror 터미널은 attach snapshot(보이는 화면·커서·주요 모드)과 
 | `attach.agent_call` / `attach.agent_commit` | JSON-RPC(plugin 전용) | 원격 call 실행과 수신처를 묶은 뒤의 commit(위 원격 자식 에이전트 절). 호출 plugin 의 `terminal.spawn`·`terminal.write` 권한이 필요하다 |
 | `attach.child_notice` / `attach.child_notices` | JSON-RPC | 서버 plugin 이 원격 자식의 결과를 맡기고(plugin 전용, `terminal.write`) 남은 통지를 조회한다(read) |
 
-**권한**: attach 보안은 **연결 경계(SSH + 127.0.0.1 loopback)** 에 위임. 자체 권한 레이어 없음 — 소켓에 도달한 caller 는 위 attach 제어를 호출할 수 있다. 호스트가 터널을 직접 여는 `remote.attach` 와 그 거절 조회 `remote.refusals` 도 같다. 권한 토큰을 요구하지 않으며 세션 토큰을 가진 에이전트도 호출할 수 있다. 원격 자식의 call·commit·결과 맡기기는 그 plugin 의 기존 터미널 권한을 그대로 요구한다. 남의 점유를 강제로 푸는 메서드는 이 표에 없다(위 force-detach 절). 근거는 [사용자 통제와 데이터 원칙](../principles/control-and-data.md), 주체 계약은 [actors](../concepts/actors.md).
+**권한**: attach 보안은 **연결 경계(SSH + 127.0.0.1 loopback)** 에 위임. 자체 권한 레이어 없음 — 소켓에 도달한 caller 는 위 attach 제어를 호출할 수 있다. 호스트가 터널을 직접 여는 `remote.attach` 와 그 거절 조회 `remote.refusals` 도 같다. 권한 토큰을 요구하지 않으며 세션 토큰을 가진 에이전트도 호출할 수 있다. plugin 호스트 호출의 한계는 [원격 attach (IPC — focus 중립)](../features/remote-attach/index.md#원격-attach-ipc--focus-중립)에 있다. 원격 자식의 call·commit·결과 맡기기는 그 plugin 의 기존 터미널 권한을 그대로 요구한다. 남의 점유를 강제로 푸는 메서드는 이 표에 없다(위 force-detach 절). 근거는 [사용자 통제와 데이터 원칙](../principles/control-and-data.md), 주체 계약은 [actors](../concepts/actors.md).
 
 ## 커스텀 이벤트 확장 (`StreamControl` 밖 raw JSON `event` 태그)
 

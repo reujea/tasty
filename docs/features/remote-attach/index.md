@@ -189,7 +189,7 @@ client→server 요청 채널은 `ClientResize`(geometry 구동), `ClientAttenti
 
 ### GUI mirror
 
-`tasty remote attach --into-gui --target-port <원격포트> --workspace <원격ws>` → 이 명령을 받은 **로컬 GUI 인스턴스**가 client 가 되어 원격 워크스페이스를 mirror 로 재구성한다(`attach.into_gui`).
+`tasty remote attach --into-gui --target-port <원격포트> --workspace <원격ws>` → 이 명령을 받은 **로컬 GUI 인스턴스**가 client 가 되어 원격 워크스페이스를 mirror 로 재구성한다(`attach.into_gui`). 터널을 호스트에 맡기려면 `--target-port` 대신 `--ssh`·`--profile` 을 준다(`remote.attach`, 아래 [원격 attach (IPC — focus 중립)](#원격-attach-ipc--focus-중립)).
 mirror Workspace 는 일반 워크스페이스로 사이드바에 노출되되 **이름과 subtitle 사이 별도 줄의 `>_→` glyph 와 Tag `info` "REMOTE"**(collapsed 레일은 아바타 우하단 하늘색 corner chip)로 로컬과 구분(`Workspace.mirror`).
 status dot 은 실행상태(running/idle) 전용이며 mirror 색을 싣지 않는다 — 원격 origin 은 별도 시각 축(디자인 `workspace-mirror-fg`, notif=우상단 / attached=둘레 ring 과 채널 분리).
 mirror 콘텐츠(grid) 갱신은 원격 출력이 올 때 즉시, 3초 tick 은 backstop.
@@ -383,6 +383,15 @@ IPC method `remote.attach` { `remote_workspace`, `profile?`/`ssh?` }(CLI `tasty 
 **focus 중립**이 핵심: 이 IPC/에이전트 경로는 mirror workspace 를 *조용히 생성만* 하고 focus 를 그 ws 로 옮기지 않는다(`active_workspace` 불변).
 새 mirror 로의 focus 이동은 **사용자 입력 경로 전용 별도 단계**(RA02 팝업에서 사용자가 확정할 때)이며, release IPC 에는 focus 변경 API 가 없다([포커스 정책](../../design/policies/focus.md)).
 회신은 즉시 `{attaching:true}`(`attempt`·`run` 포함) — 연결 결과는 [`run.result`](#연결-결과-조회)로 읽고, mirror 는 비동기로 나타나므로 `tasty list workspaces`(세션 토큰이면 `surface.read` 필요)로 확인한다: mirror 워크스페이스는 행에 `[mirror]` 가 붙고(`remote-ws (id:7) [mirror] (1 panes)`), `workspace.list` IPC 응답에는 `mirror: true` 로 실린다.
+
+호출자가 알아야 할 동작:
+
+- **받는 창**: 마지막으로 포커스된 창이다. 호출자는 창을 고를 수 없다. 포커스가 앱 밖으로 나가도 이 창은 그대로다. 받을 창이 하나도 없으면(macOS 백그라운드 최소화 등으로 engine 이 모두 parked 일 때) `-32602`(`no engine is available to receive a mirror`)로 응답한다. `attach.into_gui` 는 같은 상태에서 첫 parked engine 에 접수해 `{queued:true}` 로 응답한 뒤 run 이 `mirror creation has no originating View` 로 실패한다. mirror 가 생기지 않는 것은 같고 실패를 받는 자리만 다르다.
+- **앞선 시도 교체**: 같은 대상(`profile`·`ssh`·`remote_workspace`)의 수동 요청이 아직 끝나지 않았으면 새 요청이 앞선 요청을 취소하고, 앞선 요청의 run 은 `cancelled` 로 끝난다. 연결을 마친 mirror 는 건드리지 않는다. GUI 원격 추가 팝업의 연결은 이 수동 요청 표지가 없어 교체 대상이 아니다. 이미 점유된 원격 workspace 에 요청하면 run 이 `workspace attach rejected: already_attached` 로 실패한다.
+- **실패**: 기존 workspace 는 접수 응답 뒤에 실패하므로 `run.result` 의 `state: failed` 와 `result` 로 받는다(닫힌 포트, 없는 프로필, 없는 원격 workspace, SSH 인증 실패). `new_workspace:true` 는 오류 응답 `-32050` 으로 받는다. 어느 쪽이든 mirror 행과 터널이 남지 않는다.
+- **SSH**: ssh 는 호출자가 아니라 호스트 프로세스에서 호스트의 환경·agent 로 실행되고 stdin 은 닫혀 있다. 호출자에게 프롬프트가 전달되는 경로는 없다.
+- **정리**: anchor 가 없어 끊기면 재연결 없이 바로 정리된다. 연결만 끊는 IPC·CLI 는 없고(`Intent::DisconnectMirror` 는 GUI 조작) mirror 워크스페이스를 `close workspace` 로 닫을 수도 없다. 마지막 surface 를 닫으면(`tasty close surface`, `surface.write` 필요) 원격 workspace 가 함께 닫히고 mirror 도 사라진다.
+- **plugin 호스트 호출**: 메서드 표는 plugin 을 막지 않지만 App 층 처리는 외부 IPC 전용이다. plugin 이 호스트 호출로 `remote.attach`·`remote.refusals`·`remote.workspaces` 를 부르면 권한 거절 없이 `-32017` 을 받는다. `attach.into_gui` 만 호스트 호출을 처리한다. plugin 프로세스가 외부 IPC 로 부르면 토큰 없이 접속하므로 권한 표와 무관하게 Local 로 처리된다.
 
 ### 원격 워크스페이스 추가 팝업 (GUI picker — 사용자 경로)
 
