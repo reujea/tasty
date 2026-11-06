@@ -153,6 +153,20 @@ fn debug_methods_absent_in_release() {
     assert!(method_meta("system.shutdown").is_none());
 }
 
+/// mirror 를 만드는 두 경로는 호출자 범위가 같아야 한다. 호출자가 터널을 여는지만 다르다.
+#[test]
+fn remote_attach_needs_no_token_like_attach_into_gui() {
+    for method in ["remote.attach", "attach.into_gui", "remote.refusals"] {
+        let meta = method_meta(method).expect(method);
+        assert!(meta.plugin_callable, "{method}");
+        assert!(meta.required.is_empty(), "{method}: {:?}", meta.required);
+    }
+    assert_eq!(
+        method_meta("remote.attach").map(|m| m.key_contract),
+        method_meta("attach.into_gui").map(|m| m.key_contract),
+    );
+}
+
 #[test]
 fn ui_screenshot_promoted_to_release() {
     let m = method_meta("ui.screenshot").expect("registered in release METHOD_TABLE");

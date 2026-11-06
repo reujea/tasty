@@ -774,7 +774,7 @@ mirror 터미널은 attach snapshot(보이는 화면·커서·주요 모드)과 
 | `attach.agent_call` / `attach.agent_commit` | JSON-RPC(plugin 전용) | 원격 call 실행과 수신처를 묶은 뒤의 commit(위 원격 자식 에이전트 절). 호출 plugin 의 `terminal.spawn`·`terminal.write` 권한이 필요하다 |
 | `attach.child_notice` / `attach.child_notices` | JSON-RPC | 서버 plugin 이 원격 자식의 결과를 맡기고(plugin 전용, `terminal.write`) 남은 통지를 조회한다(read) |
 
-**권한**: attach 보안은 **연결 경계(SSH + 127.0.0.1 loopback)** 에 위임. 자체 권한 레이어 없음 — 소켓에 도달한 caller 는 위 attach 제어를 호출할 수 있다. 원격 자식의 call·commit·결과 맡기기는 그 plugin 의 기존 터미널 권한을 그대로 요구한다. 남의 점유를 강제로 푸는 메서드는 이 표에 없다(위 force-detach 절). 근거는 [사용자 통제와 데이터 원칙](../principles/control-and-data.md), 주체 계약은 [actors](../concepts/actors.md).
+**권한**: attach 보안은 **연결 경계(SSH + 127.0.0.1 loopback)** 에 위임. 자체 권한 레이어 없음 — 소켓에 도달한 caller 는 위 attach 제어를 호출할 수 있다. 호스트가 터널을 직접 여는 `remote.attach` 와 그 거절 조회 `remote.refusals` 도 같다. 권한 토큰을 요구하지 않으며 세션 토큰을 가진 에이전트도 호출할 수 있다. 원격 자식의 call·commit·결과 맡기기는 그 plugin 의 기존 터미널 권한을 그대로 요구한다. 남의 점유를 강제로 푸는 메서드는 이 표에 없다(위 force-detach 절). 근거는 [사용자 통제와 데이터 원칙](../principles/control-and-data.md), 주체 계약은 [actors](../concepts/actors.md).
 
 ## 커스텀 이벤트 확장 (`StreamControl` 밖 raw JSON `event` 태그)
 

@@ -494,6 +494,16 @@ mod tests {
         ));
     }
 
+    /// 권한이 하나도 없는 호출자도 mirror attach 와 그 거절 조회를 게이트에서 거절당하지 않는다.
+    #[test]
+    fn remote_attach_passes_the_gate_without_any_permission() {
+        for caller in [plugin_with(&[]), agent_with(&[])] {
+            for method in ["remote.attach", "remote.refusals"] {
+                assert!(caller.ensure_allowed(method).is_ok(), "{method}");
+            }
+        }
+    }
+
     #[test]
     fn plugin_missing_clipboard_write_denied_for_clipboard_set_text() {
         let c = plugin_with(&[Permission::SurfaceRead]);

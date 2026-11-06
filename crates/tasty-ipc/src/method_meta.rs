@@ -630,10 +630,11 @@ pub const METHOD_TABLE: &[(&str, MethodMeta)] = {
         // ── remote.workspaces (원격 ws 브라우징) ──────────────────────────
         // CLI와 같은 원격 조회 기능. 연결·SSH 신뢰 경계에 따르며 추가 권한 토큰은 없다.
         ("remote.workspaces", plugin(Read, &[])),
-        // 로컬 GUI에 mirror workspace를 만드는 동작이다. 원격 SSH 접근 권한과 달라 Local 전용으로 둔다.
-        ("remote.attach", local_only(Mutate).kept_by_app_layer()),
-        // remote.attach 와 자동 attach 가 자기 포트라서 연결하지 않은 시도를 읽는다.
-        ("remote.refusals", local_only(Read)),
+        // 호출자가 연 터널을 받는 attach.into_gui 와 달리 호스트가 터널을 직접 연다. 연결 경계는 같아
+        // 권한 토큰을 더 요구하지 않고, mirror 를 만들어도 포커스는 옮기지 않는다.
+        ("remote.attach", plugin(Mutate, &[]).kept_by_app_layer()),
+        // remote.attach 응답의 attempt 로 비동기 거절을 찾으므로 호출자 범위를 같이 둔다.
+        ("remote.refusals", plugin(Read, &[])),
         // ── remote.passkey.* (자격증명 CRUD) ─────────────────────────────
         // 값 마스킹은 핸들러가 보장(list/get 은 name+kind 만, 파일 내용 미반환). 등록은
         // 쓰기라 허용. 권한은 프로필과 동일 — 연결 경계 위임(docs/design/systems/memory.md#passkey-저장과-열람).
