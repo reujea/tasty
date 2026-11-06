@@ -17,6 +17,14 @@
 
 ## [Unreleased]
 
+### Added
+
+- **`tasty remote attach --into-gui --ssh|--profile`.** 실행 중인 GUI가 터널을 직접 열어 원격 workspace를 mirror로 붙인다. `--workspace <id>`는 연결 결과까지 기다리고, `--new-workspace [--name] [--cwd]`는 원격에 workspace를 만들어 붙인다. 포커스는 옮기지 않는다. `--target-port`를 쓰는 기존 형태는 그대로다.
+
+### Changed
+
+- **`remote.attach`·`remote.refusals`를 세션 토큰 호출자도 부를 수 있다.** 권한 토큰을 요구하지 않으며 `attach.into_gui`와 같은 범위다.
+
 ### Fixed
 
 - **원격 mirror 에서 찍은 스크린샷을 붙여넣기 단축키로 입력할 수 있다.** `Ctrl+Alt+S` 뒤 로컬 클립보드가 그대로면 그 mirror 터미널의 붙여넣기는 로컬 내용 대신 원격 저장 경로를 입력한다. 내 컴퓨터의 터미널에서 찍은 스크린샷을 mirror 에 붙여넣으면 원격이 읽지 못하는 로컬 경로 대신 이미지를 올리고 원격 경로를 입력한다.

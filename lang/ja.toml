@@ -2933,10 +2933,19 @@ help = "リモートのポート発見方式: auto (既定) | subcommand | file-
 help = "自動再接続を無効化（既定ではSSH切断時に待機時間を延ばしながら再接続）"
 
 [cli.help._root.remote.attach.arg.into_gui]
-help = "ローカルGUIにクライアントとしてリモートワークスペースをミラーに再構成するよう要求（`attach.into_gui` IPC）。`--workspace` と `--target-port` が必須"
+help = "ローカルGUIにクライアントとしてリモートワークスペースをミラーに再構成するよう要求します。フォーカスは移動しません。`--ssh` または `--profile` を指定するとGUIがトンネルを自分で開き（`remote.attach` IPC）、コマンドは接続結果を待ちます。`--target-port` を指定すると転送済みのポートに接続し（`attach.into_gui` IPC）、`--ssh`・`--profile` は使いません。`--workspace`、または `--ssh`・`--profile` と `--new-workspace` が必須"
 
 [cli.help._root.remote.attach.arg.target_port]
 help = "`--into-gui` 用のリモートtastyサーバーのループバックポート（GUIの接続先）"
+
+[cli.help._root.remote.attach.arg.new_workspace]
+help = "`--into-gui` と併用すると、リモートにワークスペースを作成してミラーします。応答に新しいリモートワークスペースIDが含まれます。`--workspace`・`--target-port` とは併用できません"
+
+[cli.help._root.remote.attach.arg.name]
+help = "`--new-workspace` で作成するワークスペース名（省略時はリモートの既定値）"
+
+[cli.help._root.remote.attach.arg.cwd]
+help = "`--new-workspace` で作成するワークスペースの作業ディレクトリ。リモートファイルシステム上のパス"
 
 [cli.help._root.remote.check]
 about = "SSH経由でリモートtastyインスタンスの稼働を確認"
@@ -2975,7 +2984,7 @@ help = "人向けのテキストの代わりにJSON配列を出力（スクリ�
 
 [cli.help._root.remote.new-workspace]
 about = "SSH経由でリモートtastyインスタンスに新しいワークスペースを作成"
-long = "SSH経由でリモートtastyインスタンスに新しいワークスペースを作成します。`remote workspaces` に対応する書き込みコマンドです。出力されたIDを `tasty remote attach --workspace <id>` に渡すと、リモートで作成後にattachできます。リモートのアクティブワークスペースは変わりません。ローカルIPC `remote.attach` の `new_workspace` オプションも同じ機能を提供します。"
+long = "SSH経由でリモートtastyインスタンスに新しいワークスペースを作成します。`remote workspaces` に対応する書き込みコマンドです。出力されたIDを `tasty remote attach --workspace <id>` に渡すと、リモートで作成後にattachできます。リモートのアクティブワークスペースは変わりません。ローカルGUIにミラーするには `tasty remote attach --into-gui --new-workspace` を使います。"
 
 [cli.help._root.remote.new-workspace.arg.ssh]
 help = "リモートSSH接続先（例：--ssh user@host、--ssh gx10、--ssh 127.0.0.1:45123）。`--profile` と併用不可"

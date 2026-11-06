@@ -7,6 +7,7 @@ pub mod hook_dispatch;
 pub mod passkey;
 pub mod port;
 pub mod remote_check;
+pub mod remote_gui_attach;
 pub mod remote_new_workspace;
 pub mod remote_profile;
 pub mod remote_workspaces;

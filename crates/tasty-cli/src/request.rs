@@ -6,6 +6,7 @@ mod memory;
 mod output;
 mod plugin_cmd;
 mod presets;
+mod remote;
 mod settings;
 mod telemetry;
 mod terminal;
@@ -48,6 +49,7 @@ pub(crate) const WEBHOOK_CONFIG_DEPRECATED: &str =
 /// `--into-gui`(원격 GUI mirror 위임)뿐이다.
 fn remote_command_to_method_params(command: &RemoteCommands) -> (&'static str, serde_json::Value) {
     match command {
+        attach if attach.gui_opens_tunnel() => ("remote.attach", remote::attach_params(attach)),
         RemoteCommands::Attach {
             workspace,
             target_port,

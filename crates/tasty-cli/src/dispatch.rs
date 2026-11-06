@@ -111,6 +111,9 @@ fn classify(command: &Commands) -> Result<Option<Box<dyn ClientCommand + '_>>> {
                     no_reconnect,
                     into_gui: false,
                     target_port: _,
+                    new_workspace: _,
+                    name: _,
+                    cwd: _,
                 },
         } => Box::new(crate::local::RemoteAttach {
             surface: *surface,
@@ -125,6 +128,9 @@ fn classify(command: &Commands) -> Result<Option<Box<dyn ClientCommand + '_>>> {
             remote_port_mode,
             no_reconnect: *no_reconnect,
         }),
+        Commands::Remote { command: remote } if remote.gui_opens_tunnel() => {
+            Box::new(crate::local::remote_gui_attach::RemoteGuiAttach { command })
+        }
         Commands::Remote {
             command:
                 RemoteCommands::Check {

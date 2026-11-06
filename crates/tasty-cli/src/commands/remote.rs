@@ -58,14 +58,31 @@ pub enum RemoteCommands {
         #[arg(long)]
         no_reconnect: bool,
         /// Ask the local GUI to become the client and rebuild the remote
-        /// workspace as a mirror (`attach.into_gui` IPC). Requires `--workspace`
-        /// and `--target-port`.
+        /// workspace as a mirror, without moving focus. With `--ssh` or
+        /// `--profile` the GUI opens the tunnel itself (`remote.attach` IPC) and
+        /// the command waits for the connection result. With `--target-port` it
+        /// connects to a port you already forwarded (`attach.into_gui` IPC) and
+        /// `--ssh`/`--profile` are not used. Requires `--workspace`, or
+        /// `--new-workspace` with `--ssh`/`--profile`.
         #[arg(long)]
         into_gui: bool,
         /// Loopback port of the remote tasty server for `--into-gui` (the port
         /// the GUI connects to).
         #[arg(long)]
         target_port: Option<u16>,
+        /// With `--into-gui`, create a workspace on the remote and mirror it.
+        /// The reply carries the new remote workspace id. Mutually exclusive
+        /// with `--workspace` and `--target-port`.
+        #[arg(long, requires = "into_gui", conflicts_with_all = ["surface", "workspace", "target_port"])]
+        new_workspace: bool,
+        /// Name of the workspace made by `--new-workspace` (remote default if
+        /// omitted).
+        #[arg(long, requires = "new_workspace", conflicts_with_all = ["surface", "workspace", "target_port"])]
+        name: Option<String>,
+        /// Working directory of the workspace made by `--new-workspace`, as a
+        /// path on the remote filesystem.
+        #[arg(long, requires = "new_workspace", conflicts_with_all = ["surface", "workspace", "target_port"])]
+        cwd: Option<String>,
     },
     /// Check whether a remote tasty instance is alive over SSH.
     ///
@@ -135,8 +152,8 @@ pub enum RemoteCommands {
     /// The write-side counterpart of `remote workspaces`. Pass the printed id
     /// to `tasty remote attach --workspace <id>` to create a workspace remotely
     /// and attach to it in one go. The remote's active workspace does not
-    /// change. The local IPC method `remote.attach` exposes the same capability
-    /// through its `new_workspace` option.
+    /// change. To also mirror it in the local GUI, use
+    /// `tasty remote attach --into-gui --new-workspace`.
     NewWorkspace {
         /// Remote SSH target, e.g. --ssh user@host, --ssh gx10, or
         /// --ssh 127.0.0.1:45123. Mutually exclusive with `--profile`.
@@ -182,4 +199,22 @@ pub enum RemoteCommands {
     /// until the instance exits. Other connection failures are not listed.
     /// Read-only.
     Refusals,
+}
+
+impl RemoteCommands {
+    // GUI가 터널을 직접 여는 mirror 요청인지. `--target-port`가 있으면 호출자가 연 터널을 쓰는
+    // `attach.into_gui`이고, 대상도 포트도 없으면 그 메서드의 인자 오류로 답한다.
+    pub(crate) fn gui_opens_tunnel(&self) -> bool {
+        matches!(
+            self,
+            Self::Attach {
+                into_gui: true,
+                target_port: None,
+                ssh,
+                profile,
+                new_workspace,
+                ..
+            } if ssh.is_some() || profile.is_some() || *new_workspace
+        )
+    }
 }

@@ -440,6 +440,55 @@ mod attach_surface_tests {
     }
 
     #[test]
+    fn remote_attach_into_gui_new_workspace_parses() {
+        let cli = Cli::try_parse_from([
+            "tasty",
+            "remote",
+            "attach",
+            "--into-gui",
+            "--new-workspace",
+            "--profile",
+            "gx10",
+            "--name",
+            "build",
+            "--cwd",
+            "/srv/app",
+        ])
+        .unwrap();
+        let Some(Commands::Remote {
+            command:
+                RemoteCommands::Attach {
+                    new_workspace,
+                    name,
+                    cwd,
+                    ..
+                },
+        }) = cli.command
+        else {
+            panic!("expected remote attach");
+        };
+        assert!(new_workspace);
+        assert_eq!(name.as_deref(), Some("build"));
+        assert_eq!(cwd.as_deref(), Some("/srv/app"));
+    }
+
+    #[test]
+    fn remote_attach_new_workspace_rejects_what_it_replaces() {
+        let attach = ["tasty", "remote", "attach", "--ssh", "h"];
+        for extra in [
+            &["--new-workspace"][..],
+            &["--into-gui", "--new-workspace", "--workspace", "1"][..],
+            &["--into-gui", "--new-workspace", "--target-port", "1"][..],
+            &["--into-gui", "--new-workspace", "7"][..],
+            &["--into-gui", "--workspace", "1", "--name", "n"][..],
+            &["--into-gui", "--workspace", "1", "--cwd", "/x"][..],
+        ] {
+            let args: Vec<&str> = attach.iter().chain(extra).copied().collect();
+            assert!(Cli::try_parse_from(&args).is_err(), "{args:?}");
+        }
+    }
+
+    #[test]
     fn remote_new_workspace_parses() {
         let cli = Cli::try_parse_from([
             "tasty",

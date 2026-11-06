@@ -371,7 +371,7 @@ Auto 체인이 전 단계 실패하면 가장 확정적인 분류(취소 > 타�
 
 `remote attach` 가 대상 workspace id 를 **미리 알아야** 동작하는 것과 달리, 브라우징은 그 id 를 **발견**한다 — attach 프로필/ssh 대상에 붙어 원격 인스턴스의 워크스페이스 목록(각 `id`/`name`/`pane_count`/`busy_count`/`attached`)을 받아온다. 흐름: 접속 스펙 resolve → (SSH 터널 or `127.0.0.1:PORT` loopback 직결) → 그 포트로 `workspace.list` + `attach.list` **2회 IPC** → workspace 단위 lock 을 join 해 `attached`(타 client 점유 여부)/`holder` 를 채운다(서버측 변경 0). 순수 조회라 로컬 사용자 상태(focus/닫은항목/선택)에 닿지 않는다([포커스 독립성](../../design/policies/focus.md#cliipc-포커스-독립-원칙)).
 
-이 능력은 **CLI(`remote workspaces`)와 로컬 IPC method(`remote.workspaces`) 양면**으로 노출된다(에이전트 기능 기준 — 에이전트가 CLI 없이 소켓만으로도 브라우징 가능). 둘 다 동일한 코어(`tasty_remote::browse`)를 공유하며, 블로킹 SSH I/O 는 호스트 IPC 경로에서 **워커 스레드**로 돌려 이벤트루프를 막지 않는다. RA02 원격 추가 팝업의 우측 목록이 이 출력을 데이터 소스로 소비한다. IPC `remote.workspaces`가 실패하면 -32050으로 답하고, 문구는 `remote browse failed: <바깥 문맥>: <원격의 원인>` 처럼 원인 체인까지 담는다(`remote.attach` 생성 실패와 같은 형식).
+이 능력은 **CLI(`remote workspaces`)와 IPC method(`remote.workspaces`) 양면**으로 노출된다(에이전트 기능 기준 — 에이전트가 CLI 없이 소켓만으로도 브라우징 가능). 둘 다 동일한 코어(`tasty_remote::browse`)를 공유하며, 블로킹 SSH I/O 는 호스트 IPC 경로에서 **워커 스레드**로 돌려 이벤트루프를 막지 않는다. RA02 원격 추가 팝업의 우측 목록이 이 출력을 데이터 소스로 소비한다. IPC `remote.workspaces`가 실패하면 -32050으로 답하고, 문구는 `remote browse failed: <바깥 문맥>: <원격의 원인>` 처럼 원인 체인까지 담는다(`remote.attach` 생성 실패와 같은 형식).
 
 ### 원격 요청의 세션 토큰
 
@@ -379,10 +379,10 @@ Auto 체인이 전 단계 실패하면 가장 확정적인 분류(취소 > 타�
 
 ### 원격 attach (IPC — focus 중립)
 
-로컬 IPC method `remote.attach` { `remote_workspace`, `profile?`/`ssh?` } — 선택한 원격 워크스페이스를 **로컬 mirror 로 attach**(호스트가 워커 스레드에서 SSH 터널을 세우고 mirror 를 재구성).
+IPC method `remote.attach` { `remote_workspace`, `profile?`/`ssh?` }(CLI `tasty remote attach --into-gui --workspace <id> --ssh|--profile`) — 권한 토큰 없이 세션 토큰 호출자도 부른다. 선택한 원격 워크스페이스를 **로컬 mirror 로 attach**(호스트가 워커 스레드에서 SSH 터널을 세우고 mirror 를 재구성).
 **focus 중립**이 핵심: 이 IPC/에이전트 경로는 mirror workspace 를 *조용히 생성만* 하고 focus 를 그 ws 로 옮기지 않는다(`active_workspace` 불변).
 새 mirror 로의 focus 이동은 **사용자 입력 경로 전용 별도 단계**(RA02 팝업에서 사용자가 확정할 때)이며, release IPC 에는 focus 변경 API 가 없다([포커스 정책](../../design/policies/focus.md)).
-회신은 즉시 `{attaching:true}`(fire-and-forget) — mirror 는 비동기로 나타나므로 `tasty list workspaces` 로 확인한다: mirror 워크스페이스는 행에 `[mirror]` 가 붙고(`remote-ws (id:7) [mirror] (1 panes)`), `workspace.list` IPC 응답에는 `mirror: true` 로 실린다.
+회신은 즉시 `{attaching:true}`(`attempt`·`run` 포함) — 연결 결과는 [`run.result`](#연결-결과-조회)로 읽고, mirror 는 비동기로 나타나므로 `tasty list workspaces`(세션 토큰이면 `surface.read` 필요)로 확인한다: mirror 워크스페이스는 행에 `[mirror]` 가 붙고(`remote-ws (id:7) [mirror] (1 panes)`), `workspace.list` IPC 응답에는 `mirror: true` 로 실린다.
 
 ### 원격 워크스페이스 추가 팝업 (GUI picker — 사용자 경로)
 
@@ -454,14 +454,16 @@ attach 세션의 수명은 **창(window)이 아니라 engine 에 매인다.** �
   - `tasty tool attach <name> [SURFACE] [--workspace <id>] [옵션…]` — **tasty-attach 프로필**로 attach(profile-우선 편의 표면). `--list` = tasty-attach 목록만.
   - `tasty remote attach [SURFACE] --ssh|--profile [옵션…]` — 원격 surface attach. `--profile` 은 **tasty-attach kind**(docs/features/remote-profiles/index.md; ref/inline resolve).
   - `tasty remote attach --workspace <id> --ssh|--profile …` — 원격 workspace attach.
-  - `tasty remote attach --into-gui --target-port <p> --workspace <ws>` — 실행 GUI 에 mirror.
+  - `tasty remote attach --into-gui --target-port <p> --workspace <ws>` — 호출자가 포워딩한 포트로 실행 GUI 에 mirror(IPC `attach.into_gui`). `--ssh`·`--profile` 을 함께 줘도 쓰지 않는다.
+  - `tasty remote attach --into-gui --workspace <ws> --ssh|--profile` — GUI 가 터널을 직접 열어 mirror(IPC `remote.attach`, focus 중립). 접수 응답을 JSON 한 줄로 출력한 뒤 연결 결과(`run.result`)를 최대 90초 기다려 둘째 줄로 출력한다. 최종 상태가 `succeeded` 가 아니거나 상한 안에 끝나지 않으면 종료 코드 1 이다. 상한을 넘겨도 연결은 계속되며 첫 줄의 `run` 을 `tasty file-handler result --run <run>` 으로 다시 읽는다.
+  - `tasty remote attach --into-gui --new-workspace [--name <n>] [--cwd <원격경로>] --ssh|--profile` — 원격에 워크스페이스를 만들고 mirror(IPC `remote.attach` 의 `new_workspace`). 생성 결과 한 줄을 출력하고 끝난다. run 이 없으므로 mirror 연결 결과는 `tasty list workspaces`(세션 토큰이면 `surface.read` 필요)로 확인한다.
   - `tasty remote check --ssh|--profile` — 원격 생존 확인(`--profile` = tasty-attach).
   - `tasty remote workspaces --ssh|--profile [--json]` — 원격 워크스페이스 목록 조회(browse). `--ssh 127.0.0.1:<port>` 로 loopback 직결(터널 없이 로컬 e2e).
   - `tasty remote new-workspace --ssh|--profile [--name <n>] [--cwd <원격경로>] [--json]` — 원격에 워크스페이스 생성(원격 mutate). 출력 id 를 `remote attach --workspace <id>` 에 넘기면 "만들고 그 자리에서 attach" 가 CLI 만으로 완성된다. `--cwd` 는 **원격 파일시스템** 기준이며 원격이 존재를 검증한다. 원격 active 는 불변(Agent origin).
   - `tasty set workspace --id <id> --ssh-profile <name> --remote-workspace <N>` — 자동 매핑 선언.
   - `tasty remote refusals` — 이 인스턴스를 대상으로 해서 거절한 최근 attach 시도와, 연결하지 않은 채 남은 자동 attach 매핑의 안내(IPC `remote.refusals`). 읽기 전용.
 - **IPC (`attach.*`)**: `acquire`/`release`(stream 핸드셰이크), `into_gui`, `list`(점유 목록 조회), 원격 자식 에이전트용 `agent_target`·`agent_call`·`agent_commit`·`child_notice`·`child_notices`. 남의 점유를 푸는 메서드는 없다. 표 상세 → [dev-guide/attach-behavior](../../dev-guide/attach-behavior.md#ipc-표면-attach).
-- **IPC (`remote.*` — 원격 브라우징/생성/attach, IPC·CLI 양면 — [API 규약](../../dev-guide/api-conventions.md#ipc-메서드를-cli로-제공하는-기준))**: `remote.workspaces` { `profile?`/`ssh?` } → 원격 ws 목록(browse, 워커 스레드+지연 회신). `remote.attach` { `remote_workspace` | `new_workspace`, `profile?`/`ssh?`, `name?`, `cwd?` } → 원격 ws 를 로컬 mirror 로 attach(**focus 중립**: mirror 생성만, focus 이동 없음). `new_workspace:true` 면 원격에 워크스페이스를 먼저 만들고 그것을 attach 한다 — `remote_workspace` 와 상호배타이며, 이때만 **생성 완료까지 기다렸다 지연 회신**해 새 `remote_workspace` id 를 돌려준다(기존 ws attach 는 즉시 `{attaching:true}` 유지). 두 응답 모두 시도 번호 `attempt` 를 싣고, 기존 ws attach 는 최종 결과를 조회할 `run` 도 싣는다(위 연결 결과 조회). 자기 자신이 대상이면: loopback 표기는 이 응답 대신 동기 `-32602` 오류가 오고, SSH 경로는 `new_workspace:true` 만 생성 전 `-32602` 이며 기존 ws attach 는 `{attaching:true}` 응답 뒤 비동기 거절이 `remote.refusals`(`via_ssh: true`)에 남는다(위 self-attach 절의 IPC 계약 요약). `remote.refusals` {} → 자기 포트라서 연결하지 않은 최근 시도 목록(위 self-attach 절). CLI 와 코어 공유 — 조회는 `tasty_remote::browse`, 생성은 `tasty_remote::create`.
+- **IPC (`remote.*` — 원격 브라우징/생성/attach, IPC·CLI 양면 — [API 규약](../../dev-guide/api-conventions.md#ipc-메서드를-cli로-제공하는-기준))**: `remote.workspaces` { `profile?`/`ssh?` } → 원격 ws 목록(browse, 워커 스레드+지연 회신). `remote.attach` { `remote_workspace` | `new_workspace`, `profile?`/`ssh?`, `name?`, `cwd?` } → 원격 ws 를 로컬 mirror 로 attach(**focus 중립**: mirror 생성만, focus 이동 없음). `new_workspace:true` 면 원격에 워크스페이스를 먼저 만들고 그것을 attach 한다 — `remote_workspace` 와 상호배타이며, 이때만 **생성 완료까지 기다렸다 지연 회신**해 새 `remote_workspace` id 를 돌려준다(기존 ws attach 는 즉시 `{attaching:true}` 유지). 두 응답 모두 시도 번호 `attempt` 를 싣고, 기존 ws attach 는 최종 결과를 조회할 `run` 도 싣는다(위 연결 결과 조회). 자기 자신이 대상이면: loopback 표기는 이 응답 대신 동기 `-32602` 오류가 오고, SSH 경로는 `new_workspace:true` 만 생성 전 `-32602` 이며 기존 ws attach 는 `{attaching:true}` 응답 뒤 비동기 거절이 `remote.refusals`(`via_ssh: true`)에 남는다(위 self-attach 절의 IPC 계약 요약). `remote.refusals` {} → 자기 포트라서 연결하지 않은 최근 시도 목록(위 self-attach 절). `remote.attach` 와 `remote.refusals` 는 권한 토큰을 요구하지 않는다([플러그인 권한](../../dev-guide/plugin-permissions.md#토큰-없이도-열려-있는-메서드)). CLI 와 코어 공유 — 조회는 `tasty_remote::browse`, 생성은 `tasty_remote::create`.
 - **로컬 self attach**(별도 CLI 프로세스가 포트 파일로 로컬 인스턴스를 mirror): 사용자 mirror 조작 재현 성격이라 release 에 없음 — `tasty debug attach`(debug 빌드 전용, [`dev-guide/debug-ipc`](../../dev-guide/debug-ipc.md)). 같은 머신의 다른 인스턴스에 loopback 주소(`127.0.0.1:PORT`·`localhost:PORT`·`[::1]:PORT`)로 붙는 GUI 원격 연결 팝업·IPC `remote.attach`·자동 attach 는 release 에도 있다(아래 비-목표 절).
 - **프로필**: `--profile`/`tool attach` 이 참조하는 tasty-attach 프로필(및 그것이 `ssh_ref` 로 참조하는 ssh 프로필)은 [remote-profiles](../remote-profiles/index.md) 이 관리.
 

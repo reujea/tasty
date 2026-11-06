@@ -3001,10 +3001,19 @@ help = "Remote port discovery mode: auto (default) | subcommand | file-unix | fi
 help = "Disable automatic reconnection (by default the session reconnects with backoff when SSH drops)"
 
 [cli.help._root.remote.attach.arg.into_gui]
-help = "Ask the local GUI to become the client and rebuild the remote workspace as a mirror (`attach.into_gui` IPC). Requires `--workspace` and `--target-port`"
+help = "Ask the local GUI to become the client and rebuild the remote workspace as a mirror, without moving focus. With `--ssh` or `--profile` the GUI opens the tunnel itself (`remote.attach` IPC) and the command waits for the connection result. With `--target-port` it connects to a port you already forwarded (`attach.into_gui` IPC) and `--ssh`/`--profile` are not used. Requires `--workspace`, or `--new-workspace` with `--ssh`/`--profile`"
 
 [cli.help._root.remote.attach.arg.target_port]
 help = "Loopback port of the remote tasty server for `--into-gui` (the port the GUI connects to)"
+
+[cli.help._root.remote.attach.arg.new_workspace]
+help = "With `--into-gui`, create a workspace on the remote and mirror it. The reply carries the new remote workspace id. Mutually exclusive with `--workspace` and `--target-port`"
+
+[cli.help._root.remote.attach.arg.name]
+help = "Name of the workspace made by `--new-workspace` (remote default if omitted)"
+
+[cli.help._root.remote.attach.arg.cwd]
+help = "Working directory of the workspace made by `--new-workspace`, as a path on the remote filesystem"
 
 [cli.help._root.remote.check]
 about = "Check whether a remote tasty instance is alive over SSH"
@@ -3043,7 +3052,7 @@ help = "Print a JSON array instead of human-readable text (for scripts and UI co
 
 [cli.help._root.remote.new-workspace]
 about = "Create a new workspace on a remote tasty instance over SSH"
-long = "Create a new workspace on a remote tasty instance over SSH.\n\nThe write-side counterpart of `remote workspaces`. Pass the printed id to `tasty remote attach --workspace <id>` to create a workspace remotely and attach to it in one go. The remote's active workspace does not change. The local IPC method `remote.attach` exposes the same capability through its `new_workspace` option."
+long = "Create a new workspace on a remote tasty instance over SSH.\n\nThe write-side counterpart of `remote workspaces`. Pass the printed id to `tasty remote attach --workspace <id>` to create a workspace remotely and attach to it in one go. The remote's active workspace does not change. To also mirror it in the local GUI, use `tasty remote attach --into-gui --new-workspace`."
 
 [cli.help._root.remote.new-workspace.arg.ssh]
 help = "Remote SSH target, e.g. --ssh user@host, --ssh gx10, or --ssh 127.0.0.1:45123. Mutually exclusive with `--profile`"
