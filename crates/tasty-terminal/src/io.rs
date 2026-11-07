@@ -1,7 +1,7 @@
 //! PTY 입력·터미널 응답 송신과 화면 변경 적용. TerminalState 락 안에서 처리한다.
 
 use std::sync::mpsc;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use termwiz::cell::CellAttributes;
 use termwiz::surface::Change;
@@ -24,35 +24,44 @@ impl WriteAck {
 
     /// writer의 완료 횟수가 target에 도달하면 true를 반환한다.
     /// detached 터미널처럼 writer가 없거나 대기 제한 안에 완료하지 못하면 false다.
+    ///
+    /// 깨어날 때마다 카운터로 판정한다. std `wait_timeout_while`은 재획득에서 poison을 만나면 조건을
+    /// 다시 보지 않고 그 한 번의 대기가 시간 초과였는지만 돌려준다. 그래서 poison 뒤 가짜 깨어남이
+    /// 카운터가 안 올랐는데도 완료로 보이거나, 남은 시간을 기다리지 않고 끝날 수 있다.
     pub fn wait(&self, timeout: Duration) -> bool {
         let (lock, cvar) = &*self.progress;
-        let guard = sink::lock_write_progress(lock);
-        if *guard >= self.target {
-            return true;
+        let deadline = Instant::now().checked_add(timeout);
+        let mut guard = sink::lock_write_progress(lock);
+        loop {
+            if *guard >= self.target {
+                return true;
+            }
+            let remaining = match deadline {
+                Some(deadline) => deadline.saturating_duration_since(Instant::now()),
+                None => timeout,
+            };
+            if remaining.is_zero() {
+                return false;
+            }
+            guard = recover_wait(
+                cvar.wait_timeout(guard, remaining),
+                sink::WRITE_PROGRESS_WHAT,
+                &sink::WRITE_PROGRESS_POISON_REPORTED,
+            );
         }
-        resolve_wait(
-            cvar.wait_timeout_while(guard, timeout, |n| *n < self.target),
-            sink::WRITE_PROGRESS_WHAT,
-            &sink::WRITE_PROGRESS_POISON_REPORTED,
-        )
     }
 }
 
-/// Condvar 대기 중 발생한 poison도 복구하고 처음 한 번 보고한다.
+/// Condvar 재획득에서 발생한 poison도 복구하고 처음 한 번 보고한다. 깨어난 이유는 버린다.
 /// 시험에서 다른 호출의 보고와 혼동하지 않도록 보고 플래그를 인자로 받는다.
-fn resolve_wait<T>(
-    outcome: Result<
-        (T, std::sync::WaitTimeoutResult),
-        std::sync::PoisonError<(T, std::sync::WaitTimeoutResult)>,
-    >,
+fn recover_wait<T>(
+    outcome: std::sync::LockResult<(T, std::sync::WaitTimeoutResult)>,
     what: &str,
     reported: &std::sync::atomic::AtomicBool,
-) -> bool {
+) -> T {
     match outcome {
-        Ok((_, wait_result)) => !wait_result.timed_out(),
-        Err(poisoned) => !tasty_utils::poison::recover_poisoned(poisoned, what, reported)
-            .1
-            .timed_out(),
+        Ok((guard, _)) => guard,
+        Err(poisoned) => tasty_utils::poison::recover_poisoned(poisoned, what, reported).0,
     }
 }
 
@@ -276,7 +285,7 @@ mod tests {
 
     /// Condvar 재획득에서 발생한 poison도 보고하는지 독립 플래그로 확인한다.
     #[test]
-    fn resolve_wait_reports_the_poison_it_recovers() {
+    fn recover_wait_reports_the_poison_it_recovers() {
         use std::sync::atomic::{AtomicBool, Ordering};
 
         let m = Arc::new(Mutex::new(0u64));
@@ -291,17 +300,17 @@ mod tests {
         .expect_err("패닉한 스레드는 Err 로 join 된다");
 
         // 이미 poison 된 락을 복구해 들어가 재획득에서 `Err` 를 받는다 —
-        // `wait_timeout_while` 이 대기 중 poison 을 만났을 때와 같은 모양이다.
+        // 대기 중 poison 을 만났을 때와 같은 모양이다.
         let guard = m.lock().unwrap_or_else(|e| e.into_inner());
-        let outcome = cv.wait_timeout_while(guard, Duration::from_millis(10), |_| true);
+        let outcome = cv.wait_timeout(guard, Duration::from_millis(10));
         assert!(
             outcome.is_err(),
             "재획득이 poison 을 만나야 이 축이 성립한다"
         );
 
         let flag = AtomicBool::new(false);
-        let reached = resolve_wait(outcome, "테스트 카운터", &flag);
-        assert!(!reached, "조건이 안 맞아 타임아웃이므로 false 다");
+        let guard = recover_wait(outcome, "테스트 카운터", &flag);
+        assert_eq!(*guard, 0, "복구한 guard 로 카운터를 다시 본다");
         assert!(
             flag.load(Ordering::Relaxed),
             "복구했으면 한 번은 보고해야 한다 — 조용한 복구는 조용한 유실과 구분되지 않는다"
@@ -323,7 +332,7 @@ mod tests {
             ack.wait(Duration::from_millis(600))
         });
 
-        // 대기자가 `wait_timeout_while` 안에서 락을 놓고 잠들 시간을 준다.
+        // 대기자가 Condvar 대기에서 락을 놓고 잠들 시간을 준다.
         std::thread::sleep(Duration::from_millis(100));
 
         let poisoner = Arc::clone(&progress);
@@ -337,6 +346,52 @@ mod tests {
 
         let timed_out = !waiter.join().expect("대기 스레드는 패닉하지 않는다");
         assert!(timed_out, "카운터를 안 올렸으므로 타임아웃이 정상이다");
+    }
+
+    /// poison 뒤 카운터를 올리지 않은 깨어남은 완료가 아니고, 대기 제한까지 계속 기다린다.
+    /// std `wait_timeout_while`은 poison 재획득에서 깨어난 이유만 돌려줘, 알림 한 번으로 완료가 됐다.
+    #[test]
+    fn a_wakeup_after_poison_without_progress_is_not_completion() {
+        use std::sync::atomic::{AtomicBool, Ordering};
+
+        let progress: WriteProgress = Arc::new((Mutex::new(0), Condvar::new()));
+        let poisoner = Arc::clone(&progress);
+        std::thread::spawn(move || {
+            let _guard = poisoner.0.lock().expect("아직 성한 락");
+            panic!("락을 쥔 채 죽는다");
+        })
+        .join()
+        .expect_err("패닉한 스레드는 Err 로 join 된다");
+
+        // 카운터는 그대로 두고 대기자를 계속 깨운다. 대기 중 깨어남이 몇 번이든 결과는 같아야 한다.
+        let stop = Arc::new(AtomicBool::new(false));
+        let notifier = {
+            let progress = Arc::clone(&progress);
+            let stop = Arc::clone(&stop);
+            std::thread::spawn(move || {
+                while !stop.load(Ordering::Relaxed) {
+                    progress.1.notify_all();
+                    std::thread::sleep(Duration::from_millis(1));
+                }
+            })
+        };
+
+        let timeout = Duration::from_millis(200);
+        let started = Instant::now();
+        let reached = WriteAck {
+            progress: Arc::clone(&progress),
+            target: 1,
+        }
+        .wait(timeout);
+        let waited = started.elapsed();
+        stop.store(true, Ordering::Relaxed);
+        notifier.join().expect("알림 스레드는 패닉하지 않는다");
+
+        assert!(!reached, "카운터가 안 올랐으면 완료가 아니다");
+        assert!(
+            waited >= timeout,
+            "깨어나도 대기 제한까지 기다린다: {waited:?} < {timeout:?}"
+        );
     }
 
     /// poison 뒤에도 writer가 완료 횟수를 올리고 WriteAck가 그 완료를 확인하는지 검사한다.
