@@ -17,7 +17,8 @@
 //! 못하면 0으로 해석한다. 세대 식별이나 모든 손실 검출을 보장하지는 않는다.
 //!
 //! 정상 경로는 메타 파일의 공유 잠금 아래 append하고 배타 잠금 아래 비우기·누계 갱신을
-//! 수행한다. 배타 잠금을 제한 시간 안에 얻지 못하면 잠금 없이 비우고 누계는 올리지 않는다.
+//! 수행한다. 배타 잠금을 기다리는 동안 다른 writer가 먼저 비워 크기가 기준 아래로 내려가면
+//! 기다림을 그만둔다. 배타 잠금을 제한 시간 안에 얻지 못하면 잠금 없이 비우고 누계는 올리지 않는다.
 //! 이때 append와 겹칠 수 있고, reader가 모든 비우기를 알아내지는 못한다. 잠금·메타 갱신
 //! 실패는 로그에 남긴다. 공유 잠금 획득과 파일 I/O에는 별도 시간 제한이 없다.
 //!
@@ -173,14 +174,26 @@ impl<'a> MetaLock<'a> {
         }
     }
 
-    /// try_lock을 예산 동안 재시도하고 실패하면 None을 반환한다.
-    /// 호출자는 잠금 없이 비울 수 있으나 그 손실은 누계에 더하지 않는다.
-    fn exclusive(file: &'a std::fs::File, meta_path: &Path) -> Option<Self> {
+    /// try_lock을 예산 동안 재시도한다. 기다리는 동안 `still_needed`가 거짓이 되면 그만둔다.
+    /// 예산 안에 얻지 못하면 호출자는 잠금 없이 비울 수 있으나 그 손실은 누계에 더하지 않는다.
+    ///
+    /// 여러 writer가 같은 크기 초과를 보고 함께 기다리면 먼저 얻은 writer가 비우고 나머지는 이미
+    /// 해소된 요청으로 계속 기다린다. 그동안 다른 writer의 append가 공유 잠금을 번갈아 쥐어 예산을
+    /// 넘기면, 다시 자란 파일을 잠금 없이 비워 집계되지 않는 손실을 만든다. 그래서 재시도마다
+    /// 요청이 아직 유효한지 확인한다.
+    fn exclusive(
+        file: &'a std::fs::File,
+        meta_path: &Path,
+        still_needed: impl Fn() -> bool,
+    ) -> Exclusive<'a> {
         let deadline = std::time::Instant::now() + EXCLUSIVE_LOCK_BUDGET;
         loop {
             match file.try_lock() {
-                Ok(()) => return Some(Self(file)),
+                Ok(()) => return Exclusive::Locked(Self(file)),
                 Err(std::fs::TryLockError::WouldBlock) => {
+                    if !still_needed() {
+                        return Exclusive::NotNeeded;
+                    }
                     if std::time::Instant::now() >= deadline {
                         tracing::warn!(
                             "notify meta {} is still locked by another holder after {:?} — \
@@ -188,7 +201,7 @@ impl<'a> MetaLock<'a> {
                             meta_path.display(),
                             EXCLUSIVE_LOCK_BUDGET
                         );
-                        return None;
+                        return Exclusive::Unavailable;
                     }
                     std::thread::sleep(EXCLUSIVE_LOCK_RETRY);
                 }
@@ -197,11 +210,20 @@ impl<'a> MetaLock<'a> {
                         "notify meta {} exclusive lock failed: {e}",
                         meta_path.display()
                     );
-                    return None;
+                    return Exclusive::Unavailable;
                 }
             }
         }
     }
+}
+
+/// 배타 잠금 시도의 결과.
+enum Exclusive<'a> {
+    Locked(MetaLock<'a>),
+    /// 기다리는 동안 다른 writer가 이미 비워 요청이 해소됐다.
+    NotNeeded,
+    /// 잠금을 얻지 못했다. 잠금 없이 비울 수 있으나 누계는 올리지 않는다.
+    Unavailable,
 }
 
 impl Drop for MetaLock<'_> {
@@ -212,10 +234,19 @@ impl Drop for MetaLock<'_> {
     }
 }
 
-/// 파일을 비우고 배타 잠금을 얻은 경우에만 손실 누계를 갱신한다.
-/// 잠금을 얻지 못했거나 갱신에 실패하면 실제 손실과 누계가 달라질 수 있다.
+/// 파일을 비우고 배타 잠금을 얻은 경우에만 손실 누계를 갱신한다. 기다리는 동안 다른 writer가
+/// 이미 비워 크기가 기준 아래로 내려가면 비우지 않는다. 잠금을 얻지 못했거나 갱신에 실패하면 실제 손실과 누계가 달라질 수 있다.
 fn truncate_and_account(path: &Path, cap: u64, meta: Option<&std::fs::File>, meta_path: &Path) {
-    let exclusive = meta.and_then(|m| MetaLock::exclusive(m, meta_path));
+    let over_cap = || {
+        std::fs::metadata(path)
+            .map(|m| m.len() >= cap)
+            .unwrap_or(false)
+    };
+    let exclusive = match meta.map(|m| MetaLock::exclusive(m, meta_path, over_cap)) {
+        Some(Exclusive::Locked(lock)) => Some(lock),
+        Some(Exclusive::NotNeeded) => return,
+        Some(Exclusive::Unavailable) | None => None,
+    };
     let Some(discarded) = truncate_over_cap(path, cap) else {
         return;
     };
@@ -613,6 +644,30 @@ mod tests {
         assert_eq!(parse_retention_start(&big), u64::MAX);
         assert_eq!(parse_retention_start(""), 0);
         assert_eq!(parse_retention_start("other=3\n"), 0);
+    }
+
+    // 기다리는 동안 다른 writer가 먼저 비워 요청이 해소되면 배타 잠금을 더 기다리지 않는다.
+    // 계속 기다리다 예산을 넘기면 다시 자란 파일을 잠금 없이 비워 집계되지 않는 손실을 만든다.
+    #[test]
+    fn a_waiting_truncation_stops_once_another_writer_has_emptied_the_log() {
+        let tmp = tempfile::tempdir().unwrap();
+        let meta_path = tmp.path().join("stale.log.meta");
+        let holder = open_meta(&meta_path).unwrap();
+        holder.lock_shared().unwrap();
+        let contender = open_meta(&meta_path).unwrap();
+
+        let checks = std::cell::Cell::new(0u32);
+        // 처음 확인에서는 아직 크기 초과, 다음 확인에서는 다른 writer가 비운 뒤다.
+        let outcome = MetaLock::exclusive(&contender, &meta_path, || {
+            checks.set(checks.get() + 1);
+            checks.get() == 1
+        });
+        assert!(
+            matches!(outcome, Exclusive::NotNeeded),
+            "해소된 요청은 잠금 없이 비우는 경로로 가지 않는다"
+        );
+        assert_eq!(checks.get(), 2, "재시도마다 요청을 다시 확인한다");
+        holder.unlock().unwrap();
     }
 
     // reader가 공유 잠금을 유지해도 배타 재시도를 끝내고 잠금 없이 비운다.
