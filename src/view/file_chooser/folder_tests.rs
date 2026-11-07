@@ -38,7 +38,9 @@ fn folder_confirm_uses_selected_or_current_and_never_enters() {
     s.apply(FilePickerAction::Select("sub".into()));
     assert_eq!(
         s.apply(FilePickerAction::Confirm),
-        Some(FileChooserOutcome::confirmed(PathBuf::from("/fixture/sub")))
+        Some(FileChooserOutcome::confirmed(
+            PathBuf::from("/fixture").join("sub")
+        ))
     );
     assert_eq!(s.current_dir, PathBuf::from("/fixture"));
     s.apply(FilePickerAction::Select("file.txt".into()));
@@ -58,7 +60,7 @@ fn folder_double_click_enters_and_unread_or_failed_directory_cannot_confirm() {
     let mut ch = loaded(FileChooserMode::Folder);
     let s = ch.session.as_mut().unwrap();
     s.apply(FilePickerAction::NavigateInto("sub".into()));
-    assert_eq!(s.current_dir, PathBuf::from("/fixture/sub"));
+    assert_eq!(s.current_dir, PathBuf::from("/fixture").join("sub"));
     assert!(s.selected.is_empty());
     assert_eq!(s.apply(FilePickerAction::Confirm), None);
     s.query = None;
@@ -69,7 +71,9 @@ fn folder_double_click_enters_and_unread_or_failed_directory_cannot_confirm() {
     s.accept_read(Ok(vec![]));
     assert_eq!(
         s.apply(FilePickerAction::Confirm),
-        Some(FileChooserOutcome::confirmed(PathBuf::from("/fixture/sub")))
+        Some(FileChooserOutcome::confirmed(
+            PathBuf::from("/fixture").join("sub")
+        ))
     );
 }
 #[test]
@@ -125,14 +129,16 @@ fn folder_keyboard_skips_files_and_enter_confirms_while_right_enters() {
     frame(&mut ch, &ctx, egui::Key::Enter);
     assert_eq!(
         ch.take_outcome("folder.test"),
-        Some(FileChooserOutcome::confirmed(PathBuf::from("/fixture/sub")))
+        Some(FileChooserOutcome::confirmed(
+            PathBuf::from("/fixture").join("sub")
+        ))
     );
     ch = loaded(FileChooserMode::Folder);
     frame(&mut ch, &ctx, egui::Key::ArrowDown);
     frame(&mut ch, &ctx, egui::Key::ArrowRight);
     assert_eq!(
         ch.session.as_ref().unwrap().current_dir,
-        PathBuf::from("/fixture/sub")
+        PathBuf::from("/fixture").join("sub")
     );
     assert!(ch.take_outcome("folder.test").is_none());
     frame(&mut ch, &ctx, egui::Key::Escape);

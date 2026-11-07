@@ -96,7 +96,11 @@ fn confirming_picker_only_records_paths_and_dispatches_nothing() {
         let (outcome, _requester) =
             crate::app::dispatch::file_picker::take_outcome(&mut state).expect("result");
 
-        assert_eq!(outcome.paths, vec!["/x/a.md".to_string()], "{caller}");
+        let expected = std::path::Path::new("/x")
+            .join("a.md")
+            .to_string_lossy()
+            .into_owned();
+        assert_eq!(outcome.paths, vec![expected], "{caller}");
         assert_eq!(outcome.request_id, request_id, "{caller}");
         assert!(!outcome.cancelled, "{caller}");
         assert!(
