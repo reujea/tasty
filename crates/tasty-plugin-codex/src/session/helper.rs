@@ -973,8 +973,8 @@ mod tests {
     #[test]
     fn a_session_open_response_must_name_an_absolute_private_state() {
         // 절대 경로 형식은 OS마다 다르다(Windows 는 드라이브가 필요하다).
-        let abs = std::env::temp_dir().join("a");
-        let abs = abs.to_string_lossy();
+        let dir = tempfile::tempdir().unwrap();
+        let abs = dir.path().to_string_lossy();
         let ok =
             serde_json::json!({"gen":"0123456789abcdef","state_dir":abs,"listen":"unix:///a/s"});
         assert!(parse_opened(&ok).is_ok());
