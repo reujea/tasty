@@ -1528,7 +1528,7 @@ fn the_webview_layout_step_names_the_one_layout_test() {
     let (name, ignored) = &fns[0];
     assert!(
         *ignored,
-        "{name} 에 #[ignore] 가 없다. 디스플레이 없는 --lib --bins 단계에서도 실행돼 실패한다."
+        "{name} 에 #[ignore] 가 없다. Xvfb 안에서 도는 차단 단계인 --lib --bins 단계에서도 실행된다."
     );
     let full = format!("{MODULE}::{name}");
 

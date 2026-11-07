@@ -21,7 +21,7 @@ DPI 수동 변환 검사는 `src/`와 `crates/`의 파일 수 하한을 각각 �
 | macOS 컴파일 + 단위테스트 | `cargo check --workspace --locked` · `cargo test --workspace --lib --bins --locked --no-fail-fast` | `crossplatform-check-macos.yml` 의 `check-macos` (self-hosted macOS) | main push(문서 제외) · PR · 수동 | [실측] |
 | Windows lint + 단위테스트 **+ 지목 통합** | `cargo clippy --workspace --all-targets --locked` · `cargo test --workspace --lib --bins --locked --no-fail-fast` · `cargo test -p tasty-shm -p tasty-doc-guards --locked --no-fail-fast` | `crossplatform-check.yml` (self-hosted Windows) | main push(문서 제외) · PR · 수동 | [실측] |
 | Windows ARM64 컴파일 | `cargo check --workspace --all-targets --target aarch64-pc-windows-msvc --locked` (x64 러너에서 교차 컴파일, 테스트·링크 없음, C 의존성은 MSVC ARM64 빌드 도구 필요 — [release](release.md#windows-arm64)) | `crossplatform-check.yml` 의 `check-windows-arm64` (self-hosted Windows) | main push(문서 제외) · PR · 수동 | [배선] |
-| headless 컴파일 · **전체 스위트** · lint **+ Linux gui 단위테스트** | `cargo check --workspace --no-default-features --locked` · `cargo test --workspace --no-default-features --locked --no-fail-fast` · `cargo clippy --workspace --all-targets --no-default-features --locked` · `cargo test --workspace --lib --bins --locked --no-fail-fast`(스텝 `cargo test (linux, gui, unit)` — 기본 feature, 아래 [조합 격자의 빈 칸](#조합-격자의-빈-칸--linux--gui--debug-지금은-채워져-있다)) · **관측(비차단)** `xvfb-run … cargo test --workspace --locked --no-fail-fast --test e2e_tests -- multi_window_owner_routing --exact`(스텝 `cargo test (linux, gui, e2e — 관측용)`, `continue-on-error: true` — 헤드리스 조합에서 컴파일하지 않는 이 시험을 돌리되 실패해도 잡을 차단하지 않는다) · **관측(비차단)** `xvfb-run … cargo test -p tasty-plugin-markdown --locked --no-fail-fast -- --ignored --exact render::webview_layout_tests::address_bar_stays_on_top_in_webkitgtk`(스텝 `cargo test (linux, gui, webview layout — 관측용)`, `continue-on-error: true` — markdown 주소창 배치를 WebKitGTK 로 재는 Linux 전용 시험, 아래 [webview 레이아웃 시험](#webview-레이아웃-시험)) | `crossplatform-check.yml` 의 `check-headless` (self-hosted Linux X64) | main push(문서 제외) · PR · 수동 | [실측] |
+| headless 컴파일 · **전체 스위트** · lint **+ Linux gui 단위테스트** | `cargo check --workspace --no-default-features --locked` · `cargo test --workspace --no-default-features --locked --no-fail-fast` · `cargo clippy --workspace --all-targets --no-default-features --locked` · `xvfb-run … cargo test --workspace --lib --bins --locked --no-fail-fast`(스텝 `cargo test (linux, gui, unit)` — 기본 feature, Xvfb 안에서 실행, 아래 [gui 단위 단계의 Xvfb](#gui-단위-단계의-xvfb)) · **관측(비차단)** `xvfb-run … cargo test --workspace --locked --no-fail-fast --test e2e_tests -- multi_window_owner_routing --exact`(스텝 `cargo test (linux, gui, e2e — 관측용)`, `continue-on-error: true` — 헤드리스 조합에서 컴파일하지 않는 이 시험을 돌리되 실패해도 잡을 차단하지 않는다) · **관측(비차단)** `xvfb-run … cargo test -p tasty-plugin-markdown --locked --no-fail-fast -- --ignored --exact render::webview_layout_tests::address_bar_stays_on_top_in_webkitgtk`(스텝 `cargo test (linux, gui, webview layout — 관측용)`, `continue-on-error: true` — markdown 주소창 배치를 WebKitGTK 로 재는 Linux 전용 시험, 아래 [webview 레이아웃 시험](#webview-레이아웃-시험)) | `crossplatform-check.yml` 의 `check-headless` (self-hosted Linux X64) | main push(문서 제외) · PR · 수동 | [실측] |
 | **not-debug(release) 컴파일 · gui** | `cargo check --workspace --release --locked` | `crossplatform-check.yml` 의 `check-release` (self-hosted Linux X64) | main push(문서 제외) · PR · 수동 | [실측] |
 | 문서 가드 | `cargo test -p tasty-doc-guards --locked --no-fail-fast` | `doc-guards.yml` (ubuntu-latest) | main push · PR · 수동 — **경로 필터 없음**([가드 검증](guard-verification.md)) | [실측] |
 | 파일 SLOC | `bash scripts/check-file-size.sh` | `complexity-check.yml` (self-hosted Linux X64) | main push(문서 제외) · PR · 수동 | [실측] |
@@ -667,6 +667,24 @@ cargo clippy --workspace --all-targets \
 <a id="채택한-형태의-경계--그리고-앞-회차의-이-자리가-틀렸다"></a>
 <a id="script-gatesyml--배선한-날의-상태"></a>
 
+### gui 단위 단계의 Xvfb
+
+`check-headless`의 `cargo test (linux, gui, unit)` 단계는 `env -u WAYLAND_DISPLAY xvfb-run -a
+--server-args="-screen 0 1920x1080x24"` 안에서 `cargo test --workspace --lib --bins --locked --no-fail-fast`를
+실행한다. gui 조합의 단위 시험 중 `app::shutdown_machine`의 `capture_file_tests`·`settings_export_tests`·
+`plugin_file_shutdown_tests`는 winit `EventLoop`를 X11로 만들고, 뒤의 두 시험은 같은 시험 바이너리를
+자식 프로세스로 다시 실행한다. 디스플레이가 없으면 `XOpenDisplayFailed`로 실패한다. 러너에 `xvfb-run`이
+없으면 단계가 먼저 실패한다. 이 단계는 `continue-on-error`가 없는 차단 단계다.
+
+`#[ignore]` 시험은 디스플레이가 있어도 이 단계에서 실행되지 않는다. 디스플레이가 생겨 동작이 달라지는
+다른 시험이 있는지는 로컬 전체 실행으로 비교한다.
+
+```bash
+env -u DISPLAY -u WAYLAND_DISPLAY xvfb-run -a --server-args="-screen 0 1920x1080x24" \
+  cargo test --workspace --lib --bins --locked --no-fail-fast > gui-unit.log 2>&1; echo rc=$?
+grep -E '^test result:' gui-unit.log | grep -vc ' ok\.'
+```
+
 ### GUI 테스트를 실행하고 해석하는 조건
 
 `multi_window_owner_routing`은 `gui` feature 조합에서만 컴파일된다. 헤드리스에서
@@ -690,8 +708,8 @@ cargo clippy --workspace --all-targets \
   무관하므로 `cargo test -p tasty-plugin-markdown`·`cargo test --workspace`·`cargo clippy --all-targets` 가
   `--no-default-features` 조합에서도 그 -sys 크레이트를 빌드한다. 라이브러리가 없으면 레이아웃 시험만 빠지는
   것이 아니라 플러그인 시험 전체가 컴파일 단계에서 실패한다. 설치 패키지는 [빌드 가이드](build.md#linux-시험-빌드의-시스템-라이브러리)에 있다.
-- **디스플레이가 필요해 `#[ignore]` 다.** 그래서 `check-headless` 의 gui 유닛 단계(`--lib --bins`)에서는
-  ignored 로만 세고 실행하지 않는다. 실행은 같은 잡의 `cargo test (linux, gui, webview layout — 관측용)`
+- **디스플레이가 필요해 `#[ignore]` 다.** 그래서 `check-headless` 의 gui 유닛 단계(`--lib --bins`)는
+  Xvfb 안에서 돌지만 이 시험은 ignored 로만 세고 실행하지 않는다. 실행은 같은 잡의 `cargo test (linux, gui, webview layout — 관측용)`
   단계가 xvfb-run 안에서 이름으로 지목해서 한다. `DISPLAY` 가 없으면 조용히 통과하지 않고 실패한다.
 - 지목 실행은 이름이 어긋나면 `0 passed` 로 통과하므로, 문서 가드
   `the_webview_layout_step_names_the_one_layout_test`(`ci_channel_claims_match_workflows.rs`)가 그 파일의
