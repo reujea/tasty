@@ -116,6 +116,18 @@ impl HtmlPlugin {
     /// URL을 호스트에 전달하고 스냅샷에 담는다. 빈 문자열은 URL 없음으로 처리한다.
     fn open_url_surface(&mut self, surface_id: u32, url: Option<String>) -> SurfaceResult {
         let url = url.filter(|u| !u.is_empty());
+        let superseded = self.claim_local_surface(surface_id);
+        if let Some(u) = url.as_deref().filter(|_| !superseded) {
+            self.send_initial_url(surface_id, u);
+        }
+        SurfaceResult {
+            display_name: Some(url.clone().unwrap_or_else(|| "HTML".to_string())),
+            snapshot: url.map(|u| json!({ "url": u })),
+        }
+    }
+
+    /// 생성·복원을 처리한 surface로 기록하고, html.open이 먼저 왔으면 참을 돌려준다.
+    fn claim_local_surface(&mut self, surface_id: u32) -> bool {
         self.local.insert(surface_id);
         let superseded = self.opened_before_create.remove(&surface_id);
         if superseded {
@@ -123,32 +135,26 @@ impl HtmlPlugin {
                 "open_url_surface s{surface_id}: html.open already set a newer URL; keeping it"
             );
         }
-        if let Some(u) = url.as_deref().filter(|_| !superseded) {
-            let file_url = local_path_to_file_uri(u);
-            match &self.host {
-                Some(host) => {
-                    if let Err(e) = host.call(
-                        "webview.set_url",
-                        json!({
-                            "surface_id": surface_id,
-                            "url": file_url,
-                        }),
-                    ) {
-                        tracing::warn!(
-                            "open_url_surface s{surface_id}: webview.set_url failed: {e}"
-                        );
-                    }
-                }
-                None => {
-                    tracing::warn!(
-                        "open_url_surface s{surface_id}: no host handle (on_start not called yet?) — cannot load {u}"
-                    );
-                }
-            }
-        }
-        SurfaceResult {
-            display_name: Some(url.clone().unwrap_or_else(|| "HTML".to_string())),
-            snapshot: url.map(|u| json!({ "url": u })),
+        superseded
+    }
+
+    /// 생성·복원 URL을 webview.set_url로 보낸다. 실패는 로그만 남긴다.
+    fn send_initial_url(&self, surface_id: u32, u: &str) {
+        let Some(host) = &self.host else {
+            tracing::warn!(
+                "open_url_surface s{surface_id}: no host handle (on_start not called yet?) — cannot load {u}"
+            );
+            return;
+        };
+        let file_url = local_path_to_file_uri(u);
+        if let Err(e) = host.call(
+            "webview.set_url",
+            json!({
+                "surface_id": surface_id,
+                "url": file_url,
+            }),
+        ) {
+            tracing::warn!("open_url_surface s{surface_id}: webview.set_url failed: {e}");
         }
     }
 }
