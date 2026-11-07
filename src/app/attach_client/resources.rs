@@ -179,8 +179,8 @@ pub(super) fn bind_mirror_input(
     let sender = frame_tx.clone();
     mirror.bind_external_input(
         Arc::new(move |bytes| {
-            const MAX_BODY: usize = stream::MAX_FRAME_LEN as usize - 4;
-            for part in bytes.chunks(MAX_BODY) {
+            // 프레임 상한에서 mux 머리(4바이트)를 뺀 크기로 나눈다.
+            for part in bytes.chunks(stream::MAX_FRAME_LEN as usize - 4) {
                 if sender
                     .send(OutFrame {
                         tag: StreamTag::Data,

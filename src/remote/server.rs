@@ -546,14 +546,13 @@ impl EngineRef<'_> {
         class: &AttachSurfaceClass,
     ) -> serde_json::Value {
         let (tree, surfaces) = self.build_workspace_tree_surfaces(idx, class);
-        let capabilities = descriptor_capabilities();
         serde_json::json!({
             "event": "attached_workspace",
             "workspace_id": workspace_id,
             "name": self.core.workspace_at(idx).expect("workspace index is valid").name,
             "tree": tree,
             "surfaces": surfaces,
-            (tasty_ipc::stream::DESCRIPTOR_CAPABILITIES): capabilities,
+            (tasty_ipc::stream::DESCRIPTOR_CAPABILITIES): descriptor_capabilities(),
             (tasty_ipc::stream::DESCRIPTOR_PTY_INPUT): tasty_ipc::stream::local_pty_input(),
         })
     }
