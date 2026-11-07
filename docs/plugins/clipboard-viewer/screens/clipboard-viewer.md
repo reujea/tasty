@@ -1,8 +1,7 @@
 # Clipboard Viewer popup 화면
 
 - **부모 기획**: [../index.md](../index.md)
-- **시각 소스**: Design System Artifact `Tasty Design System`
-  `ui_kits/terminal/overlays/clipboard_viewer.jsx`.
+- **시각 소스**: tasty-page `vendor/ui_kits/terminal/overlays/clipboard_viewer.jsx`.
 
 도구 메뉴/단축키로 뜨는 클립보드 뷰어 popup. header → type-bar → body → footer 4단 수직 배치.
 
@@ -47,7 +46,7 @@ plugin 은 header~footer content 영역만 그린다(`cbFrame`/`Scrim` 은 desig
 
 ## 디자인 토큰 매핑
 
-시각 수치·토큰의 단일 출처는 Design System Artifact의 `project/ui_kits/terminal/overlays/clipboard_viewer.jsx` 다 — [시각 소스](#시각-소스).
+시각 수치·토큰의 단일 출처는 tasty-page `vendor/ui_kits/terminal/overlays/clipboard_viewer.jsx` 다 — [시각 소스](#시각-소스).
 
 ## HTML prettify 인덴터
 
@@ -106,8 +105,7 @@ specimen 에 있다. 디자인·갤러리·제품 구현의 대응표:
 
 ## 시각 소스
 
-Design System Artifact `Tasty Design System`
-`ui_kits/terminal/overlays/clipboard_viewer.jsx`(구조 전사 소스) ·
+tasty-page `vendor/ui_kits/terminal/overlays/clipboard_viewer.jsx`(구조 전사 소스) ·
 `clipboard_viewer.html`(standalone 프리뷰) · `shared.jsx`(`Scrim`/`Icon`/`Spinner` 공용
 프리미티브). popup 은 egui-mesh 채널로 plugin 이 자가 렌더한다
 ([popup-implementation.md](../../../dev-guide/popup-implementation.md), docs/dev-guide/egui-mesh-channel.md).

@@ -167,7 +167,9 @@ Cargo에는 별도 의존성 설치 단계가 없고 build/test 때 필요한 �
 
 ## 갤러리 완전성 · gallery-first (필수)
 
-갤러리(`crates/tasty-gallery`)에는 본체의 모든 UI 컴포넌트를 포함한다. 디자인 카탈로그에서 빠진 컴포넌트도 갤러리에서 삭제하지 않고 디자인 요청으로 보완한다. 새 modal·popup·공용 위젯은 디자인 수령, 갤러리 예제 작성, 본체 반영 순서로 만든다.
+갤러리(`crates/tasty-gallery`)에는 본체의 모든 UI 컴포넌트를 포함한다. 디자인 카탈로그에서 빠진 컴포넌트도 갤러리에서 삭제하지 않고 디자인 요청으로 보완한다.
+
+디자인 정본은 [tasty-page](https://github.com/zilhak/tasty-page) 레포 `main`의 `vendor/`다. 디자인은 구현 세션이 정하지 않는다. 디자인 변경은 디자이너 세션이 tasty-page 갤러리에 먼저 반영하고, 이 레포의 갤러리에 같은 형상을 구현한 뒤 본체에 적용한다. 갤러리와 본체는 같은 컴포넌트 소스를 쓰므로 모양만 바꾸는 변경은 갤러리 단계에서 본체에도 반영된다. 앱이 따르는 디자인 판은 `crates/tasty-design-tokens/dtcg/SOURCE`의 tasty-page 커밋이다. 절차는 [디자인 변경 워크플로](docs/dev-guide/design-change-workflow.md)에 있다.
 
 상세·근거: [테마 시스템 (운영 상세)](docs/design/systems/theme.md) · [`docs/dev-guide/gallery-first.md`](docs/dev-guide/gallery-first.md) · [`docs/design/policies/gallery-completeness.md`](docs/design/policies/gallery-completeness.md).
 

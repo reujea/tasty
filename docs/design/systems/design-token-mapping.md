@@ -1,6 +1,6 @@
 # Design Token → tasty Theme 매핑
 
-Design System의 `tokens/semantic.css`·`tokens/primitives.css`와 Tasty Theme의 대응표다. 색의 hex 값은 mocha 기준이며 테마마다 달라지므로 코드에서는 Theme 접근자를 사용한다.
+디자인 정본(tasty-page `vendor/`)의 `tokens/semantic.css`·`tokens/primitives.css`와 Tasty Theme의 대응표다. 색의 hex 값은 mocha 기준이며 테마마다 달라지므로 코드에서는 Theme 접근자를 사용한다.
 
 아이콘 SVG는 `tasty-icons`에서 정의하며 사용하는 곳에서 도형을 다시 만들지 않는다. [아이콘 가이드](icons.md)를 따른다.
 

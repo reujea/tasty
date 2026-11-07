@@ -1,7 +1,7 @@
 # DAG 그래프 surface 화면
 
 - **부모 기획**: [dag-graph](../index.md)
-- **시각 소스**: `ui_kits/terminal/overlays/dag_view.jsx` · `ui_kits/terminal/overlays/dag_surfaces.jsx` · `gallery/dag.jsx` (Design System)
+- **시각 소스**: tasty-page `vendor/ui_kits/terminal/overlays/dag_view.jsx` · `vendor/ui_kits/terminal/overlays/dag_surfaces.jsx` · `vendor/gallery/dag/index.jsx`
 - **kind**: `dag_graph` (host builtin)
 
 workspace 의 task DAG 를 노드/엣지 그래프로 **관찰**하는 화면이다. 노드 편집기가 아니다 —

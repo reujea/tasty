@@ -84,7 +84,7 @@ view 는 본체 binary 가 아니라 공용 crate `tasty-ui-widgets` 에 있어 
 
 화면정의서 — **상태바 화면**.
 
-- **시각 소스**: Design System `gallery/layouts.jsx` 의 **Workspace status bar** 섹션 — 항목·축소 순서·변종 여섯의 정본
+- **시각 소스**: tasty-page `vendor/gallery/layouts/index.jsx` 의 **Workspace status bar** 섹션 — 항목·축소 순서·변종 여섯의 정본
 
 [작업 영역](../work-area/index.md#화면) 하단의 24px 바. 동작은 부모 기획, 여기선 시각.
 
@@ -121,4 +121,4 @@ view 는 본체 binary 가 아니라 공용 crate `tasty-ui-widgets` 에 있어 
 
 ### 시각 소스
 
-Design System `gallery/layouts.jsx` 의 **Workspace status bar** 섹션 — 항목 목록·축소 순서·여백·글꼴 구분·색 토큰의 단일 출처.
+tasty-page `vendor/gallery/layouts/index.jsx` 의 **Workspace status bar** 섹션 — 항목 목록·축소 순서·여백·글꼴 구분·색 토큰의 단일 출처.

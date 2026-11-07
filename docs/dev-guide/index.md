@@ -45,7 +45,7 @@ Tasty 개발자를 위한 가이드다. Tasty를 사용하는 에이전트용 �
 | [model-view-split](model-view-split.md) | Model + Host View 분리와 Runtime 요청 계약 |
 | [gpu-rendering](gpu-rendering.md) | View 분할 비율 미리보기·확정 경계, GPU 렌더링 구조 · 성능 측정 · 중복 표면 설정 억제 · surface 오류 지연 재시도 |
 | [egui-mesh-channel](egui-mesh-channel.md) | plugin egui mesh → host 합성 렌더 채널 (docs/dev-guide/egui-mesh-channel.md) |
-| [design-change-workflow](design-change-workflow.md) | 디자인 변경 루프 — 요청문서→designer 시안→갤러리/본체/사이트 사본 정합 |
+| [design-change-workflow](design-change-workflow.md) | 디자인 변경 루프 — 요청문서→디자이너 세션의 tasty-page 갤러리 반영→tasty 갤러리/본체 정합, 앱이 따르는 디자인 판(`dtcg/SOURCE`) |
 | [gallery-first](gallery-first.md) | 새 UI 컴포넌트는 디자인→갤러리→본체 순서 (cut 금지), specimen 기하의 역할 명명 |
 | [popup-implementation](popup-implementation.md) | Popup(`PopupDef` 시스템) |
 | [dag-layout](dag-layout.md) | Task DAG 좌표 계산(`tasty-dag-layout`) — 레이어 배치·엣지 라우팅·어댑터 경계 |

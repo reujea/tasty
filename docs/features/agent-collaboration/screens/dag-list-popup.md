@@ -1,7 +1,7 @@
 # DAG 목록 popup
 
 - **부모 기획**: [../index.md](../index.md)
-- **시각 소스**: `ui_kits/terminal/overlays/dag_surfaces.jsx` 의 `DagWindow` · `dagRowItems` (Design System)
+- **시각 소스**: tasty-page `vendor/ui_kits/terminal/overlays/dag_surfaces.jsx` 의 `DagWindow` · `dagRowItems`
 - **popup id**: `dag_list` · **스코프**: `PopupScope::Workspace`
 
 DAG 를 **잠깐 확인하고 닫는** 관측 창이다. 탭 하나를 통째로 점유하는

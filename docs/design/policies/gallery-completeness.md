@@ -7,7 +7,7 @@
 ## 핵심 규칙
 
 - 본체의 modal·popup·공용 위젯·반복 레이아웃은 모두 갤러리 카탈로그(`catalog.rs::pages()`)에 예제로 등록한다.
-- 디자인 산출물(`Tasty Design System`)의 카탈로그에 빠진 컴포넌트도 갤러리에서 제거하지 않는다. 디자인 카탈로그를 보완한다.
+- 디자인 정본(tasty-page 갤러리 `vendor/gallery/`)의 카탈로그에 빠진 컴포넌트도 갤러리에서 제거하지 않는다. 디자인 카탈로그를 보완한다.
 - 카탈로그는 디자인의 5분류(**Foundations / Components / Icons / Overlays / Layouts**)와 **Plugins**, **Chrome**을 합친 7분류다. clipboard·git·markdown·image·html의 뷰어와 팝업은 Plugins에, 부팅 로딩 화면처럼 여러 위젯으로 구성한 앱 화면은 Chrome에 등록한다.
 
 ## demo=main — 갤러리가 곧 본체

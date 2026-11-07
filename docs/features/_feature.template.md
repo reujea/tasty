@@ -45,7 +45,7 @@
 
 ## 화면
 
-- **시각 소스**: `project/.../<x>.jsx` (Design System Artifact)
+- **시각 소스**: tasty-page `vendor/.../<x>.jsx`
 
 ### 트리거
 

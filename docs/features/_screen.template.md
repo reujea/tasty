@@ -15,7 +15,7 @@
 # <화면 이름>
 
 - **부모 기획**: [../index.md](../index.md)
-- **시각 소스**: `project/.../<x>.jsx` (Design System Artifact)
+- **시각 소스**: tasty-page `vendor/.../<x>.jsx`
 
 ## 트리거
 
@@ -32,4 +32,4 @@
 
 ## 시각 소스
 
-`project/.../<x>.jsx` (Design System Artifact) — 픽셀·토큰·레이아웃 수치의 단일 출처.
+tasty-page `vendor/.../<x>.jsx` — 픽셀·토큰·레이아웃 수치의 단일 출처.

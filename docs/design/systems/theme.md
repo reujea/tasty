@@ -325,7 +325,7 @@ Latte의 일부 어두운 배경과 글자 조합은 4.5:1 대비를 충족하�
 
 `text_muted()`는 Latte에서 neutral-1000(`subtext1`)을 읽는다. neutral-900은 `bg_app`(=crust) 위 상태바에서 4.26으로 미달하고, 4.5를 겨우 넘기는 혼합색은 neutral-1000과 눈으로 구분되지 않기 때문이다. 그래서 Latte의 text-muted와 text-secondary는 같은 색이고 크기와 굵기가 순서를 나타낸다. Mocha는 neutral-900 그대로다.
 
-표의 미달 칸은 그 바탕 전용 역할로 해결한다. 역할과 바탕의 전체 표는 Design System Artifact의 `RULES.md`가 정본이다.
+표의 미달 칸은 그 바탕 전용 역할로 해결한다. 역할과 바탕의 전체 표는 tasty-page `vendor/RULES.md`가 정본이다.
 
 | 잉크 띠 | 버티는 바탕 | 예 |
 |---|---|---|

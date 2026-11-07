@@ -6,84 +6,75 @@
 > 디자인에 *이미 있는데* 소스만 못 따라간 경우(구현 누락/불일치)는 이 워크플로가 필요 없다 —
 > 디자인 변경이 아니므로 바로 [gallery-first](gallery-first.md) 의 구조 전사(1단계)로 간다.
 
-디자인 원본은 Design System Artifact `Tasty Design System`이고 파일은 `project/` 아래에 있다.
-Artifact 주소와 `designer` Agent 정의는 커밋하지 않는 로컬 전용 지침에 있다.
-정합 순서와 그 근거·재검토 조건은 [테마 시스템 (운영 상세)](../design/systems/theme.md) 에 있다.
+디자인 정본은 공개 레포 [tasty-page](https://github.com/zilhak/tasty-page)의 `main`에 있는 `vendor/`다.
+그 안의 갤러리(tasty-page `vendor/gallery/`)가 UI 디자인의 기준이며 이 저장소에는 디자인 사본을 두지 않는다.
+디자인은 구현 세션이 정하지 않는다. 디자인을 맡은 별도의 Claude 세션(디자이너 세션)이 tasty-page worktree에서
+`vendor/`를 고쳐 커밋한다. 정합 순서와 그 근거·재검토 조건은 [테마 시스템 (운영 상세)](../design/systems/theme.md) 에 있다.
 
 <a id="뱅글뱅글-도는-루프"></a>
 
 ## 요청부터 반영까지
 
 ```
-   ┌───────────────── 재요청 (부족·불일치 발견 시) ─────────────────┐
-   ▼                                                               │
-[1] 구현 세션 ──작성·게시──▶ 요청문서 ──[2] 호출──▶ [3] designer Agent  │
-                         project/design-request/<slug>.md    (Artifact를 고침)
-                                                                │  │
-                                                 결정표·변경 목록 ▼  │
-                 [4] 정합: 갤러리 specimen → 본체 구현 ─┘
-                                                                │
-                                              [5] 원격 요청·완료 문서·changelog 정리
+   ┌──────────────── 재요청 (부족·불일치 발견 시) ────────────────┐
+   ▼                                                            │
+[1] 구현 세션 ──요청문서(§0~§8)──▶ [2] 디자이너 세션                 │
+                                   tasty-page vendor/ 수정·검사·커밋 │
+                                        │ 결정표·커밋 해시           │
+                                        ▼                           │
+              [3] 구현 세션: 커밋 대조 → tasty 갤러리 → 본체 ────────┘
 ```
 
 | 단계 | 행위자 | 하는 일 | 산출물 |
 |------|--------|---------|--------|
-| 1 | 구현 세션 | 무엇을 어떻게 보이게 할지 정의한 요청문서를 Artifact에 게시 | `project/design-request/<slug>.md` |
-| 2 | 구현 세션 | `designer` Agent를 Artifact 주소와 요청문서 경로로 호출. **사용자 허락을 따로 받지 않는다** | |
-| 3 | `designer` Agent | 디자인을 결정하고 범위 안의 파일을 게시 | 결정표, 게시 경로, `project/design-tasks/*.DONE.md`, changelog |
-| 4 | 구현 세션 | 보고를 게시본과 대조한 뒤 갤러리 specimen → 본체 순서로 반영. 사이트 사본은 릴리스할 때 갱신한다 | 코드 |
-| 5 | 구현 세션 | 반영이 끝난 요청문서·완료 문서·changelog 토픽 삭제 | |
+| 1 | 구현 세션 | 무엇을 어떻게 보이게 할지 정의한 요청문서를 작성해 디자이너 세션에 넘긴다. **사용자 허락을 따로 받지 않는다** | 요청문서 |
+| 2 | 디자이너 세션 | 디자인을 결정하고 tasty-page `vendor/`(갤러리 포함)를 고친다. 그 레포의 디자인 검사를 통과시킨 뒤 `main`에 커밋하고 보고한다 | tasty-page 커밋, 결정표 |
+| 3 | 구현 세션 | 보고를 tasty-page 커밋의 실제 변경과 대조한 뒤 이 저장소의 갤러리(`crates/tasty-gallery`)에 같은 형상을 구현하고 본체에 반영한다 | 코드, `dtcg/SOURCE` 갱신 |
 
-시안이 요청문서에 없던 구조를 드러내거나 4단계에서 부족분이 나오면 다음 요청문서로 다시 돈다.
+갤러리와 본체는 같은 컴포넌트 소스를 쓰므로 모양만 바꾸는 변경은 3단계의 갤러리 구현에서 본체에도 반영된다.
+시안이 요청문서에 없던 구조를 드러내거나 3단계에서 부족분이 나오면 다음 요청문서로 다시 돈다.
+디자인 변경의 기록은 tasty-page 커밋 본문이 맡는다. 바꾼 것, 근거, 구현 쪽이 알아야 할 것을 거기에 적는다.
 
-changelog는 덧붙이기만 하므로 뒤 항목이 앞 항목을 대체하면 designer가 앞 항목 제목 끝에 `(철회: <날짜> 항목이 대체)`를 붙인다. 구현 세션은 changelog를 위에서부터 읽을 때 이 표시를 확인한다.
+디자이너 세션이 통과시키는 tasty-page 검사는 `npm run build`, `npm run check-contrast`, `npm run check-icons`,
+`npm run check-tokens-copy`와 토큰 도구 `tasty-page/scripts/design-tokens/verify_tokens_json.py`다.
+같은 검사를 그 레포의 CI(`design.yml`)가 push마다 실행한다.
 
 ## 책임 경계
 
 | 대상 | 정하는 쪽 | 예 |
 |------|----------|-----|
 | 제품 동작 | 사용자. 요청문서에 확정 사항으로 적는다 | 언제 풀리는지, 기능을 넣을지, 어떤 동작을 제공할지 |
-| 동작의 표현 | designer | 레이아웃, 상태별 모양, 문구, 비활성 표시 방식 |
-| 정해진 동작 안의 흐름 표현 | designer. 동작이 달라지면 멈춘다 | 버튼 위치, 안내 순서, 포커스 표시 |
+| 동작의 표현 | 디자이너 세션 | 레이아웃, 상태별 모양, 문구, 비활성 표시 방식 |
+| 정해진 동작 안의 흐름 표현 | 디자이너 세션. 동작이 달라지면 멈춘다 | 버튼 위치, 안내 순서, 포커스 표시 |
 | 기술 사실 | 구현 세션 | 키 이름, 현재 구현 동작, 토큰 사용 범위 |
 
-구현 세션은 디자인 값을 스스로 정하지 않는다. designer는 저장소 소스를 읽지 않으므로 요청문서에 필요한 구현 사실을 실제 코드에서 확인해 적는다.
+구현 세션은 디자인 값을 스스로 정하지 않는다. 디자이너 세션은 이 저장소의 소스를 읽지 않으므로 요청문서에 필요한 구현 사실을 실제 코드에서 확인해 적는다.
 
-### `.NEEDS-INPUT` 처리
-
-designer가 답을 정할 수 없는 항목은 `project/design-tasks/<YYYYMMDD-hhmm>-<slug>.NEEDS-INPUT.md`로 게시하고 질문마다 종류를 표시한다. 호출한 구현 세션이 먼저 처리한다.
-
-| 종류 | 처리 |
-|------|------|
-| 사실 확인 | 구현 세션이 코드에서 확인해 답하고 designer를 다시 호출한다 |
-| 디자인 판단 | 요청문서를 보강해 designer를 다시 호출한다 |
-| 제품 결정 | 사용자에게 묻는다. 분류가 애매하면 제품 결정으로 본다 |
-
-처리한 `.NEEDS-INPUT` 파일은 designer가 다음 호출에서 답을 반영할 때 지운다.
+디자이너 세션이 정할 수 없는 항목은 보고에 질문으로 남긴다. 사실 확인은 구현 세션이 코드에서 확인해 답하고, 디자인 판단은 요청문서를 보강해 다시 요청한다. 제품 결정은 사용자에게 묻는다. 분류가 애매하면 제품 결정으로 본다.
 
 ## 디자인 요청문서란
 
-구현 세션이 작성하는 입력 산출물이다. *왜/구현 내부 구조*가 아니라 **무엇을 어떻게 보이게 할지**와 designer가 알 수 없는 사실을 담는다.
+구현 세션이 작성하는 입력 산출물이다. *왜/구현 내부 구조*가 아니라 **무엇을 어떻게 보이게 할지**와 디자이너 세션이 알 수 없는 사실을 담는다.
 
-- **위치**: `project/design-request/<slug>.md`. 일부 값이 비어 있어도 게시하며 여러 요청을 동시에 둘 수 있다.
+- **전달**: 요청문서를 두는 위치와 디자이너 세션을 띄우는 방법은 커밋하지 않는 로컬 지침에 있다. 일부 값이 비어 있어도 넘기며 여러 요청을 동시에 둘 수 있다.
 - **기준 구성**: 아래 §0~§8 구성을 그대로 따른다.
 
 ### 요청문서 구성 (§0~§8)
 
 | 섹션 | 내용 |
 |------|------|
-| 헤더 메타 | 작성일 · 요청자 · 수행자(designer) · **상태** · 범위 |
+| 헤더 메타 | 작성일 · 요청자 · 수행자(디자이너 세션) · 범위 |
 | §0 한 줄 요약 | 이 요청이 만들려는 것 한 줄 |
 | §1 맥락 / 제약 | 확인한 구현 사실(확인 날짜 포함) · 토큰 규칙 · 기존 구현과의 관계 |
 | §2 인벤토리 | 다룰 화면/컴포넌트/상태 목록 표 (신규/기존 구분) |
 | §3 화면별 요구사항 | 화면 단위 레이아웃·영역 구성 |
 | §4 컴포넌트별 요구사항 | 컴포넌트 단위 상태·변형 |
 | §5 인터랙션 / 동작 | 사용자가 확정한 동작과 상태 전이 규칙 |
-| §6 열린 결정 | designer가 판단할 항목 |
+| §6 열린 결정 | 디자이너 세션이 판단할 항목 |
 | §7 산출물 형식 | 결정표, 토큰 변경표, 영향 목록처럼 보고받을 것 |
 | §8 참고 | 표본 경로, 토큰 안내 |
 
-위치(어느 탭·섹션·메뉴에 둘지)를 designer에게 맡기는 요청이면 그 위치로 가는 탐색 경로의 사실(예: 설정 섹션 필터가 L2 라벨만 일치한다)을 코드에서 확인해 요청문서에 적는다.
+위치(어느 탭·섹션·메뉴에 둘지)를 디자이너 세션에게 맡기는 요청이면 그 위치로 가는 탐색 경로의 사실(예: 설정 섹션 필터가 L2 라벨만 일치한다)을 코드에서 확인해 요청문서에 적는다.
 
 ### 요청문서가 강제하는 디자인 규칙 (시안 단계부터)
 
@@ -95,75 +86,43 @@ designer가 답을 정할 수 없는 항목은 `project/design-tasks/<YYYYMMDD-h
 
 ## 토큰이 바뀌는 요청
 
-앱은 `project/tokens/tasty.tokens.json` 한 파일만 받아 Rust 상수와 Theme 접근자를 생성하므로, CSS만 고치면 앱에 들어오지 않는다.
+앱은 tasty-page `vendor/tokens/tasty.tokens.json` 한 파일만 받아 Rust 상수와 Theme 접근자를 생성하므로, CSS만 고치면 앱에 들어오지 않는다.
 
-1. designer는 토큰 CSS와 같은 게시에서 JSON을 재생성한다. 도구는 `tasty-page/scripts/design-tokens/gen_tokens_json.py`와 `verify_tokens_json.py`이고, 값을 손으로 옮겨 적지 않는다. 절차는 [`crates/tasty-design-tokens/README.md`](../../crates/tasty-design-tokens/README.md)에 있다.
-2. Latte만 값이 달라지는 새 semantic 역할(`-raised` 등)은 단순 별칭이 아니므로 구현 세션이 `crates/tasty-design-tokens/src/dtcg/accessor.rs`의 `SEMANTIC_COLOR_TO_THEME_ACCESSOR`와 `SEMANTIC_COLOR_HAND_WRITTEN`에 Theme 접근자를 함께 추가한다. 대응이 없으면 생성기가 그 토큰을 쓰는 component 접근자를 건너뛴다.
-3. `components/bundle.js`는 Artifact 안에서 재빌드할 도구가 없다. 갤러리 페이지는 `.jsx` 소스를 번들 뒤에 불러오므로 구현 기준은 `.jsx`다.
+1. 디자이너 세션은 토큰 CSS와 같은 커밋에서 JSON을 `tasty-page/scripts/design-tokens/gen_tokens_json.py`로 재생성하고 `verify_tokens_json.py`로 대조한다. 값을 손으로 옮겨 적지 않는다.
+2. 구현 세션은 [`crates/tasty-design-tokens/README.md`](../../crates/tasty-design-tokens/README.md)의 "토큰 갱신 절차"로 JSON과 `dtcg/SOURCE`를 함께 바꾼다.
+3. Latte만 값이 달라지는 새 semantic 역할(`-raised` 등)은 단순 별칭이 아니므로 구현 세션이 `crates/tasty-design-tokens/src/dtcg/accessor.rs`의 `SEMANTIC_COLOR_TO_THEME_ACCESSOR`와 `SEMANTIC_COLOR_HAND_WRITTEN`에 Theme 접근자를 함께 추가한다. 대응이 없으면 생성기가 그 토큰을 쓰는 component 접근자를 건너뛴다.
 
-<a id="정합-대상--사이트-사본-필수"></a>
+## 앱이 따르는 디자인 판 (필수)
 
-## 정합 대상 — 사이트 사본 (필수)
+앱이 반영한 디자인 판은 `crates/tasty-design-tokens/dtcg/SOURCE`에 tasty-page 커밋 해시 한 줄로 기록한다.
+디자인 커밋을 갤러리·본체에 반영하면 같은 커밋에서 SOURCE를 그 tasty-page 커밋으로 올린다.
+tasty-page `main`이 앞서 있는 것은 정상이다. 아직 반영하지 않은 디자인이 있다는 뜻이다.
 
-레포에는 같은 원격 원본의 vendored 사본이 **둘** 있다. 앱 사본은 디자인을 반영할 때 갱신하고, 사이트 사본은 **릴리스할 때** 갱신한다. 사이트는 사용자가 받을 수 있는 버전을 보여 주므로 릴리스 사이에는 앱 사본보다 뒤처지는 것이 정상이다. 절차는 [릴리스 절차](release.md#3-사이트-갱신)에 있다.
+| 대상 | 검사 | 안 따라오면 |
+|------|------|-------------|
+| 토큰 — `crates/tasty-design-tokens/dtcg/tasty.tokens.json` | `design_source_tokens_track_the_app_export`가 SOURCE 커밋의 JSON과 바이트를, 정본 CSS와 토큰 이름을 비교한다. `crates/tasty-design-tokens/tests/freshness.rs`가 생성물과 JSON을 비교한다 | 문서 검사가 실패한다 |
+| 아이콘 — `crates/tasty-icons` | `design_source_icons_match_the_app_transcription`이 SOURCE 커밋의 아이콘 기하·채움·viewBox·선 굵기·cap/join을 비교한다. 앱 비교 기준은 `vendor/components/core/Icon.jsx`이고 SVG 파일과 Icon.jsx의 일치는 tasty-page `npm run check-icons`가 맡는다 | 문서 검사가 실패한다 |
 
-| 사본 | 무엇이 받는가 | 갱신 절차 | 안 따라오면 |
-|------|--------------|-----------|-------------|
-| 앱 — `crates/tasty-design-tokens/dtcg/tasty.tokens.json` | 토큰(DTCG) | [`crates/tasty-design-tokens/README.md`](../../crates/tasty-design-tokens/README.md) "토큰 갱신 절차" | `crates/tasty-design-tokens/tests/freshness.rs` 의 목록 검사에 실패한다 |
-
-갤러리 파일은 ES 모듈이다. 표본은 `gallery/<페이지>/` 아래에 두고 필요한 것을 `import`하며 전역 객체와 페이지별 `.html`을 쓰지 않는다. 표본의 제목과 순서, 상태 표시, 표 형식은 `gallery/README.md`를 따르고, 새 계약의 칸은 해당 페이지의 `states.jsx`와 `parts/contract-cells.jsx`에 넣는다. 사이트 빌드·대비 검증은 tasty-page 레포에서 한다.
-
-사이트는 오래된 사본도 정상 빌드할 수 있으므로 빌드 통과만으로 최신 여부를 판단하지 않는다.
-`design_source_tokens_track_the_app_export`는 앱 토큰 JSON과 `dtcg/SOURCE`에 기록한 tasty-page 커밋의 토큰을,
-`design_source_icons_match_the_app_transcription`은 같은 커밋의 아이콘 기하·채움·viewBox·선 굵기·
-cap/join을 앱과 비교한다. 두 검사는 `crates/tasty-doc-guards/tests/`에 있고 `TASTY_PAGE_DIR`가 필요하다.
-문구·구성·컨트롤 삭제처럼 그 값들을 바꾸지 않는 변경은 검사하지 않으므로 원격 디자인과
-직접 대조해 사이트 사본도 갱신한다.
+두 `design_source_*` 검사는 `crates/tasty-doc-guards/tests/`에 있고, SOURCE 커밋으로 체크아웃한 tasty-page 경로를
+`TASTY_PAGE_DIR`로 받는다. 경로가 없거나 체크아웃의 HEAD가 SOURCE와 다르면 실패한다.
+`doc-guards.yml`과 pre-push 훅은 `scripts/fetch-design-source.sh`로 그 커밋을 받아 넘긴다.
+문구·구성·컨트롤 삭제처럼 그 값들을 바꾸지 않는 변경은 검사하지 않으므로 SOURCE 커밋의 갤러리와 직접 대조한다.
 
 이 정합 대상을 세운 근거·대안·재검토 조건은 [테마 시스템 (운영 상세)](../design/systems/theme.md).
-
-재-vendoring 은 Artifact 읽기 권한이 필요하다. 그 권한이 없는 세션에서는 이 단계를 **미완으로 남기고 그 사실을 적는다** — 조용히 건너뛰지 않는다.
-
-## 상태 라이프사이클
-
-요청문서 헤더 메타의 `상태:` 필드로 추적한다.
-
-| 상태 | 의미 |
-|------|------|
-| `requested` | 요청문서를 게시함. designer 호출 전이거나 실행 중, 또는 회신 대조 전. |
-| `received` | designer가 게시를 마치고 보고했고, 구현 세션이 회신을 대조한 뒤 이 상태로 바꿈. 정합 작업 대기/진행. |
-| `reconciled` | 시안을 갤러리 specimen + 본체에 반영 완료. 사이트 사본은 릴리스할 때 갱신하므로 기다리지 않는다. 이 시점에 정리한다(아래 [정합 완료 후 정리](#정합-완료-후-정리-필수)). |
-| `re-requested` | 정합 중 부족·불일치가 드러나 추가/갱신 요청문서로 루프 재진입. |
-
-<a id="정합-완료-후-요청문서-삭제-필수"></a>
-
-## 정합 완료 후 정리 (필수)
-
-구현 세션은 반영을 끝내 `reconciled`에 도달한 뒤 요청문서, designer가 남긴 완료 문서(`project/design-tasks/*.DONE.md`), changelog 토픽 파일(`project/changelog/<날짜>-<토픽>.md`)을 삭제한다. `project/changelog/README.md`는 남기고 목차 표의 해당 행만 지운다. 이력이 필요한 결정은 이미 ADR·docs 에 남는다.
-
-- **삭제 조건**: 상태가 확정적으로 `reconciled`이고, 삭제할 파일을 게시본 목록에서 확인했다. `re-requested`로 루프가 도는 중이면 지우지 않는다.
-- **삭제 방법**: 한 게시 호출의 `files`에 `"project/<경로>": null`을 넣는다. 같은 호출에서 `project/design-system.json`의 `lastChange`를 갱신한다.
-- **남기는 것**: 완료 문서의 요청 중 반영되지 않은 것이 있으면 그 완료 문서와 changelog 토픽은 남긴다. `.FAILED`·`.NEEDS-INPUT` 문서는 처리가 끝나기 전까지 지우지 않는다. 토큰·갤러리·ui_kits 같은 확정 디자인은 삭제하지 않는다.
-
-## Artifact 게시 규칙
-
-- 게시가 낡은 판이라고 거부되면 `url`만 넘겨 다시 읽는다. 파일 경로 읽기로는 풀리지 않는다. `force`는 쓰지 않는다.
-- 게시할 파일은 한 폴더 아래 `project/<경로>`로 두고 `root`, `file_path`, `files`를 함께 넘긴다. `.jsx`는 `files`에 `{from, contentType: "text/plain"}`으로 넣는다.
-- 인덱스 `project/design-system.json`은 작업의 마지막 호출에서 직전에 다시 읽어 `lastChange`만 고친다.
 
 ## 누가 무엇을 하나 (역할 분리)
 
 | 역할 | 누가 | 책임 |
 |------|------|------|
 | **사용자** | 사람 | 제품 동작 결정. 디자인 작업 시작을 따로 승인하지 않는다. |
-| **구현 세션** | Claude Code 메인 세션 | 요청문서 작성·게시, designer 호출, 보고 대조, [gallery-first](gallery-first.md) 순서의 반영, 원격 정리. |
-| **designer** | `designer` Agent | 디자인 결정과 Artifact 수정. 지정된 Artifact 외에는 쓰지 않는다. |
+| **구현 세션** | Claude Code 메인 세션 | 요청문서 작성, 디자이너 세션 호출, 보고와 tasty-page 커밋 대조, [gallery-first](gallery-first.md) 순서의 반영, `dtcg/SOURCE` 갱신. |
+| **디자이너 세션** | 디자인을 맡은 별도 Claude 세션 | 디자인 결정과 tasty-page `vendor/` 수정·검사·커밋. 이 저장소에는 쓰지 않는다. |
 
 > 레포 안에 근거로 남겨야 하는 시안은 HTML 을 `docs/design/` 에 보존한다(docs/design/systems/theme.md).
 
 ## 관련
 
-- [테마 시스템 (운영 상세)](../design/systems/theme.md) — 정합 순서·갤러리 완전성·사이트 사본 결정 근거와 재검토 조건.
+- [테마 시스템 (운영 상세)](../design/systems/theme.md) — 정합 순서·갤러리 완전성 결정 근거와 재검토 조건.
 - [gallery-first](gallery-first.md) — 확보한 디자인을 갤러리→본체로 내리는 순서(0단계 "디자인 확보"가 이 워크플로).
 - [design/policies/gallery-completeness](../design/policies/gallery-completeness.md) — cut 금지 시 디자인 보강(=이 워크플로로 재요청).
 - [design/systems/design-parity-notes](../design/systems/design-parity-notes.md) · [design-gallery-mapping](../design/systems/design-gallery-mapping.md) — 시안→소스 구조 전사 원칙·매핑.
