@@ -71,6 +71,13 @@ impl TaskWakerHub {
         self.delivered.lock().unwrap().len()
     }
 
+    #[cfg(test)]
+    pub(crate) fn waiter_count(&self, workspace_id: u32, task_id: &TaskId) -> usize {
+        self.lock_recovering()
+            .get(&(workspace_id, task_id.clone()))
+            .map_or(0, Vec::len)
+    }
+
     /// 독립 큐를 만들며 외부 소비자는 연결하지 않는다. 실제 engine은 with_feed를 사용한다.
     #[cfg(test)]
     pub fn new() -> Self {

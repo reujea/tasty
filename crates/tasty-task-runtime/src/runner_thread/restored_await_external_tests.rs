@@ -113,6 +113,16 @@ fn a_restored_push_wait_times_out_in_the_same_process_and_wakes_its_waiter() {
     let waiter = std::thread::spawn(move || {
         hub.await_terminal(1, &waited_id, Some(10_000), || Some(running))
     });
+    // 만료 전에 대기자 등록을 기다린다. 등록 뒤의 조회는 Running 스냅샷이라 종결은 만료 경로의
+    // wake로만 전달된다.
+    let registered_by = std::time::Instant::now() + std::time::Duration::from_secs(10);
+    while ctx.task_waker_hub.waiter_count(1, &id) == 0 {
+        assert!(
+            std::time::Instant::now() < registered_by,
+            "대기자가 등록되지 않았다"
+        );
+        std::thread::sleep(std::time::Duration::from_millis(1));
+    }
 
     expire_overdue_hook_waits(&ctx, deadline - 1);
     assert_eq!(
