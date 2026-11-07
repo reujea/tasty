@@ -1,8 +1,0 @@
-/* Gallery layout on the site. Specimens need the width, so the body fills the space beside the sidebar. */
-.layout--gallery { grid-template-columns: var(--sidebar-w) minmax(0, 1fr); max-width: none; }
-.layout--gallery .content { max-width: none; }
-.nav-list--sections { margin: var(--sp-1) 0 var(--sp-2) var(--sp-3); }
-.nav-list--sections a { font-size: var(--tasty-font-size-12); }
-@media (max-width: 900px) {
-  .layout--gallery { grid-template-columns: minmax(0, 1fr); }
-}

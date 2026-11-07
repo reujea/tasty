@@ -20,7 +20,6 @@ const ROOT_PREFIXES: &[&str] = &[
     "tests/",
     "crates/",
     "scripts/",
-    "site/",
     "lang/",
     "assets/",
     "docs/",

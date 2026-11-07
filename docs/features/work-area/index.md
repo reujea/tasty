@@ -224,7 +224,7 @@ source 별 `source_cwd()` 는 [cwd 정책](../../design/policies/cwd.md). 이 �
 
 화면정의서 — **작업 영역 화면**.
 
-- **시각 소스**: `site/vendor/ui_kits/terminal/work.jsx` — Design System
+- **시각 소스**: tasty-page `vendor/ui_kits/terminal/work.jsx`
 
 [MainView](../main-view/index.md#화면) 중앙. 이 화면은 위에서 설명한 **두 레벨 레이아웃**(상위 Pane / 하위 Surface)을 표시한다. 아래에서는 시각 배치를 설명한다.
 
@@ -260,4 +260,4 @@ MainView 가 열리면 항상 표시(중앙 고정 영역). 사이드바에서 W
 
 ### 시각 소스
 
-`site/vendor/ui_kits/terminal/work.jsx` — 작업 영역 치수·보더·타일 배치의 단일 출처. 보더 폭은 코드 상수와 일치하되 **두 상수의 좌표계가 다르다**: `PANE_BORDER_WIDTH` 는 논리 2px(디자인이 정한 두께라 배율을 따라 커진다 — 배율 2 에서 4 물리px), `SURFACE_BORDER_WIDTH` 는 물리 1px(hairline 이라 밀도와 무관하게 1 device px 로 남는다). 근거는 [docs/concepts/typed-length.md](../../concepts/typed-length.md).
+tasty-page `vendor/ui_kits/terminal/work.jsx` — 작업 영역 치수·보더·타일 배치의 단일 출처. 보더 폭은 코드 상수와 일치하되 **두 상수의 좌표계가 다르다**: `PANE_BORDER_WIDTH` 는 논리 2px(디자인이 정한 두께라 배율을 따라 커진다 — 배율 2 에서 4 물리px), `SURFACE_BORDER_WIDTH` 는 물리 1px(hairline 이라 밀도와 무관하게 1 device px 로 남는다). 근거는 [docs/concepts/typed-length.md](../../concepts/typed-length.md).

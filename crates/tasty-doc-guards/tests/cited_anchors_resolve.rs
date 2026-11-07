@@ -2,8 +2,6 @@
 //!
 //! 제목에서 만든 슬러그와 본문의 명시 HTML 앵커를 대상 집합으로 사용한다.
 //! 코드 블록과 인라인 코드에 든 앵커 예시는 대상이 아니다.
-//! 출발 문서와 대상 문서가 모두 site/content/ 안에 있는 링크는 사이트의 HTML 검사에 맡긴다.
-//! 해당 검사와 CI 호출이 유지되는지도 확인한다.
 //!
 //! 외부 URL, 참조식 링크, Markdown이 아닌 대상은 여기서 검사하지 않는다.
 //! 없는 파일은 `cited_coordinates_exist`가 검사한다.
@@ -19,21 +17,19 @@ use tasty_doc_guards::floored_walk::{Descend, Floor, Walked, walk_with_floor};
 /// 저장소 Markdown 순회가 빈 목록이나 크게 누락된 목록으로 통과하지 않게 한다.
 /// 점 디렉터리, 빌드 캐시, 의존성 디렉터리와 심볼릭 링크는 순회에서 제외한다.
 const MD_FLOOR: Floor = Floor {
-    min: 215,
-    measured: 267,
-    measured_on: "2026-09-24",
-    counted_on: tasty_doc_guards::floored_walk::CountedOn::Tree("9d1b15669"),
-    why_this_gap: "추적 Markdown은 267개다. 로컬 전용 문서를 포함한 실제 순회는 268개였다. \
-                   하한은 로컬 파일에 의존하지 않으며 가장 큰 비-ADR 문서 분류인 \
-                   docs/features의 52개만큼 여유를 둔다. 검사 범위가 바뀌면 다시 측정한다.",
+    min: 150,
+    measured: 199,
+    measured_on: "2026-11-08",
+    counted_on: tasty_doc_guards::floored_walk::CountedOn::Tree(
+        "acbddc755에 site/ 삭제를 더한 트리 — git ls-files로 점 디렉터리 밖 추적 Markdown 199개를 셌다.",
+    ),
+    why_this_gap: "추적 Markdown은 199개다. 하한은 로컬 파일에 의존하지 않으며 가장 큰 비-ADR 문서 분류인 \
+                   docs/features의 49개만큼 여유를 둔다. 검사 범위가 바뀌면 다시 측정한다.",
 };
 
 /// 문서 수와 별개로 링크 추출 누락을 찾는 하한.
 /// 2026-09-08 실측 160건(문서 내 33·문서 간 127)을 기준으로 뒀다.
 const REFS_FLOOR: usize = 120;
-
-/// 양쪽 문서가 모두 이 경로 안에 있을 때 사이트 검사에 맡긴다.
-const RENDERER_OWNED_PREFIX: &str = "site/content/";
 
 /// 링크 표시 글자에서 강조·코드 마커를 제거하고 GitHub 방식의 제목 슬러그를 만든다.
 fn slug(text: &str) -> String {
@@ -309,7 +305,7 @@ fn explicit_anchors_resolve_but_examples_and_unrelated_attributes_do_not() {
         ("docs/a.md", body),
         ("docs/b.md", "[cross](a.md#old-heading)"),
     ]);
-    let checked = audit(&corpus, RENDERER_OWNED_PREFIX);
+    let checked = audit(&corpus);
     assert_eq!(checked.violations.len(), 1, "{:?}", checked.violations);
     assert!(checked.violations[0].contains("absent"));
 }
@@ -444,8 +440,8 @@ struct Audit {
     violating_docs: std::collections::BTreeSet<String>,
 }
 
-/// 문서 내·문서 간 링크를 판정한다. 양쪽이 사이트 경로인 링크와 수집되지 않은 대상 파일은 제외한다.
-fn audit(corpus: &Corpus, renderer_owned: &str) -> Audit {
+/// 문서 내·문서 간 링크를 판정한다. 수집되지 않은 대상 파일은 제외한다.
+fn audit(corpus: &Corpus) -> Audit {
     let mut out = Audit {
         intra: 0,
         cross: 0,
@@ -466,10 +462,6 @@ fn audit(corpus: &Corpus, renderer_owned: &str) -> Audit {
                     (resolved, "크로스파일")
                 }
             };
-            // 양쪽 문서가 사이트에 발행된 경우만 사이트 렌더러의 앵커 규칙을 따른다.
-            if rel.starts_with(renderer_owned) && target_rel.starts_with(renderer_owned) {
-                continue;
-            }
             let Some(anchors) = corpus.anchors_by_rel.get(&target_rel) else {
                 // 대상 파일의 존재는 cited_coordinates_exist에서 검사한다.
                 continue;
@@ -500,7 +492,7 @@ fn cited_anchors_resolve_to_a_heading() {
         cross,
         violations,
         violating_docs,
-    } = audit(&corpus, RENDERER_OWNED_PREFIX);
+    } = audit(&corpus);
 
     let judged = intra + cross;
     println!(
@@ -557,50 +549,9 @@ fn fenced_and_inline_code_are_not_links() {
 
 /// 사이트 앵커 검사의 처리와 CI 호출이 모두 유지되는지 확인한다.
 /// 렌더러 규칙을 복제하지 않고 생성된 HTML을 검사하는 스크립트에 맡기기 위한 조건이다.
+/// 합성 문서도 anchors_of로 읽어 실제 오류 보고와 없는 대상 파일 제외를 확인한다.
 #[test]
-fn the_site_anchor_judge_is_still_wired() {
-    let root = tasty_doc_guards::repo_root();
-    let read = |rel: &str| {
-        let path = root.join(rel);
-        std::fs::read_to_string(&path).unwrap_or_else(|why| {
-            panic!(
-                "사이트 링크 검사 파일을 읽지 못했다({}): {why}",
-                path.display()
-            )
-        })
-    };
-
-    const JUDGE: &str = "site/scripts/check-links.mjs";
-    let judge = read(JUDGE);
-    let decisions: &[(&str, &str)] = &[
-        ("산출 HTML 에서 `id` 를 모은다", r#"/\sid="([^"]+)"/g"#),
-        (
-            "같은 페이지 안의 `#조각`을 대조한다",
-            "anchors.get(file).has(",
-        ),
-        (
-            "다른 페이지의 `#조각`을 대조한다",
-            "anchors.get(target)?.has(hash)",
-        ),
-    ];
-    let missing: Vec<&str> = decisions
-        .iter()
-        .filter(|(_, needle)| !judge.contains(needle))
-        .map(|(what, _)| *what)
-        .collect();
-
-    const WORKFLOW: &str = ".github/workflows/pages.yml";
-    let wired = read(WORKFLOW).contains("npm run check-links");
-
-    assert!(
-        missing.is_empty() && wired,
-        "사이트 앵커 검사 또는 호출이 달라졌다.\n검사 스크립트 {JUDGE}에서 찾지 못한 처리: {missing:?}\n{WORKFLOW}의 npm run check-links 호출: {wired}\n스크립트와 실행 경로를 확인한다. 검사를 없앤 경우 docs/documentation-model.md에 따라 사이트 앵커를 누가 검증할지 다시 정해야 한다. RENDERER_OWNED_PREFIX를 지워 렌더러와 다른 규칙으로 통과시키지 않는다."
-    );
-}
-
-/// 합성 문서도 anchors_of로 읽어 실제 오류 보고와 양쪽 사이트 경로 제외를 확인한다.
-#[test]
-fn the_audit_reports_an_unresolved_anchor_and_skips_only_the_two_ended_site_links() {
+fn the_audit_reports_an_unresolved_anchor_and_skips_only_a_missing_target_file() {
     let corpus = Corpus::from_pairs(&[
         (
             "zone/guide.md",
@@ -621,7 +572,7 @@ fn the_audit_reports_an_unresolved_anchor_and_skips_only_the_two_ended_site_link
         ("zone/rendered/c.md", "## Under_Score\n"),
     ]);
 
-    let a = audit(&corpus, "zone/rendered/");
+    let a = audit(&corpus);
 
     assert_eq!(
         a.violations.len(),
@@ -640,7 +591,7 @@ fn the_audit_reports_an_unresolved_anchor_and_skips_only_the_two_ended_site_link
         a.violations
             .iter()
             .any(|v| v.contains("zone/deep/into_site2.md") && v.contains("크로스파일")),
-        "한 끝만 렌더러 소관인 링크가 판정에서 빠졌다: {:#?}",
+        "다른 폴더의 없는 앵커가 판정에서 빠졌다: {:#?}",
         a.violations
     );
     assert_eq!(
@@ -650,11 +601,11 @@ fn the_audit_reports_an_unresolved_anchor_and_skips_only_the_two_ended_site_link
         a.violating_docs
     );
 
-    // 양쪽 사이트 링크만 제외된다. 대상 파일이 없으면 문서 내·문서 간 어느 쪽에도 세지 않는다.
+    // 대상 파일이 없는 링크만 제외된다. 문서 내·문서 간 어느 쪽에도 세지 않는다.
     assert_eq!(
         (a.intra, a.cross),
-        (2, 3),
-        "문서 내·문서 간 판정 수가 다르다. 사이트 제외 조건과 상대 경로 처리를 확인한다."
+        (2, 4),
+        "문서 내·문서 간 판정 수가 다르다. 대상 파일 제외 조건과 상대 경로 처리를 확인한다."
     );
 }
 

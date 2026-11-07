@@ -7,7 +7,6 @@ on:
     # 문서만 바뀐 push는 생략한다. 문서 검사는 doc-guards.yml에서 실행한다.
     paths-ignore:
       - 'docs/**'
-      - 'site/**'
       - '**/*.md'
   pull_request:
     branches: [main]

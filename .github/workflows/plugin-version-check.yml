@@ -7,7 +7,7 @@ name: Plugin Version Check
 on:
   # vendor 등 워크스페이스 밖 path 의존성도 검사 대상이므로 경로를 좁게 열거하지 않는다.
   # 패턴은 순서대로 적용된다. 전체 포함 → 일반 Markdown 제외 → 빌드 입력 디렉터리
-  # 재포함 → docs/site 제외 순서를 유지한다. src/lang/assets 아래 Markdown도 검사한다.
+  # 재포함 → docs 제외 순서를 유지한다. src/lang/assets 아래 Markdown도 검사한다.
   push:
     branches: [main]
     paths:
@@ -17,7 +17,6 @@ on:
       - '**/lang/**'
       - '**/assets/**'
       - '!docs/**'
-      - '!site/**'
   pull_request:
     branches: [main]
     paths:
@@ -27,7 +26,6 @@ on:
       - '**/lang/**'
       - '**/assets/**'
       - '!docs/**'
-      - '!site/**'
   workflow_dispatch:
 
 concurrency:

@@ -149,16 +149,6 @@ const EXCLUDED: &[(&str, Kind, &str)] = &[
         "anomaly_detection의 SlowLoop 반복 건수 기본 20과 RSS 샘플 범위 3~20이며 코드 복잡도 기준이 아니다",
     ),
     (
-        "site/content/customize/settings.md",
-        Kind::OtherMeaning,
-        "anomaly_detection의 SlowLoop 반복 건수 기본 20과 RSS 샘플 범위 3~20이며 코드 복잡도 기준이 아니다",
-    ),
-    (
-        "site/content/en/customize/settings.md",
-        Kind::OtherMeaning,
-        "anomaly_detection의 SlowLoop 반복 건수 기본 20과 RSS 샘플 범위 3~20이며 코드 복잡도 기준이 아니다",
-    ),
-    (
         "docs/dev-guide/agent-runner.md",
         Kind::OtherMeaning,
         "task 그래프의 MAX_GRAPH_TASKS 상한이며 파일 SLOC 임계값이 아니다",

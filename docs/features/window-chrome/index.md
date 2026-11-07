@@ -79,7 +79,7 @@
 
 화면정의서 — **윈도우 크롬 화면 (CSD 타이틀바)**.
 
-- **시각 소스**: `site/vendor/ui_kits/terminal/` (`chrome.jsx`, `titlebar/titlebar_linux.jsx`) — Design System
+- **시각 소스**: tasty-page `vendor/ui_kits/terminal/` (`chrome.jsx`, `titlebar/titlebar_linux.jsx`)
 
 [MainView](../main-view/index.md#화면) 최상단의 OS별 타이틀바. 동작은 부모 기획, 여기선 OS별 시각 배치.
 
@@ -111,7 +111,7 @@ Windows:                    [ _ ] [ ▢ ] [ ✕ ]   (캡션 버튼 tasty, OS 캡
 
 ### 시각 소스
 
-`site/vendor/ui_kits/terminal/chrome.jsx`(공통)·`titlebar/titlebar_linux.jsx`(Linux 캡션) — 타이틀바 높이·색 토큰·버튼 배치의 단일 출처. macOS 신호등 geometry 는 OS 고정(테마 토큰 아님).
+tasty-page `vendor/ui_kits/terminal/chrome.jsx`(공통)·`titlebar/titlebar_linux.jsx`(Linux 캡션) — 타이틀바 높이·색 토큰·버튼 배치의 단일 출처. macOS 신호등 geometry 는 OS 고정(테마 토큰 아님).
 
 ## 관련
 

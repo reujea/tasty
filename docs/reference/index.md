@@ -1,7 +1,7 @@
 # 레퍼런스 (Reference)
 
 IPC·이벤트·출력 파서의 이름과 데이터 형식을 찾는 참고 자료다. 기능의 목적과 동작은 [features/](../features/index.md)에서 설명한다.
-CLI를 처음 쓰는 순서와 명령별 사용법은 공개 사용자 가이드의 [CLI 입문](../../site/content/agents/cli.md)과 [CLI 명령 참조](../../site/content/agents/cli-reference.md)가 다루며, 이 폴더는 그 내용을 복제하지 않는다.
+CLI를 처음 쓰는 순서와 명령별 사용법은 공개 사용자 가이드의 [CLI 입문](https://tasty.zilhak.org/guide/agents/cli/)과 [CLI 명령 참조](https://tasty.zilhak.org/guide/agents/cli-reference/)가 다루며, 이 폴더는 그 내용을 복제하지 않는다.
 
 | 문서 | 내용 | 구현 기준 |
 |------|------|----------|

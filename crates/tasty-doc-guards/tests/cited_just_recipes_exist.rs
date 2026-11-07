@@ -13,11 +13,13 @@ const JUSTFILE: &str = "Justfile";
 /// 저장소의 Markdown 파일을 읽는다. 점 디렉터리와 빌드 캐시는 제외한다.
 /// 로컬 전용 문서가 없는 clone에서도 같은 기준을 적용한다.
 const DOC_FLOOR: Floor = Floor {
-    min: 215,
-    measured: 267,
-    measured_on: "2026-09-24",
-    counted_on: tasty_doc_guards::floored_walk::CountedOn::Tree("9d1b15669"),
-    why_this_gap: "9d1b15669의 추적 Markdown267개를 기준으로 한다. 가장 큰 비-ADR 분류인 docs/features52개만큼 여유를 둔 하한 215다. 작은 분류 하나의 누락까지 검출하지는 못하므로 검사 범위가 바뀌면 다시 측정한다.",
+    min: 150,
+    measured: 199,
+    measured_on: "2026-11-08",
+    counted_on: tasty_doc_guards::floored_walk::CountedOn::Tree(
+        "acbddc755에 site/ 삭제를 더한 트리 — git ls-files로 점 디렉터리 밖 추적 Markdown 199개를 셌다.",
+    ),
+    why_this_gap: "추적 Markdown 199개를 기준으로 한다. 가장 큰 비-ADR 분류인 docs/features 49개만큼 여유를 둔 하한 150이다. 작은 분류 하나의 누락까지 검출하지는 못하므로 검사 범위가 바뀌면 다시 측정한다.",
 };
 
 /// recipe 수 하한. 2026-09-07 실측 16.

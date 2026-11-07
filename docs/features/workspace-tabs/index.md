@@ -79,7 +79,7 @@
 
 화면정의서 — **탭 스트립 화면**.
 
-- **시각 소스**: `site/vendor/ui_kits/terminal/work.jsx` (탭 바 부분) — Design System
+- **시각 소스**: tasty-page `vendor/ui_kits/terminal/work.jsx` (탭 바 부분)
 
 [작업 영역](../work-area/index.md#화면) 안, 각 Pane 머리의 탭 바. 동작은 부모 기획, 여기선 시각.
 
@@ -114,4 +114,4 @@ Pane 이 존재하면 항상 그 위에 표시(Pane 마다 하나).
 
 ### 시각 소스
 
-`site/vendor/ui_kits/terminal/work.jsx` 의 탭 바 — 탭 치수·아이콘·표지·간격의 단일 출처.
+tasty-page `vendor/ui_kits/terminal/work.jsx` 의 탭 바 — 탭 치수·아이콘·표지·간격의 단일 출처.

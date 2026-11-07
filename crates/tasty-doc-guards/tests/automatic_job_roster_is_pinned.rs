@@ -24,7 +24,6 @@ const AUTOMATIC: &[(&str, &str)] = &[
     ("crossplatform-check.yml", "check-windows-arm64"),
     ("doc-guards.yml", "doc-guards"),
     ("format-check.yml", "fmt"),
-    ("pages.yml", "build"),
     ("plugin-version-check.yml", "version-bump"),
     ("release.yml", "create-release"),
     ("release.yml", "publish-release"),
@@ -38,8 +37,6 @@ const AUTOMATIC: &[(&str, &str)] = &[
 /// 따라서 OR 조건으로 태그 push에서도 실행되는 release.yml의 다섯 빌드 잡도 여기에 포함된다.
 /// 해당 파일에 cargo test가 없어 테스트 실행 경로 집계에는 영향이 없다.
 const MANUAL_ONLY: &[(&str, &str)] = &[
-    // 사이트는 릴리스 공개가 실행하는 workflow_dispatch로만 배포한다.
-    ("pages.yml", "deploy"),
     ("release.yml", "build-linux-arm64"),
     ("release.yml", "build-linux-x64"),
     ("release.yml", "build-macos"),

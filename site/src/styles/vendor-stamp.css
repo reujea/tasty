@@ -1,8 +1,0 @@
-/* Shared by the gallery and design layouts, which load separate stylesheets. */
-.vendor-stamp {
-  font-family: var(--tasty-font-mono);
-  font-size: var(--tasty-font-size-caption);
-  color: var(--tasty-text-muted);
-  margin-top: var(--tasty-space-sm);
-}
-.vendor-stamp time { color: var(--tasty-text-secondary); }

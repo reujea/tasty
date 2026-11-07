@@ -2,7 +2,7 @@
 
 - **부모 기획**: [../index.md](../index.md)
 - **트리거 위치**: [사이드바](../../sidebar/index.md#화면) 하단 **설정 버튼**
-- **시각 소스**: `site/vendor/ui_kits/terminal/overlays/settings_window.jsx` — Design System
+- **시각 소스**: tasty-page `vendor/ui_kits/terminal/overlays/settings_window.jsx`
 
 ## 트리거
 
@@ -80,4 +80,4 @@
 
 ## 시각 소스
 
-`site/vendor/ui_kits/terminal/overlays/settings_window.jsx` — 창 치수·탭바·L2 목록·콘텐츠 배치의 단일 출처. 스크린샷: `site/vendor/screens/settings_window-tabs.png`.
+tasty-page `vendor/ui_kits/terminal/overlays/settings_window.jsx` — 창 치수·탭바·L2 목록·콘텐츠 배치의 단일 출처. 스크린샷: tasty-page `vendor/screens/settings_window-tabs.png`.

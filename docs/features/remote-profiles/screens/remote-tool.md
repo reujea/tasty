@@ -2,7 +2,7 @@
 
 - **부모 기획**: [../index.md](../index.md)
 - **트리거 위치**: [도구 메뉴](../../tools-menu/index.md#화면) `Remote connections`
-- **시각 소스**: `site/vendor/ui_kits/terminal/overlays/remote_tool.jsx` — Design System.
+- **시각 소스**: tasty-page `vendor/ui_kits/terminal/overlays/remote_tool.jsx`
 - **구조**: 공통 헤더 + 상단 3탭 `[원격 접속 프로필] [Attach] [Passkey]`, 각 탭이 List / Form / ConfirmDelete 라우팅. 520×460, headless.
 
 ## 트리거
@@ -111,6 +111,6 @@ add-bar 는 `Passkey 추가` 버튼이다. 행 우측 액션은 Reveal·편집·
 
 ## 시각 소스
 
-`site/vendor/ui_kits/terminal/overlays/remote_tool.jsx` — 창·3탭·목록·폼 배치의 단일 출처. 갤러리 specimen: `crates/tasty-gallery` Overlays › Remote connections (`remote`/`remote-attach`/`remote-attach-form`).
+tasty-page `vendor/ui_kits/terminal/overlays/remote_tool.jsx` — 창·3탭·목록·폼 배치의 단일 출처. 갤러리 specimen: `crates/tasty-gallery` Overlays › Remote connections (`remote`/`remote-attach`/`remote-attach-form`).
 specimen 은 행을 자연 높이로 나열하고 스크롤 영역을 두지 않아 가장자리 페이드가 그려질 여지가
 없다 — 정합 대상이 아니다.

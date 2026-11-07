@@ -216,10 +216,3 @@ jobs:
         run: |
           VERSION="${{ needs.create-release.outputs.version }}"
           gh release edit "v${VERSION}" --draft=false
-
-      # A release published with this token starts no workflow by itself, so the
-      # site would keep showing the previous version until its next push.
-      - name: Deploy the site for this release
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: gh workflow run pages.yml --repo "$GITHUB_REPOSITORY" --ref main

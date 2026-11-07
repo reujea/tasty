@@ -137,7 +137,7 @@ Port / Proto / Address / Process / Workspace / Tab / State.
 
 화면정의서 — **리스닝 포트 팝업 (화면)**.
 
-- **시각 소스**: `site/vendor/ui_kits/terminal/overlays/port_scanner.jsx` (Design System)
+- **시각 소스**: tasty-page `vendor/ui_kits/terminal/overlays/port_scanner.jsx`
 
 ### 트리거
 
@@ -170,4 +170,4 @@ Port / Proto / Address / Process / Workspace / Tab / State.
 
 ### 시각 소스
 
-`site/vendor/ui_kits/terminal/overlays/port_scanner.jsx` — 팝업 치수·색·dot·레이아웃 수치의 단일 출처. 스크린샷: `site/vendor/screens/port_scanner-*.png`.
+tasty-page `vendor/ui_kits/terminal/overlays/port_scanner.jsx` — 팝업 치수·색·dot·레이아웃 수치의 단일 출처. 스크린샷: tasty-page `vendor/screens/port_scanner-*.png`.

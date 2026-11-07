@@ -90,7 +90,7 @@ full 의 폭은 `appearance.ui_scale` 이 정한다(small 150 · medium 180 · l
 화면정의서 — **사이드바 화면**.
 
 - **상위 화면**: [MainView 전체 레이아웃](../main-view/index.md#화면) 의 좌측 영역
-- **시각 소스**: `site/vendor/ui_kits/terminal/chrome.jsx` — Design System
+- **시각 소스**: tasty-page `vendor/ui_kits/terminal/chrome.jsx`
 
 아래에서는 영역의 위치와 역할을 설명한다. 버튼이 여는 기능은 각 문서에서 다룬다.
 
@@ -150,4 +150,4 @@ collapsed 레일은 카테고리마다 경계 `---` 버튼 + 소속 아바타로
 
 ### 시각 소스
 
-`site/vendor/ui_kits/terminal/chrome.jsx` — 사이드바 치수·색·로고·버튼 배치의 단일 출처. 스크린샷: `site/vendor/screens/sidebar-full.png`, `sidebar-collapsed.png`, `sidebar-workspaces.png`.
+tasty-page `vendor/ui_kits/terminal/chrome.jsx` — 사이드바 치수·색·로고·버튼 배치의 단일 출처. 스크린샷: tasty-page `vendor/screens/sidebar-full.png`, `sidebar-collapsed.png`, `sidebar-workspaces.png`.

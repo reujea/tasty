@@ -83,7 +83,7 @@ fn is_ignored(path: &str, globs: &[String]) -> bool {
 
 /// 경로 리터럴로 읽을 저장소 최상위 접두어.
 const TOP_DIRS: &[&str] = &[
-    "docs/", "site/", "src/", "crates/", "scripts/", ".github/", "tests/", "assets/", "lang/",
+    "docs/", "src/", "crates/", "scripts/", ".github/", "tests/", "assets/", "lang/",
 ];
 
 fn path_literals(root: &Path, src: &str) -> BTreeSet<String> {

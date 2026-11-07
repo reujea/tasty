@@ -18,11 +18,6 @@ use std::process::Command;
 use tasty_doc_guards::adr_index::{INDEX, collect, duplicate_numbers, render_index};
 use tasty_doc_guards::adr_renumber::{Form, Hit, Target, apply, line_of, parse_mapping, scan};
 
-/// 고치지 않고 보고만 하는 vendored 사본. 고칠 곳은 원격 디자인 킷이다(`site/vendor/README.md`).
-/// 그 README 자신은 손으로 쓰는 파일이라 범위 안이다.
-const VENDOR: &str = "site/vendor/";
-const VENDOR_OWN: &str = "site/vendor/README.md";
-
 /// 가짜 ADR과 기대값이 함께 있는 파일은 실제 slug와 일치하는 파일명만 바꾼다.
 /// 다른 번호 표기는 한쪽만 바뀔 수 있어 보고만 한다.
 const FIXTURES: &[&str] = &[
@@ -64,7 +59,6 @@ struct Plan {
     bare: Vec<String>,
     stale_slug: Vec<String>,
     collisions: Vec<String>,
-    vendor: Vec<String>,
     fixture: Vec<String>,
     non_utf8: usize,
     files: usize,
@@ -117,7 +111,6 @@ fn build_plan(
             continue;
         };
         plan.files += 1;
-        let vendor = path.starts_with(VENDOR) && path != VENDOR_OWN;
         let fixture = FIXTURES.contains(&path.as_str());
         let hits = scan(&text, stems, path == INDEX);
         let mut to_apply = Vec::new();
@@ -152,9 +145,7 @@ fn build_plan(
                     if !(changed || deleted) {
                         continue;
                     }
-                    if vendor {
-                        plan.vendor.push(line());
-                    } else if fixture && form != Form::FileName {
+                    if fixture && form != Form::FileName {
                         plan.fixture.push(line());
                     } else if deleted {
                         plan.blocking.push(line());
@@ -220,12 +211,6 @@ fn render_report(plan: &Plan, moves: &[(String, String)], deleted: &BTreeSet<Str
         "slug 가 실재 파일과 다른 파일명 (안 고친다)",
         "`NNNN-<slug>.md` 인데 그 파일이 없다. 대상이 사라진 링크거나 픽스처다.",
         &plan.stale_slug,
-    );
-    section(
-        &mut out,
-        "vendored 사본 (안 고친다)",
-        "`site/vendor/` 는 원격 디자인 킷의 사본이다. 원격을 고치고 다시 받는다.",
-        &plan.vendor,
     );
     section(
         &mut out,
@@ -317,7 +302,7 @@ fn main() {
     let fixes: usize = plan.seen.values().map(|v| v.1).sum();
     eprintln!(
         "[adr-renumber] {} · 훑은 파일 {} · 옮길 ADR {} · 지울 ADR {} · 고칠 자리 {fixes} (파일 {}) · \
-         막는 자리 {} · 겹침 {} · 맨 네 자리 {} · vendor {} · 픽스처 {}",
+         막는 자리 {} · 겹침 {} · 맨 네 자리 {} · 픽스처 {}",
         if write { "write" } else { "dry-run" },
         plan.files,
         moves.len(),
@@ -326,7 +311,6 @@ fn main() {
         plan.blocking.len(),
         plan.collisions.len(),
         plan.bare.len(),
-        plan.vendor.len(),
         plan.fixture.len(),
     );
     if !plan.blocking.is_empty() {

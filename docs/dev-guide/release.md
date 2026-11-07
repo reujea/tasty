@@ -50,18 +50,15 @@ CLAUDE.md 정책의 운영 형태:
 
 ### 3. 사이트 갱신
 
-공개 사이트는 릴리스한 버전을 설명한다. main에 push해도 배포되지 않고, 이 단계에서 고친 내용이 릴리스 공개와 함께 배포된다. 태그를 만들기 전에 다음을 수행한다.
+공개 사이트(`https://tasty.zilhak.org/`)와 사용자 가이드는 [tasty-page](https://github.com/zilhak/tasty-page) 레포에 있다.
+그 레포의 `main`은 개발 중 갱신하는 최신 페이지이며 push 때 빌드와 검사만 한다. 게시용 `release` 브랜치에
+push할 때만 GitHub Pages로 배포한다. 사이트는 사용자가 받을 수 있는 버전을 설명하므로 `release`는 Tasty 릴리스와
+함께 승격한다([8. 사이트 게시](#8-사이트-게시)). 태그를 만들기 전에 tasty-page `main`을 준비한다.
 
-1. **기획서 반영:** 로컬 지침이 정한 홈페이지 기획서를 랜딩, 디자인 소개, 사용자 가이드(`site/content/`)에 반영하고 명령어·설정 키·메뉴 이름을 이번 버전과 대조한다. 영어 번역을 고쳤으면 `--stamp` 한다.
-2. **디자인 사본:** [`site/vendor/README.md`](../../site/vendor/README.md)의 "vendor 갱신 절차"로 갤러리와 토큰 사본을 Artifact에서 가져온다.
-3. **검사:** 사이트 빌드, 링크 검사, 렌더링 대비 검사를 실행하고, 앱 사본과 대조하는 시험을 실행한다. 대비 검사는 브라우저가 필요해 CI가 아니라 이 단계에서 실행하며, 갤러리와 사이트 페이지를 두 테마로 모두 잰다. 실패 목록은 [사이트 가이드](site.md#렌더링-대비-검사)의 기준으로 판정한다.
+1. **기획서 반영:** 로컬 지침이 정한 홈페이지 기획서가 tasty-page `main`의 랜딩, 디자인 소개, 사용자 가이드에 반영됐는지 확인하고 명령어·설정 키·메뉴 이름을 이번 버전과 대조한다.
+2. **검사:** tasty-page `main`의 최신 커밋에서 그 레포의 CI(`pages.yml`·`checks.yml`·`design.yml`)가 통과했는지 확인한다. `checks.yml`은 사용자 가이드를 본체 `main`과 대조한다.
 
-```bash
-(cd site && npm run build && npm run check-links && npm run check-contrast)
-TASTY_PAGE_DIR=<tasty-page 체크아웃> cargo test -p tasty-doc-guards --locked --test design_source_tokens_track_the_app_export --test design_source_icons_match_the_app_transcription
-```
-
-기획서나 Artifact를 읽을 수 없으면 태그를 만들지 않고 사용자에게 알린다.
+기획서를 읽을 수 없거나 tasty-page `main`의 CI가 실패하면 태그를 만들지 않고 사용자에게 알린다.
 
 ### 4. 커밋 — body 가 곧 릴리스 노트
 
@@ -88,13 +85,32 @@ git push origin main --tags
 
 1. **create-release** — 버전 검증 → draft release 생성(body = 릴리스 노트).
 2. **build-macos / build-windows / build-windows-arm64 / build-linux-x64 / build-linux-arm64** — 각 빌드 스크립트가 로컬 키를 준비해(Linux·macOS 는 `ensure-sign-key.sh`, Windows 는 `build-windows.ps1` 이 직접) plugin 재서명 → 빌드(`--profile dist`) → GUI 패키징 → 헤드리스 압축 파일(아래 "헤드리스 산출물") → 아티팩트 업로드. GitHub Secret 관여 없음(배경은 [plugin-packaging](plugin-packaging.md) "영구 release 키를 두지 않는 이유").
-3. **publish-release** — draft 해제(공개)하고 사이트 배포(`pages.yml`)를 실행한다. 파일을 올리지 않는다.
+3. **publish-release** — draft를 해제해 공개한다. 파일을 올리지 않는다. 사이트 게시는 [8. 사이트 게시](#8-사이트-게시)에서 한다.
 
 ### 7. 검증
 
 GitHub Releases 에서 노트를 확인하고, 자산이 아래 [릴리스 자산](#릴리스-자산) 표의 23개와 정확히 같은지 확인한다. 빠진 파일과 표에 없는 파일 모두 결함이다.
 
 > **사용자 업그레이드**: publish 되면 사용자는 GitHub Releases 에서 새 아티팩트를 직접 내려받아 SHA256SUMS 로 검증한 뒤 수동 설치한다.
+
+### 8. 사이트 게시
+
+publish-release가 끝나 GitHub Release가 공개된 뒤 tasty-page에서 실행한다. tasty-page의 `release`를 `main`으로
+fast-forward하고 Tasty 릴리스와 같은 태그를 붙여 브랜치와 태그를 한 번에 push한다.
+
+```bash
+git -C <tasty-page> fetch origin
+git -C <tasty-page> switch release
+git -C <tasty-page> merge --ff-only origin/main
+git -C <tasty-page> tag v<X.Y.Z>
+git -C <tasty-page> push --atomic origin release v<X.Y.Z>
+```
+
+`release` push가 배포를 시작한다. tasty-page의 `checks.yml`은 `release`에서 가장 가까운 태그로 본체를 받아
+사용자 가이드를 대조하므로 태그를 함께 push해야 한다. 배포 워크플로와 `checks.yml`이 통과했는지 확인한다.
+
+게시용 페이지만 고칠 때는 tasty-page `release`에 커밋해 태그 없이 push하고, 곧바로 `release`를 `main`에 합친다.
+사이트를 Tasty 릴리스와 따로 게시하는 경우는 이것뿐이다.
 
 ## 릴리스 자산
 

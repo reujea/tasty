@@ -73,7 +73,7 @@ debug IPC(`debug.host_popup.open`/`debug.inject_egui_mouse`)로 확인할 수 �
 화면정의서 — **명령 팔레트 화면**.
 
 - **트리거 위치**: `toggle_command_palette` 단축키 · [도구 메뉴](../tools-menu/index.md#화면) `Command palette`
-- **시각 소스**: `site/vendor/ui_kits/terminal/overlays/command_palette.jsx` — Design System
+- **시각 소스**: tasty-page `vendor/ui_kits/terminal/overlays/command_palette.jsx`
 
 ### 트리거
 
@@ -109,4 +109,4 @@ debug IPC(`debug.host_popup.open`/`debug.inject_egui_mouse`)로 확인할 수 �
 
 ### 시각 소스
 
-`site/vendor/ui_kits/terminal/overlays/command_palette.jsx` — 팔레트 치수·행·아이콘·바인딩 표기의 단일 출처. 스크린샷: `site/vendor/screens/statusbar-palette-chip.png`.
+tasty-page `vendor/ui_kits/terminal/overlays/command_palette.jsx` — 팔레트 치수·행·아이콘·바인딩 표기의 단일 출처. 스크린샷: tasty-page `vendor/screens/statusbar-palette-chip.png`.

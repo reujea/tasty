@@ -66,7 +66,7 @@ MainView는 EngineRead와 자기 View 상태로 그리는 GUI다. headless는 Ma
 
 화면정의서 — **MainView 화면 (전체 레이아웃)**.
 
-- **시각 소스**: `site/vendor/ui_kits/terminal/` (`chrome.jsx`, `work.jsx`) — Design System
+- **시각 소스**: tasty-page `vendor/ui_kits/terminal/` (`chrome.jsx`, `work.jsx`)
 
 이 화면은 **합성 화면** 이다 — 이 문서에는 영역의 위치와 역할을 적고, 세부 동작은 각 기능 문서로 연결한다.
 
@@ -98,4 +98,4 @@ MainView는 EngineRead와 자기 View 상태로 그리는 GUI다. headless는 Ma
 
 ### 시각 소스
 
-`site/vendor/ui_kits/terminal/` — 전체 셸의 치수·색·영역 배치 단일 출처. 스크린샷: `site/vendor/screens/sidebar-full.png`, `terminal-surface.png` 등.
+tasty-page `vendor/ui_kits/terminal/` — 전체 셸의 치수·색·영역 배치 단일 출처. 스크린샷: tasty-page `vendor/screens/sidebar-full.png`, `terminal-surface.png` 등.
