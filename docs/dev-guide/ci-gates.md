@@ -105,19 +105,9 @@ CI에 해당 캐시가 없었다면 그 실행으로 캐시가 있는 환경까�
 | CLI 명령, CLI 예시 파싱, 릴리스 산출물 파일명, 설치 위치와 패키지 의존성, 훅 이벤트 이름, 설정 절 이름과 컨텍스트 메뉴 항목, 원격 포트 모드 값 | [tasty-page 레포의 checks](https://github.com/zilhak/tasty-page/tree/main/checks)(본체를 main 또는 릴리스 태그로 받아 대조) |
 | 릴리스 자산 목록(개발 가이드 표와 업로드 대상) | `crates/tasty-doc-guards/tests/release_assets_match_the_guide.rs` |
 
-사용자 가이드는 tasty-page 레포로 옮겨졌다. 가이드와 본체 소스의 대조는 그 레포의 CI가 실행하며
-이 레포의 검사로는 확인하지 않는다.
+사용자 가이드는 tasty-page 레포에 있다. 가이드와 본체 소스의 대조는 그 레포의 CI가 실행하며
+이 레포의 검사로는 확인하지 않는다. 대조 범위와 한계는 [그 레포의 checks](https://github.com/zilhak/tasty-page/tree/main/checks)에서 확인한다.
 
-대조할 값은 내부 필드 이름이 아니라 사용자가 입력하거나 화면에서 보는 이름이다.
-예를 들어 `remote_tasty` 대신 `--remote-tasty`, 테마 구조체 필드 대신 저장 파일의 절과 키를 쓴다.
-Deb의 설치 디렉터리, RPM의 전체 경로, WiX의 `Name` 연결은 각 형식에 맞게 해석한다.
-glibc 하한은 빌드 러너가 정하므로 패키지 소스의 문자열 대조로 확인할 수 없다.
-설치 순서와 배포판별 명령도 별도 확인이 필요하다.
-
-모든 설정 필드·macOS 앱 메뉴·단축키 표기를 일괄 문자열 대조하지는 않는다.
-설정에는 내부 저장값도 섞이고, 앱 메뉴에는 OS 표준 항목과 형식 문자열이 있다.
-단축키는 설정의 `alt+up`과 가이드의 `Alt+↑`가 같은 뜻일 수 있다.
-검사를 통과시키기 위해 읽기 쉬운 문서를 내부 코드 표기로 바꾸지 않는다.
 앱 문구(`lang/*.toml`)의 용어 일관성은 `one_concept_one_word_on_the_user_facing_surface.rs`처럼
 사용자에게 보이는 문자열을 기준으로 검사할 수 있다.
 
