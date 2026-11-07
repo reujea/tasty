@@ -6742,7 +6742,7 @@ dependencies = [
 
 [[package]]
 name = "tasty-plugin-html"
-version = "0.1.151"
+version = "0.1.152"
 dependencies = [
  "anyhow",
  "serde_json",

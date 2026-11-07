@@ -30,6 +30,7 @@ HTML / 웹 콘텐츠를 보는 **`html` surface 종류**를 제공한다. `rende
 - **cli** — `tasty html open …`. `html.*` IPC(URL 설정 등 — `webview.set_url`).
   - `url` 인자는 URL(`http://`·`https://`·`file://`) 또는 로컬 파일 경로다. CLI 매니페스트가 `path_kind = "url_or_file"`이라 상대 경로는 CLI를 호출한 디렉터리 기준 절대 경로로 바뀌고, 파일이 없으면 요청을 보내지 않고 실패한다.
   - `html.open`은 생성 경로와 같은 `local_path_to_file_uri`로 절대 경로를 `file://` URI로 바꿔 `webview.set_url`에 넘긴다. IPC로 직접 온 상대 경로는 기준 디렉터리가 없어 `invalid_params`로 거절한다.
+  - `tab.create` 응답 직후의 `html.open`도 적용된다. 호스트는 surface를 만들고 응답한 뒤 생성 요청을 플러그인에 넘기므로, 플러그인이 `html.open`을 생성 요청보다 먼저 처리할 수 있다. 플러그인은 생성 전에 `html.open`을 받은 surface를 기억했다가 생성 처리 때 생성 URL의 `webview.set_url`을 생략해 더 새로운 요청을 덮지 않는다. 스냅샷은 그대로 생성 URL이다.
   - `html.open`으로 바꾼 URL과 주소 표시줄로 연 주소는 스냅샷에 남지 않는다. 스냅샷은 생성·복원 때의 URL이며 호스트가 `surface.snapshot`을 다시 묻지 않으므로, 재시작하거나 플러그인 프로세스가 바뀌면 생성 URL로 돌아간다. 빈 탭으로 만든 surface는 빈 탭으로 복원된다. 두 경로를 같은 정책으로 두어 페이지 안 링크 이동과도 맞춘다.
 - **스크립트 감지와 문서 단위 허용** — 전역 설정 sandbox scripts가 켜져 있으면 host가 main frame 문서마다 JS를 끈다. `file://` 문서는 응답 단계에서 원본 파일을 읽어 스크립트를 감지하고 파일 전체 지문을 구한다. 허용은 URL(fragment 제외)과 지문에 묶이며 다른 문서가 commit되면 풀린다. 규칙은 아래 [스크립트 감지와 허용 규칙](#스크립트-감지와-허용-규칙) 절.
   - 스캔 상한: 감지는 파일 앞 4 MiB(`SCAN_LIMIT_BYTES`)까지만 읽는다. 지문은 상한과 관계없이 파일 전체를 해시한다.

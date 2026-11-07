@@ -18,6 +18,12 @@ struct HtmlPlugin {
     /// create_surface에서도 URL을 전달할 수 있도록 보관한다.
     host: Option<HostHandle>,
     mirrors: std::collections::HashSet<u32>,
+    /// create_surface·restore_surface를 처리한 로컬 surface.
+    local: std::collections::HashSet<u32>,
+    /// 생성 처리보다 html.open이 먼저 온 surface. 호스트는 tab.create 응답 뒤에 생성 요청을
+    /// 플러그인에 넘기므로 바로 뒤의 html.open이 먼저 처리될 수 있다. 이때 생성 URL을 다시
+    /// 보내면 더 새로운 요청을 덮으므로 생성 쪽 webview.set_url을 생략한다.
+    opened_before_create: std::collections::HashSet<u32>,
 }
 
 impl Plugin for HtmlPlugin {
@@ -57,6 +63,8 @@ impl Plugin for HtmlPlugin {
 
     fn destroy_surface(&mut self, surface_id: u32) {
         self.mirrors.remove(&surface_id);
+        self.local.remove(&surface_id);
+        self.opened_before_create.remove(&surface_id);
     }
 
     fn handle_ipc_method(&mut self, ctx: IpcMethodCtx) -> Result<Value, IpcMethodError> {
@@ -71,7 +79,17 @@ impl Plugin for HtmlPlugin {
                     "remote HTML is read-only; reload the mirrored entry",
                 ))
             }
-            "html.open" => html_open(&ctx),
+            "html.open" => {
+                let reply = html_open(&ctx)?;
+                if let Some(surface) = reply["surface_id"]
+                    .as_u64()
+                    .and_then(|id| u32::try_from(id).ok())
+                    .filter(|id| !self.local.contains(id))
+                {
+                    self.opened_before_create.insert(surface);
+                }
+                Ok(reply)
+            }
             other => Err(IpcMethodError::not_found(other)),
         }
     }
@@ -98,7 +116,14 @@ impl HtmlPlugin {
     /// URL을 호스트에 전달하고 스냅샷에 담는다. 빈 문자열은 URL 없음으로 처리한다.
     fn open_url_surface(&mut self, surface_id: u32, url: Option<String>) -> SurfaceResult {
         let url = url.filter(|u| !u.is_empty());
-        if let Some(u) = url.as_deref() {
+        self.local.insert(surface_id);
+        let superseded = self.opened_before_create.remove(&surface_id);
+        if superseded {
+            tracing::debug!(
+                "open_url_surface s{surface_id}: html.open already set a newer URL; keeping it"
+            );
+        }
+        if let Some(u) = url.as_deref().filter(|_| !superseded) {
             let file_url = local_path_to_file_uri(u);
             match &self.host {
                 Some(host) => {
