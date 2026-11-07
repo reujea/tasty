@@ -45,12 +45,15 @@ fn unknown_completion_does_not_execute_either_shell_or_downstream_twice() {
     let mut injected = false;
     let deadline = Instant::now() + Duration::from_secs(10);
     for tick in 1..1000 {
-        assert!(Instant::now() < deadline, "fixture did not finish");
         let tasks = ctx.with_store(|mem| {
             TaskStore::new(mem, HOST_OWNER, scope.agent_seq())
                 .list(1)
                 .unwrap()
         });
+        assert!(
+            Instant::now() < deadline,
+            "fixture did not finish: {tasks:?}"
+        );
         let for_set = ctx.clone();
         runner.tick(
             1,
