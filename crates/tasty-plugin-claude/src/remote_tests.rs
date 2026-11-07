@@ -316,11 +316,13 @@ fn an_explicit_profile_file_is_checked_on_the_server() {
     );
 
     let server = server_host("pending");
+    // 절대 경로이지만 없는 파일. OS마다 절대 경로 형식이 달라 임시 폴더 아래에서 만든다.
+    let missing = _d.path().join("missing").join("tasty-remote-profile.json");
     let err = crate::handlers::handle_spawn(
         &scanner(),
         &returns,
         &server,
-        &origin_params(json!({ "profile_file": "/nonexistent/tasty-remote-profile.json" })),
+        &origin_params(json!({ "profile_file": missing.to_string_lossy() })),
         None,
         &tr(),
     )
@@ -914,9 +916,11 @@ fn server_host(notice: &'static str) -> Host {
 /// client 가 기록을 확인할 때까지 영속 요청을 지우지 않는다.
 #[test]
 fn the_server_runs_the_child_here_and_returns_turns_through_the_attach_parent() {
-    let (_d, returns) = store();
+    let (d, returns) = store();
     let host = server_host("pending");
-    let params = origin_params(json!({ "prompt": "p", "cwd": "/srv", RETURN_ROUTE_KEY: ROUTE_A }));
+    // 서버는 실재하는 절대 cwd 만 받는다. OS 와 무관하게 실재하는 임시 폴더를 쓴다.
+    let cwd = d.path().to_string_lossy().into_owned();
+    let params = origin_params(json!({ "prompt": "p", "cwd": cwd, RETURN_ROUTE_KEY: ROUTE_A }));
     let out =
         crate::handlers::handle_spawn(&scanner(), &returns, &host, &params, None, &tr()).unwrap();
     assert_eq!(out["parent_external"], json!("attach:o3"));
