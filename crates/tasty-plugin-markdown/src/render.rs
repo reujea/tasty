@@ -5211,9 +5211,15 @@ Outro\n";
             large_deferred: false,
         });
         assert!(html.contains(r#""code":"KeyG""#), "got: {html}");
+        // 저장 토큰 `alt`는 macOS에서 Command(`metaKey`), 다른 OS에서 Alt(`altKey`)다.
+        let expected_address = if cfg!(target_os = "macos") {
+            r#"var ADDR_KEYS=[{"code":"KeyK","ctrl":true,"alt":false,"meta":true,"shift":false,"typing":false}];"#
+        } else {
+            r#"var ADDR_KEYS=[{"code":"KeyK","ctrl":true,"alt":true,"meta":false,"shift":false,"typing":false}];"#
+        };
         assert!(
-            html.contains(r#"var ADDR_KEYS=[{"code":"KeyK","ctrl":true,"alt":true"#),
-            "주소창 이동 바인딩이 문서에 없다"
+            html.contains(expected_address),
+            "주소창 이동 바인딩이 문서에 없다: {expected_address}"
         );
     }
 
