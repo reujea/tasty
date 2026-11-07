@@ -148,7 +148,9 @@ async fn collect(
                 assert_eq!(encoded.sha256, <[u8; 32]>::from(Sha256::digest(&bytes)));
                 return (response, bytes, decoded, asked);
             }
-            wire::HttpReply::Failure { code, .. } => panic!("unexpected {code:?}"),
+            wire::HttpReply::Failure { code, reason, .. } => {
+                panic!("unexpected {code:?}: {reason}")
+            }
             _ => panic!("unexpected reply"),
         }
     }

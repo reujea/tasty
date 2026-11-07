@@ -78,6 +78,7 @@ async fn execute(
     sequence: &mut u64,
 ) -> NativeResponse {
     let until = std::time::Instant::now() + Duration::from_secs(10);
+    let mut failures = Vec::new();
     loop {
         bridge.drive(
             || {
@@ -101,16 +102,25 @@ async fn execute(
         }
         host.tick();
         while let Ok(frame) = host.rx.try_recv() {
-            bridge.receive(serde_json::from_slice(&frame.payload).unwrap());
+            let reply: HttpReply = serde_json::from_slice(&frame.payload).unwrap();
+            if matches!(
+                reply,
+                HttpReply::Failure { .. } | HttpReply::CommandRejected { .. }
+            ) {
+                failures.push(describe(&reply));
+            }
+            bridge.receive(reply);
         }
         if let Poll::Ready(result) =
             Pin::new(&mut wait).poll(&mut Context::from_waker(Waker::noop()))
         {
-            return result.unwrap();
+            return result.unwrap_or_else(|error| {
+                panic!("native wait {error:?}; host replies {failures:?}")
+            });
         }
         assert!(
             std::time::Instant::now() < until,
-            "actual client/executor timeout"
+            "actual client/executor timeout; host replies {failures:?}"
         );
         tokio::time::sleep(Duration::from_millis(1)).await;
     }

@@ -26,6 +26,10 @@ fn identity(body: &[u8]) -> BodyIdentity {
         sha256: Sha256::digest(body).into(),
     }
 }
+/// HttpReply has no Debug; its wire form names the event and any failure reason.
+fn describe(reply: &HttpReply) -> String {
+    serde_json::to_string(reply).unwrap()
+}
 struct Host {
     session: Option<crate::runtime::engine_session::EngineSession>,
     hub: StreamHub,
@@ -151,10 +155,10 @@ impl Host {
             id: id(),
             source_generation: 1,
         });
-        let HttpReply::Head { head } = self.receive() else {
-            panic!("head")
-        };
-        head.id
+        match self.receive() {
+            HttpReply::Head { head } => head.id,
+            other => panic!("expected head, got {}", describe(&other)),
+        }
     }
 }
 impl Drop for Host {
@@ -337,7 +341,11 @@ fn queued_positive_response_loses_actual_grant_membership_or_source_before_write
         };
         assert!(frame.is_current());
         let reply: HttpReply = serde_json::from_slice(&frame.payload).unwrap();
-        assert!(matches!(reply, HttpReply::Head { .. }));
+        assert!(
+            matches!(reply, HttpReply::Head { .. }),
+            "expected head, got {}",
+            describe(&reply)
+        );
         let session = host.session.as_mut().unwrap();
         if mode == 0 {
             session
