@@ -255,12 +255,13 @@ fn disk_file(surface: u32, records: u64) -> std::path::PathBuf {
         .unwrap()
         .filter_map(Result::ok)
         .filter(|entry| entry.file_name().to_string_lossy().starts_with(&prefix))
-        .filter(|entry| {
-            entry
-                .metadata()
-                .is_ok_and(|meta| meta.len() == records + DISK_HEADER)
-        })
         .map(|entry| entry.path())
+        // Size from the path, not the directory entry: on Windows the entry carries the size
+        // recorded in the directory listing, which NTFS updates late while the owner still
+        // holds its write handle open.
+        .filter(|path| {
+            std::fs::metadata(path).is_ok_and(|meta| meta.len() == records + DISK_HEADER)
+        })
         .collect();
     assert_eq!(found.len(), 1, "{found:?}");
     found.into_iter().next().unwrap()
