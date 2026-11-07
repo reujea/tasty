@@ -237,7 +237,7 @@ site/content/
 ```
 
 - 새 페이지를 추가하면 `ORDER` 에도 넣는다. 빠뜨리면 발행되지 않는다.
-- CLI 입문(`agents/cli.md`)·명령 참조(`agents/cli-reference.md`)·진단(`help/cli-diagnostics.md`) 페이지의 `sh` 코드 블록에 있는 `tasty …` 예시는 `crates/tasty-cli/tests/guide_examples_parse.rs` 가 실제 명령 트리로 파싱한다(ko·en). 명령 경로·필수 인자·옵션 이름만 확인하며 plugin 명령, 자리 표시(`<ID>`·`…`), 셸 치환·파이프가 있는 줄은 판정하지 않는다. 문장의 정확성과 실행 결과는 이 검사가 보장하지 않는다.
+- CLI 입문(`agents/cli.md`)·명령 참조(`agents/cli-reference.md`)·진단(`help/cli-diagnostics.md`) 페이지의 `sh` 코드 블록에 있는 `tasty …` 예시를 실제 명령 트리로 파싱하는 검사는 [tasty-page 레포의 checks](https://github.com/zilhak/tasty-page/tree/main/checks)가 실행한다.
 - 새 디렉토리(섹션)를 만들면 `SECTIONS` 에 (디렉토리, 한국어 라벨, 영어 라벨) 을 추가한다.
   등록되지 않은 디렉토리에 페이지를 두면 빌드가 실패한다.
 - 페이지 첫 줄 `# 제목` 이 사이드바 라벨이다 (괄호 · 대시 이후는 잘린다).

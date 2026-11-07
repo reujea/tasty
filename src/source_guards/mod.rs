@@ -713,7 +713,6 @@ mod platform_gated_dispatch_complement;
 mod plugin_only_dispatch_parity;
 
 mod plugin_locale_specific_literals;
-mod port_mode_roster;
 
 mod geometry_surface_shape;
 mod params_chokepoint;
