@@ -1,4 +1,5 @@
-//! 번역 파일과 한국어 사용자 가이드의 용어 표기를 확인한다.
+//! 번역 파일(앱 문구)의 용어 표기를 확인한다.
+//! 사용자 가이드의 용어는 tasty-page 레포의 checks가 검사한다.
 //! 패인은 페인으로, 일본어 ウインドウ는 ウィンドウ로 쓴다.
 //! 한국어 창은 OS 창을 소유한 View를 뜻할 때 윈도우로 쓰고, 다른 의미는 문구별 근거를 등록한다.
 //! 기준은 docs/concepts/ubiquitous-language.md의 Window/Popup 구분이다.
@@ -23,13 +24,13 @@ const RETIRED: &[Retired] = &[
         needle: "패인",
         canonical: "페인",
         canonical_floor: 40,
-        why: "Pane의 한국어 표기는 페인이다. 2026-09-07에 86회를 측정했고 가이드 정리를 허용하려고 약 절반의 여유를 뒀다.",
+        why: "Pane의 한국어 표기는 페인이다. 2026-11-08에 번역 파일에서 68회를 측정했다. 문구 정리를 허용하려고 약 40%의 여유를 뒀다.",
     },
     Retired {
         needle: "ウインドウ",
         canonical: "ウィンドウ",
         canonical_floor: 12,
-        why: "Window의 일본어 표기를 통일한다. 2026-09-07에 24회를 측정했고 약 절반의 여유를 뒀다.",
+        why: "Window의 일본어 표기를 통일한다. 2026-09-07에 24회를 측정해 하한을 정했고 2026-11-08 측정은 108회다.",
     },
 ];
 
@@ -86,143 +87,16 @@ const NOT_A_WINDOW: &[NotAWindow] = &[
                    `[[contributes.popup]]` 로 선언한다",
     },
     NotAWindow {
-        path: "site/content/agents/tasks.md",
-        phrase: "Task DAGs --> 창",
-        count: 1,
-        evidence: "DAG 목록 패널을 가리킨다. lang/ko.toml의 toggle_dag_list_label로 여닫으며 같은 문단의 DAG 탭과 구별된다.",
-    },
-    NotAWindow {
-        path: "site/content/customize/scripts.md",
-        phrase: "확인 창이 뜹니다",
-        count: 1,
-        evidence: "스크립트 변경 확인 — host `PopupDef` id `script_changed_confirm`",
-    },
-    NotAWindow {
-        path: "site/content/using/files.md",
-        phrase: "주소창",
-        count: 14,
-        evidence: "낱말이 다르다 — 탐색기·마크다운·HTML 화면의 address bar 다. Window 를 가리키지 않는다",
-    },
-    NotAWindow {
-        path: "site/content/remote/attach.md",
-        phrase: "주소창",
-        count: 6,
-        evidence: "낱말이 다르다 — 원격 마크다운 문서 맨 위의 address bar 다. Window 를 가리키지 않는다",
-    },
-    NotAWindow {
-        path: "site/content/remote/attach.md",
-        phrase: "파일 선택 창",
-        count: 1,
-        evidence: "원격 마크다운 주소창 폴더 버튼이 여는 파일 선택 팝업이다. host PopupDef id file_picker 다.",
-    },
-    NotAWindow {
-        path: "site/content/customize/keybindings.md",
-        phrase: "주소창으로 이동",
-        count: 1,
-        evidence: "낱말이 다르다 — 탐색기 단축키 표의 address bar 행이다. Window 를 가리키지 않는다",
-    },
-    NotAWindow {
         path: "lang/ko.toml",
         phrase: "주소창으로 이동",
         count: 1,
         evidence: "낱말이 다르다 — 단축키 explorer_focus_address 의 라벨이고 탐색기의 address bar 다. Window 를 가리키지 않는다",
     },
     NotAWindow {
-        path: "site/content/using/files.md",
-        phrase: "파일 선택 창",
-        count: 10,
-        evidence: "파일 선택 팝업이다. 별도 OS View가 아니다. 열기 표, 중복 요청 시 기존 선택을 마치거나 취소하는 안내, 헤더를 끌어 옮기고 닫는 설명, 긴 파일명 설명, 부모 팝업과 함께 숨고 복원되는 설명, HTML 절의 새 HTML... 이 여는 피커와 원격에서 열리지 않는다는 설명, 마크다운 주소창 폴더 버튼이 여는 피커와 이미 떠 있을 때의 안내, 이미지 다른 이름으로 저장의 찾아보기 안내를 합친 열 문구다.",
-    },
-    NotAWindow {
-        path: "site/content/getting-started/first-look.md",
-        phrase: "파일 선택 창",
-        count: 1,
-        evidence: "탭 스트립 메뉴 새 HTML... 이 여는 파일 선택 팝업이다. host PopupDef id file_picker 다.",
-    },
-    NotAWindow {
-        path: "site/content/using/panes-tabs-splits.md",
-        phrase: "파일 선택 창",
-        count: 1,
-        evidence: "탭 스트립 메뉴 새 HTML... 이 여는 파일 선택 팝업이다. host PopupDef id file_picker 다.",
-    },
-    NotAWindow {
-        path: "site/content/using/files.md",
-        phrase: "Open file with… --> 창이",
-        count: 1,
-        evidence: "핸들러 선택 대화상자 — host `PopupDef` id `file_handler_picker`",
-    },
-    NotAWindow {
-        path: "site/content/using/files.md",
-        phrase: "**다음으로 열기…** 창에는",
-        count: 1,
-        evidence: "file_handler_picker PopupDef가 표시하는 경로·형식·핸들러 목록이다. 정의는 src/adapters/ui/popup/defs.rs에 있다.",
-    },
-    NotAWindow {
-        path: "site/content/using/files.md",
-        phrase: "**다음으로 열기…** 창이 떠서 고르게 합니다(원격",
-        count: 1,
-        evidence: "마크다운 링크의 무매칭 fallback picker다. 같은 host `PopupDef` id `file_handler_picker`를 연다.",
-    },
-    NotAWindow {
-        path: "site/content/using/files.md",
-        phrase: "창을 열어 둔 채 자정을",
-        count: 1,
-        evidence: "파일 핸들러 선택 팝업의 Recent 상대 시각을 설명한다. when_bucket을 열 때 고정하지 않고 매 프레임 계산한다.",
-    },
-    NotAWindow {
-        path: "site/content/using/files.md",
-        phrase: "선택 창이 나올 수 있습니다",
-        count: 1,
-        evidence: "같은 file_handler_picker 팝업의 일회성 핸들러 선택을 설명한다. src/file/dispatch.rs가 PopupManager로 연다.",
-    },
-    NotAWindow {
-        path: "site/content/using/files.md",
-        phrase: "창은 `Esc`나",
-        count: 1,
-        evidence: "같은 핸들러 선택 popup 의 닫는 법 — 그 popup 은 `close_on_outside_click=false` 다",
-    },
-    NotAWindow {
-        path: "site/content/using/files.md",
-        phrase: "Open Markdown File --> 창을",
-        count: 1,
-        evidence: "마크다운 열기 대화상자 — 메인 윈도우 안에서 뜬다",
-    },
-    NotAWindow {
-        path: "site/content/using/files.md",
-        phrase: "보여주는 창이 뜹니다",
-        count: 1,
-        evidence: "Git 뷰어 — 매니페스트가 `[[contributes.popup]]` 로 선언하고 설명도 \
-                   \"git status / log / diff popup\" 이다",
-    },
-    NotAWindow {
-        path: "site/content/using/files.md",
-        phrase: "이 창과 별개로",
-        count: 1,
-        evidence: "바로 위 문장이 가리킨 그 Git 뷰어 popup 을 되받는다",
-    },
-    NotAWindow {
-        path: "site/content/using/panes-tabs-splits.md",
-        phrase: "알림 창 타이틀바",
-        count: 1,
-        evidence: "host PopupDef의 notifications 알림 목록을 가리킨다. 같은 줄의 Tasty 윈도우 및 윈도우 크기는 OS 창을 뜻한다.",
-    },
-    NotAWindow {
         path: "lang/ko.toml",
         phrase: "속성 창",
         count: 2,
         evidence: "설정 props_time_format 의 라벨·caption 이 탐색기 Properties popup 을 가리킨다. host PopupDef id explorer_properties(EXPLORER_PROPERTIES_POPUP_ID)이며 문구는 수령한 디자인의 ko 원문이다.",
-    },
-    NotAWindow {
-        path: "site/content/customize/settings.md",
-        phrase: "속성 창",
-        count: 4,
-        evidence: "일반 탭 표의 속성 창 시각 형식 설명과 settings.toml 예시 주석이다. 모두 탐색기 Properties popup(host PopupDef id explorer_properties)을 가리킨다.",
-    },
-    NotAWindow {
-        path: "site/content/using/files.md",
-        phrase: "속성 창 시각 형식",
-        count: 1,
-        evidence: "속성 절에서 설정 항목 이름을 인용한다. 그 설정이 바꾸는 것은 탐색기 Properties popup(host PopupDef id explorer_properties)의 시각이다.",
     },
 ];
 
@@ -250,14 +124,6 @@ const PLUGIN_LANG_FLOOR: Floor = Floor {
     why_this_gap: "2026-09-07에 플러그인 9개 × 언어 3개로 27개 파일을 측정했다. 플러그인 4개가 정리되는 경우를 허용한 하한 15다. 더 줄면 실제 감소인지 수집 오류인지 확인한다.",
 };
 
-const GUIDE_FLOOR: Floor = Floor {
-    min: 12,
-    measured: 18,
-    measured_on: "2026-09-07",
-    counted_on: tasty_doc_guards::floored_walk::CountedOn::NEVER_COUNTED,
-    why_this_gap: "한국어 가이드 원본의 Markdown 수다. 영어 번역은 제외한다. 장의 분리·통합을 허용할 여유를 두되 하한 12 미만이면 실제 감소와 수집 오류를 확인한다.",
-};
-
 type Surface = (String, String);
 
 fn user_facing_files() -> Vec<Surface> {
@@ -276,19 +142,7 @@ fn user_facing_files() -> Vec<Surface> {
         Descend::SkipBuildCaches,
         &|rel| rel.contains("/lang/") && rel.ends_with(".toml"),
     ));
-    out.extend(collect(
-        &root.join("site/content"),
-        &root,
-        &GUIDE_FLOOR,
-        Descend::Everything,
-        &|rel| is_korean_guide(rel),
-    ));
     out
-}
-
-/// 한국어 원본만 검사한다. 같은 문장의 영어 번역은 이 용어 검사 대상이 아니다.
-fn is_korean_guide(rel: &str) -> bool {
-    rel.ends_with(".md") && !rel.starts_with("site/content/en/")
 }
 
 /// 같은 순회를 합성 트리에서도 검사할 수 있도록 루트·하한·필터를 받는다.
@@ -402,10 +256,14 @@ fn population_is_balanced(shape: (usize, usize), min: (usize, usize)) -> bool {
     shape.0 >= min.0 && shape.1 >= min.1
 }
 
+/// (호스트 번역 파일 수, 플러그인 번역 파일 수).
 fn population_shape(files: &[Surface]) -> (usize, usize) {
-    let langs = files.iter().filter(|(r, _)| r.ends_with(".toml")).count();
-    let guides = files.iter().filter(|(r, _)| r.ends_with(".md")).count();
-    (langs, guides)
+    let host = files.iter().filter(|(r, _)| r.starts_with("lang/")).count();
+    let plugin = files
+        .iter()
+        .filter(|(r, _)| r.starts_with("crates/"))
+        .count();
+    (host, plugin)
 }
 
 #[test]
@@ -443,7 +301,7 @@ fn each_canonical_word_is_still_present() {
     let n = total(&files, word);
     assert!(
         n >= floor,
-        "권장 표기 `{word}`가 {n}회뿐이다(하한 {floor}, 2026-09-07 측정 134회). 번역 파일과 가이드 양쪽의 수집·문구를 확인한다."
+        "권장 표기 `{word}`가 {n}회뿐이다(하한 {floor}, 2026-11-08 번역 파일 측정 107회). 번역 파일의 수집·문구를 확인한다."
     );
 }
 
@@ -499,11 +357,11 @@ fn registrations_in_the_same_file_do_not_share_evidence() {
 
 #[test]
 fn the_population_holds_both_kinds_of_user_facing_file() {
-    // 번역 파일과 가이드가 모두 수집됐는지 따로 확인한다.
-    let (langs, guides) = population_shape(&user_facing_files());
+    // 호스트 번역 파일과 플러그인 번역 파일이 모두 수집됐는지 따로 확인한다.
+    let (host, plugin) = population_shape(&user_facing_files());
     assert!(
-        population_is_balanced((langs, guides), (18, 12)),
-        "번역 파일 또는 가이드 수집이 부족하다: lang {langs}, 가이드 {guides}. 2026-09-07 측정은 각각 30개, 18개다."
+        population_is_balanced((host, plugin), (HOST_LANG_FLOOR.min, PLUGIN_LANG_FLOOR.min)),
+        "번역 파일 수집이 부족하다: 호스트 {host}, 플러그인 {plugin}. 2026-11-08 측정은 각각 3개, 27개다."
     );
 }
 
@@ -673,31 +531,15 @@ fn a_roster_line_pointing_outside_the_population_is_an_error_not_a_skip() {
 #[test]
 fn the_population_must_clear_both_floors_not_either() {
     assert!(
-        population_is_balanced((18, 12), (18, 12)),
+        population_is_balanced((3, 15), (3, 15)),
         "딱 맞는데 거부했다"
     );
     assert!(
-        !population_is_balanced((18, 5), (18, 12)),
-        "가이드가 통째로 안 읽혔는데 lang 쪽만 보고 통과시켰다"
+        !population_is_balanced((3, 5), (3, 15)),
+        "플러그인 번역이 통째로 안 읽혔는데 호스트 쪽만 보고 통과시켰다"
     );
     assert!(
-        !population_is_balanced((2, 12), (18, 12)),
-        "lang 이 통째로 안 읽혔는데 가이드 쪽만 보고 통과시켰다"
-    );
-}
-
-#[test]
-fn the_guide_filter_takes_the_korean_source_and_drops_the_translation() {
-    assert!(
-        is_korean_guide("site/content/using/files.md"),
-        "원본을 뺐다"
-    );
-    assert!(
-        !is_korean_guide("site/content/en/using/files.md"),
-        "영어 번역은 한국어 용어 검사 대상이 아니다"
-    );
-    assert!(
-        !is_korean_guide("site/content/index.toml"),
-        "확장자를 안 봤다"
+        !population_is_balanced((0, 27), (3, 15)),
+        "호스트 번역이 통째로 안 읽혔는데 플러그인 쪽만 보고 통과시켰다"
     );
 }

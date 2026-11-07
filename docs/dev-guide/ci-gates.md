@@ -119,7 +119,7 @@ glibc 하한은 빌드 러너가 정하므로 패키지 소스의 문자열 대�
 설정에는 내부 저장값도 섞이고, 앱 메뉴에는 OS 표준 항목과 형식 문자열이 있다.
 단축키는 설정의 `alt+up`과 가이드의 `Alt+↑`가 같은 뜻일 수 있다.
 검사를 통과시키기 위해 읽기 쉬운 문서를 내부 코드 표기로 바꾸지 않는다.
-읽는 용어 자체의 일관성은 `one_concept_one_word_on_the_user_facing_surface.rs`처럼
+앱 문구(`lang/*.toml`)의 용어 일관성은 `one_concept_one_word_on_the_user_facing_surface.rs`처럼
 사용자에게 보이는 문자열을 기준으로 검사할 수 있다.
 
 자동 검사가 어려운 의미 판단과 분류·사유의 등록 여부도 구분한다.
