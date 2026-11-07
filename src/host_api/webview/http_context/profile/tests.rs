@@ -23,9 +23,10 @@ fn private_permissions_unique_paths_and_memory_only_native_lifetime() {
     shared::<NativeProfileLease>();
     let parent = namespace();
     let path = parent.path().to_path_buf();
-    let prepared = std::thread::spawn(move || PreparedProfile::create(&path, 3).unwrap())
-        .join()
-        .unwrap();
+    let prepared =
+        std::thread::spawn(move || admitted(|| PreparedProfile::create(&path, 3)).unwrap())
+            .join()
+            .unwrap();
     let root = prepared.root().to_path_buf();
     let data = prepared.data_dir().to_path_buf();
     let cache = prepared.cache_dir().to_path_buf();
@@ -48,10 +49,10 @@ fn private_permissions_unique_paths_and_memory_only_native_lifetime() {
     drop(clone);
     assert!(root.is_dir());
     assert!(root.join(record::NAME).is_file());
-    let second = PreparedProfile::create(parent.path(), 3).unwrap();
+    let second = admitted(|| PreparedProfile::create(parent.path(), 3)).unwrap();
     assert_ne!(second.root(), root);
-    second.discard_unpublished().unwrap();
-    let report = reclaim_dead(parent.path(), 3).unwrap();
+    discard(second).unwrap();
+    let report = reclaim_positive(parent.path(), 3);
     assert_eq!(
         (report.inspected, report.kept_live, report.removed),
         (1, 1, 0)
@@ -63,10 +64,10 @@ fn explicit_unpublished_discard_removes_only_owned_root() {
     let parent = namespace();
     let outside = namespace();
     disk::write(outside.path().join("sentinel"), b"outside").unwrap();
-    let p = PreparedProfile::create(parent.path(), 2).unwrap();
+    let p = admitted(|| PreparedProfile::create(parent.path(), 2)).unwrap();
     let root = p.root().to_owned();
     disk::write(p.data_dir().join("file"), b"owned").unwrap();
-    std::thread::spawn(move || p.discard_unpublished().unwrap())
+    std::thread::spawn(move || discard(p).unwrap())
         .join()
         .unwrap();
     assert!(!root.exists());
@@ -78,8 +79,8 @@ fn explicit_unpublished_discard_removes_only_owned_root() {
 #[test]
 fn capacity_counts_unclassified_entries_and_parallel_owners() {
     let parent = namespace();
-    let warm = PreparedProfile::create(parent.path(), 1).unwrap();
-    warm.discard_unpublished().unwrap();
+    let warm = admitted(|| PreparedProfile::create(parent.path(), 1)).unwrap();
+    discard(warm).unwrap();
     let start = Arc::new(std::sync::Barrier::new(9));
     let mut threads = vec![];
     for _ in 0..8 {
@@ -87,7 +88,7 @@ fn capacity_counts_unclassified_entries_and_parallel_owners() {
         let path = parent.path().to_owned();
         threads.push(std::thread::spawn(move || {
             start.wait();
-            PreparedProfile::create(&path, 2)
+            admitted(|| PreparedProfile::create(&path, 2))
         }));
     }
     start.wait();
@@ -100,11 +101,11 @@ fn capacity_counts_unclassified_entries_and_parallel_owners() {
     let count = disk::read_dir(parent.path()).unwrap().count() - 1;
     assert_eq!(count, roots.len());
     for p in roots {
-        p.discard_unpublished().unwrap();
+        discard(p).unwrap();
     }
     disk::write(parent.path().join("unknown"), b"unclassified").unwrap();
     assert!(matches!(
-        PreparedProfile::create(parent.path(), 1),
+        admitted(|| PreparedProfile::create(parent.path(), 1)),
         Err(ProfileError::Capacity)
     ));
     assert!(matches!(
@@ -132,7 +133,7 @@ fn rejects_missing_relative_symlink_and_unsafe_ancestry_without_creating_fallbac
     let outside = namespace();
     let alias = parent.path().join("alias");
     std::os::unix::fs::symlink(outside.path(), &alias).unwrap();
-    assert!(PreparedProfile::create(&alias, 1).is_err());
+    assert!(admitted(|| PreparedProfile::create(&alias, 1)).is_err());
     assert_eq!(disk::read_dir(outside.path()).unwrap().count(), 0);
     let unsafe_dir = parent.path().join("writable");
     disk::create_dir(&unsafe_dir).unwrap();
@@ -141,7 +142,7 @@ fn rejects_missing_relative_symlink_and_unsafe_ancestry_without_creating_fallbac
     disk::create_dir(&leaf).unwrap();
     disk::set_permissions(&leaf, disk::Permissions::from_mode(0o700)).unwrap();
     assert!(matches!(
-        PreparedProfile::create(&leaf, 1),
+        admitted(|| PreparedProfile::create(&leaf, 1)),
         Err(ProfileError::Ownership)
     ));
     assert_eq!(disk::read_dir(leaf).unwrap().count(), 0);
@@ -155,12 +156,12 @@ fn non_utf8_namespace_is_recorded_exactly() {
         .join(std::ffi::OsString::from_vec(b"private-\xff".to_vec()));
     disk::create_dir(&parent).unwrap();
     disk::set_permissions(&parent, disk::Permissions::from_mode(0o700)).unwrap();
-    let p = PreparedProfile::create(&parent, 1).unwrap();
+    let p = admitted(|| PreparedProfile::create(&parent, 1)).unwrap();
     let data: serde_json::Value =
         serde_json::from_slice(&disk::read(p.root().join(record::NAME)).unwrap()).unwrap();
     let bytes: Vec<u8> = serde_json::from_value(data["root_path"].clone()).unwrap();
     assert_eq!(bytes, p.root().as_os_str().as_bytes());
-    p.discard_unpublished().unwrap();
+    discard(p).unwrap();
 }
 #[test]
 fn root_inode_replacement_and_symlinks_never_delete_outside_sentinels() {
@@ -168,27 +169,24 @@ fn root_inode_replacement_and_symlinks_never_delete_outside_sentinels() {
     let outside = namespace();
     let sentinel = outside.path().join("sentinel");
     disk::write(&sentinel, b"untouched").unwrap();
-    let p = PreparedProfile::create(parent.path(), 3).unwrap();
+    let p = admitted(|| PreparedProfile::create(parent.path(), 3)).unwrap();
     let root = p.root().to_owned();
     let saved = parent.path().join("saved");
     disk::rename(&root, &saved).unwrap();
     disk::create_dir(&root).unwrap();
     disk::set_permissions(&root, disk::Permissions::from_mode(0o700)).unwrap();
     disk::write(root.join("sentinel"), b"replacement").unwrap();
-    assert!(matches!(
-        p.discard_unpublished(),
-        Err(ProfileError::Ownership)
-    ));
+    assert!(matches!(discard(p), Err(ProfileError::Ownership)));
     assert_eq!(disk::read(root.join("sentinel")).unwrap(), b"replacement");
-    let r = reclaim_dead(parent.path(), 3).unwrap();
+    let r = reclaim_positive(parent.path(), 3);
     assert_eq!((r.inspected, r.removed, r.kept_uncertain), (2, 0, 2));
     let parent = namespace();
-    let p = PreparedProfile::create(parent.path(), 1).unwrap();
+    let p = admitted(|| PreparedProfile::create(parent.path(), 1)).unwrap();
     let root = p.root().to_owned();
     drop(p);
     disk::rename(&root, parent.path().join("saved")).unwrap();
     std::os::unix::fs::symlink(outside.path(), &root).unwrap();
-    let r = reclaim_dead(parent.path(), 4).unwrap();
+    let r = reclaim_positive(parent.path(), 4);
     assert_eq!(r.removed, 0);
     assert!(r.kept_uncertain >= 1);
     assert_eq!(disk::read(sentinel).unwrap(), b"untouched");
@@ -198,10 +196,10 @@ fn prepared_discard_rejects_inner_symlink_before_any_deletion() {
     let parent = namespace();
     let outside = namespace();
     disk::write(outside.path().join("sentinel"), b"outside").unwrap();
-    let p = PreparedProfile::create(parent.path(), 1).unwrap();
+    let p = admitted(|| PreparedProfile::create(parent.path(), 1)).unwrap();
     let root = p.root().to_owned();
     std::os::unix::fs::symlink(outside.path(), p.data_dir().join("escape")).unwrap();
-    assert!(p.discard_unpublished().is_err());
+    assert!(discard(p).is_err());
     assert!(root.join(record::NAME).exists());
     assert!(root.join("cache").exists());
     assert_eq!(
@@ -213,7 +211,7 @@ fn prepared_discard_rejects_inner_symlink_before_any_deletion() {
 fn malformed_foreign_record_inode_start_boot_and_record_symlink_are_retained() {
     for kind in 0..7 {
         let parent = namespace();
-        let p = PreparedProfile::create(parent.path(), 1).unwrap();
+        let p = admitted(|| PreparedProfile::create(parent.path(), 1)).unwrap();
         let root = p.root().to_owned();
         let path = root.join(record::NAME);
         drop(p);
@@ -262,12 +260,12 @@ fn malformed_foreign_record_inode_start_boot_and_record_symlink_are_retained() {
 fn bounded_sweep_retains_live_roots_and_reports_remaining_entries() {
     let parent = namespace();
     for _ in 0..3 {
-        drop(PreparedProfile::create(parent.path(), 3).unwrap());
+        drop(admitted(|| PreparedProfile::create(parent.path(), 3)).unwrap());
     }
-    let r = reclaim_dead(parent.path(), 2).unwrap();
+    let r = reclaim_positive(parent.path(), 2);
     assert_eq!((r.inspected, r.kept_live, r.removed), (2, 2, 0));
     assert!(r.limit_reached);
-    let r = reclaim_dead(parent.path(), 3).unwrap();
+    let r = reclaim_positive(parent.path(), 3);
     assert_eq!((r.inspected, r.kept_live), (3, 3));
     assert!(!r.limit_reached);
 }
@@ -276,7 +274,7 @@ fn preflight_then_root_replacement_is_detected_before_removal() {
     let parent = namespace();
     let outside = namespace();
     disk::write(outside.path().join("sentinel"), b"untouched").unwrap();
-    let p = PreparedProfile::create(parent.path(), 1).unwrap();
+    let p = admitted(|| PreparedProfile::create(parent.path(), 1)).unwrap();
     let root = p.root().to_owned();
     drop(p);
     let ns = fs::Namespace::open(parent.path()).unwrap();
@@ -389,7 +387,7 @@ fn child_writer() {
         // SAFETY: this is the dedicated owned child process; it changes no parent's umask.
         unsafe { libc::umask(0o777) };
     }
-    let profile = PreparedProfile::create(Path::new(&parent), 1).unwrap();
+    let profile = admitted(|| PreparedProfile::create(Path::new(&parent), 1)).unwrap();
     let lease = profile.into_native();
     disk::write(receipt, lease.root().as_os_str().as_bytes()).unwrap();
     let mut byte = [0];
@@ -415,7 +413,7 @@ fn restrictive_child_umask_still_creates_explicit_private_permissions() {
             & 0o7777,
         0o600
     );
-    let r = reclaim_dead(parent.path(), 1).unwrap();
+    let r = reclaim_positive(parent.path(), 1);
     assert_eq!((r.kept_live, r.removed), (1, 0));
     child.finish();
     assert!(child.root.is_dir());
@@ -435,7 +433,7 @@ fn actual_child_identity_live_retention_and_open_fd_consumer_are_observed() {
         process::OwnerState::Live
     ));
     drop(dir);
-    let r = reclaim_dead(parent.path(), 1).unwrap();
+    let r = reclaim_positive(parent.path(), 1);
     assert_eq!((r.kept_live, r.removed), (1, 0));
     let file_path = child.root.join("data/open");
     let mut file = disk::OpenOptions::new()
@@ -461,7 +459,7 @@ fn actual_child_identity_live_retention_and_open_fd_consumer_are_observed() {
 }
 fn public_dead_sweep(root: &Path, parent: &Path, objects: &std::collections::HashSet<(u64, u64)>) {
     let audit = process::consumers(root, objects);
-    let r = reclaim_dead(parent, 1).unwrap();
+    let r = reclaim_positive(parent, 1);
     assert_eq!(r.inspected, 1);
     assert_eq!(r.kept_live, 0);
     assert_eq!(r.failed, 0);
@@ -516,7 +514,7 @@ fn fd_and_mapping_consumers(
 #[test]
 fn deletion_error_retains_ownership_record_for_remaining_root() {
     let parent = namespace();
-    let p = PreparedProfile::create(parent.path(), 1).unwrap();
+    let p = admitted(|| PreparedProfile::create(parent.path(), 1)).unwrap();
     let root = p.root().to_owned();
     let namespace = fs::Namespace::open(parent.path()).unwrap();
     let name = root.file_name().unwrap();
@@ -540,21 +538,32 @@ fn deletion_error_retains_ownership_record_for_remaining_root() {
         record::Record::read(&namespace.dir.open_dir(name).unwrap()).unwrap() == original_record
     );
     disk::remove_file(root.join("late-owned-file")).unwrap();
-    p.discard_unpublished().unwrap();
+    discard(p).unwrap();
 }
 
-// A root test's short-lived fork can inherit an unrelated namespace lock description.
-// The fixture is one tiny known tree: only bounded positive lock admission is retried;
-// capacity/refusal controls continue to call the nonblocking production API directly.
-fn reclaim_positive(parent: &Path, max: usize) -> CleanupReport {
+// Creating a process anywhere in this multi-threaded test binary copies every open
+// descriptor into the child until it execs or closes them, so a namespace lock description
+// one of these tests just closed can stay locked in a child for a moment. For create and the
+// reclaim_dead sweep, production admission (preparation/admission.rs) retries exactly this
+// typed Busy before a deadline; these tests call the nonblocking API directly, so they take
+// the same bounded admission and then judge the first other result. Production does not
+// retry the unpublished discard. The tests apply the same retry to it only because Busy
+// returns before anything is removed.
+fn admitted<T>(mut operation: impl FnMut() -> Result<T, ProfileError>) -> Result<T, ProfileError> {
     let deadline = std::time::Instant::now() + std::time::Duration::from_secs(2);
     loop {
-        match reclaim_dead(parent, max) {
-            Ok(report) => return report,
+        match operation() {
             Err(ProfileError::Busy) if std::time::Instant::now() < deadline => {
                 std::thread::sleep(std::time::Duration::from_millis(2))
             }
-            Err(error) => panic!("positive private profile sweep: {error}"),
+            other => return other,
         }
     }
+}
+fn discard(profile: PreparedProfile) -> Result<(), ProfileError> {
+    admitted(|| profile.remove_unpublished())
+}
+fn reclaim_positive(parent: &Path, max: usize) -> CleanupReport {
+    admitted(|| reclaim_dead(parent, max))
+        .unwrap_or_else(|error| panic!("positive private profile sweep: {error}"))
 }

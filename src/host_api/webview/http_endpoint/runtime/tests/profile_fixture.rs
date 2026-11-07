@@ -67,10 +67,14 @@ impl InheritedLock {
         assert!(flags >= 0);
         assert_ne!(flags & libc::FD_CLOEXEC, 0);
         let (release, wait) = UnixStream::pair().unwrap();
-        let parent_fd = release.as_raw_fd();
         let child_fd = wait.as_raw_fd();
-        // SAFETY: the child only closes its inherited parent socket, polls/reads one byte,
-        // and _exit's. It never calls allocation, Rust destructors, or a non-async-safe API.
+        // fork copies every descriptor of this multi-threaded test process, including lock
+        // descriptions that parallel tests hold only briefly. The child keeps just this
+        // fixture's lock and its own socket so that it never holds another test's namespace
+        // lock for its whole lifetime.
+        let (low, high) = (fd.min(child_fd) as u32, fd.max(child_fd) as u32);
+        // SAFETY: the child only closes inherited descriptors, polls/reads one byte, and
+        // _exit's. It never calls allocation, Rust destructors, or a non-async-safe API.
         let pid = unsafe { libc::fork() };
         assert!(
             pid >= 0,
@@ -78,8 +82,17 @@ impl InheritedLock {
             std::io::Error::last_os_error()
         );
         if pid == 0 {
-            // SAFETY: close only the inherited parent-side socket in this child.
-            unsafe { libc::close(parent_fd) };
+            // close_range takes inclusive bounds and rejects an empty range; skip those.
+            for (first, last) in [
+                (3, low.wrapping_sub(1)),
+                (low + 1, high - 1),
+                (high + 1, u32::MAX),
+            ] {
+                if first <= last {
+                    // SAFETY: closes only inherited descriptors in this child; async-signal-safe.
+                    unsafe { libc::syscall(libc::SYS_close_range, first, last, 0u32) };
+                }
+            }
             let mut poll = libc::pollfd {
                 fd: child_fd,
                 events: libc::POLLIN,

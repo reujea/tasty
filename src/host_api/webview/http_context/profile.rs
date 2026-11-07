@@ -121,6 +121,10 @@ impl PreparedProfile {
     }
     /// Worker only. No native manager may have consumed this unpublished ownership.
     pub(crate) fn discard_unpublished(self) -> Result<(), ProfileError> {
+        self.remove_unpublished()
+    }
+    /// [`Self::discard_unpublished`] without consuming. `Busy` returns before any removal.
+    fn remove_unpublished(&self) -> Result<(), ProfileError> {
         let parent = self.0.root.parent().ok_or(ProfileError::Invalid)?;
         let name = self.0.root.file_name().ok_or(ProfileError::Invalid)?;
         let namespace = fs::Namespace::open(parent)?;
