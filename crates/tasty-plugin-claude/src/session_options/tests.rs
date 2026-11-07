@@ -275,6 +275,33 @@ fn isolated_mock_cli_receives_independent_child_argv_profiles_and_omission() {
     );
 }
 
+/// POSIX shells need the brackets quoted; cmd.exe would keep single quotes in the value.
+#[cfg(not(windows))]
+const MODEL_ARG: &str = "'provider/model[1m]'";
+#[cfg(windows)]
+const MODEL_ARG: &str = "provider/model[1m]";
+
+#[cfg(not(windows))]
+#[test]
+fn settings_path_keeps_the_posix_double_quote_escapes() {
+    assert_eq!(
+        quote_path(r#"/home/user name/a\b"c$d`e.json"#),
+        r#""/home/user name/a\\b\"c\$d\`e.json""#
+    );
+}
+
+#[cfg(windows)]
+#[test]
+fn settings_path_uses_cmd_quoting_with_single_backslashes() {
+    assert_eq!(
+        quote_path(r"C:\Users\user name\profiles\reviewer.json"),
+        r#""C:\Users\user name\profiles\reviewer.json""#
+    );
+    // The MSVC argv rule: backslashes before a quote are doubled, the quote is escaped.
+    assert_eq!(quote_path(r"C:\dir\"), r#""C:\dir\\""#);
+    assert_eq!(quote_path(r#"a\"b"#), r#""a\\\"b""#);
+}
+
 #[test]
 fn hook_restore_and_reboot_preserve_options_and_settings_without_permission_persistence() {
     let dir = tempfile::tempdir().unwrap();
@@ -296,7 +323,9 @@ fn hook_restore_and_reboot_preserve_options_and_settings_without_permission_pers
     };
     assert_eq!(
         value,
-        "claude -r sess-a --settings \"/profile.json\" --model 'provider/model[1m]' --effort ultracode"
+        &format!(
+            "claude -r sess-a --settings \"/profile.json\" --model {MODEL_ARG} --effort ultracode"
+        )
     );
     assert!(matches!(&calls[1], PlannedCall::MetaSet {key, value, ..}
         if *key == META_KEY && value == &bound_json("sess-a", false, &options).to_string()));
@@ -304,7 +333,9 @@ fn hook_restore_and_reboot_preserve_options_and_settings_without_permission_pers
         crate::reboot::resume_with_options("sess-a", Some("/profile.json"), Some("plan"), &options);
     assert_eq!(
         reboot,
-        "claude -r sess-a --settings \"/profile.json\" --permission-mode plan --model 'provider/model[1m]' --effort ultracode\r"
+        format!(
+            "claude -r sess-a --settings \"/profile.json\" --permission-mode plan --model {MODEL_ARG} --effort ultracode\r"
+        )
     );
     std::fs::write(record_path(Some(dir.path()), "sess-a").unwrap(), "bad JSON").unwrap();
     session_start(&mut calls, &host, 999, Some(dir.path()), "sess-a", &tr());
