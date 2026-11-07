@@ -1,5 +1,10 @@
 use super::*;
 
+/// The path-list form `configure` writes: canonical paths without the Windows verbatim prefix.
+fn entry(dir: &Path) -> String {
+    tasty_utils::path::strip_verbatim_prefix(dir.to_str().unwrap())
+}
+
 #[test]
 fn merges_idempotently_and_uninstalls_only_own_path_on_both_platforms() {
     for (sep, own, other) in [
@@ -97,7 +102,7 @@ fn gate_is_a_sibling_plugin_with_its_own_path_entry() {
     let sep = separator();
     assert_eq!(
         root["env"][ENV],
-        format!("/other{sep}{}{sep}{}", notify.display(), gate.display())
+        format!("/other{sep}{}{sep}{}", entry(&notify), entry(&gate))
     );
     assert!(!gate.starts_with(&notify));
     assert!(
@@ -127,12 +132,12 @@ fn upgrade_from_notify_only_install_adds_the_gate_and_keeps_order() {
         std::fs::write(path, content).unwrap();
     }
     let sep = separator();
-    let mut root = json!({"env":{ENV:format!("{}{sep}/after", notify.display())}});
+    let mut root = json!({"env":{ENV:format!("{}{sep}/after", entry(&notify))}});
     assert!(install(&mut root, &settings).unwrap());
     let gate = notify.parent().unwrap().join("notify-gate");
     assert_eq!(
         root["env"][ENV],
-        format!("{}{sep}/after{sep}{}", notify.display(), gate.display())
+        format!("{}{sep}/after{sep}{}", entry(&notify), entry(&gate))
     );
     for (name, content) in GATE_ASSETS {
         assert_eq!(std::fs::read_to_string(gate.join(name)).unwrap(), *content);
