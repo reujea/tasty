@@ -199,10 +199,13 @@ mod tests {
         let home = tempfile::tempdir().unwrap();
         let directory = home.path().join("plugin");
         std::fs::create_dir(&directory).unwrap();
-        std::fs::write(directory.join("a-first"), "owned").unwrap();
-        let protected = directory.join("z-protected");
+        // One child per level fixes the order: the recursive walk deletes inner/owned,
+        // then fails to unlink inner from the read-only parent on every directory order.
+        let protected = directory.join("protected");
         std::fs::create_dir(&protected).unwrap();
-        std::fs::write(protected.join("keep"), "owned").unwrap();
+        let inner = protected.join("inner");
+        std::fs::create_dir(&inner).unwrap();
+        std::fs::write(inner.join("owned"), "owned").unwrap();
         let _restore = Restore(protected.clone());
         std::fs::set_permissions(&protected, std::fs::Permissions::from_mode(0o500)).unwrap();
         let error = remove_files(
@@ -213,9 +216,10 @@ mod tests {
         )
         .unwrap_err();
         assert!(
-            !directory.join("a-first").exists(),
+            !inner.join("owned").exists(),
             "the real recursive operation already removed one owned file"
         );
+        assert!(inner.exists(), "the recursive operation stopped partway");
         let disposition =
             crate::app::plugin_file_lifecycle::classify_failure(&Err::<(), _>(error.clone()));
         assert!(matches!(
