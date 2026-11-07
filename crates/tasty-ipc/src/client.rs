@@ -157,6 +157,12 @@ impl IpcConnection {
         })
     }
 
+    /// 응답을 읽는 소켓 핸들에 걸린 읽기 기한. 요청별 상한이 끝난 뒤 기한이 남지 않았는지 확인할 때 쓴다.
+    /// Windows 에서는 소켓 사본이 다른 핸들에 건 기한을 돌려주지 않으므로 이 핸들에서 직접 읽는다.
+    pub fn read_timeout(&self) -> std::io::Result<Option<std::time::Duration>> {
+        self.reader.get_ref().read_timeout()
+    }
+
     /// Send a JSON-RPC request and read the response.
     pub fn send(&mut self, request: &JsonRpcRequest) -> Result<serde_json::Value> {
         self.write_request(request)?;

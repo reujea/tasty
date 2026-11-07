@@ -421,7 +421,7 @@ impl TcpIpcServer {
     }
 
     /// 일반 RPC 응답에만 쓰기 timeout을 설정한다. 스트림 업그레이드의 전용 writer에는 적용하지 않는다.
-    /// 옵션은 소켓 사본끼리 공유되므로 업그레이드 여부를 정한 뒤 설정한다.
+    /// 업그레이드하면 전용 writer가 이 핸들을 그대로 넘겨받으므로 업그레이드 여부를 정한 뒤 설정한다.
     /// 설정 실패는 기록하고 timeout 없이 계속한다.
     fn arm_response_write_timeout(writer: &std::net::TcpStream) {
         if let Err(e) = writer.set_write_timeout(Some(RESPONSE_WRITE_TIMEOUT)) {
@@ -1873,15 +1873,13 @@ mod handshake_tests {
         (ctx, inbound_rx)
     }
 
-    /// 서버 소켓 사본은 timeout을 공유하므로 연결 스레드가 건 값을 시험에서 읽을 수 있다.
-    fn accept_stream(
-        listener: &std::net::TcpListener,
-        ctx: &StreamContext,
-    ) -> (std::net::TcpStream, std::net::TcpStream) {
+    /// 연결 스레드가 서버 쪽 소켓을 소유한다. 시험은 client 쪽에서 연결이 끊기는지로 읽기 기한을 본다.
+    /// 소켓 사본으로 기한을 읽는 방법은 쓰지 않는다. Windows 에서는 사본이 원래 핸들에 건 기한을
+    /// 돌려주지 않는다(CI 에서 None 을 받았다).
+    fn accept_stream(listener: &std::net::TcpListener, ctx: &StreamContext) -> std::net::TcpStream {
         let client =
             std::net::TcpStream::connect(listener.local_addr().expect("addr")).expect("connect");
         let (server, peer) = listener.accept().expect("accept");
-        let observed = server.try_clone().expect("clone");
         let reader = BufReader::new(server.try_clone().expect("clone"));
         let req = serde_json::from_value(serde_json::json!({
             "jsonrpc": "2.0",
@@ -1894,10 +1892,10 @@ mod handshake_tests {
         std::thread::spawn(move || {
             TcpIpcServer::handle_stream_connection(reader, server, req, ctx, Some(peer));
         });
-        (client, observed)
+        client
     }
 
-    /// 프레임을 받은 뒤에는 handshake가 끝났으므로 소켓 값이 최종값이다.
+    /// ack 는 읽기 기한을 건 뒤에 나가므로, ack 를 받았으면 그 연결의 기한은 정해졌다.
     fn read_ack(client: &mut std::net::TcpStream) {
         client
             .set_read_timeout(Some(Duration::from_secs(5)))
@@ -1906,30 +1904,53 @@ mod handshake_tests {
         assert_eq!(frame.tag, StreamTag::Control);
     }
 
+    /// 서버가 `within` 안에 연결을 닫는지 본다. 그 사이에 오는 Ping 등 프레임은 건너뛴다.
+    fn closed_within(client: &mut std::net::TcpStream, within: Duration) -> bool {
+        let deadline = std::time::Instant::now() + within;
+        loop {
+            let left = deadline.saturating_duration_since(std::time::Instant::now());
+            if left.is_zero() {
+                return false;
+            }
+            client.set_read_timeout(Some(left)).expect("client timeout");
+            match stream::read_frame(client) {
+                Ok(_) => {}
+                Err(e)
+                    if matches!(
+                        e.kind(),
+                        std::io::ErrorKind::WouldBlock | std::io::ErrorKind::TimedOut
+                    ) =>
+                {
+                    return false;
+                }
+                Err(_) => return true,
+            }
+        }
+    }
+
+    // client 는 handshake 뒤 아무것도 보내지 않는다. 서버는 그 연결에 건 읽기 기한이 지나면 연결을 닫는다.
+    // 기본값(30초)이 아니라 설정값(1초)이 걸려야 먼저 연 연결이 10초 안에 닫힌다.
     #[test]
     fn a_settings_change_reaches_only_connections_opened_after_it() {
         let (ctx, _rx) = ctx();
-        ctx.heartbeat_timeout.set(Duration::from_secs(17));
+        ctx.heartbeat_timeout.set(Duration::from_secs(1));
         let listener = std::net::TcpListener::bind("127.0.0.1:0").expect("bind");
 
-        let (mut first, first_server) = accept_stream(&listener, &ctx);
+        let mut first = accept_stream(&listener, &ctx);
         read_ack(&mut first);
-        assert_eq!(
-            first_server.read_timeout().expect("read"),
-            Some(Duration::from_secs(17))
-        );
 
-        ctx.heartbeat_timeout.set(Duration::from_secs(45));
-        let (mut second, second_server) = accept_stream(&listener, &ctx);
+        ctx.heartbeat_timeout.set(Duration::from_secs(60));
+        let mut second = accept_stream(&listener, &ctx);
         read_ack(&mut second);
-        assert_eq!(
-            second_server.read_timeout().expect("read"),
-            Some(Duration::from_secs(45))
+
+        assert!(
+            closed_within(&mut first, Duration::from_secs(10)),
+            "먼저 연 연결이 열 때의 설정(1초)으로 끊기지 않았다 — 이미 열린 연결의 제한은 설정 변경으로 바뀌지 않는다"
         );
-        assert_eq!(
-            first_server.read_timeout().expect("read"),
-            Some(Duration::from_secs(17)),
-            "이미 열린 연결의 제한은 설정 변경으로 바뀌지 않는다"
+        // 두 연결은 거의 같은 때 열렸다. 뒤 연결도 1초를 받았다면 앞 연결이 닫힌 뒤 2초 안에 닫힌다.
+        assert!(
+            !closed_within(&mut second, Duration::from_secs(2)),
+            "설정 변경 뒤에 연 연결이 바뀐 설정(60초)을 받지 않았다"
         );
     }
 

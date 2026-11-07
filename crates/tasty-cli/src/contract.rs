@@ -548,46 +548,26 @@ mod tests {
     /// 확인 뒤의 연결은 읽기 기한이 없다 — 상한보다 늦게 오는 본 요청의 답도 받는다.
     ///
     /// 늦게 답해 기한이 남았는지 보면 확인이 상한 안에 끝나야 하고, 그 상한이 작아야 남은 기한이
-    /// 드러난다. 부하에서는 그 확인이 상한을 넘는다. 그래서 같은 소켓의 사본으로 읽기 기한을 직접
-    /// 읽는다. 사본이 기한을 보는지(이 시험의 전제)는 확인 요청이 도착한 순간 기한이 걸려 있는지로
-    /// 함께 확인한다.
+    /// 드러난다. 부하에서는 그 확인이 상한을 넘는다. 그래서 연결이 응답을 읽는 핸들의 읽기 기한을
+    /// 직접 읽는다. 소켓 사본으로는 읽지 않는다. Windows 에서는 사본이 다른 핸들에 건 기한을 돌려주지
+    /// 않는다.
     #[test]
     fn the_check_leaves_no_read_timeout_on_the_connection() {
-        use std::io::{BufRead, Write};
-        let listener = std::net::TcpListener::bind("127.0.0.1:0").expect("bind");
-        let addr = listener.local_addr().expect("addr");
+        let (addr, _seen, h) = fake_host(vec![Some((
+            Duration::from_millis(0),
+            capabilities_answer(),
+        ))]);
         let stream = std::net::TcpStream::connect(addr).expect("connect");
-        let observer = stream.try_clone().expect("clone");
-        let host_observer = stream.try_clone().expect("clone");
-        let (during_tx, during_rx) = std::sync::mpsc::channel();
-        let host = std::thread::spawn(move || {
-            let (server, _) = listener.accept().expect("accept");
-            let mut writer = server.try_clone().expect("clone");
-            let mut probe = String::new();
-            std::io::BufReader::new(server)
-                .read_line(&mut probe)
-                .expect("probe line");
-            // 받는 쪽이 이미 실패로 떠났으면 보낼 곳이 없다 — 할 일이 없다.
-            let _ = during_tx.send(host_observer.read_timeout().map_err(|e| e.to_string()));
-            writer
-                .write_all(format!("{}\n", capabilities_answer()).as_bytes())
-                .expect("answer");
-        });
         let mut conn = IpcConnection::new(stream).expect("conn");
         let mut r = req("workspace.list", json!({}), Some(60_000));
         ensure(&mut conn, &mut r).expect("declared");
-        host.join().unwrap();
-        let during = during_rx.recv().expect("the host saw the probe");
-        assert!(
-            matches!(during, Ok(Some(t)) if t <= Duration::from_secs(60)),
-            "확인 중에 사본이 기한을 못 본다 — 이 시험의 전제: {during:?}"
-        );
         assert_eq!(
-            observer.read_timeout().expect("read back"),
+            conn.read_timeout().expect("read back"),
             None,
             "확인이 건 읽기 기한이 연결에 남았다"
         );
         drop(conn);
+        h.join().unwrap();
     }
 
     /// 상한이 없으면 확인 요청도 종전 그대로다 — 봉투에 아무것도 안 싣는다.
