@@ -875,7 +875,8 @@ fn the_host_is_not_asked_without_a_path_or_a_numeric_placement() {
         asked.is_empty(),
         "a workspace name cannot point at a mirror"
     );
-    assert!(params.unwrap()["cwd"].as_str().unwrap().starts_with('/'));
+    let here = std::env::current_dir().unwrap();
+    assert_eq!(params.unwrap()["cwd"], here.to_string_lossy().as_ref());
 }
 
 #[test]
@@ -884,5 +885,6 @@ fn a_method_without_remote_execution_keeps_local_paths_even_for_a_numeric_worksp
     let (params, asked) =
         path_request(&["pathy", "launch", "--workspace", "7", "--cwd", "."], true);
     assert!(asked.is_empty());
-    assert!(params.unwrap()["cwd"].as_str().unwrap().starts_with('/'));
+    let here = std::env::current_dir().unwrap();
+    assert_eq!(params.unwrap()["cwd"], here.to_string_lossy().as_ref());
 }
