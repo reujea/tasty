@@ -76,6 +76,9 @@ fn serve(
     count: &AtomicUsize,
     body: &Mutex<Vec<u8>>,
 ) {
+    // macOS and Windows hand out accepted sockets that inherit the listener's nonblocking
+    // mode, so reads would fail with WouldBlock instead of honoring the timeout below.
+    s.set_nonblocking(false).unwrap();
     s.set_read_timeout(Some(Duration::from_secs(2))).unwrap();
     s.set_write_timeout(Some(Duration::from_secs(2))).unwrap();
     let mut data = Vec::new();

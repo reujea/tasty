@@ -40,6 +40,9 @@ impl Fixture {
                     std::thread::sleep(Duration::from_millis(1));
                     continue;
                 };
+                // macOS and Windows hand out accepted sockets that inherit the listener's nonblocking
+                // mode, so reads would fail with WouldBlock instead of honoring the timeout below.
+                stream.set_nonblocking(false).unwrap();
                 stream
                     .set_read_timeout(Some(Duration::from_secs(2)))
                     .unwrap();

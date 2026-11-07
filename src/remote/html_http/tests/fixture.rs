@@ -63,6 +63,9 @@ impl Drop for Server {
     }
 }
 fn serve(mut stream: TcpStream, seen: Arc<Mutex<Vec<Seen>>>, stop: Arc<AtomicBool>) {
+    // macOS and Windows hand out accepted sockets that inherit the listener's nonblocking
+    // mode, so reads would fail with WouldBlock instead of honoring the timeout below.
+    stream.set_nonblocking(false).unwrap();
     stream
         .set_read_timeout(Some(Duration::from_secs(3)))
         .unwrap();
