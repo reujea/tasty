@@ -1,21 +1,21 @@
 # tasty-design-tokens
 
-Design System Artifact의 DTCG 토큰을 저장하고 Rust 상수와 Theme 접근자를 생성한다.
+디자인 정본의 DTCG 토큰을 저장하고 Rust 상수와 Theme 접근자를 생성한다.
 배율 적용과 색 접근 규칙은 `src/lib.rs`의 크레이트 문서를 따른다.
 
-## vendor 갱신 절차
+디자인 정본은 공개 레포 [tasty-page](https://github.com/zilhak/tasty-page)의 `main`에 있는 `vendor/`다.
+`dtcg/SOURCE`에는 앱이 따르는 tasty-page 커밋 해시(40자) 한 줄을 적는다.
 
-디자인 원본은 Design System Artifact에서 관리한다. 주소는 커밋하지 않는 로컬 지침을 확인한다.
+## 토큰 갱신 절차
 
-1. Artifact 읽기로 `project/tokens/tasty.tokens.json`을 받아
-   `dtcg/tasty.tokens.json`을 교체한다. 이 JSON은 디자인 측 CSS에서 생성하므로
-   누락된 토큰이나 값을 직접 채우지 않는다.
-2. 함께 받은 CSS와 JSON을 비교한다. CSS만 수정되고 JSON이 재생성되지 않았을 수 있다.
-   Artifact의 `project/tokens.css`와 `project/tokens/{primitives,semantic,components}.css`를
-   받은 폴더를 넘긴다. 이름·값·별칭·Latte 값을 양방향으로 비교하고 차이가 있으면 1로 끝난다.
+1. tasty-page `main`의 커밋 X에서 `vendor/tokens/tasty.tokens.json`을 가져와
+   `dtcg/tasty.tokens.json`을 교체하고 `dtcg/SOURCE`에 X를 적는다. 이 JSON은 디자인 측 CSS에서
+   생성하므로 누락된 토큰이나 값을 직접 채우지 않는다.
+2. 커밋 X로 둔 tasty-page 체크아웃에서 JSON과 토큰 CSS를 비교한다. 이름·값·별칭·Latte 값을
+   양방향으로 비교하고 차이가 있으면 1로 끝난다.
 
    ```sh
-   python3 scripts/design-tokens/verify_tokens_json.py <받은 폴더> crates/tasty-design-tokens/dtcg/tasty.tokens.json
+   python3 <tasty-page>/scripts/design-tokens/verify_tokens_json.py <tasty-page>/vendor crates/tasty-design-tokens/dtcg/tasty.tokens.json
    ```
 
    차이가 있으면 갱신을 중단하고 디자인 측에 JSON 재생성을 요청한다.
@@ -26,20 +26,16 @@ Design System Artifact의 DTCG 토큰을 저장하고 Rust 상수와 Theme 접�
      `tests/freshness.rs`의 스냅샷도 갱신한다.
    - `sizing_parity`나 `color_drift`가 실패하면 디자인 변경 내용을 확인한다.
      검사를 통과시키려고 값을 임의로 맞추지 않는다.
-5. JSON, 재생성된 토큰 상수와 `tasty-type-appearance` 접근자, 필요한 시험 변경을
+5. JSON, `dtcg/SOURCE`, 재생성된 토큰 상수와 `tasty-type-appearance` 접근자, 필요한 시험 변경을
    같은 커밋으로 저장한다.
 
 ## JSON 재생성
 
-디자인 측이 토큰 CSS를 바꾸면 같은 게시에서 JSON도 다시 만든다.
-`scripts/design-tokens/gen_tokens_json.py`가 이름·값·별칭·Latte 값을 CSS에서 읽는다.
-CSS에 없는 키 순서·`$description`·`$type`·숫자 표기는 이전 JSON에서 가져온다.
-CSS에서 사라진 토큰이 있으면 실패한다. 값이나 별칭을 손으로 옮겨 적지 않는다.
+디자인 측이 토큰 CSS를 바꾸면 같은 tasty-page 커밋에서 JSON도 다시 만든다.
+생성·대조 도구는 `tasty-page/scripts/design-tokens/`에 있고 그 레포 문서가 사용법을 설명한다.
+값이나 별칭을 손으로 옮겨 적지 않는다.
 
-```sh
-python3 scripts/design-tokens/gen_tokens_json.py <프로젝트 폴더> <이전 JSON> <출력 JSON>
-python3 scripts/design-tokens/verify_tokens_json.py <프로젝트 폴더> <출력 JSON>
-```
+## 수기 접근자
 
 Latte만 값이 달라지는 새 semantic 역할은 생성기가 접근자를 만들지 못한다.
 `tasty-type-appearance`의 `state_ink.rs`에 접근자를 쓰고 `src/dtcg/accessor.rs`의 `SEMANTIC_COLOR_TO_THEME_ACCESSOR`와

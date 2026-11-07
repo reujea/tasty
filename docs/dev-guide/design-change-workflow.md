@@ -97,7 +97,7 @@ designer가 답을 정할 수 없는 항목은 `project/design-tasks/<YYYYMMDD-h
 
 앱은 `project/tokens/tasty.tokens.json` 한 파일만 받아 Rust 상수와 Theme 접근자를 생성하므로, CSS만 고치면 앱에 들어오지 않는다.
 
-1. designer는 토큰 CSS와 같은 게시에서 JSON을 재생성한다. 도구는 `scripts/design-tokens/gen_tokens_json.py`와 `verify_tokens_json.py`이고, 값을 손으로 옮겨 적지 않는다. 절차는 [`crates/tasty-design-tokens/README.md`](../../crates/tasty-design-tokens/README.md)에 있다.
+1. designer는 토큰 CSS와 같은 게시에서 JSON을 재생성한다. 도구는 `tasty-page/scripts/design-tokens/gen_tokens_json.py`와 `verify_tokens_json.py`이고, 값을 손으로 옮겨 적지 않는다. 절차는 [`crates/tasty-design-tokens/README.md`](../../crates/tasty-design-tokens/README.md)에 있다.
 2. Latte만 값이 달라지는 새 semantic 역할(`-raised` 등)은 단순 별칭이 아니므로 구현 세션이 `crates/tasty-design-tokens/src/dtcg/accessor.rs`의 `SEMANTIC_COLOR_TO_THEME_ACCESSOR`와 `SEMANTIC_COLOR_HAND_WRITTEN`에 Theme 접근자를 함께 추가한다. 대응이 없으면 생성기가 그 토큰을 쓰는 component 접근자를 건너뛴다.
 3. `components/bundle.js`는 Artifact 안에서 재빌드할 도구가 없다. 갤러리 페이지는 `.jsx` 소스를 번들 뒤에 불러오므로 구현 기준은 `.jsx`다.
 
@@ -109,7 +109,7 @@ designer가 답을 정할 수 없는 항목은 `project/design-tasks/<YYYYMMDD-h
 
 | 사본 | 무엇이 받는가 | 갱신 절차 | 안 따라오면 |
 |------|--------------|-----------|-------------|
-| 앱 — `crates/tasty-design-tokens/dtcg/tasty.tokens.json` | 토큰(DTCG) | [`crates/tasty-design-tokens/README.md`](../../crates/tasty-design-tokens/README.md) "vendor 갱신 절차" | `crates/tasty-design-tokens/tests/freshness.rs` 의 목록 검사에 실패한다 |
+| 앱 — `crates/tasty-design-tokens/dtcg/tasty.tokens.json` | 토큰(DTCG) | [`crates/tasty-design-tokens/README.md`](../../crates/tasty-design-tokens/README.md) "토큰 갱신 절차" | `crates/tasty-design-tokens/tests/freshness.rs` 의 목록 검사에 실패한다 |
 | 사이트 — `site/vendor/` | 킷 전부(토큰 · 컴포넌트 · UI kit · 갤러리 · 가이드라인) | [`site/vendor/README.md`](../../site/vendor/README.md) "vendor 갱신 절차" | **릴리스 후에도 공개 사이트가 결정 이전 UI 를 현재형으로 전시한다** |
 
 갤러리 파일은 ES 모듈이다. 표본은 `gallery/<페이지>/` 아래에 두고 필요한 것을 `import`하며 전역 객체와 페이지별 `.html`을 쓰지 않는다. 표본의 제목과 순서, 상태 표시, 표 형식은 `gallery/README.md`를 따르고, 새 계약의 칸은 해당 페이지의 `states.jsx`와 `parts/contract-cells.jsx`에 넣는다. 사이트 빌드·대비 검증은 호출한 구현 세션이 임시 worktree(또는 Git 제외 임시 폴더)에서 `site/vendor/`를 게시본에 맞춘 뒤 `cd site && npm run build && npm run check-contrast`로 한다. 저장소의 `site/vendor/`는 릴리스 때만 Artifact에서 가져온다. designer는 Artifact 안에서 끝나는 검증만 한다.

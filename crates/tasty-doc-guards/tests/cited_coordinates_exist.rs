@@ -866,6 +866,10 @@ const UNJUDGED_FORMS: &[(&str, &str)] = &[
         "주석 문법이 없다 — Finder 가 폴더마다 남기는 바이너리 메타데이터다",
     ),
     ("json", "주석 문법이 없다 — 데이터다"),
+    (
+        "SOURCE",
+        "주석 문법이 없다 — 디자인 정본 커밋 해시 한 줄인 데이터다(crates/tasty-design-tokens/dtcg/SOURCE)",
+    ),
     ("txt", "주석 문법이 없다 — 데이터·픽스처다"),
     ("rtf", "주석 문법이 없다 — 서식 문서다"),
     (
