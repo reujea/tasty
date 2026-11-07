@@ -463,20 +463,23 @@ fn unrecognised_replays_stop_after_the_limit() {
     );
 }
 
-/// 같은 길이로 내용을 바꾸고 수정 시각을 되돌린다. 크기·수정 시각·생성 시각·inode가 그대로인
+/// 같은 길이로 내용을 바꾸고 수정 시각을 되돌린다. 크기·수정 시각·생성 시각·파일 식별자가 그대로인
 /// 쓰기(Windows에서 쓰기 핸들이 열린 동안의 시각, FAT 2초 단위)를 흉내 낸다.
 fn rewrite_keeping_stamp(path: &std::path::Path, body: &str) {
-    let before = std::fs::metadata(path).expect("meta");
+    let before = FileStamp::of_path(path).expect("stamp");
+    let mtime = std::fs::metadata(path)
+        .expect("meta")
+        .modified()
+        .expect("mtime");
     std::fs::write(path, body).expect("rewrite");
     let file = std::fs::OpenOptions::new()
         .write(true)
         .open(path)
         .expect("open");
-    file.set_modified(before.modified().expect("mtime"))
-        .expect("set mtime");
+    file.set_modified(mtime).expect("set mtime");
     assert_eq!(
         FileStamp::of_path(path),
-        Some(FileStamp::of(&before)),
+        Some(before),
         "식별값이 그대로인 쓰기"
     );
 }

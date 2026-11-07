@@ -529,9 +529,9 @@ fn scan_file_stamped(path: &std::path::Path) -> std::io::Result<(ScriptScan, Opt
             "not a regular file",
         ));
     }
-    let before = FileStamp::of(&before);
+    let before = FileStamp::of(&file)?;
     let scan = scan_reader(&file, SCAN_LIMIT_BYTES)?;
-    let after = FileStamp::of(&file.metadata()?);
+    let after = FileStamp::of(&file)?;
     Ok((scan, (before == after).then_some(before)))
 }
 
