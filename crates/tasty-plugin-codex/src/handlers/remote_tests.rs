@@ -943,10 +943,12 @@ fn the_server_takes_only_absolute_existing_paths() {
         "{}",
         err.message
     );
+    // 절대 경로이지만 없는 폴더. OS마다 절대 경로 형식이 달라 픽스처 폴더 아래에서 만든다.
+    let missing = fx.root().join("missing").join("tasty-remote-cwd");
     let err = spawn(
         &fx,
         &host,
-        origin(json!({ "cwd": "/nonexistent/tasty-remote-cwd" })),
+        origin(json!({ "cwd": missing.to_string_lossy() })),
     )
     .unwrap_err();
     assert!(
