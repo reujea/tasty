@@ -45,8 +45,29 @@ mod webhook_file_tests {
             );
         }
     }
+    /// The final try_lock fails when a child spawned by another test in this binary inherits the
+    /// lock file description between fork and exec. This test therefore reruns itself alone in a
+    /// child process with one test thread; the parent only checks that the child passed.
     #[test]
     fn actual_offline_adapter_preserves_webhook_and_releases_lock_before_return() {
+        const ISOLATED: &str = "TASTY_CLI_WEBHOOK_LOCK_ISOLATED";
+        if std::env::var_os(ISOLATED).is_none() {
+            let name = "local::port::webhook_file_tests::actual_offline_adapter_preserves_webhook_and_releases_lock_before_return";
+            let output = std::process::Command::new(std::env::current_exe().unwrap())
+                .args(["--exact", name, "--test-threads=1"])
+                .env(ISOLATED, "1")
+                .output()
+                .unwrap();
+            let stdout = String::from_utf8_lossy(&output.stdout);
+            // "1 passed" also rejects a misspelled name, which would filter out every test.
+            assert!(
+                output.status.success() && stdout.contains("test result: ok. 1 passed"),
+                "isolated run failed: {}\nstdout:\n{stdout}\nstderr:\n{}",
+                output.status,
+                String::from_utf8_lossy(&output.stderr)
+            );
+            return;
+        }
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("webhooks.toml");
         std::fs::write(

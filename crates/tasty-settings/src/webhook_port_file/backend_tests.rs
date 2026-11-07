@@ -6,7 +6,42 @@ fn fixture() -> (tempfile::TempDir, PathBuf) {
     let path = dir.path().join("webhooks.toml");
     (dir, path)
 }
+/// Set only in the child process started by [`rerun_isolated`].
+const ISOLATED: &str = "TASTY_SETTINGS_WEBHOOK_LOCK_ISOLATED";
+
+/// Lock release checks fail when a child spawned by another test in this binary inherits the
+/// lock file description between fork and exec: flock stays held through that copy until exec
+/// closes it. Tests using [`unlocked`] therefore rerun themselves alone in a child process with
+/// one test thread. Returns true in the parent after that child passed; false in the child.
+fn rerun_isolated(test: &str) -> bool {
+    if std::env::var_os(ISOLATED).is_some() {
+        return false;
+    }
+    let module = module_path!()
+        .split_once("::")
+        .map_or(module_path!(), |(_, module)| module);
+    let name = format!("{module}::{test}");
+    let output = std::process::Command::new(std::env::current_exe().unwrap())
+        .args(["--exact", &name, "--test-threads=1"])
+        .env(ISOLATED, "1")
+        .output()
+        .unwrap();
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    // "1 passed" also rejects a misspelled name, which would otherwise filter out every test.
+    assert!(
+        output.status.success() && stdout.contains("test result: ok. 1 passed"),
+        "isolated run of {name} failed: {}\nstdout:\n{stdout}\nstderr:\n{}",
+        output.status,
+        String::from_utf8_lossy(&output.stderr)
+    );
+    true
+}
+
 fn unlocked(path: &Path) {
+    assert!(
+        std::env::var_os(ISOLATED).is_some(),
+        "lock release checks must run through rerun_isolated"
+    );
     let target = file_replace::resolve_link(path).unwrap();
     let mut name = target.as_os_str().to_owned();
     name.push(".lock");
@@ -26,6 +61,9 @@ fn secret_doc() -> &'static str {
 
 #[test]
 fn actual_port_changes_preserve_host_auth_and_foreign_sections() {
+    if rerun_isolated("actual_port_changes_preserve_host_auth_and_foreign_sections") {
+        return;
+    }
     let (_dir, path) = fixture();
     fs::write(&path, secret_doc()).unwrap();
     set_port(&path, 41234).unwrap();
@@ -43,6 +81,9 @@ fn actual_port_changes_preserve_host_auth_and_foreign_sections() {
 
 #[test]
 fn invalid_input_keeps_original_and_never_reports_its_payload() {
+    if rerun_isolated("invalid_input_keeps_original_and_never_reports_its_payload") {
+        return;
+    }
     for bytes in [
         b"auth='isolated-auth-payload'\nbroken=[".as_slice(),
         &[0xff, 0xfe],
@@ -67,6 +108,9 @@ fn invalid_input_keeps_original_and_never_reports_its_payload() {
 
 #[test]
 fn editor_before_locked_read_is_merged_and_editor_after_read_is_preserved() {
+    if rerun_isolated("editor_before_locked_read_is_merged_and_editor_after_read_is_preserved") {
+        return;
+    }
     let (_dir, path) = fixture();
     fs::write(&path, secret_doc()).unwrap();
     // Represents an owned queued section request: no full-file snapshot is retained.
@@ -89,6 +133,10 @@ fn editor_before_locked_read_is_merged_and_editor_after_read_is_preserved() {
 #[cfg(unix)]
 #[test]
 fn secure_replace_preserves_existing_mode_and_uses_private_mode_for_new_files() {
+    if rerun_isolated("secure_replace_preserves_existing_mode_and_uses_private_mode_for_new_files")
+    {
+        return;
+    }
     use std::os::unix::fs::PermissionsExt;
     let (_dir, path) = fixture();
     set_port(&path, 41000).unwrap();
@@ -108,6 +156,10 @@ fn secure_replace_preserves_existing_mode_and_uses_private_mode_for_new_files() 
 #[cfg(unix)]
 #[test]
 fn symlink_target_is_shared_and_retargeted_or_dangling_links_are_not_replaced() {
+    if rerun_isolated("symlink_target_is_shared_and_retargeted_or_dangling_links_are_not_replaced")
+    {
+        return;
+    }
     use std::os::unix::fs::symlink;
     let (dir, path) = fixture();
     let target = dir.path().join("target.toml");
@@ -150,6 +202,9 @@ impl Drop for ModeRestore {
 #[cfg(unix)]
 #[test]
 fn read_and_write_access_errors_preserve_original_and_release_the_guard() {
+    if rerun_isolated("read_and_write_access_errors_preserve_original_and_release_the_guard") {
+        return;
+    }
     use std::os::unix::fs::PermissionsExt;
     // Real unprivileged access checks, not a mocked successful replacement.
 
@@ -178,6 +233,9 @@ fn read_and_write_access_errors_preserve_original_and_release_the_guard() {
 #[cfg(unix)]
 #[test]
 fn temporary_creation_failure_does_not_replace_or_leave_a_temp_file() {
+    if rerun_isolated("temporary_creation_failure_does_not_replace_or_leave_a_temp_file") {
+        return;
+    }
     use std::os::unix::fs::PermissionsExt;
 
     let (dir, path) = fixture();
@@ -201,6 +259,9 @@ fn temporary_creation_failure_does_not_replace_or_leave_a_temp_file() {
 #[cfg(unix)]
 #[test]
 fn legacy_read_keeps_its_in_memory_port_when_migration_cannot_be_saved() {
+    if rerun_isolated("legacy_read_keeps_its_in_memory_port_when_migration_cannot_be_saved") {
+        return;
+    }
     use std::os::unix::fs::PermissionsExt;
     let (_dir, path) = fixture();
     fs::write(&path, "port=40000\n").unwrap();
@@ -249,6 +310,9 @@ fn explicit_port_mutations_refresh_the_format_marker_but_host_section_does_not()
 
 #[test]
 fn a_legacy_file_deleted_while_migration_waits_is_not_recreated() {
+    if rerun_isolated("a_legacy_file_deleted_while_migration_waits_is_not_recreated") {
+        return;
+    }
     use std::time::Duration;
     let (_dir, path) = fixture();
     fs::write(&path, "port=40000\n").unwrap();
@@ -337,18 +401,28 @@ fn legacy_lock_failure(directory_readonly: bool) {
 #[cfg(unix)]
 #[test]
 fn legacy_lock_creation_failure_keeps_read_semantics_without_writing() {
+    if rerun_isolated("legacy_lock_creation_failure_keeps_read_semantics_without_writing") {
+        return;
+    }
     legacy_lock_failure(true);
 }
 
 #[cfg(unix)]
 #[test]
 fn legacy_lock_open_failure_keeps_read_semantics_without_writing() {
+    if rerun_isolated("legacy_lock_open_failure_keeps_read_semantics_without_writing") {
+        return;
+    }
     legacy_lock_failure(false);
 }
 
 #[cfg(unix)]
 #[test]
 fn a_legacy_file_invalidated_while_migration_waits_does_not_reuse_its_old_port() {
+    if rerun_isolated("a_legacy_file_invalidated_while_migration_waits_does_not_reuse_its_old_port")
+    {
+        return;
+    }
     use std::{os::unix::fs::PermissionsExt, time::Duration};
     for unreadable in [false, true] {
         let (_dir, path) = fixture();
