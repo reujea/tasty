@@ -14,6 +14,15 @@ use crate::event_feed::AgentEvent;
 use crate::runner_host::HostExecutor;
 use crate::{TaskScope, TaskService};
 
+/// Append `word` as one line to `executions` in the task's working directory with the platform shell.
+fn append_line(word: &str) -> serde_json::Value {
+    #[cfg(windows)]
+    let argv = serde_json::json!(["cmd", "/C", "echo", format!("{word}>>executions")]);
+    #[cfg(not(windows))]
+    let argv = serde_json::json!(["sh", "-c", format!("echo {word} >> executions")]);
+    argv
+}
+
 #[test]
 fn unknown_completion_does_not_execute_either_shell_or_downstream_twice() {
     let dir = tempfile::tempdir().unwrap();
@@ -30,10 +39,10 @@ fn unknown_completion_does_not_execute_either_shell_or_downstream_twice() {
     let ctx = service.runner_context(&scope);
     let graph: TaskGraphSpec = serde_json::from_value(serde_json::json!({
         "contract_version":2,"tasks":[
-          {"id":"parent", "command":{"kind":"run","workspace_id":1,
-            "command":["sh","-c","echo parent >> \"$1\"", "sh", marker]}, "output_schema":{"type":"int64"}},
-          {"id":"child", "depends_on":["parent"], "command":{"kind":"run","workspace_id":1,
-            "command":["sh","-c","echo child >> \"$1\"", "sh", marker]}, "output_schema":{"type":"int64"}}
+          {"id":"parent", "command":{"kind":"run","workspace_id":1,"cwd":dir.path(),
+            "command":append_line("parent")}, "output_schema":{"type":"int64"}},
+          {"id":"child", "depends_on":["parent"], "command":{"kind":"run","workspace_id":1,"cwd":dir.path(),
+            "command":append_line("child")}, "output_schema":{"type":"int64"}}
         ]})).unwrap();
     ctx.with_store(|mem| {
         TaskStore::new(mem, HOST_OWNER, &AtomicU64::new(0))
