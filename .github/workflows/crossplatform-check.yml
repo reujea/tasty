@@ -73,10 +73,27 @@ jobs:
       # 화면 없이 실행할 수 있는 공유 메모리·문서 검사 패키지의 통합 테스트만 실행한다.
       # Windows의 핸들 전달과 경로 구분자는 Linux 실행 결과로 검증할 수 없다.
       # GUI를 사용하는 루트 통합 테스트는 여기에 포함하지 않는다.
+      # 문서 검사의 design_source_* 시험은 dtcg/SOURCE 커밋의 tasty-page가 필요하다.
       - name: cargo test (windows integration — shm · doc-guards)
         if: ${{ !cancelled() }}
         shell: pwsh
-        run: cargo test -p tasty-shm -p tasty-doc-guards --locked --no-fail-fast
+        run: |
+          $commit = (Get-Content crates/tasty-design-tokens/dtcg/SOURCE -Raw).Trim()
+          $dir = Join-Path $env:RUNNER_TEMP 'tasty-page'
+          if (Test-Path $dir) { Remove-Item -Recurse -Force $dir }
+          git init -q $dir
+          if ($LASTEXITCODE -ne 0) { throw "git init failed" }
+          # 러너의 시스템 설정 core.autocrlf=true를 따르면 CRLF로 체크아웃되어 토큰 JSON 바이트 비교가 깨진다.
+          git -C $dir config core.autocrlf false
+          if ($LASTEXITCODE -ne 0) { throw "git config failed" }
+          git -C $dir config core.eol lf
+          if ($LASTEXITCODE -ne 0) { throw "git config failed" }
+          git -C $dir fetch -q --depth 1 https://github.com/zilhak/tasty-page.git $commit
+          if ($LASTEXITCODE -ne 0) { throw "tasty-page fetch failed" }
+          git -C $dir checkout -q --detach FETCH_HEAD
+          if ($LASTEXITCODE -ne 0) { throw "tasty-page checkout failed" }
+          $env:TASTY_PAGE_DIR = $dir
+          cargo test -p tasty-shm -p tasty-doc-guards --locked --no-fail-fast
 
       # 데스크톱 세션을 조사하는 참고 정보이며 실패해도 잡을 중단하지 않는다.
       # Windows Forms의 창 생성 성공만으로 winit/wgpu 실행을 보장하지 않는다.
@@ -139,8 +156,12 @@ jobs:
       #
       # 창이 필요한 시험은 #[cfg(feature = "gui")]로 이 조합에서 컴파일하지 않으므로
       # 이름으로 건너뛰는 시험은 없다(docs/dev-guide/unit-test-isolation.md).
+      # 문서 검사의 design_source_* 시험은 dtcg/SOURCE 커밋의 tasty-page가 필요하다.
       - name: cargo test (headless)
-        run: cargo test --workspace --no-default-features --locked --no-fail-fast
+        run: |
+          TASTY_PAGE_DIR="$(bash scripts/fetch-design-source.sh "$RUNNER_TEMP/tasty-page")"
+          export TASTY_PAGE_DIR
+          cargo test --workspace --no-default-features --locked --no-fail-fast
 
       # 기본 feature의 Clippy에서는 제외되는 headless 전용 코드도 검사한다.
       - name: cargo clippy (headless)

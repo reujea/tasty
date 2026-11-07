@@ -1,22 +1,23 @@
-//! 사이트의 SVG 파일·Icon.jsx와 앱의 아이콘 사본을 대조한다.
-//! 사이트 사본은 릴리스할 때만 갱신하므로 앱과 비교하는 시험은 평소에 건너뛰고 릴리스 절차에서 실행한다.
-//! 사이트는 SVG 파일 대신 Icon.jsx의 ICON_PATHS를 그리므로 두 사이트 사본도 서로 비교해야 한다.
-//! 원격 디자인은 조회하지 않는다. 사본끼리 맞아도 최신 원본이라는 뜻은 아니다.
+//! 앱의 아이콘 전사본(crates/tasty-icons)과 앱이 따르는 디자인 정본(tasty-page)의 아이콘을 대조한다.
+//! 정본 커밋은 crates/tasty-design-tokens/dtcg/SOURCE에 기록하고, 체크아웃 경로는
+//! TASTY_PAGE_DIR로 받는다(tasty_doc_guards::design_source). 경로가 없거나 HEAD가 기록과 다르면 실패한다.
+//! 정본 안의 SVG 파일과 Icon.jsx끼리의 일치는 tasty-page의 아이콘 검사가 맡는다.
 //!
-//! 이름만으로 대응시킬 수 없어 PAIRS를 사용한다. 사이트 list는 앱 log에, listView는 앱 list에 대응한다.
+//! 이름만으로 대응시킬 수 없어 PAIRS를 사용한다. 정본 list는 앱 log에, listView는 앱 list에 대응한다.
 //! 같은 경로 데이터를 가진 star와 starFill도 있어 채움 여부를 별도로 비교한다.
 //!
 //! 문자열을 정규화해 내부 마크업과 여는 SVG 태그의 속성을 대조한다. 실제 화면을 렌더하지 않으므로
 //! 픽셀 일치나 사용 위치의 적절성을 보장하지 않는다. 표기만 달라진 경우에도 불일치가 날 수 있다.
-//! viewBox·선 굵기·끝·연결 속성은 같아야 하고, 색은 사이트의 currentColor와 앱의 white+tint 차이를 허용한다.
+//! viewBox·선 굵기·끝·연결 속성은 같아야 하고, 색은 정본의 currentColor와 앱의 white+tint 차이를 허용한다.
 //! xmlns는 SVG 문서 두 사본에만 있다. 새 속성과 더 이상 필요 없는 예외도 검사한다.
-//! 사본을 갱신할 때는 site/vendor/README.md의 절차를 따른다.
+//! 전사본을 갱신할 때는 crates/tasty-design-tokens/README.md의 정본 커밋 기록 절차를 따른다.
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::PathBuf;
+use tasty_doc_guards::design_source;
 use tasty_doc_guards::floored_walk::{CountedOn, Descend, Floor, Walked, walk_with_floor};
 
-/// 사이트 이름과 앱 이름. 이름이 겹치지만 다른 아이콘인 경우가 있어 자동 변환하지 않는다.
+/// 정본 이름과 앱 이름. 이름이 겹치지만 다른 아이콘인 경우가 있어 자동 변환하지 않는다.
 const PAIRS: &[(&str, &str)] = &[
     ("plus", "plus"),
     ("close", "close"),
@@ -94,16 +95,19 @@ const PAIRS: &[(&str, &str)] = &[
     ("shiftKey", "shift_key"),
 ];
 
-/// 앱에만 있는 아이콘. 사이트 사본에도 추가되면 PAIRS로 옮긴다.
-// external은 공용 site Icon registry 대신 Explorer kit의 GIcon 원형을 쓴다. 아래에서 별도 대조한다.
+/// 앱에만 있는 아이콘. 정본에도 추가되면 PAIRS로 옮긴다.
+// external은 공용 Icon registry 대신 Explorer kit의 GIcon 원형을 쓴다. 아래에서 별도 대조한다.
 const APP_ONLY: &[&str] = &["arrow_down", "external", "minus", "redo", "undo"];
 
-/// 채운 글리프 — 사이트 `FILL_GLYPHS` 와 앱 `fill_icon!` 이 같은 집합을 가리켜야 한다.
-/// 사이트 이름으로 적는다.
+/// 채운 글리프 — 정본 `FILL_GLYPHS` 와 앱 `fill_icon!` 이 같은 집합을 가리켜야 한다.
+/// 정본 이름으로 적는다.
 const FILLED: &[&str] = &["starFill"];
 
-const VENDOR_ICON_DIR: &str = "site/vendor/icons";
-const VENDOR_REGISTRY: &str = "site/vendor/components/core/Icon.jsx";
+/// tasty-page 루트 기준 경로.
+const VENDOR_ICON_DIR: &str = "vendor/icons";
+const VENDOR_REGISTRY: &str = "vendor/components/core/Icon.jsx";
+const EXPLORER_KIT: &str = "vendor/gallery/parts/explorer-kit.jsx";
+const SPECIMEN: &str = "vendor/gallery/parts/specimen.jsx";
 const APP_ICONS: &str = "crates/tasty-icons/src/lib.rs";
 
 /// 빈 파싱 결과끼리 같다고 통과하지 않도록 세 사본에 같은 개수 하한을 적용한다.
@@ -114,8 +118,8 @@ const VENDOR_ICON_FLOOR: Floor = Floor {
     min: 60,
     measured: 65,
     measured_on: "2026-09-20",
-    counted_on: CountedOn::Tree(
-        "9d1b15669 — site/vendor/icons의 추적 SVG 65개를 2026-09-24에 재확인했다. 기존 측정값과 같다.",
+    counted_on: CountedOn::Unmeasured(
+        "tasty-page 2ce2d0b74의 vendor/icons에서 SVG 74개를 2026-11-08에 셌다. 다른 레포 커밋이라 이 저장소의 Tree로 적지 않는다. 65는 2026-09-20 이 저장소 사본의 측정값이다.",
     ),
     why_this_gap: "정확한 아이콘 집합은 PAIRS와 APP_ONLY로 비교한다. 이 하한은 그 비교가 빈 수집 결과끼리 통과하지 않도록 하며 정상적인 개수 변화에는 여유를 둔다.",
 };
@@ -124,6 +128,7 @@ fn repo_root() -> PathBuf {
     tasty_doc_guards::repo_root()
 }
 
+/// tasty 저장소 루트 기준으로 읽는다(앱 전사본). 정본 쪽은 `design_source::read`로 읽는다.
 fn read(rel: &str) -> String {
     let path = repo_root().join(rel);
     std::fs::read_to_string(&path)
@@ -157,7 +162,7 @@ fn normalize(body: &str) -> String {
 
 /// SVG를 한 번 수집해 내부 마크업과 여는 태그 속성 검사에서 함께 쓴다.
 fn vendor_svg_sources() -> BTreeMap<String, String> {
-    let root = repo_root();
+    let root = design_source::root();
     let walked = walk_with_floor(
         &root.join(VENDOR_ICON_DIR),
         &root,
@@ -182,7 +187,7 @@ fn vendor_svg_sources() -> BTreeMap<String, String> {
     map
 }
 
-/// `site/vendor/icons/<name>.svg` → 이름 → inner 마크업.
+/// 정본 `vendor/icons/<name>.svg` → 이름 → inner 마크업.
 fn vendor_files() -> BTreeMap<String, String> {
     let mut map = BTreeMap::new();
     for (name, text) in vendor_svg_sources() {
@@ -398,7 +403,7 @@ fn vendor_svg_envelopes() -> BTreeMap<String, BTreeMap<String, String>> {
         .collect()
 }
 
-/// 사이트가 실제로 그리는 Icon.jsx의 여는 태그.
+/// 정본 사이트가 실제로 그리는 Icon.jsx의 여는 태그.
 fn registry_envelope(src: &str) -> BTreeMap<String, String> {
     let at = src
         .find("export function Icon(")
@@ -430,7 +435,7 @@ fn the_envelope_readers_see_all_three_copies() {
         "`.svg` 를 {} 개만 읽었다 (바닥 {PARSE_FLOOR})",
         files.len()
     );
-    let registry = registry_envelope(&read(VENDOR_REGISTRY));
+    let registry = registry_envelope(&design_source::read(VENDOR_REGISTRY));
     let app = app_envelopes(&read(APP_ICONS));
     assert_eq!(app.len(), 2, "앱 매크로 접두를 둘 다 못 읽었다: {app:?}");
 
@@ -463,7 +468,6 @@ fn the_envelope_readers_see_all_three_copies() {
 
 /// 값이 같아진 속성을 차이 허용 목록에 남기면 이후 차이를 놓칠 수 있다.
 #[test]
-#[ignore = "사이트 사본은 릴리스할 때만 갱신한다. release.md 절차에서 --ignored로 실행한다"]
 fn the_divergence_roster_has_no_dead_weight() {
     let files = vendor_svg_envelopes();
     let app = app_envelopes(&read(APP_ICONS));
@@ -487,7 +491,7 @@ fn the_divergence_roster_has_no_dead_weight() {
         );
     }
 
-    let registry = registry_envelope(&read(VENDOR_REGISTRY));
+    let registry = registry_envelope(&design_source::read(VENDOR_REGISTRY));
     for (axis, why) in DOCUMENT_ONLY_ENVELOPE {
         assert!(!why.trim().is_empty(), "`{axis}` 에 사유가 없다");
         assert!(
@@ -565,10 +569,9 @@ fn every_envelope_attribute_is_classified() {
 
 /// 내부 마크업과 별개로 여는 SVG 태그의 속성을 비교한다.
 #[test]
-#[ignore = "사이트 사본은 릴리스할 때만 갱신한다. release.md 절차에서 --ignored로 실행한다"]
 fn the_three_copies_share_one_render_envelope() {
     let files = vendor_svg_envelopes();
-    let registry = registry_envelope(&read(VENDOR_REGISTRY));
+    let registry = registry_envelope(&design_source::read(VENDOR_REGISTRY));
     let app = app_envelopes(&read(APP_ICONS));
 
     let mut problems: Vec<String> = Vec::new();
@@ -597,7 +600,7 @@ fn the_three_copies_share_one_render_envelope() {
                 .push(VENDOR_REGISTRY.to_string());
         } else {
             problems.push(format!(
-                "`{jsx_axis}` 가 {VENDOR_REGISTRY} 의 여는 태그에 없다 — 사이트가 그리는 것은 \
+                "`{jsx_axis}` 가 {VENDOR_REGISTRY} 의 여는 태그에 없다 — 정본 사이트가 그리는 것은 \
                  이쪽이라, 여기서 빠지면 `.svg` 가 맞아도 화면이 다르다"
             ));
         }
@@ -621,7 +624,7 @@ fn the_three_copies_share_one_render_envelope() {
 
     assert!(
         problems.is_empty(),
-        "사이트와 앱 사본의 SVG 속성이 다르다. 내부 마크업만 같아도 이 속성 때문에 화면은 달라질 수 있다. 원격 디자인과 비교해 site/vendor/README.md의 절차로 사이트·앱 사본을 갱신한다:\n  {}",
+        "정본과 앱 전사본의 SVG 속성이 다르다. 내부 마크업만 같아도 이 속성 때문에 화면은 달라질 수 있다. 기록한 정본 커밋에 맞춰 앱 전사본을 고친다:\n  {}",
         problems.join("\n  ")
     );
 }
@@ -629,10 +632,10 @@ fn the_three_copies_share_one_render_envelope() {
 #[test]
 fn the_judge_actually_parses_all_three_copies() {
     let files = vendor_files();
-    let registry = vendor_registry(&read(VENDOR_REGISTRY));
+    let registry = vendor_registry(&design_source::read(VENDOR_REGISTRY));
     let app = app_icons(&read(APP_ICONS));
     for (what, n) in [
-        ("site/vendor/icons/*.svg", files.len()),
+        ("tasty-page vendor/icons/*.svg", files.len()),
         ("Icon.jsx ICON_PATHS", registry.len()),
         ("crates/tasty-icons", app.len()),
     ] {
@@ -642,16 +645,15 @@ fn the_judge_actually_parses_all_three_copies() {
         );
     }
     assert!(
-        !vendor_filled(&read(VENDOR_REGISTRY)).is_empty(),
+        !vendor_filled(&design_source::read(VENDOR_REGISTRY)).is_empty(),
         "FILL_GLYPHS 를 빈 집합으로 읽었다 — 채움 축이 안 재진다"
     );
 }
 
 #[test]
-#[ignore = "사이트 사본은 릴리스할 때만 갱신한다. release.md 절차에서 --ignored로 실행한다"]
 fn every_roster_entry_names_a_real_glyph() {
     let files = vendor_files();
-    let registry = vendor_registry(&read(VENDOR_REGISTRY));
+    let registry = vendor_registry(&design_source::read(VENDOR_REGISTRY));
     let app = app_icons(&read(APP_ICONS));
 
     let mut seen_site = BTreeSet::new();
@@ -659,7 +661,7 @@ fn every_roster_entry_names_a_real_glyph() {
     for (site, app_name) in PAIRS {
         assert!(
             seen_site.insert(*site),
-            "명부에 사이트 이름 {site} 가 두 번 있다"
+            "명부에 정본 이름 {site} 가 두 번 있다"
         );
         assert!(
             seen_app.insert(*app_name),
@@ -697,45 +699,8 @@ fn every_roster_entry_names_a_real_glyph() {
 }
 
 #[test]
-fn the_two_vendor_copies_carry_the_same_geometry() {
-    let files = vendor_files();
-    let registry = vendor_registry(&read(VENDOR_REGISTRY));
-
-    let only_files: Vec<_> = files
-        .keys()
-        .filter(|k| !registry.contains_key(*k))
-        .collect();
-    let only_registry: Vec<_> = registry
-        .keys()
-        .filter(|k| !files.contains_key(*k))
-        .collect();
-    assert!(
-        only_files.is_empty() && only_registry.is_empty(),
-        "사이트 사본 둘의 글리프 **이름**이 어긋난다 — 파일에만: {only_files:?} · \
-         ICON_PATHS 에만: {only_registry:?}"
-    );
-
-    let mismatched: Vec<_> = files
-        .iter()
-        .filter(|(name, body)| registry.get(*name) != Some(*body))
-        .map(|(name, body)| {
-            format!(
-                "\n  {name}\n    icons/{name}.svg  {body}\n    ICON_PATHS        {}",
-                registry.get(name).map(String::as_str).unwrap_or("<없음>")
-            )
-        })
-        .collect();
-    assert!(
-        mismatched.is_empty(),
-        "사이트 SVG와 ICON_PATHS의 내부 마크업이 다르다. 사이트는 ICON_PATHS를 그리므로 두 사본을 함께 확인한다:{}",
-        mismatched.join("")
-    );
-}
-
-#[test]
-#[ignore = "사이트 사본은 릴리스할 때만 갱신한다. release.md 절차에서 --ignored로 실행한다"]
 fn the_app_transcription_matches_the_vendored_kit() {
-    let registry = vendor_registry(&read(VENDOR_REGISTRY));
+    let registry = vendor_registry(&design_source::read(VENDOR_REGISTRY));
     let app = app_icons(&read(APP_ICONS));
 
     let mismatched: Vec<_> = PAIRS
@@ -748,15 +713,15 @@ fn the_app_transcription_matches_the_vendored_kit() {
         .collect();
     assert!(
         mismatched.is_empty(),
-        "앱과 사이트 사본의 내부 마크업이 다르다. 어느 쪽이 최신인지 원격 디자인과 대조하고 site/vendor/README.md의 절차에 따라 갱신한다:{}",
+        "앱 전사본과 정본의 내부 마크업이 다르다. 기록한 정본 커밋에 맞춰 앱 전사본을 고친다:{}",
         mismatched.join("")
     );
 
-    let site_filled = vendor_filled(&read(VENDOR_REGISTRY));
+    let site_filled = vendor_filled(&design_source::read(VENDOR_REGISTRY));
     let want_filled: BTreeSet<String> = FILLED.iter().map(|s| (*s).to_string()).collect();
     assert_eq!(
         site_filled, want_filled,
-        "사이트의 FILL_GLYPHS 가 명부와 다르다"
+        "정본의 FILL_GLYPHS 가 명부와 다르다"
     );
     let app_filled: BTreeSet<String> = PAIRS
         .iter()
@@ -765,12 +730,11 @@ fn the_app_transcription_matches_the_vendored_kit() {
         .collect();
     assert_eq!(
         app_filled, want_filled,
-        "앱 fill_icon과 사이트 FILL_GLYPHS가 다르다. 같은 경로 데이터라도 채움 여부는 같아야 한다."
+        "앱 fill_icon과 정본 FILL_GLYPHS가 다르다. 같은 경로 데이터라도 채움 여부는 같아야 한다."
     );
 }
 
 #[test]
-#[ignore = "사이트 사본은 릴리스할 때만 갱신한다. release.md 절차에서 --ignored로 실행한다"]
 fn the_app_has_exactly_the_recorded_extra_glyphs() {
     let app = app_icons(&read(APP_ICONS));
     let paired: BTreeSet<&str> = PAIRS.iter().map(|(_, a)| *a).collect();
@@ -782,14 +746,14 @@ fn the_app_has_exactly_the_recorded_extra_glyphs() {
     let recorded: BTreeSet<&str> = APP_ONLY.iter().copied().collect();
     assert_eq!(
         extra, recorded,
-        "앱 전용 아이콘 목록이 달라졌다. 새 아이콘의 디자인 근거를 확인하고, 사이트 사본에도 생긴 아이콘은 PAIRS로 옮긴다."
+        "앱 전용 아이콘 목록이 달라졌다. 새 아이콘의 디자인 근거를 확인하고, 정본에도 생긴 아이콘은 PAIRS로 옮긴다."
     );
 }
 
 #[test]
-fn every_site_glyph_is_paired_with_the_app() {
+fn every_design_glyph_is_paired_with_the_app() {
     let files = vendor_files();
-    let registry = vendor_registry(&read(VENDOR_REGISTRY));
+    let registry = vendor_registry(&design_source::read(VENDOR_REGISTRY));
     let paired: BTreeSet<&str> = PAIRS.iter().map(|(s, _)| *s).collect();
     let unpaired: BTreeSet<&str> = files
         .keys()
@@ -799,14 +763,13 @@ fn every_site_glyph_is_paired_with_the_app() {
         .collect();
     assert!(
         unpaired.is_empty(),
-        "사이트 사본에만 있는 아이콘이 있다: {unpaired:?}. 앱에 전사하고 PAIRS에 추가한다. 앱의 같은 이름 아이콘이 APP_ONLY에 있으면 그 항목도 옮긴다."
+        "정본에만 있는 아이콘이 있다: {unpaired:?}. 앱에 전사하고 PAIRS에 추가한다. 앱의 같은 이름 아이콘이 APP_ONLY에 있으면 그 항목도 옮긴다."
     );
 }
 
 #[test]
-#[ignore = "사이트 사본은 릴리스할 때만 갱신한다. release.md 절차에서 --ignored로 실행한다"]
 fn external_matches_the_explorer_kit_glyph() {
-    let kit = read("site/vendor/gallery/parts/explorer-kit.jsx");
+    let kit = design_source::read(EXPLORER_KIT);
     let row = kit
         .lines()
         .find(|line| line.trim_start().starts_with("external:"))
@@ -821,7 +784,7 @@ fn external_matches_the_explorer_kit_glyph() {
         normalize(&row[begin..end]).replace(" />", "/>")
     );
     assert!(!filled);
-    let shell = read("site/vendor/gallery/parts/specimen.jsx");
+    let shell = design_source::read(SPECIMEN);
     let gicon = shell
         .split("export function GIcon(")
         .nth(1)

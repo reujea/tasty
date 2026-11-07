@@ -1,40 +1,45 @@
-//! 앱의 DTCG JSON과 사이트의 CSS 토큰 이름을 티어별로 비교한다.
-//! 사이트 사본은 릴리스할 때만 갱신하므로 비교 시험은 평소에 건너뛰고 릴리스 절차에서 실행한다.
-//! 앱에만 있는 이름은 LAGGING의 기록과 같아야 하고 사이트에만 있는 이름은 없어야 한다.
-//! 두 사본은 저장소 안에서 읽으며 원격 디자인은 조회하지 않는다.
+//! 앱의 DTCG JSON과 앱이 따르는 디자인 정본(tasty-page)의 토큰을 비교한다.
+//! 정본 커밋은 crates/tasty-design-tokens/dtcg/SOURCE에 기록하고, 체크아웃 경로는
+//! TASTY_PAGE_DIR로 받는다(tasty_doc_guards::design_source). 경로가 없거나 HEAD가 기록과 다르면 실패한다.
 //!
-//! 토큰 값이나 문구·레이아웃·컨트롤의 추가·삭제는 검사하지 않는다.
-//! 통과는 이름 차이가 기록과 같다는 뜻이며 사이트가 최신이라는 뜻은 아니다.
-//! 원격 원본과의 대조는 site/vendor/README.md와 design-change-workflow의 갱신 절차를 따른다.
+//! 앱 JSON은 정본 vendor/tokens/tasty.tokens.json과 바이트가 같아야 한다.
+//! 정본 CSS 토큰 이름도 티어별로 비교한다. 앱에만 있는 이름은 LAGGING의 기록과 같아야 하고
+//! 정본에만 있는 이름은 없어야 한다. 토큰 값이나 문구·레이아웃·컨트롤의 추가·삭제는 검사하지 않는다.
+//! 갱신 절차는 crates/tasty-design-tokens/README.md를 따른다.
 //!
 //! CSS에서는 소문자·숫자·하이픈 이름만 읽는다. 다른 표기가 추가되면 파서가 놓친 이름을
 //! 실제 누락으로 오인할 수 있으므로 파싱 형식부터 확인한다. 아이콘은 별도 검사에서 대조한다.
 
 use std::collections::BTreeSet;
 use std::path::PathBuf;
+use tasty_doc_guards::design_source;
 
-/// 앱 DTCG 의 최상위 티어 이름과, 그 티어에 대응하는 사이트 CSS 파일.
+/// 앱 DTCG 의 최상위 티어 이름과, 그 티어에 대응하는 정본 CSS 파일(tasty-page 루트 기준).
 const TIERS: [(&str, &str); 3] = [
-    ("primitive", "site/vendor/tokens/primitives.css"),
-    ("semantic", "site/vendor/tokens/semantic.css"),
-    ("component", "site/vendor/tokens/components.css"),
+    ("primitive", "vendor/tokens/primitives.css"),
+    ("semantic", "vendor/tokens/semantic.css"),
+    ("component", "vendor/tokens/components.css"),
 ];
 
-/// 사이트에 반영하지 못한 토큰을 이름별로 기록한다. 개수만 같고 이름이 달라져도 실패한다.
+const APP_JSON: &str = "crates/tasty-design-tokens/dtcg/tasty.tokens.json";
+const SOURCE_JSON: &str = "vendor/tokens/tasty.tokens.json";
+
+/// 정본 CSS에 없는 앱 토큰을 이름별로 기록한다. 개수만 같고 이름이 달라져도 실패한다.
 /// 갱신된 토큰은 목록에서 제거한다. 반영을 미루며 항목을 추가하려면 커밋 메시지에 사유를 적는다.
 const LAGGING: &[(&str, &str)] = &[];
 
 /// 빈 결과끼리 비교해 통과하지 않도록 토큰 수 하한을 둔다.
-/// 앱 818·사이트 791개를 측정했을 때 수집 실패를 찾을 수 있도록 그보다 낮게 정한 값이다.
+/// 앱 818·정본 791개를 측정했을 때 수집 실패를 찾을 수 있도록 그보다 낮게 정한 값이다.
 const PARSE_FLOOR: usize = 400;
 
-/// 두 사본에서 알려진 토큰 하나를 실제로 읽었는지도 확인한다.
+/// 양쪽에서 알려진 토큰 하나를 실제로 읽었는지도 확인한다.
 const PRESENT_ON_BOTH: (&str, &str) = ("primitive", "color-neutral-0");
 
 fn repo_root() -> PathBuf {
     tasty_doc_guards::repo_root()
 }
 
+/// tasty 저장소 루트 기준으로 읽는다. 정본 쪽은 `design_source::read`로 읽는다.
 fn read(rel: &str) -> String {
     let path = repo_root().join(rel);
     std::fs::read_to_string(&path)
@@ -138,27 +143,41 @@ fn css_names(css: &str) -> BTreeSet<String> {
 }
 
 #[test]
+fn the_app_json_is_the_recorded_design_source_json() {
+    let app = std::fs::read(repo_root().join(APP_JSON))
+        .unwrap_or_else(|e| panic!("{APP_JSON} 를 못 읽었다: {e}"));
+    let source = std::fs::read(design_source::root().join(SOURCE_JSON))
+        .unwrap_or_else(|e| panic!("tasty-page의 {SOURCE_JSON} 를 못 읽었다: {e}"));
+    assert!(
+        app == source,
+        "{APP_JSON}이 tasty-page {} 커밋의 {SOURCE_JSON}과 다르다. 토큰 JSON을 손으로 고쳤거나 \
+         SOURCE만 바꿨다. crates/tasty-design-tokens/README.md의 토큰 갱신 절차로 둘을 함께 맞춘다.",
+        design_source::recorded_commit()
+    );
+}
+
+#[test]
 fn both_copies_are_actually_parsed() {
-    let json = read("crates/tasty-design-tokens/dtcg/tasty.tokens.json");
+    let json = read(APP_JSON);
     let mut app_total = 0usize;
-    let mut site_total = 0usize;
+    let mut source_total = 0usize;
     for (tier, css_path) in TIERS {
         let app = tier_keys(&json, tier);
-        let site = css_names(&read(css_path));
+        let source = css_names(&design_source::read(css_path));
         assert!(
             !app.is_empty(),
             "앱 DTCG의 {tier}에서 토큰 키를 읽지 못했다. JSON 구조와 파서를 확인한다."
         );
         assert!(
-            !site.is_empty(),
-            "사이트 CSS {css_path}에서 토큰 선언을 읽지 못했다. CSS 구조와 파서를 확인한다."
+            !source.is_empty(),
+            "정본 CSS {css_path}에서 토큰 선언을 읽지 못했다. CSS 구조와 파서를 확인한다."
         );
         app_total += app.len();
-        site_total += site.len();
+        source_total += source.len();
     }
     assert!(
-        app_total >= PARSE_FLOOR && site_total >= PARSE_FLOOR,
-        "읽은 토큰이 앱 {app_total} · 사이트 {site_total} 로 하한 {PARSE_FLOOR} 아래다 — \
+        app_total >= PARSE_FLOOR && source_total >= PARSE_FLOOR,
+        "읽은 토큰이 앱 {app_total} · 정본 {source_total} 로 하한 {PARSE_FLOOR} 아래다 — \
          파서가 일부만 읽고 있다"
     );
 
@@ -174,8 +193,8 @@ fn both_copies_are_actually_parsed() {
         "앱 DTCG의 {tier}에서 알려진 토큰 {name}을 찾지 못했다"
     );
     assert!(
-        css_names(&read(css_path)).contains(name),
-        "사이트 `{css_path}` 에서 `--tasty-{name}` 을 못 찾았다 — 같은 이유다"
+        css_names(&design_source::read(css_path)).contains(name),
+        "정본 `{css_path}` 에서 `--tasty-{name}` 을 못 찾았다 — 같은 이유다"
     );
 }
 
@@ -193,18 +212,17 @@ fn every_ledger_entry_names_a_real_tier() {
 }
 
 #[test]
-#[ignore = "사이트 사본은 릴리스할 때만 갱신한다. release.md 절차에서 --ignored로 실행한다"]
-fn the_site_copy_lags_the_app_export_by_exactly_the_recorded_set() {
-    let json = read("crates/tasty-design-tokens/dtcg/tasty.tokens.json");
+fn the_design_source_lags_the_app_export_by_exactly_the_recorded_set() {
+    let json = read(APP_JSON);
     let mut problems: Vec<String> = Vec::new();
 
     for (tier, css_path) in TIERS {
         let app = tier_keys(&json, tier);
-        let site = css_names(&read(css_path));
+        let source = css_names(&design_source::read(css_path));
 
         let missing: BTreeSet<&str> = app
             .iter()
-            .filter(|k| !site.contains(*k))
+            .filter(|k| !source.contains(*k))
             .map(String::as_str)
             .collect();
         let recorded: BTreeSet<&str> = LAGGING
@@ -216,7 +234,7 @@ fn the_site_copy_lags_the_app_export_by_exactly_the_recorded_set() {
         let newly_behind: Vec<&&str> = missing.difference(&recorded).collect();
         if !newly_behind.is_empty() {
             problems.push(format!(
-                "[{tier}] 등록되지 않은 사이트 누락 토큰이 {}종이다: {newly_behind:?}. 파싱 형식을 확인하고 site/vendor/README.md의 절차로 사본을 갱신한다. 반영을 미룬다면 해당 이름과 커밋 사유를 남긴다.",
+                "[{tier}] 정본 CSS에 없는데 등록되지 않은 앱 토큰이 {}종이다: {newly_behind:?}. 파싱 형식을 확인하고 crates/tasty-design-tokens/README.md의 절차로 정본 커밋과 맞춘다. 반영을 미룬다면 해당 이름과 커밋 사유를 남긴다.",
                 newly_behind.len()
             ));
         }
@@ -229,22 +247,22 @@ fn the_site_copy_lags_the_app_export_by_exactly_the_recorded_set() {
             ));
         }
 
-        let site_only: Vec<&str> = site
+        let source_only: Vec<&str> = source
             .iter()
             .filter(|k| !app.contains(*k))
             .map(String::as_str)
             .collect();
-        if !site_only.is_empty() {
+        if !source_only.is_empty() {
             problems.push(format!(
-                "[{tier}] 사이트에만 있는 토큰이 {}종이다: {site_only:?}. {css_path}의 수동 수정인지 앱 사본이 뒤처진 것인지 원격 원본과 대조한다. 사이트 vendor 파일은 갱신 절차로 받아야 한다.",
-                site_only.len()
+                "[{tier}] 정본에만 있는 토큰이 {}종이다: {source_only:?}. 앱 JSON이 기록한 정본 커밋의 JSON과 같은지, 정본 CSS와 JSON이 갈렸는지(tasty-page의 토큰 대조 도구) 확인한다.",
+                source_only.len()
             ));
         }
     }
 
     assert!(
         problems.is_empty(),
-        "사이트와 앱의 토큰 이름 차이가 기록과 다르다:\n\n{}",
+        "정본과 앱의 토큰 이름 차이가 기록과 다르다:\n\n{}",
         problems.join("\n\n")
     );
 }

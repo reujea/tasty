@@ -214,11 +214,10 @@ GitHub 조건식의 의미나 단계 간 의존성을 증명하지 않는다.
 
 `npm run check-contrast`는 브라우저가 필요하고 사본이 릴리스 때만 갱신되므로 `pages.yml`에 넣지 않고 [릴리스 절차](release.md#3-사이트-갱신)에서 실행한다.
 
-`site/vendor/` 사본이 `site/vendor/MANIFEST`의 해시와 같은지는 pages가 아니라
-`doc-guards.yml`의 `site_vendor_manifest_matches.rs`가 확인한다. 이 워크플로는 경로 필터가 없으므로
-vendor만 바꾼 push에서도 실행된다. `MANIFEST`를 쓰는 `site/scripts/vendor-manifest.mjs`는 원격 원본을
-받은 폴더가 필요해 CI에서 실행하지 않는다. 그래서 CI 통과는 사본이 마지막 갱신 때 기록한 해시와
-같다는 뜻이며, 원격이 그 뒤에 바뀌었는지는 확인하지 않는다.
+앱의 토큰·아이콘이 디자인 정본과 같은지는 `doc-guards.yml`이 확인한다. 이 워크플로는
+`crates/tasty-design-tokens/dtcg/SOURCE`에 기록한 tasty-page 커밋을 받아 `TASTY_PAGE_DIR`로 넘기고,
+`design_source_*` 시험이 그 트리와 앱을 비교한다. 경로 필터가 없으므로 SOURCE만 바꾼 push에서도 실행된다.
+CI 통과는 앱이 기록한 커밋과 같다는 뜻이며, tasty-page `main`이 그 뒤에 바뀌었는지는 확인하지 않는다.
 
 재실행 뒤 성공만 보고 앞선 실패를 지우지 않는다. 실패한 잡만 재실행하면 나머지 잡은 이전
 결과를 사용한다. 시도별 jobs 응답의 `run_attempt`만으로 실제 재실행을 판단하지 말고

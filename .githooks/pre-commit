@@ -372,8 +372,8 @@ check_new_file_judges() {
         yellow "  새 문서:"
         echo "$new_doc" | sed 's/^/      /' >&2
         suggest_target "crates/tasty-doc-guards/tests/no_checkbox_in_docs.rs" \
-            "cargo test --locked -p tasty-doc-guards" \
-            "문서의 체크박스, 표, 파일 참조를 검사합니다."
+            "export TASTY_PAGE_DIR=\"\$(bash scripts/fetch-design-source.sh)\"; cargo test --locked -p tasty-doc-guards" \
+            "문서의 체크박스, 표, 파일 참조를 검사합니다. 디자인 정본 대조 시험이 tasty-page 경로를 읽습니다."
     fi
     if [ -n "$new_shell" ]; then
         yellow "  새 셸 스크립트:"
@@ -513,6 +513,6 @@ fi
 untracked=$(git status --porcelain --untracked-files=normal 2>/dev/null | grep -c '^??' || true)
 if [ "$untracked" -gt 0 ]; then
     yellow "  ↳ 아직 git add하지 않은 새 파일 $untracked개가 있습니다. 위 파일 수에는 포함되지 않습니다."
-    yellow "     \`git status --porcelain\`로 파일 목록을 확인해 주세요. 전체 문서 검사는 \`cargo test -p tasty-doc-guards\`로 실행합니다."
+    yellow "     \`git status --porcelain\`로 파일 목록을 확인해 주세요. 전체 문서 검사는 \`export TASTY_PAGE_DIR=\"\$(bash scripts/fetch-design-source.sh)\"\` 뒤 \`cargo test -p tasty-doc-guards\`로 실행합니다."
 fi
 exit 0

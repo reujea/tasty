@@ -115,10 +115,9 @@ designer가 답을 정할 수 없는 항목은 `project/design-tasks/<YYYYMMDD-h
 갤러리 파일은 ES 모듈이다. 표본은 `gallery/<페이지>/` 아래에 두고 필요한 것을 `import`하며 전역 객체와 페이지별 `.html`을 쓰지 않는다. 표본의 제목과 순서, 상태 표시, 표 형식은 `gallery/README.md`를 따르고, 새 계약의 칸은 해당 페이지의 `states.jsx`와 `parts/contract-cells.jsx`에 넣는다. 사이트 빌드·대비 검증은 호출한 구현 세션이 임시 worktree(또는 Git 제외 임시 폴더)에서 `site/vendor/`를 게시본에 맞춘 뒤 `cd site && npm run build && npm run check-contrast`로 한다. 저장소의 `site/vendor/`는 릴리스 때만 Artifact에서 가져온다. designer는 Artifact 안에서 끝나는 검증만 한다.
 
 사이트는 오래된 사본도 정상 빌드할 수 있으므로 빌드 통과만으로 최신 여부를 판단하지 않는다.
-`site_vendor_tokens_track_the_app_export`는 두 사본의 토큰 이름을,
-`site_vendor_icons_match_the_app_transcription`은 아이콘 기하·채움·viewBox·선 굵기·
-cap/join을 비교한다. `site_vendor_manifest_matches`는 사이트 사본이 `site/vendor/MANIFEST`에
-기록한 원격 해시(또는 이유를 적은 변형 해시)와 같은지 확인한다. 세 검사는 `crates/tasty-doc-guards/tests/`에 있다. 앱과 사이트를 비교하는 앞의 두 검사의 해당 시험은 `#[ignore]`이며 릴리스 절차에서 `--ignored`로 실행한다.
+`design_source_tokens_track_the_app_export`는 앱 토큰 JSON과 `dtcg/SOURCE`에 기록한 tasty-page 커밋의 토큰을,
+`design_source_icons_match_the_app_transcription`은 같은 커밋의 아이콘 기하·채움·viewBox·선 굵기·
+cap/join을 앱과 비교한다. 두 검사는 `crates/tasty-doc-guards/tests/`에 있고 `TASTY_PAGE_DIR`가 필요하다.
 문구·구성·컨트롤 삭제처럼 그 값들을 바꾸지 않는 변경은 검사하지 않으므로 원격 디자인과
 직접 대조해 사이트 사본도 갱신한다.
 

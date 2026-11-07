@@ -135,6 +135,14 @@ run_check B.6 'cargo check --no-default-features' cargo check --no-default-featu
 
 # ─
 # B.7  문서, 매니페스트, 인덱스 검사
-run_check B.7 'cargo test -p tasty-doc-guards' cargo test -p tasty-doc-guards
+# design_source_* 시험은 dtcg/SOURCE 커밋의 tasty-page가 필요하다. 넘겨받은 경로가 없으면 받는다.
+doc_guards_with_design_source() {
+    if [ -z "${TASTY_PAGE_DIR:-}" ]; then
+        TASTY_PAGE_DIR="$(bash scripts/fetch-design-source.sh)" || return 1
+        export TASTY_PAGE_DIR
+    fi
+    cargo test -p tasty-doc-guards
+}
+run_check B.7 'cargo test -p tasty-doc-guards' doc_guards_with_design_source
 
 finish

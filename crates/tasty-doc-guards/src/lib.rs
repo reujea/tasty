@@ -62,6 +62,9 @@ pub mod sha256;
 /// 시험의 자식 프로세스가 부모의 저장소 지정 Git 환경을 상속하지 않게 한다.
 pub mod git_env;
 
+/// 앱이 따르는 디자인 정본(tasty-page) 체크아웃을 찾고 기록한 커밋과 대조한다.
+pub mod design_source;
+
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 

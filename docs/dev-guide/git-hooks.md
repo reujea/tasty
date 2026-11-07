@@ -102,7 +102,7 @@ push 저장소의 경로를 전달하지 않는다. 이는 [Git 훅의 저장소
 | B.4 | `cargo clippy --workspace --all-targets -- -D clippy::correctness`로 워크스페이스의 개발 빌드·테스트 코드 컴파일과 lint를 함께 검사한다. |
 | B.8 | `cargo check --workspace --release --locked` |
 | B.6 | `cargo check --no-default-features` |
-| B.7 | `cargo test -p tasty-doc-guards` |
+| B.7 | `cargo test -p tasty-doc-guards`. `TASTY_PAGE_DIR`가 없으면 `scripts/fetch-design-source.sh`로 `crates/tasty-design-tokens/dtcg/SOURCE` 커밋의 tasty-page를 공용 `.git/design-source/<SOURCE 커밋>`에 받아 넘긴다(네트워크 필요). |
 
 기본 feature의 개발 빌드·테스트 코드 컴파일 검사는 Clippy 한 번으로 수행한다.
 같은 타깃에 대한 `cargo check --workspace --all-targets`는 중복 실행하지 않는다.

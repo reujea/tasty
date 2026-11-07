@@ -20,6 +20,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # 앱이 따르는 디자인 정본(tasty-page)을 dtcg/SOURCE에 기록한 커밋으로 받는다.
+      # 저장소 작업 트리 밖에 두어 저장소를 순회하는 문서 검사가 그 트리를 읽지 않게 한다.
+      - name: Fetch the recorded tasty-page commit
+        run: |
+          dir="$(bash scripts/fetch-design-source.sh "$RUNNER_TEMP/tasty-page")"
+          echo "TASTY_PAGE_DIR=$dir" >> "$GITHUB_ENV"
+
       # 한 테스트 바이너리가 실패해도 나머지 결과를 수집한다.
       - name: cargo test -p tasty-doc-guards
         run: cargo test -p tasty-doc-guards --locked --no-fail-fast

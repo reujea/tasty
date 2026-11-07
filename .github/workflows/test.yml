@@ -53,5 +53,9 @@ jobs:
       - name: Build tests
         run: cargo test --workspace --no-run --locked
 
+      # 문서 검사의 design_source_* 시험은 dtcg/SOURCE 커밋의 tasty-page가 필요하다.
       - name: Run tests
-        run: cargo test --workspace --locked --no-fail-fast
+        run: |
+          TASTY_PAGE_DIR="$(bash scripts/fetch-design-source.sh "$RUNNER_TEMP/tasty-page")"
+          export TASTY_PAGE_DIR
+          cargo test --workspace --locked --no-fail-fast

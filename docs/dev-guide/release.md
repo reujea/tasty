@@ -58,7 +58,7 @@ CLAUDE.md 정책의 운영 형태:
 
 ```bash
 (cd site && npm run build && npm run check-links && npm run check-contrast)
-cargo test -p tasty-doc-guards --locked --test site_vendor_tokens_track_the_app_export --test site_vendor_icons_match_the_app_transcription -- --ignored
+TASTY_PAGE_DIR=<tasty-page 체크아웃> cargo test -p tasty-doc-guards --locked --test design_source_tokens_track_the_app_export --test design_source_icons_match_the_app_transcription
 ```
 
 기획서나 Artifact를 읽을 수 없으면 태그를 만들지 않고 사용자에게 알린다.
