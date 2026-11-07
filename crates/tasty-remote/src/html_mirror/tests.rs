@@ -53,9 +53,14 @@ fn scan(m: &mut HtmlMirror) {
     let notify: Arc<dyn Fn() + Send + Sync> = Arc::new(move || {
         if tx.send(()).is_err() { /* The test owner may already have retired. */ }
     });
-    assert!(!m.poll_scan(Arc::clone(&notify)));
-    rx.recv_timeout(std::time::Duration::from_secs(2)).unwrap();
-    assert!(m.poll_scan(notify));
+    // The worker may finish before the starting call's own try_recv, so either call may publish.
+    if !m.poll_scan(Arc::clone(&notify)) {
+        rx.recv_timeout(std::time::Duration::from_secs(2))
+            .expect("scan worker notifies after sending its result");
+        assert!(m.poll_scan(notify));
+    }
+    assert!(m.failure.is_none());
+    assert!(m.body_store().current().is_some());
 }
 #[test]
 fn reload_still_ends_an_expired_size_question() {
