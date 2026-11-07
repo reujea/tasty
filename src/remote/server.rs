@@ -554,6 +554,7 @@ impl EngineRef<'_> {
             "tree": tree,
             "surfaces": surfaces,
             (tasty_ipc::stream::DESCRIPTOR_CAPABILITIES): capabilities,
+            (tasty_ipc::stream::DESCRIPTOR_PTY_INPUT): tasty_ipc::stream::local_pty_input(),
         })
     }
 

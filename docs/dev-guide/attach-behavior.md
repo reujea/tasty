@@ -181,6 +181,16 @@ local surface만 포커스한다. 클라이언트의 사용자 입력 확인은 
 `loading_overlay_delay`가 지난 뒤에만 로딩 overlay로 덮는다. 지연 전에는 그 시각에 다시 그리도록
 예약한다.
 
+## 키 인코딩은 서버 PTY를 따른다
+
+mirror 키 입력은 서버 PTY에 그대로 들어가므로 수식키가 붙은 줄바꿈 키의 인코딩을 클라이언트 OS로 정하면 안 된다. Windows client가 ConPTY용 win32-input 시퀀스를 Linux PTY로 보내면 Claude Code 같은 응용 프로그램이 이를 Enter로 읽어 Shift+Enter가 제출이 된다.
+
+- **서버**: workspace attach descriptor의 `pty_input`에 `win32-console`(Windows) 또는 `vt`(그 밖)를 싣는다(`tasty_ipc::stream::local_pty_input`).
+- **client**: handshake에서 읽은 값을 연결의 `ConnectionSender`에 두고, `bind_mirror_input`이 mirror `Terminal::set_win32_console_input`으로 옮긴다. 재연결도 같은 함수를 거쳐 새 연결의 값으로 바뀐다. 키 디스패처는 focused terminal의 이 값으로 Shift+Enter·Ctrl+J 인코딩을 고른다([터미널 키보드 입력](../surfaces/terminal/index.md#키보드-입력)).
+- **구 서버**: 키가 없거나 모르는 값이면 `vt`로 읽는다. 구 Windows 서버에 붙은 mirror만 Shift+Enter·Ctrl+J를 VT로 보낸다.
+- **한계**: 앱별 Shift+Enter 규칙은 foreground 프로세스 이름으로 찾는데, mirror에는 로컬 PTY가 없고 서버가 이름을 보내지 않아 mirror에서는 적용되지 않는다. 플랫폼 기본 인코딩만 쓴다.
+- **시험**: `newline_keys_follow_the_target_console_encoding`(`src/view/main/keyboard.rs`), `a_mirror_takes_the_key_encoding_of_its_server`(`src/app/attach_client/resources.rs`), `a_descriptor_without_pty_input_reads_as_vt`(`crates/tasty-ipc/src/stream.rs`), `workspace_descriptor_announces_the_resize_ack_capability`(`src/remote/server/attach_resize.rs`).
+
 ## 프레임 전송 지연 (Nagle 금지)
 
 attach 스트림은 **프레임 하나 = 상호작용 하나**(키 입력 · 리사이즈 요청 · 구조 op · 출력 delta)다. 그래서 프레임 단위 전송 지연이 그대로 체감 지연이 된다 — 본문·헤더를 나눠 쓰거나 Nagle을 켜면 전송 지연이 늘 수 있다.

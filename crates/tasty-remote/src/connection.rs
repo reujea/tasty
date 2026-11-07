@@ -56,8 +56,16 @@ pub struct ConnectionSender {
     failed: AtomicBool,
     failure: std::sync::Mutex<Option<FailureObserver>>,
     input: std::sync::Mutex<super::input_receipts::InputReceipts>,
+    /// 서버 PTY가 Windows 콘솔 입력을 받는다. mirror 키 인코딩을 이 값으로 정한다.
+    win32_console_input: AtomicBool,
 }
 impl ConnectionSender {
+    pub fn set_win32_console_input(&self, enabled: bool) {
+        self.win32_console_input.store(enabled, Ordering::Release);
+    }
+    pub fn win32_console_input(&self) -> bool {
+        self.win32_console_input.load(Ordering::Acquire)
+    }
     fn input(&self) -> std::sync::MutexGuard<'_, super::input_receipts::InputReceipts> {
         tasty_utils::poison::recover_mutex(
             self.input.lock(),
@@ -234,6 +242,7 @@ pub fn channel() -> (Arc<ConnectionSender>, mpsc::Receiver<QueuedFrame>) {
             failed: AtomicBool::new(false),
             failure: std::sync::Mutex::new(None),
             input: std::sync::Mutex::new(Default::default()),
+            win32_console_input: AtomicBool::new(false),
         }),
         receiver,
     )

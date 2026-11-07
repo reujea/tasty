@@ -294,6 +294,10 @@ pub struct Terminal {
     /// never inherits the previous program's busy. Atomic so the shell-foreground
     /// release path can clear it without taking the parser lock.
     busy_latch: AtomicU64,
+    /// The input endpoint is a Windows console (ConPTY) that needs win32-input
+    /// sequences for modified newline keys. A local terminal follows the build OS;
+    /// a mirror follows the attach server, which may run a different OS.
+    win32_console_input: bool,
 }
 
 /// Receiving side of the Pty reader worker: ingests raw chunks into the shared
@@ -696,7 +700,18 @@ impl Terminal {
             // No reader worker — a no-op waker keeps the field total.
             waker: Arc::new(Mutex::new(Arc::new(|| {}))),
             busy_latch: AtomicU64::new(BUSY_LATCH_NONE),
+            win32_console_input: cfg!(windows),
         }
+    }
+
+    /// Whether key input for this terminal is read by a Windows console (ConPTY).
+    pub fn win32_console_input(&self) -> bool {
+        self.win32_console_input
+    }
+
+    /// Set the key input format of the endpoint, e.g. a mirror bound to a remote server.
+    pub fn set_win32_console_input(&mut self, enabled: bool) {
+        self.win32_console_input = enabled;
     }
 
     /// Lock the shared VTE state. Recovers from poisoning (a panicked ingest must

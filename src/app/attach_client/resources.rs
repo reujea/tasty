@@ -174,6 +174,8 @@ pub(super) fn bind_mirror_input(
     frame_tx: &SharedFrameSender,
     reconnect: bool,
 ) {
+    // 키 인코딩은 클라이언트 OS가 아니라 입력을 읽는 서버 PTY를 따른다.
+    mirror.set_win32_console_input(frame_tx.win32_console_input());
     let sender = frame_tx.clone();
     mirror.bind_external_input(
         Arc::new(move |bytes| {
@@ -242,6 +244,25 @@ impl crate::runtime::engine_access::EngineMut<'_> {
             {
                 descriptor.kind = kind;
             }
+        }
+    }
+}
+
+#[cfg(test)]
+mod key_encoding_tests {
+    use super::bind_mirror_input;
+    use tasty_terminal::Terminal;
+
+    /// mirror 키 인코딩은 클라이언트 빌드 OS가 아니라 연결된 서버 PTY를 따른다.
+    #[test]
+    fn a_mirror_takes_the_key_encoding_of_its_server() {
+        for server_is_windows in [true, false] {
+            let (tx, _rx) = tasty_remote::connection::channel();
+            tx.set_win32_console_input(server_is_windows);
+            let mut mirror = Terminal::new_detached(80, 24);
+            mirror.set_win32_console_input(!server_is_windows);
+            bind_mirror_input(&mut mirror, 7, &tx, false);
+            assert_eq!(mirror.win32_console_input(), server_is_windows);
         }
     }
 }

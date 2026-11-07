@@ -54,6 +54,7 @@ pub fn attach_handshake(
         workspace_close: descriptor_has_capability(&ctrl, stream::WORKSPACE_CLOSE_CAPABILITY),
         agent_children: descriptor_has_capability(&ctrl, tasty_ipc::agent_child::CAPABILITY),
         terminal_read: descriptor_has_capability(&ctrl, tasty_ipc::terminal_read::CAPABILITY),
+        win32_console_input: stream::descriptor_wants_win32_console_input(&ctrl),
         conn,
         client_id,
         write_half,
@@ -82,6 +83,8 @@ pub struct AttachHandshake {
     pub agent_children: bool,
     /// 서버가 holder 의 원본 터미널 읽기를 받는다.
     pub terminal_read: bool,
+    /// 서버 PTY가 Windows 콘솔 입력을 받는다. 구 서버는 false(VT)다.
+    pub win32_console_input: bool,
     pub html: super::html_document::HtmlSession,
 }
 
@@ -420,6 +423,7 @@ impl PreparedConnection {
             workspace_close,
             agent_children,
             terminal_read,
+            win32_console_input,
             html,
         } = attach_handshake(
             port,
@@ -431,6 +435,7 @@ impl PreparedConnection {
         let control = write_half.try_clone()?;
         let (frame_tx, frame_rx) = super::connection::channel();
         frame_tx.enable_input_receipts(input_acks);
+        frame_tx.set_win32_console_input(win32_console_input);
         let disconnected = Arc::new(AtomicBool::new(false));
         frame_tx.bind_failure(disconnected.clone(), wake.clone());
         let output = MirrorOutbox::new(frame_tx.epoch());

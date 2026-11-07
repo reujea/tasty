@@ -18,6 +18,8 @@ struct KeyboardReadState {
     /// macOS "Option as Meta" 설정 값. 호출부가 cfg 분기로 채운다(비-macOS=false).
     /// 켜져 있으면 Option(Alt)+문자가 `ESC` + base 문자 Meta 시퀀스로 인코딩된다.
     option_as_meta: bool,
+    /// 입력을 읽는 PTY가 Windows 콘솔(ConPTY)이다. mirror는 클라이언트가 아니라 서버 OS를 따른다.
+    win32_console: bool,
 }
 
 /// 키 처리 뒤 호출자가 적용할 터미널 스크롤 동작. PTY 전송과 별도로 처리한다.
@@ -363,6 +365,7 @@ impl MainView {
         let surface_id = self.state.focused_surface_id(engine);
         let read_state = surface_id.and_then(|sid| {
             engine.as_ref().visible_terminal(sid).map(|t| {
+                let win32_console = t.win32_console_input();
                 t.with_view(&self.state.terminal_views.get(engine, sid), |view| {
                     KeyboardReadState {
                         shift_enter_newline,
@@ -371,6 +374,7 @@ impl MainView {
                         scroll_offset: view.scroll_offset(),
                         rows: view.rows(),
                         option_as_meta,
+                        win32_console,
                     }
                 })
             })
@@ -486,11 +490,10 @@ impl MainView {
                 if modifiers == ModifiersState::SHIFT && state.shift_enter_newline {
                     push_bytes(&mut payloads, b"\n");
                 } else if modifiers.shift_key() {
-                    #[cfg(windows)]
-                    push_bytes(&mut payloads, &win32_key_press(13, 13, modifiers));
-                    #[cfg(not(windows))]
-                    // Unix PTYs pass CSI-u through to the application.
-                    {
+                    if state.win32_console {
+                        push_bytes(&mut payloads, &win32_key_press(13, 13, modifiers));
+                    } else {
+                        // Unix PTYs pass CSI-u through to the application.
                         // Kitty keyboard protocol: CSI 13 ; 2 u (Shift+Enter)
                         push_bytes(&mut payloads, b"\x1b[13;2u");
                     }
@@ -637,16 +640,13 @@ impl MainView {
                     && ch.is_ascii_alphabetic()
                 {
                     let ctrl_char = (ch.to_ascii_lowercase() as u8) - b'a' + 1;
-                    #[cfg(windows)]
-                    if ctrl_char == b'\n' {
+                    if state.win32_console && ctrl_char == b'\n' {
                         // ConPTY decodes bare LF as Ctrl+Enter (VK_RETURN), not
                         // Ctrl+J. Native console readers need the original VK_J.
                         push_bytes(&mut payloads, &win32_key_press(b'J', ctrl_char, modifiers));
                     } else {
                         push_bytes(&mut payloads, &[ctrl_char]);
                     }
-                    #[cfg(not(windows))]
-                    push_bytes(&mut payloads, &[ctrl_char]);
                     sent = true;
                     return KeyboardSendOutcome {
                         payloads,
@@ -775,7 +775,7 @@ fn is_printable_char(chr: char) -> bool {
 /// CSI-u is swallowed by ConPTY, whereas this encoding preserves modified
 /// Enter and Ctrl+J for native ReadConsoleInput consumers. Emit a balanced pair
 /// because the terminal forwarding path only receives pressed winit events.
-#[cfg(windows)]
+/// The target PTY decides this, not the build OS: a mirror forwards to its server.
 fn win32_key_press(virtual_key: u8, character: u8, modifiers: ModifiersState) -> Vec<u8> {
     // Win32 KEY_EVENT_RECORD flags: LEFT_ALT_PRESSED, LEFT_CTRL_PRESSED,
     // SHIFT_PRESSED. Winit's aggregate modifiers do not retain left/right.
@@ -907,6 +907,7 @@ mod tests {
             scroll_offset: 0,
             rows: 24,
             option_as_meta,
+            win32_console: false,
         }
     }
 
@@ -960,27 +961,52 @@ mod tests {
     }
 
     #[test]
-    fn newline_keys_use_platform_console_encoding() {
+    fn newline_keys_follow_the_target_console_encoding() {
+        // The target PTY decides, not the build OS: a Windows client attached to a
+        // Linux server must send VT bytes, and the reverse must send win32-input.
         let cases = [
             (Key::Named(NamedKey::Enter), ModifiersState::SHIFT),
             (Key::Character("j".into()), ModifiersState::CONTROL),
         ];
-        #[cfg(windows)]
-        let expected: [&[u8]; 2] = [
+        let win32: [&[u8]; 2] = [
             b"\x1b[13;0;13;1;16;1_\x1b[13;0;13;0;16;1_",
             b"\x1b[74;0;10;1;8;1_\x1b[74;0;10;0;8;1_",
         ];
-        #[cfg(not(windows))]
-        let expected: [&[u8]; 2] = [b"\x1b[13;2u", b"\n"];
-        for ((key, modifiers), expected) in cases.into_iter().zip(expected) {
-            let mut state = read_state(false);
-            state.scroll_offset = 12;
-            let out =
-                MainView::decide_key_to_terminal(state, &key, &Some("ignored".into()), modifiers);
-            assert_eq!(collect_bytes(&out.payloads), expected);
-            assert_eq!(out.payloads.len(), 1);
-            assert!(out.sent);
+        let vt: [&[u8]; 2] = [b"\x1b[13;2u", b"\n"];
+        for (win32_console, expected) in [(true, win32), (false, vt)] {
+            for ((key, modifiers), expected) in cases.clone().into_iter().zip(expected) {
+                let mut state = read_state(false);
+                state.scroll_offset = 12;
+                state.win32_console = win32_console;
+                let out = MainView::decide_key_to_terminal(
+                    state,
+                    &key,
+                    &Some("ignored".into()),
+                    modifiers,
+                );
+                assert_eq!(
+                    collect_bytes(&out.payloads),
+                    expected,
+                    "win32={win32_console}"
+                );
+                assert_eq!(out.payloads.len(), 1);
+                assert!(out.sent);
+            }
         }
+    }
+
+    #[test]
+    fn newline_rule_wins_over_the_console_encoding() {
+        let mut state = read_state(false);
+        state.win32_console = true;
+        state.shift_enter_newline = true;
+        let out = MainView::decide_key_to_terminal(
+            state,
+            &Key::Named(NamedKey::Enter),
+            &None,
+            ModifiersState::SHIFT,
+        );
+        assert_eq!(collect_bytes(&out.payloads), b"\n");
     }
 
     // Independent xterm PC-style cursor-key table: modifier parameter 2..8.

@@ -274,5 +274,14 @@ mod tests {
                 tasty_ipc::html_http::RELOAD_CAPABILITY
             ])
         );
+        // client는 이 값으로 mirror 키 인코딩을 정한다. 클라이언트 OS가 아니다.
+        assert_eq!(
+            descriptor[tasty_ipc::stream::DESCRIPTOR_PTY_INPUT],
+            if cfg!(windows) { "win32-console" } else { "vt" }
+        );
+        assert_eq!(
+            tasty_ipc::stream::descriptor_wants_win32_console_input(&descriptor),
+            cfg!(windows)
+        );
     }
 }

@@ -31,6 +31,31 @@ pub const WORKSPACE_CLOSE_CAPABILITY: &str = "ipc.stream.workspace-close";
 /// workspace attach descriptor에서 이 연결의 서버 기능 이름 목록을 담는 키.
 /// 구 서버는 이 키를 보내지 않으므로 없으면 빈 목록으로 읽는다.
 pub const DESCRIPTOR_CAPABILITIES: &str = "stream_capabilities";
+/// workspace attach descriptor에서 서버 PTY가 읽는 키 입력 형식을 담는 키.
+/// 값은 [`PTY_INPUT_WIN32_CONSOLE`] 또는 [`PTY_INPUT_VT`]다. 구 서버는 이 키를 보내지 않으므로
+/// 없으면 VT로 읽는다.
+pub const DESCRIPTOR_PTY_INPUT: &str = "pty_input";
+/// ConPTY: 수식키가 붙은 줄바꿈 키를 win32-input 시퀀스로 받아야 하는 Windows 콘솔.
+pub const PTY_INPUT_WIN32_CONSOLE: &str = "win32-console";
+/// Unix PTY: CSI-u와 제어문자를 그대로 응용 프로그램에 전달한다.
+pub const PTY_INPUT_VT: &str = "vt";
+
+/// 이 빌드의 PTY 입력 형식. 서버가 descriptor에 싣는다.
+pub fn local_pty_input() -> &'static str {
+    if cfg!(windows) {
+        PTY_INPUT_WIN32_CONSOLE
+    } else {
+        PTY_INPUT_VT
+    }
+}
+
+/// descriptor가 Windows 콘솔 입력을 알리는지. 키가 없거나 모르는 값이면 false(VT)다.
+pub fn descriptor_wants_win32_console_input(descriptor: &serde_json::Value) -> bool {
+    descriptor
+        .get(DESCRIPTOR_PTY_INPUT)
+        .and_then(|v| v.as_str())
+        == Some(PTY_INPUT_WIN32_CONSOLE)
+}
 
 /// Frame header length: 1-byte tag + 4-byte big-endian payload length.
 pub const FRAME_HEADER_LEN: usize = 5;
@@ -698,6 +723,23 @@ pub fn read_frame<R: Read>(r: &mut R) -> io::Result<StreamFrame> {
 mod tests {
     use super::*;
     use std::io::Cursor;
+
+    #[test]
+    fn a_descriptor_without_pty_input_reads_as_vt() {
+        // 구 서버는 키를 보내지 않는다. Windows 서버를 VT로 오판하는 쪽만 남고 Unix 서버는 맞는다.
+        assert!(!descriptor_wants_win32_console_input(
+            &serde_json::json!({})
+        ));
+        assert!(!descriptor_wants_win32_console_input(
+            &serde_json::json!({ DESCRIPTOR_PTY_INPUT: "future" })
+        ));
+        assert!(!descriptor_wants_win32_console_input(
+            &serde_json::json!({ DESCRIPTOR_PTY_INPUT: PTY_INPUT_VT })
+        ));
+        assert!(descriptor_wants_win32_console_input(
+            &serde_json::json!({ DESCRIPTOR_PTY_INPUT: PTY_INPUT_WIN32_CONSOLE })
+        ));
+    }
 
     #[test]
     fn frame_roundtrip() {
