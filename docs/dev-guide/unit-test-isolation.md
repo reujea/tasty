@@ -454,6 +454,20 @@ current만 바뀐 취소도 잠금을 해제하기 전에 worker를 끝내며, p
 복구하거나 chmod하지 않는다. 실제 WebKit 수명이나 과거 native 실패의 잠금 소유자를
 증명하는 시험은 아니다.
 
+### 잠금 해제를 `try_lock`으로 바로 단정하는 시험
+
+webhooks.toml 섹션 API가 반환 전에 잠금을 풀었는지 `try_lock`으로 단정하는 시험도 같은 경로로 흔들린다.
+같은 시험 바이너리의 다른 시험이 띄운 자식이 fork와 exec 사이에 잠금 파일의 open file description을
+물려받으면, 부모가 fd를 닫은 뒤에도 자식이 exec할 때까지 flock이 남아 단정이 실패한다. 제품 잠금이
+늦게 풀린 것이 아니다.
+
+이 단정을 쓰는 시험은 위의 자식 재실행 방식으로 자기 시험 하나만 `--test-threads=1`로 새 프로세스에서
+실행한다. 그 프로세스에서는 다른 시험이 자식을 띄우지 않는다. 부모는 자식의 성공 종료와
+`test result: ok. 1 passed`를 함께 확인해 이름 필터 오류를 통과로 세지 않는다.
+`crates/tasty-settings/src/webhook_port_file/backend_tests.rs`의 `unlocked()`는 이 자식 안에서만
+실행되도록 확인한다. `crates/tasty-cli/src/local/port.rs`의 offline adapter 시험도 같은 방식이다.
+재시도형 단정은 쓰지 않는다. 해제가 늦어지는 결함도 통과시키기 때문이다.
+
 <a id="형태-판별식--증상-하나로는-안-갈린다"></a>
 
 ### 실패 형태는 조사 단서로 사용한다
