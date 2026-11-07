@@ -291,8 +291,13 @@ fn hook_restore_and_reboot_preserve_options_and_settings_without_permission_pers
         value: crate::reboot::resume_command_line("sess-a", Some("/profile.json")),
     }];
     session_start(&mut calls, &host, 999, Some(dir.path()), "sess-a", &tr());
-    assert!(matches!(&calls[0], PlannedCall::MetaSet {value, ..}
-        if value == "claude -r sess-a --settings \"/profile.json\" --model 'provider/model[1m]' --effort ultracode"));
+    let PlannedCall::MetaSet { value, .. } = &calls[0] else {
+        panic!("restore command was not refreshed: {:?}", calls[0]);
+    };
+    assert_eq!(
+        value,
+        "claude -r sess-a --settings \"/profile.json\" --model 'provider/model[1m]' --effort ultracode"
+    );
     assert!(matches!(&calls[1], PlannedCall::MetaSet {key, value, ..}
         if *key == META_KEY && value == &bound_json("sess-a", false, &options).to_string()));
     let reboot =
