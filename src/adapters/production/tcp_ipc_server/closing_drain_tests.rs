@@ -110,8 +110,6 @@ fn the_saturated_refusal_reads_away_what_the_client_already_sent() {
 // -32060: 상한을 넘는 줄을 다 보낸 클라이언트가 거절을 읽은 뒤 연결 재설정이 아니라 정상 종료를 받는다.
 // 남는 바이트를 BufReader 버퍼(8 KiB)보다 크게 보내 서버 수신 큐에 읽지 않은 데이터가 남게 한다.
 // Linux 는 쓰기 쪽만 닫아도 응답 뒤 EOF 를 보이므로, 닫기 전에 수신 큐가 비었는지도 본다.
-// macOS 는 이 경로를 바꾸지 않았고 측정하지 않아 대상에서 뺀다.
-#[cfg(any(windows, target_os = "linux"))]
 #[test]
 fn an_oversized_line_refusal_is_read_and_then_closes_without_reset() {
     use crate::ipc::protocol::MAX_REQUEST_LINE_BYTES;

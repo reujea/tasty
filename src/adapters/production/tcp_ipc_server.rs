@@ -851,7 +851,7 @@ impl TcpIpcServer {
         if let Err(e) = flush_result {
             tracing::debug!("IPC oversize refusal flush failed for {peer:?}: {e}");
         }
-        #[cfg(windows)]
+        #[cfg(not(target_os = "linux"))]
         closing_drain::drain_before_close(writer);
         #[cfg(target_os = "linux")]
         closing_drain::half_close_and_discard_arrived(writer);
