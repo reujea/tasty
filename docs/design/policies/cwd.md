@@ -81,7 +81,7 @@ IPC 생성(`workspace.create` 의 `resolve_create_cwd`, `tab.create`·`split` �
 
 상대 `--file`은 CLI가 호출자 폴더를 `file_base`로 함께 보내고, 호스트가 대상이 로컬일 때만 절대 경로로 바꾼다(`create_spec::resolve_relative_file`). mirror 대상의 `file`은 원격 경로라 바꾸지 않는다. 기준 없이 들어온 상대 경로에서는 cwd를 얻지 않는다. 호스트 시작 폴더 기준으로 해석되기 때문이다.
 
-`SurfaceKindDef::restore`도 cwd를 인자로 받는다. 세션 저장과 닫은 항목은 비-terminal surface의 `source_cwd()`를 저장 자료(`SurfaceData::Generic.cwd`)에 함께 담는다. 이 키가 없는 옛 저장본은 cwd 없이 읽는다. mirror는 저장 대상이 아니며 mirror의 복원 경로는 cwd를 넘기지 않는다.
+`SurfaceKindDef::restore`도 cwd를 인자로 받는다. 세션 저장과 닫은 항목은 `RemoteSurface`가 보관한 cwd(`held_cwd`)를 저장 자료(`SurfaceData::Generic.cwd`)에 함께 담는다. 파일 source의 부모는 보관 cwd가 아니라서 담지 않고 복원 때 `url`에서 다시 계산한다. 그래서 재시작 여부로 source 이동 뒤의 cwd가 갈리지 않는다. 이 키가 없는 옛 저장본은 cwd 없이 읽는다. mirror는 저장 대상이 아니며 mirror의 복원 경로는 cwd를 넘기지 않는다.
 
 #### 3. `ConvertSurfaceTarget::Kind` 에 cwd 동봉
 

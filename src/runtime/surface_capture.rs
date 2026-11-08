@@ -127,10 +127,13 @@ pub(crate) fn content_lower_bound(session: &EngineSession) -> u64 {
     }
     total
 }
-/// snapshot에 담기지 않는 호스트 cwd를 자료에 함께 저장한다. 복원은 이 값으로 상속 cwd를 되살린다.
+/// plugin surface에서 호스트가 보관한 cwd. snapshot에 담기지 않는 값만 저장한다. `source_cwd`를 쓰면
+/// 파일 source의 부모가 보관 cwd로 굳어 재시작 뒤의 source 이동 결과가 달라진다.
 fn saved_cwd(owner: &dyn crate::model::Surface) -> Option<String> {
     owner
-        .source_cwd()
+        .as_any()
+        .downcast_ref::<crate::plugin_bridge::remote_surface::RemoteSurface>()
+        .and_then(crate::plugin_bridge::remote_surface::RemoteSurface::held_cwd)
         .map(|cwd| cwd.to_string_lossy().into_owned())
 }
 
@@ -187,7 +190,7 @@ pub(crate) fn capture_selected(
                 match &empty.deferred {
                     Some(saved) => SurfaceData::Generic {
                         data: saved.snapshot.clone(),
-                        cwd: saved_cwd(owner.as_ref()),
+                        cwd: None,
                     },
                     None => continue,
                 }
@@ -292,13 +295,13 @@ mod tests {
         }
     }
 
-    /// 비-terminal 자료에 호스트 cwd를 함께 담아 복원이 되살릴 수 있게 한다.
+    /// 주 분기는 plugin surface가 보관한 cwd를 저장하고, 파일 source의 부모는 보관 cwd로 저장하지 않는다.
     #[test]
-    fn a_generic_capture_carries_the_host_cwd() {
+    fn a_plugin_surface_capture_stores_only_the_cwd_the_host_holds() {
         use tasty_core::DomainEvent as E;
-        let markdown = |id| tasty_core::SurfaceSpec {
+        let html = |id| tasty_core::SurfaceSpec {
             id,
-            kind: "markdown".into(),
+            kind: "html".into(),
             data: None,
         };
         let model = crate::state::tests::test_model(vec![
@@ -318,34 +321,63 @@ mod tests {
                 id: 100,
                 pane: 10,
                 index: 0,
-                name: "doc".into(),
-                surface: markdown(11),
+                name: "http".into(),
+                surface: html(11),
+            },
+            E::TabCreated {
+                id: 101,
+                pane: 10,
+                index: 1,
+                name: "file".into(),
+                surface: html(12),
             },
         ]);
         let (_state, mut session) = crate::state::tests::test_state_from_model(model);
-        let cwd = std::path::PathBuf::from("/saved-folder");
-        session.runtime.surfaces.insert(
-            11,
-            Box::new(
-                crate::model::EmptySurface::new_deferred_plugin(
-                    11,
-                    crate::model::DeferredPlugin {
-                        kind: "markdown".into(),
-                        snapshot: serde_json::json!({ "url": "http://127.0.0.1:9/" }),
-                    },
-                )
-                .with_cwd(Some(cwd.clone())),
-            ),
+        let (sender, _receiver) = std::sync::mpsc::channel();
+        let decl = serde_json::from_value(serde_json::json!({
+            "kind": "html", "display_name_i18n_key": "surface.kind.html", "rendering": "webview",
+        }))
+        .unwrap();
+        crate::plugin_bridge::remote_kind::register_remote_kind(
+            &session.runtime.surface_registry,
+            "com.test.html",
+            &decl,
+            sender,
         );
+        let definition = session.runtime.surface_registry.get_live("html").unwrap();
+        let held = std::path::PathBuf::from(if cfg!(windows) { r"C:\held" } else { "/held" });
+        let file = held.join("sub").join("a.html");
+        let http = serde_json::json!({ "url": "http://127.0.0.1:9/" });
+        let from_file = serde_json::json!({ "url": file });
+        for (id, cwd, params) in [(11, Some(held.as_path()), &http), (12, None, &from_file)] {
+            let surface = (definition.create)(id, cwd, params)
+                .unwrap()
+                .publish()
+                .unwrap();
+            let remote = surface
+                .as_any()
+                .downcast_ref::<crate::plugin_bridge::remote_surface::RemoteSurface>()
+                .unwrap();
+            remote.cache_snapshot(params.clone());
+            session.runtime.surfaces.insert(id, surface);
+        }
         let captured = super::capture_selected(&session, None, false).expect("capture");
-        let [surface] = captured.as_slice() else {
-            panic!("one capture expected: {captured:?}");
+        let decoded = |id: u32| {
+            let surface = captured.iter().find(|s| s.surface == id).expect("captured");
+            SurfaceData::decode(&surface.bytes).expect("decode")
         };
         assert_eq!(
-            SurfaceData::decode(&surface.bytes).expect("decode"),
+            decoded(11),
             SurfaceData::Generic {
-                data: serde_json::json!({ "url": "http://127.0.0.1:9/" }),
-                cwd: Some(cwd.to_string_lossy().into_owned()),
+                data: http.clone(),
+                cwd: Some(held.to_string_lossy().into_owned()),
+            }
+        );
+        assert_eq!(
+            decoded(12),
+            SurfaceData::Generic {
+                data: from_file.clone(),
+                cwd: None,
             }
         );
     }

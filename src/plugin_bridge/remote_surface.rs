@@ -252,6 +252,11 @@ impl RemoteSurface {
         *crate::poison::recover_mutex(self.cwd.lock(), CWD_WHAT, &CWD_POISON_REPORTED) = cwd;
     }
 
+    /// 호스트가 보관한 cwd. `source_cwd`와 달리 파일 source의 부모를 섞지 않는다.
+    pub fn held_cwd(&self) -> Option<PathBuf> {
+        crate::poison::recover_mutex(self.cwd.lock(), CWD_WHAT, &CWD_POISON_REPORTED).clone()
+    }
+
     #[cfg(test)]
     pub fn set_display_name(&self, name: String) {
         *crate::poison::recover_mutex(
