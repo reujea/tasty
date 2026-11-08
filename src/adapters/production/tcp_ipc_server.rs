@@ -29,6 +29,7 @@ mod closing_drain;
 #[cfg(test)]
 mod closing_drain_tests;
 mod first_line;
+mod response_wait;
 
 use tasty_ipc::protocol::MAX_REQUEST_LINE_BYTES;
 
@@ -935,6 +936,8 @@ impl TcpIpcServer {
     }
 
     /// 응답 대기 기한이 지나도 연결은 유지한다. 실행 전이면 취소하고 시작됐다면 결과 불명으로 답한다.
+    /// 기다리는 동안 클라이언트가 닫으면 연결을 끝내 자리를 돌려준다. 이미 큐에 넣은 요청은 그대로 두며
+    /// 그 응답은 버려진다(클라이언트가 응답 전에 끊긴 때와 같다).
     fn await_dispatch_response(
         resp_rx: &mpsc::Receiver<JsonRpcResponse>,
         wait_bound: Option<Duration>,
@@ -943,38 +946,34 @@ impl TcpIpcServer {
         writer: &mut std::net::TcpStream,
         peer: Option<std::net::SocketAddr>,
     ) -> bool {
-        // 반환할 응답을 느린 요청 기록에도 남긴다.
-        let response = match wait_bound {
-            None => resp_rx
-                .recv()
-                .map_err(|e| format!("{e} (response_tx dropped without sending)")),
-            Some(bound) => match resp_rx.recv_timeout(bound) {
-                Ok(response) => Ok(response),
-                // 만료 순간 명령이 아직 큐에 있었으면 실행되지 않게 막고 "실행 안 됨" 으로
-                // 답한다(docs/architecture/ipc-server.md). 이미 시작됐으면 종전 그대로 결과 불명이다.
-                Err(mpsc::RecvTimeoutError::Timeout) => Ok(match lifecycle.withdraw() {
+        let response = match response_wait::wait_for_response(resp_rx, wait_bound, writer) {
+            response_wait::Waited::Answer(response) => response,
+            // 만료 순간 명령이 아직 큐에 있었으면 실행되지 않게 막고 "실행 안 됨" 으로
+            // 답한다(docs/architecture/ipc-server.md). 이미 시작됐으면 종전 그대로 결과 불명이다.
+            response_wait::Waited::Expired => {
+                let bound = wait_bound.unwrap_or_default();
+                match lifecycle.withdraw() {
                     tasty_ipc::server::Withdraw::NotRun => {
                         tasty_ipc::server::expired_before_run_response(rpc_id, bound)
                     }
                     tasty_ipc::server::Withdraw::Started => {
                         Self::wait_expired_response(rpc_id, bound, peer)
                     }
-                }),
-                Err(mpsc::RecvTimeoutError::Disconnected) => {
-                    Err("response_tx dropped without sending".to_string())
                 }
-            },
+            }
+            response_wait::Waited::SenderDropped => {
+                tracing::warn!("IPC resp_rx.recv failed: response_tx dropped without sending");
+                return false;
+            }
+            response_wait::Waited::PeerClosed => {
+                tracing::debug!(
+                    "IPC client {peer:?} closed the connection while its request waited for the host"
+                );
+                return false;
+            }
         };
-        match response {
-            Ok(response) => {
-                lifecycle.record_answer(&response);
-                Self::write_dispatch_response(writer, &response, peer)
-            }
-            Err(e) => {
-                tracing::warn!("IPC resp_rx.recv failed: {e}");
-                false
-            }
-        }
+        lifecycle.record_answer(&response);
+        Self::write_dispatch_response(writer, &response, peer)
     }
 
     /// 시작된 요청의 대기 기한이 지났다. 실행은 계속될 수 있어 결과 불명으로 답한다.
@@ -1542,6 +1541,58 @@ mod admission_tests {
             let _ = done_tx.send(());
         });
         (client, stats, done_rx, cmd_rx)
+    }
+
+    const WAITING_REQUEST: &[u8] =
+        b"{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"workspace.list\"}\n";
+
+    // 주 스레드가 응답하지 않는 동안 클라이언트가 요청을 보내고 끊는다. 연결 스레드는 응답을
+    // 기다리지 않고 끝나 자리를 돌려줘야 한다. 그러지 않으면 이런 클라이언트가 쌓여 상한에 닿는다.
+    #[test]
+    fn a_client_that_leaves_while_the_host_is_stalled_returns_its_seat() {
+        let (mut client, stats, done, cmd_rx) = serve_one(Duration::from_secs(20));
+        client.write_all(WAITING_REQUEST).expect("send");
+        // 명령은 큐에 들어갔지만 아무도 처리하지 않는다 — 응답하지 못하는 주 스레드.
+        let cmd = cmd_rx
+            .recv_timeout(Duration::from_secs(5))
+            .expect("the request reached the queue");
+        drop(client);
+        done.recv_timeout(Duration::from_secs(10)).expect(
+            "the connection thread kept waiting for the host after its client left — the seat is never returned",
+        );
+        assert_eq!(stats.snapshot().live, 0, "the seat was not returned");
+        // 늦게 처리돼도 응답은 받을 곳이 없을 뿐이다.
+        tasty_ipc::server::send_response(
+            &cmd.response_tx,
+            JsonRpcResponse::success(serde_json::json!(1), serde_json::json!([])),
+        );
+    }
+
+    // 응답이 늦어도 연결을 연 채 기다리는 클라이언트는 응답을 받는다. 상대 확인 간격을 두 번 넘겨 답한다.
+    #[test]
+    fn a_client_that_stays_gets_a_late_answer() {
+        let (mut client, stats, done, cmd_rx) = serve_one(Duration::from_secs(20));
+        client.write_all(WAITING_REQUEST).expect("send");
+        let cmd = cmd_rx
+            .recv_timeout(Duration::from_secs(5))
+            .expect("the request reached the queue");
+        std::thread::sleep(response_wait::PEER_CHECK_INTERVAL * 2 + Duration::from_millis(200));
+        assert!(
+            done.try_recv().is_err(),
+            "the connection ended while its client was still waiting"
+        );
+        assert_eq!(stats.snapshot().live, 1);
+        tasty_ipc::server::send_response(
+            &cmd.response_tx,
+            JsonRpcResponse::success(serde_json::json!(1), serde_json::json!("late")),
+        );
+        client
+            .set_read_timeout(Some(Duration::from_secs(5)))
+            .expect("timeout");
+        let mut got = String::new();
+        BufReader::new(client).read_line(&mut got).expect("read");
+        let resp: JsonRpcResponse = serde_json::from_str(got.trim()).expect("one JSON line");
+        assert_eq!(resp.result, Some(serde_json::json!("late")));
     }
 
     #[test]
