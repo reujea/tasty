@@ -1,7 +1,10 @@
 //! Actual ordered file queue, including preparation behind an older admitted status patch.
 use super::*;
-use crate::app::file_writer;
-use std::time::{Duration, Instant};
+use crate::app::file_writer::{
+    self,
+    settle::{HANG_LIMIT, settle},
+};
+use std::time::Instant;
 use tasty_remote_profiles::RemoteProfile;
 use tasty_utils::{batch_writer, file_replace};
 struct Writer(file_writer::FileWriterParts);
@@ -21,21 +24,14 @@ impl Writer {
         sink(Some(self.0.writer.handle())).unwrap()
     }
     fn wait(&mut self, receipt: &mut dyn Receipt) -> Result<Value, Failure> {
-        let deadline = Instant::now() + Duration::from_secs(5);
-        loop {
-            self.0.poll();
-            if let Some(result) = receipt.poll() {
-                return result;
-            }
-            assert!(
-                Instant::now() < deadline,
-                "ordered detection receipt never completed"
-            );
-            std::thread::yield_now();
-        }
+        settle(&self.0.writer.handle());
+        self.0.poll();
+        receipt
+            .poll()
+            .expect("the file writer finished without completing this detection receipt")
     }
     fn finish(mut self) {
-        let deadline = Instant::now() + Duration::from_secs(5);
+        let deadline = Instant::now() + HANG_LIMIT;
         while self.0.writer.poll_shutdown() != 0 {
             assert!(
                 Instant::now() < deadline,

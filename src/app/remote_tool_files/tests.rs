@@ -1,6 +1,7 @@
 //! GUI form preparation and its actual existing worker route, without an inline-save fallback.
 use super::*;
-use std::time::{Duration, Instant};
+use crate::app::file_writer::settle::{HANG_LIMIT, settle};
+use std::time::Instant;
 use tasty_utils::{batch_writer, file_replace};
 #[test]
 fn new_gui_key_uses_worker_receipts_and_duplicate_failure_never_replaces_its_secret() {
@@ -62,7 +63,7 @@ fn new_gui_key_uses_worker_receipts_and_duplicate_failure_never_replaces_its_sec
     assert_eq!(counts.commands.known_success, 1);
     assert_eq!(counts.commands.known_failure, 1);
     assert!(files::poll(&ticket).is_none());
-    let deadline = Instant::now() + Duration::from_secs(5);
+    let deadline = Instant::now() + HANG_LIMIT;
     while core.poll_file_writer_shutdown() != 0 {
         assert!(Instant::now() < deadline);
         std::thread::yield_now();
@@ -72,13 +73,7 @@ fn receive(
     core: &mut crate::app::services::AppServices,
     ticket: &files::Ticket,
 ) -> Result<files::Output, files::Failure> {
-    let deadline = Instant::now() + Duration::from_secs(5);
-    loop {
-        core.poll_file_writer();
-        if let Some(result) = files::poll(ticket) {
-            return result;
-        }
-        assert!(Instant::now() < deadline);
-        std::thread::yield_now();
-    }
+    settle(&core.file_command_queue().unwrap());
+    core.poll_file_writer();
+    files::poll(ticket).expect("the file writer finished without a result for this ticket")
 }
