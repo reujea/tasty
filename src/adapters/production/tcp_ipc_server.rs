@@ -84,8 +84,8 @@ pub(crate) const MAX_CONCURRENT_CONNECTIONS: usize = 256;
 
 /// 한 회차의 처리 건수를 제한해 다른 이벤트도 처리할 수 있게 한다.
 /// 연결 상한과 같은 값을 사용하며 시간 예산도 별도로 적용한다(docs/architecture/ipc-server.md).
-/// 한 연결은 응답을 기다린 뒤 다음 요청을 보내지만 회차 중 새 요청이 들어올 수 있으므로
-/// 연결 수를 회차 전체의 처리 건수로 해석하지 않는다.
+/// 큐 길이의 상한은 아니다. 끊긴 클라이언트의 요청은 자리가 돌아온 뒤에도 큐에 남으므로
+/// 소켓 요청이 연결 수보다 많이 쌓일 수 있고, 그 양은 명령 큐 입장 상한이 막는다.
 /// 남은 명령은 헤드리스의 재깨움 또는 GUI IpcPacer로 다음 회차에서 처리한다.
 pub(crate) const DRAIN_BUDGET_PER_ROUND: usize = MAX_CONCURRENT_CONNECTIONS;
 

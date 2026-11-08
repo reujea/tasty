@@ -38,6 +38,10 @@ def call(method, params=None):
 조금씩 계속 도착하는 응답까지 포함한 전체 호출 기한은 아니다. EOF·연결 오류·잘못된 JSON은
 호출자에게 예외로 전달된다.
 
+- 응답을 받을 때까지 연결을 연 채 둔다. 요청을 보낸 뒤 쓰기 쪽만 닫으면(half-close, 예: `nc -N`) 서버는 클라이언트가 떠난 것으로 보고, 1초보다 오래 걸리는 요청의 응답을 보내지 않는다([IPC 서버](../architecture/ipc-server.md#입장-상한)).
+- 연결을 닫아도 보낸 요청은 취소되지 않는다. 호스트가 바쁘면 나중에 실행된다.
+- 응답이 없다고 짧은 제한 시간으로 같은 요청을 반복하지 않는다. 호스트가 멈춘 동안 반복한 요청은 큐에 쌓였다가 회복 뒤 몰아 실행되고, 쓰기 명령이면 같은 입력이 반복 횟수만큼 재생된다. 호스트 회복은 `system.info` 같은 읽기 요청 하나를 응답이 올 때까지 기다려 확인하고, 쓰기 명령은 재시도하지 않는다([IPC 서버](../architecture/ipc-server.md#기한)).
+
 ## 권한
 
 plugin caller 는 메서드별 권한 토큰이 필요하다(`method_meta`). Local(CLI/사용자)은 이 메서드 권한 검사에서 면제된다. 토큰 목록·게이트는 [concepts/plugins](../concepts/plugins.md) · [dev-guide/plugin-permissions](../dev-guide/plugin-permissions.md). 런타임 권한 상승(capability elevation)·audit 은 [features/capability-elevation](../features/capability-elevation/index.md).
