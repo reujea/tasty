@@ -46,6 +46,20 @@ fn receive(core: &mut Core, rx: &mpsc::Receiver<JsonRpcResponse>) -> JsonRpcResp
     rx.try_recv()
         .expect("the file writer finished without answering the original remote caller")
 }
+/// The test holds the file lock, so the worker cannot finish the parked request however long this
+/// waits: load cannot fail this check, and a worker that ignored the lock is caught finishing.
+fn assert_blocked_by_held_lock(core: &Core) {
+    let fence = core
+        .file_command_queue()
+        .unwrap()
+        .flush(batch_writer::FlushPoint::START)
+        .unwrap();
+    assert!(
+        fence.wait_timeout(Duration::from_millis(200)).is_none(),
+        "the file writer finished its queue while the test held the file lock"
+    );
+    assert!(MemoryReplies::poll(core).is_empty());
+}
 fn drain(core: &mut Core) {
     core.profile_detections.begin_shutdown();
     let deadline = Instant::now() + HANG_LIMIT;
@@ -100,9 +114,9 @@ fn held_inline_add_and_remove_answer_original_callers_once_with_actual_operation
         &core,
         passkey::handle_remove(&core, json!(872), &json!({"name":"owned"})),
     );
+    assert_blocked_by_held_lock(&core);
     assert!(added.try_recv().is_err());
     assert!(removed.try_recv().is_err());
-    assert!(MemoryReplies::poll(&core).is_empty());
     assert!(!root().join("passkeys/owned").exists());
     assert_eq!(
         core.file_writer_stats()
@@ -394,6 +408,7 @@ fn explicit_shell_upsert_clears_previous_failure_before_original_success_reply()
         &json!({"name":"owned","host":"latest.invalid","shell":"bash"}),
     );
     let answer = park(&core, placeholder);
+    assert_blocked_by_held_lock(&core);
     assert!(answer.try_recv().is_err());
     drop(held);
     let response = receive(&mut core, &answer);
