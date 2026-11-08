@@ -324,8 +324,6 @@ fn code_block(ui: &mut egui::Ui, theme: &Theme, lines: &[Vec<CodeToken>]) {
         });
 }
 
-/// grid + zebra 테이블 (md-table 토큰) — header(surface-raised) 밴드 + base/zebra 본문
-/// 외곽·가로·세로 격자선은 border-strong을 사용한다.
 /// 표 row·zebra 색. 비포커스에서 맞바꾼다. 바탕과 이 둘 말고는 포커스로 바뀌지 않는다.
 pub(crate) fn table_fills(theme: &Theme, focused: bool) -> (egui::Color32, egui::Color32) {
     if focused {
@@ -341,6 +339,8 @@ pub(crate) fn table_fills(theme: &Theme, focused: bool) -> (egui::Color32, egui:
     }
 }
 
+/// grid + zebra 테이블 (md-table 토큰) — header(surface-raised) 밴드 + base/zebra 본문
+/// 외곽·가로·세로 격자선은 border-strong을 사용한다.
 pub(crate) fn table(ui: &mut egui::Ui, theme: &Theme, focused: bool, rows: &[[&str; 3]]) {
     let (row_bg, zebra_bg) = table_fills(theme, focused);
     let body = theme.font_size_body.value();

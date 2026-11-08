@@ -14,9 +14,9 @@ use crate::catalog::spec::{self, StageVariant, TokenChip};
 /// 헤더가 두 줄로 접히는 폭 — 디자인 "wraps < 640".
 const NARROW_CUTOFF: LogicalPx = LogicalPx(640.0);
 /// 무대에서 좁은 변형에 주는 폭 — 디자인 "narrow floor 320px".
+const NARROW_STAGE_WIDTH: LogicalPx = LogicalPx(320.0);
 /// 시안 `dag-tab-surface` 프레임 높이(320).
 const FOCUS_VIEW_H: LogicalPx = LogicalPx(320.0);
-const NARROW_STAGE_WIDTH: LogicalPx = LogicalPx(320.0);
 /// 무대 높이 — 시안 520.
 const STAGE_HEIGHT: LogicalPx = LogicalPx(520.0);
 
