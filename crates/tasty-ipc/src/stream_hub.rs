@@ -4,8 +4,10 @@
 
 mod bytes;
 mod html;
+mod wake;
 pub use bytes::{FrameReservation, HeldFrame, PublicationFence};
 pub use html::HtmlControl;
+pub use wake::{PUMP_MESSAGE_BUDGET, StreamWakeGate};
 
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU64, AtomicUsize, Ordering};
@@ -687,8 +689,22 @@ impl StreamHub {
     /// 수신 메시지를 종류별로 분류한다. 엔진 접근과 점유·입력 처리 자체는 메인 루프가 맡는다.
     /// 일반 Data는 input_events, bulk 연결의 Data는 bulk_events로 반환한다.
     pub fn pump_inbound(&self, inbound_rx: &Receiver<StreamInbound>) -> PumpOutcome {
+        self.pump_inbound_budgeted(inbound_rx, usize::MAX).0
+    }
+
+    /// 메시지를 최대 `budget`개까지만 꺼낸다. 남은 메시지는 채널에 그대로 둔다.
+    /// 두 번째 값은 예산에 닿았는지다. true이면 채널에 메시지가 남았을 수 있다.
+    pub fn pump_inbound_budgeted(
+        &self,
+        inbound_rx: &Receiver<StreamInbound>,
+        budget: usize,
+    ) -> (PumpOutcome, bool) {
         let mut out = PumpOutcome::default();
-        while let Ok(msg) = inbound_rx.try_recv() {
+        let mut taken = 0usize;
+        while taken < budget
+            && let Ok(msg) = inbound_rx.try_recv()
+        {
+            taken += 1;
             match msg {
                 StreamInbound::Disconnected { client_id } => out.disconnected.push(client_id),
                 StreamInbound::AttachRequest {
@@ -821,7 +837,7 @@ impl StreamHub {
         }
         // 이 배치의 선언(`ClientLossNotify`)까지 반영한 뒤에 갚는다.
         self.repay_all_pending_loss();
-        out
+        (out, taken >= budget)
     }
 
     /// `StreamControl` 이 아닌 제어 메시지를 형태별로 분류한다. 맞는 형태가 없으면 버린다.

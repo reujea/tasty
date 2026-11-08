@@ -14,8 +14,17 @@ pub(crate) fn handle_stream_ready(
     state: &mut RequestContext,
     engine: &mut EngineMut<'_>,
 ) {
-    let mut outcome = app.stream_hub.pump_inbound(&app.stream_inbound_rx);
+    // 채널을 읽기 전에 표시를 내려야 그 뒤에 들어온 메시지가 새 깨움을 만든다.
+    app.stream_wake.open_round();
+    let (mut outcome, cut) = app.stream_hub.pump_inbound_budgeted(
+        &app.stream_inbound_rx,
+        tasty_ipc::stream_hub::PUMP_MESSAGE_BUDGET,
+    );
     apply(app, state, engine, &mut outcome);
+    // 예산 때문에 남긴 메시지는 채널 끝에 다시 알려 다른 깨움이 먼저 처리되게 한다.
+    if cut {
+        app.stream_wake.notify();
+    }
 }
 
 fn apply(

@@ -144,8 +144,7 @@ impl ApplicationHandler<AppEvent> for App {
                 }
             }
             AppEvent::StreamReady => {
-                let outcome = self.pump_stream_inbound();
-                self.apply_stream_outcome(outcome);
+                self.run_stream_round(super::stream_round::StreamRoundSite::Event);
             }
             #[cfg(all(windows, feature = "gui"))]
             AppEvent::SystemResumed => {
@@ -522,6 +521,8 @@ impl ApplicationHandler<AppEvent> for App {
         {
             w.mark_dirty();
         }
+        // 사용자 이벤트에서 간격 때문에 미룬 스트림 회차를 여기서 처리한다.
+        self.run_stream_round(super::stream_round::StreamRoundSite::AboutToWait);
 
         // 방금 IPC가 만든 attach 요청을 이번 회차에 처리한다.
         self.drain_into_gui_checks();

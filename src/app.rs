@@ -94,6 +94,8 @@ pub(crate) mod shutdown_trace;
 pub(crate) mod state;
 pub(crate) mod storage_notice;
 #[cfg(feature = "gui")]
+pub(crate) mod stream_round;
+#[cfg(feature = "gui")]
 pub(crate) mod sweeps;
 pub(crate) mod timer_report;
 pub(crate) mod timers;
@@ -187,6 +189,8 @@ pub(crate) struct App {
     pub(crate) stream_inbound_tx: std::sync::mpsc::Sender<tasty_ipc::stream_hub::StreamInbound>,
     /// Receiver drained by the main loop on `AppEvent::StreamReady`.
     pub(crate) stream_inbound_rx: std::sync::mpsc::Receiver<tasty_ipc::stream_hub::StreamInbound>,
+    /// 처리 전인 StreamReady를 하나로 합친다. 메인 루프가 스트림 회차를 열 때 표시를 내린다.
+    pub(crate) stream_wake: tasty_ipc::stream_hub::StreamWakeGate,
     /// attach holder 가 요청한 원격 explorer 파일 작업. 연결마다 하나씩 실행한다.
     pub(crate) remote_file_jobs: file_jobs::remote::RemoteJobs,
     #[cfg(feature = "gui")]
@@ -246,6 +250,9 @@ pub(crate) struct App {
     /// IPC 회차 사이에 대기 시간을 두어 타이머·사용자 이벤트 처리가 계속되게 한다.
     #[cfg(feature = "gui")]
     pub(crate) ipc_pacer: crate::app::ipc::IpcPacer,
+    /// 스트림 회차 사이에도 같은 간격을 두어 입력·렌더·IPC가 차례를 받게 한다.
+    #[cfg(feature = "gui")]
+    pub(crate) stream_pacer: crate::app::stream_round::StreamPacer,
     /// 첫 Focused 이벤트 뒤 X11 초기 포커스 힌트를 지울 에이전트 창.
     /// 그 전에 닫힌 창은 닫기 경로에서 제거한다.
     #[cfg(feature = "gui")]
@@ -388,6 +395,7 @@ impl App {
             stream_hub: tasty_ipc::stream_hub::StreamHub::new(),
             stream_inbound_tx,
             stream_inbound_rx,
+            stream_wake: Default::default(),
             remote_file_jobs: Default::default(),
             view: ViewRegistry::new(proxy.clone()),
             engines: engine_registry::EngineRegistry::default(),
@@ -417,6 +425,7 @@ impl App {
                     crate::shortcuts::send_app_event(&proxy, AppEvent::IpcReady);
                 })
             }),
+            stream_pacer: Default::default(),
             pending_focus_hint_clear: std::collections::HashSet::new(),
             next_window_activation: None,
             pending_external_activation: None,
@@ -467,6 +476,7 @@ impl App {
             stream_hub: tasty_ipc::stream_hub::StreamHub::new(),
             stream_inbound_tx,
             stream_inbound_rx,
+            stream_wake: Default::default(),
             remote_file_jobs: Default::default(),
             plugin_manager: None,
             plugin_files: Default::default(),

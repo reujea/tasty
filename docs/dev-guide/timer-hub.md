@@ -385,10 +385,15 @@ gui 의 타이머는 `about_to_wait` 앞머리에서만 돈다. winit 은 한 it
 한 번뿐이다 — 한도를 풀면 잘림과 재깨움이 사슬을 이뤄 같은 기아가 돌아온다(실측으로 확인됨).
 사용자 이벤트 처리기에 새로 무거운 일을 넣을 때도 같은 물음을 한다 — 그 일이 끝나면서 같은
 이벤트를 다시 부르는가.
+attach 스트림 수신도 같은 형태다. 원격 클라이언트가 프레임을 보내는 동안 읽기 스레드가 계속
+깨운다. 그래서 `StreamReady` 도 처리 전 깨움을 하나만 두고 같은 간격 규칙으로 회차를 연다. 미룬 회차는
+`about_to_wait` 가 처리한다([스트림 회차](../architecture/data-flows.md#스트림-회차)).
 
 headless 는 이벤트 하나마다 `run_due_timers` 를 부르므로 타이머에는 이 형태가 없다. 대신 같은 이벤트
 채널을 쓰는 다른 wake 가 굶을 수 있어서, IPC waker 는 채널에 `IpcReady` 를 하나만 두고 예산에서 잘린
-회차가 루프를 다시 깨운다([IPC 서버](../architecture/ipc-server.md)).
+회차가 루프를 다시 깨운다([IPC 서버](../architecture/ipc-server.md)). 스트림 waker 도 채널에
+`StreamReady` 를 하나만 둔다.
+
 
 ## 새 주기 작업을 추가할 때
 

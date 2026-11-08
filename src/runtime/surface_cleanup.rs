@@ -30,7 +30,10 @@ impl EngineMut<'_> {
             self.runtime.child_terminals.save();
         }
         #[cfg(feature = "gui")]
-        self.runtime.readonly_views.remove(&surface_id);
+        {
+            self.runtime.readonly_views.remove(&surface_id);
+            self.runtime.readonly_sources.remove(&surface_id);
+        }
         self.runtime
             .pending_submits
             .retain(|submit| submit.surface() != surface_id);

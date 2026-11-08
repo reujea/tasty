@@ -834,7 +834,7 @@ impl App {
         let stream_ctx = tasty_ipc::stream_hub::StreamContext {
             hub: self.stream_hub.clone(),
             inbound_tx: self.stream_inbound_tx.clone(),
-            waker: stream_waker,
+            waker: self.stream_wake.install(stream_waker),
             heartbeat_timeout: self.services.attach_heartbeat.clone(),
         };
         let connections = self.services.connections().clone();

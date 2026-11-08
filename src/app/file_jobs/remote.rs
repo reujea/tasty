@@ -352,8 +352,14 @@ impl Drop for RemoteJobs {
 impl crate::app::App {
     /// 스트림 수신을 분류하고 원격 explorer 파일 작업을 처리한다. 나머지는 `apply_stream_outcome` 이 맡는다.
     /// 점유 확인은 디렉터리 조회와 같다. 끊긴 연결의 작업은 취소한다.
-    pub(crate) fn pump_stream_inbound(&mut self) -> tasty_ipc::stream_hub::PumpOutcome {
-        let mut outcome = self.stream_hub.pump_inbound(&self.stream_inbound_rx);
+    /// 한 회차에 `budget`개까지만 꺼낸다. 두 번째 값은 예산에 닿았는지다.
+    pub(crate) fn pump_stream_inbound(
+        &mut self,
+        budget: usize,
+    ) -> (tasty_ipc::stream_hub::PumpOutcome, bool) {
+        let (mut outcome, cut) = self
+            .stream_hub
+            .pump_inbound_budgeted(&self.stream_inbound_rx, budget);
         for (client_id, msg) in std::mem::take(&mut outcome.explorer_ops) {
             let holder = self
                 .engines()
@@ -382,7 +388,7 @@ impl crate::app::App {
             }
             self.plugin_manager = plugins;
         }
-        outcome
+        (outcome, cut)
     }
 }
 

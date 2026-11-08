@@ -67,6 +67,9 @@ pub(crate) struct EngineRuntime {
     /// Local display content while the source PTY is hard-occupied. No remote transport ownership.
     #[cfg(feature = "gui")]
     pub(crate) readonly_views: std::collections::HashMap<u32, tasty_terminal::Terminal>,
+    /// 사본을 만들 때 읽은 원본의 내용 기준점. 같으면 사본을 다시 만들지 않는다.
+    #[cfg(feature = "gui")]
+    pub(crate) readonly_sources: std::collections::HashMap<u32, tasty_terminal::ContentCut>,
 }
 
 impl EngineRuntime {
@@ -133,6 +136,8 @@ impl EngineRuntime {
             child_terminals: ChildTerminalRegistry::from_hub(&registries.child_terminals),
             #[cfg(feature = "gui")]
             readonly_views: Default::default(),
+            #[cfg(feature = "gui")]
+            readonly_sources: Default::default(),
         }
     }
 

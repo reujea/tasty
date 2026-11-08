@@ -516,7 +516,7 @@ fn start_ipc_and_seed(
     let stream_ctx = tasty_ipc::stream_hub::StreamContext {
         hub: app.stream_hub.clone(),
         inbound_tx: app.stream_inbound_tx.clone(),
-        waker: waker.stream_waker(),
+        waker: app.stream_wake.install(waker.stream_waker()),
         heartbeat_timeout: app.services.attach_heartbeat.clone(),
     };
     let connections = app.services.connections().clone();
