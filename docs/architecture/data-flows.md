@@ -114,6 +114,16 @@ winit 은 그 큐가 빌 때까지 다음 단계로 넘어가지 않으므로 �
   확인한다. 원본 터미널의 `ContentCut` 이 사본을 만들 때와 같으면 직렬화와 재해석을 건너뛴다.
   바뀐 것이 없을 때 회차 비용이 수신 메시지 수에만 비례하게 하려는 것이다.
 
+mirror 연결(이쪽이 원격 workspace를 attach한 클라이언트)의 수신도 같은 규칙을 따른다. 연결마다 있는
+읽기 스레드가 `App.attach_client_wake` 하나를 공유하므로 처리 전인 `AttachClientData` 도 하나뿐이다.
+처리기는 같은 간격으로 회차를 열고 미룬 회차는 `about_to_wait` 가 처리한다. 한 회차는 연결마다 쌓인
+출력을 모두 적용하며, 그 출력 큐는 연결마다 개수와 바이트 상한이 있고 넘치면 재동기화로 바뀐다.
+
+이 두 이벤트를 게이트 밖에서 직접 보내는 코드는 `src/source_guards/stream_wakes_go_through_the_gate.rs`
+가 찾는다. 이벤트 이름을 쓰는 줄만 보므로 별칭이나 매크로로 만든 이벤트는 찾지 못한다. 다른 주기적
+깨움 가운데 journal·memory·DB·파일 writer는 `tasty_utils::batch_writer::WakeLatch` 로, PTY 출력은
+surface별 gate로, IPC는 `IpcPacer` 로 같은 문제를 막는다.
+
 ---
 
 ## 4. 알림 발생 → 저장 → 표시

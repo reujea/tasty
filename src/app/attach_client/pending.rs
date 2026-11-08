@@ -2,13 +2,11 @@
 
 use super::projection::mirror_id_needs;
 use super::wire::mirror_event_from_control;
-use crate::AppEvent;
 use crate::app::App;
 use crate::runtime::engine_session::EngineId;
 use crate::view::ui::View as _;
 use std::sync::Arc;
 use tasty_remote::pending_connection::{ConnectionTarget, ConnectionTicket};
-use winit::event_loop::EventLoopProxy;
 
 #[derive(Clone)]
 pub(crate) struct PendingMirrorInstall {
@@ -218,7 +216,7 @@ impl App {
                 mapping: None,
             },
             tunnel,
-            attach_wake(&self.view.proxy),
+            self.attach_client_wake.waker(),
             self.services.attach_heartbeat.get(),
         )
     }
@@ -385,15 +383,6 @@ impl App {
         );
         main.mark_dirty();
     }
-}
-
-fn attach_wake(proxy: &EventLoopProxy<AppEvent>) -> Arc<dyn Fn() + Send + Sync> {
-    let proxy = proxy.clone();
-    Arc::new(move || {
-        if let Err(error) = proxy.send_event(AppEvent::AttachClientData) {
-            tracing::debug!("remote wake after event loop closed: {error}");
-        }
-    })
 }
 
 /// 같은 대상의 이전 시도를 대체하고 연결을 큐에 넣는다. 큐가 거절하면 target이 이 함수 안에서

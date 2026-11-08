@@ -190,7 +190,7 @@ impl ApplicationHandler<AppEvent> for App {
                 }
             }
             AppEvent::AttachClientData => {
-                self.apply_attach_client_output();
+                self.run_attach_client_round(super::stream_round::StreamRoundSite::Event);
             }
             AppEvent::AutoAttachReady => {
                 self.poll_remote_browsers();
@@ -522,7 +522,7 @@ impl ApplicationHandler<AppEvent> for App {
             w.mark_dirty();
         }
         // 사용자 이벤트에서 간격 때문에 미룬 스트림 회차를 여기서 처리한다.
-        self.run_stream_round(super::stream_round::StreamRoundSite::AboutToWait);
+        self.run_deferred_stream_rounds();
 
         // 방금 IPC가 만든 attach 요청을 이번 회차에 처리한다.
         self.drain_into_gui_checks();

@@ -691,6 +691,11 @@ mod repo_relative_paths;
 
 #[cfg(test)]
 mod home_env_has_one_door;
+
+/// 스트림 수신 깨움은 StreamWakeGate를 거쳐서만 보낸다.
+#[cfg(test)]
+mod stream_wakes_go_through_the_gate;
+
 #[cfg(test)]
 mod icon_texture_loader_installed;
 /// 제품 코드에서 memory.db 저장소를 memory writer만 소유하는지 확인한다.

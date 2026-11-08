@@ -44,9 +44,19 @@ impl StreamWakeGate {
     /// 실제로 이벤트를 보내는 함수를 연결하고, 읽기 스레드에 넘길 waker를 돌려준다.
     /// 두 번째 연결은 무시하고 처음 연결한 함수를 계속 쓴다.
     pub fn install(&self, send: IpcWaker) -> IpcWaker {
+        self.connect(send);
+        self.waker()
+    }
+
+    /// 실제로 이벤트를 보내는 함수만 연결한다. waker는 필요한 곳에서 `waker`로 만든다.
+    pub fn connect(&self, send: IpcWaker) {
         if self.inner.send.set(send).is_err() {
             tracing::warn!("stream wake gate: sender already installed; keeping the first one");
         }
+    }
+
+    /// 이미 연결한 함수를 쓰는 waker를 하나 더 만든다. 연결이 여러 개여도 표시는 하나다.
+    pub fn waker(&self) -> IpcWaker {
         let gate = self.clone();
         Arc::new(move || gate.notify())
     }

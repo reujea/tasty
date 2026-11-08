@@ -253,6 +253,11 @@ pub(crate) struct App {
     /// 스트림 회차 사이에도 같은 간격을 두어 입력·렌더·IPC가 차례를 받게 한다.
     #[cfg(feature = "gui")]
     pub(crate) stream_pacer: crate::app::stream_round::StreamPacer,
+    /// mirror 연결의 읽기 스레드가 공유하는 깨움 표시. 처리 전인 AttachClientData를 하나로 합친다.
+    #[cfg(feature = "gui")]
+    pub(crate) attach_client_wake: tasty_ipc::stream_hub::StreamWakeGate,
+    #[cfg(feature = "gui")]
+    pub(crate) attach_client_pacer: crate::app::stream_round::StreamPacer,
     /// 첫 Focused 이벤트 뒤 X11 초기 포커스 힌트를 지울 에이전트 창.
     /// 그 전에 닫힌 창은 닫기 경로에서 제거한다.
     #[cfg(feature = "gui")]
@@ -426,6 +431,17 @@ impl App {
                 })
             }),
             stream_pacer: Default::default(),
+            attach_client_wake: {
+                let gate = tasty_ipc::stream_hub::StreamWakeGate::new();
+                let proxy = proxy.clone();
+                gate.connect(std::sync::Arc::new(move || {
+                    if let Err(error) = proxy.send_event(AppEvent::AttachClientData) {
+                        tracing::debug!("remote wake after event loop closed: {error}");
+                    }
+                }));
+                gate
+            },
+            attach_client_pacer: Default::default(),
             pending_focus_hint_clear: std::collections::HashSet::new(),
             next_window_activation: None,
             pending_external_activation: None,

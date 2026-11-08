@@ -59,6 +59,28 @@ impl App {
             self.stream_wake.notify();
         }
     }
+
+    /// `about_to_wait`에서 서버 스트림과 mirror 연결의 미룬 회차를 처리한다.
+    pub(crate) fn run_deferred_stream_rounds(&mut self) {
+        self.run_stream_round(StreamRoundSite::AboutToWait);
+        self.run_attach_client_round(StreamRoundSite::AboutToWait);
+    }
+
+    /// mirror 연결이 받은 출력을 적용하는 회차. 서버 회차와 같은 간격 규칙을 쓴다.
+    /// 적용은 연결마다 쌓인 출력을 모두 비우며, 그 큐는 연결마다 상한이 있다.
+    pub(crate) fn run_attach_client_round(&mut self, site: StreamRoundSite) {
+        if !should_run(
+            self.attach_client_wake.is_pending(),
+            site,
+            &self.attach_client_pacer,
+            Instant::now(),
+        ) {
+            return;
+        }
+        self.attach_client_wake.open_round();
+        self.apply_attach_client_output();
+        self.attach_client_pacer.last_round_end = Some(Instant::now());
+    }
 }
 
 #[cfg(test)]
