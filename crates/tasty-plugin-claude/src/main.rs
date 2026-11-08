@@ -413,6 +413,10 @@ fn error_scan_loop(scanner: Arc<Mutex<ErrorScanner>>, host: HostHandle) {
         // 대상 목록을 복사한 뒤 잠금을 풀고, 개별 스캔 때 다시 잠근다.
         // poison은 lock_scanner가 한 번 보고하고 내부 상태를 계속 사용한다.
         let surfaces = crate::error_scan::lock_scanner(&scanner).enabled_snapshot();
+        if !surfaces.is_empty() {
+            crate::error_scan::lock_scanner(&scanner)
+                .refresh_no_output_notice(&host, std::time::Instant::now());
+        }
         for (sid, target) in surfaces {
             // 등록 경로별 조회 결과로 제거 여부를 판단한다. 조회 실패 처리도 경로마다 다르다.
             if !scan_target_is_alive(&host, sid, target) {
