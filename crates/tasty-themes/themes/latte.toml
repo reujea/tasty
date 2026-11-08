@@ -50,13 +50,13 @@ search_match_active_fg = "#4c4f69"     # text — active 매치 안 글자
 focused_bg   = "#ffffff"
 focused_fg   = "#4c4f69"   # = text
 unfocused_bg = "#dce0e8"   # = surface-bed-unfocused (crust)
-unfocused_fg = "#63667c"   # = subtext0
+unfocused_fg = "#5c5f77"   # = text-muted (subtext1)
 
 [surfaces.markdown]
 focused_bg   = "#ffffff"   # = surface-bed-focused
 focused_fg   = "#4c4f69"
 unfocused_bg = "#dce0e8"   # = surface-bed-unfocused (crust)
-unfocused_fg = "#63667c"
+unfocused_fg = "#5c5f77"
 
 [ansi]
 black   = "#bcc0cc"   # surface1

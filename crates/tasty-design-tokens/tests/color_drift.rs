@@ -99,20 +99,34 @@ fn placeholder_uses_the_subtext_band_in_shipped_themes() {
     assert_eq!(latte.placeholder, HexColor::from_hex("#5c5f77"));
 }
 
-/// 내장 테마의 표면 전경은 focused_fg=text, unfocused_fg=subtext0를 따른다.
+/// 내장 테마의 표면 전경은 focused_fg=text, unfocused_fg=text-muted를 따른다.
+/// text-muted는 Mocha에서 subtext0, Latte에서 subtext1이다.
 /// 배경은 표면 종류마다 관계가 달라 이 시험에서 비교하지 않는다.
 #[test]
 fn surface_foregrounds_track_palette_in_shipped_themes() {
-    for (name, toml) in [("mocha", MOCHA_TOML_TEXT), ("latte", LATTE_TOML_TEXT)] {
+    for (name, toml, light) in [
+        ("mocha", MOCHA_TOML_TEXT, false),
+        ("latte", LATTE_TOML_TEXT, true),
+    ] {
         let file = ThemeFile::parse(toml).unwrap_or_else(|e| panic!("{name}.toml: {e}"));
         let text = file
             .palette
             .text
             .unwrap_or_else(|| panic!("{name}.toml: palette.text 없음"));
-        let subtext0 = file
-            .palette
-            .subtext0
-            .unwrap_or_else(|| panic!("{name}.toml: palette.subtext0 없음"));
+        let palette_muted = if light {
+            file.palette.subtext1
+        } else {
+            file.palette.subtext0
+        }
+        .unwrap_or_else(|| panic!("{name}.toml: text-muted의 palette 값 없음"));
+        let (partial, _) = file.to_partial();
+        let mut colors = mocha_fallback_colors();
+        colors.apply_partial(&partial);
+        let muted = Theme::with_colors(colors, light).text_muted();
+        assert_eq!(
+            muted, palette_muted,
+            "{name} text-muted가 palette의 약속한 칸과 다르다"
+        );
 
         assert!(
             !file.surfaces.is_empty(),
@@ -126,8 +140,8 @@ fn surface_foregrounds_track_palette_in_shipped_themes() {
             );
             assert_eq!(
                 surface.unfocused_fg,
-                Some(subtext0),
-                "{name}.toml [surfaces.{kind}].unfocused_fg != palette.subtext0 ({subtext0:?})"
+                Some(muted),
+                "{name}.toml [surfaces.{kind}].unfocused_fg != text-muted ({muted:?})"
             );
         }
     }
