@@ -5,6 +5,9 @@ use std::process::{Child, Command, Stdio};
 const TEST: &str = "runtime::journal_product::tests::group::crash::owned_group_crash_reopens_each_durable_cut_without_duplicate_effects";
 const HOME_ENV: &str = "TASTY_JOURNAL_GROUP_CRASH_HOME";
 const PHASE_ENV: &str = "TASTY_JOURNAL_GROUP_CRASH_PHASE";
+const CHILD_LOG: &str = "owned-child.log";
+/// The child starts its journal worker and then sleeps without ever writing the marker.
+const STALL_PHASE: &str = "stalled-before-marker";
 
 struct Owned(Child);
 impl Drop for Owned {
@@ -18,6 +21,11 @@ impl Drop for Owned {
 
 fn child(home: &std::path::Path, phase: &str) -> ! {
     let fixture = fixture(home);
+    if phase == STALL_PHASE {
+        loop {
+            std::thread::park();
+        }
+    }
     let first = first_publication(&fixture, home);
     let mut claimed = None;
     if phase != "before-first-ack" {
@@ -72,6 +80,44 @@ fn child(home: &std::path::Path, phase: &str) -> ! {
     }
 }
 
+fn spawn_child(home: &std::path::Path, phase: &str) -> Owned {
+    let out = std::fs::File::create(home.join(CHILD_LOG)).unwrap();
+    Owned(
+        Command::new(std::env::current_exe().unwrap())
+            .args(["--exact", TEST, "--nocapture", "--test-threads=1"])
+            .env(HOME_ENV, home)
+            .env(PHASE_ENV, phase)
+            .stdin(Stdio::null())
+            .stdout(out.try_clone().unwrap())
+            .stderr(out)
+            .spawn()
+            .unwrap(),
+    )
+}
+
+/// Waits for the child's marker. The limit is the time every thread of the child slept.
+fn wait_for_marker(child: &mut Owned, home: &std::path::Path, phase: &str) {
+    let pid = child.0.id();
+    let mut stall = StallBudget::for_process(Some(pid));
+    while !home.join("reached.json").exists() {
+        if let Some(status) = child.0.try_wait().unwrap() {
+            panic!(
+                "owned child {pid} exited before {phase}: {status}\n{}",
+                std::fs::read_to_string(home.join(CHILD_LOG)).unwrap()
+            );
+        }
+        stall.nap("owned journal group crash marker");
+    }
+}
+
+#[test]
+#[should_panic(expected = "owned journal group crash marker stalled: the watched process slept")]
+fn a_child_whose_threads_all_sleep_without_a_marker_fails_as_stalled() {
+    let home = tempfile::tempdir().unwrap();
+    let mut child = spawn_child(home.path(), STALL_PHASE);
+    wait_for_marker(&mut child, home.path(), STALL_PHASE);
+}
+
 #[test]
 fn owned_group_crash_reopens_each_durable_cut_without_duplicate_effects() {
     if let Some(home) = std::env::var_os(HOME_ENV) {
@@ -82,30 +128,9 @@ fn owned_group_crash_reopens_each_durable_cut_without_duplicate_effects() {
     }
     for phase in ["before-first-ack", "after-first-ack", "after-claim"] {
         let home = tempfile::tempdir().unwrap();
-        let logfile = home.path().join("owned-child.log");
-        let out = std::fs::File::create(&logfile).unwrap();
-        let mut child = Owned(
-            Command::new(std::env::current_exe().unwrap())
-                .args(["--exact", TEST, "--nocapture", "--test-threads=1"])
-                .env(HOME_ENV, home.path())
-                .env(PHASE_ENV, phase)
-                .stdin(Stdio::null())
-                .stdout(out.try_clone().unwrap())
-                .stderr(out)
-                .spawn()
-                .unwrap(),
-        );
+        let mut child = spawn_child(home.path(), phase);
         let pid = child.0.id();
-        let mut stall = StallBudget::for_process(Some(pid));
-        while !home.path().join("reached.json").exists() {
-            if let Some(status) = child.0.try_wait().unwrap() {
-                panic!(
-                    "owned child {pid} exited before {phase}: {status}\n{}",
-                    std::fs::read_to_string(&logfile).unwrap()
-                );
-            }
-            stall.nap("owned journal group crash marker");
-        }
+        wait_for_marker(&mut child, home.path(), phase);
         let marker = std::fs::read_to_string(home.path().join("reached.json")).unwrap();
         child.0.kill().unwrap();
         let status = child.0.wait().unwrap();

@@ -353,6 +353,12 @@ CI 는 `.github/workflows/crossplatform-check.yml` 의 `check-headless` 잡이 �
   - 저널 애플리케이션의 시험(`StallBudget::new`)은 터미널 준비 스레드도 함께 본다. 새 터미널의 셸
     시작은 그 스레드가 맡으므로 그동안 저널 worker가 잠들어 있어도 정체로 세지 않는다. 정체로
     판정하면 준비 스레드도 버린다고 표시해 Drop이 join하지 않는다.
+  - 자식 프로세스를 기다리는 시험(`StallBudget::for_process`)은 자식의 모든 스레드를
+    `/proc/<pid>/task/*/stat`에서 그때마다 다시 읽는다. 스레드 하나라도 `R`이나 `D`면 쉰 시간을 세지
+    않는다. `tests::group::crash`의 자식은 리더가 잠든 채 저널 worker가 fsync로 일하므로 리더만 보면
+    fsync가 느릴 때 진행 중인 자식을 정체로 읽는다. 시작 시각 비교는 리더의 `stat`에서 해서 같은 PID를
+    물려받은 다른 프로세스를 일하는 중으로 읽지 않는다. 자식의 모든 스레드가 잠든 채 표지를 쓰지 않으면
+    10초 안에 실패한다(`a_child_whose_threads_all_sleep_without_a_marker_fails_as_stalled`).
   - `runtime::journal_product` 시험도 worker의 완료를 같은 `StallBudget`으로 기다린다(`receive`).
     완료 하나를 `recv_timeout(10초)`로 받던 때는 부하 평균이 코어 수의 두세 배인 병렬 실행에서
     실행마다 다른 시험이 `Timeout`으로 실패했다. worker가 완료 채널을 닫으면 정체 한도를 기다리지

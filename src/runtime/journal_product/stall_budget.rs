@@ -14,8 +14,10 @@
 //! 정체로 판정하면 패닉 전에 worker를 버린다고 표시한다. 그래야 풀리는 중의 Drop이 멈춘
 //! worker를 join하지 않고 시험이 실패로 끝난다.
 //!
-//! PTY 출력·자식 회수 대기는 [`StallBudget::for_process`]로 PTY 자식을 같은 방식으로 본다.
-//! 자식이 실행 중인 시간만 빠진다. 출력 전달과 회수는 Tasty 안의 스레드가 맡고 그동안 자식은
+//! 자식 프로세스를 기다릴 때는 [`StallBudget::for_process`]로 자식의 모든 스레드를 본다. 스레드
+//! 하나라도 실행 중이거나 디스크 I/O를 기다리는 시간은 빠진다. 저널 worker를 띄운 시험 자식은
+//! 리더가 잠든 채 worker가 fsync로 일하므로 리더만 보면 거짓 정체가 된다.
+//! PTY 출력·자식 회수 대기에서는 출력 전달과 회수를 Tasty 안의 스레드가 맡고 그동안 자식은
 //! 잠들었거나 좀비라, 이 대기들의 기한은 사실상 쉰 시간 [`StallBudget::IDLE_LIMIT`]이다.
 
 use std::time::{Duration, Instant};
@@ -54,8 +56,9 @@ impl StallBudget {
         self.helpers.push(probe);
     }
 
-    /// `pid` 프로세스를 지켜보는 대기. 그 프로세스가 실행 중이거나 디스크 I/O를 기다리는 시간은
-    /// 세지 않고, 잠들었거나 끝난 뒤의 시간은 센다. `pid`가 없으면 기다린 시간을 모두 센다.
+    /// `pid` 프로세스를 지켜보는 대기. 그 프로세스의 스레드 하나라도 실행 중이거나 디스크 I/O를
+    /// 기다리는 시간은 세지 않고, 모두 잠들었거나 끝난 뒤의 시간은 센다. `pid`가 없으면 기다린
+    /// 시간을 모두 센다.
     #[cfg(unix)]
     pub(crate) fn for_process(pid: Option<u32>) -> Self {
         Self {
