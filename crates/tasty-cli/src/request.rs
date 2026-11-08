@@ -151,6 +151,18 @@ fn normalize_cwd_or_exit(raw: Option<&str>) -> Option<String> {
     }
 }
 
+/// 상대 `--file`의 기준으로 호출자 폴더를 돌려준다. 호출자 폴더는 CLI만 안다. 대상이 mirror이면
+/// file은 원격 경로이므로 여기서 절대 경로로 바꾸지 않고 호스트가 대상을 보고 정한다.
+/// 폴더를 읽지 못하면 기준 없이 보낸다. 호스트는 상대 경로에서 cwd를 얻지 않는다.
+fn relative_file_base(file: Option<&str>) -> Option<String> {
+    let file = file.filter(|file| !file.is_empty())?;
+    if std::path::Path::new(file).is_absolute() {
+        return None;
+    }
+    let base = std::env::current_dir().ok()?;
+    Some(base.to_string_lossy().into_owned())
+}
+
 /// JSON 을 받는 인자(`flag`)의 값을 파싱한다. 실패 문구는 인자 이름과 파서의 원인을 담는다.
 fn parse_json_arg(flag: &str, raw: &str) -> Result<serde_json::Value, String> {
     serde_json::from_str(raw)
@@ -208,6 +220,7 @@ pub fn command_to_request(command: &Commands) -> JsonRpcRequest {
                     "meta": meta_value,
                     "cwd": resolved_cwd,
                     "file": file,
+                    "file_base": relative_file_base(file.as_deref()),
                     "path": path,
                     "url": url,
                 }),
@@ -458,6 +471,7 @@ fn new_command_to_method_params(command: &NewCommands) -> (&'static str, serde_j
                 "cwd": resolved_cwd,
                 "type": r#type,
                 "file": file,
+                "file_base": relative_file_base(file.as_deref()),
                 "path": path,
                 "url": url,
                 "attach_profile": ssh_profile,
@@ -488,6 +502,7 @@ fn new_command_to_method_params(command: &NewCommands) -> (&'static str, serde_j
                     "type": r#type,
                     "cwd": resolved_cwd,
                     "file": file,
+                    "file_base": relative_file_base(file.as_deref()),
                     "path": path,
                     "url": url,
                 }),
@@ -1003,6 +1018,30 @@ mod tests {
             .unwrap_or_else(|e| panic!("{args:?}: {e}"))
             .command
             .expect("subcommand")
+    }
+
+    /// 절대 경로는 기준을 싣지 않고, 상대 경로는 호출자 폴더를 함께 싣되 file은 바꾸지 않는다.
+    #[test]
+    fn only_a_relative_file_carries_the_caller_folder() {
+        let full = if cfg!(windows) { r"C:\a.md" } else { "/a.md" };
+        for args in [
+            &["tasty", "new", "tab", "--pane", "1", "--file"][..],
+            &["tasty", "new", "workspace", "--file"][..],
+            &["tasty", "split", "--level", "pane", "--file"][..],
+        ] {
+            let absolute = parsed(&[args, &[full]].concat());
+            let params = command_to_request(&absolute).params;
+            assert_eq!(params["file"], full);
+            assert!(params["file_base"].is_null(), "{args:?}");
+            let local = parsed(&[args, &["docs/a.md"]].concat());
+            let params = command_to_request(&local).params;
+            assert_eq!(params["file"], "docs/a.md");
+            assert_eq!(
+                params["file_base"],
+                std::env::current_dir().unwrap().to_string_lossy().as_ref(),
+                "{args:?}"
+            );
+        }
     }
 
     #[test]

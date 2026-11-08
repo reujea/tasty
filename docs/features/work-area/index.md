@@ -142,6 +142,7 @@ tasty split --level pane --surface this --type markdown --file /path/doc.md
 | `direction` | no | `vertical`(기본) \| `horizontal` |
 | `type` | no | `terminal`(기본) \| `markdown` \| `explorer` \| `html` + plugin kind |
 | `file`/`path`/`url` | type별 | markdown=file 필수, explorer=path, html=url 필수 |
+| `file_base` | no | 상대 `file`의 기준 폴더. CLI가 호출자 폴더를 싣는다. 로컬 대상이면 호스트가 `file`을 절대 경로로 바꾸고, mirror 대상이면 `file`을 그대로 원격에 보낸다. 플러그인과 원격에는 전달하지 않는다 |
 | `cwd` | no | 터미널 작업 디렉토리 |
 | `meta` | no | 새 surface 에 설정할 메타데이터(JSON) |
 

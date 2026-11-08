@@ -643,6 +643,8 @@ impl JournalApplication {
             pending.needs_resolution = true;
             return;
         }
+        // 새 workspace는 언제나 이 인스턴스에 있다.
+        super::create_spec::resolve_relative_file(&mut pending.request.params, true);
         match Request::resolve(&pending.request, session, cwd) {
             Ok(request) => {
                 pending.resource = Some(request);

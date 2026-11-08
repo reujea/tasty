@@ -79,6 +79,8 @@ pub create: Arc<dyn Fn(SurfaceId, Option<&Path>, &serde_json::Value)
 
 IPC 생성(`workspace.create` 의 `resolve_create_cwd`, `tab.create`·`split` 의 `create_spec`)은 명시 `cwd` 를 kind 와 관계없이 담는다. 명시값이 없을 때 지목한 surface·포커스 surface 에서 이어받는 것은 terminal 뿐이다. 다른 kind 는 cwd 없이 만들어 자기 기본값(explorer 는 홈)을 쓴다. `tab.create` 는 명시 `cwd` 가 있으면 kind 기본 params 의 `@home` 을 풀지 않는다. 그래야 explorer 의 `path = "@home"` 기본값이 명시 cwd 를 가리지 않는다. 없는 폴더를 명시하면 kind 와 관계없이 `cwd does not exist` 로 거절한다.
 
+상대 `--file`은 CLI가 호출자 폴더를 `file_base`로 함께 보내고, 호스트가 대상이 로컬일 때만 절대 경로로 바꾼다(`create_spec::resolve_relative_file`). mirror 대상의 `file`은 원격 경로라 바꾸지 않는다. 기준 없이 들어온 상대 경로에서는 cwd를 얻지 않는다. 호스트 시작 폴더 기준으로 해석되기 때문이다.
+
 `SurfaceKindDef::restore`도 cwd를 인자로 받는다. 세션 저장과 닫은 항목은 비-terminal surface의 `source_cwd()`를 저장 자료(`SurfaceData::Generic.cwd`)에 함께 담는다. 이 키가 없는 옛 저장본은 cwd 없이 읽는다. mirror는 저장 대상이 아니며 mirror의 복원 경로는 cwd를 넘기지 않는다.
 
 #### 3. `ConvertSurfaceTarget::Kind` 에 cwd 동봉

@@ -2,6 +2,35 @@
 use crate::app::command::{ConvertSurfaceTarget, DomainIntent};
 use serde::{Deserialize, Serialize};
 
+/// CLI가 상대 `file`과 함께 보내는 호출자 폴더의 키.
+const FILE_BASE_KEY: &str = "file_base";
+
+/// 상대 `file`을 호출자 폴더 기준 절대 경로로 바꾸고 기준 키를 지운다. `local`이 거짓이면 file은
+/// 원격 경로이므로 그대로 두고, 이쪽 폴더인 기준 키만 지워 플러그인과 원격에 넘기지 않는다.
+pub(super) fn resolve_relative_file(params: &mut serde_json::Value, local: bool) {
+    let Some(object) = params.as_object_mut() else {
+        return;
+    };
+    let Some(base) = object.remove(FILE_BASE_KEY) else {
+        return;
+    };
+    let (true, Some(base)) = (local, base.as_str()) else {
+        return;
+    };
+    let Some(file) = object.get("file").and_then(|file| file.as_str()) else {
+        return;
+    };
+    if file.is_empty() || std::path::Path::new(file).is_absolute() {
+        return;
+    }
+    // components는 `./a.md`의 `.`을 없앤다. 그대로 두면 폴더와 최근 파일 경로에 `.`이 남는다.
+    let path: std::path::PathBuf = std::path::Path::new(base).join(file).components().collect();
+    object.insert(
+        "file".into(),
+        serde_json::Value::from(path.to_string_lossy().into_owned()),
+    );
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub(super) enum Destination {
     Adopt {
@@ -333,11 +362,100 @@ impl Spec {
         {
             return Err(bad(format!("cwd does not exist: {}", path.display())));
         }
+        let mirror = match &destination {
+            Destination::Tab { pane, .. } | Destination::Pane { target: pane, .. } => {
+                selected(*pane).is_some_and(|surface| engine.is_mirror_surface(surface))
+            }
+            Destination::Surface { target, .. } => engine.is_mirror_surface(*target),
+            _ => false,
+        };
+        resolve_relative_file(&mut input, !mirror);
         Ok(Self {
             destination,
             kind,
             cwd,
             params: input,
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{Destination, Spec, resolve_relative_file};
+    use serde_json::json;
+
+    fn base() -> std::path::PathBuf {
+        std::path::PathBuf::from(if cfg!(windows) { r"C:\work" } else { "/work" })
+    }
+
+    #[test]
+    fn a_relative_file_resolves_against_the_caller_folder() {
+        for (file, expected) in [
+            ("a.md", base().join("a.md")),
+            ("./a.md", base().join("a.md")),
+            ("docs/a.md", base().join("docs").join("a.md")),
+        ] {
+            let mut params = json!({"file": file, "file_base": base()});
+            resolve_relative_file(&mut params, true);
+            assert_eq!(params, json!({"file": expected}), "{file}");
+        }
+    }
+
+    #[test]
+    fn an_absolute_file_or_a_missing_base_stays_unchanged() {
+        let absolute = base().join("a.md");
+        let mut params = json!({"file": absolute, "file_base": "/elsewhere"});
+        resolve_relative_file(&mut params, true);
+        assert_eq!(params, json!({"file": absolute}));
+        let mut params = json!({"file": "a.md"});
+        resolve_relative_file(&mut params, true);
+        assert_eq!(params, json!({"file": "a.md"}));
+    }
+
+    /// mirror 대상의 file은 원격 경로이고 기준 키는 이쪽 폴더라 원격에 보내지 않는다.
+    #[test]
+    fn a_mirror_target_keeps_the_remote_file_and_drops_the_local_base() {
+        let mut params = json!({"file": "a.md", "file_base": base()});
+        resolve_relative_file(&mut params, false);
+        assert_eq!(params, json!({"file": "a.md"}));
+    }
+
+    fn view() -> crate::runtime::journal_product::CompletionView {
+        crate::runtime::journal_product::CompletionView {
+            mirror_count: 0,
+            focused_panes: Default::default(),
+            selected_tabs: Default::default(),
+            selected_surfaces: Default::default(),
+        }
+    }
+
+    /// 대상이 어느 workspace에 있는지로 file을 바꿀지 정한다.
+    #[test]
+    fn the_target_workspace_decides_whether_the_file_is_resolved() {
+        let (mut state, mut session) = crate::state::tests::test_state();
+        let mut engine = session.borrow_mut();
+        let mirror = crate::state::tests::add_mirror_test_workspace(&mut state, &mut engine);
+        let local = engine
+            .core
+            .local_workspaces()
+            .first()
+            .expect("local workspace")
+            .all_surface_ids()[0];
+        for (surface, expected) in [(local, json!(base().join("a.md"))), (mirror, json!("a.md"))] {
+            let request: crate::ipc::protocol::JsonRpcRequest = serde_json::from_value(json!({
+                "jsonrpc": "2.0",
+                "method": "split",
+                "id": null,
+                "params": {
+                    "level": "surface", "target_surface": surface, "type": "empty",
+                    "file": "a.md", "file_base": base(),
+                },
+            }))
+            .expect("request");
+            let spec = Spec::from_public(&request, &engine.as_ref(), &view()).expect("spec");
+            assert!(matches!(spec.destination, Destination::Surface { .. }));
+            assert_eq!(spec.params["file"], expected, "surface {surface}");
+            assert!(spec.params.get("file_base").is_none());
+        }
     }
 }

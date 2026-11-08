@@ -239,7 +239,10 @@ fn find_terminal_by_id_nonexistent() {
     assert!(engine.find_terminal_by_id(9999).is_none());
 }
 
-fn add_mirror_test_workspace(state: &mut RequestContext, engine: &mut EngineMut<'_>) -> u32 {
+pub(crate) fn add_mirror_test_workspace(
+    state: &mut RequestContext,
+    engine: &mut EngineMut<'_>,
+) -> u32 {
     let id = 900_001;
     let mut workspace =
         crate::model::Workspace::new_with_terminal_marker(id, "Mirror".into(), id, id, id);
