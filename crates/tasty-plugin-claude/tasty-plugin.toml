@@ -1,7 +1,7 @@
 manifest_version = 1
 id = "com.tasty.claude"
 name = "Claude Code"
-version = "0.2.28"
+version = "0.2.29"
 description = "Claude Code CLI integration for Tasty"
 api_version = "1"
 permissions = [
@@ -410,6 +410,16 @@ label_key = "claude.settings.spawn_child_warn_threshold"
 storage_key = "spawn_child_warn_threshold"
 default = 6.0
 min = 1.0
+
+# error_scan.rs 가 범위를 다시 제한한다. 끄는 값은 없다.
+[[contributes.settings_pages.items]]
+kind = "number"
+id = "no_output_notice_secs"
+label_key = "claude.settings.no_output_notice_secs"
+storage_key = "no_output_notice_secs"
+default = 600.0
+min = 60.0
+max = 86400.0
 
 # 완료 표식이 없어도 계속 연장되지 않도록 회차를 제한한다. 자체 상한이 없는 모든 게이트에 적용한다.
 [[contributes.settings_pages.items]]

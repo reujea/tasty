@@ -3,6 +3,7 @@ desc = "Claude Code CLI integration (launch, spawn, kill, etc.)"
 
 [claude]
 "settings.spawn_child_warn_threshold" = "Child count warning threshold"
+"settings.no_output_notice_secs" = "Seconds without child output before notifying the parent"
 "settings.continue_checklist_round_limit" = "Default gate round limit (used when a gate sets none)"
 "settings.default_permission_mode" = "Default permission mode for child sessions"
 "settings.auto_resume_enabled" = "Resume automatically after a temporary API error (server overload)"

@@ -3,6 +3,7 @@ desc = "Claude Code CLI 연동(launch, spawn, kill 등)"
 
 [claude]
 "settings.spawn_child_warn_threshold" = "자식 수 경고 기준"
+"settings.no_output_notice_secs" = "자식 출력이 없을 때 부모에게 알리기 전 대기 시간(초)"
 "settings.continue_checklist_round_limit" = "게이트 기본 라운드 상한 (게이트가 자체 값을 지정하지 않았을 때)"
 "settings.default_permission_mode" = "자식 세션 기본 권한 모드"
 "settings.auto_resume_enabled" = "일시적인 API 에러(서버 과부하) 뒤 자동으로 이어서 진행"

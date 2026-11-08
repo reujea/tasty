@@ -3,6 +3,7 @@ desc = "Claude Code CLI連携（launch、spawn、killなど）"
 
 [claude]
 "settings.spawn_child_warn_threshold" = "子の数の警告しきい値"
+"settings.no_output_notice_secs" = "子の出力がないとき親に通知するまでの待ち時間（秒）"
 "settings.continue_checklist_round_limit" = "ゲートの既定ラウンド上限（ゲートが独自の値を指定しない場合）"
 "settings.default_permission_mode" = "子セッションの既定パーミッションモード"
 "settings.auto_resume_enabled" = "一時的な API エラー（サーバー過負荷）の後に自動で再開する"
