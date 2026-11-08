@@ -16,7 +16,8 @@ url = "2"
 test-support = []
 
 [target.'cfg(unix)'.dependencies]
-rustix = { version = "1.1", features = ["fs"] }
+# flistxattr_query, fgetxattr_query는 1.1.6부터 있다. 이 판부터 빈 버퍼는 크기 조회가 아니다.
+rustix = { version = "1.1.6", features = ["fs"] }
 
 [target.'cfg(target_os = "macos")'.dependencies]
 libc = "0.2"

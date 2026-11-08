@@ -54,13 +54,13 @@ pub(crate) fn bus_name(home: &Path) -> String {
 
 /// `platform_data`에서 문자열 값만 꺼낸다.
 fn string_entries(
-    platform_data: &HashMap<String, zbus::zvariant::OwnedValue>,
+    platform_data: &HashMap<String, zbus::OwnedVariant>,
 ) -> Vec<(&str, Option<String>)> {
     platform_data
         .iter()
         .map(|(key, value)| {
             let text = match &**value {
-                zbus::zvariant::Value::Str(s) => Some(s.to_string()),
+                zbus::Variant::Str(s) => Some(s.to_string()),
                 _ => None,
             };
             (key.as_str(), text)
@@ -77,7 +77,7 @@ struct ApplicationService {
 #[zbus::interface(name = "org.freedesktop.Application")]
 impl ApplicationService {
     /// 증거 키가 없어도 이벤트는 보낸다. 받는 쪽이 증거가 없으면 아무것도 바꾸지 않는다.
-    fn activate(&self, platform_data: HashMap<String, zbus::zvariant::OwnedValue>) {
+    fn activate(&self, platform_data: HashMap<String, zbus::OwnedVariant>) {
         let evidence = LaunchEvidence::from_platform_data(string_entries(&platform_data));
         tracing::info!("D-Bus Activate received (evidence: {:?})", evidence.kinds());
         (self.sink)(evidence);
@@ -86,7 +86,7 @@ impl ApplicationService {
     fn open(
         &self,
         _uris: Vec<String>,
-        _platform_data: HashMap<String, zbus::zvariant::OwnedValue>,
+        _platform_data: HashMap<String, zbus::OwnedVariant>,
     ) -> zbus::fdo::Result<()> {
         Err(zbus::fdo::Error::NotSupported(
             "Tasty does not open files through D-Bus activation".into(),
@@ -96,8 +96,8 @@ impl ApplicationService {
     fn activate_action(
         &self,
         _action_name: String,
-        _parameter: Vec<zbus::zvariant::OwnedValue>,
-        _platform_data: HashMap<String, zbus::zvariant::OwnedValue>,
+        _parameter: Vec<zbus::OwnedVariant>,
+        _platform_data: HashMap<String, zbus::OwnedVariant>,
     ) -> zbus::fdo::Result<()> {
         Err(zbus::fdo::Error::NotSupported(
             "Tasty has no D-Bus application actions".into(),
@@ -106,7 +106,7 @@ impl ApplicationService {
 }
 
 /// 서비스 연결을 프로세스 수명 동안 붙잡는다. 놓으면 이름도 풀린다.
-static SERVICE: OnceLock<zbus::blocking::Connection> = OnceLock::new();
+static SERVICE: OnceLock<zbus::Connection> = OnceLock::new();
 
 /// 이름을 등록하고 `Activate`를 `sink`로 넘긴다. 실패는 로그만 남긴다(단일 실행 활성화만 못 한다).
 pub(crate) fn start_service(home: &Path, sink: ActivationSink) {
@@ -120,54 +120,58 @@ pub(crate) fn start_service(home: &Path, sink: ActivationSink) {
     }
 }
 
-fn register(name: &str, sink: ActivationSink) -> zbus::Result<zbus::blocking::Connection> {
-    zbus::blocking::connection::Builder::session()?
-        .name(name)?
-        .serve_at(OBJECT_PATH, ApplicationService { sink })?
-        .build()
+/// `block_on`이 끝난 뒤에는 zbus의 helper 스레드가 살아 있는 연결의 메서드 호출을 처리한다.
+fn register(name: &str, sink: ActivationSink) -> zbus::Result<zbus::Connection> {
+    zbus::block_on(
+        zbus::connection::Builder::session()
+            .name(name)
+            .serve_at(OBJECT_PATH, ApplicationService { sink })
+            .build(),
+    )
 }
 
 /// 두 번째 프로세스의 세션 버스 연결. 메서드 응답 기한을 둔다.
-pub(crate) fn connect(method_timeout: Duration) -> zbus::Result<zbus::blocking::Connection> {
-    zbus::blocking::connection::Builder::session()?
-        .method_timeout(method_timeout)
-        .build()
+pub(crate) fn connect(method_timeout: Duration) -> zbus::Result<zbus::Connection> {
+    zbus::block_on(
+        zbus::connection::Builder::session()
+            .method_timeout(method_timeout)
+            .build(),
+    )
 }
 
-pub(crate) fn name_has_owner(
-    connection: &zbus::blocking::Connection,
-    name: &str,
-) -> zbus::Result<bool> {
-    let dbus = zbus::blocking::fdo::DBusProxy::new(connection)?;
+pub(crate) fn name_has_owner(connection: &zbus::Connection, name: &str) -> zbus::Result<bool> {
     let bus_name = zbus::names::BusName::try_from(name)?;
-    Ok(dbus.name_has_owner(bus_name)?)
+    zbus::block_on(async {
+        let dbus = zbus::fdo::DBusProxy::new(connection).await?;
+        Ok(dbus.name_has_owner(bus_name).await?)
+    })
 }
 
 pub(crate) fn activate(
-    connection: &zbus::blocking::Connection,
+    connection: &zbus::Connection,
     name: &str,
     evidence: &LaunchEvidence,
 ) -> zbus::Result<()> {
     let data = evidence.platform_data();
-    let platform_data: HashMap<&str, zbus::zvariant::Value<'_>> = data
+    let platform_data: HashMap<&str, zbus::Variant<'_>> = data
         .iter()
-        .map(|(key, value)| (*key, zbus::zvariant::Value::from(value.as_str())))
+        .map(|(key, value)| (*key, zbus::Variant::from(value.as_str())))
         .collect();
-    connection.call_method(
+    zbus::block_on(connection.call_method(
         Some(name),
         OBJECT_PATH,
         Some(APPLICATION_INTERFACE),
         "Activate",
         &(platform_data,),
-    )?;
+    ))?;
     Ok(())
 }
 
 /// 데스크톱 알림. 메시지 상자를 띄우지 못했을 때 쓴다.
 pub(crate) fn notify(summary: &str, body: &str) -> zbus::Result<()> {
     let connection = connect(Duration::from_secs(3))?;
-    let hints: HashMap<&str, zbus::zvariant::Value<'_>> = HashMap::new();
-    connection.call_method(
+    let hints: HashMap<&str, zbus::Variant<'_>> = HashMap::new();
+    zbus::block_on(connection.call_method(
         Some("org.freedesktop.Notifications"),
         "/org/freedesktop/Notifications",
         Some("org.freedesktop.Notifications"),
@@ -182,7 +186,7 @@ pub(crate) fn notify(summary: &str, body: &str) -> zbus::Result<()> {
             hints,
             -1i32,
         ),
-    )?;
+    ))?;
     Ok(())
 }
 
@@ -226,11 +230,11 @@ mod tests {
         let mut data = HashMap::new();
         data.insert(
             "desktop-startup-id".to_string(),
-            zbus::zvariant::OwnedValue::try_from(zbus::zvariant::Value::from("id_TIME9")).unwrap(),
+            zbus::OwnedVariant::try_from(zbus::Variant::from("id_TIME9")).unwrap(),
         );
         data.insert(
             "activation-token".to_string(),
-            zbus::zvariant::OwnedValue::from(7u32),
+            zbus::OwnedVariant::from(7u32),
         );
         let evidence = LaunchEvidence::from_platform_data(string_entries(&data));
         assert_eq!(evidence.x11_startup_id.as_deref(), Some("id_TIME9"));

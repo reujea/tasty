@@ -21,7 +21,7 @@ pub(super) fn preserve(source: &File, target: &File, metadata: &Metadata) -> io:
 
 #[cfg(target_os = "linux")]
 fn attributes(file: &File) -> io::Result<Vec<(std::ffi::CString, Vec<u8>)>> {
-    let len = match rustix::fs::flistxattr(file, &mut [] as &mut [u8]) {
+    let len = match rustix::fs::flistxattr_query(file) {
         Ok(len) => len,
         Err(rustix::io::Errno::OPNOTSUPP) => return Ok(Vec::new()),
         Err(error) => return Err(error.into()),
@@ -32,7 +32,7 @@ fn attributes(file: &File) -> io::Result<Vec<(std::ffi::CString, Vec<u8>)>> {
     let mut attrs = Vec::new();
     for name in names.split(|b| *b == 0).filter(|s| !s.is_empty()) {
         let name = std::ffi::CString::new(name).map_err(io::Error::other)?;
-        let len = rustix::fs::fgetxattr(file, &name, &mut [] as &mut [u8])?;
+        let len = rustix::fs::fgetxattr_query(file, &name)?;
         let mut value = vec![0u8; len];
         let len = rustix::fs::fgetxattr(file, &name, value.as_mut_slice())?;
         value.truncate(len);

@@ -299,7 +299,7 @@ image = { version = "0.25", default-features = false, features = ["png", "jpeg",
 
 libc = "0.2"
 
-rfd = { version = "0.15", optional = true }
+rfd = { version = "0.18", optional = true }
 
 directories = "6"
 
@@ -365,8 +365,8 @@ x11rb = { version = "0.13", optional = true }
 # Same-client Wayland drag source; libwayland owns the shared winit display.
 wayland-client = { version = "0.31.13", optional = true }
 wayland-backend = { version = "0.3.14", features = ["client_system"], optional = true }
-# 단일 실행: org.freedesktop.Application 서비스와 두 번째 프로세스의 Activate 호출. rfd가 이미 같은 버전을 쓴다.
-zbus = { version = "5.14", default-features = false, features = ["async-io", "blocking-api"], optional = true }
+# 단일 실행: org.freedesktop.Application 서비스와 두 번째 프로세스의 Activate 호출.
+zbus = { version = "6.2", default-features = false, features = ["default-rt", "proxy", "service"], optional = true }
 
 [target.'cfg(windows)'.build-dependencies]
 winresource = "0.1"
