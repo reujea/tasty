@@ -621,6 +621,51 @@ fn mixed_operation_leases_are_rejected_before_either_effect_or_model_changes() {
     assert!(finished(&worker, 32).is_err());
 }
 
+/// 저장 자료의 cwd가 prepare를 지나 kind의 restore까지 닿는다. 파일이 없는 html HTTP·inline은
+/// 이 값으로만 복원 뒤 cwd를 되찾는다.
+#[test]
+fn a_saved_generic_cwd_reaches_the_restored_surface_through_prepare() {
+    use crate::core::layout_persistence::import::surface_data::SurfaceData;
+    use crate::runtime::effect_runner::{self, ExecutionBinding};
+    let home = tempfile::tempdir().unwrap();
+    let worker = start(home.path());
+    seed_category(&worker);
+    let (_view, mut session) = unrelated_owner_state();
+    let (sender, _receiver) = std::sync::mpsc::channel();
+    let declaration = serde_json::from_value(serde_json::json!({
+        "kind": "test-saved-cwd", "display_name_i18n_key": "surface.kind.html",
+        "rendering": "webview",
+    }))
+    .unwrap();
+    crate::plugin_bridge::remote_kind::register_remote_kind(
+        &session.runtime.surface_registry,
+        "com.test.saved-cwd",
+        &declaration,
+        sender,
+    );
+    let operation = prepare_workspace(&worker, 1, "saved", "test-saved-cwd");
+    let mut claimed = claim(&worker, 2, operation);
+    let held = std::path::PathBuf::from(if cfg!(windows) { r"C:\held" } else { "/held" });
+    claimed.capture = Some(
+        SurfaceData::Generic {
+            data: serde_json::json!({ "url": "http://127.0.0.1:9/" }),
+            cwd: Some(held.to_string_lossy().into_owned()),
+        }
+        .encode()
+        .unwrap(),
+    );
+    let binding = ExecutionBinding {
+        stream: claimed.lease.stream.clone(),
+        runtime_epoch: claimed.lease.runtime_epoch,
+        engine_incarnation: claimed.engine_incarnation,
+    };
+    let spawner = effect_runner::TerminalSpawner::spawn(Arc::new(|| {})).unwrap();
+    let mut engine = session.borrow_mut();
+    let prepared = effect_runner::prepare_and_wait(&mut engine, &binding, claimed, &spawner)
+        .unwrap_or_else(|error| panic!("{error}"));
+    assert_eq!(prepared.leaf.surface.source_cwd(), Some(held));
+}
+
 #[cfg(unix)]
 #[test]
 fn a_durable_claim_precedes_real_pty_preparation_and_the_candidate_stays_private() {

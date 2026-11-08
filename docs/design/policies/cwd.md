@@ -79,6 +79,8 @@ pub create: Arc<dyn Fn(SurfaceId, Option<&Path>, &serde_json::Value)
 
 IPC 생성(`workspace.create` 의 `resolve_create_cwd`, `tab.create`·`split` 의 `create_spec`)은 명시 `cwd` 를 kind 와 관계없이 담는다. 명시값이 없을 때 지목한 surface·포커스 surface 에서 이어받는 것은 terminal 뿐이다. 다른 kind 는 cwd 없이 만들어 자기 기본값(explorer 는 홈)을 쓴다. `tab.create` 는 명시 `cwd` 가 있으면 kind 기본 params 의 `@home` 을 풀지 않는다. 그래야 explorer 의 `path = "@home"` 기본값이 명시 cwd 를 가리지 않는다. 없는 폴더를 명시하면 kind 와 관계없이 `cwd does not exist` 로 거절한다.
 
+`tab.create`·`split`의 존재 검사는 상속한 cwd에도 적용된다. 그래서 surface의 cwd 폴더가 지워졌으면 IPC `new tab`은 cwd를 명시하지 않는 한 `cwd does not exist`로 거절된다. 복원된 markdown처럼 문서 폴더에서 cwd를 얻은 surface도 같고, 재시작 여부로 결과가 갈리지 않는다. 호출자는 있는 폴더를 `--cwd`로 명시한다. 탭바 `+`와 단축키는 이 IPC 검사를 지나지 않는다.
+
 상대 `--file`은 CLI가 호출자 폴더를 `file_base`로 함께 보내고, 호스트가 대상이 로컬일 때만 절대 경로로 바꾼다(`create_spec::resolve_relative_file`). mirror 대상의 `file`은 원격 경로라 바꾸지 않는다. 기준 없이 들어온 상대 경로에서는 cwd를 얻지 않는다. 호스트 시작 폴더 기준으로 해석되기 때문이다.
 
 `SurfaceKindDef::restore`도 cwd를 인자로 받는다. 세션 저장과 닫은 항목은 `RemoteSurface`가 보관한 cwd(`held_cwd`)를 저장 자료(`SurfaceData::Generic.cwd`)에 함께 담는다. 파일 source의 부모는 보관 cwd가 아니라서 담지 않고 복원 때 `url`에서 다시 계산한다. 그래서 재시작 여부로 source 이동 뒤의 cwd가 갈리지 않는다. 이 키가 없는 옛 저장본은 cwd 없이 읽는다. 비-deferred `EmptySurface`는 capture 대상이 아니어서 이 자료에 담기지 않는다. mirror는 저장 대상이 아니며 mirror의 복원 경로는 cwd를 넘기지 않는다.
