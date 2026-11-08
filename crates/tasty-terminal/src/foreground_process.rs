@@ -1,5 +1,9 @@
 //! Unix foreground process-group lookup and Windows process-tree approximation.
 
+#[cfg(any(windows, test))]
+#[path = "foreground_process/tree.rs"]
+mod tree;
+
 /// Info about the foreground process.
 #[derive(Debug, Clone)]
 pub struct ForegroundProcessInfo {
@@ -61,7 +65,7 @@ pub fn get_foreground_process(shell_pid: u32) -> Option<ForegroundProcessInfo> {
 pub fn resolve_foreground_many(shell_pids: &[u32]) -> Vec<Option<ForegroundProcessInfo>> {
     #[cfg(windows)]
     {
-        let snapshot = WindowsProcessSnapshot::capture();
+        let snapshot = capture_windows_snapshot();
         shell_pids
             .iter()
             .map(|&pid| snapshot.as_ref().and_then(|s| s.resolve(pid)))
@@ -157,160 +161,67 @@ fn cstr_field_to_string(buf: &[libc::c_char]) -> Option<String> {
 
 #[cfg(windows)]
 fn windows_foreground_process(shell_pid: u32) -> Option<ForegroundProcessInfo> {
-    WindowsProcessSnapshot::capture()?.resolve(shell_pid)
+    capture_windows_snapshot()?.resolve(shell_pid)
 }
 
-/// One system-wide process snapshot, reusable for resolving the foreground
-/// program of many shell PIDs in a single tick.
-///
-/// Windows has no Unix-style `tcgetpgrp`; ConPTY does not expose a foreground
-/// process group, so each shell's foreground must be found by walking the
-/// process tree. The expensive part — `CreateToolhelp32Snapshot` plus building
-/// the parent→child map — is identical for every shell in one poll, so it is
-/// captured once here and reused by [`resolve`](Self::resolve).
+/// Take a single `TH32CS_SNAPPROCESS` snapshot of every process.
+/// Returns `None` if the snapshot could not be created.
+// 이유: ToolHelp 핸들 생성과 Process32FirstW/NextW 순회를 한 unsafe 블록에서 처리한다.
+// 다른 플랫폼의 unsafe 검사를 유지하기 위해 이 함수에만 허용한다.
 #[cfg(windows)]
-struct WindowsProcessSnapshot {
-    /// `(pid, parent_pid, name)` for every process in the system.
-    entries: Vec<(u32, u32, String)>,
-    /// `parent_pid` → indices into `entries`.
-    children: std::collections::HashMap<u32, Vec<usize>>,
-}
+#[allow(clippy::multiple_unsafe_ops_per_block)]
+fn capture_windows_snapshot() -> Option<tree::ProcessSnapshot> {
+    use windows::Win32::Foundation::{CloseHandle, HANDLE};
+    use windows::Win32::System::Diagnostics::ToolHelp::{
+        CreateToolhelp32Snapshot, PROCESSENTRY32W, Process32FirstW, Process32NextW,
+        TH32CS_SNAPPROCESS,
+    };
 
-#[cfg(windows)]
-impl WindowsProcessSnapshot {
-    /// Take a single `TH32CS_SNAPPROCESS` snapshot and build the child map.
-    /// Returns `None` if the snapshot could not be created.
-    // 이유: ToolHelp 핸들 생성과 Process32FirstW/NextW 순회를 한 unsafe 블록에서 처리한다.
-    // 다른 플랫폼의 unsafe 검사를 유지하기 위해 이 함수에만 허용한다.
-    #[allow(clippy::multiple_unsafe_ops_per_block)]
-    fn capture() -> Option<Self> {
-        use std::collections::HashMap;
-        use windows::Win32::Foundation::{CloseHandle, HANDLE};
-        use windows::Win32::System::Diagnostics::ToolHelp::{
-            CreateToolhelp32Snapshot, PROCESSENTRY32W, Process32FirstW, Process32NextW,
-            TH32CS_SNAPPROCESS,
-        };
-
-        struct HandleGuard(HANDLE);
-        impl Drop for HandleGuard {
-            fn drop(&mut self) {
-                // SAFETY: CloseHandle on a HANDLE obtained from
-                // CreateToolhelp32Snapshot is the documented release path.
-                // Drop에서 핸들 해제를 시도하고 실패는 trace로 남긴다.
-                unsafe {
-                    if let Err(e) = CloseHandle(self.0) {
-                        tracing::trace!("ToolHelp snapshot CloseHandle: {e}");
-                    }
+    struct HandleGuard(HANDLE);
+    impl Drop for HandleGuard {
+        fn drop(&mut self) {
+            // SAFETY: CloseHandle on a HANDLE obtained from
+            // CreateToolhelp32Snapshot is the documented release path.
+            // Drop에서 핸들 해제를 시도하고 실패는 trace로 남긴다.
+            unsafe {
+                if let Err(e) = CloseHandle(self.0) {
+                    tracing::trace!("ToolHelp snapshot CloseHandle: {e}");
                 }
             }
-        }
-
-        // SAFETY: 본 블록은 ToolHelp snapshot 위에서 Process32FirstW/NextW를
-        // 순차 호출하는 표준 패턴. 모든 호출은 단일 흐름으로 실행되며 snapshot
-        // HANDLE은 HandleGuard로 Drop-시 close된다. PROCESSENTRY32W는 dwSize를
-        // 명시한 뒤 zeroed로 초기화 — Win32 API 요구사항. 반환된 entry.szExeFile은
-        // 함수 호출 후 entry가 살아있는 동안만 valid.
-        unsafe {
-            let snapshot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0).ok()?;
-            let _guard = HandleGuard(snapshot);
-
-            let mut entry = PROCESSENTRY32W {
-                dwSize: std::mem::size_of::<PROCESSENTRY32W>() as u32,
-                ..std::mem::zeroed()
-            };
-
-            let mut entries: Vec<(u32, u32, String)> = Vec::new();
-            if Process32FirstW(snapshot, &mut entry).is_ok() {
-                loop {
-                    let name_len = entry
-                        .szExeFile
-                        .iter()
-                        .position(|&c| c == 0)
-                        .unwrap_or(entry.szExeFile.len());
-                    let name = String::from_utf16_lossy(&entry.szExeFile[..name_len]);
-                    entries.push((entry.th32ProcessID, entry.th32ParentProcessID, name));
-                    if Process32NextW(snapshot, &mut entry).is_err() {
-                        break;
-                    }
-                }
-            }
-
-            let mut children: HashMap<u32, Vec<usize>> = HashMap::new();
-            for (i, (_, ppid, _)) in entries.iter().enumerate() {
-                children.entry(*ppid).or_default().push(i);
-            }
-
-            Some(Self { entries, children })
         }
     }
 
-    /// Choose the shallowest non-shell descendant, breaking ties by lowest PID.
-    /// ConPTY exposes no Unix-style foreground group, so this is a heuristic.
-    /// Walk through nested shells. If no non-shell descendant exists, use the deepest
-    /// leaf; without descendants, use the shell itself.
-    fn resolve(&self, shell_pid: u32) -> Option<ForegroundProcessInfo> {
-        use std::collections::VecDeque;
-        // BFS level-by-level from shell_pid. The explicit (depth, pid) comparison
-        // below makes the choice independent of `children` iteration order, so
-        // the result is deterministic even with multiple same-depth candidates.
-        let mut queue: VecDeque<(u32, u32)> = VecDeque::new(); // (pid, depth)
-        queue.push_back((shell_pid, 0));
-        // (pid, name, depth) of the shallowest non-shell descendant so far.
-        let mut shallowest_non_shell: Option<(u32, String, u32)> = None;
-        // Fallback: deepest leaf, used only when no non-shell descendant exists.
-        let mut best_leaf: Option<(u32, String, u32)> = None; // (pid, name, depth)
-        let mut found_descendant = false;
+    // SAFETY: 본 블록은 ToolHelp snapshot 위에서 Process32FirstW/NextW를
+    // 순차 호출하는 표준 패턴. 모든 호출은 단일 흐름으로 실행되며 snapshot
+    // HANDLE은 HandleGuard로 Drop-시 close된다. PROCESSENTRY32W는 dwSize를
+    // 명시한 뒤 zeroed로 초기화 — Win32 API 요구사항. 반환된 entry.szExeFile은
+    // 함수 호출 후 entry가 살아있는 동안만 valid.
+    unsafe {
+        let snapshot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0).ok()?;
+        let _guard = HandleGuard(snapshot);
 
-        while let Some((pid, depth)) = queue.pop_front() {
-            let Some(child_idxs) = self.children.get(&pid) else {
-                continue;
-            };
-            for &idx in child_idxs {
-                let (cpid, _, cname) = &self.entries[idx];
-                found_descendant = true;
-                let cdepth = depth + 1;
-                if !is_known_shell_name(cname) {
-                    // Shallowest wins; ties at the same depth → lowest PID.
-                    let better = shallowest_non_shell
-                        .as_ref()
-                        .is_none_or(|(bpid, _, bd)| cdepth < *bd || (cdepth == *bd && cpid < bpid));
-                    if better {
-                        shallowest_non_shell = Some((*cpid, cname.clone(), cdepth));
-                    }
-                }
-                // Track the deepest leaf in parallel for the no-non-shell fallback.
-                let has_children = self.children.get(cpid).is_some_and(|v| !v.is_empty());
-                if has_children {
-                    queue.push_back((*cpid, cdepth));
-                } else if best_leaf.as_ref().is_none_or(|(_, _, d)| cdepth > *d) {
-                    best_leaf = Some((*cpid, cname.clone(), cdepth));
+        let mut entry = PROCESSENTRY32W {
+            dwSize: std::mem::size_of::<PROCESSENTRY32W>() as u32,
+            ..std::mem::zeroed()
+        };
+
+        let mut entries: Vec<(u32, u32, String)> = Vec::new();
+        if Process32FirstW(snapshot, &mut entry).is_ok() {
+            loop {
+                let name_len = entry
+                    .szExeFile
+                    .iter()
+                    .position(|&c| c == 0)
+                    .unwrap_or(entry.szExeFile.len());
+                let name = String::from_utf16_lossy(&entry.szExeFile[..name_len]);
+                entries.push((entry.th32ProcessID, entry.th32ParentProcessID, name));
+                if Process32NextW(snapshot, &mut entry).is_err() {
+                    break;
                 }
             }
         }
 
-        let (pid, raw_name) = if let Some((pid, name, _)) = shallowest_non_shell {
-            (pid, name)
-        } else if found_descendant {
-            // Only nested/leaf shells under this shell — show the deepest one.
-            let (pid, name, _) = best_leaf?;
-            (pid, name)
-        } else {
-            // Shell is its own foreground process — return its name for parity
-            // with Linux/macOS where tpgid resolves to the shell when idle.
-            let (pid, _, name) = self.entries.iter().find(|(p, _, _)| *p == shell_pid)?;
-            (*pid, name.clone())
-        };
-
-        let name = raw_name
-            .strip_suffix(".exe")
-            .or_else(|| raw_name.strip_suffix(".EXE"))
-            .unwrap_or(&raw_name)
-            .to_string();
-
-        if name.is_empty() {
-            return None;
-        }
-        Some(ForegroundProcessInfo { name, pid })
+        Some(tree::ProcessSnapshot::from_entries(entries))
     }
 }
 
@@ -329,80 +240,5 @@ mod windows_smoke {
             "foreground for self pid {pid}: {:?}",
             info.map(|i| (i.name, i.pid))
         );
-    }
-}
-
-#[cfg(all(test, windows))]
-mod windows_tree {
-    //! Synthetic process-tree tests for [`WindowsProcessSnapshot::resolve`].
-    //! These build the snapshot's `entries`/`children` directly (same module,
-    //! so the private fields are reachable) and make no OS calls — fully
-    //! deterministic under headless CI.
-    use super::*;
-    use std::collections::HashMap;
-
-    /// Build a snapshot from `(pid, parent_pid, name)` triples.
-    fn snapshot(rows: &[(u32, u32, &str)]) -> WindowsProcessSnapshot {
-        let entries: Vec<(u32, u32, String)> = rows
-            .iter()
-            .map(|(pid, ppid, name)| (*pid, *ppid, name.to_string()))
-            .collect();
-        let mut children: HashMap<u32, Vec<usize>> = HashMap::new();
-        for (i, (_, ppid, _)) in entries.iter().enumerate() {
-            children.entry(*ppid).or_default().push(i);
-        }
-        WindowsProcessSnapshot { entries, children }
-    }
-
-    // Ignore transient descendants below the shallowest non-shell process.
-    #[test]
-    fn picks_shallowest_non_shell_over_deep_helpers() {
-        let snap = snapshot(&[
-            (100, 1, "bash.exe"),
-            (200, 100, "node.exe"),
-            (300, 200, "bash.exe"),
-            (301, 200, "git.exe"),
-            (302, 200, "rg.exe"),
-        ]);
-        let info = snap.resolve(100).expect("resolve");
-        assert_eq!(info.name, "node");
-        assert_eq!(info.pid, 200);
-    }
-
-    // pwsh(100) → cmd(200, a shell) → node(300): nested shell is walked through
-    // but never chosen; node is selected.
-    #[test]
-    fn walks_through_nested_shell() {
-        let snap = snapshot(&[
-            (100, 1, "pwsh.exe"),
-            (200, 100, "cmd.exe"),
-            (300, 200, "node.exe"),
-        ]);
-        let info = snap.resolve(100).expect("resolve");
-        assert_eq!(info.name, "node");
-        assert_eq!(info.pid, 300);
-    }
-
-    // shell(100) with no descendants → fall back to the shell itself.
-    #[test]
-    fn falls_back_to_shell_when_no_descendant() {
-        let snap = snapshot(&[(100, 1, "bash.exe")]);
-        let info = snap.resolve(100).expect("resolve");
-        assert_eq!(info.name, "bash");
-        assert_eq!(info.pid, 100);
-    }
-
-    // Two non-shell children at the same (shallowest) depth → lowest PID wins.
-    // node is listed after cargo on purpose so insertion order can't pass by luck.
-    #[test]
-    fn ties_break_by_lowest_pid() {
-        let snap = snapshot(&[
-            (100, 1, "bash.exe"),
-            (301, 100, "cargo.exe"),
-            (300, 100, "node.exe"),
-        ]);
-        let info = snap.resolve(100).expect("resolve");
-        assert_eq!(info.pid, 300);
-        assert_eq!(info.name, "node");
     }
 }
