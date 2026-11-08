@@ -6952,7 +6952,7 @@ connect_failed_body = "プラグインのプログラムが終了したか、時
 auto_disabled_title = "プラグイン '{}' をオフにしました"
 auto_disabled_body = "{} 回続けて起動できなかったため、再びオンにするまで Tasty はこのプラグインを起動しません。最後のエラー: {}。詳細は tasty plugin logs {} で確認してください。"
 reserved_id_title = "プラグイン '{}' を登録しませんでした"
-reserved_id_body = "id に公式 Tasty プラグイン専用の com.tasty. 接頭辞を使っています。プラグイン › 確認が必要 から削除してください。"
+reserved_id_body = "id に公式 Tasty プラグイン専用の com.tasty. 接頭辞を使っています。プラグイン › 要確認 から削除してください。"
 
 
 [notice]
