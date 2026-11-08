@@ -70,7 +70,7 @@ pub(crate) fn state_tile(
             );
             gap(ui, theme);
             label(ui, theme, "Failed to load", theme.accent_danger());
-            url_line(ui, theme, "https://tasty.dev");
+            url_line(ui, theme, "https://offline.example");
         }
     });
 }

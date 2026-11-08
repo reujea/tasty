@@ -12,7 +12,7 @@ use tasty_ui_widgets::{TagVariant, tag};
 use tasty_ui_widgets::surface_bed;
 
 use crate::catalog::components::sidebar::paint_ws_count_badge_at;
-use crate::catalog::spec::{StageVariant, TokenChip, dont, meta, note, stage};
+use crate::catalog::spec::{StageVariant, TokenChip, cluster, dont, meta, note, stage};
 
 /// 섞인 분할 무대의 높이와 폭.
 const SPLIT_STAGE_H: LogicalPx = LogicalPx(240.0);
@@ -250,7 +250,9 @@ pub fn draw_mixed_split(ui: &mut egui::Ui, theme: &Theme) {
         split_row(ui, theme, false);
     });
     stage(ui, theme, StageVariant::Tight, |ui| {
-        split_row(ui, theme, true);
+        cluster(ui, theme, "Markdown focused", |ui| {
+            split_row(ui, theme, true)
+        });
     });
     meta(
         ui,

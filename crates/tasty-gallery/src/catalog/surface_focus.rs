@@ -18,7 +18,7 @@ const FRAME_H: LogicalPx = LogicalPx(64.0);
 /// 시안 `FocusDemo`의 높이(`size-160`).
 const DEMO_H: LogicalPx = LogicalPx(160.0);
 /// 시안 `.fixed-view` 한 칸의 전시 폭. 시안은 칸 폭을 그리드가 정한다.
-const VIEW_W: LogicalPx = LogicalPx(440.0);
+const VIEW_W: LogicalPx = LogicalPx(400.0);
 /// 시안 `Marked`는 내용 폭이다. 가장 긴 줄이 들어가는 전시 폭으로 고정한다.
 const MARK_W: LogicalPx = LogicalPx(220.0);
 /// 시안 dag 노드 표시의 크기(`size-48`×`size-16`).
@@ -29,6 +29,10 @@ const MD_STRIP_H: LogicalPx = LogicalPx(4.0);
 /// 시안 `bed-field-focus` 입력 칸의 위치와 높이(`size-4`, `size-16`).
 const FIELD_INSET: LogicalPx = LogicalPx(4.0);
 const FIELD_H: LogicalPx = LogicalPx(16.0);
+/// 시안 states 칸의 띠 폭(`size-64`)과 칸 크기.
+const EDGE_W: LogicalPx = LogicalPx(64.0);
+const EDGE_CELL_W: LogicalPx = LogicalPx(80.0);
+const EDGE_CELL_H: LogicalPx = LogicalPx(24.0);
 
 /// surface 종류 하나의 표본.
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -310,7 +314,7 @@ fn frame_rect(
     focused: bool,
     bed_focused: bool,
     ring: Option<Ring>,
-) {
+) -> egui::Rect {
     let (rect, _) = ui.allocate_exact_size(size, egui::Sense::hover());
     let p = ui.painter_at(rect);
     let r = theme.corner_radius.value();
@@ -321,6 +325,57 @@ fn frame_rect(
         paint_leaf(ui, &p, theme, leaf, kind, focused, bed_focused, None);
         p.rect_stroke(rect, r, border_stroke(theme), egui::StrokeKind::Inside);
     }
+    rect
+}
+
+/// 시안 states 계약 `Surface focus edge`: 바탕 넷 위의 rest(비포커스), focus(포커스) 띠.
+fn edge_states(ui: &mut egui::Ui, theme: &Theme) {
+    let hosts = [
+        ("crust", theme.bg_app().to_egui()),
+        ("mantle", theme.bg_sidebar().to_egui()),
+        ("base", theme.bg_panel().to_egui()),
+        ("term", theme.surface_bed_focused().to_egui()),
+    ];
+    let head = |ui: &mut egui::Ui, text: &str| {
+        ui.label(
+            egui::RichText::new(text)
+                .font(mono(theme))
+                .color(theme.text_muted()),
+        );
+    };
+    egui::Grid::new("surface-focus-edge-states")
+        .spacing(egui::vec2(
+            theme.spacing_xs.value(),
+            theme.spacing_xs.value(),
+        ))
+        .show(ui, |ui| {
+            head(ui, "host");
+            head(ui, "rest");
+            head(ui, "focus");
+            ui.end_row();
+            for (name, host) in hosts {
+                head(ui, name);
+                for focused in [false, true] {
+                    let (cell, _) = ui.allocate_exact_size(
+                        egui::vec2(EDGE_CELL_W.value(), EDGE_CELL_H.value()),
+                        egui::Sense::hover(),
+                    );
+                    let p = ui.painter_at(cell);
+                    p.rect_filled(cell, 0.0, host);
+                    let edge = egui::Rect::from_center_size(
+                        cell.center(),
+                        egui::vec2(EDGE_W.value(), theme.surface_focus_edge_width().value()),
+                    );
+                    SurfaceFocusEdge {
+                        focused,
+                        ring: None,
+                        corner_radius: 0.0,
+                    }
+                    .paint(&p, theme, edge);
+                }
+                ui.end_row();
+            }
+        });
 }
 
 /// 시안 `ThemeRow`: 한 테마의 focused, unfocused 두 칸.
@@ -400,6 +455,11 @@ fn draw_every_kind(ui: &mut egui::Ui, theme: &Theme) {
             });
         }
     });
+    stage(ui, theme, StageVariant::Wrap, |ui| {
+        cluster(ui, theme, "States: surface focus edge", |ui| {
+            edge_states(ui, theme)
+        });
+    });
     meta(
         ui,
         theme,
@@ -471,12 +531,11 @@ struct Marked {
 fn marked(ui: &mut egui::Ui, theme: &Theme, m: &Marked) {
     cluster(ui, theme, m.label, |ui| {
         let size = egui::vec2(MARK_W.value(), FRAME_H.value());
-        let before = ui.next_widget_position();
-        frame_rect(ui, theme, size, m.kind, m.focused, m.bed_focused, m.ring);
+        let frame = frame_rect(ui, theme, size, m.kind, m.focused, m.bed_focused, m.ring);
         if m.field {
             let inset = FIELD_INSET.value();
             let field = egui::Rect::from_min_size(
-                before + egui::vec2(inset, inset),
+                frame.min + egui::vec2(inset, inset),
                 egui::vec2(MARK_W.value() - inset * 2.0, FIELD_H.value()),
             );
             ui.painter().rect_stroke(

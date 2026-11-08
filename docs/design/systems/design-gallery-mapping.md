@@ -263,7 +263,7 @@ Spec 하나가 갤러리 예제 둘이거나, 둘이 하나이거나, 경계가 
 | `gallery/layouts/index.jsx` "One sidebar, one detail pane" | `onedepth` | [1 depth](#1-depth-general-list--detail) |
 | `gallery/layouts/index.jsx` "Top tabs over a filterable section list" | `twodepth` | [2 depth](#2-depth-settings-idiom) |
 | `gallery/layouts/index.jsx` "Stacked tab tiers — workspace over panes" | `multitab` |  |
-| `gallery/layouts/surface-focus.jsx` "Surface focus on every kind" | `surface-focus-every-kind` | `surface_focus.rs`. kind 9개를 Mocha·Latte, focused·unfocused로 그리고 누르면 포커스가 옮는 예제를 둔다. 바탕은 `tasty_ui_widgets::surface_bed`, 띠는 `tasty_ui_widgets::SurfaceFocusEdge` |
+| `gallery/layouts/surface-focus.jsx` "Surface focus on every kind" | `surface-focus-every-kind` | `surface_focus.rs`. kind 9개를 Mocha·Latte, focused·unfocused로 그리고 누르면 포커스가 옮는 예제를 둔다. 바탕은 `tasty_ui_widgets::surface_bed`, 띠는 `tasty_ui_widgets::SurfaceFocusEdge`. 시안 states 계약 `Surface focus edge`(host 4 × rest·focus)도 같은 표본에 둔다 |
 | `gallery/layouts/surface-focus.jsx` "Focus with rings, marks and keyboard focus" | `surface-focus-edge-with-marks` | `surface_focus.rs`. 칠하는 순서와 링이 있을 때 켜진 띠가 아래 행만 쓰는 규칙은 `SurfaceFocusEdge`에 있다 |
 | `gallery/layouts/index.jsx` "Mixed split — terminal + markdown" | `mixed-split` | `layouts_settled.rs::draw_mixed_split`. 포커스가 터미널인 줄과 Markdown인 줄 두 칸 |
 | `gallery/layouts/index.jsx` "Focused · unfocused · agent" | `surface` | `components/surface_highlights.rs` |
