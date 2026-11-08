@@ -107,11 +107,14 @@ fn leaf(
     body: impl FnOnce(&mut egui::Ui),
 ) {
     ui.vertical(|ui| {
+        // 띠 행과 내용 사이에만 간격을 두지 않는다. 내용의 간격은 원래 값을 쓴다.
+        let spacing = ui.spacing().item_spacing.y;
         ui.spacing_mut().item_spacing.y = 0.0;
         let (row, _) = ui.allocate_exact_size(
             egui::vec2(width, theme.surface_focus_edge_width().value()),
             egui::Sense::hover(),
         );
+        ui.spacing_mut().item_spacing.y = spacing;
         SurfaceFocusEdge {
             focused,
             ring: None,
