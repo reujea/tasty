@@ -1,4 +1,4 @@
-//! 플러그인 매니저의 기동·연결 실패와 자동 비활성화를 알림으로 남긴다. GUI와 헤드리스가 같이 쓴다.
+//! 플러그인 매니저의 기동·연결 실패, 자동 비활성화, 예약 id 거부를 알림으로 남긴다. GUI와 헤드리스가 같이 쓴다.
 //!
 //! 매니저는 실패 보고를 쌓아 두고 호스트가 꺼낸다. 알림을 남길 workspace가 없으면 꺼내지 않으므로
 //! 첫 창·워크스페이스가 준비되기 전 부팅 중 실패도 버려지지 않는다. 사용자가 끈 plugin은 기동하지
@@ -90,6 +90,12 @@ fn notice(report: &FailureReport) -> (NotificationLevel, String, String) {
                 tasty_i18n::t_args(body_key, &[&failure.message, plugin_id]),
             )
         }
+        // 디자인을 정하기 전이라 기동 실패 제목을 쓰고 본문에 판정 문장을 그대로 싣는다.
+        FailureReport::ReservedId { plugin_id, reason } => (
+            NotificationLevel::Warning,
+            crate::i18n::t_fmt("plugin_notice.start_failed_title", plugin_id),
+            reason.clone(),
+        ),
         FailureReport::AutoDisabled {
             plugin_id,
             failure,

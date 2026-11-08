@@ -214,3 +214,31 @@ fn an_unverified_choice_applies_only_to_the_reviewed_manifest() {
             .is_none()
     );
 }
+
+/// 공식 목록에 없는 `com.tasty.*`는 미인증 선택을 해도 설치하지 않고 기록도 바꾸지 않는다.
+#[test]
+fn an_unknown_reserved_id_is_refused_even_with_an_explicit_choice() {
+    let home = seeded_home();
+    let src = unsigned_source();
+    let manifest = src.path().join("tasty-plugin.toml");
+    let text = std::fs::read_to_string(&manifest).expect("manifest");
+    std::fs::write(&manifest, text.replace(ID, "com.tasty.fake")).expect("manifest");
+    let mut mgr = manager();
+    let plugins_before = read(&home, "plugins.toml");
+    let known_before = read(&home, "known-plugins.toml");
+
+    let err = install_into(&mut mgr, src.path(), &InstallChoice::AllowUnverified, None)
+        .expect_err("a reserved id is refused");
+    assert!(
+        err.to_string().contains("reserved com.tasty. prefix"),
+        "{err}"
+    );
+    assert!(!home.dir.path().join("plugins/com.tasty.fake").exists());
+    assert_eq!(read(&home, "plugins.toml"), plugins_before);
+    assert_eq!(read(&home, "known-plugins.toml"), known_before);
+    assert!(
+        !mgr.packages()
+            .iter()
+            .any(|p| p.manifest.id == "com.tasty.fake")
+    );
+}

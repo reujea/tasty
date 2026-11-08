@@ -315,6 +315,13 @@ pub(super) fn verify_trust(
     dest: &Path,
     known: &crate::known_plugins::KnownPlugins,
 ) -> Result<(), BuiltinUpgradeItem> {
+    // 폴더 이름과 다른 id를 선언한 번들은 서명과 관계없이 복사하지 않는다(모든 빌드).
+    if let Some(reason) = crate::official::bundle_identity_mismatch(spec.id, src) {
+        return Err(BuiltinUpgradeItem {
+            id: spec.id.into(),
+            action: BuiltinUpgradeAction::Failed { reason },
+        });
+    }
     #[cfg(not(debug_assertions))]
     {
         use crate::bundle_sig::TrustDecision;

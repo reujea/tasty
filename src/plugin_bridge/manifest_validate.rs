@@ -3,8 +3,11 @@
 
 use anyhow::Result;
 
-/// Manifest::load 뒤에 detector·handler와 surface kind·IPC namespace 참조를 검증한다.
+/// Manifest::load 뒤에 공식 id 이름 공간과 detector·handler, surface kind·IPC namespace 참조를
+/// 검증한다. 설치와 Add 미리보기가 함께 부르므로 둘이 같은 판정과 같은 문장을 쓴다.
 pub fn validate_bin_extras(manifest: &crate::plugin::Manifest) -> Result<()> {
+    // 서명 판정과 신뢰 기록보다 먼저 거부한다. 오류 형식은 IPC 응답의 원인 이름에 쓰인다.
+    tasty_host_plugin::official::admit_plugin_id(&manifest.id)?;
     validate_detector_actual(&manifest.contributes.detector)?;
     let surface_kinds: Vec<String> = manifest
         .surface_kinds

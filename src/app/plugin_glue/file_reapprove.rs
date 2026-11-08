@@ -73,6 +73,7 @@ fn reapprove(
     if manifest.id != id {
         return Err(Failure::before("plugin manifest identity changed"));
     }
+    tasty_host_plugin::official::admit_plugin_id(id).map_err(Failure::before)?;
     let stamp = chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true);
     let undo = tasty_host_plugin::trust_verdict::reapprove_permissions_in(
         known.clone(),

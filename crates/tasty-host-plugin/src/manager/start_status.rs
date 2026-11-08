@@ -82,6 +82,8 @@ pub enum FailureReport {
         failure: PluginFailure,
         failures: usize,
     },
+    /// 공식 목록에 없는 `com.tasty.*` 폴더를 등록하지 않았다. `reason`은 판정 문장이다.
+    ReservedId { plugin_id: String, reason: String },
 }
 
 #[derive(Debug, Default)]
@@ -191,6 +193,11 @@ impl StartTracker {
         {
             s.state = StartState::Cancelled;
         }
+    }
+
+    /// 기동과 무관한 보고를 같은 알림 대기열에 넣는다.
+    pub(super) fn report(&mut self, report: FailureReport) {
+        self.reports.push(report);
     }
 
     /// 사용자가 다시 켜면 이전 알림 묶음을 끝낸다.

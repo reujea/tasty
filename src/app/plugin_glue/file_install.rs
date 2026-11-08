@@ -23,9 +23,11 @@ struct Installed {
 }
 
 fn failure(error: anyhow::Error) -> Failure {
+    let reserved = error.downcast_ref::<tasty_host_plugin::official::ReservedIdError>();
     let details = error
         .downcast_ref::<UnverifiedRefused>()
         .map(|e| json!({"unverified":e.cause.token(),"plugin_id":e.plugin_id}))
+        .or_else(|| reserved.map(|e| json!({"reserved_id":e.id,"plugin_id":e.id})))
         .unwrap_or_else(|| json!({}));
     Failure {
         message: error.to_string(),
@@ -33,6 +35,24 @@ fn failure(error: anyhow::Error) -> Failure {
         applied: false,
         details,
     }
+}
+
+/// 등록 확정 직전의 마지막 예약 id 판정. 설치·재승인 관문을 거친 뒤라 닿지 않아야 한다.
+/// 닿으면 명령·번역 등록 전에 멈춘다. 파일·신뢰 DB·plugins.toml은 이미 커밋됐으므로
+/// 관리자 부재 실패(`post_commit::Stage::Registration`)와 같이 저장됨·부분 완료로 보고한다.
+fn admit_after_files(id: &str) -> Result<(), Failure> {
+    tasty_host_plugin::official::admit_plugin_id(id).map_err(|e| Failure {
+        message: e.to_string(),
+        saved: Some(true),
+        applied: false,
+        details: json!({
+            "files_committed": true,
+            "registered": false,
+            "partial": true,
+            "reserved_id": e.id,
+            "plugin_id": e.id,
+        }),
+    })
 }
 
 struct InstallRequest {
@@ -232,6 +252,7 @@ impl App {
         config: PluginsConfig,
         installed: bool,
     ) -> Result<Value, Failure> {
+        admit_after_files(&manifest.id)?;
         let mgr = crate::app::plugin_file_lifecycle::post_commit::manager_after_files(
             &mut self.plugin_manager,
             crate::app::plugin_file_lifecycle::post_commit::Stage::Registration,
@@ -347,6 +368,44 @@ command="unused"
                 .exists()
         );
         assert!(!home.path().join("known-plugins.toml").exists());
+    }
+    #[test]
+    fn an_unknown_reserved_id_is_refused_before_anything_is_written() {
+        let home = tempfile::tempdir().unwrap();
+        let request = request(home.path(), InstallChoice::AllowUnverified);
+        let manifest = request.source.join("tasty-plugin.toml");
+        let text = std::fs::read_to_string(&manifest).unwrap();
+        std::fs::write(
+            &manifest,
+            text.replace("com.example.worker-install", "com.tasty.fake"),
+        )
+        .unwrap();
+        let error = request.execute().err().unwrap();
+        assert_eq!(error.details["reserved_id"], "com.tasty.fake");
+        assert!(
+            error.message.contains("reserved com.tasty. prefix"),
+            "{}",
+            error.message
+        );
+        assert_eq!(error.saved, Some(false));
+        assert!(!error.applied);
+        assert!(!home.path().join("plugins").exists());
+        assert!(!home.path().join("known-plugins.toml").exists());
+        assert!(!home.path().join("plugins.toml").exists());
+    }
+    #[test]
+    fn the_registration_guard_reports_committed_files_and_the_reserved_id() {
+        let error = admit_after_files("com.tasty.fake").expect_err("reserved id is refused");
+        assert_eq!(error.saved, Some(true));
+        assert!(!error.applied);
+        let data = error.response_data();
+        assert_eq!(data["files_committed"], true);
+        assert_eq!(data["registered"], false);
+        assert_eq!(data["partial"], true);
+        assert_eq!(data["reserved_id"], "com.tasty.fake");
+        assert_eq!(data["saved"], true);
+        assert!(admit_after_files("com.tasty.markdown").is_ok());
+        assert!(admit_after_files("com.example.x").is_ok());
     }
     #[test]
     fn failed_config_restores_owned_trust_and_copy_without_touching_the_source() {

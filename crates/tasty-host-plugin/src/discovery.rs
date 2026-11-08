@@ -1,6 +1,7 @@
 //! 데이터 루트의 plugins 디렉터리에서 매니페스트를 읽는다.
 //! release는 키로 검증했거나 사용자가 미인증 경고를 보고 고른 plugin만 등록한다.
 //! debug는 서명·신뢰 검사를 우회하지만 매니페스트 파싱은 수행한다.
+//! 공식 목록에 없는 `com.tasty.*` id는 서명 판정 전에 모든 빌드에서 거부한다([`crate::official`]).
 
 use std::path::PathBuf;
 
@@ -12,62 +13,99 @@ pub fn plugin_root() -> Option<PathBuf> {
 
 /// plugin을 찾아 ID순으로 정렬하고 같은 ID는 첫 항목만 남긴다.
 pub fn discover() -> Vec<PluginPackage> {
-    discover_with_rejections().0
+    discover_all().packages
 }
 
-/// `discover` 와 동일하지만, trust gate 에서 거부된 plugin(서명 미신뢰 / 검증
-/// 실패 / 권한 변경)도 함께 수집해 `(통과, 거부)` 로 반환한다. UI 의 "확인 필요"
-/// 목록과 사이드바 경고 배지가 이 거부 목록을 소비한다. debug 빌드는 trust gate
-/// 를 우회하므로(`trust_outcome` 가 항상 Trusted) 거부 목록은 항상 비어 있다.
-pub fn discover_with_rejections() -> (Vec<PluginPackage>, Vec<RejectedPlugin>) {
-    let root = match plugin_root() {
-        Some(r) => r,
-        None => return (Vec::new(), Vec::new()),
+/// 한 번의 탐색 결과.
+#[derive(Debug, Default)]
+pub struct Discovered {
+    /// 등록할 plugin. ID순이며 같은 ID는 첫 항목만 남는다.
+    pub packages: Vec<PluginPackage>,
+    /// trust gate 에서 거부된 plugin(서명 미신뢰 / 검증 실패 / 권한 변경). UI 의 "확인 필요"
+    /// 목록과 사이드바 경고 배지가 소비한다. debug 빌드는 trust gate 를 우회하므로
+    /// (`trust_outcome` 가 항상 Trusted) 항상 비어 있다.
+    pub rejected: Vec<RejectedPlugin>,
+    /// 공식 목록에 없는 `com.tasty.*` 폴더. 모든 빌드에서 등록하지 않는다.
+    pub reserved: Vec<ReservedIdBlocked>,
+}
+
+/// 공식 목록에 없는 `com.tasty.*` id를 선언해 등록하지 않은 폴더.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ReservedIdBlocked {
+    pub id: String,
+    pub dir: PathBuf,
+    /// [`crate::official::ReservedIdError`]의 문장.
+    pub reason: String,
+}
+
+/// `discover` 와 같은 탐색에서 거부한 항목도 함께 돌려준다.
+pub fn discover_all() -> Discovered {
+    let mut found = Discovered::default();
+    let Some(root) = plugin_root() else {
+        return found;
     };
     if !root.exists() {
-        return (Vec::new(), Vec::new());
+        return found;
     }
     let read_dir = match std::fs::read_dir(&root) {
         Ok(rd) => rd,
         Err(e) => {
             tracing::warn!("plugin discovery: cannot read {}: {}", root.display(), e);
-            return (Vec::new(), Vec::new());
+            return found;
         }
     };
-    let mut packages = Vec::new();
-    let mut rejected = Vec::new();
     for entry in read_dir.flatten() {
-        classify_discovery_entry(entry.path(), &mut packages, &mut rejected);
+        classify_discovery_entry(entry.path(), &mut found);
     }
-    packages.sort_by(|a, b| a.manifest.id.cmp(&b.manifest.id));
+    found
+        .packages
+        .sort_by(|a, b| a.manifest.id.cmp(&b.manifest.id));
     // (정렬 + dedup 은 trust gate 와 무관 — 위에서 이미 filter 완료.)
-    dedup_packages_by_id(&mut packages);
-    (packages, rejected)
+    dedup_packages_by_id(&mut found.packages);
+    found.reserved.sort_by(|a, b| a.dir.cmp(&b.dir));
+    found
 }
 
-/// 한 디렉토리 항목을 검사해 trust gate 통과 여부에 따라 packages/rejected 에 분류.
+/// 한 디렉토리 항목을 검사해 id 이름 공간과 trust gate 판정에 따라 분류한다.
 /// plugin 디렉토리가 아니거나 매니페스트가 없으면 조용히 skip.
-fn classify_discovery_entry(
-    dir: PathBuf,
-    packages: &mut Vec<PluginPackage>,
-    rejected: &mut Vec<RejectedPlugin>,
-) {
+fn classify_discovery_entry(dir: PathBuf, found: &mut Discovered) {
     if !dir.is_dir() || !dir.join("tasty-plugin.toml").exists() {
         return;
     }
     // 보일 내용을 읽기 전에 digest 를 잡는다. 확인 필요 탭의 선택은 이 내용에만 적용된다.
     let manifest_sha256 = crate::trust_verdict::manifest_sha256(&dir).unwrap_or_default();
     // 여기서는 매니페스트 스키마를 확인한다. detector/handler 등록 검증은 호스트가 처리한다.
-    match Manifest::load(&dir) {
-        Ok(manifest) => match trust_outcome(&dir, &manifest, manifest_sha256) {
-            TrustOutcome::Trusted => packages.push(PluginPackage { dir, manifest }),
-            TrustOutcome::Rejected(rej) => {
-                tracing::warn!("plugin '{}' not auto-loaded ({:?})", rej.id, rej.reason);
-                rejected.push(*rej);
-            }
-        },
-        Err(e) => tracing::warn!("plugin '{}' rejected: {}", dir.display(), e),
+    let manifest = match Manifest::load(&dir) {
+        Ok(manifest) => manifest,
+        Err(e) => {
+            tracing::warn!("plugin '{}' rejected: {}", dir.display(), e);
+            return;
+        }
+    };
+    // 서명 판정보다 먼저 본다. debug의 서명 우회는 이 판정에 적용하지 않는다.
+    if let Err(blocked) = admit_reserved(&dir, &manifest) {
+        found.reserved.push(blocked);
+        return;
     }
+    match trust_outcome(&dir, &manifest, manifest_sha256) {
+        TrustOutcome::Trusted => found.packages.push(PluginPackage { dir, manifest }),
+        TrustOutcome::Rejected(rej) => {
+            tracing::warn!("plugin '{}' not auto-loaded ({:?})", rej.id, rej.reason);
+            found.rejected.push(*rej);
+        }
+    }
+}
+
+/// 공식 목록에 없는 `com.tasty.*` id면 경고를 남기고 거부 기록을 돌려준다.
+fn admit_reserved(dir: &std::path::Path, manifest: &Manifest) -> Result<(), ReservedIdBlocked> {
+    crate::official::admit_plugin_id(&manifest.id).map_err(|e| {
+        tracing::warn!("plugin at {} not loaded: {e}", dir.display());
+        ReservedIdBlocked {
+            id: e.id.clone(),
+            dir: dir.to_path_buf(),
+            reason: e.to_string(),
+        }
+    })
 }
 
 /// 정렬된 packages 에서 중복 id 를 제거 — 먼저 나온(정렬 후 첫) 항목만 보존.
@@ -233,6 +271,10 @@ fn trust_outcome(
         }
     }
 }
+
+#[cfg(test)]
+#[path = "discovery_reserved_tests.rs"]
+mod reserved_tests;
 
 /// 신뢰 시점(known-plugins.toml)의 권한 대비 새 매니페스트 권한의 added/removed.
 #[cfg(not(debug_assertions))]

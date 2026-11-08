@@ -134,6 +134,7 @@ impl PluginManager {
         Self {
             packages: Vec::new(),
             rejected: Vec::new(),
+            reserved: Vec::new(),
             processes: HashMap::new(),
             config: PluginsConfig::load(),
             waker,
@@ -242,11 +243,30 @@ impl PluginManager {
 
     /// 설치 디렉터리를 다시 읽어 패키지와 거부 목록을 함께 갱신한다.
     pub fn refresh_packages(&mut self) {
-        let (packages, rejected) = crate::discovery::discover_with_rejections();
-        self.packages = packages;
-        self.rejected = rejected;
+        let found = crate::discovery::discover_all();
+        self.packages = found.packages;
+        self.rejected = found.rejected;
+        self.note_reserved(found.reserved);
         self.sync_ipc_namespaces_from_packages();
         self.recompute_shared_tables();
+    }
+
+    /// 공식 목록에 없는 `com.tasty.*` 폴더 목록. 등록하지 않은 항목이다.
+    pub fn reserved_blocked(&self) -> &[crate::discovery::ReservedIdBlocked] {
+        &self.reserved
+    }
+
+    /// 탐색할 때마다 같은 폴더를 다시 알리지 않는다. 사라졌다 다시 생긴 폴더는 새로 알린다.
+    fn note_reserved(&mut self, found: Vec<crate::discovery::ReservedIdBlocked>) {
+        for blocked in &found {
+            if !self.reserved.contains(blocked) {
+                self.start_tracker.report(super::FailureReport::ReservedId {
+                    plugin_id: blocked.id.clone(),
+                    reason: blocked.reason.clone(),
+                });
+            }
+        }
+        self.reserved = found;
     }
 
     /// Removal waits on the existing reaper without blocking the event loop or reviving a plugin.

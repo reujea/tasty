@@ -15,8 +15,8 @@ use crate::{PluginManager, PluginsConfig, discovery};
 use tasty_plugin_manifest::Manifest;
 
 /// 한 builtin plugin의 패키지 메타 — id, dev workspace crate 경로, plugin 바이너리 이름.
-struct BuiltinSpec {
-    id: &'static str,
+pub(crate) struct BuiltinSpec {
+    pub(crate) id: &'static str,
     /// `crates/<crate_dir>/` — workspace 빌드의 매니페스트/lang 원본 위치.
     /// workspace 가 실제로 존재할 때만 dev sync 에 사용된다 (배포 패키지에서는 미사용).
     crate_dir: &'static str,
@@ -25,7 +25,7 @@ struct BuiltinSpec {
 }
 
 #[cfg(windows)]
-const BUILTINS: &[BuiltinSpec] = &[
+pub(crate) const BUILTINS: &[BuiltinSpec] = &[
     BuiltinSpec {
         id: "com.tasty.codex",
         crate_dir: "tasty-plugin-codex",
@@ -74,7 +74,7 @@ const BUILTINS: &[BuiltinSpec] = &[
 ];
 
 #[cfg(not(windows))]
-const BUILTINS: &[BuiltinSpec] = &[
+pub(crate) const BUILTINS: &[BuiltinSpec] = &[
     BuiltinSpec {
         id: "com.tasty.codex",
         crate_dir: "tasty-plugin-codex",
@@ -559,15 +559,11 @@ fn install_builtin_bundle_step(
     let Some(bundle) = bundle else {
         return false;
     };
-    let src = bundle.join(spec.id);
-    if !src.is_dir() {
-        tracing::debug!(
-            "builtin plugin '{}' not in bundle ({}), skipping",
-            spec.id,
-            src.display()
-        );
-        return false;
-    }
+    let src = match crate::official::bundle_source(bundle, spec.id) {
+        Ok(Some(src)) => src,
+        Ok(None) => return false,
+        Err(_) => return true,
+    };
     if let Err(e) = std::fs::create_dir_all(dest_root) {
         tracing::warn!(
             "install_builtins: mkdir {} failed: {e}",
@@ -709,7 +705,8 @@ fn install_builtin_grant_step(mgr: &mut PluginManager, spec: &BuiltinSpec, dest:
     let Ok(manifest) = Manifest::load(dest) else {
         return false;
     };
-    if manifest.permissions.is_empty() {
+    // 다른 id를 선언한 폴더의 권한을 이 공식 id로 기록하지 않는다.
+    if manifest.permissions.is_empty() || manifest.id != spec.id {
         return false;
     }
     if !mgr.config.grants.contains_key(spec.id) {
@@ -1319,6 +1316,9 @@ mod sync_probe;
 
 #[cfg(test)]
 mod bundle_selection_tests;
+
+#[cfg(test)]
+mod bundle_identity_tests;
 
 #[cfg(test)]
 mod upgrade_retire_tests;
