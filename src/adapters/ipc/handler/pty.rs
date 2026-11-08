@@ -940,7 +940,15 @@ pub(crate) mod tests {
         let mut e = session.borrow_mut();
         let (mut c, _home) = core();
         let ws = e.workspace_at(0).expect("fixture workspace").id;
-        let limited = spawn_with(&mut c, &mut e, json!({ "idle_timeout_secs": 1 }));
+        // spawn and list sweep against the real clock from the fake clock's fixed start, so the
+        // limit must be out of reach of real time. The reclaim below alone decides the expiry:
+        // last_activity is not later than now, so now + limit is at least the limit past it.
+        const LIMIT: Duration = Duration::from_secs(3600);
+        let limited = spawn_with(
+            &mut c,
+            &mut e,
+            json!({ "idle_timeout_secs": LIMIT.as_secs() }),
+        );
         let unlimited = spawn_with(&mut c, &mut e, json!({}));
         let listed = ok(handle_list(&mut e, json!(2)));
         let row = listed["ptys"]
@@ -950,12 +958,9 @@ pub(crate) mod tests {
             .find(|p| p["id"].as_u64() == Some(limited as u64))
             .cloned()
             .expect("listed");
-        assert_eq!(row["idle_timeout_secs"].as_u64(), Some(1));
+        assert_eq!(row["idle_timeout_secs"].as_u64(), Some(LIMIT.as_secs()));
 
-        assert_eq!(
-            e.reclaim_standalone_ptys(Instant::now() + Duration::from_secs(2)),
-            1
-        );
+        assert_eq!(e.reclaim_standalone_ptys(Instant::now() + LIMIT), 1);
         assert!(!e.runtime.terminals.is_standalone(limited));
         assert!(e.runtime.terminals.is_standalone(unlimited));
 
@@ -975,10 +980,9 @@ pub(crate) mod tests {
             crate::i18n::t("notification.pty_idle_timeout_title")
         );
 
-        let expected = crate::runtime::terminal_store::PtyReclaimReason::IdleTimeout {
-            timeout: Duration::from_secs(1),
-        }
-        .describe(limited);
+        let expected =
+            crate::runtime::terminal_store::PtyReclaimReason::IdleTimeout { timeout: LIMIT }
+                .describe(limited);
         let params = json!({ "id": limited, "text": "x" });
         for message in [
             error_message(handle_wait(&mut e, json!(3), &params)),
