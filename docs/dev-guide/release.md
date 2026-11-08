@@ -52,8 +52,10 @@ CLAUDE.md 정책의 운영 형태:
 
 공개 사이트(`https://tasty.zilhak.org/`)와 사용자 가이드는 [tasty-page](https://github.com/zilhak/tasty-page) 레포에 있다.
 그 레포의 `main`은 개발 중 갱신하는 최신 페이지이며 push 때 빌드와 검사만 한다. 게시용 `release` 브랜치에
-push할 때만 GitHub Pages로 배포한다. 사이트는 사용자가 받을 수 있는 버전을 설명하므로 `release`는 Tasty 릴리스와
-함께 승격한다([8. 사이트 게시](#8-사이트-게시)). 태그를 만들기 전에 tasty-page `main`을 준비한다.
+push할 때만 GitHub Pages로 배포한다. 사이트는 사용자가 받을 수 있는 버전을 설명하므로 기능 설명이나 버전이 바뀌는
+변경은 Tasty 릴리스와 함께 `release`로 승격한다. 공개된 Tasty 버전의 기능 설명이나 버전이 바뀌지 않는 변경(문구,
+메타데이터 등)은 릴리스와 무관하게 바로 게시한다([8. 사이트 게시](#8-사이트-게시)). 태그를 만들기 전에 tasty-page
+`main`을 준비한다.
 
 1. **기획서 반영:** 로컬 지침이 정한 홈페이지 기획서가 tasty-page `main`의 랜딩, 디자인 소개, 사용자 가이드에 반영됐는지 확인하고 명령어·설정 키·메뉴 이름을 이번 버전과 대조한다.
 2. **검사:** tasty-page `main`의 최신 커밋에서 그 레포의 CI(`pages.yml`·`checks.yml`·`design.yml`)가 통과했는지 확인한다. `checks.yml`은 사용자 가이드를 본체 `main`과 대조한다.
@@ -109,8 +111,9 @@ git -C <tasty-page> push --atomic origin release v<X.Y.Z>
 `release` push가 배포를 시작한다. tasty-page의 `checks.yml`은 `release`에서 가장 가까운 태그로 본체를 받아
 사용자 가이드를 대조하므로 태그를 함께 push해야 한다. 배포 워크플로와 `checks.yml`이 통과했는지 확인한다.
 
-게시용 페이지만 고칠 때는 tasty-page `release`에 커밋해 태그 없이 push하고, 곧바로 `release`를 `main`에 합친다.
-사이트를 Tasty 릴리스와 따로 게시하는 경우는 이것뿐이다.
+공개된 Tasty 버전의 기능 설명이나 버전이 바뀌지 않는 사이트 변경(문구, 메타데이터 등)은 릴리스와 무관하게 바로
+게시한다. tasty-page `release`에 커밋해 태그 없이 push하고, 곧바로 `release`를 `main`에 합친다. 기능 설명이나 버전이
+바뀌는 변경은 위 절차대로 릴리스와 함께 승격한다.
 
 ## 릴리스 자산
 
