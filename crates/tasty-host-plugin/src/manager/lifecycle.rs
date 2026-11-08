@@ -244,7 +244,7 @@ impl PluginManager {
     /// 설치 디렉터리를 다시 읽어 패키지와 거부 목록을 함께 갱신한다.
     pub fn refresh_packages(&mut self) {
         let found = crate::discovery::discover_all();
-        self.packages = found.packages;
+        self.packages = found.trusted;
         self.rejected = found.rejected;
         self.note_reserved(found.reserved);
         self.sync_ipc_namespaces_from_packages();

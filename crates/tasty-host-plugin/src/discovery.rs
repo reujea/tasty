@@ -13,14 +13,15 @@ pub fn plugin_root() -> Option<PathBuf> {
 
 /// plugin을 찾아 ID순으로 정렬하고 같은 ID는 첫 항목만 남긴다.
 pub fn discover() -> Vec<PluginPackage> {
-    discover_all().packages
+    discover_all().trusted
 }
 
 /// 한 번의 탐색 결과.
 #[derive(Debug, Default)]
 pub struct Discovered {
-    /// 등록할 plugin. ID순이며 같은 ID는 첫 항목만 남는다.
-    pub packages: Vec<PluginPackage>,
+    /// trust gate를 통과해 등록할 plugin. ID순이며 같은 ID는 첫 항목만 남는다.
+    /// 설치 목록(`PluginManager::packages`)은 lifecycle이 이 값으로 갱신한다.
+    pub trusted: Vec<PluginPackage>,
     /// trust gate 에서 거부된 plugin(서명 미신뢰 / 검증 실패 / 권한 변경). UI 의 "확인 필요"
     /// 목록과 사이드바 경고 배지가 소비한다. debug 빌드는 trust gate 를 우회하므로
     /// (`trust_outcome` 가 항상 Trusted) 항상 비어 있다.
@@ -58,10 +59,10 @@ pub fn discover_all() -> Discovered {
         classify_discovery_entry(entry.path(), &mut found);
     }
     found
-        .packages
+        .trusted
         .sort_by(|a, b| a.manifest.id.cmp(&b.manifest.id));
     // (정렬 + dedup 은 trust gate 와 무관 — 위에서 이미 filter 완료.)
-    dedup_packages_by_id(&mut found.packages);
+    dedup_packages_by_id(&mut found.trusted);
     found.reserved.sort_by(|a, b| a.dir.cmp(&b.dir));
     found
 }
@@ -88,7 +89,7 @@ fn classify_discovery_entry(dir: PathBuf, found: &mut Discovered) {
         return;
     }
     match trust_outcome(&dir, &manifest, manifest_sha256) {
-        TrustOutcome::Trusted => found.packages.push(PluginPackage { dir, manifest }),
+        TrustOutcome::Trusted => found.trusted.push(PluginPackage { dir, manifest }),
         TrustOutcome::Rejected(rej) => {
             tracing::warn!("plugin '{}' not auto-loaded ({:?})", rej.id, rej.reason);
             found.rejected.push(*rej);

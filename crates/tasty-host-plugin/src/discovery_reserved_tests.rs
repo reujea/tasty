@@ -21,7 +21,7 @@ fn an_unknown_reserved_id_is_neither_loaded_nor_shown_for_review() {
     write_plugin(home.path(), "com.tasty.markdown", "com.tasty.fake");
     write_plugin(home.path(), "other", "com.tasty.other-fake");
     let found = super::discover_all();
-    assert!(found.packages.is_empty(), "{:?}", found.packages);
+    assert!(found.trusted.is_empty(), "{:?}", found.trusted);
     assert!(found.rejected.is_empty(), "{:?}", found.rejected);
     let ids: Vec<&str> = found.reserved.iter().map(|b| b.id.as_str()).collect();
     assert_eq!(ids, ["com.tasty.fake", "com.tasty.other-fake"]);
@@ -42,7 +42,7 @@ fn other_prefixes_and_official_ids_still_load_in_debug() {
     write_plugin(home.path(), "com.tasty.image", "com.tasty.image");
     let found = super::discover_all();
     let ids: Vec<&str> = found
-        .packages
+        .trusted
         .iter()
         .map(|p| p.manifest.id.as_str())
         .collect();
