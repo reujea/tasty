@@ -752,6 +752,31 @@ impl PassivePicker {
         gesture(true).record(&self.proofs, &self.state, &engine, self.sid);
     }
 
+    fn prove_as(&mut self, plugin_id: &str) {
+        let engine = self.engine_session.borrow_mut();
+        let remote = engine
+            .runtime
+            .surfaces
+            .get(&self.sid)
+            .unwrap()
+            .as_any()
+            .downcast_ref::<crate::plugin_bridge::remote_surface::RemoteSurface>()
+            .unwrap();
+        self.proofs.record(
+            &self.state.webview_identity,
+            self.sid,
+            Some(&crate::plugin_bridge::user_navigation::NavigationOwner {
+                plugin_id: plugin_id.into(),
+                wrote_page: true,
+            }),
+            Some(&remote.webview_url),
+            &crate::webview::PendingNavigation {
+                url: NAV_URL.into(),
+                user_gesture: true,
+            },
+        );
+    }
+
     fn trigger(&mut self, caller: &str, surface: u32) -> JsonRpcResponse {
         let mut engine = self.engine_session.borrow_mut();
         crate::adapters::ipc::handler::file_picker::handle_trigger_with_proofs(
@@ -846,6 +871,13 @@ fn a_press_of_another_plugin_or_surface_stays_busy_without_consuming_the_proof()
     p.prove();
     let resp = p.trigger("com.example.other", p.sid);
     p.assert_busy(&resp, "다른 plugin");
+    assert!(p.state.popups.is_passive(PICKER));
+
+    // 그 surface 의 소유 plugin 이 다른 경우: 다른 plugin 의 유효한 증명으로 이 피커를 올리지 않는다.
+    let mut p = PassivePicker::opened(None, true);
+    p.prove_as("com.example.other");
+    let resp = p.trigger("com.example.other", p.sid);
+    assert_eq!(resp.error.map(|e| e.code), Some(-32000));
     assert!(p.state.popups.is_passive(PICKER));
 
     let other_origin = u32::MAX;
