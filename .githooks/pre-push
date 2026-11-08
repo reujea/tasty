@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# push할 커밋의 플러그인 버전과 파일 수를 확인한 뒤 빌드·문서를 검사한다.
+# push할 커밋의 플러그인 버전과 파일 수를 확인한 뒤 빌드·문서·소스 가드를 검사한다.
 # 설치: git config core.hooksPath .githooks
 # 검사별 실행 방법: docs/dev-guide/git-hooks.md
 set -e -o pipefail
@@ -144,5 +144,18 @@ doc_guards_with_design_source() {
     cargo test -p tasty-doc-guards
 }
 run_check B.7 'cargo test -p tasty-doc-guards' doc_guards_with_design_source
+
+# ─
+# B.10  루트 lib의 소스 가드 실행
+# 이름 필터는 부분 일치이고 시험이 0개여도 cargo는 0을 돌려준다. 그래서 모듈 경로로 통과한 시험을 찾는다.
+# run_check가 if 안에서 부르므로 set -e가 꺼져 있다. 실패는 직접 돌려준다.
+root_lib_source_guards() {
+    cargo test --lib --locked --no-fail-fast -- source_guards || return
+    if ! grep -Eq '^test source_guards::[^ ]+ \.\.\. ok' "$LOG_DIR/B.10.log"; then
+        echo 'source_guards 모듈의 시험이 하나도 통과하지 않았습니다. 필터와 모듈 이름을 확인해 주세요.'
+        return 1
+    fi
+}
+run_check B.10 'cargo test --lib --locked --no-fail-fast -- source_guards' root_lib_source_guards
 
 finish

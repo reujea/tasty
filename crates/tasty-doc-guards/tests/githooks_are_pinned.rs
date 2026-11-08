@@ -97,7 +97,7 @@ const HOOK_STEPS: &[(&str, &[&str])] = &[
         ],
     ),
     ("pre-merge-commit", &[]),
-    ("pre-push", &["B.4", "B.6", "B.7", "B.8", "B.9"]),
+    ("pre-push", &["B.4", "B.6", "B.7", "B.8", "B.9", "B.10"]),
 ];
 
 /// 표의 첫 열에 검사 ID를 적는 운영 문서.
@@ -226,6 +226,22 @@ fn run_pre_push_fixture(
     version_rc: i32,
     cargo_rc: i32,
 ) -> (bool, String, String, String) {
+    run_pre_push_fixture_with(
+        refs,
+        version_rc,
+        cargo_rc,
+        "test source_guards::fixture ... ok",
+    )
+}
+
+const SOURCE_GUARD_TITLE: &str = "cargo test --lib --locked --no-fail-fast -- source_guards";
+
+fn run_pre_push_fixture_with(
+    refs: &str,
+    version_rc: i32,
+    cargo_rc: i32,
+    source_guard_output: &str,
+) -> (bool, String, String, String) {
     use std::io::Write;
     use std::process::Stdio;
     use tasty_doc_guards::temp_scratch::Scratch;
@@ -257,6 +273,7 @@ bash() {
 cargo() {
     printf 'cargo %s\n' "$*" >> "$HOOK_FIXTURE/calls"
     printf 'first diagnostic\n'
+    printf '%s\n' "$HOOK_SOURCE_GUARD_OUTPUT"
     for ((i=0; i<70; i++)); do printf 'detail %s\n' "$i"; done
     return "$HOOK_CARGO_RC"
 }
@@ -270,6 +287,7 @@ cargo() {
         .env("HOOK_FIXTURE", hook_path(&root))
         .env("HOOK_VERSION_RC", version_rc.to_string())
         .env("HOOK_CARGO_RC", cargo_rc.to_string())
+        .env("HOOK_SOURCE_GUARD_OUTPUT", source_guard_output)
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
@@ -329,6 +347,7 @@ fn pre_push_reports_failures_and_retains_complete_logs() {
         "cargo check --workspace --release --locked",
         "cargo check --no-default-features",
         "cargo test -p tasty-doc-guards",
+        "cargo test --lib --locked --no-fail-fast -- source_guards",
     ];
     assert_eq!(calls.lines().collect::<Vec<_>>(), expected_calls);
     for title in [
@@ -337,6 +356,7 @@ fn pre_push_reports_failures_and_retains_complete_logs() {
         "cargo check --workspace --release --locked",
         "cargo check --no-default-features",
         "cargo test -p tasty-doc-guards",
+        SOURCE_GUARD_TITLE,
     ] {
         assert!(output.contains(&format!("시작: {title}")), "{output}");
         assert!(logs.contains(&format!("통과: {title} (")), "{logs}");
@@ -359,6 +379,34 @@ fn pre_push_reports_failures_and_retains_complete_logs() {
         "full diagnostics must remain in the logs"
     );
     assert!(logs.contains("실패: cargo test -p tasty-doc-guards"));
+    // 시험 줄이 있어도 cargo의 실패가 이긴다.
+    assert!(
+        logs.contains(&format!("실패: {SOURCE_GUARD_TITLE}")),
+        "{logs}"
+    );
+}
+
+/// 이름 필터는 부분 일치라 passed 수만으로는 모듈이 사라진 경우를 구분할 수 없다.
+#[test]
+fn pre_push_fails_when_no_source_guard_test_passed() {
+    let refs = "refs/heads/main aaaaaaaa refs/heads/main bbbbbbbb\n";
+    for output_of_cargo in [
+        "running 0 tests\ntest result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 5024 filtered out",
+        "running 1 test\ntest other::source_guards_like ... ok\ntest result: ok. 1 passed; 0 failed",
+        "running 1 test\ntest source_guards::ignored ... ignored\ntest result: ok. 0 passed; 0 failed",
+    ] {
+        let (success, output, calls, logs) = run_pre_push_fixture_with(refs, 0, 0, output_of_cargo);
+        assert!(!success, "{output_of_cargo}: {output}");
+        assert!(calls.contains("-- source_guards"), "{calls}");
+        assert!(
+            logs.contains(&format!("실패: {SOURCE_GUARD_TITLE}")),
+            "{logs}"
+        );
+        assert!(
+            logs.contains("통과: cargo test -p tasty-doc-guards"),
+            "{logs}"
+        );
+    }
 }
 
 #[test]

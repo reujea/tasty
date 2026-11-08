@@ -85,7 +85,7 @@ lane의 커밋 하나하나가 각자 patch +1을 받는다. 같은 플러그인
 
 ## pre-push
 
-먼저 push할 커밋의 플러그인 버전을 검사한다. 실패하면 컴파일을 시작하지 않고 중단한다. 통과하면 아래 순서대로 빌드와 문서를 검사한다. 빌드 검사 중 하나가 실패해도 나머지는 실행하여 오류를 한 번에 확인할 수 있다.
+먼저 push할 커밋의 플러그인 버전을 검사한다. 실패하면 컴파일을 시작하지 않고 중단한다. 통과하면 아래 순서대로 빌드, 문서, 소스 가드를 검사한다. 빌드 검사 중 하나가 실패해도 나머지는 실행하여 오류를 한 번에 확인할 수 있다.
 
 Git은 훅에 `GIT_DIR`, `GIT_COMMON_DIR`, `GIT_INDEX_FILE` 같은 저장소 환경을 전달할 수 있다.
 pre-push는 먼저 원 저장소와 로그 위치를 확정하고, 각 검사를 실행하는 서브셸에서
@@ -103,11 +103,14 @@ push 저장소의 경로를 전달하지 않는다. 이는 [Git 훅의 저장소
 | B.8 | `cargo check --workspace --release --locked` |
 | B.6 | `cargo check --no-default-features` |
 | B.7 | `cargo test -p tasty-doc-guards`. `TASTY_PAGE_DIR`가 없으면 `scripts/fetch-design-source.sh`로 `crates/tasty-design-tokens/dtcg/SOURCE` 커밋의 tasty-page를 공용 `.git/design-source/<SOURCE 커밋>`에 받아 넘긴다(네트워크 필요). |
+| B.10 | `cargo test --lib --locked --no-fail-fast -- source_guards`로 루트 lib의 소스 가드를 실행한다. 종료 코드가 0이어도 로그에 `test source_guards::… ... ok` 줄이 없으면 실패한다. |
 
 기본 feature의 개발 빌드·테스트 코드 컴파일 검사는 Clippy 한 번으로 수행한다.
 같은 타깃에 대한 `cargo check --workspace --all-targets`는 중복 실행하지 않는다.
 release와 headless는 컴파일 조건이 달라 각각 검사한다. 문서 가드는
 [빌드 프로필](build.md#빌드-프로필-3종)의 패키지별 최적화를 적용하며 전체 항목을 실행한다.
+소스 가드는 루트 lib의 `#[cfg(test)]` 모듈이라 B.4는 컴파일만 하고 B.7은 다른 크레이트를 실행한다. B.10은 이 모듈만 이름 필터로 골라 실행하며 루트 lib의 다른 시험은 실행하지 않는다.
+필터는 부분 일치이고 맞는 시험이 없어도 Cargo는 0으로 끝나므로, B.10은 모듈 경로로 통과한 시험이 있는지 확인한다. 모듈 안의 일부 시험만 사라진 경우는 이 확인으로 찾지 못한다.
 
 B.9는 Git이 전달한 ref별 커밋을 검사한다. 원격 커밋을 로컬에서 찾지 못하면 `git fetch`가 필요하다. 새 ref는 비교할 원격 버전이 없고 삭제할 ref는 올릴 내용이 없으므로 B.9를 생략한다. ref별 검사·생략 수는 로그에 남는다.
 

@@ -35,6 +35,8 @@ git -C "$child" -c user.name=fixture -c user.email=fixture@example.invalid -c co
 git -C "$child" config core.bare true
 [ "$(git -C "$child" rev-parse --is-bare-repository)" = true ]
 printf 'checked\n' >> "$EXPECTED_FIXTURE/checks"
+# B.10 finds a passed test of the module in this output.
+printf 'test source_guards::fixture ... ok\n'
 CHECK
 chmod +x "$fixture/check"
 cp "$fixture/check" "$fixture/bin/cargo"
@@ -54,4 +56,4 @@ printf 'refs/heads/main %s refs/heads/main %s\n' "$before_head" "$before_head" |
 cmp "$fixture/config.before" "$repo/.git/config"
 cmp "$fixture/index.before" "$repo/.git/index"
 [ "$(git config --get core.bare)" = false ]
-[ "$(wc -l < "$fixture/checks" | tr -d ' ')" = 5 ]
+[ "$(wc -l < "$fixture/checks" | tr -d ' ')" = 6 ]
