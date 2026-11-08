@@ -291,6 +291,7 @@ fn detail_view(ui: &mut egui::Ui, theme: &Theme, body: egui::Rect, entry: &Entry
         &mut sel,
         false,
         false,
+        None,
     );
     if let Some(id) = sel {
         let mut child = ui.new_child(

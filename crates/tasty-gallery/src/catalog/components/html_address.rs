@@ -352,6 +352,63 @@ fn tile(
     );
 }
 
+/// 시안 `HtmlAddressSurfaceG`: 주소 띠와 페이지 자리만 있는 표본.
+// 이유: 시안 prop 구성을 유지해 비교하기 쉽게 한다.
+#[allow(clippy::too_many_arguments)]
+pub(super) fn band_surface(
+    ui: &mut egui::Ui,
+    theme: &Theme,
+    id: &str,
+    width: LogicalPx,
+    height: LogicalPx,
+    kind: Kind,
+    address: &str,
+    editing: bool,
+) {
+    let (rect, _) = ui.allocate_exact_size(
+        egui::vec2(width.value(), height.value()),
+        egui::Sense::hover(),
+    );
+    ui.painter()
+        .rect_filled(rect, 0.0, theme.bg_panel().to_egui());
+    let mut child = ui.new_child(
+        egui::UiBuilder::new()
+            .id_salt(id)
+            .max_rect(rect)
+            .layout(egui::Layout::top_down(egui::Align::Min)),
+    );
+    child.set_clip_rect(ui.clip_rect().intersect(rect));
+    child.spacing_mut().item_spacing.y = 0.0;
+    let mut state = HtmlAddressState {
+        buffer: address.into(),
+        editing,
+        error: None,
+    };
+    let view = HtmlAddressView {
+        address,
+        committed_address: address,
+        kind,
+        can_back: true,
+        can_forward: false,
+        loading: false,
+        disconnected: false,
+        skipped: None,
+        remote_marker: None,
+        focus: false,
+        labels: labels(),
+    };
+    let out = html_address_bar(
+        &mut child,
+        theme,
+        ui.id().with(id),
+        width,
+        &mut state,
+        &view,
+    );
+    let page = egui::Rect::from_min_max(egui::pos2(rect.left(), out.rect.bottom()), rect.max);
+    page_placeholder(ui, theme, page, "page", address);
+}
+
 fn page_placeholder(ui: &mut egui::Ui, theme: &Theme, rect: egui::Rect, page: &str, address: &str) {
     let mut body = ui.new_child(
         egui::UiBuilder::new()

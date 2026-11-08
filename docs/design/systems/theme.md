@@ -71,6 +71,7 @@ is_light = false      # 선택. 없으면 이전 is_light 보존
 [surfaces.terminal]   focused_bg = "#000000"  focused_fg = "#cdd6f4"  unfocused_bg = "#1e1e2e"  unfocused_fg = "#a6adc8"
 ```
 
+- 내장 테마의 `[surfaces.terminal]`과 `[surfaces.markdown]` bg 네 값은 포커스 바탕 쌍과 같다. focused는 Mocha `#000000`, Latte `#ffffff`이고 unfocused는 Mocha base `#1e1e2e`, Latte crust `#dce0e8`이다([토큰 대응](design-token-mapping.md#surface-kind-색은-surface_themes-map)).
 - `[surfaces.<id>]` 의 `<id>` 는 자유 문자열 — plugin 이 등록한 surface kind 도 정의 가능. `theme().surface(id)` 가 없는 id 엔 `FALLBACK_SURFACE`(검은 배경 + Mocha 톤) 반환 → plugin 이 색을 안 줘도 안전.
 - `hover_overlay`/`active_overlay`/`separator` 같은 반투명 의미색은 TOML 에 없다 — `is_light` 로부터 자동 도출(라이트=검정 +8%/+12%, 다크=흰색 +8%/+12%).
 - UI 크기/간격(`spacing_*`/`border_width`/`item_height_*`/`font_size_*`)도 TOML 에 없다 — 모든 테마 공통 `SIZING` const.

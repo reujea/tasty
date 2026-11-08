@@ -5,6 +5,7 @@ use tasty_type_appearance::theme::Theme;
 use tasty_type_geometry::length::LogicalPx;
 use tasty_ui_widgets::{
     Button, ButtonVariant, ControlSize, IconButton, StateGlyph, StateScreenView, state_screen,
+    surface_bed,
 };
 
 use crate::catalog::icons;
@@ -335,7 +336,7 @@ fn spec() -> crate::catalog::Spec {
     crate::catalog::Spec {
         id: "image-viewer",
         title: "Image surface / canvas",
-        when: Some("Toolbar + zoom · canvas=bg-sidebar · loaded / no-image fallback"),
+        when: Some("Toolbar + zoom · canvas takes the focus bed · loaded / no-image fallback"),
         draw,
     }
 }
@@ -351,11 +352,14 @@ fn paint_spec() -> crate::catalog::Spec {
 
 fn draw(ui: &mut egui::Ui, theme: &Theme) {
     spec::stage(ui, theme, StageVariant::Column, |ui| {
-        spec::cluster(ui, theme, "viewer — image loaded", |ui| {
-            surface(ui, theme, true);
+        spec::cluster(ui, theme, "viewer — image loaded, focused", |ui| {
+            surface(ui, theme, true, true);
+        });
+        spec::cluster(ui, theme, "viewer — image loaded, unfocused", |ui| {
+            surface(ui, theme, true, false);
         });
         spec::cluster(ui, theme, "no image — fallback", |ui| {
-            surface(ui, theme, false);
+            surface(ui, theme, false, true);
         });
     });
 
@@ -369,7 +373,11 @@ fn draw(ui: &mut egui::Ui, theme: &Theme) {
             ),
             ("filename", "caption · text-muted"),
             ("zoom", "right · Fit / + / % / -"),
-            ("canvas", "bg-sidebar (mantle) fill"),
+            (
+                "focus",
+                "the canvas takes the bed; control bar and image stay",
+            ),
+            ("canvas", "surface-bed-focused, surface-bed-unfocused fill"),
             ("loaded", "fit-to-window · centered"),
             (
                 "empty",
@@ -377,7 +385,16 @@ fn draw(ui: &mut egui::Ui, theme: &Theme) {
             ),
         ],
         &[
-            TokenChip::new("bg-sidebar", "canvas", theme.bg_sidebar().to_egui()),
+            TokenChip::new(
+                "surface-bed-focused",
+                "canvas, focused",
+                theme.surface_bed_focused().to_egui(),
+            ),
+            TokenChip::new(
+                "surface-bed-unfocused",
+                "canvas, unfocused",
+                theme.surface_bed_unfocused().to_egui(),
+            ),
             TokenChip::new(
                 "surface-raised",
                 "buttons",
@@ -400,7 +417,7 @@ fn draw(ui: &mut egui::Ui, theme: &Theme) {
         ui,
         theme,
         "An image surface — a control bar (navigation / refresh / edit / new + a \
-         right-aligned zoom group) over a canvas filled with the sidebar tone. When a \
+         right-aligned zoom group) over a canvas filled with the focus bed. When a \
          picture is loaded it fits to the window; with none, the surface shows a fallback \
          glyph and the no-image caption. New images open a blank canvas. This specimen \
          transcribes both states with tokens only.",
@@ -408,7 +425,7 @@ fn draw(ui: &mut egui::Ui, theme: &Theme) {
 }
 
 /// surface = control bar + canvas. `loaded`=true 면 그림, false 면 fallback.
-fn surface(ui: &mut egui::Ui, theme: &Theme, loaded: bool) {
+fn surface(ui: &mut egui::Ui, theme: &Theme, loaded: bool, focused: bool) {
     // 탭 내부 콘텐츠이므로 팝업 그림자를 그리지 않는다.
     kit::frame_card_flat(ui, theme, PANE_W, kit::panel_fill(theme), |ui| {
         let w = ui.available_width();
@@ -465,7 +482,7 @@ fn surface(ui: &mut egui::Ui, theme: &Theme, loaded: bool) {
         p.rect_filled(
             canvas,
             egui::CornerRadius::ZERO,
-            theme.bg_sidebar().to_egui(),
+            surface_bed(theme, focused),
         );
 
         if loaded {
@@ -687,11 +704,7 @@ fn paint_surface(ui: &mut egui::Ui, theme: &Theme) {
             egui::Sense::hover(),
         );
         let p = ui.painter_at(canvas);
-        p.rect_filled(
-            canvas,
-            egui::CornerRadius::ZERO,
-            theme.bg_sidebar().to_egui(),
-        );
+        p.rect_filled(canvas, egui::CornerRadius::ZERO, surface_bed(theme, true));
         let pic = egui::Rect::from_center_size(
             canvas.center(),
             egui::vec2(PICTURE_W.value(), PICTURE_H.value()),

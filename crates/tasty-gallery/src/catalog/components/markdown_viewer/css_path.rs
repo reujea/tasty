@@ -12,9 +12,14 @@ type MapEntry = (&'static str, &'static str, fn(&Theme) -> HexColor);
 
 /// CSS 변수 → Tasty 토큰. 렌더러 `theme_css`의 색 변수 중 시안 Meta가 다루는 것.
 const CSS_VARS: &[MapEntry] = &[
+    ("--md-bg", "surface-bed-focused", Theme::surface_bed_focused),
     ("--md-fg", "text-secondary", Theme::text_secondary),
     ("--md-strong", "text-primary", Theme::text_primary),
-    ("--md-link", "accent-primary", Theme::accent_primary),
+    (
+        "--md-link",
+        "accent-primary-raised",
+        Theme::accent_primary_raised,
+    ),
     ("--md-code-bg", "surface-raised", Theme::surface_raised),
     ("--md-quote-bar", "border-strong", Theme::border_strong),
 ];
@@ -79,9 +84,10 @@ fn draw_content_colour(ui: &mut egui::Ui, theme: &Theme) {
         theme,
         &[
             ("path", "WebView · theme_css() → CSS variables"),
+            ("--md-bg", "surface-bed-focused, surface-bed-unfocused"),
             ("--md-fg", "text-secondary"),
             ("--md-strong", "text-primary"),
-            ("--md-link", "accent-primary"),
+            ("--md-link", "accent-primary-raised"),
             ("--md-code-bg / -border", "surface-raised / separator"),
             ("--md-quote-bar · --md-rule", "border-strong · separator"),
             (

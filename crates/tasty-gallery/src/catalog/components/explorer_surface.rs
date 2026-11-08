@@ -5,7 +5,7 @@ use std::cell::RefCell;
 
 use tasty_type_appearance::theme::Theme;
 use tasty_type_geometry::length::LogicalPx;
-use tasty_ui_widgets::{ControlSize, IconButton, IconButtonVariant, PathField};
+use tasty_ui_widgets::{ControlSize, IconButton, IconButtonVariant, PathField, surface_bed};
 
 use super::explorer_sidebar::{FAVS_FEW, SIDEBAR_W, TREE_SHORT, two_region};
 use super::explorer_tab_bar::strip;
@@ -76,7 +76,12 @@ thread_local! {
 
 pub fn draw(ui: &mut egui::Ui, theme: &Theme) {
     spec::stage(ui, theme, StageVariant::Solo, |ui| {
-        surface(ui, theme);
+        ui.spacing_mut().item_spacing.y = theme.spacing_lg.value();
+        for (focused, name) in [(true, "focused"), (false, "unfocused")] {
+            spec::cluster(ui, theme, name, |ui| {
+                ui.push_id(name, |ui| surface(ui, theme, focused));
+            });
+        }
     });
 
     let min_height = format!(
@@ -87,6 +92,10 @@ pub fn draw(ui: &mut egui::Ui, theme: &Theme) {
         ui,
         theme,
         &[
+            (
+                "focus",
+                "the file area takes the bed; tabs, toolbar, sidebar, header and status line stay",
+            ),
             ("surface", "fills a work-area tile"),
             ("internal tabs", "24px · per-cwd, with × + ＋"),
             ("toolbar", "44px · nav · path field · view toggle"),
@@ -104,7 +113,21 @@ pub fn draw(ui: &mut egui::Ui, theme: &Theme) {
             ("selected row", "surface-active"),
         ],
         &[
-            TokenChip::new("bg-panel", "surface + content", theme.bg_panel().to_egui()),
+            TokenChip::new(
+                "bg-panel",
+                "toolbar + active tab",
+                theme.bg_panel().to_egui(),
+            ),
+            TokenChip::new(
+                "surface-bed-focused",
+                "file area, focused",
+                theme.surface_bed_focused().to_egui(),
+            ),
+            TokenChip::new(
+                "surface-bed-unfocused",
+                "file area, unfocused",
+                theme.surface_bed_unfocused().to_egui(),
+            ),
             TokenChip::new(
                 "bg-sidebar",
                 "tabs + sidebar + header",
@@ -171,7 +194,8 @@ pub fn draw(ui: &mut egui::Ui, theme: &Theme) {
 }
 
 /// 760×420 surface 한 장. 위에서부터 내부 탭 · 도구 모음 · 사이드바와 상세 보기.
-fn surface(ui: &mut egui::Ui, theme: &Theme) {
+fn surface(ui: &mut egui::Ui, theme: &Theme, focused: bool) {
+    let salt = if focused { "focused" } else { "unfocused" };
     egui::Frame::new()
         .fill(theme.bg_panel().to_egui())
         .stroke(egui::Stroke::new(
@@ -186,15 +210,15 @@ fn surface(ui: &mut egui::Ui, theme: &Theme) {
             ui.vertical(|ui| {
                 ui.spacing_mut().item_spacing = egui::vec2(0.0, 0.0);
                 strip(ui, theme, FRAME_W.value(), TABS);
-                toolbar(ui, theme);
+                toolbar(ui, theme, salt);
                 let body_h = LogicalPx(ui.available_height().max(0.0));
-                body(ui, theme, body_h);
+                body(ui, theme, body_h, focused, salt);
             });
         });
 }
 
 /// 44px 도구 모음 — 탐색 버튼 넷, 남은 폭을 채우는 경로 필드, 보기 전환.
-fn toolbar(ui: &mut egui::Ui, theme: &Theme) {
+fn toolbar(ui: &mut egui::Ui, theme: &Theme, salt: &str) {
     let pad = theme.spacing_sm.value();
     let h = theme.item_height_interactive.value() + pad * 2.0;
     let (rect, _) = ui.allocate_exact_size(egui::vec2(FRAME_W.value(), h), egui::Sense::hover());
@@ -232,7 +256,10 @@ fn toolbar(ui: &mut egui::Ui, theme: &Theme) {
     child.allocate_ui_with_layout(
         egui::vec2(addr_w, child.available_height()),
         egui::Layout::left_to_right(egui::Align::Center),
-        |ui| path_field(ui, theme, "gallery_exp_surface_addr", "~/Downloads"),
+        |ui| {
+            let id = format!("gallery_exp_surface_addr_{salt}");
+            path_field(ui, theme, &id, "~/Downloads");
+        },
     );
     seg_toggle(&mut child, theme, 2, None);
 }
@@ -272,7 +299,7 @@ pub(super) fn path_field(ui: &mut egui::Ui, theme: &Theme, id: &str, path: &str)
 }
 
 /// 196px 사이드바와 상세 보기. 둘 사이는 사이드바 오른쪽 1px 구분선이다.
-fn body(ui: &mut egui::Ui, theme: &Theme, body_h: LogicalPx) {
+fn body(ui: &mut egui::Ui, theme: &Theme, body_h: LogicalPx, focused: bool, salt: &str) {
     ui.horizontal_top(|ui| {
         ui.spacing_mut().item_spacing = egui::vec2(0.0, 0.0);
         let (side, _) = ui.allocate_exact_size(
@@ -298,18 +325,22 @@ fn body(ui: &mut egui::Ui, theme: &Theme, body_h: LogicalPx) {
         two_region(
             &mut side_ui,
             theme,
-            "explorer_surface",
+            &format!("explorer_surface_{salt}"),
             body_h,
             TREE_SHORT,
             FAVS_FEW,
         );
         ui.vertical(|ui| {
-            ui.set_width(ui.available_width());
+            let w = ui.available_width();
+            ui.set_width(w);
+            let area =
+                egui::Rect::from_min_size(ui.next_widget_position(), egui::vec2(w, body_h.value()));
+            ui.painter()
+                .rect_filled(area, 0.0, surface_bed(theme, focused));
+            let id = format!("explorer_surface_detail_{salt}");
             SELECTED.with(|s| {
                 let mut sel = s.borrow_mut();
-                if let Some(i) =
-                    detail_table(ui, theme, ROWS, *sel, body_h, "explorer_surface_detail")
-                {
+                if let Some(i) = detail_table(ui, theme, ROWS, *sel, body_h, &id) {
                     *sel = i;
                 }
             });

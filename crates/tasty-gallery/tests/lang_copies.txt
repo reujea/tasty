@@ -677,7 +677,9 @@ src/catalog/layouts_settled.rs	{}	remote.size_sync.names
 src/catalog/overlays_resize.rs	default	file_handler.picker.default_tag
 src/catalog/overlays_settled.rs	Listening ports	port_scanner.heading
 src/catalog/overlays_settled.rs	None	plugins.add_none,settings.keybindings.hint_none,settings.keybindings.plugins.mode_none
+src/catalog/plugins_settled.rs	Focused	settings.appearance.colors.focused_heading,settings.appearance.preview_focused
 src/catalog/plugins_settled.rs	Go	explorer.address.go
+src/catalog/plugins_settled.rs	Unfocused	settings.appearance.colors.unfocused_heading,settings.appearance.preview_unfocused
 src/catalog/popup_frame.rs	close	command_palette.hint_close
 src/catalog/spacing.rs	Cancel	button.cancel,explorer.op.cancel,image_viewer.cancel,preset.popup.cancel_button,quit_modal.cancel_button,remote_attach.cancel,remote_tool.cancel,transfer.progress.cancel
 src/catalog/theme.rs	Delete	preset.toolbar.delete,remote_tool.delete

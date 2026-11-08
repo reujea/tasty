@@ -14,6 +14,8 @@ use crate::catalog::spec::{self, StageVariant, TokenChip};
 /// 헤더가 두 줄로 접히는 폭 — 디자인 "wraps < 640".
 const NARROW_CUTOFF: LogicalPx = LogicalPx(640.0);
 /// 무대에서 좁은 변형에 주는 폭 — 디자인 "narrow floor 320px".
+/// 시안 `dag-tab-surface` 프레임 높이(320).
+const FOCUS_VIEW_H: LogicalPx = LogicalPx(320.0);
 const NARROW_STAGE_WIDTH: LogicalPx = LogicalPx(320.0);
 /// 무대 높이 — 시안 520.
 const STAGE_HEIGHT: LogicalPx = LogicalPx(520.0);
@@ -228,6 +230,8 @@ pub fn paint(
     graphs: &[Graph],
     salt: &str,
     initial: Option<&str>,
+    // 탭 surface의 포커스. None이면 전시용 캔버스 톤을 쓴다.
+    focused: Option<bool>,
 ) {
     let narrow = rect.width() < NARROW_CUTOFF.value();
     let pick_key = ui.id().with(("dag_surface_pick", salt));
@@ -287,6 +291,7 @@ pub fn paint(
         &mut sel,
         !narrow,
         true,
+        focused.map(|f| tasty_ui_widgets::surface_bed(theme, f)),
     );
 
     if let (Some(dr), Some(id)) = (detail_rect, sel.clone()) {
@@ -350,15 +355,38 @@ pub fn draw(ui: &mut egui::Ui, theme: &Theme) {
                         graphs,
                         salt,
                         initial,
+                        None,
                     );
                 });
             }
         });
     });
+    let focus_graphs = [super::build_dag()];
+    spec::stage(ui, theme, StageVariant::Wrap, |ui| {
+        for (focused, name) in [(true, "focused"), (false, "unfocused")] {
+            spec::cluster(ui, theme, name, |ui| {
+                let size = egui::vec2(NARROW_STAGE_WIDTH.value(), FOCUS_VIEW_H.value());
+                let (rect, _) = ui.allocate_exact_size(size, egui::Sense::hover());
+                let mut child = ui.new_child(
+                    egui::UiBuilder::new()
+                        .max_rect(rect)
+                        .layout(egui::Layout::top_down(egui::Align::Min)),
+                );
+                child.set_clip_rect(rect);
+                child.push_id(name, |ui| {
+                    paint(ui, theme, rect, &focus_graphs, name, None, Some(focused));
+                });
+            });
+        }
+    });
     spec::meta(
         ui,
         theme,
         &[
+            (
+                "focus",
+                "the canvas takes the bed. Header, nodes and detail stay. The workspace popup is not a surface, and its canvas stays dag-canvas-bg",
+            ),
             ("header", "8/12 padding · wraps < 640"),
             (
                 "header count",

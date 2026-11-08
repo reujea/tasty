@@ -4,7 +4,7 @@
 
 mod callout_kinds;
 mod css_path;
-mod document;
+pub(crate) mod document;
 
 use tasty_type_appearance::theme::Theme;
 use tasty_type_geometry::length::LogicalPx;
@@ -45,9 +45,18 @@ pub fn draw(ui: &mut egui::Ui, theme: &Theme) {
         );
     });
 
-    spec::stage(ui, theme, StageVariant::Solo, |ui| {
-        ui.set_max_width(DOC_W.value());
-        document(ui, theme);
+    spec::stage(ui, theme, StageVariant::Column, |ui| {
+        for (focused, name) in [(true, "focused"), (false, "unfocused")] {
+            spec::cluster(ui, theme, name, |ui| {
+                // 상위 묶음은 가로 배치다. 문서는 세로 배치에서 쌓인다.
+                ui.push_id(name, |ui| {
+                    ui.vertical(|ui| {
+                        ui.set_max_width(DOC_W.value());
+                        document(ui, theme, focused);
+                    });
+                });
+            });
+        }
     });
 
     spec::stage(ui, theme, StageVariant::Wrap, |ui| {
@@ -170,9 +179,14 @@ pub fn draw(ui: &mut egui::Ui, theme: &Theme) {
         &[
             TokenChip::new("bg-panel", "surface", theme.bg_panel().to_egui()),
             TokenChip::new(
-                "md-doc-bg",
-                "document bed (crust)",
-                theme.surface("markdown").focused_bg.to_egui(),
+                "surface-bed-focused",
+                "document bed, focused",
+                theme.surface_bed_focused().to_egui(),
+            ),
+            TokenChip::new(
+                "surface-bed-unfocused",
+                "document bed, unfocused",
+                theme.surface_bed_unfocused().to_egui(),
             ),
             TokenChip::new(
                 "text-primary",

@@ -124,14 +124,19 @@ pub fn paint(
     minimap: bool,
     // 팝업 상세에서는 뒤로 가기 바에 조작 도구가 있으므로 false로 둔다.
     zoom_cluster: bool,
+    // 탭 surface는 포커스 바탕을 넘긴다. 워크스페이스 팝업은 surface가 아니라 None이다.
+    bed: Option<egui::Color32>,
 ) {
     let layout = super::layout(graph, theme, dir);
     let t = fit(rect, &layout, theme);
     let lod = Lod::of(t.zoom);
     let top_down = dir == Orientation::TopDown;
 
-    ui.painter()
-        .rect_filled(rect, 0.0, theme.dag_canvas_bg().to_egui());
+    ui.painter().rect_filled(
+        rect,
+        0.0,
+        bed.unwrap_or_else(|| theme.dag_canvas_bg().to_egui()),
+    );
     paint_dot_grid(ui.painter(), theme, rect);
 
     let resp = ui.interact(
@@ -246,7 +251,7 @@ pub fn stage(
         );
         let key = ui.id().with(("dag_sel", &graph.id));
         let mut sel: Option<String> = ui.data(|d| d.get_temp(key)).unwrap_or(None);
-        paint(ui, theme, rect, graph, dir, &mut sel, minimap, true);
+        paint(ui, theme, rect, graph, dir, &mut sel, minimap, true, None);
         ui.data_mut(|d| d.insert_temp(key, sel));
     });
 }

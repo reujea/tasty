@@ -2,14 +2,14 @@
 //! WebView나 플러그인 렌더러를 실행하지 않고 egui로 근사한다.
 
 use tasty_type_appearance::theme::Theme;
-use tasty_ui_widgets::checkbox;
+use tasty_ui_widgets::{checkbox, surface_bed};
 
 use super::{DOC_W, rich};
 use crate::catalog::icons;
 
-pub(super) fn document(ui: &mut egui::Ui, theme: &Theme) {
+pub(super) fn document(ui: &mut egui::Ui, theme: &Theme, focused: bool) {
     egui::Frame::new()
-        .fill(theme.bg_app().to_egui()) // crust — the webview render path's only background (no focus signal)
+        .fill(surface_bed(theme, focused))
         .stroke(egui::Stroke::new(
             theme.border_width.value(),
             theme.border_default().to_egui(),
@@ -70,7 +70,12 @@ pub(super) fn document(ui: &mut egui::Ui, theme: &Theme) {
             image_block(ui, theme, "Referenced with a relative path — resolved against the md file's own directory, e.g. ![alt](./screenshot.png).");
 
             heading(ui, theme, 3, "Table");
-            table(ui, theme);
+            table(
+                ui,
+                theme,
+                focused,
+                &[["surface", "viewer", "12"], ["popup", "overlay", "8"]],
+            );
 
             heading(ui, theme, 3, "Blockquote");
             blockquote(ui, theme);
@@ -321,7 +326,23 @@ fn code_block(ui: &mut egui::Ui, theme: &Theme, lines: &[Vec<CodeToken>]) {
 
 /// grid + zebra 테이블 (md-table 토큰) — header(surface-raised) 밴드 + base/zebra 본문
 /// 외곽·가로·세로 격자선은 border-strong을 사용한다.
-fn table(ui: &mut egui::Ui, theme: &Theme) {
+/// 표 row·zebra 색. 비포커스에서 맞바꾼다. 바탕과 이 둘 말고는 포커스로 바뀌지 않는다.
+pub(crate) fn table_fills(theme: &Theme, focused: bool) -> (egui::Color32, egui::Color32) {
+    if focused {
+        (
+            theme.md_table_row_bg().to_egui(),
+            theme.md_table_row_bg_zebra().to_egui(),
+        )
+    } else {
+        (
+            theme.md_table_row_bg_unfocused().to_egui(),
+            theme.md_table_row_bg_zebra_unfocused().to_egui(),
+        )
+    }
+}
+
+pub(crate) fn table(ui: &mut egui::Ui, theme: &Theme, focused: bool, rows: &[[&str; 3]]) {
+    let (row_bg, zebra_bg) = table_fills(theme, focused);
     let body = theme.font_size_body.value();
     let pad_x = theme.md_table_cell_padding_x().value();
     let pad_y = theme.md_table_cell_padding_y().value();
@@ -376,7 +397,7 @@ fn table(ui: &mut egui::Ui, theme: &Theme) {
     };
 
     let out = egui::Frame::new()
-        .fill(theme.md_table_row_bg().to_egui()) // 불투명 base 채움 → 배경 무관 패널로 읽힘.
+        .fill(row_bg) // 불투명 채움이라 표가 문서 바탕에서 떨어져 읽힌다.
         .stroke(egui::Stroke::new(border_w, border))
         .corner_radius(theme.corner_radius.value())
         .show(ui, |ui| {
@@ -391,21 +412,25 @@ fn table(ui: &mut egui::Ui, theme: &Theme) {
                 })
                 .inner_margin(margin)
                 .show(ui, |ui| row(ui, ["Resource", "Kind", "Count"], true));
-            table_divider(ui, theme);
-            egui::Frame::new()
-                .inner_margin(margin)
-                .show(ui, |ui| row(ui, ["surface", "viewer", "12"], false));
-            table_divider(ui, theme);
-            egui::Frame::new()
-                .fill(theme.md_table_row_bg_zebra().to_egui())
-                .corner_radius(egui::CornerRadius {
-                    nw: 0,
-                    ne: 0,
-                    sw: r,
-                    se: r,
-                })
-                .inner_margin(margin)
-                .show(ui, |ui| row(ui, ["popup", "overlay", "8"], false));
+            for (i, cells) in rows.iter().enumerate() {
+                table_divider(ui, theme);
+                let last = i + 1 == rows.len();
+                let bottom = if last { r } else { 0 };
+                egui::Frame::new()
+                    .fill(if i % 2 == 1 {
+                        zebra_bg
+                    } else {
+                        egui::Color32::TRANSPARENT
+                    })
+                    .corner_radius(egui::CornerRadius {
+                        nw: 0,
+                        ne: 0,
+                        sw: bottom,
+                        se: bottom,
+                    })
+                    .inner_margin(margin)
+                    .show(ui, |ui| row(ui, *cells, false));
+            }
         });
 
     // egui columns가 세로선을 그리지 않으므로 열 경계만 직접 그린다.

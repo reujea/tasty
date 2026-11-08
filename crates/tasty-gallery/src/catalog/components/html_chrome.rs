@@ -3,56 +3,225 @@
 
 use tasty_type_appearance::theme::Theme;
 use tasty_type_geometry::length::LogicalPx;
-use tasty_ui_widgets::Spinner;
+use tasty_ui_widgets::{HtmlAddressKind, Spinner, SurfaceFocusEdge};
 
 use crate::catalog::icons;
 use crate::catalog::spec::{self, StageVariant, TokenChip};
+use crate::catalog::{Section, Spec};
 
 /// chrome 타일 폭(시안 `HtmlTile` width 220).
 const TILE_W: LogicalPx = LogicalPx(220.0);
 /// chrome 타일 높이.
 const TILE_H: LogicalPx = LogicalPx(150.0);
+/// 시안 `html-focus-edge` 주소 띠 표본의 크기(`size-360`, 160).
+const BAND_W: LogicalPx = LogicalPx(360.0);
+const BAND_H: LogicalPx = LogicalPx(160.0);
+
+/// 시안 `HtmlTile`의 네 상태.
+#[derive(Clone, Copy)]
+pub(crate) enum TileState {
+    Boundary,
+    Placeholder,
+    Loading,
+    Error,
+}
+
+pub(crate) const TILE_STATES: [(TileState, &str); 4] = [
+    (TileState::Boundary, "boundary"),
+    (TileState::Placeholder, "placeholder"),
+    (TileState::Loading, "loading"),
+    (TileState::Error, "error"),
+];
+
+/// 상태 타일 하나. `bed`는 타일 바탕, `idle_glyph`는 페이지 없음 글리프 색이다.
+pub(crate) fn state_tile(
+    ui: &mut egui::Ui,
+    theme: &Theme,
+    state: TileState,
+    bed: egui::Color32,
+    idle_glyph: tasty_type_appearance::color::HexColor,
+) {
+    tile(ui, theme, bed, |ui| match state {
+        // 메뉴·팝업이 불러온 페이지를 잠시 숨기는 동안 보이는 자리다. 글리프·라벨·URL 없이 타일만 그린다.
+        TileState::Boundary => {}
+        TileState::Placeholder => {
+            glyph(
+                ui,
+                icons::HTML,
+                theme.icon_glyph_size_md.value(),
+                idle_glyph,
+            );
+            gap(ui, theme);
+            label(ui, theme, "No page loaded", theme.text_muted());
+        }
+        TileState::Loading => {
+            Spinner::new()
+                .size(theme.spinner_size.value())
+                .show(ui, theme);
+            gap(ui, theme);
+            label(ui, theme, "Loading…", theme.text_muted());
+        }
+        TileState::Error => {
+            glyph(
+                ui,
+                icons::ALERT_CIRCLE,
+                theme.icon_glyph_size_md.value(),
+                theme.accent_danger(),
+            );
+            gap(ui, theme);
+            label(ui, theme, "Failed to load", theme.accent_danger());
+            url_line(ui, theme, "https://tasty.dev");
+        }
+    });
+}
+
+pub fn section() -> Section {
+    crate::catalog::section(
+        "html-chrome",
+        "HTML (webview) chrome",
+        vec![
+            Spec {
+                id: "html-chrome",
+                title: "HTML (webview) chrome",
+                when: Some(
+                    "Native overlay · thin chrome · boundary / placeholder / loading / error",
+                ),
+                draw,
+            },
+            Spec {
+                id: "html-focus-edge",
+                title: "HTML — focus edge above the band",
+                when: Some("edge → address band → banners → page · nothing else follows focus"),
+                draw: draw_focus_edge,
+            },
+        ],
+    )
+}
+
+/// 시안 `SurfaceLeaf`: 띠 행과 그 아래 내용. 띠는 두 상태에서 같은 행을 차지한다.
+fn leaf(
+    ui: &mut egui::Ui,
+    theme: &Theme,
+    width: f32,
+    focused: bool,
+    body: impl FnOnce(&mut egui::Ui),
+) {
+    ui.vertical(|ui| {
+        ui.spacing_mut().item_spacing.y = 0.0;
+        let (row, _) = ui.allocate_exact_size(
+            egui::vec2(width, theme.surface_focus_edge_width().value()),
+            egui::Sense::hover(),
+        );
+        SurfaceFocusEdge {
+            focused,
+            ring: None,
+            corner_radius: 0.0,
+        }
+        .paint(ui.painter(), theme, row);
+        body(ui);
+    });
+}
+
+fn draw_focus_edge(ui: &mut egui::Ui, theme: &Theme) {
+    spec::stage(ui, theme, StageVariant::Wrap, |ui| {
+        for (state, name) in TILE_STATES {
+            for (focused, word) in [(true, "focused"), (false, "unfocused")] {
+                spec::cluster(ui, theme, &format!("{name}, {word}"), |ui| {
+                    leaf(ui, theme, TILE_W.value(), focused, |ui| {
+                        state_tile(
+                            ui,
+                            theme,
+                            state,
+                            theme.bg_panel().to_egui(),
+                            theme.text_disabled(),
+                        );
+                    });
+                });
+            }
+        }
+        spec::cluster(ui, theme, "band, field editing, focused", |ui| {
+            leaf(ui, theme, BAND_W.value(), true, |ui| {
+                super::html_address::band_surface(
+                    ui,
+                    theme,
+                    "html-edge-editing",
+                    BAND_W,
+                    BAND_H,
+                    HtmlAddressKind::Local,
+                    "~/work/tasty/target/rep",
+                    true,
+                );
+            });
+        });
+        spec::cluster(ui, theme, "band, unfocused", |ui| {
+            leaf(ui, theme, BAND_W.value(), false, |ui| {
+                super::html_address::band_surface(
+                    ui,
+                    theme,
+                    "html-edge-idle",
+                    BAND_W,
+                    BAND_H,
+                    HtmlAddressKind::Local,
+                    "~/work/tasty/target/report.html",
+                    false,
+                );
+            });
+        });
+    });
+    spec::meta(
+        ui,
+        theme,
+        &[
+            ("focus", "surface focus edge only"),
+            (
+                "band",
+                "unchanged by focus, and the address band is not a focus mark",
+            ),
+            ("banners", "unchanged by focus"),
+            (
+                "chrome tiles",
+                "the 4 states unchanged by focus, below the edge",
+            ),
+            ("page", "author CSS, never touched"),
+        ],
+        &[
+            TokenChip::new(
+                "surface-focus-edge-focused",
+                "focused",
+                theme.surface_focus_edge_focused().to_egui(),
+            ),
+            TokenChip::new(
+                "surface-focus-edge-unfocused",
+                "unfocused",
+                theme.surface_focus_edge_unfocused().to_egui(),
+            ),
+            TokenChip::new(
+                "input-border-focus",
+                "field ring",
+                theme.input_border_focus().to_egui(),
+            ),
+        ],
+    );
+}
 
 pub fn draw(ui: &mut egui::Ui, theme: &Theme) {
     spec::stage(ui, theme, StageVariant::Wrap, |ui| {
-        // 메뉴·팝업이 불러온 페이지를 잠시 숨기는 동안 보이는 자리다. 글리프·라벨·URL 없이 타일만 그린다.
-        spec::cluster(ui, theme, "boundary — hidden page", |ui| {
-            tile(ui, theme, |_| {});
-        });
-        spec::cluster(ui, theme, "placeholder — no URL", |ui| {
-            tile(ui, theme, |ui| {
-                glyph(
+        for (state, name) in [
+            (TileState::Boundary, "boundary — hidden page"),
+            (TileState::Placeholder, "placeholder — no URL"),
+            (TileState::Loading, "loading"),
+            (TileState::Error, "error — load failed"),
+        ] {
+            spec::cluster(ui, theme, name, |ui| {
+                state_tile(
                     ui,
-                    icons::HTML,
-                    theme.icon_glyph_size_md.value(),
+                    theme,
+                    state,
+                    theme.bg_panel().to_egui(),
                     theme.text_disabled(),
                 );
-                gap(ui, theme);
-                label(ui, theme, "No page loaded", theme.text_muted());
             });
-        });
-        spec::cluster(ui, theme, "loading", |ui| {
-            tile(ui, theme, |ui| {
-                Spinner::new()
-                    .size(theme.spinner_size.value())
-                    .show(ui, theme);
-                gap(ui, theme);
-                label(ui, theme, "Loading…", theme.text_muted());
-            });
-        });
-        spec::cluster(ui, theme, "error — load failed", |ui| {
-            tile(ui, theme, |ui| {
-                glyph(
-                    ui,
-                    icons::ALERT_CIRCLE,
-                    theme.icon_glyph_size_md.value(),
-                    theme.accent_danger(),
-                );
-                gap(ui, theme);
-                label(ui, theme, "Failed to load", theme.accent_danger());
-                url_line(ui, theme, "https://tasty.dev");
-            });
-        });
+        }
     });
 
     spec::meta(
@@ -107,10 +276,10 @@ pub fn draw(ui: &mut egui::Ui, theme: &Theme) {
 
 /// 고정 W×H 테두리 타일, 콘텐츠를 상단에서 가운데 정렬로 쌓는다. 내용과 무관하게 크기가 같다.
 /// 좌우에는 시안 `HtmlTile`의 내용 padding 16(space-lg)을 두며 바깥 폭은 그대로다.
-fn tile(ui: &mut egui::Ui, theme: &Theme, add: impl FnOnce(&mut egui::Ui)) {
+fn tile(ui: &mut egui::Ui, theme: &Theme, bed: egui::Color32, add: impl FnOnce(&mut egui::Ui)) {
     let pad_x = theme.spacing_lg.value();
     egui::Frame::new()
-        .fill(theme.bg_panel().to_egui())
+        .fill(bed)
         .stroke(egui::Stroke::new(
             theme.border_width.value(),
             theme.border_default().to_egui(),

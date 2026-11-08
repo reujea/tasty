@@ -9,14 +9,14 @@ use tasty_type_geometry::length::LogicalPx;
 use tasty_ui_widgets::tokens::STRUCT_GAP_1;
 use tasty_ui_widgets::{TagVariant, tag};
 
+use tasty_ui_widgets::surface_bed;
+
 use crate::catalog::components::sidebar::paint_ws_count_badge_at;
 use crate::catalog::spec::{StageVariant, TokenChip, dont, meta, note, stage};
 
 /// 섞인 분할 무대의 높이와 폭.
 const SPLIT_STAGE_H: LogicalPx = LogicalPx(240.0);
 const SPLIT_STAGE_W: LogicalPx = LogicalPx(640.0);
-/// 비포커스 표면의 디밍. surface_highlights 예제와 같은 값이며 대응 토큰이 없다.
-const UNFOCUSED_DIM_OPACITY: f32 = 0.92;
 /// 문서 표면의 주소 표시줄 높이.
 const ADDRESS_BAR_H: LogicalPx = LogicalPx(36.0);
 
@@ -86,10 +86,30 @@ fn pane_frame(
     body(&mut child);
 }
 
-/// 포커스된 터미널 표면: 검은 바탕, 프롬프트와 커서.
-fn terminal_pane(ui: &mut egui::Ui, theme: &Theme, rect: egui::Rect) {
+/// 시안 `fakePane`. 터미널 표면 하나: 머리줄, 프롬프트, 포커스면 커서.
+pub(crate) fn terminal_pane(
+    ui: &mut egui::Ui,
+    theme: &Theme,
+    rect: egui::Rect,
+    label: &str,
+    focused: bool,
+    agent: bool,
+) {
     let term = theme.surface("terminal");
-    pane_frame(ui, theme, rect, ec(term.focused_bg), |ui| {
+    let bg = if focused {
+        term.focused_bg
+    } else {
+        term.unfocused_bg
+    };
+    let dot = if agent {
+        theme.accent_agent()
+    } else if focused {
+        theme.accent_success()
+    } else {
+        theme.text_muted()
+    };
+    let id = if focused { "s_01HX" } else { "s_02KQ" };
+    pane_frame(ui, theme, rect, ec(bg), |ui| {
         ui.spacing_mut().item_spacing.y = 0.0;
         egui::Frame::new()
             .fill(ec(theme.bg_panel()))
@@ -98,7 +118,7 @@ fn terminal_pane(ui: &mut egui::Ui, theme: &Theme, rect: egui::Rect) {
                 theme.spacing_sm.value() as i8,
             ))
             .show(ui, |ui| {
-                pane_header(ui, theme, ec(theme.accent_success()), "you · zsh", "s_01HX");
+                pane_header(ui, theme, ec(dot), label, id);
             });
         egui::Frame::new()
             .inner_margin(egui::Margin::same(theme.spacing_md.value() as i8))
@@ -121,23 +141,27 @@ fn terminal_pane(ui: &mut egui::Ui, theme: &Theme, rect: egui::Rect) {
                     ui.label(
                         egui::RichText::new("❯")
                             .font(font.clone())
-                            .color(ec(theme.accent_agent())),
+                            .color(ec(if agent {
+                                theme.accent_agent_raised()
+                            } else {
+                                theme.accent_agent()
+                            })),
                     );
-                    let (cur, _) = ui.allocate_exact_size(
-                        egui::vec2(theme.status_dot_size.value(), theme.spacing_lg.value()),
-                        egui::Sense::hover(),
-                    );
-                    ui.painter().rect_filled(cur, 0.0, ec(term.focused_fg));
+                    if focused {
+                        let (cur, _) = ui.allocate_exact_size(
+                            egui::vec2(theme.status_dot_size.value(), theme.spacing_lg.value()),
+                            egui::Sense::hover(),
+                        );
+                        ui.painter().rect_filled(cur, 0.0, ec(term.focused_fg));
+                    }
                 });
             });
     });
 }
 
-/// 비포커스 Markdown 표면: 사이드바 바탕, 36px 주소 표시줄, 본문.
-fn doc_pane(ui: &mut egui::Ui, theme: &Theme, rect: egui::Rect) {
-    let md = theme.surface("markdown");
-    let bg = ec(md.unfocused_bg).gamma_multiply(UNFOCUSED_DIM_OPACITY);
-    pane_frame(ui, theme, rect, bg, |ui| {
+/// 시안 `fakeDocPane`. Markdown 표면 하나: 포커스 바탕, 36px 주소 표시줄, 본문.
+fn doc_pane(ui: &mut egui::Ui, theme: &Theme, rect: egui::Rect, focused: bool) {
+    pane_frame(ui, theme, rect, surface_bed(theme, focused), |ui| {
         ui.spacing_mut().item_spacing.y = 0.0;
         let (bar, _) = ui.allocate_exact_size(
             egui::vec2(rect.width(), ADDRESS_BAR_H.value()),
@@ -199,53 +223,56 @@ fn doc_pane(ui: &mut egui::Ui, theme: &Theme, rect: egui::Rect) {
     });
 }
 
+/// 무대 한 칸: 왼쪽 터미널과 오른쪽 Markdown. `doc_focused`가 어느 쪽에 포커스가 있는지 정한다.
+fn split_row(ui: &mut egui::Ui, theme: &Theme, doc_focused: bool) {
+    let (area, _) = ui.allocate_exact_size(
+        egui::vec2(SPLIT_STAGE_W.value(), SPLIT_STAGE_H.value()),
+        egui::Sense::hover(),
+    );
+    ui.painter().rect_filled(area, 0.0, ec(theme.bg_panel()));
+    let inner = area.shrink(theme.spacing_md.value());
+    let gap = theme.spacing_sm.value();
+    let half = (inner.width() - gap) * 0.5;
+    let left = egui::Rect::from_min_size(inner.min, egui::vec2(half, inner.height()));
+    let right = egui::Rect::from_min_size(
+        egui::pos2(left.right() + gap, inner.top()),
+        egui::vec2(half, inner.height()),
+    );
+    ui.push_id(doc_focused, |ui| {
+        terminal_pane(ui, theme, left, "you · zsh", !doc_focused, false);
+        doc_pane(ui, theme, right, doc_focused);
+    });
+}
+
 /// Layouts › Dividers & surfaces — 한 PaneGroup 안의 터미널과 Markdown.
 pub fn draw_mixed_split(ui: &mut egui::Ui, theme: &Theme) {
     stage(ui, theme, StageVariant::Tight, |ui| {
-        let (area, _) = ui.allocate_exact_size(
-            egui::vec2(SPLIT_STAGE_W.value(), SPLIT_STAGE_H.value()),
-            egui::Sense::hover(),
-        );
-        ui.painter().rect_filled(area, 0.0, ec(theme.bg_panel()));
-        let inner = area.shrink(theme.spacing_md.value());
-        let gap = theme.spacing_sm.value();
-        let half = (inner.width() - gap) * 0.5;
-        let left = egui::Rect::from_min_size(inner.min, egui::vec2(half, inner.height()));
-        let right = egui::Rect::from_min_size(
-            egui::pos2(left.right() + gap, inner.top()),
-            egui::vec2(half, inner.height()),
-        );
-        terminal_pane(ui, theme, left);
-        doc_pane(ui, theme, right);
+        split_row(ui, theme, false);
     });
-    let md = theme.surface("markdown");
-    let term = theme.surface("terminal");
+    stage(ui, theme, StageVariant::Tight, |ui| {
+        split_row(ui, theme, true);
+    });
     meta(
         ui,
         theme,
         &[
             ("group", "one tab, surfaces of different kinds"),
-            ("terminal focused", "#000 · opacity 1"),
-            ("markdown unfocused", "surface-markdown-unfocused-bg"),
+            ("focus", "the bed of each surface"),
+            ("told apart by", "address band and prose, not by color"),
             ("markdown chrome", "36px address bar, kept in split"),
             ("prose measure", "max 620px"),
             ("status bar", "focused surface id"),
         ],
         &[
             TokenChip::new(
-                "surface-markdown-focused-bg",
-                "document bed (focused)",
-                ec(md.focused_bg),
+                "surface-bed-focused",
+                "focused",
+                ec(theme.surface_bed_focused()),
             ),
             TokenChip::new(
-                "surface-markdown-unfocused-bg",
-                "doc surface, unfocused",
-                ec(md.unfocused_bg),
-            ),
-            TokenChip::new(
-                "surface-terminal-focused-bg",
-                "#000 terminal, focused",
-                ec(term.focused_bg),
+                "surface-bed-unfocused",
+                "unfocused",
+                ec(theme.surface_bed_unfocused()),
             ),
             TokenChip::without_color("separator", "surface border"),
         ],
@@ -253,7 +280,7 @@ pub fn draw_mixed_split(ui: &mut egui::Ui, theme: &Theme) {
     dont(
         ui,
         theme,
-        "Don't paint the markdown pane black to \"match\" its terminal neighbour — black is a raw-TTY convention. Prose stays on the Catppuccin document bed, which is how the two kinds stay tellable apart at a glance.",
+        "Don't give markdown a bed of its own to set it apart from a terminal. Two beds per state would make focus harder to read, and the address band already says which kind it is.",
     );
 }
 

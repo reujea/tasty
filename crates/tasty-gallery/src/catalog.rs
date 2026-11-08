@@ -20,6 +20,7 @@ pub mod plugins_settled;
 pub mod popup_frame;
 pub mod spacing;
 pub mod spec;
+pub mod surface_focus;
 pub mod theme;
 pub mod toast_card;
 pub mod typography;
@@ -2252,6 +2253,7 @@ pub fn pages() -> Vec<Page> {
                         ),
                     ],
                 ),
+                surface_focus::section(),
                 section(
                     "surfaces",
                     "Dividers & surfaces",
@@ -2265,14 +2267,14 @@ pub fn pages() -> Vec<Page> {
                         spec(
                             "surface",
                             "Surface focus states",
-                            Some("Focused #000, unfocused 0.92, agent dot"),
+                            Some("Focused and unfocused beds, agent dot"),
                             components::surface_highlights::draw,
                         ),
                         spec(
                             "mixed-split",
                             "Mixed split — terminal + markdown in one pane group",
                             Some(
-                                "each surface keeps its own focus bed · 36px address bar kept in split",
+                                "each surface follows focus on one pair of beds · 36px address bar kept in split",
                             ),
                             layouts_settled::draw_mixed_split,
                         ),
@@ -2441,7 +2443,7 @@ pub fn pages() -> Vec<Page> {
                     "empty-surface",
                     "Empty surface",
                     "One button, nothing else",
-                    Some("bg-app 전면 · 세로 중앙 · convert popup 을 연다"),
+                    Some("포커스 바탕 전면 · 세로 중앙 · convert popup 을 연다"),
                     components::empty_surface::draw,
                 ),
             ],
@@ -2521,8 +2523,8 @@ pub fn pages() -> Vec<Page> {
                         ),
                         spec(
                             "markdown-doc-bg",
-                            "Markdown — document background (single bed, webview render path)",
-                            Some("md-doc-bg → surface-markdown-focused-bg = crust · no focus swap"),
+                            "Markdown — document background follows focus",
+                            Some("bed, table row and zebra swap · one frame, no reload"),
                             plugins_settled::draw_doc_background,
                         ),
                         spec(
@@ -2566,13 +2568,7 @@ pub fn pages() -> Vec<Page> {
                     spec("html-address-placement", "Address band — placement", Some("Narrow / mirror / size and script banner insets"), components::html_address::draw_placement),
                     spec("html-address-live", "Address band — live input", Some("Draft / Enter / Esc and pure URL resolution"), components::html_address::draw_live),
                 ]),
-                single(
-                    "html-chrome",
-                    "HTML (webview) chrome",
-                    "HTML (webview) chrome",
-                    Some("Native overlay · thin chrome · boundary / placeholder / loading / error"),
-                    components::html_chrome::draw,
-                ),
+                components::html_chrome::section(),
             ],
         },
         // ── Chrome ───────────────────────────────────────────────────
