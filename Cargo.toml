@@ -181,7 +181,7 @@ rcgen = { version = "=0.14.8", default-features = false, features = ["aws_lc_rs"
 tokio-rustls = "=0.26.6"
 url = "2"
 reqwest = { version = "=0.13.4", default-features = false, features = ["rustls"] }
-tokio = { version = "=1.50.0", features = ["rt-multi-thread", "macros", "sync", "time", "io-util", "net"] }
+tokio = { version = "=1.54.1", features = ["rt-multi-thread", "macros", "sync", "time", "io-util", "net"] }
 flate2 = "=1.1.9"
 tasty-font = { path = "crates/tasty-font" }
 tasty-hooks = { path = "crates/tasty-hooks" }
@@ -429,7 +429,7 @@ dhat-heap = ["dep:dhat"]
 
 [dev-dependencies]
 # Deterministic test clocks advance beyond real network budgets after actual loopback headers.
-tokio = { version = "=1.50.0", features = ["test-util"] }
+tokio = { version = "=1.54.1", features = ["test-util"] }
 serde_json = "1"
 # 의존 크레이트에는 호출자의 cfg(test)가 적용되지 않아 test-support를 명시한다.
 # IsolatedHome의 push_home_override를 테스트에서 사용하기 위한 설정이다.
