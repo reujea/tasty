@@ -58,6 +58,7 @@ pub fn register_remote_kind(
     let preset_fields =
         crate::runtime::surface_registry::PresetFieldSpec::from_decls(&decl.preset_fields);
     let preset_fields_for_create = preset_fields.clone();
+    let preset_fields_for_restore = preset_fields.clone();
 
     registry.register(SurfaceKindDef {
         kind: kind_static,
@@ -110,6 +111,13 @@ pub fn register_remote_kind(
                 kind_static,
                 plugin_id_for_restore.clone(),
                 kind_static.to_string(),
+            );
+            // 생성과 같은 규칙으로 저장 자료의 파일에서 cwd를 다시 얻는다.
+            surface.set_cwd(
+                crate::runtime::surface_registry::PresetFieldSpec::derive_cwd(
+                    &preset_fields_for_restore,
+                    data,
+                ),
             );
             // 복원 응답을 받기 전에 다시 저장해도 기존 snapshot을 유지한다.
             surface.cache_snapshot(data.clone());
@@ -213,5 +221,73 @@ mod tests {
         assert!(!old_handles.binding().matches(&new_handles));
         assert_eq!(*old_handles.display_name.lock().unwrap(), "original");
         assert_eq!(*new_handles.display_name.lock().unwrap(), "replacement");
+    }
+
+    fn document_kind(registry: &SurfaceKindRegistry, sender: Sender<HostCmd>) {
+        let decl = serde_json::from_value(serde_json::json!({
+            "kind": "test-doc", "display_name_i18n_key": "surface.kind.markdown",
+            "rendering": "webview",
+            "preset_fields": [{ "id": "file", "label_key": "x", "param_key": "file",
+                                "input_type": "file_path", "derive_cwd": true }]
+        }))
+        .unwrap();
+        register_remote_kind(registry, "com.test.doc", &decl, sender);
+    }
+
+    fn absolute(name: &str) -> std::path::PathBuf {
+        std::path::PathBuf::from(if cfg!(windows) { r"C:\docs" } else { "/docs" }).join(name)
+    }
+
+    #[test]
+    fn restore_derives_cwd_from_the_snapshot_file_like_create() {
+        let registry = SurfaceKindRegistry::new();
+        let (sender, _receiver) = std::sync::mpsc::channel();
+        document_kind(&registry, sender);
+        let def = registry.get_live("test-doc").unwrap();
+        let file = absolute("a.md");
+        let docs = file.parent().map(std::path::Path::to_path_buf);
+        let created = (def.create)(1, None, &serde_json::json!({ "file": file }))
+            .unwrap()
+            .publish()
+            .unwrap();
+        assert_eq!(created.source_cwd(), docs);
+        let restored = (def.restore)(2, &serde_json::json!({ "file": file }))
+            .unwrap()
+            .publish()
+            .unwrap();
+        assert_eq!(restored.source_cwd(), docs);
+    }
+
+    /// mirror 복원 자료의 파일은 원격 경로라 로컬 cwd가 되면 안 된다.
+    #[test]
+    fn a_mirror_snapshot_does_not_derive_a_local_cwd() {
+        let registry = SurfaceKindRegistry::new();
+        let (sender, _receiver) = std::sync::mpsc::channel();
+        document_kind(&registry, sender);
+        let def = registry.get_live("test-doc").unwrap();
+        let mirror = (def.restore)(
+            3,
+            &serde_json::json!({ "display_name": "a.md", "remote": { "file": "/srv/a.md" } }),
+        )
+        .unwrap()
+        .publish()
+        .unwrap();
+        assert_eq!(mirror.source_cwd(), None);
+    }
+
+    /// 옛 저장본에 남은 상대 경로의 부모를 호스트 시작 폴더 기준 cwd로 쓰지 않는다.
+    #[test]
+    fn a_relative_snapshot_file_does_not_derive_a_cwd() {
+        let registry = SurfaceKindRegistry::new();
+        let (sender, _receiver) = std::sync::mpsc::channel();
+        document_kind(&registry, sender);
+        let def = registry.get_live("test-doc").unwrap();
+        for file in ["a.md", "docs/a.md"] {
+            let restored = (def.restore)(4, &serde_json::json!({ "file": file }))
+                .unwrap()
+                .publish()
+                .unwrap();
+            assert_eq!(restored.source_cwd(), None, "{file}");
+        }
     }
 }

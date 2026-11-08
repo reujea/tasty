@@ -76,8 +76,9 @@ impl PresetFieldSpec {
         decls.iter().map(Self::from_decl).collect()
     }
 
-    /// derive_cwd가 켜진 FilePath 필드에서 비어 있지 않은 부모 경로를 처음 찾으면 반환한다.
-    /// 경로 존재나 절대 경로 여부는 검사하지 않는다.
+    /// derive_cwd가 켜진 FilePath 필드에서 절대 경로의 부모를 처음 찾으면 반환한다.
+    /// 상대 경로는 기준을 모르므로 건너뛴다. 그대로 쓰면 호스트 시작 폴더 기준으로 해석된다.
+    /// 경로 존재는 검사하지 않는다.
     pub fn derive_cwd(fields: &[Self], params: &serde_json::Value) -> Option<std::path::PathBuf> {
         for f in fields {
             if !f.derive_cwd || f.input != PresetFieldInput::FilePath {
@@ -89,8 +90,9 @@ impl PresetFieldSpec {
             let Some(s) = params.get(key).and_then(|v| v.as_str()) else {
                 continue;
             };
-            if let Some(parent) = Path::new(s).parent()
-                && !parent.as_os_str().is_empty()
+            let path = Path::new(s);
+            if path.is_absolute()
+                && let Some(parent) = path.parent()
             {
                 return Some(parent.to_path_buf());
             }
