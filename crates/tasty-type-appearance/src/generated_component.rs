@@ -916,10 +916,10 @@ impl crate::theme::Theme {
         LogicalPx((8.0 * self.ui_zoom).round())
     }
 
-    /// `component.dag-edge-binding` → `{semantic.accent-data}`
+    /// `component.dag-edge-binding` → `{semantic.accent-data-strong}`
     #[inline]
     pub fn dag_edge_binding(&self) -> HexColor {
-        self.accent_data()
+        self.accent_data_strong()
     }
 
     /// `component.dag-edge-corner-radius` → `{semantic.radius}` = 4px
@@ -3162,10 +3162,22 @@ impl crate::theme::Theme {
         self.bg_panel()
     }
 
+    /// `component.md-table-row-bg-unfocused` → `{semantic.bg-sidebar}`
+    #[inline]
+    pub fn md_table_row_bg_unfocused(&self) -> HexColor {
+        self.bg_sidebar()
+    }
+
     /// `component.md-table-row-bg-zebra` → `{semantic.bg-sidebar}`
     #[inline]
     pub fn md_table_row_bg_zebra(&self) -> HexColor {
         self.bg_sidebar()
+    }
+
+    /// `component.md-table-row-bg-zebra-unfocused` → `{semantic.bg-panel}`
+    #[inline]
+    pub fn md_table_row_bg_zebra_unfocused(&self) -> HexColor {
+        self.bg_panel()
     }
 
     /// `component.menu-bg` → `{semantic.surface-raised}`
@@ -4990,6 +5002,24 @@ impl crate::theme::Theme {
     #[inline]
     pub fn statusbar_theme_glyph(&self) -> HexColor {
         self.glyph_dim()
+    }
+
+    /// `component.surface-focus-edge-focused` → `{semantic.text-secondary}`
+    #[inline]
+    pub fn surface_focus_edge_focused(&self) -> HexColor {
+        self.text_secondary()
+    }
+
+    /// `component.surface-focus-edge-unfocused` → `{semantic.bg-sidebar}`
+    #[inline]
+    pub fn surface_focus_edge_unfocused(&self) -> HexColor {
+        self.bg_sidebar()
+    }
+
+    /// `component.surface-focus-edge-width` → `{semantic.selection-edge-width}` = 2px
+    #[inline]
+    pub fn surface_focus_edge_width(&self) -> LogicalPx {
+        self.selection_edge_width
     }
 
     /// `component.surface-highlight-done-border` → `{semantic.attention-completion}`

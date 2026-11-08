@@ -877,6 +877,15 @@
       "$type": "color",
       "$value": "{primitive.color-teal}"
     },
+    "accent-data-strong": {
+      "$type": "color",
+      "$value": "{semantic.accent-data}",
+      "$extensions": {
+        "com.tasty.mode": {
+          "latte": "color-mix(in srgb, var(--tasty-color-teal) 85%, var(--tasty-color-black))"
+        }
+      }
+    },
     "accent-route": {
       "$type": "color",
       "$value": "{primitive.color-lavender}"
@@ -1492,6 +1501,19 @@
       "$type": "number",
       "$value": "{semantic.ui-scale-md}"
     },
+    "surface-bed-focused": {
+      "$type": "color",
+      "$value": "{semantic.surface-terminal-focused-bg}"
+    },
+    "surface-bed-unfocused": {
+      "$type": "color",
+      "$value": "{semantic.bg-panel}",
+      "$extensions": {
+        "com.tasty.mode": {
+          "latte": "{semantic.bg-app}"
+        }
+      }
+    },
     "surface-terminal-focused-bg": {
       "$type": "color",
       "$value": "{primitive.color-black}",
@@ -1507,7 +1529,7 @@
     },
     "surface-terminal-unfocused-bg": {
       "$type": "color",
-      "$value": "{semantic.bg-panel}"
+      "$value": "{semantic.surface-bed-unfocused}"
     },
     "surface-terminal-unfocused-fg": {
       "$type": "color",
@@ -1515,7 +1537,7 @@
     },
     "surface-markdown-focused-bg": {
       "$type": "color",
-      "$value": "{semantic.bg-app}"
+      "$value": "{semantic.surface-bed-focused}"
     },
     "surface-markdown-focused-fg": {
       "$type": "color",
@@ -1523,7 +1545,7 @@
     },
     "surface-markdown-unfocused-bg": {
       "$type": "color",
-      "$value": "{semantic.bg-sidebar}"
+      "$value": "{semantic.surface-bed-unfocused}"
     },
     "surface-markdown-unfocused-fg": {
       "$type": "color",
@@ -1547,6 +1569,15 @@
       "$extensions": {
         "com.tasty.mode": {
           "latte": "color-mix(in srgb, var(--tasty-color-yellow) 50%, transparent)"
+        }
+      }
+    },
+    "search-match-active-unfocused-fg": {
+      "$type": "color",
+      "$value": "{semantic.search-match-active-fg}",
+      "$extensions": {
+        "com.tasty.mode": {
+          "latte": "{primitive.color-black}"
         }
       }
     },
@@ -3891,6 +3922,18 @@
       "$type": "dimension",
       "$value": "{semantic.focus-ring-width}"
     },
+    "surface-focus-edge-focused": {
+      "$type": "color",
+      "$value": "{semantic.text-secondary}"
+    },
+    "surface-focus-edge-unfocused": {
+      "$type": "color",
+      "$value": "{semantic.bg-sidebar}"
+    },
+    "surface-focus-edge-width": {
+      "$type": "dimension",
+      "$value": "{semantic.selection-edge-width}"
+    },
     "table-cell-height": {
       "$type": "dimension",
       "$value": "{semantic.control-height}"
@@ -4042,6 +4085,14 @@
     "md-table-row-bg-zebra": {
       "$type": "color",
       "$value": "{semantic.bg-sidebar}"
+    },
+    "md-table-row-bg-unfocused": {
+      "$type": "color",
+      "$value": "{semantic.bg-sidebar}"
+    },
+    "md-table-row-bg-zebra-unfocused": {
+      "$type": "color",
+      "$value": "{semantic.bg-panel}"
     },
     "md-table-cell-fg": {
       "$type": "color",
@@ -5492,7 +5543,7 @@
     },
     "dag-edge-binding": {
       "$type": "color",
-      "$value": "{semantic.accent-data}"
+      "$value": "{semantic.accent-data-strong}"
     },
     "dag-edge-dash-binding": {
       "$type": "strokeStyle",

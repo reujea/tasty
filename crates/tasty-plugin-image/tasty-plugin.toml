@@ -1,7 +1,7 @@
 manifest_version = 1
 id = "com.tasty.image"
 name = "Image"
-version = "0.1.363"
+version = "0.1.364"
 description = "Image surface viewer / paint canvas"
 api_version = "1"
 permissions = [
@@ -39,12 +39,6 @@ input_type = "file_path"
 required = true
 placeholder_key = "preset.field.file_hint"
 derive_cwd = true
-
-[surface_kinds.default_colors]
-focused_bg = "#1e1e2e"
-focused_fg = "#cdd6f4"
-unfocused_bg = "#181825"
-unfocused_fg = "#a6adc8"
 
 [[contributes.ipc_namespace]]
 prefix = "image"

@@ -121,6 +121,7 @@ pub const SEMANTIC_COLOR_TO_THEME_ACCESSOR: &[(&str, &str)] = &[
     ("semantic.accent-danger", "accent_danger()"),
     ("semantic.accent-danger-raised", "accent_danger_raised()"),
     ("semantic.accent-data", "accent_data()"),
+    ("semantic.accent-data-strong", "accent_data_strong()"),
     ("semantic.accent-decorative", "accent_decorative()"),
     ("semantic.accent-info", "accent_info()"),
     ("semantic.accent-macos-close", "accent_macos_close()"),
@@ -197,6 +198,12 @@ pub const SEMANTIC_COLOR_TO_THEME_ACCESSOR: &[(&str, &str)] = &[
         "accent_primary_on_active()",
     ),
     ("semantic.accent-warning-raised", "accent_warning_raised()"),
+    (
+        "semantic.search-match-active-unfocused-fg",
+        "search_match_active_unfocused_fg()",
+    ),
+    ("semantic.surface-bed-focused", "surface_bed_focused()"),
+    ("semantic.surface-bed-unfocused", "surface_bed_unfocused()"),
     (
         "semantic.accent-attention-raised",
         "accent_attention_raised()",
@@ -480,6 +487,22 @@ const SEMANTIC_COLOR_HAND_WRITTEN: &[(&str, &str)] = &[
         "text-on-accent alias — is_light role-remap을 따른다",
     ),
     ("semantic.surface-field", "state_ink.rs 수기 역할"),
+    (
+        "semantic.accent-data-strong",
+        "Latte teal 85% + primitive black 합성색",
+    ),
+    (
+        "semantic.search-match-active-unfocused-fg",
+        "Mocha=search-match-active-fg / Latte=primitive black 역할 분기",
+    ),
+    (
+        "semantic.surface-bed-focused",
+        "surface-terminal-focused-bg 체인, 테마의 surfaces.terminal 값",
+    ),
+    (
+        "semantic.surface-bed-unfocused",
+        "is_light role-remap (Mocha=bg-panel / Latte=bg-app) — 단순 alias 아님",
+    ),
     ("semantic.border-control", "state_ink.rs 수기 역할"),
     ("semantic.border-control-raised", "state_ink.rs 수기 역할"),
     ("semantic.control-thumb", "state_ink.rs 수기 역할"),

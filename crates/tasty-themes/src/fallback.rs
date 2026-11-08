@@ -87,13 +87,13 @@ fn terminal_surface() -> SurfaceTheme {
     }
 }
 
-/// Markdown의 기본 색상. 웹뷰는 focused_bg를 배경으로 사용한다.
+/// Markdown의 기본 색상. 바탕은 터미널과 같은 포커스 바탕 쌍이다.
 #[allow(clippy::disallowed_methods)] // reason: 빌트인 mocha 색상값 리터럴 정의
 fn markdown_surface() -> SurfaceTheme {
     SurfaceTheme {
-        focused_bg: HexColor::from_rgb(0x11, 0x11, 0x1b), // crust
-        focused_fg: HexColor::from_rgb(0xcd, 0xd6, 0xf4), // text
-        unfocused_bg: HexColor::from_rgb(0x18, 0x18, 0x25), // mantle
+        focused_bg: HexColor::from_rgb(0, 0, 0),            // #000000
+        focused_fg: HexColor::from_rgb(0xcd, 0xd6, 0xf4),   // text
+        unfocused_bg: HexColor::from_rgb(0x1e, 0x1e, 0x2e), // base
         unfocused_fg: HexColor::from_rgb(0xa6, 0xad, 0xc8), // subtext0
     }
 }

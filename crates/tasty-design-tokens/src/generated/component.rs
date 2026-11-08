@@ -1580,6 +1580,9 @@ pub mod statusbar {
 pub mod surface {
     use tasty_type_geometry::length::LogicalPx;
 
+    /// `component.surface-focus-edge-width` → `{semantic.selection-edge-width}` = 2px
+    pub const FOCUS_EDGE_WIDTH: LogicalPx = crate::generated::semantic::SELECTION_EDGE_WIDTH;
+
     /// `component.surface-highlight-done-width` → `{semantic.focus-ring-width}` = 2px
     pub const HIGHLIGHT_DONE_WIDTH: LogicalPx = crate::generated::semantic::FOCUS_RING_WIDTH;
 

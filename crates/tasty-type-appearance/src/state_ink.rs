@@ -430,6 +430,34 @@ impl Theme {
         self.band(self.crust, BLACK)
     }
 
+    /// DAG binding 선처럼 데이터 흐름을 그리는 진한 글리프. `semantic.accent-data-strong`.
+    #[inline]
+    pub fn accent_data_strong(&self) -> HexColor {
+        self.band(
+            self.accent_data(),
+            mix_srgb(self.accent_data(), 0.85, BLACK),
+        )
+    }
+
+    /// 포커스 없는 터미널의 현재 검색 매치 글자. `semantic.search-match-active-unfocused-fg`.
+    #[inline]
+    pub fn search_match_active_unfocused_fg(&self) -> HexColor {
+        self.band(self.search_match_active_fg, BLACK)
+    }
+
+    /// 포커스 받은 surface의 Tasty 소유 바탕. `semantic.surface-bed-focused`.
+    /// 토큰 체인대로 터미널 focused 바탕을 읽으므로 사용자 테마의 `[surfaces.terminal]`을 따른다.
+    #[inline]
+    pub fn surface_bed_focused(&self) -> HexColor {
+        self.surface("terminal").focused_bg
+    }
+
+    /// 포커스 없는 surface의 Tasty 소유 바탕. `semantic.surface-bed-unfocused`.
+    #[inline]
+    pub fn surface_bed_unfocused(&self) -> HexColor {
+        self.band(self.bg_panel(), self.bg_app())
+    }
+
     /// 포인터가 올라간 비활성 탭. `component.tab-bg-hover`.
     #[inline]
     pub fn tab_bg_hover(&self) -> HexColor {

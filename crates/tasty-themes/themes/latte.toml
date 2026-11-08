@@ -49,13 +49,13 @@ search_match_active_fg = "#4c4f69"     # text — active 매치 안 글자
 [surfaces.terminal]
 focused_bg   = "#ffffff"
 focused_fg   = "#4c4f69"   # = text
-unfocused_bg = "#eff1f5"   # = base
+unfocused_bg = "#dce0e8"   # = surface-bed-unfocused (crust)
 unfocused_fg = "#63667c"   # = subtext0
 
 [surfaces.markdown]
-focused_bg   = "#dce0e8"   # = crust (webview 렌더 경로의 유일한 배경 — focus 신호 없음)
+focused_bg   = "#ffffff"   # = surface-bed-focused
 focused_fg   = "#4c4f69"
-unfocused_bg = "#e6e9ef"   # = mantle (webview 경로에서 미사용, egui 경로 잔존값)
+unfocused_bg = "#dce0e8"   # = surface-bed-unfocused (crust)
 unfocused_fg = "#63667c"
 
 [ansi]

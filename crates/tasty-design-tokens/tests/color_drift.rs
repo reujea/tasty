@@ -297,6 +297,53 @@ fn assert_mocha_state_ink(mocha: &Theme) {
     assert_eq!(mocha.accent_attached_raised(), hex("#b4befe"));
     assert_eq!(mocha.accent_attached_on_active(), hex("#bfc8fe"));
 }
+/// 터미널과 markdown의 바탕이 포커스 바탕 쌍 하나를 쓰고, Latte만 다른 역할이 정본 값과 같은지 본다.
+#[test]
+fn surface_bed_pair_and_latte_remaps_match_the_design_values() {
+    let build = |toml: &str, light: bool| {
+        let file = ThemeFile::parse(toml).expect("embedded theme must parse");
+        let (partial, _) = file.to_partial();
+        let mut colors = mocha_fallback_colors();
+        colors.apply_partial(&partial);
+        Theme::with_colors(colors, light)
+    };
+    let cases = [
+        (
+            "mocha",
+            build(MOCHA_TOML_TEXT, false),
+            ["#000000", "#1e1e2e", "#94e2d5", "#1e1e2e", "#181825"],
+        ),
+        (
+            "latte",
+            build(LATTE_TOML_TEXT, true),
+            ["#ffffff", "#dce0e8", "#147c82", "#000000", "#e6e9ef"],
+        ),
+    ];
+    for (name, th, [focused, unfocused, data_strong, match_fg, row]) in cases {
+        assert_eq!(th.surface_bed_focused(), hex(focused), "{name} focused bed");
+        assert_eq!(
+            th.surface_bed_unfocused(),
+            hex(unfocused),
+            "{name} unfocused bed"
+        );
+        for kind in ["terminal", "markdown"] {
+            assert_eq!(th.surface(kind).focused_bg, hex(focused), "{name} {kind}");
+            assert_eq!(
+                th.surface(kind).unfocused_bg,
+                hex(unfocused),
+                "{name} {kind}"
+            );
+        }
+        assert_eq!(th.accent_data_strong(), hex(data_strong), "{name} data");
+        assert_eq!(th.dag_edge_binding(), hex(data_strong), "{name} binding");
+        assert_eq!(
+            th.search_match_active_unfocused_fg(),
+            hex(match_fg),
+            "{name} match ink"
+        );
+        assert_eq!(th.md_table_row_bg_unfocused(), hex(row), "{name} row");
+    }
+}
 
 fn assert_ink_on_active(name: &str, th: &Theme) {
     let active = th.surface_active();
