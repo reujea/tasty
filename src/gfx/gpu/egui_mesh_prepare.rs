@@ -11,6 +11,8 @@
 //! 전체 재전송을 계속 요청한다. 범위를 벗어나거나 참조가 없으면 도형도 보류한다.
 //! 디코드 실패·ppp 불일치 등은 기존 캐시를 유지하고 다음 프레임에 다시 시도한다.
 
+mod full_request;
+
 use std::collections::{HashMap, HashSet};
 use std::sync::atomic::Ordering;
 
@@ -21,6 +23,7 @@ use super::GpuState;
 use crate::app::plugin_display::PluginDisplay;
 use crate::model::PhysicalRect;
 use crate::state::MainViewState;
+use full_request::FullRequestPacer;
 
 /// 디코드 ppp 와 host ppp 의 허용 오차. float 비교라 작은 epsilon.
 const PPP_EPS: f32 = 1.0e-3;
@@ -39,8 +42,10 @@ pub(super) struct EguiMeshRenderTarget {
     last_seq: u64,
     /// 상주 텍스처의 크기. 전체 이미지로 갱신하며 부분 변경의 경계 검사·오래된 텍스처 정리에 사용한다.
     live_textures: HashMap<TextureId, [usize; 2]>,
-    /// 전체 텍스처를 기다리는 상태. 요청은 매 tick 다시 보내고 이 값은 반복 로그만 막는다.
+    /// 전체 텍스처를 기다리는 상태. 이 값은 반복 로그만 막는다. 로컬 plugin 경로는 요청을 매 tick
+    /// 다시 보내고, attach mirror 경로는 `full_request`가 정한 간격으로 보낸다.
     awaiting_full: bool,
+    full_request: FullRequestPacer,
     /// 한 번이라도 유효 mesh 를 디코드했는가. false 면 합성 skip.
     has_content: bool,
     /// window-global 좌표로 평행이동/클립한 합성용 primitives 캐시.
@@ -59,6 +64,7 @@ impl EguiMeshRenderTarget {
             last_seq: 0,
             live_textures: HashMap::new(),
             awaiting_full: false,
+            full_request: FullRequestPacer::default(),
             has_content: false,
             translated: Vec::new(),
             translated_key: None,
@@ -348,6 +354,7 @@ fn decode_mesh_bytes_into_target(
     if chain_ok {
         target.last_seq = frame_seq;
         target.awaiting_full = false;
+        target.full_request.reset();
     }
     // 도형만 채택했으면 last_seq를 유지해 다음 tick에서도 전체 텍스처를 요청한다.
     outcome
@@ -486,6 +493,26 @@ fn ensure_mesh_target<K: std::hash::Hash + Eq + Copy>(
         let renderer = egui_wgpu::Renderer::new(device, format, None, 1, false);
         EguiMeshRenderTarget::new(renderer)
     });
+}
+
+/// attach mirror 의 전체 재전송 요청을 간격이 찼을 때만 등록하고, 아니면 그 시각에 다시 그리도록 예약한다.
+/// 요청 목록은 매 프레임 비워지므로 기다리는 동안 이 함수가 다시 불린다. 로컬 plugin 경로는
+/// 응답이 latest-wins 버퍼에서 덮일 수 있어 매 tick 다시 요청하므로 이 함수를 쓰지 않는다.
+fn request_remote_full(
+    targets: &mut HashMap<u32, EguiMeshRenderTarget>,
+    requests: &mut HashSet<u32>,
+    key: u32,
+    egui_ctx: &egui::Context,
+) {
+    let Some(target) = targets.get_mut(&key) else {
+        return;
+    };
+    match target.full_request.admit(std::time::Instant::now()) {
+        Ok(()) => {
+            requests.insert(key);
+        }
+        Err(wait) => egui_ctx.request_repaint_after(wait),
+    }
 }
 
 /// 공유 메모리를 읽고 디코드 결과에 따라 전체 재전송 요청을 다시 등록한다.
@@ -686,7 +713,12 @@ impl GpuState {
             };
             if !needs_decode {
                 if awaiting {
-                    self.attach_mesh_full_requests.insert(*sid);
+                    request_remote_full(
+                        &mut self.attach_mesh_targets,
+                        &mut self.attach_mesh_full_requests,
+                        *sid,
+                        &self.egui_ctx,
+                    );
                 }
                 continue;
             }
@@ -720,7 +752,12 @@ impl GpuState {
                         .expect("ensured above")
                         .awaiting_full = true;
                 }
-                self.attach_mesh_full_requests.insert(*sid);
+                request_remote_full(
+                    &mut self.attach_mesh_targets,
+                    &mut self.attach_mesh_full_requests,
+                    *sid,
+                    &self.egui_ctx,
+                );
             }
         }
 
