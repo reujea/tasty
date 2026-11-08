@@ -16,23 +16,20 @@ ignore = [
   "RUSTSEC-2026-0194", # quick-xml: 시작 태그 중복 속성 검사 quadratic 런타임
   "RUSTSEC-2026-0195", # quick-xml: NsReader 무제한 네임스페이스 할당 메모리 고갈
 
-  # 유지보수가 끝난 Linux GTK3 0.18.2 계열.
-  # rfd·트레이의 간접 의존성이다. xdg-portal(ashpd)로 전환할 때 제거 여부를 확인한다.
-  "RUSTSEC-2024-0412", # gdk
-  "RUSTSEC-2024-0413", # atk
-  "RUSTSEC-2024-0414", # gdkx11-sys
-  "RUSTSEC-2024-0415", # gtk
-  "RUSTSEC-2024-0416", # atk-sys
-  "RUSTSEC-2024-0417", # gdkx11
-  "RUSTSEC-2024-0418", # gdk-sys
-  "RUSTSEC-2024-0419", # gtk3-macros
-  "RUSTSEC-2024-0420", # gtk-sys
-
   # 아직 교체하지 못한 유지보수 종료 간접 의존성.
   "RUSTSEC-2024-0436", # paste 1.0.15 unmaintained
   "RUSTSEC-2024-0370", # proc-macro-error 1.0.4 unmaintained
-  "RUSTSEC-2017-0008", # serial 0.4.0 unmaintained
+  "RUSTSEC-2017-0008", # serial 0.4.0 unmaintained. portable-pty 0.8의 직렬 포트 기능으로 들어온다.
   "RUSTSEC-2026-0192", # ttf-parser 0.25.1 unmaintained
+
+  # pin-utils 0.1.0 유지보수 종료. 알려진 취약점이 아니다.
+  # nix 0.25(portable-pty 0.8)와 nix 0.26(termwiz 0.22)의 기본 기능 aio로 들어온다.
+  # nix 안의 사용처는 sys/aio.rs이고 이 저장소의 코드는 nix aio를 쓰지 않는다.
+  # portable-pty 0.9로 올리면 사라지지만 터미널 동작이 달라진다. Windows ConPTY에 INHERIT_CURSOR가
+  # 항상 켜지고, Unix에서 SHELL 값과 상대 경로 실행 파일 검색 결과가 바뀐다.
+  # 세 OS에서 실제 실행으로 동작을 확인한 뒤 portable-pty 0.9·termwiz 0.23으로 함께 올릴 때 해제한다.
+  # serial 예외도 그때 함께 해제한다.
+  "RUSTSEC-2026-0441", # pin-utils 0.1.0 unmaintained
 
   # 고정된 git2 0.20.4의 메모리 안전성 문제. 호환 수정 버전으로 올릴 때 해제한다.
   "RUSTSEC-2026-0183", # git2 0.20.4: Remote::list() 잠재 UB
@@ -69,6 +66,13 @@ allow = [
   "OFL-1.1",        # 폰트 자산
   "Ubuntu-font-1.0", # 폰트 자산
 ]
+
+# 제품에 컴파일되지 않는다. rustls-platform-verifier가 dev 의존성과 wasm32 전용 의존성으로만 선언해
+# Linux·Windows·macOS 대상의 normal·build 그래프에 없다. [graph]에 targets가 없어 cargo-deny만 이 크레이트를 본다.
+# 전역 allow로 넣지 않아 같은 라이선스의 다른 크레이트가 생기면 다시 판단하게 한다.
+[[licenses.exceptions]]
+crate = "webpki-root-certs"
+allow = ["CDLA-Permissive-2.0"]
 
 [bans]
 multiple-versions = "warn"     # 간접 의존성의 버전 중복은 경고로 확인한다.
