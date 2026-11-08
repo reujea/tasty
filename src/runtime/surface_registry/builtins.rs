@@ -38,7 +38,7 @@ fn register_terminal(registry: &SurfaceKindRegistry) {
         create: Arc::new(|_sid, _cwd, _params| {
             anyhow::bail!("terminal surfaces require host-managed PTY spawn; use split_pane_targeted/add_terminal_tab")
         }),
-        restore: Arc::new(|_sid, _data| {
+        restore: Arc::new(|_sid, _cwd, _data| {
             anyhow::bail!("terminal surfaces are restored via SavedSurface::Terminal, not Generic")
         }),
         snapshot: Arc::new(|_| None),
@@ -118,7 +118,7 @@ fn register_explorer(registry: &SurfaceKindRegistry) {
                 Box::new(panel) as Box<dyn Surface>,
             ))
         }),
-        restore: Arc::new(|sid, data| {
+        restore: Arc::new(|sid, _cwd, data| {
             Ok(crate::runtime::surface_registry::PreparedKind::local(
                 Box::new(explorer_panel_from_snapshot(sid, data)) as Box<dyn Surface>,
             ))
@@ -298,9 +298,10 @@ fn register_empty(registry: &SurfaceKindRegistry) {
                     as Box<dyn Surface>,
             ))
         }),
-        restore: Arc::new(|sid, _data| {
+        restore: Arc::new(|sid, cwd, _data| {
             Ok(crate::runtime::surface_registry::PreparedKind::local(
-                Box::new(EmptySurface::new(sid)) as Box<dyn Surface>,
+                Box::new(EmptySurface::new(sid).with_cwd(cwd.map(std::path::PathBuf::from)))
+                    as Box<dyn Surface>,
             ))
         }),
         snapshot: Arc::new(|_| Some(Value::Object(Default::default()))),
@@ -344,7 +345,7 @@ fn register_dag_graph(registry: &SurfaceKindRegistry) {
                 )) as Box<dyn Surface>,
             ))
         }),
-        restore: Arc::new(|sid, data| {
+        restore: Arc::new(|sid, _cwd, data| {
             Ok(crate::runtime::surface_registry::PreparedKind::local(
                 Box::new(DagGraphSurface::with_target(
                     sid,
@@ -450,6 +451,19 @@ mod tests {
     }
 
     #[test]
+    fn empty_restores_the_saved_cwd() {
+        let reg = SurfaceKindRegistry::new();
+        register_builtin_kinds(&reg);
+        let def = reg.get("empty").unwrap();
+        let cwd = std::path::PathBuf::from("/saved-folder");
+        let restored = (def.restore)(4, Some(cwd.as_path()), &json!({}))
+            .unwrap()
+            .publish()
+            .unwrap();
+        assert_eq!(restored.source_cwd().as_deref(), Some(cwd.as_path()));
+    }
+
+    #[test]
     fn empty_carries_cwd_from_create() {
         let reg = registry_with_builtins();
         let def = reg.get("empty").unwrap();
@@ -476,7 +490,7 @@ mod tests {
         let snap = (def.snapshot)(s.as_ref()).unwrap();
         assert_eq!(snap["tabs"][0]["cwd"], root_str);
         assert_eq!(snap["tabs"][0]["root"], root_str);
-        let restored = (def.restore)(5, &snap)
+        let restored = (def.restore)(5, None, &snap)
             .and_then(|prepared| prepared.publish())
             .unwrap();
         assert_eq!(restored.kind(), "explorer");
@@ -523,7 +537,7 @@ mod tests {
         ] {
             set(&mut s, preview);
             let snap = (def.snapshot)(s.as_ref()).unwrap();
-            let restored = (def.restore)(5, &snap)
+            let restored = (def.restore)(5, None, &snap)
                 .and_then(|prepared| prepared.publish())
                 .unwrap();
             assert_eq!(get(restored.as_ref()), preview, "{snap}");
@@ -540,7 +554,7 @@ mod tests {
 
         // 형식이 맞지 않는 값은 기본값으로 둔다.
         let bad = json!({"tabs": [], "active": 0, "preview": {"open": "yes", "width": -3}});
-        let restored = (def.restore)(7, &bad)
+        let restored = (def.restore)(7, None, &bad)
             .and_then(|prepared| prepared.publish())
             .unwrap();
         assert_eq!(get(restored.as_ref()), ExplorerPreview::default());
@@ -570,7 +584,7 @@ mod tests {
             .unwrap()
             .show_hidden = true;
         let snap = (def.snapshot)(s.as_ref()).unwrap();
-        let restored = (def.restore)(6, &snap)
+        let restored = (def.restore)(6, None, &snap)
             .and_then(|prepared| prepared.publish())
             .unwrap();
         assert!(get(restored.as_ref()), "{snap}");
@@ -585,7 +599,7 @@ mod tests {
 
         // bool 이 아니면 끔이다.
         let bad = json!({"tabs": [], "active": 0, "show_hidden": "yes"});
-        let restored = (def.restore)(8, &bad)
+        let restored = (def.restore)(8, None, &bad)
             .and_then(|prepared| prepared.publish())
             .unwrap();
         assert!(!get(restored.as_ref()));
@@ -600,7 +614,7 @@ mod tests {
             serde_json::from_str(&json!({"tabs": [{"root": root}], "active": 0}).to_string())
                 .unwrap();
         assert!(legacy.get("show_hidden").is_none());
-        let restored = (def.restore)(9, &legacy).unwrap().publish().unwrap();
+        let restored = (def.restore)(9, None, &legacy).unwrap().publish().unwrap();
         let panel = restored.as_any().downcast_ref::<ExplorerPanel>().unwrap();
         assert!(!panel.show_hidden);
         assert!(
@@ -728,7 +742,7 @@ mod tests {
         });
         let reg = registry_with_builtins();
         let def = reg.get("explorer").unwrap();
-        let restored = (def.restore)(9, &old)
+        let restored = (def.restore)(9, None, &old)
             .and_then(|prepared| prepared.publish())
             .unwrap();
         let ex = restored
@@ -839,7 +853,7 @@ mod tests {
         let home = crate::model::default_root();
 
         let dotted = json!({"tabs": [{"root": ".", "cwd": "."}], "active": 0});
-        let ex = (def.restore)(1, &dotted)
+        let ex = (def.restore)(1, None, &dotted)
             .and_then(|prepared| prepared.publish())
             .unwrap();
         let ex = ex
@@ -850,7 +864,7 @@ mod tests {
         assert_eq!(ex.current_root(), home.as_path());
 
         let missing = json!({"tabs": [{"view_mode": "detail"}], "active": 0});
-        let ex = (def.restore)(2, &missing)
+        let ex = (def.restore)(2, None, &missing)
             .and_then(|prepared| prepared.publish())
             .unwrap();
         let ex = ex
@@ -861,7 +875,7 @@ mod tests {
         assert_eq!(ex.cwd(), home.as_path());
 
         let empty = json!({"tabs": [], "active": 0});
-        let ex = (def.restore)(3, &empty)
+        let ex = (def.restore)(3, None, &empty)
             .and_then(|prepared| prepared.publish())
             .unwrap();
         let ex = ex
@@ -872,7 +886,7 @@ mod tests {
 
         let xy = abs_path("x/y");
         let mixed = json!({"tabs": [{"root": xy.to_string_lossy(), "cwd": "."}], "active": 0});
-        let ex = (def.restore)(4, &mixed)
+        let ex = (def.restore)(4, None, &mixed)
             .and_then(|prepared| prepared.publish())
             .unwrap();
         let ex = ex

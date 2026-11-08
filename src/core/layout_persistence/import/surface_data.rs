@@ -19,8 +19,11 @@ pub(crate) enum SurfaceData {
         scrollback_ref: Option<String>,
         scrollback: Option<Vec<u8>>,
     },
-    /// plugin surface가 저장한 자료.
-    Generic { data: serde_json::Value },
+    /// terminal이 아닌 surface가 저장한 자료. cwd는 호스트가 보관하던 값이다.
+    Generic {
+        data: serde_json::Value,
+        cwd: Option<String>,
+    },
 }
 
 #[derive(Serialize, Deserialize)]
@@ -34,6 +37,9 @@ enum Header {
     },
     Generic {
         data: serde_json::Value,
+        /// 이 키가 없는 옛 저장본은 cwd 없이 읽는다.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        cwd: Option<String>,
     },
 }
 
@@ -92,7 +98,13 @@ impl SurfaceData {
                 },
                 scrollback.as_deref().unwrap_or_default(),
             ),
-            Self::Generic { data } => (Header::Generic { data: data.clone() }, &[][..]),
+            Self::Generic { data, cwd } => (
+                Header::Generic {
+                    data: data.clone(),
+                    cwd: cwd.clone(),
+                },
+                &[][..],
+            ),
         };
         let header = serde_json::to_vec(&header)?;
         let len = u32::try_from(header.len()).map_err(serde::ser::Error::custom)?;
@@ -129,7 +141,7 @@ impl SurfaceData {
                     scrollback_ref,
                     scrollback: has_scrollback.then(|| body.to_vec()),
                 },
-                Header::Generic { data } => Self::Generic { data },
+                Header::Generic { data, cwd } => Self::Generic { data, cwd },
             },
         )
     }
@@ -138,6 +150,45 @@ impl SurfaceData {
 #[cfg(test)]
 mod tests {
     use super::{SurfaceData, SurfaceDataError};
+
+    fn encoded_header(header: &str) -> Vec<u8> {
+        let mut bytes = vec![1];
+        bytes.extend_from_slice(&u32::try_from(header.len()).unwrap().to_le_bytes());
+        bytes.extend_from_slice(header.as_bytes());
+        bytes
+    }
+
+    /// cwd 키가 없던 저장본의 바이트를 그대로 읽는다.
+    #[test]
+    fn a_generic_capture_saved_without_a_cwd_still_decodes() {
+        let saved = encoded_header(r#"{"Generic":{"data":{"file":"/a.md"}}}"#);
+        assert_eq!(
+            SurfaceData::decode(&saved).expect("decode"),
+            SurfaceData::Generic {
+                data: serde_json::json!({"file": "/a.md"}),
+                cwd: None,
+            }
+        );
+    }
+
+    /// cwd가 없으면 옛 형식과 같은 바이트를 쓰고, 있으면 왕복한다.
+    #[test]
+    fn a_generic_capture_keeps_its_cwd_and_omits_an_absent_one() {
+        let without = SurfaceData::Generic {
+            data: serde_json::json!({"file": "/a.md"}),
+            cwd: None,
+        };
+        assert_eq!(
+            without.encode().expect("encode"),
+            encoded_header(r#"{"Generic":{"data":{"file":"/a.md"}}}"#)
+        );
+        let with = SurfaceData::Generic {
+            data: serde_json::json!({"url": "http://127.0.0.1:9/"}),
+            cwd: Some("/work".to_owned()),
+        };
+        let bytes = with.encode().expect("encode");
+        assert_eq!(SurfaceData::decode(&bytes).expect("decode"), with);
+    }
 
     #[test]
     fn empty_scrollback_differs_from_none_and_bad_input_is_rejected() {

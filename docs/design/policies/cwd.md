@@ -11,9 +11,9 @@ surface의 현재 폴더(cwd)는 종류 전환, 새 탭·분할의 폴더 상속
 | **Terminal** | shell 의 `$PWD` | shell 이 OSC 7 송신 시 | termwiz parse → `cached_cwd`(store), `get_cwd()` 로 조회 |
 | **Markdown** | 열린 파일의 부모 디렉터리 | *불변*. 생성·복원 때 파일에서 얻는다 | `RemoteSurface::source_cwd()`. 매니페스트의 `derive_cwd` 필드(`file`)를 생성 인자와 복원 자료에서 읽는다 |
 | **Image** | 열린 파일의 부모 디렉터리 | *불변* | `source_cwd()` = `file.parent()` |
-| **Empty** | 생성할 때 전달받은 cwd | 불변 | `source_cwd()` = `self.cwd` |
+| **Empty** | 생성할 때 전달받은 cwd. 복원은 저장한 cwd를 쓴다 | 불변 | `source_cwd()` = `self.cwd` |
 | **Explorer**(host 내장) | 생성 시 프로젝트 루트 | *불변* — 안에서 폴더를 옮겨도 안 바뀐다 | `source_cwd()` = 고정 cwd (`crates/tasty-model/src/explorer_panel.rs`) |
-| **HTML** | 요청한 파일 source의 부모. HTTP(S)·inline은 상속 cwd 보관 | 생성·복원·`html.open` source 갱신 | `RemoteSurface::source_cwd()` ([전송 source 계약](../../dev-guide/html-transfer.md)) |
+| **HTML** | 요청한 파일 source의 부모. HTTP(S)·inline은 상속 cwd를 보관하고 저장 자료에 함께 담아 복원한다 | 생성·복원·`html.open` source 갱신 | `RemoteSurface::source_cwd()` ([전송 source 계약](../../dev-guide/html-transfer.md)) |
 | **기타 RemoteSurface** | 각 plugin의 정의 | 각 plugin | `surface.set_cwd` 권장, 미구현 시 None(기존 호환 유지) |
 
 - **불변 surface**(Markdown/Image/Empty): 사용자가 내부에서 폴더를 바꾸지 않으므로 `source_cwd()`가 고정값을 반환한다.
@@ -66,7 +66,7 @@ Surface의 `cwd`는 생성·변환 경로 전체에서 전달해야 한다. 빠�
 | `EmptySurface` | 전달받은 `self.cwd` (없으면 None) |
 | `ExplorerPanel` | 활성 탭의 **고정 cwd**(프로젝트 루트) — 현재 폴더(current)를 하위로 오가도 스폰 cwd 는 cwd 불변. cwd↔current 분리는 [explorer surface](../../surfaces/explorer/index.md) |
 | `AttachMeshSurface` / `DagGraphSurface` | `None` |
-| `RemoteSurface`(plugin surface) | HTML 파일 source는 파일 부모가 우선한다. 그 외는 생성·복원 때 매니페스트 `derive_cwd` 필드의 절대 경로 부모를 쓰고, 없으면 생성 시 전달한 값을 쓴다. `surface.set_cwd`로 갱신할 수 있다. 값이 없으면 `None` |
+| `RemoteSurface`(plugin surface) | HTML 파일 source는 파일 부모가 우선한다. 그 외는 생성·복원 때 매니페스트 `derive_cwd` 필드의 절대 경로 부모를 쓰고, 없으면 생성 시 전달한 값이나 저장한 cwd를 쓴다. `surface.set_cwd`로 갱신할 수 있다. 값이 없으면 `None` |
 
 #### 2. carry 경로 강제 — `SurfaceKindDef::create` 시그니처
 
@@ -78,6 +78,8 @@ pub create: Arc<dyn Fn(SurfaceId, Option<&Path>, &serde_json::Value)
 두 번째 인자 `Option<&Path>`가 cwd다. 기본 제공 종류와 plugin 종류 모두 이 인자를 받는다. 워크스페이스 첫 surface·새 탭·ConvertSurface·SplitPane·SplitSurface의 생성 요청이 cwd를 담고, 생성을 실행하는 `effect_runner::prepare`가 그 cwd를 kind의 `create`에 전달한다.
 
 IPC 생성(`workspace.create` 의 `resolve_create_cwd`, `tab.create`·`split` 의 `create_spec`)은 명시 `cwd` 를 kind 와 관계없이 담는다. 명시값이 없을 때 지목한 surface·포커스 surface 에서 이어받는 것은 terminal 뿐이다. 다른 kind 는 cwd 없이 만들어 자기 기본값(explorer 는 홈)을 쓴다. `tab.create` 는 명시 `cwd` 가 있으면 kind 기본 params 의 `@home` 을 풀지 않는다. 그래야 explorer 의 `path = "@home"` 기본값이 명시 cwd 를 가리지 않는다. 없는 폴더를 명시하면 kind 와 관계없이 `cwd does not exist` 로 거절한다.
+
+`SurfaceKindDef::restore`도 cwd를 인자로 받는다. 세션 저장과 닫은 항목은 비-terminal surface의 `source_cwd()`를 저장 자료(`SurfaceData::Generic.cwd`)에 함께 담는다. 이 키가 없는 옛 저장본은 cwd 없이 읽는다. mirror는 저장 대상이 아니며 mirror의 복원 경로는 cwd를 넘기지 않는다.
 
 #### 3. `ConvertSurfaceTarget::Kind` 에 cwd 동봉
 

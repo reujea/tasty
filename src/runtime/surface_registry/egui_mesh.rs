@@ -143,7 +143,7 @@ fn build_and_register_egui_mesh_kind_def(
             build_egui_mesh_surface(sid, params, kind_static, plugin_id_for_create.clone())
                 .map(super::PreparedKind::local)
         }),
-        restore: Arc::new(move |sid, data| {
+        restore: Arc::new(move |sid, _cwd, data| {
             build_egui_mesh_surface(sid, data, kind_static, plugin_id_for_restore.clone())
                 .map(super::PreparedKind::local)
         }),
@@ -360,7 +360,7 @@ mod tests {
         assert_eq!(s.display_name(), "Readme");
         let snap = (def.snapshot)(s.as_ref()).unwrap();
         assert_eq!(snap["display_name"], "Readme");
-        let restored = (def.restore)(5, &snap)
+        let restored = (def.restore)(5, None, &snap)
             .and_then(|prepared| prepared.publish())
             .unwrap();
         assert_eq!(restored.kind(), "mesh_demo");

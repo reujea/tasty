@@ -257,7 +257,7 @@ fn surface_node(
                     restore_command,
                     scrollback_ref,
                 },
-                (kind, Some(SurfaceData::Generic { data })) => SavedSurface::Generic {
+                (kind, Some(SurfaceData::Generic { data, .. })) => SavedSurface::Generic {
                     kind: kind.to_owned(),
                     data,
                 },

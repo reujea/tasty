@@ -169,9 +169,13 @@ pub struct SurfaceKindDef {
     >,
 
     /// Generic의 저장 데이터로 복원한다. PTY 생성이 필요한 Terminal은 별도 복원 경로를 쓴다.
+    /// 두 번째 인자는 저장 때 보관한 cwd다. snapshot에 담기지 않는 상속 cwd를 되살린다.
     #[allow(clippy::type_complexity)]
-    pub restore:
-        Arc<dyn Fn(SurfaceId, &serde_json::Value) -> anyhow::Result<PreparedKind> + Send + Sync>,
+    pub restore: Arc<
+        dyn Fn(SurfaceId, Option<&Path>, &serde_json::Value) -> anyhow::Result<PreparedKind>
+            + Send
+            + Sync,
+    >,
 
     /// None이면 layout 저장에서 제외한다.
     pub snapshot: SurfaceSnapshotFn,
@@ -521,7 +525,7 @@ mod tests {
             display_name_i18n_key: "test.dummy",
             icon: None,
             create: Arc::new(|_, _, _| Err(anyhow::anyhow!("dummy"))),
-            restore: Arc::new(|_, _| Err(anyhow::anyhow!("dummy"))),
+            restore: Arc::new(|_, _, _| Err(anyhow::anyhow!("dummy"))),
             snapshot: Arc::new(|_| None),
             preset_fields: Vec::new(),
             param_aliases: HashMap::new(),

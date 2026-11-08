@@ -127,6 +127,13 @@ pub(crate) fn content_lower_bound(session: &EngineSession) -> u64 {
     }
     total
 }
+/// snapshot에 담기지 않는 호스트 cwd를 자료에 함께 저장한다. 복원은 이 값으로 상속 cwd를 되살린다.
+fn saved_cwd(owner: &dyn crate::model::Surface) -> Option<String> {
+    owner
+        .source_cwd()
+        .map(|cwd| cwd.to_string_lossy().into_owned())
+}
+
 pub(crate) fn capture_selected(
     session: &EngineSession,
     selected: Option<&std::collections::HashSet<u32>>,
@@ -180,6 +187,7 @@ pub(crate) fn capture_selected(
                 match &empty.deferred {
                     Some(saved) => SurfaceData::Generic {
                         data: saved.snapshot.clone(),
+                        cwd: saved_cwd(owner.as_ref()),
                     },
                     None => continue,
                 }
@@ -194,6 +202,7 @@ pub(crate) fn capture_selected(
                 SurfaceData::Generic {
                     data: (definition.snapshot)(owner.as_ref())
                         .unwrap_or_else(|| serde_json::json!({})),
+                    cwd: saved_cwd(owner.as_ref()),
                 }
             };
             let restore_pending = matches!(data, SurfaceData::Terminal { .. });
@@ -281,6 +290,64 @@ mod tests {
             bytes: data.encode().expect("encode"),
             restore_pending: true,
         }
+    }
+
+    /// 비-terminal 자료에 호스트 cwd를 함께 담아 복원이 되살릴 수 있게 한다.
+    #[test]
+    fn a_generic_capture_carries_the_host_cwd() {
+        use tasty_core::DomainEvent as E;
+        let markdown = |id| tasty_core::SurfaceSpec {
+            id,
+            kind: "markdown".into(),
+            data: None,
+        };
+        let model = crate::state::tests::test_model(vec![
+            E::CategoryCreated {
+                id: 0,
+                name: "normal".into(),
+                index: 0,
+            },
+            E::WorkspaceCreated {
+                id: 1,
+                name: "w".into(),
+                category: 0,
+                index: 0,
+                pane: 10,
+            },
+            E::TabCreated {
+                id: 100,
+                pane: 10,
+                index: 0,
+                name: "doc".into(),
+                surface: markdown(11),
+            },
+        ]);
+        let (_state, mut session) = crate::state::tests::test_state_from_model(model);
+        let cwd = std::path::PathBuf::from("/saved-folder");
+        session.runtime.surfaces.insert(
+            11,
+            Box::new(
+                crate::model::EmptySurface::new_deferred_plugin(
+                    11,
+                    crate::model::DeferredPlugin {
+                        kind: "markdown".into(),
+                        snapshot: serde_json::json!({ "url": "http://127.0.0.1:9/" }),
+                    },
+                )
+                .with_cwd(Some(cwd.clone())),
+            ),
+        );
+        let captured = super::capture_selected(&session, None, false).expect("capture");
+        let [surface] = captured.as_slice() else {
+            panic!("one capture expected: {captured:?}");
+        };
+        assert_eq!(
+            SurfaceData::decode(&surface.bytes).expect("decode"),
+            SurfaceData::Generic {
+                data: serde_json::json!({ "url": "http://127.0.0.1:9/" }),
+                cwd: Some(cwd.to_string_lossy().into_owned()),
+            }
+        );
     }
 
     // writer 경로에서 먼저 접수한 metadata 쓰기를 capture의 복원 명령 읽기가 본다.

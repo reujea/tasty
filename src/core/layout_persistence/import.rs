@@ -782,7 +782,11 @@ impl Plan {
                 )
             }
             SavedSurface::Generic { kind, data } => {
-                (kind.clone(), SurfaceData::Generic { data: data.clone() })
+                let data = SurfaceData::Generic {
+                    data: data.clone(),
+                    cwd: None,
+                };
+                (kind.clone(), data)
             }
         };
         let payload = if data.is_empty() {

@@ -369,17 +369,18 @@ fn prepare_inner(
             .surface_registry
             .get_live(&input.kind)
             .ok_or_else(|| anyhow::anyhow!("surface kind {} is not registered", input.kind))?;
-        let restore = match decoded_capture {
+        let (restore, cwd) = match decoded_capture {
             Some(crate::core::layout_persistence::import::surface_data::SurfaceData::Generic {
                 data,
-            }) => Some(data),
+                cwd,
+            }) => (Some(data), cwd.map(std::path::PathBuf::from)),
             Some(_) => unreachable!("capture kind was validated before execution"),
-            None => input.restore,
+            None => (input.restore, input.cwd),
         };
         *execution_started = true;
         let prepared = match restore {
-            Some(data) => (definition.restore)(surface_id, &data)?,
-            None => (definition.create)(surface_id, input.cwd.as_deref(), &input.params)?,
+            Some(data) => (definition.restore)(surface_id, cwd.as_deref(), &data)?,
+            None => (definition.create)(surface_id, cwd.as_deref(), &input.params)?,
         };
         let registration = KindRegistration {
             kind: input.kind.clone(),

@@ -168,7 +168,7 @@ impl Exporter<'_> {
                 .read_payload(PayloadRef(reference.0))
                 .map_err(|error| error.to_string())?;
             return match SurfaceData::decode(&bytes).map_err(|error| error.to_string())? {
-                SurfaceData::Generic { data } if source.kind != "terminal" => {
+                SurfaceData::Generic { data, .. } if source.kind != "terminal" => {
                     Ok(SavedSurface::Generic {
                         kind: source.kind.clone(),
                         data,

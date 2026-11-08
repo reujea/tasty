@@ -105,19 +105,20 @@ pub fn register_remote_kind(
                 }),
             ))
         }),
-        restore: Arc::new(move |sid, data| {
+        restore: Arc::new(move |sid, cwd, data| {
             let surface = RemoteSurface::new(
                 sid,
                 kind_static,
                 plugin_id_for_restore.clone(),
                 kind_static.to_string(),
             );
-            // 생성과 같은 규칙으로 저장 자료의 파일에서 cwd를 다시 얻는다.
+            // 생성과 같은 규칙으로 저장 자료의 파일에서 cwd를 얻고, 없으면 저장한 cwd를 쓴다.
             surface.set_cwd(
                 crate::runtime::surface_registry::PresetFieldSpec::derive_cwd(
                     &preset_fields_for_restore,
                     data,
-                ),
+                )
+                .or_else(|| cwd.map(std::path::PathBuf::from)),
             );
             // 복원 응답을 받기 전에 다시 저장해도 기존 snapshot을 유지한다.
             surface.cache_snapshot(data.clone());
@@ -251,11 +252,39 @@ mod tests {
             .publish()
             .unwrap();
         assert_eq!(created.source_cwd(), docs);
-        let restored = (def.restore)(2, &serde_json::json!({ "file": file }))
+        let restored = (def.restore)(2, None, &serde_json::json!({ "file": file }))
             .unwrap()
             .publish()
             .unwrap();
         assert_eq!(restored.source_cwd(), docs);
+    }
+
+    /// 파일이 없는 자료(html HTTP·inline)는 저장한 cwd를 되살리고, 파일이 있으면 파일이 우선한다.
+    #[test]
+    fn restore_uses_the_saved_cwd_only_without_a_file_to_derive_from() {
+        let registry = SurfaceKindRegistry::new();
+        let (sender, _receiver) = std::sync::mpsc::channel();
+        document_kind(&registry, sender);
+        let def = registry.get_live("test-doc").unwrap();
+        let file = absolute("a.md");
+        let saved = absolute("saved-folder");
+        let without_file = (def.restore)(5, Some(saved.as_path()), &serde_json::json!({}))
+            .unwrap()
+            .publish()
+            .unwrap();
+        assert_eq!(without_file.source_cwd(), Some(saved.clone()));
+        let with_file = (def.restore)(
+            6,
+            Some(saved.as_path()),
+            &serde_json::json!({ "file": file }),
+        )
+        .unwrap()
+        .publish()
+        .unwrap();
+        assert_eq!(
+            with_file.source_cwd(),
+            file.parent().map(std::path::Path::to_path_buf)
+        );
     }
 
     /// mirror 복원 자료의 파일은 원격 경로라 로컬 cwd가 되면 안 된다.
@@ -267,6 +296,7 @@ mod tests {
         let def = registry.get_live("test-doc").unwrap();
         let mirror = (def.restore)(
             3,
+            None,
             &serde_json::json!({ "display_name": "a.md", "remote": { "file": "/srv/a.md" } }),
         )
         .unwrap()
@@ -283,7 +313,7 @@ mod tests {
         document_kind(&registry, sender);
         let def = registry.get_live("test-doc").unwrap();
         for file in ["a.md", "docs/a.md"] {
-            let restored = (def.restore)(4, &serde_json::json!({ "file": file }))
+            let restored = (def.restore)(4, None, &serde_json::json!({ "file": file }))
                 .unwrap()
                 .publish()
                 .unwrap();

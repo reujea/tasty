@@ -224,7 +224,7 @@ impl crate::runtime::engine_access::EngineMut<'_> {
             let Some(definition) = self.runtime.surface_registry.get_live(&deferred.kind) else {
                 continue;
             };
-            let surface = match (definition.restore)(*id, &deferred.snapshot)
+            let surface = match (definition.restore)(*id, None, &deferred.snapshot)
                 .and_then(|prepared| prepared.publish())
             {
                 Ok(surface) => surface,

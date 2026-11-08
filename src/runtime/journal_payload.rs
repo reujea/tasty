@@ -50,7 +50,7 @@ pub(crate) fn preset_surface(
         *remaining = remaining.saturating_sub(bytes.len());
         match SurfaceData::decode(&bytes).map_err(|error| error.to_string())? {
             SurfaceData::Terminal { cwd, .. } if source.kind == "terminal" => surface.cwd = cwd,
-            SurfaceData::Generic { data } if source.kind != "terminal" => surface.params = data,
+            SurfaceData::Generic { data, .. } if source.kind != "terminal" => surface.params = data,
             _ => return Err("preset snapshot kind differs from the frozen source".into()),
         }
     } else if let Some(reference) = source.creation_seed {
