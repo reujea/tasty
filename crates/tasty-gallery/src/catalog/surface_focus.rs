@@ -290,7 +290,7 @@ fn paint_leaf(
         SurfaceFocusEdge {
             focused,
             ring: ring.map(stroke),
-            corner_radius: r,
+            corner_radius: theme.corner_radius,
         }
         .paint(p, theme, leaf);
     } else {
@@ -369,7 +369,7 @@ fn edge_states(ui: &mut egui::Ui, theme: &Theme) {
                     SurfaceFocusEdge {
                         focused,
                         ring: None,
-                        corner_radius: 0.0,
+                        corner_radius: LogicalPx(0.0),
                     }
                     .paint(&p, theme, edge);
                 }
@@ -567,7 +567,7 @@ fn webview_marked(ui: &mut egui::Ui, theme: &Theme, label: &str, focused: bool, 
         SurfaceFocusEdge {
             focused,
             ring: Some(stroke(ring)),
-            corner_radius: 0.0,
+            corner_radius: LogicalPx(0.0),
         }
         .paint(&p.with_clip_rect(row.intersect(p.clip_rect())), theme, leaf);
         p.rect_stroke(rect, r, border_stroke(theme), egui::StrokeKind::Inside);

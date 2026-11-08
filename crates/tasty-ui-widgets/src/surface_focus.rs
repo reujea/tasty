@@ -3,6 +3,7 @@
 //! 값은 focus 상태만 받는다. hard 점유 판정은 호출자가 먼저 끝내고 넘긴다.
 
 use tasty_type_appearance::theme::Theme;
+use tasty_type_geometry::length::LogicalPx;
 
 /// 바탕 kind의 바탕 색. 포커스를 모르면 호출자는 `false`를 넘긴다.
 #[inline]
@@ -21,7 +22,7 @@ pub struct SurfaceFocusEdge {
     /// leaf를 두르는 링(입력 대기, 점유, 완료). 링 우선순위는 호출자가 정한다.
     pub ring: Option<egui::Stroke>,
     /// leaf의 모서리 반경. 본체 leaf는 0이다.
-    pub corner_radius: f32,
+    pub corner_radius: LogicalPx,
 }
 
 /// 칠하는 한 겹. 순서가 곧 쌓임 순서다.
@@ -74,7 +75,7 @@ impl SurfaceFocusEdge {
 
     /// `leaf` 전체를 기준으로 띠와 링을 칠한다. 내용은 띠 행 아래에 놓는 것이 호출자의 일이다.
     pub fn paint(&self, painter: &egui::Painter, theme: &Theme, leaf: egui::Rect) {
-        let radius = self.corner_radius.round().clamp(0.0, 255.0) as u8;
+        let radius = self.corner_radius.value().round().clamp(0.0, 255.0) as u8;
         for layer in self.layers(theme, leaf) {
             match layer {
                 Layer::Row {
@@ -120,7 +121,7 @@ mod tests {
         SurfaceFocusEdge {
             focused,
             ring: ring.then(|| egui::Stroke::new(theme().border_width.value(), egui::Color32::RED)),
-            corner_radius: 0.0,
+            corner_radius: LogicalPx(0.0),
         }
     }
 

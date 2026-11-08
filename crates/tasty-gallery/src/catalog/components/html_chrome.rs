@@ -118,7 +118,7 @@ fn leaf(
         SurfaceFocusEdge {
             focused,
             ring: None,
-            corner_radius: 0.0,
+            corner_radius: LogicalPx(0.0),
         }
         .paint(ui.painter(), theme, row);
         body(ui);
