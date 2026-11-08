@@ -1,15 +1,16 @@
 //! 서명·권한·실행 오류로 확인이 필요한 플러그인 예제.
-//! 본체는 선택한 하나를 표시하지만 갤러리는 네 사유를 나란히 보여준다.
+//! 본체는 선택한 하나를 표시하지만 갤러리는 다섯 사유를 나란히 보여준다.
 
 use tasty_type_appearance::theme::Theme;
 use tasty_type_geometry::length::LogicalPx;
 use tasty_ui_widgets::tokens::{PLUGIN_LIST_ROW_HEIGHT, STRUCT_GAP_2};
 use tasty_ui_widgets::{
-    PluginAttentionBarAction, PluginAttentionBarView, PluginAvatarSize, PluginFingerprintLineView,
-    PluginIdentityView, PluginMetaView, PluginTrustKind, is_web_homepage, margin_all,
-    paint_plugin_avatar, plugin_attention_bar, plugin_detail_bar_height, plugin_detail_desc_hidden,
-    plugin_detail_description, plugin_detail_identity, plugin_fingerprint_line, plugin_mono_header,
-    plugin_signature_invalid_detail,
+    PluginAttentionBarAction, PluginAttentionBarView, PluginAttentionRowView,
+    PluginFingerprintLineView, PluginIdentityView, PluginMetaView, PluginTrustKind,
+    is_web_homepage, margin_all, paint_plugin_attention_row, plugin_attention_bar,
+    plugin_detail_bar_height, plugin_detail_desc_hidden, plugin_detail_description,
+    plugin_detail_identity, plugin_fingerprint_line, plugin_folder_path, plugin_mono_header,
+    plugin_reserved_id_banner, plugin_signature_invalid_detail,
 };
 
 /// 본체 ATTN_PRIMITIVE_12와 같은 12px 글꼴. 대응 semantic 토큰이 없다.
@@ -21,12 +22,17 @@ pub(super) enum Kind {
     SignatureInvalid,
     PermissionsChanged,
     HealthError,
+    /// 공식 목록에 없는 `com.tasty.*` 폴더. 제거만 할 수 있다.
+    ReservedId,
 }
 
 impl Kind {
-    /// 본체 `AttentionKind::is_danger` — 서명 계열만 danger, 나머지는 warning.
-    fn is_danger(self) -> bool {
-        matches!(self, Self::UnknownKey | Self::SignatureInvalid)
+    /// 본체 `AttentionKind::is_danger` — 등록 거부는 danger, 나머지는 warning.
+    pub(super) fn is_danger(self) -> bool {
+        matches!(
+            self,
+            Self::UnknownKey | Self::SignatureInvalid | Self::ReservedId
+        )
     }
 
     fn label(self) -> &'static str {
@@ -35,6 +41,7 @@ impl Kind {
             Self::SignatureInvalid => "Signature invalid",
             Self::PermissionsChanged => "Permissions changed",
             Self::HealthError => "Runtime error",
+            Self::ReservedId => crate::i18n::t("plugins.attn_reserved_id_label"),
         }
     }
 
@@ -50,11 +57,13 @@ impl Kind {
                 "Manifest permissions changed since you trusted it — re-approval required."
             }
             Self::HealthError => crate::i18n::t("plugins.attn_health_blurb"),
+            Self::ReservedId => crate::i18n::t("plugins.attn_reserved_id_blurb"),
         }
     }
 
     /// 액션 바 우측 버튼 — 본체 `draw_action_bar` 의 사유별 분기.
     /// 서명 사유는 danger `Register anyway` 다. 누르기 전에는 등록하지 않는다.
+    /// 예약 id 는 `Remove` 뿐이다.
     fn action(self) -> Option<PluginAttentionBarAction<'static>> {
         match self {
             Self::PermissionsChanged => Some(PluginAttentionBarAction::Reapprove(crate::i18n::t(
@@ -68,6 +77,9 @@ impl Kind {
                     "plugins.attn_register_anyway",
                 )))
             }
+            Self::ReservedId => Some(PluginAttentionBarAction::Remove(crate::i18n::t(
+                "plugins.attn_remove",
+            ))),
         }
     }
 
@@ -76,7 +88,7 @@ impl Kind {
         match self {
             Self::UnknownKey => Some(PluginTrustKind::UnknownKey),
             Self::SignatureInvalid => Some(PluginTrustKind::SignatureError),
-            Self::PermissionsChanged | Self::HealthError => None,
+            Self::PermissionsChanged | Self::HealthError | Self::ReservedId => None,
         }
     }
 
@@ -100,6 +112,8 @@ pub(super) struct Entry {
     pub homepage: &'static str,
     pub builtin: bool,
     pub kind: Kind,
+    /// 예약 id 사유의 폴더 경로. 다른 사유는 비운다.
+    pub dir: &'static str,
 }
 
 pub(super) const ENTRIES: &[Entry] = &[
@@ -112,6 +126,7 @@ pub(super) const ENTRIES: &[Entry] = &[
         homepage: "https://example.com/port-scanner",
         builtin: false,
         kind: Kind::UnknownKey,
+        dir: "",
     },
     Entry {
         name: "Log tailer",
@@ -122,6 +137,7 @@ pub(super) const ENTRIES: &[Entry] = &[
         homepage: "",
         builtin: false,
         kind: Kind::SignatureInvalid,
+        dir: "",
     },
     Entry {
         name: "Git viewer",
@@ -132,6 +148,7 @@ pub(super) const ENTRIES: &[Entry] = &[
         homepage: "https://github.com/zilhak/tasty",
         builtin: true,
         kind: Kind::PermissionsChanged,
+        dir: "",
     },
     Entry {
         name: "Markdown",
@@ -142,6 +159,29 @@ pub(super) const ENTRIES: &[Entry] = &[
         homepage: "https://github.com/zilhak/tasty",
         builtin: true,
         kind: Kind::HealthError,
+        dir: "",
+    },
+    Entry {
+        name: "com.tasty.agent-stream-plus",
+        version: "",
+        id: "com.tasty.agent-stream-plus",
+        authors: "",
+        description: "",
+        homepage: "",
+        builtin: false,
+        kind: Kind::ReservedId,
+        dir: "~/.tasty/plugins/com.tasty.agent-stream-plus",
+    },
+    Entry {
+        name: "tasty-official-agent-stream-v2-preview-build",
+        version: "",
+        id: "com.tasty.official.agent-stream.v2-preview",
+        authors: "",
+        description: "",
+        homepage: "",
+        builtin: false,
+        kind: Kind::ReservedId,
+        dir: "~/.tasty/plugins/tasty-official-agent-stream-v2-preview-build",
     },
 ];
 
@@ -149,6 +189,10 @@ pub(super) const ENTRIES: &[Entry] = &[
 pub(super) const SELECTED: usize = 2;
 /// 서명이 깨진 항목. 상세가 설명과 homepage 대신 숨김 안내를 보인다.
 pub(super) const SIGNATURE_INVALID: usize = 1;
+/// 디자인 `RESERVED_SAMPLE`. 폴더 이름과 id 가 같다.
+pub(super) const RESERVED_SAMPLE: usize = 4;
+/// 디자인 `RESERVED_LONG`. 폴더 이름과 id 가 다르고 둘 다 길다.
+pub(super) const RESERVED_LONG: usize = 5;
 
 fn sev_color(theme: &Theme, kind: Kind) -> egui::Color32 {
     if kind.is_danger() {
@@ -165,60 +209,34 @@ pub(super) fn list_pane(ui: &mut egui::Ui, theme: &Theme, rect: egui::Rect, sele
     p.rect_filled(rect, 0.0, theme.bg_sidebar().to_egui());
 
     let row_h = PLUGIN_LIST_ROW_HEIGHT.value();
-    let pad = egui::vec2(theme.spacing_sm.value(), theme.spacing_sm.value());
-    let avatar = PluginAvatarSize::Row.side().value();
     let mut y = rect.min.y + theme.spacing_sm.value();
 
     for (i, entry) in ENTRIES.iter().enumerate() {
         let r =
             egui::Rect::from_min_size(egui::pos2(rect.min.x, y), egui::vec2(rect.width(), row_h));
-        if i == selected {
-            p.rect(
-                r,
-                theme.corner_radius.value(),
-                theme.surface_active().to_egui(),
-                egui::Stroke::new(theme.border_width.value(), theme.border_default().to_egui()),
-                egui::StrokeKind::Inside,
-            );
-        }
-        paint_plugin_avatar(
-            &p,
-            theme,
-            egui::pos2(r.min.x + pad.x + avatar * 0.5, r.center().y),
-            entry.name,
-            PluginAvatarSize::Row,
-        );
-
-        let name_pos = r.min + pad + egui::vec2(avatar + theme.spacing_sm.value(), 0.0);
-        p.text(
-            name_pos,
-            egui::Align2::LEFT_TOP,
-            entry.name,
-            egui::FontId::proportional(theme.font_size_body.value()),
-            if i == selected {
-                theme.text_on_active()
-            } else {
-                theme.text_primary()
-            }
-            .to_egui(),
-        );
-        p.text(
-            name_pos + egui::vec2(0.0, theme.spacing_lg.value() + STRUCT_GAP_2.value()),
-            egui::Align2::LEFT_TOP,
-            entry.kind.label(),
-            egui::FontId::proportional(theme.font_size_micro.value()),
-            if i == selected {
-                theme.text_on_active().to_egui()
-            } else {
-                sev_color(theme, entry.kind)
-            },
-        );
-        p.circle_filled(
-            egui::pos2(r.max.x - theme.spacing_md.value(), r.center().y),
-            theme.status_dot_size.value() * 0.5,
-            sev_color(theme, entry.kind),
-        );
+        paint_plugin_attention_row(&p, theme, r, &row_view(theme, entry, i == selected));
         y += row_h + STRUCT_GAP_2.value();
+    }
+}
+
+/// 목록 행 입력. 예약 id 의 라벨은 Latte mantle 대비 때문에 raised 잉크다.
+pub(super) fn row_view<'a>(
+    theme: &Theme,
+    entry: &'a Entry,
+    selected: bool,
+) -> PluginAttentionRowView<'a> {
+    let severity = sev_color(theme, entry.kind);
+    PluginAttentionRowView {
+        name: entry.name,
+        label: entry.kind.label(),
+        selected,
+        hovered: false,
+        severity,
+        label_ink: if entry.kind == Kind::ReservedId {
+            theme.accent_danger_raised().to_egui()
+        } else {
+            severity
+        },
     }
 }
 
@@ -227,6 +245,10 @@ pub(super) fn list_pane(ui: &mut egui::Ui, theme: &Theme, rect: egui::Rect, sele
 fn banner(ui: &mut egui::Ui, theme: &Theme, kind: Kind) {
     if let Some(trust) = kind.trust_kind() {
         super::add::unverified_box(ui, theme, trust, false, "");
+        return;
+    }
+    if kind == Kind::ReservedId {
+        plugin_reserved_id_banner(ui, theme, kind.label(), kind.blurb());
         return;
     }
     let color = sev_color(theme, kind);
@@ -254,7 +276,7 @@ fn banner(ui: &mut egui::Ui, theme: &Theme, kind: Kind) {
         });
 }
 
-/// 사유별 추가 정보 — 본체 `draw_reason_detail` 의 세 분기.
+/// 사유별 추가 정보 — 본체 `draw_reason_detail` 의 분기.
 fn reason_detail(ui: &mut egui::Ui, theme: &Theme, kind: Kind) {
     // 본체와 같은 디자인 `Mono` 머리글.
     let mono_header = |ui: &mut egui::Ui, text: &str| plugin_mono_header(ui, theme, text);
@@ -323,6 +345,12 @@ fn reason_detail(ui: &mut egui::Ui, theme: &Theme, kind: Kind) {
                     );
                 });
         }
+        Kind::ReservedId => plugin_folder_path(
+            ui,
+            theme,
+            crate::i18n::t("plugins.attn_folder"),
+            ENTRIES[RESERVED_SAMPLE].dir,
+        ),
     }
 }
 
@@ -359,7 +387,12 @@ fn action_bar(ui: &mut egui::Ui, theme: &Theme, kind: Kind) {
         theme,
         &PluginAttentionBarView {
             status: kind.status(),
-            color: sev_color(theme, kind),
+            dot: sev_color(theme, kind),
+            ink: if kind == Kind::ReservedId {
+                theme.accent_danger_raised().to_egui()
+            } else {
+                sev_color(theme, kind)
+            },
             action: kind.action(),
         },
     );
@@ -398,10 +431,17 @@ pub(super) fn detail_pane(ui: &mut egui::Ui, theme: &Theme, rect: egui::Rect, se
                 } else {
                     ""
                 },
+                wrap_long: entry.kind == Kind::ReservedId,
             },
         },
     );
-    if entry.kind == Kind::SignatureInvalid {
+    if entry.kind == Kind::ReservedId {
+        plugin_detail_desc_hidden(
+            &mut child,
+            theme,
+            crate::i18n::t("plugins.attn_reserved_desc_hidden"),
+        );
+    } else if entry.kind == Kind::SignatureInvalid {
         plugin_detail_desc_hidden(
             &mut child,
             theme,
@@ -463,6 +503,7 @@ fn cards_row(ui: &mut egui::Ui, theme: &Theme, card_w: f32) {
         Kind::SignatureInvalid,
         Kind::PermissionsChanged,
         Kind::HealthError,
+        Kind::ReservedId,
     ] {
         ui.allocate_ui_with_layout(
             egui::vec2(card_w, 0.0),
@@ -480,6 +521,24 @@ fn cards_row(ui: &mut egui::Ui, theme: &Theme, card_w: f32) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// 예약 id 항목은 매니페스트 글을 싣지 않고 조치는 Remove 뿐이다.
+    #[test]
+    fn the_reserved_entry_is_danger_and_remove_only() {
+        for at in [RESERVED_SAMPLE, RESERVED_LONG] {
+            let entry = &ENTRIES[at];
+            assert!(entry.kind == Kind::ReservedId);
+            assert!(entry.kind.is_danger());
+            assert!(entry.description.is_empty() && entry.homepage.is_empty());
+            assert!(entry.authors.is_empty() && entry.version.is_empty());
+            assert!(!entry.builtin && entry.kind.trust_kind().is_none());
+            assert!(matches!(
+                entry.kind.action(),
+                Some(PluginAttentionBarAction::Remove(_))
+            ));
+            assert!(!entry.dir.is_empty());
+        }
+    }
 
     /// 상태 이름이 말하는 사유와 펼치는 항목의 사유가 같고, 서명이 깨진 항목은 본체처럼 매니페스트
     /// 글을 싣지 않는다.

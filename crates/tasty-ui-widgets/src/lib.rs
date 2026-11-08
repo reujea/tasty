@@ -247,7 +247,8 @@ pub use plugin_add::{
     PluginAddPickerView, PluginFingerprintLineView, PluginManifestCardOutput,
     PluginManifestCardView, PluginTrustKind, mono_header as plugin_mono_header, plugin_add_bar,
     plugin_add_empty_hint, plugin_add_path_picker, plugin_add_read_error, plugin_fingerprint_line,
-    plugin_manifest_card, plugin_signature_invalid_detail, plugin_trust_box, short_fingerprint,
+    plugin_manifest_card, plugin_reserved_id_banner, plugin_signature_invalid_detail,
+    plugin_trust_box, short_fingerprint,
 };
 pub use plugin_avatar::{PluginAvatarSize, paint_plugin_avatar, plugin_avatar};
 pub use plugin_banner_body::{
@@ -256,17 +257,19 @@ pub use plugin_banner_body::{
     show_plugin_banner_body_tooltip, take_plugin_banner_body_cut,
 };
 pub use plugin_detail::{
-    PluginAttentionBarAction, PluginAttentionBarView, PluginDetailBarClicks, PluginDetailBarView,
-    PluginIdentityView, PluginKeycap, PluginKeycapAltStyle, PluginKeycapStyle,
-    PluginKeycapWordStyle, PluginMetaView, PluginUninstallConfirmClicks,
-    PluginUninstallConfirmView, homepage_display, is_web_homepage, plugin_attention_bar,
-    plugin_command_row, plugin_detail_bar, plugin_detail_bar_frame, plugin_detail_bar_height,
-    plugin_detail_desc_hidden, plugin_detail_description, plugin_detail_identity,
-    plugin_detail_meta, plugin_detail_name_row, plugin_keycap_parts, plugin_keycaps,
-    plugin_uninstall_confirm_bar, plugin_uninstall_confirm_bar_height,
+    PluginAttentionBarAction, PluginAttentionBarView, PluginAttentionRowView,
+    PluginDetailBarClicks, PluginDetailBarView, PluginIdentityView, PluginKeycap,
+    PluginKeycapAltStyle, PluginKeycapStyle, PluginKeycapWordStyle, PluginMetaView,
+    PluginUninstallConfirmClicks, PluginUninstallConfirmView, homepage_display, is_web_homepage,
+    paint_plugin_attention_row, plugin_attention_bar, plugin_command_row, plugin_detail_bar,
+    plugin_detail_bar_frame, plugin_detail_bar_height, plugin_detail_desc_hidden,
+    plugin_detail_description, plugin_detail_identity, plugin_detail_meta, plugin_detail_name_row,
+    plugin_keycap_parts, plugin_keycaps, plugin_uninstall_confirm_bar,
+    plugin_uninstall_confirm_bar_height,
 };
 pub use plugin_paths::{
-    PluginInstallPathsView, plugin_detail_section, plugin_detail_section_gap, plugin_install_paths,
+    PluginInstallPathsView, plugin_detail_section, plugin_detail_section_gap, plugin_folder_path,
+    plugin_install_paths,
 };
 pub use popup_title::{
     elide_popup_title, paint_popup_title_glyph, popup_title_font, popup_title_text_rect,
@@ -359,7 +362,8 @@ pub use warning_callout::warning_callout;
 
 pub use notifications::{
     NotificationAction, NotificationLabels, NotificationPanelState, NotificationRow,
-    NotificationSummary, NotificationTone, notification_panel, notification_summary,
+    NotificationSummary, NotificationTone, notification_item_expanded, notification_panel,
+    notification_summary,
 };
 
 pub use settings_anomaly::{AnomalySection, settings_anomaly};

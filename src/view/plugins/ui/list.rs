@@ -274,6 +274,8 @@ fn uninstall_confirm_view<'a>(
         cancel: t("button.cancel"),
         uninstall: t("plugins.uninstall"),
         focus_cancel,
+        busy: None,
+        wrap: false,
     }
 }
 
@@ -298,6 +300,7 @@ fn draw_detail_body(
                 authors: &authors,
                 id: &entry.id,
                 homepage: &entry.homepage,
+                wrap_long: false,
             },
         },
     );

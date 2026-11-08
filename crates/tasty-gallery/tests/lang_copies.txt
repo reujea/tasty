@@ -132,13 +132,13 @@ src/catalog/components/explorer_states/popups.rs	Name	explorer.column.name,filep
 src/catalog/components/explorer_states/popups.rs	Path	explorer.props.path
 src/catalog/components/explorer_states/popups.rs	Rename	context_menu.rename_title,explorer.context_menu.rename,explorer.popup.rename.rename,explorer.popup.rename.title,preset.toolbar.rename
 src/catalog/components/explorer_surface.rs	Archive	explorer.kind.archive
-src/catalog/components/explorer_surface.rs	Folder	explorer.type.folder,picker.folder.label
+src/catalog/components/explorer_surface.rs	Folder	explorer.type.folder,picker.folder.label,plugins.attn_folder
 src/catalog/components/explorer_surface.rs	Markdown	explorer.kind.markdown
 src/catalog/components/explorer_surface.rs	PDF document	explorer.kind.pdf
 src/catalog/components/explorer_surface.rs	—	dag.detail.none,port_scanner.external_dash
 src/catalog/components/explorer_tab_bar.rs	close	command_palette.hint_close
 src/catalog/components/explorer_view_cells.rs	Date modified	explorer.column.modified
-src/catalog/components/explorer_view_cells.rs	Folder	explorer.type.folder,picker.folder.label
+src/catalog/components/explorer_view_cells.rs	Folder	explorer.type.folder,picker.folder.label,plugins.attn_folder
 src/catalog/components/explorer_view_cells.rs	Name	explorer.column.name,filepicker.column.name,remote_tool.field_name
 src/catalog/components/explorer_view_cells.rs	PDF document	explorer.kind.pdf
 src/catalog/components/explorer_view_cells.rs	Size	explorer.column.size,explorer.properties.size,filepicker.column.size
@@ -297,6 +297,7 @@ src/catalog/components/plugins_window/installed.rs	Markdown	explorer.kind.markdo
 src/catalog/components/plugins_window/installed.rs	Open folder	plugins.open_folder
 src/catalog/components/plugins_window/installed.rs	Permissions	explorer.properties.permissions,plugins.permissions,settings.tab.macos_permissions
 src/catalog/components/plugins_window/installed.rs	Surface kinds	plugins.surface_kinds
+src/catalog/components/plugins_window/reserved.rs	{}	remote.size_sync.names
 src/catalog/components/port_scanner.rs	Address	port_scanner.column_address
 src/catalog/components/port_scanner.rs	Apply	explorer.props.perm.apply,port_scanner.state_filter_apply,preset.popup.apply_button,remote_tool.filter_apply,settings.file_handler.hook_handlers.seq_apply,settings.keybindings.apply_button
 src/catalog/components/port_scanner.rs	Close	dag_list.close,explorer.find.close,explorer.properties.close,notice.close,port_scanner.close,remote_attach.close,remote_tool.close,titlebar.close
@@ -576,7 +577,7 @@ src/catalog/components/settings_handler.rs	Edit	explorer.props.perm.edit,image_v
 src/catalog/components/settings_handler.rs	Edit with CLI	settings.file_handler.hook_handlers.seq_edit_with_cli
 src/catalog/components/settings_handler.rs	Event id:	settings.file_handler.hook_handlers.field_event_id
 src/catalog/components/settings_handler.rs	New hook handler	settings.file_handler.hook_handlers.new_head
-src/catalog/components/settings_handler.rs	Remove	settings.file_handler.common.remove,settings.file_handler.extension_mapping.clear,settings.scripts.remove
+src/catalog/components/settings_handler.rs	Remove	plugins.attn_remove,settings.file_handler.common.remove,settings.file_handler.extension_mapping.clear,settings.scripts.remove
 src/catalog/components/settings_handler.rs	Reset	remote_tool.filter_reset,settings.appearance.colors.reset,settings.file_handler.extension_mapping.reset,settings.keybindings.plugins.reset_button
 src/catalog/components/settings_handler.rs	Shell cmd:	settings.file_handler.hook_handlers.shell_cmd_label
 src/catalog/components/settings_handler.rs	Shell command:	settings.file_handler.hook_handlers.field_shell_command

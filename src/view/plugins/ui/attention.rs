@@ -11,10 +11,11 @@ const ATTN_PRIMITIVE_12: LogicalPx = LogicalPx(12.0);
 use super::{AttentionEntry, AttentionKind, PluginsAction, PluginsSnapshot, PluginsUiState};
 use tasty_ui_widgets::tokens::{PLUGIN_LIST_ROW_HEIGHT, STRUCT_GAP_2};
 use tasty_ui_widgets::{
-    PluginAttentionBarAction, PluginAttentionBarView, PluginAvatarSize, PluginFingerprintLineView,
-    PluginIdentityView, PluginMetaView, PluginTrustKind, is_web_homepage, margin_all, margin_sym,
-    paint_plugin_avatar, plugin_attention_bar, plugin_detail_bar_height, plugin_detail_desc_hidden,
-    plugin_detail_description, plugin_detail_identity, plugin_fingerprint_line, plugin_mono_header,
+    PluginAttentionBarAction, PluginAttentionBarView, PluginAttentionRowView,
+    PluginFingerprintLineView, PluginIdentityView, PluginMetaView, PluginTrustKind,
+    is_web_homepage, margin_all, margin_sym, paint_plugin_attention_row, plugin_attention_bar,
+    plugin_detail_bar_height, plugin_detail_desc_hidden, plugin_detail_description,
+    plugin_detail_identity, plugin_fingerprint_line, plugin_mono_header,
     plugin_signature_invalid_detail, plugin_trust_box, vspace,
 };
 
@@ -84,49 +85,19 @@ pub(super) fn draw_attention_tab(
                             egui::vec2(ui.available_width(), row_h),
                             egui::Sense::click(),
                         );
-                        let visuals = ui.style().interact_selectable(&resp, selected);
-                        if selected || resp.hovered() {
-                            ui.painter().rect(
-                                rect,
-                                visuals.corner_radius,
-                                visuals.weak_bg_fill,
-                                visuals.bg_stroke,
-                                egui::StrokeKind::Inside,
-                            );
-                        }
-                        let pad = egui::vec2(th.spacing_sm.value(), th.spacing_sm.value());
-                        let avatar = PluginAvatarSize::Row.side().value();
-                        paint_plugin_avatar(
+                        let (label_key, _) = reason_text(entry.kind);
+                        paint_plugin_attention_row(
                             ui.painter(),
                             &th,
-                            egui::pos2(rect.min.x + pad.x + avatar * 0.5, rect.center().y),
-                            &entry.name,
-                            PluginAvatarSize::Row,
-                        );
-                        // 텍스트 열은 아바타 다음 — 디자인 flex 행의 `gap: space-sm`.
-                        let name_pos =
-                            rect.min + pad + egui::vec2(avatar + th.spacing_sm.value(), 0.0);
-                        ui.painter().text(
-                            name_pos,
-                            egui::Align2::LEFT_TOP,
-                            &entry.name,
-                            egui::FontId::proportional(th.font_size_body.value()),
-                            visuals.text_color(),
-                        );
-                        let (label_key, _) = reason_text(entry.kind);
-                        ui.painter().text(
-                            name_pos + egui::vec2(0.0, 18.0),
-                            egui::Align2::LEFT_TOP,
-                            t(label_key),
-                            egui::FontId::proportional(th.font_size_micro.value()),
-                            color,
-                        );
-                        // 우측 severity dot — 액션 바의 점과 같은 status-dot-size.
-                        let dot_center = egui::pos2(rect.max.x - 12.0, rect.center().y);
-                        ui.painter().circle_filled(
-                            dot_center,
-                            th.status_dot_size.value() * 0.5,
-                            color,
+                            rect,
+                            &PluginAttentionRowView {
+                                name: &entry.name,
+                                label: t(label_key),
+                                selected,
+                                hovered: resp.hovered(),
+                                severity: color,
+                                label_ink: color,
+                            },
                         );
                         if resp.clicked() {
                             ui_state.attention_selected_id = Some(entry.id.clone());
@@ -236,6 +207,7 @@ fn draw_detail(
                         authors: &authors,
                         id: &entry.id,
                         homepage,
+                        wrap_long: false,
                     },
                 },
             );
@@ -463,7 +435,8 @@ fn draw_action_bar(
         th,
         &PluginAttentionBarView {
             status: t(status_key),
-            color: sev_color(th, entry.kind),
+            dot: sev_color(th, entry.kind),
+            ink: sev_color(th, entry.kind),
             action,
         },
     );

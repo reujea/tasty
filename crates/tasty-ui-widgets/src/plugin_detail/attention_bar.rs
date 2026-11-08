@@ -19,18 +19,22 @@ pub enum PluginAttentionBarAction<'a> {
     Configure(&'a str),
     /// 미인증 서명 사유 — danger. 누르기 전에는 등록하지 않는다.
     RegisterAnyway(&'a str),
+    /// 예약 id 사유 — secondary, accent-danger-raised 글자. Installed 의 Uninstall 과 같다.
+    Remove(&'a str),
 }
 
 /// Attention 액션 바 입력.
 pub struct PluginAttentionBarView<'a> {
     /// `Not registered` 또는 `Needs review`.
     pub status: &'a str,
-    /// 사유의 severity 색(danger 또는 warning).
-    pub color: egui::Color32,
+    /// 점의 색. 사유의 severity 색(danger 또는 warning)이다.
+    pub dot: egui::Color32,
+    /// 상태 문구 색. 예약 id 사유만 점보다 밝은 raised 잉크를 쓴다.
+    pub ink: egui::Color32,
     pub action: Option<PluginAttentionBarAction<'a>>,
 }
 
-/// 왼쪽에 status-dot 크기의 점과 상태 문구(severity 색), 오른쪽 끝에 사유별 버튼을 둔다.
+/// 왼쪽에 status-dot 크기의 점과 상태 문구, 오른쪽 끝에 사유별 버튼을 둔다.
 /// 버튼을 눌렀으면 true.
 pub fn plugin_attention_bar(
     ui: &mut egui::Ui,
@@ -42,11 +46,11 @@ pub fn plugin_attention_bar(
         let dot = theme.status_dot_size.value();
         let (rect, _) = ui.allocate_exact_size(egui::vec2(dot, dot), egui::Sense::hover());
         ui.painter()
-            .circle_filled(rect.center(), dot * 0.5, view.color);
+            .circle_filled(rect.center(), dot * 0.5, view.dot);
         ui.label(
             egui::RichText::new(view.status)
                 .size(STATUS_PRIMITIVE_12.value())
-                .color(view.color),
+                .color(view.ink),
         );
         if let Some(action) = view.action {
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
@@ -74,6 +78,11 @@ fn action_button(ui: &mut egui::Ui, theme: &Theme, action: PluginAttentionBarAct
             .clicked(),
         PluginAttentionBarAction::RegisterAnyway(label) => Button::new(label)
             .variant(ButtonVariant::Danger)
+            .show(ui, theme)
+            .clicked(),
+        PluginAttentionBarAction::Remove(label) => Button::new(label)
+            .variant(ButtonVariant::Secondary)
+            .danger_ink(true)
             .show(ui, theme)
             .clicked(),
     }

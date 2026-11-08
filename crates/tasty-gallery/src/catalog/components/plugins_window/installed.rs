@@ -293,6 +293,8 @@ fn confirm_view<'a>(row: &Row, title: &'a str) -> PluginUninstallConfirmView<'a>
         uninstall: crate::i18n::t("plugins.uninstall"),
         // 정적 예제라 포커스를 옮기지 않는다. 다른 카드의 포커스를 빼앗지 않도록 한다.
         focus_cancel: false,
+        busy: None,
+        wrap: false,
     }
 }
 
@@ -334,6 +336,7 @@ pub(super) fn detail_pane(ui: &mut egui::Ui, theme: &Theme, rect: egui::Rect, de
                 authors: row.authors,
                 id: row.id,
                 homepage: row.homepage,
+                wrap_long: false,
             },
         },
     );

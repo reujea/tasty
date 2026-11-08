@@ -3,11 +3,13 @@
 //! 액션 바 틀을 함께 쓰고, 바 안의 내용만 다르다.
 
 mod attention_bar;
+mod attention_row;
 mod confirm;
 mod identity;
 mod keycaps;
 
 pub use attention_bar::{PluginAttentionBarAction, PluginAttentionBarView, plugin_attention_bar};
+pub use attention_row::{PluginAttentionRowView, paint_plugin_attention_row};
 
 pub use confirm::{
     PluginUninstallConfirmClicks, PluginUninstallConfirmView, plugin_uninstall_confirm_bar,
@@ -43,13 +45,16 @@ pub fn plugin_detail_name_row(
                 .size(theme.font_size_max.value())
                 .color(theme.text_primary().to_egui()),
         );
-        tag(
-            ui,
-            theme,
-            &format!("v{version}"),
-            TagVariant::Default,
-            false,
-        );
+        // 매니페스트를 보이지 않는 사유는 버전이 비어 있고 태그도 없다.
+        if !version.is_empty() {
+            tag(
+                ui,
+                theme,
+                &format!("v{version}"),
+                TagVariant::Default,
+                false,
+            );
+        }
         if let Some(builtin) = builtin_tag {
             tag(ui, theme, builtin, TagVariant::Default, false);
         }
@@ -100,12 +105,14 @@ pub struct PluginMetaView<'a> {
     /// 매니페스트의 homepage 그대로. `http://`·`https://` 주소만 scheme 을 뺀 링크로 보이고,
     /// 다른 값은 누를 수 없는 평문으로 보인다.
     pub homepage: &'a str,
+    /// 줄 폭보다 긴 항목을 말줄임하지 않고 아무 문자에서 줄바꿈한다. id 만 보이는 예약 id 사유가 쓴다.
+    pub wrap_long: bool,
 }
 
 /// 이름 줄 아래 메타 줄 `작성자 · id · homepage`. mono caption · text-muted 이고 항목 사이는
 /// `spacing_sm` 이다. 구분점은 뒤 항목과 한 덩어리로 줄을 바꾸므로 줄 끝에 점만 남지 않는다.
 /// homepage 는 마지막 항목이다. 웹 주소면 accent-primary 밑줄 링크, 아니면 다른 항목과 같은
-/// 평문이다. 한 항목이 줄 폭보다 길면 끝을 말줄임한다. 링크를 눌렀으면 true.
+/// 평문이다. 한 항목이 줄 폭보다 길면 끝을 말줄임하고, `wrap_long` 이면 줄바꿈한다. 링크를 눌렀으면 true.
 pub fn plugin_detail_meta(ui: &mut egui::Ui, theme: &Theme, view: &PluginMetaView<'_>) -> bool {
     let link = is_web_homepage(view.homepage);
     let homepage = if link {
@@ -119,7 +126,7 @@ pub fn plugin_detail_meta(ui: &mut egui::Ui, theme: &Theme, view: &PluginMetaVie
         let items = [(view.authors, false), (view.id, false), (homepage, link)];
         let mut first = true;
         for (text, is_link) in items.into_iter().filter(|(t, _)| !t.is_empty()) {
-            clicked |= meta_unit(ui, theme, !first, text, is_link);
+            clicked |= meta_unit(ui, theme, !first, text, is_link, view.wrap_long);
             first = false;
         }
     });
@@ -128,7 +135,14 @@ pub fn plugin_detail_meta(ui: &mut egui::Ui, theme: &Theme, view: &PluginMetaVie
 
 /// 메타 줄의 한 덩어리 — 앞 구분점(있으면)과 항목을 한 자리에 함께 놓는다. 링크면 항목 자리만
 /// 누를 수 있고 키보드 포커스면 focus ring 을 두른다. 링크를 눌렀으면 true.
-fn meta_unit(ui: &mut egui::Ui, theme: &Theme, sep: bool, text: &str, is_link: bool) -> bool {
+fn meta_unit(
+    ui: &mut egui::Ui,
+    theme: &Theme,
+    sep: bool,
+    text: &str,
+    is_link: bool,
+    wrap_long: bool,
+) -> bool {
     let font = egui::FontId::monospace(theme.font_size_caption.value());
     let muted = theme.text_muted().to_egui();
     let gap = theme.spacing_sm.value();
@@ -159,7 +173,7 @@ fn meta_unit(ui: &mut egui::Ui, theme: &Theme, sep: bool, text: &str, is_link: b
     );
     // 덩어리가 줄 맨 앞에 와도 넘치지 않도록 줄 전체 폭에서 구분점 몫을 뺀 폭까지만 쓴다.
     job.wrap.max_width = (ui.max_rect().width() - lead).max(0.0);
-    job.wrap.max_rows = 1;
+    job.wrap.max_rows = if wrap_long { usize::MAX } else { 1 };
     job.wrap.break_anywhere = true;
     let galley = ui.ctx().fonts(|f| f.layout_job(job));
     let height = dot

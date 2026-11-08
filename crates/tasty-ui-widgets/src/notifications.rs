@@ -81,6 +81,18 @@ pub struct NotificationRow<'a> {
     pub time: &'a str,
 }
 
+/// 알림 한 건을 패널 없이 펼쳐 그린다. 다른 화면의 Spec 이 알림 문구를 보일 때 쓴다.
+pub fn notification_item_expanded(
+    ui: &mut egui::Ui,
+    th: &Theme,
+    row: &NotificationRow<'_>,
+    labels: &NotificationLabels<'_>,
+) -> Option<NotificationAction> {
+    let width = LogicalPx(ui.available_width());
+    let plan = item::plan(ui, th, row, width, true, false);
+    item::draw(ui, th, row, labels, &plan, true)
+}
+
 fn counts(rows: &[NotificationRow<'_>]) -> [usize; 3] {
     let mut counts = [0; 3];
     for row in rows.iter().filter(|row| row.unread) {

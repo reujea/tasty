@@ -155,6 +155,19 @@ pub fn plugin_trust_box(
         .response
 }
 
+/// 예약 id 사유의 배너. 서명 오류와 형상이 같은 danger 상자(alertCircle, 제목 한 줄, 본문 한 문단)이며
+/// fingerprint 줄이 없다. 신뢰 판정이 아니어서 판정 종류를 호출자에게 드러내지 않는다.
+pub fn plugin_reserved_id_banner(ui: &mut egui::Ui, theme: &Theme, title: &str, body: &str) {
+    plugin_trust_box(
+        ui,
+        theme,
+        PluginTrustKind::SignatureError,
+        title,
+        &[body],
+        |_| {},
+    );
+}
+
 fn glyph_cell(ui: &mut egui::Ui, kind: PluginTrustKind, size: f32, color: egui::Color32) {
     let (rect, _) = ui.allocate_exact_size(egui::vec2(size, size), egui::Sense::hover());
     kind.glyph().image(size, color).paint_at(ui, rect);

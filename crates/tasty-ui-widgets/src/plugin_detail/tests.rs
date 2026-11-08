@@ -181,6 +181,8 @@ fn the_confirm_bar_is_as_tall_as_its_height_function() {
         cancel: "Cancel",
         uninstall: "Uninstall",
         focus_cancel: false,
+        busy: None,
+        wrap: false,
     };
     let long_note = "Its files are removed. Settings stay until you delete them. ".repeat(4);
     let long = PluginUninstallConfirmView {
@@ -252,7 +254,8 @@ fn the_attention_bar_shares_the_installed_bar_height() {
                 theme,
                 &PluginAttentionBarView {
                     status: "Needs review",
-                    color,
+                    dot: color,
+                    ink: color,
                     action,
                 },
             );
@@ -349,6 +352,7 @@ fn the_meta_line_links_only_web_homepages() {
                     authors: "ann",
                     id: "com.a.b",
                     homepage,
+                    wrap_long: false,
                 },
             )
         }
@@ -398,6 +402,7 @@ fn a_meta_separator_wraps_with_the_item_after_it() {
         authors: "tasty-labs",
         id: "com.example.plugin-meta-wrap",
         homepage: "https://example.com/plugin",
+        wrap_long: false,
     };
     let texts = meta_texts(220.0, &view);
     let dots: Vec<usize> = (0..texts.len()).filter(|&i| texts[i].0 == "·").collect();
@@ -432,6 +437,7 @@ fn two_meta_lines_with_one_homepage_do_not_share_a_link_id() {
         authors: "tasty",
         id: "com.tasty.git-viewer",
         homepage: "https://github.com/zilhak/tasty",
+        wrap_long: false,
     };
     let ctx = egui::Context::default();
     let mut texts = Vec::new();
@@ -477,7 +483,8 @@ fn the_attention_bar_spans_the_column_without_a_button() {
                 theme,
                 &PluginAttentionBarView {
                     status: "Not registered",
-                    color,
+                    dot: color,
+                    ink: color,
                     action,
                 },
             );
@@ -600,4 +607,141 @@ fn the_command_row_draws_the_styled_keycaps() {
     assert!(symbols.iter().any(|t| t == "K"), "{symbols:?}");
     let other = draw(PluginKeycapStyle::default());
     assert!(other.iter().any(|t| t == "Alt"), "{other:?}");
+}
+
+fn reserved_confirm<'a>(title: &'a str, busy: Option<&'a str>) -> PluginUninstallConfirmView<'a> {
+    PluginUninstallConfirmView {
+        title,
+        note: "Its folder is deleted from your plugins folder.",
+        cancel: "Cancel",
+        uninstall: "Remove",
+        focus_cancel: false,
+        busy,
+        wrap: true,
+    }
+}
+
+/// 넓으면 한 줄이고, 좁으면 버튼 묶음이 다음 줄로 내려가며 높이 함수도 같은 배치로 잰다.
+#[test]
+fn a_wrapping_confirm_bar_moves_its_buttons_down_when_narrow() {
+    let theme = theme();
+    let long = "Remove tasty-official-agent-stream-v2-preview-build?";
+    for (title, width, grows) in [
+        ("Remove x?", 900.0, false),
+        ("Remove x?", 320.0, true),
+        (long, 900.0, false),
+        (long, 320.0, true),
+    ] {
+        let view = reserved_confirm(title, None);
+        let mut expected = 0.0;
+        let rect = drawn_rect(width, |ui, theme| {
+            expected = plugin_uninstall_confirm_bar_height(ui, theme, &view, width);
+            plugin_uninstall_confirm_bar(ui, theme, &view);
+        });
+        assert_eq!(rect.height(), expected, "{title} at {width}");
+        assert_eq!(
+            expected > plugin_detail_bar_height(&theme),
+            grows,
+            "{title} at {width}: {expected}"
+        );
+    }
+}
+
+/// 제거 중 표시는 글 열 폭에 들어간다. 넓은 바도 줄바꿈 없이 같은 높이를 유지한다.
+#[test]
+fn the_removing_state_keeps_the_height_function_honest() {
+    for (busy, width) in [(Some("Removing…"), 900.0), (Some("Removing…"), 320.0)] {
+        let view = reserved_confirm("Remove x?", busy);
+        let mut expected = 0.0;
+        let rect = drawn_rect(width, |ui, theme| {
+            expected = plugin_uninstall_confirm_bar_height(ui, theme, &view, width);
+            plugin_uninstall_confirm_bar(ui, theme, &view);
+        });
+        assert_eq!(rect.height(), expected, "at {width}");
+    }
+}
+
+/// 제거 중에는 두 버튼이 눌리지 않는다.
+#[test]
+fn the_removing_state_disables_both_buttons() {
+    let theme = theme();
+    let view = reserved_confirm("Remove x?", Some("Removing…"));
+    let ctx = egui::Context::default();
+    let bar = std::cell::Cell::new(egui::Rect::NOTHING);
+    let run = |events: Vec<egui::Event>| {
+        let input = egui::RawInput {
+            screen_rect: Some(egui::Rect::from_min_size(
+                egui::Pos2::ZERO,
+                egui::vec2(900.0, 200.0),
+            )),
+            events,
+            ..Default::default()
+        };
+        let mut clicks = PluginUninstallConfirmClicks::default();
+        drop(ctx.run(input, |ctx| {
+            egui::CentralPanel::default().show(ctx, |ui| {
+                clicks = plugin_uninstall_confirm_bar(ui, &theme, &view);
+                bar.set(ui.min_rect());
+            });
+        }));
+        clicks
+    };
+    run(Vec::new());
+    let bar = bar.get();
+    let inset = theme.spacing_md.value() + 4.0;
+    // 오른쪽 끝 버튼(Remove)의 안쪽을 누른다.
+    let at = egui::pos2(bar.max.x - inset - 8.0, bar.center().y);
+    let press = |pressed| egui::Event::PointerButton {
+        pos: at,
+        button: egui::PointerButton::Primary,
+        pressed,
+        modifiers: egui::Modifiers::NONE,
+    };
+    run(vec![egui::Event::PointerMoved(at)]);
+    let down = run(vec![press(true)]);
+    let up = run(vec![press(false)]);
+    assert_eq!(down, PluginUninstallConfirmClicks::default());
+    assert_eq!(up, PluginUninstallConfirmClicks::default());
+}
+
+/// 빈 버전은 `v` 태그를 만들지 않는다.
+#[test]
+fn an_empty_version_draws_no_tag() {
+    let theme = theme();
+    let texts = |version: &'static str| {
+        let ctx = egui::Context::default();
+        let mut shapes = 0;
+        for _ in 0..2 {
+            let output = ctx.run(egui::RawInput::default(), |ctx| {
+                egui::CentralPanel::default().show(ctx, |ui| {
+                    plugin_detail_name_row(ui, &theme, "folder", version, None);
+                });
+            });
+            shapes = output.shapes.len();
+        }
+        shapes
+    };
+    assert!(texts("") < texts("1.0.0"));
+}
+
+/// 줄바꿈을 켠 메타 줄은 긴 id 를 잘라 내지 않고 여러 줄로 그린다. 끈 쪽은 한 줄이다.
+#[test]
+fn only_a_wrapping_meta_line_grows_for_a_long_id() {
+    let id = "com.tasty.official.agent-stream.v2-preview.with.a.very.long.tail";
+    let height = |wrap_long| {
+        drawn_rect(120.0, |ui, theme| {
+            plugin_detail_meta(
+                ui,
+                theme,
+                &PluginMetaView {
+                    authors: "",
+                    id,
+                    homepage: "",
+                    wrap_long,
+                },
+            );
+        })
+        .height()
+    };
+    assert!(height(true) > height(false));
 }

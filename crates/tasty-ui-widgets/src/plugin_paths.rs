@@ -73,6 +73,11 @@ pub fn plugin_install_paths(
     open
 }
 
+/// 머리글과 폴더 경로 한 줄. `Open folder` 가 없는 사유(예약 id)가 쓴다. 경로는 설치 경로 절과 같다.
+pub fn plugin_folder_path(ui: &mut egui::Ui, theme: &Theme, label: &str, path: &str) {
+    plugin_detail_section(ui, theme, label, |ui| path_line(ui, theme, path));
+}
+
 /// mono caption · text-muted 한 줄. 공백이 없는 경로도 열 폭에서 끊기도록 아무 문자에서 줄바꿈한다.
 fn path_line(ui: &mut egui::Ui, theme: &Theme, text: &str) {
     let mut job = egui::text::LayoutJob::single_section(

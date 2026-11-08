@@ -4,6 +4,7 @@
 mod add;
 mod attention;
 mod installed;
+mod reserved;
 
 use tasty_type_appearance::theme::Theme;
 use tasty_type_geometry::length::LogicalPx;
@@ -516,6 +517,13 @@ pub fn draw(ui: &mut egui::Ui, theme: &Theme) {
             },
         ),
         (
+            "Attention — reserved id (remove only, folder name and id alone)",
+            Tab::Attention {
+                empty: false,
+                selected: attention::RESERVED_SAMPLE,
+            },
+        ),
+        (
             "Attention — empty",
             Tab::Attention {
                 empty: true,
@@ -574,9 +582,10 @@ pub fn draw(ui: &mut egui::Ui, theme: &Theme) {
             });
         },
     );
-    spec::cluster(ui, theme, "attention reasons (4)", |ui| {
+    spec::cluster(ui, theme, "attention reasons (5)", |ui| {
         attention::reason_cards(ui, theme);
     });
+    reserved::draw(ui, theme, &mocha, &latte);
 
     spec::meta(
         ui,
@@ -604,12 +613,12 @@ pub fn draw(ui: &mut egui::Ui, theme: &Theme) {
             ),
             (
                 "uninstall confirm",
-                "액션 바 자리 교체 · alertTriangle 16 accent-attention · 질문 body + 안내 caption muted · Cancel(ghost) · Uninstall(danger)",
+                "액션 바 자리 교체 · alertTriangle 16 accent-attention-raised · 질문 body + 안내 caption muted · Cancel(ghost) · Uninstall(danger)",
             ),
             ("health error", "enabled + error 인 행만 우측 danger dot"),
             (
                 "attention",
-                "같은 2열 · 2번째 줄이 사유 라벨(severity 색) · 상세는 배너 + 사유 detail + 액션 바 · 서명 사유의 배너는 Add 탭과 같은 미인증 상자(fingerprint 줄 없음)이고 바 오른쪽이 Register anyway(danger) · 0 건이면 배지가 사라지고 본문이 안내로 바뀐다",
+                "같은 2열 · 2번째 줄이 mono 사유 라벨(severity 색, 예약 id 는 raised) · 선택 행은 surface-active + selection-edge(severity) · 이름·라벨 말줄임 · 상세는 배너 + 사유 detail + 액션 바 · 서명 사유의 배너는 Add 탭과 같은 미인증 상자(fingerprint 줄 없음)이고 바 오른쪽이 Register anyway(danger) · 예약 id 는 Remove 뿐이다 · 0 건이면 배지가 사라지고 본문이 안내로 바뀐다",
             ),
             (
                 "add",
@@ -688,7 +697,7 @@ pub fn draw(ui: &mut egui::Ui, theme: &Theme) {
     spec::note(
         ui,
         theme,
-        "Attention 의 severity 는 사유로 갈린다 — 서명 계열(신뢰 안 됨 · 무효)은 danger, \
+        "Attention 의 severity 는 사유로 갈린다 — 서명 계열(신뢰 안 됨 · 무효)과 예약 id 는 danger, \
          권한 변경과 런타임 오류는 warning 이다. 이것은 Installed 목록의 health dot 과 다른 \
          축이다: health dot 은 '실행 중 실패' 하나만 보고, Attention 은 등록 거부까지 함께 \
          모은다. Add 는 미신뢰 plugin 에 공개키가 있을 때만 Add 버튼이 살아 있다 — 공개키가 \
