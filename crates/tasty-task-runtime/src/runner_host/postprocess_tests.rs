@@ -184,16 +184,9 @@ fn endless_stdout_is_drained_until_the_timeout() {
     assert!(started.elapsed() < Duration::from_secs(5));
 }
 
+#[cfg(unix)]
 fn gone(pid: i32) -> bool {
-    // 종료된 뒤 init 이 회수하기 전에는 좀비로 남을 수 있다.
-    // /proc 가 없는 macOS 는 kill(pid, 0) 으로 본다(좀비는 남았다고 본다).
-    match std::fs::read_to_string(format!("/proc/{pid}/stat")) {
-        Err(_) => !tasty_agent::platform::process_alive::is_alive(pid as u32),
-        Ok(stat) => stat
-            .rsplit(')')
-            .next()
-            .is_some_and(|s| s.trim_start().starts_with('Z')),
-    }
+    crate::process_gone_tests_support::gone(pid as u32)
 }
 
 #[cfg(target_os = "linux")]

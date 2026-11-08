@@ -11,11 +11,7 @@ const HOST_ENV: &str = "TASTY_REAPER_BOUND_HOST";
 
 fn alive(pid: u32) -> bool {
     match std::fs::read_to_string(format!("/proc/{pid}/stat")) {
-        // 회수 전 좀비(Z)는 이미 끝난 것으로 본다.
-        Ok(stat) => !stat
-            .rsplit(')')
-            .next()
-            .is_some_and(|rest| rest.trim_start().starts_with('Z')),
+        Ok(stat) => !tasty_test_support::proc_stat_reads_finished(&stat),
         Err(_) => false,
     }
 }

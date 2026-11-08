@@ -8,6 +8,8 @@ pub mod completion;
 pub mod event_feed;
 pub mod graph_view;
 pub mod hook_wait;
+#[cfg(all(test, unix))]
+mod process_gone_tests_support;
 mod report;
 pub(crate) mod runner_host;
 pub(crate) mod runner_thread;

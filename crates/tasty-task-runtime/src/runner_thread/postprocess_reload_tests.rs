@@ -219,17 +219,9 @@ fn a_scheduled_run_that_never_started_runs_once_after_the_restart() {
     assert_eq!(runs(&log), 1);
 }
 
-/// 종료됐거나 좀비로 남아 회수를 기다리는 프로세스.
 #[cfg(any(target_os = "linux", target_os = "macos"))]
 fn gone(pid: i32) -> bool {
-    // /proc 가 없는 macOS 는 kill(pid, 0) 으로 본다(좀비는 남았다고 본다).
-    match std::fs::read_to_string(format!("/proc/{pid}/stat")) {
-        Err(_) => !tasty_agent::platform::process_alive::is_alive(pid as u32),
-        Ok(stat) => stat
-            .rsplit(')')
-            .next()
-            .is_some_and(|s| s.trim_start().starts_with('Z')),
-    }
+    crate::process_gone_tests_support::gone(pid as u32)
 }
 
 #[cfg(any(target_os = "linux", target_os = "macos"))]

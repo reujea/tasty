@@ -13,6 +13,7 @@ use tasty_agent::task::TaskCreateOpts;
 use tasty_agent::{OnFailure, SemaphoreStore, Task, TaskCommand, TaskState, TaskStore};
 use tasty_memory::{HOST_OWNER, MemoryStorage, MemoryStore, MemoryValue, PutOpts, Scope};
 
+use crate::process_gone_tests_support::gone;
 use crate::runner_host::{HostExecutor, RunnerContext, handle_key};
 use crate::{TaskScope, TaskService};
 
@@ -55,16 +56,6 @@ fn read_pid(pid_file: &Path) -> u32 {
         }
         assert!(Instant::now() < deadline, "grandchild pid was not written");
         std::thread::sleep(Duration::from_millis(10));
-    }
-}
-
-/// 끝났거나 회수만 남았다(좀비).
-fn gone(pid: u32) -> bool {
-    match std::fs::read_to_string(format!("/proc/{pid}/stat")) {
-        Ok(stat) => stat
-            .rsplit_once(')')
-            .is_some_and(|(_, rest)| rest.trim_start().starts_with('Z')),
-        Err(_) => !tasty_agent::platform::process_alive::is_alive(pid),
     }
 }
 
