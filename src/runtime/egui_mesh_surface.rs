@@ -49,11 +49,12 @@ impl Surface for EguiMeshSurface {
         Some(self.id)
     }
 
-    /// 파일 경로가 있으면 부모 폴더를 cwd 상속에 제공한다.
+    /// 절대 경로 파일이면 부모 폴더를 cwd 상속에 제공한다. 상대 경로는 기준을 모르므로 쓰지 않는다.
     fn source_cwd(&self) -> Option<PathBuf> {
         self.file
             .as_ref()
             .map(PathBuf::from)
+            .filter(|p| p.is_absolute())
             .and_then(|p| p.parent().map(|d| d.to_path_buf()))
     }
 
@@ -83,18 +84,33 @@ mod tests {
 
     #[test]
     fn surface_basics() {
+        let docs = PathBuf::from(if cfg!(windows) { r"C:\docs" } else { "/docs" });
         let s = EguiMeshSurface::new(
             7,
             "markdown",
             "com.tasty.markdown".into(),
             "Readme".into(),
-            Some("/docs/readme.md".into()),
+            Some(docs.join("readme.md").to_string_lossy().into_owned()),
         );
         assert_eq!(s.kind(), "markdown");
         assert_eq!(s.type_name(), "EguiMesh");
         assert_eq!(s.surface_id(), Some(7));
         assert_eq!(s.display_name(), "Readme");
-        assert_eq!(s.source_cwd(), Some(PathBuf::from("/docs")));
+        assert_eq!(s.source_cwd(), Some(docs));
+    }
+
+    #[test]
+    fn source_cwd_none_for_a_relative_file() {
+        for file in ["a.png", "docs/a.png"] {
+            let s = EguiMeshSurface::new(
+                8,
+                "image",
+                "com.tasty.image".into(),
+                "A".into(),
+                Some(file.into()),
+            );
+            assert_eq!(s.source_cwd(), None, "{file}");
+        }
     }
 
     #[test]

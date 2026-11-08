@@ -10,7 +10,7 @@ surface의 현재 폴더(cwd)는 종류 전환, 새 탭·분할의 폴더 상속
 |---------|------------------|-------------|------------------|
 | **Terminal** | shell 의 `$PWD` | shell 이 OSC 7 송신 시 | termwiz parse → `cached_cwd`(store), `get_cwd()` 로 조회 |
 | **Markdown** | 열린 파일의 부모 디렉터리 | *불변*. 생성·복원 때 파일에서 얻는다 | `RemoteSurface::source_cwd()`. 매니페스트의 `derive_cwd` 필드(`file`)를 생성 인자와 복원 자료에서 읽는다 |
-| **Image** | 열린 파일의 부모 디렉터리 | *불변* | `source_cwd()` = `file.parent()` |
+| **Image** | 열린 파일의 부모 디렉터리 | *불변* | `source_cwd()` = 절대 경로 `file`의 `parent()` |
 | **Empty** | 생성할 때 전달받은 cwd | 불변 | `source_cwd()` = `self.cwd` |
 | **Explorer**(host 내장) | 생성 시 프로젝트 루트 | *불변* — 안에서 폴더를 옮겨도 안 바뀐다 | `source_cwd()` = 고정 cwd (`crates/tasty-model/src/explorer_panel.rs`) |
 | **HTML** | 요청한 파일 source의 부모. HTTP(S)·inline은 상속 cwd를 보관하고 저장 자료에 함께 담아 복원한다 | 생성·복원·`html.open` source 갱신 | `RemoteSurface::source_cwd()` ([전송 source 계약](../../dev-guide/html-transfer.md)) |
@@ -62,7 +62,7 @@ Surface의 `cwd`는 생성·변환 경로 전체에서 전달해야 한다. 빠�
 | impl | source_cwd |
 |------|-----------|
 | `TerminalSurface` | `None` — cwd 는 terminal store(`get_cwd()`) 경유, `EngineRef::surface_cwd()` 가 분기 |
-| `EguiMeshSurface`(plugin egui-mesh surface) | 자신이 연 파일의 부모 디렉터리. 파일이 없으면 None |
+| `EguiMeshSurface`(plugin egui-mesh surface) | 자신이 연 절대 경로 파일의 부모 디렉터리. 파일이 없거나 상대 경로면 None |
 | `EmptySurface` | 전달받은 `self.cwd` (없으면 None) |
 | `ExplorerPanel` | 활성 탭의 **고정 cwd**(프로젝트 루트) — 현재 폴더(current)를 하위로 오가도 스폰 cwd 는 cwd 불변. cwd↔current 분리는 [explorer surface](../../surfaces/explorer/index.md) |
 | `AttachMeshSurface` / `DagGraphSurface` | `None` |
