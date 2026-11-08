@@ -79,7 +79,7 @@ origin 이 사용자가 아닌 `UiIntent::OpenPopup`·`TogglePopup` 은 `OpenPop
 
 - passive 팝업은 `has_focused()` 에 들지 않으므로 열려 있어도 `keyboard_overlay_open()` 이 거짓이다. 터미널 입력, explorer·dag_graph 처럼 egui 입력을 받는 surface의 입력, native WebView 의 입력이 그대로 이어진다. Esc 의 포커스 해제 대상(`focused_dismissal_target`)도 아니다.
 - native WebView 는 모두 숨기지 않고 키보드 포커스도 회수하지 않는다. 토스트 카드와 같이 팝업 영역과 겹치는 WebView 만, 그 WebView 가 키 입력을 받지 않을 때 숨긴다(`PopupManager::visible_passive_rects`, [webview](webview.md#포커스--회수는-조건부다)). 키를 받는 WebView 와 겹치면 그 WebView 가 팝업을 덮는다. native 위에 egui 를 그리는 층이 없어서이며, 요청은 함께 만든 알림으로도 보인다. 일반 팝업이 떠 있어도 페이지를 보이는 모드는 [WebView §egui 오버레이와 native WebView](webview.md#egui-오버레이와-native-webview)에 있다. 모드는 backend 가 보고한다. Linux(X11)는 XFixes 2.0 과 SHAPE 확장이 있을 때 합성 관리자가 있으면 투명, 없으면 불투명이고, 확장이 없거나 적용이 실패하면 숨김이다. Windows 와 macOS 는 불투명이다. passive 팝업은 그 모드의 대상이 아니다.
-- 팝업을 누르면 일반 팝업과 같이 포커스를 받고 passive 가 풀린다. 그때부터 일반 팝업처럼 오버레이 모드의 대상이 되고(지원하지 않으면 모든 native WebView 를 숨긴다) 포커스를 회수한다. 닫으면 passive 도 풀린다.
+- 팝업을 누르면 일반 팝업과 같이 포커스를 받고 passive 가 풀린다. 호스트가 확인한 사용자 입력도 같은 전이를 낸다: 파일 피커를 연 plugin 이 같은 surface 에서 증명이 있는 `file_picker.trigger` 를 다시 보내면 사용자 출처 `UiIntent::FocusPassivePopup` 이 보이는 다른 팝업의 포커스를 풀고 그 피커를 맨 앞으로 올린다(`PopupManager::focus_passive`). 증명 없는 요청과 다른 plugin·surface 의 요청은 busy 로 남는다. 그때부터 일반 팝업처럼 오버레이 모드의 대상이 되고(지원하지 않으면 모든 native WebView 를 숨긴다) 포커스를 회수한다. 닫으면 passive 도 풀린다.
 - 비포커스 상태의 별도 시각 표현은 없다. 포커스가 없는 다른 팝업(알림 패널 등)과 같은 모양이다.
 - 팝업 내용이 자기 포커스를 확인할 때는 `MainViewState.popup_keyboard_focus` 를 읽는다. draw 동안에는 매니저를 빌릴 수 없어 그리기 직전에 복사한다.
 

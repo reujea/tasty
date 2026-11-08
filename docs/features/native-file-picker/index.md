@@ -455,6 +455,13 @@ view 는 `FilePickerProps` 만 받고 `FilePickerAction` 만 돌려주므로 상
   거부되고 popup 이 열리지 않으며 사용자 입력 포커스·단축키 게이트가 그대로다.
 - Given `file_picker` popup 이 이미 열려 있음 When 두 번째 `file_picker.trigger` 가 옴
   Then 거부(`-32000` 에러) — 첫 요청의 `requester` 는 대체되지 않고 그대로 유지된다.
+- Given passive 로 열린(또는 passive 로 열릴 Intent 가 대기 중인) 피커 When 같은 plugin·같은 `origin_surface_id` 의 유효한 `user_navigation_url` 로
+  `file_picker.trigger` 가 옴 Then 증명을 소비하고 피커가 포커스를 받아 맨 앞에 오며 응답은 첫 요청의 `request_id` 다. 피커는 둘이 되지 않고
+  결과는 첫 요청자에게 한 번만 간다.
+- Given passive 피커 When 증명 없는 요청, 다른 plugin 의 요청, 다른 surface 의 요청 Then `-32000` 이고 passive 를 유지하며 증명을 소비하지 않는다.
+  이미 포커스된 피커, 범위 밖에 숨은 피커, 닫혀 결과 전달을 기다리는 피커도 같다.
+- Given Markdown 문서의 Folder 에 키보드 포커스 When Enter 또는 Space(Windows·Linux) Then 피커가 사용자 요청으로 열려 페이지 위에 보이고 Esc 로 닫힌다.
+  Enter 연타·누르고 있기·마우스 빠른 두 번 클릭도 피커가 포커스를 받는다.
 - Given `filters: ["md"]` 로 트리거됨 Then 렌더된 엔트리 목록에서 `.md` 가 아닌 파일은
   제외되고(디렉토리는 필터와 무관하게 항상 표시), 확정/취소 시 `"file_picker.result"` 가
   그 요청을 낸 plugin 에만(unicast) push 된다.

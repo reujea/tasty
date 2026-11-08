@@ -161,7 +161,7 @@ macOS의 WKNavigationAction 공개 API에는 같은 값이 없다. `navigationTy
 - `KeyWebView`의 `mouseDown:`이 클릭을 기록하고 `mouseUp:`이 시각을 뗀 때로 옮긴다. 이 경로는 포커스 알림(`note_focus`)과 같다. 페이지 스크립트의 `dispatchEvent`·`click()`·`location.hash` 변경은 NSResponder를 거치지 않으므로 클릭을 만들지 못한다.
 - 클릭 뒤 1초 안에 탐색 결정에 들어온 main frame 탐색 하나만 `user_gesture`가 참이다. 1초는 WebKit이 사용자 제스처를 타이머로 넘겨주는 상한(`UserGestureToken::maximumIntervalForUserGestureForwarding`)과 같다. 클릭 처리기 안의 `location.hash` 변경(Markdown 폴더 버튼)이 여기에 해당한다.
 - 서브프레임 탐색은 참이 되지 않고 클릭을 소비하지도 않는다. 시간이 지난 클릭은 버린다.
-- 키보드로 링크·버튼을 활성화한 탐색(Enter·Space)은 OS 클릭이 아니므로 참이 되지 않는다. Linux·Windows 엔진은 키 입력도 제스처로 보고하므로 이 점이 다르다.
+- macOS에서 키보드로 링크·버튼을 활성화한 탐색(Enter·Space)은 OS 클릭이 아니므로 참이 되지 않는다. Linux 엔진은 키 입력도 제스처로 보고하고, Windows의 같은 문서 이동은 아래의 키 증명을 쓴다. macOS에서 전체 키보드 접근 설정 없이 Tab이 버튼에 가는지는 측정하지 않았다.
 - 사용 API의 최소 macOS(MacOSX SDK 26.2 헤더): `NSResponder` `mouseDown:`·`mouseUp:`은 가용성 표기가 없다. `WKNavigationAction`의 macOS용 `buttonNumber`·`modifierFlags`는 개별 표기 없이 클래스의 `API_AVAILABLE(macos(10.10))`을 따른다. `loadFileURL:allowingReadAccessToURL:`은 `macos(10.11)`이다. 모두 macOS 11 이전부터 있다. 실행은 macOS 27.2에서만 확인했다.
 - 호스트가 시작한 `load_url`·`load_html`·`reload`·`go_back`·`go_forward`는 남은 클릭을 지운다. 에이전트·IPC 로드가 앞선 클릭을 이어받지 않게 하기 위해서다.
 - 남은 한계: 클릭 뒤 1초 안에 페이지 스크립트가 시작한 다른 탐색도 참이 된다. Linux·Windows 엔진의 제스처 전달과 같은 성질이다. 호스트 로드 요청과 그 탐색 결정 사이에 사용자가 클릭하면 그 호스트 탐색이 클릭을 소비할 수 있다. 증명은 소유 plugin 작성 페이지·URL 일치·한 번 소비 규칙을 함께 통과해야 쓰인다.
@@ -170,8 +170,10 @@ macOS의 WKNavigationAction 공개 API에는 같은 값이 없다. `navigationTy
 Windows의 같은 문서 fragment 이동은 `NavigationStarting`으로 오지 않는다. Markdown 주소창·링크의 `location.hash` 신호가 여기에 해당한다(`same_document`).
 - 신호는 `HistoryChanged`다. `SourceChanged`는 fragment가 없던 문서의 첫 이동에만 왔고, 이어지는 이동(`#X`→`#Y`)에는 `HistoryChanged`만 왔다(Windows 11 측정).
 - 주소는 페이지에서 `ExecuteScript`로 읽는다. `load_html`(NavigateToString) 문서의 `Source`는 비어 있다. 문서 생성 스크립트가 문서의 첫 주소를 기억하고, 이동마다 `#` 앞이 같은 문서에서 바뀐 주소만 돌려준다. 그래서 새 문서의 기록 변경은 탐색으로 쌓이지 않는다. 페이지가 기억한 값을 바꿔도 돌려주는 주소는 `location` 값이다.
-- `user_gesture`는 macOS와 같은 `ClickGesture` 규칙이다(1초, 한 클릭에 한 탐색, 호스트 로드가 지움). 이벤트에 `IsUserInitiated`가 없어서다. host 입력 경로의 메시지 훅이 WebView로 가는 `WM_LBUTTONDOWN`·`WM_LBUTTONUP`을 기록한다. 페이지 스크립트가 만든 이벤트는 창 메시지가 아니라 클릭을 만들지 못한다. host 입력 경로를 쓰지 못한 view는 클릭을 볼 수 없어 거짓이다. 키보드로 활성화한 이동도 거짓이다.
-- 증명이 없는 Folder 버튼의 결과: 키보드로 누른 경우(Tab+Enter 등)와 host 입력 경로를 쓰지 못한 view에서는 `user_gesture`가 거짓이라 피커가 passive로 열린다. passive 피커는 키 입력을 받는 WebView를 숨기지 않으므로([passive 팝업](popup.md#passive-팝업)) 페이지 밑에 깔려 보이지 않는다. 그 피커가 닫히기 전에는 마우스로 Folder를 눌러도 `file_picker.trigger`가 `-32000`(busy)으로 거절되고 plugin은 warn 로그만 남겨, 화면에는 아무것도 뜨지 않는다. Windows에서는 코드에서 읽은 경로이며 재지 않았다. Linux에서 `user_navigation_url`을 뺀 변이로 같은 기전을 쟀다(피커가 페이지 밑에 깔리고, 다음 Folder 클릭은 busy로 거절되며, 터미널 탭으로 옮기면 피커가 보인다). macOS도 같은 클릭 규칙이다. 터치·펜이 `WM_LBUTTON*`으로 오는지는 재지 않았다.
+- `user_gesture`는 macOS와 같은 `ClickGesture` 규칙이다(1초, 한 입력에 한 탐색, 호스트 로드가 지움). 이벤트에 `IsUserInitiated`가 없어서다. host 입력 경로의 메시지 훅이 WebView로 가는 `WM_LBUTTONDOWN`·`WM_LBUTTONUP`과, 페이지로 통과시키는 Enter·Numpad Enter·Space를 기록한다. 페이지 스크립트가 만든 이벤트는 창 메시지가 아니라 증명을 만들지 못한다. host 입력 경로를 쓰지 못한 view는 입력을 볼 수 없어 거짓이다.
+- 키 증명에서 빠지는 것: 수식키(Ctrl·Shift·Alt·Win)가 눌린 키, 훅이 소비한 키, IME 조합 키(`VK_PROCESSKEY`). 자동 반복은 증명에 넣는다. Chromium은 Enter 반복마다 버튼을 누르므로, 반복을 빼면 반복이 낸 거짓 탐색이 첫 누름의 기록을 지운다. Space는 뗄 때 click이 생기므로 뗌이 시각을 옮긴다. 뗌은 같은 키의 누름에만 대응하고 한 번만 옮기며, 이미 소비된 증명을 되살리지 않는다.
+- 증명이 없는 Folder 버튼의 결과: host 입력 경로를 쓰지 못한 view, 수식키와 함께 누른 경우, macOS 키보드, 스크립트만으로 낸 이동에서는 `user_gesture`가 거짓이라 피커가 passive로 열린다. passive 피커는 키 입력을 받는 WebView를 숨기지 않으므로([passive 팝업](popup.md#passive-팝업)) 페이지 밑에 깔려 보이지 않는다. 그 뒤 같은 surface에서 증명이 있는 입력(마우스 Folder 등)이 오면 그 피커가 포커스를 받아 페이지 위에 보인다. 증명이 없으면 `file_picker.trigger`가 `-32000`(busy)으로 거절되고 plugin은 warn 로그만 남긴다. 터치·펜이 `WM_LBUTTON*`으로 오는지는 재지 않았다.
+- 연타의 결과: 입력마다 탐색이 생기고 증명은 surface마다 마지막 하나만 남아, 첫 탐색의 `trigger`는 기록이 뒤 URL로 바뀌어 passive 피커를 연다. 마지막 탐색의 `trigger`가 증명을 소비해 그 피커에 포커스를 준다. 중간 탐색은 증명이 맞지 않아 busy다(Linux 임시 로그로 관찰). macOS는 공용 코드로 같은 판정을 타며 측정하지 않았다.
 - 큐에 쌓으면 부모 창에 `RedrawWindow(RDW_INTERNALPAINT)`를 요청한다. Windows에는 WebView 폴링이 없어, 요청하지 않으면 다음 입력이나 타이머까지 큐를 꺼내지 않는다(측정 3~5초).
 이 값과 webview.set_url의 페이지 작성자를 이용한 파일 열기 판정은
 [파일 핸들러의 origin 규칙](../../features/file-handler/index.md#origin-소유권과-비동기-완료)을 따른다.
