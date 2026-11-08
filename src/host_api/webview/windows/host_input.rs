@@ -26,10 +26,10 @@ use windows::Win32::UI::WindowsAndMessaging::{
 use windows::core::*;
 
 use super::keyboard::{
-    current_winit_mods, key_down_message, layout_character_key, vk_to_winit_key,
+    current_winit_mods, key_down_message, key_up_vk, layout_character_key, vk_to_winit_key,
     win32_scancode_to_physical,
 };
-use crate::host_api::webview::click_gesture::ClickGesture;
+use crate::host_api::webview::click_gesture::{ClickGesture, proves_activation};
 use crate::host_api::webview::keys::{WebViewKeySink, route_key_down};
 
 struct Route {
@@ -52,12 +52,12 @@ pub(super) struct RouteGuard {
 }
 
 impl RouteGuard {
-    /// 이 WebView가 받은 OS 왼쪽 클릭. 같은 문서 이동의 사용자 제스처 근거다.
+    /// 이 WebView가 받은 OS 입력. 같은 문서 이동의 사용자 제스처 근거다.
     pub(super) fn click(&self) -> Rc<ClickGesture> {
         self.click.clone()
     }
 
-    /// 호스트가 로드·이동을 시작했다. 남은 클릭이 그 탐색을 증명하지 않게 한다.
+    /// 호스트가 로드·이동을 시작했다. 남은 입력이 그 탐색을 증명하지 않게 한다.
     pub(super) fn cancel_click(&self) {
         self.click.cancel();
     }
@@ -126,6 +126,15 @@ fn note_click(msg: &MSG) {
     }
 }
 
+/// WebView로 가는 key-up을 그 키의 누름 증명에 알린다. 메시지는 소비하지 않는다.
+fn note_key_up(msg: &MSG) {
+    if let Some(vk) = key_up_vk(msg.message, msg.wParam.0)
+        && let Some(click) = route_of(msg.hwnd, |r| r.click.clone())
+    {
+        click.key_release(vk, Instant::now());
+    }
+}
+
 /// winit 메시지 훅. 등록한 WebView로 가는 key-down을 소비했으면 true를 돌려주고, winit은 그 메시지를
 /// Translate·Dispatch하지 않는다(그래서 WM_CHAR도 생기지 않는다). key-up·IME 처리 키(VK_PROCESSKEY)·
 /// 변환표 밖 키는 그대로 보낸다.
@@ -136,14 +145,20 @@ pub(crate) fn filter_message(msg: *const c_void) -> bool {
     // SAFETY: winit은 훅에 PeekMessage가 채운 유효한 MSG 포인터를 넘긴다.
     let msg = unsafe { &*msg.cast::<MSG>() };
     note_click(msg);
+    note_key_up(msg);
     let Some(km) = key_down_message(msg.message, msg.wParam.0, msg.lParam.0) else {
         return false;
     };
     // 판정 중 콜백이 등록부를 바꿔도 되도록 빌린 상태를 풀고 부른다.
     let route = route_of(msg.hwnd, |r| {
-        (r.surface_id, r.sink.clone(), r.target.clone())
+        (
+            r.surface_id,
+            r.sink.clone(),
+            r.target.clone(),
+            r.click.clone(),
+        )
     });
-    let Some((surface_id, sink, target)) = route else {
+    let Some((surface_id, sink, target, click)) = route else {
         return false;
     };
     let Some(key) = vk_to_winit_key(km.vk) else {
@@ -159,7 +174,7 @@ pub(crate) fn filter_message(msg: *const c_void) -> bool {
         key
     };
     let physical = win32_scancode_to_physical(km.scan, km.extended);
-    route_key_down(
+    let consumed = route_key_down(
         &*sink,
         surface_id,
         key,
@@ -167,7 +182,12 @@ pub(crate) fn filter_message(msg: *const c_void) -> bool {
         mods,
         km.repeat,
         |action| super::run_editing_command(&target, action, surface_id),
-    )
+    );
+    // 이 함수가 돌아간 뒤에 메시지가 Dispatch되므로 페이지가 키를 보기 전에 기록된다.
+    if proves_activation(km.vk, mods, consumed) {
+        click.key_press(km.vk, Instant::now());
+    }
+    consumed
 }
 
 /// controller를 만들고 host 입력 경로를 썼는지 함께 돌려준다. 옵션을 쓸 수 없거나 그 생성이 실패하면

@@ -40,6 +40,12 @@ pub(super) fn key_down_message(
     })
 }
 
+/// WM_KEYUP이면 그 VK를 돌려준다. 수식키와 함께 떼는 WM_SYSKEYUP은 활성화 키의 뗌이 아니다.
+pub(super) fn key_up_vk(message: u32, wparam: usize) -> Option<u32> {
+    const WM_KEYUP: u32 = 0x0101;
+    (message == WM_KEYUP).then_some((wparam & 0xffff) as u32)
+}
+
 /// Ctrl·Alt·Super 없이 누른 글자 키의 논리 값. 이 GUI 스레드의 입력 언어와 키보드 상태(Shift·CapsLock)로
 /// 현재 배열이 만드는 문자를 읽는다. 수식키 조합은 이 값을 쓰지 않고 US 물리 키 문자로 비교한다
 /// (`tasty_key_match::shortcut_lookup_key`). 읽지 못하면 None이고 호출자는 VK 변환값을 쓴다.
@@ -229,6 +235,14 @@ mod tests {
         // WM_CHAR·WM_SYSKEYUP도 건너뛴다.
         assert_eq!(key_down_message(0x0102, 0x71, 0x0010_0001), None);
         assert_eq!(key_down_message(0x0105, 0x51, 0x0010_0001), None);
+    }
+
+    #[test]
+    fn key_up_vk_reads_only_key_up_messages() {
+        assert_eq!(key_up_vk(0x0101, 0x20), Some(0x20));
+        assert_eq!(key_up_vk(0x0100, 0x20), None);
+        assert_eq!(key_up_vk(0x0105, 0x20), None);
+        assert_eq!(key_up_vk(0x0102, 0x20), None);
     }
 
     #[test]

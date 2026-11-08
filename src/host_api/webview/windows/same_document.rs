@@ -1,7 +1,7 @@
 //! 같은 문서 fragment 이동을 `HistoryChanged`로 받아 탐색 큐에 넣는다. 주소 판정과 큐 규칙은 상위
-//! `same_document`에 있다. 사용자 제스처는 host 입력 경로가 본 OS 왼쪽 클릭(`ClickGesture`)으로 정한다.
-//! 이 이벤트에는 `IsUserInitiated`가 없다. host 입력 경로를 쓰지 못한 view는 클릭을 볼 수 없어
-//! 제스처가 늘 거짓이다.
+//! `same_document`에 있다. 사용자 제스처는 host 입력 경로가 본 OS 입력(왼쪽 클릭, 페이지로 간
+//! Enter·Space, `ClickGesture`)으로 정한다. 이 이벤트에는 `IsUserInitiated`가 없다.
+//! host 입력 경로를 쓰지 못한 view는 입력을 볼 수 없어 제스처가 늘 거짓이다.
 
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -47,8 +47,8 @@ pub(super) fn install(
             let Some(webview) = sender else {
                 return Ok(());
             };
-            // 클릭은 이벤트 시점에 소비한다. 새 문서의 기록 변경도 소비하므로 한 클릭은 한 이동만 증명한다.
-            // 주소는 스크립트 결과로 늦게 오므로 그 사이의 클릭과 섞지 않는다.
+            // 입력은 이벤트 시점에 소비한다. 새 문서의 기록 변경도 소비하므로 한 입력은 한 이동만 증명한다.
+            // 주소는 스크립트 결과로 늦게 오므로 그 사이의 입력과 섞지 않는다.
             let user_gesture = click
                 .as_ref()
                 .is_some_and(|click| click.take(Instant::now(), Some(true)));
