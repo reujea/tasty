@@ -298,10 +298,9 @@ fn register_empty(registry: &SurfaceKindRegistry) {
                     as Box<dyn Surface>,
             ))
         }),
-        restore: Arc::new(|sid, cwd, _data| {
+        restore: Arc::new(|sid, _cwd, _data| {
             Ok(crate::runtime::surface_registry::PreparedKind::local(
-                Box::new(EmptySurface::new(sid).with_cwd(cwd.map(std::path::PathBuf::from)))
-                    as Box<dyn Surface>,
+                Box::new(EmptySurface::new(sid)) as Box<dyn Surface>,
             ))
         }),
         snapshot: Arc::new(|_| Some(Value::Object(Default::default()))),
@@ -448,19 +447,6 @@ mod tests {
             .unwrap();
         let snap = (def.snapshot)(s.as_ref()).unwrap();
         assert!(snap.is_object());
-    }
-
-    #[test]
-    fn empty_restores_the_saved_cwd() {
-        let reg = SurfaceKindRegistry::new();
-        register_builtin_kinds(&reg);
-        let def = reg.get("empty").unwrap();
-        let cwd = std::path::PathBuf::from("/saved-folder");
-        let restored = (def.restore)(4, Some(cwd.as_path()), &json!({}))
-            .unwrap()
-            .publish()
-            .unwrap();
-        assert_eq!(restored.source_cwd().as_deref(), Some(cwd.as_path()));
     }
 
     #[test]

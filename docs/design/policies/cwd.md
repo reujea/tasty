@@ -11,7 +11,7 @@ surface의 현재 폴더(cwd)는 종류 전환, 새 탭·분할의 폴더 상속
 | **Terminal** | shell 의 `$PWD` | shell 이 OSC 7 송신 시 | termwiz parse → `cached_cwd`(store), `get_cwd()` 로 조회 |
 | **Markdown** | 열린 파일의 부모 디렉터리 | *불변*. 생성·복원 때 파일에서 얻는다 | `RemoteSurface::source_cwd()`. 매니페스트의 `derive_cwd` 필드(`file`)를 생성 인자와 복원 자료에서 읽는다 |
 | **Image** | 열린 파일의 부모 디렉터리 | *불변* | `source_cwd()` = `file.parent()` |
-| **Empty** | 생성할 때 전달받은 cwd. 복원은 저장한 cwd를 쓴다 | 불변 | `source_cwd()` = `self.cwd` |
+| **Empty** | 생성할 때 전달받은 cwd | 불변 | `source_cwd()` = `self.cwd` |
 | **Explorer**(host 내장) | 생성 시 프로젝트 루트 | *불변* — 안에서 폴더를 옮겨도 안 바뀐다 | `source_cwd()` = 고정 cwd (`crates/tasty-model/src/explorer_panel.rs`) |
 | **HTML** | 요청한 파일 source의 부모. HTTP(S)·inline은 상속 cwd를 보관하고 저장 자료에 함께 담아 복원한다 | 생성·복원·`html.open` source 갱신 | `RemoteSurface::source_cwd()` ([전송 source 계약](../../dev-guide/html-transfer.md)) |
 | **기타 RemoteSurface** | 각 plugin의 정의 | 각 plugin | `surface.set_cwd` 권장, 미구현 시 None(기존 호환 유지) |
@@ -81,7 +81,7 @@ IPC 생성(`workspace.create` 의 `resolve_create_cwd`, `tab.create`·`split` �
 
 상대 `--file`은 CLI가 호출자 폴더를 `file_base`로 함께 보내고, 호스트가 대상이 로컬일 때만 절대 경로로 바꾼다(`create_spec::resolve_relative_file`). mirror 대상의 `file`은 원격 경로라 바꾸지 않는다. 기준 없이 들어온 상대 경로에서는 cwd를 얻지 않는다. 호스트 시작 폴더 기준으로 해석되기 때문이다.
 
-`SurfaceKindDef::restore`도 cwd를 인자로 받는다. 세션 저장과 닫은 항목은 `RemoteSurface`가 보관한 cwd(`held_cwd`)를 저장 자료(`SurfaceData::Generic.cwd`)에 함께 담는다. 파일 source의 부모는 보관 cwd가 아니라서 담지 않고 복원 때 `url`에서 다시 계산한다. 그래서 재시작 여부로 source 이동 뒤의 cwd가 갈리지 않는다. 이 키가 없는 옛 저장본은 cwd 없이 읽는다. mirror는 저장 대상이 아니며 mirror의 복원 경로는 cwd를 넘기지 않는다.
+`SurfaceKindDef::restore`도 cwd를 인자로 받는다. 세션 저장과 닫은 항목은 `RemoteSurface`가 보관한 cwd(`held_cwd`)를 저장 자료(`SurfaceData::Generic.cwd`)에 함께 담는다. 파일 source의 부모는 보관 cwd가 아니라서 담지 않고 복원 때 `url`에서 다시 계산한다. 그래서 재시작 여부로 source 이동 뒤의 cwd가 갈리지 않는다. 이 키가 없는 옛 저장본은 cwd 없이 읽는다. 비-deferred `EmptySurface`는 capture 대상이 아니어서 이 자료에 담기지 않는다. mirror는 저장 대상이 아니며 mirror의 복원 경로는 cwd를 넘기지 않는다.
 
 #### 3. `ConvertSurfaceTarget::Kind` 에 cwd 동봉
 
