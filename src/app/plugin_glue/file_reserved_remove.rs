@@ -36,10 +36,7 @@ fn unlisted_outcome(dir: &Path) -> Result<(), Failure> {
     match std::fs::symlink_metadata(dir) {
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
         Err(error) => Err(Failure::before(error)),
-        Ok(_) => Err(Failure::before(format!(
-            "{} is not waiting for removal",
-            dir.display()
-        ))),
+        Ok(_) => Err(Failure::before("the folder is not waiting for removal")),
     }
 }
 

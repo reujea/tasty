@@ -8,7 +8,8 @@ use std::path::Path;
 
 use tasty_plugin_manifest::Manifest;
 
-/// 제거 실패. `deletion_started` 면 일부 파일이 이미 지워졌을 수 있다.
+/// 제거 실패. `deletion_started` 면 일부 파일이 이미 지워졌을 수 있다. `message` 는 토스트에 실린다.
+/// 토스트 글자 수 제한에 잘리지 않도록 경로를 넣지 않는다. 경로는 상세의 Folder 절에 있다.
 #[derive(Debug)]
 pub struct ReservedRemovalError {
     pub message: String,
@@ -31,10 +32,9 @@ impl ReservedRemovalError {
 /// 보고 지운다. 이 구분이 없으면 매니페스트까지 지워진 항목을 다시 시도할 수 없다.
 pub fn remove_reserved_folder(root: &Path, dir: &Path) -> Result<(), ReservedRemovalError> {
     if dir.file_name().is_none() || dir.parent() != Some(root) {
-        return Err(ReservedRemovalError::refused(format!(
-            "{} is not directly inside the plugins folder",
-            dir.display()
-        )));
+        return Err(ReservedRemovalError::refused(
+            "the folder is not directly inside the plugins folder",
+        ));
     }
     let metadata = match std::fs::symlink_metadata(dir) {
         Ok(metadata) => metadata,
@@ -52,10 +52,9 @@ pub fn remove_reserved_folder(root: &Path, dir: &Path) -> Result<(), ReservedRem
             deletion_started: true,
         });
     }
-    Err(ReservedRemovalError::refused(format!(
-        "{} no longer declares a reserved id",
-        dir.display()
-    )))
+    Err(ReservedRemovalError::refused(
+        "the folder no longer declares a reserved id",
+    ))
 }
 
 /// 매니페스트가 없거나 여전히 예약 id 를 선언하면 true.
