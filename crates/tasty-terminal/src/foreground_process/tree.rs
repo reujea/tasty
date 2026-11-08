@@ -1,6 +1,6 @@
 //! Foreground choice over one process snapshot. Pure so every OS can test it.
 
-use std::collections::{HashMap, VecDeque};
+use std::collections::{HashMap, HashSet, VecDeque};
 
 use super::{ForegroundProcessInfo, is_known_shell_name};
 
@@ -35,20 +35,26 @@ impl ProcessSnapshot {
         // BFS level-by-level from shell_pid. The explicit (depth, pid) comparison
         // below makes the choice independent of `children` iteration order, so
         // the result is deterministic even with multiple same-depth candidates.
-        let mut queue: VecDeque<(u32, u32)> = VecDeque::new(); // (pid, depth)
-        queue.push_back((shell_pid, 0));
+        // Windows reuses PIDs, so the parent links can form a cycle (even through
+        // the shell itself). Each PID is expanded once, which bounds the walk by
+        // the snapshot size.
+        let mut visited: HashSet<u32> = HashSet::from([shell_pid]);
+        // (pid, depth, entry index); the shell itself has no entry index here.
+        let mut queue: VecDeque<(u32, u32, Option<usize>)> = VecDeque::from([(shell_pid, 0, None)]);
         // (pid, name, depth) of the shallowest non-shell descendant so far.
         let mut shallowest_non_shell: Option<(u32, String, u32)> = None;
         // Fallback: deepest leaf, used only when no non-shell descendant exists.
         let mut best_leaf: Option<(u32, String, u32)> = None; // (pid, name, depth)
         let mut found_descendant = false;
 
-        while let Some((pid, depth)) = queue.pop_front() {
-            let Some(child_idxs) = self.children.get(&pid) else {
-                continue;
-            };
-            for &idx in child_idxs {
+        while let Some((pid, depth, entry)) = queue.pop_front() {
+            let mut expanded = false;
+            for &idx in self.children.get(&pid).into_iter().flatten() {
                 let (cpid, _, cname) = &self.entries[idx];
+                if !visited.insert(*cpid) {
+                    continue;
+                }
+                expanded = true;
                 found_descendant = true;
                 let cdepth = depth + 1;
                 if !is_known_shell_name(cname) {
@@ -60,13 +66,13 @@ impl ProcessSnapshot {
                         shallowest_non_shell = Some((*cpid, cname.clone(), cdepth));
                     }
                 }
-                // Track the deepest leaf in parallel for the no-non-shell fallback.
-                let has_children = self.children.get(cpid).is_some_and(|v| !v.is_empty());
-                if has_children {
-                    queue.push_back((*cpid, cdepth));
-                } else if best_leaf.as_ref().is_none_or(|(_, _, d)| cdepth > *d) {
-                    best_leaf = Some((*cpid, cname.clone(), cdepth));
-                }
+                queue.push_back((*cpid, cdepth, Some(idx)));
+            }
+            // A descendant with nothing new below it is a leaf for the no-non-shell fallback.
+            if let Some(idx) = entry.filter(|_| !expanded)
+                && best_leaf.as_ref().is_none_or(|(_, _, d)| depth > *d)
+            {
+                best_leaf = Some((pid, self.entries[idx].2.clone(), depth));
             }
         }
 
