@@ -66,10 +66,10 @@ pub(crate) fn state_tile(
                 ui,
                 icons::ALERT_CIRCLE,
                 theme.icon_glyph_size_md.value(),
-                theme.accent_danger(),
+                theme.accent_danger_raised(),
             );
             gap(ui, theme);
-            label(ui, theme, "Failed to load", theme.accent_danger());
+            label(ui, theme, "Failed to load", theme.accent_danger_raised());
             url_line(ui, theme, "https://offline.example");
         }
     });
@@ -237,7 +237,7 @@ pub fn draw(ui: &mut egui::Ui, theme: &Theme) {
             ),
             ("placeholder", "globe (disabled) + 'No page loaded'"),
             ("loading", "Spinner (ui-widgets)"),
-            ("error", "alertCircle · accent-danger"),
+            ("error", "alertCircle · accent-danger-raised"),
             ("frame", "bg-panel · 1px border-default"),
         ],
         &[
@@ -258,7 +258,11 @@ pub fn draw(ui: &mut egui::Ui, theme: &Theme) {
                 "loading",
                 theme.spinner_indicator().to_egui(),
             ),
-            TokenChip::new("accent-danger", "error", theme.accent_danger().to_egui()),
+            TokenChip::new(
+                "accent-danger-raised",
+                "error",
+                theme.accent_danger_raised().to_egui(),
+            ),
         ],
     );
 
