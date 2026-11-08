@@ -685,6 +685,14 @@ env -u DISPLAY -u WAYLAND_DISPLAY xvfb-run -a --server-args="-screen 0 1920x1080
 grep -E '^test result:' gui-unit.log | grep -vc ' ok\.'
 ```
 
+<a id="단위-시험의-node"></a>
+
+### 단위 시험의 node
+
+`host_api::webview::same_document`의 `href_script_reports_only_fragment_moves_within_one_document`는 WebView 판정 스크립트를 node로 실제 실행한다. Linux에서만 컴파일하며 node가 없으면 건너뛰지 않고 실패한다. Linux 러너 머신에는 node가 없으므로 이 시험을 돌리는 `crossplatform-check.yml`의 `check-headless`와 `test.yml`의 `test-linux-x64`가 시험 단계 앞에서 `actions/setup-node`로 node를 준비한다. 다른 잡에 Linux `--lib` 시험을 추가하면 같은 단계를 넣는다.
+
+로컬 Linux 개발 환경에서도 `cargo test --lib`에 node가 PATH에 있어야 한다. 없으면 이 시험 하나가 설치를 안내하는 메시지로 실패한다. Windows·macOS 잡은 이 시험을 컴파일하지 않는다.
+
 ### GUI 테스트를 실행하고 해석하는 조건
 
 `multi_window_owner_routing`은 `gui` feature 조합에서만 컴파일된다. 헤드리스에서

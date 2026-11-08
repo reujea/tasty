@@ -72,8 +72,9 @@ mod tests {
         assert!(from_href_result(r#""about:blank#tasty-nav:browse:2""#, false, &queued).is_some());
     }
 
-    /// 두 스크립트를 node 로 실행해 판정을 확인한다. 스크립트는 OS 와 무관하지만 node 가 있는 러너는 Linux 뿐이라
-    /// Linux 에서만 돌린다. node 가 없으면 건너뛰지 않고 실패한다.
+    /// 두 스크립트를 node 로 실행해 판정을 확인한다. 스크립트는 OS 와 무관하므로 한 OS 에서만 돌린다.
+    /// node 는 Linux 시험 잡이 준비한다(docs/dev-guide/ci-gates.md "단위 시험의 node").
+    /// 개발 환경에 node 가 없으면 건너뛰지 않고 실패한다.
     #[cfg(target_os = "linux")]
     #[test]
     fn href_script_reports_only_fragment_moves_within_one_document() {
@@ -107,7 +108,7 @@ process.stdout.write(JSON.stringify(out));
         let output = std::process::Command::new("node")
             .args(["-e", DRIVER, INIT_SCRIPT, HREF_SCRIPT, &steps.to_string()])
             .output()
-            .expect("node 를 실행하지 못했다. 이 시험은 Linux 에서 node 가 필요하다");
+            .expect("node 를 실행하지 못했다. 이 시험은 node 가 필요하다. 설치해 PATH 에 넣는다");
         assert!(
             output.status.success(),
             "node 실패: {}",

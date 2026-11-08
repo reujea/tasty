@@ -50,6 +50,12 @@ jobs:
           echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
 
+      # 시험 하나가 node 로 WebView 판정 스크립트를 실행한다(src/host_api/webview/same_document.rs).
+      # 러너 머신에는 node 가 없다. 기준: docs/dev-guide/ci-gates.md#단위-시험의-node
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
       - name: Build tests
         run: cargo test --workspace --no-run --locked
 
