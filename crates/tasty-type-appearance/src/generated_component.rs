@@ -3096,6 +3096,30 @@ impl crate::theme::Theme {
         self.text_secondary()
     }
 
+    /// `component.md-find-current-bg` → `{semantic.accent-primary}`
+    #[inline]
+    pub fn md_find_current_bg(&self) -> HexColor {
+        self.accent_primary()
+    }
+
+    /// `component.md-find-current-fg` → `{semantic.text-on-accent}`
+    #[inline]
+    pub fn md_find_current_fg(&self) -> HexColor {
+        self.text_on_accent()
+    }
+
+    /// `component.md-find-hit-bg` → `{semantic.notify-warning-fill}`
+    #[inline]
+    pub fn md_find_hit_bg(&self) -> HexColor {
+        self.notify_warning_fill()
+    }
+
+    /// `component.md-find-hit-fg` → `{semantic.notify-warning-fg}`
+    #[inline]
+    pub fn md_find_hit_fg(&self) -> HexColor {
+        self.notify_warning_fg()
+    }
+
     /// `component.md-quote-bar` → `{semantic.border-strong}`
     #[inline]
     pub fn md_quote_bar(&self) -> HexColor {

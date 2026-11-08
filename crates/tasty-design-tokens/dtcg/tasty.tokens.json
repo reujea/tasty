@@ -4138,6 +4138,22 @@
       "$type": "color",
       "$value": "{semantic.separator}"
     },
+    "md-find-hit-bg": {
+      "$type": "color",
+      "$value": "{semantic.notify-warning-fill}"
+    },
+    "md-find-hit-fg": {
+      "$type": "color",
+      "$value": "{semantic.notify-warning-fg}"
+    },
+    "md-find-current-bg": {
+      "$type": "color",
+      "$value": "{semantic.accent-primary}"
+    },
+    "md-find-current-fg": {
+      "$type": "color",
+      "$value": "{semantic.text-on-accent}"
+    },
     "explorer-sidebar-width": {
       "$type": "dimension",
       "$value": "{primitive.size-196}"
