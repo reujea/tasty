@@ -16,22 +16,43 @@ ignore = [
   "RUSTSEC-2026-0194", # quick-xml: 시작 태그 중복 속성 검사 quadratic 런타임
   "RUSTSEC-2026-0195", # quick-xml: NsReader 무제한 네임스페이스 할당 메모리 고갈
 
-  # 아직 교체하지 못한 유지보수 종료 간접 의존성.
+  # paste 1.0.15 유지보수 종료. 알려진 취약점이 아니다.
+  # metal 0.31(wgpu-hal 24)만 쓰는 프로시저 매크로이고 macOS 대상 그래프에만 있다. 컴파일할 때만 실행된다.
+  # wgpu를 올려 metal 0.31이 빠질 때 해제한다. 어느 wgpu 판에서 빠지는지는 미측정이다.
   "RUSTSEC-2024-0436", # paste 1.0.15 unmaintained
+
+  # proc-macro-error 1.0.4 유지보수 종료. 알려진 취약점이 아니다.
+  # glib-macros 0.18·gtk3-macros 0.18만 쓰는 프로시저 매크로이고 Linux 대상 그래프에만 있다. 컴파일할 때만 실행된다.
+  # webkit2gtk·gtk·트레이가 GTK3 0.18 계열을 벗어날 때 해제한다. 어느 판에서 벗어나는지는 미측정이다.
   "RUSTSEC-2024-0370", # proc-macro-error 1.0.4 unmaintained
-  "RUSTSEC-2017-0008", # serial 0.4.0 unmaintained. portable-pty 0.8의 직렬 포트 기능으로 들어온다.
+
+  # serial 0.4.0 유지보수 종료. 알려진 취약점이 아니다.
+  # portable-pty 0.8이 무조건 컴파일하는 serial 모듈로 들어오지만 호출되지 않는다.
+  # Tasty는 NativePtySystem만 쓰고(tasty-terminal pty.rs) SerialTty를 쓰는 코드는 없다.
+  # 아래 pin-utils 예외와 함께 portable-pty 0.9로 올릴 때 해제한다.
+  "RUSTSEC-2017-0008", # serial 0.4.0 unmaintained
+
+  # ttf-parser 0.25.1 유지보수 종료. 알려진 취약점이 없고 공지에 수정판도 없다.
+  # 빌드 도구가 아니라 실행 중에 글꼴을 읽는 파서다. cosmic-text(fontdb)와 egui(ab_glyph)로 제품에 들어간다.
+  # 입력은 내장 글꼴, 시스템 글꼴, 사용자가 지정한 custom_font_path의 로컬 파일이다. 네트워크에서 받은 글꼴을 읽는 경로는 찾지 못했다.
+  # 0.25.1은 forbid(unsafe_code)라 이 크레이트 안의 메모리 오류 위험은 낮다.
+  # 손상된 글꼴 파일에서 패닉이 나는지는 미측정이다. 유지보수가 끝나 파서 결함이 나와도 고쳐지지 않는다.
+  # ttf-parser에 취약점 공지가 나오면 다시 판단한다.
+  # cosmic-text·fontdb와 ab_glyph가 다른 파서로 옮겨 가면 해제한다. 어느 판에서 옮겨 가는지는 미측정이다.
   "RUSTSEC-2026-0192", # ttf-parser 0.25.1 unmaintained
 
   # pin-utils 0.1.0 유지보수 종료. 알려진 취약점이 아니다.
   # nix 0.25(portable-pty 0.8)와 nix 0.26(termwiz 0.22)의 기본 기능 aio로 들어온다.
   # nix 안의 사용처는 sys/aio.rs이고 이 저장소의 코드는 nix aio를 쓰지 않는다.
-  # portable-pty 0.9로 올리면 사라지지만 터미널 동작이 달라진다. Windows ConPTY에 INHERIT_CURSOR가
+  # portable-pty 0.9와 termwiz 0.23을 함께 올려야 사라지지만 터미널 동작이 달라진다. Windows ConPTY에 INHERIT_CURSOR가
   # 항상 켜지고, Unix에서 SHELL 값과 상대 경로 실행 파일 검색 결과가 바뀐다.
   # 세 OS에서 실제 실행으로 동작을 확인한 뒤 portable-pty 0.9·termwiz 0.23으로 함께 올릴 때 해제한다.
-  # serial 예외도 그때 함께 해제한다.
   "RUSTSEC-2026-0441", # pin-utils 0.1.0 unmaintained
 
-  # 고정된 git2 0.20.4의 메모리 안전성 문제. 호환 수정 버전으로 올릴 때 해제한다.
+  # git2 0.20.4의 잠재 UB 두 건. 공지의 수정판은 0.21.0 이상이다.
+  # 공지가 말하는 Remote::list와 Blame::blame_buffer의 BlameHunk 서명을 쓰는 곳이
+  # tasty-git-core·tasty-plugin-git-viewer와 나머지 src·crates에 없어 이 경로에 닿지 않는다.
+  # git2를 0.21 이상으로 올릴 때 해제한다. 0.21로 올렸을 때의 API 영향은 미측정이다.
   "RUSTSEC-2026-0183", # git2 0.20.4: Remote::list() 잠재 UB
   "RUSTSEC-2026-0184", # git2 0.20.4: BlameHunk Signature 잠재 UB
 
