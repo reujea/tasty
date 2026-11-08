@@ -49,6 +49,19 @@
 
 미인증 선택은 `known-plugins.toml`의 `[unverified."<id>"]` 표에 매니페스트 SHA-256, 원인 이름, 선택 시각으로 남는다. 매니페스트가 바뀌면 기록이 맞지 않아 다시 묻고, 플러그인을 제거하면 기록을 지운다. 선택한 뒤에는 목록의 미인증 표시 외에 실행 제한을 두지 않는다. 현재 서명 판정은 매니페스트 한 파일(`tasty-plugin.toml`)이 신뢰한 키로 서명됐는지만 확인한다. 바이너리·부속 파일의 내용이나 악성 여부를 확인하지 않고 실행 중 동작을 막지도 않는다([플러그인 패키징](../../dev-guide/plugin-packaging.md#서명)). 소스 검토와 검증 빌드 바이너리에 대한 인증은 [플러그인 원칙](../../principles/plugins.md)이 정한 향후 기능이며, 이 판정의 `Trusted`를 그 인증으로 읽지 않는다. 플러그인의 행위 책임은 플러그인과 그것을 고른 사용자에게 있다. 본체는 이 선택을 근거로 외부 권한이나 설정을 스스로 바꾸지 않는다. CLI `tasty plugin install`은 `--allow-unverified`(IPC `allow_unverified: true`)가 없으면 미인증 플러그인을 거부하고, 오류 `data.unverified`로 원인을 알아 현재 언어의 경고와 그 플래그를 쓰는 명령을 표준 오류에 보인다. release 부팅 탐색은 신뢰했거나 사용자가 고른 플러그인만 등록하고, debug 부팅 탐색은 작업 공간의 번들 plugin 이 서명 없이 빌드되기 때문에 서명을 건너뛴다.
 
+#### 예약 id (`com.tasty.`)
+
+`com.tasty.`로 시작하는 id는 공식 플러그인 전용이다. [공식 id 목록](../../dev-guide/plugin-packaging.md#공식-id-목록)에 없는 `com.tasty.*` 플러그인은 debug·release 모두, 서명 판정보다 먼저 거부한다. 이 판정은 id만 본다. 공식 id를 쓴 다른 바이너리는 위 서명 판정이 다룬다.
+
+- 설치(GUI Add 탭·`plugin.install`·확인 필요 탭의 등록)는 공통 매니페스트 검증에서 실패하므로 폴더·신뢰 DB·권한을 쓰지 않는다. `--allow-unverified`로도 설치되지 않는다. Add 탭은 "tasty-plugin.toml is not valid" 상자 아래 줄에 원문 이유를 보이고 미리보기·추가 버튼을 두지 않는다. `plugin.install` 오류(`-32000`)의 `data`는 `{"reserved_id": "<id>", "plugin_id": "<id>"}`다.
+- 플러그인 폴더에 직접 넣은 것은 부팅·재탐색 때 등록하지 않고 경고 로그를 남긴다. 그 폴더가 새로 보일 때 알림 목록에 경고 한 건(제목 `Plugin '<id>' did not start`, 본문은 원문 이유)을 남기고, 같은 폴더가 남아 있는 동안 재탐색마다 다시 알리지 않는다. 확인 필요 탭에는 보이지 않고 폴더도 지우지 않는다. 등록되지 않은 id라 `tasty plugin remove`로는 지울 수 없으며 폴더를 직접 지운다.
+- 번들 설치·`upgrade-builtins`는 번들 폴더 매니페스트의 id가 폴더 이름의 공식 id와 다르면 복사·권한 기록 없이 실패로 남긴다. `upgrade-builtins` 보고에서는 `Failed`다.
+
+- Given `id = "com.tasty.fake"` 매니페스트 폴더, When `tasty plugin install <폴더>`(서명 여부·`--allow-unverified` 무관), Then 명령은 실패하고 `data.reserved_id`가 그 id 이며, 플러그인 폴더·`known-plugins.toml`·`plugins.toml`이 바뀌지 않는다.
+- Given 같은 폴더, When GUI Add 탭에서 Verify, Then "tasty-plugin.toml is not valid" 상자에 예약 id 이유가 보이고 추가 버튼이 없다.
+- Given 플러그인 폴더에 직접 넣은 `com.tasty.fake`, When 인스턴스를 시작한다, Then `plugin.list`에 없고 경고 로그와 경고 알림 한 건이 남는다.
+- Given 공식 목록의 id(`com.tasty.agent-stream`·`com.tasty.mesh-demo` 포함) 또는 `com.example.x` 같은 다른 접두, When 설치·탐색, Then 서명 판정만 적용된다.
+
 `enable <id>` / `disable <id>` 는 발견된 설치 패키지가 있는 ID만 받는다. 미설치 ID는
 GUI·headless 모두 실패하며, 설정 파일과 메모리의 활성/비활성 상태를 바꾸거나 성공 이벤트를
 발행하지 않는다. 토글 실패 응답은 기존 `-32000`과 `enable failed:` / `disable failed:`
