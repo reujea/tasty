@@ -266,6 +266,10 @@ pub enum UiIntent {
     ClosePopup {
         id: PopupId,
     },
+    /// 호스트가 확인한 사용자 입력으로 열린 passive 팝업에 포커스를 준다. 사용자 출처일 때만 동작한다.
+    FocusPassivePopup {
+        id: PopupId,
+    },
     TogglePopup {
         id: PopupId,
         mode: OpenPopupMode,

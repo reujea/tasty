@@ -383,6 +383,8 @@ pub(crate) struct FilePickerRequester {
     pub(crate) request_id: u64,
     /// 플러그인이 부모로 지정한 팝업 인스턴스. 피커 상태와 함께 보관하고 제거한다.
     pub(crate) owner_popup_instance: Option<u64>,
+    /// 피커를 띄운 surface. 사용자가 다른 surface에서 누른 입력으로 이 피커에 포커스를 주지 않게 비교한다.
+    pub(crate) origin_surface_id: Option<u32>,
 }
 
 /// 파일 피커의 탐색·선택 상태. 피커는 경로를 고르는 데서 끝나며 결과로 무엇을 할지 모른다.

@@ -33,6 +33,7 @@ fn state_with_picker(owner: Option<u64>) -> RequestContext {
             plugin_id: "com.example.any".to_string(),
             request_id: 1,
             owner_popup_instance: Some(iid),
+            origin_surface_id: None,
         }),
         filters: Vec::new(),
     });

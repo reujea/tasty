@@ -59,6 +59,11 @@ pub fn handle(
 
             UiIntent::OpenPopup { id, mode } => open(state, id, mode, intent.origin.is_user()),
             UiIntent::ClosePopup { id } => state.popups.close(id),
+            UiIntent::FocusPassivePopup { id } => {
+                if intent.origin.is_user() {
+                    state.popups.focus_passive(id);
+                }
+            }
             UiIntent::TogglePopup { id, mode } => {
                 if state.popups.is_open(id) {
                     state.popups.close(id);
@@ -296,6 +301,82 @@ mod tests {
         );
         assert!(state.popups.is_focused("test_popup"));
         assert!(!state.popups.is_passive("test_popup"));
+    }
+
+    fn open_passive(
+        state: &mut RequestContext,
+        engine: &mut crate::runtime::engine_access::EngineMut<'_>,
+    ) {
+        handle(
+            state,
+            engine,
+            &UiIntent::OpenPopup {
+                id: "test_popup",
+                mode: OpenPopupMode::WithScope(PopupScope::Window),
+            }
+            .from_agent_ipc(),
+        );
+        assert!(state.popups.is_passive("test_popup"));
+    }
+
+    #[test]
+    fn a_user_focus_intent_lifts_a_passive_popup_like_a_press_inside_it() {
+        let (mut state, mut engine_session) = make_state();
+        state.popups.register(PopupState::new(
+            "other_popup",
+            "Other".to_string(),
+            egui::vec2(200.0, 100.0),
+        ));
+        let mut engine = engine_session.borrow_mut();
+        open_passive(&mut state, &mut engine);
+        handle(
+            &mut state,
+            &mut engine,
+            &dispatched_open("other_popup", OpenPopupMode::WithScope(PopupScope::Window)),
+        );
+        assert!(state.popups.is_focused("other_popup"));
+        handle(
+            &mut state,
+            &mut engine,
+            &UiIntent::FocusPassivePopup { id: "test_popup" }.from_user_shortcut("test"),
+        );
+        assert!(state.popups.is_focused("test_popup"));
+        assert!(!state.popups.is_passive("test_popup"));
+        assert!(
+            !state.popups.is_focused("other_popup"),
+            "다른 팝업의 포커스가 풀린다"
+        );
+        let (top, _) = state.popups.open_geometry("test_popup").expect("open");
+        assert_eq!(state.popups.max_open_z_seq(), Some(top), "맨 앞에 온다");
+    }
+
+    #[test]
+    fn a_non_user_focus_intent_leaves_the_popup_passive() {
+        let (mut state, mut engine_session) = make_state();
+        let mut engine = engine_session.borrow_mut();
+        open_passive(&mut state, &mut engine);
+        handle(
+            &mut state,
+            &mut engine,
+            &UiIntent::FocusPassivePopup { id: "test_popup" }.from_agent_ipc(),
+        );
+        assert!(state.popups.is_passive("test_popup"));
+        assert!(!state.popups.has_focused());
+    }
+
+    #[test]
+    fn a_focus_intent_needs_an_open_passive_popup() {
+        let (mut state, mut engine_session) = make_state();
+        let mut engine = engine_session.borrow_mut();
+        let focus = UiIntent::FocusPassivePopup { id: "test_popup" }.from_user_shortcut("test");
+        handle(&mut state, &mut engine, &focus);
+        assert!(!state.popups.has_focused(), "닫힌 팝업");
+        assert!(!state.popups.is_open("test_popup"));
+
+        open_passive(&mut state, &mut engine);
+        handle(&mut state, &mut engine, &dispatched_close("test_popup"));
+        handle(&mut state, &mut engine, &focus);
+        assert!(!state.popups.has_focused(), "그 사이 닫힌 팝업");
     }
 
     #[test]

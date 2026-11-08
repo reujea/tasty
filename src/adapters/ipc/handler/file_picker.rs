@@ -3,6 +3,7 @@
 //! 호스트는 고른 경로로 파일을 열거나 복사하지 않는다. 경로의 쓰임은 플러그인이 정한다.
 //! 이미 열린 피커는 대체하지 않고 두 번째 요청을 거절한다.
 //! 대체하면 기존 요청자에게 취소를 통지할 수 없어 결과를 기다리는 요청이 남기 때문이다.
+//! 다만 같은 요청자의 사용자 입력이 확인되면 passive로 열린 그 피커에 포커스를 준다.
 
 use crate::runtime::engine_access::EngineMut;
 use serde::Deserialize;
@@ -96,7 +97,16 @@ pub fn handle_trigger_with_proofs(
     };
 
     if file_picker::ensure_available(state).is_err() {
-        return busy_response(id);
+        return match focus_passive_picker(
+            state,
+            engine,
+            &requester_plugin,
+            params,
+            navigation_proofs,
+        ) {
+            Some(request_id) => JsonRpcResponse::success(id, json!({ "request_id": request_id })),
+            None => busy_response(id),
+        };
     }
 
     let req: FilePickerTriggerReq = match serde_json::from_value(params.clone()) {
@@ -109,6 +119,7 @@ pub fn handle_trigger_with_proofs(
         plugin_id: requester_plugin,
         request_id: request_id.0,
         owner_popup_instance: req.owner_popup_instance,
+        origin_surface_id: req.origin_surface_id,
     };
 
     // 확인하지 못하면 포커스 없는 passive 피커가 되고, 키를 받는 WebView 가 피커를 덮는다
@@ -163,6 +174,66 @@ pub fn handle_trigger_with_proofs(
             .save_name = Some(req.default_name);
     }
     JsonRpcResponse::success(id, json!({ "request_id": request_id.0 }))
+}
+
+/// 연타 경합 때 첫 요청은 뒤 입력이 기록을 덮어 passive로 열린다. 그 뒤 요청의 입력이 확인되면 첫 요청의 피커에
+/// 포커스를 주고 첫 `request_id`를 돌려준다. 요청자·결과 전달은 그대로다. 같은 plugin·같은 surface의 피커만
+/// 올리고, 증명은 실제로 올릴 때만 소비한다. 그 밖에는 None이고 호출자는 busy로 답한다.
+fn focus_passive_picker(
+    state: &mut RequestContext,
+    engine: &EngineMut<'_>,
+    plugin_id: &str,
+    params: &serde_json::Value,
+    navigation_proofs: Option<&crate::app::html_runtime::NavigationProofs>,
+) -> Option<u64> {
+    let proofs = navigation_proofs?;
+    let req: FilePickerTriggerReq = serde_json::from_value(params.clone()).ok()?;
+    let url = req.user_navigation_url.as_deref()?;
+    let surface = req.origin_surface_id?;
+    let picker = state.dialogs.file_picker.as_ref()?;
+    let requester = picker.requester.as_ref()?;
+    if requester.plugin_id != plugin_id
+        || requester.origin_surface_id != Some(surface)
+        || picker.result.is_some()
+    {
+        return None;
+    }
+    let request_id = requester.request_id;
+    if !(state
+        .popups
+        .is_visible_passive(file_picker::FILE_PICKER_POPUP_ID)
+        || passive_open_is_queued(state))
+    {
+        return None;
+    }
+    if !proofs.take(
+        &state.webview_identity,
+        &engine.as_ref(),
+        plugin_id,
+        surface,
+        url,
+    ) {
+        return None;
+    }
+    state.dispatch_intent(
+        crate::intent::UiIntent::FocusPassivePopup {
+            id: file_picker::FILE_PICKER_POPUP_ID,
+        }
+        .from_user_menu("plugin_page"),
+    );
+    Some(request_id)
+}
+
+/// 첫 요청의 열기 Intent가 아직 처리되지 않았고 그 열기가 passive가 될 때. 포커스 Intent는 그 뒤에 처리된다.
+fn passive_open_is_queued(state: &RequestContext) -> bool {
+    state.pending_intents.iter().any(|intent| {
+        !intent.origin.is_user()
+            && matches!(
+                &intent.body,
+                crate::intent::Intent::Ui(crate::intent::UiIntent::OpenPopup { id, .. })
+                    if *id == file_picker::FILE_PICKER_POPUP_ID
+            )
+    })
 }
 
 fn busy_response(id: serde_json::Value) -> JsonRpcResponse {

@@ -757,6 +757,29 @@ impl PopupManager {
         }
     }
 
+    /// 호스트가 확인한 사용자 입력으로 passive popup에 포커스를 준다. 팝업 안을 누른 것과 같은 전이다:
+    /// 보이는 다른 팝업의 포커스를 풀고 맨 앞으로 올린다. 열린 passive popup이 보일 때만 바뀐다.
+    pub fn focus_passive(&mut self, id: PopupId) -> bool {
+        if !self.is_visible_passive(id) {
+            return false;
+        }
+        for popup in &mut self.popups {
+            if popup.scope_visible {
+                popup.focused = popup.id == id;
+                popup.passive &= !popup.focused;
+            }
+        }
+        self.bring_to_front(id);
+        true
+    }
+
+    /// 지금 화면에 보이는 passive popup인지. 범위 밖에 숨은 popup은 올릴 수 없다.
+    pub fn is_visible_passive(&self, id: PopupId) -> bool {
+        self.popups
+            .iter()
+            .any(|p| p.id == id && p.open && p.scope_visible && p.passive)
+    }
+
     /// 열린 popup이 passive인지. 닫혔으면 false다.
     #[cfg(test)]
     pub fn is_passive(&self, id: PopupId) -> bool {

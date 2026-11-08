@@ -267,6 +267,7 @@ mod tests {
             plugin_id: PLUGIN.to_string(),
             request_id,
             owner_popup_instance: None,
+            origin_surface_id: None,
         };
         let deliver = |request_id, result| {
             super::super::file_picker::deliver_result(

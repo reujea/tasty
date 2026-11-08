@@ -6,6 +6,7 @@ use std::sync::Arc;
 
 use serde_json::json;
 use tasty_ipc::caller::CallerContext;
+use tasty_ipc::protocol::JsonRpcResponse;
 
 use super::handle_dispatch;
 use crate::app::command::DomainIntent;
@@ -677,4 +678,252 @@ fn a_picker_opened_from_a_user_navigation_on_the_plugin_page_is_a_user_popup() {
         "엔진이 사용자 조작으로 보지 않은 시도"
     );
     assert!(!opened_by_user(None, false));
+}
+
+/// passive 피커와 그 증명 시험의 공통 준비. 첫 요청은 증명이 없어 passive로 열리고 Intent까지 처리된다.
+struct PassivePicker {
+    state: crate::state::RequestContext,
+    engine_session: crate::runtime::engine_session::EngineSession,
+    proofs: crate::app::html_runtime::NavigationProofs,
+    sid: u32,
+    first_request: u64,
+    _view: Arc<()>,
+}
+
+fn plugin_caller_of(plugin_id: &str) -> CallerContext {
+    CallerContext::Plugin {
+        plugin_id: plugin_id.into(),
+        permissions: Arc::new(HashSet::new()),
+    }
+}
+
+impl PassivePicker {
+    /// `origin` 을 주지 않으면 소스를 설치한 surface 를 출발지로 삼는다.
+    fn opened(origin: Option<u32>, drain: bool) -> Self {
+        let (mut state, mut engine_session) = source_fixture();
+        for def in crate::adapters::ui::popup::defs::all_defs() {
+            state.popups.register_def(def, 1.0);
+        }
+        let view = Arc::new(());
+        state.webview_identity = Arc::downgrade(&view);
+        let (sid, first_request) = {
+            let mut engine = engine_session.borrow_mut();
+            let sid = engine.workspace_at(0).unwrap().all_surface_ids()[0];
+            install_source(&mut engine, sid);
+            let resp = crate::adapters::ipc::handler::file_picker::handle_trigger_with_proofs(
+                &mut state,
+                &mut engine,
+                &plugin_caller_of(PLUGIN),
+                json!(1),
+                &json!({ "origin_surface_id": origin.unwrap_or(sid) }),
+                None,
+            );
+            let first = resp.result.expect("first trigger")["request_id"]
+                .as_u64()
+                .unwrap();
+            (sid, first)
+        };
+        let mut this = Self {
+            state,
+            engine_session,
+            proofs: crate::app::html_runtime::NavigationProofs::default(),
+            sid,
+            first_request,
+            _view: view,
+        };
+        if drain {
+            this.drain();
+            assert!(this.state.popups.is_passive(PICKER));
+        }
+        this
+    }
+
+    fn drain(&mut self) {
+        let mut engine = self.engine_session.borrow_mut();
+        for intent in self.state.take_pending_intents() {
+            if matches!(intent.body, Intent::Ui(_)) {
+                crate::intent::popup::handle(&mut self.state, &mut engine, &intent);
+            }
+        }
+    }
+
+    fn prove(&mut self) {
+        let engine = self.engine_session.borrow_mut();
+        gesture(true).record(&self.proofs, &self.state, &engine, self.sid);
+    }
+
+    fn trigger(&mut self, caller: &str, surface: u32) -> JsonRpcResponse {
+        let mut engine = self.engine_session.borrow_mut();
+        crate::adapters::ipc::handler::file_picker::handle_trigger_with_proofs(
+            &mut self.state,
+            &mut engine,
+            &plugin_caller_of(caller),
+            json!(2),
+            &json!({ "origin_surface_id": surface, "user_navigation_url": NAV_URL }),
+            Some(&self.proofs),
+        )
+    }
+
+    fn proof_is_kept(&mut self) -> bool {
+        let engine = self.engine_session.borrow_mut();
+        self.proofs.take(
+            &self.state.webview_identity,
+            &engine.as_ref(),
+            PLUGIN,
+            self.sid,
+            NAV_URL,
+        )
+    }
+
+    fn assert_busy(&mut self, resp: &JsonRpcResponse, what: &str) {
+        assert_eq!(resp.error.as_ref().map(|e| e.code), Some(-32000), "{what}");
+        assert!(self.proof_is_kept(), "{what}: 증명을 소비하지 않는다");
+    }
+
+    fn assert_stays_first_request(&self) {
+        let requester = self
+            .state
+            .dialogs
+            .file_picker
+            .as_ref()
+            .and_then(|d| d.requester.as_ref())
+            .expect("first requester");
+        assert_eq!(requester.plugin_id, PLUGIN);
+        assert_eq!(requester.request_id, self.first_request);
+    }
+}
+
+const PICKER: &str = crate::adapters::ui::popup::file_picker::FILE_PICKER_POPUP_ID;
+
+#[test]
+fn a_proven_press_focuses_the_passive_picker_of_the_same_plugin_and_surface() {
+    let mut p = PassivePicker::opened(None, true);
+    p.prove();
+    let resp = p.trigger(PLUGIN, p.sid);
+    assert_eq!(
+        resp.result.expect("promoted")["request_id"].as_u64(),
+        Some(p.first_request),
+        "첫 요청의 번호를 돌려준다"
+    );
+    assert!(!p.proof_is_kept(), "증명을 소비한다");
+    assert!(p.state.popups.is_passive(PICKER), "Intent 처리 전");
+    p.drain();
+    assert!(p.state.popups.is_focused(PICKER));
+    assert!(!p.state.popups.is_passive(PICKER));
+    assert!(p.state.has_egui_overlay_open());
+    p.assert_stays_first_request();
+}
+
+/// 경합으로 둘째 요청이 첫 요청의 열기 Intent보다 먼저 처리돼도 passive로 갇히지 않는다.
+#[test]
+fn a_proven_press_before_the_open_intent_is_handled_still_focuses_the_picker() {
+    let mut p = PassivePicker::opened(None, false);
+    assert!(!p.state.popups.is_open(PICKER));
+    p.prove();
+    let resp = p.trigger(PLUGIN, p.sid);
+    assert_eq!(
+        resp.result.expect("promoted")["request_id"].as_u64(),
+        Some(p.first_request)
+    );
+    p.drain();
+    assert!(p.state.popups.is_focused(PICKER));
+    assert!(!p.state.popups.is_passive(PICKER));
+}
+
+#[test]
+fn a_press_without_a_proof_stays_busy_and_passive() {
+    let mut p = PassivePicker::opened(None, true);
+    let resp = p.trigger(PLUGIN, p.sid);
+    assert_eq!(resp.error.map(|e| e.code), Some(-32000));
+    assert!(p.state.take_pending_intents().is_empty());
+    assert!(p.state.popups.is_passive(PICKER));
+    assert!(!p.state.popups.has_focused());
+}
+
+#[test]
+fn a_press_of_another_plugin_or_surface_stays_busy_without_consuming_the_proof() {
+    let mut p = PassivePicker::opened(None, true);
+    p.prove();
+    let resp = p.trigger("com.example.other", p.sid);
+    p.assert_busy(&resp, "다른 plugin");
+    assert!(p.state.popups.is_passive(PICKER));
+
+    let other_origin = u32::MAX;
+    let mut p = PassivePicker::opened(Some(other_origin), true);
+    p.prove();
+    let resp = p.trigger(PLUGIN, p.sid);
+    p.assert_busy(&resp, "다른 surface 에서 연 피커");
+    assert!(p.state.popups.is_passive(PICKER));
+}
+
+#[test]
+fn a_press_on_a_focused_picker_stays_busy_without_consuming_the_proof() {
+    let mut p = PassivePicker::opened(None, true);
+    p.prove();
+    assert!(p.trigger(PLUGIN, p.sid).result.is_some());
+    p.drain();
+    p.prove();
+    let resp = p.trigger(PLUGIN, p.sid);
+    p.assert_busy(&resp, "이미 포커스된 피커");
+    assert!(p.state.take_pending_intents().is_empty());
+}
+
+#[test]
+fn a_press_after_the_picker_closed_stays_busy_without_consuming_the_proof() {
+    let mut p = PassivePicker::opened(None, true);
+    p.state.dialogs.file_picker.as_mut().unwrap().result =
+        Some(crate::state::FilePickerResult::Cancelled);
+    p.state.popups.close(PICKER);
+    p.prove();
+    let resp = p.trigger(PLUGIN, p.sid);
+    p.assert_busy(&resp, "결과 전달을 기다리는 피커");
+
+    // 결과가 채워졌는데 팝업이 아직 닫히지 않은 틈도 같다.
+    let mut p = PassivePicker::opened(None, true);
+    p.state.dialogs.file_picker.as_mut().unwrap().result =
+        Some(crate::state::FilePickerResult::Cancelled);
+    p.prove();
+    let resp = p.trigger(PLUGIN, p.sid);
+    p.assert_busy(&resp, "결과가 채워진 피커");
+
+    // 닫기만 처리되고 결과가 아직 기록되지 않은 틈도 같다.
+    let mut p = PassivePicker::opened(None, true);
+    p.state.popups.close(PICKER);
+    p.prove();
+    let resp = p.trigger(PLUGIN, p.sid);
+    p.assert_busy(&resp, "닫힌 뒤 결과 기록 전");
+}
+
+#[test]
+fn a_press_while_a_focused_open_is_queued_stays_busy_without_consuming_the_proof() {
+    let (mut state, mut engine_session) = source_fixture();
+    let view = Arc::new(());
+    state.webview_identity = Arc::downgrade(&view);
+    let proofs = crate::app::html_runtime::NavigationProofs::default();
+    let mut engine = engine_session.borrow_mut();
+    let sid = engine.workspace_at(0).unwrap().all_surface_ids()[0];
+    install_source(&mut engine, sid);
+    gesture(true).record(&proofs, &state, &engine, sid);
+    let params = json!({ "origin_surface_id": sid, "user_navigation_url": NAV_URL });
+    let call = |state: &mut crate::state::RequestContext, engine: &mut _| {
+        crate::adapters::ipc::handler::file_picker::handle_trigger_with_proofs(
+            state,
+            engine,
+            &plugin_caller_of(PLUGIN),
+            json!(1),
+            &params,
+            Some(&proofs),
+        )
+    };
+    assert!(call(&mut state, &mut engine).result.is_some());
+    gesture(true).record(&proofs, &state, &engine, sid);
+    let resp = call(&mut state, &mut engine);
+    assert_eq!(resp.error.map(|e| e.code), Some(-32000));
+    assert!(proofs.take(
+        &state.webview_identity,
+        &engine.as_ref(),
+        PLUGIN,
+        sid,
+        NAV_URL
+    ));
 }
