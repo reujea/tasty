@@ -16,6 +16,9 @@ pub(super) struct ProcessSnapshot {
     entries: Vec<(u32, u32, String)>,
     /// `parent_pid` → indices into `entries`.
     children: HashMap<u32, Vec<usize>>,
+    /// The process walking the tree. It started every shell, so it can only appear
+    /// below one through a reused PID of its own exited parent.
+    host_pid: Option<u32>,
 }
 
 impl ProcessSnapshot {
@@ -24,7 +27,17 @@ impl ProcessSnapshot {
         for (i, (_, ppid, _)) in entries.iter().enumerate() {
             children.entry(*ppid).or_default().push(i);
         }
-        Self { entries, children }
+        Self {
+            entries,
+            children,
+            host_pid: None,
+        }
+    }
+
+    /// Never walk into `pid`, the process that launched the shells.
+    pub(super) fn excluding_host(mut self, pid: u32) -> Self {
+        self.host_pid = Some(pid);
+        self
     }
 
     /// Choose the shallowest non-shell descendant, breaking ties by lowest PID.
@@ -39,6 +52,7 @@ impl ProcessSnapshot {
         // the shell itself). Each PID is expanded once, which bounds the walk by
         // the snapshot size.
         let mut visited: HashSet<u32> = HashSet::from([shell_pid]);
+        visited.extend(self.host_pid);
         // (pid, depth, entry index); the shell itself has no entry index here.
         let mut queue: VecDeque<(u32, u32, Option<usize>)> = VecDeque::from([(shell_pid, 0, None)]);
         // (pid, name, depth) of the shallowest non-shell descendant so far.

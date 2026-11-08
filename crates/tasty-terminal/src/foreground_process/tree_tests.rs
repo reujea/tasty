@@ -142,3 +142,21 @@ fn a_long_shell_chain_reaches_its_program() {
     let info = resolve_within(&rows, 1).expect("resolve");
     assert_eq!((info.name.as_str(), info.pid), ("node", depth + 2));
 }
+
+// The host's own parent exited and a shell descendant took its PID, so the host
+// shows up below the shell. The host is never the shell's foreground program.
+#[test]
+fn the_host_reached_through_its_reused_parent_pid_is_not_chosen() {
+    let rows = [
+        (10, 900, "tasty.exe"),
+        (100, 10, "cmd.exe"),
+        (200, 100, "pwsh.exe"),
+        (900, 200, "cmd.exe"),
+        (300, 10, "tasty-plugin.exe"),
+    ];
+    let info = snapshot(&rows)
+        .excluding_host(10)
+        .resolve(100)
+        .expect("resolve");
+    assert_eq!((info.name.as_str(), info.pid), ("cmd", 900));
+}

@@ -221,7 +221,7 @@ fn capture_windows_snapshot() -> Option<tree::ProcessSnapshot> {
             }
         }
 
-        Some(tree::ProcessSnapshot::from_entries(entries))
+        Some(tree::ProcessSnapshot::from_entries(entries).excluding_host(std::process::id()))
     }
 }
 
