@@ -136,6 +136,8 @@ panic 이 아니라 hang 이면 **panic hook 이 발동하지 않으므로 `cras
 
 콜백(`resumed` / `window_event` / `redraw` / `user_event` / `about_to_wait` / `device_event` / `new_events`)이 **5 초** 안에 반환하지 않으면 독립 워치독이 `~/.tasty/crash-reports/hang-<YYYY-MM-DDTHH-MM-SS>.log`를 남긴다. 콜백 바깥에서도 아직 메인 루프가 꺼내야 할 IPC 명령이 있고 관측한 진행이 5초 동안 없으면 `outside_callback`으로 보고한다. 이때는 마지막 콜백 진행과 연속 pending 기간 시작 중 더 늦은 시각부터 잰다. 정상 idle에는 pending이 없으므로 시간만으로 보고하지 않는다.
 
+콜백이 모두 짧게 끝나도 한 iteration이 `about_to_wait`에 닿지 못한 채 5초가 지나면 `starved_iteration`으로 보고한다. winit은 사용자 이벤트 큐가 빌 때까지 `about_to_wait`로 넘어가지 않으므로, 이벤트가 처리 속도보다 빨리 쌓이면 콜백 하나의 시간으로는 보이지 않는 정지가 생긴다. 시간은 직전 `about_to_wait`가 끝난 뒤 처음 들어온 콜백부터 잰다. `Stuck for`는 그 시간이고 `Last callback`은 표본 시점의 마지막 콜백이다. 이벤트 원천을 좁히려면 아래의 외부 도구로 붙는다. winit이 `about_to_wait`를 부르지 않는 OS 모달 루프(창 이동·live resize 등)가 5초를 넘으면 이 보고가 나올 수 있다. 실제 OS에서 그 경우를 측정하지 않았다.
+
 ```
 === Tasty Hang Report ===
 Timestamp: 2026:08:30 01:24:09

@@ -35,6 +35,9 @@ static PROGRESS_NS: AtomicU64 = AtomicU64::new(0);
 // Saved ancestor clocks must also honor the most recently completed intentional wait.
 static PAUSE_RESET_NS: AtomicU64 = AtomicU64::new(0);
 static LAST_PHASE: AtomicU8 = AtomicU8::new(0);
+/// 마지막 `about_to_wait` 이후 처음 들어온 콜백의 시각 + 1. 0 이면 iteration 이 닫혀 있다.
+/// 짧은 콜백이 끝없이 이어져 `about_to_wait` 에 닿지 못하는 기아는 콜백 하나의 시간으로는 보이지 않는다.
+static ITERATION_OPEN_NS: AtomicU64 = AtomicU64::new(0);
 static LAST_PHASE_NS: AtomicU64 = AtomicU64::new(0);
 
 /// Start of a continuous nonempty main-loop queue-obligation period.
@@ -122,6 +125,9 @@ impl Guard {
             PHASE.load(Ordering::Relaxed),
         );
         let nested = DEPTH.fetch_add(1, Ordering::Relaxed) > 0;
+        if !nested && site != Site::AboutToWait && ITERATION_OPEN_NS.load(Ordering::Relaxed) == 0 {
+            ITERATION_OPEN_NS.store(now_ns().saturating_add(1), Ordering::Relaxed);
+        }
         SITE.store(site as u8, Ordering::Relaxed);
         PHASE.store(Phase::None as u8, Ordering::Relaxed);
         ENTERED_NS.store(now_ns(), Ordering::Relaxed);
@@ -145,6 +151,9 @@ impl Drop for Guard {
         } else {
             PROGRESS_NS.store(now_ns(), Ordering::Relaxed);
             PHASE.store(Phase::None as u8, Ordering::Relaxed);
+            if SITE.load(Ordering::Relaxed) == Site::AboutToWait as u8 {
+                ITERATION_OPEN_NS.store(0, Ordering::Relaxed);
+            }
         }
         SEQ.fetch_add(if nested { 2 } else { 1 }, Ordering::Release);
         REVISION.fetch_add(1, Ordering::Release);
@@ -191,6 +200,10 @@ impl Drop for PauseGuard {
         ENTERED_NS.store(now, Ordering::Relaxed);
         PROGRESS_NS.store(now, Ordering::Relaxed);
         PAUSE_RESET_NS.store(now, Ordering::Relaxed);
+        // 대기한 시간은 iteration 기아도 아니다. 열린 iteration 은 지금부터 다시 잰다.
+        if ITERATION_OPEN_NS.load(Ordering::Relaxed) != 0 {
+            ITERATION_OPEN_NS.store(now.saturating_add(1), Ordering::Relaxed);
+        }
         // seq 를 2 만큼 올린다: 홀짝(= 콜백 안)은 유지하면서 ① 진행 중인 표본을 무효화하고
         // ② 재보고 추적이 이 이후를 별개 구간으로 보게 한다.
         SEQ.fetch_add(2, Ordering::Release);
@@ -215,6 +228,10 @@ struct Snapshot {
     stuck: Duration,
     /// 표본 시점에 의도적 블로킹 구간([`without_stall_watch`]) 안이었나.
     paused: bool,
+    /// 열린 iteration 의 식별값(열린 시각). 0 이면 `about_to_wait` 뒤라 닫혀 있다.
+    iteration_key: u64,
+    /// iteration 이 열린 뒤 `about_to_wait` 에 닿지 못한 시간.
+    iteration_age: Duration,
 }
 
 /// 직전 보고 상태.
@@ -223,26 +240,60 @@ struct Reported {
     seq: u64,
     work_generation: u64,
     at: Duration,
+    /// iteration 기아로 보고했으면 그 iteration 의 식별값, 콜백 stall 이면 0.
+    starved_iteration: u64,
+}
+
+/// 보고 판정 결과.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct Verdict {
+    /// 이 stall 의 첫 보고인가.
+    first: bool,
+    /// 콜백 하나가 아니라 iteration 이 `about_to_wait` 에 닿지 못해 보고한다.
+    starved: bool,
 }
 
 /// 이번 폴링에서 보고할지 판정한다. `None` 이면 보고하지 않는다.
-/// 반환하는 `bool` 은 "이 stall 의 첫 보고인가".
-fn should_report(snap: Snapshot, reported: Option<Reported>) -> Option<bool> {
-    if snap.seq.is_multiple_of(2) && snap.pending == 0 {
-        return None; // Idle has no known work requiring main-loop progress.
-    }
+fn should_report(snap: Snapshot, reported: Option<Reported>) -> Option<Verdict> {
     if snap.paused {
         return None; // 의도적 블로킹(native 모달 등) — 행이 아니다
     }
-    if snap.stuck < REPORT_AFTER {
-        return None;
+    let callback_idle = snap.seq.is_multiple_of(2) && snap.pending == 0;
+    if callback_idle || snap.stuck < REPORT_AFTER {
+        // 콜백은 짧게 끝나지만 iteration 이 about_to_wait 에 닿지 못하는 기아.
+        // 콜백 사이에 표본을 잡으면 idle 처럼 보이므로 idle 판정보다 먼저 본다.
+        if snap.iteration_key == 0 || snap.iteration_age < REPORT_AFTER {
+            return None;
+        }
+        return match reported {
+            Some(prev) if prev.starved_iteration == snap.iteration_key => {
+                (snap.iteration_age.saturating_sub(prev.at) >= REPEAT_EVERY).then_some(Verdict {
+                    first: false,
+                    starved: true,
+                })
+            }
+            _ => Some(Verdict {
+                first: true,
+                starved: true,
+            }),
+        };
     }
     match reported {
-        Some(prev) if prev.seq == snap.seq && prev.work_generation == snap.work_generation => {
+        Some(prev)
+            if prev.starved_iteration == 0
+                && prev.seq == snap.seq
+                && prev.work_generation == snap.work_generation =>
+        {
             // 같은 stall — 재보고 간격을 채웠을 때만.
-            (snap.stuck.saturating_sub(prev.at) >= REPEAT_EVERY).then_some(false)
+            (snap.stuck.saturating_sub(prev.at) >= REPEAT_EVERY).then_some(Verdict {
+                first: false,
+                starved: false,
+            })
         }
-        _ => Some(true),
+        _ => Some(Verdict {
+            first: true,
+            starved: false,
+        }),
     }
 }
 
@@ -275,9 +326,16 @@ fn sample() -> Option<Snapshot> {
     } else {
         entered
     };
+    let iteration_open = ITERATION_OPEN_NS.load(Ordering::Relaxed);
     let snap = Snapshot {
         seq,
         paused,
+        iteration_key: iteration_open,
+        iteration_age: if iteration_open == 0 {
+            Duration::ZERO
+        } else {
+            now.saturating_duration_since(*ORIGIN + Duration::from_nanos(iteration_open - 1))
+        },
         stuck: now.checked_duration_since(start)?,
         pending: pending.map_or(0, |p| p.count),
         work_generation: if seq.is_multiple_of(2) {
@@ -303,15 +361,22 @@ fn sample() -> Option<Snapshot> {
 }
 
 /// stall 1 건 보고. `first` 면 파일 리포트까지 남긴다(재보고는 로그만 — 파일 폭주 방지).
-fn report(snap: Snapshot, first: bool) {
+fn report(snap: Snapshot, verdict: Verdict) {
+    let first = verdict.first;
     let inside_callback = !snap.seq.is_multiple_of(2);
-    let site = if inside_callback {
+    let site = if verdict.starved {
+        "starved_iteration"
+    } else if inside_callback {
         site_label(snap.site)
     } else {
         "outside_callback"
     };
     let phase = phase_label(snap.phase);
-    let stuck_ms = snap.stuck.as_millis() as u64;
+    let stuck_ms = if verdict.starved {
+        snap.iteration_age.as_millis() as u64
+    } else {
+        snap.stuck.as_millis() as u64
+    };
     tracing::error!(target: "tasty::stall", site, phase, stuck_ms, first,
         inside_callback, pending = snap.pending,
         progress_age_ms = snap.progress_age.as_millis() as u64,
@@ -351,15 +416,24 @@ fn watch_loop() {
         std::thread::sleep(POLL_INTERVAL);
 
         let Some(snap) = sample() else { continue };
-        let Some(first) = should_report(snap, reported) else {
+        let Some(verdict) = should_report(snap, reported) else {
             continue;
         };
         reported = Some(Reported {
             seq: snap.seq,
             work_generation: snap.work_generation,
-            at: snap.stuck,
+            at: if verdict.starved {
+                snap.iteration_age
+            } else {
+                snap.stuck
+            },
+            starved_iteration: if verdict.starved {
+                snap.iteration_key
+            } else {
+                0
+            },
         });
-        report(snap, first);
+        report(snap, verdict);
     }
 }
 
@@ -402,6 +476,68 @@ mod tests {
     /// 직렬화해야 한다(테스트는 기본적으로 병렬 실행된다).
     static GLOBALS: Mutex<()> = Mutex::new(());
 
+    /// 콜백 stall 판정만 보는 시험에서 첫 보고 여부만 꺼낸다.
+    fn first_of(snap: Snapshot, reported: Option<Reported>) -> Option<bool> {
+        should_report(snap, reported).map(|v| {
+            assert!(!v.starved, "콜백 stall 시험이 iteration 기아로 판정됐다");
+            v.first
+        })
+    }
+
+    fn starving(seq: u64, iteration_secs: u64) -> Snapshot {
+        Snapshot {
+            iteration_key: 77,
+            iteration_age: Duration::from_secs(iteration_secs),
+            stuck: Duration::from_millis(3),
+            ..snap(seq, 0)
+        }
+    }
+
+    #[test]
+    fn short_callbacks_that_never_reach_about_to_wait_report_starvation() {
+        // 콜백 사이(짝수 seq, 대기 작업 없음)에 잡은 표본도 기아로 본다.
+        let v = should_report(starving(8, 6), None).expect("starvation must report");
+        assert!(v.first && v.starved);
+        assert_eq!(
+            should_report(starving(9, 4), None),
+            None,
+            "below the threshold"
+        );
+        let closed = Snapshot {
+            iteration_key: 0,
+            ..starving(8, 60)
+        };
+        assert_eq!(
+            should_report(closed, None),
+            None,
+            "a closed iteration is idle"
+        );
+        let paused = Snapshot {
+            paused: true,
+            ..starving(8, 60)
+        };
+        assert_eq!(should_report(paused, None), None);
+    }
+
+    #[test]
+    fn the_same_starved_iteration_reports_again_only_after_the_repeat_interval() {
+        let prev = Reported {
+            seq: 1,
+            work_generation: 0,
+            at: Duration::from_secs(6),
+            starved_iteration: 77,
+        };
+        // seq 가 계속 바뀌어도 같은 iteration 이면 같은 stall 이다.
+        assert_eq!(should_report(starving(500, 20), Some(prev)), None);
+        let again = should_report(starving(900, 36), Some(prev)).expect("repeat");
+        assert!(!again.first && again.starved);
+        let next = Snapshot {
+            iteration_key: 78,
+            ..starving(901, 6)
+        };
+        assert!(should_report(next, Some(prev)).is_some_and(|v| v.first));
+    }
+
     fn snap(seq: u64, secs: u64) -> Snapshot {
         Snapshot {
             pending: 0,
@@ -421,26 +557,26 @@ mod tests {
 
     #[test]
     fn even_seq_means_outside_callback_never_reports() {
-        assert_eq!(should_report(snap(4, 600), None), None);
+        assert_eq!(first_of(snap(4, 600), None), None);
     }
 
     #[test]
     fn outside_callback_pending_work_is_not_indistinguishable_from_idle() {
         let idle = snap(4, 6);
-        assert_eq!(should_report(idle, None), None);
+        assert_eq!(first_of(idle, None), None);
         let pending = Snapshot { pending: 1, ..idle };
         assert_eq!(pending.pending, 1);
-        assert_eq!(should_report(pending, None), Some(true));
+        assert_eq!(first_of(pending, None), Some(true));
     }
 
     #[test]
     fn short_callback_does_not_report() {
-        assert_eq!(should_report(snap(3, 1), None), None);
+        assert_eq!(first_of(snap(3, 1), None), None);
     }
 
     #[test]
     fn first_long_stall_reports_as_first() {
-        assert_eq!(should_report(snap(3, 5), None), Some(true));
+        assert_eq!(first_of(snap(3, 5), None), Some(true));
     }
 
     #[test]
@@ -449,11 +585,12 @@ mod tests {
             seq: 3,
             work_generation: 0,
             at: Duration::from_secs(5),
+            starved_iteration: 0,
         };
         // 5s → 20s: 재보고 간격(30s) 미달.
-        assert_eq!(should_report(snap(3, 20), Some(prev)), None);
+        assert_eq!(first_of(snap(3, 20), Some(prev)), None);
         // 5s → 35s: 간격 충족, 첫 보고는 아니다.
-        assert_eq!(should_report(snap(3, 35), Some(prev)), Some(false));
+        assert_eq!(first_of(snap(3, 35), Some(prev)), Some(false));
     }
 
     #[test]
@@ -462,14 +599,15 @@ mod tests {
             seq: 3,
             work_generation: 0,
             at: Duration::from_secs(40),
+            starved_iteration: 0,
         };
-        assert_eq!(should_report(snap(7, 6), Some(prev)), Some(true));
+        assert_eq!(first_of(snap(7, 6), Some(prev)), Some(true));
     }
 
     #[test]
     fn intentional_block_is_not_reported() {
         // 콜백 안(홀수) + 임계 초과지만 의도적 블로킹 구간이면 보고하지 않는다.
-        assert_eq!(should_report(paused_snap(3, 600), None), None);
+        assert_eq!(first_of(paused_snap(3, 600), None), None);
     }
 
     #[test]
@@ -525,15 +663,16 @@ mod tests {
             work_generation: 7,
             ..snap(4, 5)
         };
-        assert_eq!(should_report(s, None), Some(true));
+        assert_eq!(first_of(s, None), Some(true));
         let old = Reported {
             seq: 4,
             work_generation: 7,
             at: Duration::from_secs(5),
+            starved_iteration: 0,
         };
-        assert_eq!(should_report(s, Some(old)), None);
+        assert_eq!(first_of(s, Some(old)), None);
         assert_eq!(
-            should_report(
+            first_of(
                 Snapshot {
                     stuck: Duration::from_secs(35),
                     ..s
@@ -543,7 +682,7 @@ mod tests {
             Some(false)
         );
         assert_eq!(
-            should_report(
+            first_of(
                 Snapshot {
                     work_generation: 8,
                     ..s
@@ -552,7 +691,7 @@ mod tests {
             ),
             Some(true)
         );
-        assert_eq!(should_report(Snapshot { paused: true, ..s }, None), None);
+        assert_eq!(first_of(Snapshot { paused: true, ..s }, None), None);
     }
     #[test]
     fn nested_callback_restores_outer_scope_and_pause_resets_outside_progress() {
@@ -584,13 +723,13 @@ mod tests {
             {
                 let _inner = Guard::enter(Site::WindowEvent);
                 without_stall_watch(|| std::thread::sleep(Duration::from_millis(5200)));
-                assert_eq!(should_report(sample().unwrap(), None), None);
+                assert_eq!(first_of(sample().unwrap(), None), None);
             }
             let restored = sample().unwrap();
             assert_eq!(restored.site, Site::UserEvent as u8);
             assert_eq!(restored.phase, Phase::Configure as u8);
             assert_eq!(
-                should_report(restored, None),
+                first_of(restored, None),
                 None,
                 "excluded nested wait must stay excluded after restoring the outer scope"
             );
@@ -601,7 +740,7 @@ mod tests {
             let _inner = Guard::enter(Site::WindowEvent);
         }
         assert_eq!(
-            should_report(sample().unwrap(), None),
+            first_of(sample().unwrap(), None),
             Some(true),
             "a nested callback without a pause must not erase real outer work"
         );
