@@ -7,6 +7,9 @@ use std::sync::{
 };
 use std::time::{Duration, Instant};
 
+/// Only bounds a failing wait. Passing rounds do not depend on it.
+const SETTLE_WAIT: Duration = Duration::from_secs(30);
+
 struct GatedReceipt {
     ready: Arc<AtomicBool>,
     gate: Mutex<Option<(mpsc::Sender<()>, mpsc::Receiver<()>)>>,
@@ -20,6 +23,39 @@ impl PendingSave for GatedReceipt {
         }
         ready_at_read.then_some(Ok(()))
     }
+}
+
+/// Waits for the startup work queued by `build` and returns the wake counts to measure from.
+///
+/// The worker runs one cut at a time and notifies after each, so while this command runs every
+/// earlier notice has returned. Acknowledging there makes the notice of this command's own batch
+/// send a wake, and sending the wake is the last thing a notice does. Receiving it therefore
+/// proves that no startup notice can still touch the latch, without timing the writer's window.
+fn settle_startup_writes(
+    writer: &tasty_utils::batch_writer::Handle<FileExecutor>,
+    wake: &tasty_utils::batch_writer::WakeLatch,
+    wake_rx: &mpsc::Receiver<()>,
+) -> tasty_utils::batch_writer::WakeCounts {
+    let (entered_tx, entered_rx) = mpsc::channel();
+    let (release_tx, release_rx) = mpsc::channel::<()>();
+    let _ticket = crate::file_command::submit(
+        Some(writer),
+        0,
+        move || {
+            entered_tx.send(()).unwrap();
+            // An error means the test already failed and dropped the sender.
+            release_rx.recv().ok();
+        },
+        |_| 0,
+    )
+    .unwrap();
+    entered_rx.recv_timeout(SETTLE_WAIT).unwrap();
+    wake.acknowledge();
+    while wake_rx.try_recv().is_ok() {}
+    release_tx.send(()).unwrap();
+    wake_rx.recv_timeout(SETTLE_WAIT).unwrap();
+    wake.acknowledge();
+    wake.counts()
 }
 
 fn gated_round(ack_first: bool) -> (bool, (u64, u64, usize), (u64, u64)) {
@@ -36,6 +72,7 @@ fn gated_round(ack_first: bool) -> (bool, (u64, u64, usize), (u64, u64)) {
     )
     .unwrap();
     let wake = parts.wake.clone();
+    let writer = parts.writer.handle();
     let mut services = crate::app::services::builder::AppServicesBuilder::new()
         .with_clock(Arc::new(
             crate::adapters::test::fake_clock::FakeClock::default(),
@@ -58,6 +95,7 @@ fn gated_round(ack_first: bool) -> (bool, (u64, u64, usize), (u64, u64)) {
         .with_file_writer(parts)
         .build()
         .unwrap();
+    let before = settle_startup_writes(&writer, &wake, &wake_rx);
     let ready = Arc::new(AtomicBool::new(false));
     let (release_tx, release_rx) = mpsc::channel();
     let (finished_tx, finished_rx) = mpsc::channel();
@@ -101,7 +139,14 @@ fn gated_round(ack_first: bool) -> (bool, (u64, u64, usize), (u64, u64)) {
         assert!(Instant::now() < deadline);
         std::thread::yield_now();
     }
-    (queued, status, (counts.notified, counts.woken))
+    (
+        queued,
+        status,
+        (
+            counts.notified - before.notified,
+            counts.woken - before.woken,
+        ),
+    )
 }
 
 #[test]
