@@ -14,7 +14,8 @@ impl PluginManager {
         self.auto_disabled.contains(plugin_id)
     }
 
-    /// 신뢰 검사를 통과하지 못했거나 자동 비활성화돼 확인이 필요한 플러그인 수.
+    /// 신뢰 검사를 통과하지 못했거나 자동 비활성화됐거나 예약 id 로 막혀 확인이 필요한 항목 수.
+    /// 플러그인 창의 확인 필요 탭 배지(스냅샷의 항목 수)와 같은 항목을 센다.
     pub fn attention_count(&self) -> usize {
         let health = self
             .packages
@@ -23,7 +24,7 @@ impl PluginManager {
                 self.is_auto_disabled(&p.manifest.id) && !self.config.is_disabled(&p.manifest.id)
             })
             .count();
-        self.rejected.len() + health
+        self.rejected.len() + self.reserved.len() + health
     }
 
     /// 설치 패키지의 읽기 전용 목록. 변경할 때는 refresh_packages를 거쳐

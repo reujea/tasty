@@ -15,7 +15,7 @@ fn write_plugin(root: &std::path::Path, folder: &str, id: &str) {
 }
 
 #[test]
-fn an_unknown_reserved_id_is_neither_loaded_nor_shown_for_review() {
+fn an_unknown_reserved_id_is_not_loaded_and_stays_out_of_the_rejected_list() {
     let home = HomeEnvGuard::tasty_home();
     // 폴더 이름이 공식 id여도 매니페스트의 id로 판정한다.
     write_plugin(home.path(), "com.tasty.markdown", "com.tasty.fake");
@@ -26,11 +26,6 @@ fn an_unknown_reserved_id_is_neither_loaded_nor_shown_for_review() {
     let ids: Vec<&str> = found.reserved.iter().map(|b| b.id.as_str()).collect();
     assert_eq!(ids, ["com.tasty.fake", "com.tasty.other-fake"]);
     assert!(found.reserved[0].dir.ends_with("com.tasty.markdown"));
-    assert!(
-        found.reserved[0]
-            .reason
-            .contains("reserved com.tasty. prefix")
-    );
 }
 
 /// debug 시험 실행에서 서명 판정은 우회되므로 다른 접두는 등록된다.
@@ -48,6 +43,64 @@ fn other_prefixes_and_official_ids_still_load_in_debug() {
         .collect();
     assert_eq!(ids, ["com.example.x", "com.tasty.image"]);
     assert!(found.reserved.is_empty());
+}
+
+#[test]
+fn attention_count_includes_reserved_folders() {
+    let home = HomeEnvGuard::tasty_home();
+    write_plugin(home.path(), "one", "com.tasty.same");
+    write_plugin(home.path(), "two", "com.tasty.same");
+    let mut mgr = crate::PluginManager::new(std::sync::Arc::new(
+        tasty_terminal::waker_factory::NoopWakerFactory,
+    ));
+    mgr.refresh_packages();
+    assert_eq!(mgr.attention_count(), 2);
+}
+
+/// 경로가 같은 항목만 빠진다. 같은 id 의 다른 폴더는 남고, 다시 생긴 폴더는 새로 알린다.
+#[test]
+fn forgetting_a_folder_leaves_the_other_folder_with_its_id() {
+    let home = HomeEnvGuard::tasty_home();
+    write_plugin(home.path(), "one", "com.tasty.same");
+    write_plugin(home.path(), "two", "com.tasty.same");
+    let mut mgr = crate::PluginManager::new(std::sync::Arc::new(
+        tasty_terminal::waker_factory::NoopWakerFactory,
+    ));
+    mgr.refresh_packages();
+    assert_eq!(mgr.take_failure_reports().len(), 2);
+    mgr.forget_reserved(&home.path().join("plugins/one"));
+    assert_eq!(mgr.attention_count(), 1);
+    assert!(mgr.reserved_blocked()[0].dir.ends_with("two"));
+    mgr.refresh_packages();
+    assert_eq!(mgr.take_failure_reports().len(), 1);
+}
+
+/// 플러그인 설정 변경은 예약 id 를 받으면 지우지 않고 Attention 탭으로 안내한다.
+#[test]
+fn a_reserved_id_is_told_apart_from_an_unknown_id() {
+    let home = HomeEnvGuard::tasty_home();
+    write_plugin(home.path(), "fake", "com.tasty.fake");
+    let mut mgr = crate::PluginManager::new(std::sync::Arc::new(
+        tasty_terminal::waker_factory::NoopWakerFactory,
+    ));
+    mgr.refresh_packages();
+    let change = |id: &str| crate::manager::file_config::ConfigChange::Enabled {
+        id: id.to_string(),
+        enabled: false,
+    };
+    let reserved = mgr
+        .prepare_config_change(&change("com.tasty.fake"))
+        .err()
+        .expect("reserved")
+        .to_string();
+    assert!(reserved.contains("Attention"), "{reserved}");
+    let unknown = mgr
+        .prepare_config_change(&change("com.tasty.other"))
+        .err()
+        .expect("unknown")
+        .to_string();
+    assert!(unknown.contains("not installed"), "{unknown}");
+    assert!(home.path().join("plugins/fake/tasty-plugin.toml").exists());
 }
 
 #[test]

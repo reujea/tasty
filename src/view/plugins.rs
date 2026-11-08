@@ -53,6 +53,12 @@ impl PluginsView {
         self.mark_dirty();
     }
 
+    /// App이 예약 id 폴더 제거를 끝냈다. 바를 평소로 되돌린다. 행은 스냅샷이 정한다.
+    pub fn finish_remove_reserved(&mut self) {
+        self.ui_state.finish_remove_reserved();
+        self.mark_dirty();
+    }
+
     /// 모달 윈도우 영역에 toast를 띄운다. `Add` 탭에서 설치 성공/실패 알림 등에 사용.
     pub fn push_toast(&mut self, message: impl Into<String>, kind: crate::adapters::ui::ToastKind) {
         self.toasts

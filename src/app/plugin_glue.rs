@@ -3,6 +3,7 @@
 mod file_install;
 mod file_reapprove;
 mod file_remove;
+mod file_reserved_remove;
 mod file_upgrade;
 pub(crate) mod install_trust;
 pub(crate) mod lifecycle;

@@ -18,6 +18,28 @@ fn entry(kind: AttentionKind) -> AttentionEntry {
         cause: None,
         unverified: None,
         manifest_sha256: String::new(),
+        folder: None,
+    }
+}
+
+fn reserved(folder: &str, id: &str) -> AttentionEntry {
+    AttentionEntry {
+        id: id.into(),
+        name: folder.into(),
+        version: String::new(),
+        authors: Vec::new(),
+        description: String::new(),
+        homepage: String::new(),
+        builtin: false,
+        kind: AttentionKind::ReservedId,
+        fingerprint: None,
+        permissions_added: Vec::new(),
+        permissions_removed: Vec::new(),
+        health_detail: None,
+        cause: None,
+        unverified: None,
+        manifest_sha256: String::new(),
+        folder: Some(std::path::PathBuf::from(format!("/plugins/{folder}"))),
     }
 }
 
@@ -170,4 +192,294 @@ fn a_broken_signature_hides_the_description_and_homepage() {
         !plain.iter().any(|(t, _)| t.contains("/tmp/log-tailer")),
         "{plain:?}"
     );
+}
+
+/// 예약 id 사유는 danger 이고 매니페스트 글을 숨긴다.
+#[test]
+fn the_reserved_reason_is_danger_and_hides_manifest_text() {
+    assert!(AttentionKind::ReservedId.is_danger());
+    assert!(!AttentionKind::ReservedId.shows_manifest_text());
+}
+
+fn window_step(
+    ctx: &egui::Context,
+    snapshot: &PluginsSnapshot,
+    ui_state: &mut PluginsUiState,
+    actions: &mut Vec<PluginsAction>,
+    events: Vec<egui::Event>,
+) -> egui::FullOutput {
+    let raw = egui::RawInput {
+        screen_rect: Some(egui::Rect::from_min_size(
+            egui::Pos2::ZERO,
+            egui::vec2(720.0, 480.0),
+        )),
+        events,
+        ..Default::default()
+    };
+    ctx.run(raw, |ctx| {
+        crate::plugins_ui::draw_plugins_panel(ctx, snapshot, ui_state, actions);
+    })
+}
+
+fn two_folders_snapshot() -> PluginsSnapshot {
+    PluginsSnapshot {
+        attention: vec![
+            reserved("one", "com.tasty.same"),
+            reserved("two", "com.tasty.same"),
+        ],
+        ..Default::default()
+    }
+}
+
+fn attention_state() -> PluginsUiState {
+    PluginsUiState {
+        active_tab: super::super::PluginsTab::Attention,
+        ..Default::default()
+    }
+}
+
+/// 상세에는 폴더 이름 · id · 숨김 안내 · 배너 · Folder 절 · Remove 만 있다.
+#[test]
+fn the_reserved_detail_offers_only_remove() {
+    crate::i18n::init("en");
+    let texts = draw(reserved("com.tasty.agent-stream-plus", "com.tasty.fake"));
+    let has = |label: &str| texts.iter().any(|(t, _)| t == label);
+    for label in [
+        "com.tasty.fake",
+        t("plugins.attn_reserved_desc_hidden"),
+        t("plugins.attn_not_registered"),
+        t("plugins.attn_remove"),
+        "/plugins/com.tasty.agent-stream-plus",
+    ] {
+        assert!(has(label), "{label:?}: {texts:?}");
+    }
+    for label in [
+        t("plugins.attn_register_anyway"),
+        t("plugins.attn_reapprove"),
+        t("plugins.configure"),
+        t("plugins.open_folder"),
+        t("plugins.attn_desc_hidden"),
+    ] {
+        assert!(!has(label), "{label:?}: {texts:?}");
+    }
+}
+
+/// 같은 id 의 두 폴더를 각각 고를 수 있다.
+#[test]
+fn two_folders_with_one_id_are_selected_separately() {
+    crate::i18n::init("en");
+    let snapshot = two_folders_snapshot();
+    let mut ui_state = attention_state();
+    ui_state.attention_selected = Some(snapshot.attention[1].key());
+    let ctx = egui::Context::default();
+    let mut actions = Vec::new();
+    for _ in 0..2 {
+        drop(window_step(
+            &ctx,
+            &snapshot,
+            &mut ui_state,
+            &mut actions,
+            Vec::new(),
+        ));
+    }
+    assert_eq!(
+        ui_state.attention_selected,
+        Some(snapshot.attention[1].key())
+    );
+    assert_ne!(snapshot.attention[0].key(), snapshot.attention[1].key());
+}
+
+fn escape() -> egui::Event {
+    egui::Event::Key {
+        key: egui::Key::Escape,
+        physical_key: None,
+        pressed: true,
+        repeat: false,
+        modifiers: egui::Modifiers::NONE,
+    }
+}
+
+/// 왼쪽 목록의 `index` 행을 누르는 이벤트. 행 높이와 시작 위치는 공용 상수에서 가져온다.
+fn click_row_events(ctx: &egui::Context, index: usize) -> Vec<egui::Event> {
+    let th = theme::theme();
+    let top = ctx.available_rect().top() + th.spacing_sm.value();
+    let row = PLUGIN_LIST_ROW_HEIGHT.value() + STRUCT_GAP_2.value();
+    let at = egui::pos2(
+        th.spacing_lg.value() * 2.0,
+        top + row * index as f32 + th.spacing_lg.value(),
+    );
+    vec![
+        egui::Event::PointerMoved(at),
+        egui::Event::PointerButton {
+            pos: at,
+            button: egui::PointerButton::Primary,
+            pressed: true,
+            modifiers: egui::Modifiers::NONE,
+        },
+        egui::Event::PointerButton {
+            pos: at,
+            button: egui::PointerButton::Primary,
+            pressed: false,
+            modifiers: egui::Modifiers::NONE,
+        },
+    ]
+}
+
+/// 지우는 중에는 Esc 를 소비하지 않고 다른 행을 눌러도 선택과 진행 상태가 그대로다.
+#[test]
+fn esc_and_selection_are_ignored_while_removing() {
+    crate::i18n::init("en");
+    let snapshot = two_folders_snapshot();
+    let first = snapshot.attention[0].folder.clone();
+    let mut ui_state = attention_state();
+    ui_state.attention_selected = Some(snapshot.attention[0].key());
+    ui_state.confirm_remove_folder = first.clone();
+    ui_state.removing_folder = first.clone();
+    let ctx = egui::Context::default();
+    let mut actions = Vec::new();
+    drop(window_step(
+        &ctx,
+        &snapshot,
+        &mut ui_state,
+        &mut actions,
+        Vec::new(),
+    ));
+
+    let mut left = false;
+    let raw = egui::RawInput {
+        screen_rect: Some(egui::Rect::from_min_size(
+            egui::Pos2::ZERO,
+            egui::vec2(720.0, 480.0),
+        )),
+        events: vec![escape()],
+        ..Default::default()
+    };
+    drop(ctx.run(raw, |ctx| {
+        crate::plugins_ui::draw_plugins_panel(ctx, &snapshot, &mut ui_state, &mut actions);
+        left = ctx.input(|i| i.key_pressed(egui::Key::Escape));
+    }));
+    assert!(left, "Esc must stay unconsumed while removing");
+    assert_eq!(ui_state.confirm_remove_folder, first);
+
+    let events = click_row_events(&ctx, 1);
+    drop(window_step(
+        &ctx,
+        &snapshot,
+        &mut ui_state,
+        &mut actions,
+        events,
+    ));
+    drop(window_step(
+        &ctx,
+        &snapshot,
+        &mut ui_state,
+        &mut actions,
+        Vec::new(),
+    ));
+    assert_eq!(
+        ui_state.attention_selected,
+        Some(snapshot.attention[0].key())
+    );
+    assert_eq!(ui_state.removing_folder, first);
+    assert!(actions.is_empty(), "{actions:?}");
+}
+
+/// 지우기 전에는 Esc 와 다른 행 선택이 확인을 닫는다.
+#[test]
+fn esc_and_a_new_selection_cancel_the_confirm() {
+    crate::i18n::init("en");
+    let snapshot = two_folders_snapshot();
+    let first = snapshot.attention[0].folder.clone();
+    let ctx = egui::Context::default();
+    let mut actions = Vec::new();
+
+    let mut ui_state = attention_state();
+    ui_state.attention_selected = Some(snapshot.attention[0].key());
+    ui_state.confirm_remove_folder = first.clone();
+    drop(window_step(
+        &ctx,
+        &snapshot,
+        &mut ui_state,
+        &mut actions,
+        Vec::new(),
+    ));
+    drop(window_step(
+        &ctx,
+        &snapshot,
+        &mut ui_state,
+        &mut actions,
+        vec![escape()],
+    ));
+    assert_eq!(ui_state.confirm_remove_folder, None);
+
+    ui_state.confirm_remove_folder = first;
+    drop(window_step(
+        &ctx,
+        &snapshot,
+        &mut ui_state,
+        &mut actions,
+        Vec::new(),
+    ));
+    let events = click_row_events(&ctx, 1);
+    drop(window_step(
+        &ctx,
+        &snapshot,
+        &mut ui_state,
+        &mut actions,
+        events,
+    ));
+    drop(window_step(
+        &ctx,
+        &snapshot,
+        &mut ui_state,
+        &mut actions,
+        Vec::new(),
+    ));
+    assert_eq!(ui_state.confirm_remove_folder, None);
+    assert_eq!(
+        ui_state.attention_selected,
+        Some(snapshot.attention[1].key())
+    );
+}
+
+/// 제거로 행이 빠지면 선택이 첫 항목으로 옮겨 가고 제거 상태도 지워진다.
+#[test]
+fn a_removed_row_clears_the_removing_state() {
+    crate::i18n::init("en");
+    let before = two_folders_snapshot();
+    let first = before.attention[0].folder.clone();
+    let mut ui_state = attention_state();
+    ui_state.attention_selected = Some(before.attention[0].key());
+    ui_state.confirm_remove_folder = first.clone();
+    ui_state.removing_folder = first;
+    let after = PluginsSnapshot {
+        attention: vec![before.attention[1].clone()],
+        ..Default::default()
+    };
+    let ctx = egui::Context::default();
+    let mut actions = Vec::new();
+    drop(window_step(
+        &ctx,
+        &after,
+        &mut ui_state,
+        &mut actions,
+        Vec::new(),
+    ));
+    assert_eq!(ui_state.removing_folder, None);
+    assert_eq!(ui_state.confirm_remove_folder, None);
+    assert_eq!(ui_state.attention_selected, Some(after.attention[0].key()));
+}
+
+/// 실패로 끝나면 바가 평소로 돌아간다.
+#[test]
+fn finishing_a_removal_returns_the_bar_to_rest() {
+    let mut ui_state = attention_state();
+    let dir = Some(std::path::PathBuf::from("/plugins/one"));
+    ui_state.confirm_remove_folder = dir.clone();
+    ui_state.removing_folder = dir;
+    ui_state.cancel_remove_confirm();
+    assert!(ui_state.confirm_remove_folder.is_some(), "no cancel path");
+    ui_state.finish_remove_reserved();
+    assert_eq!(ui_state.confirm_remove_folder, None);
+    assert_eq!(ui_state.removing_folder, None);
 }

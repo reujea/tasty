@@ -90,11 +90,10 @@ fn notice(report: &FailureReport) -> (NotificationLevel, String, String) {
                 tasty_i18n::t_args(body_key, &[&failure.message, plugin_id]),
             )
         }
-        // 디자인을 정하기 전이라 기동 실패 제목을 쓰고 본문에 판정 문장을 그대로 싣는다.
-        FailureReport::ReservedId { plugin_id, reason } => (
+        FailureReport::ReservedId { plugin_id } => (
             NotificationLevel::Warning,
-            crate::i18n::t_fmt("plugin_notice.start_failed_title", plugin_id),
-            reason.clone(),
+            crate::i18n::t_fmt("plugin_notice.reserved_id_title", plugin_id),
+            crate::i18n::t("plugin_notice.reserved_id_body").to_string(),
         ),
         FailureReport::AutoDisabled {
             plugin_id,

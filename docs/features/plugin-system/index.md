@@ -26,7 +26,7 @@
   - **설치 경로 절**(상세의 마지막 절): 머리글 줄에 대문자 mono `INSTALL PATH` 와 오른쪽 끝 `Open folder`(secondary sm, 폴더 아이콘, OS 파일 관리자로 연다). 그 아래 설치 경로 한 줄과 `Log: <경로>` 한 줄은 mono caption·text-muted 이고, 공백이 없어도 아무 문자에서 줄바꿈하며 선택할 수 있다. 말줄임·툴팁은 없다. 버튼이 경로 줄에 없으므로 창 최소 폭 720 과 기본 폭 880 에서 긴 경로가 버튼을 밀어내지 않는다.
   - **Commands 절**: 명령마다 한 행. 왼쪽에 명령 제목(mono term-sm·text-secondary, 길면 말줄임), 오른쪽에 단축키 키캡(할당이 없으면 없음), 행 아래 1px 구분선. 행 높이는 구분선을 포함해 32 이고 아래 여백을 더하지 않는다. 키캡은 매니페스트 조합을 `+` 로 나눠 앞뒤 공백을 빼고, 한 글자 키는 대문자, 나머지는 첫 글자만 대문자로 쓴다(`ctrl + shift + h` → `Ctrl` `Shift` `H`). Windows·Linux 는 이 낱말 키캡을 매니페스트 순서대로 보인다. macOS 는 키바인딩 매핑(`alt` → Command, `option` → Option, `ctrl` → Control)을 거친 뒤 수식키를 Apple 순서 Ctrl · Option · Shift · Command(⌃ ⌥ ⇧ ⌘)로 놓고 키를 맨 뒤에 둔다. 각 수식키는 설정 › 일반의 표시 스타일(`alt_display_style` · `option_display_style` · `shift_display_style`)을 설정 키바인딩 행·수식키 안내와 같이 따른다: `alt` 는 `Alt`/`Cmd`/⌘, `option` 은 `Option`/⌥, `shift` 는 `Shift`/⇧. 기호는 수식키 안내처럼 아이콘 키캡으로 그린다. Ctrl 은 표시 스타일과 글리프가 없어 늘 낱말 `Ctrl` 이다. 표시 스타일은 창을 열 때와 창 안의 플러그인 동작 뒤 목록을 다시 받을 때 읽는다(설정 창과 Plugins 창은 동시에 열리지 않는 modal 이다).
   - **uninstall**: 액션 바의 `Uninstall` 을 누르면 같은 바의 내용이 그 자리에서 확인으로 바뀐다(본문 끝 블록·popup 없음): alertTriangle(16, accent-attention-raised) · `Uninstall {이름}?`(body·text-primary) 아래 안내 한 줄(caption·text-muted) · `Cancel`(ghost) · `Uninstall`(danger). 안내는 기본 제공 플러그인이면 `Built-in — it won't be installed again on the next launch.`, 아니면 `Its files are removed. Settings stay until you delete them.` 다. 확인은 그 plugin id 에 묶이며, 다른 플러그인을 고르면 확인이 취소되어 원래 플러그인으로 돌아와도 평소 바가 보인다. 확인이 열리면 키보드 포커스가 `Cancel` 로 간다. 확인이 열린 동안에는 어느 탭에서든 Esc 가 확인을 취소한다(다른 탭에 가려진 확인도 닫혀, Installed 로 돌아와도 다시 보이지 않는다). 확인이 없을 때 Esc 는 이 창에서 아무 일도 하지 않는다. 짧은 문구는 평소 바와 같은 높이이고, 줄바꿈되는 긴 문구에서는 바가 글 높이만큼 커진다.
-- **Attention (확인 필요)**: 등록 거부(서명/신뢰) 또는 실행 실패(health error) plugin 을 사유·조치와 함께 보여준다. 탭 라벨에 개수를 danger 배지로 표시. 목록 행 끝의 severity 점은 액션 바의 점과 같은 `status-dot-size`(8) 지름이다. 상세 맨 위 정체 블록(아바타 · 이름 줄 · `작성자 · id · 홈페이지` 메타 줄)은 Installed 와 같은 위젯이다. 홈페이지는 `http`·`https` 주소일 때만 링크로 싣고, 다른 값은 메타 줄에 넣지 않는다. 그 아래 매니페스트 설명(Installed 와 같은 설명 위젯, 비면 생략)이 사유 배너 앞에 온다. 서명이 유효하지 않은 사유(`SignatureInvalid`)는 매니페스트가 서명한 내용 그대로라는 보장이 없어 설명과 홈페이지를 숨기고, 설명 자리에 `Description hidden — the signature is invalid.`(caption·text-muted, `measure-lg` 폭에서 줄바꿈)를 둔다. 신뢰하지 않은 키(`UnknownKey`)·권한 변경·실행 오류는 매니페스트 설명과 홈페이지를 그대로 보인다. 정체 블록 · 설명 · 사유 배너 · 사유 detail 은 `space-lg` 간격으로 쌓는다. 액션 바도 Installed 와 같은 바 틀(가로 14 · 세로 `space-md` 여백, 위 1px 구분선, 본문 스크롤 밖 열 바닥)이다. 바는 열 폭 전체를 써서 구분선이 열 양끝에 닿는다. 바 안에는 왼쪽에 status-dot 크기의 점과 `Not registered`/`Needs review`(12, severity 색), 오른쪽에 사유별 버튼 — 권한 변경은 `Re-approve`(primary), 실행 오류는 `Configure`(ghost, 톱니 아이콘), 서명 사유는 `Register anyway`(danger) — 이 있다. 서명 사유의 사유 배너는 Add 탭과 같은 미인증 신뢰 상자(거부 기록의 원인 이름으로 고른 원인 문장과 공통 위험 문단, fingerprint 줄 없음)다. `Register anyway`는 누를 때만 그 폴더에 `AllowUnverified` 선택을 기록하고 등록한다(`plugin_register_unverified`). 행을 고르는 것만으로는 포커스를 이 버튼에 두지 않는다. 사유별 절 머리글(Permission changes · Signature · Log)은 상세 절처럼 대문자 mono micro·text-muted 다. Signature invalid 항목은 `Signature` 머리글 아래에 고정 설명 `The signature does not match this plugin's files.`과 서명 검증이 실패한 원인(사이드카 파일 없음 · 읽기 오류 · 서명 길이 오류 등) 한 줄을 mono 글자로 보인다.
+- **Attention (확인 필요)**: 등록 거부(서명/신뢰), 예약 id 폴더, 실행 실패(health error) plugin 을 사유·조치와 함께 보여준다. 탭 라벨에 개수를 danger 배지로 표시. 목록 행 끝의 severity 점은 액션 바의 점과 같은 `status-dot-size`(8) 지름이다. 상세 맨 위 정체 블록(아바타 · 이름 줄 · `작성자 · id · 홈페이지` 메타 줄)은 Installed 와 같은 위젯이다. 홈페이지는 `http`·`https` 주소일 때만 링크로 싣고, 다른 값은 메타 줄에 넣지 않는다. 그 아래 매니페스트 설명(Installed 와 같은 설명 위젯, 비면 생략)이 사유 배너 앞에 온다. 서명이 유효하지 않은 사유(`SignatureInvalid`)는 매니페스트가 서명한 내용 그대로라는 보장이 없어 설명과 홈페이지를 숨기고, 설명 자리에 `Description hidden — the signature is invalid.`(caption·text-muted, `measure-lg` 폭에서 줄바꿈)를 둔다. 신뢰하지 않은 키(`UnknownKey`)·권한 변경·실행 오류는 매니페스트 설명과 홈페이지를 그대로 보인다. 정체 블록 · 설명 · 사유 배너 · 사유 detail 은 `space-lg` 간격으로 쌓는다. 액션 바도 Installed 와 같은 바 틀(가로 14 · 세로 `space-md` 여백, 위 1px 구분선, 본문 스크롤 밖 열 바닥)이다. 바는 열 폭 전체를 써서 구분선이 열 양끝에 닿는다. 바 안에는 왼쪽에 status-dot 크기의 점과 `Not registered`/`Needs review`(12, severity 색), 오른쪽에 사유별 버튼 — 권한 변경은 `Re-approve`(primary), 실행 오류는 `Configure`(ghost, 톱니 아이콘), 서명 사유는 `Register anyway`(danger), 예약 id 는 `Remove`(secondary, danger 글자) — 이 있다. 서명 사유의 사유 배너는 Add 탭과 같은 미인증 신뢰 상자(거부 기록의 원인 이름으로 고른 원인 문장과 공통 위험 문단, fingerprint 줄 없음)다. `Register anyway`는 누를 때만 그 폴더에 `AllowUnverified` 선택을 기록하고 등록한다(`plugin_register_unverified`). 행을 고르는 것만으로는 포커스를 이 버튼에 두지 않는다. 사유별 절 머리글(Permission changes · Signature · Log · Folder)은 상세 절처럼 대문자 mono micro·text-muted 다. Signature invalid 항목은 `Signature` 머리글 아래에 고정 설명 `The signature does not match this plugin's files.`과 서명 검증이 실패한 원인(사이드카 파일 없음 · 읽기 오류 · 서명 길이 오류 등) 한 줄을 mono 글자로 보인다.
 - **fingerprint 줄**: Attention 서명 절과 Add 신뢰 상자가 같은 줄을 쓴다. colon-hex 값이 16바이트를 넘으면 앞 8바이트와 뒤 8바이트를 ` … `로 이어 한 줄로 보이고, 툴팁과 복사 버튼은 전체 값을 쓴다.
 - **Install (add)**: 디렉터리(`tasty-plugin.toml`)에서 설치. 제목 없이 한 화면에서 진행한다.
   - **경로 선택**: `Plugin folder` 머리글 아래 mono 경로 입력, `Find folder…`(폴더 선택 대화상자), `Verify` 버튼과 설명 문단을 둔다. 경로가 비면 `Verify`는 비활성이다. 경로를 고치면 확인한 매니페스트를 버린다. 확인하기 전에는 그 아래에 `Choose a folder and press Verify to read its manifest.` 안내 상자를 두고, 매니페스트를 읽지 못하면(파일 없음·TOML 파싱 실패) 그 자리에 "Can't read tasty-plugin.toml" 오류 상자를, 읽었지만 선언 검사(바이너리 경로·감지기 등)에 실패하면 같은 상자에 "tasty-plugin.toml is not valid" 제목을 둔다. 두 상자 모두 아래 줄에 원문 메시지를 번역하지 않고 보인다.
@@ -54,19 +54,28 @@
 `com.tasty.`로 시작하는 id는 공식 플러그인 전용이다. [공식 id 목록](../../dev-guide/plugin-packaging.md#공식-id-목록)에 없는 `com.tasty.*` 플러그인은 debug·release 모두, 서명 판정보다 먼저 거부한다. 이 판정은 id만 본다. 공식 id를 쓴 다른 바이너리는 위 서명 판정이 다룬다.
 
 - 설치(GUI Add 탭·`plugin.install`·확인 필요 탭의 등록)는 공통 매니페스트 검증에서 실패하므로 폴더·신뢰 DB·권한을 쓰지 않는다. `--allow-unverified`로도 설치되지 않는다. Add 탭은 "tasty-plugin.toml is not valid" 상자 아래 줄에 원문 이유를 보이고 미리보기·추가 버튼을 두지 않는다. `plugin.install` 오류(`-32000`)의 `data`는 `{"reserved_id": "<id>", "plugin_id": "<id>"}`다.
-- 플러그인 폴더에 직접 넣은 것은 부팅·재탐색 때 등록하지 않고 경고 로그를 남긴다. 그 폴더가 새로 보일 때 알림 목록에 경고 한 건(제목 `Plugin '<id>' did not start`, 본문은 원문 이유)을 남기고, 같은 폴더가 남아 있는 동안 재탐색마다 다시 알리지 않는다. 확인 필요 탭에는 보이지 않고 폴더도 지우지 않는다. 등록되지 않은 id라 `tasty plugin remove`로는 지울 수 없으며 폴더를 직접 지운다.
+- 플러그인 폴더에 직접 넣은 것은 부팅·재탐색 때 등록하지 않고 경고 로그를 남긴다. 그 폴더가 새로 보일 때 알림 목록에 경고 한 건(제목 `Plugin '<id>' was not registered`, 본문은 접두 사유와 Plugins › Attention 안내)을 남기고, 같은 폴더가 남아 있는 동안 재탐색마다 다시 알리지 않는다. 폴더를 자동으로 지우지 않는다.
+- 그 폴더는 확인 필요 탭에 폴더마다 한 행으로 보이고 탭 배지와 사이드바 배지에 함께 센다. 행과 상세는 폴더 이름과 매니페스트 id만 보인다. 공식이 아닌 매니페스트는 자기를 Tasty처럼 적을 수 있어 표시 이름·작성자·설명·홈페이지·버전을 보이지 않는다. 같은 id의 폴더가 둘이면 행도 둘이고 각각 고를 수 있다. 조치는 `Remove`뿐이다. 행을 고른 것만으로 포커스가 `Remove`로 가지 않는다.
+- `Remove`를 누르면 바가 그 자리에서 확인으로 바뀌고 포커스가 `Cancel`에 간다. Esc·`Cancel`·다른 행 선택이 취소한다. 확인하면 `Removing…` 상태로 두 버튼이 비활성이 되고, 끝날 때까지 Esc와 행 클릭을 무시한다. 좁으면 버튼 묶음이 아래 줄로 내려가고, 더 좁으면 글리프도 글 위로 올라간다.
+- 제거는 파일 작업 줄의 작업자 스레드에서 그 폴더만 지운다. 차례가 오면 경로가 아직 예약 id 목록에 있는지 다시 찾고, 지우기 직전에 부모가 플러그인 루트와 정확히 같은지, 링크가 아닌 디렉터리인지, 매니페스트가 여전히 거부되는 id인지 확인한다. 조건에 맞지 않거나 매니페스트를 읽지 못하면 지우지 않고 실패한다. 매니페스트 파일이 없으면 앞선 제거가 멈춘 잔여로 보고 지운다. `known-plugins.toml`·`plugins.toml`은 바꾸지 않는다. 같은 id의 다른 폴더가 있을 수 있기 때문이다.
+- 성공하면 행이 빠지고 두 배지가 줄며 창에 토스트 `Removed '<폴더>'.`가 뜬다. 폴더를 앱 밖에서 이미 지웠어도 목표 상태이므로 성공으로 처리한다. 실패하면 창에 토스트 `Remove failed: <이유>`가 뜨고 바가 평소로 돌아가며 행은 남아 다시 시도할 수 있다. 링크 폴더는 이 경우로 실패하고 대상을 건드리지 않는다. 행은 링크를 직접 지울 때까지 남는다. 창을 닫은 뒤 끝나면 실패만 메인 창 토스트로 알린다.
+- 한계: `remove_dir_all`이 도중에 실패하고 매니페스트가 이미 지워졌다면, 다음 재탐색이 그 폴더를 건너뛰어 행 없이 파일이 남을 수 있다. 재탐색 전에는 행이 남아 다시 시도할 수 있다.
+- 등록되지 않은 id라 `plugin.list`에 없다. `tasty plugin remove <id>`·`enable`·`disable`은 폴더를 지우지 않고 실패하며, 예약 id 목록에 있는 id면 오류 문구가 확인 필요 탭의 제거를 안내한다. 같은 id의 폴더가 여럿일 수 있어 id로는 지울 폴더를 정할 수 없다.
 - 번들 설치·`upgrade-builtins`는 번들 폴더 매니페스트의 id가 폴더 이름의 공식 id와 다르면 복사·권한 기록 없이 실패로 남긴다. `upgrade-builtins` 보고에서는 `Failed`다.
 
 - Given `id = "com.tasty.fake"` 매니페스트 폴더, When `tasty plugin install <폴더>`(서명 여부·`--allow-unverified` 무관), Then 명령은 실패하고 `data.reserved_id`가 그 id 이며, 플러그인 폴더·`known-plugins.toml`·`plugins.toml`이 바뀌지 않는다.
 - Given 같은 폴더, When GUI Add 탭에서 Verify, Then "tasty-plugin.toml is not valid" 상자에 예약 id 이유가 보이고 추가 버튼이 없다.
 - Given 플러그인 폴더에 직접 넣은 `com.tasty.fake`, When 인스턴스를 시작한다, Then `plugin.list`에 없고 경고 로그와 경고 알림 한 건이 남는다.
+- Given 폴더 이름이 id와 다르고 같은 id의 다른 폴더가 있는 예약 id 항목, When 그 행에서 `Remove`를 확인한다, Then 그 폴더만 지워지고 다른 폴더는 남으며 탭·사이드바 배지가 하나 줄어든다.
+- Given 예약 id 행의 확인 상태, When 그 폴더의 매니페스트가 허용되는 id로 바뀐 뒤 확인한다, Then 폴더는 남고 실패 토스트가 뜨며 바가 평소로 돌아간다.
+- Given 예약 id 폴더, When `tasty plugin remove <id>`, Then 명령은 실패하고 오류가 확인 필요 탭을 안내하며 폴더는 남는다. 목록에 없는 id의 오류는 `not installed`다.
 - Given 공식 목록의 id(`com.tasty.agent-stream`·`com.tasty.mesh-demo` 포함) 또는 `com.example.x` 같은 다른 접두, When 설치·탐색, Then 서명 판정만 적용된다.
 
 `enable <id>` / `disable <id>` 는 발견된 설치 패키지가 있는 ID만 받는다. 미설치 ID는
 GUI·headless 모두 실패하며, 설정 파일과 메모리의 활성/비활성 상태를 바꾸거나 성공 이벤트를
 발행하지 않는다. 토글 실패 응답은 기존 `-32000`과 `enable failed:` / `disable failed:`
-접두어를 유지하고 `plugin '<id>' not installed`를 이유로 돌려준다. 설치·부팅은 패키지
-목록을 채운 뒤 토글을 수행한다.
+접두어를 유지하고 `plugin '<id>' not installed`를 이유로 돌려준다. 예약 id 목록에 있는 id는 그 이유
+대신 확인 필요 탭의 제거를 안내한다. 설치·부팅은 패키지 목록을 채운 뒤 토글을 수행한다.
 
 끄거나(`disable`) 지우면(`remove`) 그 플러그인이 등록한 surface kind 는 재부팅 없이 **철회**된다
 ([플러그인 제작 가이드](../../dev-guide/plugin-development.md)). 그 kind 로
@@ -146,7 +155,7 @@ kind 대기 placeholder 로 두었다가 다시 켜면 채운다.
 
 ### UI 요소 인벤토리
 
-- **탭**: Installed / Attention(확인 필요 — 등록 거부·실행 실패 plugin, 개수 danger 배지) / Install.
+- **탭**: Installed / Attention(확인 필요 — 등록 거부·예약 id 폴더·실행 실패 plugin, 개수 danger 배지, 예약 id 행의 Remove) / Install.
 - **Installed 항목**:
   - 상세 아래 액션 바의 enable/disable Switch·Configure·Uninstall, health error 인디케이터(오류 플러그인).
   - 권한 표시 — **read-only** (창에서 권한 토글 없음).

@@ -52,6 +52,11 @@ impl PluginManager {
         enabled: bool,
     ) -> anyhow::Result<()> {
         if !self.packages.iter().any(|p| p.manifest.id == id) {
+            if self.reserved.iter().any(|blocked| blocked.id == id) {
+                anyhow::bail!(
+                    "plugin '{id}' was not registered because its id uses the reserved com.tasty. prefix; remove its folder from Plugins > Attention"
+                );
+            }
             anyhow::bail!("plugin '{id}' not installed");
         }
         if enabled {

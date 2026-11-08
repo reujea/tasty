@@ -82,8 +82,8 @@ pub enum FailureReport {
         failure: PluginFailure,
         failures: usize,
     },
-    /// 공식 목록에 없는 `com.tasty.*` 폴더를 등록하지 않았다. `reason`은 판정 문장이다.
-    ReservedId { plugin_id: String, reason: String },
+    /// 공식 목록에 없는 `com.tasty.*` 폴더를 등록하지 않았다.
+    ReservedId { plugin_id: String },
 }
 
 #[derive(Debug, Default)]

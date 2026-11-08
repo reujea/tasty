@@ -13,10 +13,12 @@ use tasty_ui_widgets::tokens::{PLUGIN_LIST_ROW_HEIGHT, STRUCT_GAP_2};
 use tasty_ui_widgets::{
     PluginAttentionBarAction, PluginAttentionBarView, PluginAttentionRowView,
     PluginFingerprintLineView, PluginIdentityView, PluginMetaView, PluginTrustKind,
-    is_web_homepage, margin_all, margin_sym, paint_plugin_attention_row, plugin_attention_bar,
-    plugin_detail_bar_height, plugin_detail_desc_hidden, plugin_detail_description,
-    plugin_detail_identity, plugin_fingerprint_line, plugin_mono_header,
-    plugin_signature_invalid_detail, plugin_trust_box, vspace,
+    PluginUninstallConfirmView, is_web_homepage, margin_all, margin_sym,
+    paint_plugin_attention_row, plugin_attention_bar, plugin_detail_bar_height,
+    plugin_detail_desc_hidden, plugin_detail_description, plugin_detail_identity,
+    plugin_fingerprint_line, plugin_folder_path, plugin_mono_header, plugin_reserved_id_banner,
+    plugin_signature_invalid_detail, plugin_trust_box, plugin_uninstall_confirm_bar,
+    plugin_uninstall_confirm_bar_height, vspace,
 };
 
 /// 사유별 (라벨 키, 설명 키). 색은 `AttentionKind::is_danger` 로 분기.
@@ -35,6 +37,19 @@ fn reason_text(kind: AttentionKind) -> (&'static str, &'static str) {
             "plugins.attn_perm_changed_blurb",
         ),
         AttentionKind::HealthError => ("plugins.attn_health_label", "plugins.attn_health_blurb"),
+        AttentionKind::ReservedId => (
+            "plugins.attn_reserved_id_label",
+            "plugins.attn_reserved_id_blurb",
+        ),
+    }
+}
+
+/// 라벨과 상태 문구의 색. 예약 id 는 Latte mantle 대비 때문에 raised 잉크다.
+fn sev_ink(th: &theme::Theme, kind: AttentionKind) -> egui::Color32 {
+    if kind == AttentionKind::ReservedId {
+        egui::Color32::from(th.accent_danger_raised())
+    } else {
+        sev_color(th, kind)
     }
 }
 
@@ -57,11 +72,14 @@ pub(super) fn draw_attention_tab(
 
     // 선택 보정 — 비어있거나 선택이 사라졌으면 첫 항목으로.
     let valid = ui_state
-        .attention_selected_id
+        .attention_selected
         .as_ref()
-        .is_some_and(|id| items.iter().any(|e| &e.id == id));
+        .is_some_and(|key| items.iter().any(|e| &e.key() == key));
     if !valid {
-        ui_state.attention_selected_id = items.first().map(|e| e.id.clone());
+        // 제거로 행이 빠졌다면 진행 상태도 끝났다.
+        ui_state.removing_folder = None;
+        ui_state.cancel_remove_confirm();
+        ui_state.attention_selected = items.first().map(AttentionEntry::key);
     }
 
     egui::SidePanel::left("plugins_attention_list")
@@ -76,7 +94,7 @@ pub(super) fn draw_attention_tab(
                 .drag_to_scroll(false)
                 .show(ui, |ui| {
                     for entry in items {
-                        let selected = ui_state.attention_selected_id.as_ref() == Some(&entry.id);
+                        let selected = ui_state.attention_selected.as_ref() == Some(&entry.key());
                         let color = sev_color(&th, entry.kind);
                         // 행 높이는 아바타에서 나온다 — 디자인 행이 `padding: space-sm`
                         // 위아래에 32px 아바타가 앉는 flex 행이다.
@@ -96,11 +114,13 @@ pub(super) fn draw_attention_tab(
                                 selected,
                                 hovered: resp.hovered(),
                                 severity: color,
-                                label_ink: color,
+                                label_ink: sev_ink(&th, entry.kind),
                             },
                         );
-                        if resp.clicked() {
-                            ui_state.attention_selected_id = Some(entry.id.clone());
+                        // 지우는 중에는 취소 경로가 없어 선택을 옮기지 않는다.
+                        if resp.clicked() && ui_state.removing_folder.is_none() {
+                            ui_state.cancel_remove_confirm();
+                            ui_state.attention_selected = Some(entry.key());
                         }
                         vspace(ui, STRUCT_GAP_2);
                     }
@@ -108,9 +128,9 @@ pub(super) fn draw_attention_tab(
         });
 
     let selected = ui_state
-        .attention_selected_id
+        .attention_selected
         .as_ref()
-        .and_then(|id| items.iter().find(|e| &e.id == id))
+        .and_then(|key| items.iter().find(|e| &e.key() == key))
         .cloned();
     let Some(entry) = selected else {
         egui::CentralPanel::default().show(ctx, |ui| {
@@ -128,11 +148,30 @@ pub(super) fn draw_attention_tab(
     // 키보드 초점 순서가 화면 순서(본문 → 바)를 따르도록 같은 패널 안에서 본문을 먼저 만든다.
     let panel_frame = egui::Frame::central_panel(&ctx.style());
     let margin = panel_frame.inner_margin;
+    let confirming = entry.folder.is_some() && ui_state.confirm_remove_folder == entry.folder;
+    let removing = confirming && ui_state.removing_folder == entry.folder;
+    let focus_cancel =
+        confirming && !removing && std::mem::take(&mut ui_state.remove_focus_pending);
+    let confirm_title = crate::i18n::t_fmt("plugins.attn_remove_confirm_title", &entry.name);
+    let confirm_view = confirming.then(|| PluginUninstallConfirmView {
+        title: &confirm_title,
+        note: t("plugins.attn_remove_note"),
+        cancel: t("button.cancel"),
+        uninstall: t("plugins.attn_remove"),
+        focus_cancel,
+        busy: removing.then(|| t("plugins.attn_removing")),
+        wrap: true,
+    });
     egui::CentralPanel::default()
         .frame(panel_frame.inner_margin(egui::Margin::ZERO))
         .show(ctx, |ui| {
             let full = ui.max_rect();
-            let split = full.max.y - plugin_detail_bar_height(&th);
+            // 확인 바는 글에 따라 커지고 좁으면 줄이 나뉜다. 본문은 그 높이를 뺀 나머지다.
+            let bar_h = match &confirm_view {
+                Some(view) => plugin_uninstall_confirm_bar_height(ui, &th, view, full.width()),
+                None => plugin_detail_bar_height(&th),
+            };
+            let split = full.max.y - bar_h;
             let body_rect = egui::Rect::from_min_max(
                 full.min + egui::vec2(margin.leftf(), margin.topf()),
                 egui::pos2(full.max.x - margin.rightf(), split),
@@ -147,8 +186,31 @@ pub(super) fn draw_attention_tab(
             let mut bar_ui = ui.new_child(egui::UiBuilder::new().max_rect(
                 egui::Rect::from_min_max(egui::pos2(full.min.x, split), full.max),
             ));
-            draw_action_bar(&mut bar_ui, &th, &entry, actions);
+            if let Some(view) = &confirm_view {
+                draw_remove_confirm(&mut bar_ui, &th, view, ui_state, actions);
+            } else {
+                draw_action_bar(&mut bar_ui, &th, &entry, ui_state, actions);
+            }
         });
+}
+
+/// 예약 id 폴더의 제거 확인 바. 바의 내용을 그 자리에서 바꾼다.
+fn draw_remove_confirm(
+    ui: &mut egui::Ui,
+    th: &theme::Theme,
+    view: &PluginUninstallConfirmView<'_>,
+    ui_state: &mut PluginsUiState,
+    actions: &mut Vec<PluginsAction>,
+) {
+    let clicks = plugin_uninstall_confirm_bar(ui, th, view);
+    if clicks.uninstall
+        && let Some(dir) = ui_state.confirm_remove_folder.clone()
+    {
+        ui_state.removing_folder = Some(dir.clone());
+        actions.push(PluginsAction::RemoveReserved { dir });
+    } else if clicks.cancel {
+        ui_state.cancel_remove_confirm();
+    }
 }
 
 /// 확인 필요 plugin 0 건 — success 톤 빈 상태.
@@ -207,7 +269,7 @@ fn draw_detail(
                         authors: &authors,
                         id: &entry.id,
                         homepage,
-                        wrap_long: false,
+                        wrap_long: entry.kind == AttentionKind::ReservedId,
                     },
                 },
             );
@@ -217,9 +279,23 @@ fn draw_detail(
                 });
             }
             if !entry.kind.shows_manifest_text() {
-                plugin_detail_desc_hidden(ui, th, t("plugins.attn_desc_hidden"));
+                let hidden = if entry.kind == AttentionKind::ReservedId {
+                    "plugins.attn_reserved_desc_hidden"
+                } else {
+                    "plugins.attn_desc_hidden"
+                };
+                plugin_detail_desc_hidden(ui, th, t(hidden));
             } else if !entry.description.is_empty() {
                 plugin_detail_description(ui, th, &entry.description);
+            }
+
+            if entry.kind == AttentionKind::ReservedId {
+                plugin_reserved_id_banner(ui, th, t(label_key), t(blurb_key));
+                ui.vertical(|ui| {
+                    ui.spacing_mut().item_spacing.y = inner_gap;
+                    draw_reason_detail(ui, th, entry);
+                });
+                return;
             }
 
             // 서명 사유는 Add 탭과 같은 미인증 상자다. fingerprint 는 아래 Signature 절이 보인다.
@@ -280,7 +356,9 @@ fn unverified_kind(entry: &AttentionEntry) -> Option<PluginTrustKind> {
     let by_reason = match entry.kind {
         AttentionKind::UnknownKey => PluginTrustKind::UnknownKey,
         AttentionKind::SignatureInvalid => PluginTrustKind::SignatureError,
-        AttentionKind::PermissionsChanged | AttentionKind::HealthError => return None,
+        AttentionKind::PermissionsChanged
+        | AttentionKind::HealthError
+        | AttentionKind::ReservedId => return None,
     };
     Some(match entry.unverified {
         Some("unknown-key") => PluginTrustKind::UnknownKey,
@@ -390,6 +468,11 @@ fn draw_reason_detail(ui: &mut egui::Ui, th: &theme::Theme, entry: &AttentionEnt
                     });
             }
         }
+        AttentionKind::ReservedId => {
+            if let Some(folder) = &entry.folder {
+                plugin_folder_path(ui, th, t("plugins.attn_folder"), &folder.to_string_lossy());
+            }
+        }
     }
 }
 
@@ -411,6 +494,7 @@ fn draw_action_bar(
     ui: &mut egui::Ui,
     th: &theme::Theme,
     entry: &AttentionEntry,
+    ui_state: &mut PluginsUiState,
     actions: &mut Vec<PluginsAction>,
 ) {
     let status_key = if entry.kind.is_danger() {
@@ -429,6 +513,10 @@ fn draw_action_bar(
         AttentionKind::UnknownKey | AttentionKind::SignatureInvalid => Some(
             PluginAttentionBarAction::RegisterAnyway(t("plugins.attn_register_anyway")),
         ),
+        // 행을 골라도 이 버튼으로 포커스를 옮기지 않는다.
+        AttentionKind::ReservedId => {
+            Some(PluginAttentionBarAction::Remove(t("plugins.attn_remove")))
+        }
     };
     let clicked = plugin_attention_bar(
         ui,
@@ -436,10 +524,15 @@ fn draw_action_bar(
         &PluginAttentionBarView {
             status: t(status_key),
             dot: sev_color(th, entry.kind),
-            ink: sev_color(th, entry.kind),
+            ink: sev_ink(th, entry.kind),
             action,
         },
     );
+    if clicked && entry.kind == AttentionKind::ReservedId {
+        ui_state.confirm_remove_folder = entry.folder.clone();
+        ui_state.remove_focus_pending = true;
+        return;
+    }
     if clicked {
         actions.push(match entry.kind {
             AttentionKind::PermissionsChanged => PluginsAction::Reapprove {
@@ -451,7 +544,7 @@ fn draw_action_bar(
                     manifest_sha256: entry.manifest_sha256.clone(),
                 }
             }
-            AttentionKind::HealthError => PluginsAction::OpenSettings,
+            AttentionKind::HealthError | AttentionKind::ReservedId => PluginsAction::OpenSettings,
         });
     }
 }

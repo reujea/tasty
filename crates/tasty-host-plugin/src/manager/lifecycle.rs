@@ -262,11 +262,15 @@ impl PluginManager {
             if !self.reserved.contains(blocked) {
                 self.start_tracker.report(super::FailureReport::ReservedId {
                     plugin_id: blocked.id.clone(),
-                    reason: blocked.reason.clone(),
                 });
             }
         }
         self.reserved = found;
+    }
+
+    /// 지운 폴더의 항목만 뺀다. 같은 id 의 다른 폴더는 남는다.
+    pub fn forget_reserved(&mut self, dir: &std::path::Path) {
+        self.reserved.retain(|blocked| blocked.dir != dir);
     }
 
     /// Removal waits on the existing reaper without blocking the event loop or reviving a plugin.

@@ -216,6 +216,9 @@ impl App {
                 plugins_ui::PluginsAction::Reapprove { id } => {
                     self.handle_reapprove(id);
                 }
+                plugins_ui::PluginsAction::RemoveReserved { dir } => {
+                    self.handle_remove_reserved(dir);
+                }
                 plugins_ui::PluginsAction::Close => {
                     close_modal = true;
                 }

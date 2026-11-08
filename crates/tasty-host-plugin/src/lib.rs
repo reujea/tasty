@@ -23,6 +23,7 @@ pub mod process;
 pub mod protocol;
 pub mod reaper;
 pub mod registry_state;
+pub mod reserved_removal;
 pub mod settings_registry;
 #[cfg(test)]
 mod test_fake_plugin;

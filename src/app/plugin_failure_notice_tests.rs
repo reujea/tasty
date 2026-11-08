@@ -125,13 +125,13 @@ fn simultaneous_failures_of_different_plugins_stay_separate() {
     assert_eq!(titles[2].0, NotificationLevel::Error);
 }
 
-/// 공식 목록에 없는 `com.tasty.*` 폴더는 경고 알림으로 남고 본문에 판정 문장이 실린다.
+/// 공식 목록에 없는 `com.tasty.*` 폴더는 예약 id 문구의 경고 알림으로 남는다. 기동 실패 제목이나
+/// 판정 원문을 쓰지 않는다. 시작을 시도하지 않았기 때문이다.
 #[test]
-fn a_reserved_id_refusal_becomes_a_warning_with_the_reason() {
+fn a_reserved_id_refusal_uses_the_reserved_copy() {
     crate::i18n::init("en");
     let mut mgr = manager_with(vec![FailureReport::ReservedId {
         plugin_id: "com.tasty.fake".into(),
-        reason: "plugin id 'com.tasty.fake' uses the reserved com.tasty. prefix".into(),
     }]);
     let mut session = crate::state::tests::test_state().1;
     let mut engine = session.borrow_mut();
@@ -144,9 +144,10 @@ fn a_reserved_id_refusal_becomes_a_warning_with_the_reason() {
         .collect();
     assert_eq!(found.len(), 1, "{found:?}");
     assert_eq!(found[0].0, NotificationLevel::Warning);
-    assert!(found[0].1.contains("com.tasty.fake"), "{found:?}");
-    assert!(
-        found[0].2.contains("reserved com.tasty. prefix"),
-        "{found:?}"
+    assert_eq!(
+        found[0].1,
+        crate::i18n::t_fmt("plugin_notice.reserved_id_title", "com.tasty.fake")
     );
+    assert_eq!(found[0].2, crate::i18n::t("plugin_notice.reserved_id_body"));
+    assert!(!found[0].1.contains("did not start"), "{found:?}");
 }

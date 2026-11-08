@@ -67,20 +67,33 @@ pub enum AttentionKind {
     PermissionsChanged,
     /// enable 됐으나 런타임 반복 실패로 자동 비활성화.
     HealthError,
+    /// 공식 목록에 없는 `com.tasty.*` id 라 등록하지 않은 폴더. 제거만 할 수 있다.
+    ReservedId,
 }
 
 impl AttentionKind {
     /// danger(등록 거부) 면 true, warning(재검토) 면 false.
     pub fn is_danger(self) -> bool {
-        matches!(self, Self::UnknownKey | Self::SignatureInvalid)
+        matches!(
+            self,
+            Self::UnknownKey | Self::SignatureInvalid | Self::ReservedId
+        )
     }
 
     /// 매니페스트의 설명을 보여도 되는 사유인가. 서명이 깨진 번들은 매니페스트가
     /// 서명한 내용 그대로라는 보장이 없어 그 글을 보이지 않는다. 신뢰하지 않은 키의
     /// 서명은 내용이 그 키로 서명된 그대로이며, 추가 탭의 매니페스트 카드도 같은 경우에 보인다.
+    /// 예약 id 의 매니페스트는 공식 플러그인처럼 적혀 있을 수 있어 보이지 않는다.
     pub fn shows_manifest_text(self) -> bool {
-        !matches!(self, Self::SignatureInvalid)
+        !matches!(self, Self::SignatureInvalid | Self::ReservedId)
     }
+}
+
+/// 확인 필요 목록에서 항목을 구별하는 값. 같은 id 의 예약 id 폴더가 둘일 수 있어 폴더도 함께 본다.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AttentionKey {
+    id: String,
+    folder: Option<std::path::PathBuf>,
 }
 
 /// "확인 필요" 목록의 한 항목.
@@ -110,6 +123,17 @@ pub struct AttentionEntry {
     pub unverified: Option<&'static str>,
     /// 탐색 때 읽은 매니페스트의 SHA-256. "그래도 등록"이 이 값을 실어 본 내용만 등록하게 한다.
     pub manifest_sha256: String,
+    /// 예약 id 사유의 폴더 경로. 다른 사유는 비운다.
+    pub folder: Option<std::path::PathBuf>,
+}
+
+impl AttentionEntry {
+    pub fn key(&self) -> AttentionKey {
+        AttentionKey {
+            id: self.id.clone(),
+            folder: self.folder.clone(),
+        }
+    }
 }
 
 /// `PluginsView`가 메인 루프에 발행하는 동작.
@@ -129,6 +153,10 @@ pub enum PluginsAction {
     /// 갱신 + 재grant + discover 재호출.
     Reapprove {
         id: String,
+    },
+    /// 확인 필요 탭의 예약 id 폴더를 지운다. 경로는 호스트가 실행 시점에 다시 확인한다.
+    RemoveReserved {
+        dir: std::path::PathBuf,
     },
     /// 헤더 X 버튼 — 모달을 닫는다.
     Close,
@@ -240,7 +268,13 @@ pub struct PluginsUiState {
     pub active_tab: PluginsTab,
     pub selected_id: Option<String>,
     /// `Attention` 탭의 선택 항목 — `selected_id`(Installed) 와 독립.
-    pub attention_selected_id: Option<String>,
+    pub attention_selected: Option<AttentionKey>,
+    /// 제거 확인 중인 예약 id 폴더. 선택이 바뀌거나 Esc·Cancel 이면 지운다.
+    pub confirm_remove_folder: Option<std::path::PathBuf>,
+    /// 제거 확인이 막 열렸다. 다음 프레임에 Cancel 로 포커스를 옮기고 지운다.
+    pub remove_focus_pending: bool,
+    /// 지우는 중인 예약 id 폴더. 끝날 때까지 취소 경로가 없어 Esc 와 선택 변경을 무시한다.
+    pub removing_folder: Option<std::path::PathBuf>,
     /// 제거 확인 중인 plugin id. 선택이 바뀌거나 Esc·Cancel 이면 지운다.
     pub confirm_uninstall_id: Option<String>,
     /// 제거 확인이 막 열렸다. 다음 프레임에 Cancel 로 포커스를 옮기고 지운다.
@@ -268,6 +302,20 @@ impl PluginsUiState {
             self.add_error = None;
             self.add_path_input.clear();
         }
+    }
+
+    /// 예약 id 폴더의 제거 확인을 닫는다. 지우는 중에는 닫지 않는다.
+    pub fn cancel_remove_confirm(&mut self) {
+        if self.removing_folder.is_none() {
+            self.confirm_remove_folder = None;
+            self.remove_focus_pending = false;
+        }
+    }
+
+    /// 예약 id 폴더 제거가 끝났다. 실패해도 바는 평소로 돌아간다.
+    pub fn finish_remove_reserved(&mut self) {
+        self.removing_folder = None;
+        self.cancel_remove_confirm();
     }
 
     /// 제거 확인을 닫는다. 아직 옮기지 않은 포커스 요청도 버린다.
@@ -314,11 +362,15 @@ pub fn draw_plugins_panel(
 
     // 제거 확인이 열린 동안에는 탭과 관계없이 창 어디서든 Esc 가 확인을 닫는다. 다른 탭에 가려진
     // 확인도 닫혀, Installed 로 돌아와도 다시 보이지 않는다. 확인이 없으면 Esc 를 소비하지 않는다.
+    // 예약 id 폴더를 지우는 중에는 취소 경로가 없으므로 그 확인으로는 Esc 를 소비하지 않는다.
+    let remove_cancellable =
+        ui_state.confirm_remove_folder.is_some() && ui_state.removing_folder.is_none();
     if !ui_state.folder_chooser.is_open()
-        && ui_state.confirm_uninstall_id.is_some()
+        && (ui_state.confirm_uninstall_id.is_some() || remove_cancellable)
         && ctx.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::Escape))
     {
         ui_state.cancel_uninstall_confirm();
+        ui_state.cancel_remove_confirm();
     }
 
     egui::TopBottomPanel::top("plugins_header")

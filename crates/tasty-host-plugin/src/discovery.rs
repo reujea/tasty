@@ -35,8 +35,6 @@ pub struct Discovered {
 pub struct ReservedIdBlocked {
     pub id: String,
     pub dir: PathBuf,
-    /// [`crate::official::ReservedIdError`]의 문장.
-    pub reason: String,
 }
 
 /// `discover` 와 같은 탐색에서 거부한 항목도 함께 돌려준다.
@@ -104,7 +102,6 @@ fn admit_reserved(dir: &std::path::Path, manifest: &Manifest) -> Result<(), Rese
         ReservedIdBlocked {
             id: e.id.clone(),
             dir: dir.to_path_buf(),
-            reason: e.to_string(),
         }
     })
 }

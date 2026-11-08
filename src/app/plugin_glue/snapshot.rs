@@ -57,73 +57,9 @@ impl App {
             })
             .collect();
 
-        // 자동 비활성화된 플러그인은 설치 목록과 확인 필요 목록에 함께 표시한다.
-        use crate::plugin::discovery::RejectionReason;
-        let mut attention: Vec<plugins_ui::AttentionEntry> = mgr
-            .rejected
-            .iter()
-            .map(|r| {
-                let kind = match r.reason {
-                    RejectionReason::UnknownKey => plugins_ui::AttentionKind::UnknownKey,
-                    RejectionReason::SignatureInvalid => {
-                        plugins_ui::AttentionKind::SignatureInvalid
-                    }
-                    RejectionReason::PermissionsChanged => {
-                        plugins_ui::AttentionKind::PermissionsChanged
-                    }
-                };
-                let (description, homepage) = if kind.shows_manifest_text() {
-                    (r.description.clone(), r.homepage.clone())
-                } else {
-                    (String::new(), String::new())
-                };
-                plugins_ui::AttentionEntry {
-                    id: r.id.clone(),
-                    name: r.name.clone(),
-                    version: r.version.clone(),
-                    authors: r.authors.clone(),
-                    description,
-                    homepage,
-                    builtin: r.builtin,
-                    kind,
-                    fingerprint: r.fingerprint.clone(),
-                    permissions_added: r.permissions_added.clone(),
-                    permissions_removed: r.permissions_removed.clone(),
-                    health_detail: None,
-                    cause: r.cause.clone(),
-                    unverified: r.unverified,
-                    manifest_sha256: r.manifest_sha256.clone(),
-                }
-            })
-            .collect();
-        attention.extend(mgr.packages().iter().filter_map(|pkg| {
-            let id = &pkg.manifest.id;
-            // 사용자가 직접 끈 플러그인은 오류로 표시하지 않는다.
-            if !mgr.is_auto_disabled(id) || mgr.config.is_disabled(id) {
-                return None;
-            }
-            Some(plugins_ui::AttentionEntry {
-                id: id.clone(),
-                name: pkg.manifest.name.clone(),
-                version: pkg.manifest.version.clone(),
-                authors: pkg.manifest.authors.clone(),
-                description: pkg.manifest.description.clone(),
-                homepage: pkg.manifest.homepage.clone(),
-                builtin: plugin::is_builtin_plugin(id),
-                kind: plugins_ui::AttentionKind::HealthError,
-                fingerprint: None,
-                permissions_added: Vec::new(),
-                permissions_removed: Vec::new(),
-                health_detail: Some(mgr.log_path(id).to_string_lossy().into_owned()),
-                cause: None,
-                unverified: None,
-                manifest_sha256: String::new(),
-            })
-        }));
-
         plugins_ui::PluginsSnapshot {
             plugins,
-            attention,
+            attention: attention_entries(mgr),
             keycap_style: self.plugin_keycap_style(),
         }
     }
@@ -151,3 +87,101 @@ impl App {
         }
     }
 }
+
+/// 확인 필요 탭 항목. 사이드바 배지(`PluginManager::attention_count`)와 같은 항목을 센다.
+pub(crate) fn attention_entries(mgr: &plugin::PluginManager) -> Vec<plugins_ui::AttentionEntry> {
+    // 자동 비활성화된 플러그인은 설치 목록과 확인 필요 목록에 함께 표시한다.
+    use crate::plugin::discovery::RejectionReason;
+    let mut attention: Vec<plugins_ui::AttentionEntry> = mgr
+        .rejected
+        .iter()
+        .map(|r| {
+            let kind = match r.reason {
+                RejectionReason::UnknownKey => plugins_ui::AttentionKind::UnknownKey,
+                RejectionReason::SignatureInvalid => plugins_ui::AttentionKind::SignatureInvalid,
+                RejectionReason::PermissionsChanged => {
+                    plugins_ui::AttentionKind::PermissionsChanged
+                }
+            };
+            let (description, homepage) = if kind.shows_manifest_text() {
+                (r.description.clone(), r.homepage.clone())
+            } else {
+                (String::new(), String::new())
+            };
+            plugins_ui::AttentionEntry {
+                id: r.id.clone(),
+                name: r.name.clone(),
+                version: r.version.clone(),
+                authors: r.authors.clone(),
+                description,
+                homepage,
+                builtin: r.builtin,
+                kind,
+                fingerprint: r.fingerprint.clone(),
+                permissions_added: r.permissions_added.clone(),
+                permissions_removed: r.permissions_removed.clone(),
+                health_detail: None,
+                cause: r.cause.clone(),
+                unverified: r.unverified,
+                manifest_sha256: r.manifest_sha256.clone(),
+                folder: None,
+            }
+        })
+        .collect();
+    attention.extend(mgr.packages().iter().filter_map(|pkg| {
+        let id = &pkg.manifest.id;
+        // 사용자가 직접 끈 플러그인은 오류로 표시하지 않는다.
+        if !mgr.is_auto_disabled(id) || mgr.config.is_disabled(id) {
+            return None;
+        }
+        Some(plugins_ui::AttentionEntry {
+            id: id.clone(),
+            name: pkg.manifest.name.clone(),
+            version: pkg.manifest.version.clone(),
+            authors: pkg.manifest.authors.clone(),
+            description: pkg.manifest.description.clone(),
+            homepage: pkg.manifest.homepage.clone(),
+            builtin: plugin::is_builtin_plugin(id),
+            kind: plugins_ui::AttentionKind::HealthError,
+            fingerprint: None,
+            permissions_added: Vec::new(),
+            permissions_removed: Vec::new(),
+            health_detail: Some(mgr.log_path(id).to_string_lossy().into_owned()),
+            cause: None,
+            unverified: None,
+            manifest_sha256: String::new(),
+            folder: None,
+        })
+    }));
+    attention.extend(mgr.reserved_blocked().iter().map(reserved_entry));
+    attention
+}
+
+/// 예약 id 폴더 항목. 폴더 이름과 id 만 싣는다. 공식이 아닌 매니페스트는 자기를 Tasty 처럼 적을 수
+/// 있어 이름·작성자·홈페이지·설명·버전을 보이지 않는다.
+fn reserved_entry(
+    blocked: &tasty_host_plugin::discovery::ReservedIdBlocked,
+) -> plugins_ui::AttentionEntry {
+    plugins_ui::AttentionEntry {
+        id: blocked.id.clone(),
+        name: super::file_reserved_remove::folder_name(&blocked.dir),
+        version: String::new(),
+        authors: Vec::new(),
+        description: String::new(),
+        homepage: String::new(),
+        builtin: false,
+        kind: plugins_ui::AttentionKind::ReservedId,
+        fingerprint: None,
+        permissions_added: Vec::new(),
+        permissions_removed: Vec::new(),
+        health_detail: None,
+        cause: None,
+        unverified: None,
+        manifest_sha256: String::new(),
+        folder: Some(blocked.dir.clone()),
+    }
+}
+
+#[cfg(test)]
+#[path = "snapshot_tests.rs"]
+mod tests;

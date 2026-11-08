@@ -1,0 +1,160 @@
+//! 확인 필요 탭의 예약 id 폴더 제거. 등록된 적이 없어 활성 상태·프로세스·명령을 건드리지 않으므로
+//! `enqueue_plugin_remove` 를 쓰지 않는다. 그 경로는 id 로 폴더를 찾아 다른 폴더를 지울 수 있다.
+
+use std::path::{Path, PathBuf};
+
+use serde_json::json;
+use tasty_host_plugin::reserved_removal::{ReservedRemovalError, remove_reserved_folder};
+
+use crate::app::{App, plugin_file_lifecycle::Failure};
+use crate::{plugin, window};
+
+type Finish = Box<dyn FnOnce(&mut App, Result<(), Failure>)>;
+
+/// 토스트와 확인 문구에 쓰는 폴더 이름. UTF-8 이 아닌 이름은 손실 변환한다.
+pub(crate) fn folder_name(dir: &Path) -> String {
+    dir.file_name()
+        .map(|name| name.to_string_lossy().into_owned())
+        .unwrap_or_else(|| dir.to_string_lossy().into_owned())
+}
+
+fn to_failure(error: ReservedRemovalError) -> Failure {
+    let mut failure = Failure::before(error.message);
+    if error.deletion_started {
+        failure.details = json!({
+            "directory_cleanup_started": true,
+            "directory_outcome": "unknown",
+            "outcome": "unknown",
+        });
+    }
+    failure
+}
+
+/// 목록에 없는 폴더는 지우지 않는다. 이미 없으면 목표 상태이므로 성공이고, 앞서 받은 같은 요청이
+/// 먼저 지운 경우가 여기에 든다. 남아 있으면 이 창이 본 뒤로 상태가 바뀐 것이므로 실패다.
+fn unlisted_outcome(dir: &Path) -> Result<(), Failure> {
+    match std::fs::symlink_metadata(dir) {
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
+        Err(error) => Err(Failure::before(error)),
+        Ok(_) => Err(Failure::before(format!(
+            "{} is not waiting for removal",
+            dir.display()
+        ))),
+    }
+}
+
+impl App {
+    pub(crate) fn enqueue_reserved_remove(
+        &mut self,
+        dir: PathBuf,
+        finish: impl FnOnce(&mut App, Result<(), Failure>) + 'static,
+    ) -> Result<(), Failure> {
+        let root =
+            plugin::plugin_root().ok_or_else(|| Failure::before("plugin directory unavailable"))?;
+        self.plugin_files.enqueue_sized(
+            dir.as_os_str().len().saturating_add(root.as_os_str().len()),
+            move |app| app.start_reserved_remove(dir, root, Box::new(finish)),
+        )?;
+        (self.services.reply_wake())();
+        Ok(())
+    }
+
+    /// 화면 값은 식별에만 쓴다. 차례가 온 시점에 매니저 목록에서 그 경로를 다시 찾는다.
+    fn start_reserved_remove(&mut self, dir: PathBuf, root: PathBuf, finish: Finish) {
+        let listed = self.plugin_manager.as_ref().is_some_and(|mgr| {
+            mgr.reserved_blocked()
+                .iter()
+                .any(|blocked| blocked.dir == dir)
+        });
+        let bytes = dir.as_os_str().len().saturating_add(root.as_os_str().len());
+        let target = dir.clone();
+        self.run_plugin_file(
+            (bytes, 0),
+            move || {
+                if listed {
+                    remove_reserved_folder(&root, &target).map_err(to_failure)
+                } else {
+                    unlisted_outcome(&target)
+                }
+            },
+            |result| result.as_ref().err().map_or(0, |e| e.message.len()),
+            crate::app::plugin_file_lifecycle::classify_failure,
+            move |app, result| {
+                let result = result.and_then(|outcome| outcome);
+                if result.is_ok() {
+                    if let Some(mgr) = app.plugin_manager.as_mut() {
+                        mgr.forget_reserved(&dir);
+                    }
+                    app.refresh_plugin_window_after_file();
+                }
+                finish(app, result);
+            },
+        );
+    }
+
+    pub(super) fn handle_remove_reserved(&mut self, dir: PathBuf) {
+        let modal = self.view.active_modal_id();
+        let name = folder_name(&dir);
+        let shown = name.clone();
+        let admitted = self.enqueue_reserved_remove(dir, move |app, result| {
+            app.finish_reserved_remove(modal, &shown, result);
+        });
+        if let Err(error) = admitted {
+            self.finish_reserved_remove(modal, &name, Err(error));
+        }
+    }
+
+    /// 창이 열려 있으면 그 창에 결과를 띄운다. 닫혔으면 실패만 메인 창에 알린다.
+    fn finish_reserved_remove(
+        &mut self,
+        modal: Option<winit::window::WindowId>,
+        name: &str,
+        result: Result<(), Failure>,
+    ) {
+        let (ok, message, kind) = match result {
+            Ok(()) => (
+                true,
+                crate::i18n::t_fmt("plugins.attn_removed", name),
+                crate::adapters::ui::ToastKind::Success,
+            ),
+            Err(error) => (
+                false,
+                crate::i18n::t_fmt("plugins.attn_remove_failed", &error.message),
+                crate::adapters::ui::ToastKind::Error,
+            ),
+        };
+        if let Some(modal) = modal.and_then(|id| self.view.views.get_mut(&id))
+            && let Some(view) = modal.as_any_mut().downcast_mut::<window::PluginsView>()
+        {
+            view.finish_remove_reserved();
+            view.push_toast(message, kind);
+        } else if !ok {
+            self.toast_settings_result(message, kind);
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn an_unlisted_folder_is_never_deleted() {
+        let root = tempfile::tempdir().expect("root");
+        let kept = root.path().join("kept");
+        std::fs::create_dir(&kept).expect("dir");
+        assert!(unlisted_outcome(&kept).is_err());
+        assert!(kept.exists());
+        assert!(unlisted_outcome(&root.path().join("gone")).is_ok());
+    }
+
+    #[test]
+    fn a_partial_removal_reports_an_unknown_outcome() {
+        let failure = to_failure(ReservedRemovalError {
+            message: "denied".into(),
+            deletion_started: true,
+        });
+        assert_eq!(failure.message, "denied");
+        assert_eq!(failure.details["outcome"], "unknown");
+    }
+}
