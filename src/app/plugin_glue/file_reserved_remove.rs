@@ -40,6 +40,24 @@ fn unlisted_outcome(dir: &Path) -> Result<(), Failure> {
     }
 }
 
+/// 폴더 이름과 실패 사유는 길이가 정해지지 않으므로 토스트 제한 안에서 가운데를 줄인다. 잘리면 사유
+/// 끝의 원인 문장이 사라진다.
+fn removal_toast(
+    name: &str,
+    result: Result<(), Failure>,
+) -> (String, crate::adapters::ui::ToastKind) {
+    match result {
+        Ok(()) => (
+            crate::i18n::t_fmt_fit("plugins.attn_removed", name),
+            crate::adapters::ui::ToastKind::Success,
+        ),
+        Err(error) => (
+            crate::i18n::t_fmt_fit("plugins.attn_remove_failed", &error.message),
+            crate::adapters::ui::ToastKind::Error,
+        ),
+    }
+}
+
 impl App {
     pub(crate) fn enqueue_reserved_remove(
         &mut self,
@@ -108,18 +126,8 @@ impl App {
         name: &str,
         result: Result<(), Failure>,
     ) {
-        let (ok, message, kind) = match result {
-            Ok(()) => (
-                true,
-                crate::i18n::t_fmt("plugins.attn_removed", name),
-                crate::adapters::ui::ToastKind::Success,
-            ),
-            Err(error) => (
-                false,
-                crate::i18n::t_fmt("plugins.attn_remove_failed", &error.message),
-                crate::adapters::ui::ToastKind::Error,
-            ),
-        };
+        let ok = result.is_ok();
+        let (message, kind) = removal_toast(name, result);
         if let Some(modal) = modal.and_then(|id| self.view.views.get_mut(&id))
             && let Some(view) = modal.as_any_mut().downcast_mut::<window::PluginsView>()
         {
@@ -134,6 +142,7 @@ impl App {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::i18n::TOAST_MAX_CHARS;
 
     #[test]
     fn an_unlisted_folder_is_never_deleted() {
@@ -143,6 +152,45 @@ mod tests {
         assert!(unlisted_outcome(&kept).is_err());
         assert!(kept.exists());
         assert!(unlisted_outcome(&root.path().join("gone")).is_ok());
+    }
+
+    /// 깨진 매니페스트의 오류에는 전체 경로가 들어가 제한을 넘는다. 번역 문장과 끝의 원인이 남아야 한다.
+    #[test]
+    fn a_long_failure_reason_keeps_its_cause_inside_the_toast_limit() {
+        crate::i18n::init("en");
+        let root = tempfile::tempdir().expect("root");
+        let dir = root.path().join("a".repeat(180));
+        std::fs::create_dir(&dir).expect("dir");
+        std::fs::write(dir.join("tasty-plugin.toml"), "not toml [").expect("manifest");
+        let error = remove_reserved_folder(root.path(), &dir).expect_err("refused");
+        assert!(dir.exists());
+        let reason = error.message.clone();
+        let raw = crate::i18n::t_fmt("plugins.attn_remove_failed", &reason);
+        assert!(raw.chars().count() > TOAST_MAX_CHARS, "{raw}");
+
+        let (message, kind) = removal_toast("x", Err(to_failure(error)));
+        assert_eq!(kind, crate::adapters::ui::ToastKind::Error);
+        assert!(message.chars().count() <= TOAST_MAX_CHARS, "{message}");
+        assert!(message.starts_with("Remove failed: "), "{message}");
+        let cause: String = reason
+            .chars()
+            .rev()
+            .take(30)
+            .collect::<Vec<_>>()
+            .into_iter()
+            .rev()
+            .collect();
+        assert!(message.ends_with(&cause), "{message}");
+    }
+
+    #[test]
+    fn a_long_folder_name_keeps_the_sentence_inside_the_toast_limit() {
+        crate::i18n::init("en");
+        let (message, kind) = removal_toast(&"a".repeat(255), Ok(()));
+        assert_eq!(kind, crate::adapters::ui::ToastKind::Success);
+        assert!(message.chars().count() <= TOAST_MAX_CHARS, "{message}");
+        assert!(message.starts_with("Removed '"), "{message}");
+        assert!(message.ends_with("'."), "{message}");
     }
 
     #[test]

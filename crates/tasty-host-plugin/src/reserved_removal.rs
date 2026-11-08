@@ -9,7 +9,8 @@ use std::path::Path;
 use tasty_plugin_manifest::Manifest;
 
 /// 제거 실패. `deletion_started` 면 일부 파일이 이미 지워졌을 수 있다. `message` 는 토스트에 실린다.
-/// 토스트 글자 수 제한에 잘리지 않도록 경로를 넣지 않는다. 경로는 상세의 Folder 절에 있다.
+/// 고정 사유에는 경로를 넣지 않는다. 매니페스트·OS 오류 원문에는 전체 경로가 들어갈 수 있어 길이가
+/// 정해지지 않으므로 호출자가 토스트 길이에 맞춘다.
 #[derive(Debug)]
 pub struct ReservedRemovalError {
     pub message: String,
