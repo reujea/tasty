@@ -694,7 +694,7 @@ headless가 사용하지 않는 GUI 의존성은 [빌드 경계](../../dev-guide
 각 OS의 컴파일은 공유 호출부와 타입을 검사한다. 실제 클릭·단축키·IME·크기·종료·리소스 차단까지 검사한 것은 아니다.
 기존 근거에서 Linux/X11의 실행 확인과 macOS·Windows의 소스·컴파일 확인은 구별돼 있다.
 macOS의 실제 클릭 제스처 판정, macOS 메뉴바와 키 중복 처리는 실제 환경에서 확인해야 하는 항목이다.
-Windows의 같은 문서 fragment 이동과 클릭 증명은 Windows 11 사용자 세션에서 OS 합성 클릭(`mouse_event`)으로 확인했다. 대상은 로컬 Markdown의 폴더 버튼·주소 Go, mirror의 폴더 버튼·새로고침이다. 사람 손의 클릭과 Markdown 문서 안 링크 클릭은 측정하지 않았다.
+Windows의 같은 문서 fragment 이동과 클릭 증명은 Windows 11 사용자 세션에서 OS 합성 클릭(`mouse_event`)으로 확인했다. 대상은 로컬 Markdown의 폴더 버튼·주소 Go, mirror의 폴더 버튼·새로고침이다. mirror는 같은 머신의 격리 인스턴스와 SSH 터널로 붙인 Linux 격리 인스턴스로 쟀고, 새로고침은 같은 머신에서만 쟀다. 사람 손의 클릭과 Markdown 문서 안 링크 클릭은 측정하지 않았다.
 이 문서의 소스 설명만으로 해당 플랫폼의 실행 검증을 대신하지 않는다.
 
 ## 설정 출처 — kind 를 등록한 plugin
