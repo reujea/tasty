@@ -13,6 +13,7 @@ mod gate;
 mod handlers;
 mod hook;
 mod install;
+mod monitor_tasks;
 mod notifications;
 mod notify_mod;
 mod profile;

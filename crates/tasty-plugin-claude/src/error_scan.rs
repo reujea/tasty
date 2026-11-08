@@ -184,15 +184,24 @@ struct BackgroundWait {
     unresolved_since: Option<Instant>,
     /// 못 찾았다는 경고를 이 대기에서 남겼는지.
     warned: bool,
-    /// 기다리는 작업의 종류. 대기 meta 에 다시 쓸 때 쓴다.
-    types: Vec<String>,
+    /// 기다리는 작업의 종류.
+    kinds: WaitKinds,
+}
+
+/// 기다리는 작업의 종류. 대기 meta 의 `types`·`notice_types` 다.
+#[derive(Default)]
+pub(crate) struct WaitKinds {
+    /// 모든 작업. `notify-stop-failure` 문구가 쓴다.
+    pub all: Vec<String>,
+    /// Monitor 를 뺀 작업. 정지 알림의 기준과 문구가 쓴다.
+    pub noticed: Vec<String>,
 }
 
 /// surface meta `claude-background-wait` 에 남긴 대기. 플러그인이 다시 시작되면 이 값으로 대기를 되살린다.
 pub(crate) struct SavedWait {
     pub since_ms: u64,
     pub notified: bool,
-    pub types: Vec<String>,
+    pub kinds: WaitKinds,
     pub watch: Option<TaskWatch>,
 }
 
@@ -202,21 +211,23 @@ impl SavedWait {
         let v: serde_json::Value = serde_json::from_str(raw)
             .inspect_err(|e| tracing::warn!("claude background wait meta is not JSON ({e}): {raw}"))
             .ok()?;
+        let names = |key: &str| {
+            v.get(key).and_then(serde_json::Value::as_array).map(|a| {
+                a.iter()
+                    .filter_map(|t| t.as_str().map(String::from))
+                    .collect::<Vec<_>>()
+            })
+        };
+        let all = names("types").unwrap_or_default();
+        // 이 필드가 없는 대기 meta 는 Monitor 를 가리지 않던 때의 것이라 모두 알림 대상으로 본다.
+        let noticed = names("notice_types").unwrap_or_else(|| all.clone());
         Some(Self {
             since_ms: v.get("since_ms")?.as_u64()?,
             notified: v
                 .get("notified")
                 .and_then(serde_json::Value::as_bool)
                 .unwrap_or(false),
-            types: v
-                .get("types")
-                .and_then(serde_json::Value::as_array)
-                .map(|a| {
-                    a.iter()
-                        .filter_map(|t| t.as_str().map(String::from))
-                        .collect()
-                })
-                .unwrap_or_default(),
+            kinds: WaitKinds { all, noticed },
             watch: v.get("watch").and_then(TaskWatch::from_meta),
         })
     }
@@ -235,7 +246,7 @@ impl BackgroundWait {
             last_locate: None,
             unresolved_since: None,
             warned: false,
-            types: Vec::new(),
+            kinds: WaitKinds::default(),
         }
     }
 
@@ -243,7 +254,7 @@ impl BackgroundWait {
         Self {
             notified: saved.notified,
             watch: saved.watch,
-            types: saved.types,
+            kinds: saved.kinds,
             ..Self::new(saved.since_ms)
         }
     }
@@ -252,14 +263,26 @@ impl BackgroundWait {
     fn meta_value(&self) -> String {
         let mut v = json!({
             "since_ms": self.since_ms,
-            "tasks": self.types.len(),
-            "types": self.types,
+            "tasks": self.kinds.all.len(),
+            "types": self.kinds.all,
+            "notice_types": self.kinds.noticed,
             "notified": self.notified,
         });
         if let Some(watch) = &self.watch {
             v["watch"] = watch.to_meta();
         }
         v.to_string()
+    }
+
+    /// 기다리는 작업이 모두 Monitor 인가. Monitor 는 조용한 것이 정상이라 이 대기에는 정지 알림을 보내지 않는다.
+    /// 종류를 모르는 대기(`waiting_on_background_work` 만 있음)는 해당하지 않는다.
+    fn monitors_only(&self) -> bool {
+        !self.kinds.all.is_empty() && self.kinds.noticed.is_empty()
+    }
+
+    /// 기다리는 작업에 Monitor 가 있는가. Monitor 이벤트는 사람이나 부모 없이도 새 턴을 연다.
+    fn has_monitors(&self) -> bool {
+        self.kinds.all.len() > self.kinds.noticed.len()
     }
 
     /// 기다리는 작업의 출력 파일이 모두 활동 없이 지난 시간. 파일을 찾지 못했거나 대상이 있는 파일이 없으면
@@ -479,7 +502,7 @@ impl ErrorScanner {
         &mut self,
         surface_id: u32,
         now_ms: u64,
-        types: Vec<String>,
+        kinds: WaitKinds,
         watch: Option<TaskWatch>,
     ) -> String {
         self.mark_background_wait(surface_id, now_ms);
@@ -488,7 +511,7 @@ impl ErrorScanner {
             .background_wait
             .entry(surface_id)
             .or_insert_with(|| BackgroundWait::new(now_ms));
-        b.types = types;
+        b.kinds = kinds;
         b.meta_value()
     }
 
@@ -741,6 +764,13 @@ impl ErrorScanner {
             );
             self.restore_background_wait(surface_id, saved);
         }
+        if self
+            .background_wait
+            .get(&surface_id)
+            .is_some_and(BackgroundWait::monitors_only)
+        {
+            return;
+        }
         let Some(w) = self.watch.get(&surface_id) else {
             return;
         };
@@ -794,6 +824,13 @@ impl ErrorScanner {
         }
 
         if let Some(b) = wait.filter(|_| file_quiet.is_some()) {
+            // Monitor 이벤트가 새 턴을 열어 대기가 다시 시작돼도, 마지막 알림 뒤로 활동이 없는 같은 작업이면 같은 조용한
+            // 구간이다. 이 대기를 알린 것으로 두어 tick 마다 다시 묻지 않는다. Monitor 가 없으면 부모의 지시 등으로 시작된
+            // 새 대기이므로 지금처럼 다시 알려 턴을 깨운다.
+            if b.has_monitors() && already_noticed_quiet_tasks(host, surface_id, b, quiet) {
+                self.record_wait_notice(host, surface_id);
+                return;
+            }
             record_quiet_tasks(host, surface_id, b, quiet);
         }
         self.fire_stall(host, surface_id, now);
@@ -863,13 +900,47 @@ fn record_quiet_tasks<H: HostCall>(
         quiet.as_secs(),
         labels.join(", ")
     );
-    let value = json!({ "since_ms": wait.since_ms, "labels": labels, "quiet_ms": quiet.as_millis() as u64 });
+    let tasks = wait.watch.as_ref().map(TaskWatch::task_ids);
+    let value = json!({
+        "since_ms": wait.since_ms,
+        "labels": labels,
+        "quiet_ms": quiet.as_millis() as u64,
+        "tasks": tasks,
+        "at_ms": unix_now_ms(),
+    });
     if let Err(e) = host.call(
         "surface.meta.set",
         json!({ "surface_id": surface_id, "key": crate::task_watch::BACKGROUND_QUIET_META_KEY, "value": value.to_string() }),
     ) {
         tracing::warn!("claude stall s{surface_id}: recording the quiet background tasks failed: {e}");
     }
+}
+
+/// 지금 조용한 작업을 이번 조용한 구간에 이미 알렸는가. 마지막 기록의 작업이 같고 그 뒤로 파일 활동이 없으면 그렇다.
+/// 대기와 플러그인 재시작을 넘어 이어지도록 메모리가 아니라 meta 로 판단한다. 파일 나이와 같은 실제 시계로 잰다.
+fn already_noticed_quiet_tasks<H: HostCall>(
+    host: &H,
+    surface_id: u32,
+    wait: &BackgroundWait,
+    quiet: Duration,
+) -> bool {
+    let Some(raw) = crate::stop_pairing::meta_value(
+        host,
+        surface_id,
+        crate::task_watch::BACKGROUND_QUIET_META_KEY,
+    ) else {
+        return false;
+    };
+    let Ok(last) = serde_json::from_str::<serde_json::Value>(&raw) else {
+        return false;
+    };
+    let same_tasks = wait
+        .watch
+        .as_ref()
+        .is_some_and(|w| last.get("tasks") == Some(&json!(w.task_ids())));
+    let at_ms = last.get("at_ms").and_then(serde_json::Value::as_u64);
+    same_tasks
+        && at_ms.is_some_and(|at| Duration::from_millis(unix_now_ms().saturating_sub(at)) <= quiet)
 }
 
 /// surface meta `claude-background-wait` 에 남은 대기. 없거나 읽을 수 없으면 `None` 이다.
@@ -1153,6 +1224,8 @@ mod tests {
         meta_sets: std::cell::RefCell<Vec<(String, String)>>,
         /// 받은 호출의 method 순서.
         calls: std::cell::RefCell<Vec<String>>,
+        /// 재시작 전에 남은 `claude-background-quiet` 값. 없으면 이 호스트가 받은 마지막 기록을 돌려준다.
+        quiet_meta: std::cell::RefCell<Option<String>>,
         /// 플러그인 설정 값.
         setting: std::cell::RefCell<Option<serde_json::Value>>,
         setting_fails: std::cell::RefCell<bool>,
@@ -1167,6 +1240,7 @@ mod tests {
                 wait_meta: None,
                 meta_sets: std::cell::RefCell::new(Vec::new()),
                 calls: std::cell::RefCell::new(Vec::new()),
+                quiet_meta: std::cell::RefCell::new(None),
                 setting: std::cell::RefCell::new(None),
                 setting_fails: std::cell::RefCell::new(false),
             }
@@ -1208,6 +1282,18 @@ mod tests {
                 "settings.get_plugin_setting" => {
                     assert_eq!(params["storage_key"], NO_OUTPUT_NOTICE_KEY);
                     Ok(json!({ "value": *self.setting.borrow() }))
+                }
+                "surface.meta.get"
+                    if params["key"] == crate::task_watch::BACKGROUND_QUIET_META_KEY =>
+                {
+                    let last = self
+                        .meta_sets
+                        .borrow()
+                        .iter()
+                        .rev()
+                        .find(|(k, _)| k == crate::task_watch::BACKGROUND_QUIET_META_KEY)
+                        .map(|(_, v)| v.clone());
+                    Ok(json!({ "value": self.quiet_meta.borrow().clone().or(last) }))
                 }
                 "surface.meta.get" if params["key"] == crate::hook::BACKGROUND_WAIT_META_KEY => {
                     Ok(match &self.wait_meta {
@@ -1358,6 +1444,168 @@ mod tests {
         s.scan_one_at(&host, 1, t0 + Duration::from_secs(1));
         s.scan_one_at(&host, 1, t0 + Duration::from_secs(1) + STALL_QUIET);
         assert_eq!(host.stalled_count(), 1);
+    }
+
+    fn shell_kinds() -> WaitKinds {
+        WaitKinds {
+            all: vec!["shell".into()],
+            noticed: vec!["shell".into()],
+        }
+    }
+
+    /// Stop 이 Monitor 하나만 기다린다고 보고한 대기의 종류. Monitor 도 `shell` 로 온다.
+    fn monitor_kinds() -> WaitKinds {
+        WaitKinds {
+            all: vec!["shell".into()],
+            noticed: Vec::new(),
+        }
+    }
+
+    /// Stop 이 Bash 하나와 Monitor 하나를 기다린다고 보고한 대기의 종류.
+    fn mixed_kinds() -> WaitKinds {
+        WaitKinds {
+            all: vec!["shell".into(), "shell".into()],
+            noticed: vec!["shell".into()],
+        }
+    }
+
+    /// Monitor 만 기다리면 어떤 기준에도 알리지 않는다. 턴이 진행 중이면 일반 기준으로 돌아간다.
+    #[test]
+    fn a_wait_on_monitors_only_is_never_noticed() {
+        let host = ScanHost::new("\u{276f} \n", "active");
+        let mut s = scanner_with_notice(60);
+        s.record_background_wait(1, 1_000, monitor_kinds(), None);
+        let t0 = Instant::now();
+        s.scan_one_at(&host, 1, t0);
+        s.scan_one_at(&host, 1, t0 + STALL_QUIET_BACKGROUND_WAIT * 100);
+        assert_eq!(host.stalled_count(), 0);
+        assert!(s.is_waiting_on_background_work(1), "대기 자체는 그대로다");
+
+        // 새 턴: Monitor 가 떠 있어도 대기가 아니므로 조용한 턴은 알린다.
+        s.clear_background_wait(1);
+        s.reset_dedupe(1);
+        let t1 = t0 + STALL_QUIET_BACKGROUND_WAIT * 101;
+        s.scan_one_at(&host, 1, t1);
+        s.scan_one_at(&host, 1, t1 + Duration::from_secs(60));
+        assert_eq!(host.stalled_count(), 1);
+    }
+
+    /// 재시작 뒤 대기 meta 로 되살린 Monitor 대기도 알리지 않는다.
+    #[test]
+    fn a_restored_wait_on_monitors_only_is_not_noticed() {
+        let mut s = ErrorScanner::new();
+        let meta = s.record_background_wait(1, 1_000, monitor_kinds(), None);
+        let mut host = ScanHost::new("\u{276f} \n", "active");
+        host.wait_meta = Some(meta);
+        let mut restarted = scanner_with_notice(60);
+        let t0 = Instant::now();
+        restarted.scan_one_at(&host, 1, t0);
+        restarted.scan_one_at(&host, 1, t0 + STALL_QUIET_BACKGROUND_WAIT * 10);
+        assert_eq!(host.stalled_count(), 0);
+        assert!(restarted.is_waiting_on_background_work(1));
+    }
+
+    /// `notice_types` 가 없는 옛 대기 meta 는 지금처럼 알린다. 종류를 모르는 대기도 그렇다.
+    #[test]
+    fn a_wait_without_monitor_information_is_noticed_as_before() {
+        for meta in [
+            r#"{"since_ms":1000,"tasks":1,"types":["shell"]}"#,
+            r#"{"since_ms":1000,"tasks":0,"types":[]}"#,
+        ] {
+            let mut host = ScanHost::new("\u{276f} \n", "active");
+            host.wait_meta = Some(meta.to_string());
+            let mut s = scanner_with_notice(60);
+            let t0 = Instant::now();
+            s.scan_one_at(&host, 1, t0);
+            s.scan_one_at(&host, 1, t0 + STALL_QUIET_BACKGROUND_WAIT);
+            assert_eq!(host.stalled_count(), 1, "{meta}");
+        }
+    }
+
+    /// 조용한 Bash 와 이벤트를 내는 Monitor: Monitor 이벤트가 새 턴을 열어 대기가 다시 시작돼도 같은 조용한 구간은
+    /// 한 번만 알린다.
+    #[test]
+    fn a_quiet_task_is_noticed_once_across_waits_restarted_by_monitor_events() {
+        let host = ScanHost::new("\u{276f} \n", "active");
+        let mut s = scanner_with_notice(60);
+        // 파일 나이는 실제 시계로 잰다. 시험의 쿨다운 경과보다 오래 조용하게 둔다.
+        let (dir, watch, files) = quiet_task_files(STALL_NOTIFY_COOLDOWN + Duration::from_secs(60));
+        s.record_background_wait(1, 1_000, mixed_kinds(), Some(watch.clone()));
+        s.set_file_activity_for_test(1, watch.clone(), files);
+        let t0 = Instant::now();
+        s.scan_one_at(&host, 1, t0);
+        assert_eq!(host.stalled_count(), 1);
+
+        // Monitor 이벤트: 새 턴 뒤 대기 Stop. 쿨다운이 지났지만 Bash 파일은 그대로다.
+        s.clear_background_wait(1);
+        s.reset_dedupe(1);
+        s.record_background_wait(1, 2_000, mixed_kinds(), Some(watch.clone()));
+        let refreshed = FileActivity::locate(&watch, dir.path()).unwrap();
+        s.set_file_activity_for_test(1, watch.clone(), refreshed);
+        s.scan_one_at(&host, 1, t0 + STALL_NOTIFY_COOLDOWN);
+        assert_eq!(host.stalled_count(), 1, "같은 조용한 구간");
+        let gets = host.count("surface.meta.get");
+        s.scan_one_at(&host, 1, t0 + STALL_NOTIFY_COOLDOWN * 2);
+        assert_eq!(
+            host.count("surface.meta.get"),
+            gets,
+            "tick 마다 다시 묻지 않는다"
+        );
+
+        // 플러그인 재시작: 메모리 없이 meta 만 남았다.
+        let saved = host
+            .meta_sets
+            .borrow()
+            .iter()
+            .rev()
+            .find(|(k, _)| k == crate::task_watch::BACKGROUND_QUIET_META_KEY)
+            .map(|(_, v)| v.clone());
+        let again = |quiet_meta: Option<String>| {
+            let host = ScanHost::new("\u{276f} \n", "active");
+            *host.quiet_meta.borrow_mut() = quiet_meta;
+            let mut restarted = scanner_with_notice(60);
+            restarted.record_background_wait(1, 3_000, mixed_kinds(), Some(watch.clone()));
+            let files = FileActivity::locate(&watch, dir.path()).unwrap();
+            restarted.set_file_activity_for_test(1, watch.clone(), files);
+            restarted.scan_one_at(&host, 1, Instant::now());
+            host.stalled_count()
+        };
+        assert_eq!(again(saved.clone()), 0, "재시작 뒤에도 같은 조용한 구간");
+
+        // 대조군: 다른 작업이나, 그 뒤로 파일 활동이 있었던 기록이면 새 사건으로 알린다.
+        assert_eq!(again(None), 1);
+        let edited = |key: &str, value: serde_json::Value| {
+            let mut v: serde_json::Value = serde_json::from_str(saved.as_deref().unwrap()).unwrap();
+            v[key] = value;
+            Some(v.to_string())
+        };
+        assert_eq!(again(edited("tasks", json!(["other"]))), 1);
+        let long_ago = super::unix_now_ms() - 1_000_000_000;
+        assert_eq!(again(edited("at_ms", json!(long_ago))), 1);
+    }
+
+    /// Monitor 없는 Bash: 부모의 지시 등으로 새 턴이 지나 다시 대기하면, 파일이 그대로여도 새 대기마다 알려 턴을 깨운다.
+    #[test]
+    fn a_quiet_task_without_a_monitor_is_noticed_again_for_each_wait() {
+        let host = ScanHost::new("\u{276f} \n", "active");
+        let mut s = scanner_with_notice(60);
+        let (dir, watch, files) = quiet_task_files(STALL_NOTIFY_COOLDOWN + Duration::from_secs(60));
+        s.record_background_wait(1, 1_000, shell_kinds(), Some(watch.clone()));
+        s.set_file_activity_for_test(1, watch.clone(), files);
+        let t0 = Instant::now();
+        s.scan_one_at(&host, 1, t0);
+        assert_eq!(host.stalled_count(), 1);
+        // 같은 대기 안에서는 한 번이다.
+        s.scan_one_at(&host, 1, t0 + STALL_NOTIFY_COOLDOWN);
+        assert_eq!(host.stalled_count(), 1);
+
+        s.clear_background_wait(1);
+        s.reset_dedupe(1);
+        s.record_background_wait(1, 2_000, shell_kinds(), Some(watch.clone()));
+        let refreshed = FileActivity::locate(&watch, dir.path()).unwrap();
+        s.set_file_activity_for_test(1, watch.clone(), refreshed);
+        s.scan_one_at(&host, 1, t0 + STALL_NOTIFY_COOLDOWN);
+        assert_eq!(host.stalled_count(), 2, "새 대기");
     }
 
     fn scanner_with_notice(secs: u64) -> ErrorScanner {
@@ -1758,7 +2006,7 @@ mod tests {
     fn a_wait_notified_before_a_restart_is_not_notified_again() {
         let host = ScanHost::new("❯ \n⏵⏵ 1 shell\n", "active");
         let mut s = ErrorScanner::new();
-        let first = s.record_background_wait(1, 1_000, vec!["shell".into()], None);
+        let first = s.record_background_wait(1, 1_000, shell_kinds(), None);
         assert!(!SavedWait::parse(&first).unwrap().notified);
         let t0 = Instant::now();
         s.scan_one_at(&host, 1, t0);
@@ -1775,7 +2023,7 @@ mod tests {
         let parsed = SavedWait::parse(&saved).unwrap();
         assert!(parsed.notified, "{saved}");
         assert_eq!(
-            (parsed.since_ms, parsed.types),
+            (parsed.since_ms, parsed.kinds.noticed),
             (1_000, vec!["shell".to_string()])
         );
 
@@ -1799,7 +2047,7 @@ mod tests {
             }],
         };
         let mut s = ErrorScanner::new();
-        let meta = s.record_background_wait(1, 1_000, vec!["shell".into()], Some(watch.clone()));
+        let meta = s.record_background_wait(1, 1_000, shell_kinds(), Some(watch.clone()));
         let mut restarted = ErrorScanner::new();
         restarted.restore_background_wait(1, SavedWait::parse(&meta).unwrap());
         assert_eq!(restarted.background_wait[&1].watch, Some(watch));

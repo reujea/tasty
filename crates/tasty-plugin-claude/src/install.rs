@@ -51,10 +51,10 @@ fn tasty_hook_command(event_token: &str) -> String {
     tasty_guarded_command(&format!("tasty claude hook {event_token}"))
 }
 
-/// `background-start` 훅 명령. 이 훅은 Bash·Agent 호출마다 실행되고, 끝날 때까지 Claude Code 가 다음
+/// `background-start` 훅 명령. 이 훅은 Bash·Agent·Monitor 호출마다 실행되고, 끝날 때까지 Claude Code 가 다음
 /// 모델 요청을 보내지 않는다. 그래서 백그라운드로 띄운 호출의 `tool_response` 에만 있는 필드
-/// (`"backgroundTaskId":"`, `"isAsync":true`)를 셸에서 먼저 보고, 없으면 tasty CLI 를 띄우지 않고 끝낸다.
-/// Claude Code 2.1.291 의 payload 는 공백 없는 JSON 이다. 형식이 바뀌어 맞지 않으면 기록이 빠질 뿐
+/// (`"backgroundTaskId":"`, `"isAsync":true`)와 Monitor 의 도구 이름을 셸에서 먼저 보고, 없으면 tasty CLI 를 띄우지
+/// 않고 끝낸다. Claude Code 2.1.291·2.1.319 의 payload 는 공백 없는 JSON 이다. 형식이 바뀌어 맞지 않으면 기록이 빠질 뿐
 /// 세션은 막지 않는다. 플러그인은 CLI 로 받은 payload 를 다시 해석해 판정한다.
 fn background_start_command() -> String {
     format!(
@@ -65,7 +65,8 @@ fn background_start_command() -> String {
 }
 
 /// 백그라운드 호출 payload 에만 있는 문자열을 찾는 셸 `case` 패턴.
-const BACKGROUND_PAYLOAD_PATTERNS: &str = r#"*'"backgroundTaskId":"'*|*'"isAsync":true'*"#;
+const BACKGROUND_PAYLOAD_PATTERNS: &str =
+    r#"*'"backgroundTaskId":"'*|*'"isAsync":true'*|*'"tool_name":"Monitor"'*"#;
 
 pub(crate) fn claude_settings_path(tr: &Translator) -> Result<PathBuf> {
     let base = directories::BaseDirs::new()
@@ -569,6 +570,30 @@ mod tests {
         assert_eq!(arr[0]["matcher"], "AskUserQuestion");
     }
 
+    /// `Monitor` 를 받기 전 설치의 matcher·명령은 재설치로 갱신한다. 재설치 전에는 Monitor 기록이 없다.
+    #[test]
+    fn install_upgrades_the_background_start_hook_to_monitor() {
+        let old = "if [ -n \"$TASTY_SURFACE_ID\" ]; then p=$(cat); case \"$p\" in *'\"backgroundTaskId\":\"'*|*'\"isAsync\":true'*) printf '%s' \"$p\" | tasty claude hook background-start || true ;; esac; fi";
+        let mut root = json!({
+            "hooks": {
+                "PostToolUse": [
+                    { "matcher": "Bash|Agent|Task", "hooks": [{ "type": "command", "command": old }] }
+                ]
+            }
+        });
+        install_hooks_in_value(&mut root, &test_translator()).expect("install");
+        let marker = tasty_hook_marker(crate::hook::BACKGROUND_START_EVENT);
+        assert_eq!(count_managed_entries(&root, "PostToolUse", &marker), 1);
+        let entry = root["hooks"]["PostToolUse"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|e| e["matcher"] == "Bash|Agent|Task|Monitor")
+            .expect("갱신한 matcher");
+        let command = entry["hooks"][0]["command"].as_str().unwrap();
+        assert!(command.contains("\"tool_name\":\"Monitor\""), "{command}");
+    }
+
     #[test]
     fn install_is_idempotent() {
         let mut root = json!({});
@@ -836,8 +861,13 @@ mod tests {
         let fg_agent = r#"{"tool_name":"Agent","tool_input":{"run_in_background":false},"tool_response":{"status":"completed","agentId":"a242555e6059db038","content":[{"type":"text","text":"say \"isAsync\":true"}]}}"#;
         let bg_bash = r#"{"tool_name":"Bash","tool_input":{"command":"sleep 2","run_in_background":true},"tool_response":{"stdout":"","backgroundTaskId":"bd0w3381s"}}"#;
         let bg_agent = r#"{"tool_name":"Agent","tool_input":{"run_in_background":true},"tool_response":{"isAsync":true,"status":"async_launched","agentId":"a22d7fc9077e1353c"}}"#;
+        // Claude Code 2.1.319 실측 모양. 다른 도구의 값에 같은 글자가 있어도 JSON 이스케이프 때문에 맞지 않는다.
+        let monitor = r#"{"hook_event_name":"PostToolUse","tool_name":"Monitor","tool_input":{"description":"quiet","timeout_ms":1500000,"command":"sleep 1500"},"tool_response":{"taskId":"bym7ibssy","timeoutMs":1500000,"persistent":false}}"#;
+        let fg_bash_quoting = r#"{"tool_name":"Bash","tool_input":{"command":"echo \"tool_name\":\"Monitor\""},"tool_response":{"stdout":"\"tool_name\":\"Monitor\""}}"#;
         assert_eq!(run(fg_bash, Some("7")), "");
         assert_eq!(run(fg_agent, Some("7")), "");
+        assert_eq!(run(fg_bash_quoting, Some("7")), "");
+        assert_eq!(run(monitor, None), "");
         assert_eq!(run(bg_bash, None), "");
         let after_bash = run(bg_bash, Some("7"));
         assert_eq!(
@@ -848,6 +878,10 @@ mod tests {
         assert_eq!(
             after_agent,
             format!("{after_bash}claude hook background-start\n{bg_agent}\n")
+        );
+        assert_eq!(
+            run(monitor, Some("7")),
+            format!("{after_agent}claude hook background-start\n{monitor}\n")
         );
     }
 }

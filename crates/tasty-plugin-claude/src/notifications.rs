@@ -309,8 +309,10 @@ pub(crate) fn background_wait_message(
     wait: &Value,
     now_ms: u64,
 ) -> String {
+    // `notice_types` 는 Monitor 를 뺀 종류다. 없으면 Monitor 를 가리지 않던 때의 대기 meta 다.
     let types: Vec<&str> = wait
-        .get("types")
+        .get("notice_types")
+        .or_else(|| wait.get("types"))
         .and_then(Value::as_array)
         .map(|a| a.iter().filter_map(Value::as_str).collect())
         .unwrap_or_default();
@@ -498,6 +500,22 @@ mod tests {
             assert!(!line.contains(hint), "{state}: {line}");
             assert!(!line.contains("overloaded"), "{state}: {line}");
         }
+    }
+
+    /// 정지 알림의 종류는 Monitor 를 뺀 `notice_types` 다. 옛 대기 meta 는 `types` 를 읽는다.
+    #[test]
+    fn the_wait_notice_names_only_the_tasks_it_is_about() {
+        let tr = tr();
+        let line = background_wait_message(
+            &tr,
+            5,
+            &json!({"since_ms":0,"types":["shell","subagent"],"notice_types":["subagent"]}),
+            600_000,
+        );
+        assert!(line.contains("(subagent)"), "{line}");
+        let old =
+            background_wait_message(&tr, 5, &json!({"since_ms":0,"types":["shell"]}), 600_000);
+        assert!(old.contains("(shell)"), "{old}");
     }
 
     /// 백그라운드 대기 중인 StopFailure 는 오류와 작업 종류를 적은 줄 하나를 만든다.

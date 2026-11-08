@@ -24,14 +24,17 @@ pub(crate) fn is_compaction(event: &str, params: &Value) -> bool {
 }
 
 /// 압축의 SessionStart 에서 턴에 속한 호출을 뺀다. 상태 보고와 새 턴이 지우는 meta(직전 턴의 API 오류,
-/// 백그라운드 작업 대기)를 남기지 않고, 세션 id·복원 명령 같은 세션 기록만 둔다.
+/// 백그라운드 작업 대기)를 남기지 않고, 세션 id·복원 명령 같은 세션 기록만 둔다. 압축은 같은 세션이 이어지므로
+/// Monitor 기록도 지우지 않는다.
 /// 쉬는 중의 압축이 idle 을 active 로 바꾸면 그 뒤 Stop 이 오지 않아 active 가 계속 남는다.
 pub(crate) fn keep_turn_state_across_compaction(calls: &mut Vec<HostCall>) {
     calls.retain(|call| match call {
         HostCall::SetState { .. } => false,
         HostCall::MetaUnset { key, .. } => !matches!(
             *key,
-            crate::hook::STOP_FAILURE_META_KEY | crate::hook::BACKGROUND_WAIT_META_KEY
+            crate::hook::STOP_FAILURE_META_KEY
+                | crate::hook::BACKGROUND_WAIT_META_KEY
+                | crate::monitor_tasks::MONITOR_TASKS_META_KEY
         ),
         _ => true,
     });

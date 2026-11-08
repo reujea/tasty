@@ -38,8 +38,9 @@ pub(crate) struct TaskWatch {
 }
 
 impl TaskWatch {
-    /// 대기 Stop 의 payload 에서 끝나지 않은 작업을 모은다. 세션·cwd·작업이 없으면 `None` 이다.
-    pub fn from_stop(params: &Value) -> Option<Self> {
+    /// 대기 Stop 의 payload 에서 끝나지 않은 작업을 모은다. Monitor 는 조용한 것이 정상이라 뺀다.
+    /// 세션·cwd·작업이 없으면 `None` 이다.
+    pub fn from_stop(params: &Value, monitors: &crate::monitor_tasks::MonitorIds) -> Option<Self> {
         let parsed;
         let list = match params.get("background_tasks")? {
             Value::String(raw) => {
@@ -52,6 +53,7 @@ impl TaskWatch {
             .as_array()?
             .iter()
             .filter(|t| !crate::hook::is_finished_task(t))
+            .filter(|t| !crate::monitor_tasks::is_monitor_item(t, monitors))
             .filter_map(|t| {
                 let id = t.get("id").and_then(Value::as_str)?.to_string();
                 let label = ["description", "command"]
@@ -75,6 +77,10 @@ impl TaskWatch {
             })
             .collect();
         Self::new(params, tasks)
+    }
+
+    pub fn task_ids(&self) -> Vec<String> {
+        self.tasks.iter().map(|t| t.id.clone()).collect()
     }
 
     /// 대기 meta 에 싣는 값. 플러그인이 다시 시작돼도 같은 작업의 출력 파일을 찾도록 남긴다.
@@ -356,7 +362,7 @@ mod tests {
                 {"id":"done1","type":"shell","status":"completed","description":"x"}
             ]
         });
-        let w = TaskWatch::from_stop(&params).expect("작업 있음");
+        let w = TaskWatch::from_stop(&params, &Default::default()).expect("작업 있음");
         assert_eq!(w.session_id, "s-1");
         let got: Vec<_> = w
             .tasks
@@ -371,11 +377,17 @@ mod tests {
             ]
         );
         assert_eq!(
-            TaskWatch::from_stop(&json!({"session":"s","background_tasks":[]})),
+            TaskWatch::from_stop(
+                &json!({"session":"s","background_tasks":[]}),
+                &Default::default()
+            ),
             None
         );
         assert_eq!(
-            TaskWatch::from_stop(&json!({"cwd":"/w","background_tasks":[{"id":"b"}]})),
+            TaskWatch::from_stop(
+                &json!({"cwd":"/w","background_tasks":[{"id":"b"}]}),
+                &Default::default()
+            ),
             None
         );
     }

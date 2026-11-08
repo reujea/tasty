@@ -15,7 +15,9 @@ use std::collections::{BTreeMap, HashMap};
 use serde_json::Value;
 
 /// 백그라운드 작업을 띄울 수 있는 도구. 설치 훅의 matcher 와 같은 목록이다(`Task` 는 Agent 의 옛 이름).
-pub(crate) const BACKGROUND_TOOLS_MATCHER: &str = "Bash|Agent|Task";
+/// Monitor 는 이 모듈의 기록에 넣지 않고 [`crate::monitor_tasks`] 가 따로 기록한다. 이 기록이 StopFailure 를
+/// `active` 로 둘지 정하는데, Monitor 를 넣으면 그 판정이 달라진다.
+pub(crate) const BACKGROUND_TOOLS_MATCHER: &str = "Bash|Agent|Task|Monitor";
 
 /// 작업 id → 종류(`shell`·`subagent`). 종류는 `Stop` 의 `background_tasks[].type` 과 같은 이름이다.
 type Tasks = BTreeMap<String, String>;

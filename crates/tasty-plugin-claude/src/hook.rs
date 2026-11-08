@@ -290,7 +290,8 @@ pub(crate) fn handle_claude_hook<H: HostCallSink>(
         returns.observe(event, surface_id, session.as_deref(), detail);
     }
 
-    if let Some(response) = hook_outside_the_turn(state, event, surface_id, agent_id, error, params)
+    if let Some(response) =
+        hook_outside_the_turn(state, host, event, surface_id, agent_id, error, params)
     {
         return Ok(response);
     }
@@ -300,6 +301,9 @@ pub(crate) fn handle_claude_hook<H: HostCallSink>(
     lock_state(state)
         .background
         .track(event, surface_id, params);
+    if event == "prompt-submit" {
+        crate::monitor_tasks::forget_notified(state, host, surface_id, params);
+    }
 
     if event == "stop-failure"
         && let Some(response) = stop_failure_with_background_work(&tail, surface_id, params, now_ms)
@@ -395,8 +399,9 @@ pub(crate) fn handle_claude_hook<H: HostCallSink>(
 
 /// 메인 턴에 속하지 않는 hook 의 응답. 실패한 subagent 의 StopFailure 와 백그라운드 작업 시작이다.
 /// 둘 다 아니면 `None` 이며 호출자가 턴의 hook 으로 처리한다.
-fn hook_outside_the_turn(
+fn hook_outside_the_turn<H: HostCallSink>(
     state: &Mutex<ClaudeState>,
+    host: &H,
     event: &str,
     surface_id: u32,
     agent_id: Option<&str>,
@@ -418,11 +423,7 @@ fn hook_outside_the_turn(
     }
 
     if event == BACKGROUND_START_EVENT {
-        let started = lock_state(state).background.started(
-            surface_id,
-            params.get("tool_name").and_then(Value::as_str),
-            params.get("tool_response"),
-        );
+        let started = crate::monitor_tasks::record_start(state, host, surface_id, params);
         if let Some(id) = &started {
             tracing::info!("claude hook s{surface_id}: background task {id} started");
         }
@@ -522,9 +523,16 @@ fn stop_that_does_not_end_the_turn<H: HostCallSink>(
         tracing::info!(
             "claude hook stop s{surface_id}: waiting on background work ({pending}) — main turn continues, stays active"
         );
-        let watch = crate::task_watch::TaskWatch::from_stop(params);
-        let types = background_task_types(params);
-        let calls = background_wait_calls(tail, surface_id, now_ms, types, watch);
+        let monitors = crate::monitor_tasks::recorded(tail.host, surface_id);
+        let watch = crate::task_watch::TaskWatch::from_stop(params, &monitors);
+        let kinds = crate::monitor_tasks::wait_kinds(
+            &params
+                .get("background_tasks")
+                .and_then(pending_background_tasks)
+                .unwrap_or_default(),
+            &monitors,
+        );
+        let calls = background_wait_calls(tail, surface_id, now_ms, kinds, watch);
         // 게이트는 대기 Stop 도 판정한다. 그 판정이 다음 Stop 과 섞이지 않도록 이 Stop 과 짝짓는다.
         let host_call_failures = deliver_all(tail.host, &calls)
             + tail.pair_stop(
@@ -580,11 +588,11 @@ fn background_wait_calls<H>(
     tail: &StopTail<'_, H>,
     surface_id: u32,
     now_ms: u64,
-    types: Vec<String>,
+    kinds: crate::error_scan::WaitKinds,
     watch: Option<crate::task_watch::TaskWatch>,
 ) -> [HostCall; 2] {
     let value = crate::error_scan::lock_scanner(tail.scanner)
-        .record_background_wait(surface_id, now_ms, types, watch);
+        .record_background_wait(surface_id, now_ms, kinds, watch);
     [
         HostCall::SetState {
             surface_id,
@@ -633,9 +641,12 @@ fn stop_failure_with_background_work<H: HostCallSink>(
             .unwrap_or("unknown")
             .to_string(),
     }];
-    let watch = crate::task_watch::TaskWatch::from_ids(params, ids);
+    // 상태와 notify-stop-failure 문구는 Monitor 도 그대로 센다. 정지 알림의 대상에서만 뺀다.
+    let monitors = crate::monitor_tasks::recorded(tail.host, surface_id);
+    let (noticed_ids, kinds) = crate::monitor_tasks::split_recorded(ids, types, &monitors);
+    let watch = crate::task_watch::TaskWatch::from_ids(params, noticed_ids);
     calls.extend(background_wait_calls(
-        tail, surface_id, now_ms, types, watch,
+        tail, surface_id, now_ms, kinds, watch,
     ));
     calls.push(HostCall::FireHook {
         surface_id,
@@ -686,14 +697,6 @@ pub(crate) fn background_work_pending(params: &Value) -> Option<String> {
     })
 }
 
-/// 대기 기록에 남길 끝나지 않은 작업의 종류. `waiting_on_background_work` 만 있으면 비어 있다.
-fn background_task_types(params: &Value) -> Vec<String> {
-    params
-        .get("background_tasks")
-        .and_then(pending_background_task_types)
-        .unwrap_or_default()
-}
-
 /// `waiting_on_background_work` 값을 읽는다. 해석할 수 없으면 `None` 이며 background_tasks 로 넘어간다.
 fn read_waiting_flag(value: &Value) -> Option<bool> {
     let flag = match value {
@@ -737,6 +740,16 @@ pub(crate) fn is_finished_task(task: &Value) -> bool {
 
 /// `background_tasks` 에서 끝나지 않은 항목의 종류를 모은다. 배열이 아니면 `None` 이다.
 fn pending_background_task_types(value: &Value) -> Option<Vec<String>> {
+    Some(
+        pending_background_tasks(value)?
+            .iter()
+            .map(crate::monitor_tasks::task_kind)
+            .collect(),
+    )
+}
+
+/// `background_tasks` 에서 끝나지 않은 항목을 모은다. 배열이 아니면 `None` 이다.
+fn pending_background_tasks(value: &Value) -> Option<Vec<Value>> {
     let parsed;
     let tasks = match value {
         Value::String(raw) => {
@@ -761,12 +774,7 @@ fn pending_background_task_types(value: &Value) -> Option<Vec<String>> {
         items
             .iter()
             .filter(|t| !is_finished_task(t))
-            .map(|t| {
-                t.get("type")
-                    .and_then(Value::as_str)
-                    .unwrap_or("unknown")
-                    .to_string()
-            })
+            .cloned()
             .collect(),
     )
 }
@@ -924,6 +932,23 @@ pub(crate) fn notification_effect(
     }
 }
 
+/// 턴·세션 경계에서 지울 meta 의 호출.
+fn turn_boundary_meta_unsets(event: &str, surface_id: u32) -> Vec<HostCall> {
+    // 새 턴·세션 종료에서는 이전 API 오류 기록을 지워 다음 완료 알림에 남지 않게 한다.
+    let stop_failure = is_new_turn_event(event) || event == "session-end";
+    // 새 세션과 세션 종료 뒤에는 이전 Monitor 가 이어지지 않는다. 압축의 SessionStart 는 호출자가 이 호출을 뺀다.
+    let monitors = matches!(event, "session-start" | "session-end");
+    [
+        (stop_failure, STOP_FAILURE_META_KEY),
+        (ends_background_wait(event), BACKGROUND_WAIT_META_KEY),
+        (monitors, crate::monitor_tasks::MONITOR_TASKS_META_KEY),
+    ]
+    .into_iter()
+    .filter(|(applies, _)| *applies)
+    .map(|(_, key)| HostCall::MetaUnset { surface_id, key })
+    .collect()
+}
+
 /// 훅 이벤트를 호스트 호출 목록으로 바꾼다.
 /// notification은 [`NOTIFICATION_EFFECTS`] 에 따라 처리한다.
 pub(crate) fn apply_hook(
@@ -934,20 +959,7 @@ pub(crate) fn apply_hook(
     error: Option<&str>,
     tr: &Translator,
 ) -> Result<Vec<HostCall>, IpcMethodError> {
-    let mut calls = Vec::new();
-    // 새 턴·세션 종료에서는 이전 API 오류 기록을 지워 다음 완료 알림에 남지 않게 한다.
-    if is_new_turn_event(event) || event == "session-end" {
-        calls.push(HostCall::MetaUnset {
-            surface_id,
-            key: STOP_FAILURE_META_KEY,
-        });
-    }
-    if ends_background_wait(event) {
-        calls.push(HostCall::MetaUnset {
-            surface_id,
-            key: BACKGROUND_WAIT_META_KEY,
-        });
-    }
+    let mut calls = turn_boundary_meta_unsets(event, surface_id);
     match event {
         "stop-failure" => {
             // 오류로 끝난 턴도 idle과 완료 이벤트로 알린다.
@@ -1267,6 +1279,8 @@ mod tests {
         settings_session: Option<String>,
         /// 프롬프트를 실어 실행했다는 meta 가 있는가.
         launch_prompt: bool,
+        /// Monitor 기록 meta. 플러그인 재시작에도 남는 값이라 실제처럼 저장한다.
+        monitor_meta: std::cell::RefCell<Option<String>>,
     }
 
     impl HostCallSink for RecordingHost {
@@ -1275,7 +1289,22 @@ mod tests {
             method: &str,
             params: Value,
         ) -> Result<Value, tasty_plugin_sdk::PluginError> {
+            if params["key"] == crate::monitor_tasks::MONITOR_TASKS_META_KEY {
+                match method {
+                    "surface.meta.set" => {
+                        *self.monitor_meta.borrow_mut() =
+                            params["value"].as_str().map(String::from);
+                    }
+                    "surface.meta.unset" => *self.monitor_meta.borrow_mut() = None,
+                    _ => {}
+                }
+            }
             let reply = match (&self.settings_file, method, params["key"].as_str()) {
+                _ if method == "surface.meta.get"
+                    && params["key"] == crate::monitor_tasks::MONITOR_TASKS_META_KEY =>
+                {
+                    json!({ "value": *self.monitor_meta.borrow() })
+                }
                 (
                     Some(path),
                     "surface.meta.get",
@@ -2137,7 +2166,7 @@ mod tests {
         assert_eq!(out["waiting"], "background_work");
         assert_eq!(
             rig.host.methods(),
-            vec!["terminal.set_state", "surface.meta.set"]
+            vec!["surface.meta.get", "terminal.set_state", "surface.meta.set"]
         );
         assert_eq!(rig.host.states(), vec!["active"]);
         assert!(
@@ -2479,6 +2508,203 @@ mod tests {
         }));
     }
 
+    /// Claude Code 2.1.319 실측 `PostToolUse`(Monitor)의 알림.
+    fn start_monitor(rig: &mut HookRig, id: &str, agent_id: Option<&str>) {
+        let mut params = json!({
+            "event": BACKGROUND_START_EVENT,
+            "surface": HookRig::SURFACE,
+            "tool_name": "Monitor",
+            "tool_response": { "taskId": id, "timeoutMs": 1500000, "persistent": false },
+        });
+        if let Some(agent) = agent_id {
+            params["agent_id"] = json!(agent);
+        }
+        let reply = rig.run(params);
+        assert_eq!(reply["background_task"], id);
+    }
+
+    /// Claude Code 2.1.319 실측 Stop 항목. Monitor 도 `type: shell` 이다.
+    fn shell_item(id: &str, description: &str) -> Value {
+        json!({ "id": id, "type": "shell", "status": "running", "description": description, "command": "x" })
+    }
+
+    fn stop_with(rig: &mut HookRig, items: Value) -> Value {
+        rig.run(json!({
+            "event": "stop",
+            "surface": HookRig::SURFACE,
+            "session": "s-monitor",
+            "cwd": "/w",
+            "background_tasks": items,
+        }))
+    }
+
+    /// 마지막 대기 meta.
+    fn last_wait_meta(rig: &HookRig) -> Value {
+        let seen = rig.host.seen.borrow();
+        let (_, set) = seen
+            .iter()
+            .rev()
+            .find(|(m, p)| m == "surface.meta.set" && p["key"] == BACKGROUND_WAIT_META_KEY)
+            .expect("대기 meta");
+        serde_json::from_str(set["value"].as_str().unwrap()).unwrap()
+    }
+
+    /// Monitor 만 남은 Stop: 상태·대기 기록은 그대로이고 정지 알림 대상에서만 빠진다.
+    #[test]
+    fn a_stop_waiting_only_on_a_monitor_stays_active_without_a_notice_target() {
+        let mut rig = HookRig::new();
+        start_monitor(&mut rig, "bym7ibssy", None);
+        let reply = stop_with(&mut rig, json!([shell_item("bym7ibssy", "quiet monitor")]));
+        assert_eq!(reply["waiting"], "background_work");
+        assert_eq!(rig.host.states(), vec!["active"]);
+        assert!(!rig.host.fired().contains(&"claude-idle".to_string()));
+        assert!(rig.is_waiting());
+        let meta = last_wait_meta(&rig);
+        assert_eq!(meta["types"], json!(["shell"]));
+        assert_eq!(meta["notice_types"], json!([]));
+        assert!(meta.get("watch").is_none(), "{meta}");
+    }
+
+    /// Monitor 와 셸이 함께면 셸만으로 판정한다.
+    #[test]
+    fn a_monitor_next_to_a_shell_is_left_out_of_the_notice() {
+        let mut rig = HookRig::new();
+        start_monitor(&mut rig, "bym7ibssy", None);
+        stop_with(
+            &mut rig,
+            json!([
+                shell_item("bym7ibssy", "quiet monitor"),
+                shell_item("baaw0pnlp", "probe silent bash")
+            ]),
+        );
+        let meta = last_wait_meta(&rig);
+        assert_eq!(meta["types"], json!(["shell", "shell"]));
+        assert_eq!(meta["notice_types"], json!(["shell"]));
+        let tasks = meta["watch"]["tasks"].as_array().unwrap();
+        assert_eq!(tasks.len(), 1, "{meta}");
+        assert_eq!(tasks[0]["id"], "baaw0pnlp");
+        assert_eq!(tasks[0]["label"], "probe silent bash");
+    }
+
+    /// 기록이 없으면(옛 훅 설치) 셸로 본다. `type: monitor` 는 기록 없이도 Monitor 다.
+    #[test]
+    fn an_unrecorded_shell_is_noticed_and_a_monitor_type_is_not() {
+        let mut rig = HookRig::new();
+        stop_with(&mut rig, json!([shell_item("bym7ibssy", "unknown")]));
+        assert_eq!(last_wait_meta(&rig)["notice_types"], json!(["shell"]));
+        stop_with(
+            &mut rig,
+            json!([{ "id": "m1", "type": "monitor", "status": "running" }]),
+        );
+        assert_eq!(last_wait_meta(&rig)["notice_types"], json!([]));
+    }
+
+    /// 플러그인이 다시 시작돼도 기록은 surface meta 에 남는다. 첫 Stop 전에 재시작해도 같다.
+    /// 중간 이벤트의 새 턴은 기록을 지우지 않고, `<status>` 가 있는 끝 알림만 지운다.
+    #[test]
+    fn the_monitor_record_survives_restarts_and_events_until_the_end_notice() {
+        let mut rig = HookRig::new();
+        start_monitor(&mut rig, "bkmcn04ns", None);
+        rig.state = Mutex::new(ClaudeState::default());
+        rig.scanner = Arc::new(Mutex::new(ErrorScanner::new()));
+        stop_with(&mut rig, json!([shell_item("bkmcn04ns", "ticks")]));
+        assert_eq!(last_wait_meta(&rig)["notice_types"], json!([]));
+
+        rig.run(json!({
+            "event": "prompt-submit",
+            "surface": HookRig::SURFACE,
+            "prompt": "<task-notification>\n<task-id>bkmcn04ns</task-id>\n<summary>Monitor event: \"ticks\"</summary>\n<event>tick 1</event>\n</task-notification>",
+        }));
+        assert!(!rig.is_waiting(), "새 턴은 대기를 끝낸다");
+        rig.state = Mutex::new(ClaudeState::default());
+        rig.scanner = Arc::new(Mutex::new(ErrorScanner::new()));
+        stop_with(&mut rig, json!([shell_item("bkmcn04ns", "ticks")]));
+        assert_eq!(
+            last_wait_meta(&rig)["notice_types"],
+            json!([]),
+            "이벤트 뒤 재시작해도 Monitor 다"
+        );
+
+        rig.run(json!({
+            "event": "prompt-submit",
+            "surface": HookRig::SURFACE,
+            "prompt": "<task-notification>\n<task-id>bkmcn04ns</task-id>\n<output-file>/t</output-file>\n<status>completed</status>\n</task-notification>",
+        }));
+        assert_eq!(*rig.host.monitor_meta.borrow(), None, "끝 알림이 지운다");
+    }
+
+    /// 서브에이전트가 띄운 Monitor. 그 전의 Stop 목록에 없어도 기록을 지우지 않고, 뒤에 나타나면 Monitor 다.
+    #[test]
+    fn a_subagent_monitor_missing_from_a_stop_list_stays_recorded() {
+        let mut rig = HookRig::new();
+        start_monitor(&mut rig, "bqmug8c54", Some("a22d7fc9077e1353c"));
+        stop_with(
+            &mut rig,
+            json!([{ "id": "a22d7fc9077e1353c", "type": "subagent", "status": "running" }]),
+        );
+        assert_eq!(last_wait_meta(&rig)["notice_types"], json!(["subagent"]));
+        stop_with(&mut rig, json!([shell_item("bqmug8c54", "sub monitor")]));
+        assert_eq!(last_wait_meta(&rig)["notice_types"], json!([]));
+    }
+
+    /// 첫 Stop 전의 Monitor 는 StopFailure 판정의 기록에 들어가지 않는다. 지금처럼 턴이 끝난다.
+    #[test]
+    fn a_stop_failure_with_only_a_monitor_before_any_stop_goes_idle_as_before() {
+        let mut rig = HookRig::new();
+        start_monitor(&mut rig, "bym7ibssy", None);
+        rig.run(
+            json!({ "event": "stop-failure", "surface": HookRig::SURFACE, "error": "overloaded" }),
+        );
+        assert_stop_failure_ended_the_turn(&mut rig);
+    }
+
+    /// Stop 으로 기록된 Monitor 가 남은 StopFailure: 상태와 `types` 는 그대로이고 정지 알림 대상만 빠진다.
+    #[test]
+    fn a_stop_failure_while_a_monitor_runs_keeps_its_state_and_wording() {
+        let mut rig = HookRig::new();
+        start_monitor(&mut rig, "bym7ibssy", None);
+        stop_with(&mut rig, json!([shell_item("bym7ibssy", "quiet monitor")]));
+        let reply = rig.run(json!({
+            "event": "stop-failure",
+            "surface": HookRig::SURFACE,
+            "session": "s-monitor",
+            "cwd": "/w",
+            "error": "overloaded",
+        }));
+        assert_eq!(reply["waiting"], "background_work");
+        assert_eq!(rig.host.states(), vec!["active", "active"]);
+        assert_eq!(rig.host.fired(), vec![STOP_FAILURE_EVENT]);
+        let meta = last_wait_meta(&rig);
+        assert_eq!(meta["types"], json!(["shell"]), "문구가 읽는 값");
+        assert_eq!(meta["notice_types"], json!([]));
+        assert!(meta.get("watch").is_none(), "{meta}");
+    }
+
+    /// 새 세션과 세션 종료는 기록을 지우고, 압축은 같은 세션이라 남긴다.
+    #[test]
+    fn session_boundaries_clear_the_monitor_record_but_compaction_keeps_it() {
+        let mut rig = HookRig::new();
+        start_monitor(&mut rig, "bym7ibssy", None);
+        rig.run(json!({
+            "event": "session-start",
+            "surface": HookRig::SURFACE,
+            "session": "s-monitor",
+            "source": "compact",
+        }));
+        assert!(rig.host.monitor_meta.borrow().is_some(), "압축");
+        rig.run(json!({
+            "event": "session-start",
+            "surface": HookRig::SURFACE,
+            "session": "s-new",
+            "source": "startup",
+        }));
+        assert_eq!(*rig.host.monitor_meta.borrow(), None, "새 세션");
+
+        start_monitor(&mut rig, "bym7ibssy", None);
+        rig.run(json!({ "event": "session-end", "surface": HookRig::SURFACE, "session": "s-new" }));
+        assert_eq!(*rig.host.monitor_meta.borrow(), None, "세션 종료");
+    }
+
     /// 턴 종료로 처리한 StopFailure 의 흔적(idle·오류 이벤트·완료 알림·wall_time 소비·자동 재개 성공 처리).
     fn assert_stop_failure_ended_the_turn(rig: &mut HookRig) {
         assert_eq!(rig.host.states().last().map(String::as_str), Some("idle"));
@@ -2719,9 +2945,9 @@ mod tests {
         assert!(rig.wall_time_open());
     }
 
-    /// 시작·종료의 호스트 호출이 모두 실패해도 열두 개를 모두 시도하고 실패 횟수를 반환해야 한다.
+    /// 시작·종료의 호스트 호출이 모두 실패해도 열네 개를 모두 시도하고 실패 횟수를 반환해야 한다.
     #[test]
-    fn a_dead_surface_makes_every_host_call_fail_and_the_count_is_twelve() {
+    fn a_dead_surface_makes_every_host_call_fail_and_the_count_is_fourteen() {
         let tr = test_translator();
         let host = FlakyHost::failing_everything();
 
@@ -2729,10 +2955,10 @@ mod tests {
         let end = apply_hook("session-end", 100, None, None, None, &tr).unwrap();
         let failures = deliver_all(&host, &start) + deliver_all(&host, &end);
 
-        assert_eq!(failures, 12, "시도한 호출: {:?}", host.seen.borrow());
+        assert_eq!(failures, 14, "시도한 호출: {:?}", host.seen.borrow());
         assert_eq!(
             host.seen.borrow().len(),
-            12,
+            14,
             "실패 횟수와 시도한 호출 수가 같아야 한다"
         );
     }
@@ -2750,7 +2976,7 @@ mod tests {
         assert_eq!(failures, 0);
         assert_eq!(
             host.seen.borrow().len(),
-            12,
+            14,
             "실패가 없어도 같은 호출을 모두 시도해야 한다"
         );
     }
@@ -2767,12 +2993,12 @@ mod tests {
         let end = apply_hook("session-end", 100, None, None, None, &tr).unwrap();
         assert_eq!(
             deliver_all(&host, &end),
-            4,
-            "meta.unset 은 이 계획에 넷이다"
+            5,
+            "meta.unset 은 이 계획에 다섯이다"
         );
         assert_eq!(
             host.seen.borrow().len(),
-            7,
+            8,
             "실패 뒤에도 나머지 호출을 시도해야 한다"
         );
     }
@@ -3099,6 +3325,10 @@ mod tests {
                     surface_id: 100,
                     key: BACKGROUND_WAIT_META_KEY,
                 },
+                HostCall::MetaUnset {
+                    surface_id: 100,
+                    key: crate::monitor_tasks::MONITOR_TASKS_META_KEY,
+                },
                 HostCall::SetState {
                     surface_id: 100,
                     state: "idle",
@@ -3231,6 +3461,10 @@ mod tests {
                     surface_id: 100,
                     key: BACKGROUND_WAIT_META_KEY,
                 },
+                HostCall::MetaUnset {
+                    surface_id: 100,
+                    key: crate::monitor_tasks::MONITOR_TASKS_META_KEY,
+                },
                 HostCall::SetState {
                     surface_id: 100,
                     state: "active",
@@ -3360,6 +3594,10 @@ mod tests {
                 HostCall::MetaUnset {
                     surface_id: 100,
                     key: BACKGROUND_WAIT_META_KEY,
+                },
+                HostCall::MetaUnset {
+                    surface_id: 100,
+                    key: crate::monitor_tasks::MONITOR_TASKS_META_KEY,
                 },
                 HostCall::SetState {
                     surface_id: 100,

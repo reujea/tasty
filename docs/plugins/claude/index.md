@@ -392,11 +392,13 @@ Meta를 먼저 쓴 뒤 이벤트를 보내며 새 턴(`prompt-submit`/`session-s
 없다(공식 hooks 문서, Claude Code 2.1.285 실측). 백그라운드 작업이 끝나면 Claude Code는 `<task-notification>` 턴을
 열고 그 턴의 `Stop`이 다시 온다. 그래서 플러그인은 메인 턴이 띄운 백그라운드 작업을 surface별로 따로 기록한다.
 
-- 시작: `PostToolUse`(matcher `Bash|Agent|Task`, token `background-start`)의 `tool_response`에서 읽는다.
+- 시작: `PostToolUse`(matcher `Bash|Agent|Task|Monitor`, token `background-start`)의 `tool_response`에서 읽는다.
   Bash는 `backgroundTaskId`, Agent는 `isAsync: true` 또는 `status: "async_launched"`와 함께 오는 `agentId`다(2.1.290 실측).
   다른 도구 호출과 포그라운드 호출은 기록하지 않으며 상태도 바꾸지 않는다.
-  이 훅이 끝날 때까지 Claude Code는 다음 API 요청을 보내지 않으므로, 설치 명령은 stdin payload에 `"backgroundTaskId":"` 또는
-  `"isAsync":true`가 있을 때만 `tasty claude hook background-start`를 실행하고 나머지는 셸에서 바로 끝낸다(2.1.291 payload는 공백 없는 JSON).
+  Monitor는 이 기록에 넣지 않고 아래 "Monitor 기록"에 따로 둔다. 이 기록이 `StopFailure`를 `active`로 둘지 정하기 때문이다.
+  이 훅이 끝날 때까지 Claude Code는 다음 API 요청을 보내지 않으므로, 설치 명령은 stdin payload에 `"backgroundTaskId":"`, `"isAsync":true`,
+  `"tool_name":"Monitor"` 중 하나가 있을 때만 `tasty claude hook background-start`를 실행하고 나머지는 셸에서 바로 끝낸다(2.1.291·2.1.319 payload는 공백 없는 JSON).
+  이 matcher와 필터를 갖기 전의 훅이 설치돼 있으면 `tasty claude install`을 다시 실행하고 새 Claude 프로세스를 시작해야 Monitor를 구별한다. 그 전에는 Monitor도 셸로 보고 알린다.
   실측 지연과 한계는 docs/features/child-terminal/index.md 결과 절에 있다.
 - 끝: `UserPromptSubmit`의 `prompt`가 `<task-notification>`으로 시작하면 그 안의 `<task-id>` 작업을 지운다.
 - `Stop`의 `background_tasks`를 읽을 수 있으면 기록을 그 목록의 끝나지 않은 항목으로 바꾼다.
@@ -420,11 +422,11 @@ Meta를 먼저 쓴 뒤 이벤트를 보내며 새 턴(`prompt-submit`/`session-s
 그 턴의 `Stop`이 실제 종료가 된다. 그래서 `stop` 훅은 stdin의 `waiting_on_background_work`가
 있으면 그 값으로, 없으면 `background_tasks`에 끝나지 않은 항목이 있는지로 대기 여부를 판정한다.
 끝난 항목은 `status`가 `completed`·`failed`·`cancelled`·`canceled`·`killed`·`stopped`·`error`·`done` 중 하나(대소문자 무관)인 항목이며, 그 밖의 값이나 `status`가 없는
-항목은 끝나지 않은 것으로 센다. 항목의 종류(subagent·shell)는 가리지 않는다. 대기 Stop이면 상태를
+항목은 끝나지 않은 것으로 센다. 항목의 종류(subagent·shell)는 가리지 않으며 Monitor만 남아도 대기다. 대기 Stop이면 상태를
 `active`로만 보고하고 `claude-idle`·`surface.completion`·telemetry `wall_time_ms`·자동 재개의
 성공 처리를 하지 않는다. 두 필드가 없거나 해석할 수 없으면 이전처럼 턴 종료로 처리한다.
 대기 Stop은 surface meta `claude-background-wait`에 대기 시작 시각(`since_ms`, Unix ms)·끝나지 않은 작업 수(`tasks`)·
-작업 종류(`types`)·정지 알림 여부(`notified`)·출력 파일 단서(`watch`: `session`·`cwd`·작업 `id`와 이름)를 JSON으로 남긴다. 같은 대기에서 이어진 대기 Stop은 시작 시각과 알림 여부를 유지한다.
+작업 종류(`types`)·Monitor를 뺀 작업 종류(`notice_types`)·정지 알림 여부(`notified`)·출력 파일 단서(`watch`: `session`·`cwd`·작업 `id`와 이름)를 JSON으로 남긴다. 같은 대기에서 이어진 대기 Stop은 시작 시각과 알림 여부를 유지한다.
 정지 알림을 보내면 `notified`를 `true`로 다시 쓴다. 대기가 아닌 `Stop`·백그라운드 작업이 남지 않은 `StopFailure`·
 새 턴(`UserPromptSubmit`·`SessionStart`, 압축 뒤의 `compact`는 제외)·`SessionEnd`가 이 meta를 지운다. 정지 알림은 이 대기를 따로 다룬다(아래 "정지 알림").
 Claude Code 2.1.283 실측 payload에는 `background_tasks`(항목 `id`·`type`·`status`·`description`·
@@ -591,8 +593,28 @@ API 오류에서 실제 이벤트를 받은 실험까지 완료한 것은 아니
 
 상태는 출력 조건을 넘긴 뒤에만 조회한다. 조회한 상태가 `idle`·`needs_input`·`exited`이면 그 조용한 구간에서는 다시 조회하지 않는다. 대기 meta 복원 조회도 함께 멈춘다. 이 세 상태는 hook이 보고한 값이라 출력이 바뀌거나 그 surface에 hook이 와야 바뀐다. 누적 출력이 바뀌거나 그 surface의 hook(종류 무관)이 플러그인에 오면 다음 회차에 다시 조회한다. 그래서 상태가 `active`로 돌아온 뒤 알리는 시점은 매 회차 조회할 때와 같다. 새 턴 신호(`prompt-submit`/`session-start`/`active`, 압축 뒤의 `session-start`는 제외)는 `active`를 호스트에 보고하기 **전에** 정지 관측을 초기화한다. 순서가 반대면 그 사이의 스캔 회차가 이전 턴의 조용한 구간과 새 상태 `active`를 함께 보고 재개 직후 거짓 정지 알림을 낼 수 있다. 상태 조회에 실패하면(빈 값) 확인하지 않은 것으로 보고 다음 회차에 다시 묻는다. hook을 거치지 않고 `terminal.set_state`로 상태를 바꾸면 다음 출력 변화나 hook까지 반영되지 않는다. 추적 유지 판단(`terminal.parent`·`surface.locate`)은 이 규칙과 무관하게 매 회차 한다.
 
+**Monitor 기록.** Monitor는 이벤트가 있을 때만 출력하므로 조용한 것이 정상이다. 대기 Stop에서 Monitor는 정지 알림의 감시 대상·종류·이름에서 뺀다. 기다리는 작업이 모두 Monitor면 화면 기준과 출력 파일 기준 모두 알리지 않는다. Monitor와 다른 작업이 함께 있으면 다른 작업만으로 판정한다.
+
+판별 근거는 Claude Code 2.1.319 실제 세션의 훅 입력이다.
+
+| 후보 | 관측 | 판별 |
+|---|---|---|
+| `Stop`의 `background_tasks[].type` | Monitor 도구 작업도 `shell`이며 필드 모양이 백그라운드 Bash와 같다 | 불가 |
+| 작업 id 접두 | 둘 다 `b` | 불가 |
+| `.output` 파일 | 출력 없는 Monitor는 파일이 없고 첫 이벤트 뒤 생긴다. Bash는 시작부터 있다 | 불가. 파일 없음은 경로 규칙 변경과 구별되지 않는다 |
+| `PostToolUse`의 `tool_name` | `Monitor`이고 `tool_response.taskId`가 `Stop` 항목의 `id`와 같다. 서브에이전트가 띄운 경우도 같다 | 가능 |
+
+- 기록: `background-start`가 `taskId`를 surface meta `claude-monitor-tasks`(JSON 배열)에 더한다. 플러그인이 다시 시작돼도 남는다. 대기 meta와 달리 새 턴이 지우지 않는다. Monitor 중간 이벤트도 새 턴을 열기 때문이다.
+- 지움: `<status>`가 있는 `<task-notification>`이 그 id를 지운다. 중간 이벤트에는 `<status>`가 없다. 새 세션의 `SessionStart`와 `SessionEnd`가 전체를 지우고 압축 뒤의 `compact`는 지우지 않는다. `Stop` 목록에 없다는 이유로는 지우지 않는다.
+- `type`이 `monitor`인 항목은 기록 없이도 Monitor로 본다. 2.1.319 코드의 정적 확인이며(`monitor_mcp`·`monitor_ws`) 실제 payload는 측정하지 않았다.
+- 기록이 없는 항목은 셸로 보고 지금처럼 알린다. 출력이 없는 것이 오류일 수 있어서다.
+- 턴이 진행 중이면 Monitor가 떠 있어도 대기가 아니므로 일반 기준으로 알린다.
+- 상태 판정은 바꾸지 않는다. 일을 마치고 Monitor만 남긴 자식은 `active`로 남고, Monitor가 끝날 때까지 부모에게 완료 신호도 정지 알림도 가지 않는다.
+- `StopFailure`의 상태와 `notify-stop-failure` 문구는 Monitor도 그대로 센다(`types`). 정지 알림만 `notice_types`를 쓴다.
+- 미측정: `persistent: true` Monitor, 시간 초과로 끝날 때의 prompt, `--resume` 뒤 유지, 2.1.319 외 버전, 실행 중인 서브에이전트의 Monitor가 `Stop` 목록에 나오는지.
+
 **백그라운드 작업을 기다리는 자식**(대기 Stop 뒤, 위 "백그라운드 작업을 기다리는 Stop")은 기준을 따로 둔다.
-먼저 기다리는 작업의 출력 파일을 찾아 그 파일의 활동으로 판정한다.
+먼저 기다리는 작업(Monitor 제외)의 출력 파일을 찾아 그 파일의 활동으로 판정한다.
 
 - 단서: 대기 Stop의 `background_tasks`(끝나지 않은 항목의 `id`와 이름 `description`·`command`), stdin의 `session_id`·`cwd`.
   백그라운드 작업이 남은 `StopFailure`는 플러그인이 기록한 작업 id를 쓰며 이름도 id다.
@@ -603,7 +625,7 @@ API 오류에서 실제 이벤트를 받은 실험까지 완료한 것은 아니
 - 찾기: 플러그인 프로세스의 `CLAUDE_CODE_TMPDIR`·임시 폴더 아래 `claude-*` 폴더에서 slug 경로를 먼저 보고, 없으면 프로젝트 폴더를 훑어
   `<session_id>/tasks`를 찾는다. 못 찾으면 10초마다 다시 찾는다. 서브에이전트 링크는 대상 transcript가 생기기 전에 만들어지고, transcript 저장이 꺼진 세션(예: `CLAUDE_CODE_CHILD_SESSION`을 물려받은 자식)에서는 끝까지 대상이 없다. 대상이 없는 링크는 활동 판정에서 빼고, 대상이 생기면 그 시각을 활동으로 센다.
 - 판정: 파일 크기나 수정 시각이 바뀌면 활동이다. 찾은 모든 파일이 일반 기준(`no_output_notice_secs`) 동안 활동이 없으면 대기 한 번에 한 번 알린다.
-  화면 출력은 보지 않는다. 알리기 전에 surface meta `claude-background-quiet`에 대기 시작 시각·작업 이름·조용한 시간을 남기고,
+  화면 출력은 보지 않는다. 알리기 전에 surface meta `claude-background-quiet`에 대기 시작 시각·작업 이름·조용한 시간·작업 id(`tasks`)·기록 시각(`at_ms`)을 남기고,
   `notify-error`는 대기 시작 시각이 같을 때만 이 기록으로 `surface <N>: background work <이름> has written no output for <분> min` 줄을 쓴다.
   이름은 80자까지 적는다. 이 meta는 지우지 않고 다음 기록이 덮어쓴다.
 - 되돌림: 대상이 있는 출력 파일이 하나도 없으면(경로 규칙이 바뀌었거나, 자식의 임시 폴더 설정이 플러그인과 다르거나, 대상이 없는 링크뿐임)
@@ -613,14 +635,15 @@ API 오류에서 실제 이벤트를 받은 실험까지 완료한 것은 아니
 출력 파일을 찾지 못한 대기와 대기 meta에서 되살린 기록은 Claude Code가 Stop payload로 알려 준 대기이므로 누적 출력이 **10분과 `no_output_notice_secs` 중 큰 값** 동안 같아야 알리고,
 오류 문구 유무와 관계없이 이 기준을 쓴다.
 대기 한 번에 한 번만 알린다. 출력이 바뀌거나 쿨다운이 지나도 같은 대기에서는 다시 알리지 않는다.
+대기에 Monitor가 있으면, Monitor 이벤트의 새 턴으로 대기가 다시 시작돼도 출력 파일 기준으로 마지막에 알린 작업과 같고 그 알림 뒤로 파일 활동이 없으면 같은 조용한 구간으로 보고 다시 알리지 않는다. Monitor가 없는 대기는 새 대기마다 다시 알려 턴을 깨운다. `claude-background-quiet`의 `tasks`·`at_ms`로 판단하므로 플러그인을 다시 시작해도 이어진다.
 대기 기록은 플러그인 메모리에 두며 대기를 끝내는 이벤트(대기가 아닌 `Stop`·백그라운드 작업이 남지 않은 `StopFailure`·새 턴·`SessionEnd`)와 추적 해제가 지운다.
 플러그인이 다시 시작되면 메모리 기록은 사라지고 `claude-background-wait` meta는 남는다. 시작할 때 위 "추적" 절차가 이 meta로 기록을 되살린다.
 그 뒤에 meta가 생긴 surface도 일반 기준에 닿으면 알리기 전에 이 meta를 읽어 기록을 되살리고 대기 기준으로 다시 판정한다. 알림 문구도 이 meta를 읽으므로 기준과 문구가 같은 상태를 가리킨다.
 되살린 기록은 meta의 알림 여부와 출력 파일 단서를 이어받는다. 그래서 재시작 전에 알린 대기는 다시 알리지 않고, 출력 파일 감시도 이어 간다.
 이때 부모 로그 문구는 "looks stuck" 대신 대기 사실만 적는다.
 영어 문구는 `surface <N>: waiting on background work (<종류>) for <분> min, with no output meanwhile`이다.
-종류는 `claude-background-wait`의 `types`이며, 비어 있으면 판정에 쓴 `waiting_on_background_work`를 적는다.
-분은 `since_ms`부터 지난 시간을 버림한 값이다. 끝나지 않는 백그라운드 명령을 남긴 자식은 idle이 되지 않으므로, 이 알림이 부모가 받는 신호다.
+종류는 `claude-background-wait`의 `notice_types`(없는 옛 meta는 `types`)이며, 비어 있으면 판정에 쓴 `waiting_on_background_work`를 적는다.
+분은 `since_ms`부터 지난 시간을 버림한 값이다. 끝나지 않는 백그라운드 명령을 남긴 자식은 idle이 되지 않으므로, 이 알림이 부모가 받는 신호다. Monitor만 남긴 자식에는 이 신호도 없다.
 
 같은 정적 구간에서는 한 번만 알리고 surface별로 최소 5분 간격을 둔다. 출력이 바뀌면 정적 구간을 다시 측정한다. 새 턴 신호도 중복 기록과 정적 측정을 초기화하지만 5분 쿨다운은 유지한다. 긴 추론이나 입력 대기와 실제 멈춤은 구분하지 못할 수 있다.
 
