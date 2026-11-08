@@ -1,7 +1,7 @@
 //! 플랫폼별 native WebView와 공통 키 전달 계약.
 //! 백엔드는 같은 이름의 메서드를 제공하고 cfg로 선택한다. 차이는 docs/design/systems/webview.md를 따른다.
 
-#[cfg(any(target_os = "macos", test))]
+#[cfg(any(target_os = "macos", windows, test))]
 mod click_gesture;
 pub(crate) mod entry_response;
 #[cfg(any(target_os = "macos", test))]
@@ -22,6 +22,8 @@ pub mod overlay;
 pub(crate) mod overlay_host;
 #[cfg(any(target_os = "macos", test))]
 mod page_mask;
+#[cfg(any(windows, test))]
+mod same_document;
 #[cfg(any(windows, test))]
 mod scan_resume;
 pub mod script_gate;

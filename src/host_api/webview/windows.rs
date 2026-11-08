@@ -11,6 +11,7 @@ mod keyboard;
 mod navigation;
 mod overlay;
 mod remote_block;
+mod same_document;
 
 use std::cell::{Cell, RefCell};
 use std::ffi::c_void;
@@ -53,7 +54,7 @@ pub struct PlatformWebView {
     nav_state: Rc<Cell<NavState>>,
     /// 마지막에 시작한 main frame 탐색의 NavigationId. chrome 상태는 이 탐색의 종료만 따른다.
     chrome_generation: Rc<Cell<Option<u64>>>,
-    /// 원격 차단 여부와 별도로 기록한 NavigationStarting 시도 큐.
+    /// 원격 차단 여부와 별도로 기록한 탐색 시도 큐(NavigationStarting과 같은 문서 fragment 이동).
     pending_navigations: Rc<RefCell<Vec<PendingNavigation>>>,
     /// html surface의 문서 단위 스크립트 허용. 없으면 JS는 설정값을 그대로 따른다.
     script_gate: Rc<RefCell<Option<ScriptGate>>>,
@@ -795,6 +796,9 @@ impl PlatformWebView {
             let host_input = host_input_on.then(|| {
                 host_input::register(hwnd, surface_id, key_bridge.clone(), webview.clone())
             });
+            let click = host_input.as_ref().map(host_input::RouteGuard::click);
+            same_document::install(&webview, surface_id, parent, &pending_navigations, click)
+                .map_err(|e| transient(format!("same-document navigation setup failed: {e}")))?;
 
             Ok(Self {
                 hwnd,
@@ -981,7 +985,7 @@ impl PlatformWebView {
     /// 로드를 요청하며 chrome을 Loading으로 둔다. 시작 신호 없이 끝나는 로드가 Loading에 남지 않게
     /// chrome 세대를 비워(모름 = 현재) 다음 시작 신호 전의 종료를 이 로드의 것으로 본다.
     fn begin_load(&self) {
-        self.scan_resume.borrow_mut().host_request(None);
+        self.host_request(None);
         self.nav_state.set(NavState::Loading);
         self.chrome_generation.set(None);
     }
@@ -1047,8 +1051,16 @@ impl PlatformWebView {
         *self.script_gate.borrow_mut() = Some(gate);
     }
 
+    /// 호스트 출처 로드·이동. 스캔 재시작 상태를 갱신하고 남은 사용자 클릭을 지운다.
+    fn host_request(&self, step: Option<HistoryStep>) {
+        self.scan_resume.borrow_mut().host_request(step);
+        if let Some(route) = &self.host_input {
+            route.cancel_click();
+        }
+    }
+
     pub fn reload(&self) {
-        self.scan_resume.borrow_mut().host_request(None);
+        self.host_request(None);
         // SAFETY: webview는 self가 살아있는 동안 valid, main thread 호출.
         if let Err(e) = unsafe { self.webview.Reload() } {
             tracing::warn!("WebView2 Reload failed: {e}");
@@ -1061,9 +1073,7 @@ impl PlatformWebView {
     }
 
     pub fn go_back(&self) {
-        self.scan_resume
-            .borrow_mut()
-            .host_request(Some(HistoryStep::Back));
+        self.host_request(Some(HistoryStep::Back));
         // SAFETY: webview는 self가 살아있는 동안 valid, main thread 호출.
         if let Err(e) = unsafe { self.webview.GoBack() } {
             tracing::warn!("WebView2 GoBack failed: {e}");
@@ -1071,9 +1081,7 @@ impl PlatformWebView {
     }
 
     pub fn go_forward(&self) {
-        self.scan_resume
-            .borrow_mut()
-            .host_request(Some(HistoryStep::Forward));
+        self.host_request(Some(HistoryStep::Forward));
         // SAFETY: webview는 self가 살아있는 동안 valid, main thread 호출.
         if let Err(e) = unsafe { self.webview.GoForward() } {
             tracing::warn!("WebView2 GoForward failed: {e}");

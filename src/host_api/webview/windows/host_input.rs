@@ -16,16 +16,20 @@ use std::cell::RefCell;
 use std::ffi::c_void;
 use std::rc::Rc;
 use std::sync::mpsc;
+use std::time::Instant;
 
 use webview2_com::{Microsoft::Web::WebView2::Win32::*, *};
 use windows::Win32::Foundation::*;
-use windows::Win32::UI::WindowsAndMessaging::{IsChild, MSG};
+use windows::Win32::UI::WindowsAndMessaging::{
+    IsChild, MSG, WM_LBUTTONDBLCLK, WM_LBUTTONDOWN, WM_LBUTTONUP,
+};
 use windows::core::*;
 
 use super::keyboard::{
     current_winit_mods, key_down_message, layout_character_key, vk_to_winit_key,
     win32_scancode_to_physical,
 };
+use crate::host_api::webview::click_gesture::ClickGesture;
 use crate::host_api::webview::keys::{WebViewKeySink, route_key_down};
 
 struct Route {
@@ -33,6 +37,7 @@ struct Route {
     surface_id: u32,
     sink: Rc<dyn WebViewKeySink>,
     target: ICoreWebView2,
+    click: Rc<ClickGesture>,
 }
 
 thread_local! {
@@ -43,6 +48,19 @@ thread_local! {
 /// 등록을 지우는 표지. WebView가 사라질 때 함께 버린다.
 pub(super) struct RouteGuard {
     root: HWND,
+    click: Rc<ClickGesture>,
+}
+
+impl RouteGuard {
+    /// 이 WebView가 받은 OS 왼쪽 클릭. 같은 문서 이동의 사용자 제스처 근거다.
+    pub(super) fn click(&self) -> Rc<ClickGesture> {
+        self.click.clone()
+    }
+
+    /// 호스트가 로드·이동을 시작했다. 남은 클릭이 그 탐색을 증명하지 않게 한다.
+    pub(super) fn cancel_click(&self) {
+        self.click.cancel();
+    }
 }
 
 impl Drop for RouteGuard {
@@ -59,6 +77,7 @@ pub(super) fn register(
     sink: Rc<dyn WebViewKeySink>,
     target: ICoreWebView2,
 ) -> RouteGuard {
+    let click = Rc::new(ClickGesture::default());
     ROUTES.with(|routes| {
         let mut routes = routes.borrow_mut();
         routes.retain(|r| r.root != root);
@@ -67,9 +86,44 @@ pub(super) fn register(
             surface_id,
             sink,
             target,
+            click: click.clone(),
         });
     });
-    RouteGuard { root }
+    RouteGuard { root, click }
+}
+
+/// 등록한 WebView(`root`와 그 자손)로 가는 메시지의 경로를 찾는다.
+fn route_of<T>(hwnd: HWND, pick: impl FnOnce(&Route) -> T) -> Option<T> {
+    if hwnd.is_invalid() {
+        return None;
+    }
+    ROUTES.with(|routes| {
+        routes
+            .borrow()
+            .iter()
+            .find(|r| {
+                // SAFETY: 두 핸들 모두 이 스레드가 받은 값이며 IsChild는 조회만 한다.
+                r.root == hwnd || unsafe { IsChild(r.root, hwnd) }.as_bool()
+            })
+            .map(pick)
+    })
+}
+
+/// WebView로 가는 왼쪽 버튼 누름·뗌을 클릭으로 기록한다. 메시지는 소비하지 않는다.
+/// 페이지 스크립트가 만든 이벤트는 창 메시지가 아니므로 여기에 오지 않는다.
+fn note_click(msg: &MSG) {
+    let press = match msg.message {
+        WM_LBUTTONDOWN | WM_LBUTTONDBLCLK => true,
+        WM_LBUTTONUP => false,
+        _ => return,
+    };
+    if let Some(click) = route_of(msg.hwnd, |r| r.click.clone()) {
+        if press {
+            click.press(Instant::now());
+        } else {
+            click.release(Instant::now());
+        }
+    }
 }
 
 /// winit 메시지 훅. 등록한 WebView로 가는 key-down을 소비했으면 true를 돌려주고, winit은 그 메시지를
@@ -81,22 +135,13 @@ pub(crate) fn filter_message(msg: *const c_void) -> bool {
     }
     // SAFETY: winit은 훅에 PeekMessage가 채운 유효한 MSG 포인터를 넘긴다.
     let msg = unsafe { &*msg.cast::<MSG>() };
+    note_click(msg);
     let Some(km) = key_down_message(msg.message, msg.wParam.0, msg.lParam.0) else {
         return false;
     };
-    if msg.hwnd.is_invalid() {
-        return false;
-    }
     // 판정 중 콜백이 등록부를 바꿔도 되도록 빌린 상태를 풀고 부른다.
-    let route = ROUTES.with(|routes| {
-        routes
-            .borrow()
-            .iter()
-            .find(|r| {
-                // SAFETY: 두 핸들 모두 이 스레드가 받은 값이며 IsChild는 조회만 한다.
-                r.root == msg.hwnd || unsafe { IsChild(r.root, msg.hwnd) }.as_bool()
-            })
-            .map(|r| (r.surface_id, r.sink.clone(), r.target.clone()))
+    let route = route_of(msg.hwnd, |r| {
+        (r.surface_id, r.sink.clone(), r.target.clone())
     });
     let Some((surface_id, sink, target)) = route else {
         return false;

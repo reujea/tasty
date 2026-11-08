@@ -1,6 +1,10 @@
-//! macOS WebView 의 사용자 클릭 증명. WKNavigationAction 공개 API 에는 Linux `is_user_gesture`·
-//! Windows `IsUserInitiated` 에 해당하는 값이 없으므로, 이 뷰가 받은 OS 마우스 클릭으로 대신 증명한다.
-//! 페이지 스크립트가 만든 이벤트는 NSResponder 의 `mouseDown:` 에 오지 않으므로 클릭으로 세지 않는다.
+//! 엔진이 사용자 제스처 값을 주지 않는 탐색의 사용자 클릭 증명. 이 뷰가 받은 OS 마우스 클릭으로 대신 증명한다.
+//! - macOS: WKNavigationAction 공개 API 에 Linux `is_user_gesture`·Windows `IsUserInitiated` 에 해당하는
+//!   값이 없다. NSResponder 의 `mouseDown:`·`mouseUp:` 이 클릭을 기록한다.
+//! - Windows: 같은 문서 fragment 이동은 `HistoryChanged` 로만 알 수 있고 거기에 `IsUserInitiated` 가
+//!   없다. host 입력 경로의 메시지 훅이 WebView 로 가는 `WM_LBUTTONDOWN`·`WM_LBUTTONUP` 을 기록한다.
+//!
+//! 페이지 스크립트가 만든 이벤트는 이 OS 경로를 지나지 않으므로 클릭으로 세지 않는다.
 //! 규칙은 docs/design/systems/webview.md "탐색" 절에 있다.
 
 use std::cell::Cell;
