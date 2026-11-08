@@ -167,6 +167,7 @@ Windows의 같은 문서 fragment 이동은 `NavigationStarting`으로 오지 �
 - 신호는 `HistoryChanged`다. `SourceChanged`는 fragment가 없던 문서의 첫 이동에만 왔고, 이어지는 이동(`#X`→`#Y`)에는 `HistoryChanged`만 왔다(Windows 11 측정).
 - 주소는 페이지에서 `ExecuteScript`로 읽는다. `load_html`(NavigateToString) 문서의 `Source`는 비어 있다. 문서 생성 스크립트가 문서의 첫 주소를 기억하고, 이동마다 `#` 앞이 같은 문서에서 바뀐 주소만 돌려준다. 그래서 새 문서의 기록 변경은 탐색으로 쌓이지 않는다. 페이지가 기억한 값을 바꿔도 돌려주는 주소는 `location` 값이다.
 - `user_gesture`는 macOS와 같은 `ClickGesture` 규칙이다(1초, 한 클릭에 한 탐색, 호스트 로드가 지움). 이벤트에 `IsUserInitiated`가 없어서다. host 입력 경로의 메시지 훅이 WebView로 가는 `WM_LBUTTONDOWN`·`WM_LBUTTONUP`을 기록한다. 페이지 스크립트가 만든 이벤트는 창 메시지가 아니라 클릭을 만들지 못한다. host 입력 경로를 쓰지 못한 view는 클릭을 볼 수 없어 거짓이다. 키보드로 활성화한 이동도 거짓이다.
+- 증명이 없는 Folder 버튼의 결과: 키보드로 누른 경우(Tab+Enter 등)와 host 입력 경로를 쓰지 못한 view에서는 `user_gesture`가 거짓이라 피커가 passive로 열린다. passive 피커는 키 입력을 받는 WebView를 숨기지 않으므로([passive 팝업](popup.md#passive-팝업)) 페이지 밑에 깔려 보이지 않는다. 그 피커가 닫히기 전에는 마우스로 Folder를 눌러도 `file_picker.trigger`가 `-32000`(busy)으로 거절되고 plugin은 warn 로그만 남겨, 화면에는 아무것도 뜨지 않는다. 코드에서 읽은 경로이며 Windows에서 재지 않았다. macOS도 같은 클릭 규칙이다. 터치·펜이 `WM_LBUTTON*`으로 오는지는 재지 않았다.
 - 큐에 쌓으면 부모 창에 `RedrawWindow(RDW_INTERNALPAINT)`를 요청한다. Windows에는 WebView 폴링이 없어, 요청하지 않으면 다음 입력이나 타이머까지 큐를 꺼내지 않는다(측정 3~5초).
 이 값과 webview.set_url의 페이지 작성자를 이용한 파일 열기 판정은
 [파일 핸들러의 origin 규칙](../../features/file-handler/index.md#origin-소유권과-비동기-완료)을 따른다.
