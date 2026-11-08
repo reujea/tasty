@@ -47,6 +47,36 @@ enum LineRead {
     Failed,
 }
 
+/// 요청 하나를 처리한 뒤 연결을 어떻게 할지.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Served {
+    /// 다음 요청을 읽는다.
+    Keep,
+    /// 연결을 끝낸다.
+    Close,
+    /// 응답을 기다리는 동안 클라이언트가 닫았다. 이미 받아 둔 요청을 응답 없이 큐에 넣고 끝낸다.
+    PeerLeft,
+}
+
+impl Served {
+    fn kept(keep: bool) -> Self {
+        if keep { Self::Keep } else { Self::Close }
+    }
+
+    #[cfg(test)]
+    fn keeps_connection(self) -> bool {
+        self == Self::Keep
+    }
+}
+
+/// 요청을 큐에 넣지 못한 이유.
+enum EnqueueRefused {
+    /// 명령 큐 입장 상한에 걸렸다. 실행하지 않았다.
+    QueueFull(String),
+    /// 주 스레드가 큐를 닫았다.
+    MainGone,
+}
+
 /// 연결마다 스레드가 생기므로 동시 연결 수를 제한한다.
 /// 번들 플러그인·attach·mesh·단기 CLI 연결에 여유를 둔 값이며 실측으로 보정한 상한은 아니다.
 /// 정상 사용에서 포화되면 system.pressure의 connections와 거절 로그로 재검토한다.
@@ -488,22 +518,21 @@ impl TcpIpcServer {
         waker: &Option<IpcWaker>,
         peer: Option<std::net::SocketAddr>,
     ) {
-        if !Self::process_request_line(line, queue, waker, writer, peer) {
-            return;
-        }
-        loop {
+        let mut served = Self::process_request_line(line, queue, waker, writer, peer);
+        while served == Served::Keep {
             line.clear();
             match Self::read_line_capped(reader, line, peer) {
                 LineRead::Line => {}
                 LineRead::TooLong => {
                     Self::refuse_oversized_line(writer, peer);
-                    break;
+                    return;
                 }
-                LineRead::Eof | LineRead::Failed | LineRead::Idle => break,
+                LineRead::Eof | LineRead::Failed | LineRead::Idle => return,
             }
-            if !Self::process_request_line(line, queue, waker, writer, peer) {
-                break;
-            }
+            served = Self::process_request_line(line, queue, waker, writer, peer);
+        }
+        if served == Served::PeerLeft {
+            response_wait::enqueue_left_requests(reader, line, queue, waker, peer);
         }
     }
 
@@ -739,25 +768,24 @@ impl TcpIpcServer {
         }
     }
 
-    /// Handle one request line of a request-response connection. Returns `false`
-    /// when the connection should be torn down (send/recv/write failure), `true`
-    /// to keep reading (including for empty or unparseable lines).
+    /// Handle one request line of a request-response connection. Empty and
+    /// unparseable lines keep the connection; send/recv/write failures close it.
     fn process_request_line(
         line: &str,
         queue: &CommandQueue,
         waker: &Option<IpcWaker>,
         writer: &mut std::net::TcpStream,
         peer: Option<std::net::SocketAddr>,
-    ) -> bool {
+    ) -> Served {
         let trimmed = line.trim();
         if trimmed.is_empty() {
-            return true;
+            return Served::Keep;
         }
 
         let request: JsonRpcRequest = match serde_json::from_str(trimmed) {
             Ok(r) => r,
             Err(e) => {
-                return Self::send_parse_error(writer, e);
+                return Served::kept(Self::send_parse_error(writer, e));
             }
         };
 
@@ -897,8 +925,8 @@ impl TcpIpcServer {
     }
 
     /// 명령을 메인 루프로 보내고 연결 스레드에서 응답을 기다린다. 반환값은 연결 유지 여부다.
-    /// 기다리는 동안 연결 슬롯을 유지한다. response_timeout_ms가 없거나 0이면 무기한이다.
-    /// 응답 송신자가 사라지면 대기도 끝난다.
+    /// 기다리는 동안 연결 슬롯을 유지한다. response_timeout_ms가 없거나 0이면 응답이 오거나
+    /// 클라이언트가 연결을 닫을 때까지 기다린다. 응답 송신자가 사라져도 대기가 끝난다.
     /// 큐 용량 거절은 실행하지 않았다는 응답을 보내며 같은 연결을 유지한다.
     fn dispatch_and_await(
         request: JsonRpcRequest,
@@ -907,37 +935,59 @@ impl TcpIpcServer {
         waker: &Option<IpcWaker>,
         writer: &mut std::net::TcpStream,
         peer: Option<std::net::SocketAddr>,
-    ) -> bool {
-        let (resp_tx, resp_rx) = mpsc::sync_channel(1);
-
+    ) -> Served {
         let rpc_id = request.id.clone().unwrap_or(serde_json::Value::Null);
         let wait_bound = request
             .response_timeout_ms
             .filter(|ms| *ms > 0)
             .map(Duration::from_millis);
 
+        match Self::enqueue_request(request, wire_bytes, queue, waker) {
+            Ok((resp_rx, lifecycle)) => Self::await_dispatch_response(
+                &resp_rx, wait_bound, &lifecycle, rpc_id, writer, peer,
+            ),
+            Err(EnqueueRefused::QueueFull(reason)) => {
+                Served::kept(Self::answer_queue_full(writer, rpc_id, &reason, peer))
+            }
+            Err(EnqueueRefused::MainGone) => Served::Close,
+        }
+    }
+
+    /// 입장 판정을 거쳐 요청을 큐에 넣고 주 스레드를 깨운다. 응답 수신 측과 수명 핸들을 돌려준다.
+    fn enqueue_request(
+        request: JsonRpcRequest,
+        wire_bytes: usize,
+        queue: &CommandQueue,
+        waker: &Option<IpcWaker>,
+    ) -> Result<
+        (
+            mpsc::Receiver<JsonRpcResponse>,
+            tasty_ipc::server::LifecycleHandle,
+        ),
+        EnqueueRefused,
+    > {
+        let (resp_tx, resp_rx) = mpsc::sync_channel(1);
         let mut cmd = IpcCommand::with_wire_bytes(request, resp_tx, wire_bytes);
         if let Err(refusal) = cmd.admit(&queue.admission, Origin::Socket) {
-            return Self::answer_queue_full(writer, rpc_id, &refusal.to_string(), peer);
+            return Err(EnqueueRefused::QueueFull(refusal.to_string()));
         }
         let lifecycle = cmd.lifecycle();
 
         if queue.tx.send(cmd).is_err() {
             tracing::warn!("IPC cmd_tx.send failed (main thread shut down?)");
-            return false;
+            return Err(EnqueueRefused::MainGone);
         }
 
         lifecycle.mark_enqueued();
         if let Some(waker) = waker {
             waker();
         }
-
-        Self::await_dispatch_response(&resp_rx, wait_bound, &lifecycle, rpc_id, writer, peer)
+        Ok((resp_rx, lifecycle))
     }
 
     /// 응답 대기 기한이 지나도 연결은 유지한다. 실행 전이면 취소하고 시작됐다면 결과 불명으로 답한다.
-    /// 기다리는 동안 클라이언트가 닫으면 연결을 끝내 자리를 돌려준다. 이미 큐에 넣은 요청은 그대로 두며
-    /// 그 응답은 버려진다(클라이언트가 응답 전에 끊긴 때와 같다).
+    /// 기다리는 동안 클라이언트가 닫으면 대기를 끝내 자리를 돌려준다. 이미 큐에 넣은 요청은 그대로 두며
+    /// 그 응답은 버려진다. 클라이언트가 미리 보낸 나머지 요청은 호출자가 응답 없이 큐에 넣는다.
     fn await_dispatch_response(
         resp_rx: &mpsc::Receiver<JsonRpcResponse>,
         wait_bound: Option<Duration>,
@@ -945,7 +995,7 @@ impl TcpIpcServer {
         rpc_id: serde_json::Value,
         writer: &mut std::net::TcpStream,
         peer: Option<std::net::SocketAddr>,
-    ) -> bool {
+    ) -> Served {
         let response = match response_wait::wait_for_response(resp_rx, wait_bound, writer) {
             response_wait::Waited::Answer(response) => response,
             // 만료 순간 명령이 아직 큐에 있었으면 실행되지 않게 막고 "실행 안 됨" 으로
@@ -963,17 +1013,17 @@ impl TcpIpcServer {
             }
             response_wait::Waited::SenderDropped => {
                 tracing::warn!("IPC resp_rx.recv failed: response_tx dropped without sending");
-                return false;
+                return Served::Close;
             }
             response_wait::Waited::PeerClosed => {
                 tracing::debug!(
                     "IPC client {peer:?} closed the connection while its request waited for the host"
                 );
-                return false;
+                return Served::PeerLeft;
             }
         };
         lifecycle.record_answer(&response);
-        Self::write_dispatch_response(writer, &response, peer)
+        Served::kept(Self::write_dispatch_response(writer, &response, peer))
     }
 
     /// 시작된 요청의 대기 기한이 지났다. 실행은 계속될 수 있어 결과 불명으로 답한다.
@@ -1187,7 +1237,8 @@ mod admission_tests {
         let (done_tx, done_rx) = mpsc::channel();
         let waiter = std::thread::spawn(move || {
             let kept =
-                TcpIpcServer::dispatch_and_await(request, 0, &queue, &None, &mut server_side, None);
+                TcpIpcServer::dispatch_and_await(request, 0, &queue, &None, &mut server_side, None)
+                    .keeps_connection();
             // 받는 쪽이 이미 실패해 사라졌을 수 있다 — 그때는 시험이 다른 실패문으로
             // 끝나므로 이 전송의 실패에 대해 할 일이 없다.
             let _ = done_tx.send(kept);
@@ -1247,7 +1298,8 @@ mod admission_tests {
             idempotency_key: None,
         };
         let kept =
-            TcpIpcServer::dispatch_and_await(request, 0, &queue, &None, &mut server_side, None);
+            TcpIpcServer::dispatch_and_await(request, 0, &queue, &None, &mut server_side, None)
+                .keeps_connection();
         assert!(kept, "만료는 연결을 끊는 사건이 아니다");
 
         let queued = cmd_rx
@@ -1350,7 +1402,8 @@ mod admission_tests {
             .admit(8, Origin::Socket)
             .expect("an empty queue takes one");
         let kept =
-            TcpIpcServer::dispatch_and_await(request(3), 8, &queue, &None, &mut server_side, None);
+            TcpIpcServer::dispatch_and_await(request(3), 8, &queue, &None, &mut server_side, None)
+                .keeps_connection();
         assert!(kept, "a queue refusal must not close the connection");
         assert!(
             cmd_rx.try_recv().is_err(),
@@ -1359,7 +1412,8 @@ mod admission_tests {
 
         drop(held);
         let kept =
-            TcpIpcServer::dispatch_and_await(request(4), 8, &queue, &None, &mut server_side, None);
+            TcpIpcServer::dispatch_and_await(request(4), 8, &queue, &None, &mut server_side, None)
+                .keeps_connection();
         assert!(kept);
         assert!(
             cmd_rx.try_recv().is_ok(),
@@ -1409,7 +1463,8 @@ mod admission_tests {
         let (done_tx, done_rx) = mpsc::channel();
         let waiter = std::thread::spawn(move || {
             let kept =
-                TcpIpcServer::dispatch_and_await(request, 0, &queue, &None, &mut server_side, None);
+                TcpIpcServer::dispatch_and_await(request, 0, &queue, &None, &mut server_side, None)
+                    .keeps_connection();
             // 받는 쪽이 이미 실패해 사라졌을 수 있다 — 그때는 시험이 다른 실패문으로
             // 끝나므로 이 전송의 실패에 대해 할 일이 없다.
             let _ = done_tx.send(kept);
@@ -1519,6 +1574,20 @@ mod admission_tests {
         mpsc::Receiver<()>,
         mpsc::Receiver<IpcCommand>,
     ) {
+        let (client, stats, done, cmd_rx, _admission) = serve_one_watching_queue(first_line_idle);
+        (client, stats, done, cmd_rx)
+    }
+
+    /// [`serve_one`] 과 같되 명령 큐 입장 기록도 돌려준다.
+    fn serve_one_watching_queue(
+        first_line_idle: Duration,
+    ) -> (
+        std::net::TcpStream,
+        Arc<ConnectionStats>,
+        mpsc::Receiver<()>,
+        mpsc::Receiver<IpcCommand>,
+        Arc<CommandAdmission>,
+    ) {
         let listener = TcpListener::bind("127.0.0.1:0").expect("bind");
         let client =
             std::net::TcpStream::connect(listener.local_addr().expect("addr")).expect("connect");
@@ -1527,6 +1596,7 @@ mod admission_tests {
         let slot = ConnectionSlot::try_acquire(&stats, &sat).expect("seat");
         let (cmd_tx, cmd_rx) = mpsc::channel();
         let queue = test_queue(cmd_tx, QueueLimits::DEFAULT);
+        let admission = queue.admission.clone();
         let (inbound_tx, _inbound_rx) = mpsc::channel();
         let ctx = StreamContext {
             hub: tasty_ipc::stream_hub::StreamHub::new(),
@@ -1540,7 +1610,7 @@ mod admission_tests {
             // 받는 쪽이 이미 실패해 사라졌을 수 있다 — 그때 시험은 다른 실패문으로 끝난다.
             let _ = done_tx.send(());
         });
-        (client, stats, done_rx, cmd_rx)
+        (client, stats, done_rx, cmd_rx, admission)
     }
 
     const WAITING_REQUEST: &[u8] =
@@ -1566,6 +1636,43 @@ mod admission_tests {
             &cmd.response_tx,
             JsonRpcResponse::success(serde_json::json!(1), serde_json::json!([])),
         );
+    }
+
+    // 두 요청을 한 번에 쓰고 닫은 클라이언트. 두 줄은 서버 reader 버퍼에 함께 들어가 소켓에는 EOF 만
+    // 남는다. 앞 요청의 응답이 확인 간격을 넘겨도 뒤 요청은 응답 없이 큐에 들어가야 한다(끊긴 클라이언트의
+    // 요청도 실행한다는 계약). 끝에 개행 없는 줄도 종전 루프처럼 한 요청으로 읽는다. 해석할 수 없는 줄은
+    // 건너뛴다. 큐 입장 기록은 들어간 명령 수를 세고, 연결 자리는 돌아온다.
+    #[test]
+    fn requests_sent_ahead_by_a_client_that_left_still_reach_the_queue() {
+        let (mut client, stats, done, cmd_rx, admission) =
+            serve_one_watching_queue(Duration::from_secs(20));
+        client
+            .write_all(
+                b"{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"workspace.list\"}\n\
+                  {\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"workspace.list\"}\n\
+                  not json\n\
+                  {\"jsonrpc\":\"2.0\",\"id\":3,\"method\":\"workspace.list\"}",
+            )
+            .expect("send");
+        drop(client);
+        let first = cmd_rx
+            .recv_timeout(Duration::from_secs(5))
+            .expect("the first request reached the queue");
+        assert_eq!(first.request.id, Some(serde_json::json!(1)));
+        done.recv_timeout(Duration::from_secs(10))
+            .expect("the connection thread did not end after its client left");
+        assert_eq!(stats.snapshot().live, 0, "the seat was not returned");
+        let left: Vec<IpcCommand> = cmd_rx.try_iter().collect();
+        let ids: Vec<_> = left.iter().map(|c| c.request.id.clone()).collect();
+        assert_eq!(
+            ids,
+            vec![Some(serde_json::json!(2)), Some(serde_json::json!(3))],
+            "requests the client sent ahead were not queued"
+        );
+        assert_eq!(admission.snapshot().queued_commands, 3);
+        drop(first);
+        drop(left);
+        assert_eq!(admission.snapshot().queued_commands, 0);
     }
 
     // 응답이 늦어도 연결을 연 채 기다리는 클라이언트는 응답을 받는다. 상대 확인 간격을 두 번 넘겨 답한다.
