@@ -416,7 +416,7 @@ Settings › Keybindings › **Import / Export** 는 위 [이식 번들](#이식
   블록이 떠 있는 동안 행의 **Export…** 버튼은 꺼진다 — 재시도 입구가 둘이 되지 않게.
   실패는 toast 가 아니다: toast 는 저절로 사라지고 재시도를 못 싣는다.
   이유 구절은 **고정 집합 넷**이다 — 읽기 전용 파일시스템(`ie_export_failure_read_only`) · 권한 없음(`_denied`) · 볼륨이 참(`_disk_full`) · 나머지를 접는 catch-all(`_unknown`, "the write didn't finish.").
-  집합이 고정인 이유는 그 구절이 세 언어에서 같은 문장으로 읽혀야 하기 때문이고, 그래서 **OS 가 낸 문장은 문장 안에 들어가지 않는다** — catch-all 갈래에서만 본문 아래 제 줄(mono caption · muted · 한 줄 말줄임 · 전문은 tooltip)로 따라붙는다.
+  집합이 고정인 이유는 그 구절이 모든 내장 언어에서 같은 문장으로 읽혀야 하기 때문이고, 그래서 **OS 가 낸 문장은 문장 안에 들어가지 않는다** — catch-all 갈래에서만 본문 아래 제 줄(mono caption · muted · 한 줄 말줄임 · 전문은 tooltip)로 따라붙는다.
   "볼륨이 참" 은 `io::ErrorKind::StorageFull` 이 아직 nightly 라 raw OS 코드로 본다(`db::disk_full_os_error`, db 초기화 쪽과 같은 상수).
   알려진 실패는 공용 원자 교체의 대상 원본 보호 계약을 따른다. 결과를 확인하지 못한 경우에는 **Export result unknown**과 대상 파일을 확인한 뒤 다시 시도하라는 안내를 표시하며 “Nothing was written.”이라고 단정하지 않는다. 자동 재시도하지 않고, 명시적 Try again만 현재 draft를 다시 인코딩한다.
   기본 fsync는 없고 공용 helper가 지원하는 mode/owner/native 보안 속성만 보존한다. 모든 metadata나 전원 장애 내구성을 보장하지 않는다.
@@ -426,7 +426,7 @@ Settings › Keybindings › **Import / Export** 는 위 [이식 번들](#이식
   - **버린 plugin override**(`DroppedUninstalledPlugin`) — 경고가 아니라 muted 정보 줄 하나(개수 · plugin id 목록).
   - **번들 경고** — 경고 톤 알림 블록 **하나**에 한 줄씩 쌓고 헤더에 개수를 단다.
     개수가 **하나면 단수형**이다 — 헤더(`ie_notices_count_one`)도, 모르는 액션 줄(`ie_notice_unknown_actions_one`)도.
-    단수형은 en 의 단수 변형이고, ko·ja 는 기준 키 하나로 쓴다([i18n 가이드](../../dev-guide/i18n.md)의 단수 규칙).
+    단수형은 en 의 단수 변형이고, ko·ja·zh-Hans 는 기준 키 하나로 쓴다([i18n 가이드](../../dev-guide/i18n.md)의 단수 규칙).
     순서는 원문 순서가 아니라 고정이다: 새 스키마(`NewerVersion`) → 모르는 액션(`UnknownKeybindingField`, 몇 개든 한 줄에 이름 목록) → OS 예약 조합.
     OS 예약 조합 줄은 코덱 경고가 아니라 가져온 본체 바인딩과 plugin Custom 키를 [OS 가 가로채는 조합](../../design/policies/key-mapping.md#os-가-가로채는-조합) 목록과 대조해 만든다(`bundle_notices::os_reserved_notice`). 몇 개든 한 줄이고("Windows may use Win+L, Win+Tab itself, so Tasty might not receive it."), 목록이 없는 macOS 에서는 나오지 않는다. 적용을 막지 않는다.
     세 줄까지 보이고 나머지는 **Show {n} more** 뒤로 접힌다(`import_export/bundle_notices.rs`).

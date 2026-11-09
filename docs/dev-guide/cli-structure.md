@@ -127,7 +127,7 @@ clap 이 첫 문단을 짧은 help(`-h`), 전체를 긴 help(`--help`)로 그대
 
 그룹 제목(`cli.help_group.*`)과 시작 안내(`cli.help_start.*`)는 clap 슬롯이 아니므로
 `help_groups::text_keys`가 키 목록을 제공하고 `group_headings_and_start_lines_exist_in_every_language`가
-en/ko/ja 카탈로그를 대조한다. 그룹이 있는 명령은 en·ko·ja 모두 같은 템플릿을 쓴다.
+내장 언어 카탈로그를 모두 대조한다. 그룹이 있는 명령은 모든 내장 언어가 같은 템플릿을 쓴다.
 
 짧은 도움말(`-h`)의 인자 설명은 doc comment 첫 문단이다. 긴 계약은 빈 줄 뒤 문단에 두어
 `--help`에서만 펼친다. 결과 불명(-32061)이나 GUI 빌드의 헤드리스 제약처럼 오동작 판단에 필요한

@@ -188,7 +188,7 @@ micro 대문자로 쓰고, 열 위치는 행과 같은 계산을 써서 값 바�
   간격 없이 붙인다(행 높이 `menu-item-height` 28). hover 하면
   **누르면 무엇이 되는지**를 말한다 — `Show 3 hidden folders`(`filepicker.hidden_folders`),
   하나면 en 단수 변형(`filepicker.hidden_folders_one`). 상태 서술("N folders hidden")이 아닌 이유는
-  그 툴팁이 클릭 대상 위에 뜨기 때문이다. 단수형은 영어만 갈린다 — ko·ja 는 굴절이 없다.
+  그 툴팁이 클릭 대상 위에 뜨기 때문이다. 단수형은 영어만 갈린다 — ko·ja·zh-Hans 는 굴절이 없다.
 - **생략은 렌더 규칙이다**: view 가 받는 `FilePickerProps.crumbs` 는 항상 root 부터 현재 폴더까지
   전체이고, 접는 판단은 그리는 순간에만 한다 — `…` 메뉴가 숨긴 조상을 열 수 있는 이유다.
 - **footer 행**: 이름 행은 라벨(고정폭, 줄지 않음) + 이름 칸(남은 폭), 버튼 행은 오른쪽 끝에서 확정 ·
@@ -563,7 +563,7 @@ view 는 `FilePickerProps` 만 받고 `FilePickerAction` 만 돌려주므로 상
   `FileChooserOutcome`, 저장 모드 이름 칸·덮어쓰기 판정), `src/view/settings/ui.rs`(`PopupManager` 등록 ·
   `open_file_chooser` · `settings_escape_owner` · `apply_file_chooser_outcomes`),
   `src/view/settings/ui/tabs/misc.rs`(`ScriptsUiState::BROWSE_CONSUMER`/`apply_browsed_file`).
-- i18n: `lang/{en,ko,ja}.toml` `[filepicker]`/`[filepicker.error_perm]`/`[filepicker.error_conn]`/`[filepicker.save]`/`[picker.folder]`.
+- i18n: `lang/{en,ko,ja,zh-Hans}.toml` `[filepicker]`/`[filepicker.error_perm]`/`[filepicker.error_conn]`/`[filepicker.save]`/`[picker.folder]`.
 - 갤러리 specimen: `crates/tasty-gallery/src/catalog/components/file_picker.rs`(`draw` · `draw_states` · `draw_save_mode` · `draw_folder_mode`) + `file_picker/{path_bar,footer,folder}.rs`.
 - 테스트: `crates/tasty-ipc/src/stream_hub.rs`(`pump_inbound_classifies_list_dir_request`),
   `src/core/fs_list.rs`(`human_size_units`/`sort_dirs_first`/`read_dir_entries_lists_files_and_dirs`),

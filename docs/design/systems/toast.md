@@ -169,7 +169,7 @@ Toast 위에서 마우스 클릭/드래그해도 토스트는 무시하고 이�
 > 박히고 `Painter::galley` 의 fallback 은 `Color32::PLACEHOLDER` 구간에만 쓰이므로,
 > 페이드는 카드 배경·보더·accent 바에만 적용한다. 갤러리도 같은 동작을 사용한다.
 
-모든 토스트 문자열은 `t("toast.*")` 키 — `lang/{en,ko,ja}.toml` 세 파일 동시 추가([i18n](../../dev-guide/i18n.md)).
+모든 토스트 문자열은 `t("toast.*")` 키 — `lang/{en,ko,ja,zh-Hans}.toml` 네 파일 동시 추가([i18n](../../dev-guide/i18n.md)).
 
 ## 관련
 

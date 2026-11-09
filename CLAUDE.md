@@ -182,7 +182,7 @@ Cargo에는 별도 의존성 설치 단계가 없고 build/test 때 필요한 �
 
 ## 국제화 (필수)
 
-모든 UI 문자열은 `t()` 함수를 통한 번역 키로 노출한다. 자연어 하드코딩 금지. 새 문자열 추가 시 `lang/{en,ko,ja}.toml` 세 파일에 모두 키 추가.
+모든 UI 문자열은 `t()` 함수를 통한 번역 키로 노출한다. 자연어 하드코딩 금지. 새 문자열 추가 시 `lang/{en,ko,ja,zh-Hans}.toml` 네 파일에 모두 키 추가.
 
 상세 (API, lang 파일 위치, plugin 네임스페이스, 하드코딩 허용 예외): [`docs/dev-guide/i18n.md`](docs/dev-guide/i18n.md).
 

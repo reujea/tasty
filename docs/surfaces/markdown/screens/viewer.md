@@ -253,7 +253,7 @@ blockquote 로 폴백). 이 경우를 포함한 모든 콜아웃 인식·렌더�
 붙은 문법(`[!note]+ 제목`처럼)도 Obsidian 문법으로 자연히 인식된다**.
 
 헤더 레이블(기본 타입 라벨 또는 커스텀 제목)은 `render/callout.rs::CALLOUT_KINDS`가 plugin 자신의
-`Translator`로 UI 언어에 맞게 조회한다(`markdown.alert.<type>`, `lang/{en,ko,ja}.toml`) —
+`Translator`로 UI 언어에 맞게 조회한다(`markdown.alert.<type>`, `lang/{en,ko,ja,zh-Hans}.toml`) —
 마커 없는 구조는 `blockquote` 첫 자식인 빈 span(`.tasty-callout-label`)의 `data-label` 속성 + `::before`의 `content:
 attr(data-label)`로 반영하고, `<details>` 구조는 `<summary>` 안의 실제 텍스트 노드로
 반영한다(어느 쪽이든 커스텀 제목이 있으면 그 텍스트가 기본 라벨을 대체). 마커 없는 라벨은 글자 노드가 아니라 찾기에 잡히지 않고 선택·복사 문자열에도 들어가지 않는다. `<details>` 라벨은 찾기에 잡히고 선택 문자열에도 들어간다. 기본 라벨에만 UI 언어 `lang` 을 붙인다(아래 [앱 문구의 한자 형태](#앱-문구의-한자-형태)). `blockquote` 에 붙이면 본문으로 상속되므로 라벨 요소에 붙인다. 아이콘은
@@ -395,7 +395,7 @@ Obsidian 스타일 `[[문서명]]`/`[[문서명|표시텍스트]]` 문법을 인
 - **`aria-label`** — 참조는 `markdown.footnote.ref_aria`("각주 N으로 이동"), backlink 는 참조가
   1회면 `markdown.footnote.backlink_aria`("각주 N에서 본문으로 돌아가기"), 2회 이상이면
   `markdown.footnote.backlink_aria_nth`("각주 N의 M번째 참조로 돌아가기")로 어느 참조인지 구분한다.
-  `lang/{en,ko,ja}.toml` 세 파일에 키가 있다. `sanitize_html` 은 `a` 태그에 한해 `aria-label` 을
+  `lang/{en,ko,ja,zh-Hans}.toml` 네 파일에 키가 있다. `sanitize_html` 은 `a` 태그에 한해 `aria-label` 을
   허용한다(모든 태그가 아니라 실제 필요한 `a` 로 범위를 좁힘).
 - **id 안전화** — 각주 이름의 공백을 피하고 유니코드를 일관되게 표현하도록
   `percent_encode_fragment`(nav-fragment/아이콘 data URI 와 동일한 헬퍼)로 인코딩한다 — 충돌 없는

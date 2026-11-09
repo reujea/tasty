@@ -207,4 +207,4 @@ feature 에 없으므로, 둘 중 하나라도 빠지면 이름 필터에 **실�
 2. egui `secondary_clicked()` → `pending_native_menu` 설정.
 3. `process_pending_native_menu()` 에 match 분기 → 핸들러에서 `open_native_menu(x, y, &items, cont)` 호출(`show_context_menu` 직접 호출 금지).
 4. 대상은 인덱스가 아니라 ID로 캡처하고, continuation 시작부에서 현재 위치를 다시 찾는다. 메뉴가 열려 있는 동안 에이전트가 대상을 닫거나 순서를 바꿀 수 있다. 사라졌으면 반환한다. workspace·탭 메뉴는 `src/view/main/menu_target.rs`의 `WorkspaceMenuTarget`·`TabMenuTarget`을 쓴다.
-5. 항목 텍스트는 `crate::i18n::t()` + `lang/{en,ko,ja}.toml` 키 추가.
+5. 항목 텍스트는 `crate::i18n::t()` + `lang/{en,ko,ja,zh-Hans}.toml` 키 추가.

@@ -150,7 +150,7 @@ mouse-capture 배너(`defs::BANNER_MOUSE_CAPTURE`)에 한해, X 왼쪽에 "더�
   2. **"{app}에서 클릭은 Tasty가 처리"**(en "Let Tasty handle clicks in {app}", ja "{app} ではクリックを Tasty で処理")(`icons::MOUSE`) —
      `mouse_capture_blacklist` 에 추가. **배너는 남는다** — 캡처가 이미 풀렸음을 사용자가 읽고 직접 닫도록.
   - 두 행 모두 어느 프로그램에 무엇이 바뀌는지를 사용자의 말("다시 보지 않기", "클릭")로 적는다. 문구는
-    `[popup.mouse_capture_banner_menu]` 의 prefix·suffix 키다. en 은 이름 앞 문구만, ko·ja 는 이름 뒤 문구만 쓴다.
+    `[popup.mouse_capture_banner_menu]` 의 prefix·suffix 키다. en 은 이름 앞 문구만, ko·ja 는 이름 뒤 문구만, zh-Hans 는 이름 앞뒤 문구를 모두 쓴다. 양쪽이 모두 빈 언어는 없다.
   - Settings › Terminal › Mouse Capture 의 목록 라벨도 같은 동사를 쓴다. 배너 목록은 "캡처 안내를 다시 보지 않을
     프로그램"(en "Don't show the capture notice for these programs"), 캡처 목록은 "클릭을 Tasty가 처리할
     프로그램"(en "Let Tasty handle clicks in these programs")이다.
@@ -281,7 +281,7 @@ mouse-capture 배너(`defs::BANNER_MOUSE_CAPTURE`)에 한해, X 왼쪽에 "더�
 
 마우스는 scope 전체가 아니라 실제 카드 영역에서만 소비한다. 그렇지 않으면 배너 아래 터미널 클릭까지 막힌다. 배치 영역(`banner_zone`)과 입력 영역(`card_rects`)을 구분하며, 카드 영역은 직전 프레임 값을 사용해 1프레임 늦게 반영된다. 위치가 고정된 persistent 배너에서는 이 지연이 드러나지 않는다.
 
-모든 배너 문자열은 `t("banner.*")` 키 — `lang/{en,ko,ja}.toml` 세 파일 동시 추가([i18n](../../dev-guide/i18n.md)). 모든 색·치수는 Theme 토큰([theme.md](theme.md)).
+모든 배너 문자열은 `t("banner.*")` 키 — `lang/{en,ko,ja,zh-Hans}.toml` 네 파일 동시 추가([i18n](../../dev-guide/i18n.md)). 모든 색·치수는 Theme 토큰([theme.md](theme.md)).
 
 ## 관련
 

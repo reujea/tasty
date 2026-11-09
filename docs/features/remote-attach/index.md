@@ -335,7 +335,7 @@ Reconnecting 에 들어갈 때 옛 연결의 소켓을 바로 닫는다(`Connect
 - **취소**(사용자가 조회를 끊음 — `tasty_ssh::SshCancel`) — 확정 사실이라 대표 에러 선택에서 최우선.
 - **타임아웃**(상한 안에 아무 답도 오지 않음) — 무응답 호스트(패킷이 조용히 버려지는 IP·방화벽 DROP·꺼진 머신), 보이지 않는 프롬프트 대기, 또는 체인 전체 예산 소진. 아래 "연결 시도 상한" 참고. `SshConnectionFailed` 로 접지 않고 따로 두는 이유는 ① 사용자가 취할 조치가 다르고(도달성/회선 점검 vs 인증·호스트키 점검), ② 타임아웃 kill 도 시그널 종료라 접으면 원격발 시그널 종료와 뭉개지기 때문이다.
 
-각 분류는 `lang/{en,ko,ja}.toml` `[ssh.port_discovery]` 의 번역된 문구로만 노출된다 — 원격 raw stderr·내부 명령(`cat`/`type`)·포트 파일 경로는 에러의 `Display` 에 담기지 않고 생성 시점에 `tracing::debug!` 로만 로그된다(`PortDiscoveryError::detail()`).
+각 분류는 `lang/{en,ko,ja,zh-Hans}.toml` `[ssh.port_discovery]` 의 번역된 문구로만 노출된다 — 원격 raw stderr·내부 명령(`cat`/`type`)·포트 파일 경로는 에러의 `Display` 에 담기지 않고 생성 시점에 `tracing::debug!` 로만 로그된다(`PortDiscoveryError::detail()`).
 Auto 체인이 전 단계 실패하면 가장 확정적인 분류(취소 > 타임아웃 > SSH 연결 실패 > 인스턴스 미실행 > 파싱 실패 순)를 대표 에러로 고른다 — 한 단계가 무응답이면 다른 단계의 "연결 실패" 는 앞 단계에서 시간을 써서 남은 시간이 부족해진 결과일 수 있어 대표로 삼으면 오도한다 — 마지막 단계 에러만 남기면 정보량이 가장 적은 사유가 노출되던 문제를 막는다.
 이 분류는 `ssh::discover_remote_port`/`remote_browse::resolve_endpoint` 를 공유 소비하는 모든 경로(GUI 원격 워크스페이스 추가 팝업, `tasty remote check`/`remote workspaces`/`tool attach`, IPC `remote.workspaces`/`remote.attach`, 자동 재연결)에 동일하게 적용된다.
 

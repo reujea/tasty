@@ -107,7 +107,7 @@
   | 디코드 실패(그 밖의 오류) | alertTriangle · image-error-fg | `image.state.decode` · `decode_sub` | 디코더 문구(번역 안 함) | Retry |
   | 너무 큼(`ImageError::Limits`) | image · image-too-large-fg(→ accent-warning, 상한으로 거절했을 뿐 파일은 정상이라 디코드 실패 톤과 다르다), 제목 text-primary | `image.state.too_large` · `too_large_sub`(상한 두 값, MiB) | `too_large_size` 헤더에서 읽은 실제 크기 "W × H px"(헤더를 못 읽으면 없음) | 없음 — 같은 파일은 다시 읽어도 결과가 같다. 파일이 바뀌면 감시가 다시 읽는다 |
 
-- 상태 화면의 제목과 보조 줄은 공용 상태 화면의 균형 줄바꿈을 따른다(줄 길이를 고르게 해 한두 글자 꼬리를 남기지 않는다). 너무 큼 문구는 세 언어 모두 숫자와 단위 사이를 NBSP(U+00A0)로 붙인다 — `too_large_sub` 의 "{}\u00A0px", 메모리 인자 "512\u00A0MiB", `too_large_size` 의 "{}\u00A0px". egui 는 NBSP 에서 줄을 바꾸지 않으므로 숫자와 단위가 다른 줄로 갈라지지 않는다.
+- 상태 화면의 제목과 보조 줄은 공용 상태 화면의 균형 줄바꿈을 따른다(줄 길이를 고르게 해 한두 글자 꼬리를 남기지 않는다). 너무 큼 문구는 모든 내장 언어에서 숫자와 단위 사이를 NBSP(U+00A0)로 붙인다 — `too_large_sub` 의 "{}\u00A0px", 메모리 인자 "512\u00A0MiB", `too_large_size` 의 "{}\u00A0px". egui 는 NBSP 에서 줄을 바꾸지 않으므로 숫자와 단위가 다른 줄로 갈라지지 않는다.
 - 디코드 상한: 뷰어는 디코드 전에 `image::Limits` 를 건다. 한 변 `MAX_IMAGE_SIDE` 16384px, 디코더 메모리 `MAX_DECODE_ALLOC` 512 MiB(image 크레이트 기본값을 명시)다. 넘으면 픽셀을 펼치기 전에 "너무 큼" 상태로 거절한다. 한 변 상한은 Explorer 미리보기와 같다. 메모리 상한은 미리보기(256 MiB)보다 크다 — 미리보기는 패널 폭으로 줄여 보내지만 뷰어는 원본을 그대로 타일로 올리기 때문이다. 상한 안의 그림도 디코드 버퍼 뒤에 RGBA 사본·`ColorImage`·타일 업로드가 더해지므로 메모리 최고점은 디코드 메모리의 몇 배다.
 
 - Retry(secondary sm)는 도구 모음 새로고침과 같이 파일을 다시 읽는다. 원인은 `ImageDoc::load_failure` 에 남고 읽기에 성공하면 지운다. 파일 감시의 자동 재읽기와 이전·다음 이동은 그대로 동작한다.

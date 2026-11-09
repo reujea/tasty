@@ -17,7 +17,7 @@
 상단 L1 7탭, 각 탭은 좌측에 L2 섹션 목록을 가진다 (이 순서):
 
 - **General**
-  - General(레이아웃 복원 · 카테고리 · 닫기 동작 · **언어** — 내장 `en`/`ko`/`ja` + `~/.tasty/lang/<code>/pack.toml` 언어팩을 한 콤보에 노출, 라벨은 `[meta] name` 없으면 코드, 설정값이 목록에 없으면 `<code> (not found)` 행으로 유지하고 덮어쓰지 않음, 변경은 재시작 후 반영 → [language-packs](../language-packs/index.md))
+  - General(레이아웃 복원 · 카테고리 · 닫기 동작 · **언어** — 내장 `en`/`ko`/`ja`/`zh-Hans` + `~/.tasty/lang/<code>/pack.toml` 언어팩을 한 콤보에 노출, 라벨은 `[meta] name` 없으면 코드, 설정값이 목록에 없으면 `<code> (not found)` 행으로 유지하고 덮어쓰지 않음, 변경은 재시작 후 반영 → [language-packs](../language-packs/index.md))
   - Notifications
   - Accessibility
   - Overlay(오버레이류 표시 설정 — 현재는 토스트 자동 소멸 시간 `Toast duration` 1~10s 1행 → [toast](../../design/systems/toast.md))
