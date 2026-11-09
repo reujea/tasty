@@ -12,6 +12,7 @@
 pub mod baked_icon;
 pub mod bus;
 pub mod connection;
+pub mod deferred;
 /// egui-mesh 기능을 켰을 때 제공하는 렌더링 도우미.
 #[cfg(feature = "egui-mesh")]
 pub mod egui_surface;
@@ -26,6 +27,7 @@ pub mod runtime;
 pub mod shared_buffer;
 
 pub use bus::BusHandle;
+pub use deferred::DeferredReply;
 #[cfg(feature = "egui-mesh")]
 pub use egui_surface::{EguiMeshBanner, EguiMeshPopup, EguiMeshSurface};
 pub use env::PluginEnv;
