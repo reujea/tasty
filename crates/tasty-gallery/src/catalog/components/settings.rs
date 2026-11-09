@@ -48,7 +48,7 @@ const L2_SELECTED: usize = 0;
 
 const FONT_FAMILIES: &[&str] = &["D2Coding", "JetBrains Mono", "Cascadia Code"];
 
-/// 언어 콤보 행 — 내장 3 + 사용자 언어팩 N. `fr` 은 `[meta] name` 을 가진 팩, `xx` 는
+/// 언어 콤보 행 — 내장 4 + 사용자 언어팩 N. `fr` 은 `[meta] name` 을 가진 팩, `xx` 는
 /// `[meta] name` 이 없어 코드가 그대로 라벨이 되는 폴백 케이스.
 const LANGUAGES: &[LanguageOption<'static>] = &[
     LanguageOption {
@@ -62,6 +62,10 @@ const LANGUAGES: &[LanguageOption<'static>] = &[
     LanguageOption {
         code: "ja",
         label: "日本語",
+    },
+    LanguageOption {
+        code: "zh-Hans",
+        label: "简体中文",
     },
     LanguageOption {
         code: "fr",
@@ -189,7 +193,7 @@ pub fn draw_controls(ui: &mut egui::Ui, theme: &Theme) {
             ),
             (
                 "language",
-                "language_select() — built-in 3 + packs · code fallback · missing row",
+                "language_select() — built-in 4 + packs · code fallback · missing row",
             ),
         ],
         &[
@@ -461,7 +465,7 @@ fn controls(ui: &mut egui::Ui, theme: &Theme) {
         note(
             ui,
             theme,
-            "Built-in en/ko/ja plus packs in the Tasty home's lang/<code>/pack.toml. A pack without a \
+            "Built-in en/ko/ja/zh-Hans plus packs in the Tasty home's lang/<code>/pack.toml. A pack without a \
              [meta] name shows its code (xx); a configured code with no pack stays \
              selected as 'zz (not found)' instead of being overwritten.",
         );

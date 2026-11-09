@@ -742,7 +742,10 @@ pub fn draw_shell_integration(ui: &mut egui::Ui, theme: &Theme) {
             ("TTL", "10 s — fixed design constant, not a setting"),
             ("pause", "hover · scope backgrounded"),
             ("re-raise (shown)", "countdown resets to 10"),
-            ("text", "banner.shell_integration_missing.* (en/ko/ja)"),
+            (
+                "text",
+                "banner.shell_integration_missing.* (en/ko/ja/zh-Hans)",
+            ),
         ],
         &[
             TokenChip::new(

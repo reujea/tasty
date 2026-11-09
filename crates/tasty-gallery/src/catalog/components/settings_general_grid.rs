@@ -164,7 +164,7 @@ pub fn draw(ui: &mut egui::Ui, theme: &Theme) {
                             theme,
                             "gallery_general_language",
                             &mut st.language,
-                            &["English", "한국어", "日本語"],
+                            &["English", "한국어", "日本語", "简体中文"],
                             theme.field_width_lg.value(),
                             true,
                         );
