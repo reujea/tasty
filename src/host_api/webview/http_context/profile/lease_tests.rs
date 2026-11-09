@@ -321,7 +321,15 @@ fn every_lease_answer_but_a_confirmed_grant_retains_the_root() {
         libc::ENOLCK,
     ] {
         let dead = DeadRoot::new();
-        let set = |_: &File| Err(io::Error::from_raw_os_error(code));
+        // One file answers this way and the rest are granted, so nothing but this answer retains.
+        let answering = disk::metadata(dead.path("data/target")).unwrap().ino();
+        let set = |file: &File| {
+            if file.metadata()?.ino() == answering {
+                Err(io::Error::from_raw_os_error(code))
+            } else {
+                lease::set_write(file)
+            }
+        };
         let ops = lease::LeaseOps {
             set: &set,
             get: &lease::get,
