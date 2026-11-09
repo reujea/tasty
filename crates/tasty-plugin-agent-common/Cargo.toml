@@ -3,12 +3,19 @@ name = "tasty-plugin-agent-common"
 version = "0.1.0"
 edition = "2024"
 license = "MIT"
-description = "Shared helpers for the AI-CLI child-manager plugins (claude, codex). Library crate — no tasty-plugin.toml, so it is not a bundled plugin."
+description = "Shared helpers for the AI-CLI plugins (claude, codex, agent-stream). Library crate — no tasty-plugin.toml, so it is not a bundled plugin."
 
 [dependencies]
 tasty-plugin-sdk = { path = "../tasty-plugin-sdk" }
 serde_json = "1"
 tracing = "0.1"
+directories = "6"
+
+# 같은 경로가 같은 파일인지 판별하는 지문(`src/tail.rs`)용. std 의
+# `MetadataExt::file_index()` 는 unstable feature `windows_by_handle` 이라 stable
+# 툴체인에서 못 쓴다 — Win32 `GetFileInformationByHandle` 을 직접 호출한다.
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.59", features = ["Win32_Foundation", "Win32_Storage_FileSystem"] }
 
 [dev-dependencies]
 tempfile = "3"
