@@ -15,6 +15,11 @@ use std::time::{Duration, Instant};
 /// 타이머로 넘겨주는 상한(`UserGestureToken::maximumIntervalForUserGestureForwarding`, 1초)과 같다.
 pub(crate) const GESTURE_WINDOW: Duration = Duration::from_secs(1);
 
+#[cfg(any(windows, test))]
+const VK_RETURN: u32 = 0x0D;
+#[cfg(any(windows, test))]
+const VK_SPACE: u32 = 0x20;
+
 /// 증명을 만든 입력. 뗌은 자기 누름의 시각만 옮긴다.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Source {
@@ -27,10 +32,18 @@ enum Source {
     },
 }
 
+/// 소비되기 전에 새 누름이 온 키 누름을 몇 개까지 기억하는지. 넘치면 오래된 것부터 버린다.
+#[cfg(any(windows, test))]
+const EARLIER_KEY_PRESSES: usize = 8;
+
 /// 마지막 OS 입력. 한 입력은 main frame 탐색 하나만 증명한다.
 #[derive(Debug, Default)]
 pub(crate) struct ClickGesture {
     armed: Cell<Option<(Instant, Source)>>,
+    /// 탐색 통지보다 다음 키 누름이 먼저 온 앞선 누름의 시각. 연타의 각 누름은 탐색을 하나씩 낸다.
+    /// 칸이 하나면 뒤 탐색이 거짓이 되어 앞 탐색의 증명 기록을 지운다.
+    #[cfg(any(windows, test))]
+    earlier_keys: Cell<[Option<Instant>; EARLIER_KEY_PRESSES]>,
 }
 
 impl ClickGesture {
@@ -51,7 +64,37 @@ impl ClickGesture {
     /// Chromium 은 Enter 반복마다 버튼을 누르므로, 반복을 빼면 반복이 낸 거짓 탐색이 첫 누름의 기록을 지운다.
     #[cfg(any(windows, test))]
     pub(crate) fn key_press(&self, vk: u32, now: Instant) {
+        if let Some((at, Source::Key { vk: down, held })) = self.armed.get()
+            && !(held && down == vk && vk == VK_SPACE)
+        {
+            // Space 자동 반복은 뗄 때 click 하나만 내므로 쌓지 않는다.
+            self.remember_earlier_key(at);
+        }
         self.armed.set(Some((now, Source::Key { vk, held: true })));
+    }
+
+    #[cfg(any(windows, test))]
+    fn remember_earlier_key(&self, at: Instant) {
+        let mut earlier = self.earlier_keys.get();
+        if let Some(slot) = earlier.iter_mut().find(|slot| slot.is_none()) {
+            *slot = Some(at);
+        } else {
+            earlier.rotate_left(1);
+            earlier[EARLIER_KEY_PRESSES - 1] = Some(at);
+        }
+        self.earlier_keys.set(earlier);
+    }
+
+    /// 시간 창 안의 앞선 키 누름 하나를 소비한다. 지나간 칸은 비운다.
+    #[cfg(any(windows, test))]
+    fn take_earlier_key(&self, now: Instant) -> bool {
+        let mut earlier = self.earlier_keys.get();
+        let found = earlier
+            .iter_mut()
+            .find_map(|slot| slot.take().filter(|at| within_window(now, *at)))
+            .is_some();
+        self.earlier_keys.set(earlier);
+        found
     }
 
     /// 활성화 키를 뗐다. Space 는 뗄 때 click 이 생기므로 오래 눌렀다 떼도 증명되게 시각을 옮긴다.
@@ -68,6 +111,8 @@ impl ClickGesture {
     /// 호스트(에이전트·IPC 포함)가 로드·이동을 시작했다. 그 탐색을 입력이 낸 것으로 보지 않는다.
     pub(crate) fn cancel(&self) {
         self.armed.set(None);
+        #[cfg(any(windows, test))]
+        self.earlier_keys.set(Default::default());
     }
 
     /// 탐색 결정 시점에 사용자 입력 증명을 꺼낸다. main frame 탐색만 입력을 소비한다.
@@ -76,10 +121,18 @@ impl ClickGesture {
         if main_frame != Some(true) {
             return false;
         }
+        #[cfg(any(windows, test))]
+        if self.take_earlier_key(now) {
+            return true;
+        }
         self.armed
             .take()
-            .is_some_and(|(at, _)| now.saturating_duration_since(at) <= GESTURE_WINDOW)
+            .is_some_and(|(at, _)| within_window(now, at))
     }
+}
+
+fn within_window(now: Instant, at: Instant) -> bool {
+    now.saturating_duration_since(at) <= GESTURE_WINDOW
 }
 
 /// 이 key-down 이 페이지의 버튼·링크를 활성화하는 사용자 입력인지. 수식키 조합은 활성화가 아니라
@@ -91,8 +144,6 @@ pub(crate) fn proves_activation(
     mods: winit::keyboard::ModifiersState,
     consumed_by_host: bool,
 ) -> bool {
-    const VK_RETURN: u32 = 0x0D;
-    const VK_SPACE: u32 = 0x20;
     matches!(vk, VK_RETURN | VK_SPACE) && mods.is_empty() && !consumed_by_host
 }
 
@@ -169,8 +220,8 @@ mod tests {
         assert!(!g.take(t + ms(10), Some(true)));
     }
 
-    const ENTER: u32 = 0x0D;
-    const SPACE: u32 = 0x20;
+    const ENTER: u32 = VK_RETURN;
+    const SPACE: u32 = VK_SPACE;
 
     #[test]
     fn a_key_press_proves_one_navigation() {
@@ -179,6 +230,108 @@ mod tests {
         g.key_press(ENTER, t);
         assert!(g.take(t + ms(5), Some(true)));
         assert!(!g.take(t + ms(6), Some(true)), "한 누름은 한 번만 증명한다");
+    }
+
+    #[test]
+    fn each_quick_press_proves_its_own_navigation() {
+        let g = ClickGesture::default();
+        let t = Instant::now();
+        g.key_press(ENTER, t);
+        g.key_press(ENTER, t + ms(5));
+        assert!(g.take(t + ms(6), Some(true)), "앞 누름의 탐색");
+        assert!(g.take(t + ms(12), Some(true)), "뒤 누름의 탐색");
+        assert!(!g.take(t + ms(13), Some(true)), "남는 증명이 없다");
+
+        // 서로 다른 키와 Space 의 눌렀다 뗌 두 번도 각각 하나다.
+        let g = ClickGesture::default();
+        g.key_press(SPACE, t);
+        g.key_release(SPACE, t + ms(2));
+        g.key_press(SPACE, t + ms(4));
+        g.key_release(SPACE, t + ms(6));
+        g.key_press(ENTER, t + ms(8));
+        assert!(g.take(t + ms(9), Some(true)));
+        assert!(g.take(t + ms(10), Some(true)));
+        assert!(g.take(t + ms(11), Some(true)));
+        assert!(!g.take(t + ms(12), Some(true)));
+    }
+
+    #[test]
+    fn a_consumed_press_is_not_kept_for_the_next_press() {
+        let g = ClickGesture::default();
+        let t = Instant::now();
+        g.key_press(ENTER, t);
+        assert!(g.take(t + ms(1), Some(true)));
+        g.key_press(ENTER, t + ms(50));
+        assert!(g.take(t + ms(51), Some(true)));
+        assert!(!g.take(t + ms(52), Some(true)));
+    }
+
+    #[test]
+    fn enter_repeats_stack_but_space_repeats_do_not() {
+        let t = Instant::now();
+        // Chromium 은 Enter 반복마다 버튼을 누른다.
+        let g = ClickGesture::default();
+        for i in 0..3 {
+            g.key_press(ENTER, t + ms(i * 33));
+        }
+        for _ in 0..3 {
+            assert!(g.take(t + ms(70), Some(true)));
+        }
+        assert!(!g.take(t + ms(70), Some(true)));
+
+        // Space 는 뗄 때 click 하나만 낸다.
+        let g = ClickGesture::default();
+        for i in 0..3 {
+            g.key_press(SPACE, t + ms(i * 33));
+        }
+        g.key_release(SPACE, t + ms(70));
+        assert!(g.take(t + ms(71), Some(true)));
+        assert!(!g.take(t + ms(72), Some(true)));
+    }
+
+    #[test]
+    fn an_earlier_press_expires_on_its_own_time() {
+        let g = ClickGesture::default();
+        let t = Instant::now();
+        g.key_press(ENTER, t);
+        g.key_press(ENTER, t + ms(900));
+        let after_first = t + GESTURE_WINDOW + ms(100);
+        assert!(g.take(after_first, Some(true)), "뒤 누름은 아직 창 안이다");
+        assert!(!g.take(after_first, Some(true)), "앞 누름은 지났다");
+    }
+
+    #[test]
+    fn remembered_key_presses_are_bounded() {
+        let g = ClickGesture::default();
+        let t = Instant::now();
+        let presses = EARLIER_KEY_PRESSES as u64 + 3;
+        for i in 0..presses {
+            g.key_press(ENTER, t + ms(i));
+        }
+        for _ in 0..=EARLIER_KEY_PRESSES {
+            assert!(g.take(t + ms(presses), Some(true)));
+        }
+        assert!(!g.take(t + ms(presses), Some(true)));
+    }
+
+    #[test]
+    fn a_host_load_cancels_the_earlier_key_presses_too() {
+        let g = ClickGesture::default();
+        let t = Instant::now();
+        g.key_press(ENTER, t);
+        g.key_press(ENTER, t + ms(1));
+        g.cancel();
+        assert!(!g.take(t + ms(2), Some(true)));
+    }
+
+    #[test]
+    fn pointer_presses_keep_one_slot() {
+        let g = ClickGesture::default();
+        let t = Instant::now();
+        g.press(t);
+        g.press(t + ms(1));
+        assert!(g.take(t + ms(2), Some(true)));
+        assert!(!g.take(t + ms(3), Some(true)));
     }
 
     #[test]
