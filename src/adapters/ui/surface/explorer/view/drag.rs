@@ -77,6 +77,33 @@ pub(crate) struct DragState {
     pub(crate) os: Option<OsHover>,
     /// OS 파일을 놓으면 갈 곳. 놓기 처리(`take_os_drop`)가 소비한다.
     os_target: Option<(PathBuf, Verdict)>,
+    /// 앞 프레임에 놓기 틴트가 덮은 파일 영역. 행은 틴트보다 먼저 그려져 앞 프레임 값으로 글자를 고른다.
+    drop_tint: Option<DropTint>,
+}
+
+#[derive(Clone)]
+enum DropTint {
+    Body,
+    Row(PathBuf),
+}
+
+impl DragState {
+    /// 이 경로의 행이 놓기 틴트 아래에 있는지.
+    pub(crate) fn drops_on(&self, path: &Path) -> bool {
+        match &self.drop_tint {
+            Some(DropTint::Body) => true,
+            Some(DropTint::Row(row)) => row == path,
+            None => false,
+        }
+    }
+
+    fn note_drop_tint(&mut self, kind: Kind, dest: &Path) {
+        self.drop_tint = match kind {
+            Kind::Body => Some(DropTint::Body),
+            Kind::Entry { .. } => Some(DropTint::Row(dest.to_path_buf())),
+            Kind::Tree { .. } | Kind::Favorite => None,
+        };
+    }
 }
 
 /// OS 에서 창 위로 끌어 온 파일과 포인터 위치(논리 포인트).
@@ -620,18 +647,19 @@ fn chip(
 fn create_target(
     ui: &egui::Ui,
     theme: &Theme,
-    view: &ExplorerView,
+    view: &mut ExplorerView,
     spots: &[Spot],
     body: egui::Rect,
 ) {
     if super::super::create::place::target_row(view).is_none() {
         return;
     }
-    let Some(dir) = view.create.as_ref().map(|c| c.dir.as_path()) else {
+    let Some(dir) = view.create.as_ref().map(|c| c.dir.clone()) else {
         return;
     };
     let entry = |s: &&Spot| matches!(s.kind, Kind::Entry { .. }) && s.path == dir;
     if let Some(spot) = spots.iter().find(entry) {
+        view.ops.drag.drop_tint = Some(DropTint::Row(dir.clone()));
         let ring = area(spot, body);
         let painter = ui.ctx().layer_painter(ui.layer_id()).with_clip_rect(ring);
         paint_drop_target(&painter, theme, ring, theme.corner_radius.value());
@@ -658,6 +686,7 @@ pub(crate) fn frame(
         .data_mut(|d| d.remove_temp::<Spots>(spots_id()))
         .unwrap_or_default()
         .0;
+    view.ops.drag.drop_tint = None;
     create_target(ui, theme, view, &spots, body);
     let me = ui.id();
     let drawn = drawn_entries(&spots, body);
@@ -710,6 +739,7 @@ pub(crate) fn frame(
         local_verdict(&mut view.ops.drag, &payload.paths, &dest, false, flip)
     };
     if let Verdict::Go(_) = decided {
+        view.ops.drag.note_drop_tint(kind, &dest);
         let radius = if kind == Kind::Body {
             0.0
         } else {
@@ -761,6 +791,7 @@ fn os_frame(
     };
     let ctx = ui.ctx();
     if let Verdict::Go(_) = decided {
+        view.ops.drag.note_drop_tint(kind, &dest);
         let radius = if kind == Kind::Body {
             0.0
         } else {

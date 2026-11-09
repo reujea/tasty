@@ -19,6 +19,17 @@ pub fn in_selected_table_row(ui: &egui::Ui) -> bool {
         .unwrap_or(false)
 }
 
+fn hovered_row_id() -> egui::Id {
+    egui::Id::new("tasty_ui_widgets::table::hovered_row")
+}
+
+/// 지금 그리는 셀이 hover 띠가 있는 행 안인지. hover 칸의 글자를 고르는 셀이 읽는다.
+pub fn in_hovered_table_row(ui: &egui::Ui) -> bool {
+    ui.ctx()
+        .data(|d| d.get_temp::<bool>(hovered_row_id()))
+        .unwrap_or(false)
+}
+
 /// 글자색을 명시하는 셀의 글자색. 선택 행이면 `table-row-fg-selected`, 아니면 `rest`다.
 pub fn table_cell_ink(ui: &egui::Ui, theme: &Theme, rest: HexColor) -> egui::Color32 {
     if in_selected_table_row(ui) {
@@ -350,7 +361,10 @@ impl<'a, K> Table<'a, K> {
                             ui.style_mut().interaction.selectable_labels = false;
                         }
                         let flag = selected_row_id();
-                        ui.ctx().data_mut(|d| d.insert_temp(flag, selected));
+                        ui.ctx().data_mut(|d| {
+                            d.insert_temp(flag, selected);
+                            d.insert_temp(hovered_row_id(), hovered);
+                        });
                         match col.align {
                             TableAlign::Left => cell(ui, theme, row, c),
                             TableAlign::Right => {

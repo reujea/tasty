@@ -855,6 +855,8 @@ fn content(
         egui::Layout::top_down(egui::Align::Min),
         |ui| {
             let ui = &mut preview::split(ui, theme, view, id_suffix);
+            let bed = tasty_ui_widgets::surface_bed(theme, view.bed_focused);
+            ui.painter().rect_filled(ui.max_rect(), 0.0, bed);
             if state_screen::show_for(ui, theme, view, &root, action)
                 || state_screen::show_find(ui, theme, view, action)
             {
@@ -1101,6 +1103,7 @@ struct EntryCtx<'a> {
     query: &'a str,
     root: &'a Path,
     metrics: GridMetrics,
+    parent: tasty_ui_widgets::RowParent,
 }
 
 /// 첫 줄(`..`·이름 입력 칸과 그 뒤 항목)은 늘 그리고, 그 아래 줄은 화면에 걸친 줄만 그린다.
@@ -1122,6 +1125,7 @@ fn grid_view(
         query: &query,
         root,
         metrics: grid_metrics(theme, font),
+        parent: tasty_ui_widgets::RowParent::bed(view.bed_focused),
     };
     let parent = parent_nav_target(root).filter(|_| view.search_root().is_none());
     let lead = usize::from(parent.is_some());
@@ -1138,7 +1142,7 @@ fn grid_view(
     ui.horizontal(|ui| {
         if let Some(p) = &parent {
             let (dd, up) = (dotdot_entry(p.clone()), EntryCtx { query: "", ..ctx });
-            let resp = grid_cell(ui, &up, &dd, (false, false), None);
+            let resp = grid_cell(ui, &up, &dd, (false, false, false), None);
             if resp.double_clicked() && action.is_none() {
                 *action = Some(ExplorerAction::Navigate(p.clone()));
             }
@@ -1169,7 +1173,8 @@ fn grid_entry(
     action: &mut Option<ExplorerAction>,
 ) {
     let cut = ctx.cut_pending.contains(&e.path);
-    let state = (view.selected.contains(&e.path), cut);
+    let under_drop = view.ops.drag.drops_on(&e.path);
+    let state = (view.selected.contains(&e.path), cut, under_drop);
     let thumb = view.thumbs.texture(ui.ctx(), e, view.is_remote());
     // 보이는 칸만 그리므로 칸의 위젯 id 를 화면 위치가 아니라 항목 경로에 묶는다.
     // 그래야 스크롤해도 누름·hover 상태가 같은 항목에 남는다.
@@ -1194,7 +1199,7 @@ fn grid_cell(
     ui: &mut egui::Ui,
     ctx: &EntryCtx<'_>,
     e: &DirEntryInfo,
-    (selected, cut): (bool, bool),
+    (selected, cut, under_drop): (bool, bool, bool),
     thumb: Option<&egui::TextureHandle>,
 ) -> egui::Response {
     let EntryCtx { theme, query, .. } = *ctx;
@@ -1223,18 +1228,8 @@ fn grid_cell(
     thumbs::paint_slot(ui, theme, glyph_rect, thumb, icon, glyph_color);
 
     // 이름은 위에서부터 최대 세 줄로 표시하고 넘치면 끝을 줄인다.
-    let parent = tasty_ui_widgets::RowParent::Base;
-    let rest_ink = if cut {
-        theme.cut_pending_fg()
-    } else {
-        theme.text_secondary()
-    };
-    let rest = state.label(theme, parent, rest_ink).to_egui();
-    let label_color = if state.is_selected() || cut {
-        rest
-    } else {
-        entry_style::name_fg(theme, e, selected, rest)
-    };
+    let ink = entry_style::RowInk::of(state.under_drop(under_drop), ctx.parent, cut);
+    let label_color = ink.name(theme, e, theme.text_secondary());
     let mut job = find::name_job(
         theme,
         &e.name,
@@ -1315,6 +1310,7 @@ fn list_view(
         let selected = view.selected.contains(&e.path);
         let (icon, glyph_color) = entry_style::entry_icon(theme, e, selected);
         let cut = cut_pending.contains(&e.path);
+        let rest = entry_style::RowInk::at_rest(view, e, cut).name(theme, e, theme.tree_row_fg());
         // 보이는 줄만 그리므로 줄의 위젯 id 를 화면 위치가 아니라 항목 경로에 묶는다.
         let resp = ui
             .push_id(&e.path, |ui| {
@@ -1331,9 +1327,9 @@ fn list_view(
                         &query,
                         selected,
                         tail,
+                        rest,
                     )
                 } else {
-                    let rest = entry_style::rest_fg(theme, e);
                     tree_row_with_tail_fg(
                         ui,
                         theme,
@@ -1342,7 +1338,7 @@ fn list_view(
                         &query,
                         selected,
                         tail,
-                        rest,
+                        Some(rest),
                     )
                 };
                 if tail > 0.0 {
@@ -1439,6 +1435,7 @@ fn detail_view(
                 }
                 let cut = cut_pending.contains(&row.path);
                 let sel = row.name != ".." && view.selected.contains(&row.path);
+                let ink = entry_style::RowInk::in_table(ui, view, row, cut, sel);
                 // 하위 폴더 검색은 Name 뒤에 Folder 를 두고 Type 을 뺀다. 열 번호를 평소 배치로 옮긴다.
                 let col = match (&search_root, col) {
                     (Some(_), 1) => 4,
@@ -1458,11 +1455,7 @@ fn detail_view(
                                 ui.allocate_exact_size(egui::vec2(sz, sz), egui::Sense::hover());
                             let (icon, c) = entry_style::entry_icon(th, row, sel);
                             icon.image(sz, c).paint_at(ui, rect);
-                            let name_fg = if cut && !sel {
-                                th.cut_pending_fg().to_egui()
-                            } else {
-                                entry_style::name_fg(th, row, sel, th.table_row_fg().to_egui())
-                            };
+                            let name_fg = ink.name(th, row, th.table_row_fg());
                             let mut job = find::name_job(
                                 th,
                                 &row.name,
@@ -1508,11 +1501,7 @@ fn detail_view(
                 // Type 열만 본문 글꼴 크기로, 나머지 값은 고정폭으로 쓴다.
                 let text =
                     egui::RichText::new(display_text::nfc(&text.unwrap_or_default()).into_owned())
-                        .color(if sel {
-                            th.table_row_fg_selected().to_egui()
-                        } else {
-                            th.text_muted().to_egui()
-                        });
+                        .color(ink.meta(th));
                 let size = th.font_size_caption.value();
                 // Type 열은 좁아 낱말을 말줄임하고, 줄였으면 호버에 전체 낱말이 보인다.
                 if col == 3 {

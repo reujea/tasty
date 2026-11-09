@@ -161,6 +161,8 @@ pub struct ExplorerView {
     pub(crate) marquee: marquee::MarqueeState,
     /// 이번 프레임 목록 영역(미리보기 패널 제외). 상태 화면이면 배치가 없다.
     pub(crate) list_rect: Option<egui::Rect>,
+    /// 파일 영역이 칠할 포커스 값. 호스트가 프레임마다 채운다. 입력 판단은 `ExplorerInput.focused`다.
+    pub(crate) bed_focused: bool,
     /// 이번 프레임에 그린 목록의 칸 배치.
     pub(crate) list_layout: Option<list_layout::ListLayout>,
     /// 숨김 파일 표시 여부와 끈 동안 뺀 항목.
@@ -325,6 +327,7 @@ impl ExplorerView {
             cursor: Default::default(),
             marquee: Default::default(),
             list_rect: None,
+            bed_focused: false,
             list_layout: None,
             hidden: Default::default(),
             tab: None,

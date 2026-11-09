@@ -343,7 +343,7 @@ pub use surface_focus::{SurfaceFocusEdge, surface_bed};
 pub use tab_content_frame::{settings_content_column, tab_content_frame};
 pub use table::{
     Table, TableAlign, TableColumn, TableColumnWidth, TableOutput, TableSortDir, fixed_total_width,
-    in_selected_table_row, table_cell_ink,
+    in_hovered_table_row, in_selected_table_row, table_cell_ink,
 };
 pub use toast::{
     CardColors as ToastCardColors, FADE_IN_MS as TOAST_FADE_IN_MS,

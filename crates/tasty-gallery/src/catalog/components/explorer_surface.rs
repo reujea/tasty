@@ -5,7 +5,9 @@ use std::cell::RefCell;
 
 use tasty_type_appearance::theme::Theme;
 use tasty_type_geometry::length::LogicalPx;
-use tasty_ui_widgets::{ControlSize, IconButton, IconButtonVariant, PathField, surface_bed};
+use tasty_ui_widgets::{
+    ControlSize, IconButton, IconButtonVariant, PathField, RowParent, surface_bed,
+};
 
 use super::explorer_sidebar::{FAVS_FEW, SIDEBAR_W, TREE_SHORT, two_region};
 use super::explorer_tab_bar::strip;
@@ -340,7 +342,8 @@ fn body(ui: &mut egui::Ui, theme: &Theme, body_h: LogicalPx, focused: bool, salt
             let id = format!("explorer_surface_detail_{salt}");
             SELECTED.with(|s| {
                 let mut sel = s.borrow_mut();
-                if let Some(i) = detail_table(ui, theme, ROWS, *sel, body_h, &id) {
+                let parent = RowParent::bed(focused);
+                if let Some(i) = detail_table(ui, theme, ROWS, *sel, body_h, &id, parent) {
                     *sel = i;
                 }
             });

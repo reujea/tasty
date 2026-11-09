@@ -5,7 +5,8 @@ use std::cell::RefCell;
 use tasty_type_appearance::theme::Theme;
 use tasty_type_geometry::length::LogicalPx;
 use tasty_ui_widgets::{
-    ExplorerDetailHeads, Table, TableSortDir, explorer_detail_columns, tree_row, tree_row_cut,
+    ExplorerDetailHeads, RowParent, RowState, Table, TableSortDir, explorer_detail_columns,
+    in_hovered_table_row, tree_row, tree_row_cut,
 };
 
 use crate::catalog::icons::{FILE, FOLDER, IMAGE, MockGlyph};
@@ -216,6 +217,7 @@ pub fn draw(ui: &mut egui::Ui, theme: &Theme) {
                                             "",
                                             selected,
                                             0.0,
+                                            theme.cut_pending_fg().to_egui(),
                                         )
                                         .0
                                     } else {
@@ -254,9 +256,15 @@ pub fn draw(ui: &mut egui::Ui, theme: &Theme) {
                 DETAIL_SEL.with(|s| {
                     let mut sel = s.borrow_mut();
                     let height = theme.overlay_top_offset * 2.0;
-                    if let Some(i) =
-                        detail_table(ui, theme, DETAIL, *sel, height, "explorer_detail_demo")
-                    {
+                    if let Some(i) = detail_table(
+                        ui,
+                        theme,
+                        DETAIL,
+                        *sel,
+                        height,
+                        "explorer_detail_demo",
+                        RowParent::Base,
+                    ) {
                         *sel = i;
                     }
                 });
@@ -482,6 +490,7 @@ pub(super) fn detail_table(
     selected: usize,
     max_height: LogicalPx,
     id_salt: &str,
+    parent: RowParent,
 ) -> Option<usize> {
     let columns = explorer_detail_columns(
         theme,
@@ -504,11 +513,8 @@ pub(super) fn detail_table(
         .id_salt(id_salt)
         .show(ui, theme, rows, is_sel, |ui, th, row, col| {
             let sel = is_sel(row);
-            let muted = egui::Color32::from(if sel {
-                th.table_row_fg_selected()
-            } else {
-                th.text_muted()
-            });
+            let state = RowState::of(true, sel, in_hovered_table_row(ui), false);
+            let muted = egui::Color32::from(state.meta(th, parent));
             match col {
                 0 => {
                     ui.horizontal(|ui| {
@@ -527,13 +533,12 @@ pub(super) fn detail_table(
                                 },
                             )
                             .paint_at(ui, rect);
-                        let name_fg = if sel {
-                            th.text_on_active()
-                        } else if row.cut {
+                        let rest = if row.cut {
                             th.cut_pending_fg()
                         } else {
                             th.table_row_fg()
                         };
+                        let name_fg = state.label(th, parent, rest);
                         let name = egui::RichText::new(row.name)
                             .size(th.font_size_body.value())
                             .color(egui::Color32::from(name_fg));

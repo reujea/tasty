@@ -246,6 +246,7 @@ pub fn draw_egui_panels(
                 });
             view.ops.drag.blocked = drag_blocked;
             view.ops.drag.os = os_hover.clone();
+            view.bed_focused = bed_focused;
             let act = draw_panel_frame(
                 ctx,
                 &format!("explorer_panel_{}", id_suffix),

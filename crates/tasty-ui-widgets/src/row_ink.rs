@@ -12,6 +12,14 @@ pub enum RowParent {
     Base,
 }
 
+impl RowParent {
+    /// 포커스 바탕 위 행이 읽는 칸. `term`의 hover·press·놓기 칸은 base와 같고,
+    /// 더 어두운 `term-unfocused`는 같은 상태에서 mantle처럼 `-raised` 글자를 읽는다.
+    pub fn bed(focused: bool) -> Self {
+        if focused { Self::Base } else { Self::Mantle }
+    }
+}
+
 /// 겹칠 수 있는 행 상태를 우선순위로 정리한 값 하나.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum RowState {
@@ -21,6 +29,8 @@ pub enum RowState {
     Selected,
     Press,
     Hover,
+    /// 쉬는 행 위에 놓기 대상 틴트가 덮였다. 틴트는 호출자가 칠한다.
+    DropTarget,
     Rest,
 }
 
@@ -34,6 +44,15 @@ impl RowState {
             (_, _, true, _) => Self::Press,
             (_, _, _, true) => Self::Hover,
             _ => Self::Rest,
+        }
+    }
+
+    /// 쉬는 행이 놓기 대상 틴트 아래에 있으면 그 칸을 읽는다. 선택·hover·press는 그대로다.
+    pub fn under_drop(self, under: bool) -> Self {
+        if under && self == Self::Rest {
+            Self::DropTarget
+        } else {
+            self
         }
     }
 
@@ -58,7 +77,7 @@ impl RowState {
     pub fn fill(self, theme: &Theme) -> egui::Color32 {
         let active = theme.surface_active().to_egui();
         match self {
-            Self::Disabled | Self::Rest => egui::Color32::TRANSPARENT,
+            Self::Disabled | Self::DropTarget | Self::Rest => egui::Color32::TRANSPARENT,
             Self::Selected => active,
             Self::SelectedHover => over(theme.overlay_hover().to_egui_premultiplied(), active),
             Self::SelectedPress => over(theme.overlay_active().to_egui_premultiplied(), active),
@@ -76,14 +95,15 @@ impl RowState {
     }
 
     /// 행 라벨. `rest`는 그 행의 평상 토큰이다.
-    /// 라벨의 hover 칸은 부모 바탕과 무관하게 같다. 인자는 `meta`와 호출 형태를 맞추려고 둔다.
-    pub fn label(self, theme: &Theme, _parent: RowParent, rest: HexColor) -> HexColor {
+    /// 라벨의 hover 칸은 부모 바탕과 무관하게 같고, 놓기 칸만 부모 바탕을 따른다.
+    pub fn label(self, theme: &Theme, parent: RowParent, rest: HexColor) -> HexColor {
         match self {
             Self::Disabled => theme.state_disabled_fg(),
             Self::SelectedPress | Self::SelectedHover => theme.text_on_active_hover(),
             Self::Selected => theme.text_on_active(),
             Self::Press | Self::Hover => theme.text_secondary_raised(),
-            Self::Rest => rest,
+            Self::DropTarget if parent == RowParent::Mantle => theme.text_secondary_raised(),
+            Self::DropTarget | Self::Rest => rest,
         }
     }
 
@@ -94,8 +114,8 @@ impl RowState {
             Self::SelectedPress | Self::SelectedHover => theme.text_on_active_hover(),
             Self::Selected => theme.text_on_active(),
             Self::Press => theme.text_muted_raised(),
-            Self::Hover if parent == RowParent::Base => theme.text_muted(),
-            Self::Hover => theme.text_muted_raised(),
+            Self::Hover | Self::DropTarget if parent == RowParent::Base => theme.text_muted(),
+            Self::Hover | Self::DropTarget => theme.text_muted_raised(),
             Self::Rest => theme.text_muted(),
         }
     }
@@ -105,7 +125,7 @@ impl RowState {
         match self {
             Self::Disabled => theme.state_disabled_fg(),
             Self::SelectedPress | Self::SelectedHover | Self::Selected => theme.text_on_active(),
-            Self::Press | Self::Hover | Self::Rest => theme.text_secondary(),
+            Self::Press | Self::Hover | Self::DropTarget | Self::Rest => theme.text_secondary(),
         }
     }
 
@@ -121,7 +141,7 @@ impl RowState {
             Self::Disabled => theme.state_disabled_fg(),
             Self::SelectedPress | Self::SelectedHover | Self::Selected => on_active,
             Self::Press | Self::Hover => raised,
-            Self::Rest => rest,
+            Self::DropTarget | Self::Rest => rest,
         }
     }
 }
@@ -157,5 +177,36 @@ mod tests {
         assert_eq!(RowState::of(true, false, true, true), RowState::Press);
         assert_eq!(RowState::of(true, false, true, false), RowState::Hover);
         assert_eq!(RowState::of(true, false, false, false), RowState::Rest);
+    }
+
+    #[test]
+    fn only_a_resting_row_reads_the_drop_cell() {
+        assert_eq!(RowState::Rest.under_drop(true), RowState::DropTarget);
+        assert_eq!(RowState::Rest.under_drop(false), RowState::Rest);
+        for state in [RowState::Hover, RowState::Press, RowState::Selected] {
+            assert_eq!(state.under_drop(true), state);
+        }
+    }
+
+    /// RULES 6절의 `term+hover`·`term-unfocused+hover`·`drop-target@term*` 칸.
+    #[test]
+    fn the_unfocused_bed_reads_the_raised_inks_in_the_design_cells() {
+        let theme = Theme::with_colors(tasty_themes::mocha_fallback_colors(), false);
+        let (on, off) = (RowParent::bed(true), RowParent::bed(false));
+        let rest = theme.text_secondary();
+        assert_eq!(RowState::Hover.meta(&theme, on), theme.text_muted());
+        assert_eq!(RowState::Hover.meta(&theme, off), theme.text_muted_raised());
+        assert_eq!(RowState::Press.meta(&theme, on), theme.text_muted_raised());
+        assert_eq!(RowState::Press.meta(&theme, off), theme.text_muted_raised());
+        assert_eq!(RowState::DropTarget.meta(&theme, on), theme.text_muted());
+        assert_eq!(
+            RowState::DropTarget.meta(&theme, off),
+            theme.text_muted_raised()
+        );
+        assert_eq!(RowState::DropTarget.label(&theme, on, rest), rest);
+        assert_eq!(
+            RowState::DropTarget.label(&theme, off, rest),
+            theme.text_secondary_raised()
+        );
     }
 }

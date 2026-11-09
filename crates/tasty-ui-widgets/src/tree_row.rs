@@ -112,8 +112,9 @@ pub fn tree_row_with_tail_fg(
     draw(ui, theme, row, icon, label, query)
 }
 
-/// `tree_row_with_tail` 과 같고, 잘라내기 대기 항목으로 그린다. 쉴 때 이름은 `cut-pending-fg` 이고
-/// 이름은 언제나 이탤릭이다. 선택·호버 잉크가 쉴 때 색보다 앞선다.
+/// `tree_row_with_tail` 과 같고, 잘라내기 대기 항목으로 그린다. 이름은 언제나 이탤릭이다.
+/// `rest` 는 쉴 때 이름 색으로 보통 `cut-pending-fg` 이다. 선택·호버 잉크가 쉴 때 색보다 앞선다.
+#[allow(clippy::too_many_arguments)] // 이유: tree_row_with_tail 의 인자 순서를 그대로 두고 색 하나를 끝에 더했다
 pub fn tree_row_cut(
     ui: &mut egui::Ui,
     theme: &Theme,
@@ -122,6 +123,7 @@ pub fn tree_row_cut(
     query: &str,
     selected: bool,
     tail: f32,
+    rest: egui::Color32,
 ) -> (egui::Response, f32) {
     let row = Row {
         depth: 0,
@@ -130,7 +132,7 @@ pub fn tree_row_cut(
         meta: None,
         selected,
         tail,
-        rest_fg: Some(theme.cut_pending_fg().to_egui()),
+        rest_fg: Some(rest),
         italic: true,
     };
     draw(ui, theme, row, icon, label, query)

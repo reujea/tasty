@@ -2,10 +2,12 @@
 //! 숨김 항목은 이름과 글리프를 explorer-hidden-fg 로 그린다(불투명도로 흐리게 하지 않는다).
 //! 선택한 항목은 surface-active 위이므로 숨김 여부와 관계없이 이름과 글리프가 선택 색이다.
 
+use tasty_type_appearance::color::HexColor;
 use tasty_type_appearance::theme::Theme;
+use tasty_ui_widgets::{RowParent, RowState};
 
-use super::view::DirEntryInfo;
 use super::view::hidden::is_hidden;
+use super::view::{DirEntryInfo, ExplorerView};
 use crate::adapters::ui::icons::{self, Icon};
 
 fn hidden_fg(theme: &Theme) -> egui::Color32 {
@@ -51,21 +53,56 @@ pub(super) fn entry_icon(theme: &Theme, e: &DirEntryInfo, selected: bool) -> (Ic
     )
 }
 
-/// 이름 색. 선택이면 text-on-active, 숨김 항목이면 explorer-hidden-fg, 아니면 보기마다 정한 `rest`.
-pub(super) fn name_fg(
-    theme: &Theme,
-    e: &DirEntryInfo,
-    selected: bool,
-    rest: egui::Color32,
-) -> egui::Color32 {
-    if selected {
-        theme.text_on_active().to_egui()
-    } else {
-        rest_fg(theme, e).unwrap_or(rest)
-    }
+/// 행 상태와 놓인 바탕에서 고르는 글자. 세 보기가 같은 규칙을 쓴다.
+#[derive(Clone, Copy)]
+pub(super) struct RowInk {
+    state: RowState,
+    parent: RowParent,
+    cut: bool,
 }
 
-/// 선택·호버가 아닐 때 보기의 기본색 대신 쓸 색. 숨김 항목만 있다.
-pub(super) fn rest_fg(theme: &Theme, e: &DirEntryInfo) -> Option<egui::Color32> {
-    is_hidden(e).then(|| hidden_fg(theme))
+impl RowInk {
+    pub(super) fn of(state: RowState, parent: RowParent, cut: bool) -> Self {
+        Self { state, parent, cut }
+    }
+
+    fn resting(view: &ExplorerView, e: &DirEntryInfo, state: RowState, cut: bool) -> Self {
+        let state = state.under_drop(view.ops.drag.drops_on(&e.path));
+        Self::of(state, RowParent::bed(view.bed_focused), cut)
+    }
+
+    /// 목록 행이 쉴 때의 글자. 선택·호버 잉크는 행 위젯이 고른다.
+    pub(super) fn at_rest(view: &ExplorerView, e: &DirEntryInfo, cut: bool) -> Self {
+        Self::resting(view, e, RowState::Rest, cut)
+    }
+
+    /// 자세히 보기의 칸이 지금 놓인 행의 글자.
+    pub(super) fn in_table(
+        ui: &egui::Ui,
+        view: &ExplorerView,
+        e: &DirEntryInfo,
+        cut: bool,
+        selected: bool,
+    ) -> Self {
+        let hovered = tasty_ui_widgets::in_hovered_table_row(ui);
+        Self::resting(view, e, RowState::of(true, selected, hovered, false), cut)
+    }
+
+    /// 이름 색. 쉬는 행은 잘라내기 대기면 cut-pending-fg, 숨김 항목이면 explorer-hidden-fg, 아니면 보기마다
+    /// 정한 `rest`다. 그 밖의 상태는 행 잉크가 앞선다. 호버 칸의 대비는 쉴 때 색으로는 지켜지지 않는다.
+    pub(super) fn name(self, theme: &Theme, e: &DirEntryInfo, rest: HexColor) -> egui::Color32 {
+        let rest = if self.cut {
+            theme.cut_pending_fg()
+        } else if is_hidden(e) {
+            theme.explorer_hidden_fg()
+        } else {
+            rest
+        };
+        self.state.label(theme, self.parent, rest).to_egui()
+    }
+
+    /// 크기·날짜·종류처럼 이름보다 약한 글자.
+    pub(super) fn meta(self, theme: &Theme) -> egui::Color32 {
+        self.state.meta(theme, self.parent).to_egui()
+    }
 }
