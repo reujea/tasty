@@ -20,7 +20,7 @@ pub fn chrome_caption<'a>(url: Option<&'a str>, label: Option<&'a str>) -> Optio
 pub enum WebviewTile {
     /// 페이지가 호스트 바탕을 따르는 kind. 페이지가 떠도 튀지 않게 tile도 같은 값을 칠한다.
     Bed { focused: bool },
-    /// 페이지가 자기 바탕을 칠하는 kind. 포커스는 띠로 보이고 tile은 바뀌지 않는다.
+    /// 페이지가 자기 바탕을 칠하는 kind. 띠로 분류하지만 아직 그리지 않아 포커스 표시가 없고 tile은 바뀌지 않는다.
     Plain,
 }
 

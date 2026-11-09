@@ -4,7 +4,7 @@
 use crate::core::attach::OccupancyRegistry;
 use crate::runtime::surface_registry::builtins::is_host_builtin_kind;
 
-/// 포커스를 보이는 방법. 호스트가 바탕을 보장할 수 있는 kind만 바탕을 바꾸고 나머지는 띠를 그린다.
+/// 포커스를 보이는 방법. 호스트가 바탕을 보장할 수 있는 kind만 바탕을 바꾼다. 나머지는 띠로 분류하며 아직 그리지 않는다.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub(crate) enum FocusMark {
     Bed,
