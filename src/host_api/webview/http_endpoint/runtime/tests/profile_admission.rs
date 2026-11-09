@@ -7,6 +7,7 @@ use std::{
         fd::AsRawFd,
         unix::fs::{OpenOptionsExt, PermissionsExt},
     },
+    sync::{RwLock, atomic::AtomicUsize},
 };
 #[test]
 fn busy_profile_work_retains_eight_job_permits_and_drop_returns_them() {
@@ -30,15 +31,28 @@ fn busy_profile_work_retains_eight_job_permits_and_drop_returns_them() {
         );
         let mut receipts = Vec::new();
         let (tx, checks) = mpsc::channel();
+        // A worker checks current once before the namespace and again after each Busy attempt.
+        // Parking it in that second check keeps it inside contention, and its admission deadline
+        // unread, for as long as this test observes: the outcome cannot depend on elapsed time.
+        let parked = Arc::new(RwLock::new(()));
+        let parking = parked.write().unwrap();
+        let observer = std::thread::current().id();
         for _ in 0..8 {
             let tx = tx.clone();
             let current = runtime.current();
+            let parked = parked.clone();
+            let checked = AtomicUsize::new(0);
             let (receipt, work) = Preparation::new(
                 home.path().to_path_buf(),
                 8,
                 Duration::from_secs(2),
                 Arc::new(move || {
-                    tx.send(()).unwrap();
+                    if std::thread::current().id() != observer
+                        && checked.fetch_add(1, Ordering::AcqRel) == 1
+                    {
+                        tx.send(()).unwrap();
+                        drop(parked.read());
+                    }
                     current()
                 }),
                 Arc::new(|| {}),
@@ -47,7 +61,7 @@ fn busy_profile_work_retains_eight_job_permits_and_drop_returns_them() {
             receipts.push(receipt);
         }
         for _ in 0..8 {
-            checks.recv_timeout(Duration::from_secs(2)).unwrap();
+            checks.recv_timeout(HANG_LIMIT).unwrap();
         }
         assert_eq!(runtime.parts.jobs.available_permits(), 0);
         let (extra, work) = Preparation::new(
@@ -65,7 +79,10 @@ fn busy_profile_work_retains_eight_job_permits_and_drop_returns_them() {
         drop(extra);
         assert!(receipts.iter().all(|receipt| receipt.poll().is_none()));
         drop(receipts);
-        wait_for(|| runtime.parts.jobs.available_permits() == 8);
+        drop(parking);
+        wait_for("cancelled jobs returning permits", || {
+            runtime.parts.jobs.available_permits() == 8
+        });
         // The original lock is still held: no worker may have allocated or published a root.
         assert_eq!(fs::read_dir(namespace).unwrap().count(), 1);
         drop(lock);

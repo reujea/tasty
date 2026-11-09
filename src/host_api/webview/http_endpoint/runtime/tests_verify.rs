@@ -1,5 +1,5 @@
 //! The actual model job is consumed by the native worker pool before verified publication.
-use super::tests::{TEST, ready, reaped, wait_for};
+use super::tests::{ready, reaped, serial, start, wait_result};
 use super::*;
 use sha2::{Digest, Sha256};
 use tasty_ipc::{
@@ -98,14 +98,16 @@ fn make_job() -> (
 }
 #[test]
 fn actual_verify_job_finishes_on_pool_and_retired_submission_returns_same_owned_job() {
-    let _serial = TEST.lock().unwrap();
-    reaped();
-    let mut setup =
-        Setup::start(Arc::new(|| true), Arc::new(|| {})).unwrap_or_else(|_| panic!("setup"));
+    let _serial = serial();
+    let mut setup = start(Arc::new(|| true));
     let runtime = ready(&mut setup);
     let (mut model, job, id, body, pending) = make_job();
     assert!(runtime.spawn_verify(job).is_ok());
-    wait_for(|| model.poll_verification());
+    wait_result(
+        "verify job",
+        || runtime.parts.jobs.available_permits() == 8,
+        || model.poll_verification().then_some(()),
+    );
     let verified = model.verified(id).unwrap();
     assert_eq!(verified.encoded(), b"");
     drop(verified);
@@ -118,11 +120,7 @@ fn actual_verify_job_finishes_on_pool_and_retired_submission_returns_same_owned_
     assert_eq!(pending.used(), 0);
     let active = Arc::new(AtomicBool::new(true));
     let source = active.clone();
-    let mut setup = Setup::start(
-        Arc::new(move || source.load(Ordering::Acquire)),
-        Arc::new(|| {}),
-    )
-    .unwrap_or_else(|_| panic!("setup"));
+    let mut setup = start(Arc::new(move || source.load(Ordering::Acquire)));
     let runtime = ready(&mut setup);
     let (mut model, job, id, body, pending) = make_job();
     active.store(false, Ordering::Release);

@@ -1,7 +1,7 @@
 //! Actual bounded profile admission and an inherited-flock counterexample.
 use super::*;
 use crate::host_api::webview::http_context::{
-    preparation::PrepareError,
+    preparation::{MAX_CLAIM_WAIT, PrepareError},
     profile::{PreparedProfile, ProfileError},
 };
 use std::{
@@ -17,24 +17,35 @@ use std::{
     path::Path,
 };
 
-pub(super) fn attempt(
+/// Runs real profile work to its result. `budget` is the product's admission and claim wait: only
+/// a held namespace lock spends it to expiry, and a fixture holding that lock cannot then succeed.
+fn attempt_within(
     runtime: &NativeRuntime,
     home: &Path,
+    budget: Duration,
 ) -> Result<PreparedProfile, PrepareError> {
     let (receipt, work) = Preparation::new(
         home.to_path_buf(),
         8,
-        Duration::from_secs(1),
+        budget,
         runtime.current(),
         Arc::new(|| {}),
     );
     assert!(runtime.spawn_profile(work).is_ok());
-    let mut result = None;
-    wait_for(|| {
-        result = receipt.poll();
-        result.is_some()
-    });
-    result.unwrap()
+    // submit charged this job before returning, so all permits back means this job has ended too.
+    wait_result(
+        "profile work",
+        || runtime.parts.jobs.available_permits() == 8,
+        || receipt.poll(),
+    )
+}
+/// Nothing holds the namespace lock long here, so the largest product budget leaves the outcome
+/// independent of how long the work takes.
+pub(super) fn attempt(
+    runtime: &NativeRuntime,
+    home: &Path,
+) -> Result<PreparedProfile, PrepareError> {
+    attempt_within(runtime, home, MAX_CLAIM_WAIT)
 }
 
 // The child uses only async-signal-safe syscalls after fork, never Rust unwinding or locks.
@@ -98,8 +109,10 @@ impl InheritedLock {
                 events: libc::POLLIN,
                 revents: 0,
             };
-            // SAFETY: one live inherited socket and valid stack pollfd; bounded async-safe wait.
-            let ready = unsafe { libc::poll(&mut poll, 1, 3000) };
+            // The fixture relies on this child holding the lock until release, however slow the
+            // test is. Parent exit closes the socket, so the wait still ends without a release.
+            // SAFETY: one live inherited socket and valid stack pollfd; async-safe wait.
+            let ready = unsafe { libc::poll(&mut poll, 1, -1) };
             let mut byte = 0u8;
             let read = if ready > 0 {
                 // SAFETY: live socket and valid stack byte; read is async-signal-safe after fork.
@@ -145,16 +158,14 @@ impl Drop for InheritedLock {
 
 #[test]
 fn inherited_cloexec_lock_refuses_real_profile_work_until_owned_child_exits() {
-    let _serial = TEST.lock().unwrap();
-    reaped();
-    let mut setup =
-        Setup::start(Arc::new(|| true), Arc::new(|| {})).unwrap_or_else(|_| panic!("setup"));
+    let _serial = serial();
+    let mut setup = start(Arc::new(|| true));
     let runtime = ready(&mut setup);
     {
         let home = private_home();
         let mut child = InheritedLock::hold(home.path());
         assert!(matches!(
-            attempt(&runtime, home.path()),
+            attempt_within(&runtime, home.path(), Duration::from_secs(1)),
             Err(PrepareError::AdmissionTimeout)
         ));
         assert_eq!(
@@ -182,10 +193,8 @@ fn inherited_cloexec_lock_refuses_real_profile_work_until_owned_child_exits() {
 
 #[test]
 fn populated_namespace_capacity_remains_terminal_in_real_worker() {
-    let _serial = TEST.lock().unwrap();
-    reaped();
-    let mut setup =
-        Setup::start(Arc::new(|| true), Arc::new(|| {})).unwrap_or_else(|_| panic!("setup"));
+    let _serial = serial();
+    let mut setup = start(Arc::new(|| true));
     let runtime = ready(&mut setup);
     {
         let home = private_home();

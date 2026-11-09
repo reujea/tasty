@@ -415,6 +415,16 @@ CI 는 `.github/workflows/crossplatform-check.yml` 의 `check-headless` 잡이 �
   시작할 때 `/proc/thread-self` 로 자기 `stat` 경로를 넘기고, Linux 가 아니면 진행 없는 시간을 모두 센다.
   batch 마다 400ms 쉬게 한 writer 는 예전 기한으로 60.03초에 `last_batch: Some(148)` 에서 실패했고 지금은
   89.09초에 통과한다. batch 11 뒤 멈춘 writer 는 10.08초에 실패한다.
+- 끝난 작업의 결과와 진행 중인 작업을 나눈다: `http_endpoint::runtime` 시험은 실제 profile 작업을 벽시계
+  3초 안에 기다렸다. fsync마다 1200 ms를 쉬게 하면 대상 시험이 3회 모두 실패했고, 3500 ms면 첫 실패의 잠금
+  poison으로 8건이 함께 실패했다. 지금은 `wait_result`가 작업의 끝을 먼저 읽고 결과를 읽는다. 작업은 끝나기 전에
+  결과를 게시하므로 끝났는데 결과가 없으면 시간과 무관하게 바로 `lost`로 실패한다. 끝을 알리는 신호는 대상마다
+  다르다. job은 semaphore permit 반환, `spawn_blocking`은 `JoinHandle::is_finished`, setup은 결과를 넘긴 뒤
+  부르는 `wake`다. 결과가 없는 retirement 대기(`reaped`)와 끝나지 않는 작업은 `HANG_LIMIT` 300초에 `hung`으로
+  실패한다. `serial()`은 poison을 무시하고 앞 시험이 남긴 소유자가 끝난 뒤에 시작하므로 실패는 원인 시험 1건으로
+  남는다. 시간으로 단정하던 나머지도 구조로 바꿨다. Drop 시간을 재던 100 ms는 job을 붙잡아 둔 채 Drop이
+  돌아오는지로, 경합 중 permit 유지는 worker를 경합 안의 `current` 호출에 세워 두고 확인한다. 1초 admission
+  만료는 제품 계약 검증이라 남긴다. 잠금을 쥔 자식이 release 전에는 끝나지 않으므로 결과가 시간에 좌우되지 않는다.
 - 순서대로 처리하는 worker의 결과는 fence로 받고 시간으로 판정하지 않는다: 원격 파일 시험
   (`remote_file_tests`)은 `poll_file_writer`와 `try_recv`를 벽시계 5초 동안 돌았다. Windows에서 CPU 바쁜
   프로세스 48개를 띄우면 `held_inline_add_and_remove_answer_original_callers_once_with_actual_operations`가

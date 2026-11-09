@@ -29,7 +29,7 @@ impl std::fmt::Display for PrepareError {
         }
     }
 }
-const MAX_CLAIM_WAIT: Duration = Duration::from_secs(30);
+pub(crate) const MAX_CLAIM_WAIT: Duration = Duration::from_secs(30);
 enum State {
     Pending,
     Ready(Result<PreparedProfile, PrepareError>),

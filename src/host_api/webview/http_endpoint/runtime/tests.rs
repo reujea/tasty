@@ -7,47 +7,92 @@ use super::*;
 #[cfg(target_os = "linux")]
 use crate::host_api::webview::http_context::preparation::Preparation;
 use std::{
-    sync::Mutex,
+    sync::{Mutex, MutexGuard, PoisonError},
     time::{Duration, Instant},
 };
-pub(super) static TEST: Mutex<()> = Mutex::new(());
-pub(super) fn wait_for(mut condition: impl FnMut() -> bool) {
-    let deadline = Instant::now() + Duration::from_secs(3);
+static TEST: Mutex<()> = Mutex::new(());
+/// Limit for work that never ends. Slow work has no other deadline, and work that ended without
+/// a result fails at once through `wait_result` or `ready`.
+pub(in super::super) const HANG_LIMIT: Duration = Duration::from_secs(300);
+/// Serializes the process-wide owner budget. A failed test is reported by its own panic: the next
+/// test ignores the poison and starts only after the owners that test left have terminated.
+pub(super) fn serial() -> MutexGuard<'static, ()> {
+    let serial = TEST.lock().unwrap_or_else(PoisonError::into_inner);
+    reaped();
+    serial
+}
+/// Waits for a state with no result to lose: only a hang can fail it.
+pub(super) fn wait_for(what: &str, mut condition: impl FnMut() -> bool) {
+    let deadline = Instant::now() + HANG_LIMIT;
     while !condition() {
-        assert!(Instant::now() < deadline, "bounded runtime fixture wait");
+        assert!(
+            Instant::now() < deadline,
+            "{what}: hung, not finished within {HANG_LIMIT:?}"
+        );
         std::thread::sleep(Duration::from_millis(1));
     }
 }
-pub(super) fn ready(setup: &mut Setup) -> NativeRuntime {
+/// Waits for a result of work that reports `ended`. Work publishes before it ends, so `ended` is
+/// read first: if it was already true and there is still no result, the result was lost.
+pub(super) fn wait_result<T>(
+    what: &str,
+    mut ended: impl FnMut() -> bool,
+    mut poll: impl FnMut() -> Option<T>,
+) -> T {
     let mut result = None;
-    wait_for(|| {
-        result = setup.poll();
+    wait_for(what, || {
+        let ended = ended();
+        result = poll();
+        assert!(
+            result.is_some() || !ended,
+            "{what}: lost, the work ended without a result"
+        );
         result.is_some()
     });
-    result.unwrap().unwrap_or_else(|_| panic!("runtime setup"))
+    result.expect("wait_for returned after a result")
+}
+/// A setup whose worker calls `published` after it has delivered the result.
+pub(super) struct Started {
+    setup: Setup,
+    published: Arc<AtomicBool>,
+}
+pub(super) fn start(current: Current) -> Started {
+    let published = Arc::new(AtomicBool::new(false));
+    let wake = published.clone();
+    let setup = Setup::start(
+        current,
+        Arc::new(move || wake.store(true, Ordering::Release)),
+    )
+    .unwrap_or_else(|_| panic!("setup"));
+    Started { setup, published }
+}
+pub(super) fn ready(started: &mut Started) -> NativeRuntime {
+    let Started { setup, published } = started;
+    wait_result(
+        "runtime setup",
+        || published.load(Ordering::Acquire),
+        || setup.poll(),
+    )
+    .unwrap_or_else(|_| panic!("runtime setup"))
 }
 pub(super) fn reaped() {
-    wait_for(|| {
+    wait_for("retired runtime owners", || {
         retirement::reap().unwrap();
         retirement::owners() == 0
     });
 }
 /// All fixtures using the process-wide runtime owner budget share TEST through actual teardown.
 pub(in super::super) fn with_runtime(run: impl FnOnce(NativeRuntime)) {
-    let _serial = TEST.lock().unwrap();
-    reaped();
-    let mut setup =
-        Setup::start(Arc::new(|| true), Arc::new(|| {})).unwrap_or_else(|_| panic!("setup"));
+    let _serial = serial();
+    let mut setup = start(Arc::new(|| true));
     run(ready(&mut setup));
     drop(setup);
     reaped();
 }
 #[test]
 fn setup_capacity_and_retired_workers_remain_charged_until_actual_job_termination() {
-    let _serial = TEST.lock().unwrap();
-    reaped();
-    let mut setup =
-        Setup::start(Arc::new(|| true), Arc::new(|| {})).unwrap_or_else(|_| panic!("setup"));
+    let _serial = serial();
+    let mut setup = start(Arc::new(|| true));
     let runtime = ready(&mut setup);
     let current = runtime.current();
     let (done, started) = mpsc::sync_channel(1);
@@ -61,12 +106,14 @@ fn setup_capacity_and_retired_workers_remain_charged_until_actual_job_terminatio
             .is_ok()
     );
     assert_ne!(
-        started.recv_timeout(Duration::from_secs(1)).unwrap(),
+        started.recv_timeout(HANG_LIMIT).unwrap(),
         std::thread::current().id()
     );
-    let began = Instant::now();
-    drop(runtime);
-    assert!(began.elapsed() < Duration::from_millis(100));
+    // The job stays parked until `release` below, so this Drop can only return without waiting
+    // for it. Running it apart turns a Drop that waits into a failure instead of a stuck test.
+    let dropped = std::thread::spawn(move || drop(runtime));
+    wait_for("runtime Drop while its job runs", || dropped.is_finished());
+    dropped.join().unwrap();
     assert!(!current());
     assert_eq!(retirement::owners(), 1);
     let mut pending = Vec::new();
@@ -88,15 +135,10 @@ fn setup_capacity_and_retired_workers_remain_charged_until_actual_job_terminatio
 }
 #[test]
 fn bounded_blocking_admission_retains_exact_rejected_work_and_no_new_runtime_after_retirement() {
-    let _serial = TEST.lock().unwrap();
-    reaped();
+    let _serial = serial();
     let active = Arc::new(AtomicBool::new(true));
     let source = active.clone();
-    let mut setup = Setup::start(
-        Arc::new(move || source.load(Ordering::Acquire)),
-        Arc::new(|| {}),
-    )
-    .unwrap_or_else(|_| panic!("setup"));
+    let mut setup = start(Arc::new(move || source.load(Ordering::Acquire)));
     let runtime = ready(&mut setup);
     let mut release = Vec::new();
     for _ in 0..8 {
@@ -135,11 +177,9 @@ fn bounded_blocking_admission_retains_exact_rejected_work_and_no_new_runtime_aft
 #[cfg(target_os = "linux")]
 #[test]
 fn actual_private_profile_work_runs_on_bounded_pool_and_receipt_claim_keeps_lease() {
-    let _serial = TEST.lock().unwrap();
-    reaped();
+    let _serial = serial();
     let home = private_home();
-    let mut setup =
-        Setup::start(Arc::new(|| true), Arc::new(|| {})).unwrap_or_else(|_| panic!("setup"));
+    let mut setup = start(Arc::new(|| true));
     let runtime = ready(&mut setup);
     let handle = runtime.handle();
     let endpoints = runtime.endpoint_budget();
@@ -168,11 +208,9 @@ fn actual_private_profile_work_runs_on_bounded_pool_and_receipt_claim_keeps_leas
 #[cfg(target_os = "linux")]
 #[test]
 fn cancellation_before_profile_dispatch_performs_no_namespace_io() {
-    let _serial = TEST.lock().unwrap();
-    reaped();
+    let _serial = serial();
     let home = private_home();
-    let mut setup =
-        Setup::start(Arc::new(|| true), Arc::new(|| {})).unwrap_or_else(|_| panic!("setup"));
+    let mut setup = start(Arc::new(|| true));
     let runtime = ready(&mut setup);
     let (receipt, work) = Preparation::new(
         home.path().to_path_buf(),

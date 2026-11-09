@@ -2,29 +2,36 @@
 use super::super::super::trust::pool::{ProbeId, ProbePool};
 use super::*;
 #[cfg(target_os = "linux")]
-use crate::host_api::webview::http_context::{
-    preparation::Preparation, profile::NativeProfileLease,
+use crate::host_api::webview::{
+    http_context::{
+        preparation::{MAX_CLAIM_WAIT, Preparation},
+        profile::NativeProfileLease,
+    },
+    http_endpoint::runtime::tests::HANG_LIMIT,
 };
 #[cfg(target_os = "linux")]
 async fn profile(home: &std::path::Path) -> NativeProfileLease {
     let (receipt, work) = Preparation::new(
         home.to_path_buf(),
         8,
-        Duration::from_secs(2),
+        MAX_CLAIM_WAIT,
         Arc::new(|| true),
         Arc::new(|| {}),
     );
     let worker = tokio::task::spawn_blocking(move || work.run());
-    let profile = tokio::time::timeout(Duration::from_secs(2), async {
+    let profile = tokio::time::timeout(HANG_LIMIT, async {
         loop {
+            // The worker publishes before it ends, so read its end before the receipt.
+            let ended = worker.is_finished();
             if let Some(result) = receipt.poll() {
                 return result.unwrap_or_else(|error| panic!("real prepared profile: {error}"));
             }
+            assert!(!ended, "profile work: lost, it ended without a result");
             tokio::time::sleep(Duration::from_millis(1)).await;
         }
     })
     .await
-    .unwrap();
+    .expect("profile work: hung, not finished within the limit");
     let profile = profile.into_native();
     worker.await.unwrap();
     profile

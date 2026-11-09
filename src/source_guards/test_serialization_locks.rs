@@ -38,7 +38,7 @@ const SERIALIZED: &[Serialized] = &[
     Serialized {
         file: "src/host_api/webview/http_endpoint/runtime/tests.rs",
         lock: "TEST",
-        acquire: &["TEST"],
+        acquire: &["TEST", "serial()"],
         guarded: &["retirement::owners()", "reaped()"],
         scope: Scope::Crate,
         why: "Runtime ownership/count controls share the process-wide retired runtime registry and eight setup permits across test modules.",
