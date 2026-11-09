@@ -32,6 +32,7 @@ pub(crate) mod selection;
 mod shutdown;
 mod titlebar_press;
 pub(crate) mod vi_copy;
+mod webview_menu;
 
 pub(crate) mod ime;
 
