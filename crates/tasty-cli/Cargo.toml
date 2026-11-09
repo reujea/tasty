@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2024"
 license = "MIT"
 description = "Tasty CLI — commands/request/run wiring for the `tasty` binary"
-repository = "https://github.com/zilhak/zilhak/tasty"
+repository = "https://github.com/zilhak/tasty"
 
 [dependencies]
 serde = { version = "1", features = ["derive"] }
