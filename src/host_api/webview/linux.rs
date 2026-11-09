@@ -11,8 +11,8 @@ use gtk::glib::Cast;
 use gtk::prelude::*;
 use webkit2gtk::{
     LoadEvent, NavigationPolicyDecision, NavigationPolicyDecisionExt, PolicyDecisionExt,
-    PolicyDecisionType, ResponsePolicyDecision, ResponsePolicyDecisionExt, SettingsExt,
-    URIRequestExt, WebView, WebViewExt,
+    PolicyDecisionType, ResponsePolicyDecision, ResponsePolicyDecisionExt, URIRequestExt, WebView,
+    WebViewExt,
 };
 use winit::raw_window_handle::{
     HasDisplayHandle, HasWindowHandle, RawDisplayHandle, RawWindowHandle,
@@ -30,6 +30,7 @@ mod bed_focus;
 mod content_filter;
 pub(super) mod direct_paths;
 mod edit;
+mod eval;
 mod key_press;
 mod key_replay;
 mod navigation_policy;
@@ -39,6 +40,7 @@ pub(super) mod selection;
 mod view_navigation;
 use super::entry_response::EntryResponseSource;
 use content_filter::compile_remote_block_filter;
+use eval::set_js;
 use remote_block::RemoteBlock;
 
 pub struct PlatformWebView {
@@ -96,12 +98,6 @@ fn gate_step(
             set_js(wv, js);
         }
         remote.sync(gate);
-    }
-}
-
-fn set_js(wv: &WebView, enabled: bool) {
-    if let Some(settings) = WebViewExt::settings(wv) {
-        settings.set_enable_javascript(enabled);
     }
 }
 

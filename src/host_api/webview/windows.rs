@@ -7,6 +7,7 @@
 
 #[cfg(debug_assertions)]
 mod debug_host_input;
+mod eval;
 mod host_input;
 mod http;
 mod key_replay;
