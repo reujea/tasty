@@ -918,7 +918,24 @@ fn run_raw_bridge(conn: StreamConnection, send: Option<&str>) -> Result<SessionE
     // `Stdout` 은 쓸 때마다 잠근다 — 이전 코드가 프레임마다 `lock()` 하던 것과 같다.
     // `StdoutLock` 을 넘기면 루프가 도는 내내 잠금을 붙들어 다른 스레드가 막힌다.
     let mut out = std::io::stdout();
-    raw_bridge_main_loop(rx, writer, &mut out)
+    raw_bridge_session(rx, writer, &mut out)
+}
+
+/// 세션이 끝나면 mirror의 SGR을 지운다. 첫 화면이 원본의 현재 펜으로 끝나고 PTY 출력도 펜을 남겨서,
+/// 그대로 두면 사용자 셸이 그 속성으로 이어진다. 재동기화는 새 첫 화면이 곧 이어지므로 건드리지 않는다.
+fn raw_bridge_session(
+    rx: mpsc::Receiver<RawEvent>,
+    writer: Arc<Mutex<TcpStream>>,
+    out: &mut impl Write,
+) -> Result<SessionEnd> {
+    let end = raw_bridge_main_loop(rx, writer, out)?;
+    if matches!(end, SessionEnd::Exit(_))
+        && let Err(error) = out.write_all(b"\x1b[0m").and_then(|()| out.flush())
+        && error.kind() != std::io::ErrorKind::BrokenPipe
+    {
+        tracing::warn!(%error, "SGR could not be reset after the raw bridge ended");
+    }
+    Ok(end)
 }
 
 /// 실제 stdin·소켓을 읽는 스레드와 분리한 이벤트 처리. 시험은 RawEvent를 직접 보낸다.
@@ -1137,7 +1154,7 @@ mod raw_bridge_tests {
 
     use super::{
         AttachExit, RawEvent, SessionEnd, StdinEofLatch, StdinSlot, install_sender,
-        raw_bridge_main_loop, route_stdin_chunk, route_stdin_eof,
+        raw_bridge_main_loop, raw_bridge_session, route_stdin_chunk, route_stdin_eof,
     };
 
     /// writer.lock() 이 실제로 잠글 대상이 필요할 뿐 내용은 검사하지 않으므로,
@@ -1175,6 +1192,57 @@ mod raw_bridge_tests {
         fn flush(&mut self) -> std::io::Result<()> {
             Err(std::io::Error::from(self.kind))
         }
+    }
+
+    /// Whichever way the session ends, the outer terminal does not keep the mirrored pen.
+    #[test]
+    fn ending_a_session_resets_sgr_after_the_last_output() {
+        let ends = [
+            RawEvent::Stdin(vec![0x1c]),
+            RawEvent::StdinEof,
+            RawEvent::Server(StreamFrame::new(StreamTag::Detach, Vec::new())),
+            RawEvent::ServerRecvErr,
+        ];
+        for end in ends {
+            let (tx, rx) = mpsc::channel();
+            tx.send(RawEvent::Server(StreamFrame::new(
+                StreamTag::Data,
+                b"\x1b[41;4mX".to_vec(),
+            )))
+            .unwrap();
+            tx.send(end).unwrap();
+            let mut out = Vec::new();
+            let result = raw_bridge_session(rx, dummy_writer(), &mut out).unwrap();
+            assert!(matches!(result, SessionEnd::Exit(_)));
+            assert_eq!(out, b"\x1b[41;4mX\x1b[0m");
+        }
+    }
+
+    /// A resync redraws through the next snapshot, so it writes nothing of its own.
+    #[test]
+    fn a_resync_leaves_the_output_alone() {
+        let (tx, rx) = mpsc::channel();
+        let loss =
+            serde_json::to_vec(&tasty_ipc::stream::StreamControl::Loss { frames: 1 }).unwrap();
+        tx.send(RawEvent::Server(StreamFrame::new(StreamTag::Control, loss)))
+            .unwrap();
+        tx.send(RawEvent::ServerRecvErr).unwrap();
+        let mut out = Vec::new();
+        let result = raw_bridge_session(rx, dummy_writer(), &mut out).unwrap();
+        assert!(matches!(result, SessionEnd::Desynced(1)));
+        assert!(out.is_empty());
+    }
+
+    #[test]
+    fn a_closed_stdout_at_the_end_of_a_session_is_not_an_error() {
+        let (tx, rx) = mpsc::channel();
+        tx.send(RawEvent::StdinEof).unwrap();
+        let mut out = FailedOutput {
+            kind: std::io::ErrorKind::BrokenPipe,
+            fail_flush: false,
+        };
+        let result = raw_bridge_session(rx, dummy_writer(), &mut out).unwrap();
+        assert!(matches!(result, SessionEnd::Exit(AttachExit::Completed)));
     }
 
     #[test]

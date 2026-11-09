@@ -184,7 +184,7 @@ client→server 요청 채널은 `ClientResize`(geometry 구동), `ClientAttenti
 ### 모드
 
 - **mirror-dump**(`--dump-after <ms>`): N ms 출력을 수집해 grid 를 재구성하고 텍스트를 stdout 으로 출력 후 종료. GUI 없이 attach 파이프라인을 검증하는 경로.
-- **raw 브리지**(`--raw`): stdin↔stdout passthrough(detach 키 `Ctrl+\`). **surface 단위만** — workspace 모드는 다중 터미널이라 불가.
+- **raw 브리지**(`--raw`): stdin↔stdout passthrough(detach 키 `Ctrl+\`). 세션이 끝나면 SGR을 초기화한다. 대체 화면·커서 숨김 같은 다른 모드는 복원하지 않는다. **surface 단위만** — workspace 모드는 다중 터미널이라 불가.
 - **단발 입력**(`--send <str>`): attach 직후 1회 입력(escape 디코딩). workspace 모드는 `--send-to <remote_surface_id>` 로 대상 지정.
 
 ### GUI mirror
