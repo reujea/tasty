@@ -2,7 +2,8 @@ use crate::i18n::t;
 use crate::settings::Settings;
 use tasty_host_plugin::SettingsPageEntry;
 
-use super::appearance::{draw_plugin_settings_page, find_plugin_settings_entry};
+use super::appearance::find_plugin_settings_entry;
+use super::plugin_page::draw_plugin_settings_page;
 
 /// Plugin 탭 콘텐츠. L2 사이드바(plugin page 합성·필터·선택)는 settings 셸이
 /// 소유하므로 여기서는 활성 `sub_tab` 의 page 콘텐츠만 그린다. `None` 이거나

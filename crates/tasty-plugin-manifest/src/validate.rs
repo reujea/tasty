@@ -937,7 +937,9 @@ impl Manifest {
                     id
                 );
             }
-            if !is_valid_settings_id(storage_key) {
+            if let Some(storage_key) = storage_key
+                && !is_valid_settings_id(storage_key)
+            {
                 anyhow::bail!(
                     "invalid contributes.settings_pages '{}' item '{}' storage_key '{}': must be lowercase ascii + digits + '_' + '-', length 1..=64",
                     page.id,
@@ -947,7 +949,7 @@ impl Manifest {
             }
             Self::validate_settings_item_variant(page, id, item)?;
         }
-        Ok(())
+        crate::settings_groups::validate(page)
     }
 
     fn validate_settings_item_variant(
@@ -956,7 +958,22 @@ impl Manifest {
         item: &SettingsItemDecl,
     ) -> anyhow::Result<()> {
         match item {
-            SettingsItemDecl::FontOverride { .. } | SettingsItemDecl::Toggle { .. } => {}
+            SettingsItemDecl::FontOverride { .. }
+            | SettingsItemDecl::Toggle { .. }
+            | SettingsItemDecl::Group { .. } => {}
+            SettingsItemDecl::Text {
+                default,
+                default_key,
+                ..
+            } => {
+                if default.is_empty() && default_key.as_deref().is_none_or(str::is_empty) {
+                    anyhow::bail!(
+                        "contributes.settings_pages '{}' item '{}': text needs default or default_key",
+                        page.id,
+                        id
+                    );
+                }
+            }
             SettingsItemDecl::Select {
                 options, default, ..
             } => {

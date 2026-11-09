@@ -95,8 +95,10 @@ mod segmented;
 mod select;
 mod sequence_editor;
 mod settings_anomaly;
+mod settings_group;
 mod settings_row;
 mod settings_row_stack;
+mod settings_text_row;
 mod shell_setup;
 mod spacing;
 mod spinner;
@@ -372,11 +374,13 @@ pub use select::{
 pub use sequence_editor::{
     SequenceEditorAction, SequenceEditorError, SequenceEditorView, sequence_editor,
 };
+pub use settings_group::settings_group_header;
 pub use settings_row::{
     SettingsRow, settings_apply_note, settings_label_cell, settings_label_column,
     settings_label_gap, settings_row_caption,
 };
 pub use settings_row_stack::{StackRow, row_should_stack, settings_stack_row};
+pub use settings_text_row::settings_text_row;
 pub use shell_setup::{
     SHELL_SETUP_FORM_WIDTH, ShellSetupCheck, ShellSetupOutput, ShellSetupView, shell_setup_screen,
 };

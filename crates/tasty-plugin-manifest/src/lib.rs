@@ -8,6 +8,7 @@ pub mod gates;
 pub mod host_actions;
 pub mod package;
 pub mod remote_attach;
+mod settings_groups;
 pub mod types;
 pub mod validate;
 pub mod validators;
@@ -28,7 +29,7 @@ pub use types::{
     HOOK_TIMEOUT_MS_MAX, HOST_API_VERSION, HookEventDecl, HookMode, IpcHookDecl, IpcNamespaceDecl,
     MANIFEST_VERSION, Manifest, MenuItemDecl, Permission, PollingDecl, PopupAnchor,
     PopupContribute, PopupRendering, PopupScopeDecl, PopupSizeHint, PopupTrigger, PresetFieldDecl,
-    PresetFieldInputType, SelectOptionDecl, SettingsCategory, SettingsItemDecl,
+    PresetFieldInputType, SelectOptionDecl, SettingsCategory, SettingsEntry, SettingsItemDecl,
     SettingsPageContribute, StripInheritedEnvDecl, SurfaceKindDecl, SurfaceKindRendering,
     ToolAction, ToolContribute, WEBVIEW_COLOR_SCHEMES, WEBVIEW_ZOOM_MAX, WEBVIEW_ZOOM_MIN,
     WebViewDefaultsDecl, WindowContribute, WindowSizeHint,

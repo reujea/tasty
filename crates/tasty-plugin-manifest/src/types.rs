@@ -680,8 +680,9 @@ impl<'de> Deserialize<'de> for SettingsCategory {
     }
 }
 
-/// 설정 항목. kind로 폰트·토글·선택·수치 입력을 구분한다.
-/// 각 항목은 ID·라벨 번역 키·저장 키를 갖는다.
+/// 설정 항목. kind로 폰트·토글·선택·수치 입력과 묶음 머리를 구분한다.
+/// 각 항목은 ID·라벨 번역 키를 갖고, 묶음 머리를 뺀 항목은 저장 키도 갖는다.
+/// 토글·선택·수치 항목은 `group` 으로 같은 페이지의 묶음에 들어간다.
 #[derive(Debug, Clone, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum SettingsItemDecl {
@@ -705,6 +706,9 @@ pub enum SettingsItemDecl {
         storage_key: String,
         #[serde(default)]
         default: bool,
+        /// 들어갈 묶음(`kind = "group"` 항목의 `id`). 없으면 묶음 밖이다.
+        #[serde(default)]
+        group: Option<String>,
     },
 
     /// 선택지(드롭다운). host 는 디자인 Select 로 그리고 선택된 `value` 를 문자열로 저장한다.
@@ -715,6 +719,9 @@ pub enum SettingsItemDecl {
         storage_key: String,
         options: Vec<SelectOptionDecl>,
         default: String,
+        /// 들어갈 묶음(`kind = "group"` 항목의 `id`). 없으면 묶음 밖이다.
+        #[serde(default)]
+        group: Option<String>,
     },
 
     /// 수치 입력. host 는 Input(+선택적 suffix) 으로 그리고 f64 로 저장한다(정수 표기 가능).
@@ -732,7 +739,83 @@ pub enum SettingsItemDecl {
         /// 값 뒤에 붙일 단위 라벨 i18n 키 (예 `"%"`). 없으면 suffix 미표시.
         #[serde(default)]
         suffix_key: Option<String>,
+        /// 들어갈 묶음(`kind = "group"` 항목의 `id`). 없으면 묶음 밖이다.
+        #[serde(default)]
+        group: Option<String>,
     },
+
+    /// 읽기 전용 글. host 는 고칠 수 없는 글(선택·복사는 된다)로 그린다. plugin 이 쓰는 값을 보여 주기만 한다.
+    ///
+    /// - `storage_key` 의 저장값이 문자열이면 그것을 보인다. 없으면 `default_key`(i18n) 를, 그것도 없으면
+    ///   `default` 를 보인다. `default_key` · `default` 중 하나는 있어야 한다(검증).
+    /// - host 는 이 칸에 쓰지 않는다.
+    Text {
+        id: String,
+        label_key: String,
+        #[serde(default)]
+        storage_key: Option<String>,
+        #[serde(default)]
+        default: String,
+        #[serde(default)]
+        default_key: Option<String>,
+        /// 들어갈 묶음(`kind = "group"` 항목의 `id`). 없으면 묶음 밖이다.
+        #[serde(default)]
+        group: Option<String>,
+    },
+
+    /// 묶음 머리. host 는 머리 줄을 그리고 그 아래에 `group = "<id>"` 인 항목을 모아 그린다.
+    ///
+    /// - `storage_key` 가 있으면 머리에 Switch 를 두고 `plugin_settings.<plugin_id>.<storage_key>` 에
+    ///   bool 로 저장한다(`toggle` 과 같은 칸). 끄면 묶음의 항목을 숨긴다 — 그 기능을 끄는 스위치다.
+    ///   plugin 은 이 값을 읽어 기능을 끈다.
+    /// - `storage_key` 가 없으면 스위치 없는 머리이고 항목은 늘 보인다. 이때는 항목이 하나 이상 있어야 한다.
+    /// - `default` 는 키 부재 시 스위치 값이다(기본 켬).
+    Group {
+        id: String,
+        label_key: String,
+        #[serde(default)]
+        storage_key: Option<String>,
+        #[serde(default = "group_default_on")]
+        default: bool,
+    },
+}
+
+fn group_default_on() -> bool {
+    true
+}
+
+/// 설정 페이지를 그리는 순서의 한 칸 — [`SettingsPageContribute::entries`].
+#[derive(Debug, Clone)]
+pub enum SettingsEntry<'a> {
+    /// 묶음 밖의 항목.
+    Item(&'a SettingsItemDecl),
+    /// 묶음 머리(`SettingsItemDecl::Group`)와 그 항목들(선언 순서).
+    Group {
+        header: &'a SettingsItemDecl,
+        members: Vec<&'a SettingsItemDecl>,
+    },
+}
+
+impl SettingsPageContribute {
+    /// 그리는 순서. 묶음 밖 항목과 묶음 머리는 선언 순서대로 놓고, 묶음의 항목은 그 머리 바로
+    /// 뒤에 선언 순서대로 모은다. 묶음을 가리키는 항목의 선언 위치는 순서에 영향을 주지 않는다.
+    pub fn entries(&self) -> Vec<SettingsEntry<'_>> {
+        self.items
+            .iter()
+            .filter_map(|item| match item {
+                SettingsItemDecl::Group { id, .. } => Some(SettingsEntry::Group {
+                    header: item,
+                    members: self
+                        .items
+                        .iter()
+                        .filter(|m| m.group() == Some(id.as_str()))
+                        .collect(),
+                }),
+                _ if item.group().is_none() => Some(SettingsEntry::Item(item)),
+                _ => None,
+            })
+            .collect()
+    }
 }
 
 /// `Select` 항목의 한 선택지 — 저장될 `value` 와 표시용 `label_key`(i18n).
@@ -743,8 +826,9 @@ pub struct SelectOptionDecl {
 }
 
 impl SettingsItemDecl {
-    /// 공통 형식 검사에 쓸 ID·라벨 번역 키·저장 키를 반환한다.
-    pub(crate) fn common(&self) -> (&str, &str, &str) {
+    /// 공통 형식 검사에 쓸 ID·라벨 번역 키·저장 키를 반환한다. 스위치 없는 묶음 머리와 저장 키 없는
+    /// 읽기 전용 글은 저장 키가 없다.
+    pub(crate) fn common(&self) -> (&str, &str, Option<&str>) {
         match self {
             SettingsItemDecl::FontOverride {
                 id,
@@ -768,7 +852,30 @@ impl SettingsItemDecl {
                 label_key,
                 storage_key,
                 ..
-            } => (id, label_key, storage_key),
+            } => (id, label_key, Some(storage_key)),
+            SettingsItemDecl::Group {
+                id,
+                label_key,
+                storage_key,
+                ..
+            }
+            | SettingsItemDecl::Text {
+                id,
+                label_key,
+                storage_key,
+                ..
+            } => (id, label_key, storage_key.as_deref()),
+        }
+    }
+
+    /// 이 항목이 들어간 묶음의 `id`. 묶음 밖이거나 묶음에 못 드는 종류(글꼴 · 묶음 머리)면 `None`.
+    pub fn group(&self) -> Option<&str> {
+        match self {
+            SettingsItemDecl::Toggle { group, .. }
+            | SettingsItemDecl::Select { group, .. }
+            | SettingsItemDecl::Number { group, .. }
+            | SettingsItemDecl::Text { group, .. } => group.as_deref(),
+            SettingsItemDecl::FontOverride { .. } | SettingsItemDecl::Group { .. } => None,
         }
     }
 }

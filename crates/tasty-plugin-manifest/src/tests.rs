@@ -3614,3 +3614,74 @@ fn webview_defaults_rejected_outside_webview_kind_or_range() {
     );
     assert!(parse(&webview_kind_manifest("webview", "javascript = true")).is_err());
 }
+
+#[test]
+fn settings_pages_text_item_parses_into_a_group() {
+    let s = settings_items_manifest(
+        r#"
+        [[contributes.settings_pages.items]]
+        kind = "group"
+        id = "gate"
+        label_key = "x.gate"
+
+        [[contributes.settings_pages.items]]
+        kind = "text"
+        id = "prompt"
+        label_key = "x.prompt"
+        storage_key = "prompt"
+        default_key = "x.default_prompt"
+        group = "gate"
+
+        [[contributes.settings_pages.items]]
+        kind = "text"
+        id = "sentinel"
+        label_key = "x.sentinel"
+        default = "[[DONE]]"
+        group = "gate"
+        "#,
+    );
+    let m = parse(&s).expect("text items should parse + validate");
+    let items = &m.contributes.settings_pages[0].items;
+    match &items[1] {
+        SettingsItemDecl::Text {
+            storage_key,
+            default_key,
+            ..
+        } => {
+            assert_eq!(storage_key.as_deref(), Some("prompt"));
+            assert_eq!(default_key.as_deref(), Some("x.default_prompt"));
+        }
+        other => panic!("expected Text, got {other:?}"),
+    }
+    match &items[2] {
+        SettingsItemDecl::Text {
+            storage_key,
+            default,
+            ..
+        } => {
+            assert!(storage_key.is_none());
+            assert_eq!(default, "[[DONE]]");
+        }
+        other => panic!("expected Text, got {other:?}"),
+    }
+    // 묶음 규칙은 다른 칸과 같다 — 스위치 없는 머리가 글 칸만으로도 채워진다.
+    assert_eq!(items[1].group(), Some("gate"));
+}
+
+#[test]
+fn settings_pages_text_without_any_default_rejected() {
+    let s = settings_items_manifest(
+        r#"
+        [[contributes.settings_pages.items]]
+        kind = "text"
+        id = "prompt"
+        label_key = "x.prompt"
+        storage_key = "prompt"
+        "#,
+    );
+    let err = parse(&s).expect_err("a text item with nothing to show must be refused");
+    assert!(
+        format!("{err:#}").contains("default or default_key"),
+        "{err:#}"
+    );
+}

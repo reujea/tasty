@@ -278,12 +278,14 @@ self-loop·backoff로 건너뛸 hook은 시작하지 않고 소유자 기동 실
 
 `[[contributes.settings_pages]]`(`ui.settings_page`) — [설정 창](../features/settings/index.md)에 sub-tab 동적 등록. `category`(appearance/general/keybindings/plugin/…). 플러그인 비활성 시 sub-tab 자동 소멸. 예: [markdown](../surfaces/markdown/index.md).
 
-`[[contributes.settings_pages.items]]` 의 `kind` (공통 필드: `id` · `label_key` · `storage_key`):
+`[[contributes.settings_pages.items]]` 의 `kind` (공통 필드: `id` · `label_key` · `storage_key` — `group` · `text` 는 `storage_key` 가 선택):
 
 - `font_override` — surface 폰트 override. host 가 `plugin_font_overrides.<storage_key>` 슬롯에 read/write (아래 generic 컨트롤과 **별개 전역 네임스페이스**).
 - `toggle` — on/off. `default`(bool). host 는 Switch 로 렌더, bool 저장.
 - `select` — 드롭다운. `options = [{ value, label_key }]` + `default`(반드시 options.value 중 하나). Select 로 렌더, 선택 value(문자열) 저장.
 - `number` — 수치. `default`(f64) · `min`/`max`(선택; 주어지면 min≤default≤max) · `suffix_key`(선택, 단위 i18n 키). 설정 창의 [숫자 한 모양](../features/settings/screens/settings.md#숫자-입력-한-모양)으로 렌더(mono Input + 필드 밖 정적 suffix, **확정 때만** min/max 로 끌어온다), f64 저장.
+- `text` — 읽기 전용 글. `default`(문자열) · `default_key`(선택, 기본 글 i18n 키) — 둘 중 하나는 있어야 한다. host 는 라벨을 위에 맞추고 컨트롤 열에서 줄을 바꾼 고칠 수 없는 글(선택·복사는 된다)로 그린다. 보이는 값은 `storage_key` 의 저장 문자열(앞뒤 공백 제외, 공백뿐이면 없는 것), 없으면 `default_key` 번역, 그것도 없으면 `default` 다. host 는 이 칸에 쓰지 않는다. plugin 이 쓰는 문구를 보여 주되 설정 창에서 바꾸지 못하게 할 때 쓴다.
+- `group` — 묶음 머리. `storage_key`(선택) · `default`(bool, 기본 `true`). `toggle`/`select`/`number`/`text` 항목은 `group = "<묶음 id>"` 로 그 묶음에 든다. host 는 묶음 머리 줄(위 구분선 · 진한 라벨)을 그리고 그 아래에 묶음 항목을 선언 순서로 모은다. 묶음 밖 항목과 묶음 머리는 선언 순서대로 놓는다. `storage_key` 가 있으면 머리에 Switch 를 두고 `toggle` 과 같은 칸에 bool 로 저장하며, 끄면 묶음 항목을 숨긴다. 스위치는 그 기능을 끄는 값이므로 plugin 이 직접 읽어 기능을 꺼야 한다 — 숨긴 항목의 저장값은 그대로 남는다. `storage_key` 가 없으면 스위치 없는 머리이고 항목은 늘 보인다. 검증: 항목의 `group` 은 같은 페이지의 `group` 항목을 가리켜야 하고, 스위치 없는 묶음은 항목이 하나 이상이어야 하며, 머리 스위치의 저장 키는 같은 페이지의 다른 항목과 겹치면 안 된다. 묶음 id 는 다른 항목 id 와 같은 형식 · 중복 규칙을 따른다. 묶음은 중첩하지 않고 `font_override` 는 묶음에 들지 않는다.
 
 `toggle`/`select`/`number` 값은 `plugin_settings.<plugin_id>.<storage_key>` 슬롯(`PluginSettingValue` = Bool/Text/Number)에 저장·영속된다 — `font_override` 의 전역 슬롯과 충돌하지 않는 plugin-scoped 네임스페이스. 예: [html](../surfaces/html/index.md) 이 HTML viewer 설정(zoom/color scheme/allow remote content/sandbox scripts)을 이 방식으로 노출. webview kind 를 등록한 plugin 이면 이 저장 키들을 host 가 WebView 설정으로 적용한다([WebView 호스트 계약 "설정 출처"](../design/systems/webview.md#설정-출처--kind-를-등록한-plugin)).
 

@@ -17,6 +17,7 @@ mod number;
 mod overlay;
 mod performance;
 mod plugin;
+mod plugin_page;
 mod remote_attach;
 mod remote_transfer;
 mod task_pipeline;

@@ -49,6 +49,7 @@ pub mod move_source;
 pub mod notification_panel;
 pub mod occupancy_borders;
 pub mod plugin_settings;
+pub mod plugin_settings_groups;
 pub mod plugins_window;
 pub mod port_scanner;
 pub mod preset_editor;

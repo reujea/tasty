@@ -7,7 +7,8 @@ use crate::settings::{
     ActiveTabIndicator, EffectiveFont, FontOverride, FontSettings, HexColor, Settings,
 };
 use tasty_host_plugin::SettingsPageEntry;
-use tasty_plugin_manifest::{SettingsItemDecl, SettingsPageContribute};
+
+use super::plugin_page::draw_plugin_settings_page;
 use tasty_type_appearance::theme::{
     FALLBACK_SURFACE, PartialColors, PartialSurfaceTheme, SurfaceTheme, Theme, ThemeColors,
 };
@@ -850,7 +851,7 @@ fn draw_surface_bg_row(
 /// Held by reference (`&'a`) because Plugin uses a borrowed storage key — the
 /// owning string lives in `SettingsPageContribute::items`.
 #[derive(Clone, Copy)]
-enum SurfaceFontTarget<'a> {
+pub(super) enum SurfaceFontTarget<'a> {
     Terminal,
     /// `storage_key` is the key inside `plugin_font_overrides` *and* doubles as
     /// the surface id used to pick a theme `SurfaceTheme` for the preview.
@@ -892,7 +893,7 @@ impl<'a> SurfaceFontTarget<'a> {
     }
 }
 
-fn draw_surface_font_section(
+pub(super) fn draw_surface_font_section(
     ui: &mut egui::Ui,
     settings: &mut Settings,
     font_families: &mut Option<Vec<String>>,
@@ -1221,250 +1222,6 @@ fn draw_color_picker_row(
     };
     let overrides = &mut settings.appearance.theme_overrides;
     draw_override_row(ui, th, overrides, row_def, row.set);
-}
-
-/// plugin이 선언한 FontOverride·Toggle·Select·Number 항목을 공통 위젯으로 그린다.
-/// 글꼴은 plugin_font_overrides, 나머지는 plugin 설정 저장소의 storage_key를 사용한다.
-pub(super) fn draw_plugin_settings_page(
-    ui: &mut egui::Ui,
-    settings: &mut Settings,
-    font_families: &mut Option<Vec<String>>,
-    preview_fonts: &mut PreviewFonts,
-    plugin_id: &str,
-    page: &SettingsPageContribute,
-) {
-    // 한 페이지의 행은 같은 라벨 열을 쓴다. 글꼴 override 는 자기 격자를 따로 그린다.
-    let row_labels: Vec<SettingsRow<'_>> = page
-        .items
-        .iter()
-        .filter_map(|item| match item {
-            SettingsItemDecl::Toggle { label_key, .. }
-            | SettingsItemDecl::Select { label_key, .. }
-            | SettingsItemDecl::Number { label_key, .. } => Some(SettingsRow::new(t(label_key))),
-            SettingsItemDecl::FontOverride { .. } => None,
-        })
-        .collect();
-    let col = settings_label_column(ui, &crate::theme::theme(), &row_labels);
-    for item in &page.items {
-        match item {
-            SettingsItemDecl::FontOverride {
-                id: _,
-                label_key: _,
-                storage_key,
-            } => {
-                draw_surface_font_section(
-                    ui,
-                    settings,
-                    font_families,
-                    preview_fonts,
-                    SurfaceFontTarget::Plugin {
-                        storage_key: storage_key.as_str(),
-                    },
-                );
-            }
-            SettingsItemDecl::Toggle {
-                id: _,
-                label_key,
-                storage_key,
-                default,
-            } => {
-                draw_plugin_toggle(
-                    ui,
-                    settings,
-                    col,
-                    plugin_id,
-                    label_key,
-                    storage_key,
-                    *default,
-                );
-            }
-            SettingsItemDecl::Select {
-                id: _,
-                label_key,
-                storage_key,
-                options,
-                default,
-            } => {
-                draw_plugin_select(
-                    ui,
-                    settings,
-                    col,
-                    plugin_id,
-                    label_key,
-                    storage_key,
-                    options,
-                    default,
-                );
-            }
-            SettingsItemDecl::Number {
-                id: _,
-                label_key,
-                storage_key,
-                default,
-                min,
-                max,
-                suffix_key,
-            } => {
-                draw_plugin_number(
-                    ui,
-                    settings,
-                    col,
-                    plugin_id,
-                    label_key,
-                    storage_key,
-                    *default,
-                    *min,
-                    *max,
-                    suffix_key.as_deref(),
-                );
-            }
-        }
-    }
-}
-
-/// plugin 설정 한 행. 페이지가 정한 라벨 열과 설정 행 격자를 쓴다.
-fn plugin_setting_row(
-    ui: &mut egui::Ui,
-    col: LogicalPx,
-    label: &str,
-    control: impl FnOnce(&mut egui::Ui),
-) {
-    let th = crate::theme::theme();
-    ui.add_space(th.spacing_sm.value());
-    SettingsRow::new(label).show(ui, &th, col, control);
-}
-
-/// `Toggle` → 디자인 Switch (host `tasty_ui_widgets::switch`). bool read/write.
-fn draw_plugin_toggle(
-    ui: &mut egui::Ui,
-    settings: &mut Settings,
-    col: LogicalPx,
-    plugin_id: &str,
-    label_key: &str,
-    storage_key: &str,
-    default: bool,
-) {
-    let cur = match settings.plugin_setting(plugin_id, storage_key) {
-        Some(crate::settings::PluginSettingValue::Bool(b)) => *b,
-        _ => default,
-    };
-    let mut val = cur;
-    let th = crate::theme::theme();
-    plugin_setting_row(ui, col, t(label_key), |ui| {
-        tasty_ui_widgets::switch(ui, &th, &mut val, None, true);
-    });
-    if val != cur {
-        settings.set_plugin_setting(
-            plugin_id,
-            storage_key,
-            crate::settings::PluginSettingValue::Bool(val),
-        );
-    }
-}
-
-/// `Select` → 디자인 Select (host `tasty_ui_widgets::select`). options label_key 를
-/// `t()` 로 표시하고 선택 `value`(String) read/write.
-#[allow(clippy::too_many_arguments)] // 이유: 매니페스트 Select 선언의 필드 하나당 인자 하나 — 형제 draw_plugin_* 와 같은 모양
-fn draw_plugin_select(
-    ui: &mut egui::Ui,
-    settings: &mut Settings,
-    col: LogicalPx,
-    plugin_id: &str,
-    label_key: &str,
-    storage_key: &str,
-    options: &[tasty_plugin_manifest::SelectOptionDecl],
-    default: &str,
-) {
-    let cur = match settings.plugin_setting(plugin_id, storage_key) {
-        Some(crate::settings::PluginSettingValue::Text(s)) => s.clone(),
-        _ => default.to_string(),
-    };
-    let mut idx = options.iter().position(|o| o.value == cur).unwrap_or(0);
-    let labels: Vec<String> = options
-        .iter()
-        .map(|o| t(&o.label_key).to_string())
-        .collect();
-    let label_refs: Vec<&str> = labels.iter().map(|s| s.as_str()).collect();
-    let th = crate::theme::theme();
-    let salt = format!("plugin_select_{plugin_id}_{storage_key}");
-    let mut changed = false;
-    plugin_setting_row(ui, col, t(label_key), |ui| {
-        changed = tasty_ui_widgets::select(
-            ui,
-            &th,
-            &salt,
-            &mut idx,
-            &label_refs,
-            th.field_width_md.value(),
-            true,
-        );
-    });
-    if changed && idx < options.len() {
-        let new_val = options[idx].value.clone();
-        if new_val != cur {
-            settings.set_plugin_setting(
-                plugin_id,
-                storage_key,
-                crate::settings::PluginSettingValue::Text(new_val),
-            );
-        }
-    }
-}
-
-/// plugin 숫자 설정을 공통 숫자 입력으로 편집한다.
-#[allow(clippy::too_many_arguments)]
-fn draw_plugin_number(
-    ui: &mut egui::Ui,
-    settings: &mut Settings,
-    col: LogicalPx,
-    plugin_id: &str,
-    label_key: &str,
-    storage_key: &str,
-    default: f64,
-    min: Option<f64>,
-    max: Option<f64>,
-    suffix_key: Option<&str>,
-) {
-    let cur = match settings.plugin_setting(plugin_id, storage_key) {
-        Some(crate::settings::PluginSettingValue::Number(n)) => *n,
-        _ => default,
-    };
-    let th = crate::theme::theme();
-    let suffix = suffix_key.map(t);
-    let spec = super::number::NumberSpec {
-        min,
-        max,
-        step: None,
-        // plugin 이 정수 범위를 선언했는지 알 길이 없으므로 현재 값의 모양을 따른다.
-        decimals: usize::from(cur.fract() != 0.0),
-        suffix,
-        suffix_label: false,
-        unit: None,
-        no_limit: None,
-        range_note: None,
-        align: egui::Align::RIGHT,
-        enabled: true,
-    };
-
-    let mut val = cur;
-    let mut committed = false;
-    plugin_setting_row(ui, col, t(label_key), |ui| {
-        committed = super::number::number_field(
-            ui,
-            &th,
-            ("plugin_number", plugin_id, storage_key),
-            &spec,
-            &mut val,
-        );
-    });
-
-    if committed {
-        settings.set_plugin_setting(
-            plugin_id,
-            storage_key,
-            crate::settings::PluginSettingValue::Number(val),
-        );
-    }
 }
 
 /// 글꼴 패밀리 SearchableSelect. `value` 는 설정의 패밀리 이름이고 `""` 는 monospace 기본값이며,
