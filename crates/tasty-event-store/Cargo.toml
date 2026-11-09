@@ -6,7 +6,7 @@ license = "MIT"
 description = "SQLite event journal: stream revisions, atomic batches, durable command identity, effect records, snapshots"
 
 [dependencies]
-rusqlite = { version = "0.32", features = ["bundled"] }
+rusqlite = { version = "0.41", default-features = false, features = ["bundled", "fallible_uint"] }
 sha2 = "0.10"
 thiserror = "2"
 
