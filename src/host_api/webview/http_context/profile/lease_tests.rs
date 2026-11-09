@@ -352,9 +352,7 @@ fn every_lease_answer_but_a_confirmed_grant_retains_the_root() {
         assert_eq!(dead.sweep_with(&nothing_found, &ops), (0, 1));
         dead.assert_retained_intact();
     }
-    let dead = DeadRoot::new();
-    assert_eq!(dead.sweep_with(&nothing_found, &lease::KERNEL).0, 1);
-    assert!(!dead.root.exists());
+    DeadRoot::new().assert_removed_after(&nothing_found);
 }
 // T4
 #[test]
