@@ -25,7 +25,7 @@
 
 설정 `링크 클릭 수식키`의 기본값은 `Ctrl`이며 `Alt` 또는 `좌클릭 열기 끄기`를 선택할 수 있다.
 
-- `Ctrl`/`Alt`: 설정 수식키 조건이 맞으면 hover 하이라이트와 PointingHand 커서가 나타나고, 좌클릭으로 링크를 연다. 수식키+클릭이 링크 위가 아니면 no-op이며 selection을 시작/변경하지 않는다.
+- `Ctrl`/`Alt`: 설정 수식키 조건이 맞으면 hover 하이라이트([터미널 색상](../../surfaces/terminal/index.md#색상--폰트))와 PointingHand 커서가 나타나고, 좌클릭으로 링크를 연다. 수식키+클릭이 링크 위가 아니면 no-op이며 selection을 시작/변경하지 않는다.
 - `좌클릭 열기 끄기`(`LinkModifier::None`, 저장값 `none`): 수식키 상태와 무관하게 좌클릭 링크 열기는 실행하지 않는다. 기존 포커스/selection 경로로 진행하며, 링크 위 우클릭 메뉴는 사용할 수 있다.
 - `None`에서 항상 참인 것은 **hover의 수식키 조건만**이다. 설정/전체화면 무대 같은 마우스 오버레이, popup·banner hover 차단과 터미널 영역·surface·실제 링크 hit-test는 그대로 적용한다. 따라서 모든 위치에서 hover 표시가 항상 켜지는 모드가 아니다.
 - `copy_link` 단축키(기본 키 없음): 마우스 포인터 아래 링크의 화면 텍스트를 메뉴 없이 복사하고 `toast.copied` 를 그 surface 범위로 띄운다. 링크 클릭 수식키는 요구하지 않지만 마우스 오버레이·popup·banner hover 차단, hard 점유 배제, 링크 hit-test 는 hover 와 같다. 포인터 아래 링크가 없으면 키를 소비하지 않고 다음 단축키·터미널 입력 경로로 넘긴다. 키로 실행했으므로 토스트에 hint 를 붙이지 않는다.

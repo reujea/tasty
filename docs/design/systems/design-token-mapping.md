@@ -39,7 +39,7 @@
 
 | 역할 | 값 | 쓰는 자리 |
 |---|---|---|
-| `text-on-active` · `text-on-active-hover` | Mocha `text-primary`·white, Latte neutral-1100을 검정 쪽으로 혼합 | `surface-active`와 그 hover·press 위 글자와 모양 글리프 |
+| `text-on-active` · `text-on-active-hover` | Mocha `text-primary`·white, Latte neutral-1100을 검정 쪽으로 혼합 | `surface-active`와 그 hover·press 위 글자와 모양 글리프. 터미널 선택 칸과 포인터 아래 링크의 기본 글자도 이 값이다 |
 | `accent-primary-on-active` | blue와 white 혼합, Latte는 blue를 검정 쪽으로 혼합 | `surface-active` 위 선택 표지와 일반 강조 글리프, 쉬는 일치 구간 |
 | `accent-warning-on-active` · `accent-success-on-active` · `accent-info-on-active` · `accent-remote-on-active` | Mocha 각 accent, Latte 각 hue를 검정 쪽으로 혼합. remote는 info를 따른다 | `surface-active` 위 경고·성공·이미지·원격 글리프 |
 | `accent-danger-on-active` · `accent-agent-on-active` · `accent-attached-on-active` | hue와 white 혼합, Latte는 검정 쪽으로 혼합 | `surface-active` 위 오류·plugin·점유 글리프 |
