@@ -95,7 +95,7 @@ fn family_path(name: &str) -> Option<PathBuf> {
 
 /// 부팅 때 파일을 검증한다. 실제 폰트 추가 시점에도 다시 읽고 검증한다.
 fn validate(path: &Path) -> Result<(), String> {
-    tasty_i18n::font::read_validated(path)
+    tasty_i18n::font::read_validated(path, 0)
         .map(|_| ())
         .map_err(|error| match error {
             tasty_i18n::font::LocaleFontError::Read(error) => format!("cannot read: {error}"),

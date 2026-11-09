@@ -8,6 +8,7 @@ description = "Shared i18n store for Tasty — translation loading + t()/t_fmt()
 [dependencies]
 ab_glyph = "0.2"
 toml = "0.8"
+ttf-parser = "0.25"
 tracing = "0.1"
 tasty-utils = { path = "../tasty-utils" }
 

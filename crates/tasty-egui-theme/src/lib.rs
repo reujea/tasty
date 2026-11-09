@@ -295,7 +295,7 @@ pub fn install_locale_font_fallback(
     fonts: &mut egui::FontDefinitions,
     path: &std::path::Path,
 ) -> Result<(), LocaleFontError> {
-    let bytes = tasty_i18n::font::read_validated(path)?;
+    let bytes = tasty_i18n::font::read_validated(path, 0)?;
     fonts.font_data.insert(
         LOCALE_FONT_KEY.to_owned(),
         Arc::new(egui::FontData::from_owned(bytes)),
