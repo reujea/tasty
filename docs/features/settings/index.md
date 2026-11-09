@@ -68,6 +68,8 @@ General 의 닫기 동작(`close_behavior`: ask · minimize · quit), Terminal �
 
 **egui가 읽지 못하는 글꼴**: 기본 글꼴과 플러그인 surface 글꼴의 `custom_font_path`, 이름으로 찾은 글꼴은 egui에 넣기 전에 언어팩 글꼴과 같은 판정(`tasty_i18n::font::validate`, 파싱과 줄 높이)을 거친다. 판정에 실패한 값도 저장은 막지 않고 사용할 때 건너뛴다. 파일이 없을 때와 같이 경고 로그만 남기고 그 글꼴을 뺀 다음 글꼴로 동작하며(이름으로 찾은 글꼴이 유효하면 그것을 쓴다) 설정값은 고치지 않는다. 그래서 파일을 정상 글꼴로 바꾸면 설정을 건드리지 않아도 재시작 뒤 그 글꼴을 쓴다. 이 판정을 통과해도 글리프가 texture atlas보다 큰 인위적 파일은 글자 크기와 atlas 폭에 따라 패닉할 수 있다. 미리보기도 입력 도중의 경로를 같은 방식으로 건너뛴다. 터미널 글꼴은 cosmic-text 경로라 이 판정을 거치지 않는다. fontdb가 읽지 못하는 파일은 건너뛰고, `font_family`로 찾지 못하면 다른 글꼴로 그린다.
 
+**글꼴 묶음 안의 이름**: 이름으로 찾은 글꼴이 묶음 파일(`.ttc`) 안에 있으면 그 이름의 글꼴 번호를 읽는다. `custom_font_path` 는 파일만 지정하므로 묶음 파일이면 0번을 읽는다.
+
 > **설정 적용**: host 가 `resolve_webview_settings` 로 `plugin_settings."com.tasty.html"` 을 읽어 네이티브 webview 에 직접 적용한다(별도 host→plugin IPC 없음 — `font_override` 호스트 적용과 같은 선례). 적용 현황:
 > - **zoom**: 3 OS 모두 실효.
 > - **sandbox scripts**: 켜 두면 main frame 문서마다 JS를 끄고, 사용자가 허용한 문서에서만 켠다. `resolve_webview_settings`는 전역 값만 넘기고 문서별 판정은 navigation 콜백이 한다([HTML Viewer (`com.tasty.html`)](../../surfaces/html/index.md)). 끄면 모든 문서에서 JS를 켠다. 문서별 적용 시점은 Linux에서만 측정했다.

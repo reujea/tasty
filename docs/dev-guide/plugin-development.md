@@ -447,6 +447,7 @@ CLI도 설치 영어 → 선택 언어 → host 홈의 사용자 plugin 파일 �
 | `TASTY_PLUGIN_HANDLE_ENDPOINT` | handle 채널 엔드포인트(있을 때) |
 | `TASTY_LOCALE` | 활성 로케일(`general.language`) — host 본 바이너리가 부팅 시 자기 프로세스 env 에 set 하고(`src/boot/locale.rs`) spawn 시 그대로 propagate 한다(host-plugin 은 `tasty-i18n` 비의존). SDK `Translator` 가 소비. spawn 시점 고정 — 언어 변경은 재시작 후 반영([국제화 (i18n)](i18n.md)) |
 | `TASTY_LOCALE_FONT` | 언어팩이 제공하는 폰트 파일의 절대경로 — **언어팩 폰트가 resolve 됐을 때만** 주입(내장 폰트 · 미제공이면 미설정, 셸에서 상속된 값도 자식에서 제거). 출처와 고정 시점은 `TASTY_LOCALE` 과 같다 |
+| `TASTY_LOCALE_FONT_FACE` | `TASTY_LOCALE_FONT` 파일 안에서 읽을 글꼴 번호. `TASTY_LOCALE_FONT` 와 함께만 주입한다 |
 | `TASTY_HOST_PID` | 호스트 프로세스 PID (**macOS 만** — SDK watchdog 가 부모 사망 감지에 사용) |
 
 설치 디렉터리는 실행 명령을 만들 때 host CWD 기준으로 확정한다. 설치본 entry 탐색,

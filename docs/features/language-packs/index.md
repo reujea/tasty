@@ -51,9 +51,9 @@ plugin의 파일은 합치지 않는다. 구체 규약은 [i18n](../../dev-guide
 5. **설정값은 어느 경로에서도 고쳐 쓰지 않는다.** 팩을 넣고 재시작하면 그 언어가 뜬다.
 
 `[font]` 선언은 부팅 1회 실제 폰트 파일로 resolve 해 **UI 폴백 체인 맨 뒤**에 붙인다 — 라틴은 기본 폰트, 팩 스크립트만 팩 폰트로 렌더(혼합).
-`file` 은 팩 상대경로(팩 밖 이탈 거부), `family`/`candidates` 는 시스템 폰트 DB 에서 파일 경로를 찾고, `candidates` 는 "경로처럼 보이면 file, 아니면 family" 로 순서대로 첫 성공.
-붙이기 전 `ab_glyph` 로 파싱하고 줄 높이가 0보다 큰지 검증한다(egui 는 그런 폰트에 panic).
-resolve 한 절대경로는 `TASTY_LOCALE_FONT` env 로 자식 plugin 에 전달하고 셸 UI 두 경로 + egui UI plugin 넷이 **같은 헬퍼**로 소비한다(같은 폰트 검증을 재사용한다).
+`file` 은 팩 상대경로(팩 밖 이탈 거부), `family`/`candidates` 는 시스템 폰트 DB 에서 파일 경로와 글꼴 번호를 찾고, `candidates` 는 "경로처럼 보이면 file, 아니면 family" 로 순서대로 첫 성공.
+붙이기 전 그 글꼴 번호를 `ab_glyph` 로 파싱하고 줄 높이가 0보다 큰지 검증한다(egui 는 그런 폰트에 panic).
+resolve 한 절대경로와 글꼴 번호는 `TASTY_LOCALE_FONT`·`TASTY_LOCALE_FONT_FACE` env 로 자식 plugin 에 전달하고 셸 UI 두 경로 + egui UI plugin 넷이 **같은 헬퍼**로 소비한다(같은 폰트 검증을 재사용한다).
 **resolve/검증 실패는 폴백 없이 경고만** — 문자열은 그대로 뜨고(그 스크립트는 □) UI 폰트만 안 붙는다(GUI 토스트 1회 / headless warn).
 규칙 표는 [dev-guide/i18n](../../dev-guide/i18n.md) "`[font]` resolve 와 UI 폴백 체인".
 RTL(아랍·히브리) 어순은 egui 한계로 범위 밖이다.
@@ -83,6 +83,8 @@ RTL(아랍·히브리) 어순은 egui 한계로 범위 밖이다.
 - Given `ar/pack.toml` 이 `[font] file = "fonts/NotoSansArabic-Regular.ttf"`(유효 폰트) 를 선언 When `ar` 로 부팅 Then resolve 절대경로가 `TASTY_LOCALE_FONT` 에 실리고 셸 UI·plugin UI 가 아랍 글리프를 □ 없이 렌더(어순은 범위 밖).
 - Given `[font] file` 경로가 틀림(없는 파일) 또는 파일이 깨진 폰트 When 부팅 Then panic 없이 `TASTY_LOCALE_FONT` 는 unset, GUI 경고 토스트 1회 / headless warn, 문자열은 그대로 로드(그 스크립트는 □).
 - Given `[font] builtin = true` When 부팅 Then 폰트를 붙이지 않고 기본 스택만(라틴 팩용), `TASTY_LOCALE_FONT` unset.
+- Given `[font] family` 가 글꼴 묶음 파일 안의 family(예: `Noto Sans CJK SC`) When 부팅 Then 그 파일 경로와 해당 글꼴 번호가 `TASTY_LOCALE_FONT`·`TASTY_LOCALE_FONT_FACE` 에 실리고 셸 UI·plugin UI 가 같은 글꼴 번호를 읽는다.
+- Given 코드가 `zh-Hans` 인 팩 When 시스템 CJK 폰트가 Noto CJK 묶음 Then 시스템 CJK 폰트도 SC 글꼴을 읽어 공용 한자가 SC 형태로 나오고 한글·가나는 □ 가 아니다(Monospace 라벨은 D2Coding 이 앞에 있어 글꼴이 섞인다).
 - Given `[font] file` 이 `..` 나 절대경로로 팩 밖을 가리킴 When 부팅 Then resolve 거부(경고) — 팩 디렉토리 밖 파일은 읽지 않는다.
 - Given `general.language = "zz"` 이고 팩 없음 When 부팅 Then 영어 UI + 경고 토스트 1회(코드 · 기대 경로), headless/CLI 는 warn 1줄, `config.toml` 의 값은 `zz` 그대로.
 - Given 콤보의 현재 값이 목록에 없음 When 콤보를 열고 닫음 Then 값이 바뀌지 않는다.
