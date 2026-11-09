@@ -41,5 +41,5 @@ jobs:
           fi
           cargo-deny --version
 
-      - name: cargo deny check
-        run: cargo deny check
+      - name: cargo deny --workspace check
+        run: cargo deny --workspace check

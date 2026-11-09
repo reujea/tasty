@@ -358,7 +358,7 @@ check_new_file_judges() {
         suggest_target "crates/tasty-doc-guards/tests/architecture_crate_list_complete.rs" \
             "cargo test --locked -p tasty-doc-guards --test architecture_crate_list_complete" \
             "크레이트 목록과 문서가 일치하는지 검사합니다."
-        yellow "      cargo deny check licenses"
+        yellow "      cargo deny --workspace check licenses"
         yellow "        ↳ Cargo.toml의 license 선언을 검사합니다."
     fi
     if [ -n "$new_src" ]; then
