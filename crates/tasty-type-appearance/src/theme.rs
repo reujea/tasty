@@ -1812,9 +1812,10 @@ impl Theme {
         LogicalPx((64.0 * self.ui_zoom).round())
     }
     /// 로딩 화면의 브랜드 글꼴 크기. 사이드바 워드마크와 용도가 달라 값을 공유하지 않는다.
+    /// 값은 `component.loading-lockup-font-size` 토큰에서 온다.
     #[inline]
     pub fn loading_screen_wordmark_font_size(&self) -> LogicalPx {
-        LogicalPx((38.0 * self.ui_zoom).round())
+        self.loading_lockup_font_size()
     }
     /// 로딩 화면 스피너 크기.
     #[inline]
