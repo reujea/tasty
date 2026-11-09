@@ -7,6 +7,7 @@
 //! 서버를 시작하지 못하면 실패로 끝낸다. embedded 서버로 내려가 결과를 받을 수 없는 세션을
 //! 정상 실행처럼 보이게 하지 않는다.
 
+use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, ExitStatus, Stdio};
 use std::time::{Duration, Instant};
@@ -495,12 +496,31 @@ fn translator() -> Translator {
         .ok()
         .and_then(|p| p.parent().map(|d| d.join("lang")))
         .unwrap_or_default();
-    let lang = std::env::var("LANG").unwrap_or_default();
-    let locale = ["ko", "ja"]
-        .into_iter()
-        .find(|l| lang.starts_with(l))
-        .unwrap_or("en");
-    Translator::load(&lang_dir, locale)
+    translator_from(&lang_dir, |name| std::env::var_os(name))
+}
+
+/// helper는 터미널 셸의 자식이라 plugin env(`TASTY_PLUGIN_ID` 등)를 받지 못해
+/// `Translator::from_plugin_env`를 쓸 수 없다. 번역 층은 그 함수와 같게 맞춘다.
+fn translator_from(lang_dir: &Path, env: impl Fn(&str) -> Option<OsString>) -> Translator {
+    let locale = helper_locale(&env);
+    let user_lang_dir = env("TASTY_PARENT_HOME")
+        .filter(|root| !root.is_empty())
+        .map(|root| PathBuf::from(root).join("lang"));
+    Translator::load_with_overrides(
+        lang_dir,
+        &locale,
+        crate::PLUGIN_ID,
+        user_lang_dir.as_deref(),
+    )
+}
+
+/// host가 `general.language`에서 확정해 터미널 셸까지 물려준 언어. OS 로케일(`LANG`)은 설정과
+/// 다를 수 있어 보지 않는다. 값이 없으면 SDK·host-plugin과 같이 `en`이다.
+fn helper_locale(env: &impl Fn(&str) -> Option<OsString>) -> String {
+    env("TASTY_LOCALE")
+        .and_then(|code| code.into_string().ok())
+        .filter(|code| !code.is_empty())
+        .unwrap_or_else(|| "en".to_string())
 }
 
 /// `session` 모드의 진입점. 프로세스 종료 코드를 돌려준다.
@@ -850,6 +870,114 @@ mod tests {
 
     fn s(v: &[&str]) -> Vec<String> {
         v.iter().map(|x| x.to_string()).collect()
+    }
+
+    fn env_of<'a>(vars: &'a [(&'a str, &'a str)]) -> impl Fn(&str) -> Option<OsString> + 'a {
+        move |name| {
+            vars.iter()
+                .find(|(key, _)| *key == name)
+                .map(|(_, value)| OsString::from(value))
+        }
+    }
+
+    #[test]
+    fn helper_language_follows_the_setting_not_the_shell() {
+        for (setting, shell, expected) in [
+            ("en", "ko_KR.UTF-8", "en"),
+            ("ja", "en_US.UTF-8", "ja"),
+            ("ko", "ja_JP.UTF-8", "ko"),
+            // 등록 전 언어도 값을 바꾸지 않고 번역기까지 전달한다.
+            ("zh-Hans", "en_US.UTF-8", "zh-Hans"),
+        ] {
+            let vars = [("TASTY_LOCALE", setting), ("LANG", shell)];
+            assert_eq!(helper_locale(&env_of(&vars)), expected, "{vars:?}");
+        }
+    }
+
+    #[test]
+    fn without_a_setting_the_helper_uses_english_whatever_the_shell_says() {
+        for shell in [
+            "ko_KR.UTF-8",
+            "ja_JP.UTF-8",
+            "zh_CN.UTF-8",
+            "zh_TW.UTF-8",
+            "zh_HK.UTF-8",
+            "zh-Hant",
+        ] {
+            let unset = [("LANG", shell)];
+            assert_eq!(helper_locale(&env_of(&unset)), "en", "{unset:?}");
+            let blank = [("TASTY_LOCALE", ""), ("LANG", shell)];
+            assert_eq!(helper_locale(&env_of(&blank)), "en", "{blank:?}");
+        }
+    }
+
+    /// 설치본 카탈로그. 값은 어느 파일에서 왔는지만 구별한다.
+    fn lang_fixture(root: &Path) -> PathBuf {
+        let lang = root.join("installed");
+        std::fs::create_dir_all(&lang).unwrap();
+        for code in ["en", "ko", "ja", "zh-Hans"] {
+            std::fs::write(
+                lang.join(format!("{code}.toml")),
+                format!("[codex.session]\nbad_args = \"installed {code}\"\n"),
+            )
+            .unwrap();
+        }
+        lang
+    }
+
+    #[test]
+    fn the_translator_reads_the_catalog_of_the_setting() {
+        const KEY: &str = "codex.session.bad_args";
+        let dir = tempfile::tempdir().unwrap();
+        let lang = lang_fixture(dir.path());
+        for (setting, shell, expected) in [
+            ("en", "ko_KR.UTF-8", "installed en"),
+            ("ja", "en_US.UTF-8", "installed ja"),
+            ("zh-Hans", "en_US.UTF-8", "installed zh-Hans"),
+        ] {
+            let vars = [("TASTY_LOCALE", setting), ("LANG", shell)];
+            assert_eq!(
+                translator_from(&lang, env_of(&vars)).t(KEY),
+                expected,
+                "{vars:?}"
+            );
+        }
+        let unset = [("LANG", "zh_TW.UTF-8")];
+        assert_eq!(
+            translator_from(&lang, env_of(&unset)).t(KEY),
+            "installed en"
+        );
+    }
+
+    /// 내장 언어의 사용자 override와 언어팩의 플러그인 번역을 `from_plugin_env`처럼 읽는다.
+    #[test]
+    fn the_translator_applies_the_user_files_of_the_parent_home() {
+        const KEY: &str = "codex.session.bad_args";
+        let dir = tempfile::tempdir().unwrap();
+        let lang = lang_fixture(dir.path());
+        let home = dir.path().join("home");
+        let plugin_id = crate::PLUGIN_ID;
+        let builtin = home.join(format!("lang/plugins/{plugin_id}/ja.toml"));
+        let pack = home.join(format!("lang/fr/plugins/{plugin_id}.toml"));
+        for (file, value) in [(&builtin, "user ja"), (&pack, "pack fr")] {
+            std::fs::create_dir_all(file.parent().unwrap()).unwrap();
+            std::fs::write(file, format!("[codex.session]\nbad_args = \"{value}\"\n")).unwrap();
+        }
+        let home = home.to_str().unwrap();
+        for (setting, expected) in [("ja", "user ja"), ("fr", "pack fr"), ("ko", "installed ko")] {
+            let vars = [("TASTY_LOCALE", setting), ("TASTY_PARENT_HOME", home)];
+            assert_eq!(
+                translator_from(&lang, env_of(&vars)).t(KEY),
+                expected,
+                "{vars:?}"
+            );
+        }
+        let no_home = [("TASTY_LOCALE", "ja")];
+        assert_eq!(
+            translator_from(&lang, env_of(&no_home)).t(KEY),
+            "installed ja",
+            "부모 홈이 없으면 사용자 파일을 읽지 않는다"
+        );
     }
 
     #[test]

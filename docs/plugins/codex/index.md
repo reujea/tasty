@@ -108,6 +108,9 @@ launch·spawn·respawn·reboot·복원은 모두 플러그인 실행 파일의 `
 `codex` alias·function은 이 명령에 영향을 주지 않는다. 프롬프트는 임시 파일로 넘기고 helper가
 읽은 뒤 지운다.
 
+helper 문구는 터미널 셸이 물려받은 `TASTY_LOCALE`(설정 `general.language`) 언어로 나온다. `LANG`은
+보지 않고, 값이 없거나 비면 영어다. 번역 층과 사용자 파일은 [i18n 가이드](../../dev-guide/i18n.md#plugin-네임스페이스)와 같다.
+
 helper는 그 터미널의 cwd와 환경에서 다음 순서로 실행한다.
 
 1. `tasty codex session-open`으로 surface의 새 세대를 발급받는다. 같은 surface의 이전 세대는
