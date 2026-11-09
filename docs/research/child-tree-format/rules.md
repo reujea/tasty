@@ -189,7 +189,7 @@ You read a graph of agent processes given as text and answer questions about it.
 ```text
 Each node has an id, a nickname, a state, a cwd and a last_report_at, and has zero or more parents. A node without a parent is a root.
 Graph format: {format_name}
-{missing_note}
+{missing_note}{edge_note}
 Reference time: {T}
 
 <graph>
@@ -217,7 +217,7 @@ Questions:
 {questions}
 ```
 
-`{missing_note}`는 값 없음 표기가 `-`인 형식에 `A missing value is written as -.`, `null`인 형식에 `A missing value is written as null.`이다. `{questions}`는 호출마다 섞은 순서로 `q7: How many ...` 형태의 줄을 나열한다.
+`{missing_note}`는 값 없음 표기가 `-`인 형식에 `A missing value is written as -.`, `null`인 형식에 `A missing value is written as null.`이다. `{edge_note}`는 간선 줄에 방향의 뜻이 적혀 있지 않은 `dot`에서만 줄바꿈과 `An edge "a" -> "b" means a is a parent of b.`이고, 다른 세 형식에서는 빈 문자열이다. 다른 형식은 열 이름이나 키로 관계를 보여 주며 프롬프트 바이트가 이 문장이 없을 때와 같다. `{questions}`는 호출마다 섞은 순서로 `q7: How many ...` 형태의 줄을 나열한다.
 
 ## 채점
 
@@ -405,3 +405,4 @@ u' = u + u × P / W
 | 7일 창 상승 비교에 모델별 7일 창과 사람이 읽은 값(`level-changes.jsonl`의 `usage_note`)을 더했다. 창 상태 필드에 `seven_day_by_window`를 저장한다. 채점된 본 실행 Claude 호출에 7일 값이 없으면 `usage_unread`, 읽은 값이 승인 u의 10분의 1 미만이면 `usage_unit_suspect`로 중단한다 | "7일 창 u가 승인 때 계산한 u'보다 5포인트 이상 높음"은 모델별 창과 Codex, 값이 없는 경우, 단위를 잘못 지정한 경우에 작동하지 않았다. 판정 규칙은 바꾸지 않고 사용량 쪽을 더 멈추는 방향으로만 바꿨다 | 아니다. 측정 호출 0회 | `61600b6ec` → 이 기록을 더한 커밋 |
 | 호출 전 시작 줄 파일과 오류 종류 `interrupted`를 더했다. 시작 줄만 있는 호출은 일반 API 실패와 같이 재시도 상한과 실패 횟수에 센다. 한 데이터 폴더에 러너 하나만 돌도록 잠금 파일을 둔다 | 호출 도중 러너가 죽으면 사용량을 쓴 호출이 기록에 남지 않아 공짜로 다시 돌고, "모든 호출을 원자료에 남긴다"를 어긴다. 두 러너가 같은 폴더에 쓰면 같은 호출을 두 번 쓴다 | 아니다. 측정 호출 0회 | `09874e459` → 이 기록을 더한 커밋 |
 | 측정 대상을 트리에서 그래프로 바꿨다. 형식을 `parent_table`, `adjacency`, `flat_json`, `dot` 넷으로 줄이고(`mermaid`, `nested_json`, `indented` 제외), 노드의 `parent`를 `parents` 목록으로 바꾸고, `dag_40`과 질문 `q16`~`q19`를 더했다. 호출은 L0 144, L1 112, L2 84회, 재시도 상한은 15, 12, 9회다. 시험 구성을 `dot` + `dag_40`, `parent_table` + `synthetic_80`으로 바꿨다. 프롬프트의 정의와 단어를 그래프에 맞췄다 | 사용자 결정이다. AI가 읽는 그래프 텍스트의 기본 형식을 child 트리와 DAG에 하나로 통일할 근거를 만든다. 판정 구간은 바이트 그대로이고 해시 `629785d470081fcf4f8f159a44021ffcc8f49db441765a09da83265a31881500`도 같다. 구간의 "트리"는 그래프 절이 정한 대로 그래프 4개를 가리키고 판정 규칙 3개의 뜻은 그대로다 | 아니다. 아직 모델 호출이 없어 결과를 본 변경이 아니다 | `7d227ebca` → 이 기록을 더한 커밋 |
+| `dot` 프롬프트에만 `An edge "a" -> "b" means a is a parent of b.` 문장을 더하는 `{edge_note}` 자리를 뒀다. 다른 세 형식의 프롬프트 바이트는 그대로다 | `dot`만 간선 방향의 뜻이 입력에 없었다. 부모 ID 표와 JSON은 `parents`, 인접 리스트는 `children`으로 관계를 드러내므로 `dot`이 부모 방향을 추측해야 하는 차이가 형식 비교에 섞인다. 판정 구간은 그대로다 | 아니다. 호출 전 수정이고 결과를 본 변경이 아니다 | `025f7561b` → 이 기록을 더한 커밋 |
