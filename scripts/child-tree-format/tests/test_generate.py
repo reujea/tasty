@@ -162,10 +162,27 @@ class Generation(unittest.TestCase):
                 rendered = (DATA_DIR / f"rendered/{row['tree']}/{row['format']}.txt").read_text(encoding="utf-8").rstrip("\n")
                 user = build_user_prompt(template, row["format"], rendered, stored["questions"], stored["silent_minutes"], order)
                 self.assertEqual(prompt_hash(system, user), row["prompt_sha256"])
-                for placeholder in ("{format_name}", "{missing_note}", "{T}", "{rendered}", "{N}", "{questions}"):
+                for placeholder in ("{format_name}", "{missing_note}", "{edge_note}", "{T}", "{rendered}", "{N}", "{questions}"):
                     self.assertNotIn(placeholder, user)
                 checked += 1
         self.assertEqual(checked, 6 + 144 + 112 + 84)
+
+    def test_only_dot_says_what_an_edge_means(self):
+        sentence = 'An edge "a" -> "b" means a is a parent of b.'
+        template = (DATA_DIR / "prompts/user.txt").read_text(encoding="utf-8").rstrip("\n")
+        stored = load("questions/dag_40.json")
+        order = [q["id"] for q in stored["questions"]]
+        for fmt in FORMATS:
+            rendered = (DATA_DIR / f"rendered/dag_40/{fmt}.txt").read_text(encoding="utf-8").rstrip("\n")
+            user = build_user_prompt(template, fmt, rendered, stored["questions"], stored["silent_minutes"], order)
+            lines = user.split("\n")
+            with self.subTest(fmt=fmt):
+                if fmt == "dot":
+                    self.assertEqual(lines.count(sentence), 1)
+                    self.assertTrue(lines[lines.index(sentence) - 1].startswith("A missing value"))
+                else:
+                    self.assertNotIn("An edge", user)
+                    self.assertTrue(lines[lines.index("Reference time: 2026-01-05T12:05:00Z") - 1].startswith("A missing value"))
 
     def test_templates_are_the_text_in_the_rules(self):
         text = RULES_PATH.read_text(encoding="utf-8")

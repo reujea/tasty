@@ -2,6 +2,9 @@
 
 from common import FORMAT_NAMES, MISSING_MARK, REFERENCE_TIME, format_time, rng, sha256_bytes
 
+# Only dot lines do not say what an edge means. Other formats name parents or children.
+EDGE_NOTES = {"dot": "\n" + 'An edge "a" -> "b" means a is a parent of b.'}
+
 
 def question_order(call_id, questions):
     """Return the question ids in this call's order. Retries reuse the same order."""
@@ -16,6 +19,7 @@ def build_user_prompt(template, fmt, rendered, questions, minutes, order):
     values = {
         "{format_name}": FORMAT_NAMES[fmt],
         "{missing_note}": f"A missing value is written as {MISSING_MARK[fmt]}.",
+        "{edge_note}": EDGE_NOTES.get(fmt, ""),
         "{T}": format_time(REFERENCE_TIME),
         "{rendered}": rendered,
         "{N}": str(minutes),

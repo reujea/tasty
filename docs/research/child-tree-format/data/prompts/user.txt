@@ -1,6 +1,6 @@
 Each node has an id, a nickname, a state, a cwd and a last_report_at, and has zero or more parents. A node without a parent is a root.
 Graph format: {format_name}
-{missing_note}
+{missing_note}{edge_note}
 Reference time: {T}
 
 <graph>
