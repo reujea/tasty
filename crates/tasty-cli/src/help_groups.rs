@@ -126,7 +126,7 @@ const HOST_AGENT: &[(&str, &str)] = &[
 ];
 
 /// 그룹 제목·시작 안내가 사용하는 번역 키 전체. 도움말 slots 수집 밖의 문구라
-/// `help_i18n_catalog_parity`가 이 목록으로 en/ko/ja 카탈로그를 따로 대조한다.
+/// `help_i18n_catalog_parity`가 이 목록으로 내장 언어 카탈로그를 따로 대조한다.
 pub fn text_keys() -> Vec<String> {
     let groups = ROOT_GROUPS
         .iter()

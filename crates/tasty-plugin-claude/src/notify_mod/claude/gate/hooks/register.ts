@@ -13,6 +13,7 @@ export const register: Register = (on) => {
     en: 'Tasty notification already delivered; duplicate skipped',
     ko: 'Tasty 알림이 이미 전달되어 중복을 건너뜁니다',
     ja: 'Tasty 通知は配信済みのため重複をスキップしました',
+    'zh-Hans': 'Tasty 通知已送达；已跳过重复通知',
   };
   // Names this module copy in the record. An entry still running here is in
   // `running`; one recorded by another copy lost its dispatch with that copy.

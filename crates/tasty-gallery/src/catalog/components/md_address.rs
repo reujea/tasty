@@ -99,6 +99,21 @@ const JA: Copy = Copy {
     waiting: "リモートの応答を待っています…",
 };
 
+const ZH_HANS: Copy = Copy {
+    open: "打开文件…",
+    open_remote: "打开远程文件…",
+    go: "转到",
+    reload: "重新加载",
+    stale: "远程文件已更改，重新加载",
+    disconnected: "已与远程断开连接",
+    not_found: "无法在远程打开 {path}：未找到文件。",
+    rejected: "无法在远程打开 {path}：{reason}",
+    connection_lost: "远程响应前连接已断开。重新连接后重试。",
+    cancelled: "未打开 {path}：远程连接已更改。请重试。",
+    internal: "无法发送打开 {path} 的请求。请重试。",
+    waiting: "仍在等待远程响应…",
+};
+
 const LOCAL_PATH: &str = "~/work/tasty/docs/architecture.md";
 const REMOTE_PATH: &str = "/home/deploy/agents-prod/RUNBOOK.md";
 const LONG_PATH: &str =
@@ -126,7 +141,7 @@ pub(crate) struct Bar<'a> {
 
 /// 언어별 시안 문구. 언어를 등록하면 문구와 함께 여기에 더한다.
 /// 빠지면 `copies_cover_every_builtin_language`가 실패한다.
-const COPIES: &[(&str, &Copy)] = &[("en", &EN), ("ko", &KO), ("ja", &JA)];
+const COPIES: &[(&str, &Copy)] = &[("en", &EN), ("ko", &KO), ("ja", &JA), ("zh-Hans", &ZH_HANS)];
 
 fn copy_for(lang: &str) -> &'static Copy {
     COPIES

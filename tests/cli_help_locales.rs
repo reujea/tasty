@@ -29,6 +29,7 @@ const EXPECTED: &[(&str, &str, &str, &str)] = &[
     ("en", "Usage:", "error:", "for full details"),
     ("ko", "사용법:", "오류:", "자세한 내용"),
     ("ja", "使い方:", "エラー:", "詳細は"),
+    ("zh-Hans", "用法：", "错误：", "查看完整详情"),
 ];
 
 #[test]

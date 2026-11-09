@@ -89,6 +89,7 @@ const LITERAL_TOKEN_ALLOWLIST: &[&str] = &[
     "English",
     "한국어",
     "日本語",
+    "简体中文",
     // 단위
     "KiB",
     "MiB",
@@ -525,7 +526,7 @@ fn no_hardcoded_user_facing_strings() {
     assert!(
         violations.is_empty(),
         "user-facing string literals must go through t() (CLAUDE.md 국제화). Move each to \
-         lang/{{en,ko,ja}}.toml, or if it is a fixed identifier register it in \
+         lang/{{en,ko,ja,zh-Hans}}.toml, or if it is a fixed identifier register it in \
          LITERAL_TOKEN_ALLOWLIST / ALLOWLIST_PATH_PREFIXES with a reason \
          (docs/dev-guide/i18n.md 강제 테스트):\n{}",
         violations.join("\n")

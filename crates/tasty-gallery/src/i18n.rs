@@ -60,6 +60,7 @@ const CATALOGS: &[(&str, &str)] = &[
     ("en", include_str!("../../../lang/en.toml")),
     ("ko", include_str!("../../../lang/ko.toml")),
     ("ja", include_str!("../../../lang/ja.toml")),
+    ("zh-Hans", include_str!("../../../lang/zh-Hans.toml")),
 ];
 
 /// 영어가 아닌 내장 언어. 표본을 언어별로 나란히 그릴 때 쓴다.

@@ -380,7 +380,7 @@ pub struct ThemeChanged {
 /// `language.changed` 페이로드. scope=System. UI 언어 변경.
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct LanguageChanged {
-    /// BCP 47 언어 코드 또는 토큰 (예: "en", "ko", "ja").
+    /// BCP 47 언어 코드 또는 토큰 (예: "en", "ko", "ja", "zh-Hans").
     pub language_code: String,
 }
 

@@ -244,7 +244,7 @@ fn no_bundled_plugin_ships_a_locale_specific_literal() {
     );
     assert!(
         hits.is_empty(),
-        "번들 플러그인 코드에 직접 적은 CJK 문자열이 있다. 사용자·에이전트 문구라면 lang/{{en,ko,ja}}.toml에 키를 두고 Translator::t로 읽는다. 검출 범위가 실제 문구 용도와 맞는지도 확인한다:\n  {}",
+        "번들 플러그인 코드에 직접 적은 CJK 문자열이 있다. 사용자·에이전트 문구라면 lang/{{en,ko,ja,zh-Hans}}.toml에 키를 두고 Translator::t로 읽는다. 검출 범위가 실제 문구 용도와 맞는지도 확인한다:\n  {}",
         hits.join("\n  ")
     );
 }

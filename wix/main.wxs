@@ -136,6 +136,9 @@
                                     <Component Id='PluginClaudeLangKo' Guid='*'>
                                         <File Id='PluginClaudeLangKoFile' Source='crates\tasty-plugin-claude\lang\ko.toml' KeyPath='yes'/>
                                     </Component>
+                                    <Component Id='PluginClaudeLangZhHans' Guid='*'>
+                                        <File Id='PluginClaudeLangZhHansFile' Source='crates\tasty-plugin-claude\lang\zh-Hans.toml' KeyPath='yes'/>
+                                    </Component>
                                 </Directory>
                             </Directory>
                             <Directory Id='PluginClipboardViewerDir' Name='com.tasty.clipboard-viewer'>
@@ -157,6 +160,9 @@
                                     </Component>
                                     <Component Id='PluginClipboardViewerLangKo' Guid='*'>
                                         <File Id='PluginClipboardViewerLangKoFile' Source='crates\tasty-plugin-clipboard-viewer\lang\ko.toml' KeyPath='yes'/>
+                                    </Component>
+                                    <Component Id='PluginClipboardViewerLangZhHans' Guid='*'>
+                                        <File Id='PluginClipboardViewerLangZhHansFile' Source='crates\tasty-plugin-clipboard-viewer\lang\zh-Hans.toml' KeyPath='yes'/>
                                     </Component>
                                 </Directory>
                             </Directory>
@@ -180,6 +186,9 @@
                                     <Component Id='PluginCodexLangKo' Guid='*'>
                                         <File Id='PluginCodexLangKoFile' Source='crates\tasty-plugin-codex\lang\ko.toml' KeyPath='yes'/>
                                     </Component>
+                                    <Component Id='PluginCodexLangZhHans' Guid='*'>
+                                        <File Id='PluginCodexLangZhHansFile' Source='crates\tasty-plugin-codex\lang\zh-Hans.toml' KeyPath='yes'/>
+                                    </Component>
                                 </Directory>
                             </Directory>
                             <Directory Id='PluginGitViewerDir' Name='com.tasty.git-viewer'>
@@ -201,6 +210,9 @@
                                     </Component>
                                     <Component Id='PluginGitViewerLangKo' Guid='*'>
                                         <File Id='PluginGitViewerLangKoFile' Source='crates\tasty-plugin-git-viewer\lang\ko.toml' KeyPath='yes'/>
+                                    </Component>
+                                    <Component Id='PluginGitViewerLangZhHans' Guid='*'>
+                                        <File Id='PluginGitViewerLangZhHansFile' Source='crates\tasty-plugin-git-viewer\lang\zh-Hans.toml' KeyPath='yes'/>
                                     </Component>
                                 </Directory>
                             </Directory>
@@ -224,6 +236,9 @@
                                     <Component Id='PluginHtmlLangKo' Guid='*'>
                                         <File Id='PluginHtmlLangKoFile' Source='crates\tasty-plugin-html\lang\ko.toml' KeyPath='yes'/>
                                     </Component>
+                                    <Component Id='PluginHtmlLangZhHans' Guid='*'>
+                                        <File Id='PluginHtmlLangZhHansFile' Source='crates\tasty-plugin-html\lang\zh-Hans.toml' KeyPath='yes'/>
+                                    </Component>
                                 </Directory>
                             </Directory>
                             <Directory Id='PluginImageDir' Name='com.tasty.image'>
@@ -246,6 +261,9 @@
                                     <Component Id='PluginImageLangKo' Guid='*'>
                                         <File Id='PluginImageLangKoFile' Source='crates\tasty-plugin-image\lang\ko.toml' KeyPath='yes'/>
                                     </Component>
+                                    <Component Id='PluginImageLangZhHans' Guid='*'>
+                                        <File Id='PluginImageLangZhHansFile' Source='crates\tasty-plugin-image\lang\zh-Hans.toml' KeyPath='yes'/>
+                                    </Component>
                                 </Directory>
                             </Directory>
                             <Directory Id='PluginMarkdownDir' Name='com.tasty.markdown'>
@@ -267,6 +285,9 @@
                                     </Component>
                                     <Component Id='PluginMarkdownLangKo' Guid='*'>
                                         <File Id='PluginMarkdownLangKoFile' Source='crates\tasty-plugin-markdown\lang\ko.toml' KeyPath='yes'/>
+                                    </Component>
+                                    <Component Id='PluginMarkdownLangZhHans' Guid='*'>
+                                        <File Id='PluginMarkdownLangZhHansFile' Source='crates\tasty-plugin-markdown\lang\zh-Hans.toml' KeyPath='yes'/>
                                     </Component>
                                 </Directory>
                             </Directory>
@@ -326,42 +347,49 @@
             <ComponentRef Id='PluginClaudeLangEn'/>
             <ComponentRef Id='PluginClaudeLangJa'/>
             <ComponentRef Id='PluginClaudeLangKo'/>
+            <ComponentRef Id='PluginClaudeLangZhHans'/>
             <ComponentRef Id='PluginClipboardViewerBin'/>
             <ComponentRef Id='PluginClipboardViewerManifest'/>
             <ComponentRef Id='PluginClipboardViewerSig'/>
             <ComponentRef Id='PluginClipboardViewerLangEn'/>
             <ComponentRef Id='PluginClipboardViewerLangJa'/>
             <ComponentRef Id='PluginClipboardViewerLangKo'/>
+            <ComponentRef Id='PluginClipboardViewerLangZhHans'/>
             <ComponentRef Id='PluginCodexBin'/>
             <ComponentRef Id='PluginCodexManifest'/>
             <ComponentRef Id='PluginCodexSig'/>
             <ComponentRef Id='PluginCodexLangEn'/>
             <ComponentRef Id='PluginCodexLangJa'/>
             <ComponentRef Id='PluginCodexLangKo'/>
+            <ComponentRef Id='PluginCodexLangZhHans'/>
             <ComponentRef Id='PluginGitViewerBin'/>
             <ComponentRef Id='PluginGitViewerManifest'/>
             <ComponentRef Id='PluginGitViewerSig'/>
             <ComponentRef Id='PluginGitViewerLangEn'/>
             <ComponentRef Id='PluginGitViewerLangJa'/>
             <ComponentRef Id='PluginGitViewerLangKo'/>
+            <ComponentRef Id='PluginGitViewerLangZhHans'/>
             <ComponentRef Id='PluginHtmlBin'/>
             <ComponentRef Id='PluginHtmlManifest'/>
             <ComponentRef Id='PluginHtmlSig'/>
             <ComponentRef Id='PluginHtmlLangEn'/>
             <ComponentRef Id='PluginHtmlLangJa'/>
             <ComponentRef Id='PluginHtmlLangKo'/>
+            <ComponentRef Id='PluginHtmlLangZhHans'/>
             <ComponentRef Id='PluginImageBin'/>
             <ComponentRef Id='PluginImageManifest'/>
             <ComponentRef Id='PluginImageSig'/>
             <ComponentRef Id='PluginImageLangEn'/>
             <ComponentRef Id='PluginImageLangJa'/>
             <ComponentRef Id='PluginImageLangKo'/>
+            <ComponentRef Id='PluginImageLangZhHans'/>
             <ComponentRef Id='PluginMarkdownBin'/>
             <ComponentRef Id='PluginMarkdownManifest'/>
             <ComponentRef Id='PluginMarkdownSig'/>
             <ComponentRef Id='PluginMarkdownLangEn'/>
             <ComponentRef Id='PluginMarkdownLangJa'/>
             <ComponentRef Id='PluginMarkdownLangKo'/>
+            <ComponentRef Id='PluginMarkdownLangZhHans'/>
 
             <Feature
                 Id='Environment'

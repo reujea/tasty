@@ -5,7 +5,7 @@
 //! Lookups before [`init`] read the embedded English table, so a value read
 //! before and after an English `init` is the same string.
 //!
-//! Built-in en/ko/ja text is embedded in the binary. A user `<code>.toml` file
+//! Built-in en/ko/ja/zh-Hans text is embedded in the binary. A user `<code>.toml` file
 //! overrides a built-in language. Other languages need `<code>/pack.toml` with
 //! a valid font declaration. Missing or invalid packs fall back to English
 //! without changing the setting; LoadReport records the reason.
@@ -57,7 +57,7 @@ macro_rules! builtin_languages {
     };
 }
 
-builtin_languages!("en", "ko", "ja");
+builtin_languages!("en", "ko", "ja", "zh-Hans");
 /// Manifest file name inside a language pack directory.
 pub const PACK_FILE_NAME: &str = "pack.toml";
 
@@ -1341,7 +1341,7 @@ mod tests {
     fn scan_without_user_dir_lists_builtins_with_meta_names() {
         let list = scan_languages(None);
         let labels: Vec<&str> = list.iter().map(LanguageEntry::label).collect();
-        assert_eq!(labels, ["English", "한국어", "日本語"]);
+        assert_eq!(labels, ["English", "한국어", "日本語", "简体中文"]);
         assert!(list.iter().all(|l| l.source == LanguageSource::Builtin));
     }
 
@@ -1556,6 +1556,32 @@ mod tests {
         let (tr, report) = Translations::load_from("nn", None);
         assert_eq!(tr.language, "en");
         assert!(matches!(report.outcome, LoadOutcome::PackMissing { .. }));
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    /// 내장 간체 코드는 `zh-Hans` 하나다. 다른 중국어 표기는 별칭으로 받지 않고 다른 미설치 코드처럼
+    /// 영어로 돌아가며 경고를 낸다. 요청한 값은 보고에 그대로 남는다.
+    #[test]
+    fn chinese_codes_other_than_zh_hans_are_not_aliases() {
+        let dir = scenario_dir();
+        let (tr, report) = Translations::load_from("zh-Hans", Some(&dir));
+        assert_eq!(tr.language, "zh-Hans");
+        assert_eq!(report.outcome, LoadOutcome::Builtin);
+        assert!(report.user_warning().is_none());
+        for code in ["zh", "zh-CN", "zh_CN", "zh-hans", "ZH-HANS"] {
+            let (tr, report) = Translations::load_from(code, Some(&dir));
+            assert_eq!(tr.language, "en", "{code}");
+            assert_eq!(report.requested, code);
+            assert_eq!(report.effective, "en", "{code}");
+            assert_eq!(
+                report.outcome,
+                LoadOutcome::PackMissing {
+                    expected: pack_path(&dir, code),
+                },
+                "{code}"
+            );
+            assert!(report.user_warning().is_some(), "{code}");
+        }
         std::fs::remove_dir_all(&dir).ok();
     }
 

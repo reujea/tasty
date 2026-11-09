@@ -1,0 +1,8 @@
+[surface.kind]
+mesh_demo = "egui-mesh 演示"
+
+[file_handler.format]
+mesh_demo = "egui-mesh 演示"
+
+[file_handler.host]
+mesh_demo = "egui-mesh 演示"

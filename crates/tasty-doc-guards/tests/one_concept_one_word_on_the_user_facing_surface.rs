@@ -109,19 +109,23 @@ fn repo_root() -> PathBuf {
 }
 
 const HOST_LANG_FLOOR: Floor = Floor {
-    min: 3,
-    measured: 3,
-    measured_on: "2026-09-07",
-    counted_on: tasty_doc_guards::floored_walk::CountedOn::NEVER_COUNTED,
-    why_this_gap: "호스트 번역 en/ko/ja 세 파일은 모두 필요해 여유를 두지 않았다. 지원 언어가 바뀌면 이 기준도 함께 검토한다.",
+    min: 4,
+    measured: 4,
+    measured_on: "2026-11-10",
+    counted_on: tasty_doc_guards::floored_walk::CountedOn::Tree(
+        "d4e70f3ef에 zh-Hans 언어 파일을 더한 트리 — lang 바로 아래 toml 파일 4개를 셌다.",
+    ),
+    why_this_gap: "호스트 번역 en/ko/ja/zh-Hans 네 파일은 모두 필요해 여유를 두지 않았다. 지원 언어가 바뀌면 이 기준도 함께 검토한다.",
 };
 
 const PLUGIN_LANG_FLOOR: Floor = Floor {
-    min: 15,
-    measured: 27,
-    measured_on: "2026-09-07",
-    counted_on: tasty_doc_guards::floored_walk::CountedOn::NEVER_COUNTED,
-    why_this_gap: "2026-09-07에 플러그인 9개 × 언어 3개로 27개 파일을 측정했다. 플러그인 4개가 정리되는 경우를 허용한 하한 15다. 더 줄면 실제 감소인지 수집 오류인지 확인한다.",
+    min: 20,
+    measured: 36,
+    measured_on: "2026-11-10",
+    counted_on: tasty_doc_guards::floored_walk::CountedOn::Tree(
+        "d4e70f3ef에 zh-Hans 언어 파일을 더한 트리 — 번들 플러그인 lang의 toml 파일 36개를 셌다.",
+    ),
+    why_this_gap: "2026-11-10에 플러그인 9개 × 언어 4개로 36개 파일을 측정했다. 플러그인 4개가 정리되는 경우를 허용한 하한 20이다. 더 줄면 실제 감소인지 수집 오류인지 확인한다.",
 };
 
 type Surface = (String, String);

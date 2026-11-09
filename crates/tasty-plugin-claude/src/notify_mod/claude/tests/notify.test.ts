@@ -150,10 +150,11 @@ it('retirement during an asynchronous read cannot submit or rearm the watcher', 
   expect(f.prompts.length).toBe(0);
 });
 
-test('visible heading has three translations and an English fallback', () => {
+test('visible heading has four translations and an English fallback', () => {
   expect(heading('en')).toContain('not proof');
   expect(heading('ko')).toContain('성공의 증거가 아닙니다');
   expect(heading('ja')).toContain('成功の証拠ではありません');
+  expect(heading('zh-Hans')).toContain('不能证明任务成功');
   expect(heading('unknown')).toBe(heading('en'));
 });
 

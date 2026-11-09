@@ -392,7 +392,7 @@ pub enum PortDiscoveryFailureKind {
 }
 
 impl PortDiscoveryFailureKind {
-    /// 사용자 노출용 문구 키(`lang/{en,ko,ja}.toml` `[ssh.port_discovery]`). ssh.rs 는
+    /// 사용자 노출용 문구 키(`lang/{en,ko,ja,zh-Hans}.toml` `[ssh.port_discovery]`). ssh.rs 는
     /// CLI 전용이 아니라 GUI(remote_attach 팝업)도 공유하므로 `cli.` prefix 를 쓰지
     /// 않는다(`docs/dev-guide/i18n.md` 일반 네이밍 규칙).
     fn i18n_key(self) -> &'static str {

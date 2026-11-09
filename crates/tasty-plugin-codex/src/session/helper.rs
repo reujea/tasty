@@ -889,7 +889,7 @@ mod tests {
             ("en", "ko_KR.UTF-8", "en"),
             ("ja", "en_US.UTF-8", "ja"),
             ("ko", "ja_JP.UTF-8", "ko"),
-            // 등록 전 언어도 값을 바꾸지 않고 번역기까지 전달한다.
+            // 하이픈이 든 내장 코드도 값을 바꾸지 않고 번역기까지 전달한다.
             ("zh-Hans", "en_US.UTF-8", "zh-Hans"),
         ] {
             let vars = [("TASTY_LOCALE", setting), ("LANG", shell)];

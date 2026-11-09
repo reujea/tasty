@@ -14,40 +14,72 @@ const LANGS: &[&str] = &tasty_i18n::BUILTIN_CODES;
 
 /// 영어와 같은 값이 필요한 키·언어·사유다. 기호·약어 등 형태로 인정하는 값은 따로 등록하지 않는다.
 const SAME_AS_ENGLISH_ALLOWLIST: &[(&str, &[&str], &str)] = &[
-    ("settings.number.unit_pt", &["ko", "ja"], "단위 기호"),
-    ("settings.number.unit_s", &["ko", "ja"], "단위 기호"),
+    (
+        "settings.number.unit_pt",
+        &["ko", "ja", "zh-Hans"],
+        "단위 기호",
+    ),
+    (
+        "settings.number.unit_s",
+        &["ko", "ja", "zh-Hans"],
+        "단위 기호",
+    ),
     (
         "settings.anomaly.rss_surge_min_mib.unit",
-        &["ko", "ja"],
+        &["ko", "ja", "zh-Hans"],
         "MiB is the same binary size unit in all locales",
     ),
     (
         "image.state.too_large_size",
-        &["ko", "ja"],
+        &["ko", "ja", "zh-Hans"],
         "숫자 자리와 단위 기호 (× px)",
     ),
-    ("app.name", &["ko", "ja"], "제품명"),
+    ("app.name", &["ko", "ja", "zh-Hans"], "제품명"),
     (
         "explorer.kind.markdown",
-        &["ko", "ja"],
+        &["ko", "ja", "zh-Hans"],
         "형식 이름(고유 명사)",
     ),
-    ("settings.appearance.subtab.tasty", &["ko", "ja"], "제품명"),
+    (
+        "settings.appearance.subtab.tasty",
+        &["ko", "ja", "zh-Hans"],
+        "제품명",
+    ),
     (
         "settings.terminal.shell_mode_tasty",
         &["ko", "ja"],
         "제품명 + rc 파일명",
     ),
-    ("settings.misc.subtab.tastyrc", &["ko", "ja"], "rc 파일명"),
+    (
+        "settings.misc.subtab.tastyrc",
+        &["ko", "ja", "zh-Hans"],
+        "rc 파일명",
+    ),
     (
         "settings.subtab.claude",
-        &["ko", "ja"],
+        &["ko", "ja", "zh-Hans"],
         "제품명 (Claude Code)",
     ),
-    ("settings.subtab.codex", &["ko", "ja"], "제품명 (Codex)"),
-    ("settings.subtab.markdown", &["ko", "ja"], "포맷명"),
-    ("git_viewer.tools_menu_item", &["ko", "ja"], "도구명 (Git)"),
-    ("git_viewer.heading", &["ko", "ja"], "도구명 (Git)"),
+    (
+        "settings.subtab.codex",
+        &["ko", "ja", "zh-Hans"],
+        "제품명 (Codex)",
+    ),
+    (
+        "settings.subtab.markdown",
+        &["ko", "ja", "zh-Hans"],
+        "포맷명",
+    ),
+    (
+        "git_viewer.tools_menu_item",
+        &["ko", "ja", "zh-Hans"],
+        "도구명 (Git)",
+    ),
+    (
+        "git_viewer.heading",
+        &["ko", "ja", "zh-Hans"],
+        "도구명 (Git)",
+    ),
     (
         "git_viewer.diff_heading",
         &["ko", "ja"],
@@ -75,7 +107,7 @@ const SAME_AS_ENGLISH_ALLOWLIST: &[(&str, &[&str], &str)] = &[
     ),
     (
         "remote_tool.field_passkey",
-        &["ko", "ja"],
+        &["ko", "ja", "zh-Hans"],
         "WebAuthn 용어 — 같은 팝업의 탭명(remote_tool.tab_passkeys)도 Passkey 로 통일",
     ),
     (
@@ -130,13 +162,177 @@ const SAME_AS_ENGLISH_ALLOWLIST: &[(&str, &[&str], &str)] = &[
     ),
     (
         "claude.gate.error_prefix",
-        &["ko", "ja"],
+        &["ko", "ja", "zh-Hans"],
         "에러 접두 식별자 (gate:)",
+    ),
+    (
+        "settings.keybindings.subtab.surface",
+        &["zh-Hans"],
+        "zh-Hans 용어집이 Surface 를 라틴 표기로 유지한다",
+    ),
+    (
+        "tutorial.step_surface_title",
+        &["zh-Hans"],
+        "zh-Hans 용어집이 Surface 를 라틴 표기로 유지한다",
+    ),
+    (
+        "remote_tool.field_shell",
+        &["zh-Hans"],
+        "zh-Hans 용어집이 Shell 을 라틴 표기로 유지한다",
+    ),
+    (
+        "attach.tab_title_fallback",
+        &["zh-Hans"],
+        "zh-Hans 용어집이 Shell 을 라틴 표기로 유지한다",
+    ),
+    (
+        "surface.restore.tab_title_fallback",
+        &["zh-Hans"],
+        "zh-Hans 용어집이 Shell 을 라틴 표기로 유지한다",
+    ),
+    (
+        "surface.kind.markdown",
+        &["zh-Hans"],
+        "zh-Hans 용어집이 Markdown 을 라틴 표기로 유지한다",
+    ),
+    (
+        "file_handler.format.markdown",
+        &["zh-Hans"],
+        "zh-Hans 용어집이 Markdown 을 라틴 표기로 유지한다",
     ),
 ];
 
 const MODIFIER_TOKENS: &[&str] = &[
     "Ctrl", "Alt", "Shift", "Cmd", "Command", "Option", "Super", "Meta", "Win", "Fn",
+];
+
+/// 번역이 아직 도착하지 않은 키다. 영어 원문이 번역 기준 커밋 뒤에 생기거나 바뀐 키라 해당 언어 파일에 두지 않고,
+/// 런타임은 영어 바탕으로 대체한다. 번역이 들어오면 항목을 지운다. 지운 키가 여기 남으면 검사가 실패한다.
+/// 영어 값을 복사해 채우지 않는다. 그러면 번역되지 않은 키를 찾을 수 없다.
+const PENDING_TRANSLATION_KEYS: &[(&str, &str, &str)] = &[
+    ("lang", "zh-Hans", "boot.shell_setup.check_valid_git_bash"),
+    ("lang", "zh-Hans", "boot.shell_setup.git_bash_required"),
+    (
+        "lang",
+        "zh-Hans",
+        "cli.help._root.terminal.children.arg.format.help",
+    ),
+    ("lang", "zh-Hans", "cli.plugin_cli.invalid_children_format"),
+    ("lang", "zh-Hans", "settings.terminal.shell_missing_windows"),
+    ("lang", "zh-Hans", "settings.terminal.shell_not_git_bash"),
+    ("lang", "zh-Hans", "sidebar.running_surfaces_tooltip"),
+    ("lang", "zh-Hans", "terminal_error.git_bash_not_found"),
+    ("lang", "zh-Hans", "terminal_error.shell_missing_windows"),
+    ("lang", "zh-Hans", "terminal_error.shell_not_git_bash"),
+    ("lang", "zh-Hans", "boot.shell_setup.check_not_shell"),
+    ("lang", "zh-Hans", "boot.shell_setup.git_bash_missing"),
+    ("lang", "zh-Hans", "cli.help._root.agent.dag-get.about"),
+    (
+        "lang",
+        "zh-Hans",
+        "cli.help._root.agent.dag-get.arg.format.help",
+    ),
+    ("lang", "zh-Hans", "cli.help._root.agent.task-graph.about"),
+    (
+        "lang",
+        "zh-Hans",
+        "cli.help._root.agent.task-graph.arg.format.help",
+    ),
+    (
+        "lang",
+        "zh-Hans",
+        "cli.help._root.memory.count.arg.account.help",
+    ),
+    (
+        "lang",
+        "zh-Hans",
+        "cli.help._root.memory.delete.arg.account.help",
+    ),
+    (
+        "lang",
+        "zh-Hans",
+        "cli.help._root.memory.exists.arg.account.help",
+    ),
+    (
+        "lang",
+        "zh-Hans",
+        "cli.help._root.memory.export.arg.account.help",
+    ),
+    (
+        "lang",
+        "zh-Hans",
+        "cli.help._root.memory.get.arg.account.help",
+    ),
+    (
+        "lang",
+        "zh-Hans",
+        "cli.help._root.memory.list.arg.account.help",
+    ),
+    (
+        "lang",
+        "zh-Hans",
+        "cli.help._root.memory.put.arg.account.help",
+    ),
+    (
+        "lang",
+        "zh-Hans",
+        "cli.help._root.memory.query.arg.account.help",
+    ),
+    (
+        "lang",
+        "zh-Hans",
+        "cli.help._root.memory.secret.count.arg.account.help",
+    ),
+    (
+        "lang",
+        "zh-Hans",
+        "cli.help._root.memory.secret.delete.arg.account.help",
+    ),
+    (
+        "lang",
+        "zh-Hans",
+        "cli.help._root.memory.secret.exists.arg.account.help",
+    ),
+    (
+        "lang",
+        "zh-Hans",
+        "cli.help._root.memory.secret.get.arg.account.help",
+    ),
+    (
+        "lang",
+        "zh-Hans",
+        "cli.help._root.memory.secret.list.arg.account.help",
+    ),
+    (
+        "lang",
+        "zh-Hans",
+        "cli.help._root.memory.secret.put.arg.account.help",
+    ),
+    (
+        "lang",
+        "zh-Hans",
+        "cli.help._root.memory.secret.stats.arg.account.help",
+    ),
+    (
+        "lang",
+        "zh-Hans",
+        "cli.help._root.memory.stats.arg.account.help",
+    ),
+    (
+        "lang",
+        "zh-Hans",
+        "settings.terminal.shell_not_found_windows",
+    ),
+    (
+        "crates/tasty-plugin-claude/lang",
+        "zh-Hans",
+        "claude.cli.arg.children_args.format.help",
+    ),
+    (
+        "crates/tasty-plugin-codex/lang",
+        "zh-Hans",
+        "codex.cli.arg.children_args.format.help",
+    ),
 ];
 
 /// 누락이 알려진 키의 임시 예외다. 키가 추가되면 항목도 제거한다. 새 누락은 수정하는 것이 기본이다.
@@ -390,10 +586,24 @@ fn allowlisted_same(key: &str, lang: &str) -> bool {
         .any(|(k, langs, _)| *k == key && langs.contains(&lang))
 }
 
+fn pending_translation(rel: &str, lang: &str, key: &str) -> bool {
+    PENDING_TRANSLATION_KEYS
+        .iter()
+        .any(|(r, l, k)| *r == rel && *l == lang && *k == key)
+}
+
 #[test]
 fn key_sets_match_english() {
     let mut problems = Vec::new();
-    for cat in catalogs() {
+    let cats = catalogs();
+    for (rel, lang, key) in PENDING_TRANSLATION_KEYS {
+        if !cats.iter().any(|cat| cat.rel == *rel) || !LANGS.contains(lang) {
+            problems.push(format!(
+                "  PENDING_TRANSLATION_KEYS names `{key}` in {rel}/{lang}.toml, which is not a catalog"
+            ));
+        }
+    }
+    for cat in cats {
         let en: BTreeSet<&String> = cat.by_lang["en"].keys().collect();
         for lang in &LANGS[1..] {
             let other: BTreeSet<&String> = cat.by_lang[lang].keys().collect();
@@ -402,7 +612,26 @@ fn key_sets_match_english() {
                 .difference(&other)
                 .filter(|k| one_variant_base(k, &cat.by_lang["en"]).is_none())
             {
+                if pending_translation(&cat.rel, lang, key) {
+                    continue;
+                }
                 problems.push(format!("  {}/{lang}.toml: missing `{key}`", cat.rel));
+            }
+            for (_, _, key) in PENDING_TRANSLATION_KEYS
+                .iter()
+                .filter(|(rel, l, _)| *rel == cat.rel && l == lang)
+            {
+                if !cat.by_lang["en"].contains_key(*key) {
+                    problems.push(format!(
+                        "  {}/{lang}.toml: PENDING_TRANSLATION_KEYS names `{key}`, which en does not have",
+                        cat.rel
+                    ));
+                } else if cat.by_lang[lang].contains_key(*key) {
+                    problems.push(format!(
+                        "  {}/{lang}.toml: `{key}` is translated now — remove it from PENDING_TRANSLATION_KEYS",
+                        cat.rel
+                    ));
+                }
             }
             for key in other.difference(&en) {
                 problems.push(format!(

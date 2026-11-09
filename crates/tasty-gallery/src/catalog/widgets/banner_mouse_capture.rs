@@ -611,6 +611,7 @@ mod tests {
         ("en", (true, false)),
         ("ko", (false, true)),
         ("ja", (false, true)),
+        ("zh-Hans", (true, true)),
     ];
 
     /// 문구는 시안이 정한 쪽에만 붙고, 양쪽이 모두 빈 언어는 없다. 앞 문구는 이름 앞에 공백 하나를 두며,

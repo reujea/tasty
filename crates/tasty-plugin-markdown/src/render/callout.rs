@@ -20,7 +20,7 @@ pub(super) struct CalloutKind {
     /// for the 5 GFM kinds, kept identical so existing CSS/snapshots don't need to change).
     pub(super) class: &'static str,
     /// `Translator` key for the default header label (used whenever no custom title follows the
-    /// tag) — must exist in `lang/{en,ko,ja}.toml`.
+    /// tag) — must exist in `lang/{en,ko,ja,zh-Hans}.toml`.
     pub(super) label_key: &'static str,
     /// [`tasty_icons`] glyph. Its `body` (no wrapping `<svg>`, no color baked in) and `filled`
     /// (`true` colors it via `fill`, `false` via `stroke`) feed [`alert_icon_data_uri`].

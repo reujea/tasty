@@ -10,7 +10,7 @@
 //! - `TASTY_HOST_IPC_PORT`
 //! - `TASTY_PLUGIN_TOKEN`
 //! - `TASTY_HOST_API_VERSION`
-//! - `TASTY_LOCALE` (선택) — 활성 언어 코드 (예: `en`, `ko`, `ja`). 미주입 시 `en` fallback.
+//! - `TASTY_LOCALE` (선택) — 활성 언어 코드 (예: `en`, `ko`, `ja`, `zh-Hans`). 미주입 시 `en` fallback.
 //!   출처는 host 설정 `general.language` — host 본 바이너리가 부팅 시 자기 프로세스 env 에
 //!   set 하고(`src/boot/locale.rs`) host-plugin 이 spawn 시 그대로 propagate 한다
 //!   (`crates/tasty-host-plugin/src/process.rs`). spawn 시점 고정이라 언어 변경은 host
