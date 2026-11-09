@@ -286,21 +286,30 @@ fn preflight_then_root_replacement_is_detected_before_removal() {
     );
 }
 
+/// The line the owned child prints once its profile is prepared. The newline ends it, so the
+/// parent never reads a root that is still being written.
+const ROOT_LINE: &[u8] = b"owned-profile-root=";
 pub(super) struct OwnedChild {
     child: Option<std::process::Child>,
-    receipt: tempfile::NamedTempFile,
+    // Both pipes are read to the end on their own threads, so the child never blocks on a full pipe.
+    stdout: Option<std::thread::JoinHandle<Vec<u8>>>,
+    stderr: Option<std::thread::JoinHandle<Vec<u8>>>,
     pub(super) root: PathBuf,
     pid: u32,
 }
 impl OwnedChild {
+    /// Preparation includes the lock file and owner record fsyncs, so slow storage has no deadline
+    /// here. The child reports its root before it ends, so an end without one fails at once, and
+    /// only a child that never reports reaches `HANG_LIMIT`.
     pub(super) fn start(parent: &Path, restrictive_umask: bool) -> Self {
+        use crate::host_api::webview::http_endpoint::runtime::tests::HANG_LIMIT;
+        use std::io::{BufRead, Read};
         use std::process::{Command, Stdio};
-        use std::time::{Duration, Instant};
-        let receipt = tempfile::NamedTempFile::new().unwrap();
-        disk::set_permissions(receipt.path(), disk::Permissions::from_mode(0o600)).unwrap();
+        use std::sync::mpsc;
         let module = module_path!().split_once("::").unwrap().1;
         let entry = format!("{module}::child_writer");
-        let child = Command::new(std::env::current_exe().unwrap())
+        let started = std::time::Instant::now();
+        let mut child = Command::new(std::env::current_exe().unwrap())
             .args([
                 "--ignored",
                 "--exact",
@@ -309,7 +318,6 @@ impl OwnedChild {
                 "--test-threads=1",
             ])
             .env("TASTY_PROFILE_PROOF_PARENT", parent)
-            .env("TASTY_PROFILE_PROOF_RECEIPT", receipt.path())
             .env(
                 "TASTY_PROFILE_PROOF_UMASK",
                 if restrictive_umask { "1" } else { "0" },
@@ -319,42 +327,102 @@ impl OwnedChild {
             .stderr(Stdio::piped())
             .spawn()
             .unwrap();
+        let (roots, root) = mpsc::channel();
+        let mut stdout = std::io::BufReader::new(child.stdout.take().unwrap());
+        let stdout = std::thread::spawn(move || {
+            let mut all = Vec::new();
+            let mut line = Vec::new();
+            loop {
+                match stdout.read_until(b'\n', &mut line) {
+                    Ok(0) => break,
+                    Ok(_) => {}
+                    Err(error) => {
+                        tracing::warn!("owned child stdout: {error}");
+                        break;
+                    }
+                }
+                if let Some(path) = line.strip_prefix(ROOT_LINE)
+                    && let Some(path) = path.strip_suffix(b"\n")
+                    && let Err(error) = roots.send(path.to_vec())
+                {
+                    tracing::warn!("owned child root has no reader: {error}");
+                }
+                all.append(&mut line);
+            }
+            all
+        });
+        let mut stderr_pipe = child.stderr.take().unwrap();
+        let stderr = std::thread::spawn(move || {
+            let mut all = Vec::new();
+            if let Err(error) = stderr_pipe.read_to_end(&mut all) {
+                tracing::warn!("owned child stderr: {error}");
+            }
+            all
+        });
         let pid = child.id();
         let mut owned = Self {
             child: Some(child),
-            receipt,
+            stdout: Some(stdout),
+            stderr: Some(stderr),
             root: PathBuf::new(),
             pid,
         };
-        let deadline = Instant::now() + Duration::from_secs(5);
-        loop {
-            let bytes = disk::read(owned.receipt.path()).unwrap();
-            if !bytes.is_empty() {
+        match root.recv_timeout(HANG_LIMIT) {
+            Ok(path) => {
                 use std::os::unix::ffi::OsStringExt;
-                owned.root = std::ffi::OsString::from_vec(bytes).into();
-                break;
+                owned.root = std::ffi::OsString::from_vec(path).into();
+                owned
             }
-            assert!(
-                Instant::now() < deadline,
-                "owned child profile preparation timed out"
-            );
-            assert!(
-                owned.child.as_mut().unwrap().try_wait().unwrap().is_none(),
-                "owned child exited before receipt"
-            );
-            std::thread::sleep(Duration::from_millis(2));
+            Err(mpsc::RecvTimeoutError::Disconnected) => {
+                owned.abort("ended its output without a profile root", started)
+            }
+            Err(mpsc::RecvTimeoutError::Timeout) => owned.abort(
+                &format!("hung, no profile root within {HANG_LIMIT:?}"),
+                started,
+            ),
         }
-        owned
+    }
+    /// Reaps the child first, so the panic leaves nothing for `Drop` to wait on or judge.
+    fn abort(&mut self, what: &str, started: std::time::Instant) -> ! {
+        let mut child = self.child.take().unwrap();
+        let alive = match child.try_wait() {
+            Ok(None) => "alive".to_owned(),
+            Ok(Some(status)) => format!("ended {status}"),
+            Err(error) => format!("unknown ({error})"),
+        };
+        if let Err(error) = child.kill() {
+            tracing::warn!("owned child kill: {error}");
+        }
+        let status = child.wait();
+        let (stdout, stderr) = self.drained();
+        panic!(
+            "owned child pid={} {what}: after {:?}, child {alive}, reaped {status:?}\n\
+             stderr:\n{stderr}\nstdout:\n{stdout}",
+            self.pid,
+            started.elapsed()
+        );
+    }
+    fn drained(&mut self) -> (String, String) {
+        let text = |pipe: Option<std::thread::JoinHandle<Vec<u8>>>| match pipe.map(|p| p.join()) {
+            Some(Ok(bytes)) => String::from_utf8_lossy(&bytes).into_owned(),
+            Some(Err(_)) => "<reader panicked>".to_owned(),
+            None => String::new(),
+        };
+        (text(self.stdout.take()), text(self.stderr.take()))
+    }
+    /// Closes stdin so the child ends normally, then waits for it and both of its pipes.
+    fn reaped(&mut self) -> Option<(std::process::ExitStatus, String)> {
+        let mut child = self.child.take()?;
+        drop(child.stdin.take());
+        let status = child
+            .wait()
+            .unwrap_or_else(|error| panic!("owned child wait failed: {error}"));
+        let (_, stderr) = self.drained();
+        Some((status, stderr))
     }
     pub(super) fn finish(&mut self) {
-        let mut child = self.child.take().unwrap();
-        drop(child.stdin.take());
-        let output = child.wait_with_output().unwrap();
-        assert!(
-            output.status.success(),
-            "owned child failed: {}",
-            String::from_utf8_lossy(&output.stderr)
-        );
+        let (status, stderr) = self.reaped().unwrap();
+        assert!(status.success(), "owned child failed: {stderr}");
         assert!(!Path::new(&format!("/proc/{}", self.pid)).exists());
         tracing::info!(
             "owned-profile-child pid={} normal_exit=0 absent=true",
@@ -364,28 +432,38 @@ impl OwnedChild {
 }
 impl Drop for OwnedChild {
     fn drop(&mut self) {
-        if let Some(mut child) = self.child.take() {
-            drop(child.stdin.take());
-            match child.wait() {
-                Ok(status) => assert!(status.success()),
-                Err(e) => panic!("owned child wait failed: {e}"),
+        let Some((status, stderr)) = self.reaped() else {
+            return;
+        };
+        // A test that is already failing keeps its own message; a second panic would abort the binary.
+        if std::thread::panicking() {
+            if !status.success() {
+                tracing::warn!("owned child failed during a failing test: {status} {stderr}");
             }
+        } else {
+            assert!(status.success(), "owned child failed: {stderr}");
         }
     }
 }
 #[test]
 #[ignore = "owned subprocess entry, invoked only with isolated proof paths"]
 fn child_writer() {
-    use std::io::Read;
+    use std::io::{Read, Write};
     let parent = std::env::var_os("TASTY_PROFILE_PROOF_PARENT").expect("owned test parent");
-    let receipt = std::env::var_os("TASTY_PROFILE_PROOF_RECEIPT").expect("owned test receipt");
     if std::env::var_os("TASTY_PROFILE_PROOF_UMASK").as_deref() == Some(std::ffi::OsStr::new("1")) {
         // SAFETY: this is the dedicated owned child process; it changes no parent's umask.
         unsafe { libc::umask(0o777) };
     }
     let profile = admitted(|| PreparedProfile::create(Path::new(&parent), 1)).unwrap();
     let lease = profile.into_native();
-    disk::write(receipt, lease.root().as_os_str().as_bytes()).unwrap();
+    let root = lease.root().as_os_str().as_bytes();
+    assert!(!root.contains(&b'\n'), "a root line holds no newline");
+    let mut out = std::io::stdout().lock();
+    // The harness has already printed this test's name without a newline.
+    out.write_all(&[b"\n", ROOT_LINE, root, b"\n"].concat())
+        .unwrap();
+    out.flush().unwrap();
+    drop(out);
     let mut byte = [0];
     let received = std::io::stdin().read(&mut byte).unwrap();
     assert_eq!(received, 0, "owned parent closes stdin for normal exit");
