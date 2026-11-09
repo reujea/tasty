@@ -390,6 +390,19 @@ CI 는 `.github/workflows/crossplatform-check.yml` 의 `check-headless` 잡이 �
   시작할 때 `/proc/thread-self` 로 자기 `stat` 경로를 넘기고, Linux 가 아니면 진행 없는 시간을 모두 센다.
   batch 마다 400ms 쉬게 한 writer 는 예전 기한으로 60.03초에 `last_batch: Some(148)` 에서 실패했고 지금은
   89.09초에 통과한다. batch 11 뒤 멈춘 writer 는 10.08초에 실패한다.
+- 순서대로 처리하는 worker의 결과는 fence로 받고 시간으로 판정하지 않는다: 원격 파일 시험
+  (`remote_file_tests`)은 `poll_file_writer`와 `try_recv`를 벽시계 5초 동안 돌았다. Windows에서 CPU 바쁜
+  프로세스 48개를 띄우면 `held_inline_add_and_remove_answer_original_callers_once_with_actual_operations`가
+  20회 중 10회 `original remote caller never completed`로 실패했고, 기한이 지난 13건의 계측은 모두 worker가
+  파일을 교체하는 중이었다. 지금은 `file_writer::settle::settle`이 큐에 flush를 넣고 그 완료를 조건 변수로
+  기다린다. flush가 끝나면 앞의 요청은 모두 결과를 냈으므로, 거둔 뒤에도 응답이 없으면 느린 것이 아니라
+  잃은 것이라 시간과 무관하게 바로 실패한다. Linux에서 fsync마다 3초를 쉬게 하면 수정 전에는 두 시험이
+  같은 메시지로 실패했고 수정 후에는 9초에 통과한다. 10초를 쉬게 해도 30~33초에 통과한다. 응답 전달을 막은
+  변이에서는 대상 시험 8개 중 응답을 기다리는 6개가 실패하고, 전체 실행은 0.15초에 끝난다.
+  - 정체 감지는 별도 계약이다. 교착을 시간 없이 판별할 수 없으므로 `HANG_LIMIT`(벽시계 300초)이
+    끝나지 않는 대기만 끝낸다. `StallBudget`을 쓰지 않은 이유는 Windows에서 쉰 시간을 모두 세어 10초 기한과
+    다르지 않기 때문이다. 잠금을 놓지 않은 변이는 301초에 flush 대기로 실패한다. 부하가 이 상한을 넘기면
+    다시 실패할 수 있지만 그때의 메시지는 응답 유실과 구별되고 writer 계측을 함께 출력한다.
 - 제품이 시각으로 판정하면 시험이 시각을 정한다: tasty-task-runtime 의 TTL 갱신 시험은 러너가
   tick 마다 갱신하는 lease·permit 이 TTL(300ms) 뒤에도 남는지 본다. 실제 시각으로 tick 을 돌리면
   부하로 tick 이 늦을 때 갱신 전에 만료돼 실패했다. 지금은 `HostExecutor` 가 점유를 얻고 갱신할 때

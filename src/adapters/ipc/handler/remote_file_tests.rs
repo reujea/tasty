@@ -2,7 +2,11 @@ use crate::adapters::ipc::handler::{
     deferred::{MemoryReplies, ReplyTo},
     passkey, remote_profile,
 };
-use crate::app::{remote_file_commands::Failure, services::AppServices};
+use crate::app::{
+    file_writer::settle::{HANG_LIMIT, settle},
+    remote_file_commands::Failure,
+    services::AppServices,
+};
 use serde_json::json;
 use std::{
     sync::{Arc, mpsc},
@@ -36,23 +40,15 @@ fn park(core: &Core, placeholder: JsonRpcResponse) -> mpsc::Receiver<JsonRpcResp
     rx
 }
 fn receive(core: &mut Core, rx: &mpsc::Receiver<JsonRpcResponse>) -> JsonRpcResponse {
-    let deadline = Instant::now() + Duration::from_secs(5);
-    loop {
-        core.poll_file_writer();
-        assert!(MemoryReplies::poll(core).is_empty());
-        if let Ok(reply) = rx.try_recv() {
-            return reply;
-        }
-        assert!(
-            Instant::now() < deadline,
-            "original remote caller never completed"
-        );
-        std::thread::yield_now();
-    }
+    settle(&core.file_command_queue().unwrap());
+    core.poll_file_writer();
+    assert!(MemoryReplies::poll(core).is_empty());
+    rx.try_recv()
+        .expect("the file writer finished without answering the original remote caller")
 }
 fn drain(core: &mut Core) {
     core.profile_detections.begin_shutdown();
-    let deadline = Instant::now() + Duration::from_secs(5);
+    let deadline = Instant::now() + HANG_LIMIT;
     while core.profile_detections.poll_shutdown() != 0 {
         core.poll_file_writer();
         assert!(Instant::now() < deadline);
@@ -76,7 +72,7 @@ fn counts_after_bootstrap(core: &Core) -> crate::app::file_writer::FileWriteCoun
         .flush(batch_writer::FlushPoint::START)
         .unwrap();
     fence
-        .wait_timeout(Duration::from_secs(5))
+        .wait_timeout(HANG_LIMIT)
         .expect("bootstrap file fence completed")
         .expect("bootstrap file work succeeded");
     let (queue, counts) = core.file_writer_stats().unwrap();

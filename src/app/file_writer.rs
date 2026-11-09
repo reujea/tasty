@@ -7,6 +7,8 @@
 
 pub(crate) mod command;
 mod measurements;
+#[cfg(test)]
+pub(crate) mod settle;
 
 use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::sync::Arc;
