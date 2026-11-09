@@ -236,6 +236,22 @@ class Failures(Base):
         self.assertTrue(raw[-1]["response_text"])
         self.assertEqual(self.log()[-1]["reason"], "allowed_warning")
 
+    def test_a_rejected_call_that_hangs_stops_the_run(self):
+        first = next(i for i, r in enumerate(self.rows()) if MODELS[r["model"]]["cli"] == "claude")
+        self.scenarios(["normal"] * first + ["rejected_then_hang"])
+        self.assertEqual(runner.run(self.config(timeout=1)), 3)
+        self.assertEqual(self.raw()[-1]["error_kind"], "rate_limited")
+        self.assertEqual(self.log()[-1]["reason"], "usage_limit")
+        self.assertEqual(len(self.raw()), first + 1)
+
+    def test_a_warning_on_a_failed_call_stops_without_a_retry(self):
+        first = next(i for i, r in enumerate(self.rows()) if MODELS[r["model"]]["cli"] == "claude")
+        self.scenarios(["normal"] * first + ["warning_then_error"])
+        self.assertEqual(runner.run(self.config()), 3)
+        self.assertEqual(self.raw()[-1]["error_kind"], "api_error")
+        self.assertEqual(self.log()[-1]["reason"], "allowed_warning")
+        self.assertEqual(len(self.raw()), first + 1)
+
     def test_an_abort_stays_until_a_resume_and_is_logged_once(self):
         self.scenarios(["http_429"])
         self.assertEqual(runner.run(self.config()), 3)

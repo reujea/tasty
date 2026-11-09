@@ -157,7 +157,9 @@ def run_call(cfg, row, attempt, kind):
     else:
         parsed = parse_codex(stdout, returncode)
     if timed_out:
-        parsed.update(error_kind="timeout", response_text=None)
+        # A usage stop seen before the kill must stay visible.
+        kind = "rate_limited" if parsed["error_kind"] == "rate_limited" else "timeout"
+        parsed.update(error_kind=kind, response_text=None)
     return {
         "call_id": row["call_id"],
         "attempt": attempt,

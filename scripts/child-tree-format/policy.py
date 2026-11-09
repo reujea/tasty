@@ -42,8 +42,6 @@ def _apply_record(ledger, record):
     windows = record.get("windows") or {}
     if outcome == "scored":
         ledger.done.add(call)
-        if windows.get("status") == "allowed_warning":
-            _abort(ledger, "allowed_warning", call=call)
     elif outcome == "tool_violation":
         model = record["model"]
         ledger.violations[model] = ledger.violations.get(model, 0) + 1
@@ -53,13 +51,28 @@ def _apply_record(ledger, record):
         ledger.api_fails[call] = ledger.api_fails.get(call, 0) + 1
         if ledger.api_fails[call] >= 3:
             _abort(ledger, "api_failure_exhausted", call=call, failures=ledger.api_fails[call])
-    else:
-        _abort(ledger, "usage_limit", call=call, status_code=record.get("status_code"))
+    _apply_usage_stop(ledger, record, windows)
     cli = MODELS[record["model"]]["cli"]
     used = windows.get("seven_day_percent")
     allowed = ledger.approved_u.get(cli)
     if used is not None and allowed is not None and used >= allowed + U_MARGIN and not ledger.abort:
         _abort(ledger, "u_exceeded", used=used, approved=allowed, cli=cli)
+
+
+def _apply_usage_stop(ledger, record, windows):
+    """Stop on a usage signal whatever else the call did, so no retry spends more.
+
+    Usage stops replace an API stop because they ask more of a resume. A second
+    tool violation stays, because that run must never resume.
+    """
+    if ledger.abort == "tool_violation_twice":
+        return
+    call = record["call_id"]
+    known = record.get("error_kind") in (None, "api_error", "timeout")
+    if windows.get("status") == "rejected" or not known:
+        _abort(ledger, "usage_limit", call=call, status_code=record.get("status_code"))
+    elif windows.get("status") == "allowed_warning":
+        _abort(ledger, "allowed_warning", call=call)
 
 
 def _abort(ledger, reason, **values):

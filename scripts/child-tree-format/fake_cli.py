@@ -20,6 +20,7 @@ SESSION_MARK = "session-that-must-not-be-stored"
 SCENARIOS = {
     "normal", "tool_call", "json_error", "api_error", "timeout", "allowed_warning",
     "rejected", "http_429", "usage_message", "no_result", "crash", "high_usage",
+    "rejected_then_hang", "warning_then_error",
 }
 
 
@@ -41,12 +42,17 @@ def emit(event):
 
 def claude(scenario, prompt):
     emit({"type": "system", "subtype": "init", "cwd": os.getcwd(), SESSION_KEY: SESSION_MARK})
-    status = {"allowed_warning": "allowed_warning", "rejected": "rejected"}.get(scenario, "allowed")
+    status = {
+        "allowed_warning": "allowed_warning", "warning_then_error": "allowed_warning",
+        "rejected": "rejected", "rejected_then_hang": "rejected",
+    }.get(scenario, "allowed")
     seven = 0.9 if scenario == "high_usage" else 0.2
     emit({"type": "rate_limit_event", "rate_limit_info": {
         "status": status, "rateLimitType": "five_hour", "resetsAt": 1, "utilization": 0.1,
         "unifiedWindows": {"seven_day": {"utilization": seven}},
     }})
+    if scenario == "rejected_then_hang":
+        time.sleep(60)
     content = [{"type": "thinking", "thinking": "x"}, {"type": "text", "text": "y"}]
     if scenario == "tool_call":
         content.append({"type": "tool_use", "name": "Bash", "input": {}})
@@ -62,7 +68,7 @@ def claude(scenario, prompt):
         "duration_ms": 5, "duration_api_ms": 4, "total_cost_usd": 0.01, SESSION_KEY: SESSION_MARK,
         "result": "not json at all" if scenario == "json_error" else answer(prompt),
     }
-    if scenario == "api_error":
+    if scenario in ("api_error", "warning_then_error"):
         result.update(subtype="error_during_execution", is_error=True, result="/private/path failed", api_error_status=500)
     if scenario == "http_429":
         result.update(is_error=True, result="busy", api_error_status=429)
@@ -79,7 +85,7 @@ def codex(scenario, prompt):
     emit({"type": "item.completed", "item": {"type": "reasoning", "text": "x"}})
     if scenario == "tool_call":
         emit({"type": "item.completed", "item": {"type": "command_execution", "command": "ls"}})
-    if scenario in ("api_error", "http_429", "usage_message", "rejected"):
+    if scenario in ("api_error", "http_429", "usage_message", "rejected", "rejected_then_hang", "warning_then_error"):
         text = {"api_error": "/private/path failed", "http_429": "429 busy"}.get(scenario, "usage limit reached")
         emit({"type": "turn.failed", "error": {"message": text}})
         return 1

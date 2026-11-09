@@ -75,6 +75,30 @@ class Schedule(unittest.TestCase):
         self.assertIn("a", ledger.done)
         self.assertEqual(ledger.abort, "allowed_warning")
 
+    def test_usage_signals_stop_whatever_else_the_call_did(self):
+        cases = [
+            (raw("a", error="api_error", status="allowed_warning"), "allowed_warning"),
+            (raw("a", error="timeout", status="allowed_warning"), "allowed_warning"),
+            (raw("a", tools=1, status="allowed_warning"), "allowed_warning"),
+            (raw("a", error="timeout", status="rejected"), "usage_limit"),
+            (raw("a", error="api_error", status="rejected"), "usage_limit"),
+            (raw("a", tools=1, status="rejected"), "usage_limit"),
+            (raw("a", error="rate_limited", tools=1), "usage_limit"),
+            (raw("a", status="rejected"), "usage_limit"),
+        ]
+        for record, want in cases:
+            with self.subTest(record=record):
+                self.assertEqual(step([record]), ("abort", want))
+
+    def test_a_usage_stop_replaces_an_api_stop_because_it_asks_more_of_a_resume(self):
+        records = [raw("a", error="api_error"), raw("a", error="api_error"), raw("a", error="api_error", status="allowed_warning")]
+        self.assertEqual(step(records), ("abort", "allowed_warning"))
+
+    def test_a_second_violation_keeps_its_stop_under_a_usage_signal(self):
+        records = [raw("a", tools=1), raw("a"), raw("b", tools=1, status="rejected")]
+        self.assertEqual(step(records), ("abort", "tool_violation_twice"))
+        self.assertFalse(policy.resume_decision(policy.replay(records), 5, True, "someone")[0])
+
     def test_every_run_after_the_first_counts_against_the_cap(self):
         records = [raw("a", tools=1), raw("a"), raw("b", error="api_error")]
         self.assertEqual(policy.replay(records).retries_used, 1)
