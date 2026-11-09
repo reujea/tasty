@@ -1,4 +1,4 @@
-//! 빈 DAG, 사라진 DAG, popup 의 DAG 없음·검색 결과 없음, 순환 경고 예제. 순환이 있어도 그래프는 계속 그린다.
+//! 포커스·비포커스 바탕의 빈 DAG, 사라진 DAG, popup 의 DAG 없음·검색 결과 없음, 순환 경고 예제. 순환이 있어도 그래프는 계속 그린다.
 
 use tasty_type_appearance::theme::Theme;
 
@@ -10,14 +10,13 @@ fn empty_height(theme: &Theme) -> f32 {
     theme.dag_detail_log_max_height().value()
 }
 
-fn empty_box(ui: &mut egui::Ui, theme: &Theme, case: chrome::Empty<'_>) {
+fn empty_box(ui: &mut egui::Ui, theme: &Theme, ground: egui::Color32, case: chrome::Empty<'_>) {
     let (rect, _) = ui.allocate_exact_size(
         egui::vec2(ui.available_width(), empty_height(theme)),
         egui::Sense::hover(),
     );
     let radius = theme.corner_radius.value();
-    ui.painter()
-        .rect_filled(rect, radius, theme.bg_panel().to_egui());
+    ui.painter().rect_filled(rect, radius, ground);
     ui.painter().rect_stroke(
         rect,
         radius,
@@ -31,11 +30,19 @@ fn empty_box(ui: &mut egui::Ui, theme: &Theme, case: chrome::Empty<'_>) {
 pub fn draw(ui: &mut egui::Ui, theme: &Theme) {
     let cycle = super::cycle_dag();
     spec::stage(ui, theme, StageVariant::Column, |ui| {
-        empty_box(ui, theme, chrome::Empty::Surface);
-        empty_box(ui, theme, chrome::Empty::Missing("nightly-release"));
-        empty_box(ui, theme, chrome::Empty::Popup);
-        empty_box(ui, theme, chrome::Empty::Search("deploy"));
-        empty_box(ui, theme, chrome::Empty::Filtered);
+        let bed = |focused| tasty_ui_widgets::surface_bed(theme, focused);
+        let popup = theme.bg_panel().to_egui();
+        empty_box(ui, theme, bed(true), chrome::Empty::Surface);
+        empty_box(ui, theme, bed(false), chrome::Empty::Surface);
+        empty_box(
+            ui,
+            theme,
+            bed(true),
+            chrome::Empty::Missing("nightly-release"),
+        );
+        empty_box(ui, theme, popup, chrome::Empty::Popup);
+        empty_box(ui, theme, popup, chrome::Empty::Search("deploy"));
+        empty_box(ui, theme, popup, chrome::Empty::Filtered);
         let ids = cycle.cycle.clone().unwrap_or_default();
         let (rect, _) = ui.allocate_exact_size(
             egui::vec2(ui.available_width(), theme.dag_cycle_height().value()),
@@ -50,7 +57,11 @@ pub fn draw(ui: &mut egui::Ui, theme: &Theme) {
         &[
             ("banner", "28px · pinned to canvas top"),
             ("banner copy", "names the cycle path"),
-            ("empty A", "surface — how a DAG appears"),
+            (
+                "empty A",
+                "surface — how a DAG appears, on surface-bed-focused or surface-bed-unfocused",
+            ),
+            ("empty glyph", "glyph-dim, one ink on every ground"),
             (
                 "empty A′",
                 "surface — the DAG it showed is gone (host only)",
@@ -74,7 +85,7 @@ pub fn draw(ui: &mut egui::Ui, theme: &Theme) {
                 "banner text",
                 theme.dag_cycle_fg().to_egui(),
             ),
-            TokenChip::without_color("text-disabled", "empty glyph"),
+            TokenChip::new("glyph-dim", "empty glyph", theme.glyph_dim().to_egui()),
         ],
     );
     spec::note(

@@ -21,7 +21,7 @@
 | `state-disabled-fg` | `state_disabled_fg()` → `text-disabled` | `#7f849c` | disabled 컨트롤의 잉크(라벨·아이콘·체크·thumb). component `button-disabled-fg` 가 가리킨다 |
 | `state-disabled-fill` | `state_disabled_fill()` → `surface-raised` | `#313244` | disabled 컨트롤의 박스 채움. 모든 Button 변형(ghost 제외)·solid IconButton·Input·Select 트리거·Checkbox 박스·Switch 트랙이 같은 채움을 쓴다. component `button-disabled-bg` |
 | `state-disabled-border` | `state_disabled_border()` → `border-default` | — | disabled 컨트롤의 박스 테두리. component `button-disabled-border` |
-| `glyph-dim` | `overlay0` | `#6c7086` | 덜 강조할 창 아이콘(사이드바 dim chevron·dim 아이콘·상태바 글리프). `text-placeholder` 와 값만 같고 role 이 다르다 — **disabled 용이 아니다** |
+| `glyph-dim` | `overlay0` | `#6c7086` | 덜 강조할 창 아이콘(사이드바 dim chevron·dim 아이콘·상태바 글리프)과 DAG 빈 상태 글리프. `text-placeholder` 와 값만 같고 role 이 다르다 — **disabled 용이 아니다** |
 | `border-frame` | `surface2` | `#585b70` | 틀의 선 **넷**(popup 프레임 · titlebar 아래 선 · pane divider · GPU 비활성 보더). popup **내부** 구분선은 `border-strong` 에 남는다. 시안이 메뉴형으로 그리는 host 팝업(Tools 메뉴 · 레일 카테고리 메뉴 · 검색 바 · 마우스 캡처 배너 더보기 메뉴)의 셸 테두리도 `border-strong` 이다(`popup/draw.rs` 의 `popup_border`). `surface-active` 와 값만 같다 |
 | `accent-decorative` | `peach` | `#fab387` | 헤더 장식 accent(Plugins 창 헤더 glyph). `accent-attention`(주의 환기)과 값만 같다 |
 | `accent-primary` | `accent_primary()` | `#89b4fa` | primary 버튼·포커스·활성 탭 언더라인 |

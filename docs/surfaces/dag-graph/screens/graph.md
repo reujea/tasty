@@ -137,7 +137,7 @@ tasty split --level surface --surface <SID> --type dag_graph
 | 죽은 경로 | 실패/취소/스킵의 하류 중 아직 terminal 이 아닌 노드는 흐리게, 그 엣지는 불투명도 없이 `dag-edge-dim` 잉크로. `fallback` 엣지는 상류 실패가 발동 조건이라 전파하지 않는다 |
 | 폴링 실패 | 마지막으로 성공한 그래프를 그대로 둔다(일시적 실패로 그래프가 사라졌다 나타나면 더 혼란스럽다) |
 
-task 없음과 사라진 DAG 두 빈 상태는 공용 `tasty_ui_widgets::paint_dag_empty`로 그린다. 갤러리 `dag-states` 예제도 같은 함수와 같은 문구 키를 쓴다. 글리프(24, text-disabled) · 제목(body, text-secondary) · 안내(caption, text-muted, measure-sm 폭 줄바꿈)를 `spacing_sm` 간격으로 가운데에 쌓고, 안내의 백틱 구간은 code run으로 그린다. 안내는 줄마다 가운데에 맞추므로 다음 줄로 넘어간 명령도 가운데에 온다.
+task 없음과 사라진 DAG 두 빈 상태는 공용 `tasty_ui_widgets::paint_dag_empty`로 그린다. 갤러리 `dag-states` 예제도 같은 함수와 같은 문구 키를 쓴다. 글리프(24, glyph-dim. 두 바탕과 popup이 같은 잉크) · 제목(body, text-secondary) · 안내(caption, text-muted, measure-sm 폭 줄바꿈)를 `spacing_sm` 간격으로 가운데에 쌓고, 안내의 백틱 구간은 code run으로 그린다. 안내는 줄마다 가운데에 맞추므로 다음 줄로 넘어간 명령도 가운데에 온다.
 
 ## 갱신과 비용
 

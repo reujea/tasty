@@ -1432,7 +1432,7 @@ Mocha·Latte는 고정 테마(`mocha_fallback`·`latte_theme`)로 위아래에 �
 | `Minimap` | `chrome::paint_minimap` (줌 클러스터 바로 위, 스킵·취소 노드는 `dag-minimap-node-dim`) | `dag/chrome.rs::paint_minimap` (`dag-chrome` spec) |
 | `CycleBanner` | `chrome::draw_cycle_banner` | `dag/chrome.rs::paint_cycle_banner` (`dag-states` spec) |
 | LOD 힌트 칩 | `chrome::paint_lod_chip` | `dag/chrome.rs::paint_lod_chip` (캔버스 안) |
-| `DagEmpty` | surface `chrome::draw_empty`, 목록 popup `popup/dag_list.rs::draw_empty` → 공용 `tasty_ui_widgets::paint_dag_empty` | `dag/chrome.rs::paint_empty` → 같은 `paint_dag_empty` (`dag-states` spec — surface·사라진 DAG 두 장, popup 변형 한 장, search 변형 한 장. 모두 본체 문구 키) |
+| `DagEmpty` | surface `chrome::draw_empty`, 목록 popup `popup/dag_list.rs::draw_empty` → 공용 `tasty_ui_widgets::paint_dag_empty` | `dag/chrome.rs::paint_empty` → 같은 `paint_dag_empty` (`dag-states` spec — surface는 포커스·비포커스 바탕 두 장, 사라진 DAG 한 장, popup·search·filter 변형은 `bg-panel` 위 세 장. 글리프는 모두 `glyph-dim`. 모두 본체 문구 키) |
 | `DagDetail` / `DetailRow` / `LogBlock` | `detail::draw_detail` / `row` / `labeled_block` | `dag/detail.rs::draw_body` (`dag-detail` spec) |
 | `DagSurface` | `render::draw_dag_graph` + `DagChrome::Own` (헤더는 `chrome::draw_header`) | `dag/surface.rs::paint` (`dag-surface` spec). `focused`를 넘기면 캔버스가 `surface_bed`를 쓰고, 워크스페이스 팝업은 `dag-canvas-bg`를 유지한다 |
 | `DagWindow` 디테일 back bar actions | `chrome::draw_detail_backbar_actions` (줌 클러스터 + 러너 배지) | `dag/window.rs::detail_view` (`dag-window-detail` spec) |
