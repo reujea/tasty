@@ -54,6 +54,9 @@ pub(crate) struct GateProgress {
     judged: bool,
     record: Option<RecordFetch>,
     outcome: Option<RecordOutcome>,
+    /// plugin 정지 요청이면 대상 plugin에 바쁜지 물은 것(`plugin_busy`). 한 번만 묻는다.
+    busy_asked: bool,
+    busy: Option<super::plugin_busy::BusyProbe>,
 }
 
 impl GateProgress {
@@ -67,7 +70,49 @@ impl GateProgress {
         self.poll_with(core, false)
     }
 
+    /// plugin 정지 요청이면 대상 plugin에 바쁜지 묻기 시작한다. 물었으면 `Pending`이고 요청을 줄에 둔다.
+    /// 권한 게이트보다 먼저 부르고, 답은 [`Self::busy_refusal`]로 권한 게이트 뒤에 읽는다.
+    pub(crate) fn ask_busy(
+        &mut self,
+        plugins: Option<&mut crate::plugin::PluginManager>,
+        request: &JsonRpcRequest,
+    ) -> Step<()> {
+        if std::mem::replace(&mut self.busy_asked, true) {
+            return Step::Ready(());
+        }
+        self.busy = super::plugin_busy::begin(plugins, request);
+        if self.busy.as_mut().is_some_and(|probe| !probe.poll(false)) {
+            Step::Pending
+        } else {
+            Step::Ready(())
+        }
+    }
+
+    #[cfg(test)]
+    pub(crate) fn with_busy_probe(probe: super::plugin_busy::BusyProbe) -> Self {
+        Self {
+            busy_asked: true,
+            busy: Some(probe),
+            ..Self::default()
+        }
+    }
+
+    /// 바쁘다고 답한 plugin이 있으면 거절 응답. 권한 게이트를 통과한 뒤에 부른다.
+    pub(crate) fn busy_refusal(&mut self, id: serde_json::Value) -> Option<JsonRpcResponse> {
+        let probe = self.busy.take()?;
+        if probe.busy().is_empty() {
+            return None;
+        }
+        tracing::info!("plugin stop refused: busy {:?}", probe.busy());
+        Some(super::plugin_busy::busy_refusal(id, probe.busy()))
+    }
+
     fn poll_with(&mut self, core: &AppServices, wait: bool) -> bool {
+        if let Some(probe) = self.busy.as_mut()
+            && !probe.poll(wait)
+        {
+            return false;
+        }
         if let Some(fetch) = self.session.as_mut() {
             match fetch.poll(core, wait) {
                 Some(result) => {
