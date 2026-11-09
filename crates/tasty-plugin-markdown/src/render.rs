@@ -190,7 +190,7 @@ pub(crate) fn render_document(input: DocumentInput) -> String {
     } else {
         (
             inline_local_images(
-                &sanitize_html_for(
+                &sanitize_html(
                     &unsafe_content_html_in_dir(source, tr, base_dir),
                     &tr.locale,
                 ),
@@ -1245,7 +1245,7 @@ fn rewrite_footnote_event<'a>(
 /// 허용 목록이 그대로 적용된다. 따라서 문서 작성자가 콜아웃 class나 data-label을
 /// 직접 넣을 수 있다. 이 속성은 콜아웃 변환에서만 생성된다는 보장은 없다.
 /// `span`의 `lang`은 값이 `ui_lang`과 같을 때만 남는다([`ui_lang::span_lang_filter`]).
-fn sanitize_html_for(unsafe_html: &str, ui_lang: &str) -> String {
+fn sanitize_html(unsafe_html: &str, ui_lang: &str) -> String {
     use ammonia::Builder;
     use std::collections::{HashMap, HashSet};
 
@@ -1341,8 +1341,8 @@ fn sanitize_html_for(unsafe_html: &str, ui_lang: &str) -> String {
 
 /// UI 언어 없이 정제하는 테스트용 함수.
 #[cfg(test)]
-fn sanitize_html(unsafe_html: &str) -> String {
-    sanitize_html_for(unsafe_html, "")
+fn sanitize_bare(unsafe_html: &str) -> String {
+    sanitize_html(unsafe_html, "")
 }
 
 // ── local image inlining (sanitize 뒤, 문서 디렉토리 트리로 범위를 좁혀서) ──────
@@ -2491,14 +2491,14 @@ mod tests {
 
     #[test]
     fn sanitize_html_strips_script_tags() {
-        let out = sanitize_html("<p>hi</p><script>alert(1)</script>");
+        let out = sanitize_bare("<p>hi</p><script>alert(1)</script>");
         assert!(!out.contains("script"));
         assert!(out.contains("hi"));
     }
 
     #[test]
     fn sanitize_html_strips_event_handler_attributes() {
-        let out = sanitize_html(r#"<img src="x.png" onerror="alert(1)">"#);
+        let out = sanitize_bare(r#"<img src="x.png" onerror="alert(1)">"#);
         // ★ 먼저 img 가 **살아남았다**는 것을 못박는다. 이 줄이 없으면 아래 부정 둘은
         // `out` 이 빈 문자열일 때도 통과하고, 그 통과의 뜻은 "핸들러를 벗겼다" 가 아니라
         // "아무것도 안 남았다" 다. 빈 출력은 가상이 아니다 — 태그 허용목록에서 `img` 가
@@ -2510,7 +2510,7 @@ mod tests {
 
     #[test]
     fn sanitize_html_strips_javascript_scheme_href() {
-        let out = sanitize_html(r#"<a href="javascript:alert(1)">click</a>"#);
+        let out = sanitize_bare(r#"<a href="javascript:alert(1)">click</a>"#);
         // 위와 같은 이유의 양성 짝. 다만 이 줄이 증명하는 것은 **출력이 비지 않았다**
         // 까지다 — ammonia 는 `<a>` 를 지워도 안쪽 텍스트를 남기므로, "앵커가 살아남았다"
         // 는 뜻이 아니다. 그 이상을 주장하면 그게 새 거짓이다.
@@ -2521,7 +2521,7 @@ mod tests {
     #[test]
     fn sanitize_html_keeps_tables_checkboxes_and_code() {
         let source = "| a | b |\n|---|---|\n| 1 | 2 |\n\n- [x] done\n- [ ] todo\n\n`inline` and:\n\n```\nfenced\n```\n";
-        let out = sanitize_html(&unsafe_content_html(source, &Translator::default()));
+        let out = sanitize_bare(&unsafe_content_html(source, &Translator::default()));
         assert!(out.contains("<table"));
         assert!(out.contains("checkbox"));
         assert!(out.contains("<code"));
@@ -2531,7 +2531,7 @@ mod tests {
     #[test]
     fn fenced_code_block_language_class_survives_sanitize() {
         let source = "```rust\nfn main() {}\n```\n";
-        let out = sanitize_html(&unsafe_content_html(source, &Translator::default()));
+        let out = sanitize_bare(&unsafe_content_html(source, &Translator::default()));
         assert!(
             out.contains(r#"class="language-rust""#),
             "expected language class to survive sanitize, got: {out}"
@@ -2559,7 +2559,7 @@ mod tests {
     #[test]
     fn figurize_promotes_solo_image_with_alt_to_figure_caption() {
         let source = "![A caption](img.png)\n";
-        let out = sanitize_html(&unsafe_content_html(source, &Translator::default()));
+        let out = sanitize_bare(&unsafe_content_html(source, &Translator::default()));
         assert!(out.contains("<figure>"), "got: {out}");
         assert!(out.contains("</figure>"), "got: {out}");
         assert!(
@@ -2576,7 +2576,7 @@ mod tests {
     fn figurize_leaves_alt_less_image_unpromoted() {
         // alt-less image — nothing to caption, must render exactly as before this feature.
         let source = "![](img.png)\n";
-        let out = sanitize_html(&unsafe_content_html(source, &Translator::default()));
+        let out = sanitize_bare(&unsafe_content_html(source, &Translator::default()));
         assert!(!out.contains("<figure>"), "got: {out}");
         assert!(!out.contains("<figcaption>"), "got: {out}");
         assert!(out.contains("<p>"), "got: {out}");
@@ -2586,7 +2586,7 @@ mod tests {
     #[test]
     fn figurize_does_not_promote_image_mixed_with_text() {
         let source = "before ![alt](img.png) after\n";
-        let out = sanitize_html(&unsafe_content_html(source, &Translator::default()));
+        let out = sanitize_bare(&unsafe_content_html(source, &Translator::default()));
         assert!(!out.contains("<figure>"), "got: {out}");
         assert!(!out.contains("<figcaption>"), "got: {out}");
         assert!(out.contains("before"), "got: {out}");
@@ -2599,7 +2599,7 @@ mod tests {
         // `[![alt](img.png)](url)` — the image is alone, but wrapped in a link; conservative
         // policy declines promotion here too (see figurize_paragraph_buffer doc).
         let source = "[![alt](img.png)](https://example.com)\n";
-        let out = sanitize_html(&unsafe_content_html(source, &Translator::default()));
+        let out = sanitize_bare(&unsafe_content_html(source, &Translator::default()));
         assert!(!out.contains("<figure>"), "got: {out}");
         assert!(!out.contains("<figcaption>"), "got: {out}");
         assert!(out.contains("<a "), "got: {out}");
@@ -2609,7 +2609,7 @@ mod tests {
     #[test]
     fn figurize_does_not_promote_paragraph_with_two_images() {
         let source = "![a](1.png)![b](2.png)\n";
-        let out = sanitize_html(&unsafe_content_html(source, &Translator::default()));
+        let out = sanitize_bare(&unsafe_content_html(source, &Translator::default()));
         assert!(!out.contains("<figure>"), "got: {out}");
         assert!(!out.contains("<figcaption>"), "got: {out}");
         assert!(out.contains(r#"src="1.png""#), "got: {out}");
@@ -2619,7 +2619,7 @@ mod tests {
     #[test]
     fn figurize_caption_strips_markup_from_alt_with_emphasis() {
         let source = "![**bold** caption](img.png)\n";
-        let out = sanitize_html(&unsafe_content_html(source, &Translator::default()));
+        let out = sanitize_bare(&unsafe_content_html(source, &Translator::default()));
         assert!(
             out.contains("<figcaption>bold caption</figcaption>"),
             "got: {out}"
@@ -2632,7 +2632,7 @@ mod tests {
         // Spaces around `<`/`>` keep pulldown-cmark from mis-parsing them as inline HTML tags —
         // they stay literal `Event::Text`, matching how a reader would actually type "1 < 2".
         let source = "![1 < 2 & 3 > 1](img.png)\n";
-        let out = sanitize_html(&unsafe_content_html(source, &Translator::default()));
+        let out = sanitize_bare(&unsafe_content_html(source, &Translator::default()));
         assert!(
             out.contains("<figcaption>1 &lt; 2 &amp; 3 &gt; 1</figcaption>"),
             "got: {out}"
@@ -2642,7 +2642,7 @@ mod tests {
     #[test]
     fn footnote_markup_survives_sanitize() {
         let source = "See[^1].\n\n[^1]: A note.\n";
-        let out = sanitize_html(&unsafe_content_html(source, &Translator::default()));
+        let out = sanitize_bare(&unsafe_content_html(source, &Translator::default()));
         assert!(out.contains("footnote-reference"), "got: {out}");
         assert!(out.contains("footnote-definition"), "got: {out}");
         assert!(out.contains("A note."), "got: {out}");
@@ -2772,7 +2772,7 @@ mod tests {
         );
 
         // Survives sanitize_html's allowlist (`a` -> aria-label).
-        let sanitized = sanitize_html(&out);
+        let sanitized = sanitize_bare(&out);
         assert!(
             sanitized.contains(r#"aria-label="Jump to footnote 1""#),
             "got: {sanitized}"
@@ -2825,7 +2825,7 @@ mod tests {
     fn wikilink_to_existing_file_becomes_plain_nav_link() {
         let dir = tempfile::tempdir().unwrap();
         std::fs::write(dir.path().join("Other.md"), "content").unwrap();
-        let out = sanitize_html(&unsafe_content_html_in_dir(
+        let out = sanitize_bare(&unsafe_content_html_in_dir(
             "See [[Other]] for details.",
             &Translator::default(),
             Some(dir.path()),
@@ -2841,7 +2841,7 @@ mod tests {
     #[test]
     fn wikilink_to_missing_file_gets_missing_marker() {
         let dir = tempfile::tempdir().unwrap();
-        let out = sanitize_html(&unsafe_content_html_in_dir(
+        let out = sanitize_bare(&unsafe_content_html_in_dir(
             "See [[Nonexistent]] for details.",
             &Translator::default(),
             Some(dir.path()),
@@ -2860,7 +2860,7 @@ mod tests {
     fn wikilink_with_no_base_dir_is_treated_as_missing() {
         // Same "unresolvable" treatment as classify_link gives an ordinary relative destination
         // with no base directory — still a link, just visually marked.
-        let out = sanitize_html(&unsafe_content_html_in_dir(
+        let out = sanitize_bare(&unsafe_content_html_in_dir(
             "See [[Other]] for details.",
             &Translator::default(),
             None,
@@ -2934,7 +2934,7 @@ mod tests {
 
     #[test]
     fn bare_url_becomes_nav_fragment_link() {
-        let out = sanitize_html(&unsafe_content_html(
+        let out = sanitize_bare(&unsafe_content_html(
             "Visit https://example.com today.",
             &Translator::default(),
         ));
@@ -4592,7 +4592,7 @@ Outro\n";
         );
 
         // Must also survive `sanitize_html`'s allowlist (the label span allows data-label).
-        let sanitized = sanitize_html(&html);
+        let sanitized = sanitize_bare(&html);
         assert!(
             sanitized.contains(r#"data-label="Custom Note Label""#),
             "got: {sanitized}"
@@ -4746,7 +4746,7 @@ Outro\n";
         assert!(out.contains("outer body"), "got: {out}");
         assert!(out.contains("inner body"), "got: {out}");
         // Must also survive sanitize + a full render_document() pass without panicking.
-        let _ = sanitize_html(&out);
+        let _ = sanitize_bare(&out);
     }
 
     #[test]
@@ -4860,7 +4860,7 @@ Outro\n";
     #[test]
     fn heading_id_survives_sanitize() {
         let html = unsafe_content_html("# Title\n", &Translator::default());
-        let sanitized = sanitize_html(&html);
+        let sanitized = sanitize_bare(&html);
         assert!(sanitized.contains(r#"id="title""#), "got: {sanitized}");
     }
 
@@ -5483,7 +5483,7 @@ Outro\n";
             ("file:///etc/passwd", false),
             ("javascript:alert(1)", false),
         ] {
-            let out = sanitize_html(&format!(r#"<img src="{src}" alt="a">"#));
+            let out = sanitize_bare(&format!(r#"<img src="{src}" alt="a">"#));
             // ★ img 가 살아남았다는 것을 먼저 못박는다(빈 출력이면 아래가 무의미하다).
             assert!(
                 out.contains("<img"),
@@ -5502,7 +5502,7 @@ Outro\n";
     #[test]
     fn sanitize_keeps_scheme_less_paths_for_the_inliner() {
         for src in ["local.svg", "/tmp/x/local.svg", "./sub/a.png"] {
-            let out = sanitize_html(&format!(r#"<img src="{src}" alt="a">"#));
+            let out = sanitize_bare(&format!(r#"<img src="{src}" alt="a">"#));
             assert!(out.contains(src), "src={src} 가 사라졌다: {out}");
         }
     }

@@ -7,7 +7,7 @@ use tasty_type_appearance::theme::Theme;
 
 use super::{
     AddrFailure, AddrFailureKind, AddrWaitingView, DocumentInput, RemoteView, copy_button_script,
-    image_error_script, render_document, sanitize_html_for,
+    image_error_script, render_document, sanitize_html,
 };
 
 const UI: &str = "zh-Hans";
@@ -148,7 +148,7 @@ fn sanitizer_keeps_only_the_ui_language_on_span() {
     let dirty =
         r#"<span lang="zh-Hans">a</span><span lang="ja">b</span><span lang="ZH-HANS">c</span>"#;
     assert_eq!(
-        sanitize_html_for(dirty, UI),
+        sanitize_html(dirty, UI),
         r#"<span lang="zh-Hans">a</span><span>b</span><span>c</span>"#
     );
 }
@@ -156,14 +156,14 @@ fn sanitizer_keeps_only_the_ui_language_on_span() {
 #[test]
 fn sanitizer_without_a_ui_language_removes_every_lang() {
     let dirty = r#"<span lang="zh-Hans">a</span><span lang="">b</span>"#;
-    assert_eq!(sanitize_html_for(dirty, ""), "<span>a</span><span>b</span>");
+    assert_eq!(sanitize_html(dirty, ""), "<span>a</span><span>b</span>");
 }
 
 #[test]
 fn sanitizer_keeps_other_attributes_through_the_filter() {
     let dirty =
         r#"<a href="https://example.com" title="t">x</a><span class="math math-inline">y</span>"#;
-    let clean = sanitize_html_for(dirty, UI);
+    let clean = sanitize_html(dirty, UI);
     assert!(clean.contains(r#"href="https://example.com""#), "{clean}");
     assert!(clean.contains(r#"class="math math-inline""#), "{clean}");
 }
