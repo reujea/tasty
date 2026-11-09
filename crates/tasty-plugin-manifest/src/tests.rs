@@ -3327,6 +3327,44 @@ fn auto_wait_decl_parses_with_defaults() {
 }
 
 #[test]
+fn rejects_output_on_a_subcommand_that_polls() {
+    let manifest = |extra: &str| {
+        format!(
+            r#"
+        manifest_version = 1
+        id = "com.example.x"
+        name = "X"
+        version = "0.1"
+        api_version = "1"
+        [entry]
+        type = "process"
+        command = "x"
+
+        [[contributes.ipc_namespace]]
+        prefix = "ex"
+
+        [[contributes.cli]]
+        name = "ex"
+        subcommands = [
+          {{ name = "list", ipc_method = "ex.list", args = "g", output = "child_table"{extra} }},
+        ]
+
+        [contributes.cli.arg_groups.g]
+    "#
+        )
+    };
+    let plain = parse(&manifest("")).expect("output alone is valid");
+    assert_eq!(
+        plain.contributes.cli[0].subcommands[0].output,
+        Some(CliOutputDecl::ChildTable)
+    );
+    let polling =
+        r#", polling = { state_field = "state", terminal_states = ["idle"], interval_ms = 500 }"#;
+    let err = parse(&manifest(polling)).unwrap_err().to_string();
+    assert!(err.contains("output"), "got: {err}");
+}
+
+#[test]
 fn rejects_subcommand_with_both_polling_and_auto_wait() {
     // polling과 auto_wait는 동시에 선언할 수 없다.
     let s = r#"

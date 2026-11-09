@@ -1,16 +1,20 @@
+pub(crate) mod child_table;
 mod graph_dot;
 pub(crate) mod graph_table;
 mod parent_table;
 
 use anyhow::Result;
 
-use super::{AgentCommands, Commands, ListCommands};
+use super::{AgentCommands, Commands, ListCommands, TerminalCommands};
 use crate::out::outln;
 
 pub fn format_output(command: &Commands, result: &serde_json::Value) -> Result<()> {
     match command {
         Commands::List { command } => format_list_output(command, result),
         Commands::Agent { command } => format_agent_output(command, result),
+        Commands::Terminal {
+            command: TerminalCommands::Children { format, .. },
+        } if format == child_table::TABLE_FORMAT && child_table::write_table(result)? => Ok(()),
         _ => {
             outln!("{}", serde_json::to_string_pretty(result).unwrap())
         }

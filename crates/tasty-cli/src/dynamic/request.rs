@@ -7,11 +7,27 @@ use clap::ArgMatches;
 use serde_json::{Map, Value};
 
 use tasty_ipc::protocol::JsonRpcRequest;
-use tasty_plugin_manifest::{AutoWaitDecl, CliArgType, CompletionStrategyDecl, PollingDecl};
+use tasty_plugin_manifest::{
+    AutoWaitDecl, CliArgType, CliOutputDecl, CompletionStrategyDecl, PollingDecl,
+};
 
 use super::stdin::{extract_value, merge_stdin_params, read_stdin_json};
 use super::{AutoWaitPlan, PluginCliEntry};
 use crate::caller_context::CallerContextSource;
+
+/// 이 요청의 응답을 자식 표로 찍을지. 매니페스트가 선언한 메서드만 대상이고 `--format` 값을 검사한다.
+pub fn wants_child_table(entries: &[PluginCliEntry], request: &JsonRpcRequest) -> Result<bool> {
+    let declared = entries
+        .iter()
+        .flat_map(|entry| &entry.cli.subcommands)
+        .any(|sub| {
+            sub.ipc_method == request.method && sub.output == Some(CliOutputDecl::ChildTable)
+        });
+    if !declared {
+        return Ok(false);
+    }
+    crate::format::child_table::wants_table(&request.params)
+}
 
 /// 매칭된 `ArgMatches`에서 plugin이 어떤 메서드를 호출할지 해석.
 /// 호스트 정적 서브커맨드와 충돌하지 않는 plugin 최상위 이름에 한해 진행한다.

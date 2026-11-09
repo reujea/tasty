@@ -416,6 +416,9 @@ help = "자동 재시도를 멈춘 것을 포함해 남은 결과를 모두 지�
 [claude.cli.arg.remote_results_args.id]
 help = "완료 로그에 적힌 결과 ID. 그 결과를 본문과 함께 보여 줍니다. 없으면 본문을 뺀 저장된 결과 목록을 보여 줍니다"
 
+[claude.cli.arg.children_args.format]
+help = "형식: table | json. 기본값: table (부모 ID 표)"
+
 [claude.cli.arg.children_args.workspace]
 help = "자식이 있는 워크스페이스(ID 또는 이름). 자식이 여러 워크스페이스에 있는 Codex 대화에서 호출할 때만 씁니다"
 

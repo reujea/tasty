@@ -206,7 +206,7 @@ child 목록과 작업 DAG를 AI에게 주는 기본 텍스트 형식이다. 표
 - 값 안의 `\`는 `\\`, `|`는 `\|`, 줄바꿈은 `\n`, 캐리지 리턴은 `\r`로 적고, 그 밖의 제어 문자는 지운다. `parents` 셀의 id 안 쉼표는 `\,`로 적는다.
 - 빈 표는 머리 두 줄이고 종료 코드는 0이다.
 
-쓰는 곳과 열은 [에이전트 러너](agent-runner.md)의 DAG 조회 절에 있다.
+DAG의 열은 [에이전트 러너](agent-runner.md)의 DAG 조회 절에, child의 열은 [child 터미널](../features/child-terminal/index.md#children-출력)에 있다.
 
 ## 호스트 오류 출력 (`rpc_error.rs`)
 

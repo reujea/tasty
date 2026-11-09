@@ -198,6 +198,9 @@ help = "承認とサンドボックスを両方省略（--dangerously-bypass-app
 [codex.cli.arg.children_args.surface]
 help = "親サーフェスID（既定値：呼び出し元のTASTY_SURFACE_ID、なければ親が一つだけのときその親）"
 
+[codex.cli.arg.children_args.format]
+help = "形式: table | json。デフォルト: table（親 ID 表）"
+
 [codex.cli.arg.children_args.workspace]
 help = "子がある workspace（ID または名前）。Codex の会話から呼び出し、子が複数の workspace にあるときだけ使います"
 

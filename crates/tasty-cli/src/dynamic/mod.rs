@@ -12,7 +12,7 @@ mod request;
 mod stdin;
 
 pub use build::{DiscoveredPlugins, build_augmented_cli, discover_plugin_clis, discover_plugins};
-pub use request::matches_to_request;
+pub use request::{matches_to_request, wants_child_table};
 
 use serde_json::{Map, Value};
 use std::collections::HashMap;

@@ -9,10 +9,9 @@ use serde_json::Value;
 use super::parent_table::{self, IdOrder, TableRow};
 use crate::out::{errln, out};
 
-/// CLI 에서만 쓰는 형식 이름. 호스트에는 `json` 으로 요청해 호스트 버전과 무관하게 같은 표를 낸다.
-pub(crate) const TABLE_FORMAT: &str = "table";
+pub(crate) use super::parent_table::TABLE_FORMAT;
 
-/// 호스트에 보낼 형식.
+/// 호스트에 보낼 형식. 호스트에는 `json` 으로 요청해 호스트 버전과 무관하게 같은 표를 낸다.
 pub(crate) fn ipc_format(format: &str) -> &str {
     if format == TABLE_FORMAT {
         "json"

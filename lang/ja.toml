@@ -2119,6 +2119,7 @@ frame_tag_mismatch = "フレーム {}: Data タグではなく {} を受信し�
 frame_echo_mismatch = "フレーム {}: echo の値が一致しません — 送信 {}、受信 {}"
 
 [cli.plugin_cli]
+invalid_children_format = "`--format` の値 '{}' は無効です。`table` または `json` を使用してください"
 manifest_skipped = "警告: {} のプラグインマニフェストをスキップしました: {}"
 name_shadows_host_command = "警告: プラグイン CLI コマンド '{}' は登録しませんでした。同名の tasty 組み込みコマンドが既に存在します"
 no_subcommand = "サブコマンドが指定されていません"
@@ -3421,6 +3422,9 @@ help = "親サーフェスの代わりに使う外部親キー（`spawn --parent
 
 [cli.help._root.terminal.children.arg.workspace]
 help = "子があるワークスペース（IDまたは名前）。複数のウィンドウが開いている場合は --parent-external と一緒に指定する必要があります"
+
+[cli.help._root.terminal.children.arg.format]
+help = "形式: table | json。デフォルト: table（親 ID 表）"
 
 [cli.help._root.terminal.parent]
 about = "指定した子サーフェスの親サーフェスIDを返す"

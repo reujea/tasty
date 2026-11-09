@@ -84,6 +84,7 @@ pub(super) fn terminal_command_to_method_params(
             surface,
             parent_external,
             workspace,
+            format: _,
         } => {
             let mut m = Map::new();
             put_parent(&mut m, *surface, parent_external, workspace);
@@ -264,6 +265,19 @@ mod tests {
             assert_eq!(req.params["workspace"], "w", "{sub}");
             assert!(req.params.get("surface").is_none(), "{sub}");
         }
+    }
+
+    #[test]
+    fn children_format_stays_in_the_cli_and_accepts_only_table_and_json() {
+        use clap::Parser;
+        for args in [
+            &["tasty", "terminal", "children"][..],
+            &["tasty", "terminal", "children", "--format", "json"][..],
+        ] {
+            assert!(request(args).params.get("format").is_none(), "{args:?}");
+        }
+        let dot = crate::Cli::try_parse_from(["tasty", "terminal", "children", "--format", "dot"]);
+        assert!(dot.is_err());
     }
 
     #[test]

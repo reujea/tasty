@@ -1,7 +1,7 @@
 manifest_version = 1
 id = "com.tasty.codex"
 name = "Codex"
-version = "0.2.81"
+version = "0.2.82"
 description = "Codex CLI integration for Tasty"
 api_version = "1"
 permissions = [
@@ -71,7 +71,7 @@ description_i18n_key = "codex.cli.desc"
 subcommands = [
     { name = "launch",        ipc_method = "codex.launch",        args = "launch_args",        description = "Launch a new workspace and start Codex in its terminal", description_i18n_key = "codex.cli.sub.launch.description" },
     { name = "spawn",         ipc_method = "codex.spawn",         args = "spawn_args",         description = "Create a child Codex instance in a split surface. Waits for host responses, then returns without waiting for the child task to finish. When called from a Codex conversation, each finished child turn is returned to that conversation; otherwise registers hooks for idle, input-wait and exit notifications to the parent surface.", description_i18n_key = "codex.cli.sub.spawn.description" },
-    { name = "children",      ipc_method = "codex.children",      args = "children_args",      description = "List children of the specified Codex parent", description_i18n_key = "codex.cli.sub.children.description" },
+    { name = "children",      ipc_method = "codex.children",      args = "children_args", output = "child_table",      description = "List children of the specified Codex parent", description_i18n_key = "codex.cli.sub.children.description" },
     { name = "parent",        ipc_method = "codex.parent_of",     args = "parent_args",        description = "Return the parent Codex surface id for a given child surface", description_i18n_key = "codex.cli.sub.parent.description" },
     { name = "result",        ipc_method = "codex.result",        args = "result_args",        description = "Read a child result that was returned to this Codex conversation. Run it from the Codex session that received the reference; reading does not delete the result.", description_i18n_key = "codex.cli.sub.result.description" },
     { name = "remote-results", ipc_method = "codex.remote_results", args = "remote_results_args", description = "List turn results that remote attach Codex children returned to a surface parent (a Claude session or shell), or show one with its body. This is not codex result, which reads results returned to a Codex conversation. Each result is stored before its id is written to the parent's completion log, and stays after the child closes.", description_i18n_key = "codex.cli.sub.remote-results.description" },
@@ -154,6 +154,7 @@ flags = [
 
 [contributes.cli.arg_groups.children_args]
 flags = [
+    { name = "format", type = "string", flag = "--format", required = false, help = "Format: table | json. Default: table (parent ID table)", help_i18n_key = "codex.cli.arg.children_args.format.help" },
     { name = "surface", type = "u32", flag = "--surface", required = false, help = "Parent surface ID (defaults to caller's TASTY_SURFACE_ID; without it, the only parent when exactly one exists)", help_i18n_key = "codex.cli.arg.children_args.surface.help" },
     { name = "workspace", type = "string", flag = "--workspace", required = false, help = "Workspace (ID or name) of the children. Used only when called from a Codex conversation whose children are in more than one workspace", help_i18n_key = "codex.cli.arg.children_args.workspace.help" },
 ]

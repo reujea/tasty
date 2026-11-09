@@ -2177,6 +2177,7 @@ frame_tag_mismatch = "frame {}: expected Data tag, got {}"
 frame_echo_mismatch = "frame {}: echo mismatch — sent {}, got {}"
 
 [cli.plugin_cli]
+invalid_children_format = "Invalid --format value '{}': use table or json"
 manifest_skipped = "warning: plugin manifest at {} skipped: {}"
 name_shadows_host_command = "warning: plugin CLI command '{}' was not registered because a built-in tasty command already uses that name"
 no_subcommand = "no subcommand supplied"
@@ -3489,6 +3490,9 @@ help = "External parent key instead of a parent surface (see `spawn --parent-ext
 
 [cli.help._root.terminal.children.arg.workspace]
 help = "Workspace (ID or name) holding the children; needed with --parent-external when several windows are open"
+
+[cli.help._root.terminal.children.arg.format]
+help = "Format: table | json. Default: table (parent ID table)"
 
 [cli.help._root.terminal.parent]
 about = "Return the parent surface id for a given child surface"

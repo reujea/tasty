@@ -4,15 +4,14 @@
 use std::cmp::Ordering;
 use std::collections::{HashMap, HashSet};
 
+/// CLI 에서만 쓰는 형식 이름. 호스트 응답은 표를 모른다.
+pub(crate) const TABLE_FORMAT: &str = "table";
+
 const NO_VALUE: &str = "-";
 
 /// id 비교 기준. surface id 는 숫자이므로 문자열로 정렬하면 `10` 이 `9` 앞에 온다.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum IdOrder {
-    #[cfg_attr(
-        not(test),
-        expect(dead_code, reason = "the child table is the first caller")
-    )]
     Numeric,
     Text,
 }

@@ -119,3 +119,103 @@ fn graph_commands_keep_json_and_dot_when_asked() {
         assert_eq!(request["params"]["format"], "dot", "{command:?}");
     }
 }
+
+fn child(id_key: &str) -> Value {
+    json!({
+        id_key: 12, "index": 1, "nickname": "lane", "state": "idle", "cwd": "/w", "parent": 7,
+        "last_report_at": 1_767_613_212_999_u64, "confidence": "reported", "evidence": "hook_idle",
+    })
+}
+
+const CHILD_TABLE: &str = "| id | parents | nickname | state | cwd | last_report_at | index | confidence | evidence |\n\
+     |---|---|---|---|---|---|---|---|---|\n\
+     | 12 | 7 | lane | idle | /w | 2026-01-05T11:40:12Z | 1 | reported | hook_idle |\n";
+
+#[test]
+fn terminal_children_prints_the_table_by_default() {
+    let response = json!({ "children": [child("surface_id")] });
+    let home = tempfile::tempdir().expect("tempdir");
+    let requests = fake_host(home.path(), response.clone());
+    let base = ["terminal", "children", "--surface", "7"];
+    assert_eq!(stdout(&tasty(home.path(), &base)), CHILD_TABLE);
+    let request = requests.recv().expect("request");
+    assert_eq!(request["method"], "terminal.children");
+    assert!(request["params"].get("format").is_none(), "{request}");
+
+    let json_args = [&base[..], &["--format", "json"][..]].concat();
+    let printed: Value =
+        serde_json::from_str(&stdout(&tasty(home.path(), &json_args))).expect("json stdout");
+    assert_eq!(printed, response);
+}
+
+/// 표를 선언한 `list` 와 선언하지 않은 `other` 를 가진 플러그인을 임시 홈에 둔다.
+fn install_plugin(home: &Path) {
+    let dir = home.join("plugins").join("com.example.table");
+    std::fs::create_dir_all(&dir).expect("plugin dir");
+    let manifest = r#"
+manifest_version = 1
+id = "com.example.table"
+name = "Table"
+version = "0.1.0"
+api_version = "1"
+
+[entry]
+type = "process"
+command = "table"
+
+[[contributes.ipc_namespace]]
+prefix = "ex"
+
+[[contributes.cli]]
+name = "ex"
+subcommands = [
+  { name = "list", ipc_method = "ex.list", args = "list_args", output = "child_table" },
+  { name = "other", ipc_method = "ex.other", args = "list_args" },
+]
+
+[contributes.cli.arg_groups.list_args]
+flags = [
+  { name = "format", type = "string", flag = "--format", required = false },
+]
+"#;
+    std::fs::write(dir.join("tasty-plugin.toml"), manifest).expect("manifest");
+}
+
+#[test]
+fn a_plugin_command_that_declares_the_child_table_prints_it_by_default() {
+    for response in [
+        json!([child("child_surface_id")]),
+        json!({ "children": [child("surface_id")] }),
+    ] {
+        let home = tempfile::tempdir().expect("tempdir");
+        install_plugin(home.path());
+        fake_host(home.path(), response.clone());
+        assert_eq!(stdout(&tasty(home.path(), &["ex", "list"])), CHILD_TABLE);
+        let args = ["ex", "list", "--format", "json"];
+        let printed: Value =
+            serde_json::from_str(&stdout(&tasty(home.path(), &args))).expect("json stdout");
+        assert_eq!(printed, response);
+    }
+}
+
+#[test]
+fn a_plugin_command_without_the_declaration_stays_json() {
+    let home = tempfile::tempdir().expect("tempdir");
+    install_plugin(home.path());
+    let response = json!([child("child_surface_id")]);
+    fake_host(home.path(), response.clone());
+    let printed: Value =
+        serde_json::from_str(&stdout(&tasty(home.path(), &["ex", "other"]))).expect("json stdout");
+    assert_eq!(printed, response);
+}
+
+#[test]
+fn a_plugin_format_outside_table_and_json_is_refused_before_the_request() {
+    let home = tempfile::tempdir().expect("tempdir");
+    install_plugin(home.path());
+    let requests = fake_host(home.path(), json!([]));
+    let out = tasty(home.path(), &["ex", "list", "--format", "dot"]);
+    assert_ne!(out.status.code(), Some(0), "{out:?}");
+    assert!(out.stdout.is_empty(), "{out:?}");
+    assert!(requests.try_recv().is_err(), "the request must not be sent");
+}

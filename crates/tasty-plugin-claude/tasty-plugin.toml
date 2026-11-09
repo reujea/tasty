@@ -1,7 +1,7 @@
 manifest_version = 1
 id = "com.tasty.claude"
 name = "Claude Code"
-version = "0.2.39"
+version = "0.2.40"
 description = "Claude Code CLI integration for Tasty"
 api_version = "1"
 permissions = [
@@ -117,7 +117,7 @@ description_i18n_key = "claude.cli.desc"
 subcommands = [
     { name = "launch",    ipc_method = "claude.launch",    args = "launch_args",    description = "Launch Claude Code in a new workspace", description_i18n_key = "claude.cli.sub.launch.description" },
     { name = "spawn",     ipc_method = "claude.spawn",     args = "spawn_args",     description = "Spawn a child Claude instance into a workspace. Returns immediately; a notification is delivered to the caller surface every time the child transitions to idle/needs_input, and once more when it exits — not just the first transition.", description_i18n_key = "claude.cli.sub.spawn.description" },
-    { name = "children",  ipc_method = "claude.children",  args = "children_args",  description = "List children of the specified Claude parent", description_i18n_key = "claude.cli.sub.children.description" },
+    { name = "children",  ipc_method = "claude.children",  args = "children_args", output = "child_table",  description = "List children of the specified Claude parent", description_i18n_key = "claude.cli.sub.children.description" },
     { name = "parent",    ipc_method = "claude.parent",    args = "parent_args",    description = "Show the parent of the specified Claude child", description_i18n_key = "claude.cli.sub.parent.description" },
     { name = "state",     ipc_method = "claude.state",     args = "state_args",     description = "Query a single child's status: idle, needs_input, active, or exited (live-surface cross-checked)", description_i18n_key = "claude.cli.sub.state.description" },
     { name = "tell",      ipc_method = "claude.tell",      args = "tell_args",      description = "Send a message to a Claude instance (multi-line, submits at end). Returns immediately; a notification is delivered to the caller surface every time the target transitions to idle/needs_input, and once more when it exits — not just the first transition.", description_i18n_key = "claude.cli.sub.tell.description" },
@@ -183,6 +183,7 @@ flags = [
 
 [contributes.cli.arg_groups.children_args]
 flags = [
+    { name = "format", type = "string", flag = "--format", required = false, help = "Format: table | json. Default: table (parent ID table)", help_i18n_key = "claude.cli.arg.children_args.format.help" },
     { name = "surface", type = "u32", flag = "--surface", required = false, help = "Parent surface ID (defaults to caller's TASTY_SURFACE_ID)", help_i18n_key = "claude.cli.arg.children_args.surface.help" },
     { name = "workspace", type = "string", flag = "--workspace", required = false, help = "Workspace (ID or name) of the children. Used only when called from a Codex conversation whose children are in more than one workspace", help_i18n_key = "claude.cli.arg.children_args.workspace.help" },
 ]

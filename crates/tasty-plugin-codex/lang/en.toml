@@ -198,6 +198,9 @@ help = "Bypass approvals and sandbox entirely (--dangerously-bypass-approvals-an
 [codex.cli.arg.children_args.surface]
 help = "Parent surface ID (defaults to caller's TASTY_SURFACE_ID; without it, the only parent when exactly one exists)"
 
+[codex.cli.arg.children_args.format]
+help = "Format: table | json. Default: table (parent ID table)"
+
 [codex.cli.arg.children_args.workspace]
 help = "Workspace (ID or name) of the children. Used only when called from a Codex conversation whose children are in more than one workspace"
 

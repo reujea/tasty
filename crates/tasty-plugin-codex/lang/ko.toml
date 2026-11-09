@@ -198,6 +198,9 @@ help = "승인과 샌드박스를 모두 우회(--dangerously-bypass-approvals-a
 [codex.cli.arg.children_args.surface]
 help = "부모 서피스 ID(기본값: 호출자의 TASTY_SURFACE_ID, 없으면 부모가 하나뿐일 때 그 부모)"
 
+[codex.cli.arg.children_args.format]
+help = "형식: table | json. 기본값: table (부모 ID 표)"
+
 [codex.cli.arg.children_args.workspace]
 help = "자식이 있는 workspace(ID 또는 이름). Codex 대화에서 호출했고 자식이 여러 workspace에 있을 때만 씁니다"
 

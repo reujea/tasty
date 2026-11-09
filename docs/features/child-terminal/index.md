@@ -214,7 +214,7 @@ Codex에는 이 출력 스캐너가 없으므로 같은 감시가 있다고 설�
 - **AI Agent (IPC/CLI)** — 모든 대상은 ID 로 직접 지정(포커스 독립, [포커스 정책](../../design/policies/focus.md)):
   - `tasty terminal spawn --workspace <ws> --command "<cmd>" [--surface <parent>] [--pane] [--cwd] [--role] [--nickname]` ↔ `terminal.spawn`
   - `tasty terminal tell "<text>" [--surface]` ↔ `terminal.tell`
-  - `tasty terminal children [--surface]` ↔ `terminal.children`
+  - `tasty terminal children [--surface] [--format table|json]` ↔ `terminal.children` — 기본 출력은 [부모 ID 표](../../dev-guide/cli-structure.md#부모-id-표-formatparent_tablers)다. 아래 "children 출력" 참조
   - `tasty terminal parent --surface <child>` ↔ `terminal.parent`
   - `tasty terminal state --surface <child>` ↔ `terminal.state` — 자식 단건 상태(`idle`/`needs_input`/`active`/`stale`/`exited`) 조회. `terminal.children` 의 항목별 `state` 와 **같은 판정 헬퍼**(`EngineRef::child_liveness`)를 쓰므로 목록과 단건의 답이 갈리지 않는다. 이미 registry 에서 정리된(reconcile 로 사라진) surface 도 라이브 트리와 직접 대조해 `"exited"` 로 판별한다 — `ChildTerminalRegistry::state_of` 자체의 미등록 surface `"active"` fallback 계약은 그대로 둔 채, 상위 판정 계층이 그 위에서 죽은 surface 를 걸러낸다
   - `tasty terminal kill [--surface] --child <n>` ↔ `terminal.kill` — child surface 를 먼저 닫고, 실제로 닫혔을 때만 관계를 지우고 `killed_surface_id` 로 답한다. mirror workspace 의 child 처럼 닫기가 원격 실행 큐로 넘어가면 `{"forwarded": true, "surface_id", "child_index"}` 로 답하고 관계와 soft 점유를 남긴다. 원격이 surface 를 닫으면 구조 delta 반영이 soft 점유를 지우고, 관계는 그 뒤 reconcile 이 정리한다. 닫기가 실패하면 그 오류를 돌려주고 관계·soft 점유는 그대로다
@@ -232,6 +232,26 @@ Codex에는 이 출력 스캐너가 없으므로 같은 감시가 있다고 설�
   - `terminal.parent`는 `parent_surface_id`와 함께 `parent_external`(없으면 `null`)을 돌려준다.
   - `terminal.adopt`는 `parent_external`을 받지 않는다.
   - 창이 둘 이상인 GUI에서는 `parent_external`만으로 창을 고를 수 없으므로 `workspace`(이름 또는 ID)를 함께 준다. 없으면 라우팅 단계에서 거절한다.
+
+### children 출력
+
+`tasty terminal children`, `tasty claude children`, `tasty codex children`은 옵션 없이 같은 표를 낸다. 지정한 부모의 직계 자식만 내므로 표는 한 단계이고 `parents`는 모든 행에서 같다. 행은 surface id 숫자 순이다.
+
+```text
+| id | parents | nickname | state | cwd | last_report_at | index | confidence | evidence |
+|---|---|---|---|---|---|---|---|---|
+| 12 | 7 | lane-a | idle | /work/a | 2026-01-05T11:40:00Z | 1 | reported | hook_idle |
+```
+
+| 열 | 값 |
+|---|---|
+| `id` | 자식 surface id |
+| `parents` | 조회한 부모. surface id이거나 외부 부모 키(`codex:<thread>`)다 |
+| `last_report_at` | 등록 또는 마지막 상태 보고 시각. 초 단위로 내린 UTC다 |
+| `index` | `kill`, `respawn`, `release`의 `--child`가 받는 번호 |
+| `confidence`, `evidence` | 아래 판정 응답 필드. `state`와 함께 읽는다 |
+
+`role`, `remote`, `liveness`, `foreground_process`, `foreground_pid`는 `--format json`으로 본다. `--format json`은 IPC 응답을 그대로 낸다. 모양은 명령마다 다르다([plugin 쌍의 차이](../../dev-guide/paired-agent-handlers.md)). `terminal.children`의 각 항목에는 판정 필드 외에 `parent`(부모 surface id 또는 외부 키)와 `last_report_at`(밀리초, 없으면 `null`)이 있다.
 
 ### 판정 응답 필드
 

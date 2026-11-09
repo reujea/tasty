@@ -8,7 +8,7 @@
 
 | 기능 | Claude | Codex | 유지 근거와 검증 |
 |---|---|---|---|
-| `children` | bare 배열. `child_surface_id` 등으로 remap하고 전경 프로세스 이름/PID를 보충 | 호스트의 `{"children": […]}` 응답 그대로 | 기존 호출자의 JSON 해석을 보존한다. 각 plugin의 `children_response_is_*` 시험이 자기 변환을 고정한다 |
+| `children` | bare 배열. `child_surface_id` 등으로 remap하고 전경 프로세스 이름/PID를 보충 | 호스트의 `{"children": […]}` 응답 그대로 | 기존 호출자의 JSON 해석을 보존한다. 각 plugin의 `children_response_is_*` 시험이 자기 변환을 고정한다. CLI 기본 출력은 두 모양에서 같은 [부모 ID 표](cli-structure.md#부모-id-표-formatparent_tablers)이고, 이 응답은 `--format json`과 IPC로 본다 |
 | `kill` 성공 | 호스트 응답에 `killed`를 더함 | 호스트 응답 그대로 | 실제로 닫혔으면 `killed_surface_id`·`child_index`, 원격으로 넘겼으면 `forwarded`·`surface_id`·`child_index`다. Claude는 기존 호출자가 읽던 `killed`를 유지하되 `killed_surface_id`가 있을 때만 `true`, 원격 전달이면 `false`로 둬 전달을 종료로 오인하지 않게 한다. 각 plugin의 `kill_response_is_*` 시험이 고정하고, Claude의 `a_forwarded_kill_is_not_reported_as_killed`가 전달 응답을 확인한다 |
 | spawn 경고 | 위치 placeholder와 `claude.spawn.warning_*` 키 | 이름 placeholder와 `codex.spawn_warning.*` 키 | 기존 번역 카탈로그와 치환 방식을 함께 유지한다. `build_spawn_warning_*` 시험은 임계값·idle/stale 후보를 확인한다 |
 

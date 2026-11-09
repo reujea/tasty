@@ -2119,6 +2119,7 @@ frame_tag_mismatch = "프레임 {}: Data 태그 대신 {}을(를) 받았습니�
 frame_echo_mismatch = "프레임 {}: echo 값 불일치 — 보낸 값 {}, 받은 값 {}"
 
 [cli.plugin_cli]
+invalid_children_format = "`--format` 값 '{}'이 유효하지 않습니다. `table` 또는 `json`을 사용하세요"
 manifest_skipped = "경고: {}의 플러그인 매니페스트를 건너뜁니다: {}"
 name_shadows_host_command = "경고: 플러그인 CLI 명령 '{}'을 등록하지 않았습니다. 같은 이름의 tasty 기본 명령이 이미 있습니다"
 no_subcommand = "하위 명령을 지정하지 않았습니다"
@@ -3421,6 +3422,9 @@ help = "부모 서피스 대신 사용할 외부 부모 키(`spawn --parent-exte
 
 [cli.help._root.terminal.children.arg.workspace]
 help = "자식이 있는 워크스페이스(ID 또는 이름). 윈도우가 여러 개 열려 있으면 --parent-external과 함께 지정해야 합니다"
+
+[cli.help._root.terminal.children.arg.format]
+help = "형식: table | json. 기본값: table (부모 ID 표)"
 
 [cli.help._root.terminal.parent]
 about = "지정한 자식 서피스의 부모 서피스 ID 반환"

@@ -20,6 +20,7 @@ fn new_subcommand(name: &str, ipc_method: &str, args: &str) -> CliSubcommandDecl
         internal: false,
         polling: None,
         auto_wait: None,
+        output: None,
     }
 }
 
@@ -887,4 +888,61 @@ fn a_method_without_remote_execution_keeps_local_paths_even_for_a_numeric_worksp
     assert!(asked.is_empty());
     let here = std::env::current_dir().unwrap();
     assert_eq!(params.unwrap()["cwd"], here.to_string_lossy().as_ref());
+}
+
+fn request_for(method: &str, params: serde_json::Value) -> tasty_ipc::protocol::JsonRpcRequest {
+    tasty_ipc::protocol::JsonRpcRequest {
+        caller_agent_id: None,
+        response_timeout_ms: None,
+        idempotency_key: None,
+        jsonrpc: "2.0".into(),
+        method: method.into(),
+        params,
+        id: None,
+        session_token: None,
+    }
+}
+
+#[test]
+fn only_a_method_that_declares_the_child_table_gets_it() {
+    let mut entry = sample_entry();
+    let sub = &mut entry.cli.subcommands[0];
+    let declared = sub.ipc_method.clone();
+    sub.output = Some(tasty_plugin_manifest::CliOutputDecl::ChildTable);
+    let entries = [entry];
+    let wants = |method: &str, params| wants_child_table(&entries, &request_for(method, params));
+
+    assert!(wants(&declared, serde_json::json!({})).unwrap());
+    assert!(!wants(&declared, serde_json::json!({ "format": "json" })).unwrap());
+    assert!(wants(&declared, serde_json::json!({ "format": "dot" })).is_err());
+    // 선언하지 않은 메서드는 --format 이라는 이름의 인자가 있어도 건드리지 않는다.
+    assert!(!wants("other.method", serde_json::json!({ "format": "dot" })).unwrap());
+}
+
+/// 표 분기는 매니페스트 선언을 지나므로 번들 플러그인의 선언이 빠지면 JSON 으로 돌아간다.
+#[test]
+fn bundled_children_commands_declare_the_child_table_and_the_format_flag() {
+    let crates = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("..");
+    for (plugin, method) in [
+        ("tasty-plugin-claude", "claude.children"),
+        ("tasty-plugin-codex", "codex.children"),
+    ] {
+        let manifest =
+            tasty_plugin_manifest::Manifest::load(&crates.join(plugin)).expect("manifest");
+        let cli = &manifest.contributes.cli[0];
+        let sub = cli
+            .subcommands
+            .iter()
+            .find(|sub| sub.ipc_method == method)
+            .expect("children subcommand");
+        assert_eq!(
+            sub.output,
+            Some(tasty_plugin_manifest::CliOutputDecl::ChildTable),
+            "{plugin}"
+        );
+        let group = cli.arg_groups.get(&sub.args).expect("arg group");
+        assert!(group.flags.iter().any(|a| a.name == "format"), "{plugin}");
+        let others = cli.subcommands.iter().filter(|s| s.ipc_method != method);
+        assert!(others.into_iter().all(|s| s.output.is_none()), "{plugin}");
+    }
 }

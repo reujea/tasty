@@ -46,7 +46,7 @@ attach 로 연결한 원격 워크스페이스(mirror)에 `tasty claude spawn` /
   4. 경로 변경·토큰 저장·전송의 실패가 확정되면 경로와 이 tell 로 맡은 소유를 이전 상태로 되돌린다. 결과불명이면 서버에서 실행됐을 수 있으므로 새 경로·토큰·소유를 그대로 둔다.
   - `--caller-surface` 의 완료 알림 훅은 L 에 다시 건다.
 - **kill**: index 로 고른 자식이 원격 자식이면 `attach.agent_call{method: kill}` 로 닫는다. 결과 경로는 바로 지우지 않고 끝난 경로로 남겨(24시간) 서버에 남은 결과가 늦게 와도 기록한다. 소유자 기록은 지운다.
-- **children·state·parent**: host child registry 가 L 을 일반 자식처럼 답한다. claude children 은 host 의 `remote`·`liveness` 필드를 그대로 싣는다. 연결이 끊긴 동안 liveness 는 `unknown` 이다.
+- **children·state·parent**: host child registry 가 L 을 일반 자식처럼 답한다. claude children --format json 은 host 의 `remote`·`liveness` 필드를 그대로 싣는다. 연결이 끊긴 동안 liveness 는 `unknown` 이다.
 - **remote_receive**(`kind: notice`): payload 의 결과를 그 토큰의 수신처로 기록한다. 물리 surface 수신처는 아래 [물리 surface 부모의 결과](#물리-surface-부모의-결과)를 따른다. Codex 대화 수신처는 다음과 같다. 완료 키는 서버 키에 `r.` 를 붙인다. 재전송은 같은 키라 Codex 원장이 `duplicate` 로 거른다. 토큰이 없거나 모르는 토큰이면 `rejected`, 일시 실패는 JSON-RPC 오류(host 가 다시 보낸다)다.
   - claude 는 `codex.deliver` 를 부른다(claude→codex 단방향). codex 는 자기 namespace 를 다시 부르지 않고 내부 `delivery::deliver` 를 직접 부른다(같은 worker 재진입 교착 방지).
   - 수신처는 결과에 실린 route 토큰으로 찾는다. 서버가 싣는 토큰은 그 턴이 끝날 때 자식에 묶인 마지막 토큰이다. 원격 자식에는 [결과 소유자](#결과-소유자)만 지시할 수 있으므로 그 토큰의 수신처는 언제나 소유 부모다. 같은 부모의 겹친 지시는 마지막 토큰(같은 부모)으로 돌아온다. 서버는 C 의 수신처를 모른다.

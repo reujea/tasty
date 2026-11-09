@@ -29,6 +29,11 @@ fn utc_timestamp() -> String {
         .duration_since(std::time::UNIX_EPOCH)
         .map(|d| d.as_secs() as i64)
         .unwrap_or(0);
+    utc_from_secs(secs)
+}
+
+/// 유닉스 초를 `YYYY-MM-DDTHH:MM:SSZ` 로 쓴다.
+pub(crate) fn utc_from_secs(secs: i64) -> String {
     let (days, rem) = (secs.div_euclid(86_400), secs.rem_euclid(86_400));
     let (h, m, s) = (rem / 3600, (rem % 3600) / 60, rem % 60);
     let (y, mo, d) = civil_from_days(days);

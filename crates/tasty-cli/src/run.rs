@@ -117,6 +117,10 @@ pub fn try_run_plugin_cli(args: &[String]) -> Option<Result<()>> {
             Ok(r) => r,
             Err(e) => return Some(Err(e)),
         };
+    let child_table = match dynamic::wants_child_table(&entries, &request) {
+        Ok(wanted) => wanted,
+        Err(e) => return Some(Err(e)),
+    };
     if polling.is_some() || auto_wait.is_some() {
         envelope.refuse_if_set();
     }
@@ -128,7 +132,7 @@ pub fn try_run_plugin_cli(args: &[String]) -> Option<Result<()>> {
             (None, Some(aw)) => {
                 run_dynamic_client_with_auto_wait(request, aw, port_file.as_deref())
             }
-            (None, None) => run_dynamic_client(request, port_file.as_deref()),
+            (None, None) => run_dynamic_client(request, port_file.as_deref(), child_table),
         },
     ))
 }
@@ -169,6 +173,7 @@ fn placement_is_remote(
 fn run_dynamic_client(
     mut request: tasty_ipc::protocol::JsonRpcRequest,
     port_file: Option<&str>,
+    child_table: bool,
 ) -> Result<()> {
     // CLI 가 문구를 만드는 갈래는 모두 **로그에는 영어, stderr 에는 번역문**을 낸다.
     // `record` 가 `DiagnosticEnglish` 만 받으므로 그 분리는 타입이 지킨다.
@@ -235,6 +240,9 @@ fn run_dynamic_client(
                         "response ok but {failures} host call(s) failed silently"
                     )),
                 );
+            }
+            if child_table && crate::format::child_table::write_table(&value)? {
+                return Ok(());
             }
             outln!(
                 "{}",

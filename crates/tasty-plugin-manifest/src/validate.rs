@@ -17,7 +17,7 @@ use super::validators::{
     is_valid_completion_strategy_id, is_valid_event_key, is_valid_event_pattern,
     is_valid_hook_event_key, is_valid_hook_handler_id, is_valid_ipc_prefix, is_valid_kind,
     is_valid_plugin_id, is_valid_settings_id, is_valid_simple_id, is_valid_tool_id,
-    validate_webview_defaults,
+    validate_cli_output, validate_webview_defaults,
 };
 
 impl Manifest {
@@ -407,6 +407,7 @@ impl Manifest {
                     sub.name
                 );
             }
+            validate_cli_output(cli, sub)?;
             if let Some(aw) = &sub.auto_wait {
                 Self::validate_auto_wait_strategy(cli, sub, aw, plugin_id)?;
             }

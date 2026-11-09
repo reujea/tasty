@@ -1030,6 +1030,17 @@ pub struct CliSubcommandDecl {
     /// 첫 응답을 출력한 뒤 별도 메서드를 폴링한다. polling과 동시에 선언할 수 없다.
     #[serde(default)]
     pub auto_wait: Option<AutoWaitDecl>,
+    /// 호스트 CLI 가 응답을 찍는 방식. 생략하면 JSON 이다. polling·auto_wait 와 함께 선언할 수 없다.
+    #[serde(default)]
+    pub output: Option<CliOutputDecl>,
+}
+
+/// 호스트 CLI 가 플러그인 응답을 찍는 방식.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum CliOutputDecl {
+    /// `terminal.children` 항목의 목록을 부모 ID 표로 찍는다. `--format json` 이면 JSON 이다.
+    ChildTable,
 }
 
 /// 첫 응답 뒤 실행할 추가 대기. --no-wait가 아니면 지정한 메서드를 폴링하고

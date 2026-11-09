@@ -417,6 +417,9 @@ help = "Put every pending result back in line to be sent now, including ones who
 [claude.cli.arg.remote_results_args.id]
 help = "Result id from the completion log. Shows that result with its body; without it the command lists stored results without bodies"
 
+[claude.cli.arg.children_args.format]
+help = "Format: table | json. Default: table (parent ID table)"
+
 [claude.cli.arg.children_args.workspace]
 help = "Workspace (ID or name) of the children. Used only when called from a Codex conversation whose children are in more than one workspace"
 

@@ -413,6 +413,10 @@ Codex는 대응 훅에서 `codex notify-caller`를 호출한다([Codex](../plugi
 
 현재 번들 plugin은 auto_wait/polling을 사용하지 않는다. 스키마는 외부 plugin을 위해 유지한다.
 
+### 응답 출력 선언
+
+매니페스트 서브커맨드의 `output = "child_table"`은 호스트 CLI가 그 응답을 JSON 대신 [부모 ID 표](cli-structure.md#부모-id-표-formatparent_tablers)로 찍게 한다. 응답은 `terminal.children` 항목의 배열이거나 `{"children": […]}`이다. 같은 그룹에 문자열 인자 `format`을 두면 `--format json`으로 JSON을 받는다. `table`과 `json` 밖의 값은 요청을 보내기 전에 거절한다. `polling`이나 `auto_wait`와 함께 선언할 수 없다. 번들 plugin에서는 `claude children`과 `codex children`이 쓴다.
+
 ---
 
 ## 안정성 정책

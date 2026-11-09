@@ -64,6 +64,9 @@ pub enum TerminalCommands {
         /// when several windows are open
         #[arg(long, requires = "parent_external")]
         workspace: Option<String>,
+        /// Format: table | json. Default: table (parent ID table).
+        #[arg(long, default_value = "table", value_parser = ["table", "json"])]
+        format: String,
     },
     /// Return the parent surface id for a given child surface.
     Parent {

@@ -321,3 +321,19 @@ pub(super) fn is_reserved_event_namespace(ns: &str) -> bool {
             | "system"
     )
 }
+
+/// 출력 선언은 단발 요청에만 쓴다. 반복 조회는 줄마다 JSON 을 내는 계약을 유지한다.
+pub(crate) fn validate_cli_output(
+    cli: &crate::types::CliCommandDecl,
+    sub: &crate::types::CliSubcommandDecl,
+) -> anyhow::Result<()> {
+    if sub.output.is_some() && (sub.polling.is_some() || sub.auto_wait.is_some()) {
+        anyhow::bail!(
+            "cli subcommand '{} {}' declares 'output' with 'polling' or 'auto_wait' \
+             — only a single request can choose its output",
+            cli.name,
+            sub.name
+        );
+    }
+    Ok(())
+}

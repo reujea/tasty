@@ -31,10 +31,10 @@ def call_json(tasty, *args):
 def live_children(tasty, parent):
     """Merge the Claude array and the Codex object listing of one parent."""
     merged = {}
-    claude, _ = call_json(tasty, "claude", "children", "--surface", str(parent))
+    claude, _ = call_json(tasty, "claude", "children", "--surface", str(parent), "--format", "json")
     for entry in claude or []:
         merged[int(entry["child_surface_id"])] = entry
-    codex, _ = call_json(tasty, "codex", "children", "--surface", str(parent))
+    codex, _ = call_json(tasty, "codex", "children", "--surface", str(parent), "--format", "json")
     for entry in (codex or {}).get("children", []):
         sid = entry.get("child_surface_id", entry.get("surface_id"))
         merged[int(sid)] = entry
