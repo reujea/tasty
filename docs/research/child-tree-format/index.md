@@ -56,7 +56,9 @@ AI 에이전트가 child 트리를 어떤 텍스트 형식으로 받을 때 정�
 
 Claude 사용량 이벤트의 `utilization` 단위와 도구 위반으로 칠 응답 항목 종류, Codex 사용량 창을 읽는 경로는 소규모 시험에서 실제 값으로 확인한다. 그때까지 이 세 가지는 가짜 CLI로만 시험한 상태다. 러너는 단위를 추측하지 않고 인자로 받는다. Codex 쪽 `seven_day_percent`는 지금 읽지 않으므로 승인 u 대비 상승 검사는 Claude에만 적용된다.
 
-규칙 1의 `A_best`를 가진 형식이 여럿이면 `U_best`로 그중 가장 큰 값을 쓴다. 어느 형식을 최고로 부르느냐에 따라 후보 집합이 달라지지 않게 하려는 구현 선택이고, 판정 규칙 구간을 고치지 않는다.
+규칙 1의 `A_best`를 가진 형식이 여럿이면 `U_best`로 그중 가장 큰 값을 쓴다. 어느 형식을 최고로 부르느냐에 따라 후보 집합이 달라지지 않게 하려는 구현 선택이고, 판정 규칙 구간을 고치지 않는다. 이 선택은 [규칙 변경 기록](rules.md#규칙-변경-기록)에 있고, 요약의 `decision`과 `tables.txt`가 `best_tied`와 쓴 `u_best`를 보여 준다.
+
+순서를 확인할 때는 [순서 확인](rules.md#순서-확인) 절대로 `rules.md`와 함께 판정을 옮긴 코드의 이력을 읽는다: `git log -p --reverse <규칙 첫 커밋>..origin/main -- docs/research/child-tree-format/rules.md scripts/child-tree-format/summarize.py scripts/child-tree-format/score.py`.
 
 ## 인용
 

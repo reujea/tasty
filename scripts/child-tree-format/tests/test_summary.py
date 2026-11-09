@@ -52,6 +52,19 @@ class CandidateFormula(unittest.TestCase):
         self.assertEqual(result["candidates"], ["a", "p", "q"])
         self.assertEqual(result["recommendation"], "q")
 
+    def test_a_tie_for_best_reports_who_tied_and_the_u_it_used(self):
+        table = {"a": (0.9, 0.03, 1000), "b": (0.9, 0.05, 1000), "c": (0.75, 0.04, 1000)}
+        result = sm.decide(table, {f: low(10) for f in table})
+        self.assertEqual(result["best_tied"], ["a", "b"])
+        self.assertEqual(result["u_best"], 0.05)
+        single = sm.decide({"a": (0.9, 0.03, 1000), "c": (0.5, 0.04, 1000)}, {"a": low(1), "c": low(1)})
+        self.assertEqual((single["best_tied"], single["u_best"]), (["a"], 0.03))
+
+    def test_the_largest_u_of_a_tie_widens_the_margin(self):
+        table = {"a": (0.9, 0.03, 1000), "b": (0.9, 0.05, 1000), "c": (0.78, 0.04, 1000)}
+        # 2 * sqrt(0.03^2 + 0.04^2) = 0.100 leaves c out, 2 * sqrt(0.05^2 + 0.04^2) = 0.128 keeps it.
+        self.assertEqual(sm.candidates(table, 2), ["a", "b", "c"])
+
     def test_reference_factors_change_only_the_margin(self):
         self.assertFalse(sm.is_candidate(0.9, 0.8, 0.03, 0.04, 1000, factor=1))
         self.assertTrue(sm.is_candidate(0.9, 0.76, 0.03, 0.04, 1000, factor=3))
@@ -323,7 +336,7 @@ class EndToEnd(unittest.TestCase):
         self.write(self.full_run())
         out = sm.summarize(self.data)
         text = sm.tables(out)
-        for word in ("score by format and model", "score by format and tree", "score by format and kind", "mean cost per valid call", "reference candidates with factor 1", "reference candidates with factor 3", *MODELS):
+        for word in ("best_tied:", "u_best:", "score by format and model", "score by format and tree", "score by format and kind", "mean cost per valid call", "reference candidates with factor 1", "reference candidates with factor 3", *MODELS):
             self.assertIn(word, text)
 
 

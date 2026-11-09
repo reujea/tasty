@@ -92,10 +92,20 @@ def is_candidate(best_score, score, best_u, u, questions, factor):
     return best_score - score <= margin + TOLERANCE
 
 
+def best_formats(scores):
+    """Return the formats that hold the top score and the U_best rule 1 uses for them.
+
+    Rule 1 does not say which U_best applies when formats tie, so the largest is
+    used. The candidate set then does not depend on which one is called the best.
+    """
+    best = max(s for s, _, _ in scores.values())
+    tied = sorted(f for f, (s, _, _) in scores.items() if abs(s - best) <= TOLERANCE)
+    return best, tied, max(scores[f][1] for f in tied)
+
+
 def candidates(scores, factor):
     """Return the candidate formats for a factor. scores: {fmt: (score, u, questions)}."""
-    best = max(s for s, _, _ in scores.values())
-    best_u = max(u for s, u, _ in scores.values() if abs(s - best) <= TOLERANCE)
+    best, _, best_u = best_formats(scores)
     return sorted(f for f, (s, u, q) in scores.items() if is_candidate(best, s, best_u, u, q, factor))
 
 
@@ -115,7 +125,11 @@ def decide(scores, low):
     rates = {f: Fraction(low[f]["correct"], low[f]["total"]) for f in picked}
     top = max(rates.values())
     remaining = sorted(f for f in picked if rates[f] == top)
-    result = {"candidates": picked, "after_rule_2": remaining, "rule_3_applied": False}
+    _, tied, u_best = best_formats(scores)
+    result = {
+        "best_tied": tied, "u_best": u_best,
+        "candidates": picked, "after_rule_2": remaining, "rule_3_applied": False,
+    }
     if len(remaining) > 1:
         tokens = {f: low[f]["tokens"] for f in remaining}
         if any(t is None for values in tokens.values() for t in values) or not all(tokens.values()):
@@ -388,7 +402,7 @@ def tables(summary):
     )
     decision = summary["decision"]
     lines.append(f"recommendation: {decision.get('recommendation')}")
-    for key in ("candidates", "after_rule_2", "rule_3_applied", "tie", "reason"):
+    for key in ("best_tied", "u_best", "candidates", "after_rule_2", "rule_3_applied", "tie", "reason"):
         if key in decision:
             lines.append(f"{key}: {decision[key]}")
     for factor, chosen in summary.get("reference_candidates", {}).items():
