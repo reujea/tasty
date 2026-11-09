@@ -66,8 +66,9 @@ pub struct MainViewState {
     pub(crate) tab_bar_height: PhysicalPx,
     /// 지금 화면에 드러난 네이티브 WebView 영역(물리 픽셀). egui보다 위에 그려지므로
     /// 탭 스트립 툴팁이 이 영역을 피해 배치한다. WebView 동기화가 매 프레임 갱신한다.
+    /// surface id 는 webview 우클릭 메뉴가 페이지 좌표를 창 좌표로 옮길 때 쓴다.
     #[cfg(feature = "gui")]
-    pub(crate) native_content_rects: Vec<crate::model::PhysicalRect>,
+    pub(crate) native_content_rects: Vec<(u32, crate::model::PhysicalRect)>,
     /// Popup manager for internal popups (notification panel, etc.).
     #[cfg(feature = "gui")]
     pub(crate) popups: crate::adapters::ui::PopupManager,

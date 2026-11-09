@@ -495,7 +495,7 @@ pub fn draw_pane_tab_bars(
     let native_content: Vec<egui::Rect> = state
         .native_content_rects
         .iter()
-        .map(|r| crate::adapters::ui::to_egui_rect(*r, scale_factor))
+        .map(|(_, r)| crate::adapters::ui::to_egui_rect(*r, scale_factor))
         .collect();
 
     let props = PaneTabBarsProps {

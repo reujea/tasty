@@ -29,6 +29,7 @@ mod saved_row_menu;
 pub(crate) mod selection;
 mod shutdown;
 pub(crate) mod vi_copy;
+mod webview_menu;
 
 pub(crate) mod ime;
 

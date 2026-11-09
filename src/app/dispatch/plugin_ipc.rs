@@ -131,6 +131,10 @@ impl App {
             self.handle_ipc_webview_open_external(&call);
             return;
         }
+        if call.method == "webview.context_menu" {
+            self.handle_ipc_webview_context_menu(&call);
+            return;
+        }
         // 자기 namespace 요청은 호스트 구현으로 위임할 수 있어 다른 플러그인 요청만 forward한다.
         // 호스트 변환 메서드는 소유 플러그인을 거치지 않고 아래 journal 접수로 간다.
         if let Some(mgr) = self.plugin_manager.as_mut()
