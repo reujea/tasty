@@ -6461,7 +6461,7 @@ dependencies = [
 
 [[package]]
 name = "tasty-plugin-clipboard-viewer"
-version = "0.1.425"
+version = "0.1.426"
 dependencies = [
  "anyhow",
  "arboard",
@@ -6506,7 +6506,7 @@ dependencies = [
 
 [[package]]
 name = "tasty-plugin-git-viewer"
-version = "0.1.431"
+version = "0.1.432"
 dependencies = [
  "anyhow",
  "egui",
@@ -6540,7 +6540,7 @@ dependencies = [
 
 [[package]]
 name = "tasty-plugin-image"
-version = "0.1.374"
+version = "0.1.375"
 dependencies = [
  "anyhow",
  "arboard",
@@ -6578,7 +6578,7 @@ dependencies = [
 
 [[package]]
 name = "tasty-plugin-markdown"
-version = "0.1.525"
+version = "0.1.526"
 dependencies = [
  "ammonia",
  "anyhow",
@@ -6606,7 +6606,7 @@ dependencies = [
 
 [[package]]
 name = "tasty-plugin-mesh-demo"
-version = "0.1.336"
+version = "0.1.337"
 dependencies = [
  "anyhow",
  "egui",

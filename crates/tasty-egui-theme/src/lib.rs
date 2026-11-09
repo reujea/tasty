@@ -238,6 +238,9 @@ const SYSTEM_CJK_CANDIDATES: &[&str] = &[
     "/usr/share/fonts/noto-cjk/NotoSansCJK-Regular.ttc",
     "/usr/share/fonts/google-noto-cjk/NotoSansCJK-Regular.ttc",
     "/usr/share/fonts/truetype/noto/NotoSansCJK-Regular.ttc",
+    "/usr/share/fonts/google-noto-sans-cjk-fonts/NotoSansCJK-Regular.ttc",
+    // 가변 글꼴이라 egui는 축 기본값인 Thin으로 그린다. 고정 글꼴이 없을 때 □ 대신 쓴다.
+    "/usr/share/fonts/google-noto-sans-cjk-vf-fonts/NotoSansCJK-VF.ttc",
 ];
 
 #[cfg(not(any(target_os = "windows", target_os = "macos", target_os = "linux")))]
