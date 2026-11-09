@@ -22,25 +22,6 @@ use tasty_terminal_link::LinkHighlight;
 
 use overlay::composite_over;
 
-/// 일반 매치 안 기본 글자 셀의 글자색. ANSI 색 셀과 현재 매치에는 쓰지 않는다.
-#[derive(Clone, Copy)]
-pub struct MatchInk {
-    pub fg: GpuRgba,
-    /// dim 셀도 이 색으로 읽는지.
-    pub dim: bool,
-}
-
-impl MatchInk {
-    /// 바탕 두 벌 모두 `text-primary`다. 포커스 dim 셀은 제외한다. 내장 테마의 포커스 기본 글자는
-    /// 이 값과 같아 나머지 셀은 보이는 값이 그대로이지만, dim 셀은 섞인 색이라 값이 달라지기 때문이다.
-    pub fn for_surface(theme: &tasty_type_appearance::theme::Theme, focused: bool) -> Self {
-        Self {
-            fg: theme.text_primary().to_gpu_rgba(),
-            dim: !focused,
-        }
-    }
-}
-
 /// Search match highlights to pass into the renderer.
 #[derive(Clone, Copy)]
 pub struct SearchHighlights<'a> {
@@ -51,7 +32,8 @@ pub struct SearchHighlights<'a> {
     pub active_bg: GpuRgba,
     /// 현재 매치 안 글리프 색. 셀 자신의 글자색(SGR)을 그 칸에서만 덮어쓴다.
     pub active_fg: GpuRgba,
-    pub inactive_ink: Option<MatchInk>,
+    /// 일반 매치 안 기본 글자 셀의 글자색. ANSI 색 셀과 현재 매치에는 쓰지 않는다.
+    pub inactive_ink: Option<GpuRgba>,
 }
 
 impl SearchHighlights<'_> {
@@ -91,9 +73,8 @@ impl SearchHighlights<'_> {
         if let Some(ink) = self.inactive_ink
             && !ink_replaced
             && reads_default_ink(attrs)
-            && (ink.dim || attrs.intensity() != termwiz::cell::Intensity::Half)
         {
-            *fg = ink.fg;
+            *fg = ink;
         }
     }
 }

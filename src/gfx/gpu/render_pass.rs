@@ -147,9 +147,7 @@ impl GpuState {
                         } else {
                             theme.search_match_active_unfocused_fg().to_gpu_rgba()
                         },
-                        inactive_ink: Some(crate::renderer::MatchInk::for_surface(
-                            &theme, is_focused,
-                        )),
+                        inactive_ink: Some(theme.text_primary().to_gpu_rgba()),
                     });
                 let search_ref = search_highlights.as_ref();
 

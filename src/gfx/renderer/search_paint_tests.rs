@@ -44,7 +44,7 @@ fn ansi() -> [GpuRgb; 16] {
     ansi
 }
 
-fn highlights(dim: bool) -> SearchHighlights<'static> {
+fn highlights() -> SearchHighlights<'static> {
     SearchHighlights {
         epoch: tasty_terminal::ContentEpoch::default(),
         matches: &MATCHES,
@@ -52,7 +52,7 @@ fn highlights(dim: bool) -> SearchHighlights<'static> {
         inactive_bg: rgba(0.3),
         active_bg: rgba(0.7),
         active_fg: active_ink(),
-        inactive_ink: Some(MatchInk { fg: ink(), dim }),
+        inactive_ink: Some(ink()),
     }
 }
 
@@ -84,7 +84,7 @@ fn cells_without_a_chosen_foreground_read_the_match_ink() {
     ] {
         let attrs = attrs_of(sgr);
         assert_eq!(
-            fg_at(&highlights(true), MATCH_COL, &attrs, false),
+            fg_at(&highlights(), MATCH_COL, &attrs, false),
             ink(),
             "{why}"
         );
@@ -104,7 +104,7 @@ fn chosen_colours_keep_their_ink_in_a_match() {
         let attrs = attrs_of(sgr);
         assert_ne!(own_fg(&attrs), ink(), "{why}");
         assert_eq!(
-            fg_at(&highlights(true), MATCH_COL, &attrs, false),
+            fg_at(&highlights(), MATCH_COL, &attrs, false),
             own_fg(&attrs),
             "{why}"
         );
@@ -122,7 +122,7 @@ fn a_chosen_colour_equal_to_the_default_ink_is_still_chosen() {
             assert!((got - want).abs() < 0.01, "{sgr:?}: {own:?}");
         }
         assert_eq!(
-            fg_at(&highlights(true), MATCH_COL, &attrs, false),
+            fg_at(&highlights(), MATCH_COL, &attrs, false),
             own_fg(&attrs),
             "{sgr:?}"
         );
@@ -134,37 +134,31 @@ fn a_reversed_cell_keeps_its_ink_in_a_match() {
     for sgr in ["\x1b[7m", "\x1b[7;1m"] {
         let attrs = attrs_of(sgr);
         assert_eq!(
-            fg_at(&highlights(true), MATCH_COL, &attrs, false),
+            fg_at(&highlights(), MATCH_COL, &attrs, false),
             default_bg(),
             "{sgr:?}"
         );
     }
 }
 
-/// 비포커스는 dim도 기본 글자 셀이다. 포커스는 내장 테마에서 보이는 값이 달라져 제외한다.
+/// dim은 색을 고르지 않는다. 섞인 색으로 두면 매치 칸에서 1.81이라 읽히지 않는다.
 #[test]
-fn a_dim_default_cell_reads_the_ink_only_when_the_surface_allows_it() {
+fn a_dim_default_cell_reads_the_ink() {
     let attrs = attrs_of("\x1b[2m");
-    assert_eq!(fg_at(&highlights(true), MATCH_COL, &attrs, false), ink());
-    assert_eq!(
-        fg_at(&highlights(false), MATCH_COL, &attrs, false),
-        own_fg(&attrs)
-    );
     assert_ne!(own_fg(&attrs), ink());
+    assert_eq!(fg_at(&highlights(), MATCH_COL, &attrs, false), ink());
 }
 
-/// 현재 매치는 셀 종류와 포커스에 상관없이 현재 매치 글자다.
+/// 현재 매치는 셀 종류에 상관없이 현재 매치 글자다.
 #[test]
 fn the_active_match_overrides_every_cell() {
-    for dim in [true, false] {
-        for sgr in ["", "\x1b[1m", "\x1b[2m", "\x1b[32m", "\x1b[7m"] {
-            let attrs = attrs_of(sgr);
-            assert_eq!(
-                fg_at(&highlights(dim), ACTIVE_COL, &attrs, false),
-                active_ink(),
-                "{sgr:?}"
-            );
-        }
+    for sgr in ["", "\x1b[1m", "\x1b[2m", "\x1b[32m", "\x1b[7m"] {
+        let attrs = attrs_of(sgr);
+        assert_eq!(
+            fg_at(&highlights(), ACTIVE_COL, &attrs, false),
+            active_ink(),
+            "{sgr:?}"
+        );
     }
 }
 
@@ -172,7 +166,7 @@ fn the_active_match_overrides_every_cell() {
 fn a_cell_outside_every_match_is_untouched() {
     let attrs = attrs_of("");
     let (mut bg, mut fg) = (default_bg(), default_fg());
-    highlights(true).paint(OUTSIDE_COL, 0, &attrs, false, &mut bg, &mut fg);
+    highlights().paint(OUTSIDE_COL, 0, &attrs, false, &mut bg, &mut fg);
     assert_eq!((bg, fg), (default_bg(), default_fg()));
 }
 
@@ -180,19 +174,16 @@ fn a_cell_outside_every_match_is_untouched() {
 #[test]
 fn ink_chosen_by_a_cursor_or_link_stays_in_a_match() {
     let attrs = attrs_of("");
-    assert_eq!(
-        fg_at(&highlights(true), MATCH_COL, &attrs, true),
-        default_fg()
-    );
+    assert_eq!(fg_at(&highlights(), MATCH_COL, &attrs, true), default_fg());
 }
 
 #[test]
 fn a_reversed_screen_keeps_the_cell_ink_in_a_match() {
     let attrs = attrs_of("");
-    let sh = highlights(true).on_screen(true);
+    let sh = highlights().on_screen(true);
     assert_eq!(fg_at(&sh, MATCH_COL, &attrs, false), default_fg());
     assert_eq!(fg_at(&sh, ACTIVE_COL, &attrs, false), active_ink());
-    let sh = highlights(true).on_screen(false);
+    let sh = highlights().on_screen(false);
     assert_eq!(fg_at(&sh, MATCH_COL, &attrs, false), ink());
 }
 
@@ -224,17 +215,12 @@ fn latte() -> tasty_type_appearance::theme::Theme {
     tasty_type_appearance::theme::Theme::with_colors(colors, is_light.unwrap_or(true))
 }
 
-/// Q2의 근거. 내장 테마에서 포커스 일반 매치는 기본 글자와 값이 같아 보이는 변화가 없다.
+/// 내장 테마의 포커스 바탕에서 기본·bold 칸은 값이 그대로이고 비포커스 바탕에서만 달라진다.
 #[test]
-fn the_focused_ink_equals_the_default_ink_on_the_official_themes() {
+fn the_ink_equals_the_focused_default_ink_on_the_official_themes() {
     for theme in [tasty_themes::mocha_fallback(), latte()] {
         let term = theme.surface("terminal");
-        let focused = MatchInk::for_surface(&theme, true);
-        let unfocused = MatchInk::for_surface(&theme, false);
-        assert_eq!(focused.fg, term.focused_fg.to_gpu_rgba());
-        assert_eq!(unfocused.fg, theme.text_primary().to_gpu_rgba());
-        assert_ne!(unfocused.fg, term.unfocused_fg.to_gpu_rgba());
-        assert!(!focused.dim);
-        assert!(unfocused.dim);
+        assert_eq!(theme.text_primary(), term.focused_fg);
+        assert_ne!(theme.text_primary(), term.unfocused_fg);
     }
 }

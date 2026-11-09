@@ -310,7 +310,7 @@ CLI는 `tasty settings get-input-rules`, `set-input-rule --app claude --shift-en
 
 xterm-256color(ANSI 16 + 216 큐브 + 24 그레이) + TrueColor. 색은 Theme 의 ansi 팔레트([theme](../../design/systems/theme.md)). 폰트는 번들 D2Coding ligature(OFL 1.1, 임베드 — OS 미설치에도 동작), CJK fallback, 블록/박스 드로잉 글리프는 픽셀 퍼펙트 커스텀 렌더. 번들 폰트 파일은 합자 글리프를 포함하지만(폰트 자원), tasty 는 셀-격자 cross-cell 합자(프로그래밍 ligature) 적용도 설정 토글도 **미지원** — 보류 결정은 이 문서. 렌더 파이프라인(누적→flush→단일 패스, atlas LRU)은 [dev-guide/gpu-rendering](../../dev-guide/gpu-rendering.md).
 
-바탕은 포커스 바탕 쌍을 쓰고 값은 [포커스 표현](../../design/policies/focus.md#surface-포커스-표현)의 판정을 따른다. 찾기의 현재 매치 글자도 같은 판정을 따라 비포커스 때는 `Theme::search_match_active_unfocused_fg()`를 쓴다. 일반 매치 안의 기본 글자 셀은 `text-primary`로 읽는다. 기본 글자 셀은 프로그램이 전경색을 고르지 않았고 반전 표시가 아닌 셀이다. 값이 기본색과 같아도 SGR로 고른 색은 셀의 색을 유지한다. bold는 기본 글자 셀이다. dim은 비포커스에서만 기본 글자 셀로 읽고, 포커스에서는 섞인 색을 유지한다. DECSCNM 반전 화면과 블록 커서·vi 커서·링크가 글자색을 정한 칸은 셀 글자를 유지한다.
+바탕은 포커스 바탕 쌍을 쓰고 값은 [포커스 표현](../../design/policies/focus.md#surface-포커스-표현)의 판정을 따른다. 찾기의 현재 매치 글자도 같은 판정을 따라 비포커스 때는 `Theme::search_match_active_unfocused_fg()`를 쓴다. 일반 매치 안의 기본 글자 셀은 `text-primary`로 읽는다. 기본 글자 셀은 프로그램이 전경색을 고르지 않았고 반전 표시가 아닌 셀이다. 값이 기본색과 같아도 SGR로 고른 색은 셀의 색을 유지한다. bold와 dim은 기본 글자 셀이고 두 바탕에서 같다. DECSCNM 반전 화면과 블록 커서·vi 커서·링크가 글자색을 정한 칸은 셀 글자를 유지한다.
 
 ### 이벤트 드리븐 렌더
 
