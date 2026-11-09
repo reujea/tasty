@@ -264,6 +264,9 @@ pub const METHOD_TABLE: &[(&str, MethodMeta)] = {
         ),
         ("tree", plugin(Read, &[SurfaceRead])),
         ("webview.set_url", plugin(Idempotent, &[SurfaceWrite])),
+        // 실린 문서를 다시 싣지 않고 JSON 메시지를 보낸다. set_url과 같은 권한이다.
+        // 같은 메시지를 두 번 보내면 페이지가 두 번 처리하므로 Idempotent가 아니다.
+        ("webview.post_message", plugin(Mutate, &[SurfaceWrite])),
         // webview 플러그인은 문서를 만들 때 전역 테마를 조회한다. surface별 정보가 아니므로 추가 토큰은 없다.
         ("theme.query", plugin(Read, &[])),
         // webview 플러그인이 페이지가 처리할 동작의 단축키를 문서에 넣을 때 조회한다. 전역 설정이다.

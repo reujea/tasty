@@ -157,7 +157,7 @@ CLI 진입점이 없다고 판단하지 않는다. 인자를 맞추지 못해 �
 
 그래서 "release 표에 있는데 CLI 가 없다" 는 그 자체로 결함이 아니다. 아래가 현재 그런 메서드 전부이고, 각 행이 왜 그 기준 밖인지 또는 어떻게 이미 충족되는지를 적는다. **새로 그런 메서드를 만들면 여기에 행을 추가한다** — `tests/cli_method_table_parity.rs` 가 이 표와 실제 집합을 양방향으로 대조하므로, 빠뜨리면 테스트가 떨어진다. 아래 개수와, 사유 열이 "대신 이걸 쓰라" 고 든 명령이 실재하는지도 같은 가드가 본다. 개수는 표에서 파생되지 않는 값이라(마크다운 표는 스스로 세지 않는다) 행을 고칠 때 함께 고쳐야 하고, 안 고치면 그 가드가 실제 값을 알려준다.
 
-총 37개.
+총 38개.
 
 | 이유 | 메서드 | 왜 CLI 가 없나 |
 |---|---|---|
@@ -167,6 +167,7 @@ CLI 진입점이 없다고 판단하지 않는다. 인자를 맞추지 못해 �
 | plugin → host 서비스 | `git_viewer.query` · `markdown.navigate` | 특정 plugin(git-viewer · markdown 주소창·파일열기 팝업)이 자기 surface 를 위해 부른다. `git_viewer.query` 는 `request_id` 만 회신하고 결과를 그 plugin 에 unicast push 하므로 셸이 결과를 받을 수 없고, `markdown.navigate` 는 그 namespace 를 번들 plugin 이 점유해 외부 호출이 plugin 으로 forward 된다([플러그인 제작 가이드](plugin-development.md)) |
 | plugin → host 서비스 | `attach.agent_call` · `attach.agent_commit` · `attach.child_notice` · `attach.child_notices` | claude·codex 같은 provider plugin 이 attach mirror 에 원격 자식을 만들고(`agent_call`·`agent_commit`), 서버 쪽에서 그 자식의 결과를 맡긴다(`child_notice`). 호출 plugin 자신의 namespace 와 부모 경로가 대상이라 CLI 호출자가 없고, 핸들러가 plugin 이 아닌 호출을 거절한다. 사용자 진입점은 `tasty claude spawn`·`tasty codex spawn` 이다. `child_notices` 는 서버에 남은 통지를 보는 진단 조회이며 `attach.list` 와 같은 진단 용도다([Attach 메커니즘](attach-behavior.md#원격-자식-에이전트-ipcstreamagent-children)) |
 | plugin → host 서비스 | `markdown_mirror.content_request` | markdown plugin 이 attach mirror 문서의 원격 원문을 요청한다. `git_viewer.query` 와 같은 비동기 accept 라 `request_id` 만 회신하고 원문은 그 plugin 에 unicast push 되므로 셸이 결과를 받을 수 없다([원격 attach (Remote attach)](../features/remote-attach/index.md)) |
+| plugin → host 서비스 | `webview.post_message` | plugin 이 **자기** webview surface 의 문서에 JSON 메시지를 보낸다(페이지는 `tasty:message` 이벤트로 받는다). 대상이 caller plugin 소유 surface 이고 매니페스트가 스크립트를 켠 kind 여야 한다. 문서를 그린 plugin 이 화면을 다시 싣지 않고 갱신하는 길이라 에이전트가 자기 작업에 쓰는 능력이 아니다 |
 | 열면 그 능력이 깨진다 | `surface.read_since_scan_mark` | 출력 스캐너 전용 커서라 **읽으면 커서가 전진한다.** CLI로 읽으면 스캐너보다 먼저 커서가 전진해 감시할 출력을 놓칠 수 있다. 에이전트가 출력을 읽을 때는 커서를 움직이지 않는 `tasty read since-mark`를 쓴다([터미널 (Terminal)](../surfaces/terminal/index.md)) |
 | plugin → host 서비스 | `settings.get_keybinding` | markdown plugin 이 문서 페이지에 넣을 `find` 바인딩을 읽는다. 페이지는 host 설정을 직접 받지 못해서 생긴 plugin용 조회이며, 바뀌면 `command.host_shortcut_changed` 를 그 plugin 이 구독해 받는다. 셸에서는 같은 값을 config.toml 의 `[keybindings]` 에서 읽는다 |
 | plugin → host 서비스 | `settings.get_plugin_setting` | `caller_plugin_id` 를 요청 파라미터가 아니라 `CallerContext` 에서 강제 도출한다 — CLI 호출자는 plugin 신원이 없어 호출할 수 없다 |

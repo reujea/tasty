@@ -674,6 +674,8 @@ fn route_engine_handler(
         "webhook.config" => webhook::handle_config(core, out, &engine.read(), id, &request.params),
         "webview.set_url" => webview::handle_set_url(&engine.as_ref(), caller, id, &request.params),
         #[cfg(feature = "gui")]
+        "webview.post_message" => webview::post_message(engine, caller, id, request),
+        #[cfg(feature = "gui")]
         "surface.html_script" => surface::handle_html_script(&engine.as_ref(), id, &request.params),
         #[cfg(feature = "gui")]
         "surface.html_script_allow" => {

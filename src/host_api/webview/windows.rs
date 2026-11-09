@@ -5,6 +5,7 @@
 // 이유: native 포인터·핸들 호출을 묶는 FFI 모듈이다. 파일 단위 면제는 새 코드에도 적용되므로 안전 래퍼로 옮기면 범위를 줄여야 한다.
 #![allow(clippy::multiple_unsafe_ops_per_block)]
 
+mod eval;
 mod host_input;
 mod http;
 mod keyboard;

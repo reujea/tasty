@@ -586,6 +586,27 @@ fn resync_webview_urls(
     }
 }
 
+/// plugin 이 `webview.post_message` 로 쌓은 메시지 스크립트를 실린 문서에서 돌린다.
+/// URL 재동기화 뒤에 돌아 같은 프레임에 문서를 바꿨으면 새 문서가 받는다.
+/// WebView 가 아직 없으면 큐를 남겨 다음 프레임에 돌린다.
+fn drain_pending_scripts(
+    view: &MainView,
+    engine: &crate::runtime::engine_access::EngineRef<'_>,
+    all_html_ids: &[u32],
+) {
+    for &sid in all_html_ids {
+        let Some(wv) = view.webviews.get(&sid) else {
+            continue;
+        };
+        let Some(rs) = find_remote_surface(view, engine, sid) else {
+            continue;
+        };
+        for script in rs.take_scripts() {
+            wv.eval_js(&script);
+        }
+    }
+}
+
 /// 드러난 WebView 영역을 기록한다. 탭 스트립 툴팁은 다음 프레임에 이 영역을 피해 배치한다.
 /// HashMap 순회 순서가 바뀌어도 같은 값으로 보도록 surface id 순으로 정렬한다.
 fn publish_native_content_rects(
@@ -682,6 +703,7 @@ fn sync_webviews(
     // 아래 표시 판정보다 먼저 둔다. 이 프레임에 드러나는 WebView도 새 상태로 드러난다.
     bed_focus::sync(view, engine);
     resync_webview_urls(view, engine, &all_html_ids);
+    drain_pending_scripts(view, engine, &all_html_ids);
     update_html_script_banners(view, engine, &all_html_ids);
 
     // When any egui overlay (context menu, popup, dialog) is open,

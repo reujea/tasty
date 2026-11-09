@@ -87,6 +87,126 @@ pub fn handle_set_url(
     JsonRpcResponse::error(id, -32000, "surface_id not found")
 }
 
+/// 이미 실린 문서에 JSON 메시지를 보낸다. 페이지는 `window` 의 `tasty:message` 이벤트로 받고
+/// 값은 `event.detail` 에 있다. 문서를 갈아끼우는 set_url과 달리 입력 중인 값과 스크롤 위치가
+/// 유지된다. plugin 은 코드가 아니라 데이터만 보내며, 이벤트를 내는 스크립트는 호스트가 만든다.
+/// 결과는 돌려주지 않는다.
+///
+/// native WebView는 창이 들고 있으므로 RemoteSurface의 큐에 넣고 webview 동기화가 비운다.
+/// 호출자는 surface 소유 플러그인이어야 하고, surface kind의 해석된 WebView 설정에서
+/// 스크립트가 켜져 있어야 한다(받을 페이지 스크립트가 없으면 메시지는 아무도 안 받는다).
+/// backend의 evaluate API는 페이지 JS 차단과 무관하게 실행되므로 이 검사가 유일한 게이트다.
+#[cfg(feature = "gui")]
+pub fn post_message(
+    engine: &mut crate::runtime::engine_access::EngineMut<'_>,
+    caller: &tasty_ipc::caller::CallerContext,
+    id: Value,
+    request: &crate::ipc::protocol::JsonRpcRequest,
+) -> JsonRpcResponse {
+    handle_post_message(&engine.as_ref(), caller, id, &request.params)
+}
+
+#[cfg(feature = "gui")]
+fn handle_post_message(
+    engine: &crate::runtime::engine_access::EngineRef<'_>,
+    caller: &tasty_ipc::caller::CallerContext,
+    id: Value,
+    params: &Value,
+) -> JsonRpcResponse {
+    let sid = match require_u32(params, "surface_id", &id) {
+        Ok(v) => v,
+        Err(e) => return e,
+    };
+    let script = match params.get("data") {
+        Some(data) => match message_script(data) {
+            Ok(s) => s,
+            Err(reason) => return JsonRpcResponse::invalid_params(id, reason),
+        },
+        None => return JsonRpcResponse::invalid_params(id, "missing 'data'"),
+    };
+
+    for ws in &engine.workspaces() {
+        for &pid in &ws.pane_layout().all_pane_ids() {
+            let Some(pane) = ws.pane_layout().find_pane(pid) else {
+                continue;
+            };
+            for tab in &pane.tabs {
+                let Some(layout) = tab.layout_if_initialized() else {
+                    continue;
+                };
+                let Some(surface) = layout
+                    .find_surface(sid)
+                    .and_then(|_| engine.find_surface_by_id(sid))
+                else {
+                    continue;
+                };
+                let Some(rs) = surface
+                    .as_any()
+                    .downcast_ref::<crate::plugin_bridge::remote_surface::RemoteSurface>()
+                else {
+                    tracing::warn!(
+                        "webview.post_message: surface {sid} is not a webview-enabled RemoteSurface"
+                    );
+                    return JsonRpcResponse::error(
+                        id,
+                        -32000,
+                        "surface is not a webview-enabled RemoteSurface",
+                    );
+                };
+                if let Err(reason) = post_message_allowed(engine, caller, rs) {
+                    tracing::warn!("webview.post_message: surface {sid} refused: {reason}");
+                    return JsonRpcResponse::error(id, -32000, reason);
+                }
+                rs.queue_script(script);
+                return JsonRpcResponse::success(id, serde_json::json!({ "ok": true }));
+            }
+        }
+    }
+    tracing::warn!("webview.post_message: surface {sid} not found in any workspace layout");
+    JsonRpcResponse::error(id, -32000, "surface_id not found")
+}
+
+/// 한 메시지의 직렬화 상한. 큐는 프레임마다 비지만 큰 값이 쌓이면 메모리와 프레임 시간을 잡아먹는다.
+#[cfg(feature = "gui")]
+const MAX_MESSAGE_BYTES: usize = 1024 * 1024;
+
+/// 메시지를 `tasty:message` 이벤트로 내는 스크립트. JSON 은 그대로 JS 식이므로 값이 코드로
+/// 바뀌지 않는다. 상한을 넘으면 거절한다.
+#[cfg(feature = "gui")]
+fn message_script(data: &Value) -> Result<String, &'static str> {
+    let json = serde_json::to_string(data).map_err(|_| "'data' could not be serialized")?;
+    if json.len() > MAX_MESSAGE_BYTES {
+        return Err("'data' is larger than 1 MiB");
+    }
+    Ok(format!(
+        "window.dispatchEvent(new CustomEvent('tasty:message',{{detail:{json}}}));"
+    ))
+}
+
+/// post_message 허용 판정. 소유 플러그인만 자기 문서에 메시지를 보낼 수 있고, 스크립트 허용 여부는
+/// 실제 WebView에 적용하는 것과 같은 해석(manifest 기본값과 사용자 설정)을 따른다.
+#[cfg(feature = "gui")]
+fn post_message_allowed(
+    engine: &crate::runtime::engine_access::EngineRef<'_>,
+    caller: &tasty_ipc::caller::CallerContext,
+    rs: &crate::plugin_bridge::remote_surface::RemoteSurface,
+) -> Result<(), &'static str> {
+    if !is_owner(caller, rs) {
+        return Err("caller does not own this surface");
+    }
+    let Some(source) =
+        crate::runtime::surface_registry::webview_kind::webview_settings_source(rs.kind_static)
+    else {
+        return Err("surface is not a webview-enabled RemoteSurface");
+    };
+    if !crate::webview::HtmlWebViewSettings::resolve(Some(&source), &engine.runtime.settings)
+        .javascript_enabled
+    {
+        return Err("scripts are disabled for this webview surface");
+    }
+    Ok(())
+}
+
 fn is_owner(
     caller: &tasty_ipc::caller::CallerContext,
     rs: &crate::plugin_bridge::remote_surface::RemoteSurface,
@@ -410,5 +530,128 @@ mod tests {
             resp.error.map(|e| e.message),
             Some("surface is not a webview-enabled RemoteSurface".to_string())
         );
+    }
+
+    fn post_message_as(
+        engine: &crate::runtime::engine_access::EngineRef<'_>,
+        caller: &tasty_ipc::caller::CallerContext,
+        sid: u32,
+    ) -> JsonRpcResponse {
+        handle_post_message(
+            engine,
+            caller,
+            json!(1),
+            &json!({ "surface_id": sid, "data": { "type": "update" } }),
+        )
+    }
+
+    /// fixture의 markdown kind를 manifest 선언으로 등록한다. sandbox_scripts가 false면 스크립트가 켜진다.
+    fn register_markdown_kind(sandbox_scripts: Option<bool>) {
+        use crate::runtime::surface_registry::webview_kind as wk;
+        let decl: tasty_plugin_manifest::SurfaceKindDecl = serde_json::from_value(json!({
+            "kind": "markdown",
+            "display_name_i18n_key": "surface.kind.markdown",
+            "rendering": "webview",
+            "webview_defaults": { "sandbox_scripts": sandbox_scripts },
+        }))
+        .expect("surface kind decl");
+        wk::reset_for_test();
+        wk::register_webview_kind("com.tasty.markdown", &decl, &[]);
+    }
+
+    // 따옴표·괄호·태그가 든 값도 JSON 리터럴 안에 머문다 — 값이 코드로 이어지지 않는다.
+    #[test]
+    fn a_message_stays_a_json_literal_inside_the_event() {
+        let data = json!({ "t": "a'b\"c);alert(1)//</script>" });
+        let script = message_script(&data).expect("script");
+        let detail = script
+            .strip_prefix("window.dispatchEvent(new CustomEvent('tasty:message',{detail:")
+            .and_then(|r| r.strip_suffix("}));"))
+            .expect("고정된 앞뒤");
+        assert_eq!(serde_json::from_str::<Value>(detail).expect("JSON"), data);
+    }
+
+    // 상한을 넘는 메시지는 큐에 넣기 전에 거절한다.
+    #[test]
+    fn a_message_over_the_cap_is_refused() {
+        let big = json!("x".repeat(MAX_MESSAGE_BYTES));
+        assert_eq!(message_script(&big), Err("'data' is larger than 1 MiB"));
+    }
+
+    // 소유 플러그인이고 manifest가 스크립트를 켠 kind일 때만 큐에 넣는다. 순서와 개수를 유지한다.
+    #[test]
+    fn post_message_queues_events_for_the_owner_when_the_manifest_enables_scripts() {
+        let (state, mut engine_session) = fixture(0, true);
+        // fixture 가 같은 락으로 kind 를 등록하므로 락은 그 뒤에 잡는다(std Mutex 는 재진입 불가).
+        let _guard = crate::runtime::surface_registry::webview_kind::WEBVIEW_KIND_TEST_LOCK
+            .lock()
+            .unwrap_or_else(|p| p.into_inner());
+        register_markdown_kind(Some(false));
+        let engine = engine_session.borrow_mut();
+        let md_sid = focused_surface_id(&state, &engine.as_ref());
+        let owner = plugin_caller(&remote_surface(&engine.as_ref(), md_sid).plugin_id.clone());
+
+        for _ in 0..2 {
+            let resp = post_message_as(&engine.as_ref(), &owner, md_sid);
+            assert_eq!(resp.result, Some(json!({ "ok": true })), "{:?}", resp.error);
+        }
+        assert_eq!(
+            remote_surface(&engine.as_ref(), md_sid).take_scripts(),
+            vec![
+                r#"window.dispatchEvent(new CustomEvent('tasty:message',{detail:{"type":"update"}}));"#;
+                2
+            ]
+        );
+        crate::runtime::surface_registry::webview_kind::reset_for_test();
+    }
+
+    // 소유자가 아니거나, kind가 등록되지 않았거나, 스크립트가 꺼진 kind면 거절하고 큐는 비어 있다.
+    #[test]
+    fn post_message_refuses_non_owners_and_surfaces_without_scripts() {
+        let (state, mut engine_session) = fixture(0, true);
+        // fixture 가 같은 락으로 kind 를 등록하므로 락은 그 뒤에 잡는다(std Mutex 는 재진입 불가).
+        let _guard = crate::runtime::surface_registry::webview_kind::WEBVIEW_KIND_TEST_LOCK
+            .lock()
+            .unwrap_or_else(|p| p.into_inner());
+        let engine = engine_session.borrow_mut();
+        let md_sid = focused_surface_id(&state, &engine.as_ref());
+        let owner = plugin_caller(&remote_surface(&engine.as_ref(), md_sid).plugin_id.clone());
+        let message = |caller: &tasty_ipc::caller::CallerContext| {
+            post_message_as(&engine.as_ref(), caller, md_sid)
+                .error
+                .map(|e| e.message)
+        };
+
+        register_markdown_kind(Some(false));
+        for other in [
+            plugin_caller("com.example.other"),
+            tasty_ipc::caller::CallerContext::local(),
+        ] {
+            assert_eq!(
+                message(&other),
+                Some("caller does not own this surface".to_string())
+            );
+        }
+
+        crate::runtime::surface_registry::webview_kind::reset_for_test();
+        assert_eq!(
+            message(&owner),
+            Some("surface is not a webview-enabled RemoteSurface".to_string())
+        );
+
+        for sandbox in [None, Some(true)] {
+            register_markdown_kind(sandbox);
+            assert_eq!(
+                message(&owner),
+                Some("scripts are disabled for this webview surface".to_string())
+            );
+        }
+
+        assert!(
+            remote_surface(&engine.as_ref(), md_sid)
+                .take_scripts()
+                .is_empty()
+        );
+        crate::runtime::surface_registry::webview_kind::reset_for_test();
     }
 }
