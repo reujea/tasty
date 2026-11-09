@@ -121,6 +121,10 @@ Claude 호출은 이벤트에서 7일 값을 읽어 자동으로 비교한다. �
 
 순서를 확인할 때는 [순서 확인](rules.md#순서-확인) 절대로 `rules.md`와 함께 판정을 옮긴 코드의 이력을 읽는다: `git log -p --reverse <규칙 첫 커밋>..origin/main -- docs/research/child-tree-format/rules.md scripts/child-tree-format/summarize.py scripts/child-tree-format/score.py`.
 
+## 본 실행 상태
+
+본 실행은 계획 144회를 다 채우지 못하고 122회에서 사용자 결정으로 중단했다. 끊긴 호출 1건은 `data/raw/main-starts.jsonl`에 시작 줄만 있다. 요약과 권고는 없다.
+
 ## 인용
 
 아래 세 논문은 2026-11-09에 arXiv PDF의 본문을 직접 읽었다. 이 측정의 결론을 뒷받침하는 자료가 아니라 설계 참고 자료다. 어느 논문도 이 측정의 네 형식 전체를 비교하지 않고, 이 측정에 쓰는 모델을 시험하지 않았다.
