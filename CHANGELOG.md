@@ -49,6 +49,7 @@
 
 - **Linux에서 원격 HTTP(S) html을 여러 번 열어도 WebView가 막히지 않는다.** 이전에는 앱을 끌 때마다 전용 프로필 폴더가 남아, 몇 번 실행하면 `private profile capacity unavailable`로 html surface가 비었다. 이제 쓰는 프로세스가 없는 폴더는 다음에 열 때 지워지고, 이미 찬 경우도 따로 조작하지 않아도 복구된다. 다만 `XDG_RUNTIME_DIR`이 없고 앱 홈이 ext4, xfs, btrfs, tmpfs가 아닌 파일시스템(네트워크, FUSE, overlay, ZFS 등)에 있으면, 재부팅 전에 쓰던 폴더는 다른 컴퓨터가 쓰는 중일 수 있어 지우지 않는다. 그런 폴더가 쌓여 칸이 차면 같은 실패가 다시 난다.
 - **패닉이 연달아 나도 crash report에서 원인 패닉이 사라지지 않는다.** 이전에는 같은 초의 패닉이 앞 보고서를 덮어써서 마지막 패닉만 남을 수 있었다(Linux와 macOS에서는 `panic in a destructor during cleanup`). 이제 패닉마다 `crash-<시각>-p<PID>-<순번>.log` 파일이 하나씩 남고 이미 있는 파일을 덮어쓰지 않는다. 보고서 머리에 PID와 순번을 담은 `=== Process ===` 절이 생기고, 두 번째 패닉부터는 이 절에 그 프로세스의 첫 패닉 위치와 메시지도 적는다. 프로세스당 초당 4개를 넘는 패닉은 stderr에만 남는다.
+- **취소된 native HTTP private profile이 잠금 경합 한 번으로 남지 않는다.** Linux에서 준비를 마친 private profile을 취소할 때 namespace 잠금을 다른 작업이 잠깐 쥐고 있으면 정리를 포기해, 그 프로세스가 끝날 때까지 디렉터리가 남아 프로필 상한 8개 중 하나를 차지했다. 이제 worker가 잠금 경합만 최대 30초 다시 시도한다.
 - **Codex 세션 helper의 문구가 설정 언어를 따른다.** `LANG` 대신 `general.language`에서 정한 `TASTY_LOCALE`을 읽고, 값이 없으면 영어로 나온다. 사용자 플러그인 번역 파일과 언어팩의 플러그인 번역도 helper 문구에 적용한다.
 
 ## [0.13.4] - 2026-11-08

@@ -88,3 +88,49 @@ fn busy_profile_work_retains_eight_job_permits_and_drop_returns_them() {
         drop(lock);
     });
 }
+
+/// A cleanup waiting for the namespace lock keeps its job permit and the runtime's owner slot, and
+/// retiring that runtime does not make its owner's thread wait: the setup worker does.
+#[test]
+fn unpublished_cleanup_stays_charged_without_blocking_the_runtime_owner() {
+    let _serial = serial();
+    let mut setup = start(Arc::new(|| true));
+    let runtime = ready(&mut setup);
+    let home = private_home();
+    let published = Arc::new(std::sync::atomic::AtomicBool::new(false));
+    let wake = published.clone();
+    let (receipt, work) = Preparation::new(
+        home.path().to_path_buf(),
+        8,
+        crate::host_api::webview::http_context::preparation::MAX_CLAIM_WAIT,
+        runtime.current(),
+        Arc::new(move || wake.store(true, Ordering::Release)),
+    );
+    let attempts = work.discard_attempts();
+    assert!(runtime.spawn_profile(work).is_ok());
+    wait_for("profile work", || published.load(Ordering::Acquire));
+    let namespace = home.path().join("native-http-profiles");
+    let lock = OpenOptions::new()
+        .read(true)
+        .write(true)
+        .open(namespace.join(".profile-lock"))
+        .unwrap();
+    wait_for("namespace lock", || {
+        // SAFETY: fixture owns this descriptor until the cleanup is released below.
+        unsafe { libc::flock(lock.as_raw_fd(), libc::LOCK_EX | libc::LOCK_NB) == 0 }
+    });
+    drop(receipt);
+    wait_for("the cleanup's first Busy", || attempts.busy() > 0);
+    let jobs = runtime.parts.jobs.clone();
+    assert_eq!(jobs.available_permits(), 7);
+    assert_eq!(retirement::owners(), 1);
+    drop(runtime);
+    drop(setup);
+    assert_eq!(jobs.available_permits(), 7);
+    assert_eq!(retirement::owners(), 1);
+    assert_eq!(fs::read_dir(&namespace).unwrap().count(), 2);
+    drop(lock);
+    reaped();
+    assert_eq!(jobs.available_permits(), 8);
+    assert_eq!(fs::read_dir(&namespace).unwrap().count(), 1);
+}

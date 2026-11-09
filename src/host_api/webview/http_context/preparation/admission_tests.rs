@@ -30,7 +30,7 @@ struct HeldAdmission {
     worker: Option<JoinHandle<()>>,
     events: Receiver<Event>,
 }
-fn hold(parent: &std::path::Path) -> File {
+pub(super) fn hold(parent: &std::path::Path) -> File {
     let lock = OpenOptions::new()
         .read(true)
         .write(true)

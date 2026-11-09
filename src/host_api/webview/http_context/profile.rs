@@ -120,12 +120,9 @@ impl PreparedProfile {
     pub(crate) fn into_native(self) -> NativeProfileLease {
         NativeProfileLease { _paths: self.0 }
     }
-    /// Worker only. No native manager may have consumed this unpublished ownership.
-    pub(crate) fn discard_unpublished(self) -> Result<(), ProfileError> {
-        self.remove_unpublished()
-    }
-    /// [`Self::discard_unpublished`] without consuming. `Busy` returns before any removal.
-    fn remove_unpublished(&self) -> Result<(), ProfileError> {
+    /// Worker only. Holding this unconsumed proves that no native manager has this ownership.
+    /// `Busy` returns before any removal, so the caller may try again.
+    pub(super) fn remove_unpublished(&self) -> Result<(), ProfileError> {
         let parent = self.0.root.parent().ok_or(ProfileError::Invalid)?;
         let name = self.0.root.file_name().ok_or(ProfileError::Invalid)?;
         let namespace = fs::Namespace::open(parent)?;

@@ -553,9 +553,9 @@ fn deletion_error_retains_ownership_record_for_remaining_root() {
 // one of these tests just closed can stay locked in a child for a moment. For create and the
 // reclaim_dead sweep, production admission (preparation/admission.rs) retries exactly this
 // typed Busy before a deadline; these tests call the nonblocking API directly, so they take
-// the same bounded admission and then judge the first other result. Production does not
-// retry the unpublished discard. The tests apply the same retry to it only because Busy
-// returns before anything is removed.
+// the same bounded admission and then judge the first other result. The unpublished discard
+// gets the same retry here as on the production worker (preparation.rs): Busy returns before
+// anything is removed.
 pub(super) fn admitted<T>(
     mut operation: impl FnMut() -> Result<T, ProfileError>,
 ) -> Result<T, ProfileError> {

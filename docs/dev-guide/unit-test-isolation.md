@@ -532,6 +532,11 @@ production `ProfileWork`가 기존 worker permit을 보유한 채 제한된 admi
 Busy를 기다리므로, runtime 양성 fixture는 terminal Capacity를 재시도하지 않는다.
 root 상한 8개와 readiness 이후 claim 기한은 그대로다.
 
+취소된 준비의 정리도 같은 잠금을 잡는다. 같은 바이너리의 자식 생성 시험이 fork~exec 창에 그 잠금을 물려받으면
+Busy가 나므로, `ProfileWork`의 정리는 Busy만 다시 시도하고 그동안 receipt 상태 잠금을 쥐지 않는다. 시험은 worker가
+첫 Busy를 받은 뒤에 잠금을 풀어야 한다. 그 전에 풀면 재시도가 없어도 통과한다. `preparation::discard_tests`가 이
+순서를 지키고, Busy와 그 밖의 거절을 나누어 세는 시험 전용 계측으로 판정한다.
+
 `runtime::tests::profile_fixture`는 CLOEXEC fd를 실제 fork 자식에 남겨 admission 만료를
 확인한 뒤 그 정확한 자식을 해제·회수하고 실제 profile/lease를 받는다.
 채워진 namespace의 Capacity는 terminal이며, 여덟 actual profile job의 잠금 대기가

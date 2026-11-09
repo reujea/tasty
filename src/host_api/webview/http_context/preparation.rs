@@ -61,6 +61,13 @@ pub(crate) struct ProfileWork {
     home: NamespaceRoot,
     roots: usize,
     claim_timeout: Duration,
+    /// How long the worker keeps retrying a contended removal of an unpublished root. Only a lock
+    /// held for this whole time spends it; the worker's permit and its runtime's owner slot stay
+    /// charged meanwhile. This is the longest wait the worker may hold them for in admission, and
+    /// it does not follow `claim_timeout`: an expired claim still has its root to remove.
+    discard_wait: Duration,
+    #[cfg(test)]
+    discard_attempts: Arc<discard_tests::DiscardAttempts>,
 }
 impl Preparation {
     pub(crate) fn new(
@@ -86,6 +93,9 @@ impl Preparation {
                 home: home.into(),
                 roots,
                 claim_timeout,
+                discard_wait: MAX_CLAIM_WAIT,
+                #[cfg(test)]
+                discard_attempts: Arc::default(),
             },
         )
     }
@@ -134,13 +144,13 @@ impl ProfileWork {
         let result = if shared.active() {
             result
         } else {
-            discard(result);
+            self.discard(result);
             Err(PrepareError::Retired)
         };
         let needs_claim = result.is_ok();
         let Ok(mut state) = shared.state.lock() else {
             tracing::error!("private profile result poisoned");
-            discard(result);
+            self.discard(result);
             return;
         };
         *state = State::Ready(result);
@@ -172,8 +182,14 @@ impl ProfileWork {
                     return;
                 };
                 drop(state);
-                discard(result);
-                (shared.wake)();
+                if expired {
+                    // The receipt already reads Timeout; a contended cleanup must not delay it.
+                    (shared.wake)();
+                    self.discard(result);
+                } else {
+                    self.discard(result);
+                    (shared.wake)();
+                }
                 return;
             }
             let wait = deadline
@@ -221,6 +237,37 @@ impl ProfileWork {
     }
 }
 impl ProfileWork {
+    /// Removes an unpublished root on the worker that owns it. Busy returns before anything is
+    /// removed, and its holder is ordinarily brief: another worker's sweep or create, or a child
+    /// between fork and exec that still has this process's lock description. Unlike admission this
+    /// runs because the work was cancelled, so it does not stop on retirement. No state lock is
+    /// held, so the receipt keeps answering. Any other error, or Busy past the wait, keeps the root.
+    fn discard(&self, result: Result<PreparedProfile, PrepareError>) {
+        let Ok(profile) = result else {
+            return;
+        };
+        let deadline = Instant::now() + self.discard_wait;
+        let removed = loop {
+            let attempt = profile.remove_unpublished();
+            #[cfg(test)]
+            self.discard_attempts.record(&attempt);
+            match attempt {
+                Err(ProfileError::Busy) if Instant::now() < deadline => {
+                    tracing::debug!("cancelled private profile cleanup contended");
+                    std::thread::sleep(
+                        deadline
+                            .saturating_duration_since(Instant::now())
+                            .min(Duration::from_millis(10)),
+                    );
+                }
+                other => break other,
+            }
+        };
+        if let Err(error) = removed {
+            let root = profile.root();
+            tracing::warn!(%error,?root,"cancelled unpublished private profile cleanup failed; owned root retained");
+        }
+    }
     /// Removes dead roots left in the app-home namespace before the runtime directory was used.
     /// Only the existing dead-owner rules delete; contention or any doubt keeps the data.
     fn sweep_legacy(&self) {
@@ -254,14 +301,8 @@ impl Drop for ProfileWork {
         }
     }
 }
-fn discard(result: Result<PreparedProfile, PrepareError>) {
-    if let Ok(profile) = result {
-        let root = profile.root().to_owned();
-        if let Err(error) = profile.discard_unpublished() {
-            tracing::warn!(%error,?root,"cancelled unpublished private profile cleanup failed; owned root retained");
-        }
-    }
-}
+#[cfg(test)]
+mod discard_tests;
 
 #[cfg(test)]
 mod tests;

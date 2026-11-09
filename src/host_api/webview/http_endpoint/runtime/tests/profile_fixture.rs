@@ -69,9 +69,33 @@ impl InheritedLock {
         lock.set_permissions(std::fs::Permissions::from_mode(0o600))
             .unwrap();
         lock.write_all(b"tasty-private-profile-lock-v1\n").unwrap();
+        // SAFETY: the descriptor is owned and live; flock does not access Rust memory.
+        let locked = unsafe { libc::flock(lock.as_raw_fd(), libc::LOCK_EX | libc::LOCK_NB) };
+        assert_eq!(locked, 0);
+        Self::inherit(lock)
+    }
+    /// Takes the existing namespace lock of a prepared `home` into a forked child. A parallel
+    /// test's child can hold that description for a moment, so only that refusal is retried.
+    fn take(home: &Path) -> Self {
+        let lock = OpenOptions::new()
+            .read(true)
+            .write(true)
+            .open(home.join("native-http-profiles/.profile-lock"))
+            .unwrap();
+        wait_for("namespace lock for the owned child", || {
+            // SAFETY: the descriptor is owned and live; flock does not access Rust memory.
+            if unsafe { libc::flock(lock.as_raw_fd(), libc::LOCK_EX | libc::LOCK_NB) } == 0 {
+                return true;
+            }
+            let error = std::io::Error::last_os_error();
+            assert_eq!(error.kind(), std::io::ErrorKind::WouldBlock, "{error}");
+            false
+        });
+        Self::inherit(lock)
+    }
+    /// Leaves the locked description of `lock` only in a forked child.
+    fn inherit(lock: std::fs::File) -> Self {
         let fd = lock.as_raw_fd();
-        // SAFETY: fd is an owned live regular file; flock does not access Rust memory.
-        assert_eq!(unsafe { libc::flock(fd, libc::LOCK_EX | libc::LOCK_NB) }, 0);
         // Rust opens with CLOEXEC: deliberately demonstrate that fork still inherits it.
         // SAFETY: F_GETFD only inspects this live descriptor.
         let flags = unsafe { libc::fcntl(fd, libc::F_GETFD) };
@@ -209,6 +233,51 @@ fn populated_namespace_capacity_remains_terminal_in_real_worker() {
             Err(PrepareError::Storage(ProfileError::Capacity))
         ));
         assert_eq!(std::fs::read_dir(namespace).unwrap().count(), 9);
+        drop(runtime);
+        drop(setup);
+        reaped();
+    }
+}
+
+/// The first Busy of the cleanup comes from a real child keeping the lock description past the
+/// parent's close, the state a fork leaves until exec. The worker outlasts it and removes the root.
+#[test]
+fn unpublished_cleanup_outlasts_a_lock_description_kept_by_a_forked_child() {
+    let _serial = serial();
+    let mut setup = start(Arc::new(|| true));
+    let runtime = ready(&mut setup);
+    {
+        let home = private_home();
+        let published = Arc::new(std::sync::atomic::AtomicBool::new(false));
+        let wake = published.clone();
+        let (receipt, work) = Preparation::new(
+            home.path().to_path_buf(),
+            8,
+            MAX_CLAIM_WAIT,
+            runtime.current(),
+            Arc::new(move || wake.store(true, Ordering::Release)),
+        );
+        let attempts = work.discard_attempts();
+        assert!(runtime.spawn_profile(work).is_ok());
+        wait_for("profile work", || published.load(Ordering::Acquire));
+        let mut child = InheritedLock::take(home.path());
+        drop(receipt);
+        // Released only after a real Busy, or after the job gave up: a release before the first
+        // attempt would pass even with no retry.
+        wait_for("the cleanup's first Busy", || {
+            attempts.busy() > 0 || runtime.parts.jobs.available_permits() == 8
+        });
+        child.release();
+        wait_for("the job's permit", || {
+            runtime.parts.jobs.available_permits() == 8
+        });
+        assert_eq!(
+            std::fs::read_dir(home.path().join("native-http-profiles"))
+                .unwrap()
+                .count(),
+            1,
+            "the unpublished root must be gone, only the lock file stays"
+        );
         drop(runtime);
         drop(setup);
         reaped();
