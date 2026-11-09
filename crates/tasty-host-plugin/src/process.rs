@@ -834,12 +834,24 @@ fn inject_locale_env(cmd: &mut Command) {
         std::env::var_os("TASTY_LOCALE_FONT"),
     );
     cmd.env("TASTY_LOCALE", locale);
+    // 번호는 경로와 한 쌍이다. 경로가 없으면 상속된 번호도 지운다.
+    let face = font
+        .as_ref()
+        .and(std::env::var_os("TASTY_LOCALE_FONT_FACE"));
     match font {
         Some(font) => {
             cmd.env("TASTY_LOCALE_FONT", font);
         }
         None => {
             cmd.env_remove("TASTY_LOCALE_FONT");
+        }
+    }
+    match face {
+        Some(face) => {
+            cmd.env("TASTY_LOCALE_FONT_FACE", face);
+        }
+        None => {
+            cmd.env_remove("TASTY_LOCALE_FONT_FACE");
         }
     }
 }

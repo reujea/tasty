@@ -540,7 +540,8 @@ fn install_fonts(ctx: &egui::Context) {
     // TASTY_LOCALE_FONT 경로는 호스트가 전달한다.
     if let Some(path) = std::env::var_os("TASTY_LOCALE_FONT").filter(|v| !v.is_empty()) {
         let path = std::path::PathBuf::from(path);
-        if let Err(e) = tasty_egui_theme::install_locale_font_fallback(&mut fonts, &path) {
+        let face = tasty_egui_theme::locale_font_face_from_env();
+        if let Err(e) = tasty_egui_theme::install_locale_font_fallback(&mut fonts, &path, face) {
             tracing::warn!(
                 "locale font at {} could not be installed: {e}",
                 path.display()

@@ -621,6 +621,7 @@ mod tests {
             log_path: None,
             locale: "en".into(),
             locale_font: None,
+            locale_font_face: 0,
             handle_endpoint: Some(endpoint.to_string()),
         }
     }

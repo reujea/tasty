@@ -24,6 +24,13 @@ pub struct FontMetrics {
     pub baseline: f32,
 }
 
+/// A font file, as a path or as bytes, and the number of one face inside it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FontFileFace<F> {
+    pub file: F,
+    pub face: u32,
+}
+
 /// Font configuration holding cosmic-text state.
 pub struct FontConfig {
     pub font_system: FontSystem,
@@ -112,16 +119,22 @@ impl FontConfig {
         self.swash_cache = SwashCache::new();
     }
 
-    /// Load raw font data bytes for a given family name.
-    /// Returns the font data if found in the system font database.
-    pub fn load_family_data(&self, family: &str) -> Option<Vec<u8>> {
+    /// Bytes of the file providing `family` and the number of the matching face
+    /// inside it. A collection holds several families, so the bytes alone name
+    /// none of them. Returns `None` when no face of that family can be read.
+    pub fn load_family_data(&self, family: &str) -> Option<FontFileFace<Vec<u8>>> {
         for face in self.font_system.db().faces() {
             for (name, _) in &face.families {
                 if name.eq_ignore_ascii_case(family) {
                     let mut result = None;
-                    self.font_system.db().with_face_data(face.id, |data, _| {
-                        result = Some(data.to_vec());
-                    });
+                    self.font_system
+                        .db()
+                        .with_face_data(face.id, |data, index| {
+                            result = Some(FontFileFace {
+                                file: data.to_vec(),
+                                face: index,
+                            });
+                        });
                     if result.is_some() {
                         return result;
                     }
@@ -131,18 +144,22 @@ impl FontConfig {
         None
     }
 
-    /// On-disk path of a font file providing `family`, when the matching face is
-    /// backed by a file on disk. Used to resolve a language pack's
-    /// `[font] family = …` to a concrete path so the same file can be handed to
-    /// plugin processes via `TASTY_LOCALE_FONT` (they must not re-search the
-    /// system DB). Returns `None` for in-memory faces or unknown families.
-    pub fn family_source_path(&self, family: &str) -> Option<std::path::PathBuf> {
+    /// On-disk path of a font file providing `family` and the number of the
+    /// matching face, when that face is backed by a file on disk. Used to resolve
+    /// a language pack's `[font] family = …` to a concrete file so the same face
+    /// can be handed to plugin processes via `TASTY_LOCALE_FONT` and
+    /// `TASTY_LOCALE_FONT_FACE` (they must not re-search the system DB). Returns
+    /// `None` for in-memory faces or unknown families.
+    pub fn family_source_path(&self, family: &str) -> Option<FontFileFace<std::path::PathBuf>> {
         for face in self.font_system.db().faces() {
             for (name, _) in &face.families {
                 if name.eq_ignore_ascii_case(family)
                     && let cosmic_text::fontdb::Source::File(path) = &face.source
                 {
-                    return Some(path.clone());
+                    return Some(FontFileFace {
+                        file: path.clone(),
+                        face: face.index,
+                    });
                 }
             }
         }
@@ -505,6 +522,30 @@ mod tests {
         assert_eq!(page.entry_count, 0);
         // Resetting the packing cursor preserves the last-use timestamp.
         assert_eq!(page.last_access_frame, 42);
+    }
+
+    #[test]
+    fn a_bundled_family_is_found_with_its_face_number() {
+        let config = FontConfig::new(14.0, "");
+        let found = config.load_family_data(D2CODING_FAMILY).unwrap();
+        assert_eq!(found.face, 0);
+        assert!(found.file.len() > 1_000_000);
+        assert!(config.load_family_data("No Such Family").is_none());
+    }
+
+    /// 저장소에 넣을 수 없는 시스템 글꼴을 읽는다. 설치되지 않은 컴퓨터에서는 아무것도 재지 않는다.
+    #[test]
+    fn a_family_inside_a_collection_keeps_its_face_number() {
+        let config = FontConfig::new(14.0, "");
+        let (Some(simplified), Some(japanese)) = (
+            config.family_source_path("Noto Sans CJK SC"),
+            config.family_source_path("Noto Sans CJK JP"),
+        ) else {
+            return;
+        };
+        assert_ne!(simplified.face, japanese.face);
+        let data = config.load_family_data("Noto Sans CJK SC").unwrap();
+        assert_eq!(data.face, simplified.face);
     }
 
     /// 실행된 기능 조합만으로는 기본값·선택적 의존 선언을 알 수 없어 매니페스트를 읽는다.

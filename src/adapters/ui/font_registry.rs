@@ -5,6 +5,7 @@ use std::sync::Arc;
 
 use tasty_i18n::font::LocaleFontError;
 
+use crate::font::FontFileFace;
 use crate::settings::{AppearanceSettings, EffectiveFont};
 
 fn family_name_for_kind(kind: &str) -> String {
@@ -74,7 +75,11 @@ pub fn build_font_definitions(
 
     // 부팅과 같은 헬퍼로 CJK 뒤에 언어팩 글꼴을 추가한다.
     if let Some(path) = crate::boot::locale::font_env_path()
-        && let Err(e) = tasty_egui_theme::install_locale_font_fallback(&mut fonts, &path)
+        && let Err(e) = tasty_egui_theme::install_locale_font_fallback(
+            &mut fonts,
+            &path,
+            tasty_egui_theme::locale_font_face_from_env(),
+        )
     {
         tracing::warn!(
             "locale font at {} could not be installed: {e}",
@@ -148,7 +153,7 @@ fn register_custom_font(
     }
     let result = std::fs::read(&eff.custom_font_path)
         .map_err(LocaleFontError::Read)
-        .and_then(|bytes| insert_font(fonts, family_fonts, key, bytes));
+        .and_then(|bytes| insert_font(fonts, family_fonts, key, bytes, 0));
     if let Err(e) = result {
         tracing::warn!(
             "failed to load custom font for {} ({}): {e}",
@@ -164,15 +169,15 @@ fn register_named_font(
     family_name: &str,
     key: String,
     eff: &EffectiveFont,
-    load_family: impl FnOnce(&str) -> Option<Vec<u8>>,
+    load_family: impl FnOnce(&str) -> Option<FontFileFace<Vec<u8>>>,
 ) {
     if eff.font_family.is_empty() || eff.font_family.eq_ignore_ascii_case("monospace") {
         return;
     }
-    let Some(bytes) = load_family(&eff.font_family) else {
+    let Some(found) = load_family(&eff.font_family) else {
         return;
     };
-    if let Err(e) = insert_font(fonts, family_fonts, key, bytes) {
+    if let Err(e) = insert_font(fonts, family_fonts, key, found.file, found.face) {
         tracing::warn!(
             "failed to load font family for {} ({}): {e}",
             family_name,
@@ -181,7 +186,7 @@ fn register_named_font(
     }
 }
 
-fn load_system_family(family: &str) -> Option<Vec<u8>> {
+fn load_system_family(family: &str) -> Option<FontFileFace<Vec<u8>>> {
     crate::font::FontConfig::new(14.0, "").load_family_data(family)
 }
 
@@ -192,11 +197,12 @@ fn insert_font(
     family_fonts: &mut Vec<String>,
     key: String,
     bytes: Vec<u8>,
+    face: u32,
 ) -> Result<(), LocaleFontError> {
-    tasty_i18n::font::validate(&bytes)?;
-    fonts
-        .font_data
-        .insert(key.clone(), Arc::new(egui::FontData::from_owned(bytes)));
+    tasty_i18n::font::validate_face(&bytes, face)?;
+    let mut data = egui::FontData::from_owned(bytes);
+    data.index = face;
+    fonts.font_data.insert(key.clone(), Arc::new(data));
     family_fonts.push(key);
     Ok(())
 }
@@ -283,6 +289,10 @@ mod tests {
         font[hhea + 4..hhea + 6].copy_from_slice(&(-1000i16).to_be_bytes());
         font[hhea + 6..hhea + 8].copy_from_slice(&1000i16.to_be_bytes());
         font
+    }
+
+    fn whole_file(file: Vec<u8>) -> FontFileFace<Vec<u8>> {
+        FontFileFace { file, face: 0 }
     }
 
     fn not_a_font() -> Vec<u8> {
@@ -399,7 +409,7 @@ mod tests {
                 "f",
                 "k".to_owned(),
                 &eff,
-                |_| Some(bytes),
+                |_| Some(whole_file(bytes)),
             );
             if fonts.font_data.contains_key("k") || !family_fonts.is_empty() {
                 accepted.push(name);
@@ -421,12 +431,42 @@ mod tests {
             &eff_named("Some Family"),
             |family| {
                 asked.push(family.to_owned());
-                Some(VALID.to_vec())
+                Some(whole_file(VALID.to_vec()))
             },
         );
         assert_eq!(asked, ["Some Family"]);
         assert_eq!(family_fonts, ["k"]);
         assert!(fonts.font_data.contains_key("k"));
+    }
+
+    #[test]
+    fn a_font_found_by_name_keeps_its_face_number() {
+        let mut fonts = egui::FontDefinitions::default();
+        let mut family_fonts = Vec::new();
+        // 이 파일에 1번 글꼴은 없으므로 번호를 그대로 읽으면 거절된다. 번호를 버리면 등록된다.
+        register_named_font(
+            &mut fonts,
+            &mut family_fonts,
+            "f",
+            "past-the-end".to_owned(),
+            &eff_named("Some Family"),
+            |_| {
+                Some(FontFileFace {
+                    file: VALID.to_vec(),
+                    face: 1,
+                })
+            },
+        );
+        assert!(family_fonts.is_empty());
+        insert_font(
+            &mut fonts,
+            &mut family_fonts,
+            "first".to_owned(),
+            VALID.to_vec(),
+            0,
+        )
+        .unwrap();
+        assert_eq!(fonts.font_data["first"].index, 0);
     }
 
     #[test]
@@ -452,7 +492,7 @@ mod tests {
             "f",
             "named".to_owned(),
             &eff,
-            |_| Some(VALID.to_vec()),
+            |_| Some(whole_file(VALID.to_vec())),
         );
         assert_eq!(family_fonts, ["named"]);
     }

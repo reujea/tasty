@@ -18,6 +18,8 @@
 //! - `TASTY_LOCALE_FONT` (선택) — 언어팩이 제공하는 폰트 파일의 절대경로. 언어팩 폰트가
 //!   resolve 됐을 때만 주입되며, 없으면 변수 자체가 없다(빈 값 없음). 출처는 `TASTY_LOCALE`
 //!   과 같다.
+//! - `TASTY_LOCALE_FONT_FACE` (선택) — `TASTY_LOCALE_FONT` 파일 안에서 읽을 글꼴 번호.
+//!   `TASTY_LOCALE_FONT` 와 함께만 주입된다.
 //! - `TASTY_PLUGIN_HANDLE_ENDPOINT` (선택) — Unix는 socket path, Windows는 Named Pipe 이름.
 //!   호스트가 보조 핸들 채널을 활성화한 경우에만 주입된다. plugin은 이 값이 있으면
 //!   메인 채널 인증 후 보조 채널에도 connect를 시도한다.
@@ -43,6 +45,8 @@ pub struct PluginEnv {
     /// 언어팩이 제공하는 폰트 파일의 절대경로. 호스트가 언어팩 폰트를 resolve 했을 때만
     /// `TASTY_LOCALE_FONT` 로 주입 — 없으면 `None`(내장 폰트 · 언어팩 미사용).
     pub locale_font: Option<PathBuf>,
+    /// `locale_font` 파일 안에서 읽을 글꼴 번호. `TASTY_LOCALE_FONT_FACE` 로 주입되며 없으면 0.
+    pub locale_font_face: u32,
     /// 보조 핸들 채널 endpoint. 호스트가 활성화한 경우에만 `Some`.
     /// Unix는 socket path (`/tmp/.../tasty-handle.sock`), Windows는 Named Pipe 이름
     /// (`\\.\pipe\tasty-handle-<random>`).
@@ -77,6 +81,10 @@ impl PluginEnv {
             locale_font: std::env::var_os("TASTY_LOCALE_FONT")
                 .filter(|v| !v.is_empty())
                 .map(PathBuf::from),
+            locale_font_face: std::env::var("TASTY_LOCALE_FONT_FACE")
+                .ok()
+                .and_then(|face| face.parse().ok())
+                .unwrap_or(0),
             handle_endpoint: std::env::var("TASTY_PLUGIN_HANDLE_ENDPOINT")
                 .ok()
                 .filter(|s| !s.is_empty()),

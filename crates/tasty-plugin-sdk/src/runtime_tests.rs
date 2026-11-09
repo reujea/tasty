@@ -562,6 +562,7 @@ fn run_plugin_against_fake_host<P: Plugin + Send + 'static>(
         log_path: None,
         locale: "en".into(),
         locale_font: None,
+        locale_font_face: 0,
         handle_endpoint: None,
     };
     let (done_tx, done_rx) = mpsc::channel();

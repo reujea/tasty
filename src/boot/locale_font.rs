@@ -8,7 +8,7 @@ use crate::i18n::{FontDecl, LoadOutcome};
 
 pub(crate) enum FontResolution {
     None,
-    Resolved(PathBuf),
+    Resolved { path: PathBuf, face: u32 },
     Failed { detail: String },
 }
 
@@ -37,8 +37,11 @@ fn resolve_file(pack_dir: &Path, rel: &str) -> FontResolution {
         };
     }
     let full = pack_dir.join(relp);
-    match validate(&full) {
-        Ok(()) => FontResolution::Resolved(full),
+    match validate(&full, 0) {
+        Ok(()) => FontResolution::Resolved {
+            path: full,
+            face: 0,
+        },
         Err(e) => FontResolution::Failed {
             detail: format!("{}: {e}", full.display()),
         },
@@ -47,10 +50,17 @@ fn resolve_file(pack_dir: &Path, rel: &str) -> FontResolution {
 
 fn resolve_family(name: &str) -> FontResolution {
     match family_path(name) {
-        Some(p) => match validate(&p) {
-            Ok(()) => FontResolution::Resolved(p),
+        Some(found) => match validate(&found.file, found.face) {
+            Ok(()) => FontResolution::Resolved {
+                path: found.file,
+                face: found.face,
+            },
             Err(e) => FontResolution::Failed {
-                detail: format!("family '{name}' at {}: {e}", p.display()),
+                detail: format!(
+                    "family '{name}' at {} (face {}): {e}",
+                    found.file.display(),
+                    found.face
+                ),
             },
         },
         None => FontResolution::Failed {
@@ -68,7 +78,7 @@ fn resolve_candidates(pack_dir: &Path, items: &[String]) -> FontResolution {
             resolve_family(item)
         };
         match r {
-            FontResolution::Resolved(p) => return FontResolution::Resolved(p),
+            resolved @ FontResolution::Resolved { .. } => return resolved,
             FontResolution::Failed { detail } => errors.push(detail),
             FontResolution::None => {}
         }
@@ -87,15 +97,15 @@ fn looks_like_path(s: &str) -> bool {
 }
 
 /// 시스템 폰트 DB는 family 조회가 필요할 때만 만든다.
-fn family_path(name: &str) -> Option<PathBuf> {
+fn family_path(name: &str) -> Option<tasty_font::FontFileFace<PathBuf>> {
     // 파일 경로 조회에는 크기 설정이 쓰이지 않는다.
     let cfg = tasty_font::FontConfig::new(14.0, "");
     cfg.family_source_path(name)
 }
 
 /// 부팅 때 파일을 검증한다. 실제 폰트 추가 시점에도 다시 읽고 검증한다.
-fn validate(path: &Path) -> Result<(), String> {
-    tasty_i18n::font::read_validated(path, 0)
+fn validate(path: &Path, face: u32) -> Result<(), String> {
+    tasty_i18n::font::read_validated(path, face)
         .map(|_| ())
         .map_err(|error| match error {
             tasty_i18n::font::LocaleFontError::Read(error) => format!("cannot read: {error}"),
@@ -132,7 +142,10 @@ mod tests {
         std::fs::write(fonts_dir.join("x.ttf"), crate::font::D2CODING_REGULAR_TTF).unwrap();
         let out = pack(&dir, FontDecl::File("fonts/x.ttf".to_string()));
         match resolve(&out) {
-            FontResolution::Resolved(p) => assert_eq!(p, dir.join("fonts/x.ttf")),
+            FontResolution::Resolved { path, face } => {
+                assert_eq!(path, dir.join("fonts/x.ttf"));
+                assert_eq!(face, 0);
+            }
             other => panic!("expected Resolved, got {:?}", ResolutionDbg(&other)),
         }
         let _ = std::fs::remove_dir_all(&dir); // 시험 뒤 임시 디렉터리 삭제 실패는 무시한다.
@@ -207,7 +220,9 @@ mod tests {
         fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
             match self.0 {
                 FontResolution::None => write!(f, "None"),
-                FontResolution::Resolved(p) => write!(f, "Resolved({})", p.display()),
+                FontResolution::Resolved { path, face } => {
+                    write!(f, "Resolved({}, {face})", path.display())
+                }
                 FontResolution::Failed { detail } => write!(f, "Failed({detail})"),
             }
         }

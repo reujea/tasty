@@ -7,6 +7,7 @@ use std::path::PathBuf;
 
 pub(crate) const LOCALE_ENV: &str = "TASTY_LOCALE";
 pub(crate) const LOCALE_FONT_ENV: &str = "TASTY_LOCALE_FONT";
+pub(crate) const LOCALE_FONT_FACE_ENV: &str = "TASTY_LOCALE_FONT_FACE";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct ResolvedLocale {
@@ -14,6 +15,8 @@ pub(crate) struct ResolvedLocale {
     pub code: String,
     /// 언어팩에서 검증한 파일 경로. 없거나 검증 실패면 환경변수에서도 지운다.
     pub font_file: Option<PathBuf>,
+    /// `font_file` 안에서 읽을 글꼴 번호.
+    pub font_face: u32,
 }
 
 impl ResolvedLocale {
@@ -21,16 +24,23 @@ impl ResolvedLocale {
         Self {
             code: report.effective.clone(),
             font_file: None,
+            font_face: 0,
         }
     }
 
     /// 폰트가 없으면 이전 셸에서 상속한 값을 지워 자식에 잘못 전달하지 않는다.
-    pub fn env_entries(&self) -> [(&'static str, Option<OsString>); 2] {
+    pub fn env_entries(&self) -> [(&'static str, Option<OsString>); 3] {
         [
             (LOCALE_ENV, Some(OsString::from(&self.code))),
             (
                 LOCALE_FONT_ENV,
                 self.font_file.as_ref().map(|p| p.clone().into_os_string()),
+            ),
+            (
+                LOCALE_FONT_FACE_ENV,
+                self.font_file
+                    .as_ref()
+                    .map(|_| OsString::from(self.font_face.to_string())),
             ),
         ]
     }
@@ -74,8 +84,9 @@ pub(crate) fn init() {
         let report = crate::i18n::init(&requested);
         let mut locale = ResolvedLocale::from_report(&report);
         match crate::boot::locale_font::resolve(&report.outcome) {
-            crate::boot::locale_font::FontResolution::Resolved(path) => {
+            crate::boot::locale_font::FontResolution::Resolved { path, face } => {
                 locale.font_file = Some(path);
+                locale.font_face = face;
             }
             crate::boot::locale_font::FontResolution::Failed { detail } => {
                 tracing::warn!(
@@ -160,11 +171,13 @@ mod tests {
     #[test]
     fn env_entries_set_locale_and_unset_font_when_absent() {
         let l = ResolvedLocale::from_report(&report("ja", "ja", LoadOutcome::Builtin));
-        let [(k1, v1), (k2, v2)] = l.env_entries();
+        let [(k1, v1), (k2, v2), (k3, v3)] = l.env_entries();
         assert_eq!(k1, "TASTY_LOCALE");
         assert_eq!(v1, Some(OsString::from("ja")));
         assert_eq!(k2, "TASTY_LOCALE_FONT");
         assert_eq!(v2, None);
+        assert_eq!(k3, "TASTY_LOCALE_FONT_FACE");
+        assert_eq!(v3, None);
     }
 
     #[test]
@@ -173,9 +186,12 @@ mod tests {
         let l = ResolvedLocale {
             code: "ko".to_string(),
             font_file: Some(font.clone()),
+            font_face: 2,
         };
-        let [_, (k, v)] = l.env_entries();
+        let [_, (k, v), (k_face, v_face)] = l.env_entries();
         assert_eq!(k, "TASTY_LOCALE_FONT");
         assert_eq!(v, Some(font.into_os_string()));
+        assert_eq!(k_face, "TASTY_LOCALE_FONT_FACE");
+        assert_eq!(v_face, Some(OsString::from("2")));
     }
 }

@@ -339,17 +339,32 @@ const LOCALE_FONT_KEY: &str = "locale_pack";
 /// 언어팩 폰트를 읽거나 검증하지 못한 이유.
 pub use tasty_i18n::font::LocaleFontError;
 
+/// `TASTY_LOCALE_FONT`와 함께 호스트가 넘긴 글꼴 번호. 값이 없으면 0번이고, 읽을 수 없는
+/// 값은 경고하고 0번으로 읽는다.
+pub fn locale_font_face_from_env() -> u32 {
+    let Some(raw) = std::env::var_os("TASTY_LOCALE_FONT_FACE").filter(|v| !v.is_empty()) else {
+        return 0;
+    };
+    raw.to_str()
+        .and_then(|value| value.parse().ok())
+        .unwrap_or_else(|| {
+            tracing::warn!("TASTY_LOCALE_FONT_FACE is not a face number: {raw:?}");
+            0
+        })
+}
+
 /// 언어팩 폰트를 Proportional·Monospace의 마지막 폴백으로 추가한다.
 /// 앞선 폰트에 없는 글리프에만 사용한다. 추가 전에 ab_glyph로 검증하며 실패하면
 /// `fonts`를 그대로 두고 오류를 반환한다. 본체와 플러그인이 같은 검증을 사용한다.
 pub fn install_locale_font_fallback(
     fonts: &mut egui::FontDefinitions,
     path: &std::path::Path,
+    face: u32,
 ) -> Result<(), LocaleFontError> {
-    let bytes = tasty_i18n::font::read_validated(path, 0)?;
+    let bytes = tasty_i18n::font::read_validated(path, face)?;
     fonts.font_data.insert(
         LOCALE_FONT_KEY.to_owned(),
-        Arc::new(egui::FontData::from_owned(bytes)),
+        Arc::new(SystemCjkFont { bytes, face }.into_font_data()),
     );
     for fam in [egui::FontFamily::Proportional, egui::FontFamily::Monospace] {
         fonts
@@ -447,8 +462,9 @@ mod locale_font_tests {
         std::fs::write(&path, bytes).unwrap();
         let mut fonts = egui::FontDefinitions::default();
         let before = fonts.families.clone();
-        install_locale_font_fallback(&mut fonts, &path).unwrap();
+        install_locale_font_fallback(&mut fonts, &path, 0).unwrap();
         assert_eq!(fonts.font_data[LOCALE_FONT_KEY].font.as_ref(), bytes);
+        assert_eq!(fonts.font_data[LOCALE_FONT_KEY].index, 0);
         for family in [egui::FontFamily::Proportional, egui::FontFamily::Monospace] {
             let mut expected = before[&family].clone();
             expected.push(LOCALE_FONT_KEY.to_owned());
@@ -458,10 +474,25 @@ mod locale_font_tests {
     }
 
     #[test]
+    fn a_face_past_the_end_of_the_file_is_refused() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("valid.ttf");
+        std::fs::write(
+            &path,
+            include_bytes!("../../tasty-font/assets/D2Coding-ligature-Regular.ttf"),
+        )
+        .unwrap();
+        let mut fonts = egui::FontDefinitions::default();
+        let err = install_locale_font_fallback(&mut fonts, &path, 1);
+        assert!(matches!(err, Err(LocaleFontError::Parse)));
+        assert!(!fonts.font_data.contains_key(LOCALE_FONT_KEY));
+    }
+
+    #[test]
     fn missing_file_is_a_read_error_and_leaves_fonts_untouched() {
         let mut fonts = egui::FontDefinitions::default();
         let before = fonts.font_data.len();
-        let err = install_locale_font_fallback(&mut fonts, std::path::Path::new("/no/such.ttf"));
+        let err = install_locale_font_fallback(&mut fonts, std::path::Path::new("/no/such.ttf"), 0);
         assert!(matches!(err, Err(LocaleFontError::Read(_))));
         assert_eq!(fonts.font_data.len(), before);
         assert!(!fonts.font_data.contains_key(LOCALE_FONT_KEY));
@@ -474,7 +505,7 @@ mod locale_font_tests {
         let path = dir.join("garbage.ttf");
         std::fs::write(&path, b"not a font at all").unwrap();
         let mut fonts = egui::FontDefinitions::default();
-        let err = install_locale_font_fallback(&mut fonts, &path);
+        let err = install_locale_font_fallback(&mut fonts, &path, 0);
         assert!(matches!(err, Err(LocaleFontError::Parse)));
         assert!(!fonts.font_data.contains_key(LOCALE_FONT_KEY));
         let _ = std::fs::remove_file(&path);

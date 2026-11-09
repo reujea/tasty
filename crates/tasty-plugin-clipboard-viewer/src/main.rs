@@ -210,7 +210,8 @@ fn install_fonts(ctx: &egui::Context) {
     // 호스트와 같은 검사 함수로 언어팩 폰트를 대체 폰트 목록 끝에 추가한다.
     if let Some(path) = std::env::var_os("TASTY_LOCALE_FONT").filter(|v| !v.is_empty()) {
         let path = std::path::PathBuf::from(path);
-        if let Err(e) = tasty_egui_theme::install_locale_font_fallback(&mut fonts, &path) {
+        let face = tasty_egui_theme::locale_font_face_from_env();
+        if let Err(e) = tasty_egui_theme::install_locale_font_fallback(&mut fonts, &path, face) {
             tracing::warn!(
                 "locale font at {} could not be installed: {e}",
                 path.display()
