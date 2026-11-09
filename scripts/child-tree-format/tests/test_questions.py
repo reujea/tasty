@@ -18,7 +18,8 @@ from questions import (
     silent_minutes,
     silent_nodes,
 )
-from common import descendants, siblings
+from questions import _impact_candidates
+from common import depths, descendants, siblings
 
 
 class HandTree(unittest.TestCase):
@@ -158,6 +159,39 @@ class HandDag(unittest.TestCase):
         # n320 shares n200 with n300 and n310, and n220 has no other child.
         self.assertEqual(siblings(helpers.HAND_DAG, "n320"), ["n300", "n310"])
         self.assertEqual(siblings(helpers.HAND_DAG, "n110"), [])
+
+    def test_siblings_reach_through_the_second_parent(self):
+        graph = [
+            node("n100", None, None, "idle", None),
+            node("n110", None, None, "idle", None),
+            node("n200", ["n100", "n110"], None, "idle", None),
+            node("n210", "n110", None, "idle", None),
+        ]
+        self.assertEqual(siblings(graph, "n200"), ["n210"])
+
+    def test_impact_candidates_are_the_nodes_with_two_paths(self):
+        # n210 and n220 reach each descendant by one path only.
+        self.assertEqual(_impact_candidates(helpers.HAND_DAG), ["n100", "n200"])
+
+    def test_a_skipped_level_takes_the_longest_depth(self):
+        graph = [
+            node("n100", None, None, "idle", None),
+            node("n200", "n100", None, "idle", None),
+            node("n300", ["n100", "n200"], None, "idle", None),
+        ]
+        self.assertEqual(depths(graph)["n300"], 2)
+
+    def test_q5_is_dropped_when_every_deep_node_has_several_parents(self):
+        graph = [
+            node("n100", None, None, "idle", None),
+            node("n110", None, None, "idle", None),
+            node("n200", ["n100", "n110"], None, "idle", None),
+            node("n300", ["n100", "n200"], None, "idle", None),
+            node("n310", ["n110", "n200"], None, "idle", None),
+        ]
+        questions, _, notes = build_questions("edge", graph)
+        self.assertIn("q5", notes["dropped"])
+        self.assertNotIn("q5", [q["id"] for q in questions])
 
     def test_exited_descendants_count_once(self):
         below = {"n100": ["n200", "n220"], "n200": [], "n210": [], "n220": []}

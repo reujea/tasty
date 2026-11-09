@@ -9,6 +9,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 import helpers  # noqa: F401
 
@@ -16,12 +17,13 @@ sys.dont_write_bytecode = True
 
 import anonymize
 import check_rules
-from common import DATA_DIR, FORMATS, LEVELS, MODELS, RULES_PATH, TREES, depths, parse_time, rng, shift_seconds, sha256_bytes, validate_nodes
+from common import DATA_DIR, FORMATS, LEVELS, MODELS, PILOT_CELLS, RULES_PATH, TREES, depths, parse_time, rng, shift_seconds, sha256_bytes, validate_nodes
 from generate_inputs import compare_trees, generate
 from prompts import build_user_prompt, prompt_hash, question_order
 from render import check_read_back
-from schedule import call_counts, planned_calls, retry_cap_rule
-from synth import dag_checks, diamond_nodes
+from schedule import call_counts, pilot_calls, planned_calls, retry_cap_rule
+import synth
+from synth import dag_checks, diamond_nodes, measure_shape
 
 HERE = Path(__file__).resolve().parents[1]
 
@@ -97,6 +99,12 @@ class Generation(unittest.TestCase):
         self.assertEqual(load("manifest.json")["dag_checks"], dag_checks(nodes))
         for state in ("active", "idle", "needs_input", "stale", "exited"):
             self.assertTrue(any(n["state"] == state for n in nodes), state)
+
+    def test_a_dag_without_several_parents_cannot_be_built(self):
+        shape = measure_shape(load("trees/real.json")["nodes"])
+        with mock.patch.object(synth, "DAG_SECOND_PARENT", 0.0), mock.patch.object(synth, "DAG_FAR_PARENT", 0.0):
+            with self.assertRaisesRegex(ValueError, "several parents or diamonds"):
+                synth.build_dag("dag_40", 40, shape)
 
     def test_the_dag_states_follow_the_dependency_meaning(self):
         nodes = load("trees/dag_40.json")["nodes"]
@@ -201,6 +209,10 @@ class Schedules(unittest.TestCase):
         self.assertEqual(cells, {("dag_40", "dot"), ("synthetic_80", "parent_table")})
         for cell in cells:
             self.assertEqual({r["model"] for r in rows if (r["tree"], r["format"]) == cell}, set(MODELS))
+
+    def test_the_pilot_plan_is_the_written_one(self):
+        self.assertEqual(PILOT_CELLS, (("dag_40", "dot"), ("synthetic_80", "parent_table")))
+        self.assertEqual(len(pilot_calls()), 6)
 
     def test_every_level_keeps_the_dag(self):
         for level in LEVELS:
