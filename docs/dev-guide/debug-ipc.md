@@ -42,7 +42,7 @@ debug 메서드는 모두 `local_only()` — plugin caller 는 호출 불가, CL
 |--------|--------|------|
 | `ui.state` | `{}` | 현재 UI 상태. 요청과 실제 모달 표시를 구분하는 필드, 워크스페이스·탭 정보는 아래 [응답 해석](#uistate-응답-해석)을 참고한다 |
 | `debug.info` | `{}` | 실행 중 인스턴스 debug 정보 |
-| `debug.cell_info` | `surface_id, row, col` | 셀 단위 렌더 속성(텍스트, fg/bg, bold/italic/underline …) |
+| `debug.cell_info` | `surface_id, row, col` | 셀에 저장된 속성(텍스트, fg/bg, bold/italic/underline …). 그려진 결과가 아니다 |
 | `debug.screen_attrs` | `surface_id, row` | 한 행 전체 셀 속성 |
 | `debug.glyph_color` | `surface_id, row, col, bg_mode?` | GPU 렌더러가 실제로 push 하는 글리프 bg/fg RGBA (renderer 색 해석 검증) |
 | `debug.feed_bytes` | `surface_id, bytes(hex)` 또는 `text` | VTE 바이트를 PTY 우회로 터미널에 직접 주입(파서/렌더 테스트) |

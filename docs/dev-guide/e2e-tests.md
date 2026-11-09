@@ -443,9 +443,9 @@ raw escape 직접 출력이 목적이라 crossterm/ratatui 같은 추상화는 �
 
 ##### `debug.cell_info` — termwiz 파싱 단계 셀 속성
 
-`tasty debug cell-info --row 0 --col 0`. termwiz `CellAttributes` 단계를 그대로 노출 — **렌더러가 GPU 에 반영했는지는 `debug.glyph_color` 로 별도 확인.** 필드: `text` `fg`/`bg`(`default`/`palette:N`/`#rrggbb`) `bold` `italic` `underline` `strikethrough` `inverse` `width`(1/2) `intensity`(normal/bold/half) `underline_style` `underline_color` `blink` `invisible` `overline` `vertical_align`.
+`tasty debug cell-info --row 0 --col 0`. termwiz `CellAttributes` 단계를 그대로 노출한다. **그려졌는지는 알 수 없다.** 색 계산은 `debug.glyph_color`로, 밑줄·취소선처럼 도형이 있는 속성은 `tasty screenshot`의 칠한 픽셀로 확인한다. 필드: `text` `fg`/`bg`(`default`/`palette:N`/`#rrggbb`) `bold` `italic` `underline` `strikethrough` `inverse` `width`(1/2) `intensity`(normal/bold/half) `underline_style` `underline_color` `blink` `invisible` `overline` `vertical_align`.
 
-> `overline`/`underline_color`/`vertical_align` 은 termwiz `CellAttributes` 엔 있으나 `AttributeChange` enum 에 variant 가 없어 현재 SGR 파이프라인(`crates/tasty-terminal/src/vte_handler.rs`)이 셀에 전달하지 못한다 — SGR 로 입력해도 기본값 반환. 검증 인프라만 준비된 상태.
+> `overline`/`underline_color`/`vertical_align`은 termwiz `AttributeChange`에 variant가 없어 SGR 파이프라인(`crates/tasty-terminal/src/vte_handler/control.rs`의 `map_sgr`)이 현재 펜을 복제해 `AllAttributes`로 넣는다. 다른 속성과 같이 셀에 전달된다. 그리는 속성은 [터미널 surface](../surfaces/terminal/index.md)의 문자 속성 행을 따른다.
 
 ##### `debug.glyph_color` — 렌더러가 GPU 에 push 하는 색
 
