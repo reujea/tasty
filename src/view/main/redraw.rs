@@ -557,6 +557,9 @@ impl MainView {
             PendingNativeMenu::Surface { surface_id, x, y } => {
                 self.handle_surface_native_menu(engine, surface_id, x, y)
             }
+            PendingNativeMenu::WebviewSurface { .. } => {
+                self.handle_webview_native_menu(engine, pending)
+            }
             PendingNativeMenu::Explorer {
                 surface_id,
                 paths,

@@ -596,11 +596,14 @@ fn publish_native_content_rects(
     revealed.sort_unstable();
     let rects: Vec<_> = revealed
         .iter()
-        .filter_map(|sid| active.get(sid).copied())
+        .filter_map(|sid| active.get(sid).map(|r| (*sid, *r)))
         .collect();
     let current = &view.state.native_content_rects;
-    let unchanged =
-        current.len() == rects.len() && current.iter().zip(&rects).all(|(a, b)| a.approx_eq(b));
+    let unchanged = current.len() == rects.len()
+        && current
+            .iter()
+            .zip(&rects)
+            .all(|(a, b)| a.0 == b.0 && a.1.approx_eq(&b.1));
     if !unchanged {
         view.state.native_content_rects = rects;
         view.mark_dirty();

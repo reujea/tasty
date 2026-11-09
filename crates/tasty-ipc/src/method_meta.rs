@@ -734,6 +734,8 @@ pub const METHOD_TABLE: &[(&str, MethodMeta)] = {
             "webview.open_external",
             plugin_only(Mutate, &[SurfaceWrite]),
         ),
+        // 자신의 webview 우클릭을 호스트 네이티브 메뉴로 연다. 소유권과 표시 여부는 App에서 검사한다.
+        ("webview.context_menu", plugin_only(Mutate, &[SurfaceWrite])),
         // ── 호스트 자체 메서드 (plugin/window 관리) — local-only ──────
         ("plugin.list", local_only(Read)),
         ("plugin.show", local_only(Read)),

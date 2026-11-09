@@ -157,7 +157,7 @@ CLI 진입점이 없다고 판단하지 않는다. 인자를 맞추지 못해 �
 
 그래서 "release 표에 있는데 CLI 가 없다" 는 그 자체로 결함이 아니다. 아래가 현재 그런 메서드 전부이고, 각 행이 왜 그 기준 밖인지 또는 어떻게 이미 충족되는지를 적는다. **새로 그런 메서드를 만들면 여기에 행을 추가한다** — `tests/cli_method_table_parity.rs` 가 이 표와 실제 집합을 양방향으로 대조하므로, 빠뜨리면 테스트가 떨어진다. 아래 개수와, 사유 열이 "대신 이걸 쓰라" 고 든 명령이 실재하는지도 같은 가드가 본다. 개수는 표에서 파생되지 않는 값이라(마크다운 표는 스스로 세지 않는다) 행을 고칠 때 함께 고쳐야 하고, 안 고치면 그 가드가 실제 값을 알려준다.
 
-총 37개.
+총 38개.
 
 | 이유 | 메서드 | 왜 CLI 가 없나 |
 |---|---|---|
@@ -171,6 +171,7 @@ CLI 진입점이 없다고 판단하지 않는다. 인자를 맞추지 못해 �
 | plugin → host 서비스 | `settings.get_keybinding` | markdown plugin 이 문서 페이지에 넣을 `find` 바인딩을 읽는다. 페이지는 host 설정을 직접 받지 못해서 생긴 plugin용 조회이며, 바뀌면 `command.host_shortcut_changed` 를 그 plugin 이 구독해 받는다. 셸에서는 같은 값을 config.toml 의 `[keybindings]` 에서 읽는다 |
 | plugin → host 서비스 | `settings.get_plugin_setting` | `caller_plugin_id` 를 요청 파라미터가 아니라 `CallerContext` 에서 강제 도출한다 — CLI 호출자는 plugin 신원이 없어 호출할 수 없다 |
 | plugin → host 서비스 †plugin-only | `webview.open_external` | plugin 이 **자기** webview surface 안에서 클릭된 외부 링크를 host 의 OS 열기 자리로 넘긴다. 대상이 caller plugin 소유 surface 여야 하고, 사용자 브라우저를 여는 것은 에이전트가 자기 작업에 쓰는 능력이 아니다([플러그인 제작 가이드](plugin-development.md)) |
+| plugin → host 서비스 †plugin-only | `webview.context_menu` | plugin 이 **자기** webview 페이지의 우클릭 위치에 host 네이티브 메뉴를 연다. 대상이 caller plugin 소유이며 화면에 드러난 webview 여야 한다. 사용자 우클릭을 잇는 자리라 에이전트가 자기 작업에 쓰는 능력이 아니다([컨텍스트 메뉴 구현](context-menu.md)) |
 | plugin → host 서비스 †plugin-only | `host.shared_buffer.create` | 응답이 main 채널 하나로 끝나지 않는다 — 공유 메모리 핸들(Unix fd / Windows HANDLE)이 그 plugin 프로세스의 **보조 채널**로 함께 전달되고, 받는 쪽은 그것을 자기 주소공간에 매핑한다. CLI 프로세스에는 그 채널도 매핑 대상도 없어 결과를 받을 수 없다 |
 | CLI 는 있고 IPC 를 안 탄다 | `remote.workspaces` | `tasty remote workspaces` 가 SSH 터널을 직접 열고 클라이언트 주도로 실행한다. 이 IPC 는 같은 작업을 원격 호출자나 에이전트가 요청할 때 사용한다 |
 | CLI 는 있고 IPC 를 안 탄다 | `remote.profile.add` · `remote.profile.get` · `remote.profile.list` · `remote.profile.list_local` · `remote.profile.detect` · `remote.profile.import` · `remote.profile.remove` | `tasty tool remote-profile …` 이 로컬 프로필 파일을 직접 다룬다(IPC 없음). 인스턴스가 떠 있지 않아도 되어야 하는 명령이라 그쪽이 옳다 |
@@ -182,8 +183,8 @@ CLI 진입점이 없다고 판단하지 않는다. 인자를 맞추지 못해 �
 
 #### † plugin-only — 외부 호출자는 무엇을 받는가
 
-위 표에서 †plugin-only 로 표시한 다섯(`banner.open` · `banner.close` · `popup.close` ·
-`webview.open_external` · `host.shared_buffer.create`)은 **CLI 명령뿐 아니라 외부 dispatch arm도
+위 표에서 †plugin-only 로 표시한 여섯(`banner.open` · `banner.close` · `popup.close` ·
+`webview.open_external` · `webview.context_menu` · `host.shared_buffer.create`)은 **CLI 명령뿐 아니라 외부 dispatch arm도
 없다.** plugin host-call 진입부가 직접 인터셉트하기 때문이다. 나머지 행들은 사정이 다르다 —
 `git_viewer.query` · `markdown.navigate` · `settings.get_plugin_setting` 같은 것은 외부에서
 호출하면 실제로 라우팅되어 인자 오류나 plugin 의 답이 돌아온다. 두 부류가 같은 표에 있는 것은 이
