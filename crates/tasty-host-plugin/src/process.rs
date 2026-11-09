@@ -1528,6 +1528,46 @@ mod tests {
         );
     }
 
+    /// 프로세스 환경을 바꾸지 않도록 값을 넣은 자식 프로세스에서 이 시험을 다시 실행한다.
+    #[test]
+    fn inject_locale_env_reads_the_values_the_host_exported() {
+        const PROBE: &str = "TASTY_TEST_LOCALE_ENV_PROBE";
+        if std::env::var_os(PROBE).is_some() {
+            let mut cmd = Command::new("plugin");
+            inject_locale_env(&mut cmd);
+            for (name, value) in [
+                ("TASTY_LOCALE", "zh-Hans"),
+                ("TASTY_LOCALE_FONT", "/x/noto.ttc"),
+                ("TASTY_LOCALE_FONT_FACE", "2"),
+            ] {
+                assert_eq!(
+                    locale_env_in(&cmd, name),
+                    Some(Some(OsString::from(value))),
+                    "{name}"
+                );
+            }
+            return;
+        }
+        let module = module_path!().split_once("::").unwrap().1;
+        let output = Command::new(std::env::current_exe().unwrap())
+            .args([
+                "--exact",
+                &format!("{module}::inject_locale_env_reads_the_values_the_host_exported"),
+            ])
+            .env(PROBE, "1")
+            .env("TASTY_LOCALE", "zh-Hans")
+            .env("TASTY_LOCALE_FONT", "/x/noto.ttc")
+            .env("TASTY_LOCALE_FONT_FACE", "2")
+            .output()
+            .unwrap();
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        // 이름이 어긋나면 0개를 실행하고도 성공하므로 실행 수까지 본다.
+        assert!(
+            output.status.success() && stdout.contains("1 passed"),
+            "{stdout}"
+        );
+    }
+
     #[test]
     fn no_font_path_also_removes_an_inherited_face_number() {
         let mut cmd = Command::new("plugin");

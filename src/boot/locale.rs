@@ -83,23 +83,35 @@ pub(crate) fn init() {
         let requested = normalize_code(&lang_settings.general.language);
         let report = crate::i18n::init(&requested);
         let mut locale = ResolvedLocale::from_report(&report);
-        match crate::boot::locale_font::resolve(&report.outcome) {
-            crate::boot::locale_font::FontResolution::Resolved { path, face } => {
-                locale.font_file = Some(path);
-                locale.font_face = face;
-            }
-            crate::boot::locale_font::FontResolution::Failed { detail } => {
-                tracing::warn!(
-                    "locale '{}' declares a [font] that could not be resolved: {detail}",
-                    locale.code
-                );
-                // 첫 사유만 보관한다. 이미 값이 있으면 새 사유는 버린다.
-                FONT_WARNING.get_or_init(|| detail);
-            }
-            crate::boot::locale_font::FontResolution::None => {}
+        let resolution = crate::boot::locale_font::resolve(&report.outcome);
+        if let Some(detail) = apply_font_resolution(&mut locale, resolution) {
+            // 첫 사유만 보관한다. 이미 값이 있으면 새 사유는 버린다.
+            FONT_WARNING.get_or_init(|| detail);
         }
         export_to_process_env(&locale);
     });
+}
+
+/// 찾은 글꼴을 `locale`에 옮긴다. 찾지 못했으면 GUI에 알릴 사유를 돌려준다.
+fn apply_font_resolution(
+    locale: &mut ResolvedLocale,
+    resolution: crate::boot::locale_font::FontResolution,
+) -> Option<String> {
+    match resolution {
+        crate::boot::locale_font::FontResolution::Resolved { path, face } => {
+            locale.font_file = Some(path);
+            locale.font_face = face;
+            None
+        }
+        crate::boot::locale_font::FontResolution::Failed { detail } => {
+            tracing::warn!(
+                "locale '{}' declares a [font] that could not be resolved: {detail}",
+                locale.code
+            );
+            Some(detail)
+        }
+        crate::boot::locale_font::FontResolution::None => None,
+    }
 }
 
 /// 자식이 상속할 환경을 정한다. 다른 스레드가 환경에 접근하지 않는 부팅 구간에서만 호출해야 한다.
@@ -178,6 +190,46 @@ mod tests {
         assert_eq!(v2, None);
         assert_eq!(k3, "TASTY_LOCALE_FONT_FACE");
         assert_eq!(v3, None);
+    }
+
+    #[test]
+    fn a_resolved_font_keeps_its_face_number_up_to_the_child_env() {
+        let mut locale =
+            ResolvedLocale::from_report(&report("zh-Hans", "zh-Hans", LoadOutcome::Builtin));
+        let warning = apply_font_resolution(
+            &mut locale,
+            crate::boot::locale_font::FontResolution::Resolved {
+                path: PathBuf::from("/x/noto.ttc"),
+                face: 2,
+            },
+        );
+        assert_eq!(warning, None);
+        assert_eq!(locale.font_file, Some(PathBuf::from("/x/noto.ttc")));
+        assert_eq!(locale.font_face, 2);
+        assert!(
+            locale
+                .env_entries()
+                .contains(&(LOCALE_FONT_FACE_ENV, Some(OsString::from("2"))))
+        );
+    }
+
+    #[test]
+    fn an_unresolved_font_sets_no_path_and_only_a_failure_gives_a_warning() {
+        let mut locale =
+            ResolvedLocale::from_report(&report("zh-Hans", "zh-Hans", LoadOutcome::Builtin));
+        let warning = apply_font_resolution(
+            &mut locale,
+            crate::boot::locale_font::FontResolution::Failed {
+                detail: "missing".to_owned(),
+            },
+        );
+        assert_eq!(warning.as_deref(), Some("missing"));
+        assert_eq!(locale.font_file, None);
+
+        let warning =
+            apply_font_resolution(&mut locale, crate::boot::locale_font::FontResolution::None);
+        assert_eq!(warning, None);
+        assert_eq!(locale.font_file, None);
     }
 
     #[test]

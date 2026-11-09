@@ -473,6 +473,39 @@ mod locale_font_tests {
         std::fs::remove_dir_all(valid_dir).unwrap();
     }
 
+    /// 같은 글꼴 둘을 묶음 파일로 만든다. 표의 위치는 파일 처음부터 세므로 뒤쪽 글꼴은 옮긴다.
+    fn collection_of_two(font: &[u8]) -> Vec<u8> {
+        let header = 12 + 4 * 2;
+        let second_at = header + font.len();
+        let mut out = b"ttcf\0\x01\0\0".to_vec();
+        out.extend_from_slice(&2u32.to_be_bytes());
+        for at in [header, second_at] {
+            out.extend_from_slice(&(at as u32).to_be_bytes());
+        }
+        for at in [header, second_at] {
+            let mut font = font.to_vec();
+            let tables = u16::from_be_bytes([font[4], font[5]]) as usize;
+            for record in (0..tables).map(|i| 12 + 16 * i) {
+                let offset = record + 8;
+                let old = u32::from_be_bytes(font[offset..offset + 4].try_into().unwrap());
+                font[offset..offset + 4].copy_from_slice(&(old + at as u32).to_be_bytes());
+            }
+            out.extend_from_slice(&font);
+        }
+        out
+    }
+
+    #[test]
+    fn the_locale_font_face_number_reaches_egui() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("collection.ttc");
+        let font = include_bytes!("../../tasty-font/assets/D2Coding-ligature-Regular.ttf");
+        std::fs::write(&path, collection_of_two(font)).unwrap();
+        let mut fonts = egui::FontDefinitions::default();
+        install_locale_font_fallback(&mut fonts, &path, 1).unwrap();
+        assert_eq!(fonts.font_data[LOCALE_FONT_KEY].index, 1);
+    }
+
     #[test]
     fn a_face_past_the_end_of_the_file_is_refused() {
         let dir = tempfile::tempdir().unwrap();
