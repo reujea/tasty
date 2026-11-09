@@ -174,9 +174,12 @@ fn register_surface_family(
         }
     }
 
-    let cjk = tasty_egui_theme::SYSTEM_CJK_FONT_KEY;
-    if has_cjk && !family_fonts.iter().any(|n| n == cjk) {
-        family_fonts.push(cjk.to_owned());
+    if has_cjk {
+        for cjk in tasty_egui_theme::SYSTEM_CJK_FONT_KEYS {
+            if fonts.font_data.contains_key(*cjk) && !family_fonts.iter().any(|n| n == cjk) {
+                family_fonts.push((*cjk).to_owned());
+            }
+        }
     }
 
     fonts

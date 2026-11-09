@@ -6100,6 +6100,7 @@ version = "0.1.0"
 name = "tasty-egui-theme"
 version = "0.1.1"
 dependencies = [
+ "ab_glyph",
  "egui",
  "tasty-i18n",
  "tasty-themes",
@@ -6443,7 +6444,7 @@ dependencies = [
 
 [[package]]
 name = "tasty-plugin-clipboard-viewer"
-version = "0.1.448"
+version = "0.1.449"
 dependencies = [
  "anyhow",
  "arboard",
@@ -6488,7 +6489,7 @@ dependencies = [
 
 [[package]]
 name = "tasty-plugin-git-viewer"
-version = "0.1.454"
+version = "0.1.455"
 dependencies = [
  "anyhow",
  "egui",
@@ -6522,7 +6523,7 @@ dependencies = [
 
 [[package]]
 name = "tasty-plugin-image"
-version = "0.1.397"
+version = "0.1.398"
 dependencies = [
  "anyhow",
  "arboard",
@@ -6560,7 +6561,7 @@ dependencies = [
 
 [[package]]
 name = "tasty-plugin-markdown"
-version = "0.1.553"
+version = "0.1.554"
 dependencies = [
  "ammonia",
  "anyhow",
@@ -6588,7 +6589,7 @@ dependencies = [
 
 [[package]]
 name = "tasty-plugin-mesh-demo"
-version = "0.1.359"
+version = "0.1.360"
 dependencies = [
  "anyhow",
  "egui",

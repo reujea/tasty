@@ -103,6 +103,7 @@ fn every_locale_font_install_passes_the_face_number_from_the_host() {
 const SYSTEM_CJK_FONT_FILES: &[&str] = &[
     "NotoSansCJK",
     "malgun.ttf",
+    "msyh.ttc",
     "AppleSDGothicNeo",
     "ヒラギノ",
     "Arial Unicode",

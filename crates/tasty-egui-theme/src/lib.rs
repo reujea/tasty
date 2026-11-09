@@ -218,22 +218,47 @@ fn apply_theme_style(theme: &Theme, ctx: &egui::Context) {
     ctx.set_style(style);
 }
 
-/// egui `FontDefinitions` 안에서 시스템 CJK 글꼴을 가리키는 키.
+/// egui `FontDefinitions` 안에서 시스템 CJK 글꼴을 가리키는 키. 칸이 여럿이면 순서대로
+/// [`SYSTEM_CJK_FONT_KEYS`]의 키를 쓰고 첫 칸이 이 키다.
 pub const SYSTEM_CJK_FONT_KEY: &str = "system_cjk";
 
+/// 시스템 CJK 칸마다 쓰는 키. 칸 수는 OS 표에서 가장 긴 줄보다 짧으면 안 된다.
+pub const SYSTEM_CJK_FONT_KEYS: &[&str] = &[SYSTEM_CJK_FONT_KEY, "system_cjk_2"];
+
+/// 시스템 CJK 글꼴 한 칸. 후보 파일 중 처음 읽히는 파일 하나를 쓴다.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct CjkSlot {
+    candidates: &'static [&'static str],
+    /// 묶음 파일에서 이름으로 고를 글꼴. 없거나 찾지 못하면 0번이다.
+    family: Option<&'static str>,
+}
+
+/// 간체 UI 언어. 별칭(`zh`, `zh-CN`)은 언어 코드로 받지 않으므로 여기서도 정확히 비교한다.
+const SIMPLIFIED_CHINESE_LOCALE: &str = "zh-Hans";
+
+/// OS의 시스템 CJK 칸 순서. 간체 UI와 그 밖의 언어를 따로 둔다.
+#[derive(Debug, Clone, Copy)]
+struct CjkStack {
+    simplified_chinese: &'static [CjkSlot],
+    other: &'static [CjkSlot],
+}
+
+impl CjkStack {
+    fn slots_for(&self, locale: &str) -> &'static [CjkSlot] {
+        if locale == SIMPLIFIED_CHINESE_LOCALE {
+            self.simplified_chinese
+        } else {
+            self.other
+        }
+    }
+}
+
 // 본체와 플러그인이 같은 글꼴을 쓰도록 후보는 여기에만 둔다.
-#[cfg(target_os = "windows")]
-const SYSTEM_CJK_CANDIDATES: &[&str] = &["C:/Windows/Fonts/malgun.ttf"];
 
-#[cfg(target_os = "macos")]
-const SYSTEM_CJK_CANDIDATES: &[&str] = &[
-    "/System/Library/Fonts/AppleSDGothicNeo.ttc",
-    "/System/Library/Fonts/ヒラギノ角ゴシック W3.ttc",
-    "/System/Library/Fonts/Supplemental/Arial Unicode.ttf",
-];
+/// Noto 묶음과 macOS 후보에서 간체 UI가 이름으로 찾는 글꼴.
+const NOTO_SIMPLIFIED_CHINESE_FACE: &str = "Noto Sans CJK SC";
 
-#[cfg(target_os = "linux")]
-const SYSTEM_CJK_CANDIDATES: &[&str] = &[
+const LINUX_NOTO: &[&str] = &[
     "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
     "/usr/share/fonts/noto-cjk/NotoSansCJK-Regular.ttc",
     "/usr/share/fonts/google-noto-cjk/NotoSansCJK-Regular.ttc",
@@ -243,12 +268,72 @@ const SYSTEM_CJK_CANDIDATES: &[&str] = &[
     "/usr/share/fonts/google-noto-sans-cjk-vf-fonts/NotoSansCJK-VF.ttc",
 ];
 
-#[cfg(not(any(target_os = "windows", target_os = "macos", target_os = "linux")))]
-const SYSTEM_CJK_CANDIDATES: &[&str] = &[];
+/// 한중일 글꼴 묶음은 공용 한자를 지역마다 다르게 그린다. 간체 UI만 SC를 고르고 다른
+/// 언어는 0번을 유지해 기존 사용자의 한자 형태를 바꾸지 않는다. 묶음에 한글과 가나도
+/// 들어 있어 간체 UI에서 다른 문자가 □가 되지 않는다.
+const LINUX_STACK: CjkStack = CjkStack {
+    simplified_chinese: &[CjkSlot {
+        candidates: LINUX_NOTO,
+        family: Some(NOTO_SIMPLIFIED_CHINESE_FACE),
+    }],
+    other: &[CjkSlot {
+        candidates: LINUX_NOTO,
+        family: None,
+    }],
+};
 
-/// 간체 UI 언어. 별칭(`zh`, `zh-CN`)은 언어 코드로 받지 않으므로 여기서도 정확히 비교한다.
-const SIMPLIFIED_CHINESE_LOCALE: &str = "zh-Hans";
-const SIMPLIFIED_CHINESE_FACE: &str = "Noto Sans CJK SC";
+const MACOS_CANDIDATES: &[&str] = &[
+    "/System/Library/Fonts/AppleSDGothicNeo.ttc",
+    "/System/Library/Fonts/ヒラギノ角ゴシック W3.ttc",
+    "/System/Library/Fonts/Supplemental/Arial Unicode.ttf",
+];
+
+/// 측정 전이라 Linux와 같은 규칙을 그대로 둔다.
+const MACOS_STACK: CjkStack = CjkStack {
+    simplified_chinese: &[CjkSlot {
+        candidates: MACOS_CANDIDATES,
+        family: Some(NOTO_SIMPLIFIED_CHINESE_FACE),
+    }],
+    other: &[CjkSlot {
+        candidates: MACOS_CANDIDATES,
+        family: None,
+    }],
+};
+
+/// 간체·가나는 Microsoft YaHei UI가, 한글은 맑은 고딕이 맡는다. 기본 설치에 둘을 모두
+/// 가진 파일이 없다. 맑은 고딕은 GB2312 1급 중 1,400자가 없고 Microsoft YaHei에는
+/// 한글이 없다.
+const WINDOWS_YAHEI: CjkSlot = CjkSlot {
+    candidates: &["C:/Windows/Fonts/msyh.ttc"],
+    family: Some("Microsoft YaHei UI"),
+};
+const WINDOWS_MALGUN: CjkSlot = CjkSlot {
+    candidates: &["C:/Windows/Fonts/malgun.ttf"],
+    family: None,
+};
+
+/// 간체 UI는 YaHei를 앞에 두어 공용 한자를 SC 형태로 그린다. 다른 언어는 맑은 고딕을
+/// 앞에 두어 기존 한자 형태를 유지하고, 맑은 고딕에 없는 간체만 YaHei로 채운다.
+const WINDOWS_STACK: CjkStack = CjkStack {
+    simplified_chinese: &[WINDOWS_YAHEI, WINDOWS_MALGUN],
+    other: &[WINDOWS_MALGUN, WINDOWS_YAHEI],
+};
+
+const NO_STACK: CjkStack = CjkStack {
+    simplified_chinese: &[],
+    other: &[],
+};
+
+/// `std::env::consts::OS` 값으로 칸 순서를 고른다. 시험이 다른 OS의 표도 읽을 수 있게
+/// cfg 대신 값으로 나눈다.
+fn cjk_stack_for_os(os: &str) -> CjkStack {
+    match os {
+        "windows" => WINDOWS_STACK,
+        "macos" => MACOS_STACK,
+        "linux" => LINUX_STACK,
+        _ => NO_STACK,
+    }
+}
 
 /// 파일과 그 안에서 읽을 글꼴 번호.
 struct SystemCjkFont {
@@ -264,26 +349,22 @@ impl SystemCjkFont {
     }
 }
 
-/// 한중일 글꼴 묶음은 공용 한자를 지역마다 다르게 그린다. 간체 UI만 SC를 고르고 다른
-/// 언어는 0번을 유지해 기존 사용자의 한자 형태를 바꾸지 않는다. 묶음에 한글과 가나도
-/// 들어 있어 간체 UI에서 다른 문자가 □가 되지 않는다.
-fn cjk_face_for_locale(bytes: &[u8], locale: &str) -> u32 {
-    if locale == SIMPLIFIED_CHINESE_LOCALE {
-        tasty_i18n::font::collection_face_by_family(bytes, SIMPLIFIED_CHINESE_FACE).unwrap_or(0)
-    } else {
-        0
-    }
+/// 묶음 파일에서 이름으로 글꼴 번호를 찾는다. 이름이 없거나 찾지 못하면 0번이다.
+fn cjk_face_by_family(bytes: &[u8], family: Option<&str>) -> u32 {
+    family
+        .and_then(|family| tasty_i18n::font::collection_face_by_family(bytes, family))
+        .unwrap_or(0)
 }
 
 /// 후보에서 egui가 읽을 수 있는 첫 글꼴을 고른다. 없는 파일은 설치되지 않은 것이므로
 /// 말없이 넘어가고, egui가 panic할 파일은 경고하고 다음 후보로 넘어간다.
 fn first_usable_cjk_font<'a>(
     candidates: impl IntoIterator<Item = &'a std::path::Path>,
-    locale: &str,
+    family: Option<&str>,
 ) -> Option<SystemCjkFont> {
     candidates.into_iter().find_map(|path| {
         let bytes = std::fs::read(path).ok()?;
-        let face = cjk_face_for_locale(&bytes, locale);
+        let face = cjk_face_by_family(&bytes, family);
         match tasty_i18n::font::validate_face(&bytes, face) {
             Ok(()) => Some(SystemCjkFont { bytes, face }),
             Err(e) => {
@@ -297,25 +378,40 @@ fn first_usable_cjk_font<'a>(
     })
 }
 
-/// 시스템 CJK 글꼴을 Proportional·Monospace의 마지막 폴백으로 추가한다.
+/// 칸마다 첫 유효 글꼴을 골라 순서대로 돌려준다. 글꼴을 찾지 못한 칸은 빠진다.
+fn usable_cjk_fonts(slots: &[CjkSlot]) -> Vec<SystemCjkFont> {
+    slots
+        .iter()
+        .filter_map(|slot| {
+            first_usable_cjk_font(
+                slot.candidates.iter().map(std::path::Path::new),
+                slot.family,
+            )
+        })
+        .collect()
+}
+
+/// 시스템 CJK 글꼴을 Proportional·Monospace의 마지막 폴백으로 추가한다. 칸이 여럿이면
+/// 칸 순서대로 붙인다.
 /// 언어는 호스트가 부팅 때 정해 자기 환경과 플러그인 환경에 넣은 `TASTY_LOCALE`을 읽는다.
 /// 쓸 수 있는 글꼴이 없으면 `fonts`를 그대로 두고 `false`를 돌려준다.
 pub fn install_system_cjk_fallback(fonts: &mut egui::FontDefinitions) -> bool {
     let locale = std::env::var("TASTY_LOCALE").unwrap_or_default();
-    let candidates = SYSTEM_CJK_CANDIDATES.iter().map(std::path::Path::new);
-    let Some(font) = first_usable_cjk_font(candidates, &locale) else {
+    let found = usable_cjk_fonts(cjk_stack_for_os(std::env::consts::OS).slots_for(&locale));
+    if found.is_empty() {
         return false;
-    };
-    fonts.font_data.insert(
-        SYSTEM_CJK_FONT_KEY.to_owned(),
-        Arc::new(font.into_font_data()),
-    );
-    for fam in [egui::FontFamily::Proportional, egui::FontFamily::Monospace] {
+    }
+    for (font, key) in found.into_iter().zip(SYSTEM_CJK_FONT_KEYS) {
         fonts
-            .families
-            .entry(fam)
-            .or_default()
-            .push(SYSTEM_CJK_FONT_KEY.to_owned());
+            .font_data
+            .insert((*key).to_owned(), Arc::new(font.into_font_data()));
+        for fam in [egui::FontFamily::Proportional, egui::FontFamily::Monospace] {
+            fonts
+                .families
+                .entry(fam)
+                .or_default()
+                .push((*key).to_owned());
+        }
     }
     true
 }
@@ -381,6 +477,7 @@ mod system_cjk_tests {
     use super::*;
 
     const D2CODING: &[u8] = include_bytes!("../../tasty-font/assets/D2Coding-ligature-Regular.ttf");
+    const OTHER_LOCALES: &[&str] = &["en", "ko", "ja", "zh-CN", ""];
 
     #[test]
     fn a_missing_or_broken_candidate_gives_way_to_the_next() {
@@ -391,7 +488,7 @@ mod system_cjk_tests {
         let missing = dir.path().join("missing.ttf");
 
         let found =
-            first_usable_cjk_font([missing.as_path(), broken.as_path(), valid.as_path()], "en")
+            first_usable_cjk_font([missing.as_path(), broken.as_path(), valid.as_path()], None)
                 .unwrap();
         assert_eq!(found.bytes, D2CODING);
         assert_eq!(found.face, 0);
@@ -404,12 +501,16 @@ mod system_cjk_tests {
         std::fs::write(&broken, b"not a font").unwrap();
         let missing = dir.path().join("missing.ttf");
 
-        assert!(first_usable_cjk_font([missing.as_path(), broken.as_path()], "en").is_none());
+        assert!(first_usable_cjk_font([missing.as_path(), broken.as_path()], None).is_none());
     }
 
     #[test]
-    fn a_font_without_the_simplified_face_stays_on_the_first_face() {
-        assert_eq!(cjk_face_for_locale(D2CODING, SIMPLIFIED_CHINESE_LOCALE), 0);
+    fn a_font_without_the_named_face_stays_on_the_first_face() {
+        assert_eq!(
+            cjk_face_by_family(D2CODING, Some(NOTO_SIMPLIFIED_CHINESE_FACE)),
+            0
+        );
+        assert_eq!(cjk_face_by_family(D2CODING, None), 0);
     }
 
     #[test]
@@ -421,11 +522,64 @@ mod system_cjk_tests {
         assert_eq!(font.into_font_data().index, 2);
     }
 
+    #[test]
+    fn every_stack_has_a_font_key_for_each_slot() {
+        for os in ["windows", "macos", "linux", "freebsd"] {
+            let stack = cjk_stack_for_os(os);
+            for slots in [stack.simplified_chinese, stack.other] {
+                assert!(slots.len() <= SYSTEM_CJK_FONT_KEYS.len(), "{os}");
+            }
+        }
+    }
+
+    /// 간체 UI만 YaHei를 앞에 둔다. 어느 언어에서도 두 칸을 모두 쌓아 언어 이름의 한글과
+    /// 간체가 □가 되지 않게 한다.
+    #[test]
+    fn windows_puts_yahei_first_only_for_simplified_chinese() {
+        let stack = cjk_stack_for_os("windows");
+        assert_eq!(
+            stack.slots_for(SIMPLIFIED_CHINESE_LOCALE),
+            [WINDOWS_YAHEI, WINDOWS_MALGUN]
+        );
+        for other in OTHER_LOCALES {
+            assert_eq!(
+                stack.slots_for(other),
+                [WINDOWS_MALGUN, WINDOWS_YAHEI],
+                "{other}"
+            );
+        }
+    }
+
+    #[test]
+    fn linux_and_macos_keep_one_file_and_name_only_the_simplified_face() {
+        for (os, candidates) in [("linux", LINUX_NOTO), ("macos", MACOS_CANDIDATES)] {
+            let stack = cjk_stack_for_os(os);
+            assert_eq!(
+                stack.slots_for(SIMPLIFIED_CHINESE_LOCALE),
+                [CjkSlot {
+                    candidates,
+                    family: Some(NOTO_SIMPLIFIED_CHINESE_FACE),
+                }],
+                "{os}"
+            );
+            for other in OTHER_LOCALES {
+                assert_eq!(
+                    stack.slots_for(other),
+                    [CjkSlot {
+                        candidates,
+                        family: None,
+                    }],
+                    "{os} {other}"
+                );
+            }
+        }
+    }
+
     /// 저장소에 넣을 수 없는 시스템 글꼴을 읽는다. 없는 컴퓨터에서는 아무것도 재지 않는다.
     #[cfg(target_os = "linux")]
     #[test]
     fn the_installed_noto_collection_gives_simplified_chinese_its_own_face() {
-        let Some(path) = SYSTEM_CJK_CANDIDATES
+        let Some(path) = LINUX_NOTO
             .iter()
             .map(std::path::Path::new)
             .find(|path| path.exists())
@@ -434,12 +588,48 @@ mod system_cjk_tests {
             return;
         };
         let bytes = std::fs::read(path).unwrap();
-        let simplified = cjk_face_for_locale(&bytes, SIMPLIFIED_CHINESE_LOCALE);
+        let simplified = cjk_face_by_family(&bytes, Some(NOTO_SIMPLIFIED_CHINESE_FACE));
         assert_ne!(simplified, 0, "{} has no simplified face", path.display());
-        for other in ["en", "ko", "ja", "zh-CN", ""] {
-            assert_eq!(cjk_face_for_locale(&bytes, other), 0, "{other}");
-        }
         assert!(tasty_i18n::font::validate_face(&bytes, simplified).is_ok());
+    }
+
+    /// 기본 설치 Windows의 두 칸이 언어 이름·가나·대표 간체를 모두 그리는지 잰다.
+    /// `check-windows`가 이 시험을 실행한다.
+    #[cfg(target_os = "windows")]
+    #[test]
+    fn the_installed_windows_fonts_draw_every_language_name() {
+        use ab_glyph::Font as _;
+
+        const NAMES: &str = "English한국어日本語简体中文";
+        const SIMPLIFIED: &str = "曾启遍复窗警令直言将名滚骨角门今设语窗标签页";
+        const KANA: &str = "ひらがなカタカナー";
+        for locale in [SIMPLIFIED_CHINESE_LOCALE, "en", "ko", "ja"] {
+            let slots = cjk_stack_for_os("windows").slots_for(locale);
+            let fonts = usable_cjk_fonts(slots);
+            assert_eq!(fonts.len(), 2, "{locale}: both files should be installed");
+            let parsed: Vec<_> = fonts
+                .iter()
+                .map(|f| ab_glyph::FontRef::try_from_slice_and_index(&f.bytes, f.face).unwrap())
+                .collect();
+            let missing: String = NAMES
+                .chars()
+                .chain(SIMPLIFIED.chars())
+                .chain(KANA.chars())
+                .filter(|c| parsed.iter().all(|font| font.glyph_id(*c).0 == 0))
+                .collect();
+            assert_eq!(missing, "", "{locale}");
+        }
+        let yahei = &usable_cjk_fonts(&[WINDOWS_YAHEI])[0];
+        assert_ne!(yahei.face, 0, "Microsoft YaHei UI is face 1 of msyh.ttc");
+        let first = ab_glyph::FontRef::try_from_slice_and_index(&yahei.bytes, yahei.face).unwrap();
+        let not_first: String = SIMPLIFIED
+            .chars()
+            .filter(|c| first.glyph_id(*c).0 == 0)
+            .collect();
+        assert_eq!(
+            not_first, "",
+            "simplified UI text should not fall past YaHei"
+        );
     }
 }
 

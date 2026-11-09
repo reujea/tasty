@@ -16,5 +16,9 @@ tracing = "0.1"
 tempfile = "3"
 tasty-themes = { path = "../tasty-themes" }
 
+# 설치된 Windows 글꼴의 글자 보유를 egui와 같은 파서로 재는 시험만 쓴다.
+[target.'cfg(windows)'.dev-dependencies]
+ab_glyph = "0.2"
+
 [lints]
 workspace = true
