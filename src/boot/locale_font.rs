@@ -100,6 +100,9 @@ fn validate(path: &Path) -> Result<(), String> {
         .map_err(|error| match error {
             tasty_i18n::font::LocaleFontError::Read(error) => format!("cannot read: {error}"),
             tasty_i18n::font::LocaleFontError::Parse => "not a valid font file".to_string(),
+            tasty_i18n::font::LocaleFontError::NoLineHeight => {
+                "font has no positive line height".to_string()
+            }
         })
 }
 

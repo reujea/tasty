@@ -52,7 +52,7 @@ plugin의 파일은 합치지 않는다. 구체 규약은 [i18n](../../dev-guide
 
 `[font]` 선언은 부팅 1회 실제 폰트 파일로 resolve 해 **UI 폴백 체인 맨 뒤**에 붙인다 — 라틴은 기본 폰트, 팩 스크립트만 팩 폰트로 렌더(혼합).
 `file` 은 팩 상대경로(팩 밖 이탈 거부), `family`/`candidates` 는 시스템 폰트 DB 에서 파일 경로를 찾고, `candidates` 는 "경로처럼 보이면 file, 아니면 family" 로 순서대로 첫 성공.
-붙이기 전 `ab_glyph` 로 파싱 검증(egui 는 깨진 폰트에 panic).
+붙이기 전 `ab_glyph` 로 파싱하고 줄 높이가 0보다 큰지 검증한다(egui 는 그런 폰트에 panic).
 resolve 한 절대경로는 `TASTY_LOCALE_FONT` env 로 자식 plugin 에 전달하고 셸 UI 두 경로 + egui UI plugin 넷이 **같은 헬퍼**로 소비한다(같은 폰트 검증을 재사용한다).
 **resolve/검증 실패는 폴백 없이 경고만** — 문자열은 그대로 뜨고(그 스크립트는 □) UI 폰트만 안 붙는다(GUI 토스트 1회 / headless warn).
 규칙 표는 [dev-guide/i18n](../../dev-guide/i18n.md) "`[font]` resolve 와 UI 폴백 체인".

@@ -1,10 +1,13 @@
 //! Font validation shared by language-pack loading, authoring and UI insertion.
 
-/// Failure before a language-pack font can enter a renderer.
+use ab_glyph::Font as _;
+
+/// Failure before a font can enter a renderer.
 #[derive(Debug)]
 pub enum LocaleFontError {
     Read(std::io::Error),
     Parse,
+    NoLineHeight,
 }
 
 impl std::fmt::Display for LocaleFontError {
@@ -12,17 +15,30 @@ impl std::fmt::Display for LocaleFontError {
         match self {
             Self::Read(error) => write!(f, "cannot read font file: {error}"),
             Self::Parse => write!(f, "file is not a valid font"),
+            Self::NoLineHeight => write!(f, "font has no positive line height"),
         }
     }
 }
 
 impl std::error::Error for LocaleFontError {}
 
-/// Read and validate the exact bytes the UI will insert. Uses epaint's parser
-/// without depending on egui or a graphics context. Does not resolve families,
-/// reorder fallback fonts, or shape RTL text.
+/// Refuse bytes that would make egui panic. epaint panics when it cannot parse
+/// a font, and asserts a positive scale, derived from this height, when it first
+/// lays out text with the font. Uses epaint's parser without depending on egui
+/// or a graphics context.
+pub fn validate(bytes: &[u8]) -> Result<(), LocaleFontError> {
+    let font = ab_glyph::FontRef::try_from_slice(bytes).map_err(|_| LocaleFontError::Parse)?;
+    if font.height_unscaled() > 0.0 {
+        Ok(())
+    } else {
+        Err(LocaleFontError::NoLineHeight)
+    }
+}
+
+/// Read and validate the exact bytes the UI will insert. Does not resolve
+/// families, reorder fallback fonts, or shape RTL text.
 pub fn read_validated(path: &std::path::Path) -> Result<Vec<u8>, LocaleFontError> {
     let bytes = std::fs::read(path).map_err(LocaleFontError::Read)?;
-    ab_glyph::FontRef::try_from_slice(&bytes).map_err(|_| LocaleFontError::Parse)?;
+    validate(&bytes)?;
     Ok(bytes)
 }
