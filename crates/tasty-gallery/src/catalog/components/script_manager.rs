@@ -323,7 +323,7 @@ fn script_path(ui: &mut egui::Ui, theme: &Theme, dir: &str, file: &str) {
     });
 }
 
-/// changed 배지 — warn 글리프 12 + "changed", mono micro(10), accent-warning
+/// changed 배지 — warn 글리프 12 + "changed", font-label micro(10), accent-warning
 /// color-mix(40% border / 12% bg).
 fn changed_badge(ui: &mut egui::Ui, theme: &Theme) {
     let warn = theme.accent_warning().to_egui();

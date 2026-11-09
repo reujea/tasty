@@ -55,7 +55,10 @@ pub fn draw(ui: &mut egui::Ui, theme: &Theme) {
                 "L2 position",
                 "Misc · after Scripts · before Tastyrc (Windows)",
             ),
-            ("heading", "REPORT LIMITS · mono micro uppercase · muted"),
+            (
+                "heading",
+                "REPORT LIMITS · font-label micro uppercase · muted",
+            ),
             ("row grid", "label 150 … 240 · gap 16 (settings-label-gap)"),
             (
                 "field",

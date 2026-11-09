@@ -140,7 +140,7 @@ pub fn draw_number_field(ui: &mut egui::Ui, theme: &Theme) {
             ),
             (
                 "unit",
-                "after the field, gap number-field-unit-gap · mono caption number-field-unit-fg · disabled → state-disabled-fg",
+                "after the field, gap number-field-unit-gap · font-label caption number-field-unit-fg · disabled → state-disabled-fg",
             ),
             ("-1", "“no limit” (UI font, caption) in the unit's place"),
             (

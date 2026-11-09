@@ -331,7 +331,7 @@ const CARD_SPECS: &[(&str, &str)] = &[
         "card",
         "file-handler-form-bg · 1px file-handler-form-border · radius · padding file-handler-form-padding 12 · row gap file-handler-form-row-gap 8",
     ),
-    ("title", "mono micro caps, file-handler-form-label-fg"),
+    ("title", "font-label micro caps, file-handler-form-label-fg"),
     (
         "field row",
         "label column settings-label-width 150 (wraps, body 13) · gap settings-label-gap 16 · control column flex ≥ field-width-lg; wraps under the label when the card is narrower",

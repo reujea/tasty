@@ -308,7 +308,7 @@ fn draw_footer(ui: &mut egui::Ui, theme: &Theme, footer: egui::Rect, dirty: bool
         .show(&mut fui, theme);
 }
 
-/// 필드 라벨 — mono micro uppercase muted, 입력과 3px(본체 `field_label` 전사).
+/// 필드 라벨 — font-label micro uppercase muted, 입력과 3px(본체 `field_label` 전사).
 fn field_label(ui: &mut egui::Ui, theme: &Theme, text: &str) {
     ui.label(
         egui::RichText::new(text.to_uppercase())

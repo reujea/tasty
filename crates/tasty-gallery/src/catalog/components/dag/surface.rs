@@ -390,7 +390,7 @@ pub fn draw(ui: &mut egui::Ui, theme: &Theme) {
             ("header", "8/12 padding · wraps < 640"),
             (
                 "header count",
-                "{done} / {total} done (spaces kept) + the list row skip suffix · mono caption",
+                "{done} / {total} done (spaces kept) + the list row skip suffix · font-label caption",
             ),
             ("canvas", "all remaining space"),
             ("detail", "288 side → 220 sheet"),

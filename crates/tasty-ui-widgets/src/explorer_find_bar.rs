@@ -1,5 +1,5 @@
 //! Explorer 툴바 아래에 붙는 Find 바. 검색 아이콘이 있는 입력, Subfolders 체크박스(원격은 없음),
-//! 오른쪽 상태 글자(mono caption), 닫기 버튼을 `explorer-search-bar-height` 높이 한 줄에 둔다.
+//! 오른쪽 상태 글자(font-label caption), 닫기 버튼을 `explorer-search-bar-height` 높이 한 줄에 둔다.
 //! 이름에서 찾은 부분을 칠하는 글자 배치도 여기 둔다. 본체와 갤러리가 같은 함수를 부른다.
 
 use tasty_type_appearance::theme::Theme;

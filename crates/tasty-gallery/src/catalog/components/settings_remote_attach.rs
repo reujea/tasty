@@ -154,7 +154,7 @@ fn draw(ui: &mut egui::Ui, theme: &Theme) {
             ),
             (
                 "heading",
-                "mono micro uppercase · letter-spacing-caps · muted",
+                "font-label micro uppercase · letter-spacing-caps · muted",
             ),
             ("rows", "one · SettingsRow + shared integer field"),
             (

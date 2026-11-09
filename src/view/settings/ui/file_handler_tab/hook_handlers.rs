@@ -291,7 +291,7 @@ impl HookHandlerEditDraft {
     }
 }
 
-/// 대문자 고정폭 섹션 제목. 자간은 시안의 `letter-spacing-caps` 다.
+/// 대문자 라벨 글꼴 섹션 제목. 자간은 시안의 `letter-spacing-caps` 다.
 fn label_caps_head(ui: &mut egui::Ui, th: &tasty_type_appearance::theme::Theme, text: &str) {
     ui.label(
         egui::RichText::new(text.to_uppercase())

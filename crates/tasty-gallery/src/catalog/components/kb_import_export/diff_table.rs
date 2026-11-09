@@ -53,7 +53,7 @@ pub fn draw_preview(ui: &mut egui::Ui, theme: &Theme) {
             ("group header", "spans all columns, on surface-raised"),
             (
                 "group content",
-                "select-all · name (mono 10 caps) · counts · chevron",
+                "select-all · name (font-label 10 caps) · counts · chevron",
             ),
             (
                 "groups",

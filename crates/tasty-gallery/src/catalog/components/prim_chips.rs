@@ -112,7 +112,6 @@ pub fn draw_tag(ui: &mut egui::Ui, theme: &Theme) {
             tag_mono(ui, theme, "fs:read", TagVariant::Default, false);
             tag_mono(ui, theme, "v1.2.0", TagVariant::Default, false);
             tag_mono(ui, theme, "s_05MD", TagVariant::Default, false);
-            tag_mono(ui, theme, "3.2 MB", TagVariant::Warning, false);
         });
         // 시안 Tag `disabled` — accent 채움과 tint 테두리가 빠지고 점도 같은 ink다.
         cluster(ui, theme, "disabled edge on a ground", |ui| {

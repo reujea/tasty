@@ -25,7 +25,7 @@ pub struct RestoreNoticeView<'a> {
     pub close_label: &'a str,
     /// 첫 줄의 원인 문장.
     pub cause: &'a str,
-    /// 경로 위의 mono caption. 대문자로 표시한다.
+    /// 경로 위의 font-label caption. 대문자로 표시한다.
     pub label: &'a str,
     pub path: &'a str,
     pub copy_label: &'a str,

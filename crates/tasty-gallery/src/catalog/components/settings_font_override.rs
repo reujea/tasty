@@ -385,7 +385,7 @@ pub fn draw(ui: &mut egui::Ui, theme: &Theme) {
                 "stack",
                 "a box narrower than font-preview-min-width (→ field-width-lg 200) wraps under the other — content width < 2 × 200 + space-md",
             ),
-            ("summary", "mono caption · text-muted"),
+            ("summary", "font-label caption · text-muted"),
         ],
         &[
             TokenChip::without_color("settings-label-width", "150 label column (new name)"),

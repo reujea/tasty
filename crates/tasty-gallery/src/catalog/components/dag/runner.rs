@@ -1,5 +1,5 @@
 //! 러너의 실행·오류·대기 작업 상태를 보여주는 배지.
-//! 고정폭 글꼴과 전용 간격을 쓰므로 공용 StatusDot 대신 직접 그린다.
+//! 라벨 글꼴과 전용 간격을 쓰므로 공용 StatusDot 대신 직접 그린다.
 
 use tasty_type_appearance::color::HexColor;
 use tasty_type_appearance::theme::Theme;
