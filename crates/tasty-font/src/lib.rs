@@ -554,6 +554,14 @@ mod tests {
         assert!(config.load_family_data("No Such Family").is_none());
     }
 
+    /// 시스템 글꼴 상태와 무관하게 통과한다. 번들 적재가 빠지면 같은 family가 설치되지 않은
+    /// 컴퓨터에서 실패한다. 번호는 설치된 글꼴에 따라 달라 묻지 않는다.
+    #[test]
+    fn the_default_config_has_the_bundled_family() {
+        let config = FontConfig::new(14.0, "");
+        assert!(config.load_family_data(D2CODING_FAMILY).is_some());
+    }
+
     /// 저장소에 넣을 수 없는 시스템 글꼴을 읽는다. 설치되지 않은 컴퓨터에서는 아무것도 재지 않는다.
     #[test]
     fn a_family_inside_a_collection_keeps_its_face_number() {
