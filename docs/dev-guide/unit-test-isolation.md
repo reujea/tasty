@@ -323,6 +323,12 @@ CI 는 `.github/workflows/crossplatform-check.yml` 의 `check-headless` 잡이 �
 `--test-threads=4`로 1000회 실행하면 182회 실패했다. 격리한 뒤 같은 실행에서 0회다. 경고 줄을 지우는 변이에서는
 자식의 단정이 실패하고 부모가 그 출력을 싣고 실패한다.
 
+빈 로그를 단정하는 시험에는 이 경합이 실패가 아니라 놓침으로 나타난다. 관심이 `never`면 경고가 나도 로그가 비어
+통과하기 때문이다. `tasty-memory`의 `captured_log`는 경고 시험과 빈 로그 시험이 함께 쓰므로 `is_rerun_alone`이
+아니면 거부하고, 호출하는 시험 셋은 모두 `rerun_alone`으로 돈다. 구독자 없이 같은 경고를 치는
+`a_read_only_database_reports_itself_degraded`와 경고 시험만 `--test-threads=2`로 1000회 실행하면 격리 전 코드는
+474회 실패했고 격리 뒤에는 0회다.
+
 같은 시험 바이너리 안에서 그 콜사이트를 구독자 없이 치는 시험이나 worker가 있는지 먼저 확인한다. 전체 lib에서
 단정하는 콜사이트 앞에 구독자 유무와 스레드 이름을 남기는 임시 계측을 넣어 2회 실행해 찾는다. 파일 로드 경고는
 다른 모듈의 시험 세 개가 구독자 없이 친다(`load_diagnostics_tests`). 그 시험들과 함께 8스레드로 600회 실행하면 69회

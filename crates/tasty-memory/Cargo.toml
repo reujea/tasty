@@ -23,6 +23,7 @@ name = "commit_baseline"
 required-features = ["test-support"]
 
 [dev-dependencies]
+tasty-test-support = { path = "../tasty-test-support" }
 tempfile = "3"
 # 실패 경고를 실제 로그로 확인하는 시험에 사용한다.
 tracing-subscriber = { version = "0.3", features = ["fmt"] }

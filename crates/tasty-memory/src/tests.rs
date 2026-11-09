@@ -1323,8 +1323,18 @@ fn journal_size_limit_is_applied_to_disk_databases() {
 }
 
 /// 실제 tracing 경고를 캡처한다.
+///
+/// 구독자 없는 다른 시험이 같은 콜사이트를 먼저 치면 프로세스 전역 관심 캐시에 `never`가 남아
+/// 경고가 이 구독자까지 오지 않는다(docs/dev-guide/unit-test-isolation.md). 경고를 단정하는 시험은
+/// 빠뜨린 경고로 실패하고, 빈 로그를 단정하는 시험은 있어야 할 실패를 놓친다. 그래서 호출자는
+/// 모두 `rerun_alone`으로 혼자 돌아야 한다.
 fn captured_log(body: impl FnOnce()) -> String {
     use std::io::Write;
+
+    assert!(
+        tasty_test_support::is_rerun_alone(),
+        "로그 단정은 rerun_alone 으로 혼자 돌아야 한다"
+    );
 
     #[derive(Clone)]
     struct Capture(std::sync::Arc<std::sync::Mutex<Vec<u8>>>);
@@ -1358,6 +1368,12 @@ fn captured_log(body: impl FnOnce()) -> String {
 /// 읽기 전용 DB에서 적용되지 않은 설정이 경고로 남는지 확인한다.
 #[test]
 fn a_read_only_database_says_that_the_requested_pragmas_did_not_take() {
+    if tasty_test_support::rerun_alone(
+        module_path!(),
+        "a_read_only_database_says_that_the_requested_pragmas_did_not_take",
+    ) {
+        return;
+    }
     let tmp = tempfile::tempdir().unwrap();
     let path = tmp.path().join("readonly.db");
     // 먼저 평범하게 만든다 — 이 시점의 journal_mode 는 SQLite 기본값(delete)이다.
@@ -1379,6 +1395,12 @@ fn a_read_only_database_says_that_the_requested_pragmas_did_not_take() {
 
 #[test]
 fn a_healthy_database_logs_nothing_while_setting_its_pragmas() {
+    if tasty_test_support::rerun_alone(
+        module_path!(),
+        "a_healthy_database_logs_nothing_while_setting_its_pragmas",
+    ) {
+        return;
+    }
     let tmp = tempfile::tempdir().unwrap();
     let path = tmp.path().join("healthy.db");
     let conn = rusqlite::Connection::open(&path).unwrap();
@@ -1391,6 +1413,12 @@ fn a_healthy_database_logs_nothing_while_setting_its_pragmas() {
 /// in-memory의 journal_mode=memory에는 경고하지 않는다.
 #[test]
 fn an_in_memory_database_does_not_warn_about_its_own_journal_mode() {
+    if tasty_test_support::rerun_alone(
+        module_path!(),
+        "an_in_memory_database_does_not_warn_about_its_own_journal_mode",
+    ) {
+        return;
+    }
     let conn = rusqlite::Connection::open_in_memory().unwrap();
     let log = captured_log(|| {
         crate::pragma::apply_connection_pragmas(&conn, std::path::Path::new(":memory:"));
