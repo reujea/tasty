@@ -1,7 +1,7 @@
 //! native WebView 배치와 입력 영역. native 창은 마우스를 직접 받으므로 분할선 드래그와 창 가장자리
 //! 리사이즈 입력을 가리지 않게 해야 한다. Linux는 WebView를 surface에 꽉 채우고, host 판정이
-//! 분할선·리사이즈로 보는 픽셀만 input shape으로 뺀다. 다른 OS는 아직 입력 영역을 빼지 못해
-//! pane 외곽 변에 여백을 둔다.
+//! 분할선·리사이즈로 보는 픽셀만 input shape으로 뺀다. macOS는 같은 픽셀을 `hitTest:`에서 뺀다.
+//! Windows는 아직 입력 영역을 빼지 못한다. Linux 밖에서는 pane 외곽 변에 여백도 둔다.
 
 use crate::model::{PhysicalPx, PhysicalRect};
 

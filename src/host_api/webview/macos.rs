@@ -443,7 +443,7 @@ struct KeyWebViewIvars {
     key_bridge: Rc<dyn WebViewKeySink>,
     /// OS 가 이 뷰에 보낸 왼쪽 클릭. 탐색 delegate 가 user_gesture 근거로 꺼낸다.
     click: Rc<ClickGesture>,
-    /// 위에 egui가 그리는 안내 카드 영역(이 뷰 좌표). 이 안의 포인터는 받지 않고 부모로 보낸다.
+    /// 위에 egui가 그리는 안내 카드와 host 입력 영역(이 뷰 좌표). 이 안의 포인터는 받지 않고 부모로 보낸다.
     clip_holes: RefCell<Vec<NSRect>>,
     /// 대상 팝업이 보이는 동안 참이다. 그림은 그대로 두고 뷰 전체의 포인터를 부모(winit 뷰)로 보낸다.
     host_pointer: Cell<bool>,
@@ -507,7 +507,8 @@ define_class!(
             unsafe { msg_send![super(self), mouseUp: event] }
         }
 
-        /// 안내 카드 아래의 포인터는 받지 않아 뒤의 host 뷰로 간다. layer mask는 그림만 가리므로 따로 뺀다.
+        /// 안내 카드와 host 입력 영역(분할선 hit 띠 · 창 리사이즈 밴드) 위의 포인터는 받지 않아 뒤의 host
+        /// 뷰로 간다. layer mask는 그림만 가리므로 따로 뺀다.
         /// 대상 팝업이 보이는 동안은 뷰 전체의 포인터를 host 로 보낸다.
         #[unsafe(method(hitTest:))]
         fn hit_test(&self, point: NSPoint) -> *mut NSView {
@@ -550,7 +551,7 @@ impl KeyWebView {
         unsafe { msg_send![super(this), initWithFrame: frame, configuration: config] }
     }
 
-    /// superview 좌표 `point` 가 안내 카드 구멍 안인지. 구멍은 이 뷰 좌표로 저장한다.
+    /// superview 좌표 `point` 가 포인터 구멍(안내 카드 · host 입력 영역) 안인지. 구멍은 이 뷰 좌표로 저장한다.
     fn in_clip_hole(&self, point: NSPoint) -> bool {
         // SAFETY: MainThreadOnly 뷰의 AppKit hitTest 콜백 동안 self와 연결된 부모는 살아 있다.
         // 조회 전에 재진입하거나 계층을 바꾸지 않으며, 반환된 Retained가 부모 수명을 유지한다.
@@ -668,6 +669,8 @@ pub struct PlatformWebView {
 #[derive(Clone, Default, PartialEq)]
 struct MaskInput {
     clip: Vec<[i32; 4]>,
+    /// host 입력 영역. 포인터에서만 빼고 그림에는 남긴다.
+    input: Vec<[i32; 4]>,
     overlay: Vec<[i32; 4]>,
     scale_factor: f64,
 }
@@ -871,11 +874,12 @@ impl PlatformWebView {
     /// 위에 egui가 그리는 안내 카드(`clip`, 이 뷰 왼쪽 위 기준 물리 px `[x, y, 너비, 높이]`)를 그림과
     /// 포인터에서 뺀다. 그림은 layer mask로, 포인터는 `hitTest:`로 뺀다. frame·표시·first responder는
     /// 바꾸지 않는다. 비면 원래대로 돌아간다. 불투명 오버레이 상자가 있으면 같은 mask에 함께 넣는다.
-    /// host 입력 영역(`_input`)을 빼는 방법은 아직 없어 `webview_edge_inset` 여백으로 피한다.
-    pub fn set_native_holes(&self, _input: &[[i32; 4]], clip: &[[i32; 4]], scale_factor: f64) {
+    /// host 입력 영역(`input`, 같은 좌표)은 `hitTest:`에서만 빼 분할선 드래그·창 리사이즈를 host 가 받는다.
+    pub fn set_native_holes(&self, input: &[[i32; 4]], clip: &[[i32; 4]], scale_factor: f64) {
         {
             let mut mask = self.mask.borrow_mut();
             mask.clip = clip.to_vec();
+            mask.input = input.to_vec();
             mask.scale_factor = scale_factor;
         }
         if !self.apply_mask() {
@@ -916,7 +920,12 @@ impl PlatformWebView {
             };
             NSRect::new(NSPoint::new(x, origin_y), NSSize::new(w, h))
         };
-        *self.webview.ivars().clip_holes.borrow_mut() = input.clip.iter().map(to_points).collect();
+        *self.webview.ivars().clip_holes.borrow_mut() = input
+            .clip
+            .iter()
+            .chain(&input.input)
+            .map(to_points)
+            .collect();
         if input.clip.is_empty() && input.overlay.is_empty() {
             // SAFETY: main thread AppKit. 이 뷰의 layer를 읽기만 한다.
             let layer: Option<Retained<objc2_quartz_core::CALayer>> =
