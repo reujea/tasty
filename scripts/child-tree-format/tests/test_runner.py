@@ -582,6 +582,7 @@ class Parsers(unittest.TestCase):
         "You're out of extra usage",
         "You're out of usage credits",
         "You hit your spend cap",
+        "Spend cap exceeded",
         "429 Too Many Requests",
         "Rate limit exceeded",
     )
