@@ -444,7 +444,14 @@ fn worker_loop<P: Plugin>(
                 if dropped > 0 {
                     plugin.on_host_dropped_requests(dropped);
                 }
+                if req.method == METHOD_IPC_INVOKE {
+                    crate::deferred::open(host.reply_slot(), req.id);
+                }
                 let result = dispatch(&mut plugin, &req.method, &req.params, &host);
+                // 처리기가 답을 미뤘다 — 그 답은 처리기가 넘긴 스레드가 보낸다.
+                if crate::deferred::close(host.reply_slot()) {
+                    continue;
+                }
                 let resp = build_response(req.id, result);
                 if let Err(e) = send_response(&writer, &resp) {
                     tracing::warn!("plugin worker send_response failed: {e}");

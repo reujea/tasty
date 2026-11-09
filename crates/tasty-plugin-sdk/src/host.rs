@@ -75,6 +75,8 @@ pub struct HostHandle {
     /// 켜진 뒤의 [`Self::call`] 은 기다리지 않고 [`PluginError::HostClosed`] 로 돌아온다 —
     /// [`Self::fail_pending_calls`] 문서 참고.
     host_gone: Arc<AtomicBool>,
+    /// worker 가 지금 답할 `ipc.invoke` — 처리기가 미루면 그 답을 가져간다(`deferred`).
+    reply_slot: crate::deferred::ReplySlot,
 }
 
 impl HostHandle {
@@ -90,6 +92,7 @@ impl HostHandle {
             dropped_by_host: Arc::new(AtomicU64::new(0)),
             dropped_unreported: Arc::new(AtomicU64::new(0)),
             host_gone: Arc::new(AtomicBool::new(false)),
+            reply_slot: Arc::default(),
         }
     }
 
@@ -111,6 +114,14 @@ impl HostHandle {
                 tracing::trace!("host call#{call_id} already gone when the host left");
             }
         }
+    }
+
+    pub(crate) fn reply_slot(&self) -> &crate::deferred::ReplySlot {
+        &self.reply_slot
+    }
+
+    pub(crate) fn defer_reply(&self) -> Option<crate::deferred::DeferredReply> {
+        crate::deferred::take(&self.reply_slot, &self.writer)
     }
 
     /// 호스트가 큐 포화로 버렸다고 이 SDK에 알려 온 요청의 누적 수.

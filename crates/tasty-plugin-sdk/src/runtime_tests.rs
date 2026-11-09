@@ -745,3 +745,142 @@ fn run_handles_a_request_line_split_across_read_timeouts() {
         .expect("run did not return after shutdown");
     assert_eq!(outcome, Ok(()));
 }
+
+/// 답을 미루는 plugin — `x.slow` 는 미루고 답할 권리를 밖으로 내보낸다.
+struct DeferPlugin {
+    parked: Arc<Mutex<Vec<crate::DeferredReply>>>,
+    self_invoke_deferred: Arc<Mutex<Option<bool>>>,
+}
+
+impl Plugin for DeferPlugin {
+    fn id(&self) -> &str {
+        "test.defer"
+    }
+    fn create_surface(&mut self, _ctx: SurfaceCreateCtx) -> SurfaceResult {
+        SurfaceResult::default()
+    }
+    fn handle_ipc_method(&mut self, ctx: IpcMethodCtx) -> Result<Value, IpcMethodError> {
+        match ctx.method.as_str() {
+            "x.slow" => {
+                let r = ctx.defer().expect("호스트 호출은 미룰 수 있어야 한다");
+                assert!(ctx.defer().is_none(), "같은 호출을 두 번 가져갔다");
+                self.parked.lock().unwrap().push(r);
+                // 미뤘으면 이 값은 버려진다 — 호스트에 가면 안 된다.
+                Ok(json!("must not be sent"))
+            }
+            "x.self" => {
+                *self.self_invoke_deferred.lock().unwrap() = Some(ctx.defer().is_some());
+                Ok(Value::Null)
+            }
+            _ => Ok(json!({ "fast": true })),
+        }
+    }
+}
+
+/// worker 의 송신 끝과, 그 맞은편에서 줄을 읽는 끝.
+fn writer_pair() -> (Arc<Mutex<TcpStream>>, std::io::BufReader<TcpStream>) {
+    let listener = std::net::TcpListener::bind(("127.0.0.1", 0)).unwrap();
+    let port = listener.local_addr().unwrap().port();
+    let accept = std::thread::spawn(move || listener.accept().unwrap().0);
+    let stream = TcpStream::connect(("127.0.0.1", port)).unwrap();
+    let server = accept.join().unwrap();
+    server
+        .set_read_timeout(Some(std::time::Duration::from_secs(5)))
+        .unwrap();
+    (
+        Arc::new(Mutex::new(stream)),
+        std::io::BufReader::new(server),
+    )
+}
+
+fn read_resp(r: &mut std::io::BufReader<TcpStream>) -> PluginResponse {
+    let mut line = String::new();
+    r.read_line(&mut line).expect("응답 줄이 안 왔다");
+    serde_json::from_str(line.trim()).expect("응답이 JSON 이 아니다")
+}
+
+fn invoke(id: u64, method: &str) -> WorkerItem {
+    WorkerItem::Host(tasty_plugin_protocol::PluginRequest::new(
+        METHOD_IPC_INVOKE,
+        invoke_params(method, json!({}), None),
+        id,
+    ))
+}
+
+/// 미룬 호출은 worker 를 막지 않는다 — 뒤 요청이 먼저 답을 받고, 미룬 답은 나중에 **같은 id** 로 간다.
+#[test]
+fn a_deferred_call_lets_the_next_request_through_and_answers_later() {
+    let parked = Arc::new(Mutex::new(Vec::new()));
+    let plugin = DeferPlugin {
+        parked: parked.clone(),
+        self_invoke_deferred: Arc::default(),
+    };
+    let (writer, mut server) = writer_pair();
+    let host = HostHandle::new(writer.clone(), Arc::new(Mutex::new(HashMap::new())));
+    let (tx, rx) = mpsc::channel::<WorkerItem>();
+    tx.send(invoke(1, "x.slow")).unwrap();
+    tx.send(invoke(2, "x.fast")).unwrap();
+    drop(tx);
+    std::thread::spawn(move || worker_loop(plugin, rx, writer, host))
+        .join()
+        .unwrap();
+
+    let first = read_resp(&mut server);
+    assert_eq!(
+        first.id, 2,
+        "미룬 호출이 뒤 요청을 막았거나 버릴 값을 보냈다"
+    );
+    assert_eq!(first.result, Some(json!({ "fast": true })));
+
+    let reply = parked.lock().unwrap().pop().expect("답할 권리가 없다");
+    assert_eq!(reply.id(), 1);
+    assert!(reply.send(Ok(json!({ "late": true }))));
+    let late = read_resp(&mut server);
+    assert_eq!(late.id, 1);
+    assert_eq!(late.result, Some(json!({ "late": true })));
+}
+
+/// 답하지 않고 버리면 오류로 답한다 — 호출자가 상한까지 기다리지 않게.
+#[test]
+fn a_dropped_deferred_reply_answers_with_an_error() {
+    let parked = Arc::new(Mutex::new(Vec::new()));
+    let plugin = DeferPlugin {
+        parked: parked.clone(),
+        self_invoke_deferred: Arc::default(),
+    };
+    let (writer, mut server) = writer_pair();
+    let host = HostHandle::new(writer.clone(), Arc::new(Mutex::new(HashMap::new())));
+    let (tx, rx) = mpsc::channel::<WorkerItem>();
+    tx.send(invoke(9, "x.slow")).unwrap();
+    drop(tx);
+    std::thread::spawn(move || worker_loop(plugin, rx, writer, host))
+        .join()
+        .unwrap();
+    drop(parked.lock().unwrap().pop());
+    let resp = read_resp(&mut server);
+    assert_eq!(resp.id, 9);
+    assert!(resp.result.is_none() && resp.error.is_some(), "{resp:?}");
+}
+
+/// 자기 호출에는 답할 상대가 없다 — 미룰 수 없다.
+#[test]
+fn a_self_invoke_cannot_be_deferred() {
+    let seen = Arc::new(Mutex::new(None));
+    let plugin = DeferPlugin {
+        parked: Arc::default(),
+        self_invoke_deferred: seen.clone(),
+    };
+    let (writer, _server) = writer_pair();
+    let host = HostHandle::new(writer.clone(), Arc::new(Mutex::new(HashMap::new())));
+    let (tx, rx) = mpsc::channel::<WorkerItem>();
+    tx.send(WorkerItem::SelfInvoke {
+        method: "x.self".into(),
+        params: json!({}),
+    })
+    .unwrap();
+    drop(tx);
+    std::thread::spawn(move || worker_loop(plugin, rx, writer, host))
+        .join()
+        .unwrap();
+    assert_eq!(*seen.lock().unwrap(), Some(false));
+}

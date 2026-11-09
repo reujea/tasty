@@ -252,6 +252,19 @@ pub struct IpcMethodCtx {
     pub host: HostHandle,
 }
 
+impl IpcMethodCtx {
+    /// 이 호출의 답을 **나중에** 보낸다 — 받은 값을 다른 스레드로 넘기고 곧바로 돌아오면
+    /// worker 는 이 호출에 답하지 않고 다음 요청을 받는다. 그때 처리기가 돌려준 값은
+    /// 버려진다. 답은 [`DeferredReply::send`](crate::DeferredReply::send) 로 보낸다.
+    ///
+    /// 호스트가 보낸 호출에만 쓸 수 있고 한 번만 가져갈 수 있다 — 자기 호출
+    /// (`HostHandle::self_invoke`)이거나 이미 가져갔으면 `None` 이다. 호스트의
+    /// namespace 호출 상한 안에 답해야 한다(`crate::deferred` 모듈 문서).
+    pub fn defer(&self) -> Option<crate::DeferredReply> {
+        self.host.defer_reply()
+    }
+}
+
 impl std::fmt::Debug for IpcMethodCtx {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("IpcMethodCtx")
