@@ -417,13 +417,22 @@ pub fn draw_terminal_mouse_capture_tab(ui: &mut egui::Ui, settings: &mut Setting
     );
 }
 
-/// 설정한 셸을 쓸 수 없을 때의 안내. Windows 는 Git Bash 를, 다른 OS 는 로그인 셸 등을 대신 쓴다.
 /// 셸 경로 판정에 맞는 안내와, 새 터미널이 실패하는 판정인지. 쓸 수 있는 셸이면 `None`.
+/// macOS·Linux 는 로그인 셸 등을 대신 쓴다. Windows 는 빈 값일 때만 탐지한 Git Bash 를 대신 쓴다.
 fn shell_notice(status: ShellPathStatus) -> Option<(&'static str, bool)> {
     match status {
         ShellPathStatus::Usable => None,
         ShellPathStatus::Directory => Some((t("settings.terminal.shell_is_directory"), true)),
         ShellPathStatus::NotExecutable => Some((t("settings.terminal.shell_not_executable"), true)),
+        #[cfg(windows)]
+        ShellPathStatus::Missing => Some((t("boot.shell_setup.check_missing"), true)),
+        #[cfg(windows)]
+        ShellPathStatus::NotShell => Some((t("boot.shell_setup.check_not_shell"), true)),
+        #[cfg(windows)]
+        ShellPathStatus::Empty => crate::settings::GeneralSettings::detect_bash()
+            .is_none()
+            .then(|| (shell_not_found_notice(), true)),
+        #[cfg(not(windows))]
         ShellPathStatus::Empty | ShellPathStatus::Missing | ShellPathStatus::NotShell => {
             Some((shell_not_found_notice(), false))
         }
@@ -449,7 +458,27 @@ mod tests {
         assert_eq!(notice.contains("Git Bash"), cfg!(windows), "{notice}");
     }
 
+    /// Windows 는 빈 값 말고는 대체하지 않는다. 판정마다 원인을 말하는 실패 안내다.
+    #[cfg(windows)]
+    #[test]
+    fn the_windows_shell_notice_reports_the_cause_as_a_failure() {
+        assert_eq!(shell_notice(ShellPathStatus::Usable), None);
+        assert_eq!(
+            shell_notice(ShellPathStatus::Missing),
+            Some((t("boot.shell_setup.check_missing"), true))
+        );
+        assert_eq!(
+            shell_notice(ShellPathStatus::NotShell),
+            Some((t("boot.shell_setup.check_not_shell"), true))
+        );
+        let empty = crate::settings::GeneralSettings::detect_bash()
+            .is_none()
+            .then(|| (shell_not_found_notice(), true));
+        assert_eq!(shell_notice(ShellPathStatus::Empty), empty);
+    }
+
     /// 대체 셸로 열리는 판정은 경고, 실행할 수 없는 경로는 원인별 실패 안내다.
+    #[cfg(not(windows))]
     #[test]
     fn the_shell_notice_tells_a_fallback_from_a_failure() {
         assert_eq!(shell_notice(ShellPathStatus::Usable), None);

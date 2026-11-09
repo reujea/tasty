@@ -5,7 +5,7 @@ use std::path::PathBuf;
 ///
 /// Windows에서는 항상 None을 반환한다. 다른 프로세스의 CWD를 얻는 표준 API가
 /// 없고, WMI/PowerShell 호출은 콘솔창을 띄우는 무거운 동작이라 폴링에 부적합하다.
-/// Windows에서는 OSC 7 시퀀스에만 의존한다 (git bash, PowerShell 7+ 등은 송신함).
+/// Windows에서는 OSC 7 시퀀스에만 의존한다 (Git Bash는 합성 rcfile이 보낸다).
 pub fn get_cwd_of_pid(pid: u32) -> Option<PathBuf> {
     #[cfg(target_os = "linux")]
     {

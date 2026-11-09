@@ -14,12 +14,19 @@ fn test_terminal(cols: usize, rows: usize) -> Terminal {
     Terminal::new_detached(cols, rows)
 }
 
+/// Windows는 Git Bash만 실행한다. 다른 OS는 기본 셸(None)에 맡긴다.
+const TEST_SHELL: Option<&str> = if cfg!(windows) {
+    Some("C:/Program Files/Git/bin/bash.exe")
+} else {
+    None
+};
+
 fn test_pty_terminal(cols: usize, rows: usize) -> (Terminal, Pty) {
     spawn_terminal(
         TerminalConfig {
             cols,
             rows,
-            shell: None,
+            shell: TEST_SHELL,
             args: &[],
             surface_id: 0,
             working_dir: None,
@@ -1323,7 +1330,7 @@ fn process_exited_eventually_emitted() {
         TerminalConfig {
             cols: 80,
             rows: 24,
-            shell: if cfg!(unix) { Some("sh") } else { None },
+            shell: if cfg!(unix) { Some("sh") } else { TEST_SHELL },
             args: &[],
             surface_id: 0,
             working_dir: None,

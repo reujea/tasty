@@ -31,7 +31,7 @@ surface의 현재 폴더(cwd)는 종류 전환, 새 탭·분할의 폴더 상속
 
 OSC 7을 받으면 소속 탭의 이름도 갱신한다. 탭에서 포커스된 surface의 cwd 마지막 경로 요소를 쓰며 홈은 `~`로 표시한다. 명시한 이름과 OSC 제목이 있으면 이를 우선한다. GUI는 `TerminalCwdChanged` → `SurfaceCwdChanged`, 헤드리스는 PTY 처리(`src/boot.rs`)의 `intent::headless::apply_terminal_cwd_changed`로 같은 engine 상태를 갱신한다([헤드리스 가이드](../../dev-guide/headless-build-boundaries.md)). `tests/e2e_tests.rs`의 `an_osc7_cwd_becomes_the_tab_name`이 두 빌드에서 같은 결과를 확인한다.
 
-셸이 OSC 7 을 안 보내면 `cached_cwd` 가 비어, 새 분할의 부모 cwd 상속은 Linux/macOS 에선 위 OS 조회가 대신하고 Windows 에선 동작하지 않는다(프롬프트 설정으로 해결). (Windows 는 합성 rcfile 로 bash 의 OSC 7 emit 강제 — [terminal](../../surfaces/terminal/index.md).)
+셸이 OSC 7 을 안 보내면 `cached_cwd` 가 비어, 새 분할의 부모 cwd 상속은 Linux/macOS 에선 위 OS 조회가 대신하고 Windows 에선 동작하지 않는다. Windows 의 터미널 셸은 Git Bash 뿐이고 합성 rcfile 이 OSC 7 을 보낸다([terminal](../../surfaces/terminal/index.md)).
 
 ## `surface.set_cwd` IPC (RemoteSurface)
 

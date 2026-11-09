@@ -213,8 +213,23 @@ impl Pty {
 
         let shell = match config.shell {
             Some(s) if !s.is_empty() => s.to_string(),
+            #[cfg(not(windows))]
             _ => default_shell(),
+            // COMSPEC(cmd.exe)로 조용히 빠지지 않는다.
+            #[cfg(windows)]
+            _ => {
+                return Err(SpawnError::before_child(anyhow::anyhow!(
+                    "Unable to start a terminal because no shell is set and Git Bash was not found"
+                )));
+            }
         };
+        // Windows는 Git Bash만 실행한다. 모든 셸 실행이 여기를 지나므로 어떤 경로로 온 값도 다른 셸을 띄우지 않는다.
+        #[cfg(windows)]
+        if !tasty_utils::shell_family::is_git_for_windows_bash(std::path::Path::new(&shell)) {
+            return Err(SpawnError::before_child(anyhow::anyhow!(
+                "Unable to spawn {shell} because it is not Git Bash"
+            )));
+        }
         // 디렉터리는 portable-pty의 실행 파일 확인(access X_OK)을 통과해 fork 뒤 exec에서 조용히 실패한다.
         // 그 전에 원인과 함께 거절한다.
         #[cfg(unix)]
@@ -611,15 +626,9 @@ pub(crate) fn run_writer_loop(
     }
 }
 
+#[cfg(not(windows))]
 fn default_shell() -> String {
-    #[cfg(windows)]
-    {
-        std::env::var("COMSPEC").unwrap_or_else(|_| "cmd.exe".to_string())
-    }
-    #[cfg(not(windows))]
-    {
-        std::env::var("SHELL").unwrap_or_else(|_| "/bin/sh".to_string())
-    }
+    std::env::var("SHELL").unwrap_or_else(|_| "/bin/sh".to_string())
 }
 
 /// `inherited` 중 제거 대상 키(`tasty_utils::process::is_stripped_inherited_env`)를 자식 환경에서 지운다.
@@ -1029,5 +1038,46 @@ mod tests {
             }),
             "legacy wait failure response must terminate polling without claiming reap"
         );
+    }
+}
+
+#[cfg(all(test, windows))]
+mod windows_shell_tests {
+    use crate::{SpawnError, TerminalConfig, spawn_terminal};
+    use std::sync::Arc;
+
+    fn spawn(shell: Option<&str>) -> Result<(crate::Terminal, crate::Pty), SpawnError> {
+        spawn_terminal(
+            TerminalConfig {
+                cols: 80,
+                rows: 24,
+                shell,
+                args: &[],
+                surface_id: 0,
+                working_dir: None,
+                initial_input: None,
+                extra_env: &[],
+            },
+            Arc::new(|| {}),
+        )
+    }
+
+    /// 허용하지 않는 셸과 빈 값은 COMSPEC 없이 자식을 만들기 전에 원인과 함께 거절한다.
+    #[test]
+    fn only_git_bash_reaches_the_spawn() {
+        let comspec = std::env::var("COMSPEC").expect("COMSPEC");
+        for shell in [
+            Some(comspec.as_str()),
+            Some("cmd.exe"),
+            Some("powershell.exe"),
+            Some(""),
+            None,
+        ] {
+            let Err(error) = spawn(shell) else {
+                panic!("{shell:?} must not start");
+            };
+            assert!(error.is_before_child(), "{shell:?}: {error}");
+            assert!(error.to_string().contains("Git Bash"), "{shell:?}: {error}");
+        }
     }
 }

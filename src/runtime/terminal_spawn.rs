@@ -67,4 +67,30 @@ mod tests {
             "a missing shell path must return Err, not Ok or panic"
         );
     }
+
+    /// `ShellConfig`가 빈 값(Git Bash 없음)이나 허용하지 않는 값을 내도 다른 셸이 뜨지 않는다.
+    #[cfg(windows)]
+    #[test]
+    fn a_windows_shell_config_never_starts_another_shell() {
+        for shell in ["", "cmd.exe", "C:/Windows/System32/cmd.exe"] {
+            let config = crate::core::state::ShellConfig {
+                shell: shell.to_string(),
+                args: Vec::new(),
+                envs: Vec::new(),
+            };
+            let result = spawn_shell_terminal(
+                1,
+                ShellSpawnOpts {
+                    cols: 80,
+                    rows: 24,
+                    shell: config.shell_ref(),
+                    shell_args: &[],
+                    waker: noop_waker(),
+                    working_dir: None,
+                    extra_env: &[],
+                },
+            );
+            assert!(result.is_err(), "{shell:?}");
+        }
+    }
 }

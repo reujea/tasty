@@ -358,7 +358,7 @@ notify-caller는 최근 화면 800줄에서 RTM_NEWADDR를 찾으면 샌드박�
 - **훅 호출 실패 집계**: `terminal.set_state` 실패는 오류 응답으로 반환한다. 나머지 정리·알림 호출은 실패해도 계속하고 `host_call_failures`로 실패 수를 알린다. 0이 아니면 `<tasty_home>/hook-failures.log`에도 기록을 시도한다. `ok`만으로 모든 호출이 성공했다고 판단하지 않는다([오류 처리](../../dev-guide/error-handling.md)).
 - **훅 출력 계약** — `hook`의 IPC/직접 CLI 응답은 진단용 `host_call_failures`를 포함한다. 설치된 일곱 셸 래퍼는 CLI stdout을 버리고 Codex에는 빈 JSON 객체 `{}`만 반환한다 — `PermissionRequest` 에서 그 값은 "결정 없음"이라 승인 흐름을 바꾸지 않는다. 실패 기록(`hook-failures.log`)과 stderr는 유지한다. [Codex 훅 출력 규약](https://learn.chatgpt.com/docs/hooks)에 없는 내부 필드를 전달하지 않으며, 기존 설치에는 `tasty codex install`을 다시 실행해 래퍼를 갱신한다.
 - **훅 검토를 우회하지 않는다** — 기동 명령에 `--dangerously-bypass-hook-trust`를 넣지 않는다. `install`의 trust 표시는 선택한 파일의 metadata이며 실제 훅 실행이나 원격 daemon 신뢰의 증명이 아니다. 검토가 필요한 훅은 사용자가 Codex에서 확인하며 Tasty가 대신 승인하지 않는다.
-- **명령 셸** — helper 명령은 POSIX 작은따옴표 인용을 쓴다. Linux·macOS의 sh/bash/zsh와 Windows의 Git Bash가 대상이다. Windows의 cmd·PowerShell 터미널에서 helper 명령을 실행하는 경로는 아직 제공하지 않는다.
+- **명령 셸** — helper 명령은 POSIX 작은따옴표 인용을 쓴다. Linux·macOS의 sh/bash/zsh와 Windows의 Git Bash가 대상이다. Windows 터미널 셸은 Git Bash뿐이다.
 
 ### 승인과 샌드박스 설정
 

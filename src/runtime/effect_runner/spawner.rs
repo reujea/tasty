@@ -474,4 +474,25 @@ mod tests {
         );
         drop((held, first, second));
     }
+
+    /// 빈 실행값이나 허용하지 않는 셸은 COMSPEC(cmd.exe)으로 빠지지 않고 자식 없는 실패가 된다.
+    #[cfg(windows)]
+    #[test]
+    fn a_windows_job_without_git_bash_fails_before_a_child_starts() {
+        for shell in [None, Some("C:/Windows/System32/cmd.exe".to_string())] {
+            let mut worker = Worker {
+                abandoned: Vec::new(),
+                closing: Arc::new(AtomicBool::new(false)),
+                gate: Arc::new(test_gate::Gate::default()),
+            };
+            let mut job = test_job(lease());
+            job.shell = shell;
+            job.arguments = Vec::new();
+            let Err(failure) = worker.start(job) else {
+                panic!("the job must not start a shell");
+            };
+            assert!(!failure.uncertain, "{}", failure.reason);
+            assert!(worker.abandoned.is_empty());
+        }
+    }
 }

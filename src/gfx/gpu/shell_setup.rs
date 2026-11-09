@@ -19,6 +19,11 @@ fn shell_check(path: &str) -> ShellSetupCheck {
     }
 }
 
+/// Git Bash를 찾지 못했다는 안내를 보일지. Windows에만 해당한다.
+fn git_bash_notice_applies(detected: Option<String>) -> bool {
+    cfg!(windows) && detected.is_none()
+}
+
 impl GpuState {
     /// 첫 실행 셸 설정 화면을 그린다. 터미널 없이 egui만 사용한다.
     pub fn render_shell_setup(
@@ -37,8 +42,10 @@ impl GpuState {
 
         let title = t("boot.shell_setup.title");
         let subtitle = t("boot.shell_setup.subtitle");
-        // 이 화면은 설정 셸이 무효이고 bash 자동 탐지가 실패했을 때 뜬다. Git Bash 안내는 Windows에만 해당한다.
-        let git_bash_notice = cfg!(windows).then(|| t("boot.shell_setup.git_bash_missing"));
+        // 이 화면은 저장값을 쓸 수 없을 때도 뜬다. Git Bash를 찾았다면 찾지 못했다고 말하지 않는다.
+        let git_bash_notice =
+            git_bash_notice_applies(tasty_settings::GeneralSettings::detect_bash())
+                .then(|| t("boot.shell_setup.git_bash_missing"));
         let missing = t("boot.shell_setup.check_missing");
         let not_shell = t("boot.shell_setup.check_not_shell");
         let directory = t("boot.shell_setup.check_directory");
@@ -148,6 +155,36 @@ impl GpuState {
         }
 
         Ok(action)
+    }
+}
+
+#[cfg(test)]
+mod notice_tests {
+    use super::git_bash_notice_applies;
+
+    #[test]
+    fn the_git_bash_notice_needs_windows_and_no_detected_git_bash() {
+        assert_eq!(git_bash_notice_applies(None), cfg!(windows));
+        assert!(!git_bash_notice_applies(Some("bash".into())));
+    }
+}
+
+#[cfg(all(test, windows))]
+mod windows_tests {
+    use super::*;
+
+    /// 첫 실행 화면은 설정 판정과 같은 결론을 낸다. 허용하지 않는 값은 확정할 수 없다.
+    #[test]
+    fn the_setup_check_rejects_what_the_settings_judgement_rejects() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let cmd = dir.path().join("cmd.exe");
+        std::fs::write(&cmd, "").expect("write fixture");
+        assert_eq!(shell_check(""), ShellSetupCheck::Empty);
+        assert_eq!(shell_check("cmd.exe"), ShellSetupCheck::Missing);
+        assert_eq!(
+            shell_check(&cmd.to_string_lossy()),
+            ShellSetupCheck::NotShell
+        );
     }
 }
 

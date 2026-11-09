@@ -2190,9 +2190,8 @@ impl App {
     }
 }
 
-/// 사용자가 정한 셸은 경로가 없어도 저장하지 않는다. 대체 셸은 실행할 때 `ShellConfig` 가 고른다.
-/// 디렉터리·실행 권한 없는 파일은 대체하지 않으므로(`ShellPathStatus::falls_back`) 첫 실행 셸 설정 화면에서
-/// 원인을 보여 준다.
+/// 사용자가 정한 셸은 쓸 수 없어도 저장하지 않는다. 대체 셸은 실행할 때 `ShellConfig` 가 고른다.
+/// 대체하지 않는 판정(`ShellPathStatus::falls_back`)은 첫 실행 셸 설정 화면에서 원인을 보여 준다.
 fn boot_shell_usable(settings: &crate::settings::Settings) -> bool {
     let general = &settings.general;
     if general.is_shell_valid() {
@@ -2222,7 +2221,39 @@ mod tests {
     use super::merge_wakeup;
     use winit::event_loop::ControlFlow;
 
+    /// Windows 에서 허용하지 않는 값은 탐지한 Git Bash 가 있어도 설정 화면으로 간다. 설정값은 그대로다.
+    #[cfg(windows)]
+    #[test]
+    fn a_rejected_windows_shell_opens_the_setup_screen_instead_of_a_fallback() {
+        for configured in [
+            "cmd.exe",
+            "C:/Windows/System32/cmd.exe",
+            "pwsh",
+            r"C:\nonexistent\Git\bin\bash.exe",
+        ] {
+            let mut settings = crate::settings::Settings::default();
+            settings.general.shell = configured.to_string();
+            assert!(!super::boot_shell_usable(&settings), "{configured}");
+            assert_eq!(settings.general.shell, configured);
+            let shell = crate::core::state::ShellConfig::from_settings(&settings);
+            assert_eq!(shell.shell, configured);
+        }
+    }
+
+    /// Windows 의 빈 값은 저장한 선택이 없다는 뜻이다. Git Bash 를 찾을 때만 설정 화면 없이 부팅한다.
+    #[cfg(windows)]
+    #[test]
+    fn an_empty_windows_shell_boots_only_with_a_detected_git_bash() {
+        let mut settings = crate::settings::Settings::default();
+        settings.general.shell = String::new();
+        assert_eq!(
+            super::boot_shell_usable(&settings),
+            crate::settings::GeneralSettings::detect_bash().is_some()
+        );
+    }
+
     /// 설정한 셸 경로가 없어도 설정값은 그대로 두고 실행할 때만 대체 셸을 쓴다.
+    #[cfg(not(windows))]
     #[test]
     fn missing_configured_shell_is_not_overwritten_at_boot() {
         let Some(detected) = crate::settings::GeneralSettings::detect_bash() else {

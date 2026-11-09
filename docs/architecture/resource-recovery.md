@@ -106,10 +106,10 @@ operation·stream·attempt·generation·단계·원인을 경고 로그로 한 �
 터미널 spawn 오류는 child가 생기기 전 실패와 생긴 뒤 실패로 나뉜다(`tasty_terminal::SpawnStage`).
 경계는 portable-pty `spawn_command`의 반환이다. PTY 할당·셸 실행 파일 확인·프로세스 생성 실패는
 child를 남기지 않으므로 알려진 준비 실패로 응답하고 불명 기록을 남기지 않는다. 같은 키의 재요청은
-기록된 실패를 돌려주고, 설정을 고친 뒤 새 키로 요청하면 다시 실행한다. 설정한 셸 경로에 파일이 없으면 실행 시 탐지한 셸로
-대신하므로(`GeneralSettings::runtime_shell`) spawn 오류가 되지 않는다. 대신할 셸도 없을 때만 실행 파일 확인에서
-실패한다. macOS·Linux 에서 설정 셸이 디렉터리이거나 실행 권한 없는 파일이면 대신하지 않고 아래 확인에서
-원인과 함께 실패한다. child가 생긴 뒤 입출력 준비·
+기록된 실패를 돌려주고, 설정을 고친 뒤 새 키로 요청하면 다시 실행한다. macOS·Linux 에서 설정한 셸 경로에 파일이 없으면
+실행 시 탐지한 셸로 대신하므로(`GeneralSettings::runtime_shell`) spawn 오류가 되지 않는다. 대신할 셸도 없을 때만 실행 파일
+확인에서 실패한다. macOS·Linux 에서 설정 셸이 디렉터리이거나 실행 권한 없는 파일이면 대신하지 않고 아래 확인에서
+원인과 함께 실패한다. Windows 는 Git Bash 가 아니거나 없는 경로, 빈 실행값을 아래 확인에서 거절한다. child가 생긴 뒤 입출력 준비·
 reader/writer worker 시작·capture 주입이 실패하면 불명이다.
 
 - Unix: `openpty`와 실행 파일 검색(`access(X_OK)`)은 fork 전에 실패한다. 디렉터리는 `access(X_OK)`를

@@ -127,24 +127,25 @@ hidden 창은 `RedrawRequested` 를 못 받을 수 있으므로 첫 프레임은
 - **첫 실행 셸 설정 화면** — `render_shell_setup` 은 공용 view
   `tasty_ui_widgets::shell_setup_screen` 을 부르고 갤러리도 같은 함수를 그린다. 부팅 화면과
   같은 `bg-app` 채움(GPU clear 색 포함)과 락업 아래에 `size-360` 폭 폼을 세로 가운데에 쌓는다.
-  카드는 없다. 폼은 제목 "Choose a shell", 부제, Windows 전용 Git Bash 안내 줄(상자 없는
+  카드는 없다. 폼은 제목 "Choose a shell", 부제, Windows Git Bash 안내 줄(상자 없는
   경고색 caption, `alertTriangle`), mono 경로 `Input`, 검증 줄, 오른쪽 정렬 버튼 줄이며
   간격은 `spacing_sm` 이고 버튼 줄 위에 `spacing_sm` 을 한 번 더 둔다.
   - 검증 줄은 호스트 판정마다 한 문구다. 빈 경로는 문구 없이 caption 한 줄 높이만 잡고,
-    파일이 없으면 "No file at this path", Windows 에서 파일은 있지만 이름에 bash·zsh가 없으면
+    파일이 없으면 "No file at this path", Windows 에서 경로에 무언가 있지만 Git Bash 가 아니면
     "Not a bash or zsh executable", macOS·Linux 에서 디렉터리면 "This path is a folder, not a
     program", 실행 권한이 없으면 "This file has no permission to run"(모두 `alertCircle`·accent-danger),
     쓸 수 있으면 "Shell found"(`check`·accent-success)다. 판정은 설정의 `ShellPathStatus` 를 그대로
     옮긴다. macOS·Linux 는 이름을 보지 않으므로 fish 같은 셸도 확정할 수 있다.
-  - 이 화면은 설정 셸을 쓸 수 없고 대체할 셸도 없을 때, 그리고 macOS·Linux 에서 설정 셸이
-    디렉터리이거나 실행 권한 없는 파일일 때(대체하지 않는 판정) 열린다([터미널 surface "실행할 셸"](../surfaces/terminal/index.md)).
+  - 이 화면은 설정 셸을 쓸 수 없고 대체할 셸도 없을 때, macOS·Linux 에서 설정 셸이 디렉터리이거나
+    실행 권한 없는 파일일 때, Windows 에서 저장값이 Git Bash 가 아니거나 없는 경로일 때(대체하지 않는 판정) 열린다([터미널 surface "실행할 셸"](../surfaces/terminal/index.md)).
     입력란은 설정한 셸 경로로 채워 열리므로 판정 줄이 곧바로 원인을 보인다. 빈 설정이면 빈 칸이다.
+    Git Bash 안내 줄은 Windows 에서 기본 위치의 Git Bash 를 찾지 못했을 때만 보인다.
   - 버튼은 공용 `Button` Secondary "Quit"(앱 종료)과 Primary "Use this shell"(md)이다.
     판정이 유효할 때만 확인이 활성이며 Enter 확인도 같은 조건을 따른다. disabled 모양은
     공용 규칙(중립 상자와 disabled ink)을 따른다.
   - 경로 판정 시험은 플랫폼별로 나뉜다. `src/gfx/gpu/shell_setup.rs`의 시험 모듈은 Unix
-    실행 권한 fixture를 쓰므로 Windows 빌드에서 제외한다. Windows의 bash·zsh 이름 조건은
-    `tasty-settings`의 `shell_path` 시험으로 확인하며, 이 시험들은 실제 화면 입력 검증을 대신하지 않는다.
+    실행 권한 fixture를 쓰므로 Windows 빌드에서 제외한다. Windows의 Git Bash 배치 조건은
+    `tasty-utils`의 `shell_family`와 `tasty-settings`의 `shell_path` 시험으로 확인하며, 이 시험들은 실제 화면 입력 검증을 대신하지 않는다.
 - **부팅 오류 화면** — `render_boot_error` 는 공용 view `tasty_ui_widgets::boot_error_screen` 을
   부르고 갤러리도 같은 함수를 그린다. 로딩·셸 설정 화면과 같은 구조로 `bg-app` 채움 위에 락업 →
   `spacing_xl` → `boot-form-width`(360) 폼을 세로 가운데에 쌓는다. 카드와 그림자는 없다. 폼은

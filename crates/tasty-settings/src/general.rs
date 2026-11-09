@@ -346,9 +346,9 @@ impl GeneralSettings {
         matches_blacklist(&self.mouse_capture_banner_blacklist, fg_name)
     }
 
-    /// 새 터미널에 실행할 셸. 값이 비었거나 경로가 없거나(Windows는 bash·zsh 이름이 아니거나) 하면
-    /// 탐지한 셸로 대신하며 설정값은 바꾸지 않는다. 경로가 디렉터리이거나 실행 권한이 없으면 대신하지
-    /// 않고 설정값을 그대로 돌려줘 실행이 원인과 함께 실패하게 한다([`ShellPathStatus::falls_back`]).
+    /// 새 터미널에 실행할 셸. 값이 비었거나 macOS·Linux에서 경로가 없으면 탐지한 셸로 대신하며 설정값은
+    /// 바꾸지 않는다. 그 밖의 쓸 수 없는 값은 설정값을 그대로 돌려줘 실행이 원인과 함께 실패하게 한다
+    /// ([`ShellPathStatus::falls_back`]).
     pub fn runtime_shell(&self) -> String {
         if !self.shell_path_status().falls_back() {
             return self.shell.clone();
@@ -378,7 +378,11 @@ impl GeneralSettings {
                 "C:/Program Files (x86)/Git/bin/bash.exe".to_string(),
             ];
             for path in &candidates {
-                if !path.is_empty() && std::path::Path::new(path).exists() {
+                if !path.is_empty()
+                    && tasty_utils::shell_family::is_git_for_windows_bash(std::path::Path::new(
+                        path,
+                    ))
+                {
                     return Some(path.clone());
                 }
             }
@@ -1069,7 +1073,8 @@ mod tests {
         }
     }
 
-    /// 쓸 수 없는 설정값은 실행 셸만 대체하고 설정값은 그대로 둔다.
+    /// 없는 경로는 실행 셸만 대체하고 설정값은 그대로 둔다.
+    #[cfg(not(windows))]
     #[test]
     fn runtime_shell_falls_back_without_touching_the_configured_value() {
         let configured = "/nonexistent/tasty-runtime-shell";
@@ -1079,6 +1084,34 @@ mod tests {
         assert_eq!(s.shell, configured);
         if let Some(valid) = GeneralSettings::detect_bash() {
             assert_eq!(settings_with_shell(&valid).runtime_shell(), valid);
+        }
+    }
+
+    /// Windows는 빈 값만 탐지한 Git Bash로 대신한다. 허용하지 않는 값과 없는 경로는 그대로 돌려줘
+    /// 실행이 원인과 함께 실패하게 한다.
+    #[cfg(windows)]
+    #[test]
+    fn runtime_shell_only_replaces_an_empty_value_on_windows() {
+        for configured in [
+            "cmd.exe",
+            "C:/Windows/System32/cmd.exe",
+            r"C:\nonexistent\bash.exe",
+        ] {
+            let s = settings_with_shell(configured);
+            assert!(!s.is_shell_valid(), "{configured}");
+            assert_eq!(s.runtime_shell(), configured);
+        }
+        let expected = GeneralSettings::detect_bash().unwrap_or_default();
+        assert_eq!(settings_with_shell("").runtime_shell(), expected);
+    }
+
+    /// 탐지 결과는 판정을 통과한다. 탐지와 판정이 다른 기준을 쓰지 않는다.
+    #[test]
+    fn a_detected_shell_passes_the_shell_judgement() {
+        if let Some(detected) = GeneralSettings::detect_bash() {
+            let s = settings_with_shell(&detected);
+            assert!(s.is_shell_valid(), "{detected}");
+            assert_eq!(s.runtime_shell(), detected);
         }
     }
 

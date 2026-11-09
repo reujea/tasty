@@ -11,7 +11,8 @@
 //!   돌려준다. 따라서 `spawn_command` 가 오류를 돌려줄 때 살아 있는 자식은 없다.
 //!   exec 실패는 오류로 돌아오지 않는다. pre_exec 가 stderr 위의 모든 descriptor 를 닫으면서
 //!   std 의 오류 파이프도 닫기 때문이다. 그 자식은 생성에 성공한 뒤 스스로 종료한다.
-//! - Windows: `openpty` 의 `CreatePseudoConsole`, `spawn_command` 안의 속성 목록·명령줄 준비는
+//! - Windows: Git Bash 가 아닌 셸의 거절은 `spawn_command` 전에 일어난다.
+//!   `openpty` 의 `CreatePseudoConsole`, `spawn_command` 안의 속성 목록·명령줄 준비는
 //!   `CreateProcessW` 전에 실패한다. `CreateProcessW` 가 0 을 돌려주면 프로세스가 만들어지지
 //!   않는다.
 
