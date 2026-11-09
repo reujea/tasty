@@ -21,6 +21,8 @@
 
 Windows에서 파일 식별 유틸리티·IPC publication과 Explorer 선택·HTML root의 선택된 네이티브 시험을 확인했다. macOS에서도 선택된 Explorer 비입력 시험을 확인했다. 이 시험들은 실제 데스크톱 메뉴·DnD·클립보드·링크 휴지통·앱 종료·입력기 조합 경로를 확인하지 않는다. Windows 실제 한글 IME와 macOS 사용자 수동 입력을 포함한 GUI 확인은 남아 있다. Linux 결과와 과거 OS별 시험 결과를 현재 전체 OS acceptance 완료로 확대하지 않는다.
 
+시험 빌드는 실제 OS 휴지통과 macOS Finder를 부르지 않는다. 휴지통 호출은 `src/app/file_jobs/os_trash.rs` 한 곳에서만 하고(`trash_has_one_door` 검사), 시험 빌드에서는 항목을 지우는 대역으로 바뀐다. 대역은 임시 폴더 밖 항목을 거부한다. 실패 전달, 영구 삭제 없음, 항목 사이 취소는 대역으로 모든 OS에서 잰다. 실제 구현의 성공과 실패 전달은 Linux의 격리한 자식 프로세스 시험만 잰다(`a_real_trash_*`). macOS Finder와 Windows Recycle Bin의 실제 동작을 재는 자동 시험은 없다. Finder가 응답하지 않을 때의 작업 대기, 취소 반응, 카드 표시는 미측정이다.
+
 ## 목적
 
 탐색기의 파일 작업은 진입점이 여럿이다. 우클릭 메뉴, 키보드 단축키, Command Palette 가 같은 작업을 부른다. 이 문서는 진입점마다 대상과 결과가 같아야 한다는 규칙과, 작업마다 대상·결과·사용자 피드백·상태를 정한다. 지원하지 않는 작업은 그 사실을 적는다. 화면 요소와 탐색 동작은 [Explorer](index.md) 에 있다.

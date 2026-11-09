@@ -146,6 +146,12 @@ pub(crate) struct Shared {
     wake: Box<dyn Fn() + Send + Sync>,
     #[cfg(test)]
     write_failure_after: Mutex<Option<(u64, i32)>>,
+    /// 시험의 휴지통 대역이 이 이유로 거절한다.
+    #[cfg(test)]
+    trash_refusal: Mutex<Option<String>>,
+    /// 시험의 휴지통 대역이 항목을 처리한 뒤 작업을 취소한다.
+    #[cfg(test)]
+    cancel_after_trash: AtomicBool,
 }
 
 impl Shared {
@@ -178,7 +184,16 @@ impl Shared {
             wake,
             #[cfg(test)]
             write_failure_after: Mutex::new(None),
+            #[cfg(test)]
+            trash_refusal: Mutex::new(None),
+            #[cfg(test)]
+            cancel_after_trash: AtomicBool::new(false),
         }
+    }
+    /// 이 작업의 휴지통 호출을 `reason` 으로 거절한다.
+    #[cfg(test)]
+    pub(crate) fn refuse_trash(&self, reason: &str) {
+        *lock(&self.trash_refusal) = Some(reason.to_owned());
     }
     /// 아직 끝나지 않은 항목을 멈춘다. 답을 기다리던 작업도 깨운다.
     pub(crate) fn cancel(&self) {
@@ -1000,7 +1015,7 @@ pub(crate) fn run_trash(shared: &Shared, paths: &[PathBuf]) -> Report {
             break;
         }
         shared.set_current(path);
-        match trash::delete(path) {
+        match os_trash::send(shared, path) {
             Ok(()) => report.done += 1,
             Err(e) => {
                 if trash_refused(&e, path) {
@@ -1044,7 +1059,7 @@ pub(crate) fn run_undo(shared: &Shared, steps: &[UndoStep]) -> Report {
                 shared.set_current(path);
                 let result = match super::named::blocked(step) {
                     Some(reason) => Err(reason),
-                    None => trash::delete(path).map_err(|e| Reason::Os(e.to_string())),
+                    None => os_trash::send(shared, path).map_err(|e| Reason::Os(e.to_string())),
                 };
                 (path, result)
             }
@@ -1120,6 +1135,8 @@ fn move_back_staged(staging: &Path, to: &Path, from: &Path) -> Result<(), Reason
 
 #[path = "copy_meta.rs"]
 mod copy_meta;
+#[path = "os_trash.rs"]
+mod os_trash;
 use copy_meta::{FolderModes, keep_file_meta};
 #[path = "leftover.rs"]
 pub(crate) mod leftover;
@@ -1131,3 +1148,7 @@ pub(crate) mod tests;
 #[cfg(test)]
 #[path = "storage_failure_tests.rs"]
 mod storage_failure_tests;
+
+#[cfg(test)]
+#[path = "os_trash_tests.rs"]
+mod os_trash_tests;

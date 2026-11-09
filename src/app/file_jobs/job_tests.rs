@@ -935,6 +935,12 @@ pub(crate) fn in_isolated_trash(body: impl FnOnce(&Path)) {
     std::fs::write(marker, TRASH_PROBE_DONE).expect("write the probe marker");
 }
 
+/// [`run_with_isolated_trash`] 가 띄운 자식인가. 이때만 시험 빌드가 실제 휴지통 구현을 부른다.
+#[cfg(target_os = "linux")]
+pub(crate) fn in_isolated_trash_child() -> bool {
+    std::env::var_os(TRASH_PROBE_ENV).is_some() && std::env::var_os("XDG_DATA_HOME").is_some()
+}
+
 /// 크레이트 이름을 뺀 이 모듈의 시험 경로.
 #[cfg(target_os = "linux")]
 pub(crate) fn probe_path(module: &str, name: &str) -> String {

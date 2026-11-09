@@ -64,6 +64,14 @@ thread_local! {
 
 /// App 이 끝난 작업을 거둘 때처럼, 대기열 맨 앞 요청을 실행하고 그 결과를 요청한 칸의 이력에 반영한다.
 fn finish_next(state: &mut crate::state::MainViewState, sid: u32) -> Report {
+    finish_next_with(state, sid, &quiet())
+}
+
+fn finish_next_with(
+    state: &mut crate::state::MainViewState,
+    sid: u32,
+    shared: &job::Shared,
+) -> Report {
     let Request {
         operation,
         recorded,
@@ -74,7 +82,7 @@ fn finish_next(state: &mut crate::state::MainViewState, sid: u32) -> Report {
         .pop_front()
         .expect("a queued request");
     let started = std::time::Instant::now();
-    let Done::Report(report) = operation.run(&quiet()) else {
+    let Done::Report(report) = operation.run(shared) else {
         panic!("copy, move and undo report per item");
     };
     STAGES.with_borrow_mut(|stages| {
@@ -651,6 +659,63 @@ fn a_card_undo_behind_a_new_job_does_not_reach_the_redo_list() {
     assert_eq!(
         history(&state, sid).peek_redo().map(Entry::undo_of),
         Some(UndoOf::Copy)
+    );
+}
+
+/// 휴지통이 받지 않은 되돌리기는 사본을 남기고 이유를 보고하며, 다시 실행 목록에 오르지 않는다.
+#[test]
+fn an_undo_the_trash_refuses_does_not_reach_the_redo_list() {
+    let dir = tempfile::tempdir().unwrap();
+    let (src, dest) = (dir.path().join("src"), dir.path().join("dest"));
+    std::fs::create_dir_all(&src).unwrap();
+    std::fs::create_dir_all(&dest).unwrap();
+    std::fs::write(src.join("b.txt"), b"b").unwrap();
+    let (mut state, engine, sid) = explorer_state(dir.path());
+    let copy = Operation::Paste {
+        paths: vec![src.join("b.txt")],
+        destination: dest.clone(),
+        cut: false,
+    };
+    state.request_explorer_file_direct(&engine.read(), sid, copy, user());
+    finish_next(&mut state, sid);
+
+    state.explorer_history_step(&engine.read(), sid, false, user(), false);
+    let refusing = quiet();
+    refusing.refuse_trash("no trash here");
+    let undone = finish_next_with(&mut state, sid, &refusing);
+    assert_eq!((undone.done, undone.failed.len()), (0, 1), "{undone:?}");
+    assert!(
+        matches!(&undone.failed[0].reason, job::Reason::Os(why) if why.contains("no trash here"))
+    );
+    assert!(dest.join("b.txt").exists());
+    assert!(history(&state, sid).peek_redo().is_none());
+}
+
+/// 되돌리기 시험은 격리하지 않은 프로세스에서도 실제 휴지통에 아무것도 보내지 않는다. 자식 프로세스의
+/// 휴지통 자리를 비워 두고 두 시험을 실행해 그 자리를 본다.
+#[cfg(target_os = "linux")]
+#[test]
+fn undo_tests_leave_the_real_trash_alone() {
+    let data = tempfile::tempdir().unwrap();
+    let test_of = |name: &str| crate::app::file_jobs::job::tests::probe_path(module_path!(), name);
+    let output = std::process::Command::new(std::env::current_exe().unwrap())
+        .args([
+            test_of("a_card_undo_behind_a_new_job_does_not_reach_the_redo_list"),
+            test_of("undo_waits_for_a_copy_or_move_in_progress"),
+        ])
+        .args(["--exact", "--test-threads=1"])
+        .env("XDG_DATA_HOME", data.path())
+        .output()
+        .unwrap();
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(
+        output.status.success() && stdout.contains("2 passed"),
+        "{stdout}\n{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert!(
+        !data.path().join("Trash").exists(),
+        "a test reached the real trash: {stdout}"
     );
 }
 

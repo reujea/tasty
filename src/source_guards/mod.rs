@@ -692,6 +692,10 @@ mod repo_relative_paths;
 #[cfg(test)]
 mod home_env_has_one_door;
 
+/// OS 휴지통 호출은 시험 빌드의 대역을 지나는 한 곳에서만 한다.
+#[cfg(test)]
+mod trash_has_one_door;
+
 /// 스트림 수신 깨움은 StreamWakeGate를 거쳐서만 보낸다.
 #[cfg(test)]
 mod stream_wakes_go_through_the_gate;
