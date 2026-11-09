@@ -12,6 +12,7 @@ from score import call_outcome
 
 API_ABORTS = {"api_failure_exhausted"}
 USAGE_ABORTS = {"usage_limit", "allowed_warning", "u_exceeded", "usage_unread", "usage_unit_suspect"}
+CALL_FAILURES = ("api_error", "timeout", "interrupted")
 U_MARGIN = 5
 UNIT_CHECK_FROM = 5
 UNIT_CHECK_RATIO = 10
@@ -50,7 +51,7 @@ def _apply_record(ledger, record):
         ledger.violations[model] = ledger.violations.get(model, 0) + 1
         if ledger.violations[model] >= 2:
             _abort(ledger, "tool_violation_twice", model=model)
-    elif outcome in ("api_error", "timeout"):
+    elif outcome in CALL_FAILURES:
         ledger.api_fails[call] = ledger.api_fails.get(call, 0) + 1
         if ledger.api_fails[call] >= 3:
             _abort(ledger, "api_failure_exhausted", call=call, failures=ledger.api_fails[call])
@@ -74,7 +75,7 @@ def _apply_usage_stop(ledger, record, windows):
     if ledger.abort == "tool_violation_twice":
         return
     call = record["call_id"]
-    known = record.get("error_kind") in (None, "api_error", "timeout")
+    known = record.get("error_kind") in (None, *CALL_FAILURES)
     if windows.get("status") == "rejected" or not known:
         _abort(ledger, "usage_limit", call=call, status_code=record.get("status_code"))
     elif windows.get("status") == "allowed_warning":
@@ -150,7 +151,7 @@ def next_action(ledger, plan, cap):
     for call in open_calls:
         if not ledger.attempts.get(call):
             fresh.append(call)
-        elif ledger.api_fails.get(call) == 2 and ledger.last_outcome.get(call) in ("api_error", "timeout"):
+        elif ledger.api_fails.get(call) == 2 and ledger.last_outcome.get(call) in CALL_FAILURES:
             deferred.append(call)
         else:
             front.append(call)

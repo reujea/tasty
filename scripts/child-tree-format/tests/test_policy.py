@@ -29,6 +29,23 @@ def note(cli, used, seen=0):
 PLAN = ["a", "b", "c"]
 
 
+class Interrupted(unittest.TestCase):
+    def test_an_interrupted_call_retries_and_counts_against_the_cap(self):
+        records = [raw(error="interrupted")]
+        self.assertEqual(step(records), ("run", ("a", 2, "retry")))
+        self.assertEqual(policy.replay(records + [raw()]).retries_used, 1)
+        self.assertEqual(step(records + [raw()], cap=1), ("run", ("b", 1, "first")))
+        self.assertEqual(step(records + [raw(error="interrupted")], cap=1, plan=["a"]), ("abort", "retry_limit"))
+
+    def test_three_interruptions_stop_like_call_failures(self):
+        records = [raw(error="interrupted")] * 3
+        self.assertEqual(step(records), ("abort", "api_failure_exhausted"))
+        self.assertTrue(policy.resume_decision(policy.replay(records), 5, True)[0])
+
+    def test_a_usage_signal_on_an_interrupted_call_still_stops(self):
+        self.assertEqual(step([raw(error="interrupted", status="rejected")]), ("abort", "usage_limit"))
+
+
 class UsageReadings(unittest.TestCase):
     OPEN = {"claude": 50.0, "codex": None}
 

@@ -48,7 +48,7 @@ def _percent(value, unit):
     return value * 100 if unit == "fraction" else value
 
 
-def _empty():
+def empty_result():
     return {
         "response_text": None,
         "usage": None,
@@ -97,7 +97,7 @@ def _window(out, info, unit):
 
 
 def parse_claude(stdout, returncode, utilization_unit="fraction"):
-    out = _empty()
+    out = empty_result()
     result = None
     for event in _events(stdout):
         kind = event.get("type")
@@ -132,7 +132,7 @@ def parse_claude(stdout, returncode, utilization_unit="fraction"):
 
 
 def parse_codex(stdout, returncode):
-    out = _empty()
+    out = empty_result()
     message = None
     finished = False
     for event in _events(stdout):

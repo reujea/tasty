@@ -1,12 +1,16 @@
 """The runner against the fake CLI. Nothing here reaches a model."""
 
+import contextlib
 import hashlib
+import io
 import json
 import os
 import shutil
+import signal
 import subprocess
 import sys
 import tempfile
+import time
 import unittest
 from pathlib import Path
 from unittest import mock
@@ -609,6 +613,154 @@ class EndToEnd(Base):
         self.assertEqual(out["calls_by_outcome"]["tool_violation"], 1)
         self.assertEqual(out["calls_by_outcome"]["api_error"], 1)
         self.assertEqual(out["calls_recorded"], 86)
+
+
+class Interruption(Base):
+    def starts(self, phase="pilot"):
+        return runner.read_jsonl(runner.starts_path(self.data, phase))
+
+    def args(self, *extra):
+        return [
+            "--data", str(self.data), "run", "--claude-utilization-unit", "fraction",
+            "--claude-bin", str(FAKE), "--codex-bin", str(FAKE), "--phase", "pilot", *extra,
+        ]
+
+    def start_only(self, call_id, attempt=1):
+        row = next(r for r in self.rows() if r["call_id"] == call_id)
+        runner.append_line(runner.starts_path(self.data, "pilot"), runner.base_record(self.config(), row, attempt, "first"))
+
+    def test_every_call_writes_its_start_line_first(self):
+        self.assertEqual(runner.run(self.config(max_calls=2)), 0)
+        starts = self.starts()
+        raw = self.raw()
+        self.assertEqual([(s["call_id"], s["attempt"]) for s in starts], [(r["call_id"], r["attempt"]) for r in raw])
+        self.assertEqual(starts[0]["started_at"], raw[0]["started_at"])
+        self.assertNotIn("response_text", starts[0])
+
+    def test_a_start_without_an_end_becomes_an_interrupted_line_and_retries(self):
+        call = self.rows()[0]["call_id"]
+        self.start_only(call)
+        self.assertEqual(runner.run(self.config(max_calls=1)), 0)
+        first, second = self.raw()[:2]
+        self.assertEqual((first["call_id"], first["attempt"], first["error_kind"]), (call, 1, "interrupted"))
+        self.assertEqual((first["response_text"], first["wall_ms"], first["finished_at"]), (None, None, None))
+        self.assertEqual(first["rules_commit"], PROVENANCE["rules_commit"])
+        self.assertTrue(first["started_at"])
+        self.assertEqual((second["call_id"], second["attempt"], second["attempt_kind"]), (call, 2, "retry"))
+
+    def test_a_second_run_does_not_record_it_twice(self):
+        self.start_only(self.rows()[0]["call_id"])
+        self.assertEqual(runner.run(self.config(max_calls=0)), 0)
+        self.assertEqual(runner.run(self.config(max_calls=0)), 0)
+        self.assertEqual(len(self.raw()), 1)
+
+    def test_interruptions_count_against_the_retry_cap(self):
+        rows = self.rows()
+        self.assertEqual(runner.PILOT_RETRY_CAP, 2)
+        for row, _ in zip(rows[:3], range(3)):
+            self.start_only(row["call_id"])
+        self.assertEqual(runner.run(self.config()), 3)
+        self.assertEqual(self.log()[-1]["reason"], "retry_limit")
+        self.assertEqual(sum(r["error_kind"] == "interrupted" for r in self.raw()), 3)
+        self.assertEqual(len([r for r in self.raw() if r["attempt"] > 1]), 2)
+
+    def test_an_interrupted_line_is_not_a_scored_call(self):
+        self.start_only(self.rows()[0]["call_id"])
+        self.assertEqual(runner.run(self.config(max_calls=0)), 0)
+        self.assertEqual(summarize.call_outcome(self.raw()[0]), "interrupted")
+
+    def test_two_commands_cannot_share_a_data_folder(self):
+        with runner.runner_lock(self.data):
+            with contextlib.redirect_stderr(io.StringIO()) as err:
+                self.assertEqual(runner.main(self.args("--max-calls", "1")), 2)
+            self.assertIn("another runner", err.getvalue())
+            self.assertEqual(self.fake_calls(), [])
+
+    def test_a_finished_command_removes_the_lock_file(self):
+        with mock.patch.object(check_rules, "rules_provenance", return_value=PROVENANCE):
+            self.assertEqual(runner.main(self.args("--max-calls", "1")), 0)
+        self.assertFalse(runner.lock_path(self.data).exists())
+        self.assertEqual(len(self.raw()), 1)
+
+    def test_a_refused_command_removes_the_lock_file_too(self):
+        with contextlib.redirect_stderr(io.StringIO()):
+            with mock.patch.object(check_rules, "rules_provenance", side_effect=ValueError("no")):
+                self.assertEqual(runner.main(self.args()), 2)
+        self.assertFalse(runner.lock_path(self.data).exists())
+
+    def test_a_call_still_running_blocks_every_command(self):
+        child = subprocess.Popen(["sleep", "60"])
+        self.addCleanup(child.wait)
+        self.addCleanup(child.kill)
+        lock = runner.lock_path(self.data)
+        lock.parent.mkdir(parents=True, exist_ok=True)
+        lock.write_text(json.dumps({"pid": child.pid, "executable": "sleep"}))
+        windows = self.root / "w.json"
+        windows.write_text("[]")
+        approve = ["--data", str(self.data), "approve", "--level", "L2", "--windows", str(windows),
+                   "--approved-u", json.dumps(APPROVED)]
+        for argv in (self.args(), approve):
+            with contextlib.redirect_stderr(io.StringIO()) as err:
+                self.assertEqual(runner.main(argv), 2)
+            self.assertIn(str(child.pid), err.getvalue())
+        self.assertEqual(self.fake_calls(), [])
+        self.assertEqual(self.log(), [])
+
+    def test_a_stale_lock_file_of_a_dead_child_does_not_block(self):
+        child = subprocess.Popen(["true"])
+        child.wait()
+        lock = runner.lock_path(self.data)
+        lock.parent.mkdir(parents=True, exist_ok=True)
+        lock.write_text(json.dumps({"pid": child.pid, "executable": "true"}))
+        with mock.patch.object(check_rules, "rules_provenance", return_value=PROVENANCE):
+            self.assertEqual(runner.main(self.args("--max-calls", "1")), 0)
+
+    def test_a_killed_runner_leaves_a_call_that_the_next_run_handles(self):
+        self.scenarios(["timeout"])
+        script = Path(runner.__file__)
+        code = (
+            "import sys, runpy, check_rules\n"
+            f"check_rules.rules_provenance = lambda *a: {PROVENANCE!r}\n"
+            f"sys.argv = {[str(script), *self.args()]!r}\n"
+            f"runpy.run_path({str(script)!r}, run_name='__main__')\n"
+        )
+        env = {**os.environ, "PYTHONPATH": str(script.parent), "PYTHONDONTWRITEBYTECODE": "1"}
+        worker = subprocess.Popen([sys.executable, "-c", code], env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        self.addCleanup(worker.wait)
+        self.addCleanup(worker.kill)
+        lock = runner.lock_path(self.data)
+        info = None
+        give_up = time.monotonic() + 30
+        while time.monotonic() < give_up and not info:
+            text = lock.read_text() if lock.exists() else ""
+            info = json.loads(text) if text.strip() else None
+            time.sleep(0.05)
+        self.assertTrue(info, "the runner did not start a call")
+        worker.kill()
+        worker.wait()
+        self.addCleanup(lambda: subprocess.run(["kill", "-9", str(info["pid"])], capture_output=True, check=False))
+        self.assertEqual(self.raw(), [])
+        self.assertEqual(len(self.starts()), 1)
+        with mock.patch.object(check_rules, "rules_provenance", return_value=PROVENANCE):
+            with contextlib.redirect_stderr(io.StringIO()) as err:
+                self.assertEqual(runner.main(self.args("--max-calls", "1")), 2)
+            self.assertIn(str(info["pid"]), err.getvalue())
+            self.assertEqual(self.raw(), [])
+            os.kill(info["pid"], signal.SIGKILL)
+            give_up = time.monotonic() + 10
+            while time.monotonic() < give_up and b"fake" in self._cmdline(info["pid"]):
+                time.sleep(0.05)
+            self.assertEqual(runner.main(self.args("--max-calls", "1")), 0)
+        first, second = self.raw()[:2]
+        self.assertEqual((first["error_kind"], first["attempt"]), ("interrupted", 1))
+        self.assertEqual((second["call_id"], second["attempt"], second["attempt_kind"]), (first["call_id"], 2, "retry"))
+
+    @staticmethod
+    def _cmdline(pid):
+        try:
+            return Path(f"/proc/{pid}/cmdline").read_bytes()
+        except OSError:
+            return b""
 
 
 class Parsers(unittest.TestCase):

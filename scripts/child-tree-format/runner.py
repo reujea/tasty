@@ -2,15 +2,21 @@
 """Run the planned calls of the study one at a time and record only the allowed fields.
 
 Commands:
-  run      run the pilot or the approved level, continuing from the raw file
-  approve  record an approved level with its window values
-  resume   decide whether an aborted run may continue and record the decision
+  run         run the pilot or the approved level, continuing from the raw file
+  approve     record an approved level with its window values
+  note-usage  record a usage value a person read between parts of the run
+  resume      decide whether an aborted run may continue and record the decision
+
+Only one command works on a data folder at a time, and a command refuses to
+start while a call of a killed runner is still running.
 
 Exit codes: 0 finished or stopped by --max-calls, 1 resume refused, 2 could not
 judge, 3 aborted by the failure rules.
 """
 
 import argparse
+import contextlib
+import fcntl
 import json
 import math
 import os
@@ -29,7 +35,7 @@ sys.dont_write_bytecode = True
 import check_rules
 import policy
 import usage_level
-from cli_events import parse_claude, parse_codex
+from cli_events import empty_result, parse_claude, parse_codex
 from common import DATA_DIR, LEVELS, MODELS, PILOT_RETRY_CAP, REPO_ROOT, SEED
 from prompts import build_user_prompt, joined_prompt, prompt_hash
 
@@ -52,6 +58,7 @@ class Config:
     codex_bypass_sandbox: bool = False
     repo_root: Path = REPO_ROOT
     versions: dict = field(default_factory=dict)
+    lock: object = None
 
 
 def now():
@@ -78,6 +85,69 @@ def raw_path(data, phase):
 
 def log_path(data):
     return data / "raw/level-changes.jsonl"
+
+
+def starts_path(data, phase):
+    return data / "raw" / f"{phase}-starts.jsonl"
+
+
+def lock_path(data):
+    return data / "raw/.runner.lock"
+
+
+class Busy(Exception):
+    """Another runner holds the data folder."""
+
+
+@contextlib.contextmanager
+def runner_lock(data):
+    """Hold the data folder. The kernel drops the lock when this process dies, however it dies.
+
+    The file stays behind after a kill and names the call that was running, and
+    it stays as long as it names one. A file removed between open and lock is not
+    the one others lock, so check it.
+    """
+    path = lock_path(data)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    handle = path.open("a+", encoding="utf-8")
+    try:
+        fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        if not path.exists() or os.fstat(handle.fileno()).st_ino != path.stat().st_ino:
+            raise Busy
+    except (BlockingIOError, Busy) as error:
+        handle.close()
+        raise Busy from error
+    try:
+        yield handle
+    finally:
+        handle.seek(0)
+        if not handle.read().strip():
+            path.unlink(missing_ok=True)
+        handle.close()
+
+
+def _write_lock(handle, text):
+    handle.seek(0)
+    handle.truncate()
+    handle.write(text)
+    handle.flush()
+
+
+def running_child(handle):
+    """Return the pid of a call a killed runner left running, or None. A dead one is forgotten."""
+    handle.seek(0)
+    text = handle.read()
+    if not text.strip():
+        return None
+    info = json.loads(text)
+    try:
+        command = Path(f"/proc/{info['pid']}/cmdline").read_bytes()
+    except OSError:
+        command = b""
+    if info["executable"].encode() in command:
+        return info["pid"]
+    _write_lock(handle, "")
+    return None
 
 
 def clean_env():
@@ -128,39 +198,31 @@ def command_for(cfg, row, system, user, folder):
     return argv, text
 
 
-def spawn(argv, text, folder, timeout):
+def spawn(argv, text, folder, timeout, on_start=None):
     """Return (stdout, returncode, timed out). Standard error is dropped: it can hold paths."""
     process = subprocess.Popen(
         argv, cwd=folder, env=clean_env(), stdin=subprocess.PIPE, stdout=subprocess.PIPE,
         stderr=subprocess.DEVNULL, start_new_session=True,
     )
+    if on_start:
+        on_start(process)
     try:
         stdout, _ = process.communicate(text.encode(), timeout=timeout)
     except subprocess.TimeoutExpired:
         os.killpg(process.pid, signal.SIGKILL)
         stdout, _ = process.communicate()
         return stdout.decode(errors="replace"), process.returncode, True
+    except BaseException:
+        # The call has its own session, so an interrupt here does not reach it.
+        os.killpg(process.pid, signal.SIGKILL)
+        process.wait()
+        raise
     return stdout.decode(errors="replace"), process.returncode, False
 
 
-def run_call(cfg, row, attempt, kind):
-    system, user = load_prompt(cfg.data, row)
+def base_record(cfg, row, attempt, kind):
+    """Return the fields known before a call starts. The start line and the raw line both hold them."""
     model = MODELS[row["model"]]
-    with tempfile.TemporaryDirectory(prefix="child-tree-call-") as folder:
-        argv, text = command_for(cfg, row, system, user, folder)
-        started = now()
-        clock = time.monotonic()
-        stdout, returncode, timed_out = spawn(argv, text, folder, cfg.timeout)
-        wall = int((time.monotonic() - clock) * 1000)
-        finished = now()
-    if model["cli"] == "claude":
-        parsed = parse_claude(stdout, returncode, cfg.utilization_unit)
-    else:
-        parsed = parse_codex(stdout, returncode)
-    if timed_out:
-        # A usage stop seen before the kill must stay visible.
-        limited = parsed["error_kind"] == "rate_limited"
-        parsed.update(error_kind="rate_limited" if limited else "timeout", response_text=None)
     return {
         "call_id": row["call_id"],
         "attempt": attempt,
@@ -173,14 +235,55 @@ def run_call(cfg, row, attempt, kind):
         "repeat": row["repeat"],
         "model_requested": model["id"],
         "cli_version": cfg.versions.get(model["cli"]),
-        "started_at": started,
-        "finished_at": finished,
-        "wall_ms": wall,
+        "started_at": now(),
         "seed": SEED,
         "prompt_sha256": row["prompt_sha256"],
-        **parsed,
         **cfg.provenance,
     }
+
+
+def run_call(cfg, row, attempt, kind):
+    system, user = load_prompt(cfg.data, row)
+    model = MODELS[row["model"]]
+    with tempfile.TemporaryDirectory(prefix="child-tree-call-") as folder:
+        argv, text = command_for(cfg, row, system, user, folder)
+        base = base_record(cfg, row, attempt, kind)
+        append_line(starts_path(cfg.data, cfg.phase), base)
+
+        def on_start(process):
+            if cfg.lock:
+                _write_lock(cfg.lock, json.dumps({"pid": process.pid, "executable": argv[0]}))
+
+        clock = time.monotonic()
+        try:
+            stdout, returncode, timed_out = spawn(argv, text, folder, cfg.timeout, on_start)
+        finally:
+            if cfg.lock:
+                _write_lock(cfg.lock, "")
+        wall = int((time.monotonic() - clock) * 1000)
+        finished = now()
+    if model["cli"] == "claude":
+        parsed = parse_claude(stdout, returncode, cfg.utilization_unit)
+    else:
+        parsed = parse_codex(stdout, returncode)
+    if timed_out:
+        # A usage stop seen before the kill must stay visible.
+        limited = parsed["error_kind"] == "rate_limited"
+        parsed.update(error_kind="rate_limited" if limited else "timeout", response_text=None)
+    return {**base, "finished_at": finished, "wall_ms": wall, **parsed}
+
+
+def recover_interrupted(cfg):
+    """Give every call that started and never ended a raw line, so the retry cap counts it."""
+    path = raw_path(cfg.data, cfg.phase)
+    ended = {(r["call_id"], r["attempt"]) for r in read_jsonl(path)}
+    found = 0
+    for start in read_jsonl(starts_path(cfg.data, cfg.phase)):
+        if (start["call_id"], start["attempt"]) not in ended:
+            result = {**empty_result(), "error_kind": "interrupted"}
+            append_line(path, {**start, "finished_at": None, "wall_ms": None, **result})
+            found += 1
+    return found
 
 
 def repo_status(root):
@@ -220,6 +323,9 @@ def run(cfg):
     by_id = {r["call_id"]: r for r in rows}
     plan = list(by_id)
     path = raw_path(cfg.data, cfg.phase)
+    recovered = recover_interrupted(cfg)
+    if recovered:
+        print(f"recorded {recovered} interrupted calls")
     before = repo_status(cfg.repo_root) if cfg.codex_bypass_sandbox else None
     ran = 0
     while True:
@@ -377,38 +483,50 @@ def main(argv=None):
     args = parser.parse_args(argv)
     data = Path(args.data)
     try:
-        if args.command == "approve":
-            return approve(
-                data, args.level,
-                json.loads(Path(args.windows).read_text(encoding="utf-8")), json.loads(args.approved_u),
-                args.allow_unread_usage,
-            )
-        if args.command == "note-usage":
-            return note_usage(data, args.cli, args.used_percent)
-        if args.command == "resume":
-            usage = json.loads(Path(args.usage).read_text(encoding="utf-8"))
-            return resume(data, args.phase, args.level, usage, args.approved_by)
-        if args.phase == "main" and not args.level:
-            raise ValueError("the main run needs a level")
-        bins = resolve_bins(args)
-        cfg = Config(
-            data=data, phase=args.phase, level=args.level, bins=bins, timeout=args.timeout, max_calls=args.max_calls,
-            provenance=check_rules.rules_provenance(REPO_ROOT, args.main_ref),
-            utilization_unit=args.claude_utilization_unit, low_model_default_effort=args.low_model_default_effort,
-            codex_bypass_sandbox=args.codex_bypass_sandbox,
-            versions={name: version_of(path) for name, path in bins.items()},
-        )
-        if args.low_model_default_effort or args.codex_bypass_sandbox:
-            append_line(log_path(data), {
-                "kind": "run_options", "phase": args.phase, "at": now(),
-                "low_model_default_effort": args.low_model_default_effort,
-                "codex_bypass_sandbox": args.codex_bypass_sandbox,
-                "calls_seen": len(read_jsonl(raw_path(data, args.phase))),
-            })
-        return run(cfg)
+        with runner_lock(data) as lock:
+            left = running_child(lock)
+            if left:
+                print(f"cannot judge: a call of a stopped runner is still running as pid {left}", file=sys.stderr)
+                return 2
+            return dispatch(args, data, lock)
+    except Busy:
+        print("cannot judge: another runner is using this data folder", file=sys.stderr)
+        return 2
     except (OSError, ValueError, subprocess.CalledProcessError) as error:
         print(f"cannot judge: {error}", file=sys.stderr)
         return 2
+
+
+def dispatch(args, data, lock):
+    if args.command == "approve":
+        return approve(
+            data, args.level,
+            json.loads(Path(args.windows).read_text(encoding="utf-8")), json.loads(args.approved_u),
+            args.allow_unread_usage,
+        )
+    if args.command == "note-usage":
+        return note_usage(data, args.cli, args.used_percent)
+    if args.command == "resume":
+        usage = json.loads(Path(args.usage).read_text(encoding="utf-8"))
+        return resume(data, args.phase, args.level, usage, args.approved_by)
+    if args.phase == "main" and not args.level:
+        raise ValueError("the main run needs a level")
+    bins = resolve_bins(args)
+    cfg = Config(
+        data=data, phase=args.phase, level=args.level, bins=bins, timeout=args.timeout, max_calls=args.max_calls,
+        provenance=check_rules.rules_provenance(REPO_ROOT, args.main_ref),
+        utilization_unit=args.claude_utilization_unit, low_model_default_effort=args.low_model_default_effort,
+        codex_bypass_sandbox=args.codex_bypass_sandbox,
+        versions={name: version_of(path) for name, path in bins.items()}, lock=lock,
+    )
+    if args.low_model_default_effort or args.codex_bypass_sandbox:
+        append_line(log_path(data), {
+            "kind": "run_options", "phase": args.phase, "at": now(),
+            "low_model_default_effort": args.low_model_default_effort,
+            "codex_bypass_sandbox": args.codex_bypass_sandbox,
+            "calls_seen": len(read_jsonl(raw_path(data, args.phase))),
+        })
+    return run(cfg)
 
 
 if __name__ == "__main__":
