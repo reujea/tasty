@@ -2,6 +2,8 @@
 //! 상태는 terminal.set_state로 호스트에 전달하고, 완료 알림은 별도로 등록한 훅이 처리한다.
 //! 이 모듈은 부모 관계를 조회하지 않는다. 전송할 호출 목록은 apply_hook에서 만든다.
 
+mod telemetry;
+
 use std::path::Path;
 use std::sync::{Arc, Mutex};
 
@@ -16,6 +18,8 @@ use crate::profile_attach;
 use crate::session_start::{session_lifecycle_calls, session_start_state};
 use crate::state::{ClaudeState, lock_state};
 use crate::stop_pairing::{Expired, Settled, StopKind, StopPairing, lock_pairing};
+
+pub(crate) use telemetry::telemetry_for_hook;
 
 /// surface meta 키 — 복원이 셸에 그대로 타이핑하는 재기동 명령
 /// (`src/core/layout_persistence/restore.rs`). 값 포맷의 소유자는
@@ -73,6 +77,9 @@ pub enum HostCall {
     /// surface.completion으로 completion 또는 needs_input 화면 알림을 요청한다.
     /// 자식 상태를 갱신하는 SetState와는 별도 호출이다.
     SurfaceCompletion { surface_id: u32, kind: &'static str },
+    /// `surface.set_busy { surface_id, busy }` — 탭·사이드바 실행 중 점. 턴 동안 켠다. API 응답을
+    /// 기다리며 출력이 없으면 출력 판정만으로는 idle이 되기 때문이다(docs/design/policies/busy-indicator.md (R)).
+    SetBusy { surface_id: u32, busy: bool },
 }
 
 /// 보류한 Stop 을 확정할 때 쓰는 공유 상태. 훅·게이트 처리기와 시간 초과 스레드가 함께 쓴다.
@@ -804,85 +811,6 @@ fn now_ms() -> u64 {
         .unwrap_or(0)
 }
 
-/// session-start에서 시각을 기록하고 종료 이벤트에서 경과 시간을 계산한다.
-/// notification에 토큰 사용량이 있으면 input_tokens 기록도 만든다.
-pub(crate) fn telemetry_for_hook(
-    state: &mut ClaudeState,
-    event: &str,
-    surface_id: u32,
-    message: Option<&str>,
-    now_ms: u64,
-) -> Vec<HostCall> {
-    let mut out = Vec::new();
-    match event {
-        "session-start" => {
-            state.mark_session_start(surface_id, now_ms);
-        }
-        // subagent-stop 은 메인 턴의 끝이 아니므로 경과 시간을 닫지 않는다.
-        "stop" | "stop-failure" | "session-end" => {
-            if let Some(elapsed) = state.take_wall_time(surface_id, now_ms) {
-                out.push(HostCall::TelemetryRecord {
-                    metric: "wall_time_ms",
-                    value: elapsed as f64,
-                    surface_id,
-                });
-            }
-        }
-        "notification" => {
-            if let Some(text) = message
-                && let Some(n) = extract_tokens(text)
-            {
-                out.push(HostCall::TelemetryRecord {
-                    metric: "input_tokens",
-                    value: n as f64,
-                    surface_id,
-                });
-            }
-        }
-        _ => {}
-    }
-    out
-}
-
-/// token/Token에 선택적인 s/S, 콜론, 공백·탭, 숫자가 이어지는 표현을 찾는다.
-/// 앞뒤는 ASCII 영숫자가 아니어야 하며 정규식의 Unicode 단어 경계와는 다르다.
-fn extract_tokens(text: &str) -> Option<u64> {
-    let bytes = text.as_bytes();
-    let mut i = 0;
-    while i < bytes.len() {
-        // 시작 위치이거나 앞 바이트가 ASCII 영숫자가 아니어야 한다.
-        let prev_ok = i == 0 || !bytes[i - 1].is_ascii_alphanumeric();
-        if prev_ok && (bytes[i..].starts_with(b"token") || bytes[i..].starts_with(b"Token")) {
-            let mut j = i + 5;
-            if j < bytes.len() && (bytes[j] == b's' || bytes[j] == b'S') {
-                j += 1;
-            }
-            if j < bytes.len() && bytes[j] == b':' {
-                j += 1;
-                while j < bytes.len() && (bytes[j] == b' ' || bytes[j] == b'\t') {
-                    j += 1;
-                }
-                let start = j;
-                while j < bytes.len() && bytes[j].is_ascii_digit() {
-                    j += 1;
-                }
-                if j > start {
-                    let after_ok = j == bytes.len() || !bytes[j].is_ascii_alphanumeric();
-                    if after_ok
-                        && let Ok(n) = std::str::from_utf8(&bytes[start..j])
-                            .unwrap()
-                            .parse::<u64>()
-                    {
-                        return Some(n);
-                    }
-                }
-            }
-        }
-        i += 1;
-    }
-    None
-}
-
 /// `Notification` 한 건이 자식 상태에 주는 효과.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum NotificationEffect {
@@ -1116,7 +1044,21 @@ pub(crate) fn apply_hook(
             ));
         }
     }
+    if let Some(busy) = busy_after(event, &calls) {
+        calls.push(HostCall::SetBusy { surface_id, busy });
+    }
     Ok(calls)
+}
+
+/// 이 훅 뒤의 탭 실행 중 점 — 자식 상태를 바꾼 훅만 정한다. `active`면 켜고 idle·입력 대기면 끈다.
+/// 세션 시작은 끄기만 한다. 턴 도중 압축으로 온 시작은 이미 켜져 있고, 그 밖의 `active`는 사용자가
+/// 아무것도 시키지 않았을 수 있어 Stop 이 오지 않으면 점이 계속 켜져 있게 된다.
+fn busy_after(event: &str, calls: &[HostCall]) -> Option<bool> {
+    let busy = calls.iter().rev().find_map(|call| match call {
+        HostCall::SetState { state, .. } => Some(*state == "active"),
+        _ => None,
+    })?;
+    (!busy || event != "session-start").then_some(busy)
 }
 
 fn log_subagent_stop(surface_id: u32) {
@@ -1138,6 +1080,10 @@ fn deliver<H: HostCallSink>(host: &H, call: &HostCall) -> bool {
         HostCall::SetState { surface_id, state } => (
             "terminal.set_state",
             json!({ "surface": surface_id, "state": state }),
+        ),
+        HostCall::SetBusy { surface_id, busy } => (
+            "surface.set_busy",
+            json!({ "surface_id": surface_id, "busy": busy }),
         ),
         HostCall::FireHook { surface_id, event } => (
             "surface.fire_hook",
@@ -1240,6 +1186,7 @@ mod tests {
                     "surface.meta.unset",
                     "telemetry.record",
                     "surface.completion",
+                    "surface.set_busy",
                 ],
                 seen: std::cell::RefCell::new(Vec::new()),
             }
@@ -1349,6 +1296,16 @@ mod tests {
                 .iter()
                 .filter(|(m, _)| m == "terminal.set_state")
                 .map(|(_, p)| p["state"].as_str().unwrap_or("").to_string())
+                .collect()
+        }
+
+        /// 탭 실행 중 점(`surface.set_busy`) 값을 차례대로.
+        fn busy(&self) -> Vec<bool> {
+            self.seen
+                .borrow()
+                .iter()
+                .filter(|(m, _)| m == "surface.set_busy")
+                .map(|(_, p)| p["busy"].as_bool().unwrap_or(true))
                 .collect()
         }
 
@@ -1546,6 +1503,25 @@ mod tests {
 
     fn gated_stop(prompt_id: &str) -> Value {
         json!({ "event": "stop", "surface": HookRig::SURFACE, "session": "sess-1", "prompt_id": prompt_id })
+    }
+
+    // 턴 동안만 탭 점을 켠다. 세션 시작은 active 여도 켜지 않고, 상태를 안 바꾼 훅은 손대지 않는다.
+    #[test]
+    fn the_tab_dot_follows_the_turn_but_not_the_session_start() {
+        let state = |state| HostCall::SetState {
+            surface_id: 7,
+            state,
+        };
+        assert_eq!(busy_after("prompt-submit", &[state("active")]), Some(true));
+        assert_eq!(busy_after("post-tool-use", &[state("active")]), Some(true));
+        assert_eq!(busy_after("stop", &[state("idle")]), Some(false));
+        assert_eq!(
+            busy_after("pre-tool-use", &[state("needs_input")]),
+            Some(false)
+        );
+        assert_eq!(busy_after("session-start", &[state("active")]), None);
+        assert_eq!(busy_after("session-start", &[state("idle")]), Some(false));
+        assert_eq!(busy_after("subagent-stop", &[]), None);
     }
 
     #[test]
@@ -2364,6 +2340,11 @@ mod tests {
             let mut rig = HookRig::new();
             rig.run(session_start(Some(source)));
             assert_eq!(rig.host.states(), vec!["idle"], "{source}");
+            assert_eq!(
+                rig.host.busy(),
+                vec![false],
+                "이전 턴의 점을 안 끈다: {source}"
+            );
             assert!(rig.host.fired().is_empty(), "{source}");
             assert!(
                 !rig.host
@@ -2383,6 +2364,10 @@ mod tests {
             let mut rig = HookRig::new();
             rig.run(session_start(source));
             assert_eq!(rig.host.states(), vec!["active"], "{source:?}");
+            assert!(
+                rig.host.busy().is_empty(),
+                "세션 시작이 점을 켰다: {source:?}"
+            );
         }
     }
 
@@ -2501,6 +2486,7 @@ mod tests {
         rig.host.launch_prompt = true;
         rig.run(session_start(Some("startup")));
         assert_eq!(rig.host.states(), vec!["active"]);
+        assert!(rig.host.busy().is_empty(), "세션 시작이 점을 켰다");
         assert!(
             rig.host
                 .unset_keys()
@@ -2994,9 +2980,9 @@ mod tests {
         assert!(rig.wall_time_open());
     }
 
-    /// 시작·종료의 호스트 호출이 모두 실패해도 열네 개를 모두 시도하고 실패 횟수를 반환해야 한다.
+    /// 시작·종료의 호스트 호출이 모두 실패해도 열다섯 개를 모두 시도하고 실패 횟수를 반환해야 한다.
     #[test]
-    fn a_dead_surface_makes_every_host_call_fail_and_the_count_is_fourteen() {
+    fn a_dead_surface_makes_every_host_call_fail_and_the_count_is_fifteen() {
         let tr = test_translator();
         let host = FlakyHost::failing_everything();
 
@@ -3004,10 +2990,10 @@ mod tests {
         let end = apply_hook("session-end", 100, None, None, None, &tr).unwrap();
         let failures = deliver_all(&host, &start) + deliver_all(&host, &end);
 
-        assert_eq!(failures, 14, "시도한 호출: {:?}", host.seen.borrow());
+        assert_eq!(failures, 15, "시도한 호출: {:?}", host.seen.borrow());
         assert_eq!(
             host.seen.borrow().len(),
-            14,
+            15,
             "실패 횟수와 시도한 호출 수가 같아야 한다"
         );
     }
@@ -3025,7 +3011,7 @@ mod tests {
         assert_eq!(failures, 0);
         assert_eq!(
             host.seen.borrow().len(),
-            14,
+            15,
             "실패가 없어도 같은 호출을 모두 시도해야 한다"
         );
     }
@@ -3047,7 +3033,7 @@ mod tests {
         );
         assert_eq!(
             host.seen.borrow().len(),
-            8,
+            9,
             "실패 뒤에도 나머지 호출을 시도해야 한다"
         );
     }
@@ -3073,6 +3059,10 @@ mod tests {
                 HostCall::SurfaceCompletion {
                     surface_id: 100,
                     kind: "completion",
+                },
+                HostCall::SetBusy {
+                    surface_id: 100,
+                    busy: false,
                 },
             ]
         );
@@ -3108,6 +3098,10 @@ mod tests {
                     surface_id: 100,
                     kind: "needs_input",
                 },
+                HostCall::SetBusy {
+                    surface_id: 100,
+                    busy: false,
+                },
             ]
         );
     }
@@ -3137,6 +3131,10 @@ mod tests {
                 HostCall::SurfaceCompletion {
                     surface_id: 100,
                     kind: "needs_input",
+                },
+                HostCall::SetBusy {
+                    surface_id: 100,
+                    busy: false,
                 },
             ]
         );
@@ -3193,6 +3191,10 @@ mod tests {
                         surface_id: 100,
                         kind: "needs_input",
                     },
+                    HostCall::SetBusy {
+                        surface_id: 100,
+                        busy: false,
+                    },
                 ],
                 "{ty}"
             );
@@ -3219,10 +3221,16 @@ mod tests {
     fn quota_auto_resume_fired_marks_the_child_active() {
         assert_eq!(
             notification_calls("quota_auto_resume_fired"),
-            vec![HostCall::SetState {
-                surface_id: 100,
-                state: "active",
-            }]
+            vec![
+                HostCall::SetState {
+                    surface_id: 100,
+                    state: "active",
+                },
+                HostCall::SetBusy {
+                    surface_id: 100,
+                    busy: true
+                }
+            ]
         );
         // 작업 재개 알림은 새 턴이 아니므로 claude-error 중복 기록을 초기화하지 않는다.
         assert!(!is_new_turn_event("notification"));
@@ -3343,6 +3351,10 @@ mod tests {
                     surface_id: 100,
                     kind: "needs_input",
                 },
+                HostCall::SetBusy {
+                    surface_id: 100,
+                    busy: false,
+                },
             ]
         );
     }
@@ -3353,10 +3365,16 @@ mod tests {
         let calls = apply_hook("post-tool-use", 100, None, None, None, &test_translator()).unwrap();
         assert_eq!(
             calls,
-            vec![HostCall::SetState {
-                surface_id: 100,
-                state: "active",
-            }]
+            vec![
+                HostCall::SetState {
+                    surface_id: 100,
+                    state: "active",
+                },
+                HostCall::SetBusy {
+                    surface_id: 100,
+                    busy: true
+                }
+            ]
         );
     }
 
@@ -3397,6 +3415,10 @@ mod tests {
                 HostCall::SurfaceCompletion {
                     surface_id: 100,
                     kind: "completion",
+                },
+                HostCall::SetBusy {
+                    surface_id: 100,
+                    busy: false,
                 },
             ]
         );
@@ -3492,6 +3514,10 @@ mod tests {
                     surface_id: 100,
                     state: "active",
                 },
+                HostCall::SetBusy {
+                    surface_id: 100,
+                    busy: true,
+                },
             ]
         );
     }
@@ -3570,6 +3596,10 @@ mod tests {
                 HostCall::SurfaceCompletion {
                     surface_id: 100,
                     kind: "completion",
+                },
+                HostCall::SetBusy {
+                    surface_id: 100,
+                    busy: false,
                 },
             ]
         );
@@ -4109,16 +4139,6 @@ mod tests {
         let mut state = ClaudeState::default();
         let calls = telemetry_for_hook(&mut state, "notification", 1, Some("approval needed"), 0);
         assert!(calls.is_empty());
-    }
-
-    #[test]
-    fn extract_tokens_variants() {
-        assert_eq!(extract_tokens("tokens: 99"), Some(99));
-        assert_eq!(extract_tokens("token:5"), Some(5));
-        assert_eq!(extract_tokens("Tokens:   1000  used"), Some(1000));
-        assert_eq!(extract_tokens("notokens: 5"), None);
-        assert_eq!(extract_tokens("tokens 5"), None); // 콜론 없음
-        assert_eq!(extract_tokens("xtoken: 5"), None); // 워드 경계 위반
     }
 
     /// 환경 값은 인자로 전달해 실제 실행 환경과 관계없이 검사한다.

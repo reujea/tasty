@@ -3335,6 +3335,16 @@ help = "Surface ID (required)"
 [cli.help._root.surface.completion.arg.kind]
 help = "Attention kind: \"completion\" (default) or \"needs_input\". Any other value is treated as \"completion\""
 
+[cli.help._root.surface.set-busy]
+about = "Mark a surface as busy or idle, lighting the tab and sidebar dot"
+long = "Mark a surface as busy or idle, lighting the tab and sidebar dot.\n\nUse it from a long-running program inside a terminal whose foreground process alone does not show that it is working, such as an agent waiting on a network reply. A terminal mark clears itself when the program in front at the time of the mark leaves the foreground. Without --surface it marks the surface it runs in (TASTY_SURFACE_ID)."
+
+[cli.help._root.surface.set-busy.arg.surface]
+help = "Surface ID (default: TASTY_SURFACE_ID)"
+
+[cli.help._root.surface.set-busy.arg.busy]
+help = "true to mark busy, false to clear the mark"
+
 [cli.help._root.surface.cursor-position]
 about = "Print where the cursor sits in a terminal surface, as column and row"
 long = "Print where the cursor sits in a terminal surface, as column and row.\n\nThe target surface is always given explicitly with --surface; it is never inferred from focus."

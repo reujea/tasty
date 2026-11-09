@@ -3260,6 +3260,16 @@ help = "서피스 ID(필수)"
 [cli.help._root.surface.completion.arg.kind]
 help = "주의 종류: \"completion\"(기본값) 또는 \"needs_input\". 다른 값은 \"completion\"으로 처리"
 
+[cli.help._root.surface.set-busy]
+about = "서피스를 실행 중 또는 유휴로 표시해 탭·사이드바 점을 켜고 끔"
+long = "서피스를 실행 중 또는 유휴로 표시해 탭·사이드바 점을 켜고 끕니다. 네트워크 응답을 기다리는 에이전트처럼 포그라운드 프로세스만으로는 작업 중임이 드러나지 않는 터미널 안 프로그램에서 사용합니다. 터미널 표시는 표시할 때 앞에 있던 프로그램이 포그라운드에서 빠지면 저절로 지워집니다. --surface를 생략하면 실행 중인 서피스(TASTY_SURFACE_ID)를 표시합니다."
+
+[cli.help._root.surface.set-busy.arg.surface]
+help = "서피스 ID(기본값: TASTY_SURFACE_ID)"
+
+[cli.help._root.surface.set-busy.arg.busy]
+help = "true면 실행 중으로 표시, false면 표시 해제"
+
 [cli.help._root.surface.cursor-position]
 about = "터미널 서피스의 커서 위치를 열·행으로 출력"
 long = "터미널 서피스의 커서 위치를 열·행으로 출력합니다. 대상은 항상 --surface로 명시하며 포커스에서 추론하지 않습니다."

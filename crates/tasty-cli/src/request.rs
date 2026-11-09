@@ -271,6 +271,10 @@ pub fn command_to_request(command: &Commands) -> JsonRpcRequest {
                 "surface.completion",
                 serde_json::json!({ "surface_id": surface, "kind": kind }),
             ),
+            SurfaceCommands::SetBusy { surface, busy } => (
+                "surface.set_busy",
+                serde_json::json!({ "surface_id": resolve_surface_id(*surface), "busy": busy }),
+            ),
             SurfaceCommands::CursorPosition { surface } => (
                 "surface.cursor_position",
                 serde_json::json!({ "surface_id": surface }),

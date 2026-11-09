@@ -65,12 +65,21 @@ pub(crate) fn session_start_state<H: HostCallSink>(
         });
         return;
     }
+    let mut idled = false;
     for call in calls.iter_mut() {
         if let HostCall::SetState { state, .. } = call
             && *state == "active"
         {
             *state = "idle";
+            idled = true;
         }
+    }
+    // 입력 대기 화면이면 이전 턴이 남긴 실행 중 점을 끈다(`hook::busy_after` 는 세션 시작에 켜지 않는다).
+    if idled {
+        calls.push(HostCall::SetBusy {
+            surface_id,
+            busy: false,
+        });
     }
 }
 

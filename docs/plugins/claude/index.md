@@ -332,6 +332,8 @@ if [ -n "$TASTY_SURFACE_ID" ]; then tasty claude hook <token> || true; fi
 | `PostToolUse` | `AskUserQuestion` | `post-tool-use` | `active` | — | — | — |
 | `PostToolUse` | `Bash\|Agent\|Task` | `background-start` | — (백그라운드 작업 기록만) | — | — | — |
 
+표의 `terminal.set_state` 를 보낸 훅은 이어서 `surface.set_busy` 로 탭 실행 중 점을 맞춘다 — `active` 면 켜고 `idle`·`needs_input` 이면 끈다(`hook.rs::busy_after`). `SessionStart` 는 끄기만 한다. 입력 대기 화면으로 시작했으면 끄고, `active` 로 남아도 켜지 않는다. 터미널의 출력 판정만으로는 API 응답을 기다리며 출력이 없는 턴이 2초 뒤 idle 로 보이기 때문이다([실행 중 표시](../../design/policies/busy-indicator.md)).
+
 `surface.completion` 은 `{ surface_id, kind }` 로 호출되며(`HostCall::SurfaceCompletion`,
 `hook.rs`), `kind` 는 위 표의 값을 그대로 싣는다 — 호스트의 `AttentionStore` 가
 `NeedsInput` 을 `Completion` 보다 높은 우선순위로 표시한다(surface 테두리 노랑, 탭

@@ -312,7 +312,9 @@ impl<'a> EngineRead<'a> {
             .and_then(crate::core::state::SurfaceCwd::into_local)
     }
     pub(crate) fn is_surface_busy(&self, id: u32) -> bool {
-        self.live.busy_surfaces.contains(&id) || self.mirror_busy.contains(&id)
+        self.live.busy_surfaces.contains(&id)
+            || self.live.reported_busy_surfaces.contains_key(&id)
+            || self.mirror_busy.contains(&id)
     }
     pub(crate) fn busy_count(&self, ids: &[u32]) -> usize {
         ids.iter().filter(|id| self.is_surface_busy(**id)).count()

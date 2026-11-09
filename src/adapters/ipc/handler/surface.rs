@@ -1,6 +1,7 @@
 //! `surface.*` IPC 핸들러 도메인 sub-module 모음.
 
 mod attention;
+mod busy;
 mod commands;
 mod completion;
 pub(crate) mod cwd;
@@ -20,6 +21,7 @@ pub(crate) mod remote_read;
 mod send;
 
 pub(crate) use attention::{handle_attention_clear, handle_attention_get};
+pub(crate) use busy::handle_set_busy;
 pub(crate) use commands::{handle_command_at, handle_commands, handle_last_command};
 pub(crate) use completion::handle_completion;
 pub(crate) use cwd::handle_set_cwd;
