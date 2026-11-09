@@ -222,6 +222,10 @@ Tasty가 주입하는 bash·zsh 프롬프트 함수는 OSC 133 D·A를 보낸 �
   내부 연동 명령을 그 plugin 도움말의 마지막 그룹으로 분리한다. 두 필드 모두 도움말 표시에만 쓰이며
   실행·권한·IPC에는 영향이 없다. 옛 매니페스트는 그대로 읽힌다([CLI 구조](cli-structure.md#도움말-표시-계약)).
 - CLI의 `ipc_method`는 자기 prefix에 속해야 한다. `commands`는 팔레트·단축키 기여 목록이며 전체 IPC 허용 목록은 아니다.
+- 관례 메서드 `<prefix>.lifecycle_busy`(선택): 호스트는 `plugin.disable`·`plugin.remove`·`plugin.upgrade_builtins`(`restart_running`)로
+  떠 있는 플러그인을 내리기 전에 첫 prefix의 이 메서드를 `{}`로 묻는다. `{"busy": true, "reason": "<사유>"}`로 답하면 요청은
+  `-32023`으로 거절되고 아무것도 바뀌지 않는다. 그 밖의 답·오류·모르는 메서드·1.5초 안에 답 없음은 바쁘지 않음이다.
+  호출자가 `ignore_busy: true`(CLI `--ignore-busy`)를 주면 묻지 않는다. 답을 기다리는 동안 요청은 요청 게이트 줄에 머문다.
 
 선언된 인자 타입은 문서용 힌트가 아니다. flag와 stdin에서 받은 잘못된 타입은 요청 전체를 거절한다.
 실패한 변환을 None으로 바꾸어 현재 대상이나 기본값으로 실행하지 않는다.

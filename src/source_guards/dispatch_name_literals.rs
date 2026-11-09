@@ -210,6 +210,7 @@ const DELEGATED_ROUTERS: &[(&str, &str)] = &[
         "dispatch_lifecycle_toggle",
     ),
     ("src/adapters/ipc/handler/plugin.rs", "dispatch_readonly"),
+    ("src/adapters/ipc/handler/plugin_busy.rs", "wanted"),
     ("src/adapters/ipc/handler/telemetry.rs", "ipc_call_event"),
     (
         "src/adapters/ipc/handler/terminal_input.rs",

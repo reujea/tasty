@@ -216,6 +216,10 @@ impl App {
         ) {
             return self.park_ipc(cmd, progress, resumed);
         }
+        // plugin을 내리는 요청이면 바쁜지 먼저 묻는다. 거절은 권한 게이트 뒤에 낸다(`plugin_busy`).
+        if let Step::Pending = progress.ask_busy(self.plugin_manager.as_mut(), &cmd.request) {
+            return self.park_ipc(cmd, progress, resumed);
+        }
         let checked = match self.gates_before_routing(&cmd.request, &caller, &mut progress) {
             Step::Ready(Ok(checked)) => checked,
             Step::Ready(Err(response)) => {
@@ -232,6 +236,12 @@ impl App {
                 self.hold_for_remote_row(gated, decision);
                 return IpcStep::Handled;
             }
+        }
+        if let Some(response) =
+            progress.busy_refusal(cmd.request.id.clone().unwrap_or(serde_json::Value::Null))
+        {
+            crate::ipc::server::send_response(&cmd.response_tx, response);
+            return IpcStep::Handled;
         }
         if self.journal.admit_ipc(&cmd, &caller) {
             return IpcStep::Handled;

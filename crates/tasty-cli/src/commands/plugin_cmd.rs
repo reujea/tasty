@@ -40,9 +40,15 @@ pub enum PluginCommands {
     /// it goes with it. For a built-in, removal is also recorded so the next boot
     /// does not put it back — bringing it back is
     /// `plugin upgrade-builtins --restore-removed <id>`, and it returns enabled.
+    ///
+    /// A running plugin is asked first whether it is busy; if it is, nothing is
+    /// removed. Pass --ignore-busy to remove it anyway.
     Remove {
         /// Plugin id (e.g. com.example.explorer).
         id: String,
+        /// Remove the plugin even if it says it is busy.
+        #[arg(long = "ignore-busy")]
+        ignore_busy: bool,
     },
     /// Re-sync all built-in plugins from the bundle.
     ///
@@ -69,6 +75,11 @@ pub enum PluginCommands {
         /// Default off (conservative — briefly closes affected plugin surfaces).
         #[arg(long = "restart-running")]
         restart_running: bool,
+        /// With --restart-running, stop a plugin even if it says it is busy (for
+        /// example an agent turn in a chat tab). Without this, a busy plugin
+        /// makes the command refuse with the reason.
+        #[arg(long = "ignore-busy")]
+        ignore_busy: bool,
     },
     /// Enable a disabled plugin and start it.
     ///
@@ -93,9 +104,16 @@ pub enum PluginCommands {
     /// contributed — file detectors and handlers, hook handlers, completion
     /// strategies, settings pages — so a file it used to open now takes another
     /// route.
+    ///
+    /// A running plugin is asked first whether it is busy (for example an agent
+    /// turn in a chat tab); if it is, the command refuses with the reason and
+    /// nothing changes. Pass --ignore-busy to stop it anyway.
     Disable {
         /// Plugin id.
         id: String,
+        /// Stop the plugin even if it says it is busy.
+        #[arg(long = "ignore-busy")]
+        ignore_busy: bool,
     },
     /// Print the contents of a plugin's log file.
     Logs {

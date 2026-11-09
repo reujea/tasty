@@ -4681,10 +4681,13 @@ help = "Install even if the plugin is unverified. It runs with your account's ac
 
 [cli.help._root.plugin.remove]
 about = "Remove an installed plugin by id"
-long = "Remove an installed plugin by id.\n\nThe whole plugin directory is deleted, so anything the plugin kept inside it goes with it. For a built-in, removal is also recorded so the next boot does not put it back — bringing it back is `plugin upgrade-builtins --restore-removed <id>`, and it returns enabled."
+long = "Remove an installed plugin by id.\n\nThe whole plugin directory is deleted, so anything the plugin kept inside it goes with it. For a built-in, removal is also recorded so the next boot does not put it back — bringing it back is `plugin upgrade-builtins --restore-removed <id>`, and it returns enabled.\n\nA running plugin is asked first whether it is busy; if it is, nothing is removed. Pass --ignore-busy to remove it anyway."
 
 [cli.help._root.plugin.remove.arg.id]
 help = "Plugin id (e.g. com.example.explorer)"
+
+[cli.help._root.plugin.remove.arg.ignore_busy]
+help = "Remove the plugin even if it says it is busy"
 
 [cli.help._root.plugin.upgrade-builtins]
 about = "Re-sync all built-in plugins from the bundle"
@@ -4702,6 +4705,9 @@ help = "Restore ALL builtins from `removed_builtins`. Overrides `--restore-remov
 [cli.help._root.plugin.upgrade-builtins.arg.restart_running]
 help = "Restart running builtin processes whose binary is replaced — graceful swap. Also unblocks Windows sharing violation on in-place overwrite. Default off (conservative — briefly closes affected plugin surfaces)"
 
+[cli.help._root.plugin.upgrade-builtins.arg.ignore_busy]
+help = "With --restart-running, stop a plugin even if it says it is busy (for example an agent turn in a chat tab). Without this, a busy plugin makes the command refuse with the reason"
+
 [cli.help._root.plugin.enable]
 about = "Enable a disabled plugin and start it"
 long = "Enable a disabled plugin and start it.\n\nWaits until the plugin connects, fails to start or is cancelled, then exits with a non-zero status unless it connected. The reply carries the start generation and its final state. While waiting it does not take --response-timeout-ms; with --no-wait it sends the request once."
@@ -4714,10 +4720,13 @@ help = "Print the accepted start and return without waiting for the result"
 
 [cli.help._root.plugin.disable]
 about = "Disable a plugin (graceful shutdown if running)"
-long = "Disable a plugin (graceful shutdown if running).\n\nThe mark is written to disk, so it survives a restart and a later `plugin install` of the same id will not turn it back on. This is not an uninstall: the directory stays and the plugin keeps its command namespace, so `tasty <namespace> ...` answers `plugin ... is not running` rather than reporting an unknown method. What does go away is everything the plugin contributed — file detectors and handlers, hook handlers, completion strategies, settings pages — so a file it used to open now takes another route."
+long = "Disable a plugin (graceful shutdown if running).\n\nThe mark is written to disk, so it survives a restart and a later `plugin install` of the same id will not turn it back on. This is not an uninstall: the directory stays and the plugin keeps its command namespace, so `tasty <namespace> ...` answers `plugin ... is not running` rather than reporting an unknown method. What does go away is everything the plugin contributed — file detectors and handlers, hook handlers, completion strategies, settings pages — so a file it used to open now takes another route.\n\nA running plugin is asked first whether it is busy (for example an agent turn in a chat tab); if it is, the command refuses with the reason and nothing changes. Pass --ignore-busy to stop it anyway."
 
 [cli.help._root.plugin.disable.arg.id]
 help = "Plugin id"
+
+[cli.help._root.plugin.disable.arg.ignore_busy]
+help = "Stop the plugin even if it says it is busy"
 
 [cli.help._root.plugin.logs]
 about = "Print the contents of a plugin's log file"

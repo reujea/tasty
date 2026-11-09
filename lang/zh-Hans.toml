@@ -4776,13 +4776,13 @@ help = "即使插件未经验证也安装。插件以当前账户的访问权限
 
 [cli.help._root.plugin.remove]
 about = "按 ID 移除已安装的插件"
-long = """
-按 ID 移除已安装的插件。
-
-整个插件目录都会被删除，插件保存在其中的所有内容也会一并删除。对于内置插件，还会记录移除状态，以免下次启动时重新安装。使用 `plugin upgrade-builtins --restore-removed <id>` 恢复，恢复后处于启用状态。"""
+long = "按 ID 移除已安装的插件。\n\n整个插件目录都会被删除，插件保存在其中的所有内容也会一并删除。对于内置插件，还会记录移除状态，以免下次启动时重新安装。使用 `plugin upgrade-builtins --restore-removed <id>` 恢复，恢复后处于启用状态。\n\n会先询问正在运行的插件是否忙碌；若忙碌，则不移除任何内容。传入 --ignore-busy 可强制移除。"
 
 [cli.help._root.plugin.remove.arg.id]
 help = "插件 ID（例如 com.example.explorer）"
+
+[cli.help._root.plugin.remove.arg.ignore_busy]
+help = "即使插件报告忙碌也移除"
 
 [cli.help._root.plugin.upgrade-builtins]
 about = "从捆绑包重新同步所有内置插件"
@@ -4803,6 +4803,9 @@ help = "从 `removed_builtins` 中恢复所有内置插件。同时指定时优�
 [cli.help._root.plugin.upgrade-builtins.arg.restart_running]
 help = "重启二进制文件被替换的运行中内置插件进程，执行平滑切换。也可解除 Windows 就地覆盖时的共享冲突。默认关闭（保守策略，会短暂关闭受影响的插件 Surface）"
 
+[cli.help._root.plugin.upgrade-builtins.arg.ignore_busy]
+help = "配合 --restart-running 使用时，即使插件报告忙碌（例如聊天标签页中正在进行的智能体轮次）也将其停止。未指定时，若插件忙碌，命令会拒绝执行并给出原因"
+
 [cli.help._root.plugin.enable]
 about = "启用已禁用的插件并启动"
 long = """
@@ -4818,13 +4821,13 @@ help = "输出已接受的启动请求并返回，不等待结果"
 
 [cli.help._root.plugin.disable]
 about = "禁用插件（若正在运行则正常关闭）"
-long = """
-禁用插件（若正在运行则正常关闭）。
-
-禁用标记会写入磁盘，重启后仍保留，之后对同一 ID 执行 `plugin install` 也不会重新启用。这不会卸载插件：目录和插件的命令命名空间均保留，因此 `tasty <namespace> ...` 会返回 `plugin ... is not running`，而非报告未知方法。插件提供的所有功能都会移除，包括文件检测器和处理器、钩子处理器、完成判定策略、设置页面，因此此前由该插件打开的文件将改用其他处理路径。"""
+long = "禁用插件（若正在运行则正常关闭）。\n\n禁用标记会写入磁盘，重启后仍保留，之后对同一 ID 执行 `plugin install` 也不会重新启用。这不会卸载插件：目录和插件的命令命名空间均保留，因此 `tasty <namespace> ...` 会返回 `plugin ... is not running`，而非报告未知方法。插件提供的所有功能都会移除，包括文件检测器和处理器、钩子处理器、完成判定策略、设置页面，因此此前由该插件打开的文件将改用其他处理路径。\n\n会先询问正在运行的插件是否忙碌（例如聊天标签页中正在进行的智能体轮次）；若忙碌，命令会拒绝执行并给出原因，不做任何更改。传入 --ignore-busy 可强制停止。"
 
 [cli.help._root.plugin.disable.arg.id]
 help = "插件 ID"
+
+[cli.help._root.plugin.disable.arg.ignore_busy]
+help = "即使插件报告忙碌也停止"
 
 [cli.help._root.plugin.logs]
 about = "输出插件日志文件的内容"

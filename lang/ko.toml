@@ -4606,10 +4606,13 @@ help = "검증되지 않은 플러그인도 설치합니다. 플러그인은 내
 
 [cli.help._root.plugin.remove]
 about = "설치된 plugin 을 id 로 제거한다"
-long = "ID로 플러그인을 제거합니다.\n\n플러그인 디렉터리를 통째로 삭제하므로 그 안에 저장된 파일도 함께 사라집니다. 기본 제공 플러그인은 제거한 상태를 기록하여 다음 시작 때 다시 설치하지 않습니다. `plugin upgrade-builtins --restore-removed <id>`로 복원하면 활성 상태로 설치합니다."
+long = "ID로 플러그인을 제거합니다.\n\n플러그인 디렉터리를 통째로 삭제하므로 그 안에 저장된 파일도 함께 사라집니다. 기본 제공 플러그인은 제거한 상태를 기록하여 다음 시작 때 다시 설치하지 않습니다. `plugin upgrade-builtins --restore-removed <id>`로 복원하면 활성 상태로 설치합니다.\n\n실행 중인 플러그인에는 먼저 바쁜지 묻습니다. 바쁘면 아무것도 지우지 않습니다. 그래도 지우려면 --ignore-busy를 줍니다."
 
 [cli.help._root.plugin.remove.arg.id]
 help = "plugin id (예: com.example.explorer)"
+
+[cli.help._root.plugin.remove.arg.ignore_busy]
+help = "플러그인이 바쁘다고 답해도 지웁니다"
 
 [cli.help._root.plugin.upgrade-builtins]
 about = "기본 제공 plugin 전부를 번들에서 다시 맞춘다"
@@ -4627,6 +4630,9 @@ help = "`removed_builtins`의 모든 기본 제공 플러그인을 복원합니�
 [cli.help._root.plugin.upgrade-builtins.arg.restart_running]
 help = "실행 파일이 바뀌는 기본 제공 플러그인을 재시작합니다. Windows에서 실행 중인 파일을 덮어쓸 때의 공유 위반을 피하는 데도 사용합니다. 해당 플러그인 서피스를 잠시 닫으므로 기본값은 꺼짐입니다."
 
+[cli.help._root.plugin.upgrade-builtins.arg.ignore_busy]
+help = "--restart-running과 함께 쓰면 플러그인이 바쁘다고 답해도 멈춥니다(예: 대화 탭의 에이전트 턴). 주지 않으면 바쁜 플러그인이 있을 때 사유와 함께 거절합니다"
+
 [cli.help._root.plugin.enable]
 about = "비활성화된 plugin 을 활성화하고 기동한다"
 long = "비활성화된 플러그인을 활성화하고 시작합니다.\n\n플러그인이 연결되거나, 시작에 실패하거나, 취소될 때까지 기다립니다. 연결되지 않았으면 0이 아닌 상태로 끝납니다. 응답에는 기동 세대와 최종 상태가 실립니다. 기다리는 동안에는 --response-timeout-ms를 받지 않으며, --no-wait를 주면 요청을 한 번만 보냅니다."
@@ -4639,10 +4645,13 @@ help = "접수된 기동을 출력하고 결과를 기다리지 않고 끝냅니
 
 [cli.help._root.plugin.disable]
 about = "plugin 을 비활성화한다 (돌고 있으면 정상 종료)"
-long = "플러그인을 비활성화하고 실행 중이면 정상 종료를 요청합니다.\n\n비활성화 설정은 디스크에 저장됩니다. 재시작하거나 같은 ID를 `plugin install`로 다시 설치해도 자동으로 켜지지 않습니다. 설치 디렉터리와 명령 네임스페이스는 남으므로 `tasty <네임스페이스> ...`는 없는 메서드 오류 대신 `plugin ... is not running`을 반환합니다.\n\n플러그인이 제공한 파일 디텍터·핸들러, 훅 핸들러, 완료 판정 전략, 설정 페이지는 등록에서 제외됩니다. 해당 플러그인으로 열던 파일은 다른 처리 경로를 사용합니다."
+long = "플러그인을 비활성화하고 실행 중이면 정상 종료를 요청합니다.\n\n비활성화 설정은 디스크에 저장됩니다. 재시작하거나 같은 ID를 `plugin install`로 다시 설치해도 자동으로 켜지지 않습니다. 설치 디렉터리와 명령 네임스페이스는 남으므로 `tasty <네임스페이스> ...`는 없는 메서드 오류 대신 `plugin ... is not running`을 반환합니다.\n\n플러그인이 제공한 파일 디텍터·핸들러, 훅 핸들러, 완료 판정 전략, 설정 페이지는 등록에서 제외됩니다. 해당 플러그인으로 열던 파일은 다른 처리 경로를 사용합니다.\n\n실행 중인 플러그인에는 먼저 바쁜지 묻습니다(예: 대화 탭에서 에이전트 턴이 도는 중). 바쁘면 사유와 함께 거절하고 아무것도 바꾸지 않습니다. 그래도 멈추려면 --ignore-busy를 줍니다."
 
 [cli.help._root.plugin.disable.arg.id]
 help = "플러그인 ID"
+
+[cli.help._root.plugin.disable.arg.ignore_busy]
+help = "플러그인이 바쁘다고 답해도 멈춥니다"
 
 [cli.help._root.plugin.logs]
 about = "plugin 의 로그 파일 내용을 찍는다"

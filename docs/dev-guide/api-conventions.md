@@ -256,6 +256,7 @@ arm(gui 창 라우터)이 있어 `plugin_only` 표식을 달지 않는다. 그�
 | `-32040` | passkey.*, remote.profile.* | 이름으로 찾지 못했다 |
 | `-32041` | remote.profile.* | 이름이 이미 쓰인다 |
 | `-32022` | surface.html_script_allow · surface.html_remote_allow | html 문서 스크립트·원격 콘텐츠 허용을 거절했다. `data` 에 `reason`(`document_changed`·`loading`·`no_document`·`no_fingerprint`, 원격 허용은 `unsupported_view`·`globally_allowed` 도)·`surface_id`·`document` |
+| `-32023` | plugin.disable · plugin.remove · plugin.upgrade_builtins(`restart_running`) | 내리려는 plugin 이 바쁘다고 답했다 — 아무것도 바뀌지 않았다. `data.busy` 에 `plugin_id`·`reason`. 끝나기를 기다리거나 `ignore_busy` 로 밀어붙인다 |
 | `-32050` | remote 조회 | 원격 호출이 실패했다 |
 
 - 새 도메인 오류를 만들 때는 이 표에서 뜻이 같은 코드를 쓰고, 같은 뜻이 없으면 표에 없는 코드를 새로 잡는다. 이미 다른 뜻으로 쓰이는 코드를 다시 쓰지 않는다.
