@@ -25,6 +25,8 @@ mod address;
 mod callout;
 mod find_keys;
 mod nav_script;
+#[cfg(test)]
+mod sanitize_allowlist_tests;
 mod ui_lang;
 #[cfg(test)]
 mod ui_lang_tests;
