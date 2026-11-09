@@ -50,7 +50,7 @@
 - **추가 버튼 (3탭 공통)**: add-bar 왼쪽의 `프로필 추가`·`Attach 추가`·`Passkey 추가` 는 Button secondary sm + leading `plus` 아이콘이다. 라벨에는 `+` 문자를 넣지 않는다.
 - **행 삭제 글리프 (3탭 공통)**: `trash`. `x` 는 닫기·해제·필드 제거에만 쓴다.
 - **목록 행 셸 (3탭 공통)**: 세 탭의 행은 같은 틀을 쓴다. 위아래 `space-md`·좌우 `space-xs` 안쪽 여백, 아래 1px `separator` 선. 첫 줄은 이름(body, text-primary — 시안의 굵기 600은 색으로 근사) 뒤에 `(label)`(text-muted)과 type·방식·kind Tag 를 두고, 이름이 길면 끝을 말줄임한다. 오른쪽 동작 버튼(Sm, 간격 `size-1`)은 행 오른쪽 끝에 고정돼 긴 이름·값이 밀어내지 않는다.
-- **경고 배지 (3탭 공통)**: 모르는 type·kind, passkey 없음, 비활성, 프로필 없음은 경고 글리프와 mono micro 글자를 담은 pill(accent-warning 글자, 12% 채움, 40% 테두리)로 그린다. 마우스를 올리면 설명 툴팁이 뜬다.
+- **경고 배지 (3탭 공통)**: 모르는 type·kind, passkey 없음, 비활성, 프로필 없음은 경고 글리프와 라벨 글꼴 micro 글자를 담은 pill(accent-warning 글자, 12% 채움, 40% 테두리)로 그린다. 마우스를 올리면 설명 툴팁이 뜬다.
 
 - **프로토콜 필터** (원격 접속 프로필 탭 전용): add-bar 우측의 `Filter` 버튼(funnel 아이콘). 현재 프로필에 존재하는 프로토콜(`kind`, tasty-attach 제외)이 2종 이상일 때만 표시. 클릭 시 드롭다운이 열린다. 드롭다운은 네 구획으로 나뉘고 구획 사이에 `separator` 선이 있다: 대문자 mono 제목(`프로토콜 필터`), 체크박스 목록(높이 상한 168, 넘치면 스크롤), accent 색 글자 버튼 `모두 선택` · `모두 해제`, 왼쪽 `초기화`(ghost sm)와 오른쪽 `적용`(primary sm). 구획마다 위아래 `space-sm`, 좌우 `space-md` 여백을 두고 프레임 자체에는 안쪽 여백이 없다. 드롭다운 폭은 테두리를 포함해 `remote-filter-dropdown-width`(240)다. Apply-on-confirm(적용 눌러야 반영), 선택된 프로토콜만 목록에 표시. 결과 0건이면 "선택한 프로토콜에 해당하는 프로필이 없습니다" 빈 상태. 필터 상태는 **세션 한정·비영속**(popup 재오픈에는 유지, tasty 재시작 시 전체 선택으로 리셋).
 - **프로필 목록**: 각 행 = 이름 + 요약(user@host:port) + 편집/삭제. **tasty-attach kind 는 이 목록에 나오지 않는다**(Attach 탭 전담).
@@ -82,7 +82,7 @@ tasty-attach kind(같은 레지스트리, docs/features/remote-profiles/index.md
 - **추가/편집 폼 (AttachForm)**: name · label + **Connection 세그먼트 토글** —
   - `SSH 프로필`(ref): ssh kind 프로필만 나열하는 드롭다운(`ssh_ref`, 빈 값이면 "(프로필 선택)").
   - `직접 입력(인라인)`: host/user/port/shell/passkey — ssh 프로필 폼과 동일 필드셋.
-  - 공통 **Remote tasty 그룹**(mono caps 헤더): 실행 파일(`remote_tasty`, 기본 `tasty`) · 포트 모드(`port_mode`: auto/subcommand/file-unix/file-windows, `PORT_MODES` 단일 출처) · 포트 파일(`port_file`, 선택 — 포트 모드보다 우선) + PATH/우선순위 힌트 캡션.
+  - 공통 **Remote tasty 그룹**(라벨 글꼴 caps 헤더): 실행 파일(`remote_tasty`, 기본 `tasty`) · 포트 모드(`port_mode`: auto/subcommand/file-unix/file-windows, `PORT_MODES` 단일 출처) · 포트 파일(`port_file`, 선택 — 포트 모드보다 우선) + PATH/우선순위 힌트 캡션.
   - 저장 시 기본값(`tasty`/`auto`)은 파일에 쓰지 않는다. 이름 중복은 **레지스트리 전역**(ssh 포함) 검증.
 - **검증 에러**: 이름 빈 값/중복, (ref) ssh_ref 미선택, (인라인) host 빈 값/port 형식.
 

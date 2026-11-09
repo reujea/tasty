@@ -27,6 +27,7 @@
 
 - **(BREAK) `tasty agent task-graph`·`dag-get`과 `tasty terminal|claude|codex children`의 기본 출력이 JSON에서 부모 ID 표로 바뀌었다.** 표는 `| id | parents | ... |` 형식이고 `parents`에 부모가 여럿이면 쉼표로 잇는다. JSON을 읽는 스크립트는 `--format json`을 더한다. `children`에 `--format table|json`이 생겼다. `task-graph`·`dag-get`의 `--format json|dot` 출력과 IPC 응답은 그대로다.
 
+- **일본어 UI의 작은 라벨 글꼴이 바뀐다.** 번역 문구를 그리는 절·열 제목, Tag, 상태 낱말, 낱말이 든 개수, 단위, 힌트가 고정폭 대신 UI 글꼴로 나온다. 고정폭 글꼴에 없는 한자 때문에 한 낱말 안에서 글꼴이 바뀌던 현상을 없앤다. 간체 중국어 언어 팩도 같은 규칙을 따른다. 경로·코드·ID·버전·숫자는 모든 언어에서 고정폭이고 영어·한국어 화면은 그대로다.
 - **Latte 비포커스 터미널의 바탕과 기본 글자가 바뀐다.** 바탕은 crust `#dce0e8`, 글자는 `#5c5f77`이다. 포커스 바탕 쌍을 내장 테마의 터미널과 Markdown이 함께 쓴다. 사용자 테마의 값은 그대로 읽는다.
 
 ### Fixed

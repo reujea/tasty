@@ -40,7 +40,7 @@ rename의 새 파일은 원본의 owner·mode·ACL을 payload 쓰기 전에 복�
 
 **PresetView**(`View` + `sealed::Sealed` 직접 구현, modeless, 종류별 1 인스턴스 — [hierarchy](../../concepts/hierarchy.md))는 L1 scope 탭(Workspace/Tab/Pane) 아래 2-depth list→detail 본문이다:
 
-- **좌측 리스트**(196px): 현재 scope 의 저장된 preset 목록. row = 이름 + mono subtitle(workspace 는 저장된 subtitle, 없으면 pane/tab 개수 / tab·pane 은 surface·tab 개수). 선택 row 는 `surface-active` 채움 + 2px accent 좌측 bar. 헤더에 `N presets` + New preset(`+`) 버튼(현재 레이아웃 capture 가 아니라 terminal 1개짜리 최소 preset 생성 — 본문 capture 경로는 컨텍스트 메뉴 저장이 담당). 빈 scope → "저장된 프리셋이 없습니다.".
+- **좌측 리스트**(196px): 현재 scope 의 저장된 preset 목록. row = 이름 + 라벨 글꼴 subtitle(workspace 는 저장된 subtitle, 없으면 pane/tab 개수 / tab·pane 은 surface·tab 개수). 선택 row 는 `surface-active` 채움 + 2px accent 좌측 bar. 헤더에 `N presets` + New preset(`+`) 버튼(현재 레이아웃 capture 가 아니라 terminal 1개짜리 최소 preset 생성 — 본문 capture 경로는 컨텍스트 메뉴 저장이 담당). 빈 scope → "저장된 프리셋이 없습니다.".
 - **우측 detail**: 44px 툴바(좌: preset 이름+subtitle / 우: rename·duplicate·delete 아이콘 + Edit 버튼) 위에 선택 preset 의 **데모 레이아웃 미리보기**(상위 pane split = 카드+gap, 하위 surface split = hairline, leaf = kind 아이콘 + kind명 + 값 요약, mini-tab 클릭 전환 — 구조·구성만, 라이브 내용 렌더 없음). 툴바 rename·duplicate·delete는 파일 명령을 접수한다(rename은 인라인 입력).
   - **leaf 값 요약**: leaf 는 (선택 여부와 무관하게) 가운데 kind 아이콘·kind명 아래에 설정값을 `키 값` 한 줄씩(중앙 정렬, mono) 요약한다. 라벨은 소문자 필드 키(`cwd`·`startup`·`file`·`url` — 설정 화면의 번역 필드 라벨이 아님), 대상 필드는 kind 의 선언 필드(`SurfaceKindRegistry`/fallback, kind 하드코딩 없음)를 순회해 **값이 비지 않은 것만**. path-like 키(`cwd`·`file`)는 앞자름(경로 꼬리 유지), command/url 키(`startup`·`url`)는 뒤자름. 색은 `preset-leaf-label-fg`(text-muted)/`preset-leaf-value-fg`(text-secondary). **degrade**: 박스 <96×72 → 요약 숨김(아이콘+kind명), 짧은 축 <46 → kind명도 숨김(아이콘만). 선택된 leaf 도 같은 요약을 보인다 — 칸 안에는 잘릴 수 있는 폼을 그리지 않는다.
 
