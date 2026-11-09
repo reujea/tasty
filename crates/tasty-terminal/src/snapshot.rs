@@ -1,7 +1,7 @@
 //! attach 초기 화면을 VT 바이트로 만들어 mirror의 feed_bytes에 전달한다.
 //! 이후 변화는 raw PTY 출력으로 보낸다. 현재 화면·커서·주요 모드만 포함하며
-//! 스크롤백은 포함하지 않는다. 색·굵기·dim·italic·밑줄·blink·reverse·invisible·
-//! strikethrough·overline을 기록하되 일부 밑줄 모양은 단일 밑줄로 근사한다.
+//! 스크롤백은 포함하지 않는다. 색·굵기·dim·italic·밑줄 모양·밑줄 색·blink·reverse·invisible·
+//! strikethrough·overline을 칸과 현재 펜에 기록한다. vertical_align과 하이퍼링크는 기록하지 않는다.
 
 use termwiz::cell::{CellAttributes, Intensity, Underline};
 use termwiz::color::ColorAttribute;
@@ -26,8 +26,9 @@ impl TerminalState {
             out.extend_from_slice(b"\x1b[?2004h");
         }
 
-        // clear + home, 그리고 SGR 초기화.
-        out.extend_from_slice(b"\x1b[2J\x1b[H\x1b[0m");
+        // SGR 초기화를 먼저 한다. 같은 mirror에 다시 넣으면 앞 snapshot이 복원한 펜의 배경으로
+        // 소거되기 때문이다.
+        out.extend_from_slice(b"\x1b[0m\x1b[2J\x1b[H");
 
         let surface: &TwSurface = self.surface();
         let lines = surface.screen_lines();
@@ -67,8 +68,8 @@ impl TerminalState {
             }
         }
 
-        // 속성 초기화 후 커서 위치 복원(1-based row;col).
-        out.extend_from_slice(b"\x1b[0m");
+        // 뒤이어 SGR 없이 오는 출력이 원본과 같은 속성을 갖도록 펜과 커서 위치(1-based)를 복원한다.
+        out.extend_from_slice(sgr_for(&self.current_pen).as_bytes());
         let (cx, cy) = surface.cursor_position();
         out.extend_from_slice(format!("\x1b[{};{}H", cy + 1, cx + 1).as_bytes());
         if !self.cursor_visible() {
@@ -93,10 +94,13 @@ fn sgr_for(attrs: &CellAttributes) -> String {
     }
     match attrs.underline() {
         Underline::None => {}
+        Underline::Single => codes.push("4".to_string()),
         Underline::Double => codes.push("21".to_string()),
-        // single/curly/dotted/dashed는 단일 밑줄로 근사한다.
-        _ => codes.push("4".to_string()),
+        Underline::Curly => codes.push("4:3".to_string()),
+        Underline::Dotted => codes.push("4:4".to_string()),
+        Underline::Dashed => codes.push("4:5".to_string()),
     }
+    push_underline_color(&mut codes, &attrs.underline_color());
     match attrs.blink() {
         termwiz::cell::Blink::None => {}
         termwiz::cell::Blink::Slow => codes.push("5".to_string()),
@@ -119,6 +123,22 @@ fn sgr_for(attrs: &CellAttributes) -> String {
     push_color(&mut codes, &attrs.background(), true);
 
     format!("\x1b[{}m", codes.join(";"))
+}
+
+/// 밑줄 색을 콜론 형식으로 push. 58을 모르는 파서가 `;` 형식의 뒤 숫자를 깜빡임(5)이나 취소선(9) 같은
+/// 별도 코드로 읽지 않게 한다.
+fn push_underline_color(codes: &mut Vec<String>, color: &ColorAttribute) {
+    match color {
+        ColorAttribute::Default => {}
+        ColorAttribute::PaletteIndex(idx) => codes.push(format!("58:5:{idx}")),
+        ColorAttribute::TrueColorWithPaletteFallback(srgba, _)
+        | ColorAttribute::TrueColorWithDefaultFallback(srgba) => {
+            let r = (srgba.0 * 255.0).round() as u8;
+            let g = (srgba.1 * 255.0).round() as u8;
+            let b = (srgba.2 * 255.0).round() as u8;
+            codes.push(format!("58:2::{r}:{g}:{b}"));
+        }
+    }
 }
 
 /// 색 속성을 SGR 코드로 push. `background=true` 면 배경(40/48/100 계열), 아니면 전경.

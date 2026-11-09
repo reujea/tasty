@@ -84,12 +84,20 @@ impl ScrollbackLine {
             .collect()
     }
 
-    /// True when every cell is empty or whitespace-only (used to trim trailing
-    /// blank rows from snapshots).
+    /// True when no cell shows anything (used to trim trailing blank rows from snapshots).
     pub fn is_blank(&self) -> bool {
-        self.cells()
-            .all(|(s, _)| s.is_empty() || s.chars().all(char::is_whitespace))
+        self.cells().all(|(s, attrs)| cell_is_blank(s, attrs))
     }
+}
+
+/// True when a cell has no text and no attribute that marks an empty cell. Background color is
+/// left out because erasing under a colored pen fills cells with it and those rows stay disposable.
+pub(crate) fn cell_is_blank(text: &str, attrs: &CellAttributes) -> bool {
+    text.chars().all(char::is_whitespace)
+        && attrs.underline() == termwiz::cell::Underline::None
+        && !attrs.strikethrough()
+        && !attrs.overline()
+        && !attrs.reverse()
 }
 
 /// Borrowing iterator over a [`ScrollbackLine`]'s cells, yielding

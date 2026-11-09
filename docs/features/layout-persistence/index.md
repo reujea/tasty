@@ -164,6 +164,8 @@ Parked engine은 슬롯을 점유하지만 윈도우 ID가 없어 `window.list`�
 ### Surface 내용 복원 (현재: 터미널 scrollback)
 
 `general.restore_surface_content`(기본 on)가 켜져 있으면 터미널 capture가 scrollback과 화면 라인을 journal의 불변 surface payload에 담는다. payload는 cwd·`restore.command`와 함께 직렬화한 scrollback 바이트(`TSSB` 형식)를 가지며, 저장할 때마다 새 payload를 만들고 기존 payload를 고쳐 쓰지 않는다.
+`TSSB`는 버전 4이고 버전 3 payload도 그대로 읽는다. 버전 3에는 밑줄 종류(단일 외), 밑줄 색, 반전, 깜빡임, 숨김, 윗줄이 없어 그 줄은 기본값으로 복원된다. 저장 복원과 디스크 스크롤백 모두 위 값과 굵게·dim·기울임·취소선·색을 지키고, vertical_align과 하이퍼링크는 저장하지 않는다. 이 값들이 없는 런은 버전 3과 크기가 같고, 있는 런은 2~5바이트가 는다. 공백 칸뿐인 마지막 행은 저장에서 잘리지만 밑줄·취소선·윗줄·반전이 있는 칸은 공백으로 치지 않는다(배경색만 있는 칸은 공백으로 친다). 행 축소도 같은 판정을 쓴다. 버전 4를 모르는 옛 앱은 경고만 남기고 해당 스크롤백을 복원하지 않으며 저장된 payload를 고치지 않는다. 다만 옛 앱을 실행한 뒤 새 앱으로 돌아오면 그 스크롤백은 복원되지 않는다.
+
 전체 capture의 복사·직렬화·worker 쓰기 비용과 격리 측정 방법은 [capture 비용](../../architecture/surface-capture-cost.md)에 있다.
 전체 capture를 저장하는 코덱은 유지한다. 부분 scrollback delta로 바꾸면 복원·undo·pin 계약을
 함께 바꿔야 하므로 현재 압축과는 별도 최적화 영역이다. 정상 압축은 최근 유효 snapshot 두 개와

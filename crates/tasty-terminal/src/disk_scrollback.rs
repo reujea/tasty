@@ -2,14 +2,17 @@ use std::fs::{File, OpenOptions};
 use std::io::{BufReader, Read, Seek, SeekFrom, Write};
 use std::path::PathBuf;
 
-use termwiz::cell::CellAttributes;
+use termwiz::cell::{Blink, CellAttributes, Underline};
 use termwiz::color::ColorAttribute;
 
 use crate::scrollback::ScrollbackLine;
 
 /// Disk scrollback magic. Change FORMAT_VERSION when changing the serialized layout.
 pub const FILE_MAGIC: &[u8; 4] = b"TSSB";
-pub const FORMAT_VERSION: u32 = 3;
+pub const FORMAT_VERSION: u32 = 4;
+/// Oldest layout still decoded. Stored captures are immutable, so an upgrade cannot rewrite them;
+/// version 3 records are version 4 records in which no run sets [`FLAG_EXTENDED`].
+pub const OLDEST_READABLE_VERSION: u32 = 3;
 pub(crate) const HEADER_LEN: u64 = 8; // 4-byte magic + 4-byte version
 
 /// Serialize lines as FILE_MAGIC | FORMAT_VERSION:u32 | { len:u32 | line_bytes }*.
@@ -36,7 +39,7 @@ pub fn deserialize_lines(data: &[u8]) -> Option<Vec<ScrollbackLine>> {
         return None;
     }
     let version = u32::from_le_bytes([data[4], data[5], data[6], data[7]]);
-    if version != FORMAT_VERSION {
+    if !(OLDEST_READABLE_VERSION..=FORMAT_VERSION).contains(&version) {
         return None;
     }
     let mut pos = HEADER_LEN as usize;
@@ -559,8 +562,18 @@ impl Drop for DiskScrollback {
     }
 }
 
+/// A run with this flag carries the extended byte and the underline color after its flags byte.
+const FLAG_EXTENDED: u8 = 32;
+const EXT_UNDERLINE_MASK: u8 = 0b0000_0111;
+const EXT_BLINK_SHIFT: u32 = 3;
+const EXT_BLINK_MASK: u8 = 0b0001_1000;
+const EXT_REVERSE: u8 = 32;
+const EXT_INVISIBLE: u8 = 64;
+const EXT_OVERLINE: u8 = 128;
+
 /// Pack a cell's attributes into the flags byte.
-/// bit0=bold, bit1=italic, bit2=underline, bit3=strikethrough, bit4=dim (Intensity::Half).
+/// bit0=bold, bit1=italic, bit2=underline, bit3=strikethrough, bit4=dim (Intensity::Half),
+/// bit5=[`FLAG_EXTENDED`]. Without the extended byte, bit2 means a single underline.
 fn attr_flags(attrs: &CellAttributes) -> u8 {
     let mut flags: u8 = 0;
     match attrs.intensity() {
@@ -571,13 +584,69 @@ fn attr_flags(attrs: &CellAttributes) -> u8 {
     if attrs.italic() {
         flags |= 2;
     }
-    if attrs.underline() != termwiz::cell::Underline::None {
+    if attrs.underline() != Underline::None {
         flags |= 4;
     }
     if attrs.strikethrough() {
         flags |= 8;
     }
+    if extended_attrs(attrs).is_some() {
+        flags |= FLAG_EXTENDED;
+    }
     flags
+}
+
+/// The extended byte, or `None` when the flags byte alone restores the attributes. Most runs
+/// have no such attribute and stay as small as in version 3.
+fn extended_attrs(attrs: &CellAttributes) -> Option<u8> {
+    let underline = match attrs.underline() {
+        Underline::None => 0,
+        Underline::Single => 1,
+        Underline::Double => 2,
+        Underline::Curly => 3,
+        Underline::Dotted => 4,
+        Underline::Dashed => 5,
+    };
+    let blink = match attrs.blink() {
+        Blink::None => 0u8,
+        Blink::Slow => 1,
+        Blink::Rapid => 2,
+    };
+    let mut ext = underline | (blink << EXT_BLINK_SHIFT);
+    if attrs.reverse() {
+        ext |= EXT_REVERSE;
+    }
+    if attrs.invisible() {
+        ext |= EXT_INVISIBLE;
+    }
+    if attrs.overline() {
+        ext |= EXT_OVERLINE;
+    }
+    let plain_underline = matches!(attrs.underline(), Underline::None | Underline::Single);
+    let flags_suffice = plain_underline
+        && ext & !EXT_UNDERLINE_MASK == 0
+        && attrs.underline_color() == ColorAttribute::Default;
+    (!flags_suffice).then_some(ext)
+}
+
+fn apply_extended_attrs(attrs: &mut CellAttributes, ext: u8, underline_color: ColorAttribute) {
+    attrs.set_underline(match ext & EXT_UNDERLINE_MASK {
+        1 => Underline::Single,
+        2 => Underline::Double,
+        3 => Underline::Curly,
+        4 => Underline::Dotted,
+        5 => Underline::Dashed,
+        _ => Underline::None,
+    });
+    attrs.set_blink(match (ext & EXT_BLINK_MASK) >> EXT_BLINK_SHIFT {
+        1 => Blink::Slow,
+        2 => Blink::Rapid,
+        _ => Blink::None,
+    });
+    attrs.set_reverse(ext & EXT_REVERSE != 0);
+    attrs.set_invisible(ext & EXT_INVISIBLE != 0);
+    attrs.set_overline(ext & EXT_OVERLINE != 0);
+    attrs.set_underline_color(underline_color);
 }
 
 /// Serialize a scrollback line to bytes, mirroring the in-memory compact form
@@ -588,6 +657,7 @@ fn attr_flags(attrs: &CellAttributes) -> u8 {
 ///   [cell_count:u32][cell_len:u16 × cell_count]
 ///   [run_count:u32] then per run:
 ///     [run_len:u32][fg_type:u8][fg_data:0-3][bg_type:u8][bg_data:0-3][flags:u8]
+///     and, when flags has FLAG_EXTENDED, [ext:u8][underline_color_type:u8][color_data:0-3]
 fn serialize_line(line: &ScrollbackLine) -> Vec<u8> {
     let mut buf = Vec::new();
     buf.push(if line.wrapped { 1 } else { 0 });
@@ -607,6 +677,10 @@ fn serialize_line(line: &ScrollbackLine) -> Vec<u8> {
         serialize_color(&attrs.foreground(), &mut buf);
         serialize_color(&attrs.background(), &mut buf);
         buf.push(attr_flags(attrs));
+        if let Some(ext) = extended_attrs(attrs) {
+            buf.push(ext);
+            serialize_color(&attrs.underline_color(), &mut buf);
+        }
     }
     buf
 }
@@ -616,7 +690,12 @@ pub fn serialized_record_len(line: &ScrollbackLine) -> usize {
     let runs: usize = line
         .attr_runs
         .iter()
-        .map(|(_, attrs)| 4 + color_len(&attrs.foreground()) + color_len(&attrs.background()) + 1)
+        .map(|(_, attrs)| {
+            let extended = extended_attrs(attrs)
+                .map(|_| 1 + color_len(&attrs.underline_color()))
+                .unwrap_or(0);
+            4 + color_len(&attrs.foreground()) + color_len(&attrs.background()) + 1 + extended
+        })
         .sum();
     4 + 1 + 4 + line.text.len() + 4 + 2 * line.cell_lens.len() + 4 + runs
 }
@@ -721,10 +800,20 @@ fn deserialize_line(data: &[u8]) -> ScrollbackLine {
                 attrs.set_italic(true);
             }
             if flags & 4 != 0 {
-                attrs.set_underline(termwiz::cell::Underline::Single);
+                attrs.set_underline(Underline::Single);
             }
             if flags & 8 != 0 {
                 attrs.set_strikethrough(true);
+            }
+            if flags & FLAG_EXTENDED != 0 {
+                let Some(&ext) = data.get(pos) else {
+                    attr_runs.push((run_len, attrs));
+                    break;
+                };
+                pos += 1;
+                let (underline_color, advance) = deserialize_color(&data[pos..]);
+                pos += advance;
+                apply_extended_attrs(&mut attrs, ext, underline_color);
             }
 
             attr_runs.push((run_len, attrs));
@@ -805,7 +894,146 @@ impl DiskScrollback {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use termwiz::cell::{Intensity, Underline};
+    use termwiz::cell::Intensity;
+    use termwiz::color::{ColorSpec, RgbColor};
+
+    fn every_attribute() -> CellAttributes {
+        let mut a = CellAttributes::default();
+        a.set_underline(Underline::Curly);
+        a.set_underline_color(ColorSpec::TrueColor(RgbColor::new_8bpc(10, 20, 30).into()));
+        a.set_reverse(true);
+        a.set_blink(Blink::Slow);
+        a.set_invisible(true);
+        a.set_overline(true);
+        a
+    }
+
+    #[test]
+    fn disk_round_trip_keeps_every_drawn_attribute() {
+        let a = every_attribute();
+        let line = ScrollbackLine::new(vec![("X".to_string(), a.clone())], false);
+        let out = deserialize_lines(&serialize_lines(&[line])).unwrap();
+        let cells = out[0].to_cells();
+        assert_eq!(cells[0].1.underline(), Underline::Curly);
+        assert_eq!(cells[0].1.underline_color(), a.underline_color());
+        assert!(cells[0].1.reverse());
+        assert_eq!(cells[0].1.blink(), Blink::Slow);
+        assert!(cells[0].1.invisible());
+        assert!(cells[0].1.overline());
+    }
+
+    #[test]
+    fn each_extended_value_survives_alone() {
+        let mut cases = Vec::new();
+        for underline in [
+            Underline::None,
+            Underline::Single,
+            Underline::Double,
+            Underline::Curly,
+            Underline::Dotted,
+            Underline::Dashed,
+        ] {
+            let mut a = CellAttributes::default();
+            a.set_underline(underline);
+            cases.push(a);
+        }
+        for blink in [Blink::Slow, Blink::Rapid] {
+            let mut a = CellAttributes::default();
+            a.set_blink(blink);
+            cases.push(a);
+        }
+        let mut palette_color = CellAttributes::default();
+        palette_color.set_underline_color(ColorSpec::PaletteIndex(9));
+        cases.push(palette_color);
+        for a in cases {
+            let out = round_trip(ScrollbackLine::new(vec![("X".into(), a.clone())], false));
+            assert_eq!(out.to_cells()[0].1, a);
+        }
+    }
+
+    /// A DiskScrollback file has the same records as a blob, and its reads ignore the header.
+    #[test]
+    fn disk_file_keeps_every_drawn_attribute() {
+        let a = every_attribute();
+        let mut disk = DiskScrollback::new(99174).unwrap();
+        disk.push_lines(&[ScrollbackLine::new(vec![("X".into(), a.clone())], false)])
+            .unwrap();
+        let mut header = [0u8; 8];
+        File::open(disk.backing_file())
+            .unwrap()
+            .read_exact(&mut header)
+            .unwrap();
+        assert_eq!(&header[4..], &FORMAT_VERSION.to_le_bytes());
+        assert_eq!(disk.read_line(0).unwrap().unwrap().to_cells()[0].1, a);
+    }
+
+    /// Lines with no extended value keep the version 3 record size; others spend the extra bytes
+    /// `serialized_record_len` reports.
+    #[test]
+    fn record_len_matches_the_serialized_bytes() {
+        let mut single = CellAttributes::default();
+        single.set_underline(Underline::Single);
+        let mut reverse = CellAttributes::default();
+        reverse.set_reverse(true);
+        let plain_record = 27;
+        for (a, expected) in [
+            (CellAttributes::default(), plain_record),
+            (single, plain_record),
+            (reverse, plain_record + 2),
+            (every_attribute(), plain_record + 5),
+        ] {
+            let line = ScrollbackLine::new(vec![("X".into(), a)], false);
+            let actual = serialize_lines(std::slice::from_ref(&line)).len() - HEADER_LEN as usize;
+            assert_eq!(actual, expected);
+            assert_eq!(serialized_record_len(&line), expected);
+        }
+    }
+
+    /// Written by the version 3 serializer before the format changed. The third cell had a curly
+    /// underline and reverse, which version 3 stored only as "underlined".
+    const VERSION_3_BLOB: &str = "545353420300000031000000010500000042eab08055030000000100030001\
+        000300000001000000010900010100000000020a141e120100000000000c170000000001000000700100000001\
+        000100000001000000000000";
+
+    #[test]
+    fn version_3_blob_stays_readable() {
+        let blob: Vec<u8> = (0..VERSION_3_BLOB.len())
+            .step_by(2)
+            .map(|i| u8::from_str_radix(&VERSION_3_BLOB[i..i + 2], 16).unwrap())
+            .collect();
+        assert_eq!(blob[4], 3);
+        let lines = deserialize_lines(&blob).expect("version 3 stays readable");
+        assert_eq!(lines.len(), 2);
+        assert!(lines[0].wrapped);
+        assert!(!lines[1].wrapped);
+        let cells = lines[0].to_cells();
+        assert_eq!(cells[0].0, "B");
+        assert_eq!(cells[0].1.intensity(), Intensity::Bold);
+        assert_eq!(cells[0].1.foreground(), ColorAttribute::PaletteIndex(9));
+        assert_eq!(cells[1].0, "가");
+        assert_eq!(cells[1].1.intensity(), Intensity::Half);
+        assert!(cells[1].1.italic());
+        let (r, g, b, _) = match cells[1].1.background() {
+            ColorAttribute::TrueColorWithDefaultFallback(c) => c.to_tuple_rgba(),
+            other => panic!("background {other:?}"),
+        };
+        assert_eq!([r, g, b].map(|v| (v * 255.0).round() as u8), [10, 20, 30]);
+        assert_eq!(cells[2].0, "U");
+        assert_eq!(cells[2].1.underline(), Underline::Single);
+        assert!(cells[2].1.strikethrough());
+        assert!(!cells[2].1.reverse());
+        assert_eq!(cells[2].1.blink(), Blink::None);
+        assert_eq!(lines[1].to_cells()[0].1, CellAttributes::default());
+    }
+
+    #[test]
+    fn deserialize_rejects_versions_outside_the_readable_range() {
+        for version in [OLDEST_READABLE_VERSION - 1, FORMAT_VERSION + 1] {
+            let mut blob = serialize_lines(&[]);
+            blob[4..8].copy_from_slice(&version.to_le_bytes());
+            assert!(deserialize_lines(&blob).is_none(), "version {version}");
+        }
+    }
 
     #[test]
     fn overlapping_same_surface_instances_never_replace_or_remove_each_others_rows() {

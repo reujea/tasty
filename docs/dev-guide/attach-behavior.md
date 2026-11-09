@@ -119,7 +119,7 @@ bulk·capture 수신 내용은 연결별 owned 임시 파일에 순서대로 기
 
 ## 초기 스냅샷 + delta
 
-attach 직후 서버가 현재 visible 화면을 `snapshot_and_stream` 으로 구독 등록과 같은 lock 안에서 **1회** 직렬화 push(셀 속성 + 커서 + alt-screen/DECCKM/bracketed 모드 복원). 이후 변화는 output tap delta(Data 프레임). client 는 받은 바이트를 PTY 없는 mirror 터미널(`Terminal::new_detached` + `feed_bytes`)에 먹여 같은 termwiz 파서로 grid 재구성.
+attach 직후 서버가 현재 visible 화면을 `snapshot_and_stream` 으로 구독 등록과 같은 lock 안에서 **1회** 직렬화 push(셀 속성 + 현재 펜 + 커서 + alt-screen/DECCKM/bracketed 모드 복원. vertical_align과 하이퍼링크는 칸과 펜 모두 제외). 이후 변화는 output tap delta(Data 프레임). client 는 받은 바이트를 PTY 없는 mirror 터미널(`Terminal::new_detached` + `feed_bytes`)에 먹여 같은 termwiz 파서로 grid 재구성.
 
 ## workspace mux
 

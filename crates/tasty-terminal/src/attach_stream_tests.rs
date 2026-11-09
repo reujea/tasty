@@ -234,7 +234,7 @@ fn a_mirror_matches_the_visible_screen_but_not_the_output_ring_or_scrollback() {
     let (src, mir) = (whole(&mut source), whole(&mut mirror));
     assert!(src.text.starts_with("old0"));
     assert!(
-        mir.text.starts_with("\x1b[2J"),
+        mir.text.starts_with("\x1b[0m\x1b[2J"),
         "mirror ring starts with the synthetic snapshot"
     );
     assert_ne!(src.stream, mir.stream);

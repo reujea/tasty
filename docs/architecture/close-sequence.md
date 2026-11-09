@@ -103,7 +103,7 @@ Releasing 단계는 원 runner의 실제 join과 `EngineRelease`의 물리 자�
   필드와 합계 ms 의 조합으로 판정한다.
 - **`lines` 는 C1 시점의 인라인 라인 수다.** C2b(`persist_closed_scrollback`)가
   라인을 디스크로 내리면 0 이 되므로 캡처 직후에만 의미가 있다.
-- **C2b 쓰기가 실패하면 스크롤백은 인코딩된 채 메모리(Inline)에 남는다.** 그 항목을 복원하면 디스크 형식이 보존하는 속성(text, 셀 폭, wrapped, fg/bg, bold/half/italic/underline/strikethrough)만 남고 reverse·blink·invisible·밑줄 종류/색·하이퍼링크는 복원되지 않는다.
+- **C2b 쓰기가 실패하면 스크롤백은 인코딩된 채 메모리(Inline)에 남는다.** 그 항목을 복원하면 디스크 형식이 보존하는 속성(text, 셀 폭, wrapped, fg/bg, bold/half/italic, 밑줄 종류와 색, strikethrough, reverse, blink, invisible, overline)만 남고 vertical_align·하이퍼링크는 복원되지 않는다.
 - **`close_total` ≥ 단계 합**이며, 차이가 크면 계측이 덮지 않은 구간이 있다는
   뜻이다(예: `enqueue_surface_closed`, `surface_kind` 재조회, workspace 벡터
   remove).

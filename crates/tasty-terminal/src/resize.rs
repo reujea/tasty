@@ -161,15 +161,10 @@ impl TerminalState {
         actual_restored
     }
 
-    /// Check if a line is visually blank (all spaces or empty).
+    /// Check if a line is visually blank (see [`crate::scrollback::cell_is_blank`]).
     pub(crate) fn is_line_blank(line: &termwiz::surface::line::Line) -> bool {
-        for cell in line.visible_cells() {
-            let s = cell.str();
-            if !s.is_empty() && s.trim() != "" {
-                return false;
-            }
-        }
-        true
+        line.visible_cells()
+            .all(|cell| crate::scrollback::cell_is_blank(cell.str(), cell.attrs()))
     }
 
     /// Heuristic: returns true when the line's rightmost cell is occupied by a
