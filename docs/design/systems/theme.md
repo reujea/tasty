@@ -232,7 +232,7 @@ DTCG component tier(치수+색) 토큰은 `crates/tasty-type-appearance/src/gene
 | 테마 | Mocha를 기본·폴백으로 제공하고 Latte는 처음 실행할 때 설치한다. |
 | 간격 | 4px 그리드의 `spacing_xs/sm/md/lg/xl`을 사용한다. |
 | UI 폰트 | micro 10, caption 11, body·heading 13, max 14. 역할이 있으면 component 접근자를 우선한다. |
-| 라벨 글꼴 | 번역 문구를 그리는 작은 라벨은 `font-label`(`label_font`)을 읽는다. `ja`·`zh`는 UI sans, 그 밖은 mono다. 값(경로·ID·버전·크기·시각·숫자·키캡)은 모든 언어에서 mono이고 값을 담은 Tag는 `tag_mono`다. [i18n](../../dev-guide/i18n.md) |
+| 라벨 글꼴 | 번역 문구를 그리는 작은 라벨은 `font-label`(`label_font`)을 읽는다. `ja`·`zh`는 UI sans(행 높이와 baseline은 같은 크기 mono의 값), 그 밖은 mono다. 값(경로·ID·버전·크기·시각·숫자·키캡)은 모든 언어에서 mono이고 값을 담은 Tag는 `tag_mono`다. [i18n](../../dev-guide/i18n.md) |
 | 폰트 상한 | UI는 14px. 콘텐츠 폰트는 별도이며 브랜드 워드마크 17·부트 락업 30은 승인된 예외다. |
 | 보더 | `border_width` 1px. 접힌 레일의 카테고리 `---` 선과 카테고리 없는 레일의 맨 위 구분선은 상자 테두리가 아니라 아바타 글자 무게의 표지라서 `rail-category-line-width`(= focus-ring-width 2px)로 그린다. |
 | 점선 테두리 | 1px 점선은 대시 `border_dash` 4 · 간격 `border_dash_gap` 4(배율 제외)다. 대시는 곧은 변에만 두고 각 변이 대시로 시작해 대시로 끝나도록 남는 길이를 간격에 고르게 나눈다. 모서리는 실선 호다. 공용 `tasty_ui_widgets::paint_dashed_outline` 으로 그린다. 쓰는 곳: Add plugin 빈 안내 상자, Scripts Add trigger… |
