@@ -418,8 +418,32 @@ fn restrictive_child_umask_still_creates_explicit_private_permissions() {
     child.finish();
     assert!(child.root.is_dir());
 }
+/// The audit walks every thread of this process, so a thread of a parallel test that exits during
+/// the walk would decide its outcome. The whole proof runs alone in an owned child process.
 #[test]
 fn actual_child_identity_live_retention_and_open_fd_consumer_are_observed() {
+    let module = module_path!().split_once("::").unwrap().1;
+    let entry = format!("{module}::child_identity_proof_alone");
+    let output = std::process::Command::new(std::env::current_exe().unwrap())
+        .args([
+            "--ignored",
+            "--exact",
+            &entry,
+            "--nocapture",
+            "--test-threads=1",
+        ])
+        .output()
+        .unwrap();
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(
+        output.status.success() && stdout.contains("test result: ok. 1 passed"),
+        "owned proof child: {stdout}{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+}
+#[test]
+#[ignore = "owned subprocess entry, invoked alone by its parent test"]
+fn child_identity_proof_alone() {
     use std::io::Write;
     let parent = namespace();
     let mut child = OwnedChild::start(parent.path(), false);
