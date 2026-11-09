@@ -1910,4 +1910,16 @@ pub mod workspace {
 
     /// `component.workspace-row-padding-x` → `{semantic.space-sm}` = 8px
     pub const ROW_PADDING_X: LogicalPx = crate::generated::semantic::SPACE_SM;
+
+    /// `component.workspace-running-count-font-size` → `{semantic.font-size-micro}` = 10px
+    pub const RUNNING_COUNT_FONT_SIZE: LogicalPx = crate::generated::semantic::FONT_SIZE_MICRO;
+
+    /// `component.workspace-running-count-gap` → `{primitive.size-2}` = 2px
+    pub const RUNNING_COUNT_GAP: LogicalPx = crate::generated::primitive::SIZE_2;
+
+    /// `component.workspace-running-count-max` = 99
+    pub const RUNNING_COUNT_MAX: f32 = 99.0;
+
+    /// `component.workspace-running-count-min-width` → `{primitive.size-10}` = 10px
+    pub const RUNNING_COUNT_MIN_WIDTH: LogicalPx = crate::generated::primitive::SIZE_10;
 }

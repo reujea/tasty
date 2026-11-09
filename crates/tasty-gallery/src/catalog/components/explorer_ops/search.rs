@@ -171,7 +171,7 @@ pub fn draw_find_bar(ui: &mut egui::Ui, theme: &Theme) {
             ),
             (
                 "match",
-                "substring, case-insensitive · matched part in explorer-match-fg",
+                "substring, case-insensitive · matched part in accent-primary-raised",
             ),
             ("Unicode", unicode_note.as_str()),
             ("count", "mono caption · “{shown} of {total}”"),
@@ -186,9 +186,9 @@ pub fn draw_find_bar(ui: &mut egui::Ui, theme: &Theme) {
         &[
             TokenChip::without_color("explorer-search-bar-height", "→ size-36"),
             TokenChip::new(
-                "explorer-match-fg",
+                "accent-primary-raised",
                 "match",
-                theme.explorer_match_fg().to_egui(),
+                theme.accent_primary_raised().to_egui(),
             ),
             TokenChip::new("input-bg", "field", theme.input_bg().to_egui()),
         ],

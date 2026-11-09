@@ -175,7 +175,7 @@ fn status(
     }
 }
 
-/// 이름 글자 배치. `query` 와 대소문자 없이 처음 맞는 부분을 `explorer-match-fg` 로 칠한다.
+/// 이름 글자 배치. `query` 와 대소문자 없이 처음 맞는 부분을 `accent-primary-raised` 로 칠한다.
 /// `selected` 행은 surface-active 위라 일치 구간을 `explorer-match-fg-active` 글자와 밑줄로 구분한다.
 pub fn explorer_match_job(
     theme: &Theme,
@@ -188,7 +188,7 @@ pub fn explorer_match_job(
     let match_fg = if selected {
         theme.explorer_match_fg_active()
     } else {
-        theme.explorer_match_fg()
+        theme.accent_primary_raised()
     }
     .to_egui();
     let match_underline = if selected {

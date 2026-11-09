@@ -47,7 +47,7 @@ fn the_bar_is_the_search_bar_height() {
 #[test]
 fn a_tree_row_paints_the_matching_part_of_its_label() {
     let theme = Theme::with_colors_and_zoom(tasty_themes::mocha_fallback_colors(), false, 1.0);
-    let match_fg = theme.explorer_match_fg().to_egui();
+    let match_fg = theme.accent_primary_raised().to_egui();
     let ctx = egui::Context::default();
     let painted = |query: &'static str| {
         let out = ctx.run(egui::RawInput::default(), |ctx| {
@@ -90,7 +90,7 @@ fn a_tree_row_paints_the_matching_part_of_its_label() {
 fn nfd_display_maps_raw_highlights_without_splitting_utf8_or_composed_letters() {
     let theme = tasty_themes::mocha_fallback();
     let ink = theme.text_primary().to_egui();
-    let marked = theme.explorer_match_fg().to_egui();
+    let marked = theme.accent_primary_raised().to_egui();
     for (raw, query, display, highlighted) in [
         ("cafe\u{301}.txt", "e", "café.txt", "é"),
         ("cafe\u{301}.txt", "\u{301}", "café.txt", "é"),
@@ -161,7 +161,7 @@ fn composing_display_does_not_normalize_name_matching() {
     assert!(
         job.sections
             .iter()
-            .all(|s| s.format.color != theme.explorer_match_fg().to_egui())
+            .all(|s| s.format.color != theme.accent_primary_raised().to_egui())
     );
     assert_eq!(raw.as_bytes(), b"cafe\xcc\x81.rs");
 }

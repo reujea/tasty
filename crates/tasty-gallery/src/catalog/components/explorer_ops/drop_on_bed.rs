@@ -133,6 +133,7 @@ pub fn draw_drop_target_on_the_bed(ui: &mut egui::Ui, theme: &Theme) {
                 "image row, outside a tint",
                 "glyph-info → accent-info-raised",
             ),
+            ("match run", "accent-primary-raised"),
             (
                 "opaque row fill",
                 "hides the tint on that row · the ring still shows",

@@ -540,7 +540,7 @@ pub(super) fn hit_folder(root: &Path, hit: &Path) -> String {
     crate::app::local_reads::relative_folder(root, hit)
 }
 
-/// 이름 글자 배치. 검색어와 맞는 부분을 explorer-match-fg 로 칠한다. 검색어가 없으면 한 색이다.
+/// 이름 글자 배치. 검색어와 맞는 부분을 accent-primary-raised 로 칠한다. 검색어가 없으면 한 색이다.
 /// 선택 행은 일치 구간도 선택 색이다.
 pub(super) fn name_job(
     theme: &Theme,

@@ -45,7 +45,7 @@ pub fn tree_row(
     )
 }
 
-/// `tree_row` 와 같고, 이름에서 `query` 와 맞는 부분(대소문자 무시)을 explorer-match-fg 로 칠한다.
+/// `tree_row` 와 같고, 이름에서 `query` 와 맞는 부분(대소문자 무시)을 accent-primary-raised 로 칠한다.
 #[allow(clippy::too_many_arguments)] // 이유: tree_row 의 인자에 검색어 하나를 더했다 — 같은 순서를 지켜 호출부를 맞바꿀 수 있게 한다
 pub fn tree_row_matching(
     ui: &mut egui::Ui,

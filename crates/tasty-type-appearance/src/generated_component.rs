@@ -6047,4 +6047,22 @@ impl crate::theme::Theme {
     pub fn workspace_row_padding_x(&self) -> LogicalPx {
         self.spacing_sm
     }
+
+    /// `component.workspace-running-count-font-size` → `{semantic.font-size-micro}` = 10px
+    #[inline]
+    pub fn workspace_running_count_font_size(&self) -> LogicalPx {
+        self.font_size_micro
+    }
+
+    /// `component.workspace-running-count-gap` → `{primitive.size-2}` = 2px
+    #[inline]
+    pub fn workspace_running_count_gap(&self) -> LogicalPx {
+        LogicalPx((2.0 * self.ui_zoom).round())
+    }
+
+    /// `component.workspace-running-count-min-width` → `{primitive.size-10}` = 10px
+    #[inline]
+    pub fn workspace_running_count_min_width(&self) -> LogicalPx {
+        LogicalPx((10.0 * self.ui_zoom).round())
+    }
 }
