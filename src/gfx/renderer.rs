@@ -820,4 +820,6 @@ mod cell_decor_tests;
 #[cfg(test)]
 mod cell_paint_tests;
 #[cfg(test)]
+mod hidden_cell_tests;
+#[cfg(test)]
 mod search_paint_tests;

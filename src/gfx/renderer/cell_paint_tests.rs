@@ -123,7 +123,7 @@ fn a_reversed_screen_drops_the_selection_ink_only_when_the_setting_allows_it() {
 }
 
 /// 비포커스 바탕에서도 값이 같은 근거다. 바탕이 불투명해 아래 바탕이 글자에 닿지 않는다.
-fn official_themes() -> [tasty_type_appearance::theme::Theme; 2] {
+pub(super) fn official_themes() -> [tasty_type_appearance::theme::Theme; 2] {
     let file = tasty_themes::ThemeFile::parse(tasty_themes::LATTE_TOML_TEXT).expect("latte");
     let (partial, is_light) = file.to_partial();
     let mut colors = tasty_themes::mocha_fallback_colors();
