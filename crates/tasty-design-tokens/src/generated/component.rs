@@ -887,6 +887,9 @@ pub mod listctrl {
 pub mod loading {
     use tasty_type_geometry::length::LogicalPx;
 
+    /// `component.loading-lockup-font-size` → `{semantic.font-size-brand-lockup}` = 38px
+    pub const LOCKUP_FONT_SIZE: LogicalPx = crate::generated::semantic::FONT_SIZE_BRAND_LOCKUP;
+
     /// `component.loading-lockup-tracking` → `{primitive.letter-spacing-n1px}` = -1px
     pub const LOCKUP_TRACKING: LogicalPx = crate::generated::primitive::LETTER_SPACING_N1PX;
 

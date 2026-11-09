@@ -61,6 +61,9 @@ pub(crate) const FONT_SIZE_20: LogicalPx = LogicalPx(20.0);
 /// `primitive.font-size-30` = 30px
 pub(crate) const FONT_SIZE_30: LogicalPx = LogicalPx(30.0);
 
+/// `primitive.font-size-38` = 38px
+pub(crate) const FONT_SIZE_38: LogicalPx = LogicalPx(38.0);
+
 /// `primitive.font-weight-400` = 400
 pub(crate) const FONT_WEIGHT_400: u16 = 400;
 

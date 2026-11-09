@@ -673,6 +673,10 @@
       "$type": "dimension",
       "$value": "30px"
     },
+    "font-size-38": {
+      "$type": "dimension",
+      "$value": "38px"
+    },
     "opacity-tint-fill": {
       "$type": "number",
       "$value": "0.12"
@@ -1373,6 +1377,10 @@
       "$type": "fontFamily",
       "$value": "{primitive.font-family-mono}"
     },
+    "font-label": {
+      "$type": "fontFamily",
+      "$value": "{semantic.font-mono}"
+    },
     "font-size-caption": {
       "$type": "dimension",
       "$value": "{primitive.font-size-11}"
@@ -1400,6 +1408,10 @@
     "font-size-brand-display": {
       "$type": "dimension",
       "$value": "{primitive.font-size-30}"
+    },
+    "font-size-brand-lockup": {
+      "$type": "dimension",
+      "$value": "{primitive.font-size-38}"
     },
     "font-size-brand-wordmark": {
       "$type": "dimension",
@@ -5400,6 +5412,10 @@
     "loading-lockup-tracking": {
       "$type": "dimension",
       "$value": "{primitive.letter-spacing-n1px}"
+    },
+    "loading-lockup-font-size": {
+      "$type": "dimension",
+      "$value": "{semantic.font-size-brand-lockup}"
     },
     "font-preview-min-width": {
       "$type": "dimension",

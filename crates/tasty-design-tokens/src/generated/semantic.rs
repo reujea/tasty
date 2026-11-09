@@ -55,6 +55,9 @@ pub const FONT_SIZE_BODY: LogicalPx = super::primitive::FONT_SIZE_13;
 /// `semantic.font-size-brand-display` → `{primitive.font-size-30}` = 30px
 pub const FONT_SIZE_BRAND_DISPLAY: LogicalPx = super::primitive::FONT_SIZE_30;
 
+/// `semantic.font-size-brand-lockup` → `{primitive.font-size-38}` = 38px
+pub const FONT_SIZE_BRAND_LOCKUP: LogicalPx = super::primitive::FONT_SIZE_38;
+
 /// `semantic.font-size-brand-wordmark` → `{primitive.font-size-17}` = 17px
 pub const FONT_SIZE_BRAND_WORDMARK: LogicalPx = super::primitive::FONT_SIZE_17;
 

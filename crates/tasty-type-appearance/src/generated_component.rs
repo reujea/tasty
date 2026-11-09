@@ -2916,6 +2916,12 @@ impl crate::theme::Theme {
         self.selection_edge_width
     }
 
+    /// `component.loading-lockup-font-size` → `{semantic.font-size-brand-lockup}` = 38px
+    #[inline]
+    pub fn loading_lockup_font_size(&self) -> LogicalPx {
+        LogicalPx((38.0 * self.ui_zoom).round())
+    }
+
     /// `component.loading-lockup-tracking` → `{primitive.letter-spacing-n1px}` = -1px
     #[inline]
     pub fn loading_lockup_tracking(&self) -> LogicalPx {
