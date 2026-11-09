@@ -21,6 +21,7 @@ use crate::catalog::spec::{StageVariant, TokenChip, meta, note, stage, wrap_item
 use crate::catalog::{Section, Spec};
 use crate::i18n::{t, t_count, t_fmt, t_fmt2};
 
+mod drop_on_bed;
 mod hidden_create;
 mod kinds;
 mod search;
@@ -90,6 +91,12 @@ pub fn create_section() -> Section {
                     "folder row menu → input right under the folder, indented, “in {folder}” · target ringed",
                 ),
                 draw: hidden_create::draw_create_in_folder,
+            },
+            Spec {
+                id: "explorer-ops-drop-target-bed",
+                title: "Drop target on the bed — folder row · list body",
+                when: Some("the tint paints under the row · the ring paints last"),
+                draw: drop_on_bed::draw_drop_target_on_the_bed,
             },
         ],
     }
@@ -654,7 +661,8 @@ fn cell_text(
                 ui.spacing_mut().item_spacing.x = th.spacing_sm.value();
                 let sz = th.icon_glyph_size_md.value();
                 let (rect, _) = ui.allocate_exact_size(egui::Vec2::splat(sz), egui::Sense::hover());
-                g.image(sz, muted).paint_at(ui, rect);
+                g.image(sz, th.text_secondary().to_egui())
+                    .paint_at(ui, rect);
                 ui.label(
                     egui::RichText::new(name)
                         .size(th.font_size_body.value())

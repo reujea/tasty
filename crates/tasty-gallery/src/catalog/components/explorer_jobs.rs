@@ -8,7 +8,7 @@ use tasty_type_geometry::length::LogicalPx;
 use tasty_ui_widgets::{
     ButtonVariant, ConflictProps, DragChipProps, DragOp, OpStatusProps, QueueRowProps,
     ResultAction, ResultCardProps, ResultLine, conflict_card, drag_chip, op_queue_popover,
-    op_status_line, paint_drop_target, result_card,
+    op_status_line, paint_drop_ring, paint_drop_tint, result_card,
 };
 
 use crate::catalog::icons::{self, MockGlyph};
@@ -655,7 +655,8 @@ pub fn draw_drag(ui: &mut egui::Ui, theme: &Theme) {
             egui::vec2(ROW_W.value(), theme.item_height_interactive.value()),
             egui::Sense::hover(),
         );
-        paint_drop_target(ui.painter(), theme, row, theme.corner_radius.value());
+        let radius = theme.corner_radius.value();
+        paint_drop_tint(ui.painter(), theme, row, radius);
         let g = theme.icon_glyph_size_sm.value();
         let glyph = egui::Rect::from_center_size(
             egui::pos2(
@@ -665,7 +666,7 @@ pub fn draw_drag(ui: &mut egui::Ui, theme: &Theme) {
             egui::vec2(g, g),
         );
         icons::FOLDER
-            .image(g, theme.text_muted().to_egui())
+            .image(g, theme.text_secondary().to_egui())
             .paint_at(ui, glyph);
         ui.painter().text(
             egui::pos2(glyph.right() + theme.spacing_sm.value(), row.center().y),
@@ -674,6 +675,7 @@ pub fn draw_drag(ui: &mut egui::Ui, theme: &Theme) {
             egui::FontId::proportional(theme.font_size_body.value()),
             theme.text_primary().to_egui(),
         );
+        paint_drop_ring(ui.painter(), theme, row, radius);
     });
     spec::meta(
         ui,

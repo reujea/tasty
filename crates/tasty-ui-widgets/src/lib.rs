@@ -31,6 +31,7 @@ mod dag_empty;
 mod dashed_edge;
 mod display_text;
 mod drilldown;
+mod drop_target;
 mod explorer_columns;
 mod explorer_commands;
 mod explorer_find_bar;
@@ -155,6 +156,7 @@ pub use dag_empty::{DAG_EMPTY_ICON_SIZE, DagEmptyView, paint_dag_empty};
 pub use dashed_edge::paint_dashed_outline;
 pub use display_text::nfc as display_nfc;
 pub use drilldown::{DrillDown, DrillDownActions, DrillDownOutput, DrillDownView};
+pub use drop_target::{DropTintSlot, paint_drop_ring, paint_drop_tint};
 pub use explorer_columns::{
     ExplorerDetailHeads, explorer_detail_columns, explorer_detail_tail_width,
 };

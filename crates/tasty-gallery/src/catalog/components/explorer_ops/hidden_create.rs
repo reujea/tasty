@@ -1,7 +1,7 @@
 //! 숨김 파일과 폴더 안 만들기 예제(시안 batch 11 "Remaining states"). 이름 색은 본체와 같은
 //! explorer-hidden-fg, 편집 줄은 본체와 같은 공용 `explorer_name_row_in`, 대상 표시는 `paint_drop_target`.
 
-use tasty_ui_widgets::{ExplorerNameOptions, explorer_name_row_in, paint_drop_target};
+use tasty_ui_widgets::{DropTintSlot, ExplorerNameOptions, explorer_name_row_in, paint_drop_ring};
 
 use super::search::status_bar;
 use super::*;
@@ -200,6 +200,7 @@ pub fn draw_create_in_folder(ui: &mut egui::Ui, theme: &Theme) {
                 let top = ui.cursor().top();
                 let left = ui.max_rect().left();
                 let width = ui.available_width();
+                let tint = DropTintSlot::reserve(ui.painter());
                 detail_columns_table(
                     ui,
                     th,
@@ -220,7 +221,9 @@ pub fn draw_create_in_folder(ui: &mut egui::Ui, theme: &Theme) {
                         egui::vec2(width, row_h),
                     )
                 };
-                paint_drop_target(ui.painter(), th, row(2.0), th.corner_radius.value());
+                let radius = th.corner_radius.value();
+                tint.fill(ui.ctx(), th, row(2.0), radius);
+                paint_drop_ring(ui.painter(), th, row(2.0), radius);
                 let caption = t_fmt("explorer.create.in_folder", "mockup-exports");
                 IN_FOLDER.with(|cell| {
                     let mut slot = cell.borrow_mut();

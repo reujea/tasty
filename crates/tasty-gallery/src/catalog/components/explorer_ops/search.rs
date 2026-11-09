@@ -203,7 +203,7 @@ fn name_cell(ui: &mut egui::Ui, th: &Theme, g: MockGlyph, name: &str, query: &st
         let (rect, _) = ui.allocate_exact_size(egui::Vec2::splat(sz), egui::Sense::hover());
         g.image(
             sz,
-            tasty_ui_widgets::table_cell_ink(ui, th, th.text_muted()),
+            tasty_ui_widgets::table_cell_ink(ui, th, th.text_secondary()),
         )
         .paint_at(ui, rect);
         ui.label(explorer_match_job(

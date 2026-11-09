@@ -140,7 +140,7 @@ fn cell(ui: &mut egui::Ui, th: &Theme, r: &KindRow, col: usize) {
                 } else if r.image {
                     th.accent_info().to_egui()
                 } else {
-                    muted
+                    th.text_secondary().to_egui()
                 };
                 r.glyph.image(sz, tint).paint_at(ui, rect);
                 ui.label(

@@ -34,11 +34,11 @@ impl Kind {
         }
     }
 
-    /// 이미지만 accent-info, 나머지는 `muted`(호출부가 정한 기본 글리프 색)를 쓴다.
-    fn tint(self, theme: &Theme, muted: egui::Color32) -> egui::Color32 {
+    /// 이미지만 accent-info, 나머지는 `glyph`(호출부가 정한 글리프 색)를 쓴다.
+    fn tint(self, theme: &Theme, glyph: egui::Color32) -> egui::Color32 {
         match self {
             Kind::Image | Kind::Thumb => egui::Color32::from(theme.accent_info()),
-            Kind::Folder | Kind::File => muted,
+            Kind::Folder | Kind::File => glyph,
         }
     }
 
@@ -407,7 +407,7 @@ pub(super) fn grid_cell_parts(
                 if selected {
                     kind.selected_tint(theme)
                 } else {
-                    kind.tint(theme, egui::Color32::from(theme.text_muted()))
+                    kind.tint(theme, egui::Color32::from(theme.text_secondary()))
                 },
             )
             .paint_at(
@@ -529,7 +529,7 @@ pub(super) fn detail_table(
                                 if sel {
                                     row.kind.selected_tint(th)
                                 } else {
-                                    row.kind.tint(th, egui::Color32::from(th.text_muted()))
+                                    row.kind.tint(th, egui::Color32::from(th.text_secondary()))
                                 },
                             )
                             .paint_at(ui, rect);
