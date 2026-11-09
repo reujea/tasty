@@ -421,6 +421,20 @@ pub fn terminal(ui: &mut egui::Ui, theme: &Theme) {
                 "search-match-active-fg",
                 "cell ink inside the active match",
             );
+            sem_row(
+                ui,
+                theme,
+                ec(theme.search_match_selected_fg()),
+                "search-match-selected-fg",
+                "ink for selected search matches",
+            );
+            sem_row(
+                ui,
+                theme,
+                ec(theme.search_match_active_selected_bg()),
+                "search-match-active-selected-bg",
+                "fill for selected active search matches",
+            );
         });
     });
 
@@ -474,7 +488,13 @@ pub fn terminal(ui: &mut egui::Ui, theme: &Theme) {
          6.60 Latte. An unfocused terminal draws no block cursor. Selected default-ink cells, \
          including bold and dim, use text-on-active on both beds at 4.62 Mocha, 5.40 Latte; \
          keeping cell ink would measure 4.62 Mocha, 3.69 Latte focused and 3.00 Mocha, 2.89 \
-         Latte unfocused. ANSI and reverse cells keep their ink in a selection.",
+         Latte unfocused. ANSI and reverse cells keep their ink in a selection. Selected \
+         ordinary: search-match-bg over selection-bg, with search-match-selected-fg for default, \
+         bold or dim cells (5.07 Mocha, 8.96 Latte); ANSI/reverse cells retain ink without a \
+         promised pair. Selected active: search-match-active-selected-bg over selection-bg, with \
+         search-match-selected-fg for every cell (9.81 Mocha, 8.20 Latte). The stronger Latte \
+         fill separates it from selected ordinary matches by ΔE 0.089, versus ΔE 0.040 with \
+         search-match-active-bg.",
     );
     dont(
         ui,
@@ -558,7 +578,7 @@ fn swatch_box(ui: &mut egui::Ui, theme: &Theme, fill: egui::Color32) {
 }
 
 /// 두 바탕의 상태 칸. 찾기 매치의 기본·dim 글자 셀은 text-primary, ANSI 색 셀은 자기 색이다.
-/// 선택과 링크, vi 커서는 두 바탕에서 값이 같다.
+/// 선택과 선택 위 매치, 링크, vi 커서는 두 바탕에서 값이 같다.
 /// 매치 밖 dim은 프로그램이 정하는 층이라 렌더러처럼 글자와 바탕을 반씩 섞는다.
 fn faux_terminal_matches(ui: &mut egui::Ui, theme: &Theme, focused: bool) {
     let term = theme.surface("terminal");
@@ -581,6 +601,9 @@ fn faux_terminal_matches(ui: &mut egui::Ui, theme: &Theme, focused: bool) {
     let primary = ec(theme.text_primary());
     let selection = ec(theme.selection_bg);
     let on_active = ec(theme.text_on_active());
+    let selected_ink = ec(theme.search_match_selected_fg());
+    let selected_match = selection.blend(matched);
+    let selected_active = selection.blend(ec(theme.search_match_active_selected_bg()));
     egui::Frame::new()
         .fill(bed)
         .corner_radius(theme.corner_radius.value())
@@ -615,6 +638,10 @@ fn faux_terminal_matches(ui: &mut egui::Ui, theme: &Theme, focused: bool) {
                     ("Dim outside matches", None, fg.lerp_to_gamma(bed, 0.5)),
                     (". ", None, fg),
                     ("Selected words", Some(selection), on_active),
+                    (". ", None, fg),
+                    ("Selected match", Some(selected_match), selected_ink),
+                    (". ", None, fg),
+                    ("Selected active match", Some(selected_active), selected_ink),
                     (". ", None, fg),
                 ]);
                 if !focused {
