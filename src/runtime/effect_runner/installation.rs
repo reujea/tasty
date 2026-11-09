@@ -132,6 +132,10 @@ impl Installed {
     pub(crate) fn waiting_input(&self) -> bool {
         self.input.is_some() || self.pending_body.is_some()
     }
+    #[cfg(all(test, unix))]
+    pub(crate) fn holds_body(&self) -> bool {
+        self.pending_body.is_some()
+    }
     /// Sends the CR once it is due. A target whose physical owner changed or that became hard
     /// occupied never receives it; the failure drops the input so no later poll retries it.
     pub(crate) fn poll_input(&mut self, engine: &mut EngineMut<'_>) -> anyhow::Result<()> {

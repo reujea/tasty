@@ -6,6 +6,11 @@ impl Creation {
     pub(in crate::app::journal) fn waits_child_input(&self) -> bool {
         matches!(&self.stage, Stage::Settling { installed, .. } if installed.waiting_input())
     }
+    /// The one-shot body has not been sent yet, as opposed to the CR that follows it.
+    #[cfg(all(test, unix))]
+    pub(in crate::app::journal) fn holds_child_body(&self) -> bool {
+        matches!(&self.stage, Stage::Settling { installed, .. } if installed.holds_body())
+    }
     pub(in crate::app::journal) fn set_origin_command(&mut self, command: String) {
         self.origin_command = Some(command);
     }

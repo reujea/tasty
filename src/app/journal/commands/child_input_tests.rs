@@ -73,9 +73,19 @@ fn outputs(session: &EngineSession, surface: u32) -> usize {
 
 /// Pumps until the child is published while its CR is still pending.
 fn published_before_submit(journal: &mut JournalApplication, session: &mut EngineSession) -> u32 {
+    published_counting(journal, session, &std::sync::atomic::AtomicUsize::new(0))
+}
+
+/// [`published_before_submit`] that counts each turn that returned, for a thread watching progress.
+fn published_counting(
+    journal: &mut JournalApplication,
+    session: &mut EngineSession,
+    turns: &std::sync::atomic::AtomicUsize,
+) -> u32 {
     let mut stall = StallBudget::new(journal);
     loop {
         turn(journal, session);
+        turns.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
         if let Some(child) = child_surface(session)
             && waiting_input(journal)
         {
@@ -200,6 +210,12 @@ fn a_child_held_after_publication_never_receives_the_late_submit() {
     assert!(!journal.has_creation(session.id));
 }
 
+/// Longest the test thread may go without finishing a turn while the lock holder waits. A turn does
+/// no fsync of its own, so it took at most 20 ms under load 30 and under 2.5 s fsyncs. This is the
+/// idle limit of the other waits in this test, far above that and below the time a slow journal
+/// keeps the lock. A synchronous wait shorter than this is not detected.
+const TURN_LIMIT: Duration = StallBudget::IDLE_LIMIT;
+
 #[test]
 fn a_held_relationship_receipt_keeps_command_and_original_reply_pending_after_publication() {
     let (mut session, mut journal) = boot_with_shell();
@@ -245,21 +261,74 @@ fn a_held_relationship_receipt_keeps_command_and_original_reply_pending_after_pu
     let (release, wait) = std::sync::mpsc::sync_channel(1);
     let expired = Arc::new(std::sync::atomic::AtomicBool::new(false));
     let timed_out = expired.clone();
+    let turns = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+    let watched = turns.clone();
     let holder = std::thread::spawn(move || {
         let _participant = tasty_utils::file_replace::lock(&path).unwrap();
         entered.send(()).unwrap();
-        if matches!(
-            wait.recv_timeout(Duration::from_secs(5)),
-            Err(std::sync::mpsc::RecvTimeoutError::Timeout)
-        ) {
-            timed_out.store(true, std::sync::atomic::Ordering::SeqCst);
+        // Time spent waiting for the journal's fsync does not count: the test thread keeps turning.
+        // Only a turn that does not return, which is what a synchronous wait on this lock looks
+        // like, reaches the limit. It then lets go so that the failure is reported, not a hang.
+        let mut seen = watched.load(std::sync::atomic::Ordering::SeqCst);
+        let mut since = std::time::Instant::now();
+        loop {
+            match wait.recv_timeout(Duration::from_millis(10)) {
+                Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {}
+                Ok(()) | Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => return,
+            }
+            let now = watched.load(std::sync::atomic::Ordering::SeqCst);
+            if now != seen {
+                seen = now;
+                since = std::time::Instant::now();
+            } else if since.elapsed() >= TURN_LIMIT {
+                timed_out.store(true, std::sync::atomic::Ordering::SeqCst);
+                return;
+            }
         }
     });
-    ready.recv_timeout(Duration::from_secs(5)).unwrap();
-    let child = published_before_submit(&mut journal, &mut session);
+    // Nothing is pumped here: the holder only waits for the writer's lock. It has no result to
+    // lose except by ending, so read its end first and bound only a wait that never ends.
+    let started = std::time::Instant::now();
+    loop {
+        let ended = holder.is_finished();
+        match ready.recv_timeout(Duration::from_millis(10)) {
+            Ok(()) => break,
+            Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => {
+                panic!("the lock holder ended before it entered")
+            }
+            Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {}
+        }
+        assert!(!ended, "the lock holder ended before it entered");
+        assert!(
+            started.elapsed() < StallBudget::CEILING,
+            "the lock holder did not enter within {:?}",
+            StallBudget::CEILING
+        );
+    }
+    let child = published_counting(&mut journal, &mut session, &turns);
+    let waited = || {
+        format!(
+            "a turn did not return for {TURN_LIMIT:?} with the file participant locked: \
+             publication must not synchronously wait on it"
+        )
+    };
     assert!(
         !expired.load(std::sync::atomic::Ordering::SeqCst),
-        "publication must not synchronously wait on the file participant"
+        "{}",
+        waited()
+    );
+    // Publication's own turn may not have polled the input yet. The relationship receipt cannot
+    // finish under this lock, so the body stays held however many turns poll it.
+    for _ in 0..3 {
+        turn(&mut journal, &mut session);
+        turns.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+    }
+    assert!(
+        journal
+            .creations
+            .values()
+            .any(|creation| creation.holds_child_body()),
+        "the one-shot body left before its relationship receipt finished"
     );
     assert_eq!(outputs(&session, child), 0);
     assert!(matches!(
@@ -267,8 +336,15 @@ fn a_held_relationship_receipt_keeps_command_and_original_reply_pending_after_pu
         Err(std::sync::mpsc::TryRecvError::Empty)
     ));
     assert!(!journal.pauses_observation());
-    release.send(()).unwrap();
+    // A holder that gave up after these checks has already dropped its receiver. Judged after the
+    // join, so the checks above are known to have run with the lock held.
+    let released = release.send(());
     holder.join().unwrap();
+    assert!(
+        released.is_ok() && !expired.load(std::sync::atomic::Ordering::SeqCst),
+        "{}",
+        waited()
+    );
     let response = reply(&mut journal, &mut session, &rx);
     assert!(response.error.is_none(), "{response:?}");
     assert_eq!(response.id, serde_json::json!(902));

@@ -446,6 +446,14 @@ CI 는 `.github/workflows/crossplatform-check.yml` 의 `check-headless` 잡이 �
   claim 만료를 검사하는 `abandoned_native_claim_...`의 20 ms는 admission 예산이기도 하다. 답이 `AdmissionTimeout`이면
   claim에 닿지 못한 시도라 새 home으로 다시 하고, 그 밖의 값은 그대로 판정한다. 시계를 주입하지 않았으므로 이
   시험에는 잠금 경합에 쓰는 시간 의존이 남고, `HANG_LIMIT`을 넘도록 claim에 닿지 못하면 실패한다.
+- 대기의 상대가 일하는지가 아니라 자기가 멈췄는지를 재는 대기도 있다: `a_held_relationship_receipt_...`는 파일
+  잠금을 쥔 동안 자식이 게시되는지 본다. 게시가 그 잠금을 동기로 기다리지 않음을 벽시계 5초로 확인했는데, 게시
+  한 번에 저널 fsync가 8회 정도 들어 fsync가 1000 ms면 3회 모두 실패했다. 지금은 잠금 보유 스레드가 시험 스레드의
+  펌프 횟수를 읽어 그 수가 멈춘 시간만 `StallBudget::IDLE_LIMIT`(10초)까지 센다. fsync가 느려도 펌프는 계속되므로
+  이 값에 닿지 않는다. 펌프 간격은 부하 30과 fsync 2.5초에서 최대 20 ms였다. 10초보다 짧은 동기 대기는 잡지 못한다.
+  이 시험은 잠금을 쥔 채 펌프한 뒤 본문이 아직 보류 중인지도 단정한다. 본문 전송 전에도 `waiting_input`이 참이고 CR은
+  본문 뒤 20 ms에 가므로, 이 단정이 없을 때는 영수증 관문을 지운 변이가 10회 모두 통과했다. 만료 판정은 잠금 해제
+  결과와 함께 `join` 뒤에 읽어 앞의 단정이 잠금을 쥔 동안 돌았음을 보장한다.
 - 순서대로 처리하는 worker의 결과는 fence로 받고 시간으로 판정하지 않는다: 원격 파일 시험
   (`remote_file_tests`)은 `poll_file_writer`와 `try_recv`를 벽시계 5초 동안 돌았다. Windows에서 CPU 바쁜
   프로세스 48개를 띄우면 `held_inline_add_and_remove_answer_original_callers_once_with_actual_operations`가
