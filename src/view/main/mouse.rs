@@ -90,8 +90,9 @@ impl MainView {
         let highlight = LinkHighlight {
             epoch: cut.epoch,
             segments: span.segments,
-            fg: th.accent_primary().to_gpu_rgba(),
+            fg: th.text_on_active().to_gpu_rgba(),
             bg: th.selection_bg.to_gpu_rgba(),
+            underline: th.accent_primary_raised().to_gpu_rgba(),
         };
         Some(HoveredLink {
             revision: cut.revision,

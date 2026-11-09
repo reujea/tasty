@@ -482,6 +482,7 @@ pub struct LinkHighlight {
     pub segments: Vec<LinkSegment>,
     pub fg: tasty_type_appearance::color::GpuRgba,
     pub bg: tasty_type_appearance::color::GpuRgba,
+    pub underline: tasty_type_appearance::color::GpuRgba,
 }
 
 impl LinkHighlight {
@@ -798,6 +799,9 @@ mod tests {
                 0.0, 0.0, 0.0, 1.0,
             ]),
             bg: tasty_type_appearance::color::GpuRgba::dangerously_force_from_array([
+                0.0, 0.0, 0.0, 1.0,
+            ]),
+            underline: tasty_type_appearance::color::GpuRgba::dangerously_force_from_array([
                 0.0, 0.0, 0.0, 1.0,
             ]),
         };

@@ -200,7 +200,7 @@ fn a_block_cursor_cell_keeps_its_swapped_ink_in_a_match() {
                 search: Some(&sh),
             },
         )
-        .1
+        .fg
     };
     assert_eq!(paint(true), default_bg());
     assert_eq!(paint(false), ink());
@@ -223,7 +223,7 @@ fn a_reversed_screen_keeps_the_cell_ink_only_when_the_setting_allows_it() {
             assert_eq!(paint.search.expect("same epoch").inactive_ink, want_ink);
         }
         let reversed = screen_paint(&view, true, Some(&sh), None, default_bg(), default_fg());
-        let (_, fg) = paint_cell(
+        let fg = paint_cell(
             MATCH_COL,
             0,
             &attrs_of(""),
@@ -238,7 +238,8 @@ fn a_reversed_screen_keeps_the_cell_ink_only_when_the_setting_allows_it() {
                 link: None,
                 search: reversed.search.as_ref(),
             },
-        );
+        )
+        .fg;
         assert_eq!(fg, default_bg());
     });
 }

@@ -10,6 +10,7 @@ struct BgInstance {
     @location(0) pos: vec2<f32>,
     @location(1) viewport_offset: vec2<f32>,
     @location(2) bg_color: vec4<f32>,
+    @location(3) line: vec2<f32>,
 };
 
 struct VertexOutput {
@@ -25,7 +26,11 @@ fn vs_main(@builtin(vertex_index) vi: u32, instance: BgInstance) -> VertexOutput
     );
 
     let p = quad_pos[vi];
-    let pixel_pos = (instance.pos + p) * uniforms.cell_size + instance.viewport_offset;
+    var in_cell = p * uniforms.cell_size;
+    if instance.line.y > 0.0 {
+        in_cell.y = instance.line.x + p.y * instance.line.y;
+    }
+    let pixel_pos = instance.pos * uniforms.cell_size + in_cell + instance.viewport_offset;
     let ndc = pixel_pos / uniforms.viewport_size * 2.0 - 1.0;
 
     var out: VertexOutput;

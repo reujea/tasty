@@ -101,7 +101,7 @@ per-frame accumulator(`bg_instances`, `glyph_instances`, `surface_ranges`)와 dr
 
 한 surface 의 셀들을 `BgInstance`/`GlyphInstance` 로 만들어 accumulator Vec 에 push 한다. 동시에 그 surface 의 `(scissor rect, bg range, glyph range)` 를 `surface_ranges` 에 기록한다. **viewport offset 은 per-instance 로 각 인스턴스에 baked** 되므로(전역 uniform 을 surface 마다 다시 쓰지 않는다), surface 마다 uniform 갱신/submit 이 필요 없다. theme lock(`ansi` 팔레트)은 호출자가 **프레임당 1회** 잡아 넘긴다(surface 마다 잠그지 않음).
 
-셀 하나는 bg 인스턴스 하나다. 강조(선택 → vi 커서 → 링크 → 검색)는 별도 인스턴스가 아니라 **그 셀의 bg 색을 바꾸고**(vi 커서 칸의 글자는 `vi_cursor_fg()`), bg 파이프라인은 `BlendState::REPLACE` 로 쓴다. 그래서 강조색의 alpha 는 GPU 가 아니라 CPU 에서 반영한다 — `renderer/overlay.rs` 의 `composite_over` 가 강조색을 그 셀의 현재 bg 위에 source-over 로 합성한다(불투명 강조색은 그대로 통과). 셀 기본 bg · 셀 속성 bg · Block 커서는 합성하지 않는다. 근거: [테마 시스템 (운영 상세)](../design/systems/theme.md).
+셀 하나는 bg 인스턴스 하나다. 포인터 아래 링크의 밑줄은 `BgInstance.line`(셀 위쪽에서 잰 위치와 높이)을 쓴 bg 인스턴스를 칸마다 하나 더하며, bg 패스가 글리프 패스보다 먼저라 글리프 아래에 놓인다. 강조(선택 → vi 커서 → 링크 → 검색)는 별도 인스턴스가 아니라 **그 셀의 bg 색을 바꾸고**(vi 커서 칸의 글자는 `vi_cursor_fg()`), bg 파이프라인은 `BlendState::REPLACE` 로 쓴다. 그래서 강조색의 alpha 는 GPU 가 아니라 CPU 에서 반영한다 — `renderer/overlay.rs` 의 `composite_over` 가 강조색을 그 셀의 현재 bg 위에 source-over 로 합성한다(불투명 강조색은 그대로 통과). 셀 기본 bg · 셀 속성 bg · Block 커서는 합성하지 않는다. 근거: [테마 시스템 (운영 상세)](../design/systems/theme.md).
 
 ### ③ `flush_buffers(device, queue)`
 

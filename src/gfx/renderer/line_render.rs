@@ -5,7 +5,7 @@ use termwiz::cell::CellAttributes;
 use tasty_font::GlyphKey;
 
 use super::CellRenderer;
-use super::cell_paint::{CellOverlays, paint_cell};
+use super::cell_paint::{CellOverlays, CellPaint, paint_cell};
 use super::overlay::composite_over;
 use super::types::{BgInstance, GlyphInstance};
 use tasty_cell_width::unicode_width;
@@ -28,7 +28,11 @@ impl CellRenderer {
         absolute_row: usize,
         overlays: CellOverlays<'_>,
     ) {
-        let (bg_color, fg_color) = paint_cell(
+        let CellPaint {
+            bg: bg_color,
+            fg: fg_color,
+            underline,
+        } = paint_cell(
             col_idx,
             absolute_row,
             attrs,
@@ -48,7 +52,11 @@ impl CellRenderer {
                     pos: [(col_idx + i) as f32, row_idx as f32],
                     viewport_offset: off,
                     bg_color,
+                    line: BgInstance::WHOLE_CELL,
                 });
+                if let Some(color) = underline {
+                    self.push_link_underline(col_idx + i, row_idx, color);
+                }
             }
         }
 
@@ -131,6 +139,7 @@ impl CellRenderer {
                 pos: [c as f32, row_idx as f32],
                 viewport_offset: off,
                 bg_color,
+                line: BgInstance::WHOLE_CELL,
             });
         }
     }
@@ -191,6 +200,7 @@ impl CellRenderer {
                 pos: [c as f32, row_idx as f32],
                 viewport_offset: off,
                 bg_color,
+                line: BgInstance::WHOLE_CELL,
             });
         }
     }

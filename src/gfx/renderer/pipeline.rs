@@ -150,6 +150,11 @@ impl CellRenderer {
                             shader_location: 2,
                             format: wgpu::VertexFormat::Float32x4,
                         },
+                        wgpu::VertexAttribute {
+                            offset: 32,
+                            shader_location: 3,
+                            format: wgpu::VertexFormat::Float32x2,
+                        },
                     ],
                 }],
                 compilation_options: Default::default(),

@@ -21,7 +21,16 @@ pub(super) struct CellOverlays<'a> {
     pub search: Option<&'a SearchHighlights<'a>>,
 }
 
-/// 셀 색 위에 커서, 선택, vi 커서, 링크, 매치 순서로 칠한 (바탕, 글자)를 돌려준다.
+/// 한 칸의 칠. `underline`은 포인터 아래 링크의 밑줄 색이다.
+#[derive(Clone, Copy, PartialEq, Debug)]
+pub(super) struct CellPaint {
+    pub bg: GpuRgba,
+    pub fg: GpuRgba,
+    pub underline: Option<GpuRgba>,
+}
+
+/// 셀 색 위에 커서, 선택, vi 커서, 링크, 매치 순서로 칠한다.
+/// 링크 칸은 어느 매치에서나 선택 칸으로 읽는다. 커서 칸은 링크 안에서도 커서 칸이고 밑줄은 그 글자색이다.
 // 이유: 칸 좌표, 셀 속성, 기본 색, 팔레트, 커서를 칸마다 따로 받는다. 묶으면 호출마다 구조체를 새로 만든다.
 #[allow(clippy::too_many_arguments)]
 pub(super) fn paint_cell(
@@ -33,19 +42,19 @@ pub(super) fn paint_cell(
     ansi: &[GpuRgb; 16],
     block_cursor: bool,
     overlays: &CellOverlays<'_>,
-) -> (GpuRgba, GpuRgba) {
+) -> CellPaint {
     let (mut bg, mut fg) = compute_cell_colors(attrs, default_bg, default_fg, ansi);
-    let mut ink_replaced = false;
+    let mut cursor_cell = false;
     if block_cursor {
         std::mem::swap(&mut bg, &mut fg);
-        ink_replaced = true;
+        cursor_cell = true;
     }
     if let Some((sel, sel_bg, _)) = overlays.selection
         && tasty_selection::is_selected(col, absolute_row, sel)
     {
         bg = composite_over(*sel_bg, bg);
         if let Some(ink) = overlays.selection_ink
-            && !ink_replaced
+            && !cursor_cell
             && reads_default_ink(attrs)
         {
             fg = ink;
@@ -57,19 +66,26 @@ pub(super) fn paint_cell(
     {
         bg = composite_over(*cursor_bg, bg);
         fg = *cursor_fg;
-        ink_replaced = true;
+        cursor_cell = true;
     }
-    if let Some(link) = overlays.link
-        && link.covers(col, absolute_row)
+    let link = overlays.link.filter(|l| l.covers(col, absolute_row));
+    if let Some(link) = link
+        && !cursor_cell
     {
-        bg = composite_over(link.bg, bg);
-        fg = link.fg;
-        ink_replaced = true;
+        return CellPaint {
+            bg: composite_over(link.bg, bg),
+            fg: link.fg,
+            underline: Some(link.underline),
+        };
     }
     if let Some(search) = overlays.search {
-        search.paint(col, absolute_row, attrs, ink_replaced, &mut bg, &mut fg);
+        search.paint(col, absolute_row, attrs, cursor_cell, &mut bg, &mut fg);
     }
-    (bg, fg)
+    CellPaint {
+        bg,
+        fg,
+        underline: link.map(|_| fg),
+    }
 }
 
 /// viewport 하나에 적용할 화면 값. 화면 반전과 설정을 함께 본다.

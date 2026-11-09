@@ -14,6 +14,12 @@ pub(crate) struct BgInstance {
     pub pos: [f32; 2],
     pub viewport_offset: [f32; 2],
     pub bg_color: GpuRgba,
+    /// 셀 위쪽에서 잰 (위쪽, 높이) 물리 픽셀. 높이가 0이면 칸 전체를 칠한다.
+    pub line: [f32; 2],
+}
+
+impl BgInstance {
+    pub(crate) const WHOLE_CELL: [f32; 2] = [0.0, 0.0];
 }
 
 #[repr(C)]

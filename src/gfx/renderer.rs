@@ -2,6 +2,7 @@
 //! 입력 타입은 소유 크레이트를 직접 참조한다. 셀 색 해석은 헤드리스와 같은 cell_palette를 사용한다.
 //! 의존 경계: docs/architecture/index.md.
 
+mod cell_lines;
 mod cell_paint;
 mod line_render;
 mod overlay;
@@ -21,7 +22,7 @@ use tasty_model::PhysicalRect;
 use tasty_selection::{NormalizedSelection, SelectionPoint};
 use tasty_terminal_link::LinkHighlight;
 
-use cell_paint::{CellOverlays, ScreenPaint, paint_cell, screen_paint};
+use cell_paint::{CellOverlays, CellPaint, ScreenPaint, paint_cell, screen_paint};
 use overlay::composite_over;
 
 /// Search match highlights to pass into the renderer.
@@ -49,7 +50,7 @@ impl SearchHighlights<'_> {
     }
 
     /// 칸이 매치 안이면 강조색을 배경에 합성한다. 현재 매치는 글자색도 바꾸고, 일반 매치는
-    /// 기본 글자 셀만 바꾼다. `ink_replaced`는 커서·링크가 이미 글자색을 정한 칸이다.
+    /// 기본 글자 셀만 바꾼다. `ink_replaced`는 커서가 이미 글자색을 정한 칸이다.
     fn paint(
         &self,
         col: usize,
@@ -305,6 +306,7 @@ impl CellRenderer {
                                 pos: [col_idx as f32, row_idx as f32],
                                 viewport_offset: off,
                                 bg_color: default_bg,
+                                line: BgInstance::WHOLE_CELL,
                             });
                         }
                         continue;
@@ -352,6 +354,7 @@ impl CellRenderer {
                         pos: [cols as f32, row_idx as f32],
                         viewport_offset: off,
                         bg_color: default_bg,
+                        line: BgInstance::WHOLE_CELL,
                     });
                 }
                 for col_idx in 0..=cols {
@@ -359,6 +362,7 @@ impl CellRenderer {
                         pos: [col_idx as f32, rows as f32],
                         viewport_offset: off,
                         bg_color: default_bg,
+                        line: BgInstance::WHOLE_CELL,
                     });
                 }
 
@@ -414,7 +418,11 @@ impl CellRenderer {
                     _ => None,
                 };
                 let abs_row = row_offset + row_idx;
-                let (bg_color, fg_color) = paint_cell(
+                let CellPaint {
+                    bg: bg_color,
+                    fg: fg_color,
+                    underline,
+                } = paint_cell(
                     col_idx,
                     abs_row,
                     attrs,
@@ -429,7 +437,11 @@ impl CellRenderer {
                     pos: [col_idx as f32, row_idx as f32],
                     viewport_offset: off,
                     bg_color,
+                    line: BgInstance::WHOLE_CELL,
                 });
+                if let Some(color) = underline {
+                    self.push_link_underline(col_idx, row_idx, color);
+                }
 
                 let text = cell_ref.str();
 
@@ -440,7 +452,11 @@ impl CellRenderer {
                             pos: [(col_idx + 1) as f32, row_idx as f32],
                             viewport_offset: off,
                             bg_color,
+                            line: BgInstance::WHOLE_CELL,
                         });
+                        if let Some(color) = underline {
+                            self.push_link_underline(col_idx + 1, row_idx, color);
+                        }
                         last_col = col_idx + 2;
                     } else {
                         last_col = col_idx + 1;
@@ -505,6 +521,7 @@ impl CellRenderer {
                     pos: [col_idx as f32, row_idx as f32],
                     viewport_offset: off,
                     bg_color: bg,
+                    line: BgInstance::WHOLE_CELL,
                 });
             }
         }
@@ -537,6 +554,7 @@ impl CellRenderer {
                 pos: [cols as f32, row_idx as f32],
                 viewport_offset: off,
                 bg_color: default_bg,
+                line: BgInstance::WHOLE_CELL,
             });
         }
         for col_idx in 0..=cols {
@@ -544,8 +562,28 @@ impl CellRenderer {
                 pos: [col_idx as f32, rows as f32],
                 viewport_offset: off,
                 bg_color: default_bg,
+                line: BgInstance::WHOLE_CELL,
             });
         }
+    }
+
+    /// 포인터 아래 링크의 밑줄. 칸의 바탕 다음, 글리프 앞 패스에 칠해 글리프 아래에 놓인다.
+    fn push_link_underline(&mut self, col: usize, row: usize, color: GpuRgba) {
+        let metrics = &self.font_config.metrics;
+        let height = metrics.cell_height as u32;
+        let thickness = cell_lines::line_thickness(height);
+        let top = cell_lines::underline_top(
+            cell_lines::row_under_baseline(metrics.baseline),
+            thickness,
+            height,
+            thickness,
+        );
+        self.bg_instances.push(BgInstance {
+            pos: [col as f32, row as f32],
+            viewport_offset: self.current_viewport_offset,
+            bg_color: color,
+            line: [top as f32, thickness as f32],
+        });
     }
 
     /// Push a single glyph instance used to overlay a sub-cell cursor shape
@@ -623,6 +661,7 @@ impl CellRenderer {
                         pos: [(col_idx + i) as f32, screen_row as f32],
                         viewport_offset: off,
                         bg_color: preedit.bg_color,
+                        line: BgInstance::WHOLE_CELL,
                     });
                 }
             }

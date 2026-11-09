@@ -4,6 +4,8 @@ use super::*;
 use crate::cell_palette::compute_cell_colors;
 use tasty_selection::SelectionMode;
 use tasty_terminal::Terminal;
+use tasty_terminal::search::SearchMatch;
+use tasty_terminal_link::LinkSegment;
 use termwiz::cell::CellAttributes;
 
 fn rgba(v: f32) -> GpuRgba {
@@ -47,7 +49,7 @@ fn selection() -> (NormalizedSelection, GpuRgba, GpuRgba) {
         sel_ink(),
     )
 }
-fn selected(attrs: &CellAttributes, block_cursor: bool, ink: bool) -> (GpuRgba, GpuRgba) {
+fn selected(attrs: &CellAttributes, block_cursor: bool, ink: bool) -> CellPaint {
     let sel = selection();
     paint_cell(
         0,
@@ -72,7 +74,7 @@ fn selected(attrs: &CellAttributes, block_cursor: bool, ink: bool) -> (GpuRgba, 
 fn a_selected_default_cell_reads_the_selection_ink() {
     for sgr in ["", "\x1b[1m", "\x1b[2m", "\x1b[31m\x1b[39m", "\x1b[41m"] {
         assert_eq!(
-            selected(&attrs_of(sgr), false, true).1,
+            selected(&attrs_of(sgr), false, true).fg,
             sel_ink(),
             "{sgr:?}"
         );
@@ -91,18 +93,18 @@ fn a_selected_cell_with_its_own_ink_keeps_it() {
         let attrs = attrs_of(sgr);
         let own = compute_cell_colors(&attrs, bed(), cell_ink(), &ansi()).1;
         assert_ne!(own, sel_ink(), "{sgr:?}");
-        assert_eq!(selected(&attrs, false, true).1, own, "{sgr:?}");
+        assert_eq!(selected(&attrs, false, true).fg, own, "{sgr:?}");
     }
 }
 
 #[test]
 fn a_selected_cell_lies_on_the_selection_fill() {
-    assert_eq!(selected(&attrs_of(""), false, true).0, sel_bg());
+    assert_eq!(selected(&attrs_of(""), false, true).bg, sel_bg());
 }
 
 #[test]
 fn a_block_cursor_cell_keeps_its_swapped_ink_in_a_selection() {
-    assert_eq!(selected(&attrs_of(""), true, true).1, bed());
+    assert_eq!(selected(&attrs_of(""), true, true).fg, bed());
 }
 
 /// 반전 화면의 기본 글자는 바탕 색이다. 선택 잉크는 화면 값에서 빠진다.
@@ -116,7 +118,7 @@ fn a_reversed_screen_drops_the_selection_ink_only_when_the_setting_allows_it() {
         assert_eq!(paint(true).selection_ink, None);
         assert_eq!(paint(false).selection_ink, Some(sel_ink()));
     });
-    assert_eq!(selected(&attrs_of(""), false, false).1, cell_ink());
+    assert_eq!(selected(&attrs_of(""), false, false).fg, cell_ink());
 }
 
 /// 비포커스 바탕에서도 값이 같은 근거다. 바탕이 불투명해 아래 바탕이 글자에 닿지 않는다.
@@ -131,4 +133,178 @@ fn the_selection_fill_is_opaque_on_the_official_themes() {
         assert_eq!(theme.selection_bg.to_gpu_rgba().as_array()[3], 1.0);
         assert_eq!(theme.vi_cursor_bg.to_gpu_rgba().as_array()[3], 1.0);
     }
+}
+
+fn link_bg() -> GpuRgba {
+    rgba(0.4)
+}
+fn link_ink() -> GpuRgba {
+    rgba(0.95)
+}
+fn link_line() -> GpuRgba {
+    rgba(0.5)
+}
+fn cursor_bg() -> GpuRgba {
+    rgba(0.7)
+}
+fn cursor_ink() -> GpuRgba {
+    rgba(0.15)
+}
+/// 0행과 1행에 걸친 링크. wrap된 링크처럼 segment가 둘이다.
+fn link() -> LinkHighlight {
+    LinkHighlight {
+        epoch: tasty_terminal::ContentEpoch::default(),
+        segments: vec![
+            LinkSegment {
+                absolute_row: 0,
+                start_col: 0,
+                end_col: 4,
+            },
+            LinkSegment {
+                absolute_row: 1,
+                start_col: 0,
+                end_col: 2,
+            },
+        ],
+        fg: link_ink(),
+        bg: link_bg(),
+        underline: link_line(),
+    }
+}
+const MATCHES: [SearchMatch; 2] = [
+    SearchMatch {
+        row: 0,
+        col_start: 0,
+        col_end: 2,
+    },
+    SearchMatch {
+        row: 0,
+        col_start: 2,
+        col_end: 8,
+    },
+];
+fn search(active_index: usize) -> SearchHighlights<'static> {
+    SearchHighlights {
+        epoch: tasty_terminal::ContentEpoch::default(),
+        matches: &MATCHES,
+        active_index,
+        inactive_bg: GpuRgba::dangerously_force_from_array([0.8, 0.8, 0.0, 0.3]),
+        active_bg: GpuRgba::dangerously_force_from_array([0.8, 0.8, 0.0, 0.7]),
+        active_fg: rgba(0.2),
+        inactive_ink: Some(rgba(0.85)),
+    }
+}
+fn on_link(
+    col: usize,
+    row: usize,
+    block_cursor: bool,
+    vi: Option<&(SelectionPoint, GpuRgba, GpuRgba)>,
+    sh: Option<&SearchHighlights<'_>>,
+) -> CellPaint {
+    let link = link();
+    paint_cell(
+        col,
+        row,
+        &attrs_of(""),
+        bed(),
+        cell_ink(),
+        &ansi(),
+        block_cursor,
+        &CellOverlays {
+            selection: None,
+            selection_ink: None,
+            vi_cursor: vi,
+            link: Some(&link),
+            search: sh,
+        },
+    )
+}
+fn link_cell() -> CellPaint {
+    CellPaint {
+        bg: link_bg(),
+        fg: link_ink(),
+        underline: Some(link_line()),
+    }
+}
+
+#[test]
+fn every_segment_of_the_link_reads_as_the_link_cell() {
+    for (col, row) in [(0, 0), (4, 0), (0, 1), (2, 1)] {
+        assert_eq!(
+            on_link(col, row, false, None, None),
+            link_cell(),
+            "{col},{row}"
+        );
+    }
+    assert_eq!(on_link(5, 0, false, None, None).underline, None);
+    assert_eq!(on_link(3, 1, false, None, None).underline, None);
+}
+
+/// 매치 바탕을 칠하면 글자와 밑줄이 미달이다. 활성 위치와 상관없이 0열은 일반, 2열은 현재 매치 칸이다.
+#[test]
+fn a_link_cell_skips_both_match_fills() {
+    for active in [0, 1] {
+        let sh = search(active);
+        for col in [0, 2] {
+            assert_eq!(
+                on_link(col, 0, false, None, Some(&sh)),
+                link_cell(),
+                "{active} {col}"
+            );
+        }
+    }
+}
+
+#[test]
+fn the_rest_of_the_match_keeps_its_fill() {
+    let sh = search(1);
+    let beyond_the_link = on_link(6, 0, false, None, Some(&sh));
+    assert_ne!(beyond_the_link.bg, bed());
+    assert_eq!(beyond_the_link.fg, rgba(0.2));
+    assert_eq!(beyond_the_link.underline, None);
+}
+
+/// 파란 밑줄은 커서 바탕 위에서 1.18 · 2.61이라 커서 칸의 밑줄은 커서 글자색이다.
+#[test]
+fn a_cursor_cell_in_a_link_stays_a_cursor_cell_with_a_line_in_its_ink() {
+    let vi = (point(1), cursor_bg(), cursor_ink());
+    assert_eq!(
+        on_link(1, 0, false, Some(&vi), None),
+        CellPaint {
+            bg: cursor_bg(),
+            fg: cursor_ink(),
+            underline: Some(cursor_ink()),
+        }
+    );
+    assert_eq!(
+        on_link(1, 0, true, None, None),
+        CellPaint {
+            bg: cell_ink(),
+            fg: bed(),
+            underline: Some(bed()),
+        }
+    );
+}
+
+#[test]
+fn a_link_cell_replaces_a_selection() {
+    let sel = selection();
+    let link = link();
+    let paint = paint_cell(
+        0,
+        0,
+        &attrs_of(""),
+        bed(),
+        cell_ink(),
+        &ansi(),
+        false,
+        &CellOverlays {
+            selection: Some(&sel),
+            selection_ink: Some(sel_ink()),
+            vi_cursor: None,
+            link: Some(&link),
+            search: None,
+        },
+    );
+    assert_eq!(paint, link_cell());
 }
