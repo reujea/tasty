@@ -6,7 +6,7 @@ use tasty_type_appearance::color::{GpuRgb, GpuRgba};
 use termwiz::cell::CellAttributes;
 
 use super::overlay::composite_over;
-use super::{CursorPaint, SearchHighlights};
+use super::{CursorPaint, RenderPreedit, SearchHighlights};
 use crate::cell_palette::{compute_cell_colors, reads_default_ink};
 
 /// 셀 위에 겹치는 상태. 칸마다 같은 값을 쓰므로 한 viewport에서 한 번 만든다.
@@ -19,6 +19,8 @@ pub(super) struct CellOverlays<'a> {
     pub vi_cursor: Option<&'a (SelectionPoint, GpuRgba, GpuRgba)>,
     pub link: Option<&'a LinkHighlight>,
     pub search: Option<&'a SearchHighlights<'a>>,
+    /// 조합 중인 글자. 덮는 칸은 칸의 선을 긋지 않는다.
+    pub preedit: Option<&'a RenderPreedit>,
 }
 
 /// 한 칸의 칠. `underline`은 포인터 아래 링크의 밑줄 색이다.

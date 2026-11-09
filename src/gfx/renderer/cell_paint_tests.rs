@@ -65,6 +65,7 @@ fn selected(attrs: &CellAttributes, block_cursor: bool, ink: bool) -> CellPaint 
             vi_cursor: None,
             link: None,
             search: None,
+            preedit: None,
         },
     )
 }
@@ -222,6 +223,7 @@ fn on_link(
             vi_cursor: vi,
             link: Some(&link),
             search: sh,
+            preedit: None,
         },
     )
 }
@@ -310,6 +312,7 @@ fn a_link_cell_replaces_a_selection() {
             vi_cursor: None,
             link: Some(&link),
             search: None,
+            preedit: None,
         },
     );
     assert_eq!(paint, link_cell());
@@ -341,6 +344,7 @@ fn selected_match(
             vi_cursor: vi,
             link: None,
             search: Some(sh),
+            preedit: None,
         },
     )
 }
@@ -418,6 +422,7 @@ fn a_reversed_screen_keeps_its_ink_only_in_a_selected_ordinary_match() {
                 vi_cursor: None,
                 link: None,
                 search: Some(&sh),
+                preedit: None,
             },
         )
     };
@@ -469,6 +474,7 @@ fn unselected_match(
             vi_cursor: vi,
             link: None,
             search: Some(sh),
+            preedit: None,
         },
     )
 }
@@ -575,6 +581,7 @@ fn a_selected_link_cell_in_a_match_stays_a_link_cell() {
                 vi_cursor: None,
                 link: Some(&link),
                 search: Some(&sh),
+                preedit: None,
             },
         );
         assert_eq!(paint, link_cell(), "{col}");
@@ -624,6 +631,7 @@ fn only_the_block_cursor_shape_swaps_the_cell() {
         vi_cursor: None,
         link: None,
         search: None,
+        preedit: None,
     };
     let paint = |cursor| paint_cell(0, 0, &attrs, bed(), cell_ink(), &ansi(), cursor, &overlays);
     let swapped = paint(cursor_paint_at(

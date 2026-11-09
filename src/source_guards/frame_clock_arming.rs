@@ -24,9 +24,9 @@ const GUARD_DIRS: &[&str] = &["src/source_guards/", "crates/tasty-doc-guards/"];
 const FRAME_ENTRY_FNS: &[&str] = &["capture_surface_to_png", "render_terminals"];
 const ATLAS_TOUCHING_FNS: &[&str] = &[
     "append_preedit_overlay",
-    "fill_surface",
+    "push_cell_glyph",
     "push_overlay_glyph",
-    "render_cell",
+    "solid_texel",
 ];
 
 fn rel_str(rel: &Path) -> String {

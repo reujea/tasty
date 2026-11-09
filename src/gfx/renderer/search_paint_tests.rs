@@ -199,6 +199,7 @@ fn a_block_cursor_cell_keeps_its_swapped_ink_in_a_match() {
                 vi_cursor: None,
                 link: None,
                 search: Some(&sh),
+                preedit: None,
             },
         )
         .fg
@@ -238,6 +239,7 @@ fn a_reversed_screen_keeps_the_cell_ink_only_when_the_setting_allows_it() {
                 vi_cursor: None,
                 link: None,
                 search: reversed.search.as_ref(),
+                preedit: None,
             },
         )
         .fg;

@@ -2,6 +2,7 @@
 //! 입력 타입은 소유 크레이트를 직접 참조한다. 셀 색 해석은 헤드리스와 같은 cell_palette를 사용한다.
 //! 의존 경계: docs/architecture/index.md.
 
+mod cell_decor;
 mod cell_lines;
 mod cell_paint;
 mod line_render;
@@ -19,10 +20,14 @@ use tasty_type_appearance::color::{GpuRgb, GpuRgba};
 use termwiz::surface::Surface;
 
 use tasty_font::{FontConfig, GlyphAtlas, GlyphKey};
-use tasty_model::PhysicalRect;
+use tasty_model::{PhysicalPx, PhysicalRect};
 use tasty_selection::{NormalizedSelection, SelectionPoint};
 use tasty_terminal_link::LinkHighlight;
 
+use cell_decor::{
+    CellLines, CellPlace, LineGeometry, LineLayer, SolidTexel, covered_columns, fill_cell,
+    push_over_lines,
+};
 use cell_paint::{CellOverlays, CellPaint, ScreenPaint, cursor_paint_at, paint_cell, screen_paint};
 use overlay::composite_over;
 pub use search_paint::SearchHighlights;
@@ -110,6 +115,8 @@ pub struct CellRenderer {
     /// `append_terminal_viewport` call. Set at the start of accumulation
     /// for a surface and read by per-cell push helpers.
     pub(crate) current_viewport_offset: [f32; 2],
+    /// 칸이 긋는 선의 기하. `current_viewport_offset`처럼 viewport마다 정한다.
+    current_line_geometry: LineGeometry,
     /// render_all에서 기록한 draw call 수. RenderPass 대여와 겹치지 않도록 Cell로 갱신한다.
     last_frame_bg_draws: Cell<u32>,
     last_frame_glyph_draws: Cell<u32>,
@@ -165,6 +172,12 @@ impl CellRenderer {
         let bg_start = self.bg_instances.len() as u32;
         let glyph_start = self.glyph_instances.len() as u32;
         self.current_viewport_offset = [viewport.x.value(), viewport.y.value()];
+        // 프로그램 선(SGR 4, 9, 53)의 값은 아직 정하지 않아 긋지 않는다.
+        self.current_line_geometry = LineGeometry::new(
+            PhysicalPx(self.font_config.metrics.cell_height),
+            PhysicalPx(self.font_config.metrics.baseline),
+            None,
+        );
 
         // viewport 전체를 일관되게 읽도록 터미널 상태 잠금을 한 번 잡는다.
         {
@@ -193,6 +206,7 @@ impl CellRenderer {
                 vi_cursor,
                 link,
                 search: search.as_ref(),
+                preedit,
             };
             let cursor = if show_cursor && view.cursor_visible() && view.scroll_offset() == 0 {
                 let (cx, cy) = view.surface().cursor_position();
@@ -226,7 +240,6 @@ impl CellRenderer {
                     ansi,
                     cursor,
                     row_offset,
-                    preedit,
                     overlays,
                 );
                 self.append_preedit_overlay(preedit, queue, cols, rows, view.viewport().top_row);
@@ -331,7 +344,6 @@ impl CellRenderer {
         ansi: &[GpuRgb; 16],
         cursor: Option<(usize, usize, bool, CursorPaint)>,
         row_offset: usize,
-        preedit: Option<&RenderPreedit>,
         overlays: CellOverlays<'_>,
     ) {
         let (cols, rows) = surface.dimensions();
@@ -354,11 +366,7 @@ impl CellRenderer {
                 // normally and get a sub-cell overlay glyph after the loop.
                 let cursor_paint = cursor_paint_at(cursor, col_idx, row_idx);
                 let abs_row = row_offset + row_idx;
-                let CellPaint {
-                    bg: bg_color,
-                    fg: fg_color,
-                    underline,
-                } = paint_cell(
+                let paint = paint_cell(
                     col_idx,
                     abs_row,
                     attrs,
@@ -368,69 +376,16 @@ impl CellRenderer {
                     cursor_paint,
                     &overlays,
                 );
-
-                self.bg_instances.push(BgInstance {
-                    pos: [col_idx as f32, row_idx as f32],
-                    viewport_offset: off,
-                    bg_color,
-                    line: BgInstance::WHOLE_CELL,
-                });
-                if let Some(color) = underline {
-                    self.push_link_underline(col_idx, row_idx, color);
-                }
-
                 let text = cell_ref.str();
-
-                if !text.is_empty() {
-                    let ch = text.chars().next().unwrap();
-                    if unicode_width(ch) > 1 && col_idx + 1 < cols {
-                        self.bg_instances.push(BgInstance {
-                            pos: [(col_idx + 1) as f32, row_idx as f32],
-                            viewport_offset: off,
-                            bg_color,
-                            line: BgInstance::WHOLE_CELL,
-                        });
-                        if let Some(color) = underline {
-                            self.push_link_underline(col_idx + 1, row_idx, color);
-                        }
-                        last_col = col_idx + 2;
-                    } else {
-                        last_col = col_idx + 1;
-                    }
-                } else {
-                    last_col = col_idx + 1;
-                }
-
-                if text.is_empty() || text == " " {
-                    continue;
-                }
-
-                if preedit.is_some_and(|p| p.covers(col_idx, abs_row)) {
-                    continue;
-                }
-
-                let ch = text.chars().next().unwrap();
-                let bold = attrs.intensity() == termwiz::cell::Intensity::Bold;
-                let italic = attrs.italic();
-
-                let key = GlyphKey { ch, bold, italic };
-
-                if let Some(entry) = self.atlas.get_or_insert(key, &mut self.font_config, queue)
-                    && entry.width > 0.0
-                    && entry.height > 0.0
-                {
-                    self.glyph_instances.push(GlyphInstance {
-                        pos: [col_idx as f32, row_idx as f32],
-                        viewport_offset: off,
-                        uv_offset: [entry.uv_x, entry.uv_y],
-                        uv_size: [entry.uv_w, entry.uv_h],
-                        fg_color,
-                        glyph_offset: [entry.offset_x, entry.offset_y],
-                        glyph_size: [entry.width, entry.height],
-                        page: entry.page,
-                        _pad: 0,
-                    });
-                }
+                let wide = text.chars().next().is_some_and(|ch| unicode_width(ch) > 1);
+                let columns = covered_columns(col_idx, if wide { 2 } else { 1 }, cols);
+                last_col = columns.end;
+                let place = CellPlace {
+                    columns,
+                    row: row_idx,
+                    absolute_row: abs_row,
+                };
+                self.push_cell(place, text, attrs, paint, &overlays, queue);
             }
             // Trailing cells in the row (incl. cursor on empty cell).
             let abs_row = row_offset + row_idx;
@@ -503,23 +458,110 @@ impl CellRenderer {
         }
     }
 
-    /// 포인터 아래 링크의 밑줄. 칸의 바탕 다음, 글리프 앞 패스에 칠해 글리프 아래에 놓인다.
-    fn push_link_underline(&mut self, col: usize, row: usize, color: GpuRgba) {
-        let metrics = &self.font_config.metrics;
-        let height = metrics.cell_height as u32;
-        let thickness = cell_lines::line_thickness(height);
-        let top = cell_lines::underline_top(
-            cell_lines::row_under_baseline(metrics.baseline),
-            thickness,
-            height,
-            thickness,
+    /// 칸 하나의 바탕, 글리프 아래 선, 글리프, 글리프 위 선을 낸다. 현재 화면과 스크롤한 위치가 함께 쓴다.
+    /// 선 판단은 공백 칸 검사 앞이라 글자가 없는 칸도 선을 긋는다.
+    fn push_cell(
+        &mut self,
+        place: CellPlace,
+        text: &str,
+        attrs: &termwiz::cell::CellAttributes,
+        paint: CellPaint,
+        overlays: &CellOverlays<'_>,
+        queue: &wgpu::Queue,
+    ) {
+        let (lines, covered_by_preedit) = fill_cell(
+            &mut self.bg_instances,
+            &place,
+            attrs,
+            &paint,
+            overlays.preedit,
+            &self.current_line_geometry,
+            self.current_viewport_offset,
         );
-        self.bg_instances.push(BgInstance {
-            pos: [col as f32, row as f32],
-            viewport_offset: self.current_viewport_offset,
-            bg_color: color,
-            line: [top as f32, thickness as f32],
-        });
+        let CellPlace { columns, row, .. } = place;
+        let col = columns.start;
+        if !(text.is_empty() || text == " " || covered_by_preedit) {
+            self.push_cell_glyph(col, row, text, attrs, paint.fg, queue);
+        }
+        self.push_cell_over_lines(columns, row, &lines, queue);
+    }
+
+    fn push_cell_glyph(
+        &mut self,
+        col: usize,
+        row: usize,
+        text: &str,
+        attrs: &termwiz::cell::CellAttributes,
+        fg_color: GpuRgba,
+        queue: &wgpu::Queue,
+    ) {
+        let Some(ch) = text.chars().next() else {
+            return;
+        };
+        let key = GlyphKey {
+            ch,
+            bold: attrs.intensity() == termwiz::cell::Intensity::Bold,
+            italic: attrs.italic(),
+        };
+        if let Some(entry) = self.atlas.get_or_insert(key, &mut self.font_config, queue)
+            && entry.width > 0.0
+            && entry.height > 0.0
+        {
+            self.glyph_instances.push(GlyphInstance {
+                pos: [col as f32, row as f32],
+                viewport_offset: self.current_viewport_offset,
+                uv_offset: [entry.uv_x, entry.uv_y],
+                uv_size: [entry.uv_w, entry.uv_h],
+                fg_color,
+                glyph_offset: [entry.offset_x, entry.offset_y],
+                glyph_size: [entry.width, entry.height],
+                page: entry.page,
+                _pad: 0,
+            });
+        }
+    }
+
+    /// 글리프 위 선이 있을 때만 꽉 찬 블록을 아틀라스에서 찾는다. 선이 없는 칸은 비용이 없다.
+    fn push_cell_over_lines(
+        &mut self,
+        columns: Range<usize>,
+        row: usize,
+        lines: &CellLines,
+        queue: &wgpu::Queue,
+    ) {
+        if lines.is_empty() || lines.on(LineLayer::OverGlyph).next().is_none() {
+            return;
+        }
+        let Some(solid) = self.solid_texel(queue) else {
+            return;
+        };
+        push_over_lines(
+            &mut self.glyph_instances,
+            columns,
+            row,
+            self.current_viewport_offset,
+            PhysicalPx(self.font_config.metrics.cell_width),
+            solid,
+            lines,
+        );
+    }
+
+    fn solid_texel(&mut self, queue: &wgpu::Queue) -> Option<SolidTexel> {
+        let key = GlyphKey {
+            ch: '\u{2588}', // █ FULL BLOCK
+            bold: false,
+            italic: false,
+        };
+        if let Some(entry) = self.atlas.get_or_insert(key, &mut self.font_config, queue)
+            && entry.width > 0.0
+            && entry.height > 0.0
+        {
+            return Some(SolidTexel {
+                uv: [entry.uv_x + entry.uv_w / 2.0, entry.uv_y + entry.uv_h / 2.0],
+                page: entry.page,
+            });
+        }
+        None
     }
 
     /// Push a single glyph instance used to overlay a sub-cell cursor shape
@@ -773,6 +815,8 @@ fn clip_scissor(
     (x, y, w, h)
 }
 
+#[cfg(test)]
+mod cell_decor_tests;
 #[cfg(test)]
 mod cell_paint_tests;
 #[cfg(test)]

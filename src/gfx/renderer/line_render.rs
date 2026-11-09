@@ -2,13 +2,36 @@ use tasty_terminal::ScrollbackLine;
 use tasty_type_appearance::color::{GpuRgb, GpuRgba};
 use termwiz::cell::CellAttributes;
 
-use tasty_font::GlyphKey;
-
 use super::CellRenderer;
+use super::RenderPreedit;
+use super::cell_decor::{CellPlace, covered_columns};
 use super::cell_paint::{CellOverlays, CellPaint, paint_cell};
 use super::overlay::composite_over;
-use super::types::{BgInstance, GlyphInstance};
+use super::types::BgInstance;
 use tasty_cell_width::unicode_width;
+
+/// 스크롤한 위치의 칸 칠과, 칸이 덮이는지 판단할 preedit를 정한다. GPU 자원 없이 판단만 한다.
+pub(super) fn scrolled_cell_paint<'a>(
+    place: &CellPlace,
+    attrs: &CellAttributes,
+    default_bg: GpuRgba,
+    default_fg: GpuRgba,
+    ansi: &[GpuRgb; 16],
+    overlays: &CellOverlays<'a>,
+) -> (CellPaint, Option<&'a RenderPreedit>) {
+    let paint = paint_cell(
+        place.columns.start,
+        place.absolute_row,
+        attrs,
+        default_bg,
+        default_fg,
+        ansi,
+        None,
+        overlays,
+    );
+    // 스크롤한 위치는 preedit 덮개를 보지 않는다. 덮인 칸도 원래 글리프와 선을 낸다.
+    (paint, None)
+}
 
 impl CellRenderer {
     /// Render a single cell into instance buffers (shared logic for both line types).
@@ -28,64 +51,18 @@ impl CellRenderer {
         absolute_row: usize,
         overlays: CellOverlays<'_>,
     ) {
-        let CellPaint {
-            bg: bg_color,
-            fg: fg_color,
-            underline,
-        } = paint_cell(
-            col_idx,
+        let place = CellPlace {
+            columns: covered_columns(col_idx, width, cols),
+            row: row_idx,
             absolute_row,
-            attrs,
-            default_bg,
-            default_fg,
-            ansi,
-            None,
-            &overlays,
-        );
-
-        let off = self.current_viewport_offset;
-
-        // Push bg for main cell and continuation cells of wide characters
-        for i in 0..width {
-            if col_idx + i < cols {
-                self.bg_instances.push(BgInstance {
-                    pos: [(col_idx + i) as f32, row_idx as f32],
-                    viewport_offset: off,
-                    bg_color,
-                    line: BgInstance::WHOLE_CELL,
-                });
-                if let Some(color) = underline {
-                    self.push_link_underline(col_idx + i, row_idx, color);
-                }
-            }
-        }
-
-        if text.is_empty() || text == " " {
-            return;
-        }
-
-        let ch = text.chars().next().unwrap();
-        let bold = attrs.intensity() == termwiz::cell::Intensity::Bold;
-        let italic = attrs.italic();
-
-        let key = GlyphKey { ch, bold, italic };
-
-        if let Some(entry) = self.atlas.get_or_insert(key, &mut self.font_config, queue)
-            && entry.width > 0.0
-            && entry.height > 0.0
-        {
-            self.glyph_instances.push(GlyphInstance {
-                pos: [col_idx as f32, row_idx as f32],
-                viewport_offset: off,
-                uv_offset: [entry.uv_x, entry.uv_y],
-                uv_size: [entry.uv_w, entry.uv_h],
-                fg_color,
-                glyph_offset: [entry.offset_x, entry.offset_y],
-                glyph_size: [entry.width, entry.height],
-                page: entry.page,
-                _pad: 0,
-            });
-        }
+        };
+        let (paint, preedit) =
+            scrolled_cell_paint(&place, attrs, default_bg, default_fg, ansi, &overlays);
+        let overlays = CellOverlays {
+            preedit,
+            ..overlays
+        };
+        self.push_cell(place, text, attrs, paint, &overlays, queue);
     }
 
     /// Render a single scrollback line (compact `ScrollbackLine`).

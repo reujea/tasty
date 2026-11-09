@@ -274,6 +274,10 @@ impl CellRenderer {
         };
         queue.write_buffer(&uniform_buffer, 0, bytemuck::bytes_of(&uniforms));
 
+        let (cell_height, baseline) = (
+            font_config.metrics.cell_height,
+            font_config.metrics.baseline,
+        );
         Self {
             bg_pipeline,
             glyph_pipeline,
@@ -291,6 +295,11 @@ impl CellRenderer {
             glyph_instances: Vec::with_capacity(300 * 100),
             surface_ranges: Vec::with_capacity(8),
             current_viewport_offset: [0.0, 0.0],
+            current_line_geometry: super::cell_decor::LineGeometry::new(
+                tasty_model::PhysicalPx(cell_height),
+                tasty_model::PhysicalPx(baseline),
+                None,
+            ),
             last_frame_bg_draws: std::cell::Cell::new(0),
             last_frame_glyph_draws: std::cell::Cell::new(0),
         }
