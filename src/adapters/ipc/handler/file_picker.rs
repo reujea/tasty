@@ -16,7 +16,7 @@ use crate::adapters::ui::popup::file_picker;
 use crate::state::{FilePickerRequester, RequestContext};
 
 /// `file_picker.trigger { filters?: string[], owner_popup_instance?: u64, start_dir?: string,
-/// origin_surface_id?: u32, mode?: "open" | "save", default_name?: string, location?: "local",
+/// origin_surface_id?: u32, mode?: "open" | "save" | "folder", default_name?: string, location?: "local",
 /// user_navigation_url?: string }` 요청.
 #[derive(Deserialize)]
 struct FilePickerTriggerReq {
@@ -54,6 +54,8 @@ enum PickerMode {
     #[default]
     Open,
     Save,
+    /// 폴더 하나를 고른다. 결과 `paths[0]` 은 고른 폴더 경로다.
+    Folder,
 }
 
 #[derive(Deserialize)]
@@ -165,6 +167,14 @@ pub fn handle_trigger_with_proofs(
         return busy_response(id);
     }
 
+    if req.mode == PickerMode::Folder {
+        state
+            .dialogs
+            .file_picker
+            .as_mut()
+            .expect("opened picker")
+            .folder = true;
+    }
     if req.mode == PickerMode::Save {
         state
             .dialogs

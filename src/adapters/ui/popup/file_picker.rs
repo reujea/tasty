@@ -10,6 +10,8 @@
 #[cfg(test)]
 mod admission_tests;
 mod folder;
+#[cfg(test)]
+mod folder_tests;
 mod footer;
 #[cfg(test)]
 mod layout_tests;
@@ -690,14 +692,25 @@ pub fn draw_file_picker(
         .save_name
         .as_ref()
         .is_some_and(|name| save::overwrites(name, &data.entries, &data.filters));
-    let title_label = t(if data.save_name.is_some() {
+    let folder_target = folder::target(data);
+    let title_label = t(if data.folder {
+        "picker.folder.title"
+    } else if data.save_name.is_some() {
         "filepicker.save.title"
     } else {
         "filepicker.title"
     });
-    let name_field_label = t("filepicker.name_field_label");
+    let name_field_label = t(if data.folder {
+        "picker.folder.label"
+    } else {
+        "filepicker.name_field_label"
+    });
     let cancel_label = t("button.cancel");
-    let empty_label = t("filepicker.empty");
+    let empty_label = t(if data.folder {
+        "picker.folder.empty"
+    } else {
+        "filepicker.empty"
+    });
     let loading_label = t("filepicker.loading");
     let loading_body_local = t("filepicker.loading_body_local");
     let loading_body_remote = t("filepicker.loading_body_remote");
@@ -714,6 +727,15 @@ pub fn draw_file_picker(
         entries: &view_entries,
         selected: &data.selected,
         mode: match &data.save_name {
+            _ if data.folder => FilePickerMode::Folder {
+                path: &folder_target,
+                hint: t(if data.selected.is_empty() {
+                    "picker.folder.hint.current"
+                } else {
+                    "picker.folder.hint.selected"
+                }),
+                file_tooltip: t("picker.folder.file.tooltip"),
+            },
             Some(name) => FilePickerMode::Save {
                 name,
                 overwrite,
@@ -738,7 +760,9 @@ pub fn draw_file_picker(
             "filepicker.no_file_selected"
         }),
         cancel_label,
-        confirm_label: t(if overwrite {
+        confirm_label: t(if data.folder {
+            "picker.folder.confirm"
+        } else if overwrite {
             "filepicker.save.overwrite_button"
         } else if data.save_name.is_some() {
             "filepicker.save.save_button"
@@ -847,6 +871,16 @@ fn apply_action(
         }
         FilePickerAction::Confirm => {
             if let Some(d) = state.dialogs.file_picker.as_mut()
+                && d.folder
+            {
+                if !matches!(d.load, FpLoadState::Loaded | FpLoadState::Empty) {
+                    return PopupAction::None;
+                }
+                let path = folder::target(d);
+                d.result = Some(FilePickerResult::Confirmed { paths: vec![path] });
+                return PopupAction::Close;
+            }
+            if let Some(d) = state.dialogs.file_picker.as_mut()
                 && let Some(name) = &d.save_name
             {
                 if let Some(path) = save::confirmed_path(
@@ -902,7 +936,7 @@ fn apply_action(
                 .dialogs
                 .file_picker
                 .as_ref()
-                .is_some_and(|d| d.save_name.is_some())
+                .is_some_and(|d| d.folder || d.save_name.is_some())
             {
                 return apply_action(state, engine, FilePickerAction::Select(name));
             }
@@ -990,6 +1024,7 @@ pub(crate) fn open(
 
     state.dialogs.file_picker = Some(crate::state::FilePickerData {
         save_name: None,
+        folder: false,
         request_id,
         mirror_ws_id,
         remote_host: None,
