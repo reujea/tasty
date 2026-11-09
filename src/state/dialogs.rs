@@ -410,6 +410,8 @@ pub(crate) struct FilePickerRequester {
 pub(crate) struct FilePickerData {
     /// None opens existing files; Some edits a single save name without writing.
     pub(crate) save_name: Option<String>,
+    /// 폴더 하나를 고른다. 확정 대상은 고른 하위 폴더, 없으면 현재 폴더이고 파일 행은 고를 수 없다.
+    pub(crate) folder: bool,
     /// 이 요청의 식별자. 결과와 함께 호출자에게 간다.
     pub(crate) request_id: FilePickerRequestId,
     /// 원격 탐색 대상인 로컬 mirror workspace ID. None이면 로컬 탐색이다.

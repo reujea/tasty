@@ -241,7 +241,11 @@ markdown의 Browse와 주소창 폴더 버튼, 이미지 다른 이름으로 저
    증명을 남기는 `file_picker` 와 소비하는 `markdown` handler 가 `gui` feature 전용이므로 증명 저장소도
    `gui` 빌드에만 있다. headless 빌드에는 피커와 이 판정이 없다.
 
-**저장 모드**: `mode?: "open" | "save"`(기본 `open`), `default_name?: string`(기본 빈 이름)을
+**폴더 모드**: `mode: "folder"` 는 메인 popup 을 Settings chooser 와 같은 폴더 선택 화면으로 연다(제목 `picker.folder.title`).
+파일 행은 보이되 고를 수 없고, 확정하면 고른 하위 폴더를, 고른 것이 없으면 지금 보고 있는 폴더를 `paths[0]` 으로
+돌려준다. 폴더를 더블클릭하면 들어간다. 원격 위치도 받는다. `Loading` 중에는 확정하지 않는다.
+
+**저장 모드**: `mode?: "open" | "save" | "folder"`(기본 `open`), `default_name?: string`(기본 빈 이름)을
 받는다. `location: "local"`은 활성 workspace와 무관하게 로컬을 지정한다. 생략하면 기존 출발 surface
 판정을 유지하되 저장 모드에서 원격 위치는 `-32602`로 거절한다. 이미지 호출은 `mode: "save"`,
 `location: "local"`, `filters: ["png"]`, 현재 버퍼의 파일명(없으면 `image.png`), surface ID와
@@ -464,6 +468,8 @@ view 는 `FilePickerProps` 만 받고 `FilePickerAction` 만 돌려주므로 상
 - Given Markdown 문서의 Folder 에 키보드 포커스 When Enter 또는 Space(Windows·Linux) Then 피커가 사용자 요청으로 열려 페이지 위에 보이고 Esc 로 닫힌다.
   Enter 연타·누르고 있기도 피커가 포커스를 받는다.
 - Given Markdown 문서의 Folder When 마우스로 빠르게 두 번 클릭 Then 피커가 보이고 쓸 수 있다. Windows 80ms 측정에서는 둘째 클릭이 상자 밖 Folder 자리에 떨어져 일반 바깥 클릭 규칙대로 포커스가 풀렸다. 이 상태에서는 Esc 로 닫히지 않고, 상자를 누르면 포커스를 받아 Esc 로 닫힌다. Linux 80ms 측정에서는 포커스를 유지했다.
+- Given plugin 이 `mode: "folder"` 로 트리거함 When 하위 폴더를 고르지 않고 확정함 Then `paths` 는 지금 보고 있는
+  폴더 하나다. 하위 폴더를 고르고 확정하면 들어가지 않고 그 폴더를 돌려주며, 파일 행으로는 확정되지 않는다.
 - Given `filters: ["md"]` 로 트리거됨 Then 렌더된 엔트리 목록에서 `.md` 가 아닌 파일은
   제외되고(디렉토리는 필터와 무관하게 항상 표시), 확정/취소 시 `"file_picker.result"` 가
   그 요청을 낸 plugin 에만(unicast) push 된다.
@@ -622,6 +628,7 @@ Open/Save는 기존640×480을 유지한다. 최소폭320과 3언어 안내 줄�
 폴더 모드 회귀는 `src/view/file_chooser/folder_tests.rs`(현재/선택 폴더, 키 이동, 취소·한 번 소비),
 `src/view/settings/ui/file_chooser_popup_tests.rs`(크기·Esc·draft 보존),
 `src/view/plugins/ui/add/folder_tests.rs`(기존 검증 연결), `src/view/plugins/ui/add.rs`(미인증 미리보기의 Esc 보존)와 `src/view/plugins/ui/tests.rs`(제거 확인 Esc 순서),
-`src/adapters/ui/preset/surface_settings/browse_tests.rs`(필드/세대/rename/kind/leaf)를 검사한다.
+`src/adapters/ui/preset/surface_settings/browse_tests.rs`(필드/세대/rename/kind/leaf),
+`src/adapters/ui/popup/file_picker/folder_tests.rs`(plugin `mode: "folder"` 의 현재/선택 폴더 확정, 파일 행·Loading 거절)를 검사한다.
 공용 footer의 3언어·너비·비활성 잉크는 `crates/tasty-ui-widgets/src/folder_picker/tests.rs`,
 갤러리 ID 정합은 `crates/tasty-gallery/tests/specimen_smoke.rs`에서 검사한다.
