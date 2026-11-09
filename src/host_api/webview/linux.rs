@@ -50,6 +50,8 @@ pub struct PlatformWebView {
     /// 원격 차단의 실효값(전역 || 문서 허용)과 content filter.
     remote: RemoteBlock,
     nav_state: Rc<Cell<NavState>>,
+    /// web process가 끝났고 동기화 루프가 아직 꺼내 가지 않았다.
+    content_process_ended: Rc<Cell<bool>>,
     /// chrome 세대. 앞 로드의 늦은 종료가 새 로드의 Loading을 바꾸지 않게 한다.
     loads: Rc<RefCell<SignalOrderLoads>>,
     pending_navigations: Rc<RefCell<Vec<PendingNavigation>>>,
@@ -306,6 +308,7 @@ impl PlatformWebView {
 
         // 실패 후 Finished가 와도 Failed를 Done으로 덮지 않는다.
         let nav_state = Rc::new(Cell::new(NavState::Idle));
+        let content_process_ended = Rc::new(Cell::new(false));
         // 비동기 선택 질의 뒤 입력·문서 교체·폐기가 있었는지 판정한다.
         let edit_guard = edit::EditGuard::default();
         let loads = Rc::new(RefCell::new(SignalOrderLoads::default()));
@@ -347,6 +350,7 @@ impl PlatformWebView {
             // web process가 commit 전에 종료되면 load-failed도 load-changed Finished도 오지 않는다(실측).
             // 여기서 로드를 끝내지 않으면 스크립트 게이트가 로드 중에 머물러 허용을 거절한다.
             let nav = nav_state.clone();
+            let ended = content_process_ended.clone();
             let loads = loads.clone();
             let gate = script_gate.clone();
             let remote = remote.clone();
@@ -356,6 +360,7 @@ impl PlatformWebView {
                 );
                 loads.borrow_mut().terminated();
                 nav.set(NavState::Failed);
+                ended.set(true);
                 gate_step(wv, &gate, &remote, |g| {
                     g.failed();
                     g.finished()
@@ -493,6 +498,7 @@ impl PlatformWebView {
             origin_thread: std::thread::current().id(),
             remote,
             nav_state,
+            content_process_ended,
             loads,
             pending_navigations,
             committed_url,
@@ -827,6 +833,11 @@ impl PlatformWebView {
 
     pub fn nav_state(&self) -> NavState {
         self.nav_state.get()
+    }
+
+    /// 마지막 호출 뒤 web process가 끝났는지 돌려주고 기록을 지운다.
+    pub fn take_content_process_ended(&self) -> bool {
+        self.content_process_ended.replace(false)
     }
 
     /// Linux는 보류한 응답 결정을 GTK 작업이 직접 끝내므로 동기화에서 할 일이 없다.

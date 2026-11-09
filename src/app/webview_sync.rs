@@ -530,11 +530,38 @@ fn note_reveal_pending(view: &mut MainView, pending: &[(u32, crate::webview::Nav
         .retain(|sid, _| pending.iter().any(|(p, _)| p == sid));
 }
 
+/// web content process가 끝난 WebView 중 호스트가 HTML 본문을 실은 페이지는 다음 동기화에서
+/// 같은 본문을 다시 싣게 한다. 엔진은 다음 로드에서 process를 새로 띄운다. 이런 페이지는
+/// 새로고침 수단이 문서 안에 있고, 플러그인이 같은 본문을 다시 보내도 로드를 건너뛰므로 스스로
+/// 복구할 방법이 없다. 주소로 연 페이지는 사용자가 이동한 위치를 덮지 않도록 그대로 둔다.
+fn forget_ended_host_documents(
+    view: &mut MainView,
+    engine: &crate::runtime::engine_access::EngineRef<'_>,
+) {
+    let ended: Vec<u32> = view
+        .webviews
+        .iter()
+        .filter(|(_, wv)| wv.take_content_process_ended())
+        .map(|(sid, _)| *sid)
+        .filter(|sid| {
+            view.webview_loaded_urls
+                .get(sid)
+                .is_some_and(|url| !crate::webview::is_navigable_url(url))
+                && find_remote_surface(view, engine, *sid).is_none_or(|rs| rs.html_mirror.is_none())
+        })
+        .collect();
+    for sid in ended {
+        tracing::info!("WebView surface {sid}: reloading the document after its process ended");
+        view.webview_loaded_urls.remove(&sid);
+    }
+}
+
 fn resync_webview_urls(
     view: &mut MainView,
     engine: &crate::runtime::engine_access::EngineRef<'_>,
     all_html_ids: &[u32],
 ) {
+    forget_ended_host_documents(view, engine);
     for &sid in all_html_ids {
         let Some(url) = find_webview_url(view, engine, sid) else {
             continue;

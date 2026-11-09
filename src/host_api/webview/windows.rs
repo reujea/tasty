@@ -52,6 +52,8 @@ pub struct PlatformWebView {
     http: Option<Rc<super::http_native::NativeDocument>>,
     allow_remote: Rc<Cell<bool>>,
     nav_state: Rc<Cell<NavState>>,
+    /// 렌더 process가 끝났고 동기화 루프가 아직 꺼내 가지 않았다.
+    content_process_ended: Rc<Cell<bool>>,
     /// 마지막에 시작한 main frame 탐색의 NavigationId. chrome 상태는 이 탐색의 종료만 따른다.
     chrome_generation: Rc<Cell<Option<u64>>>,
     /// 원격 차단 여부와 별도로 기록한 탐색 시도 큐(NavigationStarting과 같은 문서 fragment 이동).
@@ -301,6 +303,7 @@ impl PlatformWebView {
             }
 
             let nav_state = Rc::new(Cell::new(NavState::Idle));
+            let content_process_ended = Rc::new(Cell::new(false));
             let script_gate: Rc<RefCell<Option<ScriptGate>>> = Rc::new(RefCell::new(None));
             let scan_resume = Rc::new(RefCell::new(ScanResume::new(surface_id)));
             let gate_request = script_gate.clone();
@@ -704,6 +707,7 @@ impl PlatformWebView {
             // NavigationCompleted가 뒤따라 와도 finished()는 로드 중이 아닐 때 아무것도 하지 않는다.
             // iframe·GPU·utility process 종료는 main frame 로드를 끝내지 않으므로 건너뛴다.
             let nav_failed = nav_state.clone();
+            let ended_failed = content_process_ended.clone();
             let gate_failed = script_gate.clone();
             let resume_failed = scan_resume.clone();
             let mut tok_failed: i64 = 0;
@@ -721,6 +725,11 @@ impl PlatformWebView {
                         return Ok(());
                     }
                     nav_failed.set(NavState::Failed);
+                    // 렌더 process만 끝났으면 같은 WebView에 다시 탐색해 복구할 수 있다.
+                    // browser process가 끝난 WebView는 다시 만들어야 하므로 표시하지 않는다.
+                    if kind == COREWEBVIEW2_PROCESS_FAILED_KIND_RENDER_PROCESS_EXITED {
+                        ended_failed.set(true);
+                    }
                     resume_failed.borrow_mut().clear();
                     if let Some(gate) = gate_failed.borrow().as_ref() {
                         gate.failed();
@@ -813,6 +822,7 @@ impl PlatformWebView {
                 http,
                 allow_remote,
                 nav_state,
+                content_process_ended,
                 chrome_generation,
                 pending_navigations,
                 script_gate,
@@ -939,6 +949,11 @@ impl PlatformWebView {
 
     pub fn nav_state(&self) -> NavState {
         self.nav_state.get()
+    }
+
+    /// 마지막 호출 뒤 렌더 process가 끝났는지 돌려주고 기록을 지운다.
+    pub fn take_content_process_ended(&self) -> bool {
+        self.content_process_ended.replace(false)
     }
 
     /// 스캔을 기다리려고 취소한 탐색을 읽기가 끝났으면 같은 종류로 다시 시작한다.

@@ -79,6 +79,8 @@ struct NavDelegateIvars {
     pending_decision: RefCell<Option<PendingDecision>>,
     /// Cancel로 끝낸 결정의 늦은 실패 신호를 새 로드의 실패로 보지 않게 센다.
     cancelled_decisions: RefCell<CancelledDecisions>,
+    /// web content process가 끝났고 동기화 루프가 아직 꺼내 가지 않았다.
+    content_process_ended: Cell<bool>,
 }
 
 define_class!(
@@ -196,6 +198,7 @@ define_class!(
                 self.ivars().surface_id
             );
             self.ivars().nav_state.set(NavState::Failed);
+            self.ivars().content_process_ended.set(true);
             self.ivars().cancel_pending_decision();
             self.ivars().gate_failed();
             self.ivars().gate_finished();
@@ -428,6 +431,7 @@ impl NavDelegate {
             committed_url: RefCell::new(None),
             pending_decision: RefCell::new(None),
             cancelled_decisions: RefCell::new(CancelledDecisions::default()),
+            content_process_ended: Cell::new(false),
         });
         // SAFETY: NSObject 의 지정 초기화자 init 을 super 로 호출.
         unsafe { msg_send![super(this), init] }
@@ -963,6 +967,14 @@ impl PlatformWebView {
     /// delegate 콜백이 기록한 navigation 상태.
     pub fn nav_state(&self) -> NavState {
         self.nav_state.get()
+    }
+
+    /// 마지막 호출 뒤 web content process가 끝났는지 돌려주고 기록을 지운다.
+    pub fn take_content_process_ended(&self) -> bool {
+        self._nav_delegate
+            .ivars()
+            .content_process_ended
+            .replace(false)
     }
 
     /// 스캔을 기다리며 보류한 정책 결정을 읽기가 끝났으면 끝낸다. webview 동기화마다 부른다.

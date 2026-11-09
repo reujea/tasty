@@ -146,6 +146,10 @@ App adapter가 native backend의 현재 상태를 읽어 EngineRuntime의 `Remot
 `nav_state`는 현재 상태를 읽고 `take_pending_navigations`는 쌓인 요청을 꺼내 비운다.
 Done·Failed 전이는 마지막에 시작하거나 요청한 로드의 종료만 따른다. 앞 로드의 늦은 종료는 새 로드의 Loading을 바꾸지 않고, web process 종료는 세대와 관계없이 Failed다. OS별 세대 출처는 [HTML Viewer (`com.tasty.html`)](../../surfaces/html/index.md)에 있다(Linux는 신호 순서).
 
+web process가 끝나면 backend는 그 사실을 따로 기록하고(`take_content_process_ended`), 동기화 adapter가 다음 동기화에서 꺼낸다. 호스트가 HTML 본문으로 실은 페이지(markdown처럼 주소가 아닌 본문을 `load_html`로 실은 경우)는 마지막으로 실은 본문 기록을 지워 같은 본문을 다시 싣는다. 엔진은 그 로드에서 web process를 새로 띄운다. 이런 페이지는 새로고침 수단이 문서 안에 있고, 플러그인이 같은 본문을 다시 보내도 adapter가 로드를 건너뛰므로 다른 복구 경로가 없다. 주소로 연 페이지와 attach mirror 문서는 사용자가 이동한 위치를 덮지 않도록 다시 싣지 않고 Failed로 둔다. Windows는 렌더러 process 종료만 기록한다. 브라우저 process가 끝난 WebView2는 같은 WebView로 다시 탐색할 수 없기 때문이다. 앱이 입력 없이 쉬고 있으면 다시 싣기는 다음 프레임에 일어난다. 탭 전환처럼 화면을 그리는 조작이 그 프레임을 만든다.
+
+macOS에서 측정한 결과: WKWebView의 web content process를 SIGKILL로 끝내면 `webViewWebContentProcessDidTerminate:` 뒤 다음 동기화에서 같은 본문을 다시 싣고 새 web content process가 떠 로드를 마쳤다. Linux와 Windows의 같은 경로는 측정하지 않았다.
+
 HTML 배너는 [값 snapshot과 요청](../../../src/runtime/html_script.rs)을 사용한다. 스크립트 안내의 Allow·Dismiss·Reshow와 원격 콘텐츠 안내·주소 칸 표지의 RemoteAllow·RemoteDismiss·RemoteReshow 요청은 표시 당시 `DocumentRecord`, `SurfaceBinding`, 원 `HtmlScriptState`의 weak identity에 묶이고 한 번만 소비된다. App은 현재 surface와 문서가 일치할 때만 요청을 적용한다. 프레임에서는 배너 렌더 뒤 요청을 적용하고 `finish_redraw` 뒤 같은 호출 흐름에서 native 동기화를 수행하므로, 허용 상태 갱신이 reload보다 먼저다. 문서별 허용 정책은 [HTML Viewer (`com.tasty.html`)](../../surfaces/html/index.md)을 유지한다.
 
 사용자 navigation proof의 원본은 AppServices가 보유한 `NavigationProofs`다. App adapter는 plugin 통지 전에 원 View·surface·페이지 작성자·resource identity를 기록하고, 프레임 끝에 owner takeover와 사라진 surface를 반영한다. IPC `RequestScope`는 원 View의 weak identity와 현재 Engine 실행 문맥으로 proof를 한 번 소비한다. 닫힌 View나 교체된 resource의 기록은 새 대상에 사용할 수 없다.

@@ -153,6 +153,7 @@
 - Given attach mirror markdown 문서 When 1 MiB를 넘는 원문을 받는다 Then 대용량 확인 없이 표시하므로 대기 상태와 "Open file…" 버튼이 나오지 않는다.
 - Given 1 MiB 이하로 읽어 둔 markdown 문서 When 파일이 1 MiB를 넘게 커진다 Then 내용을 다시 읽지 않고 대용량 확인 팝업을 띄우며, 팝업이 떠 있는 동안 이전 내용이 보인다. When 취소한다 Then 이전 내용이 사라지고 대기 상태가 된다. When [열기]를 고른다 Then 새 내용이 보인다.
 - Given markdown surface가 아닌 ID When `tasty markdown reload --surface <ID>` Then invalid params 오류로 끝나고 성공으로 답하지 않는다.
+- Given 로컬 파일을 연 markdown surface When 그 WebView의 web process가 끝난다 Then 다음 동기화에서 같은 본문을 다시 실어 문서가 다시 보인다([WebView](../../design/systems/webview.md#탐색-상태와-실행-소유)).
 
 ## 화면
 
