@@ -553,6 +553,19 @@ debounce, `compositionend` 시 즉시)마다 이전 `<mark>` 를 먼저 원문�
 안전하다: 포워딩 대상은 `ctrl`/`alt`/`option` 을 가진 콤보뿐이라 문자키·`shift+문자`·
 `Esc`/`Enter`/`Shift+Enter` 는 전부 페이지가 그대로 받는다.
 
+## 앱 문구의 한자 형태
+
+주소 띠·검색 바·목차 라벨·상태 화면·콜아웃 라벨 같은 앱 문구와 문서 본문은 `lang` 속성 없이 같은 글꼴 스택으로 그려진다. 스택에 CJK 글꼴이 없어 한자는 WebView와 OS의 글꼴 대체에 맡겨지고, 앱 언어(`general.language`)는 한자 형태에 영향을 주지 않는다. 그래서 중국어 간체 UI에서도 앱 문구가 일본어 형태로 나올 수 있다.
+
+Linux(WebKitGTK 2.50.4, Noto Sans CJK 전 변종 설치, 전용 Xvfb) 측정값이다. OS 로케일은 `LANG`만 바꿨고 앱 언어는 시험 언어팩이다. Windows(WebView2)와 macOS(WKWebView), 글꼴 구성이 다른 Linux는 측정하지 않았다.
+
+| 대상 | `ko_KR`·`ja_JP`·`en_US` | `zh_CN` |
+|---|---|---|
+| 앱 문구와 문서 본문 | 일본어 형태 | 간체 형태 |
+| 네이티브 tooltip(`title`) | 일본어 형태(`ko_KR`만 측정) | 간체 형태 |
+
+같은 환경의 HTML 대조 페이지에서 요소에 `lang="zh-Hans"`를 붙이면 네 로케일 모두 간체 형태로 나왔다. 일반 글자, `::before`의 `content`, `input` placeholder가 같았다. 네이티브 tooltip은 `lang`을 붙여도 일본어 형태였다(`ko_KR`). 이 플러그인의 앱 문구에는 아직 `lang`을 붙이지 않았다. 예외는 원격 실패 사유의 영어 원문(`<span lang="en">`)이다. WebView 내용은 `ui.screenshot`에 담기지 않으므로 형태 확인은 [OS 화면 캡처](../../../ai-verification/screenshot-methods.md#os-화면-캡처)로 한다.
+
 ## 디자인 토큰 매핑
 
 본문 스타일은 plugin의 CSS와 호스트 Theme 토큰을 사용한다. [시각 소스](#시각-소스) 참고.
