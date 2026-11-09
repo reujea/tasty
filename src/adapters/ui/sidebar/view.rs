@@ -2054,7 +2054,9 @@ mod tests {
         let ctx = egui::Context::default();
         let output = counted_frame(&ctx, &workspaces, false, egui::RawInput::default());
         let texts = painted_texts(&output);
-        assert!(!texts.iter().any(|(t, _)| t == "0"), "{texts:?}");
+        for quiet in ["0", "1"] {
+            assert!(!texts.iter().any(|(t, _)| t == quiet), "{texts:?}");
+        }
         let theme = test_theme();
         let card = ctx
             .read_response(egui::Id::new(("ws_card", 1usize)))
@@ -2150,31 +2152,125 @@ mod tests {
             };
             drop(ctx.run(input, |ctx| {
                 egui::SidePanel::left("test_loading_keycap").show(ctx, |ui| {
-                    let props = SidebarFullProps {
-                        theme: &theme,
-                        kb: &kb,
-                        workspaces,
-                        categories: None,
-                        drag: None,
-                        notifications: None,
-                        tools_label: "Tools",
-                        collapse_label: "Collapse",
-                        plugins_label: "Plugins",
-                        settings_label: "Settings",
-                        new_workspace_label: "New Workspace",
-                        workspaces_heading: "WORKSPACES",
-                        occupied_hover: "Held by another client",
-                        mirror_hover: "Mirror of a remote workspace",
-                        mirror_pill_label: "REMOTE",
-                        plugin_alert: 0,
-                        workspace_switch_held: false,
-                        category_switch_held: false,
-                    };
+                    let props = counted_props(&theme, &kb, workspaces, None);
                     actions.extend(draw_full_sidebar_view(ui, &props).actions);
                 });
             }));
         }
         (ctx, actions)
+    }
+
+    fn counted_props<'a>(
+        theme: &'a Theme,
+        kb: &'a crate::settings::KeybindingSettings,
+        workspaces: &'a [WorkspaceEntryView],
+        drag: Option<DragSnapshot>,
+    ) -> SidebarFullProps<'a> {
+        SidebarFullProps {
+            theme,
+            kb,
+            workspaces,
+            categories: None,
+            drag,
+            notifications: None,
+            tools_label: "Tools",
+            collapse_label: "Collapse",
+            plugins_label: "Plugins",
+            settings_label: "Settings",
+            new_workspace_label: "New Workspace",
+            workspaces_heading: "WORKSPACES",
+            occupied_hover: "Held by another client",
+            mirror_hover: "Mirror of a remote workspace",
+            mirror_pill_label: "REMOTE",
+            plugin_alert: 0,
+            workspace_switch_held: false,
+            category_switch_held: false,
+        }
+    }
+
+    #[test]
+    fn the_drag_ghost_paints_the_name_without_the_numeral() {
+        let workspaces = [counted_ws("busy", 3)];
+        let (theme, kb) = (test_theme(), crate::settings::KeybindingSettings::default());
+        let ctx = egui::Context::default();
+        let at = egui::pos2(40.0, 120.0);
+        let mut output = None;
+        let frames = [
+            vec![egui::Event::PointerMoved(at)],
+            vec![egui::Event::PointerButton {
+                pos: at,
+                button: egui::PointerButton::Primary,
+                pressed: true,
+                modifiers: egui::Modifiers::NONE,
+            }],
+        ];
+        for events in frames {
+            let input = egui::RawInput {
+                events,
+                ..Default::default()
+            };
+            output = Some(ctx.run(input, |ctx| {
+                egui::SidePanel::left("test_drag_ghost").show(ctx, |ui| {
+                    let drag = DragSnapshot {
+                        ws_idx: 0,
+                        current_y: at.y,
+                    };
+                    let props = counted_props(&theme, &kb, &workspaces, Some(drag));
+                    drop(draw_full_sidebar_view(ui, &props));
+                });
+            }));
+        }
+        let texts = painted_texts(&output.expect("frame ran"));
+        let count = |text: &str| texts.iter().filter(|(t, _)| t == text).count();
+        assert_eq!(count("busy"), 2, "card and ghost: {texts:?}");
+        assert_eq!(count("3"), 1, "card only: {texts:?}");
+    }
+
+    #[test]
+    fn the_numeral_ink_follows_the_row_state() {
+        let theme = test_theme();
+        let workspaces = [
+            counted_ws("rest", 3),
+            WorkspaceEntryView {
+                is_active: true,
+                ..counted_ws("selected", 4)
+            },
+        ];
+        let output = counted_frame(
+            &egui::Context::default(),
+            &workspaces,
+            false,
+            egui::RawInput::default(),
+        );
+        assert_eq!(painted_color(&output, "3"), theme.text_muted().to_egui());
+        assert_eq!(
+            painted_color(&output, "4"),
+            theme.text_on_active().to_egui()
+        );
+    }
+
+    fn painted_color(output: &egui::FullOutput, wanted: &str) -> egui::Color32 {
+        fn walk(shape: &egui::Shape, wanted: &str) -> Option<egui::Color32> {
+            match shape {
+                egui::Shape::Text(text) if text.galley.text() == wanted => {
+                    Some(text.fallback_color)
+                }
+                egui::Shape::Vec(shapes) => shapes.iter().find_map(|s| walk(s, wanted)),
+                _ => None,
+            }
+        }
+        output
+            .shapes
+            .iter()
+            .find_map(|c| walk(&c.shape, wanted))
+            .unwrap_or_else(|| panic!("{wanted} not painted"))
+    }
+
+    #[test]
+    fn the_tooltip_states_the_exact_count_past_the_overflow_notation() {
+        let text = card_status::running_count_tooltip(128);
+        assert!(text.contains("128"), "{text}");
+        assert!(!text.contains("99+"), "{text}");
     }
 
     #[test]

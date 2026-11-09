@@ -109,6 +109,15 @@ pub(super) fn paint_dot_slot(
     }
 }
 
+/// 숫자 칸의 툴팁 문구. 칸의 `99+`와 달리 정확한 수를 쓴다.
+pub(super) fn running_count_tooltip(count: usize) -> String {
+    crate::i18n::t_count(
+        "sidebar.running_surfaces_tooltip",
+        count as u64,
+        &[&count.to_string()],
+    )
+}
+
 /// 카드 응답 뒤에 점유 점·숫자 칸·REMOTE 줄 툴팁과 로딩 카드 툴팁을 등록한다.
 pub(super) fn show_card_tooltips(
     ui: &egui::Ui,
@@ -129,14 +138,9 @@ pub(super) fn show_card_tooltips(
     };
     let on_occupied_dot = tip(card.occupied_dot, "occupied_dot", occupied_hover);
     let on_remote_pill = tip(card.remote_line, "remote_line", mirror_hover);
-    // 툴팁은 99를 넘어도 표기가 아니라 정확한 수를 보여 준다.
-    let running = card.running_count.map(|_| {
-        crate::i18n::t_count(
-            "sidebar.running_surfaces_tooltip",
-            ws.busy_count as u64,
-            &[&ws.busy_count.to_string()],
-        )
-    });
+    let running = card
+        .running_count
+        .map(|_| running_count_tooltip(ws.busy_count));
     let on_running_count = tip(
         card.running_count,
         "running_count",
