@@ -244,6 +244,8 @@ check_println() {
     for f in $STAGED_RS; do
         [ -f "$f" ] || continue
         case "$f" in
+            # vendor 코드는 원본과의 차이를 최소화하기 위해 출력 방식을 검사하지 않는다.
+            vendor/*) continue ;;
             src/main.rs) continue ;;
             src/boot/cli_routing.rs) continue ;;
             # launch.log의 stderr 사본. release stderr tracing은 warn 이상만 보여 진단 줄이 사라진다.

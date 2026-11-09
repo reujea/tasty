@@ -17,7 +17,7 @@ CI에서도 실행하는 검사와 로컬 훅에서만 실행하는 검사는 [c
 | C.6 | `let _ =`의 사유 주석 | 추가된 코드에서 값을 무시하는 이유를 같은 줄, 윗줄 또는 다음 줄의 주석으로 설명한다. 윗줄을 찾을 때 빈 줄과 속성은 건너뛴다. |
 | C.8 | 색상 검사 이전 안내 | 함수는 호출되지만 별도 검사는 하지 않는다. 실제 검사는 Clippy로 이전됐다. [clippy-policy](clippy-policy.md) 참고. |
 | C.9 | `egui::Window` 직접 사용 | 추가된 코드에서는 PopupManager/PopupDef를 사용한다. 예외는 [popup-implementation](popup-implementation.md)에 있다. |
-| C.11 | `println!`와 `eprintln!` 사용 | 추가된 로그는 `tracing`으로 출력한다. CLI 등 표준 출력이 필요한 파일은 제외한다. |
+| C.11 | `println!`와 `eprintln!` 사용 | 추가된 로그는 `tracing`으로 출력한다. CLI 등 표준 출력이 필요한 파일과 `vendor/` 사본은 제외한다. |
 | C.12 | `dbg!` 사용 | 추가된 코드에서 디버그 매크로를 제거한다. |
 | P.1 | 플러그인 버전 변경 | `scripts/check-plugin-version-bump.sh`로 staged 내용과 `main`의 공통 조상 커밋을 비교한다. 공통 조상을 찾지 못하면 HEAD를 사용한다. 연결된 작업 트리에 `tasty.pluginBump=deferred`가 worktree 범위로 있으면 검사하지 않고 안내만 출력한다([lane 작업 트리의 P.1 보류](#lane-작업-트리의-p1-보류)). |
 | T.1 | 로컬 전용 문서 참조 | `cargo test -q -p tasty-doc-guards --test no_todo_file_citation`으로 저장소 전체를 검사한다. 커밋 대상이 아닌 파일도 포함된다. |
