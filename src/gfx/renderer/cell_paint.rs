@@ -31,6 +31,7 @@ pub(super) struct CellPaint {
 
 /// 셀 색 위에 커서, 선택, vi 커서, 링크, 매치 순서로 칠한다.
 /// 링크 칸은 어느 매치에서나 선택 칸으로 읽는다. 커서 칸은 링크 안에서도 커서 칸이고 밑줄은 그 글자색이다.
+/// 블록 커서 칸은 매치와 겹치면 선택을 칠하지 않는다. 선택 위에서 맞바꾼 글자가 등급에 못 미친다.
 // 이유: 칸 좌표, 셀 속성, 기본 색, 팔레트, 커서를 칸마다 따로 받는다. 묶으면 호출마다 구조체를 새로 만든다.
 #[allow(clippy::too_many_arguments)]
 pub(super) fn paint_cell(
@@ -44,13 +45,17 @@ pub(super) fn paint_cell(
     overlays: &CellOverlays<'_>,
 ) -> CellPaint {
     let (mut bg, mut fg) = compute_cell_colors(attrs, default_bg, default_fg, ansi);
+    let match_kind = overlays.search.and_then(|s| s.kind_at(col, absolute_row));
     let mut cursor_cell = false;
     if block_cursor {
         std::mem::swap(&mut bg, &mut fg);
         cursor_cell = true;
     }
-    if let Some((sel, sel_bg, _)) = overlays.selection
-        && tasty_selection::is_selected(col, absolute_row, sel)
+    let selection = overlays
+        .selection
+        .filter(|(sel, ..)| tasty_selection::is_selected(col, absolute_row, sel));
+    if let Some((_, sel_bg, _)) = selection
+        && !(block_cursor && match_kind.is_some())
     {
         bg = composite_over(*sel_bg, bg);
         if let Some(ink) = overlays.selection_ink
@@ -78,8 +83,9 @@ pub(super) fn paint_cell(
             underline: Some(link.underline),
         };
     }
-    if let Some(search) = overlays.search {
-        search.paint(col, absolute_row, attrs, cursor_cell, &mut bg, &mut fg);
+    if let (Some(search), Some(kind)) = (overlays.search, match_kind) {
+        let selected = selection.is_some();
+        search.paint(kind, attrs, cursor_cell, selected, &mut bg, &mut fg);
     }
     CellPaint {
         bg,

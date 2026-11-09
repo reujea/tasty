@@ -54,6 +54,8 @@ fn highlights() -> SearchHighlights<'static> {
         active_bg: rgba(0.7),
         active_fg: active_ink(),
         inactive_ink: Some(ink()),
+        active_selected_bg: rgba(0.75),
+        selected_fg: rgba(0.02),
     }
 }
 
@@ -65,7 +67,9 @@ fn attrs_of(sgr: &str) -> CellAttributes {
 
 fn fg_at(sh: &SearchHighlights<'_>, col: usize, attrs: &CellAttributes, replaced: bool) -> GpuRgba {
     let (mut bg, mut fg) = compute_cell_colors(attrs, default_bg(), default_fg(), &ansi());
-    sh.paint(col, 0, attrs, replaced, &mut bg, &mut fg);
+    if let Some(kind) = sh.kind_at(col, 0) {
+        sh.paint(kind, attrs, replaced, false, &mut bg, &mut fg);
+    }
     fg
 }
 
@@ -165,10 +169,7 @@ fn the_active_match_overrides_every_cell() {
 
 #[test]
 fn a_cell_outside_every_match_is_untouched() {
-    let attrs = attrs_of("");
-    let (mut bg, mut fg) = (default_bg(), default_fg());
-    highlights().paint(OUTSIDE_COL, 0, &attrs, false, &mut bg, &mut fg);
-    assert_eq!((bg, fg), (default_bg(), default_fg()));
+    assert_eq!(highlights().kind_at(OUTSIDE_COL, 0), None);
 }
 
 /// 블록 커서·vi 커서·링크가 정한 글자색은 일반 매치가 덮지 않는다. 덮으면 커서 칸 글자가 사라진다.

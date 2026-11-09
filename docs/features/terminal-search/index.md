@@ -9,7 +9,7 @@
 ## 목적
 
 일반 화면에서는 **스크롤백 + 화면 전체**를 텍스트 검색한다. vim·less 같은 프로그램의
-대체 화면에서는 그 화면의 현재 grid만 검색하며, 숨겨진 기본 화면의 기록은 결과에 섞지 않는다. GPU 렌더러가 매치를 하이라이트하며 현재 매치(active)와 나머지(inactive)를 다른 색으로 구분한다. 일반 매치 안의 기본 글자는 `text-primary`로, 프로그램이 색을 고른 글자는 그 색으로 그린다([터미널 색상](../../surfaces/terminal/index.md#색상--폰트)). 두 색(테마 `search_match_active_bg` · `search_match_bg`)은 alpha 로 구분되고, 그 alpha 는 매치 칸의 배경 위에 합성된다([테마 시스템 (운영 상세)](../../design/systems/theme.md)). 현재 매치 칸의 글리프는 셀 자신의 글자색(SGR 포함) 대신 테마 `search_match_active_fg` 로 그린다. 일반 매치에서 자기 글자색을 유지하는 셀은 프로그램이 색을 고른 셀이다. 내장 값은 Mocha 가 노랑 70% + base 잉크, Latte 가 노랑 50% + text 잉크다(bg-panel 위 대비 Mocha 6.95 · Latte 4.68). 테마 파일에 이 키가 없으면 Mocha 기본값 `#1e1e2e` 를 쓴다. 설정 › 외관의 색 조정 목록에는 아직 이 키가 없다.
+대체 화면에서는 그 화면의 현재 grid만 검색하며, 숨겨진 기본 화면의 기록은 결과에 섞지 않는다. GPU 렌더러가 매치를 하이라이트하며 현재 매치(active)와 나머지(inactive)를 다른 색으로 구분한다. 일반 매치 안의 기본 글자는 `text-primary`로, 프로그램이 색을 고른 글자는 그 색으로 그린다([터미널 색상](../../surfaces/terminal/index.md#색상--폰트)). 두 색(테마 `search_match_active_bg` · `search_match_bg`)은 alpha 로 구분되고, 그 alpha 는 매치 칸의 배경 위에 합성된다([테마 시스템 (운영 상세)](../../design/systems/theme.md)). 현재 매치 칸의 글리프는 셀 자신의 글자색(SGR 포함) 대신 테마 `search_match_active_fg` 로 그린다. 일반 매치에서 자기 글자색을 유지하는 셀은 프로그램이 색을 고른 셀이다. 내장 값은 Mocha 가 노랑 70% + base 잉크, Latte 가 노랑 50% + text 잉크다(bg-panel 위 대비 Mocha 6.95 · Latte 4.68). 테마 파일에 이 키가 없으면 Mocha 기본값 `#1e1e2e` 를 쓴다. 설정 › 외관의 색 조정 목록에는 아직 이 키가 없다. 선택과 겹친 매치의 글자와 바탕은 [터미널 색상](../../surfaces/terminal/index.md#색상--폰트)에 따로 있다.
 
 ## 내부 동작
 

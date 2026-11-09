@@ -192,6 +192,8 @@ fn search(active_index: usize) -> SearchHighlights<'static> {
         active_bg: GpuRgba::dangerously_force_from_array([0.8, 0.8, 0.0, 0.7]),
         active_fg: rgba(0.2),
         inactive_ink: Some(rgba(0.85)),
+        active_selected_bg: GpuRgba::dangerously_force_from_array([0.8, 0.8, 0.0, 0.8]),
+        selected_fg: rgba(0.02),
     }
 }
 fn on_link(
@@ -307,4 +309,200 @@ fn a_link_cell_replaces_a_selection() {
         },
     );
     assert_eq!(paint, link_cell());
+}
+
+/// 0열은 일반 매치, 2열은 현재 매치 칸이다. search(1) 기준.
+const ORDINARY: usize = 0;
+const ACTIVE: usize = 2;
+
+fn selected_match(
+    col: usize,
+    attrs: &CellAttributes,
+    block_cursor: bool,
+    vi: Option<&(SelectionPoint, GpuRgba, GpuRgba)>,
+    sh: &SearchHighlights<'_>,
+) -> CellPaint {
+    let sel = selection();
+    paint_cell(
+        col,
+        0,
+        attrs,
+        bed(),
+        cell_ink(),
+        &ansi(),
+        block_cursor,
+        &CellOverlays {
+            selection: Some(&sel),
+            selection_ink: Some(sel_ink()),
+            vi_cursor: vi,
+            link: None,
+            search: Some(sh),
+        },
+    )
+}
+
+fn selected_fg() -> GpuRgba {
+    rgba(0.02)
+}
+
+/// 기본, bold, dim 글자는 두 겹침 칸 모두 같은 값으로 읽는다.
+#[test]
+fn a_selected_default_cell_reads_the_selected_ink_in_both_matches() {
+    let sh = search(1);
+    for sgr in ["", "\x1b[1m", "\x1b[2m"] {
+        for col in [ORDINARY, ACTIVE] {
+            assert_eq!(
+                selected_match(col, &attrs_of(sgr), false, None, &sh).fg,
+                selected_fg(),
+                "{sgr:?} {col}"
+            );
+        }
+    }
+}
+
+/// 현재 매치는 선택 위에서만 올린 바탕을 쓰고, 두 층을 모두 합성한다.
+#[test]
+fn a_selected_match_composites_over_the_selection() {
+    let sh = search(1);
+    let attrs = attrs_of("");
+    assert_eq!(
+        selected_match(ORDINARY, &attrs, false, None, &sh).bg,
+        composite_over(sh.inactive_bg, sel_bg())
+    );
+    assert_eq!(
+        selected_match(ACTIVE, &attrs, false, None, &sh).bg,
+        composite_over(sh.active_selected_bg, sel_bg())
+    );
+}
+
+#[test]
+fn own_ink_stays_in_a_selected_ordinary_match_and_gives_way_in_the_active_one() {
+    let sh = search(1);
+    for sgr in ["\x1b[31m", "\x1b[7m"] {
+        let attrs = attrs_of(sgr);
+        let own = compute_cell_colors(&attrs, bed(), cell_ink(), &ansi()).1;
+        assert_eq!(
+            selected_match(ORDINARY, &attrs, false, None, &sh).fg,
+            own,
+            "{sgr:?}"
+        );
+        assert_eq!(
+            selected_match(ACTIVE, &attrs, false, None, &sh).fg,
+            selected_fg(),
+            "{sgr:?}"
+        );
+    }
+}
+
+/// 반전 화면에서 잉크를 비운 값으로 잰다. 현재 매치의 글자는 그래도 바뀐다.
+#[test]
+fn a_reversed_screen_keeps_its_ink_only_in_a_selected_ordinary_match() {
+    let sh = search(1).on_screen(true);
+    let sel = selection();
+    let paint = |col| {
+        paint_cell(
+            col,
+            0,
+            &attrs_of(""),
+            cell_ink(),
+            bed(),
+            &ansi(),
+            false,
+            &CellOverlays {
+                selection: Some(&sel),
+                selection_ink: None,
+                vi_cursor: None,
+                link: None,
+                search: Some(&sh),
+            },
+        )
+    };
+    assert_eq!(paint(ORDINARY).fg, bed());
+    assert_eq!(paint(ACTIVE).fg, selected_fg());
+}
+
+/// 블록 커서는 매치와 겹치면 선택을 칠하지 않고, 현재 매치는 올리지 않은 바탕을 쓴다.
+#[test]
+fn a_block_cursor_in_a_selected_match_takes_no_selection_fill() {
+    let sh = search(1);
+    let attrs = attrs_of("");
+    assert_eq!(
+        selected_match(ORDINARY, &attrs, true, None, &sh),
+        CellPaint {
+            bg: composite_over(sh.inactive_bg, cell_ink()),
+            fg: bed(),
+            underline: None,
+        }
+    );
+    assert_eq!(
+        selected_match(ACTIVE, &attrs, true, None, &sh),
+        CellPaint {
+            bg: composite_over(sh.active_bg, cell_ink()),
+            fg: selected_fg(),
+            underline: None,
+        }
+    );
+}
+
+/// 매치 밖의 선택 + 블록 커서는 이번 표 밖이라 값을 바꾸지 않는다.
+#[test]
+fn a_block_cursor_outside_every_match_still_takes_the_selection_fill() {
+    let sh = SearchHighlights {
+        matches: &[],
+        ..search(1)
+    };
+    let paint = selected_match(ORDINARY, &attrs_of(""), true, None, &sh);
+    assert_eq!(paint.bg, sel_bg());
+    assert_eq!(paint.fg, bed());
+}
+
+#[test]
+fn a_vi_cursor_in_a_selected_match_covers_the_selection() {
+    let sh = search(1);
+    let attrs = attrs_of("");
+    let ordinary = (point(ORDINARY), cursor_bg(), cursor_ink());
+    assert_eq!(
+        selected_match(ORDINARY, &attrs, false, Some(&ordinary), &sh),
+        CellPaint {
+            bg: composite_over(sh.inactive_bg, cursor_bg()),
+            fg: cursor_ink(),
+            underline: None,
+        }
+    );
+    let active = (point(ACTIVE), cursor_bg(), cursor_ink());
+    assert_eq!(
+        selected_match(ACTIVE, &attrs, false, Some(&active), &sh),
+        CellPaint {
+            bg: composite_over(sh.active_bg, cursor_bg()),
+            fg: selected_fg(),
+            underline: None,
+        }
+    );
+}
+
+/// 링크 칸에는 겹침이 생기지 않는다.
+#[test]
+fn a_selected_link_cell_in_a_match_stays_a_link_cell() {
+    let sel = selection();
+    let link = link();
+    let sh = search(1);
+    for col in [ORDINARY, ACTIVE] {
+        let paint = paint_cell(
+            col,
+            0,
+            &attrs_of(""),
+            bed(),
+            cell_ink(),
+            &ansi(),
+            false,
+            &CellOverlays {
+                selection: Some(&sel),
+                selection_ink: Some(sel_ink()),
+                vi_cursor: None,
+                link: Some(&link),
+                search: Some(&sh),
+            },
+        );
+        assert_eq!(paint, link_cell(), "{col}");
+    }
 }

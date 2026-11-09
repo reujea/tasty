@@ -154,6 +154,8 @@ impl GpuState {
                             theme.search_match_active_unfocused_fg().to_gpu_rgba()
                         },
                         inactive_ink: Some(theme.text_primary().to_gpu_rgba()),
+                        active_selected_bg: theme.search_match_active_selected_bg().to_gpu_rgba(),
+                        selected_fg: theme.search_match_selected_fg().to_gpu_rgba(),
                     });
                 let search_ref = search_highlights.as_ref();
 

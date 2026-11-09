@@ -16,7 +16,19 @@ pub struct SearchHighlights<'a> {
     /// 현재 매치 안 글리프 색. 셀 자신의 글자색(SGR)을 그 칸에서만 덮어쓴다.
     pub active_fg: GpuRgba,
     /// 일반 매치 안 기본 글자 셀의 글자색. ANSI 색 셀과 현재 매치에는 쓰지 않는다.
+    /// 반전 화면이면 없어 선택 위 일반 매치도 셀 글자를 유지한다.
     pub inactive_ink: Option<GpuRgba>,
+    /// 선택 위 현재 매치의 바탕. 커서 칸은 `active_bg`를 쓴다.
+    pub active_selected_bg: GpuRgba,
+    /// 선택 위 매치의 글자.
+    pub selected_fg: GpuRgba,
+}
+
+/// 칸이 속한 매치.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub(super) enum MatchKind {
+    Ordinary,
+    Active,
 }
 
 impl SearchHighlights<'_> {
@@ -29,35 +41,53 @@ impl SearchHighlights<'_> {
         self
     }
 
-    /// 칸이 매치 안이면 강조색을 배경에 합성한다. 현재 매치는 글자색도 바꾸고, 일반 매치는
-    /// 기본 글자 셀만 바꾼다. `ink_replaced`는 커서가 이미 글자색을 정한 칸이다.
+    pub(super) fn kind_at(&self, col: usize, row: usize) -> Option<MatchKind> {
+        let i = self
+            .matches
+            .iter()
+            .position(|m| m.row == row && col >= m.col_start && col < m.col_end)?;
+        Some(if i == self.active_index {
+            MatchKind::Active
+        } else {
+            MatchKind::Ordinary
+        })
+    }
+
+    /// 매치 칸의 바탕에 강조색을 합성하고 글자를 정한다. `cursor_cell`은 커서가 글자를 정한 칸이다.
+    /// 현재 매치는 모든 글자를 덮고, 일반 매치는 기본 글자 셀만 바꾼다.
+    /// 선택 위 글자는 어두운 값 하나고, 선택 위 현재 매치 바탕은 커서 칸이 아닐 때만 따로 있다.
     pub(super) fn paint(
         &self,
-        col: usize,
-        row: usize,
+        kind: MatchKind,
         attrs: &termwiz::cell::CellAttributes,
-        ink_replaced: bool,
+        cursor_cell: bool,
+        selected: bool,
         bg: &mut GpuRgba,
         fg: &mut GpuRgba,
     ) {
-        let Some(i) = self
-            .matches
-            .iter()
-            .position(|m| m.row == row && col >= m.col_start && col < m.col_end)
-        else {
-            return;
-        };
-        if i == self.active_index {
-            *bg = composite_over(self.active_bg, *bg);
-            *fg = self.active_fg;
-            return;
-        }
-        *bg = composite_over(self.inactive_bg, *bg);
-        if let Some(ink) = self.inactive_ink
-            && !ink_replaced
-            && reads_default_ink(attrs)
-        {
-            *fg = ink;
+        match kind {
+            MatchKind::Active => {
+                let fill = if selected && !cursor_cell {
+                    self.active_selected_bg
+                } else {
+                    self.active_bg
+                };
+                *bg = composite_over(fill, *bg);
+                *fg = if selected {
+                    self.selected_fg
+                } else {
+                    self.active_fg
+                };
+            }
+            MatchKind::Ordinary => {
+                *bg = composite_over(self.inactive_bg, *bg);
+                if let Some(ink) = self.inactive_ink
+                    && !cursor_cell
+                    && reads_default_ink(attrs)
+                {
+                    *fg = if selected { self.selected_fg } else { ink };
+                }
+            }
         }
     }
 }

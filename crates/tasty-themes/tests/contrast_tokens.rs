@@ -94,6 +94,29 @@ fn active_search_match_ink_meets_the_design_contrast() {
     }
 }
 
+/// 선택 위 매치는 앱 알파로 합성한 값을 잰다. Latte 현재 매치만 바탕 알파가 0xcc로 오른다.
+#[test]
+fn selected_search_match_ink_meets_the_design_contrast() {
+    let mocha = tasty_themes::mocha_fallback();
+    let latte = latte();
+    assert_eq!(latte.search_match_active_selected_bg().a(), 0xcc);
+    for (theme, ordinary, active) in [(&mocha, 5.08, 9.81), (&latte, 8.95, 8.20)] {
+        let ink = theme.search_match_selected_fg();
+        let fill = over(theme.search_match_bg, theme.selection_bg);
+        let measured = contrast(ink, fill);
+        assert!(
+            (measured - ordinary).abs() < 0.01,
+            "ordinary {measured:.2} ≠ {ordinary}"
+        );
+        let fill = over(theme.search_match_active_selected_bg(), theme.selection_bg);
+        let measured = contrast(ink, fill);
+        assert!(
+            (measured - active).abs() < 0.01,
+            "active {measured:.2} ≠ {active}"
+        );
+    }
+}
+
 /// 내장 Mocha 테마 파일과 코드 기본값이 같은 active 글자색을 쓴다.
 #[test]
 fn mocha_file_and_fallback_agree_on_the_active_match_ink() {
