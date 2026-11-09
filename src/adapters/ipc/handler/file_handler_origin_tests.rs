@@ -959,3 +959,60 @@ fn a_press_while_a_focused_open_is_queued_stays_busy_without_consuming_the_proof
         NAV_URL
     ));
 }
+
+#[test]
+fn a_press_on_a_passive_picker_hidden_by_its_scope_keeps_the_proof_and_the_other_focus() {
+    use crate::adapters::ui::popup::PopupScope;
+
+    const OTHER: &str = "other_popup";
+    let mut p = PassivePicker::opened(None, true);
+    p.state
+        .popups
+        .register(crate::adapters::ui::popup::PopupState::new(
+            OTHER,
+            "Other".to_string(),
+            egui::vec2(200.0, 100.0),
+        ));
+    // 범위 대상은 실제로 있어야 한다. 없으면 draw 가 고아 팝업으로 닫는다.
+    let picker_workspace = p.engine_session.borrow_mut().workspace_at(0).unwrap().id;
+    p.state.popups.get_mut(PICKER).unwrap().scope = PopupScope::Workspace(picker_workspace);
+    p.state.popups.open_with_scope(OTHER, PopupScope::Window);
+    p.state.popups.set_focused(OTHER, true);
+
+    // scope_visible 은 draw 만 갱신한다. 실제 프레임을 한 번 그려 범위 밖에 숨긴다.
+    let layout = crate::adapters::ui::LayoutContext {
+        active_workspace: 0,
+        active_workspace_id: picker_workspace + 1,
+        pane_rects: vec![],
+        surface_rects: vec![],
+        active_tabs: vec![],
+        active_tab_ids: vec![],
+    };
+    drop(
+        egui::Context::default().run(egui::RawInput::default(), |ctx| {
+            let engine = p.engine_session.borrow_mut();
+            crate::adapters::ui::popup::frame::draw_popup_layer(
+                ctx,
+                &mut p.state,
+                &engine.read(),
+                &layout,
+            )
+        }),
+    );
+    assert!(!p.state.popups.is_visible_passive(PICKER), "숨은 피커");
+    assert!(p.state.popups.is_passive(PICKER), "passive 는 유지된다");
+
+    p.prove();
+    let resp = p.trigger(PLUGIN, p.sid);
+    p.assert_busy(&resp, "범위 밖에 숨은 피커");
+    assert!(p.state.take_pending_intents().is_empty());
+    assert!(
+        p.state.popups.is_focused(OTHER),
+        "보이는 팝업의 포커스 유지"
+    );
+
+    // Intent 가 직접 와도 숨은 피커는 올라가지 않고 보이는 팝업의 포커스를 풀지 않는다.
+    assert!(!p.state.popups.focus_passive(PICKER));
+    assert!(p.state.popups.is_focused(OTHER));
+    assert!(p.state.popups.is_passive(PICKER));
+}
