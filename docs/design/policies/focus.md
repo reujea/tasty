@@ -323,8 +323,9 @@ IPC에는 토스트 대신 사유를 담은 오류를 반환한다. `surface.clo
 | 바탕 (`surface-bed-focused`·`-unfocused`) | terminal, empty | 칸 전체 |
 | | explorer | 파일 영역. 탭 바·툴바·사이드바·상태 줄·미리보기는 그대로다 |
 | | dag_graph | 탭 surface의 캔버스. 헤더·상세·노드는 그대로다 |
-| | markdown, image | 페이지를 대신하는 chrome 타일. no page 글리프는 `glyph-dim`이다 |
-| 위쪽 띠 (`surface-focus-edge-*`) | html, 플러그인 | 띠. chrome 타일은 `bg-panel`, no page 글리프는 `text-disabled`로 그대로다 |
+| | markdown | 페이지를 대신하는 chrome 타일. no page 글리프는 `glyph-dim`이다 |
+| 바탕으로 분류, 아직 표시 없음 | image | 캔버스는 `bg-sidebar` 그대로다. `egui-mesh` 렌더링이라 chrome 타일을 쓰지 않는다 |
+| 띠로 분류, 아직 표시 없음 | html, 플러그인 | 포커스 표시가 없다. chrome 타일은 `bg-panel`, no page 글리프는 `text-disabled`로 그대로다 |
 
 markdown과 image는 kind 이름과 등록한 플러그인 id를 함께 본다. 번들 플러그인이 빠진 설치에서는 제3자가 같은 kind 이름을 등록할 수 있고, 그 페이지의 바탕은 호스트가 보장하지 못한다. `com.tasty.` id는 공식 플러그인 전용이라 제3자가 쓸 수 없다. 다른 플러그인이 등록한 markdown은 띠다.
 
