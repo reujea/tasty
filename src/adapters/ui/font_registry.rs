@@ -90,12 +90,12 @@ pub fn build_font_definitions(
     for kind in appearance.plugin_font_overrides.keys() {
         let eff = appearance.effective_font_for_kind(kind);
         let family = family_name_for_kind(kind);
-        register_surface_family(&mut fonts, &family, kind, &eff, has_cjk);
+        register_surface_family(&mut fonts, &family, kind, &eff, has_cjk, load_system_family);
     }
 
     if let Some((slot, eff)) = preview {
         let prefix = format!("preview_{}", slot);
-        register_surface_family(&mut fonts, slot, &prefix, eff, has_cjk);
+        register_surface_family(&mut fonts, slot, &prefix, eff, has_cjk, load_system_family);
     }
 
     fonts
@@ -107,20 +107,14 @@ fn register_surface_family(
     data_prefix: &str,
     eff: &EffectiveFont,
     has_cjk: bool,
+    load_family: impl FnOnce(&str) -> Option<FontFileFace<Vec<u8>>>,
 ) {
     let mut family_fonts: Vec<String> = Vec::new();
 
     let key = format!("{}_custom", data_prefix);
     register_custom_font(fonts, &mut family_fonts, family_name, key, eff);
     let key = format!("{}_named", data_prefix);
-    register_named_font(
-        fonts,
-        &mut family_fonts,
-        family_name,
-        key,
-        eff,
-        load_system_family,
-    );
+    register_named_font(fonts, &mut family_fonts, family_name, key, eff, load_family);
 
     // 지정한 글꼴을 찾지 못해도 사용할 기본 monospace 패밀리를 남긴다.
     if let Some(monospace) = fonts.families.get(&egui::FontFamily::Monospace).cloned() {
@@ -417,7 +411,6 @@ mod tests {
         draw_with(fonts, "preview_default");
     }
 
-    // 이름으로 찾은 시스템 글꼴도 같은 함수를 지나므로 시스템 글꼴 폴더 없이 잰다.
     fn eff_named(family: &str) -> EffectiveFont {
         let mut eff = AppearanceSettings::default().effective_font_for_kind("explorer");
         eff.font_family = family.to_owned();
@@ -425,6 +418,7 @@ mod tests {
         eff
     }
 
+    // 이름으로 찾은 시스템 글꼴도 같은 함수를 지나므로 시스템 글꼴 폴더 없이 잰다.
     #[test]
     fn a_font_found_by_name_passes_the_same_check() {
         let inputs = [
@@ -547,22 +541,11 @@ mod tests {
         eff.custom_font_path = path.display().to_string();
 
         let mut fonts = egui::FontDefinitions::default();
-        let mut family_fonts = Vec::new();
-        register_custom_font(
-            &mut fonts,
-            &mut family_fonts,
-            "f",
-            "custom".to_owned(),
-            &eff,
-        );
-        register_named_font(
-            &mut fonts,
-            &mut family_fonts,
-            "f",
-            "named".to_owned(),
-            &eff,
-            |_| Some(whole_file(VALID.to_vec())),
-        );
-        assert_eq!(family_fonts, ["named"]);
+        register_surface_family(&mut fonts, "f", "p", &eff, false, |_| {
+            Some(whole_file(VALID.to_vec()))
+        });
+
+        let family = &fonts.families[&egui::FontFamily::Name("f".into())];
+        assert_eq!(family[0], "p_named");
     }
 }
