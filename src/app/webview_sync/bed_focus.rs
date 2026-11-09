@@ -13,20 +13,25 @@ fn receives(kind: &str, plugin_id: &str) -> bool {
     focus_mark(kind, Some(plugin_id)) == FocusMark::Bed
 }
 
-/// surface의 목표 상태. 받지 않는 surface는 `None`이다.
+/// 페이지에 보낼 값. 받지 않는 surface이거나 이미 보낸 값과 같으면 `None`이다.
+fn to_send(kind: &str, plugin_id: &str, focused: bool, sent: Option<bool>) -> Option<bool> {
+    (receives(kind, plugin_id) && sent != Some(focused)).then_some(focused)
+}
+
+/// surface에 보낼 값. `sent`는 그 WebView에 마지막으로 보낸 값이다.
 fn target(
     view: &MainView,
     engine: &crate::runtime::engine_access::EngineRef<'_>,
     sid: u32,
+    sent: Option<bool>,
 ) -> Option<bool> {
     let remote = find_remote_surface(view, engine, sid)?;
-    receives(remote.kind_static, &remote.plugin_id).then(|| {
-        bed_focused(
-            view.state.focused_surface_id(engine),
-            sid,
-            &engine.live.occupancy,
-        )
-    })
+    let focused = bed_focused(
+        view.state.focused_surface_id(engine),
+        sid,
+        &engine.live.occupancy,
+    );
+    to_send(remote.kind_static, &remote.plugin_id, focused, sent)
 }
 
 #[cfg(target_os = "linux")]
@@ -45,7 +50,7 @@ pub(super) fn apply_initial(
     sid: u32,
     wv: &PlatformWebView,
 ) {
-    if let Some(focused) = target(view, engine, sid) {
+    if let Some(focused) = target(view, engine, sid, None) {
         apply(wv, focused);
         view.webview_bed_focus.insert(sid, focused);
     }
@@ -55,12 +60,10 @@ pub(super) fn apply_initial(
 pub(super) fn sync(view: &mut MainView, engine: &crate::runtime::engine_access::EngineRef<'_>) {
     let sids: Vec<u32> = view.webviews.keys().copied().collect();
     for sid in sids {
-        let Some(focused) = target(view, engine, sid) else {
+        let sent = view.webview_bed_focus.get(&sid).copied();
+        let Some(focused) = target(view, engine, sid, sent) else {
             continue;
         };
-        if view.webview_bed_focus.get(&sid) == Some(&focused) {
-            continue;
-        }
         if let Some(wv) = view.webviews.get(&sid) {
             apply(wv, focused);
         }

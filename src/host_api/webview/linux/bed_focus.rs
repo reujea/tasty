@@ -11,6 +11,23 @@ use webkit2gtk::{
 
 use crate::webview::bed_focus::BED_FOCUSED_SHEET;
 
+/// 스타일시트에 할 일.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum SheetChange {
+    Add,
+    Remove,
+    Nothing,
+}
+
+/// 지금 들어 있는지(`on`)와 요청 값으로 할 일을 정한다. 같은 값이면 아무것도 하지 않는다.
+fn sheet_change(on: bool, focused: bool) -> SheetChange {
+    match (on, focused) {
+        (false, true) => SheetChange::Add,
+        (true, false) => SheetChange::Remove,
+        _ => SheetChange::Nothing,
+    }
+}
+
 pub(super) struct BedFocusSheet {
     sheet: UserStyleSheet,
     /// 스타일시트가 지금 들어 있는지. 같은 값을 다시 받으면 아무것도 하지 않는다.
@@ -32,17 +49,18 @@ impl BedFocusSheet {
     }
 
     pub(super) fn set(&self, webview: &WebView, focused: bool) {
-        if self.on.get() == focused {
+        let change = sheet_change(self.on.get(), focused);
+        if change == SheetChange::Nothing {
             return;
         }
         let Some(ucm) = WebViewExt::user_content_manager(webview) else {
             tracing::warn!("WebView has no user content manager; bed focus is not applied");
             return;
         };
-        if focused {
-            ucm.add_style_sheet(&self.sheet);
-        } else {
-            ucm.remove_style_sheet(&self.sheet);
+        match change {
+            SheetChange::Add => ucm.add_style_sheet(&self.sheet),
+            SheetChange::Remove => ucm.remove_style_sheet(&self.sheet),
+            SheetChange::Nothing => {}
         }
         self.on.set(focused);
     }
