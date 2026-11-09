@@ -245,6 +245,37 @@ class Levels(unittest.TestCase):
         ]
         self.assertEqual(ul.pilot_means(rows), {"claude-low": 7, "codex": 10})
 
+    def mixed_windows(self, claude_u):
+        claude = window("claude_7d", u=claude_u, w=1e8, models=("claude-high", "claude-low"))
+        return [claude, window("codex_7d", u=None, w=1e9, models=("codex",))]
+
+    def test_an_unread_window_does_not_hide_a_read_one(self):
+        means = {"claude-high": 5000.0, "claude-low": 5000.0, "codex": 20000.0}
+        for claude_u, want in ((10.0, "L0"), (80.0, "L1"), (90.0, "L2"), (97.0, "stop")):
+            with self.subTest(u=claude_u):
+                self.assertEqual(ul.select_level(self.mixed_windows(claude_u), means)["proposal"], want)
+
+    def test_an_unread_window_can_lower_a_read_one(self):
+        means = {"claude-high": 5000.0, "claude-low": 5000.0, "codex": 20000.0}
+        windows = self.mixed_windows(10.0)
+        windows[1]["w"] = 0
+        result = ul.select_level(windows, means)
+        self.assertEqual((result["proposal"], result["needs_decision"]), ("L2", True))
+        self.assertIn("claude_7d", result["values"]["L0"])
+        self.assertNotIn("codex_7d", result["values"]["L0"])
+
+    def test_a_read_window_keeps_its_level_when_the_unread_one_proposes_more(self):
+        means = {"claude-high": 5000.0, "claude-low": 5000.0, "codex": 20000.0}
+        result = ul.select_level(self.mixed_windows(80.0), means)
+        self.assertEqual((result["proposal"], result["needs_decision"]), ("L1", True))
+
+    def test_a_proposal_on_an_unread_window_needs_a_person(self):
+        result = {"proposal": "L1", "needs_decision": True}
+        self.assertFalse(ul.level_allowed("L1", result))
+        self.assertTrue(ul.level_allowed("L1", result, "someone"))
+        self.assertFalse(ul.level_allowed("L0", result, "someone"))
+        self.assertFalse(ul.level_allowed("L1", {"proposal": "stop", "needs_decision": True}, "someone"))
+
     def test_level_allowed_accepts_smaller_levels(self):
         self.assertTrue(ul.level_allowed("L1", {"proposal": "L0"}))
         self.assertTrue(ul.level_allowed("L1", {"proposal": "L1"}))

@@ -58,6 +58,27 @@ def after_run(window, means, level):
     return u + u * projected(window, means, level) / window["w"]
 
 
+def _level_from_read(windows, means, result):
+    """Return the first level whose limit holds for every read window, or None."""
+    for level in LEVEL_ORDER:
+        values = {w["name"]: after_run(w, means, level) for w in windows}
+        result["values"][level] = values
+        if all(v <= LIMITS[level] for v in values.values()):
+            return level
+    return None
+
+
+def _level_from_unread(windows, means, result):
+    shares = {w["name"]: projected(w, means, "L0") / w["w"] if w.get("w") else None for w in windows}
+    result["values"]["share_at_L0"] = shares
+    small = all(s is not None and s <= UNKNOWN_SHARE for s in shares.values())
+    return "L0" if small else "L2"
+
+
+def _smaller(first, second):
+    return max(first, second, key=LEVEL_ORDER.index)
+
+
 def select_level(windows, means):
     seven = [w for w in windows if w["span"] == "7d"]
     five = [w for w in windows if w["span"] == "5h"]
@@ -68,23 +89,16 @@ def select_level(windows, means):
     if stopped:
         result.update(proposal="stop", reason=f"window status stops the run: {stopped}")
         return result
-    if any(w.get("u") is None or not w.get("w") for w in seven):
+    unread = [w for w in seven if w.get("u") is None or not w.get("w")]
+    read = [w for w in seven if w not in unread]
+    level = _level_from_read(read, means, result)
+    if level is None:
+        result.update(proposal="stop", reason="every level is over its limit")
+        return result
+    if unread:
         result["needs_decision"] = True
-        shares = {w["name"]: projected(w, means, "L0") / w["w"] if w.get("w") else None for w in seven}
-        result["values"]["share_at_L0"] = shares
-        small = all(s is not None and s <= UNKNOWN_SHARE for s in shares.values())
-        result["proposal"] = "L0" if small else "L2"
-    else:
-        for level in LEVEL_ORDER:
-            values = {w["name"]: after_run(w, means, level) for w in seven}
-            result["values"][level] = values
-            if all(v <= LIMITS[level] for v in values.values()):
-                result["proposal"] = level
-                break
-        else:
-            result.update(proposal="stop", reason="every level is over its limit")
-            return result
-    level = result["proposal"]
+        level = _smaller(level, _level_from_unread(unread, means, result))
+    result["proposal"] = level
     for window in five:
         value = after_run(window, means, level)
         result["values"].setdefault("five_hour", {})[window["name"]] = value
@@ -93,10 +107,15 @@ def select_level(windows, means):
     return result
 
 
-def level_allowed(level, result):
-    """Return whether the table allows running this level. A smaller level always fits."""
+def level_allowed(level, result, approved_by=None):
+    """Return whether the table allows running this level. A smaller level always fits.
+
+    A proposal that rests on an unread window is a person's decision to make.
+    """
     proposal = result["proposal"]
     if proposal == "stop" or proposal is None:
+        return False
+    if result.get("needs_decision") and not approved_by:
         return False
     return LEVEL_ORDER.index(level) >= LEVEL_ORDER.index(proposal)
 

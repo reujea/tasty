@@ -266,7 +266,7 @@ def resume(data, phase, level, usage_result, approved_by=None):
     log = read_jsonl(log_path(data))
     ledger = policy.replay(records, log, phase)
     cap = PILOT_RETRY_CAP if phase == "pilot" else LEVELS[level]["retry_cap"]
-    allowed_by_table = usage_level.level_allowed(level or "L0", usage_result)
+    allowed_by_table = usage_level.level_allowed(level or "L0", usage_result, approved_by)
     allowed, values = policy.resume_decision(ledger, cap, allowed_by_table, approved_by)
     values["usage"] = usage_result
     append_line(log_path(data), {

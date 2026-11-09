@@ -236,6 +236,18 @@ class Failures(Base):
         self.assertTrue(raw[-1]["response_text"])
         self.assertEqual(self.log()[-1]["reason"], "allowed_warning")
 
+    def test_a_resume_on_an_unread_window_needs_a_named_person(self):
+        self.assertEqual(runner.approve(self.data, "L2", [], {}), 0)
+        rows = self.rows("L2")
+        self.scenarios(["api_error", "api_error"] + ["normal"] * (len(rows) - 1) + ["api_error"])
+        self.assertEqual(runner.run(self.config("main", "L2")), 3)
+        usage = {"proposal": "L1", "needs_decision": True}
+        self.assertEqual(runner.resume(self.data, "main", "L2", usage), 1)
+        self.assertEqual(self.log()[-1]["kind"], "resume_refused")
+        stopped = {"proposal": "stop", "needs_decision": True}
+        self.assertEqual(runner.resume(self.data, "main", "L2", stopped, "someone"), 1)
+        self.assertEqual(runner.resume(self.data, "main", "L2", usage, "someone"), 0)
+
     def test_a_rejected_call_that_hangs_stops_the_run(self):
         first = next(i for i, r in enumerate(self.rows()) if MODELS[r["model"]]["cli"] == "claude")
         self.scenarios(["normal"] * first + ["rejected_then_hang"])
