@@ -524,12 +524,33 @@ mod tests {
         assert_eq!(page.last_access_frame, 42);
     }
 
+    /// 시스템 글꼴을 읽지 않는다. `FontConfig::new`는 시스템 글꼴을 먼저 읽어, 같은 family가
+    /// 묶음 파일로 설치된 컴퓨터에서는 그 파일과 그 안의 번호를 찾는다.
+    fn config_with_only_bundled_fonts() -> FontConfig {
+        let mut db = cosmic_text::fontdb::Database::new();
+        db.load_font_data(D2CODING_REGULAR_TTF.to_vec());
+        db.load_font_data(D2CODING_BOLD_TTF.to_vec());
+        let mut font_system = FontSystem::new_with_locale_and_db("en-US".to_string(), db);
+        let font_family = FamilyOwned::Name(D2CODING_FAMILY.to_string().into());
+        let metrics = FontConfig::measure_cell(&mut font_system, 14.0, &font_family, 1.0);
+        FontConfig {
+            font_system,
+            swash_cache: SwashCache::new(),
+            metrics,
+            font_family,
+        }
+    }
+
     #[test]
     fn a_bundled_family_is_found_with_its_face_number() {
-        let config = FontConfig::new(14.0, "");
+        let config = config_with_only_bundled_fonts();
         let found = config.load_family_data(D2CODING_FAMILY).unwrap();
         assert_eq!(found.face, 0);
-        assert!(found.file.len() > 1_000_000);
+        assert!(
+            found.file == D2CODING_REGULAR_TTF,
+            "expected the bundled regular font, got {} bytes",
+            found.file.len()
+        );
         assert!(config.load_family_data("No Such Family").is_none());
     }
 
