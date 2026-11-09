@@ -11,9 +11,10 @@ use tasty_plugin_manifest::Permission;
 use super::dispatch_plugin_ipc_calls_headless;
 
 /// 시험마다 다른 소유자와 prefix 를 쓴다. 공유 시험 표에 동시에 올라가기 때문이다.
-const OWNERS: [(&str, &str); 2] = [
+const OWNERS: [(&str, &str); 3] = [
     ("com.test.headless-cross-owner-ok", "hdlcrossok"),
     ("com.test.headless-cross-owner-no", "hdlcrossno"),
+    ("com.test.headless-cross-owner-clip", "hdlcrossclip"),
 ];
 const CALLER: &str = "com.test.headless-cross-caller";
 
@@ -162,4 +163,44 @@ fn an_ungranted_cross_plugin_call_is_refused_without_reaching_the_owner() {
     assert_eq!(replies.len(), 1, "{replies:?}");
     assert_eq!(replies[0].1["call_id"], 3);
     assert_eq!(replies[0].1["error_code"], -32001, "{replies:?}");
+}
+
+/// plugin 의 `clipboard.set_text` 는 호스트 클립보드에 쓰고 결과를 돌려준다 — 외부 IPC 의 App 층 분기를
+/// plugin 호출은 안 거치므로 engine 라우터가 답한다. 빠지면 "no dispatch arm" 으로 실패한다.
+/// `clipboard.write` 권한이 없으면 공통 게이트가 막는다.
+#[test]
+fn a_plugin_clipboard_write_reaches_the_host_clipboard() {
+    let mut fx = fixture(OWNERS[2]);
+    let clip = Arc::new(crate::adapters::test::mock_clipboard::MockClipboard::default());
+    fx.app.services.replace_clipboard_for_test(clip.clone());
+    let caller = fx
+        .manager()
+        .attach_caller_stub_for_test(CALLER, HashSet::from([Permission::ClipboardWrite]));
+    fx.manager().queue_plugin_call_for_test(
+        CALLER,
+        5,
+        "clipboard.set_text",
+        json!({"text": "/full/path"}),
+    );
+    fx.dispatch();
+    let replies = caller.drain_requests();
+    assert_eq!(replies.len(), 1, "{replies:?}");
+    assert_eq!(replies[0].1["call_id"], 5);
+    assert_eq!(replies[0].1["result"], json!({"ok": true}), "{replies:?}");
+    use crate::ports::clipboard::ClipboardSystem as _;
+    assert_eq!(clip.read_text().expect("written"), "/full/path");
+
+    let denied = fx
+        .manager()
+        .attach_caller_stub_for_test("com.test.headless-clip-denied", HashSet::new());
+    fx.manager().queue_plugin_call_for_test(
+        "com.test.headless-clip-denied",
+        6,
+        "clipboard.set_text",
+        json!({"text": "nope"}),
+    );
+    fx.dispatch();
+    let replies = denied.drain_requests();
+    assert_eq!(replies[0].1["error_code"], -32001, "{replies:?}");
+    assert_eq!(clip.read_text().expect("kept"), "/full/path");
 }

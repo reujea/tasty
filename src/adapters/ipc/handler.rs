@@ -556,6 +556,10 @@ fn route_engine_handler(
     }
     Some(match request.method.as_str() {
         "system.info" => handle_system_info(window, &engine.read(), id),
+        // 외부 IPC 는 App 층이 먼저 답한다. plugin 호출은 그 층을 안 거치고 여기로 온다.
+        "clipboard.set_text" => {
+            crate::app::services::clipboard_set_text(&*core, id, &request.params)
+        }
         "system.pressure" => pressure::handle_system_pressure(&*core, &engine.as_ref(), id),
         "workspace.list" => workspace::handle_workspace_list(window, &engine.as_ref(), id),
         "workspace_category.list" => {
