@@ -102,7 +102,13 @@ impl GpuState {
                 // 읽기 전용에서도 로컬 선택·복사는 표시한다. IME·vi 커서·링크·검색은 제외한다.
                 let sel_info = selection
                     .filter(|s| s.surface_id == *surface_id && !s.is_empty())
-                    .map(|s| (s.normalized(), theme.selection_bg.to_gpu_rgba()));
+                    .map(|s| {
+                        (
+                            s.normalized(),
+                            theme.selection_bg.to_gpu_rgba(),
+                            theme.text_on_active().to_gpu_rgba(),
+                        )
+                    });
                 let sel_ref = sel_info.as_ref();
 
                 let vi_cursor_info = vi_cursor

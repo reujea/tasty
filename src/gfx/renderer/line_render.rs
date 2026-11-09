@@ -3,8 +3,6 @@ use tasty_type_appearance::color::{GpuRgb, GpuRgba};
 use termwiz::cell::CellAttributes;
 
 use tasty_font::GlyphKey;
-use tasty_selection::{NormalizedSelection, SelectionPoint};
-use tasty_terminal_link::LinkHighlight;
 
 use super::CellRenderer;
 use super::cell_paint::{CellOverlays, paint_cell};
@@ -27,11 +25,8 @@ impl CellRenderer {
         default_fg: GpuRgba,
         ansi: &[GpuRgb; 16],
         queue: &wgpu::Queue,
-        selection: Option<&(NormalizedSelection, GpuRgba)>,
-        vi_cursor: Option<&(SelectionPoint, GpuRgba, GpuRgba)>,
         absolute_row: usize,
-        link: Option<&LinkHighlight>,
-        search: Option<&super::SearchHighlights<'_>>,
+        overlays: CellOverlays<'_>,
     ) {
         let (bg_color, fg_color) = paint_cell(
             col_idx,
@@ -41,12 +36,7 @@ impl CellRenderer {
             default_fg,
             ansi,
             false,
-            &CellOverlays {
-                selection,
-                vi_cursor,
-                link,
-                search,
-            },
+            &overlays,
         );
 
         let off = self.current_viewport_offset;
@@ -103,11 +93,8 @@ impl CellRenderer {
         default_fg: GpuRgba,
         ansi: &[GpuRgb; 16],
         queue: &wgpu::Queue,
-        selection: Option<&(NormalizedSelection, GpuRgba)>,
-        vi_cursor: Option<&(SelectionPoint, GpuRgba, GpuRgba)>,
         absolute_row: usize,
-        link: Option<&LinkHighlight>,
-        search: Option<&super::SearchHighlights<'_>>,
+        overlays: CellOverlays<'_>,
     ) {
         let mut col_idx: usize = 0;
         for (text, attrs) in line.cells() {
@@ -127,18 +114,16 @@ impl CellRenderer {
                 default_fg,
                 ansi,
                 queue,
-                selection,
-                vi_cursor,
                 absolute_row,
-                link,
-                search,
+                overlays,
             );
             col_idx += width;
         }
         // Fill remaining columns with default_bg (vi cursor 가 trailing 영역에 있으면 강조).
         let off = self.current_viewport_offset;
         for c in col_idx..cols {
-            let bg_color = vi_cursor
+            let bg_color = overlays
+                .vi_cursor
                 .filter(|(pt, ..)| pt.col == c && pt.absolute_row == absolute_row)
                 .map(|(_, cursor_bg, _)| composite_over(*cursor_bg, default_bg))
                 .unwrap_or(default_bg);
@@ -162,11 +147,8 @@ impl CellRenderer {
         default_fg: GpuRgba,
         ansi: &[GpuRgb; 16],
         queue: &wgpu::Queue,
-        selection: Option<&(NormalizedSelection, GpuRgba)>,
-        vi_cursor: Option<&(SelectionPoint, GpuRgba, GpuRgba)>,
         absolute_row: usize,
-        link: Option<&LinkHighlight>,
-        search: Option<&super::SearchHighlights<'_>>,
+        overlays: CellOverlays<'_>,
     ) {
         let mut last_col = 0usize;
         for cell_ref in line.visible_cells() {
@@ -192,18 +174,16 @@ impl CellRenderer {
                 default_fg,
                 ansi,
                 queue,
-                selection,
-                vi_cursor,
                 absolute_row,
-                link,
-                search,
+                overlays,
             );
             last_col = col_idx + width;
         }
         // Fill remaining columns with default_bg (vi cursor 가 trailing 영역에 있으면 강조).
         let off = self.current_viewport_offset;
         for c in last_col..cols {
-            let bg_color = vi_cursor
+            let bg_color = overlays
+                .vi_cursor
                 .filter(|(pt, ..)| pt.col == c && pt.absolute_row == absolute_row)
                 .map(|(_, cursor_bg, _)| composite_over(*cursor_bg, default_bg))
                 .unwrap_or(default_bg);

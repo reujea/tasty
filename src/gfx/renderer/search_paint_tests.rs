@@ -194,6 +194,7 @@ fn a_block_cursor_cell_keeps_its_swapped_ink_in_a_match() {
             block_cursor,
             &CellOverlays {
                 selection: None,
+                selection_ink: None,
                 vi_cursor: None,
                 link: None,
                 search: Some(&sh),
@@ -217,11 +218,11 @@ fn a_reversed_screen_keeps_the_cell_ink_only_when_the_setting_allows_it() {
             (true, default_fg(), None),
             (false, default_bg(), Some(ink())),
         ] {
-            let paint = screen_paint(&view, enabled, Some(&sh), default_bg(), default_fg());
+            let paint = screen_paint(&view, enabled, Some(&sh), None, default_bg(), default_fg());
             assert_eq!(paint.default_bg, want_bg);
             assert_eq!(paint.search.expect("same epoch").inactive_ink, want_ink);
         }
-        let reversed = screen_paint(&view, true, Some(&sh), default_bg(), default_fg());
+        let reversed = screen_paint(&view, true, Some(&sh), None, default_bg(), default_fg());
         let (_, fg) = paint_cell(
             MATCH_COL,
             0,
@@ -232,6 +233,7 @@ fn a_reversed_screen_keeps_the_cell_ink_only_when_the_setting_allows_it() {
             false,
             &CellOverlays {
                 selection: None,
+                selection_ink: None,
                 vi_cursor: None,
                 link: None,
                 search: reversed.search.as_ref(),

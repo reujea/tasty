@@ -208,7 +208,7 @@ impl CellRenderer {
         default_bg: GpuRgba,
         default_fg: GpuRgba,
         show_cursor: bool,
-        selection: Option<&(NormalizedSelection, GpuRgba)>,
+        selection: Option<&(NormalizedSelection, GpuRgba, GpuRgba)>,
         vi_cursor: Option<&(SelectionPoint, GpuRgba, GpuRgba)>,
         preedit: Option<&RenderPreedit>,
         link: Option<&LinkHighlight>,
@@ -225,16 +225,30 @@ impl CellRenderer {
         {
             let epoch = view.cut().epoch;
             let selection =
-                selection.filter(|(s, _)| s.start.epoch == epoch && s.end.epoch == epoch);
+                selection.filter(|(s, ..)| s.start.epoch == epoch && s.end.epoch == epoch);
             let vi_cursor = vi_cursor.filter(|(p, ..)| p.epoch == epoch);
             let link = link.filter(|l| l.epoch == epoch);
             let preedit = preedit.filter(|p| p.anchor.epoch == epoch);
             let ScreenPaint {
                 search,
+                selection_ink,
                 default_bg,
                 default_fg,
-            } = screen_paint(view, reverse_screen_enabled, search, default_bg, default_fg);
-            let search = search.as_ref();
+            } = screen_paint(
+                view,
+                reverse_screen_enabled,
+                search,
+                selection.map(|(.., ink)| *ink),
+                default_bg,
+                default_fg,
+            );
+            let overlays = CellOverlays {
+                selection,
+                selection_ink,
+                vi_cursor,
+                link,
+                search: search.as_ref(),
+            };
             let cursor = if show_cursor && view.cursor_visible() && view.scroll_offset() == 0 {
                 let (cx, cy) = view.surface().cursor_position();
                 let wide = view
@@ -266,12 +280,9 @@ impl CellRenderer {
                     default_fg,
                     ansi,
                     cursor,
-                    selection,
-                    vi_cursor,
                     row_offset,
                     preedit,
-                    link,
-                    search,
+                    overlays,
                 );
                 self.append_preedit_overlay(preedit, queue, cols, rows, view.viewport().top_row);
             } else {
@@ -313,11 +324,8 @@ impl CellRenderer {
                                 default_fg,
                                 ansi,
                                 queue,
-                                selection,
-                                vi_cursor,
                                 source_line,
-                                link,
-                                search,
+                                overlays,
                             );
                         }
                     } else {
@@ -331,11 +339,8 @@ impl CellRenderer {
                                 default_fg,
                                 ansi,
                                 queue,
-                                selection,
-                                vi_cursor,
                                 source_line,
-                                link,
-                                search,
+                                overlays,
                             );
                         }
                     }
@@ -377,12 +382,9 @@ impl CellRenderer {
         default_fg: GpuRgba,
         ansi: &[GpuRgb; 16],
         cursor: Option<(usize, usize, bool, CursorPaint)>,
-        selection: Option<&(NormalizedSelection, GpuRgba)>,
-        vi_cursor: Option<&(SelectionPoint, GpuRgba, GpuRgba)>,
         row_offset: usize,
         preedit: Option<&RenderPreedit>,
-        link: Option<&LinkHighlight>,
-        search: Option<&SearchHighlights<'_>>,
+        overlays: CellOverlays<'_>,
     ) {
         let (cols, rows) = surface.dimensions();
         let lines = surface.screen_lines();
@@ -420,12 +422,7 @@ impl CellRenderer {
                     default_fg,
                     ansi,
                     cursor_paint == Some(CursorPaint::Block),
-                    &CellOverlays {
-                        selection,
-                        vi_cursor,
-                        link,
-                        search,
-                    },
+                    &overlays,
                 );
 
                 self.bg_instances.push(BgInstance {
@@ -498,7 +495,7 @@ impl CellRenderer {
                     default_bg
                 };
                 // vi copy mode cursor cell: trailing 영역 (콘텐츠 없는 row 끝) 에 vi cursor 가 위치한 경우 강조.
-                if let Some((pt, cursor_bg, _)) = vi_cursor
+                if let Some((pt, cursor_bg, _)) = overlays.vi_cursor
                     && pt.col == col_idx
                     && pt.absolute_row == abs_row
                 {
@@ -801,5 +798,7 @@ fn clip_scissor(
     (x, y, w, h)
 }
 
+#[cfg(test)]
+mod cell_paint_tests;
 #[cfg(test)]
 mod search_paint_tests;

@@ -7,12 +7,15 @@ use termwiz::cell::CellAttributes;
 
 use super::SearchHighlights;
 use super::overlay::composite_over;
-use crate::cell_palette::compute_cell_colors;
+use crate::cell_palette::{compute_cell_colors, reads_default_ink};
 
 /// 셀 위에 겹치는 상태. 칸마다 같은 값을 쓰므로 한 viewport에서 한 번 만든다.
 #[derive(Clone, Copy)]
 pub(super) struct CellOverlays<'a> {
-    pub selection: Option<&'a (NormalizedSelection, GpuRgba)>,
+    /// 범위, 바탕, 기본 글자 셀의 글자색.
+    pub selection: Option<&'a (NormalizedSelection, GpuRgba, GpuRgba)>,
+    /// 화면 반전이면 없다. 기본 글자가 바탕 색이라 그대로 둔다.
+    pub selection_ink: Option<GpuRgba>,
     pub vi_cursor: Option<&'a (SelectionPoint, GpuRgba, GpuRgba)>,
     pub link: Option<&'a LinkHighlight>,
     pub search: Option<&'a SearchHighlights<'a>>,
@@ -37,10 +40,16 @@ pub(super) fn paint_cell(
         std::mem::swap(&mut bg, &mut fg);
         ink_replaced = true;
     }
-    if let Some((sel, sel_bg)) = overlays.selection
+    if let Some((sel, sel_bg, _)) = overlays.selection
         && tasty_selection::is_selected(col, absolute_row, sel)
     {
         bg = composite_over(*sel_bg, bg);
+        if let Some(ink) = overlays.selection_ink
+            && !ink_replaced
+            && reads_default_ink(attrs)
+        {
+            fg = ink;
+        }
     }
     if let Some((pt, cursor_bg, cursor_fg)) = overlays.vi_cursor
         && pt.col == col
@@ -66,6 +75,7 @@ pub(super) fn paint_cell(
 /// viewport 하나에 적용할 화면 값. 화면 반전과 설정을 함께 본다.
 pub(super) struct ScreenPaint<'a> {
     pub search: Option<SearchHighlights<'a>>,
+    pub selection_ink: Option<GpuRgba>,
     pub default_bg: GpuRgba,
     pub default_fg: GpuRgba,
 }
@@ -76,6 +86,7 @@ pub(super) fn screen_paint<'a>(
     view: &tasty_terminal::TerminalReadView<'_>,
     reverse_screen_enabled: bool,
     search: Option<&SearchHighlights<'a>>,
+    selection_ink: Option<GpuRgba>,
     default_bg: GpuRgba,
     default_fg: GpuRgba,
 ) -> ScreenPaint<'a> {
@@ -91,6 +102,7 @@ pub(super) fn screen_paint<'a>(
     };
     ScreenPaint {
         search,
+        selection_ink: selection_ink.filter(|_| !reversed),
         default_bg,
         default_fg,
     }
