@@ -25,8 +25,10 @@ pub(super) struct CalloutKind {
     /// [`tasty_icons`] glyph. Its `body` (no wrapping `<svg>`, no color baked in) and `filled`
     /// (`true` colors it via `fill`, `false` via `stroke`) feed [`alert_icon_data_uri`].
     pub(super) icon: tasty_icons::Icon,
-    /// 테마에서 콜아웃 강조색을 가져온다.
+    /// 테마에서 콜아웃 강조색을 가져온다. 왼쪽 막대와 채움이 쓴다.
     pub(super) accent: fn(&Theme) -> tasty_type_appearance::color::HexColor,
+    /// 제목·아이콘·접힘 마커의 글자색. 채움 위에서 읽히도록 강조색의 raised 단계를 쓴다.
+    pub(super) raised: fn(&Theme) -> tasty_type_appearance::color::HexColor,
 }
 
 /// 지원하는 콜아웃 종류. 별칭은 CALLOUT_ALIASES에서 정규 이름에 연결한다.
@@ -38,6 +40,7 @@ pub(super) const CALLOUT_KINDS: &[CalloutKind] = &[
         label_key: "markdown.alert.note",
         icon: tasty_icons::ALERT_CIRCLE,
         accent: Theme::accent_primary,
+        raised: Theme::accent_primary_raised,
     },
     CalloutKind {
         gfm_kind: Some(BlockQuoteKind::Tip),
@@ -46,6 +49,7 @@ pub(super) const CALLOUT_KINDS: &[CalloutKind] = &[
         label_key: "markdown.alert.tip",
         icon: tasty_icons::STAR_FILL,
         accent: Theme::accent_success,
+        raised: Theme::accent_success_raised,
     },
     CalloutKind {
         gfm_kind: Some(BlockQuoteKind::Important),
@@ -54,6 +58,7 @@ pub(super) const CALLOUT_KINDS: &[CalloutKind] = &[
         label_key: "markdown.alert.important",
         icon: tasty_icons::BELL,
         accent: Theme::accent_agent,
+        raised: Theme::accent_agent_raised,
     },
     CalloutKind {
         gfm_kind: Some(BlockQuoteKind::Warning),
@@ -62,6 +67,7 @@ pub(super) const CALLOUT_KINDS: &[CalloutKind] = &[
         label_key: "markdown.alert.warning",
         icon: tasty_icons::ALERT_TRIANGLE,
         accent: Theme::accent_warning,
+        raised: Theme::accent_warning_raised,
     },
     CalloutKind {
         gfm_kind: Some(BlockQuoteKind::Caution),
@@ -70,6 +76,7 @@ pub(super) const CALLOUT_KINDS: &[CalloutKind] = &[
         label_key: "markdown.alert.caution",
         icon: tasty_icons::CLOSE,
         accent: Theme::accent_danger,
+        raised: Theme::accent_danger_raised,
     },
     CalloutKind {
         gfm_kind: None,
@@ -78,6 +85,7 @@ pub(super) const CALLOUT_KINDS: &[CalloutKind] = &[
         label_key: "markdown.alert.abstract",
         icon: tasty_icons::LIST,
         accent: Theme::accent_primary,
+        raised: Theme::accent_primary_raised,
     },
     CalloutKind {
         gfm_kind: None,
@@ -86,6 +94,7 @@ pub(super) const CALLOUT_KINDS: &[CalloutKind] = &[
         label_key: "markdown.alert.info",
         icon: tasty_icons::ALERT_CIRCLE,
         accent: Theme::accent_info,
+        raised: Theme::accent_info_raised,
     },
     CalloutKind {
         gfm_kind: None,
@@ -94,6 +103,7 @@ pub(super) const CALLOUT_KINDS: &[CalloutKind] = &[
         label_key: "markdown.alert.todo",
         icon: tasty_icons::CHECK,
         accent: Theme::accent_info,
+        raised: Theme::accent_info_raised,
     },
     CalloutKind {
         gfm_kind: None,
@@ -102,6 +112,7 @@ pub(super) const CALLOUT_KINDS: &[CalloutKind] = &[
         label_key: "markdown.alert.success",
         icon: tasty_icons::CHECK,
         accent: Theme::accent_success,
+        raised: Theme::accent_success_raised,
     },
     CalloutKind {
         gfm_kind: None,
@@ -110,6 +121,7 @@ pub(super) const CALLOUT_KINDS: &[CalloutKind] = &[
         label_key: "markdown.alert.question",
         icon: tasty_icons::HELP_CIRCLE,
         accent: Theme::accent_attention,
+        raised: Theme::accent_attention_raised,
     },
     CalloutKind {
         gfm_kind: None,
@@ -118,6 +130,7 @@ pub(super) const CALLOUT_KINDS: &[CalloutKind] = &[
         label_key: "markdown.alert.failure",
         icon: tasty_icons::ALERT_TRIANGLE,
         accent: Theme::accent_danger,
+        raised: Theme::accent_danger_raised,
     },
     CalloutKind {
         gfm_kind: None,
@@ -126,6 +139,7 @@ pub(super) const CALLOUT_KINDS: &[CalloutKind] = &[
         label_key: "markdown.alert.danger",
         icon: tasty_icons::CLOSE,
         accent: Theme::accent_danger,
+        raised: Theme::accent_danger_raised,
     },
     CalloutKind {
         gfm_kind: None,
@@ -134,6 +148,7 @@ pub(super) const CALLOUT_KINDS: &[CalloutKind] = &[
         label_key: "markdown.alert.bug",
         icon: tasty_icons::CLOSE,
         accent: Theme::accent_agent,
+        raised: Theme::accent_agent_raised,
     },
     CalloutKind {
         gfm_kind: None,
@@ -142,6 +157,7 @@ pub(super) const CALLOUT_KINDS: &[CalloutKind] = &[
         label_key: "markdown.alert.example",
         icon: tasty_icons::SCRIPT,
         accent: Theme::accent_agent,
+        raised: Theme::accent_agent_raised,
     },
     CalloutKind {
         gfm_kind: None,
@@ -150,6 +166,7 @@ pub(super) const CALLOUT_KINDS: &[CalloutKind] = &[
         label_key: "markdown.alert.quote",
         icon: tasty_icons::TEXT_LEFT,
         accent: Theme::accent_primary,
+        raised: Theme::accent_primary_raised,
     },
 ];
 
@@ -193,20 +210,21 @@ pub(super) fn alert_css(theme: &Theme) -> String {
     for kind in CALLOUT_KINDS {
         let color = (kind.accent)(theme);
         let hex = color.to_hex();
-        let icon_uri = alert_icon_data_uri(kind.icon.body, kind.icon.filled, &hex);
+        let ink = (kind.raised)(theme).to_hex();
+        let icon_uri = alert_icon_data_uri(kind.icon.body, kind.icon.filled, &ink);
         // 접힘 마커는 summary 배경의 chevron 이다. 닫히면 오른쪽, 열리면 아래를 가리킨다.
         let closed_uri = alert_icon_data_uri(
             tasty_icons::CHEVRON_RIGHT.body,
             tasty_icons::CHEVRON_RIGHT.filled,
-            &hex,
+            &ink,
         );
         let open_uri = alert_icon_data_uri(
             tasty_icons::CHEVRON_DOWN.body,
             tasty_icons::CHEVRON_DOWN.filled,
-            &hex,
+            &ink,
         );
         rules.push_str(&format!(
-            ".{class}{{border-left-color:{hex};background:{bg};}}.{class}>.tasty-callout-label::before,.{class}[data-label]::before,.{class}>summary::before{{color:{hex};background-image:url(\"{icon_uri}\");}}.{class}>summary{{background-image:url(\"{closed_uri}\");}}.{class}[open]>summary{{background-image:url(\"{open_uri}\");}}\n",
+            ".{class}{{border-left-color:{hex};background:{bg};}}.{class}>.tasty-callout-label::before,.{class}[data-label]::before,.{class}>summary::before{{color:{ink};background-image:url(\"{icon_uri}\");}}.{class}>summary{{color:{ink};background-image:url(\"{closed_uri}\");}}.{class}[open]>summary{{background-image:url(\"{open_uri}\");}}\n",
             class = kind.class,
             bg = color.with_alpha(bg_alpha).to_hex(),
         ));
@@ -247,26 +265,49 @@ mod tests {
         assert!(css.contains(&format!("background:{note};")), "{css}");
     }
 
-    /// 접힘 마커는 종류 색 chevron 이다. 닫힘은 오른쪽, 열림은 아래 글리프로 서로 다르다.
+    /// 막대와 채움은 강조색, 제목과 아이콘은 그 raised 단계다. 종류마다 확인한다.
+    #[test]
+    fn the_title_reads_the_raised_ink_and_the_bar_keeps_the_accent() {
+        // raised 단계는 밝은 테마에서만 강조색과 달라 둘을 구별할 수 있다.
+        let theme = Theme::with_colors_and_zoom(tasty_themes::mocha_fallback_colors(), true, 1.0);
+        let css = super::alert_css(&theme);
+        for kind in super::CALLOUT_KINDS {
+            let accent = (kind.accent)(&theme).to_hex();
+            let raised = (kind.raised)(&theme).to_hex();
+            let class = kind.class;
+            assert!(
+                css.contains(&format!(".{class}{{border-left-color:{accent};")),
+                "{class}"
+            );
+            assert!(
+                css.contains(&format!(
+                    ".{class}>summary::before{{color:{raised};background-image"
+                )),
+                "{class}"
+            );
+        }
+    }
+
+    /// 접힘 마커는 제목과 같은 raised 글자색 chevron 이다. 닫힘은 오른쪽, 열림은 아래 글리프로 서로 다르다.
     #[test]
     fn foldable_marker_is_a_kind_coloured_chevron_that_turns_when_open() {
         let theme = Theme::with_colors_and_zoom(tasty_themes::mocha_fallback_colors(), false, 1.0);
         let css = super::alert_css(&theme);
-        let hex = theme.accent_primary().to_hex();
+        let ink = theme.accent_primary_raised().to_hex();
         let closed = super::alert_icon_data_uri(
             tasty_icons::CHEVRON_RIGHT.body,
             tasty_icons::CHEVRON_RIGHT.filled,
-            &hex,
+            &ink,
         );
         let open = super::alert_icon_data_uri(
             tasty_icons::CHEVRON_DOWN.body,
             tasty_icons::CHEVRON_DOWN.filled,
-            &hex,
+            &ink,
         );
         assert_ne!(closed, open);
         assert!(
             css.contains(&format!(
-                ".markdown-alert-note>summary{{background-image:url(\"{closed}\");}}"
+                ".markdown-alert-note>summary{{color:{ink};background-image:url(\"{closed}\");}}"
             )),
             "{css}"
         );

@@ -190,6 +190,16 @@ Jekyll/Hugo/Obsidian/Zettlr 등에서 흔히 붙이는 메타데이터 블록이
 감수한 트레이드오프다. 인라인 코드(`` `--` ``)와 펜스드 코드블록 내부 텍스트, 그리고 백슬래시로
 이스케이프한 문장부호(`\"`, `\-\-`)는 이 치환의 영향을 받지 않고 원문 그대로 남는다.
 
+## 글자와 채움 색
+
+`render/style.rs::theme_css`가 문서의 글자와 채움을 토큰에서 읽는다. 아래 값은 포커스로 바뀌지 않는다.
+
+- 링크와 목차 링크: `--md-link` = `accent-primary-raised`.
+- 인용 글자: `--md-quote-fg` = `md-quote-fg`. 투명도를 쓰지 않는다.
+- 찾기 적중: `md-find-hit-bg` 위 `md-find-hit-fg`, 현재 적중은 `md-find-current-bg` 위 `md-find-current-fg`. 적중 글자색은 `<mark>`에 직접 지정하므로 링크 색을 덮는다.
+- 표: 머리 칸 `md-table-header-bg` 위 `md-table-header-fg`, 본문 칸 글자 `md-table-cell-fg`, 격자 `md-table-border`.
+- 없는 위키 링크와 문서 상태 제목: `accent-danger-raised`.
+
 ## 인용 막대 두께
 
 일반 인용문의 왼쪽 막대는 `md_quote_bar_width()`(2px, `selection_edge_width`를 가리키는 hairline)를
@@ -247,13 +257,13 @@ blockquote 로 폴백). 이 경우를 포함한 모든 콜아웃 인식·렌더�
 마커 없는 구조는 `blockquote` 첫 자식인 빈 span(`.tasty-callout-label`)의 `data-label` 속성 + `::before`의 `content:
 attr(data-label)`로 반영하고, `<details>` 구조는 `<summary>` 안의 실제 텍스트 노드로
 반영한다(어느 쪽이든 커스텀 제목이 있으면 그 텍스트가 기본 라벨을 대체). 마커 없는 라벨은 글자 노드가 아니라 찾기에 잡히지 않고 선택·복사 문자열에도 들어가지 않는다. `<details>` 라벨은 찾기에 잡히고 선택 문자열에도 들어간다. 기본 라벨에만 UI 언어 `lang` 을 붙인다(아래 [앱 문구의 한자 형태](#앱-문구의-한자-형태)). `blockquote` 에 붙이면 본문으로 상속되므로 라벨 요소에 붙인다. 아이콘은
-`tasty-icons`의 canonical 글리프를 각 kind 의 accent 색으로 만든 SVG data URI 로
+`tasty-icons`의 canonical 글리프를 각 kind 의 raised 강조색(`CalloutKind::raised`)으로 만든 SVG data URI 로
 `background-image` 에 심는다(`render/callout.rs::alert_icon_data_uri`, 15개 타입이 7개 기존
 semantic accent(`accent_primary`/`accent_info`/`accent_success`/`accent_warning`/
 `accent_attention`/`accent_danger`/`accent_agent`)를 나눠 쓴다 — 전용 색 토큰 신설 없음,
-겹치는 조합은 아이콘·라벨 텍스트로 구분). 상자 바탕은 종류 색을 `tint-fill-alpha`(0.12, CSS 알파 31)로 칠한다(`render/callout.rs::tint_fill_alpha`). highlight.js 의 diff 추가·삭제 줄 배경도 같은 알파로 `accent_success`·`accent_danger`를 칠한다.
+겹치는 조합은 아이콘·라벨 텍스트로 구분). 제목·아이콘·접힘 마커는 그 강조색의 raised 단계(`accent-<hue>-raised`)로, 왼쪽 막대와 채움은 강조색 그대로 칠한다. 콜아웃 본문은 두 형태 모두 `text-primary`(`--md-callout-fg`)이며 인용 글자색을 물려받지 않는다. 상자 바탕은 종류 색을 `tint-fill-alpha`(0.12, CSS 알파 31)로 칠한다(`render/callout.rs::tint_fill_alpha`). highlight.js 의 diff 추가·삭제 줄 배경도 같은 알파로 `accent_success`·`accent_danger`를 칠한다.
 
-콜아웃 머리는 접힘 마커 → 종류 아이콘 → 라벨 순서이고 사이 간격은 `md_callout_icon_gap()`(space-xs 4)이다. 종류 아이콘은 `icon_glyph_size_md`(16)이며, 마커 없는 콜아웃의 라벨은 아이콘과 간격만큼(`calc(var(--md-callout-icon) + var(--md-callout-icon-gap))`, 20) 들여 쓴다. 접히는 콜아웃은 브라우저 기본 `<details>` 마커를 숨기고(`list-style:none`, `::-webkit-details-marker{display:none}`) summary 배경에 종류 색 chevron을 `md_callout_marker_size()`(icon-size-sm 14) 크기로 그린다. 닫혀 있으면 `chevronRight`, 열리면 `chevronDown`이다(`render/callout.rs::alert_css`). 세 값은 `theme_css()`가 `--md-callout-icon`·`--md-callout-icon-gap`·`--md-callout-marker`로 쓴다.
+콜아웃 머리는 접힘 마커 → 종류 아이콘 → 라벨 순서이고 사이 간격은 `md_callout_icon_gap()`(space-xs 4)이다. 종류 아이콘은 `icon_glyph_size_md`(16)이며, 마커 없는 콜아웃의 라벨은 아이콘과 간격만큼(`calc(var(--md-callout-icon) + var(--md-callout-icon-gap))`, 20) 들여 쓴다. 접히는 콜아웃은 브라우저 기본 `<details>` 마커를 숨기고(`list-style:none`, `::-webkit-details-marker{display:none}`) summary 배경에 제목과 같은 raised 색 chevron을 `md_callout_marker_size()`(icon-size-sm 14) 크기로 그린다. 닫혀 있으면 `chevronRight`, 열리면 `chevronDown`이다(`render/callout.rs::alert_css`). 세 값은 `theme_css()`가 `--md-callout-icon`·`--md-callout-icon-gap`·`--md-callout-marker`로 쓴다.
 
 태그가 없거나 지원하지 않는 종류의 Markdown 인용문은 일반 인용문으로 남는다.
 콜아웃 변환은 파서 이벤트와 인용문 첫 줄을 처리한다. Raw HTML에 class만 넣었다고
@@ -340,7 +350,7 @@ Obsidian 스타일 `[[문서명]]`/`[[문서명|표시텍스트]]` 문법을 인
   기존 파일 열기 경로를 그대로 탄다(위키링크 전용 클릭 처리 없음).
 - **못 찾은 경우**: 링크 자체는 그대로 만든다(destination 을 지우지 않음) — 클릭하면
   `dispatch_file_link` 의 기존 "존재하지 않는 파일은 로그만 남기고 조용히 무시" 경로를 그대로 탄다.
-  다만 `.tasty-wikilink-missing` 스팬으로 감싸 시각적으로만 구분한다(점선 밑줄 + `accent-danger`
+  다만 `.tasty-wikilink-missing` 스팬으로 감싸 시각적으로만 구분한다(점선 밑줄 + `accent-danger-raised`
   색). `span`/`class` 는 이미 `sanitize_html` 화이트리스트에
   열려 있어(수식 렌더링 절 참조) 이 기능을 위한 sanitizer 변경은 없다.
 - **`base_dir` 자체가 없는 경우**(저장 안 된 버퍼 등) — 일반 상대링크가 `classify_link` 에서

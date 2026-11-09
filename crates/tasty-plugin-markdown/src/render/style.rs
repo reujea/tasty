@@ -2,7 +2,6 @@
 
 use tasty_type_appearance::theme::Theme;
 
-use super::FIND_HIT_BG_ALPHA;
 use super::address;
 use super::callout::{self, alert_css, alert_icon_data_uri};
 
@@ -35,6 +34,8 @@ pub(super) fn theme_css(theme: &Theme) -> String {
 --md-code-border:{code_border};
 --md-border:{border};
 --md-quote-bar:{quote_bar};
+--md-quote-fg:{quote_fg};
+--md-callout-fg:{callout_fg};
 --md-rule:{rule};
 --md-zebra:{zebra};
 --md-bg:{bg};
@@ -67,7 +68,7 @@ body{{min-height:100%;margin:0;padding:0;background:var(--md-bg);color:var(--md-
 #tasty-find-count.tasty-find-nomatch{{color:{danger};}}
 .tasty-find-btn{{height:22px;width:22px;flex-shrink:0;display:inline-flex;align-items:center;justify-content:center;border:var(--md-border-w) solid var(--md-border);border-radius:var(--md-radius);background:var(--md-code-bg);color:var(--md-fg);font-size:10px;line-height:1;padding:0;cursor:pointer;}}
 .tasty-find-btn:disabled{{background:var(--md-disabled-fill);border-color:var(--md-disabled-border);color:var(--md-disabled-fg);cursor:default;}}
-mark.tasty-find-hit{{background:{find_match_bg};color:inherit;border-radius:2px;}}
+mark.tasty-find-hit{{background:{find_hit_bg};color:{find_hit_fg};border-radius:2px;}}
 mark.tasty-find-hit.tasty-find-current{{background:{find_current_bg};color:{find_current_fg};}}
 #tasty-md-body{{padding:var(--md-space-sm) var(--md-space-md);}}
 h1,h2,h3,h4,h5,h6{{color:var(--md-strong);font-weight:600;margin:1em 0 0.5em;scroll-margin-top:calc(var(--md-addr-bar-h) + var(--md-space-sm));}}
@@ -89,7 +90,7 @@ h4{{font-size:var(--md-h4);}}h5{{font-size:var(--md-h5);}}h6{{font-size:var(--md
 .tasty-toc-l5 a{{padding-left:calc(var(--md-space-sm) * 4);}}
 .tasty-toc-l6 a{{padding-left:calc(var(--md-space-sm) * 5);}}
 a{{color:var(--md-link);}}
-.tasty-wikilink-missing a{{color:{danger};text-decoration:underline dotted;}}
+.tasty-wikilink-missing a{{color:{danger_raised};text-decoration:underline dotted;}}
 strong{{color:var(--md-strong);font-weight:600;}}
 code{{background:var(--md-code-bg);border-radius:var(--md-radius);padding:0.1em 0.35em;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;}}
 pre{{position:relative;background:var(--md-code-bg);border:var(--md-border-w) solid var(--md-code-border);border-radius:var(--md-radius);padding:var(--md-space-sm);overflow:auto;}}
@@ -101,9 +102,12 @@ pre:hover .tasty-copy-btn,.tasty-copy-btn:focus-visible{{opacity:1;}}
 .tasty-copy-btn[data-state="failed"]{{border-color:{danger};color:{danger};}}
 table{{border-collapse:collapse;}}
 th,td{{border:var(--md-border-w) solid var(--md-border);padding:var(--md-space-xs) var(--md-space-sm);text-align:left;}}
+th{{background:{table_header_bg};color:{table_header_fg};}}
+td{{color:{table_cell_fg};}}
 tr:nth-child(even){{background:var(--md-zebra);}}
-blockquote{{border-left:var(--md-quote-bar-w) solid var(--md-quote-bar);margin:0.5em 0;padding:0.1em var(--md-space-md);opacity:0.9;}}
-blockquote[class^="markdown-alert-"]{{opacity:1;border-radius:var(--md-radius);padding:var(--md-space-sm) var(--md-space-md);}}
+blockquote{{border-left:var(--md-quote-bar-w) solid var(--md-quote-bar);margin:0.5em 0;padding:0.1em var(--md-space-md);color:var(--md-quote-fg);}}
+blockquote[class^="markdown-alert-"],details[class^="markdown-alert-"]{{color:var(--md-callout-fg);}}
+blockquote[class^="markdown-alert-"]{{border-radius:var(--md-radius);padding:var(--md-space-sm) var(--md-space-md);}}
 blockquote[class^="markdown-alert-"]>.tasty-callout-label{{display:block;}}
 blockquote[class^="markdown-alert-"]>.tasty-callout-label::before,blockquote[class^="markdown-alert-"][data-label]::before{{content:attr(data-label);display:block;font-weight:600;margin-bottom:var(--md-space-xs);padding-left:calc(var(--md-callout-icon) + var(--md-callout-icon-gap));background-repeat:no-repeat;background-position:left center;background-size:var(--md-callout-icon) var(--md-callout-icon);}}
 details[class^="markdown-alert-"]{{border-radius:var(--md-radius);padding:var(--md-space-sm) var(--md-space-md);border-left-width:var(--md-quote-bar-w);border-left-style:solid;}}
@@ -124,7 +128,7 @@ figcaption{{margin-top:var(--md-space-xs);font-size:var(--md-font-body);color:{m
 ul,ol{{padding-left:1.5em;}}
 li input[type=checkbox]{{margin-right:0.4em;}}
 .tasty-state{{padding:var(--md-space-md);color:{muted};}}
-.tasty-state-title{{font-size:var(--md-font-body);font-weight:600;color:{danger};}}
+.tasty-state-title{{font-size:var(--md-font-body);font-weight:600;color:{danger_raised};}}
 .tasty-state-detail{{color:{muted};white-space:pre-wrap;}}
 .tasty-state-action{{display:block;margin-top:var(--md-space-sm);height:{btn_sm_h}px;padding:0 {btn_sm_pad_x}px;border:var(--md-border-w) solid {btn_secondary_border};border-radius:{btn_radius}px;background:{btn_secondary_bg};color:{btn_fg};font-family:inherit;font-size:{btn_sm_font}px;cursor:pointer;}}
 .tasty-state-action:hover{{border-color:{btn_secondary_border_hover};background-image:linear-gradient({btn_overlay_hover},{btn_overlay_hover});}}
@@ -132,11 +136,17 @@ li input[type=checkbox]{{margin-right:0.4em;}}
 "#,
         fg = theme.text_secondary().to_hex(),
         strong = theme.text_primary().to_hex(),
-        link = theme.accent_primary().to_hex(),
+        link = theme.accent_primary_raised().to_hex(),
         code_bg = theme.surface_raised().to_hex(),
         code_border = theme.separator.unpremultiplied().to_hex(),
         border = theme.md_table_border().to_hex(),
-        quote_bar = theme.border_strong().to_hex(),
+        quote_bar = theme.md_quote_bar().to_hex(),
+        quote_fg = theme.md_quote_fg().to_hex(),
+        // 콜아웃 본문은 인용 글자색을 물려받지 않는다.
+        callout_fg = theme.text_primary().to_hex(),
+        table_header_bg = theme.md_table_header_bg().to_hex(),
+        table_header_fg = theme.md_table_header_fg().to_hex(),
+        table_cell_fg = theme.md_table_cell_fg().to_hex(),
         rule = theme.separator.unpremultiplied().to_hex(),
         zebra = theme.md_table_row_bg_zebra().to_hex(),
         bg = md_doc_bg(theme).to_hex(),
@@ -166,6 +176,7 @@ li input[type=checkbox]{{margin-right:0.4em;}}
         addr_css = address::addr_css(theme),
         muted = theme.text_muted().to_hex(),
         danger = theme.accent_danger().to_hex(),
+        danger_raised = theme.accent_danger_raised().to_hex(),
         success = theme.accent_success().to_hex(),
         disabled_fill = theme.state_disabled_fill().to_hex(),
         disabled_border = theme.state_disabled_border().to_hex(),
@@ -177,11 +188,9 @@ li input[type=checkbox]{{margin-right:0.4em;}}
         ),
         alert_rules = alert_css(theme),
         hljs_rules = hljs_css(theme),
-        find_match_bg = theme
-            .accent_warning()
-            .with_alpha(FIND_HIT_BG_ALPHA)
-            .to_hex(),
-        find_current_bg = theme.accent_primary().to_hex(),
+        find_hit_bg = theme.md_find_hit_bg().to_hex(),
+        find_hit_fg = theme.md_find_hit_fg().to_hex(),
+        find_current_bg = theme.md_find_current_bg().to_hex(),
         btn_sm_h = theme.item_height_tab.value(),
         btn_sm_pad_x = theme.spacing_sm.value(),
         btn_sm_font = theme.font_size_caption.value(),
@@ -192,7 +201,7 @@ li input[type=checkbox]{{margin-right:0.4em;}}
         btn_fg = theme.button_fg().to_hex(),
         btn_overlay_hover = theme.button_overlay_hover().unpremultiplied().to_hex(),
         btn_overlay_active = theme.button_overlay_active().unpremultiplied().to_hex(),
-        find_current_fg = theme.text_on_accent().to_hex(),
+        find_current_fg = theme.md_find_current_fg().to_hex(),
     )
 }
 
@@ -250,4 +259,92 @@ pub(super) fn heading_sizes_px(theme: &Theme) -> [f32; 6] {
         h1 - 4.0 * step,
         body,
     ]
+}
+
+#[cfg(test)]
+mod tests {
+    use tasty_type_appearance::theme::Theme;
+
+    use super::theme_css;
+
+    fn mocha() -> Theme {
+        Theme::with_colors_and_zoom(tasty_themes::mocha_fallback_colors(), false, 1.0)
+    }
+
+    /// 밝은 테마. raised 단계는 밝은 테마에서만 기본 강조색과 달라 둘을 구별할 수 있다.
+    fn light() -> Theme {
+        Theme::with_colors_and_zoom(tasty_themes::mocha_fallback_colors(), true, 1.0)
+    }
+
+    /// 한 선택자의 규칙 줄. 같은 선택자로 시작하는 줄이 하나여야 한다.
+    fn rule<'a>(css: &'a str, selector: &str) -> &'a str {
+        let mut found = css.lines().filter(|l| l.starts_with(selector));
+        let line = found.next().unwrap_or_else(|| panic!("{selector}: {css}"));
+        assert!(found.next().is_none(), "{selector} twice");
+        line
+    }
+
+    #[test]
+    fn links_read_the_raised_primary() {
+        let theme = light();
+        assert_ne!(theme.accent_primary_raised(), theme.accent_primary());
+        let css = theme_css(&theme);
+        let raised = theme.accent_primary_raised().to_hex();
+        assert!(css.contains(&format!("--md-link:{raised};")), "{css}");
+        assert!(rule(&css, "a{").contains("color:var(--md-link);"));
+        assert!(rule(&css, "#tasty-toc-list a{").contains("color:var(--md-link);"));
+    }
+
+    #[test]
+    fn a_quote_reads_its_own_ink_without_opacity() {
+        let theme = mocha();
+        let css = theme_css(&theme);
+        let quote = theme.md_quote_fg().to_hex();
+        assert!(css.contains(&format!("--md-quote-fg:{quote};")), "{css}");
+        let line = rule(&css, "blockquote{");
+        assert!(line.contains("color:var(--md-quote-fg);"), "{line}");
+        assert!(!css.contains("opacity:0.9"), "{css}");
+    }
+
+    /// 콜아웃은 인용 요소지만 본문은 인용 글자가 아니라 text-primary다. 두 형태가 같다.
+    #[test]
+    fn a_callout_body_does_not_take_the_quote_ink() {
+        let theme = mocha();
+        let css = theme_css(&theme);
+        let fg = theme.text_primary().to_hex();
+        assert!(css.contains(&format!("--md-callout-fg:{fg};")), "{css}");
+        let line = rule(
+            &css,
+            r#"blockquote[class^="markdown-alert-"],details[class^="markdown-alert-"]{"#,
+        );
+        assert!(line.contains("color:var(--md-callout-fg);"), "{line}");
+    }
+
+    #[test]
+    fn a_missing_wiki_link_and_the_state_title_read_the_raised_danger() {
+        let theme = light();
+        assert_ne!(theme.accent_danger_raised(), theme.accent_danger());
+        let css = theme_css(&theme);
+        let raised = format!("color:{};", theme.accent_danger_raised().to_hex());
+        assert!(rule(&css, ".tasty-wikilink-missing a{").contains(&raised));
+        assert!(rule(&css, ".tasty-state-title{").contains(&raised));
+    }
+
+    #[test]
+    fn table_header_and_cells_read_the_table_tokens() {
+        let theme = mocha();
+        let css = theme_css(&theme);
+        assert_eq!(
+            rule(&css, "th{"),
+            format!(
+                "th{{background:{};color:{};}}",
+                theme.md_table_header_bg().to_hex(),
+                theme.md_table_header_fg().to_hex()
+            )
+        );
+        assert_eq!(
+            rule(&css, "td{"),
+            format!("td{{color:{};}}", theme.md_table_cell_fg().to_hex())
+        );
+    }
 }

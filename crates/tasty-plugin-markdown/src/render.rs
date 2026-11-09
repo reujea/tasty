@@ -633,9 +633,6 @@ fn figurize_paragraph_buffer(buf: Vec<Event<'_>>) -> Vec<Event<'_>> {
 
 // ── Bare `http(s)://` autolinking ───────────────────────────────────────────────
 
-/// 검색 결과 배경의 투명도. 테마 색에 적용한다.
-const FIND_HIT_BG_ALPHA: u8 = 90;
-
 const AUTOLINK_SCHEMES: &[&str] = &["https://", "http://"];
 
 /// Trailing characters stripped one at a time from the end of a matched URL run — mirrors GFM's
@@ -5022,21 +5019,18 @@ Outro\n";
     fn theme_css_derives_find_highlight_colors_from_theme_not_hardcoded() {
         let theme = Theme::with_colors_and_zoom(tasty_themes::mocha_fallback_colors(), false, 1.0);
         let css = theme_css(&theme);
-        assert!(css.contains("mark.tasty-find-hit{"), "got: {css}");
-        assert!(
-            css.contains(&format!(
-                "background:{};",
-                theme
-                    .accent_warning()
-                    .with_alpha(FIND_HIT_BG_ALPHA)
-                    .to_hex()
-            )),
-            "got: {css}"
+        let hit = format!(
+            "mark.tasty-find-hit{{background:{};color:{};",
+            theme.md_find_hit_bg().to_hex(),
+            theme.md_find_hit_fg().to_hex()
         );
-        assert!(
-            css.contains(&format!("background:{};", theme.accent_primary().to_hex())),
-            "got: {css}"
+        assert!(css.contains(&hit), "got: {css}");
+        let current = format!(
+            "mark.tasty-find-hit.tasty-find-current{{background:{};color:{};}}",
+            theme.md_find_current_bg().to_hex(),
+            theme.md_find_current_fg().to_hex()
         );
+        assert!(css.contains(&current), "got: {css}");
     }
 
     // ── 로컬 이미지 인라인 (sanitize 뒤, 문서 트리로 범위를 좁힌 자리) ──────────
