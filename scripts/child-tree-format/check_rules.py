@@ -1,14 +1,20 @@
 #!/usr/bin/env python3
 """Check that the decision rules section still has its first committed bytes.
 
+With --raw it also checks the order rules for raw result files: every line names
+a rules version that exists on main, and the first rules commit came first.
+
 Exit codes: 0 same in the file and in every committed version, 1 changed, 2 could not judge.
 """
 
 import argparse
 import hashlib
+import json
 import re
 import subprocess
 import sys
+from datetime import datetime, timezone
+from pathlib import Path
 
 sys.dont_write_bytecode = True
 
@@ -41,9 +47,72 @@ def committed_bytes(commit, root=REPO_ROOT):
     ).stdout
 
 
+def _git(root, *args):
+    return subprocess.run(
+        ["git", "-C", str(root), *args], capture_output=True, text=True, check=True,
+    ).stdout.strip()
+
+
+def _on_main(commit, root, main_ref):
+    done = subprocess.run(["git", "-C", str(root), "merge-base", "--is-ancestor", commit, main_ref], capture_output=True)
+    return done.returncode == 0
+
+
+def rules_provenance(root=REPO_ROOT, main_ref="origin/main"):
+    """Return the rules commit and blob of a run, or raise ValueError when they cannot be used."""
+    try:
+        commit = _git(root, "log", "-1", "--format=%H", "--", RULES_REL)
+        if not commit:
+            raise ValueError("the rules file has no commit")
+        blob = _git(root, "rev-parse", f"{commit}:{RULES_REL}")
+        working = _git(root, "hash-object", RULES_REL)
+    except subprocess.CalledProcessError as error:
+        raise ValueError("git could not read the rules file") from error
+    if working != blob:
+        raise ValueError("the rules file has uncommitted changes")
+    if not _on_main(commit, root, main_ref):
+        raise ValueError(f"the rules commit is not an ancestor of {main_ref}")
+    if section_hash(committed_bytes(commit, root)) != DECISION_SHA256:
+        raise ValueError("the decision rules section differs from the first commit")
+    return {"rules_commit": commit, "rules_blob": blob}
+
+
+def raw_problems(rows, root=REPO_ROOT, main_ref="origin/main", raw_files=()):
+    """Return the order rule violations of raw lines as (kind, value) pairs."""
+    problems = []
+    pairs = {(r.get("rules_commit"), r.get("rules_blob")) for r in rows}
+    for commit, blob in sorted(pairs, key=str):
+        if not commit or not blob:
+            problems.append(("missing_rules_fields", str(commit)))
+            continue
+        try:
+            actual = _git(root, "rev-parse", f"{commit}:{RULES_REL}")
+        except subprocess.CalledProcessError:
+            problems.append(("unknown_rules_commit", commit))
+            continue
+        if actual != blob:
+            problems.append(("blob_differs", commit))
+        if not _on_main(commit, root, main_ref):
+            problems.append(("not_on_main", commit))
+    first = committed_versions(root)[-1]
+    started = [r["started_at"] for r in rows if r.get("started_at")]
+    if started:
+        committed_at = int(_git(root, "log", "-1", "--format=%ct", first))
+        moment = datetime.strptime(min(started), "%Y-%m-%dT%H:%M:%S.%fZ").replace(tzinfo=timezone.utc)
+        if committed_at >= moment.timestamp():
+            problems.append(("rules_committed_after_first_call", first))
+    for raw in raw_files:
+        added = _git(root, "log", "--diff-filter=A", "--format=%H", "--", raw).split()
+        if added and not _on_main(first, root, added[-1]):
+            problems.append(("rules_not_ancestor_of_raw", raw))
+    return problems
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.parse_args(argv)
+    parser.add_argument("--raw", nargs="*", default=[], help="raw result files to check")
+    parser.add_argument("--main-ref", default="origin/main")
+    args = parser.parse_args(argv)
     current = section_hash(RULES_PATH.read_bytes())
     if current is None:
         print("cannot judge: the markers are missing", file=sys.stderr)
@@ -65,6 +134,22 @@ def main(argv=None):
         for commit in changed:
             print(f"changed in {commit}")
         return 1
+    if args.raw:
+        rows = []
+        try:
+            for name in args.raw:
+                rows += [json.loads(line) for line in Path(name).read_text(encoding="utf-8").splitlines() if line.strip()]
+            problems = raw_problems(rows, REPO_ROOT, args.main_ref, args.raw)
+        except (OSError, ValueError, subprocess.CalledProcessError) as error:
+            print(f"cannot judge: {error}", file=sys.stderr)
+            return 2
+        print(f"raw lines checked: {len(rows)}, order problems: {len(problems)}")
+        for kind, value in problems:
+            print(f"{kind}: {value}")
+        if not rows:
+            print("cannot judge: no raw lines", file=sys.stderr)
+            return 2
+        return 1 if problems else 0
     return 0
 
 
