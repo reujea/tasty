@@ -34,6 +34,8 @@ struct Harness {
     /// 마지막 프레임이 그린 글자 전부.
     texts: Vec<String>,
     cell: Rect,
+    /// 마지막 프레임이 칠한 사각형의 채움색.
+    fills: Vec<egui::Color32>,
 }
 
 impl Harness {
@@ -69,6 +71,7 @@ impl Harness {
             action: None,
             texts: Vec::new(),
             cell: CELL,
+            fills: Vec::new(),
         }
     }
 
@@ -115,6 +118,14 @@ impl Harness {
                     );
                 });
         });
+        self.fills = out
+            .shapes
+            .iter()
+            .filter_map(|clipped| match &clipped.shape {
+                egui::Shape::Rect(rect) => Some(rect.fill),
+                _ => None,
+            })
+            .collect();
         self.texts = out
             .shapes
             .iter()

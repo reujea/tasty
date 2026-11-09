@@ -1214,7 +1214,8 @@ fn grid_cell(
     let state = tasty_ui_widgets::RowState::from_response(selected, &resp);
     state.paint_fill(&p, rect, theme.corner_radius.value(), theme);
 
-    let (icon, glyph_color) = entry_style::entry_icon(theme, e, selected);
+    let ink = entry_style::RowInk::of(state.under_drop(under_drop), ctx.parent, cut);
+    let (icon, glyph_color) = entry_style::entry_icon(theme, e, selected, ink.tinted());
     // 선택 행의 모양 글리프만 hover·press 잉크로 바꾼다. hue 글리프는 on-active 띠를 유지한다.
     let glyph_color = if glyph_color == theme.text_on_active().to_egui() {
         state.glyph(theme).to_egui()
@@ -1231,7 +1232,6 @@ fn grid_cell(
     thumbs::paint_slot(ui, theme, glyph_rect, thumb, icon, glyph_color);
 
     // 이름은 위에서부터 최대 세 줄로 표시하고 넘치면 끝을 줄인다.
-    let ink = entry_style::RowInk::of(state.under_drop(under_drop), ctx.parent, cut);
     let label_color = ink.name(theme, e, theme.text_secondary());
     let mut job = find::name_job(
         theme,
@@ -1312,9 +1312,15 @@ fn list_view(
             create::name_row(ui, theme, view, create::Slot::List, action);
         }
         let selected = view.selected.contains(&e.path);
-        let (icon, glyph_color) = entry_style::entry_icon(theme, e, selected);
         let cut = cut_pending.contains(&e.path);
-        let rest = entry_style::RowInk::at_rest(view, e, cut).name(theme, e, theme.tree_row_fg());
+        let ink = entry_style::RowInk::at_rest(view, e, cut);
+        let row = egui::vec2(ui.available_width(), row_h);
+        // 행 상태는 행 위젯이 고른다. 누른 동안이 아니면 포인터 아래 행은 쉬는 행이 아니다.
+        let resting = ui.input(|i| i.pointer.any_down())
+            || !ui.rect_contains_pointer(egui::Rect::from_min_size(ui.cursor().min, row));
+        let tinted = ink.tinted() && resting;
+        let (icon, glyph_color) = entry_style::entry_icon(theme, e, selected, tinted);
+        let rest = ink.name(theme, e, theme.tree_row_fg());
         // 보이는 줄만 그리므로 줄의 위젯 id 를 화면 위치가 아니라 항목 경로에 묶는다.
         let resp = ui
             .push_id(&e.path, |ui| {
@@ -1457,7 +1463,7 @@ fn detail_view(
                             let sz = th.icon_glyph_size_md.value();
                             let (rect, _) =
                                 ui.allocate_exact_size(egui::vec2(sz, sz), egui::Sense::hover());
-                            let (icon, c) = entry_style::entry_icon(th, row, sel);
+                            let (icon, c) = entry_style::entry_icon(th, row, sel, ink.tinted());
                             icon.image(sz, c).paint_at(ui, rect);
                             let name_fg = ink.name(th, row, th.table_row_fg());
                             let mut job = find::name_job(

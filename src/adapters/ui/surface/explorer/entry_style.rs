@@ -15,10 +15,16 @@ fn hidden_fg(theme: &Theme) -> egui::Color32 {
 }
 
 /// 엔트리의 아이콘 + glyph 색 (design GridCell/DetailRow/ExpListMini):
-/// 폴더/파일 = text-muted, 이미지 파일 = IMAGE 아이콘 + accent-info, 숨김 항목 = explorer-hidden-fg.
+/// 폴더/파일 = text-secondary, 이미지 파일 = IMAGE 아이콘 + accent-info-raised, 숨김 항목 = explorer-hidden-fg.
 /// 대상이 없는 링크는 숨김 여부와 관계없이 링크 경고 글리프와 색을 그대로 쓴다.
 /// 선택한 항목의 모양 글리프는 행 잉크(text-on-active)이고, 색이 뜻을 담는 이미지와 깨진 링크는 on-active 띠를 쓴다.
-pub(super) fn entry_icon(theme: &Theme, e: &DirEntryInfo, selected: bool) -> (Icon, egui::Color32) {
+/// `tinted` 는 놓기 틴트 아래 쉬는 행이다. 틴트 위에서는 glyph-info 를 쓰지 않아 이미지도 중립 글리프다.
+pub(super) fn entry_icon(
+    theme: &Theme,
+    e: &DirEntryInfo,
+    selected: bool,
+    tinted: bool,
+) -> (Icon, egui::Color32) {
     if let Some((icon, color)) = super::link::broken_icon(theme, e) {
         let color = if selected {
             theme.accent_warning_on_active().to_egui()
@@ -37,11 +43,16 @@ pub(super) fn entry_icon(theme: &Theme, e: &DirEntryInfo, selected: bool) -> (Ic
         };
     }
     let (icon, color) = if e.is_dir {
-        (icons::FOLDER, theme.text_muted().to_egui())
+        (icons::FOLDER, theme.text_secondary().to_egui())
     } else if super::is_image_ext(&e.ext) {
-        (icons::IMAGE, theme.accent_info_raised().to_egui())
+        let image = if tinted {
+            theme.text_secondary()
+        } else {
+            theme.accent_info_raised()
+        };
+        (icons::IMAGE, image.to_egui())
     } else {
-        (icons::FILE, theme.text_muted().to_egui())
+        (icons::FILE, theme.text_secondary().to_egui())
     };
     (
         icon,
@@ -69,6 +80,11 @@ impl RowInk {
     fn resting(view: &ExplorerView, e: &DirEntryInfo, state: RowState, cut: bool) -> Self {
         let state = state.under_drop(view.ops.drag.drops_on(&e.path));
         Self::of(state, RowParent::bed(view.bed_focused), cut)
+    }
+
+    /// 놓기 틴트 아래에서 쉬는 행인지.
+    pub(super) fn tinted(self) -> bool {
+        self.state == RowState::DropTarget
     }
 
     /// 목록 행이 쉴 때의 글자. 선택·호버 잉크는 행 위젯이 고른다.
@@ -104,5 +120,44 @@ impl RowInk {
     /// 크기·날짜·종류처럼 이름보다 약한 글자.
     pub(super) fn meta(self, theme: &Theme) -> egui::Color32 {
         self.state.meta(theme, self.parent).to_egui()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn entry(name: &str, ext: &str, is_dir: bool) -> DirEntryInfo {
+        DirEntryInfo {
+            name: name.into(),
+            ext: ext.into(),
+            is_dir,
+            ..Default::default()
+        }
+    }
+
+    /// Mocha는 text-muted와 text-secondary 값이 달라 글리프 칸이 값으로 드러난다.
+    #[test]
+    fn kind_glyphs_read_the_glyph_cell_and_an_image_leaves_its_hue_under_the_tint() {
+        let theme = tasty_themes::mocha_fallback();
+        let glyph = theme.text_secondary().to_egui();
+        assert_ne!(glyph, theme.text_muted().to_egui());
+        let color = |e: &DirEntryInfo, tinted| entry_icon(&theme, e, false, tinted).1;
+        let (dir, file, image) = (
+            entry("src", "", true),
+            entry("a.txt", "txt", false),
+            entry("a.png", "png", false),
+        );
+        for tinted in [false, true] {
+            assert_eq!(color(&dir, tinted), glyph);
+            assert_eq!(color(&file, tinted), glyph);
+        }
+        assert_eq!(color(&image, false), theme.accent_info_raised().to_egui());
+        assert_eq!(color(&image, true), glyph);
+        // 선택 행은 틴트와 상관없이 on-active 다.
+        assert_eq!(
+            entry_icon(&theme, &image, true, true).1,
+            theme.accent_info_on_active().to_egui()
+        );
     }
 }

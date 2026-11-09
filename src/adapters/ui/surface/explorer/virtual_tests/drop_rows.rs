@@ -66,3 +66,48 @@ fn the_parent_row_reads_the_drop_cell_under_a_body_tint() {
         );
     }
 }
+
+/// 틴트 아래 행에는 hover·press 칸이 없다. 끄는 동안 행에 그 오버레이가 칠해지지 않는 것이 전제다.
+#[test]
+fn rows_show_no_hover_overlay_while_an_item_is_dragged() {
+    use egui::{Event, Modifiers, PointerButton};
+    for mode in [
+        ExplorerViewMode::List,
+        ExplorerViewMode::Grid,
+        ExplorerViewMode::Detail,
+    ] {
+        let mut h = super::Harness::with_count(mode, 8);
+        h.frame(Vec::new());
+        let drawn = h.frame(Vec::new());
+        let row = |i| super::on_screen(&drawn, i).expect("row on screen").center();
+        let (from, over) = (row(0), row(3));
+        let th = crate::theme::theme();
+        let hover = [
+            th.overlay_hover().to_egui_premultiplied(),
+            th.table_row_bg_hover().to_egui_premultiplied(),
+            th.tree_row_bg_hover().to_egui_premultiplied(),
+        ];
+        let painted = |h: &mut super::Harness, events| {
+            h.frame(events);
+            h.frame(Vec::new());
+            h.fills.iter().filter(|c| hover.contains(c)).count()
+        };
+        let idle = painted(&mut h, vec![Event::PointerMoved(egui::Pos2::ZERO)]);
+        let hovering = painted(&mut h, vec![Event::PointerMoved(over)]);
+        assert!(hovering > idle, "{mode:?}: the row shows hover at rest");
+        let press = Event::PointerButton {
+            pos: from,
+            button: PointerButton::Primary,
+            pressed: true,
+            modifiers: Modifiers::default(),
+        };
+        h.frame(vec![Event::PointerMoved(from), press]);
+        h.frame(vec![Event::PointerMoved(from + egui::vec2(20.0, 0.0))]);
+        let dragging = painted(&mut h, vec![Event::PointerMoved(over)]);
+        assert!(
+            egui::DragAndDrop::has_any_payload(&h.ctx),
+            "{mode:?}: the drag started"
+        );
+        assert_eq!(dragging, idle, "{mode:?}: no hover overlay during the drag");
+    }
+}
