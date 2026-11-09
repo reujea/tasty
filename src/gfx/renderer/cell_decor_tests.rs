@@ -528,3 +528,15 @@ fn a_blank_or_preedit_cell_draws_no_glyph() {
     assert!(!draws_glyph("", &attrs, false));
     assert!(!draws_glyph("a", &attrs, true));
 }
+
+/// 그리기만 바뀌고 셀 텍스트는 남아 찾기가 숨긴 글자를 찾는다.
+#[test]
+fn a_hidden_cell_text_stays_searchable() {
+    let mut terminal = Terminal::new_detached(20, 3);
+    terminal.feed_bytes(b"A\x1b[8mSECRET\x1b[28mB\x1b[0m");
+    let found = terminal
+        .search("secret", &tasty_terminal::search::SearchOptions::default())
+        .expect("search");
+    let cols: Vec<_> = found.iter().map(|m| (m.col_start, m.col_end)).collect();
+    assert_eq!(cols, vec![(1, 7)]);
+}
