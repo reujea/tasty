@@ -122,14 +122,18 @@ fn a_reversed_screen_drops_the_selection_ink_only_when_the_setting_allows_it() {
 }
 
 /// 비포커스 바탕에서도 값이 같은 근거다. 바탕이 불투명해 아래 바탕이 글자에 닿지 않는다.
-#[test]
-fn the_selection_fill_is_opaque_on_the_official_themes() {
+fn official_themes() -> [tasty_type_appearance::theme::Theme; 2] {
     let file = tasty_themes::ThemeFile::parse(tasty_themes::LATTE_TOML_TEXT).expect("latte");
     let (partial, is_light) = file.to_partial();
     let mut colors = tasty_themes::mocha_fallback_colors();
     colors.apply_partial(&partial);
     let latte = tasty_type_appearance::theme::Theme::with_colors(colors, is_light.unwrap_or(true));
-    for theme in [tasty_themes::mocha_fallback(), latte] {
+    [tasty_themes::mocha_fallback(), latte]
+}
+
+#[test]
+fn the_selection_fill_is_opaque_on_the_official_themes() {
+    for theme in official_themes() {
         assert_eq!(theme.selection_bg.to_gpu_rgba().as_array()[3], 1.0);
         assert_eq!(theme.vi_cursor_bg.to_gpu_rgba().as_array()[3], 1.0);
     }
@@ -575,4 +579,74 @@ fn a_selected_link_cell_in_a_match_stays_a_link_cell() {
         );
         assert_eq!(paint, link_cell(), "{col}");
     }
+}
+
+/// 렌더 경로가 쓰는 매치 칠은 테마의 매치 역할에서 온다. 선택 위 글자와 현재 매치 글자는 다른 역할이다.
+#[test]
+fn the_search_paint_reads_each_match_role_of_the_theme() {
+    for theme in official_themes() {
+        for focused in [true, false] {
+            let sh = SearchHighlights::for_theme(&theme, focused, search(1).epoch, &[], 1);
+            assert_eq!(
+                sh.selected_fg,
+                theme.search_match_selected_fg().to_gpu_rgba()
+            );
+            assert_eq!(
+                sh.active_selected_bg,
+                theme.search_match_active_selected_bg().to_gpu_rgba()
+            );
+            assert_eq!(sh.inactive_bg, theme.search_match_bg.to_gpu_rgba());
+            assert_eq!(sh.active_bg, theme.search_match_active_bg.to_gpu_rgba());
+            assert_eq!(sh.inactive_ink, Some(theme.text_primary().to_gpu_rgba()));
+            let active_fg = if focused {
+                theme.search_match_active_fg
+            } else {
+                theme.search_match_active_unfocused_fg()
+            };
+            assert_eq!(sh.active_fg, active_fg.to_gpu_rgba());
+        }
+    }
+    // 포커스 현재 매치 글자와 선택 위 글자가 모든 테마에서 같으면 위 대조가 둘을 구별하지 못한다.
+    assert!(
+        official_themes()
+            .iter()
+            .any(|t| t.search_match_selected_fg() != t.search_match_active_fg)
+    );
+}
+
+/// 블록 모양만 칸을 맞바꾼다. 막대와 밑줄 커서 칸은 커서 없는 칸과 같고 모양은 글리프로 덧그린다.
+#[test]
+fn only_the_block_cursor_shape_swaps_the_cell() {
+    let attrs = attrs_of("");
+    let overlays = CellOverlays {
+        selection: None,
+        selection_ink: None,
+        vi_cursor: None,
+        link: None,
+        search: None,
+    };
+    let paint = |cursor| paint_cell(0, 0, &attrs, bed(), cell_ink(), &ansi(), cursor, &overlays);
+    let swapped = paint(cursor_paint_at(
+        Some((0, 0, false, CursorPaint::Block)),
+        0,
+        0,
+    ));
+    assert_eq!((swapped.bg, swapped.fg), (cell_ink(), bed()));
+    for shape in [CursorPaint::Bar, CursorPaint::Underline] {
+        assert_eq!(paint(Some(shape)), paint(None));
+    }
+}
+
+/// 커서 모양은 커서 칸에만 걸리고 넓은 글자면 오른쪽 칸까지 걸린다.
+#[test]
+fn the_cursor_shape_lands_on_its_cell_and_the_wide_right_half() {
+    let block = CursorPaint::Block;
+    let narrow = Some((3, 1, false, block));
+    let wide = Some((3, 1, true, block));
+    assert_eq!(cursor_paint_at(narrow, 3, 1), Some(block));
+    assert_eq!(cursor_paint_at(narrow, 4, 1), None);
+    assert_eq!(cursor_paint_at(narrow, 3, 0), None);
+    assert_eq!(cursor_paint_at(wide, 4, 1), Some(block));
+    assert_eq!(cursor_paint_at(wide, 5, 1), None);
+    assert_eq!(cursor_paint_at(None, 3, 1), None);
 }
