@@ -20,7 +20,7 @@ pub struct SearchHighlights<'a> {
     pub inactive_ink: Option<GpuRgba>,
     /// 선택 위 현재 매치의 바탕. 커서 칸은 `active_bg`를 쓴다.
     pub active_selected_bg: GpuRgba,
-    /// 선택 위 매치의 글자.
+    /// 선택 위 매치의 글자. 현재 매치 안 커서 칸도 이 글자를 쓴다.
     pub selected_fg: GpuRgba,
 }
 
@@ -55,7 +55,7 @@ impl SearchHighlights<'_> {
 
     /// 매치 칸의 바탕에 강조색을 합성하고 글자를 정한다. `cursor_cell`은 커서가 글자를 정한 칸이다.
     /// 현재 매치는 모든 글자를 덮고, 일반 매치는 기본 글자 셀만 바꾼다.
-    /// 선택 위 글자는 어두운 값 하나고, 선택 위 현재 매치 바탕은 커서 칸이 아닐 때만 따로 있다.
+    /// 선택 위 글자와 현재 매치 안 커서 칸의 글자는 어두운 값 하나다. 선택 위 현재 매치 바탕은 커서 칸이 아닐 때만 따로 있다.
     pub(super) fn paint(
         &self,
         kind: MatchKind,
@@ -73,7 +73,7 @@ impl SearchHighlights<'_> {
                     self.active_bg
                 };
                 *bg = composite_over(fill, *bg);
-                *fg = if selected {
+                *fg = if selected || cursor_cell {
                     self.selected_fg
                 } else {
                     self.active_fg

@@ -40,7 +40,7 @@
 | 역할 | 값 | 쓰는 자리 |
 |---|---|---|
 | `text-on-active` · `text-on-active-hover` | Mocha `text-primary`·white, Latte neutral-1100을 검정 쪽으로 혼합 | `surface-active`와 그 hover·press 위 글자와 모양 글리프. 터미널 선택 칸과 포인터 아래 링크의 기본 글자도 이 값이다 |
-| `search-match-selected-fg` | Mocha neutral-0, Latte black | 터미널 선택과 매치가 겹친 칸의 글자 |
+| `search-match-selected-fg` | Mocha neutral-0, Latte black | 터미널 선택과 매치가 겹친 칸, 현재 매치 안 커서 칸의 글자 |
 | `search-match-active-selected-bg` | Mocha `search-match-active-bg`, Latte yellow 80% | 터미널 선택 위 현재 매치 바탕. 테마 키가 없어 사용자 테마는 자기 현재 매치 바탕을 쓴다 |
 | `accent-primary-on-active` | blue와 white 혼합, Latte는 blue를 검정 쪽으로 혼합 | `surface-active` 위 선택 표지와 일반 강조 글리프, 쉬는 일치 구간 |
 | `accent-warning-on-active` · `accent-success-on-active` · `accent-info-on-active` · `accent-remote-on-active` | Mocha 각 accent, Latte 각 hue를 검정 쪽으로 혼합. remote는 info를 따른다 | `surface-active` 위 경고·성공·이미지·원격 글리프 |

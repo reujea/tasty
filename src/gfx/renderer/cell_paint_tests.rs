@@ -444,16 +444,86 @@ fn a_block_cursor_in_a_selected_match_takes_no_selection_fill() {
     );
 }
 
-/// 매치 밖의 선택 + 블록 커서는 이번 표 밖이라 값을 바꾸지 않는다.
+fn unselected_match(
+    col: usize,
+    attrs: &CellAttributes,
+    block_cursor: bool,
+    vi: Option<&(SelectionPoint, GpuRgba, GpuRgba)>,
+    sh: &SearchHighlights<'_>,
+) -> CellPaint {
+    paint_cell(
+        col,
+        0,
+        attrs,
+        bed(),
+        cell_ink(),
+        &ansi(),
+        block_cursor,
+        &CellOverlays {
+            selection: None,
+            selection_ink: None,
+            vi_cursor: vi,
+            link: None,
+            search: Some(sh),
+        },
+    )
+}
+
+/// 블록 커서 칸은 매치 안팎에서 선택을 칠하지 않아 선택 유무로 칠이 바뀌지 않는다.
 #[test]
-fn a_block_cursor_outside_every_match_still_takes_the_selection_fill() {
-    let sh = SearchHighlights {
+fn a_block_cursor_cell_paints_the_same_with_or_without_a_selection() {
+    let outside = SearchHighlights {
         matches: &[],
         ..search(1)
     };
-    let paint = selected_match(ORDINARY, &attrs_of(""), true, None, &sh);
-    assert_eq!(paint.bg, sel_bg());
-    assert_eq!(paint.fg, bed());
+    let inside = search(1);
+    for sgr in ["", "\x1b[1m", "\x1b[2m", "\x1b[31m"] {
+        let attrs = attrs_of(sgr);
+        for (sh, col) in [(&outside, ORDINARY), (&inside, ORDINARY), (&inside, ACTIVE)] {
+            assert_eq!(
+                selected_match(col, &attrs, true, None, sh),
+                unselected_match(col, &attrs, true, None, sh),
+                "{sgr:?} {col}"
+            );
+        }
+    }
+    let plain = selected_match(ORDINARY, &attrs_of(""), true, None, &outside);
+    assert_eq!((plain.bg, plain.fg), (cell_ink(), bed()));
+}
+
+/// 현재 매치 안 커서 칸의 글자는 선택 위 매치 글자다. 선택을 시작해도 칸이 바뀌지 않는다.
+#[test]
+fn a_cursor_cell_in_the_active_match_reads_the_selected_ink() {
+    let sh = search(1);
+    let attrs = attrs_of("");
+    let vi = (point(ACTIVE), cursor_bg(), cursor_ink());
+    let vi_paint = unselected_match(ACTIVE, &attrs, false, Some(&vi), &sh);
+    assert_eq!(
+        vi_paint,
+        CellPaint {
+            bg: composite_over(sh.active_bg, cursor_bg()),
+            fg: selected_fg(),
+            underline: None,
+        }
+    );
+    assert_eq!(
+        vi_paint,
+        selected_match(ACTIVE, &attrs, false, Some(&vi), &sh)
+    );
+    let block = unselected_match(ACTIVE, &attrs, true, None, &sh);
+    assert_eq!(
+        block,
+        CellPaint {
+            bg: composite_over(sh.active_bg, cell_ink()),
+            fg: selected_fg(),
+            underline: None,
+        }
+    );
+    // 커서가 아닌 현재 매치 칸은 그대로 현재 매치 글자다.
+    assert_eq!(
+        unselected_match(ACTIVE + 1, &attrs, false, None, &sh).fg,
+        sh.active_fg
+    );
 }
 
 #[test]

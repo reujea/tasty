@@ -31,7 +31,7 @@ pub(super) struct CellPaint {
 
 /// 셀 색 위에 커서, 선택, vi 커서, 링크, 매치 순서로 칠한다.
 /// 링크 칸은 어느 매치에서나 선택 칸으로 읽는다. 커서 칸은 링크 안에서도 커서 칸이고 밑줄은 그 글자색이다.
-/// 블록 커서 칸은 매치와 겹치면 선택을 칠하지 않는다. 선택 위에서 맞바꾼 글자가 등급에 못 미친다.
+/// 블록 커서 칸은 선택을 칠하지 않는다. 선택 위에서 맞바꾼 글자가 등급에 못 미치고 커서 위치가 안 보인다.
 // 이유: 칸 좌표, 셀 속성, 기본 색, 팔레트, 커서를 칸마다 따로 받는다. 묶으면 호출마다 구조체를 새로 만든다.
 #[allow(clippy::too_many_arguments)]
 pub(super) fn paint_cell(
@@ -55,7 +55,7 @@ pub(super) fn paint_cell(
         .selection
         .filter(|(sel, ..)| tasty_selection::is_selected(col, absolute_row, sel));
     if let Some((_, sel_bg, _)) = selection
-        && !(block_cursor && match_kind.is_some())
+        && !block_cursor
     {
         bg = composite_over(*sel_bg, bg);
         if let Some(ink) = overlays.selection_ink
