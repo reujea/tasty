@@ -23,7 +23,7 @@ TARGET_DIRS = ("docs/research/child-tree-format", "scripts/child-tree-format")
 PUBLIC_PATTERNS = (
     ("unix-home-path", re.compile(r"/hom[e]/|/User[s]/", re.I)),
     ("drive-path", re.compile(r"(?<![a-z0-9])[a-z]:[\\/](?![/])", re.I)),
-    ("email", re.compile(r"[\w.+-]+@[\w-]+\.[a-z][\w.-]*", re.I)),
+    ("email", re.compile(r"\w[\w.+-]*@[\w-]+\.[a-z][\w.-]*", re.I)),
     (
         "private-ip",
         re.compile(

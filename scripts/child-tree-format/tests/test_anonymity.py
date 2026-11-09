@@ -152,5 +152,17 @@ class AnonymityCheck(unittest.TestCase):
         self.assertEqual(terms, set())
 
 
+class EmailPattern(unittest.TestCase):
+    PATTERN = dict(check_anonymity.PUBLIC_PATTERNS)["email"]
+
+    def test_a_decorator_on_an_added_diff_line_is_not_an_email(self):
+        self.assertIsNone(self.PATTERN.search("+" + "@" + "contextlib.contextmanager"))
+
+    def test_an_email_on_an_added_diff_line_is_still_found(self):
+        found = self.PATTERN.search("+" + MARKERS["email"])
+        self.assertEqual(found.group(0), MARKERS["email"])
+        self.assertTrue(self.PATTERN.search("first.last+tag" + "@" + "example.org"))
+
+
 if __name__ == "__main__":
     unittest.main()
