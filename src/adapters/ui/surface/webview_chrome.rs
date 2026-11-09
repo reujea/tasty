@@ -2,7 +2,10 @@
 //! Loading·Failed는 탐색 상태를 표시하고 나머지는 URL 유무로 빈 타일 또는 빈 화면 안내를 고른다.
 //! 메뉴·팝업·토스트 때문에 불러온 페이지가 숨겨지면 이 빈 타일이 보인다.
 
+use tasty_type_appearance::theme::Theme;
+
 use crate::adapters::ui::icons;
+use crate::state::surface_focus::FocusMark;
 use crate::theme;
 use crate::webview::NavState;
 
@@ -10,6 +13,41 @@ use crate::webview::NavState;
 /// raw HTML을 url로 보내는 surface(markdown 등)는 원문 대신 label을 보이거나 줄을 비운다.
 pub fn chrome_caption<'a>(url: Option<&'a str>, label: Option<&'a str>) -> Option<&'a str> {
     label.or_else(|| url.filter(|u| crate::webview::is_navigable_url(u)))
+}
+
+/// tile이 페이지를 대신하는 동안 칠할 바탕과 글리프를 kind로 고른다.
+#[derive(Clone, Copy, PartialEq, Debug)]
+pub enum WebviewTile {
+    /// 페이지가 호스트 바탕을 따르는 kind. 페이지가 떠도 튀지 않게 tile도 같은 값을 칠한다.
+    Bed { focused: bool },
+    /// 페이지가 자기 바탕을 칠하는 kind. 포커스는 띠로 보이고 tile은 바뀌지 않는다.
+    Plain,
+}
+
+impl WebviewTile {
+    pub(crate) fn of(mark: FocusMark, bed_focused: bool) -> Self {
+        match mark {
+            FocusMark::Bed => Self::Bed {
+                focused: bed_focused,
+            },
+            FocusMark::Edge => Self::Plain,
+        }
+    }
+
+    fn bg(self, th: &Theme) -> egui::Color32 {
+        match self {
+            Self::Bed { focused } => tasty_ui_widgets::surface_bed(th, focused),
+            Self::Plain => th.bg_panel().to_egui(),
+        }
+    }
+
+    /// no page 글리프. `text-disabled`는 Latte unfocused 바탕 위에서 3에 못 미친다.
+    fn no_page_glyph(self, th: &Theme) -> egui::Color32 {
+        match self {
+            Self::Bed { .. } => th.glyph_dim().to_egui(),
+            Self::Plain => th.text_disabled().to_egui(),
+        }
+    }
 }
 
 /// webview-kind surface 의 host chrome 을 패널에 그린다. `nav` 가 Loading/Failed 면
@@ -21,6 +59,7 @@ pub fn chrome_caption<'a>(url: Option<&'a str>, label: Option<&'a str>) -> Optio
 /// `empty_hint`는 빈 안내 아래에 보일 caption이다(html surface의 주소창 안내).
 pub fn draw_webview_chrome(
     ui: &mut egui::Ui,
+    tile: WebviewTile,
     content: egui::Rect,
     url: Option<&str>,
     page_label: Option<&str>,
@@ -30,8 +69,7 @@ pub fn draw_webview_chrome(
     let caption = chrome_caption(url, page_label);
     let th = theme::theme();
     let panel_rect = ui.max_rect();
-    ui.painter()
-        .rect_filled(panel_rect, 0.0, th.bg_panel().to_egui());
+    ui.painter().rect_filled(panel_rect, 0.0, tile.bg(&th));
     ui.painter().rect_stroke(
         panel_rect,
         0.0,
@@ -82,7 +120,7 @@ pub fn draw_webview_chrome(
                 // URL이 있으면 boundary: 배경·테두리만 남긴다.
                 NavState::Idle | NavState::Done => {
                     if url.is_none() {
-                        ui.add(icons::HTML.image(glyph, th.text_disabled().to_egui()));
+                        ui.add(icons::HTML.image(glyph, tile.no_page_glyph(&th)));
                         ui.add_space(th.spacing_sm.value());
                         label(
                             ui,
@@ -132,7 +170,33 @@ fn label(ui: &mut egui::Ui, text: &str, color: egui::Color32) {
 
 #[cfg(test)]
 mod tests {
-    use super::chrome_caption;
+    use super::{WebviewTile, chrome_caption};
+    use crate::state::surface_focus::FocusMark;
+    use tasty_type_appearance::theme::Theme;
+
+    fn latte() -> Theme {
+        let file = tasty_themes::ThemeFile::parse(tasty_themes::LATTE_TOML_TEXT).expect("latte");
+        let (partial, is_light) = file.to_partial();
+        let mut colors = tasty_themes::mocha_fallback_colors();
+        colors.apply_partial(&partial);
+        Theme::with_colors(colors, is_light.unwrap_or(true))
+    }
+
+    #[test]
+    fn a_bed_kind_tile_takes_the_bed_and_the_others_stay_plain() {
+        for th in [tasty_themes::mocha_fallback(), latte()] {
+            let on = WebviewTile::of(FocusMark::Bed, true);
+            let off = WebviewTile::of(FocusMark::Bed, false);
+            assert_eq!(on.bg(&th), th.surface_bed_focused().to_egui());
+            assert_eq!(off.bg(&th), th.surface_bed_unfocused().to_egui());
+            assert_eq!(on.no_page_glyph(&th), th.glyph_dim().to_egui());
+            for focused in [true, false] {
+                let plain = WebviewTile::of(FocusMark::Edge, focused);
+                assert_eq!(plain.bg(&th), th.bg_panel().to_egui());
+                assert_eq!(plain.no_page_glyph(&th), th.text_disabled().to_egui());
+            }
+        }
+    }
 
     #[test]
     fn a_label_wins_over_the_url() {

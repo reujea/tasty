@@ -326,6 +326,13 @@ pub fn draw_egui_panels(
             if crate::runtime::surface_registry::webview_kind::is_webview_kind(remote.kind()) {
                 let url = remote.url();
                 let chrome_label = remote.label();
+                let tile = crate::webview_chrome_ui::WebviewTile::of(
+                    crate::state::surface_focus::focus_mark(
+                        remote.kind(),
+                        Some(remote.plugin_id()),
+                    ),
+                    bed_focused,
+                );
                 let nav = remote.nav_state();
                 let nav_info = remote.nav_info();
                 let html_sid = info.surface_id.filter(|_| remote.kind() == "html");
@@ -419,6 +426,7 @@ pub fn draw_egui_panels(
                             {
                                 crate::webview_chrome_ui::draw_webview_chrome(
                                     &mut chrome_ui,
+                                    tile,
                                     content,
                                     None,
                                     chrome_label.as_deref(),
@@ -433,6 +441,7 @@ pub fn draw_egui_panels(
                         } else {
                             crate::webview_chrome_ui::draw_webview_chrome(
                                 &mut chrome_ui,
+                                tile,
                                 content,
                                 url.as_deref().or(nav_info.url.as_deref()),
                                 chrome_label.as_deref(),

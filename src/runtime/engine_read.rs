@@ -354,6 +354,9 @@ impl WebviewRead<'_> {
     pub(crate) fn kind(&self) -> &'static str {
         self.inner.kind_static
     }
+    pub(crate) fn plugin_id(&self) -> &str {
+        &self.inner.plugin_id
+    }
     pub(crate) fn url(&self) -> Option<String> {
         self.inner.webview_url()
     }

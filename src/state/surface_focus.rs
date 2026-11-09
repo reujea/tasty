@@ -1,7 +1,31 @@
-//! surface 바탕의 포커스 값을 정한다. 값은 포커스와 점유가 정한다.
+//! surface가 포커스를 어떻게 보이는지 정한다. 표현 방법은 kind가, 값은 포커스와 점유가 정한다.
 //! 계약은 `docs/design/policies/focus.md`의 "Surface 포커스 표현" 절에 있다.
 
 use crate::core::attach::OccupancyRegistry;
+use crate::runtime::surface_registry::builtins::is_host_builtin_kind;
+
+/// 포커스를 보이는 방법. 호스트가 바탕을 보장할 수 있는 kind만 바탕을 바꾸고 나머지는 띠를 그린다.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub(crate) enum FocusMark {
+    Bed,
+    Edge,
+}
+
+/// kind와 그 kind를 등록한 플러그인으로 표현을 고른다. 모르는 kind는 띠다.
+/// markdown·image는 이름만 보지 않는다. 번들 플러그인이 빠진 설치에서는 제3자가 같은 이름을
+/// 등록할 수 있고, 그 페이지의 바탕은 호스트가 보장하지 못한다. `com.tasty.` id는 공식
+/// 플러그인 전용이므로(`tasty_host_plugin::official`) 제3자가 이 id를 쓸 수 없다.
+pub(crate) fn focus_mark(kind: &str, plugin_id: Option<&str>) -> FocusMark {
+    let bundled_bed = matches!(
+        (kind, plugin_id),
+        ("markdown", Some("com.tasty.markdown")) | ("image", Some("com.tasty.image"))
+    );
+    if bundled_bed || is_host_builtin_kind(kind) {
+        FocusMark::Bed
+    } else {
+        FocusMark::Edge
+    }
+}
 
 /// 바탕 kind가 focus 값을 칠할지 정한다. 포커스를 가져도 입력을 받지 않는 점유 내용은 unfocus 값이다.
 /// `focused`는 attach 대기 선택이면 `None`이고, OS 창의 활성 여부를 보지 않는다.
@@ -47,5 +71,29 @@ mod tests {
         assert!(!bed_focused(Some(1), 1, &reg));
         assert!(!reg.is_hard_occupied(2));
         assert!(!bed_focused(Some(2), 2, &reg));
+    }
+
+    #[test]
+    fn the_mark_follows_the_kind_and_its_source() {
+        for kind in ["terminal", "empty", "explorer", "dag_graph"] {
+            assert_eq!(focus_mark(kind, None), FocusMark::Bed, "{kind}");
+        }
+        assert_eq!(
+            focus_mark("markdown", Some("com.tasty.markdown")),
+            FocusMark::Bed
+        );
+        assert_eq!(focus_mark("image", Some("com.tasty.image")), FocusMark::Bed);
+        assert_eq!(focus_mark("html", Some("com.tasty.html")), FocusMark::Edge);
+        assert_eq!(
+            focus_mark("markdown", Some("com.example.markdown")),
+            FocusMark::Edge,
+            "the same kind name from another plugin"
+        );
+        assert_eq!(
+            focus_mark("image", Some("com.example.image")),
+            FocusMark::Edge
+        );
+        assert_eq!(focus_mark("markdown", None), FocusMark::Edge);
+        assert_eq!(focus_mark("unknown", Some("com.example")), FocusMark::Edge);
     }
 }
