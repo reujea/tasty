@@ -210,7 +210,7 @@ semantic 필드를 그대로 재사용한다(신규 필드 없음). 정본 소�
 |---|---|---|---|
 | `--tasty-preset-leaf-label-fg` | `text-muted` | `Theme::preset_leaf_label_fg()` = `text_muted()` | 요약 라벨(소문자 필드 키) 색. 신규 접근자 |
 | `--tasty-preset-leaf-value-fg` | `text-secondary` | `Theme::preset_leaf_value_fg()` = `text_secondary()` | 요약 값 색. 신규 접근자 |
-| `--tasty-preset-leaf-label-font-size` | `font-size-micro` (10) | `Theme::font_size_micro` | 라벨 폰트(`font-label`). 기존 필드 재사용 |
+| `--tasty-preset-leaf-label-font-size` | `font-size-micro` (10) | `Theme::font_size_micro` | 라벨 폰트(mono, 필드 키는 값이다). 기존 필드 재사용 |
 | `--tasty-preset-leaf-value-font-size` | `font-size-caption` (11) | `Theme::font_size_caption` | 값 폰트(mono). 기존 필드 재사용 |
 | `--tasty-preset-leaf-summary-gap` | `space-xs` (4) | `Theme::spacing_xs` | 행↔행·kind명↔요약·라벨↔값 gap. 기존 필드 재사용 |
 

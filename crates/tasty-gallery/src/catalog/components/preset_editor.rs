@@ -351,7 +351,7 @@ fn draw_surface_box(ui: &mut egui::Ui, theme: &Theme, rect: egui::Rect, leaf: &D
 
     if !rows.is_empty() {
         y += gap;
-        let label_font = tasty_ui_widgets::label_font(theme.font_size_micro.value());
+        let label_font = egui::FontId::monospace(theme.font_size_micro.value());
         let value_font = egui::FontId::monospace(row_h.value());
         let inner_w = (LogicalPx(rect.width()) - gap.scaled(2.0)).max(LogicalPx(0.0));
         for (i, row) in rows.iter().enumerate() {
