@@ -6061,13 +6061,13 @@ help = "やり直す task id"
 help = "下流の Skipped/Failed の task も Waiting に戻す。型契約 (contract_version 2) の task では拒否される"
 
 [cli.help._root.agent.task-graph]
-about = "task DAG を JSON または Graphviz dot で出す"
+about = "タスク DAG を親 ID 表、JSON または Graphviz dot で出力します"
 
 [cli.help._root.agent.task-graph.arg.workspace_id]
 help = "ワークスペース id（フォーカス非依存 — 必須）"
 
 [cli.help._root.agent.task-graph.arg.format]
-help = "形式: json | dot。デフォルト: json"
+help = "形式: `table` | `json` | `dot`. デフォルト: `table` (親 ID 表). 表では、すべてのエッジの始点を親として一覧表示します。エッジの種類を確認するには、`json` または `dot` を使用してください"
 
 [cli.help._root.agent.dag-list]
 about = "登録済みタスクから DAG 一覧を計算します。同じ `metadata.dag` 文字列を持つタスクを 1 つのグループにし、残りは `depends_on` / `Fallback.task` / `Reduce.inputs` / `metadata.fallback_of` / v2 `bindings` / v2 `transitions` の接続を方向に関係なくたどってまとめます。DAG を別に保存することはありません。`--workspace` を省略すると現在の全ワークスペースを調べます。"
@@ -6079,7 +6079,7 @@ help = "1 つのワークスペースに絞る。省略すると生きている�
 help = "各 DAG の task id 一覧（`task_ids`）も一緒に出す"
 
 [cli.help._root.agent.dag-get]
-about = "`dag-list` が出した DAG を 1 つ JSON または Graphviz dot で出す — ノードと辺の形は `task-graph` と同じで、その DAG に絞ったものだ"
+about = "（`dag-list` に表示される）DAG を 1 つ、親 ID 表、JSON または Graphviz dot で出力します。`task-graph` と同じノード/エッジ構造を使用し、対象をその DAG に限定します"
 
 [cli.help._root.agent.dag-get.arg.id]
 help = "`dag-list` が出した DAG id（`d:<metadata.dag>` または `c:<ルート task id>`）"
@@ -6088,7 +6088,7 @@ help = "`dag-list` が出した DAG id（`d:<metadata.dag>` または `c:<ルー
 help = "照会するワークスペースを 1 つ指定します。ユーザーが指定した DAG ID が 2 つのワークスペースで重複した場合に、対象を区別するために使います。"
 
 [cli.help._root.agent.dag-get.arg.format]
-help = "形式: json | dot。デフォルト: json"
+help = "形式: `table` | `json` | `dot`. デフォルト: `table` (親 ID 表). 表では、すべてのエッジの始点を親として一覧表示します。エッジの種類を確認するには、`json` または `dot` を使用してください"
 
 [cli.help._root.agent.dag-report]
 about = "DAG の report を出す — task ごとに保存された状態から作る自動項目と、試行ごとの custom 記録だ。`--include-raw` を付けなければ標準出力・エラーは含まない"

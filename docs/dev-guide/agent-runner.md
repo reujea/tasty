@@ -682,9 +682,12 @@ tasty agent task-create --workspace 1 --name build --command '{"kind":"run","com
 tasty agent dag-list                                   # 살아있는 전 workspace 의 DAG
 tasty agent dag-list --workspace 1                  # 한 workspace 로 한정
 tasty agent dag-list --include-tasks                   # 각 DAG 에 task id 목록 동봉
-tasty agent dag-get --id c:t-1716800000123-1           # 그 DAG 만의 nodes/edges
+tasty agent dag-get --id c:t-1716800000123-1           # 그 DAG 의 부모 ID 표
+tasty agent dag-get --id c:t-1716800000123-1 --format json  # 그 DAG 만의 nodes/edges
 tasty agent dag-get --id d:build --workspace 1 --format dot
 ```
+
+`task-graph`·`dag-get` 의 기본 출력은 [부모 ID 표](cli-structure.md#부모-id-표-formatparent_tablers)이고 열은 `id`, `parents`, `name`, `state` 다. `parents` 에는 DOT 과 같은 간선의 원본을 모두 넣으므로 fallback·전이 원본도 부모로 보인다. 간선 종류는 `--format json` 이나 `--format dot` 으로 본다. 갈래에서 선택되지 않은 task 의 `state` 는 DOT 라벨과 같은 `not selected` 다. 표 본문은 stdout 에, `cycle`·`runner` 는 stderr 에 한 줄씩 쓴다. 순환이 있어도 모든 행을 낸다. `dag-get` 의 `dag` 요약은 표에 싣지 않는다.
 
 `task-graph`·`dag-get` 의 `--format dot` 은 응답의 `dot` 본문만 stdout 에 쓰고 `cycle`·`runner` 는 stderr 에 한 줄씩 쓴다(`crates/tasty-cli/src/format/graph_dot.rs`). stdout 을 그대로 Graphviz 에 넘기기 위해서다. 응답 전체(JSON)가 필요하면 `--format json` 이나 IPC `agent.task_graph`·`agent.dag_get` 을 쓴다.
 

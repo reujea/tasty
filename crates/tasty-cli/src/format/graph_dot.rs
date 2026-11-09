@@ -15,6 +15,11 @@ pub(super) fn split_dot_response(result: &serde_json::Value) -> Option<(String, 
     if !body.ends_with('\n') {
         body.push('\n');
     }
+    Some((body, graph_notes(result)))
+}
+
+/// stdout 본문과 나눠 stderr 에 쓰는 순환과 runner 요약 줄.
+pub(super) fn graph_notes(result: &serde_json::Value) -> Vec<String> {
     let mut notes = Vec::new();
     if let Some(cycle) = result.get("cycle").and_then(|v| v.as_str()) {
         notes.push(format!("cycle: {cycle}"));
@@ -22,7 +27,7 @@ pub(super) fn split_dot_response(result: &serde_json::Value) -> Option<(String, 
     if let Some(runner) = result.get("runner").filter(|v| v.is_object()) {
         notes.push(super::format_runner_summary(runner));
     }
-    Some((body, notes))
+    notes
 }
 
 /// DOT 응답이면 나눠 쓰고 true, 아니면 아무것도 쓰지 않고 false.

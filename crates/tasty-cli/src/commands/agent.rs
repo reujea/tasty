@@ -155,13 +155,13 @@ pub enum AgentCommands {
         #[arg(long, default_value_t = false)]
         reset_downstream: bool,
     },
-    /// Output the task DAG as JSON or Graphviz dot.
+    /// Output the task DAG as a parent ID table, JSON or Graphviz dot.
     TaskGraph {
         /// Workspace id (focus-independent — required).
         #[arg(long = "workspace", visible_alias = "workspace-id")]
         workspace_id: u32,
-        /// Format: json | dot. Default: json.
-        #[arg(long, default_value = "json")]
+        /// Format: table | json | dot. Default: table (parent ID table). The table lists every edge source as a parent; use json or dot to see edge kinds.
+        #[arg(long, default_value = "table")]
         format: String,
     },
     /// List every registered DAG. A DAG is derived, not stored: tasks tagged
@@ -177,7 +177,7 @@ pub enum AgentCommands {
         #[arg(long, default_value_t = false)]
         include_tasks: bool,
     },
-    /// Output one DAG (as listed by `dag-list`) as JSON or Graphviz dot —
+    /// Output one DAG (as listed by `dag-list`) as a parent ID table, JSON or Graphviz dot —
     /// the same node/edge shape as `task-graph`, restricted to that DAG.
     DagGet {
         /// DAG id from `dag-list` (`d:<metadata.dag>` or `c:<root task id>`).
@@ -187,8 +187,8 @@ pub enum AgentCommands {
         /// so two workspaces can carry the same one; pass this to disambiguate.
         #[arg(long = "workspace", visible_alias = "workspace-id")]
         workspace_id: Option<u32>,
-        /// Format: json | dot. Default: json.
-        #[arg(long, default_value = "json")]
+        /// Format: table | json | dot. Default: table (parent ID table). The table lists every edge source as a parent; use json or dot to see edge kinds.
+        #[arg(long, default_value = "table")]
         format: String,
     },
     /// Output a DAG's report: for each task, the automatic part projected from its

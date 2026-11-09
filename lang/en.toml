@@ -6129,13 +6129,13 @@ help = "Task id to retry"
 help = "Also reset downstream Skipped/Failed tasks back to Waiting. Refused for typed (contract_version 2) tasks"
 
 [cli.help._root.agent.task-graph]
-about = "Output the task DAG as JSON or Graphviz dot"
+about = "Output the task DAG as a parent ID table, JSON or Graphviz dot"
 
 [cli.help._root.agent.task-graph.arg.workspace_id]
 help = "Workspace id (focus-independent — required)"
 
 [cli.help._root.agent.task-graph.arg.format]
-help = "Format: json | dot. Default: json"
+help = "Format: table | json | dot. Default: table (parent ID table). The table lists every edge source as a parent; use json or dot to see edge kinds"
 
 [cli.help._root.agent.dag-list]
 about = "List every registered DAG. A DAG is derived, not stored: tasks tagged with the same `metadata.dag` string form one explicit group, and the rest are grouped by weak connectivity (`depends_on` / `Fallback.task` / `Reduce.inputs` / `metadata.fallback_of` / v2 `bindings` / v2 `transitions`). Omit `--workspace` to scan every live workspace"
@@ -6147,7 +6147,7 @@ help = "Restrict to one workspace. Omitted = every live workspace"
 help = "Also include each DAG's task id list (`task_ids`)"
 
 [cli.help._root.agent.dag-get]
-about = "Output one DAG (as listed by `dag-list`) as JSON or Graphviz dot — the same node/edge shape as `task-graph`, restricted to that DAG"
+about = "Output one DAG (as listed by `dag-list`) as a parent ID table, JSON or Graphviz dot — the same node/edge shape as `task-graph`, restricted to that DAG"
 
 [cli.help._root.agent.dag-get.arg.id]
 help = "DAG id from `dag-list` (`d:<metadata.dag>` or `c:<root task id>`)"
@@ -6156,7 +6156,7 @@ help = "DAG id from `dag-list` (`d:<metadata.dag>` or `c:<root task id>`)"
 help = "Restrict the lookup to one workspace. Explicit ids are user-chosen, so two workspaces can carry the same one; pass this to disambiguate"
 
 [cli.help._root.agent.dag-get.arg.format]
-help = "Format: json | dot. Default: json"
+help = "Format: table | json | dot. Default: table (parent ID table). The table lists every edge source as a parent; use json or dot to see edge kinds"
 
 [cli.help._root.agent.dag-report]
 about = "Output a DAG's report: for each task, the automatic part projected from its stored state and the custom notes of every attempt. Standard output and error are left out unless `--include-raw` is given"

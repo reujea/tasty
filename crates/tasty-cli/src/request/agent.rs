@@ -1,6 +1,7 @@
 //! `tasty agent ...` CLI → JsonRpcRequest 매핑.
 
 use crate::commands::{AgentCommands, ReportCommands};
+use crate::format::graph_table::ipc_format;
 
 pub(super) fn agent_command_to_method_params(
     command: &AgentCommands,
@@ -91,7 +92,7 @@ pub(super) fn agent_command_to_method_params(
             format,
         } => (
             "agent.task_graph",
-            serde_json::json!({ "workspace_id": *workspace_id, "format": format }),
+            serde_json::json!({ "workspace_id": *workspace_id, "format": ipc_format(format) }),
         ),
         DagList {
             workspace_id,
@@ -108,7 +109,7 @@ pub(super) fn agent_command_to_method_params(
             workspace_id,
             format,
         } => {
-            let mut p = serde_json::json!({ "id": id, "format": format });
+            let mut p = serde_json::json!({ "id": id, "format": ipc_format(format) });
             if let Some(w) = workspace_id {
                 p["workspace_id"] = serde_json::Value::from(*w);
             }

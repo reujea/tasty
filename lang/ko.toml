@@ -6061,13 +6061,13 @@ help = "다시 돌릴 task id"
 help = "하류의 Skipped/Failed task 도 Waiting 으로 되돌린다. 타입 계약(contract_version 2) task 에는 거절된다"
 
 [cli.help._root.agent.task-graph]
-about = "task DAG 를 JSON 또는 Graphviz dot 으로 낸다"
+about = "작업 DAG를 부모 ID 표, JSON 또는 Graphviz dot으로 출력합니다"
 
 [cli.help._root.agent.task-graph.arg.workspace_id]
 help = "워크스페이스 id (포커스 무관 — 필수)"
 
 [cli.help._root.agent.task-graph.arg.format]
-help = "형식: json | dot. 기본값: json"
+help = "형식: `table` | `json` | `dot`. 기본값: `table` (부모 ID 표). 표는 모든 간선의 출발점을 부모로 나열합니다. 간선 종류를 확인하려면 `json` 또는 `dot`을 사용하세요"
 
 [cli.help._root.agent.dag-list]
 about = "등록된 작업에서 DAG 목록을 계산합니다. 같은 `metadata.dag` 문자열을 가진 작업을 묶고, 나머지는 `depends_on` / `Fallback.task` / `Reduce.inputs` / `metadata.fallback_of` / v2 `bindings` / v2 `transitions` 연결을 방향과 무관하게 따라 묶습니다. DAG를 별도로 저장하지 않습니다. `--workspace`를 생략하면 현재 있는 모든 워크스페이스를 조회합니다."
@@ -6079,7 +6079,7 @@ help = "한 워크스페이스로 좁힌다. 생략하면 살아 있는 워크�
 help = "각 DAG 의 task id 목록(`task_ids`)도 함께 낸다"
 
 [cli.help._root.agent.dag-get]
-about = "`dag-list` 가 낸 DAG 하나를 JSON 또는 Graphviz dot 으로 낸다 — 노드·간선 모양은 `task-graph` 와 같고 그 DAG 로만 좁힌 것이다"
+about = "(`dag-list`에 나열된) DAG 하나를 부모 ID 표, JSON 또는 Graphviz dot으로 출력합니다. `task-graph`와 동일한 노드/간선 구조를 사용하며 해당 DAG로 범위를 제한합니다"
 
 [cli.help._root.agent.dag-get.arg.id]
 help = "`dag-list` 가 준 DAG id (`d:<metadata.dag>` 또는 `c:<루트 task id>`)"
@@ -6088,7 +6088,7 @@ help = "`dag-list` 가 준 DAG id (`d:<metadata.dag>` 또는 `c:<루트 task id>
 help = "조회할 워크스페이스를 지정합니다. 사용자가 정한 DAG ID가 다른 워크스페이스와 겹칠 때 대상을 구분하는 데 사용합니다."
 
 [cli.help._root.agent.dag-get.arg.format]
-help = "형식: json | dot. 기본값: json"
+help = "형식: `table` | `json` | `dot`. 기본값: `table` (부모 ID 표). 표는 모든 간선의 출발점을 부모로 나열합니다. 간선 종류를 확인하려면 `json` 또는 `dot`을 사용하세요"
 
 [cli.help._root.agent.dag-report]
 about = "DAG 의 report 를 낸다 — task 마다 저장된 상태에서 만든 자동 항목과 회차별 custom 기록이다. `--include-raw` 를 주지 않으면 표준 출력·오류는 빠진다"

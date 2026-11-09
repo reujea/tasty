@@ -1098,6 +1098,30 @@ mod workspace_category_tests {
     }
 
     #[test]
+    fn graph_commands_default_to_the_table_and_ask_the_host_for_json() {
+        let cases: [(&[&str], &str); 2] = [
+            (
+                &["tasty", "agent", "task-graph", "--workspace", "1"],
+                "agent.task_graph",
+            ),
+            (
+                &["tasty", "agent", "dag-get", "--id", "c:a"],
+                "agent.dag_get",
+            ),
+        ];
+        for (args, method) in cases {
+            let r = req(args);
+            assert_eq!(r.method, method);
+            assert_eq!(r.params["format"], "json", "table is rendered by the CLI");
+            for format in ["json", "dot"] {
+                let mut explicit = args.to_vec();
+                explicit.extend(["--format", format]);
+                assert_eq!(req(&explicit).params["format"], format);
+            }
+        }
+    }
+
+    #[test]
     fn task_graph_submit_fills_run_workspace_and_dry_run_only_validates() {
         let graph = r#"{"contract_version":2,"tasks":[
             {"id":"a","command":{"kind":"run","command":["true"]}},

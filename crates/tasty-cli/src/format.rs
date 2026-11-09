@@ -1,4 +1,6 @@
 mod graph_dot;
+pub(crate) mod graph_table;
+mod parent_table;
 
 use anyhow::Result;
 
@@ -15,7 +17,7 @@ pub fn format_output(command: &Commands, result: &serde_json::Value) -> Result<(
     }
 }
 
-/// 작업 목록·상세(`--json` 이 없을 때)·runner 상태는 텍스트로, 그래프의 DOT 응답은 DOT 본문으로 표시하고 나머지는 JSON으로 출력한다.
+/// 작업 목록·상세(`--json` 이 없을 때)·runner 상태는 텍스트로, 그래프는 기본 부모 ID 표나 DOT 본문으로 표시하고 나머지는 JSON으로 출력한다.
 fn format_agent_output(command: &AgentCommands, result: &serde_json::Value) -> Result<()> {
     // 목록·상세는 `--json` 이 없을 때만 텍스트다. 나머지 경우는 아래 기본 갈래의 JSON 이다.
     match task_text(command) {
@@ -28,6 +30,7 @@ fn format_agent_output(command: &AgentCommands, result: &serde_json::Value) -> R
         // 성공하면 아무것도 쓰지 않는다. 이 명령을 부르는 후처리·reduce 셸에서는 표준 출력이
         // 작업의 결과다. 오류는 다른 명령처럼 표준 오류로 나간다.
         AgentCommands::Report { .. } => Ok(()),
+        _ if graph_wants_table(command) && graph_table::write_table_response(result)? => Ok(()),
         AgentCommands::TaskGraph { .. } | AgentCommands::DagGet { .. }
             if graph_dot::write_dot_response(result)? =>
         {
@@ -35,6 +38,15 @@ fn format_agent_output(command: &AgentCommands, result: &serde_json::Value) -> R
         }
         _ => outln!("{}", serde_json::to_string_pretty(result).unwrap()),
     }
+}
+
+/// `task-graph`·`dag-get` 을 부모 ID 표로 낼지.
+fn graph_wants_table(command: &AgentCommands) -> bool {
+    matches!(
+        command,
+        AgentCommands::TaskGraph { format, .. } | AgentCommands::DagGet { format, .. }
+            if format == graph_table::TABLE_FORMAT
+    )
 }
 
 /// 텍스트로 내는 작업 명령.
@@ -878,12 +890,36 @@ fn format_notification_list(result: &serde_json::Value) -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::{
-        TaskText, format_runner_summary, format_workspace_row, render_layout, task_agent_line,
-        task_holding_warning_lines, task_list_row, task_postprocess_lines, task_route_line,
-        task_skip_line, task_text, task_typed_lines, timer_hard_deadline_line, timer_row_line,
-        timer_row_text,
+        TaskText, format_runner_summary, format_workspace_row, graph_wants_table, render_layout,
+        task_agent_line, task_holding_warning_lines, task_list_row, task_postprocess_lines,
+        task_route_line, task_skip_line, task_text, task_typed_lines, timer_hard_deadline_line,
+        timer_row_line, timer_row_text,
     };
+    use clap::Parser;
     use serde_json::json;
+
+    fn agent_command(args: &[&str]) -> crate::AgentCommands {
+        match crate::Cli::try_parse_from(args).expect("parse").command {
+            Some(crate::Commands::Agent { command }) => command,
+            _ => panic!("not an agent command: {args:?}"),
+        }
+    }
+
+    #[test]
+    fn only_a_graph_command_without_another_format_is_written_as_a_table() {
+        let graph = ["tasty", "agent", "task-graph", "--workspace", "1"];
+        let dag = ["tasty", "agent", "dag-get", "--id", "c:a"];
+        for base in [&graph[..], &dag[..]] {
+            assert!(graph_wants_table(&agent_command(base)), "{base:?}");
+            for format in ["json", "dot"] {
+                let args = [base, &["--format", format][..]].concat();
+                assert!(!graph_wants_table(&agent_command(&args)), "{args:?}");
+            }
+        }
+        assert!(!graph_wants_table(&agent_command(&[
+            "tasty", "agent", "dag-list"
+        ])));
+    }
 
     #[test]
     fn task_list_and_task_get_print_text_unless_json_is_asked() {
