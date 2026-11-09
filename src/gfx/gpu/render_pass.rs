@@ -82,8 +82,12 @@ impl GpuState {
                 };
                 let surface_id = &region.id;
                 let rect = &region.rect;
-                // 읽기 전용 화면은 포커스 커서를 표시하지 않는다.
-                let is_focused = !is_readonly && focused_surface_id == Some(*surface_id);
+                // 읽기 전용 화면은 포커스 값과 포커스 커서를 표시하지 않는다.
+                let is_focused = crate::state::surface_focus::bed_focused(
+                    focused_surface_id,
+                    *surface_id,
+                    &engine.live.occupancy,
+                );
                 let bg = if is_focused {
                     term_surface.focused_bg.to_gpu_rgba()
                 } else {
@@ -138,7 +142,11 @@ impl GpuState {
                         active_index: s.current_index,
                         inactive_bg: theme.search_match_bg.to_gpu_rgba(),
                         active_bg: theme.search_match_active_bg.to_gpu_rgba(),
-                        active_fg: theme.search_match_active_fg.to_gpu_rgba(),
+                        active_fg: if is_focused {
+                            theme.search_match_active_fg.to_gpu_rgba()
+                        } else {
+                            theme.search_match_active_unfocused_fg().to_gpu_rgba()
+                        },
                     });
                 let search_ref = search_highlights.as_ref();
 

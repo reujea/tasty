@@ -42,6 +42,8 @@ mod popup_ownership_tests;
 pub(crate) mod preset_catalog;
 #[cfg(feature = "gui")]
 mod shell_integration_hint;
+#[cfg(any(feature = "gui", test))]
+pub(crate) mod surface_focus;
 mod tab;
 #[cfg(test)]
 pub(crate) mod tests;
