@@ -20,7 +20,7 @@
   **`<base href>` 는 없다** — 이 파이프라인이 내보내는 것 중 상대 URL 을 푸는 자리가 없고(이미지는 인라인, **마크다운 링크** destination 은 anchor-only 가 아닌 한 전부 nav fragment), base 가 있으면 fragment-only `href` 가 base URL 기준으로 풀려 목차 클릭이 다른 문서로 나가 버린다(아래 기능 계약).
   저자가 직접 쓴 raw HTML `<a href="x.md">` 는 rewrite 대상이 아니라 상대 href 로 남지만, base 가 없으면 그것은 **파일로 풀리지 않는다**(클릭했을 때 엔진이 무엇을 하는지는 세 백엔드 어디에서도 측정되지 않았다).
   display_name 은 파일명.
-  - **제목 크기**: `render::heading_sizes_px` 가 `font-size-prose-h1`(h1)↔`font-size-body`(h6) 사이를 5단계 **선형보간**한다 — CSS 라 라이브러리 제약 없이 이 보간 자체가 plugin 의 디자인 선택이다(원하면 per-level 값을 자유롭게 override 가능).
+  - **제목 크기**: `render::style::heading_sizes_px` 가 `font-size-prose-h1`(h1)↔`font-size-body`(h6) 사이를 5단계 **선형보간**한다 — CSS 라 라이브러리 제약 없이 이 보간 자체가 plugin 의 디자인 선택이다(원하면 per-level 값을 자유롭게 override 가능).
   - **표(GFM)**: 실제 `<table>`/`<th>`/`<td>` — header 밴드·zebra(`tr:nth-child(even)`)·셀 패딩 전부 CSS 로 직접 달성(egui `Grid` 우회 불필요).
   - **코드블록**: `sanitize_fence_lang`은 언어 태그를 `[A-Za-z0-9_+-]`로 정리하고 `code`의 class를 유지한다. `render_document`는 생성한 본문 HTML에 `class="language-`가 있으면 highlight.js를, `language-mermaid`가 있으면 mermaid.js를 넣는다. 문자열 포함 검사이므로 실제 코드 블록 외의 본문도 이 조건에 걸릴 수 있다. 실행 스크립트가 코드 요소를 선택해 처리하며, Mermaid는 `code.language-mermaid`를 대상으로 한다. 실패는 console error로 기록한다. 모든 OS·오프라인 환경에서 실행을 확인한 것은 아니다.
 - **sanitize (XSS 방어의 1차 관문)** — `ammonia::Builder` 최소 화이트리스트: `<script>`/이벤트 핸들러 속성(`onerror=` 등)/`javascript:` scheme href 전부 stripped. `classify_link` 도 별도로 `javascript:` 를 판정 불가(`None`)로 취급해 이중 방어. GFM 렌더에 필요한 태그(`table`/체크박스 `input[type=checkbox]`/`del`/footnote `sup`/`div`/이미지/링크)만 허용 — 코드는 `crates/tasty-plugin-markdown/src/render.rs::sanitize_html` 이 정본.

@@ -128,7 +128,7 @@ macOS·Windows에서 실제 실행한 결과는 없다.
   HTML-escape 해 둔 상태라 하이라이팅을 거쳐도 그대로 비활성 텍스트로 남는다.
 - **테마 연동**: highlight.js 자체 내장 테마(github.css 등)는 vendor 하지 않는다 — 대신
   `hljs-*` token class 를 이 plugin 이 이미 쓰는 Catppuccin 스타일 `Theme` hue 필드(`mauve`/
-  `blue`/`green`/`peach`/`teal`/`lavender`/`red` 등)에 매핑한 CSS 규칙(`render.rs::hljs_css`,
+  `blue`/`green`/`peach`/`teal`/`lavender`/`red` 등)에 매핑한 CSS 규칙(`render/style.rs::hljs_css`,
   `theme_css` 에 상시 포함)으로 직접 칠한다. highlight.js 는 색을 전혀 모르고 토큰 분류만
   하므로, mermaid 처럼 라이트/다크를 스크립트에 baked-in 할 필요가 없다 — 테마 전환 시 문서
   전체가 재생성되며 `theme_css` 가 다시 계산될 뿐이다. vendor 된 고정 팔레트(GitHub 색 등)

@@ -102,7 +102,7 @@ Tag는 모든 상태 variant가 `tag_bg()` 위에 그리고 테두리는 accent 
 | control-height-tree | 22 | |
 | font-size body / caption / heading | 13 / 11 / 13(weight 600) | `font_size_body/caption/heading` |
 | font-size micro | 10 | `font_size_micro` — Badge/Tag/Kbd·command_palette footer 힌트 |
-| font-size prose-h1 | 20 | `font_size_prose_h1` — markdown 헤딩 사다리의 h1 앵커(`render.rs::heading_sizes_px` 가 h1↔`font-size-body`(h6) 사이를 CSS 로 5단계 선형보간, UI cap 면제). `prose-h2`·`line-height-prose` 는 [WebView 호스트 계약](webview.md) 이전 egui_commonmark 시절 라이브러리 제약으로 은퇴한 토큰이며, webview 전환(CSS) 이후로도 부활하지 않았다 — 헤딩 사다리는 이제 `--md-h1`..`--md-h6` CSS custom property 로 직접 표현되므로 별도 semantic 토큰이 필요 없다. 정본은 여전히 tokens/·vendor json·생성 const 모두에서 제거된 상태 |
+| font-size prose-h1 | 20 | `font_size_prose_h1` — markdown 헤딩 사다리의 h1 앵커(`render/style.rs::heading_sizes_px` 가 h1↔`font-size-body`(h6) 사이를 CSS 로 5단계 선형보간, UI cap 면제). `prose-h2`·`line-height-prose` 는 [WebView 호스트 계약](webview.md) 이전 egui_commonmark 시절 라이브러리 제약으로 은퇴한 토큰이며, webview 전환(CSS) 이후로도 부활하지 않았다 — 헤딩 사다리는 이제 `--md-h1`..`--md-h6` CSS custom property 로 직접 표현되므로 별도 semantic 토큰이 필요 없다. 정본은 여전히 tokens/·vendor json·생성 const 모두에서 제거된 상태 |
 | font-size term-sm / term / term-lg | 12 / 14 / 16 | `font_size_term_sm` / `font_size_term` / `font_size_term_lg` — 터미널 스케일 |
 | icon-size xs | 12 | `icon_glyph_size_xs` |
 | icon-size md | 16 | `icon_glyph_size_md` (기존) — Button leading/trailing·MenuItem 글리프, **spinner 지름**(폰트가 아니라 아이콘 가족) |
