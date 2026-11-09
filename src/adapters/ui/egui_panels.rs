@@ -210,10 +210,15 @@ pub fn draw_egui_panels(
         let Some(surface) = engine.find_surface_by_id(sid) else {
             continue;
         };
+        let bed_focused = crate::state::surface_focus::bed_focused(
+            focused_surface_id,
+            sid,
+            &engine.live.occupancy,
+        );
 
         if let Some(empty) = surface.empty() {
             draw_panel_frame_no_margin(ctx, &format!("empty_panel_{}", id_suffix), info, |ui| {
-                if let Some(act) = crate::empty_ui::draw_empty(ui, empty) {
+                if let Some(act) = crate::empty_ui::draw_empty(ui, empty, bed_focused) {
                     pending_empty_action = Some(act);
                 }
             });
@@ -292,7 +297,7 @@ pub fn draw_egui_panels(
                     ui,
                     target,
                     view,
-                    crate::adapters::ui::surface::dag_graph::DagChrome::Own,
+                    crate::adapters::ui::surface::dag_graph::DagChrome::Own { bed_focused },
                 );
             });
             // 사용자가 상세에서 누른 세션 열기다. 사용자 조작이라 포커스를 옮긴다.

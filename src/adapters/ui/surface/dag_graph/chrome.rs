@@ -712,7 +712,13 @@ fn paint_minimap(
 }
 
 /// DAG가 없거나 지정한 DAG가 사라진 경우를 구분해 가운데 안내한다.
-pub fn draw_empty(ui: &mut egui::Ui, theme: &Theme, data: &DagData, dag_id: Option<&str>) {
+pub fn draw_empty(
+    ui: &mut egui::Ui,
+    theme: &Theme,
+    canvas_bg: egui::Color32,
+    data: &DagData,
+    dag_id: Option<&str>,
+) {
     let (icon, title, hint) = if data.target_missing {
         (
             icons::SEARCH,
@@ -726,17 +732,15 @@ pub fn draw_empty(ui: &mut egui::Ui, theme: &Theme, data: &DagData, dag_id: Opti
             t_fmt("dag.empty.none_hint", &data.workspace_id.to_string()),
         )
     };
-    egui::Frame::NONE
-        .fill(theme.dag_canvas_bg().to_egui())
-        .show(ui, |ui| {
-            ui.set_min_size(ui.available_size());
-            let view = tasty_ui_widgets::DagEmptyView {
-                icon,
-                title: &title,
-                hint: &hint,
-            };
-            tasty_ui_widgets::paint_dag_empty(ui, theme, ui.max_rect(), &view);
-        });
+    egui::Frame::NONE.fill(canvas_bg).show(ui, |ui| {
+        ui.set_min_size(ui.available_size());
+        let view = tasty_ui_widgets::DagEmptyView {
+            icon,
+            title: &title,
+            hint: &hint,
+        };
+        tasty_ui_widgets::paint_dag_empty(ui, theme, ui.max_rect(), &view);
+    });
 }
 
 /// 그래프 데이터가 비어 있는지(노드 0 개).

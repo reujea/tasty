@@ -10,11 +10,19 @@ pub enum EmptyAction {
 }
 
 /// Draw the EmptySurface body. Returns an EmptyAction if the user interacted.
-pub fn draw_empty(ui: &mut egui::Ui, empty: &EmptySurface) -> Option<EmptyAction> {
+/// `bed_focused` picks the bed value that shows focus across the whole surface.
+pub fn draw_empty(
+    ui: &mut egui::Ui,
+    empty: &EmptySurface,
+    bed_focused: bool,
+) -> Option<EmptyAction> {
     let th = theme::theme();
     let panel_rect = ui.max_rect();
-    // Paint full background first to avoid crust/base color mismatch.
-    ui.painter().rect_filled(panel_rect, 0.0, th.bg_app());
+    ui.painter().rect_filled(
+        panel_rect,
+        0.0,
+        tasty_ui_widgets::surface_bed(&th, bed_focused),
+    );
 
     let available = ui.available_size();
     let button_h = 28.0;

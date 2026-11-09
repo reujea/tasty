@@ -10,9 +10,20 @@ use super::view::{DagGraphView, DagTarget, layout_config};
 /// surface는 자체 헤더·줌 버튼을 그리고 팝업은 back bar의 버튼 동작을 받아 처리한다.
 pub enum DagChrome {
     /// 탭 surface — 헤더 띠 + 캔버스 위 줌 클러스터를 이 함수가 그린다.
-    Own,
+    /// `bed_focused`는 캔버스가 칠할 포커스 값이다.
+    Own { bed_focused: bool },
     /// 본문보다 먼저 처리된 팝업 back bar 동작.
     BackBar(Option<ChromeAction>),
+}
+
+impl DagChrome {
+    /// 캔버스 바탕. 탭 surface는 포커스를 보이고, surface가 아닌 팝업은 그대로 `dag-canvas-bg`다.
+    fn canvas_bg(&self, theme: &tasty_type_appearance::theme::Theme) -> egui::Color32 {
+        match self {
+            Self::Own { bed_focused } => tasty_ui_widgets::surface_bed(theme, *bed_focused),
+            Self::BackBar(_) => theme.dag_canvas_bg().to_egui(),
+        }
+    }
 }
 
 /// 공용 그래프 렌더링. 화면 폭에 따라 상세를 오른쪽 또는 아래에 배치한다.
@@ -27,24 +38,24 @@ pub fn draw_dag_graph(
     let theme = &th;
     ui.set_min_size(ui.available_size());
     ui.spacing_mut().item_spacing = egui::vec2(0.0, 0.0);
+    let canvas_bg = chrome_mode.canvas_bg(theme);
 
     let Some(data) = view.data.clone() else {
-        ui.painter()
-            .rect_filled(ui.max_rect(), 0.0, theme.dag_canvas_bg().to_egui());
+        ui.painter().rect_filled(ui.max_rect(), 0.0, canvas_bg);
         return None;
     };
 
     let surface_width = ui.available_width();
     let now = now_ms();
 
-    let own_chrome = matches!(chrome_mode, DagChrome::Own);
+    let canvas_mode = (canvas_bg, matches!(chrome_mode, DagChrome::Own { .. }));
     let chrome_action = match chrome_mode {
-        DagChrome::Own => chrome::draw_header(ui, theme, &data, surface_width),
+        DagChrome::Own { .. } => chrome::draw_header(ui, theme, &data, surface_width),
         DagChrome::BackBar(pending) => pending,
     };
 
     if chrome::is_empty(data.current.as_ref()) {
-        chrome::draw_empty(ui, theme, &data, target.dag_id.as_deref());
+        chrome::draw_empty(ui, theme, canvas_bg, &data, target.dag_id.as_deref());
         apply_chrome(
             target,
             view,
@@ -87,7 +98,7 @@ pub fn draw_dag_graph(
         let canvas_h = (ui.available_height() - sheet_h).max(0.0);
         viewport = egui::vec2(ui.available_width(), canvas_h);
         ui.allocate_ui(viewport, |ui| {
-            canvas_action = canvas(ui, theme, view, &data, &layout, direction, now, own_chrome);
+            canvas_action = canvas(ui, theme, view, &data, &layout, direction, now, canvas_mode);
         });
         ui.allocate_ui_with_layout(
             egui::vec2(ui.available_width(), sheet_h),
@@ -107,7 +118,8 @@ pub fn draw_dag_graph(
         viewport = egui::vec2(canvas_w, ui.available_height());
         ui.horizontal_top(|ui| {
             ui.allocate_ui(viewport, |ui| {
-                canvas_action = canvas(ui, theme, view, &data, &layout, direction, now, own_chrome);
+                canvas_action =
+                    canvas(ui, theme, view, &data, &layout, direction, now, canvas_mode);
             });
             ui.allocate_ui_with_layout(
                 egui::vec2(panel_w, ui.available_height()),
@@ -122,7 +134,7 @@ pub fn draw_dag_graph(
             );
         });
     } else {
-        canvas_action = canvas(ui, theme, view, &data, &layout, direction, now, own_chrome);
+        canvas_action = canvas(ui, theme, view, &data, &layout, direction, now, canvas_mode);
     }
 
     let mut open_session = None;
@@ -152,12 +164,13 @@ fn canvas(
     layout: &tasty_dag_layout::GraphLayout,
     direction: tasty_model::DagDirection,
     now: u64,
-    own_zoom_cluster: bool,
+    (canvas_bg, own_zoom_cluster): (egui::Color32, bool),
 ) -> Option<ChromeAction> {
     let graph = data.current.as_ref()?;
     super::canvas::draw_canvas(
         ui,
         theme,
+        canvas_bg,
         view,
         graph,
         layout,
@@ -205,4 +218,37 @@ fn now_ms() -> u64 {
         .duration_since(UNIX_EPOCH)
         .map(|d| d.as_millis() as u64)
         .unwrap_or(0)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tasty_type_appearance::theme::Theme;
+
+    fn latte() -> Theme {
+        let file = tasty_themes::ThemeFile::parse(tasty_themes::LATTE_TOML_TEXT).expect("latte");
+        let (partial, is_light) = file.to_partial();
+        let mut colors = tasty_themes::mocha_fallback_colors();
+        colors.apply_partial(&partial);
+        Theme::with_colors(colors, is_light.unwrap_or(true))
+    }
+
+    /// 팝업의 그래프는 surface가 아니므로 포커스를 보이지 않는다. 탭 surface만 바탕 쌍을 읽는다.
+    #[test]
+    fn only_the_tab_surface_canvas_shows_focus() {
+        for theme in [tasty_themes::mocha_fallback(), latte()] {
+            assert_eq!(
+                DagChrome::BackBar(None).canvas_bg(&theme),
+                theme.dag_canvas_bg().to_egui()
+            );
+            assert_eq!(
+                DagChrome::Own { bed_focused: true }.canvas_bg(&theme),
+                theme.surface_bed_focused().to_egui()
+            );
+            assert_eq!(
+                DagChrome::Own { bed_focused: false }.canvas_bg(&theme),
+                theme.surface_bed_unfocused().to_egui()
+            );
+        }
+    }
 }

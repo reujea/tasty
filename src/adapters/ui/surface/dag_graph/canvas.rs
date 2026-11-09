@@ -36,6 +36,7 @@ impl Transform {
 pub fn draw_canvas(
     ui: &mut egui::Ui,
     theme: &Theme,
+    canvas_bg: egui::Color32,
     view: &mut DagGraphView,
     graph: &DagGraphData,
     layout: &GraphLayout,
@@ -47,7 +48,7 @@ pub fn draw_canvas(
     let (rect, response) =
         ui.allocate_exact_size(ui.available_size(), egui::Sense::click_and_drag());
     let painter = ui.painter_at(rect);
-    painter.rect_filled(rect, 0.0, theme.dag_canvas_bg().to_egui());
+    painter.rect_filled(rect, 0.0, canvas_bg);
 
     let graph_size = egui::vec2(layout.width.value(), layout.height.value());
     // 같은 DAG·방향·뷰포트에서는 자동 맞춤을 반복하지 않아 사용자의 이동·배율을 유지한다.
