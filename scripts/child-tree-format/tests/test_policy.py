@@ -243,7 +243,7 @@ class Levels(unittest.TestCase):
             {"model": "claude-low", "usage": usage, "error_kind": "api_error", "tool_violations": 0},
             {"model": "codex", "usage": {"input_tokens": 5, "cached_input_tokens": 3, "output_tokens": 5}, "error_kind": None, "tool_violations": 0},
         ]
-        self.assertEqual(ul.pilot_means(rows), {"claude-low": 7, "codex": 10})
+        self.assertEqual(ul.pilot_means(rows), {"claude-low": 7, "codex": 7})
 
     def mixed_windows(self, claude_u):
         claude = window("claude_7d", u=claude_u, w=1e8, models=("claude-high", "claude-low"))

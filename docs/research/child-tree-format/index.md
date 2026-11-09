@@ -46,11 +46,16 @@ AI 에이전트가 child 트리를 어떤 텍스트 형식으로 받을 때 정�
 실행 순서는 다음과 같다. 호출은 구독 사용량을 쓰므로 실행 담당의 승인을 받은 뒤에만 한다. `--data`는 하위 명령 앞에 둔다.
 
 1. 시험: `runner.py run --phase pilot --claude-utilization-unit <fraction|percent>`
-2. 수준 제안: `usage_level.py --pilot data/raw/pilot.jsonl --windows <창 값 JSON>`
-3. 승인 기록: `runner.py approve --level <수준> --windows <창 값 JSON> --approved-u '{"claude": <u>, "codex": <u>}'`
-4. 본 실행: `runner.py run --phase main --level <수준> --claude-utilization-unit <fraction|percent>`. 끊기면 같은 명령이 원자료에서 이어서 실행한다.
-5. 중단 뒤: `runner.py resume --phase main --level <수준> --usage <제안 JSON> [--approved-by <이름>]`. 재개와 거절은 조건 값과 함께 `data/raw/level-changes.jsonl`에 남는다. 종류는 `level_change`, `abort`, `resume`, `resume_refused`, `run_options`다.
-6. 요약: `summarize.py`, 대조는 `check_rules.py --raw`.
+2. 창 값 측정: `measure_w.py --claude-dir <Claude 세션 기록 폴더> --codex-dir <Codex 세션 기록 폴더> --u claude_7d=<u> --u claude_5h=<u> --u codex_7d=<u> --u codex_5h=<u> --status claude_7d=<상태> > <창 값 JSON>`. 모델별 7일 창이 있으면 `--model-window <창 이름>=<측정 모델>`과 `--u <창 이름>=<u>`를 더한다.
+3. 수준 제안: `usage_level.py --pilot data/raw/pilot.jsonl --windows <창 값 JSON>`
+4. 승인 기록: `runner.py approve --level <수준> --windows <창 값 JSON> --approved-u '{"claude": <u>, "codex": <u>}'`
+5. 본 실행: `runner.py run --phase main --level <수준> --claude-utilization-unit <fraction|percent>`. 끊기면 같은 명령이 원자료에서 이어서 실행한다.
+6. 중단 뒤: `runner.py resume --phase main --level <수준> --usage <제안 JSON> [--approved-by <이름>]`. 재개와 거절은 조건 값과 함께 `data/raw/level-changes.jsonl`에 남는다. 종류는 `level_change`, `abort`, `resume`, `resume_refused`, `run_options`다.
+7. 요약: `summarize.py`, 대조는 `check_rules.py --raw`.
+
+W는 입력 + 캐시 생성 + 출력 토큰이고 캐시 읽기를 넣지 않는다. 옵션으로 바꿀 수 없다. 소규모 시험의 호출당 토큰 P도 같은 식으로 재므로 P/W를 그대로 비교할 수 있다. Claude 기록은 메시지 ID로, Codex 기록은 누적 토큰 수와 시각으로 중복을 지운다. 기록 폴더는 컴퓨터마다 다르므로 인자로 받고 추적 파일에 적지 않는다. 표준 출력에는 숫자와 창 이름만 나온다.
+
+기록을 읽지 못한 창은 `w`가 비고, 규칙 표의 `W=0`과 같게 다룬다. 그래서 Codex 창을 읽지 못하면 기본 제안은 L2다. `w`는 읽었지만 `u`가 없는 창만 P/W를 보고, 2% 이하이면 L0, 넘으면 L2를 제안한다. 읽은 창은 그대로 표로 수준을 구하고, 미확인 창의 제안은 그 수준을 낮추기만 한다. 미확인 창이 있으면 `needs_decision`이 참이고 재개에 `--approved-by`가 필요하다.
 
 러너의 호출 제한 시간 기본값은 600초이고 `--timeout`으로 바꾼다. 규칙에 정한 값이 없어 실행 조건으로 기록한다.
 

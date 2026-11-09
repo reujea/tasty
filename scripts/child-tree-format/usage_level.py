@@ -31,15 +31,24 @@ def planned_by_model(level):
     return counts
 
 
+def window_tokens(usage):
+    """Return input + cache creation + output, without cache reads.
+
+    Codex counts cached tokens inside input_tokens and Claude reports them apart,
+    so taking them off here gives both CLIs the same measure.
+    """
+    fresh = (usage.get("input_tokens") or 0) - (usage.get("cached_input_tokens") or 0)
+    return fresh + (usage.get("cache_creation_input_tokens") or 0) + (usage.get("output_tokens") or 0)
+
+
 def pilot_means(records):
-    """Return mean input + cache creation + output tokens per pilot call of each model."""
+    """Return mean window_tokens per pilot call of each model."""
     totals = {}
     for record in records:
         usage = record.get("usage")
         if call_outcome(record) != "scored" or not usage:
             continue
-        tokens = sum(usage.get(k) or 0 for k in ("input_tokens", "cache_creation_input_tokens", "output_tokens"))
-        totals.setdefault(record["model"], []).append(tokens)
+        totals.setdefault(record["model"], []).append(window_tokens(usage))
     return {m: sum(v) / len(v) for m, v in totals.items()}
 
 
