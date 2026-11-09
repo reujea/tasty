@@ -1,7 +1,7 @@
 manifest_version = 1
 id = "com.tasty.mesh-demo"
 name = "egui-mesh Demo"
-version = "0.1.355"
+version = "0.1.356"
 description = "egui-mesh channel proof-of-concept surface (A1)"
 api_version = "1"
 # 배포 패키지에서는 제외하고 개발용 build-plugins / link-plugins에서는 준비한다.

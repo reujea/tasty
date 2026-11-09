@@ -45,7 +45,8 @@ pub const FH_SUMMARY_SEP: &str = "  ·  ";
 pub struct FhRowView<'a> {
     pub id: &'a str,
     pub origins: Vec<FhOrigin>,
-    pub prio: Option<i32>,
+    /// 번역한 우선순위 문구.
+    pub prio: Option<&'a str>,
     pub pending: Option<&'a str>,
     /// 삭제 대기 — id에 취소선을 긋는다.
     pub strike_id: bool,
@@ -635,12 +636,16 @@ fn row_left(
             .rect
             .width(),
     );
-    let prio_text = view.prio.map(|p| format!("prio {p}"));
+    let prio_text = view.prio;
     let prio_font = crate::label_font(theme.font_size_micro.value());
     let prio_w = prio_text.as_ref().map_or(zero, |t| {
         LogicalPx(
             ui.painter()
-                .layout_no_wrap(t.clone(), prio_font.clone(), egui::Color32::PLACEHOLDER)
+                .layout_no_wrap(
+                    (*t).to_owned(),
+                    prio_font.clone(),
+                    egui::Color32::PLACEHOLDER,
+                )
                 .rect
                 .width(),
         ) + gap

@@ -310,6 +310,10 @@ pub(super) fn handlers_pane(ui: &mut egui::Ui, th: &Theme, l: &FhCopy, st: &mut 
             let x = &st.xs[i];
             let rm = x.pending == Some(HdlPending::Remove);
             let locked = fill(l.locked, &x.origin);
+            let prio = crate::i18n::t_fmt(
+                "settings.file_handler.hook_handlers.prio",
+                &x.prio.to_string(),
+            );
             let view = FhRowView {
                 id: &x.id,
                 origins: vec![FhOrigin {
@@ -317,7 +321,7 @@ pub(super) fn handlers_pane(ui: &mut egui::Ui, th: &Theme, l: &FhCopy, st: &mut 
                     plugin: x.origin.starts_with("plugin:"),
                     struck: false,
                 }],
-                prio: Some(x.prio),
+                prio: Some(&prio),
                 pending: x.pending.map(|p| match p {
                     HdlPending::Add => l.added,
                     HdlPending::Remove => l.removed,

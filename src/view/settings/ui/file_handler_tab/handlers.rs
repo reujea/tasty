@@ -162,6 +162,10 @@ pub(super) fn draw_handlers(
             let remove = row.pending == Some(HdlPending::Remove);
             let owner = handler_owner_label(&row.owner);
             let locked = t_fmt("settings.file_handler.common.locked", &owner);
+            let prio = t_fmt(
+                "settings.file_handler.hook_handlers.prio",
+                &row.priority.to_string(),
+            );
             let view = FhRowView {
                 id: row.id.as_str(),
                 origins: vec![FhOrigin {
@@ -169,7 +173,7 @@ pub(super) fn draw_handlers(
                     label: owner.clone(),
                     struck: false,
                 }],
-                prio: Some(row.priority),
+                prio: Some(&prio),
                 pending: row.pending.map(|p| match p {
                     HdlPending::Add => t("settings.file_handler.common.pending_added"),
                     HdlPending::Replace => t("settings.file_handler.common.pending_replaced"),
