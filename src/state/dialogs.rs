@@ -62,6 +62,16 @@ pub enum PendingNativeMenu {
         x: f32,
         y: f32,
     },
+    /// plugin webview 페이지의 우클릭 메뉴(`webview.context_menu`). 위치는 창의 논리 픽셀이고,
+    /// `page_x`·`page_y` 는 고른 결과를 소유 plugin 에 돌려줄 때 싣는 페이지 좌표다.
+    WebviewSurface {
+        surface_id: u32,
+        plugin_id: String,
+        page_x: f32,
+        page_y: f32,
+        x: f32,
+        y: f32,
+    },
     /// 파일·다중 선택·빈 영역의 파일 메뉴. 빈 paths는 cwd를 뜻한다.
     /// single_is_dir는 paths가 하나일 때만 유효하며 위치는 논리 픽셀이다.
     Explorer {

@@ -48,7 +48,7 @@ const EXPECTED: &[(&str, usize)] = &[
     ("ui", 1),
     ("view", 3),
     ("webhook", 6),
-    ("webview", 3), // + webview.open_external · webview.post_message — plugin 전용, CLI 진입점 없음
+    ("webview", 4), // + webview.open_external · webview.post_message · webview.context_menu — plugin 전용, CLI 진입점 없음
     ("window", 3),
     ("workspace", 5),
     ("workspace_category", 5),

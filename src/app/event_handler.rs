@@ -206,6 +206,16 @@ impl ApplicationHandler<AppEvent> for App {
             AppEvent::TransferProgressTick => {
                 self.drain_transfer_progress();
             }
+            AppEvent::WebviewMenuChosen { plugin_id, payload } => {
+                if let Some(mgr) = self.plugin_manager.as_mut() {
+                    mgr.emit_host_event_to_plugin(
+                        &plugin_id,
+                        crate::app::dispatch::plugin_webview_menu::SELECTED_EVENT,
+                        &payload,
+                        tasty_plugin_protocol::EventScope::System,
+                    );
+                }
+            }
             AppEvent::IdentifyDone {
                 request_id,
                 target,
