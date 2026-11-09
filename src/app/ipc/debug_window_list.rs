@@ -22,11 +22,18 @@ impl App {
                 let size = winit.inner_size();
                 // winit 은 X11·Wayland 에서 제목을 돌려주지 않는다(빈 문자열). 그때는 null 이다.
                 let title = Some(winit.title()).filter(|t| !t.is_empty());
+                // 창 내용 영역의 화면 좌표(물리 px). OS 수준 입력으로 창 안을 누르는 시험이 쓴다 — native WebView 는
+                // egui · 터미널 주입 경로로 닿지 않는다. 플랫폼이 알려 주지 않으면(Wayland) null 이다.
+                let position = winit
+                    .inner_position()
+                    .ok()
+                    .map(|p| serde_json::json!({ "x": p.x, "y": p.y }));
                 serde_json::json!({
                     "window_id": u64::from(*wid),
                     "kind": view_kind(view.as_ref()),
                     "title": title,
                     "inner_size": { "width": size.width, "height": size.height },
+                    "inner_position": position,
                     "scale_factor": winit.scale_factor(),
                     "focused": focused == Some(*wid),
                     "modal": modal == Some(*wid),
