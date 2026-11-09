@@ -4,6 +4,9 @@
 use super::*;
 use crate::adapters::ui::surface::explorer::ExplorerAction;
 
+/// 시험이 행 잉크로 칠하는 선의 색. 틴트와 링 사이의 순서를 재는 표지다.
+const ROW_INK: egui::Color32 = egui::Color32::MAGENTA;
+
 /// 칸에 그릴 항목: 경로, 폴더 여부, 자리.
 type Items = Vec<(PathBuf, bool, egui::Rect)>;
 
@@ -19,6 +22,8 @@ struct Harness {
     panes: Vec<Pane>,
     drops: Vec<(usize, OpKind, Vec<PathBuf>, PathBuf)>,
     mods: egui::Modifiers,
+    /// 마지막 프레임이 칠한 모양.
+    shapes: Vec<egui::Shape>,
 }
 
 fn cell(x: f32, y: f32) -> egui::Rect {
@@ -63,6 +68,7 @@ impl Harness {
                 .collect(),
             drops: Vec::new(),
             mods: egui::Modifiers::default(),
+            shapes: Vec::new(),
         }
     }
 
@@ -83,8 +89,7 @@ impl Harness {
         let panes = &mut self.panes;
         let drops = &mut self.drops;
         let mut discard = discard;
-        // 그린 모양은 보지 않는다. 판정은 요청된 놓기와 payload 로 읽는다.
-        let _ = self.ctx.run(input, |ctx| {
+        let out = self.ctx.run(input, |ctx| {
             egui::CentralPanel::default()
                 .frame(egui::Frame::NONE)
                 .show(ctx, |ui| {
@@ -92,6 +97,11 @@ impl Harness {
                         let mut child =
                             ui.new_child(egui::UiBuilder::new().id_salt(index).max_rect(pane.body));
                         child.set_clip_rect(pane.body);
+                        pane.view.ops.drag.reserve_files(&child);
+                        child.painter().line_segment(
+                            [pane.body.left_center(), pane.body.right_center()],
+                            egui::Stroke::new(theme.border_width.value(), ROW_INK),
+                        );
                         for (path, is_dir, rect) in &pane.items {
                             push(
                                 &child,
@@ -117,6 +127,7 @@ impl Harness {
                 ctx.request_discard("drag flow test");
             }
         });
+        self.shapes = out.shapes.into_iter().map(|c| c.shape).collect();
     }
 
     fn dragging(&self) -> bool {
@@ -160,6 +171,43 @@ fn a_drop_is_requested_once_even_when_the_frame_runs_again() {
     }
     assert_eq!(h.drops, vec![(1, OpKind::Move, vec![file], dest)]);
     assert!(!h.dragging());
+}
+
+/// 대상은 행을 그린 뒤에 정해지지만 틴트는 행 잉크 아래, 링은 위에 놓인다.
+#[test]
+fn the_drop_tint_lands_under_the_row_ink_and_the_ring_over_it() {
+    let tmp = tempfile::tempdir().expect("tempdir");
+    let file = tmp.path().join("a").join("x.txt");
+    let dest = tmp.path().join("b");
+    std::fs::create_dir_all(file.parent().expect("parent")).expect("mkdir a");
+    std::fs::create_dir_all(&dest).expect("mkdir b");
+    std::fs::write(&file, b"x").expect("write");
+    let left = egui::Rect::from_min_size(egui::pos2(0.0, 0.0), egui::vec2(300.0, 600.0));
+    let right = egui::Rect::from_min_size(egui::pos2(400.0, 0.0), egui::vec2(300.0, 600.0));
+    let mut h = Harness::new(vec![
+        (left, vec![(file, false, cell(10.0, 10.0))]),
+        (right, vec![(dest, true, cell(410.0, 10.0))]),
+    ]);
+    h.drag(egui::pos2(20.0, 20.0), egui::pos2(420.0, 20.0));
+    let theme = Theme::with_colors_and_zoom(tasty_themes::mocha_fallback_colors(), false, 1.0);
+    let (tint, border) = (
+        theme.explorer_drop_target_bg().to_egui(),
+        theme.explorer_drop_target_border().to_egui(),
+    );
+    let at = |want: &dyn Fn(&egui::Shape) -> bool| h.shapes.iter().position(want);
+    let tint_at = at(&|s| matches!(s, egui::Shape::Rect(r) if r.fill == tint)).expect("tint");
+    let ring_at =
+        at(&|s| matches!(s, egui::Shape::Rect(r) if r.stroke.color == border)).expect("ring");
+    // 오른쪽 칸의 행 잉크. 왼쪽 칸의 것은 틴트보다 먼저 그려진다.
+    let ink_at = h
+        .shapes
+        .iter()
+        .rposition(
+            |s| matches!(s, egui::Shape::LineSegment { stroke, .. } if stroke.color == ROW_INK),
+        )
+        .expect("row ink");
+    assert!(tint_at < ink_at, "tint {tint_at}, ink {ink_at}");
+    assert!(ink_at < ring_at, "ink {ink_at}, ring {ring_at}");
 }
 
 #[test]

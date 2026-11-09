@@ -9,7 +9,7 @@ use std::time::Instant;
 
 use tasty_settings::keybindings::parse::Combo;
 use tasty_type_appearance::theme::Theme;
-use tasty_ui_widgets::{DragChipProps, DragOp, drag_chip, paint_drop_target};
+use tasty_ui_widgets::{DragChipProps, DragOp, DropTintSlot, drag_chip, paint_drop_ring};
 
 use super::ExplorerView;
 use super::ops::{OpsAction, glyph};
@@ -77,8 +77,18 @@ pub(crate) struct DragState {
     pub(crate) os: Option<OsHover>,
     /// OS 파일을 놓으면 갈 곳. 놓기 처리(`take_os_drop`)가 소비한다.
     os_target: Option<(PathBuf, Verdict)>,
+    /// 이번 프레임의 틴트 자리. 틴트는 행 아래에 깔리는데 대상은 행을 그린 뒤에 정해진다.
+    slots: TintSlots,
     /// 앞 프레임에 놓기 틴트가 덮은 파일 영역. 행은 틴트보다 먼저 그려져 앞 프레임 값으로 글자를 고른다.
     drop_tint: Option<DropTint>,
+}
+
+/// 칠할 면마다 잡아 둔 틴트 자리. 이름 입력 대상과 끌기 대상은 함께 보일 수 있어 따로 둔다.
+#[derive(Clone, Copy, Default)]
+struct TintSlots {
+    files: Option<DropTintSlot>,
+    create: Option<DropTintSlot>,
+    sidebar: Option<DropTintSlot>,
 }
 
 #[derive(Clone)]
@@ -88,6 +98,17 @@ enum DropTint {
 }
 
 impl DragState {
+    /// 파일 영역의 바탕을 칠한 직후, 행을 그리기 전에 부른다.
+    pub(crate) fn reserve_files(&mut self, ui: &egui::Ui) {
+        self.slots.create = Some(DropTintSlot::reserve(ui.painter()));
+        self.slots.files = Some(DropTintSlot::reserve(ui.painter()));
+    }
+
+    /// 사이드바의 바탕을 칠한 직후, 행을 그리기 전에 부른다.
+    pub(crate) fn reserve_sidebar(&mut self, ui: &egui::Ui) {
+        self.slots.sidebar = Some(DropTintSlot::reserve(ui.painter()));
+    }
+
     /// 이 경로의 행이 놓기 틴트 아래에 있는지.
     pub(crate) fn drops_on(&self, path: &Path) -> bool {
         match &self.drop_tint {
@@ -643,6 +664,32 @@ fn chip(
         });
 }
 
+/// 대상 표시를 칠한다. 틴트는 잡아 둔 자리에, 링은 지금 칠해 행 위에 놓는다.
+fn paint_target(
+    ui: &egui::Ui,
+    theme: &Theme,
+    slot: Option<DropTintSlot>,
+    ring: egui::Rect,
+    radius: f32,
+) {
+    if let Some(slot) = slot {
+        slot.fill(ui.ctx(), theme, ring, radius);
+    }
+    // 칸 자신의 레이어에 그려 칸 위에 뜬 popup·카드보다 아래에 둔다.
+    let painter = ui.ctx().layer_painter(ui.layer_id()).with_clip_rect(ring);
+    paint_drop_ring(&painter, theme, ring, radius);
+}
+
+/// 놓기 틴트의 자리와 모서리는 대상 종류가 정한다.
+fn paint_drop(ui: &egui::Ui, theme: &Theme, slots: TintSlots, ring: egui::Rect, kind: Kind) {
+    let (slot, radius) = match kind {
+        Kind::Body => (slots.files, 0.0),
+        Kind::Entry { .. } => (slots.files, theme.corner_radius.value()),
+        Kind::Tree { .. } | Kind::Favorite => (slots.sidebar, theme.corner_radius.value()),
+    };
+    paint_target(ui, theme, slot, ring, radius);
+}
+
 /// 폴더 행 아래에 이름 입력이 열려 있으면 그 폴더에 놓을 대상 표시를 한다. 끌기 대상과 같은 링·틴트다.
 fn create_target(
     ui: &egui::Ui,
@@ -650,6 +697,7 @@ fn create_target(
     view: &mut ExplorerView,
     spots: &[Spot],
     body: egui::Rect,
+    slot: Option<DropTintSlot>,
 ) {
     if super::super::create::place::target_row(view).is_none() {
         return;
@@ -660,9 +708,13 @@ fn create_target(
     let entry = |s: &&Spot| matches!(s.kind, Kind::Entry { .. }) && s.path == dir;
     if let Some(spot) = spots.iter().find(entry) {
         view.ops.drag.drop_tint = Some(DropTint::Row(dir.clone()));
-        let ring = area(spot, body);
-        let painter = ui.ctx().layer_painter(ui.layer_id()).with_clip_rect(ring);
-        paint_drop_target(&painter, theme, ring, theme.corner_radius.value());
+        paint_target(
+            ui,
+            theme,
+            slot,
+            area(spot, body),
+            theme.corner_radius.value(),
+        );
     }
 }
 
@@ -686,8 +738,9 @@ pub(crate) fn frame(
         .data_mut(|d| d.remove_temp::<Spots>(spots_id()))
         .unwrap_or_default()
         .0;
+    let slots = std::mem::take(&mut view.ops.drag.slots);
     view.ops.drag.drop_tint = None;
-    create_target(ui, theme, view, &spots, body);
+    create_target(ui, theme, view, &spots, body, slots.create);
     let me = ui.id();
     let drawn = drawn_entries(&spots, body);
     super::cursor::frame(ui, theme, view, &drawn);
@@ -703,7 +756,7 @@ pub(crate) fn frame(
     let Some(payload) = egui::DragAndDrop::payload::<Payload>(&ctx) else {
         view.ops.drag.hover = None;
         if let Some(os) = view.ops.drag.os.clone() {
-            os_frame(ui, theme, view, &spots, body, &os);
+            os_frame(ui, theme, view, &spots, body, &os, slots);
         } else {
             start(&ctx, me, view, &spots, body);
         }
@@ -740,14 +793,7 @@ pub(crate) fn frame(
     };
     if let Verdict::Go(_) = decided {
         view.ops.drag.note_drop_tint(kind, &dest);
-        let radius = if kind == Kind::Body {
-            0.0
-        } else {
-            theme.corner_radius.value()
-        };
-        // 칸 자신의 레이어에 그려 칸 위에 뜬 popup·카드보다 아래에 둔다.
-        let painter = ctx.layer_painter(ui.layer_id()).with_clip_rect(ring);
-        paint_drop_target(&painter, theme, ring, radius);
+        paint_drop(ui, theme, slots, ring, kind);
     }
     chip(
         &ctx,
@@ -778,6 +824,7 @@ fn os_frame(
     spots: &[Spot],
     body: egui::Rect,
     os: &OsHover,
+    slots: TintSlots,
 ) {
     let shown = view.loaded_dir().map(Path::to_path_buf);
     let Some((dest, ring, kind)) = target(spots, os.pos, body, shown.as_deref()) else {
@@ -792,13 +839,7 @@ fn os_frame(
     let ctx = ui.ctx();
     if let Verdict::Go(_) = decided {
         view.ops.drag.note_drop_tint(kind, &dest);
-        let radius = if kind == Kind::Body {
-            0.0
-        } else {
-            theme.corner_radius.value()
-        };
-        let painter = ctx.layer_painter(ui.layer_id()).with_clip_rect(ring);
-        paint_drop_target(&painter, theme, ring, radius);
+        paint_drop(ui, theme, slots, ring, kind);
     }
     let single_dir = matches!(os.paths.as_slice(), [one] if one.is_dir());
     chip(

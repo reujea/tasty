@@ -985,20 +985,6 @@ pub fn drag_chip(
         .rect
 }
 
-/// 놓을 대상 표시: 안쪽 1px 강조 링과 강조 틴트. 배치는 바꾸지 않는다.
-pub fn paint_drop_target(painter: &egui::Painter, theme: &Theme, rect: egui::Rect, radius: f32) {
-    painter.rect(
-        rect,
-        radius,
-        theme.explorer_drop_target_bg().to_egui(),
-        egui::Stroke::new(
-            theme.border_width.value(),
-            theme.explorer_drop_target_border().to_egui(),
-        ),
-        egui::StrokeKind::Inside,
-    );
-}
-
 #[cfg(test)]
 #[path = "explorer_ops_layout_tests.rs"]
 mod layout_tests;

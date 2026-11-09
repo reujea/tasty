@@ -1,5 +1,5 @@
 //! 숨김 파일과 폴더 안 만들기 예제(시안 batch 11 "Remaining states"). 이름 색은 본체와 같은
-//! explorer-hidden-fg, 편집 줄은 본체와 같은 공용 `explorer_name_row_in`, 대상 표시는 `paint_drop_target`.
+//! explorer-hidden-fg, 편집 줄은 본체와 같은 공용 `explorer_name_row_in`, 대상 표시는 `paint_drop_tint`.
 
 use tasty_ui_widgets::{DropTintSlot, ExplorerNameOptions, explorer_name_row_in, paint_drop_ring};
 

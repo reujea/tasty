@@ -560,6 +560,7 @@ fn sidebar(
         0.0,
         theme.bg_sidebar().to_egui(),
     );
+    view.ops.drag.reserve_sidebar(ui);
     ui.spacing_mut().item_spacing.y = 0.0;
 
     let current = panel.current_root().to_path_buf();
@@ -857,6 +858,7 @@ fn content(
             let ui = &mut preview::split(ui, theme, view, id_suffix);
             let bed = tasty_ui_widgets::surface_bed(theme, view.bed_focused);
             ui.painter().rect_filled(ui.max_rect(), 0.0, bed);
+            view.ops.drag.reserve_files(ui);
             if state_screen::show_for(ui, theme, view, &root, action)
                 || state_screen::show_find(ui, theme, view, action)
             {

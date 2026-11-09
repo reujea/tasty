@@ -176,7 +176,7 @@ pub use explorer_ops::{
     ConflictPick, ConflictProps, DragChipProps, DragOp, HostMark, OpStatusProps, OpStatusResponse,
     QueueHeader, QueueRowProps, ResultAction, ResultCardProps, ResultCardResponse, ResultLine,
     conflict_card, drag_chip, host_mark, op_queue_frame, op_queue_popover, op_queue_rows,
-    op_queue_width, op_status_line, paint_drop_target, result_card,
+    op_queue_width, op_status_line, result_card,
 };
 pub use explorer_perm_box::{
     PermBoxClick, PermBoxProps, PermBoxText, PermBoxValue, PermLayout, perm_box, perm_layout,
