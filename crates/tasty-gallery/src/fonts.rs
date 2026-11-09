@@ -19,19 +19,7 @@ pub fn install(ctx: &egui::Context) {
         .or_default()
         .insert(0, "d2coding".to_owned());
 
-    if let Some(cjk) = tasty_egui_theme::load_system_cjk_font() {
-        fonts.font_data.insert(
-            "system_cjk".to_owned(),
-            Arc::new(egui::FontData::from_owned(cjk)),
-        );
-        for fam in [egui::FontFamily::Proportional, egui::FontFamily::Monospace] {
-            fonts
-                .families
-                .entry(fam)
-                .or_default()
-                .push("system_cjk".to_owned());
-        }
-    } else {
+    if !tasty_egui_theme::install_system_cjk_fallback(&mut fonts) {
         tracing::warn!(
             "no system CJK font found; Korean/Japanese/Chinese labels will render as \u{25a1}"
         );

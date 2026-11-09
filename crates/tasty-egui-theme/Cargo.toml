@@ -13,6 +13,7 @@ tasty-type-geometry = { path = "../tasty-type-geometry" }
 tracing = "0.1"
 
 [dev-dependencies]
+tempfile = "3"
 tasty-themes = { path = "../tasty-themes" }
 
 [lints]

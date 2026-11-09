@@ -38,7 +38,7 @@ ignore = [
   # 언어팩 글꼴처럼 제3자가 만든 파일이 입력일 수 있다. Tasty가 글꼴을 직접 내려받는 경로는 찾지 못했다.
   # 0.25.1은 forbid(unsafe_code)라 이 크레이트 안의 메모리 오류 위험은 낮다.
   # 파싱에 실패하거나 줄 높이가 0 이하인 파일은 egui(epaint 0.31.1)에서 패닉한다(text/fonts.rs:210, text/font.rs:94).
-  # 언어팩 글꼴, custom_font_path, 이름으로 찾은 글꼴은 tasty_i18n::font::validate로 먼저 거른다. 시스템 CJK 글꼴은 거르지 않는다.
+  # 언어팩 글꼴, custom_font_path, 이름으로 찾은 글꼴, 시스템 CJK 글꼴은 tasty_i18n::font::validate로 먼저 거른다.
   # 판정을 통과한 손상 파일(glyf 손상, cmap 없음, 뒤를 잘라 낸 파일)은 측정에서 패닉이 없었다.
   # 터미널 경로(fontdb)는 glyf 손상, 음수 높이, 파싱 실패 파일에서 패닉이 없었다.
   # 판정을 통과하고도 패닉하는 입력은 측정했다. 글리프가 atlas보다 큰 인위적 파일이 epaint texture_atlas.rs:212에서 패닉했다.

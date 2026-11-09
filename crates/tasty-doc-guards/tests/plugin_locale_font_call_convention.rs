@@ -2,6 +2,7 @@
 //! 동일한 폰트를 사용하도록 하는 규약이며 실제 화면의 글리프 렌더링까지 검사하지는 않는다.
 //! 호스트의 환경변수 정의는 src/boot/locale.rs의 font_env_path에 있다.
 
+use tasty_doc_guards::floored_walk::{CountedOn, Descend, Floor, walk_with_floor};
 use tasty_doc_guards::repo_root;
 
 /// 플러그인과 폰트 설치 파일. 파일을 옮기면 이 목록도 갱신한다.
@@ -50,5 +51,59 @@ fn every_ui_plugin_reads_the_same_locale_font_env_and_calls_the_shared_helper() 
     assert!(
         missing_helper.is_empty(),
         "UI plugins missing the shared font validation helper {HELPER}: {missing_helper:?}"
+    );
+}
+
+/// 후보 파일 이름. 어느 OS의 후보든 이 파일 밖에 다시 적으면 프로세스마다 다른 글꼴을 고른다.
+const SYSTEM_CJK_FONT_FILES: &[&str] = &["NotoSansCJK", "malgun.ttf", "AppleSDGothicNeo"];
+const SYSTEM_CJK_LIST_OWNER: &str = "crates/tasty-egui-theme/src/lib.rs";
+
+/// 빈 순회가 통과로 보이지 않게 한다. 대규모 누락만 잡고 파일 한두 개의 이동은 잡지 않는다.
+const RUST_SOURCES_FLOOR: Floor = Floor {
+    min: 2500,
+    measured: 3047,
+    measured_on: "2026-11-09",
+    counted_on: CountedOn::Tree("3d02bf359 — git ls-files의 src·crates 아래 .rs 파일 수"),
+    why_this_gap: "크레이트 몇 개가 옮겨 가도 실패하지 않도록 약 18%를 남긴다. 후보 이름의 \
+                   복사를 찾는 검사라 일부 누락보다 빈 순회를 막는 것이 목적이다.",
+};
+
+#[test]
+fn system_cjk_font_candidates_are_listed_in_one_file() {
+    let root = repo_root();
+    let walked = walk_with_floor(
+        &root,
+        &root,
+        &RUST_SOURCES_FLOOR,
+        Descend::SkipBuildCachesAndDotDirs,
+        &|found| {
+            found.rel.ends_with(".rs")
+                // 이 파일은 찾을 이름을 입력으로 적어 둔다.
+                && found.rel != file!()
+                && (found.rel.starts_with("src/") || found.rel.starts_with("crates/"))
+        },
+    )
+    .unwrap_or_else(|e| panic!("{e}"));
+    let mut owner_lists_them = false;
+    let mut copies = Vec::new();
+    for file in &walked {
+        let src = std::fs::read_to_string(&file.path)
+            .unwrap_or_else(|e| panic!("cannot read {}: {e}", file.rel));
+        if !SYSTEM_CJK_FONT_FILES.iter().any(|name| src.contains(name)) {
+            continue;
+        }
+        if file.rel == SYSTEM_CJK_LIST_OWNER {
+            owner_lists_them = SYSTEM_CJK_FONT_FILES.iter().all(|name| src.contains(name));
+        } else {
+            copies.push(file.rel.clone());
+        }
+    }
+    assert!(
+        owner_lists_them,
+        "{SYSTEM_CJK_LIST_OWNER} should list every name in {SYSTEM_CJK_FONT_FILES:?}"
+    );
+    assert!(
+        copies.is_empty(),
+        "system CJK font candidates are repeated outside {SYSTEM_CJK_LIST_OWNER}: {copies:?}"
     );
 }

@@ -218,58 +218,57 @@ fn apply_theme_style(theme: &Theme, ctx: &egui::Context) {
     ctx.set_style(style);
 }
 
-/// macOS·Linux·Windows의 알려진 시스템 경로에서 CJK 폰트 바이트를 읽는다.
-pub fn load_system_cjk_font() -> Option<Vec<u8>> {
-    #[cfg(target_os = "windows")]
-    {
-        // Malgun Gothic (맑은 고딕) — bundled with Windows Vista+
-        if let Ok(data) = std::fs::read("C:/Windows/Fonts/malgun.ttf") {
-            return Some(data);
-        }
-    }
+/// egui `FontDefinitions` 안에서 시스템 CJK 글꼴을 가리키는 키.
+pub const SYSTEM_CJK_FONT_KEY: &str = "system_cjk";
 
-    #[cfg(target_os = "macos")]
-    {
-        for path in &[
-            "/System/Library/Fonts/AppleSDGothicNeo.ttc",
-            "/System/Library/Fonts/ヒラギノ角ゴシック W3.ttc",
-            "/System/Library/Fonts/Supplemental/Arial Unicode.ttf",
-        ] {
-            if let Ok(data) = std::fs::read(path) {
-                return Some(data);
+// 본체와 플러그인이 같은 글꼴을 쓰도록 후보는 여기에만 둔다.
+#[cfg(target_os = "windows")]
+const SYSTEM_CJK_CANDIDATES: &[&str] = &["C:/Windows/Fonts/malgun.ttf"];
+
+#[cfg(target_os = "macos")]
+const SYSTEM_CJK_CANDIDATES: &[&str] = &[
+    "/System/Library/Fonts/AppleSDGothicNeo.ttc",
+    "/System/Library/Fonts/ヒラギノ角ゴシック W3.ttc",
+    "/System/Library/Fonts/Supplemental/Arial Unicode.ttf",
+];
+
+#[cfg(target_os = "linux")]
+const SYSTEM_CJK_CANDIDATES: &[&str] = &[
+    "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
+    "/usr/share/fonts/noto-cjk/NotoSansCJK-Regular.ttc",
+    "/usr/share/fonts/google-noto-cjk/NotoSansCJK-Regular.ttc",
+    "/usr/share/fonts/truetype/noto/NotoSansCJK-Regular.ttc",
+];
+
+#[cfg(not(any(target_os = "windows", target_os = "macos", target_os = "linux")))]
+const SYSTEM_CJK_CANDIDATES: &[&str] = &[];
+
+/// 후보에서 egui가 읽을 수 있는 첫 글꼴을 고른다. 없는 파일은 설치되지 않은 것이므로
+/// 말없이 넘어가고, egui가 panic할 파일은 경고하고 다음 후보로 넘어간다.
+fn first_usable_cjk_font<'a>(
+    candidates: impl IntoIterator<Item = &'a std::path::Path>,
+) -> Option<Vec<u8>> {
+    candidates.into_iter().find_map(|path| {
+        let bytes = std::fs::read(path).ok()?;
+        match tasty_i18n::font::validate(&bytes) {
+            Ok(()) => Some(bytes),
+            Err(e) => {
+                tracing::warn!("system CJK font {} is not usable: {e}", path.display());
+                None
             }
         }
-    }
-
-    #[cfg(target_os = "linux")]
-    {
-        for path in &[
-            "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
-            "/usr/share/fonts/noto-cjk/NotoSansCJK-Regular.ttc",
-            "/usr/share/fonts/google-noto-cjk/NotoSansCJK-Regular.ttc",
-            "/usr/share/fonts/truetype/noto/NotoSansCJK-Regular.ttc",
-        ] {
-            if let Ok(data) = std::fs::read(path) {
-                return Some(data);
-            }
-        }
-    }
-
-    None
+    })
 }
 
-/// 시스템 CJK 폰트를 Proportional·Monospace의 마지막 폴백으로 추가한다.
-/// 찾지 못하면 경고만 남긴다. 번들 D2Coding은 설치하지 않으므로 본체와 같은
-/// 고정폭 측정에는 사용할 수 없다. 본체와 갤러리는 D2Coding을 먼저 설치한 뒤
-/// `load_system_cjk_font`를 사용한다.
-pub fn install_cjk_fallback(ctx: &egui::Context) {
-    let Some(bytes) = load_system_cjk_font() else {
-        tracing::warn!("no system CJK font found; Korean/Japanese/Chinese labels will render as □");
-        return;
+/// 시스템 CJK 글꼴을 Proportional·Monospace의 마지막 폴백으로 추가한다.
+/// 쓸 수 있는 글꼴이 없으면 `fonts`를 그대로 두고 `false`를 돌려준다.
+pub fn install_system_cjk_fallback(fonts: &mut egui::FontDefinitions) -> bool {
+    let candidates = SYSTEM_CJK_CANDIDATES.iter().map(std::path::Path::new);
+    let Some(bytes) = first_usable_cjk_font(candidates) else {
+        return false;
     };
-    let mut fonts = egui::FontDefinitions::default();
     fonts.font_data.insert(
-        "system_cjk".to_owned(),
+        SYSTEM_CJK_FONT_KEY.to_owned(),
         Arc::new(egui::FontData::from_owned(bytes)),
     );
     for fam in [egui::FontFamily::Proportional, egui::FontFamily::Monospace] {
@@ -277,7 +276,20 @@ pub fn install_cjk_fallback(ctx: &egui::Context) {
             .families
             .entry(fam)
             .or_default()
-            .push("system_cjk".to_owned());
+            .push(SYSTEM_CJK_FONT_KEY.to_owned());
+    }
+    true
+}
+
+/// 시스템 CJK 폰트를 Proportional·Monospace의 마지막 폴백으로 추가한다.
+/// 찾지 못하면 경고만 남긴다. 번들 D2Coding은 설치하지 않으므로 본체와 같은
+/// 고정폭 측정에는 사용할 수 없다. 본체와 갤러리는 D2Coding을 먼저 설치한 뒤
+/// `install_system_cjk_fallback`을 사용한다.
+pub fn install_cjk_fallback(ctx: &egui::Context) {
+    let mut fonts = egui::FontDefinitions::default();
+    if !install_system_cjk_fallback(&mut fonts) {
+        tracing::warn!("no system CJK font found; Korean/Japanese/Chinese labels will render as □");
+        return;
     }
     ctx.set_fonts(fonts);
 }
@@ -308,6 +320,35 @@ pub fn install_locale_font_fallback(
             .push(LOCALE_FONT_KEY.to_owned());
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod system_cjk_tests {
+    use super::*;
+
+    const D2CODING: &[u8] = include_bytes!("../../tasty-font/assets/D2Coding-ligature-Regular.ttf");
+
+    #[test]
+    fn a_missing_or_broken_candidate_gives_way_to_the_next() {
+        let dir = tempfile::tempdir().unwrap();
+        let (broken, valid) = (dir.path().join("broken.ttf"), dir.path().join("valid.ttf"));
+        std::fs::write(&broken, b"not a font").unwrap();
+        std::fs::write(&valid, D2CODING).unwrap();
+        let missing = dir.path().join("missing.ttf");
+
+        let found = first_usable_cjk_font([missing.as_path(), broken.as_path(), valid.as_path()]);
+        assert_eq!(found.as_deref(), Some(D2CODING));
+    }
+
+    #[test]
+    fn no_usable_candidate_finds_nothing() {
+        let dir = tempfile::tempdir().unwrap();
+        let broken = dir.path().join("broken.ttf");
+        std::fs::write(&broken, b"not a font").unwrap();
+        let missing = dir.path().join("missing.ttf");
+
+        assert!(first_usable_cjk_font([missing.as_path(), broken.as_path()]).is_none());
+    }
 }
 
 #[cfg(test)]

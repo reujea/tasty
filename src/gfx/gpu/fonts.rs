@@ -20,22 +20,7 @@ impl GpuState {
             .or_default();
         monospace.insert(0, "d2coding".to_owned());
 
-        if let Some(cjk_bytes) = tasty_egui_theme::load_system_cjk_font() {
-            fonts.font_data.insert(
-                "system_cjk".to_owned(),
-                Arc::new(egui::FontData::from_owned(cjk_bytes)),
-            );
-            fonts
-                .families
-                .entry(egui::FontFamily::Proportional)
-                .or_default()
-                .push("system_cjk".to_owned());
-            fonts
-                .families
-                .entry(egui::FontFamily::Monospace)
-                .or_default()
-                .push("system_cjk".to_owned());
-        } else {
+        if !tasty_egui_theme::install_system_cjk_fallback(&mut fonts) {
             tracing::warn!(
                 "no system CJK font found; UI may show □ for non-Latin/Hangul text outside D2Coding ({D2CODING_FAMILY})"
             );

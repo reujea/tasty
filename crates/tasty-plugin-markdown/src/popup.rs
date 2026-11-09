@@ -535,19 +535,7 @@ fn draw_file_open(
 #[cfg(any(unix, windows))]
 fn install_fonts(ctx: &egui::Context) {
     let mut fonts = egui::FontDefinitions::default();
-    if let Some(bytes) = load_system_cjk_font_data() {
-        fonts.font_data.insert(
-            "system_cjk".to_owned(),
-            std::sync::Arc::new(egui::FontData::from_owned(bytes)),
-        );
-        for fam in [egui::FontFamily::Proportional, egui::FontFamily::Monospace] {
-            fonts
-                .families
-                .entry(fam)
-                .or_default()
-                .push("system_cjk".to_owned());
-        }
-    }
+    tasty_egui_theme::install_system_cjk_fallback(&mut fonts);
     // 언어팩 폰트도 공용 검증 함수로 확인한 뒤 fallback에 추가한다.
     // TASTY_LOCALE_FONT 경로는 호스트가 전달한다.
     if let Some(path) = std::env::var_os("TASTY_LOCALE_FONT").filter(|v| !v.is_empty()) {
@@ -560,41 +548,4 @@ fn install_fonts(ctx: &egui::Context) {
         }
     }
     ctx.set_fonts(fonts);
-}
-
-/// 시스템 CJK 폰트 바이트 로드 (host `font_registry::load_system_cjk_font_data` 미러).
-#[cfg(any(unix, windows))]
-fn load_system_cjk_font_data() -> Option<Vec<u8>> {
-    #[cfg(target_os = "windows")]
-    {
-        // host font_registry 미러 — 맑은 고딕(한글 tofu 방지). 없으면 None.
-        if let Ok(data) = std::fs::read("C:/Windows/Fonts/malgun.ttf") {
-            return Some(data);
-        }
-    }
-    #[cfg(target_os = "macos")]
-    {
-        for path in &[
-            "/System/Library/Fonts/AppleSDGothicNeo.ttc",
-            "/System/Library/Fonts/Supplemental/Arial Unicode.ttf",
-        ] {
-            if let Ok(data) = std::fs::read(path) {
-                return Some(data);
-            }
-        }
-    }
-    #[cfg(target_os = "linux")]
-    {
-        for path in &[
-            "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
-            "/usr/share/fonts/noto-cjk/NotoSansCJK-Regular.ttc",
-            "/usr/share/fonts/google-noto-cjk/NotoSansCJK-Regular.ttc",
-            "/usr/share/fonts/truetype/noto/NotoSansCJK-Regular.ttc",
-        ] {
-            if let Ok(data) = std::fs::read(path) {
-                return Some(data);
-            }
-        }
-    }
-    None
 }

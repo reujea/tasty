@@ -23,8 +23,6 @@ use crate::clipboard::{ClipboardType, ContentRepr};
 #[cfg(any(unix, windows))]
 use std::collections::{HashMap, HashSet};
 #[cfg(any(unix, windows))]
-use std::sync::Arc;
-
 #[cfg(any(unix, windows))]
 use tasty_plugin_protocol::ThemeWire;
 #[cfg(any(unix, windows))]
@@ -208,19 +206,7 @@ fn close_popup(host: &tasty_plugin_sdk::HostHandle, instance_id: u64) {
 #[cfg(any(unix, windows))]
 fn install_fonts(ctx: &egui::Context) {
     let mut fonts = egui::FontDefinitions::default();
-    if let Some(bytes) = load_system_cjk_font_data() {
-        fonts.font_data.insert(
-            "system_cjk".to_owned(),
-            Arc::new(egui::FontData::from_owned(bytes)),
-        );
-        for fam in [egui::FontFamily::Proportional, egui::FontFamily::Monospace] {
-            fonts
-                .families
-                .entry(fam)
-                .or_default()
-                .push("system_cjk".to_owned());
-        }
-    }
+    tasty_egui_theme::install_system_cjk_fallback(&mut fonts);
     // 호스트와 같은 검사 함수로 언어팩 폰트를 대체 폰트 목록 끝에 추가한다.
     if let Some(path) = std::env::var_os("TASTY_LOCALE_FONT").filter(|v| !v.is_empty()) {
         let path = std::path::PathBuf::from(path);
@@ -232,43 +218,6 @@ fn install_fonts(ctx: &egui::Context) {
         }
     }
     ctx.set_fonts(fonts);
-}
-
-/// OS별 시스템 CJK 폰트 후보를 읽는다.
-#[cfg(any(unix, windows))]
-fn load_system_cjk_font_data() -> Option<Vec<u8>> {
-    #[cfg(target_os = "windows")]
-    {
-        // 맑은 고딕이 없으면 추가하지 않는다.
-        if let Ok(data) = std::fs::read("C:/Windows/Fonts/malgun.ttf") {
-            return Some(data);
-        }
-    }
-    #[cfg(target_os = "macos")]
-    {
-        for path in &[
-            "/System/Library/Fonts/AppleSDGothicNeo.ttc",
-            "/System/Library/Fonts/Supplemental/Arial Unicode.ttf",
-        ] {
-            if let Ok(data) = std::fs::read(path) {
-                return Some(data);
-            }
-        }
-    }
-    #[cfg(target_os = "linux")]
-    {
-        for path in &[
-            "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
-            "/usr/share/fonts/noto-cjk/NotoSansCJK-Regular.ttc",
-            "/usr/share/fonts/google-noto-cjk/NotoSansCJK-Regular.ttc",
-            "/usr/share/fonts/truetype/noto/NotoSansCJK-Regular.ttc",
-        ] {
-            if let Ok(data) = std::fs::read(path) {
-                return Some(data);
-            }
-        }
-    }
-    None
 }
 
 fn main() -> anyhow::Result<()> {

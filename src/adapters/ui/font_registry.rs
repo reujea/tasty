@@ -70,20 +70,7 @@ pub fn build_font_definitions(
         .or_default()
         .insert(0, "d2coding".to_owned());
 
-    let cjk_data = load_system_cjk_font_data();
-    if let Some(bytes) = &cjk_data {
-        fonts.font_data.insert(
-            "system_cjk".to_owned(),
-            Arc::new(egui::FontData::from_owned(bytes.clone())),
-        );
-        for fam in [egui::FontFamily::Proportional, egui::FontFamily::Monospace] {
-            fonts
-                .families
-                .entry(fam)
-                .or_default()
-                .push("system_cjk".to_owned());
-        }
-    }
+    let has_cjk = tasty_egui_theme::install_system_cjk_fallback(&mut fonts);
 
     // 부팅과 같은 헬퍼로 CJK 뒤에 언어팩 글꼴을 추가한다.
     if let Some(path) = crate::boot::locale::font_env_path()
@@ -98,12 +85,12 @@ pub fn build_font_definitions(
     for kind in appearance.plugin_font_overrides.keys() {
         let eff = appearance.effective_font_for_kind(kind);
         let family = family_name_for_kind(kind);
-        register_surface_family(&mut fonts, &family, kind, &eff, cjk_data.is_some());
+        register_surface_family(&mut fonts, &family, kind, &eff, has_cjk);
     }
 
     if let Some((slot, eff)) = preview {
         let prefix = format!("preview_{}", slot);
-        register_surface_family(&mut fonts, slot, &prefix, eff, cjk_data.is_some());
+        register_surface_family(&mut fonts, slot, &prefix, eff, has_cjk);
     }
 
     fonts
@@ -139,8 +126,9 @@ fn register_surface_family(
         }
     }
 
-    if has_cjk && !family_fonts.iter().any(|n| n == "system_cjk") {
-        family_fonts.push("system_cjk".to_owned());
+    let cjk = tasty_egui_theme::SYSTEM_CJK_FONT_KEY;
+    if has_cjk && !family_fonts.iter().any(|n| n == cjk) {
+        family_fonts.push(cjk.to_owned());
     }
 
     fonts
@@ -211,45 +199,6 @@ fn insert_font(
         .insert(key.clone(), Arc::new(egui::FontData::from_owned(bytes)));
     family_fonts.push(key);
     Ok(())
-}
-
-fn load_system_cjk_font_data() -> Option<Vec<u8>> {
-    #[cfg(target_os = "windows")]
-    {
-        let path = "C:/Windows/Fonts/malgun.ttf";
-        if let Ok(data) = std::fs::read(path) {
-            return Some(data);
-        }
-    }
-
-    #[cfg(target_os = "macos")]
-    {
-        for path in &[
-            "/System/Library/Fonts/AppleSDGothicNeo.ttc",
-            "/System/Library/Fonts/ヒラギノ角ゴシック W3.ttc",
-            "/System/Library/Fonts/Supplemental/Arial Unicode.ttf",
-        ] {
-            if let Ok(data) = std::fs::read(path) {
-                return Some(data);
-            }
-        }
-    }
-
-    #[cfg(target_os = "linux")]
-    {
-        for path in &[
-            "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
-            "/usr/share/fonts/noto-cjk/NotoSansCJK-Regular.ttc",
-            "/usr/share/fonts/google-noto-cjk/NotoSansCJK-Regular.ttc",
-            "/usr/share/fonts/truetype/noto/NotoSansCJK-Regular.ttc",
-        ] {
-            if let Ok(data) = std::fs::read(path) {
-                return Some(data);
-            }
-        }
-    }
-
-    None
 }
 
 #[cfg(test)]
