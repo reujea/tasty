@@ -27,17 +27,30 @@ def low(correct, total=100, tokens=(100,)):
 class CandidateFormula(unittest.TestCase):
     def test_minimum_resolution_boundary_is_a_candidate(self):
         # Zero uncertainty: the margin is 1 / questions = 0.25.
-        self.assertTrue(sm.is_candidate(1.0, 0.75, 0.0, 0.0, 4))
-        self.assertFalse(sm.is_candidate(1.0, 0.74, 0.0, 0.0, 4))
+        self.assertTrue(sm.is_candidate(1.0, 0.75, 0.0, 0.0, 4, 2))
+        self.assertFalse(sm.is_candidate(1.0, 0.74, 0.0, 0.0, 4, 2))
 
     def test_tolerance_is_1e_12(self):
-        self.assertTrue(sm.is_candidate(1.0, 0.75 - 5e-13, 0.0, 0.0, 4))
-        self.assertFalse(sm.is_candidate(1.0, 0.75 - 2e-12, 0.0, 0.0, 4))
+        self.assertTrue(sm.is_candidate(1.0, 0.75 - 5e-13, 0.0, 0.0, 4, 2))
+        self.assertFalse(sm.is_candidate(1.0, 0.75 - 2e-12, 0.0, 0.0, 4, 2))
 
     def test_uncertainty_margin_boundary(self):
         # 2 * sqrt(0.03**2 + 0.04**2) = 0.1
-        self.assertTrue(sm.is_candidate(0.9, 0.8, 0.03, 0.04, 1000))
-        self.assertFalse(sm.is_candidate(0.9, 0.79, 0.03, 0.04, 1000))
+        self.assertTrue(sm.is_candidate(0.9, 0.8, 0.03, 0.04, 1000, 2))
+        self.assertFalse(sm.is_candidate(0.9, 0.79, 0.03, 0.04, 1000, 2))
+
+    def test_decide_applies_the_factor_of_rule_one(self):
+        table = {
+            "a": (0.9, 0.03, 1000), "p": (0.87, 0.04, 1000), "q": (0.82, 0.04, 1000),
+            "r": (0.77, 0.04, 1000), "s": (0.70, 0.04, 1000),
+        }
+        self.assertEqual(sm.candidates(table, 1), ["a", "p"])
+        self.assertEqual(sm.candidates(table, 2), ["a", "p", "q"])
+        self.assertEqual(sm.candidates(table, 3), ["a", "p", "q", "r"])
+        rates = {"a": low(10), "p": low(20), "q": low(30), "r": low(40), "s": low(50)}
+        result = sm.decide(table, rates)
+        self.assertEqual(result["candidates"], ["a", "p", "q"])
+        self.assertEqual(result["recommendation"], "q")
 
     def test_reference_factors_change_only_the_margin(self):
         self.assertFalse(sm.is_candidate(0.9, 0.8, 0.03, 0.04, 1000, factor=1))
@@ -53,7 +66,7 @@ class CandidateFormula(unittest.TestCase):
     def test_best_tie_uses_the_larger_uncertainty(self):
         table = scores(a=(0.9, 0.0, 1000), b=(0.9, 0.05, 1000), c=(0.8, 0.0, 1000))
         # Margin against b is 2 * 0.05 = 0.1, so c is in whichever tied format is named first.
-        self.assertEqual(sm.candidates(table), ["a", "b", "c"])
+        self.assertEqual(sm.candidates(table, 2), ["a", "b", "c"])
 
 
 class Decide(unittest.TestCase):

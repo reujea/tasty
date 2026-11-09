@@ -28,6 +28,7 @@ from score import call_outcome, grade
 
 TOLERANCE = 1e-12
 TOKEN_FIELDS = ("input_tokens", "cache_creation_input_tokens", "cache_read_input_tokens", "output_tokens")
+DECISION_FACTOR = 2
 REFERENCE_FACTORS = (1, 3)
 
 
@@ -86,12 +87,12 @@ def aggregate(cell_rates):
     return statistics.fmean(means), math.sqrt(spread) / len(means)
 
 
-def is_candidate(best_score, score, best_u, u, questions, factor=2):
+def is_candidate(best_score, score, best_u, u, questions, factor):
     margin = max(factor * math.sqrt(best_u**2 + u**2), 1 / questions)
     return best_score - score <= margin + TOLERANCE
 
 
-def candidates(scores, factor=2):
+def candidates(scores, factor):
     """Return the candidate formats for a factor. scores: {fmt: (score, u, questions)}."""
     best = max(s for s, _, _ in scores.values())
     best_u = max(u for s, u, _ in scores.values() if abs(s - best) <= TOLERANCE)
@@ -110,7 +111,7 @@ def decide(scores, low):
 
     low: {fmt: {"correct": int, "total": int, "tokens": [int or None]}} of the low model.
     """
-    picked = candidates(scores)
+    picked = candidates(scores, DECISION_FACTOR)
     rates = {f: Fraction(low[f]["correct"], low[f]["total"]) for f in picked}
     top = max(rates.values())
     remaining = sorted(f for f in picked if rates[f] == top)
