@@ -64,6 +64,7 @@
 - **`tasty port`가 비정상 종료한 인스턴스가 남긴 포트 파일의 포트를 돌려주지 않는다.** 포트 파일 옆 `tasty.instance`의 PID가 끝났거나 다른 프로세스면 포트를 출력하지 않고 남은 파일이라고 알린 뒤 종료 코드 3으로 끝난다. 인스턴스 파일이 없으면 전처럼 포트를 출력한다. 원격 포트 발견은 이 결과를 "원격 tasty 미실행"으로 알리고 파일 모드로 넘어가지 않는다. 일반 CLI 요청의 연결 실패 안내도 남은 포트 파일이면 그렇게 적는다.
 - **원격 포트에 리스너가 없으면 `tasty remote check`·`remote workspaces`·`remote new-workspace`·`tool attach`와 `remote attach --into-gui`(새 workspace·기존 workspace), 저장된 원격 행의 연결, 원격 연결 팝업의 workspace 목록이 그렇다고 알린다.** 전에는 "터널을 연결했지만 IPC 확인에 실패했다"로 나와 원격 tasty가 떠 있는 것처럼 읽혔다. 리스너는 있지만 응답이 IPC가 아니면 기존 안내가 나온다.
 - **플러그인 CLI의 `i64` 인자가 공백 뒤 음수를 값으로 받는다.** 전에는 `--after-seq -1`처럼 쓰면 `-1`을 모르는 플래그로 보아 거절했고 `--after-seq=-1`만 받았다. `u32` 인자는 그대로다.
+- **plugin 이 호스트 클립보드에 글을 쓴다.** plugin 의 `clipboard.set_text` 호출이 GUI · 헤드리스 모두 "no dispatch arm" 오류(-32017)로 실패했다 — 외부 IPC 의 같은 메서드는 App 층에서 답하는데 plugin 호출은 그 층을 거치지 않았다. 이제 GUI · 헤드리스가 함께 쓰는 IPC 라우터도 같은 처리로 답해 plugin 호출이 클립보드에 쓰고 `{"ok": true}` 를 받는다.
 
 ### Removed
 

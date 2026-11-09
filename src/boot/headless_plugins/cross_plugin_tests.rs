@@ -8,8 +8,9 @@ use serde_json::json;
 
 use super::dispatch_plugin_ipc_calls_headless;
 
-/// 공유 시험 표에 다른 시험과 동시에 올라가므로 이 시험만 쓰는 소유자와 prefix 다.
+/// 공유 시험 표에 다른 시험과 동시에 올라가므로 시험마다 다른 소유자와 prefix 를 쓴다.
 const OWNER: (&str, &str) = ("com.test.headless-cross-owner-ok", "hdlcrossok");
+const CLIP_OWNER: (&str, &str) = ("com.test.headless-cross-owner-clip", "hdlcrossclip");
 const CALLER: &str = "com.test.headless-cross-caller";
 
 /// 공통 게이트가 prefix 를 플러그인 namespace 로 알아보도록 공유 시험 표에 소유자를 올린다.
@@ -132,4 +133,27 @@ fn a_cross_plugin_call_reaches_the_owner_and_its_answer_returns() {
     assert_eq!(replies.len(), 1, "{replies:?}");
     assert_eq!(replies[0].1["call_id"], 9);
     assert_eq!(replies[0].1["result"], json!({"receiver": "r"}));
+}
+
+/// plugin 의 `clipboard.set_text` 는 호스트 클립보드에 쓰고 결과를 돌려준다 — 외부 IPC 의 App 층 분기를
+/// plugin 호출은 안 거치므로 engine 라우터가 답한다. 빠지면 "no dispatch arm" 으로 실패한다.
+#[test]
+fn a_plugin_clipboard_write_reaches_the_host_clipboard() {
+    let mut fx = fixture(CLIP_OWNER);
+    let clip = Arc::new(crate::adapters::test::mock_clipboard::MockClipboard::default());
+    fx.app.services.replace_clipboard_for_test(clip.clone());
+    let caller = fx.manager().attach_caller_stub_for_test(CALLER);
+    fx.manager().queue_plugin_call_for_test(
+        CALLER,
+        5,
+        "clipboard.set_text",
+        json!({"text": "/full/path"}),
+    );
+    fx.dispatch();
+    let replies = caller.drain_requests();
+    assert_eq!(replies.len(), 1, "{replies:?}");
+    assert_eq!(replies[0].1["call_id"], 5);
+    assert_eq!(replies[0].1["result"], json!({"ok": true}), "{replies:?}");
+    use crate::ports::clipboard::ClipboardSystem as _;
+    assert_eq!(clip.read_text().expect("written"), "/full/path");
 }

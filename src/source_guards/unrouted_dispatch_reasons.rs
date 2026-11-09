@@ -35,6 +35,11 @@ use Why::*;
 
 const ROSTER: &[(&str, Why, &str)] = &[
     (
+        "clipboard.set_text",
+        NotWindowOwned,
+        "OS 클립보드 하나를 AppServices 의 클립보드 포트로 쓴다. 창 상태를 읽지 않는다. engine 라우터 갈래는 App 층을 거치지 않는 plugin 호출용이다.",
+    ),
+    (
         "image.open",
         RoutedOutsideRequestTarget,
         "journal create_spec가 surface_id를 읽어 conversion 대상을 고정한다. handler의 journal-only 거절 경로에는 키 읽기가 없다.",
