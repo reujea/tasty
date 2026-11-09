@@ -503,9 +503,12 @@ fn translator() -> Translator {
 /// `Translator::from_plugin_env`를 쓸 수 없다. 번역 층은 그 함수와 같게 맞춘다.
 fn translator_from(lang_dir: &Path, env: impl Fn(&str) -> Option<OsString>) -> Translator {
     let locale = helper_locale(&env);
+    // 터미널 셸의 값은 host의 TASTY_HOME 그대로라 상대 경로일 수 있다. helper의 cwd 기준으로
+    // 해석하면 host가 아니라 작업 폴더의 파일을 읽으므로 값이 없는 것처럼 다룬다.
     let user_lang_dir = env("TASTY_PARENT_HOME")
-        .filter(|root| !root.is_empty())
-        .map(|root| PathBuf::from(root).join("lang"));
+        .map(PathBuf::from)
+        .filter(|root| root.is_absolute())
+        .map(|root| root.join("lang"));
     Translator::load_with_overrides(
         lang_dir,
         &locale,
@@ -946,6 +949,49 @@ mod tests {
         assert_eq!(
             translator_from(&lang, env_of(&unset)).t(KEY),
             "installed en"
+        );
+    }
+
+    /// cwd는 프로세스 전역이므로 시험 실행 파일을 그 폴더에서 다시 띄워 확인한다.
+    #[test]
+    fn a_relative_parent_home_never_reads_files_under_the_working_directory() {
+        const NAME: &str = "session::helper::tests::a_relative_parent_home_never_reads_files_under_the_working_directory";
+        const CHILD_ENV: &str = "TASTY_TEST_HELPER_RELATIVE_HOME_LANG";
+        const KEY: &str = "codex.session.bad_args";
+        let plugin_id = crate::PLUGIN_ID;
+        let rel = format!("rel/lang/plugins/{plugin_id}/ja.toml");
+        let blank = format!("lang/plugins/{plugin_id}/ja.toml");
+        if let Some(lang) = std::env::var_os(CHILD_ENV) {
+            for (home, file) in [("rel", &rel), ("", &blank)] {
+                assert!(Path::new(file).is_file(), "{file}가 cwd 아래에 있어야 한다");
+                let vars = [("TASTY_LOCALE", "ja"), ("TASTY_PARENT_HOME", home)];
+                assert_eq!(
+                    translator_from(Path::new(&lang), env_of(&vars)).t(KEY),
+                    "installed ja",
+                    "{vars:?}"
+                );
+            }
+            return;
+        }
+        let dir = tempfile::tempdir().unwrap();
+        let lang = lang_fixture(dir.path());
+        let cwd = dir.path().join("cwd");
+        for file in [&rel, &blank] {
+            let file = cwd.join(file);
+            std::fs::create_dir_all(file.parent().unwrap()).unwrap();
+            std::fs::write(file, "[codex.session]\nbad_args = \"from cwd\"\n").unwrap();
+        }
+        let output = Command::new(std::env::current_exe().unwrap())
+            .args(["--exact", NAME])
+            .current_dir(&cwd)
+            .env(CHILD_ENV, &lang)
+            .output()
+            .unwrap();
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        assert!(output.status.success(), "{stdout}");
+        assert!(
+            stdout.contains("1 passed"),
+            "자식이 시험을 실행하지 않았다: {stdout}"
         );
     }
 
