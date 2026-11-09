@@ -73,7 +73,7 @@ pub(super) fn sync(view: &mut MainView, engine: &crate::runtime::engine_access::
 
 #[cfg(test)]
 mod tests {
-    use super::receives;
+    use super::{receives, to_send};
 
     #[test]
     fn only_the_bundled_markdown_page_receives_the_state() {
@@ -81,5 +81,47 @@ mod tests {
         assert!(!receives("html", "com.tasty.html"));
         assert!(!receives("markdown", "com.example.markdown"));
         assert!(!receives("custom-view", "com.example.view"));
+    }
+
+    #[test]
+    fn a_page_is_sent_the_value_only_when_it_changes() {
+        // 첫 문서 전에는 보낸 값이 없으므로 두 상태 모두 보낸다.
+        assert_eq!(
+            to_send("markdown", "com.tasty.markdown", true, None),
+            Some(true)
+        );
+        assert_eq!(
+            to_send("markdown", "com.tasty.markdown", false, None),
+            Some(false)
+        );
+        assert_eq!(
+            to_send("markdown", "com.tasty.markdown", true, Some(false)),
+            Some(true)
+        );
+        assert_eq!(
+            to_send("markdown", "com.tasty.markdown", false, Some(true)),
+            Some(false)
+        );
+        assert_eq!(
+            to_send("markdown", "com.tasty.markdown", true, Some(true)),
+            None
+        );
+        assert_eq!(
+            to_send("markdown", "com.tasty.markdown", false, Some(false)),
+            None
+        );
+    }
+
+    #[test]
+    fn a_page_outside_the_bed_kinds_is_never_sent_a_value() {
+        for sent in [None, Some(false), Some(true)] {
+            for focused in [false, true] {
+                assert_eq!(to_send("html", "com.tasty.html", focused, sent), None);
+                assert_eq!(
+                    to_send("markdown", "com.example.markdown", focused, sent),
+                    None
+                );
+            }
+        }
     }
 }

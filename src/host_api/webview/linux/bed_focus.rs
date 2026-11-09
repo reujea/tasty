@@ -65,3 +65,16 @@ impl BedFocusSheet {
         self.on.set(focused);
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::{SheetChange, sheet_change};
+
+    #[test]
+    fn the_sheet_is_added_or_removed_only_on_a_change() {
+        assert_eq!(sheet_change(false, true), SheetChange::Add);
+        assert_eq!(sheet_change(true, false), SheetChange::Remove);
+        assert_eq!(sheet_change(true, true), SheetChange::Nothing);
+        assert_eq!(sheet_change(false, false), SheetChange::Nothing);
+    }
+}
