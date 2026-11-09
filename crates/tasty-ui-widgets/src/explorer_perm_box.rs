@@ -515,29 +515,46 @@ mod tests {
         cancel: "Cancel",
     };
 
-    /// 앱 번역 파일의 ko 문구.
-    const KO: PermBoxText<'static> = PermBoxText {
-        heads: ["읽기", "쓰기", "실행"],
-        roles: ["소유자", "그룹", "기타"],
-        read_only: "읽기 전용",
-        windows_hint: "Windows 파일 특성입니다. 다른 접근 규칙은 여기서 바꾸지 않습니다.",
-        failed: "권한을 바꾸지 못했습니다",
-        apply: "적용",
-        applying: "적용 중…",
-        cancel: "취소",
-    };
-
-    /// 앱 번역 파일의 ja 문구.
-    const JA: PermBoxText<'static> = PermBoxText {
-        heads: ["読み取り", "書き込み", "実行"],
-        roles: ["所有者", "グループ", "その他"],
-        read_only: "読み取り専用",
-        windows_hint: "Windows のファイル属性です。ほかのアクセス規則はここでは変更しません。",
-        failed: "権限を変更できませんでした",
-        apply: "適用",
-        applying: "適用中…",
-        cancel: "キャンセル",
-    };
+    /// 영어가 아닌 내장 언어의 앱 번역 파일에서 읽은 문구.
+    fn translated_texts() -> Vec<PermBoxText<'static>> {
+        tasty_i18n::BUILTIN_CODES
+            .iter()
+            .filter(|code| **code != "en")
+            .map(|code| {
+                let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+                    .join(format!("../../lang/{code}.toml"));
+                let source = std::fs::read_to_string(&path)
+                    .unwrap_or_else(|e| panic!("{} 읽기 실패: {e}", path.display()));
+                let value: toml::Value = source.parse().expect("lang toml");
+                let mut map = std::collections::HashMap::new();
+                tasty_i18n::flatten_catalog_toml("", &value, &mut map);
+                let get = |key: &str| -> &'static str {
+                    let text = map
+                        .get(key)
+                        .unwrap_or_else(|| panic!("lang/{code}.toml에 {key}가 없다"));
+                    Box::leak(text.clone().into_boxed_str())
+                };
+                PermBoxText {
+                    heads: [
+                        get("explorer.props.perm.read"),
+                        get("explorer.props.perm.write"),
+                        get("explorer.props.perm.execute"),
+                    ],
+                    roles: [
+                        get("explorer.props.perm.owner"),
+                        get("explorer.props.perm.group"),
+                        get("explorer.props.perm.others"),
+                    ],
+                    read_only: get("explorer.props.perm.read_only"),
+                    windows_hint: get("explorer.props.perm.windows_hint"),
+                    failed: get("explorer.props.perm.failed"),
+                    apply: get("explorer.props.perm.apply"),
+                    applying: get("explorer.props.perm.applying"),
+                    cancel: get("button.cancel"),
+                }
+            })
+            .collect()
+    }
 
     /// 고정 폭 영역에 상자를 그리고 그린 높이를 돌려준다.
     fn box_height(text: PermBoxText<'static>) -> f32 {
@@ -652,7 +669,7 @@ mod tests {
             stack - theme.spacing_xl.value(),
             120.0,
         ] {
-            for text in [TEXT, long, KO, JA] {
+            for text in [TEXT, long].into_iter().chain(translated_texts()) {
                 for (busy, failure) in [
                     (false, None),
                     (true, None),
@@ -685,13 +702,13 @@ mod tests {
         }
     }
 
-    /// ko·ja Windows 안내는 좁은 상자에서 말줄임 없이 줄바꿈해 상자가 높아진다.
+    /// 번역된 Windows 안내는 좁은 상자에서 말줄임 없이 줄바꿈해 상자가 높아진다.
     #[test]
-    fn the_windows_hint_wraps_in_korean_and_japanese() {
+    fn the_windows_hint_wraps_in_every_translated_language() {
         let theme = theme();
         let ctx = egui::Context::default();
         let narrow = theme.explorer_props_perm_stack_min_width().value() - theme.spacing_xl.value();
-        for text in [KO, JA] {
+        for text in translated_texts() {
             let size = |width: f32| {
                 let mut read_only = false;
                 drawn_size(

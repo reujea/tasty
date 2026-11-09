@@ -16,6 +16,9 @@ tasty-type-appearance = { path = "../tasty-type-appearance", features = ["egui-c
 tasty-type-geometry = { path = "../tasty-type-geometry" }
 
 [dev-dependencies]
+# 번역 문구로 배치를 재는 시험이 내장 언어 목록과 언어 파일을 읽는다.
+tasty-i18n = { path = "../tasty-i18n" }
+toml = "0.8"
 # 토스트 구조 상수가 DTCG 토큰 값과 같은지 시험에서 대조한다.
 tasty-design-tokens = { path = "../tasty-design-tokens" }
 # path_field_focus 통합테스트가 headless Context 구동에 실제 Theme 을 요구한다.
