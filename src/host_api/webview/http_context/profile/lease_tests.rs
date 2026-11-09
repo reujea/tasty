@@ -78,27 +78,54 @@ impl DeadRoot {
     fn path(&self, name: &str) -> PathBuf {
         self.root.join(name)
     }
+    #[track_caller]
     fn assert_retained_intact(&self) {
-        assert_eq!(disk::read(self.path("data/first")).unwrap(), FIRST);
+        self.assert_retained_as("");
+    }
+    #[track_caller]
+    fn assert_retained_as(&self, round: &str) {
         assert_eq!(
-            disk::read(self.path("data/target")).unwrap(),
-            target_content()
+            disk::read(self.path("data/first")).unwrap(),
+            FIRST,
+            "{round}: first"
         );
-        assert!(self.path(record::NAME).is_file());
+        assert!(
+            disk::read(self.path("data/target")).unwrap() == target_content(),
+            "{round}: target content changed"
+        );
+        assert!(self.path(record::NAME).is_file(), "{round}: record");
     }
     /// A sweep whose walk answers `audit` and whose leases answer `ops`.
+    #[track_caller]
     fn sweep_with(&self, audit: Audit<'_>, ops: &lease::LeaseOps<'_>) -> (usize, usize) {
-        let r = admitted(|| reclaim::run_audited(self.parent.path(), 1, audit, ops)).unwrap();
-        assert_eq!((r.inspected, r.kept_live, r.failed), (1, 0, 0));
+        self.sweep_as("", audit, ops)
+    }
+    /// `sweep_with` whose failure names `round`, for a test that sweeps in a loop.
+    #[track_caller]
+    fn sweep_as(&self, round: &str, audit: Audit<'_>, ops: &lease::LeaseOps<'_>) -> (usize, usize) {
+        let r = admitted(|| reclaim::run_audited(self.parent.path(), 1, audit, ops))
+            .unwrap_or_else(|error| panic!("{round}: sweep error {error}"));
+        assert_eq!(
+            (r.inspected, r.kept_live, r.failed),
+            (1, 0, 0),
+            "{round}: {r:?}"
+        );
         (r.removed, r.kept_uncertain)
     }
     /// The next sweep finds the root free, after whatever retained it has ended.
+    #[track_caller]
     fn assert_removed_after(&self, audit: Audit<'_>) {
+        let mut sweeps = 0;
         let r = until_removed(|| {
+            sweeps += 1;
             admitted(|| reclaim::run_audited(self.parent.path(), 1, audit, &lease::KERNEL)).unwrap()
         });
-        assert_eq!((r.removed, r.kept_uncertain), (1, 0));
-        assert!(!self.root.exists());
+        assert_eq!(
+            (r.removed, r.kept_uncertain),
+            (1, 0),
+            "last of {sweeps} sweeps: {r:?}"
+        );
+        assert!(!self.root.exists(), "after {sweeps} sweeps: {r:?}");
     }
 }
 type Audit<'a> = &'a dyn Fn(&Path, &HashSet<(u64, u64)>) -> io::Result<bool>;
@@ -334,23 +361,33 @@ fn every_lease_answer_but_a_confirmed_grant_retains_the_root() {
             set: &set,
             get: &lease::get,
         };
-        assert_eq!(dead.sweep_with(&nothing_found, &ops), (0, 1), "set {code}");
-        dead.assert_retained_intact();
+        let round = format!("set {code}");
+        assert_eq!(
+            dead.sweep_as(&round, &nothing_found, &ops),
+            (0, 1),
+            "{round}"
+        );
+        dead.assert_retained_as(&round);
     }
     let answers: [fn() -> io::Result<i32>; 3] = [
         || Ok(libc::F_RDLCK),
         || Ok(libc::F_UNLCK),
         || Err(io::Error::from_raw_os_error(libc::EIO)),
     ];
-    for answer in answers {
+    for (index, answer) in answers.into_iter().enumerate() {
         let dead = DeadRoot::new();
         let get = |_: &File| answer();
         let ops = lease::LeaseOps {
             set: &lease::set_write,
             get: &get,
         };
-        assert_eq!(dead.sweep_with(&nothing_found, &ops), (0, 1));
-        dead.assert_retained_intact();
+        let round = format!("get answer {index}");
+        assert_eq!(
+            dead.sweep_as(&round, &nothing_found, &ops),
+            (0, 1),
+            "{round}"
+        );
+        dead.assert_retained_as(&round);
     }
     DeadRoot::new().assert_removed_after(&nothing_found);
 }
