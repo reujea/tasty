@@ -610,13 +610,25 @@ fn a_live_task_that_denies_inspection_keeps_the_audit_incomplete() {
     );
     let process = PathBuf::from(format!("/proc/{}", child.id()));
     let root = Path::new("/nonexistent-tasty-profile-root");
-    let audit = process::audit_process(&process, root, &Default::default(), &mut 65_536);
+    let objects = Default::default();
+    // The tasks alone: maps of this process denies too and would hide a task taken as gone.
+    let tasks = process::audit_tasks(&process, root, &objects, &mut 65_536);
+    let whole = process::audit_process(&process, root, &objects, &mut 65_536);
+    let denied = os_error(libc::EACCES);
+    let live_subject_gone = process::gone(&denied, &process);
     let alive = child.try_wait().unwrap().is_none();
     drop(child.stdin.take());
     assert!(child.wait().unwrap().success());
     assert!(alive, "the denied task must be live during the audit");
-    let error = audit.expect_err("a denied live task leaves the audit incomplete");
-    assert_eq!(error.raw_os_error(), Some(libc::EACCES));
+    for audit in [tasks, whole] {
+        let error = audit.expect_err("a denied live task leaves the audit incomplete");
+        assert_eq!(error.raw_os_error(), Some(libc::EACCES));
+    }
+    assert!(!live_subject_gone, "a live subject stays denied");
+    assert!(
+        process::gone(&denied, &process),
+        "the same subject counts as gone once it has been reaped"
+    );
 }
 #[test]
 #[ignore = "owned subprocess entry, invoked only by its parent test"]

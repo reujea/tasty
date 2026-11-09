@@ -133,6 +133,15 @@ pub(super) fn audit_process(
     objects: &HashSet<(u64, u64)>,
     budget: &mut usize,
 ) -> io::Result<bool> {
+    Ok(audit_tasks(process, root, objects, budget)?
+        || maps(&process.join("maps"), root, objects, budget)?)
+}
+pub(super) fn audit_tasks(
+    process: &Path,
+    root: &Path,
+    objects: &HashSet<(u64, u64)>,
+    budget: &mut usize,
+) -> io::Result<bool> {
     for task in std::fs::read_dir(process.join("task"))? {
         spend(budget)?;
         let task = task?.path();
@@ -143,7 +152,7 @@ pub(super) fn audit_process(
             Err(e) => return Err(e),
         }
     }
-    maps(&process.join("maps"), root, objects, budget)
+    Ok(false)
 }
 fn audit_task(
     task: &Path,
@@ -168,7 +177,7 @@ fn vanished(e: &io::Error) -> bool {
     e.kind() == io::ErrorKind::NotFound || e.raw_os_error() == Some(libc::ESRCH)
 }
 /// Whether an audit error means its process or task no longer exists, so it consumes nothing.
-fn gone(e: &io::Error, subject: &Path) -> bool {
+pub(super) fn gone(e: &io::Error, subject: &Path) -> bool {
     gone_after(e, || read(&subject.join("stat"), 8192).map(drop))
 }
 /// A task that exits during the walk also answers its /proc entries with EACCES, the same answer as
