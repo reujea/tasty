@@ -25,7 +25,7 @@ pub enum ShellSetupCheck {
     Empty,
     /// 경로에 파일이 없다.
     Missing,
-    /// Windows 전용. 파일은 있지만 이름에 bash·zsh가 없다.
+    /// Windows 전용. 경로에 무언가 있지만 Git Bash가 아니다.
     NotShell,
     /// macOS·Linux 전용. 경로가 디렉터리다.
     Directory,

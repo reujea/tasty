@@ -321,7 +321,7 @@ enum SetupOs {
     Mac,
 }
 
-/// 디자인 `ShellSetupFrame`의 판정별 입력값. Windows는 이름 조건(`NotShell`), macOS·Linux는 실행 가능 여부
+/// 디자인 `ShellSetupFrame`의 판정별 입력값. Windows는 Git Bash 조건(`NotShell`), macOS·Linux는 실행 가능 여부
 /// (`Directory`·`NotExecutable`)로 막는다. macOS는 fish처럼 bash·zsh가 아닌 셸도 쓸 수 있다.
 fn setup_value(os: SetupOs, check: ShellSetupCheck) -> &'static str {
     match (os, check) {
@@ -369,7 +369,11 @@ fn draw_shell_setup_frame(
         not_shell: crate::i18n::t("boot.shell_setup.check_not_shell"),
         directory: crate::i18n::t("boot.shell_setup.check_directory"),
         not_executable: crate::i18n::t("boot.shell_setup.check_not_executable"),
-        valid: "Shell found",
+        valid: if win {
+            crate::i18n::t("boot.shell_setup.check_valid_git_bash")
+        } else {
+            crate::i18n::t("boot.shell_setup.check_valid")
+        },
         quit: "Quit",
         confirm: "Use this shell",
         check,
@@ -417,7 +421,7 @@ pub fn draw_shell_setup(ui: &mut egui::Ui, theme: &Theme) {
             ("title", "14 / 600 · text-primary"),
             (
                 "validation (2026-10-06)",
-                "empty → blank line, height reserved · No file at this path · Windows: Not a bash or zsh executable · macOS/Linux: folder · no permission to run (danger, any shell name such as fish is fine) · Shell found (success)",
+                "empty → blank line, height reserved · No file at this path (every OS) · Windows: Not Git Bash. Use bash.exe from Git for Windows · macOS/Linux: folder · no permission to run (danger, any shell name such as fish is fine) · Shell found (success, macOS and Linux) · Git Bash found (success, Windows)",
             ),
             (
                 "Git Bash notice",

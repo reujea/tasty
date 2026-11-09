@@ -16,7 +16,6 @@ src/catalog/chrome_loading.rs	Loading plugins…	boot.phase_waiting_plugins
 src/catalog/chrome_loading.rs	Quit	button.quit,quit_modal.quit_button,settings.general.close_behavior_quit,tray.quit
 src/catalog/chrome_loading.rs	Restoring layout…	boot.phase_restoring_layout
 src/catalog/chrome_loading.rs	Saving layout…	shutdown.phase_saving_layout
-src/catalog/chrome_loading.rs	Shell found	boot.shell_setup.check_valid
 src/catalog/chrome_loading.rs	Stopping plugins…	shutdown.phase_stopping_plugins
 src/catalog/chrome_loading.rs	Use this shell	settings.terminal.shell_confirm
 src/catalog/components/apply_preset.rs	Cancel	button.cancel,explorer.op.cancel,image_viewer.cancel,preset.popup.cancel_button,quit_modal.cancel_button,remote_attach.cancel,remote_tool.cancel,transfer.progress.cancel

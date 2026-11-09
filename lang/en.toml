@@ -63,10 +63,11 @@ title = "Choose a shell"
 subtitle = "New terminals start this shell. You can change it later in Settings."
 git_bash_missing = "Git Bash was not found. Install Git for Windows, or enter the path to bash.exe."
 check_missing = "No file at this path"
-check_not_shell = "Not a bash or zsh executable"
+check_not_shell = "Not Git Bash. Use bash.exe from Git for Windows"
 check_directory = "This path is a folder, not a program"
 check_not_executable = "This file has no permission to run"
 check_valid = "Shell found"
+check_valid_git_bash = "Git Bash found"
 
 [window_error.new_window]
 title = "Could not open a new window"

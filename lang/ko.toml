@@ -63,10 +63,11 @@ title = "셸 선택"
 subtitle = "새 터미널은 이 셸로 시작합니다. 나중에 설정에서 바꿀 수 있습니다."
 git_bash_missing = "Git Bash를 찾지 못했습니다. Git for Windows를 설치하거나 bash.exe 경로를 입력하세요."
 check_missing = "이 경로에 파일이 없습니다"
-check_not_shell = "bash 또는 zsh 실행 파일이 아닙니다"
+check_not_shell = "Git Bash가 아닙니다. Git for Windows의 bash.exe를 사용하세요"
 check_directory = "이 경로는 폴더입니다. 실행 파일이 아닙니다"
 check_not_executable = "이 파일에 실행 권한이 없습니다"
 check_valid = "셸을 찾았습니다"
+check_valid_git_bash = "Git Bash를 찾았습니다"
 
 [window_error.new_window]
 title = "새 윈도우를 열 수 없음"

@@ -63,10 +63,11 @@ title = "シェルを選択"
 subtitle = "新しいターミナルはこのシェルで起動します。あとで設定から変更できます。"
 git_bash_missing = "Git Bashが見つかりません。Git for Windowsをインストールするか、bash.exeのパスを入力してください。"
 check_missing = "このパスにファイルがありません"
-check_not_shell = "bashまたはzshの実行ファイルではありません"
+check_not_shell = "Git Bashではありません。Git for Windowsのbash.exeを指定"
 check_directory = "このパスはフォルダーで、実行ファイルではありません"
 check_not_executable = "このファイルには実行権限がありません"
 check_valid = "シェルが見つかりました"
+check_valid_git_bash = "Git Bashが見つかりました"
 
 [window_error.new_window]
 title = "新しいウィンドウを開けません"

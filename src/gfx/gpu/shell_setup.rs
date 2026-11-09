@@ -19,6 +19,15 @@ fn shell_check(path: &str) -> ShellSetupCheck {
     }
 }
 
+/// 판정 통과 문구. Windows는 무엇이 통과했는지 Git Bash로 말한다.
+fn valid_line() -> &'static str {
+    if cfg!(windows) {
+        t("boot.shell_setup.check_valid_git_bash")
+    } else {
+        t("boot.shell_setup.check_valid")
+    }
+}
+
 /// Git Bash를 찾지 못했다는 안내를 보일지. Windows에만 해당한다.
 fn git_bash_notice_applies(detected: Option<String>) -> bool {
     cfg!(windows) && detected.is_none()
@@ -50,7 +59,7 @@ impl GpuState {
         let not_shell = t("boot.shell_setup.check_not_shell");
         let directory = t("boot.shell_setup.check_directory");
         let not_executable = t("boot.shell_setup.check_not_executable");
-        let valid = t("boot.shell_setup.check_valid");
+        let valid = valid_line();
         let quit = t("button.quit");
         let confirm = t("settings.terminal.shell_confirm");
         let placeholder = if cfg!(windows) {

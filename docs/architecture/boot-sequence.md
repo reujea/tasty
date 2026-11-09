@@ -132,9 +132,9 @@ hidden 창은 `RedrawRequested` 를 못 받을 수 있으므로 첫 프레임은
   간격은 `spacing_sm` 이고 버튼 줄 위에 `spacing_sm` 을 한 번 더 둔다.
   - 검증 줄은 호스트 판정마다 한 문구다. 빈 경로는 문구 없이 caption 한 줄 높이만 잡고,
     파일이 없으면 "No file at this path", Windows 에서 경로에 무언가 있지만 Git Bash 가 아니면
-    "Not a bash or zsh executable", macOS·Linux 에서 디렉터리면 "This path is a folder, not a
+    "Not Git Bash. Use bash.exe from Git for Windows", macOS·Linux 에서 디렉터리면 "This path is a folder, not a
     program", 실행 권한이 없으면 "This file has no permission to run"(모두 `alertCircle`·accent-danger),
-    쓸 수 있으면 "Shell found"(`check`·accent-success)다. 판정은 설정의 `ShellPathStatus` 를 그대로
+    쓸 수 있으면 macOS·Linux 는 "Shell found", Windows 는 "Git Bash found"(`check`·accent-success)다. 판정은 설정의 `ShellPathStatus` 를 그대로
     옮긴다. macOS·Linux 는 이름을 보지 않으므로 fish 같은 셸도 확정할 수 있다.
   - 이 화면은 설정 셸을 쓸 수 없고 대체할 셸도 없을 때, macOS·Linux 에서 설정 셸이 디렉터리이거나
     실행 권한 없는 파일일 때, Windows 에서 저장값이 Git Bash 가 아니거나 없는 경로일 때(대체하지 않는 판정) 열린다([터미널 surface "실행할 셸"](../surfaces/terminal/index.md)).
