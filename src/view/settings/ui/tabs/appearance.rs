@@ -1,6 +1,6 @@
-use std::collections::HashMap;
-
-use super::font_rows::preview_font_family;
+use super::font_rows::{
+    PreviewFonts, RowJudge, custom_font_field, family_error_line, preview_slot,
+};
 use crate::i18n::t;
 use crate::settings::{
     ActiveTabIndicator, EffectiveFont, FontOverride, FontSettings, HexColor, Settings,
@@ -13,8 +13,8 @@ use tasty_type_appearance::theme::{
 use tasty_type_geometry::length::LogicalPx;
 use tasty_ui_widgets::{
     Button, ButtonVariant, ControlSize, Input, OverrideCell, SearchableSelect,
-    SearchableSelectLabels, SearchableSelectOption, SettingsRow, override_row,
-    settings_label_column, vspace,
+    SearchableSelectLabels, SearchableSelectOption, SearchableSelectResponse, SettingsRow,
+    override_row, override_row_with_error, settings_label_column, vspace,
 };
 
 /// plugin ID와 page ID를 함께 비교해 다른 plugin의 같은 이름 페이지와 구분한다.
@@ -34,7 +34,7 @@ pub fn draw_appearance_tab(
     settings: &mut Settings,
     sub_tab: &crate::settings_ui::AppearanceSubTab,
     font_families: &mut Option<Vec<String>>,
-    preview_font_loaded: &mut HashMap<String, String>,
+    preview_fonts: &mut PreviewFonts,
     settings_pages: &[SettingsPageEntry],
 ) {
     use crate::settings_ui::AppearanceSubTab;
@@ -46,7 +46,7 @@ pub fn draw_appearance_tab(
             draw_appearance_colors(ui, settings);
         }
         AppearanceSubTab::General => {
-            draw_appearance_general(ui, settings, font_families, preview_font_loaded);
+            draw_appearance_general(ui, settings, font_families, preview_fonts);
         }
         AppearanceSubTab::Display => {
             draw_appearance_display(ui, settings);
@@ -55,10 +55,10 @@ pub fn draw_appearance_tab(
             draw_appearance_tasty(ui, settings);
         }
         AppearanceSubTab::Terminal => {
-            draw_appearance_terminal(ui, settings, font_families, preview_font_loaded);
+            draw_appearance_terminal(ui, settings, font_families, preview_fonts);
         }
         AppearanceSubTab::Explorer => {
-            draw_appearance_explorer(ui, settings, font_families, preview_font_loaded);
+            draw_appearance_explorer(ui, settings, font_families, preview_fonts);
         }
         AppearanceSubTab::Plugin { plugin_id, page_id } => {
             if let Some(entry) = find_plugin_settings_entry(settings_pages, plugin_id, page_id) {
@@ -66,7 +66,7 @@ pub fn draw_appearance_tab(
                     ui,
                     settings,
                     font_families,
-                    preview_font_loaded,
+                    preview_fonts,
                     plugin_id,
                     &entry.page,
                 );
@@ -231,7 +231,7 @@ fn draw_appearance_general(
     ui: &mut egui::Ui,
     settings: &mut Settings,
     font_families: &mut Option<Vec<String>>,
-    preview_font_loaded: &mut HashMap<String, String>,
+    preview_fonts: &mut PreviewFonts,
 ) {
     let th = crate::theme::theme();
     vspace(ui, th.spacing_sm);
@@ -254,14 +254,7 @@ fn draw_appearance_general(
     let opacity = SettingsRow::new(t("settings.appearance.background_opacity_label"));
     let font_rows = font_setting_rows();
     let col = settings_label_column(ui, &th, font_rows.iter().chain([&ligatures, &opacity]));
-    default_font_section(
-        ui,
-        font_rows,
-        col,
-        settings,
-        font_families,
-        preview_font_loaded,
-    );
+    default_font_section(ui, font_rows, col, settings, font_families, preview_fonts);
 
     vspace(ui, th.spacing_lg);
     ui.separator();
@@ -530,6 +523,7 @@ fn default_value_field(ui: &mut egui::Ui, th: &Theme, value: &str, width: Logica
         .mono(mono)
         .read_only(true)
         .width(width.value())
+        .full_value_tooltip(true)
         .show(ui, th, &mut shown);
 }
 
@@ -668,13 +662,13 @@ fn draw_appearance_terminal(
     ui: &mut egui::Ui,
     settings: &mut Settings,
     font_families: &mut Option<Vec<String>>,
-    preview_font_loaded: &mut HashMap<String, String>,
+    preview_fonts: &mut PreviewFonts,
 ) {
     draw_surface_font_section(
         ui,
         settings,
         font_families,
-        preview_font_loaded,
+        preview_fonts,
         SurfaceFontTarget::Terminal,
     );
 
@@ -688,13 +682,13 @@ fn draw_appearance_explorer(
     ui: &mut egui::Ui,
     settings: &mut Settings,
     font_families: &mut Option<Vec<String>>,
-    preview_font_loaded: &mut HashMap<String, String>,
+    preview_fonts: &mut PreviewFonts,
 ) {
     draw_surface_font_section(
         ui,
         settings,
         font_families,
-        preview_font_loaded,
+        preview_fonts,
         SurfaceFontTarget::Plugin {
             storage_key: "explorer",
         },
@@ -901,7 +895,7 @@ fn draw_surface_font_section(
     ui: &mut egui::Ui,
     settings: &mut Settings,
     font_families: &mut Option<Vec<String>>,
-    preview_font_loaded: &mut HashMap<String, String>,
+    preview_fonts: &mut PreviewFonts,
     target: SurfaceFontTarget<'_>,
 ) {
     let th = crate::theme::theme();
@@ -921,15 +915,23 @@ fn draw_surface_font_section(
 
     // 미리보기는 창 폭과 관계없이 격자 아래에 둔다 — 옆 열이 없으니 좁은 폭에서도 겹치지 않는다.
     let default_font = settings.appearance.default_font.clone();
-    font_override_grid(
+    let slot = preview_slot(target.salt());
+    let terminal = matches!(target, SurfaceFontTarget::Terminal);
+    let judge = RowJudge::for_surface(terminal, preview_fonts, &slot);
+    let active = font_override_grid(
         ui,
         target.override_mut(&mut settings.appearance),
         &default_font,
         font_families,
         target.salt(),
+        judge,
     );
     vspace(ui, th.spacing_lg);
     let eff = target.effective(&settings.appearance);
+    // 터미널 판정은 파일을 읽으므로 입력을 마친 뒤에만 돈다. 줄을 그릴 행이 없으면 돌 이유도 없다.
+    if terminal {
+        preview_fonts.settle_terminal_row(ui.ctx(), &settings.appearance, &eff, active);
+    }
     let colors = crate::theme::theme().surface(target.surface_id()).clone();
     draw_font_preview(
         ui,
@@ -937,7 +939,7 @@ fn draw_surface_font_section(
         &colors,
         &settings.appearance,
         target.salt(),
-        preview_font_loaded,
+        preview_fonts,
     );
 }
 
@@ -1226,7 +1228,7 @@ pub(super) fn draw_plugin_settings_page(
     ui: &mut egui::Ui,
     settings: &mut Settings,
     font_families: &mut Option<Vec<String>>,
-    preview_font_loaded: &mut HashMap<String, String>,
+    preview_fonts: &mut PreviewFonts,
     plugin_id: &str,
     page: &SettingsPageContribute,
 ) {
@@ -1253,7 +1255,7 @@ pub(super) fn draw_plugin_settings_page(
                     ui,
                     settings,
                     font_families,
-                    preview_font_loaded,
+                    preview_fonts,
                     SurfaceFontTarget::Plugin {
                         storage_key: storage_key.as_str(),
                     },
@@ -1466,13 +1468,13 @@ fn draw_plugin_number(
 
 /// 글꼴 패밀리 SearchableSelect. `value` 는 설정의 패밀리 이름이고 `""` 는 monospace 기본값이며,
 /// 기본값은 검색어와 관계없이 맨 위에 고정된 행이다. 목록에 없는 이름(미설치·로딩 중)도 트리거에
-/// 그대로 보이고 값이 바뀌지 않는다. `salt` 로 같은 화면의 여러 행을 구분한다. 트리거 응답을 돌려준다.
+/// 그대로 보이고 값이 바뀌지 않는다. `salt` 로 같은 화면의 여러 행을 구분한다.
 fn font_family_picker(
     ui: &mut egui::Ui,
     value: &mut String,
     font_families: &Option<Vec<String>>,
     salt: &str,
-) -> egui::Response {
+) -> SearchableSelectResponse {
     let th = crate::theme::theme();
     let pinned = [SearchableSelectOption::with_value(
         "",
@@ -1500,7 +1502,7 @@ fn font_family_picker(
         .width(width)
         .show_response(ui, &th, &mut selected);
     *value = selected.unwrap_or_default();
-    out.response
+    out
 }
 
 /// 기본 글꼴 격자를 그리고 미리보기를 그 아래 콘텐츠 전폭에 둔다(글꼴 override 와 같은 배치).
@@ -1512,9 +1514,10 @@ fn default_font_section(
     col: LogicalPx,
     settings: &mut Settings,
     font_families: &mut Option<Vec<String>>,
-    preview_font_loaded: &mut HashMap<String, String>,
+    preview_fonts: &mut PreviewFonts,
 ) -> (egui::Response, egui::Response, f32) {
     let th = crate::theme::theme();
+    let slot = preview_slot("default");
     let (family, custom) = font_settings_grid(
         ui,
         rows,
@@ -1522,6 +1525,7 @@ fn default_font_section(
         &mut settings.appearance.default_font,
         font_families,
         "default",
+        RowJudge::for_surface(false, preview_fonts, &slot),
     );
     vspace(ui, th.spacing_lg);
     let preview_top = ui.cursor().top();
@@ -1533,7 +1537,7 @@ fn default_font_section(
         &preview_colors,
         &settings.appearance,
         "default",
-        preview_font_loaded,
+        preview_fonts,
     );
     (family, custom, preview_top)
 }
@@ -1559,23 +1563,25 @@ fn font_settings_grid(
     font: &mut FontSettings,
     font_families: &mut Option<Vec<String>>,
     salt: &str,
+    judge: RowJudge<'_>,
 ) -> (egui::Response, egui::Response) {
     let th = crate::theme::theme();
     let [family, custom, size, line_height, scale_mode] = rows;
     ui.spacing_mut().item_spacing.y = th.settings_row_gap().value();
     let mut family_combo = None;
-    family.show(ui, &th, col, |ui| {
-        family_combo = Some(font_family_picker(
-            ui,
-            &mut font.font_family,
-            font_families,
-            salt,
-        ));
+    family.show_with_error(ui, &th, col, |ui| {
+        let out = font_family_picker(ui, &mut font.font_family, font_families, salt);
+        let verdict = judge.verdict(&font.font_family, &font.custom_font_path);
+        let line = family_error_line(ui.ctx(), salt, out.open, verdict);
+        family_combo = Some(out.response);
+        line
     });
     let mut custom_field = None;
-    custom.show(ui, &th, col, |ui| {
-        // egui TextEdit 은 남은 폭을 넘지 않으므로 콤보와 달리 폭을 따로 묶지 않는다.
-        custom_field = Some(ui.text_edit_singleline(&mut font.custom_font_path));
+    custom.show_with_error(ui, &th, col, |ui| {
+        let path = &mut font.custom_font_path;
+        let (response, line) = custom_font_field(ui, &th, path, &font.font_family, judge, salt);
+        custom_field = Some(response);
+        line
     });
     size.show(ui, &th, col, |ui| {
         super::number::number_field_f32(
@@ -1608,14 +1614,17 @@ fn font_settings_grid(
 /// "use default" checkbox: checked → override field is `None` (input
 /// disabled, default value shown for reference). Unchecked → override is
 /// `Some(current_effective_value)` and the input is enabled.
+/// 글꼴 입력에 포커스가 있거나 family 목록이 열려 있으면 참을 돌려준다.
 fn font_override_grid(
     ui: &mut egui::Ui,
     ov: &mut FontOverride,
     default: &FontSettings,
     font_families: &mut Option<Vec<String>>,
     salt: &str,
-) {
+    judge: RowJudge<'_>,
+) -> bool {
     let th = crate::theme::theme();
+    let mut active = false;
     let use_default = t("settings.appearance.font.use_default_label");
     let rows = [
         SettingsRow::new(t("settings.appearance.font.override_family_label")),
@@ -1633,19 +1642,24 @@ fn font_override_grid(
         ui.spacing_mut().item_spacing.y = 0.0;
 
         // ── Font family ──
-        override_row(
+        override_row_with_error(
             ui,
             &th,
             col,
             th.field_width_lg,
             use_default,
-            |ui, cell| match cell {
+            |ui, cell, line| match cell {
                 OverrideCell::Label => {
                     family.show_label(ui, &th, col, row_h);
                 }
                 OverrideCell::Control => match ov.font_family.as_mut() {
                     Some(stored) => {
-                        font_family_picker(ui, stored, font_families, salt);
+                        let out = font_family_picker(ui, stored, font_families, salt);
+                        active |= out.open;
+                        let custom = ov.custom_font_path.as_deref();
+                        let custom = custom.unwrap_or(&default.custom_font_path);
+                        let verdict = judge.verdict(stored, custom);
+                        *line = family_error_line(ui.ctx(), salt, out.open, verdict);
                     }
                     None if default.font_family.is_empty() => {
                         let shown = t("settings.appearance.font_family_default");
@@ -1662,22 +1676,23 @@ fn font_override_grid(
         );
 
         // ── Custom font path ──
-        override_row(
+        override_row_with_error(
             ui,
             &th,
             col,
             th.field_width_lg,
             use_default,
-            |ui, cell| match cell {
+            |ui, cell, line| match cell {
                 OverrideCell::Label => {
                     custom.show_label(ui, &th, col, row_h);
                 }
                 OverrideCell::Control => match ov.custom_font_path.as_mut() {
                     Some(stored) => {
-                        Input::new()
-                            .mono(true)
-                            .width(th.field_width_lg.value())
-                            .show(ui, &th, stored);
+                        let family = ov.font_family.as_deref().unwrap_or(&default.font_family);
+                        let (response, error) =
+                            custom_font_field(ui, &th, stored, family, judge, salt);
+                        active |= response.has_focus();
+                        *line = error;
                     }
                     None => default_value_field(
                         ui,
@@ -1787,6 +1802,7 @@ fn font_override_grid(
             },
         );
     });
+    active
 }
 
 /// "Use default" checkbox: checked when override is None.
@@ -1833,15 +1849,15 @@ fn font_scale_mode_combo(ui: &mut egui::Ui, value: &mut String, salt: &str, widt
 }
 
 /// Draw a 2-row colored preview block for an `EffectiveFont`. `slot` is a
-/// short id ("default"/"terminal"/"markdown"/"explorer") used as both the egui
-/// font family slot name and the cache key in `preview_font_loaded`.
+/// short id ("default"/"terminal"/"markdown"/"explorer") used as the egui font
+/// family slot name in `preview_fonts`.
 fn draw_font_preview(
     ui: &mut egui::Ui,
     eff: &EffectiveFont,
     colors: &SurfaceTheme,
     appearance: &crate::settings::AppearanceSettings,
     slot: &str,
-    preview_font_loaded: &mut HashMap<String, String>,
+    preview_fonts: &mut PreviewFonts,
 ) {
     let th = crate::theme::theme();
     ui.label(
@@ -1851,15 +1867,14 @@ fn draw_font_preview(
     );
     vspace(ui, th.spacing_sm);
 
-    let slot_name = format!("preview_{}", slot);
+    let slot_name = preview_slot(slot);
     let display_family = if eff.font_family.is_empty() {
         "monospace".to_string()
     } else {
         eff.font_family.clone()
     };
 
-    let preview_family =
-        preview_font_family(ui.ctx(), appearance, &slot_name, eff, preview_font_loaded);
+    let preview_family = preview_fonts.family_for(ui.ctx(), appearance, &slot_name, eff);
 
     let sample_lines = [
         "AaBbCcDdEeFfGg",
@@ -2340,7 +2355,7 @@ mod default_hex_field_tests {
 
 #[cfg(test)]
 mod default_font_section_tests {
-    use std::collections::HashMap;
+    use super::PreviewFonts;
 
     use super::{default_font_section, font_override_grid, font_setting_rows};
     use crate::i18n::t;
@@ -2386,7 +2401,7 @@ mod default_font_section_tests {
             events,
             ..Default::default()
         };
-        let mut loaded = HashMap::new();
+        let mut loaded = PreviewFonts::default();
         let mut seen = None;
         let out = ctx.run(raw, |ctx| {
             egui::CentralPanel::default()
@@ -2665,7 +2680,9 @@ mod default_font_section_tests {
                 egui::CentralPanel::default()
                     .frame(egui::Frame::NONE)
                     .show(ctx, |ui| {
-                        font_override_grid(ui, &mut ov, &default, &mut None, "t");
+                        let fonts = PreviewFonts::default();
+                        let judge = super::RowJudge::Terminal { fonts: &fonts };
+                        font_override_grid(ui, &mut ov, &default, &mut None, "t", judge);
                     });
             })
         };
@@ -2692,3 +2709,7 @@ mod default_font_section_tests {
         );
     }
 }
+
+#[cfg(test)]
+#[path = "font_rows_tests.rs"]
+mod font_rows_tests;

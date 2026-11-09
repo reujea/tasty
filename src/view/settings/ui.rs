@@ -224,9 +224,8 @@ pub struct SettingsUiState {
     conflict_cancelled: bool,
     /// Cached system font family list.
     pub font_families: Option<Vec<String>>,
-    /// Family currently loaded into each preview slot ("preview_default", etc.).
-    /// A `\0:<family>` value records a previous load failure to avoid retry loops.
-    pub preview_font_loaded: std::collections::HashMap<String, String>,
+    /// 미리보기에 등록된 글꼴과 글꼴 행이 읽는 판정 결과.
+    pub preview_fonts: PreviewFonts,
     /// Draft of ~/.tasty/bashrc.user content. None until the Misc tab loads it.
     pub(crate) bashrc_user_draft: Option<String>,
     /// winit KeyboardInput에서 직접 캡처한 키 조합 (녹화 중일 때 사용).
@@ -454,7 +453,7 @@ impl SettingsUiState {
             conflict_accepted: false,
             conflict_cancelled: false,
             font_families: None,
-            preview_font_loaded: std::collections::HashMap::new(),
+            preview_fonts: PreviewFonts::default(),
             bashrc_user_draft: None,
             captured_winit_combo: None,
             plugin_shortcuts: PluginShortcutSnapshot::default(),
@@ -1759,7 +1758,7 @@ fn draw_active_content(
             draft,
             &ui_state.appearance_sub_tab,
             &mut ui_state.font_families,
-            &mut ui_state.preview_font_loaded,
+            &mut ui_state.preview_fonts,
             &ui_state.settings_pages,
         ),
         SettingsTab::Keybindings => {
@@ -1818,7 +1817,7 @@ fn draw_active_content(
             draft,
             ui_state.plugin_sub_tab.as_ref(),
             &mut ui_state.font_families,
-            &mut ui_state.preview_font_loaded,
+            &mut ui_state.preview_fonts,
             &ui_state.settings_pages,
         ),
     }

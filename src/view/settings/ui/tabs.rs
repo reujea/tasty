@@ -26,6 +26,7 @@ mod terminal_input;
 pub use accessibility::draw_accessibility_tab;
 pub use anomaly_detection::draw_anomaly_detection_tab;
 pub use appearance::draw_appearance_tab;
+pub use font_rows::PreviewFonts;
 pub use general::draw_general_tab;
 #[cfg(target_os = "macos")]
 pub use general_display::draw_general_display_tab;

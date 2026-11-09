@@ -17,6 +17,7 @@ pub(crate) mod category_actions;
 pub(crate) mod dialog;
 pub(crate) mod drop_overlay;
 pub(crate) mod file_open_tool;
+pub mod font_judge;
 pub mod font_registry;
 pub mod fullscreen;
 pub(crate) mod info_modal;

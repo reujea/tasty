@@ -1,5 +1,3 @@
-use std::collections::HashMap;
-
 use crate::i18n::t;
 use crate::settings::Settings;
 use tasty_host_plugin::SettingsPageEntry;
@@ -14,7 +12,7 @@ pub fn draw_plugin_tab(
     settings: &mut Settings,
     sub_tab: Option<&crate::settings_ui::PluginSubTab>,
     font_families: &mut Option<Vec<String>>,
-    preview_font_loaded: &mut HashMap<String, String>,
+    preview_fonts: &mut super::font_rows::PreviewFonts,
     settings_pages: &[SettingsPageEntry],
 ) {
     use crate::settings_ui::PluginSubTab;
@@ -25,7 +23,7 @@ pub fn draw_plugin_tab(
                     ui,
                     settings,
                     font_families,
-                    preview_font_loaded,
+                    preview_fonts,
                     plugin_id,
                     &entry.page,
                 );
