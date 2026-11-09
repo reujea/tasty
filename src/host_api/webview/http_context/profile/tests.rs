@@ -622,6 +622,13 @@ impl UndumpableChild {
             process,
         }
     }
+    /// A process table of just this child, so that no other process decides the walk.
+    fn table(&self) -> tempfile::TempDir {
+        let table = namespace();
+        let pid = self.process.file_name().unwrap();
+        std::os::unix::fs::symlink(&self.process, table.path().join(pid)).unwrap();
+        table
+    }
     /// Reports whether it was still alive when asked to finish, so what was seen was a live denial.
     fn finish(mut self) -> bool {
         let alive = self.child.try_wait().unwrap().is_none();
@@ -658,6 +665,25 @@ fn a_live_task_that_denies_inspection_keeps_the_audit_incomplete() {
         "the same subject counts as gone once it has been reaped"
     );
 }
+/// The product audit, whose second observation decides whether a root can be deleted, must not
+/// report completion while a denied process lives. The real table can answer with another process's
+/// denial or the observation bound, so only the table of this child pins the denial itself.
+#[test]
+fn the_product_audit_stays_incomplete_while_a_denied_process_lives() {
+    let child = UndumpableChild::start();
+    let table = child.table();
+    let root = Path::new(NO_ROOT);
+    let objects = Default::default();
+    let alone = process::consumers_in(table.path(), root, &objects);
+    let everything = process::consumers(root, &objects);
+    assert!(
+        child.finish(),
+        "the denied task must be live during the audit"
+    );
+    let error = alone.expect_err("completed past a live denial");
+    assert_eq!(error.raw_os_error(), Some(libc::EACCES));
+    assert!(everything.is_err(), "completed: {everything:?}");
+}
 /// Both call sites of the classification, on real denials: the injected answer stands in for the
 /// exit race, which no test can make happen on demand between a denial and its second observation.
 #[test]
@@ -678,10 +704,7 @@ fn each_audit_call_site_skips_a_denied_subject_only_when_observed_gone() {
         }
     };
     let child = UndumpableChild::start();
-    let pid = child.process.file_name().unwrap().to_owned();
-    // A process table of just this child, so that no other process's denial decides the walk.
-    let table = namespace();
-    std::os::unix::fs::symlink(&child.process, table.path().join(&pid)).unwrap();
+    let table = child.table();
     let root = Path::new(NO_ROOT);
     let objects = Default::default();
     let tasks = |reobserve: process::Reobserve<'_>| {

@@ -94,7 +94,16 @@ fn parse_start(text: &str) -> Option<u64> {
 /// A bounded read-only same-UID FD/maps/cwd/root/exe observation, never a WebKit teardown ACK.
 /// Any inaccessible live process, exhausted bound or unstable observation leaves uncertainty.
 pub(super) fn consumers(root: &Path, objects: &HashSet<(u64, u64)>) -> io::Result<bool> {
-    consumers_under(Path::new("/proc"), root, objects, &stat_again)
+    consumers_in(Path::new("/proc"), root, objects)
+}
+/// The product audit over a given process table. A test needs its own table: on a real one another
+/// process's denial or the observation bound can answer first and hide what the audit did here.
+pub(super) fn consumers_in(
+    processes: &Path,
+    root: &Path,
+    objects: &HashSet<(u64, u64)>,
+) -> io::Result<bool> {
+    consumers_under(processes, root, objects, &stat_again)
 }
 /// Observes a denied process or task again. Only tests pass anything but `stat_again`, so they can
 /// answer for a really denied subject that a race would otherwise have to remove in time.
