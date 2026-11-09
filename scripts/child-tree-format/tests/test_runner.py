@@ -575,6 +575,37 @@ class Parsers(unittest.TestCase):
         out = parse_codex(self.lines({"type": "item.completed", "item": {"type": "agent_message", "text": "{}"}}), 0)
         self.assertEqual(out["error_kind"], "api_error")
 
+    LIMIT_MESSAGES = (
+        "You've hit your weekly limit",
+        "You've hit your usage limit",
+        "You've reached your Fable limit.",
+        "You're out of extra usage",
+        "You're out of usage credits",
+        "You hit your spend cap",
+        "429 Too Many Requests",
+        "Rate limit exceeded",
+    )
+    OTHER_MESSAGES = ("Internal server error", "Connection reset by peer", "Overloaded", "invalid request")
+
+    def claude_failure(self, message):
+        event = {"type": "result", "subtype": "error_during_execution", "is_error": True, "result": message}
+        return parse_claude(json.dumps(event), 1)
+
+    def codex_failure(self, message):
+        return parse_codex(json.dumps({"type": "turn.failed", "error": {"message": message}}), 1)
+
+    def test_limit_wordings_stop_as_usage_events(self):
+        for message in self.LIMIT_MESSAGES:
+            with self.subTest(message=message):
+                self.assertEqual(self.claude_failure(message)["error_kind"], "rate_limited")
+                self.assertEqual(self.codex_failure(message)["error_kind"], "rate_limited")
+
+    def test_other_errors_stay_api_errors(self):
+        for message in self.OTHER_MESSAGES:
+            with self.subTest(message=message):
+                self.assertEqual(self.claude_failure(message)["error_kind"], "api_error")
+                self.assertEqual(self.codex_failure(message)["error_kind"], "api_error")
+
     def test_codex_limit_text_is_a_usage_event_and_is_not_kept(self):
         out = parse_codex(self.lines({"type": "turn.failed", "error": {"message": "Rate limit at /private"}}), 1)
         self.assertEqual(out["error_kind"], "rate_limited")

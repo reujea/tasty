@@ -19,7 +19,10 @@ USAGE_FIELDS = (
     "reasoning_output_tokens",
     "output_tokens",
 )
-LIMIT_TEXT = re.compile(r"usage limit|rate limit|limit reached|quota|\b429\b", re.I)
+LIMIT_TEXT = re.compile(
+    r"usage limit|rate limit|limit reached|quota|\b429\b|hit your|reached your|out of (extra )?usage|spend cap",
+    re.I,
+)
 STATUS_RANK = {None: 0, "allowed": 1, "allowed_warning": 2, "rejected": 3}
 
 
