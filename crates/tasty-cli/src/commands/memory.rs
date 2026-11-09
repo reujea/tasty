@@ -21,7 +21,7 @@ pub struct ScopeArgs {
     /// Alias: `--window 42` → `window:42`.
     #[arg(long, conflicts_with_all = ["scope", "surface", "workspace", "account", "global"])]
     pub window: Option<u64>,
-    /// Alias: `--account zilhak` → `account:zilhak`.
+    /// Alias: `--account alice` → `account:alice`.
     #[arg(long, conflicts_with_all = ["scope", "surface", "workspace", "window", "global"])]
     pub account: Option<String>,
     /// Alias: `--global` → `global`.

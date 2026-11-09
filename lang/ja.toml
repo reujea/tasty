@@ -4752,7 +4752,7 @@ help = "別名: `--workspace 7` → `workspace:7`"
 help = "別名: `--window 42` → `window:42`"
 
 [cli.help._root.memory.put.arg.account]
-help = "別名: `--account zilhak` → `account:zilhak`"
+help = "別名: `--account alice` → `account:alice`"
 
 [cli.help._root.memory.put.arg.global]
 help = "別名: `--global` → `global`"
@@ -4794,7 +4794,7 @@ help = "別名: `--workspace 7` → `workspace:7`"
 help = "別名: `--window 42` → `window:42`"
 
 [cli.help._root.memory.get.arg.account]
-help = "別名: `--account zilhak` → `account:zilhak`"
+help = "別名: `--account alice` → `account:alice`"
 
 [cli.help._root.memory.get.arg.global]
 help = "別名: `--global` → `global`"
@@ -4818,7 +4818,7 @@ help = "別名: `--workspace 7` → `workspace:7`"
 help = "別名: `--window 42` → `window:42`"
 
 [cli.help._root.memory.delete.arg.account]
-help = "別名: `--account zilhak` → `account:zilhak`"
+help = "別名: `--account alice` → `account:alice`"
 
 [cli.help._root.memory.delete.arg.global]
 help = "別名: `--global` → `global`"
@@ -4845,7 +4845,7 @@ help = "別名: `--workspace 7` → `workspace:7`"
 help = "別名: `--window 42` → `window:42`"
 
 [cli.help._root.memory.exists.arg.account]
-help = "別名: `--account zilhak` → `account:zilhak`"
+help = "別名: `--account alice` → `account:alice`"
 
 [cli.help._root.memory.exists.arg.global]
 help = "別名: `--global` → `global`"
@@ -4869,7 +4869,7 @@ help = "別名: `--workspace 7` → `workspace:7`"
 help = "別名: `--window 42` → `window:42`"
 
 [cli.help._root.memory.list.arg.account]
-help = "別名: `--account zilhak` → `account:zilhak`"
+help = "別名: `--account alice` → `account:alice`"
 
 [cli.help._root.memory.list.arg.global]
 help = "別名: `--global` → `global`"
@@ -4905,7 +4905,7 @@ help = "別名: `--workspace 7` → `workspace:7`"
 help = "別名: `--window 42` → `window:42`"
 
 [cli.help._root.memory.query.arg.account]
-help = "別名: `--account zilhak` → `account:zilhak`"
+help = "別名: `--account alice` → `account:alice`"
 
 [cli.help._root.memory.query.arg.global]
 help = "別名: `--global` → `global`"
@@ -4947,7 +4947,7 @@ help = "別名: `--workspace 7` → `workspace:7`"
 help = "別名: `--window 42` → `window:42`"
 
 [cli.help._root.memory.export.arg.account]
-help = "別名: `--account zilhak` → `account:zilhak`"
+help = "別名: `--account alice` → `account:alice`"
 
 [cli.help._root.memory.export.arg.global]
 help = "別名: `--global` → `global`"
@@ -4977,7 +4977,7 @@ help = "別名: `--workspace 7` → `workspace:7`"
 help = "別名: `--window 42` → `window:42`"
 
 [cli.help._root.memory.count.arg.account]
-help = "別名: `--account zilhak` → `account:zilhak`"
+help = "別名: `--account alice` → `account:alice`"
 
 [cli.help._root.memory.count.arg.global]
 help = "別名: `--global` → `global`"
@@ -5004,7 +5004,7 @@ help = "別名: `--workspace 7` → `workspace:7`"
 help = "別名: `--window 42` → `window:42`"
 
 [cli.help._root.memory.stats.arg.account]
-help = "別名: `--account zilhak` → `account:zilhak`"
+help = "別名: `--account alice` → `account:alice`"
 
 [cli.help._root.memory.stats.arg.global]
 help = "別名: `--global` → `global`"
@@ -5032,7 +5032,7 @@ help = "別名: `--workspace 7` → `workspace:7`"
 help = "別名: `--window 42` → `window:42`"
 
 [cli.help._root.memory.secret.put.arg.account]
-help = "別名: `--account zilhak` → `account:zilhak`"
+help = "別名: `--account alice` → `account:alice`"
 
 [cli.help._root.memory.secret.put.arg.global]
 help = "別名: `--global` → `global`"
@@ -5074,7 +5074,7 @@ help = "別名: `--workspace 7` → `workspace:7`"
 help = "別名: `--window 42` → `window:42`"
 
 [cli.help._root.memory.secret.get.arg.account]
-help = "別名: `--account zilhak` → `account:zilhak`"
+help = "別名: `--account alice` → `account:alice`"
 
 [cli.help._root.memory.secret.get.arg.global]
 help = "別名: `--global` → `global`"
@@ -5098,7 +5098,7 @@ help = "別名: `--workspace 7` → `workspace:7`"
 help = "別名: `--window 42` → `window:42`"
 
 [cli.help._root.memory.secret.delete.arg.account]
-help = "別名: `--account zilhak` → `account:zilhak`"
+help = "別名: `--account alice` → `account:alice`"
 
 [cli.help._root.memory.secret.delete.arg.global]
 help = "別名: `--global` → `global`"
@@ -5125,7 +5125,7 @@ help = "別名: `--workspace 7` → `workspace:7`"
 help = "別名: `--window 42` → `window:42`"
 
 [cli.help._root.memory.secret.exists.arg.account]
-help = "別名: `--account zilhak` → `account:zilhak`"
+help = "別名: `--account alice` → `account:alice`"
 
 [cli.help._root.memory.secret.exists.arg.global]
 help = "別名: `--global` → `global`"
@@ -5149,7 +5149,7 @@ help = "別名: `--workspace 7` → `workspace:7`"
 help = "別名: `--window 42` → `window:42`"
 
 [cli.help._root.memory.secret.list.arg.account]
-help = "別名: `--account zilhak` → `account:zilhak`"
+help = "別名: `--account alice` → `account:alice`"
 
 [cli.help._root.memory.secret.list.arg.global]
 help = "別名: `--global` → `global`"
@@ -5185,7 +5185,7 @@ help = "別名: `--workspace 7` → `workspace:7`"
 help = "別名: `--window 42` → `window:42`"
 
 [cli.help._root.memory.secret.count.arg.account]
-help = "別名: `--account zilhak` → `account:zilhak`"
+help = "別名: `--account alice` → `account:alice`"
 
 [cli.help._root.memory.secret.count.arg.global]
 help = "別名: `--global` → `global`"
@@ -5212,7 +5212,7 @@ help = "別名: `--workspace 7` → `workspace:7`"
 help = "別名: `--window 42` → `window:42`"
 
 [cli.help._root.memory.secret.stats.arg.account]
-help = "別名: `--account zilhak` → `account:zilhak`"
+help = "別名: `--account alice` → `account:alice`"
 
 [cli.help._root.memory.secret.stats.arg.global]
 help = "別名: `--global` → `global`"
