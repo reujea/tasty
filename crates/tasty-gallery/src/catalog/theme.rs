@@ -383,7 +383,8 @@ pub fn terminal(ui: &mut egui::Ui, theme: &Theme) {
             );
             ui.add_space(theme.spacing_sm.value());
             faux_terminal(ui, theme);
-            faux_terminal_unfocused(ui, theme);
+            faux_terminal_matches(ui, theme, true);
+            faux_terminal_matches(ui, theme, false);
             ui.add_space(theme.spacing_sm.value());
             sem_row(
                 ui,
@@ -431,6 +432,10 @@ pub fn terminal(ui: &mut egui::Ui, theme: &Theme) {
             ("source", "derived from the Catppuccin palette"),
             ("scope", "terminal cells — not UI chrome"),
             ("state fills", "selection · vi cursor · search"),
+            (
+                "match ink",
+                "Default, bold and dim read text-primary; ANSI cells keep their color.",
+            ),
         ],
         &[
             TokenChip::new("ansi-red", "SGR 31 red", ec(theme.ansi_red)),
@@ -454,11 +459,12 @@ pub fn terminal(ui: &mut egui::Ui, theme: &Theme) {
         "Active match ink. Glyphs inside the active match are drawn in search-match-active-fg, \
          not the cell's own foreground: Mocha's light text on yellow 70% was 1.61 : 1. Mocha ink \
          → neutral-200 (base) 6.95 : 1. Latte keeps text-primary ink and drops the active fill \
-         to 50% → 4.68 : 1 (70% was 3.94). Ordinary matches (30% fill, not the current match) \
-         draw cells with default ink in text-primary; on the unfocused bed, this pair measures \
-         Mocha 4.75 · Latte 4.88. Cells with their own ANSI color keep that color inside \
-         ordinary matches. Cell colours set by the app (SGR) are overridden only inside the \
-         active match.",
+         to 50% → 4.68 : 1 (70% was 3.94). In ordinary matches with 30% fill, default-ink cells, \
+         including bold and dim, read text-primary on focused beds (6.67 Mocha, 6.06 Latte) and \
+         unfocused beds (4.75 Mocha, 4.88 Latte). Dim ink does not stay blended in a match \
+         because it would measure 1.81 in both themes on a focused bed. ANSI cells keep their \
+         color in ordinary matches, including when dim; only the active match overrides every \
+         cell's color set by the app.",
     );
     dont(
         ui,
@@ -541,33 +547,60 @@ fn swatch_box(ui: &mut egui::Ui, theme: &Theme, fill: egui::Color32) {
     );
 }
 
-/// 비포커스 바탕의 찾기 매치. 기본 글자 셀은 text-primary, ANSI 색 셀은 자기 색이다.
-fn faux_terminal_unfocused(ui: &mut egui::Ui, theme: &Theme) {
+/// 두 바탕의 찾기 매치. 기본·dim 글자 셀은 text-primary, ANSI 색 셀은 자기 색이다.
+/// 매치 밖 dim은 프로그램이 정하는 층이라 렌더러처럼 글자와 바탕을 반씩 섞는다.
+fn faux_terminal_matches(ui: &mut egui::Ui, theme: &Theme, focused: bool) {
     let term = theme.surface("terminal");
-    let fg = ec(term.unfocused_fg);
+    let (bed, fg, active_ink) = if focused {
+        (
+            term.focused_bg,
+            term.focused_fg,
+            theme.search_match_active_fg,
+        )
+    } else {
+        (
+            term.unfocused_bg,
+            term.unfocused_fg,
+            theme.search_match_active_unfocused_fg(),
+        )
+    };
+    let (bed, fg) = (ec(bed), ec(fg));
     let mono = theme.font_size_caption.value();
     let matched = ec(theme.search_match_bg);
+    let primary = ec(theme.text_primary());
     egui::Frame::new()
-        .fill(ec(term.unfocused_bg))
+        .fill(bed)
         .corner_radius(theme.corner_radius.value())
         .inner_margin(egui::Margin::same(theme.spacing_md.value() as i8))
         .show(ui, |ui| {
             ui.set_width(ui.available_width());
             ui.horizontal_wrapped(|ui| {
                 ui.spacing_mut().item_spacing.x = 0.0;
-                let segments = [
-                    ("unfocused: a ", None, fg),
-                    ("match", Some(matched), ec(theme.text_primary())),
-                    (", an ", None, fg),
-                    ("ANSI match", Some(matched), ec(theme.ansi_red)),
-                    (" and the ", None, fg),
+                let label = if focused {
+                    "focused: a "
+                } else {
+                    "unfocused: a "
+                };
+                let mut segments = vec![
+                    (label, None, fg),
+                    ("match", Some(matched), primary),
+                    (", a ", None, fg),
+                    ("dim match", Some(matched), primary),
+                ];
+                if !focused {
+                    segments.push((", an ", None, fg));
+                    segments.push(("ANSI match", Some(matched), ec(theme.ansi_red)));
+                }
+                segments.extend([
+                    (" and the active ", None, fg),
                     (
                         "match",
                         Some(ec(theme.search_match_active_bg)),
-                        ec(theme.search_match_active_unfocused_fg()),
+                        ec(active_ink),
                     ),
-                    (" under the cursor", None, fg),
-                ];
+                    (". ", None, fg),
+                    ("Dim outside matches", None, fg.lerp_to_gamma(bed, 0.5)),
+                ]);
                 for (text, bg, color) in segments {
                     let mut run = egui::RichText::new(text)
                         .monospace()
