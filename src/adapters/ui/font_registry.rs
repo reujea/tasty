@@ -3,6 +3,8 @@
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
+use tasty_i18n::font::LocaleFontError;
+
 use crate::settings::{AppearanceSettings, EffectiveFont};
 
 fn family_name_for_kind(kind: &str) -> String {
@@ -116,35 +118,10 @@ fn register_surface_family(
 ) {
     let mut family_fonts: Vec<String> = Vec::new();
 
-    if !eff.custom_font_path.is_empty() {
-        match std::fs::read(&eff.custom_font_path) {
-            Ok(bytes) => {
-                let key = format!("{}_custom", data_prefix);
-                fonts
-                    .font_data
-                    .insert(key.clone(), Arc::new(egui::FontData::from_owned(bytes)));
-                family_fonts.push(key);
-            }
-            Err(e) => {
-                tracing::warn!(
-                    "failed to load custom font for {} ({}): {e}",
-                    family_name,
-                    eff.custom_font_path
-                );
-            }
-        }
-    }
-
-    if !eff.font_family.is_empty() && !eff.font_family.eq_ignore_ascii_case("monospace") {
-        let font_config = crate::font::FontConfig::new(14.0, "");
-        if let Some(bytes) = font_config.load_family_data(&eff.font_family) {
-            let key = format!("{}_named", data_prefix);
-            fonts
-                .font_data
-                .insert(key.clone(), Arc::new(egui::FontData::from_owned(bytes)));
-            family_fonts.push(key);
-        }
-    }
+    let key = format!("{}_custom", data_prefix);
+    register_custom_font(fonts, &mut family_fonts, family_name, key, eff);
+    let key = format!("{}_named", data_prefix);
+    register_named_font(fonts, &mut family_fonts, family_name, key, eff);
 
     // 지정한 글꼴을 찾지 못해도 사용할 기본 monospace 패밀리를 남긴다.
     if let Some(monospace) = fonts.families.get(&egui::FontFamily::Monospace).cloned() {
@@ -162,6 +139,67 @@ fn register_surface_family(
     fonts
         .families
         .insert(egui::FontFamily::Name(family_name.into()), family_fonts);
+}
+
+fn register_custom_font(
+    fonts: &mut egui::FontDefinitions,
+    family_fonts: &mut Vec<String>,
+    family_name: &str,
+    key: String,
+    eff: &EffectiveFont,
+) {
+    if eff.custom_font_path.is_empty() {
+        return;
+    }
+    let result = std::fs::read(&eff.custom_font_path)
+        .map_err(LocaleFontError::Read)
+        .and_then(|bytes| insert_font(fonts, family_fonts, key, bytes));
+    if let Err(e) = result {
+        tracing::warn!(
+            "failed to load custom font for {} ({}): {e}",
+            family_name,
+            eff.custom_font_path
+        );
+    }
+}
+
+fn register_named_font(
+    fonts: &mut egui::FontDefinitions,
+    family_fonts: &mut Vec<String>,
+    family_name: &str,
+    key: String,
+    eff: &EffectiveFont,
+) {
+    if eff.font_family.is_empty() || eff.font_family.eq_ignore_ascii_case("monospace") {
+        return;
+    }
+    let font_config = crate::font::FontConfig::new(14.0, "");
+    let Some(bytes) = font_config.load_family_data(&eff.font_family) else {
+        return;
+    };
+    if let Err(e) = insert_font(fonts, family_fonts, key, bytes) {
+        tracing::warn!(
+            "failed to load font family for {} ({}): {e}",
+            family_name,
+            eff.font_family
+        );
+    }
+}
+
+/// egui가 패닉할 글꼴은 등록하지 않는다. fontdb는 이름 표만 읽어 ab_glyph가 거절하는
+/// 파일도 받으므로 시스템 글꼴 이름으로 찾은 바이트도 같은 판정을 거친다.
+fn insert_font(
+    fonts: &mut egui::FontDefinitions,
+    family_fonts: &mut Vec<String>,
+    key: String,
+    bytes: Vec<u8>,
+) -> Result<(), LocaleFontError> {
+    tasty_i18n::font::validate(&bytes)?;
+    fonts
+        .font_data
+        .insert(key.clone(), Arc::new(egui::FontData::from_owned(bytes)));
+    family_fonts.push(key);
+    Ok(())
 }
 
 fn load_system_cjk_font_data() -> Option<Vec<u8>> {
@@ -257,5 +295,151 @@ mod tests {
             tasty_type_geometry::length::LogicalPx(runtime_advance),
             tasty_ui_widgets::tokens::FH_TARGET_MONO_ADVANCE
         );
+    }
+
+    const VALID: &[u8] = crate::font::D2CODING_REGULAR_TTF;
+
+    /// Returns the bundled font with a table record renamed so the parser cannot find it.
+    fn without_table(tag: &[u8; 4]) -> Vec<u8> {
+        let mut font = VALID.to_vec();
+        let record = table_record(&font, tag);
+        font[record] = b'x';
+        font
+    }
+
+    fn table_record(font: &[u8], tag: &[u8; 4]) -> usize {
+        let tables = u16::from_be_bytes([font[4], font[5]]) as usize;
+        (0..tables)
+            .map(|i| 12 + 16 * i)
+            .find(|&r| &font[r..r + 4] == tag)
+            .unwrap()
+    }
+
+    /// Parses, but its height is negative. epaint asserts on it at layout time.
+    fn negative_height() -> Vec<u8> {
+        let mut font = VALID.to_vec();
+        let record = table_record(&font, b"hhea");
+        let hhea = u32::from_be_bytes(font[record + 8..record + 12].try_into().unwrap()) as usize;
+        font[hhea + 4..hhea + 6].copy_from_slice(&(-1000i16).to_be_bytes());
+        font[hhea + 6..hhea + 8].copy_from_slice(&1000i16.to_be_bytes());
+        font
+    }
+
+    fn not_a_font() -> Vec<u8> {
+        b"this is not a font\n".to_vec()
+    }
+
+    /// Runs what the render loop and the settings preview run: installs the
+    /// definitions, runs a pass, then lays out with the family. Some fonts panic
+    /// only at layout, so a pass alone would miss them.
+    fn draw_with(fonts: egui::FontDefinitions, family: &str) {
+        let ctx = egui::Context::default();
+        ctx.set_fonts(fonts);
+        // 폰트 상태는 첫 pass 에서 채워진다. 빈 pass 의 산출물은 볼 것이 없다.
+        let _ = ctx.run(egui::RawInput::default(), |_| {});
+        // 줄 높이 판정은 글자 크기와 무관하므로 어떤 양수든 된다.
+        const ANY_POSITIVE_SIZE: f32 = 14.0;
+        ctx.fonts(|f| {
+            let font = egui::FontId::new(ANY_POSITIVE_SIZE, egui::FontFamily::Name(family.into()));
+            f.layout_no_wrap("a".to_owned(), font, egui::Color32::WHITE);
+        });
+    }
+
+    fn appearance_with_custom_font(path: &std::path::Path) -> (AppearanceSettings, EffectiveFont) {
+        let mut appearance = AppearanceSettings::default();
+        appearance.default_font.custom_font_path = path.display().to_string();
+        appearance
+            .plugin_font_overrides
+            .insert("explorer".to_owned(), Default::default());
+        let eff = appearance.effective_font_for_kind("explorer");
+        (appearance, eff)
+    }
+
+    fn assert_custom_font_falls_back(bytes: Vec<u8>) {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("x.ttf");
+        std::fs::write(&path, bytes).unwrap();
+        let (appearance, eff) = appearance_with_custom_font(&path);
+
+        let fonts = build_font_definitions(&appearance, Some(("preview_default", &eff)));
+        draw_with(fonts.clone(), "font_explorer");
+        draw_with(fonts.clone(), "preview_default");
+        assert!(!fonts.font_data.contains_key("explorer_custom"));
+        assert!(
+            !fonts
+                .font_data
+                .contains_key("preview_preview_default_custom")
+        );
+    }
+
+    #[test]
+    fn a_text_file_as_custom_font_falls_back() {
+        assert_custom_font_falls_back(not_a_font());
+    }
+
+    #[test]
+    fn an_empty_file_as_custom_font_falls_back() {
+        assert_custom_font_falls_back(Vec::new());
+    }
+
+    #[test]
+    fn a_font_without_hhea_as_custom_font_falls_back() {
+        assert_custom_font_falls_back(without_table(b"hhea"));
+    }
+
+    #[test]
+    fn a_negative_height_as_custom_font_falls_back() {
+        assert_custom_font_falls_back(negative_height());
+    }
+
+    #[test]
+    fn a_custom_font_egui_can_load_is_used_first() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("x.ttf");
+        std::fs::write(&path, VALID).unwrap();
+        let (appearance, eff) = appearance_with_custom_font(&path);
+
+        let fonts = build_font_definitions(&appearance, Some(("preview_default", &eff)));
+        for (family, key) in [
+            ("font_explorer", "explorer_custom"),
+            ("preview_default", "preview_preview_default_custom"),
+        ] {
+            let name = egui::FontFamily::Name(family.into());
+            assert_eq!(fonts.families[&name][0], key);
+        }
+        draw_with(fonts.clone(), "font_explorer");
+        draw_with(fonts, "preview_default");
+    }
+
+    // 이름으로 찾은 시스템 글꼴도 같은 함수를 지나므로 시스템 글꼴 폴더 없이 잰다.
+    #[test]
+    fn a_font_found_by_name_passes_the_same_check() {
+        let inputs = [
+            ("text", not_a_font()),
+            ("empty", Vec::new()),
+            ("no hhea", without_table(b"hhea")),
+            ("negative height", negative_height()),
+        ];
+        let mut accepted = Vec::new();
+        for (name, bytes) in inputs {
+            let mut fonts = egui::FontDefinitions::default();
+            let mut family_fonts = Vec::new();
+            let result = insert_font(&mut fonts, &mut family_fonts, "k".to_owned(), bytes);
+            if result.is_ok() || fonts.font_data.contains_key("k") || !family_fonts.is_empty() {
+                accepted.push(name);
+            }
+        }
+        assert!(accepted.is_empty(), "accepted: {accepted:?}");
+
+        let mut fonts = egui::FontDefinitions::default();
+        let mut family_fonts = Vec::new();
+        insert_font(
+            &mut fonts,
+            &mut family_fonts,
+            "k".to_owned(),
+            VALID.to_vec(),
+        )
+        .unwrap();
+        assert_eq!(family_fonts, ["k"]);
     }
 }
