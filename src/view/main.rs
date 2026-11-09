@@ -105,6 +105,8 @@ pub struct MainView {
     /// surface 별 마지막으로 webview 에 적용한 HTML 설정 — 변경 시에만 재적용(매 프레임 호출 회피).
     pub(crate) webview_applied_settings:
         std::collections::HashMap<u32, crate::webview::HtmlWebViewSettings>,
+    /// surface별 마지막으로 페이지에 둔 바탕 포커스 상태. 바탕 kind WebView만 들어 있다.
+    pub(crate) webview_bed_focus: std::collections::HashMap<u32, bool>,
     /// surface 별 마지막으로 webview 에 로드한 URL — `surface.webview_url()` 최신값과 달라지면
     /// (예: `webview.set_url` IPC) 기존 webview 인스턴스에 재로드를 트리거한다(파괴·재생성 없음).
     pub(crate) webview_loaded_urls: std::collections::HashMap<u32, String>,
@@ -245,6 +247,7 @@ impl MainView {
             http_preparing: std::collections::HashMap::new(),
             webview_runtime: std::collections::HashMap::new(),
             webview_applied_settings: std::collections::HashMap::new(),
+            webview_bed_focus: std::collections::HashMap::new(),
             webview_loaded_urls: std::collections::HashMap::new(),
             webview_create_attempts: std::collections::HashMap::new(),
             webview_reveal_pending: std::collections::HashMap::new(),

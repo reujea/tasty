@@ -37,6 +37,8 @@ pub(super) fn create_missing_webviews(
                         describe_webview_url(url.as_ref())
                     );
                     attach_script_gate(view, engine, sid, &wv, &settings);
+                    // 첫 문서를 싣기 전에 둬야 그 문서의 첫 렌더가 이 값이다.
+                    super::bed_focus::apply_initial(view, engine, sid, &wv);
                     load_initial_url(view, engine, sid, &wv, url.as_ref());
                     // 생성 직후 HTML viewer 설정(zoom/JS/scheme/remote) 적용 + 기록.
                     tracing::debug!("WebView surface {sid}: requesting settings {settings:?}");

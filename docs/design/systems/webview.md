@@ -41,6 +41,7 @@ PlatformWebView는 OS별 타입 중 cfg가 하나를 선택한다. 공통 호출
 | `nav_info` | — | `WebViewNavInfo` | commit 주소의 출처는 Linux 가 WebKitGTK `load-changed` Committed, macOS 가 WKWebView `didCommitNavigation`, Windows 가 WebView2 `ContentLoading` 이다. 주소 선택은 공통 `committed_document_url`(로드가 끝났으면 엔진 현재 주소, 로드 중·실패면 마지막 commit 주소)이다. 이동 가능 여부는 WebKitGTK `can_go_back`·`can_go_forward`, WKWebView `canGoBack`·`canGoForward`, WebView2 `CanGoBack`·`CanGoForward` 다. Windows 는 조회 실패를 웹뷰별 첫 번째만 warn 으로 남긴다. macOS·Windows 는 실 기기 미측정이다([html surface §문서 주소와 히스토리](../../surfaces/html/index.md#내부-동작)) |
 | `debug_stop` | — | — | debug 빌드 전용이다. 로드 중지를 재현한다. 사용자 진입점이 없는 조작이라 사용자 탐색 큐와 나눈다 |
 | `set_color_scheme` | `ColorScheme` | — | |
+| `set_bed_focused` | `bool` | — | 바탕 kind 페이지에 바탕 포커스 상태를 둔다(아래 "바탕 포커스 상태"). Linux만 구현했다. macOS·Windows 백엔드에는 아직 없고 공통 호출부가 cfg로 비워 둔다 |
 | `set_remote_content_allowed` | `bool` | — | 전역 설정 값이다. 실제로 막을지는 이 값과 스크립트 게이트의 문서 단위 원격 허용을 OR 한 실효값으로 정한다(아래 "원격 리소스 차단") |
 | `Drop` | — | — | 아래 "수명" |
 
@@ -434,6 +435,34 @@ OS 조회는 base.focused가 거짓이고 회수할 대상이 있을 때만 한�
 컴파일만으로 이 동작을 확인할 수 없으므로 활성·비활성 창에서 각각 재현한다.
 Linux/X11(Xvfb)에서는 X focus를 자식 창에 직접 넣은 상태와 다른 X 클라이언트가 focus를 가진 상태를 확인했다.
 실제 클릭은 X focus를 부모 창에 남겨 앞의 상태를 만들지 않았다. Windows·macOS는 실행 환경에서 확인하지 않았다.
+
+## 바탕 포커스 상태
+
+바탕을 바꿔 포커스를 보이는 kind 중 페이지가 바탕을 칠하는 것(번들 markdown)은 호스트가 surface마다 값을 정해 페이지에 넘긴다. 값은 [포커스 정책](../policies/focus.md)의 바탕 판정(`state::surface_focus::bed_focused`)이고, 세션의 포커스와 점유로 정한다. 페이지는 값을 추론하지 않는다.
+
+### 페이지 쪽 계약
+
+- 상태 표지는 CSS 사용자 정의 속성 `--tasty-bed-focused` 하나다. 바탕 포커스 상태인 동안 `:root`에 빈 값으로 정의되고, 아니면 정의되지 않는다. 호스트가 넣는 것은 고정 문자열 `:root{--tasty-bed-focused: ;}`(`crate::webview::bed_focus`)뿐이며 색 값은 넘기지 않는다.
+- 페이지는 두 상태의 값을 자기 CSS에 함께 둔다. `--x-on: var(--tasty-bed-focused) <focus 값>;`은 표지가 없으면 무효가 되고, `--x: var(--x-on, <unfocus 값>);`이 그때 unfocus 값을 쓴다. 표지가 없을 때가 unfocus이므로 호스트가 아무것도 넣지 못한 페이지는 unfocus 값이다.
+- 테마가 바뀌면 지금처럼 문서를 다시 만든다. 표지는 테마와 무관하다.
+- 받는 kind: `focus_mark`가 바탕으로 분류한 WebView kind다. 지금은 `com.tasty.markdown`의 markdown뿐이며 client가 그리는 mirror markdown도 같다. html은 원격·mirror를 포함해 받지 않고, 호스트는 html 페이지에 스타일시트도 스크립트도 넣지 않는다. 제3자 webview 플러그인에 여는지는 플러그인 신호 작업이 정한다.
+
+### 호스트 쪽 순서
+
+- 새 WebView는 첫 문서를 싣기 전에 값을 둔다(`webview_sync::bed_focus::apply_initial`). 포커스가 있으면 첫 렌더부터 focus 값이다.
+- 그 뒤 프레임마다 목표 값을 계산하고, 마지막으로 둔 값과 다를 때만 백엔드를 부른다. 계산은 표시 판정보다 먼저 한다. 숨긴 WebView도 갱신하므로 다시 보일 때 숨기기 전 값을 쓰지 않는다.
+
+### Linux 구현
+
+WebKitGTK `UserContentManager`에 User 단계 사용자 스타일시트로 표지를 넣고 뺀다(`linux/bed_focus.rs`). 스크립트를 실행하지 않는다. 스타일시트는 UserContentManager에 남아 그 뒤 싣는 문서(파일 변경 재로드, 테마 변경, `surface.refresh_requested`)에도 첫 렌더부터 적용된다. 그래서 문서 교체와 비동기 완료 순서를 맞출 필요가 없다. 넣고 빼는 호출은 같은 스레드에서 순서대로 web process에 전달된다.
+
+측정(WebKitGTK 2.50.4, Xvfb):
+
+- 문서를 다시 싣지 않고 계산된 바탕이 바뀌고 `scrollY`가 그대로다.
+- 시트를 먼저 넣고 실은 문서는 첫 계산값부터 focus 값이다.
+- JS를 끈 문서에서 `evaluate_javascript`는 `Cannot execute JavaScript in this document`로 실패한다. 스크립트로 표지를 쓰는 방식은 markdown의 `sandbox_scripts = true`에서 동작하지 않는다. 스타일시트 방식은 JS 설정과 관계없다.
+
+macOS·Windows는 같은 페이지 쪽 계약을 구현해야 하며 아직 구현하지 않았다. 측정도 하지 않았다.
 
 ## egui 오버레이와 native WebView
 

@@ -1,5 +1,6 @@
 //! App synchronizes native WebView effects against the originating runtime resources.
 //! Native windows, geometry caches and input handles remain owned by MainView.
+mod bed_focus;
 mod construction;
 mod navigation;
 use construction::create_missing_webviews;
@@ -678,6 +679,8 @@ fn sync_webviews(
         all_ids: all_html_ids,
     } = collect_html_surfaces(view, engine, scale_factor);
     create_missing_webviews(view, engine, &all_html_ids, &active_html, scale_factor);
+    // 아래 표시 판정보다 먼저 둔다. 이 프레임에 드러나는 WebView도 새 상태로 드러난다.
+    bed_focus::sync(view, engine);
     resync_webview_urls(view, engine, &all_html_ids);
     update_html_script_banners(view, engine, &all_html_ids);
 
@@ -884,6 +887,8 @@ fn sync_webviews(
     view.webview_runtime
         .retain(|sid, _| all_html_ids.contains(sid));
     view.webview_applied_settings
+        .retain(|sid, _| all_html_ids.contains(sid));
+    view.webview_bed_focus
         .retain(|sid, _| all_html_ids.contains(sid));
     view.webview_loaded_urls
         .retain(|sid, _| all_html_ids.contains(sid));

@@ -26,6 +26,7 @@ use super::{NavState, PendingNavigation, WebViewBounds};
 
 mod availability;
 pub(crate) use availability::http_available;
+mod bed_focus;
 mod content_filter;
 pub(super) mod direct_paths;
 mod edit;
@@ -74,6 +75,8 @@ pub struct PlatformWebView {
     input_held: Rc<Cell<bool>>,
     /// 편집 명령의 비동기 선택 질의가 낡았는지 판정한다.
     edit_guard: edit::EditGuard,
+    /// 바탕 포커스 상태를 두는 사용자 스타일시트.
+    bed_focus: bed_focus::BedFocusSheet,
 }
 
 /// 게이트 상태를 한 단계 옮기고 그 결과의 JS 값과 원격 차단 값을 적용한다.
@@ -511,6 +514,7 @@ impl PlatformWebView {
             clip_unavailable_reported: Cell::new(false),
             input_held,
             edit_guard,
+            bed_focus: bed_focus::BedFocusSheet::new(),
         })
     }
 
@@ -990,6 +994,11 @@ impl PlatformWebView {
     #[cfg(debug_assertions)]
     pub fn debug_stop(&self) {
         self.webview.stop_loading();
+    }
+
+    /// 바탕 포커스 상태를 문서에 둔다. 다음에 싣는 문서에도 남는다(`super::bed_focus`).
+    pub fn set_bed_focused(&self, focused: bool) {
+        self.bed_focus.set(&self.webview, focused);
     }
 
     /// 현재 Linux에서는 적용하지 않고 로그만 남긴다.
