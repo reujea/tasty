@@ -74,7 +74,7 @@
 
 ### UI 요소 인벤토리
 
-- **배경** — 앱 배경색으로 칸 전체를 칠한다.
+- **배경** — 포커스 바탕 쌍(`surface-bed-focused`·`-unfocused`)으로 칸 전체를 칠한다. 값은 [포커스 표현](../../design/policies/focus.md#surface-포커스-표현)의 판정을 따른다.
 - **변환 버튼** — 칸 가운데의 버튼 하나(`convert_popup.title`). 누르면 이 surface를 대상으로 [surface 변환](../../features/convert-surface/index.md) popup을 연다.
 
 ### 상태별 시각

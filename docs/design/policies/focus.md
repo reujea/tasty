@@ -312,7 +312,38 @@ IPC에는 토스트 대신 사유를 담은 오류를 반환한다. `surface.clo
 
 워크스페이스와 탭 재정렬은 구조 순서만 바꾼다. 사용자가 선택한 ID는 그대로 유지하며 UI와 IPC가 필요한 index를 새 순서에서 계산한다. 카테고리 안의 표시 순서는 입력 단계에서 전체 workspace 위치로 변환한다. category CRUD나 소속 변경만으로 workspace 배열 순서와 선택 ID를 바꾸지 않는다.
 
+## Surface 포커스 표현
+
+어느 surface가 입력을 받는지는 surface 자체가 보여 준다. 원칙은 [사용자 통제와 데이터](../../principles/control-and-data.md#포커스-표현)에, 토큰 값은 [디자인 토큰 매핑](../systems/design-token-mapping.md)에 있다.
+
+**표현 방법은 kind가 정한다.** `focus_mark(kind, plugin_id)`가 고른다. 모르는 kind는 띠다.
+
+| 표현 | kind | 보이는 면 |
+|------|------|-----------|
+| 바탕 (`surface-bed-focused`·`-unfocused`) | terminal, empty | 칸 전체 |
+| | explorer | 파일 영역. 탭 바·툴바·사이드바·상태 줄·미리보기는 그대로다 |
+| | dag_graph | 탭 surface의 캔버스. 헤더·상세·노드는 그대로다 |
+| | markdown, image | 페이지를 대신하는 chrome 타일. no page 글리프는 `glyph-dim`이다 |
+| 위쪽 띠 (`surface-focus-edge-*`) | html, 플러그인 | 띠. chrome 타일은 `bg-panel`, no page 글리프는 `text-disabled`로 그대로다 |
+
+markdown과 image는 kind 이름과 등록한 플러그인 id를 함께 본다. 번들 플러그인이 빠진 설치에서는 제3자가 같은 kind 이름을 등록할 수 있고, 그 페이지의 바탕은 호스트가 보장하지 못한다. `com.tasty.` id는 공식 플러그인 전용이라 제3자가 쓸 수 없다. 다른 플러그인이 등록한 markdown은 띠다.
+
+워크스페이스 팝업의 DAG 그래프는 surface가 아니므로 캔버스가 `dag-canvas-bg` 그대로다.
+
+**값은 포커스와 점유가 정한다.** 판정은 `bed_focused = (포커스 surface == 이 surface) && !is_content_hidden(이 surface)` 하나다.
+
+- 포커스 surface가 없으면(attach 대기 선택) 모든 바탕이 unfocus 값이다.
+- OS 창의 활성 여부는 보지 않는다. 비활성 창의 포커스 surface는 focus 값을 유지한다.
+- hard 점유된 surface와 점유 workspace의 멤버는 포커스를 가져도 입력을 받지 않으므로 unfocus 값이다. terminal은 점유 workspace에서도 surface lock을 받으므로 `is_hard_occupied`로 판정할 때와 결과가 같다.
+- 전환은 한 프레임에 끝나고 레이아웃은 변하지 않는다.
+
+**입력 판단과 분리한다.** 이 값은 칠에만 쓴다. 입력은 포커스 자체와 점유 입력 검사를 따로 본다. `ExplorerInput.focused`는 입력 판단이고 hard 점유 때도 낮추지 않는다.
+
+바탕 위 글자는 바탕이 정한다. explorer 파일 영역의 행 글자는 [Explorer 화면](../../surfaces/explorer/index.md#파일-영역-바탕과-행-글자), terminal의 현재 매치 글자는 [Terminal 색상](../../surfaces/terminal/index.md#색상--폰트)에 있다.
+
 ## 코드 위치
+
+- Surface 포커스 표현: 판정과 분류는 `src/state/surface_focus.rs`, 바탕 값 접근은 `tasty_ui_widgets::surface_bed`, chrome 타일은 `src/adapters/ui/surface/webview_chrome.rs`의 `WebviewTile`이다.
 
 - `active_modal_id()` / `modal_active` 게이트: `src/app/event_handler.rs`(`self.view.active_modal_id()`), View 디스패치.
 - focus 대상 해석 / `TASTY_SURFACE_ID` / `this`: `crates/tasty-cli/src/request.rs`.

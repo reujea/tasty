@@ -310,6 +310,8 @@ CLI는 `tasty settings get-input-rules`, `set-input-rule --app claude --shift-en
 
 xterm-256color(ANSI 16 + 216 큐브 + 24 그레이) + TrueColor. 색은 Theme 의 ansi 팔레트([theme](../../design/systems/theme.md)). 폰트는 번들 D2Coding ligature(OFL 1.1, 임베드 — OS 미설치에도 동작), CJK fallback, 블록/박스 드로잉 글리프는 픽셀 퍼펙트 커스텀 렌더. 번들 폰트 파일은 합자 글리프를 포함하지만(폰트 자원), tasty 는 셀-격자 cross-cell 합자(프로그래밍 ligature) 적용도 설정 토글도 **미지원** — 보류 결정은 이 문서. 렌더 파이프라인(누적→flush→단일 패스, atlas LRU)은 [dev-guide/gpu-rendering](../../dev-guide/gpu-rendering.md).
 
+바탕은 포커스 바탕 쌍을 쓰고 값은 [포커스 표현](../../design/policies/focus.md#surface-포커스-표현)의 판정을 따른다. 찾기의 현재 매치 글자도 같은 판정을 따라 비포커스 때는 `Theme::search_match_active_unfocused_fg()`를 쓴다.
+
 ### 이벤트 드리븐 렌더
 
 파서 스레드가 ingest 직후 `AppEvent::TerminalOutput` 으로 메인 루프를 깨운다(`Waker`). 메인은 파싱이 아니라 변경된 grid 의 렌더·이벤트 수집만. 무조건 redraw 제거 — 실제 변경 시에만. **가시성 게이트**: 안 보이는 surface(비활성 워크스페이스/탭)는 출력을 항상 drain·파싱하되 `request_redraw` 는 생략(데이터 무손실, 재렌더만 절약). 출력·입력이 없을 때 불필요한 렌더링을 줄인다.

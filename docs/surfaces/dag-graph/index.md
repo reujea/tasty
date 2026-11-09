@@ -64,6 +64,8 @@ workspace가 사라진 응답은 기존 데이터를 지운다. 저장소 잠금
 
 - [screens/graph.md](screens/graph.md) — 그래프 캔버스, 상호작용, 상태별 시각, 갱신 주기
 
+탭 surface의 캔버스는 포커스 바탕 쌍으로 칠하고 값은 [포커스 표현](../../design/policies/focus.md#surface-포커스-표현)의 판정을 따른다. 헤더·상세·노드 색은 포커스로 바뀌지 않는다. 워크스페이스 팝업의 그래프는 surface가 아니므로 캔버스가 `dag-canvas-bg` 그대로다.
+
 ## 검증 기준
 
 - Given 진행 중인 DAG 가 있는 workspace When `tasty new tab --pane <PANE> --type dag_graph` 로 params 없이 만든다 Then 이 surface 가 속한 workspace 의 진행 중인 DAG 를 관찰한다.
