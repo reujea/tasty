@@ -21,7 +21,7 @@ use std::path::{Path, PathBuf};
 /// (저장소 상대 경로, 허용할 패턴 ID). 파일 전체가 아니라 필요한 패턴만 면제한다.
 /// CLAUDE.md는 규칙의 번호·디자인 slug 예시, .gitignore는 제외 경로 자체가 필요하다.
 /// 이 검사는 패턴 설명과 합성 입력, check-allow-reason은 빈 사유 금지 규칙을 설명한다.
-/// vendor/tiny_http의 상류 할 일 표시는 외부 원문을 유지하기 위해 예외로 둔다.
+/// vendor 사본의 상류 할 일 표시는 외부 원문을 유지하기 위해 예외로 둔다.
 /// 면제되지 않은 패턴의 합성 입력은 fx!로 조립한다.
 const ALLOWLIST: &[(&str, &[&str])] = &[
     ("CLAUDE.md", &["P1", "P4"]),
@@ -32,6 +32,7 @@ const ALLOWLIST: &[(&str, &[&str])] = &[
     ),
     ("scripts/check-allow-reason.sh", &["P7"]),
     ("vendor/tiny_http/src/response.rs", &["P7"]),
+    ("vendor/epaint/src/stats.rs", &["P7"]),
 ];
 
 /// 탐지 패턴 표 — (id, 설명, 판정 함수). 한 줄에 대해 **전부** 돌린다.

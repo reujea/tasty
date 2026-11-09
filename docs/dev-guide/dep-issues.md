@@ -72,6 +72,16 @@ tiny_http = { path = "vendor/tiny_http" }
 
 <a id="은퇴-egui_commonmark--egui-버전-lockstep"></a>
 
+## `epaint` — 레포 사본
+
+`Cargo.toml` 의 `[patch.crates-io]` 가 epaint 를 레포 안의 사본에 핀:
+
+```toml
+epaint = { path = "vendor/epaint" }
+```
+
+사본 범위는 [`vendor/epaint/PATCHES.md`](../../vendor/epaint/PATCHES.md). egui 를 올릴 때 사본도 함께 옮긴다.
+
 ## egui 버전 호환
 
 markdown 본문은 WebView로 그리지만 대용량 파일·파일 열기 확인 팝업은 egui-mesh를 쓴다.

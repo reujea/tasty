@@ -1423,8 +1423,6 @@ checksum = "c7f84e12ccf0a7ddc17a6c41c93326024c42920d7ee630d04950e6926645c0fe"
 [[package]]
 name = "epaint"
 version = "0.31.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "41fcc0f5a7c613afd2dee5e4b30c3e6acafb8ad6f0edb06068811f708a67c562"
 dependencies = [
  "ab_glyph",
  "ahash",
@@ -6461,7 +6459,7 @@ dependencies = [
 
 [[package]]
 name = "tasty-plugin-clipboard-viewer"
-version = "0.1.427"
+version = "0.1.428"
 dependencies = [
  "anyhow",
  "arboard",
@@ -6506,7 +6504,7 @@ dependencies = [
 
 [[package]]
 name = "tasty-plugin-git-viewer"
-version = "0.1.433"
+version = "0.1.434"
 dependencies = [
  "anyhow",
  "egui",
@@ -6540,7 +6538,7 @@ dependencies = [
 
 [[package]]
 name = "tasty-plugin-image"
-version = "0.1.376"
+version = "0.1.377"
 dependencies = [
  "anyhow",
  "arboard",
@@ -6578,7 +6576,7 @@ dependencies = [
 
 [[package]]
 name = "tasty-plugin-markdown"
-version = "0.1.527"
+version = "0.1.528"
 dependencies = [
  "ammonia",
  "anyhow",
@@ -6606,7 +6604,7 @@ dependencies = [
 
 [[package]]
 name = "tasty-plugin-mesh-demo"
-version = "0.1.338"
+version = "0.1.339"
 dependencies = [
  "anyhow",
  "egui",

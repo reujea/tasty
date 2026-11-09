@@ -3,7 +3,7 @@ members = ["crates/*"]
 # WASM 실험 SDK는 자체 Cargo.lock으로 관리해 기본 빌드의 의존성 해석에서 제외한다.
 # 보류 이유: docs/dev-guide/plugin-permissions.md
 # vendor 사본은 workspace lint·fmt 대상에 포함하지 않는다.
-exclude = ["crates/tasty-plugin-sdk-wasm", "vendor/tiny_http"]
+exclude = ["crates/tasty-plugin-sdk-wasm", "vendor/tiny_http", "vendor/epaint"]
 resolver = "2"
 
 # 각 패키지가 [lints] workspace = true로 공통 규칙을 사용한다.
@@ -462,6 +462,8 @@ winit = { git = "https://github.com/zilhak/winit-ime-fix.git", rev = "83d620da3b
 # 413 응답 뒤 남은 본문을 읽지 않고 닫도록 패치한 사본이다.
 # 패치 범위와 상류 버전으로 돌아갈 조건: vendor/tiny_http/PATCHES.md
 tiny_http = { path = "vendor/tiny_http" }
+# 상류 0.31.1을 옮겨 온 사본이다. 사본 범위: vendor/epaint/PATCHES.md
+epaint = { path = "vendor/epaint" }
 
 [lints]
 workspace = true
