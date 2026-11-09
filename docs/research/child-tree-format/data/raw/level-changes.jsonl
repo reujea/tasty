@@ -14,3 +14,4 @@
 {"at": "2026-11-09T09:54:43.088342Z", "calls_seen": 92, "kind": "abort", "level": "L0", "phase": "main", "reason": "allowed_warning", "retries_used": 0, "values": {"call": "real-adjacency-claude-high-r2"}}
 {"at": "2026-11-09T09:54:44.195836Z", "calls_seen": 92, "cli": "codex", "kind": "usage_note", "phase": "main", "used_percent": 4.0}
 {"at": "2026-11-09T09:54:44.281706Z", "calls_seen": 92, "cli": "claude", "kind": "usage_note", "phase": "main", "used_percent": 25.0}
+{"abort_reason": "allowed_warning", "approved_by": null, "at": "2026-11-09T09:59:25.266914Z", "calls_seen": 92, "kind": "resume_refused", "level": "L0", "phase": "main", "retries_used": 0, "retry_cap": 15, "usage": {"needs_decision": false, "proposal": "stop", "reason": "window status stops the run: ['claude_7d']", "values": {}, "wait_for": []}, "usage_allows": false}
