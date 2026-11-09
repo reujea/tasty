@@ -934,9 +934,26 @@ mod tests {
         );
     }
 
-    /// MIME은 고정폭 run이고 번역 메타데이터만 라벨 글꼴을 읽는다.
+    /// MIME은 고정폭 run이고 번역 메타데이터만 라벨 글꼴을 읽는다. en에서는 두 글꼴이 같아 구분되지
+    /// 않고 언어는 프로세스마다 한 번 읽으므로, 라벨이 UI sans인 언어로 이 시험을 새 프로세스에서 잰다.
     #[test]
     fn footer_job_keeps_the_mime_run_mono() {
+        const PROBE: &str = "CLIPBOARD_FOOTER_LOCALE_PROBE";
+        if std::env::var_os(PROBE).is_none() {
+            let exe = std::env::current_exe().expect("test binary path");
+            for locale in ["ja", "zh-Hans"] {
+                let out = std::process::Command::new(&exe)
+                    .args(["--exact", "view::tests::footer_job_keeps_the_mime_run_mono"])
+                    .env(PROBE, "1")
+                    .env("TASTY_LOCALE", locale)
+                    .output()
+                    .expect("run the test binary again");
+                let stdout = String::from_utf8_lossy(&out.stdout);
+                assert!(out.status.success(), "{locale}: {stdout}");
+                assert!(stdout.contains("1 passed"), "{locale}: {stdout}");
+            }
+            return;
+        }
         let job = footer_job(
             11.0,
             egui::Color32::WHITE,
@@ -951,7 +968,7 @@ mod tests {
         );
         assert_eq!(
             job.sections[1].format.font_id.family,
-            tasty_ui_widgets::label_font_family()
+            tasty_ui_widgets::label_font_family_for("ja")
         );
     }
 
