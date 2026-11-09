@@ -818,6 +818,7 @@ cancel_button = "Cancel"
 tools_button = "Tools"
 collapse_button = "Collapse"
 workspaces_heading = "WORKSPACES"
+running_surfaces_tooltip = "Running surfaces: {}"
 
 [context_menu]
 rename_title = "Rename"

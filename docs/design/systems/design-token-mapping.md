@@ -75,6 +75,7 @@
 | 포트 즐겨찾기 별 | 없음 | 켜짐 `port_star_on_active()`, 꺼짐 `port_star_off_active()` |
 | plugin 표지 | 없음 | `accent_agent_on_active()` |
 | 사이드바 미러 | 없음 | `workspace_mirror_fg_active()` |
+| 사이드바 running 개수 | `text_on_active()`, 선택 hover·press `text_on_active_hover()`(`RowState::meta(th, RowParent::Mantle)`) | 없음(점은 StatusDot 행) |
 | Kbd | 키 글자는 키캡 채움 위라 그대로 | 사이 `+` `kbd_plus_fg_active()` |
 | 수식키 안내 역할 행 | `modhint_role_text_fg()` | `modhint_role_fg()` |
 
@@ -114,6 +115,10 @@ Tag는 모든 상태 variant가 `tag_bg()` 위에 그리고 테두리는 accent 
 | git-toolbar-height | 32 | `git_toolbar_height()` — git viewer diff 툴바. **`control-height`(28) 아님**(컨테이너 role) |
 | port-process-col-min-width | 200 | `port_process_col_min_width()` — port scanner Process 컬럼 **최소폭** |
 | port-addr-col-min-width | 140 | `port_addr_col_min_width()` — port scanner Address 컬럼 폭(하한 = 폭, 늘지 않음) |
+| workspace-running-count-gap | 2 | `workspace_running_count_gap()` — 사이드바 행의 점 칸과 running 개수 칸 사이 |
+| workspace-running-count-min-width | 10 | `workspace_running_count_min_width()` — 개수 칸 최소폭. 실제 칸은 이 값과 숫자 글꼴의 `"00"` 폭 중 큰 값이다 |
+| workspace-running-count-font-size | → `font-size-micro` (10) | `workspace_running_count_font_size()` — 개수 숫자의 mono 글꼴 크기 |
+| workspace-running-count-max | 99 (`number`) | 접근자 없음 — `number` 토큰이다. 넘으면 `attention_count_label`이 `99+`로 적는다 |
 | radius / radius-sm | 4 / 2 | `corner_radius` / `corner_radius_sm` |
 | border-width | 1 (항상) | `border_width` |
 

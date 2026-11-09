@@ -3,7 +3,10 @@
 
 use tasty_type_appearance::theme::Theme;
 use tasty_type_geometry::length::LogicalPx;
-use tasty_ui_widgets::{num_keycap, paint_rail_category_line};
+use tasty_ui_widgets::{
+    RowParent, RowState, num_keycap, paint_rail_category_line, paint_running_count,
+    workspace_row_body_offset,
+};
 
 use crate::catalog::icons::{CHEVRON_DOWN, CHEVRON_RIGHT, FILE, MockGlyph, TERMINAL};
 use crate::catalog::spec::{self, StageVariant, TokenChip};
@@ -226,13 +229,34 @@ fn status_color(theme: &Theme, s: WsStatus) -> egui::Color32 {
     })
 }
 
+/// 점 칸 뒤의 실행 중 개수. 킷처럼 실행 중 표본은 1, idle은 0이다.
+fn paint_row_count(
+    theme: &Theme,
+    p: &egui::Painter,
+    slot_center: egui::Pos2,
+    slot_half: f32,
+    status: WsStatus,
+    active: bool,
+) {
+    let count = usize::from(!matches!(status, WsStatus::Idle));
+    let state = RowState::of(true, active, false, false);
+    let x = slot_center.x + slot_half + theme.workspace_running_count_gap().value();
+    paint_running_count(
+        p,
+        theme,
+        egui::Rect::from_min_size(egui::pos2(x, slot_center.y), egui::Vec2::ZERO),
+        count,
+        state.meta(theme, RowParent::Mantle),
+    );
+}
+
 fn full_ws(ui: &mut egui::Ui, theme: &Theme, held: bool) {
     let w = theme.field_width_lg - theme.spacing_md * 1.0; // ≈188
     let pad = theme.spacing_sm; // 8
-    let gap = theme.spacing_sm; // 8
     let bw = theme.border_width.value();
     let lead = keycap_size(theme); // 16px slot (dot/numcap 공통)
-    let text_x_off = pad + lead + gap; // 32 — divider margin-left 와 동일
+    // 본문 x는 숫자 칸까지 포함한 행 공통 값이다. divider margin-left 와 동일.
+    let text_x_off = pad + LogicalPx(workspace_row_body_offset(ui, theme, 1));
 
     let head_h = theme.spacing_lg + theme.spacing_xs; // 10+4 ≈ 헤더 영역
     let name_lh = theme.font_size_body + theme.spacing_xs; // ≈17
@@ -294,6 +318,14 @@ fn full_ws(ui: &mut egui::Ui, theme: &Theme, held: bool) {
                 status_color(theme, *status),
             );
         }
+        paint_row_count(
+            theme,
+            &p,
+            slot_c,
+            (lead.scaled(0.5)).value(),
+            *status,
+            *active,
+        );
         p.text(
             egui::pos2(row.min.x + text_x_off.value(), name_cy.value()),
             egui::Align2::LEFT_CENTER,
@@ -516,10 +548,9 @@ const CAT_GROUPS: &[CatGroup] = &[
 fn full_cat(ui: &mut egui::Ui, theme: &Theme, held: bool) {
     let w = theme.field_width_lg - theme.spacing_md; // ≈188
     let pad = theme.spacing_sm; // 8 (행 padding)
-    let gap = theme.spacing_sm; // 8
     let bw = theme.border_width.value();
     let lead = keycap_size(theme); // 16 status-dot slot
-    let text_x_off = pad + lead + gap; // 32 — divider margin-left
+    let text_x_off = pad + LogicalPx(workspace_row_body_offset(ui, theme, 1));
 
     let chev = theme.spacing_md; // 12 chevron slot 폭
     let head_gap = theme.spacing_xs; // 4 chevron↔label
@@ -608,6 +639,14 @@ fn full_cat(ui: &mut egui::Ui, theme: &Theme, held: bool) {
                 slot_c,
                 theme.status_dot_size.value() * 0.5,
                 status_color(theme, *status),
+            );
+            paint_row_count(
+                theme,
+                &p,
+                slot_c,
+                (lead.scaled(0.5)).value(),
+                *status,
+                *active,
             );
             p.text(
                 egui::pos2(row.min.x + text_x_off.value(), cy),

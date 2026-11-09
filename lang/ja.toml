@@ -811,6 +811,7 @@ cancel_button = "キャンセル"
 tools_button = "ツール"
 collapse_button = "折りたたむ"
 workspaces_heading = "ワークスペース"
+running_surfaces_tooltip = "実行中のサーフェス: {}個"
 
 [context_menu]
 rename_title = "名前の変更"

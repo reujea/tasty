@@ -6,7 +6,8 @@ use tasty_type_geometry::length::LogicalPx;
 use tasty_ui_widgets::{
     AttachRefusalBannerView, RailDot, attach_refusal_avatar_tooltip, attach_refusal_banner,
     attach_refusal_mark, banner_is_narrow, move_source_glyph_size, paint_attach_refusal_chip,
-    paint_move_source_chip, paint_move_source_glyph, paint_rail_dot, workspace_attention_badges,
+    paint_move_source_chip, paint_move_source_glyph, paint_rail_dot, running_count_column,
+    workspace_attention_badges,
 };
 
 use crate::catalog::spec::{self, StageVariant, TokenChip};
@@ -116,15 +117,20 @@ fn row(ui: &mut egui::Ui, theme: &Theme, name: &str, active: bool, marks: RowMar
             ui.set_width(ui.available_width());
             ui.set_height(ROW_H.value());
             ui.horizontal_centered(|ui| {
-                ui.spacing_mut().item_spacing.x = theme.spacing_sm.value();
+                ui.spacing_mut().item_spacing.x = theme.workspace_running_count_gap().value();
                 let dot = theme.status_dot_size().value();
-                let (dot_rect, _) =
-                    ui.allocate_exact_size(egui::vec2(dot, dot), egui::Sense::hover());
+                let (dot_rect, _) = ui.allocate_exact_size(
+                    egui::vec2(theme.workspace_dot_slot().value(), dot),
+                    egui::Sense::hover(),
+                );
                 ui.painter().circle_filled(
                     dot_rect.center(),
                     dot * 0.5,
                     theme.status_dot_idle().to_egui(),
                 );
+                ui.spacing_mut().item_spacing.x = theme.workspace_dot_gap().value();
+                running_count_column(ui, theme, 0, dot, theme.text_muted());
+                ui.spacing_mut().item_spacing.x = theme.spacing_sm.value();
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                     // 배지 사이 간격은 badge-group-gap만 쓰도록 묶음 안에서는 행 간격을 끈다.
                     ui.scope(|ui| {

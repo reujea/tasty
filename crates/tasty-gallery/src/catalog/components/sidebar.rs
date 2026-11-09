@@ -2,9 +2,10 @@
 
 use tasty_type_appearance::theme::Theme;
 use tasty_ui_widgets::{
-    ControlSize, IconButton, LoadingPlacement, TagVariant, brand, paint_dashed_outline,
-    paint_loading_overlay, paint_num_keycap, paint_rail_category_line, paint_workspace_mirror_chip,
-    tag_caps,
+    ControlSize, IconButton, LoadingPlacement, RowParent, RowState, TagVariant, brand,
+    paint_dashed_outline, paint_loading_overlay, paint_num_keycap, paint_rail_category_line,
+    paint_running_count, paint_workspace_mirror_chip, running_count_column_width, tag_caps,
+    workspace_row_body_offset,
 };
 
 use crate::catalog::icons::{
@@ -333,21 +334,14 @@ fn section_heading_galley(
     ui.painter().layout_job(job)
 }
 
-/// 행 배경 상태. hover는 비활성 행 위에 겹치는 overlay다.
-#[derive(Clone, Copy, PartialEq)]
-pub(crate) enum RowState {
-    Active,
-    Inactive,
-    Hover,
-}
-
 /// 워크스페이스 행 1개의 표시 내용. 본체 `draw_workspace_card`의 축을 그대로 옮긴다.
 #[derive(Clone, Copy)]
 pub(crate) struct WsRowSpec<'a> {
     pub(crate) name: &'a str,
     pub(crate) badge: Option<&'a str>,
     pub(crate) state: RowState,
-    pub(crate) busy: bool,
+    /// 실행 중 surface 수. 점 색과 숫자가 같은 값을 읽는다.
+    pub(crate) running: usize,
     pub(crate) attached: bool,
     pub(crate) mirror: bool,
     pub(crate) subtitle: Option<&'a str>,
@@ -368,11 +362,11 @@ impl<'a> WsRowSpec<'a> {
             name,
             badge,
             state: if active {
-                RowState::Active
+                RowState::Selected
             } else {
-                RowState::Inactive
+                RowState::Rest
             },
-            busy: active,
+            running: usize::from(active),
             attached: false,
             mirror,
             subtitle: None,
@@ -384,15 +378,21 @@ impl<'a> WsRowSpec<'a> {
     }
 }
 
-/// 점 슬롯 중심 x와 본문 x. 슬롯은 attached 여부와 무관하게 모든 행에서 예약해
+/// 점 슬롯 중심 x, 숫자 칸 x, 본문 x. 슬롯은 attached 여부와 무관하게 모든 행에서 예약해
 /// ring 전체(점 8 + 2×(offset + 폭))가 inset·간격 안에 들어가게 한다.
 /// 슬롯 폭은 점과 ring을 각각 반올림한 뒤 더한 값이다(0.85 → 15 · 1 → 16 · 1.2 → 18).
-fn ws_row_columns(theme: &Theme, card: egui::Rect) -> (f32, f32) {
+fn ws_row_columns(
+    ui: &egui::Ui,
+    theme: &Theme,
+    card: egui::Rect,
+    running: usize,
+) -> (f32, f32, f32) {
     let slot_x = card.min.x + theme.workspace_row_padding_x().value();
     let slot = theme.workspace_dot_slot().value();
     (
         slot_x + slot * 0.5,
-        slot_x + slot + theme.workspace_dot_gap().value(),
+        slot_x + slot + theme.workspace_running_count_gap().value(),
+        slot_x + workspace_row_body_offset(ui, theme, running),
     )
 }
 
@@ -425,56 +425,49 @@ fn description_line_h(theme: &Theme) -> f32 {
 /// `card`는 제목 줄과 추가 줄을 모두 포함하며 배경·hover·accent bar가 카드 전체를 덮는다.
 pub(crate) fn paint_ws_row(ui: &mut egui::Ui, theme: &Theme, card: egui::Rect, row: &WsRowSpec) {
     let p = ui.painter_at(card);
-    match row.state {
-        RowState::Active => {
-            p.rect_filled(
-                card,
-                theme.corner_radius_sm.value(),
-                egui::Color32::from(theme.surface_active()),
-            );
-            let bar = egui::Rect::from_min_size(
-                card.min,
-                egui::vec2(
-                    theme.workspace_row_active_bar_width().value(),
-                    card.height(),
-                ),
-            );
-            p.rect_filled(bar, 0.0, egui::Color32::from(theme.accent_primary()));
-        }
-        RowState::Hover => {
-            p.rect_filled(
-                card,
-                theme.corner_radius_sm.value(),
-                theme.hover_overlay.to_egui_premultiplied(),
-            );
-        }
-        RowState::Inactive => {}
+    let active = row.state.is_selected();
+    row.state
+        .paint_fill(&p, card, theme.corner_radius_sm.value(), theme);
+    if active {
+        let bar = egui::Rect::from_min_size(
+            card.min,
+            egui::vec2(
+                theme.workspace_row_active_bar_width().value(),
+                card.height(),
+            ),
+        );
+        p.rect_filled(bar, 0.0, egui::Color32::from(theme.accent_primary()));
     }
     let title = egui::Rect::from_min_size(
         card.min,
         egui::vec2(card.width(), theme.item_height_interactive.value()),
     );
-    let (dot_x, name_x) = ws_row_columns(theme, card);
+    let (dot_x, count_x, name_x) = ws_row_columns(ui, theme, card, row.running);
     let dc = egui::pos2(dot_x, title.center().y);
     let dot_r = theme.status_dot_size.value() * 0.5;
     if let Some(digit) = row.keycap {
-        paint_num_keycap(&p, theme, dc, digit, row.state == RowState::Active, 1.0);
+        paint_num_keycap(&p, theme, dc, digit, active, 1.0);
     } else {
         paint_ws_dot(ui, theme, &p, row, dc, dot_r);
     }
-    let active = row.state == RowState::Active;
+    let meta = row.state.meta(theme, RowParent::Mantle);
+    let column = egui::Rect::from_min_size(
+        egui::pos2(count_x, title.min.y),
+        egui::vec2(
+            running_count_column_width(ui, theme, row.running),
+            title.height(),
+        ),
+    );
+    paint_running_count(&p, theme, column, row.running, meta);
     p.text(
         egui::pos2(name_x, title.center().y),
         egui::Align2::LEFT_CENTER,
         row.name,
         egui::FontId::proportional(theme.font_size_body.value()),
-        egui::Color32::from(if active {
-            theme.text_on_active()
-        } else if row.state == RowState::Hover {
-            theme.text_secondary_raised()
-        } else {
-            theme.text_secondary()
-        }),
+        egui::Color32::from(
+            row.state
+                .label(theme, RowParent::Mantle, theme.text_secondary()),
+        ),
     );
     if let Some(b) = row.badge {
         paint_ws_count_badge(&p, theme, title, b);
@@ -492,11 +485,7 @@ pub(crate) fn paint_ws_row(ui: &mut egui::Ui, theme: &Theme, card: egui::Rect, r
             egui::Align2::LEFT_CENTER,
             sub,
             egui::FontId::proportional(theme.sidebar_button_label_font_size.value()),
-            egui::Color32::from(if active {
-                theme.text_on_active()
-            } else {
-                theme.text_muted()
-            }),
+            egui::Color32::from(meta),
         );
     }
     if let Some(description) = row.description {
@@ -543,7 +532,7 @@ fn paint_ws_description(
 }
 
 /// 점과 attached ring. 로딩이면 그 위 점 칸(16 × 제목 줄)에 행 바탕을 다시 깔고 스피너를 그린다.
-fn paint_ws_dot(
+pub(crate) fn paint_ws_dot(
     ui: &mut egui::Ui,
     theme: &Theme,
     p: &egui::Painter,
@@ -551,11 +540,11 @@ fn paint_ws_dot(
     dc: egui::Pos2,
     dot_r: f32,
 ) {
-    let active = row.state == RowState::Active;
+    let active = row.state.is_selected();
     p.circle_filled(
         dc,
         dot_r,
-        egui::Color32::from(match (row.busy, active) {
+        egui::Color32::from(match (row.running > 0, active) {
             (true, true) => theme.status_dot_success_active(),
             (true, false) => theme.status_dot_success(),
             (false, true) => theme.status_dot_idle_active(),
@@ -590,15 +579,7 @@ fn paint_ws_dot(
     );
     // 시안 bed는 bg-sidebar 위에 행 채움을 겹친 색이다.
     p.rect_filled(slot, 0.0, egui::Color32::from(theme.bg_sidebar()));
-    match row.state {
-        RowState::Active => {
-            p.rect_filled(slot, 0.0, egui::Color32::from(theme.surface_active()));
-        }
-        RowState::Hover => {
-            p.rect_filled(slot, 0.0, theme.hover_overlay.to_egui_premultiplied());
-        }
-        RowState::Inactive => {}
-    }
+    row.state.paint_fill(p, slot, 0.0, theme);
     paint_loading_overlay(
         ui,
         theme,
@@ -615,6 +596,70 @@ fn paint_ws_dot(
             egui::Color32::from(theme.accent_move()),
         );
     }
+}
+
+/// 카테고리 머리글 띠의 높이.
+pub(crate) fn category_band_height(theme: &Theme) -> f32 {
+    theme.sidebar_category_header_pad_y().value() * 2.0 + theme.icon_glyph_size_sm.value()
+}
+
+/// 카테고리 머리글 띠. `top`의 왼쪽 위에서 폭만 읽고, 띠 아래 y를 돌려준다.
+pub(crate) fn category_band(
+    ui: &mut egui::Ui,
+    theme: &Theme,
+    top: egui::Rect,
+    chevron: MockGlyph,
+    label: &str,
+    count: usize,
+) -> f32 {
+    let p = ui.painter_at(ui.clip_rect());
+    let pad_y = theme.sidebar_category_header_pad_y().value();
+    let pad_x = theme.sidebar_category_header_pad_x().value();
+    let ch_size = theme.icon_glyph_size_sm.value();
+    let header_rect = egui::Rect::from_min_size(
+        top.min,
+        egui::vec2(top.width(), category_band_height(theme)),
+    );
+    p.rect_filled(
+        header_rect,
+        0.0,
+        theme.sidebar_category_header_bg().to_egui(),
+    );
+    let border = theme
+        .sidebar_category_header_border()
+        .to_egui_premultiplied();
+    let border_w = theme.border_width.value();
+    p.hline(
+        header_rect.x_range(),
+        header_rect.min.y,
+        egui::Stroke::new(border_w, border),
+    );
+    p.hline(
+        header_rect.x_range(),
+        header_rect.max.y,
+        egui::Stroke::new(border_w, border),
+    );
+    let fg = egui::Color32::from(theme.sidebar_category_header_fg());
+    let ch_c = egui::pos2(
+        top.min.x + pad_x + ch_size * 0.5,
+        top.min.y + pad_y + ch_size * 0.5,
+    );
+    paint_icon(ui, chevron, ch_c, ch_size, fg);
+    let heading = section_heading_galley(ui, theme, label, fg);
+    let heading_y = ch_c.y - heading.size().y * 0.5;
+    p.galley(
+        egui::pos2(ch_c.x + ch_size * 0.5 + theme.spacing_xs.value(), heading_y),
+        heading,
+        egui::Color32::PLACEHOLDER,
+    );
+    p.text(
+        egui::pos2(top.max.x - pad_x, ch_c.y),
+        egui::Align2::RIGHT_CENTER,
+        count.to_string(),
+        egui::FontId::monospace(theme.sidebar_category_header_count_font_size().value()),
+        egui::Color32::from(theme.sidebar_category_header_count_fg()),
+    );
+    header_rect.max.y
 }
 
 /// 카테고리 그룹(확장) — chevron 헤더 + 소속 행. 접힌/빈 카테고리는 헤더만.
@@ -642,50 +687,14 @@ fn full_categories(ui: &mut egui::Ui, theme: &Theme) {
         } else {
             CHEVRON_DOWN
         };
-        let pad_y = theme.sidebar_category_header_pad_y().value();
-        let pad_x = theme.sidebar_category_header_pad_x().value();
-        let ch_size = theme.icon_glyph_size_sm.value();
-        let header_h = pad_y + ch_size + pad_y;
-        let header_rect =
-            egui::Rect::from_min_size(egui::pos2(rect.min.x, y), egui::vec2(w, header_h));
-        p.rect_filled(
-            header_rect,
-            0.0,
-            theme.sidebar_category_header_bg().to_egui(),
+        y = category_band(
+            ui,
+            theme,
+            egui::Rect::from_min_size(egui::pos2(rect.min.x, y), egui::vec2(w, 0.0)),
+            chevron,
+            label,
+            rows.len(),
         );
-        let border = theme
-            .sidebar_category_header_border()
-            .to_egui_premultiplied();
-        let border_w = theme.border_width.value();
-        p.hline(
-            header_rect.x_range(),
-            header_rect.min.y,
-            egui::Stroke::new(border_w, border),
-        );
-        p.hline(
-            header_rect.x_range(),
-            header_rect.max.y,
-            egui::Stroke::new(border_w, border),
-        );
-        y += pad_y;
-        let fg = egui::Color32::from(theme.sidebar_category_header_fg());
-        let ch_c = egui::pos2(rect.min.x + pad_x + ch_size * 0.5, y + ch_size * 0.5);
-        paint_icon(ui, chevron, ch_c, ch_size, fg);
-        let heading = section_heading_galley(ui, theme, label, fg);
-        let heading_y = ch_c.y - heading.size().y * 0.5;
-        p.galley(
-            egui::pos2(ch_c.x + ch_size * 0.5 + theme.spacing_xs.value(), heading_y),
-            heading,
-            egui::Color32::PLACEHOLDER,
-        );
-        p.text(
-            egui::pos2(rect.max.x - pad_x, ch_c.y),
-            egui::Align2::RIGHT_CENTER,
-            rows.len().to_string(),
-            egui::FontId::monospace(theme.sidebar_category_header_count_font_size().value()),
-            egui::Color32::from(theme.sidebar_category_header_count_fg()),
-        );
-        y += ch_size + pad_y;
 
         // 헤더가 이미 아래쪽 선을 그리므로 구분선을 덧그리지 않는다.
         if !*collapsed && !rows.is_empty() {
@@ -788,7 +797,7 @@ pub fn draw(ui: &mut egui::Ui, theme: &Theme) {
             ("full width", "212"),
             ("rail width", "52"),
             ("logo", "22 full / 24 rail"),
-            ("row", "dot + name + badge"),
+            ("row", "dot + running count + name + badge"),
             ("active row", "surface-active + 2px inset accent"),
             ("mirror", "REMOTE pill line / rail corner chip"),
             (
@@ -900,7 +909,7 @@ fn attached_rows(state: RowState) -> Vec<WsRowSpec<'static>> {
             name,
             badge: None,
             state,
-            busy: true,
+            running: 1,
             attached: *attached,
             mirror: *mirror,
             subtitle: *subtitle,
@@ -928,8 +937,8 @@ pub fn draw_attached_ring(ui: &mut egui::Ui, theme: &Theme) {
         let th = with_zoom(base, theme.ui_zoom);
         spec::stage(ui, &th, StageVariant::Wrap, |ui| {
             for (state, label) in [
-                (RowState::Active, "active"),
-                (RowState::Inactive, "inactive"),
+                (RowState::Selected, "active"),
+                (RowState::Rest, "inactive"),
                 (RowState::Hover, "hover"),
             ] {
                 spec::cluster(ui, &th, &format!("{palette} · {label}"), |ui| {
@@ -942,8 +951,8 @@ pub fn draw_attached_ring(ui: &mut egui::Ui, theme: &Theme) {
         for key in ["small", "large"] {
             let zoom = tasty_settings::AppearanceSettings::ui_scale_factor_for(key);
             let th = with_zoom(theme, theme.ui_zoom * zoom);
-            let mut rows = attached_rows(RowState::Inactive);
-            rows[0].state = RowState::Active;
+            let mut rows = attached_rows(RowState::Rest);
+            rows[0].state = RowState::Selected;
             rows.remove(1);
             let caption = format!(
                 "ui_scale {zoom} — slot {} (derived)",
@@ -968,20 +977,24 @@ pub fn draw_attached_ring(ui: &mut egui::Ui, theme: &Theme) {
                 "slot height",
                 "the title label's own line box — never grows the row",
             ),
-            ("slot → body", "4 (workspace-dot-gap)"),
-            ("body x", "28 (title · remote pill · subtitle)"),
-            ("clearance", "card 8 · accent bar 6 · label 4"),
+            ("slot → running count", "2 (workspace-running-count-gap)"),
+            ("running count → body", "4 (workspace-dot-gap)"),
+            (
+                "body x",
+                "8 + 16 + 2 + column + 4 (title · remote pill · subtitle), column = max(10, width of 00)",
+            ),
+            ("clearance", "card 8 · accent bar 6 · running count 2"),
             (
                 "active bar",
                 "2, hairline, zoom-exempt (workspace-row-active-bar-width → selection-edge-width)",
             ),
             (
                 "ui_scale 0.85",
-                "inset 7 · slot 15 (derived) · gap 3 → label x 25 · clear card 7 · bar 5 · label 3",
+                "inset 7 · slot 15 (derived) · gap 2 · dot gap 3 · clear card 7 · bar 5 · running count 2",
             ),
             (
                 "ui_scale 1.2",
-                "inset 10 · slot 18 · gap 5 → label x 33 · row height unchanged",
+                "inset 10 · slot 18 · gap 2 · dot gap 5 · row height unchanged",
             ),
         ],
         &[

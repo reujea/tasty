@@ -4,11 +4,11 @@
 use tasty_type_appearance::theme::Theme;
 use tasty_type_geometry::length::LogicalPx;
 use tasty_ui_widgets::{
-    LoadingPlacement, paint_dashed_outline, paint_loading_overlay, paint_move_source_ring,
+    LoadingPlacement, RowState, paint_dashed_outline, paint_loading_overlay, paint_move_source_ring,
 };
 
 use crate::catalog::components::rail_marks::{self, Avatar};
-use crate::catalog::components::sidebar::{self, RowState, WsRowSpec};
+use crate::catalog::components::sidebar::{self, WsRowSpec};
 use crate::catalog::components::tab_bar::{self, CellCfg};
 use crate::catalog::components::{empty_surface, search_bar};
 use crate::catalog::spec::{self, StageVariant, TokenChip};
@@ -338,7 +338,7 @@ pub(super) fn together(ui: &mut egui::Ui, theme: &Theme) {
                         ui,
                         &th,
                         WsRowSpec {
-                            state: RowState::Active,
+                            state: RowState::Selected,
                             loading: true,
                             ..row("build-farm")
                         },

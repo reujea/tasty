@@ -108,6 +108,7 @@ pub mod settings_remote_transfer;
 pub mod settings_task_pipeline;
 pub mod sidebar;
 pub mod sidebar_context_menu;
+pub mod sidebar_running_count;
 pub mod status_bar;
 pub mod status_bar_theme_cell;
 pub mod surface_highlights;

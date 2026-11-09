@@ -6,7 +6,8 @@ use tasty_type_appearance::theme::Theme;
 use tasty_type_geometry::length::LogicalPx;
 use tasty_ui_widgets::{
     Attention, RailDot, attention_edge_stroke, occupancy_edge_shows, occupancy_edge_stroke,
-    paint_rail_dot, surface_edge_attention, tab_title_color, workspace_attention_badges,
+    paint_rail_dot, running_count_column, surface_edge_attention, tab_title_color,
+    workspace_attention_badges,
 };
 
 use crate::catalog::icons::{MockGlyph, TERMINAL};
@@ -100,7 +101,8 @@ fn ws_row(ui: &mut egui::Ui, theme: &Theme, name: &str, busy: bool, ni: usize, d
                 ROW_W.value() - theme.workspace_row_padding_x().value() - theme.spacing_sm.value(),
             );
             ui.horizontal(|ui| {
-                ui.spacing_mut().item_spacing.x = theme.workspace_dot_gap().value();
+                let running = usize::from(busy);
+                ui.spacing_mut().item_spacing.x = theme.workspace_running_count_gap().value();
                 let row_h = ui.fonts(|f| {
                     f.row_height(&egui::FontId::proportional(theme.font_size_body.value()))
                 });
@@ -118,6 +120,8 @@ fn ws_row(ui: &mut egui::Ui, theme: &Theme, name: &str, busy: bool, ni: usize, d
                     theme.badge_dot_size().value() * 0.5,
                     ec(dot),
                 );
+                ui.spacing_mut().item_spacing.x = theme.workspace_dot_gap().value();
+                running_count_column(ui, theme, running, row_h, theme.text_muted());
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                     workspace_attention_badges(ui, theme, ni, done);
                     ui.with_layout(egui::Layout::left_to_right(egui::Align::Center), |ui| {

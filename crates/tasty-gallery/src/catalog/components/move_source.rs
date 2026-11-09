@@ -5,7 +5,9 @@
 use tasty_type_appearance::theme::Theme;
 use tasty_type_geometry::length::LogicalPx;
 use tasty_ui_widgets::{
-    move_source_glyph_size, paint_move_source_chip, paint_move_source_glyph, paint_move_source_ring,
+    RowParent, RowState, move_source_glyph_size, paint_move_source_chip, paint_move_source_glyph,
+    paint_move_source_ring, paint_running_count, running_count_column_width,
+    workspace_row_body_offset,
 };
 
 use crate::catalog::spec::{self, StageVariant, TokenChip};
@@ -286,7 +288,7 @@ fn paint_ws_row(ui: &mut egui::Ui, theme: &Theme, rect: egui::Rect, w: &WsCfg) {
     }
     let pad = theme.workspace_row_padding_x().value();
     let slot = theme.workspace_dot_slot().value();
-    let gap = theme.workspace_dot_gap().value();
+    let running = usize::from(w.running);
     let dot = if w.running {
         theme.status_dot_success()
     } else {
@@ -294,13 +296,29 @@ fn paint_ws_row(ui: &mut egui::Ui, theme: &Theme, rect: egui::Rect, w: &WsCfg) {
     };
     let dot_c = egui::pos2(rect.min.x + pad + slot * 0.5, rect.center().y);
     p.circle_filled(dot_c, theme.status_dot_size().value() * 0.5, c(dot));
+    let column = egui::Rect::from_min_size(
+        egui::pos2(
+            rect.min.x + pad + slot + theme.workspace_running_count_gap().value(),
+            rect.min.y,
+        ),
+        egui::vec2(
+            running_count_column_width(ui, theme, running),
+            rect.height(),
+        ),
+    );
+    let state = RowState::of(true, w.active, false, false);
+    let ink = state.meta(theme, RowParent::Mantle);
+    paint_running_count(&p, theme, column, running, ink);
     let fg = if w.active {
         theme.text_on_active()
     } else {
         theme.text_secondary()
     };
     p.text(
-        egui::pos2(rect.min.x + pad + slot + gap, rect.center().y),
+        egui::pos2(
+            rect.min.x + pad + workspace_row_body_offset(ui, theme, running),
+            rect.center().y,
+        ),
         egui::Align2::LEFT_CENTER,
         w.name,
         egui::FontId::proportional(theme.font_size_body.value()),

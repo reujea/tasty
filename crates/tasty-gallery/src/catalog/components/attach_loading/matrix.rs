@@ -5,12 +5,12 @@
 use tasty_type_appearance::theme::Theme;
 use tasty_type_geometry::length::LogicalPx;
 use tasty_ui_widgets::{
-    Attention, HtmlScriptMarkerKind, TabScrollArrowInk, TabScrollArrowSide, Tooltip,
+    Attention, HtmlScriptMarkerKind, RowState, TabScrollArrowInk, TabScrollArrowSide, Tooltip,
     TooltipPlacement, paint_tab_scroll_arrow,
 };
 
 use crate::catalog::components::rail_marks::{self, Avatar};
-use crate::catalog::components::sidebar::{self, RowState, WsRowSpec};
+use crate::catalog::components::sidebar::{self, WsRowSpec};
 use crate::catalog::components::tab_bar::{self, CellCfg};
 use crate::catalog::spec::{self, StageVariant, TokenChip};
 use crate::i18n::t;
@@ -97,8 +97,8 @@ pub(super) fn row(name: &'static str) -> WsRowSpec<'static> {
     WsRowSpec {
         name,
         badge: None,
-        state: RowState::Inactive,
-        busy: true,
+        state: RowState::Rest,
+        running: 1,
         attached: false,
         mirror: false,
         subtitle: None,
@@ -154,7 +154,7 @@ pub(super) fn placements(ui: &mut egui::Ui, theme: &Theme) {
         });
         pair(ui, th, "LNB card", |ui, on| {
             let mut r = row("build-farm");
-            r.state = RowState::Active;
+            r.state = RowState::Selected;
             r.loading = on;
             r.boxes = on;
             lnb_bed(ui, th, r);
@@ -406,7 +406,7 @@ pub(super) fn lnb(ui: &mut egui::Ui, theme: &Theme) {
     );
     per_theme(ui, theme, |ui, th| {
         let idle = WsRowSpec {
-            busy: false,
+            running: 0,
             ..row("build-farm")
         };
         let cases: [(&str, WsRowSpec); 6] = [
@@ -414,7 +414,7 @@ pub(super) fn lnb(ui: &mut egui::Ui, theme: &Theme) {
             (
                 "active",
                 WsRowSpec {
-                    state: RowState::Active,
+                    state: RowState::Selected,
                     ..row("build-farm")
                 },
             ),
@@ -447,7 +447,7 @@ pub(super) fn lnb(ui: &mut egui::Ui, theme: &Theme) {
             (
                 "Alt held · keycap above",
                 WsRowSpec {
-                    state: RowState::Active,
+                    state: RowState::Selected,
                     keycap: Some("2"),
                     ..row("build-farm")
                 },

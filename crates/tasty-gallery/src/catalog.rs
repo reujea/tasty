@@ -2129,12 +2129,13 @@ pub fn pages() -> Vec<Page> {
                             Some("Full 212 expands names; collapsed 52 rail keeps icon slots"),
                             components::sidebar::draw,
                         ),
+                        spec("workspace-row-running-count", "Workspace row — running count", Some("Bare numeral between the dot and the name; running terminal surfaces, hidden tabs in, plugin surfaces out; 0 draws no numeral"), components::sidebar_running_count::draw),
                         spec("notification-summary", "Notification summary", Some("Unread error, warning and info · expanded and rail"), components::notification_panel::draw_summary),
                         spec(
                             "sidebar-attached-ring",
                             "Attached ring in the workspace row",
                             Some(
-                                "Every row reserves the derived dot slot (16 at scale 1); body x 28",
+                                "Every row reserves the derived dot slot (16 at scale 1); the name follows the running count column",
                             ),
                             components::sidebar::draw_attached_ring,
                         ),

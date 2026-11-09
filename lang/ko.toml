@@ -811,6 +811,7 @@ cancel_button = "취소"
 tools_button = "도구"
 collapse_button = "접기"
 workspaces_heading = "워크스페이스"
+running_surfaces_tooltip = "실행 중인 서피스: {}개"
 
 [context_menu]
 rename_title = "이름 변경"

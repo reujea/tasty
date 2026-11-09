@@ -82,6 +82,7 @@ mod rename_popup;
 mod resize_grip;
 mod restore_notice;
 mod row_ink;
+mod running_count;
 mod script_confirm;
 mod script_trigger;
 mod searchable_select;
@@ -310,6 +311,10 @@ pub use restore_notice::{
     RestoreNoticeOutput, RestoreNoticeView, notice_column_rect, restore_notice,
 };
 pub use row_ink::{RowParent, RowState};
+pub use running_count::{
+    paint_running_count, running_count_column, running_count_column_width, running_count_label,
+    workspace_row_body_offset,
+};
 pub use script_confirm::{
     SCRIPT_CONFIRM_PAD_X, ScriptConfirmOutput, ScriptConfirmView, script_confirm,
 };
