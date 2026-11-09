@@ -117,7 +117,8 @@ pub(super) fn lines_for_cell(
     if covered_by_preedit || (paint.underline.is_none() && geometry.program.is_none()) {
         return lines;
     }
-    let program = geometry.program.as_ref();
+    // 숨긴 칸(SGR 8)은 프로그램 선을 긋지 않는다. 링크 밑줄은 프로그램 선이 아니다.
+    let program = geometry.program.as_ref().filter(|_| !attrs.invisible());
     if let Some(color) = paint.underline {
         lines.push(LineLayer::UnderGlyph, geometry.link_underline, color);
     } else if let Some(p) = program
@@ -134,6 +135,12 @@ pub(super) fn lines_for_cell(
         }
     }
     lines
+}
+
+/// 칸이 글리프를 내는지. 공백, preedit가 덮는 칸, 숨긴 칸(SGR 8)은 내지 않는다.
+/// 숨긴 칸도 바탕과 칸 폭은 그대로이고 셀 텍스트는 복사와 검색에 남는다.
+pub(super) fn draws_glyph(text: &str, attrs: &CellAttributes, covered_by_preedit: bool) -> bool {
+    !(text.is_empty() || text == " " || covered_by_preedit || attrs.invisible())
 }
 
 /// 칸이 덮는 열. 넓은 글자는 두 칸이고 줄 끝에서 잘린다.

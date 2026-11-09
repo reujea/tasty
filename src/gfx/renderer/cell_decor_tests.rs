@@ -2,8 +2,8 @@
 //! 프로그램 선의 치수는 시험 전용 값이다. 제품 값은 디자인 규칙에서 정한다.
 
 use super::cell_decor::{
-    CellPlace, LineGeometry, LineSpan, ProgramLines, SolidTexel, covered_columns, fill_cell,
-    lines_for_cell, push_over_lines,
+    CellPlace, LineGeometry, LineSpan, ProgramLines, SolidTexel, covered_columns, draws_glyph,
+    fill_cell, lines_for_cell, push_over_lines,
 };
 use super::line_render::scrolled_cell_paint;
 use super::*;
@@ -450,4 +450,81 @@ fn the_screen_and_the_scrollback_draw_the_same_lines() {
     };
     assert_eq!(over(&screen).len(), 4, "한 두 칸 취소선, z 취소선과 윗줄");
     assert_eq!(over(&screen), over(&history));
+}
+
+/// `A\e[8mSECRET\e[28mB\e[41;8mX` 줄의 칸마다 글리프를 내는지.
+fn glyph_columns(bytes: &str) -> Vec<(String, bool)> {
+    let mut terminal = Terminal::new_detached(20, 3);
+    terminal.feed_bytes(bytes.as_bytes());
+    terminal.with_content(|view| {
+        view.surface().screen_lines()[0]
+            .visible_cells()
+            .take(9)
+            .map(|cell| {
+                let text = cell.str().to_string();
+                let draws = draws_glyph(&text, cell.attrs(), false);
+                (text, draws)
+            })
+            .collect()
+    })
+}
+
+#[test]
+fn a_hidden_cell_draws_no_glyph_and_sgr_28_shows_the_next_one() {
+    let got = glyph_columns("A\x1b[8mSECRET\x1b[28mB\x1b[41;8mX\x1b[0m");
+    let shown: String = got
+        .iter()
+        .map(|(text, draws)| if *draws { text.as_str() } else { "." })
+        .collect();
+    assert_eq!(shown, "A......B.");
+    let texts: String = got.iter().map(|(text, _)| text.as_str()).collect();
+    assert_eq!(texts, "ASECRETBX", "셀 텍스트는 그대로다");
+}
+
+#[test]
+fn a_hidden_cell_keeps_its_background_and_width() {
+    let cells = screen_cells("\x1b[41;8m한X\x1b[0m", 10);
+    let out = emit(&cells, 10, &no_overlays(), &geometry(false));
+    let shown = emit(
+        &screen_cells("\x1b[41m한X\x1b[0m", 10),
+        10,
+        &no_overlays(),
+        &geometry(false),
+    );
+    assert_eq!(cells[0].1, 2, "넓은 글자는 숨겨도 두 칸이다");
+    let bg = |e: &Emitted| -> Vec<_> { e.bg.iter().map(|b| (b.pos, b.bg_color)).collect() };
+    assert_eq!(bg(&out), bg(&shown));
+}
+
+#[test]
+fn a_hidden_cell_draws_no_program_line_but_keeps_the_link_underline() {
+    let hidden = emit(
+        &screen_cells("\x1b[4;9;53;8mab\x1b[0m", 10),
+        10,
+        &no_overlays(),
+        &geometry(true),
+    );
+    assert!(hidden.under_lines().is_empty());
+    assert!(hidden.over.is_empty());
+    let link = link(rgba(0.7));
+    let overlays = CellOverlays {
+        link: Some(&link),
+        ..no_overlays()
+    };
+    let linked = emit(
+        &screen_cells("\x1b[8mab\x1b[0m", 10),
+        10,
+        &overlays,
+        &geometry(true),
+    );
+    assert_eq!(under_columns(&linked), vec![0, 1]);
+}
+
+#[test]
+fn a_blank_or_preedit_cell_draws_no_glyph() {
+    let attrs = CellAttributes::default();
+    assert!(draws_glyph("a", &attrs, false));
+    assert!(!draws_glyph(" ", &attrs, false));
+    assert!(!draws_glyph("", &attrs, false));
+    assert!(!draws_glyph("a", &attrs, true));
 }

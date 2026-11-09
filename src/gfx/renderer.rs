@@ -25,8 +25,8 @@ use tasty_selection::{NormalizedSelection, SelectionPoint};
 use tasty_terminal_link::LinkHighlight;
 
 use cell_decor::{
-    CellLines, CellPlace, LineGeometry, LineLayer, SolidTexel, covered_columns, fill_cell,
-    push_over_lines,
+    CellLines, CellPlace, LineGeometry, LineLayer, SolidTexel, covered_columns, draws_glyph,
+    fill_cell, push_over_lines,
 };
 use cell_paint::{CellOverlays, CellPaint, ScreenPaint, cursor_paint_at, paint_cell, screen_paint};
 use overlay::composite_over;
@@ -480,7 +480,7 @@ impl CellRenderer {
         );
         let CellPlace { columns, row, .. } = place;
         let col = columns.start;
-        if !(text.is_empty() || text == " " || covered_by_preedit) {
+        if draws_glyph(text, attrs, covered_by_preedit) {
             self.push_cell_glyph(col, row, text, attrs, paint.fg, queue);
         }
         self.push_cell_over_lines(columns, row, &lines, queue);
