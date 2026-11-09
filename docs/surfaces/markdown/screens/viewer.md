@@ -231,7 +231,7 @@ CSS 변수 `--md-quote-bar-w`로 받아 그린다. 접지 않는 콜아웃은 `<
 
 - `> [!type]` — 마커/제목 없음. 기본 타입 라벨(번역됨)로 렌더.
 - `> [!type] 제목` — 마커 없이 커스텀 제목만. **접기 UI 자체가 없다**(`<details>`를 아예 쓰지
-  않는다 — GFM alert 와 동일한 `<blockquote>` 구조, `data-label` 속성만 제목으로 바뀐다).
+  않는다 — GFM alert 와 동일한 `<blockquote>` 구조, 라벨 span 의 `data-label` 속성만 제목으로 바뀐다).
 - `> [!type]+ 제목`(제목 생략 가능) — `<details open><summary>...` 로 렌더, 초기 펼침.
 - `> [!type]- 제목`(제목 생략 가능) — `<details><summary>...`(`open` 없음), 초기 접힘.
 
@@ -244,9 +244,9 @@ blockquote 로 폴백). 이 경우를 포함한 모든 콜아웃 인식·렌더�
 
 헤더 레이블(기본 타입 라벨 또는 커스텀 제목)은 `render/callout.rs::CALLOUT_KINDS`가 plugin 자신의
 `Translator`로 UI 언어에 맞게 조회한다(`markdown.alert.<type>`, `lang/{en,ko,ja}.toml`) —
-마커 없는 구조는 CSS 가 언어를 분기할 수 없으므로 `data-label` 속성 + `content:
+마커 없는 구조는 `blockquote` 첫 자식인 빈 span(`.tasty-callout-label`)의 `data-label` 속성 + `::before`의 `content:
 attr(data-label)`로 반영하고, `<details>` 구조는 `<summary>` 안의 실제 텍스트 노드로
-반영한다(어느 쪽이든 커스텀 제목이 있으면 그 텍스트가 기본 라벨을 대체). 아이콘은
+반영한다(어느 쪽이든 커스텀 제목이 있으면 그 텍스트가 기본 라벨을 대체). 마커 없는 라벨은 글자 노드가 아니라 찾기에 잡히지 않고 선택·복사 문자열에도 들어가지 않는다. `<details>` 라벨은 찾기에 잡히고 선택 문자열에도 들어간다. 기본 라벨에만 UI 언어 `lang` 을 붙인다(아래 [앱 문구의 한자 형태](#앱-문구의-한자-형태)). `blockquote` 에 붙이면 본문으로 상속되므로 라벨 요소에 붙인다. 아이콘은
 `tasty-icons`의 canonical 글리프를 각 kind 의 accent 색으로 만든 SVG data URI 로
 `background-image` 에 심는다(`render/callout.rs::alert_icon_data_uri`, 15개 타입이 7개 기존
 semantic accent(`accent_primary`/`accent_info`/`accent_success`/`accent_warning`/
@@ -257,7 +257,7 @@ semantic accent(`accent_primary`/`accent_info`/`accent_success`/`accent_warning`
 
 태그가 없거나 지원하지 않는 종류의 Markdown 인용문은 일반 인용문으로 남는다.
 콜아웃 변환은 파서 이벤트와 인용문 첫 줄을 처리한다. Raw HTML에 class만 넣었다고
-자동으로 data-label을 추가하지는 않는다. 다만 sanitize가 class·data-label·summary를
+자동으로 라벨을 추가하지는 않는다. 다만 sanitize가 class·`span`의 data-label·summary를
 허용하므로 작성자가 이 속성과 태그를 직접 넣어 콜아웃처럼 표시할 수 있다.
 
 ### 중첩
@@ -271,7 +271,7 @@ semantic accent(`accent_primary`/`accent_info`/`accent_success`/`accent_warning`
 
 `<details>`/`<summary>` 태그가 `sanitize_html` 허용 목록에 있다 — `details` 는
 `class`+`open`, `summary` 는 별도 속성 없음(제목이 실제 텍스트 노드로 들어가 별도
-attribute 가 필요 없다).
+attribute 가 필요 없다). 콜아웃 라벨을 위해 `span` 은 `class`·`data-label`·`lang` 을 받는다. `lang` 은 값이 UI 언어와 같을 때만 남고(`render/ui_lang.rs::span_lang_filter`) 다른 값과 `span` 밖의 `lang` 은 지워진다. 사용자 문서가 쓴 다른 언어로 본문의 한자 형태가 바뀌지 않게 하기 위해서다. 필터는 다른 속성을 볼 수 없으므로 문서가 UI 언어와 같은 값을 직접 쓴 `span` 은 남는다.
 
 ## Bare URL autolink
 
@@ -464,7 +464,7 @@ inline 컨텍스트에 중첩되는 잘못된 HTML이 되어 브라우저가 `<p
 `Event::Text` 로 방출되므로 `push_html` 이 본문 텍스트와 동일하게 HTML-escape 한다 — alt 에
 `<`/`>`/`&` 같은 문자가 있어도 캡션에 안전하게 이스케이프된 채로만 나타난다. `<figure>`/
 `<figcaption>` 자체는 이 파일이 이미 쓰는 "신뢰된 plugin 작성 마크업" 패턴(`Event::Html`,
-`wrap_static_callout` 의 `<blockquote data-label="...">` 삽입과 동일)으로
+`wrap_static_callout` 의 `<blockquote>` 라벨 span 삽입과 동일)으로
 주입되므로, `sanitize_html` 화이트리스트에도 별도 속성 없이 bare tag 로 추가했다.
 
 ## 이미지 로드 실패 상태 UI

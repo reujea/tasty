@@ -25,10 +25,14 @@ mod address;
 mod callout;
 mod find_keys;
 mod nav_script;
+mod ui_lang;
+#[cfg(test)]
+mod ui_lang_tests;
 #[cfg(all(test, target_os = "linux"))]
 mod webview_layout_tests;
 use callout::{CALLOUT_KINDS, alert_css, alert_icon_data_uri, find_callout_kind};
 use nav_script::nav_script;
+use ui_lang::CalloutLabel;
 
 /// 내부 이동 URL의 마커. 생성 코드와 parse_nav_fragment에서 함께 사용한다.
 pub const NAV_FRAGMENT_MARKER: &str = "tasty-nav:";
@@ -185,7 +189,10 @@ pub(crate) fn render_document(input: DocumentInput) -> String {
     } else {
         (
             inline_local_images(
-                &sanitize_html(&unsafe_content_html_in_dir(source, tr, base_dir)),
+                &sanitize_html_for(
+                    &unsafe_content_html_in_dir(source, tr, base_dir),
+                    &tr.locale,
+                ),
                 base_dir,
             ),
             collect_headings(source),
@@ -1036,7 +1043,8 @@ fn rewrite_callout_buffer<'a>(
             // pulldown-cmark ever adds a 6th kind before this table does.
             return wrap_plain_blockquote(Some(kind), buf);
         };
-        return wrap_static_callout(callout.class, tr.t(callout.label_key), buf);
+        let label = CalloutLabel::new(None, tr, callout.label_key);
+        return wrap_static_callout(callout.class, &label.empty_span(), buf);
     }
 
     // 첫 문단의 이어지는 텍스트에서 콜아웃 태그를 읽는다.
@@ -1059,10 +1067,7 @@ fn rewrite_callout_buffer<'a>(
         return wrap_plain_blockquote(None, buf);
     };
 
-    let label = parsed
-        .title
-        .clone()
-        .unwrap_or_else(|| tr.t(callout.label_key).to_string());
+    let label = CalloutLabel::new(parsed.title.as_deref(), tr, callout.label_key);
 
     // 태그를 제거한 뒤 첫 문단이 비면 문단도 제거한다.
     let mut rest: Vec<Event<'a>> = buf[text_run_end..].to_vec();
@@ -1076,7 +1081,7 @@ fn rewrite_callout_buffer<'a>(
     };
 
     match parsed.fold {
-        None => wrap_static_callout(callout.class, &label, body),
+        None => wrap_static_callout(callout.class, &label.empty_span(), body),
         Some(open) => wrap_foldable_callout(callout.class, &label, open, body),
     }
 }
@@ -1093,14 +1098,10 @@ fn wrap_plain_blockquote(kind: Option<BlockQuoteKind>, buf: Vec<Event<'_>>) -> V
 }
 
 /// 접지 않는 콜아웃에 표시 이름과 CSS 클래스를 붙인다.
-fn wrap_static_callout<'a>(class: &str, label: &str, body: Vec<Event<'a>>) -> Vec<Event<'a>> {
+fn wrap_static_callout<'a>(class: &str, label_span: &str, body: Vec<Event<'a>>) -> Vec<Event<'a>> {
     let mut out = Vec::with_capacity(body.len() + 2);
     out.push(Event::Html(
-        format!(
-            r#"<blockquote class="{class}" data-label="{}">"#,
-            attr_escape(label)
-        )
-        .into(),
+        format!(r#"<blockquote class="{class}">{label_span}"#).into(),
     ));
     out.extend(body);
     out.push(Event::Html("</blockquote>".into()));
@@ -1110,7 +1111,7 @@ fn wrap_static_callout<'a>(class: &str, label: &str, body: Vec<Event<'a>>) -> Ve
 /// 접을 수 있는 콜아웃을 details와 summary로 감싼다.
 fn wrap_foldable_callout<'a>(
     class: &str,
-    label: &str,
+    label: &CalloutLabel,
     open: bool,
     body: Vec<Event<'a>>,
 ) -> Vec<Event<'a>> {
@@ -1123,7 +1124,7 @@ fn wrap_foldable_callout<'a>(
         .into(),
     ));
     out.push(Event::Html("<summary>".into()));
-    out.push(Event::Text(label.to_string().into()));
+    out.extend(label.summary_events());
     out.push(Event::Html("</summary>".into()));
     out.extend(body);
     out.push(Event::Html("</details>".into()));
@@ -1240,7 +1241,8 @@ fn rewrite_footnote_event<'a>(
 /// javascript URL은 제거한다. class 값 자체는 검사하지 않으며 raw HTML에도
 /// 허용 목록이 그대로 적용된다. 따라서 문서 작성자가 콜아웃 class나 data-label을
 /// 직접 넣을 수 있다. 이 속성은 콜아웃 변환에서만 생성된다는 보장은 없다.
-fn sanitize_html(unsafe_html: &str) -> String {
+/// `span`의 `lang`은 값이 `ui_lang`과 같을 때만 남는다([`ui_lang::span_lang_filter`]).
+fn sanitize_html_for(unsafe_html: &str, ui_lang: &str) -> String {
     use ammonia::Builder;
     use std::collections::{HashMap, HashSet};
 
@@ -1314,20 +1316,30 @@ fn sanitize_html(unsafe_html: &str) -> String {
     tag_attributes.insert("code", ["class"].into_iter().collect());
     tag_attributes.insert("sup", ["class"].into_iter().collect());
     tag_attributes.insert("div", ["class"].into_iter().collect());
-    tag_attributes.insert("blockquote", ["class", "data-label"].into_iter().collect());
+    tag_attributes.insert("blockquote", ["class"].into_iter().collect());
     tag_attributes.insert("details", ["class", "open"].into_iter().collect());
     // 수식 span의 class를 남겨 KaTeX 스크립트가 찾을 수 있게 한다.
-    tag_attributes.insert("span", ["class"].into_iter().collect());
+    tag_attributes.insert(
+        "span",
+        ["class", "lang", "data-label"].into_iter().collect(),
+    );
 
     Builder::default()
         .tags(tags)
         .tag_attributes(tag_attributes)
         .generic_attributes(["id"].into_iter().collect())
+        .attribute_filter(ui_lang::span_lang_filter(ui_lang))
         // 내부 nav fragment(`#tasty-nav:...`)는 scheme 이 없어 이 allowlist 와 무관하게
         // 항상 통과한다 — 여기서 막는 건 `javascript:`/기타 스킴을 가진 `href`/`src` 뿐.
         .url_schemes(["http", "https", "mailto"].into_iter().collect())
         .clean(unsafe_html)
         .to_string()
+}
+
+/// UI 언어 없이 정제하는 테스트용 함수.
+#[cfg(test)]
+fn sanitize_html(unsafe_html: &str) -> String {
+    sanitize_html_for(unsafe_html, "")
 }
 
 // ── local image inlining (sanitize 뒤, 문서 디렉토리 트리로 범위를 좁혀서) ──────
@@ -1550,7 +1562,8 @@ th,td{{border:var(--md-border-w) solid var(--md-border);padding:var(--md-space-x
 tr:nth-child(even){{background:var(--md-zebra);}}
 blockquote{{border-left:var(--md-quote-bar-w) solid var(--md-quote-bar);margin:0.5em 0;padding:0.1em var(--md-space-md);opacity:0.9;}}
 blockquote[class^="markdown-alert-"]{{opacity:1;border-radius:var(--md-radius);padding:var(--md-space-sm) var(--md-space-md);}}
-blockquote[class^="markdown-alert-"]::before{{content:attr(data-label);display:block;font-weight:600;margin-bottom:var(--md-space-xs);padding-left:calc(var(--md-callout-icon) + var(--md-callout-icon-gap));background-repeat:no-repeat;background-position:left center;background-size:var(--md-callout-icon) var(--md-callout-icon);}}
+blockquote[class^="markdown-alert-"]>.tasty-callout-label{{display:block;}}
+blockquote[class^="markdown-alert-"]>.tasty-callout-label::before{{content:attr(data-label);display:block;font-weight:600;margin-bottom:var(--md-space-xs);padding-left:calc(var(--md-callout-icon) + var(--md-callout-icon-gap));background-repeat:no-repeat;background-position:left center;background-size:var(--md-callout-icon) var(--md-callout-icon);}}
 details[class^="markdown-alert-"]{{border-radius:var(--md-radius);padding:var(--md-space-sm) var(--md-space-md);border-left-width:var(--md-quote-bar-w);border-left-style:solid;}}
 details[class^="markdown-alert-"]>summary{{cursor:pointer;font-weight:600;list-style:none;padding-left:calc(var(--md-callout-marker) + var(--md-callout-icon-gap));background-repeat:no-repeat;background-position:left center;background-size:var(--md-callout-marker) var(--md-callout-marker);}}
 details[class^="markdown-alert-"]>summary::-webkit-details-marker{{display:none;}}
@@ -4570,7 +4583,7 @@ Outro\n";
             "got: {html}"
         );
 
-        // Must also survive `sanitize_html`'s allowlist (blockquote now allows data-label).
+        // Must also survive `sanitize_html`'s allowlist (the label span allows data-label).
         let sanitized = sanitize_html(&html);
         assert!(
             sanitized.contains(r#"data-label="Custom Note Label""#),
@@ -4692,7 +4705,9 @@ Outro\n";
         let out = unsafe_content_html("> [!tip] Custom Title\n> body\n", &Translator::default());
         assert!(!out.contains("<details"), "got: {out}");
         assert!(
-            out.contains(r#"class="markdown-alert-tip" data-label="Custom Title""#),
+            out.contains(
+                r#"<blockquote class="markdown-alert-tip"><span class="tasty-callout-label" data-label="Custom Title"></span>"#
+            ),
             "got: {out}"
         );
     }
@@ -4746,11 +4761,11 @@ Outro\n";
                 "missing rule block for {}, got: {css}",
                 kind.class
             );
-            // Icon/color rule covers both the `<blockquote>` shape (`::before`) and the
+            // Icon/color rule covers both the `<blockquote>` label span and the
             // `<details>`/`<summary>` foldable shape (`>summary::before`) in one selector.
             assert!(
                 css.contains(&format!(
-                    ".{cls}::before,.{cls}>summary::before{{color:",
+                    ".{cls}>.tasty-callout-label::before,.{cls}>summary::before{{color:",
                     cls = kind.class
                 )),
                 "missing ::before color rule for {}, got: {css}",

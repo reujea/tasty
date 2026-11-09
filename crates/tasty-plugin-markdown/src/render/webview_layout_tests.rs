@@ -262,6 +262,28 @@ fn callout_label_stays_out_of_find_and_selection() {
     let page = Page::load(&document_en(
         "Before para.\n\n> [!NOTE]\n> Quoted body.\n\nAfter para.",
     ));
+    assert_eq!(
+        page.string(
+            "return getComputedStyle(document.querySelector('.tasty-callout-label'), '::before').content;"
+        ),
+        "\"Note\"",
+        "라벨은 생성 내용으로 보인다"
+    );
+    assert_eq!(
+        page.string("return document.querySelector('.tasty-callout-label').textContent;"),
+        "",
+        "라벨 span 에 글자 노드가 없다"
+    );
+    assert_eq!(
+        page.string("return document.querySelector('.tasty-callout-label').lang;"),
+        "en",
+        "라벨에 UI 언어가 있다"
+    );
+    assert_eq!(
+        page.number("return document.querySelector('blockquote p').closest('[lang]') ? 1 : 0;"),
+        0.0,
+        "콜아웃 본문은 언어를 상속받지 않는다"
+    );
     page.find_count_becomes("Quoted", "1/1");
     page.find_count_becomes("Note", "0/0");
     assert_eq!(page.string(SELECT_QUOTE), "Quoted body.\n\n", "콜아웃 선택");
