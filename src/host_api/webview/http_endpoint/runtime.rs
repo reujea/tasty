@@ -200,7 +200,7 @@ impl NativeRuntime {
     }
 }
 #[cfg(test)]
-pub(super) mod tests;
+pub(crate) mod tests;
 
 #[cfg(test)]
 mod tests_verify;

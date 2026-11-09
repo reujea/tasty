@@ -1,5 +1,6 @@
 //! Actual worker preparation, cancellation receipts and namespace effects, without GTK input.
 use super::*;
+use crate::host_api::webview::http_endpoint::runtime::tests::HANG_LIMIT;
 use std::os::unix::fs::{MetadataExt, PermissionsExt};
 use std::{
     fs,
@@ -8,14 +9,47 @@ use std::{
         atomic::{AtomicBool, Ordering},
         mpsc,
     },
-    thread,
+    thread::{self, JoinHandle},
 };
-fn private_home() -> tempfile::TempDir {
+pub(super) fn private_home() -> tempfile::TempDir {
     let d = tempfile::tempdir().unwrap();
     fs::set_permissions(d.path(), fs::Permissions::from_mode(0o700)).unwrap();
     d
 }
-fn roots(home: &Path) -> Vec<PathBuf> {
+/// Waits for the worker's wake. Slow storage has no deadline here: the worker wakes before it ends,
+/// so its end is read first, and an ended worker without a wake has lost it at once. Only work that
+/// never ends reaches `HANG_LIMIT`, and that says `hung`.
+pub(super) fn woken(wake: &mpsc::Receiver<()>, worker: &JoinHandle<()>) {
+    let deadline = Instant::now() + HANG_LIMIT;
+    loop {
+        let ended = worker.is_finished();
+        match wake.recv_timeout(Duration::from_millis(1)) {
+            Ok(()) => return,
+            Err(mpsc::RecvTimeoutError::Disconnected) => {
+                panic!("profile worker: lost, its wake is gone")
+            }
+            Err(mpsc::RecvTimeoutError::Timeout) => {}
+        }
+        assert!(!ended, "profile worker: lost, it ended without a wake");
+        assert!(
+            Instant::now() < deadline,
+            "profile worker: hung, no wake within {HANG_LIMIT:?}"
+        );
+    }
+}
+/// Joins a worker that must end, failing with `hung` instead of stopping the whole test run.
+pub(super) fn joined(worker: JoinHandle<()>) {
+    let deadline = Instant::now() + HANG_LIMIT;
+    while !worker.is_finished() {
+        assert!(
+            Instant::now() < deadline,
+            "profile worker: hung, not finished within {HANG_LIMIT:?}"
+        );
+        thread::sleep(Duration::from_millis(1));
+    }
+    worker.join().unwrap();
+}
+pub(super) fn roots(home: &Path) -> Vec<PathBuf> {
     let namespace = home.join("native-http-profiles");
     if !namespace.exists() {
         return vec![];
@@ -26,7 +60,7 @@ fn roots(home: &Path) -> Vec<PathBuf> {
         .filter(|p| p.file_name().unwrap() != ".profile-lock")
         .collect()
 }
-fn request(
+pub(super) fn request(
     home: &Path,
     current: Arc<AtomicBool>,
     timeout: Duration,
@@ -49,13 +83,10 @@ fn request(
 #[test]
 fn owned_worker_claim_is_memory_only_and_exposed_paths_remain_private() {
     let home = private_home();
-    let (receipt, work, wake) = request(
-        home.path(),
-        Arc::new(AtomicBool::new(true)),
-        Duration::from_secs(2),
-    );
+    let (receipt, work, wake) =
+        request(home.path(), Arc::new(AtomicBool::new(true)), MAX_CLAIM_WAIT);
     let worker = thread::spawn(move || work.run());
-    wake.recv_timeout(Duration::from_secs(2)).unwrap();
+    woken(&wake, &worker);
     let profile = receipt
         .poll()
         .unwrap()
@@ -73,7 +104,7 @@ fn owned_worker_claim_is_memory_only_and_exposed_paths_remain_private() {
     drop(lease);
     drop(clone);
     drop(receipt);
-    worker.join().unwrap();
+    joined(worker);
     assert_eq!(roots(home.path()), vec![paths.0.clone()]);
     for p in [&paths.0, &paths.1, &paths.2] {
         let m = fs::metadata(p).unwrap();
@@ -91,29 +122,26 @@ fn owned_worker_claim_is_memory_only_and_exposed_paths_remain_private() {
 #[test]
 fn dropped_ready_receipt_returns_unpublished_cleanup_to_the_same_worker() {
     let home = private_home();
-    let (receipt, work, wake) = request(
-        home.path(),
-        Arc::new(AtomicBool::new(true)),
-        Duration::from_secs(2),
-    );
+    let (receipt, work, wake) =
+        request(home.path(), Arc::new(AtomicBool::new(true)), MAX_CLAIM_WAIT);
     let worker = thread::spawn(move || work.run());
-    wake.recv_timeout(Duration::from_secs(2)).unwrap();
+    woken(&wake, &worker);
     assert_eq!(roots(home.path()).len(), 1);
     drop(receipt);
-    worker.join().unwrap();
+    joined(worker);
     assert!(roots(home.path()).is_empty());
 }
 #[test]
 fn stale_native_poll_does_not_take_profile_and_worker_discards_it() {
     let home = private_home();
     let current = Arc::new(AtomicBool::new(true));
-    let (receipt, work, wake) = request(home.path(), current.clone(), Duration::from_secs(2));
+    let (receipt, work, wake) = request(home.path(), current.clone(), MAX_CLAIM_WAIT);
     let worker = thread::spawn(move || work.run());
-    wake.recv_timeout(Duration::from_secs(2)).unwrap();
+    woken(&wake, &worker);
     assert_eq!(roots(home.path()).len(), 1);
     current.store(false, Ordering::Release);
     assert!(matches!(receipt.poll(), Some(Err(PrepareError::Retired))));
-    worker.join().unwrap();
+    joined(worker);
     assert!(roots(home.path()).is_empty());
 }
 #[test]
@@ -125,7 +153,7 @@ fn retired_or_unrun_work_never_creates_a_namespace_or_leaks_receiving() {
         Duration::from_secs(2),
     );
     let worker = thread::spawn(move || work.run());
-    worker.join().unwrap();
+    joined(worker);
     assert!(matches!(receipt.poll(), Some(Err(PrepareError::Retired))));
     assert!(!home.path().join("native-http-profiles").exists());
     let (receipt, work, _wake) = request(
@@ -143,25 +171,43 @@ fn retired_or_unrun_work_never_creates_a_namespace_or_leaks_receiving() {
     );
     drop(receipt);
     let worker = thread::spawn(move || work.run());
-    worker.join().unwrap();
+    joined(worker);
     assert!(
         !home.path().join("native-http-profiles").exists(),
         "cancel before execution must avoid namespace I/O"
     );
 }
+/// 20 ms is the claim deadline this test expects to expire, and also the namespace admission
+/// budget. A lock contended past it, by a parallel test's child between fork and exec, ends the
+/// attempt as `AdmissionTimeout` before any claim exists: that says nothing about the claim, so the
+/// attempt starts over in a new home. Every other answer is judged, and no attempt may leave a root.
 #[test]
 fn abandoned_native_claim_times_out_and_cleans_only_unpublished_root() {
-    let home = private_home();
-    let (receipt, work, wake) = request(
-        home.path(),
-        Arc::new(AtomicBool::new(true)),
-        Duration::from_millis(20),
-    );
-    let worker = thread::spawn(move || work.run());
-    wake.recv_timeout(Duration::from_secs(2)).unwrap();
-    worker.join().unwrap();
-    assert!(matches!(receipt.poll(), Some(Err(PrepareError::Timeout))));
-    assert!(roots(home.path()).is_empty());
+    let deadline = Instant::now() + HANG_LIMIT;
+    loop {
+        let home = private_home();
+        let (receipt, work, wake) = request(
+            home.path(),
+            Arc::new(AtomicBool::new(true)),
+            Duration::from_millis(20),
+        );
+        let worker = thread::spawn(move || work.run());
+        woken(&wake, &worker);
+        joined(worker);
+        let answer = receipt.poll();
+        assert!(roots(home.path()).is_empty());
+        match answer {
+            Some(Err(PrepareError::Timeout)) => return,
+            Some(Err(PrepareError::AdmissionTimeout)) => assert!(
+                Instant::now() < deadline,
+                "no attempt reached the claim within {HANG_LIMIT:?}"
+            ),
+            other => panic!(
+                "abandoned claim answered {:?}",
+                other.map(|answer| answer.map(|_| "a profile"))
+            ),
+        }
+    }
 }
 #[test]
 fn namespace_refuses_symlink_and_unsafe_existing_leaf_without_chmod() {
@@ -223,13 +269,9 @@ fn namespace_umask_child() {
     unsafe {
         libc::umask(0o777);
     }
-    let (receipt, work, wake) = request(
-        &home,
-        Arc::new(AtomicBool::new(true)),
-        Duration::from_secs(2),
-    );
+    let (receipt, work, wake) = request(&home, Arc::new(AtomicBool::new(true)), MAX_CLAIM_WAIT);
     let worker = thread::spawn(move || work.run());
-    wake.recv_timeout(Duration::from_secs(2)).unwrap();
+    woken(&wake, &worker);
     let profile = receipt
         .poll()
         .unwrap()
@@ -246,5 +288,5 @@ fn namespace_umask_child() {
     }
     drop(lease);
     drop(receipt);
-    worker.join().unwrap();
+    joined(worker);
 }

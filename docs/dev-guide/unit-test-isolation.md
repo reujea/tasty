@@ -437,6 +437,15 @@ CI 는 `.github/workflows/crossplatform-check.yml` 의 `check-headless` 잡이 �
   남는다. 시간으로 단정하던 나머지도 구조로 바꿨다. Drop 시간을 재던 100 ms는 job을 붙잡아 둔 채 Drop이
   돌아오는지로, 경합 중 permit 유지는 worker를 경합 안의 `current` 호출에 세워 두고 확인한다. 1초 admission
   만료는 제품 계약 검증이라 남긴다. 잠금을 쥔 자식이 release 전에는 끝나지 않으므로 결과가 시간에 좌우되지 않는다.
+- 깨우기 자체를 계약으로 보는 시험은 깨우기를 따로 관측한다: `http_context::preparation` 시험은 worker의 깨우기를
+  벽시계 2초 안에 기다렸고, 그 2초에 잠금 파일과 `owner.json`의 fsync가 들어 있었다. fsync마다 2.5초를 쉬게 하면
+  이 필터의 시험 8건이 실패했다. 지금은 `woken`이 worker의 끝을 먼저 읽고 깨우기를 읽는다. worker는 끝나기 전에
+  깨우므로 끝났는데 깨우기가 없으면 시간과 무관하게 바로 `lost`로 실패한다. `joined`와 `HeldAdmission::event`도
+  같은 원칙이고 끝나지 않는 worker만 `HANG_LIMIT`에 `hung`으로 실패한다. 같은 값으로 쓰이던 claim과 admission
+  예산은 검사 대상이 아닌 시험에서 제품 상한 `MAX_CLAIM_WAIT`을 준다. 정상 경로는 취소로 끝나 그 시간을 기다리지 않는다.
+  claim 만료를 검사하는 `abandoned_native_claim_...`의 20 ms는 admission 예산이기도 하다. 답이 `AdmissionTimeout`이면
+  claim에 닿지 못한 시도라 새 home으로 다시 하고, 그 밖의 값은 그대로 판정한다. 시계를 주입하지 않았으므로 이
+  시험에는 잠금 경합에 쓰는 시간 의존이 남고, `HANG_LIMIT`을 넘도록 claim에 닿지 못하면 실패한다.
 - 순서대로 처리하는 worker의 결과는 fence로 받고 시간으로 판정하지 않는다: 원격 파일 시험
   (`remote_file_tests`)은 `poll_file_writer`와 `try_recv`를 벽시계 5초 동안 돌았다. Windows에서 CPU 바쁜
   프로세스 48개를 띄우면 `held_inline_add_and_remove_answer_original_callers_once_with_actual_operations`가

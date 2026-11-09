@@ -1,5 +1,6 @@
 //! Actual namespace lock admission with populated private roots and an owned worker.
 use super::*;
+use crate::host_api::webview::http_endpoint::runtime::tests::HANG_LIMIT;
 use std::{
     fs::{self, File, OpenOptions},
     os::{fd::AsRawFd, unix::fs::PermissionsExt},
@@ -112,8 +113,25 @@ impl HeldAdmission {
             events,
         }
     }
+    /// Slow storage has no deadline here: the worker sends every event before it ends, so its end
+    /// is read first, and an ended worker with nothing left to read cannot send the one awaited.
     fn event(&self) -> Event {
-        self.events.recv_timeout(Duration::from_secs(3)).unwrap()
+        let deadline = Instant::now() + HANG_LIMIT;
+        loop {
+            let ended = self.worker.as_ref().is_none_or(JoinHandle::is_finished);
+            match self.events.recv_timeout(Duration::from_millis(1)) {
+                Ok(event) => return event,
+                Err(mpsc::RecvTimeoutError::Disconnected) => {
+                    panic!("profile worker: lost, its events are gone")
+                }
+                Err(mpsc::RecvTimeoutError::Timeout) => {}
+            }
+            assert!(!ended, "profile worker: lost, it ended without this event");
+            assert!(
+                Instant::now() < deadline,
+                "profile worker: hung, no event within {HANG_LIMIT:?}"
+            );
+        }
     }
     fn contended(&self, phase: Phase) {
         assert_eq!(self.event(), Event::Active);
@@ -139,9 +157,12 @@ impl HeldAdmission {
         drop(self.lock.lock().unwrap().take());
     }
     fn until(&self, wanted: Event) {
-        let deadline = Instant::now() + Duration::from_secs(3);
+        let deadline = Instant::now() + HANG_LIMIT;
         while self.event() != wanted {
-            assert!(Instant::now() < deadline);
+            assert!(
+                Instant::now() < deadline,
+                "profile worker: hung, the awaited event did not come within {HANG_LIMIT:?}"
+            );
         }
     }
     fn roots(&self) -> usize {
@@ -155,13 +176,16 @@ impl Drop for HeldAdmission {
     fn drop(&mut self) {
         drop(self.receipt.take());
         self.release();
-        if let Some(worker) = self.worker.take() {
-            worker.join().unwrap();
+        // A test that already failed leaves its worker: a second panic here would abort the run.
+        if let Some(worker) = self.worker.take()
+            && !thread::panicking()
+        {
+            super::tests::joined(worker);
         }
     }
 }
 fn recovery(phase: Phase) {
-    let fixture = HeldAdmission::start(phase, 3, Duration::from_secs(2));
+    let fixture = HeldAdmission::start(phase, 3, MAX_CLAIM_WAIT);
     fixture.contended(phase);
     fixture.release();
     fixture.until(Event::Wake);
@@ -186,7 +210,7 @@ fn lock_acquired_after_real_sweep_does_not_terminally_fail_creation() {
 }
 #[test]
 fn genuine_eight_root_capacity_is_terminal_and_preserves_live_roots() {
-    let fixture = HeldAdmission::start(Phase::Unheld, 8, Duration::from_secs(2));
+    let fixture = HeldAdmission::start(Phase::Unheld, 8, MAX_CLAIM_WAIT);
     fixture.until(Event::Done);
     assert!(matches!(
         fixture.receipt.as_ref().unwrap().poll(),

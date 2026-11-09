@@ -1,4 +1,5 @@
 //! Namespace location: the user runtime directory when XDG_RUNTIME_DIR is set, the app home otherwise.
+use super::tests::{joined, woken};
 use super::*;
 use std::{
     ffi::OsStr,
@@ -156,7 +157,7 @@ fn prepare(root: NamespaceRoot) -> (Preparation, thread::JoinHandle<()>, mpsc::R
     let (receipt, work) = Preparation::new(
         root,
         4,
-        Duration::from_secs(2),
+        MAX_CLAIM_WAIT,
         Arc::new(move || current.load(Ordering::Acquire)),
         Arc::new(move || {
             if wake.send(()).is_err() {
@@ -174,18 +175,18 @@ fn the_worker_prepares_in_the_runtime_namespace_and_keeps_live_old_roots() {
     let rt = dir(0o700);
     let home = dir(0o700);
     let (old_receipt, old_worker, old_wake) = prepare(home.path().to_path_buf().into());
-    old_wake.recv_timeout(Duration::from_secs(2)).unwrap();
+    woken(&old_wake, &old_worker);
     let old = old_receipt.poll().unwrap().unwrap().into_native();
-    old_worker.join().unwrap();
+    joined(old_worker);
     let old_roots = entries(&home_leaf(home.path()));
 
     let (receipt, worker, wake) = prepare(runtime(rt.path(), home.path()));
-    wake.recv_timeout(Duration::from_secs(2)).unwrap();
+    woken(&wake, &worker);
     let profile = receipt.poll().unwrap().unwrap_or_else(|e| panic!("{e}"));
     let namespace = rt.path().join(namespace::runtime_leaf(home.path()));
     assert_eq!(profile.root().parent(), Some(namespace.as_path()));
     let lease = profile.into_native();
-    worker.join().unwrap();
+    joined(worker);
     assert!(lease.data_dir().starts_with(&namespace));
     assert_eq!(entries(&home_leaf(home.path())), old_roots);
     assert!(old.root().exists());
@@ -196,8 +197,8 @@ fn a_refused_runtime_directory_fails_the_preparation_terminally() {
     let rt = dir(0o770);
     let home = dir(0o700);
     let (receipt, worker, wake) = prepare(runtime(rt.path(), home.path()));
-    wake.recv_timeout(Duration::from_secs(2)).unwrap();
-    worker.join().unwrap();
+    woken(&wake, &worker);
+    joined(worker);
     assert!(matches!(
         receipt.poll(),
         Some(Err(PrepareError::Storage(ProfileError::Ownership)))

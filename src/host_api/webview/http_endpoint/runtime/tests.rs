@@ -13,7 +13,7 @@ use std::{
 static TEST: Mutex<()> = Mutex::new(());
 /// Limit for work that never ends. Slow work has no other deadline, and work that ended without
 /// a result fails at once through `wait_result` or `ready`.
-pub(in super::super) const HANG_LIMIT: Duration = Duration::from_secs(300);
+pub(crate) const HANG_LIMIT: Duration = Duration::from_secs(300);
 /// Serializes the process-wide owner budget. A failed test is reported by its own panic: the next
 /// test ignores the poison and starts only after the owners that test left have terminated.
 pub(super) fn serial() -> MutexGuard<'static, ()> {
