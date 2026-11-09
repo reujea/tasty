@@ -59,7 +59,7 @@ fn assert_same(file: &str, what: &str, found: &BTreeSet<String>) {
     assert_eq!(
         found,
         &want,
-        "{file}의 {what}가 BUILTIN_CODES와 다르다. 빠진 언어는 영어로 조용히 나온다.\n빠진 언어: {:?}\n남는 언어: {:?}",
+        "{file}의 {what} 목록이 BUILTIN_CODES와 다르다. 빠진 언어는 영어로 조용히 나온다.\n빠진 언어: {:?}\n남는 언어: {:?}",
         want.difference(found).collect::<Vec<_>>(),
         found.difference(&want).collect::<Vec<_>>()
     );
