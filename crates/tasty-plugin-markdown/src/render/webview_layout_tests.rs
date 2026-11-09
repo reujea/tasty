@@ -293,6 +293,8 @@ fn callout_label_stays_out_of_find_and_selection() {
         "본문 전체 선택"
     );
 
+    ui_language_stays_on_app_strings();
+
     let folded = Page::load(&document_en(
         "Before para.\n\n> [!NOTE]+\n> Quoted body.\n\nAfter para.",
     ));
@@ -377,5 +379,64 @@ fn remote_address_band_layout() {
         ),
         f64::from(super::address::bar_height_px(&theme, true)),
         "검색 바와 앵커 여백이 읽는 높이"
+    );
+}
+
+/// 엔진이 읽은 문서에서 앱 문구는 UI 언어를 갖고, 사용자 값과 문서는 어떤 조상에게서도 받지 않는다.
+fn ui_language_stays_on_app_strings() {
+    let page = Page::load(&document_en(
+        "# Heading\n\nBody.\n\n```\ncode\n```\n\n![alt](missing.png)",
+    ));
+    for (selector, what) in [
+        ("#tasty-addr-input", "주소 칸"),
+        ("#tasty-find-bar", "찾기 막대"),
+        ("#tasty-find-input", "찾기 입력"),
+        ("#tasty-toc-toggle>span", "목차 버튼 글자"),
+        (".tasty-copy-btn", "복사 버튼"),
+    ] {
+        assert_eq!(
+            page.string(&format!(
+                "return document.querySelector('{selector}').closest('[lang]').lang;"
+            )),
+            "en",
+            "{what}"
+        );
+        // 글자 모양을 고르는 값은 lang 속성이 아니라 계산된 locale이다.
+        // all:unset 같은 규칙은 속성을 그대로 두고 이 값만 지운다.
+        assert_eq!(
+            page.string(&format!(
+                "return getComputedStyle(document.querySelector('{selector}')).webkitLocale;"
+            )),
+            "en",
+            "{what}의 계산된 locale"
+        );
+    }
+    for (selector, what) in [
+        (".tasty-addr-display", "경로 표시"),
+        ("#tasty-toc-list a", "목차 링크"),
+        ("#tasty-md-body h1", "문서 제목"),
+        ("#tasty-md-body p", "문서 문단"),
+        ("#tasty-md-body pre code", "문서 코드"),
+    ] {
+        assert_eq!(
+            page.number(&format!(
+                "return document.querySelector('{selector}').closest('[lang]') ? 1 : 0;"
+            )),
+            0.0,
+            "{what}"
+        );
+    }
+    assert_eq!(
+        page.number("return document.documentElement.hasAttribute('lang') ? 1 : 0;"),
+        0.0,
+        "html 에는 붙이지 않는다"
+    );
+    assert_eq!(
+        page.number(
+            "document.querySelector('#tasty-toc-toggle>span').click();\
+             return document.getElementById('tasty-toc').classList.contains('tasty-toc-collapsed') ? 1 : 0;"
+        ),
+        1.0,
+        "목차 버튼 글자를 눌러도 접힌다"
     );
 }

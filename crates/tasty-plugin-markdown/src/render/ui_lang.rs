@@ -12,7 +12,7 @@ use std::borrow::Cow;
 use pulldown_cmark::Event;
 use tasty_plugin_sdk::Translator;
 
-use super::attr_escape;
+use super::{attr_escape, html_escape};
 
 /// 앱 문구 요소에 넣는 ` lang="<UI 언어>"`. 언어를 모르면 빈 문자열이다.
 /// 빈 `lang=""`은 "언어 없음"을 선언하는 별개의 값이라 넣지 않는다.
@@ -22,6 +22,23 @@ pub(super) fn attr(tr: &Translator) -> String {
     } else {
         format!(r#" lang="{}""#, attr_escape(&tr.locale))
     }
+}
+
+/// 스크립트가 만드는 앱 문구 요소 `var`에 언어를 넣는 JavaScript 문장. 언어를 모르면 빈 문자열이다.
+pub(super) fn set_in_script(var: &str, tr: &Translator) -> String {
+    if tr.locale.is_empty() {
+        return String::new();
+    }
+    let value = serde_json::to_string(&tr.locale).unwrap_or_else(|_| "\"\"".to_string());
+    format!("{var}.setAttribute('lang',{value});")
+}
+
+/// 사용자 값과 섞인 문장에서 번역 조각 하나를 이스케이프하고 언어를 표시한다. `lang`은 [`attr`]의 값이다.
+pub(super) fn text_html(text: &str, lang: &str) -> String {
+    if text.is_empty() || lang.is_empty() {
+        return html_escape(text);
+    }
+    format!("<span{lang}>{}</span>", html_escape(text))
 }
 
 /// 정제 단계의 속성 필터. `span`의 `lang`은 UI 언어와 같은 값만 남긴다. 사용자 문서가 쓴 다른 언어가

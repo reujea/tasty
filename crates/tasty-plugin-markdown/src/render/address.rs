@@ -12,7 +12,7 @@ use tasty_plugin_sdk::Translator;
 use tasty_type_appearance::theme::Theme;
 
 use super::callout::alert_icon_data_uri;
-use super::{RemoteView, attr_escape, html_escape};
+use super::{RemoteView, attr_escape, html_escape, ui_lang};
 
 /// 원격 주소창 직접 이동을 보내고 결과 없이 이만큼 지나면 대기 행을 보인다(디자인 30초).
 pub const ADDR_WAITING_AFTER_MS: u64 = 30_000;
@@ -234,6 +234,7 @@ pub(super) fn addr_css(theme: &Theme) -> String {
 }
 
 /// 버튼 하나. 툴팁은 감싼 span 에 둔다 — disabled 버튼은 마우스 이벤트를 받지 않아 자기 title 을 보이지 않는다.
+/// 네이티브 title 에는 `lang` 이 닿지 않아 툴팁의 한자 형태는 OS 로케일을 따른다([`super::ui_lang`]).
 fn button(id: &str, glyph: &str, label: &str, tip: &str, off: bool, extra: &str) -> String {
     format!(
         r#"<span class="tasty-addr-tip" id="{id}-tip" title="{tip}"><button id="{id}" class="tasty-addr-btn" type="button" aria-label="{label}"{extra}{disabled}><span class="tasty-addr-glyph tasty-addr-g-{glyph}"></span></button></span>"#,
@@ -250,6 +251,7 @@ pub(super) fn addr_bar_html(
     recent: &[String],
     remote: Option<&RemoteView>,
 ) -> String {
+    let lang = ui_lang::attr(tr);
     let off = remote.is_some_and(|r| r.disconnected);
     let failure = remote.and_then(|r| r.addr_failure.as_ref());
     let waiting = remote
@@ -319,8 +321,10 @@ pub(super) fn addr_bar_html(
             ),
         )
     };
+    // placeholder 와 값은 한 요소라 나눌 수 없다. 앱 문구인 placeholder 를 위해 입력 칸에 언어를 붙인다.
+    // 경로만 보이는 표시 요소에는 붙이지 않는다.
     let field = format!(
-        r#"<div id="tasty-addr-field"{field_class}><span class="tasty-addr-kind tasty-addr-g-{kind}"></span><span class="tasty-addr-box"><input id="tasty-addr-input" value="{value}" spellcheck="false" autocomplete="off"{list_attr}{placeholder}{readonly}{invalid}><span class="tasty-addr-display" aria-hidden="true"><bdi>{display}</bdi></span></span>{datalist}</div>"#,
+        r#"<div id="tasty-addr-field"{field_class}><span class="tasty-addr-kind tasty-addr-g-{kind}"></span><span class="tasty-addr-box"><input id="tasty-addr-input"{lang} value="{value}" spellcheck="false" autocomplete="off"{list_attr}{placeholder}{readonly}{invalid}><span class="tasty-addr-display" aria-hidden="true"><bdi>{display}</bdi></span></span>{datalist}</div>"#,
         kind = if remote.is_some() { "remote" } else { "file" },
         value = attr_escape(value),
         readonly = if off { " readonly" } else { "" },
@@ -351,7 +355,7 @@ pub(super) fn addr_bar_html(
         Some(_) if !off && failure.is_none() => {
             let shown = waiting.is_some_and(|w| w.after_ms == 0);
             format!(
-                r#"<div id="tasty-addr-waiting" role="status"{hidden}><span class="tasty-addr-spinner">{SPINNER_SVG}</span><span class="tasty-addr-waiting-text">{text}</span></div>"#,
+                r#"<div id="tasty-addr-waiting" role="status"{hidden}><span class="tasty-addr-spinner">{SPINNER_SVG}</span><span class="tasty-addr-waiting-text"{lang}>{text}</span></div>"#,
                 hidden = if shown { "" } else { " hidden" },
                 text = html_escape(tr.t("markdown.address.waiting")),
             )
@@ -370,7 +374,9 @@ pub(super) fn addr_bar_html(
 }
 
 /// 오류 행 문장의 (HTML, 툴팁 평문). 경로는 고정폭으로, 원격 사유는 번역하지 않은 영어 원문으로 넣는다.
+/// 경로와 사유가 문장 안에 있으므로 언어는 번역 조각에만 하나씩 붙인다.
 fn failure_sentence(tr: &Translator, failure: &AddrFailure) -> (String, String) {
+    let lang = ui_lang::attr(tr);
     let template = tr.t(failure.kind.key());
     let reason = match &failure.kind {
         AddrFailureKind::Rejected(reason) => reason.as_str(),
@@ -381,7 +387,7 @@ fn failure_sentence(tr: &Translator, failure: &AddrFailure) -> (String, String) 
     let mut rest = template;
     while let Some(at) = rest.find('{') {
         let (head, tail) = rest.split_at(at);
-        html.push_str(&html_escape(head));
+        html.push_str(&ui_lang::text_html(head, &lang));
         plain.push_str(head);
         if let Some(after) = tail.strip_prefix("{path}") {
             html.push_str(&format!(
@@ -403,7 +409,7 @@ fn failure_sentence(tr: &Translator, failure: &AddrFailure) -> (String, String) 
             rest = &tail[1..];
         }
     }
-    html.push_str(&html_escape(rest));
+    html.push_str(&ui_lang::text_html(rest, &lang));
     plain.push_str(rest);
     (html, plain)
 }

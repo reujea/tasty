@@ -143,10 +143,11 @@ pub(crate) fn render_document(input: DocumentInput) -> String {
         address_bindings,
     } = input;
 
+    let lang = ui_lang::attr(tr);
     let (body_html, headings) = if remote.as_ref().is_some_and(|r| r.disconnected) {
         (
             format!(
-                r#"<div class="tasty-state tasty-state-error"><div class="tasty-state-title">{}</div></div>"#,
+                r#"<div class="tasty-state tasty-state-error"><div class="tasty-state-title"{lang}>{}</div></div>"#,
                 html_escape(tr.t("markdown.remote.disconnected"))
             ),
             Vec::new(),
@@ -154,7 +155,7 @@ pub(crate) fn render_document(input: DocumentInput) -> String {
     } else if remote.as_ref().is_some_and(|r| r.loading) && load_error.is_none() {
         (
             format!(
-                r#"<div class="tasty-state">{}</div>"#,
+                r#"<div class="tasty-state"{lang}>{}</div>"#,
                 html_escape(tr.t("markdown.remote.loading"))
             ),
             Vec::new(),
@@ -162,7 +163,7 @@ pub(crate) fn render_document(input: DocumentInput) -> String {
     } else if let Some(err) = load_error {
         (
             format!(
-                r#"<div class="tasty-state tasty-state-error"><div class="tasty-state-title">{}</div><pre class="tasty-state-detail">{}</pre></div>"#,
+                r#"<div class="tasty-state tasty-state-error"><div class="tasty-state-title"{lang}>{}</div><pre class="tasty-state-detail">{}</pre></div>"#,
                 html_escape(tr.t("markdown.state.failed")),
                 html_escape(err)
             ),
@@ -172,7 +173,7 @@ pub(crate) fn render_document(input: DocumentInput) -> String {
         // 버튼은 파일을 바로 읽지 않고 reload 경로로 대용량 확인을 다시 띄운다.
         (
             format!(
-                r#"<div class="tasty-state"><div>{}</div><button class="tasty-state-action" type="button">{}</button></div>"#,
+                r#"<div class="tasty-state"><div{lang}>{}</div><button class="tasty-state-action" type="button"{lang}>{}</button></div>"#,
                 html_escape(tr.t("markdown.state.large_deferred")),
                 html_escape(tr.t("markdown.state.large_deferred_open"))
             ),
@@ -181,7 +182,7 @@ pub(crate) fn render_document(input: DocumentInput) -> String {
     } else if source.trim().is_empty() {
         (
             format!(
-                r#"<div class="tasty-state">{}</div>"#,
+                r#"<div class="tasty-state"{lang}>{}</div>"#,
                 html_escape(tr.t("markdown.state.empty"))
             ),
             Vec::new(),
@@ -474,8 +475,10 @@ fn toc_nav_html(tr: &Translator, headings: &[HeadingInfo]) -> String {
             )
         })
         .collect();
+    // 버튼의 all:unset이 자기 lang에서 온 locale을 지우므로 글자를 감싼 span에 붙인다.
+    let lang = ui_lang::attr(tr);
     format!(
-        r#"<nav id="tasty-toc" aria-label="{aria}"><button id="tasty-toc-toggle" type="button" aria-expanded="true">{label}</button><ul id="tasty-toc-list">{items}</ul></nav>"#,
+        r#"<nav id="tasty-toc" aria-label="{aria}"><button id="tasty-toc-toggle" type="button" aria-expanded="true"><span{lang}>{label}</span></button><ul id="tasty-toc-list">{items}</ul></nav>"#,
         aria = attr_escape(tr.t("markdown.toc.aria_label")),
         label = html_escape(tr.t("markdown.toc.label")),
         items = items,
@@ -1714,8 +1717,9 @@ fn heading_sizes_px(theme: &Theme) -> [f32; 6] {
 
 /// 본문 검색 UI. 정규식 입력이 아닌 일반 텍스트 검색을 제공한다.
 fn find_bar_html(tr: &Translator) -> String {
+    let lang = ui_lang::attr(tr);
     format!(
-        r#"<div id="tasty-find-bar" role="search" hidden><input id="tasty-find-input" type="text" placeholder="{placeholder}" autocomplete="off" spellcheck="false"><span id="tasty-find-count">0/0</span><button type="button" id="tasty-find-prev" class="tasty-find-btn" title="{prev}" aria-label="{prev}">&#9650;</button><button type="button" id="tasty-find-next" class="tasty-find-btn" title="{next}" aria-label="{next}">&#9660;</button><button type="button" id="tasty-find-close" class="tasty-find-btn" title="{close}" aria-label="{close}">&times;</button></div>"#,
+        r#"<div id="tasty-find-bar" role="search"{lang} hidden><input id="tasty-find-input" type="text" placeholder="{placeholder}" autocomplete="off" spellcheck="false"><span id="tasty-find-count">0/0</span><button type="button" id="tasty-find-prev" class="tasty-find-btn" title="{prev}" aria-label="{prev}">&#9650;</button><button type="button" id="tasty-find-next" class="tasty-find-btn" title="{next}" aria-label="{next}">&#9660;</button><button type="button" id="tasty-find-close" class="tasty-find-btn" title="{close}" aria-label="{close}">&times;</button></div>"#,
         placeholder = attr_escape(tr.t("markdown.find.placeholder")),
         prev = attr_escape(tr.t("markdown.find.prev_tooltip")),
         next = attr_escape(tr.t("markdown.find.next_tooltip")),
@@ -2001,6 +2005,7 @@ var btn=document.createElement('button');
 btn.type='button';
 btn.className='tasty-copy-btn';
 btn.setAttribute('tabindex','0');
+{btn_lang}
 btn.setAttribute('aria-label',COPY);
 btn.textContent=COPY;
 btn.addEventListener('click',function(){{
@@ -2016,6 +2021,7 @@ pre.appendChild(btn);
 }});
 }}catch(e){{console.error('copy button init failed',e);}}
 }})();</script>"#,
+        btn_lang = ui_lang::set_in_script("btn", tr),
         copy = json_or_empty(tr.t("markdown.copy.label")),
         copied = json_or_empty(tr.t("markdown.copy.copied")),
         failed = json_or_empty(tr.t("markdown.copy.failed")),
@@ -2045,6 +2051,7 @@ icon.className='tasty-img-error-icon';
 ph.appendChild(icon);
 var label=document.createElement('span');
 label.className='tasty-img-error-label';
+{label_lang}
 label.textContent=LABEL;
 ph.appendChild(label);
 if(src){{
@@ -2066,6 +2073,7 @@ if(img.complete&&img.naturalWidth===0){{replaceWithPlaceholder(img);}}
 }});
 }}catch(e){{console.error('image error-check init failed',e);}}
 }})();</script>"#,
+        label_lang = ui_lang::set_in_script("label", tr),
         label = json_or_empty(tr.t("markdown.image.failed")),
     )
 }

@@ -555,16 +555,30 @@ debounce, `compositionend` 시 즉시)마다 이전 `<mark>` 를 먼저 원문�
 
 ## 앱 문구의 한자 형태
 
-주소 띠·검색 바·목차 라벨·상태 화면·콜아웃 라벨 같은 앱 문구와 문서 본문은 `lang` 속성 없이 같은 글꼴 스택으로 그려진다. 스택에 CJK 글꼴이 없어 한자는 WebView와 OS의 글꼴 대체에 맡겨지고, 앱 언어(`general.language`)는 한자 형태에 영향을 주지 않는다. 그래서 중국어 간체 UI에서도 앱 문구가 일본어 형태로 나올 수 있다.
+WebView는 `lang`이 없는 한자의 형태를 OS 로케일로 고른다. 글꼴 스택에 CJK 글꼴이 없어 형태는 WebView와 OS의 글꼴 대체에 맡겨진다. 앱 문구는 언어를 알고 있으므로 요소에 UI 언어(`general.language`)를 `lang`으로 표시한다(`render/ui_lang.rs`). 값은 언어 코드 그대로이고 UI 언어로 분기하지 않는다. 언어를 모르면 붙이지 않는다.
 
-Linux(WebKitGTK 2.50.4, Noto Sans CJK 전 변종 설치, 전용 Xvfb) 측정값이다. OS 로케일은 `LANG`만 바꿨고 앱 언어는 시험 언어팩이다. Windows(WebView2)와 macOS(WKWebView), 글꼴 구성이 다른 Linux는 측정하지 않았다.
+| 표시한다 | 표시하지 않는다 |
+|---|---|
+| 주소 칸 `input`, 대기·실패 문장의 번역 조각 | 경로 표시(`.tasty-addr-display`), 실패 문장 안의 경로 |
+| 찾기 막대 | 사용자 문서 제목, 목차 링크 |
+| 목차 버튼의 글자(`span`) | 문서 본문, 커스텀 콜아웃 제목 |
+| 기본 콜아웃 라벨(`span.tasty-callout-label`, `summary`) | `<html>`, 문서를 감싸는 요소, `blockquote` |
+| 상태 화면의 번역 문구(제목·버튼) | 상태 화면의 OS 오류 원문(`.tasty-state-detail`) |
+| 코드 복사 버튼, 이미지 실패 안내 | 원격 실패 사유. 번역하지 않는 영어 원문이라 `<span lang="en">`이다 |
+
+`lang`은 상속되므로 문서를 감싸는 요소에 붙이면 사용자 문서까지 UI 언어의 형태로 바뀐다. 사용자 문서는 언어를 알 수 없어 OS 로케일 판단에 맡긴다. 목차 버튼처럼 `all:unset`을 쓰는 요소는 자기 `lang`에서 온 locale도 함께 지워지므로 글자를 감싼 안쪽 요소에 붙인다.
+
+Linux(WebKitGTK 2.50.4, Noto Sans CJK 전 변종 설치, 전용 Xvfb) 측정값이다. OS 로케일은 `LANG`만 바꿨고 앱 언어는 `zh-Hans` 시험 언어팩이다.
 
 | 대상 | `ko_KR`·`ja_JP`·`en_US` | `zh_CN` |
 |---|---|---|
-| 앱 문구와 문서 본문 | 일본어 형태 | 간체 형태 |
+| 앱 문구: 찾기 칸, 주소 칸, 목차 버튼, 콜아웃 라벨, 빈 문서 안내 | 간체 형태 | 간체 형태 |
+| 문서 본문, 목차 링크 | 일본어 형태 | 간체 형태 |
 | 네이티브 tooltip(`title`) | 일본어 형태(`ko_KR`만 측정) | 간체 형태 |
 
-같은 환경의 HTML 대조 페이지에서 요소에 `lang="zh-Hans"`를 붙이면 네 로케일 모두 간체 형태로 나왔다. 일반 글자, `::before`의 `content`, `input` placeholder가 같았다. 네이티브 tooltip은 `lang`을 붙여도 일본어 형태였다(`ko_KR`). 이 플러그인의 앱 문구에는 아직 `lang`을 붙이지 않았다. 예외는 원격 실패 사유의 영어 원문(`<span lang="en">`)이다. WebView 내용은 `ui.screenshot`에 담기지 않으므로 형태 확인은 [OS 화면 캡처](../../../ai-verification/screenshot-methods.md#os-화면-캡처)로 한다.
+현재 한계: 네이티브 tooltip은 앱 문구지만 `lang`이 닿지 않아 OS 로케일의 형태를 따른다. 위 측정에서 중국어 간체 UI의 tooltip은 `zh_CN` 외 로케일에서 일본어 형태다. 고치려면 HTML tooltip이 필요하므로 Windows와 macOS를 측정한 뒤 정한다.
+
+이 코드는 모든 OS에 공통이지만 Windows(WebView2)와 macOS(WKWebView), 글꼴 구성이 다른 Linux에서는 표시 결과를 측정하지 않았다. 원격 상태, 큰 파일, 불러오기 실패, 복사 버튼, 이미지 실패 문구의 형태는 캡처하지 않았고 표시 여부만 시험으로 확인한다. WebView 내용은 `ui.screenshot`에 담기지 않으므로 형태 확인은 [OS 화면 캡처](../../../ai-verification/screenshot-methods.md#os-화면-캡처)로 한다.
 
 ## 디자인 토큰 매핑
 

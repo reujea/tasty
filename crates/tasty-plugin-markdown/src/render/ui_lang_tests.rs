@@ -5,7 +5,10 @@ use std::path::Path;
 use tasty_plugin_sdk::Translator;
 use tasty_type_appearance::theme::Theme;
 
-use super::{DocumentInput, render_document, sanitize_html_for};
+use super::{
+    AddrFailure, AddrFailureKind, AddrWaitingView, DocumentInput, RemoteView, copy_button_script,
+    image_error_script, render_document, sanitize_html_for,
+};
 
 const UI: &str = "zh-Hans";
 
@@ -14,22 +17,37 @@ fn translator() -> Translator {
 }
 
 fn render(source: &str) -> String {
+    render_with(&translator(), source, None, None, false)
+}
+
+fn render_with(
+    tr: &Translator,
+    source: &str,
+    load_error: Option<&str>,
+    remote: Option<RemoteView>,
+    large_deferred: bool,
+) -> String {
     let theme = Theme::with_colors_and_zoom(tasty_themes::mocha_fallback_colors(), false, 1.0);
-    let tr = translator();
     render_document(DocumentInput {
         find_bindings: &[],
         address_bindings: &[],
         theme: &theme,
-        tr: &tr,
-        file_path: "/a/current.md",
+        tr,
+        file_path: "/a/見出し.md",
         source,
-        load_error: None,
+        load_error,
         base_dir: Some(Path::new("/a")),
         recent: &[],
-        remote: None,
-        large_deferred: false,
+        remote,
+        large_deferred,
     })
 }
+
+fn render_remote(view: RemoteView) -> String {
+    render_with(&translator(), "# t", None, Some(view), false)
+}
+
+const MARK: &str = r#"lang="zh-Hans""#;
 
 /// 문서 본문 조각. 앱 문구가 있는 띠와 스크립트를 빼고 본다.
 fn body_of(html: &str) -> &str {
@@ -144,4 +162,153 @@ fn sanitizer_keeps_other_attributes_through_the_filter() {
     let clean = sanitize_html_for(dirty, UI);
     assert!(clean.contains(r#"href="https://example.com""#), "{clean}");
     assert!(clean.contains(r#"class="math math-inline""#), "{clean}");
+}
+
+#[test]
+fn address_input_is_marked_and_the_path_display_is_not() {
+    let html = render("# t");
+    let input = tag_with(&html, r#"id="tasty-addr-input""#);
+    assert!(input.contains(MARK), "{input}");
+    let display = tag_with(&html, r#"class="tasty-addr-display""#);
+    assert!(!display.contains("lang="), "{display}");
+    let field = tag_with(&html, r#"id="tasty-addr-field""#);
+    assert!(!field.contains("lang="), "{field}");
+    let bar = tag_with(&html, r#"id="tasty-addr-bar""#);
+    assert!(!bar.contains("lang="), "{bar}");
+}
+
+#[test]
+fn find_bar_root_is_marked() {
+    let html = render("# t");
+    let bar = tag_with(&html, r#"id="tasty-find-bar""#);
+    assert!(bar.contains(MARK), "{bar}");
+}
+
+#[test]
+fn toc_marks_the_toggle_and_not_the_nav_or_the_document_headings() {
+    let html = render("# 見出し");
+    // 버튼 자체의 lang은 all:unset에 지워진다.
+    let toggle = tag_with(&html, r#"id="tasty-toc-toggle""#);
+    assert!(!toggle.contains("lang="), "{toggle}");
+    let label = format!(r#"aria-expanded="true"><span {MARK}>"#);
+    assert!(html.contains(&label), "{html}");
+    let nav = tag_with(&html, r#"id="tasty-toc""#);
+    assert!(!nav.contains("lang="), "{nav}");
+    let list = html
+        .split_once(r#"<ul id="tasty-toc-list">"#)
+        .and_then(|(_, rest)| rest.split_once("</ul>"))
+        .expect("목차 목록")
+        .0;
+    assert!(list.contains("見出し"), "{list}");
+    assert!(!list.contains("lang="), "{list}");
+}
+
+#[test]
+fn empty_state_is_marked() {
+    let html = render("");
+    let state = tag_with(&html, r#"class="tasty-state""#);
+    assert!(state.contains(MARK), "{state}");
+}
+
+#[test]
+fn load_failure_marks_the_title_and_not_the_os_error() {
+    let html = render_with(&translator(), "", Some("権限がありません"), None, false);
+    let title = tag_with(&html, r#"class="tasty-state-title""#);
+    assert!(title.contains(MARK), "{title}");
+    let detail = tag_with(&html, r#"class="tasty-state-detail""#);
+    assert!(!detail.contains("lang="), "{detail}");
+    assert!(html.contains("権限がありません"));
+}
+
+#[test]
+fn large_file_state_marks_the_sentence_and_the_button() {
+    let html = render_with(&translator(), "", None, None, true);
+    let body = body_of(&html);
+    assert_eq!(body.matches(MARK).count(), 2, "{body}");
+    let button = tag_with(body, r#"class="tasty-state-action""#);
+    assert!(button.contains(MARK), "{button}");
+}
+
+#[test]
+fn remote_states_mark_their_text() {
+    for view in [
+        RemoteView {
+            loading: true,
+            ..RemoteView::default()
+        },
+        RemoteView {
+            disconnected: true,
+            ..RemoteView::default()
+        },
+    ] {
+        let html = render_remote(view);
+        assert_eq!(body_of(&html).matches(MARK).count(), 1, "{html}");
+    }
+}
+
+#[test]
+fn waiting_row_is_marked() {
+    let html = render_remote(RemoteView {
+        addr_waiting: Some(AddrWaitingView {
+            typed: "/見出し.md".into(),
+            after_ms: 0,
+        }),
+        ..RemoteView::default()
+    });
+    let row = tag_with(&html, r#"class="tasty-addr-waiting-text""#);
+    assert!(row.contains(MARK), "{row}");
+}
+
+#[test]
+fn failure_row_marks_translated_pieces_and_leaves_the_path_and_reason_alone() {
+    let html = render_remote(RemoteView {
+        addr_failure: Some(AddrFailure {
+            typed: "/見出し.md".into(),
+            kind: AddrFailureKind::Rejected("not a <markdown> file".into()),
+        }),
+        ..RemoteView::default()
+    });
+    let text = tag_with(&html, r#"class="tasty-addr-error-text""#);
+    assert!(
+        !text.contains("lang="),
+        "문장 전체에 붙이면 경로로 상속된다: {text}"
+    );
+    assert!(
+        html.contains(concat!(
+            r#"<span lang="zh-Hans">Can't open </span><span class="tasty-addr-path">/見出し.md</span>"#,
+            r#"<span lang="zh-Hans"> on the remote: </span><span lang="en">not a &lt;markdown&gt; file</span>"#,
+        )),
+        "{html}"
+    );
+}
+
+#[test]
+fn scripted_strings_mark_their_own_element() {
+    let tr = translator();
+    assert!(copy_button_script(&tr).contains(r#"btn.setAttribute('lang',"zh-Hans");"#));
+    let image = image_error_script(&tr);
+    assert!(
+        image.contains(r#"label.setAttribute('lang',"zh-Hans");"#),
+        "{image}"
+    );
+    assert!(
+        !image.contains("path.setAttribute('lang'"),
+        "경로는 표시하지 않는다"
+    );
+}
+
+#[test]
+fn unknown_ui_language_marks_nothing() {
+    let html = render_with(
+        &Translator::default(),
+        "> [!NOTE]\n> 本文",
+        None,
+        None,
+        false,
+    );
+    assert!(!html.contains("tasty-find-bar\" role=\"search\" lang="));
+    let input = tag_with(&html, r#"id="tasty-addr-input""#);
+    assert!(!input.contains("lang="), "{input}");
+    assert!(!body_of(&html).contains("lang="));
+    assert!(!copy_button_script(&Translator::default()).contains("setAttribute('lang'"));
 }
