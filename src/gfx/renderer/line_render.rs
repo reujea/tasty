@@ -29,8 +29,8 @@ pub(super) fn scrolled_cell_paint<'a>(
         None,
         overlays,
     );
-    // 스크롤한 위치는 preedit 덮개를 보지 않는다. 덮인 칸도 원래 글리프와 선을 낸다.
-    (paint, None)
+    // preedit 덮개는 스크롤한 위치에도 그려지므로 덮인 칸은 원래 글리프와 선을 내지 않는다.
+    (paint, overlays.preedit)
 }
 
 impl CellRenderer {

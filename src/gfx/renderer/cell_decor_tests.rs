@@ -5,6 +5,7 @@ use super::cell_decor::{
     CellPlace, LineGeometry, LineSpan, ProgramLines, SolidTexel, covered_columns, fill_cell,
     lines_for_cell, push_over_lines,
 };
+use super::line_render::scrolled_cell_paint;
 use super::*;
 use crate::cell_palette::compute_cell_colors;
 use tasty_terminal::Terminal;
@@ -235,6 +236,67 @@ fn a_preedit_cell_gets_no_decoration() {
     assert_eq!(under_columns(&out), vec![2], "preedit가 0, 1열을 덮는다");
     assert_eq!(out.over.len(), 1);
     assert_eq!(out.over[0].pos[0], 2.0);
+}
+
+/// 조합 중에 위로 스크롤해도 preedit 덮개가 그려지므로, 덮인 칸은 원래 글리프와 선을 내지 않는다.
+/// 칸마다 (글자, preedit가 덮는지, 선이 없는지)를 본다.
+#[test]
+fn a_preedit_cell_in_a_scrolled_view_draws_no_glyph_or_line() {
+    let preedit = RenderPreedit {
+        text: "가".to_string(),
+        anchor: SelectionPoint {
+            epoch: tasty_terminal::ContentEpoch::default(),
+            col: 0,
+            absolute_row: 0,
+        },
+        bg_color: rgba(0.3),
+        fg_color: rgba(0.9),
+    };
+    let overlays = CellOverlays {
+        link: Some(&link(rgba(0.7))),
+        preedit: Some(&preedit),
+        ..no_overlays()
+    };
+    let mut terminal = Terminal::new_detached(10, 2);
+    terminal.feed_bytes(b"abc\r\n\r\n\r\n");
+    let lines = terminal.scrollback_lines_all();
+    let mut cells = Vec::new();
+    for (col, (text, attrs)) in lines
+        .first()
+        .expect("a scrollback line")
+        .cells()
+        .take(3)
+        .enumerate()
+    {
+        let place = CellPlace {
+            columns: covered_columns(col, 1, 10),
+            row: 0,
+            absolute_row: 0,
+        };
+        let (paint, preedit) =
+            scrolled_cell_paint(&place, attrs, bed(), cell_ink(), &ansi(), &overlays);
+        let mut bg = Vec::new();
+        let (lines, covered) = fill_cell(
+            &mut bg,
+            &place,
+            attrs,
+            &paint,
+            preedit,
+            &geometry(true),
+            [0.0, 0.0],
+        );
+        // push_cell은 덮인 칸의 글리프를 내지 않는다.
+        cells.push((text.to_string(), covered, lines.is_empty()));
+    }
+    assert_eq!(
+        cells,
+        vec![
+            ("a".to_string(), true, true),
+            ("b".to_string(), true, true),
+            ("c".to_string(), false, true),
+        ],
+        "preedit가 0, 1열을 덮고 링크 밑줄도 그 칸에는 긋지 않는다"
+    );
 }
 
 fn link(underline: GpuRgba) -> LinkHighlight {
