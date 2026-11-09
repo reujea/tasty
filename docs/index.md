@@ -29,6 +29,7 @@
 | 개발 가이드 | [dev-guide/index.md](dev-guide/index.md) | 구현·빌드·검증·배포 절차 |
 | 아키텍처 | [architecture/index.md](architecture/index.md) | 모듈 구조와 데이터 흐름 |
 | AI 자체 검증 | [ai-verification/index.md](ai-verification/index.md) | IPC·화면·플랫폼 검증 방법 |
+| 연구 자료 | [research/index.md](research/index.md) | 제품 결정의 근거로 남기는 측정 설계·원자료·결과 |
 | 제품 원칙 | [principles/index.md](principles/index.md) | 설계·개발 판단 기준과 충돌 해소 |
 | 원칙 예외 ADR | [adr/index.md](adr/index.md) | 원칙의 예외·미충족을 채택한 결정 |
 | 설치 | [installation.md](installation.md) | 플랫폼별 설치 방법 |
