@@ -177,12 +177,12 @@ mod tests {
     #[test]
     fn a_bash_outside_a_bin_folder_is_rejected() {
         let dir = tempfile::tempdir().expect("tempdir");
-        let system32 = dir.path().join("Windows/System32");
+        let windows = dir.path().join("Windows");
         layout(
-            &system32,
-            &["bash.exe", "cmd/git.exe", "usr/bin/msys-2.0.dll"],
+            &windows,
+            &["System32/bash.exe", "cmd/git.exe", "usr/bin/msys-2.0.dll"],
         );
-        assert!(!is_git_for_windows_bash(&system32.join("bash.exe")));
+        assert!(!is_git_for_windows_bash(&windows.join("System32/bash.exe")));
     }
 
     #[test]
