@@ -14,7 +14,14 @@ impl std::io::Write for Buffer {
         Ok(())
     }
 }
+/// Other tests hit the load warning callsite with no subscriber, which can cache "never" for the
+/// whole process (docs/dev-guide/unit-test-isolation.md). Callers must run alone through
+/// `rerun_alone`.
 fn warnings(run: impl FnOnce()) -> String {
+    assert!(
+        crate::test_support::is_rerun_alone(),
+        "load warning checks must run through rerun_alone"
+    );
     let buffer = Buffer(Arc::new(Mutex::new(Vec::new())));
     let sink = buffer.clone();
     let subscriber = tracing_subscriber::fmt()
@@ -51,6 +58,12 @@ fn assert_both(logs: &str, cause: &str) {
 }
 #[test]
 fn initial_registry_parse_diagnostics_identify_files_without_parser_excerpts() {
+    if crate::test_support::rerun_alone(
+        module_path!(),
+        "initial_registry_parse_diagnostics_identify_files_without_parser_excerpts",
+    ) {
+        return;
+    }
     let home = tempfile::tempdir().unwrap();
     let hook = "[[handler]]\nid='user/test'\npriority='HOOK_PRIVATE_SENTINEL_082'\n";
     let file = "[[handler]]\nid='host/test'\ndisabled='FILE_PRIVATE_SENTINEL_082'\n";
@@ -76,6 +89,12 @@ fn initial_registry_parse_diagnostics_identify_files_without_parser_excerpts() {
 }
 #[test]
 fn initial_registry_read_errors_name_files_and_preserve_unreadable_originals() {
+    if crate::test_support::rerun_alone(
+        module_path!(),
+        "initial_registry_read_errors_name_files_and_preserve_unreadable_originals",
+    ) {
+        return;
+    }
     let home = tempfile::tempdir().unwrap();
     for file in ["hook-handlers.toml", "file-handlers.toml"] {
         let path = home.path().join(file);
@@ -94,6 +113,12 @@ fn initial_registry_read_errors_name_files_and_preserve_unreadable_originals() {
 }
 #[test]
 fn missing_registry_files_use_defaults_without_false_load_warnings() {
+    if crate::test_support::rerun_alone(
+        module_path!(),
+        "missing_registry_files_use_defaults_without_false_load_warnings",
+    ) {
+        return;
+    }
     let home = tempfile::tempdir().unwrap();
     assert!(warnings(|| load(home.path())).is_empty());
     assert!(!home.path().join("hook-handlers.toml").exists());

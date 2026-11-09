@@ -363,6 +363,14 @@ mod tests {
 
     #[test]
     fn step_logs_name_the_origin_that_fired_the_sequence() {
+        // The hook-sequence worker hits the same step log callsites with no subscriber, which can
+        // cache "never" for the whole process (docs/dev-guide/unit-test-isolation.md).
+        if crate::test_support::rerun_alone(
+            module_path!(),
+            "step_logs_name_the_origin_that_fired_the_sequence",
+        ) {
+            return;
+        }
         use std::sync::{Arc, mpsc};
         use tasty_ipc::server::IpcCommand;
 
