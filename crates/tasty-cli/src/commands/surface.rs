@@ -18,6 +18,21 @@ pub enum SurfaceCommands {
         #[arg(long)]
         kind: Option<String>,
     },
+    /// Mark a surface as busy or idle, lighting the tab and sidebar dot.
+    ///
+    /// Use it from a long-running program inside a terminal whose foreground
+    /// process alone does not show that it is working, such as an agent
+    /// waiting on a network reply. A terminal mark clears itself when the
+    /// program in front at the time of the mark leaves the foreground.
+    /// Without --surface it marks the surface it runs in (TASTY_SURFACE_ID).
+    SetBusy {
+        /// Surface ID (default: TASTY_SURFACE_ID)
+        #[arg(long)]
+        surface: Option<u32>,
+        /// true to mark busy, false to clear the mark
+        #[arg(long, action = clap::ArgAction::Set)]
+        busy: bool,
+    },
     /// Print where the cursor sits in a terminal surface, as column and row.
     ///
     /// The target surface is always given explicitly with --surface; it is

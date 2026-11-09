@@ -967,6 +967,15 @@ pub(crate) fn handle_hook<H: HostCall>(
     )?;
     // 턴 종료 훅과 승인 대기 화면 알림은 상태 갱신과 별도로 보낸다.
     host_call_failures += apply_hook_side_effects(host, event, surface_id);
+    if let Some(busy) = busy_after(event, new_state)
+        && let Err(e) = host.call(
+            "surface.set_busy",
+            json!({ "surface_id": surface_id, "busy": busy }),
+        )
+    {
+        tracing::warn!("codex hook '{event}' surface.set_busy failed: {e}");
+        host_call_failures += 1;
+    }
     // 이 터미널이 Codex 부모의 자식이면 턴 경계를 부모 대화로 보낸다.
     let report = crate::child_return::report(delivery, &session, event, params);
     host_call_failures += report.failures;
@@ -1087,6 +1096,14 @@ fn apply_hook_side_effects<H: HostCall>(host: &H, event: &str, surface_id: u32) 
         }
     }
     failures
+}
+
+/// 이 훅 뒤의 탭 실행 중 점 — `active`면 켜고 idle·입력 대기면 끈다. API 응답을 기다리며 출력이
+/// 없으면 출력 판정만으로는 idle이 되기 때문이다(docs/design/policies/busy-indicator.md (R)).
+/// 세션 시작은 끄기만 한다. 사용자가 아무것도 시키지 않으면 Stop 이 오지 않아 점이 계속 켜져 있게 된다.
+fn busy_after(event: &str, state: &str) -> Option<bool> {
+    let busy = state == "active";
+    (!busy || event != "session-start").then_some(busy)
 }
 
 /// Codex 훅을 상태로 변환한다. interrupt는 idle로 바꿔 중단된 턴을 알린다.
@@ -1696,6 +1713,47 @@ mod tests {
         );
     }
 
+    // 턴 동안만 탭 점을 켠다. 세션 시작은 active 여도 켜지 않는다.
+    #[test]
+    fn the_tab_dot_follows_the_turn_but_not_the_session_start() {
+        assert_eq!(busy_after("prompt-submit", "active"), Some(true));
+        assert_eq!(busy_after("post-tool-use", "active"), Some(true));
+        assert_eq!(busy_after("stop", "idle"), Some(false));
+        assert_eq!(busy_after("interrupt", "idle"), Some(false));
+        assert_eq!(busy_after("permission-request", "needs_input"), Some(false));
+        assert_eq!(busy_after("session-start", "active"), None);
+    }
+
+    /// 프롬프트 제출은 점을 켜고 Stop 은 끈다 — 훅이 실제로 `surface.set_busy` 를 보낸다.
+    #[test]
+    fn the_hook_reports_busy_for_the_turn() {
+        let fx = Fixture::new();
+        let generation = fx.open(42, &[]);
+        let host = FlakyHost::failing(Vec::new());
+        for event in ["prompt-submit", "stop"] {
+            hook(
+                &fx,
+                &host,
+                json!({ "surface_id": 42, "event": event, "gen": generation }),
+            )
+            .unwrap();
+        }
+        let busy: Vec<Value> = host
+            .seen
+            .borrow()
+            .iter()
+            .filter(|(m, _)| m == "surface.set_busy")
+            .map(|(_, p)| p.clone())
+            .collect();
+        assert_eq!(
+            busy,
+            vec![
+                json!({ "surface_id": 42, "busy": true }),
+                json!({ "surface_id": 42, "busy": false }),
+            ]
+        );
+    }
+
     /// 승인 대기는 상태 변경 외에 입력 대기 훅과 화면 알림도 보내야 한다.
     #[test]
     fn a_permission_request_raises_state_notification_and_attention_together() {
@@ -1764,7 +1822,7 @@ mod tests {
         );
     }
 
-    /// 도구 실행 후에는 active로만 바꾸고 알림을 추가하지 않는다.
+    /// 도구 실행 후에는 active로 바꾸고 탭 점만 켠다. 알림은 추가하지 않는다.
     #[test]
     fn a_post_tool_use_only_returns_to_active() {
         let fx = Fixture::new();
@@ -1780,10 +1838,16 @@ mod tests {
         let seen = host.seen.borrow();
         assert_eq!(
             *seen,
-            vec![(
-                "terminal.set_state".to_string(),
-                json!({ "surface": 42, "state": "active" })
-            )],
+            vec![
+                (
+                    "terminal.set_state".to_string(),
+                    json!({ "surface": 42, "state": "active" })
+                ),
+                (
+                    "surface.set_busy".to_string(),
+                    json!({ "surface_id": 42, "busy": true })
+                ),
+            ],
             "{seen:?}"
         );
     }

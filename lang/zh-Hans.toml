@@ -3312,6 +3312,16 @@ help = "Surface ID（必填）"
 [cli.help._root.surface.completion.arg.kind]
 help = "提醒种类：\"completion\"（默认值）或 \"needs_input\"。其他值均按 \"completion\" 处理"
 
+[cli.help._root.surface.set-busy]
+about = "将 Surface 标记为忙碌或空闲，点亮或熄灭标签页和侧边栏的圆点"
+long = "将 Surface 标记为忙碌或空闲，点亮或熄灭标签页和侧边栏的圆点。\n\n适用于在终端中长时间运行、但仅凭前台进程无法看出其正在工作的程序，例如等待网络响应的智能体。终端上的标记会在标记时位于前台的程序离开前台后自动清除。未指定 --surface 时，标记其运行所在的 Surface（TASTY_SURFACE_ID）。"
+
+[cli.help._root.surface.set-busy.arg.surface]
+help = "Surface ID（默认：TASTY_SURFACE_ID）"
+
+[cli.help._root.surface.set-busy.arg.busy]
+help = "true 表示标记为忙碌，false 表示清除标记"
+
 [cli.help._root.surface.cursor-position]
 about = "以列和行输出终端 Surface 中的光标位置"
 long = """

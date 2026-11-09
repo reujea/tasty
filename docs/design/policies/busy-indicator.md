@@ -37,7 +37,7 @@ busy를 해제하는 조건은 (1)과 (2)다. 입력은 해제 조건이 아니�
 | idle인 마우스 트래킹 TUI에서 마우스 이동 | 마우스 보고도 입력이므로 (3)에 따라 idle. 직전이 busy라면 출력이 이어지는 동안 busy 유지 |
 | DSR(`ESC[6n`)·DA·OSC 색상 질의를 반복하면서 출력하는 TUI | 터미널의 질의 응답은 입력이 아니므로 busy |
 
-200ms보다 짧은 간격으로 계속 타이핑하면 그동안의 출력도 에코 구간에 들어가 busy 전환이 늦어질 수 있다. 타이핑이 멈춘 뒤 다음 폴링에서 다시 판단한다. 비터미널 surface(Markdown/Explorer/Image)는 항상 idle이다.
+200ms보다 짧은 간격으로 계속 타이핑하면 그동안의 출력도 에코 구간에 들어가 busy 전환이 늦어질 수 있다. 타이핑이 멈춘 뒤 다음 폴링에서 다시 판단한다. 비터미널 surface(Markdown/Explorer/Image)는 항상 idle이다. 단, plugin surface는 소유 plugin이 `surface.set_busy`로 알린 값을 쓴다 — 아래 (P). 터미널도 같은 입구로 알린 값을 위 판정과 합친다 — 아래 (R).
 
 ### (3) 의 억제 창을 갱신하는 write / 갱신하지 않는 write
 
@@ -51,11 +51,38 @@ PTY로 보내는 데이터는 같은 채널을 사용하지만, `last_input_at`�
 
 터미널 자체 응답까지 입력으로 기록하면 200ms보다 짧게 질의를 반복하는 TUI가 계속 에코 구간에 머무른다. 출력이 있어도 `busy == false`가 되는 오류를 피하려고 두 경우를 구분한다. 실제 전송 경로와 `enqueued_count`·`WriteAck` 규칙은 같다.
 
+### (P) plugin surface
+
+plugin이 그리는 surface(webview 등)에는 전경 프로세스가 없어 호스트가 판단하지 못한다. 소유 plugin이 `surface.set_busy { surface_id, busy }`로 알린 값을 쓴다.
+
+- 호출자는 그 surface를 소유한 plugin이어야 한다. 다른 호출자는 `-32000`으로 거절한다. 터미널도 plugin도 아닌 surface(Markdown 등)도 거절한다.
+- 값은 폴링이 다시 계산하는 터미널 busy와 따로 보관하고, 판정은 둘의 합집합이다. 폴링이 plugin 값을 지우지 않는다.
+- surface가 닫히면 값도 지운다. 턴 도중 닫힌 탭이 워크스페이스를 busy로 남기지 않는다.
+- plugin이 내려가며 끄지 못한 값은 surface가 닫힐 때까지 남는다.
+
+### (R) 터미널에 알린 busy
+
+터미널의 판정은 PTY 출력으로 한다. 그래서 출력 없이 일하는 프로그램은 2초 뒤 idle로 보인다. 응답을 기다리는 에이전트가 그렇다. 그 프로그램이나 그 훅이 같은 입구 `surface.set_busy`(CLI `tasty surface set-busy [--surface <id>] --busy true|false`, `--surface`를 생략하면 그 터미널의 `TASTY_SURFACE_ID`)로 알린다.
+
+- 터미널에는 소유자가 없다. 셸(로컬 CLI)과 plugin 누구나 알린다.
+- 판정은 위 (1)~(4)의 결과와 알린 값의 합집합이다. 알린 값이 출력 판정을 끄지는 않는다.
+- 알린 뒤 첫 폴링에서 본 전경 pid를 기억한다. 전경이 셸 자신이 되거나 비거나 다른 pid로 바뀌면 지운다. 알린 프로그램이 idle을 알리지 못하고 끝나도 점이 남지 않는다. 그래서 셸 프롬프트에서 직접 부른 표시는 다음 폴링에서 지워진다. 스크립트 안에서 부르면 스크립트가 끝날 때까지 남는다.
+- surface가 닫히면 값도 지운다.
+- 번들 Claude·Codex plugin의 훅은 자식 상태를 `active`로 알릴 때 켜고 idle·입력 대기로 알릴 때 끈다. 세션 시작은 끄기만 한다. 사용자가 아직 아무것도 시키지 않았으면 Stop이 오지 않아 점이 계속 켜져 있게 되기 때문이다.
+
+| 상황 | 판정 |
+|---|---|
+| `claude`·`codex`가 API 응답을 기다리며 출력이 없음 | 프롬프트 제출 훅이 켠 값으로 busy |
+| `claude` 턴이 끝남(Stop 훅) | 훅이 끈다. 출력 판정도 idle이면 idle |
+| `claude`가 훅 없이 죽어 셸이 앞으로 옴 | 다음 폴링이 지워 idle |
+
 ## 집계 — OR
 
 | 단위 | busy 판정 |
 |------|-----------|
 | Surface(terminal) | 위 판정 |
+| Surface(terminal) — 알린 값 | 위 판정과 합집합 (R) |
+| Surface(plugin) | 소유 plugin이 알린 값 (P) |
 | Tab | 포함 surface 중 하나라도 busy |
 | Workspace | 포함 surface 중 하나라도 busy. 개수도 제공 |
 

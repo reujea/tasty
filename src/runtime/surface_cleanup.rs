@@ -41,6 +41,7 @@ impl EngineMut<'_> {
         self.live.surface_titles.remove(&surface_id);
         self.live.last_key_input.remove(&surface_id);
         self.live.busy_surfaces.remove(&surface_id);
+        self.live.reported_busy_surfaces.remove(&surface_id);
         self.live
             .mouse_capture_disabled_surfaces
             .remove(&surface_id);

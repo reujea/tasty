@@ -3234,6 +3234,16 @@ help = "サーフェスID（必須）"
 [cli.help._root.surface.completion.arg.kind]
 help = "注意の種類：\"completion\"（既定値）または \"needs_input\"。それ以外は \"completion\" として処理"
 
+[cli.help._root.surface.set-busy]
+about = "サーフェスを処理中または待機中として示し、タブ・サイドバーの点を切り替え"
+long = "サーフェスを処理中または待機中として示し、タブ・サイドバーの点を切り替えます。ネットワーク応答を待つエージェントのように、フォアグラウンドプロセスだけでは処理中と分からないターミナル内のプログラムから使います。ターミナルの表示は、表示した時点で前面にいたプログラムがフォアグラウンドから外れると自動で消えます。--surface を省略すると実行中のサーフェス（TASTY_SURFACE_ID）を表示します。"
+
+[cli.help._root.surface.set-busy.arg.surface]
+help = "サーフェスID（既定: TASTY_SURFACE_ID）"
+
+[cli.help._root.surface.set-busy.arg.busy]
+help = "true で処理中として表示、false で表示を解除"
+
 [cli.help._root.surface.cursor-position]
 about = "ターミナルサーフェスのカーソル位置を列・行で出力"
 long = "ターミナルサーフェスのカーソル位置を列・行で出力します。対象は必ず --surface で指定し、フォーカスから推測しません。"

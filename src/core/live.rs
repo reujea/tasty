@@ -7,6 +7,10 @@ pub(crate) struct LiveDomainState {
     pub(crate) surface_titles: HashMap<u32, tasty_model::SurfaceTitle>,
     pub(crate) last_key_input: HashMap<u32, std::time::Instant>,
     pub(crate) busy_surfaces: std::collections::HashSet<u32>,
+    /// `surface.set_busy`로 알린 busy. 폴링이 `busy_surfaces`를 통째로 바꾸므로 따로 두고, 판정은 둘의
+    /// 합집합이다. 값은 터미널에서 알린 뒤 처음 관측한 전경 pid다(plugin surface와 아직 관측 전이면 None).
+    /// 전경이 그 pid에서 바뀌면 알린 프로그램이 끝난 것으로 보고 지운다.
+    pub(crate) reported_busy_surfaces: HashMap<u32, Option<u32>>,
     // attention은 여러 알림 원인이 공유하며 알림 패널 항목과는 별도 상태다.
     pub(crate) attention: crate::core::state::attention::AttentionStore,
     // busy 폴링에서 얻은 전경 이름으로 마우스 캡처 제한도 계산한다.
@@ -40,6 +44,7 @@ impl Default for LiveDomainState {
             surface_titles: HashMap::new(),
             last_key_input: HashMap::new(),
             busy_surfaces: std::collections::HashSet::new(),
+            reported_busy_surfaces: HashMap::new(),
             attention: crate::core::state::attention::AttentionStore::default(),
             mouse_capture_disabled_surfaces: std::collections::HashSet::new(),
             shell_integration_first_output_at: std::collections::HashMap::new(),

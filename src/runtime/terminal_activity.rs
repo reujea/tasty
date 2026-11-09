@@ -41,11 +41,29 @@ impl EngineMut<'_> {
             .unwrap_or(0)
     }
 
-    /// 로컬 폴링 결과와 원격 push 결과의 합집합.
+    /// 로컬 폴링 · plugin 보고 · 원격 push 결과의 합집합.
     #[cfg(test)]
     fn is_locally_or_mirror_busy(&self, surface_id: u32) -> bool {
         self.live.busy_surfaces.contains(&surface_id)
+            || self.live.reported_busy_surfaces.contains_key(&surface_id)
             || self.remote.mirror_busy_surfaces.contains(&surface_id)
+    }
+
+    /// `surface.set_busy`로 알린 busy를 적용한다. 호출자가 대상에 알릴 수 있는지는 IPC 핸들러가
+    /// 검사한다. 이미 켜진 값을 다시 켜면 관측한 전경 pid를 그대로 둔다. 값이 바뀌었으면 true다.
+    pub(crate) fn set_reported_surface_busy(&mut self, surface_id: u32, busy: bool) -> bool {
+        if busy {
+            if self.live.reported_busy_surfaces.contains_key(&surface_id) {
+                return false;
+            }
+            self.live.reported_busy_surfaces.insert(surface_id, None);
+            true
+        } else {
+            self.live
+                .reported_busy_surfaces
+                .remove(&surface_id)
+                .is_some()
+        }
     }
 
     #[cfg(test)]
@@ -92,13 +110,37 @@ impl EngineMut<'_> {
             .retain(|sid, _| occupied.contains(sid));
         let mut out = Vec::new();
         for (sid, lock) in locks {
-            let record = (lock.holder, self.live.busy_surfaces.contains(&sid));
+            let record = (
+                lock.holder,
+                self.live.busy_surfaces.contains(&sid)
+                    || self.live.reported_busy_surfaces.contains_key(&sid),
+            );
             if self.remote.last_forwarded_busy.get(&sid) != Some(&record) {
                 self.remote.last_forwarded_busy.insert(sid, record);
                 out.push((record.0, sid, record.1));
             }
         }
         out
+    }
+}
+
+/// 터미널에 알린 busy를 전경 프로세스와 맞춘다. 알린 뒤 처음 본 전경 pid를 기억하고, 전경이 비거나
+/// 셸 자신이거나 그 pid에서 바뀌면 지운다. 알린 프로그램이 끝났는데 idle을 알리지 못해도 점이 남지
+/// 않게 한다(docs/design/policies/busy-indicator.md (R)).
+fn settle_reported_busy(
+    reported: &mut std::collections::HashMap<u32, Option<u32>>,
+    sid: u32,
+    shell_pid: u32,
+    foreground_pid: Option<u32>,
+) {
+    let Some(anchor) = reported.get_mut(&sid) else {
+        return;
+    };
+    match foreground_pid {
+        Some(pid) if pid != shell_pid && anchor.is_none_or(|a| a == pid) => *anchor = Some(pid),
+        _ => {
+            reported.remove(&sid);
+        }
     }
 }
 
@@ -146,6 +188,12 @@ impl EngineMut<'_> {
             if terminal.busy_with_foreground(shell_pid, fg.as_ref()) {
                 busy.insert(sid);
             }
+            settle_reported_busy(
+                &mut self.live.reported_busy_surfaces,
+                sid,
+                shell_pid,
+                fg.as_ref().map(|f| f.pid),
+            );
             if let Some(f) = fg.as_ref() {
                 if self
                     .runtime
@@ -215,6 +263,26 @@ mod tests {
             e.is_surface_busy(42),
             "로컬 refresh 가 mirror 의 busy 상태를 지우면 안 된다"
         );
+    }
+
+    // 알린 뒤 처음 본 전경 pid가 남아 있는 동안만 busy다. 그 프로그램이 끝나 셸이 앞으로 오거나
+    // 다른 프로그램으로 바뀌면 idle을 못 받아도 지운다.
+    #[test]
+    fn a_reported_terminal_busy_lasts_while_its_program_is_in_front() {
+        let mut r = std::collections::HashMap::from([(5, None)]);
+        super::settle_reported_busy(&mut r, 5, 100, Some(200));
+        assert_eq!(r.get(&5), Some(&Some(200)), "첫 전경 pid를 기억하지 않았다");
+        super::settle_reported_busy(&mut r, 5, 100, Some(200));
+        assert!(r.contains_key(&5), "같은 프로그램이 앞에 있는데 지웠다");
+        super::settle_reported_busy(&mut r, 5, 100, Some(300));
+        assert!(!r.contains_key(&5), "전경이 바뀌었는데 남았다");
+
+        for fg in [Some(100), None] {
+            let mut r = std::collections::HashMap::from([(5, None), (6, None)]);
+            super::settle_reported_busy(&mut r, 5, 100, fg);
+            assert!(!r.contains_key(&5), "셸이 앞에 있는데 남았다: {fg:?}");
+            assert!(r.contains_key(&6), "다른 surface 값까지 지웠다");
+        }
     }
 
     #[test]

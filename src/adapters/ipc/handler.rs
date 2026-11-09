@@ -611,6 +611,7 @@ fn route_engine_handler(
             surface::remote_read::set_mark(core, out, engine, id, &request.params)
         }
         "surface.completion" => surface::handle_completion(out, engine, id, &request.params),
+        "surface.set_busy" => surface::handle_set_busy(engine, caller, id, &request.params),
         "surface.attention.get" => {
             surface::handle_attention_get(&engine.as_ref(), id, &request.params)
         }
