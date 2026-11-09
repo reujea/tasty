@@ -6439,13 +6439,14 @@ dependencies = [
 
 [[package]]
 name = "tasty-plugin-claude"
-version = "0.2.34"
+version = "0.2.35"
 dependencies = [
  "anyhow",
  "directories",
  "regex",
  "serde_json",
  "shell-escape",
+ "tasty-i18n",
  "tasty-plugin-agent-common",
  "tasty-plugin-sdk",
  "tasty-test-support",
@@ -6482,13 +6483,14 @@ dependencies = [
 
 [[package]]
 name = "tasty-plugin-codex"
-version = "0.2.77"
+version = "0.2.78"
 dependencies = [
  "anyhow",
  "getrandom 0.3.4",
  "serde",
  "serde_json",
  "sha2",
+ "tasty-i18n",
  "tasty-plugin-agent-common",
  "tasty-plugin-sdk",
  "tasty-reaper",
@@ -6502,7 +6504,7 @@ dependencies = [
 
 [[package]]
 name = "tasty-plugin-git-viewer"
-version = "0.1.426"
+version = "0.1.427"
 dependencies = [
  "anyhow",
  "egui",
@@ -6511,6 +6513,7 @@ dependencies = [
  "serde_json",
  "tasty-egui-theme",
  "tasty-git-core",
+ "tasty-i18n",
  "tasty-plugin-protocol",
  "tasty-plugin-sdk",
  "tasty-type-appearance",
@@ -6535,7 +6538,7 @@ dependencies = [
 
 [[package]]
 name = "tasty-plugin-image"
-version = "0.1.369"
+version = "0.1.370"
 dependencies = [
  "anyhow",
  "arboard",
@@ -6543,6 +6546,7 @@ dependencies = [
  "image",
  "serde_json",
  "tasty-egui-theme",
+ "tasty-i18n",
  "tasty-icons",
  "tasty-plugin-protocol",
  "tasty-plugin-sdk",

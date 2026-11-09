@@ -1199,7 +1199,7 @@ mod tests {
     /// 모든 언어에서 누락과 형식 오류를 구분해야 한다.
     #[test]
     fn the_two_branches_stay_distinguishable_in_every_locale() {
-        for locale in ["en", "ko", "ja"] {
+        for locale in tasty_i18n::BUILTIN_CODES {
             let tr = test_translator_for(locale);
             let absent = absent_msg(&tr, "surface");
             let malformed = malformed_msg(&tr, "surface", "5000000000");
@@ -1221,7 +1221,7 @@ mod tests {
     /// 모든 언어에서 잘못된 필드 이름을 오류에 포함해야 한다.
     #[test]
     fn a_malformed_target_surface_names_which_of_the_two_keys_was_wrong() {
-        for locale in ["en", "ko", "ja"] {
+        for locale in tasty_i18n::BUILTIN_CODES {
             let tr = test_translator_for(locale);
             let by_surface = optional_target_surface(&json!({ "surface": "x" }), &tr)
                 .expect_err("문자열은 surface id 가 아니다")
@@ -1483,10 +1483,10 @@ mod tests {
         assert!(err.is_err(), "전파하는 호출의 실패는 Err 로 나간다");
     }
 
-    /// 대상 형식 오류와 값 충돌을 누락 안내로 바꾸지 않아야 한다. 세 언어를 확인한다.
+    /// 대상 형식 오류와 값 충돌을 누락 안내로 바꾸지 않아야 한다. 내장 언어를 모두 확인한다.
     #[test]
     fn a_hook_does_not_answer_malformed_or_conflicting_names_with_requires_surface() {
-        for locale in ["en", "ko", "ja"] {
+        for locale in tasty_i18n::BUILTIN_CODES {
             let tr = test_translator_for(locale);
             let host = FlakyHost::failing(Vec::new());
             let requires = tr.t("codex.hook.requires_surface");
@@ -1914,17 +1914,18 @@ mod tests {
     #[test]
     fn build_spawn_warning_follows_active_locale() {
         let lang_dir = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("lang");
-        let en =
-            build_spawn_warning(&Translator::load(&lang_dir, "en"), 7, &[2], &[3], 6.0).unwrap();
-        let ko =
-            build_spawn_warning(&Translator::load(&lang_dir, "ko"), 7, &[2], &[3], 6.0).unwrap();
-        let ja =
-            build_spawn_warning(&Translator::load(&lang_dir, "ja"), 7, &[2], &[3], 6.0).unwrap();
-        assert_ne!(en, ko);
-        assert_ne!(en, ja);
-        assert_ne!(ko, ja);
+        let messages: Vec<(&str, String)> = tasty_i18n::BUILTIN_CODES
+            .iter()
+            .map(|code| {
+                let tr = Translator::load(&lang_dir, code);
+                (*code, build_spawn_warning(&tr, 7, &[2], &[3], 6.0).unwrap())
+            })
+            .collect();
+        let distinct: std::collections::BTreeSet<&String> =
+            messages.iter().map(|(_, msg)| msg).collect();
+        assert_eq!(distinct.len(), messages.len(), "{messages:?}");
         // 어느 로케일이든 치환 자체는 성공해야 한다(플레이스홀더가 남지 않는다).
-        for (locale, msg) in [("en", &en), ("ko", &ko), ("ja", &ja)] {
+        for (locale, msg) in &messages {
             assert!(!msg.contains("{total}"), "{locale}: {msg}");
             assert!(!msg.contains("{threshold}"), "{locale}: {msg}");
             assert!(!msg.contains("{indices}"), "{locale}: {msg}");
@@ -2452,7 +2453,7 @@ trusted_hash = "sha256:xyz"
     /// 모든 언어에서 대상 번호와 호출 방식이 치환돼야 한다.
     #[test]
     fn notify_caller_message_keeps_its_substitutions_in_every_locale() {
-        for code in ["en", "ko", "ja"] {
+        for code in tasty_i18n::BUILTIN_CODES {
             let msg = notify_caller_message(&test_translator_for(code), "tell", 42);
             assert!(msg.contains("42"), "[{code}] target 번호 누락: {msg}");
             assert!(msg.contains("tell"), "[{code}] 호출 방식 누락: {msg}");

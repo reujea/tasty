@@ -828,11 +828,11 @@ mod tests {
         assert_eq!(err.code, -32602);
     }
 
-    /// 너무 큼 문구는 세 언어 모두 숫자와 단위를 NBSP 로 붙여 그 사이에서 줄이 바뀌지 않는다.
+    /// 너무 큼 문구는 내장 언어 모두 숫자와 단위를 NBSP 로 붙여 그 사이에서 줄이 바뀌지 않는다.
     #[test]
     fn too_large_lines_keep_each_number_with_its_unit() {
         let lang = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("lang");
-        for locale in ["en", "ko", "ja"] {
+        for locale in tasty_i18n::BUILTIN_CODES {
             let tr = Translator::load(&lang, locale);
             let sub = tr.t_args("image.state.too_large_sub", &["16384", "512\u{a0}MiB"]);
             assert!(sub.contains("16384\u{a0}px"), "{locale}: {sub}");

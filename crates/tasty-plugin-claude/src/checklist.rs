@@ -501,12 +501,12 @@ mod tests {
         Translator::load(&lang_dir, "en")
     }
 
-    // 세 언어의 본문에 실제 판정과 같은 완료 표식이 있는지 확인한다.
+    // 내장 언어의 본문에 실제 판정과 같은 완료 표식이 있는지 확인한다.
 
     #[test]
     fn checklist_body_contains_sentinel_in_every_locale() {
         let lang_dir = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("lang");
-        for locale in ["en", "ko", "ja"] {
+        for locale in tasty_i18n::BUILTIN_CODES {
             let translator = tasty_plugin_sdk::i18n::Translator::load(&lang_dir, locale);
             let body = translator.t("claude.checklist.body");
             assert!(
@@ -567,12 +567,12 @@ mod tests {
         );
     }
 
-    // 세 언어에 목표 토큰과 치환 자리가 있는지 확인한다.
+    // 내장 언어마다 목표 토큰과 치환 자리가 있는지 확인한다.
 
     #[test]
     fn checklist_body_contains_goal_token_in_every_locale() {
         let lang_dir = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("lang");
-        for locale in ["en", "ko", "ja"] {
+        for locale in tasty_i18n::BUILTIN_CODES {
             let translator = tasty_plugin_sdk::i18n::Translator::load(&lang_dir, locale);
             let body = translator.t("claude.checklist.body");
             assert!(
@@ -585,7 +585,7 @@ mod tests {
     #[test]
     fn checklist_goal_clause_has_a_slot_in_every_locale() {
         let lang_dir = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("lang");
-        for locale in ["en", "ko", "ja"] {
+        for locale in tasty_i18n::BUILTIN_CODES {
             let translator = tasty_plugin_sdk::i18n::Translator::load(&lang_dir, locale);
             let clause = translator.t("claude.checklist.goal_clause");
             assert!(

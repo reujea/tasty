@@ -806,11 +806,11 @@ mod tests {
         assert!(!t.limit_reached(7, 1));
     }
 
-    /// 번역 키가 세 언어에 있고 횟수 안내에 placeholder 세 개가 있는지 확인한다.
+    /// 번역 키가 내장 언어마다 있고 횟수 안내에 placeholder 세 개가 있는지 확인한다.
     #[test]
     fn every_locale_has_the_resume_texts() {
         let lang_dir = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("lang");
-        for code in ["en", "ko", "ja"] {
+        for code in tasty_i18n::BUILTIN_CODES {
             let tr = tasty_plugin_sdk::i18n::Translator::load(&lang_dir, code);
             for key in [
                 "claude.auto_resume.message",

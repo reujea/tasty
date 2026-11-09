@@ -1,6 +1,6 @@
 [package]
 name = "tasty-plugin-codex"
-version = "0.2.77"
+version = "0.2.78"
 edition = "2024"
 license = "MIT"
 description = "External Tasty plugin: codex CLI integration"
@@ -28,6 +28,8 @@ getrandom = "0.3"
 sha2 = "0.10"
 
 [dev-dependencies]
+# 언어별 시험의 대상 목록을 내장 언어 정본에서 얻는다.
+tasty-i18n = { path = "../tasty-i18n" }
 tasty-test-support = { path = "../tasty-test-support" }
 tempfile = "3"
 

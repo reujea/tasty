@@ -878,7 +878,10 @@ mod tests {
     #[test]
     fn fallback_follows_plugin_locale() {
         let e = entry("", "");
-        for locale in ["ko", "ja"] {
+        for locale in tasty_i18n::BUILTIN_CODES
+            .iter()
+            .filter(|code| **code != "en")
+        {
             let tr = translator(locale);
             let summary = summary_text(&tr, &e);
             let author = author_text(&tr, &e);

@@ -1,6 +1,6 @@
 [package]
 name = "tasty-plugin-image"
-version = "0.1.369"
+version = "0.1.370"
 edition = "2024"
 license = "MIT"
 description = "Image surface viewer / paint canvas plugin (egui-mesh + bitmap texture)"
@@ -38,6 +38,10 @@ egui = { version = "0.31", default-features = false, features = [
 # 아이콘의 경로만 읽는다. 기본 기능(text)은 유지보수가 끝난 rustybuzz(RUSTSEC-2026-0206)를 끌어온다.
 usvg = { version = "0.37", default-features = false }
 tasty-icons = { path = "../tasty-icons", default-features = false }
+
+[dev-dependencies]
+# 언어별 시험의 대상 목록을 내장 언어 정본에서 얻는다.
+tasty-i18n = { path = "../tasty-i18n" }
 
 [lints]
 workspace = true

@@ -876,7 +876,7 @@ mod message_tests {
     #[test]
     fn name_conflict_messages_fill_every_placeholder() {
         let lang_dir = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("lang");
-        for locale in ["en", "ko", "ja"] {
+        for locale in tasty_i18n::BUILTIN_CODES {
             let tr = Translator::load(&lang_dir, locale);
 
             let gate_side = GateError::ProfileNameConflict("mygate".into()).translate(&tr);

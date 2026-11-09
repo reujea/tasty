@@ -4110,10 +4110,10 @@ mod tests {
         }
     }
 
-    /// 세 언어 모두 잘못된 surface 인자 이름을 오류에 포함해야 한다.
+    /// 내장 언어 모두 잘못된 surface 인자 이름을 오류에 포함해야 한다.
     #[test]
     fn a_malformed_surface_in_a_hook_names_which_of_the_two_keys_was_wrong() {
-        for locale in ["en", "ko", "ja"] {
+        for locale in tasty_i18n::BUILTIN_CODES {
             let tr = test_translator_for(locale);
             // env 는 채워둔다 — 폴백으로 넘어가면 문구 자체가 안 나온다.
             let by_surface = resolve_surface_id_from(&json!({ "surface": "x" }), Some("42"), &tr)

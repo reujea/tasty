@@ -586,7 +586,7 @@ mod tests {
     /// 모든 언어에서 화면 확인에 사용할 선두 문구를 유지해야 한다.
     #[test]
     fn notice_starts_with_the_snippet_in_every_locale() {
-        for code in ["en", "ko", "ja"] {
+        for code in tasty_i18n::BUILTIN_CODES {
             let tr = test_translator_for(code);
             let notice = build_notice(tr.t(REBOOT_NOTICE_KEY), None);
             assert!(

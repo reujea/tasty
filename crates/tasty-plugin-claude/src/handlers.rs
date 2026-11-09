@@ -1232,10 +1232,10 @@ mod tests {
         Translator::load(&lang_dir, code)
     }
 
-    /// 잘못된 인자 이름을 세 언어에서 모두 알려야 한다.
+    /// 잘못된 인자 이름을 내장 언어 모두에서 알려야 한다.
     #[test]
     fn a_malformed_target_surface_names_which_of_the_two_keys_was_wrong() {
-        for locale in ["en", "ko", "ja"] {
+        for locale in tasty_i18n::BUILTIN_CODES {
             let tr = test_translator_for(locale);
             let by_surface = optional_target_surface(&json!({ "surface": "x" }), &tr)
                 .expect_err("문자열은 surface id 가 아니다")

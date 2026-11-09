@@ -1,6 +1,6 @@
 [package]
 name = "tasty-plugin-claude"
-version = "0.2.34"
+version = "0.2.35"
 edition = "2024"
 license = "MIT"
 description = "External Tasty plugin: Claude Code CLI integration"
@@ -24,6 +24,8 @@ shell-escape = "0.1"
 uuid = { version = "1", features = ["v4"] }
 
 [dev-dependencies]
+# 언어별 시험의 대상 목록을 내장 언어 정본에서 얻는다.
+tasty-i18n = { path = "../tasty-i18n" }
 tempfile = "3"
 tasty-test-support = { path = "../tasty-test-support" }
 
