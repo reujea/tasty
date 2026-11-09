@@ -383,6 +383,7 @@ pub fn terminal(ui: &mut egui::Ui, theme: &Theme) {
             );
             ui.add_space(theme.spacing_sm.value());
             faux_terminal(ui, theme);
+            faux_terminal_unfocused(ui, theme);
             ui.add_space(theme.spacing_sm.value());
             sem_row(
                 ui,
@@ -453,9 +454,11 @@ pub fn terminal(ui: &mut egui::Ui, theme: &Theme) {
         "Active match ink. Glyphs inside the active match are drawn in search-match-active-fg, \
          not the cell's own foreground: Mocha's light text on yellow 70% was 1.61 : 1. Mocha ink \
          → neutral-200 (base) 6.95 : 1. Latte keeps text-primary ink and drops the active fill \
-         to 50% → 4.68 : 1 (70% was 3.94). Ordinary matches (30%) keep the cell's own colours: \
-         Mocha 4.75 · Latte 5.50. Cell colours set by the app (SGR) are overridden only inside \
-         the active match.",
+         to 50% → 4.68 : 1 (70% was 3.94). Ordinary matches (30% fill, not the current match) \
+         draw cells with default ink in text-primary; on the unfocused bed, this pair measures \
+         Mocha 4.75 · Latte 4.88. Cells with their own ANSI color keep that color inside \
+         ordinary matches. Cell colours set by the app (SGR) are overridden only inside the \
+         active match.",
     );
     dont(
         ui,
@@ -536,6 +539,47 @@ fn swatch_box(ui: &mut egui::Ui, theme: &Theme, fill: egui::Color32) {
         egui::Stroke::new(theme.border_width.value(), ec(theme.border_strong())),
         egui::StrokeKind::Inside,
     );
+}
+
+/// 비포커스 바탕의 찾기 매치. 기본 글자 셀은 text-primary, ANSI 색 셀은 자기 색이다.
+fn faux_terminal_unfocused(ui: &mut egui::Ui, theme: &Theme) {
+    let term = theme.surface("terminal");
+    let fg = ec(term.unfocused_fg);
+    let mono = theme.font_size_caption.value();
+    let matched = ec(theme.search_match_bg);
+    egui::Frame::new()
+        .fill(ec(term.unfocused_bg))
+        .corner_radius(theme.corner_radius.value())
+        .inner_margin(egui::Margin::same(theme.spacing_md.value() as i8))
+        .show(ui, |ui| {
+            ui.set_width(ui.available_width());
+            ui.horizontal_wrapped(|ui| {
+                ui.spacing_mut().item_spacing.x = 0.0;
+                let segments = [
+                    ("unfocused: a ", None, fg),
+                    ("match", Some(matched), ec(theme.text_primary())),
+                    (", an ", None, fg),
+                    ("ANSI match", Some(matched), ec(theme.ansi_red)),
+                    (" and the ", None, fg),
+                    (
+                        "match",
+                        Some(ec(theme.search_match_active_bg)),
+                        ec(theme.search_match_active_unfocused_fg()),
+                    ),
+                    (" under the cursor", None, fg),
+                ];
+                for (text, bg, color) in segments {
+                    let mut run = egui::RichText::new(text)
+                        .monospace()
+                        .size(mono)
+                        .color(color);
+                    if let Some(bg) = bg {
+                        run = run.background_color(bg);
+                    }
+                    ui.label(run);
+                }
+            });
+        });
 }
 
 /// 상태 채움을 보여주는 가짜 터미널 줄 — 가장 깊은 surface(bg-app) 위 mono 텍스트.
