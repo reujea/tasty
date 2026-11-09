@@ -7,9 +7,9 @@ use tasty_selection::{NormalizedSelection, SelectionPoint};
 use tasty_terminal_link::LinkHighlight;
 
 use super::CellRenderer;
+use super::cell_paint::{CellOverlays, paint_cell};
 use super::overlay::composite_over;
 use super::types::{BgInstance, GlyphInstance};
-use crate::cell_palette::compute_cell_colors;
 use tasty_cell_width::unicode_width;
 
 impl CellRenderer {
@@ -33,39 +33,21 @@ impl CellRenderer {
         link: Option<&LinkHighlight>,
         search: Option<&super::SearchHighlights<'_>>,
     ) {
-        let (mut bg_color, mut fg_color) = compute_cell_colors(attrs, default_bg, default_fg, ansi);
-        let mut ink_replaced = false;
-
-        if let Some((sel, sel_bg)) = selection
-            && tasty_selection::is_selected(col_idx, absolute_row, sel)
-        {
-            bg_color = composite_over(*sel_bg, bg_color);
-        }
-        if let Some((pt, cursor_bg, cursor_fg)) = vi_cursor
-            && pt.col == col_idx
-            && pt.absolute_row == absolute_row
-        {
-            bg_color = composite_over(*cursor_bg, bg_color);
-            fg_color = *cursor_fg;
-            ink_replaced = true;
-        }
-        if let Some(link) = link
-            && link.covers(col_idx, absolute_row)
-        {
-            bg_color = composite_over(link.bg, bg_color);
-            fg_color = link.fg;
-            ink_replaced = true;
-        }
-        if let Some(sh) = search {
-            sh.paint(
-                col_idx,
-                absolute_row,
-                attrs,
-                ink_replaced,
-                &mut bg_color,
-                &mut fg_color,
-            );
-        }
+        let (bg_color, fg_color) = paint_cell(
+            col_idx,
+            absolute_row,
+            attrs,
+            default_bg,
+            default_fg,
+            ansi,
+            false,
+            &CellOverlays {
+                selection,
+                vi_cursor,
+                link,
+                search,
+            },
+        );
 
         let off = self.current_viewport_offset;
 

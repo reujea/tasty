@@ -1,6 +1,7 @@
 //! 찾기 매치의 글자색. 셀 속성은 실제 SGR 바이트를 터미널에 넣어 얻는다.
 
 use super::*;
+use crate::cell_palette::compute_cell_colors;
 use tasty_terminal::Terminal;
 use tasty_terminal::search::SearchMatch;
 use termwiz::cell::CellAttributes;
@@ -175,6 +176,69 @@ fn a_cell_outside_every_match_is_untouched() {
 fn ink_chosen_by_a_cursor_or_link_stays_in_a_match() {
     let attrs = attrs_of("");
     assert_eq!(fg_at(&highlights(), MATCH_COL, &attrs, true), default_fg());
+}
+
+/// 칸 전체를 칠하는 함수로 잰다. 맞바꾼 글자는 바탕 색이고, 일반 매치가 덮으면 커서 글자가 달라진다.
+#[test]
+fn a_block_cursor_cell_keeps_its_swapped_ink_in_a_match() {
+    let attrs = attrs_of("");
+    let sh = highlights();
+    let paint = |block_cursor| {
+        paint_cell(
+            MATCH_COL,
+            0,
+            &attrs,
+            default_bg(),
+            default_fg(),
+            &ansi(),
+            block_cursor,
+            &CellOverlays {
+                selection: None,
+                vi_cursor: None,
+                link: None,
+                search: Some(&sh),
+            },
+        )
+        .1
+    };
+    assert_eq!(paint(true), default_bg());
+    assert_eq!(paint(false), ink());
+}
+
+/// 터미널에 DECSCNM을 넣어 viewport 값을 정하는 함수를 잰다. 설정이 꺼지면 반전이 아니다.
+#[test]
+fn a_reversed_screen_keeps_the_cell_ink_only_when_the_setting_allows_it() {
+    let mut terminal = Terminal::new_detached(20, 3);
+    terminal.feed_bytes(b"\x1b[?5hx");
+    terminal.with_content(|view| {
+        let mut sh = highlights();
+        sh.epoch = view.cut().epoch;
+        for (enabled, want_bg, want_ink) in [
+            (true, default_fg(), None),
+            (false, default_bg(), Some(ink())),
+        ] {
+            let paint = screen_paint(&view, enabled, Some(&sh), default_bg(), default_fg());
+            assert_eq!(paint.default_bg, want_bg);
+            assert_eq!(paint.search.expect("same epoch").inactive_ink, want_ink);
+        }
+        let reversed = screen_paint(&view, true, Some(&sh), default_bg(), default_fg());
+        let (_, fg) = paint_cell(
+            MATCH_COL,
+            0,
+            &attrs_of(""),
+            reversed.default_bg,
+            reversed.default_fg,
+            &ansi(),
+            false,
+            &CellOverlays {
+                selection: None,
+                vi_cursor: None,
+                link: None,
+                search: reversed.search.as_ref(),
+            },
+        );
+        assert_eq!(fg, default_bg());
+    });
 }
 
 #[test]

@@ -2,6 +2,7 @@
 //! 입력 타입은 소유 크레이트를 직접 참조한다. 셀 색 해석은 헤드리스와 같은 cell_palette를 사용한다.
 //! 의존 경계: docs/architecture/index.md.
 
+mod cell_paint;
 mod line_render;
 mod overlay;
 mod pipeline;
@@ -20,6 +21,7 @@ use tasty_model::PhysicalRect;
 use tasty_selection::{NormalizedSelection, SelectionPoint};
 use tasty_terminal_link::LinkHighlight;
 
+use cell_paint::{CellOverlays, ScreenPaint, paint_cell, screen_paint};
 use overlay::composite_over;
 
 /// Search match highlights to pass into the renderer.
@@ -113,7 +115,7 @@ impl CursorPaint {
     }
 }
 
-use crate::cell_palette::{compute_cell_colors, reads_default_ink};
+use crate::cell_palette::reads_default_ink;
 use types::{BgInstance, GlyphInstance, Uniforms};
 
 pub struct RenderPreedit {
@@ -227,18 +229,12 @@ impl CellRenderer {
             let vi_cursor = vi_cursor.filter(|(p, ..)| p.epoch == epoch);
             let link = link.filter(|l| l.epoch == epoch);
             let preedit = preedit.filter(|p| p.anchor.epoch == epoch);
-            // reverse_screen_enabled일 때만 기본 전경·배경을 바꾼다.
-            // 꺼져 있어도 터미널 모드 자체는 유지해 조회 결과는 바꾸지 않는다.
-            let reversed = reverse_screen_enabled && view.screen_reverse();
-            let search = search
-                .filter(|s| s.epoch == epoch)
-                .map(|s| s.on_screen(reversed));
+            let ScreenPaint {
+                search,
+                default_bg,
+                default_fg,
+            } = screen_paint(view, reverse_screen_enabled, search, default_bg, default_fg);
             let search = search.as_ref();
-            let (default_bg, default_fg) = if reversed {
-                (default_fg, default_bg)
-            } else {
-                (default_bg, default_fg)
-            };
             let cursor = if show_cursor && view.cursor_visible() && view.scroll_offset() == 0 {
                 let (cx, cy) = view.surface().cursor_position();
                 let wide = view
@@ -415,46 +411,22 @@ impl CellRenderer {
                     }
                     _ => None,
                 };
-                let (mut bg_color, mut fg_color) =
-                    compute_cell_colors(attrs, default_bg, default_fg, ansi);
-                let mut ink_replaced = false;
-                if cursor_paint == Some(CursorPaint::Block) {
-                    std::mem::swap(&mut bg_color, &mut fg_color);
-                    ink_replaced = true;
-                }
-
                 let abs_row = row_offset + row_idx;
-                if let Some((sel, sel_bg)) = selection
-                    && tasty_selection::is_selected(col_idx, abs_row, sel)
-                {
-                    bg_color = composite_over(*sel_bg, bg_color);
-                }
-                // vi copy mode cursor cell: selection 보다 우선.
-                if let Some((pt, cursor_bg, cursor_fg)) = vi_cursor
-                    && pt.col == col_idx
-                    && pt.absolute_row == abs_row
-                {
-                    bg_color = composite_over(*cursor_bg, bg_color);
-                    fg_color = *cursor_fg;
-                    ink_replaced = true;
-                }
-                if let Some(link) = link
-                    && link.covers(col_idx, abs_row)
-                {
-                    bg_color = composite_over(link.bg, bg_color);
-                    fg_color = link.fg;
-                    ink_replaced = true;
-                }
-                if let Some(sh) = search {
-                    sh.paint(
-                        col_idx,
-                        abs_row,
-                        attrs,
-                        ink_replaced,
-                        &mut bg_color,
-                        &mut fg_color,
-                    );
-                }
+                let (bg_color, fg_color) = paint_cell(
+                    col_idx,
+                    abs_row,
+                    attrs,
+                    default_bg,
+                    default_fg,
+                    ansi,
+                    cursor_paint == Some(CursorPaint::Block),
+                    &CellOverlays {
+                        selection,
+                        vi_cursor,
+                        link,
+                        search,
+                    },
+                );
 
                 self.bg_instances.push(BgInstance {
                     pos: [col_idx as f32, row_idx as f32],
