@@ -4,6 +4,7 @@
 use tasty_type_appearance::theme::Theme;
 use tasty_ui_widgets::{checkbox, surface_bed};
 
+use super::callout_kinds::{Callout, callout_box};
 use super::{DOC_W, rich};
 use crate::catalog::icons;
 
@@ -81,7 +82,7 @@ pub(super) fn document(ui: &mut egui::Ui, theme: &Theme, focused: bool) {
             blockquote(ui, theme);
 
             heading(ui, theme, 3, "Callouts");
-            callouts(ui, theme);
+            callouts(ui, theme, focused);
 
             heading(ui, theme, 4, "Subsection (h4)");
             heading(ui, theme, 5, "Minor note (h5)");
@@ -497,9 +498,10 @@ pub(super) fn quote_block(
     callout_block(ui, bar_w, gap, theme.border_strong().to_egui(), add);
 }
 
-/// 콜아웃 표본의 아이콘·강조색·제목·본문·접힘 여부.
+/// 콜아웃 표본의 아이콘·강조색·제목색·라벨·본문·접힘 여부.
 type CalloutSpec = (
     icons::MockGlyph,
+    fn(&Theme) -> tasty_type_appearance::color::HexColor,
     fn(&Theme) -> tasty_type_appearance::color::HexColor,
     &'static str,
     &'static str,
@@ -509,11 +511,12 @@ type CalloutSpec = (
 /// GitHub alert·Obsidian callout 두 형태(blockquote · 접히는 details) — 시안 `Callouts`.
 /// 본체 렌더러와 같은 상자(종류 색 채움·아이콘·radius)이며, 접힌 형태는 제목 앞에 chevron 을 두고
 /// 본문 대신 caption 설명을 단다.
-fn callouts(ui: &mut egui::Ui, theme: &Theme) {
+fn callouts(ui: &mut egui::Ui, theme: &Theme, focused: bool) {
     let items: [CalloutSpec; 2] = [
         (
             icons::ALERT_CIRCLE,
             Theme::accent_primary,
+            Theme::accent_primary_raised,
             "Note",
             "Non-collapsible: > [!note]",
             false,
@@ -521,13 +524,26 @@ fn callouts(ui: &mut egui::Ui, theme: &Theme) {
         (
             icons::ALERT_TRIANGLE,
             Theme::accent_warning,
+            Theme::accent_warning_raised,
             "Warning",
             "Collapsible: > [!warning]- (closed until clicked)",
             true,
         ),
     ];
-    for (icon, accent, title, body, fold) in items {
-        super::callout_kinds::callout_box(ui, theme, icon, accent(theme), title, body, fold);
+    for (icon, accent, raised, label, body, folded) in items {
+        callout_box(
+            ui,
+            theme,
+            &Callout {
+                icon,
+                accent: accent(theme),
+                raised: raised(theme),
+                label,
+                body,
+                folded,
+                bed: surface_bed(theme, focused),
+            },
+        );
         ui.add_space(theme.spacing_md.value());
     }
 }

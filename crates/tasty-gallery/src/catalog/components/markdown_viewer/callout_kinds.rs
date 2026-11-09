@@ -8,9 +8,10 @@ use super::{DOC_W, rich};
 use crate::catalog::icons;
 use crate::catalog::spec::{self, StageVariant, TokenChip};
 
-/// 콜아웃 한 종의 아이콘·강조색·라벨·본문.
+/// 콜아웃 한 종의 아이콘·강조색·제목색·라벨·본문.
 type CalloutKind = (
     icons::MockGlyph,
+    fn(&Theme) -> HexColor,
     fn(&Theme) -> HexColor,
     &'static str,
     &'static str,
@@ -20,30 +21,35 @@ const KINDS: [CalloutKind; 5] = [
     (
         icons::ALERT_CIRCLE,
         Theme::accent_primary,
+        Theme::accent_primary_raised,
         "Note",
         "Highlights information users should take into account, even when skimming.",
     ),
     (
         icons::STAR_FILL,
         Theme::accent_success,
+        Theme::accent_success_raised,
         "Tip",
         "Optional information to help a user be more successful.",
     ),
     (
         icons::BELL,
         Theme::accent_agent,
+        Theme::accent_agent_raised,
         "Important",
         "Crucial information necessary for users to succeed.",
     ),
     (
         icons::ALERT_TRIANGLE,
         Theme::accent_warning,
+        Theme::accent_warning_raised,
         "Warning",
         "Critical content demanding immediate user attention due to possible risks.",
     ),
     (
         icons::CLOSE,
         Theme::accent_danger,
+        Theme::accent_danger_raised,
         "Caution",
         "Negative potential consequences of an action.",
     ),
@@ -75,8 +81,21 @@ fn draw(ui: &mut egui::Ui, theme: &Theme) {
             ))
             .show(ui, |ui| {
                 ui.set_width(DOC_W.value());
-                for (icon, accent, label, body) in KINDS {
-                    callout_box(ui, theme, icon, accent(theme), label, body, false);
+                let bed = theme.surface("markdown").focused_bg.to_egui();
+                for (icon, accent, raised, label, body) in KINDS {
+                    callout_box(
+                        ui,
+                        theme,
+                        &Callout {
+                            icon,
+                            accent: accent(theme),
+                            raised: raised(theme),
+                            label,
+                            body,
+                            folded: false,
+                            bed,
+                        },
+                    );
                     ui.add_space(theme.spacing_xs.value());
                 }
             });
@@ -91,7 +110,7 @@ fn draw(ui: &mut egui::Ui, theme: &Theme) {
             ),
             (
                 "box",
-                "type colour at tint-fill-alpha over md-doc-bg · md-quote-bar-width left bar · radius · 16px icon + label",
+                "type colour at tint-fill-alpha over the bed · md-quote-bar-width left bar · radius · 16px icon + label, accent-<hue>-raised · body text-primary",
             ),
             (
                 "source",
@@ -108,30 +127,40 @@ fn draw(ui: &mut egui::Ui, theme: &Theme) {
                 theme.accent_warning().to_egui(),
             ),
             TokenChip::new("accent-danger", "caution", theme.accent_danger().to_egui()),
+            TokenChip::new(
+                "accent-<hue>-raised",
+                "title and icon",
+                theme.accent_primary_raised().to_egui(),
+            ),
+            TokenChip::new("text-primary", "body", theme.text_primary().to_egui()),
             TokenChip::without_color("md-quote-bar-width", "left bar"),
             TokenChip::without_color("tint-fill-alpha", "type fill"),
         ],
     );
 }
 
-/// 시안 Callouts·본체 렌더러의 콜아웃 하나: 강조색 `tint-fill-alpha` 채움 + 왼쪽 md-quote-bar-width
-/// 막대 + radius, 제목 줄은 (접힘이면 chevron) + 16px 종류 아이콘 + 굵은 라벨을 space-xs 간격으로 둔다.
-/// 펼친 형태는 본문(md-quote-fg), 접힌 형태는 caption 설명(text-muted)을 단다.
-pub(super) fn callout_box(
-    ui: &mut egui::Ui,
-    theme: &Theme,
-    icon: icons::MockGlyph,
-    color: HexColor,
-    label: &str,
-    body: &str,
-    folded: bool,
-) {
-    // WebView 는 반투명 강조색을 문서 바탕(md-doc-bg) 위에 sRGB 값으로 섞는다. 같은 바탕 위에서
-    // sRGB 로 미리 섞은 불투명 색을 칠해 그 결과와 맞춘다.
-    let fill = theme
-        .surface("markdown")
-        .focused_bg
-        .to_egui()
+/// 콜아웃 하나의 내용. `bed`는 강조색을 섞을 문서 바탕이다.
+pub(super) struct Callout<'a> {
+    pub icon: icons::MockGlyph,
+    pub accent: HexColor,
+    pub raised: HexColor,
+    pub label: &'a str,
+    pub body: &'a str,
+    pub folded: bool,
+    pub bed: egui::Color32,
+}
+
+/// 시안 Callouts의 콜아웃 하나: 강조색 `tint-fill-alpha` 채움 + 왼쪽 md-quote-bar-width
+/// 막대 + radius. 제목 줄은 (접힘이면 chevron) + 16px 종류 아이콘 + 굵은 라벨을 space-xs
+/// 간격으로 놓고 `accent-<hue>-raised`로 칠한다. 본문은 두 형태 모두 `text-primary`이고
+/// 접힌 형태만 caption 크기다.
+pub(super) fn callout_box(ui: &mut egui::Ui, theme: &Theme, c: &Callout) {
+    // WebView 는 반투명 강조색을 문서 바탕 위에 sRGB 값으로 섞는다. 같은 sRGB 로 미리 섞은
+    // 불투명 색을 칠해 그 결과와 맞춘다.
+    let color = c.accent;
+    let title = c.raised.to_egui();
+    let fill = c
+        .bed
         .lerp_to_gamma(color.to_egui(), theme.tint_fill_alpha());
     let resp = egui::Frame::new()
         .fill(fill)
@@ -147,26 +176,24 @@ pub(super) fn callout_box(
                 let glyph = |ui: &mut egui::Ui, g: icons::MockGlyph, sz: f32| {
                     let (rect, _) =
                         ui.allocate_exact_size(egui::vec2(sz, sz), egui::Sense::hover());
-                    g.image(sz, color.to_egui()).paint_at(ui, rect);
+                    g.image(sz, title).paint_at(ui, rect);
                 };
-                if folded {
+                if c.folded {
                     glyph(
                         ui,
                         icons::CHEVRON_RIGHT,
                         theme.md_callout_marker_size().value(),
                     );
                 }
-                glyph(ui, icon, theme.icon_glyph_size_md.value());
-                ui.label(
-                    rich(theme, label, theme.font_size_body.value(), color.to_egui()).strong(),
-                );
+                glyph(ui, c.icon, theme.icon_glyph_size_md.value());
+                ui.label(rich(theme, c.label, theme.font_size_body.value(), title).strong());
             });
-            let (size, fg) = if folded {
-                (theme.font_size_caption.value(), theme.text_muted())
+            let size = if c.folded {
+                theme.font_size_caption.value()
             } else {
-                (theme.font_size_body.value(), theme.md_quote_fg())
+                theme.font_size_body.value()
             };
-            ui.label(rich(theme, body, size, fg.to_egui()));
+            ui.label(rich(theme, c.body, size, theme.text_primary().to_egui()));
         });
     let r = resp.response.rect;
     let bar = egui::Rect::from_min_size(

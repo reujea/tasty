@@ -67,7 +67,7 @@ pub fn draw(ui: &mut egui::Ui, theme: &Theme) {
                     theme,
                     "Failed to load",
                     theme.font_size_max.value(),
-                    theme.accent_danger().to_egui(),
+                    theme.accent_danger_raised().to_egui(),
                 ));
                 ui.label(
                     egui::RichText::new("notes.md: No such file")
@@ -167,7 +167,7 @@ pub fn draw(ui: &mut egui::Ui, theme: &Theme) {
             ),
             ("link", "accent-primary · nav-fragment intercepted"),
             ("table", "real <table> — header band + zebra + padding"),
-            ("states", "failed=accent-danger · empty=muted"),
+            ("states", "failed=accent-danger-raised · empty=muted"),
             (
                 "deferred",
                 "line muted · Button secondary sm “Open file…” below at space-sm · raises the 1 MiB confirm again",
@@ -233,8 +233,13 @@ pub fn draw(ui: &mut egui::Ui, theme: &Theme) {
                 theme.md_table_row_bg_zebra().to_egui(),
             ),
             TokenChip::new(
+                "accent-danger-raised",
+                "load failed",
+                theme.accent_danger_raised().to_egui(),
+            ),
+            TokenChip::new(
                 "accent-danger",
-                "load failed · caution alert",
+                "caution alert",
                 theme.accent_danger().to_egui(),
             ),
             TokenChip::new(
