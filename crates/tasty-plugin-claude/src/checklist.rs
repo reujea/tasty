@@ -19,9 +19,9 @@ use serde_json::{Value, json};
 use tasty_plugin_sdk::{HostHandle, IpcMethodError, i18n::Translator};
 use tracing::warn;
 
-/// 기본 완료 표식. 일반 문장과 겹치지 않는 문자열을 부분 일치로 찾는다.
-/// 게이트 등록 시 별도 표식을 지정하지 않았을 때도 사용한다.
-pub(crate) const SENTINEL: &str = "[[TASTY-CHECKLIST-DONE]]";
+/// 기본 완료 표식. 게이트 등록 시 별도 표식을 지정하지 않았을 때도 사용한다.
+/// 대화 탭의 게이트와 같은 값이어야 하므로 공용 판정의 값을 쓴다.
+pub(crate) const SENTINEL: &str = tasty_plugin_agent_common::checklist::DEFAULT_SENTINEL;
 
 /// 상한 설정 항목의 storage key. `tasty-plugin.toml` 의
 /// `[[contributes.settings_pages.items]]` 선언과 짝을 맞춘다.
@@ -89,14 +89,15 @@ pub(crate) fn decide(
         Some(s) if s.prompt_id == prompt_id => s.rounds,
         _ => 0,
     };
-    if last_assistant_message.contains(sentinel) {
-        return Decision::Pass;
-    }
-    if current_rounds >= round_limit {
-        return Decision::Pass;
-    }
-    Decision::Block {
-        rounds: current_rounds + 1,
+    use tasty_plugin_agent_common::checklist;
+    match checklist::decide(
+        last_assistant_message,
+        sentinel,
+        current_rounds,
+        round_limit,
+    ) {
+        checklist::Decision::Pass => Decision::Pass,
+        checklist::Decision::Continue { rounds } => Decision::Block { rounds },
     }
 }
 

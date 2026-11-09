@@ -13,7 +13,6 @@ mod record;
 mod registry;
 mod resolve;
 mod sse;
-mod tail;
 
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};

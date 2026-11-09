@@ -6358,10 +6358,12 @@ dependencies = [
 name = "tasty-plugin-agent-common"
 version = "0.1.0"
 dependencies = [
+ "directories",
  "serde_json",
  "tasty-plugin-sdk",
  "tempfile",
  "tracing",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]
@@ -6369,15 +6371,14 @@ name = "tasty-plugin-agent-stream"
 version = "0.1.178"
 dependencies = [
  "anyhow",
- "directories",
  "serde_json",
+ "tasty-plugin-agent-common",
  "tasty-plugin-sdk",
  "tasty-utils",
  "tempfile",
  "tiny_http",
  "tracing",
  "tracing-subscriber",
- "windows-sys 0.59.0",
 ]
 
 [[package]]
