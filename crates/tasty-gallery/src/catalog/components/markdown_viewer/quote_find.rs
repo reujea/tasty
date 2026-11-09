@@ -27,7 +27,9 @@ pub fn spec() -> crate::catalog::Spec {
     crate::catalog::Spec {
         id: "markdown-quote-and-find-ink",
         title: "Markdown — quote and find ink on both beds",
-        when: Some("a quote takes no opacity · a find hit is opaque · focus changes neither"),
+        when: Some(
+            "A quote and a find hit are the two inks in the document that once depended on what sat under them. A quote took opacity on the body ink, and a hit was a translucent yellow under inherited ink. Both fell under 4.5 on the Latte unfocused bed. Both are now fixed values.",
+        ),
         draw,
     }
 }
@@ -204,6 +206,8 @@ fn quote_find(ui: &mut egui::Ui, theme: &Theme, focused: bool, width: LogicalPx)
                     ],
                 );
                 quote_block(ui, theme, bar_w, bar_gap, |ui| {
+                    // 시안의 인용 안 간격은 중첩 인용의 space-xs 하나뿐이다.
+                    ui.spacing_mut().item_spacing.y = 0.0;
                     line(
                         ui,
                         theme,
@@ -227,6 +231,8 @@ fn quote_find(ui: &mut egui::Ui, theme: &Theme, focused: bool, width: LogicalPx)
                     });
                 });
                 find_table(ui, theme, focused);
+                // 시안 `MdTable`의 아래 여백. 묶음 간격에 더해진다.
+                ui.add_space(theme.spacing_md.value());
                 egui::Frame::new()
                     .fill(theme.md_code_bg().to_egui())
                     .stroke(egui::Stroke::new(
