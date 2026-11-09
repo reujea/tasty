@@ -243,17 +243,51 @@ const SYSTEM_CJK_CANDIDATES: &[&str] = &[
 #[cfg(not(any(target_os = "windows", target_os = "macos", target_os = "linux")))]
 const SYSTEM_CJK_CANDIDATES: &[&str] = &[];
 
+/// 간체 UI 언어. 별칭(`zh`, `zh-CN`)은 언어 코드로 받지 않으므로 여기서도 정확히 비교한다.
+const SIMPLIFIED_CHINESE_LOCALE: &str = "zh-Hans";
+const SIMPLIFIED_CHINESE_FACE: &str = "Noto Sans CJK SC";
+
+/// 파일과 그 안에서 읽을 글꼴 번호.
+struct SystemCjkFont {
+    bytes: Vec<u8>,
+    face: u32,
+}
+
+impl SystemCjkFont {
+    fn into_font_data(self) -> egui::FontData {
+        let mut data = egui::FontData::from_owned(self.bytes);
+        data.index = self.face;
+        data
+    }
+}
+
+/// 한중일 글꼴 묶음은 공용 한자를 지역마다 다르게 그린다. 간체 UI만 SC를 고르고 다른
+/// 언어는 0번을 유지해 기존 사용자의 한자 형태를 바꾸지 않는다. 묶음에 한글과 가나도
+/// 들어 있어 간체 UI에서 다른 문자가 □가 되지 않는다.
+fn cjk_face_for_locale(bytes: &[u8], locale: &str) -> u32 {
+    if locale == SIMPLIFIED_CHINESE_LOCALE {
+        tasty_i18n::font::collection_face_by_family(bytes, SIMPLIFIED_CHINESE_FACE).unwrap_or(0)
+    } else {
+        0
+    }
+}
+
 /// 후보에서 egui가 읽을 수 있는 첫 글꼴을 고른다. 없는 파일은 설치되지 않은 것이므로
 /// 말없이 넘어가고, egui가 panic할 파일은 경고하고 다음 후보로 넘어간다.
 fn first_usable_cjk_font<'a>(
     candidates: impl IntoIterator<Item = &'a std::path::Path>,
-) -> Option<Vec<u8>> {
+    locale: &str,
+) -> Option<SystemCjkFont> {
     candidates.into_iter().find_map(|path| {
         let bytes = std::fs::read(path).ok()?;
-        match tasty_i18n::font::validate(&bytes) {
-            Ok(()) => Some(bytes),
+        let face = cjk_face_for_locale(&bytes, locale);
+        match tasty_i18n::font::validate_face(&bytes, face) {
+            Ok(()) => Some(SystemCjkFont { bytes, face }),
             Err(e) => {
-                tracing::warn!("system CJK font {} is not usable: {e}", path.display());
+                tracing::warn!(
+                    "system CJK font {} (face {face}) is not usable: {e}",
+                    path.display()
+                );
                 None
             }
         }
@@ -261,15 +295,17 @@ fn first_usable_cjk_font<'a>(
 }
 
 /// 시스템 CJK 글꼴을 Proportional·Monospace의 마지막 폴백으로 추가한다.
+/// 언어는 호스트가 부팅 때 정해 자기 환경과 플러그인 환경에 넣은 `TASTY_LOCALE`을 읽는다.
 /// 쓸 수 있는 글꼴이 없으면 `fonts`를 그대로 두고 `false`를 돌려준다.
 pub fn install_system_cjk_fallback(fonts: &mut egui::FontDefinitions) -> bool {
+    let locale = std::env::var("TASTY_LOCALE").unwrap_or_default();
     let candidates = SYSTEM_CJK_CANDIDATES.iter().map(std::path::Path::new);
-    let Some(bytes) = first_usable_cjk_font(candidates) else {
+    let Some(font) = first_usable_cjk_font(candidates, &locale) else {
         return false;
     };
     fonts.font_data.insert(
         SYSTEM_CJK_FONT_KEY.to_owned(),
-        Arc::new(egui::FontData::from_owned(bytes)),
+        Arc::new(font.into_font_data()),
     );
     for fam in [egui::FontFamily::Proportional, egui::FontFamily::Monospace] {
         fonts
@@ -336,8 +372,11 @@ mod system_cjk_tests {
         std::fs::write(&valid, D2CODING).unwrap();
         let missing = dir.path().join("missing.ttf");
 
-        let found = first_usable_cjk_font([missing.as_path(), broken.as_path(), valid.as_path()]);
-        assert_eq!(found.as_deref(), Some(D2CODING));
+        let found =
+            first_usable_cjk_font([missing.as_path(), broken.as_path(), valid.as_path()], "en")
+                .unwrap();
+        assert_eq!(found.bytes, D2CODING);
+        assert_eq!(found.face, 0);
     }
 
     #[test]
@@ -347,7 +386,42 @@ mod system_cjk_tests {
         std::fs::write(&broken, b"not a font").unwrap();
         let missing = dir.path().join("missing.ttf");
 
-        assert!(first_usable_cjk_font([missing.as_path(), broken.as_path()]).is_none());
+        assert!(first_usable_cjk_font([missing.as_path(), broken.as_path()], "en").is_none());
+    }
+
+    #[test]
+    fn a_font_without_the_simplified_face_stays_on_the_first_face() {
+        assert_eq!(cjk_face_for_locale(D2CODING, SIMPLIFIED_CHINESE_LOCALE), 0);
+    }
+
+    #[test]
+    fn the_chosen_face_reaches_egui() {
+        let font = SystemCjkFont {
+            bytes: D2CODING.to_vec(),
+            face: 2,
+        };
+        assert_eq!(font.into_font_data().index, 2);
+    }
+
+    /// 저장소에 넣을 수 없는 시스템 글꼴을 읽는다. 없는 컴퓨터에서는 아무것도 재지 않는다.
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn the_installed_noto_collection_gives_simplified_chinese_its_own_face() {
+        let Some(path) = SYSTEM_CJK_CANDIDATES
+            .iter()
+            .map(std::path::Path::new)
+            .find(|path| path.exists())
+        else {
+            tracing::warn!("skipped: no Noto CJK collection is installed");
+            return;
+        };
+        let bytes = std::fs::read(path).unwrap();
+        let simplified = cjk_face_for_locale(&bytes, SIMPLIFIED_CHINESE_LOCALE);
+        assert_ne!(simplified, 0, "{} has no simplified face", path.display());
+        for other in ["en", "ko", "ja", "zh-CN", ""] {
+            assert_eq!(cjk_face_for_locale(&bytes, other), 0, "{other}");
+        }
+        assert!(tasty_i18n::font::validate_face(&bytes, simplified).is_ok());
     }
 }
 
