@@ -464,7 +464,17 @@ pub fn terminal(ui: &mut egui::Ui, theme: &Theme) {
          unfocused beds (4.75 Mocha, 4.88 Latte). Dim ink does not stay blended in a match \
          because it would measure 1.81 in both themes on a focused bed. ANSI cells keep their \
          color in ordinary matches, including when dim; only the active match overrides every \
-         cell's color set by the app.",
+         cell's color set by the app. A link under the pointer uses selection fill and \
+         text-on-active at 4.62 Mocha, 5.40 Latte, with a blue accent-primary-raised underline \
+         at 3.17 Mocha, 3.84 Latte. Neither ordinary nor active match fill paints on it; on the \
+         focused active fill, the blue underline would measure 1.25 Mocha, 5.23 Latte. \
+         Selection, the vi cursor and a link under the pointer read the same on unfocused and \
+         focused terminals because term-selection and term-cursor are opaque: selection \
+         text-on-active measures 4.62 Mocha, 5.40 Latte, and vi-cursor-fg measures 10.48 Mocha, \
+         6.60 Latte. An unfocused terminal draws no block cursor. Selected default-ink cells, \
+         including bold and dim, use text-on-active on both beds at 4.62 Mocha, 5.40 Latte; \
+         keeping cell ink would measure 4.62 Mocha, 3.69 Latte focused and 3.00 Mocha, 2.89 \
+         Latte unfocused. ANSI and reverse cells keep their ink in a selection.",
     );
     dont(
         ui,
@@ -547,7 +557,8 @@ fn swatch_box(ui: &mut egui::Ui, theme: &Theme, fill: egui::Color32) {
     );
 }
 
-/// 두 바탕의 찾기 매치. 기본·dim 글자 셀은 text-primary, ANSI 색 셀은 자기 색이다.
+/// 두 바탕의 상태 칸. 찾기 매치의 기본·dim 글자 셀은 text-primary, ANSI 색 셀은 자기 색이다.
+/// 선택과 링크, vi 커서는 두 바탕에서 값이 같다.
 /// 매치 밖 dim은 프로그램이 정하는 층이라 렌더러처럼 글자와 바탕을 반씩 섞는다.
 fn faux_terminal_matches(ui: &mut egui::Ui, theme: &Theme, focused: bool) {
     let term = theme.surface("terminal");
@@ -568,6 +579,8 @@ fn faux_terminal_matches(ui: &mut egui::Ui, theme: &Theme, focused: bool) {
     let mono = theme.font_size_caption.value();
     let matched = ec(theme.search_match_bg);
     let primary = ec(theme.text_primary());
+    let selection = ec(theme.selection_bg);
+    let on_active = ec(theme.text_on_active());
     egui::Frame::new()
         .fill(bed)
         .corner_radius(theme.corner_radius.value())
@@ -600,7 +613,18 @@ fn faux_terminal_matches(ui: &mut egui::Ui, theme: &Theme, focused: bool) {
                     ),
                     (". ", None, fg),
                     ("Dim outside matches", None, fg.lerp_to_gamma(bed, 0.5)),
+                    (". ", None, fg),
+                    ("Selected words", Some(selection), on_active),
+                    (". ", None, fg),
                 ]);
+                if !focused {
+                    segments.push((
+                        "Vi cursor",
+                        Some(ec(theme.vi_cursor_bg)),
+                        ec(theme.vi_cursor_fg()),
+                    ));
+                    segments.push((". ", None, fg));
+                }
                 for (text, bg, color) in segments {
                     let mut run = egui::RichText::new(text)
                         .monospace()
@@ -611,6 +635,27 @@ fn faux_terminal_matches(ui: &mut egui::Ui, theme: &Theme, focused: bool) {
                     }
                     ui.label(run);
                 }
+                // 본체처럼 밑줄을 채움 위, 글자 아래에 칠하려고 자리를 먼저 잡는다.
+                let slot = ui.painter().add(egui::Shape::Noop);
+                let link = ui.label(
+                    egui::RichText::new("Link under pointer")
+                        .monospace()
+                        .size(mono)
+                        .color(on_active),
+                );
+                let line = theme.border_width.value();
+                let bottom = link.rect.bottom() - line;
+                ui.painter().set(
+                    slot,
+                    egui::Shape::Vec(vec![
+                        egui::Shape::rect_filled(link.rect, 0.0, selection),
+                        egui::Shape::hline(
+                            link.rect.x_range(),
+                            bottom,
+                            egui::Stroke::new(line, ec(theme.accent_primary_raised())),
+                        ),
+                    ]),
+                );
             });
         });
 }
@@ -657,7 +702,12 @@ fn faux_terminal(ui: &mut egui::Ui, theme: &Theme) {
                     ui.label(rt);
                 };
                 seg(ui, "The ", None, fg);
-                seg(ui, "selected words", Some(ec(theme.selection_bg)), fg);
+                seg(
+                    ui,
+                    "selected words",
+                    Some(ec(theme.selection_bg)),
+                    ec(theme.text_on_active()),
+                );
                 seg(ui, " wrap the ", None, fg);
                 seg(ui, "match", Some(ec(theme.search_match_bg)), fg);
                 seg(ui, " and the ", None, fg);
