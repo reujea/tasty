@@ -1144,7 +1144,8 @@ fn grid_view(
     ui.horizontal(|ui| {
         if let Some(p) = &parent {
             let (dd, up) = (dotdot_entry(p.clone()), EntryCtx { query: "", ..ctx });
-            let resp = grid_cell(ui, &up, &dd, (false, false, false), None);
+            let tinted = view.ops.drag.drops_on(&dd.path);
+            let resp = grid_cell(ui, &up, &dd, (false, false, tinted), None);
             if resp.double_clicked() && action.is_none() {
                 *action = Some(ExplorerAction::Navigate(p.clone()));
             }
@@ -1280,16 +1281,17 @@ fn list_view(
     let query = view.find_query().to_owned();
     if let Some(p) = parent_nav_target(root).filter(|_| view.search_root().is_none()) {
         let up = icons::FOLDER;
-        let resp = tree_row(
+        let dd = dotdot_entry(p.clone());
+        let rest = entry_style::RowInk::at_rest(view, &dd, false);
+        let (resp, _) = tree_row_with_tail_fg(
             ui,
             theme,
-            0,
-            false,
-            false,
             Some(&|ui, rect, c| up.image(rect.height(), c).paint_at(ui, rect)),
             "..",
-            None,
+            "",
             false,
+            0.0,
+            Some(rest.name(theme, &dd, theme.tree_row_fg())),
         );
         if resp.double_clicked() && action.is_none() {
             *action = Some(ExplorerAction::Navigate(p));

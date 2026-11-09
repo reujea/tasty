@@ -479,6 +479,9 @@ mod keyboard_select;
 #[path = "virtual_tests/empty_create.rs"]
 mod empty_create;
 
+#[path = "virtual_tests/drop_rows.rs"]
+mod drop_rows;
+
 #[test]
 fn internal_tabs_restore_scroll_in_all_three_views() {
     for mode in MODES {

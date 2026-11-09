@@ -109,6 +109,11 @@ impl DragState {
         self.slots.sidebar = Some(DropTintSlot::reserve(ui.painter()));
     }
 
+    #[cfg(test)]
+    pub(crate) fn tint_body_for_test(&mut self) {
+        self.drop_tint = Some(DropTint::Body);
+    }
+
     /// 이 경로의 행이 놓기 틴트 아래에 있는지.
     pub(crate) fn drops_on(&self, path: &Path) -> bool {
         match &self.drop_tint {
