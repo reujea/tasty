@@ -467,3 +467,29 @@ fn cut_pending_font_style_is_the_italic_the_app_applies() {
         );
     }
 }
+
+/// 선택 위 매치의 새 역할. 키가 없는 바탕은 사용자 테마의 현재 매치 바탕을 따른다.
+#[test]
+fn selected_match_roles_match_the_design_values() {
+    let build = |toml: &str, light: bool| {
+        let file = ThemeFile::parse(toml).expect("embedded theme must parse");
+        let (partial, _) = file.to_partial();
+        let mut colors = mocha_fallback_colors();
+        colors.apply_partial(&partial);
+        Theme::with_colors(colors, light)
+    };
+    let mocha = build(MOCHA_TOML_TEXT, false);
+    let latte = build(LATTE_TOML_TEXT, true);
+    assert_eq!(mocha.search_match_selected_fg(), hex("#11111b"));
+    assert_eq!(latte.search_match_selected_fg(), hex("#000000"));
+    assert_eq!(
+        mocha.search_match_active_selected_bg(),
+        mocha.search_match_active_bg
+    );
+    assert_eq!(latte.search_match_active_selected_bg(), hex("#df8e1dcc"));
+
+    let mut colors = mocha_fallback_colors();
+    colors.search_match_active_bg = hex("#12345680");
+    let user = Theme::with_colors(colors, true);
+    assert_eq!(user.search_match_active_selected_bg(), hex("#12345680"));
+}

@@ -202,6 +202,14 @@ pub const SEMANTIC_COLOR_TO_THEME_ACCESSOR: &[(&str, &str)] = &[
         "semantic.search-match-active-unfocused-fg",
         "search_match_active_unfocused_fg()",
     ),
+    (
+        "semantic.search-match-selected-fg",
+        "search_match_selected_fg()",
+    ),
+    (
+        "semantic.search-match-active-selected-bg",
+        "search_match_active_selected_bg()",
+    ),
     ("semantic.surface-bed-focused", "surface_bed_focused()"),
     ("semantic.surface-bed-unfocused", "surface_bed_unfocused()"),
     (
@@ -494,6 +502,14 @@ const SEMANTIC_COLOR_HAND_WRITTEN: &[(&str, &str)] = &[
     (
         "semantic.search-match-active-unfocused-fg",
         "Mocha=search-match-active-fg / Latte=primitive black 역할 분기",
+    ),
+    (
+        "semantic.search-match-selected-fg",
+        "Mocha=neutral-0 / Latte=primitive black 역할 분기",
+    ),
+    (
+        "semantic.search-match-active-selected-bg",
+        "Mocha=search-match-active-bg / Latte=yellow 80% 역할 분기",
     ),
     (
         "semantic.surface-bed-focused",

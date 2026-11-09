@@ -10,6 +10,10 @@ use crate::theme::{TINT_FILL_ALPHA, Theme, mix_srgb};
 const BLACK: HexColor = crate::hex!("#000000");
 /// color-mix가 섞는 DTCG `primitive.color-white`.
 const WHITE: HexColor = crate::hex!("#ffffff");
+/// 내장 Latte 테마의 `search_match_active_bg`.
+const LATTE_ACTIVE_MATCH: HexColor = crate::hex!("#df8e1d80");
+/// `semantic.search-match-active-selected-bg`의 Latte 값(yellow 80%).
+const LATTE_ACTIVE_MATCH_SELECTED: HexColor = crate::hex!("#df8e1dcc");
 
 impl Theme {
     #[inline]
@@ -443,6 +447,23 @@ impl Theme {
     #[inline]
     pub fn search_match_active_unfocused_fg(&self) -> HexColor {
         self.band(self.search_match_active_fg, BLACK)
+    }
+
+    /// 선택 위 검색 매치 글자. 포커스와 상관없이 같다. `semantic.search-match-selected-fg`.
+    #[inline]
+    pub fn search_match_selected_fg(&self) -> HexColor {
+        self.band(self.crust, BLACK)
+    }
+
+    /// 선택 위 현재 매치 바탕. `semantic.search-match-active-selected-bg`.
+    /// 테마 키가 없어 내장 Latte 값일 때만 올린다. 사용자 테마는 자기 현재 매치 바탕을 쓴다.
+    #[inline]
+    pub fn search_match_active_selected_bg(&self) -> HexColor {
+        if self.search_match_active_bg == LATTE_ACTIVE_MATCH {
+            LATTE_ACTIVE_MATCH_SELECTED
+        } else {
+            self.search_match_active_bg
+        }
     }
 
     /// 포커스 받은 surface의 Tasty 소유 바탕. `semantic.surface-bed-focused`.
