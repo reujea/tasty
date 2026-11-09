@@ -502,6 +502,12 @@ pub fn pages() -> Vec<Page> {
                             components::plugin_settings::draw,
                         ),
                         spec(
+                            "plugin-settings-groups",
+                            "Plugin settings groups",
+                            Some("group header · optional switch hides the group's rows"),
+                            components::plugin_settings_groups::draw,
+                        ),
+                        spec(
                             "settings-number",
                             "Numbers in settings — one shape",
                             Some(

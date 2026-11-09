@@ -596,7 +596,7 @@ form-control 폭: `field-width-{xs,color,md,range,lg}` = 90/110/160/180/200 (디
 ## 플러그인 설정 페이지
 
 디자인 `ui_kits/terminal/overlays/settings_window.jsx:240-248`(Appearance › HTML viewer 페이지) ↔
-본체 `src/view/settings/ui/tabs/appearance.rs` `draw_plugin_settings_page`(+ `plugin_setting_row` /
+본체 `src/view/settings/ui/tabs/plugin_page.rs` `draw_plugin_settings_page`(+ `plugin_setting_row` /
 `draw_plugin_toggle` / `draw_plugin_select` / `draw_plugin_number`) ↔ 갤러리
 `components/plugin_settings.rs::draw` (Components › `Plugin settings page`).
 
@@ -606,13 +606,15 @@ form-control 폭: `field-width-{xs,color,md,range,lg}` = 90/110/160/180/200 (디
 
 | 디자인 jsx | 본체 함수 | 갤러리 미러 | 비고 |
 |---|---|---|---|
-| `Row`(라벨 열 + 컨트롤) | `plugin_setting_row` — 페이지의 Toggle·Select·Number 라벨로 정한 열 폭의 `SettingsRow` | `row`(`SettingsRow`) | `add_space spacing_sm` 뒤 설정 행 격자 |
+| `Row`(라벨 열 + 컨트롤) | `plugin_setting_row` — 페이지의 Toggle·Select·Number·묶음 머리 라벨로 정한 열 폭의 `SettingsRow` | `row`(`SettingsRow`) | `add_space spacing_sm` 뒤 설정 행 격자 |
 | `Mono`("HTML viewer") | 페이지 헤더 | mono micro · text-muted | |
 | `Default zoom:` `Input`(mono)+`%` | `draw_plugin_number` → `number::number_field` | `plugin_settings.rs` 의 number 행 | 셋 다 **숫자 한 모양**이다 — mono `Input`(width xs, 우측 정렬) + 필드 밖 정적 suffix + 확정 때만 clamp. 상태 셋은 `settings-number` specimen |
 | `Color scheme:` `Select` | `draw_plugin_select` | `select`(width `field_width_md`) | follow/light/dark |
 | `Allow remote content:` `Switch` | `draw_plugin_toggle` | `switch`(28×16) off | |
 | `Sandbox scripts:` `Switch` | `draw_plugin_toggle` | `switch`(28×16) on | |
 | `Note` | Note 라벨 | caption · text-muted | |
+| (디자인 없음) 묶음 머리 | `draw_group_header` → `tasty_ui_widgets::settings_group_header` | `plugin_settings_groups.rs` (`plugin-settings-groups` spec) | 위 구분선(`border_width` · `border-default`, 위 `spacing_md`) · 아래 `spacing_sm` · 라벨 열에 `font_size_heading` `text-primary` 라벨 · `storage_key` 가 있으면 `settings-label-gap` 뒤 Switch. 끄면 묶음 행을 그리지 않는다. 디자인 시안을 받지 않은 구성이다 |
+| (디자인 없음) 읽기 전용 글 행 | `draw_plugin_item` 의 `Text` → `tasty_ui_widgets::settings_text_row` | `plugin_settings_groups.rs` (`plugin-settings-groups` spec) | 앞 `spacing_sm` · 라벨 위 맞춤(`settings_stack_row` `align_top`) · 컨트롤 열에서 줄 바꿈 · `font_size_body` `text-secondary` · 테두리·배경 없음 · 선택·복사만 된다. 디자인 시안을 받지 않은 구성이다 |
 
 <a id="banner-banner-02--galleryoverlaysjsx-banner-section"></a>
 
