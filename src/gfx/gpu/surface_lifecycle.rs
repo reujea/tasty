@@ -123,6 +123,17 @@ mod tests {
     }
     #[test]
     fn oversized_equivalent_size_warns_without_reconfiguring() {
+        // real_resize_and_clamped_equivalence_are_distinct hits the same warning callsite with no
+        // subscriber. If it registers the callsite first while only one dispatcher is registered,
+        // tracing computes the interest from that thread's NoSubscriber and caches "never" for the
+        // whole process, so this subscriber loses the warning. A lock cannot cover product paths
+        // reached from other tests, so this assertion runs in its own process.
+        if crate::test_support::rerun_alone(
+            module_path!(),
+            "oversized_equivalent_size_warns_without_reconfiguring",
+        ) {
+            return;
+        }
         use std::sync::{
             Arc,
             atomic::{AtomicUsize, Ordering},
@@ -147,7 +158,6 @@ mod tests {
         }
         let warnings = Arc::new(AtomicUsize::new(0));
         tracing::subscriber::with_default(Warnings(warnings.clone()), || {
-            // Other root tests register these callsites under different subscribers.
             tracing::callsite::rebuild_interest_cache();
             let current = PhysicalSize::new(4096, 700);
             assert_eq!(configure_dimensions(current, current, 4096, false), None);

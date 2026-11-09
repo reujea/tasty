@@ -6,12 +6,14 @@
 #[cfg(unix)]
 mod executable;
 mod process_state;
+mod rerun_alone;
 
 use std::sync::{Mutex, MutexGuard};
 
 #[cfg(unix)]
 pub use executable::write_executable;
 pub use process_state::proc_stat_reads_finished;
+pub use rerun_alone::{is_rerun_alone, rerun_alone};
 
 /// TASTY_HOME 변경 시험의 공통 락. TastyHomeGuard가 이전 값 보관·복원과 함께 관리한다.
 /// 락만 얻고 복원을 빠뜨리는 호출을 막기 위해 크레이트 밖에는 노출하지 않는다.
