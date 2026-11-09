@@ -47,6 +47,11 @@ pub(crate) const BUILTINS: &[BuiltinSpec] = &[
         bin_name: "tasty-plugin-markdown.exe",
     },
     BuiltinSpec {
+        id: "com.tasty.agent-session",
+        crate_dir: "tasty-plugin-agent-session",
+        bin_name: "tasty-plugin-agent-session.exe",
+    },
+    BuiltinSpec {
         id: "com.tasty.clipboard-viewer",
         crate_dir: "tasty-plugin-clipboard-viewer",
         bin_name: "tasty-plugin-clipboard-viewer.exe",
@@ -119,6 +124,11 @@ pub(crate) const BUILTINS: &[BuiltinSpec] = &[
         id: "com.tasty.agent-stream",
         crate_dir: "tasty-plugin-agent-stream",
         bin_name: "tasty-plugin-agent-stream",
+    },
+    BuiltinSpec {
+        id: "com.tasty.agent-session",
+        crate_dir: "tasty-plugin-agent-session",
+        bin_name: "tasty-plugin-agent-session",
     },
 ];
 

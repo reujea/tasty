@@ -6,6 +6,7 @@ mod lazy;
 mod navigation;
 use construction::create_missing_webviews;
 pub(crate) use lazy::announce_lazy_webviews;
+use lazy::{ScriptsWithoutWebview, scripts_without_webview};
 use navigation::{apply_agent_history_step, apply_user_nav};
 
 use crate::plugin::PluginManager;
@@ -585,17 +586,29 @@ fn resync_webview_urls(
 
 /// plugin 이 `webview.post_message` 로 쌓은 메시지 스크립트를 실린 문서에서 돌린다.
 /// URL 재동기화 뒤에 돌아 같은 프레임에 문서를 바꿨으면 새 문서가 받는다.
-/// WebView 가 아직 없으면 큐를 남겨 다음 프레임에 돌린다.
+/// WebView 가 아직 없으면 큐를 남겨 다음 프레임에 돌린다. 단 처음 보일 때 만드는 kind 는 버린다
+/// ([`lazy::scripts_without_webview`]).
 fn drain_pending_scripts(
     view: &MainView,
     engine: &crate::runtime::engine_access::EngineRef<'_>,
     all_html_ids: &[u32],
 ) {
     for &sid in all_html_ids {
-        let Some(wv) = view.webviews.get(&sid) else {
+        let Some(rs) = find_remote_surface(view, engine, sid) else {
             continue;
         };
-        let Some(rs) = find_remote_surface(view, engine, sid) else {
+        let Some(wv) = view.webviews.get(&sid) else {
+            let lazy = crate::runtime::surface_registry::webview_kind::is_lazy_webview_kind(
+                rs.kind_static,
+            );
+            if scripts_without_webview(lazy) == ScriptsWithoutWebview::Drop {
+                let dropped = rs.take_scripts().len();
+                if dropped > 0 {
+                    tracing::debug!(
+                        "WebView surface {sid}: dropped {dropped} message(s) before its lazy webview exists"
+                    );
+                }
+            }
             continue;
         };
         for script in rs.take_scripts() {

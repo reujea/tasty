@@ -407,8 +407,8 @@ pub struct SurfaceKindDecl {
     #[serde(default)]
     pub webview_defaults: Option<WebViewDefaultsDecl>,
     /// 처음 보일 때 WebView를 만든다. 기본 false면 화면에 없는 탭도 열릴 때 만들어 숨겨 둔다.
-    /// `rendering = "webview"`에서만 쓸 수 있다. 켠 plugin은 `surface.webview_created`를 받으면
-    /// 페이지 상태를 다시 맞춰야 한다.
+    /// `rendering = "webview"`에서만 쓸 수 있다. 켠 plugin은 만들어지기 전 `webview.post_message`가
+    /// 버려지므로 `surface.webview_created`를 받으면 문서 전체를 다시 실어야 한다.
     #[serde(default)]
     pub lazy_webview: bool,
 }

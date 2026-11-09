@@ -88,7 +88,7 @@ mod tests {
             sid,
             Box::new(crate::plugin_bridge::remote_surface::RemoteSurface::new(
                 sid,
-                "chat_kind",
+                "agent_session",
                 "com.example.chat".into(),
                 "chat".into(),
             )),

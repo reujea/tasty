@@ -23,6 +23,11 @@ const EXPECTED_MTIME_SITES: &[(&str, usize)] = &[
     ("crates/tasty-plugin-agent-common/src/prompt_file.rs", 1),
     // 원격 결과 정리 시험이 보존 기간·상한 판정을 보려고 결과 파일의 수정 시각을 쓰기 핸들(write(true))로 옛 시각으로 옮긴다.
     ("crates/tasty-plugin-agent-common/src/remote_results.rs", 2),
+    // 계측 시험이 한 시간 전에 바뀐 대화 기록을 거르는지 보려고 쓰기 핸들로 수정 시각을 옮긴다.
+    (
+        "crates/tasty-plugin-agent-session/src/adapters/driven/rate_meter.rs",
+        1,
+    ),
     ("crates/tasty-plugin-claude/src/error_scan.rs", 1),
     ("crates/tasty-plugin-sdk/src/file_watch.rs", 1),
     // 복사한 파일에 원본의 수정 시각을 건다. 사본을 만든 쓰기 핸들(create_new)로 건다.

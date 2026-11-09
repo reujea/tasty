@@ -12,7 +12,7 @@ fn an_unknown_reserved_id_is_refused() {
 
 #[test]
 fn every_official_id_is_admitted() {
-    assert_eq!(OFFICIAL_PLUGIN_IDS.len(), 9);
+    assert_eq!(OFFICIAL_PLUGIN_IDS.len(), 10);
     for id in OFFICIAL_PLUGIN_IDS {
         assert_eq!(admit_plugin_id(id), Ok(()), "{id}");
     }
@@ -58,7 +58,7 @@ fn bundled_ids_of_every_os_are_official() {
         .filter_map(|l| l.trim().strip_prefix("id: \""))
         .filter_map(|l| l.strip_suffix("\","))
         .collect();
-    assert_eq!(ids.len(), 18, "two tables of nine bundled ids: {ids:?}");
+    assert_eq!(ids.len(), 20, "two tables of ten bundled ids: {ids:?}");
     for id in ids {
         assert!(
             OFFICIAL_PLUGIN_IDS.contains(&id),
@@ -81,7 +81,7 @@ fn repository_plugin_manifests_are_official() {
         assert_eq!(admit_plugin_id(&manifest.id), Ok(()), "{}", dir.display());
         seen += 1;
     }
-    assert_eq!(seen, 9, "plugin manifests under crates/");
+    assert_eq!(seen, 10, "plugin manifests under crates/");
 }
 
 #[test]

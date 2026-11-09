@@ -844,6 +844,7 @@ new_markdown = "新規マークダウン..."
 new_explorer = "新規エクスプローラー"
 new_html = "新規HTML..."
 new_image = "新規画像"
+new_agent_session = "新規エージェントセッション"
 
 [terminal_context_menu]
 copy = "コピー"

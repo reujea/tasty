@@ -7,7 +7,7 @@ fn open_folder_picker(
     dir: &std::path::Path,
 ) {
     let caller = tasty_ipc::caller::CallerContext::Plugin {
-        plugin_id: "com.example.folder".into(),
+        plugin_id: "com.tasty.agent-session".into(),
         permissions: std::sync::Arc::new(Default::default()),
     };
     let params = json!({"mode": "folder", "location": "local", "start_dir": dir});

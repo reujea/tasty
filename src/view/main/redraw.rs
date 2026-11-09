@@ -791,6 +791,7 @@ impl MainView {
             MenuItem::new(2, crate::i18n::t("pane_context_menu.new_markdown")),
             MenuItem::new(4, crate::i18n::t("pane_context_menu.new_html")),
             MenuItem::new(5, crate::i18n::t("pane_context_menu.new_image")),
+            MenuItem::new(9, crate::i18n::t("pane_context_menu.new_agent_session")),
             MenuItem::separator(),
             MenuItem::new(6, crate::i18n::t("preset.context.save_as_pane_preset")),
             MenuItem::separator(),
@@ -808,6 +809,21 @@ impl MainView {
 
     /// pane 컨텍스트 메뉴 선택 적용. 대상 유효성은 호출부(continuation)가 미리
     /// 검사한다.
+    /// 빈 파라미터로 `kind` 탭을 연다 — 고를 것이 있는 kind 는 surface 가 처음 화면에서 받는다.
+    fn new_tab_from_menu(&mut self, pane_id: u32, cwd: Option<std::path::PathBuf>, kind: &str) {
+        self.state.dispatch_intent(
+            crate::app::command::DomainIntent::CreateTab {
+                pane_id,
+                cwd,
+                kind: kind.into(),
+                name: None,
+                surface_params: serde_json::json!({}),
+                activate: true,
+            }
+            .from_user_context_menu(),
+        );
+    }
+
     fn apply_pane_menu_selection(
         &mut self,
         engine: &EngineRead<'_>,
@@ -823,17 +839,7 @@ impl MainView {
                 let cwd = selected.and_then(|surface| {
                     self.state.resolve_inherit_cwd_from_surface(engine, surface)
                 });
-                self.state.dispatch_intent(
-                    crate::app::command::DomainIntent::CreateTab {
-                        pane_id,
-                        cwd,
-                        kind: "terminal".into(),
-                        name: None,
-                        surface_params: serde_json::json!({}),
-                        activate: true,
-                    }
-                    .from_user_context_menu(),
-                );
+                self.new_tab_from_menu(pane_id, cwd, "terminal");
             }
             Some(2) => {
                 self.state.dispatch_intent(
@@ -854,19 +860,9 @@ impl MainView {
                 "url",
                 &["html", "htm", "svg"],
             ),
-            Some(5) => {
-                self.state.dispatch_intent(
-                    crate::app::command::DomainIntent::CreateTab {
-                        pane_id,
-                        cwd: None,
-                        kind: "image".into(),
-                        name: None,
-                        surface_params: serde_json::json!({}),
-                        activate: true,
-                    }
-                    .from_user_context_menu(),
-                );
-            }
+            Some(5) => self.new_tab_from_menu(pane_id, None, "image"),
+            // 빈 파라미터면 plugin 이 시작 폼을 보인다 — 프로필·폴더는 거기서 고른다.
+            Some(9) => self.new_tab_from_menu(pane_id, None, "agent_session"),
             Some(6) => {
                 if let Err(e) = self.save_pane_preset_from_pane_id(engine, pane_id) {
                     tracing::warn!("save pane preset failed: {e}");

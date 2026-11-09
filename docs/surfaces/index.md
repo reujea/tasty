@@ -25,6 +25,7 @@ Surface 종류(kind)마다 명세를 한 곳에 둔다. host 내장인지 번들
 
 - host 내장 4종은 `register_builtin_kinds`(`src/runtime/surface_registry/builtins.rs`)가 부팅 때 등록한다.
 - plugin kind는 매니페스트(`crates/tasty-plugin-<id>/tasty-plugin.toml`)의 `[[surface_kinds]]`가 선언하고, plugin이 연결된 뒤 host가 등록한다. 실제로 등록된 kind와 렌더 경로는 `tasty list surface-kinds`(IPC `surface.kinds`)가 런타임 기준으로 알려 준다. 헤드리스도 `webview`·`remote`·`egui-mesh` kind를 GUI와 같이 등록한다([작업 영역](../features/work-area/index.md#surface-종류)).
+- `agent_session`(`com.tasty.agent-session`)은 Claude Code 를 stream-json 으로 띄우는 대화 탭이다. 매니페스트가 `bundle = false`라 이 카탈로그에 넣지 않고, 명세는 [agent-session](agent-session/index.md)에 있다.
 - `mesh_demo`(`com.tasty.mesh-demo`)는 egui-mesh 채널 검증용 개발 kind다. 매니페스트가 `bundle = false`라 배포 패키지에 들어가지 않으므로 이 카탈로그에 넣지 않는다. 동작은 [egui-mesh 채널](../dev-guide/egui-mesh-channel.md)에 있다.
 
 번들 plugin의 다른 기여(파일 핸들러, CLI, 설정 페이지, popup)는 그 plugin이 제공하는 surface 문서에 함께 적는다. plugin 목록과 surface가 없는 plugin은 [번들 플러그인](../plugins/index.md)에 있다.

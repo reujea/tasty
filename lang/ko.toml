@@ -844,6 +844,7 @@ new_markdown = "새 마크다운..."
 new_explorer = "새 탐색기"
 new_html = "새 HTML..."
 new_image = "새 이미지"
+new_agent_session = "새 에이전트 세션"
 
 [terminal_context_menu]
 copy = "복사"

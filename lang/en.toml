@@ -851,6 +851,7 @@ new_markdown = "New Markdown..."
 new_explorer = "New Explorer"
 new_html = "New HTML..."
 new_image = "New Image"
+new_agent_session = "New Agent Session"
 
 [terminal_context_menu]
 copy = "Copy"

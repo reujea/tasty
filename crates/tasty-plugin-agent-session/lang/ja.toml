@@ -1,0 +1,608 @@
+[surface.kind]
+agent_session = "エージェントセッション"
+
+[preset.field]
+agent = "エージェントプロファイル"
+agent_hint = "空ならこのタブのセッションを使う"
+session_cwd = "作業ディレクトリ"
+model = "モデル"
+session_name = "セッション名"
+first_prompt = "最初のメッセージ"
+session_id = "セッション id（任意）"
+
+[sup.chat]
+start_warning = "警告: {}"
+empty = "まだやり取りがありません。下に入力します。"
+input_placeholder = "メッセージを入力"
+send_button = "送信"
+send_hint = "送信します(Enter)。Shift+Enter で改行します。"
+stop_button = "停止"
+stop_hint = "実行中のターンを止めます(Esc)。セッションは残り、次のメッセージを受け付けます。"
+clear_button = "クリア"
+clear_hint = "このセッションで会話を新しく始めます(/clear と同じ)。2 回押します。タブとセッションは残り、以前のターンはエージェントとこのタブから消えます。"
+clear_confirm = "クリア? もう一度"
+stopped = "停止しました。セッションは残り、次のメッセージを受け付けます。"
+older_link = "ディスクに保存した以前の会話"
+alog_title = "エージェント履歴"
+alog_link_n = "エージェント履歴 ({}) — パネルを開く"
+alog_link_open = "エージェント履歴 ({}) — パネルを閉じる"
+alog_unavailable = "この会話の記録が見つからないため、ツール呼び出しとサブエージェントを表示できません(claude の会話のみ読み込みます)。"
+alog_count = "サブエージェント・作業 {}件 · 実行中 {}"
+alog_reload = "再読み込み"
+alog_close = "パネルを閉じる"
+alog_main = "現在のエージェント"
+alog_sub = "サブエージェント"
+alog_bg = "バックグラウンド作業"
+alog_prompt = "任せた指示"
+alog_answer = "返された回答"
+alog_no_answer = "まだ回答がありません。"
+alog_steps = "ステップ"
+alog_no_steps = "最後のクリア・圧縮以降、ツール呼び出しはありません。"
+alog_omitted = "前のステップ {}件を省略"
+alog_tools = "ツール {}回"
+alog_now = "現在 {}"
+alog_running = "実行中"
+alog_bg_done = "完了"
+alog_bg_failed = "失敗"
+alog_bg_stopped = "停止"
+alog_s = "{}秒"
+alog_ms = "{}分 {}秒"
+alog_hm = "{}時間 {}分"
+
+thinking = "考え中"
+queued_label = "待機中 — 今のターンが終わるとまとめて送る"
+overdue = "制限時間内に応答が来なかった — ターンは claude プロセスで続いている可能性があり、終わればここに付く"
+overdue_recovered = "(会話記録から答えを読み直している)"
+working = "エージェントが作業中"
+auto_turn = "エージェントが続行"
+[sup.busy]
+turns_running = "会話タブでエージェントのターンが実行中です(surface {})"
+
+[sup.dir]
+added_now = "{} を追加しました — エージェントをそのフォルダ付きで再起動し、会話はそのままです。"
+added_later = "{} を追加しました — セッションが次に起動するときに適用されます。"
+already = "{} はすでにこのセッションの作業フォルダです。"
+removed_now = "{} を外しました — エージェントをそのフォルダなしで再起動しました。"
+removed_later = "{} を外しました — 次の起動から適用されません。"
+not_there = "{} はこのセッションに追加されたフォルダではありません。"
+list = "追加したフォルダ: {}"
+none = "追加したフォルダ: なし"
+
+[sup.cmd]
+clear = "会話を新しく始めます(タブとセッションは残ります)"
+compact = "会話を要約してコンテキストを空けます"
+context = "コンテキストウィンドウの内訳を表示します"
+cost = "このアカウントの使用量と上限を表示します"
+model = "このセッションのモデルを切り替えます — /model <名前>"
+reload_plugins = "プラグインを再読み込みします(フック・エージェント・MCP 設定)"
+reload_skills = "スキルを再読み込みします"
+kind_skill = "スキル"
+add_dir = "セッションに作業フォルダを追加する — /add-dir <絶対パス>"
+compacted = "会話を要約してコンテキストを空けました。"
+
+[sup.err]
+failed_with_output = "{} (出力: {})"
+stream_ended = "ターンが完了する前にストリームが終了しました"
+not_running = "セッションは実行中ではありません"
+unknown_profile = "そのエージェントプロファイルはありません: {}"
+spawn_failed = "{} を起動できません: {}"
+stopped = "セッションを停止しました"
+delete_live = "削除する前にセッションを停止してください"
+kind_unsupported = "エージェント種別 {} はここでは起動できません — claude・pi のみです"
+bad_permission_mode = "不明な権限モードです: {}"
+no_such_prompt = "保留中の問い {} はありません"
+turn_running = "ターンが実行中です — 終わってから再試行してください"
+background_running = "バックグラウンド作業が実行中です — 今再起動すると作業が止まります。終わってから再試行してください"
+surface_has_session = "surface {} はすでにセッション {} を保持しています — 先に `agent-session link-remove` で切り離してください"
+surface_not_linked = "surface {} はセッションに紐付いていません — 先に `agent-session link-add` で紐付けてください"
+host_call = "ホスト呼び出しに失敗: {}"
+need_agent = "agent が必要です"
+copy_not_linked = "surface {} に複製できるセッションがない — セッションにつながったチャットタブだけ複製できる"
+copy_no_profile = "surface {} のセッションにどの agent プロファイルで起動したかの記録がなく、プロファイルを推測せずには複製できない"
+need_session_id = "session_id が必要です"
+need_session_id_full = "session_id が必要です(セッション id)"
+need_surface_id = "surface_id が必要です(u32)"
+need_text = "送る内容がない — `tasty agent-session tell \"内容\"` または `--text \"内容\"` で渡す"
+text_twice = "送る内容が二重に渡された — 位置引数と `--text` のどちらか一方だけを使う"
+stale_link = "surface {} に結ばれたセッション {} はもう存在しない(削除された) — `tasty agent-session link-remove --surface {}` で解除して新しく始めるか、`link-add` で生きているセッションに結び直す"
+no_such_session = "そのセッションがありません: {} — `agent-session list` で確認します"
+ambiguous_session = "{} で始まるセッションが {} 件あります — id をもっと長く入力します"
+adopt_not_resumable = "セッション {} はエージェントセッション {} を持っていますが再開できません(状態: {})"
+timed_out = "claude プロセスが {} 秒以内に応答しなかった — 動いてはいるが別の処理に縛られている可能性がある"
+spawn_link_rolled_back = "セッション {} を起動しましたが surface に接続できず巻き戻しました: {}"
+spawned_without_id = "起動したセッションに id がありません: {}"
+surface_list_not_array = "surface.list の応答が配列ではありません: {}"
+tab_has_no_session = "このタブに接続されたセッションがありません"
+
+worker_spawn = "送信ワーカーを起動できない"
+add_dir_need_path = "フォルダを指定してください: /add-dir <絶対パス>"
+add_dir_absolute = "絶対パス(または ~/…)を使ってください: {}"
+add_dir_busy = "ターンの実行中または待機中のメッセージがあるためフォルダを追加できません。停止するか待ってから再度行ってください。"
+clear_busy = "ターンの実行中または待機中のメッセージがあるためクリアできません。停止するか待ってからクリアしてください。"
+clear_no_session = "このタブに紐づいたセッションがありません。"
+clear_failed = "会話をクリアできませんでした: {}"
+clear_tab_closed = "会話をクリアする前にタブが閉じられました。"
+spawn_no_id = "応答にセッション id がない"
+[sup.form]
+tab_connect = "接続"
+tab_agents = "エージェント管理"
+tab_roles = "ロール管理"
+section_options = "エージェントオプション"
+rem_heading = "未解決の質問"
+rem_questions = "決定 {}"
+rem_asking = "回答待ち"
+rem_dirty = "未コミット {}"
+rem_idle_now = "たった今"
+rem_idle_min = "{}分前"
+rem_idle_hour = "{}時間前"
+attach_title = "セッション一覧"
+edit_profiles_hint = "エージェントとロールは<b>エージェント管理</b>・<b>ロール管理</b>タブで編集してください。<code>tasty agent-session profile-set</code>・<code>role-add</code> コマンドやプラグインの <code>profiles</code> フォルダにある JSON ファイルでも編集できます。"
+inherit_cwd = "エージェント設定"
+no_attachable = "開けるセッションがありません。上で新しく開始してください。"
+running_now = "実行中"
+search_placeholder = "セッション検索 — エージェント・フォルダ・ID"
+no_match = "検索に一致するセッションがありません。"
+col_state = "状態"
+col_agent = "エージェント"
+col_folder = "フォルダ"
+col_changes = "変更"
+col_session_id = "セッション ID"
+col_agent_session = "エージェントセッション"
+col_tab = "タブ"
+this_tab = "このタブ"
+delete = "削除"
+delete_confirm = "削除しますか？"
+delete_yes = "削除"
+delete_no = "キャンセル"
+delete_running = "実行中のセッションは削除できません。先に停止してください。"
+refresh = "再読込"
+select_all = "すべて選択"
+delete_selected = "選択したセッションを削除"
+picked = "{n}件選択"
+delete_ask_many = "{n}件を削除します。元に戻せません。もう一度押してください。"
+starting = "セッションを開始中…"
+count = "セッション {n} 件"
+title = "エージェントセッション開始"
+subtitle = "このタブで使うセッションを新しく開始するか、一覧から開いてください。"
+agent_label = "エージェント"
+agent_hint = "例: cc"
+cwd_label = "作業フォルダ"
+cwd_hint = "空ならエージェント設定に従います"
+browse = "選択…"
+browse_note = "フォルダ選択画面で目的のフォルダに移動し、［このフォルダを選択］を押してください。"
+start = "開始"
+attach_here = "このタブで開く"
+in_use = "タブ {} で使用中"
+start_failed = "セッションを開始できませんでした"
+model_label = "モデル"
+model_hint = "空ならエージェントの既定値"
+model_default = "エージェントの既定値"
+model_custom = "直接入力…"
+model_note_aliases = "エイリアス一覧です。エージェントにモデルがあれば先頭に来ます。モデル ID を直接入力することもできます"
+adopt_label = "引き継ぐセッション ID"
+adopt_hint = "エージェントが使っていたセッション ID"
+adopt_note = "その会話を持つエージェントを選んでください。別のものを選ぶと空のセッションが開きます。"
+permission_label = "権限モード"
+permission_default = "エージェントの既定"
+permission_note = "エージェントの既定のままならエージェントのモードで開始します。"
+name_label = "セッション名"
+name_hint = "一覧で見分けるための名前"
+roles_label = "ロール"
+roles_note = "選んだロールの CLAUDE.md を指針として追加します — claude は --add-dir、pi はシステムプロンプトで読みます。"
+no_roles = "登録されたロールがありません。"
+roles_search = "ロール検索 — 名前・パス"
+roles_count = "{n}件・選択 {k}"
+roles_col_name = "名前"
+roles_col_path = "パス"
+roles_no_match = "検索に一致するロールがありません。"
+roles_prev = "前のページ"
+roles_next = "次のページ"
+[sup.note]
+coordinate_kept = "座標は残ります — 次の tell で復帰します"
+
+[sup.state]
+running = "実行中"
+slept = "休止"
+stopped = "停止"
+starting = "開始中"
+finished = "完了"
+failed = "失敗"
+blocked_precondition = "前提条件待ち"
+
+[sup.tell]
+still_running = "ターンはまだ実行中 — 終わったら `tasty agent-session output` で回答を確認できる(チャットタブにも表示される)"
+tab_closed = "回答が届く前にタブが閉じられた"
+queued_behind_question = "このタブは質問・権限確認への回答を待っている — 送った内容はキューに入り、質問は解けない。質問はタブで答える"
+
+[sup.ask]
+question_title = "エージェントが質問しています"
+permission_title = "権限の確認: {}"
+allow = "許可"
+answer = "回答"
+deny = "拒否"
+failed = "回答を送れなかった: {}"
+
+[sup.line]
+minute = "1分"
+rejected = "429"
+held = "停止"
+copy_cwd = "クリックでフルパスをコピー"
+copied = "コピーしました"
+copy_surface = "クリックで surface id をコピー"
+copy_session = "クリックで会話 id 全体をコピー"
+surface = "surface"
+pid = "PID"
+mem = "mem"
+cc = "cc"
+style = "style"
+sess = "sess"
+lat = "lat"
+up = "up"
+cache = "cache"
+rest = "rest"
+cost = "Cost"
+total = "Total"
+five = "5h"
+seven = "7d"
+plugin = "plugin"
+turns = "turns"
+fold = "ステータス行を折りたたむ"
+unfold = "ステータス行を展開する"
+
+[sup.status]
+cache_clock_hint = "キャッシュ時計 — プロンプトキャッシュの期限予定時刻。API を呼んだ最後のターン終了から数える。過ぎると次のメッセージが会話全体をキャッシュに書き直す"
+rest_clock_hint = "休止時計 — アイドル回収の予定時刻。最後の操作(メッセージ・タブ操作・コマンド)から数える。操作すると巻き戻る"
+cache_expired = "期限切れ"
+rest_due = "回収待ち"
+minute_hint = "このエージェントプロファイルで動くすべてのセッション(他のタブ・ターミナル・サブエージェントを含む)が直近1分に送ったリクエスト数 · 分あたり入力上限(ITPM)に数える入力+キャッシュ書き込みトークン · 出力トークン。会話記録から数えた推定"
+rejected_hint = "このプロファイルが直近5分にAPI上限(429)で拒否されたリクエスト数"
+held_hint = "このプロファイルがAPI上限(429)で拒否され、自動送信(再送・自動同期)を止めてからの経過時間。1分から倍々に待ち、1件だけ送り直して確かめる"
+last_ok = "直近の応答は正常"
+last_err = "直近の応答は失敗"
+last_stopped = "直近の応答は停止"
+waiting = "応答待ち"
+idle = "待機"
+cost_hint = "この会話の累計 — セッションが停止して再開しても続けて数える"
+account_hint = "アカウント上限ウィンドウの使用率 — 同じアカウントのセッションはすべて同じ値を見る"
+account_pending = "claude がアカウント上限の使用率を送っていない — プロセスの最初のターンにだけ届き、アカウントによっては届かない"
+total_hint = "このセッションが現在の5時間ブロックで使った額（会話記録 × 公開単価による概算）/ 残高上限（CLAUDEP_API_BALANCE、未設定なら $50）"
+memory_hint = "agent プロセスの常駐メモリ — 測れるときだけ表示する"
+uptime_hint = "agent プロセスの起動から — セッションが停止して再開すると最初から数える"
+tokens_hint = "この会話の累計 — ↑ 入力（キャッシュの読み書きを含む）、↓ 出力。セッションが停止して再開しても続けて数える"
+latency_hint = "直近のターンの所要時間（API を待った時間 — タブが接続してから2回目のターン以降に表示）"
+
+# CLI ヘルプ — マニフェストの `*_i18n_key` と 1:1。
+
+[sup.cli]
+desc = "Claude Code・pi のチャットタブセッションとそのエージェントプロファイル・ロールフォルダを操作する"
+
+[sup.cli.sub.list]
+description = "エージェントセッションの一覧と、稼働中の数を出す。停止したセッションは会話を保ち、次のターンで再開する。"
+
+[sup.cli.sub.link-add]
+description = "セッションを surface に結び、互いから辿れるようにする。知らないセッションは拒否する — 何も指さない結びは、結びが無いより悪い。"
+
+[sup.cli.sub.link-of]
+description = "この surface がどのセッションに結ばれているか。結ばれていないことはエラーではない — ほとんどの surface はそうだ。"
+
+[sup.cli.sub.link-remove]
+description = "surface をセッションから解く。セッションにも surface にも触れず、印だけを消す。`delete` と違い戻せる — 結び直せば元通り。結ばれていないものを解くのも成功だ。"
+
+[sup.cli.sub.link-siblings]
+description = "このセッションが結ばれている surface のすべて。tasty は*「誰がこの子を起こしたか」*を問うが、我々のセッションに親の列は無い — そこで結びが実際に表せる唯一の関係を答える: 複数 surface にまたがるセッション。surface 一つはセッションを正確に一つ持つので、逆方向は存在し得ない。"
+
+[sup.cli.sub.status]
+description = "この surface に結ばれたセッションが今何をしているか。"
+
+[sup.cli.sub.sleep]
+description = "この surface のセッションのプロセスを今止める。会話は残るので、次の `tell` が文脈ごと再開する。"
+
+[sup.cli.sub.tell]
+description = "この surface に結ばれたセッションにターンを送り、答えを待つ。停止したセッションは自動で再開され、その一ターンだけ数秒余計にかかる。 最大2分待ち、その時点で実行中のターンはまだ実行中と答える — 回答は後で `output` で読む。チャットタブならそのタブのキューを通るので、タブにも表示され、タブから送ったターンと重ならない。"
+
+[sup.cli.sub.abort]
+description = "この surface のセッションが走らせているターンだけを取り消す — セッションは終えない。シェルタブの Ctrl+C と同じだ: 作業は止まり、セッションは残って次のターンを受け、何も走っていない時に押しても無害。`sleep` と違いプロセスは生きている。"
+
+[sup.cli.sub.add-dir]
+description = "この surface のセッションに作業フォルダを追加します — Claude Code の /add-dir と同じです。一覧はセッションごとに保たれ、claude に渡されます。セッションが起動中なら会話を保ったまますぐ再起動し、そうでなければ次の再開時に適用されます。ターン実行中は拒否します。"
+
+[sup.cli.sub.remove-dir]
+description = "add-dir で追加した作業フォルダをこの surface のセッションから外します。適用は add-dir と同じです: 起動中ならすぐ、そうでなければ次の再開時。"
+
+[sup.cli.sub.clear]
+description = "この surface のセッションで会話を新しく始めます — Claude Code の /clear と同じです。セッション・タブ・設定は残り、エージェントは以前のターンを忘れ、会話タブからも消えます。ターンの実行中や待機中のメッセージがあれば拒否し、クリアが終わってから応答します。"
+
+[sup.cli.sub.sync-compact]
+description = "このチャットタブにつながったセッションでプロジェクト同期をしてから compact する。同期ターンが正常に終わったときだけ compact を送る。ターン実行中・キューがあれば拒否し、同期ターンを送った時点で答える — 残りはステータス行が示す。"
+
+[sup.cli.sub.start]
+description = "新しいエージェントセッションを起こし、この surface に一度で結ぶ。surface が既にセッションを持つなら拒否する — 持てるのは一つで、上書きすれば前のものが孤児になる。 --copy-of を渡すと別のチャットタブのプロファイルと設定を複製して起こす。"
+
+[sup.cli.sub.broadcast]
+description = "一つのエージェントプロファイルで起こした全セッションに同じターンを送る（エージェント未指定なら生きている全部）。一部が失敗しても残りは取り消さない — 送れた分と失敗した分は別々に返る。"
+
+[sup.cli.sub.delete]
+description = "セッション記録を恒久的に消す。`sleep` でも `abort` でもない — 座標を消すので、そのセッションが持っていた会話は二度と再開できない。生きている間は拒否する（先に止める）。UI のどこにもこのボタンを意図的に置いていない。"
+
+[sup.cli.sub.output]
+description = "この surface のセッションが直近に言ったこと。`watch` と違い後ろを見る — 誰も見ていない間に走ったターンにも、その後眠らせたセッションにも答える。"
+
+[sup.cli.sub.watch]
+description = "この surface のセッションが走らせているターンをイベント単位で追い、届いたものを返す。どこで始まったターンでも見張れる — 同じプラグインの `tell` が送ったターンもだ。見張っている間、このプラグインの他の呼び出しは待つ。"
+
+[sup.cli.sub.sync]
+description = "結ばれた全タブの注目表示を、セッションが実際にしていることに合わせる。"
+
+[sup.cli.sub.profile-list]
+description = "エージェントプロファイルの一覧。プロファイルは plugin のプロファイルフォルダにある JSON ファイル 1 つ。ファイルが無ければ組み込みの claude を出す。"
+
+[sup.cli.sub.profile-show]
+description = "エージェントプロファイル 1 つを JSON で表示する。"
+
+[sup.cli.sub.profile-set]
+description = "エージェントプロファイルを作成または置き換える。項目: agent_type(claude・pi)・command・cwd・env・model・permission_mode・settings・add_dirs・args・cache_ttl(5m・1h)。実行中のセッションは開始時のプロファイルのまま。"
+
+[sup.cli.sub.profile-remove]
+description = "エージェントプロファイルのファイルを削除する。そのプロファイルで起動したセッションは動き続けるが、同名のプロファイルが再び存在するまで再開できない。"
+
+[sup.cli.arg.profile_args.name]
+help = "プロファイル名(英数字・- _ .)"
+
+[sup.cli.arg.profile_set_args.name]
+help = "プロファイル名(英数字・- _ .)"
+
+[sup.cli.arg.profile_set_args.json]
+help = "プロファイル全体を JSON オブジェクトで。例: '{\"model\":\"opus\",\"env\":{\"CLAUDE_CONFIG_DIR\":\"/path\"}}'"
+
+[sup.cli.sub.link-list]
+description = "今結ばれている surface とセッションの組すべてと、読めなかった surface の数。"
+
+[sup.cli.sub.traffic]
+description = "API トラフィック制御の状態: 有効か、送信・受信上限(KB/s)、中継したバイト数、開いている・失敗したトンネル数、ローカルプロキシとその upstream。"
+
+[sup.cli.arg.link_args.surface_id]
+help = "結ぶ surface（省略時は呼び出し元の TASTY_SURFACE_ID）"
+
+[sup.cli.arg.link_args.session_id]
+help = "セッション id — `tasty agent-session list` で見る"
+
+[sup.cli.arg.dir_args.surface_id]
+help = "変更するセッションの surface (省略時は呼び出し元の TASTY_SURFACE_ID)"
+
+[sup.cli.arg.dir_args.path]
+help = "フォルダの絶対パス (~/ は展開します)"
+
+[sup.cli.arg.session_args.session_id]
+help = "セッション id"
+
+[sup.cli.arg.tell_args.surface_id]
+help = "話しかけるセッションの surface（省略時は呼び出し元の TASTY_SURFACE_ID）"
+
+[sup.cli.arg.tell_args.message]
+help = "送るターン(`--text` と同じ。どちらか一方だけ)"
+
+[sup.cli.arg.tell_args.text]
+help = "送るターン"
+
+[sup.cli.arg.output_args.surface_id]
+help = "読むセッションの surface（省略時は呼び出し元の TASTY_SURFACE_ID）"
+
+[sup.cli.arg.output_args.lines]
+help = "末尾 N 行のみ; 省略すると保持されている全部"
+
+[sup.cli.arg.watch_args.surface_id]
+help = "追うセッションの surface（省略時は呼び出し元の TASTY_SURFACE_ID）"
+
+[sup.cli.arg.watch_args.max_events]
+help = "この数のイベントで止める（既定 200）"
+
+[sup.cli.arg.watch_args.seconds]
+help = "届いたものを返すまで見張る秒数、1-10（既定 5）。プラグイン呼び出し一つが走る間は他を塞ぐので短くしてある。"
+
+[sup.cli.arg.start_args.surface_id]
+help = "新セッションを結ぶ surface（省略時は呼び出し元の TASTY_SURFACE_ID）"
+
+[sup.cli.arg.start_args.agent]
+help = "起こすエージェントプロファイル（`tasty agent-session profile-list` で見る）。--copy-of を渡さないなら必須"
+
+[sup.cli.arg.start_args.cwd]
+help = "新セッションの作業ディレクトリ"
+
+[sup.cli.arg.start_args.permission_mode]
+help = "新しいセッションの権限モード（acceptEdits、auto、bypassPermissions、manual、dontAsk、plan）。"
+
+[sup.cli.arg.start_args.copy_of]
+help = "この surface のチャットタブを複製する — 同じエージェントプロファイル・作業フォルダ・モデル・権限モード・追加作業フォルダで新しいセッションを起こす。会話とセッション id は移さない"
+
+[sup.cli.arg.broadcast_args.text]
+help = "該当する全セッションに送るターン"
+
+[sup.cli.arg.broadcast_args.agent]
+help = "このエージェントプロファイルで起こしたセッションのみ; 省略すると生きている全部"
+
+[sup.cli.arg.surface_args.surface_id]
+help = "尋ねる surface（省略時は呼び出し元の TASTY_SURFACE_ID）"
+
+[sup.brief]
+intro = "[tasty] この会話は tasty の agent-session タブの中で動いている。"
+surface = "- このタブの surface id: {}"
+session = "- このセッション id: {}"
+agent = "- エージェントプロファイル: {}"
+cwd = "- 作業フォルダ: {}"
+outro = "tasty CLI でウィンドウ・タブ・surface を扱える。`tasty list surfaces` で今開いているものを見て、`tasty --help` で使えるものを確かめる。自分のタブを指すときは上の surface id を `--surface` に渡す。\nこの案内には答えなくてよい — 次の入力からいつも通り答える。"
+
+[settings.subtab]
+agent_session = "エージェントセッション"
+
+[sup.settings]
+group_history = "会話履歴の保管"
+memory_turns = "メモリに保つターン数 (0 = 全部)"
+memory_turns_suffix = "ターン"
+disk_swap = "溢れたターンをディスクへ移す"
+group_context = "コンテキストコストの自動管理"
+about_context = "説明"
+sync_on = "作業中の同期"
+sync_threshold = "ターン終了時のコンテキスト基準"
+sync_threshold_suffix = "トークン"
+about_sync = "作業中 — いつ・なぜ"
+idle_sync_on = "アイドル時の同期"
+idle_sync = "アイドル後のコンテキスト基準 (240秒/3,540秒)"
+idle_sync_suffix = "トークン"
+about_idle_sync = "アイドル — いつ・なぜ"
+limit_sync_on = "5時間・7日の使用上限前の同期"
+limit_sync = "上限の使用率(claude.ai ログインのみ)"
+limit_sync_suffix = "%"
+about_limit_sync = "使用上限 — いつ・なぜ"
+sync_prompt = "同期の指示文"
+compact_prompt = "compact の焦点指示"
+group_session = "セッション管理"
+idle_reclaim = "アイドルセッションを解放"
+about_reclaim = "解放 — いつ・なぜ"
+cache_watch = "プロンプトキャッシュ再作成の通知"
+about_cache_watch = "キャッシュ通知 — いつ・なぜ"
+memory_saver = "メモリ節約 (見えないタブの画面を解放)"
+about_memory_saver = "メモリ節約 — いつ・なぜ"
+group_traffic = "API トラフィック制御"
+traffic_up = "送信上限 (0 = 無制限)"
+traffic_down = "受信上限 (0 = 無制限)"
+traffic_suffix = "KB/s"
+
+[sup.sync]
+over = "⚠ 同期"
+over_hint = "コンテキストが設定の同期しきい値を超えた — このターンの後に同期と compact が自動で動く"
+running = "⟳ 同期中"
+running_hint = "この会話の同期または compact が実行中"
+failed = "同期停止"
+failed_hint = "直前の同期が終わらなかった — 理由は入力欄の上にある。コンテキストがしきい値を下回るまで自動では再実行しない"
+still_over = "compact 後もコンテキストがしきい値を超えている — 設定でしきい値を上げる"
+sync_failed = "同期に失敗したので compact を送らなかった: {}"
+compact_failed = "compact に失敗: {}"
+stopped = "同期を止めたので compact を送らなかった"
+lost = "同期ターンがこのタブにないので compact を送らなかった"
+busy = "ターンが実行中かキューがある — 空いたら同期をやり直す"
+need_tab = "同期はチャットタブでのみ動く"
+tag_auto = "[sync-compact:auto] 自動同期 — コンテキスト {} トークン · しきい値 {} トークン"
+tag_manual = "[sync-compact:manual] 要求で始めた同期"
+tag_idle = "[sync-compact:idle] 待機時同期 — キャッシュが切れる前 · コンテキスト {} トークン · しきい値 {} トークン"
+tag_limit = "[sync-compact:limit] 使用上限同期 — 5時間・7日上限の使用率 {}% · 切られる前に残す"
+
+[sup.cache]
+rewrite_token = "キャッシュ再書き込み"
+rewrite_tip = "直前のターンは休みなしに会話全体をキャッシュへ書き直しました — キャッシュ読み取りではなく書き込みのコストがかかりました"
+tier_down = "このセッションのプロンプトキャッシュが 1 時間から 5 分に変わりました(今回の書き込み {}k トークン)。サインインや claude プロセスの環境が変わっていないか確認してください — 5 分以上休むと会話全体を書き直します。"
+prefix_break = "休みなしに会話全体({}k トークン)をキャッシュへ書き直しました — {}。"
+cause_model = "モデルが変わりました"
+cause_command = "直前のコマンド {} がプレフィックスを変えました"
+cause_unknown = "システムプロンプトやツール定義が変わった可能性があります"
+
+[sup.retry]
+waiting = "API上限(429)で拒否された — プロファイル {} の自動送信を止め、{}秒後に1件だけ送り直して確かめる。このメッセージはそのとき再送する"
+gave_up = "プロファイル {} が{}分以上API上限(429)で拒否され続けたため再送を止めた — 分あたり上限ではなく支出上限・日次上限・組織内の共有消費の可能性があるので、Consoleで確認し、解除後に送り直して"
+
+[sup.sys]
+compact_auto = "[system] /compact — 設定「作業中の同期」(ターン終了しきい値)が同期の後に送った"
+compact_idle = "[system] /compact — 設定「アイドル時の同期」(キャッシュが切れる前)が同期の後に送った"
+compact_manual = "[system] /compact — 要求された同期の後に plugin が送った"
+compact_limit = "[system] /compact — 使用上限が設定「5時間・7日の使用上限前の同期」の使用率を超えたため plugin が同期の後に送った"
+running = "· 要約中…"
+done = "· 完了"
+failed = "· 失敗: {}"
+
+[sup.profile]
+need_name = "プロファイル名が必要です(--name)"
+no_dir = "plugin データフォルダがありません — プロファイルを保存できません"
+need_json = "プロファイル本文が必要です(--json)"
+bad_json = "プロファイル本文が JSON ではありません: {}"
+not_object = "プロファイル {} は JSON オブジェクトである必要があります"
+bad_name = "プロファイル名が不正です: {} (英数字と - _ . のみ)"
+remove_failed = "プロファイル {} を削除できません: {}"
+bad_cache_ttl = "cache_ttl は 5m か 1h です: {}"
+
+[sup.prompt]
+denied = "ユーザーが拒否しました"
+
+[sup.about]
+context = "コンテキストが基準に達すると、まずプロジェクト同期で現在の状態と再開地点を文書に残し、その文書と進行中の作業を中心に compact します。エージェントごとに合わせていた基準をここでまとめて決め、コンテキストを軽く保つので、コストと応答の遅れが減ります。Claude Code の auto-compact はメモリ上で要約するだけで文書を残さないため、それより先に同期します。機能のスイッチを切っても、その基準の欄は表示されたままです。"
+sync = "推奨: オン。ターン終了時のコンテキストが基準を超えると、そのタブが 60 秒静かになってから同期します。基準より 200,000 トークン以上多ければ待ちません。基準はコンテキストウィンドウの 90% を超えないように下げて使います(200k のウィンドウなら 180,000)。同じセッションの自動実行の間隔は 10 分以上で、compact 後も基準を超えていれば、コンテキストが基準を下回るまで止まります。"
+idle_sync = "推奨: オン。プロンプトキャッシュは最後のリクエストから 5 分(または 1 時間)で切れ、その後の最初のリクエストはコンテキスト全体をキャッシュに書き直します(キャッシュ読み取りの 12 倍を超えるコスト)。そのため、API を呼んだ最後のターンが終わってからキャッシュ寿命の 1 分前(240秒・3,540秒)に、コンテキストが基準以上のときだけ同期します。休み 1 回につき 1 回で、次のメッセージを送ると再び開き、同じエージェントプロファイルでは一度に 1 タブだけ開きます。基準が作業中より低いのは意図したものです。"
+limit_sync = "推奨: オン。5 時間・7 日の使用上限のうち大きい方の使用率がこの値に達すると、上限で止められてセッションが切れる前に同期して compact します。上限がリセットされるまで 1 回です。使用率は claude.ai ログインのプロファイルでしか受け取れないため、API キーのプロファイルでは動きません。"
+reclaim = "推奨: オン。休んでいるタブごとに claude プロセスがメモリを使います。最後に触れたとき(メッセージ・タブ操作・セッション宛てのコマンド)からキャッシュ寿命の 1 分前(240秒・3,540秒)が過ぎると、プロセスを終了します。アイドル時の同期が走るタブはその完了後(失敗しても)、基準未満かアイドル時の同期がオフならすぐに終了します。バックグラウンド作業が残るセッションは終了せず、次のメッセージで会話を続けて再び起動します。"
+cache_watch = "推奨: オン。休んでいないのにターン最初のリクエストが会話全体をキャッシュに書き直すと(システムプロンプト・ツール定義が変わった場合など)、ステータス行と通知行で知らせます。1 時間キャッシュが 5 分キャッシュに下がると、セッションごとに 1 回知らせます。オフにすると通知だけが消え、指標は残ります。"
+memory_saver = "推奨: チャットタブを多く開いておくときはオン(既定はオフ)。隠れたチャットタブの画面(WebView)を解放してメモリを節約します。会話・キュー・書きかけの文はそのままで、再び表示されたときに画面を描き直します。長い会話ほど描き直しに時間がかかり、スクロールは一番下から始まります。"
+
+[sup.default]
+sync_prompt = "プロジェクト同期"
+compact_prompt = "再開ポイント文書の進行中の作業・次にやること・識別子(パス・ID・数値)は原文のまま残し、探索の過程は要約する。要約はこの文と同じ日本語で書く。"
+
+[sup.role]
+not_dir = "{} はフォルダではありません"
+unknown = "不明なロール: {}"
+need_path = "path が必要です"
+
+[sup.manage]
+create = "新しいエージェント"
+create_button = "作成"
+edit_title = "エージェントを編集"
+list = "エージェント一覧"
+edit = "編集"
+cancel = "キャンセル"
+no_profiles = "登録されたエージェントがありません。"
+name = "名前"
+agent_type = "エージェント種別"
+command = "実行コマンド"
+command_hint = "空なら種別名(claude・pi)を起動します。"
+cwd = "作業フォルダ"
+model = "モデル"
+env = "環境変数"
+env_hint = "1 行に KEY=VALUE を書きます。pi エージェントは通常 PI_CODING_AGENT_DIR を設定します。"
+save = "保存"
+delete = "削除"
+role_new = "新しいロール"
+role_path = "フォルダ"
+role_path_hint = "CLAUDE.md(指針)のあるフォルダを選んでください。"
+add = "追加"
+scan_title = "取り込み"
+scan_label = "親フォルダ"
+scan_hint = "CLAUDE.md のあるサブフォルダをフォルダ名ですべて追加します。"
+scan = "取り込む"
+roles_list = "ロール一覧"
+no_roles = "登録されたロールがありません。"
+guide = "指針"
+guide_yes = "CLAUDE.md あり"
+no_guide = "CLAUDE.md なし"
+created = "エージェント {} を作成しました"
+saved = "エージェント {} を保存しました"
+exists = "エージェント {} はすでにあります。変更するには一覧の編集を押してください。"
+not_found = "エージェント {} がありません。"
+removed = "エージェント {} を削除しました"
+role_added = "ロール {} を追加しました"
+roles_scanned = "ロールを {} 件取り込みました"
+role_removed = "ロール {} を削除しました"
+failed = "失敗: {}"
+
+[sup.cli.sub.role-list]
+description = "ロールフォルダの一覧。ロールは CLAUDE.md を持つフォルダです — セッション起動時に複数選ぶとその指針が追加されます(claude: --add-dir、pi: システムプロンプト)。"
+
+[sup.cli.sub.role-add]
+description = "ロールフォルダを名前で登録します。既存の名前なら別のフォルダに変えます。"
+
+[sup.cli.sub.role-scan]
+description = "CLAUDE.md を持つサブフォルダをすべてフォルダ名のロールとして登録します。"
+
+[sup.cli.sub.role-remove]
+description = "一覧からロールを削除します。フォルダ自体は変更しません。"
+
+[sup.cli.arg.role_args.name]
+help = "ロール名 (英数字・- _ .)"
+
+[sup.cli.arg.role_add_args.name]
+help = "ロール名 (英数字・- _ .)"
+
+[sup.cli.arg.role_add_args.path]
+help = "ロールフォルダ (存在する必要があります)"
+
+[sup.cli.arg.role_scan_args.path]
+help = "サブフォルダがロールであるフォルダ"
+
+[sup.cli.arg.start_args.roles]
+help = "追加するロールフォルダ — カンマ区切り(`tasty agent-session role-list` 参照)"

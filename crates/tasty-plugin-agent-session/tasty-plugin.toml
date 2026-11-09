@@ -1,0 +1,557 @@
+manifest_version = 1
+id = "com.tasty.agent-session"
+name = "Agent Session"
+version = "0.1.34"
+description = "Chat tabs that run Claude Code (stream-json) or pi (rpc) sessions, started from agent profiles and role folders"
+api_version = "1"
+
+# 배포 패키징에서는 아직 제외한다 — 사용자 PATH 의 `claude` CLI 가 있어야 동작한다.
+# dev 번들 sync 는 이 플래그와 무관하게 동작한다.
+bundle = false
+
+permissions = [
+    # surface meta 읽기(세션 짝 조회) · surface.list.
+    "surface.read",
+    # surface meta 쓰기(세션을 surface 에 잇는다) ·
+    # 턴을 도는 동안의 탭 · 사이드바 실행 점(`surface.set_busy`).
+    "surface.write",
+    # **작업 폴더 고르기** — `file_picker.trigger` 가 이 권한을 요구한다.
+    # ⚠️ 없으면 호스트가 **조용히 거절한다**(로그에만 남는다: `ipc permission
+    # denied … missing permission 'fs.read'`). 사용자에게는 단추가 안 먹는
+    # 것으로만 보인다.
+    #
+    # 피커에서 우리가 쓰는 것은 고른 파일의 **경로**(그 부모 폴더)뿐이다.
+    # 호스트가 피커 전체를 이 권한 하나로 게이트한다.
+    #
+    # 그와 별개로 이 plugin 은 **자기 프로세스에서 파일을 읽는다** — API 세션의
+    # 상태줄(`Total`)을 위해 agent 프로필의 `settings.json` 에서 인증 키 **이름**이
+    # 있는지 보고, 그 세션의 대화 기록을 읽는다. 상태줄의 프로필 계정을
+    # 위해 그 프로필의 계정 파일에서 로그인 이메일 한 칸을 읽는다.
+    # 호스트가 막지 못하는 읽기라 이 토큰은 그 사실의 선언이다.
+    "fs.read",
+    # 턴 끝 · 물음 대기 · 멈춘 세션을 탭에 표시한다(`surface.completion` · attention 하이라이트).
+    "notification",
+    # 세션 현황 색인 — 현행화가 끝날 때 그 워크스페이스의 memory 에 `sess.<대화 id 8자>.status` ·
+    # `.log.<시각>` · `sess.summary` 를 쓴다(요약은 기존 `sess.*.status` 를 읽어 모은다).
+    # 정본은 프로젝트 문서이고 이것은 찾아 읽기 위한 색인이다.
+    "memory.read",
+    "memory.write",
+    # 설정 창에 대화 탭의 턴 보관 한도(메모리 턴 수 · 디스크 스왑) 페이지를 낸다.
+    # 없으면 호스트가 매니페스트를 통째로 거부해 plugin 이 아예 안 뜬다(실측 2026-10-16).
+    "ui.settings_page",
+    # 턴마다 걸린 시간과 컨텍스트 토큰을 남긴다 — claude plugin 이 Stop 훅에서 남기는 것과 같은
+    # 이름(`wall_time_ms` · `input_tokens`)이라 `tasty telemetry` 가 두 탭 종류를 같이 센다.
+    "telemetry",
+    # `agent_session.tell` 의 기본 완료 전략을 선언한다(아래 `agent-session-tell-wait`).
+    "completion_strategy.define",
+    # 상태줄의 작업 폴더를 누르면 전체 경로를 복사한다 — webview 의 `navigator.clipboard` 는
+    # `about:blank` 문서에서 막힐 수 있어 호스트 클립보드(`clipboard.set_text`)를 쓴다.
+    "clipboard.write",
+    # API 트래픽 조절(`traffic_on`)이 켜지면 이 프로세스가 loopback 에 CONNECT 프록시를 열고 claude 의
+    # API 연결을 중계한다. 호스트가 강제하지 못하는 소켓 사용이라 이 토큰은 그 사실의 선언이다.
+    "network",
+]
+
+lang_dir = "lang"
+
+[entry]
+type = "process"
+command = "tasty-plugin-agent-session"
+
+[[contributes.ipc_namespace]]
+prefix = "agent_session"
+
+# 대화 탭이 `surface.fire_hook` 으로 발사하는 키 — claude plugin 이 터미널 탭에서 내는 것과 **같은 키**다.
+# 사용자가 이미 `claude-idle` 에 걸어 둔 hook 이 대화 탭에서도 그대로 돈다. 호스트는 (내장 ∪ 활성 plugin
+# 선언) 합집합으로 검증하므로 두 plugin 이 같은 키를 선언해도 된다. claude 세션에서만 발사한다(`stream`).
+[[contributes.hook_events]]
+key = "claude-idle"
+description = "Claude agent session in a chat tab finished its turn"
+
+[[contributes.hook_events]]
+key = "claude-error"
+description = "Claude agent session in a chat tab ended its turn in failure (not a stop from the tab)"
+
+[[contributes.hook_events]]
+key = "needs-input"
+description = "Claude agent session in a chat tab is waiting for a permission answer or a question answer"
+
+[[contributes.hook_events]]
+key = "claude-error-stalled"
+description = "Claude agent session in a chat tab has sent nothing for a sustained period while its turn is still running — likely stuck, or a long tool run"
+
+# ── GUI 표면 ────────────────────────────────────────────────────────────
+#
+# **plugin 은 자기 탭만 그릴 수 있다.** 기존 터미널 탭에 위젯을 얹는 길은
+# 없다 — 호스트 builtin 4종만 `host-egui` 로 그리고, plugin 에게 열린 것은
+# `egui-mesh` · `webview` · `remote` 뿐이다(`RegisteredRendering`).
+#
+# `webview` 를 고른 이유: 이 표면이 보여 줄 것은 **목록**이라 글자 배치가
+# 거의 전부다. `egui-mesh` 로 가면 표·스크롤을 손으로 계산해야 하고
+# (mesh-demo 371줄이 "사각형 몇 개" 수준이다), 얻는 것은 테마 일치뿐이다.
+# 대화 탭 — 쉘 탭처럼 입력하고 답을 받는다. 다른 점은 자식이 쉘이 아니라
+# stream-json 을 내는 에이전트 CLI 라는 것뿐이다(TTY 가 없어 화면 격자·커서·
+# 키 입력이 없다). 그래서 격자를 흉내내지 않고 **턴 기록**을 쌓는다.
+#
+# 입력은 페이지의 navigation 을 신호로 받는다(`on_webview_navigation_attempt`).
+# webview 가 plugin 에 직접 이벤트를 못 보내기 때문이고, markdown plugin 이
+# 링크 클릭을 받는 것과 같은 수단이다.
+[[surface_kinds]]
+kind = "agent_session"
+display_name_i18n_key = "surface.kind.agent_session"
+icon = "terminal"
+rendering = "webview"
+# 탭이 처음 보일 때 WebView 를 만든다 — 복원된 탭마다 렌더링 프로세스가 뜨지 않는다. 만들어지면
+# 호스트가 `surface.webview_created` 를 보내고, 받은 탭은 문서 전체를 다시 싣는다(`lazy_webview`).
+lazy_webview = true
+
+# 이 plugin 이 만든 문서만 싣는다 — 입력칸 · 접기 · 물음 카드가 스크립트로 돈다.
+# 외부 콘텐츠는 계속 막힌다.
+[surface_kinds.webview_defaults]
+sandbox_scripts = false
+
+# 탭을 열 때 받는 것 — 세션을 **새로 띄우거나**, 이미 있는 것에 **붙거나**.
+#
+# `session_id` 를 주면 그 세션에 붙고, 비우면 `agent` 로 **새로 띄운다**.
+# 둘 다 비면 이 surface 에 이미 이어진 세션(`surface.meta`)을 쓴다.
+#
+# `agent` 는 프로필 이름이다(`$TASTY_PLUGIN_DATA_DIR/profiles/<이름>.json`).
+[[surface_kinds.preset_fields]]
+id = "session_id"
+label_key = "preset.field.session_id"
+param_key = "session_id"
+input_type = "text"
+required = false
+
+[[surface_kinds.preset_fields]]
+id = "agent"
+label_key = "preset.field.agent"
+param_key = "agent"
+input_type = "text"
+required = false
+placeholder_key = "preset.field.agent_hint"
+
+[[surface_kinds.preset_fields]]
+id = "cwd"
+label_key = "preset.field.session_cwd"
+param_key = "cwd"
+input_type = "dir"
+required = false
+
+[[surface_kinds.preset_fields]]
+id = "model"
+label_key = "preset.field.model"
+param_key = "model"
+input_type = "text"
+required = false
+
+[[surface_kinds.preset_fields]]
+id = "name"
+label_key = "preset.field.session_name"
+param_key = "name"
+input_type = "text"
+required = false
+
+[[surface_kinds.preset_fields]]
+id = "prompt"
+label_key = "preset.field.first_prompt"
+param_key = "prompt"
+input_type = "text"
+required = false
+
+# ── 설정 페이지 ─────────────────────────────────────────────────────────
+#
+# 라벨은 설정 화면의 라벨 칸(최대 240px)에 한두 줄로 들어가게 짧게 둔다 — 왜 · 언제는 그 기능 뒤의 읽기 전용
+# 글(`kind = "text"`, 번역 `sup.about.*`)에 권장안으로 두고, 전체 세부는 `docs/surfaces/agent-session/index.md`
+# 의 설정 절에 있다.
+#
+# 묶음은 대화 기록 보관 → 컨텍스트 비용 자동 관리 → 세션 관리 → API 트래픽 조절 순서다. 컨텍스트 · 세션 묶음은
+# 스위치 없는 머리이고 기능마다 스위치(`kind = "toggle"`)를 둔다 — 머리 스위치는 묶음 전체를 숨기므로 기능
+# 여럿을 한 묶음에 모으면 쓸 수 없다. 그래서 기능 스위치를 꺼도 그 기준 칸은 보인다(개요 글이 그렇게 알린다).
+# 저장 키는 예전 묶음 머리 스위치와 같아 저장값이 그대로 이어진다. 모델에게 보내는 문구는 읽기 전용 글로 보이기만
+# 한다 — 기본 문구는 plugin 번역 키(`default_key`)이고, 다른 길로 값이 들어오면 그 값이 보인다. 각 `default` 는
+# 코드의 기본값과 같아야 한다(호스트는 안 건드린 값을 비워서 돌려준다) — 어느 시험이 보는지는 칸마다 적었다.
+[[contributes.settings_pages]]
+id = "agent_session"
+title_key = "settings.subtab.agent_session"
+category = "plugin"
+
+# 대화 기록 보관 — 터미널의 scrollback 줄 수·디스크 스왑과 같은 축(`turn_archive::read_limits`).
+# 0 이 "전부" 라 끄는 스위치가 따로 없다.
+[[contributes.settings_pages.items]]
+kind = "group"
+id = "history"
+label_key = "sup.settings.group_history"
+
+[[contributes.settings_pages.items]]
+kind = "number"
+id = "memory_turns"
+label_key = "sup.settings.memory_turns"
+storage_key = "memory_turns"
+default = 0.0
+min = 0.0
+max = 100000.0
+suffix_key = "sup.settings.memory_turns_suffix"
+group = "history"
+
+[[contributes.settings_pages.items]]
+kind = "toggle"
+id = "disk_swap"
+label_key = "sup.settings.disk_swap"
+storage_key = "disk_swap"
+default = false
+group = "history"
+
+# 컨텍스트 비용 자동 관리 — 현행화 → compact 를 여는 세 자리(작업 중 · 유휴 · 사용 한도)와 그들이 함께 쓰는 문구
+# (`sync_compact`). 스위치 없는 머리다(`sync_compact::tests::manifest_defaults_match_the_code`).
+[[contributes.settings_pages.items]]
+kind = "group"
+id = "context"
+label_key = "sup.settings.group_context"
+
+[[contributes.settings_pages.items]]
+kind = "text"
+id = "context_about"
+label_key = "sup.settings.about_context"
+default_key = "sup.about.context"
+group = "context"
+
+# 작업 중 현행화 — 턴 끝 컨텍스트(토큰)가 기준을 넘으면 현행화 → compact. 기준은 창의 90% 를 넘지 않게 끌어내려
+# 쓴다. 끄는 것은 스위치뿐이다 — 기준은 1 이상이다.
+[[contributes.settings_pages.items]]
+kind = "toggle"
+id = "sync_working"
+label_key = "sup.settings.sync_on"
+storage_key = "sync_threshold_on"
+default = true
+group = "context"
+
+[[contributes.settings_pages.items]]
+kind = "number"
+id = "sync_threshold_tokens"
+label_key = "sup.settings.sync_threshold"
+storage_key = "sync_threshold_tokens"
+default = 400000.0
+min = 1.0
+max = 2000000.0
+suffix_key = "sup.settings.sync_threshold_suffix"
+group = "context"
+
+[[contributes.settings_pages.items]]
+kind = "text"
+id = "sync_working_about"
+label_key = "sup.settings.about_sync"
+default_key = "sup.about.sync"
+group = "context"
+
+# 유휴 현행화 — 캐시가 식기 전(5분 캐시 240초 · 1시간 캐시 3,540초 쉰 뒤) 컨텍스트가 기준 이상이면 현행화 →
+# compact. 끄는 것은 스위치뿐이다 — 기준은 1 이상이다.
+[[contributes.settings_pages.items]]
+kind = "toggle"
+id = "idle_sync"
+label_key = "sup.settings.idle_sync_on"
+storage_key = "idle_sync_on"
+default = true
+group = "context"
+
+[[contributes.settings_pages.items]]
+kind = "number"
+id = "idle_sync_tokens"
+label_key = "sup.settings.idle_sync"
+storage_key = "idle_sync_tokens"
+default = 150000.0
+min = 1.0
+max = 2000000.0
+suffix_key = "sup.settings.idle_sync_suffix"
+group = "context"
+
+[[contributes.settings_pages.items]]
+kind = "text"
+id = "idle_sync_about"
+label_key = "sup.settings.about_idle_sync"
+default_key = "sup.about.idle_sync"
+group = "context"
+
+# 사용 한도 현행화 — 5시간 · 7일 창 중 큰 쪽의 사용률이 문턱(%)을 넘으면 한도에 끊기기 전에 현행화 → compact.
+# 창마다 한 번이다. 사용률은 claude.ai 로그인 프로필만 받는다. 끄는 것은 스위치뿐이다 — 문턱은 1 이상이다
+# (`sync_compact::tests::limit_sync_manifest_defaults_match_the_code`).
+[[contributes.settings_pages.items]]
+kind = "toggle"
+id = "limit_sync"
+label_key = "sup.settings.limit_sync_on"
+storage_key = "limit_sync_on"
+default = true
+group = "context"
+
+[[contributes.settings_pages.items]]
+kind = "number"
+id = "limit_sync_percent"
+label_key = "sup.settings.limit_sync"
+storage_key = "limit_sync_percent"
+default = 90.0
+min = 1.0
+max = 100.0
+suffix_key = "sup.settings.limit_sync_suffix"
+group = "context"
+
+[[contributes.settings_pages.items]]
+kind = "text"
+id = "limit_sync_about"
+label_key = "sup.settings.about_limit_sync"
+default_key = "sup.about.limit_sync"
+group = "context"
+
+# 현행화 문구 — 세 현행화가 함께 쓴다. 고칠 수 없게 보이기만 한다
+# (`sync_compact::tests::the_sync_prompts_are_read_only_text_in_a_group_without_a_switch`).
+[[contributes.settings_pages.items]]
+kind = "text"
+id = "sync_prompt"
+label_key = "sup.settings.sync_prompt"
+storage_key = "sync_prompt"
+default_key = "sup.default.sync_prompt"
+group = "context"
+
+[[contributes.settings_pages.items]]
+kind = "text"
+id = "compact_prompt"
+label_key = "sup.settings.compact_prompt"
+storage_key = "compact_prompt"
+default_key = "sup.default.compact_prompt"
+group = "context"
+
+# 세션 관리 — 쉬는 세션의 프로세스 · 화면 자원과 캐시 알림. 스위치 없는 머리라 유휴 현행화를 꺼도 회수 스위치가
+# 숨지 않는다.
+[[contributes.settings_pages.items]]
+kind = "group"
+id = "session"
+label_key = "sup.settings.group_session"
+
+# 유휴 회수(`idle_reclaim`) — 휴식 시계가 유휴 기한을 넘기면 세션의 claude 를 내리고 다음 입력에 `--resume` 으로
+# 다시 띄운다(`sync_compact::tests::manifest_defaults_match_the_code`).
+[[contributes.settings_pages.items]]
+kind = "toggle"
+id = "idle_reclaim"
+label_key = "sup.settings.idle_reclaim"
+storage_key = "idle_reclaim"
+default = true
+group = "session"
+
+[[contributes.settings_pages.items]]
+kind = "text"
+id = "idle_reclaim_about"
+label_key = "sup.settings.about_reclaim"
+default_key = "sup.about.reclaim"
+group = "session"
+
+# 캐시 재작성 알림(`cache_watch`, `docs/surfaces/agent-session/index.md` § 설정) — 끄면 알림·상태줄 토큰만 끄고
+# 지표는 남긴다(`cache_watch::tests::manifest_default_matches_the_code`).
+[[contributes.settings_pages.items]]
+kind = "toggle"
+id = "cache_watch"
+label_key = "sup.settings.cache_watch"
+storage_key = "cache_watch"
+default = true
+group = "session"
+
+[[contributes.settings_pages.items]]
+kind = "text"
+id = "cache_watch_about"
+label_key = "sup.settings.about_cache_watch"
+default_key = "sup.about.cache_watch"
+group = "session"
+
+# 메모리 절약(`view_state`) — 켜면 호스트가 가려진 대화 탭의 WebView 를 없애고 다시 보일 때 만든다. 저장 키는
+# 호스트가 읽는 이름(`release_hidden_webview`)이다. 기본 끔(`view_state::tests::the_manifest_toggle_matches_the_code`).
+[[contributes.settings_pages.items]]
+kind = "toggle"
+id = "memory_saver"
+label_key = "sup.settings.memory_saver"
+storage_key = "release_hidden_webview"
+default = false
+group = "session"
+
+[[contributes.settings_pages.items]]
+kind = "text"
+id = "memory_saver_about"
+label_key = "sup.settings.about_memory_saver"
+default_key = "sup.about.memory_saver"
+group = "session"
+
+# API 트래픽 조절(`traffic`) — 상단 장비의 policing · shaping 한도보다 빠르게 보내 버려지는 일이 없게 claude 의 API
+# 연결을 loopback 프록시로 흘린다. 한도는 이 단말기의 agent 세션 전체가 나눠 쓴다. 머리 스위치는 기본 끔이고
+# 켜면 새로 뜨거나 재개되는 세션부터 적용된다. 한도 칸의 0 은 그 방향 무제한
+# (`sync_compact::tests::manifest_defaults_match_the_code`).
+[[contributes.settings_pages.items]]
+kind = "group"
+id = "traffic"
+label_key = "sup.settings.group_traffic"
+storage_key = "traffic_on"
+default = false
+
+[[contributes.settings_pages.items]]
+kind = "number"
+id = "traffic_up_kbps"
+label_key = "sup.settings.traffic_up"
+storage_key = "traffic_up_kbps"
+default = 0.0
+min = 0.0
+max = 1250000.0
+suffix_key = "sup.settings.traffic_suffix"
+group = "traffic"
+
+[[contributes.settings_pages.items]]
+kind = "number"
+id = "traffic_down_kbps"
+label_key = "sup.settings.traffic_down"
+storage_key = "traffic_down_kbps"
+default = 0.0
+min = 0.0
+max = 1250000.0
+suffix_key = "sup.settings.traffic_suffix"
+group = "traffic"
+
+# 작업 그래프(`tasty agent task`)의 `agent_session.tell` 노드가 **그 턴이 끝날 때까지** 기다리게 한다 —
+# claude plugin 의 `tell-wait` 와 같은 자리다. `tell` 은 답을 2분까지만 기다리고 돌아오므로, 더 긴 턴은
+# 이 폴링이 끝을 잡는다. `status` 의 최상위 `turn` 칸이 `idle` 이면 끝이다.
+[[contributes.completion_strategy]]
+id = "agent-session-tell-wait"
+priority = 100
+default_for_methods = ["agent_session.tell"]
+
+[contributes.completion_strategy.spec]
+kind = "poll"
+poll_method = "agent_session.status"
+map_from_response = { surface_id = "surface_id" }
+state_field = "turn"
+# `needs_input` 은 끝 쪽이다 — 사람이 답하면 이어진다(claude plugin `tell-wait` 와 같은 계약).
+# `exited` 는 실패다 — 세션이 끝나 그 산출물을 전제로 진행하면 틀린다.
+terminal_states = ["idle", "needs_input"]
+failure_states = ["exited"]
+
+[[contributes.cli]]
+name = "agent-session"
+description = "Drive Claude Code and pi chat-tab sessions, their agent profiles and role folders"
+description_i18n_key = "sup.cli.desc"
+subcommands = [
+    { name = "list", ipc_method = "agent_session.list", args = "no_args", description = "List agent sessions with how many are running. A stopped session keeps its conversation and resumes on the next turn.", description_i18n_key = "sup.cli.sub.list.description" },
+    { name = "link-add", ipc_method = "agent_session.link", args = "link_args", description = "Tie a session to a surface so each can be found from the other. Refuses an unknown session — a link to nothing is worse than no link.", description_i18n_key = "sup.cli.sub.link-add.description" },
+    { name = "link-of", ipc_method = "agent_session.of_surface", args = "surface_args", description = "Which session is this surface tied to. Not being tied is not an error condition of the tool — most surfaces are not.", description_i18n_key = "sup.cli.sub.link-of.description" },
+    { name = "link-remove", ipc_method = "agent_session.unlink", args = "surface_args", description = "Untie a surface from its session. Touches neither the session nor the surface — only the mark. Unlike `delete` this is reversible: link again and it is back. Untying something never tied is still success.", description_i18n_key = "sup.cli.sub.link-remove.description" },
+    { name = "link-siblings", ipc_method = "agent_session.siblings", args = "session_args", description = "Every surface this session is tied to. tasty asks 'who spawned this child'; our sessions have no parent column, so this answers the one relation the ties can actually express: a session spanning several surfaces. A surface holds exactly one session, so the reverse direction cannot exist.", description_i18n_key = "sup.cli.sub.link-siblings.description" },
+    { name = "status", ipc_method = "agent_session.status", args = "surface_args", description = "What the session tied to this surface is doing right now.", description_i18n_key = "sup.cli.sub.status.description" },
+    { name = "sleep", ipc_method = "agent_session.sleep", args = "surface_args", description = "Stop this surface's session process now. The conversation is kept, so the next `tell` resumes it with its context.", description_i18n_key = "sup.cli.sub.sleep.description" },
+    { name = "tell", ipc_method = "agent_session.tell", args = "tell_args", description = "Send a turn to the session tied to this surface and wait for the answer. A stopped session is resumed automatically, which costs that one turn a few extra seconds. Waits up to two minutes; a turn still running by then is reported as such, and its answer can be read later with `output`. On a chat tab the turn goes through the tab's queue, so it shows up in the tab and never overlaps a turn sent there.", description_i18n_key = "sup.cli.sub.tell.description" },
+    { name = "abort", ipc_method = "agent_session.abort", args = "surface_args", description = "Cancel the turn this surface's session is running, without ending the session. This is what Ctrl+C does in a shell tab: the work stops, the session stays and takes the next turn, and it is harmless when nothing is running. Unlike `sleep` the process stays up.", description_i18n_key = "sup.cli.sub.abort.description" },
+    { name = "add-dir", ipc_method = "agent_session.add_dir", args = "dir_args", description = "Give this surface's session another working directory, the same as /add-dir in Claude Code. The list is kept per session and passed to claude; if the session is running it is restarted at once with its conversation intact, otherwise the folder applies on the next resume. Refuses while a turn is running.", description_i18n_key = "sup.cli.sub.add-dir.description" },
+    { name = "remove-dir", ipc_method = "agent_session.remove_dir", args = "dir_args", description = "Take a working directory added with add-dir off this surface's session. Applies the same way as add-dir: at once if the session is running, otherwise on the next resume.", description_i18n_key = "sup.cli.sub.remove-dir.description" },
+    { name = "clear", ipc_method = "agent_session.clear", args = "surface_args", description = "Start a fresh conversation in this surface's session, the same as /clear in Claude Code. The session, its tab and its settings stay; the agent forgets the earlier turns and a chat tab drops them too. Refuses while a turn is running or messages are queued, and answers once the clear has gone through.", description_i18n_key = "sup.cli.sub.clear.description" },
+    { name = "sync-compact", ipc_method = "agent_session.sync_compact", args = "surface_args", description = "Run project sync on the session tied to this chat tab, then compact it. Compact is sent only when the sync turn ends well. Refuses while a turn is running or messages are queued, and answers once the sync turn has been sent; the status line shows the rest.", description_i18n_key = "sup.cli.sub.sync-compact.description" },
+    { name = "start", ipc_method = "agent_session.start", args = "start_args", description = "Spawn a new agent session and tie it to this surface in one step. Refuses if the surface already holds a session, because a surface can only carry one and overwriting would orphan the first. With --copy-of, the new session copies another chat tab's profile and settings.", description_i18n_key = "sup.cli.sub.start.description" },
+    { name = "broadcast", ipc_method = "agent_session.broadcast", args = "broadcast_args", description = "Send the same turn to every session started under one agent profile, or to all live sessions when no agent is named. Partial failure does not cancel the rest \u2014 sent and failed come back separately.", description_i18n_key = "sup.cli.sub.broadcast.description" },
+    { name = "delete", ipc_method = "agent_session.delete", args = "session_args", description = "Permanently remove a session record. This is not `sleep` and not `abort`: it erases the coordinate, so the conversation that session held can never be resumed. Refuses while the session is alive \u2014 stop it first. There is deliberately no button for this anywhere in the UI.", description_i18n_key = "sup.cli.sub.delete.description" },
+    { name = "output", ipc_method = "agent_session.output", args = "output_args", description = "What this surface's session said most recently. Unlike `watch`, this looks backwards \u2014 it answers even for turns that ran while nothing was watching, and for a session that has since been put to sleep.", description_i18n_key = "sup.cli.sub.output.description" },
+    { name = "watch", ipc_method = "agent_session.watch", args = "watch_args", description = "Follow the turn this surface's session is running, event by event, and return what arrived. Works for a turn started anywhere, including a `tell` from this same plugin; while it watches, other calls to this plugin wait.", description_i18n_key = "sup.cli.sub.watch.description" },
+    { name = "sync", ipc_method = "agent_session.sync", args = "no_args", description = "Bring every linked tab's attention highlight in line with what its session is actually doing.", description_i18n_key = "sup.cli.sub.sync.description" },
+    { name = "profile-list", ipc_method = "agent_session.profile_list", args = "no_args", description = "List agent profiles. Each profile is one JSON file in the plugin's profiles folder; with no files, a built-in profile named claude is offered.", description_i18n_key = "sup.cli.sub.profile-list.description" },
+    { name = "profile-show", ipc_method = "agent_session.profile_show", args = "profile_args", description = "Show one agent profile as JSON.", description_i18n_key = "sup.cli.sub.profile-show.description" },
+    { name = "profile-set", ipc_method = "agent_session.profile_set", args = "profile_set_args", description = "Create or replace an agent profile. Fields: agent_type (claude or pi), command, cwd, env, model, permission_mode, settings, add_dirs, args, cache_ttl (5m or 1h). Sessions already running keep the profile they started with.", description_i18n_key = "sup.cli.sub.profile-set.description" },
+    { name = "profile-remove", ipc_method = "agent_session.profile_remove", args = "profile_args", description = "Delete an agent profile file. Sessions started from it keep running, but cannot resume until a profile of that name exists again.", description_i18n_key = "sup.cli.sub.profile-remove.description" },
+    { name = "role-list", ipc_method = "agent_session.role_list", args = "no_args", description = "List role folders. A role is a folder with a CLAUDE.md; pick several when starting a session and their guidance is added (claude: --add-dir, pi: system prompt).", description_i18n_key = "sup.cli.sub.role-list.description" },
+    { name = "role-add", ipc_method = "agent_session.role_add", args = "role_add_args", description = "Register a role folder under a name, or point an existing name at another folder.", description_i18n_key = "sup.cli.sub.role-add.description" },
+    { name = "role-scan", ipc_method = "agent_session.role_scan", args = "role_scan_args", description = "Register every subfolder that holds a CLAUDE.md as a role named after the folder.", description_i18n_key = "sup.cli.sub.role-scan.description" },
+    { name = "role-remove", ipc_method = "agent_session.role_remove", args = "role_args", description = "Remove a role from the list. The folder itself is not touched.", description_i18n_key = "sup.cli.sub.role-remove.description" },
+    { name = "link-list", ipc_method = "agent_session.links", args = "no_args", description = "Every surface-to-session pair currently tied, plus how many surfaces could not be read.", description_i18n_key = "sup.cli.sub.link-list.description" },
+    { name = "traffic", ipc_method = "agent_session.traffic", args = "no_args", description = "API traffic shaping: whether it is on, the upload and download limits (KB/s), bytes relayed, open and failed tunnels, and the local proxies with their upstream.", description_i18n_key = "sup.cli.sub.traffic.description" },
+]
+
+[contributes.cli.arg_groups.no_args]
+flags = []
+
+[contributes.cli.arg_groups.link_args]
+flags = [
+    { name = "surface_id", type = "u32", flag = "--surface", required = false, help = "Surface to tie (defaults to the caller's TASTY_SURFACE_ID)", help_i18n_key = "sup.cli.arg.link_args.surface_id.help" },
+    { name = "session_id", type = "string", flag = "--session", required = true, help = "Session id — see `tasty agent-session list`", help_i18n_key = "sup.cli.arg.link_args.session_id.help" },
+]
+
+[contributes.cli.arg_groups.dir_args]
+flags = [
+    { name = "surface_id", type = "u32", flag = "--surface", required = false, help = "Surface whose session to change (defaults to the caller's TASTY_SURFACE_ID)", help_i18n_key = "sup.cli.arg.dir_args.surface_id.help" },
+    { name = "path", type = "string", flag = "--path", required = true, help = "Absolute path of the directory (~/ is expanded)", help_i18n_key = "sup.cli.arg.dir_args.path.help" },
+]
+
+[contributes.cli.arg_groups.session_args]
+flags = [
+    { name = "session_id", type = "string", flag = "--session", required = true, help = "Session id", help_i18n_key = "sup.cli.arg.session_args.session_id.help" },
+]
+
+# 본문은 위치 인자나 `--text` 중 하나 — claude plugin 의 `tell` 이 위치 인자로 받아서, 그 형태로 부르다
+# `--text` 누락으로 실패하는 일이 잦았다. 둘 다 없거나 둘 다 있으면 plugin 이 사용법을 담아 거절한다.
+[contributes.cli.arg_groups.tell_args]
+positional = [
+    { name = "message", type = "string", required = false, help = "The turn to send (same as --text; give only one)", help_i18n_key = "sup.cli.arg.tell_args.message.help" },
+]
+flags = [
+    { name = "surface_id", type = "u32", flag = "--surface", required = false, help = "Surface whose session to talk to (defaults to the caller's TASTY_SURFACE_ID)", help_i18n_key = "sup.cli.arg.tell_args.surface_id.help" },
+    { name = "text", type = "string", flag = "--text", required = false, help = "The turn to send", help_i18n_key = "sup.cli.arg.tell_args.text.help" },
+]
+
+[contributes.cli.arg_groups.output_args]
+flags = [
+    { name = "surface_id", type = "u32", flag = "--surface", required = false, help = "Surface whose session to read (defaults to the caller's TASTY_SURFACE_ID)", help_i18n_key = "sup.cli.arg.output_args.surface_id.help" },
+    { name = "lines", type = "u32", flag = "--lines", required = false, help = "Only the last N lines; omit for everything kept", help_i18n_key = "sup.cli.arg.output_args.lines.help" },
+]
+
+[contributes.cli.arg_groups.watch_args]
+flags = [
+    { name = "surface_id", type = "u32", flag = "--surface", required = false, help = "Surface whose session to follow (defaults to the caller's TASTY_SURFACE_ID)", help_i18n_key = "sup.cli.arg.watch_args.surface_id.help" },
+    { name = "max_events", type = "u32", flag = "--max-events", required = false, help = "Stop after this many events (default 200)", help_i18n_key = "sup.cli.arg.watch_args.max_events.help" },
+    { name = "seconds", type = "u32", flag = "--seconds", required = false, help = "How long to watch before returning what arrived, 1-10 (default 5). Kept short because one plugin call blocks the others while it runs.", help_i18n_key = "sup.cli.arg.watch_args.seconds.help" },
+]
+
+[contributes.cli.arg_groups.start_args]
+flags = [
+    { name = "surface_id", type = "u32", flag = "--surface", required = false, help = "Surface to tie the new session to (defaults to the caller's TASTY_SURFACE_ID)", help_i18n_key = "sup.cli.arg.start_args.surface_id.help" },
+    { name = "agent", type = "string", flag = "--agent", required = false, help = "Agent profile to start (see `tasty agent-session profile-list`). Required unless --copy-of is given", help_i18n_key = "sup.cli.arg.start_args.agent.help" },
+    { name = "cwd", type = "string", flag = "--cwd", required = false, help = "Working directory for the new session", help_i18n_key = "sup.cli.arg.start_args.cwd.help" },
+    { name = "permission_mode", type = "string", flag = "--permission-mode", required = false, help = "Permission mode for the new session (acceptEdits, auto, bypassPermissions, manual, dontAsk, plan).", help_i18n_key = "sup.cli.arg.start_args.permission_mode.help" },
+    { name = "copy_of", type = "u32", flag = "--copy-of", required = false, help = "Copy the chat tab on this surface: start a new session under the same agent profile, working directory, model, permission mode and added directories. The conversation and session id are not copied", help_i18n_key = "sup.cli.arg.start_args.copy_of.help" },
+    { name = "roles", type = "string", flag = "--roles", required = false, help = "Role folders to add, comma separated (see `tasty agent-session role-list`)", help_i18n_key = "sup.cli.arg.start_args.roles.help" },
+]
+
+[contributes.cli.arg_groups.broadcast_args]
+flags = [
+    { name = "text", type = "string", flag = "--text", required = true, help = "The turn to send to every matching session", help_i18n_key = "sup.cli.arg.broadcast_args.text.help" },
+    { name = "agent", type = "string", flag = "--agent", required = false, help = "Only sessions started under this agent profile; omit for every live session", help_i18n_key = "sup.cli.arg.broadcast_args.agent.help" },
+]
+
+[contributes.cli.arg_groups.profile_args]
+flags = [
+    { name = "name", type = "string", flag = "--name", required = true, help = "Profile name (letters, digits, - _ .)", help_i18n_key = "sup.cli.arg.profile_args.name.help" },
+]
+
+[contributes.cli.arg_groups.role_args]
+flags = [
+    { name = "name", type = "string", flag = "--name", required = true, help = "Role name (letters, digits, - _ .)", help_i18n_key = "sup.cli.arg.role_args.name.help" },
+]
+
+[contributes.cli.arg_groups.role_add_args]
+flags = [
+    { name = "name", type = "string", flag = "--name", required = true, help = "Role name (letters, digits, - _ .)", help_i18n_key = "sup.cli.arg.role_add_args.name.help" },
+    { name = "path", type = "string", flag = "--path", required = true, help = "Role folder (must exist)", help_i18n_key = "sup.cli.arg.role_add_args.path.help" },
+]
+
+[contributes.cli.arg_groups.role_scan_args]
+flags = [
+    { name = "path", type = "string", flag = "--path", required = true, help = "Folder whose subfolders are roles", help_i18n_key = "sup.cli.arg.role_scan_args.path.help" },
+]
+
+[contributes.cli.arg_groups.profile_set_args]
+flags = [
+    { name = "name", type = "string", flag = "--name", required = true, help = "Profile name (letters, digits, - _ .)", help_i18n_key = "sup.cli.arg.profile_set_args.name.help" },
+    { name = "json", type = "string", flag = "--json", required = true, help = "The whole profile as a JSON object, e.g. '{\"model\":\"opus\",\"env\":{\"CLAUDE_CONFIG_DIR\":\"/path\"}}'", help_i18n_key = "sup.cli.arg.profile_set_args.json.help" },
+]
+
+[contributes.cli.arg_groups.surface_args]
+flags = [
+    { name = "surface_id", type = "u32", flag = "--surface", required = false, help = "Surface to ask about (defaults to the caller's TASTY_SURFACE_ID)", help_i18n_key = "sup.cli.arg.surface_args.surface_id.help" },
+]

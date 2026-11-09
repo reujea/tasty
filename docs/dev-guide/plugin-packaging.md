@@ -8,6 +8,7 @@
 
 | crate | plugin ID |
 |-------|-----------|
+| `tasty-plugin-agent-session` | `com.tasty.agent-session` |
 | `tasty-plugin-agent-stream` | `com.tasty.agent-stream` |
 | `tasty-plugin-claude` | `com.tasty.claude` |
 | `tasty-plugin-clipboard-viewer` | `com.tasty.clipboard-viewer` |
@@ -33,7 +34,7 @@ plugin 당 산출물: `<bin>`(Windows `.exe`) · `tasty-plugin.toml`(매니페�
 
 매니페스트 최상위 `bundle` 키(기본 `true`, 스키마: `crates/tasty-plugin-manifest/src/types.rs`)로 **개별 plugin 을 배포 패키징에서만 제외**할 수 있다. `false` 면 dist 스크립트(`build-macos-dmg.sh`/`build-linux.sh`/`build-windows.ps1`)의 plugin 탐색 glob 이 그 crate 를 건너뛰어 DMG/AppImage/MSI 산출물과 실제 바이너리 빌드에는 넣지 않는다. **dev 스테이징**(`just build-plugins`/`link-plugins`)은 이 플래그를 보지 않으므로 로컬 빌드에는 그대로 포함된다 — 데모/PoC plugin 을 개발 중엔 쓰되 배포 패키지에서는 빼는 용도.
 
-런타임 `BUILTINS`(`builtin.rs`)에는 그대로 남겨둔다: `install_builtins_if_needed` 가 번들에 없는 builtin 을 debug 로그만 남기고 건너뛰므로, 개발 빌드는 스테이징된 plugin을 설치하고, 배포 빌드는 번들에 없는 항목을 건너뛴다. 현재 `com.tasty.mesh-demo`와 `com.tasty.agent-stream`이 `bundle = false`다. **주의**: `bundle = false` 는 glob 기반 위치(4/5/6)와 바이너리 빌드에만 자동 적용되고, 아래 "staging 7 위치 동기화" 표의 **명시(explicit) 위치(1/2/3)는 자동으로 걸러지지 않는다** — 새로 `bundle = false` 를 붙인 plugin 이 있으면 `[package.metadata.deb] assets`/`[package.metadata.generate-rpm] assets`/`wix/main.wxs` 에서도 그 plugin 항목을 수동으로 빼야 한다. 누락하면 패키저가 만들지 않은 바이너리를 찾다가 실패한다.
+런타임 `BUILTINS`(`builtin.rs`)에는 그대로 남겨둔다: `install_builtins_if_needed` 가 번들에 없는 builtin 을 debug 로그만 남기고 건너뛰므로, 개발 빌드는 스테이징된 plugin을 설치하고, 배포 빌드는 번들에 없는 항목을 건너뛴다. 현재 `com.tasty.mesh-demo`·`com.tasty.agent-stream`·`com.tasty.agent-session`이 `bundle = false`다. **주의**: `bundle = false` 는 glob 기반 위치(4/5/6)와 바이너리 빌드에만 자동 적용되고, 아래 "staging 7 위치 동기화" 표의 **명시(explicit) 위치(1/2/3)는 자동으로 걸러지지 않는다** — 새로 `bundle = false` 를 붙인 plugin 이 있으면 `[package.metadata.deb] assets`/`[package.metadata.generate-rpm] assets`/`wix/main.wxs` 에서도 그 plugin 항목을 수동으로 빼야 한다. 누락하면 패키저가 만들지 않은 바이너리를 찾다가 실패한다.
 
 ## 서명
 

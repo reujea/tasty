@@ -851,6 +851,7 @@ new_markdown = "新建 Markdown…"
 new_explorer = "新建文件浏览器"
 new_html = "新建 HTML…"
 new_image = "新建图像"
+new_agent_session = "新建智能体会话"
 
 [terminal_context_menu]
 copy = "复制"

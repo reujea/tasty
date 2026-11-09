@@ -31,6 +31,12 @@ const ALLOWLIST: &[(&str, &[&str])] = &[
         &["P7", "P8", "P9", "P10"],
     ),
     ("scripts/check-allow-reason.sh", &["P7"]),
+    // 프로젝트 스킬 자리는 Claude Code 가 정한 각 프로젝트의 설정 폴더다(이 저장소의 로컬 폴더가 아니다).
+    (
+        "crates/tasty-plugin-agent-session/src/adapters/driven/skills.rs",
+        &["P6"],
+    ),
+    ("tests/agent_session_gui.rs", &["P6"]),
     ("vendor/tiny_http/src/response.rs", &["P7"]),
     ("vendor/epaint/src/stats.rs", &["P7"]),
 ];

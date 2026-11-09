@@ -124,7 +124,7 @@ raw memory KV에서 tasty. 접두사는 호스트 전용이다. 권한 집합을
 그와 별개로 이 토큰은 **호스트가 강제할 수 없는 네트워크 사용을 사용자에게 알리는 선언**으로도 쓴다.
 권한 게이트는 호스트 IPC 호출만 막으므로, plugin 프로세스가 자기 소켓을 여는 것은 어느 토큰으로도 통제되지 않는다.
 그래도 매니페스트에 `network` 를 적으면 사용자가 **grant 시점에** 그 사실을 본다.
-번들 plugin agent-stream 이 이 용법이다 — SSE 엔드포인트가 자기 프로세스에서 TCP 포트를 열고(`agent_stream.serve`), 노출 정책(loopback 기본 · 광역 bind 시 토큰 필수)은 호스트가 아니라 그 plugin 이 스스로 지키는 규약이다([Agent Stream (`com.tasty.agent-stream`)](../plugins/agent-stream/index.md)). `fs.read` / `fs.write` 를 직접 파일 접근에 대해 정직하게 선언하는 것과 같은 관례다.
+번들 plugin agent-stream 이 이 용법이다 — SSE 엔드포인트가 자기 프로세스에서 TCP 포트를 열고(`agent_stream.serve`), 노출 정책(loopback 기본 · 광역 bind 시 토큰 필수)은 호스트가 아니라 그 plugin 이 스스로 지키는 규약이다([Agent Stream (`com.tasty.agent-stream`)](../plugins/agent-stream/index.md)). 번들 plugin agent-session 도 API 트래픽 조절(`traffic_on`)을 켜면 loopback 에 CONNECT 프록시를 열어 이 토큰을 선언한다([agent-session](../surfaces/agent-session/index.md#api-트래픽-조절)). `fs.read` / `fs.write` 를 직접 파일 접근에 대해 정직하게 선언하는 것과 같은 관례다.
 
 즉 `network` 는 두 의미를 겸한다: **호스트가 강제하는 것**(`webhook.register` 호출 자격)과 **호스트가 강제하지 못해 선언으로만 남는 것**(plugin 프로세스의 소켓). 표의 가운데 열은 전자만 센다.
 

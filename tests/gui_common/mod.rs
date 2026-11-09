@@ -121,6 +121,11 @@ const GUI_SPAWN_PORT_TIMEOUT: Duration = Duration::from_secs(15);
 
 impl GuiTestInstance {
     pub fn spawn() -> Self {
+        Self::spawn_with_config(None)
+    }
+
+    /// 격리 홈에 `config.toml` 을 먼저 써 두고 띄운다 — 시작할 때만 읽는 설정(plugin 설정 등)을 켠 채 시험한다.
+    pub fn spawn_with_config(config: Option<&str>) -> Self {
         // 시계 해상도에 의존하지 않고 PID와 프로세스 내 카운터로 임시 경로를 구별한다.
         static NEXT: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
         let unique = format!(
@@ -131,6 +136,10 @@ impl GuiTestInstance {
         let port_file = std::env::temp_dir().join(format!("tasty-gui-test-{unique}.port"));
 
         let isolated_home = std::env::temp_dir().join(format!("tasty-gui-test-home-{unique}"));
+        if let Some(config) = config {
+            std::fs::create_dir_all(&isolated_home).expect("격리 홈");
+            std::fs::write(isolated_home.join("config.toml"), config).expect("config.toml 쓰기");
+        }
 
         // debug 기록 모드로 native 메뉴를 실제로 열지 않고 IPC에서 확인한다.
         let mut command = Command::new(env!("CARGO_BIN_EXE_tasty"));
@@ -221,6 +230,75 @@ impl GuiTestInstance {
 
     pub fn process_id(&self) -> u32 {
         self.process.id()
+    }
+
+    /// 격리 홈 — plugin 데이터(프로필 등)를 미리 깔아야 하는 시험이 쓴다.
+    #[cfg(target_os = "macos")]
+    pub fn home(&self) -> &std::path::Path {
+        &self.isolated_home
+    }
+
+    /// 화면 좌표(논리 pt, 주 화면 왼쪽 위 기준)를 OS 수준으로 한 번 누른다. native WebView 처럼 egui · 터미널
+    /// 주입 경로가 닿지 않는 곳에 쓴다. 좌표는 `debug.window.list` 의 `inner_position` 과
+    /// `debug.surface_rect` 로 계산한다.
+    #[cfg(target_os = "macos")]
+    pub fn click_screen_points(&mut self, x: f64, y: f64) {
+        self.focus();
+        std::thread::sleep(Duration::from_millis(50));
+        self.enigo
+            .move_mouse(x.round() as i32, y.round() as i32, Coordinate::Abs)
+            .expect("mouse move failed");
+        std::thread::sleep(Duration::from_millis(80));
+        self.enigo
+            .button(enigo::Button::Left, Direction::Click)
+            .expect("mouse click failed");
+        std::thread::sleep(Duration::from_millis(200));
+    }
+
+    /// [`Self::click_screen_points`] 의 오른쪽 단추판. native WebView 의 우클릭(`contextmenu`)을 재현한다.
+    #[cfg(target_os = "macos")]
+    pub fn right_click_screen_points(&mut self, x: f64, y: f64) {
+        self.focus();
+        std::thread::sleep(Duration::from_millis(50));
+        self.enigo
+            .move_mouse(x.round() as i32, y.round() as i32, Coordinate::Abs)
+            .expect("mouse move failed");
+        std::thread::sleep(Duration::from_millis(80));
+        self.enigo
+            .button(enigo::Button::Right, Direction::Click)
+            .expect("mouse right click failed");
+        std::thread::sleep(Duration::from_millis(200));
+    }
+
+    /// 화면 좌표(논리 pt)에서 왼쪽 단추를 누른 채 다른 좌표로 끌고 놓는다. 창 테두리 끌기처럼 OS 가 처리하는
+    /// 조작을 재현한다. 중간 지점을 여러 번 지나야 창 서버가 끌기로 받는다.
+    #[cfg(target_os = "macos")]
+    pub fn drag_screen_points(&mut self, from: (f64, f64), to: (f64, f64)) {
+        self.focus();
+        std::thread::sleep(Duration::from_millis(50));
+        let at = |p: (f64, f64)| (p.0.round() as i32, p.1.round() as i32);
+        let (x0, y0) = at(from);
+        self.enigo
+            .move_mouse(x0, y0, Coordinate::Abs)
+            .expect("mouse move failed");
+        std::thread::sleep(Duration::from_millis(150));
+        self.enigo
+            .button(enigo::Button::Left, Direction::Press)
+            .expect("mouse press failed");
+        std::thread::sleep(Duration::from_millis(150));
+        for k in 1..=10 {
+            let f = f64::from(k) / 10.0;
+            let (x, y) = at((from.0 + (to.0 - from.0) * f, from.1 + (to.1 - from.1) * f));
+            self.enigo
+                .move_mouse(x, y, Coordinate::Abs)
+                .expect("mouse move failed");
+            std::thread::sleep(Duration::from_millis(40));
+        }
+        std::thread::sleep(Duration::from_millis(150));
+        self.enigo
+            .button(enigo::Button::Left, Direction::Release)
+            .expect("mouse release failed");
+        std::thread::sleep(Duration::from_millis(400));
     }
 
     pub fn focus(&self) {

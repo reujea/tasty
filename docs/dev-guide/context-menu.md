@@ -31,7 +31,7 @@ surface 우클릭 컨텍스트 메뉴는 surface 종류에 따라 생산 경로�
   하나다(`src/view/main/webview_menu.rs`). 고르면 host가 클립보드에 쓰되 토스트는 띄우지 않는다 — 토스트 카드가 겹친
   webview는 토스트가 닫힐 때까지 통째로 숨겨지기 때문이다(`hidden_under_toast`). 대신 소유 plugin에만
   `webview.context_menu_selected`(`surface_id` · `item` · `copied` · 요청한 페이지 좌표 `x` · `y`)를 보내 페이지 안에서
-  알리게 한다. 클립보드 쓰기 실패는 host 토스트로 알린다.
+  알리게 한다. 클립보드 쓰기 실패는 host 토스트로 알린다. 이 경로를 쓰는 plugin은 agent-session이다([agent session](../surfaces/agent-session/index.md)).
 - **explorer의 나머지 영역**: 파일 셀, content의 빈 영역, 트리 노드, 즐겨찾기는 각 위치에 맞는
   메뉴를 만든다. `draw_explorer` 마지막에서는 전체 rect를 확인해 툴바·주소창·내부 탭바·상태줄·
   빈 사이드바의 우클릭에도 Empty 메뉴를 제공한다. 파일 브라우저 위에 무관한 Surface 메뉴

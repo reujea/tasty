@@ -6367,6 +6367,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "tasty-plugin-agent-session"
+version = "0.1.34"
+dependencies = [
+ "serde_json",
+ "tasty-plugin-agent-common",
+ "tasty-plugin-sdk",
+ "tracing",
+ "tracing-subscriber",
+]
+
+[[package]]
 name = "tasty-plugin-agent-stream"
 version = "0.1.178"
 dependencies = [

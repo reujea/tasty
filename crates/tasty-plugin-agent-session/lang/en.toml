@@ -1,0 +1,610 @@
+[surface.kind]
+agent_session = "Agent Session"
+
+[preset.field]
+agent = "Agent profile"
+agent_hint = "Leave empty to reuse this tab's session"
+session_cwd = "Working directory"
+model = "Model"
+session_name = "Session name"
+first_prompt = "First message"
+session_id = "Session id (optional)"
+
+[sup.chat]
+start_warning = "Warning: {}"
+empty = "Nothing exchanged yet. Type below."
+input_placeholder = "Type a message"
+send_button = "Send"
+send_hint = "Send (Enter). Shift+Enter starts a new line."
+stop_button = "Stop"
+stop_hint = "Stop the running turn (Esc). The session stays and takes the next message."
+clear_button = "Clear"
+clear_hint = "Start a fresh conversation in this session (like /clear). Press twice. The tab and session stay; the earlier turns are gone from the agent and from this tab."
+clear_confirm = "Clear? press again"
+stopped = "Stopped. The session stays and takes the next message."
+older_link = "Earlier turns kept on disk"
+alog_title = "Agent log"
+alog_link_n = "Agent log ({}) — open panel"
+alog_link_open = "Agent log ({}) — close panel"
+alog_unavailable = "Could not find this conversation's transcript, so its tool steps and subagents cannot be shown (only claude conversations are read)."
+alog_count = "{} subagents and tasks · {} running"
+alog_reload = "Reload"
+alog_close = "Close panel"
+alog_main = "Current agent"
+alog_sub = "Subagent"
+alog_bg = "Background task"
+alog_prompt = "Task given"
+alog_answer = "Answer returned"
+alog_no_answer = "No answer yet."
+alog_steps = "Steps"
+alog_no_steps = "No tool calls since the last clear or compact."
+alog_omitted = "{} earlier steps omitted"
+alog_tools = "{} tool calls"
+alog_now = "now {}"
+alog_running = "running"
+alog_bg_done = "done"
+alog_bg_failed = "failed"
+alog_bg_stopped = "stopped"
+alog_s = "{}s"
+alog_ms = "{}m {}s"
+alog_hm = "{}h {}m"
+
+thinking = "Thinking"
+queued_label = "Waiting — sent together when the current turn ends"
+overdue = "No answer within the time limit — the turn may still be running in the claude process, and its answer will land here when it ends"
+overdue_recovered = "(the answer is being read back from the conversation record)"
+working = "Agent is working"
+auto_turn = "Continued on its own"
+[sup.busy]
+turns_running = "agent turns are running in chat tabs (surface {})"
+
+[sup.dir]
+added_now = "Added {} — the agent was restarted with it, the conversation is intact."
+added_later = "Added {} — it applies when the session next starts."
+already = "{} is already a working directory of this session."
+removed_now = "Removed {} — the agent was restarted without it."
+removed_later = "Removed {} — it no longer applies from the next start."
+not_there = "{} was not one of this session's added directories."
+list = "Added directories: {}"
+none = "Added directories: none"
+
+[sup.cmd]
+clear = "Start a fresh conversation (the tab and session stay)"
+compact = "Summarize the conversation to free context"
+context = "Show what fills the context window"
+cost = "Show usage and limits for this account"
+model = "Switch the model for this session — /model <name>"
+reload_plugins = "Reload plugins (hooks, agents, MCP config)"
+reload_skills = "Reload skills"
+kind_skill = "skill"
+add_dir = "Give the session another working directory — /add-dir <absolute path>"
+compacted = "Compacted the conversation into a summary to free context."
+
+[sup.err]
+failed_with_output = "{} (output: {})"
+stream_ended = "The stream ended before the turn finished"
+not_running = "The session is not running"
+unknown_profile = "No such agent profile: {}"
+spawn_failed = "Could not start {}: {}"
+stopped = "The session was stopped"
+delete_live = "Stop the session before deleting it"
+kind_unsupported = "Agent type {} cannot be started here — only claude or pi"
+bad_permission_mode = "Unknown permission mode: {}"
+no_such_prompt = "No pending question with id {}"
+turn_running = "A turn is running — try again when it finishes"
+background_running = "Background tasks are running — restarting now would stop them. Try again when they finish"
+surface_has_session = "Surface {} already holds session {} — untie it first with `agent-session link-remove`"
+surface_not_linked = "Surface {} is not tied to a session — tie one first with `agent-session link-add`"
+host_call = "Host call failed: {}"
+need_agent = "agent is required"
+copy_not_linked = "Surface {} has no session to copy — only a chat tab tied to a session can be copied"
+copy_no_profile = "The session of surface {} does not record which agent profile started it, so it cannot be copied without guessing the profile"
+need_session_id = "session_id is required"
+need_session_id_full = "session_id is required (the session id)"
+need_surface_id = "surface_id is required (u32)"
+need_text = "nothing to send — give it as `tasty agent-session tell \"text\"` or `--text \"text\"`"
+text_twice = "the text was given twice — use either the positional argument or `--text`"
+stale_link = "surface {} is tied to session {}, which no longer exists (it was deleted) — untie it with `tasty agent-session link-remove --surface {}` and start a new one, or `link-add` a live session"
+no_such_session = "No such session: {} — check with `agent-session list`"
+ambiguous_session = "{} matches the start of {} sessions — type more of the id"
+adopt_not_resumable = "Session {} holds agent session {} but cannot be resumed (state: {})"
+timed_out = "The claude process did not answer within {} seconds — it is running but may be busy with something else"
+spawn_link_rolled_back = "Session {} started but could not be tied to the surface — rolled back: {}"
+spawned_without_id = "The spawned session has no id: {}"
+surface_list_not_array = "surface.list response is not an array: {}"
+tab_has_no_session = "This tab has no session tied to it"
+
+worker_spawn = "Could not start the send worker"
+add_dir_need_path = "Give the directory: /add-dir <absolute path>"
+add_dir_absolute = "Use an absolute path (or ~/…): {}"
+add_dir_busy = "Cannot add a directory while a turn is running or messages are waiting. Stop or wait, then try again."
+clear_busy = "Cannot clear while a turn is running or messages are waiting. Stop or wait, then clear."
+clear_no_session = "No session is tied to this tab."
+clear_failed = "Could not clear the conversation: {}"
+clear_tab_closed = "The tab was closed before the conversation was cleared."
+spawn_no_id = "The response carries no session id"
+[sup.form]
+tab_connect = "Connect"
+tab_agents = "Agents"
+tab_roles = "Roles"
+section_options = "Agent options"
+rem_heading = "Open questions"
+rem_questions = "{} to decide"
+rem_asking = "awaiting answer"
+rem_dirty = "{} uncommitted"
+rem_idle_now = "just now"
+rem_idle_min = "{}m ago"
+rem_idle_hour = "{}h ago"
+attach_title = "Sessions"
+edit_profiles_hint = "Edit agents and roles in the <b>Agents</b> and <b>Roles</b> tabs, with <code>tasty agent-session profile-set</code> / <code>role-add</code>, or in the JSON files of the plugin's <code>profiles</code> folder."
+inherit_cwd = "agent setting"
+no_attachable = "No session to open. Start a new one above."
+running_now = "Running now"
+search_placeholder = "Search sessions - agent, folder, ID"
+no_match = "No session matches the search."
+col_state = "Status"
+col_agent = "Agent"
+col_folder = "Folder"
+col_changes = "Changes"
+col_session_id = "Session ID"
+col_agent_session = "Agent session"
+col_tab = "Tab"
+this_tab = "This tab"
+delete = "Delete"
+delete_confirm = "Delete?"
+delete_yes = "Delete"
+delete_no = "Cancel"
+delete_running = "A running session cannot be deleted. Stop it first."
+refresh = "Refresh"
+select_all = "Select all"
+delete_selected = "Delete selected"
+picked = "{n} selected"
+delete_ask_many = "Deleting {n} - this cannot be undone. Click again."
+starting = "Starting the session..."
+count = "{n} sessions"
+title = "Start an agent session"
+subtitle = "Start a new session for this tab, or open one from the list."
+agent_label = "Agent"
+agent_hint = "e.g. cc"
+cwd_label = "Working folder"
+cwd_hint = "Empty follows the agent setting"
+browse = "Choose…"
+browse_note = "In the folder dialog, go to the folder and press [Choose this folder]."
+start = "Start"
+attach_here = "Open in this tab"
+in_use = "In use in tab {}"
+start_failed = "Could not start the session"
+model_label = "Model"
+model_hint = "leave empty for the agent's default"
+model_default = "Agent default"
+model_custom = "Type a model…"
+model_note_aliases = "Aliases — the agent's model, if set, comes first; you can also type a model ID"
+adopt_label = "Session ID to resume"
+adopt_hint = "session ID the agent was using"
+adopt_note = "Pick the agent that holds that conversation. A different one opens an empty session."
+permission_label = "Permission mode"
+permission_default = "Agent default"
+permission_note = "Leave it on Agent default to start in the agent's mode."
+name_label = "Session name"
+name_hint = "to recognise it in the list"
+roles_label = "Roles"
+roles_note = "Each picked role's CLAUDE.md is added as guidance — claude reads it through --add-dir, pi through the system prompt."
+no_roles = "No roles yet."
+roles_search = "Search roles - name, path"
+roles_count = "{n} roles · {k} picked"
+roles_col_name = "Name"
+roles_col_path = "Path"
+roles_no_match = "No roles match the search."
+roles_prev = "Previous page"
+roles_next = "Next page"
+[sup.note]
+coordinate_kept = "The coordinate is kept — the next tell revives it"
+
+[sup.state]
+running = "Running"
+slept = "Asleep"
+stopped = "Stopped"
+starting = "Starting"
+finished = "Finished"
+failed = "Failed"
+blocked_precondition = "Waiting on precondition"
+
+[sup.tell]
+still_running = "The turn is still running — once it ends, `tasty agent-session output` shows the answer (a chat tab also shows it)"
+tab_closed = "The tab was closed before the answer arrived"
+queued_behind_question = "this tab is waiting for an answer to a question or permission prompt — the text was queued and does not answer it. Answer the prompt in the tab"
+
+[sup.ask]
+question_title = "The agent is asking"
+permission_title = "Permission requested: {}"
+allow = "Allow"
+answer = "Answer"
+deny = "Deny"
+failed = "Could not send the answer: {}"
+
+[sup.line]
+minute = "1m"
+rejected = "429"
+held = "blocked"
+copy_cwd = "click to copy the full path"
+copied = "copied"
+copy_surface = "click to copy the surface id"
+copy_session = "click to copy the full conversation id"
+surface = "surface"
+pid = "PID"
+mem = "mem"
+cc = "cc"
+style = "style"
+sess = "sess"
+lat = "lat"
+up = "up"
+cache = "cache"
+rest = "rest"
+cost = "Cost"
+total = "Total"
+five = "5h"
+seven = "7d"
+plugin = "plugin"
+turns = "turns"
+fold = "Fold the status line"
+unfold = "Unfold the status line"
+
+[sup.status]
+cache_clock_hint = "Cache clock: when the prompt cache is due to expire, counted from the end of the last turn that called the API. After it, the next message rewrites the whole conversation into the cache"
+rest_clock_hint = "Rest clock: when idle reclaim is due, counted from your last touch (message, tab action, command). Any touch rewinds it"
+cache_expired = "expired"
+rest_due = "reclaim due"
+minute_hint = "Requests sent in the last minute by every session of this agent profile, including other tabs, terminals and subagents · input plus cache-write tokens, which count toward the input tokens per minute limit · output tokens. Estimated from the transcripts"
+rejected_hint = "Requests of this profile rejected by the API rate limit (429) in the last five minutes"
+held_hint = "How long this profile has been blocked by the API rate limit (429), pausing automatic sends (retries and automatic syncs). One send is tried again after a wait that doubles from one minute"
+last_ok = "last reply ok"
+last_err = "last reply failed"
+last_stopped = "last reply stopped"
+waiting = "waiting for reply"
+idle = "idle"
+cost_hint = "Total for this conversation; a resumed session goes on counting from where it was"
+account_hint = "Usage of the account's limit window, shared by every session on the account"
+account_pending = "claude has not sent the account limit usage — it comes only on a process's first turn, and not at all for some accounts"
+total_hint = "What this session spent in its current five hour block (transcript × public prices, an estimate) / balance limit (CLAUDEP_API_BALANCE, $50 if unset)"
+memory_hint = "Resident memory of the agent process; shown only when it can be measured"
+uptime_hint = "Since the agent process started; starts over when the session is stopped and resumed"
+tokens_hint = "Total for this conversation: ↑ input including cache reads and writes, ↓ output; a resumed session goes on counting from where it was"
+latency_hint = "Last turn: wall time (time spent waiting on the API, shown from the second turn after the tab attaches)"
+
+# CLI 도움말 — 매니페스트의 `*_i18n_key` 와 1:1 이다.
+# 영어 카탈로그는 매니페스트 원문과 **같아야** 한다
+# (`plugin_help_catalog` 가 대조한다).
+
+[sup.cli]
+desc = "Drive Claude Code and pi chat-tab sessions, their agent profiles and role folders"
+
+[sup.cli.sub.list]
+description = "List agent sessions with how many are running. A stopped session keeps its conversation and resumes on the next turn."
+
+[sup.cli.sub.link-add]
+description = "Tie a session to a surface so each can be found from the other. Refuses an unknown session — a link to nothing is worse than no link."
+
+[sup.cli.sub.link-of]
+description = "Which session is this surface tied to. Not being tied is not an error condition of the tool — most surfaces are not."
+
+[sup.cli.sub.link-remove]
+description = "Untie a surface from its session. Touches neither the session nor the surface — only the mark. Unlike `delete` this is reversible: link again and it is back. Untying something never tied is still success."
+
+[sup.cli.sub.link-siblings]
+description = "Every surface this session is tied to. tasty asks 'who spawned this child'; our sessions have no parent column, so this answers the one relation the ties can actually express: a session spanning several surfaces. A surface holds exactly one session, so the reverse direction cannot exist."
+
+[sup.cli.sub.status]
+description = "What the session tied to this surface is doing right now."
+
+[sup.cli.sub.sleep]
+description = "Stop this surface's session process now. The conversation is kept, so the next `tell` resumes it with its context."
+
+[sup.cli.sub.tell]
+description = "Send a turn to the session tied to this surface and wait for the answer. A stopped session is resumed automatically, which costs that one turn a few extra seconds. Waits up to two minutes; a turn still running by then is reported as such, and its answer can be read later with `output`. On a chat tab the turn goes through the tab's queue, so it shows up in the tab and never overlaps a turn sent there."
+
+[sup.cli.sub.abort]
+description = "Cancel the turn this surface's session is running, without ending the session. This is what Ctrl+C does in a shell tab: the work stops, the session stays and takes the next turn, and it is harmless when nothing is running. Unlike `sleep` the process stays up."
+
+[sup.cli.sub.add-dir]
+description = "Give this surface's session another working directory, the same as /add-dir in Claude Code. The list is kept per session and passed to claude; if the session is running it is restarted at once with its conversation intact, otherwise the folder applies on the next resume. Refuses while a turn is running."
+
+[sup.cli.sub.remove-dir]
+description = "Take a working directory added with add-dir off this surface's session. Applies the same way as add-dir: at once if the session is running, otherwise on the next resume."
+
+[sup.cli.sub.clear]
+description = "Start a fresh conversation in this surface's session, the same as /clear in Claude Code. The session, its tab and its settings stay; the agent forgets the earlier turns and a chat tab drops them too. Refuses while a turn is running or messages are queued, and answers once the clear has gone through."
+
+[sup.cli.sub.sync-compact]
+description = "Run project sync on the session tied to this chat tab, then compact it. Compact is sent only when the sync turn ends well. Refuses while a turn is running or messages are queued, and answers once the sync turn has been sent; the status line shows the rest."
+
+[sup.cli.sub.start]
+description = "Spawn a new agent session and tie it to this surface in one step. Refuses if the surface already holds a session, because a surface can only carry one and overwriting would orphan the first. With --copy-of, the new session copies another chat tab's profile and settings."
+
+[sup.cli.sub.broadcast]
+description = "Send the same turn to every session started under one agent profile, or to all live sessions when no agent is named. Partial failure does not cancel the rest — sent and failed come back separately."
+
+[sup.cli.sub.delete]
+description = "Permanently remove a session record. This is not `sleep` and not `abort`: it erases the coordinate, so the conversation that session held can never be resumed. Refuses while the session is alive — stop it first. There is deliberately no button for this anywhere in the UI."
+
+[sup.cli.sub.output]
+description = "What this surface's session said most recently. Unlike `watch`, this looks backwards — it answers even for turns that ran while nothing was watching, and for a session that has since been put to sleep."
+
+[sup.cli.sub.watch]
+description = "Follow the turn this surface's session is running, event by event, and return what arrived. Works for a turn started anywhere, including a `tell` from this same plugin; while it watches, other calls to this plugin wait."
+
+[sup.cli.sub.sync]
+description = "Bring every linked tab's attention highlight in line with what its session is actually doing."
+
+[sup.cli.sub.profile-list]
+description = "List agent profiles. Each profile is one JSON file in the plugin's profiles folder; with no files, a built-in profile named claude is offered."
+
+[sup.cli.sub.profile-show]
+description = "Show one agent profile as JSON."
+
+[sup.cli.sub.profile-set]
+description = "Create or replace an agent profile. Fields: agent_type (claude or pi), command, cwd, env, model, permission_mode, settings, add_dirs, args, cache_ttl (5m or 1h). Sessions already running keep the profile they started with."
+
+[sup.cli.sub.profile-remove]
+description = "Delete an agent profile file. Sessions started from it keep running, but cannot resume until a profile of that name exists again."
+
+[sup.cli.arg.profile_args.name]
+help = "Profile name (letters, digits, - _ .)"
+
+[sup.cli.arg.profile_set_args.name]
+help = "Profile name (letters, digits, - _ .)"
+
+[sup.cli.arg.profile_set_args.json]
+help = "The whole profile as a JSON object, e.g. '{\"model\":\"opus\",\"env\":{\"CLAUDE_CONFIG_DIR\":\"/path\"}}'"
+
+[sup.cli.sub.link-list]
+description = "Every surface-to-session pair currently tied, plus how many surfaces could not be read."
+
+[sup.cli.sub.traffic]
+description = "API traffic shaping: whether it is on, the upload and download limits (KB/s), bytes relayed, open and failed tunnels, and the local proxies with their upstream."
+
+[sup.cli.arg.link_args.surface_id]
+help = "Surface to tie (defaults to the caller's TASTY_SURFACE_ID)"
+
+[sup.cli.arg.link_args.session_id]
+help = "Session id — see `tasty agent-session list`"
+
+[sup.cli.arg.dir_args.surface_id]
+help = "Surface whose session to change (defaults to the caller's TASTY_SURFACE_ID)"
+
+[sup.cli.arg.dir_args.path]
+help = "Absolute path of the directory (~/ is expanded)"
+
+[sup.cli.arg.session_args.session_id]
+help = "Session id"
+
+[sup.cli.arg.tell_args.surface_id]
+help = "Surface whose session to talk to (defaults to the caller's TASTY_SURFACE_ID)"
+
+[sup.cli.arg.tell_args.message]
+help = "The turn to send (same as --text; give only one)"
+
+[sup.cli.arg.tell_args.text]
+help = "The turn to send"
+
+[sup.cli.arg.output_args.surface_id]
+help = "Surface whose session to read (defaults to the caller's TASTY_SURFACE_ID)"
+
+[sup.cli.arg.output_args.lines]
+help = "Only the last N lines; omit for everything kept"
+
+[sup.cli.arg.watch_args.surface_id]
+help = "Surface whose session to follow (defaults to the caller's TASTY_SURFACE_ID)"
+
+[sup.cli.arg.watch_args.max_events]
+help = "Stop after this many events (default 200)"
+
+[sup.cli.arg.watch_args.seconds]
+help = "How long to watch before returning what arrived, 1-10 (default 5). Kept short because one plugin call blocks the others while it runs."
+
+[sup.cli.arg.start_args.surface_id]
+help = "Surface to tie the new session to (defaults to the caller's TASTY_SURFACE_ID)"
+
+[sup.cli.arg.start_args.agent]
+help = "Agent profile to start (see `tasty agent-session profile-list`). Required unless --copy-of is given"
+
+[sup.cli.arg.start_args.cwd]
+help = "Working directory for the new session"
+
+[sup.cli.arg.start_args.permission_mode]
+help = "Permission mode for the new session (acceptEdits, auto, bypassPermissions, manual, dontAsk, plan)."
+
+[sup.cli.arg.start_args.copy_of]
+help = "Copy the chat tab on this surface: start a new session under the same agent profile, working directory, model, permission mode and added directories. The conversation and session id are not copied"
+
+[sup.cli.arg.broadcast_args.text]
+help = "The turn to send to every matching session"
+
+[sup.cli.arg.broadcast_args.agent]
+help = "Only sessions started under this agent profile; omit for every live session"
+
+[sup.cli.arg.surface_args.surface_id]
+help = "Surface to ask about (defaults to the caller's TASTY_SURFACE_ID)"
+
+[sup.brief]
+intro = "[tasty] This conversation runs inside a tasty agent-session tab."
+surface = "- surface id of this tab: {}"
+session = "- session id: {}"
+agent = "- agent profile: {}"
+cwd = "- working folder: {}"
+outro = "You can work with windows, tabs and surfaces through the tasty CLI. Run `tasty list surfaces` to see what is open and `tasty --help` for what you can use. To point at your own tab, pass the surface id above to `--surface`.\nYou do not need to answer this note — answer as usual from the next input."
+
+[settings.subtab]
+agent_session = "Agent Session"
+
+[sup.settings]
+group_history = "Conversation history"
+memory_turns = "Turns kept in memory (0 = all)"
+memory_turns_suffix = "turns"
+disk_swap = "Move overflow turns to disk"
+group_context = "Automatic context cost control"
+about_context = "About"
+sync_on = "Sync while working"
+sync_threshold = "Context at turn end"
+sync_threshold_suffix = "tokens"
+about_sync = "While working: when and why"
+idle_sync_on = "Sync when idle"
+idle_sync = "Context after idling (240 s/3,540 s)"
+idle_sync_suffix = "tokens"
+about_idle_sync = "When idle: when and why"
+limit_sync_on = "Sync before 5-hour/7-day usage limits"
+limit_sync = "Limit usage (claude.ai login only)"
+limit_sync_suffix = "%"
+about_limit_sync = "Usage limits: when and why"
+sync_prompt = "Sync instruction"
+compact_prompt = "Compact focus instruction"
+group_session = "Session management"
+idle_reclaim = "Release idle sessions"
+about_reclaim = "Release: when and why"
+cache_watch = "Prompt cache rewrite notices"
+about_cache_watch = "Cache notices: when and why"
+memory_saver = "Memory saver (unload hidden tabs)"
+about_memory_saver = "Memory saver: when and why"
+group_traffic = "API traffic shaping"
+traffic_up = "Upload limit (0 = unlimited)"
+traffic_down = "Download limit (0 = unlimited)"
+traffic_suffix = "KB/s"
+
+[sup.sync]
+over = "⚠ sync"
+over_hint = "Context is over the sync threshold set in Settings — project sync and compact run on their own after this turn"
+running = "⟳ syncing"
+running_hint = "Project sync or compact is running for this conversation"
+failed = "sync stopped"
+failed_hint = "The last project sync did not finish; the reason is shown above the input. It will not run again on its own until context drops below the threshold"
+still_over = "Context is still over the threshold after compact — raise the threshold in Settings"
+sync_failed = "Project sync failed, so compact was not sent: {}"
+compact_failed = "Compact failed: {}"
+stopped = "Project sync was stopped, so compact was not sent"
+lost = "The project sync turn is no longer in this tab, so compact was not sent"
+busy = "A turn is running or messages are queued — try project sync again when it is idle"
+need_tab = "Project sync runs only in a chat tab"
+tag_auto = "[sync-compact:auto] automatic sync — context {} tokens · threshold {} tokens"
+tag_manual = "[sync-compact:manual] sync started on request"
+tag_idle = "[sync-compact:idle] idle sync — before the cache goes cold · context {} tokens · threshold {} tokens"
+tag_limit = "[sync-compact:limit] usage-limit sync — 5-hour/7-day limit at {}% · saving before requests get cut off"
+
+[sup.cache]
+rewrite_token = "cache rewrite"
+rewrite_tip = "The last turn rewrote the whole conversation into the cache without a pause, so it paid cache writes instead of cache reads"
+tier_down = "This session's prompt cache changed from 1 hour to 5 minutes (this write: {}k tokens). Check whether the sign-in or the claude process environment changed — a pause over 5 minutes now rewrites the whole conversation."
+prefix_break = "The whole conversation ({}k tokens) was rewritten into the cache without a pause — {}."
+cause_model = "the model changed"
+cause_command = "the last command {} changed the prefix"
+cause_unknown = "the system prompt or tool definitions may have changed"
+
+[sup.retry]
+waiting = "Blocked by the API rate limit (429) — automatic sends for profile {} are paused, and one will be tried again in {} seconds. This message is resent then"
+gave_up = "Profile {} has been blocked by the API rate limit (429) for more than {} minutes, so automatic resending stopped — this may be a spend cap, a daily limit or usage shared across the organization rather than the per-minute limit, so check the Console and send again once it clears"
+
+[sup.sys]
+compact_auto = "[system] /compact — sent after sync by the \"Sync while working\" setting (turn-end threshold)"
+compact_idle = "[system] /compact — sent after sync by the \"Sync when idle\" setting (before the cache goes cold)"
+compact_manual = "[system] /compact — sent by the plugin after the requested sync"
+compact_limit = "[system] /compact — sent by the plugin after sync because usage passed the share set in \"Sync before 5-hour/7-day usage limits\""
+running = "· summarizing…"
+done = "· done"
+failed = "· failed: {}"
+
+[sup.profile]
+need_name = "A profile name is required (--name)"
+no_dir = "The plugin data folder is not set — profiles cannot be saved"
+need_json = "The profile body is required (--json)"
+bad_json = "The profile body is not valid JSON: {}"
+not_object = "Profile {} must be a JSON object"
+bad_name = "Invalid profile name: {} (letters, digits, - _ . only)"
+remove_failed = "Could not remove profile {}: {}"
+bad_cache_ttl = "cache_ttl must be 5m or 1h: {}"
+
+[sup.prompt]
+denied = "The user denied this"
+
+[sup.about]
+context = "When the context reaches a threshold, the tab first runs project sync to record the current state and the resume point in documents, then compacts around those documents and the work in progress. One shared threshold here replaces tuning each agent, keeping the context lean so cost and response latency stay down. Claude Code's auto-compact only summarizes in memory and writes no documents, so sync runs before it. Turning a feature switch off leaves its threshold field visible."
+sync = "Recommended: on. When the context at the end of a turn passes the threshold, the tab syncs after it has been quiet for 60 seconds. If the context is 200,000 tokens or more over the threshold, it does not wait. The threshold is lowered so it never exceeds 90% of the context window (180,000 for a 200k window). Automatic runs in one session are at least 10 minutes apart, and if the context is still over the threshold after compact, it stops until the context drops below it."
+idle_sync = "Recommended: on. The prompt cache goes cold 5 minutes (or 1 hour) after the last request, and the first request after that writes the whole context to the cache again (more than 12 times the cost of a cache read). So one minute before the cache expires after the last turn that called the API (240 s/3,540 s), the tab syncs, but only when the context is at or above the threshold. It runs once per rest and opens again after you send the next message, and only one tab per agent profile runs it at a time. The threshold being lower than the working one is intended."
+limit_sync = "Recommended: on. When the larger of the 5-hour and 7-day usage limits reaches this share, the tab syncs and compacts before the limit cuts the session off. It runs once until the limit resets. Usage is only reported for claude.ai login profiles, so it does not run for API key profiles."
+reclaim = "Recommended: on. Every resting tab keeps a claude process holding memory. One minute before the cache lifetime has passed since you last touched the session (a message, a tab action or a command aimed at the session) (240 s/3,540 s), the process is shut down. A tab that will run the idle sync is released after that sync ends (even if it fails); below the threshold or with the idle sync off it is released right away. A session with background work left is not released, and the next message starts it again and continues the conversation."
+cache_watch = "Recommended: on. When the first request of a turn writes the whole conversation to the cache again although the session did not rest (for example after a system prompt or tool definition change), the status line and a notice line say so. When a 1-hour cache drops to a 5-minute cache, you get one notice per session. Turning it off removes only the notices; the metrics stay."
+memory_saver = "Recommended: on when you keep many chat tabs open (off by default). Hidden chat tabs drop their page (WebView) to save memory. The conversation, the queue and unsent drafts stay, and the page is drawn again when the tab shows. Long conversations take longer to draw again, and scrolling starts at the bottom."
+
+[sup.default]
+sync_prompt = "project sync"
+compact_prompt = "Keep in-progress work, next steps and identifiers (paths, IDs, numbers) from the resume-point document verbatim, and summarize the exploration. Write the summary in English, the language of this sentence."
+
+[sup.role]
+not_dir = "{} is not a folder"
+unknown = "Unknown role: {}"
+need_path = "path is required"
+
+[sup.manage]
+create = "New agent"
+create_button = "Create"
+edit_title = "Edit agent"
+list = "Agents"
+edit = "Edit"
+cancel = "Cancel"
+no_profiles = "No agents yet."
+name = "Name"
+agent_type = "Agent type"
+command = "Command"
+command_hint = "Empty runs the type name (claude · pi)."
+cwd = "Working folder"
+model = "Model"
+env = "Environment"
+env_hint = "One KEY=VALUE per line. pi agents usually set PI_CODING_AGENT_DIR."
+save = "Save"
+delete = "Delete"
+role_new = "New role"
+role_path = "Folder"
+role_path_hint = "Choose a folder that has a CLAUDE.md (guidance)."
+add = "Add"
+scan_title = "Import"
+scan_label = "Parent folder"
+scan_hint = "Adds every subfolder that has a CLAUDE.md, named after the folder."
+scan = "Import"
+roles_list = "Roles"
+no_roles = "No roles yet."
+guide = "Guidance"
+guide_yes = "CLAUDE.md present"
+no_guide = "no CLAUDE.md"
+created = "Created agent {}"
+saved = "Saved agent {}"
+exists = "Agent {} already exists. To change it, press Edit in the list."
+not_found = "Agent {} does not exist."
+removed = "Deleted agent {}"
+role_added = "Added role {}"
+roles_scanned = "Imported {} roles"
+role_removed = "Deleted role {}"
+failed = "Failed: {}"
+
+[sup.cli.sub.role-list]
+description = "List role folders. A role is a folder with a CLAUDE.md; pick several when starting a session and their guidance is added (claude: --add-dir, pi: system prompt)."
+
+[sup.cli.sub.role-add]
+description = "Register a role folder under a name, or point an existing name at another folder."
+
+[sup.cli.sub.role-scan]
+description = "Register every subfolder that holds a CLAUDE.md as a role named after the folder."
+
+[sup.cli.sub.role-remove]
+description = "Remove a role from the list. The folder itself is not touched."
+
+[sup.cli.arg.role_args.name]
+help = "Role name (letters, digits, - _ .)"
+
+[sup.cli.arg.role_add_args.name]
+help = "Role name (letters, digits, - _ .)"
+
+[sup.cli.arg.role_add_args.path]
+help = "Role folder (must exist)"
+
+[sup.cli.arg.role_scan_args.path]
+help = "Folder whose subfolders are roles"
+
+[sup.cli.arg.start_args.roles]
+help = "Role folders to add, comma separated (see `tasty agent-session role-list`)"

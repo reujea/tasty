@@ -159,6 +159,12 @@ pub fn webview_settings_source(kind: &str) -> Option<WebViewSettingsSource> {
         .and_then(|s| s.get(kind).cloned())
 }
 
+/// 처음 보일 때 만드는 webview kind인가. 미등록 kind는 false다.
+#[cfg(any(feature = "gui", test))]
+pub fn is_lazy_webview_kind(kind: &str) -> bool {
+    webview_settings_source(kind).is_some_and(|s| s.lazy)
+}
+
 /// 전역 집합을 등록·초기화·조회하는 검사는 이 락을 함께 사용해야 한다.
 /// 등록만 하는 헬퍼는 그 호출을, 초기화·조회 검사는 검사 전체를 잠근다.
 /// 제품 등록 경로는 이 검사 락을 쓰지 않는다. 접근 이름을 찾는 source guard는
@@ -286,10 +292,9 @@ default = true
         let mut lazy = decl("lazy");
         lazy.lazy_webview = true;
         register_webview_kind("com.example.a", &lazy, &[]);
-        let lazy_of = |k: &str| webview_settings_source(k).is_some_and(|s| s.lazy);
-        assert!(!lazy_of("eager"));
-        assert!(lazy_of("lazy"));
-        assert!(!lazy_of("unknown"));
+        assert!(!is_lazy_webview_kind("eager"));
+        assert!(is_lazy_webview_kind("lazy"));
+        assert!(!is_lazy_webview_kind("unknown"));
         reset_for_test();
     }
 

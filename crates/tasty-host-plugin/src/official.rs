@@ -11,6 +11,7 @@ pub const RESERVED_ID_PREFIX: &str = "com.tasty.";
 
 /// Tasty가 아는 공식 플러그인 id. 새 공식 플러그인은 여기에 한 줄을 넣어야 설치·등록된다.
 pub const OFFICIAL_PLUGIN_IDS: &[&str] = &[
+    "com.tasty.agent-session",
     "com.tasty.agent-stream",
     "com.tasty.claude",
     "com.tasty.clipboard-viewer",

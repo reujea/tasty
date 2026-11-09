@@ -580,6 +580,57 @@ mod tests {
         assert_eq!(text_value(&s, PLUGIN, item), "[[DONE]]");
     }
 
+    /// 번들 agent-session 페이지 — 실제 매니페스트를 호스트 검증으로 읽어 그리는 줄을 본다. 현행화 스위치는
+    /// 스위치 없는 묶음 안의 토글이라 꺼도 기준 칸이 남고, 머리 스위치가 꺼진 트래픽 묶음만 칸을 숨긴다.
+    #[test]
+    fn the_bundled_agent_session_page_keeps_thresholds_visible_when_a_switch_is_off() {
+        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("crates")
+            .join("tasty-plugin-agent-session");
+        let m = tasty_plugin_manifest::Manifest::load(&dir).expect("agent-session manifest");
+        let p = m
+            .contributes
+            .settings_pages
+            .iter()
+            .find(|p| p.id == "agent_session")
+            .expect("agent_session page");
+        let id = |r: &PageRow<'_>| {
+            let (PageRow::Header { decl, .. } | PageRow::Item(decl)) = r;
+            match decl {
+                SettingsItemDecl::FontOverride { id, .. }
+                | SettingsItemDecl::Toggle { id, .. }
+                | SettingsItemDecl::Select { id, .. }
+                | SettingsItemDecl::Number { id, .. }
+                | SettingsItemDecl::Text { id, .. }
+                | SettingsItemDecl::Group { id, .. } => id.clone(),
+            }
+        };
+        let mut s = Settings::default();
+        let on: Vec<String> = page_rows(&s, &m.id, p).iter().map(id).collect();
+        let headers: Vec<String> = page_rows(&s, &m.id, p)
+            .iter()
+            .filter(|r| matches!(r, PageRow::Header { .. }))
+            .map(id)
+            .collect();
+        assert_eq!(headers, ["history", "context", "session", "traffic"]);
+        // 트래픽은 기본 끔이라 머리만 보인다 — 페이지의 26 칸 중 한도 두 칸이 빠진 24 줄이다.
+        assert_eq!(p.items.len(), 26);
+        assert_eq!(on.len(), 24, "{on:?}");
+        assert!(!on.iter().any(|i| i == "traffic_up_kbps"));
+        for key in [
+            "sync_threshold_on",
+            "idle_sync_on",
+            "limit_sync_on",
+            "idle_reclaim",
+        ] {
+            s.set_plugin_setting(&m.id, key, PluginSettingValue::Bool(false));
+        }
+        let off: Vec<String> = page_rows(&s, &m.id, p).iter().map(id).collect();
+        assert_eq!(off, on, "기능 스위치를 끄자 칸이 숨었다");
+        s.set_plugin_setting(&m.id, "traffic_on", PluginSettingValue::Bool(true));
+        assert_eq!(page_rows(&s, &m.id, p).len(), 26);
+    }
+
     /// 읽기 전용 글도 묶음 규칙을 따른다 — 스위치 없는 머리 아래 늘 보인다.
     #[test]
     fn a_text_item_sits_in_its_group() {

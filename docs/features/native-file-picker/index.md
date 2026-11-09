@@ -215,7 +215,7 @@ CallerContext::Plugin 검사는 이미 열린 popup(-32000)이나 잘못된 인�
 이 메서드는 window router의 외부 arm을 사용하므로 method table의 plugin_only 표식을 붙이지 않는다.
 그 표식은 별도 host-call interception 경로를 뜻한다. 에이전트는 파일 경로를 직접 지정한다.
 
-markdown의 Browse와 주소창 폴더 버튼, 이미지 다른 이름으로 저장의 찾아보기처럼 plugin이 호스트의 파일 선택 창을 열어야 할 때 사용한다.
+markdown의 Browse와 주소창 폴더 버튼, 이미지 다른 이름으로 저장의 찾아보기, agent-session 의 폴더 선택처럼 plugin이 호스트의 파일 선택 창을 열어야 할 때 사용한다.
 사용자 응답까지 `host.call`을 잡아 두면 plugin의 렌더·입력 루프가 멈추고 60초
 `HostCallTimeout`이 생길 수 있으므로 요청을 즉시 접수하고 결과는 나중에 이벤트로 보낸다.
 
@@ -244,6 +244,7 @@ markdown의 Browse와 주소창 폴더 버튼, 이미지 다른 이름으로 저
 **폴더 모드**: `mode: "folder"` 는 메인 popup 을 Settings chooser 와 같은 폴더 선택 화면으로 연다(제목 `picker.folder.title`).
 파일 행은 보이되 고를 수 없고, 확정하면 고른 하위 폴더를, 고른 것이 없으면 지금 보고 있는 폴더를 `paths[0]` 으로
 돌려준다. 폴더를 더블클릭하면 들어간다. 원격 위치도 받는다. `Loading` 중에는 확정하지 않는다.
+agent-session 의 폴더 선택 단추가 이 모드를 쓴다.
 
 **저장 모드**: `mode?: "open" | "save" | "folder"`(기본 `open`), `default_name?: string`(기본 빈 이름)을
 받는다. `location: "local"`은 활성 workspace와 무관하게 로컬을 지정한다. 생략하면 기존 출발 surface

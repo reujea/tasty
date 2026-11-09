@@ -1,11 +1,30 @@
-//! 처음 보일 때 만드는 webview kind(`lazy_webview`)의 규칙 — 생성 통지와 가려진 WebView 해제.
+//! 처음 보일 때 만드는 webview kind(`lazy_webview`)의 규칙 — 만들기 전 메시지 처리와 생성 통지.
 //! 계약은 docs/design/systems/webview.md 의 "생성 시점" 절에 있다.
 
 use crate::plugin::PluginManager;
 use crate::view::MainView;
 
-/// lazy kind WebView 를 만든 뒤 소유 plugin 에 `surface.webview_created` 를 보낸다. 실린 문서는
-/// 마지막 `webview.set_url` 값이다 — plugin 은 이 통지에 맞춰 페이지 상태를 다시 맞춘다.
+/// 아직 WebView 가 없는 surface 의 쌓인 메시지를 어떻게 할지.
+#[derive(Debug, PartialEq, Eq)]
+pub(super) enum ScriptsWithoutWebview {
+    /// 다음 프레임에 만들어질 WebView 가 받는다.
+    Keep,
+    /// 처음 보일 때 만드는 kind — 보이기 전까지 끝없이 쌓이므로 버린다. 소유 plugin 은
+    /// `surface.webview_created` 를 받고 문서 전체를 다시 싣는다.
+    Drop,
+}
+
+pub(super) fn scripts_without_webview(lazy: bool) -> ScriptsWithoutWebview {
+    if lazy {
+        ScriptsWithoutWebview::Drop
+    } else {
+        ScriptsWithoutWebview::Keep
+    }
+}
+
+/// lazy kind WebView 를 만든 뒤 소유 plugin 에 `surface.webview_created` 를 보낸다. 만들어지기 전의
+/// `webview.post_message` 는 버려졌으므로 plugin 은 이 통지에 문서 전체를 다시 싣는다. 실린 문서
+/// 자체는 마지막 `webview.set_url` 값이다.
 pub(crate) fn announce_lazy_webviews(view: &mut MainView, plugins: Option<&mut PluginManager>) {
     let created = std::mem::take(&mut view.lazy_webviews_created);
     let Some(mgr) = plugins else {
@@ -61,9 +80,26 @@ pub(crate) const WEBVIEW_CREATED_EVENT: &str = "surface.webview_created";
 
 #[cfg(test)]
 mod tests {
-    /// 생성 단계가 lazy 규칙을 거치는지 — 규칙만 있고 호출이 빠지면 판정 시험은 계속 통과한다.
+    use super::{ScriptsWithoutWebview, scripts_without_webview};
+
     #[test]
-    fn the_constructor_consults_the_lazy_rules() {
+    fn a_lazy_kind_drops_messages_until_its_webview_exists() {
+        assert_eq!(scripts_without_webview(true), ScriptsWithoutWebview::Drop);
+    }
+
+    #[test]
+    fn an_eager_kind_keeps_messages_for_the_next_frame() {
+        assert_eq!(scripts_without_webview(false), ScriptsWithoutWebview::Keep);
+    }
+
+    /// 판정을 실제 drain 이 거치는지 — 규칙만 있고 호출이 빠지면 위 두 검사는 계속 통과한다.
+    #[test]
+    fn the_drain_and_the_constructor_consult_the_lazy_rules() {
+        let src = include_str!("../webview_sync.rs");
+        let drain = &src[src.find("fn drain_pending_scripts(").unwrap()..];
+        let drain = &drain[..drain.find("\n}\n").unwrap()];
+        assert!(drain.contains("scripts_without_webview(lazy)"));
+        assert!(drain.contains("rs.take_scripts().len()"));
         let ctor = include_str!("construction.rs");
         let create = &ctor[ctor.find("fn create_missing_webviews(").unwrap()..];
         let create = &create[..create.find("\n}\n").unwrap()];

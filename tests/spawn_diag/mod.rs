@@ -1244,6 +1244,7 @@ pub const SUITES_THAT_CALL_BUNDLED_PLUGINS: &[&str] = &[
     "e2e_tests",
     "plugin_disable_withdraws_surface_kinds",
     "soak_memory",
+    "agent_session_gui",
 ];
 
 /// 공유 인스턴스가 한 번 초기화되므로 번들 사용 여부는 시험 함수가 아니라 바이너리별로 정한다.

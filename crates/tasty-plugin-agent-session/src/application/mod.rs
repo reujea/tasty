@@ -1,0 +1,29 @@
+//! 응용 — 포트(`HostCall` · `Supervisor`)만 받아 탭의 흐름을 엮는다. 오류는 `AppError` 로 돌려준다.
+
+pub(crate) mod activity;
+pub(crate) mod add_dir;
+pub(crate) mod app_error;
+pub(crate) mod cache_watch;
+pub(crate) mod catch_up;
+pub(crate) mod clear;
+pub(crate) mod copy_from;
+pub(crate) mod history;
+pub(crate) mod hookless;
+pub(crate) mod idle_clock;
+pub(crate) mod idle_reclaim;
+pub(crate) mod lazy_webview;
+pub(crate) mod overdue_close;
+pub(crate) mod plugin;
+pub(crate) mod prompts;
+pub(crate) mod request;
+pub(crate) mod retry_resend;
+pub(crate) mod session_log;
+pub(crate) mod session_resolve;
+pub(crate) mod session_surface;
+pub(crate) mod start;
+pub(crate) mod stream;
+pub(crate) mod surface_link;
+pub(crate) mod sync_compact;
+pub(crate) mod tell;
+pub(crate) mod turn_done;
+pub(crate) mod view_state;

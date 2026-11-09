@@ -1,0 +1,19 @@
+{
+  "at": "2026-11-06",
+  "reason": "application → adapters/driven 13건은 파일·프로세스 어댑터(store/agents·roles·turn_archive·budget, skills, rate_meter, traffic)를 직접 부른다. fs 포트는 만들지 않고 driven adapter 로 분류만 한다는 설계 결정(시험은 temp dir 로 충분, 가짜가 필요한 자리가 실측되면 그때 trait 를 둔다)이라 동결한다. 줄면 갱신한다.",
+  "edges": [
+    "application/catch_up.rs → adapters/driven/store/turn_archive.rs",
+    "application/clear.rs → adapters/driven/store/turn_archive.rs",
+    "application/history.rs → adapters/driven/store/turn_archive.rs",
+    "application/idle_clock.rs → adapters/driven/store/agents.rs",
+    "application/plugin.rs → adapters/driven/rate_meter.rs",
+    "application/plugin.rs → adapters/driven/skills.rs",
+    "application/plugin.rs → adapters/driven/store/agents.rs",
+    "application/plugin.rs → adapters/driven/store/roles.rs",
+    "application/plugin.rs → adapters/driven/store/turn_archive.rs",
+    "application/sync_compact.rs → adapters/driven/store/agents.rs",
+    "application/sync_compact.rs → adapters/driven/traffic.rs",
+    "application/turn_done.rs → adapters/driven/skills.rs",
+    "application/turn_done.rs → adapters/driven/store/turn_archive.rs"
+  ]
+}

@@ -3684,6 +3684,8 @@ fn settings_pages_text_without_any_default_rejected() {
         format!("{err:#}").contains("default or default_key"),
         "{err:#}"
     );
+}
+
 fn lazy_kind_manifest(rendering: &str) -> String {
     format!(
         r#"

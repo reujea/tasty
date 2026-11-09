@@ -36,6 +36,8 @@ const ALLOWLIST_FILES: &[(&str, usize)] = &[
 
 /// 각 바이너리가 인스턴스를 하나씩만 띄워도 총수가 늘 수 있어 진입 파일 목록도 고정한다.
 const EXPECTED_INSTANCE_TESTS: &[&str] = &[
+    // 번들 agent-session 플러그인과 가짜 claude 프로필이 필요해 GUI 스위트와 바이너리를 나눈다.
+    "tests/agent_session_gui.rs",
     "tests/attach_attention_loopback.rs",
     "tests/attach_convert_cwd_loopback.rs",
     "tests/attach_git_query_loopback.rs",
@@ -300,12 +302,14 @@ fn daemon_kind_roster_matches_instance_test_roster() {
     // attach 구조 변경은 GUI와 헤드리스에서 서로 다른 호출 경로를 거친다.
     // notification_retry는 GUI 빌드에서 GUI 라우터를, 헤드리스 빌드에서 헤드리스 처리기를 검사한다.
     // remote_attach_token_caller는 GUI에서 mirror 생성을, 헤드리스에서 미지원 응답을 검사한다.
+    // agent_session_gui는 GUI 창의 webview 입력칸과 권한 카드를 실제로 누른다.
     let same_combo: BTreeSet<String> = [
         "e2e_tests",
         "gui_tests",
         "attach_structure_sync_loopback",
         "notification_retry",
         "remote_attach_token_caller",
+        "agent_session_gui",
     ]
     .iter()
     .map(|s| (*s).to_string())

@@ -25,6 +25,86 @@ const SAME_AS_ENGLISH_ALLOWLIST: &[(&str, &[&str], &str)] = &[
         "단위 기호",
     ),
     (
+        "sup.line.cc",
+        &["ko", "ja", "zh-Hans"],
+        "statusline 축약 라벨 — Claude Code statusline 표기를 그대로 쓴다",
+    ),
+    (
+        "sup.line.cache",
+        &["ko", "ja", "zh-Hans"],
+        "statusline 축약 라벨 — Claude Code statusline 표기를 그대로 쓴다",
+    ),
+    (
+        "sup.line.cost",
+        &["ko", "ja", "zh-Hans"],
+        "statusline 축약 라벨 — Claude Code statusline 표기를 그대로 쓴다",
+    ),
+    (
+        "sup.line.five",
+        &["ko", "ja", "zh-Hans"],
+        "statusline 축약 라벨 — Claude Code statusline 표기를 그대로 쓴다",
+    ),
+    (
+        "sup.line.lat",
+        &["ko", "ja", "zh-Hans"],
+        "statusline 축약 라벨 — Claude Code statusline 표기를 그대로 쓴다",
+    ),
+    (
+        "sup.line.mem",
+        &["ko", "ja", "zh-Hans"],
+        "statusline 축약 라벨 — Claude Code statusline 표기를 그대로 쓴다",
+    ),
+    (
+        "sup.line.plugin",
+        &["ko", "ja", "zh-Hans"],
+        "statusline 축약 라벨 — Claude Code statusline 표기를 그대로 쓴다",
+    ),
+    (
+        "sup.line.rest",
+        &["ko", "ja", "zh-Hans"],
+        "statusline 축약 라벨 — Claude Code statusline 표기를 그대로 쓴다",
+    ),
+    (
+        "sup.line.sess",
+        &["ko", "ja", "zh-Hans"],
+        "statusline 축약 라벨 — Claude Code statusline 표기를 그대로 쓴다",
+    ),
+    (
+        "sup.line.seven",
+        &["ko", "ja", "zh-Hans"],
+        "statusline 축약 라벨 — Claude Code statusline 표기를 그대로 쓴다",
+    ),
+    (
+        "sup.line.style",
+        &["ko", "ja", "zh-Hans"],
+        "statusline 축약 라벨 — Claude Code statusline 표기를 그대로 쓴다",
+    ),
+    (
+        "sup.line.surface",
+        &["ko", "ja", "zh-Hans"],
+        "statusline 축약 라벨 — Claude Code statusline 표기를 그대로 쓴다",
+    ),
+    (
+        "sup.line.total",
+        &["ko", "ja", "zh-Hans"],
+        "statusline 축약 라벨 — Claude Code statusline 표기를 그대로 쓴다",
+    ),
+    (
+        "sup.line.turns",
+        &["ko", "ja", "zh-Hans"],
+        "statusline 축약 라벨 — Claude Code statusline 표기를 그대로 쓴다",
+    ),
+    (
+        "sup.line.up",
+        &["ko", "ja", "zh-Hans"],
+        "statusline 축약 라벨 — Claude Code statusline 표기를 그대로 쓴다",
+    ),
+    (
+        "sup.settings.traffic_suffix",
+        &["ko", "ja", "zh-Hans"],
+        "단위 기호",
+    ),
+    (
         "settings.anomaly.rss_surge_min_mib.unit",
         &["ko", "ja", "zh-Hans"],
         "MiB is the same binary size unit in all locales",

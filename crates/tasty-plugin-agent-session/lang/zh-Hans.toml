@@ -1,0 +1,606 @@
+[surface.kind]
+agent_session = "智能体会话"
+
+[preset.field]
+agent = "智能体配置档"
+agent_hint = "留空则复用此标签页的会话"
+session_cwd = "工作目录"
+model = "模型"
+session_name = "会话名称"
+first_prompt = "第一条消息"
+session_id = "会话 ID（可选）"
+
+[sup.chat]
+start_warning = "警告：{}"
+empty = "尚无对话。在下方输入。"
+input_placeholder = "输入消息"
+send_button = "发送"
+send_hint = "发送（Enter）。Shift+Enter 换行。"
+stop_button = "停止"
+stop_hint = "停止正在运行的轮次（Esc）。会话保留，并接收下一条消息。"
+clear_button = "清空"
+clear_hint = "在此会话中开始新对话（等同于 /clear）。按两次。标签页和会话保留；之前的轮次会从智能体和此标签页中清除。"
+clear_confirm = "清空？再按一次"
+stopped = "已停止。会话保留，并接收下一条消息。"
+older_link = "保存在磁盘上的较早轮次"
+alog_title = "智能体日志"
+alog_link_n = "智能体日志（{}）——打开面板"
+alog_link_open = "智能体日志（{}）——关闭面板"
+alog_unavailable = "找不到此对话的会话记录，因此无法显示其工具步骤和子智能体（仅读取 claude 对话）。"
+alog_count = "{} 个子智能体和任务 · {} 个运行中"
+alog_reload = "重新加载"
+alog_close = "关闭面板"
+alog_main = "当前智能体"
+alog_sub = "子智能体"
+alog_bg = "后台任务"
+alog_prompt = "下达的任务"
+alog_answer = "返回的答复"
+alog_no_answer = "尚无答复。"
+alog_steps = "步骤"
+alog_no_steps = "自上次清空或 compact 以来没有工具调用。"
+alog_omitted = "已省略 {} 个较早的步骤"
+alog_tools = "{} 次工具调用"
+alog_now = "当前：{}"
+alog_running = "运行中"
+alog_bg_done = "已完成"
+alog_bg_failed = "失败"
+alog_bg_stopped = "已停止"
+alog_s = "{}秒"
+alog_ms = "{}分{}秒"
+alog_hm = "{}小时{}分"
+
+thinking = "思考中"
+queued_label = "等待中——当前轮次结束后一并发送"
+overdue = "未在时限内收到答复——该轮次可能仍在 claude 进程中运行，结束后答复会显示在这里"
+overdue_recovered = "（正在从对话记录中读回答复）"
+working = "智能体正在工作"
+auto_turn = "自动继续"
+[sup.busy]
+turns_running = "聊天标签页中有智能体轮次正在运行（Surface {}）"
+
+[sup.dir]
+added_now = "已添加 {}——已带上该目录重启智能体，对话保持不变。"
+added_later = "已添加 {}——将在会话下次启动时生效。"
+already = "{} 已是此会话的工作目录。"
+removed_now = "已移除 {}——已在不含该目录的情况下重启智能体。"
+removed_later = "已移除 {}——从下次启动起不再生效。"
+not_there = "{} 不是此会话添加的目录。"
+list = "已添加的目录：{}"
+none = "已添加的目录：无"
+
+[sup.cmd]
+clear = "开始新对话（标签页和会话保留）"
+compact = "总结对话以释放上下文"
+context = "显示上下文窗口的占用情况"
+cost = "显示此账户的用量和上限"
+model = "切换此会话的模型——/model <名称>"
+reload_plugins = "重新加载插件（钩子、智能体、MCP 配置）"
+reload_skills = "重新加载技能"
+kind_skill = "技能"
+add_dir = "为会话添加另一个工作目录——/add-dir <绝对路径>"
+compacted = "已将对话压缩为摘要以释放上下文。"
+
+[sup.err]
+failed_with_output = "{}（输出：{}）"
+stream_ended = "流在轮次完成前已结束"
+not_running = "会话未在运行"
+unknown_profile = "没有此智能体配置档：{}"
+spawn_failed = "无法启动 {}：{}"
+stopped = "会话已停止"
+delete_live = "删除前先停止会话"
+kind_unsupported = "无法在此启动智能体类型 {}——仅支持 claude 或 pi"
+bad_permission_mode = "未知的权限模式：{}"
+no_such_prompt = "没有 ID 为 {} 的待处理问题"
+turn_running = "有轮次正在运行——结束后重试"
+background_running = "有后台任务正在运行——现在重启会使其停止。结束后重试"
+surface_has_session = "Surface {} 已持有会话 {}——先使用 `agent-session link-remove` 解除绑定"
+surface_not_linked = "Surface {} 未绑定会话——先使用 `agent-session link-add` 绑定"
+host_call = "宿主调用失败：{}"
+need_agent = "必须指定 agent"
+copy_not_linked = "Surface {} 没有可复制的会话——只能复制已绑定会话的聊天标签页"
+copy_no_profile = "Surface {} 的会话未记录启动它的智能体配置档，无法在不猜测配置档的情况下复制"
+need_session_id = "必须指定 session_id"
+need_session_id_full = "必须指定 session_id（会话 ID）"
+need_surface_id = "必须指定 surface_id（u32）"
+need_text = "没有要发送的内容——使用 `tasty agent-session tell \"内容\"` 或 `--text \"内容\"` 传入"
+text_twice = "文本传入了两次——只使用位置参数或 `--text` 之一"
+stale_link = "Surface {} 绑定的会话 {} 已不存在（已被删除）——使用 `tasty agent-session link-remove --surface {}` 解除绑定后新建会话，或使用 `link-add` 绑定一个存活的会话"
+no_such_session = "没有此会话：{}——使用 `agent-session list` 检查"
+ambiguous_session = "{} 匹配 {} 个会话的开头——输入更长的 ID"
+adopt_not_resumable = "会话 {} 持有智能体会话 {}，但无法恢复（状态：{}）"
+timed_out = "claude 进程未在 {} 秒内答复——进程仍在运行，但可能正忙于其他工作"
+spawn_link_rolled_back = "会话 {} 已启动，但无法绑定到 Surface——已回滚：{}"
+spawned_without_id = "启动的会话没有 ID：{}"
+surface_list_not_array = "surface.list 响应不是数组：{}"
+tab_has_no_session = "此标签页未绑定会话"
+
+worker_spawn = "无法启动发送工作线程"
+add_dir_need_path = "指定目录：/add-dir <绝对路径>"
+add_dir_absolute = "使用绝对路径（或 ~/…）：{}"
+add_dir_busy = "有轮次正在运行或有消息在等待，无法添加目录。停止或等待后重试。"
+clear_busy = "有轮次正在运行或有消息在等待，无法清空。停止或等待后再清空。"
+clear_no_session = "此标签页未绑定会话。"
+clear_failed = "无法清空对话：{}"
+clear_tab_closed = "对话清空前标签页已关闭。"
+spawn_no_id = "响应中没有会话 ID"
+[sup.form]
+tab_connect = "连接"
+tab_agents = "智能体"
+tab_roles = "角色"
+section_options = "智能体选项"
+rem_heading = "待决问题"
+rem_questions = "{} 项待决定"
+rem_asking = "等待答复"
+rem_dirty = "{} 项未提交"
+rem_idle_now = "刚刚"
+rem_idle_min = "{}分钟前"
+rem_idle_hour = "{}小时前"
+attach_title = "会话"
+edit_profiles_hint = "在<b>智能体</b>和<b>角色</b>标签页中编辑智能体和角色，也可使用 <code>tasty agent-session profile-set</code> / <code>role-add</code>，或编辑插件 <code>profiles</code> 文件夹中的 JSON 文件。"
+inherit_cwd = "智能体设置"
+no_attachable = "没有可打开的会话。在上方新建一个。"
+running_now = "正在运行"
+search_placeholder = "搜索会话——智能体、文件夹、ID"
+no_match = "没有与搜索匹配的会话。"
+col_state = "状态"
+col_agent = "智能体"
+col_folder = "文件夹"
+col_changes = "更改"
+col_session_id = "会话 ID"
+col_agent_session = "智能体会话"
+col_tab = "标签页"
+this_tab = "此标签页"
+delete = "删除"
+delete_confirm = "删除？"
+delete_yes = "删除"
+delete_no = "取消"
+delete_running = "无法删除正在运行的会话。先将其停止。"
+refresh = "刷新"
+select_all = "全选"
+delete_selected = "删除所选"
+picked = "已选择 {n} 个"
+delete_ask_many = "将删除 {n} 个——此操作无法撤销。再次点击确认。"
+starting = "正在启动会话…"
+count = "{n} 个会话"
+title = "启动智能体会话"
+subtitle = "为此标签页启动新会话，或从列表中打开一个会话。"
+agent_label = "智能体"
+agent_hint = "例如 cc"
+cwd_label = "工作文件夹"
+cwd_hint = "留空则遵循智能体设置"
+browse = "选择…"
+browse_note = "在文件夹对话框中转到目标文件夹，然后按 [选择此文件夹]。"
+start = "启动"
+attach_here = "在此标签页中打开"
+in_use = "正在标签页 {} 中使用"
+start_failed = "无法启动会话"
+model_label = "模型"
+model_hint = "留空则使用智能体的默认模型"
+model_default = "智能体默认"
+model_custom = "输入模型…"
+model_note_aliases = "别名——如已设置智能体的模型，则排在最前；也可以输入模型 ID"
+adopt_label = "要恢复的会话 ID"
+adopt_hint = "智能体使用过的会话 ID"
+adopt_note = "选择持有该对话的智能体。选择其他智能体会打开空会话。"
+permission_label = "权限模式"
+permission_default = "智能体默认"
+permission_note = "保持“智能体默认”即以智能体的模式启动。"
+name_label = "会话名称"
+name_hint = "用于在列表中识别"
+roles_label = "角色"
+roles_note = "所选各角色的 CLAUDE.md 会作为指引添加——claude 通过 --add-dir 读取，pi 通过系统提示词读取。"
+no_roles = "尚无角色。"
+roles_search = "搜索角色——名称、路径"
+roles_count = "{n} 个角色 · 已选 {k} 个"
+roles_col_name = "名称"
+roles_col_path = "路径"
+roles_no_match = "没有与搜索匹配的角色。"
+roles_prev = "上一页"
+roles_next = "下一页"
+[sup.note]
+coordinate_kept = "坐标已保留——下次 tell 会使其恢复"
+
+[sup.state]
+running = "运行中"
+slept = "休眠"
+stopped = "已停止"
+starting = "启动中"
+finished = "已完成"
+failed = "失败"
+blocked_precondition = "等待前提条件"
+
+[sup.tell]
+still_running = "轮次仍在运行——结束后可通过 `tasty agent-session output` 查看答复（聊天标签页中也会显示）"
+tab_closed = "答复到达前标签页已关闭"
+queued_behind_question = "此标签页正在等待对问题或权限提示的答复——文本已排入队列，不会作为答复。在标签页中答复该提示"
+
+[sup.ask]
+question_title = "智能体正在提问"
+permission_title = "请求权限：{}"
+allow = "允许"
+answer = "答复"
+deny = "拒绝"
+failed = "无法发送答复：{}"
+
+[sup.line]
+minute = "1分钟"
+rejected = "429"
+held = "受阻"
+copy_cwd = "点击复制完整路径"
+copied = "已复制"
+copy_surface = "点击复制 Surface ID"
+copy_session = "点击复制完整对话 ID"
+surface = "surface"
+pid = "PID"
+mem = "mem"
+cc = "cc"
+style = "style"
+sess = "sess"
+lat = "lat"
+up = "up"
+cache = "cache"
+rest = "rest"
+cost = "Cost"
+total = "Total"
+five = "5h"
+seven = "7d"
+plugin = "plugin"
+turns = "turns"
+fold = "折叠状态栏"
+unfold = "展开状态栏"
+
+[sup.status]
+cache_clock_hint = "缓存时钟：提示词缓存的预计过期时间，从最后一个调用 API 的轮次结束时起算。过期后，下一条消息会将整个对话重新写入缓存"
+rest_clock_hint = "休眠时钟：空闲回收的预计时间，从你最后一次操作（消息、标签页操作、命令）起算。任何操作都会使其重新计时"
+cache_expired = "已过期"
+rest_due = "待回收"
+minute_hint = "此智能体配置档的所有会话（包括其他标签页、终端和子智能体）在最近一分钟内发送的请求数 · 输入与缓存写入 token（计入每分钟输入 token 上限）· 输出 token。根据会话记录估算"
+rejected_hint = "此配置档在最近五分钟内被 API 速率限制（429）拒绝的请求数"
+held_hint = "此配置档被 API 速率限制（429）阻止、自动发送（重试和自动同步）暂停的时长。等待时间从一分钟起逐次加倍，之后重试发送一次"
+last_ok = "上次答复成功"
+last_err = "上次答复失败"
+last_stopped = "上次答复已停止"
+waiting = "等待答复"
+idle = "空闲"
+cost_hint = "此对话的累计值；恢复的会话会从原有值继续计算"
+account_hint = "账户上限窗口的用量，由该账户下的所有会话共享"
+account_pending = "claude 尚未发送账户上限用量——该数据仅在进程的第一轮发送，部分账户则完全不发送"
+total_hint = "此会话在当前五小时区间内的花费（会话记录 × 公开价格，为估算值）/ 余额上限（CLAUDEP_API_BALANCE，未设置时为 $50）"
+memory_hint = "智能体进程的常驻内存；仅在可测量时显示"
+uptime_hint = "自智能体进程启动起；会话停止并恢复后重新计时"
+tokens_hint = "此对话的累计值：↑ 输入（含缓存读取和写入），↓ 输出；恢复的会话会从原有值继续计算"
+latency_hint = "上一轮：总耗时（等待 API 的时间，从标签页连接后的第二轮起显示）"
+
+[sup.cli]
+desc = "操作 Claude Code 和 pi 的聊天标签页会话及其智能体配置档和角色文件夹"
+
+[sup.cli.sub.list]
+description = "列出智能体会话及正在运行的数量。已停止的会话保留其对话，并在下一轮时恢复。"
+
+[sup.cli.sub.link-add]
+description = "将会话绑定到 Surface，以便双方可以互相查找。拒绝未知会话——指向不存在对象的绑定比没有绑定更糟。"
+
+[sup.cli.sub.link-of]
+description = "此 Surface 绑定到哪个会话。未绑定不属于此工具的错误情况——大多数 Surface 都未绑定。"
+
+[sup.cli.sub.link-remove]
+description = "解除 Surface 与其会话的绑定。不触及会话和 Surface，只移除标记。与 `delete` 不同，此操作可逆：重新绑定即可恢复。解除从未绑定的对象也视为成功。"
+
+[sup.cli.sub.link-siblings]
+description = "此会话绑定的所有 Surface。tasty 询问的是“谁 Spawn 了这个子实例”；我们的会话没有父级列，因此这里回答绑定实际能表达的唯一关系：一个会话跨越多个 Surface。一个 Surface 恰好持有一个会话，因此反方向的关系不可能存在。"
+
+[sup.cli.sub.status]
+description = "绑定到此 Surface 的会话当前正在做什么。"
+
+[sup.cli.sub.sleep]
+description = "立即停止此 Surface 的会话进程。对话会保留，因此下一次 `tell` 会带着上下文恢复该会话。"
+
+[sup.cli.sub.tell]
+description = "向绑定到此 Surface 的会话发送一轮并等待答复。已停止的会话会自动恢复，这会使该轮多花几秒。最多等待两分钟；届时仍在运行的轮次会如实报告，其答复稍后可通过 `output` 读取。在聊天标签页中，该轮会经过标签页的队列，因此会显示在标签页中，且不会与在那里发送的轮次重叠。"
+
+[sup.cli.sub.abort]
+description = "取消此 Surface 的会话正在运行的轮次，但不结束会话。作用与 Shell 标签页中的 Ctrl+C 相同：工作停止，会话保留并接收下一轮；没有运行内容时执行也无害。与 `sleep` 不同，进程保持运行。"
+
+[sup.cli.sub.add-dir]
+description = "为此 Surface 的会话添加另一个工作目录，等同于 Claude Code 中的 /add-dir。列表按会话保存并传给 claude；如果会话正在运行，会立即重启并保持对话不变，否则该目录在下次恢复时生效。有轮次正在运行时拒绝执行。"
+
+[sup.cli.sub.remove-dir]
+description = "从此 Surface 的会话中移除通过 add-dir 添加的工作目录。生效方式与 add-dir 相同：会话正在运行时立即生效，否则在下次恢复时生效。"
+
+[sup.cli.sub.clear]
+description = "在此 Surface 的会话中开始新对话，等同于 Claude Code 中的 /clear。会话、其标签页和设置保留；智能体会忘记之前的轮次，聊天标签页也会将其移除。有轮次正在运行或有消息排队时拒绝执行，清空完成后才返回答复。"
+
+[sup.cli.sub.sync-compact]
+description = "在绑定到此聊天标签页的会话上运行项目同步，然后执行 compact。仅当同步轮次正常结束时才发送 compact。有轮次正在运行或有消息排队时拒绝执行，同步轮次发送后即返回答复；其余进度显示在状态栏中。"
+
+[sup.cli.sub.start]
+description = "一步完成新智能体会话的启动并将其绑定到此 Surface。如果 Surface 已持有会话则拒绝执行，因为一个 Surface 只能承载一个会话，覆盖会使第一个会话成为孤立会话。使用 --copy-of 时，新会话会复制另一个聊天标签页的配置档和设置。"
+
+[sup.cli.sub.broadcast]
+description = "向在同一智能体配置档下启动的所有会话发送同一轮；未指定智能体时发送给所有存活的会话。部分失败不会取消其余发送——成功和失败的结果分别返回。"
+
+[sup.cli.sub.delete]
+description = "永久删除会话记录。这不是 `sleep`，也不是 `abort`：它会抹除坐标，因此该会话持有的对话将永远无法恢复。会话存活时拒绝执行——先将其停止。UI 中有意没有为此提供任何按钮。"
+
+[sup.cli.sub.output]
+description = "此 Surface 的会话最近说了什么。与 `watch` 不同，此命令向后查看——即使是无人监视时运行的轮次，或此后已进入休眠的会话，也能返回答复。"
+
+[sup.cli.sub.watch]
+description = "逐个事件跟踪此 Surface 的会话正在运行的轮次，并返回已到达的内容。适用于在任何地方启动的轮次，包括由同一插件的 `tell` 发送的轮次；监视期间，对此插件的其他调用会等待。"
+
+[sup.cli.sub.sync]
+description = "使所有已绑定标签页的注意力高亮与其会话的实际状态保持一致。"
+
+[sup.cli.sub.profile-list]
+description = "列出智能体配置档。每个配置档是插件 profiles 文件夹中的一个 JSON 文件；没有文件时，提供名为 claude 的内置配置档。"
+
+[sup.cli.sub.profile-show]
+description = "以 JSON 显示一个智能体配置档。"
+
+[sup.cli.sub.profile-set]
+description = "创建或替换智能体配置档。字段：agent_type（claude 或 pi）、command、cwd、env、model、permission_mode、settings、add_dirs、args、cache_ttl（5m 或 1h）。已在运行的会话保持其启动时的配置档。"
+
+[sup.cli.sub.profile-remove]
+description = "删除智能体配置档文件。由其启动的会话会继续运行，但在同名配置档再次存在之前无法恢复。"
+
+[sup.cli.arg.profile_args.name]
+help = "配置档名称（字母、数字、- _ .）"
+
+[sup.cli.arg.profile_set_args.name]
+help = "配置档名称（字母、数字、- _ .）"
+
+[sup.cli.arg.profile_set_args.json]
+help = "以 JSON 对象表示的完整配置档，例如 '{\"model\":\"opus\",\"env\":{\"CLAUDE_CONFIG_DIR\":\"/path\"}}'"
+
+[sup.cli.sub.link-list]
+description = "当前已绑定的所有 Surface 与会话对，以及无法读取的 Surface 数量。"
+
+[sup.cli.sub.traffic]
+description = "API 流量整形：是否启用、上传和下载上限（KB/s）、已中继的字节数、打开和失败的隧道，以及本地代理及其上游。"
+
+[sup.cli.arg.link_args.surface_id]
+help = "要绑定的 Surface（默认为调用方的 TASTY_SURFACE_ID）"
+
+[sup.cli.arg.link_args.session_id]
+help = "会话 ID——参见 `tasty agent-session list`"
+
+[sup.cli.arg.dir_args.surface_id]
+help = "要更改其会话的 Surface（默认为调用方的 TASTY_SURFACE_ID）"
+
+[sup.cli.arg.dir_args.path]
+help = "目录的绝对路径（会展开 ~/）"
+
+[sup.cli.arg.session_args.session_id]
+help = "会话 ID"
+
+[sup.cli.arg.tell_args.surface_id]
+help = "要与其会话对话的 Surface（默认为调用方的 TASTY_SURFACE_ID）"
+
+[sup.cli.arg.tell_args.message]
+help = "要发送的轮次内容（与 --text 相同；只指定其一）"
+
+[sup.cli.arg.tell_args.text]
+help = "要发送的轮次内容"
+
+[sup.cli.arg.output_args.surface_id]
+help = "要读取其会话的 Surface（默认为调用方的 TASTY_SURFACE_ID）"
+
+[sup.cli.arg.output_args.lines]
+help = "仅最后 N 行；省略则输出保留的全部内容"
+
+[sup.cli.arg.watch_args.surface_id]
+help = "要跟踪其会话的 Surface（默认为调用方的 TASTY_SURFACE_ID）"
+
+[sup.cli.arg.watch_args.max_events]
+help = "达到此事件数后停止（默认 200）"
+
+[sup.cli.arg.watch_args.seconds]
+help = "返回已到达内容前的监视时长，1-10（默认 5）。保持较短，因为一次插件调用运行期间会阻塞其他调用。"
+
+[sup.cli.arg.start_args.surface_id]
+help = "要绑定新会话的 Surface（默认为调用方的 TASTY_SURFACE_ID）"
+
+[sup.cli.arg.start_args.agent]
+help = "要启动的智能体配置档（参见 `tasty agent-session profile-list`）。除非指定 --copy-of，否则必填"
+
+[sup.cli.arg.start_args.cwd]
+help = "新会话的工作目录"
+
+[sup.cli.arg.start_args.permission_mode]
+help = "新会话的权限模式（acceptEdits、auto、bypassPermissions、manual、dontAsk、plan）。"
+
+[sup.cli.arg.start_args.copy_of]
+help = "复制此 Surface 上的聊天标签页：以相同的智能体配置档、工作目录、模型、权限模式和已添加目录启动新会话。不复制对话和会话 ID"
+
+[sup.cli.arg.broadcast_args.text]
+help = "要发送给所有匹配会话的轮次内容"
+
+[sup.cli.arg.broadcast_args.agent]
+help = "仅限在此智能体配置档下启动的会话；省略则发送给所有存活的会话"
+
+[sup.cli.arg.surface_args.surface_id]
+help = "要查询的 Surface（默认为调用方的 TASTY_SURFACE_ID）"
+
+[sup.brief]
+intro = "[tasty] 此对话运行在 tasty 的 agent-session 标签页中。"
+surface = "- 此标签页的 Surface ID：{}"
+session = "- 会话 ID：{}"
+agent = "- 智能体配置档：{}"
+cwd = "- 工作文件夹：{}"
+outro = "你可以通过 tasty CLI 操作窗口、标签页和 Surface。运行 `tasty list surfaces` 查看已打开的内容，运行 `tasty --help` 查看可用功能。要指向你自己的标签页，将上面的 Surface ID 传给 `--surface`。\n无需回复此说明——从下一条输入起照常回答。"
+
+[settings.subtab]
+agent_session = "智能体会话"
+
+[sup.settings]
+group_history = "对话历史"
+memory_turns = "内存中保留的轮数（0 = 全部）"
+memory_turns_suffix = "轮"
+disk_swap = "将超出的轮次移到磁盘"
+group_context = "自动控制上下文成本"
+about_context = "说明"
+sync_on = "工作时同步"
+sync_threshold = "轮次结束时的上下文"
+sync_threshold_suffix = "token"
+about_sync = "工作时：何时、为何"
+idle_sync_on = "空闲时同步"
+idle_sync = "空闲后的上下文（240 秒/3,540 秒）"
+idle_sync_suffix = "token"
+about_idle_sync = "空闲时：何时、为何"
+limit_sync_on = "达到 5 小时/7 天用量上限前同步"
+limit_sync = "上限用量（仅限 claude.ai 登录）"
+limit_sync_suffix = "%"
+about_limit_sync = "用量限制：何时、为何"
+sync_prompt = "同步指令"
+compact_prompt = "compact 重点指令"
+group_session = "会话管理"
+idle_reclaim = "释放空闲会话"
+about_reclaim = "释放：何时、为何"
+cache_watch = "提示词缓存重写通知"
+about_cache_watch = "缓存通知：何时、为何"
+memory_saver = "节省内存（卸载隐藏的标签页）"
+about_memory_saver = "节省内存：何时、为何"
+group_traffic = "API 流量整形"
+traffic_up = "上传上限（0 = 不限）"
+traffic_down = "下载上限（0 = 不限）"
+traffic_suffix = "KB/s"
+
+[sup.sync]
+over = "⚠ 同步"
+over_hint = "上下文已超过设置中的同步阈值——本轮结束后将自动运行项目同步和 compact"
+running = "⟳ 同步中"
+running_hint = "此对话正在运行项目同步或 compact"
+failed = "同步已停止"
+failed_hint = "上次项目同步未完成；原因显示在输入框上方。在上下文降到阈值以下之前，不会再自动运行"
+still_over = "compact 后上下文仍超过阈值——在设置中提高阈值"
+sync_failed = "项目同步失败，因此未发送 compact：{}"
+compact_failed = "compact 失败：{}"
+stopped = "项目同步已停止，因此未发送 compact"
+lost = "项目同步轮次已不在此标签页中，因此未发送 compact"
+busy = "有轮次正在运行或有消息排队——空闲时再次尝试项目同步"
+need_tab = "项目同步仅在聊天标签页中运行"
+tag_auto = "[sync-compact:auto] 自动同步——上下文 {} token · 阈值 {} token"
+tag_manual = "[sync-compact:manual] 应请求开始同步"
+tag_idle = "[sync-compact:idle] 空闲同步——在缓存失效前 · 上下文 {} token · 阈值 {} token"
+tag_limit = "[sync-compact:limit] 用量上限同步——5 小时/7 天上限已用 {}% · 在请求被切断前保存"
+
+[sup.cache]
+rewrite_token = "缓存重写"
+rewrite_tip = "上一轮在没有停顿的情况下将整个对话重新写入缓存，因此支付的是缓存写入而非缓存读取的费用"
+tier_down = "此会话的提示词缓存已从 1 小时变为 5 分钟（本次写入：{}k token）。检查登录状态或 claude 进程环境是否发生变化——现在停顿超过 5 分钟就会重写整个对话。"
+prefix_break = "整个对话（{}k token）在没有停顿的情况下被重新写入缓存——{}。"
+cause_model = "模型已变更"
+cause_command = "上一条命令 {} 改变了前缀"
+cause_unknown = "系统提示词或工具定义可能已变更"
+
+[sup.retry]
+waiting = "被 API 速率限制（429）阻止——配置档 {} 的自动发送已暂停，将在 {} 秒后重试一次。届时会重新发送此消息"
+gave_up = "配置档 {} 被 API 速率限制（429）阻止已超过 {} 分钟，因此已停止自动重新发送——这可能是支出上限、每日上限或组织内共享的用量，而非每分钟上限，请在 Console 中检查，解除后再次发送"
+
+[sup.sys]
+compact_auto = "[system] /compact——由“工作时同步”设置（轮次结束阈值）在同步后发送"
+compact_idle = "[system] /compact——由“空闲时同步”设置（在缓存失效前）在同步后发送"
+compact_manual = "[system] /compact——由插件在请求的同步后发送"
+compact_limit = "[system] /compact——用量超过“达到 5 小时/7 天用量上限前同步”中设置的比例，由插件在同步后发送"
+running = "· 正在总结…"
+done = "· 已完成"
+failed = "· 失败：{}"
+
+[sup.profile]
+need_name = "必须指定配置档名称（--name）"
+no_dir = "未设置插件数据文件夹——无法保存配置档"
+need_json = "必须指定配置档内容（--json）"
+bad_json = "配置档内容不是有效的 JSON：{}"
+not_object = "配置档 {} 必须是 JSON 对象"
+bad_name = "配置档名称无效：{}（仅允许字母、数字、- _ .）"
+remove_failed = "无法移除配置档 {}：{}"
+bad_cache_ttl = "cache_ttl 必须为 5m 或 1h：{}"
+
+[sup.prompt]
+denied = "用户已拒绝"
+
+[sup.about]
+context = "解决智能体（例如 Claude Code）的自动 compact 不写入任何文档的问题（只在内存中总结）。\n一次将相同设置应用于多个智能体，使上下文保持新鲜、轻量（降低成本和响应延迟）。\n- 自动运行：会话的上下文达到阈值（token）时，以下步骤会自动运行。\n- 步骤：将“同步指令”作为提示词发送（保存当前状态和恢复点文档）→ 使用“compact 重点指令”执行 compact"
+sync = "推荐：开启。轮次结束时的上下文超过阈值后，标签页在静默 60 秒后同步。如果上下文超出阈值 200,000 token 或更多，则不等待。阈值会被下调，使其不超过上下文窗口的 90%（200k 窗口为 180,000）。同一会话中的自动运行至少间隔 10 分钟；如果 compact 后上下文仍超过阈值，则停止运行，直到上下文降到阈值以下。"
+idle_sync = "推荐：开启。提示词缓存在最后一次请求后 5 分钟（或 1 小时）失效，之后的第一个请求会将整个上下文重新写入缓存（成本超过缓存读取的 12 倍）。因此，在最后一个调用 API 的轮次之后、缓存过期前一分钟（240 秒/3,540 秒），标签页会同步，但仅在上下文达到或超过阈值时。每次休眠只运行一次，发送下一条消息后重新开放，且每个智能体配置档同一时间只有一个标签页运行。阈值低于工作时阈值是有意为之。"
+limit_sync = "推荐：开启。当 5 小时和 7 天用量上限中较大者达到此比例时，标签页会在上限切断会话前进行同步和 compact。在上限重置前只运行一次。仅 claude.ai 登录的配置档会报告用量，因此对 API 密钥配置档不运行。"
+reclaim = "推荐：开启。每个休眠的标签页都有一个占用内存的 claude 进程。自你最后一次操作该会话（消息、标签页操作或针对该会话的命令）起，在缓存生命周期结束前一分钟（240 秒/3,540 秒），该进程会被关闭。将运行空闲同步的标签页会在同步结束后释放（即使同步失败）；低于阈值或空闲同步关闭时则立即释放。仍有后台工作的会话不会被释放，下一条消息会重新启动它并继续对话。"
+cache_watch = "推荐：开启。当会话并未休眠，但某轮的第一个请求却将整个对话重新写入缓存时（例如系统提示词或工具定义变更后），状态栏和通知行会提示。1 小时缓存降为 5 分钟缓存时，每个会话会收到一次通知。关闭后仅移除通知，指标仍保留。"
+memory_saver = "推荐：打开大量聊天标签页时开启（默认关闭）。隐藏的聊天标签页会释放其页面（WebView）以节省内存。对话、队列和未发送的草稿会保留，标签页显示时会重新绘制页面。对话越长，重新绘制所需时间越长，且滚动位置从底部开始。"
+
+[sup.default]
+sync_prompt = "项目同步"
+compact_prompt = "原样保留恢复点文档中的进行中工作、后续步骤和标识符（路径、ID、数字），并总结探索过程。用简体中文撰写摘要，即本句所用的语言。"
+
+[sup.role]
+not_dir = "{} 不是文件夹"
+unknown = "未知角色：{}"
+need_path = "必须指定 path"
+
+[sup.manage]
+create = "新建智能体"
+create_button = "创建"
+edit_title = "编辑智能体"
+list = "智能体"
+edit = "编辑"
+cancel = "取消"
+no_profiles = "尚无智能体。"
+name = "名称"
+agent_type = "智能体类型"
+command = "命令"
+command_hint = "留空则运行类型名称（claude · pi）。"
+cwd = "工作文件夹"
+model = "模型"
+env = "环境变量"
+env_hint = "每行一个 KEY=VALUE。pi 智能体通常设置 PI_CODING_AGENT_DIR。"
+save = "保存"
+delete = "删除"
+role_new = "新建角色"
+role_path = "文件夹"
+role_path_hint = "选择包含 CLAUDE.md（指引）的文件夹。"
+add = "添加"
+scan_title = "导入"
+scan_label = "父文件夹"
+scan_hint = "添加所有包含 CLAUDE.md 的子文件夹，并以文件夹名命名。"
+scan = "导入"
+roles_list = "角色"
+no_roles = "尚无角色。"
+guide = "指引"
+guide_yes = "有 CLAUDE.md"
+no_guide = "无 CLAUDE.md"
+created = "已创建智能体 {}"
+saved = "已保存智能体 {}"
+exists = "智能体 {} 已存在。要修改它，在列表中按“编辑”。"
+not_found = "智能体 {} 不存在。"
+removed = "已删除智能体 {}"
+role_added = "已添加角色 {}"
+roles_scanned = "已导入 {} 个角色"
+role_removed = "已删除角色 {}"
+failed = "失败：{}"
+
+[sup.cli.sub.role-list]
+description = "列出角色文件夹。角色是包含 CLAUDE.md 的文件夹；启动会话时可选择多个，其指引会被添加（claude：--add-dir，pi：系统提示词）。"
+
+[sup.cli.sub.role-add]
+description = "以名称注册角色文件夹，或将已有名称指向另一个文件夹。"
+
+[sup.cli.sub.role-scan]
+description = "将所有包含 CLAUDE.md 的子文件夹注册为以文件夹名命名的角色。"
+
+[sup.cli.sub.role-remove]
+description = "从列表中移除角色。不会改动文件夹本身。"
+
+[sup.cli.arg.role_args.name]
+help = "角色名称（字母、数字、- _ .）"
+
+[sup.cli.arg.role_add_args.name]
+help = "角色名称（字母、数字、- _ .）"
+
+[sup.cli.arg.role_add_args.path]
+help = "角色文件夹（必须存在）"
+
+[sup.cli.arg.role_scan_args.path]
+help = "其子文件夹为角色的文件夹"
+
+[sup.cli.arg.start_args.roles]
+help = "要添加的角色文件夹，以逗号分隔（参见 `tasty agent-session role-list`）"
