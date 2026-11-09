@@ -224,6 +224,21 @@ impl crate::app::App {
         }
     }
 
+    /// 적용한 글꼴 값을 판정해 처음 거절된 값을 값마다 카드 한 장으로 알린다.
+    pub(crate) fn report_rejected_fonts(
+        &mut self,
+        origin: &crate::intent::IntentOrigin,
+        prev: Option<&crate::settings::AppearanceSettings>,
+        next: &crate::settings::AppearanceSettings,
+    ) {
+        for value in self.font_rejections.after_apply(origin, prev, next) {
+            self.toast_settings_result(
+                crate::i18n::t_fmt_fit("toast.font_rejected", &value),
+                crate::adapters::ui::ToastKind::Warning,
+            );
+        }
+    }
+
     /// 설정 결과 토스트는 포커스된 메인 창에, 없으면 첫 메인 창에 띄운다.
     pub(super) fn toast_settings_result(
         &mut self,

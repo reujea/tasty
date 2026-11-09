@@ -59,7 +59,7 @@ impl App {
             if execution_edits.is_some() {
                 let origin =
                     crate::app::command::DomainIntent::UpdateSettings(new_settings.clone())
-                        .from_user_menu("settings_save")
+                        .from_user_menu(crate::app::font_rejection::SETTINGS_SAVE_MENU)
                         .origin;
                 self.cascade_settings_updated(new_settings, &origin, None);
             }

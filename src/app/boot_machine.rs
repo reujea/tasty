@@ -663,7 +663,7 @@ impl App {
             }
         };
         Self::report_boot_init_errors(&mut state, invalid_theme_name);
-        Self::report_locale_fallback(&mut state);
+        Self::report_boot_notices(&mut state.toasts, &mut self.font_rejections, &settings);
         // 서버가 받는 첫 연결부터 설정값을 쓰도록 IPC를 열기 전에 반영한다.
         crate::app::attach_heartbeat::apply(&self.services, &settings);
         self.start_boot_ipc_and_webhooks();
@@ -725,12 +725,29 @@ impl App {
         }
     }
 
+    /// 부팅 카드를 쌓는다. 첫 overlay 프레임보다 먼저 쌓이므로 저장된 수명을 여기서 넣는다.
+    pub(super) fn report_boot_notices(
+        toasts: &mut crate::adapters::ui::ToastManager,
+        font_rejections: &mut crate::app::font_rejection::FontRejectionNotices,
+        settings: &crate::settings::Settings,
+    ) {
+        toasts.set_lifetime_ms(settings.overlay.toast_duration_ms);
+        Self::report_locale_fallback(toasts);
+        for value in font_rejections.at_boot(&settings.appearance) {
+            toasts.push(
+                crate::i18n::t_fmt_fit("toast.font_rejected", &value),
+                crate::adapters::ui::ToastKind::Warning,
+                crate::adapters::ui::ToastScope::Window,
+            );
+        }
+    }
+
     /// 언어팩 폴백을 한 번 알린다. 설정값은 유지하며 로더가 남긴 경고 로그는 반복하지 않는다.
-    fn report_locale_fallback(state: &mut crate::state::MainViewState) {
+    fn report_locale_fallback(toasts: &mut crate::adapters::ui::ToastManager) {
         if let Some(msg) =
             crate::i18n::load_report().and_then(crate::i18n::LoadReport::user_warning)
         {
-            state.toasts.push(
+            toasts.push(
                 msg,
                 crate::adapters::ui::ToastKind::Warning,
                 crate::adapters::ui::ToastScope::Window,
@@ -738,7 +755,7 @@ impl App {
         }
         // 폰트 실패는 언어 폴백과 별개다. 긴 경로만 줄여 조치 안내가 잘리지 않게 한다.
         if let Some(detail) = crate::boot::locale::font_warning() {
-            state.toasts.push(
+            toasts.push(
                 crate::i18n::t_fmt_fit("i18n.warn.font_unresolved", &detail),
                 crate::adapters::ui::ToastKind::Warning,
                 crate::adapters::ui::ToastScope::Window,

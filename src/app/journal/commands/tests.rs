@@ -823,6 +823,10 @@ fn each_keyed_journal_request_reports_only_its_initial_retry_decision() {
 #[path = "divider_tests.rs"]
 mod divider;
 
+#[cfg(all(feature = "gui", target_os = "linux"))]
+#[path = "font_notice_tests.rs"]
+mod font_notice;
+
 #[test]
 fn workspace_create_waits_for_final_wire_and_replays_without_a_second_resource() {
     let (mut session, mut journal) = boot();

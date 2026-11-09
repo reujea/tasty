@@ -9,14 +9,11 @@ use tasty_i18n::font::LocaleFontError;
 use crate::font::{
     FontConfig, FontFileFace, TerminalFontRejection, file_provides_family, judge_terminal_file,
 };
+use crate::settings::AppearanceSettings;
 
 /// 판정이 따르는 글꼴 경로.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum FontRenderer {
-    #[cfg_attr(
-        not(test),
-        expect(dead_code, reason = "the saved value check is the first caller")
-    )]
     Ui,
     Terminal,
 }
@@ -183,6 +180,71 @@ pub fn judge_font(
         FontRenderer::Ui => judge_ui(family, custom, |name| lookup.load_family(name)),
         FontRenderer::Terminal => judge_terminal(family, custom, lookup),
     }
+}
+
+/// 알림 대상인 거절된 저장값. 값마다 카드 한 장이므로 출처와 값으로 구분한다.
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub(crate) struct RejectedValue {
+    pub origin: FontOrigin,
+    pub value: String,
+}
+
+/// 저장값 판정의 대상. 기본 글꼴은 `plugin_font_overrides` 키가 없어도 대상이다. 터미널은 적용값을
+/// 터미널 판정만 받는다.
+pub(crate) fn saved_font_targets(
+    appearance: &AppearanceSettings,
+) -> Vec<(FontRenderer, String, String)> {
+    let mut targets = vec![(
+        FontRenderer::Ui,
+        appearance.default_font.font_family.clone(),
+        appearance.default_font.custom_font_path.clone(),
+    )];
+    let mut kinds: Vec<&String> = appearance.plugin_font_overrides.keys().collect();
+    kinds.sort();
+    for kind in kinds {
+        let eff = appearance.effective_font_for_kind(kind);
+        targets.push((FontRenderer::Ui, eff.font_family, eff.custom_font_path));
+    }
+    let eff = appearance.effective_terminal_font();
+    targets.push((
+        FontRenderer::Terminal,
+        eff.font_family,
+        eff.custom_font_path,
+    ));
+    targets
+}
+
+/// 저장값 전체를 판정한다. 같은 값이 여러 대상에 상속되면 한 번만 읽는다.
+pub(crate) fn judge_saved_fonts(
+    appearance: &AppearanceSettings,
+    lookup: &mut FontLookup,
+) -> Vec<RejectedValue> {
+    let mut judged = Vec::new();
+    let mut rejected = Vec::new();
+    let mut add = |origin, value: &str| {
+        let value = RejectedValue {
+            origin,
+            value: value.to_owned(),
+        };
+        if !rejected.contains(&value) {
+            rejected.push(value);
+        }
+    };
+    for target in saved_font_targets(appearance) {
+        if judged.contains(&target) {
+            continue;
+        }
+        let (renderer, family, custom) = &target;
+        let verdict = judge_font(*renderer, family, custom, lookup);
+        if verdict.custom.is_some() {
+            add(FontOrigin::Custom, custom);
+        }
+        if verdict.family.is_some() {
+            add(FontOrigin::Named, family);
+        }
+        judged.push(target);
+    }
+    rejected
 }
 
 /// 깨진 글꼴 입력을 만드는 시험 도구. 묶음 D2Coding 의 표를 고쳐 만든다.

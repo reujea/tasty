@@ -100,6 +100,11 @@ impl ToastManager {
         self.lifetime = Duration::from_millis(ms);
     }
 
+    #[cfg(test)]
+    pub(crate) fn card_lifetimes(&self) -> Vec<Duration> {
+        self.toasts.iter().map(|t| t.lifetime).collect()
+    }
+
     /// 사용자 행동의 결과로 토스트를 추가한다.
     pub fn push(&mut self, message: impl Into<String>, kind: ToastKind, scope: ToastScope) {
         self.push_with_hint(message, kind, Vec::new(), scope);

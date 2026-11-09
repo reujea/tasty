@@ -688,6 +688,7 @@ impl App {
         // 바뀐 단축키가 macOS 메뉴 표시에도 반영되도록 재구성한다.
         #[cfg(target_os = "macos")]
         crate::macos_delegate::rebuild_main_menu(&new_settings.keybindings);
+        self.report_rejected_fonts(origin, prev_appearance.as_ref(), &new_settings.appearance);
         // 접수 거절이나 writer 없는 구성의 결과는 바로 나와 있다.
         self.settle_settings_saves();
     }

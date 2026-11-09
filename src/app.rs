@@ -39,6 +39,8 @@ pub(crate) mod file_consumers;
 mod file_dispatch;
 pub(crate) mod file_writer;
 #[cfg(feature = "gui")]
+pub(crate) mod font_rejection;
+#[cfg(feature = "gui")]
 pub(crate) mod global_hooks;
 #[cfg(feature = "gui")]
 mod halt_frame;
@@ -173,6 +175,9 @@ pub(crate) struct App {
     /// 받을 workspace가 아직 없어 전달을 미룬 복원·저장 알림.
     #[cfg(feature = "gui")]
     pub(crate) pending_recovery_notices: Vec<journal::notices::RecoveryNotice>,
+    /// 사용자에게 알린 거절된 글꼴 값. 프로세스 수명 동안 유지한다.
+    #[cfg(feature = "gui")]
+    pub(crate) font_rejections: font_rejection::FontRejectionNotices,
     /// 마지막으로 띄운 오른쪽 위 복원 안내 id.
     #[cfg(feature = "gui")]
     pub(crate) next_restore_notice_id: u64,
@@ -349,6 +354,8 @@ impl App {
             preset_io: Default::default(),
             remote_io: Default::default(),
             pending_recovery_notices: Vec::new(),
+            #[cfg(feature = "gui")]
+            font_rejections: Default::default(),
             #[cfg(feature = "gui")]
             next_restore_notice_id: 0,
             settings_edit_owner: None,

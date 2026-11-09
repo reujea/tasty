@@ -672,8 +672,8 @@ cargo clippy --workspace --all-targets \
 `check-headless`의 `cargo test (linux, gui, unit)` 단계는 `env -u WAYLAND_DISPLAY xvfb-run -a
 --server-args="-screen 0 1920x1080x24"` 안에서 `cargo test --workspace --lib --bins --locked --no-fail-fast`를
 실행한다. gui 조합의 단위 시험 중 `app::shutdown_machine`의 `capture_file_tests`·`settings_export_tests`·
-`plugin_file_shutdown_tests`는 winit `EventLoop`를 X11로 만들고, 뒤의 두 시험은 같은 시험 바이너리를
-자식 프로세스로 다시 실행한다. 디스플레이가 없으면 `XOpenDisplayFailed`로 실패한다. 러너에 `xvfb-run`이
+`plugin_file_shutdown_tests`와 `app::journal::commands`의 `font_notice`는 winit `EventLoop`를 X11로 만들고,
+`capture_file_tests`를 뺀 나머지는 같은 시험 바이너리를 자식 프로세스로 다시 실행한다. 디스플레이가 없으면 `XOpenDisplayFailed`로 실패한다. 러너에 `xvfb-run`이
 없으면 단계가 먼저 실패한다. 이 단계는 `continue-on-error`가 없는 차단 단계다.
 
 `#[ignore]` 시험은 디스플레이가 있어도 이 단계에서 실행되지 않는다. 디스플레이가 생겨 동작이 달라지는
