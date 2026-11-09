@@ -1,6 +1,6 @@
 use std::{
     io::{Read, Write},
-    net::TcpListener,
+    net::{TcpListener, TcpStream},
     sync::{
         Arc, Mutex,
         atomic::{AtomicBool, AtomicUsize, Ordering},
@@ -35,7 +35,7 @@ impl Fixture {
         let captured = requests.clone();
         let (c, u, r, s) = (count.clone(), upload.clone(), release.clone(), stop.clone());
         let join = std::thread::spawn(move || {
-            while !s.load(Ordering::Acquire) {
+            'accept: while !s.load(Ordering::Acquire) {
                 let Ok((mut stream, _)) = listener.accept() else {
                     std::thread::sleep(Duration::from_millis(1));
                     continue;
@@ -51,12 +51,14 @@ impl Fixture {
                     .unwrap();
                 let mut data = vec![];
                 let mut chunk = [0; 1024];
+                // This thread is the accept loop: a connection that fails or ends early ends only
+                // itself, so the requests after it still get an answer.
                 let end = loop {
                     let Ok(n) = stream.read(&mut chunk) else {
-                        return;
+                        continue 'accept;
                     };
                     if n == 0 {
-                        return;
+                        continue 'accept;
                     }
                     data.extend_from_slice(&chunk[..n]);
                     if let Some(i) = data.windows(4).position(|w| w == b"\r\n\r\n") {
@@ -79,8 +81,12 @@ impl Fixture {
                     })
                     .unwrap_or(0);
                 while data.len() - end < length {
-                    let n = stream.read(&mut chunk).unwrap();
-                    assert!(n > 0);
+                    let Ok(n) = stream.read(&mut chunk) else {
+                        continue 'accept;
+                    };
+                    if n == 0 {
+                        continue 'accept;
+                    }
                     data.extend_from_slice(&chunk[..n]);
                 }
                 *u.lock().unwrap() = data[end..end + length].to_vec();
@@ -136,4 +142,37 @@ impl Drop for Fixture {
         self.release();
         self.join.take().unwrap().join().unwrap();
     }
+}
+
+/// An empty connection and one cut off in its body each end only themselves: the POST after them
+/// is still answered and is the only one counted.
+#[test]
+fn a_connection_that_ends_early_does_not_end_the_accept_loop() {
+    let fixture = Fixture::new();
+    let address = fixture
+        .url
+        .trim_start_matches("http://")
+        .trim_end_matches('/')
+        .to_owned();
+    drop(TcpStream::connect(&address).unwrap());
+    let mut cut_off = TcpStream::connect(&address).unwrap();
+    cut_off
+        .write_all(b"POST / HTTP/1.1\r\nContent-Length: 4\r\n\r\nab")
+        .unwrap();
+    drop(cut_off);
+    let mut request = TcpStream::connect(&address).unwrap();
+    request
+        .write_all(b"POST / HTTP/1.1\r\nContent-Length: 4\r\n\r\nbody")
+        .unwrap();
+    // The fixture answers with the status line and headers, then holds the body until release.
+    let mut reply = vec![];
+    let mut chunk = [0; 1024];
+    while !reply.windows(4).any(|window| window == b"\r\n\r\n") {
+        let n = request.read(&mut chunk).unwrap();
+        assert!(n > 0, "no answer: {}", String::from_utf8_lossy(&reply));
+        reply.extend_from_slice(&chunk[..n]);
+    }
+    assert!(reply.starts_with(b"HTTP/1.1 201 Created\r\n"));
+    assert_eq!(fixture.count(), 1);
+    assert_eq!(fixture.upload(), b"body");
 }
