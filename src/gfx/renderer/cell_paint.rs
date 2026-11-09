@@ -5,8 +5,8 @@ use tasty_terminal_link::LinkHighlight;
 use tasty_type_appearance::color::{GpuRgb, GpuRgba};
 use termwiz::cell::CellAttributes;
 
-use super::SearchHighlights;
 use super::overlay::composite_over;
+use super::{CursorPaint, SearchHighlights};
 use crate::cell_palette::{compute_cell_colors, reads_default_ink};
 
 /// 셀 위에 겹치는 상태. 칸마다 같은 값을 쓰므로 한 viewport에서 한 번 만든다.
@@ -31,6 +31,7 @@ pub(super) struct CellPaint {
 
 /// 셀 색 위에 커서, 선택, vi 커서, 링크, 매치 순서로 칠한다.
 /// 링크 칸은 어느 매치에서나 선택 칸으로 읽는다. 커서 칸은 링크 안에서도 커서 칸이고 밑줄은 그 글자색이다.
+/// `cursor`는 이 칸에 걸린 텍스트 커서 모양이고, 블록만 바탕과 글자를 맞바꾼다.
 /// 블록 커서 칸은 선택을 칠하지 않는다. 선택 위에서 맞바꾼 글자가 등급에 못 미치고 커서 위치가 안 보인다.
 // 이유: 칸 좌표, 셀 속성, 기본 색, 팔레트, 커서를 칸마다 따로 받는다. 묶으면 호출마다 구조체를 새로 만든다.
 #[allow(clippy::too_many_arguments)]
@@ -41,9 +42,10 @@ pub(super) fn paint_cell(
     default_bg: GpuRgba,
     default_fg: GpuRgba,
     ansi: &[GpuRgb; 16],
-    block_cursor: bool,
+    cursor: Option<CursorPaint>,
     overlays: &CellOverlays<'_>,
 ) -> CellPaint {
+    let block_cursor = cursor == Some(CursorPaint::Block);
     let (mut bg, mut fg) = compute_cell_colors(attrs, default_bg, default_fg, ansi);
     let match_kind = overlays.search.and_then(|s| s.kind_at(col, absolute_row));
     let mut cursor_cell = false;
@@ -92,6 +94,17 @@ pub(super) fn paint_cell(
         fg,
         underline: link.map(|_| fg),
     }
+}
+
+/// 이 칸에 걸린 텍스트 커서 모양. 넓은 글자의 커서는 오른쪽 칸까지 덮는다.
+pub(super) fn cursor_paint_at(
+    cursor: Option<(usize, usize, bool, CursorPaint)>,
+    col: usize,
+    row: usize,
+) -> Option<CursorPaint> {
+    cursor
+        .filter(|&(cx, cy, wide, _)| row == cy && (col == cx || (wide && col == cx + 1)))
+        .map(|(.., shape)| shape)
 }
 
 /// viewport 하나에 적용할 화면 값. 화면 반전과 설정을 함께 본다.

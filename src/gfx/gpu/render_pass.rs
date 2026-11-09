@@ -142,20 +142,14 @@ impl GpuState {
                 let search_highlights = search
                     .filter(|_| !is_readonly)
                     .filter(|s| s.surface_id == *surface_id && !s.matches.is_empty())
-                    .map(|s| crate::renderer::SearchHighlights {
-                        epoch: s.epoch,
-                        matches: &s.matches,
-                        active_index: s.current_index,
-                        inactive_bg: theme.search_match_bg.to_gpu_rgba(),
-                        active_bg: theme.search_match_active_bg.to_gpu_rgba(),
-                        active_fg: if is_focused {
-                            theme.search_match_active_fg.to_gpu_rgba()
-                        } else {
-                            theme.search_match_active_unfocused_fg().to_gpu_rgba()
-                        },
-                        inactive_ink: Some(theme.text_primary().to_gpu_rgba()),
-                        active_selected_bg: theme.search_match_active_selected_bg().to_gpu_rgba(),
-                        selected_fg: theme.search_match_selected_fg().to_gpu_rgba(),
+                    .map(|s| {
+                        crate::renderer::SearchHighlights::for_theme(
+                            &theme,
+                            is_focused,
+                            s.epoch,
+                            &s.matches,
+                            s.current_index,
+                        )
                     });
                 let search_ref = search_highlights.as_ref();
 

@@ -58,7 +58,7 @@ fn selected(attrs: &CellAttributes, block_cursor: bool, ink: bool) -> CellPaint 
         bed(),
         cell_ink(),
         &ansi(),
-        block_cursor,
+        block_cursor.then_some(CursorPaint::Block),
         &CellOverlays {
             selection: Some(&sel),
             selection_ink: ink.then(sel_ink),
@@ -211,7 +211,7 @@ fn on_link(
         bed(),
         cell_ink(),
         &ansi(),
-        block_cursor,
+        block_cursor.then_some(CursorPaint::Block),
         &CellOverlays {
             selection: None,
             selection_ink: None,
@@ -299,7 +299,7 @@ fn a_link_cell_replaces_a_selection() {
         bed(),
         cell_ink(),
         &ansi(),
-        false,
+        None,
         &CellOverlays {
             selection: Some(&sel),
             selection_ink: Some(sel_ink()),
@@ -330,7 +330,7 @@ fn selected_match(
         bed(),
         cell_ink(),
         &ansi(),
-        block_cursor,
+        block_cursor.then_some(CursorPaint::Block),
         &CellOverlays {
             selection: Some(&sel),
             selection_ink: Some(sel_ink()),
@@ -407,7 +407,7 @@ fn a_reversed_screen_keeps_its_ink_only_in_a_selected_ordinary_match() {
             cell_ink(),
             bed(),
             &ansi(),
-            false,
+            None,
             &CellOverlays {
                 selection: Some(&sel),
                 selection_ink: None,
@@ -458,7 +458,7 @@ fn unselected_match(
         bed(),
         cell_ink(),
         &ansi(),
-        block_cursor,
+        block_cursor.then_some(CursorPaint::Block),
         &CellOverlays {
             selection: None,
             selection_ink: None,
@@ -564,7 +564,7 @@ fn a_selected_link_cell_in_a_match_stays_a_link_cell() {
             bed(),
             cell_ink(),
             &ansi(),
-            false,
+            None,
             &CellOverlays {
                 selection: Some(&sel),
                 selection_ink: Some(sel_ink()),

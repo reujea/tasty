@@ -24,6 +24,33 @@ pub struct SearchHighlights<'a> {
     pub selected_fg: GpuRgba,
 }
 
+impl<'a> SearchHighlights<'a> {
+    /// 테마에서 매치 칠을 고른다. 현재 매치 글자만 포커스에 따라 다르다.
+    pub fn for_theme(
+        theme: &tasty_type_appearance::theme::Theme,
+        focused: bool,
+        epoch: tasty_terminal::ContentEpoch,
+        matches: &'a [tasty_terminal::search::SearchMatch],
+        active_index: usize,
+    ) -> Self {
+        Self {
+            epoch,
+            matches,
+            active_index,
+            inactive_bg: theme.search_match_bg.to_gpu_rgba(),
+            active_bg: theme.search_match_active_bg.to_gpu_rgba(),
+            active_fg: if focused {
+                theme.search_match_active_fg.to_gpu_rgba()
+            } else {
+                theme.search_match_active_unfocused_fg().to_gpu_rgba()
+            },
+            inactive_ink: Some(theme.text_primary().to_gpu_rgba()),
+            active_selected_bg: theme.search_match_active_selected_bg().to_gpu_rgba(),
+            selected_fg: theme.search_match_selected_fg().to_gpu_rgba(),
+        }
+    }
+}
+
 /// 칸이 속한 매치.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub(super) enum MatchKind {

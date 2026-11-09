@@ -203,8 +203,8 @@ fn a_block_cursor_cell_keeps_its_swapped_ink_in_a_match() {
         )
         .fg
     };
-    assert_eq!(paint(true), default_bg());
-    assert_eq!(paint(false), ink());
+    assert_eq!(paint(Some(CursorPaint::Block)), default_bg());
+    assert_eq!(paint(None), ink());
 }
 
 /// 터미널에 DECSCNM을 넣어 viewport 값을 정하는 함수를 잰다. 설정이 꺼지면 반전이 아니다.
@@ -231,7 +231,7 @@ fn a_reversed_screen_keeps_the_cell_ink_only_when_the_setting_allows_it() {
             reversed.default_bg,
             reversed.default_fg,
             &ansi(),
-            false,
+            None,
             &CellOverlays {
                 selection: None,
                 selection_ink: None,

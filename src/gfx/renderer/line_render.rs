@@ -39,7 +39,7 @@ impl CellRenderer {
             default_bg,
             default_fg,
             ansi,
-            false,
+            None,
             &overlays,
         );
 

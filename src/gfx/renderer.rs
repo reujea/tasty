@@ -23,14 +23,14 @@ use tasty_model::PhysicalRect;
 use tasty_selection::{NormalizedSelection, SelectionPoint};
 use tasty_terminal_link::LinkHighlight;
 
-use cell_paint::{CellOverlays, CellPaint, ScreenPaint, paint_cell, screen_paint};
+use cell_paint::{CellOverlays, CellPaint, ScreenPaint, cursor_paint_at, paint_cell, screen_paint};
 use overlay::composite_over;
 pub use search_paint::SearchHighlights;
 
 /// How the text cursor cell is painted, derived from DECSCUSR (`cursor_shape()`).
 /// Blink variants collapse to their steady shape — terminal content does not
 /// animate (theme policy), so the cursor is drawn statically.
-#[derive(Copy, Clone, PartialEq, Eq)]
+#[derive(Copy, Clone, PartialEq, Eq, Debug)]
 enum CursorPaint {
     /// Full-cell reverse (default fg/bg swap).
     Block,
@@ -350,17 +350,9 @@ impl CellRenderer {
                 }
 
                 let attrs = cell_ref.attrs();
-                // Cursor paint for this cell, if any. Only the Block shape swaps
-                // fg/bg; Bar/Underline render the cell normally and get a sub-cell
-                // overlay glyph after the loop.
-                let cursor_paint = match cursor {
-                    Some((cx, cy, wide, shape))
-                        if row_idx == cy && (col_idx == cx || (wide && col_idx == cx + 1)) =>
-                    {
-                        Some(shape)
-                    }
-                    _ => None,
-                };
+                // Only the Block shape swaps fg/bg; Bar/Underline render the cell
+                // normally and get a sub-cell overlay glyph after the loop.
+                let cursor_paint = cursor_paint_at(cursor, col_idx, row_idx);
                 let abs_row = row_offset + row_idx;
                 let CellPaint {
                     bg: bg_color,
@@ -373,7 +365,7 @@ impl CellRenderer {
                     default_bg,
                     default_fg,
                     ansi,
-                    cursor_paint == Some(CursorPaint::Block),
+                    cursor_paint,
                     &overlays,
                 );
 
