@@ -3,7 +3,9 @@
 //! 동일한 폰트를 사용하도록 하는 규약이며 실제 화면의 글리프 렌더링까지 검사하지는 않는다.
 //! 호스트의 환경변수 정의는 src/boot/locale.rs의 font_env_path에 있다.
 
-use tasty_doc_guards::floored_walk::{CountedOn, Descend, Floor, walk_with_floor};
+use std::path::Path;
+
+use tasty_doc_guards::floored_walk::{CountedOn, Descend, Floor, normalized_rel, walk_with_floor};
 use tasty_doc_guards::repo_root;
 
 /// 플러그인과 폰트 설치 파일. 파일을 옮기면 이 목록도 갱신한다.
@@ -120,6 +122,8 @@ const RUST_SOURCES_FLOOR: Floor = Floor {
 #[test]
 fn system_cjk_font_candidates_are_listed_in_one_file() {
     let root = repo_root();
+    // Windows의 file!()은 역슬래시를 쓰고 순회 결과의 rel은 슬래시로 정규화돼 있다.
+    let this_file = normalized_rel(Path::new(file!()), Path::new(""));
     let walked = walk_with_floor(
         &root,
         &root,
@@ -128,7 +132,7 @@ fn system_cjk_font_candidates_are_listed_in_one_file() {
         &|found| {
             found.rel.ends_with(".rs")
                 // 이 파일은 찾을 이름을 입력으로 적어 둔다.
-                && found.rel != file!()
+                && found.rel != this_file
                 && (found.rel.starts_with("src/") || found.rel.starts_with("crates/"))
         },
     )
