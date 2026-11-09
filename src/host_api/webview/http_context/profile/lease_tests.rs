@@ -930,7 +930,16 @@ fn descriptor_limit_alone() {
         rlim_max: original.rlim_max,
     };
     set_own_descriptor_limit(&lowered);
-    let verdict = dead.sweep_with(&nothing_found, &lease::KERNEL);
+    let tried = Cell::new(0);
+    let set = |file: &File| {
+        tried.set(tried.get() + 1);
+        lease::set_write(file)
+    };
+    let ops = lease::LeaseOps {
+        set: &set,
+        get: &lease::get,
+    };
+    let verdict = dead.sweep_with(&nothing_found, &ops);
     assert_eq!(
         descriptor_limit().rlim_cur,
         lowered.rlim_cur,
@@ -938,6 +947,12 @@ fn descriptor_limit_alone() {
     );
     assert_eq!(verdict, (0, 1));
     dead.assert_retained_intact();
+    // Running out instead of declining would have failed the other threads' opens meanwhile.
+    assert_eq!(
+        tried.get(),
+        0,
+        "the root was tried beyond the descriptor margin"
+    );
     set_own_descriptor_limit(&original);
     dead.assert_removed_after(&nothing_found);
 }
