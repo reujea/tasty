@@ -45,7 +45,7 @@ pub(super) fn diff_table(
         ui.spacing_mut().item_spacing.y = 0.0;
 
         // ── 열 헤더 (padding: 0 space-md space-sm) ──
-        let head_font = egui::FontId::monospace(th.font_size_micro.value());
+        let head_font = tasty_ui_widgets::label_font(th.font_size_micro.value());
         let head_h = ui.fonts(|f| f.row_height(&head_font)) + pad_y;
         let (rect, _) = ui.allocate_exact_size(egui::vec2(w, head_h), egui::Sense::hover());
         let headers = [
@@ -191,7 +191,7 @@ fn group_header(
             let galley = truncated_tracked(
                 ui,
                 &t(g.group.label_key()).to_uppercase(),
-                egui::FontId::monospace(th.font_size_micro.value()),
+                tasty_ui_widgets::label_font(th.font_size_micro.value()),
                 th.text_secondary_raised().to_egui(),
                 f32::INFINITY,
                 th.letter_spacing_caps(th.font_size_micro),
@@ -233,7 +233,7 @@ fn group_header(
                     &changed.to_string(),
                     &g.rows.len().to_string(),
                 ))
-                .monospace()
+                .family(tasty_ui_widgets::label_font_family())
                 .size(th.font_size_caption.value())
                 .color(th.text_muted_raised()),
             );

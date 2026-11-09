@@ -4,7 +4,7 @@
 use tasty_type_appearance::theme::Theme;
 use tasty_type_geometry::length::LogicalPx;
 
-/// 숫자 칸과 단위가 쓰는 글꼴. 공용 `Input` 의 mono 글꼴과 같다.
+/// 숫자 칸이 쓰는 글꼴. 공용 `Input` 의 mono 글꼴과 같다.
 fn mono_caption(theme: &Theme) -> egui::FontId {
     egui::FontId::monospace(theme.font_size_caption.value())
 }
@@ -26,9 +26,9 @@ pub fn number_field_width(ui: &egui::Ui, theme: &Theme, text: &str) -> LogicalPx
         .min(LogicalPx(ui.available_width()))
 }
 
-/// 칸 뒤 단위(mono) 또는 단위를 대신하는 값 설명(UI 글꼴, 예: -1 의 "no limit").
+/// 칸 뒤 단위(`font-label`) 또는 단위를 대신하는 값 설명(UI 글꼴, 예: -1 의 "no limit").
 /// 칸과의 간격은 `number-field-unit-gap` 이다.
-pub fn number_field_unit(ui: &mut egui::Ui, theme: &Theme, text: &str, mono: bool, enabled: bool) {
+pub fn number_field_unit(ui: &mut egui::Ui, theme: &Theme, text: &str, unit: bool, enabled: bool) {
     let gap = theme.number_field_unit_gap().value();
     ui.add_space((gap - ui.spacing().item_spacing.x).max(0.0));
     let ink = if enabled {
@@ -39,8 +39,8 @@ pub fn number_field_unit(ui: &mut egui::Ui, theme: &Theme, text: &str, mono: boo
     let mut rich = egui::RichText::new(text)
         .size(theme.font_size_caption.value())
         .color(ink.to_egui());
-    if mono {
-        rich = rich.font(mono_caption(theme));
+    if unit {
+        rich = rich.font(crate::label_font(theme.font_size_caption.value()));
     }
     ui.add(egui::Label::new(rich).extend());
 }

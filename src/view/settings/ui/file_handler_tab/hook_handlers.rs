@@ -196,8 +196,8 @@ pub(super) fn draw_hook_handlers(
         vspace(ui, th.spacing_md);
     }
 
-    // ── Mono caps 섹션 헤드 (jsx `headStyle`) ──
-    mono_caps_head(
+    // ── 대문자 섹션 헤드 (jsx `headStyle`) ──
+    label_caps_head(
         ui,
         &th,
         t("settings.file_handler.hook_handlers.section_head"),
@@ -292,10 +292,10 @@ impl HookHandlerEditDraft {
 }
 
 /// 대문자 고정폭 섹션 제목. 자간은 시안의 `letter-spacing-caps` 다.
-fn mono_caps_head(ui: &mut egui::Ui, th: &tasty_type_appearance::theme::Theme, text: &str) {
+fn label_caps_head(ui: &mut egui::Ui, th: &tasty_type_appearance::theme::Theme, text: &str) {
     ui.label(
         egui::RichText::new(text.to_uppercase())
-            .monospace()
+            .family(tasty_ui_widgets::label_font_family())
             .size(th.font_size_micro.value())
             .extra_letter_spacing(th.letter_spacing_caps(th.font_size_micro).value())
             .color(th.text_muted()),
@@ -452,7 +452,7 @@ fn draw_hook_row(
                                     "settings.file_handler.hook_handlers.prio",
                                     &h.priority.to_string(),
                                 ))
-                                .monospace()
+                                .family(tasty_ui_widgets::label_font_family())
                                 .size(th.font_size_micro.value())
                                 .color(th.text_muted()),
                             );
@@ -566,7 +566,7 @@ fn draw_pending_add_row(
                                     "settings.file_handler.hook_handlers.prio",
                                     &add.priority.to_string(),
                                 ))
-                                .monospace()
+                                .family(tasty_ui_widgets::label_font_family())
                                 .size(th.font_size_micro.value())
                                 .color(th.text_muted()),
                             );
@@ -882,7 +882,7 @@ fn draw_add_card(
         .inner_margin(egui::Margin::same(th.spacing_md.value() as i8))
         .show(ui, |ui| {
             ui.spacing_mut().item_spacing.y = th.spacing_sm.value();
-            mono_caps_head(ui, th, t("settings.file_handler.hook_handlers.new_head"));
+            label_caps_head(ui, th, t("settings.file_handler.hook_handlers.new_head"));
             add_field_row(
                 ui,
                 th,

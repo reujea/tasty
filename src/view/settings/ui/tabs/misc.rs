@@ -606,7 +606,7 @@ fn draw_script_path(ui: &mut egui::Ui, th: &tasty_type_appearance::theme::Theme,
     });
 }
 
-/// changed 배지 — warn 글리프 12 + "changed", mono micro(10), accent-warning
+/// changed 배지 — warn 글리프 12 + "changed", font-label micro(10), accent-warning
 /// color-mix(40% border / 12% bg).
 fn draw_changed_badge(ui: &mut egui::Ui, th: &tasty_type_appearance::theme::Theme) {
     let warn = th.accent_warning().to_egui();
@@ -616,7 +616,7 @@ fn draw_changed_badge(ui: &mut egui::Ui, th: &tasty_type_appearance::theme::Them
     let pad_x = th.spacing_sm.value(); // 8 (배지 좌우)
     let galley = ui.painter().layout_no_wrap(
         t("settings.scripts.changed_badge").to_string(),
-        egui::FontId::monospace(micro),
+        tasty_ui_widgets::label_font(micro),
         egui::Color32::PLACEHOLDER,
     );
     let w = pad_x * 2.0 + glyph + gap + galley.rect.width();
@@ -672,7 +672,7 @@ fn draw_add_card(
             ui.label(
                 egui::RichText::new(t("settings.scripts.new_card").to_uppercase())
                     .size(th.font_size_micro.value())
-                    .monospace()
+                    .family(tasty_ui_widgets::label_font_family())
                     .color(th.text_muted_raised()),
             );
             // File 행 — 라벨(100) + 경로 Input + Browse….

@@ -16,7 +16,7 @@ use tasty_ui_widgets::{
     PluginUninstallConfirmView, is_web_homepage, margin_all, margin_sym,
     paint_plugin_attention_row, plugin_attention_bar, plugin_detail_bar_height,
     plugin_detail_desc_hidden, plugin_detail_description, plugin_detail_identity,
-    plugin_fingerprint_line, plugin_folder_path, plugin_mono_header, plugin_reserved_id_banner,
+    plugin_fingerprint_line, plugin_folder_path, plugin_label_header, plugin_reserved_id_banner,
     plugin_signature_invalid_detail, plugin_trust_box, plugin_uninstall_confirm_bar,
     plugin_uninstall_confirm_bar_height, vspace,
 };
@@ -381,11 +381,11 @@ pub(super) fn unverified_cause_key(kind: PluginTrustKind) -> &'static str {
 
 /// 사유별 추가 정보 — 권한 diff / 서명 지문 / health 상세.
 fn draw_reason_detail(ui: &mut egui::Ui, th: &theme::Theme, entry: &AttentionEntry) {
-    // 디자인 `Mono` 머리글(대문자 mono micro · text-muted · letter-spacing-caps).
-    let mono_header = |ui: &mut egui::Ui, key: &str| plugin_mono_header(ui, th, t(key));
+    // 디자인 `Mono` 머리글(대문자 font-label micro · text-muted · letter-spacing-caps).
+    let label_header = |ui: &mut egui::Ui, key: &str| plugin_label_header(ui, th, t(key));
     match entry.kind {
         AttentionKind::PermissionsChanged => {
-            mono_header(ui, "plugins.attn_permission_changes");
+            label_header(ui, "plugins.attn_permission_changes");
             vspace(ui, th.spacing_xs);
             for p in &entry.permissions_added {
                 ui.horizontal(|ui| {
@@ -431,7 +431,7 @@ fn draw_reason_detail(ui: &mut egui::Ui, th: &theme::Theme, entry: &AttentionEnt
             }
         }
         AttentionKind::UnknownKey | AttentionKind::SignatureInvalid => {
-            mono_header(ui, "plugins.attn_signature");
+            label_header(ui, "plugins.attn_signature");
             vspace(ui, th.spacing_xs);
             // 서명 무효는 fingerprint가 가리킬 서명 자체가 깨졌으므로 줄을 두지 않고
             // 고정 설명과 실패 원인을 둔다.
@@ -448,7 +448,7 @@ fn draw_reason_detail(ui: &mut egui::Ui, th: &theme::Theme, entry: &AttentionEnt
         }
         AttentionKind::HealthError => {
             if let Some(detail) = &entry.health_detail {
-                mono_header(ui, "plugins.attn_error");
+                label_header(ui, "plugins.attn_error");
                 vspace(ui, th.spacing_xs);
                 egui::Frame::new()
                     .fill(egui::Color32::from(th.bg_panel()))

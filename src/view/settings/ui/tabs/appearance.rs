@@ -1166,7 +1166,7 @@ fn draw_color_group(ui: &mut egui::Ui, th: &Theme, settings: &mut Settings, grou
     let header = state.show_header(ui, |ui| {
         ui.label(
             egui::RichText::new(t(group.name_key))
-                .monospace()
+                .family(tasty_ui_widgets::label_font_family())
                 .size(th.font_size_caption.value())
                 .strong()
                 .color(th.text_muted()),
@@ -1184,7 +1184,7 @@ fn draw_color_group(ui: &mut egui::Ui, th: &Theme, settings: &mut Settings, grou
                     "settings.appearance.colors.changed_n",
                     &changed.to_string(),
                 ))
-                .monospace()
+                .family(tasty_ui_widgets::label_font_family())
                 .size(th.font_size_caption.value())
                 .color(th.accent_primary_raised()),
             );
@@ -1438,7 +1438,7 @@ fn draw_plugin_number(
         // plugin 이 정수 범위를 선언했는지 알 길이 없으므로 현재 값의 모양을 따른다.
         decimals: usize::from(cur.fract() != 0.0),
         suffix,
-        suffix_mono: false,
+        suffix_label: false,
         unit: None,
         no_limit: None,
         range_note: None,
@@ -1969,7 +1969,7 @@ fn draw_font_preview(
         ))
         .size(th.font_size_caption.value())
         .color(th.text_muted())
-        .monospace(),
+        .family(tasty_ui_widgets::label_font_family()),
     );
 }
 

@@ -14,7 +14,7 @@ pub fn draw_remote_attach_tab(ui: &mut egui::Ui, settings: &mut Settings) {
     ui.label(
         egui::RichText::new(t("settings.remote_attach.section").to_uppercase())
             .size(th.font_size_micro.value())
-            .monospace()
+            .family(tasty_ui_widgets::label_font_family())
             .extra_letter_spacing(th.letter_spacing_caps(th.font_size_micro).value())
             .color(th.text_muted()),
     );
@@ -35,7 +35,7 @@ pub fn draw_remote_attach_tab(ui: &mut egui::Ui, settings: &mut Settings) {
             &th,
             "remote_attach_heartbeat_timeout",
             &super::number::NumberSpec {
-                suffix_mono: true,
+                suffix_label: true,
                 ..super::number::NumberSpec::int(min as f64, max as f64)
                     .suffix(t("settings.number.unit_s"))
             },

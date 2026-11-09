@@ -120,7 +120,7 @@ pub fn draw_tutorial_topics_popup(
             ui.horizontal(|ui| {
                 ui.label(
                     egui::RichText::new(t("tutorial.esc_hint"))
-                        .monospace()
+                        .family(tasty_ui_widgets::label_font_family())
                         .size(th.font_size_micro.value())
                         .color(th.text_muted().to_egui()),
                 );

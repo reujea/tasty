@@ -1379,7 +1379,7 @@ fn draw_state_filter(ui: &mut egui::Ui, props: &PortScannerProps<'_>) -> Option<
                     egui::RichText::new(props.label_state_filter_title)
                         .color(th.text_muted())
                         .size(th.font_size_caption.value())
-                        .monospace(),
+                        .family(tasty_ui_widgets::label_font_family()),
                 );
                 ui.add_space(th.spacing_xs.value());
 

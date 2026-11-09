@@ -503,7 +503,7 @@ fn draw_list(
                             total as u64,
                             &[&visible.len().to_string(), &total.to_string()],
                         ))
-                        .monospace()
+                        .family(tasty_ui_widgets::label_font_family())
                         .size(theme.font_size_caption.value())
                         .color(theme.text_muted().to_egui()),
                     );
@@ -531,7 +531,7 @@ fn draw_row_trailing(ui: &mut egui::Ui, theme: &Theme, row: &DagRow) {
                 row.total,
                 skip_count_suffix(row.skipped, row.not_selected)
             ))
-            .monospace()
+            .family(tasty_ui_widgets::label_font_family())
             .size(theme.dag_row_count_font_size().value())
             .color(theme.dag_row_count_fg().to_egui()),
         );
@@ -539,7 +539,7 @@ fn draw_row_trailing(ui: &mut egui::Ui, theme: &Theme, row: &DagRow) {
         let (_, _, label_fg) = status_colors(theme, row.rollup);
         ui.label(
             egui::RichText::new(format!("{} {}", row.rollup.glyph(), row.rollup.label()))
-                .monospace()
+                .family(tasty_ui_widgets::label_font_family())
                 .size(theme.font_size_caption.value())
                 .color(label_fg.to_egui()),
         );
@@ -553,7 +553,7 @@ fn draw_row_trailing(ui: &mut egui::Ui, theme: &Theme, row: &DagRow) {
                         &[&row.awaiting.to_string()]
                     )
                 ))
-                .monospace()
+                .family(tasty_ui_widgets::label_font_family())
                 .size(theme.font_size_caption.value())
                 .color(theme.dag_phase_awaiting_label().to_egui()),
             );

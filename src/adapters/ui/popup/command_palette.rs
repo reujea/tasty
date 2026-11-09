@@ -279,7 +279,7 @@ pub fn draw_command_palette_view(
         })
         .show(ui, |ui| {
             let hint_color = theme.text_muted_raised().to_egui();
-            let hint_font = egui::FontId::monospace(theme.font_size_caption.value());
+            let hint_font = tasty_ui_widgets::label_font(theme.font_size_caption.value());
             ui.horizontal(|ui| {
                 ui.spacing_mut().item_spacing.x = PALETTE_HINT_GAP_X.value();
                 for hint in [

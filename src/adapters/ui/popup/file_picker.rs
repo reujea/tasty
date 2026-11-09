@@ -501,7 +501,7 @@ fn cols(rect: egui::Rect, th: &Theme) -> Cols {
     }
 }
 
-/// 열 이름 행(kit list header). mono micro 대문자, text-muted, 아래 구분선.
+/// 열 이름 행(kit list header). font-label micro 대문자, text-muted, 아래 구분선.
 fn list_head(ui: &mut egui::Ui, props: &FilePickerProps<'_>) {
     let th = props.theme;
     let h = list_head_height(th);
@@ -510,7 +510,7 @@ fn list_head(ui: &mut egui::Ui, props: &FilePickerProps<'_>) {
         egui::Sense::hover(),
     );
     let c = cols(rect, th);
-    let font = egui::FontId::monospace(th.font_size_micro.value());
+    let font = tasty_ui_widgets::label_font(th.font_size_micro.value());
     let muted: egui::Color32 = th.text_muted().into();
     let painter = ui.painter();
     for (x, align, label) in [

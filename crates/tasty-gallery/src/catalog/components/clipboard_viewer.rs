@@ -863,12 +863,29 @@ fn footer_row(ui: &mut egui::Ui, theme: &Theme, mime: impl ToString) {
         ),
     );
 
-    ui.painter().text(
-        egui::pos2(rect.left() + pad_x, rect.center().y),
-        egui::Align2::LEFT_CENTER,
+    // MIME은 값이라 고정폭이고 뒤의 메타데이터는 번역 문구라 run을 나눈다.
+    let text = mime.to_string();
+    let (mime, words) = text.split_once(" · ").unwrap_or((&text, ""));
+    let size = theme.font_size_caption.value();
+    let color = theme.text_muted_raised().to_egui();
+    let mut job = egui::text::LayoutJob::default();
+    job.append(
         mime,
-        egui::FontId::monospace(theme.font_size_caption.value()),
-        theme.text_muted_raised().to_egui(),
+        0.0,
+        egui::TextFormat::simple(egui::FontId::monospace(size), color),
+    );
+    if !words.is_empty() {
+        job.append(
+            &format!(" · {words}"),
+            0.0,
+            egui::TextFormat::simple(tasty_ui_widgets::label_font(size), color),
+        );
+    }
+    let galley = ui.painter().layout_job(job);
+    ui.painter().galley(
+        egui::pos2(rect.left() + pad_x, rect.center().y - galley.size().y * 0.5),
+        galley,
+        color,
     );
 
     let btn_w = 64.0;

@@ -30,7 +30,7 @@ pub fn settings_anomaly(
                 ui.add(
                     egui::Label::new(
                         egui::RichText::new(section.title.to_uppercase())
-                            .monospace()
+                            .family(crate::label_font_family())
                             .size(theme.font_size_micro.value())
                             .color(theme.text_muted().to_egui()),
                     )

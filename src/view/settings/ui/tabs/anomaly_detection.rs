@@ -96,7 +96,7 @@ pub fn draw_anomaly_detection_tab(ui: &mut egui::Ui, settings: &mut Settings) {
                     ui.painter()
                         .layout_no_wrap(
                             unit.to_owned(),
-                            egui::FontId::monospace(th.font_size_caption.value()),
+                            tasty_ui_widgets::label_font(th.font_size_caption.value()),
                             th.number_field_unit_fg().to_egui(),
                         )
                         .size()

@@ -213,7 +213,7 @@ fn draw_preset_diff_table(
         ui.spacing_mut().item_spacing.y = 0.0;
 
         // ── 헤더 행 (padding: 0 space-md space-sm) ──
-        let head_font = egui::FontId::monospace(th.font_size_micro.value());
+        let head_font = tasty_ui_widgets::label_font(th.font_size_micro.value());
         let head_h = ui.fonts(|f| f.row_height(&head_font)) + pad_y;
         let (rect, _) = ui.allocate_exact_size(egui::vec2(w, head_h), egui::Sense::hover());
         let headers = [

@@ -742,7 +742,7 @@ fn sidebar_caption(ui: &mut egui::Ui, theme: &Theme, text: &str) {
         ui.add_space(theme.spacing_sm.value());
         ui.label(
             egui::RichText::new(text.to_uppercase())
-                .font(egui::FontId::monospace(theme.font_size_micro.value()))
+                .font(tasty_ui_widgets::label_font(theme.font_size_micro.value()))
                 .color(theme.text_muted().to_egui()),
         );
     });

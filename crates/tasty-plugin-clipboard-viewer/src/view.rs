@@ -632,11 +632,16 @@ fn footer(
     );
 
     if let Some(ty) = ty {
-        ui.painter().text(
-            egui::pos2(rect.left() + pad_x, rect.center().y),
-            egui::Align2::LEFT_CENTER,
-            footer_mime_text(ty, meta.as_deref()),
-            egui::FontId::monospace(theme.font_size_caption.value()),
+        let galley = ui.painter().layout_job(footer_job(
+            theme.font_size_caption.value(),
+            theme.text_muted().to_egui(),
+            ty,
+            meta.as_deref(),
+        ));
+        let y = rect.center().y - galley.size().y * 0.5;
+        ui.painter().galley(
+            egui::pos2(rect.left() + pad_x, y),
+            galley,
             theme.text_muted().to_egui(),
         );
     }
@@ -661,12 +666,43 @@ fn footer(
 }
 
 /// HTML은 MIME과 메타데이터를, 기타 포맷은 개수를, 나머지는 MIME을 표시한다.
-fn footer_mime_text(ty: ClipboardType, meta: Option<&str>) -> String {
+/// MIME은 모든 언어에서 고정폭인 값이고 메타데이터는 번역 문구라 run을 나눈다.
+fn footer_runs(ty: ClipboardType, meta: Option<&str>) -> (Option<&'static str>, Option<&str>) {
     match (ty, meta) {
-        (ClipboardType::Html, Some(meta)) => format!("{} · {meta}", ty.mime_str()),
-        (ClipboardType::Other, Some(meta)) => meta.to_string(),
-        _ => ty.mime_str().to_string(),
+        (ClipboardType::Html, Some(meta)) => (Some(ty.mime_str()), Some(meta)),
+        (ClipboardType::Other, Some(meta)) => (None, Some(meta)),
+        _ => (Some(ty.mime_str()), None),
     }
+}
+
+fn footer_job(
+    size: f32,
+    color: egui::Color32,
+    ty: ClipboardType,
+    meta: Option<&str>,
+) -> egui::text::LayoutJob {
+    let (mime, words) = footer_runs(ty, meta);
+    let mut job = egui::text::LayoutJob::default();
+    if let Some(mime) = mime {
+        job.append(
+            mime,
+            0.0,
+            egui::TextFormat::simple(egui::FontId::monospace(size), color),
+        );
+    }
+    if let Some(words) = words {
+        let text = if mime.is_some() {
+            format!(" · {words}")
+        } else {
+            words.to_string()
+        };
+        job.append(
+            &text,
+            0.0,
+            egui::TextFormat::simple(tasty_ui_widgets::label_font(size), color),
+        );
+    }
+    job
 }
 
 /// HTML의 문자·줄 수를 만든다. 다른 타입은 None이다.
@@ -789,13 +825,19 @@ mod tests {
     use super::*;
 
     #[test]
-    fn footer_mime_text_text_is_plain_mime_only() {
-        assert_eq!(footer_mime_text(ClipboardType::Text, None), "text/plain");
+    fn footer_runs_text_is_plain_mime_only() {
+        assert_eq!(
+            footer_runs(ClipboardType::Text, None),
+            (Some("text/plain"), None)
+        );
     }
 
     #[test]
-    fn footer_mime_text_image_is_rgba8_mime_only() {
-        assert_eq!(footer_mime_text(ClipboardType::Image, None), "image/rgba8");
+    fn footer_runs_image_is_rgba8_mime_only() {
+        assert_eq!(
+            footer_runs(ClipboardType::Image, None),
+            (Some("image/rgba8"), None)
+        );
     }
 
     #[test]
@@ -805,10 +847,10 @@ mod tests {
     }
 
     #[test]
-    fn footer_mime_text_files_is_uri_list_mime() {
+    fn footer_runs_files_is_uri_list_mime() {
         assert_eq!(
-            footer_mime_text(ClipboardType::Files, None),
-            "text/uri-list"
+            footer_runs(ClipboardType::Files, None),
+            (Some("text/uri-list"), None)
         );
     }
 
@@ -823,15 +865,18 @@ mod tests {
     }
 
     #[test]
-    fn footer_mime_text_html_without_meta_is_mime_only() {
-        assert_eq!(footer_mime_text(ClipboardType::Html, None), "text/html");
+    fn footer_runs_html_without_meta_is_mime_only() {
+        assert_eq!(
+            footer_runs(ClipboardType::Html, None),
+            (Some("text/html"), None)
+        );
     }
 
     #[test]
-    fn footer_mime_text_html_with_meta_combines_mime_and_meta() {
+    fn footer_runs_html_with_meta_combines_mime_and_meta() {
         assert_eq!(
-            footer_mime_text(ClipboardType::Html, Some("312 chars · 1 line")),
-            "text/html · 312 chars · 1 line"
+            footer_runs(ClipboardType::Html, Some("312 chars · 1 line")),
+            (Some("text/html"), Some("312 chars · 1 line"))
         );
     }
 
@@ -881,19 +926,40 @@ mod tests {
     }
 
     #[test]
-    fn footer_mime_text_other_without_meta_falls_back_to_mime_str() {
+    fn footer_runs_other_without_meta_falls_back_to_mime_str() {
         // read_available에서는 만들지 않는 빈 기타 목록도 처리할 수 있어야 한다.
         assert_eq!(
-            footer_mime_text(ClipboardType::Other, None),
-            "application/octet-stream"
+            footer_runs(ClipboardType::Other, None),
+            (Some("application/octet-stream"), None)
+        );
+    }
+
+    /// MIME은 고정폭 run이고 번역 메타데이터만 라벨 글꼴을 읽는다.
+    #[test]
+    fn footer_job_keeps_the_mime_run_mono() {
+        let job = footer_job(
+            11.0,
+            egui::Color32::WHITE,
+            ClipboardType::Html,
+            Some("312 chars"),
+        );
+        assert_eq!(job.text, "text/html · 312 chars");
+        assert_eq!(job.sections.len(), 2);
+        assert_eq!(
+            job.sections[0].format.font_id.family,
+            egui::FontFamily::Monospace
+        );
+        assert_eq!(
+            job.sections[1].format.font_id.family,
+            tasty_ui_widgets::label_font_family()
         );
     }
 
     #[test]
-    fn footer_mime_text_other_with_meta_replaces_mime_entirely() {
+    fn footer_runs_other_with_meta_replaces_mime_entirely() {
         assert_eq!(
-            footer_mime_text(ClipboardType::Other, Some("2 unrecognized formats")),
-            "2 unrecognized formats"
+            footer_runs(ClipboardType::Other, Some("2 unrecognized formats")),
+            (None, Some("2 unrecognized formats"))
         );
     }
 

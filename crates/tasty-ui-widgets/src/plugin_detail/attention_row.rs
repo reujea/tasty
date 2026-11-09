@@ -18,7 +18,7 @@ pub struct PluginAttentionRowView<'a> {
     pub label_ink: egui::Color32,
 }
 
-/// 아바타 · [이름 / mono 사유 라벨] · severity 점. 이름과 라벨은 점 앞에서 말줄임한다.
+/// 아바타 · [이름 / 사유 라벨] · severity 점. 이름과 라벨은 점 앞에서 말줄임한다.
 /// 선택 행은 surface-active 바탕에 왼쪽 안쪽 `selection-edge-width` 띠를 두고 글자를 text-on-active 로 그린다.
 pub fn paint_plugin_attention_row(
     painter: &egui::Painter,
@@ -88,7 +88,7 @@ pub fn paint_plugin_attention_row(
     };
     let label = one_line(
         view.label,
-        egui::FontId::monospace(theme.font_size_micro.value()),
+        crate::label_font(theme.font_size_micro.value()),
         label_color,
     );
     painter.galley(

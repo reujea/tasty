@@ -182,7 +182,7 @@ pub fn ghost_button(ui: &mut egui::Ui, th: &Theme, label: &str) -> egui::Respons
     )
 }
 
-/// 경고 배지 — 시안 `WarnBadge`. 경고 글리프(icon-glyph-xs)와 mono micro 글자를 담은 pill이며
+/// 경고 배지 — 시안 `WarnBadge`. 경고 글리프(icon-glyph-xs)와 font-label micro 글자를 담은 pill이며
 /// 높이·좌우 여백·간격·모서리는 Tag 토큰, 채움은 accent-warning × `tint-fill-alpha`,
 /// 테두리는 Tag 상태 테두리와 같은 40%다. `text`·`tooltip` 은 호출자가 번역해 넘긴다.
 pub fn warn_badge(ui: &mut egui::Ui, th: &Theme, text: &str, tooltip: &str) -> egui::Response {
@@ -235,7 +235,7 @@ fn warn_badge_metrics(th: &Theme) -> (f32, f32, f32) {
 fn warn_badge_galley(ui: &egui::Ui, th: &Theme, text: &str) -> std::sync::Arc<egui::Galley> {
     ui.painter().layout_no_wrap(
         text.to_owned(),
-        egui::FontId::monospace(th.tag_font_size().value()),
+        crate::label_font(th.tag_font_size().value()),
         egui::Color32::PLACEHOLDER,
     )
 }
@@ -769,7 +769,7 @@ pub fn draw_protocol_filter_body(
             &labels.title.to_uppercase(),
             0.0,
             egui::TextFormat {
-                font_id: egui::FontId::monospace(size.value()),
+                font_id: crate::label_font(size.value()),
                 color: th.text_muted().into(),
                 extra_letter_spacing: th.letter_spacing_caps(size).value(),
                 ..Default::default()

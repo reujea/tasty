@@ -253,7 +253,7 @@ pub use path_field::{PathField, PathFieldOutcome, PathFieldPending};
 pub use plugin_add::{
     PLUGIN_ADD_INSET, PluginAddBarClicks, PluginAddBarView, PluginAddPickerOutput,
     PluginAddPickerView, PluginFingerprintLineView, PluginManifestCardOutput,
-    PluginManifestCardView, PluginTrustKind, mono_header as plugin_mono_header, plugin_add_bar,
+    PluginManifestCardView, PluginTrustKind, label_header as plugin_label_header, plugin_add_bar,
     plugin_add_empty_hint, plugin_add_path_picker, plugin_add_read_error, plugin_fingerprint_line,
     plugin_manifest_card, plugin_reserved_id_banner, plugin_signature_invalid_detail,
     plugin_trust_box, short_fingerprint,

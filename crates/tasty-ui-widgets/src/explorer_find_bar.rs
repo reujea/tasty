@@ -137,7 +137,7 @@ fn status(
     status: &ExplorerFindStatus<'_>,
     events: &mut ExplorerFindEvents,
 ) {
-    let font = egui::FontId::monospace(theme.font_size_caption.value());
+    let font = crate::label_font(theme.font_size_caption.value());
     let muted = theme.text_muted().to_egui();
     // right_to_left 줄이라 화면 왼쪽에 올 것을 나중에 둔다.
     match status {

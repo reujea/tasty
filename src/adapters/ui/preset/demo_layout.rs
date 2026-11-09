@@ -1670,7 +1670,7 @@ fn draw_leaf_preview(
             egui::pos2(cx_x.value(), (y + label_h.scaled(0.5)).value()),
             egui::Align2::CENTER_CENTER,
             &leaf.label,
-            egui::FontId::monospace(label_h.value()),
+            tasty_ui_widgets::label_font(label_h.value()),
             theme.text_secondary().to_egui(),
         );
         y += label_h;
@@ -1678,7 +1678,7 @@ fn draw_leaf_preview(
 
     if !rows.is_empty() {
         y += gap;
-        let label_font = egui::FontId::monospace(theme.font_size_micro.value());
+        let label_font = tasty_ui_widgets::label_font(theme.font_size_micro.value());
         let value_font = egui::FontId::monospace(row_h.value());
         let inner_w = (LogicalPx(rect.width()) - gap.scaled(2.0)).max(LogicalPx(0.0));
         for (i, row) in rows.iter().enumerate() {

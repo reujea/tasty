@@ -284,7 +284,7 @@ pub fn plugin_command_row(
                         ui.add(
                             egui::Label::new(
                                 egui::RichText::new(title)
-                                    .monospace()
+                                    .family(crate::label_font_family())
                                     .size(theme.font_size_term_sm.value())
                                     .color(theme.text_secondary().to_egui()),
                             )

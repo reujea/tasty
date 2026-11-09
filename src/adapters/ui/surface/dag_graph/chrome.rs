@@ -130,7 +130,7 @@ fn identity_group(
                 ),
                 super::model::skip_count_suffix(skipped, not_selected)
             ))
-            .monospace()
+            .family(tasty_ui_widgets::label_font_family())
             .size(theme.font_size_caption.value())
             .color(theme.dag_header_count_fg().to_egui()),
         );
@@ -239,8 +239,8 @@ fn runner_badge(ui: &mut egui::Ui, theme: &Theme, runner: &RunnerBadgeData) {
         .corner_radius(theme.dag_runner_radius().value())
         .inner_margin(margin_sym(theme.dag_runner_padding_x(), theme.spacing_xs))
         .show(ui, |ui| {
-            // 필요한 폭만 확보해 헤더를 밀지 않는다. 숫자에는 고정폭 글꼴을 쓴다.
-            let font = egui::FontId::monospace(theme.font_size_caption.value());
+            // 필요한 폭만 확보해 헤더를 밀지 않는다.
+            let font = tasty_ui_widgets::label_font(theme.font_size_caption.value());
             let galley = ui.painter().layout_no_wrap(text, font, fg.to_egui());
             let d = theme.status_dot_size().value();
             let gap = theme.dag_runner_gap().value();

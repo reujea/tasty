@@ -8,7 +8,7 @@ use tasty_type_appearance::theme::Theme;
 
 use crate::button::{Button, ButtonVariant};
 use crate::control::ControlSize;
-use crate::plugin_add::mono_header;
+use crate::plugin_add::label_header;
 
 /// 상세의 한 절. 디자인 `Mono` 머리글(대문자) 아래에 본문을 `space-sm` 간격으로 둔다.
 pub fn plugin_detail_section<R>(
@@ -19,7 +19,7 @@ pub fn plugin_detail_section<R>(
 ) -> R {
     ui.vertical(|ui| {
         ui.spacing_mut().item_spacing.y = theme.spacing_sm.value();
-        mono_header(ui, theme, header);
+        label_header(ui, theme, header);
         body(ui)
     })
     .inner
@@ -53,7 +53,7 @@ pub fn plugin_install_paths(
         ui.spacing_mut().item_spacing.y = theme.spacing_sm.value();
         ui.horizontal(|ui| {
             ui.spacing_mut().item_spacing.x = theme.spacing_sm.value();
-            mono_header(ui, theme, view.label);
+            label_header(ui, theme, view.label);
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 open = Button::new(view.open_folder)
                     .variant(ButtonVariant::Secondary)

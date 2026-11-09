@@ -28,7 +28,7 @@ pub fn script_trigger_add_control(
     let pad_x = theme.spacing_xs.value();
     let galley = ui.painter().layout_no_wrap(
         label.to_owned(),
-        egui::FontId::monospace(theme.font_size_micro.value()),
+        crate::label_font(theme.font_size_micro.value()),
         fg,
     );
     let w = pad_x * 2.0 + galley.rect.width() + gap + glyph;

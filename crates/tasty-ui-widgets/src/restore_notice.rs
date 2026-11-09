@@ -303,7 +303,7 @@ fn path_block(
         ui.spacing_mut().item_spacing.y = xs;
         ui.label(
             egui::RichText::new(view.label.to_uppercase())
-                .family(egui::FontFamily::Monospace)
+                .family(crate::label_font_family())
                 .size(theme.font_size_micro.value())
                 .color(theme.restore_notice_label_fg().to_egui()),
         );

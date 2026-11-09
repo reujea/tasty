@@ -377,15 +377,15 @@ fn id_line(id: &str, authors: &[String]) -> String {
     }
 }
 
-/// mono 대문자 머리글. 디자인 `Mono`(micro, text-muted, caps, `letter-spacing-caps`).
-pub fn mono_header(ui: &mut egui::Ui, theme: &Theme, text: &str) {
+/// 대문자 머리글(font-label). 디자인 `Mono`(micro, text-muted, caps, `letter-spacing-caps`).
+pub fn label_header(ui: &mut egui::Ui, theme: &Theme, text: &str) {
     let size = theme.font_size_micro;
     let mut job = egui::text::LayoutJob::default();
     job.append(
         &text.to_uppercase(),
         0.0,
         egui::TextFormat {
-            font_id: egui::FontId::monospace(size.value()),
+            font_id: crate::label_font(size.value()),
             color: theme.text_muted_raised().to_egui(),
             extra_letter_spacing: theme.letter_spacing_caps(size).value(),
             ..Default::default()
@@ -398,7 +398,7 @@ pub fn mono_header(ui: &mut egui::Ui, theme: &Theme, text: &str) {
 fn mono_field(ui: &mut egui::Ui, theme: &Theme, label: &str, value: impl FnOnce(&mut egui::Ui)) {
     ui.vertical(|ui| {
         ui.spacing_mut().item_spacing.y = theme.spacing_xs.value();
-        mono_header(ui, theme, label);
+        label_header(ui, theme, label);
         value(ui);
     });
 }
@@ -408,7 +408,7 @@ fn tag_list(ui: &mut egui::Ui, theme: &Theme, label: &str, items: &[String], non
     let gap = theme.spacing_sm.value();
     ui.vertical(|ui| {
         ui.spacing_mut().item_spacing.y = gap;
-        mono_header(ui, theme, label);
+        label_header(ui, theme, label);
         if items.is_empty() {
             ui.label(
                 egui::RichText::new(none)
@@ -570,7 +570,7 @@ pub fn plugin_fingerprint_line(
             let caption = theme.font_size_caption.value();
             ui.label(
                 egui::RichText::new(view.label)
-                    .monospace()
+                    .family(crate::label_font_family())
                     .size(caption)
                     .color(theme.plugin_trust_body_fg().to_egui()),
             );
@@ -644,7 +644,7 @@ pub fn plugin_signature_invalid_detail(
 
 /// 경로 선택 블록의 문구.
 pub struct PluginAddPickerView<'a> {
-    /// mono 머리글. 디자인 `Plugin folder`.
+    /// 머리글. 디자인 `Plugin folder`.
     pub label: &'a str,
     pub placeholder: &'a str,
     /// 폴더 선택 버튼 라벨.
@@ -667,7 +667,7 @@ pub struct PluginAddPickerOutput {
     pub verify: bool,
 }
 
-/// 경로 선택 블록. mono 머리글, mono 입력(폴더 아이콘) + 폴더 선택(secondary) + Verify(primary),
+/// 경로 선택 블록. 머리글, mono 입력(폴더 아이콘) + 폴더 선택(secondary) + Verify(primary),
 /// 설명 문단을 `space-sm` 간격으로 쌓는다. 폭은 `measure-xl` 이 상한이다.
 pub fn plugin_add_path_picker(
     ui: &mut egui::Ui,
@@ -683,7 +683,7 @@ pub fn plugin_add_path_picker(
         |ui| {
             ui.set_width(width);
             ui.spacing_mut().item_spacing.y = theme.spacing_sm.value();
-            mono_header(ui, theme, view.label);
+            label_header(ui, theme, view.label);
             ui.allocate_ui_with_layout(
                 egui::vec2(width, ControlSize::Md.height(theme)),
                 egui::Layout::right_to_left(egui::Align::Center),

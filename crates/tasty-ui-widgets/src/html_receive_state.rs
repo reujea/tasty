@@ -30,7 +30,7 @@ pub fn html_receive_state(
         width,
     );
     let font = if matches!(view.kind, HtmlReceiveKind::Receiving) {
-        egui::FontId::monospace(theme.font_size_caption.value())
+        crate::label_font(theme.font_size_caption.value())
     } else {
         egui::FontId::proportional(theme.font_size_caption.value())
     };

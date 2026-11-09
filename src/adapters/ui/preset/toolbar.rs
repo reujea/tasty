@@ -202,7 +202,7 @@ pub(super) fn draw_toolbar_view(
         ui.label(egui::RichText::new(name).strong());
         ui.label(
             egui::RichText::new(detail_sub)
-                .monospace()
+                .family(tasty_ui_widgets::label_font_family())
                 .size(theme.font_size_caption.value())
                 .color(theme.text_muted().to_egui()),
         );

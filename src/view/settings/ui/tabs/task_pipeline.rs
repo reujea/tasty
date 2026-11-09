@@ -20,7 +20,7 @@ pub fn draw_task_pipeline_tab(ui: &mut egui::Ui, settings: &mut Settings) {
     ui.label(
         egui::RichText::new(t("settings.task_pipeline.section").to_uppercase())
             .size(th.font_size_micro.value())
-            .monospace()
+            .family(tasty_ui_widgets::label_font_family())
             .color(th.text_muted()),
     );
 
@@ -91,7 +91,7 @@ fn bytes_row(
                     step: None,
                     decimals: 0,
                     suffix: Some("B"),
-                    suffix_mono: true,
+                    suffix_label: true,
                     unit: None,
                     no_limit: None,
                     range_note: None,

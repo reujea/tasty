@@ -1095,7 +1095,7 @@ fn draw_footer(
     action
 }
 
-/// caps 헤더 — mono micro uppercase muted. `suffix` 있으면 "· {suffix}" 를 붙인다.
+/// caps 헤더 — font-label micro uppercase muted. `suffix` 있으면 "· {suffix}" 를 붙인다.
 fn caps_header(ui: &mut egui::Ui, th: &Theme, label: &str, suffix: Option<&str>) {
     let (rect, _) = ui.allocate_exact_size(
         egui::vec2(ui.available_width(), CAPS_H.value()),
@@ -1105,7 +1105,7 @@ fn caps_header(ui: &mut egui::Ui, th: &Theme, label: &str, suffix: Option<&str>)
     let y = rect.top() + th.spacing_md.value();
     let galley = ui.painter().layout_no_wrap(
         label.to_uppercase(),
-        egui::FontId::monospace(th.font_size_micro.value()),
+        tasty_ui_widgets::label_font(th.font_size_micro.value()),
         th.text_muted().into(),
     );
     let w = galley.rect.width();

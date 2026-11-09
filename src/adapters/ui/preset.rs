@@ -478,7 +478,7 @@ fn draw_list_row(
         egui::pos2(text_x, name_y + (name_h + STRUCT_GAP_1).value()),
         egui::Align2::LEFT_TOP,
         sub,
-        egui::FontId::monospace(sub_h.value()),
+        tasty_ui_widgets::label_font(sub_h.value()),
         sub_color,
     );
     if resp.hovered() {
@@ -576,7 +576,7 @@ fn draw_preset_list(
             );
             ui.label(
                 egui::RichText::new(count.to_uppercase())
-                    .monospace()
+                    .family(tasty_ui_widgets::label_font_family())
                     .size(theme.font_size_caption.value())
                     .color(theme.text_muted().to_egui()),
             );

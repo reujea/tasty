@@ -15,11 +15,11 @@ pub fn draw_remote_transfer_tab(ui: &mut egui::Ui, settings: &mut Settings) -> b
     // 헤딩·행·구분선 사이가 모두 settings-row-gap 이다(디자인의 세로 flex gap).
     ui.spacing_mut().item_spacing.y = th.settings_row_gap().value();
 
-    // 섹션 헤딩 "Received files" — mono micro uppercase text-muted (misc new_card 관례).
+    // 섹션 헤딩 "Received files" — font-label micro uppercase text-muted (misc new_card 관례).
     ui.label(
         egui::RichText::new(t("settings.remote_transfer.section").to_uppercase())
             .size(th.font_size_micro.value())
-            .monospace()
+            .family(tasty_ui_widgets::label_font_family())
             .color(th.text_muted()),
     );
 
@@ -74,7 +74,7 @@ pub fn draw_remote_transfer_tab(ui: &mut egui::Ui, settings: &mut Settings) -> b
                     step: None,
                     decimals: 0,
                     suffix: Some("MiB"),
-                    suffix_mono: true,
+                    suffix_label: true,
                     unit: None,
                     no_limit: None,
                     range_note: None,

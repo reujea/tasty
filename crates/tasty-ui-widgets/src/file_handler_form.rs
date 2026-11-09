@@ -155,11 +155,11 @@ pub fn fh_fit_step(
     fit
 }
 
-/// 목록 머리글 — mono micro caps, text-muted. 예 "Registered detectors (6)".
+/// 목록 머리글 — font-label micro caps, text-muted. 예 "Registered detectors (6)".
 pub fn fh_list_head(ui: &mut egui::Ui, theme: &Theme, text: &str) {
     ui.label(
         egui::RichText::new(text.to_uppercase())
-            .monospace()
+            .family(crate::label_font_family())
             .size(theme.font_size_micro.value())
             .extra_letter_spacing(theme.letter_spacing_caps(theme.font_size_micro).value())
             .color(theme.text_muted().to_egui()),
@@ -460,7 +460,7 @@ pub struct FhCardLabels<'a> {
 }
 
 /// 추가 카드 — form-bg · 1px form-border · radius · form-padding · 행 간격 form-row-gap.
-/// 제목은 mono micro caps form-label-fg. 필드 간 오류는 버튼 줄 바로 위에 둔다.
+/// 제목은 font-label micro caps form-label-fg. 필드 간 오류는 버튼 줄 바로 위에 둔다.
 /// 버튼은 오른쪽 정렬이며 Cancel ghost sm · Add primary sm 순서다. Add는 `can_add`일 때만 눌린다.
 pub fn fh_card(
     ui: &mut egui::Ui,
@@ -484,7 +484,7 @@ pub fn fh_card(
             ui.spacing_mut().item_spacing.y = theme.file_handler_form_row_gap().value();
             ui.label(
                 egui::RichText::new(labels.title.to_uppercase())
-                    .monospace()
+                    .family(crate::label_font_family())
                     .size(theme.font_size_micro.value())
                     .extra_letter_spacing(theme.letter_spacing_caps(theme.font_size_micro).value())
                     .color(theme.file_handler_form_label_fg().to_egui()),
@@ -636,7 +636,7 @@ fn row_left(
             .width(),
     );
     let prio_text = view.prio.map(|p| format!("prio {p}"));
-    let prio_font = egui::FontId::monospace(theme.font_size_micro.value());
+    let prio_font = crate::label_font(theme.font_size_micro.value());
     let prio_w = prio_text.as_ref().map_or(zero, |t| {
         LogicalPx(
             ui.painter()

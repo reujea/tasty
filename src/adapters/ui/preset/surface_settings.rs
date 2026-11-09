@@ -369,11 +369,11 @@ fn field_label_text(field: &PresetFieldSpec) -> String {
     }
 }
 
-/// 필드 라벨 — mono micro, uppercase, muted. 입력과의 간격은 디자인 `Field` 의 3px.
+/// 필드 라벨 — font-label micro, uppercase, muted. 입력과의 간격은 디자인 `Field` 의 3px.
 fn field_label(ui: &mut egui::Ui, theme: &Theme, text: &str) {
     ui.label(
         egui::RichText::new(text.to_uppercase())
-            .monospace()
+            .family(tasty_ui_widgets::label_font_family())
             .size(theme.font_size_micro.value())
             .color(theme.text_muted().to_egui()),
     );

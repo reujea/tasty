@@ -195,13 +195,14 @@ pub fn paint_card(ui: &mut egui::Ui, theme: &Theme, rect: egui::Rect, node: &Nod
     // 소요 시간은 다른 곳에 없으므로 상태 라벨을 먼저 줄인다.
     let mut right = inner.max.x;
     if let Some(d) = &node.dur {
-        let dw = text_width(ui, d, &meta_font);
+        let duration_font = egui::FontId::monospace(meta_font.size);
+        let dw = text_width(ui, d, &duration_font);
         if dw <= inner.width() - gw {
             ui.painter().text(
                 egui::pos2(right, meta_y),
                 egui::Align2::RIGHT_CENTER,
                 d,
-                meta_font.clone(),
+                duration_font,
                 tone(theme, theme.dag_node_meta_fg(), dim),
             );
             right -= dw + gap;

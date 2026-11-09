@@ -38,7 +38,7 @@ pub(super) fn truncated(
     truncated_tracked(ui, text, font, color, max_width, LogicalPx(0.0))
 }
 
-/// [`truncated`] 에 자간을 더한다. 대문자 mono 머리글의 `letter-spacing-caps` 용.
+/// [`truncated`] 에 자간을 더한다. 대문자 머리글의 `letter-spacing-caps` 용.
 pub(super) fn truncated_tracked(
     ui: &egui::Ui,
     text: &str,

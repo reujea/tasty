@@ -27,7 +27,7 @@ fn readout_galley(ui: &egui::Ui, theme: &Theme, label: &str) -> Arc<egui::Galley
     let text_max = (theme.fp_filter_max_width() - pad - pad).max(LogicalPx(0.0));
     let mut job = egui::text::LayoutJob::simple_singleline(
         label.to_owned(),
-        egui::FontId::monospace(theme.font_size_caption.value()),
+        crate::label_font(theme.font_size_caption.value()),
         egui::Color32::PLACEHOLDER,
     );
     job.wrap = egui::text::TextWrapping {

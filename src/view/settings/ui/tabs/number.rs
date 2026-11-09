@@ -16,9 +16,9 @@ pub(super) struct NumberSpec<'a> {
     pub decimals: usize,
     /// 필드 **밖**에 muted 로 찍는 단위. 타이핑 대상이 아니다.
     pub suffix: Option<&'a str>,
-    /// 단위를 고정폭 글꼴로 표시할지 여부.
-    pub suffix_mono: bool,
-    /// 칸 뒤 단위(mono, `number-field-unit-fg`). `suffix` 와 함께 쓰지 않는다.
+    /// 단위를 `font-label` 로 표시할지 여부.
+    pub suffix_label: bool,
+    /// 칸 뒤 단위(`font-label`, `number-field-unit-fg`). `suffix` 와 함께 쓰지 않는다.
     pub unit: Option<&'a str>,
     /// 칸의 글자가 이 값이면 단위 자리에 단위 대신 이 설명을 적는다(예: -1 의 "no limit").
     pub no_limit: Option<(i128, &'a str)>,
@@ -39,7 +39,7 @@ impl<'a> NumberSpec<'a> {
             step: None,
             decimals: 0,
             suffix: None,
-            suffix_mono: false,
+            suffix_label: false,
             unit: None,
             no_limit: None,
             range_note: None,
@@ -343,8 +343,8 @@ fn field(
                 let mut text = egui::RichText::new(sfx)
                     .size(theme.font_size_caption.value())
                     .color(ink);
-                if spec.suffix_mono {
-                    text = text.monospace();
+                if spec.suffix_label {
+                    text = text.family(tasty_ui_widgets::label_font_family());
                 }
                 ui.label(text);
             }
@@ -470,7 +470,7 @@ mod tests {
             step: None,
             decimals: 0,
             suffix: None,
-            suffix_mono: false,
+            suffix_label: false,
             unit: None,
             no_limit: None,
             range_note: None,

@@ -236,7 +236,7 @@ pub fn paint_node(
     }
 
     let name_font = egui::FontId::proportional(theme.dag_node_name_font_size().value() * zoom);
-    let meta_font = egui::FontId::monospace(theme.dag_node_meta_font_size().value() * zoom);
+    let meta_font = tasty_ui_widgets::label_font(theme.dag_node_meta_font_size().value() * zoom);
     let gap = theme.dag_node_gap().value() * zoom;
     let row_gap = theme.dag_node_row_gap().value() * zoom;
     let icon_side = theme.icon_glyph_size_sm.value() * zoom;
@@ -292,13 +292,14 @@ pub fn paint_node(
     let duration = node_duration(node, now_ms);
     let mut right = inner.max.x;
     if let Some(d) = &duration {
-        let dw = text_width(painter, d, &meta_font);
+        let duration_font = egui::FontId::monospace(meta_font.size);
+        let dw = text_width(painter, d, &duration_font);
         if dw <= inner.width() - gw {
             painter.text(
                 egui::pos2(right, meta_y),
                 egui::Align2::RIGHT_CENTER,
                 d,
-                meta_font.clone(),
+                duration_font,
                 tone(theme, meta_fg, dim),
             );
             right -= dw + gap;

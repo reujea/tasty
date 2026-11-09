@@ -9,7 +9,7 @@ use tasty_ui_widgets::{
     PluginFingerprintLineView, PluginIdentityView, PluginMetaView, PluginTrustKind,
     is_web_homepage, margin_all, paint_plugin_attention_row, plugin_attention_bar,
     plugin_detail_bar_height, plugin_detail_desc_hidden, plugin_detail_description,
-    plugin_detail_identity, plugin_fingerprint_line, plugin_folder_path, plugin_mono_header,
+    plugin_detail_identity, plugin_fingerprint_line, plugin_folder_path, plugin_label_header,
     plugin_reserved_id_banner, plugin_signature_invalid_detail,
 };
 
@@ -279,10 +279,10 @@ fn banner(ui: &mut egui::Ui, theme: &Theme, kind: Kind) {
 /// 사유별 추가 정보 — 본체 `draw_reason_detail` 의 분기.
 fn reason_detail(ui: &mut egui::Ui, theme: &Theme, kind: Kind) {
     // 본체와 같은 디자인 `Mono` 머리글.
-    let mono_header = |ui: &mut egui::Ui, text: &str| plugin_mono_header(ui, theme, text);
+    let label_header = |ui: &mut egui::Ui, text: &str| plugin_label_header(ui, theme, text);
     match kind {
         Kind::PermissionsChanged => {
-            mono_header(ui, "Permission changes");
+            label_header(ui, "Permission changes");
             for (sign, token, note, color) in [
                 (
                     "+",
@@ -313,7 +313,7 @@ fn reason_detail(ui: &mut egui::Ui, theme: &Theme, kind: Kind) {
             }
         }
         Kind::UnknownKey | Kind::SignatureInvalid => {
-            mono_header(ui, "Signature");
+            label_header(ui, "Signature");
             // 본체처럼 서명 무효에는 fingerprint 줄 대신 고정 설명과 실패 원인을 둔다.
             if kind == Kind::SignatureInvalid {
                 plugin_signature_invalid_detail(
@@ -327,7 +327,7 @@ fn reason_detail(ui: &mut egui::Ui, theme: &Theme, kind: Kind) {
             }
         }
         Kind::HealthError => {
-            mono_header(ui, "Log");
+            label_header(ui, "Log");
             egui::Frame::new()
                 .fill(theme.bg_panel().to_egui())
                 .stroke(egui::Stroke::new(
