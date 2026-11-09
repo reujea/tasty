@@ -568,6 +568,41 @@ mod system_cjk_tests {
     }
 
     #[test]
+    fn the_same_path_shares_one_copy_of_its_bytes() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("shared.ttf");
+        std::fs::write(&path, D2CODING).unwrap();
+
+        let first = first_usable_cjk_font([path.as_path()], None).unwrap();
+        // 파일을 지워도 두 번째 요청은 처음 읽은 바이트를 다시 쓴다.
+        std::fs::remove_file(&path).unwrap();
+        let second = first_usable_cjk_font([path.as_path()], None).unwrap();
+        assert!(std::ptr::eq(first.bytes, second.bytes));
+
+        let (a, b) = (first.into_font_data(), second.into_font_data());
+        for data in [&a, &b] {
+            assert!(
+                matches!(data.font, std::borrow::Cow::Borrowed(_)),
+                "epaint copies owned font bytes for every font cache it builds"
+            );
+        }
+        assert!(std::ptr::eq(a.font.as_ref(), b.font.as_ref()));
+    }
+
+    #[test]
+    fn a_file_that_failed_is_read_again_on_the_next_call() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("later.ttf");
+
+        assert!(first_usable_cjk_font([path.as_path()], None).is_none());
+        std::fs::write(&path, b"not a font").unwrap();
+        assert!(first_usable_cjk_font([path.as_path()], None).is_none());
+        std::fs::write(&path, D2CODING).unwrap();
+        let found = first_usable_cjk_font([path.as_path()], None).unwrap();
+        assert_eq!(found.bytes, D2CODING);
+    }
+
+    #[test]
     fn every_stack_has_a_font_key_for_each_slot() {
         for os in ["windows", "macos", "linux", "freebsd"] {
             let stack = cjk_stack_for_os(os);
