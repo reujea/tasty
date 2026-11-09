@@ -31,6 +31,14 @@ impl Session {
             .map(|s| Self::X11(Box::new(s)))
             .map_err(|e| e.to_string())
     }
+    pub(super) fn is_x11(window: &Window) -> bool {
+        window.window_handle().is_ok_and(|handle| {
+            matches!(
+                handle.as_raw(),
+                RawWindowHandle::Xlib(_) | RawWindowHandle::Xcb(_)
+            )
+        })
+    }
     pub(super) fn motion(&mut self, pos: PhysicalPosition<f64>) -> Result<(), String> {
         match self {
             Self::X11(s) => s

@@ -101,6 +101,11 @@ impl Session {
             })
         }
     }
+    /// Whether a session should exist before the pointer leaves the window.
+    #[cfg(target_os = "linux")]
+    pub(crate) fn owns_selection_before_leaving(window: &Window) -> bool {
+        linux::Session::is_x11(window)
+    }
     pub(crate) fn motion(&mut self, position: PhysicalPosition<f64>) -> Result<(), String> {
         self.backend.motion(position)
     }

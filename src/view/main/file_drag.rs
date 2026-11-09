@@ -12,6 +12,9 @@ pub(crate) struct Gesture {
     source: Option<(SurfaceBinding, Vec<PathBuf>)>,
     #[cfg(target_os = "linux")]
     native: Option<crate::file::drag::Session>,
+    /// X11 session opened while the pointer is still inside. Not handed off yet.
+    #[cfg(target_os = "linux")]
+    armed: Option<(Vec<PathBuf>, crate::file::drag::Session)>,
     #[cfg(any(target_os = "windows", target_os = "macos"))]
     desktop: Option<crate::file::drag::desktop::Handle>,
     #[cfg(any(target_os = "windows", target_os = "macos"))]
@@ -46,6 +49,7 @@ impl MainView {
         #[cfg(target_os = "linux")]
         {
             self.file_drag.native = None;
+            self.file_drag.armed = None;
         }
         #[cfg(any(target_os = "windows", target_os = "macos"))]
         {
@@ -100,6 +104,41 @@ impl MainView {
             .and_then(|(sid, paths)| {
                 SurfaceBinding::capture(engine, sid).map(|binding| (binding, paths))
             });
+            #[cfg(target_os = "linux")]
+            self.arm_outbound_drag();
+        }
+    }
+
+    /// GNOME bridges an X11 drag to Wayland windows only when `XdndSelection` changes owner while
+    /// the pointer is over an X11 window, so the owner must be set before the pointer leaves.
+    /// An internal drag is unaffected: the session stays silent until it is handed off.
+    #[cfg(target_os = "linux")]
+    fn arm_outbound_drag(&mut self) {
+        let Some((_, paths)) = self.file_drag.source.as_ref() else {
+            self.file_drag.armed = None;
+            return;
+        };
+        if self
+            .file_drag
+            .armed
+            .as_ref()
+            .is_some_and(|(armed, _)| armed == paths)
+        {
+            return;
+        }
+        self.file_drag.armed = None;
+        if !crate::file::drag::Session::owns_selection_before_leaving(&self.base.winit) {
+            return;
+        }
+        let paths = paths.clone();
+        match crate::file::drag::Session::start(
+            self.base.winit.clone(),
+            &paths,
+            self.file_drag.context.as_mut().expect("View drag context"),
+        ) {
+            Ok(session) => self.file_drag.armed = Some((paths, session)),
+            // Leaving the window tries again and reports a failure to the user there.
+            Err(error) => tracing::debug!(%error, "could not arm the outbound file drag"),
         }
     }
 
@@ -146,6 +185,10 @@ impl MainView {
             self.file_drag.held = true;
             self.file_drag.handed_off = false;
             self.file_drag.source = None;
+            #[cfg(target_os = "linux")]
+            {
+                self.file_drag.armed = None;
+            }
         }
         if self.has_outbound_drag()
             && let WindowEvent::KeyboardInput { event, .. } = event
@@ -182,11 +225,14 @@ impl MainView {
                 self.file_drag.handed_off = true;
                 // Linux sessions are asynchronous and dispatch only their own queues.
                 #[cfg(target_os = "linux")]
-                match crate::file::drag::Session::start(
-                    self.base.winit.clone(),
-                    paths,
-                    self.file_drag.context.as_mut().expect("View drag context"),
-                ) {
+                match match self.file_drag.armed.take() {
+                    Some((armed, session)) if &armed == paths => Ok(session),
+                    _ => crate::file::drag::Session::start(
+                        self.base.winit.clone(),
+                        paths,
+                        self.file_drag.context.as_mut().expect("View drag context"),
+                    ),
+                } {
                     Ok(session) => self.file_drag.native = Some(session),
                     Err(error) => self.outbound_failed(error.to_string()),
                 }
@@ -220,6 +266,10 @@ impl MainView {
         );
         if released {
             self.file_drag.held = false;
+            #[cfg(target_os = "linux")]
+            {
+                self.file_drag.armed = None;
+            }
         }
         if !self.file_drag.handed_off {
             return false;
