@@ -256,8 +256,16 @@ class Failures(Base):
         self.scenarios(["normal"] * first + ["rejected_then_hang"])
         self.assertEqual(runner.run(self.config(timeout=1)), 3)
         self.assertEqual(self.raw()[-1]["error_kind"], "rate_limited")
+        self.assertEqual(self.raw()[-1]["attempt_kind"], "first")
         self.assertEqual(self.log()[-1]["reason"], "usage_limit")
         self.assertEqual(len(self.raw()), first + 1)
+
+    def test_a_timeout_keeps_the_attempt_kind(self):
+        self.scenarios(["timeout", "normal"])
+        self.assertEqual(runner.run(self.config(timeout=1, max_calls=2)), 0)
+        first, second = self.raw()[:2]
+        self.assertEqual((first["error_kind"], first["attempt_kind"]), ("timeout", "first"))
+        self.assertEqual((second["attempt"], second["attempt_kind"]), (2, "retry"))
 
     def test_a_warning_on_a_failed_call_stops_without_a_retry(self):
         first = next(i for i, r in enumerate(self.rows()) if MODELS[r["model"]]["cli"] == "claude")
