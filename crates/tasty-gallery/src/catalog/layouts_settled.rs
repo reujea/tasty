@@ -7,7 +7,7 @@ use tasty_design_tokens::generated::semantic::{
 use tasty_type_appearance::theme::Theme;
 use tasty_type_geometry::length::LogicalPx;
 use tasty_ui_widgets::tokens::STRUCT_GAP_1;
-use tasty_ui_widgets::{TagVariant, tag};
+use tasty_ui_widgets::{TagVariant, tag_mono};
 
 use tasty_ui_widgets::surface_bed;
 
@@ -56,7 +56,7 @@ fn pane_header(ui: &mut egui::Ui, theme: &Theme, dot: egui::Color32, name: &str,
                 .color(ec(theme.text_secondary())),
         );
         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-            tag(ui, theme, id, TagVariant::Default, false);
+            tag_mono(ui, theme, id, TagVariant::Default, false);
         });
     });
 }
@@ -179,7 +179,7 @@ fn doc_pane(ui: &mut egui::Ui, theme: &Theme, rect: egui::Rect, focused: bool) {
                 .layout(egui::Layout::right_to_left(egui::Align::Center)),
         );
         row.spacing_mut().item_spacing.x = theme.spacing_sm.value();
-        tag(&mut row, theme, "s_05MD", TagVariant::Default, false);
+        tag_mono(&mut row, theme, "s_05MD", TagVariant::Default, false);
         let (field, _) = row.allocate_exact_size(
             egui::vec2(row.available_width(), theme.item_height_interactive.value()),
             egui::Sense::hover(),

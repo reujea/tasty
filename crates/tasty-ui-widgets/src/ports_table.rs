@@ -3,7 +3,7 @@
 use tasty_type_appearance::theme::Theme;
 use tasty_type_geometry::length::LogicalPx;
 
-use crate::chip::{TagVariant, tag, tag_width};
+use crate::chip::TagVariant;
 use crate::status_dot::{StatusKind, status_dot};
 use crate::table::{Table, TableAlign, TableColumn, TableColumnWidth};
 
@@ -165,7 +165,7 @@ pub fn ports_process_cell(
     ui.horizontal(|ui| {
         let gap = theme.spacing_sm.value();
         ui.spacing_mut().item_spacing.x = gap;
-        let tag_reserve = pid.map_or(0.0, |p| tag_width(ui, theme, p) + gap);
+        let tag_reserve = pid.map_or(0.0, |p| crate::tag_mono_width(ui, theme, p) + gap);
         let name_max = (ui.available_width() - tag_reserve).max(0.0);
         let name_fg = crate::table_cell_ink(ui, theme, theme.text_primary());
         ui.scope(|ui| {
@@ -179,7 +179,7 @@ pub fn ports_process_cell(
                 .truncate(),
             );
         });
-        pid.map(|p| tag(ui, theme, p, TagVariant::Default, false))
+        pid.map(|p| crate::tag_mono(ui, theme, p, TagVariant::Default, false))
     })
     .inner
 }

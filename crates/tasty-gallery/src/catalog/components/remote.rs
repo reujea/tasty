@@ -745,7 +745,7 @@ fn seg_chip(ui: &mut egui::Ui, theme: &Theme, label: &str, active: bool) {
 
 fn profile_row(ui: &mut egui::Ui, theme: &Theme, p: &Profile) {
     let kind_chip = if KNOWN_PROFILE_TYPES.contains(&p.tag) {
-        RemoteRowChip::Tag(p.tag)
+        RemoteRowChip::TagMono(p.tag)
     } else {
         RemoteRowChip::Warn {
             text: p.tag,

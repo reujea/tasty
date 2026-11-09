@@ -3,7 +3,7 @@
 use tasty_type_appearance::theme::Theme;
 use tasty_type_geometry::length::LogicalPx;
 use tasty_ui_widgets::{
-    BadgeVariant, Button, ButtonVariant, TagVariant, approval_choice, badge_dot, tag,
+    BadgeVariant, Button, ButtonVariant, TagVariant, approval_choice, badge_dot, tag, tag_mono,
 };
 
 use crate::catalog::spec::{self, StageVariant, TokenChip};
@@ -59,8 +59,8 @@ pub fn draw(ui: &mut egui::Ui, theme: &Theme) {
                 ui.horizontal(|ui| {
                     ui.spacing_mut().item_spacing.x = theme.spacing_sm.value();
                     tag(ui, theme, "destructive", TagVariant::Danger, true);
-                    tag(ui, theme, "fs:write", TagVariant::Default, false);
-                    tag(ui, theme, "net", TagVariant::Default, false);
+                    tag_mono(ui, theme, "fs:write", TagVariant::Default, false);
+                    tag_mono(ui, theme, "net", TagVariant::Default, false);
                 });
             });
             kit::hsep(ui, theme);

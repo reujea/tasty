@@ -2,7 +2,7 @@
 
 use tasty_type_appearance::theme::Theme;
 use tasty_type_geometry::length::LogicalPx;
-use tasty_ui_widgets::{Button, ButtonVariant, TagVariant, tag};
+use tasty_ui_widgets::{Button, ButtonVariant, TagVariant, tag_mono};
 
 use crate::catalog::spec::{self, StageVariant, TokenChip};
 use crate::catalog::widgets::dialog as kit;
@@ -43,7 +43,7 @@ pub(crate) fn popup_card(ui: &mut egui::Ui, theme: &Theme) {
             kit::caption(ui, theme, ".../docs/big-notes.md", true);
             ui.horizontal(|ui| {
                 ui.spacing_mut().item_spacing.x = theme.spacing_sm.value();
-                tag(ui, theme, "3.2 MB", TagVariant::Warning, false);
+                tag_mono(ui, theme, "3.2 MB", TagVariant::Warning, false);
                 ui.label(
                     egui::RichText::new("Over 1\u{a0}MiB — rendering may be slow.")
                         .size(theme.font_size_caption.value())

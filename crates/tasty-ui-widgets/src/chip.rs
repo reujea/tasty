@@ -81,37 +81,72 @@ fn disabled_chip_ground(ui: &egui::Ui) -> Ground {
 
 /// 상태 점 없는 태그의 폭을 계산한다. 그리기 전 가용 폭과 비교할 때 사용한다.
 pub fn tag_width(ui: &egui::Ui, theme: &Theme, label: &str) -> f32 {
+    tag_width_in(ui, theme, label, TagFace::label())
+}
+
+/// [`tag_mono`]의 폭을 계산한다.
+pub fn tag_mono_width(ui: &egui::Ui, theme: &Theme, label: &str) -> f32 {
+    tag_width_in(ui, theme, label, TagFace::mono())
+}
+
+fn tag_width_in(ui: &egui::Ui, theme: &Theme, label: &str, face: TagFace) -> f32 {
     let pad_x = theme.tag_padding_x().value();
-    let galley = tag_galley(ui, theme, label, None, None);
+    let galley = tag_galley(ui, theme, label, &face);
     galley.rect.width() + 2.0 * pad_x
 }
 
-/// Tag 라벨 galley. 대문자 Tag만 `tracking`에 caps 자간을 넘기고, 나머지는 자간 없이 그린다.
+/// Tag 라벨 글자의 형태.
+struct TagFace {
+    /// 낱말 Tag는 `font-label`, 값 Tag는 `font-mono`.
+    family: egui::FontFamily,
+    /// 대문자 Tag의 caps 자간. 나머지는 자간 없이 그린다.
+    tracking: Option<LogicalPx>,
+    /// 글자가 넘치면 말줄임하는 폭.
+    max_text_w: Option<f32>,
+}
+
+impl TagFace {
+    fn label() -> Self {
+        Self {
+            family: crate::label_font_family(),
+            tracking: None,
+            max_text_w: None,
+        }
+    }
+
+    fn mono() -> Self {
+        Self {
+            family: egui::FontFamily::Monospace,
+            ..Self::label()
+        }
+    }
+}
+
+/// Tag 라벨 galley.
 fn tag_galley(
     ui: &egui::Ui,
     theme: &Theme,
     label: &str,
-    tracking: Option<LogicalPx>,
-    max_text_w: Option<f32>,
+    face: &TagFace,
 ) -> std::sync::Arc<egui::Galley> {
     let mut job = egui::text::LayoutJob::default();
     job.append(
         label,
         0.0,
         egui::TextFormat {
-            font_id: mono(theme.tag_font_size().value()),
-            extra_letter_spacing: tracking.map_or(0.0, |t| t.value()),
+            font_id: egui::FontId::new(theme.tag_font_size().value(), face.family.clone()),
+            extra_letter_spacing: face.tracking.map_or(0.0, |t| t.value()),
             color: egui::Color32::PLACEHOLDER,
             ..Default::default()
         },
     );
-    if let Some(w) = max_text_w {
+    if let Some(w) = face.max_text_w {
         job.wrap = egui::text::TextWrapping::truncate_at_width(w.max(0.0));
     }
     ui.painter().layout_job(job)
 }
 
-/// Tag — 모노 라벨 chip. `dot` 이 true 면 선행 상태 점(현재 fg 색).
+/// Tag — 낱말을 `font-label`로 그리는 라벨 chip. `dot` 이 true 면 선행 상태 점(현재 fg 색).
 /// [`disabled_chip_scope`] 안에서는 [`tag_disabled`]와 같게 그린다.
 pub fn tag(
     ui: &mut egui::Ui,
@@ -125,7 +160,31 @@ pub fn tag(
     } else {
         tag_colors(theme, variant)
     };
-    paint_tag(ui, theme, label, TagLead::dot(dot), colors, None, None)
+    paint_tag(
+        ui,
+        theme,
+        label,
+        TagLead::dot(dot),
+        colors,
+        TagFace::label(),
+    )
+}
+
+/// 값 Tag(디자인 `Tag mono`) — ID·버전·크기·권한처럼 모든 언어에서 고정폭인 값을 담는다.
+/// 색과 disabled 문맥 처리는 [`tag`]와 같다.
+pub fn tag_mono(
+    ui: &mut egui::Ui,
+    theme: &Theme,
+    label: &str,
+    variant: TagVariant,
+    dot: bool,
+) -> egui::Response {
+    let colors = if in_disabled_chip_scope(ui) {
+        tag_disabled_colors(theme, disabled_chip_ground(ui))
+    } else {
+        tag_colors(theme, variant)
+    };
+    paint_tag(ui, theme, label, TagLead::dot(dot), colors, TagFace::mono())
 }
 
 /// [`tag`]와 같고 라벨 앞에 글자색 글리프를 둔다.
@@ -141,7 +200,14 @@ pub fn tag_with_icon(
     } else {
         tag_colors(theme, variant)
     };
-    paint_tag(ui, theme, label, TagLead::Icon(icon), colors, None, None)
+    paint_tag(
+        ui,
+        theme,
+        label,
+        TagLead::Icon(icon),
+        colors,
+        TagFace::label(),
+    )
 }
 
 /// 대문자 Tag(디자인 `Tag caps`) — 라벨을 대문자로 바꾸고 `letter-spacing-caps` 자간으로 그린다.
@@ -165,8 +231,10 @@ pub fn tag_caps(
         &label.to_uppercase(),
         TagLead::dot(dot),
         colors,
-        Some(tracking),
-        None,
+        TagFace {
+            tracking: Some(tracking),
+            ..TagFace::label()
+        },
     )
 }
 
@@ -186,8 +254,7 @@ pub fn tag_disabled(
         label,
         TagLead::dot(dot),
         tag_disabled_colors(theme, ground),
-        None,
-        None,
+        TagFace::label(),
     )
 }
 
@@ -206,8 +273,10 @@ pub fn tag_truncated(
         label,
         TagLead::None,
         tag_colors(theme, TagVariant::Default),
-        None,
-        Some(text_w),
+        TagFace {
+            max_text_w: Some(text_w),
+            ..TagFace::label()
+        },
     )
 }
 
@@ -318,8 +387,7 @@ fn paint_tag(
     label: &str,
     lead: TagLead,
     (fill, border, fg): TagColors,
-    tracking: Option<LogicalPx>,
-    max_text_w: Option<f32>,
+    face: TagFace,
 ) -> egui::Response {
     let radius = theme.tag_radius().value();
     let bw = theme.border_width.value();
@@ -327,7 +395,7 @@ fn paint_tag(
     let gap = theme.tag_gap().value();
     let dot_sz = theme.tag_dot_size().value();
     let tag_h = theme.tag_size().value();
-    let galley = tag_galley(ui, theme, label, tracking, max_text_w);
+    let galley = tag_galley(ui, theme, label, &face);
     let icon_sz = theme.icon_glyph_size_xs.value();
     let lead_w = match lead {
         TagLead::None => 0.0,

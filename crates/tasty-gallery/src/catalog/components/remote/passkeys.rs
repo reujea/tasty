@@ -136,7 +136,7 @@ fn passkeys_frame(ui: &mut egui::Ui, theme: &Theme) {
 
 fn passkey_row(ui: &mut egui::Ui, theme: &Theme, k: &PasskeySample) {
     let kind_chip = if KNOWN_PASSKEY_KINDS.contains(&k.kind) {
-        RemoteRowChip::Tag(k.kind)
+        RemoteRowChip::TagMono(k.kind)
     } else {
         RemoteRowChip::Warn {
             text: k.kind,

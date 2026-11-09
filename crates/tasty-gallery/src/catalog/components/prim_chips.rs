@@ -3,7 +3,7 @@
 use tasty_type_appearance::theme::Theme;
 use tasty_ui_widgets::{
     BadgeVariant, TagVariant, badge, badge_disabled, badge_dot, disabled_chip_scope, kbd, tag,
-    tag_disabled,
+    tag_disabled, tag_mono,
 };
 
 use crate::catalog::spec::{StageVariant, TokenChip, cluster, meta, stage};
@@ -92,8 +92,8 @@ pub fn draw_badge(ui: &mut egui::Ui, theme: &Theme) {
 pub fn draw_tag(ui: &mut egui::Ui, theme: &Theme) {
     stage(ui, theme, StageVariant::Column, |ui| {
         cluster(ui, theme, "variants", |ui| {
-            tag(ui, theme, "terminal", TagVariant::Default, false);
-            tag(ui, theme, "markdown", TagVariant::Accent, false);
+            tag_mono(ui, theme, "terminal", TagVariant::Default, false);
+            tag_mono(ui, theme, "markdown", TagVariant::Accent, false);
             tag(ui, theme, "plugin", TagVariant::Agent, false);
             tag(ui, theme, "main", TagVariant::Info, false);
             tag(ui, theme, "running", TagVariant::Success, true);
@@ -106,6 +106,13 @@ pub fn draw_tag(ui: &mut egui::Ui, theme: &Theme) {
                 false,
             );
             tag(ui, theme, "error", TagVariant::Danger, true);
+        });
+        // 시안 Tag `mono` — ID·버전·크기·권한은 모든 언어에서 고정폭이다.
+        cluster(ui, theme, "mono", |ui| {
+            tag_mono(ui, theme, "fs:read", TagVariant::Default, false);
+            tag_mono(ui, theme, "v1.2.0", TagVariant::Default, false);
+            tag_mono(ui, theme, "s_05MD", TagVariant::Default, false);
+            tag_mono(ui, theme, "3.2 MB", TagVariant::Warning, false);
         });
         // 시안 Tag `disabled` — accent 채움과 tint 테두리가 빠지고 점도 같은 ink다.
         cluster(ui, theme, "disabled edge on a ground", |ui| {

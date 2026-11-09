@@ -9,7 +9,7 @@ use tasty_ui_widgets::{
     paint_plugin_avatar, plugin_command_row, plugin_detail_bar, plugin_detail_bar_height,
     plugin_detail_description, plugin_detail_identity, plugin_detail_section,
     plugin_detail_section_gap, plugin_install_paths, plugin_uninstall_confirm_bar,
-    plugin_uninstall_confirm_bar_height, tag, vspace,
+    plugin_uninstall_confirm_bar_height, tag_mono, vspace,
 };
 
 pub(super) fn draw_list_tab(
@@ -348,7 +348,7 @@ fn draw_detail_body(
         } else {
             ui.horizontal_wrapped(|ui| {
                 for token in &entry.manifest_permissions {
-                    tag(ui, th, token, TagVariant::Default, false);
+                    tag_mono(ui, th, token, TagVariant::Default, false);
                 }
             });
         }
@@ -374,7 +374,7 @@ fn draw_detail_body(
         plugin_detail_section(ui, th, t("plugins.surface_kinds"), |ui| {
             ui.horizontal_wrapped(|ui| {
                 for kind in &entry.surface_kinds {
-                    tag(ui, th, kind, TagVariant::Default, false);
+                    tag_mono(ui, th, kind, TagVariant::Default, false);
                 }
             });
         });

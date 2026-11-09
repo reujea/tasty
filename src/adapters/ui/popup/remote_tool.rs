@@ -792,7 +792,7 @@ fn draw_profile_row(
     let disabled = ssh.as_ref().map(|v| v.is_disabled()).unwrap_or(false);
     let detecting_now = detecting == Some(p.name.as_str());
     let kind_chip = if is_builtin_kind(&p.kind) || KNOWN_TYPES.contains(&p.kind.as_str()) {
-        RemoteRowChip::Tag(&p.kind)
+        RemoteRowChip::TagMono(&p.kind)
     } else {
         RemoteRowChip::Warn {
             text: &p.kind,
@@ -1770,7 +1770,7 @@ fn draw_passkey_row(
 ) -> Option<PasskeyRowAction> {
     let mut out = None;
     let kind_chip = if KNOWN_PASSKEY_KINDS.contains(&k.kind.as_str()) {
-        RemoteRowChip::Tag(&k.kind)
+        RemoteRowChip::TagMono(&k.kind)
     } else {
         RemoteRowChip::Warn {
             text: &k.kind,

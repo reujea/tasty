@@ -1,5 +1,5 @@
 //! Remote HTML receive decisions. Host and gallery share the received banner layout.
-use crate::{Button, ButtonVariant, ControlSize, Ground, TagVariant, banner_shell, tag};
+use crate::{Button, ButtonVariant, ControlSize, Ground, TagVariant, banner_shell};
 use std::sync::Arc;
 use tasty_type_appearance::theme::Theme;
 use tasty_type_geometry::length::LogicalPx;
@@ -130,7 +130,7 @@ fn detail(ui: &mut egui::Ui, theme: &Theme, view: &HtmlSizeBannerView<'_>, rect:
             size,
             waiting,
         } => {
-            let size_w = crate::chip::tag_width(ui, theme, size);
+            let size_w = crate::chip::tag_mono_width(ui, theme, size);
             let waiting_w = waiting.map_or(0.0, |s| {
                 text(
                     ui,
@@ -157,7 +157,7 @@ fn detail(ui: &mut egui::Ui, theme: &Theme, view: &HtmlSizeBannerView<'_>, rect:
                 egui::FontId::monospace(theme.banner_body_font_size().value()),
                 theme.banner_body_fg().to_egui(),
             );
-            tag(&mut child, theme, size, TagVariant::Warning, false);
+            crate::chip::tag_mono(&mut child, theme, size, TagVariant::Warning, false);
             if let Some(waiting) = waiting {
                 child.label(
                     egui::RichText::new(*waiting)

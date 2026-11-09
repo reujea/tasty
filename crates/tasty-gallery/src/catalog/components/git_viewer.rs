@@ -3,7 +3,7 @@
 
 use tasty_type_appearance::theme::Theme;
 use tasty_type_geometry::length::LogicalPx;
-use tasty_ui_widgets::{TagVariant, tag};
+use tasty_ui_widgets::{TagVariant, tag, tag_mono};
 
 use crate::catalog::spec::{self, StageVariant, TokenChip};
 use crate::catalog::widgets::dialog as kit;
@@ -217,7 +217,7 @@ fn context_strip(ui: &mut egui::Ui, theme: &Theme, rect: egui::Rect) {
         theme.font_size_term_sm.value(),
         theme.text_secondary(),
     );
-    tag(&mut cui, theme, "0b0b9a9d", TagVariant::Info, false);
+    tag_mono(&mut cui, theme, "0b0b9a9d", TagVariant::Info, false);
     ui.painter().text(
         egui::pos2(rect.right() - pad, rect.center().y),
         egui::Align2::RIGHT_CENTER,
@@ -453,7 +453,7 @@ fn ch_row(
             .layout(egui::Layout::left_to_right(egui::Align::Center)),
     );
     cui.spacing_mut().item_spacing.x = theme.spacing_sm.value();
-    tag(&mut cui, theme, glyph, variant, false);
+    tag_mono(&mut cui, theme, glyph, variant, false);
     let x = cui.cursor().left() + theme.spacing_sm.value();
     let p = ui.painter();
     let cy = rect.center().y;
@@ -539,7 +539,7 @@ fn cm_row(
         theme.accent_info(),
     );
     for r in refs {
-        tag(&mut left, theme, r, TagVariant::Info, false);
+        tag_mono(&mut left, theme, r, TagVariant::Info, false);
     }
     let left_end = left.min_rect().right();
     let mut right = ui.new_child(

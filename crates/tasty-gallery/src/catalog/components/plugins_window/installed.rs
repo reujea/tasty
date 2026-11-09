@@ -11,7 +11,7 @@ use tasty_ui_widgets::{
     paint_plugin_avatar, plugin_command_row, plugin_detail_bar, plugin_detail_bar_height,
     plugin_detail_description, plugin_detail_identity, plugin_detail_section,
     plugin_detail_section_gap, plugin_install_paths, plugin_uninstall_confirm_bar,
-    plugin_uninstall_confirm_bar_height, tag,
+    plugin_uninstall_confirm_bar_height, tag_mono,
 };
 
 /// 상세 컬럼이 그릴 것 — 본체는 선택 상태와 uninstall 확인 상태로 갈린다.
@@ -243,7 +243,7 @@ fn tag_section(ui: &mut egui::Ui, theme: &Theme, label: &str, values: &[&str]) {
         } else {
             ui.horizontal_wrapped(|ui| {
                 for v in values {
-                    tag(ui, theme, v, TagVariant::Default, false);
+                    tag_mono(ui, theme, v, TagVariant::Default, false);
                 }
             });
         }

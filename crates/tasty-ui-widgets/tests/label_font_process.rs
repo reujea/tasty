@@ -16,6 +16,7 @@ fn the_lookup_reads_the_locale_the_host_passed() {
             egui::FontFamily::Monospace
         };
         assert_eq!(family, want);
+        assert_tag_widths_follow_the_variant(want == egui::FontFamily::Proportional);
         return;
     }
     let exe = std::env::current_exe().expect("test binary path");
@@ -41,6 +42,27 @@ fn the_lookup_reads_the_locale_the_host_passed() {
             String::from_utf8_lossy(&out.stdout)
         );
     }
+}
+
+/// 폭 측정이 그리는 변형과 같은 글꼴로 재는지 본다. 값 Tag는 언어와 관계없이 고정폭 폭이다.
+fn assert_tag_widths_follow_the_variant(words_are_proportional: bool) {
+    let theme = tasty_themes::mocha_fallback();
+    let label = "Workspaces";
+    let ctx = egui::Context::default();
+    let mut widths = None;
+    // 첫 pass에서 글꼴이 준비되므로 두 번 돈다.
+    for _ in 0..2 {
+        let _output = ctx.run(egui::RawInput::default(), |ctx| {
+            egui::CentralPanel::default().show(ctx, |ui| {
+                widths = Some((
+                    tasty_ui_widgets::tag_width(ui, &theme, label),
+                    tasty_ui_widgets::tag_mono_width(ui, &theme, label),
+                ));
+            });
+        });
+    }
+    let (word, mono) = widths.expect("the panel ran");
+    assert_eq!(word != mono, words_are_proportional, "{word} / {mono}");
 }
 
 /// 새 내장 언어의 글자가 고정폭 글꼴에 없으면 라벨이 한 낱말 안에서 글꼴을 바꾼다. 언어 코드를 적지

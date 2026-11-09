@@ -312,8 +312,10 @@ pub fn remote_list_row(
 
 /// 행 첫 줄 끝에 붙는 칩.
 pub enum RemoteRowChip<'a> {
-    /// 기본 Tag(프로필 type, Attach 방식, passkey kind).
+    /// 낱말 Tag(Attach 방식).
     Tag(&'a str),
+    /// 값 Tag(프로필 type, passkey kind).
+    TagMono(&'a str),
     /// [`warn_badge`] — 모르는 type·kind, 비활성, 참조 없음.
     Warn { text: &'a str, tooltip: &'a str },
 }
@@ -338,6 +340,7 @@ pub fn remote_row_title(
             .iter()
             .map(|c| match c {
                 RemoteRowChip::Tag(t) => crate::tag_width(ui, th, t) + gap,
+                RemoteRowChip::TagMono(t) => crate::tag_mono_width(ui, th, t) + gap,
                 RemoteRowChip::Warn { text, .. } => warn_badge_width(ui, th, text) + gap,
             })
             .sum();
@@ -365,6 +368,9 @@ pub fn remote_row_title(
             match c {
                 RemoteRowChip::Tag(t) => {
                     tag(ui, th, t, TagVariant::Default, false);
+                }
+                RemoteRowChip::TagMono(t) => {
+                    crate::tag_mono(ui, th, t, TagVariant::Default, false);
                 }
                 RemoteRowChip::Warn { text, tooltip } => {
                     warn_badge(ui, th, text, tooltip);

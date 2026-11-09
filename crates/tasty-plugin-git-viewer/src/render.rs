@@ -6,7 +6,9 @@ mod diff;
 use egui::{Align, Align2, Color32, FontId, Layout, Rect, Sense, Stroke, UiBuilder, vec2};
 use tasty_plugin_sdk::Translator;
 use tasty_type_appearance::theme::Theme;
-use tasty_ui_widgets::{Button, ButtonVariant, ControlSize, TagVariant, tag, tag_width};
+use tasty_ui_widgets::{
+    Button, ButtonVariant, ControlSize, TagVariant, tag, tag_mono, tag_mono_width,
+};
 use tasty_ui_widgets::{RowParent, RowState};
 
 use diff::{diff_toolbar, draw_diff};
@@ -163,7 +165,7 @@ fn context_strip(ui: &mut egui::Ui, theme: &Theme, state: &ViewerState, tr: &Tra
             .color(theme.text_secondary().to_egui()),
     );
     if let Some(oid) = oid {
-        tag(&mut cui, theme, &oid, TagVariant::Info, false);
+        tag_mono(&mut cui, theme, &oid, TagVariant::Info, false);
     }
 
     if let Some(path) = state
@@ -548,7 +550,7 @@ fn ch_row(ui: &mut egui::Ui, theme: &Theme, entry: &StatusEntry, selected: bool)
         vec2(STATUS_BADGE_W, CH_ROW_H),
         Layout::left_to_right(Align::Center),
         |ui| {
-            tag(ui, theme, glyph, variant, false);
+            tag_mono(ui, theme, glyph, variant, false);
         },
     );
     let (dir, file) = split_path(&entry.path);
@@ -740,21 +742,21 @@ fn cm_row(ui: &mut egui::Ui, theme: &Theme, tr: &Translator, entry: &LogEntry) {
         let remaining_after = entry.refs.len() - shown - 1;
         // 이 pill을 그린 뒤에도 남는 게 있으면 "+N" pill 자리를 반드시 남겨둔다.
         let reserve = if remaining_after > 0 {
-            gap + tag_width(&left, theme, &format!("+{remaining_after}"))
+            gap + tag_mono_width(&left, theme, &format!("+{remaining_after}"))
         } else {
             0.0
         };
-        let w = tag_width(&left, theme, r);
+        let w = tag_mono_width(&left, theme, r);
         if cursor_x + gap + w + reserve > pill_limit {
             break;
         }
-        tag(&mut left, theme, r, TagVariant::Info, false);
+        tag_mono(&mut left, theme, r, TagVariant::Info, false);
         cursor_x += gap + w;
         shown += 1;
     }
     if shown < entry.refs.len() {
         let remaining = entry.refs.len() - shown;
-        tag(
+        tag_mono(
             &mut left,
             theme,
             &format!("+{remaining}"),

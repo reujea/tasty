@@ -10,7 +10,7 @@ use tasty_ui_widgets::tokens::{
     FH_HEADER_PAD_TOP, FH_ID_LINE_GAP, FH_LIST_FADE_HEIGHT, FH_LIST_MAX_HEIGHT, FH_LIST_PAD,
     FH_RECENT_DIM_OPACITY, FH_ROW_GAP, FH_ROW_PAD_X, STRUCT_GAP_2,
 };
-use tasty_ui_widgets::{Button, ButtonVariant, ControlSize, TagVariant, tag, tag_width};
+use tasty_ui_widgets::{Button, ButtonVariant, ControlSize, TagVariant, tag, tag_mono, tag_width};
 use tasty_ui_widgets::{RowParent, RowState};
 
 use crate::adapters::ui::icons;
@@ -352,7 +352,7 @@ fn header_band(ui: &mut egui::Ui, props: &FileHandlerPickerProps<'_>) {
     );
     match props.detector_label {
         Some(fmt) => {
-            tag(&mut child, th, fmt, TagVariant::Accent, false);
+            tag_mono(&mut child, th, fmt, TagVariant::Accent, false);
         }
         None => {
             tag(

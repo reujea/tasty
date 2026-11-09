@@ -279,7 +279,7 @@ fn draw_confirm(
     confirm: &LargeFileConfirm,
     tr: &Translator,
 ) -> Option<ConfirmChoice> {
-    use tasty_ui_widgets::{Button, ButtonVariant, TagVariant, margin_all, tag, vspace};
+    use tasty_ui_widgets::{Button, ButtonVariant, TagVariant, margin_all, vspace};
 
     let frame = egui::Frame::new()
         .fill(theme.bg_panel().to_egui())
@@ -310,7 +310,7 @@ fn draw_confirm(
         // 경고 태그(크기) + 안내문.
         ui.horizontal(|ui| {
             ui.spacing_mut().item_spacing.x = theme.spacing_sm.value();
-            tag(ui, theme, &confirm.size_label, TagVariant::Warning, false);
+            tasty_ui_widgets::tag_mono(ui, theme, &confirm.size_label, TagVariant::Warning, false);
             ui.label(
                 egui::RichText::new(tr.t("markdown.large_file.body"))
                     .size(theme.font_size_caption.value())

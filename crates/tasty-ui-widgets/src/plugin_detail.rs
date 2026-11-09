@@ -47,7 +47,7 @@ pub fn plugin_detail_name_row(
         );
         // 매니페스트를 보이지 않는 사유는 버전이 비어 있고 태그도 없다.
         if !version.is_empty() {
-            tag(
+            crate::tag_mono(
                 ui,
                 theme,
                 &format!("v{version}"),

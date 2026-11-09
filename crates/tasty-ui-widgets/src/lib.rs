@@ -142,7 +142,7 @@ pub use chip::{
     BadgeVariant, KbdKey, TagVariant, badge, badge_disabled, badge_dot, disabled_chip_scope,
     in_disabled_chip_scope, kbd, kbd_parts, kbd_parts_at, kbd_parts_width, kbd_text_parts_painted,
     kbd_width, num_keycap, paint_badge_dot, paint_num_keycap, tag, tag_caps, tag_disabled,
-    tag_truncated, tag_width, tag_with_icon,
+    tag_mono, tag_mono_width, tag_truncated, tag_width, tag_with_icon,
 };
 pub use chrome_slot::top_right_inset_square;
 pub use clipboard_viewer::{

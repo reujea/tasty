@@ -5,7 +5,7 @@ use std::cell::RefCell;
 use tasty_type_appearance::theme::Theme;
 use tasty_ui_widgets::{
     StatusKind, Table, TableAlign, TableColumn, TableColumnWidth, TableSortDir, TagVariant,
-    status_dot, tag,
+    status_dot, tag_mono,
 };
 
 use crate::catalog::spec::{StageVariant, TokenChip, body_column, meta, stage};
@@ -154,7 +154,13 @@ pub fn draw(ui: &mut egui::Ui, theme: &Theme) {
                                                 th.text_primary(),
                                             )),
                                     );
-                                    tag(ui, th, &row.pid.to_string(), TagVariant::Default, false);
+                                    tag_mono(
+                                        ui,
+                                        th,
+                                        &row.pid.to_string(),
+                                        TagVariant::Default,
+                                        false,
+                                    );
                                 });
                             }
                             4 => {

@@ -11,7 +11,7 @@ use tasty_type_geometry::length::LogicalPx;
 use std::borrow::Cow;
 
 use crate::button::{Button, ButtonVariant};
-use crate::chip::{TagVariant, tag};
+use crate::chip::TagVariant;
 use crate::control::ControlSize;
 use crate::icon_button::{IconButton, IconButtonVariant};
 use crate::input::Input;
@@ -338,7 +338,7 @@ fn identity(ui: &mut egui::Ui, theme: &Theme, view: &PluginManifestCardView<'_>)
                         .size(theme.font_size_max.value())
                         .color(theme.text_primary().to_egui()),
                 );
-                tag(
+                crate::tag_mono(
                     ui,
                     theme,
                     &format!("v{}", view.version),
@@ -420,7 +420,7 @@ fn tag_list(ui: &mut egui::Ui, theme: &Theme, label: &str, items: &[String], non
         ui.horizontal_wrapped(|ui| {
             ui.spacing_mut().item_spacing = egui::vec2(gap, gap);
             for item in items {
-                tag(ui, theme, item, TagVariant::Default, false);
+                crate::tag_mono(ui, theme, item, TagVariant::Default, false);
             }
         });
     });
