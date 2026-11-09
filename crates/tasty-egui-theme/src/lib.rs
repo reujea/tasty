@@ -337,16 +337,47 @@ fn cjk_stack_for_os(os: &str) -> CjkStack {
 
 /// 파일과 그 안에서 읽을 글꼴 번호.
 struct SystemCjkFont {
-    bytes: Vec<u8>,
+    bytes: &'static [u8],
     face: u32,
 }
 
 impl SystemCjkFont {
+    /// epaint는 `Cow::Owned` 글꼴을 글꼴 캐시를 만들 때마다 복사하고 `Cow::Borrowed`는
+    /// 복사하지 않는다. 그래서 공유한 바이트를 빌려 준다.
     fn into_font_data(self) -> egui::FontData {
-        let mut data = egui::FontData::from_owned(self.bytes);
+        let mut data = egui::FontData::from_static(self.bytes);
         data.index = self.face;
         data
     }
+}
+
+/// 판정을 통과한 시스템 CJK 파일의 바이트. 본체는 부팅, surface 글꼴 갱신, 설정 창
+/// 미리보기마다 글꼴 정의를 다시 만들므로, 파일을 경로별로 한 번만 읽어 프로세스가
+/// 끝날 때까지 공유한다. 후보 파일 수만큼만 남는다.
+fn system_cjk_bytes_cache()
+-> &'static std::sync::Mutex<std::collections::HashMap<std::path::PathBuf, &'static [u8]>> {
+    static CACHE: std::sync::OnceLock<
+        std::sync::Mutex<std::collections::HashMap<std::path::PathBuf, &'static [u8]>>,
+    > = std::sync::OnceLock::new();
+    CACHE.get_or_init(Default::default)
+}
+
+/// 이미 판정을 통과해 공유 중인 바이트. 없으면 파일을 새로 읽어야 한다.
+fn cached_system_cjk_bytes(path: &std::path::Path) -> Option<&'static [u8]> {
+    let cache = system_cjk_bytes_cache()
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    cache.get(path).copied()
+}
+
+/// 판정을 통과한 바이트를 공유 목록에 넣는다. 다른 스레드가 먼저 넣었으면 그 바이트를 쓴다.
+fn share_system_cjk_bytes(path: &std::path::Path, bytes: Vec<u8>) -> &'static [u8] {
+    let mut cache = system_cjk_bytes_cache()
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    cache
+        .entry(path.to_owned())
+        .or_insert_with(|| Box::leak(bytes.into_boxed_slice()))
 }
 
 /// 묶음 파일에서 이름으로 글꼴 번호를 찾는다. 이름이 없거나 찾지 못하면 0번이다.
@@ -357,16 +388,26 @@ fn cjk_face_by_family(bytes: &[u8], family: Option<&str>) -> u32 {
 }
 
 /// 후보에서 egui가 읽을 수 있는 첫 글꼴을 고른다. 없는 파일은 설치되지 않은 것이므로
-/// 말없이 넘어가고, egui가 panic할 파일은 경고하고 다음 후보로 넘어간다.
+/// 말없이 넘어가고, egui가 panic할 파일은 경고하고 다음 후보로 넘어간다. 실패한 파일은
+/// 공유하지 않으므로 다음 호출에서 다시 읽는다.
 fn first_usable_cjk_font<'a>(
     candidates: impl IntoIterator<Item = &'a std::path::Path>,
     family: Option<&str>,
 ) -> Option<SystemCjkFont> {
     candidates.into_iter().find_map(|path| {
+        if let Some(bytes) = cached_system_cjk_bytes(path) {
+            let face = cjk_face_by_family(bytes, family);
+            if tasty_i18n::font::validate_face(bytes, face).is_ok() {
+                return Some(SystemCjkFont { bytes, face });
+            }
+        }
         let bytes = std::fs::read(path).ok()?;
         let face = cjk_face_by_family(&bytes, family);
         match tasty_i18n::font::validate_face(&bytes, face) {
-            Ok(()) => Some(SystemCjkFont { bytes, face }),
+            Ok(()) => Some(SystemCjkFont {
+                bytes: share_system_cjk_bytes(path, bytes),
+                face,
+            }),
             Err(e) => {
                 tracing::warn!(
                     "system CJK font {} (face {face}) is not usable: {e}",
@@ -460,7 +501,11 @@ pub fn install_locale_font_fallback(
     let bytes = tasty_i18n::font::read_validated(path, face)?;
     fonts.font_data.insert(
         LOCALE_FONT_KEY.to_owned(),
-        Arc::new(SystemCjkFont { bytes, face }.into_font_data()),
+        Arc::new({
+            let mut data = egui::FontData::from_owned(bytes);
+            data.index = face;
+            data
+        }),
     );
     for fam in [egui::FontFamily::Proportional, egui::FontFamily::Monospace] {
         fonts
@@ -516,7 +561,7 @@ mod system_cjk_tests {
     #[test]
     fn the_chosen_face_reaches_egui() {
         let font = SystemCjkFont {
-            bytes: D2CODING.to_vec(),
+            bytes: D2CODING,
             face: 2,
         };
         assert_eq!(font.into_font_data().index, 2);
@@ -609,7 +654,7 @@ mod system_cjk_tests {
             assert_eq!(fonts.len(), 2, "{locale}: both files should be installed");
             let parsed: Vec<_> = fonts
                 .iter()
-                .map(|f| ab_glyph::FontRef::try_from_slice_and_index(&f.bytes, f.face).unwrap())
+                .map(|f| ab_glyph::FontRef::try_from_slice_and_index(f.bytes, f.face).unwrap())
                 .collect();
             let missing: String = NAMES
                 .chars()
@@ -621,7 +666,7 @@ mod system_cjk_tests {
         }
         let yahei = &usable_cjk_fonts(&[WINDOWS_YAHEI])[0];
         assert_ne!(yahei.face, 0, "Microsoft YaHei UI is face 1 of msyh.ttc");
-        let first = ab_glyph::FontRef::try_from_slice_and_index(&yahei.bytes, yahei.face).unwrap();
+        let first = ab_glyph::FontRef::try_from_slice_and_index(yahei.bytes, yahei.face).unwrap();
         let not_first: String = SIMPLIFIED
             .chars()
             .filter(|c| first.glyph_id(*c).0 == 0)
