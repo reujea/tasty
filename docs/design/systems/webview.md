@@ -41,7 +41,7 @@ PlatformWebView는 OS별 타입 중 cfg가 하나를 선택한다. 공통 호출
 | `nav_info` | — | `WebViewNavInfo` | commit 주소의 출처는 Linux 가 WebKitGTK `load-changed` Committed, macOS 가 WKWebView `didCommitNavigation`, Windows 가 WebView2 `ContentLoading` 이다. 주소 선택은 공통 `committed_document_url`(로드가 끝났으면 엔진 현재 주소, 로드 중·실패면 마지막 commit 주소)이다. 이동 가능 여부는 WebKitGTK `can_go_back`·`can_go_forward`, WKWebView `canGoBack`·`canGoForward`, WebView2 `CanGoBack`·`CanGoForward` 다. Windows 는 조회 실패를 웹뷰별 첫 번째만 warn 으로 남긴다. macOS·Windows 는 실 기기 미측정이다([html surface §문서 주소와 히스토리](../../surfaces/html/index.md#내부-동작)) |
 | `debug_stop` | — | — | debug 빌드 전용이다. 로드 중지를 재현한다. 사용자 진입점이 없는 조작이라 사용자 탐색 큐와 나눈다 |
 | `set_color_scheme` | `ColorScheme` | — | |
-| `set_bed_focused` | `bool` | — | 바탕 kind 페이지에 바탕 포커스 상태를 둔다(아래 "바탕 포커스 상태"). Linux만 구현했다. macOS·Windows 백엔드에는 아직 없고 공통 호출부가 cfg로 비워 둔다 |
+| `set_bed_focused` | `bool` | — | 바탕 kind 페이지에 바탕 포커스 상태를 둔다(아래 "바탕 포커스 상태"). Linux만 구현했다. macOS·Windows 백엔드에는 아직 없고 공통 호출부가 cfg로 비워 둔다. 그 OS의 markdown은 늘 focus 값이다(호스트 표지 미구현) |
 | `set_remote_content_allowed` | `bool` | — | 전역 설정 값이다. 실제로 막을지는 이 값과 스크립트 게이트의 문서 단위 원격 허용을 OR 한 실효값으로 정한다(아래 "원격 리소스 차단") |
 | `Drop` | — | — | 아래 "수명" |
 
@@ -462,7 +462,7 @@ WebKitGTK `UserContentManager`에 User 단계 사용자 스타일시트로 표�
 - 시트를 먼저 넣고 실은 문서는 첫 계산값부터 focus 값이다.
 - JS를 끈 문서에서 `evaluate_javascript`는 `Cannot execute JavaScript in this document`로 실패한다. 스크립트로 표지를 쓰는 방식은 markdown의 `sandbox_scripts = true`에서 동작하지 않는다. 스타일시트 방식은 JS 설정과 관계없다.
 
-macOS·Windows는 같은 페이지 쪽 계약을 구현해야 하며 아직 구현하지 않았다. 측정도 하지 않았다.
+macOS·Windows 백엔드는 아직 표지를 넣지 않는다. 그동안 그 OS의 번들 markdown은 페이지 CSS에 표지를 스스로 선언해(`crates/tasty-plugin-markdown/src/render/bed_focus.rs`) 늘 focus 값으로 그린다. 호스트 구현이 생기면 이 선언을 뺀다. 두 OS에서 측정하지 않았다.
 
 ## egui 오버레이와 native WebView
 

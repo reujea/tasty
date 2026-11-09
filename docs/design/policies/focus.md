@@ -323,7 +323,7 @@ IPC에는 토스트 대신 사유를 담은 오류를 반환한다. `surface.clo
 | 바탕 (`surface-bed-focused`·`-unfocused`) | terminal, empty | 칸 전체 |
 | | explorer | 파일 영역. 탭 바·툴바·사이드바·상태 줄·미리보기는 그대로다 |
 | | dag_graph | 탭 surface의 캔버스. 헤더·상세·노드는 그대로다 |
-| | markdown | 페이지 문서 바탕과 표 row·zebra. 페이지가 없을 때 대신 보이는 chrome 타일도 같다. no page 글리프는 `glyph-dim`이다. 문서 쪽 값은 호스트가 페이지에 넘긴다([WebView §바탕 포커스 상태](../systems/webview.md#바탕-포커스-상태)). Linux에서 구현했고 macOS·Windows는 아직 넘기지 않아 페이지가 unfocus 값이다 |
+| | markdown | 페이지 문서 바탕과 표 row·zebra. 페이지가 없을 때 대신 보이는 chrome 타일도 같다. no page 글리프는 `glyph-dim`이다. 문서 쪽 값은 호스트가 페이지에 넘긴다([WebView §바탕 포커스 상태](../systems/webview.md#바탕-포커스-상태)). Linux에서 구현했다. macOS·Windows는 아직 넘기지 않아 페이지가 늘 focus 값이다(호스트 표지 미구현) |
 | 바탕으로 분류, 아직 표시 없음 | image | 캔버스는 `bg-sidebar` 그대로다. `egui-mesh` 렌더링이라 chrome 타일을 쓰지 않는다 |
 | 띠로 분류, 아직 표시 없음 | html, 플러그인 | 포커스 표시가 없다. chrome 타일은 `bg-panel`, no page 글리프는 `text-disabled`로 그대로다 |
 

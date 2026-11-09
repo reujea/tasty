@@ -36,10 +36,17 @@ pub(super) fn doc_bg(theme: &Theme) -> (HexColor, HexColor) {
     )
 }
 
+/// 호스트가 이 OS에서 표지를 넣는지. 넣지 않는 OS는 전처럼 focus 값으로 그린다.
+const HOST_SENDS_MARKER: bool = cfg!(target_os = "linux");
+
 /// `:root` 안에 넣을 선언. 이름마다 표지가 있을 때만 유효한 `-on` 값과, 그것이 무효일 때
 /// unfocus 값을 쓰는 본 변수를 둔다.
 pub(super) fn state_vars(theme: &Theme) -> String {
-    pairs(theme)
+    state_vars_for(theme, HOST_SENDS_MARKER)
+}
+
+fn state_vars_for(theme: &Theme, host_sends_marker: bool) -> String {
+    let mut css: String = pairs(theme)
         .iter()
         .map(|(name, focused, unfocused)| {
             format!(
@@ -48,7 +55,11 @@ pub(super) fn state_vars(theme: &Theme) -> String {
                 unfocused.to_hex()
             )
         })
-        .collect()
+        .collect();
+    if !host_sends_marker {
+        css.push_str(&format!("{BED_FOCUSED_PROPERTY}: ;\n"));
+    }
+    css
 }
 
 #[cfg(test)]
@@ -56,7 +67,7 @@ mod tests {
     use tasty_type_appearance::color::HexColor;
     use tasty_type_appearance::theme::Theme;
 
-    use super::{doc_bg, state_vars};
+    use super::{doc_bg, state_vars_for};
     use crate::render::theme_css;
 
     fn mocha() -> Theme {
@@ -94,7 +105,8 @@ mod tests {
             theme.md_table_row_bg_zebra_unfocused()
         ));
         assert_eq!(css.matches("var(--tasty-bed-focused)").count(), 3, "{css}");
-        assert_eq!(state_vars(&theme).lines().count(), 6);
+        // 호스트가 표지를 보내는 분기로 잰다. 보내지 않는 OS의 표지 선언 줄은 아래 시험이 따로 잰다.
+        assert_eq!(state_vars_for(&theme, true).lines().count(), 6);
     }
 
     #[test]
@@ -152,5 +164,25 @@ mod tests {
         let back: tasty_plugin_protocol::ThemeWire = serde_json::from_str(&json).unwrap();
         let plugin = Theme::with_colors_and_zoom(back.colors, back.is_light, back.ui_zoom);
         assert_eq!(doc_bg(&plugin), (focused, unfocused));
+    }
+
+    /// 표지를 넣지 않는 OS의 문서는 자기 선언으로 늘 focus 값이다. 표지를 넣는 OS의 문서에는 선언이 없다.
+    #[test]
+    fn the_page_declares_the_marker_only_where_the_host_sends_none() {
+        let theme = mocha();
+        let without_host = state_vars_for(&theme, false);
+        let with_host = state_vars_for(&theme, true);
+        assert!(without_host.ends_with("--tasty-bed-focused: ;\n"));
+        assert_eq!(without_host.matches("--tasty-bed-focused:").count(), 1);
+        assert!(!with_host.contains("--tasty-bed-focused:"));
+        assert_eq!(without_host, format!("{with_host}--tasty-bed-focused: ;\n"));
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn the_linux_page_leaves_the_marker_to_the_host() {
+        let theme = mocha();
+        assert_eq!(super::state_vars(&theme), state_vars_for(&theme, true));
+        assert!(!theme_css(&theme).contains("--tasty-bed-focused:"));
     }
 }
