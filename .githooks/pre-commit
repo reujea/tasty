@@ -462,7 +462,7 @@ CHECKS=(
 defined=$(grep -cE '^check_[a-z_]+\(\) \{' "$0" || true)
 
 if [ "${#CHECKS[@]}" -eq 0 ] || [ "$defined" -eq 0 ]; then
-    red "▸ [훅] 등록된 검사가 없습니다 (함수 $defined개, 실행 목록 ${#CHECKS[@]}개)."
+    red "▸ [훅] 등록된 검사가 없습니다 (함수 ${defined}개, 실행 목록 ${#CHECKS[@]}개)."
     red "    CHECKS 배열과 check_* 함수 선언을 확인해 주세요."
     red "    검사를 실행할 수 없어 커밋을 중단합니다."
     exit 1
@@ -498,12 +498,12 @@ green "✓ pre-commit 검사 통과 (검사 $RAN/$defined 실행 · 커밋 대�
 STAGED_WIDE=$(git diff --cached --name-only --diff-filter=ACMRD || true)
 wide_extra=$(( $(count "$STAGED_WIDE") - $(count "$STAGED_ALL") ))
 if [ "$wide_extra" -gt 0 ]; then
-    yellow "  ↳ 삭제된 파일 $wide_extra개는 위 파일 수에 포함되지 않습니다. P.1 버전 검사에서는 확인합니다."
+    yellow "  ↳ 삭제된 파일 ${wide_extra}개는 위 파일 수에 포함되지 않습니다. P.1 버전 검사에서는 확인합니다."
 fi
 
 untracked=$(git status --porcelain --untracked-files=normal 2>/dev/null | grep -c '^??' || true)
 if [ "$untracked" -gt 0 ]; then
-    yellow "  ↳ 아직 git add하지 않은 새 파일 $untracked개가 있습니다. 위 파일 수에는 포함되지 않습니다."
+    yellow "  ↳ 아직 git add하지 않은 새 파일 ${untracked}개가 있습니다. 위 파일 수에는 포함되지 않습니다."
     yellow "     \`git status --porcelain\`로 파일 목록을 확인해 주세요. 전체 문서 검사는 \`export TASTY_PAGE_DIR=\"\$(bash scripts/fetch-design-source.sh)\"\` 뒤 \`cargo test -p tasty-doc-guards\`로 실행합니다."
 fi
 exit 0
