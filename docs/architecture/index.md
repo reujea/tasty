@@ -189,7 +189,7 @@ mirror 이름·부제·설명·분류와 혼합 표시 순서는 비영속 App c
 `tasty-cli`(clap CLI — request/format/transport/dynamic plugin subcommand. → ipc/host-plugin/terminal/approval/remote-profiles/remote/ssh/i18n/plugin-manifest/plugin-protocol/tui-simulator/utils)
 
 ### 테스트·가드 전용 (제품 산출물 밖)
-`tasty-latency-control`(CPU 작업 또는 자식 프로세스 시작으로 지연의 대조군 제공. 실패 메시지는 사용한 종류를 표시. 의존 없음, dev-dependencies로만 사용, [수정 후 자체 검증 (Self-verification)](../dev-guide/self-verification.md)) · `tasty-doc-guards`(문서·소스·workflow를 대조. 의존 없이 빠르게 실행해 문서만 바뀐 main push도 검사, [가드 검증](../dev-guide/guard-verification.md)) · `tasty-test-support`(테스트 동안 전역 env·TASTY_HOME을 바꾸고 Drop에서 복원하는 RAII 가드, ETXTBSY 없이 시험용 실행 파일을 쓰는 `write_executable`(unix), `/proc/<pid>/stat`으로 프로세스 종료를 읽는 `proc_stat_reads_finished`, → utils/tempfile. dev-dependencies로만 사용)
+`tasty-latency-control`(CPU 작업 또는 자식 프로세스 시작으로 지연의 대조군 제공. 실패 메시지는 사용한 종류를 표시. 의존 없음, dev-dependencies로만 사용, [수정 후 자체 검증 (Self-verification)](../dev-guide/self-verification.md)) · `tasty-doc-guards`(문서·소스·workflow를 대조. 의존 없이 빠르게 실행해 문서만 바뀐 main push도 검사, [가드 검증](../dev-guide/guard-verification.md)) · `tasty-test-support`(테스트 동안 전역 env·TASTY_HOME을 바꾸고 Drop에서 복원하는 RAII 가드, ETXTBSY 없이 시험용 실행 파일을 쓰는 `write_executable`(unix), `/proc/<pid>/stat`으로 프로세스 종료를 읽는 `proc_stat_reads_finished`, 시험 하나를 자기 바이너리의 새 프로세스에서 혼자 다시 실행하는 `rerun_alone`과 그 자식 안인지 확인하는 `is_rerun_alone`, → utils/tempfile. dev-dependencies로만 사용)
 
 ### 본 바이너리 (`tasty`)
 위 크레이트를 의존하며 App/View/GPU/IPC 라우터/부팅을 제공.
