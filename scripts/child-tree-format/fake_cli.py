@@ -18,7 +18,7 @@ SESSION_KEY = "sessi" + "on_id"
 THREAD_KEY = "thre" + "ad_id"
 SESSION_MARK = "session-that-must-not-be-stored"
 SCENARIOS = {
-    "normal", "tool_call", "json_error", "api_error", "timeout", "allowed_warning",
+    "normal", "tool_call", "json_error", "api_error", "timeout", "allowed_warning", "seven_day_warning",
     "rejected", "http_429", "usage_message", "no_result", "crash", "high_usage",
     "rejected_then_hang", "warning_then_error", "no_seven_day", "model_window",
 }
@@ -52,6 +52,10 @@ def claude(scenario, prompt):
         "status": status, "rateLimitType": "five_hour", "resetsAt": 1, "utilization": 0.1,
         "unifiedWindows": unified,
     }})
+    if scenario == "seven_day_warning":
+        emit({"type": "rate_limit_event", "rate_limit_info": {
+            "status": "allowed_warning", "rateLimitType": "seven_day", "resetsAt": 1, "utilization": 0.2,
+        }})
     if scenario == "model_window":
         emit({"type": "rate_limit_event", "rate_limit_info": {
             "status": "allowed", "rateLimitType": "seven_day_top", "resetsAt": 1, "utilization": 0.95,

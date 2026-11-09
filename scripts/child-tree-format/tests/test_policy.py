@@ -208,6 +208,111 @@ class Schedule(unittest.TestCase):
         self.assertEqual(step([raw("x", error="api_error")], plan=["a"]), ("run", ("a", 1, "first")))
 
 
+def warned(call="a", *names, seven=None):
+    record = raw(call, status="allowed_warning", seven=seven)
+    record["windows"]["by_type"] = {n: {"status": "allowed_warning", "utilization_percent": 25.0} for n in names}
+    return record
+
+
+ALLOW = {"kind": "resume", "allow_warning": True, "calls_seen": 1}
+
+
+class WarningOption(unittest.TestCase):
+    def decide(self, records, usage=True, by="director", log=()):
+        return policy.resume_decision(policy.replay(records, log), 5, usage, by, allow_warning=True)
+
+    def test_a_seven_day_warning_resumes_and_keeps_the_real_status(self):
+        allowed, values = self.decide([warned("a", "seven_day")])
+        self.assertTrue(allowed)
+        self.assertEqual(values["abort_reason"], "allowed_warning")
+        self.assertEqual(values["approved_by"], "director")
+        self.assertEqual(values["warned_windows"]["seven_day"]["status"], "allowed_warning")
+
+    def test_a_named_person_and_the_table_are_still_needed(self):
+        self.assertFalse(self.decide([warned("a", "seven_day")], by=None)[0])
+        self.assertFalse(self.decide([warned("a", "seven_day")], usage=False)[0])
+
+    def test_without_the_option_the_warning_table_still_refuses(self):
+        ledger = policy.replay([warned("a", "seven_day")])
+        self.assertFalse(policy.resume_decision(ledger, 5, False, "director")[0])
+
+    def test_other_warnings_and_stops_refuse_the_option(self):
+        cases = {
+            "five hour": warned("a", "five_hour"),
+            "five hour beside seven day": warned("a", "seven_day", "five_hour"),
+            "no window named": warned("a"),
+            "rejected": raw("a", status="rejected"),
+            "rate limited": raw("a", error="rate_limited"),
+        }
+        for name, record in cases.items():
+            with self.subTest(name):
+                self.assertFalse(self.decide([record])[0])
+
+    def test_only_the_warning_stop_can_use_its_windows(self):
+        windows = {"seven_day": {"status": "allowed_warning"}}
+        ledger = policy.Ledger(abort="usage_unit_suspect", abort_values={"windows": windows})
+        self.assertFalse(policy.resume_decision(ledger, 5, True, "director", allow_warning=True)[0])
+
+    def test_a_rise_refuses_the_option(self):
+        log = [approval({"claude": 10.0, "codex": None})]
+        ledger = policy.replay([raw("a", seven=20.0)], log)
+        self.assertEqual(ledger.abort, "u_exceeded")
+        self.assertFalse(policy.resume_decision(ledger, 5, True, "director", allow_warning=True)[0])
+
+    def test_the_tool_violation_stop_refuses_the_option(self):
+        records = [raw("a", tools=1), raw("a", tools=1)]
+        self.assertFalse(self.decide(records)[0])
+
+    def test_after_the_resume_a_seven_day_warning_passes_and_is_listed(self):
+        records = [warned("a", "seven_day"), warned("b", "seven_day")]
+        ledger = policy.replay(records, [ALLOW])
+        self.assertIsNone(ledger.abort)
+        self.assertEqual([p["call"] for p in ledger.warnings_passed], ["b"])
+
+    def test_after_the_resume_harder_stops_still_stop(self):
+        first = warned("a", "seven_day")
+        for name, record, reason in (
+            ("five hour", warned("b", "five_hour"), "allowed_warning"),
+            ("no window", warned("b"), "allowed_warning"),
+            ("rejected", raw("b", status="rejected"), "usage_limit"),
+            ("limit message", raw("b", error="rate_limited"), "usage_limit"),
+        ):
+            with self.subTest(name):
+                self.assertEqual(policy.replay([first, record], [ALLOW]).abort, reason)
+
+    def test_after_the_resume_a_rise_with_a_warning_still_stops(self):
+        log = [approval({"claude": 10.0, "codex": None}), ALLOW]
+        ledger = policy.replay([warned("a", "seven_day"), warned("b", "seven_day", seven=15.0)], log)
+        self.assertEqual(ledger.abort, "u_exceeded")
+
+    def test_after_the_resume_the_tool_and_retry_stops_still_stop(self):
+        first = warned("a", "seven_day")
+        ledger = policy.replay([first, raw("b", tools=1), raw("b", tools=1)], [ALLOW])
+        self.assertEqual(ledger.abort, "tool_violation_twice")
+        records = [first, raw("b", error="api_error"), raw("b", error="api_error")]
+        self.assertEqual(policy.next_action(policy.replay(records, [ALLOW]), ["a", "b"], 1), ("abort", "retry_limit"))
+
+    def test_a_plain_resume_withdraws_the_option(self):
+        records = [warned("a", "seven_day"), warned("b", "seven_day"), warned("c", "seven_day")]
+        log = [ALLOW, {"kind": "resume", "calls_seen": 2}]
+        self.assertEqual(policy.replay(records, log).abort, "allowed_warning")
+
+    def test_the_level_proposal_passes_only_a_seven_day_warning(self):
+        means = means_for(0.0)
+        seven = window(u=25.0, status="allowed_warning")
+        self.assertEqual(ul.select_level([seven], means)["proposal"], "stop")
+        passed = ul.select_level([seven], means, allow_warning=True)
+        self.assertEqual((passed["proposal"], passed["warning_windows"]), ("L0", [seven["name"]]))
+        rejected = window(u=25.0, status="rejected")
+        self.assertEqual(ul.select_level([rejected], means, allow_warning=True)["proposal"], "stop")
+        five = window("f", span="5h", u=1.0, status="allowed_warning")
+        self.assertEqual(ul.select_level([window(u=25.0), five], means, allow_warning=True)["proposal"], "stop")
+
+    def test_the_level_proposal_still_applies_the_limits(self):
+        over = window(u=99.0, status="allowed_warning")
+        self.assertEqual(ul.select_level([over], means_for(0.0), allow_warning=True)["proposal"], "stop")
+
+
 class Resume(unittest.TestCase):
     def decide(self, records, usage=True, by=None, cap=5):
         return policy.resume_decision(policy.replay(records), cap, usage, by)[0]

@@ -88,13 +88,17 @@ def _smaller(first, second):
     return max(first, second, key=LEVEL_ORDER.index)
 
 
-def select_level(windows, means):
+def select_level(windows, means, allow_warning=False):
+    """Propose a level. allow_warning lets a seven day warning through and names it in the result."""
     seven = [w for w in windows if w["span"] == "7d"]
     five = [w for w in windows if w["span"] == "5h"]
     if not seven:
         raise ValueError("no seven day window")
     result = {"proposal": None, "needs_decision": False, "wait_for": [], "values": {}}
-    stopped = [w["name"] for w in windows if w.get("status") in STOP_STATES]
+    passing = [w["name"] for w in seven if allow_warning and w.get("status") == "allowed_warning"]
+    if passing:
+        result["warning_windows"] = passing
+    stopped = [w["name"] for w in windows if w.get("status") in STOP_STATES and w["name"] not in passing]
     if stopped:
         result.update(proposal="stop", reason=f"window status stops the run: {stopped}")
         return result
@@ -133,11 +137,12 @@ def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--pilot", required=True, help="raw pilot lines")
     parser.add_argument("--windows", required=True, help="window values as JSON")
+    parser.add_argument("--allow-warning", action="store_true", help="do not stop on a seven day warning status")
     args = parser.parse_args(argv)
     try:
         lines = Path(args.pilot).read_text(encoding="utf-8").splitlines()
         means = pilot_means([json.loads(line) for line in lines if line.strip()])
-        result = select_level(json.loads(Path(args.windows).read_text(encoding="utf-8")), means)
+        result = select_level(json.loads(Path(args.windows).read_text(encoding="utf-8")), means, args.allow_warning)
     except (OSError, ValueError, KeyError) as error:
         print(f"cannot judge: {error}", file=sys.stderr)
         return 2

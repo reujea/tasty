@@ -310,6 +310,17 @@ def record_abort(cfg, ledger, reason, seen):
     })
 
 
+def note_passed_warnings(cfg, ledger, seen):
+    """Log each warning a resume let through once, so the raw status stays visible next to the decision."""
+    log = read_jsonl(log_path(cfg.data))
+    noted = {(e.get("call"), e.get("attempt")) for e in log if e.get("kind") == "warning_passed"}
+    for passed in ledger.warnings_passed:
+        if (passed["call"], passed["attempt"]) not in noted:
+            append_line(log_path(cfg.data), {
+                "kind": "warning_passed", "phase": cfg.phase, "at": now(), "calls_seen": seen, **passed,
+            })
+
+
 def run(cfg):
     if cfg.phase == "main":
         approved = policy.replay([], read_jsonl(log_path(cfg.data))).level
@@ -331,6 +342,7 @@ def run(cfg):
     while True:
         records = read_jsonl(path)
         ledger = policy.replay(records, read_jsonl(log_path(cfg.data)), cfg.phase)
+        note_passed_warnings(cfg, ledger, len(records))
         action, value = policy.next_action(ledger, plan, retry_cap(cfg))
         if action == "abort":
             record_abort(cfg, ledger, value, len(records))
@@ -421,15 +433,18 @@ def note_usage(data, cli, used_percent):
     return 0
 
 
-def resume(data, phase, level, usage_result, approved_by=None):
+def resume(data, phase, level, usage_result, approved_by=None, warning_reason=None):
     """Record a resume or the values that refuse it. Scores are never an input here."""
     records = read_jsonl(raw_path(data, phase))
     log = read_jsonl(log_path(data))
     ledger = policy.replay(records, log, phase)
     cap = PILOT_RETRY_CAP if phase == "pilot" else LEVELS[level]["retry_cap"]
     allowed_by_table = usage_level.level_allowed(level or "L0", usage_result, approved_by)
-    allowed, values = policy.resume_decision(ledger, cap, allowed_by_table, approved_by)
+    allow_warning = warning_reason is not None
+    allowed, values = policy.resume_decision(ledger, cap, allowed_by_table, approved_by, allow_warning)
     values["usage"] = usage_result
+    if allow_warning:
+        values["warning_reason"] = warning_reason
     append_line(log_path(data), {
         "kind": "resume" if allowed else "resume_refused", "phase": phase, "at": now(),
         "level": level, "calls_seen": len(records), **values,
@@ -480,6 +495,7 @@ def main(argv=None):
     back.add_argument("--level", choices=tuple(LEVELS))
     back.add_argument("--usage", required=True, help="output of usage_level.py as JSON")
     back.add_argument("--approved-by")
+    back.add_argument("--allow-warning", metavar="REASON", help="continue past a seven day warning, with the reason to record")
     args = parser.parse_args(argv)
     data = Path(args.data)
     try:
@@ -510,7 +526,9 @@ def dispatch(args, data, lock):
         if args.phase == "main" and not args.level:
             raise ValueError("resuming the main run needs a level")
         usage = json.loads(Path(args.usage).read_text(encoding="utf-8"))
-        return resume(data, args.phase, args.level, usage, args.approved_by)
+        if args.allow_warning is not None and not args.allow_warning.strip():
+            raise ValueError("--allow-warning needs a reason")
+        return resume(data, args.phase, args.level, usage, args.approved_by, args.allow_warning)
     if args.phase == "main" and not args.level:
         raise ValueError("the main run needs a level")
     bins = resolve_bins(args)

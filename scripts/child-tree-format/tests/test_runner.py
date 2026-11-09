@@ -244,6 +244,55 @@ class Failures(Base):
         self.assertTrue(raw[-1]["response_text"])
         self.assertEqual(self.log()[-1]["reason"], "allowed_warning")
 
+    def stop_on_seven_day_warning(self):
+        first = next(i for i, r in enumerate(self.rows()) if MODELS[r["model"]]["cli"] == "claude")
+        later = next(i for i, r in enumerate(self.rows()) if i > first and MODELS[r["model"]]["cli"] == "claude")
+        self.scenarios(["normal"] * first + ["seven_day_warning"] + ["normal"] * (later - first - 1) + ["seven_day_warning"])
+        self.assertEqual(runner.run(self.config()), 3)
+        return first
+
+    def test_the_warning_option_continues_and_notes_a_later_warning(self):
+        first = self.stop_on_seven_day_warning()
+        before = self.raw()[-1]["windows"]
+        self.assertEqual(runner.resume(self.data, "pilot", None, {"proposal": "L0"}, "director", "the reason"), 0)
+        entry = self.log()[-1]
+        self.assertEqual(
+            (entry["kind"], entry["allow_warning"], entry["approved_by"], entry["warning_reason"]),
+            ("resume", True, "director", "the reason"),
+        )
+        self.assertEqual(entry["warned_windows"]["seven_day"]["status"], "allowed_warning")
+        self.assertEqual(runner.run(self.config()), 0)
+        self.assertEqual(self.raw()[first]["windows"], before)
+        passed = [e for e in self.log() if e["kind"] == "warning_passed"]
+        self.assertEqual(len(passed), 1)
+        self.assertEqual(passed[0]["windows"]["seven_day"]["status"], "allowed_warning")
+        self.assertEqual(runner.run(self.config()), 0)
+        self.assertEqual(len([e for e in self.log() if e["kind"] == "warning_passed"]), 1)
+
+    def test_without_the_option_a_seven_day_warning_is_refused_as_before(self):
+        self.stop_on_seven_day_warning()
+        self.assertEqual(runner.resume(self.data, "pilot", None, {"proposal": "stop"}, "director"), 1)
+        self.assertEqual(self.log()[-1]["kind"], "resume_refused")
+        self.assertNotIn("allow_warning", self.log()[-1])
+        self.assertEqual(runner.run(self.config()), 3)
+
+    def test_the_option_refuses_a_five_hour_warning(self):
+        first = next(i for i, r in enumerate(self.rows()) if MODELS[r["model"]]["cli"] == "claude")
+        self.scenarios(["normal"] * first + ["allowed_warning"])
+        self.assertEqual(runner.run(self.config()), 3)
+        self.assertEqual(runner.resume(self.data, "pilot", None, {"proposal": "L0"}, "director", "the reason"), 1)
+        self.assertEqual(self.log()[-1]["kind"], "resume_refused")
+        self.assertEqual(self.log()[-1]["warning_reason"], "the reason")
+
+    def test_the_option_needs_a_reason_on_the_command_line(self):
+        self.stop_on_seven_day_warning()
+        usage = self.data / "usage.json"
+        usage.write_text('{"proposal": "L0"}', encoding="utf-8")
+        with contextlib.redirect_stderr(io.StringIO()):
+            code = runner.main(["--data", str(self.data), "resume", "--phase", "pilot", "--usage", str(usage),
+                                "--approved-by", "director", "--allow-warning", " "])
+        self.assertEqual(code, 2)
+
     def test_a_resume_on_an_unread_window_needs_a_named_person(self):
         self.assertEqual(runner.approve(self.data, "L2", [], APPROVED), 0)
         rows = self.rows("L2")

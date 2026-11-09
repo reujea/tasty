@@ -16,6 +16,7 @@ CALL_FAILURES = ("api_error", "timeout", "interrupted")
 U_MARGIN = 5
 UNIT_CHECK_FROM = 5
 UNIT_CHECK_RATIO = 10
+SEVEN_DAY_WINDOW = "seven_day"
 
 
 @dataclass
@@ -32,6 +33,8 @@ class Ledger:
     abort: str = None
     abort_values: dict = field(default_factory=dict)
     calls_seen: int = 0
+    warning_allowed: bool = False
+    warnings_passed: list = field(default_factory=list)
 
 
 def _apply_record(ledger, record):
@@ -79,7 +82,22 @@ def _apply_usage_stop(ledger, record, windows):
     if windows.get("status") == "rejected" or not known:
         _abort(ledger, "usage_limit", call=call, status_code=record.get("status_code"))
     elif windows.get("status") == "allowed_warning":
-        _abort(ledger, "allowed_warning", call=call)
+        warned = warned_windows(windows)
+        if ledger.warning_allowed and only_seven_day(warned):
+            ledger.warnings_passed.append({"call": call, "attempt": ledger.attempts[call], "windows": warned})
+        else:
+            _abort(ledger, "allowed_warning", call=call, windows=warned)
+
+
+def warned_windows(windows):
+    """Return the stored values of the windows that report the warning, unchanged."""
+    by_type = windows.get("by_type") or {}
+    return {name: info for name, info in by_type.items() if info.get("status") == "allowed_warning"}
+
+
+def only_seven_day(warned):
+    """Return whether a warning names seven day windows and nothing else. Naming none is not enough."""
+    return bool(warned) and all(name.startswith(SEVEN_DAY_WINDOW) for name in warned)
 
 
 def _can_stop_for_usage(ledger):
@@ -119,6 +137,7 @@ def _apply_entry(ledger, entry):
     elif kind == "resume":
         ledger.abort = None
         ledger.abort_values = {}
+        ledger.warning_allowed = bool(entry.get("allow_warning"))
     elif kind == "abort" and entry.get("reason") in ("retry_limit", "repo_changed"):
         # These two come from the runner, not from one raw line.
         ledger.abort = entry["reason"]
@@ -166,8 +185,12 @@ def next_action(ledger, plan, cap):
     return "run", (call, ledger.attempts[call] + 1, kind)
 
 
-def resume_decision(ledger, cap, usage_allows, approved_by=None):
-    """Return (allowed, values). The values go to the level log either way."""
+def resume_decision(ledger, cap, usage_allows, approved_by=None, allow_warning=False):
+    """Return (allowed, values). The values go to the level log either way.
+
+    allow_warning continues past a seven day warning only. Every other stop is
+    refused under it, so the option can never be the way out of a harder stop.
+    """
     reason = ledger.abort
     values = {
         "abort_reason": reason,
@@ -175,6 +198,10 @@ def resume_decision(ledger, cap, usage_allows, approved_by=None):
         "retries_used": ledger.retries_used,
         "retry_cap": cap,
     }
+    if allow_warning:
+        warned = ledger.abort_values.get("windows") or {}
+        values.update(approved_by=approved_by, allow_warning=True, warned_windows=warned)
+        return bool(approved_by) and usage_allows and reason == "allowed_warning" and only_seven_day(warned), values
     if reason in API_ABORTS:
         return usage_allows and ledger.retries_used < cap, values
     if reason in USAGE_ABORTS:

@@ -59,7 +59,7 @@ AI 에이전트가 child 트리와 DAG를 어떤 텍스트 형식으로 받을 �
 3. 수준 제안: `usage_level.py --pilot data/raw/pilot.jsonl --windows <창 값 JSON>`
 4. 승인 기록: `runner.py approve --level <수준> --windows <창 값 JSON> --approved-u '{"claude": <u>, "codex": <u>}'`
 5. 본 실행: `runner.py run --phase main --level <수준> --claude-utilization-unit <fraction|percent>`. 끊기면 같은 명령이 원자료에서 이어서 실행한다.
-6. 중단 뒤: `runner.py resume --phase main --level <수준> --usage <제안 JSON> [--approved-by <이름>]`. 재개와 거절은 조건 값과 함께 `data/raw/level-changes.jsonl`에 남는다. 종류는 `level_change`, `abort`, `resume`, `resume_refused`, `run_options`, `usage_note`다. 본 실행의 재개에 `--level`이 없으면 종료 코드 2로 멈춘다. 시험의 재개(`--phase pilot`)는 수준이 없다.
+6. 중단 뒤: `runner.py resume --phase main --level <수준> --usage <제안 JSON> [--approved-by <이름>]`. 재개와 거절은 조건 값과 함께 `data/raw/level-changes.jsonl`에 남는다. 종류는 `level_change`, `abort`, `resume`, `resume_refused`, `run_options`, `usage_note`, `warning_passed`다. 본 실행의 재개에 `--level`이 없으면 종료 코드 2로 멈춘다. 시험의 재개(`--phase pilot`)는 수준이 없다. 7일 창의 `allowed_warning`을 넘어 계속하려면 `usage_level.py --allow-warning`으로 만든 제안과 `resume --allow-warning <근거> --approved-by <이름>`을 쓴다. 다른 정지는 이 옵션으로 풀리지 않고, 재개 뒤의 7일 창 경고는 멈추지 않는 대신 `warning_passed`로 남는다. 경위는 [규칙 변경 기록](rules.md#규칙-변경-기록)에 있다.
 7. 요약: `summarize.py`, 대조는 `check_rules.py --raw`.
 
 W는 입력 + 캐시 생성 + 출력 토큰이고 캐시 읽기를 넣지 않는다. 옵션으로 바꿀 수 없다. 소규모 시험의 호출당 토큰 P도 같은 식으로 재므로 P/W를 그대로 비교할 수 있다. Claude 기록은 메시지 ID로, Codex 기록은 누적 토큰 수와 시각으로 중복을 지운다. 기록 폴더는 컴퓨터마다 다르므로 인자로 받고 추적 파일에 적지 않는다. 표준 출력에는 숫자와 창 이름만 나온다.
