@@ -626,8 +626,8 @@ fn publish_native_content_rects(
 
 /// native WebView에서 구멍을 뺀다. `input`은 host 입력 영역(분할선 hit 띠·창 리사이즈 밴드)으로
 /// 포인터만 빼고, `clip`은 복원 안내 카드로 그림과 포인터를 함께 뺀다. bounds·표시·포커스는
-/// 바꾸지 않는다. 둘 다 비면 원래 영역으로 돌아간다. `input`을 빼는 방법은 Linux에만 있고 다른
-/// OS는 `webview_edge_inset` 여백으로 피한다.
+/// 바꾸지 않는다. 둘 다 비면 원래 영역으로 돌아간다. Linux는 X 창의 input shape에서, macOS는
+/// `hitTest:` 제외로 `input`을 뺀다. Windows는 빼지 못해 `webview_edge_inset` 여백으로 피한다.
 /// 주소 띠가 키보드 포커스를 가진 동안 페이지 창 전체를 입력에서 뺄지. X 는 포커스 창의 자손 위에
 /// 포인터가 있으면 키를 그 자손에 보내므로, Linux 에서는 포인터가 페이지 위에 있어도 키가 호스트
 /// 창으로 오도록 띠 편집 동안 페이지가 포인터를 받지 않게 한다. 편집이 끝나면 다음 동기화에서 되돌린다.
