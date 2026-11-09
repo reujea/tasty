@@ -1,8 +1,9 @@
 #![cfg(target_os = "linux")]
 //! Linux private native-store ownership. Call filesystem entry points on an existing bounded
 //! worker. Neither lease Drop performs filesystem work; exposed roots survive until a later
-//! dead-owner sweep can establish quiescence. This is not a native session teardown ACK.
+//! dead-owner sweep finds no consumer. This is not a native session teardown ACK.
 mod fs;
+mod lease;
 mod process;
 mod reclaim;
 mod record;
@@ -153,12 +154,16 @@ impl NativeProfileLease {
         &self._paths.root
     }
 }
-/// Worker only; permission-denied or incomplete process observations retain the root.
+/// Worker only. A dead owner's root is removed if nothing shows it in use: no process walked has it
+/// open, and the kernel leases every regular file in it. A denied process or an exhausted walk bound
+/// does not retain it, since the leases answer for those too. See the limits in html-http-bridge.md.
 pub(crate) fn reclaim_dead(
     parent: &Path,
     max_entries: usize,
 ) -> Result<CleanupReport, ProfileError> {
     reclaim::run(parent, max_entries)
 }
+#[cfg(test)]
+mod lease_tests;
 #[cfg(test)]
 mod tests;

@@ -50,18 +50,30 @@ impl Identity {
                 }
             })
     }
-    pub fn state(&self) -> Result<OwnerState, ProfileError> {
-        // Mismatched boot/start observations are not permission to delete. They can represent
-        // PID reuse or an altered record; retain uncertainty instead of labeling that owner live.
+    /// `namespace_file_system` is the namespace's `f_type`, `None` when the kernel did not say.
+    pub fn state(&self, namespace_file_system: Option<u32>) -> Result<OwnerState, ProfileError> {
         if self.boot != boot()? {
-            return Ok(OwnerState::Uncertain);
+            return Ok(owner_of_another_boot(namespace_file_system));
         }
         match start(self.pid) {
             Ok(value) if value == self.start => Ok(OwnerState::Live),
+            // PID reuse or an altered record. It clears by itself when that process ends.
             Ok(_) => Ok(OwnerState::Uncertain),
             Err(e) if e.kind() == io::ErrorKind::NotFound => Ok(OwnerState::Dead),
             Err(e) => Err(e.into()),
         }
+    }
+}
+/// ext2/3/4, xfs, btrfs and tmpfs. Only ext4 and tmpfs were measured.
+const LOCAL_FILE_SYSTEMS: [u32; 4] = [0xEF53, 0x5846_5342, 0x9123_683E, 0x0102_1994];
+/// An owner of another boot cannot have survived it on a file system that one kernel serves. On any
+/// other, a shared home can hold the root of a live owner on another host, which neither the walk
+/// nor a lease here would see. The record is no proof of its boot: an altered one makes a live
+/// owner's root a candidate too, and the file leases still decide.
+pub(super) fn owner_of_another_boot(file_system: Option<u32>) -> OwnerState {
+    match file_system {
+        Some(kind) if LOCAL_FILE_SYSTEMS.contains(&kind) => OwnerState::Dead,
+        _ => OwnerState::Uncertain,
     }
 }
 fn read(path: &Path, limit: u64) -> io::Result<Vec<u8>> {
@@ -92,126 +104,125 @@ fn parse_start(text: &str) -> Option<u64> {
         .ok()
 }
 /// A bounded read-only same-UID FD/maps/cwd/root/exe observation, never a WebKit teardown ACK.
-/// Any inaccessible live process, exhausted bound or unstable observation leaves uncertainty.
+/// `Ok(true)` is positive evidence of a consumer and is the only answer that retains a root.
+/// `Ok(false)` saw every process, `Err` could not: a denied process, an exhausted bound or an unstable
+/// observation. Neither shows the root is free, which only the file leases of the reclaim decide.
 pub(super) fn consumers(root: &Path, objects: &HashSet<(u64, u64)>) -> io::Result<bool> {
     consumers_in(Path::new("/proc"), root, objects)
 }
-/// The product audit over a given process table. A test needs its own table: on a real one another
-/// process's denial or the observation bound can answer first and hide what the audit did here.
+/// The product walk over a given process table.
 pub(super) fn consumers_in(
     processes: &Path,
     root: &Path,
     objects: &HashSet<(u64, u64)>,
 ) -> io::Result<bool> {
-    consumers_under(processes, root, objects, &stat_again)
+    let listed = std::fs::read_dir(processes)?
+        .take(ENTRY_BOUND + 1)
+        .enumerate()
+        .filter_map(|(index, entry)| {
+            if index == ENTRY_BOUND {
+                return Some(Err(io::Error::other("process audit entry bound")));
+            }
+            match entry {
+                Ok(entry) => entry
+                    .file_name()
+                    .to_str()
+                    .is_some_and(|name| name.parse::<u32>().is_ok())
+                    .then(|| Ok(entry.path())),
+                Err(e) => Some(Err(e)),
+            }
+        });
+    walk(listed, root, objects)
 }
-/// Observes a denied process or task again. Only tests pass anything but `stat_again`, so they can
-/// answer for a really denied subject that a race would otherwise have to remove in time.
-pub(super) type Reobserve<'a> = &'a dyn Fn(&Path) -> io::Result<()>;
-pub(super) fn consumers_under(
-    processes: &Path,
+const ENTRY_BOUND: usize = 4096;
+/// Visits every given process. One that cannot be inspected must not stop the walk: a process after
+/// it can still hold a directory or cwd in the root, which no file lease would notice. Only a
+/// consumer or the spent budget ends it early. The first thing left unseen is reported if none was found.
+pub(super) fn walk(
+    processes: impl IntoIterator<Item = io::Result<PathBuf>>,
     root: &Path,
     objects: &HashSet<(u64, u64)>,
-    reobserve: Reobserve<'_>,
 ) -> io::Result<bool> {
-    let mut entries = 0;
-    let mut budget = 65_536usize;
-    for entry in std::fs::read_dir(processes)? {
-        entries += 1;
-        if entries > 4096 {
-            return Err(io::Error::other("process audit entry bound"));
-        }
-        let entry = entry?;
-        if entry
-            .file_name()
-            .to_str()
-            .is_none_or(|s| s.parse::<u32>().is_err())
-        {
-            continue;
-        }
-        let path = entry.path();
-        let m = match std::fs::metadata(&path) {
-            Ok(m) => m,
-            Err(e) if vanished(&e) => continue,
-            Err(e) => return Err(e),
-        };
-        if m.uid() != fs::uid() {
-            continue;
-        }
-        match audit_process(&path, root, objects, &mut budget, reobserve) {
+    let mut walk = Walk {
+        root,
+        objects,
+        budget: 65_536,
+        unseen: None,
+    };
+    for process in processes {
+        let found = process.and_then(|process| walk.process(&process));
+        match found {
             Ok(true) => return Ok(true),
             Ok(false) => {}
-            Err(e) if gone(&e, &path, reobserve) => {}
-            Err(e) => return Err(e),
+            Err(e) if walk.budget == 0 => return Err(e),
+            Err(e) => walk.note(e),
         }
     }
-    Ok(false)
+    walk.unseen.map_or(Ok(false), Err)
 }
-pub(super) fn audit_process(
-    process: &Path,
-    root: &Path,
-    objects: &HashSet<(u64, u64)>,
-    budget: &mut usize,
-    reobserve: Reobserve<'_>,
-) -> io::Result<bool> {
-    Ok(audit_tasks(process, root, objects, budget, reobserve)?
-        || maps(&process.join("maps"), root, objects, budget)?)
+struct Walk<'a> {
+    root: &'a Path,
+    objects: &'a HashSet<(u64, u64)>,
+    budget: usize,
+    unseen: Option<io::Error>,
 }
-pub(super) fn audit_tasks(
-    process: &Path,
-    root: &Path,
-    objects: &HashSet<(u64, u64)>,
-    budget: &mut usize,
-    reobserve: Reobserve<'_>,
-) -> io::Result<bool> {
-    for task in std::fs::read_dir(process.join("task"))? {
-        spend(budget)?;
-        let task = task?.path();
-        match audit_task(&task, root, objects, budget) {
+impl Walk<'_> {
+    fn note(&mut self, e: io::Error) {
+        if !vanished(&e) && self.unseen.is_none() {
+            self.unseen = Some(e);
+        }
+    }
+    fn process(&mut self, process: &Path) -> io::Result<bool> {
+        if std::fs::metadata(process)?.uid() != fs::uid() {
+            return Ok(false);
+        }
+        // Denied tasks still leave the maps of the process, and the reverse.
+        match self.tasks(process) {
             Ok(true) => return Ok(true),
             Ok(false) => {}
-            Err(e) if gone(&e, &task, reobserve) => {}
-            Err(e) => return Err(e),
+            Err(e) if self.budget == 0 => return Err(e),
+            Err(e) => self.note(e),
         }
+        maps(
+            &process.join("maps"),
+            self.root,
+            self.objects,
+            &mut self.budget,
+        )
     }
-    Ok(false)
-}
-fn audit_task(
-    task: &Path,
-    root: &Path,
-    objects: &HashSet<(u64, u64)>,
-    budget: &mut usize,
-) -> io::Result<bool> {
-    for name in ["cwd", "root", "exe"] {
-        if reference(&task.join(name), root, objects)? {
-            return Ok(true);
+    fn tasks(&mut self, process: &Path) -> io::Result<bool> {
+        for task in std::fs::read_dir(process.join("task"))? {
+            spend(&mut self.budget)?;
+            match task.and_then(|task| self.task(&task.path())) {
+                Ok(true) => return Ok(true),
+                Ok(false) => {}
+                Err(e) if self.budget == 0 => return Err(e),
+                Err(e) => self.note(e),
+            }
         }
+        Ok(false)
     }
-    for entry in std::fs::read_dir(task.join("fd"))? {
-        spend(budget)?;
-        if reference(&entry?.path(), root, objects)? {
-            return Ok(true);
+    fn task(&mut self, task: &Path) -> io::Result<bool> {
+        for name in ["cwd", "root", "exe"] {
+            match reference(&task.join(name), self.root, self.objects) {
+                Ok(true) => return Ok(true),
+                Ok(false) => {}
+                Err(e) => self.note(e),
+            }
         }
+        for entry in std::fs::read_dir(task.join("fd"))? {
+            spend(&mut self.budget)?;
+            match entry.and_then(|entry| reference(&entry.path(), self.root, self.objects)) {
+                Ok(true) => return Ok(true),
+                Ok(false) => {}
+                Err(e) => self.note(e),
+            }
+        }
+        Ok(false)
     }
-    Ok(false)
 }
 fn vanished(e: &io::Error) -> bool {
     e.kind() == io::ErrorKind::NotFound || e.raw_os_error() == Some(libc::ESRCH)
-}
-/// Whether an audit error means its process or task no longer exists, so it consumes nothing.
-pub(super) fn gone(e: &io::Error, subject: &Path, reobserve: Reobserve<'_>) -> bool {
-    gone_after(e, || reobserve(subject))
-}
-pub(super) fn stat_again(subject: &Path) -> io::Result<()> {
-    read(&subject.join("stat"), 8192).map(drop)
-}
-/// A task that exits during the walk also answers its /proc entries with EACCES, the same answer as
-/// a live task this UID may not inspect. Only observing the subject again tells them apart: it
-/// counts as gone if that says it is gone, and a live subject or a failed observation stays denied.
-pub(super) fn gone_after(e: &io::Error, reobserve: impl FnOnce() -> io::Result<()>) -> bool {
-    vanished(e)
-        || (e.raw_os_error() == Some(libc::EACCES)
-            && reobserve().is_err_and(|again| vanished(&again)))
 }
 fn reference(path: &Path, root: &Path, objects: &HashSet<(u64, u64)>) -> io::Result<bool> {
     let target = match std::fs::read_link(path) {

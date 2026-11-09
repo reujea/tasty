@@ -50,6 +50,19 @@ impl Dir {
             file,
         })
     }
+    /// The `f_type` of the file system this directory is on, `None` when the kernel did not say.
+    pub fn file_system_type(&self) -> Option<u32> {
+        // SAFETY: the all-zero statfs is a valid value for libc.
+        let mut stat: libc::statfs = unsafe { std::mem::zeroed() };
+        // SAFETY: file owns a live descriptor and stat is live for the call.
+        if unsafe { libc::fstatfs(self.file.as_raw_fd(), &mut stat) } < 0 {
+            let error = std::io::Error::last_os_error();
+            tracing::debug!(%error, "private profile file system type unavailable");
+            return None;
+        }
+        // Every magic number fits 32 bits. The field's width and sign differ between targets.
+        Some(stat.f_type as u32)
+    }
     pub fn open_dir(&self, name: &OsStr) -> Result<Self, ProfileError> {
         Self::from(open(self, name, libc::O_RDONLY | libc::O_DIRECTORY, 0)?)
     }
@@ -60,6 +73,11 @@ impl Dir {
             return Err(ProfileError::Ownership);
         }
         Ok(f)
+    }
+    /// The same no-follow, no-mount resolution as every open here, for any mode WebKit gave a file.
+    /// The caller compares it with its inspected entry.
+    pub fn open_for_lease(&self, name: &OsStr) -> Result<File, ProfileError> {
+        open(self, name, libc::O_RDONLY, 0)
     }
     pub fn create_file(&self, name: &OsStr) -> Result<File, ProfileError> {
         let f = open(

@@ -1,6 +1,7 @@
 use super::{
     CleanupReport, ProfileError,
     fs::{Dir, Namespace, Object},
+    lease::{self, LeaseOps, Leases},
     process::{self, OwnerState},
     record::{self, Record},
 };
@@ -68,6 +69,42 @@ impl Tree {
             }
         }
     }
+    fn regular_files(&self) -> usize {
+        self.entries
+            .iter()
+            .map(|entry| entry.child.as_ref().map_or(1, Self::regular_files))
+            .sum()
+    }
+    fn lease_files(
+        &self,
+        leases: &mut Leases,
+        seen: &mut HashSet<(u64, u64)>,
+        ops: &LeaseOps<'_>,
+    ) -> Result<(), ProfileError> {
+        for entry in &self.entries {
+            match &entry.child {
+                Some(child) => child.lease_files(leases, seen, ops)?,
+                None if seen.insert((entry.id.dev, entry.id.ino)) => {
+                    leases.take(&self.dir, &entry.name, entry.id, ops)?;
+                }
+                None => {}
+            }
+        }
+        Ok(())
+    }
+    /// Every regular file leased, then every lease confirmed: leasing and releasing them in turn
+    /// would let a holder that alternates between two files pass.
+    pub(super) fn lease_all(&self, ops: &LeaseOps<'_>) -> Result<Leases, ProfileError> {
+        lease::survive_lease_breaks()?;
+        let files = self.regular_files();
+        if !lease::descriptors_available(files)? {
+            return Err(std::io::Error::from_raw_os_error(libc::EMFILE).into());
+        }
+        let mut leases = Leases::default();
+        self.lease_files(&mut leases, &mut HashSet::new(), ops)?;
+        leases.confirm(ops)?;
+        Ok(leases)
+    }
     fn remove(&self, guard: &impl Fn() -> Result<(), ProfileError>) -> Result<(), ProfileError> {
         for entry in &self.entries {
             guard()?;
@@ -91,27 +128,34 @@ impl Tree {
         name: &OsStr,
         record: &Record,
     ) -> Result<(), ProfileError> {
+        let result = self.delete(namespace, name);
+        if result.is_err() {
+            self.recover_record(namespace, name, record);
+        }
+        result
+    }
+    fn delete(&self, namespace: &Namespace, name: &OsStr) -> Result<(), ProfileError> {
         let guard = || {
             namespace.validate()?;
             self.dir.check_link(&namespace.dir, name)
         };
         guard()?;
-        let result = (|| {
-            self.remove(&guard)?;
-            guard()?;
-            namespace.dir.unlink(name, true)
-        })();
-        if result.is_err() {
-            // A late writer can make rmdir fail after owner.json was removed. Restore only
-            // through the same validated root, never overwrite a replacement record.
-            let recovery = guard().and_then(|()| self.retain_record(record));
-            if let Err(error) = recovery {
-                tracing::warn!(%error, root_entry = ?name,
-                    device = self.dir.id.dev, inode = self.dir.id.ino,
-                    "private profile cleanup could not retain ownership record");
-            }
+        self.remove(&guard)?;
+        guard()?;
+        namespace.dir.unlink(name, true)
+    }
+    /// A late writer can make rmdir fail after owner.json was removed. Restore only through the
+    /// same validated root, never overwrite a replacement record.
+    fn recover_record(&self, namespace: &Namespace, name: &OsStr, record: &Record) {
+        let recovery = namespace
+            .validate()
+            .and_then(|()| self.dir.check_link(&namespace.dir, name))
+            .and_then(|()| self.retain_record(record));
+        if let Err(error) = recovery {
+            tracing::warn!(%error, root_entry = ?name,
+                device = self.dir.id.dev, inode = self.dir.id.ino,
+                "private profile cleanup could not retain ownership record");
         }
-        result
     }
     fn retain_record(&self, record: &Record) -> Result<(), ProfileError> {
         match Record::read(&self.dir) {
@@ -138,14 +182,15 @@ pub(super) fn remove_unpublished(
     Tree::inspect(reopened)?.dispose(namespace, name, record)
 }
 pub(super) fn run(parent: &Path, max_entries: usize) -> Result<CleanupReport, ProfileError> {
-    run_audited(parent, max_entries, &process::consumers)
+    run_audited(parent, max_entries, &process::consumers, &lease::KERNEL)
 }
-/// Answers whether anything consumes a dead owner's root, or that the answer is unavailable.
+/// Positive evidence of a consumer of a dead owner's root. Anything else leaves it to the leases.
 type Audit<'a> = &'a dyn Fn(&Path, &HashSet<(u64, u64)>) -> std::io::Result<bool>;
-fn run_audited(
+pub(super) fn run_audited(
     parent: &Path,
     max_entries: usize,
     audit: Audit<'_>,
+    ops: &LeaseOps<'_>,
 ) -> Result<CleanupReport, ProfileError> {
     if max_entries == 0 {
         return Err(ProfileError::Invalid);
@@ -159,7 +204,7 @@ fn run_audited(
     };
     for name in names {
         report.inspected += 1;
-        match candidate(&namespace, &name, audit) {
+        match candidate(&namespace, &name, audit, ops) {
             Ok(Outcome::Removed) => report.removed += 1,
             Ok(Outcome::Live) => report.kept_live += 1,
             Ok(Outcome::Uncertain) => report.kept_uncertain += 1,
@@ -181,6 +226,7 @@ fn candidate(
     namespace: &Namespace,
     name: &OsStr,
     audit: Audit<'_>,
+    ops: &LeaseOps<'_>,
 ) -> Result<Outcome, ProfileError> {
     let prepared = (|| {
         let dir = namespace.dir.open_dir(name)?;
@@ -195,7 +241,7 @@ fn candidate(
             return Ok(Outcome::Uncertain);
         }
     };
-    reclaim_classified(namespace, name, dir, record, audit)
+    reclaim_classified(namespace, name, dir, record, audit, ops)
 }
 fn reclaim_classified(
     namespace: &Namespace,
@@ -203,8 +249,9 @@ fn reclaim_classified(
     dir: Dir,
     record: Record,
     audit: Audit<'_>,
+    ops: &LeaseOps<'_>,
 ) -> Result<Outcome, ProfileError> {
-    match record.owner.state() {
+    match record.owner.state(namespace.dir.file_system_type()) {
         Ok(OwnerState::Live) => return Ok(Outcome::Live),
         Ok(OwnerState::Uncertain) => return Ok(Outcome::Uncertain),
         Err(error) => {
@@ -229,19 +276,20 @@ fn reclaim_classified(
         Ok(false) => {}
         Ok(true) => return Ok(Outcome::Uncertain),
         Err(error) => {
-            tracing::warn!(%error,"private profile process audit incomplete; root retained");
-            return Ok(Outcome::Uncertain);
+            tracing::debug!(%error, "private profile process audit incomplete; leases decide");
         }
     }
-    dispose_rechecked(namespace, name, record, objects)
+    dispose_rechecked(namespace, name, record, objects, ops)
 }
 fn dispose_rechecked(
     namespace: &Namespace,
     name: &OsStr,
     record: Record,
     objects: HashSet<(u64, u64)>,
+    ops: &LeaseOps<'_>,
 ) -> Result<Outcome, ProfileError> {
-    if !matches!(record.owner.state()?, OwnerState::Dead) {
+    let state = record.owner.state(namespace.dir.file_system_type())?;
+    if !matches!(state, OwnerState::Dead) {
         return Ok(Outcome::Uncertain);
     }
     let dir = namespace.dir.open_dir(name)?;
@@ -256,13 +304,45 @@ fn dispose_rechecked(
     if Record::read(&tree.dir)? != record {
         return Ok(Outcome::Uncertain);
     }
-    tree.dispose(namespace, name, &record)?;
+    lease_and_delete(namespace, name, &record, tree, ops)
+}
+fn lease_and_delete(
+    namespace: &Namespace,
+    name: &OsStr,
+    record: &Record,
+    tree: Tree,
+    ops: &LeaseOps<'_>,
+) -> Result<Outcome, ProfileError> {
+    // Any descriptor on these files other than the leases is closed by now. An open from here on
+    // would break a lease of this process as well, so the record is not read again.
+    let started = std::time::Instant::now();
+    let leases = match tree.lease_all(ops) {
+        Ok(leases) => leases,
+        Err(error) => {
+            log_lease_refusal(&error, tree.regular_files());
+            return Ok(Outcome::Uncertain);
+        }
+    };
+    log_leases_held(leases.len(), started);
+    let result = tree.delete(namespace, name);
+    drop(leases);
+    if result.is_err() {
+        tree.recover_record(namespace, name, record);
+    }
+    result?;
     Ok(Outcome::Removed)
 }
-#[cfg(test)]
-pub(super) fn run_with_audit(
-    parent: &Path,
-    audit: Audit<'_>,
-) -> Result<CleanupReport, ProfileError> {
-    run_audited(parent, 1, audit)
+fn log_lease_refusal(error: &ProfileError, files: usize) {
+    if lease::held_elsewhere(error) {
+        tracing::debug!(%error, files, "private profile file is held open; root retained");
+    } else {
+        tracing::warn!(%error, files, "private profile file lease unavailable; root retained");
+    }
+}
+fn log_leases_held(files: usize, started: std::time::Instant) {
+    tracing::debug!(
+        files,
+        elapsed_us = started.elapsed().as_micros() as u64,
+        "private profile file leases held"
+    );
 }

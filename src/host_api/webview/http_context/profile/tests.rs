@@ -7,7 +7,7 @@ use std::{
     },
     sync::Arc,
 };
-fn namespace() -> tempfile::TempDir {
+pub(super) fn namespace() -> tempfile::TempDir {
     let dir = tempfile::Builder::new()
         .prefix("tasty-profile-proof-")
         .tempdir()
@@ -208,8 +208,8 @@ fn prepared_discard_rejects_inner_symlink_before_any_deletion() {
     );
 }
 #[test]
-fn malformed_foreign_record_inode_start_boot_and_record_symlink_are_retained() {
-    for kind in 0..7 {
+fn malformed_foreign_record_inode_start_and_record_symlink_are_retained() {
+    for kind in 0..6 {
         let parent = namespace();
         let p = admitted(|| PreparedProfile::create(parent.path(), 1)).unwrap();
         let root = p.root().to_owned();
@@ -235,10 +235,6 @@ fn malformed_foreign_record_inode_start_boot_and_record_symlink_are_retained() {
                 disk::write(&path, serde_json::to_vec(&value).unwrap()).unwrap();
             }
             4 => {
-                value["owner"]["boot"] = serde_json::json!("00000000-0000-0000-0000-000000000000");
-                disk::write(&path, serde_json::to_vec(&value).unwrap()).unwrap();
-            }
-            5 => {
                 value["version"] = serde_json::json!(2);
                 disk::write(&path, serde_json::to_vec(&value).unwrap()).unwrap();
             }
@@ -290,14 +286,14 @@ fn preflight_then_root_replacement_is_detected_before_removal() {
     );
 }
 
-struct OwnedChild {
+pub(super) struct OwnedChild {
     child: Option<std::process::Child>,
     receipt: tempfile::NamedTempFile,
-    root: PathBuf,
+    pub(super) root: PathBuf,
     pid: u32,
 }
 impl OwnedChild {
-    fn start(parent: &Path, restrictive_umask: bool) -> Self {
+    pub(super) fn start(parent: &Path, restrictive_umask: bool) -> Self {
         use std::process::{Command, Stdio};
         use std::time::{Duration, Instant};
         let receipt = tempfile::NamedTempFile::new().unwrap();
@@ -350,7 +346,7 @@ impl OwnedChild {
         }
         owned
     }
-    fn finish(&mut self) {
+    pub(super) fn finish(&mut self) {
         let mut child = self.child.take().unwrap();
         drop(child.stdin.take());
         let output = child.wait_with_output().unwrap();
@@ -453,7 +449,7 @@ fn child_identity_proof_alone() {
     assert_eq!(rec.owner.pid, child.pid);
     assert_eq!(rec.owner.uid, fs::uid());
     assert!(matches!(
-        rec.owner.state().unwrap(),
+        rec.owner.state(None).unwrap(),
         process::OwnerState::Live
     ));
     drop(dir);
@@ -470,7 +466,7 @@ fn child_identity_proof_alone() {
     file.set_len(4096).unwrap();
     child.finish();
     assert!(matches!(
-        rec.owner.state().unwrap(),
+        rec.owner.state(None).unwrap(),
         process::OwnerState::Dead
     ));
     let tree =
@@ -479,28 +475,14 @@ fn child_identity_proof_alone() {
     tree.observations(&mut objects);
     drop(tree);
     fd_and_mapping_consumers(&child.root, &objects, file);
-    public_dead_sweep(&child.root, parent.path(), &objects);
+    public_dead_sweep(&child.root, parent.path());
 }
-fn public_dead_sweep(root: &Path, parent: &Path, objects: &std::collections::HashSet<(u64, u64)>) {
-    let audit = process::consumers(root, objects);
-    let r = reclaim_positive(parent, 1);
-    assert_eq!(r.inspected, 1);
-    assert_eq!(r.kept_live, 0);
-    assert_eq!(r.failed, 0);
-    match audit {
-        Ok(false) => assert_eq!(r.removed, 1),
-        Ok(true) | Err(_) => {
-            assert_eq!(r.removed, 0);
-            assert_eq!(r.kept_uncertain, 1);
-        }
-    }
-    tracing::info!(
-        "public-dead-child-sweep removed={} uncertain={} failed={}; global_visibility_complete={}",
-        r.removed,
-        r.kept_uncertain,
-        r.failed,
-        matches!(audit, Ok(false))
-    );
+/// Whatever the real process table of this machine denies or exhausts, a free root is removed.
+fn public_dead_sweep(root: &Path, parent: &Path) {
+    let r = swept_until_removed(parent, 1);
+    assert_eq!((r.inspected, r.kept_live, r.failed), (1, 0, 0));
+    assert_eq!((r.removed, r.kept_uncertain), (1, 0));
+    assert!(!root.exists());
 }
 
 fn fd_and_mapping_consumers(
@@ -510,8 +492,7 @@ fn fd_and_mapping_consumers(
 ) {
     use std::os::fd::AsRawFd;
     let our_proc = PathBuf::from(format!("/proc/{}", std::process::id()));
-    let audit =
-        || process::audit_process(&our_proc, root, objects, &mut 65_536, &process::stat_again);
+    let audit = || process::walk([Ok(our_proc.clone())], root, objects);
     assert!(audit().unwrap());
     // SAFETY: file is an owned 4096-byte test file, descriptor is live and offset0 is aligned.
     let mapping = unsafe {
@@ -537,247 +518,6 @@ fn fd_and_mapping_consumers(
     assert!(!audit().unwrap());
 }
 
-fn os_error(code: i32) -> std::io::Error {
-    std::io::Error::from_raw_os_error(code)
-}
-#[test]
-fn only_a_subject_observed_gone_turns_a_denial_into_gone() {
-    let denied = os_error(libc::EACCES);
-    assert!(!process::gone_after(&denied, || Ok(())));
-    assert!(process::gone_after(&denied, || Err(os_error(libc::ENOENT))));
-    assert!(process::gone_after(&denied, || Err(os_error(libc::ESRCH))));
-    assert!(!process::gone_after(&denied, || Err(os_error(libc::EIO))));
-    assert!(!process::gone_after(&denied, || Err(os_error(
-        libc::EACCES
-    ))));
-    // Errors that already decide their meaning are not observed again.
-    let unexpected = || panic!("no second observation");
-    assert!(process::gone_after(&os_error(libc::ENOENT), unexpected));
-    assert!(process::gone_after(&os_error(libc::ESRCH), unexpected));
-    assert!(!process::gone_after(&os_error(libc::EIO), unexpected));
-}
-/// The audit answer for a dead owner's root decides between removing it and retaining it.
-#[test]
-fn a_dead_root_is_removed_only_when_the_denied_subject_was_observed_gone() {
-    let sweep = |reobserved: fn() -> std::io::Result<()>| {
-        let parent = namespace();
-        let mut child = OwnedChild::start(parent.path(), false);
-        child.finish();
-        let audit = |_: &Path, _: &std::collections::HashSet<(u64, u64)>| {
-            let denied = os_error(libc::EACCES);
-            if process::gone_after(&denied, reobserved) {
-                Ok(false)
-            } else {
-                Err(denied)
-            }
-        };
-        let report = admitted(|| reclaim::run_with_audit(parent.path(), &audit)).unwrap();
-        (report.removed, report.kept_uncertain, child.root.exists())
-    };
-    assert_eq!(sweep(|| Err(os_error(libc::ENOENT))), (1, 0, false));
-    assert_eq!(sweep(|| Ok(())), (0, 1, true));
-    assert_eq!(sweep(|| Err(os_error(libc::EIO))), (0, 1, true));
-}
-/// A real live process of this UID whose tasks and maps deny inspection.
-struct UndumpableChild {
-    child: std::process::Child,
-    // Stays open until the child has exited: its harness still reports to this pipe.
-    _stdout: std::io::BufReader<std::process::ChildStdout>,
-    process: PathBuf,
-}
-impl UndumpableChild {
-    fn start() -> Self {
-        use std::{
-            io::{BufRead, Read},
-            process::{Command, Stdio},
-        };
-        let module = module_path!().split_once("::").unwrap().1;
-        let entry = format!("{module}::undumpable_child");
-        let mut child = Command::new(std::env::current_exe().unwrap())
-            .args([
-                "--ignored",
-                "--exact",
-                &entry,
-                "--nocapture",
-                "--test-threads=1",
-            ])
-            .stdin(Stdio::piped())
-            .stdout(Stdio::piped())
-            .stderr(Stdio::null())
-            .spawn()
-            .unwrap();
-        let mut stdout = std::io::BufReader::new(child.stdout.take().unwrap());
-        assert!(
-            stdout
-                .by_ref()
-                .lines()
-                .map_while(Result::ok)
-                .any(|line| line.contains("undumpable-ready")),
-            "owned undumpable child never reported ready"
-        );
-        let process = PathBuf::from(format!("/proc/{}", child.id()));
-        Self {
-            child,
-            _stdout: stdout,
-            process,
-        }
-    }
-    /// A process table of just this child, so that no other process decides the walk.
-    fn table(&self) -> tempfile::TempDir {
-        let table = namespace();
-        let pid = self.process.file_name().unwrap();
-        std::os::unix::fs::symlink(&self.process, table.path().join(pid)).unwrap();
-        table
-    }
-    /// Reports whether it was still alive when asked to finish, so what was seen was a live denial.
-    fn finish(mut self) -> bool {
-        let alive = self.child.try_wait().unwrap().is_none();
-        drop(self.child.stdin.take());
-        assert!(self.child.wait().unwrap().success());
-        alive
-    }
-}
-const NO_ROOT: &str = "/nonexistent-tasty-profile-root";
-/// A real live task of this UID that denies inspection: the audit must not complete past it.
-#[test]
-fn a_live_task_that_denies_inspection_keeps_the_audit_incomplete() {
-    let child = UndumpableChild::start();
-    let process = child.process.clone();
-    let root = Path::new(NO_ROOT);
-    let objects = Default::default();
-    let real = &process::stat_again;
-    // The tasks alone: maps of this process denies too and would hide a task taken as gone.
-    let tasks = process::audit_tasks(&process, root, &objects, &mut 65_536, real);
-    let whole = process::audit_process(&process, root, &objects, &mut 65_536, real);
-    let denied = os_error(libc::EACCES);
-    let live_subject_gone = process::gone(&denied, &process, real);
-    assert!(
-        child.finish(),
-        "the denied task must be live during the audit"
-    );
-    for audit in [tasks, whole] {
-        let error = audit.expect_err("a denied live task leaves the audit incomplete");
-        assert_eq!(error.raw_os_error(), Some(libc::EACCES));
-    }
-    assert!(!live_subject_gone, "a live subject stays denied");
-    assert!(
-        process::gone(&denied, &process, real),
-        "the same subject counts as gone once it has been reaped"
-    );
-}
-/// The product audit, whose second observation decides whether a root can be deleted, must not
-/// report completion while a denied process lives. The real table can answer with another process's
-/// denial or the observation bound, so only the table of this child pins the denial itself.
-#[test]
-fn the_product_audit_stays_incomplete_while_a_denied_process_lives() {
-    let child = UndumpableChild::start();
-    let table = child.table();
-    let root = Path::new(NO_ROOT);
-    let objects = Default::default();
-    let alone = process::consumers_in(table.path(), root, &objects);
-    let everything = process::consumers(root, &objects);
-    assert!(
-        child.finish(),
-        "the denied task must be live during the audit"
-    );
-    let error = alone.expect_err("completed past a live denial");
-    assert_eq!(error.raw_os_error(), Some(libc::EACCES));
-    assert!(everything.is_err(), "completed: {everything:?}");
-}
-/// Both call sites of the classification, on real denials: the injected answer stands in for the
-/// exit race, which no test can make happen on demand between a denial and its second observation.
-#[test]
-fn each_audit_call_site_skips_a_denied_subject_only_when_observed_gone() {
-    type Answer = fn() -> std::io::Result<()>;
-    let exists: Answer = || Ok(());
-    let vanished: Answer = || Err(os_error(libc::ENOENT));
-    let answers = |task: Answer, process: Answer| {
-        move |subject: &Path| {
-            if subject
-                .parent()
-                .is_some_and(|parent| parent.ends_with("task"))
-            {
-                task()
-            } else {
-                process()
-            }
-        }
-    };
-    let child = UndumpableChild::start();
-    let table = child.table();
-    let root = Path::new(NO_ROOT);
-    let objects = Default::default();
-    let tasks = |reobserve: process::Reobserve<'_>| {
-        process::audit_tasks(&child.process, root, &objects, &mut 65_536, reobserve)
-    };
-    let consumers = |reobserve: process::Reobserve<'_>| {
-        process::consumers_under(table.path(), root, &objects, reobserve)
-    };
-    let results = [
-        ("tasks: task gone", tasks(&answers(vanished, exists)), None),
-        (
-            "tasks: task exists",
-            tasks(&answers(exists, exists)),
-            Some(libc::EACCES),
-        ),
-        (
-            "tasks: real",
-            tasks(&process::stat_again),
-            Some(libc::EACCES),
-        ),
-        // Tasks taken as gone, so the denied maps reaches the consumers call site.
-        (
-            "consumers: all gone",
-            consumers(&answers(vanished, vanished)),
-            None,
-        ),
-        // A task denial carried up to the consumers call site, whose own subject is gone.
-        (
-            "consumers: process gone",
-            consumers(&answers(exists, vanished)),
-            None,
-        ),
-        // The consumers call site must not skip a process that is still there.
-        (
-            "consumers: process exists",
-            consumers(&answers(vanished, exists)),
-            Some(libc::EACCES),
-        ),
-        (
-            "consumers: real",
-            consumers(&process::stat_again),
-            Some(libc::EACCES),
-        ),
-    ];
-    assert!(
-        child.finish(),
-        "the denied task must be live during the audit"
-    );
-    for (case, result, denied) in results {
-        match denied {
-            None => assert!(matches!(result, Ok(false)), "{case}: {result:?}"),
-            Some(code) => assert_eq!(
-                result.as_ref().map_err(|error| error.raw_os_error()),
-                Err(Some(code)),
-                "{case}"
-            ),
-        }
-    }
-}
-#[test]
-#[ignore = "owned subprocess entry, invoked only by its parent test"]
-fn undumpable_child() {
-    use std::io::{Read, Write};
-    // SAFETY: this is the dedicated owned child process; prctl touches no Rust memory.
-    assert_eq!(unsafe { libc::prctl(libc::PR_SET_DUMPABLE, 0) }, 0);
-    // The handshake with the parent over its pipe, not a log line.
-    let mut stdout = std::io::stdout();
-    writeln!(stdout, "undumpable-ready").unwrap();
-    stdout.flush().unwrap();
-    let mut byte = [0];
-    let received = std::io::stdin().read(&mut byte).unwrap();
-    assert_eq!(received, 0, "owned parent closes stdin for normal exit");
-}
 #[test]
 fn deletion_error_retains_ownership_record_for_remaining_root() {
     let parent = namespace();
@@ -816,7 +556,9 @@ fn deletion_error_retains_ownership_record_for_remaining_root() {
 // the same bounded admission and then judge the first other result. Production does not
 // retry the unpublished discard. The tests apply the same retry to it only because Busy
 // returns before anything is removed.
-fn admitted<T>(mut operation: impl FnMut() -> Result<T, ProfileError>) -> Result<T, ProfileError> {
+pub(super) fn admitted<T>(
+    mut operation: impl FnMut() -> Result<T, ProfileError>,
+) -> Result<T, ProfileError> {
     let deadline = std::time::Instant::now() + std::time::Duration::from_secs(2);
     loop {
         match operation() {
@@ -830,7 +572,22 @@ fn admitted<T>(mut operation: impl FnMut() -> Result<T, ProfileError>) -> Result
 fn discard(profile: PreparedProfile) -> Result<(), ProfileError> {
     admitted(|| profile.remove_unpublished())
 }
-fn reclaim_positive(parent: &Path, max: usize) -> CleanupReport {
+pub(super) fn reclaim_positive(parent: &Path, max: usize) -> CleanupReport {
     admitted(|| reclaim_dead(parent, max))
         .unwrap_or_else(|error| panic!("positive private profile sweep: {error}"))
+}
+/// A process another test forks keeps every description open here until it execs, so a file this
+/// test just closed can still refuse a lease for a moment. Production leaves that to its next sweep.
+pub(super) fn swept_until_removed(parent: &Path, max: usize) -> CleanupReport {
+    until_removed(|| reclaim_positive(parent, max))
+}
+pub(super) fn until_removed(mut sweep: impl FnMut() -> CleanupReport) -> CleanupReport {
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(2);
+    loop {
+        let report = sweep();
+        if report.removed > 0 || std::time::Instant::now() >= deadline {
+            return report;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(5));
+    }
 }
