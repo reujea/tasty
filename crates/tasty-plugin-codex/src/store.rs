@@ -173,10 +173,55 @@ pub(crate) fn remove_file(path: &Path) -> std::io::Result<()> {
 
 /// 현재 시각(ms).
 pub(crate) fn now_ms() -> u64 {
+    #[cfg(test)]
+    {
+        if let Some(now) = test_clock::frozen() {
+            return now;
+        }
+    }
     std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .map(|d| d.as_millis() as u64)
         .unwrap_or(0)
+}
+
+/// 시험 스레드의 시각을 시험이 정한다. 재시도 시각 판정이 fsync·스케줄링으로 늘어나는 실제 경과 시간에
+/// 좌우되지 않게 한다. 다른 스레드의 시각은 바꾸지 않으므로 판정이 시험 스레드에서 도는 시험에만 쓴다.
+#[cfg(test)]
+pub(crate) mod test_clock {
+    use std::cell::Cell;
+    use std::marker::PhantomData;
+    use std::time::Duration;
+
+    thread_local! {
+        static FROZEN: Cell<Option<u64>> = const { Cell::new(None) };
+    }
+
+    pub(super) fn frozen() -> Option<u64> {
+        FROZEN.get()
+    }
+
+    /// 살아 있는 동안 이 스레드의 시각을 멈춘다. `--test-threads=1` 은 시험들이 한 스레드를 함께 쓰므로
+    /// 패닉 경로까지 Drop 에서 되돌린다.
+    pub(crate) struct Frozen(PhantomData<*const ()>);
+
+    pub(crate) fn freeze() -> Frozen {
+        assert!(FROZEN.get().is_none(), "the test clock is already frozen");
+        FROZEN.set(Some(super::now_ms()));
+        Frozen(PhantomData)
+    }
+
+    impl Frozen {
+        pub(crate) fn advance(&self, by: Duration) {
+            FROZEN.set(FROZEN.get().map(|now| now + by.as_millis() as u64));
+        }
+    }
+
+    impl Drop for Frozen {
+        fn drop(&mut self) {
+            FROZEN.set(None);
+        }
+    }
 }
 
 #[cfg(test)]

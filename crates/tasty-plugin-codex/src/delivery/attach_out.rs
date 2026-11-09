@@ -248,14 +248,3 @@ pub(crate) fn age_failures(root: &Path, ms: u64) {
         store::write_json(&path, &out).unwrap();
     }
 }
-
-/// 모든 기록의 다음 시각을 지금으로 당긴다(시간 경과를 흉내 낸다).
-#[cfg(test)]
-pub(crate) fn make_due(root: &Path) {
-    for name in names(root) {
-        let path = file(root, &name);
-        let mut out: Outgoing = store::read_json(&path).unwrap().unwrap();
-        out.next_at_ms = 0;
-        store::write_json(&path, &out).unwrap();
-    }
-}

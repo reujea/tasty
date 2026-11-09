@@ -701,6 +701,8 @@ fn completion() -> crate::delivery::ledger::Completion {
 /// 서버: 맡긴 결과는 pending 이면 남기고 다시 묻는다. delivered·rejected 를 받은 뒤에만 지운다.
 #[test]
 fn an_attach_result_is_kept_until_the_client_settles_it() {
+    let clock = crate::store::test_clock::freeze();
+    let retry_after = crate::delivery::backoff(1);
     let fx = Fixture::new();
     let name = "a".repeat(64);
     attach_out::queue(
@@ -750,7 +752,14 @@ fn an_attach_result_is_kept_until_the_client_settles_it() {
     assert_eq!(attach_out::pending(fx.root()), 2);
     assert_eq!(attach_out::given_up(fx.root()), 1);
     let asked = fx.rec.notices.borrow().len();
-    attach_out::make_due(fx.root());
+    clock.advance(retry_after - std::time::Duration::from_millis(1));
+    fx.with(attach_out::pump);
+    assert_eq!(
+        fx.rec.notices.borrow().len(),
+        asked,
+        "the waiting record is not asked before its time"
+    );
+    clock.advance(std::time::Duration::from_millis(1));
     fx.with(attach_out::pump);
     assert_eq!(
         fx.rec.notices.borrow().len(),

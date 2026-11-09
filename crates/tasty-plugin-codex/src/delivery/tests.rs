@@ -304,6 +304,7 @@ fn an_owned_parent_without_a_ready_tui_holds_until_it_attaches() {
 
 #[test]
 fn outcomes_apply_only_from_this_process_and_only_while_sending() {
+    let clock = crate::store::test_clock::freeze();
     let mut fx = Fixture::new();
     fx.loaded = Ok(true);
     let rid = parent(&fx, PARENT).unwrap()["receiver_id"]
@@ -342,9 +343,15 @@ fn outcomes_apply_only_from_this_process_and_only_while_sending() {
         fx.rec.wakes.borrow().as_slice(),
         &[(PARENT.to_string(), backoff(1))]
     );
-    make_due(&fx, &id);
+    clock.advance(backoff(1) - Duration::from_millis(1));
     wake(&fx, PARENT);
-    assert_eq!(fx.take_jobs().len(), 1);
+    assert!(
+        fx.take_jobs().is_empty(),
+        "재시도 시각 1ms 전에도 보내지 않는다"
+    );
+    clock.advance(Duration::from_millis(1));
+    wake(&fx, PARENT);
+    assert_eq!(fx.take_jobs().len(), 1, "재시도 시각이 되면 보낸다");
     let accepted = Outcome::Accepted {
         submission_id: Some("sub".into()),
         confirmed_by: "queue_add".into(),
@@ -1913,6 +1920,7 @@ fn a_background_native_thread_cannot_replace_the_selected_conversation() {
 /// 때까지 기록을 두고, 확인(delivered) 뒤에만 지운다.
 #[test]
 fn a_turn_of_an_attach_child_goes_to_the_attach_parent_not_the_ledger() {
+    let clock = crate::store::test_clock::freeze();
     let mut fx = Fixture::new();
     fx.loaded = Ok(true);
     ledger::set_attach_child(
@@ -1955,7 +1963,7 @@ fn a_turn_of_an_attach_child_goes_to_the_attach_parent_not_the_ledger() {
     // 재시작은 남은 기록을 다시 묻는 계기다. 간격 전에는 묻지 않는다.
     fx.with(super::recover);
     assert_eq!(super::attach_out::pending(fx.root()), 1);
-    super::attach_out::make_due(fx.root());
+    clock.advance(backoff(1));
     fx.with(super::recover);
     assert_eq!(super::attach_out::pending(fx.root()), 0);
     assert_eq!(fx.rec.notices.borrow().len(), 2);
