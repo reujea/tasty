@@ -22,7 +22,7 @@ ignore = [
   "RUSTSEC-2024-0436", # paste 1.0.15 unmaintained
 
   # proc-macro-error 1.0.4 유지보수 종료. 알려진 취약점이 아니다.
-  # glib-macros 0.18·gtk3-macros 0.18만 쓰는 프로시저 매크로이고 Linux 대상 그래프에만 있다. 컴파일할 때만 실행된다.
+  # glib-macros 0.18·gtk3-macros 0.18만 쓰는 프로시저 매크로용 라이브러리이고 Linux 대상 그래프에만 있다. 컴파일할 때만 실행된다.
   # webkit2gtk·gtk·트레이가 GTK3 0.18 계열을 벗어날 때 해제한다. 어느 판에서 벗어나는지는 미측정이다.
   "RUSTSEC-2024-0370", # proc-macro-error 1.0.4 unmaintained
 
@@ -34,7 +34,8 @@ ignore = [
 
   # ttf-parser 0.25.1 유지보수 종료. 알려진 취약점이 없고 공지에 수정판도 없다.
   # 빌드 도구가 아니라 실행 중에 글꼴을 읽는 파서다. cosmic-text(fontdb)와 egui(ab_glyph)로 제품에 들어간다.
-  # 입력은 내장 글꼴, 시스템 글꼴, 사용자가 지정한 custom_font_path의 로컬 파일이다. 네트워크에서 받은 글꼴을 읽는 경로는 찾지 못했다.
+  # 입력은 내장 글꼴, 시스템 글꼴, 사용자가 지정한 custom_font_path의 로컬 파일, 사용자가 ~/.tasty/lang에 놓은 언어팩의 동봉 글꼴이다.
+  # 언어팩 글꼴처럼 제3자가 만든 파일이 입력일 수 있다. Tasty가 글꼴을 직접 내려받는 경로는 찾지 못했다.
   # 0.25.1은 forbid(unsafe_code)라 이 크레이트 안의 메모리 오류 위험은 낮다.
   # 손상된 글꼴 파일에서 패닉이 나는지는 미측정이다. 유지보수가 끝나 파서 결함이 나와도 고쳐지지 않는다.
   # ttf-parser에 취약점 공지가 나오면 다시 판단한다.
