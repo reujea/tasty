@@ -1,7 +1,7 @@
 //! 찾기 매치의 글자색. 셀 속성은 실제 SGR 바이트를 터미널에 넣어 얻는다.
 
 use super::*;
-use crate::cell_palette::compute_cell_colors;
+use crate::cell_palette::{compute_cell_colors, reads_default_ink};
 use tasty_terminal::Terminal;
 use tasty_terminal::search::SearchMatch;
 use termwiz::cell::CellAttributes;
