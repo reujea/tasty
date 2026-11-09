@@ -5,6 +5,7 @@ mod accessibility;
 mod anomaly_detection;
 mod appearance;
 mod choice;
+mod font_rows;
 mod general;
 #[cfg(target_os = "macos")]
 mod general_display;

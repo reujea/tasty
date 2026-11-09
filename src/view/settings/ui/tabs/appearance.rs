@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 
+use super::font_rows::preview_font_family;
 use crate::i18n::t;
 use crate::settings::{
     ActiveTabIndicator, EffectiveFont, FontOverride, FontSettings, HexColor, Settings,
@@ -1857,40 +1858,8 @@ fn draw_font_preview(
         eff.font_family.clone()
     };
 
-    // Decide which egui FontFamily to render text in. We try to load the
-    // requested family into a per-slot named family the first time we see it,
-    // and remember success/failure in `preview_font_loaded` so we don't retry.
-    let preview_family = if eff.font_family.is_empty() && eff.custom_font_path.is_empty() {
-        egui::FontFamily::Monospace
-    } else {
-        let key = format!("{}|{}", eff.font_family, eff.custom_font_path);
-        let failed_marker = format!("\x00:{}", key);
-        let cached = preview_font_loaded
-            .get(&slot_name)
-            .cloned()
-            .unwrap_or_default();
-        if cached == key {
-            egui::FontFamily::Name(slot_name.clone().into())
-        } else if cached == failed_marker {
-            egui::FontFamily::Monospace
-        } else {
-            // First attempt this frame: rebuild the full FontDefinitions
-            // (surface families + this preview slot) and install it.
-            let fonts = crate::adapters::ui::font_registry::build_font_definitions(
-                appearance,
-                Some((&slot_name, eff)),
-            );
-            ui.ctx().set_fonts(fonts);
-            // set_fonts() replaces the entire FontDefinitions, so other
-            // preview slots are no longer registered. Clear them so they
-            // get re-loaded when their tab is revisited.
-            preview_font_loaded.retain(|k, _| k == &slot_name);
-            preview_font_loaded.insert(slot_name.clone(), key);
-            // The family won't be available until the next frame; fall back
-            // to Monospace this frame.
-            egui::FontFamily::Monospace
-        }
-    };
+    let preview_family =
+        preview_font_family(ui.ctx(), appearance, &slot_name, eff, preview_font_loaded);
 
     let sample_lines = [
         "AaBbCcDdEeFfGg",
