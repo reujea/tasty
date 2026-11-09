@@ -6,7 +6,7 @@ tasty 가 죽거나 멈췄을 때 무엇이 어디에 기록되는지, 빌드 �
 
 부팅 때 설치된 panic hook 이 panic 을 잡아 **두 곳**에 남긴다 (release·dev·dist 공통, panic 발생 시 기록):
 
-1. **crash report 파일** — `~/.tasty/crash-reports/crash-<YYYY-MM-DDTHH-MM-SS>.log`
+1. **crash report 파일** — `~/.tasty/crash-reports/crash-<YYYY-MM-DDTHH-MM-SS>-p<PID>-<패닉 순번 10자리>.log`. 패닉마다 새 파일을 만들고 이미 있는 파일은 비우거나 덮어쓰지 않는다. PID 재사용이나 시계 역행으로 이름이 겹치면 끝에 `-<번호>`를 붙인 다른 이름을 쓴다.
 2. **stderr** — `Tasty crashed! Report saved to: <경로>` + `panic: <info>` + 전체 backtrace
 
 ### crash report 내용
@@ -16,6 +16,12 @@ tasty 가 죽거나 멈췄을 때 무엇이 어디에 기록되는지, 빌드 �
 Timestamp: 2026:06:17 19:23:07
 Version: 0.8.4                      ← 본체(tasty) 버전 — `os::init_crash_report` 가 본체 크레이트의 CARGO_PKG_VERSION 을 `crash_report::init` 에 넘긴다
 OS: macos aarch64                  ← std::env::consts::OS / ARCH
+
+=== Process ===
+PID: 41200
+Panic sequence: 2                  ← 이 프로세스에서 몇 번째 패닉인가
+First panic location: src/view/main/redraw.rs:98   ← 이 프로세스의 첫 패닉. 순번이 1이면 이 두 줄은 없다
+First panic message: index out of bounds: ...
 
 === Panic ===
 Location: src/view/main/redraw.rs:142   ← info.location() (있을 때)
@@ -33,6 +39,16 @@ backtrace 는 `Backtrace::force_capture()` 로 항상 수집되므로 `RUST_BACK
 ls ~/.tasty/crash-reports/
 cat ~/.tasty/crash-reports/crash-*.log
 ```
+
+### 패닉이 연달아 날 때
+
+한 프로세스에서 패닉이 이어지면 보고서도 여러 개 생긴다. 예를 들어 해제 중 소멸자가 다시 패닉하면 원인 패닉, 소멸자 패닉, 언어 런타임의 `panic in a destructor during cleanup` 순서로 파일 3개가 남고 프로세스는 abort한다. 마지막 파일의 `Message:`는 원인이 아니다.
+
+- **무엇을 먼저 읽는가**: 어느 파일이든 `First panic location:`과 `First panic message:`가 그 프로세스의 첫 패닉이다. `Panic sequence: 1`인 파일은 그 패닉 자체가 첫 패닉이라 이 줄이 없고 `=== Panic ===` 절을 읽는다. 같은 프로세스의 파일은 이름의 `p<PID>`가 같다.
+- **순서**: 패닉이 한 스레드에서 이어지면 이름순이 패닉 순서다. 여러 스레드가 동시에 패닉해 초 경계에 걸리면 이름순과 어긋날 수 있으므로 `Panic sequence:`를 기준으로 삼는다. 프로세스 사이의 순서와 시계가 뒤로 간 때의 순서는 이름으로 알 수 없다.
+- **첫 패닉의 뜻**: 훅에 먼저 들어온 패닉이다. 다른 스레드와 동시에 패닉하면 첫 패닉이 인과상의 원인이라는 보장은 없다.
+- **생성률 제한**: 프로세스 하나가 초마다 만드는 보고서는 4개까지다(`REPORT_FILES_PER_SECOND`). 회복되는 패닉이 폭주할 때 파일이 늘어나는 속도를 제한할 뿐 디스크 사용량의 상한은 아니다. 폭주가 이어지면 파일은 계속 쌓인다. 넘친 패닉은 `Report saved` 줄 없이 stderr에만 남는다. 첫 패닉은 제한과 무관하게 쓴다. 프로세스 전체 개수에는 상한이 없고 자동 삭제도 없다.
+- **제한의 한계**: 회복되는 패닉이 폭주하는 같은 초에 치명 패닉이 나면 그 패닉은 파일에서 빠질 수 있다. 이때도 남은 파일에 그 프로세스의 첫 패닉 요약이 있고 치명 패닉은 stderr에 나간다. 다만 stderr를 받을 곳이 없으면 치명 패닉의 위치와 메시지는 어디에도 남지 않는다. Windows release GUI는 `windows_subsystem = "windows"`라 콘솔에서 띄우지 않으면 받을 곳이 없고, 앱 번들로 띄운 macOS도 사용자가 보기 어렵다.
 
 ## tracing 로그 — `TASTY_LOG`
 
@@ -187,7 +203,7 @@ dev 빌드가 심볼이 온전해 위치 파악이 쉽다.
 
 | 파일 / 경로 | 빌드 | 내용 |
 |-------------|------|------|
-| `~/.tasty/crash-reports/crash-*.log` | 모두 | panic 시 자동(버전·OS·위치·메시지·backtrace) |
+| `~/.tasty/crash-reports/crash-*.log` | 모두 | panic 시 자동, 패닉마다 새 파일(버전·OS·PID·순번·첫 패닉 요약·위치·메시지·backtrace). 프로세스당 초당 4개까지 |
 | `~/.tasty/crash-reports/hang-*.log` | 모두 | 이벤트 루프 stall 시 자동(콜백 안팎·pending·진행 나이·기록된 GPU 구간). stall 당 1 개, 복구는 하지 않음 |
 | `~/.tasty-debug/debug-dev.log` | dev 만 | 전체 debug tracing(host 프로세스 전용, host 시작 시 truncate) |
 | `~/.tasty/debug.log` | release / dist 만 | warn 이상 tracing(host 프로세스 전용, host 시작 시 truncate) |
