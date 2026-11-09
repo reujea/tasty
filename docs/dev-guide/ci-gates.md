@@ -705,7 +705,7 @@ grep -E '^test result:' gui-unit.log | grep -vc ' ok\.'
 
 `crates/tasty-plugin-markdown/src/render/webview_layout_tests.rs` 는 `render_document` 의 HTML 을
 화면 밖 WebKitGTK 창에 띄우고 `getBoundingClientRect()` 로 주소창 배치를 잰다. 긴 문서 끝과 앵커
-이동 뒤에 주소창 `top` 이 0 인지, 짧은 문서의 `body` 가 뷰포트 높이를 채우는지를 본다. 생성 CSS
+이동 뒤에 주소창 `top` 이 0 인지, 짧은 문서의 `body` 가 뷰포트 높이를 채우는지를 본다. 콜아웃 라벨이 찾기와 선택 문자열에 잡히는지도 실제 찾기 스크립트와 `Selection.toString()` 으로 본다. 생성 CSS
 문자열 시험은 선언만 보므로, 문자열 시험이 보지 않는 선언이 배치를 깨는 경우는 이 시험만 실패한다.
 하네스는 같은 HTML 을 같은 엔진의 기본 설정으로 배치한다. 호스트가 WebView 에 주는 zoom·JS 게이트·콘텐츠
 필터는 재현하지 않는다.

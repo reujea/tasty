@@ -99,6 +99,22 @@ impl Page {
 
     /// 스크립트의 값을 JSON 문자열로 돌려받아 숫자로 읽는다.
     fn number(&self, script: &str) -> f64 {
+        let value = self.json(script);
+        value
+            .as_f64()
+            .unwrap_or_else(|| panic!("{script}: 숫자가 아니다: {value}"))
+    }
+
+    /// 스크립트의 값을 문자열로 읽는다.
+    fn string(&self, script: &str) -> String {
+        let value = self.json(script);
+        value
+            .as_str()
+            .unwrap_or_else(|| panic!("{script}: 문자열이 아니다: {value}"))
+            .to_string()
+    }
+
+    fn json(&self, script: &str) -> serde_json::Value {
         let out: Rc<RefCell<Option<Result<String, String>>>> = Rc::new(RefCell::new(None));
         let slot = out.clone();
         let wrapped = format!("JSON.stringify((() => {{ {script} }})())");
@@ -118,11 +134,32 @@ impl Page {
             .take()
             .expect("filled above")
             .unwrap_or_else(|e| panic!("{script}: 스크립트 실패: {e}"));
-        let value: serde_json::Value =
-            serde_json::from_str(&text).unwrap_or_else(|e| panic!("{script}: {text}: {e}"));
-        value
-            .as_f64()
-            .unwrap_or_else(|| panic!("{script}: 숫자가 아니다: {text}"))
+        serde_json::from_str(&text).unwrap_or_else(|e| panic!("{script}: {text}: {e}"))
+    }
+
+    /// 찾기 막대에 검색어를 넣고 건수 표시가 기대값이 될 때까지 기다린다.
+    /// 입력 뒤 검색은 타이머로 예약되므로 첫 읽기가 이전 값을 볼 수 있다.
+    fn find_count_becomes(&self, query: &str, expected: &str) {
+        let set = format!(
+            "const i = document.getElementById('tasty-find-input'); i.value = {}; \
+             i.dispatchEvent(new Event('input', {{bubbles: true}})); return 0;",
+            serde_json::to_string(query).expect("문자열 직렬화")
+        );
+        self.number(&set);
+        let start = Instant::now();
+        loop {
+            let shown =
+                self.string("return document.getElementById('tasty-find-count').textContent;");
+            if shown == expected {
+                return;
+            }
+            assert!(
+                start.elapsed() < WAIT,
+                "검색어 {query}: 건수가 {expected} 이 아니라 {shown} 이다"
+            );
+            gtk::main_iteration_do(false);
+            std::thread::sleep(Duration::from_millis(2));
+        }
     }
 }
 
@@ -191,6 +228,58 @@ fn address_bar_stays_on_top_in_webkitgtk() {
     );
 
     remote_address_band_layout();
+    callout_label_stays_out_of_find_and_selection();
+}
+
+/// 실제 영어 번역표로 문서를 그린다. 기본 라벨이 키가 아니라 문구로 나와야 찾기를 잴 수 있다.
+fn document_en(source: &str) -> String {
+    let theme = Theme::with_colors_and_zoom(tasty_themes::mocha_fallback_colors(), false, 1.0);
+    let tr = Translator::load(&Path::new(env!("CARGO_MANIFEST_DIR")).join("lang"), "en");
+    render_document(DocumentInput {
+        find_bindings: &[],
+        address_bindings: &[],
+        theme: &theme,
+        tr: &tr,
+        file_path: "/a/current.md",
+        source,
+        load_error: None,
+        base_dir: Some(Path::new("/a")),
+        recent: &[],
+        remote: None,
+        large_deferred: false,
+    })
+}
+
+const SELECT_BODY: &str = "const s = getSelection(); \
+     s.selectAllChildren(document.getElementById('tasty-md-body')); return s.toString();";
+const SELECT_QUOTE: &str = "const s = getSelection(); \
+     s.selectAllChildren(document.querySelector('blockquote')); return s.toString();";
+
+/// 접지 않는 콜아웃의 라벨은 보이기만 하는 글자다. 찾기가 잡지 않고 선택·복사 문자열에도 없다.
+/// 접는 콜아웃의 라벨은 실제 글자 노드라 찾기가 잡고 선택 문자열에도 있다.
+/// 문자열은 라벨 구조를 바꾸기 전의 값이다. 복사는 같은 선택 문자열을 쓴다.
+fn callout_label_stays_out_of_find_and_selection() {
+    let page = Page::load(&document_en(
+        "Before para.\n\n> [!NOTE]\n> Quoted body.\n\nAfter para.",
+    ));
+    page.find_count_becomes("Quoted", "1/1");
+    page.find_count_becomes("Note", "0/0");
+    assert_eq!(page.string(SELECT_QUOTE), "Quoted body.\n\n", "콜아웃 선택");
+    assert_eq!(
+        page.string(SELECT_BODY),
+        "Before para.\n\nQuoted body.\n\nAfter para.",
+        "본문 전체 선택"
+    );
+
+    let folded = Page::load(&document_en(
+        "Before para.\n\n> [!NOTE]+\n> Quoted body.\n\nAfter para.",
+    ));
+    folded.find_count_becomes("Note", "1/1");
+    assert_eq!(
+        folded.string(SELECT_BODY),
+        "Before para.\n\nNote\nQuoted body.\n\nAfter para.",
+        "접는 콜아웃의 본문 전체 선택"
+    );
 }
 
 fn remote_document(failure: Option<AddrFailure>) -> String {
