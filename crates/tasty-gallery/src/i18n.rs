@@ -1,47 +1,54 @@
 //! 갤러리의 번역 조회. 본체와 같은 `lang/en.toml` 문자열을 읽어 사본을 두지 않는다.
-//! 갤러리는 설정을 읽지 않으므로 처음 조회할 때 영어 번역표로 한 번 초기화한다.
+//! 갤러리는 설정을 읽지 않는다. 처음 조회할 때 `TASTY_LOCALE`의 언어로 한 번 초기화하고, 값이 없으면
+//! 영어다. 라벨 글꼴과 같은 값을 읽어 표본의 글꼴과 번역 문구가 같은 언어로 나온다.
 
 fn ensure_init() {
     static INIT: std::sync::Once = std::sync::Once::new();
     INIT.call_once(|| {
-        let report = tasty_i18n::init("en");
+        // 단위 시험은 영어 문구를 기대하고, Tasty 안에서 실행하면 사용자 언어를 물려받는다.
+        let language = if cfg!(test) {
+            String::new()
+        } else {
+            std::env::var("TASTY_LOCALE").unwrap_or_default()
+        };
+        let report = tasty_i18n::init(if language.is_empty() { "en" } else { &language });
         if report.fell_back() {
             tracing::warn!("gallery i18n init fell back: {report:?}");
         }
     });
 }
 
-/// `key`의 영어 문자열.
+/// `key`의 현재 언어 문자열.
 pub fn t(key: &'static str) -> &'static str {
     ensure_init();
     tasty_i18n::t(key)
 }
 
-/// `key`의 영어 문자열에서 첫 `{}` 를 `arg` 로 바꾼다.
+/// `key`의 현재 언어 문자열에서 첫 `{}` 를 `arg` 로 바꾼다.
 pub fn t_fmt(key: &'static str, arg: &str) -> String {
     ensure_init();
     tasty_i18n::t_fmt(key, arg)
 }
 
-/// 수 `n` 에 맞는 영어 문자열(`<key>` 또는 단수 변형 `<key>_one`)을 `args` 로 채운다.
+/// 수 `n` 에 맞는 현재 언어 문자열(`<key>` 또는 단수 변형 `<key>_one`)을 `args` 로 채운다.
 pub fn t_count(key: &'static str, n: u64, args: &[&str]) -> String {
     ensure_init();
     tasty_i18n::t_count(key, n, args)
 }
 
-/// 수 `n` 에 맞는 영어 템플릿(`<key>` 또는 `<key>_one`)을 채우지 않고 돌려준다.
+/// 수 `n` 에 맞는 현재 언어 템플릿(`<key>` 또는 `<key>_one`)을 채우지 않고 돌려준다.
 pub fn t_count_template(key: &'static str, n: u64) -> &'static str {
     ensure_init();
     tasty_i18n::t_count_template(key, n)
 }
 
-/// `key`의 영어 문자열에서 앞의 두 `{}` 를 차례로 바꾼다.
+/// `key`의 현재 언어 문자열에서 앞의 두 `{}` 를 차례로 바꾼다.
 pub fn t_fmt2(key: &'static str, arg1: &str, arg2: &str) -> String {
     ensure_init();
     tasty_i18n::t_fmt2(key, arg1, arg2)
 }
 
-/// `key`의 영어 문자열에서 `{}` 를 `args` 로 차례로 바꾼다.
+/// `key`의 현재 언어 문자열에서 `{}` 를 `args` 로 차례로 바꾼다.
 pub fn t_args(key: &'static str, args: &[&str]) -> String {
     ensure_init();
     tasty_i18n::t_args(key, args)
@@ -81,7 +88,11 @@ pub fn t_lang(code: &str, key: &'static str) -> &'static str {
             })
             .collect()
     });
-    match tables.get(code).and_then(|table| table.get(key)) {
+    match tables
+        .get(code)
+        .and_then(|table| table.get(key))
+        .or_else(|| tables.get("en").and_then(|table| table.get(key)))
+    {
         Some(value) => value.as_str(),
         None => t(key),
     }

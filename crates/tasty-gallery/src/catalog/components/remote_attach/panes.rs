@@ -34,7 +34,7 @@ pub(super) fn left_pane(ui: &mut egui::Ui, theme: &Theme, rect: egui::Rect, stat
         ),
         egui::Align2::LEFT_TOP,
         "ATTACH PROFILES",
-        egui::FontId::monospace(theme.font_size_micro.value()),
+        tasty_ui_widgets::label_font(theme.font_size_micro.value()),
         theme.text_muted().to_egui(),
     );
     let sel_name = match state {
@@ -116,7 +116,7 @@ fn loaded_pane(
     let y = hdr.top() + theme.spacing_md.value();
     let caps = col.painter().layout_no_wrap(
         "REMOTE WORKSPACES".to_owned(),
-        egui::FontId::monospace(theme.font_size_micro.value()),
+        tasty_ui_widgets::label_font(theme.font_size_micro.value()),
         theme.text_muted().to_egui(),
     );
     let caps_w = caps.rect.width();

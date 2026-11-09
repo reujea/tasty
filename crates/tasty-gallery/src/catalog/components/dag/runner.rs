@@ -78,7 +78,7 @@ fn colors(theme: &Theme, r: &Runner) -> (HexColor, HexColor, HexColor, HexColor)
 
 /// 알약 폭 — 헤더가 자리를 잡을 때 미리 알아야 한다.
 pub fn badge_width(ui: &egui::Ui, theme: &Theme, r: &Runner) -> f32 {
-    let font = egui::FontId::monospace(theme.font_size_caption.value());
+    let font = tasty_ui_widgets::label_font(theme.font_size_caption.value());
     theme.dag_runner_padding_x().value() * 2.0
         + theme.status_dot_size().value()
         + theme.dag_runner_gap().value()
@@ -110,7 +110,7 @@ pub fn paint_badge(ui: &mut egui::Ui, theme: &Theme, rect: egui::Rect, r: &Runne
         ),
         egui::Align2::LEFT_CENTER,
         text_of(r),
-        egui::FontId::monospace(theme.font_size_caption.value()),
+        tasty_ui_widgets::label_font(theme.font_size_caption.value()),
         fg.to_egui(),
     );
 }

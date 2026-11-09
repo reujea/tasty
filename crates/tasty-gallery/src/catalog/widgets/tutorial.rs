@@ -505,7 +505,7 @@ fn topic_popup(ui: &mut egui::Ui, theme: &Theme, scaled: bool) {
                     ui.horizontal(|ui| {
                         ui.label(
                             egui::RichText::new("Esc 닫기")
-                                .monospace()
+                                .family(tasty_ui_widgets::label_font_family())
                                 .size(theme.font_size_micro.value())
                                 .color(theme.text_muted().to_egui()),
                         );

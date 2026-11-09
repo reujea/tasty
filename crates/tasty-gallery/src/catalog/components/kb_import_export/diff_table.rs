@@ -117,7 +117,7 @@ fn diff_table(ui: &mut egui::Ui, theme: &Theme, st: &mut State) {
     ui.scope(|ui| {
         ui.spacing_mut().item_spacing.y = 0.0;
 
-        let head_font = egui::FontId::monospace(theme.font_size_micro.value());
+        let head_font = tasty_ui_widgets::label_font(theme.font_size_micro.value());
         let head_h = ui.fonts(|f| f.row_height(&head_font)) + pad_y;
         let (rect, _) = ui.allocate_exact_size(egui::vec2(w, head_h), egui::Sense::hover());
         let caps = theme.letter_spacing_caps(theme.font_size_micro);
@@ -274,7 +274,7 @@ fn group_header(
             let galley = truncated_tracked(
                 ui,
                 &g.label.to_uppercase(),
-                egui::FontId::monospace(theme.font_size_micro.value()),
+                tasty_ui_widgets::label_font(theme.font_size_micro.value()),
                 theme.text_secondary_raised().to_egui(),
                 f32::INFINITY,
                 theme.letter_spacing_caps(theme.font_size_micro),
@@ -312,7 +312,7 @@ fn group_header(
             let changed = g.rows.iter().filter(|r| r.cur != r.next).count();
             ui.label(
                 egui::RichText::new(format!("{changed} changed · {} total", g.rows.len()))
-                    .monospace()
+                    .family(tasty_ui_widgets::label_font_family())
                     .size(theme.font_size_caption.value())
                     .color(theme.text_muted_raised().to_egui()),
             );

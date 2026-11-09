@@ -139,7 +139,7 @@ fn frame(ui: &mut egui::Ui, th: &Theme, label: &str, bufs: &mut [String; 2]) {
 fn mono_head(ui: &mut egui::Ui, theme: &Theme, text: &str) {
     ui.label(
         egui::RichText::new(text.to_uppercase())
-            .monospace()
+            .family(tasty_ui_widgets::label_font_family())
             .size(theme.font_size_micro.value())
             .color(theme.text_muted().to_egui()),
     );
@@ -165,7 +165,7 @@ fn bytes_control(ui: &mut egui::Ui, theme: &Theme, buf: &mut String, (min, max):
                 .show(ui, theme, buf);
             ui.label(
                 egui::RichText::new("B")
-                    .monospace()
+                    .family(tasty_ui_widgets::label_font_family())
                     .size(theme.font_size_caption.value())
                     .color(theme.text_muted().to_egui()),
             );

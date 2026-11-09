@@ -473,7 +473,7 @@ fn preset_list(ui: &mut egui::Ui, theme: &Theme, rect: egui::Rect, st: &mut WinS
         &count.to_uppercase(),
         0.0,
         egui::TextFormat {
-            font_id: egui::FontId::monospace(micro.value()),
+            font_id: tasty_ui_widgets::label_font(micro.value()),
             color: theme.text_muted().to_egui(),
             extra_letter_spacing: micro.value() * HEAD_TRACKING_EM,
             ..Default::default()

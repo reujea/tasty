@@ -70,6 +70,74 @@ pub fn draw(ui: &mut egui::Ui, theme: &Theme) {
         theme,
         "디자인의 제목은 본문과 같은 기본 크기에 굵기 600을 사용한다. 이 egui 예제의 RichText::strong은 글꼴 굵기를 바꾸지 않고 강조색을 선택하므로 그 차이를 색으로 근사한다.",
     );
+    draw_label_family(ui, theme);
+}
+
+/// 디자인 정본의 `label-family` 표본. 한 프로세스는 한 언어로 실행되므로 네 언어를 함께 보이려고 행마다
+/// family를 직접 고른다. 문구는 앱 언어 파일의 머리글과 설정 절 제목이다.
+const LABEL_FAMILY: [(&str, &str, &str, &str); 4] = [
+    ("en", "font-mono", "Workspaces", "Attach connections"),
+    ("ko", "font-mono", "워크스페이스", "Attach 연결"),
+    ("ja", "font-ui", "ワークスペース", "アタッチ接続"),
+    ("zh-Hans", "font-ui", "工作区", "附加连接"),
+];
+
+fn draw_label_family(ui: &mut egui::Ui, theme: &Theme) {
+    ui.add_space(theme.spacing_lg.value());
+    note(
+        ui,
+        theme,
+        "label-family: small translated labels read font-label. English and Korean use mono; \
+         Japanese and Simplified Chinese use UI sans because mono lacks some of their Han glyphs. \
+         Paths, IDs and other values stay mono in every language.",
+    );
+    stage(ui, theme, StageVariant::Column, |ui| {
+        let size = theme.sidebar_section_heading_font_size;
+        let gap = theme.spacing_sm.value();
+        egui::Grid::new("label_family")
+            .spacing(egui::vec2(gap, gap))
+            .show(ui, |ui| {
+                for (language, token, heading, section) in LABEL_FAMILY {
+                    for cap in [language, token] {
+                        ui.label(
+                            egui::RichText::new(cap)
+                                .monospace()
+                                .size(theme.font_size_micro.value())
+                                .color(ec(theme.text_muted())),
+                        );
+                    }
+                    for label in [heading, section] {
+                        ui.label(
+                            egui::RichText::new(label.to_uppercase())
+                                .family(tasty_ui_widgets::label_font_family_for(language))
+                                .size(size.value())
+                                .extra_letter_spacing(
+                                    theme.sidebar_section_heading_tracking(size).value(),
+                                )
+                                .color(ec(theme.text_muted())),
+                        );
+                    }
+                    ui.end_row();
+                }
+            });
+    });
+    meta(
+        ui,
+        theme,
+        &[
+            ("family", "font-label"),
+            ("language rule", "tokens/base.css, RULES section 8"),
+            (
+                "size, ink, tracking, uppercase",
+                "the label's own, in every language",
+            ),
+        ],
+        &[
+            TokenChip::without_color("font-label", "words in a small label"),
+            TokenChip::without_color("font-mono", "en, ko; values in every language"),
+            TokenChip::without_color("font-ui", "ja, zh-Hans"),
+        ],
+    );
 }
 
 /// typeScaleRow — [150px 라벨(토큰 + px)] [샘플].

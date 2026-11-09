@@ -312,7 +312,7 @@ fn draw_footer(ui: &mut egui::Ui, theme: &Theme, footer: egui::Rect, dirty: bool
 fn field_label(ui: &mut egui::Ui, theme: &Theme, text: &str) {
     ui.label(
         egui::RichText::new(text.to_uppercase())
-            .monospace()
+            .family(tasty_ui_widgets::label_font_family())
             .size(theme.font_size_micro.value())
             .color(theme.text_muted().to_egui()),
     );

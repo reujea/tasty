@@ -616,7 +616,7 @@ fn attach_form_card(ui: &mut egui::Ui, theme: &Theme, inline: bool) {
             ui.add_space(theme.spacing_xs.value());
             ui.label(
                 egui::RichText::new("REMOTE TASTY")
-                    .monospace()
+                    .family(tasty_ui_widgets::label_font_family())
                     .size(theme.font_size_micro.value())
                     .color(theme.text_muted().to_egui()),
             );

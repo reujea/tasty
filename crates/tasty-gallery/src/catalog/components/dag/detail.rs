@@ -117,7 +117,7 @@ fn dependency_row(
         mono.clone(),
         status.label_fg(theme).to_egui(),
     );
-    let rel_font = egui::FontId::monospace(theme.font_size_micro.value());
+    let rel_font = tasty_ui_widgets::label_font(theme.font_size_micro.value());
     let rel_w = super::node::text_width(ui, rel.label(), &rel_font);
     ui.painter().text(
         egui::pos2(rect.max.x - pad, rect.center().y),
@@ -176,7 +176,7 @@ pub fn draw_body(ui: &mut egui::Ui, theme: &Theme, graph: &Graph, id: &str) -> O
         ui.label(
             egui::RichText::new(format!("{} {}", node.glyph(), node.status_label()))
                 .size(caption(theme))
-                .monospace()
+                .family(tasty_ui_widgets::label_font_family())
                 .color(node.label_fg(theme).to_egui()),
         );
         tag(ui, theme, node.kind.label(), TagVariant::Default, false);

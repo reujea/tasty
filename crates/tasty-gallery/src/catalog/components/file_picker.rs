@@ -817,7 +817,7 @@ fn list_header(ui: &mut egui::Ui, theme: &Theme, w: LogicalPx, multi: bool) {
         ),
     );
     let c = cols(rect, theme, multi);
-    let font = egui::FontId::monospace(theme.font_size_micro.value());
+    let font = tasty_ui_widgets::label_font(theme.font_size_micro.value());
     let muted = theme.text_muted().to_egui();
     ui.painter().text(
         egui::pos2(c.name_left.value(), rect.center().y),

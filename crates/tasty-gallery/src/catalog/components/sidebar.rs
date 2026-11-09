@@ -324,7 +324,7 @@ fn section_heading_galley(
         &text.to_uppercase(),
         0.0,
         egui::TextFormat {
-            font_id: egui::FontId::monospace(size.value()),
+            font_id: tasty_ui_widgets::label_font(size.value()),
             extra_letter_spacing: theme.sidebar_section_heading_tracking(size).value(),
             color,
             ..Default::default()

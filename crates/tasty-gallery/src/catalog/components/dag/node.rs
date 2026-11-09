@@ -142,7 +142,7 @@ pub fn paint_card(ui: &mut egui::Ui, theme: &Theme, rect: egui::Rect, node: &Nod
     }
 
     let name_font = egui::FontId::proportional(theme.dag_node_name_font_size().value() * zoom);
-    let meta_font = egui::FontId::monospace(theme.dag_node_meta_font_size().value() * zoom);
+    let meta_font = tasty_ui_widgets::label_font(theme.dag_node_meta_font_size().value() * zoom);
     let row_gap = theme.dag_node_row_gap().value() * zoom;
     let gap = theme.dag_node_gap().value() * zoom;
     let icon_side = ICON_SIZE_SM.value() * zoom;
@@ -275,7 +275,7 @@ pub(super) fn node_box(ui: &mut egui::Ui, theme: &Theme, node: &Node, vis: NodeV
     let w = theme.dag_node_width().value();
     let h = theme.dag_node_height().value();
     let gap = theme.spacing_sm.value();
-    let cap_font = egui::FontId::monospace(theme.font_size_micro.value());
+    let cap_font = tasty_ui_widgets::label_font(theme.font_size_micro.value());
     let cap_h = row_height(ui, &cap_font);
     // 선택 링은 카드 바깥에 그려지므로 그만큼 자리를 미리 비워 둔다.
     let pad = if vis.selected {

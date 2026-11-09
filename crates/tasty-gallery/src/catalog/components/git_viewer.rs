@@ -772,7 +772,7 @@ fn section_head(ui: &mut egui::Ui, theme: &Theme, area: egui::Rect, text: &str) 
         egui::pos2(rect.left() + theme.spacing_md.value(), rect.center().y),
         egui::Align2::LEFT_CENTER,
         text,
-        egui::FontId::monospace(theme.font_size_micro.value()),
+        tasty_ui_widgets::label_font(theme.font_size_micro.value()),
         theme.text_muted().to_egui(),
     );
 }

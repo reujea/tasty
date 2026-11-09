@@ -331,7 +331,7 @@ fn changed_badge(ui: &mut egui::Ui, theme: &Theme) {
     let glyph = theme.icon_glyph_size_xs.value(); // 12
     let galley = ui.painter().layout_no_wrap(
         "changed".to_owned(),
-        egui::FontId::monospace(micro),
+        tasty_ui_widgets::label_font(micro),
         egui::Color32::PLACEHOLDER,
     );
     let gap = theme.spacing_xs.value(); // 4 — 글리프↔라벨
@@ -395,7 +395,7 @@ fn trigger_chip(ui: &mut egui::Ui, theme: &Theme, label: &str) {
     let pad_x = theme.spacing_xs.value();
     let galley = ui.painter().layout_no_wrap(
         label.to_owned(),
-        egui::FontId::monospace(theme.font_size_micro.value()),
+        tasty_ui_widgets::label_font(theme.font_size_micro.value()),
         fg,
     );
     let w = pad_x * 2.0 + galley.rect.width() + gap + glyph;

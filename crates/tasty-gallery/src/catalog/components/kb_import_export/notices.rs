@@ -66,7 +66,7 @@ pub(super) fn notice_block(
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                         ui.label(
                             egui::RichText::new(count)
-                                .monospace()
+                                .family(tasty_ui_widgets::label_font_family())
                                 .size(theme.font_size_caption.value())
                                 .color(tone),
                         );

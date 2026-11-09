@@ -198,7 +198,7 @@ fn list_view(ui: &mut egui::Ui, theme: &Theme, body: egui::Rect, entries: &[Entr
         egui::pos2(footer.min.x + pad, footer.center().y),
         egui::Align2::LEFT_CENTER,
         format!("{} of {} DAGs", entries.len(), entries.len()),
-        egui::FontId::monospace(theme.font_size_caption.value()),
+        tasty_ui_widgets::label_font(theme.font_size_caption.value()),
         theme.text_muted().to_egui(),
     );
     let btn_w = theme.field_width_md.value() / 2.0;

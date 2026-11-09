@@ -214,7 +214,7 @@ fn frame(ui: &mut egui::Ui, th: &Theme, s: &Specimen, buf: &mut String) {
             );
             ui.label(
                 egui::RichText::new(copy("settings.remote_attach.section").to_uppercase())
-                    .monospace()
+                    .family(tasty_ui_widgets::label_font_family())
                     .size(th.font_size_micro.value())
                     .extra_letter_spacing(th.letter_spacing_caps(th.font_size_micro).value())
                     .color(th.text_muted().to_egui()),
@@ -256,7 +256,7 @@ fn seconds_control(ui: &mut egui::Ui, th: &Theme, unit: &str, range: &str, buf: 
                 .show(ui, th, buf);
             ui.label(
                 egui::RichText::new(unit)
-                    .monospace()
+                    .family(tasty_ui_widgets::label_font_family())
                     .size(th.font_size_caption.value())
                     .color(th.text_muted().to_egui()),
             );

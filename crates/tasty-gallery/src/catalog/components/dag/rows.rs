@@ -140,14 +140,14 @@ pub fn trailing(ui: &mut egui::Ui, theme: &Theme, entry: &Entry) {
                 entry.total(),
                 super::skip_count_suffix(&entry.graph.nodes)
             ))
-            .monospace()
+            .family(tasty_ui_widgets::label_font_family())
             .size(theme.dag_row_count_font_size().value())
             .color(theme.dag_row_count_fg().to_egui()),
         );
         let status = entry.rollup();
         ui.label(
             egui::RichText::new(format!("{} {}", status.glyph(), status.label()))
-                .monospace()
+                .family(tasty_ui_widgets::label_font_family())
                 .size(theme.font_size_caption.value())
                 // 작은 라벨에 맞는 상태별 텍스트 색을 쓴다.
                 .color(status.label_fg(theme).to_egui()),
@@ -155,7 +155,7 @@ pub fn trailing(ui: &mut egui::Ui, theme: &Theme, entry: &Entry) {
         if entry.awaiting > 0 {
             ui.label(
                 egui::RichText::new(format!("! {} needs input", entry.awaiting))
-                    .monospace()
+                    .family(tasty_ui_widgets::label_font_family())
                     .size(theme.font_size_caption.value())
                     .color(theme.dag_phase_awaiting_label().to_egui()),
             );

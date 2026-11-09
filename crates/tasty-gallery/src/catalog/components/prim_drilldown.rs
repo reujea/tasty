@@ -264,7 +264,7 @@ fn diff_table(ui: &mut egui::Ui, th: &Theme, preset: &Preset) {
             let pad_x = th.spacing_md.value();
             let head = |text: &str| -> egui::WidgetText {
                 let mut job = egui::text::LayoutJob::default();
-                let font = egui::FontId::monospace(th.font_size_micro.value());
+                let font = tasty_ui_widgets::label_font(th.font_size_micro.value());
                 job.append(
                     &text.to_uppercase(),
                     0.0,

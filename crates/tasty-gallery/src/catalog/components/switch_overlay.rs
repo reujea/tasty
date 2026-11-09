@@ -571,7 +571,7 @@ fn full_cat(ui: &mut egui::Ui, theme: &Theme, held: bool) {
             egui::pos2(rect.min.x + (pad + chev + head_gap).value(), hcy),
             egui::Align2::LEFT_CENTER,
             head.label.to_uppercase(),
-            egui::FontId::monospace(head_line.value()),
+            tasty_ui_widgets::label_font(head_line.value()),
             egui::Color32::from(theme.text_muted()),
         );
         if held && let Some(d) = head.n {

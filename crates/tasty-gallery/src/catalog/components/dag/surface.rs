@@ -106,7 +106,7 @@ fn header(
         graph.nodes.len(),
         super::skip_count_suffix(&graph.nodes)
     );
-    let count_font = egui::FontId::monospace(theme.font_size_caption.value());
+    let count_font = tasty_ui_widgets::label_font(theme.font_size_caption.value());
     let count_w = super::node::text_width(ui, &count, &count_font);
     let name_x = ident.min.x + icon + gap;
     let name_limit = if narrow {

@@ -223,7 +223,7 @@ fn paint_lod_chip(ui: &mut egui::Ui, theme: &Theme, canvas: egui::Rect, lod: Lod
     let inset = theme.dag_chrome_inset().value();
     let pad = theme.spacing_sm.value();
     let h = theme.dag_runner_height().value();
-    let font = egui::FontId::monospace(theme.font_size_micro.value());
+    let font = tasty_ui_widgets::label_font(theme.font_size_micro.value());
     let w = super::node::text_width(ui, text, &font) + pad * 2.0;
     let rect = egui::Rect::from_min_size(
         egui::pos2(canvas.min.x + inset, canvas.max.y - inset - h),

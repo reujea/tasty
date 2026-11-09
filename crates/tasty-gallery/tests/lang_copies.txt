@@ -690,6 +690,7 @@ src/catalog/spacing.rs	Cancel	button.cancel,explorer.op.cancel,image_viewer.canc
 src/catalog/theme.rs	Delete	preset.toolbar.delete,remote_tool.delete
 src/catalog/theme.rs	Open	button.open,explorer.props.open,file_handler.picker.open_button,filepicker.open_button
 src/catalog/theme.rs	plugin	file_handler.picker.origin_plugin
+src/catalog/typography.rs	Attach connections	settings.remote_attach.section
 src/catalog/widgets/attach_refusal.rs	Remove mapping	remote.refusal.remove
 src/catalog/widgets/attach_refusal.rs	{}	remote.size_sync.names
 src/catalog/widgets/attach_size_sync.rs	Retry	explorer.properties.retry,explorer.state.read_error_retry,filepicker.error_perm.retry,remote.size_sync.retry,remote_attach.retry,transfer.error.retry

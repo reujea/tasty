@@ -50,7 +50,7 @@ fn warning_badge(ui: &mut egui::Ui, theme: &Theme, text: &str) {
     let warn = theme.accent_warning().to_egui();
     let galley = ui.painter().layout_no_wrap(
         text.to_owned(),
-        egui::FontId::monospace(theme.font_size_micro.value()),
+        tasty_ui_widgets::label_font(theme.font_size_micro.value()),
         warn,
     );
     let h = theme.badge_size().value();
@@ -71,7 +71,7 @@ fn section_label(ui: &mut egui::Ui, theme: &Theme, text: &str) {
     ui.add_space(theme.spacing_xs.value());
     ui.label(
         egui::RichText::new(text)
-            .monospace()
+            .family(tasty_ui_widgets::label_font_family())
             .size(theme.font_size_micro.value())
             .color(theme.text_muted().to_egui()),
     );

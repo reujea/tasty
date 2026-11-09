@@ -25,7 +25,7 @@ const HOOK_ADD_LABEL_W: LogicalPx = LogicalPx(100.0);
 fn mono_head(ui: &mut egui::Ui, theme: &Theme, text: &str) {
     ui.label(
         egui::RichText::new(text.to_uppercase())
-            .monospace()
+            .family(tasty_ui_widgets::label_font_family())
             .size(theme.font_size_micro.value())
             .extra_letter_spacing(theme.letter_spacing_caps(theme.font_size_micro).value())
             .color(theme.text_muted().to_egui()),
@@ -783,7 +783,7 @@ fn draw_hook_row(
                             tag(ui, theme, origin, origin_variant(origin), false);
                             ui.label(
                                 egui::RichText::new(format!("prio {}", st.hooks[i].prio))
-                                    .monospace()
+                                    .family(tasty_ui_widgets::label_font_family())
                                     .size(theme.font_size_micro.value())
                                     .color(theme.text_muted().to_egui()),
                             );

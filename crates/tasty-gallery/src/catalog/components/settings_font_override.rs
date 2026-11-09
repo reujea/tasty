@@ -266,7 +266,7 @@ pub(super) fn preview_below(ui: &mut egui::Ui, th: &Theme) {
     }
     ui.label(
         egui::RichText::new("Font: D2Coding / 14.0px")
-            .monospace()
+            .family(tasty_ui_widgets::label_font_family())
             .size(th.font_size_caption.value())
             .color(th.text_muted().to_egui()),
     );

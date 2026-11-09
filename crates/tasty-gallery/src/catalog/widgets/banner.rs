@@ -475,7 +475,7 @@ fn blacklist_editor(ui: &mut egui::Ui, theme: &Theme, empty: bool) {
 
             ui.label(
                 egui::RichText::new("MOUSE CAPTURE")
-                    .monospace()
+                    .family(tasty_ui_widgets::label_font_family())
                     .size(theme.font_size_micro.value())
                     .color(theme.text_muted().to_egui()),
             );
