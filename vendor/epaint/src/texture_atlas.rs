@@ -201,6 +201,26 @@ impl TextureAtlas {
         }
     }
 
+    /// tasty patch: whether [`Self::allocate`] stays in bounds for this size
+    /// whatever the atlas already holds, as long as every earlier size passed too.
+    ///
+    /// `allocate` asserts on a width above the atlas width. On an overflow it
+    /// restarts at a third of the image height without growing the image, so a
+    /// taller glyph writes past the image and panics, and the dirty rect panics
+    /// in `take_delta` even if the write is skipped. An overflow needs
+    /// `cursor + row_height > max(image height, width)`, and the cursor only
+    /// passes the image height once the image has reached the width, so a height
+    /// of at most half the width only overflows once the image is taller than
+    /// half the width. Image heights
+    /// double from a power of two, which makes it at least the largest power of
+    /// two not above the width, and then `height / 3 + h <= height` holds. A
+    /// width that is not a power of two rounds down for that reason.
+    pub fn can_always_allocate(&self, (w, h): (usize, usize)) -> bool {
+        let width = self.image.width();
+        let max_height = (1_usize << width.ilog2()) / 2;
+        w <= width && h <= max_height
+    }
+
     /// Returns the coordinates of where the rect ended up,
     /// and invalidates the region.
     pub fn allocate(&mut self, (w, h): (usize, usize)) -> ((usize, usize), &mut FontImage) {
@@ -251,7 +271,12 @@ impl TextureAtlas {
 }
 
 fn resize_to_min_height(image: &mut FontImage, required_height: usize) -> bool {
-    while required_height >= image.height() {
+    // tasty patch: stop doubling at the atlas width. A row ending exactly at the
+    // image height would otherwise double it and raise `max_height`, so sizes that
+    // all pass `can_always_allocate` could take the image past the GPU texture
+    // limit, and wgpu panics on that upload. `allocate` only comes here with
+    // `required_height <= max_height`, so the glyph still fits.
+    while required_height >= image.height() && image.height() < image.width() {
         image.size[1] *= 2; // double the height
     }
 

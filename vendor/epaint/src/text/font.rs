@@ -272,11 +272,25 @@ impl FontImpl {
             ab_glyph::Point { x: 0.0, y: 0.0 },
         );
 
+        let mut refused = false;
         let uv_rect = self.ab_glyph_font.outline_glyph(glyph).map(|glyph| {
             let bb = glyph.px_bounds();
             let glyph_width = bb.width() as usize;
             let glyph_height = bb.height() as usize;
-            if glyph_width == 0 || glyph_height == 0 {
+            // tasty patch: a glyph the atlas cannot always hold draws nothing.
+            // See `TextureAtlas::can_always_allocate`.
+            let fits = self
+                .atlas
+                .lock()
+                .can_always_allocate((glyph_width, glyph_height));
+            if !fits {
+                refused = true;
+                #[cfg(feature = "log")]
+                log::warn!(
+                    "Left a {glyph_width}x{glyph_height} glyph blank: it does not fit the font atlas"
+                );
+            }
+            if glyph_width == 0 || glyph_height == 0 || !fits {
                 UvRect::default()
             } else {
                 let glyph_pos = {
@@ -308,11 +322,20 @@ impl FontImpl {
         });
         let uv_rect = uv_rect.unwrap_or_default();
 
-        let advance_width_in_points = self
-            .ab_glyph_font
-            .as_scaled(self.scale_in_pixels as f32)
-            .h_advance(glyph_id)
-            / self.pixels_per_point;
+        let scaled_font = self.ab_glyph_font.as_scaled(self.scale_in_pixels as f32);
+        let mut advance_width_in_points = scaled_font.h_advance(glyph_id) / self.pixels_per_point;
+
+        // tasty patch: a refused glyph's advance can be tens of thousands of points
+        // and push the rest of the line off the window, so it takes at most one em.
+        if refused {
+            let em_in_points = self
+                .ab_glyph_font
+                .units_per_em()
+                .map_or(self.height_in_points, |units_per_em| {
+                    scaled_font.h_scale_factor() * units_per_em / self.pixels_per_point
+                });
+            advance_width_in_points = advance_width_in_points.min(em_in_points);
+        }
 
         GlyphInfo {
             id: glyph_id,

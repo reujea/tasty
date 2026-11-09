@@ -66,7 +66,7 @@ General 의 닫기 동작(`close_behavior`: ask · minimize · quit), Terminal �
 
 > **surface 폰트 override 저장소**: surface-kind 폰트 override 는 전부 `appearance.plugin_font_overrides.<kind>`(generic per-kind, host 는 live 경로에서 특정 kind 이름을 모른다)로 수렴한다. 단 레거시 top-level `[markdown_font]`/`[explorer_font]` 섹션은 **전환기 back-compat 로 유지**한다(`migrate_legacy_font_overrides` 가 load 시 `plugin_font_overrides` 로 일회성 승계 — 읽기 전용, write-back 없음). 이전 버전 사용자의 설정을 옮길 수 있도록 유지하는 호환 경로다.
 
-**egui가 읽지 못하는 글꼴**: 기본 글꼴과 플러그인 surface 글꼴의 `custom_font_path`, 이름으로 찾은 글꼴은 egui에 넣기 전에 언어팩 글꼴과 같은 판정(`tasty_i18n::font::validate`, 파싱과 줄 높이)을 거친다. 판정에 실패한 값도 저장은 막지 않고 사용할 때 건너뛴다. 파일이 없을 때와 같이 경고 로그만 남기고 그 글꼴을 뺀 다음 글꼴로 동작하며(이름으로 찾은 글꼴이 유효하면 그것을 쓴다) 설정값은 고치지 않는다. 그래서 파일을 정상 글꼴로 바꾸면 설정을 건드리지 않아도 재시작 뒤 그 글꼴을 쓴다. 이 판정을 통과해도 글리프가 texture atlas보다 큰 인위적 파일은 글자 크기와 atlas 폭에 따라 패닉할 수 있다. 미리보기도 입력 도중의 경로를 같은 방식으로 건너뛴다. 터미널 글꼴은 cosmic-text 경로라 이 판정을 거치지 않는다. fontdb가 읽지 못하는 파일은 건너뛰고, `font_family`로 찾지 못하면 다른 글꼴로 그린다.
+**egui가 읽지 못하는 글꼴**: 기본 글꼴과 플러그인 surface 글꼴의 `custom_font_path`, 이름으로 찾은 글꼴은 egui에 넣기 전에 언어팩 글꼴과 같은 판정(`tasty_i18n::font::validate`, 파싱과 줄 높이)을 거친다. 판정에 실패한 값도 저장은 막지 않고 사용할 때 건너뛴다. 파일이 없을 때와 같이 경고 로그만 남기고 그 글꼴을 뺀 다음 글꼴로 동작하며(이름으로 찾은 글꼴이 유효하면 그것을 쓴다) 설정값은 고치지 않는다. 그래서 파일을 정상 글꼴로 바꾸면 설정을 건드리지 않아도 재시작 뒤 그 글꼴을 쓴다. 글리프가 글꼴 atlas보다 크면(atlas 폭 2048에서 폭 2048px 또는 높이 1024px 초과) 판정과 관계없이 그 글자만 빈 칸으로 그린다. 글꼴은 계속 쓰이고 입력란 오류나 토스트는 없다. 본체는 경고 로그를 남기고, `-p`로 빌드한 번들 플러그인은 경고도 남기지 않는다. 빈 칸의 폭은 1em 이하다. 큰 글자 크기와 배율에서는 정상 글꼴에도 해당할 수 있다. 미리보기도 입력 도중의 경로를 같은 방식으로 건너뛴다. 터미널 글꼴은 cosmic-text 경로라 이 판정을 거치지 않는다. fontdb가 읽지 못하는 파일은 건너뛰고, `font_family`로 찾지 못하면 다른 글꼴로 그린다.
 
 **글꼴 묶음 안의 이름**: 이름으로 찾은 글꼴이 묶음 파일(`.ttc`) 안에 있으면 그 이름의 글꼴 번호를 읽는다. `custom_font_path` 는 파일만 지정하므로 묶음 파일이면 0번을 읽는다.
 

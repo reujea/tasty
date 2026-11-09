@@ -363,6 +363,41 @@ mod tests {
         assert_custom_font_falls_back(negative_height());
     }
 
+    /// Real outlines with `unitsPerEm` lowered, so they are far bigger than intended.
+    /// The check in front of egui passes it because it parses and has a line height.
+    fn tiny_units_per_em() -> Vec<u8> {
+        let mut font = VALID.to_vec();
+        let record = table_record(&font, b"head");
+        let head = u32::from_be_bytes(font[record + 8..record + 12].try_into().unwrap()) as usize;
+        font[head + 18..head + 20].copy_from_slice(&16u16.to_be_bytes());
+        font
+    }
+
+    #[test]
+    fn a_custom_font_with_glyphs_over_the_atlas_stays_in_use_and_draws() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("x.ttf");
+        std::fs::write(&path, tiny_units_per_em()).unwrap();
+        let (appearance, eff) = appearance_with_custom_font(&path);
+        let fonts = build_font_definitions(&appearance, Some(("preview_default", &eff)));
+        let name = egui::FontFamily::Name("preview_default".into());
+        assert_eq!(fonts.families[&name][0], "preview_preview_default_custom");
+
+        let ctx = egui::Context::default();
+        ctx.set_fonts(fonts);
+        // 폰트 상태는 첫 pass 에서 채워진다. 빈 pass 의 산출물은 볼 것이 없다.
+        let _ = ctx.run(egui::RawInput::default(), |_| {});
+        // 입력란의 상한이다. 이 글꼴의 "A"는 이 크기에서 폭 2206px로 atlas 2048을 넘는다.
+        let largest_input_size = 72.0;
+        let galley = ctx.fonts(|f| {
+            let font = egui::FontId::new(largest_input_size, name);
+            f.layout_no_wrap("A".to_owned(), font, egui::Color32::WHITE)
+        });
+        assert!(galley.rows[0].glyphs[0].uv_rect.is_nothing());
+        // 그린 뒤의 pass 가 패닉하지 않는지만 본다. 산출물은 볼 것이 없다.
+        let _ = ctx.run(egui::RawInput::default(), |_| {});
+    }
+
     #[test]
     fn a_custom_font_egui_can_load_is_used_first() {
         let dir = tempfile::tempdir().unwrap();
