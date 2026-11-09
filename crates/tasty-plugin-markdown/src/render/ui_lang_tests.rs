@@ -12,8 +12,12 @@ use super::{
 
 const UI: &str = "zh-Hans";
 
+/// 문구는 영어 카탈로그에서 읽고 언어 표시만 시험 값으로 둔다. 표시 위치만 보는 시험이라
+/// `lang/`에 시험 언어의 카탈로그가 생겨도 기대 문구가 바뀌지 않아야 한다.
 fn translator() -> Translator {
-    Translator::load(&Path::new(env!("CARGO_MANIFEST_DIR")).join("lang"), UI)
+    let mut tr = Translator::load(&Path::new(env!("CARGO_MANIFEST_DIR")).join("lang"), "en");
+    tr.locale = UI.to_string();
+    tr
 }
 
 fn render(source: &str) -> String {
