@@ -605,11 +605,16 @@ mod tests {
         }
     }
 
-    /// 시안 "Row copy": 언어마다 프로그램 이름이 문장의 어느 쪽에 오는지 정해져 있다.
-    /// 언어를 등록하면 시안의 어순을 확인해 이 표에 더한다.
-    const NAME_FIRST: &[(&str, bool)] = &[("en", false), ("ko", true), ("ja", true)];
+    /// 시안 "Row copy": 언어마다 프로그램 이름의 앞(prefix)과 뒤(suffix) 중 어느 쪽에 문구가 붙는지
+    /// 정해져 있다. 값은 (prefix 있음, suffix 있음)이다. 언어를 등록하면 시안의 어순을 확인해 이 표에 더한다.
+    const NAME_FIRST: &[(&str, (bool, bool))] = &[
+        ("en", (true, false)),
+        ("ko", (false, true)),
+        ("ja", (false, true)),
+    ];
 
-    /// 문장은 이름 한쪽에만 붙는다. 어느 언어도 이름 앞뒤에 문구를 함께 두지 않는다.
+    /// 문구는 시안이 정한 쪽에만 붙고, 양쪽이 모두 빈 언어는 없다. 앞 문구는 이름 앞에 공백 하나를 두며,
+    /// 양쪽에 문구가 있는 언어는 이름과 뒤 문구 사이에도 공백 하나를 둔다.
     #[test]
     fn each_language_names_the_program_on_its_designed_side() {
         let listed: Vec<&str> = NAME_FIRST.iter().map(|(code, _)| *code).collect();
@@ -618,15 +623,24 @@ mod tests {
             tasty_i18n::BUILTIN_CODES,
             "NAME_FIRST에 내장 언어의 어순을 빠짐없이 적어야 한다"
         );
-        for (code, name_first) in NAME_FIRST {
+        for (code, (has_prefix, has_suffix)) in NAME_FIRST {
+            assert!(*has_prefix || *has_suffix, "{code}: 양쪽이 모두 비었다");
             for (prefix, suffix) in locale_texts(code) {
-                if *name_first {
-                    assert!(prefix.is_empty() && !suffix.is_empty(), "{code} {suffix:?}");
-                } else {
+                if *has_prefix {
                     assert!(
-                        prefix.ends_with(' ') && suffix.is_empty(),
+                        prefix.ends_with(' ') && prefix.trim() != "",
                         "{code} {prefix:?}"
                     );
+                } else {
+                    assert!(prefix.is_empty(), "{code} {prefix:?}");
+                }
+                if *has_suffix {
+                    assert!(!suffix.trim().is_empty(), "{code} {suffix:?}");
+                } else {
+                    assert!(suffix.is_empty(), "{code} {suffix:?}");
+                }
+                if *has_prefix && *has_suffix {
+                    assert!(suffix.starts_with(' '), "{code} {suffix:?}");
                 }
             }
         }
