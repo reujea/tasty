@@ -1186,6 +1186,16 @@ impl PlatformWebView {
                 .loadHTMLString_baseURL(&ns_html, base_url.as_deref());
         }
     }
+
+    /// 실린 문서를 다시 싣지 않고 그 안에서 스크립트를 돌린다. 결과는 받지 않고 실패만 로그에 남긴다.
+    /// 페이지 JS 설정과 무관하게 실행되므로 허용 판정은 호출 전(`webview.post_message` 핸들러)에 끝나 있어야 한다.
+    pub fn eval_js(&self, script: &str) {
+        // SAFETY: main thread WKWebView API. NSString은 호출 동안 살아있는 local Retained.
+        unsafe {
+            let ns = NSString::from_str(script);
+            self.webview.evaluateJavaScript_completionHandler(&ns, None);
+        }
+    }
 }
 
 impl Drop for PlatformWebView {

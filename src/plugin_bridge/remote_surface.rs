@@ -37,6 +37,10 @@ pub struct RemoteSurface {
     /// 클릭 이후 페이지가 바뀌면 작성자를 잘못 판단할 수 있어 해당 프레임의 기록을 버린다.
     #[cfg(feature = "gui")]
     pub webview_owner_took_over: Arc<AtomicBool>,
+    /// webview.post_message로 받은 아직 실행하지 않은 메시지 스크립트. webview 동기화가 도착 순서대로 비운다.
+    /// 스크립트는 각각 독립된 조작이라 URL처럼 마지막 값만 남기지 않고 모두 쌓는다.
+    #[cfg(any(feature = "gui", test))]
+    pub pending_scripts: Arc<Mutex<Vec<String>>>,
     /// 네이티브 WebView의 탐색 상태 사본. 호스트 UI가 로딩·오류를 표시할 때 쓴다.
     #[cfg(any(feature = "gui", test))]
     pub nav_state: Arc<Mutex<NavState>>,
@@ -72,6 +76,8 @@ pub(crate) static SNAPSHOT_POISON_REPORTED: AtomicBool = AtomicBool::new(false);
 static DISPLAY_NAME_POISON_REPORTED: AtomicBool = AtomicBool::new(false);
 static WEBVIEW_URL_POISON_REPORTED: AtomicBool = AtomicBool::new(false);
 #[cfg(any(feature = "gui", test))]
+static PENDING_SCRIPTS_POISON_REPORTED: AtomicBool = AtomicBool::new(false);
+#[cfg(any(feature = "gui", test))]
 static NAV_STATE_POISON_REPORTED: AtomicBool = AtomicBool::new(false);
 static HTML_SOURCE_POISONED: AtomicBool = AtomicBool::new(false);
 static CWD_POISON_REPORTED: AtomicBool = AtomicBool::new(false);
@@ -79,6 +85,8 @@ static CWD_POISON_REPORTED: AtomicBool = AtomicBool::new(false);
 pub(crate) const SNAPSHOT_WHAT: &str = "remote surface snapshot cache";
 const DISPLAY_NAME_WHAT: &str = "remote surface display name";
 const WEBVIEW_URL_WHAT: &str = "remote surface webview url";
+#[cfg(any(feature = "gui", test))]
+const PENDING_SCRIPTS_WHAT: &str = "remote surface pending scripts";
 #[cfg(feature = "gui")]
 static WEBVIEW_LABEL_POISON_REPORTED: AtomicBool = AtomicBool::new(false);
 #[cfg(feature = "gui")]
@@ -115,6 +123,8 @@ impl RemoteSurface {
             webview_page_by_owner: Arc::new(AtomicBool::new(false)),
             #[cfg(feature = "gui")]
             webview_owner_took_over: Arc::new(AtomicBool::new(false)),
+            #[cfg(any(feature = "gui", test))]
+            pending_scripts: Arc::new(Mutex::new(Vec::new())),
             #[cfg(any(feature = "gui", test))]
             nav_state: Arc::new(Mutex::new(NavState::Idle)),
             #[cfg(feature = "gui")]
@@ -203,6 +213,27 @@ impl RemoteSurface {
             &WEBVIEW_LABEL_POISON_REPORTED,
         )
         .clone()
+    }
+
+    /// webview.post_message가 메시지 스크립트를 큐에 넣는다.
+    #[cfg(any(feature = "gui", test))]
+    pub fn queue_script(&self, script: String) {
+        crate::poison::recover_mutex(
+            self.pending_scripts.lock(),
+            PENDING_SCRIPTS_WHAT,
+            &PENDING_SCRIPTS_POISON_REPORTED,
+        )
+        .push(script);
+    }
+
+    /// 쌓인 스크립트를 도착 순서대로 꺼내고 큐를 비운다.
+    #[cfg(any(feature = "gui", test))]
+    pub fn take_scripts(&self) -> Vec<String> {
+        std::mem::take(&mut *crate::poison::recover_mutex(
+            self.pending_scripts.lock(),
+            PENDING_SCRIPTS_WHAT,
+            &PENDING_SCRIPTS_POISON_REPORTED,
+        ))
     }
 
     #[cfg(any(feature = "gui", test))]
@@ -408,6 +439,27 @@ impl Surface for RemoteSurface {
 #[allow(clippy::let_underscore_must_use)]
 mod tests {
     use super::*;
+
+    // 스크립트는 각각 독립된 조작이라 덮어쓰면 갱신이 사라진다. 꺼낸 뒤에는 비어야 같은 조작이 두 번 가지 않는다.
+    #[test]
+    fn queued_scripts_keep_their_order_and_count() {
+        let s = RemoteSurface::new(1, "markdown", "com.x".into(), "Doc".into());
+        s.queue_script("a()".into());
+        s.queue_script("b()".into());
+        s.queue_script("c()".into());
+        assert_eq!(s.take_scripts(), vec!["a()", "b()", "c()"]);
+        assert!(s.take_scripts().is_empty());
+    }
+
+    // 큐는 surface마다 따로다. 한 탭의 갱신이 다른 탭으로 가면 안 된다.
+    #[test]
+    fn two_surfaces_do_not_share_a_queue() {
+        let a = RemoteSurface::new(1, "markdown", "com.x".into(), "A".into());
+        let b = RemoteSurface::new(2, "markdown", "com.x".into(), "B".into());
+        a.queue_script("only_a()".into());
+        assert!(b.take_scripts().is_empty());
+        assert_eq!(a.take_scripts(), vec!["only_a()"]);
+    }
 
     #[test]
     fn surface_kind_returns_static() {
