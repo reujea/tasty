@@ -201,6 +201,35 @@ class EndToEnd(unittest.TestCase):
         self.assertEqual(len(out["unfilled_cells"]), 1)
         self.assertIn(f"{dropped['format']}/{dropped['model']}/{dropped['tree']}: 2 of 3", out["unfilled_cells"][0])
 
+    def test_an_empty_cell_stops_a_recommendation_that_tokens_would_give(self):
+        records = self.full_run()
+        for record in records:
+            if record["format"] == "indented":
+                record["usage"] = usage(50)
+        records.pop(0)
+        self.write(records)
+        out = sm.summarize(self.data)
+        self.assertIsNone(out["decision"]["recommendation"])
+        self.assertIn("not full", out["decision"]["reason"])
+        self.assertNotIn("low_model", out)
+
+    def test_rule_2_reads_the_low_model_only(self):
+        records = self.full_run()
+        for record in records:
+            # mermaid loses only on the high model and indented only on the low model.
+            if record["format"] == "mermaid" and record["model"] == "claude-high" and record["repeat"] == 1:
+                record["response_text"] = "not json"
+            if record["format"] == "indented" and record["model"] == LOW_MODEL and record["repeat"] == 1 and record["tree"] == "real":
+                record["response_text"] = "not json"
+            if record["format"] != "mermaid":
+                record["usage"] = usage(500)
+        self.write(records)
+        out = sm.summarize(self.data)
+        self.assertLess(out["low_model"]["indented"]["correct"], out["low_model"]["adjacency"]["correct"])
+        self.assertEqual(out["low_model"]["mermaid"]["correct"], out["low_model"]["adjacency"]["correct"])
+        self.assertEqual(out["decision"]["recommendation"], "mermaid")
+        self.assertEqual(out["low_model"]["adjacency"]["total"], 3 * 3 * 15)
+
     def test_failed_calls_are_left_out_and_the_first_valid_call_counts(self):
         records = self.full_run()
         row = self.rows("L0")[0]

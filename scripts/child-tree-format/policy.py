@@ -10,7 +10,6 @@ from dataclasses import dataclass, field
 from common import MODELS
 from score import call_outcome
 
-NEVER_RESUME = {"tool_violation_twice", "repo_changed"}
 API_ABORTS = {"api_failure_exhausted"}
 USAGE_ABORTS = {"usage_limit", "allowed_warning", "u_exceeded"}
 U_MARGIN = 5
@@ -132,11 +131,10 @@ def resume_decision(ledger, cap, usage_allows, approved_by=None):
         "retries_used": ledger.retries_used,
         "retry_cap": cap,
     }
-    if reason is None or reason in NEVER_RESUME:
-        return False, values
     if reason in API_ABORTS:
         return usage_allows and ledger.retries_used < cap, values
     if reason in USAGE_ABORTS:
         values["approved_by"] = approved_by
         return bool(approved_by) and usage_allows, values
+    # A tool violation, the retry limit and a changed repository never resume.
     return False, values
