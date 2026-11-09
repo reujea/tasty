@@ -348,8 +348,9 @@ mod tests {
         ctx.set_fonts(fonts);
         // 폰트 상태는 첫 pass 에서 채워진다. 빈 pass 의 산출물은 볼 것이 없다.
         let _ = ctx.run(egui::RawInput::default(), |_| {});
-        // 줄 높이 판정은 글자 크기와 무관하므로 어떤 양수든 된다.
-        const ANY_POSITIVE_SIZE: f32 = 14.0;
+        // 글꼴 판정용 값이라 화면 크기와 무관하다. 줄 높이의 부호만 보므로 어떤 양수든 된다.
+        // UI 폰트 토큰과 연결하지 않으려고 토큰에 없는 값을 쓴다.
+        const ANY_POSITIVE_SIZE: f32 = 9.0;
         ctx.fonts(|f| {
             let font = egui::FontId::new(ANY_POSITIVE_SIZE, egui::FontFamily::Name(family.into()));
             f.layout_no_wrap("a".to_owned(), font, egui::Color32::WHITE);
