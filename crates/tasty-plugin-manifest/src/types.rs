@@ -405,6 +405,11 @@ pub struct SurfaceKindDecl {
     /// 사용자 설정과 같은 저장 키의 설정 페이지 항목 기본값이 없을 때 적용한다.
     #[serde(default)]
     pub webview_defaults: Option<WebViewDefaultsDecl>,
+    /// 처음 보일 때 WebView를 만든다. 기본 false면 화면에 없는 탭도 열릴 때 만들어 숨겨 둔다.
+    /// `rendering = "webview"`에서만 쓸 수 있다. 켠 plugin은 `surface.webview_created`를 받으면
+    /// 페이지 상태를 다시 맞춰야 한다.
+    #[serde(default)]
+    pub lazy_webview: bool,
     /// host 기능 능력. 키는 이 표의 최상위에 둔다(예: `address_band = true`).
     #[serde(flatten)]
     pub capabilities: super::kind_capabilities::SurfaceKindCapabilityDecl,

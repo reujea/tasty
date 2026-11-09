@@ -11,6 +11,23 @@ pub(super) fn create_missing_webviews(
     // Create new webviews for Html panels that don't have one yet
     for &sid in all_html_ids {
         if !view.webviews.contains_key(&sid) {
+            let lazy = webview_surface_kind(view, engine, sid)
+                .and_then(crate::runtime::surface_registry::webview_kind::webview_settings_source)
+                .is_some_and(|s| s.lazy);
+            // 통지는 kind 를 등록한 plugin 이 아니라 이 surface 를 소유한 plugin 에 간다 — 다른 plugin 이
+            // 같은 kind 이름을 덮어써도 문서를 다시 싣는 쪽은 소유자다.
+            let owner = find_remote_surface(view, engine, sid).map(|rs| rs.plugin_id.clone());
+            let registrant = webview_surface_kind(view, engine, sid)
+                .and_then(crate::runtime::surface_registry::webview_kind::webview_settings_source)
+                .map(|s| s.plugin_id);
+            let lazy_owner = super::lazy::creation_event_recipient(
+                lazy,
+                owner.as_deref(),
+                registrant.as_deref(),
+            );
+            if defers_creation(lazy, active_html.contains_key(&sid)) {
+                continue;
+            }
             // 재시도 상한에 도달한 surface는 다시 만들지 않는다.
             let attempts = view.webview_create_attempts.get(&sid).copied().unwrap_or(0);
             if !should_attempt_webview(attempts) {
@@ -51,11 +68,20 @@ pub(super) fn create_missing_webviews(
                     view.webview_runtime.insert(sid, binding);
                     view.webview_applied_settings.insert(sid, settings);
                     view.webview_create_attempts.remove(&sid);
+                    if let Some(plugin_id) = lazy_owner {
+                        view.lazy_webviews_created.push((sid, plugin_id));
+                    }
                 }
                 Err(e) => record_webview_failure(view, sid, attempts, &e),
             }
         }
     }
+}
+
+/// 처음 보일 때 만드는 kind(`lazy_webview`)는 화면에 나오기 전까지 WebView를 만들지 않는다.
+/// 한 번 만든 뒤에는 숨겨도 유지한다 — 이 판정은 아직 없는 WebView에만 쓴다.
+fn defers_creation(lazy: bool, visible: bool) -> bool {
+    lazy && !visible
 }
 
 fn default_bounds() -> crate::webview::WebViewBounds {
@@ -166,5 +192,22 @@ mod tests {
         assert!(!awaits_replacement(true, false));
         assert!(!awaits_replacement(true, true));
         assert!(!awaits_replacement(false, true));
+    }
+}
+
+#[cfg(test)]
+mod lazy_tests {
+    use super::defers_creation;
+
+    #[test]
+    fn a_lazy_kind_waits_until_it_is_shown() {
+        assert!(defers_creation(true, false));
+        assert!(!defers_creation(true, true));
+    }
+
+    #[test]
+    fn an_eager_kind_is_created_even_while_hidden() {
+        assert!(!defers_creation(false, false));
+        assert!(!defers_creation(false, true));
     }
 }

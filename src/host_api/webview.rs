@@ -350,6 +350,23 @@ impl HtmlWebViewSettings {
     }
 }
 
+/// 가려진 WebView를 없앨 surface인가 — kind가 lazy이고 **그 surface를 소유한 plugin**의 메모리 절약
+/// 토글이 켜졌을 때. `owner`는 `RemoteSurface.plugin_id`다: kind 등록은 다른 plugin이 같은 이름으로
+/// 덮어쓸 수 있으므로 남의 surface의 WebView를 없애는 설정 주인이 되면 안 된다. 저장된 값이 없거나
+/// 타입이 다르면 kind 선언의 설정 페이지 기본값을 쓴다. 없앤 WebView는 다시 보일 때 lazy 경로로 새로 만든다.
+pub fn releases_hidden_webview(
+    source: &crate::runtime::surface_registry::webview_kind::WebViewSettingsSource,
+    owner: &str,
+    settings: &crate::settings::Settings,
+) -> bool {
+    use crate::runtime::surface_registry::webview_kind::RELEASE_HIDDEN_KEY;
+    source.lazy
+        && match settings.plugin_setting(owner, RELEASE_HIDDEN_KEY) {
+            Some(crate::settings::PluginSettingValue::Bool(b)) => *b,
+            _ => source.release_hidden_default,
+        }
+}
+
 #[cfg(test)]
 mod settings_resolve_tests {
     use super::{ColorScheme, HtmlWebViewSettings};
@@ -373,6 +390,8 @@ mod settings_resolve_tests {
                 decl,
                 &manifest.contributes.settings_pages,
             ),
+            lazy: decl.lazy_webview,
+            release_hidden_default: false,
         }
     }
 
@@ -414,6 +433,73 @@ mod settings_resolve_tests {
         );
     }
 
+    /// 메모리 절약은 lazy kind에서만 — 저장값이 기본값을 이기고, 타입이 틀리면 기본값이다.
+    #[test]
+    fn hidden_webviews_are_released_only_for_lazy_kinds_that_opt_in() {
+        use crate::runtime::surface_registry::webview_kind::RELEASE_HIDDEN_KEY;
+        let owner = "com.example.view";
+        let mut source = WebViewSettingsSource {
+            plugin_id: owner.into(),
+            defaults: WebViewSettingDefaults::default(),
+            lazy: true,
+            release_hidden_default: false,
+        };
+        let mut settings = Settings::default();
+        assert!(!super::releases_hidden_webview(&source, owner, &settings));
+        source.release_hidden_default = true;
+        assert!(super::releases_hidden_webview(&source, owner, &settings));
+        settings.set_plugin_setting(owner, RELEASE_HIDDEN_KEY, PluginSettingValue::Bool(false));
+        assert!(!super::releases_hidden_webview(&source, owner, &settings));
+        settings.set_plugin_setting(
+            owner,
+            RELEASE_HIDDEN_KEY,
+            PluginSettingValue::Text("yes".into()),
+        );
+        assert!(
+            super::releases_hidden_webview(&source, owner, &settings),
+            "타입이 틀리면 기본값"
+        );
+        settings.set_plugin_setting(owner, RELEASE_HIDDEN_KEY, PluginSettingValue::Bool(true));
+        source.lazy = false;
+        assert!(
+            !super::releases_hidden_webview(&source, owner, &settings),
+            "lazy 가 아닌 kind"
+        );
+    }
+
+    /// 해제 설정의 주인은 surface 소유 plugin이다. 다른 plugin이 같은 kind 이름을 덮어써도
+    /// 그 plugin의 토글로 남의 surface WebView를 없앨 수 없다.
+    #[test]
+    fn the_release_toggle_belongs_to_the_surface_owner_not_the_kind_registrant() {
+        use crate::runtime::surface_registry::webview_kind::RELEASE_HIDDEN_KEY;
+        let source = WebViewSettingsSource {
+            plugin_id: "com.example.squatter".into(),
+            defaults: WebViewSettingDefaults::default(),
+            lazy: true,
+            release_hidden_default: false,
+        };
+        let mut settings = Settings::default();
+        settings.set_plugin_setting(
+            "com.example.squatter",
+            RELEASE_HIDDEN_KEY,
+            PluginSettingValue::Bool(true),
+        );
+        assert!(
+            !super::releases_hidden_webview(&source, "com.example.owner", &settings),
+            "덮어쓴 plugin의 토글은 소유자의 surface를 없애지 못한다"
+        );
+        settings.set_plugin_setting(
+            "com.example.owner",
+            RELEASE_HIDDEN_KEY,
+            PluginSettingValue::Bool(true),
+        );
+        assert!(super::releases_hidden_webview(
+            &source,
+            "com.example.owner",
+            &settings
+        ));
+    }
+
     #[test]
     fn custom_kind_uses_its_plugin_defaults_and_saved_settings() {
         let source = WebViewSettingsSource {
@@ -424,6 +510,8 @@ mod settings_resolve_tests {
                 allow_remote_content: false,
                 color_scheme: "dark".into(),
             },
+            lazy: false,
+            release_hidden_default: false,
         };
         let mut settings = Settings::default();
         assert_eq!(
