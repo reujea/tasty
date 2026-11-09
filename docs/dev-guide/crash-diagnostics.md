@@ -42,7 +42,7 @@ cat ~/.tasty/crash-reports/crash-*.log
 
 ### 패닉이 연달아 날 때
 
-한 프로세스에서 패닉이 이어지면 보고서도 여러 개 생긴다. 예를 들어 해제 중 소멸자가 다시 패닉하면 원인 패닉, 소멸자 패닉, 언어 런타임의 `panic in a destructor during cleanup` 순서로 파일 3개가 남고 프로세스는 abort한다. 마지막 파일의 `Message:`는 원인이 아니다.
+한 프로세스에서 패닉이 이어지면 보고서도 여러 개 생긴다. 예를 들어 해제 중 소멸자가 다시 패닉하면 프로세스는 실패로 끝나고, 남는 파일 수는 OS마다 다르다. Linux와 macOS CI에서는 원인 패닉, 소멸자 패닉, 언어 런타임의 `panic in a destructor during cleanup` 순서로 파일 3개가 남았다. Windows(`x86_64-pc-windows-msvc`) CI에서는 원인 패닉, 소멸자 패닉 순서로 파일 2개가 남았다. 어느 쪽이든 마지막 파일의 `Message:`는 원인이 아니다.
 
 - **무엇을 먼저 읽는가**: 어느 파일이든 `First panic location:`과 `First panic message:`가 그 프로세스의 첫 패닉이다. `Panic sequence: 1`인 파일은 그 패닉 자체가 첫 패닉이라 이 줄이 없고 `=== Panic ===` 절을 읽는다. 같은 프로세스의 파일은 이름의 `p<PID>`가 같다.
 - **순서**: 패닉이 한 스레드에서 이어지면 이름순이 패닉 순서다. 여러 스레드가 동시에 패닉해 초 경계에 걸리면 이름순과 어긋날 수 있으므로 `Panic sequence:`를 기준으로 삼는다. 프로세스 사이의 순서와 시계가 뒤로 간 때의 순서는 이름으로 알 수 없다.

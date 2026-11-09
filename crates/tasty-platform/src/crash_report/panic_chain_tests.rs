@@ -20,7 +20,15 @@ const ROUNDS: usize = 3;
 const ROOT: &str = "root-cause-panic";
 const SECONDARY: &str = "secondary-destructor-panic";
 /// 소멸자가 해제 중에 패닉하면 언어 런타임이 내는 되돌릴 수 없는 패닉이다.
+#[cfg(not(windows))]
 const CLEANUP: &str = "panic in a destructor during cleanup";
+
+/// 소멸자 연쇄에서 훅이 받는 패닉 메시지.
+/// x86_64-pc-windows-msvc CI에서는 CLEANUP의 패닉 줄과 보고서가 없었고, Linux와 macOS CI에서는 있었다.
+#[cfg(windows)]
+const DESTRUCTOR_CHAIN: &[&str] = &[ROOT, SECONDARY];
+#[cfg(not(windows))]
+const DESTRUCTOR_CHAIN: &[&str] = &[ROOT, SECONDARY, CLEANUP];
 
 struct PanicsOnDrop;
 
@@ -299,11 +307,16 @@ fn a_destructor_chain_keeps_every_panic_and_each_report_names_the_first() {
         let status = wait(child);
         assert_eq!(run.reached("", status), "armed");
         assert!(!status.success(), "the chain was meant to abort");
-        assert_eq!(panic_lines(&run.stderr("")), 3, "{}", run.stderr(""));
+        assert_eq!(
+            panic_lines(&run.stderr("")),
+            DESTRUCTOR_CHAIN.len(),
+            "{}",
+            run.stderr("")
+        );
 
         let reports = run.reports();
-        assert_kept(&reports, &[ROOT, SECONDARY, CLEANUP], round);
-        assert_eq!(messages(&reports), [ROOT, SECONDARY, CLEANUP]);
+        assert_kept(&reports, DESTRUCTOR_CHAIN, round);
+        assert_eq!(messages(&reports), DESTRUCTOR_CHAIN);
         assert_eq!(
             reports[0].field("Location").map(|l| l.contains(file!())),
             Some(true),
@@ -314,7 +327,10 @@ fn a_destructor_chain_keeps_every_panic_and_each_report_names_the_first() {
             .iter()
             .map(|r| r.field("Panic sequence").expect("sequence"))
             .collect();
-        assert_eq!(sequences, ["1", "2", "3"]);
+        let expected_sequences: Vec<String> = (1..=DESTRUCTOR_CHAIN.len())
+            .map(|sequence| sequence.to_string())
+            .collect();
+        assert_eq!(sequences, expected_sequences);
         assert_names_first_panic(&reports, Some(pid));
         assert_one_panic_each(&reports);
     }
