@@ -701,7 +701,7 @@ headless가 사용하지 않는 GUI 의존성은 [빌드 경계](../../dev-guide
 기존 근거에서 Linux/X11의 실행 확인과 macOS·Windows의 소스·컴파일 확인은 구별돼 있다.
 macOS의 실제 클릭 제스처 판정, macOS 메뉴바와 키 중복 처리는 실제 환경에서 확인해야 하는 항목이다.
 Windows의 같은 문서 fragment 이동과 클릭 증명은 Windows 11 사용자 세션에서 OS 합성 클릭(`mouse_event`)으로 확인했다. 대상은 로컬 Markdown의 폴더 버튼·주소 Go, mirror의 폴더 버튼·새로고침이다. mirror는 같은 머신의 격리 인스턴스와 SSH 터널로 붙인 Linux 격리 인스턴스로 쟀고, 새로고침은 같은 머신에서만 쟀다. 사람 손의 클릭과 Markdown 문서 안 링크 클릭은 측정하지 않았다.
-Windows의 키 증명은 Windows 11 사용자 세션에서 OS 합성 입력(`SendInput`)으로 확인했다. 대상은 로컬 Markdown의 폴더 버튼(Enter·Numpad Enter·Space, 연타, 누르고 있기, Shift+Enter)과 파일 링크다. 입력 없는 페이지 스크립트의 `location.hash`·`click()`·합성 키 이벤트는 개발자 도구 포트로 실행해 증명이 없음을 확인했다. mirror는 같은 머신의 격리 인스턴스로 쟀다. 폴더 버튼의 Enter·Space, 피커 표시 위치, Esc 닫힘, 뒤이은 마우스 재열기가 대상이다. 사람 손 입력, IME 조합, SSH 터널을 거친 mirror의 키보드 활성화는 재지 않았다.
+Windows의 키 증명은 Windows 11 사용자 세션에서 OS 합성 입력(`SendInput`)으로 확인했다. 대상은 로컬 Markdown의 폴더 버튼(Enter·Numpad Enter·Space, 연타, 누르고 있기, Shift+Enter)과 파일 링크다. 입력 없는 페이지 스크립트의 `location.hash`·`click()`·합성 키 이벤트는 개발자 도구 포트로 실행해 증명이 없음을 확인했다. mirror는 같은 머신의 격리 인스턴스로 쟀다. 폴더 버튼의 Enter·Space, 피커 표시 위치, Esc 닫힘, 뒤이은 마우스 재열기, 파일 선택과 Open 뒤 서버 문서 전환이 대상이다. 사람 손 입력, IME 조합, SSH 터널을 거친 mirror의 키보드 활성화는 재지 않았다.
 이 문서의 소스 설명만으로 해당 플랫폼의 실행 검증을 대신하지 않는다.
 
 ## 설정 출처 — kind 를 등록한 plugin
