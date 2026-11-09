@@ -477,6 +477,12 @@ impl PluginManager {
         self.retiring.len()
     }
 
+    /// 회수 중인 plugin 의 회수가 끝났는가 — 시험 전용.
+    #[cfg(test)]
+    pub(crate) fn retiring_finished(&self, plugin_id: &str) -> Option<bool> {
+        self.retiring.get(plugin_id).map(Retiring::is_finished)
+    }
+
     /// 회수 중인 plugin 이 다시 뜰 예정인가 — 시험 전용.
     #[cfg(test)]
     pub(crate) fn retiring_respawn(&self, plugin_id: &str) -> Option<bool> {

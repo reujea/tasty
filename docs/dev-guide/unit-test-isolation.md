@@ -358,6 +358,12 @@ CI 는 `.github/workflows/crossplatform-check.yml` 의 `check-headless` 잡이 �
   은 완료를 `recv_timeout(1초)` 가 실패할 때까지 모아 "남은 것은 credit 대기 중" 으로 판정했다.
   worker 처리가 부하로 1초 넘게 늦으면 루프가 일찍 끝나고, 늦게 온 완료를 다음 단정이 받는다.
   지금은 요청을 순서대로 처리하는 worker 에 읽기 요청(barrier)을 하나 더 넣고 그 완료까지 모은다.
+- 기한은 그 계약이 말하는 구간만 잰다: `disable_returns_before_a_stalled_child_exits` 의 500 ms 상한은
+  "메인 루프가 회수(최대 2초)를 기다리지 않는다"를 가른다. 제품에서 설정 파일 확정은 writer worker 가 하고
+  메인 루프는 `apply_config_change` 만 부르므로, 시험도 `prepare_config_change`·`execute` 로 확정한 뒤
+  `apply_config_change` 만 잰다. 확정의 fsync 는 다른 프로세스의 디스크 사용에 좌우돼 load average 와 무관하게
+  500 ms 를 넘는다. 벽시계는 남긴다. 회수 스레드를 띄운 뒤 일부만 기다리는 회귀는 회수 항목 상태로 구별되지
+  않기 때문이다. 회수를 끝내고 돌아오는 회귀는 `retiring_finished` 단정이 따로 잡는다.
 - 정체 감지는 worker가 잠든 채 진행이 없는 시간만 센다: `app::journal` 시험은 시험 스레드에서
   `poll_bootstrap` 을 부르며 저널 worker의 응답을 기다린다. 벽시계 10초 기한은 두 가지 이유로
   교착 없이 실패했다. 호출 안에서 시험 스레드가 직접 하는 작업(디버그 빌드에서 64 MiB 응답 크기

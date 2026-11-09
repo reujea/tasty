@@ -4,6 +4,7 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use super::PluginManager;
+use super::file_config::ConfigChange;
 use crate::process::PluginProcess;
 use crate::test_support::HomeEnvGuard;
 use tasty_terminal::waker_factory::NoopWakerFactory;
@@ -63,26 +64,40 @@ fn pump_until_retired(mgr: &mut PluginManager) -> Duration {
     longest
 }
 
-/// disable과 이후 pump는 별도 스레드의 회수를 기다리지 않아야 한다.
+/// disable 적용과 이후 pump는 별도 스레드의 회수를 기다리지 않아야 한다.
+///
+/// 제품에서 설정 파일 확정은 writer worker가 하고 메인 루프는 그 결과만 적용한다. 그래서
+/// 확정을 시작 시각 앞에 둔다. 확정은 fsync 때문에 다른 프로세스의 디스크 사용에 좌우된다.
+/// 벽시계 상한은 회수를 일부만 기다리는 회귀를, 상태 단정은 회수를 끝내고 돌아오는 회귀를 잡는다.
 #[test]
 fn disable_returns_before_a_stalled_child_exits() {
     let home = HomeEnvGuard::tasty_home();
     let mut mgr = installed(&home);
     mgr.processes
         .insert(ID.into(), PluginProcess::stub_with_child(ID, slow_child()));
+    let change = ConfigChange::Enabled {
+        id: ID.into(),
+        enabled: false,
+    };
+    let config = mgr
+        .prepare_config_change(&change)
+        .expect("prepare")
+        .execute()
+        .expect("config receipt");
 
     let t = Instant::now();
-    mgr.disable(ID).expect("disable");
+    mgr.apply_config_change(config, &change).expect("apply");
     let took = t.elapsed();
     assert!(
         took < Duration::from_millis(500),
-        "disable 이 회수를 기다렸다: {took:?}"
+        "disable 적용이 회수를 기다렸다: {took:?}"
     );
     assert_eq!(
-        mgr.retiring_count(),
-        1,
-        "회수가 별도 스레드에서 진행 중이어야 한다"
+        mgr.retiring_finished(ID),
+        Some(false),
+        "disable 적용이 회수를 끝내고 돌아왔다"
     );
+    assert_eq!(mgr.retiring_count(), 1, "회수 항목이 하나 남아 있어야 한다");
     assert_eq!(mgr.retiring_respawn(ID), Some(false));
 
     let longest = pump_until_retired(&mut mgr);
