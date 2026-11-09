@@ -81,8 +81,9 @@ epaint = { path = "vendor/epaint" }
 - **왜 사본인가**: 상류 0.31.1 은 글리프가 글꼴 atlas 보다 크면 패닉한다. 파일을 미리 판정해서는 막을 수 없다. 패닉 여부가 글자 크기·배율·앞서 그린 글자에 달려 있고, 정상 글꼴도 해당된다(`NotoSansArabic-Bold`의 U+FDFD, 72pt, 배율 4). 글리프를 만드는 지점에서 그 글자만 비우는 패치다. 사본 범위와 패치 내용은 [`vendor/epaint/PATCHES.md`](../../vendor/epaint/PATCHES.md).
 - **적용 범위**: `[patch.crates-io]` 는 이 workspace 의 빌드에만 적용된다. `tasty-official-plugins` 레포는 자기 workspace 로 빌드해 상류 epaint 를 쓰므로 같은 패닉이 남아 있다.
 - **egui 를 올릴 때**: 사본도 함께 옮긴다. `Cargo.lock` 의 epaint 판이 사본과 어긋나면 `[patch]` 가 쓰이지 않으므로 `crates/tasty-egui-theme/tests/oversized_glyphs.rs` 를 같이 돌린다.
+- **라벨 글꼴 family**: 사본은 `MONO_LINE_SANS_FAMILY`도 제공한다. `tasty_ui_widgets::label_font`가 ja·zh-Hans에서 쓴다. 사본을 지우려면 이 기능을 옮길 곳도 있어야 한다. 상류 epaint로는 이 이름이 등록되지 않은 family라 패닉한다.
 - **사본을 지울 수 있는 조건**: 상류 epaint 가 폭·높이가 큰 글리프와 atlas 넘침 뒤 되돌림에서 패닉하지 않고, 이미지 높이가 GPU 텍스처 한도를 넘지 않으며, 위 시험의 입력을 사본 없이 통과할 때. 상류로 확인할 때는 사본에만 있는 `can_always_allocate` 를 부르는 시험 2개(`the_limits_are_the_atlas_width_and_half_of_it`, `any_order_of_allowed_sizes_stays_in_bounds`)를 먼저 뺀다. 조건을 만족하면 `vendor/epaint`, `[patch.crates-io]` 항목, 저장소 `exclude` 항목, `no_todo_file_citation` 의 예외 줄, 이 두 시험을 함께 지운다. epaint 0.36.1 에는 같은 assert, 커서 되돌림, 높이 증가 조건이 있다(코드 읽기).
-- **상류와의 차이를 재는 방법**: crates.io 묶음과 비교한다. `vendor/epaint/src/text/font.rs` 와 `vendor/epaint/src/texture_atlas.rs` 만 달라야 한다.
+- **상류와의 차이를 재는 방법**: crates.io 묶음과 비교한다. `vendor/epaint/src/text/font.rs`, `vendor/epaint/src/text/fonts.rs`, `vendor/epaint/src/text/mod.rs`, `vendor/epaint/src/texture_atlas.rs` 만 달라야 한다.
 
   ```bash
   diff -r "$(ls -d ~/.cargo/registry/src/*/epaint-0.31.1)/src" vendor/epaint/src

@@ -42,8 +42,18 @@ crates.io의 `epaint` 0.31.1(상류 커밋 `1669e52a7ccfc3489c1b0999b9ed48894a0b
 이 사본은 워크스페이스에서 제외되어 `cargo fmt`와 저장소 가드가 포맷을 검사하지 않는다. 패치를 수정한 뒤 다음 명령을 실행한다. 상류와 같은 포맷을 유지하면 이후 패치를 다시 적용할 때 불필요한 차이를 줄일 수 있다.
 
 ```sh
-rustfmt --edition 2021 --check --config skip_children=true vendor/epaint/src/texture_atlas.rs vendor/epaint/src/text/font.rs
+rustfmt --edition 2021 --check --config skip_children=true vendor/epaint/src/texture_atlas.rs vendor/epaint/src/text/font.rs vendor/epaint/src/text/fonts.rs
 ```
+
+## 패치 — mono의 행 높이와 baseline을 쓰는 sans family
+
+`tasty_ui_widgets::label_font`는 ja·zh-Hans에서 UI sans로 풀린다. RULES 8절은 이 라벨이 같은 크기 mono의 행 높이와 baseline을 갖도록 요구한다. 언어를 바꿔도 레이아웃이 움직이지 않게 하기 위해서다. 상류의 `FontTweak`은 baseline을 크기에 비례해 옮길 뿐 행 높이를 바꾸지 못한다. `Font`의 행 높이는 체인 첫 글꼴의 값이고, 대체 글꼴은 그 줄 상자의 가운데에 놓인다.
+
+- `src/text/fonts.rs`: `pub const MONO_LINE_SANS_FAMILY`를 더한다. `FontFamily::Name`으로 이 이름을 받으면 등록 없이 Proportional 체인을 쓰고, 체인의 글꼴마다 같은 크기 Monospace 첫 글꼴의 행 높이와 ascent를 준다. 그 Monospace 첫 글꼴을 이 family의 체인 맨 끝에 더해, 체인 전체에 없는 글자만 그 글꼴로 그린다. 글꼴을 설치하는 모든 경로에서 쓸 수 있고, 값은 그 글꼴 구성과 배율에서 읽으므로 상수가 없다. 구성에 Monospace가 없으면 Proportional 그대로 그린다.
+- `src/text/font.rs`: `FontImpl::with_line_box_of`를 더한다. 글꼴과 래스터는 그대로이고 글리프 캐시는 따로 가지므로 같은 글자가 atlas에 한 번 더 들어간다. 얇은 공백의 폭은 행 높이에서 나오므로 그 글자만 mono 행 높이를 따른다.
+- 다른 family는 그대로다. Proportional 본문과 Monospace는 값과 체인이 바뀌지 않는다.
+
+`crates/tasty-ui-widgets/src/label_font.rs`의 시험이 행 높이, baseline, 글자 폭을 잰다.
 
 ## 걷는 조건
 

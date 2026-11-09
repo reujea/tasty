@@ -133,6 +133,22 @@ impl FontImpl {
         }
     }
 
+    /// tasty patch: the same face and raster, on the line box of `other`. See
+    /// [`crate::text::MONO_LINE_SANS_FAMILY`].
+    pub(crate) fn with_line_box_of(&self, other: &Self) -> Self {
+        Self {
+            name: self.name.clone(),
+            ab_glyph_font: self.ab_glyph_font.clone(),
+            scale_in_pixels: self.scale_in_pixels,
+            height_in_points: other.height_in_points,
+            y_offset_in_points: self.y_offset_in_points,
+            ascent: other.ascent,
+            pixels_per_point: self.pixels_per_point,
+            glyph_info_cache: Default::default(),
+            atlas: self.atlas.clone(),
+        }
+    }
+
     /// Code points that will always be replaced by the replacement character.
     ///
     /// See also [`invisible_char`].

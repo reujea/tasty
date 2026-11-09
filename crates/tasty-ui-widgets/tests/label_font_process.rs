@@ -10,13 +10,14 @@ fn the_lookup_reads_the_locale_the_host_passed() {
     if let Ok(want) = std::env::var(WANT_PROPORTIONAL) {
         assert_eq!(tasty_i18n::current_language(), "en");
         let family = label_font_family();
-        let want = if want == "1" {
-            egui::FontFamily::Proportional
+        let ui_sans = want == "1";
+        let want = if ui_sans {
+            egui::FontFamily::Name(egui::epaint::text::MONO_LINE_SANS_FAMILY.into())
         } else {
             egui::FontFamily::Monospace
         };
         assert_eq!(family, want);
-        assert_tag_widths_follow_the_variant(want == egui::FontFamily::Proportional);
+        assert_tag_widths_follow_the_variant(ui_sans);
         return;
     }
     let exe = std::env::current_exe().expect("test binary path");

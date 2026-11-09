@@ -12,7 +12,7 @@ pub const TAB_SIZE: usize = 4;
 pub use {
     fonts::{
         FontData, FontDefinitions, FontFamily, FontId, FontInsert, FontPriority, FontTweak, Fonts,
-        FontsImpl, InsertFontFamily,
+        FontsImpl, InsertFontFamily, MONO_LINE_SANS_FAMILY,
     },
     text_layout::layout,
     text_layout_types::*,

@@ -617,6 +617,14 @@ impl FontsAndCache {
 
 // ----------------------------------------------------------------------------
 
+/// tasty patch: a [`FontFamily::Name`] needing no registration. It draws the glyphs of the
+/// [`FontFamily::Proportional`] chain with the row height and baseline that the first font of
+/// [`FontFamily::Monospace`] has at the same size, so every glyph of the chain sits on one baseline.
+/// A small label can then change face with the UI language without moving the layout.
+/// That first mono font is also the last resort of this family: a character missing from the whole
+/// chain draws in it, as it did while the label was mono.
+pub const MONO_LINE_SANS_FAMILY: &str = "tasty-mono-line-sans";
+
 /// The collection of fonts used by `epaint`.
 ///
 /// Required in order to paint text.
@@ -679,14 +687,36 @@ impl FontsImpl {
         self.sized_family
             .entry((OrderedFloat(size), family.clone()))
             .or_insert_with(|| {
-                let fonts = &self.definitions.families.get(family);
+                // tasty patch: see `MONO_LINE_SANS_FAMILY`.
+                let mono_line =
+                    matches!(family, FontFamily::Name(name) if &**name == MONO_LINE_SANS_FAMILY);
+                let chain = if mono_line {
+                    &FontFamily::Proportional
+                } else {
+                    family
+                };
+                let fonts = &self.definitions.families.get(chain);
                 let fonts = fonts
                     .unwrap_or_else(|| panic!("FontFamily::{family:?} is not bound to any fonts"));
 
-                let fonts: Vec<Arc<FontImpl>> = fonts
+                let mut fonts: Vec<Arc<FontImpl>> = fonts
                     .iter()
                     .map(|font_name| self.font_impl_cache.font_impl(size, font_name))
                     .collect();
+
+                let mono = self
+                    .definitions
+                    .families
+                    .get(&FontFamily::Monospace)
+                    .and_then(|chain| chain.first())
+                    .filter(|_| mono_line);
+                if let Some(mono) = mono {
+                    let mono = self.font_impl_cache.font_impl(size, mono);
+                    for font in &mut fonts {
+                        *font = Arc::new(font.with_line_box_of(&mono));
+                    }
+                    fonts.push(mono);
+                }
 
                 Font::new(fonts)
             })
