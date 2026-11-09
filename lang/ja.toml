@@ -61,7 +61,8 @@ hint = "ディスプレイ/コンポジタとグラフィックドライバを�
 [boot.shell_setup]
 title = "シェルを選択"
 subtitle = "新しいターミナルはこのシェルで起動します。あとで設定から変更できます。"
-git_bash_missing = "Git Bashが見つかりません。Git for Windowsをインストールするか、bash.exeのパスを入力してください。"
+git_bash_missing = "既定のインストール先にGit Bashが見つかりませんでした。Git for Windowsをインストールするか、別の場所にある場合はbash.exeのパスを入力してください。"
+git_bash_required = "WindowsではTastyはGit Bashのみ実行します。Git Bashのbash.exeのパスを入力してください。"
 check_missing = "このパスにファイルがありません"
 check_not_shell = "Git Bashではありません。Git for Windowsのbash.exeを指定"
 check_directory = "このパスはフォルダーで、実行ファイルではありません"

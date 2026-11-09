@@ -61,7 +61,8 @@ hint = "디스플레이·컴포지터와 그래픽 드라이버를 확인한 뒤
 [boot.shell_setup]
 title = "셸 선택"
 subtitle = "새 터미널은 이 셸로 시작합니다. 나중에 설정에서 바꿀 수 있습니다."
-git_bash_missing = "Git Bash를 찾지 못했습니다. Git for Windows를 설치하거나 bash.exe 경로를 입력하세요."
+git_bash_missing = "기본 설치 위치에서 Git Bash를 찾지 못했습니다. Git for Windows를 설치하거나, 다른 위치에 있다면 bash.exe 경로를 입력하세요."
+git_bash_required = "Windows에서 Tasty는 Git Bash만 실행합니다. Git Bash의 bash.exe 경로를 입력하세요."
 check_missing = "이 경로에 파일이 없습니다"
 check_not_shell = "Git Bash가 아닙니다. Git for Windows의 bash.exe를 사용하세요"
 check_directory = "이 경로는 폴더입니다. 실행 파일이 아닙니다"

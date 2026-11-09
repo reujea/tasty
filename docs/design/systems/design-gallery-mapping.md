@@ -1318,12 +1318,12 @@ hairline이라 UI 배율을 적용하지 않는다.
 | 부팅 화면 채움(bg-app) + `Lockup` | `shell_setup_screen` — `brand::draw_wordmark`(로딩 화면과 같은 `loading_screen_wordmark_*` 크기와 `loading_lockup_tracking` 자간) | 락업과 폼 묶음을 세로 가운데에 둔다. 높이는 지난 패스에서 잰 값을 쓰고 바뀌면 패스를 다시 돈다 |
 | 폼(`size-360` 폭, 항목 gap `space-sm`, 락업과 `space-xl`) | `draw_form` | 폭은 이름 붙은 상수 `SHELL_SETUP_FORM_WIDTH`(역할 토큰 없음) |
 | 제목 14/600 text-primary · 부제 body text-muted line-height-ui | `draw_form` | 600 굵기는 크기와 색으로 근사([디자인 정합 지침 §타이포그래피](design-parity-notes.md)) |
-| Windows Git Bash 안내(caption, accent-warning, `alertTriangle` icon-size-sm, 글리프 위 `size-1`, gap space-xs) | `notice_line` | 호출부가 Windows에서 Git Bash를 찾지 못했을 때만 문구를 넘긴다 |
+| Windows Git Bash 안내(caption, accent-warning, `alertTriangle` icon-size-sm, 글리프 위 `size-1`, gap space-xs) | `notice_line` | 호출부가 Windows에서만 문구를 넘긴다. 기본 위치 탐색 결과에 따라 `git_bash_missing` 또는 `git_bash_required`다 |
 | mono 경로 `Input`(block, control-height) | 공용 `Input` | |
 | 검증 줄(caption, gap space-xs, 높이 = caption × line-height-ui 예약) | `check_line` — `ShellSetupCheck` 4판정 | 판정은 본체 `shell_check`가 한다 |
 | 버튼 줄(오른쪽 정렬, gap space-sm, 위 `space-sm` 추가) Quit secondary · Use this shell primary md | `draw_form` | 확인은 판정이 유효할 때만 활성 |
 
-갤러리는 시안 Stage의 8장(Windows empty·missing·notShell·valid, macOS notShell·valid, Latte Windows missing·macOS valid)을 640×480 창에 그리고 Meta 행과 토큰 칩은 시안 문구를 옮긴다.
+갤러리는 시안 첫 Spec의 8장(Windows empty·missing·notShell·valid, macOS missing·valid, Latte Windows missing·macOS valid)에 시안에 없는 macOS 디렉터리·실행 권한 없음 2장을 더해 640×480 창에 그리고, 시안의 `windows-saved-shell-refused-git-bash-in-default-location` 4장을 같은 카드의 다음 Spec으로 그린다. Meta 행과 토큰 칩은 시안 문구를 옮긴다.
 
 ## 탭 스트립 툴팁 — 네이티브 콘텐츠 위로 (Layouts)
 

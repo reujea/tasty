@@ -61,7 +61,8 @@ hint = "Check your display/compositor and graphics drivers, then start Tasty aga
 [boot.shell_setup]
 title = "Choose a shell"
 subtitle = "New terminals start this shell. You can change it later in Settings."
-git_bash_missing = "Git Bash was not found. Install Git for Windows, or enter the path to bash.exe."
+git_bash_missing = "Git Bash was not found in the default install locations. Install Git for Windows, or enter the path to bash.exe if it is elsewhere."
+git_bash_required = "On Windows, Tasty runs only Git Bash. Enter the path to its bash.exe."
 check_missing = "No file at this path"
 check_not_shell = "Not Git Bash. Use bash.exe from Git for Windows"
 check_directory = "This path is a folder, not a program"

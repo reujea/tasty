@@ -121,7 +121,7 @@ hidden 창은 `RedrawRequested` 를 못 받을 수 있으므로 첫 프레임은
   [shutdown-sequence "종료 화면"](shutdown-sequence.md) · [종료 시퀀스 — 종료 cascade + Drop tail](shutdown-sequence.md).
 - 갤러리 specimen: `crates/tasty-gallery/src/catalog/chrome_loading.rs`
   (Chrome 카테고리) — 부팅 5종(기본/최소창/phase 문구 3종/문구 없음/Latte) +
-  종료 2종(기본/phase 문구 4종) + 첫 실행 셸 설정 화면 9장(Windows 판정 4종, macOS 3종 — 디렉터리·실행 권한 없음·fish 확정, Latte 2장)
+  종료 2종(기본/phase 문구 4종) + 첫 실행 셸 설정 화면 14장(Windows 판정 4종, macOS 4종 — 파일 없음·디렉터리·실행 권한 없음·fish 확정, Latte 2장, 저장값이 거부되고 기본 위치에 Git Bash가 있는 Windows 4장)
   + 부팅 오류 화면 4장(엔진 오류, 데이터 폴더 사용 중, 웹훅 포트, Latte 데이터 폴더 사용 중).
   웹훅 포트 장은 디자인 시안 순서를 지키는 긴 CLI 안내 문구 예시이며, 본체는 이 경우 화면을 띄우지 않는다.
 - **첫 실행 셸 설정 화면** — `render_shell_setup` 은 공용 view
@@ -139,7 +139,10 @@ hidden 창은 `RedrawRequested` 를 못 받을 수 있으므로 첫 프레임은
   - 이 화면은 설정 셸을 쓸 수 없고 대체할 셸도 없을 때, macOS·Linux 에서 설정 셸이 디렉터리이거나
     실행 권한 없는 파일일 때, Windows 에서 저장값이 Git Bash 가 아니거나 없는 경로일 때(대체하지 않는 판정) 열린다([터미널 surface "실행할 셸"](../surfaces/terminal/index.md)).
     입력란은 설정한 셸 경로로 채워 열리므로 판정 줄이 곧바로 원인을 보인다. 빈 설정이면 빈 칸이다.
-    Git Bash 안내 줄은 Windows 에서 기본 위치의 Git Bash 를 찾지 못했을 때만 보인다.
+    Windows 안내 줄은 항상 보인다. 기본 위치에서 Git Bash 를 찾지 못했으면 "Git Bash was not found in the
+    default install locations. Install Git for Windows, or enter the path to bash.exe if it is elsewhere.", 찾았으면
+    "On Windows, Tasty runs only Git Bash. Enter the path to its bash.exe." 다. 이 탐색 결과만 따르므로 입력 중에
+    판정이 바뀌어도 그대로다.
   - 버튼은 공용 `Button` Secondary "Quit"(앱 종료)과 Primary "Use this shell"(md)이다.
     판정이 유효할 때만 확인이 활성이며 Enter 확인도 같은 조건을 따른다. disabled 모양은
     공용 규칙(중립 상자와 disabled ink)을 따른다.

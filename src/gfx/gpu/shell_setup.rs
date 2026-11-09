@@ -28,9 +28,13 @@ fn valid_line() -> &'static str {
     }
 }
 
-/// Git Bash를 찾지 못했다는 안내를 보일지. Windows에만 해당한다.
-fn git_bash_notice_applies(detected: Option<String>) -> bool {
-    cfg!(windows) && detected.is_none()
+/// Windows 안내 줄의 키. 기본 위치 탐색 결과만 따르므로 입력 중 판정이 바뀌어도 그대로다.
+fn git_bash_notice_key(detected: Option<String>) -> Option<&'static str> {
+    cfg!(windows).then_some(if detected.is_some() {
+        "boot.shell_setup.git_bash_required"
+    } else {
+        "boot.shell_setup.git_bash_missing"
+    })
 }
 
 impl GpuState {
@@ -51,10 +55,8 @@ impl GpuState {
 
         let title = t("boot.shell_setup.title");
         let subtitle = t("boot.shell_setup.subtitle");
-        // 이 화면은 저장값을 쓸 수 없을 때도 뜬다. Git Bash를 찾았다면 찾지 못했다고 말하지 않는다.
         let git_bash_notice =
-            git_bash_notice_applies(tasty_settings::GeneralSettings::detect_bash())
-                .then(|| t("boot.shell_setup.git_bash_missing"));
+            git_bash_notice_key(tasty_settings::GeneralSettings::detect_bash()).map(t);
         let missing = t("boot.shell_setup.check_missing");
         let not_shell = t("boot.shell_setup.check_not_shell");
         let directory = t("boot.shell_setup.check_directory");
@@ -169,12 +171,20 @@ impl GpuState {
 
 #[cfg(test)]
 mod notice_tests {
-    use super::git_bash_notice_applies;
+    use super::git_bash_notice_key;
 
     #[test]
-    fn the_git_bash_notice_needs_windows_and_no_detected_git_bash() {
-        assert_eq!(git_bash_notice_applies(None), cfg!(windows));
-        assert!(!git_bash_notice_applies(Some("bash".into())));
+    fn the_git_bash_notice_follows_the_default_location_search_on_windows_only() {
+        let (missing, required) = if cfg!(windows) {
+            (
+                Some("boot.shell_setup.git_bash_missing"),
+                Some("boot.shell_setup.git_bash_required"),
+            )
+        } else {
+            (None, None)
+        };
+        assert_eq!(git_bash_notice_key(None), missing);
+        assert_eq!(git_bash_notice_key(Some("bash".into())), required);
     }
 }
 

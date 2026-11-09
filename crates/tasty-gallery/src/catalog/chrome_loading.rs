@@ -7,7 +7,7 @@ use tasty_type_appearance::theme::Theme;
 use tasty_ui_widgets::brand::{self};
 use tasty_ui_widgets::{ShellSetupCheck, ShellSetupView, Spinner, shell_setup_screen};
 
-use crate::catalog::spec::{StageVariant, TokenChip, meta, note, stage};
+use crate::catalog::spec::{StageVariant, TokenChip, meta, note, spec, stage};
 
 // 크기가 다른 예제 창에서도 로딩 요소의 크기를 유지하는지 비교한다.
 
@@ -340,12 +340,14 @@ fn setup_value(os: SetupOs, check: ShellSetupCheck) -> &'static str {
 }
 
 /// 셸 설정 예제 창 한 장. 본체와 같은 `shell_setup_screen`을 최소 크기 창에 그린다.
+/// `saved`가 있으면 저장값이 거부됐고 기본 위치에 Git Bash가 있는 경우다(안내 줄이 다르다).
 fn draw_shell_setup_frame(
     ui: &mut egui::Ui,
     theme: &Theme,
     index: usize,
     os: SetupOs,
     check: ShellSetupCheck,
+    saved: Option<&str>,
 ) {
     let bw = theme.border_width.value();
     let size = egui::vec2(CANVAS_MIN.0 + bw * 2.0, CANVAS_MIN.1 + bw * 2.0);
@@ -354,12 +356,16 @@ fn draw_shell_setup_frame(
     ui.painter()
         .rect_filled(outer, radius, theme.border_strong().to_egui());
     let inner = outer.shrink(bw);
-    let mut path = setup_value(os, check).to_owned();
+    let mut path = saved.unwrap_or(setup_value(os, check)).to_owned();
     let win = os == SetupOs::Win;
     let view = ShellSetupView {
         title: "Choose a shell",
         subtitle: crate::i18n::t("boot.shell_setup.subtitle"),
-        git_bash_notice: win.then_some(crate::i18n::t("boot.shell_setup.git_bash_missing")),
+        git_bash_notice: win.then_some(crate::i18n::t(if saved.is_some() {
+            "boot.shell_setup.git_bash_required"
+        } else {
+            "boot.shell_setup.git_bash_missing"
+        })),
         placeholder: if win {
             "C:/Program Files/Git/bin/bash.exe"
         } else {
@@ -388,7 +394,7 @@ fn draw_shell_setup_frame(
     let _output = shell_setup_screen(&mut frame, theme, &view, &mut path);
 }
 
-/// Windows 4판정, macOS 3판정(디렉터리 · 실행 권한 없음 · fish 확정), Latte 2장.
+/// Windows 4판정, macOS 4판정(파일 없음 · 디렉터리 · 실행 권한 없음 · fish 확정), Latte 2장.
 pub fn draw_shell_setup(ui: &mut egui::Ui, theme: &Theme) {
     let latte = crate::host_shell::latte_theme();
     let frames = [
@@ -396,6 +402,7 @@ pub fn draw_shell_setup(ui: &mut egui::Ui, theme: &Theme) {
         (theme, SetupOs::Win, ShellSetupCheck::Missing),
         (theme, SetupOs::Win, ShellSetupCheck::NotShell),
         (theme, SetupOs::Win, ShellSetupCheck::Valid),
+        (theme, SetupOs::Mac, ShellSetupCheck::Missing),
         (theme, SetupOs::Mac, ShellSetupCheck::Directory),
         (theme, SetupOs::Mac, ShellSetupCheck::NotExecutable),
         (theme, SetupOs::Mac, ShellSetupCheck::Valid),
@@ -406,7 +413,7 @@ pub fn draw_shell_setup(ui: &mut egui::Ui, theme: &Theme) {
         ui.spacing_mut().item_spacing =
             egui::vec2(theme.spacing_lg.value(), theme.spacing_lg.value());
         for (index, (th, os, check)) in frames.into_iter().enumerate() {
-            draw_shell_setup_frame(ui, th, index, os, check);
+            draw_shell_setup_frame(ui, th, index, os, check, None);
         }
     });
     meta(
@@ -425,7 +432,7 @@ pub fn draw_shell_setup(ui: &mut egui::Ui, theme: &Theme) {
             ),
             (
                 "Git Bash notice",
-                "Windows only · caption line alertTriangle + warning ink · between sub and Input · no box",
+                "Windows only · caption alertTriangle + warning ink · between sub and Input · no box · wraps · this case: no Git Bash in a default location",
             ),
             (
                 "confirm",
@@ -458,6 +465,66 @@ pub fn draw_shell_setup(ui: &mut egui::Ui, theme: &Theme) {
             ),
         ],
     );
-    // 같은 구역의 두 번째 Spec. 구역 목록(catalog.rs)은 Spec 하나로 둔다.
+    // 같은 구역의 다음 Spec들. 구역 목록(catalog.rs)은 Spec 하나로 둔다.
+    draw_saved_shell_refused(ui, theme);
     boot_error::draw(ui, theme);
+}
+
+/// 디자인 `windows-saved-shell-refused-git-bash-in-default-location`의 4장.
+fn draw_saved_shell_refused(ui: &mut egui::Ui, theme: &Theme) {
+    spec(
+        ui,
+        theme,
+        "Windows — saved shell refused, Git Bash in a default location",
+        Some(
+            "The saved value is refused or has no file, while a default location has Git Bash. \
+             The screen keeps the saved value, so the validation line alone would not say that \
+             only Git Bash runs on Windows. Someone whose zsh or PowerShell worked before reads \
+             it here. The caption is the same shape with another sentence, chosen by the same \
+             search: Git Bash found in a default location takes this one, none found takes the \
+             one above.",
+        ),
+    );
+    let latte = crate::host_shell::latte_theme();
+    let msys2 = "C:/msys64/usr/bin/bash.exe";
+    let frames = [
+        (theme, ShellSetupCheck::Missing, "D:/Old/Git/bin/bash.exe"),
+        (theme, ShellSetupCheck::NotShell, msys2),
+        (
+            theme,
+            ShellSetupCheck::Valid,
+            "C:/Program Files/Git/bin/bash.exe",
+        ),
+        (&latte, ShellSetupCheck::NotShell, msys2),
+    ];
+    ui.horizontal_wrapped(|ui| {
+        ui.spacing_mut().item_spacing =
+            egui::vec2(theme.spacing_lg.value(), theme.spacing_lg.value());
+        for (index, (th, check, saved)) in frames.into_iter().enumerate() {
+            draw_shell_setup_frame(ui, th, 100 + index, SetupOs::Win, check, Some(saved));
+        }
+    });
+    meta(
+        ui,
+        theme,
+        &[
+            (
+                "notice, no Git Bash in a default location",
+                "boot.shell_setup.git_bash_missing",
+            ),
+            (
+                "notice, Git Bash in a default location",
+                "boot.shell_setup.git_bash_required",
+            ),
+            (
+                "valid on Windows",
+                "boot.shell_setup.check_valid_git_bash · check_valid stays for macOS and Linux",
+            ),
+            (
+                "input",
+                "keeps the saved value until the user confirms a new one",
+            ),
+        ],
+        &[],
+    );
 }
