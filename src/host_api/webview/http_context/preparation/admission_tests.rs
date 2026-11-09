@@ -134,6 +134,11 @@ impl HeldAdmission {
         }
     }
     fn contended(&self, phase: Phase) {
+        assert!(self.contended_answer(phase).is_none());
+    }
+    /// Checks the contention and returns what the receipt answers then. That is nothing yet unless
+    /// the admission budget has run out meanwhile, which a short budget can do on a slow machine.
+    fn contended_answer(&self, phase: Phase) -> Option<Result<PreparedProfile, PrepareError>> {
         assert_eq!(self.event(), Event::Active);
         if matches!(phase, Phase::Create) {
             assert_eq!(self.event(), Event::Active);
@@ -151,7 +156,7 @@ impl HeldAdmission {
             Err(ProfileError::Busy)
         ));
         assert_eq!(self.roots(), 3);
-        assert!(self.receipt.as_ref().unwrap().poll().is_none());
+        self.receipt.as_ref().unwrap().poll()
     }
     fn release(&self) {
         drop(self.lock.lock().unwrap().take());
@@ -222,12 +227,16 @@ fn genuine_eight_root_capacity_is_terminal_and_preserves_live_roots() {
 #[test]
 fn held_lock_has_finite_admission_deadline_and_no_late_allocation() {
     let fixture = HeldAdmission::start(Phase::Sweep, 3, Duration::from_millis(100));
-    fixture.contended(Phase::Sweep);
+    // 100 ms can pass before this thread looks; then the answer is already the expected one. The
+    // tests with a 30 second budget check that a contended receipt answers nothing meanwhile.
+    let early = fixture.contended_answer(Phase::Sweep);
     fixture.until(Event::Done);
-    assert!(matches!(
-        fixture.receipt.as_ref().unwrap().poll(),
-        Some(Err(PrepareError::AdmissionTimeout))
-    ));
+    let answer = early.or_else(|| fixture.receipt.as_ref().unwrap().poll());
+    assert!(
+        matches!(answer, Some(Err(PrepareError::AdmissionTimeout))),
+        "{:?}",
+        answer.map(|answer| answer.err())
+    );
     fixture.release();
     assert_eq!(fixture.roots(), 3);
 }
