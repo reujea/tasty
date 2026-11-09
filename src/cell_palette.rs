@@ -56,6 +56,13 @@ pub fn compute_cell_colors(
     (bg, fg)
 }
 
+/// 프로그램이 전경색을 고르지 않은 셀인지 답한다. 값이 기본색과 같아도 SGR로 고른 색은 아니다.
+/// 반전 셀의 전경은 기본 바탕이므로 기본 글자가 아니다. bold·dim은 색을 고르지 않는다.
+#[cfg(feature = "gui")]
+pub(crate) fn reads_default_ink(attrs: &CellAttributes) -> bool {
+    attrs.foreground() == ColorAttribute::Default && !attrs.reverse()
+}
+
 pub(crate) fn color_attr_to_rgba(
     attr: &ColorAttribute,
     default: GpuRgba,

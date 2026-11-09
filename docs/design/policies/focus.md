@@ -340,7 +340,7 @@ markdown과 image는 kind 이름과 등록한 플러그인 id를 함께 본다. 
 
 **입력 판단과 분리한다.** 이 값은 칠에만 쓴다. 입력은 포커스 자체와 점유 입력 검사를 따로 본다. `ExplorerInput.focused`는 입력 판단이고 hard 점유 때도 낮추지 않는다.
 
-바탕 위 글자는 바탕이 정한다. explorer 파일 영역의 행 글자는 [Explorer 화면](../../surfaces/explorer/index.md#파일-영역-바탕과-행-글자), terminal의 현재 매치 글자는 [Terminal 색상](../../surfaces/terminal/index.md#색상--폰트)에 있다.
+바탕 위 글자는 바탕이 정한다. explorer 파일 영역의 행 글자는 [Explorer 화면](../../surfaces/explorer/index.md#파일-영역-바탕과-행-글자), terminal의 찾기 매치 글자는 [Terminal 색상](../../surfaces/terminal/index.md#색상--폰트)에 있다.
 
 ## 코드 위치
 

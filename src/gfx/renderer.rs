@@ -22,7 +22,27 @@ use tasty_terminal_link::LinkHighlight;
 
 use overlay::composite_over;
 
+/// 일반 매치 안 기본 글자 셀의 글자색. ANSI 색 셀과 현재 매치에는 쓰지 않는다.
+#[derive(Clone, Copy)]
+pub struct MatchInk {
+    pub fg: GpuRgba,
+    /// dim 셀도 이 색으로 읽는지.
+    pub dim: bool,
+}
+
+impl MatchInk {
+    /// 바탕 두 벌 모두 `text-primary`다. 포커스 dim 셀은 제외한다. 내장 테마의 포커스 기본 글자는
+    /// 이 값과 같아 나머지 셀은 보이는 값이 그대로이지만, dim 셀은 섞인 색이라 값이 달라지기 때문이다.
+    pub fn for_surface(theme: &tasty_type_appearance::theme::Theme, focused: bool) -> Self {
+        Self {
+            fg: theme.text_primary().to_gpu_rgba(),
+            dim: !focused,
+        }
+    }
+}
+
 /// Search match highlights to pass into the renderer.
+#[derive(Clone, Copy)]
 pub struct SearchHighlights<'a> {
     pub epoch: tasty_terminal::ContentEpoch,
     pub matches: &'a [tasty_terminal::search::SearchMatch],
@@ -31,12 +51,30 @@ pub struct SearchHighlights<'a> {
     pub active_bg: GpuRgba,
     /// 현재 매치 안 글리프 색. 셀 자신의 글자색(SGR)을 그 칸에서만 덮어쓴다.
     pub active_fg: GpuRgba,
+    pub inactive_ink: Option<MatchInk>,
 }
 
 impl SearchHighlights<'_> {
-    /// 칸이 매치 안이면 강조색을 배경에 합성하고, 현재 매치면 글자색도 바꾼다.
-    /// 나머지 매치는 셀 자신의 글자색을 유지한다.
-    fn paint(&self, col: usize, row: usize, bg: &mut GpuRgba, fg: &mut GpuRgba) {
+    /// DECSCNM 반전 화면에서는 기본 글자가 바탕 색이고 매치 바탕이 글자 색 위에 깔린다.
+    /// 여기에 매치 잉크를 칠하면 글자가 바탕에 묻히므로 셀 글자를 그대로 둔다.
+    fn on_screen(mut self, reversed: bool) -> Self {
+        if reversed {
+            self.inactive_ink = None;
+        }
+        self
+    }
+
+    /// 칸이 매치 안이면 강조색을 배경에 합성한다. 현재 매치는 글자색도 바꾸고, 일반 매치는
+    /// 기본 글자 셀만 바꾼다. `ink_replaced`는 커서·링크가 이미 글자색을 정한 칸이다.
+    fn paint(
+        &self,
+        col: usize,
+        row: usize,
+        attrs: &termwiz::cell::CellAttributes,
+        ink_replaced: bool,
+        bg: &mut GpuRgba,
+        fg: &mut GpuRgba,
+    ) {
         let Some(i) = self
             .matches
             .iter()
@@ -47,8 +85,15 @@ impl SearchHighlights<'_> {
         if i == self.active_index {
             *bg = composite_over(self.active_bg, *bg);
             *fg = self.active_fg;
-        } else {
-            *bg = composite_over(self.inactive_bg, *bg);
+            return;
+        }
+        *bg = composite_over(self.inactive_bg, *bg);
+        if let Some(ink) = self.inactive_ink
+            && !ink_replaced
+            && reads_default_ink(attrs)
+            && (ink.dim || attrs.intensity() != termwiz::cell::Intensity::Half)
+        {
+            *fg = ink.fg;
         }
     }
 }
@@ -87,7 +132,7 @@ impl CursorPaint {
     }
 }
 
-use crate::cell_palette::compute_cell_colors;
+use crate::cell_palette::{compute_cell_colors, reads_default_ink};
 use types::{BgInstance, GlyphInstance, Uniforms};
 
 pub struct RenderPreedit {
@@ -200,11 +245,15 @@ impl CellRenderer {
                 selection.filter(|(s, _)| s.start.epoch == epoch && s.end.epoch == epoch);
             let vi_cursor = vi_cursor.filter(|(p, ..)| p.epoch == epoch);
             let link = link.filter(|l| l.epoch == epoch);
-            let search = search.filter(|s| s.epoch == epoch);
             let preedit = preedit.filter(|p| p.anchor.epoch == epoch);
             // reverse_screen_enabled일 때만 기본 전경·배경을 바꾼다.
             // 꺼져 있어도 터미널 모드 자체는 유지해 조회 결과는 바꾸지 않는다.
-            let (default_bg, default_fg) = if reverse_screen_enabled && view.screen_reverse() {
+            let reversed = reverse_screen_enabled && view.screen_reverse();
+            let search = search
+                .filter(|s| s.epoch == epoch)
+                .map(|s| s.on_screen(reversed));
+            let search = search.as_ref();
+            let (default_bg, default_fg) = if reversed {
                 (default_fg, default_bg)
             } else {
                 (default_bg, default_fg)
@@ -387,8 +436,10 @@ impl CellRenderer {
                 };
                 let (mut bg_color, mut fg_color) =
                     compute_cell_colors(attrs, default_bg, default_fg, ansi);
+                let mut ink_replaced = false;
                 if cursor_paint == Some(CursorPaint::Block) {
                     std::mem::swap(&mut bg_color, &mut fg_color);
+                    ink_replaced = true;
                 }
 
                 let abs_row = row_offset + row_idx;
@@ -404,15 +455,24 @@ impl CellRenderer {
                 {
                     bg_color = composite_over(*cursor_bg, bg_color);
                     fg_color = *cursor_fg;
+                    ink_replaced = true;
                 }
                 if let Some(link) = link
                     && link.covers(col_idx, abs_row)
                 {
                     bg_color = composite_over(link.bg, bg_color);
                     fg_color = link.fg;
+                    ink_replaced = true;
                 }
                 if let Some(sh) = search {
-                    sh.paint(col_idx, abs_row, &mut bg_color, &mut fg_color);
+                    sh.paint(
+                        col_idx,
+                        abs_row,
+                        attrs,
+                        ink_replaced,
+                        &mut bg_color,
+                        &mut fg_color,
+                    );
                 }
 
                 self.bg_instances.push(BgInstance {
@@ -789,44 +849,4 @@ fn clip_scissor(
 }
 
 #[cfg(test)]
-mod search_paint_tests {
-    use super::*;
-    use tasty_terminal::search::SearchMatch;
-
-    fn rgba(v: f32) -> GpuRgba {
-        GpuRgba::dangerously_force_from_array([v, v, v, 1.0])
-    }
-
-    /// 현재 매치 칸만 글자색이 active-fg 로 바뀌고, 나머지 매치와 매치 밖 칸은 셀 글자색을 지킨다.
-    #[test]
-    fn only_the_active_match_overrides_the_cell_ink() {
-        let matches = [
-            SearchMatch {
-                row: 3,
-                col_start: 0,
-                col_end: 2,
-            },
-            SearchMatch {
-                row: 3,
-                col_start: 5,
-                col_end: 7,
-            },
-        ];
-        let sh = SearchHighlights {
-            epoch: tasty_terminal::ContentEpoch::default(),
-            matches: &matches,
-            active_index: 1,
-            inactive_bg: rgba(0.3),
-            active_bg: rgba(0.7),
-            active_fg: rgba(0.1),
-        };
-        let cell = |col: usize| {
-            let (mut bg, mut fg) = (rgba(0.0), rgba(0.9));
-            sh.paint(col, 3, &mut bg, &mut fg);
-            (bg, fg)
-        };
-        assert_eq!(cell(6), (rgba(0.7), rgba(0.1)));
-        assert_eq!(cell(1), (rgba(0.3), rgba(0.9)));
-        assert_eq!(cell(3), (rgba(0.0), rgba(0.9)));
-    }
-}
+mod search_paint_tests;

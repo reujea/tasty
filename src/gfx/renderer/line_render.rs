@@ -34,6 +34,7 @@ impl CellRenderer {
         search: Option<&super::SearchHighlights<'_>>,
     ) {
         let (mut bg_color, mut fg_color) = compute_cell_colors(attrs, default_bg, default_fg, ansi);
+        let mut ink_replaced = false;
 
         if let Some((sel, sel_bg)) = selection
             && tasty_selection::is_selected(col_idx, absolute_row, sel)
@@ -46,15 +47,24 @@ impl CellRenderer {
         {
             bg_color = composite_over(*cursor_bg, bg_color);
             fg_color = *cursor_fg;
+            ink_replaced = true;
         }
         if let Some(link) = link
             && link.covers(col_idx, absolute_row)
         {
             bg_color = composite_over(link.bg, bg_color);
             fg_color = link.fg;
+            ink_replaced = true;
         }
         if let Some(sh) = search {
-            sh.paint(col_idx, absolute_row, &mut bg_color, &mut fg_color);
+            sh.paint(
+                col_idx,
+                absolute_row,
+                attrs,
+                ink_replaced,
+                &mut bg_color,
+                &mut fg_color,
+            );
         }
 
         let off = self.current_viewport_offset;

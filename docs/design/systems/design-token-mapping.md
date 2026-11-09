@@ -14,7 +14,7 @@
 | `border-default` | `surface0` | `#313244` | |
 | `border-strong` | `surface1` | `#45475a` | 팝업 외곽선·강한 구분 |
 | `separator` | 흰색 8% 알파 | — | **구역 bg 위 블렌드.** premultiplied `Theme.separator`를 `to_egui_premultiplied()`로 그린다. 예: bg-panel(base) 위 (48,48,62), 대비 1.264:1. 카드 안 구획선 전용이며 팝업 바깥 경계는 `border-strong`이다 |
-| `text-primary` | `text` | `#cdd6f4` | |
+| `text-primary` | `text` | `#cdd6f4` | 터미널 일반 찾기 매치 안의 기본 글자 셀도 이 값을 쓴다 |
 | `text-secondary` | `subtext1` | `#bac2de` | |
 | `text-muted` | `subtext0` | `#a6adc8` | |
 | `text-disabled` | `overlay1` | `#7f849c` | **비활성 상태의 글자·아이콘 색.** 모든 disabled 라벨·글리프가 이 role 을 읽는다 |
