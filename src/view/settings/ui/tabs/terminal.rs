@@ -425,9 +425,9 @@ fn shell_notice(status: ShellPathStatus) -> Option<(&'static str, bool)> {
         ShellPathStatus::Directory => Some((t("settings.terminal.shell_is_directory"), true)),
         ShellPathStatus::NotExecutable => Some((t("settings.terminal.shell_not_executable"), true)),
         #[cfg(windows)]
-        ShellPathStatus::Missing => Some((t("boot.shell_setup.check_missing"), true)),
+        ShellPathStatus::Missing => Some((t("settings.terminal.shell_missing_windows"), true)),
         #[cfg(windows)]
-        ShellPathStatus::NotShell => Some((t("boot.shell_setup.check_not_shell"), true)),
+        ShellPathStatus::NotShell => Some((t("settings.terminal.shell_not_git_bash"), true)),
         #[cfg(windows)]
         ShellPathStatus::Empty => crate::settings::GeneralSettings::detect_bash()
             .is_none()
@@ -465,11 +465,11 @@ mod tests {
         assert_eq!(shell_notice(ShellPathStatus::Usable), None);
         assert_eq!(
             shell_notice(ShellPathStatus::Missing),
-            Some((t("boot.shell_setup.check_missing"), true))
+            Some((t("settings.terminal.shell_missing_windows"), true))
         );
         assert_eq!(
             shell_notice(ShellPathStatus::NotShell),
-            Some((t("boot.shell_setup.check_not_shell"), true))
+            Some((t("settings.terminal.shell_not_git_bash"), true))
         );
         let empty = crate::settings::GeneralSettings::detect_bash()
             .is_none()
