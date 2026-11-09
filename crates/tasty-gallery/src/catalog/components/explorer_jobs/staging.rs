@@ -11,11 +11,11 @@ use crate::catalog::icons;
 use crate::catalog::spec::{self, StageVariant, TokenChip};
 use crate::i18n::t_lang;
 
-/// 시안의 네 카드를 en·ko·ja 로 나란히 그린다. 문구는 본체 번역표(`lang/*.toml`)의 키이고,
+/// 시안의 네 카드를 내장 언어별로 나란히 그린다. 문구는 본체 번역표(`lang/*.toml`)의 키이고,
 /// 경로와 OS 오류는 실제 카드처럼 번역하지 않는 값이다.
 pub fn draw_staging_left(ui: &mut egui::Ui, theme: &Theme) {
     spec::stage(ui, theme, StageVariant::Wrap, |ui| {
-        for lang in ["en", "ko", "ja"] {
+        for lang in tasty_i18n::BUILTIN_CODES {
             spec::cluster(ui, theme, lang, |ui| {
                 ui.vertical(|ui| {
                     ui.spacing_mut().item_spacing.y = theme.spacing_sm.value();

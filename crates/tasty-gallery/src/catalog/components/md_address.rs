@@ -124,12 +124,15 @@ pub(crate) struct Bar<'a> {
     pub(crate) no_go: bool,
 }
 
+/// 언어별 시안 문구. 언어를 등록하면 문구와 함께 여기에 더한다.
+/// 빠지면 `copies_cover_every_builtin_language`가 실패한다.
+const COPIES: &[(&str, &Copy)] = &[("en", &EN), ("ko", &KO), ("ja", &JA)];
+
 fn copy_for(lang: &str) -> &'static Copy {
-    match lang {
-        "ko" => &KO,
-        "ja" => &JA,
-        _ => &EN,
-    }
+    COPIES
+        .iter()
+        .find(|(code, _)| *code == lang)
+        .map_or(&EN, |(_, copy)| *copy)
 }
 
 /// 주소 띠 하나를 `width` 폭으로 그린다. 시안의 고정 위치값은 모두 `md-address-*` 토큰에서 읽는다.
@@ -704,7 +707,7 @@ pub fn draw_failures(ui: &mut egui::Ui, theme: &Theme) {
                 ui.push_id(("langs", label), |ui| {
                     ui.vertical(|ui| {
                         ui.spacing_mut().item_spacing.y = th.spacing_md.value();
-                        for lang in ["ko", "ja"] {
+                        for lang in crate::i18n::translated_languages() {
                             let cases = [
                                 (
                                     "refused",
@@ -861,4 +864,20 @@ pub fn draw_narrow(ui: &mut egui::Ui, theme: &Theme) {
             ),
         ],
     );
+}
+
+#[cfg(test)]
+mod tests {
+    use super::COPIES;
+
+    /// 표에 없는 언어는 영어 문구로 조용히 돌아가므로 표와 내장 언어 목록을 대조한다.
+    #[test]
+    fn copies_cover_every_builtin_language() {
+        let listed: Vec<&str> = COPIES.iter().map(|(code, _)| *code).collect();
+        assert_eq!(
+            listed,
+            tasty_i18n::BUILTIN_CODES,
+            "COPIES에 내장 언어의 시안 문구를 빠짐없이 적어야 한다"
+        );
+    }
 }

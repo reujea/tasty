@@ -47,28 +47,67 @@ pub fn t_args(key: &'static str, args: &[&str]) -> String {
     tasty_i18n::t_args(key, args)
 }
 
-/// `key`의 `code`(ko·ja) 문자열. 한 화면에 여러 언어의 예제를 나란히 보일 때 쓴다.
+/// 내장 언어의 번역 파일. 언어를 등록하면 여기에 한 줄을 더한다.
+/// 빠지면 `catalogs_cover_every_builtin_language`가 실패한다.
+const CATALOGS: &[(&str, &str)] = &[
+    ("en", include_str!("../../../lang/en.toml")),
+    ("ko", include_str!("../../../lang/ko.toml")),
+    ("ja", include_str!("../../../lang/ja.toml")),
+];
+
+/// 영어가 아닌 내장 언어. 표본을 언어별로 나란히 그릴 때 쓴다.
+pub fn translated_languages() -> impl Iterator<Item = &'static str> {
+    tasty_i18n::BUILTIN_CODES
+        .into_iter()
+        .filter(|code| *code != "en")
+}
+
+/// `key`의 `code` 문자열. 한 화면에 여러 언어의 예제를 나란히 보일 때 쓴다.
 /// 본체와 같은 `lang/{code}.toml`을 읽으며 키가 없으면 영어로 돌아간다.
 pub fn t_lang(code: &str, key: &'static str) -> &'static str {
     use std::collections::HashMap;
     use std::sync::OnceLock;
-    static KO: OnceLock<HashMap<String, String>> = OnceLock::new();
-    static JA: OnceLock<HashMap<String, String>> = OnceLock::new();
-    let (cell, text) = match code {
-        "ko" => (&KO, include_str!("../../../lang/ko.toml")),
-        "ja" => (&JA, include_str!("../../../lang/ja.toml")),
-        _ => return t(key),
-    };
-    let table = cell.get_or_init(|| {
-        let mut map = HashMap::new();
-        match toml::from_str::<toml::Value>(text) {
-            Ok(value) => tasty_i18n::flatten_catalog_toml("", &value, &mut map),
-            Err(e) => tracing::warn!("gallery lang/{code}.toml did not parse: {e}"),
-        }
-        map
+    static TABLES: OnceLock<HashMap<&'static str, HashMap<String, String>>> = OnceLock::new();
+    let tables = TABLES.get_or_init(|| {
+        CATALOGS
+            .iter()
+            .map(|(code, text)| {
+                let mut map = HashMap::new();
+                match toml::from_str::<toml::Value>(text) {
+                    Ok(value) => tasty_i18n::flatten_catalog_toml("", &value, &mut map),
+                    Err(e) => tracing::warn!("gallery lang/{code}.toml did not parse: {e}"),
+                }
+                (*code, map)
+            })
+            .collect()
     });
-    match table.get(key) {
+    match tables.get(code).and_then(|table| table.get(key)) {
         Some(value) => value.as_str(),
         None => t(key),
+    }
+}
+
+#[cfg(test)]
+pub(crate) fn catalog_value(code: &str) -> toml::Value {
+    let (_, text) = CATALOGS
+        .iter()
+        .find(|(listed, _)| *listed == code)
+        .unwrap_or_else(|| panic!("CATALOGS에 {code}가 없다"));
+    toml::from_str(text).expect("lang file parses")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// 표에 없는 언어는 영어로 조용히 돌아가므로 표와 내장 언어 목록을 대조한다.
+    #[test]
+    fn catalogs_cover_every_builtin_language() {
+        let listed: Vec<&str> = CATALOGS.iter().map(|(code, _)| *code).collect();
+        assert_eq!(
+            listed,
+            tasty_i18n::BUILTIN_CODES,
+            "CATALOGS에 내장 언어의 번역 파일을 빠짐없이 적어야 한다"
+        );
     }
 }

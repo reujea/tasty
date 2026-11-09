@@ -261,13 +261,17 @@ pub(super) fn draw(ui: &mut egui::Ui, theme: &Theme, mocha: &Theme, latte: &Them
             });
         },
     );
+    let langs: Vec<&str> = crate::i18n::translated_languages().collect();
     spec::cluster(
         ui,
         theme,
-        "Attention › reserved id — Mocha · ko / ja length",
+        &format!(
+            "Attention › reserved id — Mocha · {} length",
+            langs.join(" / ")
+        ),
         |ui| {
             themed(ui, theme, mocha, |ui| {
-                for lang in ["ko", "ja"] {
+                for lang in langs.iter().copied() {
                     detail(ui, mocha, sample, lang, Bar::Rest, lang_w);
                     detail(ui, mocha, sample, lang, Bar::Confirm, lang_w);
                     notice(ui, mocha, lang, sample.id);

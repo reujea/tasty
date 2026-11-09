@@ -295,21 +295,24 @@ pub fn draw_row_copy(ui: &mut egui::Ui, theme: &Theme) {
             });
     });
 
-    let [en, ko, ja] = ["en", "ko", "ja"].map(locale_texts);
-    let row = |(prefix, suffix): (&str, &str)| format!("prefix \"{prefix}\" · suffix \"{suffix}\"");
-    let specs = [
-        ("row 1 en", row(en[0])),
-        ("row 1 ko", row(ko[0])),
-        ("row 1 ja", row(ja[0])),
-        ("row 2 en", row(en[1])),
-        ("row 2 ko", row(ko[1])),
-        ("row 2 ja", row(ja[1])),
-        (
-            "keys",
-            "[popup.mouse_capture_banner_menu] prefix / suffix".to_string(),
-        ),
-    ];
-    let specs: Vec<(&str, &str)> = specs.iter().map(|(k, v)| (*k, v.as_str())).collect();
+    let mut specs: Vec<(String, String)> = Vec::new();
+    for index in 0..2 {
+        for code in tasty_i18n::BUILTIN_CODES {
+            let (prefix, suffix) = locale_texts(code)[index];
+            specs.push((
+                format!("row {} {code}", index + 1),
+                format!("prefix \"{prefix}\" · suffix \"{suffix}\""),
+            ));
+        }
+    }
+    specs.push((
+        "keys".to_string(),
+        "[popup.mouse_capture_banner_menu] prefix / suffix".to_string(),
+    ));
+    let specs: Vec<(&str, &str)> = specs
+        .iter()
+        .map(|(k, v)| (k.as_str(), v.as_str()))
+        .collect();
     spec::meta(
         ui,
         theme,
@@ -403,7 +406,7 @@ pub fn draw_unknown_name(ui: &mut egui::Ui, theme: &Theme) {
                 ui.horizontal_wrapped(|ui| {
                     ui.spacing_mut().item_spacing =
                         egui::vec2(ELASTIC_GAP.value(), ELASTIC_GAP.value());
-                    for code in ["en", "ko", "ja"] {
+                    for code in tasty_i18n::BUILTIN_CODES {
                         elastic_slot(ui, theme, &format!("{code} · unknown"), |ui| {
                             unknown_menu(ui, theme, unknown_texts(code));
                         });
@@ -561,15 +564,11 @@ fn more_menu_texts(
 mod tests {
     use super::locale_texts;
 
-    /// ko·ja 예제는 본체와 같은 키를 그 언어 파일에서 읽는다. 이름이 앞에 오는 언어라 문장이 뒤 문구에 있다.
+    /// 번역 예제는 본체와 같은 키를 그 언어 파일에서 읽는다.
     #[test]
     fn locale_examples_read_the_app_copy_of_that_language() {
-        for code in ["ko", "ja"] {
-            let lang: toml::Value = toml::from_str(match code {
-                "ko" => include_str!("../../../../../lang/ko.toml"),
-                _ => include_str!("../../../../../lang/ja.toml"),
-            })
-            .expect("lang file parses");
+        for code in crate::i18n::translated_languages() {
+            let lang = crate::i18n::catalog_value(code);
             let menu = &lang["popup"]["mouse_capture_banner_menu"];
             let key = |k: &str| menu[k].as_str().expect("menu key").to_string();
             let [suppress, disable] = locale_texts(code);
@@ -581,10 +580,13 @@ mod tests {
                 (disable.0.to_string(), disable.1.to_string()),
                 (key("disable_prefix"), key("disable_suffix"))
             );
-            assert!(!suppress.1.is_empty() && !disable.1.is_empty());
             assert_ne!(
-                suppress.1,
-                crate::i18n::t("popup.mouse_capture_banner_menu.suppress_suffix")
+                (suppress.0, suppress.1),
+                (
+                    crate::i18n::t("popup.mouse_capture_banner_menu.suppress_prefix"),
+                    crate::i18n::t("popup.mouse_capture_banner_menu.suppress_suffix"),
+                ),
+                "{code}"
             );
         }
     }
@@ -592,12 +594,8 @@ mod tests {
     /// 이름 미상 예제는 본체와 같은 세 키를 그 언어 파일에서 읽는다.
     #[test]
     fn unknown_examples_read_the_app_copy_of_that_language() {
-        for (code, src) in [
-            ("en", include_str!("../../../../../lang/en.toml")),
-            ("ko", include_str!("../../../../../lang/ko.toml")),
-            ("ja", include_str!("../../../../../lang/ja.toml")),
-        ] {
-            let lang: toml::Value = toml::from_str(src).expect("lang file parses");
+        for code in tasty_i18n::BUILTIN_CODES {
+            let lang = crate::i18n::catalog_value(code);
             let menu = &lang["popup"]["mouse_capture_banner_menu"];
             let key = |k: &str| menu[k].as_str().expect("menu key").to_string();
             let copy = super::unknown_texts(code);
@@ -607,16 +605,29 @@ mod tests {
         }
     }
 
-    /// 시안 "Row copy": en 은 이름 앞 문구만, ko·ja 는 이름 뒤 문구만 쓴다.
-    /// 어느 언어도 빈 이름 자리 앞뒤가 모두 비지 않아 문장이 이름 한쪽에만 붙는다.
+    /// 시안 "Row copy": 언어마다 프로그램 이름이 문장의 어느 쪽에 오는지 정해져 있다.
+    /// 언어를 등록하면 시안의 어순을 확인해 이 표에 더한다.
+    const NAME_FIRST: &[(&str, bool)] = &[("en", false), ("ko", true), ("ja", true)];
+
+    /// 문장은 이름 한쪽에만 붙는다. 어느 언어도 이름 앞뒤에 문구를 함께 두지 않는다.
     #[test]
-    fn en_names_the_program_last_and_ko_ja_name_it_first() {
-        for (prefix, suffix) in locale_texts("en") {
-            assert!(prefix.ends_with(' ') && suffix.is_empty(), "{prefix:?}");
-        }
-        for code in ["ko", "ja"] {
+    fn each_language_names_the_program_on_its_designed_side() {
+        let listed: Vec<&str> = NAME_FIRST.iter().map(|(code, _)| *code).collect();
+        assert_eq!(
+            listed,
+            tasty_i18n::BUILTIN_CODES,
+            "NAME_FIRST에 내장 언어의 어순을 빠짐없이 적어야 한다"
+        );
+        for (code, name_first) in NAME_FIRST {
             for (prefix, suffix) in locale_texts(code) {
-                assert!(prefix.is_empty() && !suffix.is_empty(), "{code} {suffix:?}");
+                if *name_first {
+                    assert!(prefix.is_empty() && !suffix.is_empty(), "{code} {suffix:?}");
+                } else {
+                    assert!(
+                        prefix.ends_with(' ') && suffix.is_empty(),
+                        "{code} {prefix:?}"
+                    );
+                }
             }
         }
     }
