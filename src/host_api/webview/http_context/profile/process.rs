@@ -92,7 +92,7 @@ fn parse_start(text: &str) -> Option<u64> {
         .ok()
 }
 /// A bounded read-only same-UID FD/maps/cwd/root/exe observation, never a WebKit teardown ACK.
-/// Any inaccessible process, exhausted bound or unstable observation leaves uncertainty.
+/// Any inaccessible live process, exhausted bound or unstable observation leaves uncertainty.
 pub(super) fn consumers(root: &Path, objects: &HashSet<(u64, u64)>) -> io::Result<bool> {
     let mut entries = 0;
     let mut budget = 65_536usize;
@@ -121,7 +121,7 @@ pub(super) fn consumers(root: &Path, objects: &HashSet<(u64, u64)>) -> io::Resul
         match audit_process(&path, root, objects, &mut budget) {
             Ok(true) => return Ok(true),
             Ok(false) => {}
-            Err(e) if vanished(&e) => {}
+            Err(e) if gone(&e, &path) => {}
             Err(e) => return Err(e),
         }
     }
@@ -139,7 +139,7 @@ pub(super) fn audit_process(
         match audit_task(&task, root, objects, budget) {
             Ok(true) => return Ok(true),
             Ok(false) => {}
-            Err(e) if vanished(&e) => {}
+            Err(e) if gone(&e, &task) => {}
             Err(e) => return Err(e),
         }
     }
@@ -166,6 +166,18 @@ fn audit_task(
 }
 fn vanished(e: &io::Error) -> bool {
     e.kind() == io::ErrorKind::NotFound || e.raw_os_error() == Some(libc::ESRCH)
+}
+/// Whether an audit error means its process or task no longer exists, so it consumes nothing.
+fn gone(e: &io::Error, subject: &Path) -> bool {
+    gone_after(e, || read(&subject.join("stat"), 8192).map(drop))
+}
+/// A task that exits during the walk also answers its /proc entries with EACCES, the same answer as
+/// a live task this UID may not inspect. Only observing the subject again tells them apart: it
+/// counts as gone if that says it is gone, and a live subject or a failed observation stays denied.
+pub(super) fn gone_after(e: &io::Error, reobserve: impl FnOnce() -> io::Result<()>) -> bool {
+    vanished(e)
+        || (e.raw_os_error() == Some(libc::EACCES)
+            && reobserve().is_err_and(|again| vanished(&again)))
 }
 fn reference(path: &Path, root: &Path, objects: &HashSet<(u64, u64)>) -> io::Result<bool> {
     let target = match std::fs::read_link(path) {

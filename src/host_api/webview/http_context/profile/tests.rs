@@ -535,6 +535,103 @@ fn fd_and_mapping_consumers(
     assert!(!process::audit_process(&our_proc, root, objects, &mut 65_536).unwrap());
 }
 
+fn os_error(code: i32) -> std::io::Error {
+    std::io::Error::from_raw_os_error(code)
+}
+#[test]
+fn only_a_subject_observed_gone_turns_a_denial_into_gone() {
+    let denied = os_error(libc::EACCES);
+    assert!(!process::gone_after(&denied, || Ok(())));
+    assert!(process::gone_after(&denied, || Err(os_error(libc::ENOENT))));
+    assert!(process::gone_after(&denied, || Err(os_error(libc::ESRCH))));
+    assert!(!process::gone_after(&denied, || Err(os_error(libc::EIO))));
+    assert!(!process::gone_after(&denied, || Err(os_error(
+        libc::EACCES
+    ))));
+    // Errors that already decide their meaning are not observed again.
+    let unexpected = || panic!("no second observation");
+    assert!(process::gone_after(&os_error(libc::ENOENT), unexpected));
+    assert!(process::gone_after(&os_error(libc::ESRCH), unexpected));
+    assert!(!process::gone_after(&os_error(libc::EIO), unexpected));
+}
+/// The audit answer for a dead owner's root decides between removing it and retaining it.
+#[test]
+fn a_dead_root_is_removed_only_when_the_denied_subject_was_observed_gone() {
+    let sweep = |reobserved: fn() -> std::io::Result<()>| {
+        let parent = namespace();
+        let mut child = OwnedChild::start(parent.path(), false);
+        child.finish();
+        let audit = |_: &Path, _: &std::collections::HashSet<(u64, u64)>| {
+            let denied = os_error(libc::EACCES);
+            if process::gone_after(&denied, reobserved) {
+                Ok(false)
+            } else {
+                Err(denied)
+            }
+        };
+        let report = admitted(|| reclaim::run_with_audit(parent.path(), &audit)).unwrap();
+        (report.removed, report.kept_uncertain, child.root.exists())
+    };
+    assert_eq!(sweep(|| Err(os_error(libc::ENOENT))), (1, 0, false));
+    assert_eq!(sweep(|| Ok(())), (0, 1, true));
+    assert_eq!(sweep(|| Err(os_error(libc::EIO))), (0, 1, true));
+}
+/// A real live task of this UID that denies inspection: the audit must not complete past it.
+#[test]
+fn a_live_task_that_denies_inspection_keeps_the_audit_incomplete() {
+    use std::{
+        io::{BufRead, Read},
+        process::{Command, Stdio},
+    };
+    let module = module_path!().split_once("::").unwrap().1;
+    let entry = format!("{module}::undumpable_child");
+    let mut child = Command::new(std::env::current_exe().unwrap())
+        .args([
+            "--ignored",
+            "--exact",
+            &entry,
+            "--nocapture",
+            "--test-threads=1",
+        ])
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null())
+        .spawn()
+        .unwrap();
+    // Stays open until the child has exited: its harness still reports to this pipe.
+    let mut stdout = std::io::BufReader::new(child.stdout.take().unwrap());
+    assert!(
+        stdout
+            .by_ref()
+            .lines()
+            .map_while(Result::ok)
+            .any(|line| line.contains("undumpable-ready")),
+        "owned undumpable child never reported ready"
+    );
+    let process = PathBuf::from(format!("/proc/{}", child.id()));
+    let root = Path::new("/nonexistent-tasty-profile-root");
+    let audit = process::audit_process(&process, root, &Default::default(), &mut 65_536);
+    let alive = child.try_wait().unwrap().is_none();
+    drop(child.stdin.take());
+    assert!(child.wait().unwrap().success());
+    assert!(alive, "the denied task must be live during the audit");
+    let error = audit.expect_err("a denied live task leaves the audit incomplete");
+    assert_eq!(error.raw_os_error(), Some(libc::EACCES));
+}
+#[test]
+#[ignore = "owned subprocess entry, invoked only by its parent test"]
+fn undumpable_child() {
+    use std::io::{Read, Write};
+    // SAFETY: this is the dedicated owned child process; prctl touches no Rust memory.
+    assert_eq!(unsafe { libc::prctl(libc::PR_SET_DUMPABLE, 0) }, 0);
+    // The handshake with the parent over its pipe, not a log line.
+    let mut stdout = std::io::stdout();
+    writeln!(stdout, "undumpable-ready").unwrap();
+    stdout.flush().unwrap();
+    let mut byte = [0];
+    let received = std::io::stdin().read(&mut byte).unwrap();
+    assert_eq!(received, 0, "owned parent closes stdin for normal exit");
+}
 #[test]
 fn deletion_error_retains_ownership_record_for_remaining_root() {
     let parent = namespace();

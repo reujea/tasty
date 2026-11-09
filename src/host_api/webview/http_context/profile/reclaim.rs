@@ -138,6 +138,15 @@ pub(super) fn remove_unpublished(
     Tree::inspect(reopened)?.dispose(namespace, name, record)
 }
 pub(super) fn run(parent: &Path, max_entries: usize) -> Result<CleanupReport, ProfileError> {
+    run_audited(parent, max_entries, &process::consumers)
+}
+/// Answers whether anything consumes a dead owner's root, or that the answer is unavailable.
+type Audit<'a> = &'a dyn Fn(&Path, &HashSet<(u64, u64)>) -> std::io::Result<bool>;
+fn run_audited(
+    parent: &Path,
+    max_entries: usize,
+    audit: Audit<'_>,
+) -> Result<CleanupReport, ProfileError> {
     if max_entries == 0 {
         return Err(ProfileError::Invalid);
     }
@@ -150,7 +159,7 @@ pub(super) fn run(parent: &Path, max_entries: usize) -> Result<CleanupReport, Pr
     };
     for name in names {
         report.inspected += 1;
-        match candidate(&namespace, &name) {
+        match candidate(&namespace, &name, audit) {
             Ok(Outcome::Removed) => report.removed += 1,
             Ok(Outcome::Live) => report.kept_live += 1,
             Ok(Outcome::Uncertain) => report.kept_uncertain += 1,
@@ -168,7 +177,11 @@ enum Outcome {
     Live,
     Uncertain,
 }
-fn candidate(namespace: &Namespace, name: &OsStr) -> Result<Outcome, ProfileError> {
+fn candidate(
+    namespace: &Namespace,
+    name: &OsStr,
+    audit: Audit<'_>,
+) -> Result<Outcome, ProfileError> {
     let prepared = (|| {
         let dir = namespace.dir.open_dir(name)?;
         let record = Record::read(&dir)?;
@@ -182,13 +195,14 @@ fn candidate(namespace: &Namespace, name: &OsStr) -> Result<Outcome, ProfileErro
             return Ok(Outcome::Uncertain);
         }
     };
-    reclaim_classified(namespace, name, dir, record)
+    reclaim_classified(namespace, name, dir, record, audit)
 }
 fn reclaim_classified(
     namespace: &Namespace,
     name: &OsStr,
     dir: Dir,
     record: Record,
+    audit: Audit<'_>,
 ) -> Result<Outcome, ProfileError> {
     match record.owner.state() {
         Ok(OwnerState::Live) => return Ok(Outcome::Live),
@@ -211,7 +225,7 @@ fn reclaim_classified(
     // Close every internal candidate descriptor before auditing all threads. Otherwise shared
     // or unshared thread FD tables cannot safely distinguish internal handles from consumers.
     drop(tree);
-    match process::consumers(&namespace.path.join(name), &objects) {
+    match audit(&namespace.path.join(name), &objects) {
         Ok(false) => {}
         Ok(true) => return Ok(Outcome::Uncertain),
         Err(error) => {
@@ -244,4 +258,11 @@ fn dispose_rechecked(
     }
     tree.dispose(namespace, name, &record)?;
     Ok(Outcome::Removed)
+}
+#[cfg(test)]
+pub(super) fn run_with_audit(
+    parent: &Path,
+    audit: Audit<'_>,
+) -> Result<CleanupReport, ProfileError> {
+    run_audited(parent, 1, audit)
 }
