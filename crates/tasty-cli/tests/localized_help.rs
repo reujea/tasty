@@ -46,7 +46,11 @@ flags = [
 "#,
     );
     write(&home.join("lang/zz/pack.toml"), "[font]\nbuiltin=true\n");
-    for requested in ["en", "ko", "ja", "zz", "missing"] {
+    for requested in tasty_i18n::BUILTIN_CODES
+        .iter()
+        .copied()
+        .chain(["zz", "missing"])
+    {
         let locale = if requested == "missing" {
             "en"
         } else {
@@ -91,6 +95,11 @@ flags = [
     }
 }
 
+/// 영어가 아닌 내장 언어는 도움말 틀 문구도 번역돼 있다. 픽스처 언어 zz는 번역이 없다.
+fn is_translated_builtin(locale: &str) -> bool {
+    locale != "en" && tasty_i18n::is_builtin_code(locale)
+}
+
 fn assert_generated_help(cmd: clap::Command, args: &[&str]) {
     let error = cmd.try_get_matches_from(args).unwrap_err();
     assert_eq!(error.kind(), clap::error::ErrorKind::DisplayHelp);
@@ -102,7 +111,7 @@ fn assert_generated_help(cmd: clap::Command, args: &[&str]) {
             "{args:?}: {text}"
         );
     }
-    if matches!(tasty_i18n::current_language(), "ko" | "ja") {
+    if is_translated_builtin(tasty_i18n::current_language()) {
         for english in ["Usage:", "Commands:", "Print this message"] {
             assert!(!text.contains(english), "{args:?}: {text}");
         }
@@ -245,7 +254,7 @@ fn assert_alias_note(host: &mut clap::Command, locale: &str) {
         .unwrap();
     let help = close.render_help().to_string();
     assert!(help.contains("--id"), "{help}");
-    if matches!(locale, "ko" | "ja") {
+    if is_translated_builtin(locale) {
         assert!(
             help.contains(&tasty_i18n::t_fmt("cli.help_frame.aliases", "--id")),
             "{help}"

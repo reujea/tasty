@@ -33,7 +33,7 @@ fn every_bundled_cli_description_and_argument_has_a_catalog_key() {
     for entry in manifests {
         let dir = entry.path.parent().unwrap();
         let manifest = tasty_plugin_manifest::Manifest::load(dir).unwrap();
-        let catalogs: Vec<_> = ["en", "ko", "ja"]
+        let catalogs: Vec<_> = tasty_i18n::BUILTIN_CODES
             .iter()
             .map(|locale| {
                 tasty_i18n::plugin_catalog::load(

@@ -29,11 +29,18 @@ const REQUIRED_KEYS: &[&str] = &[
 
 const APP_NAME_FMT_KEYS: &[&str] = &["menu.macos.about", "menu.macos.hide", "menu.macos.quit"];
 
-const LANG_FILES: &[(&str, &str)] = &[
-    ("en", include_str!("../lang/en.toml")),
-    ("ko", include_str!("../lang/ko.toml")),
-    ("ja", include_str!("../lang/ja.toml")),
-];
+fn lang_files() -> Vec<(&'static str, String)> {
+    tasty_i18n::BUILTIN_CODES
+        .iter()
+        .map(|code| {
+            let path =
+                std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(format!("lang/{code}.toml"));
+            let text = std::fs::read_to_string(&path)
+                .unwrap_or_else(|e| panic!("{} 읽기 실패: {e}", path.display()));
+            (*code, text)
+        })
+        .collect()
+}
 
 /// 평탄화는 로더 함수를 사용하고 비교를 위해 정렬된 맵으로 옮긴다.
 fn load(lang: &str, toml_str: &str) -> BTreeMap<String, String> {
@@ -47,8 +54,8 @@ fn load(lang: &str, toml_str: &str) -> BTreeMap<String, String> {
 
 #[test]
 fn native_surface_keys_exist_in_all_languages() {
-    for (lang, toml_str) in LANG_FILES {
-        let table = load(lang, toml_str);
+    for (lang, toml_str) in lang_files() {
+        let table = load(lang, &toml_str);
         let missing: Vec<&str> = REQUIRED_KEYS
             .iter()
             .copied()
@@ -63,8 +70,8 @@ fn native_surface_keys_exist_in_all_languages() {
 
 #[test]
 fn app_name_keys_have_exactly_one_placeholder() {
-    for (lang, toml_str) in LANG_FILES {
-        let table = load(lang, toml_str);
+    for (lang, toml_str) in lang_files() {
+        let table = load(lang, &toml_str);
         for key in APP_NAME_FMT_KEYS {
             let value = &table[*key];
             assert_eq!(
@@ -78,8 +85,8 @@ fn app_name_keys_have_exactly_one_placeholder() {
 
 #[test]
 fn non_fmt_keys_have_no_placeholder() {
-    for (lang, toml_str) in LANG_FILES {
-        let table = load(lang, toml_str);
+    for (lang, toml_str) in lang_files() {
+        let table = load(lang, &toml_str);
         for key in REQUIRED_KEYS
             .iter()
             .filter(|k| !APP_NAME_FMT_KEYS.contains(k))

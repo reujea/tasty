@@ -161,12 +161,17 @@ fn bashrc_save_failure_message(reason: &str) -> String {
 
 #[cfg(test)]
 mod tests {
-    /// 전역 i18n 초기화 순서와 무관하게 세 언어의 파일을 직접 읽는다.
-    const LANGS: &[(&str, &str)] = &[
-        ("en", include_str!("../../../lang/en.toml")),
-        ("ko", include_str!("../../../lang/ko.toml")),
-        ("ja", include_str!("../../../lang/ja.toml")),
-    ];
+    /// 전역 i18n 초기화 순서와 무관하게 내장 언어의 파일을 직접 읽는다.
+    fn langs() -> Vec<(&'static str, String)> {
+        tasty_i18n::BUILTIN_CODES
+            .iter()
+            .map(|code| {
+                let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+                    .join(format!("lang/{code}.toml"));
+                (*code, std::fs::read_to_string(&path).expect("lang toml"))
+            })
+            .collect()
+    }
 
     /// 호스트 toast의 문자 수 상한과 비교한다.
     const TOAST_MAX_CHARS: usize = tasty_i18n::TOAST_MAX_CHARS;
@@ -190,8 +195,8 @@ mod tests {
 
     #[test]
     fn every_locale_takes_the_reason_exactly_once() {
-        for (lang, toml_src) in LANGS {
-            let f = frame(toml_src);
+        for (lang, toml_src) in langs() {
+            let f = frame(&toml_src);
             assert_eq!(
                 f.matches("{}").count(),
                 1,
@@ -204,8 +209,8 @@ mod tests {
     #[test]
     fn a_long_reason_keeps_the_target_and_the_os_error_in_every_locale() {
         let reason = a_long_windows_reason();
-        for (lang, toml_src) in LANGS {
-            let f = frame(toml_src);
+        for (lang, toml_src) in langs() {
+            let f = frame(&toml_src);
             let msg = tasty_i18n::fit_fragment(&reason, |r| f.replacen("{}", r, 1));
 
             let n = msg.chars().count();
@@ -224,8 +229,8 @@ mod tests {
     #[test]
     fn a_short_reason_is_not_elided() {
         let reason = "tasty home directory unresolved — the edit was not persisted";
-        for (lang, toml_src) in LANGS {
-            let f = frame(toml_src);
+        for (lang, toml_src) in langs() {
+            let f = frame(&toml_src);
             let msg = tasty_i18n::fit_fragment(reason, |r| f.replacen("{}", r, 1));
             assert!(msg.contains(reason), "{lang}: {msg}");
             assert!(

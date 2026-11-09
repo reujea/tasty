@@ -86,7 +86,7 @@ fn host() {
         #[cfg(not(unix))]
         std::fs::copy(std::env::current_exe().unwrap(), dest).unwrap();
     }
-    for locale in ["en", "ko", "ja", "zz"] {
+    for locale in tasty_i18n::BUILTIN_CODES.iter().copied().chain(["zz"]) {
         write(
             &install.join(format!("lang/{locale}.toml")),
             &format!(
@@ -114,7 +114,11 @@ fn host() {
             let pkg = package(&dir, &entry);
             for cwd in [&install, &other] {
                 for shadow in [false, true] {
-                    for locale in ["en", "ko", "ja", "zz", "missing"] {
+                    for locale in tasty_i18n::BUILTIN_CODES
+                        .iter()
+                        .copied()
+                        .chain(["zz", "missing"])
+                    {
                         let effective = if locale == "missing" { "en" } else { locale };
                         for user in ["missing", "empty", "override"] {
                             matrix.push(run_case(&Case {
@@ -136,7 +140,11 @@ fn host() {
             }
         }
     }
-    assert_eq!(matrix.len(), 360);
+    // 설치 경로 2 × 실행 항목 3 × 작업 폴더 2 × 가림 2 × 언어(내장 + zz, missing) × 사용자 번역 3
+    assert_eq!(
+        matrix.len(),
+        2 * 3 * 2 * 2 * (tasty_i18n::BUILTIN_CODES.len() + 2) * 3
+    );
     assert_missing_paths_still_build(&binary);
     if let Some(path) = std::env::var_os("INSTALL_MATRIX_PATH") {
         std::fs::write(path, serde_json::to_vec_pretty(&matrix).unwrap()).unwrap();

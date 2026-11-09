@@ -1216,7 +1216,8 @@ mod tests {
         let dir = scenario_dir();
         let list = scan_languages(Some(&dir));
         let codes: Vec<&str> = list.iter().map(|l| l.code.as_str()).collect();
-        assert_eq!(codes, ["en", "ko", "ja", "xx"]);
+        let expected: Vec<&str> = BUILTIN_CODES.iter().copied().chain(["xx"]).collect();
+        assert_eq!(codes, expected);
 
         let en = &list[0];
         assert_eq!(en.source, LanguageSource::Builtin);
@@ -1230,7 +1231,7 @@ mod tests {
         assert_eq!(ko.path.as_deref(), Some(dir.join("ko.toml").as_path()));
         assert_eq!(ko.font, None);
 
-        let xx = &list[3];
+        let xx = list.last().expect("pack entry follows the builtins");
         assert_eq!(xx.source, LanguageSource::Pack);
         assert_eq!(xx.label(), "Xx Lang");
         assert_eq!(xx.font, Some(FontDecl::Builtin));

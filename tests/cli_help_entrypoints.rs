@@ -266,7 +266,7 @@ fn all_after_a_command_or_as_an_option_value_is_data() {
 /// 그래도 `help`는 `-h`와 같고 `help <경로> nosuch`는 `<경로>`를 부모로 안내한다.
 #[test]
 fn help_forms_keep_their_meaning_in_every_language() {
-    for language in ["en", "ko", "ja"] {
+    for language in tasty_i18n::BUILTIN_CODES {
         let dir = home_in(language, true, false);
         let home = dir.path();
         assert_eq!(ok(home, &["help"]), ok(home, &["-h"]), "{language}");
@@ -309,7 +309,7 @@ subcommands = [{name="show", ipc_method="helpfixture.show", args="show", descrip
 [contributes.cli.arg_groups.show]
 flags = [{name="name", type="string", flag="--name", help="help name"}]
 "#;
-    for language in ["en", "ko", "ja"] {
+    for language in tasty_i18n::BUILTIN_CODES {
         let dir = home_in(language, true, false);
         let home = dir.path();
         write(

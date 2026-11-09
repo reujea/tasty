@@ -54,7 +54,8 @@ fn builtin_korean_and_japanese_do_not_inherit_english_variants() {
         })
         .collect();
     assert!(!variants.is_empty(), "en 에 단수 변형이 하나도 없다");
-    for code in ["ko", "ja"] {
+    for code in crate::BUILTIN_CODES.iter().filter(|code| **code != "en") {
+        let code = *code;
         let tr = Translations::load_from(code, None).0;
         // 그 언어 파일이 직접 둔 변형은 같은 층이라 쓴다.
         let mut own = HashMap::new();

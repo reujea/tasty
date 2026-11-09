@@ -43,7 +43,7 @@ fn parent_home_matrix() {
     let plugin = root.join("installed-plugin");
     let other = root.join("other-cwd");
     std::fs::create_dir_all(&other).unwrap();
-    for code in ["en", "ko", "ja", "zz"] {
+    for code in tasty_i18n::BUILTIN_CODES.iter().copied().chain(["zz"]) {
         write(
             &plugin.join(format!("lang/{code}.toml")),
             &format!(
@@ -61,7 +61,11 @@ fn parent_home_matrix() {
     for absolute in [false, true] {
         for cwd in [&plugin, &other] {
             for shadow in [false, true] {
-                for code in ["en", "ko", "ja", "zz", "missing"] {
+                for code in tasty_i18n::BUILTIN_CODES
+                    .iter()
+                    .copied()
+                    .chain(["zz", "missing"])
+                {
                     for override_present in [true, false] {
                         check_case(&root, cwd, code, absolute, shadow, override_present);
                         cases += 1;
@@ -70,7 +74,8 @@ fn parent_home_matrix() {
             }
         }
     }
-    assert_eq!(cases, 80);
+    // 설치 경로 2 × 작업 폴더 2 × 가림 2 × 언어(내장 + zz, missing) × 재정의 2
+    assert_eq!(cases, 2 * 2 * 2 * (tasty_i18n::BUILTIN_CODES.len() + 2) * 2);
     tracing::info!("host/SDK parent home matrix: {cases} cases passed");
 }
 

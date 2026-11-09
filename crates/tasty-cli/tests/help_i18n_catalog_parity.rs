@@ -127,12 +127,12 @@ fn debug_only_flags_and_commands_exist_only_in_debug_builds() {
     }
 }
 
-/// 그룹 제목·시작 안내는 clap 슬롯이 아니므로 slots 대조에 들어가지 않는다. 세 언어에 따로 둔다.
+/// 그룹 제목·시작 안내는 clap 슬롯이 아니므로 slots 대조에 들어가지 않는다. 내장 언어마다 따로 둔다.
 #[test]
 fn group_headings_and_start_lines_exist_in_every_language() {
     let keys = tasty_cli::help_groups::text_keys();
     assert!(keys.len() > 10, "{keys:?}");
-    for lang in ["en", "ko", "ja"] {
+    for lang in tasty_i18n::BUILTIN_CODES {
         let path = repo_root().join(format!("lang/{lang}.toml"));
         let value: toml::Value = std::fs::read_to_string(&path).unwrap().parse().unwrap();
         let mut flat = BTreeMap::new();

@@ -24,14 +24,23 @@ fn cli(home: &Path, args: &[&str]) -> Output {
         .unwrap()
 }
 
+/// 언어, 사용법 제목, 오류 머리말, 안내 문구.
+const EXPECTED: &[(&str, &str, &str, &str)] = &[
+    ("en", "Usage:", "error:", "for full details"),
+    ("ko", "사용법:", "오류:", "자세한 내용"),
+    ("ja", "使い方:", "エラー:", "詳細は"),
+];
+
 #[test]
 fn help_and_parse_errors_follow_locale_while_wire_messages_stay_unchanged() {
     let root = tempfile::tempdir().unwrap();
-    for (locale, usage, error, details) in [
-        ("en", "Usage:", "error:", "for full details"),
-        ("ko", "사용법:", "오류:", "자세한 내용"),
-        ("ja", "使い方:", "エラー:", "詳細は"),
-    ] {
+    let covered: Vec<&str> = EXPECTED.iter().map(|row| row.0).collect();
+    assert_eq!(
+        covered,
+        tasty_i18n::BUILTIN_CODES,
+        "EXPECTED must list every builtin language with its expected help words"
+    );
+    for (locale, usage, error, details) in EXPECTED.iter().copied() {
         let home = root.path().join(locale);
         std::fs::create_dir_all(&home).unwrap();
         std::fs::write(

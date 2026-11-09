@@ -117,12 +117,11 @@ mod tests {
             assert!(!topic.steps.is_empty());
             for step in topic.steps {
                 assert!(steps.insert(step.id));
-                for source in [
-                    include_str!("../../../../lang/en.toml"),
-                    include_str!("../../../../lang/ko.toml"),
-                    include_str!("../../../../lang/ja.toml"),
-                ] {
-                    let doc: toml::Value = toml::from_str(source).unwrap();
+                for code in tasty_i18n::BUILTIN_CODES {
+                    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+                        .join(format!("lang/{code}.toml"));
+                    let source = std::fs::read_to_string(&path).unwrap();
+                    let doc: toml::Value = toml::from_str(&source).unwrap();
                     for key in [
                         topic.title_key,
                         topic.desc_key,
