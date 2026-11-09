@@ -78,7 +78,16 @@ pub fn draw(ui: &mut egui::Ui, theme: &Theme) {
         for card in &cards {
             draw_toast_card(ui, theme, card, 1.0);
         }
+        // 값이 든 Warning 카드. 값은 본문과 같은 글꼴이고 끊을 곳이 없으면 카드 안에서 줄을 바꾼다.
+        let font_rejected = crate::i18n::t_fmt("toast.font_rejected", "~/fonts/notes.txt");
+        toast_card::draw_single_card(ui, theme, ToastKind::Warning, &font_rejected, &[], 1.0);
     });
+
+    note(
+        ui,
+        theme,
+        "A long unbroken value such as a path wraps inside the card. The font rejected toast is on Overlays › Windows, under Settings.",
+    );
 
     meta(
         ui,

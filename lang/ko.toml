@@ -534,6 +534,8 @@ dark = "다크"
 light = "라이트"
 
 [settings.appearance.font]
+custom_font_rejected = "이 경로에서 폰트를 불러오지 못했습니다. 다른 폰트로 표시합니다."
+family_rejected = "이 폰트의 파일을 불러오지 못했습니다. 다른 폰트로 표시합니다."
 default_heading = "기본 폰트 설정"
 default_hint = "터미널, 마크다운, 탐색기에 공통으로 적용합니다. 각 하위 탭에서 항목별로 다른 값을 지정할 수 있습니다."
 override_heading = "개별 폰트 설정"
@@ -1360,6 +1362,7 @@ undo = "실행 취소"
 redo = "다시 실행"
 
 [toast]
+font_rejected = "폰트를 불러오지 못했습니다: {}. 다른 폰트로 표시합니다."
 action_failed = "요청한 작업을 완료하지 못했습니다."
 layout_failed = "레이아웃 변경을 적용하지 못했습니다."
 divider_failed = "분할선 위치를 적용하지 못해 이전 위치로 되돌렸습니다."

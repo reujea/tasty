@@ -11,14 +11,14 @@ use tasty_ui_widgets::{
     SettingsRow, checkbox, override_row, select, settings_label_column,
 };
 
-use crate::catalog::spec::{StageVariant, TokenChip, meta, stage, wrap_item};
+use crate::catalog::spec::{StageVariant, TokenChip, meta, note, stage, wrap_item};
 use crate::i18n::t;
 
 /// 시안 좁은 짝의 폭 `--tasty-size-360`. 공개 역할 토큰이 없어 갤러리 무대 치수로 둔다.
 const NARROW_WIDTH: LogicalPx = LogicalPx(360.0);
 
 /// 시안 행 seed — (라벨, 기본값을 따르는지).
-const ROWS: [(&str, bool); 5] = [
+pub(super) const ROWS: [(&str, bool); 5] = [
     ("Font family", false),
     ("Custom font file", true),
     ("Font size", false),
@@ -27,10 +27,10 @@ const ROWS: [(&str, bool); 5] = [
 ];
 
 /// 본체 settings.appearance.*_tooltip 의 영어 문구.
-fn line_height_hint() -> &'static str {
+pub(super) fn line_height_hint() -> &'static str {
     t("settings.appearance.line_height_tooltip")
 }
-fn scale_mode_hint() -> &'static str {
+pub(super) fn scale_mode_hint() -> &'static str {
     t("settings.appearance.font_scale_mode_tooltip")
 }
 
@@ -61,7 +61,7 @@ const FAMILIES: [SearchableSelectOption<'static>; 6] = [
 
 /// 본체 `font_family_picker` 와 같은 글꼴 콤보 — 기본값(monospace) 고정 행 · 검색 · 결과 없음 ·
 /// 로딩 문구는 본체 번역 키. `buf` 가 비어 있으면 기본값이다.
-fn font_family(ui: &mut egui::Ui, th: &Theme, buf: &mut String, enabled: bool) {
+pub(super) fn font_family(ui: &mut egui::Ui, th: &Theme, buf: &mut String, enabled: bool) {
     let pinned = [SearchableSelectOption::with_value(
         "",
         t("settings.appearance.font_family_default"),
@@ -82,7 +82,7 @@ fn font_family(ui: &mut egui::Ui, th: &Theme, buf: &mut String, enabled: bool) {
     *buf = value.unwrap_or_default();
 }
 
-fn control(ui: &mut egui::Ui, th: &Theme, row: usize, buf: &mut String, enabled: bool) {
+pub(super) fn control(ui: &mut egui::Ui, th: &Theme, row: usize, buf: &mut String, enabled: bool) {
     // 기본값을 따르는 행은 적용 값을 읽기 전용 상자에 보인다. 적용 값이 없으면 빈 칸이다.
     if !enabled {
         let width = match row {
@@ -241,7 +241,7 @@ fn font_override(ui: &mut egui::Ui, th: &Theme, long: bool, state: &mut [(String
 
 /// 격자 아래 미리보기 — caption "Preview", Focused · Unfocused 두 칸, 요약 줄. 글꼴 override 와
 /// Appearance › General 기본 글꼴이 같은 배치다.
-fn preview_below(ui: &mut egui::Ui, th: &Theme) {
+pub(super) fn preview_below(ui: &mut egui::Ui, th: &Theme) {
     ui.add_space(th.spacing_lg.value());
     ui.spacing_mut().item_spacing.y = th.spacing_sm.value();
     ui.label(
@@ -401,6 +401,11 @@ pub fn draw(ui: &mut egui::Ui, theme: &Theme) {
             TokenChip::without_color("font-preview-padding-y", "→ space-sm"),
         ],
     );
+    note(
+        ui,
+        theme,
+        "A file that can't be used is in the next specimen.",
+    );
 }
 
 thread_local! {
@@ -457,8 +462,11 @@ pub fn draw_general(ui: &mut egui::Ui, theme: &Theme) {
                                     row.show(ui, theme, col, |ui| match i {
                                         0 => font_family(ui, theme, &mut bufs[0], true),
                                         1 => {
-                                            // 본체처럼 남은 폭을 채운다.
-                                            Input::new().show(ui, theme, &mut bufs[1]);
+                                            // override 행과 같은 모양이어야 거절 표시가 같아진다.
+                                            Input::new()
+                                                .mono(true)
+                                                .width(theme.field_width_lg.value())
+                                                .show(ui, theme, &mut bufs[1]);
                                         }
                                         2 | 3 => {
                                             Input::new()

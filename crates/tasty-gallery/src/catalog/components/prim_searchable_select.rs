@@ -239,6 +239,12 @@ pub fn draw(ui: &mut egui::Ui, theme: &Theme) {
          the Select shape and a filtered-out or unknown value keeps its label. Pinned rows \
          ignore the query and sit above their own separator. The widget owns no strings.",
     );
+    spec::note(
+        ui,
+        theme,
+        "A family whose file can't be loaded keeps this trigger and gets a line under it. See \
+         Overlays › Windows, under Settings.",
+    );
 }
 
 /// 시안 무대: bg-app 위에 테마 상자를 놓는다. `wrap` 이면 줄바꿈하며 옆으로, 아니면 세로로 쌓는다.

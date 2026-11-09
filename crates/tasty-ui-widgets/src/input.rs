@@ -6,6 +6,7 @@ use tasty_type_appearance::theme::Theme;
 use tasty_type_geometry::length::LogicalPx;
 
 use crate::icon_button::IconPainter;
+use crate::tooltip::{Tooltip, tooltip_hover_delay_elapsed};
 
 /// Input 빌더.
 pub struct Input<'a> {
@@ -15,6 +16,10 @@ pub struct Input<'a> {
     icon_size: Option<LogicalPx>,
     text_margin: Option<LogicalPx>,
     invalid: bool,
+    /// 포커스가 없을 때만 invalid 테두리를 그린다. 입력 중인 값은 아직 판정 대상이 아니다.
+    invalid_at_rest: bool,
+    /// 값이 칸보다 길면 hover Tooltip 으로 전체 값을 보인다.
+    full_value_tooltip: bool,
     enabled: bool,
     /// 지금은 고칠 수 없지만 읽는 값(시안 `readOnly`). disabled와 함께면 무시한다.
     read_only: bool,
@@ -78,6 +83,8 @@ impl<'a> Input<'a> {
             icon_size: None,
             text_margin: None,
             invalid: false,
+            invalid_at_rest: false,
+            full_value_tooltip: false,
             enabled: true,
             read_only: false,
             width: None,
@@ -140,6 +147,18 @@ impl<'a> Input<'a> {
 
     pub fn invalid(mut self, invalid: bool) -> Self {
         self.invalid = invalid;
+        self
+    }
+
+    /// 포커스가 없을 때만 invalid 테두리를 그린다. 포커스가 있으면 일반 포커스 표시다.
+    pub fn invalid_at_rest(mut self, invalid: bool) -> Self {
+        self.invalid_at_rest = invalid;
+        self
+    }
+
+    /// 값이 칸보다 길면 hover 시 `tooltip-delay` 뒤 전체 값을 mono Tooltip 으로 보인다.
+    pub fn full_value_tooltip(mut self, on: bool) -> Self {
+        self.full_value_tooltip = on;
         self
     }
 
@@ -325,6 +344,18 @@ impl<'a> Input<'a> {
             };
             let out = te.show(ui);
             paint_idle_text(ui, &out, self.idle_text, font, text_color);
+            let clipped = out.galley.size().x > out.text_clip_rect.width();
+            if self.full_value_tooltip {
+                let hovered = clipped && out.response.hovered();
+                if tooltip_hover_delay_elapsed(ui.ctx(), theme, out.response.id, hovered) {
+                    let tip = Tooltip::new(out.galley.text())
+                        .mono(true)
+                        .id_source(out.response.id.with("full_value"));
+                    // 버블이 포인터를 덮으면 hover 가 끊겨 깜박이므로 들어가는 쪽에 둔다.
+                    tip.placement_top_then_bottom(ui.ctx(), theme, outer, ui.ctx().screen_rect())
+                        .show(ui, theme, outer);
+                }
+            }
             let r = out.response;
             if let Some(g) = addon_galley {
                 let (arect, _) = ui.allocate_exact_size(g.rect.size(), egui::Sense::hover());
@@ -360,11 +391,12 @@ impl<'a> Input<'a> {
         let radius = theme.input_radius().value();
         let bw = theme.border_width.value();
         let raised = self.ground == crate::Ground::Raised;
+        let invalid = self.invalid || (self.invalid_at_rest && !has_focus);
         let border = if !self.enabled || (read_only && !has_focus) {
             box_rest_border(theme, self.enabled, read_only, raised).to_egui()
         } else if read_only {
             theme.input_border_focus().to_egui()
-        } else if self.invalid {
+        } else if invalid {
             theme.input_border_invalid().to_egui()
         } else if focused {
             theme.input_border_focus().to_egui()
@@ -378,7 +410,7 @@ impl<'a> Input<'a> {
             egui::StrokeKind::Inside,
         );
         if focused && !read_only {
-            let ring = if self.invalid {
+            let ring = if invalid {
                 theme.input_border_invalid().to_egui()
             } else {
                 theme.input_border_focus().to_egui()
@@ -640,5 +672,99 @@ mod tests {
             }
         }
         assert!(trail.get().is_positive(), "trailing was painted");
+    }
+
+    /// Tooltip 이 포인터를 덮지 않도록 입력 위에 비워 두는 높이.
+    const FIELD_TOP: f32 = 100.0;
+
+    /// `invalid_at_rest` Input 을 그리고 칠한 테두리 색과 Tooltip 글자를 돌려준다.
+    fn at_rest_frame(
+        ctx: &egui::Context,
+        theme: &Theme,
+        buf: &mut String,
+        events: Vec<egui::Event>,
+        time: f64,
+    ) -> (Vec<egui::Color32>, Vec<String>) {
+        let raw = egui::RawInput {
+            screen_rect: Some(egui::Rect::from_min_size(
+                egui::Pos2::ZERO,
+                egui::vec2(400.0, 200.0),
+            )),
+            time: Some(time),
+            events,
+            ..Default::default()
+        };
+        let output = ctx.run(raw, |ctx| {
+            egui::CentralPanel::default().show(ctx, |ui| {
+                ui.add_space(FIELD_TOP);
+                Input::new()
+                    .id(egui::Id::new("field"))
+                    .mono(true)
+                    .width(100.0)
+                    .invalid_at_rest(true)
+                    .full_value_tooltip(true)
+                    .show(ui, theme, buf);
+            });
+        });
+        let texts = output
+            .shapes
+            .iter()
+            .filter_map(|c| match &c.shape {
+                egui::Shape::Text(t) => Some(t.galley.text().to_owned()),
+                _ => None,
+            })
+            .collect();
+        (strokes(&output), texts)
+    }
+
+    #[test]
+    fn invalid_at_rest_is_red_only_without_focus() {
+        let theme = tasty_themes::mocha_fallback();
+        let red = theme.input_border_invalid().to_egui();
+        let ctx = egui::Context::default();
+        let mut buf = "x".to_owned();
+        for t in 0..2 {
+            let (rest, _) = at_rest_frame(&ctx, &theme, &mut buf, Vec::new(), f64::from(t));
+            assert!(rest.contains(&red), "쉬는 상태에 빨강이 없다");
+        }
+        ctx.memory_mut(|m| m.request_focus(egui::Id::new("field")));
+        let (focused, _) = at_rest_frame(&ctx, &theme, &mut buf, Vec::new(), 2.0);
+        assert!(!focused.contains(&red), "포커스 중에 빨강을 그렸다");
+        assert!(focused.contains(&theme.input_border_focus().to_egui()));
+    }
+
+    /// 칸보다 긴 값만, 그리고 hover 지연 뒤에만 전체 값을 보인다.
+    #[test]
+    fn a_clipped_value_shows_whole_after_the_hover_delay() {
+        let theme = tasty_themes::mocha_fallback();
+        let hover = egui::Event::PointerMoved(egui::pos2(40.0, FIELD_TOP + 20.0));
+        let shows = |value: &str| {
+            let ctx = egui::Context::default();
+            let mut buf = value.to_owned();
+            let delay = theme.tooltip_delay().to_secs_f64();
+            let mut early = false;
+            let mut late = false;
+            // 새 Area 는 첫 프레임에 크기만 재므로 지연 뒤 두 프레임을 돌린다.
+            let frames = [
+                (0.0, "a"),
+                (0.1, "a"),
+                (0.2, "e"),
+                (delay + 1.0, "a"),
+                (delay + 1.1, "l"),
+            ];
+            for (time, name) in frames {
+                let (_, texts) = at_rest_frame(&ctx, &theme, &mut buf, vec![hover.clone()], time);
+                let seen = texts.iter().filter(|t| *t == value).count() > 1;
+                match name {
+                    "e" => early = seen,
+                    "l" => late = seen,
+                    _ => {}
+                }
+            }
+            (early, late)
+        };
+        let long = "/usr/local/share/fonts/NerdFonts/JetBrainsMonoNerdFont-Regular.ttf";
+        assert_eq!(shows(long), (false, true));
+        assert_eq!(shows("a.ttf"), (false, false));
     }
 }

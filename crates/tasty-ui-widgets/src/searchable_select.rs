@@ -619,6 +619,8 @@ pub struct SearchableSelectResponse {
     pub response: egui::Response,
     /// 이번 프레임에 값이 바뀌었다.
     pub changed: bool,
+    /// 이 프레임을 끝낸 뒤 목록이 열려 있다.
+    pub open: bool,
 }
 
 /// SearchableSelect 빌더. 값은 `show` 인자로 받는다.
@@ -871,6 +873,7 @@ impl<'a> SearchableSelect<'a> {
         SearchableSelectResponse {
             response: resp,
             changed,
+            open: ui.memory(|m| m.is_popup_open(popup_id)),
         }
     }
 

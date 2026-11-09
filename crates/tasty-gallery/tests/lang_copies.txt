@@ -564,6 +564,10 @@ src/catalog/components/settings_font_override.rs	Line height	settings.appearance
 src/catalog/components/settings_font_override.rs	Preview	settings.appearance.preview_heading
 src/catalog/components/settings_font_override.rs	Unfocused	settings.appearance.colors.unfocused_heading,settings.appearance.preview_unfocused
 src/catalog/components/settings_font_override.rs	Use default	settings.appearance.font.use_default_label,settings.appearance.terminal.use_default
+src/catalog/components/settings_font_rejected.rs	Custom font file	settings.appearance.font.override_custom_font_label
+src/catalog/components/settings_font_rejected.rs	Input	attach.pending.input,settings.terminal.input
+src/catalog/components/settings_font_rejected.rs	Save	button.save,filepicker.save.save_button,image_viewer.save,remote_tool.save
+src/catalog/components/settings_font_rejected.rs	{}	remote.size_sync.names
 src/catalog/components/settings_general_grid.rs	Ask	settings.general.close_behavior_ask
 src/catalog/components/settings_general_grid.rs	Close behavior:	settings.general.close_behavior_label
 src/catalog/components/settings_general_grid.rs	Language:	settings.general.language_label

@@ -38,6 +38,7 @@ mod explorer_name_edit;
 mod explorer_ops;
 mod explorer_perm_box;
 mod explorer_select;
+mod field_error;
 mod file_drop_overlay;
 pub mod file_handler;
 mod file_handler_form;
@@ -179,6 +180,7 @@ pub use explorer_perm_box::{
     perm_readout,
 };
 pub use explorer_select::{paint_cursor_ring, paint_marquee};
+pub use field_error::{FieldErrorLine, FieldErrorState, field_error_state};
 pub use file_drop_overlay::file_drop_overlay;
 pub use file_handler_form::{
     FH_SUMMARY_SEP, FhCardEvents, FhCardLabels, FhFit, FhLine, FhOrigin, FhRowEvents, FhRowView,
@@ -241,7 +243,10 @@ pub use multi_select::{
     multi_select_summary, popup_chrome_width,
 };
 pub use number_field::{number_field_note, number_field_unit, number_field_width};
-pub use override_row::{OverrideCell, override_row, override_row_fits};
+pub use override_row::{
+    OverrideCell, OverrideLayout, override_row, override_row_fits, override_row_layout,
+    override_row_with_error,
+};
 pub use path_field::{PathField, PathFieldOutcome, PathFieldPending};
 pub use plugin_add::{
     PLUGIN_ADD_INSET, PluginAddBarClicks, PluginAddBarView, PluginAddPickerOutput,

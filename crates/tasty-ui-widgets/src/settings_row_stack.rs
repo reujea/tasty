@@ -53,6 +53,12 @@ pub fn row_should_stack(
     }
 }
 
+/// 이 프레임에 쌓아 그린 행인지. 행을 그린 뒤에 읽는다.
+pub(crate) fn row_is_stacked(ui: &egui::Ui, id: egui::Id) -> bool {
+    ui.data(|d| d.get_temp::<StackState>(id))
+        .is_some_and(|state| state.stacked)
+}
+
 /// 행을 그린다. 반환값은 행 전체(라벨과 컨트롤)의 응답이다.
 pub fn settings_stack_row(
     ui: &mut egui::Ui,

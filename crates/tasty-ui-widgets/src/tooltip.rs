@@ -28,6 +28,8 @@ pub struct Tooltip<'a> {
     id: egui::Id,
     /// [`Tooltip::placement_clear_of_native`]가 정한 버블 사각형. 있으면 그 자리에 그린다.
     resolved: Option<egui::Rect>,
+    /// 본문을 mono 로 그린다. 경로 같은 값을 보일 때 쓴다.
+    mono: bool,
 }
 
 impl<'a> Tooltip<'a> {
@@ -38,12 +40,19 @@ impl<'a> Tooltip<'a> {
             placement: TooltipPlacement::default(),
             id: egui::Id::new("tasty_tooltip"),
             resolved: None,
+            mono: false,
         }
     }
 
     /// 본문 아래에 `text-muted` 둘째 줄을 더한다. 줄 높이·글꼴은 본문과 같다.
     pub fn second_line(mut self, line: &'a str) -> Self {
         self.second_line = Some(line);
+        self
+    }
+
+    /// 본문을 mono 로 그린다.
+    pub fn mono(mut self, mono: bool) -> Self {
+        self.mono = mono;
         self
     }
 
@@ -196,7 +205,11 @@ impl<'a> Tooltip<'a> {
             self.text,
             0.0,
             egui::TextFormat {
-                font_id: egui::FontId::proportional(caption),
+                font_id: if self.mono {
+                    egui::FontId::monospace(caption)
+                } else {
+                    egui::FontId::proportional(caption)
+                },
                 color: theme.tooltip_fg().to_egui(),
                 // 줄 높이는 caption 글꼴 크기에 line_height_ui를 곱한다.
                 line_height: Some(caption * theme.line_height_ui),

@@ -535,6 +535,8 @@ dark = "Dark"
 light = "Light"
 
 [settings.appearance.font]
+custom_font_rejected = "Could not load a font from this path. Using another font."
+family_rejected = "Could not load this font's file. Using another font."
 default_heading = "Default Font Settings"
 default_hint = "Applied to Terminal, Markdown and Explorer alike. Each sub-tab can override individual fields."
 override_heading = "Font override"
@@ -1408,6 +1410,7 @@ undo = "Undo"
 redo = "Redo"
 
 [toast]
+font_rejected = "Could not load the font: {}. Using another font."
 action_failed = "Could not complete the requested action."
 layout_failed = "Could not apply the layout change."
 divider_failed = "Could not apply the divider position. Its previous position was restored."

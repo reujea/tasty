@@ -534,6 +534,8 @@ dark = "ダーク"
 light = "ライト"
 
 [settings.appearance.font]
+custom_font_rejected = "このパスからフォントを読み込めませんでした。別のフォントで表示します。"
+family_rejected = "このフォントのファイルを読み込めませんでした。別のフォントで表示します。"
 default_heading = "デフォルトフォント設定"
 default_hint = "ターミナル、マークダウン、エクスプローラーに共通で適用します。各サブタブで項目ごとに別の値を指定できます。"
 override_heading = "個別のフォント設定"
@@ -1360,6 +1362,7 @@ undo = "元に戻す"
 redo = "やり直し"
 
 [toast]
+font_rejected = "フォントを読み込めませんでした: {}。別のフォントで表示します。"
 action_failed = "要求された操作を完了できませんでした。"
 layout_failed = "レイアウトの変更を適用できませんでした。"
 divider_failed = "分割線の位置を適用できなかったため、元の位置に戻しました。"

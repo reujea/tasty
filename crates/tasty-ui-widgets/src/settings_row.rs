@@ -10,9 +10,10 @@ use std::sync::Arc;
 use tasty_type_appearance::theme::Theme;
 use tasty_type_geometry::length::LogicalPx;
 
+use crate::field_error::{FieldErrorLine, paint_field_error_line};
 use crate::help_hint::HelpHint;
 use crate::icon_button::IconPainter;
-use crate::settings_row_stack::{StackRow, settings_stack_row};
+use crate::settings_row_stack::{StackRow, row_is_stacked, settings_stack_row};
 use crate::tooltip::TooltipPlacement;
 use crate::warning_callout::warning_callout;
 
@@ -74,6 +75,40 @@ impl<'a> SettingsRow<'a> {
         row_h: LogicalPx,
     ) -> egui::Response {
         settings_label_cell(ui, theme, label_col, row_h, self.label, self.hint)
+    }
+
+    /// 행을 그리고 `control` 이 돌려준 오류 줄을 컨트롤 열에서 시작해 그 아래에 둔다. 줄은 입력의
+    /// 포커스에 따라 정해지므로 컨트롤을 그린 뒤에 받는다. 행이 쌓였으면 줄도 행 시작에서 시작한다.
+    pub fn show_with_error<'b>(
+        self,
+        ui: &mut egui::Ui,
+        theme: &Theme,
+        label_col: LogicalPx,
+        control: impl FnOnce(&mut egui::Ui) -> Option<FieldErrorLine<'b>>,
+    ) -> egui::Response {
+        ui.scope(|ui| {
+            ui.spacing_mut().item_spacing.y = theme.settings_row_caption_gap().value();
+            let id = ui.id().with(("settings_row", self.label));
+            let row = StackRow {
+                id,
+                label_col,
+                row_h: theme.settings_row_min_height(),
+                label: self.label,
+                hint: self.hint,
+                align_top: false,
+            };
+            let mut line = None;
+            settings_stack_row(ui, theme, row, |ui| line = control(ui));
+            if let Some(line) = line {
+                let indent = if row_is_stacked(ui, id) {
+                    LogicalPx(0.0)
+                } else {
+                    label_col + theme.settings_label_gap()
+                };
+                paint_field_error_line(ui, theme, indent, line);
+            }
+        })
+        .response
     }
 
     /// 행을 그린다. caption·callout 이 있으면 행과 `settings-row-caption-gap` 만큼 띄운다.
@@ -314,5 +349,58 @@ mod tests {
             narrow.height() > wide.height(),
             "좁은 폭에서 줄을 바꾸지 않았다"
         );
+    }
+
+    /// 컨트롤 줄 아래 오류 줄의 왼쪽 끝과 글자 수를 잰다.
+    fn error_row(width: f32, ink: bool) -> (egui::Rect, egui::Rect, usize) {
+        let theme = tasty_themes::mocha_fallback();
+        let ctx = egui::Context::default();
+        let col = theme.settings_label_width();
+        let mut control = egui::Rect::NOTHING;
+        let mut after = egui::Rect::NOTHING;
+        let mut out = egui::FullOutput::default();
+        for _ in 0..3 {
+            out = ctx.run(Default::default(), |ctx| {
+                egui::Area::new(egui::Id::new("host"))
+                    .fixed_pos(egui::Pos2::ZERO)
+                    .show(ctx, |ui| {
+                        ui.set_width(width);
+                        ui.set_max_width(width);
+                        SettingsRow::new("Label").show_with_error(ui, &theme, col, |ui| {
+                            let (rect, _) = ui.allocate_exact_size(
+                                egui::vec2(theme.field_width_lg.value(), 28.0),
+                                egui::Sense::hover(),
+                            );
+                            control = rect;
+                            Some(FieldErrorLine { text: "bad", ink })
+                        });
+                        after = ui
+                            .allocate_exact_size(egui::vec2(1.0, 1.0), egui::Sense::hover())
+                            .0;
+                    });
+            });
+        }
+        let text = out
+            .shapes
+            .iter()
+            .filter(|c| matches!(&c.shape, egui::Shape::Text(t) if t.galley.text() == "bad"))
+            .count();
+        (control, after, text)
+    }
+
+    #[test]
+    fn the_error_line_starts_in_the_control_column_under_the_control() {
+        let (control, after, drawn) = error_row(620.0, true);
+        assert_eq!(drawn, 1);
+        assert!(after.top() > control.bottom());
+    }
+
+    /// 칸만 남긴 줄은 글자를 그리지 않고 같은 높이를 차지한다.
+    #[test]
+    fn a_held_line_takes_the_same_height_without_ink() {
+        let (_, shown, _) = error_row(620.0, true);
+        let (_, held, drawn) = error_row(620.0, false);
+        assert_eq!(drawn, 0);
+        assert_eq!(shown.top(), held.top());
     }
 }

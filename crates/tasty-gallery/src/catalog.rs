@@ -1728,6 +1728,9 @@ pub fn pages() -> Vec<Page> {
                             ),
                             components::settings_font_override::draw,
                         ),
+                        components::settings_font_rejected::file_spec(),
+                        components::settings_font_rejected::family_spec(),
+                        components::settings_font_rejected::toast_spec(),
                         spec(
                             "settings-appearance-general",
                             "Appearance › General — font rows, preview below",

@@ -389,6 +389,25 @@ mod card_rect_tests {
         (returned, shapes)
     }
 
+    /// 끊을 곳 없는 긴 값도 줄이 줄바꿈 폭을 넘지 않고 카드가 `toast-max-width` 를 넘지 않는다.
+    #[test]
+    fn an_unbroken_long_value_wraps_inside_the_card() {
+        let theme = tasty_themes::mocha_fallback();
+        let ctx = egui::Context::default();
+        // 폰트 상태는 첫 pass 에서 채워진다. 빈 pass 의 산출물은 볼 것이 없다.
+        let _unused = ctx.run(RawInput::default(), |_| {});
+        let max = theme.toast_max_width.value();
+        let value = "a".repeat(100);
+        let message = format!("Could not load the font: {value}. Using another font.");
+        let (galley, size) = super::layout_card(&ctx, &theme, message, &[], max);
+        assert!(size.x <= max, "카드가 상한을 넘었다: {size:?}");
+        assert!(galley.rows.len() > 1, "줄을 바꾸지 않았다");
+        let wrap = galley.job.wrap.max_width;
+        for row in &galley.rows {
+            assert!(row.rect.width() <= wrap, "줄이 폭을 넘었다: {:?}", row.rect);
+        }
+    }
+
     /// 카드가 surface-raised 라 code run 채움은 `ui-code-bg-on-raised` 다. 두 테마 모두
     /// 카드 색(`ui-code-bg` 와 같은 surface-raised)과 다르다.
     #[test]
