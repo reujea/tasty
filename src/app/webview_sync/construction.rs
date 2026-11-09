@@ -11,6 +11,12 @@ pub(super) fn create_missing_webviews(
     // Create new webviews for Html panels that don't have one yet
     for &sid in all_html_ids {
         if !view.webviews.contains_key(&sid) {
+            let source = webview_surface_kind(view, engine, sid)
+                .and_then(crate::runtime::surface_registry::webview_kind::webview_settings_source);
+            let lazy_owner = source.filter(|s| s.lazy).map(|s| s.plugin_id);
+            if defers_creation(lazy_owner.is_some(), active_html.contains_key(&sid)) {
+                continue;
+            }
             // 재시도 상한에 도달한 surface는 다시 만들지 않는다.
             let attempts = view.webview_create_attempts.get(&sid).copied().unwrap_or(0);
             if !should_attempt_webview(attempts) {
@@ -51,11 +57,20 @@ pub(super) fn create_missing_webviews(
                     view.webview_runtime.insert(sid, binding);
                     view.webview_applied_settings.insert(sid, settings);
                     view.webview_create_attempts.remove(&sid);
+                    if let Some(plugin_id) = lazy_owner {
+                        view.lazy_webviews_created.push((sid, plugin_id));
+                    }
                 }
                 Err(e) => record_webview_failure(view, sid, attempts, &e),
             }
         }
     }
+}
+
+/// 처음 보일 때 만드는 kind(`lazy_webview`)는 화면에 나오기 전까지 WebView를 만들지 않는다.
+/// 한 번 만든 뒤에는 숨겨도 유지한다 — 이 판정은 아직 없는 WebView에만 쓴다.
+fn defers_creation(lazy: bool, visible: bool) -> bool {
+    lazy && !visible
 }
 
 fn default_bounds() -> crate::webview::WebViewBounds {
@@ -166,5 +181,22 @@ mod tests {
         assert!(!awaits_replacement(true, false));
         assert!(!awaits_replacement(true, true));
         assert!(!awaits_replacement(false, true));
+    }
+}
+
+#[cfg(test)]
+mod lazy_tests {
+    use super::defers_creation;
+
+    #[test]
+    fn a_lazy_kind_waits_until_it_is_shown() {
+        assert!(defers_creation(true, false));
+        assert!(!defers_creation(true, true));
+    }
+
+    #[test]
+    fn an_eager_kind_is_created_even_while_hidden() {
+        assert!(!defers_creation(false, false));
+        assert!(!defers_creation(false, true));
     }
 }

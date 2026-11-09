@@ -3684,4 +3684,35 @@ fn settings_pages_text_without_any_default_rejected() {
         format!("{err:#}").contains("default or default_key"),
         "{err:#}"
     );
+fn lazy_kind_manifest(rendering: &str) -> String {
+    format!(
+        r#"
+        manifest_version = 1
+        id = "com.example.view"
+        name = "View"
+        version = "0.1.0"
+        api_version = "1"
+        [entry]
+        type = "process"
+        command = "x"
+        [[surface_kinds]]
+        kind = "view"
+        display_name_i18n_key = "k"
+        rendering = "{rendering}"
+        lazy_webview = true
+    "#
+    )
+}
+
+#[test]
+fn lazy_webview_defaults_off_and_parses_for_webview_kind() {
+    let off = parse(&webview_kind_manifest("webview", "zoom = 100.0")).expect("should parse");
+    assert!(!off.surface_kinds[0].lazy_webview);
+    let on = parse(&lazy_kind_manifest("webview")).expect("should parse");
+    assert!(on.surface_kinds[0].lazy_webview);
+}
+
+#[test]
+fn lazy_webview_rejected_outside_webview_kind() {
+    assert!(parse(&lazy_kind_manifest("remote")).is_err());
 }

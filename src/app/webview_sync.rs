@@ -2,8 +2,10 @@
 //! Native windows, geometry caches and input handles remain owned by MainView.
 mod bed_focus;
 mod construction;
+mod lazy;
 mod navigation;
 use construction::create_missing_webviews;
+pub(crate) use lazy::announce_lazy_webviews;
 use navigation::{apply_agent_history_step, apply_user_nav};
 
 use crate::plugin::PluginManager;
@@ -76,12 +78,7 @@ pub(crate) fn synchronize(
         })
         .collect();
     for surface in stale {
-        view.webviews.remove(&surface);
-        view.webview_runtime.remove(&surface);
-        view.webview_loaded_urls.remove(&surface);
-        view.webview_applied_settings.remove(&surface);
-        view.webview_create_attempts.remove(&surface);
-        proofs.invalidate(&view.state.webview_identity, surface);
+        forget_webview(view, surface, proofs);
     }
     #[cfg(any(target_os = "linux", target_os = "macos", windows))]
     view.http_preparing.retain(|_, pending| pending.current());
@@ -686,6 +683,20 @@ fn reapply_changed_settings(
     }
 }
 
+/// WebView와 그 surface의 적재·설정·생성 기록을 지운다. 다음 생성은 처음 만드는 것과 같다.
+fn forget_webview(
+    view: &mut MainView,
+    surface: u32,
+    proofs: &super::html_runtime::NavigationProofs,
+) {
+    view.webviews.remove(&surface);
+    view.webview_runtime.remove(&surface);
+    view.webview_loaded_urls.remove(&surface);
+    view.webview_applied_settings.remove(&surface);
+    view.webview_create_attempts.remove(&surface);
+    proofs.invalidate(&view.state.webview_identity, surface);
+}
+
 /// Creates webviews for new Html panels, destroys removed ones,
 /// updates bounds and visibility based on active workspace/tab.
 fn sync_webviews(
@@ -702,6 +713,7 @@ fn sync_webviews(
         clips: active_clips,
         all_ids: all_html_ids,
     } = collect_html_surfaces(view, engine, scale_factor);
+    lazy::release_hidden_webviews(view, engine, &active_html, proofs);
     create_missing_webviews(view, engine, &all_html_ids, &active_html, scale_factor);
     // 아래 표시 판정보다 먼저 둔다. 이 프레임에 드러나는 WebView도 새 상태로 드러난다.
     bed_focus::sync(view, engine);
