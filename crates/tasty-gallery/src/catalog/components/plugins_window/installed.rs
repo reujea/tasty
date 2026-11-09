@@ -416,7 +416,7 @@ pub fn draw_install_paths(ui: &mut egui::Ui, theme: &Theme) {
             ),
             (
                 "caption row",
-                "INSTALL PATH (mono 10 caps) · flex · Open folder",
+                "INSTALL PATH (font-label 10 caps) · flex · Open folder",
             ),
             (
                 "Open folder",

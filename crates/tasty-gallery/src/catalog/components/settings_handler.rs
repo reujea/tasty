@@ -21,7 +21,7 @@ const HOOK_CMD_LABEL_W: LogicalPx = LogicalPx(74.0);
 /// jsx add-draft 카드 필드 라벨 폭 (`width: 100`).
 const HOOK_ADD_LABEL_W: LogicalPx = LogicalPx(100.0);
 
-/// jsx `Mono` — mono 10 uppercase letter-spacing caps, text-muted.
+/// jsx `Mono` — font-label 10 uppercase letter-spacing caps, text-muted.
 fn mono_head(ui: &mut egui::Ui, theme: &Theme, text: &str) {
     ui.label(
         egui::RichText::new(text.to_uppercase())

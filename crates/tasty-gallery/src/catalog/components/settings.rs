@@ -646,7 +646,7 @@ fn footer(ui: &mut egui::Ui, theme: &Theme) -> egui::Rect {
         .rect
 }
 
-/// Mono 섹션 헤더 — mono 10 uppercase muted (jsx `Mono`).
+/// 섹션 헤더 — font-label 10 uppercase muted (jsx `Mono`).
 fn mono(ui: &mut egui::Ui, theme: &Theme, text: &str) {
     ui.label(
         egui::RichText::new(text.to_uppercase())

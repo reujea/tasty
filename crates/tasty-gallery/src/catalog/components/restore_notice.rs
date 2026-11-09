@@ -161,7 +161,7 @@ pub fn draw(ui: &mut egui::Ui, theme: &Theme) {
             ),
             (
                 "body",
-                "pad 12 · gap 8 · alertCircle 16 + cause · mono caps label · path box · explanation term-sm · Continue secondary sm right",
+                "pad 12 · gap 8 · alertCircle 16 + cause · font-label caps label · path box · explanation term-sm · Continue secondary sm right",
             ),
             (
                 "focus",

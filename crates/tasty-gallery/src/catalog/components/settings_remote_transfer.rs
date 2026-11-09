@@ -128,7 +128,7 @@ pub fn draw(ui: &mut egui::Ui, theme: &Theme) {
     );
 }
 
-/// jsx `Mono` — mono 10 uppercase, text-muted (settings_handler `mono_head` 관례).
+/// jsx `Mono` — font-label 10 uppercase, text-muted (settings_handler `mono_head` 관례).
 fn mono_head(ui: &mut egui::Ui, theme: &Theme, text: &str) {
     ui.label(
         egui::RichText::new(text.to_uppercase())

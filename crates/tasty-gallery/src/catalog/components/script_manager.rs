@@ -386,7 +386,7 @@ fn trigger_row(ui: &mut egui::Ui, theme: &Theme, triggers: &[&str]) {
     });
 }
 
-/// 트리거 칩 — mono micro 이벤트명 + 오른쪽 close 글리프 12, 높이 16, 안쪽 여백 0 4,
+/// 트리거 칩 — font-label micro 이벤트명 + 오른쪽 close 글리프 12, 높이 16, 안쪽 여백 0 4,
 /// border-default 실선. 칩 전체가 제거 영역이다.
 fn trigger_chip(ui: &mut egui::Ui, theme: &Theme, label: &str) {
     let fg = theme.text_secondary().to_egui();
