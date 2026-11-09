@@ -1,0 +1,18 @@
+| id | parent | nickname | state | cwd | last_report_at |
+|---|---|---|---|---|---|
+| n489 | - | - | exited | /work/repo-f/wt-01 | - |
+| n188 | n489 | lane-a | idle | /work/repo-b/wt-01 | 2026-01-04T17:47:10Z |
+| n335 | n489 | lane-g | idle | /work/repo-c/wt-01 | 2026-01-05T10:54:21Z |
+| n461 | n489 | lane-d | idle | /work/repo-a/wt-01 | 2026-01-04T17:14:40Z |
+| n608 | n489 | lane-e | idle | /work/repo-d/wt-01 | 2026-01-04T19:00:39Z |
+| n677 | - | - | exited | /work/repo-f/wt-02 | - |
+| n582 | n677 | lane-n | active | /work/repo-e/wt-02 | 2026-01-05T12:00:00Z |
+| n352 | n582 | lane-f | active | /work/repo-e/wt-09 | 2026-01-05T11:59:54Z |
+| n556 | n582 | lane-o | active | /work/repo-e/wt-01 | 2026-01-05T11:55:35Z |
+| n696 | n582 | - | idle | /work/repo-e/wt-05 | 2026-01-05T11:57:02Z |
+| n771 | n582 | - | idle | /work/repo-e/wt-04 | 2026-01-04T21:59:17Z |
+| n811 | n582 | lane-c | active | /work/repo-e/wt-03 | 2026-01-05T11:47:21Z |
+| n814 | n582 | lane-j | active | /work/repo-e/wt-08 | 2026-01-05T12:00:00Z |
+| n106 | n814 | lane-l | idle | /work/repo-e/wt-08 | 2026-01-05T11:59:58Z |
+| n902 | n582 | - | idle | /work/repo-e/wt-07 | 2026-01-04T23:38:47Z |
+| n990 | n582 | - | active | /work/repo-e/wt-06 | 2026-01-05T11:59:37Z |

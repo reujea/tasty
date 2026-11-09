@@ -1,0 +1,25 @@
+Each node has an id, a nickname, a state, a cwd and a last_report_at, and sits under at most one parent. A node without a parent is a root.
+Tree format: {format_name}
+{missing_note}
+Reference time: {T}
+
+<tree>
+{rendered}
+</tree>
+
+Definitions:
+- States: active is working, idle is waiting for a new task, needs_input is waiting for user input, stale has shown no recent activity, exited is gone.
+- Descendants of X are all nodes below X at any depth, not X itself.
+- Siblings of X are the other nodes with the same parent. A root has no siblings.
+- A node is silent when its state is active or stale and its last_report_at is at least {N} minutes before the reference time. A node without a last_report_at is not silent.
+
+Answer rules:
+- Reply with one JSON object only, with no code fence and no explanation. Use each question id as a key.
+- A list of ids is a JSON array of strings. Use [] when there are none.
+- A path is a JSON array of strings in order.
+- A count is a JSON integer.
+- An id or a text value is a JSON string.
+- Use JSON null when the node or the value does not exist.
+
+Questions:
+{questions}

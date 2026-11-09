@@ -1,0 +1,359 @@
+{
+ "seed": 20261109,
+ "decision_rules_sha256": "629785d470081fcf4f8f159a44021ffcc8f49db441765a09da83265a31881500",
+ "real_capture": {
+  "external_parent_roots": 0,
+  "cwd_unknown_nodes": 2,
+  "surfaces_outside_forest": 2,
+  "state_sources": {
+   "terminal.state": 5,
+   "terminal.state error: no live surface": 2,
+   "children": 9
+  }
+ },
+ "real_shape": {
+  "nodes": 16,
+  "depth_counts": {
+   "0": 2,
+   "1": 5,
+   "2": 8,
+   "3": 1
+  },
+  "max_depth": 3,
+  "children_per_parent": [
+   1,
+   1,
+   4,
+   8
+  ],
+  "state_counts": {
+   "active": 6,
+   "idle": 8,
+   "needs_input": 0,
+   "stale": 0,
+   "exited": 2
+  },
+  "nickname_missing": 6,
+  "report_time_missing": 2,
+  "report_gaps_seconds": [
+   1950,
+   4409,
+   10718,
+   5970,
+   40534,
+   3180,
+   494,
+   87,
+   155,
+   17,
+   4,
+   2
+  ],
+  "repositories": 6
+ },
+ "synthetic_forced": [
+  "state_needs_input",
+  "state_stale"
+ ],
+ "synthetic_shapes": {
+  "synthetic_40": {
+   "nodes": 40,
+   "depth_counts": {
+    "0": 6,
+    "1": 12,
+    "2": 19,
+    "3": 3
+   },
+   "max_depth": 3,
+   "children_per_parent": [
+    1,
+    1,
+    1,
+    1,
+    1,
+    2,
+    3,
+    4,
+    4,
+    8,
+    8
+   ],
+   "state_counts": {
+    "active": 14,
+    "idle": 19,
+    "needs_input": 1,
+    "stale": 1,
+    "exited": 5
+   },
+   "nickname_missing": 15,
+   "report_time_missing": 5,
+   "report_gaps_seconds": [
+    155,
+    1950,
+    4,
+    40534,
+    1950,
+    40534,
+    17,
+    1950,
+    494,
+    4409,
+    494,
+    3180,
+    155,
+    17,
+    87,
+    494,
+    40534,
+    40534,
+    40534,
+    494,
+    4,
+    5970,
+    40534,
+    87,
+    40534,
+    2,
+    3180,
+    87,
+    1950,
+    10718,
+    40534,
+    2,
+    155,
+    87
+   ],
+   "repositories": 14
+  },
+  "synthetic_80": {
+   "nodes": 80,
+   "depth_counts": {
+    "0": 10,
+    "1": 25,
+    "2": 39,
+    "3": 6
+   },
+   "max_depth": 3,
+   "children_per_parent": [
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    2,
+    2,
+    4,
+    4,
+    4,
+    4,
+    4,
+    4,
+    4,
+    4,
+    5,
+    8,
+    8
+   ],
+   "state_counts": {
+    "active": 29,
+    "idle": 39,
+    "needs_input": 1,
+    "stale": 1,
+    "exited": 10
+   },
+   "nickname_missing": 30,
+   "report_time_missing": 10,
+   "report_gaps_seconds": [
+    155,
+    17,
+    4409,
+    17,
+    1950,
+    17,
+    40534,
+    2,
+    4,
+    17,
+    4,
+    155,
+    87,
+    40534,
+    3180,
+    4409,
+    5970,
+    17,
+    494,
+    1950,
+    2,
+    10718,
+    494,
+    4409,
+    4,
+    494,
+    10718,
+    494,
+    87,
+    4,
+    1950,
+    5970,
+    1950,
+    87,
+    2,
+    87,
+    155,
+    87,
+    10718,
+    3180,
+    1950,
+    87,
+    5970,
+    155,
+    2,
+    2,
+    2,
+    3180,
+    2,
+    1950,
+    40534,
+    5970,
+    87,
+    155,
+    87,
+    87,
+    40534,
+    40534,
+    87,
+    10718,
+    494,
+    5970,
+    1950,
+    17,
+    87,
+    10718,
+    4,
+    4409,
+    5970
+   ],
+   "repositories": 25
+  }
+ },
+ "rendered_bytes": {
+  "real": {
+   "parent_table": 1241,
+   "adjacency": 1641,
+   "mermaid": 1768,
+   "flat_json": 2082,
+   "nested_json": 2033,
+   "indented": 1483
+  },
+  "synthetic_40": {
+   "parent_table": 2989,
+   "adjacency": 4111,
+   "mermaid": 4400,
+   "flat_json": 5214,
+   "nested_json": 5094,
+   "indented": 3721
+  },
+  "synthetic_80": {
+   "parent_table": 5914,
+   "adjacency": 8238,
+   "mermaid": 8833,
+   "flat_json": 10443,
+   "nested_json": 10196,
+   "indented": 7462
+  }
+ },
+ "pilot_formats": {
+  "smallest": "parent_table",
+  "largest": "flat_json"
+ },
+ "questions": {
+  "real": {
+   "asked": 15,
+   "silent_minutes": 5,
+   "dropped": [],
+   "low_discrimination": [
+    "q1: every candidate is silent",
+    "q2: the state is absent",
+    "q3: empty answer"
+   ]
+  },
+  "synthetic_40": {
+   "asked": 15,
+   "silent_minutes": 4445,
+   "dropped": [],
+   "low_discrimination": []
+  },
+  "synthetic_80": {
+   "asked": 15,
+   "silent_minutes": 3270,
+   "dropped": [],
+   "low_discrimination": []
+  }
+ },
+ "call_counts": {
+  "pilot": {
+   "calls": 6,
+   "retry_cap": 2,
+   "upper_bound": 8
+  },
+  "L0": {
+   "calls": 162,
+   "retry_cap": 17,
+   "upper_bound": 179
+  },
+  "L1": {
+   "calls": 126,
+   "retry_cap": 13,
+   "upper_bound": 139
+  },
+  "L2": {
+   "calls": 84,
+   "retry_cap": 9,
+   "upper_bound": 93
+  }
+ },
+ "files": {
+  "answers/real.json": "5062824adf5ac65bf8b2aeeec0c266aaa3d1e84c19ce3cfef1139ac085445409",
+  "answers/synthetic_40.json": "f4d21c3a63b288f94226a273e51305f6bf5c86099a6c259ee1001eb7dd2d9c9a",
+  "answers/synthetic_80.json": "d9ff02fbe9d1849b55f8b6e8e8df368f5df039c4479b70abeaf61f413cf4b342",
+  "prompts/system.txt": "4308a39e0b93589e2c6f955a6f0ca1396d3280000d81435408d4d9c09b2afdf1",
+  "prompts/user.txt": "c58dfe4d195e27aa19cdd5df16bf8c1b0524dfd663d9a7093f32c1397546c8cf",
+  "questions/real.json": "90be0bd24fd30a065861fa6ac6fb58e2dd46e89d27f9971b961bbc298f1a8516",
+  "questions/synthetic_40.json": "68b3e77cb0fc8644360a7d7522cf21751be06a8fa314d00a048b9bff423c612e",
+  "questions/synthetic_80.json": "7783105935de8b4ab967a8354889d43346e28cdee1a1054b7f639052c44f9552",
+  "rendered/real/adjacency.txt": "cc24740307d332bf27fb937e40685f79c9c65682f33a11f1fd1f2e15be59f1e1",
+  "rendered/real/flat_json.txt": "082d551cbde3b473ecbc4ff708d44fa06082246015629e361b2768b865082c10",
+  "rendered/real/indented.txt": "c066a69f089cb7afebef4d4a7cf5f6f37a7c1ca43d90b51d83d5ac9e8786d0d1",
+  "rendered/real/mermaid.txt": "d2f0b123a1dbde0640a84ce39811a7c3fd209b489f607a95077932112693f4f7",
+  "rendered/real/nested_json.txt": "b9a30c912dcd9c4356e54ae6f72100b66968da664b363f1b8c7ffc0a6662f654",
+  "rendered/real/parent_table.txt": "34204a4793de81bb27184eb54891ac6bf4c39abe1e6bb4c437b4ada0ab38be34",
+  "rendered/synthetic_40/adjacency.txt": "f1288808e8aaf8e12fd20bfffa87416005e269e31b822929d4d9af68f17fe40a",
+  "rendered/synthetic_40/flat_json.txt": "0618dbeb02612e504fbf78943a2160f07f6d02faa0dd519849ee3efbdc86039f",
+  "rendered/synthetic_40/indented.txt": "25a6ca22c84d220d1bf8f734fd7bc01a8c709eb9a7d97cdfdee18bdd645cc560",
+  "rendered/synthetic_40/mermaid.txt": "7fa3c51eed3bd138e52bf041eb998095d7ef9035139ad701cfdca5ab8817134b",
+  "rendered/synthetic_40/nested_json.txt": "ed36d0b9f79ace01a33a6ce7083642ed823dcaf592f0c9069506371d6bc030ba",
+  "rendered/synthetic_40/parent_table.txt": "237ec2480f68891f2ac31814b30c7bba17c43a20a1f7a1658d2891d617a71844",
+  "rendered/synthetic_80/adjacency.txt": "3bf7ff03f0b7f74318d10828d1b393de70b091deac973f67973b028b18c8ae29",
+  "rendered/synthetic_80/flat_json.txt": "3a6d188cf4f0f071bff7bf9c62ef0118cefc34868d74a56a2841080db35b27d6",
+  "rendered/synthetic_80/indented.txt": "91917e4384139bd214f07e62bb7c0a96c84b5efa05a3e6d8fe171c697a760745",
+  "rendered/synthetic_80/mermaid.txt": "a9a110342d12aaafda0508fba32c26d2db594578f1980bea262e59b3d22928e4",
+  "rendered/synthetic_80/nested_json.txt": "be8c697c6910bde445f10672386ee995f634eeb054b50e5c8610dfe8134ade7c",
+  "rendered/synthetic_80/parent_table.txt": "d53e3b2a1ea866e512e2b371988ae723203d5e336dcd4b75ecba0166be7ea787",
+  "schedules/L0.jsonl": "9ac233f790d9f908c75161d72e9d78aa9bb8308f0609301bb76841555c7f7ace",
+  "schedules/L1.jsonl": "0aa52ef6f960ff729275aa985cfdf6a32528058e1440134dc08c482181070a38",
+  "schedules/L2.jsonl": "2122892456cbab2ddf6bbe5ba4e8693faadddc0338fd80ecba83215087e6334b",
+  "schedules/pilot.jsonl": "bb5b97d2b8ffed347a8933ea6f1ffb15c23eab0d73fda810b924505680cadd13",
+  "trees/real.json": "b1b9ce91e2d2227bdc2d5dc64e8b361b20107299e02d3e3aec3bf7b99f23dc1e",
+  "trees/synthetic_40.json": "9778e46ca0b963e278abbabc6ab506118f06641dcee8b7a2c2f88b96b64fc109",
+  "trees/synthetic_80.json": "80df2d3a1260963c3aebe129cca9be9e7b0035f2e4772ccf66914ec82ff5223b"
+ }
+}

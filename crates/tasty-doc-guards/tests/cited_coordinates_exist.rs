@@ -866,6 +866,10 @@ const UNJUDGED_FORMS: &[(&str, &str)] = &[
     ),
     ("json", "주석 문법이 없다 — 데이터다"),
     (
+        "jsonl",
+        "주석 문법이 없다 — 한 줄에 JSON 값 하나인 측정 데이터다",
+    ),
+    (
         "SOURCE",
         "주석 문법이 없다 — 디자인 정본 커밋 해시 한 줄인 데이터다(crates/tasty-design-tokens/dtcg/SOURCE)",
     ),

@@ -43,6 +43,7 @@ COMMON_TERMS = {
     "lane": "the pseudonym vocabulary uses it",
     "tasty": "the name of this public repository",
     "conductor": "ordinary word in the product vocabulary",
+    ".git": "the name git gives its own folder",
 }
 MIN_TERM_LENGTH = 3
 
