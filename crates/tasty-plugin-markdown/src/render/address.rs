@@ -234,7 +234,7 @@ pub(super) fn addr_css(theme: &Theme) -> String {
 }
 
 /// 버튼 하나. 툴팁은 감싼 span 에 둔다 — disabled 버튼은 마우스 이벤트를 받지 않아 자기 title 을 보이지 않는다.
-/// 네이티브 title 에는 `lang` 이 닿지 않아 툴팁의 한자 형태는 OS 로케일을 따른다([`super::ui_lang`]).
+/// Linux(WebKitGTK) 측정에서 네이티브 title 에는 `lang` 이 닿지 않아 툴팁의 한자 형태가 OS 로케일을 따랐다([`super::ui_lang`]).
 fn button(id: &str, glyph: &str, label: &str, tip: &str, off: bool, extra: &str) -> String {
     format!(
         r#"<span class="tasty-addr-tip" id="{id}-tip" title="{tip}"><button id="{id}" class="tasty-addr-btn" type="button" aria-label="{label}"{extra}{disabled}><span class="tasty-addr-glyph tasty-addr-g-{glyph}"></span></button></span>"#,

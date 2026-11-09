@@ -1,11 +1,11 @@
 //! 앱 문구 요소에 붙이는 언어 표시.
 //!
-//! WebView는 `lang`이 없는 한자의 형태를 OS 로케일로 고른다. 앱 문구의 언어는 Tasty가 알고 있으므로
-//! 요소에 표시한다. 사용자 문서는 언어를 알 수 없어 표시하지 않는다. 그래서 `<html>`이나 문서를 감싸는
+//! Linux(WebKitGTK)에서 측정한 결과 `lang`이 없는 한자의 형태는 OS 로케일로 정해진다. 앱 문구의 언어는
+//! Tasty가 알고 있으므로 요소에 표시한다. 사용자 문서는 언어를 알 수 없어 표시하지 않는다. 그래서 `<html>`이나 문서를 감싸는
 //! 요소에는 붙이지 않는다.
 //!
-//! 현재 한계: 네이티브 `title` tooltip에는 `lang`이 닿지 않아 OS 로케일 형태로 남는다. 고르려면 HTML
-//! tooltip이 필요하며, Windows와 macOS를 측정한 뒤 정한다.
+//! 현재 한계: Linux(WebKitGTK)에서 측정한 결과 네이티브 `title` tooltip에는 `lang`이 닿지 않아 OS 로케일
+//! 형태로 남는다. 고르려면 HTML tooltip이 필요하며, Windows와 macOS를 측정한 뒤 정한다.
 
 use std::borrow::Cow;
 

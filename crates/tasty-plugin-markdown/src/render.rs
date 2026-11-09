@@ -475,7 +475,7 @@ fn toc_nav_html(tr: &Translator, headings: &[HeadingInfo]) -> String {
             )
         })
         .collect();
-    // 버튼의 all:unset이 자기 lang에서 온 locale을 지우므로 글자를 감싼 span에 붙인다.
+    // WebKitGTK에서 버튼의 all:unset이 자기 lang에서 온 locale을 지우므로 글자를 감싼 span에 붙인다.
     let lang = ui_lang::attr(tr);
     format!(
         r#"<nav id="tasty-toc" aria-label="{aria}"><button id="tasty-toc-toggle" type="button" aria-expanded="true"><span{lang}>{label}</span></button><ul id="tasty-toc-list">{items}</ul></nav>"#,

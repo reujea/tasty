@@ -558,7 +558,7 @@ debounce, `compositionend` 시 즉시)마다 이전 `<mark>` 를 먼저 원문�
 
 ## 앱 문구의 한자 형태
 
-WebView는 `lang`이 없는 한자의 형태를 OS 로케일로 고른다. 글꼴 스택에 CJK 글꼴이 없어 형태는 WebView와 OS의 글꼴 대체에 맡겨진다. 앱 문구는 언어를 알고 있으므로 요소에 UI 언어(`general.language`)를 `lang`으로 표시한다(`render/ui_lang.rs`). 값은 언어 코드 그대로이고 UI 언어로 분기하지 않는다. 언어를 모르면 붙이지 않는다.
+글꼴 스택에 CJK 글꼴이 없어 한자의 형태는 WebView와 OS의 글꼴 대체에 맡겨진다. Linux(WebKitGTK 2.50.4)에서 측정한 동작으로는 `lang`이 없는 한자의 형태를 OS 로케일로 고른다. 앱 문구는 언어를 알고 있으므로 요소에 UI 언어를 `lang`으로 표시한다(`render/ui_lang.rs`). 값은 설정값 `general.language`가 아니라 폴백을 반영한 적용 언어 `TASTY_LOCALE`(`Translator.locale`)의 코드 그대로다. 설치되지 않은 언어를 설정하면 `en`이 붙는다. UI 언어로 분기하지 않으며 언어를 모르면 붙이지 않는다.
 
 | 표시한다 | 표시하지 않는다 |
 |---|---|
@@ -569,19 +569,29 @@ WebView는 `lang`이 없는 한자의 형태를 OS 로케일로 고른다. 글�
 | 상태 화면의 번역 문구(제목·버튼) | 상태 화면의 OS 오류 원문(`.tasty-state-detail`) |
 | 코드 복사 버튼, 이미지 실패 안내 | 원격 실패 사유. 번역하지 않는 영어 원문이라 `<span lang="en">`이다 |
 
-`lang`은 상속되므로 문서를 감싸는 요소에 붙이면 사용자 문서까지 UI 언어의 형태로 바뀐다. 사용자 문서는 언어를 알 수 없어 OS 로케일 판단에 맡긴다. 목차 버튼처럼 `all:unset`을 쓰는 요소는 자기 `lang`에서 온 locale도 함께 지워지므로 글자를 감싼 안쪽 요소에 붙인다.
+`lang`은 상속되므로 문서를 감싸는 요소에 붙이면 사용자 문서까지 UI 언어의 형태로 바뀐다. 사용자 문서는 언어를 알 수 없어 OS 로케일 판단에 맡긴다. 목차 버튼은 `all:unset`을 쓴다. Linux(WebKitGTK)에서 측정한 결과 이 규칙은 자기 `lang`에서 온 locale도 지우므로 글자를 감싼 안쪽 요소에 붙인다.
+
+입력 칸의 값은 칸의 `lang`을 받는다. 경로 표시(`.tasty-addr-display`)는 표시하지 않지만 포커스 중에는 같은 경로가 표시된 주소 칸 `input`에 보이므로 그동안 경로의 한자는 UI 언어를 기준으로 그려진다. 찾기 칸에 입력한 검색어도 찾기 막대의 언어를 받는다. 이 두 경로의 형태는 캡처하지 않았다.
 
 Linux(WebKitGTK 2.50.4, Noto Sans CJK 전 변종 설치, 전용 Xvfb) 측정값이다. OS 로케일은 `LANG`만 바꿨고 앱 언어는 `zh-Hans` 시험 언어팩이다.
 
 | 대상 | `ko_KR`·`ja_JP`·`en_US` | `zh_CN` |
 |---|---|---|
-| 앱 문구: 찾기 칸, 주소 칸, 목차 버튼, 콜아웃 라벨, 빈 문서 안내 | 간체 형태 | 간체 형태 |
+| 앱 문구: 찾기 칸, 주소 칸, 목차 버튼, 접지 않는 콜아웃 라벨, 빈 문서 안내 | 간체 형태 | 간체 형태 |
+| 접는 콜아웃 `summary`의 기본 라벨 | 간체 형태(`ko_KR`만 측정) | 간체 형태 |
 | 문서 본문, 목차 링크 | 일본어 형태 | 간체 형태 |
 | 네이티브 tooltip(`title`) | 일본어 형태(`ko_KR`만 측정) | 간체 형태 |
 
-현재 한계: 네이티브 tooltip은 앱 문구지만 `lang`이 닿지 않아 OS 로케일의 형태를 따른다. 위 측정에서 중국어 간체 UI의 tooltip은 `zh_CN` 외 로케일에서 일본어 형태다. 고치려면 HTML tooltip이 필요하므로 Windows와 macOS를 측정한 뒤 정한다.
+다른 UI 언어와 값의 측정도 같은 환경이다.
 
-이 코드는 모든 OS에 공통이지만 Windows(WebView2)와 macOS(WKWebView), 글꼴 구성이 다른 Linux에서는 표시 결과를 측정하지 않았다. 원격 상태, 큰 파일, 불러오기 실패, 복사 버튼, 이미지 실패 문구의 형태는 캡처하지 않았고 표시 여부만 시험으로 확인한다. WebView 내용은 `ui.screenshot`에 담기지 않으므로 형태 확인은 [OS 화면 캡처](../../../ai-verification/screenshot-methods.md#os-화면-캡처)로 한다.
+- `lang="ko"`와 `lang="ja"`는 한글과 가나의 글꼴을 바꾸지 않았다. `lang` 없는 줄과 픽셀이 같다. 예외는 OS 로케일 `zh_CN`의 가나로, `ko`와 `ja` 모두 36픽셀이 다르다. 한자는 바뀔 수 있어 `zh_CN`의 일본어 UI에서는 `目次` 같은 문구가 일본어 형태로 나온다.
+- 한국어 UI와 영어 UI는 `ko_KR`·`zh_CN`에서, 한국어 UI는 `en_US`에서도, 일본어 UI는 `ja_JP`·`en_US`에서 앱 문구의 픽셀이 표시 전과 같다. 아래 찾기 버튼은 예외다.
+- OS 로케일이 `en_US`일 때 찾기 막대에 `ko`·`ja`를 표시하면 ▲▼ 버튼 글리프의 대체 글꼴이 바뀌어 다른 로케일과 같은 모양이 된다.
+- 언어팩 코드의 `_`는 `lang`에 그대로 들어간다. `lang="zh_CN"`의 계산된 locale은 `zh_CN`이고 한자 형태는 `zh-Hans`, `zh-CN`과 픽셀이 같다. `ko_KR`, `ja_JP`도 `ko`, `ja`와 같다.
+
+현재 한계: 네이티브 tooltip은 앱 문구지만 Linux(WebKitGTK)에서 측정한 결과 `lang`이 닿지 않아 OS 로케일의 형태를 따른다. 위 측정에서 중국어 간체 UI의 tooltip은 `zh_CN` 외 로케일에서 일본어 형태다. 고치려면 HTML tooltip이 필요하므로 Windows와 macOS를 측정한 뒤 정한다.
+
+이 코드는 모든 OS에 공통이지만 Windows(WebView2)와 macOS(WKWebView), 글꼴 구성이 다른 Linux에서는 표시 결과를 측정하지 않았다. 이 절의 동작은 이 측정 범위의 사실이며 다른 WebView에서 같다고 확인하지 않았다. 접는 콜아웃 `summary`는 `ko_KR`·`zh_CN`에서 캡처했고 `ja_JP`·`en_US`에서는 캡처하지 않았다. 원격 상태, 큰 파일, 불러오기 실패, 복사 버튼, 이미지 실패 문구의 형태는 캡처하지 않았고 표시 여부만 시험으로 확인한다. WebView 내용은 `ui.screenshot`에 담기지 않으므로 형태 확인은 [OS 화면 캡처](../../../ai-verification/screenshot-methods.md#os-화면-캡처)로 한다.
 
 ## 디자인 토큰 매핑
 
