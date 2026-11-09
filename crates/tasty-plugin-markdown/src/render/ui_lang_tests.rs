@@ -14,8 +14,11 @@ const UI: &str = "zh-Hans";
 
 /// 문구는 영어 카탈로그에서 읽고 언어 표시만 시험 값으로 둔다. 표시 위치만 보는 시험이라
 /// `lang/`에 시험 언어의 카탈로그가 생겨도 기대 문구가 바뀌지 않아야 한다.
+/// 카탈로그는 markdown 크레이트 기준 경로로 찾는다 — mdedit 이 이 모듈을 제자리 컴파일하면
+/// `CARGO_MANIFEST_DIR` 가 mdedit 을 가리킨다.
 fn translator() -> Translator {
-    let mut tr = Translator::load(&Path::new(env!("CARGO_MANIFEST_DIR")).join("lang"), "en");
+    let lang = Path::new(env!("CARGO_MANIFEST_DIR")).join("../tasty-plugin-markdown/lang");
+    let mut tr = Translator::load(&lang, "en");
     tr.locale = UI.to_string();
     tr
 }

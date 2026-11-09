@@ -6519,7 +6519,7 @@ dependencies = [
 
 [[package]]
 name = "tasty-plugin-markdown"
-version = "0.1.578"
+version = "0.1.579"
 dependencies = [
  "ammonia",
  "anyhow",
@@ -6543,6 +6543,32 @@ dependencies = [
  "tracing-subscriber",
  "usvg",
  "webkit2gtk",
+]
+
+[[package]]
+name = "tasty-plugin-mdedit"
+version = "0.1.22"
+dependencies = [
+ "ammonia",
+ "anyhow",
+ "base64 0.22.1",
+ "chrono",
+ "pulldown-cmark",
+ "regex",
+ "serde",
+ "serde_json",
+ "sha2",
+ "tasty-icons",
+ "tasty-plugin-manifest",
+ "tasty-plugin-protocol",
+ "tasty-plugin-sdk",
+ "tasty-themes",
+ "tasty-type-appearance",
+ "tempfile",
+ "toml 0.8.2",
+ "tracing",
+ "tracing-subscriber",
+ "webbrowser",
 ]
 
 [[package]]

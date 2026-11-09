@@ -523,6 +523,8 @@ opt-level = 3
 opt-level = 3
 [profile.dev.package.tasty-plugin-markdown]
 opt-level = 3
+[profile.dev.package.tasty-plugin-mdedit]
+opt-level = 3
 [profile.dev.package.tasty-plugin-mesh-demo]
 opt-level = 3
 [profile.dev.package.tasty-plugin-protocol]

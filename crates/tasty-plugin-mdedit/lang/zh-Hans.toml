@@ -1,0 +1,185 @@
+[surface.kind]
+mdedit = "Markdown 编辑器"
+
+[file_handler.host]
+mdedit-editor = "Markdown 编辑器"
+
+[settings.subtab]
+mdedit = "Markdown 编辑器"
+
+[preset.field]
+file = "文件"
+file_hint = "Markdown 文件路径"
+
+[mdedit]
+agent_badge = "智能体"
+
+[mdedit.namespace]
+desc = "Markdown 协同编辑命名空间"
+
+[mdedit.command]
+save = "保存 Markdown 编辑器"
+
+[mdedit.toolbar]
+preview = "预览"
+source = "源码"
+save = "保存"
+review = "审查"
+snapshots = "快照"
+dismiss = "关闭"
+
+[mdedit.status]
+saved = "已保存"
+dirty = "已修改"
+conflict = "冲突"
+load_failed = "无法读取文件"
+
+[mdedit.banner]
+mixed_eol = "此文件混用了 CRLF 和 LF 换行符。保存时将统一为 LF。"
+read_failed = "无法读取文件：{}"
+merged = "磁盘上的文件已更改，其更改已合并到你的编辑中。保存后才会写回文件。"
+conflict = "磁盘上的文件已更改，有 {} 处与你的编辑重叠。请为每一处选择要保留的版本。"
+external_guard = "外部写入更改了受保护的节 {}。可在“审查”中还原。"
+external_secret = "外部写入在第 {} 行添加了疑似机密的内容。请在“审查”中检查。"
+resolve_first = "请先解决冲突再保存。"
+disk_moved = "保存前磁盘上的文件刚刚发生更改。已合并其更改，未执行保存。请检查结果后再次保存。"
+guard_blocked = "未保存：此编辑会更改受保护的节 {}。"
+secret_blocked = "未保存：第 {} 行疑似明文机密。请改用 [pw:P1] 这样的标签。"
+secret_warned = "已保存，但第 {} 行疑似机密。"
+save_failed = "保存失败：{}"
+choose_all = "请先为每个冲突选择要保留的版本。"
+resolved = "冲突已解决。保存后才会写回结果。"
+task_mismatch = "复选框位置与源码不一致（{}）。请在“源码”中编辑该行。"
+revert_overlaps = "该更改与你未保存的编辑重叠。请先保存或撤销这些编辑。"
+snapshot_failed = "无法读取快照：{}"
+inline_rejected = "无法应用预览中的编辑（{}）。已根据源码重新绘制预览。"
+
+[mdedit.inline]
+hint = "Enter：应用 · Esc：取消 · /：插入块"
+hint_multi = "Enter：应用 · Shift+Enter：换行 · Esc：取消"
+no_match = "没有匹配的块"
+add_line = "添加一行"
+row_above = "在上方插入行"
+row_below = "在下方插入行"
+slash_paragraph = "正文"
+slash_h1 = "标题 1"
+slash_h2 = "标题 2"
+slash_h3 = "标题 3"
+slash_bullet = "项目符号列表"
+slash_numbered = "编号列表"
+slash_task = "复选框"
+slash_quote = "引用"
+slash_code = "代码块"
+slash_table = "表格"
+slash_divider = "分隔线"
+handle_add = "插入"
+handle_drag = "拖动以移动 · 点击打开菜单"
+menu_format = "转换为"
+menu_up = "上移"
+menu_down = "下移"
+menu_dup = "复制"
+menu_delete = "删除"
+fmt_h4 = "标题 4"
+fmt_h5 = "标题 5"
+fmt_h6 = "标题 6"
+
+[mdedit.conflict]
+title = "冲突 — 你的编辑与磁盘上的文件"
+apply = "应用"
+at_line = "第 {} 行"
+ours = "保留我的"
+theirs = "保留磁盘的"
+both = "保留两者"
+
+[mdedit.review]
+title = "外部写入的更改"
+keep_all = "全部保留"
+keep = "保留"
+revert = "还原"
+at_line = "第 {} 行"
+
+[mdedit.origin]
+agent = "智能体"
+external = "外部"
+
+[mdedit.snapshots]
+title = "快照"
+empty = "尚无快照。"
+restore = "恢复"
+
+[mdedit.snapshots.reason]
+external = "外部写入前"
+agent = "智能体写入前"
+save = "保存前"
+restore = "恢复前"
+
+[mdedit.settings]
+snapshot_keep_count = "每个文件保留的快照数"
+snapshot_keep_days = "快照保留期限"
+days_suffix = "天"
+
+[mdedit.cli]
+desc = "Markdown 协同编辑 — 按标题路径读取和编辑 Markdown 文件的节"
+
+[mdedit.cli.sub.read]
+description = "输出文件（或其标题大纲）及内容哈希"
+
+[mdedit.cli.sub.section]
+description = "对按标题路径选中的一个节执行 get|append|prepend|insert-before|replace"
+
+[mdedit.cli.sub.task]
+description = "切换节内的一行复选框"
+
+[mdedit.cli.sub.agent_note]
+description = "在节末尾追加 '> [!agent] HH:MM 标题' 记录块"
+
+[mdedit.cli.sub.snapshot]
+description = "对文件的自动快照执行 list|restore"
+
+[mdedit.cli.sub.status]
+description = "显示文件的内容哈希、已打开的编辑器（修改 / 冲突 / 审查）状态及受保护节数"
+
+[mdedit.cli.arg.file]
+help = "Markdown 文件"
+
+[mdedit.cli.arg.outline]
+help = "输出标题大纲而非正文"
+
+[mdedit.cli.arg.op]
+help = "操作：get（读取）| append（末尾追加）| prepend（标题下方）| insert-before（标题上方）| replace（替换正文）"
+
+[mdedit.cli.arg.heading]
+help = "标题路径，例如 '# 2026.10.22' 或 '# 待办 > ## Project'"
+
+[mdedit.cli.arg.text]
+help = "要插入的文本（仅写入操作）"
+
+[mdedit.cli.arg.if_match]
+help = "仅当文件哈希仍等于此值时才写入，否则拒绝"
+
+[mdedit.cli.arg.action_task]
+help = "操作：toggle（切换勾选）"
+
+[mdedit.cli.arg.match]
+help = "在该节的复选框行中恰好只出现在一行的文本"
+
+[mdedit.cli.arg.to]
+help = "toggle（默认）| checked | unchecked"
+
+[mdedit.cli.arg.title]
+help = "记录的单行标题"
+
+[mdedit.cli.arg.note_text]
+help = "正文行（每行变为 '> 行'）"
+
+[mdedit.cli.arg.time]
+help = "要显示的 HH:MM（默认：当前时间）"
+
+[mdedit.cli.arg.no_time]
+help = "不写入时间"
+
+[mdedit.cli.arg.action_snapshot]
+help = "操作：list（列表）| restore（恢复）"
+
+[mdedit.cli.arg.id]
+help = "要恢复的快照 ID（来自 'list'）"

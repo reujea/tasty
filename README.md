@@ -9,7 +9,7 @@
 [![Version](https://img.shields.io/badge/version-0.14.0-blue)](CHANGELOG.md)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](#license)
 [![Platforms](https://img.shields.io/badge/platforms-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey)](docs/installation.md)
-[![Workspace](https://img.shields.io/badge/workspace-63%20crates-orange)](crates/)
+[![Workspace](https://img.shields.io/badge/workspace-64%20crates-orange)](crates/)
 
 People can work with the keyboard and mouse while agents perform their own tasks through IPC/CLI. Agent commands do not depend on which terminal the user has focused.
 
@@ -21,7 +21,7 @@ Every Tasty API strictly separates **user actions** (keyboard/mouse/native OS in
 
 - **Cross-platform** — Windows / macOS / Linux, all native (winit + wgpu).
 - **GPU-accelerated rendering** — cell-based shaders, stable prepare/draw even with 10+ surfaces.
-- **Hexagonal architecture** — model + ports + adapters + view + host_api separation, 63-crate workspace.
+- **Hexagonal architecture** — model + ports + adapters + view + host_api separation, 64-crate workspace.
 - **Agent control** — IPC/CLI commands use target IDs and preserve the user’s focus. Input simulation is available only in debug builds.
 
 ## Main Systems
@@ -101,7 +101,7 @@ cargo build --release
 
 ## Architecture
 
-A hexagonal architecture (model + ports + adapters + view + host_api separation) across a 63-crate workspace. Full structure: [`docs/architecture/`](docs/architecture/).
+A hexagonal architecture (model + ports + adapters + view + host_api separation) across a 64-crate workspace. Full structure: [`docs/architecture/`](docs/architecture/).
 
 ## License
 

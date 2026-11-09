@@ -47,6 +47,11 @@ pub(crate) const BUILTINS: &[BuiltinSpec] = &[
         bin_name: "tasty-plugin-markdown.exe",
     },
     BuiltinSpec {
+        id: "com.tasty.mdedit",
+        crate_dir: "tasty-plugin-mdedit",
+        bin_name: "tasty-plugin-mdedit.exe",
+    },
+    BuiltinSpec {
         id: "com.tasty.clipboard-viewer",
         crate_dir: "tasty-plugin-clipboard-viewer",
         bin_name: "tasty-plugin-clipboard-viewer.exe",
@@ -94,6 +99,11 @@ pub(crate) const BUILTINS: &[BuiltinSpec] = &[
         id: "com.tasty.markdown",
         crate_dir: "tasty-plugin-markdown",
         bin_name: "tasty-plugin-markdown",
+    },
+    BuiltinSpec {
+        id: "com.tasty.mdedit",
+        crate_dir: "tasty-plugin-mdedit",
+        bin_name: "tasty-plugin-mdedit",
     },
     BuiltinSpec {
         id: "com.tasty.clipboard-viewer",

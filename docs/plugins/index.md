@@ -2,7 +2,7 @@
 
 Tasty가 관리하는 공식 플러그인 목록이다([plugins 개념](../concepts/plugins.md)). 배포 패키지에 동봉된 플러그인은 첫 부팅 때 자동 설치하며, `bundle=false`인 개발용 항목은 패키지에서 제외한다. 각 플러그인은 외부 플러그인과 동일한 라이프사이클(활성/비활성/제거/권한)을 따른다 — 관리 UI 는 [plugin-system](../features/plugin-system/index.md).
 
-surface kind 를 제공하는 플러그인(markdown·image·html)은 그 kind 의 명세가 정본이므로 [`surfaces/`](../surfaces/index.md)의 kind 문서에 둔다. 파일 핸들러·CLI·설정 페이지·popup 처럼 같은 플러그인의 다른 기여도 그 문서에 함께 적는다. surface 를 제공하지 않는 플러그인은 `plugins/<id>/index.md`(동작) + 화면(UI 가 있으면 — 기획문서의 `## 화면` 절이 기본, 화면이 둘 이상이거나 자기 규칙을 가지면 `screens/` 파일. 기준은 [documentation-model §3](../documentation-model.md#3-폴더-구조-중첩))에 둔다. 이 영역은 [features/](../features/index.md) 와 구조가 같되, **host 가 아니라 플러그인이 제공**하는 동작이라 분리되어 있다. 양식은 features 템플릿을 그대로 쓴다.
+surface kind 를 제공하는 플러그인(markdown·mdedit·image·html)은 그 kind 의 명세가 정본이므로 [`surfaces/`](../surfaces/index.md)의 kind 문서에 둔다. 파일 핸들러·CLI·설정 페이지·popup 처럼 같은 플러그인의 다른 기여도 그 문서에 함께 적는다. surface 를 제공하지 않는 플러그인은 `plugins/<id>/index.md`(동작) + 화면(UI 가 있으면 — 기획문서의 `## 화면` 절이 기본, 화면이 둘 이상이거나 자기 규칙을 가지면 `screens/` 파일. 기준은 [documentation-model §3](../documentation-model.md#3-폴더-구조-중첩))에 둔다. 이 영역은 [features/](../features/index.md) 와 구조가 같되, **host 가 아니라 플러그인이 제공**하는 동작이라 분리되어 있다. 양식은 features 템플릿을 그대로 쓴다.
 
 Claude의 훅 설치는 [완료 알림 mod](claude/notify-mod.md)도 관리한다. 실제 모델 수신과 로컬 시험의 범위는 구분한다.
 
@@ -15,6 +15,7 @@ claude·codex 는 attach 로 연결한 원격 워크스페이스에도 자식을
 | [markdown](../surfaces/markdown/index.md) — `com.tasty.markdown` | 마크다운 뷰어 | surface_kind(webview) · 파일 핸들러 · cli · settings_page |
 | [image](../surfaces/image/index.md) — `com.tasty.image` | 이미지 뷰어 / 그림판 | surface_kind(egui-mesh) · 파일 핸들러 · cli |
 | [html](../surfaces/html/index.md) — `com.tasty.html` | HTML 뷰어 | surface_kind(webview) · 파일 핸들러 · cli |
+| [mdedit](../surfaces/mdedit/index.md) — `com.tasty.mdedit` | 마크다운 공동 편집기(사용자 + 에이전트, 3-way 병합·검토·섹션 가드·스냅샷), `bundle=false`로 배포 제외 | surface_kind(webview) · 파일 핸들러 · cli · ipc · commands · settings_page |
 | [clipboard-viewer](clipboard-viewer/index.md) — `com.tasty.clipboard-viewer` | 클립보드 뷰어(현재 내용) | 도구 메뉴 · popup |
 | [git-viewer](git-viewer/index.md) — `com.tasty.git-viewer` | git status/log/diff 뷰어 | 도구 메뉴 · popup |
 | [claude](claude/index.md) — `com.tasty.claude` | Claude Code CLI 통합 · spawn 전용 모델·effort 선택과 같은 세션 복원 · Shift+Enter 입력 기본값 | cli · ipc · 멀티에이전트 |

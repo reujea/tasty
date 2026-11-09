@@ -19,6 +19,7 @@ pub const OFFICIAL_PLUGIN_IDS: &[&str] = &[
     "com.tasty.html",
     "com.tasty.image",
     "com.tasty.markdown",
+    "com.tasty.mdedit",
     "com.tasty.mesh-demo",
 ];
 

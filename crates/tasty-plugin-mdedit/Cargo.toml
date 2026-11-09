@@ -1,0 +1,42 @@
+[package]
+name = "tasty-plugin-mdedit"
+version = "0.1.22"
+edition = "2024"
+license = "MIT"
+description = "Markdown co-editing surface plugin (webview) — user and agent edit one file"
+repository = "https://github.com/zilhak/tasty"
+
+[[bin]]
+name = "tasty-plugin-mdedit"
+path = "src/main.rs"
+
+[dependencies]
+tasty-plugin-sdk = { path = "../tasty-plugin-sdk" }
+tasty-plugin-protocol = { path = "../tasty-plugin-protocol" }
+# 미리보기 테마 — host `theme.query` 의 ThemeWire 를 Theme 로 재구성한다(markdown 과 같은 길).
+tasty-type-appearance = { path = "../tasty-type-appearance" }
+# 미리보기 렌더러는 markdown plugin 의 render.rs 를 제자리 컴파일한다(docs/surfaces/mdedit/index.md#렌더러-제자리-컴파일) — 아래
+# 다섯은 그 파일이 쓰는 크레이트다. 버전은 markdown 의 선언과 같게 둔다.
+pulldown-cmark = { version = "0.12", default-features = false, features = ["html"] }
+ammonia = "4"
+base64 = "0.22"
+tasty-icons = { path = "../tasty-icons", default-features = false }
+webbrowser = "1"
+regex = "1"
+toml = "0.8"
+sha2 = "0.10"
+tempfile = "3"
+chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
+serde_json = "1"
+serde = { version = "1", features = ["derive"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+anyhow = "1"
+
+[dev-dependencies]
+tasty-plugin-manifest = { path = "../tasty-plugin-manifest" }
+# render.rs 의 단위 시험이 완성된 ThemeColors 를 쓴다(markdown 의 dev-dependency 와 같다).
+tasty-themes = { path = "../tasty-themes" }
+
+[lints]
+workspace = true

@@ -3202,7 +3202,11 @@ mod tests {
     /// 실제 영어 번역표로 원격 문서를 그린다. 실패 문장의 자리 값까지 본다.
     fn remote_document_en(view: RemoteView) -> String {
         let theme = Theme::with_colors_and_zoom(tasty_themes::mocha_fallback_colors(), false, 1.0);
-        let tr = Translator::load(&Path::new(env!("CARGO_MANIFEST_DIR")).join("lang"), "en");
+        // 편집기(mdedit)가 이 파일을 제자리 컴파일해도 markdown 의 번역표를 읽도록 크레이트 이름으로 찾는다.
+        let tr = Translator::load(
+            &Path::new(env!("CARGO_MANIFEST_DIR")).join("../tasty-plugin-markdown/lang"),
+            "en",
+        );
         render_document(DocumentInput {
             find_bindings: &[],
             address_bindings: &[],

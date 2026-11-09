@@ -1,0 +1,185 @@
+[surface.kind]
+mdedit = "Markdown エディタ"
+
+[file_handler.host]
+mdedit-editor = "Markdown エディタ"
+
+[settings.subtab]
+mdedit = "Markdown エディタ"
+
+[preset.field]
+file = "ファイル"
+file_hint = "Markdown ファイルのパス"
+
+[mdedit]
+agent_badge = "エージェント"
+
+[mdedit.namespace]
+desc = "Markdown 共同編集ネームスペース"
+
+[mdedit.command]
+save = "Markdown エディタを保存"
+
+[mdedit.toolbar]
+preview = "プレビュー"
+source = "ソース"
+save = "保存"
+review = "レビュー"
+snapshots = "スナップショット"
+dismiss = "閉じる"
+
+[mdedit.status]
+saved = "保存済み"
+dirty = "変更あり"
+conflict = "競合"
+load_failed = "ファイルを読み込めませんでした"
+
+[mdedit.banner]
+mixed_eol = "このファイルは CRLF と LF の改行が混在しています。保存すると LF に統一されます。"
+read_failed = "ファイルを読み込めませんでした: {}"
+merged = "ディスク上のファイルが変更されたため、編集中の内容にマージしました。保存するとファイルに反映されます。"
+conflict = "ディスク上のファイルが変更され、{} か所が編集中の内容と重なっています。それぞれ残す方を選んでください。"
+external_guard = "外部からの書き込みがガードされたセクション {} を変更しました。レビューで元に戻せます。"
+external_secret = "外部からの書き込みが {} 行目に秘密情報らしき内容を追加しました。レビューで確認してください。"
+resolve_first = "保存する前に競合を解決してください。"
+disk_moved = "保存の直前にディスク上のファイルが変更されたため、その変更をマージし、保存はしませんでした。結果を確認して再度保存してください。"
+guard_blocked = "保存しませんでした: ガードされたセクション {} を変更する編集です。"
+secret_blocked = "保存しませんでした: {} 行目が平文の秘密情報に見えます。[pw:P1] のようなラベルで書いてください。"
+secret_warned = "保存しましたが、{} 行目が秘密情報に見えます。"
+save_failed = "保存に失敗しました: {}"
+choose_all = "すべての競合で残す方を先に選んでください。"
+resolved = "競合を解決しました。保存するとファイルに反映されます。"
+task_mismatch = "チェックボックスの位置がソースと一致しません({})。ソースでその行を編集してください。"
+revert_overlaps = "その変更は未保存の編集と重なっています。先に保存するか編集を取り消してください。"
+snapshot_failed = "スナップショットを読み込めませんでした: {}"
+inline_rejected = "プレビューの編集を適用できませんでした({})。ソースから描き直しました。"
+
+[mdedit.inline]
+hint = "Enter: 適用 · Esc: 取り消し · /: ブロック挿入"
+hint_multi = "Enter: 適用 · Shift+Enter: 改行 · Esc: 取り消し"
+no_match = "一致するブロックがありません"
+add_line = "行を追加"
+row_above = "上に行を追加"
+row_below = "下に行を追加"
+slash_paragraph = "本文"
+slash_h1 = "見出し 1"
+slash_h2 = "見出し 2"
+slash_h3 = "見出し 3"
+slash_bullet = "箇条書き"
+slash_numbered = "番号付きリスト"
+slash_task = "チェックボックス"
+slash_quote = "引用"
+slash_code = "コードブロック"
+slash_table = "表"
+slash_divider = "区切り線"
+handle_add = "挿入"
+handle_drag = "ドラッグで移動 · クリックでメニュー"
+menu_format = "形式を変更"
+menu_up = "上へ移動"
+menu_down = "下へ移動"
+menu_dup = "複製"
+menu_delete = "削除"
+fmt_h4 = "見出し 4"
+fmt_h5 = "見出し 5"
+fmt_h6 = "見出し 6"
+
+[mdedit.conflict]
+title = "競合 — 編集中の内容とディスク上のファイル"
+apply = "適用"
+at_line = "{} 行目"
+ours = "自分の方"
+theirs = "ディスクの方"
+both = "両方"
+
+[mdedit.review]
+title = "外部から書き込まれた変更"
+keep_all = "すべて残す"
+keep = "残す"
+revert = "元に戻す"
+at_line = "{} 行目"
+
+[mdedit.origin]
+agent = "エージェント"
+external = "外部"
+
+[mdedit.snapshots]
+title = "スナップショット"
+empty = "スナップショットはまだありません。"
+restore = "復元"
+
+[mdedit.snapshots.reason]
+external = "外部書き込みの直前"
+agent = "エージェント書き込みの直前"
+save = "保存の直前"
+restore = "復元の直前"
+
+[mdedit.settings]
+snapshot_keep_count = "ファイルごとに保持するスナップショット数"
+snapshot_keep_days = "スナップショットの保持期間"
+days_suffix = "日"
+
+[mdedit.cli]
+desc = "Markdown 共同編集 — 見出しパスでセクションを読み書きする"
+
+[mdedit.cli.sub.read]
+description = "ファイル(または見出し一覧)と内容ハッシュを出力する"
+
+[mdedit.cli.sub.section]
+description = "見出しパスで選んだセクション 1 つを get|append|prepend|insert-before|replace"
+
+[mdedit.cli.sub.task]
+description = "セクション内のチェックボックス 1 行を切り替える"
+
+[mdedit.cli.sub.agent_note]
+description = "セクションの末尾に '> [!agent] HH:MM タイトル' 記録ブロックを追加する"
+
+[mdedit.cli.sub.snapshot]
+description = "ファイルの自動スナップショットを list|restore"
+
+[mdedit.cli.sub.status]
+description = "ファイルの内容ハッシュ、開いているエディタ(変更・競合・レビュー)、ガード数を表示する"
+
+[mdedit.cli.arg.file]
+help = "Markdown ファイル"
+
+[mdedit.cli.arg.outline]
+help = "本文の代わりに見出し一覧を出力する"
+
+[mdedit.cli.arg.op]
+help = "操作: get(読む) | append(末尾) | prepend(見出しの下) | insert-before(見出しの上) | replace(本文を置換)"
+
+[mdedit.cli.arg.heading]
+help = "見出しパス。例: '# 2026.10.22' または '# やること > ## Project'"
+
+[mdedit.cli.arg.text]
+help = "挿入するテキスト(書き込み時のみ)"
+
+[mdedit.cli.arg.if_match]
+help = "ファイルのハッシュがこの値と一致する場合のみ書き込む"
+
+[mdedit.cli.arg.action_task]
+help = "操作: toggle(チェック切り替え)"
+
+[mdedit.cli.arg.match]
+help = "セクション内のチェックボックス行のうち 1 行だけに含まれるテキスト"
+
+[mdedit.cli.arg.to]
+help = "toggle(既定) | checked | unchecked"
+
+[mdedit.cli.arg.title]
+help = "記録の 1 行タイトル"
+
+[mdedit.cli.arg.note_text]
+help = "本文の行(各行が '> 行' になる)"
+
+[mdedit.cli.arg.time]
+help = "表示する HH:MM(既定: 現在)"
+
+[mdedit.cli.arg.no_time]
+help = "時刻を書かない"
+
+[mdedit.cli.arg.action_snapshot]
+help = "操作: list(一覧) | restore(復元)"
+
+[mdedit.cli.arg.id]
+help = "復元するスナップショット id('list' の結果)"

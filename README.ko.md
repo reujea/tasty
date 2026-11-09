@@ -9,7 +9,7 @@ English: [README.md](README.md)
 [![Version](https://img.shields.io/badge/version-0.14.0-blue)](CHANGELOG.md)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](#라이선스)
 [![Platforms](https://img.shields.io/badge/platforms-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey)](docs/installation.md)
-[![Workspace](https://img.shields.io/badge/workspace-63%20crates-orange)](crates/)
+[![Workspace](https://img.shields.io/badge/workspace-64%20crates-orange)](crates/)
 
 Tasty에서는 사람이 키보드·마우스로 작업하는 동안 에이전트도 IPC·CLI로 자기 작업을 수행할 수 있다. 에이전트 기능은 현재 포커스에 의존하지 않는다.
 
@@ -21,7 +21,7 @@ Tasty 의 모든 API 는 **사용자 행동**(키보드/마우스/OS 네이티�
 
 - **크로스 플랫폼** — Windows / macOS / Linux 모두 네이티브 (winit + wgpu).
 - **GPU 가속 렌더** — 셀 기반 셰이더, 10+ surface 환경에서도 prepare/draw 안정.
-- **Hexagonal 아키텍처** — model + ports + adapters + view + host_api 분리, 63-crate workspace.
+- **Hexagonal 아키텍처** — model + ports + adapters + view + host_api 분리, 64-crate workspace.
 - **에이전트 조작** — IPC·CLI는 대상 ID를 사용하며 사용자 포커스를 바꾸지 않는다. 사용자 입력 재현은 debug에만 제공한다.
 
 ## 주요 시스템
@@ -101,7 +101,7 @@ cargo build --release
 
 ## 아키텍처
 
-Hexagonal 아키텍처(model + ports + adapters + view + host_api 분리)의 63-crate workspace. 자세한 구조: [`docs/architecture/`](docs/architecture/).
+Hexagonal 아키텍처(model + ports + adapters + view + host_api 분리)의 64-crate workspace. 자세한 구조: [`docs/architecture/`](docs/architecture/).
 
 ## 라이선스
 

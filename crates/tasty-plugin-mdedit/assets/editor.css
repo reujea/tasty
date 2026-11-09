@@ -1,0 +1,111 @@
+/* 편집기 요소. 색·간격·글자 크기는 모두 plugin 이 Theme 에서 뽑아 넣는 변수(--mde-*, --md-*)를
+   쓴다 — 여기에 색 값을 직접 적지 않는다. */
+#tasty-addr-bar { display: none; }
+#mdedit-chrome { position: sticky; top: 0; z-index: 30; background: var(--mde-bar-bg); border-bottom: var(--md-border-w) solid var(--mde-sep); }
+.mde-bar { display: flex; align-items: center; gap: var(--md-space-sm); height: 40px; padding: 0 var(--md-space-sm); box-sizing: border-box; }
+.mde-bar button, .mde-panel button, .mde-banner button {
+  height: 24px; padding: 0 var(--md-space-sm); border: var(--md-border-w) solid var(--md-border); border-radius: var(--md-radius);
+  background: var(--md-code-bg); color: var(--md-fg); font-size: var(--md-font-body); cursor: pointer; white-space: nowrap;
+}
+.mde-bar button:disabled, .mde-panel button:disabled { opacity: 0.45; cursor: default; }
+.mde-seg { display: inline-flex; }
+.mde-seg button { border-radius: 0; }
+.mde-seg button:first-child { border-radius: var(--md-radius) 0 0 var(--md-radius); }
+.mde-seg button:last-child { border-radius: 0 var(--md-radius) var(--md-radius) 0; border-left: none; }
+.mde-seg button.on, button.mde-primary:not(:disabled) { background: var(--mde-accent); border-color: var(--mde-accent); color: var(--mde-on-accent); }
+.mde-status { font-size: calc(var(--md-font-body) * 0.9); color: var(--mde-muted); }
+.mde-status.dirty { color: var(--mde-warn); }
+.mde-status.conflict { color: var(--mde-danger); }
+.mde-file { font-size: calc(var(--md-font-body) * 0.9); color: var(--mde-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.mde-spacer { flex: 1; }
+.mde-count { display: inline-block; min-width: 16px; margin-left: var(--md-space-xs); padding: 0 var(--md-space-xs); border-radius: var(--md-radius); background: var(--mde-warn); color: var(--mde-on-accent); }
+.mde-banner { display: flex; align-items: center; gap: var(--md-space-sm); padding: var(--md-space-xs) var(--md-space-sm); border-top: var(--md-border-w) solid var(--mde-sep); }
+.mde-banner span { flex: 1; }
+.mde-banner.info { background: var(--mde-info-bg); }
+.mde-banner.warn { background: var(--mde-warn-bg); }
+.mde-banner.error { background: var(--mde-danger-bg); }
+.mde-panel { max-height: 45vh; overflow: auto; padding: var(--md-space-sm); border-top: var(--md-border-w) solid var(--mde-sep); }
+.mde-panel-head { display: flex; align-items: center; gap: var(--md-space-sm); margin-bottom: var(--md-space-sm); font-weight: 600; color: var(--md-strong); }
+.mde-item { border: var(--md-border-w) solid var(--md-border); border-radius: var(--md-radius); margin-bottom: var(--md-space-sm); }
+.mde-item-head { display: flex; align-items: center; gap: var(--md-space-sm); padding: var(--md-space-xs) var(--md-space-sm); background: var(--md-code-bg); }
+.mde-item pre { margin: 0; border: none; border-radius: 0; white-space: pre-wrap; word-break: break-all; font-size: calc(var(--md-font-body) * 0.9); }
+.mde-del { background: var(--mde-danger-bg); }
+.mde-add { background: var(--mde-success-bg); }
+.mde-ours { background: var(--mde-info-bg); }
+.mde-theirs { background: var(--mde-warn-bg); }
+.mde-chosen { outline: var(--md-border-w) solid var(--mde-accent); }
+.mde-tag { padding: 0 var(--md-space-xs); border-radius: var(--md-radius); font-size: calc(var(--md-font-body) * 0.85); }
+.mde-tag.agent { background: var(--mde-accent); color: var(--mde-on-accent); }
+.mde-tag.external { background: var(--mde-warn); color: var(--mde-on-accent); }
+#mdedit-editor { display: none; }
+body.mdedit-source #tasty-md-body, body.mdedit-source #tasty-toc, body.mdedit-source #tasty-find-bar { display: none; }
+body.mdedit-source { display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
+body.mdedit-source #mdedit-chrome { flex: none; }
+body.mdedit-source #mdedit-editor { display: flex; flex: 1; min-height: 0; }
+#mdedit-gutter { flex: none; min-width: 40px; overflow: hidden; padding: var(--md-space-sm) var(--md-space-xs) var(--md-space-sm) 0; box-sizing: border-box; text-align: right; color: var(--mde-muted); background: var(--mde-bar-bg); border-right: var(--md-border-w) solid var(--mde-sep); user-select: none; }
+#mdedit-gutter, #mdedit-ta { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: var(--md-font-body); line-height: 1.5; }
+#mdedit-gutter div { padding-right: var(--md-space-xs); border-right: var(--md-space-xs) solid transparent; }
+#mdedit-gutter div.g-agent { border-right-color: var(--mde-accent); color: var(--mde-accent); }
+#mdedit-gutter div.g-external { border-right-color: var(--mde-warn); color: var(--mde-warn); }
+#mdedit-ta { flex: 1; min-width: 0; margin: 0; padding: var(--md-space-sm); border: none; outline: none; resize: none; background: var(--md-bg); color: var(--md-strong); tab-size: 4; white-space: pre; overflow: auto; box-sizing: border-box; }
+#mdedit-ta[readonly] { color: var(--mde-muted); }
+blockquote.mdedit-agent-note { border-left-color: var(--mde-accent); background: var(--mde-agent-bg); }
+.mdedit-agent-head { display: flex; align-items: center; gap: var(--md-space-sm); }
+.mdedit-agent-badge { padding: 0 var(--md-space-xs); border-radius: var(--md-radius); background: var(--mde-accent); color: var(--mde-on-accent); font-size: calc(var(--md-font-body) * 0.85); font-weight: 600; }
+.mdedit-agent-time { color: var(--mde-muted); font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+.mdedit-agent-title { color: var(--md-strong); font-weight: 600; }
+#tasty-md-body li input[type=checkbox]:not(:disabled) { cursor: pointer; }
+/* 미리보기 직접 편집(docs/surfaces/mdedit/index.md#미리보기-편집-단위는-블록-원문-조각) */
+#tasty-md-body .mde-editable { cursor: text; border-radius: var(--md-radius); }
+#tasty-md-body .mde-editable:hover { outline: var(--md-border-w) dashed var(--mde-sep); outline-offset: var(--md-border-w); }
+#tasty-md-body li.mde-editable:hover { outline: none; }
+.mde-inline { display: inline-flex; flex-direction: column; vertical-align: top; width: 100%; position: relative; }
+div.mde-inline { display: flex; }
+.mde-inline-ta { width: 100%; box-sizing: border-box; margin: 0; padding: var(--md-space-xs); border: var(--md-border-w) solid var(--mde-accent); border-radius: var(--md-radius); background: var(--md-bg); color: var(--md-strong); font: inherit; line-height: inherit; resize: none; overflow: hidden; outline: none; }
+.mde-inline-ta[readonly] { color: var(--mde-muted); }
+.mde-inline-hint { font-size: calc(var(--md-font-body) * 0.8); font-weight: normal; color: var(--mde-muted); }
+.mde-inline-btn { align-self: flex-start; margin-top: var(--md-space-xs); height: 24px; padding: 0 var(--md-space-sm); border: var(--md-border-w) solid var(--md-border); border-radius: var(--md-radius); background: var(--md-code-bg); color: var(--md-fg); font-size: calc(var(--md-font-body) * 0.85); cursor: pointer; }
+.mde-newline { margin: var(--md-space-sm) 0; }
+.mde-slash { position: absolute; top: 100%; left: 0; z-index: 40; min-width: 200px; max-height: 280px; overflow: auto; padding: var(--md-space-xs); border: var(--md-border-w) solid var(--md-border); border-radius: var(--md-radius); background: var(--mde-bar-bg); }
+.mde-slash.up { top: auto; bottom: 100%; }
+.mde-slash-item { padding: var(--md-space-xs) var(--md-space-sm); border-radius: var(--md-radius); color: var(--md-fg); font-size: var(--md-font-body); font-weight: normal; cursor: pointer; }
+.mde-slash-item.on, .mde-slash-item:hover { background: var(--mde-accent); color: var(--mde-on-accent); }
+.mde-slash-none { padding: var(--md-space-xs) var(--md-space-sm); color: var(--mde-muted); }
+.mde-addline { margin: var(--md-space-sm) 0; padding: var(--md-space-xs) var(--md-space-sm); border: var(--md-border-w) dashed var(--mde-sep); border-radius: var(--md-radius); color: var(--mde-muted); cursor: pointer; user-select: none; }
+.mde-addline:hover { color: var(--mde-accent); border-color: var(--mde-accent); }
+/* 그 자리 편집(docs/surfaces/mdedit/index.md#정렬되는-블록은-렌더된-자리에서-고친다) — 렌더된 블록이 그대로 입력칸이 된다. */
+/* pre-wrap: 편집 중에 엔진이 줄바꿈을 공백으로 바꾸거나 NBSP 를 넣지 않게 한다(WebKit 실측). 여러 줄 문단의 줄바꿈이 편집 동안 줄로 보인다. */
+#tasty-md-body .mde-live { white-space: pre-wrap; outline: var(--md-border-w) solid var(--mde-accent); outline-offset: var(--md-border-w); border-radius: var(--md-radius); cursor: text; }
+#tasty-md-body .mde-own:empty, #tasty-md-body .mde-live:empty { display: inline-block; min-width: 1ch; min-height: 1em; }
+.mde-rowbar { position: absolute; z-index: 40; display: flex; gap: var(--md-space-xs); margin-top: var(--md-space-xs); }
+.mde-slash.mde-slash-float { position: absolute; }
+.mde-newline .mde-inline-ta { border-color: transparent; background: transparent; }
+.mde-newline .mde-inline-ta:focus { border-color: var(--mde-accent); }
+/* 접기(docs/surfaces/mdedit/index.md#접기는-보기-상태) — 보기 상태. 화살표는 왼쪽 여백에, 접힌 것은 늘 · 펼친 것은 가리킬 때만 보인다. */
+#tasty-md-body { padding-left: calc(var(--md-space-md) * 2 + 2.8em); }
+#tasty-md-body .mde-foldable { position: relative; }
+.mde-fold { position: absolute; left: calc(-2 * var(--md-space-md)); top: 0; width: calc(var(--md-space-md) * 2); text-align: center; color: var(--mde-muted); font-size: var(--md-font-body); font-weight: normal; cursor: pointer; user-select: none; opacity: 0; }
+#tasty-md-body > .mde-foldable > .mde-fold { top: 50%; transform: translateY(-50%); }
+li.mde-foldable > .mde-fold { left: calc(-1.5em - var(--md-space-md) * 2); }
+.mde-fold::before { content: '\25BC'; font-size: 0.7em; }
+.mde-folded > .mde-fold::before { content: '\25B6'; }
+.mde-foldable:hover > .mde-fold, .mde-folded > .mde-fold { opacity: 1; }
+.mde-fold:hover { color: var(--mde-accent); }
+li.mde-folded > ul, li.mde-folded > ol, #tasty-md-body > .mde-fold-hidden { display: none; }
+/* 블록 손잡이(docs/surfaces/mdedit/index.md#블록-손잡이는-원문-줄을-통째로-옮긴다) — 블록 왼쪽 여백(접기 화살표 바깥)에 `+` · `⠿`. 고른 블록 · 편집 중인 블록은 옅은 배경. */
+.mde-handles { position: absolute; z-index: 35; display: none; gap: var(--md-space-xs); }
+.mde-handle { width: 1.3em; height: 1.3em; padding: 0; border: none; border-radius: var(--md-radius); background: transparent; color: var(--mde-muted); font-size: var(--md-font-body); line-height: 1.3em; text-align: center; cursor: pointer; }
+.mde-handle:hover { background: var(--md-code-bg); color: var(--md-strong); }
+.mde-handle-drag { cursor: grab; }
+#tasty-md-body .mde-picked { background: var(--mde-info-bg); border-radius: var(--md-radius); }
+#tasty-md-body .mde-live { background: var(--mde-info-bg); }
+.mde-dropline { position: absolute; z-index: 36; height: 0; border-top: calc(var(--md-border-w) * 2) solid var(--mde-accent); pointer-events: none; }
+.mde-blockmenu { z-index: 40; }
+.mde-blockmenu-head { padding: var(--md-space-xs) var(--md-space-sm); color: var(--mde-muted); font-size: calc(var(--md-font-body) * 0.85); }
+.mde-blockmenu-sep { margin: var(--md-space-xs) 0; border-top: var(--md-border-w) solid var(--mde-sep); }
+.mde-slash-item.mde-disabled { opacity: 0.45; cursor: default; }
+.mde-slash-item.mde-disabled:hover { background: transparent; color: var(--md-fg); }
+.mde-slash-item.mde-danger { color: var(--mde-danger); }
+.mde-slash-item.mde-danger:hover { background: var(--mde-danger-bg); color: var(--mde-danger); }
+.mde-blockfmt { font-size: calc(var(--md-font-body) * 0.9); color: var(--mde-muted); }
+.mde-blockfmt:not(:empty)::before { content: '\00B7\00A0'; }

@@ -1,0 +1,185 @@
+[surface.kind]
+mdedit = "Markdown Editor"
+
+[file_handler.host]
+mdedit-editor = "Markdown editor"
+
+[settings.subtab]
+mdedit = "Markdown Editor"
+
+[preset.field]
+file = "File"
+file_hint = "Path to a markdown file"
+
+[mdedit]
+agent_badge = "AGENT"
+
+[mdedit.namespace]
+desc = "Markdown co-editing namespace"
+
+[mdedit.command]
+save = "Save markdown editor"
+
+[mdedit.toolbar]
+preview = "Preview"
+source = "Source"
+save = "Save"
+review = "Review"
+snapshots = "Snapshots"
+dismiss = "Dismiss"
+
+[mdedit.status]
+saved = "Saved"
+dirty = "Modified"
+conflict = "Conflict"
+load_failed = "Could not read the file"
+
+[mdedit.banner]
+mixed_eol = "This file mixes CRLF and LF line endings. Saving writes LF only."
+read_failed = "Could not read the file: {}"
+merged = "The file changed on disk. Its changes were merged into your edits. Save to write them back."
+conflict = "The file changed on disk and {} part(s) overlap your edits. Choose a version for each one."
+external_guard = "An outside write changed the guarded section {}. You can revert it in Review."
+external_secret = "An outside write added what looks like a secret on line {}. Check it in Review."
+resolve_first = "Resolve the conflict before saving."
+disk_moved = "The file changed on disk just before saving. Its changes were merged and nothing was saved. Check the result and save again."
+guard_blocked = "Not saved: the edit changes a guarded section {}."
+secret_blocked = "Not saved: line {} looks like a plaintext secret. Write a label like [pw:P1] instead."
+secret_warned = "Saved, but line {} looks like a secret."
+save_failed = "Save failed: {}"
+choose_all = "Choose a version for every conflict first."
+resolved = "Conflict resolved. Save to write the result."
+task_mismatch = "Checkbox positions do not match the source ({}). Edit the line in Source."
+revert_overlaps = "That change overlaps your unsaved edits. Save or undo them first."
+snapshot_failed = "Could not read the snapshot: {}"
+inline_rejected = "Could not apply the preview edit ({}). The preview was redrawn from the source."
+
+[mdedit.inline]
+hint = "Enter: apply · Esc: cancel · /: insert block"
+hint_multi = "Enter: apply · Shift+Enter: new line · Esc: cancel"
+no_match = "No matching block"
+add_line = "Add a line"
+row_above = "Row above"
+row_below = "Row below"
+slash_paragraph = "Text"
+slash_h1 = "Heading 1"
+slash_h2 = "Heading 2"
+slash_h3 = "Heading 3"
+slash_bullet = "Bulleted list"
+slash_numbered = "Numbered list"
+slash_task = "Checkbox"
+slash_quote = "Quote"
+slash_code = "Code block"
+slash_table = "Table"
+slash_divider = "Divider"
+handle_add = "Insert"
+handle_drag = "Drag to move · click for the menu"
+menu_format = "Turn into"
+menu_up = "Move up"
+menu_down = "Move down"
+menu_dup = "Duplicate"
+menu_delete = "Delete"
+fmt_h4 = "Heading 4"
+fmt_h5 = "Heading 5"
+fmt_h6 = "Heading 6"
+
+[mdedit.conflict]
+title = "Conflicts — your edits vs. the file on disk"
+apply = "Apply"
+at_line = "Line {}"
+ours = "Keep mine"
+theirs = "Keep disk"
+both = "Keep both"
+
+[mdedit.review]
+title = "Changes written from outside"
+keep_all = "Keep all"
+keep = "Keep"
+revert = "Revert"
+at_line = "Line {}"
+
+[mdedit.origin]
+agent = "agent"
+external = "external"
+
+[mdedit.snapshots]
+title = "Snapshots"
+empty = "No snapshots yet."
+restore = "Restore"
+
+[mdedit.snapshots.reason]
+external = "before an outside write"
+agent = "before an agent write"
+save = "before a save"
+restore = "before a restore"
+
+[mdedit.settings]
+snapshot_keep_count = "Snapshots to keep per file"
+snapshot_keep_days = "Keep snapshots for"
+days_suffix = "days"
+
+[mdedit.cli]
+desc = "Markdown co-editing — read and edit sections of a markdown file by heading path"
+
+[mdedit.cli.sub.read]
+description = "Print the file (or its heading outline) with its content hash"
+
+[mdedit.cli.sub.section]
+description = "get|append|prepend|insert-before|replace one section chosen by heading path"
+
+[mdedit.cli.sub.task]
+description = "Toggle one checkbox line inside a section"
+
+[mdedit.cli.sub.agent_note]
+description = "Append a '> [!agent] HH:MM title' record block at the end of a section"
+
+[mdedit.cli.sub.snapshot]
+description = "list|restore automatic snapshots of a file"
+
+[mdedit.cli.sub.status]
+description = "Show the content hash, open editors (dirty/conflict/review) and guard count of a file"
+
+[mdedit.cli.arg.file]
+help = "Markdown file"
+
+[mdedit.cli.arg.outline]
+help = "Print the heading outline instead of the text"
+
+[mdedit.cli.arg.op]
+help = "get | append | prepend | insert-before | replace"
+
+[mdedit.cli.arg.heading]
+help = "Heading path, e.g. '# 2026.10.22' or '# Todo > ## Project'"
+
+[mdedit.cli.arg.text]
+help = "Text to insert (writes only)"
+
+[mdedit.cli.arg.if_match]
+help = "Refuse unless the file hash still equals this value"
+
+[mdedit.cli.arg.action_task]
+help = "toggle"
+
+[mdedit.cli.arg.match]
+help = "Text that appears on exactly one checkbox line of the section"
+
+[mdedit.cli.arg.to]
+help = "toggle (default) | checked | unchecked"
+
+[mdedit.cli.arg.title]
+help = "One-line title of the record"
+
+[mdedit.cli.arg.note_text]
+help = "Body lines (each becomes '> line')"
+
+[mdedit.cli.arg.time]
+help = "HH:MM to show (default: now)"
+
+[mdedit.cli.arg.no_time]
+help = "Leave the time out"
+
+[mdedit.cli.arg.action_snapshot]
+help = "list | restore"
+
+[mdedit.cli.arg.id]
+help = "Snapshot id to restore (from 'list')"

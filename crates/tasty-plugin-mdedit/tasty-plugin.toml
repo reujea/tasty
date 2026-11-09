@@ -1,0 +1,166 @@
+manifest_version = 1
+id = "com.tasty.mdedit"
+name = "Markdown Co-Editor"
+version = "0.1.22"
+description = "Edit a local markdown file together with an agent — preview/source editing, 3-way merge, review, guards"
+api_version = "1"
+permissions = [
+    "surface.read",
+    "surface.write",
+    "fs.read",
+    # 편집기 저장과 에이전트 쓰기 연산이 문서를 고친다(E2).
+    "fs.write",
+    "file_handler.handle:markdown",
+    "ui.settings_page",
+]
+# webview-kind surface 는 Theme 변경을 자동으로 받지 않는다 — markdown 과 같이 구독해서 다시 싣는다.
+event_subscribe = ["theme.changed"]
+lang_dir = "lang"
+# 배포 패키지(deb/rpm/msi/dmg)에는 아직 넣지 않는다 — Windows·Linux 실행 검증 채널이 없다.
+# dev 번들 sync 는 BUILTINS 명부를 보므로 개발 빌드에서는 뜬다(supervisor 와 같은 처리).
+bundle = false
+
+[entry]
+type = "process"
+command = "tasty-plugin-mdedit"
+
+# 본문은 host 의 native WebView 가 그린다. 미리보기는 markdown 뷰어의 렌더러 결과에 편집기 요소를
+# 덧붙인 문서다(docs/surfaces/mdedit/index.md).
+[[surface_kinds]]
+kind = "mdedit"
+display_name_i18n_key = "surface.kind.mdedit"
+icon = "markdown"
+rendering = "webview"
+zoomable = true
+name_from_param = "file"
+records_recent = true
+
+# 문서는 plugin 이 만든 HTML 이고 편집기 스크립트가 돌아야 하므로 JS 를 기본으로 켠다(markdown 과 같다).
+# 사용자가 저장한 sandbox_scripts 가 있으면 그 값이 우선한다.
+[surface_kinds.webview_defaults]
+sandbox_scripts = false
+
+[[surface_kinds.preset_fields]]
+id = "file"
+label_key = "preset.field.file"
+param_key = "file"
+input_type = "file_path"
+required = true
+placeholder_key = "preset.field.file_hint"
+derive_cwd = true
+
+[[contributes.ipc_namespace]]
+prefix = "mdedit"
+description_i18n_key = "mdedit.namespace.desc"
+
+# 마크다운 파일 핸들러에 "편집기로 열기" 를 더한다. 기본 열기는 뷰어(우선순위 50)가 그대로
+# 갖는다 — 이 handler 는 낮은 우선순위로 "다른 앱으로 열기" 후보에만 오른다.
+[[contributes.handler]]
+id = "editor"
+detector = "markdown"
+priority = 40
+display_name_i18n_key = "file_handler.host.mdedit-editor"
+[contributes.handler.action]
+kind = "open_surface"
+surface_kind = "mdedit"
+param_key = "file"
+
+# 원문 편집기 저장 — 편집기 surface 에 포커스가 있을 때만. 키는 설정 › 단축키에서 바꾼다.
+[[contributes.commands]]
+id = "save"
+title_i18n_key = "mdedit.command.save"
+default_keybinding = "ctrl+s"
+binding_mode = "independent"
+scope = "surface"
+
+[[contributes.cli]]
+name = "mdedit"
+description = "Markdown co-editing — read and edit sections of a markdown file by heading path"
+description_i18n_key = "mdedit.cli.desc"
+subcommands = [
+    { name = "read", ipc_method = "mdedit.read", args = "read_args", description = "Print the file (or its heading outline) with its content hash", description_i18n_key = "mdedit.cli.sub.read.description" },
+    { name = "section", ipc_method = "mdedit.section", args = "section_args", description = "get|append|prepend|insert-before|replace one section chosen by heading path", description_i18n_key = "mdedit.cli.sub.section.description" },
+    { name = "task", ipc_method = "mdedit.task", args = "task_args", description = "Toggle one checkbox line inside a section", description_i18n_key = "mdedit.cli.sub.task.description" },
+    { name = "agent-note", ipc_method = "mdedit.agent_note", args = "agent_note_args", description = "Append a '> [!agent] HH:MM title' record block at the end of a section", description_i18n_key = "mdedit.cli.sub.agent_note.description" },
+    { name = "snapshot", ipc_method = "mdedit.snapshot", args = "snapshot_args", description = "list|restore automatic snapshots of a file", description_i18n_key = "mdedit.cli.sub.snapshot.description" },
+    { name = "status", ipc_method = "mdedit.status", args = "status_args", description = "Show the content hash, open editors (dirty/conflict/review) and guard count of a file", description_i18n_key = "mdedit.cli.sub.status.description" },
+]
+
+[contributes.cli.arg_groups.read_args]
+flags = [
+    { name = "file", type = "string", flag = "--file", required = true, path_kind = "file", help = "Markdown file", help_i18n_key = "mdedit.cli.arg.file.help" },
+    { name = "outline", type = "bool", flag = "--outline", required = false, help = "Print the heading outline instead of the text", help_i18n_key = "mdedit.cli.arg.outline.help" },
+]
+
+[contributes.cli.arg_groups.section_args]
+positional = [
+    { name = "op", type = "string", required = true, help = "get | append | prepend | insert-before | replace", help_i18n_key = "mdedit.cli.arg.op.help" },
+]
+flags = [
+    { name = "file", type = "string", flag = "--file", required = true, path_kind = "file", help = "Markdown file", help_i18n_key = "mdedit.cli.arg.file.help" },
+    { name = "heading", type = "string", flag = "--heading", required = true, help = "Heading path, e.g. '# 2026.10.22' or '# Todo > ## Project'", help_i18n_key = "mdedit.cli.arg.heading.help" },
+    { name = "text", type = "string", flag = "--text", allow_hyphen_values = true, required = false, help = "Text to insert (writes only)", help_i18n_key = "mdedit.cli.arg.text.help" },
+    { name = "if_match", type = "string", flag = "--if-match", required = false, help = "Refuse unless the file hash still equals this value", help_i18n_key = "mdedit.cli.arg.if_match.help" },
+]
+
+[contributes.cli.arg_groups.task_args]
+positional = [
+    { name = "action", type = "string", required = true, help = "toggle", help_i18n_key = "mdedit.cli.arg.action_task.help" },
+]
+flags = [
+    { name = "file", type = "string", flag = "--file", required = true, path_kind = "file", help = "Markdown file", help_i18n_key = "mdedit.cli.arg.file.help" },
+    { name = "heading", type = "string", flag = "--heading", required = true, help = "Heading path, e.g. '# 2026.10.22' or '# Todo > ## Project'", help_i18n_key = "mdedit.cli.arg.heading.help" },
+    { name = "match", type = "string", flag = "--match", allow_hyphen_values = true, required = true, help = "Text that appears on exactly one checkbox line of the section", help_i18n_key = "mdedit.cli.arg.match.help" },
+    { name = "to", type = "string", flag = "--to", required = false, help = "toggle (default) | checked | unchecked", help_i18n_key = "mdedit.cli.arg.to.help" },
+    { name = "if_match", type = "string", flag = "--if-match", required = false, help = "Refuse unless the file hash still equals this value", help_i18n_key = "mdedit.cli.arg.if_match.help" },
+]
+
+[contributes.cli.arg_groups.agent_note_args]
+flags = [
+    { name = "file", type = "string", flag = "--file", required = true, path_kind = "file", help = "Markdown file", help_i18n_key = "mdedit.cli.arg.file.help" },
+    { name = "heading", type = "string", flag = "--heading", required = true, help = "Heading path, e.g. '# 2026.10.22' or '# Todo > ## Project'", help_i18n_key = "mdedit.cli.arg.heading.help" },
+    { name = "title", type = "string", flag = "--title", allow_hyphen_values = true, required = true, help = "One-line title of the record", help_i18n_key = "mdedit.cli.arg.title.help" },
+    { name = "text", type = "string", flag = "--text", allow_hyphen_values = true, required = false, help = "Body lines (each becomes '> line')", help_i18n_key = "mdedit.cli.arg.note_text.help" },
+    { name = "time", type = "string", flag = "--time", required = false, help = "HH:MM to show (default: now)", help_i18n_key = "mdedit.cli.arg.time.help" },
+    { name = "no_time", type = "bool", flag = "--no-time", required = false, help = "Leave the time out", help_i18n_key = "mdedit.cli.arg.no_time.help" },
+    { name = "if_match", type = "string", flag = "--if-match", required = false, help = "Refuse unless the file hash still equals this value", help_i18n_key = "mdedit.cli.arg.if_match.help" },
+]
+
+[contributes.cli.arg_groups.snapshot_args]
+positional = [
+    { name = "action", type = "string", required = true, help = "list | restore", help_i18n_key = "mdedit.cli.arg.action_snapshot.help" },
+]
+flags = [
+    { name = "file", type = "string", flag = "--file", required = true, path_kind = "file", help = "Markdown file", help_i18n_key = "mdedit.cli.arg.file.help" },
+    { name = "id", type = "string", flag = "--id", required = false, help = "Snapshot id to restore (from 'list')", help_i18n_key = "mdedit.cli.arg.id.help" },
+    { name = "if_match", type = "string", flag = "--if-match", required = false, help = "Refuse unless the file hash still equals this value", help_i18n_key = "mdedit.cli.arg.if_match.help" },
+]
+
+[contributes.cli.arg_groups.status_args]
+flags = [
+    { name = "file", type = "string", flag = "--file", required = true, path_kind = "file", help = "Markdown file", help_i18n_key = "mdedit.cli.arg.file.help" },
+]
+
+[[contributes.settings_pages]]
+id = "mdedit"
+title_key = "settings.subtab.mdedit"
+category = "general"
+
+[[contributes.settings_pages.items]]
+kind = "number"
+id = "snapshot_keep_count"
+label_key = "mdedit.settings.snapshot_keep_count"
+storage_key = "snapshot_keep_count"
+default = 50
+min = 1
+max = 1000
+
+[[contributes.settings_pages.items]]
+kind = "number"
+id = "snapshot_keep_days"
+label_key = "mdedit.settings.snapshot_keep_days"
+storage_key = "snapshot_keep_days"
+default = 7
+min = 1
+max = 365
+suffix_key = "mdedit.settings.days_suffix"
