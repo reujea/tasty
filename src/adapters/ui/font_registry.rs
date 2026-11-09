@@ -121,7 +121,14 @@ fn register_surface_family(
     let key = format!("{}_custom", data_prefix);
     register_custom_font(fonts, &mut family_fonts, family_name, key, eff);
     let key = format!("{}_named", data_prefix);
-    register_named_font(fonts, &mut family_fonts, family_name, key, eff);
+    register_named_font(
+        fonts,
+        &mut family_fonts,
+        family_name,
+        key,
+        eff,
+        load_system_family,
+    );
 
     // 지정한 글꼴을 찾지 못해도 사용할 기본 monospace 패밀리를 남긴다.
     if let Some(monospace) = fonts.families.get(&egui::FontFamily::Monospace).cloned() {
@@ -169,12 +176,12 @@ fn register_named_font(
     family_name: &str,
     key: String,
     eff: &EffectiveFont,
+    load_family: impl FnOnce(&str) -> Option<Vec<u8>>,
 ) {
     if eff.font_family.is_empty() || eff.font_family.eq_ignore_ascii_case("monospace") {
         return;
     }
-    let font_config = crate::font::FontConfig::new(14.0, "");
-    let Some(bytes) = font_config.load_family_data(&eff.font_family) else {
+    let Some(bytes) = load_family(&eff.font_family) else {
         return;
     };
     if let Err(e) = insert_font(fonts, family_fonts, key, bytes) {
@@ -184,6 +191,10 @@ fn register_named_font(
             eff.font_family
         );
     }
+}
+
+fn load_system_family(family: &str) -> Option<Vec<u8>> {
+    crate::font::FontConfig::new(14.0, "").load_family_data(family)
 }
 
 /// `validate`가 거절한 글꼴은 등록하지 않는다. fontdb는 이름 표만 읽어 ab_glyph가 거절하는
@@ -412,6 +423,13 @@ mod tests {
     }
 
     // 이름으로 찾은 시스템 글꼴도 같은 함수를 지나므로 시스템 글꼴 폴더 없이 잰다.
+    fn eff_named(family: &str) -> EffectiveFont {
+        let mut eff = AppearanceSettings::default().effective_font_for_kind("explorer");
+        eff.font_family = family.to_owned();
+        eff.custom_font_path = String::new();
+        eff
+    }
+
     #[test]
     fn a_font_found_by_name_passes_the_same_check() {
         let inputs = [
@@ -420,26 +438,72 @@ mod tests {
             ("no hhea", without_table(b"hhea")),
             ("negative height", negative_height()),
         ];
+        let eff = eff_named("Some Family");
         let mut accepted = Vec::new();
         for (name, bytes) in inputs {
             let mut fonts = egui::FontDefinitions::default();
             let mut family_fonts = Vec::new();
-            let result = insert_font(&mut fonts, &mut family_fonts, "k".to_owned(), bytes);
-            if result.is_ok() || fonts.font_data.contains_key("k") || !family_fonts.is_empty() {
+            register_named_font(
+                &mut fonts,
+                &mut family_fonts,
+                "f",
+                "k".to_owned(),
+                &eff,
+                |_| Some(bytes),
+            );
+            if fonts.font_data.contains_key("k") || !family_fonts.is_empty() {
                 accepted.push(name);
             }
         }
         assert!(accepted.is_empty(), "accepted: {accepted:?}");
+    }
+
+    #[test]
+    fn a_valid_font_found_by_name_is_registered() {
+        let mut fonts = egui::FontDefinitions::default();
+        let mut family_fonts = Vec::new();
+        let mut asked = Vec::new();
+        register_named_font(
+            &mut fonts,
+            &mut family_fonts,
+            "f",
+            "k".to_owned(),
+            &eff_named("Some Family"),
+            |family| {
+                asked.push(family.to_owned());
+                Some(VALID.to_vec())
+            },
+        );
+        assert_eq!(asked, ["Some Family"]);
+        assert_eq!(family_fonts, ["k"]);
+        assert!(fonts.font_data.contains_key("k"));
+    }
+
+    #[test]
+    fn a_refused_custom_font_leaves_a_valid_named_font_first() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("bad.ttf");
+        std::fs::write(&path, not_a_font()).unwrap();
+        let mut eff = eff_named("Some Family");
+        eff.custom_font_path = path.display().to_string();
 
         let mut fonts = egui::FontDefinitions::default();
         let mut family_fonts = Vec::new();
-        insert_font(
+        register_custom_font(
             &mut fonts,
             &mut family_fonts,
-            "k".to_owned(),
-            VALID.to_vec(),
-        )
-        .unwrap();
-        assert_eq!(family_fonts, ["k"]);
+            "f",
+            "custom".to_owned(),
+            &eff,
+        );
+        register_named_font(
+            &mut fonts,
+            &mut family_fonts,
+            "f",
+            "named".to_owned(),
+            &eff,
+            |_| Some(VALID.to_vec()),
+        );
+        assert_eq!(family_fonts, ["named"]);
     }
 }
