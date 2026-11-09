@@ -507,6 +507,8 @@ def dispatch(args, data, lock):
     if args.command == "note-usage":
         return note_usage(data, args.cli, args.used_percent)
     if args.command == "resume":
+        if args.phase == "main" and not args.level:
+            raise ValueError("resuming the main run needs a level")
         usage = json.loads(Path(args.usage).read_text(encoding="utf-8"))
         return resume(data, args.phase, args.level, usage, args.approved_by)
     if args.phase == "main" and not args.level:

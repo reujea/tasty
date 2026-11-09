@@ -541,6 +541,16 @@ class CommandLine(Base):
         self.assertEqual(runner.main(args), 2)
         self.assertEqual(self.fake_calls(), [])
 
+    def test_resuming_the_main_run_needs_a_level(self):
+        usage = self.root / "usage.json"
+        usage.write_text('{"proposal": "L0"}')
+        argv = ["--data", str(self.data), "resume", "--usage", str(usage)]
+        with contextlib.redirect_stderr(io.StringIO()) as err:
+            self.assertEqual(runner.main(argv), 2)
+        self.assertIn("needs a level", err.getvalue())
+        self.assertEqual(self.log(), [])
+        self.assertEqual(runner.main([*argv, "--phase", "pilot"]), 1)
+
     def test_main_phase_needs_a_level(self):
         self.assertEqual(runner.main(self.fake_args("--phase", "main")), 2)
 

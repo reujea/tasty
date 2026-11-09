@@ -41,6 +41,8 @@ AI 에이전트가 child 트리를 어떤 텍스트 형식으로 받을 때 정�
 | 공개 패턴 검사 | `python3 -B scripts/child-tree-format/check_anonymity.py --public-only` | 0 위반 없음, 1 위반, 2 판정 불가 |
 | 요약 생성과 대조 | `python3 -B scripts/child-tree-format/summarize.py`, 대조는 `--check`를 더한다 | 0 같음, 1 다름, 2 판정 불가 |
 
+`selftest.py`는 수동으로 실행한다. CI가 돌리지 않으므로 스크립트를 고친 뒤에는 직접 실행한다.
+
 스냅샷 원본, 대응표, 금지어 파일은 커밋하지 않으므로 `capture_snapshot.py`와 `anonymize.py`의 재실행은 원본을 가진 컴퓨터에서만 된다. `generate_inputs.py`는 추적한 `data/trees/real.json`을 입력으로 삼으므로 어디서든 같은 바이트를 만든다.
 
 실행 순서는 다음과 같다. 호출은 구독 사용량을 쓰므로 실행 담당의 승인을 받은 뒤에만 한다. `--data`는 하위 명령 앞에 둔다.
@@ -50,7 +52,7 @@ AI 에이전트가 child 트리를 어떤 텍스트 형식으로 받을 때 정�
 3. 수준 제안: `usage_level.py --pilot data/raw/pilot.jsonl --windows <창 값 JSON>`
 4. 승인 기록: `runner.py approve --level <수준> --windows <창 값 JSON> --approved-u '{"claude": <u>, "codex": <u>}'`
 5. 본 실행: `runner.py run --phase main --level <수준> --claude-utilization-unit <fraction|percent>`. 끊기면 같은 명령이 원자료에서 이어서 실행한다.
-6. 중단 뒤: `runner.py resume --phase main --level <수준> --usage <제안 JSON> [--approved-by <이름>]`. 재개와 거절은 조건 값과 함께 `data/raw/level-changes.jsonl`에 남는다. 종류는 `level_change`, `abort`, `resume`, `resume_refused`, `run_options`다.
+6. 중단 뒤: `runner.py resume --phase main --level <수준> --usage <제안 JSON> [--approved-by <이름>]`. 재개와 거절은 조건 값과 함께 `data/raw/level-changes.jsonl`에 남는다. 종류는 `level_change`, `abort`, `resume`, `resume_refused`, `run_options`, `usage_note`다. 본 실행의 재개에 `--level`이 없으면 종료 코드 2로 멈춘다. 시험의 재개(`--phase pilot`)는 수준이 없다.
 7. 요약: `summarize.py`, 대조는 `check_rules.py --raw`.
 
 W는 입력 + 캐시 생성 + 출력 토큰이고 캐시 읽기를 넣지 않는다. 옵션으로 바꿀 수 없다. 소규모 시험의 호출당 토큰 P도 같은 식으로 재므로 P/W를 그대로 비교할 수 있다. Claude 기록은 메시지 ID로, Codex 기록은 누적 토큰 수와 시각으로 중복을 지운다. 기록 폴더는 컴퓨터마다 다르므로 인자로 받고 추적 파일에 적지 않는다. 표준 출력에는 숫자와 창 이름만 나온다.
@@ -91,6 +93,7 @@ Claude 호출은 이벤트에서 7일 값을 읽어 자동으로 비교한다. �
 - Codex 사용량 창을 읽는 경로.
 - 사용량 한도 오류의 실제 문구. `cli_events.py`의 문구 목록은 실제 오류 응답으로 대조하지 않았다.
 - 모델별 7일 창이 이벤트에 나타나는 이름과 형태.
+- Codex `error` 이벤트의 재연결 문구. `Reconnecting...` 같은 일시적 알림도 지금은 호출 실패로 친다. 실제 출력에서 호출이 이어지는 경우가 보이면 `cli_events.py`를 고친다.
 
 규칙 1의 `A_best`를 가진 형식이 여럿이면 `U_best`로 그중 가장 큰 값을 쓴다. 어느 형식을 최고로 부르느냐에 따라 후보 집합이 달라지지 않게 하려는 구현 선택이고, 판정 규칙 구간을 고치지 않는다. 이 선택은 [규칙 변경 기록](rules.md#규칙-변경-기록)에 있고, 요약의 `decision`과 `tables.txt`가 `best_tied`와 쓴 `u_best`를 보여 준다.
 
