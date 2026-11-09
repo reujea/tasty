@@ -289,6 +289,8 @@ pub(crate) fn handle_children<H: HostCall>(
                 // attach mirror 의 원격 자식 표지와, 연결이 끊긴 동안의 확인 불가 상태.
                 "remote": c.get("remote").cloned().unwrap_or(Value::Null),
                 "liveness": c.get("liveness").cloned().unwrap_or(Value::Null),
+                "parent": c.get("parent").cloned().unwrap_or(Value::Null),
+                "last_report_at": c.get("last_report_at").cloned().unwrap_or(Value::Null),
             })
         })
         .collect();
@@ -2186,6 +2188,8 @@ mod tests {
                     "state": "idle",
                     "evidence": "prompt",
                     "confidence": "certain",
+                    "parent": 1,
+                    "last_report_at": 1_767_613_200_000_u64,
                 }]})),
                 "surface.foreground_process" => Ok(json!({ "name": "claude", "pid": 4242 })),
                 "terminal.kill" => Ok(json!({ "killed_surface_id": 42, "child_index": 0 })),
@@ -2226,6 +2230,22 @@ mod tests {
         assert_eq!(e["confidence"], json!("certain"));
         assert_eq!(e["foreground_process"], json!("claude"));
         assert_eq!(e["foreground_pid"], json!(4242));
+        // 표의 parents·last_report_at 열이 읽는 값이다.
+        assert_eq!(e["parent"], json!(1));
+        assert_eq!(e["last_report_at"], json!(1_767_613_200_000_u64));
+    }
+
+    /// CLI 의 --format 은 출력 방식만 고른다. 플러그인 응답은 바뀌지 않는다.
+    #[test]
+    fn children_response_ignores_the_cli_format_param() {
+        let call = |params: Value| {
+            handle_children(&Returns::new(None), &ShapeHost, &params, &test_translator())
+                .expect("handle_children")
+        };
+        assert_eq!(
+            call(json!({ "surface_id": 1, "format": "table" })),
+            call(json!({ "surface_id": 1 }))
+        );
     }
 
     /// 실제로 닫힌 kill은 호스트 응답에 `killed: true`를 더해 돌려주고 닫힌 surface의 오류 감시를 끈다.

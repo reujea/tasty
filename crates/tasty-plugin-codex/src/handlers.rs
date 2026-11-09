@@ -2707,6 +2707,8 @@ trusted_hash = "sha256:xyz"
                     "surface_id": 42,
                     "index": 0,
                     "state": "idle",
+                    "parent": "codex:t1",
+                    "last_report_at": 7,
                 }]})),
                 "terminal.kill" => Ok(json!({ "killed_surface_id": 42, "child_index": 0 })),
                 // kill 은 원격 자식인지 먼저 묻는다. 로컬 자식이다.
@@ -2725,9 +2727,19 @@ trusted_hash = "sha256:xyz"
             .expect("handle_children");
         assert_eq!(
             out,
-            json!({ "children": [{ "surface_id": 42, "index": 0, "state": "idle" }] }),
+            json!({ "children": [{
+                "surface_id": 42, "index": 0, "state": "idle",
+                "parent": "codex:t1", "last_report_at": 7,
+            }] }),
             "호스트의 children 응답을 그대로 반환해야 한다"
         );
+        let with_format = fx
+            .with(|d| {
+                let params = json!({ "surface": 1, "format": "table" });
+                handle_children(&ShapeHost, &params, &fx.tr, d)
+            })
+            .expect("handle_children");
+        assert_eq!(with_format, out, "CLI 의 --format 은 응답을 바꾸지 않는다");
     }
 
     /// 성공 응답의 killed_surface_id·child_index를 그대로 반환해야 한다.

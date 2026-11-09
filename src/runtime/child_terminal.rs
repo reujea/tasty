@@ -124,6 +124,9 @@ impl ChildTerminalRegistry {
     pub(crate) fn clear_idle_for_new_prompt(&mut self, child: u32) -> bool {
         self.edit(|s| s.clear_idle_for_new_prompt(child))
     }
+    pub fn last_state_report_at(&self, child: u32) -> Option<u64> {
+        self.read(|s| s.last_state_report_at(child))
+    }
     pub fn hook_silence(&self, child: u32, now: u64) -> Option<std::time::Duration> {
         self.read(|s| s.hook_silence(child, now))
     }

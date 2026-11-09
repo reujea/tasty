@@ -184,6 +184,11 @@ pub(crate) fn handle_children(
         Err(e) => return e,
     };
     let live = engine.live_surface_ids();
+    // 부모를 생략하면 호스트가 고르므로 호출자가 알 수 있도록 항목마다 싣는다.
+    let parent_value = match &parent {
+        ParentKey::Surface(surface) => json!(surface),
+        ParentKey::External(key) => json!(key),
+    };
     let children: Vec<Value> = engine
         .runtime
         .child_terminals
@@ -197,6 +202,16 @@ pub(crate) fn handle_children(
             item.insert("role".into(), json!(c.role));
             item.insert("nickname".into(), json!(c.nickname));
             item.insert("cwd".into(), json!(c.cwd));
+            item.insert("parent".into(), parent_value.clone());
+            item.insert(
+                "last_report_at".into(),
+                json!(
+                    engine
+                        .runtime
+                        .child_terminals
+                        .last_state_report_at(c.child_surface_id)
+                ),
+            );
             remote_child_fields(c.child_surface_id, &mut item);
             Value::Object(item)
         })
@@ -980,6 +995,46 @@ mod tests {
         let resp = handle_children(&mut e, json!(1), &json!({ "surface": parent }));
         let n = ok(resp)["children"].as_array().unwrap().len();
         assert_eq!(n, 0);
+    }
+
+    #[test]
+    fn children_item_names_its_parent_and_last_report() {
+        let mut e_session = engine_with_extra(&[5902]);
+        let mut e = e_session.borrow_mut();
+        let parent = e
+            .workspace_at(0)
+            .expect("workspace index is valid")
+            .all_surface_ids()[0];
+        e.runtime
+            .child_terminals
+            .register_child(parent, child(5902, 0));
+        let reported = e.runtime.child_terminals.last_state_report_at(5902);
+        assert!(reported.is_some(), "등록이 보고 시각을 찍는다");
+
+        // 부모를 생략해 호스트가 고른 경우에도 그 부모가 응답에 있어야 한다.
+        for params in [json!({ "surface": parent }), json!({})] {
+            let resp = ok(handle_children(&mut e, json!(1), &params));
+            let item = &resp["children"].as_array().expect("children")[0];
+            assert_eq!(item["parent"], json!(parent), "{params}");
+            assert_eq!(item["last_report_at"], json!(reported), "{params}");
+        }
+    }
+
+    #[test]
+    fn children_of_an_external_parent_name_its_key() {
+        let mut e_session = engine_with_extra(&[5903]);
+        let mut e = e_session.borrow_mut();
+        let key = ParentKey::External("codex:thread-1".to_string());
+        e.runtime
+            .child_terminals
+            .register_child(key, child(5903, 0));
+        let resp = ok(handle_children(
+            &mut e,
+            json!(1),
+            &json!({ "parent_external": "codex:thread-1" }),
+        ));
+        let item = &resp["children"].as_array().expect("children")[0];
+        assert_eq!(item["parent"], json!("codex:thread-1"));
     }
 
     #[test]
