@@ -1,4 +1,5 @@
-//! 네 egui 플러그인의 소스에 폰트 환경변수 이름과 공용 검증 함수 호출이 있는지 확인한다.
+//! 네 egui 플러그인의 소스에 폰트 환경변수 이름과 공용 검증 함수 호출이 있는지, 언어팩 글꼴을
+//! 설치하는 곳이 호스트가 넘긴 글꼴 번호를 읽어 넘기는지 확인한다.
 //! 동일한 폰트를 사용하도록 하는 규약이며 실제 화면의 글리프 렌더링까지 검사하지는 않는다.
 //! 호스트의 환경변수 정의는 src/boot/locale.rs의 font_env_path에 있다.
 
@@ -54,8 +55,56 @@ fn every_ui_plugin_reads_the_same_locale_font_env_and_calls_the_shared_helper() 
     );
 }
 
-/// 후보 파일 이름. 어느 OS의 후보든 이 파일 밖에 다시 적으면 프로세스마다 다른 글꼴을 고른다.
-const SYSTEM_CJK_FONT_FILES: &[&str] = &["NotoSansCJK", "malgun.ttf", "AppleSDGothicNeo"];
+/// 호스트에서 언어팩 글꼴을 설치하는 파일. 플러그인과 같은 번호를 읽어야 한다.
+const HOST_LOCALE_FONT_INSTALLERS: &[&str] =
+    &["src/adapters/ui/font_registry.rs", "src/gfx/gpu/fonts.rs"];
+
+/// 공백을 뺀 소스에서 찾는다. 번호를 변수로 받거나 인자에 바로 쓰는 두 형태만 있다.
+const FACE_IN_A_VARIABLE: &str = "letface=tasty_egui_theme::locale_font_face_from_env();";
+const FACE_VARIABLE_PASSED: &str = "install_locale_font_fallback(&mutfonts,&path,face)";
+const FACE_PASSED_DIRECTLY: &str =
+    "install_locale_font_fallback(&mutfonts,&path,tasty_egui_theme::locale_font_face_from_env(),)";
+
+#[test]
+fn every_locale_font_install_passes_the_face_number_from_the_host() {
+    let root = repo_root();
+    let plugin_files = UI_PLUGINS
+        .iter()
+        .map(|(plugin, file)| format!("crates/{plugin}/{file}"));
+    let host_files = HOST_LOCALE_FONT_INSTALLERS.iter().map(ToString::to_string);
+    let mut checked = 0usize;
+    let mut dropped = Vec::new();
+    for file in plugin_files.chain(host_files) {
+        let src = std::fs::read_to_string(root.join(&file))
+            .unwrap_or_else(|e| panic!("cannot read {file}: {e}"));
+        let compact: String = src.chars().filter(|c| !c.is_whitespace()).collect();
+        checked += 1;
+        let through_variable =
+            compact.contains(FACE_IN_A_VARIABLE) && compact.contains(FACE_VARIABLE_PASSED);
+        if !through_variable && !compact.contains(FACE_PASSED_DIRECTLY) {
+            dropped.push(file);
+        }
+    }
+    assert_eq!(
+        checked,
+        UI_PLUGINS.len() + HOST_LOCALE_FONT_INSTALLERS.len(),
+        "the scan is broken, not clean"
+    );
+    assert!(
+        dropped.is_empty(),
+        "these files do not pass locale_font_face_from_env to the locale font: {dropped:?}"
+    );
+}
+
+/// 현재 후보의 파일 이름 전부. 이 파일 밖에 다시 적으면 프로세스마다 다른 글꼴을 고른다.
+/// 후보에 새 이름을 넣으면 여기에도 넣는다. 넣지 않은 이름의 복사는 찾지 못한다.
+const SYSTEM_CJK_FONT_FILES: &[&str] = &[
+    "NotoSansCJK",
+    "malgun.ttf",
+    "AppleSDGothicNeo",
+    "ヒラギノ",
+    "Arial Unicode",
+];
 const SYSTEM_CJK_LIST_OWNER: &str = "crates/tasty-egui-theme/src/lib.rs";
 
 /// 빈 순회가 통과로 보이지 않게 한다. 대규모 누락만 잡고 파일 한두 개의 이동은 잡지 않는다.

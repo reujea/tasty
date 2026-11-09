@@ -829,15 +829,24 @@ fn build_plugin_command(
 /// 호스트의 언어와 폰트 경로를 자식 환경에 전달한다.
 /// 빈 언어는 en으로, 빈 폰트 경로는 환경 변수 제거로 처리한다.
 fn inject_locale_env(cmd: &mut Command) {
-    let (locale, font) = locale_env_for_child(
+    set_locale_env(
+        cmd,
         std::env::var_os("TASTY_LOCALE"),
         std::env::var_os("TASTY_LOCALE_FONT"),
+        std::env::var_os("TASTY_LOCALE_FONT_FACE"),
     );
+}
+
+fn set_locale_env(
+    cmd: &mut Command,
+    locale: Option<OsString>,
+    font: Option<OsString>,
+    face: Option<OsString>,
+) {
+    let (locale, font) = locale_env_for_child(locale, font);
     cmd.env("TASTY_LOCALE", locale);
     // 번호는 경로와 한 쌍이다. 경로가 없으면 상속된 번호도 지운다.
-    let face = font
-        .as_ref()
-        .and(std::env::var_os("TASTY_LOCALE_FONT_FACE"));
+    let face = font.as_ref().and(face);
     match font {
         Some(font) => {
             cmd.env("TASTY_LOCALE_FONT", font);
@@ -1491,6 +1500,47 @@ mod tests {
                 Some(OsString::from("/x/lang/ko/fonts/a.ttf"))
             )
         );
+    }
+
+    /// 명령에 적힌 값. 바깥 `None`은 손대지 않아 상속되는 것이고 안쪽 `None`은 지운 것이다.
+    fn locale_env_in(cmd: &Command, name: &str) -> Option<Option<OsString>> {
+        cmd.get_envs()
+            .find(|(key, _)| *key == name)
+            .map(|(_, value)| value.map(OsString::from))
+    }
+
+    #[test]
+    fn the_font_face_number_reaches_the_child_with_its_path() {
+        let mut cmd = Command::new("plugin");
+        set_locale_env(
+            &mut cmd,
+            Some(OsString::from("zh-Hans")),
+            Some(OsString::from("/x/noto.ttc")),
+            Some(OsString::from("2")),
+        );
+        assert_eq!(
+            locale_env_in(&cmd, "TASTY_LOCALE_FONT"),
+            Some(Some(OsString::from("/x/noto.ttc")))
+        );
+        assert_eq!(
+            locale_env_in(&cmd, "TASTY_LOCALE_FONT_FACE"),
+            Some(Some(OsString::from("2")))
+        );
+    }
+
+    #[test]
+    fn no_font_path_also_removes_an_inherited_face_number() {
+        let mut cmd = Command::new("plugin");
+        set_locale_env(&mut cmd, None, None, Some(OsString::from("2")));
+        assert_eq!(locale_env_in(&cmd, "TASTY_LOCALE_FONT"), Some(None));
+        assert_eq!(locale_env_in(&cmd, "TASTY_LOCALE_FONT_FACE"), Some(None));
+    }
+
+    #[test]
+    fn a_font_path_without_a_number_removes_an_inherited_face_number() {
+        let mut cmd = Command::new("plugin");
+        set_locale_env(&mut cmd, None, Some(OsString::from("/x/a.ttf")), None);
+        assert_eq!(locale_env_in(&cmd, "TASTY_LOCALE_FONT_FACE"), Some(None));
     }
 
     #[test]
