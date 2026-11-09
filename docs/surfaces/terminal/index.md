@@ -110,7 +110,7 @@ termwiz가 VT 시퀀스를 파싱하고 셀 grid를 갱신한다. 주요 지원 
 | 텍스트와 제어코드 | LF, CR, BS, Bell. HT는 기본 8칸 간격의 탭 정지점을 사용한다. HTS/CTC로 설정하고 TBC로 해제한다. RIS와 리사이즈 때 기본값을 재구성한다. |
 | 문자 속성 | 굵게, dim, 기울임, 반전, 전경·배경색을 그린다. dim은 배경과 50:50으로 섞어 그린다. 밑줄(단일·이중·물결·점선·파선), 밑줄 색(SGR 58), 깜빡임, 숨김, 취소선, 윗줄, SGR 73·74는 파서가 받아 셀에 저장하고 `debug.cell_info`로 조회할 수 있지만 그리지 않는다. 깜빡임 글자는 정적으로 보이고 숨김 글자는 그대로 보인다. |
 | 커서 | CUP, CHA, VPA, CNL, CPL, CHT, CBT, 저장·복원. DECSCUSR의 블록·바·밑줄은 그리되 blink 변형도 정적으로 표시한다. |
-| 화면 편집 | ED, EL, SU, SD, DCH, ICH, DL, IL, ECH, REP. DCH/ICH는 전각 두 셀을 함께 처리한다. |
+| 화면 편집 | ED, EL, SU, SD, DCH, ICH, DL, IL, ECH, REP. DCH/ICH는 전각 두 셀을 함께 처리한다. DCH·ICH·삽입 모드는 밀리는 칸의 속성을 그대로 두고, 새로 생긴 칸은 [소거 규칙](#스크롤-영역과-소거)을 따른다. |
 | ESC | DECSC, DECRC, IND, RI, NEL, HTS, DECALN, RIS. DECALN은 화면을 E로 채운다. |
 | 문자 집합 | G0/G1 DEC line drawing과 SO/SI 전환. 활성 상태의 ASCII 0x60–0x7e를 박스 문자로 바꾼다. UK는 ASCII로 처리하고 RIS로 초기화한다. |
 | 소프트 리셋 | DECSTR은 마진·저장 커서·문자 속성·앱 커서 키·삽입 모드·커서 가시성을 초기화한다. 화면과 대체 화면은 유지한다. |

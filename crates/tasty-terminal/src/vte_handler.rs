@@ -1,4 +1,4 @@
-use termwiz::cell::unicode_column_width;
+use termwiz::cell::{CellAttributes, unicode_column_width};
 use termwiz::escape::{Action, ControlCode};
 use termwiz::surface::Change;
 
@@ -100,31 +100,37 @@ impl TerminalState {
         });
     }
 
-    /// Perform a line feed (Index): move cursor down one line.
-    /// If the cursor is at the bottom of the scroll region, scroll the region up.
-    pub(crate) fn read_line_from_surface(
+    /// Cells of `row` from `start_col` up to `end_col` with their attributes and column widths.
+    /// A gap between stored cells is a default blank. Stops at the last stored cell.
+    pub(crate) fn read_cells_from_surface(
         &self,
         row: usize,
         start_col: usize,
         end_col: usize,
-    ) -> String {
+    ) -> Vec<(String, CellAttributes, usize)> {
         let surface = self.surface();
         let lines = surface.screen_lines();
-        if row >= lines.len() {
-            return " ".repeat(end_col.saturating_sub(start_col));
-        }
-        let line = &lines[row];
-        let mut result = String::new();
+        let mut cells = Vec::new();
+        let Some(line) = lines.get(row) else {
+            return cells;
+        };
+        let mut next_col = start_col;
         for cell in line.visible_cells() {
             let idx = cell.cell_index();
             if idx >= end_col {
                 break;
             }
-            if idx >= start_col {
-                result.push_str(cell.str());
+            if idx < start_col {
+                continue;
             }
+            for _ in next_col..idx {
+                cells.push((" ".to_string(), CellAttributes::default(), 1));
+            }
+            let width = cell.width().max(1);
+            cells.push((cell.str().to_string(), cell.attrs().clone(), width));
+            next_col = idx + width;
         }
-        result
+        cells
     }
 
     /// Column of the next tab stop strictly to the right of `col`. Falls back to

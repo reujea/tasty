@@ -216,37 +216,19 @@ impl TerminalState {
                 if n == 0 {
                     return vec![];
                 }
-                let line = self.read_line_from_surface(cy, cx, cols);
-                // Skip n columns worth of characters (n is in cells, not chars)
+                let mut kept = self.read_cells_from_surface(cy, cx, cols);
+                // Drop n columns worth of cells; a wide cell crossing the boundary goes whole.
                 let mut skip_cols = 0;
-                let mut skip_chars = 0;
-                for ch in line.chars() {
-                    if skip_cols >= n {
-                        break;
-                    }
-                    skip_cols += unicode_column_width(&ch.to_string(), None);
-                    skip_chars += 1;
-                }
-                let after: String = line.chars().skip(skip_chars).collect();
-                let after_width: usize = after
-                    .chars()
-                    .map(|c| unicode_column_width(&c.to_string(), None))
-                    .sum();
-                let mut text = after;
-                for _ in 0..remaining.saturating_sub(after_width) {
-                    text.push(' ');
-                }
-                vec![
-                    Change::CursorPosition {
-                        x: Position::Absolute(cx),
-                        y: Position::Absolute(cy),
-                    },
-                    Change::Text(text),
-                    Change::CursorPosition {
-                        x: Position::Absolute(cx),
-                        y: Position::Absolute(cy),
-                    },
-                ]
+                let skip_cells = kept
+                    .iter()
+                    .take_while(|(_, _, width)| {
+                        let skip = skip_cols < n;
+                        skip_cols += width;
+                        skip
+                    })
+                    .count();
+                kept.drain(..skip_cells);
+                self.rewrite_from_cursor(cx, cy, remaining, 0, kept)
             }
             Edit::InsertCharacter(n) => self.insert_blank_changes(n as usize),
             Edit::DeleteLine(n) => {
@@ -336,32 +318,63 @@ impl TerminalState {
         if n == 0 {
             return vec![];
         }
-        let line = self.read_line_from_surface(cy, cx, cols);
-        // Insert n blank columns, then append existing content that fits
-        let mut text = " ".repeat(n);
+        // Existing cells that still fit after the n blank columns; the rest fall off the edge.
         let mut used_cols = n;
-        for ch in line.chars() {
-            let w = unicode_column_width(&ch.to_string(), None);
-            if used_cols + w > remaining {
-                break;
+        let mut kept = self.read_cells_from_surface(cy, cx, cols);
+        let fitting = kept
+            .iter()
+            .take_while(|(_, _, width)| {
+                used_cols += width;
+                used_cols <= remaining
+            })
+            .count();
+        kept.truncate(fitting);
+        self.rewrite_from_cursor(cx, cy, remaining, n, kept)
+    }
+
+    /// Rewrite `span` columns from the cursor: `leading` erased cells, then `cells` with their own
+    /// attributes, then erased cells to the end of the span. The cursor and pen stay as they were.
+    fn rewrite_from_cursor(
+        &self,
+        cx: usize,
+        cy: usize,
+        span: usize,
+        leading: usize,
+        cells: Vec<(String, CellAttributes, usize)>,
+    ) -> Vec<Change> {
+        let cursor = Change::CursorPosition {
+            x: Position::Absolute(cx),
+            y: Position::Absolute(cy),
+        };
+        let erased = self.erase_attrs();
+        let mut changes = vec![cursor.clone()];
+        let mut run_attrs = erased.clone();
+        let mut run_text = " ".repeat(leading);
+        let mut used_cols = leading;
+        for (text, attrs, width) in cells {
+            if attrs != run_attrs {
+                flush_run(&mut changes, &run_attrs, &mut run_text);
+                run_attrs = attrs;
             }
-            text.push(ch);
-            used_cols += w;
+            run_text.push_str(&text);
+            used_cols += width;
         }
-        while used_cols < remaining {
-            text.push(' ');
-            used_cols += 1;
+        if used_cols < span && erased != run_attrs {
+            flush_run(&mut changes, &run_attrs, &mut run_text);
+            run_attrs = erased;
         }
-        vec![
-            Change::CursorPosition {
-                x: Position::Absolute(cx),
-                y: Position::Absolute(cy),
-            },
-            Change::Text(text),
-            Change::CursorPosition {
-                x: Position::Absolute(cx),
-                y: Position::Absolute(cy),
-            },
-        ]
+        run_text.push_str(&" ".repeat(span.saturating_sub(used_cols)));
+        flush_run(&mut changes, &run_attrs, &mut run_text);
+        changes.push(self.restore_pen());
+        changes.push(cursor);
+        changes
+    }
+}
+
+/// Queue `text` written with `attrs`, leaving `text` empty for the next run.
+fn flush_run(changes: &mut Vec<Change>, attrs: &CellAttributes, text: &mut String) {
+    if !text.is_empty() {
+        changes.push(Change::AllAttributes(attrs.clone()));
+        changes.push(Change::Text(std::mem::take(text)));
     }
 }
