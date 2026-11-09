@@ -31,6 +31,31 @@ pub struct FontFileFace<F> {
     pub face: u32,
 }
 
+/// Adds the file's faces to the database. A file without faces is an error,
+/// so it must not be logged as loaded.
+fn register_font_file(font_system: &mut FontSystem, path: &str) -> Result<(), &'static str> {
+    let data = std::fs::read(path).map_err(|_| "cannot read the file")?;
+    let source = cosmic_text::fontdb::Source::Binary(std::sync::Arc::new(data));
+    if font_system.db_mut().load_font_source(source).is_empty() {
+        return Err("no usable font face");
+    }
+    Ok(())
+}
+
+/// Reports whether any of the file's faces was registered.
+fn load_custom_font_file(font_system: &mut FontSystem, path: &str) -> bool {
+    match register_font_file(font_system, path) {
+        Ok(()) => {
+            tracing::info!("Loaded custom font file: {}", path);
+            true
+        }
+        Err(reason) => {
+            tracing::warn!("Failed to load custom font file {}: {}", path, reason);
+            false
+        }
+    }
+}
+
 /// Font configuration holding cosmic-text state.
 pub struct FontConfig {
     pub font_system: FontSystem,
@@ -65,12 +90,7 @@ impl FontConfig {
             .load_font_data(D2CODING_BOLD_TTF.to_vec());
 
         if !custom_font_path.is_empty() {
-            if let Ok(data) = std::fs::read(custom_font_path) {
-                font_system.db_mut().load_font_data(data);
-                tracing::info!("Loaded custom font file: {}", custom_font_path);
-            } else {
-                tracing::warn!("Failed to load custom font file: {}", custom_font_path);
-            }
+            load_custom_font_file(&mut font_system, custom_font_path);
         }
 
         let family = if font_family.is_empty() || font_family.eq_ignore_ascii_case("monospace") {
@@ -99,12 +119,7 @@ impl FontConfig {
         line_height_mult: f32,
     ) {
         if !custom_font_path.is_empty() {
-            if let Ok(data) = std::fs::read(custom_font_path) {
-                self.font_system.db_mut().load_font_data(data);
-                tracing::info!("Loaded custom font file: {}", custom_font_path);
-            } else {
-                tracing::warn!("Failed to load custom font file: {}", custom_font_path);
-            }
+            load_custom_font_file(&mut self.font_system, custom_font_path);
         }
 
         let family = if font_family.is_empty() || font_family.eq_ignore_ascii_case("monospace") {
@@ -337,8 +352,12 @@ impl FrameClock {
 /// GPU 아틀라스. 헤드리스 소비자는 gpu 기능을 켜지 않아 wgpu 의존성을 제외한다.
 #[cfg(feature = "gpu")]
 mod atlas;
+mod judge;
 #[cfg(feature = "gpu")]
 pub use atlas::GlyphAtlas;
+pub use judge::{
+    TerminalFontRejection, file_provides_family, judge_terminal_bytes, judge_terminal_file,
+};
 
 #[cfg(test)]
 mod tests {
