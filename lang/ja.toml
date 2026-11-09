@@ -70,6 +70,11 @@ check_not_executable = "このファイルには実行権限がありません"
 check_valid = "シェルが見つかりました"
 check_valid_git_bash = "Git Bashが見つかりました"
 
+[terminal_error]
+shell_not_git_bash = "設定したシェルはGit Bashではありません: {}。設定でGit for Windowsのbash.exeのパスを指定してください。"
+git_bash_not_found = "シェルが未設定で、既定のインストール先にGit Bashが見つかりませんでした。Git for Windowsをインストールするか、設定でそのbash.exeのパスを指定してください。"
+shell_missing_windows = "設定したシェルのパスにファイルがありません: {}。設定でGit for Windowsのbash.exeのパスを指定してください。"
+
 [window_error.new_window]
 title = "新しいウィンドウを開けません"
 body = "新しいウィンドウを開けませんでした。他のウィンドウの作業はそのまま続行します。原因: {}"

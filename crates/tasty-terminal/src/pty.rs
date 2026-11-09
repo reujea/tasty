@@ -219,15 +219,21 @@ impl Pty {
             #[cfg(windows)]
             _ => {
                 return Err(SpawnError::before_child(anyhow::anyhow!(
-                    "Unable to start a terminal because no shell is set and Git Bash was not found"
+                    tasty_i18n::t("terminal_error.git_bash_not_found").to_string()
                 )));
             }
         };
         // Windows는 Git Bash만 실행한다. 모든 셸 실행이 여기를 지나므로 어떤 경로로 온 값도 다른 셸을 띄우지 않는다.
         #[cfg(windows)]
         if !tasty_utils::shell_family::is_git_for_windows_bash(std::path::Path::new(&shell)) {
+            // 설정 판정(`ShellPathStatus`)과 같은 순서로 없는 경로를 먼저 가른다.
+            let key = if std::path::Path::new(&shell).exists() {
+                "terminal_error.shell_not_git_bash"
+            } else {
+                "terminal_error.shell_missing_windows"
+            };
             return Err(SpawnError::before_child(anyhow::anyhow!(
-                "Unable to spawn {shell} because it is not Git Bash"
+                tasty_i18n::t_fmt(key, &shell)
             )));
         }
         // 디렉터리는 portable-pty의 실행 파일 확인(access X_OK)을 통과해 fork 뒤 exec에서 조용히 실패한다.
@@ -1066,18 +1072,25 @@ mod windows_shell_tests {
     #[test]
     fn only_git_bash_reaches_the_spawn() {
         let comspec = std::env::var("COMSPEC").expect("COMSPEC");
-        for shell in [
-            Some(comspec.as_str()),
-            Some("cmd.exe"),
-            Some("powershell.exe"),
-            Some(""),
-            None,
-        ] {
+        let no_shell = tasty_i18n::t("terminal_error.git_bash_not_found").to_string();
+        let cases = [
+            (
+                Some(comspec.as_str()),
+                tasty_i18n::t_fmt("terminal_error.shell_not_git_bash", &comspec),
+            ),
+            (
+                Some("cmd.exe"),
+                tasty_i18n::t_fmt("terminal_error.shell_missing_windows", "cmd.exe"),
+            ),
+            (Some(""), no_shell.clone()),
+            (None, no_shell),
+        ];
+        for (shell, expected) in cases {
             let Err(error) = spawn(shell) else {
                 panic!("{shell:?} must not start");
             };
             assert!(error.is_before_child(), "{shell:?}: {error}");
-            assert!(error.to_string().contains("Git Bash"), "{shell:?}: {error}");
+            assert_eq!(error.to_string(), expected, "{shell:?}");
         }
     }
 }

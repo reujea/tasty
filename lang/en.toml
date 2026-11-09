@@ -70,6 +70,11 @@ check_not_executable = "This file has no permission to run"
 check_valid = "Shell found"
 check_valid_git_bash = "Git Bash found"
 
+[terminal_error]
+shell_not_git_bash = "The configured shell is not Git Bash: {}. Set the path to bash.exe from Git for Windows in Settings."
+git_bash_not_found = "No shell is set and Git Bash was not found in the default install locations. Install Git for Windows, or set the path to its bash.exe in Settings."
+shell_missing_windows = "No file at the configured shell path: {}. Set the path to bash.exe from Git for Windows in Settings."
+
 [window_error.new_window]
 title = "Could not open a new window"
 body = "The new window could not be opened. Your other windows keep running. Cause: {}"

@@ -6792,6 +6792,7 @@ dependencies = [
  "portable-pty",
  "regex",
  "tasty-ansi",
+ "tasty-i18n",
  "tasty-reaper",
  "tasty-test-support",
  "tasty-utils",
