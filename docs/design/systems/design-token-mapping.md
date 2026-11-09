@@ -628,7 +628,7 @@ Tasty가 바탕을 칠하는 kind의 포커스 바탕 쌍은 `surface-bed-focuse
 
 html과 플러그인 surface는 바탕을 호스트가 보장할 수 없어 위쪽 2px 띠로 분류한다. 본체는 아직 띠를 그리지 않아 이 surface에는 포커스 표시가 없다([포커스 표현](../policies/focus.md#surface-포커스-표현)). 띠의 토큰은 `surface-focus-edge-focused`, `-unfocused`, `-width`이고 공용 위젯은 `tasty_ui_widgets::SurfaceFocusEdge`다. 바탕 선택은 `tasty_ui_widgets::surface_bed`다.
 
-markdown 플러그인의 문서 바탕 `md-doc-bg`(→ `surface-markdown-focused-bg` → `surface-bed-focused`)는 플러그인이 `ThemeWire.colors.surface_themes["markdown"].focused_bg`로 읽는다(`crates/tasty-plugin-markdown/src/render.rs`의 `md_doc_bg`). 현재 webview 경로에 포커스 값을 넘기는 수단이 없어 이 경로는 focused 값 하나만 쓴다. `surface_themes`를 싣지 않는 이전 호스트에서는 항목이 없으므로 `bg_app`으로 칠한다. 주소 입력은 킷의 공용 입력 칸과 같은 `input-bg`(`--md-input-bg`)로, 찾기 입력과 코드 복사 버튼은 `bg_app`(`--md-control-bg`)으로 칠한다. 같은 방식으로 `bg_app`을 바탕으로 쓰는 git-viewer diff 영역과 clipboard-viewer 영역은 디자인에 별도 토큰이 없어 `bg_app` 그대로다.
+markdown 플러그인의 문서 바탕 `md-doc-bg`(→ `surface-markdown-focused-bg` → `surface-bed-focused`)와 그 unfocused 짝은 플러그인이 `ThemeWire.colors.surface_themes["markdown"]`의 `focused_bg`·`unfocused_bg`로 읽는다(`crates/tasty-plugin-markdown/src/render/bed_focus.rs`의 `doc_bg`). 문서는 바탕과 표 row(`md-table-row-bg`·`-unfocused`), zebra(`md-table-row-bg-zebra`·`-unfocused`)의 두 상태 값을 함께 갖고, 호스트가 넘기는 상태 표지로 고른다([WebView §바탕 포커스 상태](webview.md#바탕-포커스-상태)). `surface_themes`를 싣지 않는 이전 호스트에서는 항목이 없으므로 두 상태 모두 `bg_app`으로 칠한다. 주소 입력은 킷의 공용 입력 칸과 같은 `input-bg`(`--md-input-bg`)로, 찾기 입력과 코드 복사 버튼은 `bg_app`(`--md-control-bg`)으로 칠한다. 같은 방식으로 `bg_app`을 바탕으로 쓰는 git-viewer diff 영역과 clipboard-viewer 영역은 디자인에 별도 토큰이 없어 `bg_app` 그대로다.
 
 ### neutral ramp 12단 ↔ ThemeColors 필드
 

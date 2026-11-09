@@ -22,4 +22,12 @@ mod tests {
             format!(":root{{{BED_FOCUSED_PROPERTY}: ;}}")
         );
     }
+
+    /// 번들 markdown 페이지가 같은 이름을 읽는다. 플러그인은 호스트 크레이트에 의존하지 않아 사본을 둔다.
+    #[test]
+    fn the_bundled_markdown_page_reads_the_same_property() {
+        let page = include_str!("../../../crates/tasty-plugin-markdown/src/render/bed_focus.rs");
+        let decl = format!("const BED_FOCUSED_PROPERTY: &str = \"{BED_FOCUSED_PROPERTY}\";");
+        assert!(page.contains(&decl), "{decl}");
+    }
 }

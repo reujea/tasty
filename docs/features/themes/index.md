@@ -21,7 +21,7 @@
 
 ### TOML 포맷
 
-`[palette]`/`[accent]`/`[terminal]`/`[ansi]`/`[surfaces.<id>]` + 선택 `label`·`is_light`. markdown 문서 바탕은 포커스와 관계없이 `[surfaces.markdown].focused_bg`다. **모든 색 필드 optional** — 일부만 정의하면 누락분은 이전 테마 값 유지(partial 누적). HexColor 는 `#RGB`/`#RRGGBB`/`#RRGGBBAA`(8자리 = alpha). 자동 도출 색(`hover_overlay`/`active_overlay`/`separator`)과 UI sizing 은 TOML 에 없다(공통 SIZING). 상세 키 목록은 [design/systems/theme](../../design/systems/theme.md) "ThemeFile TOML".
+`[palette]`/`[accent]`/`[terminal]`/`[ansi]`/`[surfaces.<id>]` + 선택 `label`·`is_light`. markdown 문서 바탕은 포커스가 있으면 `[surfaces.markdown].focused_bg`, 없으면 `unfocused_bg`다. 두 값을 같게 두어도 그대로 적용한다. **모든 색 필드 optional** — 일부만 정의하면 누락분은 이전 테마 값 유지(partial 누적). HexColor 는 `#RGB`/`#RRGGBB`/`#RRGGBBAA`(8자리 = alpha). 자동 도출 색(`hover_overlay`/`active_overlay`/`separator`)과 UI sizing 은 TOML 에 없다(공통 SIZING). 상세 키 목록은 [design/systems/theme](../../design/systems/theme.md) "ThemeFile TOML".
 
 > 빌트인(`mocha`/`latte`) 파일을 직접 편집하지 말 것 — 부팅 시 정본으로 되돌아간다. 커스텀은 별 id(`my-theme.toml`)로, 기존 테마 위 색 조정은 settings 의 picker(= `theme_overrides`)로.
 

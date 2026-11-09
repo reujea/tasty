@@ -203,6 +203,7 @@ jobs:
               --test e2e_tests -- multi_window_owner_routing --exact'
 
       # markdown 주소창이 WebKitGTK에서 실제로 상단에 붙는지 getBoundingClientRect로 잰다(Linux 전용).
+      # 바탕 포커스 시트가 문서를 다시 싣지 않고 바탕·표 값을 바꾸는지도 잰다.
       # 시험은 #[ignore]라 위 gui 유닛 단계에서는 실행되지 않고 여기서 이름으로 지목한다.
       # e2e 단계와 같은 이유로 아직 관측용이다. 승격 기준은 docs/dev-guide/ci-gates.md에 있다.
       - name: cargo test (linux, gui, webview layout — 관측용)
@@ -213,6 +214,10 @@ jobs:
           env -u WAYLAND_DISPLAY xvfb-run -a --server-args="-screen 0 1920x1080x24" \
             cargo test -p tasty-plugin-markdown --locked --no-fail-fast -- --ignored --exact \
               render::webview_layout_tests::address_bar_stays_on_top_in_webkitgtk
+          # GTK는 한 프로세스에서 한 스레드만 초기화하므로 시험마다 따로 실행한다.
+          env -u WAYLAND_DISPLAY xvfb-run -a --server-args="-screen 0 1920x1080x24" \
+            cargo test -p tasty-plugin-markdown --locked --no-fail-fast -- --ignored --exact \
+              render::bed_focus_webkit_tests::bed_focus_sheet_switches_state_values_in_place
 
       # 실패 원인을 조사할 때도 필요하므로 앞 스텝의 실패와 관계없이 진단한다.
       # 디스크·도구 상태 출력에 실패해도 컴파일·테스트 결과를 바꾸지 않는다.

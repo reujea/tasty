@@ -619,8 +619,8 @@ const MIN_GIT_LISTED_WORKFLOWS: usize = 5;
 const EXPECTED_TEST_INVOCATIONS: &[(&str, usize)] = &[
     // macOS GUI 단위 시험.
     ("crossplatform-check-macos.yml", 1),
-    // Windows·Linux GUI 단위 시험, 헤드리스 전체 시험, Linux GUI E2E·webview 레이아웃과 Windows 통합 시험.
-    ("crossplatform-check.yml", 6),
+    // Windows·Linux GUI 단위 시험, 헤드리스 전체 시험, Linux GUI E2E·webview 레이아웃·바탕 포커스와 Windows 통합 시험.
+    ("crossplatform-check.yml", 7),
     ("doc-guards.yml", 1),
     ("test.yml", 3),
 ];

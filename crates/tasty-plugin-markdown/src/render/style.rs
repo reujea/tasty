@@ -3,6 +3,7 @@
 use tasty_type_appearance::theme::Theme;
 
 use super::address;
+use super::bed_focus;
 use super::callout::{self, alert_css, alert_icon_data_uri};
 
 /// 테마 값을 CSS 변수와 스타일로 변환한다. 제목과 각주의 scroll-margin-top은
@@ -12,16 +13,6 @@ use super::callout::{self, alert_css, alert_icon_data_uri};
 /// html의 height:100%와 body의 min-height:100%는 서로 역할이 다르다.
 /// body가 문서만큼 늘어나야 sticky 주소창이 끝까지 남고, html 높이가 정해져야
 /// 짧은 문서에서도 body의 백분율 최소 높이가 viewport를 채운다.
-/// 문서 바탕(디자인 토큰 md-doc-bg = surface-markdown-focused-bg). webview 경로에는 focus 신호가
-/// 없으므로 focused 색 하나만 쓴다. `surface_themes`를 싣지 않는 이전 호스트에서는 markdown 항목이
-/// 없으므로 이전처럼 bg_app으로 칠한다(`Theme::surface`의 대체 색은 검정이라 쓰지 않는다).
-pub(super) fn md_doc_bg(theme: &Theme) -> tasty_type_appearance::color::HexColor {
-    theme
-        .surface_themes
-        .get("markdown")
-        .map_or_else(|| theme.bg_app(), |surface| surface.focused_bg)
-}
-
 pub(super) fn theme_css(theme: &Theme) -> String {
     let [h1, h2, h3, h4, h5, h6] = heading_sizes_px(theme);
     let body = theme.font_size_body.value();
@@ -37,9 +28,7 @@ pub(super) fn theme_css(theme: &Theme) -> String {
 --md-quote-fg:{quote_fg};
 --md-callout-fg:{callout_fg};
 --md-rule:{rule};
---md-zebra:{zebra};
---md-bg:{bg};
---md-control-bg:{control_bg};
+{bed_vars}--md-control-bg:{control_bg};
 --md-input-bg:{input_bg};
 --md-disabled-fill:{disabled_fill};
 --md-disabled-border:{disabled_border};
@@ -100,7 +89,7 @@ pre:hover .tasty-copy-btn,.tasty-copy-btn:focus-visible{{opacity:1;}}
 @media (hover:none){{.tasty-copy-btn{{opacity:1;}}}}
 .tasty-copy-btn[data-state="copied"]{{border-color:{success};color:{success};}}
 .tasty-copy-btn[data-state="failed"]{{border-color:{danger};color:{danger};}}
-table{{border-collapse:collapse;}}
+table{{border-collapse:collapse;background:var(--md-row);}}
 th,td{{border:var(--md-border-w) solid var(--md-border);padding:var(--md-space-xs) var(--md-space-sm);text-align:left;}}
 th{{background:{table_header_bg};color:{table_header_fg};}}
 td{{color:{table_cell_fg};}}
@@ -148,8 +137,7 @@ li input[type=checkbox]{{margin-right:0.4em;}}
         table_header_fg = theme.md_table_header_fg().to_hex(),
         table_cell_fg = theme.md_table_cell_fg().to_hex(),
         rule = theme.separator.unpremultiplied().to_hex(),
-        zebra = theme.md_table_row_bg_zebra().to_hex(),
-        bg = md_doc_bg(theme).to_hex(),
+        bed_vars = bed_focus::state_vars(theme),
         // 찾기 입력과 코드 복사 버튼은 문서 바탕이 아니라 이전과 같은 bg_app으로 칠한다.
         control_bg = theme.bg_app().to_hex(),
         // 주소 입력은 디자인 킷의 공용 입력 칸과 같은 input-bg다.
@@ -282,6 +270,22 @@ mod tests {
         let line = found.next().unwrap_or_else(|| panic!("{selector}: {css}"));
         assert!(found.next().is_none(), "{selector} twice");
         line
+    }
+
+    /// 포커스로 바뀌는 것은 문서 바탕뿐이다. 찾기 입력·복사 버튼은 bg_app, 주소 입력은 input-bg 다.
+    #[test]
+    fn the_controls_do_not_take_the_document_bed() {
+        let theme = mocha();
+        let css = theme_css(&theme);
+        let control = theme.bg_app().to_hex();
+        assert!(
+            css.contains(&format!("--md-control-bg:{control};")),
+            "{css}"
+        );
+        let input = theme.input_bg().to_hex();
+        assert!(css.contains(&format!("--md-input-bg:{input};")), "{css}");
+        let addr = rule(&css, "#tasty-addr-field{");
+        assert!(addr.contains(&format!("background:{input};")), "{addr}");
     }
 
     #[test]

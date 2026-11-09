@@ -22,6 +22,9 @@ use tasty_plugin_sdk::Translator;
 use tasty_type_appearance::theme::Theme;
 
 mod address;
+mod bed_focus;
+#[cfg(all(test, target_os = "linux"))]
+mod bed_focus_webkit_tests;
 mod callout;
 mod find_keys;
 mod nav_script;
@@ -37,9 +40,9 @@ use callout::{CALLOUT_KINDS, find_callout_kind};
 #[cfg(test)]
 use callout::{alert_css, alert_icon_data_uri};
 use nav_script::nav_script;
-use style::theme_css;
 #[cfg(test)]
-use style::{hljs_css, md_doc_bg};
+use style::hljs_css;
+use style::theme_css;
 use ui_lang::CalloutLabel;
 
 /// 내부 이동 URL의 마커. 생성 코드와 parse_nav_fragment에서 함께 사용한다.
@@ -5259,75 +5262,5 @@ Outro\n";
             let out = sanitize_bare(&format!(r#"<img src="{src}" alt="a">"#));
             assert!(out.contains(src), "src={src} 가 사라졌다: {out}");
         }
-    }
-
-    // ── document background ─────────────────────────────────────────────────
-
-    #[test]
-    fn document_background_follows_the_markdown_surface_focused_bg() {
-        let mut colors = tasty_themes::mocha_fallback_colors();
-        let doc = tasty_type_appearance::color::HexColor::from_hex("#203040").expect("valid hex");
-        colors
-            .surface_themes
-            .get_mut("markdown")
-            .expect("markdown surface in the fallback theme")
-            .focused_bg = doc;
-        let theme = Theme::with_colors_and_zoom(colors, false, 1.0);
-        assert_ne!(theme.bg_app(), doc);
-        let css = theme_css(&theme);
-        assert!(css.contains(&format!("--md-bg:{};", doc.to_hex())), "{css}");
-        // 문서 바탕만 바뀌고 찾기 입력·복사 버튼은 bg_app, 주소 입력은 input-bg 다.
-        assert!(
-            css.contains(&format!("--md-control-bg:{};", theme.bg_app().to_hex())),
-            "{css}"
-        );
-        assert_eq!(css.matches("background:var(--md-bg)").count(), 1, "{css}");
-        assert!(
-            css.contains(&format!("--md-input-bg:{};", theme.input_bg().to_hex())),
-            "{css}"
-        );
-        let addr = css
-            .lines()
-            .find(|l| l.starts_with("#tasty-addr-field{"))
-            .expect("address field rule");
-        assert!(
-            addr.contains(&format!("background:{};", theme.input_bg().to_hex())),
-            "{addr}"
-        );
-    }
-
-    #[test]
-    fn a_host_without_surface_colors_keeps_the_app_background() {
-        // surface_themes 를 싣지 않는 이전 호스트의 ThemeWire.
-        let mut colors = tasty_themes::mocha_fallback_colors();
-        colors.surface_themes.clear();
-        let theme = Theme::with_colors_and_zoom(colors, false, 1.0);
-        let css = theme_css(&theme);
-        assert!(
-            css.contains(&format!("--md-bg:{};", theme.bg_app().to_hex())),
-            "{css}"
-        );
-    }
-
-    #[test]
-    fn the_theme_wire_carries_the_markdown_surface_colors() {
-        // 호스트가 보내는 ThemeWire(JSON)를 플러그인이 받아도 markdown surface 색이 남는다.
-        let mut colors = tasty_themes::mocha_fallback_colors();
-        let doc = tasty_type_appearance::color::HexColor::from_hex("#203040").expect("valid hex");
-        colors
-            .surface_themes
-            .get_mut("markdown")
-            .expect("markdown surface")
-            .focused_bg = doc;
-        let host = Theme::with_colors_and_zoom(colors, false, 1.0);
-        let wire = tasty_plugin_protocol::ThemeWire {
-            colors: host.to_colors(),
-            is_light: host.is_light,
-            ui_zoom: 1.0,
-        };
-        let json = serde_json::to_string(&wire).unwrap();
-        let back: tasty_plugin_protocol::ThemeWire = serde_json::from_str(&json).unwrap();
-        let plugin = Theme::with_colors_and_zoom(back.colors, back.is_light, back.ui_zoom);
-        assert_eq!(md_doc_bg(&plugin), doc);
     }
 }

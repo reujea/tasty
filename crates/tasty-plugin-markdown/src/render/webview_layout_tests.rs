@@ -20,12 +20,12 @@ use webkit2gtk::{LoadEvent, WebView, WebViewExt as _};
 use super::{AddrFailure, AddrFailureKind, DocumentInput, RemoteView, render_document};
 
 /// 측정 뷰포트. 회귀를 처음 잰 값과 같게 둔다.
-const VIEW_W: i32 = 1000;
-const VIEW_H: i32 = 800;
+pub(super) const VIEW_W: i32 = 1000;
+pub(super) const VIEW_H: i32 = 800;
 /// 엔진 응답 한 번을 기다리는 최대 시간. 넘기면 엔진이 멈춘 것으로 보고 실패한다.
 const WAIT: Duration = Duration::from_secs(20);
 
-fn document(source: &str) -> String {
+pub(super) fn document(source: &str) -> String {
     let theme = Theme::with_colors_and_zoom(tasty_themes::mocha_fallback_colors(), false, 1.0);
     let tr = Translator::default();
     render_document(DocumentInput {
@@ -44,7 +44,7 @@ fn document(source: &str) -> String {
 }
 
 /// 화면보다 몇 배 긴 문서. 가운데 제목은 앵커 이동 목적지다.
-fn long_source() -> String {
+pub(super) fn long_source() -> String {
     let mut s = String::new();
     for i in 0..120 {
         s.push_str(&format!(
@@ -54,7 +54,7 @@ fn long_source() -> String {
     s
 }
 
-fn spin_until(done: impl Fn() -> bool, what: &str) {
+pub(super) fn spin_until(done: impl Fn() -> bool, what: &str) {
     let start = Instant::now();
     while !done() {
         assert!(
@@ -66,13 +66,13 @@ fn spin_until(done: impl Fn() -> bool, what: &str) {
     }
 }
 
-struct Page {
-    _window: gtk::OffscreenWindow,
-    view: WebView,
+pub(super) struct Page {
+    pub(super) _window: gtk::OffscreenWindow,
+    pub(super) view: WebView,
 }
 
 impl Page {
-    fn load(html: &str) -> Self {
+    pub(super) fn load(html: &str) -> Self {
         Self::load_sized(html, VIEW_W)
     }
 
@@ -98,7 +98,7 @@ impl Page {
     }
 
     /// 스크립트의 값을 JSON 문자열로 돌려받아 숫자로 읽는다.
-    fn number(&self, script: &str) -> f64 {
+    pub(super) fn number(&self, script: &str) -> f64 {
         let value = self.json(script);
         value
             .as_f64()
@@ -106,7 +106,7 @@ impl Page {
     }
 
     /// 스크립트의 값을 문자열로 읽는다.
-    fn string(&self, script: &str) -> String {
+    pub(super) fn string(&self, script: &str) -> String {
         let value = self.json(script);
         value
             .as_str()

@@ -1501,28 +1501,35 @@ fn the_gui_layer_a_display_revives_is_exactly_the_one_named_test() {
     );
 }
 
-/// markdown webview 레이아웃 시험을 이름으로 고르는 자동 호출이 실제 시험 이름과 맞는지 확인한다.
+/// markdown WebKitGTK 시험을 이름으로 고르는 자동 호출이 실제 시험 이름과 맞는지 확인한다.
 /// 지목 실행은 이름이 어긋나면 `0 passed` 로 통과하므로, 시험 이름과 호출을 여기서 함께 대조한다.
+/// GTK 는 한 프로세스에서 한 스레드만 초기화하므로 파일마다 시험을 하나 두고 각각 따로 지목한다.
 #[test]
 fn the_webview_layout_step_names_the_one_layout_test() {
+    for leaf in ["webview_layout_tests", "bed_focus_webkit_tests"] {
+        assert_one_named_webkit_test(leaf);
+    }
+}
+
+fn assert_one_named_webkit_test(leaf: &str) {
     const PACKAGE: &str = "tasty-plugin-markdown";
-    const MODULE: &str = "render::webview_layout_tests";
-    const FILE: &str = "crates/tasty-plugin-markdown/src/render/webview_layout_tests.rs";
     const PARENT: &str = "crates/tasty-plugin-markdown/src/render.rs";
+    let module = format!("render::{leaf}");
+    let file = format!("crates/tasty-plugin-markdown/src/render/{leaf}.rs");
     let root = repo_root();
 
     let parent = std::fs::read_to_string(root.join(PARENT)).expect("render.rs 를 읽지 못했다");
     assert!(
-        parent.contains("mod webview_layout_tests;"),
-        "{PARENT} 가 webview_layout_tests 모듈을 선언하지 않는다. 모듈 경로 {MODULE} 가 바뀌었다면 이 검사와 워크플로를 함께 고친다."
+        parent.contains(&format!("mod {leaf};")),
+        "{PARENT} 가 {leaf} 모듈을 선언하지 않는다. 모듈 경로 {module} 가 바뀌었다면 이 검사와 워크플로를 함께 고친다."
     );
-    let text =
-        std::fs::read_to_string(root.join(FILE)).expect("webview_layout_tests.rs 를 읽지 못했다");
+    let text = std::fs::read_to_string(root.join(&file))
+        .unwrap_or_else(|e| panic!("{file} 를 읽지 못했다: {e}"));
     let fns = test_fns_with_ignore(&text);
     assert_eq!(
         fns.len(),
         1,
-        "{FILE} 의 시험이 {}개다({fns:?}). 지목 실행은 한 이름만 고르므로 시험을 늘리면 워크플로 호출과 이 검사를 함께 바꾼다.",
+        "{file} 의 시험이 {}개다({fns:?}). 지목 실행은 한 이름만 고르므로 시험을 늘리면 워크플로 호출과 이 검사를 함께 바꾼다.",
         fns.len()
     );
     let (name, ignored) = &fns[0];
@@ -1530,7 +1537,7 @@ fn the_webview_layout_step_names_the_one_layout_test() {
         *ignored,
         "{name} 에 #[ignore] 가 없다. Xvfb 안에서 도는 차단 단계인 --lib --bins 단계에서도 실행된다."
     );
-    let full = format!("{MODULE}::{name}");
+    let full = format!("{module}::{name}");
 
     let invocations = automatic_test_invocations(&root);
     assert!(

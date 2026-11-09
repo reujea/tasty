@@ -21,7 +21,7 @@ DPI 수동 변환 검사는 `src/`와 `crates/`의 파일 수 하한을 각각 �
 | macOS 컴파일 + 단위테스트 | `cargo check --workspace --locked` · `cargo test --workspace --lib --bins --locked --no-fail-fast` | `crossplatform-check-macos.yml` 의 `check-macos` (self-hosted macOS) | main push(문서 제외) · PR · 수동 | [실측] |
 | Windows lint + 단위테스트 **+ 지목 통합** | `cargo clippy --workspace --all-targets --locked` · `cargo test --workspace --lib --bins --locked --no-fail-fast` · `cargo test -p tasty-shm -p tasty-doc-guards --locked --no-fail-fast` | `crossplatform-check.yml` (self-hosted Windows) | main push(문서 제외) · PR · 수동 | [실측] |
 | Windows ARM64 컴파일 | `cargo check --workspace --all-targets --target aarch64-pc-windows-msvc --locked` (x64 러너에서 교차 컴파일, 테스트·링크 없음, C 의존성은 MSVC ARM64 빌드 도구 필요 — [release](release.md#windows-arm64)) | `crossplatform-check.yml` 의 `check-windows-arm64` (self-hosted Windows) | main push(문서 제외) · PR · 수동 | [배선] |
-| headless 컴파일 · **전체 스위트** · lint **+ Linux gui 단위테스트** | `cargo check --workspace --no-default-features --locked` · `cargo test --workspace --no-default-features --locked --no-fail-fast` · `cargo clippy --workspace --all-targets --no-default-features --locked` · `xvfb-run … cargo test --workspace --lib --bins --locked --no-fail-fast`(스텝 `cargo test (linux, gui, unit)` — 기본 feature, Xvfb 안에서 실행, 아래 [gui 단위 단계의 Xvfb](#gui-단위-단계의-xvfb)) · **관측(비차단)** `xvfb-run … cargo test --workspace --locked --no-fail-fast --test e2e_tests -- multi_window_owner_routing --exact`(스텝 `cargo test (linux, gui, e2e — 관측용)`, `continue-on-error: true` — 헤드리스 조합에서 컴파일하지 않는 이 시험을 돌리되 실패해도 잡을 차단하지 않는다) · **관측(비차단)** `xvfb-run … cargo test -p tasty-plugin-markdown --locked --no-fail-fast -- --ignored --exact render::webview_layout_tests::address_bar_stays_on_top_in_webkitgtk`(스텝 `cargo test (linux, gui, webview layout — 관측용)`, `continue-on-error: true` — markdown 주소창 배치를 WebKitGTK 로 재는 Linux 전용 시험, 아래 [webview 레이아웃 시험](#webview-레이아웃-시험)) | `crossplatform-check.yml` 의 `check-headless` (self-hosted Linux X64) | main push(문서 제외) · PR · 수동 | [실측] |
+| headless 컴파일 · **전체 스위트** · lint **+ Linux gui 단위테스트** | `cargo check --workspace --no-default-features --locked` · `cargo test --workspace --no-default-features --locked --no-fail-fast` · `cargo clippy --workspace --all-targets --no-default-features --locked` · `xvfb-run … cargo test --workspace --lib --bins --locked --no-fail-fast`(스텝 `cargo test (linux, gui, unit)` — 기본 feature, Xvfb 안에서 실행, 아래 [gui 단위 단계의 Xvfb](#gui-단위-단계의-xvfb)) · **관측(비차단)** `xvfb-run … cargo test --workspace --locked --no-fail-fast --test e2e_tests -- multi_window_owner_routing --exact`(스텝 `cargo test (linux, gui, e2e — 관측용)`, `continue-on-error: true` — 헤드리스 조합에서 컴파일하지 않는 이 시험을 돌리되 실패해도 잡을 차단하지 않는다) · **관측(비차단)** `xvfb-run … cargo test -p tasty-plugin-markdown --locked --no-fail-fast -- --ignored --exact render::webview_layout_tests::address_bar_stays_on_top_in_webkitgtk`·`render::bed_focus_webkit_tests::bed_focus_sheet_switches_state_values_in_place`(스텝 `cargo test (linux, gui, webview layout — 관측용)`, `continue-on-error: true` — markdown 주소창 배치와 바탕 포커스 시트를 WebKitGTK 로 재는 Linux 전용 시험, 아래 [webview 레이아웃 시험](#webview-레이아웃-시험)) | `crossplatform-check.yml` 의 `check-headless` (self-hosted Linux X64) | main push(문서 제외) · PR · 수동 | [실측] |
 | **not-debug(release) 컴파일 · gui** | `cargo check --workspace --release --locked` | `crossplatform-check.yml` 의 `check-release` (self-hosted Linux X64) | main push(문서 제외) · PR · 수동 | [실측] |
 | 문서 가드 | `cargo test -p tasty-doc-guards --locked --no-fail-fast` | `doc-guards.yml` (ubuntu-latest) | main push · PR · 수동 — **경로 필터 없음**([가드 검증](guard-verification.md)) | [실측] |
 | 파일 SLOC | `bash scripts/check-file-size.sh` | `complexity-check.yml` (self-hosted Linux X64) | main push(문서 제외) · PR · 수동 | [실측] |
@@ -707,6 +707,7 @@ grep -E '^test result:' gui-unit.log | grep -vc ' ok\.'
 화면 밖 WebKitGTK 창에 띄우고 `getBoundingClientRect()` 로 주소창 배치를 잰다. 긴 문서 끝과 앵커
 이동 뒤에 주소창 `top` 이 0 인지, 짧은 문서의 `body` 가 뷰포트 높이를 채우는지를 본다. 콜아웃 라벨이 찾기와 선택 문자열에 잡히는지도 실제 찾기 스크립트와 `Selection.toString()` 으로 본다. 생성 CSS
 문자열 시험은 선언만 보므로, 문자열 시험이 보지 않는 선언이 배치를 깨는 경우는 이 시험만 실패한다.
+`render/bed_focus_webkit_tests.rs` 는 호스트의 바탕 포커스 시트([WebView §바탕 포커스 상태](../design/systems/webview.md#바탕-포커스-상태))를 넣고 뺄 때 문서를 다시 싣지 않고 바탕·표 칸·zebra 계산값이 바뀌는지, 스크롤과 선택이 그대로인지, JS 를 끈 문서의 바탕 픽셀이 바뀌는지, 시트를 먼저 넣고 실은 문서가 처음부터 focus 값인지를 본다.
 하네스는 같은 HTML 을 같은 엔진의 기본 설정으로 배치한다. 호스트가 WebView 에 주는 zoom·JS 게이트·콘텐츠
 필터는 재현하지 않는다.
 
@@ -719,10 +720,11 @@ grep -E '^test result:' gui-unit.log | grep -vc ' ok\.'
 - **디스플레이가 필요해 `#[ignore]` 다.** 그래서 `check-headless` 의 gui 유닛 단계(`--lib --bins`)는
   Xvfb 안에서 돌지만 이 시험은 ignored 로만 세고 실행하지 않는다. 실행은 같은 잡의 `cargo test (linux, gui, webview layout — 관측용)`
   단계가 xvfb-run 안에서 이름으로 지목해서 한다. `DISPLAY` 가 없으면 조용히 통과하지 않고 실패한다.
+- **파일마다 시험이 하나다.** GTK 는 한 프로세스에서 한 스레드만 초기화하고 libtest 는 `--test-threads=1` 에서도 시험마다 스레드를 따로 만든다(측정). 그래서 두 파일의 시험을 각각 다른 프로세스로 지목한다. 단계 스크립트는 기본 셸의 `-e` 로 돌므로 앞 호출이 실패하면 뒤 호출은 실행되지 않는다.
 - 지목 실행은 이름이 어긋나면 `0 passed` 로 통과하므로, 문서 가드
-  `the_webview_layout_step_names_the_one_layout_test`(`ci_channel_claims_match_workflows.rs`)가 그 파일의
+  `the_webview_layout_step_names_the_one_layout_test`(`ci_channel_claims_match_workflows.rs`)가 두 파일 각각의
   `#[ignore]` 시험이 하나뿐인지와, 자동 잡의 호출이 `-p tasty-plugin-markdown … -- --ignored --exact
-  render::webview_layout_tests::<그 이름>` 으로 고르는지를 함께 본다. e2e 단계의
+  render::<모듈>::<그 이름>` 으로 고르는지를 함께 본다. e2e 단계의
   `the_gui_layer_a_display_revives_is_exactly_the_one_named_test` 와 같은 형태다.
 - **관측용이다.** e2e 단계와 같이 `continue-on-error: true` 라 실패해도 잡을 차단하지 않으므로, 결과는
   단계 conclusion 으로 확인한다. 차단으로 승격하는 기준(연속 통과 횟수)은 e2e 와 함께 아직 정하지 않았다. X64 러너에서 이 단계의 실행 결과는
@@ -733,6 +735,9 @@ grep -E '^test result:' gui-unit.log | grep -vc ' ok\.'
 env -u WAYLAND_DISPLAY -u DISPLAY xvfb-run -a --server-args="-screen 0 1920x1080x24" \
   cargo test -p tasty-plugin-markdown --locked --no-fail-fast -- --ignored --exact \
   render::webview_layout_tests::address_bar_stays_on_top_in_webkitgtk
+env -u WAYLAND_DISPLAY -u DISPLAY xvfb-run -a --server-args="-screen 0 1920x1080x24" \
+  cargo test -p tasty-plugin-markdown --locked --no-fail-fast -- --ignored --exact \
+  render::bed_focus_webkit_tests::bed_focus_sheet_switches_state_values_in_place
 ```
 
 `gui_tests` 에 자동 채널이 없다. 각 시험이 `#[ignore]`이므로 디스플레이만 제공해서는
