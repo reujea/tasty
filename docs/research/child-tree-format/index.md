@@ -16,6 +16,48 @@ AI 에이전트가 child 트리를 어떤 텍스트 형식으로 받을 때 정�
 - 지연은 구독 부하와 동시에 실행 중인 다른 작업의 영향을 받는다.
 - CLI마다 시스템 프롬프트 구성이 달라 모델 사이 토큰 절댓값은 비교하지 않는다.
 
+## 입력의 한계
+
+생성한 입력을 기준으로 정해진 사실이다. 값은 `data/manifest.json`에 있고 측정 수치의 한계와 구분한다.
+
+- `real`은 2026-11-09의 한 스냅샷이고 노드 16개다. 스냅샷을 잡은 작업 자신과 동시에 돌던 작업이 트리에 들어 있다.
+- `real`에는 `needs_input`과 `stale`이 없다. 합성 트리는 같은 모양 조건을 지키되 이 두 상태를 1개씩 강제한다(`synthetic_forced`). 깊이는 강제하지 않았다.
+- `real`의 `q1`, `q2`, `q3`는 변별력이 낮다(`low_discrimination`). `q1`은 후보가 모두 silent이고, `q2`는 그 상태가 없으며, `q3`는 답이 빈 목록이다. 형식 비교에서 이 세 질문의 차이를 크게 읽지 않는다.
+- `q1`의 N은 트리마다 다르다. `real`은 5분이고 합성 트리는 보고 시각 간격이 커서 수천 분이다.
+- 측정의 `id`는 `n` 뒤 세 자리이고 실제 surface 번호와 형태가 다르다. 실제 출력에서 번호 형태가 읽기에 주는 영향은 이 측정으로 알 수 없다.
+- 합성 트리의 값은 `real`에서 뽑은 분포로 만들었으므로 스냅샷 하나의 특성을 물려받는다.
+
+## 재현
+
+스크립트는 [`scripts/child-tree-format/`](../../../scripts/child-tree-format)에 있고 저장소 루트에서 실행한다. 입력 파일은 `data/` 아래에 추적한다.
+
+| 목적 | 명령 | 종료 코드 |
+|---|---|---|
+| 자체 시험. 모델을 부르지 않는다 | `python3 -B scripts/child-tree-format/selftest.py` | 0 통과, 1 실패, 2 시험 없음 |
+| 입력 재생성 대조 | `python3 -B scripts/child-tree-format/generate_inputs.py --check` | 0 같음, 1 다름, 2 판정 불가 |
+| 호출 수 출력 | `python3 -B scripts/child-tree-format/generate_inputs.py --counts` | 0 |
+| 판정 구간 해시와 모든 판본 대조 | `python3 -B scripts/child-tree-format/check_rules.py` | 0 같음, 1 바뀜, 2 판정 불가 |
+| 원자료의 판본과 순서 대조 | `python3 -B scripts/child-tree-format/check_rules.py --raw <원자료 파일>` | 0 문제 없음, 1 문제 있음, 2 판정 불가 |
+| 공개 패턴 검사 | `python3 -B scripts/child-tree-format/check_anonymity.py --public-only` | 0 위반 없음, 1 위반, 2 판정 불가 |
+| 요약 생성과 대조 | `python3 -B scripts/child-tree-format/summarize.py`, 대조는 `--check`를 더한다 | 0 같음, 1 다름, 2 판정 불가 |
+
+스냅샷 원본, 대응표, 금지어 파일은 커밋하지 않으므로 `capture_snapshot.py`와 `anonymize.py`의 재실행은 원본을 가진 컴퓨터에서만 된다. `generate_inputs.py`는 추적한 `data/trees/real.json`을 입력으로 삼으므로 어디서든 같은 바이트를 만든다.
+
+실행 순서는 다음과 같다. 호출은 구독 사용량을 쓰므로 실행 담당의 승인을 받은 뒤에만 한다. `--data`는 하위 명령 앞에 둔다.
+
+1. 시험: `runner.py run --phase pilot --claude-utilization-unit <fraction|percent>`
+2. 수준 제안: `usage_level.py --pilot data/raw/pilot.jsonl --windows <창 값 JSON>`
+3. 승인 기록: `runner.py approve --level <수준> --windows <창 값 JSON> --approved-u '{"claude": <u>, "codex": <u>}'`
+4. 본 실행: `runner.py run --phase main --level <수준> --claude-utilization-unit <fraction|percent>`. 끊기면 같은 명령이 원자료에서 이어서 실행한다.
+5. 중단 뒤: `runner.py resume --phase main --level <수준> --usage <제안 JSON> [--approved-by <이름>]`. 재개와 거절은 조건 값과 함께 `data/raw/level-changes.jsonl`에 남는다. 종류는 `level_change`, `abort`, `resume`, `resume_refused`, `run_options`다.
+6. 요약: `summarize.py`, 대조는 `check_rules.py --raw`.
+
+러너의 호출 제한 시간 기본값은 600초이고 `--timeout`으로 바꾼다. 규칙에 정한 값이 없어 실행 조건으로 기록한다.
+
+Claude 사용량 이벤트의 `utilization` 단위와 도구 위반으로 칠 응답 항목 종류, Codex 사용량 창을 읽는 경로는 소규모 시험에서 실제 값으로 확인한다. 그때까지 이 세 가지는 가짜 CLI로만 시험한 상태다. 러너는 단위를 추측하지 않고 인자로 받는다. Codex 쪽 `seven_day_percent`는 지금 읽지 않으므로 승인 u 대비 상승 검사는 Claude에만 적용된다.
+
+규칙 1의 `A_best`를 가진 형식이 여럿이면 `U_best`로 그중 가장 큰 값을 쓴다. 어느 형식을 최고로 부르느냐에 따라 후보 집합이 달라지지 않게 하려는 구현 선택이고, 판정 규칙 구간을 고치지 않는다.
+
 ## 인용
 
 아래 세 논문은 2026-11-09에 arXiv PDF의 본문을 직접 읽었다. 이 측정의 결론을 뒷받침하는 자료가 아니라 설계 참고 자료다. 어느 논문도 이 측정의 여섯 형식 전체를 비교하지 않고, 이 측정에 쓰는 모델을 시험하지 않았다.
