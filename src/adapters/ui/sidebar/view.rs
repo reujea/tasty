@@ -1373,8 +1373,8 @@ fn draw_workspace_card(
     let bg = state.fill(th);
 
     // 행 배경은 모서리와 바깥 여백 없이 사이드바 폭을 채운다.
-    // 제목·REMOTE 줄·부제·설명은 모두 점 슬롯과 간격 뒤에서 시작한다.
-    let body_indent = th.workspace_dot_slot().value() + th.workspace_dot_gap().value();
+    // 제목·REMOTE 줄·부제·설명은 모두 점 슬롯, 숫자 칸과 간격 뒤에서 시작한다.
+    let body_indent = tasty_ui_widgets::workspace_row_body_offset(ui, th, ws.busy_count);
     let frame = egui::Frame::new().fill(bg).inner_margin(egui::Margin {
         left: th.workspace_row_padding_x().value() as i8,
         right: card_inner_margin_x(th),
@@ -1382,16 +1382,12 @@ fn draw_workspace_card(
         bottom: card_inner_margin_y(th),
     });
 
-    let mut loading_shown = false;
-    let mut occupied_dot = None;
+    let mut dot_slot = card_status::DotSlot::default();
     let mut remote_line = None;
     let response = frame.show(ui, |ui| {
         ui.set_min_width(ui.available_width());
         ui.horizontal(|ui| {
-            ui.spacing_mut().item_spacing.x = th.workspace_dot_gap().value();
-            let slot = card_status::paint_dot_slot(ui, th, ws, bg, switch_digit, switch_fade);
-            loading_shown = slot.loading;
-            occupied_dot = slot.occupied_dot;
+            dot_slot = card_status::paint_dot_slot(ui, th, ws, state, switch_digit, switch_fade);
             let name_color = state.label(th, RowParent::Mantle, th.text_secondary());
 
             // 배지 폭을 먼저 확보하고 남은 폭에 이름을 줄여 표시한다.
@@ -1523,8 +1519,9 @@ fn draw_workspace_card(
 
     CardPaint {
         rect: card_rect,
-        loading: loading_shown,
-        occupied_dot,
+        loading: dot_slot.loading,
+        occupied_dot: dot_slot.occupied_dot,
+        running_count: dot_slot.running_count,
         remote_line,
     }
 }
@@ -2006,6 +2003,219 @@ mod tests {
             ctx.read_response(card.with("occupied_dot"))
                 .is_some_and(|r| r.hovered())
         );
+    }
+
+    /// 그려진 글자와 왼쪽 x. 숫자와 이름의 위치를 비교한다.
+    fn painted_texts(output: &egui::FullOutput) -> Vec<(String, f32)> {
+        fn walk(shape: &egui::Shape, out: &mut Vec<(String, f32)>) {
+            match shape {
+                egui::Shape::Text(text) => out.push((text.galley.text().to_owned(), text.pos.x)),
+                egui::Shape::Vec(shapes) => shapes.iter().for_each(|s| walk(s, out)),
+                _ => {}
+            }
+        }
+        let mut out = Vec::new();
+        for clipped in &output.shapes {
+            walk(&clipped.shape, &mut out);
+        }
+        out
+    }
+
+    fn x_of(texts: &[(String, f32)], text: &str) -> f32 {
+        texts
+            .iter()
+            .find(|(t, _)| t == text)
+            .unwrap_or_else(|| panic!("{text} not painted: {texts:?}"))
+            .1
+    }
+
+    fn counted_ws(name: &str, busy_count: usize) -> WorkspaceEntryView {
+        WorkspaceEntryView {
+            busy_count,
+            subtitle: format!("{name}-sub"),
+            description: format!("{name}-desc"),
+            is_mirror: true,
+            ..mock_ws(name, false)
+        }
+    }
+
+    fn counted_frame(
+        ctx: &egui::Context,
+        workspaces: &[WorkspaceEntryView],
+        collapsed: bool,
+        input: egui::RawInput,
+    ) -> egui::FullOutput {
+        loading_sidebar_frame(ctx, &test_theme(), workspaces, collapsed, false, input)
+    }
+
+    #[test]
+    fn a_zero_row_paints_no_numeral_and_a_counted_row_paints_it_before_the_name() {
+        let workspaces = [counted_ws("quiet", 0), counted_ws("busy", 3)];
+        let ctx = egui::Context::default();
+        let output = counted_frame(&ctx, &workspaces, false, egui::RawInput::default());
+        let texts = painted_texts(&output);
+        assert!(!texts.iter().any(|(t, _)| t == "0"), "{texts:?}");
+        let theme = test_theme();
+        let card = ctx
+            .read_response(egui::Id::new(("ws_card", 1usize)))
+            .expect("card");
+        let numeral = x_of(&texts, "3");
+        assert_eq!(
+            numeral,
+            card.rect.min.x
+                + theme.workspace_row_padding_x().value()
+                + theme.workspace_dot_slot().value()
+                + theme.workspace_running_count_gap().value()
+        );
+        assert!(numeral < x_of(&texts, "busy"));
+    }
+
+    #[test]
+    fn body_lines_share_the_name_x_and_only_an_overflow_row_moves() {
+        let workspaces = [
+            counted_ws("zero", 0),
+            counted_ws("one", 1),
+            counted_ws("nine", 99),
+            counted_ws("over", 100),
+        ];
+        let output = counted_frame(
+            &egui::Context::default(),
+            &workspaces,
+            false,
+            egui::RawInput::default(),
+        );
+        let texts = painted_texts(&output);
+        for name in ["zero", "one", "nine", "over"] {
+            let x = x_of(&texts, name);
+            assert_eq!(x, x_of(&texts, &format!("{name}-sub")), "{name} subtitle");
+            assert_eq!(
+                x,
+                x_of(&texts, &format!("{name}-desc")),
+                "{name} description"
+            );
+        }
+        assert_eq!(x_of(&texts, "zero"), x_of(&texts, "one"));
+        assert_eq!(x_of(&texts, "zero"), x_of(&texts, "nine"));
+        assert!(x_of(&texts, "over") > x_of(&texts, "zero"), "{texts:?}");
+        assert_eq!(x_of(&texts, "99+"), x_of(&texts, "99"));
+    }
+
+    #[test]
+    fn the_collapsed_rail_paints_no_numeral() {
+        let workspaces = [counted_ws("busy", 3)];
+        let output = counted_frame(
+            &egui::Context::default(),
+            &workspaces,
+            true,
+            egui::RawInput::default(),
+        );
+        let texts = painted_texts(&output);
+        assert!(!texts.iter().any(|(t, _)| t == "3"), "{texts:?}");
+    }
+
+    /// 숫자 칸 위에 포인터를 두고 눌렀다 뗀다. 칸 위치는 첫 프레임의 글자 위치로 찾는다.
+    fn on_the_numeral(
+        workspaces: &[WorkspaceEntryView],
+        press: bool,
+    ) -> (egui::Context, Vec<SidebarFullAction>) {
+        let ctx = egui::Context::default();
+        let first = counted_frame(&ctx, workspaces, false, egui::RawInput::default());
+        let texts = painted_texts(&first);
+        let (_, x) = texts
+            .iter()
+            .find(|(t, _)| t == "3")
+            .expect("numeral painted");
+        let card = ctx
+            .read_response(egui::Id::new(("ws_card", 0usize)))
+            .expect("card");
+        let at = egui::pos2(*x + 1.0, card.rect.min.y + 6.0);
+        let mut events = vec![vec![egui::Event::PointerMoved(at)], vec![]];
+        if press {
+            let button = |pressed| egui::Event::PointerButton {
+                pos: at,
+                button: egui::PointerButton::Primary,
+                pressed,
+                modifiers: egui::Modifiers::NONE,
+            };
+            events.push(vec![button(true)]);
+            events.push(vec![button(false)]);
+        }
+        let theme = test_theme();
+        let kb = crate::settings::KeybindingSettings::default();
+        let mut actions = Vec::new();
+        for events in events {
+            let input = egui::RawInput {
+                events,
+                ..Default::default()
+            };
+            drop(ctx.run(input, |ctx| {
+                egui::SidePanel::left("test_loading_keycap").show(ctx, |ui| {
+                    let props = SidebarFullProps {
+                        theme: &theme,
+                        kb: &kb,
+                        workspaces,
+                        categories: None,
+                        drag: None,
+                        notifications: None,
+                        tools_label: "Tools",
+                        collapse_label: "Collapse",
+                        plugins_label: "Plugins",
+                        settings_label: "Settings",
+                        new_workspace_label: "New Workspace",
+                        workspaces_heading: "WORKSPACES",
+                        occupied_hover: "Held by another client",
+                        mirror_hover: "Mirror of a remote workspace",
+                        mirror_pill_label: "REMOTE",
+                        plugin_alert: 0,
+                        workspace_switch_held: false,
+                        category_switch_held: false,
+                    };
+                    actions.extend(draw_full_sidebar_view(ui, &props).actions);
+                });
+            }));
+        }
+        (ctx, actions)
+    }
+
+    #[test]
+    fn the_tooltip_zone_covers_the_numeral_and_leaves_the_row_click_alone() {
+        let workspaces = [mock_ws_busy("busy", 3)];
+        let (ctx, _) = on_the_numeral(&workspaces, false);
+        let card = egui::Id::new(("ws_card", 0usize));
+        assert!(ctx.read_response(card).is_some_and(|r| r.hovered()));
+        assert!(
+            ctx.read_response(card.with("running_count"))
+                .is_some_and(|r| r.hovered())
+        );
+        let (_, actions) = on_the_numeral(&workspaces, true);
+        assert!(
+            actions
+                .iter()
+                .any(|a| matches!(a, SidebarFullAction::WorkspaceClicked(0))),
+            "click on the numeral must still switch the workspace"
+        );
+    }
+
+    #[test]
+    fn a_zero_row_registers_no_tooltip_zone() {
+        let ctx = egui::Context::default();
+        let workspaces = [mock_ws_busy("quiet", 0)];
+        drop(counted_frame(
+            &ctx,
+            &workspaces,
+            false,
+            egui::RawInput::default(),
+        ));
+        let card = egui::Id::new(("ws_card", 0usize));
+        assert!(ctx.read_response(card).is_some());
+        assert!(ctx.read_response(card.with("running_count")).is_none());
+    }
+
+    fn mock_ws_busy(name: &str, busy_count: usize) -> WorkspaceEntryView {
+        WorkspaceEntryView {
+            busy_count,
+            ..mock_ws(name, false)
+        }
     }
 
     fn run_collapsed(

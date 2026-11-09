@@ -135,7 +135,7 @@ D2Coding 11px에서 확인한 예에서는 공칭 advance가 5.5556px, 한 글�
 <a id="egui-세금-디자인--즉시모드-변환-시"></a>
 
 ### CSS와 egui의 표현 차이
-- **폰트 weight**(medium/semibold/bold): egui 는 별도 bold family 없이는 굵기 재현 불가.
+- **폰트 weight**(medium/semibold/bold): egui 는 별도 bold family 없이는 굵기 재현 불가. 워크스페이스 행의 running 개수(medium)도 크기와 색으로만 근사한다.
   크기+색(또는 `.strong()` 색 보정)만 따른다 — 디자인 weight 차이는 시각상 미세 손실.
 - **radius-pill**(완전 둥금): egui CornerRadius 로 `height/2` 사용.
 - **`color-mix(accent 40%, transparent)`**(Tag 상태 보더): `accent.gamma_multiply(0.4)`.
