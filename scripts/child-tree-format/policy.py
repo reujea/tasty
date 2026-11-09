@@ -11,8 +11,10 @@ from common import MODELS
 from score import call_outcome
 
 API_ABORTS = {"api_failure_exhausted"}
-USAGE_ABORTS = {"usage_limit", "allowed_warning", "u_exceeded"}
+USAGE_ABORTS = {"usage_limit", "allowed_warning", "u_exceeded", "usage_unread", "usage_unit_suspect"}
 U_MARGIN = 5
+UNIT_CHECK_FROM = 5
+UNIT_CHECK_RATIO = 10
 
 
 @dataclass
@@ -25,6 +27,7 @@ class Ledger:
     retries_used: int = 0
     level: str = None
     approved_u: dict = field(default_factory=dict)
+    unread_usage_approved: bool = False
     abort: str = None
     abort_values: dict = field(default_factory=dict)
     calls_seen: int = 0
@@ -53,10 +56,13 @@ def _apply_record(ledger, record):
             _abort(ledger, "api_failure_exhausted", call=call, failures=ledger.api_fails[call])
     _apply_usage_stop(ledger, record, windows)
     cli = MODELS[record["model"]]["cli"]
-    used = windows.get("seven_day_percent")
-    allowed = ledger.approved_u.get(cli)
-    if used is not None and allowed is not None and used >= allowed + U_MARGIN and not ledger.abort:
-        _abort(ledger, "u_exceeded", used=used, approved=allowed, cli=cli)
+    readings = {cli: windows.get("seven_day_percent"), **(windows.get("seven_day_by_window") or {})}
+    readings.pop("seven_day", None)
+    _check_readings(ledger, cli, readings)
+    unread = windows.get("seven_day_percent") is None
+    if outcome == "scored" and record.get("phase") == "main" and cli == "claude" and unread:
+        if not ledger.unread_usage_approved and _can_stop_for_usage(ledger):
+            _abort(ledger, "usage_unread", call=call)
 
 
 def _apply_usage_stop(ledger, record, windows):
@@ -75,6 +81,27 @@ def _apply_usage_stop(ledger, record, windows):
         _abort(ledger, "allowed_warning", call=call)
 
 
+def _can_stop_for_usage(ledger):
+    return not ledger.abort or ledger.abort in API_ABORTS
+
+
+def _check_readings(ledger, cli, readings):
+    """Compare seven day readings with the approved u. A window without its own value uses the CLI value.
+
+    A reading far under an approved value of its own means the unit was named
+    wrong, and then the rise check could never fire. A window that only borrows
+    the CLI value can be small for real, so it is left out of that check.
+    """
+    for name, used in readings.items():
+        allowed = ledger.approved_u.get(name, ledger.approved_u.get(cli))
+        if used is None or allowed is None or not _can_stop_for_usage(ledger):
+            continue
+        if used >= allowed + U_MARGIN:
+            _abort(ledger, "u_exceeded", used=used, approved=allowed, cli=cli, window=name)
+        elif name in ledger.approved_u and allowed >= UNIT_CHECK_FROM and used < allowed / UNIT_CHECK_RATIO:
+            _abort(ledger, "usage_unit_suspect", used=used, approved=allowed, cli=cli, window=name)
+
+
 def _abort(ledger, reason, **values):
     ledger.abort = reason
     ledger.abort_values = values
@@ -85,6 +112,9 @@ def _apply_entry(ledger, entry):
     if kind == "level_change":
         ledger.level = entry["to"]
         ledger.approved_u = entry.get("approved_u") or {}
+        ledger.unread_usage_approved = bool(entry.get("unread_usage_approved"))
+    elif kind == "usage_note":
+        _check_readings(ledger, entry["cli"], {entry["cli"]: entry["used_percent"]})
     elif kind == "resume":
         ledger.abort = None
         ledger.abort_values = {}

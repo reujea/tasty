@@ -194,7 +194,11 @@ def repo_status(root):
 def record_abort(cfg, ledger, reason, seen):
     """Write one abort entry per stopping point. A rerun must not add a second one."""
     log = read_jsonl(log_path(cfg.data))
-    same = [e for e in log if e.get("kind") == "abort" and e.get("calls_seen") == seen and e.get("phase") == cfg.phase]
+    same = [
+        e for e in log
+        if e.get("kind") == "abort" and e.get("calls_seen") == seen
+        and e.get("phase") == cfg.phase and e.get("reason") == reason
+    ]
     if same:
         return
     append_line(log_path(cfg.data), {
@@ -266,7 +270,7 @@ def approved_u_problem(approved_u):
     return None
 
 
-def approve(data, level, windows, approved_u):
+def approve(data, level, windows, approved_u, allow_unread_usage=False):
     """Record an approved level. After the last planned call the level can no longer change."""
     problem = approved_u_problem(approved_u)
     if problem:
@@ -282,8 +286,32 @@ def approve(data, level, windows, approved_u):
             return 1
     append_line(log_path(data), {
         "kind": "level_change", "at": now(), "from": ledger.level, "to": level,
-        "windows": windows, "approved_u": approved_u, "calls_seen": len(records),
+        "windows": windows, "approved_u": approved_u, "unread_usage_approved": allow_unread_usage,
+        "calls_seen": len(records),
     })
+    return 0
+
+
+def note_usage(data, cli, used_percent):
+    """Record a usage value a person read. Exit code 3 means the next run stops on it."""
+    if not _is_percent(used_percent):
+        print("refused: the used percent must be a number", file=sys.stderr)
+        return 2
+    records = read_jsonl(raw_path(data, "main"))
+    log = read_jsonl(log_path(data))
+    if not policy.replay(records, log).approved_u:
+        print("refused: no approved level to compare with", file=sys.stderr)
+        return 2
+    append_line(log_path(data), {
+        "kind": "usage_note", "phase": "main", "at": now(), "cli": cli,
+        "used_percent": used_percent, "calls_seen": len(records),
+    })
+    ledger = policy.replay(records, read_jsonl(log_path(data)))
+    if ledger.abort:
+        print(f"aborted: {ledger.abort}")
+        return 3
+    if ledger.approved_u.get(cli) is None:
+        print(f"recorded only: {cli} has no approved u to compare with")
     return 0
 
 
@@ -337,6 +365,10 @@ def main(argv=None):
     ok.add_argument("--level", choices=tuple(LEVELS), required=True)
     ok.add_argument("--windows", required=True, help="window values as JSON")
     ok.add_argument("--approved-u", required=True, help='approved u per CLI and window, such as {"claude": 69.9, "codex": null}')
+    ok.add_argument("--allow-unread-usage", action="store_true", help="run Claude calls that report no seven day value")
+    note = commands.add_parser("note-usage")
+    note.add_argument("--cli", choices=("claude", "codex"), required=True)
+    note.add_argument("--used-percent", type=float, required=True)
     back = commands.add_parser("resume")
     back.add_argument("--phase", choices=("pilot", "main"), default="main")
     back.add_argument("--level", choices=tuple(LEVELS))
@@ -349,7 +381,10 @@ def main(argv=None):
             return approve(
                 data, args.level,
                 json.loads(Path(args.windows).read_text(encoding="utf-8")), json.loads(args.approved_u),
+                args.allow_unread_usage,
             )
+        if args.command == "note-usage":
+            return note_usage(data, args.cli, args.used_percent)
         if args.command == "resume":
             usage = json.loads(Path(args.usage).read_text(encoding="utf-8"))
             return resume(data, args.phase, args.level, usage, args.approved_by)

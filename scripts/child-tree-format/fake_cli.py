@@ -20,7 +20,7 @@ SESSION_MARK = "session-that-must-not-be-stored"
 SCENARIOS = {
     "normal", "tool_call", "json_error", "api_error", "timeout", "allowed_warning",
     "rejected", "http_429", "usage_message", "no_result", "crash", "high_usage",
-    "rejected_then_hang", "warning_then_error",
+    "rejected_then_hang", "warning_then_error", "no_seven_day", "model_window",
 }
 
 
@@ -47,10 +47,15 @@ def claude(scenario, prompt):
         "rejected": "rejected", "rejected_then_hang": "rejected",
     }.get(scenario, "allowed")
     seven = 0.9 if scenario == "high_usage" else 0.2
+    unified = {} if scenario == "no_seven_day" else {"seven_day": {"utilization": seven}}
     emit({"type": "rate_limit_event", "rate_limit_info": {
         "status": status, "rateLimitType": "five_hour", "resetsAt": 1, "utilization": 0.1,
-        "unifiedWindows": {"seven_day": {"utilization": seven}},
+        "unifiedWindows": unified,
     }})
+    if scenario == "model_window":
+        emit({"type": "rate_limit_event", "rate_limit_info": {
+            "status": "allowed", "rateLimitType": "seven_day_top", "resetsAt": 1, "utilization": 0.95,
+        }})
     if scenario == "rejected_then_hang":
         time.sleep(60)
     content = [{"type": "thinking", "thinking": "x"}, {"type": "text", "text": "y"}]

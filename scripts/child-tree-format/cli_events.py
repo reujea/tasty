@@ -59,7 +59,7 @@ def _empty():
         "error_kind": None,
         "status_code": None,
         "tool_violations": 0,
-        "windows": {"status": None, "by_type": {}, "seven_day_percent": None},
+        "windows": {"status": None, "by_type": {}, "seven_day_percent": None, "seven_day_by_window": {}},
     }
 
 
@@ -87,6 +87,13 @@ def _window(out, info, unit):
     seven = _percent(seven, unit) if seven is not None else (used if kind == "seven_day" else None)
     if seven is not None:
         windows["seven_day_percent"] = seven
+    # A model can have its own seven day window, which reaches its limit first.
+    if kind and kind.startswith("seven_day") and used is not None:
+        windows["seven_day_by_window"][kind] = used
+    for name, value in unified.items():
+        reading = value.get("utilization") if isinstance(value, dict) else None
+        if name.startswith("seven_day") and reading is not None:
+            windows["seven_day_by_window"][name] = _percent(reading, unit)
 
 
 def parse_claude(stdout, returncode, utilization_unit="fraction"):

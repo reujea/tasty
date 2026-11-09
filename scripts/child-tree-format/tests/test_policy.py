@@ -11,14 +11,86 @@ import policy
 import usage_level as ul
 
 
-def raw(call="a", model="claude-low", error=None, tools=0, status=None, seven=None):
+def raw(call="a", model="claude-low", error=None, tools=0, status=None, seven=None, by_window=None, phase=None):
     return {
-        "call_id": call, "model": model, "error_kind": error, "tool_violations": tools,
-        "windows": {"status": status, "seven_day_percent": seven},
+        "call_id": call, "model": model, "error_kind": error, "tool_violations": tools, "phase": phase,
+        "windows": {"status": status, "seven_day_percent": seven, "seven_day_by_window": by_window or {}},
     }
 
 
+def approval(approved, seen=0, **extra):
+    return {"kind": "level_change", "to": "L2", "approved_u": approved, "calls_seen": seen, **extra}
+
+
+def note(cli, used, seen=0):
+    return {"kind": "usage_note", "phase": "main", "cli": cli, "used_percent": used, "calls_seen": seen}
+
+
 PLAN = ["a", "b", "c"]
+
+
+class UsageReadings(unittest.TestCase):
+    OPEN = {"claude": 50.0, "codex": None}
+
+    def test_a_model_window_rise_stops_against_its_own_value(self):
+        high = raw(seven=20.0, by_window={"seven_day_top": 80.0})
+        self.assertEqual(step([high], [approval({"claude": 50.0, "seven_day_top": 90.0})]), ("run", ("b", 1, "first")))
+        over = raw(seven=20.0, by_window={"seven_day_top": 95.0})
+        self.assertEqual(step([over], [approval({"claude": 50.0, "seven_day_top": 90.0})]), ("abort", "u_exceeded"))
+
+    def test_a_model_window_without_a_value_uses_the_cli_value(self):
+        ledger = policy.replay([raw(seven=20.0, by_window={"seven_day_top": 55.0})], [approval(self.OPEN)])
+        self.assertEqual(ledger.abort, "u_exceeded")
+        self.assertEqual(ledger.abort_values["window"], "seven_day_top")
+
+    def test_a_usage_note_stops_at_the_margin(self):
+        log = [approval({"claude": 50.0, "codex": 30.0})]
+        self.assertEqual(step([], log + [note("codex", 34.9)]), ("run", ("a", 1, "first")))
+        self.assertEqual(step([], log + [note("codex", 35.0)]), ("abort", "u_exceeded"))
+
+    def test_a_usage_note_without_an_approved_value_only_records(self):
+        self.assertEqual(step([], [approval(self.OPEN), note("codex", 99.0)]), ("run", ("a", 1, "first")))
+
+    def test_a_resume_clears_a_note_stop(self):
+        log = [approval({"claude": 50.0, "codex": 30.0}), note("codex", 40.0), {"kind": "resume", "calls_seen": 0}]
+        self.assertEqual(step([], log), ("run", ("a", 1, "first")))
+
+    def test_a_note_stop_asks_for_a_person(self):
+        ledger = policy.replay([], [approval({"claude": 50.0, "codex": 30.0}), note("codex", 40.0)])
+        self.assertFalse(policy.resume_decision(ledger, 5, True)[0])
+        self.assertTrue(policy.resume_decision(ledger, 5, True, "someone")[0])
+
+    def test_a_main_claude_call_without_a_seven_day_value_stops(self):
+        call = raw(phase="main")
+        self.assertEqual(step([call], [approval(self.OPEN)]), ("abort", "usage_unread"))
+        self.assertEqual(
+            step([call], [approval(self.OPEN, unread_usage_approved=True)]), ("run", ("b", 1, "first")),
+        )
+
+    def test_only_a_scored_main_claude_call_needs_the_value(self):
+        for record in (raw(), raw(phase="pilot"), raw(model="codex", phase="main"), raw(phase="main", error="api_error")):
+            with self.subTest(record=record):
+                self.assertIsNone(policy.replay([record], [approval(self.OPEN)]).abort)
+
+    def test_a_value_far_under_the_approved_one_means_a_wrong_unit(self):
+        for approved, used, want in (
+            (50.0, 0.5, "usage_unit_suspect"), (50.0, 4.9, "usage_unit_suspect"), (50.0, 5.0, None), (50.0, 49.0, None),
+            (4.9, 0.1, None), (5.0, 0.1, "usage_unit_suspect"),
+        ):
+            with self.subTest(approved=approved, used=used):
+                ledger = policy.replay([raw(seven=used)], [approval({"claude": approved, "codex": None})])
+                self.assertEqual(ledger.abort, want)
+
+    def test_a_borrowed_value_does_not_call_a_small_model_window_a_wrong_unit(self):
+        record = raw(seven=45.0, by_window={"seven_day_top": 1.0})
+        self.assertIsNone(policy.replay([record], [approval(self.OPEN)]).abort)
+        self.assertEqual(
+            policy.replay([record], [approval({"claude": 50.0, "seven_day_top": 40.0})]).abort, "usage_unit_suspect",
+        )
+
+    def test_a_rise_replaces_an_api_stop_because_it_asks_more_of_a_resume(self):
+        failing = [raw(error="api_error"), raw(error="api_error"), raw(error="api_error", seven=60.0)]
+        self.assertEqual(step(failing, [approval(self.OPEN)]), ("abort", "u_exceeded"))
 
 
 def step(records, log=(), cap=5, plan=PLAN):

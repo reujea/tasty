@@ -315,6 +315,78 @@ class Levels(Base):
         self.assertEqual(runner.approve(self.data, "L1", [], APPROVED), 0)
         self.assertEqual(runner.run(self.config("main", "L2")), 2)
 
+    def first_claude(self, level="L2"):
+        return next(i for i, r in enumerate(self.rows(level)) if MODELS[r["model"]]["cli"] == "claude")
+
+    def test_a_claude_call_without_a_seven_day_value_stops_until_a_person_approves(self):
+        self.assertEqual(runner.approve(self.data, "L2", [], APPROVED), 0)
+        first = self.first_claude()
+        self.scenarios(["normal"] * first + ["no_seven_day"])
+        self.assertEqual(runner.run(self.config("main", "L2")), 3)
+        self.assertEqual(self.log()[-1]["reason"], "usage_unread")
+        self.assertEqual(runner.resume(self.data, "main", "L2", {"proposal": "L2"}), 1)
+        self.assertEqual(runner.approve(self.data, "L2", [], APPROVED, allow_unread_usage=True), 0)
+        self.assertEqual(runner.resume(self.data, "main", "L2", {"proposal": "L2"}, "someone"), 0)
+        self.scenarios(["no_seven_day"] * 2)
+        self.assertEqual(runner.run(self.config("main", "L2", max_calls=2)), 0)
+
+    def test_a_wrongly_named_percent_unit_stops_at_the_first_claude_call(self):
+        self.assertEqual(runner.approve(self.data, "L2", [], APPROVED), 0)
+        self.assertEqual(runner.run(self.config("main", "L2", utilization_unit="percent")), 3)
+        self.assertEqual(self.log()[-1]["reason"], "usage_unit_suspect")
+        self.assertEqual(len(self.raw("main")), self.first_claude() + 1)
+
+    def test_a_wrongly_named_fraction_unit_stops_at_the_first_claude_call(self):
+        self.assertEqual(runner.approve(self.data, "L2", [], {"claude": 0.2, "codex": None}), 0)
+        self.assertEqual(runner.run(self.config("main", "L2")), 3)
+        self.assertEqual(self.log()[-1]["reason"], "u_exceeded")
+
+    def test_a_model_window_stops_the_run(self):
+        self.assertEqual(runner.approve(self.data, "L2", [], APPROVED), 0)
+        first = self.first_claude()
+        self.scenarios(["normal"] * first + ["model_window"])
+        self.assertEqual(runner.run(self.config("main", "L2")), 3)
+        entry = self.log()[-1]
+        self.assertEqual((entry["reason"], entry["values"]["window"]), ("u_exceeded", "seven_day_top"))
+        self.assertEqual(self.raw("main")[-1]["windows"]["seven_day_by_window"]["seven_day_top"], 95.0)
+
+    def test_a_person_reads_codex_between_parts_of_the_run(self):
+        self.assertEqual(runner.approve(self.data, "L2", [], {"claude": 50.0, "codex": 30.0}), 0)
+        self.assertEqual(runner.run(self.config("main", "L2", max_calls=1)), 0)
+        self.assertEqual(runner.note_usage(self.data, "codex", 31.0), 0)
+        entry = self.log()[-1]
+        self.assertEqual((entry["kind"], entry["cli"], entry["used_percent"], entry["calls_seen"]), ("usage_note", "codex", 31.0, 1))
+        self.assertEqual(runner.note_usage(self.data, "codex", 36.0), 3)
+        before = len(self.fake_calls())
+        self.assertEqual(runner.run(self.config("main", "L2")), 3)
+        self.assertEqual(len(self.fake_calls()), before)
+        self.assertEqual(self.log()[-1]["reason"], "u_exceeded")
+
+    def test_a_new_reason_at_the_same_point_gets_its_own_abort_line(self):
+        self.assertEqual(runner.approve(self.data, "L2", [], {"claude": 50.0, "codex": 30.0}), 0)
+        self.assertEqual(runner.run(self.config("main", "L2", max_calls=1)), 0)
+        self.assertEqual(runner.note_usage(self.data, "codex", 40.0), 3)
+        self.assertEqual(runner.run(self.config("main", "L2")), 3)
+        self.assertEqual(runner.resume(self.data, "main", "L2", {"proposal": "L2"}, "someone"), 0)
+        self.assertEqual(runner.note_usage(self.data, "codex", 1.0), 3)
+        self.assertEqual(runner.run(self.config("main", "L2")), 3)
+        self.assertEqual(runner.run(self.config("main", "L2")), 3)
+        reasons = [e["reason"] for e in self.log() if e["kind"] == "abort"]
+        self.assertEqual(reasons, ["u_exceeded", "usage_unit_suspect"])
+
+    def test_a_note_needs_an_approval_and_a_number(self):
+        self.assertEqual(runner.note_usage(self.data, "codex", 31.0), 2)
+        self.assertEqual(runner.approve(self.data, "L2", [], APPROVED), 0)
+        self.assertEqual(runner.note_usage(self.data, "codex", float("nan")), 2)
+        self.assertEqual(runner.note_usage(self.data, "codex", 99.0), 0)
+        self.assertEqual(len(self.log()), 2)
+
+    def test_note_usage_command(self):
+        self.assertEqual(runner.approve(self.data, "L2", [], APPROVED), 0)
+        argv = ["--data", str(self.data), "note-usage", "--cli", "codex", "--used-percent", "12.5"]
+        self.assertEqual(runner.main(argv), 0)
+        self.assertEqual(self.log()[-1]["used_percent"], 12.5)
+
     def test_approved_u_has_to_guard_the_run(self):
         bad = (
             {}, [], None, {"codex": None}, {"claude": 50.0}, {"claude": None, "codex": None},
@@ -375,7 +447,7 @@ class Levels(Base):
         self.assertEqual(self.log()[-1]["reason"], "u_exceeded")
 
     def test_percent_unit_is_not_scaled(self):
-        self.assertEqual(runner.approve(self.data, "L2", [], APPROVED), 0)
+        self.assertEqual(runner.approve(self.data, "L2", [], {"claude": 1.0, "codex": None}), 0)
         rows = self.rows("L2")
         first = next(i for i, r in enumerate(rows) if MODELS[r["model"]]["cli"] == "claude")
         self.assertEqual(runner.run(self.config("main", "L2", max_calls=first + 1, utilization_unit="percent")), 0)
