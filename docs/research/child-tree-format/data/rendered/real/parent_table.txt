@@ -1,4 +1,4 @@
-| id | parent | nickname | state | cwd | last_report_at |
+| id | parents | nickname | state | cwd | last_report_at |
 |---|---|---|---|---|---|
 | n489 | - | - | exited | /work/repo-f/wt-01 | - |
 | n188 | n489 | lane-a | idle | /work/repo-b/wt-01 | 2026-01-04T17:47:10Z |

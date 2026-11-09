@@ -1,6 +1,7 @@
 """Inputs regenerate byte for byte and agree with the rules."""
 
 import json
+import math
 import re
 import shutil
 import subprocess
@@ -15,11 +16,12 @@ sys.dont_write_bytecode = True
 
 import anonymize
 import check_rules
-from common import DATA_DIR, FORMATS, LEVELS, RULES_PATH, TREES, depths, parse_time, rng, shift_seconds, sha256_bytes
+from common import DATA_DIR, FORMATS, LEVELS, MODELS, RULES_PATH, TREES, depths, parse_time, rng, shift_seconds, sha256_bytes, validate_nodes
 from generate_inputs import compare_trees, generate
 from prompts import build_user_prompt, prompt_hash, question_order
 from render import check_read_back
 from schedule import call_counts, planned_calls, retry_cap_rule
+from synth import dag_checks, diamond_nodes
 
 HERE = Path(__file__).resolve().parents[1]
 
@@ -49,12 +51,13 @@ class Generation(unittest.TestCase):
             generate(real, DATA_DIR, Path(b))
             self.assertEqual(compare_trees(Path(a), Path(b)), [])
             self.assertEqual(compare_trees(Path(a), DATA_DIR), [])
-            self.assertGreater(len(list(Path(a).rglob("*.txt"))), 18)
+            # 16 renderings and 2 templates.
+            self.assertEqual(len(list(Path(a).rglob("*.txt"))), 18)
 
     def test_manifest_hashes_match_the_files(self):
         manifest = load("manifest.json")
-        # 3 trees, 18 renderings, 3 question and 3 answer files, 4 schedules, 2 templates.
-        self.assertEqual(len(manifest["files"]), 33)
+        # 4 graphs, 16 renderings, 4 question and 4 answer files, 4 schedules, 2 templates.
+        self.assertEqual(len(manifest["files"]), 34)
         for rel, digest in manifest["files"].items():
             self.assertEqual(sha256_bytes((DATA_DIR / rel).read_bytes()), digest, rel)
 
@@ -66,7 +69,7 @@ class Generation(unittest.TestCase):
                 text = (DATA_DIR / f"rendered/{tree}/{fmt}.txt").read_text(encoding="utf-8").rstrip("\n")
                 check_read_back(fmt, nodes, text)
                 checked += 1
-        self.assertEqual(checked, 18)
+        self.assertEqual(checked, 16)
 
     def test_synthetic_sizes_and_forced_items(self):
         manifest = load("manifest.json")
@@ -80,6 +83,60 @@ class Generation(unittest.TestCase):
             self.assertEqual(len(times), len(set(times)), "synthetic times must not overlap")
             self.assertEqual(max(times), "2026-01-05T12:00:00Z")
         self.assertEqual(manifest["real_shape"]["nodes"], len(load("trees/real.json")["nodes"]))
+
+    def test_old_trees_have_one_parent_at_most(self):
+        for tree in ("real", "synthetic_40", "synthetic_80"):
+            self.assertTrue(all(len(n["parents"]) <= 1 for n in load(f"trees/{tree}.json")["nodes"]), tree)
+
+    def test_the_dag_has_several_parents_and_diamonds(self):
+        nodes = load("trees/dag_40.json")["nodes"]
+        validate_nodes(nodes)
+        self.assertEqual(len(nodes), 40)
+        self.assertGreaterEqual(sum(len(n["parents"]) > 1 for n in nodes), 8)
+        self.assertGreaterEqual(len(diamond_nodes(nodes)), 3)
+        self.assertEqual(load("manifest.json")["dag_checks"], dag_checks(nodes))
+        for state in ("active", "idle", "needs_input", "stale", "exited"):
+            self.assertTrue(any(n["state"] == state for n in nodes), state)
+
+    def test_the_dag_states_follow_the_dependency_meaning(self):
+        nodes = load("trees/dag_40.json")["nodes"]
+        by_id = {n["id"]: n for n in nodes}
+        for node in nodes:
+            if node["state"] != "idle":
+                # Only a node whose parents have all exited has started.
+                self.assertTrue(all(by_id[p]["state"] == "exited" for p in node["parents"]), node["id"])
+
+    def test_the_dag_answers_match_an_independent_count(self):
+        nodes = load("trees/dag_40.json")["nodes"]
+        answers = load("answers/dag_40.json")
+        questions = {q["id"]: q for q in load("questions/dag_40.json")["questions"]}
+        self.assertEqual(set(questions), {f"q{i}" for i in range(1, 20)} - {"q9", "q10"})
+        self.assertIsNone(answers["q19"])
+        state = {n["id"]: n["state"] for n in nodes}
+        parents = {n["id"]: n["parents"] for n in nodes}
+        idle = {i for i, s in state.items() if s == "idle"}
+        ran = {i for i in idle if all(state[p] == "exited" for p in parents[i])}
+        self.assertEqual(set(answers["q17"]), ran)
+        self.assertEqual(set(answers["q16"]), idle - ran)
+        self.assertTrue(ran and idle - ran)
+        # Walk upward from each node instead of downward as the answer code does.
+        target = questions["q18"]["params"]["f"]
+
+        def reaches(node_id):
+            return any(p == target or reaches(p) for p in parents[node_id])
+
+        self.assertEqual(answers["q18"], sorted(i for i in parents if reaches(i)))
+        self.assertTrue(answers["q18"])
+        self.assertEqual(answers["q7"], sum(1 for i in parents if self._above(parents, i, questions["q7"]["params"]["a"])))
+
+    @staticmethod
+    def _above(parents, node_id, target):
+        return any(p == target or Generation._above(parents, p, target) for p in parents[node_id])
+
+    def test_the_old_tree_questions_stay_on_the_trees(self):
+        for tree in ("real", "synthetic_40", "synthetic_80"):
+            ids = [q["id"] for q in load(f"questions/{tree}.json")["questions"]]
+            self.assertEqual(ids, [f"q{i}" for i in range(1, 16)], tree)
 
     def test_no_markdown_under_data(self):
         self.assertEqual(list(DATA_DIR.rglob("*.md")), [])
@@ -100,7 +157,7 @@ class Generation(unittest.TestCase):
                 for placeholder in ("{format_name}", "{missing_note}", "{T}", "{rendered}", "{N}", "{questions}"):
                     self.assertNotIn(placeholder, user)
                 checked += 1
-        self.assertEqual(checked, 6 + 162 + 126 + 84)
+        self.assertEqual(checked, 6 + 144 + 112 + 84)
 
     def test_templates_are_the_text_in_the_rules(self):
         text = RULES_PATH.read_text(encoding="utf-8")
@@ -111,7 +168,7 @@ class Generation(unittest.TestCase):
     def test_question_table_matches_the_rules(self):
         text = RULES_PATH.read_text(encoding="utf-8")
         table = dict(re.findall(r"^\| `(q\d+)` \| [^|]+ \| [^|]+ \| `([^`]+)` \|$", text, re.M))
-        self.assertEqual(len(table), 15)
+        self.assertEqual(len(table), 19)
         for tree in TREES:
             for question in load(f"questions/{tree}.json")["questions"]:
                 wanted = table[question["id"]]
@@ -126,14 +183,32 @@ class Schedules(unittest.TestCase):
     def test_counts_come_from_the_plan_and_match_the_rules(self):
         counts = call_counts()
         self.assertEqual(counts["pilot"]["calls"], 6)
-        self.assertEqual({k: counts[k]["calls"] for k in LEVELS}, {"L0": 162, "L1": 126, "L2": 84})
+        self.assertEqual({k: counts[k]["calls"] for k in LEVELS}, {"L0": 144, "L1": 112, "L2": 84})
         for level in LEVELS:
             self.assertEqual(counts[level]["calls"], len(planned_calls(level)))
             self.assertEqual(counts[level]["retry_cap"], retry_cap_rule(counts[level]["calls"]))
 
+    def test_retry_caps_are_the_written_values(self):
+        counts = call_counts()
+        self.assertEqual({k: counts[k]["retry_cap"] for k in LEVELS}, {"L0": 15, "L1": 12, "L2": 9})
+        # The old total of pilot cap, calls and retries was 187 for 162 calls.
+        self.assertEqual(counts["pilot"]["upper_bound"] + counts["L0"]["upper_bound"], math.ceil(144 * 187 / 162))
+
+    def test_the_pilot_checks_dot_on_the_dag_and_the_table_on_the_largest_tree(self):
+        rows = [json.loads(line) for line in (DATA_DIR / "schedules/pilot.jsonl").read_text(encoding="utf-8").splitlines()]
+        self.assertEqual(len(rows), 6)
+        cells = {(r["tree"], r["format"]) for r in rows}
+        self.assertEqual(cells, {("dag_40", "dot"), ("synthetic_80", "parent_table")})
+        for cell in cells:
+            self.assertEqual({r["model"] for r in rows if (r["tree"], r["format"]) == cell}, set(MODELS))
+
+    def test_every_level_keeps_the_dag(self):
+        for level in LEVELS:
+            self.assertIn("dag_40", LEVELS[level]["trees"])
+
     def test_order_differs_by_call_and_is_stable(self):
         rows = [json.loads(line) for line in (DATA_DIR / "schedules/L0.jsonl").read_text(encoding="utf-8").splitlines()]
-        self.assertEqual(len({r["call_id"] for r in rows}), 162)
+        self.assertEqual(len({r["call_id"] for r in rows}), 144)
         self.assertGreater(len({tuple(r["order"]) for r in rows}), 100)
         self.assertNotEqual([r["call_id"] for r in rows], sorted(r["call_id"] for r in rows))
 
@@ -168,10 +243,10 @@ class Anonymize(unittest.TestCase):
         self.assertEqual(nodes[ids["60"]]["cwd"], nodes[ids["70"]]["cwd"], "same source, same pseudonym")
         self.assertIsNone(nodes[ids["70"]]["nickname"])
         self.assertIsNone(nodes[ids["50"]]["last_report_at"])
-        self.assertIsNone(nodes[ids["80"]]["parent"], "an external parent becomes a root")
+        self.assertEqual(nodes[ids["80"]]["parents"], [], "an external parent becomes a root")
         self.assertEqual(tree["capture"]["external_parent_roots"], 1)
         self.assertEqual(tree["capture"]["cwd_unknown_nodes"], 1)
-        self.assertEqual(set(nodes[ids["60"]]), {"id", "parent", "nickname", "state", "cwd", "last_report_at"})
+        self.assertEqual(set(nodes[ids["60"]]), {"id", "parents", "nickname", "state", "cwd", "last_report_at"})
 
     def test_milliseconds_floor_before_the_clock_shift(self):
         tree, local = anonymize.anonymize(raw_snapshot())

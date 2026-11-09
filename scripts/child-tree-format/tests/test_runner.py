@@ -139,7 +139,8 @@ class Normal(Base):
             self.assertEqual(hashlib.sha256(f"{system}\n\n{user}".encode()).hexdigest(), row["prompt_sha256"])
 
     def test_changed_input_cannot_run(self):
-        rendered = self.data / "rendered/synthetic_80" / f"{self.rows()[0]['format']}.txt"
+        row = self.rows()[0]
+        rendered = self.data / "rendered" / row["tree"] / f"{row['format']}.txt"
         rendered.write_text(rendered.read_text() + "x\n")
         with self.assertRaises(ValueError):
             runner.run(self.config())

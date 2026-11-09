@@ -1,17 +1,20 @@
-Each node has an id, a nickname, a state, a cwd and a last_report_at, and sits under at most one parent. A node without a parent is a root.
-Tree format: {format_name}
+Each node has an id, a nickname, a state, a cwd and a last_report_at, and has zero or more parents. A node without a parent is a root.
+Graph format: {format_name}
 {missing_note}
 Reference time: {T}
 
-<tree>
+<graph>
 {rendered}
-</tree>
+</graph>
 
 Definitions:
 - States: active is working, idle is waiting for a new task, needs_input is waiting for user input, stale has shown no recent activity, exited is gone.
-- Descendants of X are all nodes below X at any depth, not X itself.
-- Siblings of X are the other nodes with the same parent. A root has no siblings.
+- Descendants of X are all nodes below X at any depth, each counted once, not X itself.
+- Siblings of X are the other nodes that share at least one parent with X. A root has no siblings.
 - A node is silent when its state is active or stale and its last_report_at is at least {N} minutes before the reference time. A node without a last_report_at is not silent.
+- A node is runnable when its state is idle and every parent has state exited. An idle node without a parent is runnable.
+- A node is blocked when its state is idle and at least one parent has a state other than exited.
+- The failure impact of X is all descendants of X.
 
 Answer rules:
 - Reply with one JSON object only, with no code fence and no explanation. Use each question id as a key.

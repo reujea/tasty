@@ -13,7 +13,7 @@
  "nodes": [
   {
    "id": "n489",
-   "parent": null,
+   "parents": [],
    "nickname": null,
    "state": "exited",
    "cwd": "/work/repo-f/wt-01",
@@ -21,7 +21,9 @@
   },
   {
    "id": "n188",
-   "parent": "n489",
+   "parents": [
+    "n489"
+   ],
    "nickname": "lane-a",
    "state": "idle",
    "cwd": "/work/repo-b/wt-01",
@@ -29,7 +31,9 @@
   },
   {
    "id": "n335",
-   "parent": "n489",
+   "parents": [
+    "n489"
+   ],
    "nickname": "lane-g",
    "state": "idle",
    "cwd": "/work/repo-c/wt-01",
@@ -37,7 +41,9 @@
   },
   {
    "id": "n461",
-   "parent": "n489",
+   "parents": [
+    "n489"
+   ],
    "nickname": "lane-d",
    "state": "idle",
    "cwd": "/work/repo-a/wt-01",
@@ -45,7 +51,9 @@
   },
   {
    "id": "n608",
-   "parent": "n489",
+   "parents": [
+    "n489"
+   ],
    "nickname": "lane-e",
    "state": "idle",
    "cwd": "/work/repo-d/wt-01",
@@ -53,7 +61,7 @@
   },
   {
    "id": "n677",
-   "parent": null,
+   "parents": [],
    "nickname": null,
    "state": "exited",
    "cwd": "/work/repo-f/wt-02",
@@ -61,7 +69,9 @@
   },
   {
    "id": "n582",
-   "parent": "n677",
+   "parents": [
+    "n677"
+   ],
    "nickname": "lane-n",
    "state": "active",
    "cwd": "/work/repo-e/wt-02",
@@ -69,7 +79,9 @@
   },
   {
    "id": "n352",
-   "parent": "n582",
+   "parents": [
+    "n582"
+   ],
    "nickname": "lane-f",
    "state": "active",
    "cwd": "/work/repo-e/wt-09",
@@ -77,7 +89,9 @@
   },
   {
    "id": "n556",
-   "parent": "n582",
+   "parents": [
+    "n582"
+   ],
    "nickname": "lane-o",
    "state": "active",
    "cwd": "/work/repo-e/wt-01",
@@ -85,7 +99,9 @@
   },
   {
    "id": "n696",
-   "parent": "n582",
+   "parents": [
+    "n582"
+   ],
    "nickname": null,
    "state": "idle",
    "cwd": "/work/repo-e/wt-05",
@@ -93,7 +109,9 @@
   },
   {
    "id": "n771",
-   "parent": "n582",
+   "parents": [
+    "n582"
+   ],
    "nickname": null,
    "state": "idle",
    "cwd": "/work/repo-e/wt-04",
@@ -101,7 +119,9 @@
   },
   {
    "id": "n811",
-   "parent": "n582",
+   "parents": [
+    "n582"
+   ],
    "nickname": "lane-c",
    "state": "active",
    "cwd": "/work/repo-e/wt-03",
@@ -109,7 +129,9 @@
   },
   {
    "id": "n814",
-   "parent": "n582",
+   "parents": [
+    "n582"
+   ],
    "nickname": "lane-j",
    "state": "active",
    "cwd": "/work/repo-e/wt-08",
@@ -117,7 +139,9 @@
   },
   {
    "id": "n106",
-   "parent": "n814",
+   "parents": [
+    "n814"
+   ],
    "nickname": "lane-l",
    "state": "idle",
    "cwd": "/work/repo-e/wt-08",
@@ -125,7 +149,9 @@
   },
   {
    "id": "n902",
-   "parent": "n582",
+   "parents": [
+    "n582"
+   ],
    "nickname": null,
    "state": "idle",
    "cwd": "/work/repo-e/wt-07",
@@ -133,7 +159,9 @@
   },
   {
    "id": "n990",
-   "parent": "n582",
+   "parents": [
+    "n582"
+   ],
    "nickname": null,
    "state": "active",
    "cwd": "/work/repo-e/wt-06",

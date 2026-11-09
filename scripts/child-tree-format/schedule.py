@@ -2,7 +2,7 @@
 
 import math
 
-from common import FORMATS, LEVELS, MODELS, PILOT_RETRY_CAP, PILOT_TREE, rng
+from common import FORMATS, LEVELS, MODELS, PILOT_CELLS, PILOT_RETRY_CAP, rng
 
 
 def call_id(tree, fmt, model, repeat, pilot=False):
@@ -22,8 +22,8 @@ def planned_calls(level):
     ]
 
 
-def pilot_calls(smallest, largest):
-    return [(PILOT_TREE, fmt, model, 1) for fmt in (smallest, largest) for model in MODELS]
+def pilot_calls():
+    return [(tree, fmt, model, 1) for tree, fmt in PILOT_CELLS for model in MODELS]
 
 
 def shuffled(key, calls, pilot=False):
@@ -36,7 +36,7 @@ def shuffled(key, calls, pilot=False):
 def call_counts():
     """Return the planned and capped call counts of each level, computed from the plan."""
     result = {
-        "pilot": {"calls": len(MODELS) * 2, "retry_cap": PILOT_RETRY_CAP},
+        "pilot": {"calls": len(pilot_calls()), "retry_cap": PILOT_RETRY_CAP},
     }
     for level, plan in LEVELS.items():
         result[level] = {"calls": len(planned_calls(level)), "retry_cap": plan["retry_cap"]}

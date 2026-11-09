@@ -243,43 +243,151 @@
     5970
    ],
    "repositories": 25
+  },
+  "dag_40": {
+   "nodes": 40,
+   "depth_counts": {
+    "0": 2,
+    "1": 5,
+    "2": 8,
+    "3": 9,
+    "4": 8,
+    "5": 5,
+    "6": 3
+   },
+   "max_depth": 6,
+   "children_per_parent": [
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    2,
+    2,
+    2,
+    2,
+    2,
+    2,
+    2,
+    2,
+    2,
+    2,
+    3,
+    3,
+    3,
+    3,
+    3,
+    3,
+    4,
+    5
+   ],
+   "state_counts": {
+    "active": 2,
+    "idle": 21,
+    "needs_input": 2,
+    "stale": 2,
+    "exited": 13
+   },
+   "nickname_missing": 15,
+   "report_time_missing": 5,
+   "report_gaps_seconds": [
+    10718,
+    1950,
+    17,
+    1950,
+    4409,
+    494,
+    4,
+    1950,
+    494,
+    2,
+    5970,
+    87,
+    155,
+    40534,
+    4,
+    5970,
+    5970,
+    494,
+    3180,
+    4409,
+    494,
+    5970,
+    87,
+    3180,
+    494,
+    40534,
+    494,
+    1950,
+    2,
+    5970,
+    1950,
+    2,
+    40534,
+    4409
+   ],
+   "repositories": 15
   }
+ },
+ "dag_checks": {
+  "nodes": 40,
+  "edges": 56,
+  "multi_parent_nodes": 15,
+  "diamond_nodes": 13,
+  "runnable_with_several_parents": 1,
+  "blocked_with_an_exited_parent": 3
  },
  "rendered_bytes": {
   "real": {
-   "parent_table": 1241,
+   "parent_table": 1242,
    "adjacency": 1641,
-   "mermaid": 1768,
-   "flat_json": 2082,
-   "nested_json": 2033,
-   "indented": 1483
+   "flat_json": 2122,
+   "dot": 1999
   },
   "synthetic_40": {
-   "parent_table": 2989,
+   "parent_table": 2990,
    "adjacency": 4111,
-   "mermaid": 4400,
-   "flat_json": 5214,
-   "nested_json": 5094,
-   "indented": 3721
+   "flat_json": 5310,
+   "dot": 4951
   },
   "synthetic_80": {
-   "parent_table": 5914,
+   "parent_table": 5915,
    "adjacency": 8238,
-   "mermaid": 8833,
-   "flat_json": 10443,
-   "nested_json": 10196,
-   "indented": 7462
+   "flat_json": 10643,
+   "dot": 9928
+  },
+  "dag_40": {
+   "parent_table": 3092,
+   "adjacency": 4189,
+   "flat_json": 5460,
+   "dot": 5391
   }
  },
- "pilot_formats": {
-  "smallest": "parent_table",
-  "largest": "flat_json"
- },
+ "pilot_cells": [
+  [
+   "dag_40",
+   "dot"
+  ],
+  [
+   "synthetic_80",
+   "parent_table"
+  ]
+ ],
  "questions": {
   "real": {
    "asked": 15,
    "silent_minutes": 5,
    "dropped": [],
+   "not_asked": [
+    "q16",
+    "q17",
+    "q18",
+    "q19"
+   ],
    "low_discrimination": [
     "q1: every candidate is silent",
     "q2: the state is absent",
@@ -290,13 +398,37 @@
    "asked": 15,
    "silent_minutes": 4445,
    "dropped": [],
+   "not_asked": [
+    "q16",
+    "q17",
+    "q18",
+    "q19"
+   ],
    "low_discrimination": []
   },
   "synthetic_80": {
    "asked": 15,
    "silent_minutes": 3270,
    "dropped": [],
+   "not_asked": [
+    "q16",
+    "q17",
+    "q18",
+    "q19"
+   ],
    "low_discrimination": []
+  },
+  "dag_40": {
+   "asked": 17,
+   "silent_minutes": 1244,
+   "dropped": [],
+   "not_asked": [
+    "q9",
+    "q10"
+   ],
+   "low_discrimination": [
+    "q19: the graph has no cycle, so a fixed null is right"
+   ]
   }
  },
  "call_counts": {
@@ -306,14 +438,14 @@
    "upper_bound": 8
   },
   "L0": {
-   "calls": 162,
-   "retry_cap": 17,
-   "upper_bound": 179
+   "calls": 144,
+   "retry_cap": 15,
+   "upper_bound": 159
   },
   "L1": {
-   "calls": 126,
-   "retry_cap": 13,
-   "upper_bound": 139
+   "calls": 112,
+   "retry_cap": 12,
+   "upper_bound": 124
   },
   "L2": {
    "calls": 84,
@@ -322,38 +454,39 @@
   }
  },
  "files": {
+  "answers/dag_40.json": "2ca13dee086737075459ac7dec02445312677ac28b663906ee2c32b64042bd3c",
   "answers/real.json": "5062824adf5ac65bf8b2aeeec0c266aaa3d1e84c19ce3cfef1139ac085445409",
   "answers/synthetic_40.json": "f4d21c3a63b288f94226a273e51305f6bf5c86099a6c259ee1001eb7dd2d9c9a",
   "answers/synthetic_80.json": "d9ff02fbe9d1849b55f8b6e8e8df368f5df039c4479b70abeaf61f413cf4b342",
-  "prompts/system.txt": "4308a39e0b93589e2c6f955a6f0ca1396d3280000d81435408d4d9c09b2afdf1",
-  "prompts/user.txt": "c58dfe4d195e27aa19cdd5df16bf8c1b0524dfd663d9a7093f32c1397546c8cf",
+  "prompts/system.txt": "0b10e50cecc63877d1efcb4f36fd74df89398df907403c14696411f7341f8f08",
+  "prompts/user.txt": "58fc74c8bd91cfb939c4588ff4d521d2ce09a32e9ceae5032a9fe9dc5d3cb0a0",
+  "questions/dag_40.json": "7034a68c5a22f87be84854a6e26cee2affd50697235a04e08e1e6dc3a19e1a35",
   "questions/real.json": "90be0bd24fd30a065861fa6ac6fb58e2dd46e89d27f9971b961bbc298f1a8516",
   "questions/synthetic_40.json": "68b3e77cb0fc8644360a7d7522cf21751be06a8fa314d00a048b9bff423c612e",
   "questions/synthetic_80.json": "7783105935de8b4ab967a8354889d43346e28cdee1a1054b7f639052c44f9552",
+  "rendered/dag_40/adjacency.txt": "ee01759048a1a99e93d56cd24592a7f596ec143f787ac399daa83c91bfb42515",
+  "rendered/dag_40/dot.txt": "32f9b1de1865cd3d802930c863c19399d212e1a9a24cf3c9687d1af83e00c175",
+  "rendered/dag_40/flat_json.txt": "e63a310924e2563cfea231dd2eed59ffa3e85c110552fee23f10fae28d320962",
+  "rendered/dag_40/parent_table.txt": "c62cffc040d4a86b7cb7197f5c8527225de5aad81632ef6b3ef9d7c3a642f2eb",
   "rendered/real/adjacency.txt": "cc24740307d332bf27fb937e40685f79c9c65682f33a11f1fd1f2e15be59f1e1",
-  "rendered/real/flat_json.txt": "082d551cbde3b473ecbc4ff708d44fa06082246015629e361b2768b865082c10",
-  "rendered/real/indented.txt": "c066a69f089cb7afebef4d4a7cf5f6f37a7c1ca43d90b51d83d5ac9e8786d0d1",
-  "rendered/real/mermaid.txt": "d2f0b123a1dbde0640a84ce39811a7c3fd209b489f607a95077932112693f4f7",
-  "rendered/real/nested_json.txt": "b9a30c912dcd9c4356e54ae6f72100b66968da664b363f1b8c7ffc0a6662f654",
-  "rendered/real/parent_table.txt": "34204a4793de81bb27184eb54891ac6bf4c39abe1e6bb4c437b4ada0ab38be34",
+  "rendered/real/dot.txt": "eeffb55428625e720aca4ce8fe26918533e9ac5e6b0c5a1b723e2fc7765b3e57",
+  "rendered/real/flat_json.txt": "c2020f4c49f70b7f521a3b8824245e7f5aa5d45471d58433b0c5b84f8f2a3a70",
+  "rendered/real/parent_table.txt": "2dbb1138ada335f2f6c7fa87ac9ff8413650804956165ac9a4858a03479ca2de",
   "rendered/synthetic_40/adjacency.txt": "f1288808e8aaf8e12fd20bfffa87416005e269e31b822929d4d9af68f17fe40a",
-  "rendered/synthetic_40/flat_json.txt": "0618dbeb02612e504fbf78943a2160f07f6d02faa0dd519849ee3efbdc86039f",
-  "rendered/synthetic_40/indented.txt": "25a6ca22c84d220d1bf8f734fd7bc01a8c709eb9a7d97cdfdee18bdd645cc560",
-  "rendered/synthetic_40/mermaid.txt": "7fa3c51eed3bd138e52bf041eb998095d7ef9035139ad701cfdca5ab8817134b",
-  "rendered/synthetic_40/nested_json.txt": "ed36d0b9f79ace01a33a6ce7083642ed823dcaf592f0c9069506371d6bc030ba",
-  "rendered/synthetic_40/parent_table.txt": "237ec2480f68891f2ac31814b30c7bba17c43a20a1f7a1658d2891d617a71844",
+  "rendered/synthetic_40/dot.txt": "afc9db82608bc5cf8fb1bab40d762028d21a21aafa07c7848307515b32a4b3f4",
+  "rendered/synthetic_40/flat_json.txt": "5da14e86ee6f5a02086b76b3c4b6ca1c71ef50443f5eb4a8587172aa25594b85",
+  "rendered/synthetic_40/parent_table.txt": "7a18026a3cb5c390bbd0205615a5d6ce87b7bf0b5f2130d616febe17e83aa48e",
   "rendered/synthetic_80/adjacency.txt": "3bf7ff03f0b7f74318d10828d1b393de70b091deac973f67973b028b18c8ae29",
-  "rendered/synthetic_80/flat_json.txt": "3a6d188cf4f0f071bff7bf9c62ef0118cefc34868d74a56a2841080db35b27d6",
-  "rendered/synthetic_80/indented.txt": "91917e4384139bd214f07e62bb7c0a96c84b5efa05a3e6d8fe171c697a760745",
-  "rendered/synthetic_80/mermaid.txt": "a9a110342d12aaafda0508fba32c26d2db594578f1980bea262e59b3d22928e4",
-  "rendered/synthetic_80/nested_json.txt": "be8c697c6910bde445f10672386ee995f634eeb054b50e5c8610dfe8134ade7c",
-  "rendered/synthetic_80/parent_table.txt": "d53e3b2a1ea866e512e2b371988ae723203d5e336dcd4b75ecba0166be7ea787",
-  "schedules/L0.jsonl": "9ac233f790d9f908c75161d72e9d78aa9bb8308f0609301bb76841555c7f7ace",
-  "schedules/L1.jsonl": "0aa52ef6f960ff729275aa985cfdf6a32528058e1440134dc08c482181070a38",
-  "schedules/L2.jsonl": "2122892456cbab2ddf6bbe5ba4e8693faadddc0338fd80ecba83215087e6334b",
-  "schedules/pilot.jsonl": "bb5b97d2b8ffed347a8933ea6f1ffb15c23eab0d73fda810b924505680cadd13",
-  "trees/real.json": "b1b9ce91e2d2227bdc2d5dc64e8b361b20107299e02d3e3aec3bf7b99f23dc1e",
-  "trees/synthetic_40.json": "9778e46ca0b963e278abbabc6ab506118f06641dcee8b7a2c2f88b96b64fc109",
-  "trees/synthetic_80.json": "80df2d3a1260963c3aebe129cca9be9e7b0035f2e4772ccf66914ec82ff5223b"
+  "rendered/synthetic_80/dot.txt": "ede36b1fbe68295c89ad52b09fcd770844c5cd2fbc6920cab6c3509a9c28ea07",
+  "rendered/synthetic_80/flat_json.txt": "5123b1dc1d8e13a2c66a22b026574c725022332d864d86b54b0b2fad7aeaa7ae",
+  "rendered/synthetic_80/parent_table.txt": "dae063665a443a21c4227e6b21c1da256e12ae0a8ad916724b0f358f2b00e413",
+  "schedules/L0.jsonl": "8951473046a65525d8ad778f37f7275cdfbdbc5375257a4bbbeca5b3a491e06b",
+  "schedules/L1.jsonl": "f0f525ccf48a14e16429d32ca51e728324c3e442cdf229129229a822dead66db",
+  "schedules/L2.jsonl": "367a409ddb8fa2a88f436dc21b26a408f0392fa62eb2c232c53b8b363b4a7ca9",
+  "schedules/pilot.jsonl": "0cd4d36dca6af4b6ec76b6215415c11e7e3f618dcc5a2cb108325c9a56299672",
+  "trees/dag_40.json": "64bc032fd81328aef83af6684f7dd69e056fcc7313ccd3495568370514c8a229",
+  "trees/real.json": "0139be03e313540be01b77adfb0a90f3c278de5b5d4d0f53445cd19b0b291be7",
+  "trees/synthetic_40.json": "c9f3b809e1e32d1c65caa39d0ff11c3dbf1438a8e9660a52384aa8d5680a0ba8",
+  "trees/synthetic_80.json": "f2144e109cc445c5caf6f87828b125be1881b19a9a08328616e839dc335920dd"
  }
 }

@@ -31,11 +31,20 @@ KINDS = {
     "q13": ("structure", "int"),
     "q14": ("trap", "null"),
     "q15": ("trap", "null"),
+    "q16": ("dependency", "id_set"),
+    "q17": ("dependency", "id_set"),
+    "q18": ("impact", "id_set"),
+    "q19": ("cycle", "null"),
 }
 Q11_TEXT = (
     "Among nodes whose state is not exited and that have a last_report_at, "
     "which id has the oldest last_report_at?"
 )
+
+
+Q19_TEXT = "Does the graph have a cycle? List the ids of the nodes on cycles, or answer null when there is no cycle."
+TREE_ONLY = ("q9", "q10")
+DAG_ONLY = ("q16", "q17", "q18", "q19")
 
 
 def _seconds_before_reference(node):
@@ -98,6 +107,47 @@ def question_11(nodes):
     return root, answer
 
 
+def runnable_nodes(nodes):
+    """Return the idle nodes whose parents have all exited. A root has no parent to wait for."""
+    by_id = {n["id"]: n for n in nodes}
+    return sorted(
+        n["id"] for n in nodes
+        if n["state"] == "idle" and all(by_id[p]["state"] == "exited" for p in n["parents"])
+    )
+
+
+def blocked_nodes(nodes):
+    """Return the idle nodes with at least one parent that has not exited."""
+    by_id = {n["id"]: n for n in nodes}
+    return sorted(
+        n["id"] for n in nodes
+        if n["state"] == "idle" and any(by_id[p]["state"] != "exited" for p in n["parents"])
+    )
+
+
+def cycle_nodes(nodes):
+    """Return the nodes on a cycle: those reachable from themselves."""
+    return sorted(n["id"] for n in nodes if n["id"] in descendants(nodes, n["id"]))
+
+
+def cycle_answer(nodes):
+    """Return (shape, answer) of the cycle question. No cycle is the null answer."""
+    found = cycle_nodes(nodes)
+    return ("id_set", found) if found else ("null", None)
+
+
+def _impact_candidates(nodes):
+    """Prefer nodes that reach a descendant by two paths, so counting once matters."""
+    by_id = {n["id"]: n for n in nodes}
+    picked = []
+    for node_id in sorted(by_id):
+        below = descendants(nodes, node_id)
+        reach = set(below) | {node_id}
+        if any(sum(p in reach for p in by_id[d]["parents"]) >= 2 for d in below):
+            picked.append(node_id)
+    return picked or _candidates_with_descendants(nodes)
+
+
 def _lowest_common_ancestor(nodes, first, second):
     above = set(path_to_root(nodes, first))
     for node_id in path_to_root(nodes, second):
@@ -154,7 +204,12 @@ def _q12_candidates(nodes):
 
 
 def build_questions(tree, nodes):
-    """Return (questions, answers, notes) for one tree."""
+    """Return (questions, answers, notes) for one graph.
+
+    A graph with a node of several parents is a DAG. It has no single path or
+    lowest common ancestor, so q9 and q10 go. The dependency questions fit only a DAG.
+    """
+    is_dag = any(len(n["parents"]) > 1 for n in nodes)
     by_id = {n["id"]: n for n in nodes}
     by_kids = children_map(nodes)
     questions = []
@@ -162,8 +217,9 @@ def build_questions(tree, nodes):
     dropped = []
     low_discrimination = []
 
-    def add(qid, text, answer, **params):
-        kind, shape = KINDS[qid]
+    def add(qid, text, answer, shape=None, **params):
+        kind, default_shape = KINDS[qid]
+        shape = shape or default_shape
         questions.append({"id": qid, "kind": kind, "shape": shape, "text": text, "params": params})
         answers[qid] = answer
 
@@ -210,11 +266,11 @@ def build_questions(tree, nodes):
         else:
             add("q4", f"What is the cwd of the node {b4}?", by_id[b4]["cwd"], b=b4)
 
-    b5 = pick("q5", deep)
+    b5 = pick("q5", [i for i in deep if len(by_id[i]["parents"]) == 1])
     if b5 is None:
         dropped.append("q5")
     else:
-        add("q5", f"What is the id of the parent of {b5}?", by_id[b5]["parent"], b=b5)
+        add("q5", f"What is the id of the parent of {b5}?", by_id[b5]["parents"][0], b=b5)
 
     a6 = pick("q6", with_kids)
     if a6 is None:
@@ -235,21 +291,22 @@ def build_questions(tree, nodes):
         count = sum(1 for i in descendants(nodes, a8) if by_id[i]["state"] == "active")
         add("q8", f"How many descendants of {a8} have state active?", count, a=a8)
 
-    c9 = pick("q9", deep)
-    if c9 is None:
-        dropped.append("q9")
-    else:
-        path = list(reversed(path_to_root(nodes, c9)))
-        add("q9", f"Give the ids on the path from the root down to {c9}, including both ends.", path, c=c9)
+    if not is_dag:
+        c9 = pick("q9", deep)
+        if c9 is None:
+            dropped.append("q9")
+        else:
+            path = list(reversed(path_to_root(nodes, c9)))
+            add("q9", f"Give the ids on the path from the root down to {c9}, including both ends.", path, c=c9)
 
-    pairs = _lca_pairs(nodes)
-    pair = pick("q10", pairs)
-    if pair is None:
-        dropped.append("q10")
-    else:
-        c10, d10 = pair
-        ancestor = _lowest_common_ancestor(nodes, c10, d10)
-        add("q10", f"What is the id of the lowest common ancestor of {c10} and {d10}?", ancestor, c=c10, d=d10)
+        pairs = _lca_pairs(nodes)
+        pair = pick("q10", pairs)
+        if pair is None:
+            dropped.append("q10")
+        else:
+            c10, d10 = pair
+            ancestor = _lowest_common_ancestor(nodes, c10, d10)
+            add("q10", f"What is the id of the lowest common ancestor of {c10} and {d10}?", ancestor, c=c10, d=d10)
 
     scope, oldest = question_11(nodes)
     if oldest is None:
@@ -278,7 +335,32 @@ def build_questions(tree, nodes):
     missing_nick = _missing_nickname(nodes, rng("targets", f"{tree}/q15"))
     add("q15", f"What is the state of the node with nickname {missing_nick}?", None, missing_nick=missing_nick)
 
+    if is_dag:
+        blocked = blocked_nodes(nodes)
+        add("q16", "List the ids of all blocked nodes.", blocked)
+        if not blocked:
+            low_discrimination.append("q16: empty answer")
+        runnable = runnable_nodes(nodes)
+        add("q17", "List the ids of all runnable nodes.", runnable)
+        if not runnable:
+            low_discrimination.append("q17: empty answer")
+        f18 = pick("q18", _impact_candidates(nodes))
+        if f18 is None:
+            dropped.append("q18")
+        else:
+            add("q18", f"List the ids of the nodes in the failure impact of {f18}.", descendants(nodes, f18), f=f18)
+        shape19, answer19 = cycle_answer(nodes)
+        add("q19", Q19_TEXT, answer19, shape=shape19)
+        if answer19 is None:
+            low_discrimination.append("q19: the graph has no cycle, so a fixed null is right")
+
     if max(depths(nodes).values()) < 2:
         low_discrimination.append("path and aggregate questions: depth below two")
-    notes = {"silent_minutes": minutes, "dropped": dropped, "low_discrimination": low_discrimination}
+    not_asked = list(TREE_ONLY if is_dag else DAG_ONLY)
+    notes = {
+        "silent_minutes": minutes,
+        "dropped": dropped,
+        "not_asked": not_asked,
+        "low_discrimination": low_discrimination,
+    }
     return questions, answers, notes

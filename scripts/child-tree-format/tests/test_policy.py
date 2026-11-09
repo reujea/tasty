@@ -258,23 +258,23 @@ def window(name="w", span="7d", u=50.0, w=1000.0, status="allowed", models=("cla
     return {"name": name, "span": span, "u": u, "w": w, "status": status, "models": list(models)}
 
 
-# The low model runs 54 calls at L0, 54 at L1 and 36 at L2.
+# The low model runs 48 calls at L0, 48 at L1 and 36 at L2.
 def means_for(share_at_l0, w=1000.0):
-    return {"claude-low": share_at_l0 * w / 54, "claude-high": 0.0}
+    return {"claude-low": share_at_l0 * w / 48, "claude-high": 0.0}
 
 
 class Levels(unittest.TestCase):
     def test_planned_counts(self):
-        self.assertEqual(ul.planned_by_model("L0"), {"claude-high": 54, "claude-low": 54, "codex": 54})
-        self.assertEqual(ul.planned_by_model("L1"), {"claude-high": 36, "claude-low": 54, "codex": 36})
+        self.assertEqual(ul.planned_by_model("L0"), {"claude-high": 48, "claude-low": 48, "codex": 48})
+        self.assertEqual(ul.planned_by_model("L1"), {"claude-high": 32, "claude-low": 48, "codex": 32})
         self.assertEqual(ul.planned_by_model("L2"), {"claude-high": 24, "claude-low": 36, "codex": 24})
 
     def test_worked_example_from_the_design_review(self):
         # P/W is 0.7 percent at L0, so 69.6 grows to 70.087 and only L1 fits.
-        means = {"claude-high": 7.0 / 54}
+        means = {"claude-high": 7.0 / 48}
         one = window(u=69.6, w=1000.0, models=("claude-high",))
         self.assertAlmostEqual(ul.after_run(one, {**means}, "L0"), 70.0872, places=3)
-        self.assertAlmostEqual(ul.after_run(one, means, "L1"), 69.6 + 69.6 * (7.0 * 36 / 54) / 1000.0, places=6)
+        self.assertAlmostEqual(ul.after_run(one, means, "L1"), 69.6 + 69.6 * (7.0 * 32 / 48) / 1000.0, places=6)
         self.assertEqual(ul.select_level([one], means)["proposal"], "L1")
 
     def test_boundaries_are_inclusive(self):

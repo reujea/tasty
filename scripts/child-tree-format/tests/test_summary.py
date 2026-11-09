@@ -206,16 +206,16 @@ class EndToEnd(unittest.TestCase):
     def test_all_right_answers_score_one_and_recommend_by_tokens(self):
         records = self.full_run()
         for record in records:
-            if record["format"] == "indented":
+            if record["format"] == "dot":
                 record["usage"] = usage(50)
         self.write(records)
         out = sm.summarize(self.data)
         self.assertEqual(out["unfilled_cells"], [])
         for fmt in FORMATS:
             self.assertEqual(out["per_format"][fmt]["score"], 1.0)
-        self.assertEqual(out["decision"]["recommendation"], "indented")
+        self.assertEqual(out["decision"]["recommendation"], "dot")
         self.assertTrue(out["decision"]["rule_3_applied"])
-        self.assertEqual(out["low_model"]["indented"]["mean_tokens"], 85)
+        self.assertEqual(out["low_model"]["dot"]["mean_tokens"], 85)
         self.assertEqual(out["low_model"]["adjacency"]["mean_tokens"], 135)
 
     def test_an_empty_cell_gives_no_recommendation(self):
@@ -230,7 +230,7 @@ class EndToEnd(unittest.TestCase):
     def test_an_empty_cell_stops_a_recommendation_that_tokens_would_give(self):
         records = self.full_run()
         for record in records:
-            if record["format"] == "indented":
+            if record["format"] == "dot":
                 record["usage"] = usage(50)
         records.pop(0)
         self.write(records)
@@ -242,19 +242,20 @@ class EndToEnd(unittest.TestCase):
     def test_rule_2_reads_the_low_model_only(self):
         records = self.full_run()
         for record in records:
-            # mermaid loses only on the high model and indented only on the low model.
-            if record["format"] == "mermaid" and record["model"] == "claude-high" and record["repeat"] == 1:
+            # flat_json loses only on the high model and dot only on the low model.
+            if record["format"] == "flat_json" and record["model"] == "claude-high" and record["repeat"] == 1:
                 record["response_text"] = "not json"
-            if record["format"] == "indented" and record["model"] == LOW_MODEL and record["repeat"] == 1 and record["tree"] == "real":
+            if record["format"] == "dot" and record["model"] == LOW_MODEL and record["repeat"] == 1 and record["tree"] == "real":
                 record["response_text"] = "not json"
-            if record["format"] != "mermaid":
+            if record["format"] != "flat_json":
                 record["usage"] = usage(500)
         self.write(records)
         out = sm.summarize(self.data)
-        self.assertLess(out["low_model"]["indented"]["correct"], out["low_model"]["adjacency"]["correct"])
-        self.assertEqual(out["low_model"]["mermaid"]["correct"], out["low_model"]["adjacency"]["correct"])
-        self.assertEqual(out["decision"]["recommendation"], "mermaid")
-        self.assertEqual(out["low_model"]["adjacency"]["total"], 3 * 3 * 15)
+        self.assertLess(out["low_model"]["dot"]["correct"], out["low_model"]["adjacency"]["correct"])
+        self.assertEqual(out["low_model"]["flat_json"]["correct"], out["low_model"]["adjacency"]["correct"])
+        self.assertEqual(out["decision"]["recommendation"], "flat_json")
+        # Three trees of 15 questions and the DAG of 17, three repeats each.
+        self.assertEqual(out["low_model"]["adjacency"]["total"], 3 * (3 * 15 + 17))
 
     def test_failed_calls_are_left_out_and_the_first_valid_call_counts(self):
         records = self.full_run()
@@ -266,18 +267,18 @@ class EndToEnd(unittest.TestCase):
         out = sm.summarize(self.data)
         # The later empty response must not replace the first valid one.
         self.assertEqual(out["per_format"][row["format"]]["score"], 1.0)
-        self.assertEqual(out["calls_by_outcome"], {"api_error": 1, "scored": 163, "tool_violation": 1})
+        self.assertEqual(out["calls_by_outcome"], {"api_error": 1, "scored": 145, "tool_violation": 1})
         self.assertEqual(out["unfilled_cells"], [])
 
     def test_a_parse_failure_stays_valid_and_scores_zero_in_its_repeat(self):
         records = self.full_run()
-        target = next(r for r in records if r["format"] == "mermaid" and r["model"] == LOW_MODEL)
+        target = next(r for r in records if r["format"] == "flat_json" and r["model"] == LOW_MODEL)
         target["response_text"] = "not json"
         self.write(records)
         out = sm.summarize(self.data)
         self.assertEqual(out["parse_failures"], 1)
-        # The mermaid score loses a third of one of its nine cells.
-        self.assertAlmostEqual(out["per_format"]["mermaid"]["score"], 1 - (1 / 3) / 9)
+        # The flat_json score loses a third of one of its twelve cells.
+        self.assertAlmostEqual(out["per_format"]["flat_json"]["score"], 1 - (1 / 3) / 12)
         self.assertEqual(out["unfilled_cells"], [])
 
     def test_calls_outside_the_approved_plan_are_ignored(self):
@@ -300,7 +301,7 @@ class EndToEnd(unittest.TestCase):
         self.write(self.full_run("L2"), level="L2")
         out = sm.summarize(self.data)
         self.assertEqual(out["unfilled_cells"], [])
-        self.assertNotIn("synthetic_40", out["breakdown"]["tree"]["indented"])
+        self.assertNotIn("synthetic_40", out["breakdown"]["tree"]["dot"])
 
     def test_a_prompt_hash_mismatch_cannot_be_judged(self):
         records = self.full_run()
@@ -328,7 +329,7 @@ class EndToEnd(unittest.TestCase):
             if record["tree"] == "real":
                 record["usage"] = usage(1)
         self.write(records)
-        cost = sm.summarize(self.data)["costs_by_tree"]["indented"]["claude-low"]
+        cost = sm.summarize(self.data)["costs_by_tree"]["dot"]["claude-low"]
         self.assertEqual(cost["real"]["input_tokens"]["mean"], 16)
         self.assertEqual(cost["synthetic_80"]["input_tokens"]["mean"], 115)
 
