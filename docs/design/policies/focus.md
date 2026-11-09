@@ -245,7 +245,7 @@ GUI 창 종료는 window.close를 사용하되 headless에는 이 API가 없어 
     `_NET_RESTACK_WINDOW`(사용자 창 아래). 창 관리자가 무시하거나 "맨 아래" 로 다룰 수 있다.
     사용자 창을 트레이로 숨겼으면 restack 없이 보이기만 한다(숨긴 창을 형제로 가리키면 openbox 3.6.1이 죽는다).
     `_NET_WM_USER_TIME` 은 map 된 뒤 지운다 — 사용자가 나중에 그 창을 고를 때 걸림이 없게.
-  - Wayland: 할 수단이 없다. 컴포지터가 정한다.
+  - 네이티브 Wayland(`DISPLAY` 없는 환경): 할 수단이 없다. 컴포지터가 정한다.
   - 네이티브 호출이 실패하면 경고 뒤 winit 기본 경로로 보인다.
 - 사용자가 에이전트 창을 직접 고르면 `WindowEvent::Focused(true)` 추적이 `focused_view_id` 를
   옮긴다.
@@ -265,9 +265,9 @@ Tasty에는 포커스를 주는 IPC 메서드가 없다.
   위 "에이전트가 만든 창과 포커스" 규칙을 그대로 따르며 숨긴 창·최소화한 창·`focused_view_id`를 건드리지 않는다.
 - 증거 있음(앱 목록·실행기·시작 메뉴로 실행. Windows는 포그라운드 프로세스나 그것이 시작한 프로세스면 `AllowSetForegroundWindow`가 성공하므로 앞에 있는 터미널에서 친 `tasty`도 여기에 든다. 실 기기 미측정): 실행 중인 Tasty가 숨기거나 최소화한 View를 트레이 복원처럼 다시 보이고,
   `focused_view_id`의 View 활성화를 OS에 요청한다. `focus_window()`는 부르지 않는다.
-  - X11: 창에 `_NET_STARTUP_ID`를 걸고 startup id의 `_TIME` 타임스탬프로 `_NET_ACTIVE_WINDOW`(source 1)를 보낸다.
+  - X11(Wayland 세션의 XWayland 포함): 창에 `_NET_STARTUP_ID`를 걸고 startup id의 `_TIME` 타임스탬프로 `_NET_ACTIVE_WINDOW`(source 1)를 보낸다. GNOME의 XWayland에서 실행기 토큰만 받아도 포커스가 옮겨 간다(실행 중 인스턴스에 `Activate`를 직접 보내 격리 세션에서 확인했고 두 번째 프로세스 경로는 미측정).
   - Windows: 두 번째 프로세스가 `AllowSetForegroundWindow`로 넘긴 권한으로 `SetForegroundWindow`를 부른다.
-  - Wayland: 두 번째 실행이 받은 xdg-activation 토큰으로 기존 창 surface에 `xdg_activation_v1.activate`를 보낸다(winit 포크의 `WindowExtWayland::activate_with_token`). 위 복원 대신 새 `User` 창을 열고 숨김·최소화 창은 그대로 두는 경우가 둘이다. 토큰이 없으면 토큰 없는 새 창이고, 컴포지터가 `xdg_activation_v1`을 제공하지 않으면 토큰을 실은 새 창이다. MainView가 없어 새 창을 열 때는 토큰을 생성 속성에만 싣고 등록 뒤 다시 요청하지 않는다.
+  - 네이티브 Wayland(`DISPLAY` 없는 환경): 두 번째 실행이 받은 xdg-activation 토큰으로 기존 창 surface에 `xdg_activation_v1.activate`를 보낸다(winit 포크의 `WindowExtWayland::activate_with_token`). 위 복원 대신 새 `User` 창을 열고 숨김·최소화 창은 그대로 두는 경우가 둘이다. 토큰이 없으면 토큰 없는 새 창이고, 컴포지터가 `xdg_activation_v1`을 제공하지 않으면 토큰을 실은 새 창이다. MainView가 없어 새 창을 열 때는 토큰을 생성 속성에만 싣고 등록 뒤 다시 요청하지 않는다.
   - MainView가 하나도 없으면 증거를 실은 `User` 창을 연다. 만드는 중인 창이 있으면 새로 만들지 않고 그 창이 등록될 때 요청한다.
 - 증거는 OS 판단의 근거일 뿐 위조 불가능한 증명은 아니다. X11 startup id는 같은 사용자의 어떤 프로세스든 만들 수 있다.
   한계와 근거는 이 문서의 "같은 홈의 다시 실행" 절에 있다.

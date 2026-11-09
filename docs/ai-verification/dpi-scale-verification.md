@@ -108,6 +108,8 @@ GDK 논리 좌표로 읽으므로, **두 배율이 같을 때만** 메뉴가 클
 `warn_if_menu_anchor_scale_premise_broken` 이 `tracing::warn!` 한 줄로 남긴다.
 같은 배율 조합에 대해 한 번만 남으므로 우클릭 횟수에 비례하지 않는다.
 
+`WINIT_X11_SCALE_FACTOR`와 `GDK_SCALE`은 Xvfb에서 배율을 만드는 수단이다. GNOME 세션에서 컴포지터가 주는 값은 [Linux 디스플레이 백엔드](../design/systems/linux-display-backend.md#xwayland-경로의-배율)에 있다. 그 환경에서는 winit과 GDK가 컴포지터 설정에서 같은 배율을 받고, X 입력(`xdotool`, XTEST)으로 연 메뉴가 클릭 지점에 뜬다. 배율 2와 논리 레이아웃의 실제 포인터 경로는 미측정이다.
+
 ## 관련
 
 - [screenshot-methods](screenshot-methods.md) — 캡처 수단과 Xvfb 함정

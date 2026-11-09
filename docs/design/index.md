@@ -27,6 +27,7 @@
 | [banner](systems/banner.md) | 스코프 상단의 지속·인터랙티브 안내+조치 오버레이(4번째 오버레이 개념) |
 | [modifier-hint](systems/modifier-hint.md) | modifier 홀드 동안 뜨는 단축키 목록 오버레이(5번째 오버레이 개념) |
 | [fullscreen-stage](systems/fullscreen-stage.md) | 창 전체를 독점하는 독립 표면 — 기존 트리 밖의 무대 (기능 명세 포함) |
+| [linux-display-backend](systems/linux-display-backend.md) | `DISPLAY`·`WAYLAND_DISPLAY`로 창과 GDK 백엔드를 고르는 규칙, XWayland 배율, 네이티브 Wayland 범위 |
 | [webview](systems/webview.md) | OS 자식 창의 API·`Drop`, 부모 핸들·좌표·스레드·수명·탐색·키보드 포커스와 macOS HTTP context |
 | [memory](systems/memory.md) | 에이전트 메모리 `memory.db` 의 가시성·소유권 모델 |
 | [storage](systems/storage.md) | 영속 데이터의 텍스트(TOML/셸) ↔ SQLite 분할, 창 간 공유 최근 목록, 저장 기준선과 journal SQL 계측·테마 bootstrap·IPC 공개 barrier·세대별 정리 |

@@ -36,10 +36,10 @@
 이미지를 읽으며 빈 텍스트나 빈 클립보드는 조용한 no-op이다. 오류 뒤 bracketed-paste
 시작·종료 바이트나 일부 텍스트를 보내지 않는다. mirror 터미널에서 원격 캡처나 로컬 캡처 경로를 다루는 예외는 [원격 스크린샷](../remote-screenshot-clipboard/index.md#mirror-터미널에-붙여넣기)에 있다.
 
-Linux 호스트의 터미널 텍스트와 Explorer 파일 전송은 X11 경로다. GUI는 실제 winit
-디스플레이 종류를 기록하며 Wayland에서 X11 연결이 불가능하면 네이티브 Wayland
-미지원으로 알린다. XWayland가 있더라도 다른 앱과의 연동은 그 브리지에 달려 있다.
-네이티브 Wayland 지원을 제공하는 것은 아니며 egui 입력 위젯과 plugin 자체 클립보드는
+Linux 호스트의 터미널 텍스트와 Explorer 파일 전송은 X11 경로다. `DISPLAY`가 있으면 Tasty는
+X11로 뜨고([백엔드 선택](../../design/systems/linux-display-backend.md)) Wayland 앱과의 왕복은 XWayland가 잇는다. 격리 GNOME 세션에서
+GTK 앱·GNOME Files와 양방향으로 확인했고 실제 사용자 세션의 확인을 대신하지는 않는다([측정 한계](../../ai-verification/gnome-session-verification.md#정리와-한계)). X 서버에 연결할 수 없는 네이티브 Wayland에서는 외부 앱과
+주고받지 못하고 미지원을 토스트로 알린다. egui 입력 위젯과 plugin 자체 클립보드는
 별도 경로다. 원격 출처·내부 파일 목록은 [Explorer 파일 작업](../../surfaces/explorer/file-operations.md#os-파일-클립보드)을 따른다.
 
 ### 로컬 이미지 붙여넣기 저장

@@ -143,7 +143,7 @@ observer worker 생성 실패는 요청 오류로 반환하고 runner 생성 실
 | macOS | NSWindowBelow와 기준 windowNumber로 표시한다. winit set_visible은 키 창으로 올리므로 직접 사용하지 않는다. 실 기기 결과는 확인되지 않았다. |
 | Windows | winit 비활성 show 앞뒤에 SetWindowPos(NOACTIVATE/NOMOVE/NOSIZE)를 사용한다. 네이티브 show만 하면 winit의 VISIBLE 상태와 달라질 수 있다. 실 기기 결과는 확인되지 않았다. |
 | X11 | map 전 _NET_WM_USER_TIME=0, map 후 _NET_RESTACK_WINDOW Below(source 2)를 요청한다. 첫 Focused 이벤트에서 초기 user-time 힌트를 제거한다. openbox에서는 focus 유지와 뒤쪽 배치가 확인됐지만 바로 아래 대신 맨 아래였다. 기준 창을 트레이로 숨겼으면(unmap) restack을 보내지 않고 보이기만 한다. openbox 3.6.1이 unmap된 형제를 가리키는 restack 요청에 SIGSEGV로 죽었기 때문이다. |
-| Wayland | 활성화 요청을 하지 않는다. 최종 focus와 쌓임은 compositor가 정한다. |
+| 네이티브 Wayland | 활성화 요청을 하지 않는다. 최종 focus와 쌓임은 compositor가 정한다. |
 
 네이티브 호출 실패는 경고를 남기고 winit 기본 show로 복구한다.
 winit 버전을 바꿀 때 OS별 show·active 처리와 X11 지원 API를 다시 대조한다.

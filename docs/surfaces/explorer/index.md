@@ -1,6 +1,6 @@
 # Explorer (내장 파일 관리자 surface)
 
-- **Status**: Partial — 탐색·파일 작업은 구현돼 있으나 네이티브 Wayland 메뉴 미지원과 조합 종료 키 전달 결함이 남아 있다. OS별 실제 확인 범위와 한계는 [파일 작업 Status](file-operations.md#확인된-linux-범위와-한계)를 따른다.
+- **Status**: Partial — 탐색·파일 작업은 구현돼 있으나 `DISPLAY`가 없는 네이티브 Wayland의 메뉴 미지원과 조합 종료 키 전달 결함, 밖에서 들어온 포인터의 파일 놓기 한계가 남아 있다. OS별 실제 확인 범위와 한계는 [파일 작업 Status](file-operations.md#확인된-linux-범위와-한계)를 따른다.
 - **주체**: 로컬 사용자 · AI Agent ([주체](../../concepts/actors.md))
 - **설계**: [원격 attach (Remote attach)](../../features/remote-attach/index.md) (원격 attach mirror 브라우징 — list_dir 채널 재사용, 파일 변경은 원격 쓰기를 알린 server 가 실행, 더블클릭은 원격 탭 열기)
 - **코드**: surface kind 등록 `register_explorer` (`src/runtime/surface_registry/builtins.rs`), 모델 `ExplorerPanel`/`ExplorerTab` (`crates/tasty-model/src/explorer_panel.rs`), 뷰 스토어 `ExplorerView`/`ExplorerViewStore` (`src/adapters/ui/surface/explorer/view.rs`), 렌더 `draw_explorer` (`src/adapters/ui/surface/explorer.rs`), deferred action 적용 `apply_explorer_action` (`src/adapters/ui/egui_panels.rs`)
