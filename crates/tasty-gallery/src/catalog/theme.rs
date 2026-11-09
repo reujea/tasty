@@ -426,7 +426,7 @@ pub fn terminal(ui: &mut egui::Ui, theme: &Theme) {
                 theme,
                 ec(theme.search_match_selected_fg()),
                 "search-match-selected-fg",
-                "ink for selected search matches",
+                "ink for selected matches and cursors in the active match",
             );
             sem_row(
                 ui,
@@ -494,7 +494,19 @@ pub fn terminal(ui: &mut egui::Ui, theme: &Theme) {
          promised pair. Selected active: search-match-active-selected-bg over selection-bg, with \
          search-match-selected-fg for every cell (9.81 Mocha, 8.20 Latte). The stronger Latte \
          fill separates it from selected ordinary matches by ΔE 0.089, versus ΔE 0.040 with \
-         search-match-active-bg.",
+         search-match-active-bg. A block cursor swaps cell ink and fill and takes no selection \
+         fill, inside or outside a search match; default and bold cells read 14.52 Mocha, 7.99 \
+         Latte with or without a selection. On the selection fill, the swapped ink would measure \
+         3.15 Mocha, 2.16 Latte and hide the cursor's place; dim and colored cells swap their own \
+         colors with no pair promised, and an unfocused terminal draws no block cursor. Vi and \
+         block cursor cells in the active match use search-match-selected-fg over \
+         search-match-active-bg on the cursor fill, with or without a selection: 13.26 Mocha, \
+         6.76 Latte for vi on both focused and unfocused beds, and 14.12 Mocha, 4.65 Latte for \
+         block on a focused bed only. On a focused bed in Latte, search-match-active-fg would \
+         measure 2.57 on the vi cursor and 1.77 on the block cursor. On a reverse screen \
+         (DECSCNM), a dim cell keeps its own blended ink in a selected ordinary match: 1.44 \
+         Mocha, 1.02 Latte focused, 1.55 Mocha, 1.12 Latte unfocused. This is program content \
+         with no pair promised; the active match still replaces its ink.",
     );
     dont(
         ui,
@@ -604,6 +616,8 @@ fn faux_terminal_matches(ui: &mut egui::Ui, theme: &Theme, focused: bool) {
     let selected_ink = ec(theme.search_match_selected_fg());
     let selected_match = selection.blend(matched);
     let selected_active = selection.blend(ec(theme.search_match_active_selected_bg()));
+    let active_fill = ec(theme.search_match_active_bg);
+    let vi_bg = ec(theme.vi_cursor_bg);
     egui::Frame::new()
         .fill(bed)
         .corner_radius(theme.corner_radius.value())
@@ -644,11 +658,29 @@ fn faux_terminal_matches(ui: &mut egui::Ui, theme: &Theme, focused: bool) {
                     ("Selected active match", Some(selected_active), selected_ink),
                     (". ", None, fg),
                 ]);
-                if !focused {
+                // 블록 커서는 칸 색을 맞바꾸고 선택을 칠하지 않는다. 비포커스에는 그리지 않는다.
+                if focused {
+                    segments.extend([
+                        (" ", Some(selection), fg),
+                        ("Block cursor in selection", Some(fg), bed),
+                        (" ", Some(selection), fg),
+                        (". ", None, fg),
+                    ]);
+                } else {
+                    segments.push(("Vi cursor", Some(vi_bg), ec(theme.vi_cursor_fg())));
+                    segments.push((". ", None, fg));
+                }
+                segments.push((
+                    "Vi cursor in active match",
+                    Some(vi_bg.blend(active_fill)),
+                    selected_ink,
+                ));
+                segments.push((". ", None, fg));
+                if focused {
                     segments.push((
-                        "Vi cursor",
-                        Some(ec(theme.vi_cursor_bg)),
-                        ec(theme.vi_cursor_fg()),
+                        "Block cursor in active match",
+                        Some(fg.blend(active_fill)),
+                        selected_ink,
                     ));
                     segments.push((". ", None, fg));
                 }
