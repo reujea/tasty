@@ -89,10 +89,8 @@ fn display_backend() -> &'static str {
         "windows"
     } else if cfg!(target_os = "macos") {
         "macos"
-    } else if std::env::var_os("WAYLAND_DISPLAY").is_some() {
-        "wayland"
     } else {
-        "x11"
+        crate::boot::display_backend::DisplayEnv::current().expected_backend_name()
     }
 }
 

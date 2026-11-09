@@ -484,6 +484,10 @@ impl App {
         if let Some(engine) = self.engines.get_mut(engine) {
             engine.runtime.http_viewer_available =
                 crate::webview::http_viewer_available(window.as_ref());
+            tracing::info!(
+                available = engine.runtime.http_viewer_available,
+                "remote HTTP viewer availability"
+            );
         }
         state.tutorial.persistence = self.tutorial_progress.client();
         let main = window::main::MainView::new(

@@ -7,6 +7,8 @@ pub(crate) mod debug_background;
 #[cfg(all(feature = "gui", debug_assertions))]
 pub(crate) mod debug_boot_fault;
 #[cfg(feature = "gui")]
+pub(crate) mod display_backend;
+#[cfg(feature = "gui")]
 pub(crate) mod event_loop;
 #[cfg(not(feature = "gui"))]
 mod file_drain;

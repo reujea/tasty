@@ -12,6 +12,8 @@ static ACTIVATE_PROXY: std::sync::OnceLock<EventLoopProxy<AppEvent>> = std::sync
 /// Windows는 두 번째 프로세스가 보낸 등록 메시지 "활성화"와 WebView로 가는 키를 메시지 훅으로 받는다.
 pub(crate) fn build() -> anyhow::Result<(EventLoop<AppEvent>, EventLoopProxy<AppEvent>)> {
     let mut builder = EventLoop::<AppEvent>::with_user_event();
+    #[cfg(target_os = "linux")]
+    let x_connection = crate::boot::display_backend::configure(&mut builder);
     #[cfg(target_os = "macos")]
     {
         use winit::platform::macos::EventLoopBuilderExtMacOS;
@@ -52,6 +54,8 @@ pub(crate) fn build() -> anyhow::Result<(EventLoop<AppEvent>, EventLoopProxy<App
         });
     }
     let event_loop = builder.build()?;
+    #[cfg(target_os = "linux")]
+    drop(x_connection);
     let proxy = event_loop.create_proxy();
     #[cfg(windows)]
     if ACTIVATE_PROXY.set(proxy.clone()).is_err() {
