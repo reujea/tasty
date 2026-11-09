@@ -22,6 +22,19 @@ const CSS_VARS: &[MapEntry] = &[
     ),
     ("--md-code-bg", "surface-raised", Theme::surface_raised),
     ("--md-quote-bar", "border-strong", Theme::border_strong),
+    ("--md-quote-fg", "md-quote-fg", Theme::md_quote_fg),
+    ("--md-find-hit-bg", "md-find-hit-bg", Theme::md_find_hit_bg),
+    ("--md-find-hit-fg", "md-find-hit-fg", Theme::md_find_hit_fg),
+    (
+        "--md-find-current-bg",
+        "md-find-current-bg",
+        Theme::md_find_current_bg,
+    ),
+    (
+        "--md-find-current-fg",
+        "md-find-current-fg",
+        Theme::md_find_current_fg,
+    ),
 ];
 
 /// highlight.js 역할 → 팔레트 색. 렌더러 `hljs_css`와 같은 순서다.

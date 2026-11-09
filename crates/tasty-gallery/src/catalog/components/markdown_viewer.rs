@@ -5,6 +5,7 @@
 mod callout_kinds;
 mod css_path;
 pub(crate) mod document;
+pub mod quote_find;
 
 use tasty_type_appearance::theme::Theme;
 use tasty_type_geometry::length::LogicalPx;

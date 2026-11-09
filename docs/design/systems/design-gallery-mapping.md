@@ -332,6 +332,7 @@ Spec 하나가 갤러리 예제 둘이거나, 둘이 하나이거나, 경계가 
 | `gallery/plugins/index.jsx` "HTML — webview chrome (4 states)" | `html-chrome` | [surface viewers](#surface-viewers-plugins) |
 | `gallery/plugins/index.jsx` "HTML — focus edge above the band" | `html-focus-edge` | `components/html_chrome.rs::draw_focus_edge` |
 | `gallery/plugins/index.jsx` "Markdown — document background follows focus" | `markdown-doc-bg` | `plugins_settled.rs::draw_doc_background`. 표·코드와 tile 4종을 두 상태로 그린다 |
+| `gallery/plugins/index.jsx` "Markdown — quote and find ink on both beds" | `markdown-quote-and-find-ink` | `markdown_viewer/quote_find.rs`. 인용은 `md-quote-fg`, 적중은 `md-find-hit-*`, 현재 적중은 `md-find-current-*`이고 두 상태로 그린다 |
 | `gallery/plugins/index.jsx` "HTML — settings (Appearance › HTML viewer)" | `plugin-settings` (Components) | [플러그인 설정 페이지](#플러그인-설정-페이지) |
 | `gallery/plugins/index.jsx` "Image — viewer & edit (paint) modes" | `image-viewer` · `image-paint` | [surface viewers](#surface-viewers-plugins)(디자인 한 Spec ↔ 갤러리 둘) |
 | `gallery/overlays-windows/preset-editor.jsx` "WYSIWYG edit mode — direct manipulation of STRUCTURE" | `preseteditor` | [preset demo-layout](#preset-demo-layout-overlays) |

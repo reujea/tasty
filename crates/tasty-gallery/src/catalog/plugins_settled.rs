@@ -141,6 +141,16 @@ fn table_and_code(ui: &mut egui::Ui, theme: &Theme, focused: bool) {
         });
 }
 
+/// 카탈로그 항목. 동결 명부의 `catalog.rs` 에는 이 호출 한 줄만 둔다.
+pub fn doc_background_spec() -> crate::catalog::Spec {
+    crate::catalog::spec(
+        "markdown-doc-bg",
+        "Markdown — document background follows focus",
+        Some("bed, table row and zebra swap · one frame, no reload"),
+        draw_doc_background,
+    )
+}
+
 /// Plugins › Markdown — 문서 바탕은 터미널과 같은 바탕 쌍을 따른다. 표 row·zebra도 함께 바뀐다.
 pub fn draw_doc_background(ui: &mut egui::Ui, theme: &Theme) {
     stage(ui, theme, StageVariant::Wrap, |ui| {

@@ -233,6 +233,7 @@ src/catalog/components/markdown_viewer.rs	Loading…	explorer.state.loading,file
 src/catalog/components/markdown_viewer/document.rs	, 	explorer.properties.list_separator
 src/catalog/components/markdown_viewer/document.rs	Image	convert_popup.image
 src/catalog/components/markdown_viewer/document.rs	Kind	explorer.properties.kind,preset.edit.kind,remote_tool.field_kind
+src/catalog/components/markdown_viewer/quote_find.rs	Theme	settings.appearance.subtab.theme
 src/catalog/components/md_address.rs	Disconnected from the remote	html_address.disconnected
 src/catalog/components/md_address.rs	Go	explorer.address.go
 src/catalog/components/md_address.rs	No matching path	explorer.address.empty

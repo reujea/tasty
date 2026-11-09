@@ -487,7 +487,7 @@ fn blockquote(ui: &mut egui::Ui, theme: &Theme) {
 }
 
 /// left bar(border-strong) + 들여쓴 content.
-fn quote_block(
+pub(super) fn quote_block(
     ui: &mut egui::Ui,
     theme: &Theme,
     bar_w: f32,

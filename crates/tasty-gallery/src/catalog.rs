@@ -2521,12 +2521,8 @@ pub fn pages() -> Vec<Page> {
                             ),
                             components::markdown_viewer::draw,
                         ),
-                        spec(
-                            "markdown-doc-bg",
-                            "Markdown — document background follows focus",
-                            Some("bed, table row and zebra swap · one frame, no reload"),
-                            plugins_settled::draw_doc_background,
-                        ),
+                        plugins_settled::doc_background_spec(),
+                        components::markdown_viewer::quote_find::spec(),
                         spec(
                             "markdown-address-states",
                             "Address bar states · large-file confirm",

@@ -257,7 +257,7 @@ fn 시안에서_옮긴_결정_specimen_은_id_충돌_없이_렌더된다() {
         components_settled, foundations_settled, layouts_settled, overlays_settled, plugins_settled,
     };
     let theme = tasty_themes::mocha_fallback();
-    let specs: [(&str, SpecFn); 21] = [
+    let specs: [(&str, SpecFn); 22] = [
         ("shadows", foundations_settled::draw_shadows),
         ("half-pixel", foundations_settled::draw_half_pixel),
         ("tint", foundations_settled::draw_tint),
@@ -277,6 +277,10 @@ fn 시안에서_옮긴_결정_specimen_은_id_충돌_없이_렌더된다() {
         ("dag-window", dag::window::draw),
         ("dag-window-detail", dag::window::draw_detail),
         ("doc-background", plugins_settled::draw_doc_background),
+        (
+            "quote-find",
+            tasty_gallery::catalog::components::markdown_viewer::quote_find::spec().draw,
+        ),
         ("address-states", plugins_settled::draw_address_states),
         (
             "md-large-file",
