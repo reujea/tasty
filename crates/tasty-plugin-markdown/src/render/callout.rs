@@ -206,7 +206,7 @@ pub(super) fn alert_css(theme: &Theme) -> String {
             &hex,
         );
         rules.push_str(&format!(
-            ".{class}{{border-left-color:{hex};background:{bg};}}.{class}>.tasty-callout-label::before,.{class}>summary::before{{color:{hex};background-image:url(\"{icon_uri}\");}}.{class}>summary{{background-image:url(\"{closed_uri}\");}}.{class}[open]>summary{{background-image:url(\"{open_uri}\");}}\n",
+            ".{class}{{border-left-color:{hex};background:{bg};}}.{class}>.tasty-callout-label::before,.{class}[data-label]::before,.{class}>summary::before{{color:{hex};background-image:url(\"{icon_uri}\");}}.{class}>summary{{background-image:url(\"{closed_uri}\");}}.{class}[open]>summary{{background-image:url(\"{open_uri}\");}}\n",
             class = kind.class,
             bg = color.with_alpha(bg_alpha).to_hex(),
         ));

@@ -257,8 +257,11 @@ semantic accent(`accent_primary`/`accent_info`/`accent_success`/`accent_warning`
 
 태그가 없거나 지원하지 않는 종류의 Markdown 인용문은 일반 인용문으로 남는다.
 콜아웃 변환은 파서 이벤트와 인용문 첫 줄을 처리한다. Raw HTML에 class만 넣었다고
-자동으로 라벨을 추가하지는 않는다. 다만 sanitize가 class·`span`의 data-label·summary를
+자동으로 라벨을 추가하지는 않는다. 다만 sanitize가 class·`blockquote`와 `span`의 data-label·summary를
 허용하므로 작성자가 이 속성과 태그를 직접 넣어 콜아웃처럼 표시할 수 있다.
+문서가 직접 쓴 `<blockquote class="markdown-alert-*" data-label="제목">`은 `blockquote[data-label]::before`로
+제목과 아이콘을 그리고 `lang`은 붙지 않는다. 앱이 만드는 라벨은 이 경로를 쓰지 않고 `span.tasty-callout-label`에 있다.
+`data-label`이 없는 raw `blockquote`에는 `::before` 상자가 생기지 않아 라벨 줄 없이 본문부터 그려진다.
 
 ### 중첩
 
@@ -271,7 +274,7 @@ semantic accent(`accent_primary`/`accent_info`/`accent_success`/`accent_warning`
 
 `<details>`/`<summary>` 태그가 `sanitize_html` 허용 목록에 있다 — `details` 는
 `class`+`open`, `summary` 는 별도 속성 없음(제목이 실제 텍스트 노드로 들어가 별도
-attribute 가 필요 없다). 콜아웃 라벨을 위해 `span` 은 `class`·`data-label`·`lang` 을 받는다. `lang` 은 값이 UI 언어와 같을 때만 남고(`render/ui_lang.rs::span_lang_filter`) 다른 값과 `span` 밖의 `lang` 은 지워진다. 사용자 문서가 쓴 다른 언어로 본문의 한자 형태가 바뀌지 않게 하기 위해서다. 필터는 다른 속성을 볼 수 없으므로 문서가 UI 언어와 같은 값을 직접 쓴 `span` 은 남는다.
+attribute 가 필요 없다). 콜아웃 라벨을 위해 `span` 은 `class`·`data-label`·`lang` 을, `blockquote` 는 `class`·`data-label` 을 받는다. `lang` 은 값이 UI 언어와 같을 때만 남고(`render/ui_lang.rs::span_lang_filter`) 다른 값과 `span` 밖의 `lang` 은 지워진다. 사용자 문서가 쓴 다른 언어로 본문의 한자 형태가 바뀌지 않게 하기 위해서다. 필터는 다른 속성을 볼 수 없으므로 문서가 UI 언어와 같은 값을 직접 쓴 `span` 은 남는다.
 
 ## Bare URL autolink
 

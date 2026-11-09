@@ -316,3 +316,32 @@ fn unknown_ui_language_marks_nothing() {
     assert!(!body_of(&html).contains("lang="));
     assert!(!copy_button_script(&Translator::default()).contains("setAttribute('lang'"));
 }
+
+#[test]
+fn raw_callout_keeps_the_label_the_document_wrote_without_a_language() {
+    let html =
+        render(r#"<blockquote class="markdown-alert-note" data-label="見出し">b</blockquote>"#);
+    let body = body_of(&html);
+    assert!(
+        body.contains(r#"<blockquote class="markdown-alert-note" data-label="見出し">"#),
+        "{body}"
+    );
+    assert!(!body.contains("lang="), "{body}");
+    assert!(
+        html.contains(
+            r#"blockquote[class^="markdown-alert-"][data-label]::before{content:attr(data-label);"#
+        ),
+        "라벨을 그리는 규칙"
+    );
+    assert!(
+        html.contains(".markdown-alert-note[data-label]::before,"),
+        "아이콘과 색 규칙"
+    );
+}
+
+#[test]
+fn app_callout_label_stays_on_its_span() {
+    let body = render("> [!NOTE]\n> b");
+    let quote = tag_with(body_of(&body), r#"<blockquote class="markdown-alert-note""#);
+    assert!(!quote.contains("data-label"), "{quote}");
+}

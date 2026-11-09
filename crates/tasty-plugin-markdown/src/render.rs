@@ -1319,7 +1319,7 @@ fn sanitize_html(unsafe_html: &str, ui_lang: &str) -> String {
     tag_attributes.insert("code", ["class"].into_iter().collect());
     tag_attributes.insert("sup", ["class"].into_iter().collect());
     tag_attributes.insert("div", ["class"].into_iter().collect());
-    tag_attributes.insert("blockquote", ["class"].into_iter().collect());
+    tag_attributes.insert("blockquote", ["class", "data-label"].into_iter().collect());
     tag_attributes.insert("details", ["class", "open"].into_iter().collect());
     // 수식 span의 class를 남겨 KaTeX 스크립트가 찾을 수 있게 한다.
     tag_attributes.insert(
@@ -1566,7 +1566,7 @@ tr:nth-child(even){{background:var(--md-zebra);}}
 blockquote{{border-left:var(--md-quote-bar-w) solid var(--md-quote-bar);margin:0.5em 0;padding:0.1em var(--md-space-md);opacity:0.9;}}
 blockquote[class^="markdown-alert-"]{{opacity:1;border-radius:var(--md-radius);padding:var(--md-space-sm) var(--md-space-md);}}
 blockquote[class^="markdown-alert-"]>.tasty-callout-label{{display:block;}}
-blockquote[class^="markdown-alert-"]>.tasty-callout-label::before{{content:attr(data-label);display:block;font-weight:600;margin-bottom:var(--md-space-xs);padding-left:calc(var(--md-callout-icon) + var(--md-callout-icon-gap));background-repeat:no-repeat;background-position:left center;background-size:var(--md-callout-icon) var(--md-callout-icon);}}
+blockquote[class^="markdown-alert-"]>.tasty-callout-label::before,blockquote[class^="markdown-alert-"][data-label]::before{{content:attr(data-label);display:block;font-weight:600;margin-bottom:var(--md-space-xs);padding-left:calc(var(--md-callout-icon) + var(--md-callout-icon-gap));background-repeat:no-repeat;background-position:left center;background-size:var(--md-callout-icon) var(--md-callout-icon);}}
 details[class^="markdown-alert-"]{{border-radius:var(--md-radius);padding:var(--md-space-sm) var(--md-space-md);border-left-width:var(--md-quote-bar-w);border-left-style:solid;}}
 details[class^="markdown-alert-"]>summary{{cursor:pointer;font-weight:600;list-style:none;padding-left:calc(var(--md-callout-marker) + var(--md-callout-icon-gap));background-repeat:no-repeat;background-position:left center;background-size:var(--md-callout-marker) var(--md-callout-marker);}}
 details[class^="markdown-alert-"]>summary::-webkit-details-marker{{display:none;}}
@@ -4773,7 +4773,7 @@ Outro\n";
             // `<details>`/`<summary>` foldable shape (`>summary::before`) in one selector.
             assert!(
                 css.contains(&format!(
-                    ".{cls}>.tasty-callout-label::before,.{cls}>summary::before{{color:",
+                    ".{cls}>.tasty-callout-label::before,.{cls}[data-label]::before,.{cls}>summary::before{{color:",
                     cls = kind.class
                 )),
                 "missing ::before color rule for {}, got: {css}",

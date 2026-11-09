@@ -229,6 +229,7 @@ fn address_bar_stays_on_top_in_webkitgtk() {
 
     remote_address_band_layout();
     callout_label_stays_out_of_find_and_selection();
+    raw_callout_keeps_its_own_label();
 }
 
 /// 실제 영어 번역표로 문서를 그린다. 기본 라벨이 키가 아니라 문구로 나와야 찾기를 잴 수 있다.
@@ -254,6 +255,37 @@ const SELECT_BODY: &str = "const s = getSelection(); \
      s.selectAllChildren(document.getElementById('tasty-md-body')); return s.toString();";
 const SELECT_QUOTE: &str = "const s = getSelection(); \
      s.selectAllChildren(document.querySelector('blockquote')); return s.toString();";
+
+/// 문서가 raw HTML로 쓴 콜아웃은 앱 라벨과 다른 경로다. 자기 `data-label`을 `blockquote`에 그린다.
+fn raw_callout_keeps_its_own_label() {
+    let page = Page::load(&document_en(
+        "<blockquote id=\"a\" class=\"markdown-alert-note\" data-label=\"Raw\">x</blockquote>\n\n\
+         <blockquote id=\"b\" class=\"markdown-alert-note\">y</blockquote>\n\n\
+         > [!NOTE]\n> z",
+    ));
+    let before = |selector: &str, property: &str| {
+        page.string(&format!(
+            "return getComputedStyle(document.querySelector('{selector}'), '::before').{property};"
+        ))
+    };
+    assert_eq!(before("[id$=a]", "content"), "\"Raw\"", "쓴 라벨이 보인다");
+    assert!(
+        before("[id$=a]", "backgroundImage").starts_with("url("),
+        "쓴 라벨에 아이콘이 있다"
+    );
+    assert_eq!(before("[id$=a]", "display"), "block", "라벨은 제 줄을 쓴다");
+    assert_eq!(before("[id$=b]", "content"), "none", "빈 라벨 상자는 없다");
+    assert_eq!(
+        before("blockquote:last-of-type", "content"),
+        "none",
+        "앱 콜아웃의 blockquote는 라벨을 그리지 않는다"
+    );
+    assert_eq!(
+        before("blockquote:last-of-type>.tasty-callout-label", "content"),
+        "\"Note\"",
+        "앱 라벨은 span에 있다"
+    );
+}
 
 /// 접지 않는 콜아웃의 라벨은 보이기만 하는 글자다. 찾기가 잡지 않고 선택·복사 문자열에도 없다.
 /// 접는 콜아웃의 라벨은 실제 글자 노드라 찾기가 잡고 선택 문자열에도 있다.
