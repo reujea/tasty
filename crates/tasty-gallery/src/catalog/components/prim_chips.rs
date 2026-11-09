@@ -145,12 +145,14 @@ pub fn draw_tag(ui: &mut egui::Ui, theme: &Theme) {
         ui,
         theme,
         &[
-            ("font", "mono"),
+            ("font", "font-label"),
+            ("font, mono", "font-mono"),
             ("radius", "radius-sm 2"),
             ("dot", "leading status-dot"),
         ],
         &[
-            TokenChip::without_color("font-mono", "label"),
+            TokenChip::without_color("font-label", "label"),
+            TokenChip::without_color("font-mono", "label, mono"),
             TokenChip::without_color("border-default", "outline"),
             TokenChip::new(
                 "accent-info",
