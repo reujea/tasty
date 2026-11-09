@@ -234,6 +234,24 @@ pub(super) fn custom_font_field(
     (response, line)
 }
 
+/// Use default 가 켜진 파일 행의 오류 줄. 입력이 없어도 칸은 같은 규칙으로 닫히므로 상태를 계속 진행한다.
+pub(super) fn custom_font_default_line(
+    ctx: &egui::Context,
+    salt: &str,
+) -> Option<FieldErrorLine<'static>> {
+    let id = egui::Id::new(("font_custom_field", salt));
+    field_error_state(ctx, id, false, false)
+        .line(t("settings.appearance.font.custom_font_rejected"))
+}
+
+/// Use default 가 켜진 family 행의 오류 줄.
+pub(super) fn family_default_line(
+    ctx: &egui::Context,
+    salt: &str,
+) -> Option<FieldErrorLine<'static>> {
+    family_error_line(ctx, salt, false, RowVerdict::default())
+}
+
 /// family 콤보 아래 오류 줄. 콤보에는 빨간 테두리가 없다.
 pub(super) fn family_error_line(
     ctx: &egui::Context,

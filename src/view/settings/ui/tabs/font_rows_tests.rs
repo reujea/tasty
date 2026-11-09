@@ -18,6 +18,7 @@ struct Drawn {
     family: egui::Response,
     custom: egui::Response,
     preview_top: f32,
+    invalid_border: bool,
 }
 
 impl Drawn {
@@ -78,21 +79,29 @@ impl Harness {
             family,
             custom,
             preview_top,
+            invalid_border: paints_invalid_border(&out),
         }
     }
 
     /// 대상의 override 격자와 미리보기를 한 프레임 그리고 글자를 돌려준다.
     fn surface(&mut self, target: SurfaceFontTarget<'_>, events: Vec<egui::Event>) -> Vec<String> {
+        drawn_texts(&self.surface_output(target, events))
+    }
+
+    fn surface_output(
+        &mut self,
+        target: SurfaceFontTarget<'_>,
+        events: Vec<egui::Event>,
+    ) -> egui::FullOutput {
         let raw = raw_input(events);
         let (settings, fonts) = (&mut self.settings, &mut self.fonts);
-        let out = self.ctx.run(raw, |ctx| {
+        self.ctx.run(raw, |ctx| {
             egui::CentralPanel::default()
                 .frame(egui::Frame::NONE)
                 .show(ctx, |ui| {
                     draw_surface_font_section(ui, settings, &mut None, fonts, target);
                 });
-        });
-        drawn_texts(&out)
+        })
     }
 
     /// 판정과 등록이 끝나도록 입력 없이 두 프레임 그린 뒤의 글자.
@@ -134,6 +143,29 @@ fn drawn_texts(out: &egui::FullOutput) -> Vec<String> {
             _ => None,
         })
         .collect()
+}
+
+fn has_text(out: &egui::FullOutput, text: &str) -> bool {
+    drawn_texts(out).iter().any(|t| t == text)
+}
+
+/// 오류 줄들 아래에 있는 글자 크기 행의 y. override 격자는 미리보기 위치를 돌려주지 않는다.
+fn size_row_top(out: &egui::FullOutput) -> f32 {
+    let label = t("settings.appearance.font.override_size_label");
+    out.shapes
+        .iter()
+        .find_map(|s| match &s.shape {
+            egui::Shape::Text(t) if t.galley.text() == label => Some(t.pos.y),
+            _ => None,
+        })
+        .expect("the size row is drawn")
+}
+
+fn paints_invalid_border(out: &egui::FullOutput) -> bool {
+    let invalid = crate::theme::theme().input_border_invalid().to_egui();
+    out.shapes.iter().any(
+        |s| matches!(&s.shape, egui::Shape::Rect(r) if r.stroke.width > 0.0 && r.stroke.color == invalid),
+    )
 }
 
 fn press(pos: egui::Pos2, pressed: bool) -> egui::Event {
@@ -243,6 +275,34 @@ fn use_default_shows_no_line_even_if_the_default_is_rejected() {
     assert!(!texts.iter().any(|t| t == file_text()));
     let texts = h.surface_settled(EXPLORER);
     assert!(!texts.iter().any(|t| t == file_text()));
+}
+
+/// 입력이 사라진 동안 상태가 멈추면 다시 켰을 때 없는 칸이 포커스에 유지된다.
+#[test]
+fn use_default_closes_the_box_so_a_later_focus_opens_none() {
+    let id = egui::Id::new(("font_custom_field", "s"));
+    let ctx = egui::Context::default();
+    let pass = |add: &mut dyn FnMut(&egui::Context)| {
+        let raw = egui::RawInput {
+            focused: true,
+            ..Default::default()
+        };
+        // 상태만 재므로 그릴 산출물은 볼 것이 없다.
+        let _ = ctx.run(raw, |ctx| add(ctx));
+    };
+    pass(&mut |ctx| {
+        assert_eq!(
+            tasty_ui_widgets::field_error_state(ctx, id, false, true),
+            tasty_ui_widgets::FieldErrorState::Shown
+        );
+    });
+    pass(&mut |ctx| assert_eq!(custom_font_default_line(ctx, "s"), None));
+    pass(&mut |ctx| {
+        assert_eq!(
+            tasty_ui_widgets::field_error_state(ctx, id, true, false),
+            tasty_ui_widgets::FieldErrorState::Clear
+        );
+    });
 }
 
 #[test]
@@ -399,4 +459,95 @@ fn an_open_family_list_hides_the_ink() {
     let open = h.base(Vec::new());
     assert!(!open.has(family_text()));
     assert_eq!(open.preview_top, closed.preview_top);
+}
+
+/// 포커스가 빠진 뒤 새 값의 판정이 오기 전 한 프레임에도 칸이 닫히지 않는다. 닫히면 줄이 다시 열리며 행이 뛴다.
+#[test]
+fn a_terminal_row_holds_its_box_until_the_left_value_is_judged() {
+    let mut h = Harness::new();
+    h.settings.appearance.terminal_font.custom_font_path = Some(h.file(&not_a_font()));
+    h.surface_settled(TERMINAL);
+    let shown = h.surface_output(TERMINAL, Vec::new());
+    assert!(has_text(&shown, file_text()));
+    let top = size_row_top(&shown);
+
+    let id = egui::Id::new(("font_custom_field", "terminal"));
+    h.ctx.memory_mut(|m| m.request_focus(id));
+    h.surface(TERMINAL, Vec::new());
+    h.surface(TERMINAL, typed("x"));
+    let judged = h.fonts.terminal_key().map(str::to_owned);
+    h.ctx.memory_mut(|m| m.surrender_focus(id));
+
+    let pending = h.surface_output(TERMINAL, Vec::new());
+    assert_ne!(
+        h.fonts.terminal_key().map(str::to_owned),
+        judged,
+        "the verdict comes after this frame's row"
+    );
+    assert!(!has_text(&pending, file_text()));
+    assert_eq!(size_row_top(&pending), top);
+
+    let verdict = h.surface_output(TERMINAL, Vec::new());
+    assert!(has_text(&verdict, file_text()));
+    assert_eq!(size_row_top(&verdict), top);
+}
+
+/// family 행도 판정 대기 동안 칸을 유지한다.
+#[test]
+fn a_family_row_holds_its_box_while_the_new_value_waits() {
+    let mut h = Harness::new();
+    let gone = |name: &str| Some(name.to_owned());
+    h.settings.appearance.terminal_font.font_family = gone("Tasty No Such Family");
+    h.surface_settled(TERMINAL);
+    let shown = h.surface_output(TERMINAL, Vec::new());
+    assert!(has_text(&shown, family_text()));
+    let top = size_row_top(&shown);
+
+    h.settings.appearance.terminal_font.font_family = gone("Tasty No Such Family Either");
+    let pending = h.surface_output(TERMINAL, Vec::new());
+    assert!(!has_text(&pending, family_text()));
+    assert_eq!(size_row_top(&pending), top);
+    let verdict = h.surface_output(TERMINAL, Vec::new());
+    assert!(has_text(&verdict, family_text()));
+    assert_eq!(size_row_top(&verdict), top);
+
+    let mut h = Harness::new();
+    h.settings.appearance.default_font.font_family = "Tasty No Such Family".to_owned();
+    let shown = h.base_settled();
+    assert!(shown.has(family_text()));
+    h.settings.appearance.default_font.font_family = "Tasty No Such Family Either".to_owned();
+    let pending = h.base(Vec::new());
+    assert!(!pending.has(family_text()));
+    assert_eq!(pending.preview_top, shown.preview_top);
+    let verdict = h.base(Vec::new());
+    assert!(verdict.has(family_text()));
+    assert_eq!(verdict.preview_top, shown.preview_top);
+}
+
+/// 빨간 테두리는 거절된 파일 입력이 포커스 없이 있을 때만 칠한다. family 콤보에는 없다.
+#[test]
+fn only_a_rejected_file_field_at_rest_paints_the_invalid_border() {
+    let mut h = Harness::new();
+    assert!(!h.base_settled().invalid_border);
+
+    h.settings.appearance.default_font.custom_font_path = h.file(&not_a_font());
+    let rejected = h.base_settled();
+    assert!(rejected.invalid_border);
+    h.click_base(rejected.custom.rect.center());
+    let focused = h.base(Vec::new());
+    assert!(focused.custom.has_focus());
+    assert!(!focused.invalid_border);
+
+    let mut h = Harness::new();
+    h.settings.appearance.terminal_font.custom_font_path = Some(h.file(&not_a_font()));
+    h.surface_settled(TERMINAL);
+    assert!(paints_invalid_border(
+        &h.surface_output(TERMINAL, Vec::new())
+    ));
+
+    let mut h = Harness::new();
+    h.settings.appearance.default_font.font_family = "Tasty No Such Family".to_owned();
+    let family = h.base_settled();
+    assert!(family.has(family_text()));
+    assert!(!family.invalid_border);
 }

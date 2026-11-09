@@ -21,6 +21,7 @@
 
 - `terminal.children`, `claude.children`, `codex.children`의 각 항목에 `parent`(부모 surface id 또는 외부 키)와 `last_report_at`(밀리초, 없으면 `null`)이 생겼다.
 - 플러그인 매니페스트의 CLI 서브커맨드에 `output = "child_table"`이 생겼다. 호스트 CLI가 그 응답을 부모 ID 표로 찍는다.
+- **설정의 글꼴 행이 쓸 수 없는 값을 표시한다.** 파일 입력에는 빨간 테두리와 아래 한 줄, family 행에는 줄만 표시하고 저장된 값은 메인 창에 토스트로 알린다. 값은 그대로 저장할 수 있다. 줄의 칸은 포인터 버튼이 눌린 동안 높이가 바뀌지 않아, 값을 고치다 아래 행을 눌러도 클릭이 빗나가지 않는다.
 
 ### Changed
 

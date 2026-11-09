@@ -1,5 +1,6 @@
 use super::font_rows::{
-    PreviewFonts, RowJudge, custom_font_field, family_error_line, preview_slot,
+    PreviewFonts, RowJudge, custom_font_default_line, custom_font_field, family_default_line,
+    family_error_line, preview_slot,
 };
 use crate::i18n::t;
 use crate::settings::{
@@ -1661,12 +1662,13 @@ fn font_override_grid(
                         let verdict = judge.verdict(stored, custom);
                         *line = family_error_line(ui.ctx(), salt, out.open, verdict);
                     }
-                    None if default.font_family.is_empty() => {
-                        let shown = t("settings.appearance.font_family_default");
-                        default_value_field(ui, &th, shown, th.field_width_lg, false);
-                    }
                     None => {
-                        default_value_field(ui, &th, &default.font_family, th.field_width_lg, false)
+                        let shown = match default.font_family.as_str() {
+                            "" => t("settings.appearance.font_family_default"),
+                            name => name,
+                        };
+                        default_value_field(ui, &th, shown, th.field_width_lg, false);
+                        *line = family_default_line(ui.ctx(), salt);
                     }
                 },
                 OverrideCell::UseDefault => {
@@ -1694,13 +1696,11 @@ fn font_override_grid(
                         active |= response.has_focus();
                         *line = error;
                     }
-                    None => default_value_field(
-                        ui,
-                        &th,
-                        &default.custom_font_path,
-                        th.field_width_lg,
-                        true,
-                    ),
+                    None => {
+                        let shown = &default.custom_font_path;
+                        default_value_field(ui, &th, shown, th.field_width_lg, true);
+                        *line = custom_font_default_line(ui.ctx(), salt);
+                    }
                 },
                 OverrideCell::UseDefault => override_checkbox(ui, &mut ov.custom_font_path, || {
                     default.custom_font_path.clone()
