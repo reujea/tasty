@@ -117,6 +117,9 @@ pub struct MainView {
     /// surface별 webview 생성 시도 수. 실패가 창 이벤트를 만들어 스스로 재시도를
     /// 반복할 수 있어 MAX_WEBVIEW_CREATE_ATTEMPTS로 제한한다.
     pub(crate) webview_create_attempts: std::collections::HashMap<u32, u32>,
+    /// 이번 프레임에 만든 lazy kind WebView의 (surface, kind 소유 plugin). App이 프레임 동기화 뒤
+    /// `surface.webview_created`로 알리고 비운다 — 그 plugin은 만들어지기 전 메시지를 잃었다.
+    pub(crate) lazy_webviews_created: Vec<(u32, String)>,
     /// 탐색 완료를 기다려 아직 표시하지 못한 webview의 시작 시각·경고 여부.
     /// 오래 기다리면 한 번 기록하되 임의 재시도나 표시 방식 변경은 하지 않는다.
     pub(crate) webview_reveal_pending: std::collections::HashMap<u32, (std::time::Instant, bool)>,
@@ -258,6 +261,7 @@ impl MainView {
             webview_bed_focus: std::collections::HashMap::new(),
             webview_loaded_urls: std::collections::HashMap::new(),
             webview_create_attempts: std::collections::HashMap::new(),
+            lazy_webviews_created: Vec::new(),
             webview_reveal_pending: std::collections::HashMap::new(),
             webview_key_bridge: std::rc::Rc::new(crate::webview::WebViewKeyBridge::new()),
             webview_overlay_focus_released: false,

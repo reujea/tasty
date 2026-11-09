@@ -45,6 +45,25 @@ PlatformWebView는 OS별 타입 중 cfg가 하나를 선택한다. 공통 호출
 | `set_remote_content_allowed` | `bool` | — | 전역 설정 값이다. 실제로 막을지는 이 값과 스크립트 게이트의 문서 단위 원격 허용을 OR 한 실효값으로 정한다(아래 "원격 리소스 차단") |
 | `Drop` | — | — | 아래 "수명" |
 
+## 생성 시점 — 미리 만들기와 처음 보일 때 만들기
+
+webview kind 의 surface 는 기본적으로 탭이 열릴 때 WebView 를 만들고, 화면에 없는 탭이면 숨겨 둔다. macOS WKWebView 는 WebView 마다 렌더링 프로세스(WebContent)를 따로 띄우고 `WKProcessPool` 공유는 macOS 12 부터 효과가 없으므로, 복원된 탭이 많으면 보지 않은 탭의 프로세스가 그만큼 상주한다.
+
+kind 선언에 `lazy_webview = true`(webview kind 전용)를 두면 그 kind 는 처음 화면에 보일 때 WebView 를 만든다. 한 번 만든 뒤에는 기본과 같이 숨겨도 유지한다.
+
+- 만들 때 싣는 문서는 마지막 `webview.set_url` 값이다.
+- 만든 프레임의 동기화 뒤 host 는 kind 를 등록한 plugin 에만 `surface.webview_created`(`surface_id`)를 보낸다([이벤트 카탈로그](../../reference/event-catalog.md#surface-scopesurface)). 버려진 메시지를 되살리지 않으므로 받는 plugin 은 그 surface 의 문서 전체를 다시 싣는다. 같은 surface 의 WebView 를 다시 만든 경우(이전 WebView 가 surface 와의 연결을 잃어 정리된 뒤)에도 보낸다.
+- 문서 전체를 다시 그릴 수 있는 plugin 만 켠다. 입력 중인 값처럼 페이지에만 있는 상태는 처음 만들 때는 없으므로 잃지 않지만, 다시 만들 때는 잃는다.
+
+### 가려지면 없애기 — 메모리 절약
+
+lazy kind 의 소유 plugin 설정에서 `release_hidden_webview`(bool)가 켜져 있으면, host 는 그 kind 의 WebView 가 화면에서 빠진 프레임에 WebView 를 없앤다(macOS 는 렌더링 프로세스도 내려간다). 값은 사용자가 저장한 값, 같은 `storage_key` 를 쓰는 설정 페이지 토글의 `default`, 꺼짐 순으로 정한다. lazy 가 아닌 kind 는 이 값을 보지 않는다.
+
+- 없애는 단계는 동기화에서 생성보다 먼저 돈다. 없앤 surface 는 적재 URL · 적용 설정 · 생성 시도 · 이동 증명 기록도 함께 지워 다음 생성이 처음 만드는 것과 같다(연결을 잃은 WebView 정리와 같은 함수).
+- 다시 보이면 위 생성 경로가 새로 만들고 `surface.webview_created` 를 보낸다. plugin 은 문서 전체를 다시 싣고, 페이지에만 있던 상태 중 되살릴 것은 미리 받아 두어야 한다.
+- 가려지는 기준은 이 창의 활성 surface 목록이다. overlay 가 열려 WebView 를 잠깐 숨기는 경우는 활성 목록에서 빠지지 않으므로 없애지 않는다.
+- macOS 에서 렌더링 프로세스는 WebView 마다 하나이고(같은 문서 모양의 대화 탭끼리도 나눠 쓰지 않는다), 없앤 WebView 의 프로세스는 몇 초 안에 내려간다. 다만 보이는 WebView 가 하나도 남지 않으면 WebKit 이 마지막 프로세스 하나를 다음 WebView 가 생길 때까지 남겨 둔다. 그래서 메모리는 보이는 WebView 수(없으면 1)만큼의 프로세스로 묶인다.
+
 ## 생성 — 부모 handle 과 실패 분류
 
 부모 창은 raw-window-handle로 전달한다. Linux는 Xlib만, macOS는 AppKit ns_view,

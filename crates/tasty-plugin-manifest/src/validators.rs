@@ -7,8 +7,14 @@ use super::types::{
     WEBVIEW_ZOOM_MIN,
 };
 
-/// webview_defaults는 webview kind에만 쓰며 값은 호스트가 적용할 수 있는 범위여야 한다.
+/// webview_defaults·lazy_webview는 webview kind에만 쓰며 값은 호스트가 적용할 수 있는 범위여야 한다.
 pub(super) fn validate_webview_defaults(kind: &SurfaceKindDecl) -> anyhow::Result<()> {
+    if kind.lazy_webview && kind.rendering != SurfaceKindRendering::Webview {
+        anyhow::bail!(
+            "surface_kinds '{}': lazy_webview is only valid for rendering = \"webview\"",
+            kind.kind
+        );
+    }
     let Some(defaults) = &kind.webview_defaults else {
         return Ok(());
     };

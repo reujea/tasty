@@ -95,6 +95,7 @@ impl App {
             self.plugin_manager.as_ref(),
             &self.services.navigation_proofs,
         );
+        super::webview_sync::announce_lazy_webviews(view, self.plugin_manager.as_mut());
         // 같은 프레임 동기화가 정한 모드·그림 위치로 창 단위 오버레이 host 를 맞춘다.
         super::webview_sync::settle_overlay_host(
             view,

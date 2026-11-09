@@ -350,6 +350,20 @@ impl HtmlWebViewSettings {
     }
 }
 
+/// 가려진 WebView를 없앨 kind인가 — lazy kind이고 소유 plugin의 메모리 절약 토글이 켜졌을 때. 저장된 값이
+/// 없거나 타입이 다르면 설정 페이지의 기본값을 쓴다. 없앤 WebView는 다시 보일 때 lazy 경로로 새로 만든다.
+pub fn releases_hidden_webview(
+    source: &crate::runtime::surface_registry::webview_kind::WebViewSettingsSource,
+    settings: &crate::settings::Settings,
+) -> bool {
+    use crate::runtime::surface_registry::webview_kind::RELEASE_HIDDEN_KEY;
+    source.lazy
+        && match settings.plugin_setting(&source.plugin_id, RELEASE_HIDDEN_KEY) {
+            Some(crate::settings::PluginSettingValue::Bool(b)) => *b,
+            _ => source.release_hidden_default,
+        }
+}
+
 #[cfg(test)]
 mod settings_resolve_tests {
     use super::{ColorScheme, HtmlWebViewSettings};
@@ -373,6 +387,8 @@ mod settings_resolve_tests {
                 decl,
                 &manifest.contributes.settings_pages,
             ),
+            lazy: decl.lazy_webview,
+            release_hidden_default: false,
         }
     }
 
@@ -414,6 +430,47 @@ mod settings_resolve_tests {
         );
     }
 
+    /// 메모리 절약은 lazy kind에서만 — 저장값이 기본값을 이기고, 타입이 틀리면 기본값이다.
+    #[test]
+    fn hidden_webviews_are_released_only_for_lazy_kinds_that_opt_in() {
+        use crate::runtime::surface_registry::webview_kind::RELEASE_HIDDEN_KEY;
+        let mut source = WebViewSettingsSource {
+            plugin_id: "com.example.view".into(),
+            defaults: WebViewSettingDefaults::default(),
+            lazy: true,
+            release_hidden_default: false,
+        };
+        let mut settings = Settings::default();
+        assert!(!super::releases_hidden_webview(&source, &settings));
+        source.release_hidden_default = true;
+        assert!(super::releases_hidden_webview(&source, &settings));
+        settings.set_plugin_setting(
+            "com.example.view",
+            RELEASE_HIDDEN_KEY,
+            PluginSettingValue::Bool(false),
+        );
+        assert!(!super::releases_hidden_webview(&source, &settings));
+        settings.set_plugin_setting(
+            "com.example.view",
+            RELEASE_HIDDEN_KEY,
+            PluginSettingValue::Text("yes".into()),
+        );
+        assert!(
+            super::releases_hidden_webview(&source, &settings),
+            "타입이 틀리면 기본값"
+        );
+        settings.set_plugin_setting(
+            "com.example.view",
+            RELEASE_HIDDEN_KEY,
+            PluginSettingValue::Bool(true),
+        );
+        source.lazy = false;
+        assert!(
+            !super::releases_hidden_webview(&source, &settings),
+            "lazy 가 아닌 kind"
+        );
+    }
+
     #[test]
     fn custom_kind_uses_its_plugin_defaults_and_saved_settings() {
         let source = WebViewSettingsSource {
@@ -424,6 +481,8 @@ mod settings_resolve_tests {
                 allow_remote_content: false,
                 color_scheme: "dark".into(),
             },
+            lazy: false,
+            release_hidden_default: false,
         };
         let mut settings = Settings::default();
         assert_eq!(

@@ -103,10 +103,13 @@ agent
 | `surface.resized` | 크기 변경(쓰로틀) | `surface_id, width_px, height_px` | Stable |
 | `surface.title_changed` | 표시 이름 변경 | `surface_id, title` | Stable |
 | `surface.refresh_requested` | 사용자가 공통 새로고침 실행 | `surface_id, kind, trigger(shortcut/palette)` | Experimental |
+| `surface.webview_created` | `lazy_webview` kind 의 WebView 를 만든 직후, kind 를 등록한 plugin 에만(unicast) | `surface_id` | Experimental |
 
 `created_by`: `{kind:user}` 또는 `{kind:agent, source_plugin}`.
 
 `surface.refresh_requested` 는 사용자가 [공통 새로고침](../features/keybindings/index.md#공통-새로고침--refresh)을 실행했을 때 키를 누른 시점의 대상 surface 로 한 번 발행한다. 에이전트·IPC 경로는 만들지 않으므로 항상 사용자 요청이다. `kind` 는 키를 누른 시점의 kind 이고 host 는 전달 직전에 같은 세대·kind 인지 확인해 닫기·변환·재생성된 대상에는 보내지 않는다. scope=surface 라도 소유 plugin 에만 가는 것이 아니라 `event_subscribe` 가 덮는 모든 구독자에게 가므로 수신자는 `surface_id`(필요하면 `kind`)가 자기 문서인지 확인한다. 발행은 요청 접수이며 갱신 성공을 뜻하지 않는다.
+
+`surface.webview_created` 는 구독 없이 kind 를 등록한 plugin 에 간다. 받은 plugin 은 페이지 상태를 다시 맞춘다 — 실린 문서는 마지막 `webview.set_url` 값이다([WebView 생성 시점](../design/systems/webview.md#생성-시점--미리-만들기와-처음-보일-때-만들기)).
 
 ### Tab / Pane / Split (scope=system)
 | 키 | payload |

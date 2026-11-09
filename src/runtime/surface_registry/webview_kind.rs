@@ -93,6 +93,28 @@ impl WebViewSettingDefaults {
 pub struct WebViewSettingsSource {
     pub plugin_id: String,
     pub defaults: WebViewSettingDefaults,
+    /// kind 선언의 `lazy_webview` — 처음 보일 때 WebView를 만들고 그 전 메시지는 버린다.
+    pub lazy: bool,
+    /// 설정 페이지 토글 [`RELEASE_HIDDEN_KEY`]의 기본값. 항목이 없으면 꺼짐이다.
+    pub release_hidden_default: bool,
+}
+
+/// 메모리 절약 토글의 저장 키. lazy kind의 소유 plugin이 이 키를 켜면 호스트는 가려진 WebView를 없앤다.
+pub const RELEASE_HIDDEN_KEY: &str = "release_hidden_webview";
+
+/// 설정 페이지에서 `key` 토글의 기본값.
+fn toggle_default(pages: &[SettingsPageContribute], key: &str) -> Option<bool> {
+    pages
+        .iter()
+        .flat_map(|p| p.items.iter())
+        .find_map(|item| match item {
+            SettingsItemDecl::Toggle {
+                storage_key,
+                default,
+                ..
+            } if storage_key == key => Some(*default),
+            _ => None,
+        })
 }
 
 /// 같은 kind를 다른 plugin이 다시 등록하면 surface 등록부처럼 나중 등록이 설정 출처가 된다.
@@ -104,6 +126,8 @@ pub fn register_webview_kind(
     let source = WebViewSettingsSource {
         plugin_id: plugin_id.to_string(),
         defaults: WebViewSettingDefaults::from_manifest(decl, settings_pages),
+        lazy: decl.lazy_webview,
+        release_hidden_default: toggle_default(settings_pages, RELEASE_HIDDEN_KEY).unwrap_or(false),
     };
     let previous = {
         let mut guard = crate::poison::recover_write(WEBVIEW_KINDS.write(), WHAT, &POISON_REPORTED);
@@ -250,6 +274,23 @@ default = true
         assert!(both.sandbox_scripts);
         assert!(both.allow_remote_content);
         assert_eq!(both.color_scheme, "dark");
+    }
+
+    #[test]
+    fn lazy_flag_follows_the_kind_declaration() {
+        let _guard = WEBVIEW_KIND_TEST_LOCK
+            .lock()
+            .unwrap_or_else(|p| p.into_inner());
+        reset_for_test();
+        register_webview_kind("com.example.a", &decl("eager"), &[]);
+        let mut lazy = decl("lazy");
+        lazy.lazy_webview = true;
+        register_webview_kind("com.example.a", &lazy, &[]);
+        let lazy_of = |k: &str| webview_settings_source(k).is_some_and(|s| s.lazy);
+        assert!(!lazy_of("eager"));
+        assert!(lazy_of("lazy"));
+        assert!(!lazy_of("unknown"));
+        reset_for_test();
     }
 
     #[test]
