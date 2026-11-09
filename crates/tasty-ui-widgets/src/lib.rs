@@ -57,6 +57,7 @@ mod input;
 mod kb_plugins;
 mod kb_record;
 mod keyboard_cursor;
+mod label_font;
 mod language_select;
 mod listctrl;
 mod mac_permissions;
@@ -225,6 +226,7 @@ pub use kb_plugins::{
     KbPluginsOutput, KbPluginsView, kb_plugins_subtab,
 };
 pub use kb_record::{KbRecordSlot, kb_record_slot, kb_record_slot_sized};
+pub use label_font::{label_font, label_font_family, label_font_family_for};
 pub use language_select::{LanguageOption, LanguageSelectLabels, language_select};
 pub use listctrl::{ListCtrl, ListCtrlItem, ListCtrlOutput, ListCtrlTrailing};
 pub use mac_permissions::{
