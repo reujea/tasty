@@ -109,7 +109,7 @@ release workflow는 각 빌드 러너에서 서명 스크립트를 실행한다.
 | 4 | `scripts/build-macos-dmg.sh` staging 루프 | 동적 (`crates/tasty-plugin-*` glob) |
 | 5 | `scripts/build-linux.sh::stage_plugins()` | 동적 |
 | 6 | `scripts/build-windows.ps1::Stage-Plugins` | 동적 |
-| 7 | `builtin.rs::BUILTINS` | **명시** (windows + non-windows cfg) |
+| 7 | `builtin.rs::BUILTINS` | **명시** (모든 플랫폼이 쓰는 표 하나 — 실행 파일 이름은 crate 이름 + 플랫폼 접미사) |
 
 1/2/3/7 은 새 plugin 시 **반드시 수정**, 4/5/6 은 glob 자동 발견.
 

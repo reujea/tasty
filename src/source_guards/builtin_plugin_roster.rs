@@ -1,5 +1,6 @@
-//! 번들 플러그인 목록을 Windows·그 외의 BUILTINS, 디스크 매니페스트, 패키징 문서와 카탈로그에서 대조한다.
-//! 한 플랫폼의 컴파일만으로는 다른 cfg 분기의 이름을 확인하지 못하므로 두 분기를 함께 읽는다.
+//! 번들 플러그인 목록을 BUILTINS, 디스크 매니페스트, 패키징 문서와 카탈로그에서 대조한다.
+//! BUILTINS 는 모든 플랫폼이 쓰는 표 하나다. 한 플랫폼의 컴파일만으로는 다른 cfg 분기의 이름을 확인하지
+//! 못하므로, 분기가 다시 생기면 그 자체를 알린다.
 //! 개수뿐 아니라 ID와 크레이트의 집합을 비교해 다른 플러그인으로 바뀐 경우도 찾는다.
 
 use std::collections::BTreeSet;
@@ -173,27 +174,19 @@ mod tests {
     use super::*;
 
     #[test]
-    fn both_cfg_arms_of_builtins_declare_the_same_plugins() {
+    fn builtins_is_one_table_for_every_platform() {
         let arms = builtin_arms();
+        let labels: Vec<&String> = arms.iter().map(|(l, _)| l).collect();
         assert_eq!(
-            arms.len(),
-            2,
-            "{BUILTIN_SRC} 의 BUILTINS의 빌드 조건별 정의가 2개가 아니다: {:?}",
-            arms.iter().map(|(l, _)| l).collect::<Vec<_>>()
+            labels,
+            ["(cfg 없음)"],
+            "{BUILTIN_SRC} 의 BUILTINS 는 cfg 없는 정의 하나여야 한다. 플랫폼마다 나누면 한 플랫폼의 컴파일로는 \
+             다른 분기의 이름을 확인하지 못한다. 실행 파일 이름의 차이는 BuiltinSpec::bin_name 이 맡는다"
         );
         assert!(
             arms[0].1.len() >= 5,
-            "BUILTINS 분기 하나가 비었거나 너무 작다. 파싱 범위를 확인한다: {:?}",
+            "BUILTINS 가 비었거나 너무 작다. 파싱 범위를 확인한다: {:?}",
             arms[0]
-        );
-        assert_eq!(
-            arms[0].1,
-            arms[1].1,
-            "BUILTINS의 플랫폼별 목록이 다르다. {}에만 있는 항목: {:?}, {}에만 있는 항목: {:?}",
-            arms[0].0,
-            arms[0].1.difference(&arms[1].1).collect::<Vec<_>>(),
-            arms[1].0,
-            arms[1].1.difference(&arms[0].1).collect::<Vec<_>>(),
         );
     }
 

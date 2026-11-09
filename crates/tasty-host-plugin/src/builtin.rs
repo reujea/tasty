@@ -20,105 +20,52 @@ pub(crate) struct BuiltinSpec {
     /// `crates/<crate_dir>/` — workspace 빌드의 매니페스트/lang 원본 위치.
     /// workspace 가 실제로 존재할 때만 dev sync 에 사용된다 (배포 패키지에서는 미사용).
     crate_dir: &'static str,
-    /// `target/<profile>/<bin_name>` — workspace 빌드된 plugin 실행 바이너리 이름.
-    bin_name: &'static str,
 }
 
-#[cfg(windows)]
-pub(crate) const BUILTINS: &[BuiltinSpec] = &[
-    BuiltinSpec {
-        id: "com.tasty.codex",
-        crate_dir: "tasty-plugin-codex",
-        bin_name: "tasty-plugin-codex.exe",
-    },
-    BuiltinSpec {
-        id: "com.tasty.claude",
-        crate_dir: "tasty-plugin-claude",
-        bin_name: "tasty-plugin-claude.exe",
-    },
-    BuiltinSpec {
-        id: "com.tasty.image",
-        crate_dir: "tasty-plugin-image",
-        bin_name: "tasty-plugin-image.exe",
-    },
-    BuiltinSpec {
-        id: "com.tasty.markdown",
-        crate_dir: "tasty-plugin-markdown",
-        bin_name: "tasty-plugin-markdown.exe",
-    },
-    BuiltinSpec {
-        id: "com.tasty.clipboard-viewer",
-        crate_dir: "tasty-plugin-clipboard-viewer",
-        bin_name: "tasty-plugin-clipboard-viewer.exe",
-    },
-    BuiltinSpec {
-        id: "com.tasty.html",
-        crate_dir: "tasty-plugin-html",
-        bin_name: "tasty-plugin-html.exe",
-    },
-    BuiltinSpec {
-        id: "com.tasty.git-viewer",
-        crate_dir: "tasty-plugin-git-viewer",
-        bin_name: "tasty-plugin-git-viewer.exe",
-    },
-    BuiltinSpec {
-        id: "com.tasty.mesh-demo",
-        crate_dir: "tasty-plugin-mesh-demo",
-        bin_name: "tasty-plugin-mesh-demo.exe",
-    },
-    BuiltinSpec {
-        id: "com.tasty.agent-stream",
-        crate_dir: "tasty-plugin-agent-stream",
-        bin_name: "tasty-plugin-agent-stream.exe",
-    },
-];
+impl BuiltinSpec {
+    /// `target/<profile>/<bin_name>` — workspace 빌드된 plugin 실행 바이너리 이름. 패키지 이름(`crate_dir`)에
+    /// 플랫폼 실행 파일 접미사를 붙인 것이다.
+    fn bin_name(&self) -> String {
+        format!("{}{}", self.crate_dir, std::env::consts::EXE_SUFFIX)
+    }
+}
 
-#[cfg(not(windows))]
 pub(crate) const BUILTINS: &[BuiltinSpec] = &[
     BuiltinSpec {
         id: "com.tasty.codex",
         crate_dir: "tasty-plugin-codex",
-        bin_name: "tasty-plugin-codex",
     },
     BuiltinSpec {
         id: "com.tasty.claude",
         crate_dir: "tasty-plugin-claude",
-        bin_name: "tasty-plugin-claude",
     },
     BuiltinSpec {
         id: "com.tasty.image",
         crate_dir: "tasty-plugin-image",
-        bin_name: "tasty-plugin-image",
     },
     BuiltinSpec {
         id: "com.tasty.markdown",
         crate_dir: "tasty-plugin-markdown",
-        bin_name: "tasty-plugin-markdown",
     },
     BuiltinSpec {
         id: "com.tasty.clipboard-viewer",
         crate_dir: "tasty-plugin-clipboard-viewer",
-        bin_name: "tasty-plugin-clipboard-viewer",
     },
     BuiltinSpec {
         id: "com.tasty.html",
         crate_dir: "tasty-plugin-html",
-        bin_name: "tasty-plugin-html",
     },
     BuiltinSpec {
         id: "com.tasty.git-viewer",
         crate_dir: "tasty-plugin-git-viewer",
-        bin_name: "tasty-plugin-git-viewer",
     },
     BuiltinSpec {
         id: "com.tasty.mesh-demo",
         crate_dir: "tasty-plugin-mesh-demo",
-        bin_name: "tasty-plugin-mesh-demo",
     },
     BuiltinSpec {
         id: "com.tasty.agent-stream",
         crate_dir: "tasty-plugin-agent-stream",
-        bin_name: "tasty-plugin-agent-stream",
     },
 ];
 
@@ -359,7 +306,7 @@ fn sync_builtin_dev(
     bundle_root: &Path,
     spec: &BuiltinSpec,
 ) -> bool {
-    let plugin_bin = exe_dir.join(spec.bin_name);
+    let plugin_bin = exe_dir.join(spec.bin_name());
     let crate_dir = workspace.join("crates").join(spec.crate_dir);
     let src_manifest = crate_dir.join("tasty-plugin.toml");
     if !plugin_bin.exists() || !src_manifest.exists() {
@@ -390,7 +337,7 @@ fn sync_builtin_dev_required(
         || copy_if_newer(src_manifest, &dest_dir.join("tasty-plugin.toml")),
         || format!("dev bundle: copy manifest for {} failed", spec.id),
     ) && dev_sync_step(
-        || copy_if_newer(plugin_bin, &dest_dir.join(spec.bin_name)),
+        || copy_if_newer(plugin_bin, &dest_dir.join(spec.bin_name())),
         || format!("dev bundle: copy binary for {} failed", spec.id),
     )
 }

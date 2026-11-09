@@ -46,7 +46,7 @@ fn bundled_ids_of_this_build_are_official() {
     }
 }
 
-/// 번들 목록은 OS별로 두 벌이다. 이 빌드가 고르지 않은 벌도 원문에서 읽어 대조한다.
+/// 번들 목록은 모든 OS 가 함께 쓰는 한 벌이다. 이 빌드의 cfg 와 무관하게 원문에서 읽어 대조한다.
 #[test]
 fn bundled_ids_of_every_os_are_official() {
     let source = include_str!("builtin.rs");
@@ -58,7 +58,7 @@ fn bundled_ids_of_every_os_are_official() {
         .filter_map(|l| l.trim().strip_prefix("id: \""))
         .filter_map(|l| l.strip_suffix("\","))
         .collect();
-    assert_eq!(ids.len(), 18, "two tables of nine bundled ids: {ids:?}");
+    assert_eq!(ids.len(), 9, "one table of bundled ids: {ids:?}");
     for id in ids {
         assert!(
             OFFICIAL_PLUGIN_IDS.contains(&id),

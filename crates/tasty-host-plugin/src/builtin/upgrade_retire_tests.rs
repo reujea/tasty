@@ -47,7 +47,6 @@ fn upgrade(
     let spec = BuiltinSpec {
         id: ID,
         crate_dir: "",
-        bin_name: "",
     };
     apply_builtin_upgrade_decision(
         mgr,
