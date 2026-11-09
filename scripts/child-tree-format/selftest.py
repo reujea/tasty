@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run every self test of the child tree format scripts.
+"""Run every self test of the graph format scripts.
 
 Exit codes: 0 all passed, 1 a test failed, 2 no test was found. A run with no
 tests must not read as a pass.

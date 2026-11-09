@@ -17,12 +17,12 @@ from pathlib import Path
 sys.dont_write_bytecode = True
 
 from check_rules import DECISION_SHA256
-from common import DATA_DIR, FORMATS, LEVELS, PILOT_TREE, SEED, TREES, dumps, sha256_bytes, validate_nodes
+from common import DATA_DIR, FORMATS, LEVELS, PILOT_CELLS, SEED, TREES, dumps, sha256_bytes, validate_nodes
 from prompts import build_user_prompt, prompt_hash, question_order
 from questions import build_questions
 from render import check_read_back, render
 from schedule import call_counts, call_id, pilot_calls, planned_calls, shuffled
-from synth import build_synthetic, forced_items, measure_shape
+from synth import build_dag, build_synthetic, dag_checks, forced_items, measure_shape
 
 TEMPLATE_FILES = ("prompts/system.txt", "prompts/user.txt")
 
@@ -64,6 +64,7 @@ def generate(real_tree, template_dir, out_dir):
         "real": real_nodes,
         "synthetic_40": build_synthetic("synthetic_40", 40, shape),
         "synthetic_80": build_synthetic("synthetic_80", 80, shape),
+        "dag_40": build_dag("dag_40", 40, shape),
     }
     system = (template_dir / "prompts/system.txt").read_text(encoding="utf-8").rstrip("\n")
     template = (template_dir / "prompts/user.txt").read_text(encoding="utf-8").rstrip("\n")
@@ -93,12 +94,9 @@ def generate(real_tree, template_dir, out_dir):
         question_notes[name] = {"asked": len(questions), **notes}
         inputs[name] = {"questions": questions, "minutes": notes["silent_minutes"], "rendered": rendered}
 
-    sizes = rendered_bytes[PILOT_TREE]
-    smallest = min(FORMATS, key=lambda f: (sizes[f], f))
-    largest = max(FORMATS, key=lambda f: (sizes[f], f))
     _write(
         out_dir / "schedules/pilot.jsonl",
-        _schedule_rows("pilot", pilot_calls(smallest, largest), inputs, system, template, pilot=True),
+        _schedule_rows("pilot", pilot_calls(), inputs, system, template, pilot=True),
     )
     for level in LEVELS:
         _write(
@@ -117,9 +115,10 @@ def generate(real_tree, template_dir, out_dir):
         "real_capture": real_tree.get("capture", {}),
         "real_shape": shape,
         "synthetic_forced": forced,
-        "synthetic_shapes": {n: measure_shape(trees[n]) for n in ("synthetic_40", "synthetic_80")},
+        "synthetic_shapes": {n: measure_shape(trees[n]) for n in ("synthetic_40", "synthetic_80", "dag_40")},
+        "dag_checks": dag_checks(trees["dag_40"]),
         "rendered_bytes": rendered_bytes,
-        "pilot_formats": {"smallest": smallest, "largest": largest},
+        "pilot_cells": [list(cell) for cell in PILOT_CELLS],
         "questions": question_notes,
         "call_counts": call_counts(),
         "files": files,

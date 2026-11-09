@@ -1,4 +1,4 @@
-| id | parent | nickname | state | cwd | last_report_at |
+| id | parents | nickname | state | cwd | last_report_at |
 |---|---|---|---|---|---|
 | n106 | - | - | idle | /work/repo-y/wt-04 | 2026-01-03T02:38:37Z |
 | n482 | n106 | lane-bc | idle | /work/repo-g/wt-04 | 2026-01-02T19:11:20Z |

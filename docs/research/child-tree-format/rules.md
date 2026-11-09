@@ -1,23 +1,23 @@
-# child 트리 형식 측정: 설계와 판정 규칙
+# 그래프 형식 측정: 설계와 판정 규칙
 
-AI 에이전트가 child 트리를 어떤 텍스트 형식으로 받을 때 정확하고 싸게 읽는지 재는 방법과, 결과에서 권고를 끌어내는 규칙을 정한다. 이 문서는 어떤 측정 결과보다 먼저 커밋한다. 목적과 인용은 [개요](index.md)에 있다.
+AI 에이전트가 child 트리와 DAG를 어떤 텍스트 형식으로 받을 때 정확하고 싸게 읽는지 재는 방법과, 결과에서 권고를 끌어내는 규칙을 정한다. 이 문서는 어떤 측정 결과보다 먼저 커밋한다. 목적과 인용은 [개요](index.md)에 있다.
 
 ## 고정 범위
 
 - [판정 규칙](#판정-규칙)과 [규모 축소 규칙](#규모-축소-규칙)의 수치는 결과를 보기 전에 정한다. 판정 규칙 구간은 이 문서의 첫 커밋 뒤에 바꾸지 않는다. 결과가 규칙과 어울리지 않아 보여도 규칙을 고치지 않고 결과 문서에 따로 설명한다. 이 구간이 정한 정의는 다른 절을 고쳐도 바뀌지 않는다.
-- 그 밖의 절은 호출 명령, 응답 필드, 파싱처럼 실행해야 알 수 있는 문제가 있을 때만 고친다. 고치면 [규칙 변경 기록](#규칙-변경-기록)에 내용, 이유, 결과를 본 뒤인지, 전후 커밋을 적는다.
+- 그 밖의 절은 호출 명령, 응답 필드, 파싱처럼 실행해야 알 수 있는 문제가 있거나 호출 전에 사용자가 측정 설계를 바꾼 경우에만 고친다. 고치면 [규칙 변경 기록](#규칙-변경-기록)에 내용, 이유, 결과를 본 뒤인지, 전후 커밋을 적는다.
 - 소규모 시험의 정답률을 근거로 규칙, 질문, 프롬프트를 고치지 않는다. 시험 호출은 판정에 넣지 않는다.
 
 ## 데이터
 
 ### 노드
 
-트리 하나는 노드 목록이다. 모든 형식을 같은 노드 목록에서 생성한다.
+그래프 하나는 노드 목록이다. 모든 형식을 같은 노드 목록에서 생성한다. 트리는 모든 노드의 부모가 0개 또는 1개인 그래프이고, 부모가 2개 이상인 노드가 있으면 DAG다.
 
 | 필드 | 값 | 값 없음 |
 |---|---|---|
 | `id` | `n` 뒤 세 자리 숫자. 시드로 섞어 부여한다 | 없음 |
-| `parent` | 다른 노드의 `id` | 뿌리 |
+| `parents` | 다른 노드 `id`의 오름차순 목록. 트리에서는 0개 또는 1개다 | 빈 목록이 뿌리다 |
 | `nickname` | 영문 소문자, 숫자, 하이픈만 쓰는 고유한 값 | 있음 |
 | `state` | `active`, `idle`, `needs_input`, `stale`, `exited` | 없음 |
 | `cwd` | `/work/repo-a/wt-01` 형식의 가명 경로 | 없음 |
@@ -25,19 +25,24 @@ AI 에이전트가 child 트리를 어떤 텍스트 형식으로 받을 때 정�
 
 `nickname`과 `cwd`에는 공백, 큰따옴표, 세미콜론, 파이프를 넣지 않는다. 생성 단계에서 위반을 오류로 처리한다. 형식마다 값을 다르게 이스케이프해 정보량이 달라지는 일을 막기 위해서다.
 
-깊이는 뿌리를 0으로 센다. 뿌리가 여럿인 숲은 그대로 두고 가상 뿌리를 만들지 않는다.
+깊이는 뿌리를 0으로 세고 부모가 여럿이면 가장 긴 거리로 센다. 뿌리가 여럿인 숲은 그대로 두고 가상 뿌리를 만들지 않는다. 생성 단계에서 순환을 오류로 처리한다.
 
-### 트리
+### 그래프
+
+아래 절과 [판정 규칙](#판정-규칙)의 "트리", 원자료의 `tree` 필드, 호출 ID의 트리 자리는 이 표의 그래프 4개를 가리킨다.
 
 | 이름 | 노드 수 | 만드는 방법 |
 |---|---|---|
 | `real` | 스냅샷의 노드 수 | 실제 child 트리 스냅샷을 익명화한다 |
 | `synthetic_40` | 정확히 40 | `real`과 같은 모양으로 시드 고정 생성한다 |
 | `synthetic_80` | 정확히 80 | `real`과 같은 모양으로 시드 고정 생성한다 |
+| `dag_40` | 정확히 40 | 아래 DAG 절대로 시드 고정 생성한다 |
 
 **스냅샷**: 저장된 child 관계 파일의 부모 관계를 뿌리까지 걸어 숲 전체를 잡는다. 호출 시점의 `tasty claude children`과 `tasty codex children` 결과는 살아 있는 노드의 현재 값을 채우는 데 쓴다. 여기서 조회되지 않는 노드의 상태는 `terminal.state`의 판정을 따른다. 이 명령이 `no live surface` 오류를 내면 그 surface는 이미 없으므로 `exited`로 둔다. `last_report_at`은 이 CLI 출력에 없어서 저장 파일의 `last_state_report_at`을 읽기 전용으로 합친다. 값이 없는 노드는 값 없음으로 두고 그 수를 기록한다. 값을 지어내지 않는다. `cwd`는 값 없음을 두지 않으므로, 저장 파일에 항목이 없어 경로를 읽을 수 없는 뿌리는 어떤 실제 저장소와도 묶지 않는 별도 가명 저장소 아래의 서로 다른 가명으로 두고 그 수를 기록한다. 부모가 surface가 아닌 외부 키인 노드는 뿌리로 두고 그 수를 기록한다.
 
 **같은 모양**: 깊이 분포, 부모별 자식 수 분포, 상태 비율, `nickname` 없음 비율, 보고 시각 간격을 스냅샷과 맞춘다. 스냅샷의 최대 깊이가 3보다 얕거나 어떤 상태가 빠져 있으면, 합성 트리는 최대 깊이 3 이상과 다섯 상태 각 1개 이상을 강제한다. 달라진 항목은 변경 기록과 한계에 적는다.
+
+**DAG**: `dag_40`은 실제 스냅샷이 없는 합성 그래프다. 층 크기는 2, 5, 8, 9, 8, 5, 3으로 고정한다. 첫 층 밖의 노드는 바로 위 층에서 부모 하나를 뽑고, 확률 0.45로 같은 층에서 하나를 더, 확률 0.15로 두 층 위에서 하나를 더 뽑는다. 같은 값이 뽑히면 하나로 친다. 부모가 2개 이상인 노드 8개 이상과 다이아몬드 노드 3개 이상을 강제하고, 모자라면 생성 오류로 처리한다. 다이아몬드 노드는 서로의 조상이 아닌 두 부모가 공통 조상을 가진 노드다. 상태는 부모가 끝나야 자식이 시작한다는 뜻에 맞춘다. 층 순서로 걸으며 부모가 모두 `exited`인 노드 13개를 `exited`로 두고, 그다음 시작할 수 있는 노드에 `active`, `idle`, `needs_input`, `stale`을 차례로 준다. 나머지는 `idle`이다. 다섯 상태, 부모가 여럿인 실행 가능 노드, `exited` 부모를 가진 막힌 노드가 각 1개 이상 없으면 생성 오류다. `nickname`, `cwd`, 보고 시각은 합성 트리와 같은 방법으로 `real`의 분포에서 만든다. 층과 확률과 13은 입력을 만들며 정한 값이고 모델 호출 결과와 무관하다. 생성한 값은 `data/manifest.json`의 `dag_checks`에 있다.
 
 **시각**: 트리에서 가장 늦은 보고 시각을 `2026-01-05T12:00:00Z`로 옮기고 나머지는 간격을 유지한 채 함께 옮긴다. 기준 시각 T는 모든 트리에서 `2026-01-05T12:05:00Z`다. 합성 트리의 보고 시각은 서로 겹치지 않는다. 저장값은 밀리초이므로 초 단위로 내림한 뒤 옮긴다. 내림으로 실제 트리의 시각은 겹칠 수 있고, 이 경우 `q11`의 동률 처리와 `q12`의 후보 조건이 적용된다.
 
@@ -62,19 +67,17 @@ AI 에이전트가 child 트리를 어떤 텍스트 형식으로 받을 때 정�
 |---|---|---|
 | `parent_table` | `parent id table` | `-` |
 | `adjacency` | `adjacency list with attributes` | `-` |
-| `mermaid` | `Mermaid flowchart` | `-` |
 | `flat_json` | `flat JSON array` | `null` |
-| `nested_json` | `nested JSON` | `null` |
-| `indented` | `indented list` | `-` |
+| `dot` | `Graphviz DOT` | `-` |
 
-모든 형식의 노드 순서는 같다. 뿌리를 `id` 오름차순으로 두고 깊이 우선 전위 순회하며, 형제도 `id` 오름차순으로 방문한다. 줄 끝 공백과 빈 줄은 넣지 않는다. 필드 이름은 형식과 관계없이 같다.
+모든 형식의 노드 순서는 같다. 뿌리를 `id` 오름차순으로 두고 깊이 우선 전위 순회하며, 형제도 `id` 오름차순으로 방문한다. 부모가 여럿인 노드는 처음 닿는 자리에 한 번만 둔다. 줄 끝 공백과 빈 줄은 넣지 않는다. 필드 이름은 형식과 관계없이 같다.
 
 아래 예시는 뿌리 `n104` 아래에 `n230`, `n587`이 있는 숲이다. 시각과 경로는 형식을 보이기 위한 값이다.
 
-`parent_table`:
+`parent_table`: 부모가 여럿이면 `n104,n230`처럼 공백 없이 쉼표로 잇는다.
 
 ```text
-| id | parent | nickname | state | cwd | last_report_at |
+| id | parents | nickname | state | cwd | last_report_at |
 |---|---|---|---|---|---|
 | n104 | - | lane-a | active | /work/repo-a/wt-01 | 2026-01-05T11:40:00Z |
 | n230 | n104 | - | idle | /work/repo-a/wt-02 | 2026-01-05T11:58:12Z |
@@ -89,50 +92,43 @@ n230 nickname=- state=idle cwd=/work/repo-a/wt-02 last_report_at=2026-01-05T11:5
 n587 nickname=lane-b state=exited cwd=/work/repo-b/wt-01 last_report_at=- children=-
 ```
 
-`mermaid`: 노드 줄을 모두 적은 뒤 간선 줄을 자식의 순서대로 적는다.
-
-```text
-flowchart TD
-  n104["nickname=lane-a; state=active; cwd=/work/repo-a/wt-01; last_report_at=2026-01-05T11:40:00Z"]
-  n230["nickname=-; state=idle; cwd=/work/repo-a/wt-02; last_report_at=2026-01-05T11:58:12Z"]
-  n587["nickname=lane-b; state=exited; cwd=/work/repo-b/wt-01; last_report_at=-"]
-  n104 --> n230
-  n104 --> n587
-```
-
-두 JSON 형식은 구분자 규칙이 같다. 쉼표와 콜론 뒤에 공백을 넣지 않는다(Python `json.dumps`의 `separators=(",", ":")`). 토큰 비교가 구분자 차이에 영향받지 않게 하기 위해서다.
+구분자 규칙: `flat_json`은 쉼표와 콜론 뒤에 공백을 넣지 않는다(Python `json.dumps`의 `separators=(",", ":")`). 토큰 비교가 구분자 차이에 영향받지 않게 하기 위해서다.
 
 `flat_json`: 배열 괄호를 각각 한 줄에 쓰고 노드마다 한 줄을 쓴다.
 
 ```text
 [
-{"id":"n104","parent":null,"nickname":"lane-a","state":"active","cwd":"/work/repo-a/wt-01","last_report_at":"2026-01-05T11:40:00Z"},
-{"id":"n230","parent":"n104","nickname":null,"state":"idle","cwd":"/work/repo-a/wt-02","last_report_at":"2026-01-05T11:58:12Z"},
-{"id":"n587","parent":"n104","nickname":"lane-b","state":"exited","cwd":"/work/repo-b/wt-01","last_report_at":null}
+{"id":"n104","parents":[],"nickname":"lane-a","state":"active","cwd":"/work/repo-a/wt-01","last_report_at":"2026-01-05T11:40:00Z"},
+{"id":"n230","parents":["n104"],"nickname":null,"state":"idle","cwd":"/work/repo-a/wt-02","last_report_at":"2026-01-05T11:58:12Z"},
+{"id":"n587","parents":["n104"],"nickname":"lane-b","state":"exited","cwd":"/work/repo-b/wt-01","last_report_at":null}
 ]
 ```
 
-`nested_json`: 숲 전체를 한 줄로 쓴다. 뿌리의 배열이 바깥이고 `parent` 키는 없다. 자식이 없으면 `"children":[]`로 쓴다. 아래 예시만 읽기 쉽도록 노드 단위로 줄을 나눴다.
+`dot`: 노드 줄을 모두 적은 뒤 간선 줄을 자식의 순서대로, 한 자식의 부모는 `id` 오름차순으로 적는다.
 
 ```text
-[{"id":"n104","nickname":"lane-a","state":"active","cwd":"/work/repo-a/wt-01","last_report_at":"2026-01-05T11:40:00Z","children":[
-{"id":"n230","nickname":null,"state":"idle","cwd":"/work/repo-a/wt-02","last_report_at":"2026-01-05T11:58:12Z","children":[]},
-{"id":"n587","nickname":"lane-b","state":"exited","cwd":"/work/repo-b/wt-01","last_report_at":null,"children":[]}]}]
+digraph G {
+  rankdir=LR;
+  "n104" [nickname="lane-a", state="active", cwd="/work/repo-a/wt-01", last_report_at="2026-01-05T11:40:00Z"];
+  "n230" [nickname="-", state="idle", cwd="/work/repo-a/wt-02", last_report_at="2026-01-05T11:58:12Z"];
+  "n587" [nickname="lane-b", state="exited", cwd="/work/repo-b/wt-01", last_report_at="-"];
+  "n104" -> "n230";
+  "n104" -> "n587";
+}
 ```
 
-`indented`: 깊이마다 공백 2칸을 들여 쓴다.
+`dot`의 기준은 `task-graph`와 `dag-get`의 `--format dot` 출력이다(`src/adapters/ipc/handler/agent/task_graph_view.rs`의 `render_graph_dot`, `crates/tasty-cli/src/format/graph_dot.rs`). `digraph G {`, `rankdir=LR;`, 큰따옴표로 감싼 노드 ID, `[키=값, ...]` 속성 목록, `"부모" -> "자식";` 간선 줄을 그대로 쓴다. CLI 출력의 `label`은 이름과 상태만 담고 `style`과 `fillcolor`는 상태를 다시 나타낸다. 이 측정은 다른 형식과 정보량을 맞추기 위해 이 셋을 빼고, 다른 형식과 같은 이름의 속성 `nickname`, `state`, `cwd`, `last_report_at`을 노드 줄에 담는다. Graphviz는 모르는 속성을 무시하므로 그대로 그릴 수 있다. 값에 큰따옴표가 없으므로 이스케이프가 필요 없다. 간선은 모두 부모에서 자식으로 가는 의존 관계라 CLI의 간선 속성을 쓰지 않는다. 이 측정은 CLI 출력을 바꾸지 않는다.
 
-```text
-- n104 nickname=lane-a state=active cwd=/work/repo-a/wt-01 last_report_at=2026-01-05T11:40:00Z
-  - n230 nickname=- state=idle cwd=/work/repo-a/wt-02 last_report_at=2026-01-05T11:58:12Z
-  - n587 nickname=lane-b state=exited cwd=/work/repo-b/wt-01 last_report_at=-
-```
-
-생성 스크립트는 여섯 형식을 다시 읽어 노드 집합, 부모 관계, 모든 필드, 값 없음 표기를 원본과 필드 단위로 대조한다. 형식 사이 정보량이 다르면 비교가 무의미하기 때문이다.
+생성 스크립트는 네 형식을 다시 읽어 노드 집합, 부모 목록, 모든 필드, 값 없음 표기를 원본과 필드 단위로 대조한다. 형식 사이 정보량이 다르면 비교가 무의미하기 때문이다.
 
 ## 질문
 
-질문은 15개이고 종류는 7개다. 정답은 모델이 아니라 스크립트가 노드 목록에서 계산한다. 대상 노드는 트리마다 한 번 뽑아 모든 형식, 모델, 반복에 같게 쓴다.
+질문은 19개이고 종류는 10개다. 정답은 모델이 아니라 스크립트가 노드 목록에서 계산한다. 대상 노드는 그래프마다 한 번 뽑아 모든 형식, 모델, 반복에 같게 쓴다. 그래프에 맞지 않는 질문은 묻지 않는다.
+
+| 그래프 | 묻는 질문 | 묻지 않는 질문과 이유 |
+|---|---|---|
+| 트리 3개 | `q1`~`q15` | `q16`~`q19`. 프로세스 트리에서 부모는 만든 쪽이지 먼저 끝나야 하는 쪽이 아니고, 트리는 구조상 순환이 없다 |
+| `dag_40` | `q1`~`q8`, `q11`~`q19` | `q9`, `q10`. 부모가 여럿이면 뿌리까지의 경로와 가장 낮은 공통 조상이 하나로 정해지지 않는다 |
 
 | ID | 종류 | 답 형태 | 프롬프트 문구 |
 |---|---|---|---|
@@ -151,23 +147,31 @@ flowchart TD
 | `q13` | 구조 | 정수 | `How many siblings does {e} have?` |
 | `q14` | 함정 | null | `What is the id of the parent of {missing_id}?` |
 | `q15` | 함정 | null | `What is the state of the node with nickname {missing_nick}?` |
+| `q16` | 의존 | id 집합 | `List the ids of all blocked nodes.` |
+| `q17` | 의존 | id 집합 | `List the ids of all runnable nodes.` |
+| `q18` | 영향 | id 집합 | `List the ids of the nodes in the failure impact of {f}.` |
+| `q19` | 순환 | null | `Does the graph have a cycle? List the ids of the nodes on cycles, or answer null when there is no cycle.` |
 
 중괄호는 질문마다 따로 뽑아 채운다. 대상을 고르는 조건은 다음과 같다.
 
 | 자리 | 후보 |
 |---|---|
 | `q3`, `q6`, `q7`, `q8`의 `{a}` | 자손이 2개 이상인 노드. 없으면 1개 이상인 노드 |
-| `q5`의 `{b}`, `q9`의 `{c}` | 깊이 2 이상인 노드. 없으면 깊이 1 이상인 노드 |
+| `q5`의 `{b}`, `q9`의 `{c}` | 깊이 2 이상인 노드. 없으면 깊이 1 이상인 노드. `q5`는 부모가 정확히 1개인 노드만 고른다 |
 | `q4`의 `{nick}` | `nickname`이 있는 노드. 없으면 문구를 `the node {b}`로 바꾼다 |
 | `q10`의 `{c}`, `{d}` | 공통 조상이 있고 어느 쪽도 다른 쪽의 조상이 아닌 쌍 |
 | `q12`의 `{e}` | 보고 시각이 있는 형제가 2개 이상이고 그 최댓값이 겹치지 않는 노드 |
 | `q13`의 `{e}` | 형제가 1개 이상인 노드 |
+| `q18`의 `{f}` | 어떤 자손에 두 경로 이상으로 닿는 노드. 없으면 자손이 2개 이상인 노드 |
 | `{missing_id}` | 트리에 없는 같은 형태의 `id` |
 | `{missing_nick}` | 트리에 없는 같은 어휘의 `nickname` |
 
 - `q1`의 N은 `state`가 `active` 또는 `stale`이고 `last_report_at`이 있는 노드에서 T − `last_report_at`의 중앙값을 구해 분 단위로 내림한 값이다. 최솟값은 1이다. 해당 노드가 없으면 N은 30이고 정답은 빈 목록이다.
 - `q2`, `q3`의 대상 상태가 트리에 없으면 빈 목록이 정답이다. 이 경우와 `real`의 깊이가 2 미만인 경우의 경로·집계 질문은 변별력이 낮다고 한계에 적는다.
 - `q11`의 최솟값이 겹치면 겹치지 않는 부분 트리 중 노드가 가장 많은 뿌리 아래로 범위를 좁히고, 문구 앞에 `Among the descendants of {root} only:`를 붙인다. 후보는 자손 중 조건에 맞는 노드의 최솟값이 겹치지 않는 숲의 뿌리이고, 자손이 가장 많은 뿌리를 고른다. 자손 수가 같으면 `id`가 작은 뿌리를 고른다. 후보가 없으면 그 트리에서 `q11`을 뺀다.
+- 막힌 노드와 실행 가능한 노드는 한 가지로 정의한다. 실행 가능한 노드는 상태가 `idle`이고 모든 부모의 상태가 `exited`인 노드다. 부모가 없는 `idle` 노드도 여기에 든다. 막힌 노드는 상태가 `idle`이고 상태가 `exited`가 아닌 부모가 하나 이상인 노드다. 그래서 `idle` 노드는 둘 중 하나다. 프롬프트 문구와 `questions.py`의 `runnable_nodes`, `blocked_nodes`가 이 정의를 쓴다.
+- 실패 영향 범위는 X의 자손 전체다. 두 경로로 닿는 노드도 한 번만 센다. 프로세스 상태 어휘를 그대로 쓰므로 `exited`가 작업 완료를 뜻한다.
+- `q19`는 순환이 있으면 순환 위 노드의 id 집합이, 없으면 `null`이 정답이다. 정답 계산은 두 경우를 모두 처리한다. `dag_40`은 DAG이므로 이 측정에서 정답은 `null`이고, 항상 `null`로 답해도 맞으므로 `low_discrimination`에 적는다.
 - 조건에 맞는 대상이 없는 질문은 그 트리에서 빼고 뺀 사실을 기록한다. 채점 수는 실제 물은 질문으로 센다.
 
 ## 프롬프트
@@ -177,26 +181,29 @@ flowchart TD
 시스템:
 
 ```text
-You read a tree of agent processes given as text and answer questions about it. Use only the tree in the message. You have no tools. Reply with one JSON object and nothing else.
+You read a graph of agent processes given as text and answer questions about it. Use only the graph in the message. You have no tools. Reply with one JSON object and nothing else.
 ```
 
 사용자:
 
 ```text
-Each node has an id, a nickname, a state, a cwd and a last_report_at, and sits under at most one parent. A node without a parent is a root.
-Tree format: {format_name}
+Each node has an id, a nickname, a state, a cwd and a last_report_at, and has zero or more parents. A node without a parent is a root.
+Graph format: {format_name}
 {missing_note}
 Reference time: {T}
 
-<tree>
+<graph>
 {rendered}
-</tree>
+</graph>
 
 Definitions:
 - States: active is working, idle is waiting for a new task, needs_input is waiting for user input, stale has shown no recent activity, exited is gone.
-- Descendants of X are all nodes below X at any depth, not X itself.
-- Siblings of X are the other nodes with the same parent. A root has no siblings.
+- Descendants of X are all nodes below X at any depth, each counted once, not X itself.
+- Siblings of X are the other nodes that share at least one parent with X. A root has no siblings.
 - A node is silent when its state is active or stale and its last_report_at is at least {N} minutes before the reference time. A node without a last_report_at is not silent.
+- A node is runnable when its state is idle and every parent has state exited. An idle node without a parent is runnable.
+- A node is blocked when its state is idle and at least one parent has a state other than exited.
+- The failure impact of X is all descendants of X.
 
 Answer rules:
 - Reply with one JSON object only, with no code fence and no explanation. Use each question id as a key.
@@ -270,8 +277,8 @@ codex exec --json --ephemeral --skip-git-repo-check --ignore-user-config -C <빈
 
 | 용도 | 키 | 정하는 것 |
 |---|---|---|
-| `tree` | 트리 이름 | 번호 부여, 합성 트리 |
-| `targets` | 트리 이름, 질문 ID | 질문 대상 |
+| `tree` | 그래프 이름 | 번호 부여, 합성 그래프 |
+| `targets` | 그래프 이름, 질문 ID | 질문 대상 |
 | `order` | 호출 ID | 호출별 질문 순서 |
 | `schedule` | 수준 이름. 소규모 시험은 `pilot` | 전체 호출의 실행 순서 |
 
@@ -282,19 +289,22 @@ codex exec --json --ephemeral --skip-git-repo-check --ignore-user-config -C <빈
 ## 호출 규모
 
 ```text
-본 실행 L0 = 형식 6 × 트리 3 × 모델 3 × 반복 3 = 162회
-소규모 시험 = 모델 3 × 형식 2 × 트리 1 × 반복 1 = 6회
+본 실행 L0 = 형식 4 × 그래프 4 × 모델 3 × 반복 3 = 144회
+소규모 시험 = 모델 3 × (dot + dag_40, parent_table + synthetic_80) × 반복 1 = 6회
+L0 전체 상한 = 시험 6 + 시험 재시도 2 + 본 실행 144 + 재시도 15 = 167회
 ```
 
-소규모 시험은 `synthetic_80`에서 렌더링 바이트 수가 가장 작은 형식과 가장 큰 형식으로 실행한다. 명령, 응답 필드, 도구 차단, 사용량 필드를 확인하는 용도다. 재시도 상한은 2회다.
+소규모 시험은 새로 든 `dot`와 DAG, 표 형식과 가장 큰 트리를 확인한다. 명령, 응답 필드, 도구 차단, 사용량 필드를 확인하는 용도다. 재시도 상한은 2회이고 시험의 전체 상한은 8회다.
+
+재시도 상한은 본 실행 계획의 10%를 올림한 값이다. L0 전체 상한은 이전 설계의 비율 187/162로 계산한 값과 같다: ⌈144 × 187 / 162⌉ = 167. 187은 이전 설계의 시험 상한 8, 호출 162, 재시도 17의 합이다.
 
 ### 규모 축소 규칙
 
 | 수준 | 조합 | 호출 수 | 재시도 상한 |
 |---|---|---|---|
-| L0 | 모든 모델 반복 3 | 6×3×3×3 = 162 | 17 |
-| L1 | 낮은 쪽 Claude 반복 3, 높은 쪽 Claude와 Codex 반복 2 | 6×3×(3+2+2) = 126 | 13 |
-| L2 | L1에서 `synthetic_40` 제외 | 6×2×(3+2+2) = 84 | 9 |
+| L0 | 모든 모델 반복 3 | 4×4×3×3 = 144 | 15 |
+| L1 | 낮은 쪽 Claude 반복 3, 높은 쪽 Claude와 Codex 반복 2 | 4×4×(3+2+2) = 112 | 12 |
+| L2 | L1에서 `synthetic_40` 제외 | 4×3×(3+2+2) = 84 | 9 |
 | 중단 | 실행하지 않는다 | 0 | 0 |
 
 판정 규칙 2가 낮은 쪽 모델을 쓰므로 그 모델을 마지막까지 3회 유지한다. L1과 L2로 줄이면 칸마다 반복 수가 달라지므로 한계에 적는다.
@@ -394,3 +404,4 @@ u' = u + u × P / W
 | 규칙 1의 `A_best`를 가진 형식이 여럿일 때 구현은 `U_best`로 그중 가장 큰 값을 쓴다. 판정 구간은 그대로 두고 요약의 `decision`에 `best_tied`와 쓴 `u_best`를 낸다. 순서 확인에 `summarize.py`와 `score.py`의 이력 읽기를 더했다 | 규칙 1은 동률일 때 어느 U_best를 쓰는지 정하지 않았고, 값에 따라 후보 집합이 달라진다. 어느 형식을 최고로 부르느냐에 따라 후보가 달라지지 않게 하고, 그 선택을 결과에서 볼 수 있게 했다 | 아니다. 측정 호출 0회 | `714b4d3c8` → 이 기록을 더한 커밋 |
 | 7일 창 상승 비교에 모델별 7일 창과 사람이 읽은 값(`level-changes.jsonl`의 `usage_note`)을 더했다. 창 상태 필드에 `seven_day_by_window`를 저장한다. 채점된 본 실행 Claude 호출에 7일 값이 없으면 `usage_unread`, 읽은 값이 승인 u의 10분의 1 미만이면 `usage_unit_suspect`로 중단한다 | "7일 창 u가 승인 때 계산한 u'보다 5포인트 이상 높음"은 모델별 창과 Codex, 값이 없는 경우, 단위를 잘못 지정한 경우에 작동하지 않았다. 판정 규칙은 바꾸지 않고 사용량 쪽을 더 멈추는 방향으로만 바꿨다 | 아니다. 측정 호출 0회 | `61600b6ec` → 이 기록을 더한 커밋 |
 | 호출 전 시작 줄 파일과 오류 종류 `interrupted`를 더했다. 시작 줄만 있는 호출은 일반 API 실패와 같이 재시도 상한과 실패 횟수에 센다. 한 데이터 폴더에 러너 하나만 돌도록 잠금 파일을 둔다 | 호출 도중 러너가 죽으면 사용량을 쓴 호출이 기록에 남지 않아 공짜로 다시 돌고, "모든 호출을 원자료에 남긴다"를 어긴다. 두 러너가 같은 폴더에 쓰면 같은 호출을 두 번 쓴다 | 아니다. 측정 호출 0회 | `09874e459` → 이 기록을 더한 커밋 |
+| 측정 대상을 트리에서 그래프로 바꿨다. 형식을 `parent_table`, `adjacency`, `flat_json`, `dot` 넷으로 줄이고(`mermaid`, `nested_json`, `indented` 제외), 노드의 `parent`를 `parents` 목록으로 바꾸고, `dag_40`과 질문 `q16`~`q19`를 더했다. 호출은 L0 144, L1 112, L2 84회, 재시도 상한은 15, 12, 9회다. 시험 구성을 `dot` + `dag_40`, `parent_table` + `synthetic_80`으로 바꿨다. 프롬프트의 정의와 단어를 그래프에 맞췄다 | 사용자 결정이다. AI가 읽는 그래프 텍스트의 기본 형식을 child 트리와 DAG에 하나로 통일할 근거를 만든다. 판정 구간은 바이트 그대로이고 해시 `629785d470081fcf4f8f159a44021ffcc8f49db441765a09da83265a31881500`도 같다. 구간의 "트리"는 그래프 절이 정한 대로 그래프 4개를 가리키고 판정 규칙 3개의 뜻은 그대로다 | 아니다. 아직 모델 호출이 없어 결과를 본 변경이 아니다 | `7d227ebca` → 이 기록을 더한 커밋 |

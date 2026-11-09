@@ -3,7 +3,7 @@
  "nodes": [
   {
    "id": "n106",
-   "parent": null,
+   "parents": [],
    "nickname": null,
    "state": "idle",
    "cwd": "/work/repo-y/wt-04",
@@ -11,7 +11,9 @@
   },
   {
    "id": "n482",
-   "parent": "n106",
+   "parents": [
+    "n106"
+   ],
    "nickname": "lane-bc",
    "state": "idle",
    "cwd": "/work/repo-g/wt-04",
@@ -19,7 +21,7 @@
   },
   {
    "id": "n154",
-   "parent": null,
+   "parents": [],
    "nickname": "lane-aa",
    "state": "exited",
    "cwd": "/work/repo-t/wt-04",
@@ -27,7 +29,9 @@
   },
   {
    "id": "n369",
-   "parent": "n154",
+   "parents": [
+    "n154"
+   ],
    "nickname": "lane-cb",
    "state": "idle",
    "cwd": "/work/repo-y/wt-03",
@@ -35,7 +39,9 @@
   },
   {
    "id": "n504",
-   "parent": "n154",
+   "parents": [
+    "n154"
+   ],
    "nickname": null,
    "state": "active",
    "cwd": "/work/repo-h/wt-03",
@@ -43,7 +49,9 @@
   },
   {
    "id": "n701",
-   "parent": "n504",
+   "parents": [
+    "n504"
+   ],
    "nickname": "lane-d",
    "state": "idle",
    "cwd": "/work/repo-l/wt-01",
@@ -51,7 +59,9 @@
   },
   {
    "id": "n863",
-   "parent": "n154",
+   "parents": [
+    "n154"
+   ],
    "nickname": "lane-o",
    "state": "idle",
    "cwd": "/work/repo-w/wt-06",
@@ -59,7 +69,9 @@
   },
   {
    "id": "n977",
-   "parent": "n154",
+   "parents": [
+    "n154"
+   ],
    "nickname": "lane-c",
    "state": "active",
    "cwd": "/work/repo-g/wt-03",
@@ -67,7 +79,9 @@
   },
   {
    "id": "n266",
-   "parent": "n977",
+   "parents": [
+    "n977"
+   ],
    "nickname": "lane-u",
    "state": "idle",
    "cwd": "/work/repo-p/wt-02",
@@ -75,7 +89,9 @@
   },
   {
    "id": "n554",
-   "parent": "n977",
+   "parents": [
+    "n977"
+   ],
    "nickname": null,
    "state": "idle",
    "cwd": "/work/repo-r/wt-01",
@@ -83,7 +99,9 @@
   },
   {
    "id": "n689",
-   "parent": "n977",
+   "parents": [
+    "n977"
+   ],
    "nickname": null,
    "state": "idle",
    "cwd": "/work/repo-c/wt-02",
@@ -91,7 +109,9 @@
   },
   {
    "id": "n965",
-   "parent": "n977",
+   "parents": [
+    "n977"
+   ],
    "nickname": null,
    "state": "idle",
    "cwd": "/work/repo-z/wt-01",
@@ -99,7 +119,7 @@
   },
   {
    "id": "n173",
-   "parent": null,
+   "parents": [],
    "nickname": null,
    "state": "active",
    "cwd": "/work/repo-s/wt-03",
@@ -107,7 +127,9 @@
   },
   {
    "id": "n725",
-   "parent": "n173",
+   "parents": [
+    "n173"
+   ],
    "nickname": "lane-bf",
    "state": "active",
    "cwd": "/work/repo-y/wt-02",
@@ -115,7 +137,7 @@
   },
   {
    "id": "n246",
-   "parent": null,
+   "parents": [],
    "nickname": "lane-at",
    "state": "idle",
    "cwd": "/work/repo-k/wt-02",
@@ -123,7 +145,9 @@
   },
   {
    "id": "n313",
-   "parent": "n246",
+   "parents": [
+    "n246"
+   ],
    "nickname": null,
    "state": "active",
    "cwd": "/work/repo-f/wt-03",
@@ -131,7 +155,9 @@
   },
   {
    "id": "n180",
-   "parent": "n313",
+   "parents": [
+    "n313"
+   ],
    "nickname": null,
    "state": "needs_input",
    "cwd": "/work/repo-x/wt-03",
@@ -139,7 +165,9 @@
   },
   {
    "id": "n346",
-   "parent": "n246",
+   "parents": [
+    "n246"
+   ],
    "nickname": "lane-bp",
    "state": "idle",
    "cwd": "/work/repo-o/wt-03",
@@ -147,7 +175,9 @@
   },
   {
    "id": "n675",
-   "parent": "n346",
+   "parents": [
+    "n346"
+   ],
    "nickname": null,
    "state": "active",
    "cwd": "/work/repo-s/wt-02",
@@ -155,7 +185,9 @@
   },
   {
    "id": "n860",
-   "parent": "n346",
+   "parents": [
+    "n346"
+   ],
    "nickname": "lane-bo",
    "state": "active",
    "cwd": "/work/repo-t/wt-02",
@@ -163,7 +195,9 @@
   },
   {
    "id": "n874",
-   "parent": "n246",
+   "parents": [
+    "n246"
+   ],
    "nickname": "lane-ai",
    "state": "exited",
    "cwd": "/work/repo-l/wt-04",
@@ -171,7 +205,9 @@
   },
   {
    "id": "n314",
-   "parent": "n874",
+   "parents": [
+    "n874"
+   ],
    "nickname": "lane-an",
    "state": "idle",
    "cwd": "/work/repo-o/wt-01",
@@ -179,7 +215,9 @@
   },
   {
    "id": "n969",
-   "parent": "n246",
+   "parents": [
+    "n246"
+   ],
    "nickname": "lane-m",
    "state": "idle",
    "cwd": "/work/repo-u/wt-03",
@@ -187,7 +225,9 @@
   },
   {
    "id": "n947",
-   "parent": "n969",
+   "parents": [
+    "n969"
+   ],
    "nickname": "lane-bx",
    "state": "active",
    "cwd": "/work/repo-u/wt-01",
@@ -195,7 +235,7 @@
   },
   {
    "id": "n323",
-   "parent": null,
+   "parents": [],
    "nickname": null,
    "state": "exited",
    "cwd": "/work/repo-r/wt-03",
@@ -203,7 +243,9 @@
   },
   {
    "id": "n315",
-   "parent": "n323",
+   "parents": [
+    "n323"
+   ],
    "nickname": "lane-br",
    "state": "idle",
    "cwd": "/work/repo-g/wt-02",
@@ -211,7 +253,9 @@
   },
   {
    "id": "n631",
-   "parent": "n315",
+   "parents": [
+    "n315"
+   ],
    "nickname": "lane-y",
    "state": "active",
    "cwd": "/work/repo-g/wt-01",
@@ -219,7 +263,9 @@
   },
   {
    "id": "n694",
-   "parent": "n315",
+   "parents": [
+    "n315"
+   ],
    "nickname": "lane-bs",
    "state": "active",
    "cwd": "/work/repo-l/wt-02",
@@ -227,7 +273,9 @@
   },
   {
    "id": "n752",
-   "parent": "n315",
+   "parents": [
+    "n315"
+   ],
    "nickname": "lane-af",
    "state": "exited",
    "cwd": "/work/repo-s/wt-01",
@@ -235,7 +283,9 @@
   },
   {
    "id": "n814",
-   "parent": "n315",
+   "parents": [
+    "n315"
+   ],
    "nickname": "lane-aq",
    "state": "active",
    "cwd": "/work/repo-r/wt-02",
@@ -243,7 +293,9 @@
   },
   {
    "id": "n437",
-   "parent": "n323",
+   "parents": [
+    "n323"
+   ],
    "nickname": null,
    "state": "idle",
    "cwd": "/work/repo-a/wt-01",
@@ -251,7 +303,9 @@
   },
   {
    "id": "n486",
-   "parent": "n323",
+   "parents": [
+    "n323"
+   ],
    "nickname": "lane-al",
    "state": "active",
    "cwd": "/work/repo-h/wt-02",
@@ -259,7 +313,9 @@
   },
   {
    "id": "n668",
-   "parent": "n323",
+   "parents": [
+    "n323"
+   ],
    "nickname": null,
    "state": "active",
    "cwd": "/work/repo-q/wt-07",
@@ -267,7 +323,9 @@
   },
   {
    "id": "n897",
-   "parent": "n668",
+   "parents": [
+    "n668"
+   ],
    "nickname": "lane-w",
    "state": "active",
    "cwd": "/work/repo-y/wt-01",
@@ -275,7 +333,7 @@
   },
   {
    "id": "n339",
-   "parent": null,
+   "parents": [],
    "nickname": null,
    "state": "idle",
    "cwd": "/work/repo-b/wt-03",
@@ -283,7 +341,9 @@
   },
   {
    "id": "n207",
-   "parent": "n339",
+   "parents": [
+    "n339"
+   ],
    "nickname": null,
    "state": "idle",
    "cwd": "/work/repo-n/wt-02",
@@ -291,7 +351,9 @@
   },
   {
    "id": "n451",
-   "parent": "n207",
+   "parents": [
+    "n207"
+   ],
    "nickname": "lane-x",
    "state": "active",
    "cwd": "/work/repo-v/wt-02",
@@ -299,7 +361,9 @@
   },
   {
    "id": "n395",
-   "parent": "n339",
+   "parents": [
+    "n339"
+   ],
    "nickname": "lane-bz",
    "state": "idle",
    "cwd": "/work/repo-o/wt-02",
@@ -307,7 +371,9 @@
   },
   {
    "id": "n889",
-   "parent": "n395",
+   "parents": [
+    "n395"
+   ],
    "nickname": "lane-bd",
    "state": "idle",
    "cwd": "/work/repo-b/wt-01",
@@ -315,7 +381,9 @@
   },
   {
    "id": "n602",
-   "parent": "n339",
+   "parents": [
+    "n339"
+   ],
    "nickname": "lane-bv",
    "state": "active",
    "cwd": "/work/repo-l/wt-03",
@@ -323,7 +391,9 @@
   },
   {
    "id": "n593",
-   "parent": "n602",
+   "parents": [
+    "n602"
+   ],
    "nickname": "lane-t",
    "state": "idle",
    "cwd": "/work/repo-q/wt-06",
@@ -331,7 +401,9 @@
   },
   {
    "id": "n796",
-   "parent": "n339",
+   "parents": [
+    "n339"
+   ],
    "nickname": "lane-bm",
    "state": "idle",
    "cwd": "/work/repo-j/wt-02",
@@ -339,7 +411,9 @@
   },
   {
    "id": "n134",
-   "parent": "n796",
+   "parents": [
+    "n796"
+   ],
    "nickname": "lane-be",
    "state": "active",
    "cwd": "/work/repo-x/wt-02",
@@ -347,7 +421,9 @@
   },
   {
    "id": "n295",
-   "parent": "n796",
+   "parents": [
+    "n796"
+   ],
    "nickname": "lane-l",
    "state": "active",
    "cwd": "/work/repo-p/wt-01",
@@ -355,7 +431,9 @@
   },
   {
    "id": "n564",
-   "parent": "n796",
+   "parents": [
+    "n796"
+   ],
    "nickname": null,
    "state": "idle",
    "cwd": "/work/repo-w/wt-03",
@@ -363,7 +441,9 @@
   },
   {
    "id": "n568",
-   "parent": "n796",
+   "parents": [
+    "n796"
+   ],
    "nickname": null,
    "state": "active",
    "cwd": "/work/repo-q/wt-02",
@@ -371,7 +451,9 @@
   },
   {
    "id": "n724",
-   "parent": "n796",
+   "parents": [
+    "n796"
+   ],
    "nickname": "lane-ae",
    "state": "idle",
    "cwd": "/work/repo-e/wt-02",
@@ -379,7 +461,9 @@
   },
   {
    "id": "n824",
-   "parent": "n796",
+   "parents": [
+    "n796"
+   ],
    "nickname": "lane-r",
    "state": "active",
    "cwd": "/work/repo-w/wt-02",
@@ -387,7 +471,9 @@
   },
   {
    "id": "n837",
-   "parent": "n796",
+   "parents": [
+    "n796"
+   ],
    "nickname": "lane-bg",
    "state": "active",
    "cwd": "/work/repo-f/wt-02",
@@ -395,7 +481,9 @@
   },
   {
    "id": "n944",
-   "parent": "n796",
+   "parents": [
+    "n796"
+   ],
    "nickname": "lane-ak",
    "state": "idle",
    "cwd": "/work/repo-c/wt-01",
@@ -403,7 +491,7 @@
   },
   {
    "id": "n608",
-   "parent": null,
+   "parents": [],
    "nickname": null,
    "state": "idle",
    "cwd": "/work/repo-q/wt-08",
@@ -411,7 +499,9 @@
   },
   {
    "id": "n588",
-   "parent": "n608",
+   "parents": [
+    "n608"
+   ],
    "nickname": "lane-by",
    "state": "idle",
    "cwd": "/work/repo-f/wt-04",
@@ -419,7 +509,7 @@
   },
   {
    "id": "n784",
-   "parent": null,
+   "parents": [],
    "nickname": "lane-q",
    "state": "idle",
    "cwd": "/work/repo-c/wt-03",
@@ -427,7 +517,7 @@
   },
   {
    "id": "n790",
-   "parent": null,
+   "parents": [],
    "nickname": "lane-f",
    "state": "active",
    "cwd": "/work/repo-n/wt-03",
@@ -435,7 +525,9 @@
   },
   {
    "id": "n704",
-   "parent": "n790",
+   "parents": [
+    "n790"
+   ],
    "nickname": "lane-n",
    "state": "idle",
    "cwd": "/work/repo-g/wt-05",
@@ -443,7 +535,9 @@
   },
   {
    "id": "n534",
-   "parent": "n704",
+   "parents": [
+    "n704"
+   ],
    "nickname": "lane-bw",
    "state": "idle",
    "cwd": "/work/repo-u/wt-02",
@@ -451,7 +545,9 @@
   },
   {
    "id": "n866",
-   "parent": "n790",
+   "parents": [
+    "n790"
+   ],
    "nickname": "lane-bh",
    "state": "active",
    "cwd": "/work/repo-t/wt-03",
@@ -459,7 +555,9 @@
   },
   {
    "id": "n117",
-   "parent": "n866",
+   "parents": [
+    "n866"
+   ],
    "nickname": null,
    "state": "active",
    "cwd": "/work/repo-t/wt-01",
@@ -467,7 +565,9 @@
   },
   {
    "id": "n189",
-   "parent": "n866",
+   "parents": [
+    "n866"
+   ],
    "nickname": null,
    "state": "stale",
    "cwd": "/work/repo-q/wt-05",
@@ -475,7 +575,9 @@
   },
   {
    "id": "n463",
-   "parent": "n866",
+   "parents": [
+    "n866"
+   ],
    "nickname": "lane-ba",
    "state": "active",
    "cwd": "/work/repo-q/wt-03",
@@ -483,7 +585,9 @@
   },
   {
    "id": "n665",
-   "parent": "n463",
+   "parents": [
+    "n463"
+   ],
    "nickname": "lane-bi",
    "state": "exited",
    "cwd": "/work/repo-f/wt-01",
@@ -491,7 +595,9 @@
   },
   {
    "id": "n513",
-   "parent": "n866",
+   "parents": [
+    "n866"
+   ],
    "nickname": "lane-ay",
    "state": "idle",
    "cwd": "/work/repo-q/wt-04",
@@ -499,7 +605,7 @@
   },
   {
    "id": "n805",
-   "parent": null,
+   "parents": [],
    "nickname": null,
    "state": "idle",
    "cwd": "/work/repo-j/wt-03",
@@ -507,7 +613,9 @@
   },
   {
    "id": "n341",
-   "parent": "n805",
+   "parents": [
+    "n805"
+   ],
    "nickname": null,
    "state": "active",
    "cwd": "/work/repo-w/wt-05",
@@ -515,7 +623,9 @@
   },
   {
    "id": "n540",
-   "parent": "n805",
+   "parents": [
+    "n805"
+   ],
    "nickname": "lane-au",
    "state": "idle",
    "cwd": "/work/repo-d/wt-01",
@@ -523,7 +633,9 @@
   },
   {
    "id": "n546",
-   "parent": "n805",
+   "parents": [
+    "n805"
+   ],
    "nickname": null,
    "state": "idle",
    "cwd": "/work/repo-p/wt-03",
@@ -531,7 +643,9 @@
   },
   {
    "id": "n661",
-   "parent": "n805",
+   "parents": [
+    "n805"
+   ],
    "nickname": null,
    "state": "exited",
    "cwd": "/work/repo-k/wt-01",
@@ -539,7 +653,9 @@
   },
   {
    "id": "n181",
-   "parent": "n661",
+   "parents": [
+    "n661"
+   ],
    "nickname": "lane-az",
    "state": "idle",
    "cwd": "/work/repo-z/wt-02",
@@ -547,7 +663,9 @@
   },
   {
    "id": "n487",
-   "parent": "n661",
+   "parents": [
+    "n661"
+   ],
    "nickname": null,
    "state": "idle",
    "cwd": "/work/repo-h/wt-01",
@@ -555,7 +673,9 @@
   },
   {
    "id": "n662",
-   "parent": "n661",
+   "parents": [
+    "n661"
+   ],
    "nickname": null,
    "state": "idle",
    "cwd": "/work/repo-n/wt-01",
@@ -563,7 +683,9 @@
   },
   {
    "id": "n298",
-   "parent": "n662",
+   "parents": [
+    "n662"
+   ],
    "nickname": null,
    "state": "exited",
    "cwd": "/work/repo-x/wt-01",
@@ -571,7 +693,9 @@
   },
   {
    "id": "n333",
-   "parent": "n662",
+   "parents": [
+    "n662"
+   ],
    "nickname": null,
    "state": "exited",
    "cwd": "/work/repo-e/wt-01",
@@ -579,7 +703,9 @@
   },
   {
    "id": "n355",
-   "parent": "n662",
+   "parents": [
+    "n662"
+   ],
    "nickname": "lane-av",
    "state": "exited",
    "cwd": "/work/repo-v/wt-01",
@@ -587,7 +713,9 @@
   },
   {
    "id": "n802",
-   "parent": "n662",
+   "parents": [
+    "n662"
+   ],
    "nickname": "lane-ac",
    "state": "idle",
    "cwd": "/work/repo-q/wt-01",
@@ -595,7 +723,9 @@
   },
   {
    "id": "n834",
-   "parent": "n662",
+   "parents": [
+    "n662"
+   ],
    "nickname": null,
    "state": "active",
    "cwd": "/work/repo-w/wt-01",
@@ -603,7 +733,9 @@
   },
   {
    "id": "n729",
-   "parent": "n661",
+   "parents": [
+    "n661"
+   ],
    "nickname": null,
    "state": "idle",
    "cwd": "/work/repo-i/wt-01",
@@ -611,7 +743,9 @@
   },
   {
    "id": "n777",
-   "parent": "n661",
+   "parents": [
+    "n661"
+   ],
    "nickname": "lane-ca",
    "state": "active",
    "cwd": "/work/repo-j/wt-01",
@@ -619,7 +753,9 @@
   },
   {
    "id": "n857",
-   "parent": "n661",
+   "parents": [
+    "n661"
+   ],
    "nickname": "lane-am",
    "state": "active",
    "cwd": "/work/repo-x/wt-04",
@@ -627,7 +763,9 @@
   },
   {
    "id": "n941",
-   "parent": "n661",
+   "parents": [
+    "n661"
+   ],
    "nickname": "lane-h",
    "state": "idle",
    "cwd": "/work/repo-w/wt-04",
@@ -635,7 +773,9 @@
   },
   {
    "id": "n973",
-   "parent": "n661",
+   "parents": [
+    "n661"
+   ],
    "nickname": null,
    "state": "exited",
    "cwd": "/work/repo-b/wt-02",

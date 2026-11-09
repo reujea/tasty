@@ -8,7 +8,17 @@ from helpers import node
 
 sys.dont_write_bytecode = True
 
-from questions import build_questions, question_11, silent_minutes, silent_nodes
+from questions import (
+    blocked_nodes,
+    build_questions,
+    cycle_answer,
+    cycle_nodes,
+    question_11,
+    runnable_nodes,
+    silent_minutes,
+    silent_nodes,
+)
+from common import descendants, siblings
 
 
 class HandTree(unittest.TestCase):
@@ -62,6 +72,11 @@ class HandTree(unittest.TestCase):
         self.assertNotIn("q12", self.answers)
         self.assertEqual(len(self.questions), 14)
 
+    def test_a_tree_gets_no_dependency_question(self):
+        self.assertEqual(self.notes["not_asked"], ["q16", "q17", "q18", "q19"])
+        for qid in self.notes["not_asked"]:
+            self.assertNotIn(qid, self.answers)
+
     def test_traps_ask_about_things_that_do_not_exist(self):
         self.assertIsNone(self.answers["q14"])
         self.assertIsNone(self.answers["q15"])
@@ -71,6 +86,82 @@ class HandTree(unittest.TestCase):
         self.assertNotIn(self.params["q15"]["missing_nick"], nicks)
         self.assertRegex(self.params["q14"]["missing_id"], r"^n\d{3}$")
         self.assertRegex(self.params["q15"]["missing_nick"], r"^lane-[a-z]+$")
+
+
+class HandDag(unittest.TestCase):
+    """Answers worked out by hand from the drawing of HAND_DAG in helpers.py."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.questions, cls.answers, cls.notes = build_questions("hand_dag", helpers.HAND_DAG)
+        cls.params = {q["id"]: q["params"] for q in cls.questions}
+
+    def test_blocked_needs_one_parent_that_has_not_exited(self):
+        self.assertEqual(self.answers["q16"], ["n300", "n400"])
+        self.assertEqual(blocked_nodes(helpers.HAND_DAG), ["n300", "n400"])
+
+    def test_runnable_needs_every_parent_exited_and_a_root_counts(self):
+        self.assertEqual(self.answers["q17"], ["n110", "n310", "n320"])
+        self.assertEqual(runnable_nodes(helpers.HAND_DAG), ["n110", "n310", "n320"])
+
+    def test_every_idle_node_is_exactly_one_of_the_two(self):
+        idle = sorted(n["id"] for n in helpers.HAND_DAG if n["state"] == "idle")
+        both = blocked_nodes(helpers.HAND_DAG) + runnable_nodes(helpers.HAND_DAG)
+        self.assertEqual(sorted(both), idle)
+
+    def test_failure_impact_counts_a_diamond_bottom_once(self):
+        want = {
+            "n100": ["n200", "n210", "n220", "n300", "n310", "n320", "n400"],
+            "n200": ["n300", "n310", "n320", "n400"],
+        }
+        self.assertEqual(self.answers["q18"], want[self.params["q18"]["f"]])
+
+    def test_q18_picks_a_node_with_two_paths_to_a_descendant(self):
+        # n100, n200 reach n300 or n320 by two paths. n210 and n220 have one way to each.
+        self.assertIn(self.params["q18"]["f"], {"n100", "n200"})
+
+    def test_descendant_count_counts_a_diamond_bottom_once(self):
+        self.assertEqual(len(descendants(helpers.HAND_DAG, "n100")), 7)
+
+    def test_no_cycle_is_the_null_answer(self):
+        self.assertIsNone(self.answers["q19"])
+        q19 = next(q for q in self.questions if q["id"] == "q19")
+        self.assertEqual(q19["shape"], "null")
+        self.assertIn("q19: the graph has no cycle, so a fixed null is right", self.notes["low_discrimination"])
+
+    def test_a_cycle_is_named_by_its_nodes(self):
+        graph = [
+            node("n100", None, None, "idle", None),
+            node("n200", ["n100", "n300"], None, "idle", None),
+            node("n300", "n200", None, "idle", None),
+            node("n400", "n300", None, "idle", None),
+        ]
+        self.assertEqual(cycle_nodes(graph), ["n200", "n300"])
+        self.assertEqual(cycle_answer(graph), ("id_set", ["n200", "n300"]))
+        self.assertEqual(cycle_answer(helpers.HAND_DAG), ("null", None))
+        self.assertEqual(cycle_answer(helpers.HAND_TREE), ("null", None))
+
+    def test_path_questions_are_not_asked_on_a_dag(self):
+        self.assertEqual(self.notes["not_asked"], ["q9", "q10"])
+        self.assertNotIn("q9", self.answers)
+        self.assertNotIn("q10", self.answers)
+        self.assertEqual(self.notes["dropped"], [])
+
+    def test_q5_asks_only_about_a_single_parent(self):
+        b = self.params["q5"]["b"]
+        self.assertIn(b, {"n310"})
+        self.assertEqual(self.answers["q5"], "n200")
+
+    def test_siblings_join_every_parent(self):
+        # n300 shares n200 with n310 and n320, and n210 has no other child.
+        self.assertEqual(siblings(helpers.HAND_DAG, "n300"), ["n310", "n320"])
+        # n320 shares n200 with n300 and n310, and n220 has no other child.
+        self.assertEqual(siblings(helpers.HAND_DAG, "n320"), ["n300", "n310"])
+        self.assertEqual(siblings(helpers.HAND_DAG, "n110"), [])
+
+    def test_exited_descendants_count_once(self):
+        below = {"n100": ["n200", "n220"], "n200": [], "n210": [], "n220": []}
+        self.assertEqual(self.answers["q3"], below[self.params["q3"]["a"]])
 
 
 class Edges(unittest.TestCase):

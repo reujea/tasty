@@ -1,4 +1,4 @@
-"""Shared definitions of the child tree format study. docs/research/child-tree-format/rules.md is the source."""
+"""Shared definitions of the graph format study. docs/research/child-tree-format/rules.md is the source."""
 
 import hashlib
 import json
@@ -14,19 +14,17 @@ RULES_PATH = RESEARCH_DIR / "rules.md"
 RULES_REL = "docs/research/child-tree-format/rules.md"
 
 SEED = 20261109
-FORMATS = ("parent_table", "adjacency", "mermaid", "flat_json", "nested_json", "indented")
+FORMATS = ("parent_table", "adjacency", "flat_json", "dot")
 FORMAT_NAMES = {
     "parent_table": "parent id table",
     "adjacency": "adjacency list with attributes",
-    "mermaid": "Mermaid flowchart",
     "flat_json": "flat JSON array",
-    "nested_json": "nested JSON",
-    "indented": "indented list",
+    "dot": "Graphviz DOT",
 }
 MISSING_MARK = {f: "null" if f.endswith("_json") else "-" for f in FORMATS}
-TREES = ("real", "synthetic_40", "synthetic_80")
+TREES = ("real", "synthetic_40", "synthetic_80", "dag_40")
 STATES = ("active", "idle", "needs_input", "stale", "exited")
-FIELDS = ("id", "parent", "nickname", "state", "cwd", "last_report_at")
+FIELDS = ("id", "parents", "nickname", "state", "cwd", "last_report_at")
 
 MODELS = {
     "claude-high": {"cli": "claude", "id": "claude-opus-5-5", "effort": "medium"},
@@ -40,21 +38,22 @@ LEVELS = {
     "L0": {
         "trees": TREES,
         "repeats": {"claude-high": 3, "claude-low": 3, "codex": 3},
-        "retry_cap": 17,
+        "retry_cap": 15,
     },
     "L1": {
         "trees": TREES,
         "repeats": {"claude-high": 2, "claude-low": 3, "codex": 2},
-        "retry_cap": 13,
+        "retry_cap": 12,
     },
     "L2": {
-        "trees": ("real", "synthetic_80"),
+        "trees": ("real", "synthetic_80", "dag_40"),
         "repeats": {"claude-high": 2, "claude-low": 3, "codex": 2},
         "retry_cap": 9,
     },
 }
 PILOT_RETRY_CAP = 2
-PILOT_TREE = "synthetic_80"
+# The pilot checks the two additions: dot with several parents, and the largest tree.
+PILOT_CELLS = (("dag_40", "dot"), ("synthetic_80", "parent_table"))
 
 LATEST_REPORT = datetime(2026, 1, 5, 12, 0, 0, tzinfo=timezone.utc)
 REFERENCE_TIME = datetime(2026, 1, 5, 12, 5, 0, tzinfo=timezone.utc)
@@ -104,7 +103,10 @@ def validate_nodes(nodes):
             raise ValueError("wrong fields")
         if not ID_RE.match(node["id"]):
             raise ValueError("bad id form")
-        if node["parent"] is not None and node["parent"] not in known:
+        parents = node["parents"]
+        if not isinstance(parents, list) or parents != sorted(set(parents)):
+            raise ValueError("parents must be a sorted list without repeats")
+        if any(p not in known for p in parents):
             raise ValueError("unknown parent")
         if node["nickname"] is not None:
             if not NICKNAME_RE.match(node["nickname"]) or FORBIDDEN_CHARS.search(node["nickname"]):
@@ -121,25 +123,32 @@ def validate_nodes(nodes):
 def children_map(nodes):
     result = {n["id"]: [] for n in nodes}
     for node in nodes:
-        if node["parent"] is not None:
-            result[node["parent"]].append(node["id"])
+        for parent in node["parents"]:
+            result[parent].append(node["id"])
     for kids in result.values():
         kids.sort()
     return result
 
 
 def roots(nodes):
-    return sorted(n["id"] for n in nodes if n["parent"] is None)
+    return sorted(n["id"] for n in nodes if not n["parents"])
 
 
 def ordered(nodes):
-    """Return nodes in the fixed order: roots by id, depth first, siblings by id."""
+    """Return nodes in the fixed order: roots by id, depth first, siblings by id.
+
+    A node with several parents stands once, where the walk first reaches it.
+    """
     by_id = {n["id"]: n for n in nodes}
     kids = children_map(nodes)
     result = []
+    seen = set()
     stack = list(reversed(roots(nodes)))
     while stack:
         current = stack.pop()
+        if current in seen:
+            continue
+        seen.add(current)
         result.append(by_id[current])
         stack.extend(reversed(kids[current]))
     if len(result) != len(nodes):
@@ -148,40 +157,55 @@ def ordered(nodes):
 
 
 def depths(nodes):
-    """Return {id: depth} with roots at zero."""
-    by_id = {n["id"]: n for n in nodes}
-    result = {}
-    for node in ordered(nodes):
-        parent = by_id[node["id"]]["parent"]
-        result[node["id"]] = 0 if parent is None else result[parent] + 1
+    """Return {id: longest distance from a root}. Raise ValueError on a cycle."""
+    kids = children_map(nodes)
+    waiting = {n["id"]: len(n["parents"]) for n in nodes}
+    result = {i: 0 for i, count in waiting.items() if count == 0}
+    ready = list(result)
+    done = 0
+    while ready:
+        current = ready.pop()
+        done += 1
+        for kid in kids[current]:
+            result[kid] = max(result.get(kid, 0), result[current] + 1)
+            waiting[kid] -= 1
+            if waiting[kid] == 0:
+                ready.append(kid)
+    if done != len(nodes):
+        raise ValueError("the graph has a cycle")
     return result
 
 
 def descendants(nodes, node_id):
+    """Return every node reachable below node_id, once each. On a cycle it can hold node_id."""
     kids = children_map(nodes)
-    result = []
+    seen = set()
     stack = list(kids[node_id])
     while stack:
         current = stack.pop()
-        result.append(current)
-        stack.extend(kids[current])
-    return sorted(result)
+        if current not in seen:
+            seen.add(current)
+            stack.extend(kids[current])
+    return sorted(seen)
 
 
 def path_to_root(nodes, node_id):
+    """Return the path upward. Only defined when every node on it has at most one parent."""
     by_id = {n["id"]: n for n in nodes}
     result = [node_id]
-    while by_id[result[-1]]["parent"] is not None:
-        result.append(by_id[result[-1]]["parent"])
+    while by_id[result[-1]]["parents"]:
+        parents = by_id[result[-1]]["parents"]
+        if len(parents) > 1:
+            raise ValueError("a node with several parents has no single path")
+        result.append(parents[0])
     return result
 
 
 def siblings(nodes, node_id):
+    """Return the other nodes that share at least one parent with node_id."""
     by_id = {n["id"]: n for n in nodes}
-    parent = by_id[node_id]["parent"]
-    if parent is None:
-        return []
-    return [k for k in children_map(nodes)[parent] if k != node_id]
+    kids = children_map(nodes)
+    return sorted({k for p in by_id[node_id]["parents"] for k in kids[p]} - {node_id})
 
 
 def vocabulary_nicknames(count):

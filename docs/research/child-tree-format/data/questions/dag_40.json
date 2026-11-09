@@ -1,0 +1,146 @@
+{
+ "silent_minutes": 1244,
+ "questions": [
+  {
+   "id": "q1",
+   "kind": "filter",
+   "shape": "id_set",
+   "text": "List the ids of all silent nodes.",
+   "params": {}
+  },
+  {
+   "id": "q2",
+   "kind": "filter",
+   "shape": "id_set",
+   "text": "List the ids of all nodes with state needs_input.",
+   "params": {}
+  },
+  {
+   "id": "q3",
+   "kind": "filter",
+   "shape": "id_set",
+   "text": "List the ids of the descendants of n649 with state exited.",
+   "params": {
+    "a": "n649"
+   }
+  },
+  {
+   "id": "q4",
+   "kind": "lookup",
+   "shape": "text",
+   "text": "What is the cwd of the node with nickname lane-z?",
+   "params": {
+    "nick": "lane-z"
+   }
+  },
+  {
+   "id": "q5",
+   "kind": "lookup",
+   "shape": "id",
+   "text": "What is the id of the parent of n751?",
+   "params": {
+    "b": "n751"
+   }
+  },
+  {
+   "id": "q6",
+   "kind": "structure",
+   "shape": "int",
+   "text": "How many direct children does n434 have?",
+   "params": {
+    "a": "n434"
+   }
+  },
+  {
+   "id": "q7",
+   "kind": "aggregate",
+   "shape": "int",
+   "text": "How many descendants does n411 have?",
+   "params": {
+    "a": "n411"
+   }
+  },
+  {
+   "id": "q8",
+   "kind": "aggregate",
+   "shape": "int",
+   "text": "How many descendants of n649 have state active?",
+   "params": {
+    "a": "n649"
+   }
+  },
+  {
+   "id": "q11",
+   "kind": "time",
+   "shape": "id",
+   "text": "Among nodes whose state is not exited and that have a last_report_at, which id has the oldest last_report_at?",
+   "params": {}
+  },
+  {
+   "id": "q12",
+   "kind": "time",
+   "shape": "id",
+   "text": "Among the siblings of n434 that have a last_report_at, which id has the most recent last_report_at?",
+   "params": {
+    "e": "n434"
+   }
+  },
+  {
+   "id": "q13",
+   "kind": "structure",
+   "shape": "int",
+   "text": "How many siblings does n744 have?",
+   "params": {
+    "e": "n744"
+   }
+  },
+  {
+   "id": "q14",
+   "kind": "trap",
+   "shape": "null",
+   "text": "What is the id of the parent of n176?",
+   "params": {
+    "missing_id": "n176"
+   }
+  },
+  {
+   "id": "q15",
+   "kind": "trap",
+   "shape": "null",
+   "text": "What is the state of the node with nickname lane-at?",
+   "params": {
+    "missing_nick": "lane-at"
+   }
+  },
+  {
+   "id": "q16",
+   "kind": "dependency",
+   "shape": "id_set",
+   "text": "List the ids of all blocked nodes.",
+   "params": {}
+  },
+  {
+   "id": "q17",
+   "kind": "dependency",
+   "shape": "id_set",
+   "text": "List the ids of all runnable nodes.",
+   "params": {}
+  },
+  {
+   "id": "q18",
+   "kind": "impact",
+   "shape": "id_set",
+   "text": "List the ids of the nodes in the failure impact of n892.",
+   "params": {
+    "f": "n892"
+   }
+  },
+  {
+   "id": "q19",
+   "kind": "cycle",
+   "shape": "null",
+   "text": "Does the graph have a cycle? List the ids of the nodes on cycles, or answer null when there is no cycle.",
+   "params": {}
+  }
+ ]
+}

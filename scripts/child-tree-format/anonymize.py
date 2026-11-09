@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Turn a raw snapshot into the published tree. The raw file and the map stay local.
 
-Only id, parent, nickname, state, cwd and last_report_at survive. Each of them
+Only id, parents, nickname, state, cwd and last_report_at survive. Each of them
 is replaced by a pseudonym except the state. Milliseconds are floored to
 seconds before the clock shift.
 """
@@ -60,7 +60,7 @@ def anonymize(snapshot):
     nodes = [
         {
             "id": ids[n["surface"]],
-            "parent": ids.get(n.get("parent")),
+            "parents": [ids[n["parent"]]] if n.get("parent") in ids else [],
             "nickname": nicknames.get(n["surface"]),
             "state": n["state"],
             "cwd": cwds[n["surface"]],
