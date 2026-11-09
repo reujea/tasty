@@ -115,7 +115,7 @@ release workflow는 각 빌드 러너에서 서명 스크립트를 실행한다.
 
 ### drift 함정
 
-- **번역 파일**: deb/rpm과 빌드 스크립트는 `lang/*`를 자동 포함한다. WiX는 `LangEn`·`LangJa`·`LangKo`를 각각 나열하므로, 새 언어를 추가하면 해당 plugin Directory의 `Component`와 `ComponentRef`도 직접 추가해야 MSI에 포함된다.
+- **번역 파일**: deb/rpm과 빌드 스크립트는 `lang/*`를 자동 포함한다. WiX는 `LangEn`·`LangJa`·`LangKo`를 각각 나열하므로, 새 언어를 추가하면 해당 plugin Directory의 `Component`와 `ComponentRef`도 직접 추가해야 MSI에 포함된다. `crates/tasty-doc-guards/tests/wix_plugin_lang_matches_bundled_plugins.rs`가 `Source`와 번들 plugin(`bundle = false` 제외)의 `lang/*.toml`을 양방향으로 대조하고, 번역 `Component`와 `ComponentRef`의 짝, 번역 파일과 그것을 감싼 `Plugin<이름>Dir`·`Plugin<이름>LangDir`의 짝을 확인한다. 빠진 파일 이름을 대며 실패한다. MSI를 만들어 설치 결과를 보지는 않는다.
 - **`.sig` 빌드 시점 의존**: git 에 commit 안 되는 빌드 산출물. 6 staging 위치 모두 비존재 시 non-debug 빌드 fail — CI 가 `sign-bundle.sh` 를 항상 실행하도록 보장.
 - **`bundle = false` — 명시 위치(1/2/3)는 자동으로 안 걸러짐**: glob 위치(4/5/6)는 빌드 자체가 그 crate 를 건너뛰지만, deb/rpm assets·wix components 는 plugin 마다 하드코딩된 목록이라 `bundle = false` 여부와 무관하게 그대로 남아있다. 새로 `bundle = false` 를 붙일 때 1/2/3 에서도 그 plugin 항목을 반드시 제거할 것.
 
