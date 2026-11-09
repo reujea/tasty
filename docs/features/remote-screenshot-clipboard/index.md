@@ -147,7 +147,7 @@ mirror 캡처는 전송을 접수한 것만으로 성공을 알리지 않는다.
 ## 인터페이스
 
 - **사용자 트리거**: `screenshot_to_clipboard` 키바인딩(`KeybindingSettings`, 기본 `ctrl+alt+s`, 전 프리셋 동일값). Settings → Keybindings → Clipboard 탭에서 편집.
-- **AI Agent (IPC/CLI)**: `clipboard.set_text` — 로컬 클립보드에 텍스트를 쓴다. IPC `{"method":"clipboard.set_text","params":{"text":"..."}}`(plugin 은 `Permission::ClipboardWrite` 필요) / CLI `tasty clipboard set-text <text>`. 원격 mirror 캡처 전송 경로가 원격 인스턴스에서 최종적으로 클립보드에 반영하는 것과 동일한 하부 동작(`ClipboardSystem::write_text`)을 노출한 것 — attach 미니 프로토콜 자체는 이 IPC 를 경유하지 않는다(위 참고).
+- **AI Agent (IPC/CLI)**: `clipboard.set_text` — 로컬 클립보드에 텍스트를 쓴다. IPC `{"method":"clipboard.set_text","params":{"text":"..."}}`(plugin 은 `Permission::ClipboardWrite` 필요 — plugin 호출은 App 층 IPC 분기를 거치지 않으므로 GUI · 헤드리스가 함께 쓰는 engine 라우터가 같은 처리로 답한다) / CLI `tasty clipboard set-text <text>`. 원격 mirror 캡처 전송 경로가 원격 인스턴스에서 최종적으로 클립보드에 반영하는 것과 동일한 하부 동작(`ClipboardSystem::write_text`)을 노출한 것 — attach 미니 프로토콜 자체는 이 IPC 를 경유하지 않는다(위 참고).
 - **원격 / 점유**: mirror 워크스페이스에 대해서만 원격 전송이 발생한다. 대상 attach 세션이 이미 그 워크스페이스를 점유하고 있어야 하며(mirror 존재의 전제조건), 점유가 아니면(이론상 불가능한 상태) 서버가 거부한다.
 
 ## 비-목표 (Out of scope)
@@ -179,6 +179,7 @@ mirror 캡처는 전송을 접수한 것만으로 성공을 알리지 않는다.
 - Given mirror 업로드를 보낸 뒤 회신 전에 연결이 끊김 Then 요청한 윈도우에 복사가 확인되지 않았다는 안내가 뜬다.
 - Given `clipboard.set_text` IPC 호출(text 파라미터 포함) Then 로컬 클립보드가 그 텍스트로 바뀐다.
 - Given plugin 이 `ClipboardWrite` 권한 없이 `clipboard.set_text` 호출 Then permission_denied.
+- Given `ClipboardWrite` 권한을 가진 plugin 의 `clipboard.set_text` 호출 Then 호스트 클립보드가 그 텍스트로 바뀌고 plugin 은 `{"ok": true}` 를 받는다.
 
 ### 검증 범위
 
@@ -190,6 +191,8 @@ mirror 캡처는 전송을 접수한 것만으로 성공을 알리지 않는다.
 당시 GNOME 캡처 포털이 없어 테스트용 shim과 `scrot`으로 성공·파일 미생성을 재현했으므로,
 이 결과가 네이티브 영역 선택 UI의 검증을 뜻하지는 않는다. `clipboard.set_text`는 실제 CLI로,
 권한 거절은 `plugin_missing_clipboard_write_denied_for_clipboard_set_text` 단위 시험으로 확인했다.
+plugin 호출 경로는 헤드리스 dispatch 시험(`a_plugin_clipboard_write_reaches_the_host_clipboard`, 가짜 클립보드)과
+macOS 가상머신의 GUI 인스턴스에서 에이전트 세션 상태줄 복사 뒤 `pbpaste` 로 확인했다.
 
 결과 분류의 후보 순서·폴백·멈춤은 임시 `PATH` 의 도구 shim 으로 단위 시험한다
 (`crates/tasty-platform/src/screen_capture/linux_tests.rs`). shim 결과는 OS 네이티브 취소의 검증이 아니다.
@@ -209,5 +212,5 @@ Windows client 에서 Xvfb 디스플레이의 Linux GUI 서버로 SSH 터널을 
 - 클립보드 게시: `src/ports/clipboard.rs`(`ClipboardImage`, `CaptureCopy`, `publish_text_with_image`), `src/clipboard/capture_image.rs`(`decode_png`), `src/clipboard/files.rs`(`write_text_and_image`)와 `files/x11.rs`·`files/windows.rs`·`files/format.rs`(`dib`, `unicode_text`), `crates/tasty-platform/src/pasteboard.rs`(macOS), `src/adapters/production/arboard_clip.rs`.
 - 원격 전송(client): `src/app/attach_client/bulk.rs`(`forward_capture_to_remote_clipboard`), `src/app/attach_client/wire.rs`(`send_control_frame`, `parse_capture_result`), `src/app/attach_client/output/apply_event.rs`(`MirrorEvent::CaptureResult`).
 - 원격 수신(server): `crates/tasty-ipc/src/stream_hub.rs`(`CaptureUploadMsg`, `pump_inbound` 분류), `src/remote/capture_upload.rs`(`CaptureUploadRegistry`), `src/remote/server.rs`(`admit_capture_upload`, `prepare_capture`, `publish_capture`, `push_capture_result`, headless 전용 `finalize_capture_upload`), `src/app/image_jobs/capture.rs`(GUI worker 제출, Windows 게시, 회신 대조). GUI(`src/app/event_handler.rs::apply_capture_upload_msg`)와 headless(`src/boot/headless_stream.rs::apply_capture_uploads`) 양쪽 진입점이 같은 접수·저장·회신 함수를 쓴다.
-- IPC/CLI: `crates/tasty-ipc/src/method_meta.rs`(`clipboard.set_text` → `Permission::ClipboardWrite`), `src/app/ipc/app_methods.rs`(`ipc_handle_clipboard_set_text`), `crates/tasty-cli/src/commands/clipboard.rs`(`ClipboardCommands::SetText`), `crates/tasty-cli/src/request/clipboard.rs`.
+- IPC/CLI: `crates/tasty-ipc/src/method_meta.rs`(`clipboard.set_text` → `Permission::ClipboardWrite`), `src/app/ipc/app_methods.rs`(`ipc_handle_clipboard_set_text`), plugin 호출 `src/adapters/ipc/handler.rs`(`route_engine_handler`), `crates/tasty-cli/src/commands/clipboard.rs`(`ClipboardCommands::SetText`), `crates/tasty-cli/src/request/clipboard.rs`.
 - 테스트: `crates/tasty-ipc/src/method_meta_tests.rs`(`clipboard_set_text_is_release`), `crates/tasty-ipc/src/stream_hub.rs`(`pump_inbound_classifies_capture_chunk_and_commit`), `src/remote/capture_upload.rs`(누적/격리 단위 테스트), `crates/tasty-platform/src/screen_capture.rs`(경로·PNG 검사 단위 테스트), `crates/tasty-platform/src/screen_capture/linux_tests.rs`(후보 폴백·취소·출력 없음 분류 shim 시험).

@@ -117,6 +117,10 @@
 - **rusqlite 0.41로 올려 SQLite 3.54.1을 쓴다(RUSTSEC-2026-0459, WAL 읽기).**
 - **ammonia를 4.2.4로 올렸다(RUSTSEC-2021-0157·0158, RUSTSEC-2026-0373).** Markdown sanitizer는 style 속성과 SVG 태그를 허용하지 않아 이 권고의 조건에 해당하지 않는다.
 
+### Fixed
+
+- **plugin 이 호스트 클립보드에 글을 쓴다.** `clipboard.write` 권한을 가진 plugin 의 `clipboard.set_text` 호출이 GUI · 헤드리스 모두 "no dispatch arm" 오류(-32017)로 실패했다 — 외부 IPC 의 같은 메서드는 App 층에서 답하는데 plugin 호출은 그 층을 거치지 않았다. 이제 GUI · 헤드리스가 함께 쓰는 IPC 라우터도 같은 처리로 답해 plugin 호출이 클립보드에 쓰고 `{"ok": true}` 를 받는다. 에이전트 세션 상태줄의 작업 폴더 · surface id 누르기 복사가 이 호출을 쓴다.
+
 ## [0.13.4] - 2026-11-08
 
 ### Added

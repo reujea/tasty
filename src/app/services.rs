@@ -622,6 +622,12 @@ impl AppServices {
         self.clipboard.clone()
     }
 
+    /// 시험이 클립보드 포트를 바꾼다 — 헤드리스 App 은 서비스 빌더를 거치지 않고 만든다.
+    #[cfg(all(test, not(feature = "gui")))]
+    pub(crate) fn replace_clipboard_for_test(&mut self, clipboard: Arc<dyn ClipboardSystem>) {
+        self.clipboard = clipboard;
+    }
+
     /// App 소유 journal의 캐시를 연결한다. 저장소나 executor를 공유하지 않는다.
     pub(crate) fn with_journal_metrics(
         mut self,
