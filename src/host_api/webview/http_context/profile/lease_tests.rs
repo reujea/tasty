@@ -561,6 +561,8 @@ fn alternating_holder_alone() {
     };
     let audit: Audit<'_> = &|root, objects| process::consumers_in(table.path(), root, objects);
     assert_eq!(dead.sweep_with(audit, &ops), (0, 1));
+    // A verdict reached before the leases would pass above and then wait for an answer forever.
+    assert!(turned.get(), "the leases never met the holder");
     dead.assert_retained_intact();
     let mut holder = holder.into_inner();
     holder.ack();
