@@ -44,6 +44,8 @@ Remote의 established tunnel과 늦은 연결 결과는 retirement worker가 chi
 
 GUI의 일반·종료 수집과 headless의 pipeline·observer·최종 file drain은 file receipt를 먼저 수거해 cache를 반영하고, C1의 engine별 live effect, 이미 접수한 preset capture, plugin 파일 continuation, 설정 완료, 원 deferred 응답 순서로 처리한다. 마지막 남은 작업 수가 0이거나 대기 기한이 지난 회차에도 이 순서를 지킨다. cache에 저장 결과가 반영된 것만으로는 App이 보관한 원 IPC·plugin 요청에 응답한 것이 아니다.
 
+이 순서는 회차 안의 호출 순서다. file writer는 수거와 동시에 진행하므로, 앞 단계의 수거가 지나간 뒤 끝난 receipt는 뒤 단계가 먼저 처리되더라도 다음 회차에 수거된다. L1보다 먼저 끝난 receipt도 마찬가지다. 그래서 plugin 파일 continuation은 다른 소비자의 receipt가 수거됐다고 가정하지 않는다. 기한 안에서는 이렇게 밀린 receipt도 사라지지 않으며 원 응답은 drain 반환 전에 간다.
+
 Plugin 파일 continuation은 다음 파일 단계를 제출할 수 있다. 따라서 plugin 전체 종료 전에 접수된 pipeline을 진행하며 writer 접수를 유지한다. 같은 file drain의 첫 대기 기한을 최종 flush·join까지 이어 쓰고 연장하지 않는다. 기한 초과 시 미실행 명령은 거절하고 실행 결과·retirement가 미확정인 명령은 Unknown으로 응답하며, 이미 끝난 단계와 미확정 lifecycle 수를 별도로 보존한다.
 
 Headless는 pipeline 대기와 최종 file drain 모두에서 새 주입 요청을 실행하지 않고 종료 오류로 응답한다. 저장을 마친 webhook 실행부가 주입 호출의 답을 기다리는 경우에도 같은 종료 경계를 따른다.

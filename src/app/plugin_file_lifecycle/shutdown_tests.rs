@@ -356,16 +356,19 @@ pub(crate) fn retirement_has_an_independent_poll_wake(make: impl FnOnce() -> App
     cleanup(&mut app);
 }
 
-pub(crate) fn mixed_child_webhook_and_plugin_pipeline(
-    make: impl FnOnce() -> App,
-    drain: impl FnOnce(&mut App, crate::runtime::engine_session::EngineSession),
-) {
+/// C1 and W are admitted behind a held writer command, so neither can finish until `release`.
+struct HeldReceipts {
+    engine: crate::runtime::engine_session::EngineSession,
+    child: crate::runtime::child_terminal::Ticket,
+    webhook: crate::webhook::registry::Receipt,
+    held: command::Ticket<()>,
+    release: mpsc::Sender<()>,
+}
+fn hold_child_and_webhook(app: &App) -> HeldReceipts {
     use crate::runtime::child_terminal::ParentKey;
     use crate::webhook::lifetime::{Lifetime, Limit, Persistence};
-    let _home = crate::test_support::IsolatedHome::new();
-    let mut app = make();
     app.services.registries.child_terminals.wait_bootstrap();
-    let mut engine = shared_engine(&app);
+    let mut engine = shared_engine(app);
     let parent = ParentKey::External("owned-composition".into());
     engine
         .live
@@ -403,6 +406,107 @@ pub(crate) fn mixed_child_webhook_and_plugin_pipeline(
     );
     assert!(child.observation().is_none());
     assert!(webhook.poll().is_none());
+    HeldReceipts {
+        engine,
+        child,
+        webhook,
+        held,
+        release,
+    }
+}
+
+/// Fixes the per-round order: receipts that finished before a round are collected ahead of L1.
+/// Every receipt is ready before the drain starts, so this does not depend on writer timing.
+pub(crate) fn ready_receipts_precede_l1_continuation(
+    make: impl FnOnce() -> App,
+    drain: impl FnOnce(&mut App, crate::runtime::engine_session::EngineSession),
+) {
+    let _home = crate::test_support::IsolatedHome::new();
+    let mut app = make();
+    let HeldReceipts {
+        engine,
+        child,
+        mut webhook,
+        held,
+        release,
+    } = hold_child_and_webhook(&app);
+    let (reply, rx) = response(&mut app, 816);
+    app.run_plugin_file(
+        (1, 0),
+        || 23_u64,
+        |_| 8,
+        |_| command::CommandDisposition {
+            outcome: command::CommandOutcome::KnownSuccess,
+            partial: false,
+        },
+        move |_, result| {
+            assert!(
+                child
+                    .poll()
+                    .expect("child live effect must precede L1 continuation")
+                    .is_ok()
+            );
+            assert_eq!(
+                webhook
+                    .poll()
+                    .expect("W receipt must precede L1 continuation")
+                    .unwrap()
+                    .saved,
+                Some(true)
+            );
+            reply.finish(result.map(|value| serde_json::json!({"value":value})));
+        },
+    );
+    // The writer publishes in admission order, so this later ticket proves C1, W and L1 are ready.
+    let queue = app.services.file_command_queue().unwrap();
+    let later = command::submit(Some(&queue), 1, || (), |_| 1).unwrap();
+    release.send(()).unwrap();
+    let end = Instant::now() + Duration::from_secs(5);
+    while later.poll().is_none() {
+        assert!(Instant::now() < end);
+        std::thread::yield_now();
+    }
+    assert!(held.poll().unwrap().is_ok());
+    assert!(rx.try_recv().is_err());
+    drain(&mut app, engine);
+    let answer = rx
+        .try_recv()
+        .expect("original L1 reply must precede final drain return");
+    assert_eq!(answer.result.unwrap()["value"], 23);
+    cleanup(&mut app);
+}
+
+/// The writer runs while the drain collects, so a receipt may reach the round after L1 ran.
+/// Nothing may be lost: each original reply still has to arrive before the drain returns.
+pub(crate) fn mixed_child_webhook_and_plugin_pipeline(
+    make: impl FnOnce() -> App,
+    drain: impl FnOnce(&mut App, crate::runtime::engine_session::EngineSession),
+) {
+    let _home = crate::test_support::IsolatedHome::new();
+    let mut app = make();
+    let HeldReceipts {
+        engine,
+        child,
+        mut webhook,
+        held,
+        release,
+    } = hold_child_and_webhook(&app);
+    let (webhook_tx, webhook_rx) = mpsc::sync_channel(2);
+    let parked = app.services.reply_with_file(
+        serde_json::json!(815),
+        move || webhook.poll(),
+        |_, completed| {
+            let completed = completed.unwrap_or_else(|error| panic!("W failed {}", error.message));
+            let crate::webhook::registry::Value::Registered(outcome) = completed.value else {
+                panic!("W registration outcome expected");
+            };
+            tasty_ipc::protocol::JsonRpcResponse::success(
+                serde_json::json!(815),
+                serde_json::json!({"saved":completed.saved,"id":outcome.id}),
+            )
+        },
+    );
+    app.services.send_handled(&webhook_tx, parked);
     let (reply, rx) = response(&mut app, 814);
     let second_stage = Arc::new(std::sync::atomic::AtomicUsize::new(0));
     let executed = second_stage.clone();
@@ -416,21 +520,6 @@ pub(crate) fn mixed_child_webhook_and_plugin_pipeline(
         },
         move |app, result| {
             result.unwrap();
-            assert!(
-                child
-                    .poll()
-                    .expect("child live effect must precede L1 continuation")
-                    .is_ok()
-            );
-            assert!(child.poll().is_none());
-            assert_eq!(
-                webhook
-                    .poll()
-                    .expect("W receipt must precede L1 continuation")
-                    .unwrap()
-                    .saved,
-                Some(true)
-            );
             app.run_plugin_file(
                 (1, 0),
                 move || {
@@ -475,6 +564,22 @@ pub(crate) fn mixed_child_webhook_and_plugin_pipeline(
     assert_eq!(answer.id, serde_json::json!(814));
     assert_eq!(answer.result.unwrap()["value"], 19);
     assert!(rx.try_recv().is_err());
+    assert!(
+        child
+            .poll()
+            .expect("child live effect must settle before final drain return")
+            .is_ok()
+    );
+    assert!(child.poll().is_none());
+    let saved = webhook_rx
+        .try_recv()
+        .expect("original W reply must precede final drain return")
+        .result
+        .unwrap();
+    assert_eq!(saved["saved"], true);
+    let id = saved["id"].as_str().unwrap();
+    assert!(app.services.webhooks.info(id).is_some());
+    assert!(webhook_rx.try_recv().is_err());
     assert_eq!(second_stage.load(std::sync::atomic::Ordering::SeqCst), 1);
     assert_eq!(app.plugin_files_pending(), 0);
     assert_eq!(app.services.webhooks.poll_shutdown(), 0);

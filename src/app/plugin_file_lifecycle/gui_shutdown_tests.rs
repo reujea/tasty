@@ -90,12 +90,14 @@ fn gui_shutdown_body() {
         .build()
         .unwrap();
     let make = || make_gui(event_loop.create_proxy());
-    cases::mixed_child_webhook_and_plugin_pipeline(make, |app, session| {
+    let drain_engine = |app: &mut App, session| {
         app.engines
             .insert_pending(session)
             .unwrap_or_else(|_| panic!("owned engine slot"));
         drain(app, Default::default());
-    });
+    };
+    cases::mixed_child_webhook_and_plugin_pipeline(make, drain_engine);
+    cases::ready_receipts_precede_l1_continuation(make, drain_engine);
     crate::app::preset_shutdown_tests::run_case(make, observer, false);
     crate::app::preset_shutdown_tests::run_case(make, observer, true);
     cases::remove_pipeline(make, drain);

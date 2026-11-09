@@ -17,6 +17,14 @@ fn shipping_pipeline_collects_child_webhook_and_plugin_original_replies() {
 }
 
 #[test]
+fn shipping_pipeline_collects_ready_receipts_before_l1_continuation() {
+    cases::ready_receipts_precede_l1_continuation(make_headless, |app, mut session| {
+        let drain = super::begin(app, &mut session);
+        super::drain_engine(app, &mut session, drain);
+    });
+}
+
+#[test]
 fn shipping_expired_file_drain_retains_unknown_and_replies_once() {
     cases::active_unknown_and_queued_refusal(make_headless, |app, drain| {
         let mut session = engine(app);

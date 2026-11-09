@@ -24,6 +24,8 @@ impl App {
             .and_then(|pending| pending.poll_deadline())
     }
     /// Receipt/cache, owned continuations, then original deferred replies, including final polls.
+    /// The order holds within one call. A receipt that finishes after its poll waits for the next
+    /// call, so continuations must not rely on another consumer's receipt being collected.
     pub(crate) fn collect_plugin_file_shutdown(&mut self) {
         self.services.poll_file_writer();
         #[cfg(feature = "gui")]
