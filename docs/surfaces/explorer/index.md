@@ -135,7 +135,11 @@ mirror explorer 에서 파일을 더블클릭하면 원격 호스트에 그 파�
 
 파일 영역(미리보기를 뺀 목록 자리)은 포커스 바탕 쌍(`surface-bed-focused`·`-unfocused`)으로 칠한다. 값은 [포커스 표현](../../design/policies/focus.md#surface-포커스-표현)의 판정을 따르며 입력 판단과 별개다. 탭 바·툴바·사이드바·상태 줄·미리보기는 바탕이 바뀌지 않는다.
 
-행 글자는 `RowInk`(`src/adapters/ui/surface/explorer/entry_style.rs`)가 행 상태와 바탕으로 고른다. 칸의 정본은 tasty-page `vendor/RULES.md` 6절 표다. hover·press·놓기 대상 행의 글자는 포커스 바탕에서 base 칸을, 비포커스 바탕에서 mantle 칸을 읽는다. 그래서 비포커스 파일 영역의 이런 행은 `-raised` 글자를 쓴다. 놓기 대상 틴트는 본문 전체(본문 놓기)나 폴더 행 하나(행 놓기)를 덮고, 덮인 행만 놓기 대상 칸을 읽는다.
+행 글자는 `RowInk`(`src/adapters/ui/surface/explorer/entry_style.rs`)가 행 상태와 바탕으로 고른다. 칸의 정본은 tasty-page `vendor/RULES.md` 6절 표다. hover·press·놓기 대상 행의 글자는 포커스 바탕에서 base 칸을, 비포커스 바탕에서 mantle 칸을 읽는다. 그래서 비포커스 파일 영역의 이런 행은 `-raised` 글자를 쓴다. 놓기 대상 틴트는 본문 전체(본문 놓기)나 폴더 행 하나(행 놓기)를 덮는다. 덮인 쉬는 행은 Detail·List·Grid와 `..` 행 모두 놓기 대상 칸을 읽는다.
+
+칠 순서는 바탕, 틴트, 행 fill, 잉크, 링이다. 틴트 대상은 행을 그린 뒤에 정해지므로 파일 영역과 사이드바는 바탕을 칠한 직후 틴트 자리(`DropTintSlot`)를 잡아 두고, 대상이 정해지면 그 자리를 채운다. 링은 그 프레임의 마지막에 칠한다. 불투명한 선택 행은 틴트를 가리고 링은 보인다. 틴트와 링은 칸의 레이어에 있어 칸 위의 popup·카드보다 아래다.
+
+폴더·파일 글리프는 `text-secondary`다. 이미지 글리프는 `accent-info-raised`이고, 틴트 아래 쉬는 이미지 행에서는 `text-secondary`이며 틴트가 사라지면 다음 프레임에 돌아온다. 숨김 항목과 끊어진 링크의 글리프는 틴트 아래에서도 바뀌지 않는다.
 
 ### 뷰 상태 (`ExplorerView`, surface id 로 keying)
 
@@ -278,7 +282,7 @@ Grid 셀은 모두 `explorer_grid_thumb_size`(40) 슬롯을 잡아 썸네일 유
 
 툴바 view 묶음의 Find 토글(좁은 칸은 More 메뉴의 Find·Close find, id 82)과 explorer 포커스의 `find` 단축키가 툴바 아래에 Find 바(`find.rs`, 공용 `explorer_find_bar`, 높이 `explorer-search-bar-height` 36, 칸 전체 폭)를 연다. 토글은 열려 있으면 닫고, `find` 단축키는 이미 열린 바에 포커스만 준다. 바 상태(`FindState`: 연 폴더·검색어·Subfolders·하위 폴더 검색)는 내부 탭별로 보관하고 디스크에는 저장하지 않는다. 다른 내부 탭으로 갔다 돌아와도 검색어와 결과가 남으며, 같은 탭에서 폴더를 이동하면 닫는다.
 
-- **거르기**: 입력하는 즉시 지금 보는 폴더의 항목을 이름의 부분 문자열(대소문자 무시, `match_range`)로 거른다. 맞는 부분은 Detail·List·Grid 모두 `explorer-match-fg` 로 칠하고, 선택 행에서는 행 글자색에 밑줄을 긋는다(List 는 공용 `tree_row_matching`). 바 오른쪽에 `explorer.find.count`("{shown} of {total}"), 상태줄에 `explorer.find.status` 를 보인다. 거르는 동안에도 `..` 행은 목록 맨 위에 남는다. 이동용 행이라 이름을 맞춰 보지 않고 개수에도 넣지 않는다. 맞는 항목이 없으면 바는 "0 of N" 을 그대로 두고, 목록 자리에 search 글리프와 `explorer.find.none_filter`("No names match “{query}”", 보조 줄 없음) 상태 화면을 보인다. 새 항목 이름을 입력하는 동안에는 이 화면과 아래 하위 폴더 검색의 결과 없음·실패 화면 대신 목록 영역을 그려 이름 행을 보인다. mirror explorer 도 거르기를 쓴다.
+- **거르기**: 입력하는 즉시 지금 보는 폴더의 항목을 이름의 부분 문자열(대소문자 무시, `match_range`)로 거른다. 맞는 부분은 Detail·List·Grid 모두 `accent-primary-raised` 로 칠하고, 선택 행에서는 행 글자색에 밑줄을 긋는다(List 는 공용 `tree_row_matching`). 바 오른쪽에 `explorer.find.count`("{shown} of {total}"), 상태줄에 `explorer.find.status` 를 보인다. 거르는 동안에도 `..` 행은 목록 맨 위에 남는다. 이동용 행이라 이름을 맞춰 보지 않고 개수에도 넣지 않는다. 맞는 항목이 없으면 바는 "0 of N" 을 그대로 두고, 목록 자리에 search 글리프와 `explorer.find.none_filter`("No names match “{query}”", 보조 줄 없음) 상태 화면을 보인다. 새 항목 이름을 입력하는 동안에는 이 화면과 아래 하위 폴더 검색의 결과 없음·실패 화면 대신 목록 영역을 그려 이름 행을 보인다. mirror explorer 도 거르기를 쓴다.
 - **보이는 항목만 다룬다**: 검색어나 Subfolders 가 바뀌면 보이지 않게 된 항목을 선택에서 뺀다. 전체 선택·Shift 범위 선택·타입어헤드는 보이는 항목만 대상으로 한다. 숨은 항목에 명령이 닿지 않게 하기 위해서다.
 - **확장자 조건**: 현재 입력란에서 공백으로 구분한 `ext:rs`를 쓴다. `ext:rs ext:md`는 둘 중 하나이며 `note ext:rs`는 이름에 note가 들어가고 마지막 확장자가 rs인 파일이다. 폴더는 확장자 조건에 맞지 않는다. 키·확장자·이름은 대소문자를 무시한다. `EXT:.RS`처럼 확장자 앞 점 하나도 허용한다. 확장자 값은 비어 있지 않은 문자·숫자·밑줄·하이픈이며 `ext:`·`ext:*`·`ext:rs,md` 등은 연산자로 버리지 않고 일반 이름 문자열로 찾는다. glob·인용부호 문법은 없다. 유효한 ext 토큰이 있을 때만 나머지 이름 토큰을 공백 하나로 이어 기존 부분 문자열 조건으로 쓴다. 없으면 입력의 공백까지 그대로 찾는다. 강조는 이름 조건에만 적용한다. 로컬 거르기·하위 검색·mirror 거르기가 같은 해석기를 쓰며 mirror의 하위 검색 제한은 그대로다.
 - **Subfolders**(로컬만, mirror 는 체크박스를 숨긴다): 켜면 같은 바가 지금 폴더부터의 하위 폴더 검색이 된다. 로컬 읽기 worker(`local_reads::search`)가 너비 우선으로 폴더를 읽어 맞는 항목을 100ms 마다 묶어 보내고 화면을 깨운다. 링크로 된 폴더는 따라 들어가지 않는다. 결과는 목록을 대신하고 `..` 행을 두지 않으며 지금 정렬로 정렬한다. 새 묶음만 정렬해 이분 탐색으로 자리에 끼워 넣으므로 받을 때마다 전체를 다시 정렬하지 않는다. 상태줄·바·상태 화면은 보이는 항목을 복사하지 않고 세거나 참조한다. Detail 은 Type 대신 Name 뒤에 Folder 열(`explorer-search-folder-col-width` 160, mono caption, 시작 폴더 기준 상대 경로, 시작 폴더 자신은 ".")을 둔다. List·Grid 는 행 모양을 바꾸지 않고 든 폴더를 툴팁으로 보인다. 결과 하나를 고르면 상태줄에 시작 폴더 기준 경로를 보인다. 열기·복사·잘라내기·이름 변경·휴지통은 결과의 실제 경로를 쓴다. 파일 작업이 끝나면 요청한 explorer 는 다시 읽으며 검색을 처음부터 다시 하고, 다른 explorer 도 바뀐 경로가 자기 검색 시작 폴더 안이면 다시 찾는다. 결과가 든 폴더를 보는 explorer 는 그 폴더 목록을 다시 읽는다([작업 뒤 목록 갱신](file-operations.md#작업-뒤-목록-갱신)).

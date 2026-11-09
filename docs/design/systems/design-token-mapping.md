@@ -168,7 +168,7 @@ surface 경계 30% 존을 hover 할 때 뜨는 밴드+분할선 색. accent-prim
 
 | 디자인 토큰 | 디자인 체인 | tasty Theme | 비고 |
 |---|---|---|---|
-| `--tasty-explorer-drop-target-bg` | `color-mix(accent-primary × tint-fill-alpha, transparent)` | `Theme::explorer_drop_target_bg()` = `accent_primary().with_alpha(31)` | 12%×255≈31. `EXPLORER_DROP_TARGET_BG_ALPHA`. 시험이 `TINT_FILL_ALPHA`의 반올림과 같은지 확인한다 |
+| `--tasty-explorer-drop-target-bg` | `color-mix(accent-primary × tint-fill-alpha, transparent)` | `Theme::explorer_drop_target_bg()` = `accent_primary().with_alpha(31)` | 12%×255≈31. 행 fill과 잉크 아래에 칠한다(`DropTintSlot`, 링은 마지막). `EXPLORER_DROP_TARGET_BG_ALPHA`. 시험이 `TINT_FILL_ALPHA`의 반올림과 같은지 확인한다 |
 
 ## 창 파일 드롭 오버레이
 
