@@ -439,8 +439,51 @@ mod tests {
         assert!(fonts.font_data.contains_key("k"));
     }
 
+    /// 같은 글꼴 둘을 묶음 파일로 만든다. 표의 위치는 파일 처음부터 세므로 뒤쪽 글꼴은 옮긴다.
+    fn collection_of_two() -> Vec<u8> {
+        let header = 12 + 4 * 2;
+        let second_at = header + VALID.len();
+        let mut out = b"ttcf\0\x01\0\0".to_vec();
+        out.extend_from_slice(&2u32.to_be_bytes());
+        for at in [header, second_at] {
+            out.extend_from_slice(&(at as u32).to_be_bytes());
+        }
+        for at in [header, second_at] {
+            let mut font = VALID.to_vec();
+            let tables = u16::from_be_bytes([font[4], font[5]]) as usize;
+            for record in (0..tables).map(|i| 12 + 16 * i) {
+                let offset = record + 8;
+                let old = u32::from_be_bytes(font[offset..offset + 4].try_into().unwrap());
+                font[offset..offset + 4].copy_from_slice(&(old + at as u32).to_be_bytes());
+            }
+            out.extend_from_slice(&font);
+        }
+        out
+    }
+
     #[test]
     fn a_font_found_by_name_keeps_its_face_number() {
+        let mut fonts = egui::FontDefinitions::default();
+        let mut family_fonts = Vec::new();
+        register_named_font(
+            &mut fonts,
+            &mut family_fonts,
+            "f",
+            "k".to_owned(),
+            &eff_named("Some Family"),
+            |_| {
+                Some(FontFileFace {
+                    file: collection_of_two(),
+                    face: 1,
+                })
+            },
+        );
+        assert_eq!(family_fonts, ["k"]);
+        assert_eq!(fonts.font_data["k"].index, 1);
+    }
+
+    #[test]
+    fn a_face_past_the_end_of_the_file_is_refused() {
         let mut fonts = egui::FontDefinitions::default();
         let mut family_fonts = Vec::new();
         // 이 파일에 1번 글꼴은 없으므로 번호를 그대로 읽으면 거절된다. 번호를 버리면 등록된다.
@@ -458,15 +501,6 @@ mod tests {
             },
         );
         assert!(family_fonts.is_empty());
-        insert_font(
-            &mut fonts,
-            &mut family_fonts,
-            "first".to_owned(),
-            VALID.to_vec(),
-            0,
-        )
-        .unwrap();
-        assert_eq!(fonts.font_data["first"].index, 0);
     }
 
     #[test]
