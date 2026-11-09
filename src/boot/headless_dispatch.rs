@@ -121,6 +121,10 @@ fn dispatch_command(
     if let Step::Pending = gate::prepare(&app.services, &mut cmd.request, &caller, &mut progress) {
         return park(app, cmd, progress, resumed);
     }
+    // plugin을 내리는 요청이면 바쁜지 먼저 묻는다 — GUI와 같은 단계(`plugin_busy`).
+    if let Step::Pending = progress.ask_busy(app.plugin_manager.as_mut(), &cmd.request) {
+        return park(app, cmd, progress, resumed);
+    }
     // App 전용 응답도 공용 검사 뒤에 처리한다. checked 요청은 다시 검사하지 않는다.
     let checked = match gate::decide(
         &mut app.services,
@@ -137,6 +141,12 @@ fn dispatch_command(
         }
         Step::Pending => return park(app, cmd, progress, resumed),
     };
+    if let Some(response) =
+        progress.busy_refusal(cmd.request.id.clone().unwrap_or(serde_json::Value::Null))
+    {
+        send_response(&cmd.response_tx, response);
+        return std::ops::ControlFlow::Continue(());
+    }
     if app.preset_capture_on_session(&cmd, &checked, session, &state.navigation) {
         return std::ops::ControlFlow::Continue(());
     }

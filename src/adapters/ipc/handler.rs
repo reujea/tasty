@@ -97,6 +97,7 @@ pub mod events;
 #[cfg(all(debug_assertions, feature = "gui"))]
 pub mod ime;
 pub mod plugin;
+pub(crate) mod plugin_busy;
 // PluginManager 조회는 창 없이도 가능하다. debug 조건은 모듈 안에 있다.
 #[cfg(debug_assertions)]
 pub mod popup;

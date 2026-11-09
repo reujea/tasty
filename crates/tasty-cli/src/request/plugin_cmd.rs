@@ -15,12 +15,16 @@ pub(super) fn plugin_command_to_method_params(
             "plugin.install",
             serde_json::json!({ "path": path, "allow_unverified": allow_unverified }),
         ),
-        PluginCommands::Remove { id } => ("plugin.remove", serde_json::json!({ "id": id })),
+        PluginCommands::Remove { id, ignore_busy } => (
+            "plugin.remove",
+            serde_json::json!({ "id": id, "ignore_busy": ignore_busy }),
+        ),
         PluginCommands::UpgradeBuiltins {
             force,
             restore_removed,
             restore_all,
             restart_running,
+            ignore_busy,
         } => (
             "plugin.upgrade_builtins",
             serde_json::json!({
@@ -28,10 +32,14 @@ pub(super) fn plugin_command_to_method_params(
                 "restore_removed": restore_removed,
                 "restore_all": restore_all,
                 "restart_running": restart_running,
+                "ignore_busy": ignore_busy,
             }),
         ),
         PluginCommands::Enable { id, .. } => ("plugin.enable", serde_json::json!({ "id": id })),
-        PluginCommands::Disable { id } => ("plugin.disable", serde_json::json!({ "id": id })),
+        PluginCommands::Disable { id, ignore_busy } => (
+            "plugin.disable",
+            serde_json::json!({ "id": id, "ignore_busy": ignore_busy }),
+        ),
         // Logs는 IPC를 거치지 않음 — run_client에서 special-case로 처리.
         PluginCommands::Logs { .. } => ("plugin.list", serde_json::json!({})),
         // Doctor도 IPC를 거치지 않음 — manifest 를 로컬에서 직접 읽는다.

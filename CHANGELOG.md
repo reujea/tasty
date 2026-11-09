@@ -29,6 +29,7 @@
 - **mirror를 다시 mirror로 붙이지 않는다.** 대상이 그 인스턴스의 mirror면 서버가 `workspace attach rejected: mirror_workspace`로 거절한다. `remote.workspaces`(`tasty remote workspaces`) 항목에 `mirror`가 실리고, 원격 연결 팝업은 그 행을 비활성으로 두고 `mirror` 표지와 안내 문구를 보이며, CLI 목록은 그 행 아래에 안내 한 줄을 덧붙인다.
 - **저장된 원격 행의 우클릭 메뉴에 Connect(또는 Reconnect)·Disconnect·Close locally·Close remote workspace…가 생긴다.** 할 수 없는 항목은 꺼져 보인다. Close remote workspace…와 저장된 행을 비우는 닫기 요청은 확인 대화를 먼저 연다. 확인 대화는 Esc·Cancel로만 닫히고 바깥 클릭으로는 닫히지 않는다.
 - **탭이 실행 중임을 알리는 입구 하나로 plugin surface 와 터미널을 함께 받는다.** IPC `surface.set_busy {surface_id, busy}`(plugin 권한 `surface.write`)·CLI `tasty surface set-busy [--surface <id>] --busy true|false`(생략하면 그 터미널의 `TASTY_SURFACE_ID`)로 busy 를 켜고 끄면 탭 점·사이드바 워크스페이스 점과 개수·`surface.list` 의 `busy` 가 그 값을 쓴다. plugin surface 는 소유 plugin 만 바꾸고, 터미널은 셸·plugin 누구나 알리며 전경 프로세스 판정과 합친다. 터미널에 알린 값은 그때 앞에 있던 프로그램이 전경에서 빠지면 지워지므로, 알린 프로그램이 끄지 못하고 끝나도 점이 남지 않는다. 번들 Claude·Codex plugin 훅이 이 입구로 턴 동안 터미널을 busy 로 둬, API 응답을 기다리며 출력이 없는 동안에도 점이 꺼지지 않는다. 값은 1초 폴링이 지우지 않고, surface 가 닫히면 지워진다.
+- **떠 있는 plugin 을 내리기 전에 바쁜지 묻는다.** `plugin.disable`·`plugin.remove`·`plugin.upgrade_builtins`(`restart_running`)는 대상 plugin 의 관례 메서드 `<prefix>.lifecycle_busy` 에 먼저 묻고, `{"busy": true}` 답이면 `-32023`(`data.busy`)으로 거절하고 아무것도 바꾸지 않는다. 모르는 메서드·오류·1.5초 안에 답 없음은 바쁘지 않음이다. `ignore_busy: true`(CLI `--ignore-busy`)면 묻지 않는다.
 
 ### Changed
 

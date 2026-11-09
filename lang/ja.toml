@@ -4590,10 +4590,13 @@ help = "未検証のプラグインでもインストールします。プラグ
 
 [cli.help._root.plugin.remove]
 about = "インストール済みの plugin を id で削除する"
-long = "ID でプラグインを削除します。\n\nプラグインのディレクトリ全体を削除するため、中に保存されたファイルも消えます。組み込みプラグインは削除した状態を記録し、次回起動時にも再インストールしません。`plugin upgrade-builtins --restore-removed <id>` で復元すると、有効な状態でインストールします。"
+long = "ID でプラグインを削除します。\n\nプラグインのディレクトリ全体を削除するため、中に保存されたファイルも消えます。組み込みプラグインは削除した状態を記録し、次回起動時にも再インストールしません。`plugin upgrade-builtins --restore-removed <id>` で復元すると、有効な状態でインストールします。\n\n実行中のプラグインにはまず処理中かどうかを問い合わせます。処理中なら何も削除しません。それでも削除するには --ignore-busy を指定します。"
 
 [cli.help._root.plugin.remove.arg.id]
 help = "plugin id（例: com.example.explorer）"
+
+[cli.help._root.plugin.remove.arg.ignore_busy]
+help = "プラグインが処理中と答えても削除します"
 
 [cli.help._root.plugin.upgrade-builtins]
 about = "組み込み plugin を全てバンドルから同期し直す"
@@ -4611,6 +4614,9 @@ help = "`removed_builtins` の全組み込みプラグインを復元します�
 [cli.help._root.plugin.upgrade-builtins.arg.restart_running]
 help = "実行ファイルを置き換える組み込みプラグインを再起動します。Windows で実行中のファイルを上書きするときの共有違反を避けるためにも使います。対象のサーフェスを一時的に閉じるため、既定では無効です。"
 
+[cli.help._root.plugin.upgrade-builtins.arg.ignore_busy]
+help = "--restart-running と併用すると、プラグインが処理中と答えても停止します(例: チャットタブのエージェントのターン)。指定しない場合、処理中のプラグインがあれば理由を示して拒否します"
+
 [cli.help._root.plugin.enable]
 about = "無効化された plugin を有効にして起動する"
 long = "無効化されたプラグインを有効にして起動します。\n\nプラグインが接続する、起動に失敗する、または取り消されるまで待ちます。接続しなかった場合は 0 以外の状態で終了します。応答には起動の世代と最終状態が入ります。 待っている間は --response-timeout-ms を受け付けません。--no-wait を指定すると要求を一度だけ送ります。"
@@ -4623,10 +4629,13 @@ help = "受け付けた起動を出力し、結果を待たずに終了します
 
 [cli.help._root.plugin.disable]
 about = "plugin を無効化する（動作中なら正常終了させる）"
-long = "プラグインを無効化し、実行中なら正常終了を要求します。\n\n無効化設定はディスクに保存されます。再起動や同じ ID の `plugin install` でも自動的には有効になりません。インストール先とコマンド名前空間は残るため、`tasty <名前空間> ...` は不明なメソッドではなく `plugin ... is not running` を返します。\n\nプラグインが提供したファイルディテクターとハンドラー、フックハンドラー、完了判定方法、設定ページは登録から外れます。そのプラグインで開いていたファイルは別の処理方法を使います。"
+long = "プラグインを無効化し、実行中なら正常終了を要求します。\n\n無効化設定はディスクに保存されます。再起動や同じ ID の `plugin install` でも自動的には有効になりません。インストール先とコマンド名前空間は残るため、`tasty <名前空間> ...` は不明なメソッドではなく `plugin ... is not running` を返します。\n\nプラグインが提供したファイルディテクターとハンドラー、フックハンドラー、完了判定方法、設定ページは登録から外れます。そのプラグインで開いていたファイルは別の処理方法を使います。\n\n実行中のプラグインにはまず処理中かどうかを問い合わせます(例: チャットタブでエージェントのターンが進行中)。処理中なら理由を示して拒否し、何も変更しません。それでも停止するには --ignore-busy を指定します。"
 
 [cli.help._root.plugin.disable.arg.id]
 help = "プラグイン ID"
+
+[cli.help._root.plugin.disable.arg.ignore_busy]
+help = "プラグインが処理中と答えても停止します"
 
 [cli.help._root.plugin.logs]
 about = "plugin のログファイルの中身を表示する"
