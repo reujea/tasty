@@ -186,7 +186,7 @@ fn register_named_font(
     }
 }
 
-/// egui가 패닉할 글꼴은 등록하지 않는다. fontdb는 이름 표만 읽어 ab_glyph가 거절하는
+/// `validate`가 거절한 글꼴은 등록하지 않는다. fontdb는 이름 표만 읽어 ab_glyph가 거절하는
 /// 파일도 받으므로 시스템 글꼴 이름으로 찾은 바이트도 같은 판정을 거친다.
 fn insert_font(
     fonts: &mut egui::FontDefinitions,

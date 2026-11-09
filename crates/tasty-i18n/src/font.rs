@@ -22,10 +22,12 @@ impl std::fmt::Display for LocaleFontError {
 
 impl std::error::Error for LocaleFontError {}
 
-/// Refuse bytes that would make egui panic. epaint panics when it cannot parse
-/// a font, and asserts a positive scale, derived from this height, when it first
-/// lays out text with the font. Uses epaint's parser without depending on egui
-/// or a graphics context.
+/// Refuse bytes that hit two egui panics. epaint panics when it cannot parse a
+/// font, and asserts a positive scale, derived from this height, when it first
+/// lays out text with the font. Only these two are checked: a font with glyphs
+/// wider than the texture atlas passes and can still panic in epaint, depending
+/// on the text size and atlas width. Uses epaint's parser without depending on
+/// egui or a graphics context.
 pub fn validate(bytes: &[u8]) -> Result<(), LocaleFontError> {
     let font = ab_glyph::FontRef::try_from_slice(bytes).map_err(|_| LocaleFontError::Parse)?;
     if font.height_unscaled() > 0.0 {
