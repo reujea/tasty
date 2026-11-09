@@ -1,7 +1,7 @@
 //! Settings › Appearance 의 거절된 글꼴 표시 — 시안 Spec `appearance-font-file-rejected`,
 //! `appearance-font-family-rejected`, `font-rejected-toast`. 본체와 같은 위젯을 상태별로 그린다.
 
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 
 use tasty_type_appearance::theme::Theme;
 use tasty_type_geometry::length::LogicalPx;
@@ -16,6 +16,8 @@ use crate::catalog::toast_card::{self, ToastKind};
 use crate::i18n::{t, t_lang};
 
 use super::settings_font_override as grid;
+
+mod held;
 
 // 시안 프레임의 전시 치수. 대응 역할 토큰이 없어 갤러리 무대 치수로 둔다.
 /// `--tasty-size-560`: 기본 프레임 폭.
@@ -118,15 +120,28 @@ enum File {
     Rejected,
     FocusRejected,
     Default,
+    /// 칸만 있고 포커스도 빨강도 없다.
+    Held,
+    /// 테두리만 있고 칸이 아직 없다.
+    Due,
+    /// Use default 를 켰고 칸이 이번 프레임까지 남는다.
+    DefaultHeld,
 }
 
 impl File {
     fn line(self, text: &str) -> Option<FieldErrorLine<'_>> {
         match self {
             Self::Rejected => FieldErrorState::Shown.line(text),
-            Self::FocusRejected => FieldErrorState::Held.line(text),
-            _ => None,
+            Self::FocusRejected | Self::Held | Self::DefaultHeld => {
+                FieldErrorState::Held.line(text)
+            }
+            Self::Due => FieldErrorState::Due.line(text),
+            Self::Rest | Self::Focus | Self::Default => None,
         }
+    }
+
+    fn default_on(self) -> bool {
+        matches!(self, Self::Default | Self::DefaultHeld)
     }
 }
 
@@ -136,9 +151,9 @@ fn file_input(ui: &mut egui::Ui, th: &Theme, value: &str, st: File) -> egui::Rec
     Input::new()
         .mono(true)
         .width(th.field_width_lg.value())
-        .invalid(st == File::Rejected)
+        .invalid(matches!(st, File::Rejected | File::Due))
         .focus_look(matches!(st, File::Focus | File::FocusRejected))
-        .read_only(st == File::Default)
+        .read_only(st.default_on())
         .full_value_tooltip(true)
         .show(ui, th, &mut shown)
         .rect
@@ -197,8 +212,20 @@ fn override_font_row<'a>(
 }
 
 fn override_file_row(ui: &mut egui::Ui, th: &Theme, lang: &str, value: &str, st: File) {
+    override_file_row_checked(ui, th, lang, value, st, st.default_on());
+}
+
+/// 체크박스 상태가 행 상태와 따로 움직이는 단계용.
+fn override_file_row_checked(
+    ui: &mut egui::Ui,
+    th: &Theme,
+    lang: &str,
+    value: &str,
+    st: File,
+    checked: bool,
+) {
     let label = t_lang(lang, "settings.appearance.font.override_custom_font_label");
-    override_font_row(ui, th, lang, label, st == File::Default, |ui| {
+    override_font_row(ui, th, lang, label, checked, |ui| {
         file_input(ui, th, value, st);
         st.line(file_line(lang))
     });
@@ -263,9 +290,10 @@ fn rejected_grid(ui: &mut egui::Ui, th: &Theme) {
 
 thread_local! {
     static LIVE: RefCell<String> = RefCell::new(NOT_A_FONT_NOTE.to_owned());
+    static LIVE_BELOW: Cell<bool> = const { Cell::new(false) };
 }
 
-/// 시안 live 프레임. 파일 없이 동작하도록 확장자만 본다. 본체는 파일을 읽어 판정한다.
+/// 시안 live 프레임과 그 아래 행. 파일 없이 동작하도록 확장자만 본다. 본체는 파일을 읽어 판정한다.
 fn live_file_row(ui: &mut egui::Ui, th: &Theme) {
     LIVE.with(|buf| {
         let buf = &mut *buf.borrow_mut();
@@ -286,6 +314,11 @@ fn live_file_row(ui: &mut egui::Ui, th: &Theme) {
             field_error_state(ui.ctx(), id, resp.has_focus(), bad(buf)).line(file_line("en"))
         });
     });
+    LIVE_BELOW.with(|below| {
+        let mut on = below.get();
+        held::below_row(ui, th, &mut on);
+        below.set(on);
+    });
 }
 
 fn stage_row(ui: &mut egui::Ui, theme: &Theme, add: impl FnOnce(&mut egui::Ui)) {
@@ -304,7 +337,7 @@ pub fn file_spec() -> crate::catalog::Spec {
         "appearance-font-file-rejected",
         "Appearance › Custom font file rejected",
         Some(
-            "invalid edge and one line under the Input · nothing red while focused · the Terminal row judges by what the terminal can use",
+            "invalid edge and one line under the Input · nothing red while focused · the box height changes only with no pointer button held · the Terminal row judges by what the terminal can use",
         ),
         draw_file,
     )
@@ -315,7 +348,7 @@ pub fn family_spec() -> crate::catalog::Spec {
         "appearance-font-family-rejected",
         "Appearance › Font family rejected",
         Some(
-            "same line as the file field · no invalid edge · line box kept while the list is open",
+            "same line as the file field · no invalid edge · line box kept while the list is open · the box height changes only with no pointer button held",
         ),
         draw_family,
     )
@@ -418,6 +451,7 @@ pub fn draw_file(ui: &mut egui::Ui, theme: &Theme) {
             });
         }
     });
+    held::draw_file_steps(ui, theme);
     stage_row(ui, theme, |ui| {
         for (name, th) in &themes(theme) {
             let label = format!("{name} · grid and preview · the row grows, nothing else changes");
@@ -473,7 +507,8 @@ pub fn draw_file(ui: &mut egui::Ui, theme: &Theme) {
         frame(ui, &mocha, label, BASE_NARROW_W, |ui, th| {
             base_file_row(ui, th, "ko", NOTES_TXT, File::Rejected)
         });
-        let label = "Latte · live — the demo judges by extension, the app reads the file";
+        let label =
+            "Latte · live — demo judges by extension; app reads file; row below is clickable";
         frame(ui, &latte, label, FRAME_W, live_file_row);
     });
 
@@ -498,15 +533,31 @@ pub fn draw_file(ui: &mut egui::Ui, theme: &Theme) {
             ),
             (
                 "row height",
-                "grows by the line. Only the rows below it move",
+                "grows by the line. Only the rows below it move. Height changes only on a frame with no pointer button held",
             ),
             (
                 "taking focus",
-                "the line's box stays and its ink goes, so the rows don't jump. The height follows the new result on leaving",
+                "the line's box stays and its ink goes, so the rows don't jump. The height follows the result once focus is gone and no pointer button is held",
             ),
             (
                 "value on focus, then fixed",
-                "the box closes on leaving, once",
+                "the box closes once, on leaving, or on the frame after the release if a pointer button is held",
+            ),
+            (
+                "pointer held",
+                "any pointer button, from the frame of the press through the frame that handles its release. The window losing focus counts as a release",
+            ),
+            (
+                "box rule",
+                "while the field is active or a pointer button is held, the box stays as it is. Otherwise it exists only for a rejected value. Active means focused or waiting for a verdict",
+            ),
+            (
+                "ink rule",
+                "edge and line ink show only when the field isn't active and the value is rejected. The edge doesn't wait for the pointer button's release. The line needs its box; if there's no box yet, it shows after the release",
+            ),
+            (
+                "box motion",
+                "snaps to its height in one frame, with no animation",
             ),
             (
                 "long path",
@@ -545,10 +596,20 @@ pub fn draw_file(ui: &mut egui::Ui, theme: &Theme) {
         theme,
         "One line for every cause and every row. It doesn't ask for a new path: a file replaced with a good font works after a restart with the same value. No token was added.",
     );
+    note(
+        ui,
+        theme,
+        "Clicks. The control under the pointer at press must still be there at release. Changing the box after the release keeps it there when the box closes or opens, for one line or several.",
+    );
     dont(
         ui,
         theme,
         "Don't disable Save, clear the value, or show the line while the field has focus: most values on the way to a full path are not a font.",
+    );
+    dont(
+        ui,
+        theme,
+        "Don't change the box height while a pointer button is held, or keep an empty box after the release on a row with a usable or empty value.",
     );
 }
 
@@ -565,6 +626,8 @@ enum Family {
     Rest,
     Rejected,
     Open,
+    /// 목록은 닫혔고 칸만 있다.
+    Held,
 }
 
 fn family_control(ui: &mut egui::Ui, th: &Theme, value: &str, st: Family) {
@@ -607,7 +670,7 @@ fn family_line(lang: &str, st: Family) -> Option<FieldErrorLine<'static>> {
     match st {
         Family::Rest => FieldErrorState::Clear.line(text),
         Family::Rejected => FieldErrorState::Shown.line(text),
-        Family::Open => FieldErrorState::Held.line(text),
+        Family::Open | Family::Held => FieldErrorState::Held.line(text),
     }
 }
 
@@ -624,9 +687,13 @@ fn base_family_row(ui: &mut egui::Ui, th: &Theme, value: &str, st: Family) {
 }
 
 fn override_family_row(ui: &mut egui::Ui, th: &Theme, lang: &str, st: Family) {
+    override_family_row_with(ui, th, lang, "Noto Sans Mono", st);
+}
+
+fn override_family_row_with(ui: &mut egui::Ui, th: &Theme, lang: &str, value: &str, st: Family) {
     let label = t_lang(lang, "settings.appearance.font.override_family_label");
     override_font_row(ui, th, lang, label, false, |ui| {
-        family_control(ui, th, "Noto Sans Mono", st);
+        family_control(ui, th, value, st);
         family_line(lang, st)
     });
 }
@@ -669,6 +736,7 @@ pub fn draw_family(ui: &mut egui::Ui, theme: &Theme) {
             );
         }
     });
+    held::draw_family_settle(ui, theme);
     stage_row(ui, theme, |ui| {
         let [(_, mocha), (_, latte)] = themes(theme);
         frame(ui, &mocha, "Mocha · ko", FRAME_W, |ui, th| {
@@ -688,6 +756,10 @@ pub fn draw_family(ui: &mut egui::Ui, theme: &Theme) {
             ),
             ("line", "same form and position as the file field's line"),
             ("list open", "line box kept, no ink"),
+            (
+                "list closes",
+                "same box rule as the file field. The family row has no edge, so nothing shows until the line's box opens",
+            ),
             ("Save", "enabled in every state"),
             ("toast", "font-rejected-toast, with the family name"),
         ],
