@@ -191,7 +191,14 @@ mod tests {
     /// RULES 6절의 `term+hover`·`term-unfocused+hover`·`drop-target@term*` 칸.
     #[test]
     fn the_unfocused_bed_reads_the_raised_inks_in_the_design_cells() {
-        let theme = Theme::with_colors(tasty_themes::mocha_fallback_colors(), false);
+        // Mocha는 `-raised`가 원래 값과 같아 칸이 바뀌어도 값으로 드러나지 않는다.
+        let file = tasty_themes::ThemeFile::parse(tasty_themes::LATTE_TOML_TEXT).expect("latte");
+        let (partial, is_light) = file.to_partial();
+        let mut colors = tasty_themes::mocha_fallback_colors();
+        colors.apply_partial(&partial);
+        let theme = Theme::with_colors(colors, is_light.unwrap_or(true));
+        assert_ne!(theme.text_muted(), theme.text_muted_raised());
+        assert_ne!(theme.text_secondary(), theme.text_secondary_raised());
         let (on, off) = (RowParent::bed(true), RowParent::bed(false));
         let rest = theme.text_secondary();
         assert_eq!(RowState::Hover.meta(&theme, on), theme.text_muted());
