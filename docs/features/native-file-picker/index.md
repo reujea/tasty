@@ -461,7 +461,8 @@ view 는 `FilePickerProps` 만 받고 `FilePickerAction` 만 돌려주므로 상
 - Given passive 피커 When 증명 없는 요청, 다른 plugin 의 요청, 다른 surface 의 요청 Then `-32000` 이고 passive 를 유지하며 증명을 소비하지 않는다.
   이미 포커스된 피커, 범위 밖에 숨은 피커, 닫혀 결과 전달을 기다리는 피커도 같다.
 - Given Markdown 문서의 Folder 에 키보드 포커스 When Enter 또는 Space(Windows·Linux) Then 피커가 사용자 요청으로 열려 페이지 위에 보이고 Esc 로 닫힌다.
-  Enter 연타·누르고 있기·마우스 빠른 두 번 클릭도 피커가 포커스를 받는다.
+  Enter 연타·누르고 있기도 피커가 포커스를 받는다.
+- Given Markdown 문서의 Folder When 마우스로 빠르게 두 번 클릭 Then 피커가 보이고 쓸 수 있다. 둘째 클릭이 상자 밖에 떨어지면 일반 바깥 클릭 규칙대로 포커스가 풀리고(Windows 80ms 측정), 상자를 누르면 다시 포커스를 받는다. 상자 안에 떨어지거나 빠르게 처리되면 포커스를 유지한다(Linux 80ms 측정).
 - Given `filters: ["md"]` 로 트리거됨 Then 렌더된 엔트리 목록에서 `.md` 가 아닌 파일은
   제외되고(디렉토리는 필터와 무관하게 항상 표시), 확정/취소 시 `"file_picker.result"` 가
   그 요청을 낸 plugin 에만(unicast) push 된다.
