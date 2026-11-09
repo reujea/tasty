@@ -94,9 +94,20 @@ fn parse_start(text: &str) -> Option<u64> {
 /// A bounded read-only same-UID FD/maps/cwd/root/exe observation, never a WebKit teardown ACK.
 /// Any inaccessible live process, exhausted bound or unstable observation leaves uncertainty.
 pub(super) fn consumers(root: &Path, objects: &HashSet<(u64, u64)>) -> io::Result<bool> {
+    consumers_under(Path::new("/proc"), root, objects, &stat_again)
+}
+/// Observes a denied process or task again. Only tests pass anything but `stat_again`, so they can
+/// answer for a really denied subject that a race would otherwise have to remove in time.
+pub(super) type Reobserve<'a> = &'a dyn Fn(&Path) -> io::Result<()>;
+pub(super) fn consumers_under(
+    processes: &Path,
+    root: &Path,
+    objects: &HashSet<(u64, u64)>,
+    reobserve: Reobserve<'_>,
+) -> io::Result<bool> {
     let mut entries = 0;
     let mut budget = 65_536usize;
-    for entry in std::fs::read_dir("/proc")? {
+    for entry in std::fs::read_dir(processes)? {
         entries += 1;
         if entries > 4096 {
             return Err(io::Error::other("process audit entry bound"));
@@ -118,10 +129,10 @@ pub(super) fn consumers(root: &Path, objects: &HashSet<(u64, u64)>) -> io::Resul
         if m.uid() != fs::uid() {
             continue;
         }
-        match audit_process(&path, root, objects, &mut budget) {
+        match audit_process(&path, root, objects, &mut budget, reobserve) {
             Ok(true) => return Ok(true),
             Ok(false) => {}
-            Err(e) if gone(&e, &path) => {}
+            Err(e) if gone(&e, &path, reobserve) => {}
             Err(e) => return Err(e),
         }
     }
@@ -132,8 +143,9 @@ pub(super) fn audit_process(
     root: &Path,
     objects: &HashSet<(u64, u64)>,
     budget: &mut usize,
+    reobserve: Reobserve<'_>,
 ) -> io::Result<bool> {
-    Ok(audit_tasks(process, root, objects, budget)?
+    Ok(audit_tasks(process, root, objects, budget, reobserve)?
         || maps(&process.join("maps"), root, objects, budget)?)
 }
 pub(super) fn audit_tasks(
@@ -141,6 +153,7 @@ pub(super) fn audit_tasks(
     root: &Path,
     objects: &HashSet<(u64, u64)>,
     budget: &mut usize,
+    reobserve: Reobserve<'_>,
 ) -> io::Result<bool> {
     for task in std::fs::read_dir(process.join("task"))? {
         spend(budget)?;
@@ -148,7 +161,7 @@ pub(super) fn audit_tasks(
         match audit_task(&task, root, objects, budget) {
             Ok(true) => return Ok(true),
             Ok(false) => {}
-            Err(e) if gone(&e, &task) => {}
+            Err(e) if gone(&e, &task, reobserve) => {}
             Err(e) => return Err(e),
         }
     }
@@ -177,8 +190,11 @@ fn vanished(e: &io::Error) -> bool {
     e.kind() == io::ErrorKind::NotFound || e.raw_os_error() == Some(libc::ESRCH)
 }
 /// Whether an audit error means its process or task no longer exists, so it consumes nothing.
-pub(super) fn gone(e: &io::Error, subject: &Path) -> bool {
-    gone_after(e, || read(&subject.join("stat"), 8192).map(drop))
+pub(super) fn gone(e: &io::Error, subject: &Path, reobserve: Reobserve<'_>) -> bool {
+    gone_after(e, || reobserve(subject))
+}
+pub(super) fn stat_again(subject: &Path) -> io::Result<()> {
+    read(&subject.join("stat"), 8192).map(drop)
 }
 /// A task that exits during the walk also answers its /proc entries with EACCES, the same answer as
 /// a live task this UID may not inspect. Only observing the subject again tells them apart: it

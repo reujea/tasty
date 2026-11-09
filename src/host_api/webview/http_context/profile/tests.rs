@@ -510,7 +510,9 @@ fn fd_and_mapping_consumers(
 ) {
     use std::os::fd::AsRawFd;
     let our_proc = PathBuf::from(format!("/proc/{}", std::process::id()));
-    assert!(process::audit_process(&our_proc, root, objects, &mut 65_536).unwrap());
+    let audit =
+        || process::audit_process(&our_proc, root, objects, &mut 65_536, &process::stat_again);
+    assert!(audit().unwrap());
     // SAFETY: file is an owned 4096-byte test file, descriptor is live and offset0 is aligned.
     let mapping = unsafe {
         libc::mmap(
@@ -524,7 +526,7 @@ fn fd_and_mapping_consumers(
     };
     assert_ne!(mapping, libc::MAP_FAILED);
     drop(file);
-    let mapped_consumer = process::audit_process(&our_proc, root, objects, &mut 65_536).unwrap();
+    let mapped_consumer = audit().unwrap();
     // SAFETY: mapping is exactly the successful mmap allocation above, released once.
     let unmapped = unsafe { libc::munmap(mapping, 4096) };
     assert_eq!(unmapped, 0);
@@ -532,7 +534,7 @@ fn fd_and_mapping_consumers(
         mapped_consumer,
         "maps must detect a consumer after its FD closes"
     );
-    assert!(!process::audit_process(&our_proc, root, objects, &mut 65_536).unwrap());
+    assert!(!audit().unwrap());
 }
 
 fn os_error(code: i32) -> std::io::Error {
@@ -576,59 +578,168 @@ fn a_dead_root_is_removed_only_when_the_denied_subject_was_observed_gone() {
     assert_eq!(sweep(|| Ok(())), (0, 1, true));
     assert_eq!(sweep(|| Err(os_error(libc::EIO))), (0, 1, true));
 }
+/// A real live process of this UID whose tasks and maps deny inspection.
+struct UndumpableChild {
+    child: std::process::Child,
+    // Stays open until the child has exited: its harness still reports to this pipe.
+    _stdout: std::io::BufReader<std::process::ChildStdout>,
+    process: PathBuf,
+}
+impl UndumpableChild {
+    fn start() -> Self {
+        use std::{
+            io::{BufRead, Read},
+            process::{Command, Stdio},
+        };
+        let module = module_path!().split_once("::").unwrap().1;
+        let entry = format!("{module}::undumpable_child");
+        let mut child = Command::new(std::env::current_exe().unwrap())
+            .args([
+                "--ignored",
+                "--exact",
+                &entry,
+                "--nocapture",
+                "--test-threads=1",
+            ])
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::null())
+            .spawn()
+            .unwrap();
+        let mut stdout = std::io::BufReader::new(child.stdout.take().unwrap());
+        assert!(
+            stdout
+                .by_ref()
+                .lines()
+                .map_while(Result::ok)
+                .any(|line| line.contains("undumpable-ready")),
+            "owned undumpable child never reported ready"
+        );
+        let process = PathBuf::from(format!("/proc/{}", child.id()));
+        Self {
+            child,
+            _stdout: stdout,
+            process,
+        }
+    }
+    /// Reports whether it was still alive when asked to finish, so what was seen was a live denial.
+    fn finish(mut self) -> bool {
+        let alive = self.child.try_wait().unwrap().is_none();
+        drop(self.child.stdin.take());
+        assert!(self.child.wait().unwrap().success());
+        alive
+    }
+}
+const NO_ROOT: &str = "/nonexistent-tasty-profile-root";
 /// A real live task of this UID that denies inspection: the audit must not complete past it.
 #[test]
 fn a_live_task_that_denies_inspection_keeps_the_audit_incomplete() {
-    use std::{
-        io::{BufRead, Read},
-        process::{Command, Stdio},
-    };
-    let module = module_path!().split_once("::").unwrap().1;
-    let entry = format!("{module}::undumpable_child");
-    let mut child = Command::new(std::env::current_exe().unwrap())
-        .args([
-            "--ignored",
-            "--exact",
-            &entry,
-            "--nocapture",
-            "--test-threads=1",
-        ])
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::null())
-        .spawn()
-        .unwrap();
-    // Stays open until the child has exited: its harness still reports to this pipe.
-    let mut stdout = std::io::BufReader::new(child.stdout.take().unwrap());
-    assert!(
-        stdout
-            .by_ref()
-            .lines()
-            .map_while(Result::ok)
-            .any(|line| line.contains("undumpable-ready")),
-        "owned undumpable child never reported ready"
-    );
-    let process = PathBuf::from(format!("/proc/{}", child.id()));
-    let root = Path::new("/nonexistent-tasty-profile-root");
+    let child = UndumpableChild::start();
+    let process = child.process.clone();
+    let root = Path::new(NO_ROOT);
     let objects = Default::default();
+    let real = &process::stat_again;
     // The tasks alone: maps of this process denies too and would hide a task taken as gone.
-    let tasks = process::audit_tasks(&process, root, &objects, &mut 65_536);
-    let whole = process::audit_process(&process, root, &objects, &mut 65_536);
+    let tasks = process::audit_tasks(&process, root, &objects, &mut 65_536, real);
+    let whole = process::audit_process(&process, root, &objects, &mut 65_536, real);
     let denied = os_error(libc::EACCES);
-    let live_subject_gone = process::gone(&denied, &process);
-    let alive = child.try_wait().unwrap().is_none();
-    drop(child.stdin.take());
-    assert!(child.wait().unwrap().success());
-    assert!(alive, "the denied task must be live during the audit");
+    let live_subject_gone = process::gone(&denied, &process, real);
+    assert!(
+        child.finish(),
+        "the denied task must be live during the audit"
+    );
     for audit in [tasks, whole] {
         let error = audit.expect_err("a denied live task leaves the audit incomplete");
         assert_eq!(error.raw_os_error(), Some(libc::EACCES));
     }
     assert!(!live_subject_gone, "a live subject stays denied");
     assert!(
-        process::gone(&denied, &process),
+        process::gone(&denied, &process, real),
         "the same subject counts as gone once it has been reaped"
     );
+}
+/// Both call sites of the classification, on real denials: the injected answer stands in for the
+/// exit race, which no test can make happen on demand between a denial and its second observation.
+#[test]
+fn each_audit_call_site_skips_a_denied_subject_only_when_observed_gone() {
+    type Answer = fn() -> std::io::Result<()>;
+    let exists: Answer = || Ok(());
+    let vanished: Answer = || Err(os_error(libc::ENOENT));
+    let answers = |task: Answer, process: Answer| {
+        move |subject: &Path| {
+            if subject
+                .parent()
+                .is_some_and(|parent| parent.ends_with("task"))
+            {
+                task()
+            } else {
+                process()
+            }
+        }
+    };
+    let child = UndumpableChild::start();
+    let pid = child.process.file_name().unwrap().to_owned();
+    // A process table of just this child, so that no other process's denial decides the walk.
+    let table = namespace();
+    std::os::unix::fs::symlink(&child.process, table.path().join(&pid)).unwrap();
+    let root = Path::new(NO_ROOT);
+    let objects = Default::default();
+    let tasks = |reobserve: process::Reobserve<'_>| {
+        process::audit_tasks(&child.process, root, &objects, &mut 65_536, reobserve)
+    };
+    let consumers = |reobserve: process::Reobserve<'_>| {
+        process::consumers_under(table.path(), root, &objects, reobserve)
+    };
+    let results = [
+        ("tasks: task gone", tasks(&answers(vanished, exists)), None),
+        (
+            "tasks: task exists",
+            tasks(&answers(exists, exists)),
+            Some(libc::EACCES),
+        ),
+        (
+            "tasks: real",
+            tasks(&process::stat_again),
+            Some(libc::EACCES),
+        ),
+        // Tasks taken as gone, so the denied maps reaches the consumers call site.
+        (
+            "consumers: all gone",
+            consumers(&answers(vanished, vanished)),
+            None,
+        ),
+        // A task denial carried up to the consumers call site, whose own subject is gone.
+        (
+            "consumers: process gone",
+            consumers(&answers(exists, vanished)),
+            None,
+        ),
+        // The consumers call site must not skip a process that is still there.
+        (
+            "consumers: process exists",
+            consumers(&answers(vanished, exists)),
+            Some(libc::EACCES),
+        ),
+        (
+            "consumers: real",
+            consumers(&process::stat_again),
+            Some(libc::EACCES),
+        ),
+    ];
+    assert!(
+        child.finish(),
+        "the denied task must be live during the audit"
+    );
+    for (case, result, denied) in results {
+        match denied {
+            None => assert!(matches!(result, Ok(false)), "{case}: {result:?}"),
+            Some(code) => assert_eq!(
+                result.as_ref().map_err(|error| error.raw_os_error()),
+                Err(Some(code)),
+                "{case}"
+            ),
+        }
+    }
 }
 #[test]
 #[ignore = "owned subprocess entry, invoked only by its parent test"]
