@@ -57,6 +57,11 @@ fn moved(n: usize) -> Vec<UndoStep> {
     }]
 }
 
+thread_local! {
+    /// 이 시험 스레드가 `finish_next` 로 실행한 작업과 걸린 시간. 실패 메시지에만 쓴다.
+    static STAGES: std::cell::RefCell<Vec<String>> = const { std::cell::RefCell::new(Vec::new()) };
+}
+
 /// App 이 끝난 작업을 거둘 때처럼, 대기열 맨 앞 요청을 실행하고 그 결과를 요청한 칸의 이력에 반영한다.
 fn finish_next(state: &mut crate::state::MainViewState, sid: u32) -> Report {
     let Request {
@@ -68,9 +73,13 @@ fn finish_next(state: &mut crate::state::MainViewState, sid: u32) -> Report {
         .0
         .pop_front()
         .expect("a queued request");
+    let started = std::time::Instant::now();
     let Done::Report(report) = operation.run(&quiet()) else {
         panic!("copy, move and undo report per item");
     };
+    STAGES.with_borrow_mut(|stages| {
+        stages.push(format!("{:?} {:?}", report.kind, started.elapsed()));
+    });
     if let Some(recorded) = recorded {
         state
             .explorer_views
@@ -81,6 +90,25 @@ fn finish_next(state: &mut crate::state::MainViewState, sid: u32) -> Report {
             .record(recorded, &report);
     }
     report
+}
+
+/// 맨 앞 되돌리기를 실행하고, 항목 하나를 되돌렸다는 보고와 실제로 없어진 파일을 함께 단언한다. 실패하면
+/// 메시지에서 이유(`ChangedSince`, `Os(...)` 등), 기록한 단계, 지금 수정 시각, 작업별 시간을 읽는다.
+#[track_caller]
+fn finish_undo_of_one(state: &mut crate::state::MainViewState, sid: u32, path: &Path) {
+    let steps = format!(
+        "{:?}",
+        state.explorer_file_requests.0.front().map(|r| &r.operation)
+    );
+    let undone = finish_next(state, sid);
+    assert_eq!(
+        (undone.kind, undone.done, undone.failed.len(), path.exists()),
+        (OpKind::Undo, 1, 0, false),
+        "failed={:?}, request={steps}, modified now={:?}, job times={:?}",
+        undone.failed,
+        path.symlink_metadata().and_then(|m| m.modified()),
+        STAGES.with_borrow(Clone::clone),
+    );
 }
 
 fn history(state: &crate::state::MainViewState, sid: u32) -> &History {
@@ -410,8 +438,7 @@ fn undo_waits_for_a_copy_or_move_in_progress() {
         Some(UndoOf::Copy)
     );
     state.explorer_history_step(&engine.read(), sid, false, user(), false);
-    finish_next(&mut state, sid);
-    assert!(!dest.join("b.txt").exists(), "the copy is undone");
+    finish_undo_of_one(&mut state, sid, &dest.join("b.txt"));
     assert!(dest.join("a.txt").exists(), "the earlier move stays");
 }
 
@@ -620,8 +647,7 @@ fn a_card_undo_behind_a_new_job_does_not_reach_the_redo_list() {
 
     let copy_b = h.peek_undo().unwrap().undo.clone();
     state.apply_explorer_ops(&engine.read(), sid, OpsAction::Undo(copy_b));
-    finish_next(&mut state, sid);
-    assert!(!dest.join("b.txt").exists());
+    finish_undo_of_one(&mut state, sid, &dest.join("b.txt"));
     assert_eq!(
         history(&state, sid).peek_redo().map(Entry::undo_of),
         Some(UndoOf::Copy)
