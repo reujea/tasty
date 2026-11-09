@@ -5,3 +5,4 @@
 | 측정 | 내용 |
 |------|------|
 | [child-tree-format](child-tree-format/index.md) | AI 에이전트가 child 트리와 DAG를 어떤 텍스트 형식으로 받을 때 정확하고 싸게 읽는지 측정한다 |
+| [settings-boot-parity](settings-boot-parity/index.md) | 저장한 설정마다 시작 경로와 실행 중 적용 경로가 같은 값을 쓰는지 전수 조사한다 |
