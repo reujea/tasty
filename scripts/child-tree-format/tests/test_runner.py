@@ -580,6 +580,18 @@ class Provenance(unittest.TestCase):
     def test_raw_lines_with_a_good_version_pass(self):
         self.assertEqual(self.problems([self.row()]), [])
 
+    def test_raw_file_outside_the_repository_has_no_history_to_compare(self):
+        with tempfile.TemporaryDirectory() as other:
+            found = check_rules.raw_problems([self.row()], self.repo, "main", [str(Path(other) / "main.jsonl")])
+        self.assertEqual(found, [])
+
+    def test_tracked_raw_file_that_descends_from_the_rules_passes(self):
+        raw = self.repo / "main.jsonl"
+        raw.write_text("{}\n")
+        self.git("add", ".")
+        self.git("commit", "-qm", "raw")
+        self.assertEqual(check_rules.raw_problems([self.row()], self.repo, "main", [str(raw)]), [])
+
     def test_raw_line_problems_are_named(self):
         self.assertEqual(self.problems([self.row(rules_blob="0" * 40)]), ["blob_differs"])
         self.assertEqual(self.problems([self.row(rules_commit=None)]), ["missing_rules_fields"])

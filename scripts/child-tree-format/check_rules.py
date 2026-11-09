@@ -102,7 +102,11 @@ def raw_problems(rows, root=REPO_ROOT, main_ref="origin/main", raw_files=()):
         if committed_at >= moment.timestamp():
             problems.append(("rules_committed_after_first_call", first))
     for raw in raw_files:
-        added = _git(root, "log", "--diff-filter=A", "--format=%H", "--", raw).split()
+        # A file outside the repository has no history to compare.
+        resolved = Path(raw).resolve()
+        if not resolved.is_relative_to(Path(root).resolve()):
+            continue
+        added = _git(root, "log", "--diff-filter=A", "--format=%H", "--", str(resolved)).split()
         if added and not _on_main(first, root, added[-1]):
             problems.append(("rules_not_ancestor_of_raw", raw))
     return problems
