@@ -12,7 +12,8 @@ use crate::record::{self, StreamEvent};
 use crate::registry::StreamRegistry;
 use crate::registry::TailCheckout;
 use crate::resolve::{self, HostCall};
-use crate::tail::TailPoll;
+use tasty_plugin_agent_common::tail::TailPoll;
+use tasty_plugin_agent_common::transcript;
 
 /// poison 경고는 처음 한 번만 남긴다.
 static REGISTRY_POISON_REPORTED: std::sync::atomic::AtomicBool =
@@ -55,7 +56,7 @@ pub(crate) fn tail_loop(registry: Shared, host: HostHandle) {
 /// 수집 루프 한 번. Continue면 다음 반복을 진행한다.
 fn tick<H: HostCall>(registry: &Shared, host: &H, tick_count: u64) -> std::ops::ControlFlow<()> {
     // 환경이 준비된 뒤 다시 찾을 수 있도록 루트를 매번 확인한다.
-    let root = resolve::transcript_root();
+    let root = transcript::transcript_root();
     if tick_count.is_multiple_of(VERIFY_EVERY) {
         verify_targets(registry, host, root.as_deref());
     }
@@ -98,7 +99,7 @@ fn verify_one<H: HostCall>(
     }
     // 새 세션 파일이 아직 없으면 경로 미해결(빈 경로)로 바꿔 둔다 — 매 tick 재해석한다.
     let path = root
-        .and_then(|r| resolve::find_transcript(r, &current))
+        .and_then(|r| transcript::find_transcript(r, &current))
         .unwrap_or_default();
     lock_registry(registry).switch_session(surface_id, current, path);
 }
@@ -179,7 +180,7 @@ fn resolve_pending_path(registry: &Shared, surface_id: u32, root: Option<&Path>)
     if transcript.is_file() {
         return;
     }
-    let Some(path) = resolve::find_transcript(root, &session_id) else {
+    let Some(path) = transcript::find_transcript(root, &session_id) else {
         return;
     };
 

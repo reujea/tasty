@@ -16,7 +16,7 @@ use crate::record::{
 };
 use crate::sse::ServeConfig;
 use crate::sse::hub::{Published, SseHub, SubOptions};
-use crate::tail::TailState;
+use tasty_plugin_agent_common::tail::TailState;
 
 /// 이벤트 버퍼 상한. 넘치면 가장 오래된 것부터 버리고 `dropped` 로 알린다.
 pub(crate) const EVENT_BUFFER_CAP: usize = 4096;

@@ -1,7 +1,9 @@
-#![forbid(unsafe_code)]
+// tail.rs 의 Windows file index 만 Win32 FFI 를 쓴다 — forbid 는 그 함수의 allow 를 막으므로 Windows 는 deny.
+#![cfg_attr(not(windows), forbid(unsafe_code))]
+#![cfg_attr(windows, deny(unsafe_code))]
 
 //! Claude와 Codex 플러그인의 공용 헬퍼: 프롬프트 파일, 자식 조회, 요청 인자, 완료 알림 훅,
-//! agent task 턴 보고.
+//! agent task 턴 보고. 대화 기록 찾기(`transcript`)·이어 읽기(`tail`)는 agent-stream 플러그인이 쓴다.
 //!
 //! CLI별 종료 대기 시간·키 입력·이벤트 목록은 각 플러그인에서 정한다.
 //! 오류 판정은 공유하지만 메시지와 번역 키는 각 플러그인이 제공한다.
@@ -14,7 +16,7 @@
 //! 계약과 각 플러그인의 응답 시험은 docs/dev-guide/paired-agent-handlers.md 참고.
 //!
 //! 이 크레이트는 매니페스트가 없는 공유 라이브러리다. 다만 변경이 번들 산출물에
-//! 영향을 주면 의존하는 두 플러그인의 버전도 갱신해야 한다
+//! 영향을 주면 의존하는 플러그인(claude·codex·agent-stream)의 버전도 갱신해야 한다
 //! (docs/dev-guide/release.md#플러그인-버전-비교).
 
 pub mod children;
@@ -25,4 +27,6 @@ pub mod reboot;
 pub mod remote_attach;
 pub mod remote_owner;
 pub mod remote_results;
+pub mod tail;
 pub mod task_turn;
+pub mod transcript;

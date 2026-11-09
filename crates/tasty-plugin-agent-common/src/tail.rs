@@ -20,7 +20,7 @@ use std::path::Path;
 const MAX_READ_PER_TICK: usize = 1 << 22; // 4 MiB
 
 /// 한 파일에 대한 tail 진행 상태.
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct TailState {
     /// 다음에 읽기 시작할 바이트 위치.
     offset: u64,
