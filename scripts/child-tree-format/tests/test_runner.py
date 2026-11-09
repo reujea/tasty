@@ -31,6 +31,9 @@ ALLOWED = {
 }
 
 
+APPROVED = {"claude": 50.0, "codex": None}
+
+
 class Base(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
@@ -237,7 +240,7 @@ class Failures(Base):
         self.assertEqual(self.log()[-1]["reason"], "allowed_warning")
 
     def test_a_resume_on_an_unread_window_needs_a_named_person(self):
-        self.assertEqual(runner.approve(self.data, "L2", [], {}), 0)
+        self.assertEqual(runner.approve(self.data, "L2", [], APPROVED), 0)
         rows = self.rows("L2")
         self.scenarios(["api_error", "api_error"] + ["normal"] * (len(rows) - 1) + ["api_error"])
         self.assertEqual(runner.run(self.config("main", "L2")), 3)
@@ -301,12 +304,32 @@ class Levels(Base):
     def test_main_needs_an_approved_level(self):
         self.assertEqual(runner.run(self.config("main", "L2")), 2)
         self.assertEqual(self.raw("main"), [])
-        self.assertEqual(runner.approve(self.data, "L1", [], {}), 0)
+        self.assertEqual(runner.approve(self.data, "L1", [], APPROVED), 0)
         self.assertEqual(runner.run(self.config("main", "L2")), 2)
+
+    def test_approved_u_has_to_guard_the_run(self):
+        bad = (
+            {}, [], None, {"codex": None}, {"claude": 50.0}, {"claude": None, "codex": None},
+            {"claude": True, "codex": None}, {"claude": "50", "codex": None}, {"claude": 50.0, "codex": "x"},
+            {"claude": float("nan"), "codex": None}, {"claude": 50.0, "codex": None, "seven_day_fable": None},
+        )
+        for value in bad:
+            with self.subTest(value=value):
+                self.assertEqual(runner.approve(self.data, "L2", [], value), 2)
+                self.assertEqual(self.log(), [])
+        self.assertEqual(runner.approve(self.data, "L2", [], {"claude": 50, "codex": 3.0, "seven_day_fable": 8}), 0)
+        self.assertEqual(len(self.log()), 1)
+
+    def test_the_command_line_refuses_empty_approved_u(self):
+        windows = self.root / "windows.json"
+        windows.write_text("[]", encoding="utf-8")
+        argv = ["--data", str(self.data), "approve", "--level", "L2", "--windows", str(windows), "--approved-u", "{}"]
+        self.assertEqual(runner.main(argv), 2)
+        self.assertEqual(self.log(), [])
 
     def test_level_log_is_separate_and_holds_the_values(self):
         windows = [{"name": "w", "u": 1.0}]
-        self.assertEqual(runner.approve(self.data, "L2", windows, {"claude": 50.0}), 0)
+        self.assertEqual(runner.approve(self.data, "L2", windows, {"claude": 50.0, "codex": None}), 0)
         self.assertEqual(runner.run(self.config("main", "L2", max_calls=1)), 0)
         entry = self.log()[0]
         self.assertEqual((entry["kind"], entry["from"], entry["to"], entry["windows"]), ("level_change", None, "L2", windows))
@@ -314,10 +337,10 @@ class Levels(Base):
         self.assertTrue(all("kind" not in r for r in self.raw("main")))
 
     def test_lowering_the_level_keeps_finished_calls_and_skips_the_rest(self):
-        self.assertEqual(runner.approve(self.data, "L0", [], {}), 0)
+        self.assertEqual(runner.approve(self.data, "L0", [], APPROVED), 0)
         self.assertEqual(runner.run(self.config("main", "L0", max_calls=10)), 0)
         before = {r["call_id"] for r in self.raw("main")}
-        self.assertEqual(runner.approve(self.data, "L2", [], {}), 0)
+        self.assertEqual(runner.approve(self.data, "L2", [], APPROVED), 0)
         self.assertEqual(runner.run(self.config("main", "L2")), 0)
         raw = self.raw("main")
         planned = {r["call_id"] for r in self.rows("L2")}
@@ -329,13 +352,13 @@ class Levels(Base):
         self.assertEqual(out["unfilled_cells"], [])
 
     def test_a_level_cannot_change_after_its_last_call(self):
-        self.assertEqual(runner.approve(self.data, "L2", [], {}), 0)
+        self.assertEqual(runner.approve(self.data, "L2", [], APPROVED), 0)
         self.assertEqual(runner.run(self.config("main", "L2")), 0)
-        self.assertEqual(runner.approve(self.data, "L1", [], {}), 1)
+        self.assertEqual(runner.approve(self.data, "L1", [], APPROVED), 1)
         self.assertEqual(len([e for e in self.log() if e["kind"] == "level_change"]), 1)
 
     def test_seven_day_rise_aborts(self):
-        self.assertEqual(runner.approve(self.data, "L2", [], {"claude": 70.0}), 0)
+        self.assertEqual(runner.approve(self.data, "L2", [], {"claude": 70.0, "codex": None}), 0)
         rows = self.rows("L2")
         first_claude = next(i for i, r in enumerate(rows) if MODELS[r["model"]]["cli"] == "claude")
         self.scenarios(["normal"] * first_claude + ["high_usage"])
@@ -344,14 +367,14 @@ class Levels(Base):
         self.assertEqual(self.log()[-1]["reason"], "u_exceeded")
 
     def test_percent_unit_is_not_scaled(self):
-        self.assertEqual(runner.approve(self.data, "L2", [], {}), 0)
+        self.assertEqual(runner.approve(self.data, "L2", [], APPROVED), 0)
         rows = self.rows("L2")
         first = next(i for i, r in enumerate(rows) if MODELS[r["model"]]["cli"] == "claude")
         self.assertEqual(runner.run(self.config("main", "L2", max_calls=first + 1, utilization_unit="percent")), 0)
         self.assertEqual(self.raw("main")[first]["windows"]["seven_day_percent"], 0.2)
 
     def test_resume_after_api_failures_records_values_and_continues(self):
-        self.assertEqual(runner.approve(self.data, "L2", [], {}), 0)
+        self.assertEqual(runner.approve(self.data, "L2", [], APPROVED), 0)
         rows = self.rows("L2")
         self.scenarios(["api_error", "api_error"] + ["normal"] * (len(rows) - 1) + ["api_error"])
         self.assertEqual(runner.run(self.config("main", "L2")), 3)
@@ -370,7 +393,7 @@ class Levels(Base):
         self.assertEqual(self.log()[-1]["retries_used"], 2)
 
     def test_resume_refused_when_the_table_rejects_the_level(self):
-        self.assertEqual(runner.approve(self.data, "L0", [], {}), 0)
+        self.assertEqual(runner.approve(self.data, "L0", [], APPROVED), 0)
         rows = self.rows("L0")
         self.scenarios(["api_error", "api_error"] + ["normal"] * (len(rows) - 1) + ["api_error"])
         self.assertEqual(runner.run(self.config("main", "L0")), 3)
@@ -404,7 +427,7 @@ class Levels(Base):
     def test_pilot_and_main_logs_do_not_mix(self):
         self.scenarios(["http_429"])
         self.assertEqual(runner.run(self.config()), 3)
-        self.assertEqual(runner.approve(self.data, "L2", [], {}), 0)
+        self.assertEqual(runner.approve(self.data, "L2", [], APPROVED), 0)
         self.assertEqual(runner.run(self.config("main", "L2", max_calls=1)), 0)
         self.assertEqual(len(self.raw("main")), 1)
 
@@ -450,9 +473,9 @@ class CommandLine(Base):
         usage = self.root / "usage.json"
         usage.write_text('{"proposal": "L0"}')
         base = ["--data", str(self.data)]
-        args = [*base, "approve", "--level", "L2", "--windows", str(windows), "--approved-u", '{"claude": 50.0}']
+        args = [*base, "approve", "--level", "L2", "--windows", str(windows), "--approved-u", '{"claude": 50.0, "codex": null}']
         self.assertEqual(runner.main(args), 0)
-        self.assertEqual(self.log()[-1]["approved_u"], {"claude": 50.0})
+        self.assertEqual(self.log()[-1]["approved_u"], {"claude": 50.0, "codex": None})
         args = [*base, "resume", "--phase", "main", "--level", "L2", "--usage", str(usage)]
         self.assertEqual(runner.main(args), 1)
         self.assertEqual(self.log()[-1]["kind"], "resume_refused")
@@ -493,7 +516,7 @@ class Bypass(Base):
 
 class EndToEnd(Base):
     def test_generate_call_grade_and_summarize_with_no_model(self):
-        self.assertEqual(runner.approve(self.data, "L2", [], {}), 0)
+        self.assertEqual(runner.approve(self.data, "L2", [], APPROVED), 0)
         self.scenarios(["json_error", "tool_call", "api_error"])
         self.assertEqual(runner.run(self.config("main", "L2")), 0)
         calls = self.fake_calls()

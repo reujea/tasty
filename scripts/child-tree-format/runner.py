@@ -12,6 +12,7 @@ judge, 3 aborted by the failure rules.
 
 import argparse
 import json
+import math
 import os
 import shutil
 import signal
@@ -243,8 +244,34 @@ def run(cfg):
             return 3
 
 
+def _is_percent(value):
+    return isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value)
+
+
+def approved_u_problem(approved_u):
+    """Return why approved u values cannot guard the run, or None.
+
+    An empty value would turn the seven day rise stop off without a trace, so
+    claude needs a number and codex has to be named even when it stays unread.
+    """
+    if not isinstance(approved_u, dict):
+        return "approved u must be an object"
+    if not _is_percent(approved_u.get("claude")):
+        return "approved u needs a number for claude"
+    if "codex" not in approved_u:
+        return "approved u needs codex, a number or null when it was not read"
+    for name, value in approved_u.items():
+        if not _is_percent(value) and not (name == "codex" and value is None):
+            return f"approved u of {name} must be a number"
+    return None
+
+
 def approve(data, level, windows, approved_u):
     """Record an approved level. After the last planned call the level can no longer change."""
+    problem = approved_u_problem(approved_u)
+    if problem:
+        print(f"refused: {problem}", file=sys.stderr)
+        return 2
     records = read_jsonl(raw_path(data, "main"))
     log = read_jsonl(log_path(data))
     ledger = policy.replay(records, log)
@@ -309,7 +336,7 @@ def main(argv=None):
     ok = commands.add_parser("approve")
     ok.add_argument("--level", choices=tuple(LEVELS), required=True)
     ok.add_argument("--windows", required=True, help="window values as JSON")
-    ok.add_argument("--approved-u", required=True, help='approved u per CLI, such as {"claude": 69.9}')
+    ok.add_argument("--approved-u", required=True, help='approved u per CLI and window, such as {"claude": 69.9, "codex": null}')
     back = commands.add_parser("resume")
     back.add_argument("--phase", choices=("pilot", "main"), default="main")
     back.add_argument("--level", choices=tuple(LEVELS))
