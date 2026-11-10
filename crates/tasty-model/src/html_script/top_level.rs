@@ -133,9 +133,47 @@ impl TopLevelAdmission {
         self.target.as_deref().is_some_and(|t| same_target(t, url))
     }
 
+    /// 이 문서 요청에 top-level 예외를 줄지. 열린 로드의 현재 hop이고, 같은 주소로 가는 subframe 탐색이
+    /// 진행 중이지 않아야 한다. 요청에서 frame을 알 수 없는 backend(WebView2)가 subframe 문서 요청에 예외를
+    /// 주지 않게 한다. 둘이 겹치면 main 요청도 막는다(차단 쪽으로 닫는다).
+    pub fn admits_document(&self, url: &str, frames: &SubframeNavigations) -> bool {
+        self.admits(url) && !frames.claims(url)
+    }
+
     /// main frame commit 또는 로드 종료. 열린 로드를 닫는다. 지목은 남긴다.
     pub fn end(&mut self) {
         self.target = None;
+    }
+}
+
+/// 진행 중인 subframe 탐색의 현재 hop 주소. 탐색 id로 시작·리다이렉트·종료를 따라간다.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct SubframeNavigations {
+    hops: Vec<(u64, String)>,
+}
+
+impl SubframeNavigations {
+    /// subframe 탐색이 시작했거나 리다이렉트로 다음 hop에 갔다.
+    pub fn hop(&mut self, id: u64, url: &str) {
+        match self.hops.iter_mut().find(|(i, _)| *i == id) {
+            Some(entry) => entry.1 = url.to_string(),
+            None => self.hops.push((id, url.to_string())),
+        }
+    }
+
+    /// subframe 탐색이 끝났다(완료·실패·취소).
+    pub fn end(&mut self, id: u64) {
+        self.hops.retain(|(i, _)| *i != id);
+    }
+
+    /// main frame commit. 앞 문서의 frame이 사라지므로 남은 기록을 지운다.
+    pub fn clear(&mut self) {
+        self.hops.clear();
+    }
+
+    /// 이 주소로 가는 subframe 탐색이 진행 중인지.
+    pub fn claims(&self, url: &str) -> bool {
+        self.hops.iter().any(|(_, hop)| same_target(hop, url))
     }
 }
 

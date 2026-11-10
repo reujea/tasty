@@ -7,15 +7,22 @@
 //!
 //! 차단 중에도 연 top-level 탐색([`TopLevelAdmission`])의 main 문서 요청은 보낸다. `NavigationStarting`은
 //! main frame 탐색에서만 오므로 시작·리다이렉트마다 허용을 기록하고, 문서 요청은 그 hop 주소와 대조한다.
+//! `WebResourceRequested`는 요청한 frame을 알려 주지 않는다(`RequestedSourceKind`도 iframe을 DOCUMENT로
+//! 묶는다). 그래서 subframe 탐색(`FrameNavigationStarting`·`FrameNavigationCompleted`)의 hop 주소를 따로
+//! 기록하고, 같은 주소로 가는 subframe 탐색이 진행 중이면 문서 요청에 예외를 주지 않는다.
 //! 로드 시작부터 하위 리소스 차단은 그대로라 commit된 새 문서의 하위 리소스는 그 문서의 상태를 따른다.
 
 use std::cell::{Cell, RefCell};
+use std::ffi::c_void;
 use std::rc::Rc;
 use std::time::Instant;
 
-use tasty_model::html_script::top_level::{Origin, StartKind, TopLevelAdmission, is_remote_url};
-use webview2_com::Microsoft::Web::WebView2::Win32::*;
-use windows::core::BOOL;
+use tasty_model::html_script::top_level::{
+    Origin, StartKind, SubframeNavigations, TopLevelAdmission, is_remote_url,
+};
+use webview2_com::{Microsoft::Web::WebView2::Win32::*, *};
+use windows::Win32::System::Com::CoTaskMemFree;
+use windows::core::{BOOL, PWSTR};
 
 use super::super::click_gesture::ClickGesture;
 use super::super::script_gate::ScriptGate;
@@ -47,6 +54,7 @@ pub(super) fn refuse(
     global_allowed: &Cell<bool>,
     gate: &RefCell<Option<ScriptGate>>,
     top_level: &RefCell<TopLevelAdmission>,
+    frames: &RefCell<SubframeNavigations>,
     uri: &str,
     args: &ICoreWebView2WebResourceRequestedEventArgs,
 ) -> bool {
@@ -57,7 +65,7 @@ pub(super) fn refuse(
     // SAFETY: args는 이 콜백 동안 valid하며 main thread에서 읽는다.
     let read = unsafe { args.ResourceContext(&mut context) };
     let document = read.is_ok() && context == COREWEBVIEW2_WEB_RESOURCE_CONTEXT_DOCUMENT;
-    if document && top_level.borrow().admits(uri) {
+    if document && top_level.borrow().admits_document(uri, &frames.borrow()) {
         return false;
     }
     let gate = gate.borrow();
@@ -127,4 +135,61 @@ pub(super) fn navigation_starting(
         origin.remote_document,
         gesture.initiated
     );
+}
+
+/// subframe 탐색을 top-level 허용에 알린다. 첫 문서를 열기 전에 부른다.
+///
+/// - `FrameNavigationStarting`·`FrameNavigationCompleted`: subframe 탐색의 hop 주소를 기록하고 지운다.
+///   id를 읽지 못한 탐색은 끝을 대조할 수 없어 main commit까지 남긴다(차단 쪽으로 닫는다).
+pub(super) fn install(
+    webview: &ICoreWebView2,
+    frames: &Rc<RefCell<SubframeNavigations>>,
+    surface_id: u32,
+) -> windows::core::Result<()> {
+    let frames_start = frames.clone();
+    let start = NavigationStartingEventHandler::create(Box::new(
+        move |_sender, args| -> windows::core::Result<()> {
+            let Some(args) = args else { return Ok(()) };
+            let mut id = u64::MAX;
+            // SAFETY: args는 이 콜백 동안 valid하며 main thread에서 읽는다. 출력 값은 지역 변수다.
+            if let Err(e) = unsafe { args.NavigationId(&mut id) } {
+                tracing::warn!(
+                    "WebView surface {surface_id}: frame NavigationId failed ({e}); \
+                     the frame address is kept until the next commit"
+                );
+                id = u64::MAX;
+            }
+            let mut uri = PWSTR::null();
+            // SAFETY: 위와 같다. 반환 URI의 할당은 호출자가 해제한다.
+            unsafe { args.Uri(&mut uri)? };
+            // SAFETY: uri는 위 호출이 채운 NUL 종료 문자열이다.
+            let url = unsafe { uri.to_string() }.unwrap_or_default();
+            // SAFETY: WebView2가 CoTaskMemAlloc으로 할당한 문자열을 한 번만 해제한다.
+            unsafe { CoTaskMemFree(Some(uri.0 as *const c_void)) };
+            frames_start.borrow_mut().hop(id, &url);
+            Ok(())
+        },
+    ));
+    let frames_done = frames.clone();
+    let done = NavigationCompletedEventHandler::create(Box::new(
+        move |_sender, args| -> windows::core::Result<()> {
+            let Some(args) = args else { return Ok(()) };
+            let mut id = 0u64;
+            // SAFETY: args는 이 콜백 동안 valid하며 main thread에서 읽는다. 출력 값은 지역 변수다.
+            match unsafe { args.NavigationId(&mut id) } {
+                Ok(()) => frames_done.borrow_mut().end(id),
+                Err(e) => tracing::warn!(
+                    "WebView surface {surface_id}: frame NavigationId failed on completion ({e}); \
+                     the frame address is kept until the next commit"
+                ),
+            }
+            Ok(())
+        },
+    ));
+    let mut token: i64 = 0;
+    // SAFETY: webview와 handler는 호출 동안 valid, main thread 호출. 출력 token은 지역 변수다.
+    unsafe {
+        webview.add_FrameNavigationStarting(&start, &mut token)?;
+        webview.add_FrameNavigationCompleted(&done, &mut token)
+    }
 }

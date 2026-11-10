@@ -38,7 +38,7 @@ use super::scan_resume::{RequestAction, ScanResume, Start, StartKind};
 use super::script_gate::ScriptGate;
 use super::window_region::{PointerGate, WindowRegion};
 use super::{NavState, PendingNavigation, WebViewBounds};
-use tasty_model::html_script::top_level::TopLevelAdmission;
+use tasty_model::html_script::top_level::{SubframeNavigations, TopLevelAdmission};
 
 pub(crate) use host_input::filter_message as filter_host_input;
 
@@ -318,6 +318,8 @@ impl PlatformWebView {
             let allow_remote = Rc::new(Cell::new(false));
             let top_level: Rc<RefCell<TopLevelAdmission>> = Rc::default();
             let top_request = top_level.clone();
+            let frames: Rc<RefCell<SubframeNavigations>> = Rc::default();
+            let frames_request = frames.clone();
             // A remote HTTP document's requests all reach its endpoint, which decides them.
             if http.is_none() {
                 webview
@@ -355,6 +357,7 @@ impl PlatformWebView {
                             &allow_cb,
                             &gate_request,
                             &top_request,
+                            &frames_request,
                             &uri_str,
                             &args,
                         )
@@ -588,6 +591,7 @@ impl PlatformWebView {
             let nav_content = nav_state.clone();
             let http_commit = http.as_ref().map(Rc::downgrade);
             let top_commit = top_level.clone();
+            let frames_commit = frames.clone();
             let mut tok_content: i64 = 0;
             let h_content = ContentLoadingEventHandler::create(Box::new(
                 move |sender, args| -> windows::core::Result<()> {
@@ -613,6 +617,8 @@ impl PlatformWebView {
                         );
                     }
                     top_commit.borrow_mut().end();
+                    // 앞 문서의 frame은 사라진다.
+                    frames_commit.borrow_mut().clear();
                     let uri_str = webview_source(wv)?;
                     *commit_url.borrow_mut() = uri_str.clone();
                     if let Some(gate) = gate_commit.borrow().as_ref()
@@ -847,6 +853,8 @@ impl PlatformWebView {
             click_slot.borrow_mut().clone_from(&click);
             same_document::install(&webview, surface_id, parent, &pending_navigations, click)
                 .map_err(|e| transient(format!("same-document navigation setup failed: {e}")))?;
+            remote_block::install(&webview, &frames, surface_id)
+                .map_err(|e| transient(format!("top-level navigation setup failed: {e}")))?;
 
             Ok(Self {
                 hwnd,

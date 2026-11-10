@@ -188,3 +188,27 @@ fn a_designated_url_matches_the_engine_form_of_the_same_address() {
         BLOCKED_LOCAL
     ));
 }
+
+#[test]
+fn a_subframe_navigation_to_the_admitted_url_gets_no_document_exception() {
+    let mut t = TopLevelAdmission::default();
+    let mut frames = SubframeNavigations::default();
+    t.designate(Designation::Next);
+    assert!(t.start(B, StartKind::Other, false, BLOCKED_LOCAL));
+    assert!(t.admits_document(B, &frames), "the main request");
+    frames.hop(7, HOP);
+    assert!(t.admits_document(B, &frames), "a frame going elsewhere");
+    frames.hop(7, "http://127.0.0.1:8000/b.html#frag");
+    assert!(
+        !t.admits_document(B, &frames),
+        "the same URL from a subframe is refused"
+    );
+    frames.end(7);
+    assert!(t.admits_document(B, &frames));
+    frames.hop(8, B);
+    frames.clear();
+    assert!(
+        t.admits_document(B, &frames),
+        "frames of the old document are gone"
+    );
+}
