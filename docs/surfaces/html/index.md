@@ -120,7 +120,7 @@ html surface 위쪽에 host가 주소 띠를 그린다. 띠는 공용 view `tast
 - 요소의 `on*` 이벤트 핸들러 속성.
 - `javascript:` 스킴 URL. `href`, `src`, `action`, `formaction` 속성의 값을 검사한다.
 
-스크립트 배너는 지금 실행될 수 있는 스크립트가 있을 때만 뜬다. 감지 결과가 `http(s)` `src` 스크립트뿐(`ScriptsRemoteOnly`)이면 그 view에서 원격이 열려 있을 때만 배너를 띄운다. 막혀 있으면 허용해도 실행되지 않기 때문이다. 로컬 문서는 전역 설정이나 이 문서의 원격 허용이 있을 때, entry mirror는 늘 막으므로 띄우지 않고, HTTP view는 같은 origin 스크립트를 endpoint가 허용하므로 원래대로 띄운다. 감지 결과(`ScriptDetection`)는 `<base href>`를 보지 않는다. 원격 base 아래의 상대 `src` 스크립트는 로컬 스크립트로 세므로 배너가 뜨지만, 원격을 막는 동안에는 허용해도 그 스크립트는 받지 못한다. base를 반영한 원격 스크립트 여부는 따로 둔다([원격 콘텐츠 차단](#원격-콘텐츠-차단)). 원격 스크립트가 있고 원격 안내도 보이면 스크립트 배너 본문을 원격 안내 문구(`bodyRemote`)로 바꾼다.
+스크립트 배너는 지금 실행될 수 있는 스크립트가 있을 때만 뜬다. 감지 결과가 `http(s)` `src` 스크립트뿐(`ScriptsRemoteOnly`)이면 그 view에서 원격이 열려 있을 때만 배너를 띄운다. 막혀 있으면 허용해도 실행되지 않기 때문이다. 로컬 문서는 전역 설정이나 이 문서의 원격 허용이 있을 때, entry mirror는 늘 막으므로 띄우지 않고, HTTP view는 같은 origin 스크립트를 endpoint가 허용하므로 원래대로 띄운다. 감지 결과(`ScriptDetection`)는 `<base href>`를 보지 않는다. 원격 base 아래의 상대 `src` 스크립트는 로컬 스크립트로 세므로 배너가 뜨지만, 원격을 막는 동안에는 허용해도 그 스크립트는 받지 못한다. base를 반영한 원격 스크립트 여부는 따로 둔다([원격 콘텐츠 차단](#원격-콘텐츠-차단)). 원격 스크립트가 있고 원격 안내도 보이면 스크립트 배너 본문을 원격 안내 문구(`bodyRemote`)로 바꾼다. 로컬 view에 연 top-level `http(s)` 페이지는 파일을 읽지 않아 스크립트 유무를 모르므로 원격이 열려 있으면 배너를 띄운다([`http(s)` 페이지의 허용](#https-페이지의-허용)).
 
 ### 스캔
 
@@ -168,11 +168,23 @@ FIFO는 여는 순간 쓰는 쪽을 기다리며 막혔고 `/dev/zero`는 읽기
   - 새 문서의 JS를 켤지 끌지는 commit 전의 응답 단계에서 정한다. 이 판단은 허용 기록을 바꾸지 않는다.
   - 응답 단계에서 허용과 일치한 문서가 commit되면 허용을 유지한다. 그 밖의 문서가 commit되면 허용을 해제한다. 응답 단계 없이 commit되는 bfcache 복원도 해제에 포함된다.
   - 응답 단계의 결과는 로드마다 새로 둔다. 로드가 시작될 때 이전 로드의 결과를 비우고, commit에서 소비한다. 비우지 않으면 앞선 재로드의 "일치"가 뒤이은 bfcache commit에 남아 허용이 유지된다(page cache를 켠 상태의 리뷰 측정).
-  - 응답 단계 없이 commit된 문서는 지문이 없다. 이 문서는 허용할 수 없다. Linux는 아래처럼 page cache를 꺼서 이 경우를 없앤다.
+  - 응답 단계 없이 commit된 문서는 지문이 없다. 이 문서는 허용할 수 없다. Linux는 아래처럼 page cache를 꺼서 이 경우를 없앤다. 로컬 view에 연 `http(s)` 페이지는 예외로 URL로 허용한다(아래 절).
 - **문서가 바뀌지 않고 끝나는 로드**: 로드 실패, 중단, 다운로드, web process 종료처럼 main frame 문서가 commit되지 않고 로드가 끝나는 경우다.
   - 화면에 남은 문서가 허용된 문서이면 JS를 허용 상태로 되돌린다. 멈춘 채 두지 않는다.
   - 허용 기록은 그대로 둔다.
 - **세션 한정**: 허용은 세션 안에서만 유지한다. 레이아웃에 저장하지 않으므로 재시작하면 다시 차단 상태가 된다.
+
+#### `http(s)` 페이지의 허용
+
+로컬 view(`remote.view` `local`)의 main frame 문서가 지문 없는 `http(s)` 문서이면 `http(s)` 페이지다(`HtmlScriptState::current_is_web_page`, 조회의 `web_page`). 페이지는 서버가 언제든 내용을 바꾸고 재로드마다 다시 받으므로 지문을 두지 않는다. 원격 허용과 스크립트 허용은 둘 다 다음 규칙을 따른다(`Allowed::Page`).
+
+- 허용 기록은 URL(fragment 제외)만 담는다. `file://` 문서가 지문 없이 이 기록과 맞는 길은 없다. 페이지 기록은 `http(s)` 주소에만 맞고, 지문 없는 로컬 문서는 지금처럼 `no_fingerprint`로 거절한다.
+- 허용은 이번 표시에만 적용된다. 허용이 요청한 재로드 한 번만 허용을 유지한다. 호스트는 허용 재로드를 따로 표시하지 않으므로, 모델이 허용 때 다음 로드 하나를 예약하고 로드가 시작될 때 그 예약을 소비해 구별한다. 사용자·에이전트 로드 요청(`on_user_load_requested`·`on_host_load_requested`)은 예약을 지운다.
+- 사용자의 새로고침, 에이전트 `html-reload`, 다른 문서(같은 사이트 포함), 뒤로·앞으로, 재시작은 두 허용을 모두 푼다. 허용 재로드가 다른 주소로 리다이렉트되면 그 문서는 허용이 아니다.
+- 스크립트 허용이 요청한 재로드는 원격 허용도 유지한다. 두 허용은 따로 기록하고 서로를 켜지 않는다.
+- 같은 주소의 재로드라도 commit마다 새 표시로 보고 안내의 닫힘을 이어받지 않는다. 열람은 [사용자가 봤다는 판정](#사용자가-봤다는-판정)대로 이어받는다. 그래서 새로고침하면 원격 안내가 다시 보인다.
+- commit 전 허용은 로컬 문서처럼 `loading`으로 거절한다. 새 로드가 commit 전에 실패·중단되면 화면 페이지의 허용과 실효값은 그대로다.
+- 허용된 페이지는 원격이 열린 화면 문서이므로 그 페이지의 meta refresh·스크립트 이동도 [top-level 탐색](#top-level-탐색) 규칙으로 열린다.
 
 허용 판단은 **main frame의 문서가 바뀔 때에만** 적용한다. 다음 경우에는 허용을 바꾸지 않는다.
 
@@ -344,7 +356,7 @@ OS별 구현은 다음과 같다.
 
 - 원격 허용 기록과 같은 URL의 응답은 스크립트 허용처럼 스캔 결과를 기다려 지문이 맞을 때만 그 로드의 차단을 푼다. 전역 설정이 켜져 있어도 기다린다. 기다리지 않고 commit하면 허용 기록이 풀려, 전역을 다시 껐을 때 같은 문서가 막히기 때문이다.
 - 전역 설정을 켰다 꺼도 허용 기록은 지우지 않는다.
-- 로드 중(commit 전)이거나 지문이 없는 문서는 허용하지 않는다. 전역 설정이 이미 허용하면 `globally_allowed`로 거절한다.
+- 로드 중(commit 전)이거나 지문이 없는 문서는 허용하지 않는다. 로컬 view의 `http(s)` 페이지는 URL로 허용한다([`http(s)` 페이지의 허용](#https-페이지의-허용)). 전역 설정이 이미 허용하면 `globally_allowed`로 거절한다.
 - entry mirror와 HTTP view는 차단을 다른 곳이 정한다. 그래서 이 view에서는 문서 단위 허용과 안내를 지원하지 않고 `unsupported_view`로 거절한다. 두 view의 정책은 달라서 `remote.view`(`local`·`mirror`·`http`)로 구분하고 실효값(`remote.effective`)도 view마다 정한다.
   - mirror: 응답 경계가 전역 설정과 관계없이 원격을 늘 막는다. 실효값은 늘 거짓이다.
   - HTTP view: endpoint가 client의 전역 설정과 같은 origin 기본 허용으로 정한다. 실효값은 전역 설정이다. 같은 origin 요청은 설정과 관계없이 열려 있다.
@@ -360,12 +372,12 @@ OS별 구현은 다음과 같다.
 
 연 판단은 그 로드의 리다이렉트 hop에도 이어지고 commit이나 그 로드의 종료에서 닫힌다. 근거는 탐색이 시작된 시점의 commit된 화면 문서다. 새 문서는 허용을 받지 않으므로 `remote.allowance`가 없고 `allowed`·`effective`가 거짓이다. 새 문서가 시작한 다음 이동도 위 규칙으로 다시 정한다. 위 출처가 아닌 이동(허용 없는 로컬 문서의 링크 등)은 첫 요청부터 보내지 않는다. 리다이렉트 대상이 `file://`이면 WebKit이 로드를 끝내지 않는다(`Load request cancelled`).
 
-차단은 로드 시작부터 켜 둔 채로 두고 top-level 문서 요청만 따로 연다. commit 때 차단을 다시 켜지 않으므로 새 문서의 첫 하위 요청이 나갈 틈이 없다. 연 `http(s)` 문서는 스캔이 없어 지문이 없으므로 원격 허용을 받을 수 없고, 정적 참조 감지도 없어 원격 안내가 뜨지 않는다.
+차단은 로드 시작부터 켜 둔 채로 두고 top-level 문서 요청만 따로 연다. commit 때 차단을 다시 켜지 않으므로 새 문서의 첫 하위 요청이 나갈 틈이 없다. 연 `http(s)` 문서는 스캔이 없어 지문이 없다. 원격 안내는 정적 참조 감지 없이 뜨고, 허용은 URL로 이번 표시에만 묶인다([`http(s)` 페이지의 허용](#https-페이지의-허용)).
 
 - Linux: content filter가 `^https?://`를 막되 `load-context: top-frame`인 `document` 요청은 빼고(`ignore-previous-rules`), 탐색 정책이 navigation action과 main frame 응답을 위 규칙으로 정한다. 서브프레임 문서는 `child-frame`이라 filter가 막는다. navigation action은 main frame과 서브프레임을 구분하지 못하므로 연 판단은 서브프레임 문서를 열지 않는다. 호스트 지목은 `load_url`의 주소, 새로고침·뒤로·앞으로의 navigation type으로 대조한다. 주소는 양쪽을 WHATWG URL로 정규화하고 fragment를 빼서 비교한다(기본 포트·IDN·퍼센트 인코딩·점 경로).
 - Windows: `NavigationStarting`(main frame만)에서 허용을 정하고 리다이렉트(`IsRedirected`)마다 대상 주소를 옮긴다. `WebResourceRequested`는 `DOCUMENT` 문맥이고 그 hop 주소인 요청만 거절하지 않는다. 이 이벤트는 요청한 frame을 알려 주지 않으므로(`RequestedSourceKind`도 iframe을 문서와 묶는다) `FrameNavigationStarting`·`FrameNavigationCompleted`로 진행 중인 subframe 탐색의 주소를 기록하고, 같은 주소로 가는 subframe 탐색이 있으면 예외를 주지 않는다. 둘이 겹치면 main 요청도 막힌다. 호스트 지목은 `Navigate`·`Reload`·`GoBack`·`GoForward` 직후의 다음 탐색 시작 하나다. 뒤로·앞으로는 이동할 이력이 있을 때만 지목하고, 호출이 실패하면 지목을 거둔다. 같은 문서 이동(fragment 주소·fragment 이력)은 탐색 시작 없이 `HistoryChanged`만 내므로, 그때 남은 지목을 지운다. 탐색 id를 읽지 못한 subframe 탐색의 주소는 main commit까지 모두 남겨 같은 주소의 예외를 막는다. 남은 한계(측정하지 않음): 호스트가 현재 주소와 fragment까지 같은 주소를 다시 열면 `HistoryChanged`가 오지 않아 지목이 남을 수 있고, 그러면 그 문서의 다음 top-level 이동 1회가 열린다. 그 이동의 하위 리소스 차단은 유지된다. `IsUserInitiated`는 meta refresh에도 참으로 오므로, 사용자 제스처는 host 입력 경로가 1초 안에 본 OS 입력(WebView로 간 왼쪽 클릭, 페이지로 넘긴 Enter·Space)도 있을 때만 인정한다([webview 탐색](../../design/systems/webview.md)의 입력 증명과 같다). host 입력 경로를 쓰지 못한 view에서는 `http(s)` 문서 안 링크 이동을 열지 않는다.
 - Linux 측정(WebKitGTK 2.50.4, 서버 접근 로그를 tag로 센 값): 허용한 문서의 클릭·meta refresh·`location`, 주소 입력 재현(`debug webview-history --action open`), `tasty html open`, 허용 전 문서와 빈 탭의 주소 입력에서 B가 commit됐고 B 하위 요청은 모두 0건이었다. 302·301·303·307·308, 3단·지연 리다이렉트도 같았다. 전역 허용 대조군에서는 같은 이동의 B 하위 요청 2건이 서버에 도착했다. 허용 없는 로컬 문서의 클릭은 첫 hop부터 0건이었고 `STARTED`도 오지 않았다. B의 원격 iframe, B의 meta refresh가 가는 C, 허용 문서에서 간 로컬 문서의 meta refresh가 가는 C도 0건이었다. B 안에서 사용자가 누른 링크와 주소창으로 연 B의 새로고침·뒤로·앞으로는 이동했다. 지연 없는 서버로 허용 문서 클릭 20회, 주소 입력 20회를 반복해 40회 모두 commit됐고 B 하위 요청 합계는 0건이었다. 허용한 로컬 문서의 로컬 iframe이 http로 이동하면 요청이 나가지만 main 문서의 허용은 바뀌지 않았다. https는 측정하지 않았다.
-- Windows 측정(Windows 11 x64 WebView2, 서버 접근 로그를 tag로 센 값): 허용한 문서의 meta refresh(직접·302), 주소 입력 재현, `tasty html open`, 허용 전 문서와 빈 탭의 주소 입력에서 B가 commit됐고 B 하위 요청은 0건이었다. 전역 허용 대조군에서는 B 하위 요청 3건이 도착했다. 허용 없는 로컬 문서의 meta refresh와 링크 클릭은 0건이었다. B의 원격 iframe과 B의 meta refresh가 가는 C도 0건이었다. 주소 입력으로 연 http 문서 안의 실제 마우스 클릭은 302를 거쳐 C를 commit했고 C 하위 요청은 0건이었다. 주소창으로 연 B의 새로고침·뒤로·앞으로는 이동했다. 주소 입력 20회는 모두 commit됐다. 느린 B를 주소 입력으로 여는 동안 차단된 로컬 문서의 iframe(중첩 iframe 포함)이 같은 B로 가는 meta refresh는 서버에 도착하지 않았고 B는 commit됐다. 주소 입력으로 연 B에서 fragment 주소 입력이나 fragment 이력 뒤로 가기를 한 뒤 B의 meta refresh가 가는 C는 0건이었다. 연 B는 OS가 막은 하위 요청을 관측하므로 `blocked` 표지가 남는다(Linux는 남지 않는다). https는 측정하지 않았다.
+- Windows 측정(Windows 11 x64 WebView2, 서버 접근 로그를 tag로 센 값): 허용한 문서의 meta refresh(직접·302), 주소 입력 재현, `tasty html open`, 허용 전 문서와 빈 탭의 주소 입력에서 B가 commit됐고 B 하위 요청은 0건이었다. 전역 허용 대조군에서는 B 하위 요청 3건이 도착했다. 허용 없는 로컬 문서의 meta refresh와 링크 클릭은 0건이었다. B의 원격 iframe과 B의 meta refresh가 가는 C도 0건이었다. 주소 입력으로 연 http 문서 안의 실제 마우스 클릭은 302를 거쳐 C를 commit했고 C 하위 요청은 0건이었다. 주소창으로 연 B의 새로고침·뒤로·앞으로는 이동했다. 주소 입력 20회는 모두 commit됐다. 느린 B를 주소 입력으로 여는 동안 차단된 로컬 문서의 iframe(중첩 iframe 포함)이 같은 B로 가는 meta refresh는 서버에 도착하지 않았고 B는 commit됐다. 주소 입력으로 연 B에서 fragment 주소 입력이나 fragment 이력 뒤로 가기를 한 뒤 B의 meta refresh가 가는 C는 0건이었다. https는 측정하지 않았다.
 - macOS: 이 규칙을 아직 적용하지 않았다. 규칙 목록이 문서 요청도 막는다. 문서 단위 허용 중 meta refresh·스크립트 이동과 주소 입력 재현(`debug webview-history --action open`)이 `blocked by a content blocker`로 실패했다(측정). 허용 전 문서의 주소창·`html open`과 실제 링크 클릭은 측정하지 않았다.
 
 ### 적용
@@ -385,13 +397,16 @@ backend는 실효값 `전역 설정 || 문서 단위 허용` 하나를 한 곳�
 - **위치** — 주소 띠 아래, mirror 크기 안내 뒤, 스크립트 배너 앞이다([주소 표시줄](#주소-표시줄)의 배치). 원격 스크립트가 있는 문서에서 두 안내가 함께 보이면 스크립트 배너 본문은 `banner.html_script.body_remote` 문구다.
 - **동작** — 허용·닫기·다시 보이기는 스크립트 배너와 같은 문서 묶음 요청(`HtmlActionKind::RemoteAllow`·`RemoteDismiss`·`RemoteReshow`)으로 다음 프레임에 적용한다. 요청을 만든 문서가 바뀌었으면 버린다. 허용은 사용자 출처 요청만 받는다. 허용을 누르면 재로드 중 카드가 스피너를 보이고, 새 문서가 commit되면 `banner_fade` 동안 흐려지며 사라진다. 원격 허용과 스크립트 허용은 서로 바꾸지 않는다. 배너는 키보드 포커스를 가져가지 않는다.
 - **페이드 분리** — 원격·스크립트 카드는 페이드 메모를 따로 둔다. 한 카드가 사라지는 동안 다른 카드의 위치는 사라지는 카드의 높이가 빠진 뒤 한 번 바뀐다.
+- **`http(s)` 페이지** — 로컬 view에 연 `http(s)` 페이지([`http(s)` 페이지의 허용](#https-페이지의-허용))는 정적 참조·OS 관측과 관계없이 안내가 필요한 문서다. 페이지는 스캔이 없고 OS 관측은 Windows만 알리므로, 관측에 걸면 Linux·macOS에서 안내가 뜨지 않는다. 표지 규칙도 OS와 관계없이 같다(닫으면 `blocked`, 허용하면 `allowed`). 열람 규칙·닫기·다시 보이기는 로컬 문서와 같고, 안내는 commit 뒤 `blocked`로 처음 뜬다. 허용하지 않은 페이지를 새로고침하는 동안에는 이미 떠 있던 안내가 `loading`으로 남는다.
+  - 스크립트 배너는 원격 허용 뒤 두 번째 선택이다. sandbox 켬, 이 페이지에 스크립트 허용 없음, 원격이 열려 있음(문서 원격 허용 또는 전역 원격 허용), 닫지 않음일 때 뜬다. 원격이 막힌 동안에는 원격 안내만 보이고, 원격 안내를 닫기만 하면 스크립트 배너는 나오지 않는다. 그래서 페이지에서는 두 안내가 함께 보이지 않고 `body_remote`를 쓰지 않는다. sandbox가 꺼져 있으면 스크립트 배너와 표지가 없다.
+  - 모양·토큰·쌓임 순서는 로컬 문서 안내와 같고 문구만 다르다. 원격 안내는 `banner.html_remote.title_web`·`body_web`, 스크립트 배너는 `banner.html_script.title_web`·`body_web`·`action_web`을 쓴다. 두 표지의 allowed 툴팁은 `marker_allowed_web`이고 blocked 툴팁은 공유 `marker_blocked`다. 그 밖의 키(`action`·`reloading`·`action_loading`)는 로컬 문서와 공유한다. 판정은 모델 한 곳(`current_is_web_page`, 배너 스냅샷의 `web`)에서 읽는다.
 
 ## 인터페이스
 
 - **사용자**: html surface 위쪽 [주소 표시줄](#주소-표시줄)에서 경로·URL 입력, 뒤로·앞으로·새로고침, 주소창 포커스 단축키(`Alt+L`, macOS `⌘L`).
 - **사용자**: HTML·SVG 파일 열기 → html surface(WebView). 탭 스트립 빈 곳 메뉴의 **새 HTML...** 은 파일 피커(`html`·`htm`·`svg` 필터)를 열고, 고른 파일의 절대 경로를 `url` 파라미터로 넘겨 메뉴를 연 pane 에 html 탭을 만든다([파일 피커 확정](../../features/native-file-picker/index.md#확정confirm)). 지원 연결의 mirror pane에서는 원격 cwd로 피커를 열고 원래 pane에 원격 탭을 만든다. 미지원 연결은 원격 열기 불가 토스트를 띄운다.
 - **AI Agent**: `tasty html …` CLI / `html.*` IPC. surface 생성은 [work-area](../../features/work-area/index.md) (`--type html --url …`).
-- **AI Agent**: 스크립트·원격 콘텐츠의 감지·허용·안내 상태 조회는 `tasty surface html-script --surface <id>`(IPC `surface.html_script`), 현재 문서의 스크립트 허용은 `tasty surface html-script-allow --surface <id>`(IPC `surface.html_script_allow`), 원격 콘텐츠 허용은 `tasty surface html-remote-allow --surface <id> [--url <url> --fingerprint <hex>]`(IPC `surface.html_remote_allow`, 권한 `surface.write`).
+- **AI Agent**: 스크립트·원격 콘텐츠의 감지·허용·안내 상태 조회는 `tasty surface html-script --surface <id>`(IPC `surface.html_script`), 현재 문서의 스크립트 허용은 `tasty surface html-script-allow --surface <id>`(IPC `surface.html_script_allow`), 원격 콘텐츠 허용은 `tasty surface html-remote-allow --surface <id> [--url <url> --fingerprint <hex>]`(IPC `surface.html_remote_allow`, 권한 `surface.write`). `http(s)` 페이지는 지문이 없어(조회의 `document.fingerprint`가 `null`) 두 허용 모두 `url`로만 확인한다. `fingerprint`를 함께 주면 그 페이지가 아닌 문서를 가리킨 것으로 보고 `document_changed`로 거절한다. 조회 응답의 `web_page`가 페이지 여부이고, 페이지 허용의 `allowance.fingerprint`는 `null`이다.
 - **AI Agent**: 보여 주는 문서 주소와 뒤로·앞으로 이동 가능 여부 조회는 `tasty surface html-nav --surface <id>`(IPC `surface.html_nav`).
 - **AI Agent**: 뒤로·앞으로·새로고침은 `tasty surface html-back`·`html-forward`·`html-reload --surface <id>`(IPC `surface.html_back`·`surface.html_forward`·`surface.html_reload`).
 
@@ -431,6 +446,12 @@ backend는 실효값 `전역 설정 || 문서 단위 허용` 하나를 한 곳�
 - Given 원격 안내가 보인다 When 사용자가 [Allow remote content]를 누른다 Then 재로드 중 카드가 스피너를 보인 뒤 사라지고, 원격 요청이 서버에 도착하며, 주소 입력란 끝에 globe 표지가 보이고 스크립트 허용과 JS 값은 그대로다(Linux 실제 실행).
 - Given 원격 참조와 인라인 스크립트가 함께 있는 문서(sandbox 켜짐) When 사용자가 본다 Then 주소 띠 아래에 원격 안내, 그 아래 스크립트 배너 순서로 두 카드가 따로 쌓인다(Linux 실제 실행).
 - Given 전역 원격 허용이 켜져 있다 When 원격 참조가 있는 문서를 본다 Then 원격 안내와 표지가 없다(Linux 실제 실행).
+- Given 전역 원격 차단, sandbox 켬 When 로컬 html surface에서 주소창이나 `tasty html open`으로 CSS·이미지가 있는 `http(s)` 페이지 B를 열고 사용자가 본다 Then B가 commit되고 하위 요청은 0건이며, 원격 안내가 `title_web`·`body_web` 문구로 `blocked`이고 스크립트 배너는 없다. 조회의 `web_page`는 참, `document.fingerprint`는 `null`이다.
+- Given B의 원격 안내 When 사용자가 [Allow remote content]를 누른다 Then B가 한 번 재로드되고 하위 요청이 서버에 도착하며, 주소 칸 표지는 `allowed`(툴팁 `marker_allowed_web`), `remote.allowance`는 B의 URL이고 지문은 `null`이다. `javascript`는 거짓 그대로이고 스크립트 배너가 `title_web`·`body_web`·`action_web` 문구로 뜬다(모델 시험 `the_script_notice_comes_second_and_both_allowances_last_one_showing`).
+- Given 원격이 허용된 B When 사용자나 에이전트가 새로고침하거나 B의 링크로 다른 페이지로 갔다가 돌아온다 Then 허용이 풀려 하위 요청이 0건이고 원격 안내가 다시 보인다. 새로고침 전에 안내를 닫았어도 같다(모델 시험 `an_opened_http_document_shows_the_remote_notice_and_accepts_a_url_allowance`, `a_reload_shows_the_page_notice_again_even_after_dismissing_it`).
+- Given B의 스크립트 배너 When 허용한다 Then 재로드 뒤 `javascript`가 참이고 탭 표지는 `Allowed`(툴팁 `marker_allowed_web`)이며 원격 허용도 유지된다. When 사용자가 새로고침한다 Then 두 허용이 모두 풀리고 원격 안내부터 다시 묻는다.
+- Given B When `surface.html_remote_allow`에 `url`만 준다 Then 허용한다. 다른 `url`이나 아무 `fingerprint`를 주면 `document_changed`로 거절한다(IPC 시험 `an_http_page_is_allowed_by_url_only`). `surface.html_script_allow`도 같다.
+- Given 응답 단계 없이 commit된 `file://` 문서 When 원격·스크립트 허용을 요청한다 Then `no_fingerprint`로 거절한다(모델 시험 `a_local_file_without_a_fingerprint_is_still_refused`).
 - Given 전역 원격 허용이 켜져 있거나 대상이 mirror·HTTP view When `surface.html_remote_allow` Then `-32022`와 `reason` `globally_allowed`·`unsupported_view`로 거절하고 상태를 바꾸지 않는다.
 - Given 전역 원격 허용이 켜진 entry mirror에서 `http(s)` `src` 스크립트만 있는 문서 When `surface.html_script` Then `remote.view`는 `mirror`, `remote.effective`는 거짓이고 스크립트 배너가 뜨지 않는다. HTTP view의 같은 문서는 전역 설정과 관계없이 스크립트 배너가 뜬다(모델 시험 `each_view_reports_its_own_remote_policy`).
 - Given html 탭이 `file:///tmp/x/a.html`을 보여 준다 When 페이지 안 `#sec` 링크를 누른다 Then `surface.html_nav`의 `url`은 `file:///tmp/x/a.html#sec`이고 `requested_url`은 그대로다.
