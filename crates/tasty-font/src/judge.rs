@@ -186,28 +186,9 @@ impl FontConfig {
 mod tests {
     use super::*;
     use crate::D2CODING_REGULAR_TTF as VALID;
-
-    fn table_record(font: &[u8], tag: &[u8; 4]) -> usize {
-        let tables = u16::from_be_bytes([font[4], font[5]]) as usize;
-        (0..tables)
-            .map(|i| 12 + 16 * i)
-            .find(|&r| &font[r..r + 4] == tag)
-            .unwrap()
-    }
-
-    fn table(font: &[u8], tag: &[u8; 4]) -> (usize, usize) {
-        let r = table_record(font, tag);
-        let word = |at: usize| u32::from_be_bytes(font[at..at + 4].try_into().unwrap()) as usize;
-        (word(r + 8), word(r + 12))
-    }
-
-    /// 표 레코드 이름을 바꿔 파서가 그 표를 찾지 못하게 한다.
-    fn without_table(tag: &[u8; 4]) -> Vec<u8> {
-        let mut font = VALID.to_vec();
-        let record = table_record(&font, tag);
-        font[record] = b'x';
-        font
-    }
+    use crate::test_fonts::{
+        RENAMED_FAMILY, TempFont, renamed, table, table_record, without_table,
+    };
 
     fn negative_height() -> Vec<u8> {
         let mut font = VALID.to_vec();
@@ -221,28 +202,6 @@ mod tests {
         let mut font = VALID.to_vec();
         let (glyf, len) = table(&font, b"glyf");
         font[glyf + len / 4..glyf + len / 2].fill(0xff);
-        font
-    }
-
-    /// name 표의 글꼴 이름을 바꾼다. `D2Coding` 이 시스템 목록과 겹치지 않게 하는 데 쓴다.
-    fn renamed(mut font: Vec<u8>) -> Vec<u8> {
-        let (name, len) = table(&font, b"name");
-        let utf16 = |s: &str| {
-            s.encode_utf16()
-                .flat_map(u16::to_be_bytes)
-                .collect::<Vec<u8>>()
-        };
-        let pairs = [
-            (b"D2Coding".to_vec(), b"D2Codinh".to_vec()),
-            (utf16("D2Coding"), utf16("D2Codinh")),
-        ];
-        for (from, to) in pairs {
-            for start in name..name + len - from.len() {
-                if font[start..start + from.len()] == from[..] {
-                    font[start..start + to.len()].copy_from_slice(&to);
-                }
-            }
-        }
         font
     }
 
@@ -310,22 +269,6 @@ mod tests {
             );
         }
     }
-
-    struct TempFont(tempfile::TempDir);
-
-    impl TempFont {
-        fn new(bytes: &[u8]) -> Self {
-            let dir = tempfile::tempdir().unwrap();
-            std::fs::write(dir.path().join("font.ttf"), bytes).unwrap();
-            Self(dir)
-        }
-
-        fn path(&self) -> String {
-            self.0.path().join("font.ttf").display().to_string()
-        }
-    }
-
-    const RENAMED_FAMILY: &str = "D2Codinh ligature";
 
     #[test]
     fn a_family_only_the_rows_file_provides_passes() {

@@ -5,15 +5,27 @@ use crate::model::PhysicalRect;
 use crate::runtime::engine_read::EngineRead;
 use crate::settings::EffectiveFont;
 use crate::state::MainViewState;
+use tasty_font::FontRequest;
 
 use super::GpuState;
 
-/// 원본 폰트 설정과 배율 적용 크기로 변경을 감지한다. 해석된 family를 원본과 비교하면
-/// 빈 값·monospace의 정규화 때문에 매 프레임 다른 값으로 판단할 수 있다.
-pub(super) fn term_font_signature(font: &EffectiveFont, effective_size: f32) -> String {
+/// 터미널 렌더러에 넘길 글꼴 값. 창을 만들 때와 설정이 바뀌었을 때 모두 이 함수를 거친다.
+/// family는 해석하지 않은 원본이다. 해석된 family를 원본과 비교하면 빈 값·monospace의 정규화
+/// 때문에 매 프레임 다른 값으로 판단할 수 있다.
+pub(super) fn terminal_font_request(font: &EffectiveFont, scale_factor: f32) -> FontRequest {
+    FontRequest {
+        size_px: font.effective_font_size(scale_factor),
+        family: font.font_family.clone(),
+        custom_font_path: font.custom_font_path.clone(),
+        line_height: font.line_height,
+    }
+}
+
+/// 변경 감지용 서명. 문자열로 비교해 NaN 행간도 같은 값으로 본다.
+pub(super) fn term_font_signature(font: &FontRequest) -> String {
     format!(
         "{}|{}|{}|{}",
-        effective_size, font.font_family, font.custom_font_path, font.line_height
+        font.size_px, font.family, font.custom_font_path, font.line_height
     )
 }
 
@@ -231,21 +243,16 @@ impl GpuState {
         // 설정 변경은 App의 SettingsUpdated에서 전달받고, 여기서는 현재 Theme의 스타일을 다시 적용한다.
         tasty_egui_theme::apply_theme_to_egui(&crate::theme::theme(), &self.egui_ctx);
 
-        let term_font = engine.settings.appearance.effective_terminal_font();
-        let effective_font_size = term_font.effective_font_size(self.scale_factor);
-        let new_sig = term_font_signature(&term_font, effective_font_size);
-        if new_sig != self.last_term_font_sig {
-            self.renderer.update_font(
-                &self.device,
-                &self.queue,
-                effective_font_size,
-                &term_font.font_family,
-                &term_font.custom_font_path,
-                term_font.line_height,
-            );
+        let term_font = terminal_font_request(
+            &engine.settings.appearance.effective_terminal_font(),
+            self.scale_factor,
+        );
+        if term_font_signature(&term_font) != self.last_term_font_sig {
+            self.renderer
+                .update_font(&self.device, &self.queue, &term_font);
             self.renderer
                 .resize(&self.queue, self.size.width, self.size.height);
-            self.last_term_font_sig = new_sig;
+            self.last_term_font_sig = term_font_signature(self.renderer.font_request());
         }
     }
 
@@ -527,10 +534,35 @@ mod tests {
         }
     }
 
+    fn sig(font: &EffectiveFont) -> String {
+        term_font_signature(&terminal_font_request(font, 1.0))
+    }
+
+    /// 창을 만들 때 쓰는 값 묶음이 저장한 파일과 행간을 담는다. 빠지면 재시작과 새 창에서
+    /// 저장값이 적용되지 않는다.
+    #[test]
+    fn request_carries_every_saved_value() {
+        let mut f = base_font();
+        f.font_family = "Hack".into();
+        f.custom_font_path = "/tmp/x.ttf".into();
+        f.line_height = 1.5;
+        let request = terminal_font_request(&f, 2.0);
+        assert_eq!(request.size_px, 28.0);
+        assert_eq!(request.family, "Hack");
+        assert_eq!(request.custom_font_path, "/tmp/x.ttf");
+        assert_eq!(request.line_height, 1.5);
+    }
+
+    /// family는 원본을 유지한다. 해석된 이름을 넣으면 빈 값이 매 프레임 재적용을 일으킨다.
+    #[test]
+    fn request_keeps_the_family_unresolved() {
+        assert_eq!(terminal_font_request(&base_font(), 1.0).family, "");
+    }
+
     #[test]
     fn signature_stable_for_identical_input() {
         let f = base_font();
-        assert_eq!(term_font_signature(&f, 14.0), term_font_signature(&f, 14.0));
+        assert_eq!(sig(&f), sig(&f));
     }
 
     #[test]
@@ -538,7 +570,7 @@ mod tests {
         let a = base_font();
         let mut b = base_font();
         b.font_family = "Hack".into();
-        assert_ne!(term_font_signature(&a, 14.0), term_font_signature(&b, 14.0));
+        assert_ne!(sig(&a), sig(&b));
     }
 
     #[test]
@@ -546,7 +578,7 @@ mod tests {
         let a = base_font();
         let mut b = base_font();
         b.custom_font_path = "/tmp/x.ttf".into();
-        assert_ne!(term_font_signature(&a, 14.0), term_font_signature(&b, 14.0));
+        assert_ne!(sig(&a), sig(&b));
     }
 
     #[test]
@@ -554,21 +586,16 @@ mod tests {
         let a = base_font();
         let mut b = base_font();
         b.line_height = 1.25;
-        assert_ne!(term_font_signature(&a, 14.0), term_font_signature(&b, 14.0));
+        assert_ne!(sig(&a), sig(&b));
     }
 
     #[test]
     fn signature_differs_when_effective_size_changes() {
         let f = base_font();
-        assert_ne!(term_font_signature(&f, 14.0), term_font_signature(&f, 28.0));
-    }
-
-    #[test]
-    fn signature_collapses_empty_and_normalized_family() {
-        // 같은 원본 family는 같은 signature여야 한다.
-        let f = base_font();
-        let sig_empty = term_font_signature(&f, 14.0);
-        assert_eq!(sig_empty, term_font_signature(&f, 14.0));
+        assert_ne!(
+            term_font_signature(&terminal_font_request(&f, 1.0)),
+            term_font_signature(&terminal_font_request(&f, 2.0))
+        );
     }
 
     /// 나중에 연 host 팝업이 plugin 팝업보다 위에 온다.

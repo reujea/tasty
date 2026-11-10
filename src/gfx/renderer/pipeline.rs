@@ -1,17 +1,16 @@
 use super::CellRenderer;
 use super::shaders::{BG_SHADER, GLYPH_SHADER};
 use super::types::{BgInstance, GlyphInstance, Uniforms};
-use tasty_font::{FontConfig, GlyphAtlas};
+use tasty_font::{FontConfig, FontRequest, GlyphAtlas};
 
 impl CellRenderer {
     pub fn new(
         device: &wgpu::Device,
         queue: &wgpu::Queue,
         surface_format: wgpu::TextureFormat,
-        font_size: f32,
-        font_family: &str,
+        font: &FontRequest,
     ) -> Self {
-        let font_config = FontConfig::with_options(font_size, font_family, "", 1.0);
+        let font_config = FontConfig::from_request(font);
         let atlas = GlyphAtlas::new(device);
 
         // 큰 화면을 위한 초기 용량. 필요하면 업로드 때 늘린다.
@@ -302,22 +301,15 @@ impl CellRenderer {
             ),
             last_frame_bg_draws: std::cell::Cell::new(0),
             last_frame_glyph_draws: std::cell::Cell::new(0),
+            font_updates: 0,
         }
     }
 
     /// Update font configuration (font size and/or family changed).
     /// Resets the glyph atlas and re-measures cell metrics.
-    pub fn update_font(
-        &mut self,
-        device: &wgpu::Device,
-        queue: &wgpu::Queue,
-        font_size: f32,
-        font_family: &str,
-        custom_font_path: &str,
-        line_height: f32,
-    ) {
-        self.font_config
-            .reconfigure(font_size, font_family, custom_font_path, line_height);
+    pub fn update_font(&mut self, device: &wgpu::Device, queue: &wgpu::Queue, font: &FontRequest) {
+        self.font_config.reconfigure(font);
+        self.font_updates += 1;
         self.atlas = GlyphAtlas::new(device);
 
         let glyph_bind_group_layout =

@@ -120,6 +120,8 @@ pub struct CellRenderer {
     /// render_all에서 기록한 draw call 수. RenderPass 대여와 겹치지 않도록 Cell로 갱신한다.
     last_frame_bg_draws: Cell<u32>,
     last_frame_glyph_draws: Cell<u32>,
+    /// 생성 뒤 `update_font` 호출 수. 저장값이 생성 때 적용됐는지 실행 중에 확인하는 데 쓴다.
+    font_updates: u64,
 }
 
 impl CellRenderer {
@@ -798,6 +800,16 @@ impl CellRenderer {
     /// Get cell height in pixels.
     pub fn cell_height(&self) -> f32 {
         self.font_config.metrics.cell_height
+    }
+
+    /// The font values the renderer currently draws with.
+    pub fn font_request(&self) -> &tasty_font::FontRequest {
+        self.font_config.request()
+    }
+
+    /// Number of `update_font` calls since the renderer was built.
+    pub fn font_updates(&self) -> u64 {
+        self.font_updates
     }
 }
 

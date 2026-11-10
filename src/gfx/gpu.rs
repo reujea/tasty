@@ -202,15 +202,9 @@ impl GpuState {
         };
         surface.configure(&device, &config);
 
-        let term_font = appearance.effective_terminal_font();
-        let effective_font_size = term_font.effective_font_size(scale_factor);
-        let renderer = CellRenderer::new(
-            &device,
-            &queue,
-            surface_format,
-            effective_font_size,
-            &term_font.font_family,
-        );
+        let term_font =
+            egui_bridge::terminal_font_request(&appearance.effective_terminal_font(), scale_factor);
+        let renderer = CellRenderer::new(&device, &queue, surface_format, &term_font);
 
         let egui_ctx = egui::Context::default();
 
@@ -266,7 +260,8 @@ impl GpuState {
 
         let egui_renderer = egui_wgpu::Renderer::new(&device, surface_format, None, 1, false);
 
-        let last_term_font_sig = egui_bridge::term_font_signature(&term_font, effective_font_size);
+        // 렌더러가 실제로 적용한 값으로 계산한다. 생성이 값을 빠뜨리면 첫 프레임에 다시 적용된다.
+        let last_term_font_sig = egui_bridge::term_font_signature(renderer.font_request());
 
         Ok(Self {
             surface,
@@ -811,6 +806,10 @@ impl GpuState {
 
     pub fn cell_height(&self) -> f32 {
         self.renderer.cell_height()
+    }
+
+    pub fn terminal_font_updates(&self) -> u64 {
+        self.renderer.font_updates()
     }
 
     pub fn size(&self) -> PhysicalSize<u32> {

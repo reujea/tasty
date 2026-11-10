@@ -56,6 +56,33 @@ fn load_custom_font_file(font_system: &mut FontSystem, path: &str) -> bool {
     }
 }
 
+/// Values a font configuration is built from. Both the first build and every
+/// later reconfiguration take the whole set, so no value can be left out on one
+/// path only.
+#[derive(Debug, Clone, PartialEq)]
+pub struct FontRequest {
+    /// Pixel size after display scaling, not the point size of the setting.
+    pub size_px: f32,
+    /// The family as written in the settings. Empty or `monospace` means the bundled font.
+    pub family: String,
+    /// Empty means no custom font file.
+    pub custom_font_path: String,
+    /// Multiplier of the size giving the line height.
+    pub line_height: f32,
+}
+
+impl FontRequest {
+    /// A request without a custom font file and with single line height.
+    pub fn new(size_px: f32, family: &str) -> Self {
+        Self {
+            size_px,
+            family: family.to_string(),
+            custom_font_path: String::new(),
+            line_height: 1.0,
+        }
+    }
+}
+
 /// Font configuration holding cosmic-text state.
 pub struct FontConfig {
     pub font_system: FontSystem,
@@ -63,75 +90,66 @@ pub struct FontConfig {
     pub metrics: FontMetrics,
     /// The font family used for rendering glyphs.
     pub font_family: FamilyOwned,
+    /// The request the current metrics and family were built from.
+    request: FontRequest,
 }
 
 impl FontConfig {
-    /// Create a new FontConfig with the given font size, family name, and optional custom font file.
+    /// Create a new FontConfig with the given font size and family name.
     /// If `font_family` is empty or "monospace", the bundled D2Coding ligature font is used.
     pub fn new(font_size: f32, font_family: &str) -> Self {
-        Self::with_options(font_size, font_family, "", 1.0)
+        Self::from_request(&FontRequest::new(font_size, font_family))
     }
 
-    /// Create a new FontConfig with all options.
-    pub fn with_options(
-        font_size: f32,
-        font_family: &str,
-        custom_font_path: &str,
-        line_height_mult: f32,
-    ) -> Self {
+    /// Create a new FontConfig from every value of the request.
+    pub fn from_request(request: &FontRequest) -> Self {
         let mut font_system = FontSystem::new();
-        let swash_cache = SwashCache::new();
-
         font_system
             .db_mut()
             .load_font_data(D2CODING_REGULAR_TTF.to_vec());
         font_system
             .db_mut()
             .load_font_data(D2CODING_BOLD_TTF.to_vec());
-
-        if !custom_font_path.is_empty() {
-            load_custom_font_file(&mut font_system, custom_font_path);
-        }
-
-        let family = if font_family.is_empty() || font_family.eq_ignore_ascii_case("monospace") {
-            FamilyOwned::Name(D2CODING_FAMILY.to_string().into())
-        } else {
-            FamilyOwned::Name(font_family.to_string().into())
-        };
-
-        let metrics = Self::measure_cell(&mut font_system, font_size, &family, line_height_mult);
-
+        let (font_family, metrics) = Self::resolve(&mut font_system, request);
         Self {
             font_system,
-            swash_cache,
+            swash_cache: SwashCache::new(),
             metrics,
-            font_family: family,
+            font_family,
+            request: request.clone(),
         }
     }
 
     /// Reconfigure while reusing the system font database.
     /// A non-empty custom font path is read again on every call.
-    pub fn reconfigure(
-        &mut self,
-        font_size: f32,
-        font_family: &str,
-        custom_font_path: &str,
-        line_height_mult: f32,
-    ) {
-        if !custom_font_path.is_empty() {
-            load_custom_font_file(&mut self.font_system, custom_font_path);
-        }
-
-        let family = if font_family.is_empty() || font_family.eq_ignore_ascii_case("monospace") {
-            FamilyOwned::Name(D2CODING_FAMILY.to_string().into())
-        } else {
-            FamilyOwned::Name(font_family.to_string().into())
-        };
-
-        self.metrics =
-            Self::measure_cell(&mut self.font_system, font_size, &family, line_height_mult);
-        self.font_family = family;
+    pub fn reconfigure(&mut self, request: &FontRequest) {
+        let (font_family, metrics) = Self::resolve(&mut self.font_system, request);
+        self.metrics = metrics;
+        self.font_family = font_family;
         self.swash_cache = SwashCache::new();
+        self.request = request.clone();
+    }
+
+    /// The request the current state was built from.
+    pub fn request(&self) -> &FontRequest {
+        &self.request
+    }
+
+    /// Loads the custom file, resolves the family and measures a cell. The first
+    /// build and every reconfiguration go through here.
+    fn resolve(font_system: &mut FontSystem, request: &FontRequest) -> (FamilyOwned, FontMetrics) {
+        if !request.custom_font_path.is_empty() {
+            load_custom_font_file(font_system, &request.custom_font_path);
+        }
+        let family =
+            if request.family.is_empty() || request.family.eq_ignore_ascii_case("monospace") {
+                FamilyOwned::Name(D2CODING_FAMILY.to_string().into())
+            } else {
+                FamilyOwned::Name(request.family.clone().into())
+            };
+        let metrics =
+            Self::measure_cell(font_system, request.size_px, &family, request.line_height);
+        (family, metrics)
     }
 
     /// Bytes of the file providing `family` and the number of the matching face
@@ -353,6 +371,8 @@ impl FrameClock {
 #[cfg(feature = "gpu")]
 mod atlas;
 mod judge;
+#[cfg(test)]
+mod test_fonts;
 #[cfg(feature = "gpu")]
 pub use atlas::GlyphAtlas;
 pub use judge::{
@@ -557,6 +577,7 @@ mod tests {
             swash_cache: SwashCache::new(),
             metrics,
             font_family,
+            request: FontRequest::new(14.0, D2CODING_FAMILY),
         }
     }
 
@@ -594,6 +615,55 @@ mod tests {
         assert_ne!(simplified.face, japanese.face);
         let data = config.load_family_data("Noto Sans CJK SC").unwrap();
         assert_eq!(data.face, simplified.face);
+    }
+
+    fn saved_values(path: &str) -> FontRequest {
+        FontRequest {
+            size_px: 14.0,
+            family: crate::test_fonts::RENAMED_FAMILY.to_string(),
+            custom_font_path: path.to_string(),
+            line_height: 1.5,
+        }
+    }
+
+    /// 첫 구성이 파일과 행간을 모두 적용한다. 칸 폭은 unitsPerEm 을 절반으로 줄인 파일이라야
+    /// 묶음 D2Coding(7)과 구별된다.
+    #[test]
+    fn the_first_build_applies_the_file_and_the_line_height() {
+        use crate::test_fonts::{TempFont, half_units_per_em, renamed};
+        let file = TempFont::new(&half_units_per_em(renamed(D2CODING_REGULAR_TTF.to_vec())));
+        let request = saved_values(&file.path());
+        let config = FontConfig::from_request(&request);
+        assert_eq!(config.metrics.cell_height, 21.0);
+        assert_eq!(config.metrics.cell_width, 14.0);
+        assert_eq!(config.request(), &request);
+    }
+
+    /// 첫 구성과 다시 구성이 같은 값을 낸다. 두 경로가 다른 코드를 쓰면 여기서 갈린다.
+    #[test]
+    fn rebuilding_gives_the_same_cell_as_the_first_build() {
+        use crate::test_fonts::{TempFont, half_units_per_em, renamed};
+        let file = TempFont::new(&half_units_per_em(renamed(D2CODING_REGULAR_TTF.to_vec())));
+        let request = saved_values(&file.path());
+        let first = FontConfig::from_request(&request);
+        let mut rebuilt = FontConfig::new(14.0, "");
+        rebuilt.reconfigure(&request);
+        assert_eq!(
+            (rebuilt.metrics.cell_width, rebuilt.metrics.cell_height),
+            (first.metrics.cell_width, first.metrics.cell_height)
+        );
+        assert_eq!(rebuilt.request(), &request);
+    }
+
+    /// 없는 파일은 건너뛰고 행간은 그대로 적용한다.
+    #[test]
+    fn a_missing_file_is_skipped_without_dropping_the_line_height() {
+        let config = FontConfig::from_request(&FontRequest {
+            custom_font_path: "/nonexistent/tasty-font-test.ttf".to_string(),
+            line_height: 1.5,
+            ..FontRequest::new(14.0, "")
+        });
+        assert_eq!(config.metrics.cell_height, 21.0);
     }
 
     /// 실행된 기능 조합만으로는 기본값·선택적 의존 선언을 알 수 없어 매니페스트를 읽는다.

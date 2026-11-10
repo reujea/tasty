@@ -66,7 +66,7 @@ General 의 닫기 동작(`close_behavior`: ask · minimize · quit), Terminal �
 
 > **surface 폰트 override 저장소**: surface-kind 폰트 override 는 전부 `appearance.plugin_font_overrides.<kind>`(generic per-kind, host 는 live 경로에서 특정 kind 이름을 모른다)로 수렴한다. 단 레거시 top-level `[markdown_font]`/`[explorer_font]` 섹션은 **전환기 back-compat 로 유지**한다(`migrate_legacy_font_overrides` 가 load 시 `plugin_font_overrides` 로 일회성 승계 — 읽기 전용, write-back 없음). 이전 버전 사용자의 설정을 옮길 수 있도록 유지하는 호환 경로다.
 
-**쓸 수 없는 글꼴**: 글꼴 값은 저장을 막지 않고 사용할 때 건너뛴다. 그 글꼴을 뺀 다음 글꼴로 동작하고(이름으로 찾은 글꼴이 유효하면 그것을 쓴다) 설정값은 고치지 않는다. 그래서 기본·플러그인 글꼴은 파일을 정상 글꼴로 바꾸면 설정을 건드리지 않아도 재시작 뒤 그 글꼴을 쓴다. 터미널 글꼴은 그렇지 않다. 터미널 렌더러가 custom 파일과 줄 높이 없이 시작하고 부팅 때 저장값으로 글꼴 signature를 기록하므로, 저장된 custom 파일과 줄 높이는 적용한 그 실행에서만 쓰이고 재시작 뒤에는 쓰이지 않는다. 판정은 값을 쓰는 경로마다 다르고 `judge_font`(`src/adapters/ui/font_judge.rs`) 한 곳에 있다.
+**쓸 수 없는 글꼴**: 글꼴 값은 저장을 막지 않고 사용할 때 건너뛴다. 그 글꼴을 뺀 다음 글꼴로 동작하고(이름으로 찾은 글꼴이 유효하면 그것을 쓴다) 설정값은 고치지 않는다. 그래서 파일을 정상 글꼴로 바꾸면 설정을 건드리지 않아도 재시작 뒤 그 글꼴을 쓴다. 터미널 렌더러는 창을 만들 때와 설정을 적용할 때 같은 값 묶음(크기·family·custom 파일·줄 높이)을 같은 함수(`tasty_font::FontConfig`의 `from_request`·`reconfigure`)로 적용하므로, 저장한 값은 재시작 뒤와 새 창에서도 적용 직후와 같다. 변경 감지 서명은 렌더러가 실제로 적용한 값으로 계산한다. `debug.info`의 `terminal_font_updates`는 그 창의 렌더러가 생성 뒤 글꼴을 다시 적용한 횟수다. 판정은 값을 쓰는 경로마다 다르고 `judge_font`(`src/adapters/ui/font_judge.rs`) 한 곳에 있다.
 
 | 행 | 판정 | 오류 |
 |---|---|---|

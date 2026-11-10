@@ -23,6 +23,10 @@ pub fn collect(
         info.insert("scale_factor".into(), json!(gpu.scale_factor()));
         info.insert("cell_width".into(), json!(gpu.cell_width()));
         info.insert("cell_height".into(), json!(gpu.cell_height()));
+        info.insert(
+            "terminal_font_updates".into(),
+            json!(gpu.terminal_font_updates()),
+        );
         let size = gpu.size();
         info.insert("viewport_width".into(), json!(size.width));
         info.insert("viewport_height".into(), json!(size.height));
