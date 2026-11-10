@@ -427,9 +427,6 @@ shell_not_found_unix = "⚠ 設定したパスにシェルが見つかりませ�
 shell_is_directory = "⚠ 設定したシェルのパスはフォルダーです。シェルの実行ファイルのパスに直すまで、新しいターミナルを開けません。"
 shell_not_executable = "⚠ 設定したシェルのファイルに実行権限がありません。実行権限を付ける(chmod +x)か別のシェルを選ぶまで、新しいターミナルを開けません。"
 shell_confirm = "このシェルを使用"
-shell_mode_label = "シェルモード:"
-shell_mode_default = "デフォルト (フルrc)"
-shell_mode_tasty = "Tasty (Tasty rc)"
 startup_command_label = "起動コマンド:"
 scrollback_lines_label = "スクロールバック行数:"
 confirm_close_label = "実行中プロセスの終了確認:"
@@ -1323,14 +1320,8 @@ report_block_desc = "タスクの試行 1 回分に保存する記録テキス�
 [settings.misc.subtab]
 anomaly_detection = "異常検出"
 task_pipeline = "タスクパイプライン"
-tastyrc = "tastyrc"
 accessibility = "アクセシビリティ"
 performance = "パフォーマンス"
-
-[settings.misc.bashrc]
-heading = "Tastyモードで適用される bashrc"
-description = "シェルモードを Tasty に設定したときに適用されます。Tasty の組み込みブロック（OSC 7、UTF-8、PATH）は自動的に先頭に追加されるため、ここに含める必要はありません。"
-reset_button = "デフォルトに戻す"
 
 [settings.scripts]
 description = "Lua スクリプトを登録し、キーバインド設定で実行用のキーを指定してください。登録時に保存した SHA ハッシュと比較して変更の有無を確認します。"
@@ -1385,7 +1376,6 @@ clipboard_failed = "クリップボードの操作に失敗しました。もう
 clipboard_files_internal_copy = "ファイル一覧をこのTastyインスタンス内にのみ保存しました。システムクリップボードは更新できませんでした。"
 clipboard_files_internal_paste = "このTastyインスタンスに保存したファイルを貼り付けます。システムクリップボードは確認できませんでした。"
 input_queue_full = "処理中に入力が多く届いたため、一部を受け付けられませんでした。もう一度入力してください。"
-bashrc_save_failed = "Tastyモードの bashrc を保存できませんでした — 編集は反映されていません: {}"
 # 설정 변경 결과. 사용자가 바꾼 설정에만 띄운다. {} 에는 영어 사유가 들어간다.
 settings_not_applied = "設定を適用できませんでした: {}"
 settings_not_saved = "設定は今回の実行にだけ適用され、保存できなかったため再起動すると失われます: {}"
@@ -3970,7 +3960,7 @@ about = "設定モーダルを強制的に開く。タブ/サブタブを指定�
 help = "初期第1階層タブ：general | terminal | appearance | keybindings | file_handler | misc | plugins（既定値：general）"
 
 [cli.help._root.debug.settings.open.arg.subtab]
-help = "選択したタブの初期サブセクションです（--tabによって異なります）。例：appearance: theme|colors|general|display|tasty|terminal; keybindings: general|workspace|pane|tab|surface|clipboard|zoom| image|preset|plugins; general: general|notifications|accessibility; terminal: general|input|mouse_capture|tui|performance; file_handler: extension_mapping| detectors|handlers; misc: scripts|task_pipeline|tastyrc。不明なキーの場合はタブの既定値を維持します"
+help = "選択したタブの初期サブセクションです（--tabによって異なります）。例：appearance: theme|colors|general|display|tasty|terminal; keybindings: general|workspace|pane|tab|surface|clipboard|zoom| image|preset|plugins; general: general|notifications|accessibility; terminal: general|input|mouse_capture|tui|performance; file_handler: extension_mapping| detectors|handlers; misc: scripts|task_pipeline。不明なキーの場合はタブの既定値を維持します"
 
 [cli.help._root.debug.settings.close]
 about = "保存せずに設定モーダルを閉じる（キャンセルと同じ）。他のモーダルは閉じません"

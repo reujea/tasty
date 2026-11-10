@@ -427,9 +427,6 @@ shell_not_found_unix = "⚠ 在配置的路径中未找到 Shell。在设置为�
 shell_is_directory = "⚠ 配置的 Shell 路径是文件夹。在将路径设置为 Shell 程序之前，无法启动新终端。"
 shell_not_executable = "⚠ 配置的 Shell 文件没有执行权限。在赋予其执行权限（chmod +x）或选择其他 Shell 之前，无法启动新终端。"
 shell_confirm = "使用此 Shell"
-shell_mode_label = "Shell 模式："
-shell_mode_default = "默认（完整 rc）"
-shell_mode_tasty = "Tasty（Tasty rc）"
 startup_command_label = "启动命令："
 scrollback_lines_label = "回滚缓冲区行数："
 confirm_close_label = "关闭运行中的进程前确认："
@@ -1330,14 +1327,8 @@ report_block_desc = "一次任务尝试中保留的记录文本总量。超出�
 [settings.misc.subtab]
 anomaly_detection = "异常检测"
 task_pipeline = "任务流水线"
-tastyrc = "tastyrc"
 accessibility = "辅助功能"
 performance = "性能"
-
-[settings.misc.bashrc]
-heading = "Tasty 模式 bashrc"
-description = "在 Shell 模式设为 Tasty 时应用。Tasty 内置代码块（发送 OSC 7、UTF-8、PATH）始终自动添加到开头，不在此处显示。"
-reset_button = "恢复默认值"
 
 [settings.scripts]
 description = "注册和管理 Lua 脚本，然后在“按键绑定”中分配快捷键。Tasty 会使用注册时保存的 SHA 哈希检查每个脚本。"
@@ -1392,7 +1383,6 @@ clipboard_failed = "剪贴板操作失败。请重试。"
 clipboard_files_internal_copy = "文件仅保存在此 Tasty 实例中。无法更新系统剪贴板。"
 clipboard_files_internal_paste = "正在粘贴此 Tasty 实例中保存的文件。无法检查系统剪贴板。"
 input_queue_full = "Tasty 忙碌时收到过多输入，部分输入未被接受。请重试。"
-bashrc_save_failed = "Tasty 模式的 bashrc 未保存，编辑未生效：{}"
 # 설정 변경 결과. 사용자가 바꾼 설정에만 띄운다. {} 에는 영어 사유가 들어간다.
 settings_not_applied = "设置未应用：{}"
 settings_not_saved = "设置已在本次会话中生效，但未保存，重启后将丢失：{}"
@@ -4126,7 +4116,7 @@ about = "强制打开设置模态框，可指定标签页/子标签页。若已�
 help = "初始 L1 标签页：general | terminal | appearance | keybindings | file_handler | misc | plugins（默认值：general）"
 
 [cli.help._root.debug.settings.open.arg.subtab]
-help = "所选标签页中的初始 L2 分区（取决于 --tab）。例如 appearance: theme|colors|general|display|tasty|terminal; keybindings: general|workspace|pane|tab|surface|clipboard|zoom| image|preset|plugins; general: general|notifications|accessibility; terminal: general|input|mouse_capture|tui|performance; file_handler: extension_mapping| detectors|handlers; misc: scripts|task_pipeline|tastyrc。未知键保留标签页默认值"
+help = "所选标签页中的初始 L2 分区（取决于 --tab）。例如 appearance: theme|colors|general|display|tasty|terminal; keybindings: general|workspace|pane|tab|surface|clipboard|zoom| image|preset|plugins; general: general|notifications|accessibility; terminal: general|input|mouse_capture|tui|performance; file_handler: extension_mapping| detectors|handlers; misc: scripts|task_pipeline。未知键保留标签页默认值"
 
 [cli.help._root.debug.settings.close]
 about = "关闭设置模态框而不保存（同取消）。其他模态框保持打开"

@@ -381,7 +381,6 @@ src/catalog/components/prim_drilldown.rs	transition	dag.rel.transition
 src/catalog/components/prim_forms.rs	Alt	settings.general.alt_display_style_alt,settings.terminal.link_modifier_alt
 src/catalog/components/prim_forms.rs	Ctrl	settings.terminal.link_modifier_ctrl
 src/catalog/components/prim_forms.rs	Custom	dag.kind.custom,settings.keybindings.plugins.mode_custom,settings.keybindings.quick_switch_individual_label
-src/catalog/components/prim_forms.rs	Default (full rc)	settings.terminal.shell_mode_default
 src/catalog/components/prim_forms.rs	Reduced motion	settings.accessibility.reduced_motion
 src/catalog/components/prim_forms.rs	Select	terminal_context_menu.link_select
 src/catalog/components/prim_forms.rs	disabled	settings.file_handler.common.disabled

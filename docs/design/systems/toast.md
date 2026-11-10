@@ -128,7 +128,7 @@ Toast 위에서 마우스 클릭/드래그해도 토스트는 무시하고 이�
 
 문자 수 상한은 `tasty-i18n` 의 `TOAST_MAX_CHARS` **하나**다. 상한에 맞춰 문구를 만드는 쪽(`fit_fragment` · `t_fmt_fit`)과 상한을 적용하는 쪽(`truncate_message`)이 같은 상수를 읽고, 접미가 말하는 숫자도 번역문의 `{}` 에 그 값이 들어가 만들어진다. 셋 중 하나만 바뀌어 "맞췄는데 잘린다" 거나 "200자 제한이라고 적혀 있는데 실제는 아니다" 가 되는 상태를 만들 수 없다. 번역문에 숫자가 다시 박히는 것은 `tests/toast_message_fits_cap.rs` 가 막는다.
 
-> **길이를 모르는 조각(경로·실패 사유)을 실을 때는 `push` 전에 미리 줄인다** — `tasty_i18n::t_fmt_fit` / `fit_fragment` 가 번역된 틀은 그대로 두고 **조각의 가운데만** 생략해 상한 안에 맞춘다. 호스트의 기본 잘림은 **꼬리를 버리므로**, 경로면 어느 파일인지가, 실패 사유면 OS 에러가, 문장이면 "어떻게 하라" 는 지시가 사라진다. 소비자: 언어팩 폴백 경고(`LoadReport::user_warning`), 설정의 bashrc 저장 실패(`toast.bashrc_save_failed`), 설정 변경 결과(`toast.settings_not_applied`·`toast.settings_not_saved`), 스크린샷 단축키 결과(`toast.screenshot_*`, `attach.toast.mirror_capture_*` — [원격 스크린샷](../../features/remote-screenshot-clipboard/index.md#결과-안내-토스트)).
+> **길이를 모르는 조각(경로·실패 사유)을 실을 때는 `push` 전에 미리 줄인다** — `tasty_i18n::t_fmt_fit` / `fit_fragment` 가 번역된 틀은 그대로 두고 **조각의 가운데만** 생략해 상한 안에 맞춘다. 호스트의 기본 잘림은 **꼬리를 버리므로**, 경로면 어느 파일인지가, 실패 사유면 OS 에러가, 문장이면 "어떻게 하라" 는 지시가 사라진다. 소비자: 언어팩 폴백 경고(`LoadReport::user_warning`), 설정 변경 결과(`toast.settings_not_applied`·`toast.settings_not_saved`), 스크린샷 단축키 결과(`toast.screenshot_*`, `attach.toast.mirror_capture_*` — [원격 스크린샷](../../features/remote-screenshot-clipboard/index.md#결과-안내-토스트)).
 
 ## 구조 — 그리기와 상태가 다른 크레이트에 있다
 

@@ -23,8 +23,6 @@ pub(crate) enum RegistryEdit {
 pub(crate) struct SettingsEdits {
     pub(crate) registry: Vec<RegistryEdit>,
     pub(crate) clear_scrollback: bool,
-    #[cfg(windows)]
-    pub(crate) bashrc: Option<String>,
 }
 
 pub(crate) struct SettingsEditOwner {
@@ -35,12 +33,6 @@ impl super::App {
     pub(crate) fn apply_settings_edits(&mut self, owner: SettingsEditOwner, edits: SettingsEdits) {
         if edits.clear_scrollback {
             crate::scrollback_store::clear_all();
-        }
-        #[cfg(windows)]
-        if let Some(bashrc) = edits.bashrc
-            && let Err(error) = crate::settings::general::save_user_bashrc(&bashrc)
-        {
-            self.surface_bashrc_save_failure(&error);
         }
         let SettingsEditOwner { format, handler } = owner;
         let hook = crate::hook_handler::global();

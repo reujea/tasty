@@ -4,9 +4,6 @@ use std::sync::Arc;
 
 use crate::app::App;
 use crate::view;
-// `View::mark_dirty` 는 windows 전용 surface_bashrc_save_failure 에서만 쓴다.
-#[cfg(windows)]
-use crate::view::ui::View as _;
 
 struct SettingsInitData {
     settings: crate::settings::Settings,
@@ -113,22 +110,6 @@ impl App {
         }
     }
 
-    /// 실패 사유를 번역 문구에 넣되 경로 가운데를 줄여 대상과 OS 오류를 함께 남긴다.
-    /// 새 확인 모달 대신 toast로 알리며 성공은 따로 알리지 않는다.
-    #[cfg(windows)]
-    pub(crate) fn surface_bashrc_save_failure(&mut self, reason: &str) {
-        let Some(view) = self.notice_window_mut() else {
-            tracing::error!("no main window to surface the bashrc save failure ({reason})");
-            return;
-        };
-        view.state.toasts.push(
-            bashrc_save_failure_message(reason),
-            crate::adapters::ui::ToastKind::Error,
-            crate::adapters::ui::ToastScope::Window,
-        );
-        view.mark_dirty();
-    }
-
     /// 플러그인 Configure, 파일 핸들러, 권한 화면 진입 요청과 debug 빌드에서 지정한
     /// 초기 탭·하위 탭을 적용한다.
     fn apply_pending_tab_overrides(&mut self, modal: &mut view::SettingsView) {
@@ -151,109 +132,5 @@ impl App {
                 modal.apply_debug_tabs(tab.as_deref(), subtab.as_deref()),
             );
         }
-    }
-}
-
-#[cfg(any(windows, test))]
-fn bashrc_save_failure_message(reason: &str) -> String {
-    crate::i18n::t_fmt_fit("toast.bashrc_save_failed", reason)
-}
-
-#[cfg(test)]
-mod tests {
-    /// 전역 i18n 초기화 순서와 무관하게 내장 언어의 파일을 직접 읽는다.
-    fn langs() -> Vec<(&'static str, String)> {
-        tasty_i18n::BUILTIN_CODES
-            .iter()
-            .map(|code| {
-                let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-                    .join(format!("lang/{code}.toml"));
-                (*code, std::fs::read_to_string(&path).expect("lang toml"))
-            })
-            .collect()
-    }
-
-    /// 호스트 toast의 문자 수 상한과 비교한다.
-    const TOAST_MAX_CHARS: usize = tasty_i18n::TOAST_MAX_CHARS;
-
-    fn frame(lang_toml: &str) -> String {
-        let v: toml::Value = toml::from_str(lang_toml).expect("lang toml");
-        v.get("toast")
-            .and_then(|t| t.get("bashrc_save_failed"))
-            .and_then(toml::Value::as_str)
-            .expect("toast.bashrc_save_failed")
-            .to_string()
-    }
-
-    /// Windows 쓰기 오류의 대상 경로와 OS 오류가 함께 있는 입력.
-    fn a_long_windows_reason() -> String {
-        let deep = std::iter::repeat_n("VeryLongDirectoryName", 20)
-            .collect::<Vec<_>>()
-            .join("\\");
-        format!("write C:\\{deep}\\.tasty\\bashrc.user: Access is denied. (os error 5)")
-    }
-
-    #[test]
-    fn every_locale_takes_the_reason_exactly_once() {
-        for (lang, toml_src) in langs() {
-            let f = frame(&toml_src);
-            assert_eq!(
-                f.matches("{}").count(),
-                1,
-                "{lang}: 자리표시자가 정확히 하나여야 한다: {f}"
-            );
-        }
-    }
-
-    /// 경로 가운데를 줄여도 대상 경로 앞부분과 OS 오류 끝부분은 남아야 한다.
-    #[test]
-    fn a_long_reason_keeps_the_target_and_the_os_error_in_every_locale() {
-        let reason = a_long_windows_reason();
-        for (lang, toml_src) in langs() {
-            let f = frame(&toml_src);
-            let msg = tasty_i18n::fit_fragment(&reason, |r| f.replacen("{}", r, 1));
-
-            let n = msg.chars().count();
-            assert!(n <= TOAST_MAX_CHARS, "{lang}: {n} 자 — 상한 초과: {msg}");
-            assert!(
-                msg.contains("write C:\\VeryLongDirectoryName"),
-                "{lang}: 어느 작업·어느 루트인지가 남아야 한다: {msg}"
-            );
-            assert!(
-                msg.ends_with("(os error 5)"),
-                "{lang}: 왜 실패했는지가 남아야 한다: {msg}"
-            );
-        }
-    }
-
-    #[test]
-    fn a_short_reason_is_not_elided() {
-        let reason = "tasty home directory unresolved — the edit was not persisted";
-        for (lang, toml_src) in langs() {
-            let f = frame(&toml_src);
-            let msg = tasty_i18n::fit_fragment(reason, |r| f.replacen("{}", r, 1));
-            assert!(msg.contains(reason), "{lang}: {msg}");
-            assert!(
-                !msg.contains('\u{2026}'),
-                "{lang}: 짧은 사유가 줄어들었다: {msg}"
-            );
-        }
-    }
-
-    /// 실제 문구 생성 함수가 길이 보정을 사용하는지도 확인한다.
-    #[test]
-    fn the_call_site_fits_the_reason_to_the_toast_cap() {
-        // 이미 다른 언어로 초기화됐어도 길이와 오류 꼬리 검사는 같아야 한다.
-        crate::i18n::init("en");
-
-        let reason = a_long_windows_reason();
-        let msg = super::bashrc_save_failure_message(&reason);
-
-        let n = msg.chars().count();
-        assert!(n <= TOAST_MAX_CHARS, "{n} 자 — 상한 초과: {msg}");
-        assert!(
-            msg.ends_with("(os error 5)"),
-            "왜 실패했는지가 남아야 한다: {msg}"
-        );
     }
 }

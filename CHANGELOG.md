@@ -32,6 +32,10 @@
 
 - **저장한 터미널 custom 글꼴 파일과 줄 높이가 재시작 뒤와 새 창에서도 적용된다.** 전에는 설정을 적용한 창에서만 쓰였고, 재시작하거나 새 창을 열면 파일과 줄 높이 없이 그려 칸 크기와 글꼴이 달라졌다.
 
+### Removed
+
+- **Windows의 셸 모드와 설정 › Misc › Tastyrc가 없어진다.** Windows Git Bash도 다른 OS처럼 빌트인 통합(OSC 7, OSC 133, PATH, LANG)과 사용자 `~/.bashrc`를 읽는 `bashrc.default` 하나로 실행한다. 설정 키 `general.shell_mode`는 읽을 때 무시하고 저장할 때 남기지 않는다. Tasty는 `bashrc`·`bashrc.user`를 만들거나 읽지 않는다. 설정 창의 셸 모드 행, Tastyrc 편집 화면, 저장 실패 토스트, `tasty debug settings open --subtab tastyrc`도 함께 없어진다.
+
 ## [0.14.0] - 2026-11-10
 
 ### Added

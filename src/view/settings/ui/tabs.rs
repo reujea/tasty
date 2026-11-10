@@ -32,8 +32,6 @@ pub use general::draw_general_tab;
 pub use general_display::draw_general_display_tab;
 #[cfg(target_os = "macos")]
 pub use macos_permissions::draw_macos_permissions_tab;
-#[cfg(windows)]
-pub use misc::draw_tastyrc_subtab;
 pub use misc::{ScriptsUiState, draw_scripts_subtab};
 pub use notifications::draw_notifications_tab;
 pub use overlay::draw_overlay_tab;

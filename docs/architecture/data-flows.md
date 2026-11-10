@@ -164,7 +164,7 @@ surface별 gate로, IPC는 `IpcPacer` 로 같은 문제를 막는다.
   → Cancel/일반 close는 Save 실행 초안을 만들지 않음
 
 즉시 반영: font·theme·opacity(렌더러 재초기화/테마 전환), notification·keybindings(매 프레임/이벤트 참조).
-새 터미널부터 반영: shell·shell_mode·scrollback (`ShellConfig::from_settings` 가 `runtime_shell` 로 실행 셸을 정하고 그 셸 기준 `shell_args_for` — tasty 모드 --rcfile 주입은 플랫폼별).
+새 터미널부터 반영: shell·scrollback (`ShellConfig::from_settings` 가 `runtime_shell` 로 실행 셸을 정하고 그 셸 기준 `shell_args_for` — bash 합성 rc의 --rcfile 주입은 플랫폼별).
 ```
 
 설정의 첫 창 부팅 저장은 정규화·셸 확인·테마 조정을 마친 snapshot 한 건을 같은 file writer에 제출한다. 로딩 프레임을 계속 그리면서 receipt를 거두고 나서 engine/plugin 초기화를 시작한다. 추가 창은 저장 중인 디스크 사본 대신 마지막 제출 설정을 사용하며, 필요한 보정도 같은 큐에 제출한다.

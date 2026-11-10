@@ -428,9 +428,6 @@ shell_not_found_unix = "⚠ No shell found at the configured path. Until you set
 shell_is_directory = "⚠ The configured shell path is a folder. New terminals cannot start until you set the path to a shell program."
 shell_not_executable = "⚠ The configured shell file has no permission to run. New terminals cannot start until you make it executable (chmod +x) or choose another shell."
 shell_confirm = "Use this shell"
-shell_mode_label = "Shell mode:"
-shell_mode_default = "Default (full rc)"
-shell_mode_tasty = "Tasty (Tasty rc)"
 startup_command_label = "Startup command:"
 scrollback_lines_label = "Scrollback lines:"
 confirm_close_label = "Confirm close running process:"
@@ -1371,14 +1368,8 @@ report_block_desc = "Total note text kept for one task attempt. Notes past it ar
 [settings.misc.subtab]
 anomaly_detection = "Anomaly detection"
 task_pipeline = "Task pipeline"
-tastyrc = "tastyrc"
 accessibility = "Accessibility"
 performance = "Performance"
-
-[settings.misc.bashrc]
-heading = "Tasty-mode bashrc"
-description = "This is applied when Shell mode is set to Tasty. Tasty's built-in block (OSC 7 emission, UTF-8, PATH) is always prepended automatically and is not shown here."
-reset_button = "Reset to default"
 
 [settings.scripts]
 description = "Register and manage Lua scripts, then assign their shortcuts in Keybindings. Tasty checks each script against the SHA hash saved when you registered it."
@@ -1433,7 +1424,6 @@ clipboard_failed = "Clipboard operation failed. Try again."
 clipboard_files_internal_copy = "Files are stored only in this Tasty instance. The system clipboard could not be updated."
 clipboard_files_internal_paste = "Pasting files stored in this Tasty instance. The system clipboard could not be checked."
 input_queue_full = "Too many inputs arrived while Tasty was busy. Some were not accepted. Please try again."
-bashrc_save_failed = "Tasty-mode bashrc was not saved — your edit is not in effect: {}"
 # 설정 변경 결과. 사용자가 바꾼 설정에만 띄운다. {} 에는 영어 사유가 들어간다.
 settings_not_applied = "Settings were not applied: {}"
 settings_not_saved = "Settings are in effect for this session but were not saved, so they will be lost on restart: {}"
@@ -4038,7 +4028,7 @@ about = "Force-open the settings modal, optionally on a specific tab/subtab. If 
 help = "Initial L1 tab: general | terminal | appearance | keybindings | file_handler | misc | plugins (default: general)"
 
 [cli.help._root.debug.settings.open.arg.subtab]
-help = "Initial L2 section within the chosen tab (depends on --tab). e.g. appearance: theme|colors|general|display|tasty|terminal; keybindings: general|workspace|pane|tab|surface|clipboard|zoom| image|preset|plugins; general: general|notifications|accessibility; terminal: general|input|mouse_capture|tui|performance; file_handler: extension_mapping| detectors|handlers; misc: scripts|task_pipeline|tastyrc. Unknown keys keep the tab default"
+help = "Initial L2 section within the chosen tab (depends on --tab). e.g. appearance: theme|colors|general|display|tasty|terminal; keybindings: general|workspace|pane|tab|surface|clipboard|zoom| image|preset|plugins; general: general|notifications|accessibility; terminal: general|input|mouse_capture|tui|performance; file_handler: extension_mapping| detectors|handlers; misc: scripts|task_pipeline. Unknown keys keep the tab default"
 
 [cli.help._root.debug.settings.close]
 about = "Close the settings modal without saving (like Cancel). Other modals stay open"

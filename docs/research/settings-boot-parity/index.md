@@ -1,10 +1,10 @@
 # 설정 시작 경로 전수 조사
 
-저장한 설정마다 시작 경로와 실행 중 적용 경로가 같은 값을 쓰는지 조사한다. 표는 322행이고 칸마다 코드 위치가 있다. 이 문서는 조사 결과이며 제품 동작을 바꾸지 않는다. 결함은 기록만 하고 고치는 방향은 후보로만 적는다.
+저장한 설정마다 시작 경로와 실행 중 적용 경로가 같은 값을 쓰는지 조사한다. 표는 321행이고 칸마다 코드 위치가 있다. 이 문서는 조사 결과이며 제품 동작을 바꾸지 않는다. 결함은 기록만 하고 고치는 방향은 후보로만 적는다.
 
 | 표 | 행 수 | 내용 |
 |----|-------|------|
-| [일반 설정](table-settings.md) | 90 | 테마 색과 단축키를 뺀 설정 키 |
+| [일반 설정](table-settings.md) | 89 | 테마 색과 단축키를 뺀 설정 키 |
 | [테마 색](table-theme.md) | 104 | `theme_overrides.*`와 `theme_base.*` |
 | [단축키](table-keybindings.md) | 111 | `KeybindingSettings` 필드 |
 | [플러그인 설정](table-plugins.md) | 17 | 매니페스트가 선언한 값과 `plugin_settings` 형태 |
@@ -18,8 +18,8 @@
 | 재시작 필요(안내 문서 있음) | 2 | `general.language`, `webhook.allow_external` |
 | 소비자 없음 | 2 | `general.confirm_close_running`, `appearance.ligatures` |
 | 해당 없음 | 10 | `markdown_font`, `explorer_font`의 호환 필드 |
-| 일치 | 252 | 나머지 |
-| 합계 | 322 | |
+| 일치 | 251 | 나머지 |
+| 합계 | 321 | |
 
 D3과 D4는 특정 키가 아니라 값을 읽는 경로의 결함이다. 어느 키에서든 일어나므로 표의 행 판정에는 세지 않았다.
 
@@ -53,24 +53,24 @@ D3과 D4는 특정 키가 아니라 값을 읽는 경로의 결함이다. 어느
 
 표가 모든 필드를 덮는지 두 방법으로 세어 표의 키 열과 비교했다.
 
-- 방법 A: `crates/tasty-settings/src`의 구조체 타입을 파싱해 말단 필드를 센다. 300개다.
+- 방법 A: `crates/tasty-settings/src`의 구조체 타입을 파싱해 말단 필드를 센다. 299개다.
 - 방법 B: `Settings::default()`를 TOML로 직렬화해 키를 센다. 240개이고 빈 테이블 4개(`plugin_font_overrides`, `terminal_font`, `theme_overrides`, `plugin_settings`)를 포함한다.
-- 표: 키 열 322개이고 중복이 없다.
+- 표: 키 열 321개이고 중복이 없다.
 
-A에만 있는 70개는 다음과 같다.
+A에만 있는 69개는 다음과 같다.
 
 | 항목 | 수 | 이유 |
 |------|----|------|
 | `theme_overrides.*` | 48 | `None`이면 직렬화하지 않는다 |
 | `terminal_font.*`, `markdown_font.*`, `explorer_font.*` | 15 | 앞은 기본값일 때, 뒤 둘은 항상 직렬화하지 않는다 |
 | `theme_base.surface_themes` | 1 | 맵이라 B에서는 하위 키로 나온다 |
-| `general.option_as_meta`, `general.shell_mode` | 2 | 다른 OS의 `cfg` 뒤에 있다 |
+| `general.option_as_meta` | 1 | 다른 OS의 `cfg` 뒤에 있다 |
 | `modifier_hint.pos`, `modifier_hint.size` | 2 | `None`이면 직렬화하지 않는다 |
 | `origin`, `file_observation` | 2 | 저장하지 않는 필드다 |
 
 B에만 있는 10개는 `surface_themes`의 `terminal`, `markdown` 하위 4필드씩 8개와 빈 테이블 `terminal_font`, `theme_overrides` 2개다.
 
-A와 B의 합집합은 310개다. 이 중 표에 키 그대로 없는 것은 8개다.
+A와 B의 합집합은 309개다. 이 중 표에 키 그대로 없는 것은 8개다.
 
 | 항목 | 표에서의 처리 |
 |------|---------------|
@@ -81,7 +81,7 @@ A와 B의 합집합은 310개다. 이 중 표에 키 그대로 없는 것은 8�
 
 표에만 있는 것은 20개다. 형태 행 4개와 매니페스트 값 16개(`com.tasty.claude` 7, `com.tasty.codex` 3, `com.tasty.html` 4, `com.tasty.markdown` 2)다. 이 중 `com.tasty.markdown`의 하나는 `plugin_settings`가 아니라 `plugin_font_overrides.markdown`에 저장된다. 다른 번들 플러그인 매니페스트 5개에는 선언이 없다.
 
-계산: 310 - 8 + 20 = 322. 표의 행 수와 같다.
+계산: 309 - 8 + 20 = 321. 표의 행 수와 같다.
 
 ## 측정
 
@@ -228,7 +228,7 @@ F1과 F2의 재시작 뒤 값이 F3과 같으므로 파일이 렌더러에 들�
 
 | 항목 | 이유 | 판정 근거 |
 |------|------|-----------|
-| `general.shell_mode`, `general.option_as_meta`, macOS 메뉴 | Windows와 macOS는 범위 밖이다 | 코드 |
+| `general.option_as_meta`, macOS 메뉴 | macOS는 범위 밖이다 | 코드 |
 | parked 창 복원 | Linux에서 IPC로 닿는 경로가 없다. macOS 최소화와 내부 창 닫기 요청만 parked를 만든다. debug 경로가 있어야 잰다 | 코드 |
 | 헤드리스 바이너리 | `--no-default-features`로 빌드하지 않았다 | 코드 |
 | 플러그인 값의 플러그인 쪽 효과 | 파일 왕복만 쟀다. 플러그인을 빌드해 올리지 않았다 | 코드 + 파일 왕복 |

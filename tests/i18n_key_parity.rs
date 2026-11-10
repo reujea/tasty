@@ -46,16 +46,6 @@ const SAME_AS_ENGLISH_ALLOWLIST: &[(&str, &[&str], &str)] = &[
         "제품명",
     ),
     (
-        "settings.terminal.shell_mode_tasty",
-        &["ko", "ja"],
-        "제품명 + rc 파일명",
-    ),
-    (
-        "settings.misc.subtab.tastyrc",
-        &["ko", "ja", "zh-Hans"],
-        "rc 파일명",
-    ),
-    (
         "settings.subtab.claude",
         &["ko", "ja", "zh-Hans"],
         "제품명 (Claude Code)",

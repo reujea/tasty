@@ -15,8 +15,7 @@ tasty 의 영속 데이터는 텍스트 파일과 SQLite에 나눠 저장된다.
 | `remote-profiles.toml` (+ `passkeys.toml`) | TOML | 원격 접속 프로필(`ssh`/`tasty-attach` kind) + 자격증명 — `config.toml` 과 분리해 손편집 보존 | 사용자 | `crates/tasty-remote-profiles/` |
 | `file-handlers.toml` | TOML | 파일 detector / handler / 확장자 매핑 | 사용자 | `crates/tasty-file-handler/src/` |
 | `themes/<id>.toml` | TOML | 테마 (id = 파일명 stem) | 사용자 / 앱 | `crates/tasty-themes/src/store.rs` |
-| `bashrc` / `bashrc.default` | 쉘 스크립트 | 컴파일된 빌트인 rc (tasty 모드 / default 모드) — 셸을 `--rcfile` 로 띄움 | 앱 (빌드 산출물) | `crates/tasty-settings/src/general.rs` |
-| `bashrc.user` | 쉘 스크립트 | 사용자가 직접 편집하는 fragment (빌트인 사이에 끼워짐) | 사용자 | 〃 |
+| `bashrc.default` | 쉘 스크립트 | 컴파일된 빌트인 rc(빌트인 앞부분 + 사용자 셸 rc + 빌트인 프롬프트 훅) — bash를 `--rcfile` 로 띄움 | 앱 (빌드 산출물) | `crates/tasty-settings/src/general.rs` |
 | `presets/{workspace,tab,pane}/<name>.toml` | TOML | 레이아웃 프리셋 (탭/페인/서피스 구조) | 사용자 / 앱 | `crates/tasty-presets/` |
 
 - **plugin 데이터는 여기 없다.** 각 plugin 은 자기 `TASTY_PLUGIN_DATA_DIR` 아래에 보관한다. host `state.db` 에 plugin 데이터를 넣지 않는다.
@@ -390,7 +389,7 @@ memory·state·file writer의 공통 관측은 [저장 실행기 관측](storage
 
 ## 텍스트 파일을 SQLite 로 옮기지 않는 이유
 
-`config.toml` / `remote-profiles.toml` / `file-handlers.toml` / `themes/*.toml` / `bashrc.user` 는 **사용자 편집·버전관리 대상**이다. 주석·diff 추적에 텍스트가 적합하고 앱이 자동으로 덮어쓰지 않으므로 SQLite 로 옮길 이점이 없다. 반대로 최근 파일처럼 앱이 자동 누적하는 데이터는 SQLite 가 맞다.
+`config.toml` / `remote-profiles.toml` / `file-handlers.toml` / `themes/*.toml` 는 **사용자 편집·버전관리 대상**이다. 주석·diff 추적에 텍스트가 적합하고 앱이 자동으로 덮어쓰지 않으므로 SQLite 로 옮길 이점이 없다. 반대로 최근 파일처럼 앱이 자동 누적하는 데이터는 SQLite 가 맞다.
 
 ## 백업
 

@@ -226,16 +226,6 @@ impl Settings {
             );
         }
 
-        // shell_mode는 Windows 필드다. 다른 OS는 알 수 없는 키로 무시한다.
-        #[cfg(windows)]
-        normalize_choice(
-            &mut self.general.shell_mode,
-            &["default", "tasty"],
-            "default",
-            "shell_mode",
-            &mut report.changed,
-        );
-
         // general.close_behavior
         normalize_choice(
             &mut self.general.close_behavior,
@@ -366,6 +356,19 @@ mod tests {
         );
         let saved = toml::to_string_pretty(&settings).unwrap();
         assert!(!saved.contains("sidebar_width"), "got: {saved}");
+    }
+
+    /// 없어진 shell_mode 키는 경고·정규화 없이 무시되고 저장 때 남지 않는다.
+    #[test]
+    fn a_legacy_shell_mode_key_loads_without_a_report_and_is_dropped_on_save() {
+        let contents = "[general]\nshell_mode = \"tasty\"\n";
+        let mut settings =
+            Settings::parse_with_migration(contents).expect("old config still parses");
+        let raw: toml::Value = toml::from_str(contents).unwrap();
+        assert!(Settings::retired_keys_in(&raw).is_empty());
+        assert!(!settings.normalize().changed);
+        let saved = toml::to_string_pretty(&settings).unwrap();
+        assert!(!saved.contains("shell_mode"), "got: {saved}");
     }
 
     #[test]
@@ -648,10 +651,6 @@ ui_scale = "large"
         settings.appearance.ui_scale = "huge".to_string();
         settings.appearance.default_font.font_scale_mode = "bogus".to_string();
         settings.appearance.terminal_font.font_scale_mode = Some("nope".to_string());
-        #[cfg(windows)]
-        {
-            settings.general.shell_mode = "weird".to_string();
-        }
         settings.general.close_behavior = "explode".to_string();
         settings.general.link_click_modifier = "meta".to_string();
         settings.general.alt_display_style = "bogus".to_string();
@@ -664,24 +663,11 @@ ui_scale = "large"
         assert_eq!(settings.appearance.ui_scale, "medium");
         assert_eq!(settings.appearance.default_font.font_scale_mode, "auto");
         assert!(settings.appearance.terminal_font.font_scale_mode.is_none());
-        #[cfg(windows)]
-        assert_eq!(settings.general.shell_mode, "default");
         assert_eq!(settings.general.close_behavior, "ask");
         assert_eq!(settings.general.link_click_modifier, "ctrl");
         assert_eq!(settings.general.alt_display_style, "alt");
         assert_eq!(settings.general.option_display_style, "option");
         assert_eq!(settings.general.shift_display_style, "shift");
-    }
-
-    /// Windows의 알 수 없는 shell_mode를 default로 바꾼다.
-    #[cfg(windows)]
-    #[test]
-    fn custom_mode_no_longer_exists() {
-        let mut settings = Settings::default();
-        settings.general.shell_mode = "custom".to_string();
-        let report = settings.normalize();
-        assert!(report.changed);
-        assert_eq!(settings.general.shell_mode, "default");
     }
 
     #[test]

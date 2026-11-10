@@ -23,8 +23,6 @@ pub fn draw_terminal_tab(ui: &mut egui::Ui, settings: &mut Settings) {
     }
 
     let shell = SettingsRow::new(t("settings.terminal.shell_label"));
-    #[cfg(windows)]
-    let shell_mode = SettingsRow::new(t("settings.terminal.shell_mode_label"));
     let startup = SettingsRow::new(t("settings.terminal.startup_command_label"));
     let scrollback_row = SettingsRow::new(t("settings.terminal.scrollback_lines_label"));
     let confirm_close = SettingsRow::new(t("settings.terminal.confirm_close_label"));
@@ -39,8 +37,6 @@ pub fn draw_terminal_tab(ui: &mut egui::Ui, settings: &mut Settings) {
         &th,
         [
             &shell,
-            #[cfg(windows)]
-            &shell_mode,
             &startup,
             &scrollback_row,
             &confirm_close,
@@ -57,29 +53,6 @@ pub fn draw_terminal_tab(ui: &mut egui::Ui, settings: &mut Settings) {
     // 쓸 수 없는 경로도 사용자가 고칠 때까지 그대로 보여 준다. 실행 시 대체 셸은 ShellConfig가 고른다.
     shell.show(ui, &th, col, |ui| {
         ui.text_edit_singleline(&mut settings.general.shell);
-    });
-
-    // 셸 모드는 Windows 전용 — OSC7/MSYS PATH 빌트인 적용 여부 결정.
-    // 비-Windows 에서는 의미가 없어 UI 에서도 노출하지 않는다.
-    #[cfg(windows)]
-    shell_mode.show(ui, &th, col, |ui| {
-        choice_select(
-            ui,
-            &th,
-            "shell_mode",
-            &mut settings.general.shell_mode,
-            &[
-                Choice {
-                    value: "default",
-                    label: t("settings.terminal.shell_mode_default"),
-                },
-                Choice {
-                    value: "tasty",
-                    label: t("settings.terminal.shell_mode_tasty"),
-                },
-            ],
-            th.field_width_lg,
-        );
     });
 
     startup.show(ui, &th, col, |ui| {
@@ -551,27 +524,5 @@ mod tests {
             probe::pick(&ctx, &mut draw(&mut settings), from, t(to));
             assert_eq!(settings.general.link_click_modifier, stored);
         }
-    }
-
-    /// Windows 셸 모드 트리거는 Select 상자(폭 field-width-lg)이고 기존 문자열로 저장한다.
-    #[cfg(windows)]
-    #[test]
-    fn shell_mode_trigger_is_a_large_select() {
-        let th = crate::theme::theme();
-        let ctx = egui::Context::default();
-        let mut settings = Settings::default();
-        settings.general.shell_mode = "default".into();
-        let out = probe::frame(&ctx, &mut draw(&mut settings));
-        let mode = probe::trigger_around(&out, t("settings.terminal.shell_mode_default"))
-            .expect("shell mode is drawn as a Select trigger");
-        assert_eq!(mode.height(), th.select_height().value());
-        assert_eq!(mode.width(), th.field_width_lg.value());
-        probe::pick(
-            &ctx,
-            &mut draw(&mut settings),
-            t("settings.terminal.shell_mode_default"),
-            t("settings.terminal.shell_mode_tasty"),
-        );
-        assert_eq!(settings.general.shell_mode, "tasty");
     }
 }

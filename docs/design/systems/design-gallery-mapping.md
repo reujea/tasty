@@ -1141,7 +1141,7 @@ Misc L1 의 두 번째 L2 서브탭 "Task pipeline" — 작업 그래프 report 
 
 ## Settings › Misc › Anomaly detection
 
-`ui_kits/terminal/overlays/settings_anomaly.jsx`와 `gallery/overlays-windows/settings-anomaly.jsx`의 설정 본문이다. Misc의 Task pipeline 뒤, Windows에서는 Tastyrc 앞에 둔다.
+`ui_kits/terminal/overlays/settings_anomaly.jsx`와 `gallery/overlays-windows/settings-anomaly.jsx`의 설정 본문이다. Misc의 Task pipeline 뒤에 둔다.
 
 | 디자인 구성 | 본체 | 갤러리 |
 |---|---|---|

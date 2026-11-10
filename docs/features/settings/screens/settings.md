@@ -33,7 +33,7 @@
   - **Appearance**: Theme / Colors(프리셋 색 개별 override picker) / General / Display(UI 스케일 전용) / Tasty(앱 크롬 색상) / Terminal / Explorer(내장 파일 관리자 폰트) / (플러그인 기여 페이지 동적 — 예: HTML)
   - **Keybindings**: General / Workspace / Pane / Tab / Surface / Clipboard / Zoom / Explorer / Scripts / Preset / Plugins / ─ / Import / Export — 마지막 항목 위에만 1px separator 가 붙고, 필터 검색 중에는 separator 를 숨긴다
   - **FileHandler**(표시 "Handler"): File Extension Mapping / File Detectors / File Handlers / Hook Handlers(공유 훅 핸들러 레지스트리 편집 — 리스너 설정은 CLI 전용, 여기 미노출)
-  - **Misc**: Scripts (전 플랫폼·최상단) / Tastyrc (Windows 전용).
+  - **Misc**: Scripts (최상단) / Task pipeline / Anomaly detection.
   - **Plugins**: 플러그인 기여 설정 페이지 (동적)
 - **콘텐츠** (중앙): 선택된 L2 섹션의 설정 항목. 도메인별 내용은 해당 기능 문서에서 설명:
   - Keybindings → [`features/keybindings/`](../../keybindings/index.md) / [`design/policies/key-mapping`](../../../design/policies/key-mapping.md)

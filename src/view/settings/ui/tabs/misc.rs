@@ -1,4 +1,4 @@
-//! Lua 스크립트 관리와 Windows용 tastyrc 편집.
+//! Lua 스크립트 관리.
 //! 단축키는 조회만 하며 편집은 Keybindings의 Scripts 화면에서 한다.
 
 use std::collections::HashMap;
@@ -12,8 +12,6 @@ use tasty_ui_widgets::{
 use crate::adapters::ui::icons;
 use crate::i18n::t;
 use crate::settings::{AUTO_TRIGGER_EVENTS, AutoTrigger, KeybindingSettings, Settings, hash_file};
-#[cfg(windows)] // tastyrc 섹션(Windows 전용)에서만 사용.
-use tasty_ui_widgets::vspace;
 
 /// changed 배지 고정 높이 (디자인 `height: 16`).
 const BADGE_HEIGHT: LogicalPx = LogicalPx(16.0);
@@ -83,44 +81,6 @@ enum Pending {
     AddTrigger(String, AutoTrigger),
     /// id 의 자동실행 트리거 제거.
     RemoveTrigger(String, AutoTrigger),
-}
-
-/// tastyrc 섹션: Tasty 모드에서 적용되는 bashrc 사용자 영역 편집.
-#[cfg(windows)]
-pub fn draw_tastyrc_subtab(ui: &mut egui::Ui, bashrc_user_draft: &mut Option<String>) {
-    let th = crate::theme::theme();
-
-    ui.heading(t("settings.misc.bashrc.heading"));
-    vspace(ui, th.spacing_xs);
-    ui.label(
-        egui::RichText::new(t("settings.misc.bashrc.description"))
-            .small()
-            .color(th.text_muted()),
-    );
-    vspace(ui, th.spacing_sm);
-
-    // draft는 mod.rs 진입부에서 lazy 로드되므로 이 시점엔 항상 Some.
-    let draft = bashrc_user_draft.get_or_insert_with(crate::settings::general::load_user_bashrc);
-
-    ui.horizontal(|ui| {
-        if ui.button(t("settings.misc.bashrc.reset_button")).clicked() {
-            *draft = crate::settings::general::INITIAL_USER_BASHRC.to_string();
-        }
-    });
-    vspace(ui, th.spacing_xs);
-
-    egui::ScrollArea::vertical()
-        .auto_shrink([false, false])
-        .drag_to_scroll(false)
-        .show(ui, |ui| {
-            ui.add(
-                egui::TextEdit::multiline(draft)
-                    .font(egui::TextStyle::Monospace)
-                    .desired_rows(20)
-                    .desired_width(f32::INFINITY)
-                    .code_editor(),
-            );
-        });
 }
 
 // ── Scripts 관리 창 ───────────────────────────────────────────────────────

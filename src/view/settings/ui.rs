@@ -142,15 +142,12 @@ pub(crate) enum TerminalSubTab {
     Performance,
 }
 
-/// Misc 탭의 하위 섹션. Scripts·TaskPipeline·AnomalyDetection은 모든 플랫폼, Tastyrc는 Windows에서만 표시한다.
+/// Misc 탭의 하위 섹션.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum MiscSubTab {
     Scripts,
     TaskPipeline,
     AnomalyDetection,
-    // 이유: 이 variant 를 push 하는 것이 Windows 전용 분기뿐이다(위 enum 주석).
-    #[cfg_attr(not(windows), allow(dead_code))]
-    Tastyrc,
 }
 
 /// Active L1 tab in the settings window. 디자인 2-level IA 의 상단 7탭.
@@ -185,8 +182,7 @@ pub struct SettingsUiState {
     general_sub_tab: GeneralSubTab,
     /// Active L2 section within the Terminal L1 tab.
     terminal_sub_tab: TerminalSubTab,
-    /// Active L2 section within the Misc L1 tab. Scripts 는 전 플랫폼, Tastyrc 는
-    /// Windows 전용.
+    /// Active L2 section within the Misc L1 tab.
     misc_sub_tab: MiscSubTab,
     /// Misc › Scripts 관리 창의 UI-only 상호작용 상태 (add-card / 인라인
     /// rename·remove draft + changed 캐시). 스크립트 데이터 자체는 `draft.scripts`.
@@ -226,8 +222,6 @@ pub struct SettingsUiState {
     pub font_families: Option<Vec<String>>,
     /// 미리보기에 등록된 글꼴과 글꼴 행이 읽는 판정 결과.
     pub preview_fonts: PreviewFonts,
-    /// Draft of ~/.tasty/bashrc.user content. None until the Misc tab loads it.
-    pub(crate) bashrc_user_draft: Option<String>,
     /// winit KeyboardInput에서 직접 캡처한 키 조합 (녹화 중일 때 사용).
     pub captured_winit_combo: Option<KeyCapture>,
     /// Plugins 서브탭이 표시할 plugin command snapshot (모달 오픈 시 1회 채워짐).
@@ -404,7 +398,6 @@ impl SettingsUiState {
                     "scripts" => MiscSubTab::Scripts,
                     "task_pipeline" | "task-pipeline" => MiscSubTab::TaskPipeline,
                     "anomaly_detection" | "anomaly-detection" => MiscSubTab::AnomalyDetection,
-                    "tastyrc" => MiscSubTab::Tastyrc,
                     _ => return false,
                 };
                 true
@@ -454,7 +447,6 @@ impl SettingsUiState {
             conflict_cancelled: false,
             font_families: None,
             preview_fonts: PreviewFonts::default(),
-            bashrc_user_draft: None,
             captured_winit_combo: None,
             plugin_shortcuts: PluginShortcutSnapshot::default(),
             plugin_shortcuts_selected: None,
@@ -634,13 +626,6 @@ pub fn draw_settings_panel(ctx: &egui::Context, panel: SettingsPanelCtx<'_>) -> 
     // 언어팩 디렉터리는 처음 한 번만 읽는다.
     if ui_state.languages.is_none() {
         ui_state.languages = Some(crate::i18n::available_languages());
-    }
-
-    // Lazily load ~/.tasty/bashrc.user on first settings open.
-    // tasty 빌트인 편집(Misc 탭)은 Windows 전용이므로 비-Windows 에선 로드하지 않는다.
-    #[cfg(windows)]
-    if ui_state.bashrc_user_draft.is_none() {
-        ui_state.bashrc_user_draft = Some(crate::settings::general::load_user_bashrc());
     }
 
     let mut result = None;
@@ -1167,7 +1152,7 @@ fn build_l2_sections(ui_state: &mut SettingsUiState) -> Vec<L2Section> {
             .collect()
         }
         SettingsTab::Misc => {
-            // Scripts 는 전 플랫폼·최상단. Tastyrc(빌트인 bashrc 편집)는 Windows 전용.
+            // Scripts 가 최상단.
             let cur = ui_state.misc_sub_tab;
             let mut sections = vec![L2Section {
                 label: t("settings.misc.scripts").to_string(),
@@ -1189,14 +1174,6 @@ fn build_l2_sections(ui_state: &mut SettingsUiState) -> Vec<L2Section> {
                 separated: false,
                 selected: cur == MiscSubTab::AnomalyDetection,
                 select: L2Select::Misc(MiscSubTab::AnomalyDetection),
-            });
-            #[cfg(windows)]
-            sections.push(L2Section {
-                label: t("settings.misc.subtab.tastyrc").to_string(),
-                is_plugin: false,
-                separated: false,
-                selected: cur == MiscSubTab::Tastyrc,
-                select: L2Select::Misc(MiscSubTab::Tastyrc),
             });
             sections
         }
@@ -1678,16 +1655,13 @@ impl SettingsUiState {
         SettingsEdits {
             registry,
             clear_scrollback,
-            #[cfg(windows)]
-            bashrc: self.bashrc_user_draft.take(),
         }
     }
 }
 
 /// Cancel 클릭 시 draft 폐기 — 다음 오픈 시 디스크에서 다시 로드되도록 모든
-/// 탭의 편집 draft(bashrc/extension-priority/file-handler/hook-handler/plugin 단축키)를 지운다.
+/// 탭의 편집 draft(extension-priority/file-handler/hook-handler/plugin 단축키)를 지운다.
 fn discard_settings_draft(ui_state: &mut SettingsUiState, result: &mut Option<bool>) {
-    ui_state.bashrc_user_draft = None;
     // plugin 단축키 초안도 취소한다. App은 Save로 닫았을 때만 초안을 적용한다.
     ui_state.plugin_shortcuts_draft.clear();
     ui_state.extension_priority_draft = None;
@@ -1823,8 +1797,7 @@ fn draw_active_content(
     }
 }
 
-/// Misc 콘텐츠. Scripts(전 플랫폼) = Lua 스크립트 관리, Tastyrc(Windows) =
-/// tasty 빌트인 bashrc 편집.
+/// Misc 콘텐츠. Scripts = Lua 스크립트 관리.
 fn draw_misc_content(ui: &mut egui::Ui, draft: &mut Settings, ui_state: &mut SettingsUiState) {
     match ui_state.misc_sub_tab {
         MiscSubTab::Scripts => {
@@ -1847,20 +1820,6 @@ fn draw_misc_content(ui: &mut egui::Ui, draft: &mut Settings, ui_state: &mut Set
         }
         MiscSubTab::TaskPipeline => draw_task_pipeline_tab(ui, draft),
         MiscSubTab::AnomalyDetection => draw_anomaly_detection_tab(ui, draft),
-        #[cfg(windows)]
-        MiscSubTab::Tastyrc => draw_tastyrc_subtab(ui, &mut ui_state.bashrc_user_draft),
-        #[cfg(not(windows))]
-        MiscSubTab::Tastyrc => {
-            let th = crate::theme::theme();
-            ui.vertical_centered(|ui| {
-                vspace(ui, th.spacing_xl);
-                ui.label(
-                    egui::RichText::new(t("settings.misc.empty"))
-                        .size(th.font_size_caption.value())
-                        .color(th.text_muted().to_egui()),
-                );
-            });
-        }
     }
 }
 

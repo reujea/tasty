@@ -76,7 +76,6 @@ fn config_toml() -> String {
     format!(
         r#"[general]
 shell = "{shell}"
-shell_mode = "default"
 shell_args = ""
 startup_command = ""
 language = "en"

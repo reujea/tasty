@@ -130,7 +130,7 @@ debug 메서드는 모두 `local_only()` — plugin caller 는 호출 불가, CL
 | `appearance` | `theme` · `colors` · `general` · `display` · `tasty` · `terminal` · `explorer` |
 | `keybindings` | `general` · `workspace` · `pane` · `tab` · `surface` · `clipboard` · `zoom` · `explorer` · `scripts` · `preset` · `plugins` · `import_export` |
 | `file_handler` | `extension_mapping` · `detectors` · `handlers` · `hook_handlers` |
-| `misc` | `scripts` · `task_pipeline` / `task-pipeline` · `anomaly_detection` / `anomaly-detection` · `tastyrc` (Windows 전용) |
+| `misc` | `scripts` · `task_pipeline` / `task-pipeline` · `anomaly_detection` / `anomaly-detection` |
 | `plugins` | — (L2 가 plugin contribute page 라 정적 키 없음; 무시) |
 
 > 이 메서드 표와 `DEBUG_METHODS`의 일치를 확인하는 자동 검사는 없다.

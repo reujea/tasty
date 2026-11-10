@@ -58,7 +58,7 @@ macOS·Linux 에서 `SHELL` 은 Tasty 프로세스가 받은 값을 그대로 �
 
 윈도우 리사이즈 시 자식에 새 크기 전파 — rows 축소 시 커서 아래 빈 행 먼저 제거 후 부족분은 위쪽 행을 scrollback 으로 캡처(커서-콘텐츠 관계 보존), 확대 시 scrollback 에서 복원.
 
-**작업 디렉토리 상속**: 새 surface 생성 시 소스의 현재 cwd 를 상속(`general.inherit_cwd`, 기본 on). macOS/Linux 는 셸 PID 로 OS 직접 조회(`proc_pidinfo` / `/proc/<pid>/cwd`, OSC 7 캐시 우선), Windows 는 타 프로세스 cwd API 부재로 셸이 내보내는 OSC 7 캐시에만 의존(합성 rcfile 로 OSC 7 emit 강제). 합성 rcfile 은 OSC 0(cwd 기반 탭 제목, `__tasty_title`)도 함께 보내며, 빌트인 블록에 버전 스탬프(`# tasty-bashrc-v<N>`)를 심어 스탬프가 다른 기존 `~/.tasty/bashrc`·`bashrc.default` 를 셸 spawn 시 자동 재생성한다(`ensure_compiled_bashrc_in` — 사용자 편집 영역 `bashrc.user` 는 보존). carry 규칙은 [surface-cwd invariant](../../design/policies/cwd.md#surface-cwd-invariant).
+**작업 디렉토리 상속**: 새 surface 생성 시 소스의 현재 cwd 를 상속(`general.inherit_cwd`, 기본 on). macOS/Linux 는 셸 PID 로 OS 직접 조회(`proc_pidinfo` / `/proc/<pid>/cwd`, OSC 7 캐시 우선), Windows 는 타 프로세스 cwd API 부재로 셸이 내보내는 OSC 7 캐시에만 의존(합성 rcfile 로 OSC 7 emit 강제). 합성 rcfile 은 OSC 0(cwd 기반 탭 제목, `__tasty_title`)도 함께 보내며, 빌트인 블록에 버전 스탬프(`# tasty-bashrc-v<N>`)를 심어 스탬프가 다른 기존 `~/.tasty/bashrc.default` 를 셸 spawn 시 자동 재생성한다(`ensure_compiled_bashrc_in`). carry 규칙은 [surface-cwd invariant](../../design/policies/cwd.md#surface-cwd-invariant).
 
 ### 프로세스 종료 / 절전 복귀
 

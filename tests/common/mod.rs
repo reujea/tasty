@@ -128,7 +128,6 @@ fn write_isolated_config(isolated_home: &std::path::Path, inherit_cwd: bool, res
     let config = format!(
         r#"[general]
 shell = "{shell}"
-shell_mode = "default"
 shell_args = ""
 startup_command = ""
 language = "en"

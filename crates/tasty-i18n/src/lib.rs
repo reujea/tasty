@@ -1315,7 +1315,7 @@ mod tests {
         let deep: String = std::iter::repeat_n("verylongsegment", 40)
             .collect::<Vec<_>>()
             .join("/");
-        let reason = format!("write /{deep}/.tasty/bashrc.user: Access is denied. (os error 5)");
+        let reason = format!("write /{deep}/.tasty/config.toml: Access is denied. (os error 5)");
         assert!(reason.chars().count() > 500);
 
         let msg = fit_fragment(&reason, |r| format!("Could not save the edit: {r}"));

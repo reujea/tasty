@@ -513,7 +513,7 @@ pub enum SettingsDebugCommands {
         /// keybindings: general|workspace|pane|tab|surface|clipboard|zoom|
         /// image|preset|plugins; general: general|notifications|accessibility;
         /// terminal: general|input|mouse_capture|tui|performance; file_handler: extension_mapping|
-        /// detectors|handlers; misc: scripts|task_pipeline|tastyrc. Unknown keys keep the tab default.
+        /// detectors|handlers; misc: scripts|task_pipeline. Unknown keys keep the tab default.
         #[arg(long)]
         subtab: Option<String>,
     },
