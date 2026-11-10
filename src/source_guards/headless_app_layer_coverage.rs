@@ -52,6 +52,10 @@ const NOT_IN_HEADLESS: &[(&str, &str)] = &[
         "떼어 낼 mirror 를 만드는 remote.attach 와 attach 세션이 GUI 에만 있다",
     ),
     (
+        "remote.connect",
+        "연결할 저장된 원격 행과 그 attach 세션이 GUI 에만 있다",
+    ),
+    (
         "system.gpu_stats",
         "창마다의 GpuState 와 wgpu 전역 리포트를 센다. 헤드리스엔 GPU 컨텍스트가 없다",
     ),

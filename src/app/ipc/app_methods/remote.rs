@@ -83,6 +83,19 @@ impl App {
         send_response(&cmd.response_tx, response);
     }
 
+    /// 저장된 원격 행을 명시적으로 연결한다. 사용자가 끊은 행도 붙인다. 포커스는 옮기지 않는다.
+    pub(super) fn ipc_dispatch_remote_connect(
+        &mut self,
+        cmd: &IpcCommand,
+        caller: &host_ipc::caller::CallerContext,
+    ) {
+        let rpc_id = cmd.request.id.clone().unwrap_or(serde_json::Value::Null);
+        match params::require_u32(&cmd.request.params, "workspace_id", &rpc_id) {
+            Ok(row) => self.connect_saved_row_by_request(cmd, caller, row),
+            Err(response) => send_response(&cmd.response_tx, response),
+        }
+    }
+
     /// mirror를 만들되 로컬·원격 포커스는 옮기지 않는다.
     /// 기존 workspace는 attaching으로 즉시 응답한다. 새 workspace는 생성 결과 ID를 응답한 뒤
     /// mirror 연결을 이어 가므로 두 경우 모두 응답이 mirror 연결 완료를 뜻하지 않는다.

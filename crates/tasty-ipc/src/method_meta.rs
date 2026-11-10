@@ -638,6 +638,9 @@ pub const METHOD_TABLE: &[(&str, MethodMeta)] = {
         // remote.attach 로 붙인 mirror 만 뗀다. 원격 workspace 는 남고, 두 번째 호출은 같은 끝 상태에서
         // mirror 가 없다는 오류로 답한다. 연결 경계는 remote.attach 와 같아 권한 토큰을 요구하지 않는다.
         ("remote.disconnect", plugin(Idempotent, &[])),
+        // 저장된 원격 행만 연결한다. 사용자가 끊은 행을 다시 붙이는 명시적 요청이라 그 표지를 지운다.
+        // 연결 경계는 remote.attach 와 같아 권한 토큰을 요구하지 않고 포커스도 옮기지 않는다.
+        ("remote.connect", plugin(Idempotent, &[])),
         // ── remote.passkey.* (자격증명 CRUD) ─────────────────────────────
         // 값 마스킹은 핸들러가 보장(list/get 은 name+kind 만, 파일 내용 미반환). 등록은
         // 쓰기라 허용. 권한은 프로필과 동일 — 연결 경계 위임(docs/design/systems/memory.md#passkey-저장과-열람).

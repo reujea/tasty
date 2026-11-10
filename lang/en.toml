@@ -3106,10 +3106,17 @@ long = "List recent attach attempts refused because they targeted this instance.
 
 [cli.help._root.remote.disconnect]
 about = "Detach a mirror from the local GUI and leave the remote workspace running"
-long = "Detach a mirror from the local GUI and leave the remote workspace running.\n\nDoes what the mirror card's \"Disconnect Workspace\" menu item does: the local mirror workspace, its attach session, and its reconnect attempts are cleared, while the remote workspace and its processes keep running. Attach again later with `tasty remote attach --into-gui --workspace <remote id>`. The reply carries that remote id. Fails if the workspace is not a mirror with an attach session. Use `tasty close surface` only when the remote workspace should close too."
+long = "Detach a mirror from the local GUI and leave the remote workspace running.\n\nDoes what the mirror card's \"Disconnect Workspace\" menu item does: the local mirror workspace, its attach session, and its reconnect attempts are cleared, while the remote workspace and its processes keep running. Attach again later with `tasty remote attach --into-gui --workspace <remote id>`. A saved remote workspace row stays in the list; connect it again with `tasty remote connect --workspace <local id>`. The reply carries that remote id. Fails if the workspace is not a mirror with an attach session. Use `tasty close surface` only when the remote workspace should close too."
 
 [cli.help._root.remote.disconnect.arg.workspace]
 help = "Local id of the mirror workspace (the `[mirror]` entry in `tasty list workspaces`), not the remote id"
+
+[cli.help._root.remote.connect]
+about = "Connect a saved remote workspace row, including one the user disconnected"
+long = "Connect a saved remote workspace row, including one the user disconnected.\n\nClears the user's disconnect on that row and connects it without moving focus. Prints the accepted reply, then waits for the final result and prints it as a second line. An already connected row succeeds at once, and a row that is connecting joins that attempt. Exits with 1 if the result is not a success or does not arrive within 90 seconds. Fails at once if the workspace is not a saved remote workspace row, if its remote workspace is gone, or if its window is closed."
+
+[cli.help._root.remote.connect.arg.workspace]
+help = "Local id of the saved remote workspace row (its entry in `tasty list workspaces`), not the remote id"
 
 [cli.help._root.send]
 about = "Send text, key, or queue message"

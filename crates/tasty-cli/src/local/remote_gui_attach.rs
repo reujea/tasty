@@ -1,6 +1,7 @@
 //! `remote attach --into-gui --ssh|--profile`: 실행 중인 GUI가 터널을 열어 mirror를 만들게 한다.
 //! 기존 workspace는 접수 뒤 `run.result`로 연결 결과를 기다린다. 새 workspace는 응답에 run이 없어
-//! 생성 결과 한 줄로 끝난다. 출력·종료 코드 처리는 [`super::run_wait`]를 따른다.
+//! 생성 결과 한 줄로 끝난다. `remote connect`도 저장된 원격 행의 연결 결과를 같은 방식으로 기다린다.
+//! 출력·종료 코드 처리는 [`super::run_wait`]를 따른다.
 
 use std::time::Duration;
 

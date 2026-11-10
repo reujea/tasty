@@ -144,7 +144,10 @@ fn notice_reason(kind: tasty_remote::refusal::RowNoticeKind) -> String {
 fn refusal(row: u32, reason: &str) -> RowRefusal {
     let message = match reason {
         "window_parked" => "the window that holds this remote workspace is closed; it does not connect until the window is open again".to_owned(),
-        "user_disconnected" => "this remote workspace was disconnected by the user; connect it from the remote workspace row".to_owned(),
+        "user_disconnected" => format!(
+            "this remote workspace was disconnected by the user; connect it with remote.connect (tasty remote connect --workspace {row}) or from the remote workspace row"
+        ),
+        "not_a_saved_row" => format!("workspace {row} is not a saved remote workspace row"),
         "connect_timeout" => format!(
             "this remote workspace did not connect within {} seconds",
             ROW_WAIT_LIMIT.as_secs()
@@ -390,7 +393,7 @@ impl App {
 
     /// `remote.attach`가 같은 연결 대상의 저장된 원격 행을 가리키면 새 mirror를 만들지 않고 그 행을
     /// 연결한다. 연결된 행이면 바로 성공으로 끝난 run을 준다. 이미 연결 중인 행에 합류하면 그 시도가
-    /// 끝날 때 run에 같은 결과를 남긴다.
+    /// 끝날 때 run에 같은 결과를 남긴다. 사용자가 끊은 행은 다시 붙이지 않는다.
     pub(crate) fn attach_to_saved_row(
         &mut self,
         cmd: &crate::ipc::server::IpcCommand,
@@ -398,13 +401,39 @@ impl App {
         row: u32,
         remote_ws: u32,
     ) {
+        self.answer_saved_row_connect(cmd, caller, row, Some(remote_ws));
+    }
+
+    /// `remote.connect`: 저장된 원격 행을 명시적으로 연결한다. 사용자가 끊은 표지를 지우고 붙는다.
+    /// 응답과 run 은 `remote.attach` 의 저장 행 합류와 같다.
+    pub(crate) fn connect_saved_row_by_request(
+        &mut self,
+        cmd: &crate::ipc::server::IpcCommand,
+        caller: &crate::ipc::caller::CallerContext,
+        row: u32,
+    ) {
+        self.answer_saved_row_connect(cmd, caller, row, None);
+    }
+
+    /// 저장된 원격 행을 연결하고 접수 응답과 run 을 준다. `remote_ws` 가 있으면 `remote.attach` 의 합류,
+    /// 없으면 `remote.connect` 다.
+    fn answer_saved_row_connect(
+        &mut self,
+        cmd: &crate::ipc::server::IpcCommand,
+        caller: &crate::ipc::caller::CallerContext,
+        row: u32,
+        remote_ws: Option<u32>,
+    ) {
         use crate::ipc::protocol::JsonRpcResponse;
         let id = cmd.request.id.clone().unwrap_or(serde_json::Value::Null);
-        let refused = if self.row_closed_elsewhere(row) {
+        let explicit = remote_ws.is_none();
+        let refused = if self.saved_row_binding(row).is_none() {
+            Some("not_a_saved_row")
+        } else if self.row_closed_elsewhere(row) {
             Some("remote_workspace_missing")
         } else if !self.row_has_window(row) {
             Some("window_parked")
-        } else if self.remote.user_disconnected.contains(&row) {
+        } else if !explicit && self.remote.user_disconnected.contains(&row) {
             Some("user_disconnected")
         } else {
             None
@@ -420,11 +449,14 @@ impl App {
         }
         let connected = self.row_facts(row).connected();
         let joining = !connected && self.remote.active.contains(&row);
-        let run = crate::request_runs::begin(
-            "remote.attach",
-            crate::request_runs::reader_of(caller),
-            serde_json::json!({ "remote_workspace": remote_ws, "workspace_id": row }),
-        );
+        let (method, input) = match remote_ws {
+            Some(remote_ws) => (
+                "remote.attach",
+                serde_json::json!({ "remote_workspace": remote_ws, "workspace_id": row }),
+            ),
+            None => ("remote.connect", serde_json::json!({ "workspace_id": row })),
+        };
+        let run = crate::request_runs::begin(method, crate::request_runs::reader_of(caller), input);
         if connected {
             crate::request_runs::finish(
                 run,
@@ -436,21 +468,18 @@ impl App {
             // 진행 중인 시도의 최종 결과를 이 run에도 남긴다.
             self.row_waits.join_run(row, Some(run));
         } else {
-            self.connect_saved_row_with_run(row, false, Some(run));
+            self.connect_saved_row_with_run(row, explicit, Some(run));
         }
-        crate::ipc::server::send_response(
-            &cmd.response_tx,
-            JsonRpcResponse::success(
-                id,
-                serde_json::json!({
-                    "attaching": !connected,
-                    "remote_workspace": remote_ws,
-                    "workspace_id": row,
-                    "saved_row": true,
-                    "run": run,
-                }),
-            ),
-        );
+        let mut reply = serde_json::json!({
+            "attaching": !connected,
+            "workspace_id": row,
+            "run": run,
+        });
+        if let Some(remote_ws) = remote_ws {
+            reply["remote_workspace"] = remote_ws.into();
+            reply["saved_row"] = true.into();
+        }
+        crate::ipc::server::send_response(&cmd.response_tx, JsonRpcResponse::success(id, reply));
     }
 
     /// 저장된 원격 행의 연결 상태 이름. `workspace.list`의 `remote_state`다.
@@ -658,6 +687,9 @@ mod tests {
             "workspace.update",
             "workspace.close",
             "remote.disconnect",
+            "remote.connect",
+            "remote.workspaces",
+            "remote.refusals",
             "attach.agent_call",
             "attach.agent_commit",
             "surface.meta.set",
@@ -837,3 +869,8 @@ mod tests {
 #[cfg(all(test, target_os = "linux"))]
 #[path = "row_use_app_tests.rs"]
 mod app_tests;
+
+// `remote.connect` 를 실제 `App` 의 행 상태로 잰다. 위 app_tests 와 같은 이유로 Linux 에서만 컴파일한다.
+#[cfg(all(test, target_os = "linux"))]
+#[path = "row_connect_app_tests.rs"]
+mod connect_app_tests;

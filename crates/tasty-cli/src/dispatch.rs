@@ -128,7 +128,9 @@ fn classify(command: &Commands) -> Result<Option<Box<dyn ClientCommand + '_>>> {
             remote_port_mode,
             no_reconnect: *no_reconnect,
         }),
-        Commands::Remote { command: remote } if remote.gui_opens_tunnel() => {
+        Commands::Remote { command: remote }
+            if remote.gui_opens_tunnel() || matches!(remote, RemoteCommands::Connect { .. }) =>
+        {
             Box::new(crate::local::remote_gui_attach::RemoteGuiAttach { command })
         }
         Commands::Remote {

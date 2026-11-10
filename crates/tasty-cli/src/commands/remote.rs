@@ -205,11 +205,28 @@ pub enum RemoteCommands {
     /// local mirror workspace, its attach session, and its reconnect attempts
     /// are cleared, while the remote workspace and its processes keep running.
     /// Attach again later with `tasty remote attach --into-gui --workspace
-    /// <remote id>`. The reply carries that remote id. Fails if the workspace
-    /// is not a mirror with an attach session. Use `tasty close surface` only
-    /// when the remote workspace should close too.
+    /// <remote id>`. A saved remote workspace row stays in the list; connect it
+    /// again with `tasty remote connect --workspace <local id>`. The reply
+    /// carries that remote id. Fails if the workspace is not a mirror with an
+    /// attach session. Use `tasty close surface` only when the remote workspace
+    /// should close too.
     Disconnect {
         /// Local id of the mirror workspace (the `[mirror]` entry in
+        /// `tasty list workspaces`), not the remote id.
+        #[arg(long)]
+        workspace: u32,
+    },
+    /// Connect a saved remote workspace row, including one the user disconnected.
+    ///
+    /// Clears the user's disconnect on that row and connects it without moving
+    /// focus. Prints the accepted reply, then waits for the final result and
+    /// prints it as a second line. An already connected row succeeds at once,
+    /// and a row that is connecting joins that attempt. Exits with 1 if the
+    /// result is not a success or does not arrive within 90 seconds. Fails at
+    /// once if the workspace is not a saved remote workspace row, if its remote
+    /// workspace is gone, or if its window is closed.
+    Connect {
+        /// Local id of the saved remote workspace row (its entry in
         /// `tasty list workspaces`), not the remote id.
         #[arg(long)]
         workspace: u32,

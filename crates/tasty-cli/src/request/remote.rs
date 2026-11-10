@@ -147,4 +147,13 @@ mod tests {
         assert_eq!(method, "remote.disconnect");
         assert_eq!(params, json!({ "workspace_id": 7 }));
     }
+
+    /// Given 저장된 원격 행의 로컬 id, When `tasty remote connect --workspace` 로 부르면,
+    /// Then `remote.connect` 에 그 id 를 `workspace_id` 로 보낸다.
+    #[test]
+    fn connect_sends_the_local_saved_row_id() {
+        let (method, params) = sent(&["tasty", "remote", "connect", "--workspace", "7"]);
+        assert_eq!(method, "remote.connect");
+        assert_eq!(params, json!({ "workspace_id": 7 }));
+    }
 }

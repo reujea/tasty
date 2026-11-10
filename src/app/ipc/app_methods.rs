@@ -107,6 +107,10 @@ impl App {
             self.ipc_dispatch_remote_disconnect(cmd);
             return IpcStep::Handled;
         }
+        if cmd.request.method == "remote.connect" {
+            self.ipc_dispatch_remote_connect(cmd, caller);
+            return IpcStep::Handled;
+        }
         if cmd.request.method == "remote.refusals" {
             self.ipc_dispatch_remote_refusals(cmd);
             return IpcStep::Handled;

@@ -84,6 +84,10 @@ fn remote_command_to_method_params(command: &RemoteCommands) -> (&'static str, s
             "remote.disconnect",
             serde_json::json!({ "workspace_id": workspace }),
         ),
+        RemoteCommands::Connect { workspace } => (
+            "remote.connect",
+            serde_json::json!({ "workspace_id": workspace }),
+        ),
         RemoteCommands::NewWorkspace { .. } => {
             debug_assert!(
                 false,
