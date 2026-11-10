@@ -18,7 +18,11 @@ pub(crate) fn table(font: &[u8], tag: &[u8; 4]) -> (usize, usize) {
 
 /// 표 레코드 이름을 바꿔 파서가 그 표를 찾지 못하게 한다.
 pub(crate) fn without_table(tag: &[u8; 4]) -> Vec<u8> {
-    let mut font = VALID.to_vec();
+    remove_table(VALID.to_vec(), tag)
+}
+
+/// `without_table` 을 다른 글꼴에 적용한다.
+pub(crate) fn remove_table(mut font: Vec<u8>, tag: &[u8; 4]) -> Vec<u8> {
     let record = table_record(&font, tag);
     font[record] = b'x';
     font

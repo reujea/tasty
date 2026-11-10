@@ -42,14 +42,28 @@ const PROBE_LINE_HEIGHT: f32 = 17.0;
 /// 빈 글리프만 고르는 일을 피하려고 cmap 전체에 고르게 퍼뜨려 보는 글자 수의 상한.
 const PROBE_CHARS: usize = 32;
 
-/// 그 글자의 칸에 찍히는 픽셀이 있는지 본다. 글리프 0 은 글자가 없다는 뜻이라 세지 않는다.
-fn draws_char(system: &mut FontSystem, swash: &mut SwashCache, family: &str, ch: char) -> bool {
+/// 그 면으로 그 글자의 칸에 찍히는 픽셀이 있는지 본다. 글리프 0 은 글자가 없다는 뜻이라 세지
+/// 않고, 다른 면이 그린 글리프도 세지 않는다.
+fn draws_char(
+    system: &mut FontSystem,
+    swash: &mut SwashCache,
+    face: &fontdb::FaceInfo,
+    ch: char,
+) -> bool {
+    let Some((family, _)) = face.families.first() else {
+        return false;
+    };
+    let attrs = Attrs::new()
+        .family(Family::Name(family))
+        .weight(face.weight)
+        .style(face.style)
+        .stretch(face.stretch);
     let mut buffer = Buffer::new(system, Metrics::new(PROBE_SIZE, PROBE_LINE_HEIGHT));
     let mut text = [0u8; 4];
     buffer.set_text(
         system,
         ch.encode_utf8(&mut text),
-        &Attrs::new().family(Family::Name(family)),
+        &attrs,
         Shaping::Advanced,
         None,
     );
@@ -57,7 +71,7 @@ fn draws_char(system: &mut FontSystem, swash: &mut SwashCache, family: &str, ch:
     let keys: Vec<_> = buffer
         .layout_runs()
         .flat_map(|run| run.glyphs.iter())
-        .filter(|glyph| glyph.glyph_id != 0)
+        .filter(|glyph| glyph.glyph_id != 0 && glyph.font_id == face.id)
         .map(|glyph| glyph.physical((0.0, 0.0), 1.0).cache_key)
         .collect();
     keys.into_iter().any(|key| {
@@ -119,17 +133,12 @@ fn face_draws(system: &mut FontSystem, swash: &mut SwashCache, id: fontdb::ID) -
         return false;
     };
     let chars = probe_chars(&font);
-    let Some(family) = system
-        .db()
-        .face(id)
-        .and_then(|face| face.families.first())
-        .map(|(name, _)| name.clone())
-    else {
+    let Some(face) = system.db().face(id).cloned() else {
         return false;
     };
     chars
         .into_iter()
-        .any(|ch| draws_char(system, swash, &family, ch))
+        .any(|ch| draws_char(system, swash, &face, ch))
 }
 
 /// 이 바이트에서 `pick` 이 고른 면을 판정하고 그 면의 번호를 돌려준다.
@@ -147,6 +156,10 @@ fn judge_picked(
         .face(picked)
         .map(|face| face.index)
         .ok_or(TerminalFontRejection::CannotDraw)?;
+    // 고른 면만 남겨 같은 family 의 다른 면이 대신 그려 통과시키지 못하게 한다.
+    for id in ids.iter().filter(|id| **id != picked) {
+        db.remove_face(*id);
+    }
     let mut system = FontSystem::new_with_locale_and_db("en".to_owned(), db);
     let mut swash = SwashCache::new();
     if face_draws(&mut system, &mut swash, picked) {
@@ -306,6 +319,21 @@ mod tests {
         assert_eq!(bytes_verdict(VALID.to_vec()), "ok");
         assert_eq!(bytes_verdict(negative_height()), "ok");
         assert_eq!(bytes_verdict(glyf_garbage()), "ok");
+    }
+
+    /// 고른 면이 그리지 못하면 같은 family 의 다른 면이 그려도 통과시키지 않는다. 고른 0번은
+    /// Bold 라 보통 굵기로 셰이핑하면 1번 Regular 가 대신 골린다.
+    #[test]
+    fn a_broken_chosen_face_is_not_covered_by_a_sibling() {
+        use crate::test_fonts::remove_table;
+        let fonts = collection(&[
+            remove_table(crate::D2CODING_BOLD_TTF.to_vec(), b"hhea"),
+            VALID.to_vec(),
+        ]);
+        assert!(matches!(
+            judge_terminal_bytes(fonts, ""),
+            Err(TerminalFontRejection::CannotDraw)
+        ));
     }
 
     /// 판정은 터미널이 쓸 면을 잰다. 첫 면이 그리지 못하면 다른 면이 정상이어도 거절한다.

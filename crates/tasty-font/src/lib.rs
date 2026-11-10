@@ -53,7 +53,10 @@ fn usable_custom_file(path: &str, family: &str) -> Option<(Vec<u8>, u32)> {
 }
 
 /// Keeps the face numbered `index` and the faces of its family under
-/// `CUSTOM_FILE_FAMILY` and drops the rest. Returns the kept IDs and the
+/// `CUSTOM_FILE_FAMILY` and drops the rest. The chosen face takes the regular
+/// slot, so plain text uses the face the settings row judged and the preview
+/// draws; it also keeps its own weight and style when those differ. A face of
+/// the family in either of those slots is dropped. Returns the kept IDs and the
 /// family the chosen face had.
 fn rename_chosen_faces(
     db: &mut cosmic_text::fontdb::Database,
@@ -66,21 +69,41 @@ fn rename_chosen_faces(
         .find(|face| face.index == index)
         .and_then(|face| face.families.first())
         .map(|(name, _)| name.clone());
-    let mut kept = Vec::new();
+    let faces: Vec<_> = ids.iter().filter_map(|id| db.face(*id).cloned()).collect();
     for id in ids {
-        let Some(mut info) = db.face(*id).cloned() else {
-            continue;
-        };
         db.remove_face(*id);
+    }
+    let regular = (
+        cosmic_text::fontdb::Weight::NORMAL,
+        cosmic_text::fontdb::Style::Normal,
+    );
+    let variant = |face: &cosmic_text::fontdb::FaceInfo| (face.weight, face.style);
+    let Some(chosen) = faces.iter().find(|face| face.index == index).cloned() else {
+        return (Vec::new(), chosen_family);
+    };
+    let mut kept = Vec::new();
+    let mut push = |db: &mut cosmic_text::fontdb::Database,
+                    mut info: cosmic_text::fontdb::FaceInfo| {
+        info.families = vec![(
+            CUSTOM_FILE_FAMILY.to_string(),
+            cosmic_text::fontdb::Language::English_UnitedStates,
+        )];
+        kept.push(db.push_face_info(info));
+    };
+    let mut as_regular = chosen.clone();
+    (as_regular.weight, as_regular.style) = regular;
+    as_regular.stretch = cosmic_text::fontdb::Stretch::Normal;
+    push(db, as_regular);
+    if variant(&chosen) != regular {
+        push(db, chosen.clone());
+    }
+    for info in faces {
         let same_family = chosen_family
             .as_deref()
             .is_some_and(|name| judge::has_family(&info, name));
-        if info.index == index || same_family {
-            info.families = vec![(
-                CUSTOM_FILE_FAMILY.to_string(),
-                cosmic_text::fontdb::Language::English_UnitedStates,
-            )];
-            kept.push(db.push_face_info(info));
+        let taken = variant(&info) == regular || variant(&info) == variant(&chosen);
+        if info.index != index && same_family && !taken {
+            push(db, info);
         }
     }
     (kept, chosen_family)
@@ -884,6 +907,27 @@ mod tests {
             cosmic_text::Weight::NORMAL
         );
         assert_eq!(db.face(bold).unwrap().weight, cosmic_text::Weight::BOLD);
+    }
+
+    /// 같은 family 의 Bold 가 0번, Regular 가 1번인 묶음에서 family 를 비우면 판정·미리보기 번호
+    /// (`terminal_face_index`)·터미널 보통 글자가 모두 0번이다. 굵게도 0번이다.
+    #[test]
+    fn the_chosen_face_draws_plain_text() {
+        use crate::test_fonts::{TempFont, collection};
+        let bytes = collection(&[D2CODING_BOLD_TTF.to_vec(), D2CODING_REGULAR_TTF.to_vec()]);
+        assert_eq!(judge::judge_terminal_bytes(bytes.clone(), "").unwrap(), 0);
+        assert_eq!(judge::terminal_face_index(&bytes, ""), 0);
+        let file = TempFont::new(&bytes);
+        let mut config = FontConfig::from_request(&with_file(&file.path(), ""));
+        for bold in [false, true] {
+            let id = drawn_face(&mut config, "M", bold);
+            assert!(config.custom_faces.contains(&id), "bold {bold}");
+            assert_eq!(
+                config.font_system.db().face(id).unwrap().index,
+                0,
+                "bold {bold}"
+            );
+        }
     }
 
     /// 묶음 파일은 family 가 가리키는 면을 쓰고, 아니면 첫 면을 쓴다.
