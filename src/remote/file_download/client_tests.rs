@@ -477,3 +477,94 @@ fn a_request_without_an_answer_times_out_after_the_reply_limit() {
     assert!(no_done(&events));
     assert_eq!(runs(root.path()), 0);
 }
+
+/// 크기 `size` 인 파일의 stat 을 받은 뒤 첫 조각 요청까지 진행한다. (client, 요청 id, 폴더)
+fn after_stat(size: u64) -> (Client, ConnectionEpoch, u64, tempfile::TempDir) {
+    let root = tempfile::tempdir().unwrap();
+    let mut client = Client::new(root.path().to_path_buf());
+    let epoch = epoch();
+    client.sync(&[view(&epoch, true, true)]);
+    client.start(WS, "/remote/f".into()).unwrap();
+    let stat = one_request(&client.sync(&[view(&epoch, true, true)]));
+    client.receive(
+        &epoch,
+        stat,
+        DownloadOutcome::Stat {
+            name: "f".into(),
+            identity: FileIdentity {
+                size,
+                modified_ns: None,
+                file_id: None,
+            },
+        },
+    );
+    let read = one_request(&client.sync(&[view(&epoch, true, true)]));
+    (client, epoch, read, root)
+}
+
+fn chunk(offset: u64, bytes: &[u8], eof: bool) -> DownloadOutcome {
+    DownloadOutcome::Chunk {
+        offset,
+        data_b64: base64::engine::general_purpose::STANDARD.encode(bytes),
+        eof,
+    }
+}
+
+#[test]
+fn chunks_that_disagree_with_the_size_fail_as_a_protocol_error() {
+    // 크기보다 짧은데 끝이라고 한다.
+    let (mut client, epoch, read, root) = after_stat(4);
+    client.receive(&epoch, read, chunk(0, b"ab", true));
+    let events = client.take_events();
+    assert!(
+        matches!(
+            events.as_slice(),
+            [Event::Failed {
+                failure: Failure::Protocol,
+                ..
+            }]
+        ),
+        "short eof: {events:?}"
+    );
+    assert_eq!(runs(root.path()), 0);
+
+    // 크기에 닿았는데 끝이라고 하지 않는다.
+    let (mut client, epoch, read, root) = after_stat(4);
+    client.receive(&epoch, read, chunk(0, b"abcd", false));
+    let events = client.take_events();
+    assert!(
+        matches!(
+            events.as_slice(),
+            [Event::Failed {
+                failure: Failure::Protocol,
+                ..
+            }]
+        ),
+        "size without eof: {events:?}"
+    );
+    assert_eq!(runs(root.path()), 0);
+
+    // 크기를 넘는다.
+    let (mut client, epoch, read, root) = after_stat(4);
+    client.receive(&epoch, read, chunk(0, b"abcdef", true));
+    let events = client.take_events();
+    assert!(
+        matches!(
+            events.as_slice(),
+            [Event::Failed {
+                failure: Failure::Protocol,
+                ..
+            }]
+        ),
+        "oversized: {events:?}"
+    );
+    assert_eq!(runs(root.path()), 0);
+
+    // 맞는 조각은 끝난다(대조군).
+    let (mut client, epoch, read, _root) = after_stat(4);
+    client.receive(&epoch, read, chunk(0, b"abcd", true));
+    assert!(matches!(
+        client.take_events().as_slice(),
+        [Event::Done { .. }]
+    ));
+}
