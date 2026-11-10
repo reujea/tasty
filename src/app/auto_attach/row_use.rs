@@ -183,15 +183,27 @@ struct RowFacts {
     row: u32,
     saved: bool,
     phase: Option<SessionState>,
+    /// 세션 소켓이 살아 있는지. 재동기화(Resync) 중이면 단계가 Connected여도 거짓이다.
+    live: bool,
+    /// 이 행의 연결 시도가 진행 중인지.
+    active: bool,
     has_window: bool,
     user_disconnected: bool,
+    notice: Option<tasty_remote::refusal::RowNoticeKind>,
     waiting: usize,
+}
+
+impl RowFacts {
+    /// 화면의 "연결됨"과 같은 판정이다. 재동기화 중인 행은 연결됐다고 보지 않는다.
+    fn connected(&self) -> bool {
+        self.phase == Some(SessionState::Connected) && self.live
+    }
 }
 
 /// 연결을 일으키는 요청의 처리. `Wait`이면 호출자가 연결을 시작한다.
 fn decide(facts: RowFacts) -> RowUse {
     let row = facts.row;
-    if !facts.saved || facts.phase == Some(SessionState::Connected) {
+    if !facts.saved || facts.connected() {
         return RowUse::Pass;
     }
     if !facts.has_window {
@@ -205,6 +217,36 @@ fn decide(facts: RowFacts) -> RowUse {
         return RowUse::Refuse(refusal(row, "busy"));
     }
     RowUse::Wait(row)
+}
+
+/// 보류한 요청의 행이 지금 어디에 있는지.
+fn progress(facts: &RowFacts) -> Progress {
+    if !facts.saved {
+        // 행이 닫혔으면 요청을 그대로 실행해 "대상 없음"으로 답하게 한다.
+        return Progress::Ready;
+    }
+    if !facts.has_window {
+        return Progress::Failed("window_parked".into());
+    }
+    if facts.connected() {
+        return Progress::Ready;
+    }
+    if facts.active
+        || matches!(
+            facts.phase,
+            Some(SessionState::Reconnecting | SessionState::Connected)
+        )
+    {
+        return Progress::Waiting;
+    }
+    if facts.user_disconnected {
+        return Progress::Failed("user_disconnected".into());
+    }
+    Progress::Failed(
+        facts
+            .notice
+            .map_or_else(|| "unresolved".to_owned(), notice_reason),
+    )
 }
 
 /// 그 행을 가진 engine에 창이 있는지. parked engine에는 mirror를 설치할 View가 없다.
@@ -270,18 +312,28 @@ impl App {
         let Some(row) = self.request_row_target(request) else {
             return RowUse::Pass;
         };
-        let decision = decide(RowFacts {
-            row,
-            saved: self.saved_row_binding(row).is_some(),
-            phase: self.row_session_phase(row),
-            has_window: self.row_has_window(row),
-            user_disconnected: self.remote.user_disconnected.contains(&row),
-            waiting: self.row_waits.waiting.len(),
-        });
-        if decision == RowUse::Wait(row) {
+        let facts = self.row_facts(row);
+        // 재동기화 중인 행은 이미 다시 붙는 중이라 새 연결을 시작하지 않고 기다린다.
+        let resyncing = facts.phase == Some(SessionState::Connected);
+        let decision = decide(facts);
+        if decision == RowUse::Wait(row) && !resyncing {
             self.connect_saved_row(row, false);
         }
         decision
+    }
+
+    fn row_facts(&self, row: u32) -> RowFacts {
+        RowFacts {
+            row,
+            saved: self.saved_row_binding(row).is_some(),
+            phase: self.row_session_phase(row),
+            live: self.row_link_live(row),
+            active: self.remote.active.contains(&row),
+            has_window: self.row_has_window(row),
+            user_disconnected: self.remote.user_disconnected.contains(&row),
+            notice: self.remote.refusals.notice(row).map(|notice| notice.kind),
+            waiting: self.row_waits.waiting.len(),
+        }
     }
 
     /// 판정 결과대로 요청을 보관하거나 거절한다. `Pass`는 호출자가 그대로 실행한다.
@@ -469,30 +521,7 @@ impl App {
     }
 
     fn row_wait_progress(&self, row: u32) -> Progress {
-        if self.saved_row_binding(row).is_none() {
-            // 행이 닫혔으면 요청을 그대로 실행해 "대상 없음"으로 답하게 한다.
-            return Progress::Ready;
-        }
-        if !self.row_has_window(row) {
-            return Progress::Failed("window_parked".into());
-        }
-        let phase = self.row_session_phase(row);
-        if phase == Some(SessionState::Connected) {
-            return Progress::Ready;
-        }
-        if self.remote.active.contains(&row) || phase == Some(SessionState::Reconnecting) {
-            return Progress::Waiting;
-        }
-        if self.remote.user_disconnected.contains(&row) {
-            return Progress::Failed("user_disconnected".into());
-        }
-        let reason = self
-            .remote
-            .refusals
-            .notice(row)
-            .map(|notice| notice_reason(notice.kind))
-            .unwrap_or_else(|| "unresolved".to_owned());
-        Progress::Failed(reason)
+        progress(&self.row_facts(row))
     }
 
     /// 연결이 끝난 행의 요청을 이어서 실행하고, 실패하거나 상한을 넘은 요청에 답한다.
@@ -626,10 +655,28 @@ mod tests {
             row: 9,
             saved: true,
             phase,
+            live: true,
+            active: false,
             has_window,
             user_disconnected: false,
+            notice: None,
             waiting: 0,
         }
+    }
+
+    /// Given 손실 뒤 재동기화 중인 행(단계 Connected, 소켓 끊김), When 그 행을 쓰는 요청이 오면,
+    /// Then 판정은 기다리고 보류한 요청도 다시 붙을 때까지 기다린다. 다시 붙으면 실행한다.
+    #[test]
+    fn a_resyncing_row_waits_like_the_screen_says_and_runs_once_live() {
+        let resyncing = RowFacts {
+            live: false,
+            ..facts(Some(SessionState::Connected), true)
+        };
+        assert_eq!(progress(&resyncing), Progress::Waiting);
+        assert_eq!(decide(resyncing), RowUse::Wait(9));
+        let live = facts(Some(SessionState::Connected), true);
+        assert_eq!(progress(&live), Progress::Ready);
+        assert_eq!(decide(live), RowUse::Pass);
     }
 
     #[test]
