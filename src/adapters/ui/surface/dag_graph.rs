@@ -9,5 +9,8 @@ pub mod node;
 pub mod render;
 pub mod view;
 
+#[cfg(test)]
+mod drawer_tests;
+
 pub use render::{DagChrome, draw_dag_graph};
 pub use view::{DagGraphViewStore, DagPollRequest, DagTarget};
