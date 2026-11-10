@@ -1009,6 +1009,11 @@ impl MainView {
                 Some(id) if id >= 200 => {
                     this.move_workspace_to_category(engine, ws_idx, &move_targets, id);
                 }
+                Some(id) => {
+                    if let Some(ws) = engine.workspace_at(ws_idx) {
+                        super::saved_row_menu::handle(&mut this.state, ws.id, id);
+                    }
+                }
                 _ => {}
             }
         });
@@ -1099,9 +1104,12 @@ impl MainView {
         }
 
         // 카테고리 토글 상태와 무관하게 "닫기"는 항상 최하단.
-        items.extend(workspace_close_menu_items(
-            engine.workspace_at(ws_idx).is_some_and(|ws| ws.mirror),
-        ));
+        match super::saved_row_menu::saved_row_state(engine, ws_idx) {
+            Some(state) => items.extend(super::saved_row_menu::saved_row_menu_items(state)),
+            None => items.extend(workspace_close_menu_items(
+                engine.workspace_at(ws_idx).is_some_and(|ws| ws.mirror),
+            )),
+        }
 
         (items, move_targets)
     }
@@ -2003,7 +2011,8 @@ impl MainView {
     }
 }
 
-/// workspace 메뉴의 마지막 묶음. mirror에는 서버를 유지하는 연결 끊기(8)를 서버 닫기(6) 위에 둔다.
+/// workspace 메뉴의 마지막 묶음. 에이전트 mirror에는 서버를 유지하는 연결 끊기(8)를 서버 닫기(6) 위에
+/// 둔다. 저장된 원격 행은 `saved_row_menu`의 묶음을 쓴다.
 fn workspace_close_menu_items(mirror: bool) -> Vec<crate::platform::native_menu::MenuItem> {
     use crate::platform::native_menu::MenuItem;
     let mut items = vec![MenuItem::separator()];

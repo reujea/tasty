@@ -216,6 +216,7 @@ fn route_non_domain(
         | Intent::RemoteBrowser(_)
         | Intent::AttachSizeSync(_)
         | Intent::DisconnectMirror { .. }
+        | Intent::SavedRow { .. }
         | Intent::PatchSettings(_)
         | Intent::Engine(_)
         | Intent::Frame(_)

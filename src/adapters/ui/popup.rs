@@ -1,5 +1,6 @@
 pub(crate) mod approval;
 pub(crate) mod command_palette;
+pub(crate) mod confirm_close_remote;
 pub(crate) mod confirm_delete_category;
 pub(crate) mod confirm_force_detach_workspace;
 pub(crate) mod convert;

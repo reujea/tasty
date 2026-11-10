@@ -79,6 +79,16 @@ pub enum AttachSizeSyncAction {
     Dismiss { workspace_id: u32 },
 }
 
+/// 저장된 원격 행의 메뉴·팝업 동작.
+#[cfg(feature = "gui")]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SavedRowAction {
+    /// 연결하지 않은 행을 사용자 요청으로 연결한다. 팝업의 Connect·Reconnect와 같다.
+    Connect,
+    /// 행을 이 Tasty에서 없앤다. 원격 workspace와 그 프로세스는 남는다.
+    CloseLocally,
+}
+
 #[derive(Debug, Clone)]
 #[allow(clippy::large_enum_variant)] // reason: 명령마다 Box를 할당하는 비용을 피한다
 pub enum Intent {
@@ -96,6 +106,12 @@ pub enum Intent {
     /// mirror 워크스페이스의 로컬 연결만 끊는다. 서버 워크스페이스와 프로세스는 유지한다.
     #[cfg(feature = "gui")]
     DisconnectMirror { workspace_id: u32 },
+    /// 저장된 원격 행의 메뉴·팝업 동작. App이 그 행의 연결 상태에 적용한다.
+    #[cfg(feature = "gui")]
+    SavedRow {
+        workspace_id: u32,
+        action: SavedRowAction,
+    },
     #[cfg(feature = "gui")]
     PatchSettings(crate::app::engine_action::SettingsPatch),
     /// 일반 명령. 일반 dispatch만 실행한다.

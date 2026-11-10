@@ -1,9 +1,11 @@
-//! 저장된 원격 행의 연결 상태 전환(끊긴 행, 재연결 시간)과 그 행을 가진 engine 찾기.
+//! 저장된 원격 행의 연결 상태 전환(끊긴 행, 재연결 시간)과 세션 없는 행의 정리.
 //! 세션 연결·재연결 자체는 `connection`에 있다.
 
+use super::connection::{remove_mirror_workspace_from_engine, remove_mirror_workspace_from_parked};
 use crate::app::App;
 use crate::runtime::engine_session::EngineId;
 use crate::view::ui::View as _;
+use std::collections::HashMap;
 use tasty_remote::client_session::SessionState;
 
 impl App {
@@ -43,6 +45,27 @@ impl App {
                 break;
             }
         }
+    }
+
+    /// 세션 없이 남은 저장된 원격 행(아직 붙지 않았거나 첫 연결에 실패한 행)을 지운다.
+    pub(super) fn remove_unattached_row(&mut self, row: u32) {
+        let engine = self.saved_remote_row_engine(row);
+        let none = HashMap::new();
+        let mut removed = false;
+        for (_, main, mut engine) in self.engines_mut().window_pairs() {
+            if remove_mirror_workspace_from_engine(&mut engine, &mut main.state, row, &none) {
+                main.mark_dirty();
+                removed = true;
+                break;
+            }
+        }
+        if !removed {
+            remove_mirror_workspace_from_parked(self.engines_mut(), row, &none);
+        }
+        if let Some(engine) = engine {
+            self.journal.admit_remote_row(engine, row, true);
+        }
+        crate::app::auto_attach::forget_row(&mut self.remote, row);
     }
 
     /// 이 workspace를 저장된 원격 행으로 가진 engine.

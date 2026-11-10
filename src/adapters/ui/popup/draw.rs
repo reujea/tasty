@@ -756,6 +756,7 @@ impl PopupManager {
                 | super::transfer::TRANSFER_PROGRESS_POPUP_ID
                 | super::transfer::TRANSFER_ERROR_POPUP_ID
                 | super::explorer_conflict::EXPLORER_CONFLICT_POPUP_ID
+                | super::confirm_close_remote::CONFIRM_CLOSE_REMOTE_POPUP_ID
         )
     }
 }

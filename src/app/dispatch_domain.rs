@@ -67,6 +67,9 @@ impl App {
             self.disconnect_mirror_workspace(*workspace_id);
             return Ok(());
         }
+        if self.take_saved_row_intent(&dispatched.body) {
+            return Ok(());
+        }
         if let Intent::CapturePreset {
             kind,
             source: target,
@@ -171,6 +174,9 @@ impl App {
         let id = source.engine();
         let continuation =
             self.view_continuation(id, after_create.clone(), tutorial_preparation.clone());
+        if self.hold_saved_row_close(id, &origin, &intent) {
+            return Ok(());
+        }
         if let Some(session) = self.engines.get(id)
             && session
                 .mirror_workspace_index_for_structural(&intent)

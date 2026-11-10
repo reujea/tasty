@@ -22,6 +22,7 @@ mod mouse;
 mod move_menu;
 mod preset_actions;
 pub(crate) mod redraw;
+mod saved_row_menu;
 pub(crate) mod selection;
 mod shutdown;
 pub(crate) mod vi_copy;

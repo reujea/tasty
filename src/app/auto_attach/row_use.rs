@@ -380,6 +380,8 @@ impl App {
     /// 저장된 원격 행의 연결 상태 이름. `workspace.list`의 `remote_state`다.
     fn row_state_name(&self, row: u32) -> &'static str {
         match self.row_session_phase(row) {
+            // 손실 뒤 재동기화(Resync)는 단계가 Connected여도 소켓을 놓은 동안이라 재연결 중으로 본다.
+            Some(SessionState::Connected) if !self.row_link_live(row) => "reconnecting",
             Some(SessionState::Connected) => "connected",
             Some(SessionState::Reconnecting) => "reconnecting",
             Some(SessionState::Disconnected) => "disconnected",
@@ -387,6 +389,20 @@ impl App {
             None if self.remote.pending_reactivation.contains(&row) => "failed",
             None => "not_connected",
         }
+    }
+
+    /// 행 세션의 소켓이 살아 있는지. 원격 위치 표시의 재연결 판정(`locations_of`)과 같은 기준이다.
+    fn row_link_live(&self, row: u32) -> bool {
+        self.remote
+            .sessions
+            .iter()
+            .find(|session| session.state.saved_row == Some(row))
+            .is_some_and(|session| {
+                !session
+                    .transport
+                    .disconnected
+                    .load(std::sync::atomic::Ordering::Acquire)
+            })
     }
 
     /// 각 engine에 저장된 원격 행의 연결 상태를 싣는다.

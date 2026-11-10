@@ -36,6 +36,9 @@ pub(crate) struct EngineRead<'a> {
     explorer_hosts: &'a HashMap<u32, crate::remote::state::ExplorerRemoteHost>,
     #[cfg(feature = "gui")]
     mirror_locations: &'a HashMap<u32, crate::remote::state::MirrorLocation>,
+    /// 저장된 원격 행의 연결 상태 이름(`workspace.list`의 `remote_state`와 같은 값).
+    #[cfg(feature = "gui")]
+    row_states: &'a HashMap<u32, &'static str>,
     #[cfg(feature = "gui")]
     mirror_capture_pastes: &'a HashMap<u32, crate::remote::state::MirrorCapturePaste>,
     surfaces: &'a HashMap<u32, Box<dyn Surface>>,
@@ -110,6 +113,8 @@ impl<'a> EngineRef<'a> {
             #[cfg(feature = "gui")]
             mirror_locations: &self.remote.mirror_locations,
             #[cfg(feature = "gui")]
+            row_states: &self.remote.row_states,
+            #[cfg(feature = "gui")]
             mirror_capture_pastes: &self.remote.mirror_capture_pastes,
             surfaces: &self.runtime.surfaces,
             mirror_cwd: &self.remote.mirror_surface_cwd,
@@ -136,6 +141,18 @@ impl EngineRead<'_> {
     }
 
     /// surface 가 든 mirror workspace 의 원격 위치. 로컬 surface 이거나 연결 정보가 없으면 None.
+    /// 저장된 원격 행의 연결 상태. 아직 상태가 실리지 않은 행은 연결 전으로 본다.
+    pub(crate) fn remote_row_state(&self, workspace_id: u32) -> tasty_ui_widgets::RemoteRowState {
+        use tasty_ui_widgets::RemoteRowState as S;
+        match self.row_states.get(&workspace_id).copied() {
+            Some("connected") => S::Connected,
+            Some("connecting") => S::Connecting,
+            Some("reconnecting") => S::Reconnecting,
+            Some("disconnected") => S::Disconnected,
+            _ => S::NotConnected,
+        }
+    }
+
     pub(crate) fn mirror_location_of(
         &self,
         surface_id: u32,

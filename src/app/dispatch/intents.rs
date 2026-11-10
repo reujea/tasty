@@ -139,6 +139,7 @@ impl App {
             Intent::RemoteBrowser(_)
                 | Intent::AttachSizeSync(_)
                 | Intent::DisconnectMirror { .. }
+                | Intent::SavedRow { .. }
                 | Intent::PatchSettings(_)
                 | Intent::ForwardMirror { .. }
                 | Intent::Domain(_)
@@ -308,6 +309,7 @@ impl App {
             | Intent::RemoteBrowser(_)
             | Intent::AttachSizeSync(_)
             | Intent::DisconnectMirror { .. }
+            | Intent::SavedRow { .. }
             | Intent::PatchSettings(_)
             | Intent::ForwardMirror { .. }
             | Intent::Domain(_)

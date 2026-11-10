@@ -98,7 +98,97 @@ pub(super) fn cancel_mirror_attempts(
     cancelled
 }
 
+/// 저장된 원격 행 닫기 확인이 어느 형태로 열리는지.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct SavedRowClose {
+    pub(crate) row: u32,
+    /// 마지막 탭·pane·surface 닫기로 workspace가 비는 경우다. 확인에 그 한 줄을 더한다.
+    pub(crate) last: bool,
+}
+
+/// 사용자 구조 요청이 저장된 원격 행의 workspace를 원격에서 닫게 되는지 판정한다.
+/// workspace 닫기와, 지우는 surface가 그 workspace의 전부인 탭·pane·surface 닫기가 해당한다.
+pub(crate) fn saved_row_close(
+    core: &crate::core::CoreState,
+    intent: &crate::app::command::DomainIntent,
+) -> Option<SavedRowClose> {
+    use crate::app::command::DomainIntent as D;
+    let index = crate::core::state::mirror_workspace_index_for_structural(core, intent)?;
+    let workspace = core.workspace_at(index)?;
+    if !workspace.is_saved_remote_row() {
+        return None;
+    }
+    let removed: Vec<u32> = match intent {
+        D::CloseWorkspace { .. } => {
+            return Some(SavedRowClose {
+                row: workspace.id,
+                last: false,
+            });
+        }
+        D::CloseSurface { surface_id, .. } => vec![*surface_id],
+        D::CloseTab { tab_id } => {
+            let pane = core.find_pane_by_id(core.find_pane_for_tab(*tab_id)?)?;
+            pane.tabs
+                .iter()
+                .find(|tab| tab.id == *tab_id)?
+                .all_surface_ids()
+        }
+        D::ClosePane { pane_id } => core.find_pane_by_id(*pane_id)?.all_surface_ids(),
+        _ => return None,
+    };
+    let all = workspace.all_surface_ids();
+    (!all.is_empty() && all.iter().all(|surface| removed.contains(surface))).then_some(
+        SavedRowClose {
+            row: workspace.id,
+            last: true,
+        },
+    )
+}
+
 impl App {
+    /// 저장된 원격 행의 연결·로컬 닫기 요청이면 처리하고 true다.
+    pub(crate) fn take_saved_row_intent(&mut self, body: &crate::intent::Intent) -> bool {
+        let crate::intent::Intent::SavedRow {
+            workspace_id,
+            action,
+        } = body
+        else {
+            return false;
+        };
+        self.apply_saved_row_action(*workspace_id, *action);
+        true
+    }
+
+    /// 사용자가 저장된 원격 행을 원격에서 닫게 되는 요청이면 확인 대화를 열고 true다. 확인에서 다시 온
+    /// 요청과 에이전트 요청은 바로 보낸다.
+    pub(crate) fn hold_saved_row_close(
+        &mut self,
+        id: crate::runtime::engine_session::EngineId,
+        origin: &crate::intent::IntentOrigin,
+        intent: &crate::app::command::DomainIntent,
+    ) -> bool {
+        if !origin.is_user()
+            || crate::adapters::ui::popup::confirm_close_remote::is_confirmed(origin)
+        {
+            return false;
+        }
+        let Some(close) = self
+            .engines
+            .get(id)
+            .and_then(|session| saved_row_close(session.core, intent))
+        else {
+            return false;
+        };
+        if let Some(context) = self.engines_mut().resolve(id) {
+            crate::adapters::ui::popup::confirm_close_remote::open(
+                context.state,
+                close,
+                intent.clone(),
+            );
+        }
+        true
+    }
+
     /// 서버 workspace 닫기를 보내기 전에 연결 상태를 확인한다. 다른 op에는 None이다.
     pub(crate) fn workspace_close_refusal(&self, op: &StructuralOp) -> Option<CloseRefusal> {
         let StructuralOp::CloseWorkspace { anchor_surface_id } = op else {
@@ -216,6 +306,49 @@ impl App {
             "mirror disconnect: saved remote row {row} (cancelled attempts {cancelled})"
         );
         true
+    }
+
+    /// 저장된 원격 행의 메뉴·팝업 동작을 적용한다. 행이 이미 없으면 아무것도 하지 않는다.
+    pub(crate) fn apply_saved_row_action(
+        &mut self,
+        row: u32,
+        action: crate::intent::SavedRowAction,
+    ) {
+        if self.saved_row_binding(row).is_none() {
+            tracing::info!("saved remote row {row}: gone before {action:?}");
+            return;
+        }
+        match action {
+            crate::intent::SavedRowAction::Connect => self.connect_saved_row(row, true),
+            crate::intent::SavedRowAction::CloseLocally => self.close_saved_row_locally(row),
+        }
+    }
+
+    /// 저장된 원격 행을 이 Tasty에서 없앤다. 붙어 있으면 Detach만 보내고 원격 workspace는 남긴다.
+    /// 끊긴 상태여도 되고, 진행 중인 시도와 이 행을 기다리던 요청의 연결도 함께 끝난다.
+    fn close_saved_row_locally(&mut self, row: u32) {
+        let cancelled =
+            cancel_mirror_attempts(&mut self.state.mirror_attempts, &mut self.remote, row);
+        for session in self.engines.all_sessions_mut() {
+            if session.core_state.has_workspace(row) {
+                session
+                    .remote
+                    .row_tokens
+                    .insert(row, std::sync::Arc::new(()));
+            }
+        }
+        if let Some(index) = self
+            .remote
+            .sessions
+            .iter()
+            .position(|session| session.state.local_workspace == row)
+        {
+            let session = self.remote.sessions.remove(index);
+            self.end_mirror_locally(session);
+        } else {
+            self.remove_unattached_row(row);
+        }
+        tracing::info!("saved remote row {row} closed locally (cancelled attempts {cancelled})");
     }
 
     /// 서버 닫기 성공이나 사용자 연결 끊기로 끝난 mirror를 정리한다. 원격발 끊김과 달리 재연결하지 않는다.

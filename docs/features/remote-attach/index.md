@@ -299,7 +299,7 @@ move-surface 는 **source/target 이 같은 mirror workspace 안에 있을 때�
 
 ### mirror 닫기와 연결 끊기
 
-mirror 카드의 우클릭 메뉴는 마지막 묶음에 **워크스페이스 연결 끊기**(메뉴 id 8)와 **워크스페이스 닫기**(id 6)를 함께 둔다. 로컬 카드에는 닫기만 있다. 두 항목은 메뉴를 연 workspace ID로 대상을 다시 찾으며, 그 사이 대상이 사라졌으면 아무것도 하지 않는다. 서버 쪽 **강제 끊기**(id 7, 이 인스턴스의 workspace를 점유한 다른 client를 내보낸다)와 다르다.
+에이전트 mirror(CLI·IPC로 만든 mirror) 카드의 우클릭 메뉴는 마지막 묶음에 **워크스페이스 연결 끊기**(메뉴 id 8)와 **워크스페이스 닫기**(id 6)를 함께 둔다. 로컬 카드에는 닫기만 있다. 저장된 원격 행은 아래 "저장된 원격 행의 메뉴와 닫기"의 묶음을 쓴다. 두 항목은 메뉴를 연 workspace ID로 대상을 다시 찾으며, 그 사이 대상이 사라졌으면 아무것도 하지 않는다. 서버 쪽 **강제 끊기**(id 7, 이 인스턴스의 workspace를 점유한 다른 client를 내보낸다)와 다르다.
 
 - **워크스페이스 닫기(서버 닫기)**: 사이드바 메뉴뿐 아니라 `close_workspace` 단축키와, 마지막 surface·pane에서 workspace 닫기로 넘어가는 `close_surface`·`close_pane`·`close_active` 단축키(더블 탭 포함)도 같은 서버 닫기다. 로컬 workspace의 "마지막 것을 닫으면 workspace가 닫힌다"와 같은 규칙을 따르며, 서버를 유지하려면 연결 끊기를 쓴다. `DomainIntent::CloseWorkspace`가 mirror를 가리키면 `StructuralOp::CloseWorkspace{anchor_surface_id}`로 forward한다. 서버는 그 연결이 점유한 workspace를 `intent.close`의 workspace 대상으로 닫고 PTY를 끝낸다. 사용자 요청이면 서버의 닫은 항목 기록에 남는다.
   - 보내기 전에 연결을 확인한다. 연결이 없거나 재연결 중이면 `attach.toast.workspace_close_reconnecting`, 서버 descriptor에 `ipc.stream.workspace-close`가 없으면 `attach.toast.workspace_close_unsupported`, 같은 mirror의 닫기가 회신을 기다리면 `attach.toast.workspace_close_pending`을 띄우고 보내지 않는다.
@@ -311,6 +311,23 @@ mirror 카드의 우클릭 메뉴는 마지막 묶음에 **워크스페이스 �
   - 재연결 중에도 끊을 수 있다. 늦게 도착한 재연결 결과는 세션·epoch가 없어 설치되지 않는다.
   - 저장된 원격 행은 남는다. 행을 **연결 끊김** 상태로 두고(`enter_disconnected`), 사용자가 끊은 행은 다시 활성화해도 자동으로 연결하지 않는다(`Remote.user_disconnected`, 아래 "사용자 대기 갈래"). 원격 연결 팝업에서 같은 행을 다시 고르면 연결한다. 네트워크 단절의 자동 재연결은 그대로다.
   - 마지막 workspace였으면 창을 닫지 않고 기본 터미널 workspace를 만든다. 사용자의 닫은 항목 기록에는 넣지 않는다.
+
+### 저장된 원격 행의 메뉴와 닫기
+
+저장된 원격 행의 우클릭 메뉴는 일반 workspace 메뉴 끝에 연결 묶음과 닫기 묶음을 둔다(`src/view/main/saved_row_menu.rs`). 카테고리가 꺼져 있어도 열린다. 켜짐 규칙과 문구 키는 갤러리 표본과 같은 `tasty_ui_widgets::remote_row_menu`가 정한다. 할 수 없는 항목은 숨기지 않고 끈다.
+
+| 항목 | 켜지는 상태 | 동작 |
+|---|---|---|
+| Connect · Reconnect(id 9) | 연결 끊김, 연결 전 | 사용자 요청으로 연결한다(`Intent::SavedRow{Connect}`). 이번 실행에서 형상이 있었던 행은 Reconnect 문구다 |
+| Disconnect(id 8) | 연결됨, 연결 중, 재연결 중 | 위 "워크스페이스 연결 끊기"와 같다. 시도 중이면 그 시도를 취소한다 |
+| Close locally(id 10) | 항상 | 행을 이 Tasty에서 없앤다(`Intent::SavedRow{CloseLocally}`). 붙어 있으면 `Detach`만 보내고, 원격 workspace와 프로세스는 남는다. 연결 중인 시도도 취소한다 |
+| Close remote workspace…(id 11) | 연결됨 | 확인 대화를 연 뒤 위 서버 닫기를 보낸다. 성공하면 행도 사라진다 |
+
+- 행의 상태는 App이 engine마다 싣는 `remote.row_states`를 읽는다(`EngineRead::remote_row_state`). 세션 단계가 `Connected`여도 손실 뒤 재동기화(Resync)로 소켓을 놓은 동안은 재연결 중으로 본다.
+- `close_workspace` 단축키를 저장된 원격 행에서 누르면 로컬에서 닫기와 같다(`state::workspace::close_workspace_at`).
+- **원격 닫기 확인**(`src/adapters/ui/popup/confirm_close_remote.rs`): Window 범위, scrim 가운데, 폭 `info-modal-width`(440)다. 경고 글리프와 제목(행 이름), 본문(프로필), Cancel(기본 포커스)과 위험 버튼을 그린다. Esc·Cancel·바깥 클릭은 아무것도 보내지 않는다. 콘텐츠는 갤러리와 같은 `tasty_ui_widgets::close_remote_confirm`이다.
+- 사용자가 보낸 구조 요청이 저장된 원격 행을 비우면(workspace 닫기, 또는 지우는 surface가 그 workspace의 전부인 탭·pane·surface 닫기) dispatch가 요청을 보내지 않고 같은 확인을 연다(`workspace_close::saved_row_close`). 마지막 탭·pane 닫기에서 열리면 본문 앞에 `remote.row.close_remote.last` 한 줄을 더한다. 확인하면 담아 둔 요청을 이 팝업 출처(`UserSource::Menu("confirm_close_remote")`)로 다시 보내고, dispatch는 그 출처를 다시 묻지 않는다. 에이전트 요청(IPC `workspace.close` 등)은 묻지 않고 서버로 보낸다.
+- 다른 곳(다른 client, 원격 Tasty)에서 원격 workspace가 닫히면 행은 남고 안내로 이유를 보인다.
 
 ### 서버(피점유)측 비-holder 구조 변경 차단
 
@@ -579,7 +596,10 @@ bulk 파일 전송과 mirror 터미널 이미지 붙여넣기 업로드에 대�
 - Given 점유 상태 When 로컬 사용자가 점유 테두리의 강제 끊기 버튼을 누르거나 사이드바 확인 팝업에서 확인 Then holder 가 종료되고 대상이 일반 surface 로 복귀한다.
 - Given release 빌드 When 어떤 호출자든 `attach.force_detach`·`attach.force_detach_workspace` 를 보내거나 `tasty remote attach --force-detach` 를 실행 Then 알 수 없는 메서드·인자 오류로 끝나고 점유는 유지된다.
 - Given workspace 가 점유된 상태 When 로컬 사용자가 사이드바에서 그 행을 우클릭 Then **강제 끊기** 항목이 보인다.
-- Given 연결된 mirror 카드와 로컬 카드 When 각각 우클릭 Then mirror 에는 **워크스페이스 연결 끊기** 와 **워크스페이스 닫기** 가 함께 있고 로컬 카드에는 연결 끊기가 없다.
+- Given 연결된 에이전트 mirror 카드와 로컬 카드 When 각각 우클릭 Then mirror 에는 **워크스페이스 연결 끊기** 와 **워크스페이스 닫기** 가 함께 있고 로컬 카드에는 연결 끊기가 없다.
+- Given 저장된 원격 행 When 우클릭 Then 끝에 Connect 또는 Reconnect · Disconnect 와 Close locally · Close remote workspace… 가 있고, 연결 상태에서 할 수 없는 항목은 꺼져 보인다.
+- Given 연결된 저장 행 When **Close locally** Then 행이 사라지고 원격 workspace 는 원격에 그대로 있다. 끊긴 행에서도 된다.
+- Given 연결된 저장 행 When **Close remote workspace…** 또는 마지막 탭 닫기 Then 확인 대화가 열리고, 확인해야 원격 workspace 가 닫히며 행도 사라진다. 마지막 탭에서 열린 확인에는 마지막 탭 안내 줄이 있다.
 - Given 연결된 mirror R When **워크스페이스 닫기** Then 서버 목록에서 R 만 사라지고 R 의 프로세스가 끝나며, 성공 회신 뒤 client 의 R mirror 와 세션이 정리된다. 다른 서버 workspace 와 로컬 workspace 는 유지된다.
 - Given 서버가 닫기를 거절하거나 capability 가 없는 구 서버 When **워크스페이스 닫기** Then mirror 는 남고 실패·미지원 안내가 뜬다. 회신 전에 연결이 끝나면 결과를 모른다고 안내하며 성공으로 표시하지 않는다.
 - Given 연결된 mirror R When **워크스페이스 연결 끊기** Then client 의 R mirror 만 사라지고 서버의 R 과 프로세스는 같은 ID 로 남으며 서버 점유가 풀린다. 저장된 원격 행이면 행은 연결 끊김으로 남는다. 다시 attach 하면 같은 workspace 와 출력에 접근한다.

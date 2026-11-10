@@ -179,6 +179,9 @@ pub struct DialogState {
     pub(crate) pending_category_delete: Option<crate::model::WorkspaceCategoryId>,
     /// 강제 연결 해제 대상 워크스페이스 ID. 팝업이 열린 동안 재정렬될 수 있어 인덱스를 쓰지 않는다.
     pub(crate) pending_force_detach_workspace: Option<crate::model::WorkspaceId>,
+    /// 저장된 원격 행을 원격에서 닫기 전 확인 대기. 확인하면 담아 둔 요청을 다시 보낸다.
+    pub(crate) pending_close_remote:
+        Option<crate::adapters::ui::popup::confirm_close_remote::PendingCloseRemote>,
     /// 등록 해시와 다른 Lua 스크립트를 실행할지 확인하는 보류 상태.
     pub(crate) pending_script_confirm: Option<PendingScriptConfirm>,
     /// 원격 파일 전송 진행 상태. 모든 행이 끝나면 지운다.
@@ -258,6 +261,7 @@ impl DialogState {
             preset_apply_target_category: None,
             pending_category_delete: None,
             pending_force_detach_workspace: None,
+            pending_close_remote: None,
             pending_script_confirm: None,
             transfer_progress: None,
             transfer_error: VecDeque::new(),

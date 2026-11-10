@@ -345,6 +345,18 @@ impl RequestContext {
             return false;
         };
         let workspace_id = workspace.id;
+        // 사용자가 저장된 원격 행을 닫으면 이 Tasty에서만 닫는다. 원격 닫기는 행 메뉴의 확인을 거친다.
+        #[cfg(feature = "gui")]
+        if origin.is_user() && workspace.is_saved_remote_row() {
+            self.dispatch_intent(
+                crate::intent::Intent::SavedRow {
+                    workspace_id,
+                    action: crate::intent::SavedRowAction::CloseLocally,
+                }
+                .from_user_context_menu(),
+            );
+            return true;
+        }
         let targets = workspace.all_surface_ids();
         if self.refuse_if_hard_occupied(engine, targets) {
             return false;

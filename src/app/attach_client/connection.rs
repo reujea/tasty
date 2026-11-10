@@ -629,7 +629,7 @@ fn finish_reconnected_view(state: &mut crate::state::MainViewState, local_worksp
 }
 
 /// 이 engine에 해당 workspace가 있으면 mirror 자원을 함께 정리하고 활성 인덱스를 보정한다.
-fn remove_mirror_workspace_from_engine(
+pub(super) fn remove_mirror_workspace_from_engine(
     engine: &mut EngineMut<'_>,
     state: &mut crate::state::MainViewState,
     local_workspace: u32,
@@ -665,7 +665,7 @@ fn remove_mirror_workspace_from_engine(
 }
 
 /// 출력 적용·고아 판정과 같은 parked 순회를 사용한다. 첫 항목만 확인해서는 안 된다.
-fn remove_mirror_workspace_from_parked(
+pub(super) fn remove_mirror_workspace_from_parked(
     mut engines: EngineScanMut<'_>,
     local_workspace: u32,
     remote_to_local: &HashMap<u32, u32>,

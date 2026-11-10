@@ -111,3 +111,77 @@ fn disconnect_cancels_only_that_mirrors_reconnect_attempts() {
     assert_eq!(cancel_mirror_attempts(&mut attempts, &mut remote, 20), 0);
     remote.finish_attempt(&other);
 }
+
+fn saved_row_workspace(id: u32, saved: bool) -> crate::model::Workspace {
+    let mut workspace = crate::model::Workspace::new_with_terminal_marker(
+        id,
+        "remote".into(),
+        id + 1,
+        id + 2,
+        id + 3,
+    );
+    workspace.mirror = true;
+    if saved {
+        workspace.remote_row = Some(crate::model::RemoteBinding {
+            profile: "gx10".into(),
+            remote_workspace: 4,
+        });
+    }
+    workspace
+}
+
+/// 저장된 원격 행을 비우는 사용자 닫기만 확인 대상이다. 마지막 탭·pane·surface 닫기는 그 한 줄을 더한다.
+#[test]
+fn closing_what_empties_a_saved_row_asks_and_a_partial_close_does_not() {
+    use crate::app::command::DomainIntent as D;
+    let (_, mut session) = crate::state::tests::test_state();
+    session
+        .core_state
+        .push_mirror_workspace(saved_row_workspace(900, true));
+    session
+        .core_state
+        .push_mirror_workspace(saved_row_workspace(950, false));
+    let core = &session.core_state;
+    let ask = |intent: D| saved_row_close(core, &intent);
+    let closed = |last| Some(SavedRowClose { row: 900, last });
+    assert_eq!(ask(D::CloseWorkspace { workspace_id: 900 }), closed(false));
+    assert_eq!(ask(D::ClosePane { pane_id: 901 }), closed(true));
+    assert_eq!(ask(D::CloseTab { tab_id: 902 }), closed(true));
+    assert_eq!(
+        ask(D::CloseSurface {
+            surface_id: 903,
+            presentation: None,
+        }),
+        closed(true)
+    );
+    // 에이전트 mirror와 로컬 workspace는 묻지 않는다.
+    assert_eq!(ask(D::CloseWorkspace { workspace_id: 950 }), None);
+    let local = core.local_workspaces()[0].id;
+    assert_eq!(
+        ask(D::CloseWorkspace {
+            workspace_id: local
+        }),
+        None
+    );
+}
+
+/// 탭이 둘인 저장 행에서 한 탭을 닫는 것은 workspace를 비우지 않아 묻지 않는다.
+#[test]
+fn closing_one_of_two_tabs_of_a_saved_row_does_not_ask() {
+    use crate::app::command::DomainIntent as D;
+    let (_, mut session) = crate::state::tests::test_state();
+    let mut workspace = saved_row_workspace(900, true);
+    let extra = crate::model::Pane::new_with_terminal_marker(1, 912, 913);
+    let tab = extra.tabs.into_iter().next().expect("one tab");
+    workspace
+        .pane_layout_mut()
+        .find_pane_mut(901)
+        .expect("the row's pane")
+        .tabs
+        .push(tab);
+    session.core_state.push_mirror_workspace(workspace);
+    assert_eq!(
+        saved_row_close(&session.core_state, &D::CloseTab { tab_id: 902 }),
+        None
+    );
+}
