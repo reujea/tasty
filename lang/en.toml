@@ -1533,6 +1533,10 @@ reloading = "Reloading with scripts allowed"
 action_loading = "Available when the document finishes loading"
 marker_blocked = "Scripts blocked. Click to show the notice again."
 marker_allowed = "Scripts allowed for this document until Tasty restarts"
+title_web = "Scripts on this page are blocked"
+body_web = "This page may use scripts; buttons and menus that need JavaScript may not respond. Allowing applies only to this showing of the page; reloading asks again."
+action_web = "Allow scripts on this page"
+marker_allowed_web = "Scripts allowed for this showing of the page; reloading blocks them again"
 
 [banner.html_remote]
 title = "Remote content in this document is blocked"
@@ -1542,6 +1546,9 @@ reloading = "Reloading with remote content allowed"
 action_loading = "Available when the document finishes loading"
 marker_blocked = "Remote content blocked. Click for details."
 marker_allowed = "Remote content allowed for this document until Tasty restarts"
+title_web = "Page loaded; remote content blocked"
+body_web = "Stylesheets, images, fonts, frames and media from the network are blocked, so the page may look incomplete. Allowing applies only to this showing of the page; reloading blocks remote content again. Permission to run scripts is requested separately."
+marker_allowed_web = "Remote content allowed for this showing of the page; reloading blocks it again"
 
 [port_scanner]
 heading = "Listening ports"

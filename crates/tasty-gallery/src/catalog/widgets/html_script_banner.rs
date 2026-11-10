@@ -91,7 +91,7 @@ pub(crate) fn caption(ui: &mut egui::Ui, theme: &Theme, text: &str) {
 
 /// 스트립 왼쪽 끝에 탭 하나(디자인 `HsTab`)를 그린다.
 /// 라벨 뒤 오른쪽 끝에 고정 cluster [마커 · 닫기 슬롯]을 두고, 라벨이 먼저 말줄임된다.
-fn tab(
+pub(crate) fn tab(
     ui: &mut egui::Ui,
     theme: &Theme,
     strip: egui::Rect,
@@ -210,7 +210,7 @@ pub(crate) fn tab_strip(
 }
 
 /// WebView가 그릴 페이지 자리(디자인 `HsPage`). tasty chrome이 아닌 중립 대역이다.
-pub(crate) fn page_stand_in(ui: &egui::Ui, theme: &Theme, rect: egui::Rect) {
+pub(crate) fn page_stand_in(ui: &egui::Ui, theme: &Theme, rect: egui::Rect, label: &str) {
     let painter = ui.painter_at(rect);
     painter.rect_filled(rect, 0.0, theme.surface("terminal").focused_bg.to_egui());
     let pad = theme.spacing_md.value();
@@ -219,7 +219,7 @@ pub(crate) fn page_stand_in(ui: &egui::Ui, theme: &Theme, rect: egui::Rect) {
     let label = painter.text(
         egui::pos2(rect.left() + pad, rect.top() + pad),
         egui::Align2::LEFT_TOP,
-        "WebView — report.html",
+        format!("WebView — {label}"),
         egui::FontId::monospace(theme.font_size_micro.value()),
         theme.text_placeholder().to_egui(),
     );
@@ -315,7 +315,7 @@ fn html_surface(
     if failed {
         failed_stand_in(ui, theme, page);
     } else {
-        page_stand_in(ui, theme, page);
+        page_stand_in(ui, theme, page, "report.html");
     }
 }
 

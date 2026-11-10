@@ -9,6 +9,7 @@ pub mod divider;
 pub mod hint_text;
 pub mod html_remote_banner;
 pub mod html_script_banner;
+pub mod html_web_page;
 pub mod layout_1depth;
 pub mod layout_2depth;
 pub mod multi_tab_layout;

@@ -50,14 +50,30 @@ const ACTION_LOADING: &str = "banner.html_remote.action_loading";
 const MARKER_BLOCKED: &str = "banner.html_remote.marker_blocked";
 const MARKER_ALLOWED: &str = "banner.html_remote.marker_allowed";
 const SCRIPT_MARKER_ALLOWED: &str = "banner.html_script.marker_allowed";
+/// `http(s)` 페이지(web) 문구. 그 밖의 키는 로컬 문서와 공유한다.
+const TITLE_WEB: &str = "banner.html_remote.title_web";
+const BODY_WEB: &str = "banner.html_remote.body_web";
+const MARKER_ALLOWED_WEB: &str = "banner.html_remote.marker_allowed_web";
+pub(super) const SCRIPT_MARKER_BLOCKED: &str = "banner.html_script.marker_blocked";
+pub(super) const SCRIPT_MARKER_ALLOWED_WEB: &str = "banner.html_script.marker_allowed_web";
+
+/// web 예제의 탭 라벨·주소·페이지 라벨. 디자인 `RC_WEB`.
+pub(super) const WEB_LABEL: &str = "Getting started";
+pub(super) const WEB_ADDRESS: &str = "https://docs.example.com/guide/getting-started";
+const WEB_PAGE: &str = "docs.example.com";
 
 const LOCAL_ADDRESS: &str = "~/reports/q3/report.html";
 const MIRROR_ADDRESS: &str = "build-eu:~/reports/q3/report.html";
 
-fn remote_view(state: HtmlRemoteBannerState, hover: bool) -> HtmlRemoteBannerView<'static> {
+/// 원격 안내. `web`이면 `http(s)` 페이지 문구(제목·본문)를 쓴다.
+pub(super) fn remote_view(
+    state: HtmlRemoteBannerState,
+    hover: bool,
+    web: bool,
+) -> HtmlRemoteBannerView<'static> {
     HtmlRemoteBannerView {
-        title: t(TITLE),
-        body: t(BODY),
+        title: t(if web { TITLE_WEB } else { TITLE }),
+        body: t(if web { BODY_WEB } else { BODY }),
         action: t(ACTION),
         reloading: t(RELOADING),
         loading_tooltip: t(ACTION_LOADING),
@@ -67,16 +83,31 @@ fn remote_view(state: HtmlRemoteBannerState, hover: bool) -> HtmlRemoteBannerVie
     }
 }
 
-/// 스크립트 안내. 원격 안내가 함께 보이면 `body_remote`를 쓴다.
-fn script_view(state: HtmlScriptBannerState, with_remote: bool) -> HtmlScriptBannerView<'static> {
+/// 스크립트 안내. 원격 안내가 함께 보이면 `body_remote`를 쓴다. `web`이면 페이지 문구를 쓰고
+/// `body_remote`는 쓰지 않는다(페이지에서는 두 안내가 함께 보이지 않는다).
+pub(super) fn script_view(
+    state: HtmlScriptBannerState,
+    with_remote: bool,
+    web: bool,
+) -> HtmlScriptBannerView<'static> {
     HtmlScriptBannerView {
-        title: t("banner.html_script.title"),
-        body: t(if with_remote {
+        title: t(if web {
+            "banner.html_script.title_web"
+        } else {
+            "banner.html_script.title"
+        }),
+        body: t(if web {
+            "banner.html_script.body_web"
+        } else if with_remote {
             "banner.html_script.body_remote"
         } else {
             "banner.html_script.body"
         }),
-        action: t("banner.html_script.action"),
+        action: t(if web {
+            "banner.html_script.action_web"
+        } else {
+            "banner.html_script.action"
+        }),
         reloading: t("banner.html_script.reloading"),
         loading_tooltip: t("banner.html_script.action_loading"),
         state,
@@ -85,11 +116,17 @@ fn script_view(state: HtmlScriptBannerState, with_remote: bool) -> HtmlScriptBan
     }
 }
 
-fn marker_view(kind: HtmlRemoteMarkerKind, hover: bool) -> HtmlRemoteMarkerView<'static> {
+/// 주소 칸 끝 표지. `web`이면 allowed 툴팁만 페이지 문구다.
+pub(super) fn marker_view(
+    kind: HtmlRemoteMarkerKind,
+    hover: bool,
+    web: bool,
+) -> HtmlRemoteMarkerView<'static> {
     HtmlRemoteMarkerView {
         kind,
         tooltip: t(match kind {
             HtmlRemoteMarkerKind::Blocked => MARKER_BLOCKED,
+            HtmlRemoteMarkerKind::Allowed if web => MARKER_ALLOWED_WEB,
             HtmlRemoteMarkerKind::Allowed => MARKER_ALLOWED,
         }),
         force_hover: hover,
@@ -97,7 +134,7 @@ fn marker_view(kind: HtmlRemoteMarkerKind, hover: bool) -> HtmlRemoteMarkerView<
     }
 }
 
-fn labels() -> HtmlAddressLabels<'static> {
+pub(super) fn labels() -> HtmlAddressLabels<'static> {
     HtmlAddressLabels {
         placeholder: t("html_address.placeholder"),
         back: t("html_address.back"),
@@ -136,20 +173,41 @@ fn address_view(
     }
 }
 
+/// `http(s)` 페이지의 주소 띠(kind `Web`). `loading`이면 새로고침이 진행 중으로 보인다.
+pub(super) fn web_address_view(
+    loading: bool,
+    marker: Option<HtmlRemoteMarkerView<'static>>,
+) -> HtmlAddressView<'static> {
+    HtmlAddressView {
+        address: WEB_ADDRESS,
+        committed_address: WEB_ADDRESS,
+        kind: HtmlAddressKind::Web,
+        can_back: true,
+        can_forward: false,
+        loading,
+        disconnected: false,
+        skipped: None,
+        remote_marker: marker,
+        focus: false,
+        labels: labels(),
+    }
+}
+
 /// 주소 띠 하나를 `width` 폭으로 그린다. 예제라 편집 상태는 매 프레임 새로 만든다.
-fn address_band(
+/// 원격 표지를 그렸으면 그 칸을 돌려준다.
+pub(super) fn address_band(
     ui: &mut egui::Ui,
     theme: &Theme,
     salt: &str,
     width: LogicalPx,
     view: &HtmlAddressView,
-) {
+) -> Option<egui::Rect> {
     let mut state = HtmlAddressState::default();
-    html_address_bar(ui, theme, ui.id().with(salt), width, &mut state, view);
+    html_address_bar(ui, theme, ui.id().with(salt), width, &mut state, view).remote_marker_rect
 }
 
 /// 원격 CSS·이미지가 빠진 페이지 자리(디자인 `RcUnstyledPage`). tasty chrome이 아닌 중립 대역이다.
-fn unstyled_page(ui: &egui::Ui, theme: &Theme, rect: egui::Rect) {
+fn unstyled_page(ui: &egui::Ui, theme: &Theme, rect: egui::Rect, label: &str) {
     let painter = ui.painter_at(rect);
     painter.rect_filled(rect, 0.0, theme.surface("terminal").focused_bg.to_egui());
     let pad = theme.spacing_md.value();
@@ -158,7 +216,7 @@ fn unstyled_page(ui: &egui::Ui, theme: &Theme, rect: egui::Rect) {
     let label = painter.text(
         egui::pos2(rect.left() + pad, rect.top() + pad),
         egui::Align2::LEFT_TOP,
-        "WebView — report.html · remote CSS + images not loaded",
+        format!("WebView — {label} · remote CSS + images not loaded"),
         egui::FontId::monospace(theme.font_size_micro.value()),
         theme.text_placeholder().to_egui(),
     );
@@ -205,34 +263,52 @@ fn unstyled_page(ui: &egui::Ui, theme: &Theme, rect: egui::Rect) {
 
 /// 변형 하나의 입력(디자인 `HtmlRemoteSurfaceG`의 prop).
 #[derive(Clone, Copy, Default)]
-struct Variant {
-    remote: Option<HtmlRemoteBannerState>,
-    script: Option<HtmlScriptBannerState>,
-    remote_marker: Option<HtmlRemoteMarkerKind>,
-    script_marker: Option<HtmlScriptMarkerKind>,
-    size: bool,
-    styled: bool,
-    mirror: bool,
+pub(super) struct Variant {
+    pub(super) remote: Option<HtmlRemoteBannerState>,
+    pub(super) script: Option<HtmlScriptBannerState>,
+    pub(super) remote_marker: Option<HtmlRemoteMarkerKind>,
+    pub(super) script_marker: Option<HtmlScriptMarkerKind>,
+    pub(super) size: bool,
+    pub(super) styled: bool,
+    pub(super) mirror: bool,
+    /// `http(s)` 페이지: 주소 칸 kind `Web`, 두 안내와 allowed 툴팁의 페이지 문구.
+    pub(super) web: bool,
+    /// 로드가 commit 전이라 주소 띠의 새로고침이 진행 중으로 보인다.
+    pub(super) loading: bool,
 }
 
 /// surface 하나: 탭 스트립 → 주소 띠(끝에 원격 표지) → inset 안내 묶음(크기 → 원격 → 스크립트) → 페이지.
-fn remote_surface(ui: &mut egui::Ui, theme: &Theme, rect: egui::Rect, v: Variant, salt: &str) {
+pub(super) fn remote_surface(
+    ui: &mut egui::Ui,
+    theme: &Theme,
+    rect: egui::Rect,
+    v: Variant,
+    salt: &str,
+) {
     ui.painter()
         .rect_filled(rect, 0.0, theme.bg_panel().to_egui());
-    let script_tip = t(SCRIPT_MARKER_ALLOWED);
-    let marker = v.script_marker.map(|k| (k, script_tip));
-    let scope = tab_strip(ui, theme, rect, "report.html", icons::HTML, true, marker);
+    let marker = v.script_marker.map(|k| {
+        let tip = match k {
+            HtmlScriptMarkerKind::Blocked if v.web => SCRIPT_MARKER_BLOCKED,
+            HtmlScriptMarkerKind::Allowed if v.web => SCRIPT_MARKER_ALLOWED_WEB,
+            _ => SCRIPT_MARKER_ALLOWED,
+        };
+        (k, t(tip))
+    });
+    let label = if v.web { WEB_LABEL } else { "report.html" };
+    let scope = tab_strip(ui, theme, rect, label, icons::HTML, true, marker);
     let mut band = ui.new_child(
         egui::UiBuilder::new()
             .id_salt((salt, "band"))
             .max_rect(scope)
             .layout(egui::Layout::top_down(egui::Align::Min)),
     );
-    let view = address_view(
-        v.mirror,
-        None,
-        v.remote_marker.map(|k| marker_view(k, false)),
-    );
+    let marker = v.remote_marker.map(|k| marker_view(k, false, v.web));
+    let view = if v.web {
+        web_address_view(v.loading, marker)
+    } else {
+        address_view(v.mirror, None, marker)
+    };
     let mut state = HtmlAddressState::default();
     let band_rect = html_address_bar(
         &mut band,
@@ -264,7 +340,7 @@ fn remote_surface(ui: &mut egui::Ui, theme: &Theme, rect: egui::Rect, v: Variant
     }
     if let Some(state) = v.remote {
         place(ui, 1, &|ui| {
-            let mut view = remote_view(state, false);
+            let mut view = remote_view(state, false, v.web);
             view.narrow = narrow;
             html_remote_banner(ui, theme, &view).rect
         });
@@ -272,7 +348,7 @@ fn remote_surface(ui: &mut egui::Ui, theme: &Theme, rect: egui::Rect, v: Variant
     if let Some(state) = v.script {
         let with_remote = v.remote.is_some();
         place(ui, 2, &|ui| {
-            let mut view = script_view(state, with_remote);
+            let mut view = script_view(state, with_remote, v.web);
             view.narrow = narrow;
             html_script_banner(ui, theme, &view).rect
         });
@@ -282,10 +358,11 @@ fn remote_surface(ui: &mut egui::Ui, theme: &Theme, rect: egui::Rect, v: Variant
         egui::pos2(rect.left(), (LogicalPx(scope.top()) + inset).value()),
         rect.max,
     );
+    let page_label = if v.web { WEB_PAGE } else { "report.html" };
     if v.styled {
-        page_stand_in(ui, theme, page);
+        page_stand_in(ui, theme, page, page_label);
     } else {
-        unstyled_page(ui, theme, page);
+        unstyled_page(ui, theme, page, page_label);
     }
 }
 
@@ -319,7 +396,7 @@ pub fn draw_states(ui: &mut egui::Ui, theme: &Theme) {
                                 ui.vertical(|ui| {
                                     ui.spacing_mut().item_spacing.y = th.spacing_xs.value();
                                     caption(ui, th, &format!("{name} · {cap}"));
-                                    html_remote_banner(ui, th, &remote_view(state, hover));
+                                    html_remote_banner(ui, th, &remote_view(state, hover, false));
                                 });
                             }
                         });
@@ -399,7 +476,11 @@ pub fn draw_markers(ui: &mut egui::Ui, theme: &Theme) {
                                     address_view(
                                         false,
                                         None,
-                                        Some(marker_view(HtmlRemoteMarkerKind::Blocked, false)),
+                                        Some(marker_view(
+                                            HtmlRemoteMarkerKind::Blocked,
+                                            false,
+                                            false,
+                                        )),
                                     ),
                                 ),
                                 (
@@ -407,7 +488,11 @@ pub fn draw_markers(ui: &mut egui::Ui, theme: &Theme) {
                                     address_view(
                                         false,
                                         None,
-                                        Some(marker_view(HtmlRemoteMarkerKind::Blocked, true)),
+                                        Some(marker_view(
+                                            HtmlRemoteMarkerKind::Blocked,
+                                            true,
+                                            false,
+                                        )),
                                     ),
                                 ),
                                 (
@@ -415,7 +500,11 @@ pub fn draw_markers(ui: &mut egui::Ui, theme: &Theme) {
                                     address_view(
                                         false,
                                         None,
-                                        Some(marker_view(HtmlRemoteMarkerKind::Allowed, false)),
+                                        Some(marker_view(
+                                            HtmlRemoteMarkerKind::Allowed,
+                                            false,
+                                            false,
+                                        )),
                                     ),
                                 ),
                                 (
@@ -426,7 +515,11 @@ pub fn draw_markers(ui: &mut egui::Ui, theme: &Theme) {
                                             "2 skipped",
                                             "Declined: hero-video.mp4, fonts/Inter.woff2",
                                         )),
-                                        Some(marker_view(HtmlRemoteMarkerKind::Blocked, false)),
+                                        Some(marker_view(
+                                            HtmlRemoteMarkerKind::Blocked,
+                                            false,
+                                            false,
+                                        )),
                                     ),
                                 ),
                             ];

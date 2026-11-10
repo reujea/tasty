@@ -1200,6 +1200,22 @@ pub fn pages() -> Vec<Page> {
                             ),
                             widgets::html_remote_banner::draw_variants,
                         ),
+                        spec(
+                            "http-s-page-opened-in-the-address-field-remote-then-scripts",
+                            "http(s) page opened in the address field — remote, then scripts",
+                            Some(
+                                "same shells, glyphs, states and markers · _web copy · the two notices never stack on a web page",
+                            ),
+                            widgets::html_web_page::draw_states,
+                        ),
+                        spec(
+                            "http-s-page-the-flow-step-by-step",
+                            "http(s) page — the flow, step by step",
+                            Some(
+                                "one fixed frame per step · a user reload returns to step 1",
+                            ),
+                            widgets::html_web_page::draw_flow,
+                        ),
                     ],
                 ),
                 single(

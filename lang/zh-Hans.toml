@@ -1492,6 +1492,10 @@ reloading = "正在允许脚本并重新加载"
 action_loading = "文档加载完成后可用"
 marker_blocked = "脚本已被阻止。点击可再次显示通知。"
 marker_allowed = "此文档的脚本已获准运行，有效期至 Tasty 重启"
+title_web = "此页面禁止运行脚本"
+body_web = "此页面可能使用脚本，需要 JavaScript 的按钮和菜单可能无响应。允许设置仅在本次页面显示期间有效，重新加载页面后会再次询问是否允许。"
+action_web = "允许此页面运行脚本"
+marker_allowed_web = "脚本仅在本次页面显示期间获准运行，重新加载页面后会再次被阻止"
 
 [banner.html_remote]
 title = "此文档中的远程内容已被阻止"
@@ -1501,6 +1505,9 @@ reloading = "正在允许远程内容并重新加载"
 action_loading = "文档加载完成后可用"
 marker_blocked = "远程内容已被阻止。点击查看详情。"
 marker_allowed = "此文档的远程内容已获准加载，有效期至 Tasty 重启"
+title_web = "页面已加载，远程内容已被阻止"
+body_web = "来自网络的样式表、图像、字体、框架和媒体不会加载，页面可能显示不完整。允许设置仅在本次页面显示期间有效，重新加载页面后远程内容会再次被阻止。是否允许脚本运行会单独询问。"
+marker_allowed_web = "远程内容仅在本次页面显示期间获准加载，重新加载页面后会再次被阻止"
 
 [port_scanner]
 heading = "监听端口"
