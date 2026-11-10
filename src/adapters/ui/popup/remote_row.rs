@@ -40,8 +40,6 @@ pub struct RemoteRowPopupState {
     bounds_w: Option<LogicalPx>,
     /// 연결돼 있던 행이 이번 프레임에 끊겨 scrim 을 열었다. 링크 툴팁을 닫는 쪽이 꺼내 간다.
     dropped: bool,
-    /// 파일 처리기 선택을 연 저장 행과 직전 프레임에 그 행이 연결돼 있었는지.
-    picker_row: Option<(u32, bool)>,
 }
 
 impl RemoteRowPopupState {
@@ -114,22 +112,30 @@ pub(crate) fn sync(
     }
 }
 
-/// 파일 처리기 선택을 연 저장 행이 끊기면 사용자가 어느 workspace 에 있든 그 순간 선택을 닫는다.
-/// 다른 workspace 에서 연 선택은 두고, 끊긴 뒤 연 선택은 끊기는 순간이 없어 닫지 않는다.
-fn close_picker_of_dropped_row(state: &mut MainViewState, engine: &EngineRead<'_>) {
-    let row = state
-        .dialogs
-        .file_handler_picker
-        .as_ref()
-        .and_then(|picker| picker.opened_in)
+/// 파일 처리기 선택을 연 workspace 가 저장된 원격 행이면 그 행과 지금 연결돼 있는지. 선택을 열 때
+/// 기록하고 매 동기화에서 갱신한다. 열 때 기록하므로 첫 그리기 전에 끊겨도 끊기는 순간이 남는다.
+pub(crate) fn picker_row_link(
+    engine: &EngineRead<'_>,
+    opened_in: Option<u32>,
+) -> Option<(u32, bool)> {
+    opened_in
         .filter(|id| {
             engine
                 .find_workspace_index_for_id(*id)
                 .and_then(|index| engine.workspace_at(index))
                 .is_some_and(|ws| ws.is_saved_remote_row())
-        });
-    let now = row.map(|id| (id, engine.remote_row_state(id) == RemoteRowState::Connected));
-    let before = std::mem::replace(&mut state.dialogs.remote_row_popup.picker_row, now);
+        })
+        .map(|id| (id, engine.remote_row_state(id) == RemoteRowState::Connected))
+}
+
+/// 파일 처리기 선택을 연 저장 행이 끊기면 사용자가 어느 workspace 에 있든 그 순간 선택을 닫는다.
+/// 다른 workspace 에서 연 선택은 두고, 끊긴 뒤 연 선택은 끊기는 순간이 없어 닫지 않는다.
+fn close_picker_of_dropped_row(state: &mut MainViewState, engine: &EngineRead<'_>) {
+    let Some(picker) = state.dialogs.file_handler_picker.as_mut() else {
+        return;
+    };
+    let now = picker_row_link(engine, picker.opened_in);
+    let before = std::mem::replace(&mut picker.row_link, now);
     let picker = super::file_handler_picker::PICKER_POPUP_ID;
     if let (Some((was, true)), Some((row, false))) = (before, now)
         && was == row
@@ -387,8 +393,12 @@ mod tests {
         assert!(!state.popups.is_open(REMOTE_ROW_SCRIM_POPUP_ID));
     }
 
-    /// `opened_in` workspace 에서 연 파일 처리기 선택을 둔다.
-    fn open_picker(state: &mut crate::state::RequestContext, opened_in: u32) {
+    /// `opened_in` workspace 에서 연 파일 처리기 선택을 둔다. 실제로 열 때처럼 출처 행의 연결 사실을 싣는다.
+    fn open_picker(
+        state: &mut crate::state::RequestContext,
+        engine: &EngineRead<'_>,
+        opened_in: u32,
+    ) {
         let picker = super::super::file_handler_picker::PICKER_POPUP_ID;
         state.dialogs.file_handler_picker = Some(crate::state::FileHandlerPickerData {
             origin_surface_id: None,
@@ -406,6 +416,7 @@ mod tests {
             run: None,
             remote_host: None,
             opened_in: Some(opened_in),
+            row_link: picker_row_link(engine, Some(opened_in)),
         });
         state.popups.open(picker);
         assert!(state.popups.is_open(picker));
@@ -420,7 +431,7 @@ mod tests {
         let row = saved_row(&mut state, &mut session);
         session.remote.row_states = std::collections::HashMap::from([(row, "connected")]);
         sync(&mut state, &session.read(), &layout(row));
-        open_picker(&mut state, row);
+        open_picker(&mut state, &session.read(), row);
 
         session.remote.row_states = std::collections::HashMap::from([(row, "reconnecting")]);
         sync(&mut state, &session.read(), &layout(row));
@@ -441,7 +452,7 @@ mod tests {
         session.remote.row_states = std::collections::HashMap::from([(row, "disconnected")]);
         state.set_active_workspace_index(&session.read(), 0);
         sync(&mut state, &session.read(), &layout(local));
-        open_picker(&mut state, local);
+        open_picker(&mut state, &session.read(), local);
 
         let last = session.read().workspaces().len() - 1;
         state.set_active_workspace_index(&session.read(), last);
@@ -460,7 +471,7 @@ mod tests {
         let row = saved_row(&mut state, &mut session);
         state.set_active_workspace_index(&session.read(), 0);
         session.remote.row_states = std::collections::HashMap::from([(row, "connected")]);
-        open_picker(&mut state, local);
+        open_picker(&mut state, &session.read(), local);
         let engine = session.read();
         crate::file::dispatch::set_picker_origin(
             state.dialogs.file_handler_picker.as_mut().unwrap(),
@@ -486,6 +497,47 @@ mod tests {
         assert!(!state.popups.is_open(REMOTE_ROW_SCRIM_POPUP_ID));
     }
 
+    /// Given 사용자는 로컬 L 에 있고 IPC 가 연결된 저장 행 R 의 surface 를 출처로 파일 처리기 선택을 열었다,
+    /// When 선택을 한 번도 그리기 전에 R 이 재연결 중이 되면, Then 첫 동기화에서 닫히고 다시 붙어도
+    /// 다시 열리지 않는다.
+    #[test]
+    fn a_picker_from_the_row_closes_when_the_row_drops_before_its_first_draw() {
+        let picker = super::super::file_handler_picker::PICKER_POPUP_ID;
+        let (mut state, mut session) = crate::state::tests::test_state();
+        let local = session.read().workspace_at(0).unwrap().id;
+        let row = saved_row(&mut state, &mut session);
+        state.set_active_workspace_index(&session.read(), 0);
+        session.remote.row_states = std::collections::HashMap::from([(row, "connected")]);
+        open_picker(&mut state, &session.read(), local);
+        crate::file::dispatch::set_picker_origin(
+            state.dialogs.file_handler_picker.as_mut().unwrap(),
+            &session.read(),
+            Some(row),
+        );
+
+        session.remote.row_states = std::collections::HashMap::from([(row, "reconnecting")]);
+        sync(&mut state, &session.read(), &layout(local));
+        assert!(!state.popups.is_open(picker));
+
+        session.remote.row_states = std::collections::HashMap::from([(row, "connected")]);
+        sync(&mut state, &session.read(), &layout(local));
+        assert!(!state.popups.is_open(picker));
+    }
+
+    /// Given 이미 끊긴 저장 행 R 을 출처로 연 파일 처리기 선택, When 동기화가 돌면, Then 선택은 남는다.
+    #[test]
+    fn a_picker_opened_from_an_already_dropped_row_stays() {
+        let picker = super::super::file_handler_picker::PICKER_POPUP_ID;
+        let (mut state, mut session) = crate::state::tests::test_state();
+        let local = session.read().workspace_at(0).unwrap().id;
+        let row = saved_row(&mut state, &mut session);
+        state.set_active_workspace_index(&session.read(), 0);
+        session.remote.row_states = std::collections::HashMap::from([(row, "reconnecting")]);
+        open_picker(&mut state, &session.read(), row);
+        sync(&mut state, &session.read(), &layout(local));
+        assert!(state.popups.is_open(picker));
+    }
+
     /// Given 로컬 L 에서 연 파일 처리기 선택, When 저장 행 R 이 끊기면, Then 선택은 남는다.
     #[test]
     fn a_picker_opened_in_a_local_stays_when_a_row_drops() {
@@ -495,7 +547,7 @@ mod tests {
         let row = saved_row(&mut state, &mut session);
         state.set_active_workspace_index(&session.read(), 0);
         session.remote.row_states = std::collections::HashMap::from([(row, "connected")]);
-        open_picker(&mut state, local);
+        open_picker(&mut state, &session.read(), local);
         sync(&mut state, &session.read(), &layout(local));
 
         session.remote.row_states = std::collections::HashMap::from([(row, "reconnecting")]);

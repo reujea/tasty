@@ -253,6 +253,7 @@ pub(crate) fn open_picker_from_read(
         }),
         remote_host: None,
         opened_in,
+        row_link: crate::adapters::ui::popup::remote_row::picker_row_link(engine, opened_in),
     });
     let intent = crate::intent::UiIntent::OpenPopup {
         id: crate::adapters::ui::popup::file_handler_picker::PICKER_POPUP_ID,
@@ -279,6 +280,8 @@ pub(crate) fn set_picker_origin(
     {
         picker.opened_in = Some(workspace.id);
     }
+    picker.row_link =
+        crate::adapters::ui::popup::remote_row::picker_row_link(engine, picker.opened_in);
 }
 
 /// 최근 목록과 후보 양쪽에서 대상에 맞지 않는 항목을 빼고 중복 후보를 제거한다.

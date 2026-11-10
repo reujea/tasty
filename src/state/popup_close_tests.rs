@@ -968,6 +968,7 @@ fn mk_picker_data() -> FileHandlerPickerData {
         run: None,
         remote_host: None,
         opened_in: None,
+        row_link: None,
     }
 }
 

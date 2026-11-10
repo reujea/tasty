@@ -334,6 +334,9 @@ pub struct FileHandlerPickerData {
     /// 요청(IPC `file_handler.dispatch` 등)은 그 surface 의 workspace 다. 저장된 원격 행이 끊기면 그 행에서
     /// 연 picker 만 닫는다.
     pub(crate) opened_in: Option<u32>,
+    /// `opened_in` 이 저장된 원격 행이면 그 행과 마지막으로 본 연결 여부. 열 때 기록해, 첫 그리기 전에
+    /// 끊긴 행에서 연 선택도 끊기는 순간 닫는다.
+    pub(crate) row_link: Option<(u32, bool)>,
 }
 
 /// picker 의 닫기 사유.
