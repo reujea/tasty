@@ -1276,6 +1276,19 @@ mod brief_tests {
         assert!(b.contains("tasty list surfaces"), "확인하는 길이 없다");
     }
 
+    /// **새 대화 탭을 만드는 명령을 알려 준다.**
+    ///
+    /// `agent_session` 은 plugin 종류라 `new tab --help` 의 `--type` 목록에 없다. 실측(2026-11-10)으로
+    /// 에이전트가 `--type` 없이 셸 탭을 만들고 `start` 로 세션을 묶어, 탭이 대화 탭이 아닌 셸로 남았다.
+    #[test]
+    fn the_brief_names_the_tab_kind_for_a_new_chat_tab() {
+        let b = session_brief(7, "sess-abc", "cc", Some("/w/proj"));
+        assert!(
+            b.contains("tasty new tab --pane") && b.contains("--type agent_session"),
+            "대화 탭을 만드는 명령이 없다:\n{b}"
+        );
+    }
+
     /// **만들어 두고 안 보내면 아무 일도 없다.**
     ///
     /// 이 저장소에서 *"배선 ≠ 존재"* 로 여러 번 밟았다 — 함수가 있어도

@@ -431,7 +431,7 @@ surface = "- surface id of this tab: {}"
 session = "- session id: {}"
 agent = "- agent profile: {}"
 cwd = "- working folder: {}"
-outro = "You can work with windows, tabs and surfaces through the tasty CLI. Run `tasty list surfaces` to see what is open and `tasty --help` for what you can use. To point at your own tab, pass the surface id above to `--surface`.\nYou do not need to answer this note — answer as usual from the next input."
+outro = "You can work with windows, tabs and surfaces through the tasty CLI. Run `tasty list surfaces` to see what is open and `tasty --help` for what you can use. To point at your own tab, pass the surface id above to `--surface`.\nMake a new chat tab with `tasty new tab --pane <pane id> --type agent_session`. `agent_session` is a kind the plugin adds, so the `--type` list in `--help` does not show it. Without `--type` you get a shell (terminal) tab, and binding a session to it with `tasty agent-session start` still leaves a shell tab.\nYou do not need to answer this note — answer as usual from the next input."
 
 [settings.subtab]
 agent_session = "Agent Session"

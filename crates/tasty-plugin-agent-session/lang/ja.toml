@@ -429,7 +429,7 @@ surface = "- このタブの surface id: {}"
 session = "- このセッション id: {}"
 agent = "- エージェントプロファイル: {}"
 cwd = "- 作業フォルダ: {}"
-outro = "tasty CLI でウィンドウ・タブ・surface を扱える。`tasty list surfaces` で今開いているものを見て、`tasty --help` で使えるものを確かめる。自分のタブを指すときは上の surface id を `--surface` に渡す。\nこの案内には答えなくてよい — 次の入力からいつも通り答える。"
+outro = "tasty CLI でウィンドウ・タブ・surface を扱える。`tasty list surfaces` で今開いているものを見て、`tasty --help` で使えるものを確かめる。自分のタブを指すときは上の surface id を `--surface` に渡す。\n新しい会話タブは `tasty new tab --pane <ペイン id> --type agent_session` で作る。`agent_session` はプラグインが追加した種類なので、`--help` の `--type` 一覧には出ない。`--type` を省くとシェル(terminal)タブになり、その上で `tasty agent-session start` でセッションを結び付けてもタブはシェルのままだ。\nこの案内には答えなくてよい — 次の入力からいつも通り答える。"
 
 [settings.subtab]
 agent_session = "エージェントセッション"

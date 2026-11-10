@@ -427,7 +427,7 @@ surface = "- 此标签页的 Surface ID：{}"
 session = "- 会话 ID：{}"
 agent = "- 智能体配置档：{}"
 cwd = "- 工作文件夹：{}"
-outro = "你可以通过 tasty CLI 操作窗口、标签页和 Surface。运行 `tasty list surfaces` 查看已打开的内容，运行 `tasty --help` 查看可用功能。要指向你自己的标签页，将上面的 Surface ID 传给 `--surface`。\n无需回复此说明——从下一条输入起照常回答。"
+outro = "你可以通过 tasty CLI 操作窗口、标签页和 Surface。运行 `tasty list surfaces` 查看已打开的内容，运行 `tasty --help` 查看可用功能。要指向你自己的标签页，将上面的 Surface ID 传给 `--surface`。\n新建聊天标签页请使用 `tasty new tab --pane <窗格 id> --type agent_session`。`agent_session` 是插件添加的种类，因此不会出现在 `--help` 的 `--type` 列表中。省略 `--type` 会创建 Shell（terminal）标签页，即使再用 `tasty agent-session start` 绑定会话，该标签页仍是 Shell。\n无需回复此说明——从下一条输入起照常回答。"
 
 [settings.subtab]
 agent_session = "智能体会话"
