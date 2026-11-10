@@ -70,7 +70,7 @@ jobs:
         run: rm -rf dist
 
   # 두 Windows 잡은 아키텍처를 명시해 빌드한다. ARM64는 같은 x64 호스트의 전용 러너(라벨 win-arm64)가
-  # 교차 빌드하므로 두 잡이 동시에 돈다.
+  # 교차 빌드하므로 두 잡은 서로 다른 러너에서 병렬로 돌 수 있다. 실제로 겹친 실행은 아직 측정하지 않았다.
   # 근거와 확인 범위: docs/dev-guide/release.md#windows-arm64
   build-windows:
     needs: create-release
