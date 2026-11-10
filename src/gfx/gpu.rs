@@ -805,6 +805,7 @@ impl GpuState {
         self.renderer.cell_height()
     }
 
+    #[cfg(debug_assertions)]
     pub fn terminal_font_updates(&self) -> u64 {
         self.renderer.font_updates()
     }

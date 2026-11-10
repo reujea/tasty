@@ -121,6 +121,8 @@ pub struct CellRenderer {
     last_frame_bg_draws: Cell<u32>,
     last_frame_glyph_draws: Cell<u32>,
     /// 생성 뒤 `update_font` 호출 수. 저장값이 생성 때 적용됐는지 실행 중에 확인하는 데 쓴다.
+    /// debug IPC(`debug info`)만 읽으므로 debug 빌드에만 둔다.
+    #[cfg(debug_assertions)]
     font_updates: u64,
 }
 
@@ -808,6 +810,7 @@ impl CellRenderer {
     }
 
     /// Number of `update_font` calls since the renderer was built.
+    #[cfg(debug_assertions)]
     pub fn font_updates(&self) -> u64 {
         self.font_updates
     }

@@ -300,6 +300,7 @@ impl CellRenderer {
             ),
             last_frame_bg_draws: std::cell::Cell::new(0),
             last_frame_glyph_draws: std::cell::Cell::new(0),
+            #[cfg(debug_assertions)]
             font_updates: 0,
         }
     }
@@ -308,7 +309,10 @@ impl CellRenderer {
     /// Resets the glyph atlas and re-measures cell metrics.
     pub fn update_font(&mut self, device: &wgpu::Device, queue: &wgpu::Queue, font: &FontRequest) {
         self.font_config.reconfigure(font);
-        self.font_updates += 1;
+        #[cfg(debug_assertions)]
+        {
+            self.font_updates += 1;
+        }
         self.atlas = GlyphAtlas::new(device);
 
         let glyph_bind_group_layout =
