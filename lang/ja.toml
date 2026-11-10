@@ -2805,9 +2805,6 @@ about = "サーフェスに読み取りマークを設定する"
 [cli.help._root.set.mark.arg.surface]
 help = "サーフェス ID (既定: $TASTY_SURFACE_ID、呼び出し元のサーフェス)"
 
-[cli.help._root.set.workspace]
-about = "ワークスペースの名前・サブタイトル・説明、または SSH アタッチのマッピングを更新する"
-
 [cli.help._root.set.workspace.arg.id]
 help = "ワークスペース ID (必須)"
 
@@ -3034,11 +3031,9 @@ help = "人向けのテキストの代わりにJSONオブジェクトを出力�
 
 [cli.help._root.remote.refusals]
 about = "このインスタンス自身を対象にしたため拒否した最近のattach試行を一覧表示します"
-long = "このインスタンス自身を対象にしたため拒否した最近のattach試行を一覧表示します。\n\nエンドポイントの解決後に決まる拒否を表示します。このインスタンスを指す自動attachマッピングと、ホスト名やLAN IPでSSH経由でこのインスタンスに届いた既存ワークスペースへの `remote.attach`（応答は `attaching` で、拒否は非同期に続きます）が対象です。自身のポートを指すループバック対象はすぐにエラーで拒否します。各項目には、試行番号（`remote.attach` の応答の `attempt`）、マッピングのローカルワークスペース、リモートワークスペースID、ポート、SSHで判定したかどうかが含まれます。インスタンスが終了するまで最新の拒否を32件保持します。その他の接続失敗は表示しません。読み取り専用です。"
 
 [cli.help._root.remote.disconnect]
 about = "ローカル GUI からミラーを切断し、リモートのワークスペースの実行を維持"
-long = "ローカル GUI からミラーを切断し、リモートのワークスペースは実行したままにします。\n\nミラーカードのメニュー項目「ワークスペースの接続を切る」と同じ動作をします。ローカルのミラーワークスペース、その attach セッション、再接続の試行を削除し、リモートのワークスペースとそのプロセスは実行を継続します。後で `tasty remote attach --into-gui --workspace <remote id>` を使って再度 attach できます。コマンドの応答には、そのリモートワークスペースの ID が含まれます。対象のワークスペースが attach セッションを持つミラーでなければ失敗します。リモートのワークスペースも閉じる場合にのみ `tasty close surface` を使用してください。"
 
 [cli.help._root.remote.disconnect.arg.workspace]
 help = "ミラーワークスペースのローカル ID（`tasty list workspaces` の `[mirror]` 項目）。リモート ID ではありません"

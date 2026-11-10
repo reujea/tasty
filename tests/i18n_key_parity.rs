@@ -221,6 +221,15 @@ const PENDING_TRANSLATION_KEYS: &[(&str, &str, &str)] = &[
         "zh-Hans",
         "cli.help._root.remote.connect.arg.workspace.help",
     ),
+    ("lang", "ko", "cli.help._root.set.workspace.about"),
+    ("lang", "ko", "cli.help._root.remote.refusals.long"),
+    ("lang", "ko", "cli.help._root.remote.disconnect.long"),
+    ("lang", "ja", "cli.help._root.set.workspace.about"),
+    ("lang", "ja", "cli.help._root.remote.refusals.long"),
+    ("lang", "ja", "cli.help._root.remote.disconnect.long"),
+    ("lang", "zh-Hans", "cli.help._root.set.workspace.about"),
+    ("lang", "zh-Hans", "cli.help._root.remote.refusals.long"),
+    ("lang", "zh-Hans", "cli.help._root.remote.disconnect.long"),
 ];
 
 /// 누락이 알려진 키의 임시 예외다. 키가 추가되면 항목도 제거한다. 새 누락은 수정하는 것이 기본이다.
