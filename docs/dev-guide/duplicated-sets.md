@@ -38,3 +38,7 @@
 `font-label`이 UI sans를 읽는 언어(`ja`, `zh`)는 디자인 정본 `vendor/tokens/base.css`의 `:lang()` 규칙과 `crates/tasty-ui-widgets/src/label_font.rs`의 상수 두 곳에 있다. 내장 언어 목록의 부분 집합이므로 `BUILTIN_CODES`와 같은 집합인지 보는 `tests/i18n_language_lists.rs`에는 넣지 않는다. 대조는 `label_font_languages_match_the_design_source`가 한다.
 
 조회는 언어 코드만 받고 `BUILTIN_CODES`를 읽지 않으므로 언어를 등록해도 이 코드를 고치지 않는다. 대신 `a_language_the_mono_face_cannot_hold_reads_the_ui_font`가 내장 목록을 돌며, 카탈로그에 D2Coding에 없는 글자가 있는데 라벨이 고정폭인 언어를 찾는다.
+
+## macOS 원격 HTTP viewer 하한
+
+원격 HTTP(S) viewer를 선언하는 macOS 하한은 `src/host_api/webview/macos/http.rs`의 `FIRST_MEASURED`(macOS 메이저 버전)다. 문서는 이 값을 지원 표기(`macOS 27 이상`)와 미지원 범위(`macOS 11–26`)로 여러 곳에 산문으로 적는다. `macos_http_viewer_floor_matches_the_source`가 docs 전체의 `macOS 11–N` 범위 상한을 상수보다 1 작은 값과 대조한다. 그래서 docs 안에서 `macOS 11–N` 형태는 이 미지원 범위에만 쓰고, 다른 사실(per-store proxy API가 없는 버전 등)은 "macOS 14 이전"처럼 적는다. 지원 표기와 `macOS 14–26` 같은 다른 범위는 검사하지 않으므로 하한을 바꿀 때 `git grep -nE "macOS (1[1-9]|2[0-9])"`로 함께 확인한다.

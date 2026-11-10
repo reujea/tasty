@@ -5,9 +5,9 @@ WKWebView. Every request of that view reaches the document endpoint, which
 forwards it to the remote host as described in the [HTTP bridge](html-http-bridge.md).
 The client never connects to the logical target. WebRTC in a document whose
 scripts are allowed is the exception, which the view only narrows, described
-under [Direct network paths](#direct-network-paths). macOS 11–13 have no per-store
-proxy configuration, so those clients do not advertise the HTTP viewer and keep
-the remote HTTP placeholder.
+under [Direct network paths](#direct-network-paths). Releases before macOS 14
+have no per-store proxy configuration, so those clients do not advertise the
+HTTP viewer and keep the remote HTTP placeholder.
 
 macOS 14–26 have the proxy configuration but are not measured. Their WebKit
 could treat a `*.localhost` alias as loopback and connect to the client itself,
