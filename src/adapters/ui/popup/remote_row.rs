@@ -9,6 +9,7 @@ use crate::i18n::t;
 use crate::runtime::engine_read::EngineRead;
 use crate::state::MainViewState;
 use crate::theme;
+use tasty_type_geometry::length::LogicalPx;
 use tasty_ui_widgets::{
     REMOTE_ROW_POPUP_WIDTH, REMOTE_ROW_USER_BODY_STAY, RemoteRowPopupBody, RemoteRowPopupKind,
     RemoteRowPopupView, RemoteRowState,
@@ -34,9 +35,9 @@ pub struct RemoteRowPopupState {
     /// 지금 연 팝업과 그 행.
     shown: Option<(PopupId, u32)>,
     /// 직전 프레임에 잰 콘텐츠 높이.
-    measured_h: Option<f32>,
+    measured_h: Option<LogicalPx>,
     /// 콘텐츠 영역 폭. 팝업 폭이 영역에서 양쪽 space-md 를 뺀 값을 넘지 않게 한다.
-    bounds_w: Option<f32>,
+    bounds_w: Option<LogicalPx>,
     /// 연결돼 있던 행이 이번 프레임에 끊겨 scrim 을 열었다. 링크 툴팁을 닫는 쪽이 꺼내 간다.
     dropped: bool,
 }
@@ -69,7 +70,7 @@ pub(crate) fn sync(
     let ws = state.active_workspace(engine);
     let want = wanted(engine, ws).map(|id| (id, ws.id));
     let row = &mut state.dialogs.remote_row_popup;
-    row.bounds_w = draw_ctx.workspace_rect.map(|r| r.width());
+    row.bounds_w = draw_ctx.workspace_rect.map(|r| LogicalPx(r.width()));
     if row.shown == want {
         return;
     }
@@ -130,29 +131,35 @@ pub(crate) fn popup_kind(
     }
 }
 
-fn width() -> f32 {
+fn width() -> LogicalPx {
     let th = theme::theme();
-    (REMOTE_ROW_POPUP_WIDTH.value() * th.ui_zoom).round()
+    let zoomed = REMOTE_ROW_POPUP_WIDTH * th.ui_zoom;
+    LogicalPx(zoomed.value().round())
 }
 
 /// 첫 프레임의 높이 어림: 여백, 머리 한 줄, 필드 두 줄, 상태 블록 두 줄, 버튼. 이후는 잰 값을 쓴다.
-fn estimate_h() -> f32 {
+fn estimate_h() -> LogicalPx {
     let th = theme::theme();
-    let line = |size: f32| size * th.line_height_ui;
-    th.spacing_md.value() * 5.0
-        + th.spacing_xs.value() * 2.0
-        + line(th.font_size_body.value()) * 3.0
-        + line(th.font_size_caption.value()) * 2.0
-        + th.item_height_tab.value()
+    let line = |size: LogicalPx| size * th.line_height_ui;
+    th.spacing_md * 5.0
+        + th.spacing_xs * 2.0
+        + line(th.font_size_body) * 3.0
+        + line(th.font_size_caption) * 2.0
+        + th.item_height_tab
+}
+
+/// 팝업 크기. 영역 폭에서 양쪽 space-md 를 뺀 값을 넘지 않는다.
+fn size(row: &RemoteRowPopupState) -> (LogicalPx, LogicalPx) {
+    let md = theme::theme().spacing_md;
+    let w = row.bounds_w.map_or(width(), |bounds| {
+        width().min((bounds - md * 2.0).max(LogicalPx(0.0)))
+    });
+    (w, row.measured_h.unwrap_or_else(estimate_h))
 }
 
 fn sizer(state: &MainViewState, _engine: &EngineRead<'_>) -> egui::Vec2 {
-    let row = &state.dialogs.remote_row_popup;
-    let md = theme::theme().spacing_md.value();
-    let w = row
-        .bounds_w
-        .map_or(width(), |bounds| width().min((bounds - md * 2.0).max(0.0)));
-    egui::vec2(w, row.measured_h.unwrap_or_else(estimate_h))
+    let (w, h) = size(&state.dialogs.remote_row_popup);
+    egui::vec2(w.value(), h.value())
 }
 
 fn on_close(_ctx: &egui::Context, state: &mut MainViewState, _engine: &EngineRead<'_>) {
@@ -225,7 +232,7 @@ fn draw(ui: &mut egui::Ui, state: &mut MainViewState, engine: &EngineRead<'_>) -
             warn_glyph: &warn_glyph,
         },
     );
-    state.dialogs.remote_row_popup.measured_h = Some(ui.cursor().top() - top);
+    state.dialogs.remote_row_popup.measured_h = Some(LogicalPx(ui.cursor().top() - top));
     if clicked {
         state.dispatch_intent(
             crate::intent::Intent::SavedRow {
@@ -245,7 +252,7 @@ pub(crate) fn def(id: PopupId) -> PopupDef {
         title_key: "remote.row.popup.connect",
         fullscreen_stage: None,
         title_fn: None,
-        default_size: egui::vec2(width(), estimate_h()),
+        default_size: egui::vec2(width().value(), estimate_h().value()),
         sizer: Some(sizer),
         default_scope: PopupScope::Window,
         close_on_outside_click: false,
@@ -412,6 +419,33 @@ mod tests {
         sync(&mut state, &session.read(), &layout(row));
         assert!(state.popups.is_open(REMOTE_ROW_SCRIM_POPUP_ID));
         assert!(state.popups.is_open(picker));
+    }
+
+    /// 팝업 크기는 길이 타입으로 계산해도 원래 f32 식과 같은 값이다. 좁은 영역에서는 양쪽 space-md 를 뺀다.
+    #[test]
+    fn the_popup_size_keeps_its_drawn_values() {
+        let th = theme::theme();
+        let raw_w = (REMOTE_ROW_POPUP_WIDTH.value() * th.ui_zoom).round();
+        let line = |size: f32| size * th.line_height_ui;
+        let raw_h = th.spacing_md.value() * 5.0
+            + th.spacing_xs.value() * 2.0
+            + line(th.font_size_body.value()) * 3.0
+            + line(th.font_size_caption.value()) * 2.0
+            + th.item_height_tab.value();
+        let wide = RemoteRowPopupState::default();
+        let (w, h) = size(&wide);
+        assert_eq!((w.value(), h.value()), (raw_w, raw_h));
+        let narrow = RemoteRowPopupState {
+            bounds_w: Some(LogicalPx(100.0)),
+            measured_h: Some(LogicalPx(77.0)),
+            ..Default::default()
+        };
+        let (w, h) = size(&narrow);
+        let md = th.spacing_md.value();
+        assert_eq!(
+            (w.value(), h.value()),
+            (raw_w.min((100.0 - md * 2.0).max(0.0)), 77.0)
+        );
     }
 
     /// 빈 workspace(형상 없음)는 scrim 없는 팝업, 끊긴 형상은 scrim 팝업이다.

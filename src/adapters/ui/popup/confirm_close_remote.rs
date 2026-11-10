@@ -22,7 +22,7 @@ pub struct PendingCloseRemote {
     /// 확인하면 다시 보낼 요청.
     pub(crate) intent: DomainIntent,
     /// 직전 프레임에 잰 콘텐츠 높이. 처음 프레임은 글자 수로 어림한다.
-    pub(crate) measured_h: Option<f32>,
+    pub(crate) measured_h: Option<LogicalPx>,
     /// Cancel에 기본 포커스를 준 뒤에는 다시 옮기지 않는다.
     pub(crate) focused: bool,
 }
@@ -80,7 +80,7 @@ pub fn confirm_close_remote_title(
 }
 
 /// 글리프 줄·본문·버튼 행의 어림 높이. 폭 440에서 본문 한 줄 글자 수로 줄 수를 센다.
-fn estimate_h(last: bool) -> f32 {
+fn estimate_h(last: bool) -> LogicalPx {
     let th = theme::theme();
     const APPROX_CHARS_PER_LINE: usize = 60;
     let lines = |key: &'static str| t(key).chars().count().div_ceil(APPROX_CHARS_PER_LINE) as f32;
@@ -90,17 +90,20 @@ fn estimate_h(last: bool) -> f32 {
         } else {
             0.0
         };
-    let line = th.font_size_body.value() * th.line_height_ui;
-    let title = th.font_size_max.value() * th.line_height_ui;
-    th.spacing_md.value() * 3.0
-        + th.spacing_sm.value() * 2.0
+    let line = th.font_size_body * th.line_height_ui;
+    let title = th.font_size_max * th.line_height_ui;
+    th.spacing_md * 3.0
+        + th.spacing_sm * 2.0
         + title * 2.0
         + line * body_lines
-        + th.item_height_interactive.value()
+        + th.item_height_interactive
 }
 
 pub fn confirm_close_remote_default_size() -> egui::Vec2 {
-    egui::vec2(theme::theme().info_modal_width().value(), estimate_h(false))
+    egui::vec2(
+        theme::theme().info_modal_width().value(),
+        estimate_h(false).value(),
+    )
 }
 
 pub fn confirm_close_remote_sizer(
@@ -113,7 +116,7 @@ pub fn confirm_close_remote_sizer(
         .as_ref()
         .map(|p| p.measured_h.unwrap_or_else(|| estimate_h(p.close.last)))
         .unwrap_or_else(|| estimate_h(false));
-    egui::vec2(theme::theme().info_modal_width().value(), h)
+    egui::vec2(theme::theme().info_modal_width().value(), h.value())
 }
 
 /// 어떤 경로로 닫히든(취소·바깥·Escape) 대기를 비운다. 담아 둔 요청은 보내지 않는다.
@@ -168,7 +171,7 @@ pub fn draw_confirm_close_remote(
     let measured = LogicalPx(ui.cursor().top() - top);
     if let Some(pending) = state.dialogs.pending_close_remote.as_mut() {
         pending.focused = true;
-        pending.measured_h = Some(measured.value());
+        pending.measured_h = Some(measured);
     }
     if out.cancel {
         state.dialogs.pending_close_remote = None;
