@@ -174,6 +174,30 @@ pub fn path_prepending_self_dir(base: Option<OsString>) -> Option<OsString> {
     std::env::join_paths(entries).ok()
 }
 
+/// 터미널 셸 자식이 받을 PATH. 셸 판정의 PATH 탐색과 spawn이 함께 써서 판정한 파일과 실행한 파일이
+/// 갈리지 않게 한다. 호스트 PATH 앞에 실행 파일 폴더를 붙인 값이 셸 환경변수(`extra_env`)의 PATH보다
+/// 우선한다. 그 값을 만들지 못하면 `extra_env`의 PATH, 그다음 호스트 PATH다. 셋 다 없으면 `None`.
+pub fn shell_child_path(extra_env: &[(&str, &str)]) -> Option<OsString> {
+    let host = std::env::var_os("PATH");
+    path_prepending_self_dir(host.clone())
+        .or_else(|| {
+            extra_env
+                .iter()
+                .rev()
+                .find(|(key, _)| is_path_key(key))
+                .map(|(_, value)| OsString::from(value))
+        })
+        .or(host)
+}
+
+fn is_path_key(key: &str) -> bool {
+    if cfg!(windows) {
+        key.eq_ignore_ascii_case("PATH")
+    } else {
+        key == "PATH"
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

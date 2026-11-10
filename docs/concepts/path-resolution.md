@@ -43,7 +43,7 @@
 - `locate_command_in`은 `Path`면 그대로, `Search`면 넘겨받은 PATH를 앞에서부터 보고 첫 실행 파일의 절대 경로를 돌려준다. 디렉터리와 실행 권한 없는 파일(macOS·Linux는 `access(X_OK)`)은 건너뛴다. 없으면 `NotFoundInPath`이며 실행 폴더의 같은 이름 파일로 대신하지 않는다.
 - PATH의 상대 항목과 빈 항목은 실행 폴더 기준이다. POSIX `execvp`는 자식의 작업 폴더 기준으로 보지만, 그러면 같은 설정이 터미널마다 다른 파일을 가리키고 터미널이 없는 판정(설정 창, 부팅)과 기준이 갈린다.
 - Windows는 이름에 확장자가 없으면 `.exe`·`.cmd`·`.bat`·`.com`을 차례로 붙여 찾는다.
-- 판정하는 곳과 실행하는 곳은 PATH 탐색 결과 하나를 함께 쓴다. 찾은 절대 경로를 실행에 넘기면 portable-pty가 PATH를 다시 찾지 않는다.
+- 판정하는 곳과 실행하는 곳은 PATH 탐색 결과 하나를 함께 쓴다. 찾은 절대 경로를 실행에 넘기면 portable-pty가 PATH를 다시 찾지 않는다. 터미널 셸은 자식이 받을 PATH를 `tasty_utils::process::shell_child_path` 하나로 만들어 판정과 spawn이 같은 PATH로 찾는다([터미널 셸](../surfaces/terminal/index.md#pty-셸)).
 
 ## Windows
 

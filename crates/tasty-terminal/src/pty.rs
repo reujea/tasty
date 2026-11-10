@@ -224,10 +224,16 @@ impl Pty {
             }
         };
         // Windows는 Git Bash만 실행한다. 모든 셸 실행이 여기를 지나므로 어떤 경로로 온 값도 다른 셸을 띄우지 않는다.
+        // 설정값은 `ShellConfig`가 판정에 쓴 절대 경로로 바꿔 넘긴다. 상대 값은 해석하지 못한 값이라
+        // 이 프로세스의 cwd로 다시 풀지 않고 없는 경로로 본다.
         #[cfg(windows)]
-        if !tasty_utils::shell_family::is_git_for_windows_bash(std::path::Path::new(&shell)) {
+        if !(std::path::Path::new(&shell).is_absolute()
+            && tasty_utils::shell_family::is_git_for_windows_bash(std::path::Path::new(&shell)))
+        {
             // 설정 판정(`ShellPathStatus`)과 같은 순서로 없는 경로를 먼저 가른다.
-            let key = if std::path::Path::new(&shell).exists() {
+            let key = if std::path::Path::new(&shell).is_absolute()
+                && std::path::Path::new(&shell).exists()
+            {
                 "terminal_error.shell_not_git_bash"
             } else {
                 "terminal_error.shell_missing_windows"
@@ -696,12 +702,9 @@ fn build_shell_command(
 
     strip_inherited_env(&mut cmd, std::env::vars_os());
 
-    // Add tasty's own binary directory to PATH so `tasty` CLI works inside the
-    // terminal. hook_runtime::trigger::spawn_shell 와 동일한 보강을 공유
-    // 헬퍼로 적용해 두 경로의 동작을 일치시킨다(패키징된 macOS `.app` 의
-    // 최소 PATH 에서 `tasty` self 호출 해결).
-    if let Some(new_path) = tasty_utils::process::path_prepending_self_dir(std::env::var_os("PATH"))
-    {
+    // Tasty 실행 파일 폴더를 붙인 PATH로 터미널 안에서 `tasty` CLI를 찾는다. 셸 판정의 PATH 탐색도
+    // 같은 함수를 써서 판정한 셸과 실행한 셸이 갈리지 않는다.
+    if let Some(new_path) = tasty_utils::process::shell_child_path(extra_env) {
         cmd.env("PATH", new_path);
     }
 
@@ -803,6 +806,27 @@ mod tests {
         assert_eq!(
             cmd.get_env("TASTY_SURFACE_ID"),
             Some(std::ffi::OsStr::new("7"))
+        );
+    }
+
+    /// 판정에 쓴 절대 경로를 그대로 실행하고, PATH는 셸 판정과 같은 함수로 만든다.
+    #[test]
+    fn the_judged_shell_path_and_the_judging_path_reach_the_child() {
+        let extra = [("PATH", "/from-shell-env")];
+        let cmd = build_shell_command(
+            "/judged/launch/sh",
+            &[],
+            1,
+            Some(std::path::Path::new("/other/cwd")),
+            &extra,
+        );
+        assert_eq!(
+            cmd.get_argv().first().map(|a| a.as_os_str()),
+            Some(std::ffi::OsStr::new("/judged/launch/sh"))
+        );
+        assert_eq!(
+            cmd.get_env("PATH"),
+            tasty_utils::process::shell_child_path(&extra).as_deref()
         );
     }
 

@@ -2194,19 +2194,18 @@ impl App {
 /// 대체하지 않는 판정(`ShellPathStatus::falls_back`)은 첫 실행 셸 설정 화면에서 원인을 보여 준다.
 fn boot_shell_usable(settings: &crate::settings::Settings) -> bool {
     let general = &settings.general;
-    if general.is_shell_valid() {
-        return true;
+    match general.boot_shell_choice() {
+        tasty_settings::BootShell::Configured => true,
+        tasty_settings::BootShell::Unusable => false,
+        tasty_settings::BootShell::Fallback(fallback) => {
+            tracing::warn!(
+                configured = %general.shell,
+                fallback = %fallback,
+                "configured shell is unusable; new terminals use the fallback shell until it is fixed"
+            );
+            true
+        }
     }
-    let runtime = general.runtime_shell();
-    if runtime == general.shell {
-        return false;
-    }
-    tracing::warn!(
-        configured = %general.shell,
-        fallback = %runtime,
-        "configured shell is unusable; new terminals use the fallback shell until it is fixed"
-    );
-    true
 }
 
 /// 부팅 오류 화면을 닫으면 이 실행이 쓴 instance 파일을 지우고 실패 코드로 끝낸다.
@@ -2235,8 +2234,15 @@ mod tests {
             settings.general.shell = configured.to_string();
             assert!(!super::boot_shell_usable(&settings), "{configured}");
             assert_eq!(settings.general.shell, configured);
+            // 실행 셸은 판정에 쓴 경로(이름이면 PATH에서 찾은 파일)이며 탐지한 Git Bash로 대신하지 않는다.
             let shell = crate::core::state::ShellConfig::from_settings(&settings);
-            assert_eq!(shell.shell, configured);
+            if let Some(detected) = crate::settings::GeneralSettings::detect_bash() {
+                assert_ne!(
+                    std::path::Path::new(&shell.shell),
+                    std::path::Path::new(&detected),
+                    "{configured}"
+                );
+            }
         }
     }
 
@@ -2281,6 +2287,43 @@ mod tests {
         assert_eq!(settings.general.shell, configured);
         let shell = crate::core::state::ShellConfig::from_settings(&settings);
         assert_eq!(shell.shell, configured);
+    }
+
+    /// 실행 폴더 기준으로 디렉터리인 상대 값은 절대 경로로 바뀌어도 대체 성공으로 보지 않는다.
+    /// 실행 권한 없는 상대 파일도 같다. 둘 다 첫 실행 셸 설정 화면으로 간다.
+    #[cfg(unix)]
+    #[test]
+    fn an_unusable_relative_shell_opens_the_setup_screen() {
+        use std::os::unix::fs::PermissionsExt;
+        let launch = tempfile::tempdir().expect("tempdir");
+        std::fs::create_dir(launch.path().join("shdir")).expect("dir");
+        let plain = launch.path().join("plain");
+        std::fs::write(&plain, "#!/bin/sh\n").expect("write");
+        std::fs::set_permissions(&plain, std::fs::Permissions::from_mode(0o644)).expect("chmod");
+        tasty_utils::path_resolve::push_launch_dir_override(
+            tasty_utils::path_resolve::LaunchDir::Known(launch.path().to_path_buf()),
+        );
+        let results: Vec<_> = ["./shdir", "./plain"]
+            .iter()
+            .map(|configured| {
+                let mut settings = crate::settings::Settings::default();
+                settings.general.shell = configured.to_string();
+                let usable = super::boot_shell_usable(&settings);
+                let spawn = crate::core::state::ShellConfig::from_settings(&settings).shell;
+                (usable, spawn)
+            })
+            .collect();
+        tasty_utils::path_resolve::pop_launch_dir_override();
+        assert_eq!(
+            results,
+            vec![
+                (
+                    false,
+                    launch.path().join("shdir").to_string_lossy().into_owned()
+                ),
+                (false, plain.to_string_lossy().into_owned()),
+            ]
+        );
     }
 
     #[test]

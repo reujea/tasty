@@ -33,6 +33,8 @@ libc = "0.2"
 
 [dev-dependencies]
 tempfile = "3"
+# 시험이 실행 폴더를 스레드 로컬로 바꾼다(path_resolve override).
+tasty-utils = { path = "../tasty-utils", features = ["test-support"] }
 
 [lints]
 workspace = true

@@ -18,6 +18,8 @@ ConPTY(Windows) / Unix PTY 로 네이티브 셸 실행(`TERM=xterm-256color`).
 
 **실행할 셸**: 설정 셸의 판정은 `tasty_settings::ShellPathStatus` 하나다. 런타임 대체(`GeneralSettings::runtime_shell`), 부팅 판정, 설정 창 터미널 탭 경고, 첫 실행 셸 설정 화면이 모두 이 판정을 쓰므로 같은 경로에 같은 결론을 낸다.
 
+- 설정값은 [경로 해석](../../concepts/path-resolution.md)의 실행 명령 규칙으로 먼저 절대 경로 하나로 푼다(`tasty_settings::ResolvedShell`). 이름만 쓴 값(`zsh`)은 자식 셸이 받을 PATH(`tasty_utils::process::shell_child_path`)에서 찾고, 구분자가 있는 상대 값(`./sh`, `../x/sh`, `rel/sh`)은 Tasty를 실행한 폴더 기준이다. 판정은 그 절대 경로로 하고, 대신하지 않으면 spawn도 같은 절대 경로를 실행한다. 그래서 터미널 작업 폴더나 탭과 관계없이 판정한 파일과 실행한 파일이 같다. 설정값과 `config.toml`은 바꾸지 않는다.
+
 - macOS·Linux 는 셸 이름을 보지 않는다. 실행할 수 있는 파일이면 fish·dash 처럼 bash·zsh 가 아닌 셸도 쓴다. 실행 가능 여부는 portable-pty 가 실행 전에 쓰는 것과 같은 `access(X_OK)` 로 본다.
 - Windows 는 Git Bash 만 쓴다. 파일 이름이 `bash.exe` 이고 `<루트>\bin` 또는 `<루트>\usr\bin` 에 있으며 그 루트에 `cmd\git.exe` 와 `usr\bin\msys-2.0.dll` 이 있어야 한다(`tasty_utils::shell_family::is_git_for_windows_bash`). 루트의 위치는 보지 않으므로 다른 곳에 설치했거나 Portable 이어도 쓴다. zsh·cmd·PowerShell·pwsh·nu, `git-bash.exe`, MSYS2 bash, `System32\bash.exe`(WSL), 복사한 파일은 쓰지 않는다. `git-bash.exe` 는 셸 연동을 받지 못한다. `usr\bin\bash.exe` 는 쓸 수 있지만 `MSYSTEM` 이 `MSYS` 여서 Windows PATH 에 Git 이 없으면 그 셸에서 `git` 을 찾지 못한다.
 - 값이 비었거나 macOS·Linux 에서 경로에 아무것도 없으면, 새 터미널을 만들 때마다 탐지한 셸(`GeneralSettings::detect_bash`)로 대신 실행한다. 빈 값은 자동 탐지에 맡긴다는 뜻이고, 없는 경로는 설치를 지웠거나 옮긴 경우라 기존처럼 대신한다. 이 대체는 실행 시점에만 적용하며 설정값과 `config.toml` 은 바꾸지 않는다. macOS·Linux 의 설정 창은 경고 색 줄로 대체 중임을 알린다. Windows 의 탐지는 기본 설치 위치 세 곳만 본다. 다른 위치의 Git Bash 는 셸 설정 화면이나 설정 창에 경로를 입력해 쓴다.
@@ -35,8 +37,12 @@ ConPTY(Windows) / Unix PTY 로 네이티브 셸 실행(`TERM=xterm-256color`).
 - Given 같은 화면 When Git Bash 경로를 입력해 확정한다 Then 그 값이 저장되고 부팅이 이어진다.
 - Given Windows 에서 실행 중에 설정을 허용하지 않는 값으로 바꿨다 When 새 터미널을 연다 Then 그 셸도 다른 셸도 뜨지 않고 원인과 함께 생성에 실패한다.
 - Given Windows 에서 값이 비었다 When GUI 를 시작한다 Then 기본 위치에서 찾은 Git Bash 로 부팅하고, 찾지 못하면 첫 실행 셸 설정 화면이 뜬다.
+- Given macOS·Linux 에서 Tasty 를 실행한 폴더 dirA 에 실행 가능한 `sh` 가 있고 `general.shell` 이 `./sh` 다 When 첫 workspace 를 만들고 dirB 를 작업 폴더로 새 탭을 연다 Then 두 터미널 모두 dirA 의 `sh` 를 실행한다.
+- Given `general.shell` 이 `zsh` 이고 PATH 에 `zsh` 가 있다 When GUI 를 시작한다 Then PATH 에서 찾은 `zsh` 를 쓸 수 있는 셸로 판정하고 실행한다. Tasty 를 실행한 폴더의 같은 이름 파일은 보지 않는다. PATH 어디에도 없으면 없는 경로와 같이 탐지한 셸로 대신한다(macOS·Linux).
+- Given `general.shell` 이 `sh` 이고 PATH 앞에 상대 항목 `rel` 이 있다 When 다른 작업 폴더로 새 탭을 연다 Then Tasty 를 실행한 폴더 아래 `rel/sh` 를 판정·실행한다.
+- Given macOS·Linux 에서 상대 값이 Tasty 를 실행한 폴더 기준으로 디렉터리이거나 실행 권한 없는 파일이다 When GUI 를 시작한다 Then 첫 실행 셸 설정 화면이 원인을 보인다(실행 경로가 절대 경로로 바뀌어도 대체 성공으로 보지 않는다).
 
-**자식 셸 환경변수**: Tasty 가 `TERM`·`TASTY_SURFACE_ID`·`TASTY_PARENT_HOME` 을 넣고 `PATH` 앞에 자기 실행 파일 디렉터리를 붙인다. Tasty 프로세스에서 상속한 환경변수 중 다음은 지운다.
+**자식 셸 환경변수**: Tasty 가 `TERM`·`TASTY_SURFACE_ID`·`TASTY_PARENT_HOME` 을 넣고 `PATH` 앞에 자기 실행 파일 디렉터리를 붙인다(`tasty_utils::process::shell_child_path`, 셸 판정의 PATH 탐색도 같은 값을 쓴다). Tasty 프로세스에서 상속한 환경변수 중 다음은 지운다.
 
 - `CMUX_*`: 터미널 안에서 cmux CLI 가 동작하지 않게 한다.
 - 설치되고 활성인 플러그인이 매니페스트 `contributes.strip_inherited_env` 로 선언한 변수(이름·이름 접두사·이름+값 접두사). 특정 제품의 세션 표지·비밀은 그 제품 플러그인이 선언한다. 번들 플러그인의 목록은 [Claude](../../plugins/claude/index.md#tasty-자식에서-지우는-세션-변수)·[Codex](../../plugins/codex/index.md#tasty-자식에서-지우는-세션-변수) 문서에 있다. 선언 형식과 적용 조건은 [플러그인 제작 가이드](../../dev-guide/plugin-development.md#상속-환경변수-제거-contributesstrip_inherited_env)에 있다.

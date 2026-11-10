@@ -36,7 +36,7 @@ pub use scripts::{
     AUTO_TRIGGER_EVENTS, AutoTrigger, ScriptEntry, ScriptRegistry, hash_bytes, hash_file,
     is_auto_trigger_event,
 };
-pub use shell_path::ShellPathStatus;
+pub use shell_path::{BootShell, ResolvedShell, ShellPathStatus};
 pub use task_pipeline::{
     DEFAULT_REPORT_APPEND_BYTES, DEFAULT_REPORT_BLOCK_BYTES, REPORT_APPEND_BYTES_RANGE,
     REPORT_BLOCK_BYTES_RANGE, TaskPipelineSettings,

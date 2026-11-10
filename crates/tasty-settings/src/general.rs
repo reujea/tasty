@@ -1,4 +1,4 @@
-use crate::shell_path::ShellPathStatus;
+use crate::shell_path::{BootShell, ResolvedShell, ShellPathStatus};
 use serde::{Deserialize, Serialize};
 
 /// 휠 한 칸의 기본 스크롤 거리(논리 px). 호스트와 플러그인이 같은 값을 사용한다.
@@ -347,18 +347,42 @@ impl GeneralSettings {
     }
 
     /// 새 터미널에 실행할 셸. 값이 비었거나 macOS·Linux에서 경로가 없으면 탐지한 셸로 대신하며 설정값은
-    /// 바꾸지 않는다. 그 밖의 쓸 수 없는 값은 설정값을 그대로 돌려줘 실행이 원인과 함께 실패하게 한다
-    /// ([`ShellPathStatus::falls_back`]).
+    /// 바꾸지 않는다. 대신하지 않으면 판정에 쓴 절대 경로를 돌려줘 실행도 같은 파일을 보게 한다.
+    /// 쓸 수 없는 값이면 실행이 원인과 함께 실패한다([`ShellPathStatus::falls_back`]).
     pub fn runtime_shell(&self) -> String {
-        if !self.shell_path_status().falls_back() {
-            return self.shell.clone();
+        let resolved = self.resolved_shell();
+        if !resolved.status.falls_back() {
+            return match &resolved.path {
+                Some(path) => path.to_string_lossy().into_owned(),
+                None => self.shell.clone(),
+            };
         }
         Self::detect_bash().unwrap_or_else(|| self.shell.clone())
     }
 
+    /// 설정한 셸을 해석·판정한 결과([`ResolvedShell`]).
+    pub fn resolved_shell(&self) -> ResolvedShell {
+        ResolvedShell::of(&self.shell)
+    }
+
     /// 설정한 셸 경로의 판정. [`ShellPathStatus`]의 OS별 기준을 따른다.
     pub fn shell_path_status(&self) -> ShellPathStatus {
-        ShellPathStatus::of(&self.shell)
+        self.resolved_shell().status
+    }
+
+    /// 부팅해도 되는지: 설정한 셸을 쓸 수 있거나, 대신하는 판정이고 탐지한 셸이 있다.
+    /// 실행 경로 문자열을 설정값과 비교하지 않는다(절대 경로로 바뀌어도 판정이 기준이다).
+    pub fn boot_shell_choice(&self) -> BootShell {
+        let resolved = self.resolved_shell();
+        if resolved.status == ShellPathStatus::Usable {
+            return BootShell::Configured;
+        }
+        if resolved.status.falls_back()
+            && let Some(fallback) = Self::detect_bash()
+        {
+            return BootShell::Fallback(fallback);
+        }
+        BootShell::Unusable
     }
 
     /// 사용할 셸 경로를 찾고 없으면 빈 문자열을 반환한다.
@@ -1099,7 +1123,13 @@ mod tests {
         ] {
             let s = settings_with_shell(configured);
             assert!(!s.is_shell_valid(), "{configured}");
-            assert_eq!(s.runtime_shell(), configured);
+            // 이름은 PATH에서 찾은 파일, 경로는 판정에 쓴 절대 경로로 실행한다. 탐지한 셸로 대신하지 않는다.
+            let runtime = s.runtime_shell();
+            let expected = s.resolved_shell().path.map_or_else(
+                || configured.to_string(),
+                |p| p.to_string_lossy().into_owned(),
+            );
+            assert_eq!(runtime, expected, "{configured}");
         }
         let expected = GeneralSettings::detect_bash().unwrap_or_default();
         assert_eq!(settings_with_shell("").runtime_shell(), expected);
@@ -1111,7 +1141,11 @@ mod tests {
         if let Some(detected) = GeneralSettings::detect_bash() {
             let s = settings_with_shell(&detected);
             assert!(s.is_shell_valid(), "{detected}");
-            assert_eq!(s.runtime_shell(), detected);
+            // Windows 탐지값의 `/`는 `\`로 바뀌므로 경로로 비교한다.
+            assert_eq!(
+                std::path::Path::new(&s.runtime_shell()),
+                std::path::Path::new(&detected)
+            );
         }
     }
 
