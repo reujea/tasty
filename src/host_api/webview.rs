@@ -18,6 +18,8 @@ pub(crate) mod http_native;
 #[cfg(any(windows, target_os = "macos"))]
 #[path = "webview/http_native/proxy_front.rs"]
 pub(crate) mod http_native;
+#[cfg(any(windows, test))]
+mod key_hold;
 pub mod keys;
 mod load_generation;
 pub mod overlay;

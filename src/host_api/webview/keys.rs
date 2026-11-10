@@ -258,9 +258,9 @@ impl HostShortcutPolicy {
 /// 구현과 callback은 같은 GUI 스레드에서 사용하며 Send/Sync를 요구하지 않는다.
 pub trait WebViewKeySink {
     /// true이면 backend가 페이지 전달을 막는다. 큐 등록과 실제 액션 성공은 별개다.
-    /// key는 레이아웃 문자, physical은 위치이며 알 수 없으면 Unidentified다. Linux는 결과를 키에 짝짓기 위해
-    /// [`Self::forward_key`]를 쓴다.
-    #[cfg(any(windows, target_os = "macos", test))]
+    /// key는 레이아웃 문자, physical은 위치이며 알 수 없으면 Unidentified다. Linux·Windows는 결과를 키에
+    /// 짝짓기 위해 [`Self::forward_key`]를 쓴다.
+    #[cfg(any(target_os = "macos", test))]
     fn capture_key(
         &self,
         surface_id: u32,
@@ -381,9 +381,30 @@ impl WebViewKeyBridge {
     }
 }
 
-/// key-down 하나를 사용자 바인딩으로 판정한다. 소비했으면 true이고 backend는 페이지·엔진에 보내지 않는다.
-/// 자동 반복은 첫 누름의 결정을 따르며 다시 실행하지 않는다. 편집 명령은 `run_edit`로 그 WebView에 실행한다.
-/// false를 돌려줄 때는 sink 상태를 바꾸지 않으므로, 같은 키를 두 경로가 차례로 판정해도 한 번만 실행된다.
+/// [`route_key_down`]의 판정.
+#[cfg(any(windows, test))]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum KeyDownRoute {
+    /// 페이지·엔진에 그대로 보낸다.
+    Pass,
+    /// 입력 차단·편집 명령·반복 판정으로 소비했다. 결과를 기다리지 않는다.
+    Consumed,
+    /// host 큐에 일련번호로 넣었다. backend는 키를 소비하고 원래 이벤트를 그 번호로 붙잡는다.
+    Forwarded(u64),
+}
+
+#[cfg(any(windows, test))]
+impl KeyDownRoute {
+    /// backend가 페이지 전달을 막을지.
+    pub(crate) fn consumed(self) -> bool {
+        self != Self::Pass
+    }
+}
+
+/// key-down 하나를 사용자 바인딩으로 판정한다. 소비했으면 backend는 페이지·엔진에 보내지 않는다.
+/// 자동 반복은 다시 실행하지 않는다. 첫 누름을 가져간 기록이 있는 반복은 backend가 그 기록을 먼저 따르고, 이 함수는
+/// 기록이 없을 때의 판정이다. 편집 명령은 `run_edit`로 그 WebView에 실행한다.
+/// 소비하지 않을 때는 sink 상태를 바꾸지 않으므로, 같은 키를 두 경로가 차례로 판정해도 한 번만 실행된다.
 /// Windows의 메시지 훅과 `AcceleratorKeyPressed`가 이 순서를 함께 쓴다.
 #[cfg(any(windows, test))]
 pub(crate) fn route_key_down(
@@ -394,18 +415,25 @@ pub(crate) fn route_key_down(
     mods: ModifiersState,
     repeat: bool,
     run_edit: impl FnOnce(WebViewEditAction),
-) -> bool {
+) -> KeyDownRoute {
     if repeat {
-        return sink.consumes_repeat(surface_id, &key, &physical, mods);
+        return if sink.consumes_repeat(surface_id, &key, &physical, mods) {
+            KeyDownRoute::Consumed
+        } else {
+            KeyDownRoute::Pass
+        };
     }
     if sink.blocks_edit_key(&key, &physical, mods) {
-        return true;
+        return KeyDownRoute::Consumed;
     }
     if let Some(action) = sink.edit_action(&key, &physical, mods) {
         run_edit(action);
-        return true;
+        return KeyDownRoute::Consumed;
     }
-    sink.capture_key(surface_id, key, physical, mods)
+    match sink.forward_key(surface_id, key, physical, mods) {
+        Some(id) => KeyDownRoute::Forwarded(id),
+        None => KeyDownRoute::Pass,
+    }
 }
 
 impl WebViewKeySink for WebViewKeyBridge {
@@ -928,7 +956,7 @@ mod tests {
         let ctrl = ModifiersState::CONTROL;
         let mut edits = Vec::new();
         let judge = |key: &str, mods: ModifiersState, repeat: bool, edits: &mut Vec<_>| {
-            route_key_down(&bridge, 7, ch(key), phys, mods, repeat, |a| edits.push(a))
+            route_key_down(&bridge, 7, ch(key), phys, mods, repeat, |a| edits.push(a)).consumed()
         };
 
         // 훅 경로: 소비하면 끝이다(accelerator가 오지 않는다).

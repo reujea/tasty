@@ -11,6 +11,9 @@
 //! WebView2가 그 키로 이벤트를 올리지 않는다. 훅이 통과시킨 키는 같은 판정을 다시 받지만, 판정은 소비하지 않을
 //! 때 아무 상태도 바꾸지 않으므로 같은 결과(통과)가 된다. 훅을 지나지 않은 키(`wait_with_pump` 같은 중첩 메시지
 //! 루프, 다른 스레드가 보낸 메시지)는 이 이벤트가 Ctrl·Alt 조합과 글자가 아닌 키를 대신 판정한다.
+//!
+//! host 큐로 가져간 key-down은 원래 메시지를 붙잡았다가 Tasty 단축키가 동작하지 않았으면 다시 보낸다
+//! (`super::key_replay`). 결과 전에 온 자동 반복과 key-up도 함께 붙잡는다.
 
 use std::cell::RefCell;
 use std::ffi::c_void;
@@ -25,12 +28,14 @@ use windows::Win32::UI::WindowsAndMessaging::{
 };
 use windows::core::*;
 
+use super::key_replay::{KeyReplay, MsgCopy, WinKey, release_vk, take_posted};
 use super::keyboard::{
     current_winit_mods, key_down_message, key_up_vk, layout_character_key, vk_to_winit_key,
     win32_scancode_to_physical,
 };
 use crate::host_api::webview::click_gesture::{ClickGesture, proves_activation};
-use crate::host_api::webview::keys::{WebViewKeySink, route_key_down};
+use crate::host_api::webview::key_hold::RepeatRoute;
+use crate::host_api::webview::keys::{KeyDownRoute, WebViewKeySink, route_key_down};
 
 struct Route {
     root: HWND,
@@ -38,6 +43,7 @@ struct Route {
     sink: Rc<dyn WebViewKeySink>,
     target: ICoreWebView2,
     click: Rc<ClickGesture>,
+    replay: Rc<KeyReplay>,
 }
 
 thread_local! {
@@ -76,6 +82,7 @@ pub(super) fn register(
     surface_id: u32,
     sink: Rc<dyn WebViewKeySink>,
     target: ICoreWebView2,
+    replay: Rc<KeyReplay>,
 ) -> RouteGuard {
     let click = Rc::new(ClickGesture::default());
     ROUTES.with(|routes| {
@@ -87,6 +94,7 @@ pub(super) fn register(
             sink,
             target,
             click: click.clone(),
+            replay,
         });
     });
     RouteGuard { root, click }
@@ -135,9 +143,18 @@ fn note_key_up(msg: &MSG) {
     }
 }
 
+/// 결과를 기다리는 누름의 key-up이면 붙잡는다. 붙잡았으면 true이고 winit은 그 메시지를 보내지 않는다.
+fn hold_key_up(msg: &MSG) -> bool {
+    let Some(vk) = release_vk(msg.message, msg.wParam.0) else {
+        return false;
+    };
+    route_of(msg.hwnd, |r| r.replay.clone())
+        .is_some_and(|replay| replay.release(vk, WinKey::Msg(MsgCopy::of(msg))))
+}
+
 /// winit 메시지 훅. 등록한 WebView로 가는 key-down을 소비했으면 true를 돌려주고, winit은 그 메시지를
-/// Translate·Dispatch하지 않는다(그래서 WM_CHAR도 생기지 않는다). key-up·IME 처리 키(VK_PROCESSKEY)·
-/// 변환표 밖 키는 그대로 보낸다.
+/// Translate·Dispatch하지 않는다(그래서 WM_CHAR도 생기지 않는다). IME 처리 키(VK_PROCESSKEY)·
+/// 변환표 밖 키는 그대로 보낸다. key-up은 결과를 기다리는 누름의 것만 붙잡는다. 다시 보낸 메시지는 판정하지 않는다.
 pub(crate) fn filter_message(msg: *const c_void) -> bool {
     if msg.is_null() {
         return false;
@@ -146,6 +163,12 @@ pub(crate) fn filter_message(msg: *const c_void) -> bool {
     let msg = unsafe { &*msg.cast::<MSG>() };
     note_click(msg);
     note_key_up(msg);
+    if take_posted(msg) {
+        return false;
+    }
+    if hold_key_up(msg) {
+        return true;
+    }
     let Some(km) = key_down_message(msg.message, msg.wParam.0, msg.lParam.0) else {
         return false;
     };
@@ -156,9 +179,10 @@ pub(crate) fn filter_message(msg: *const c_void) -> bool {
             r.sink.clone(),
             r.target.clone(),
             r.click.clone(),
+            r.replay.clone(),
         )
     });
-    let Some((surface_id, sink, target, click)) = route else {
+    let Some((surface_id, sink, target, click, replay)) = route else {
         return false;
     };
     let Some(key) = vk_to_winit_key(km.vk) else {
@@ -174,15 +198,28 @@ pub(crate) fn filter_message(msg: *const c_void) -> bool {
         key
     };
     let physical = win32_scancode_to_physical(km.scan, km.extended);
-    let consumed = route_key_down(
-        &*sink,
-        surface_id,
-        key,
-        physical,
-        mods,
-        km.repeat,
-        |action| super::run_editing_command(&target, action, surface_id),
-    );
+    let copy = WinKey::Msg(MsgCopy::of(msg));
+    let consumed = if km.repeat {
+        match replay.repeat(km.vk, copy) {
+            RepeatRoute::Held | RepeatRoute::Drop => true,
+            RepeatRoute::Pass(_) => false,
+            RepeatRoute::Unknown(_) => {
+                route_key_down(&*sink, surface_id, key, physical, mods, true, |action| {
+                    super::run_editing_command(&target, action, surface_id)
+                })
+                .consumed()
+            }
+        }
+    } else {
+        let route = route_key_down(&*sink, surface_id, key, physical, mods, false, |action| {
+            super::run_editing_command(&target, action, surface_id)
+        });
+        match route {
+            KeyDownRoute::Forwarded(id) => replay.forwarded(id, km.vk, copy),
+            KeyDownRoute::Pass | KeyDownRoute::Consumed => replay.press(km.vk),
+        }
+        route.consumed()
+    };
     // 이 함수가 돌아간 뒤에 메시지가 Dispatch되므로 페이지가 키를 보기 전에 기록된다.
     if proves_activation(km.vk, mods, consumed) {
         click.key_press(km.vk, Instant::now());
@@ -202,6 +239,13 @@ pub(super) unsafe fn create_controller(
     in_private: bool,
     surface_id: u32,
 ) -> std::result::Result<(ICoreWebView2Controller, bool), String> {
+    #[cfg(debug_assertions)]
+    if super::debug_host_input::host_input_disabled() {
+        tracing::warn!("WebView surface {surface_id}: host input processing is off for debugging");
+        // SAFETY: 호출자 계약을 그대로 넘긴다.
+        return unsafe { create_once(env, hwnd, in_private, false) }
+            .map(|controller| (controller, false));
+    }
     // SAFETY: 호출자 계약을 그대로 넘긴다.
     match unsafe { create_once(env, hwnd, in_private, true) } {
         Ok(controller) => return Ok((controller, true)),

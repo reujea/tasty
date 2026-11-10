@@ -83,9 +83,9 @@ impl App {
         }
     }
 
-    /// 처리 결과를 키를 가져간 WebView에 알린다. Linux는 Tasty가 처리하지 못한 키를 그 WebView에 다시 넣어
-    /// 엔진·페이지로 보낸다. 입력 게이트로 막은 키는 다시 넣지 않는다. 다른 OS는 키를 가져갈 때 이미 소비했다.
-    #[cfg_attr(not(target_os = "linux"), allow(unused_variables))] // reason: 다른 OS는 가져갈 때 키를 소비해 되돌릴 대상이 없다
+    /// 처리 결과를 키를 가져간 WebView에 알린다. Linux·Windows는 Tasty가 처리하지 못한 키를 그 WebView에 다시
+    /// 넣어 엔진·페이지로 보낸다. 입력 게이트로 막은 키는 다시 넣지 않는다. macOS는 키를 가져갈 때 이미 소비했다.
+    #[cfg_attr(target_os = "macos", allow(unused_variables))] // reason: macOS는 가져갈 때 키를 소비해 되돌릴 대상이 없다
     fn finish_forwarded_webview_key(
         &mut self,
         id: winit::window::WindowId,
@@ -93,7 +93,7 @@ impl App {
         key_id: u64,
         outcome: ForwardedKeyOutcome,
     ) {
-        #[cfg(target_os = "linux")]
+        #[cfg(any(target_os = "linux", windows))]
         if let Some(webview) = self
             .view
             .views

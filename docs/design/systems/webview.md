@@ -377,16 +377,32 @@ native 콜백은 가져갈지를 동기로 정하고 실행은 나중에 host �
   Paste·SelectAll 같은 동작은 반송이 없으므로 표지를 남기지 않는다. 다시 넣는 시점은 host 큐를 처리할 때이므로, 같은
   폴링 사이에 뒤이어 누른 키보다 늦게 페이지에 도착할 수 있다. 입력 게이트(모달·overlay·전체화면 무대)로 처리하지 않은 키와
   WebView가 사라진 키는 다시 넣지 않는다.
-- Windows·macOS는 가져갈 때 키를 소비하며(Windows 훅이 보내지 않거나 `AcceleratorKeyPressed`를 handled로 표시, macOS
-  `performKeyEquivalent:`·`keyDown:`이 WKWebView에 넘기지 않음) 처리
-  결과로 다시 넣는 경로가 없다. 그래서 두 번째 단계의 동적인 경우는 이 OS에서 키가 페이지에 가지 않는다.
+- Windows는 가져간 key-down의 원래 이벤트를 같은 일련번호로 붙잡았다가(`windows/key_replay.rs`, 상한 64, 넘치면 가장
+  오래된 것을 버림) 동작하지 않았다는 결과가 오면 다시 넘긴다. host 입력 훅이 소비한 키는 그 창 메시지(hwnd·message·
+  wParam·lParam)를 `PostMessageW`로 같은 창에 다시 보낸다. 다시 온 메시지는 보낸 목록과 대조해 판정 없이 통과시키므로
+  winit이 Translate·Dispatch해 원래 입력과 같은 길(엔진 기본 동작 포함)로 간다. WM_CHAR는 그때의 키보드 상태로 만들어져,
+  결과 전에 Shift 등을 뗐으면 다른 글자가 될 수 있다. `AcceleratorKeyPressed`로 가져간 키(옵션 없는 view, 중첩 메시지
+  루프)는 원래 메시지를 얻을 수 없어 DevTools `Input.dispatchKeyEvent`로 같은 키(key·code·vk·수식키, 글자 없는
+  `rawKeyDown`)를 합성한다. 이 경로의 키는 Ctrl·Alt 조합과 글자가 아닌 키라 글자를 넣지 않는다. AltGr(Ctrl+Alt)로 글자를
+  만드는 키는 이 경로에서 글자가 들어가지 않는다. 다시 넘긴 키가 `AcceleratorKeyPressed`로 돌아와도 판정하지 않도록 그 키
+  (vk·key-up 여부)의 표지를 1초 둔다. 훅이 없는 view에서는 그 1초 안에 같은 키를 다시 누르면 한 번이 판정 없이 페이지로 갈
+  수 있다. debug 빌드는 환경변수 `TASTY_DEBUG_WEBVIEW2_NO_HOST_INPUT`에 값이 있으면 host 입력 경로 없이 view를 만들어 이
+  경로를 재현한다. release 빌드에는 이 분기가 없다.
+- 결과 전에 온 자동 반복과 key-up도 그 누름과 함께 붙잡는다(Windows). 동작하지 않았으면 누름·반복을 순서대로 넘기고,
+  동작했으면 버린다. 붙잡은 key-up은 결과와 관계없이 key-down 뒤에 넘긴다(가져가기 전에도 key-up은 페이지로 갔다). 결과가
+  온 뒤의 반복은 그 물리 키의 첫 누름 결과를 따른다: 넘겼으면 반복도 그대로 엔진·페이지로 가고, 동작했거나 입력 게이트에
+  막혔으면 소비한다. 이 기록은 그 키의 key-up, 같은 키의 새 누름, 그 view의 포커스 획득(`GotFocus`)에서 지운다. 결과 전에
+  뗀 누름은 기록을 남기지 않는다. WebView를 다시 만들면 붙잡은 키와 기록이 함께 사라져 옛 결과는 아무것도 넘기지 않는다.
+- macOS는 가져갈 때 키를 소비하며(`performKeyEquivalent:`·`keyDown:`이 WKWebView에 넘기지 않음) 처리 결과로 다시 넣는
+  경로가 없다. 그래서 두 번째 단계의 동적인 경우는 macOS에서 키가 페이지에 가지 않는다.
 - 핸들러가 동작 없이 처리했다고 답하는 경우(없는 번호의 탭·workspace 전환)는 처리한 키로 본다.
 
 키 설정·카테고리 사용 여부(`workspace_categories_enabled`)와 PluginCommandRegistry·PluginsConfig의 전역 revision이 바뀔 때만 정책 스냅숏을 다시 만든다.
 modifier가 있으면 winit과 같은 US physical-key 변환을 쓰고 표 밖 키는 논리 키로 돌아간다.
 key-up은 전달하지 않고 host의 modifier 저장값도 바꾸지 않는다.
-macOS·Windows의 자동 반복은 다시 실행하거나 큐에 넣지 않는다. 첫 누름을 입력 차단으로 막았거나, 편집 명령으로
-실행했거나, host가 가져갔을 조합이면 반복도 페이지·엔진에 보내지 않는다(`WebViewKeySink::consumes_repeat`).
+macOS·Windows의 자동 반복은 다시 실행하거나 큐에 넣지 않는다. Windows는 첫 누름을 host 큐로 가져갔으면 그 결과를
+따른다(위 "동작하지 않은 키"). 그 기록이 없으면 첫 누름을 입력 차단으로 막았거나, 편집 명령으로 실행했거나, host가
+가져갔을 조합일 때 반복도 페이지·엔진에 보내지 않는다(`WebViewKeySink::consumes_repeat`).
 엔진에 그대로 두는 키와 가져가지 않는 키의 반복은 엔진·페이지로 간다. Linux/GDK의 key press에는 repeat 표시가 없어
 정상 press 오판을 피하려고 반복도 일반 press로 처리한다.
 Windows WebView2는 `AcceleratorKeyPressed`를 Ctrl이나 Alt를 누르고 있거나 글자로 바뀌지 않는 키에서만 올린다

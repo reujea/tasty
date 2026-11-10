@@ -5,8 +5,11 @@
 // 이유: native 포인터·핸들 호출을 묶는 FFI 모듈이다. 파일 단위 면제는 새 코드에도 적용되므로 안전 래퍼로 옮기면 범위를 줄여야 한다.
 #![allow(clippy::multiple_unsafe_ops_per_block)]
 
+#[cfg(debug_assertions)]
+mod debug_host_input;
 mod host_input;
 mod http;
+mod key_replay;
 mod keyboard;
 mod navigation;
 mod overlay;
@@ -27,7 +30,8 @@ use windows::Win32::UI::WindowsAndMessaging::*;
 use windows::core::*;
 use winit::raw_window_handle::{HasWindowHandle, RawWindowHandle};
 
-use self::keyboard::{current_winit_mods, vk_to_winit_key, win32_scancode_to_physical};
+#[cfg(test)]
+use self::keyboard::vk_to_winit_key;
 use self::navigation::{
     complete_requests, replay_navigation, set_js, stop_navigation, webview_source,
 };
@@ -80,6 +84,8 @@ pub struct PlatformWebView {
     pointer: RefCell<PointerGate>,
     /// host 입력 경로(winit 메시지 훅) 등록. 옵션을 쓰지 못한 view는 None이고 accelerator 경로를 쓴다.
     host_input: Option<host_input::RouteGuard>,
+    /// host가 가져간 키를 결과까지 붙잡는다. 훅과 accelerator 경로가 같이 쓴다.
+    key_replay: Rc<key_replay::KeyReplay>,
 }
 
 /// WebView2에는 편집 명령 API가 없어 DevTools `Input.dispatchKeyEvent`의 `commands`로 엔진 편집
@@ -791,54 +797,26 @@ impl PlatformWebView {
                 .add_ProcessFailed(&h_failed, &mut tok_failed)
                 .map_err(|e| transient(format!("add_ProcessFailed failed: {e}")))?;
 
-            let key_bridge_cb = key_bridge.clone();
-            let edit_target = webview.clone();
+            let key_replay = Rc::new(key_replay::KeyReplay::new(surface_id, webview.clone()));
+            let h_key = key_replay::accelerator_key_handler(
+                key_bridge.clone(),
+                webview.clone(),
+                key_replay.clone(),
+                surface_id,
+            );
             let mut tok_key: i64 = 0;
-            let h_key = AcceleratorKeyPressedEventHandler::create(Box::new(
-                move |_sender, args| -> windows::core::Result<()> {
-                    let Some(args) = args else { return Ok(()) };
-                    let mut kind = COREWEBVIEW2_KEY_EVENT_KIND::default();
-                    args.KeyEventKind(&mut kind)?;
-                    if kind != COREWEBVIEW2_KEY_EVENT_KIND_KEY_DOWN
-                        && kind != COREWEBVIEW2_KEY_EVENT_KIND_SYSTEM_KEY_DOWN
-                    {
-                        return Ok(());
-                    }
-                    let mut status = COREWEBVIEW2_PHYSICAL_KEY_STATUS::default();
-                    args.PhysicalKeyStatus(&mut status)?;
-                    let mut vk: u32 = 0;
-                    args.VirtualKey(&mut vk)?;
-                    let Some(key) = vk_to_winit_key(vk) else {
-                        return Ok(());
-                    };
-                    let physical =
-                        win32_scancode_to_physical(status.ScanCode, status.IsExtendedKey.as_bool());
-                    let mods = current_winit_mods();
-                    // host 입력 경로의 view도 판정한다. 훅이 소비한 키는 여기로 오지 않고, 훅을 지나지 않은
-                    // 키(중첩 메시지 루프)는 여기서 받는다(host_input 모듈 설명).
-                    if super::keys::route_key_down(
-                        &*key_bridge_cb,
-                        surface_id,
-                        key,
-                        physical,
-                        mods,
-                        status.WasKeyDown.as_bool(),
-                        |action| run_editing_command(&edit_target, action, surface_id),
-                    ) {
-                        args.SetHandled(true)?;
-                    }
-                    Ok(())
-                },
-            ));
             controller
                 .add_AcceleratorKeyPressed(&h_key, &mut tok_key)
                 .map_err(|e| transient(format!("add_AcceleratorKeyPressed failed: {e}")))?;
 
             let key_bridge_focus = key_bridge.clone();
+            let replay_focus = key_replay.clone();
             let mut tok_focus: i64 = 0;
             let h_focus = FocusChangedEventHandler::create(Box::new(
                 move |_sender, _args| -> windows::core::Result<()> {
                     key_bridge_focus.note_focus(surface_id);
+                    // 다른 곳에서 누른 키의 반복이 이 view의 옛 누름 결과를 따르지 않게 한다.
+                    replay_focus.clear_decisions();
                     Ok(())
                 },
             ));
@@ -847,7 +825,13 @@ impl PlatformWebView {
                 .map_err(|e| transient(format!("add_GotFocus failed: {e}")))?;
 
             let host_input = host_input_on.then(|| {
-                host_input::register(hwnd, surface_id, key_bridge.clone(), webview.clone())
+                host_input::register(
+                    hwnd,
+                    surface_id,
+                    key_bridge.clone(),
+                    webview.clone(),
+                    key_replay.clone(),
+                )
             });
             let click = host_input.as_ref().map(host_input::RouteGuard::click);
             click_slot.borrow_mut().clone_from(&click);
@@ -883,8 +867,15 @@ impl PlatformWebView {
                 region: RefCell::new(WindowRegion::default()),
                 pointer: RefCell::new(PointerGate::default()),
                 host_input,
+                key_replay,
             })
         }
+    }
+
+    /// host가 이 WebView에서 가져간 일련번호 `id`의 키를 처리했다. 처리하지 못했으면(`replay`) 붙잡은 원래
+    /// 키를 다시 넘겨 엔진·페이지로 보낸다(`key_replay`). 짝이 되는 키가 없으면 아무것도 하지 않는다.
+    pub fn finish_forwarded_key(&self, id: u64, replay: bool) {
+        self.key_replay.finish(id, replay);
     }
 
     /// 이 WebView 또는 자손이 키보드 포커스를 가졌을 때만 부모로 돌린다.
