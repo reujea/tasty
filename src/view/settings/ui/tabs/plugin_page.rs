@@ -3,14 +3,17 @@
 //! 항목은 매니페스트의 `kind` 별 컨트롤로 그린다. 묶음(`kind = "group"`)은 머리 줄을 그리고 그
 //! 아래에 `group` 이 그 묶음인 항목을 모은다. 스위치 머리를 끄면 묶음의 항목을 그리지 않는다.
 //! 스위치 값은 `toggle` 과 같은 `plugin_settings.<plugin_id>.<storage_key>` 칸에 bool 로 저장한다.
-//! 읽기 전용 글(`kind = "text"`)은 저장값이나 기본 글을 보여 주기만 하고 쓰지 않는다.
+//! 토글과 묶음 머리는 `caption_key` 가 있으면 그 아래에 설명 글을 둔다.
+//! 글(`kind = "text"`)은 저장값이나 기본 글을 보여 주기만 하고 쓰지 않는다. `editable` 이면 여러 줄
+//! 입력으로 그리고 고친 글을 저장한다.
 
 use crate::i18n::t;
 use crate::settings::{PluginSettingValue, Settings};
 use tasty_plugin_manifest::{SettingsEntry, SettingsItemDecl, SettingsPageContribute};
 use tasty_type_geometry::length::LogicalPx;
 use tasty_ui_widgets::{
-    SettingsRow, settings_group_header, settings_label_column, settings_text_row,
+    CodeArea, SettingsRow, StackRow, settings_group_header, settings_label_column,
+    settings_row_caption, settings_stack_row, settings_text_row,
 };
 
 use super::appearance::{SurfaceFontTarget, draw_surface_font_section};
@@ -121,6 +124,7 @@ fn draw_group_header(
     let SettingsItemDecl::Group {
         label_key,
         storage_key,
+        caption_key,
         ..
     } = decl
     else {
@@ -131,6 +135,10 @@ fn draw_group_header(
     let mut val = cur;
     let switch = storage_key.as_ref().map(|_| &mut val);
     settings_group_header(ui, &th, col, t(label_key), switch, first);
+    if let Some(key) = caption_key {
+        ui.add_space(th.settings_row_caption_gap().value());
+        settings_row_caption(ui, &th, t(key));
+    }
     if let Some(key) = storage_key
         && val != cur
     {
@@ -164,6 +172,7 @@ fn draw_plugin_item(
             label_key,
             storage_key,
             default,
+            caption_key,
             ..
         } => {
             draw_plugin_toggle(
@@ -171,7 +180,7 @@ fn draw_plugin_item(
                 settings,
                 col,
                 plugin_id,
-                label_key,
+                (label_key, caption_key.as_deref()),
                 storage_key,
                 *default,
             );
@@ -216,6 +225,12 @@ fn draw_plugin_item(
                 suffix_key.as_deref(),
             );
         }
+        SettingsItemDecl::Text {
+            label_key,
+            storage_key: Some(key),
+            editable: true,
+            ..
+        } => draw_plugin_text_edit(ui, settings, col, plugin_id, label_key, key, item),
         SettingsItemDecl::Text { label_key, .. } => {
             let th = crate::theme::theme();
             ui.add_space(th.spacing_sm.value());
@@ -234,13 +249,7 @@ fn draw_plugin_item(
 /// 읽기 전용 글에 보일 값 — 저장된 문자열(앞뒤 공백을 뺀 값, 공백뿐이면 없는 것), 없으면 번역한 기본 글, 그것도 없으면 `default`.
 /// plugin 은 빈 값을 기본값으로 읽으므로 화면도 같은 규칙을 따른다.
 fn text_value(settings: &Settings, plugin_id: &str, item: &SettingsItemDecl) -> String {
-    let SettingsItemDecl::Text {
-        storage_key,
-        default,
-        default_key,
-        ..
-    } = item
-    else {
+    let SettingsItemDecl::Text { storage_key, .. } = item else {
         return String::new();
     };
     let stored =
@@ -252,10 +261,69 @@ fn text_value(settings: &Settings, plugin_id: &str, item: &SettingsItemDecl) -> 
                 }
                 _ => None,
             });
-    stored.unwrap_or_else(|| match default_key.as_deref() {
+    stored.unwrap_or_else(|| default_text(item))
+}
+
+/// 글 칸의 기본 글 — `default_key` 번역, 없으면 `default`.
+fn default_text(item: &SettingsItemDecl) -> String {
+    let SettingsItemDecl::Text {
+        default,
+        default_key,
+        ..
+    } = item
+    else {
+        return String::new();
+    };
+    match default_key.as_deref() {
         Some(key) if !key.is_empty() => t(key).to_string(),
         _ => default.clone(),
-    })
+    }
+}
+
+/// 고칠 글 — 저장값이 문자열이면 그대로(빈 값도 그대로 두어 지우는 중에 기본 글이 되살아나지 않는다),
+/// 없으면 기본 글. 빈 값은 plugin 이 기본 글로 읽고, 화면은 그 기본 글을 자리표시로 보인다.
+fn edit_value(settings: &Settings, plugin_id: &str, key: &str, item: &SettingsItemDecl) -> String {
+    match settings.plugin_setting(plugin_id, key) {
+        Some(PluginSettingValue::Text(s)) => s.clone(),
+        _ => default_text(item),
+    }
+}
+
+/// `editable` 글 → 여러 줄 입력. 고칠 때마다 문자열로 저장한다.
+fn draw_plugin_text_edit(
+    ui: &mut egui::Ui,
+    settings: &mut Settings,
+    col: LogicalPx,
+    plugin_id: &str,
+    label_key: &str,
+    storage_key: &str,
+    item: &SettingsItemDecl,
+) {
+    let th = crate::theme::theme();
+    let mut buf = edit_value(settings, plugin_id, storage_key, item);
+    let placeholder = default_text(item);
+    let label = t(label_key);
+    let row = StackRow {
+        id: ui.id().with(("plugin_text_edit", plugin_id, storage_key)),
+        label_col: col,
+        row_h: th.settings_row_min_height(),
+        label,
+        hint: None,
+        align_top: true,
+    };
+    let mut changed = false;
+    ui.add_space(th.spacing_sm.value());
+    settings_stack_row(ui, &th, row, |ui| {
+        changed = CodeArea::new(("plugin_text_edit", plugin_id, storage_key))
+            .placeholder(&placeholder)
+            .min_rows(2)
+            .show(ui, &th, &mut buf)
+            .response
+            .changed();
+    });
+    if changed {
+        settings.set_plugin_setting(plugin_id, storage_key, PluginSettingValue::Text(buf));
+    }
 }
 
 /// plugin 설정 한 행. 페이지가 정한 라벨 열과 설정 행 격자를 쓴다.
@@ -265,9 +333,19 @@ fn plugin_setting_row(
     label: &str,
     control: impl FnOnce(&mut egui::Ui),
 ) {
+    plugin_setting_row_with(ui, col, SettingsRow::new(label), control);
+}
+
+/// [`plugin_setting_row`] 에 caption 같은 행 옵션을 더한 판.
+fn plugin_setting_row_with(
+    ui: &mut egui::Ui,
+    col: LogicalPx,
+    row: SettingsRow<'_>,
+    control: impl FnOnce(&mut egui::Ui),
+) {
     let th = crate::theme::theme();
     ui.add_space(th.spacing_sm.value());
-    SettingsRow::new(label).show(ui, &th, col, control);
+    row.show(ui, &th, col, control);
 }
 
 /// `Toggle` → 디자인 Switch (host `tasty_ui_widgets::switch`). bool read/write.
@@ -276,7 +354,7 @@ fn draw_plugin_toggle(
     settings: &mut Settings,
     col: LogicalPx,
     plugin_id: &str,
-    label_key: &str,
+    (label_key, caption_key): (&str, Option<&str>),
     storage_key: &str,
     default: bool,
 ) {
@@ -286,7 +364,11 @@ fn draw_plugin_toggle(
     };
     let mut val = cur;
     let th = crate::theme::theme();
-    plugin_setting_row(ui, col, t(label_key), |ui| {
+    let mut row = SettingsRow::new(t(label_key));
+    if let Some(key) = caption_key {
+        row = row.caption(t(key));
+    }
+    plugin_setting_row_with(ui, col, row, |ui| {
         tasty_ui_widgets::switch(ui, &th, &mut val, None, true);
     });
     if val != cur {
@@ -405,7 +487,7 @@ fn draw_plugin_number(
 
 #[cfg(test)]
 mod tests {
-    use super::{PageRow, page_rows, text_value};
+    use super::{PageRow, edit_value, page_rows, text_value};
     use crate::settings::{PluginSettingValue, Settings};
     use tasty_plugin_manifest::SettingsPageContribute;
 
@@ -629,6 +711,35 @@ mod tests {
         assert_eq!(off, on, "기능 스위치를 끄자 칸이 숨었다");
         s.set_plugin_setting(&m.id, "traffic_on", PluginSettingValue::Bool(true));
         assert_eq!(page_rows(&s, &m.id, p).len(), 26);
+    }
+
+    /// 고칠 수 있는 글은 저장값을 그대로(빈 값도) 고칠 글로 쓴다 — 지우는 중에 기본 글이 되살아나지 않는다.
+    /// 저장값이 없으면 기본 글에서 시작한다. 읽기 전용 글의 규칙(공백뿐이면 기본 글)과 다르다.
+    #[test]
+    fn an_editable_text_item_edits_the_stored_value_as_is() {
+        let p = page(
+            r#"
+            [[contributes.settings_pages.items]]
+            kind = "text"
+            id = "prompt"
+            label_key = "x.prompt"
+            storage_key = "prompt"
+            default = "sync"
+            editable = true
+            "#,
+        );
+        let item = &p.items[0];
+        let mut s = Settings::default();
+        assert_eq!(edit_value(&s, PLUGIN, "prompt", item), "sync");
+        s.set_plugin_setting(PLUGIN, "prompt", PluginSettingValue::Text(String::new()));
+        assert_eq!(edit_value(&s, PLUGIN, "prompt", item), "");
+        assert_eq!(
+            text_value(&s, PLUGIN, item),
+            "sync",
+            "plugin 은 빈 값을 기본 글로 읽는다"
+        );
+        s.set_plugin_setting(PLUGIN, "prompt", PluginSettingValue::Text("다시 ".into()));
+        assert_eq!(edit_value(&s, PLUGIN, "prompt", item), "다시 ");
     }
 
     /// 읽기 전용 글도 묶음 규칙을 따른다 — 스위치 없는 머리 아래 늘 보인다.

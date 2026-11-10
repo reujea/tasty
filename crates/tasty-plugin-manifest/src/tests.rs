@@ -3686,6 +3686,76 @@ fn settings_pages_text_without_any_default_rejected() {
     );
 }
 
+#[test]
+fn settings_pages_editable_text_needs_a_storage_key() {
+    let s = settings_items_manifest(
+        r#"
+        [[contributes.settings_pages.items]]
+        kind = "text"
+        id = "prompt"
+        label_key = "x.prompt"
+        default = "sync"
+        editable = true
+        "#,
+    );
+    let err = parse(&s).expect_err("an editable text item with nowhere to save must be refused");
+    assert!(format!("{err:#}").contains("needs storage_key"), "{err:#}");
+    let ok = settings_items_manifest(
+        r#"
+        [[contributes.settings_pages.items]]
+        kind = "text"
+        id = "prompt"
+        label_key = "x.prompt"
+        storage_key = "prompt"
+        default = "sync"
+        editable = true
+        "#,
+    );
+    let m = parse(&ok).expect("editable text with a storage key");
+    assert!(matches!(
+        &m.contributes.settings_pages[0].items[0],
+        SettingsItemDecl::Text { editable: true, .. }
+    ));
+}
+
+#[test]
+fn settings_pages_toggle_and_group_carry_a_caption() {
+    let s = settings_items_manifest(
+        r#"
+        [[contributes.settings_pages.items]]
+        kind = "group"
+        id = "gate"
+        label_key = "x.gate"
+        storage_key = "gate_on"
+        caption_key = "x.gate_about"
+
+        [[contributes.settings_pages.items]]
+        kind = "toggle"
+        id = "a"
+        label_key = "x.a"
+        storage_key = "a"
+        caption_key = "x.a_about"
+        group = "gate"
+
+        [[contributes.settings_pages.items]]
+        kind = "toggle"
+        id = "b"
+        label_key = "x.b"
+        storage_key = "b"
+        group = "gate"
+        "#,
+    );
+    let m = parse(&s).expect("captions should parse + validate");
+    let caption = |i: usize| match &m.contributes.settings_pages[0].items[i] {
+        SettingsItemDecl::Group { caption_key, .. }
+        | SettingsItemDecl::Toggle { caption_key, .. } => caption_key.clone(),
+        other => panic!("unexpected {other:?}"),
+    };
+    assert_eq!(caption(0).as_deref(), Some("x.gate_about"));
+    assert_eq!(caption(1).as_deref(), Some("x.a_about"));
+    assert_eq!(caption(2), None);
+}
+
 fn lazy_kind_manifest(rendering: &str) -> String {
     format!(
         r#"
