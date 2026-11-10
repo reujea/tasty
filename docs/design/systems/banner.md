@@ -80,8 +80,8 @@ Popup은 독립 기능, Banner는 안내와 조치, Toast는 짧은 정보 표�
 - 판정은 `tasty_ui_widgets::banner_is_narrow(scope_width)`가 한다. 기준 폭은 배너 margin을 빼기 전 스코프 폭이다. Surface 배너는 surface 폭, Pane·Tab 배너는 그 pane의 탭 바 아래 콘텐츠 폭, Workspace 배너는 보이는 pane 전체를 합친 영역의 폭이다. 스코프 크기가 바뀔 때마다 다시 판정하고, 내용 길이로 임계값을 바꾸지 않으며, 배치 전환에 애니메이션을 두지 않는다.
 - 줄 사이는 같은 `banner_gap()`이고, 내린 버튼은 본문 왼쪽 가장자리(글리프 + `banner_gap()`)에서 시작한다. 좁은 배치에서 글 열은 오른쪽 위 닫기 칸(`banner_gap()` + 닫기 버튼 폭)을 뺀 폭을 쓴다.
 - 다시 시도 중(비활성 + 앞 Spinner, 라벨 유지)과 Retry all 도 내린 줄에서 같은 모양이다.
-- 내용 안에 ×를 그리는 배너(자동 attach 거절, 크기 동기 실패)와 셸 모서리 닫기 슬롯을 쓰는 배너(HTML 스크립트 차단) 모두 액션 버튼만 내리고 ×는 오른쪽 위에 남는다. 앞의 두 배너는 공용 행 배치(`ActionRow`)가 넓을 때 버튼과 ×를 나란히, 좁을 때 따로 놓는다.
-- 본체 BannerManager는 슬롯마다 스코프 폭으로 판정해 거절 배너와 크기 동기 실패 배너에 넘긴다. HTML 스크립트 차단 배너는 surface 폭으로 판정한다(아래 inset 배치).
+- 내용 안에 ×를 그리는 배너(크기 동기 실패)와 셸 모서리 닫기 슬롯을 쓰는 배너(HTML 스크립트 차단) 모두 액션 버튼만 내리고 ×는 오른쪽 위에 남는다. 크기 동기 실패 배너는 공용 행 배치(`ActionRow`)가 넓을 때 버튼과 ×를 나란히, 좁을 때 따로 놓는다.
+- 본체 BannerManager는 슬롯마다 스코프 폭으로 판정해 크기 동기 실패 배너에 넘긴다. HTML 스크립트 차단 배너는 surface 폭으로 판정한다(아래 inset 배치).
 
 ### inset 배치
 
@@ -244,7 +244,6 @@ mirror 가 서버의 이름을 아직 받지 못했거나 이름을 보내지 �
 |---|---|---|---|
 | `mouse-capture` | Surface | 마우스를 캡처한 TUI에서 사용자가 드래그 선택을 시도했을 때 | 정적 `content_fn` + 더보기(⋯)·닫기. 프로그램 이름을 몰라도 ⋯ 메뉴가 있어 TTL 없이 동작이나 ×까지 남는다 |
 | `shell-integration-missing` | Surface | 사용자가 본 로컬 셸 surface가 출력은 있는데 PromptBoundary를 받지 못할 때. 로컬 PTY가 없는 원격 attach mirror에는 띄우지 않는다 | 정적 `content_fn` + 카운트다운·닫기. 동작이 없어 TTL 10초 뒤 닫힌다. TTL은 디자인 고정값이며 설정으로 노출하지 않는다 |
-| `attach-refusal` | Workspace | 사용자가 활성화한 저장된 원격 행이 연결하지 못한 안내를 가질 때 | `BannerContentSource::AttachRefusal`(대상·이유)을 `tasty_ui_widgets::attach_refusal_banner_content`로 그린다. 매핑 지우기·닫기 버튼이 내용 안에 있어 모서리 닫기 슬롯을 쓰지 않는다. 스코프가 좁으면 매핑 지우기 버튼만 본문 아래 줄로 내리고 ×는 오른쪽 위에 남는다([좁은 스코프](#좁은-스코프)). ×는 그 창의 이번 활성화에만 숨긴다. 상세는 [원격 attach](../../features/remote-attach/index.md) |
 | `attach-size-sync` | Workspace | 활성 워크스페이스가 mirror 이고 그 터미널 크기 동기화가 자동 재시도 뒤에도 실패했을 때 | `BannerContentSource::AttachSizeSync`(탭 이름·다시 시도 중 여부)를 `tasty_ui_widgets::attach_size_sync_banner_content`로 그린다. 다시 시도·닫기 버튼이 내용 안에 있어 모서리 닫기 슬롯을 쓰지 않으며, 좁으면 다시 시도만 아래 줄로 내린다. 버튼은 App 이 그 세션에 적용하고 × 는 실패 목록을 비운다. 상세는 [attach 동작](../../dev-guide/attach-behavior.md#크기-요청의-응답과-재시도) |
 
 ## IPC / debug

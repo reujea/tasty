@@ -660,7 +660,7 @@ src/catalog/components/tools_menu.rs	Task DAGs	dag_list.title,dag_list.tools_men
 src/catalog/components/tools_menu.rs	Tutorial…	tutorial.tools_menu_item
 src/catalog/components/tools_menu.rs	built-in	file_handler.picker.origin_host,plugins.builtin_badge
 src/catalog/components/transfer.rs	Cancel	button.cancel,download_run.dialog.cancel,explorer.op.cancel,image_viewer.cancel,preset.popup.cancel_button,quit_modal.cancel_button,remote_attach.cancel,remote_tool.cancel,transfer.progress.cancel
-src/catalog/components/transfer.rs	Dismiss	explorer.result.dismiss,remote.refusal.dismiss,remote.size_sync.dismiss,transfer.error.dismiss
+src/catalog/components/transfer.rs	Dismiss	explorer.result.dismiss,remote.size_sync.dismiss,transfer.error.dismiss
 src/catalog/components/transfer.rs	Receiving file	transfer.progress.title
 src/catalog/components/transfer.rs	Retry	explorer.properties.retry,explorer.state.read_error_retry,filepicker.error_perm.retry,remote.size_sync.retry,remote_attach.retry,transfer.error.retry
 src/catalog/components/transfer.rs	Transfer failed	transfer.error.title
@@ -707,7 +707,6 @@ src/catalog/theme.rs	Delete	preset.toolbar.delete,remote_tool.delete
 src/catalog/theme.rs	Open	button.open,explorer.props.open,file_handler.picker.open_button,filepicker.open_button
 src/catalog/theme.rs	plugin	file_handler.picker.origin_plugin
 src/catalog/typography.rs	Attach connections	settings.remote_attach.section
-src/catalog/widgets/attach_refusal.rs	Remove mapping	remote.refusal.remove
 src/catalog/widgets/attach_refusal.rs	{}	remote.size_sync.names
 src/catalog/widgets/attach_size_sync.rs	Retry	explorer.properties.retry,explorer.state.read_error_retry,filepicker.error_perm.retry,remote.size_sync.retry,remote_attach.retry,transfer.error.retry
 src/catalog/widgets/banner.rs	Add	button.add,explorer.popup.add_favorite.add,settings.terminal.input_add,settings.terminal.mouse_capture_banner_blacklist_add_button,settings.terminal.mouse_capture_blacklist_add_button

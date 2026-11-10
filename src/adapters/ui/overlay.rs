@@ -47,16 +47,6 @@ pub(crate) fn draw_overlays(
         .core
         .workspace_at(draw_ctx.active_workspace)
         .map(|ws| (draw_ctx.active_workspace, ws.id));
-    // 저장된 원격 행에는 거절 배너를 띄우지 않는다. 이유는 연결 팝업과 행 표지가 보인다.
-    let refusal_workspace = active_workspace.filter(|&(index, _)| {
-        engine
-            .core
-            .workspace_at(index)
-            .is_some_and(|ws| !ws.is_saved_remote_row())
-    });
-    state
-        .attach_notices
-        .sync_banner(&mut state.banners, refusal_workspace);
     let tab_name = |surface: u32| {
         let layout = engine
             .core
@@ -86,12 +76,6 @@ pub(crate) fn draw_overlays(
     if let Some((scope, trigger_rect)) = banner_result.more_clicked {
         crate::adapters::ui::mouse_capture_menu::open(state, engine, ctx, &scope, trigger_rect);
     }
-    if let Some((workspace_id, clicks)) = banner_result.attach_refusal
-        && clicks.dismiss
-    {
-        state.attach_notices.dismiss(workspace_id);
-    }
-
     if let Some((workspace_id, clicks)) = banner_result.attach_size_sync {
         use crate::intent::AttachSizeSyncAction;
         let action = if clicks.retry {

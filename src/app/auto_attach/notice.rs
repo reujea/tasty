@@ -73,16 +73,7 @@ impl App {
             .refusals
             .notices()
             .into_iter()
-            .map(|(anchor, notice)| {
-                (
-                    anchor,
-                    AttachNoticeView {
-                        kind: notice.kind,
-                        target: notice.target.clone(),
-                        announced: notice.announced,
-                    },
-                )
-            })
+            .map(|(anchor, notice)| (anchor, AttachNoticeView { kind: notice.kind }))
             .collect();
         for (_, main, _) in self.engines_mut().window_pairs() {
             if main.state.attach_notices.generation() == Some(generation) {

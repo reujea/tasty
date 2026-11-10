@@ -2284,16 +2284,6 @@ workspace_switch = "워크스페이스 전환 (워크스페이스 위에 숫자 
 category_switch = "카테고리 전환 (카테고리 헤더 위에 숫자 표시)"
 link_click = "수식키+클릭으로 링크 열기"
 
-[remote.refusal]
-# {} 자리에 매핑 대상(프로필 이름 또는 host:port)이 mono 글꼴로 들어간다.
-title = "원격에 연결하지 않음 — {}"
-self = "이 매핑은 지금 실행 중인 Tasty를 가리키므로 연결하지 않았습니다."
-profile_missing = "이 이름의 SSH 프로필이 없습니다."
-unresolved = "연결 대상을 확인할 수 없습니다."
-hint = "이 워크스페이스의 매핑을 바꾸거나 지우세요."
-remove = "매핑 지우기"
-dismiss = "닫기"
-
 [remote.size_sync]
 # 원격 attach mirror 의 터미널 크기 동기화가 자동 재시도 뒤에도 실패했을 때의 Workspace 배너.
 # 본문은 두 줄이다. names 는 첫 줄이고 {} 에 surface 이름(또는 many 로 만든 요약)이 들어간다.

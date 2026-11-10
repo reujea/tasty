@@ -2300,16 +2300,6 @@ workspace_switch = "切换工作区（工作区上方显示数字键）"
 category_switch = "切换类别（类别标题上方显示数字键）"
 link_click = "使用修饰键+单击打开链接"
 
-[remote.refusal]
-# {} 자리에 매핑 대상(프로필 이름 또는 host:port)이 mono 글꼴로 들어간다.
-title = "未附加远程 — {}"
-self = "此映射指向当前 Tasty，因此未附加。"
-profile_missing = "没有此名称的 SSH 配置档。"
-unresolved = "无法解析端点。"
-hint = "更改或移除此工作区的映射。"
-remove = "移除映射"
-dismiss = "关闭"
-
 [remote.size_sync]
 # 원격 attach mirror 의 터미널 크기 동기화가 자동 재시도 뒤에도 실패했을 때의 Workspace 배너.
 # 본문은 두 줄이다. names 는 첫 줄이고 {} 에 surface 이름(또는 many 로 만든 요약)이 들어간다.

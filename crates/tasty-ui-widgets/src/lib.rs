@@ -118,9 +118,8 @@ mod webview_page_tile;
 pub use approval_choice::approval_choice;
 pub use attach_loading::{LoadingPlacement, PendingIndicator, paint_loading_overlay};
 pub use attach_refusal::{
-    AttachRefusalBannerClicks, AttachRefusalBannerView, attach_refusal_avatar_tooltip,
-    attach_refusal_banner, attach_refusal_banner_content, attach_refusal_mark,
-    attach_refusal_mark_size, paint_attach_refusal_chip,
+    attach_refusal_avatar_tooltip, attach_refusal_mark, attach_refusal_mark_size,
+    paint_attach_refusal_chip,
 };
 pub use attach_size_sync::{
     AttachSizeSyncBannerClicks, AttachSizeSyncBannerView, attach_size_sync_banner,

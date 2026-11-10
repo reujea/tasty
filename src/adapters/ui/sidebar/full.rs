@@ -36,7 +36,7 @@ pub(super) fn entry_view(
         is_active: global_idx == active_ws,
         move_source: crate::adapters::ui::move_source::workspace_cue(engine, active_ws, pending)
             == Some(global_idx),
-        attach_refusal: notices.tooltip(ws.id),
+        attach_refusal: None,
         row_state: None,
     }
     .with_remote_row(notices, engine, ws)

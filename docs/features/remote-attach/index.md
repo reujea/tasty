@@ -370,7 +370,7 @@ move-surface 는 **source/target 이 같은 mirror workspace 안에 있을 때�
   - 버튼은 Connect·Reconnect 이고 `Intent::SavedRow{Connect}` 를 팝업 출처로 보낸다. 시도 중이면 spinner 와 Connecting·Reconnecting 문구로 끈다. 다른 곳에서 닫힌 행은 Reconnect 를 끈 채 그린다.
 - **사이드바 카드와 rail**: 카드의 원격 줄은 상태어(`remote.row.state.*` 등)를 붙이고 연결되지 않은 동안 원격 색을 뺀다. rail 의 mirror 칩은 연결되지 않은 동안 꺼진 칩으로 그린다. 연결되지 않은 행은 바쁨 수를 세지 않고, 시도 중이면 시도를 시작한 시각부터 로딩 표시를 그린다. 연결 실패 안내는 카드 툴팁에 프로필 → 원격 workspace 와 이유로 보인다.
 - **상태바**: 연결 끊김 행은 재연결 중처럼 원격 색을 빼고 `status_bar.remote_disconnected` 상태어를 붙인다.
-- **attach 거절 배너**: 저장된 원격 행에는 띄우지 않는다. 팝업과 카드가 같은 이유를 보인다.
+- **거절 안내**: 배너는 없다. 팝업과 카드가 같은 이유를 보인다.
 - **다른 곳에서 닫힌 행**: 이번 실행에서 원격 workspace 가 없다고 확인된 행이다. 연결돼 있던 동안 다른 곳에서 닫혀 재연결이 `remote_workspace_missing` 으로 끝난 행과, 첫 연결이 같은 이유로 끝난 행이 모두 해당하며 형상 유무와 상관없다. 다시 활성화해도 자동으로 연결하지 않고, 팝업은 다른 곳에서 닫힘 갈래로 버튼을 끄며 메뉴의 Connect·Reconnect 도 끈다(`row_closed_elsewhere`). 그 행을 쓰는 요청은 연결을 시도하지 않고 바로 `remote_workspace_missing` 으로 거절한다. 이 표지는 메모리에만 있고 저장하지 않는다. 다시 시작하면 그 행은 아직 붙지 않은 행이고 Connect 가 켜진다.
 
 ### 저장된 원격 행을 쓰는 요청

@@ -89,7 +89,7 @@ fn panel(ui: &mut egui::Ui, theme: &Theme, label: &str) {
         });
 }
 
-/// 시안 Narrow Spec 의 테마 묶음 — 360 스코프에 거절 · 한 surface · Retry all · 다시 시도 중을 쌓는다.
+/// 시안 Narrow Spec 의 테마 묶음 — 360 스코프에 한 surface · Retry all · 다시 시도 중을 쌓는다.
 fn narrow_panel(ui: &mut egui::Ui, theme: &Theme, label: &str) {
     const MANY: [&str; 3] = ["release-pipeline-watch-logs-eu-west", "build", "tests"];
     egui::Frame::new()
@@ -104,9 +104,11 @@ fn narrow_panel(ui: &mut egui::Ui, theme: &Theme, label: &str) {
             ui.set_width(NARROW_SCOPE_W.value() - 2.0 * theme.spacing_md.value());
             ui.vertical(|ui| {
                 ui.spacing_mut().item_spacing.y = theme.spacing_sm.value();
-                caption(ui, theme, &format!("{label} \u{2014} refused \u{b7} 360"));
-                super::attach_refusal::refused_sample(ui, theme, NARROW_SCOPE_W);
-                caption(ui, theme, "size sync \u{b7} one surface");
+                caption(
+                    ui,
+                    theme,
+                    &format!("{label} \u{2014} size sync \u{b7} one surface"),
+                );
                 banner(ui, theme, &["build"], false, NARROW_SCOPE_W);
                 caption(ui, theme, "size sync \u{b7} 3 surfaces \u{b7} Retry all");
                 banner(ui, theme, &MANY, false, NARROW_SCOPE_W);

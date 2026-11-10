@@ -2346,16 +2346,6 @@ workspace_switch = "Switch workspaces (number keys show over workspaces)"
 category_switch = "Switch category (number keys show over category headers)"
 link_click = "Open links with modifier+click"
 
-[remote.refusal]
-# {} 자리에 매핑 대상(프로필 이름 또는 host:port)이 mono 글꼴로 들어간다.
-title = "Remote not attached — {}"
-self = "This mapping points at this Tasty, so it was not attached."
-profile_missing = "No SSH profile with this name."
-unresolved = "The endpoint could not be resolved."
-hint = "Change or remove the mapping for this workspace."
-remove = "Remove mapping"
-dismiss = "Dismiss"
-
 [remote.size_sync]
 # 원격 attach mirror 의 터미널 크기 동기화가 자동 재시도 뒤에도 실패했을 때의 Workspace 배너.
 # 본문은 두 줄이다. names 는 첫 줄이고 {} 에 surface 이름(또는 many 로 만든 요약)이 들어간다.
