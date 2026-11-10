@@ -6,6 +6,7 @@ use super::PlatformWebView;
 use super::navigation::{
     complete_requests, replay_navigation, set_js, stop_navigation, webview_source,
 };
+use tasty_model::html_script::top_level::Designation;
 use windows::core::{BOOL, HSTRING};
 
 impl PlatformWebView {
@@ -77,6 +78,7 @@ impl PlatformWebView {
             return;
         }
         self.begin_load();
+        self.top_level.borrow_mut().designate(Designation::Next);
         // SAFETY: HSTRING은 호출 끝까지 살아있고 Navigate는 main thread 호출.
         unsafe {
             let url = HSTRING::from(url);
@@ -111,6 +113,7 @@ impl PlatformWebView {
 
     pub fn reload(&self) {
         self.host_request(None);
+        self.top_level.borrow_mut().designate(Designation::Next);
         // SAFETY: webview는 self가 살아있는 동안 valid, main thread 호출.
         if let Err(e) = unsafe { self.webview.Reload() } {
             tracing::warn!("WebView2 Reload failed: {e}");
@@ -119,6 +122,10 @@ impl PlatformWebView {
 
     pub fn go_back(&self) {
         self.host_request(Some(HistoryStep::Back));
+        self.designate_history(|wv, out| {
+            // SAFETY: webview는 self가 살아있는 동안 valid, main thread 호출. 출력 BOOL은 지역 변수다.
+            unsafe { wv.CanGoBack(out) }
+        });
         // SAFETY: webview는 self가 살아있는 동안 valid, main thread 호출.
         if let Err(e) = unsafe { self.webview.GoBack() } {
             tracing::warn!("WebView2 GoBack failed: {e}");
@@ -127,6 +134,10 @@ impl PlatformWebView {
 
     pub fn go_forward(&self) {
         self.host_request(Some(HistoryStep::Forward));
+        self.designate_history(|wv, out| {
+            // SAFETY: webview는 self가 살아있는 동안 valid, main thread 호출. 출력 BOOL은 지역 변수다.
+            unsafe { wv.CanGoForward(out) }
+        });
         // SAFETY: webview는 self가 살아있는 동안 valid, main thread 호출.
         if let Err(e) = unsafe { self.webview.GoForward() } {
             tracing::warn!("WebView2 GoForward failed: {e}");
@@ -157,6 +168,24 @@ impl PlatformWebView {
             ),
             can_go_back: back.as_bool(),
             can_go_forward: forward.as_bool(),
+        }
+    }
+
+    /// 이동할 이력이 있을 때만 다음 탐색을 지목한다. 이력이 없으면 탐색이 시작되지 않아 지목이 남는다.
+    fn designate_history(
+        &self,
+        can: impl FnOnce(
+            &webview2_com::Microsoft::Web::WebView2::Win32::ICoreWebView2,
+            &mut BOOL,
+        ) -> windows::core::Result<()>,
+    ) {
+        let mut out = BOOL(0);
+        match can(&self.webview, &mut out) {
+            Ok(()) if out.as_bool() => self.top_level.borrow_mut().designate(Designation::Next),
+            Ok(()) => {}
+            Err(e) => {
+                tracing::warn!("WebView2 history query failed: {e}; the step is not designated")
+            }
         }
     }
 

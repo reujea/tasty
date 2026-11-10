@@ -7,6 +7,7 @@
 pub mod banner;
 pub mod remote;
 pub mod scan;
+pub mod top_level;
 
 pub use banner::{BannerPhase, ScriptMarker};
 pub use remote::{RemoteAllowError, RemoteMarker, RemoteView};

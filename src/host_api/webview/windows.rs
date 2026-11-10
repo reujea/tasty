@@ -38,6 +38,7 @@ use super::scan_resume::{RequestAction, ScanResume, Start, StartKind};
 use super::script_gate::ScriptGate;
 use super::window_region::{PointerGate, WindowRegion};
 use super::{NavState, PendingNavigation, WebViewBounds};
+use tasty_model::html_script::top_level::TopLevelAdmission;
 
 pub(crate) use host_input::filter_message as filter_host_input;
 
@@ -52,6 +53,8 @@ pub struct PlatformWebView {
     /// The remote HTTP document this view shows through its endpoint proxy.
     http: Option<Rc<super::http_native::NativeDocument>>,
     allow_remote: Rc<Cell<bool>>,
+    /// 원격 차단 중 연 top-level 탐색(remote_block).
+    top_level: Rc<RefCell<TopLevelAdmission>>,
     nav_state: Rc<Cell<NavState>>,
     /// 렌더 process가 끝났고 동기화 루프가 아직 꺼내 가지 않았다.
     content_process_ended: Rc<Cell<bool>>,
@@ -313,6 +316,8 @@ impl PlatformWebView {
             // 차단 상태에서 http(s) 요청을 빈 403 응답으로 대체한다. 앞 스캔 결과를 받은 탐색의 file
             // 문서 요청은 지문을 확인할 때까지 붙잡는다(scan_resume).
             let allow_remote = Rc::new(Cell::new(false));
+            let top_level: Rc<RefCell<TopLevelAdmission>> = Rc::default();
+            let top_request = top_level.clone();
             // A remote HTTP document's requests all reach its endpoint, which decides them.
             if http.is_none() {
                 webview
@@ -345,7 +350,15 @@ impl PlatformWebView {
                     }
                     let is_remote =
                         uri_str.starts_with("http://") || uri_str.starts_with("https://");
-                    if is_remote && remote_block::refuse(&allow_cb, &gate_request, &args) {
+                    if is_remote
+                        && remote_block::refuse(
+                            &allow_cb,
+                            &gate_request,
+                            &top_request,
+                            &uri_str,
+                            &args,
+                        )
+                    {
                         let resp =
                             env_cb.CreateWebResourceResponse(None, 403, w!("Blocked"), w!(""))?;
                         args.SetResponse(&resp)?;
@@ -416,6 +429,8 @@ impl PlatformWebView {
             // 로드 시작과 응답 결정을 여기서 함께 한다(docs/surfaces/html/index.md 후보 이벤트, 미측정).
             let entry_navigation = entry_source.clone();
             let http_start = http.as_ref().map(Rc::downgrade);
+            let top_start = top_level.clone();
+            let allow_start = allow_remote.clone();
             let h_start = NavigationStartingEventHandler::create(Box::new(
                 move |sender, args| -> windows::core::Result<()> {
                     tracing::debug!("WebView surface {surface_id}: load started");
@@ -466,6 +481,15 @@ impl PlatformWebView {
                                 a.NavigationKind(&mut k).map(|()| k)
                             })
                             .ok();
+                        remote_block::navigation_starting(
+                            &top_start,
+                            &args,
+                            &uri_str,
+                            kind,
+                            user_gesture,
+                            remote_block::origin(allow_start.get(), gate_start.borrow().as_ref()),
+                            surface_id,
+                        );
                         let skip = kind.is_some_and(|k| k != COREWEBVIEW2_NAVIGATION_KIND_RELOAD)
                             && gate_start
                                 .borrow()
@@ -557,6 +581,7 @@ impl PlatformWebView {
             let resume_content = scan_resume.clone();
             let nav_content = nav_state.clone();
             let http_commit = http.as_ref().map(Rc::downgrade);
+            let top_commit = top_level.clone();
             let mut tok_content: i64 = 0;
             let h_content = ContentLoadingEventHandler::create(Box::new(
                 move |sender, args| -> windows::core::Result<()> {
@@ -581,6 +606,7 @@ impl PlatformWebView {
                             &nav_content,
                         );
                     }
+                    top_commit.borrow_mut().end();
                     let uri_str = webview_source(wv)?;
                     *commit_url.borrow_mut() = uri_str.clone();
                     if let Some(gate) = gate_commit.borrow().as_ref()
@@ -604,6 +630,7 @@ impl PlatformWebView {
             let chrome_done = chrome_generation.clone();
             let resume_done = scan_resume.clone();
             let http_done = http.as_ref().map(Rc::downgrade);
+            let top_done = top_level.clone();
             let mut tok_done: i64 = 0;
             let h_done = NavigationCompletedEventHandler::create(Box::new(
                 move |sender, args| -> windows::core::Result<()> {
@@ -655,6 +682,10 @@ impl PlatformWebView {
                         return Ok(());
                     }
                     let current = is_current_load(generation_done.get(), nav_id);
+                    // 앞 로드의 늦은 종료는 새 로드의 top-level 허용을 닫지 않는다.
+                    if is_current_load(chrome_done.get(), nav_id) {
+                        top_done.borrow_mut().end();
+                    }
                     if current {
                         if let (Some(js), Some(wv)) = (
                             gate_done.borrow().as_ref().and_then(|g| g.finished()),
@@ -822,6 +853,7 @@ impl PlatformWebView {
                     .or(http_environment.map(|http| http.profile)),
                 http,
                 allow_remote,
+                top_level,
                 nav_state,
                 content_process_ended,
                 chrome_generation,

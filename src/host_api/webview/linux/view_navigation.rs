@@ -1,4 +1,5 @@
 //! 탐색 요청·이력 이동과 탐색 상태 조회. 신호 처리기는 `PlatformWebView::new`에 있다.
+use tasty_model::html_script::top_level::Designation;
 use webkit2gtk::WebViewExt;
 
 use super::super::NavState;
@@ -7,6 +8,7 @@ use super::PlatformWebView;
 impl PlatformWebView {
     pub fn load_url(&self, url: &str) {
         self.edit_guard.bump();
+        self.remote.designate(Designation::Url(url.to_string()));
         // 같은 문서의 fragment 이동은 load-changed 없이 끝난다(측정). Loading을 세우면 풀리지 않는다.
         if self.nav_state.get() == NavState::Done
             && crate::model::is_same_document_fragment_move(self.webview.uri().as_deref(), url)
@@ -35,16 +37,23 @@ impl PlatformWebView {
     /// web process가 바쁘면 load-changed가 선택 응답보다 늦게 온다(측정).
     pub fn reload(&self) {
         self.edit_guard.bump();
+        self.remote.designate(Designation::Reload);
         self.webview.reload();
     }
 
     pub fn go_back(&self) {
         self.edit_guard.bump();
+        if self.webview.can_go_back() {
+            self.remote.designate(Designation::History);
+        }
         self.webview.go_back();
     }
 
     pub fn go_forward(&self) {
         self.edit_guard.bump();
+        if self.webview.can_go_forward() {
+            self.remote.designate(Designation::History);
+        }
         self.webview.go_forward();
     }
 

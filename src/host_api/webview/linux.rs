@@ -337,10 +337,15 @@ impl PlatformWebView {
                     edit_guard.unready();
                     let uri = wv.uri();
                     *committed.borrow_mut() = uri.as_deref().map(str::to_string);
+                    remote.end_top_level();
                     gate_step(wv, &gate, &remote, |g| Some(g.committed(uri.as_deref())));
                 }
                 LoadEvent::Finished => {
                     let state = loads.borrow_mut().finished();
+                    // 앞 로드의 늦은 종료는 새 로드의 top-level 허용을 닫지 않는다.
+                    if state.is_some() {
+                        remote.end_top_level();
+                    }
                     if state.is_some() && nav.get() != NavState::Failed {
                         tracing::debug!("WebView surface {surface_id}: load finished");
                         nav.set(NavState::Done);
@@ -363,6 +368,7 @@ impl PlatformWebView {
                     "WebView surface {surface_id}: WebKit web process terminated ({reason:?})"
                 );
                 loads.borrow_mut().terminated();
+                remote.end_top_level();
                 nav.set(NavState::Failed);
                 ended.set(true);
                 gate_step(wv, &gate, &remote, |g| {

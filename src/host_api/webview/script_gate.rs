@@ -219,6 +219,16 @@ impl ScriptGate {
         self.lock().document_remote_allowed()
     }
 
+    /// 지금 시작하는 탐색의 출처인 화면 문서. top-level `http(s)` 탐색을 열지 정하는 근거다.
+    // 이유: macOS backend는 아직 이 판정을 쓰지 않는다.
+    #[cfg_attr(target_os = "macos", allow(dead_code))]
+    pub fn navigation_origin(&self) -> tasty_model::html_script::top_level::Origin {
+        if !self.received_current() {
+            return Default::default();
+        }
+        self.lock().navigation_origin()
+    }
+
     /// 전역 "Allow remote content"가 바뀌었다. 감지·안내 판정에 쓴다.
     pub fn set_remote_global(&self, allowed: bool) {
         self.lock().set_remote_global(allowed);

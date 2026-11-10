@@ -16,9 +16,9 @@ impl Drop for ContentFilter {
     }
 }
 
-/// http(s) 리소스를 막는 WebKit content-blocker 규칙.
-const REMOTE_BLOCK_RULES: &str =
-    r#"[{"trigger":{"url-filter":"^https?://"},"action":{"type":"block"}}]"#;
+/// http(s) 리소스를 막는 WebKit content-blocker 규칙. main frame 문서 요청은 빼고 탐색 정책이 정한다
+/// (`remote_block`). 서브프레임 문서는 `child-frame`이라 첫 규칙에 남는다.
+const REMOTE_BLOCK_RULES: &str = r#"[{"trigger":{"url-filter":"^https?://"},"action":{"type":"block"}},{"trigger":{"url-filter":"^https?://","resource-type":["document"],"load-context":["top-frame"]},"action":{"type":"ignore-previous-rules"}}]"#;
 
 pub(super) const REMOTE_BLOCK_FILTER_ID: &str = "tasty-block-remote";
 

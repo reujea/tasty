@@ -396,3 +396,46 @@ fn a_remote_navigation_from_an_allowed_document_releases_the_allowance() {
     gate_load(&mut st, A, remote_page(1));
     assert!(!st.remote_effectively_allowed(), "back to the document");
 }
+
+/// top-level 탐색 허용의 근거는 commit된 화면 문서다. 허용한 문서에서 연 원격 로드가 commit되면 근거가
+/// 새 문서로 옮겨 가지 않고, commit 없이 실패하면 원래 문서의 근거가 남는다.
+#[test]
+fn the_navigation_origin_stays_with_the_committed_document() {
+    let mut st = viewed(remote_page(1));
+    assert!(!st.navigation_origin().remote_allowed);
+    st.allow_remote_current().unwrap();
+    gate_load(&mut st, A, remote_page(1));
+    assert!(st.navigation_origin().remote_allowed);
+
+    st.on_load_started();
+    assert!(
+        !st.document_remote_allowed(),
+        "the load's own requests stay blocked"
+    );
+    assert!(
+        st.navigation_origin().remote_allowed,
+        "the document on screen still opens its redirect hops"
+    );
+    st.on_load_failed();
+    st.on_load_finished();
+    assert!(
+        st.navigation_origin().remote_allowed,
+        "a failed load keeps A"
+    );
+    assert!(st.document_remote_allowed());
+
+    gate_load(&mut st, "http://127.0.0.1:8000/b.html", plain(9));
+    let origin = st.navigation_origin();
+    assert!(!origin.remote_allowed, "B does not inherit the allowance");
+    assert!(origin.remote_document);
+    assert!(st.remote_allowance().is_none());
+}
+
+#[test]
+fn the_global_setting_opens_every_origin_but_not_a_mirror() {
+    let mut st = viewed(plain(1));
+    st.set_remote_global(true);
+    assert!(st.navigation_origin().remote_allowed);
+    st.set_remote_view(RemoteView::Mirror);
+    assert!(!st.navigation_origin().remote_allowed);
+}

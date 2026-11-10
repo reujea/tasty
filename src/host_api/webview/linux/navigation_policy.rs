@@ -1,5 +1,7 @@
 //! Install native navigation and response decisions on the owning WebKit thread.
 use super::*;
+use tasty_model::html_script::top_level::{StartKind, is_remote_url};
+use webkit2gtk::NavigationType;
 
 pub(super) fn install(
     webview: &WebView,
@@ -83,18 +85,71 @@ pub(super) fn install(
                     user_gesture,
                 });
             }
-            if http.is_some() || !remote.block_cell().get() {
+            if http.is_some() {
                 return false;
             }
-            if let Some(uri) = &uri {
-                let s = uri.as_str();
-                if s.starts_with("http://") || s.starts_with("https://") {
-                    decision.ignore();
-                    return true;
-                }
-            }
-            false
+            uri.as_ref().is_some_and(|uri| {
+                decide_remote(decision, decision_type, uri, &remote, &gate, surface_id)
+            })
         });
+    }
+}
+
+/// 원격 차단 중의 `http(s)` 결정. 연 top-level 요청이 아니면 무시하고 `true`를 돌려준다.
+fn decide_remote(
+    decision: &webkit2gtk::PolicyDecision,
+    decision_type: PolicyDecisionType,
+    uri: &str,
+    remote: &RemoteBlock,
+    gate: &Rc<RefCell<Option<ScriptGate>>>,
+    surface_id: u32,
+) -> bool {
+    let admitted = admit_top_level(decision, decision_type, uri, remote, gate);
+    if !remote.block_cell().get() || !is_remote_url(uri) || admitted {
+        return false;
+    }
+    tracing::debug!("WebView surface {surface_id}: remote {decision_type:?} ignored {uri}");
+    decision.ignore();
+    true
+}
+
+/// 원격 차단 중에도 이 결정의 top-level 요청을 여는지. navigation action은 탐색 시작·리다이렉트를
+/// 기록하고, 응답은 main frame의 것만 연 로드와 대조한다. 새 창은 열지 않는다.
+fn admit_top_level(
+    decision: &webkit2gtk::PolicyDecision,
+    decision_type: PolicyDecisionType,
+    uri: &str,
+    remote: &RemoteBlock,
+    gate: &Rc<RefCell<Option<ScriptGate>>>,
+) -> bool {
+    match decision_type {
+        PolicyDecisionType::NavigationAction => {
+            let Some(mut action) = decision
+                .downcast_ref::<NavigationPolicyDecision>()
+                .and_then(|d| d.navigation_action())
+            else {
+                return false;
+            };
+            let kind = match action.navigation_type() {
+                NavigationType::Reload => StartKind::Reload,
+                NavigationType::BackForward => StartKind::History,
+                _ => StartKind::Other,
+            };
+            let action = remote_block::Action {
+                uri,
+                redirect: action.is_redirect(),
+                kind,
+                user_gesture: action.is_user_gesture(),
+            };
+            remote.admit_action(&action, gate.borrow().as_ref())
+        }
+        PolicyDecisionType::Response => {
+            decision
+                .downcast_ref::<ResponsePolicyDecision>()
+                .is_some_and(|d| d.is_main_frame_main_resource())
+                && remote.admits_main_response(uri)
+        }
+        _ => false,
     }
 }
 

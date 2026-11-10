@@ -191,6 +191,18 @@ impl HtmlScriptState {
         }
     }
 
+    /// 지금 시작하는 탐색의 출처인 화면 문서. 로드 중이어도 commit된 문서를 본다. top-level 탐색 허용
+    /// ([`super::top_level`])의 근거이며, 진행 중인 로드의 대상은 허용 근거가 되지 않는다.
+    pub fn navigation_origin(&self) -> super::top_level::Origin {
+        super::top_level::Origin {
+            remote_allowed: self.remote_effectively_allowed(),
+            remote_document: self
+                .current
+                .as_ref()
+                .is_some_and(|doc| super::top_level::is_remote_url(&doc.url)),
+        }
+    }
+
     /// `http(s)` `src` 스크립트만 있는 문서의 스크립트가 실행될 수 있는지. HTTP view는 그 스크립트가
     /// 같은 origin일 수 있고 endpoint가 정하므로 원래대로 실행될 수 있다고 본다.
     pub(super) fn remote_scripts_runnable(&self) -> bool {
