@@ -3904,6 +3904,30 @@ help = "種類：info、success、warning、error"
 [cli.help._root.debug.toast.arg.hint]
 help = "文言の後に表示するショートカットのキーキャップ。キーごとに繰り返し指定"
 
+[cli.help._root.debug.remote-download]
+about = "attach mirrorでリモートファイルを\"ダウンロードして実行\"（debugビルド専用）。ボタンとポップアップのデザインが決まるまで、ユーザーによる開始、1 MiB超過時の確認、キャンセルの操作を再現"
+
+[cli.help._root.debug.remote-download.start]
+about = "mirrorワークスペースのリモートファイルを1つダウンロードし、完了したらローカルで開く"
+
+[cli.help._root.debug.remote-download.start.arg.workspace]
+help = "mirrorワークスペースのローカルID"
+
+[cli.help._root.debug.remote-download.start.arg.path]
+help = "リモートホスト上のファイルパス"
+
+[cli.help._root.debug.remote-download.confirm]
+about = "1 MiBを超えるファイルについて一度だけ表示される確認に「はい」と回答"
+
+[cli.help._root.debug.remote-download.confirm.arg.id]
+help = "startが返したID"
+
+[cli.help._root.debug.remote-download.cancel]
+about = "ダウンロードを停止し、受信済みのデータを削除"
+
+[cli.help._root.debug.remote-download.cancel.arg.id]
+help = "startが返したID"
+
 [cli.help._root.debug.banner]
 about = "バナーの照会と直接表示/終了（debugビルド専用）。ユーザー操作なしでバナーを表示しオーバーレイを検証（releaseではユーザー操作でのみ表示）"
 

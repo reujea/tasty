@@ -8,6 +8,8 @@ mod debug_egui_window;
 #[cfg(debug_assertions)]
 mod debug_methods;
 #[cfg(all(debug_assertions, feature = "gui"))]
+mod debug_remote_download;
+#[cfg(all(debug_assertions, feature = "gui"))]
 mod debug_settings;
 #[cfg(all(debug_assertions, feature = "gui"))]
 mod debug_toast;

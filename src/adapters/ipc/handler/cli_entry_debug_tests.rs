@@ -61,3 +61,36 @@ fn windows_cli_entry_point_matches_the_registered_method() {
     assert!(req.params.as_object().is_some_and(|o| o.is_empty()));
     assert!(tasty_ipc::method_meta::method_meta("debug.window.list").is_some());
 }
+
+/// 다운로드 시작은 mirror 의 로컬 workspace id 와 원격 경로를 보낸다. 확인·취소는 시작이 준 id 를 보낸다.
+#[test]
+fn remote_download_cli_entry_points_match_the_registered_methods() {
+    use tasty_cli::RemoteDownloadDebugCommands;
+    let req = command_to_request(&Commands::Debug {
+        command: DebugCommands::RemoteDownload(RemoteDownloadDebugCommands::Start {
+            workspace: 4,
+            path: "/srv/a.bin".to_string(),
+        }),
+    });
+    assert_eq!(req.method, "debug.remote_download.start");
+    assert_eq!(req.params["workspace_id"], 4);
+    assert_eq!(req.params["path"], "/srv/a.bin");
+    for (command, method) in [
+        (
+            RemoteDownloadDebugCommands::Confirm { id: 7 },
+            "debug.remote_download.confirm",
+        ),
+        (
+            RemoteDownloadDebugCommands::Cancel { id: 7 },
+            "debug.remote_download.cancel",
+        ),
+    ] {
+        let req = command_to_request(&Commands::Debug {
+            command: DebugCommands::RemoteDownload(command),
+        });
+        assert_eq!(req.method, method);
+        assert_eq!(req.params["download_id"], 7);
+        assert!(tasty_ipc::method_meta::method_meta(method).is_some());
+    }
+    assert!(tasty_ipc::method_meta::method_meta("debug.remote_download.start").is_some());
+}

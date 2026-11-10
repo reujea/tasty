@@ -139,6 +139,7 @@ impl App {
         // 이번 묶음에서 받은 원격 자식 통지·결과를 세션이 정리되기 전에 적용한다.
         self.pump_agent_children();
         self.pump_terminal_reads();
+        self.pump_file_downloads();
         self.notify_unknown_closes(unknown_close);
         for &idx in &reconnecting {
             self.enter_reconnecting(idx);

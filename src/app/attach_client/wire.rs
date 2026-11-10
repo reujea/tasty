@@ -72,7 +72,22 @@ pub(super) fn mirror_event_from_control(payload: &[u8]) -> Option<MirrorEvent> {
                     .ok()
                     .map(MirrorEvent::AgentChild)
             })
-            .or_else(|| parse_terminal_read_result(payload)),
+            .or_else(|| parse_terminal_read_result(payload))
+            .or_else(|| parse_file_download_result(payload)),
+    }
+}
+
+fn parse_file_download_result(payload: &[u8]) -> Option<MirrorEvent> {
+    use tasty_ipc::file_download::FileDownloadMsg;
+    match serde_json::from_slice::<FileDownloadMsg>(payload).ok()? {
+        FileDownloadMsg::FileDownloadResult {
+            request_id,
+            outcome,
+        } => Some(MirrorEvent::FileDownload {
+            request_id,
+            outcome,
+        }),
+        FileDownloadMsg::FileDownloadRequest { .. } => None,
     }
 }
 

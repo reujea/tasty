@@ -367,6 +367,12 @@ pub fn execute_handler_action(
             let _ = ignore_size_limit;
 
             let params = open_surface_params(param_key, target);
+            if origin_surface_id.is_none()
+                && dispatch_origin == FileDispatchOrigin::User
+                && opens_in_new_local_workspace(state, engine, target)
+            {
+                return open_in_new_local_workspace(state, surface_kind, params, run);
+            }
             open_surface_tab(
                 core,
                 state,
@@ -549,6 +555,45 @@ pub(crate) fn open_surface_tab(
             );
         }
     }
+    true
+}
+
+/// 원격에서 받은 파일을 탭으로 여는데 활성 workspace 가 mirror 이면, 탭이 원격으로 forward 되어
+/// 로컬 임시 경로가 원격에서 열리지 않도록 새 로컬 workspace 를 만든다
+/// ([원격 attach (Remote attach)](../../docs/features/remote-attach/index.md)의 "다운로드 후 실행").
+#[cfg(feature = "gui")]
+fn opens_in_new_local_workspace(
+    state: &RequestContext,
+    engine: &EngineMut<'_>,
+    target: &DispatchTarget,
+) -> bool {
+    let DispatchTarget::File(file) = target else {
+        return false;
+    };
+    !engine.workspaces().is_empty()
+        && state.active_workspace(engine).mirror
+        && crate::remote::file_download::client::is_downloaded_file(file.as_path())
+}
+
+/// 이름 없이(자동 이름) 일반 로컬 workspace 를 만들고 첫 surface 로 연다. 만든 workspace 가 활성화되므로
+/// 사용자 요청에서만 쓴다. 다운로드는 사용자만 시작한다.
+#[cfg(feature = "gui")]
+fn open_in_new_local_workspace(
+    state: &mut RequestContext,
+    surface_kind: &str,
+    params: serde_json::Value,
+    run: Option<u64>,
+) -> bool {
+    let intent = crate::app::command::DomainIntent::CreateWorkspace {
+        cwd: None,
+        kind: surface_kind.to_string(),
+        surface_params: params,
+        name: None,
+        subtitle: None,
+        description: None,
+        category: None,
+    };
+    state.dispatch_intent(intent.from_user_menu("file_dispatch").with_completion(run));
     true
 }
 

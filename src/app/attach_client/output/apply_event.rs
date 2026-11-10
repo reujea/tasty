@@ -172,6 +172,14 @@ pub(super) fn apply_one_mirror_event(
             request_id,
             outcome,
         ),
+        MirrorEvent::FileDownload {
+            request_id,
+            outcome,
+        } => crate::remote::file_download::client::client().receive(
+            &sess.transport.frame_tx.epoch(),
+            request_id,
+            outcome,
+        ),
         MirrorEvent::CaptureResult {
             upload_id,
             ok,

@@ -787,3 +787,109 @@ fn the_remote_link_menu_without_a_remote_handler_shows_no_empty_picker() {
     assert!(state.pending_intents.is_empty());
     assert_eq!(state.toasts.len(), 1);
 }
+
+/// 받은 파일을 origin 없이 연 결과로 쌓인 요청. mirror 가 활성이면 이 경로에서 로컬 임시 파일이
+/// 원격으로 forward 되지 않아야 한다.
+fn open_locally(
+    mirror: bool,
+    path: impl FnOnce() -> std::path::PathBuf,
+    origin: FileDispatchOrigin,
+) -> Vec<crate::intent::DispatchedIntent> {
+    let (mut core, _) = build_test_core();
+    let (mut state, mut engine_session) = if mirror {
+        crate::state::tests::test_mirror_state()
+    } else {
+        crate::state::tests::test_state()
+    };
+    let mut engine = engine_session.borrow_mut();
+    register_kind(&engine, "com.tasty.markdown", "markdown");
+    install_handler(
+        &engine,
+        "com.tasty.markdown",
+        serde_json::json!({"kind": "open_surface", "surface_kind": "markdown", "param_key": "file"}),
+    );
+    apply_identify_result(
+        &mut core,
+        &mut state,
+        &mut engine,
+        FileTarget::new(path()),
+        Some(DetectorId::new("remote-test")),
+        None,
+        crate::file::dispatch::FileDispatchPolicy {
+            dispatch_origin: origin,
+            ignore_size_limit: false,
+            run: None,
+        },
+    );
+    state.take_pending_intents()
+}
+
+fn creates_workspace(pending: &[crate::intent::DispatchedIntent]) -> bool {
+    pending.iter().any(|request| {
+        matches!(
+            request.body,
+            crate::intent::Intent::Domain(DomainIntent::CreateWorkspace { .. })
+        )
+    })
+}
+
+fn opens_tab(pending: &[crate::intent::DispatchedIntent]) -> bool {
+    pending
+        .iter()
+        .any(|request| matches!(request.body, crate::intent::Intent::NewTab { .. }))
+}
+
+/// 다운로드 후 실행: 탭을 여는 로컬 핸들러가 mirror 활성 상태에서 받은 파일을 열면 새 로컬
+/// workspace 를 만들어 거기서 연다. 그 밖의 경우는 지금까지처럼 활성 workspace 에 탭을 연다.
+#[test]
+fn a_downloaded_file_opened_on_an_active_mirror_goes_to_a_new_local_workspace() {
+    // 픽스처가 데이터 홈을 테스트 폴더로 바꾸므로 경로는 픽스처를 만든 뒤 계산한다.
+    let downloaded = || crate::remote::file_download::client::run_root().join("run-1/notes.md");
+    let pending = open_locally(true, downloaded, FileDispatchOrigin::User);
+    assert!(creates_workspace(&pending), "{pending:?}");
+    assert!(!opens_tab(&pending));
+    let request = pending
+        .iter()
+        .find(|request| {
+            matches!(
+                request.body,
+                crate::intent::Intent::Domain(DomainIntent::CreateWorkspace { .. })
+            )
+        })
+        .unwrap();
+    assert!(request.origin.is_user());
+    let crate::intent::Intent::Domain(DomainIntent::CreateWorkspace {
+        kind,
+        surface_params,
+        name,
+        ..
+    }) = &request.body
+    else {
+        unreachable!();
+    };
+    assert_eq!(kind, "markdown");
+    assert!(
+        surface_params["file"]
+            .as_str()
+            .is_some_and(|f| f.ends_with("download-run/run-1/notes.md")),
+        "{surface_params}"
+    );
+    assert!(name.is_none(), "the name waits for a design");
+
+    // 로컬 workspace 가 활성이면 그 workspace 에 탭을 연다.
+    let pending = open_locally(false, downloaded, FileDispatchOrigin::User);
+    assert!(
+        opens_tab(&pending) && !creates_workspace(&pending),
+        "{pending:?}"
+    );
+    // 받은 파일이 아니면 mirror 활성이어도 바꾸지 않는다.
+    let pending = open_locally(true, || "/tmp/other.md".into(), FileDispatchOrigin::User);
+    assert!(!creates_workspace(&pending), "{pending:?}");
+    // `..` 로 폴더 밖을 가리키면 받은 파일로 보지 않는다.
+    let outside = || crate::remote::file_download::client::run_root().join("../escaped.md");
+    let pending = open_locally(true, outside, FileDispatchOrigin::User);
+    assert!(!creates_workspace(&pending), "{pending:?}");
+    // 에이전트 요청은 활성 workspace 를 바꾸지 않는다.
+    let pending = open_locally(true, downloaded, FileDispatchOrigin::Agent);
+    assert!(!creates_workspace(&pending), "{pending:?}");
+}

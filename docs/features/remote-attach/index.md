@@ -498,6 +498,19 @@ attach 세션의 수명은 **창(window)이 아니라 engine 에 매인다.** �
 - **로컬 self attach**(별도 CLI 프로세스가 포트 파일로 로컬 인스턴스를 mirror): 사용자 mirror 조작 재현 성격이라 release 에 없음 — `tasty debug attach`(debug 빌드 전용, [`dev-guide/debug-ipc`](../../dev-guide/debug-ipc.md)). 같은 머신의 다른 인스턴스에 loopback 주소(`127.0.0.1:PORT`·`localhost:PORT`·`[::1]:PORT`)로 붙는 GUI 원격 연결 팝업·IPC `remote.attach`·자동 attach 는 release 에도 있다(아래 비-목표 절).
 - **프로필**: `--profile`/`tool attach` 이 참조하는 tasty-attach 프로필(및 그것이 `ssh_ref` 로 참조하는 ssh 프로필)은 [remote-profiles](../remote-profiles/index.md) 이 관리.
 
+## 원격 파일 다운로드 후 실행
+
+원격(mirror)에서 열 핸들러가 없는 원격 파일 **하나**를 client 로 받아 client 의 로컬 핸들러 설정대로 여는 기능이다. 동기화가 아니다. 받은 파일을 고쳐도 원격 파일은 바뀌지 않는다. 기본 동작이 아니며 사용자가 명시적으로 고를 때만 실행한다.
+
+- **대상**: 일반 파일 하나다. 폴더와 폴더를 가리키는 링크는 서버가 거절하고(`directory`), FIFO·장치·소켓도 거절한다(`not_regular`). 파일을 가리키는 링크는 링크 대상의 내용을 링크 이름으로 받는다.
+- **크기 확인**: 1 MiB(1,048,576 바이트)까지는 묻지 않고 받는다. 1 바이트라도 넘으면 조각을 요청하기 전에 한 번 확인을 기다리고, 확인하면 다시 묻지 않고 끝까지 받는다.
+- **받는 위치**: Tasty 데이터 홈 아래 `download-run/<실행별 폴더>/<원래 파일 이름>` 이다. 서버가 준 이름의 경로 구성 요소는 지운다. 사용자가 고르는 저장 위치·다운로드 목록·폴더 열기는 없다. 24 시간이 지난 실행별 폴더는 다음 다운로드를 시작할 때 지운다.
+- **실행**: 다 받으면 그 파일을 사용자 요청으로 로컬 dispatch 한다. 이후는 로컬 핸들러 설정을 그대로 따르며 원격 전용 분기가 없다. 그 핸들러가 탭을 여는데 활성 workspace 가 mirror 이면 새 로컬 workspace(자동 이름)를 만들어 거기서 연다. 이 workspace 는 일반 workspace 이며 사용자가 닫는다.
+- **취소·실패**: 확인 단계나 전송 중 취소, 연결 끊김·다른 연결로 교체, 전송 중 원격 파일 변경·교체(`changed`), 로컬 쓰기 실패에서는 받은 부분과 실행별 폴더를 지우고 핸들러를 실행하지 않는다.
+- **옛 서버**: attach descriptor 에 `ipc.stream.file-download` 가 없는 서버에는 요청을 보내지 않고 시작 단계에서 실패한다.
+- **진입점**: 사용자 버튼·1 MiB 초과 확인 팝업·폴더 거절과 실패 안내·옛 서버 비활성 이유는 디자인이 정해지지 않아 아직 없다. 지금은 debug 빌드의 `debug.remote_download.*`(CLI `tasty debug remote-download start|confirm|cancel`)로만 시작·확인·취소한다([debug IPC](../../dev-guide/debug-ipc.md)). 원격에 열 수 없는 파일은 지금처럼 `explorer.state.remote_open_unsupported` 안내로 끝난다.
+- 전송 계약은 [Attach 메커니즘](../../dev-guide/attach-behavior.md#원격-파일-다운로드-ipcstreamfile-download)에 있다.
+
 ## 원격 파일 전송 수신측 저장 정책
 
 원격 attach 채널 위 native bulk 파일 전송(docs/features/remote-attach/index.md)의 **수신측**은 저장 폴더와 폴더 최대 용량을 설정한다("원격이 경로를 소유"). 설정은 `Settings.remote_transfer` — `dir`(저장 폴더, 빈 값이면 기본 `~/.tasty/transfers/`) + `max_mb`(폴더 최대 용량, MiB, 기본 500).

@@ -40,6 +40,11 @@ impl App {
         if cmd.request.method == "debug.toast" {
             return self.ipc_handle_debug_toast(cmd);
         }
+        // 다운로드 대기 상태는 App 의 attach 세션과 함께 움직인다.
+        #[cfg(feature = "gui")]
+        if cmd.request.method.starts_with("debug.remote_download.") {
+            return self.ipc_handle_debug_remote_download(cmd);
+        }
         // 설정에 한정하지 않고 현재 활성 모달을 닫는다.
         #[cfg(feature = "gui")]
         if cmd.request.method == "debug.modal.close_request" {

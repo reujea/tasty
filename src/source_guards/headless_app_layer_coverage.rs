@@ -385,6 +385,11 @@ const DEBUG_NOT_IN_HEADLESS: &[(&str, &str)] = &[
         "메인 창과 보조 창을 `self.view.views` 에서 나열한다 — view 가 없다",
     ),
     (
+        "debug.remote_download.",
+        "다운로드는 attach client 세션(`self.remote.sessions`)의 연결로 오가고 받은 파일은 창의 \
+         `MainView` 에서 연다. 헤드리스엔 attach client 도 view 도 없다",
+    ),
+    (
         "debug.toast",
         "토스트 스택은 창마다 따로 있다 — 메인 창은 `MainViewState.toasts`, 설정·preset·plugins 창은 \
          각 view 의 `toasts` 를 `self.view.views` 에서 고른다. view 가 없다",

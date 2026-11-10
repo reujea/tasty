@@ -3972,6 +3972,30 @@ help = "Kind: info, success, warning or error"
 [cli.help._root.debug.toast.arg.hint]
 help = "Shortcut keycap shown after the text; repeat for each key"
 
+[cli.help._root.debug.remote-download]
+about = "Remote file \"download and run\" on an attach mirror (debug builds only). Reproduces the user's start, over-1-MiB confirmation and cancel while the button and its popup wait for a design"
+
+[cli.help._root.debug.remote-download.start]
+about = "Start downloading one remote file of a mirror workspace and open it locally when done"
+
+[cli.help._root.debug.remote-download.start.arg.workspace]
+help = "Local id of the mirror workspace"
+
+[cli.help._root.debug.remote-download.start.arg.path]
+help = "File path on the remote host"
+
+[cli.help._root.debug.remote-download.confirm]
+about = "Answer yes to the one-time question for a file over 1 MiB"
+
+[cli.help._root.debug.remote-download.confirm.arg.id]
+help = "Id returned by start"
+
+[cli.help._root.debug.remote-download.cancel]
+about = "Stop a download and remove what was received"
+
+[cli.help._root.debug.remote-download.cancel.arg.id]
+help = "Id returned by start"
+
 [cli.help._root.debug.banner]
 about = "Banner inspection and direct fire/close (debug builds only). Fires a banner without the user-action path (banners only fire from user actions in release), for visual verification of the overlay"
 

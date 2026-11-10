@@ -1,8 +1,13 @@
 //! attach holder 의 원격 파일 하나 가져오기(`file_download_request`)의 서버 쪽.
+//! 규칙은 [Attach 메커니즘](../../docs/dev-guide/attach-behavior.md)의 "원격 파일 다운로드" 절을 따른다.
 //!
 //! 서버는 요청 사이에 상태를 두지 않는다. 일반 파일만 보내며 폴더·FIFO·장치와 폴더를 가리키는 링크는
 //! 파일을 열기 전에 거절한다. 파일을 가리키는 링크는 대상 파일을 보낸다. 조각마다 `stat` 이 준 식별 정보와
 //! 지금 파일을 대조해 전송 중 교체·변경을 [`DownloadRefusal::Changed`] 로 돌려준다.
+//! client 쪽 대기·임시 파일은 [`client`] 에 있다.
+
+#[cfg(feature = "gui")]
+pub(crate) mod client;
 
 use base64::Engine;
 use std::io::{Read, Seek, SeekFrom};

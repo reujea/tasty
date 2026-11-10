@@ -165,6 +165,11 @@ pub enum DebugCommands {
         #[arg(long)]
         hint: Vec<String>,
     },
+    /// Remote file "download and run" on an attach mirror (debug builds only).
+    /// Reproduces the user's start, over-1-MiB confirmation and cancel while the
+    /// button and its popup wait for a design.
+    #[command(subcommand)]
+    RemoteDownload(RemoteDownloadDebugCommands),
     /// Banner inspection and direct fire/close (debug builds only).
     /// Fires a banner without the user-action path (banners only fire from user
     /// actions in release), for visual verification of the overlay.
@@ -438,6 +443,32 @@ pub enum ModifierHintDebugCommands {
     },
     /// Dump the overlay render state (held / delay / alpha / visible / sections / header).
     State,
+}
+
+#[cfg(debug_assertions)]
+#[derive(Subcommand)]
+pub enum RemoteDownloadDebugCommands {
+    /// Start downloading one remote file of a mirror workspace and open it locally when done
+    Start {
+        /// Local id of the mirror workspace
+        #[arg(long)]
+        workspace: u32,
+        /// File path on the remote host
+        #[arg(long)]
+        path: String,
+    },
+    /// Answer yes to the one-time question for a file over 1 MiB
+    Confirm {
+        /// Id returned by start
+        #[arg(long)]
+        id: u64,
+    },
+    /// Stop a download and remove what was received
+    Cancel {
+        /// Id returned by start
+        #[arg(long)]
+        id: u64,
+    },
 }
 
 #[cfg(debug_assertions)]

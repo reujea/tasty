@@ -43,6 +43,7 @@ const ROUTERS: &[&str] = &[
     "src/app/dispatch/list_global.rs",
     "src/app/ipc/app_methods.rs",
     "src/app/ipc/debug_methods.rs",
+    "src/app/ipc/debug_remote_download.rs",
     "src/app/ipc/window_required.rs",
     "src/boot/headless_dispatch.rs",
 ];

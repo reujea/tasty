@@ -803,6 +803,16 @@ mirror 터미널은 attach snapshot(보이는 화면·커서·주요 모드)과 
 - **mirror 마크**: client 는 (mirror workspace, 원격 surface) 마다 서버 stream·위치를 보관한다. `set_mark` 는 서버에 `position` 을 묻고, 답을 받은 뒤 로컬 마크(로컬 `parse_since_mark` 용)와 mirror 마크를 함께 바꾼다. 실패하면 둘 다 그대로다. cursor 없는 `read_since_mark` 는 mirror 마크부터, 마크가 없으면 서버 보관 시작부터 읽는다(잃은 앞부분은 `skipped`). 마크의 stream 이 서버와 다르면(서버 터미널 교체) 처음부터 조용히 읽지 않고 `stream_mismatch` 로 답하며 마크를 지우고 set mark 를 다시 하라고 알린다. 호출자가 준 cursor 의 오류는 바꾸지 않고 그대로 전달한다.
 - **범위 밖**: `parse_since_mark`·`read_since_scan_mark`·명령 인덱스·output observe 는 mirror 에서 로컬 사본 기준이다. 화면 렌더도 스트림 재구성이다.
 
+## 원격 파일 다운로드 (`ipc.stream.file-download`)
+
+"다운로드 후 실행"([원격 attach](../features/remote-attach/index.md#원격-파일-다운로드-후-실행))이 쓰는 경로 지정 파일 읽기다. 별도 포트나 서비스 없이 holder 연결의 Control 프레임으로 오간다.
+
+- **capability**: 서버는 workspace attach descriptor 의 `stream_capabilities` 에 `ipc.stream.file-download` 를 싣는다. client 는 이 값이 있는 연결에만 요청을 보낸다. 구 서버는 이 event 를 모르고 버린다.
+- **wire**(`crates/tasty-ipc/src/file_download.rs`): client → 서버 `file_download_request{request_id, path(서버 호스트 경로), op}`, 서버 → client `file_download_result{request_id, outcome}`. op 는 `stat` 과 `read{offset, identity}` 다. outcome 은 `stat{name, identity}`·`chunk{offset, data_b64, eof}`·`refused{reason}` 이다. `identity` 는 크기·수정 시각(ns)·Unix (device, inode)이며 서버 OS 가 주지 않는 값은 비운다. 거절 이유는 `directory`·`not_regular`·`not_found`·`permission_denied`·`changed`·`not_attached`·`io` 다.
+- **서버**(`src/remote/file_download.rs`): 요청 사이에 상태를 두지 않는다. 요청 연결이 어느 workspace 든 점유하지 않았으면 `not_attached` 다. `stat` 은 파일을 열지 않고 링크를 따라간 메타데이터만 본다. `read` 는 열기 전 메타데이터를 `identity` 와 대조하고, Unix 에서는 `O_NONBLOCK` 으로 열어 FIFO 로 바뀐 경로에서 멈추지 않으며, 열린 파일의 메타데이터를 다시 대조한다. 한 조각은 최대 256 KiB 이고 base64 로도 프레임 상한(`MAX_FRAME_LEN`, 1 MiB)의 절반 아래다. 덜 읽혔거나 읽는 동안 바뀌면 `changed` 다. GUI(`event_handler.rs`)와 헤드리스(`boot/headless_stream.rs`) 서버가 같은 처리부를 쓴다.
+- **client 대기**(`src/remote/file_download/client.rs`): 다운로드마다 한 번에 요청 하나만 보낸다. 메인 루프와 attach 출력 처리가 `pump_file_downloads` 로 세션 상태를 알리고 요청을 보낸다. 요청은 보낸 연결 세대(`ConnectionEpoch`)를 기록하며 다른 세대로 온 결과는 버린다. 보낸 뒤 세션이 Connected 가 아니게 되거나 세대가 바뀌면 그 다운로드는 실패하고 받은 부분을 지운다. 크기가 1 MiB 를 넘으면 확인 전까지 `read` 를 보내지 않는다. 취소는 다음 조각을 요청하지 않는 것으로 끝난다.
+- **로컬 실행**: 다 받은 파일은 origin 없는 사용자 `DispatchFile` 로 연다. 탭을 여는 `open_surface` 핸들러가 mirror 활성 상태에서 받은 파일을 열면 `NewTab` 대신 새 로컬 workspace 를 만드는 `CreateWorkspace` 를 보낸다(`src/file/dispatch.rs`). 그렇지 않으면 로컬 임시 경로가 원격으로 forward 된다.
+
 ## IPC 표면 (`attach.*`)
 
 `src/adapters/ipc/handler/attach.rs`.

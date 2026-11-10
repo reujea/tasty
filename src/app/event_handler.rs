@@ -539,6 +539,7 @@ impl ApplicationHandler<AppEvent> for App {
         self.dispatch_pending_git_query_forwards();
         self.dispatch_pending_markdown_content_forwards();
         self.pump_terminal_reads();
+        self.pump_file_downloads();
         self.dispatch_pending_mesh_full_resend_forwards();
         self.dispatch_pending_attention_clear_forwards();
 

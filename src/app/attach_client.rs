@@ -19,6 +19,8 @@ mod resize_sync;
 mod resources;
 mod survivors;
 mod terminal_read;
+
+mod file_download;
 mod user_waits;
 mod wire;
 pub(crate) mod workspace_close;

@@ -108,6 +108,7 @@ pub(super) fn debug_command_to_method_params(
                 "hint": hint,
             }),
         ),
+        DebugCommands::RemoteDownload(sub) => remote_download_debug_command_to_method_params(sub),
         DebugCommands::Banner(sub) => banner_debug_command_to_method_params(sub),
         DebugCommands::Settings(sub) => settings_debug_command_to_method_params(sub),
         DebugCommands::Modal(sub) => modal_debug_command_to_method_params(sub),
@@ -763,5 +764,26 @@ mod tests {
                 json!({ "text": "ab", "window_id": 4194311u64 })
             )
         );
+    }
+}
+
+#[cfg(debug_assertions)]
+fn remote_download_debug_command_to_method_params(
+    command: &crate::RemoteDownloadDebugCommands,
+) -> (&'static str, serde_json::Value) {
+    use crate::RemoteDownloadDebugCommands;
+    match command {
+        RemoteDownloadDebugCommands::Start { workspace, path } => (
+            "debug.remote_download.start",
+            serde_json::json!({ "workspace_id": workspace, "path": path }),
+        ),
+        RemoteDownloadDebugCommands::Confirm { id } => (
+            "debug.remote_download.confirm",
+            serde_json::json!({ "download_id": id }),
+        ),
+        RemoteDownloadDebugCommands::Cancel { id } => (
+            "debug.remote_download.cancel",
+            serde_json::json!({ "download_id": id }),
+        ),
     }
 }

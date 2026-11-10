@@ -39,7 +39,7 @@ pub use debug::{
     BannerDebugCommands, DebugCommands, EventBusCommands, ExtensionDebugCommands,
     FullscreenDebugCommands, HostPopupDebugCommands, InjectDebugCommands, LuaDebugCommands,
     ModalDebugCommands, ModifierHintDebugCommands, PluginBannerDebugCommands, PopupDebugCommands,
-    SettingsDebugCommands, ToolDebugCommands,
+    RemoteDownloadDebugCommands, SettingsDebugCommands, ToolDebugCommands,
 };
 pub use events::EventsCommands;
 pub use file_handler::FileHandlerCommands;

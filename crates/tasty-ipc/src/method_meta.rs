@@ -882,6 +882,19 @@ pub const DEBUG_METHODS: &[(&str, MethodMeta)] = &[
         "debug.toast",
         local_only(MethodEffect::Mutate).kept_on_every_host_path(),
     ),
+    // 원격 파일 "다운로드 후 실행" 시작·1 MiB 초과 확인·취소 — 사용자 조작 재현. 버튼 UI 는 디자인 대기. release 미노출.
+    (
+        "debug.remote_download.start",
+        local_only(MethodEffect::Mutate).kept_on_every_host_path(),
+    ),
+    (
+        "debug.remote_download.confirm",
+        local_only(MethodEffect::Idempotent),
+    ),
+    (
+        "debug.remote_download.cancel",
+        local_only(MethodEffect::Idempotent),
+    ),
     // 배너 직접 발화/조회/닫기/카운트다운 — 사용자 조작 재현. release 미노출.
     ("debug.banner.list", local_only(MethodEffect::Read)),
     ("debug.banner.show", local_only(MethodEffect::Mutate)),
