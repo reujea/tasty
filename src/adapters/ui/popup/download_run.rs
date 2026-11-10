@@ -46,6 +46,8 @@ pub struct DownloadRunAsk {
     pub workspace: u32,
     /// 원격 호스트의 경로.
     pub path: String,
+    /// 경로 줄 앞 표지의 호스트 글자(attach 프로필 이름). 비면 `Remote` 낱말을 쓴다.
+    pub host: String,
     /// 서버가 파일 다운로드를 알렸는지. 대화상자를 열 때마다 다시 읽는다.
     pub capable: bool,
     pub content_height: Option<LogicalPx>,
@@ -77,12 +79,14 @@ pub(crate) fn ask(
     state: &mut MainViewState,
     workspace: u32,
     path: String,
+    host: String,
     origin: crate::file::dispatch::FileDispatchOrigin,
 ) {
     let capable = downloads::client().capable(workspace);
     state.dialogs.download_run.ask = Some(DownloadRunAsk {
         workspace,
         path,
+        host,
         capable,
         content_height: None,
     });
@@ -239,6 +243,7 @@ pub fn draw_download_run(
         return PopupAction::Close;
     };
     let path = ask.path.clone();
+    let host = ask.host.clone();
     let capable = ask.capable;
     let mut cancel = false;
     let mut run = false;
@@ -263,13 +268,15 @@ pub fn draw_download_run(
                         .color(th.text_primary()),
                     th.font_size_max,
                 );
-                let max_w = ui.available_width();
-                let shown = elide_front_mono(ui, &th, &path, max_w);
-                ui.label(
-                    egui::RichText::new(shown)
-                        .monospace()
-                        .size(th.font_size_caption.value())
-                        .color(th.text_muted()),
+                let empty_label = t("attach.mirror_pill_label");
+                remote_path_line(
+                    ui,
+                    &th,
+                    &tasty_ui_widgets::RemoteMark {
+                        host: &host,
+                        empty_label,
+                    },
+                    &path,
                 );
             });
         let rect = head.response.rect;
@@ -525,6 +532,37 @@ fn old_server_well(ui: &mut egui::Ui, th: &theme::Theme) {
 /// 폭에 맞춰 감는 문장. 줄 높이는 글자 크기 × line-height-ui 다.
 fn wrapped(ui: &mut egui::Ui, th: &theme::Theme, text: egui::RichText, font: LogicalPx) {
     ui.add(egui::Label::new(text.line_height(Some(line_h(th, font).value()))).wrap());
+}
+
+/// 원격 경로 줄. 맨 앞에 호스트 표지(핸들러 picker 와 같은 공용 위젯)를 두고, 경로는 표지와 그 뒤
+/// space-sm 을 뺀 상자에서 앞을 줄인다.
+fn remote_path_line(
+    ui: &mut egui::Ui,
+    th: &theme::Theme,
+    mark: &tasty_ui_widgets::RemoteMark<'_>,
+    path: &str,
+) {
+    let font = egui::FontId::monospace(th.font_size_caption.value());
+    let line_h = ui.fonts(|f| f.row_height(&font));
+    let (rect, _) = ui.allocate_exact_size(
+        egui::vec2(ui.available_width(), line_h),
+        egui::Sense::hover(),
+    );
+    let mark_w = tasty_ui_widgets::paint_fh_remote_mark(
+        ui,
+        th,
+        egui::pos2(rect.left(), rect.center().y),
+        mark,
+    );
+    let left = rect.left() + (mark_w + th.spacing_sm).value();
+    let shown = elide_front_mono(ui, th, path, rect.right() - left);
+    ui.painter().text(
+        egui::pos2(left, rect.top()),
+        egui::Align2::LEFT_TOP,
+        shown,
+        font,
+        th.text_muted().into(),
+    );
 }
 
 /// 경로는 끝(파일 이름)이 보이도록 앞을 `…` 로 줄인다.

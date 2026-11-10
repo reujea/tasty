@@ -91,7 +91,9 @@ pub(crate) fn apply_remote_identify_result(
         .filter(|h| is_remote_openable(&engine.read(), h, Some(origin_surface_id)))
         .collect();
     let Some(first) = openable.first() else {
-        let workspace = mirror_workspace(&engine.read(), origin_surface_id);
+        let engine = engine.read();
+        let workspace = mirror_workspace(&engine, origin_surface_id)
+            .map(|id| (id, remote_host(&engine, origin_surface_id)));
         report_unsupported(state, &target, dispatch_origin, workspace);
         crate::file::dispatch::fail_run(
             policy.run,
@@ -159,13 +161,7 @@ fn open_remote_picker(
     };
     picker.origin_surface_id = Some(origin_surface_id);
     picker.default_handler = None;
-    // 머리 경로 줄 앞 원격 표지의 호스트 글자. 연결 정보가 아직 없으면 빈 글자(화면은 `Remote` 낱말)다.
-    picker.remote_host = Some(
-        engine
-            .mirror_location_of(origin_surface_id)
-            .map(|location| location.host.clone())
-            .unwrap_or_default(),
-    );
+    picker.remote_host = Some(remote_host(engine, origin_surface_id));
     picker.recent.retain(|summary| {
         engine
             .file_handler
@@ -208,7 +204,8 @@ pub(crate) fn open_remote_link_picker(
         .filter(|h| is_remote_openable(engine, h, Some(origin_surface_id)))
         .collect();
     if openable.is_empty() {
-        let workspace = mirror_workspace(engine, origin_surface_id);
+        let workspace = mirror_workspace(engine, origin_surface_id)
+            .map(|id| (id, remote_host(engine, origin_surface_id)));
         report_unsupported(state, &target, FileDispatchOrigin::User, workspace);
         return;
     }
@@ -227,6 +224,15 @@ pub(crate) fn open_remote_link_picker(
     );
 }
 
+/// 원격 경로 줄 앞 표지의 호스트 글자([원격 위치 표시](../../../docs/features/remote-attach/index.md#원격-위치-표시)).
+/// 연결 정보가 아직 없으면 빈 글자이고 화면은 `Remote` 낱말을 쓴다.
+fn remote_host(engine: &EngineRead<'_>, origin_surface_id: u32) -> String {
+    engine
+        .mirror_location_of(origin_surface_id)
+        .map(|location| location.host.clone())
+        .unwrap_or_default()
+}
+
 /// origin surface 가 속한 mirror workspace 의 로컬 ID.
 fn mirror_workspace(engine: &EngineRead<'_>, origin_surface_id: u32) -> Option<u32> {
     engine
@@ -242,17 +248,18 @@ fn report_unsupported(
     state: &mut RequestContext,
     target: &FileTarget,
     origin: FileDispatchOrigin,
-    workspace: Option<u32>,
+    workspace: Option<(u32, String)>,
 ) {
     match (origin, workspace) {
         (FileDispatchOrigin::Agent, _) => tracing::warn!(
             target = %target.display(),
             "no file handler can open this remote file; not executed",
         ),
-        (_, Some(workspace)) => crate::adapters::ui::popup::download_run::ask(
+        (_, Some((workspace, host))) => crate::adapters::ui::popup::download_run::ask(
             state,
             workspace,
             target.display(),
+            host,
             origin,
         ),
         (_, None) => tracing::warn!(

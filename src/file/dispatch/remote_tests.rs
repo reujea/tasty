@@ -828,6 +828,44 @@ fn the_remote_link_menu_without_a_remote_handler_shows_no_empty_picker() {
     assert_asked_to_download(&state, "/remote/data.bin");
 }
 
+/// 대화상자의 경로 줄 앞 표지는 그 mirror 연결의 호스트 글자를 싣는다.
+#[test]
+fn the_download_dialog_carries_the_mirror_host() {
+    let (mut state, mut engine_session) = crate::state::tests::test_mirror_state();
+    let engine = engine_session.borrow_mut();
+    let sid = engine.workspace_at(0).unwrap().all_surface_ids()[0];
+    let ws = engine
+        .read()
+        .mirror_workspace_of(sid)
+        .expect("mirror surface");
+    // 연결 정보가 아직 없으면 빈 글자다(화면은 Remote 낱말).
+    super::open_remote_link_picker(
+        &mut state,
+        &engine.read(),
+        FileTarget::new("/remote/a.bin"),
+        sid,
+    );
+    assert_eq!(state.dialogs.download_run.ask.as_ref().unwrap().host, "");
+    engine.remote.mirror_locations.insert(
+        ws,
+        crate::remote::state::MirrorLocation {
+            host: "gx10".into(),
+            reconnecting: false,
+        },
+    );
+    super::open_remote_link_picker(
+        &mut state,
+        &engine.read(),
+        FileTarget::new("/remote/b.bin"),
+        sid,
+    );
+    let ask = state.dialogs.download_run.ask.as_ref().unwrap();
+    assert_eq!(
+        (ask.path.as_str(), ask.host.as_str()),
+        ("/remote/b.bin", "gx10")
+    );
+}
+
 /// 받은 파일을 origin 없이 연 결과로 쌓인 요청. mirror 가 활성이면 이 경로에서 로컬 임시 파일이
 /// 원격으로 forward 되지 않아야 한다.
 fn open_locally(

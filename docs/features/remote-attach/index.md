@@ -205,7 +205,8 @@ mirror 콘텐츠(grid) 갱신은 원격 출력이 올 때 즉시, 3초 tick 은 
 | 위치 | 언제 | 문서 |
 |---|---|---|
 | 상태바 좌측 맨 앞 | focus surface 가 mirror workspace 에 있을 때 | [상태바](../workspace-status-bar/index.md) |
-| 핸들러 picker 머리 경로 줄 앞 | mirror 의 경로 링크로 연 빈 picker | [핸들러 picker](../file-handler/index.md) |
+| 핸들러 picker 머리 경로 줄 앞 | mirror 경로에 연 원격 picker(원격에 열 수 있는 후보만) | [핸들러 picker](../file-handler/index.md) |
+| 다운로드 후 실행 대화상자 경로 줄 앞 | mirror 경로에 원격에 열 핸들러가 없을 때 | [다운로드 후 실행](#원격-파일-다운로드-후-실행) |
 | 링크 런 아래 툴팁 | mirror 의 파일 경로 링크에 수식키 hover | [터미널 링크](../terminal-link/index.md) |
 
 - **호스트 글자**: 연결할 때 고른 `tasty-attach` 프로필 이름이다. 원격 연결 팝업, `remote attach --into-gui --profile`(IPC `remote.attach`의 `profile`), 자동 attach 매핑 `--ssh-profile` 이 프로필 이름을 세션에 넘긴다. 연결 시점 값이며 재연결해도 바꾸지 않는다. 연결 뒤 프로필 이름을 바꾸거나 지워도 이미 붙은 mirror 의 표시는 그대로다.
@@ -508,7 +509,7 @@ attach 세션의 수명은 **창(window)이 아니라 engine 에 매인다.** �
 - **실행**: 다 받으면 그 파일을 사용자 요청으로 로컬 dispatch 한다. 이후는 로컬 핸들러 설정을 그대로 따르며 원격 전용 분기가 없다. 그 핸들러가 탭을 여는데 활성 workspace 가 mirror 이면 새 로컬 workspace(자동 이름)를 만들어 거기서 연다. 이 workspace 는 일반 workspace 이며 사용자가 닫는다. 받은 파일은 실행별 폴더 정리로 지워질 수 있다. 그 파일을 가리키던 탭은 재시작 뒤에도 복원되며 해당 kind 의 파일 읽기 실패 처리를 따른다(markdown 은 읽기 오류 상태로 연다).
 - **취소·실패**: 확인 단계나 전송 중 취소, 연결 끊김·다른 연결로 교체, 전송 중 원격 파일 변경·교체(`changed`), 로컬 쓰기 실패에서는 받은 부분과 실행별 폴더를 지우고 핸들러를 실행하지 않는다.
 - **옛 서버**: attach descriptor 에 `ipc.stream.file-download` 가 없는 서버에는 요청을 보내지 않고 시작 단계에서 실패한다.
-- **진입점**: mirror 탐색기 더블클릭, mirror 터미널 경로 링크의 수식키 클릭과 우클릭 "연결 동작", 파일 열기 도구의 원격 선택, mirror origin 을 준 `file_handler.dispatch` 에서 원격에 열 수 있는 핸들러가 하나도 없으면 "다운로드 후 실행" 대화상자(`download_run`)를 띄운다. 사용자 요청과 사용자 입력을 증명하지 못한 plugin 중계 요청(PluginUnverified, 핸들러 picker 와 같은 범위)이 대상이고, 외부 IPC(Agent) 요청은 팝업 없이 warn 로그로 끝난다. 제목·원격 경로·설명·"파일 하나만" 안내와 Cancel / Download and run 이 있고, Esc·바깥 클릭은 Cancel 과 같다. 연결이 이 기능을 알리지 않은 옛 서버면 Download and run 을 비활성으로 두고 그 이유를 항상 보이게 적는다(대화상자를 열 때마다 연결 상태를 다시 읽는다). 새 탭 picker 의 html 판정 토스트(`explorer.state.remote_open_unsupported`)는 그대로다. debug 빌드의 `debug.remote_download.*`(CLI `tasty debug remote-download start|confirm|cancel`)는 같은 다운로드를 대화상자 없이 시작·확인·취소한다([debug IPC](../../dev-guide/debug-ipc.md)).
+- **진입점**: mirror 탐색기 더블클릭, mirror 터미널 경로 링크의 수식키 클릭과 우클릭 "연결 동작", 파일 열기 도구의 원격 선택, mirror origin 을 준 `file_handler.dispatch` 에서 원격에 열 수 있는 핸들러가 하나도 없으면 "다운로드 후 실행" 대화상자(`download_run`)를 띄운다. 사용자 요청과 사용자 입력을 증명하지 못한 plugin 중계 요청(PluginUnverified, 핸들러 picker 와 같은 범위)이 대상이고, 외부 IPC(Agent) 요청은 팝업 없이 warn 로그로 끝난다. 제목·원격 경로(줄 맨 앞에 [원격 위치 표시](#원격-위치-표시)의 호스트 표지, picker 와 같은 공용 위젯)·설명·"파일 하나만" 안내와 Cancel / Download and run 이 있고, Esc·바깥 클릭은 Cancel 과 같다. 연결이 이 기능을 알리지 않은 옛 서버면 Download and run 을 비활성으로 두고 그 이유를 항상 보이게 적는다(대화상자를 열 때마다 연결 상태를 다시 읽는다). 새 탭 picker 의 html 판정 토스트(`explorer.state.remote_open_unsupported`)는 그대로다. debug 빌드의 `debug.remote_download.*`(CLI `tasty debug remote-download start|confirm|cancel`)는 같은 다운로드를 대화상자 없이 시작·확인·취소한다([debug IPC](../../dev-guide/debug-ipc.md)).
 - **큰 파일 확인**: 1 MiB 를 넘으면 `download_run_large` 팝업이 파일 이름과 크기(0.1 단위 올림, 1024 MiB 미만은 MiB, 이상은 GiB)를 보이고 Cancel / Download and run 을 묻는다. Esc·바깥 클릭은 Cancel 과 같아 아무것도 받지 않는다.
 - **진행**: 조각을 받는 동안 `download_run_progress` 팝업이 업로드 진행 팝업과 같은 형상(파일 이름·진행 막대·받은 크기/전체·속도)에 "Downloading to open locally" 제목과 Stop download 버튼을 보인다. Esc·바깥 클릭으로 닫히지 않고 다운로드도 멈추지 않는다. Stop download 만 다운로드를 멈추며 받은 부분을 지우고 핸들러를 실행하지 않는다. 모든 다운로드가 끝나면 닫힌다.
 - **실패 안내**: 사용자가 멈춘 경우를 빼고 실패하면 전송 실패 팝업(`transfer_error`)을 "Download failed" 제목으로 띄운다. 사유 칸은 원인마다 번역한 문장(`download_run.reason.*`, 옛 서버는 `download_run.dialog.unsupported_server`)을 UI 서체로 쓰고 Dismiss 만 둔다.

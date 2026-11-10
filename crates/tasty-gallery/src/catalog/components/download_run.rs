@@ -46,7 +46,7 @@ pub fn draw(ui: &mut egui::Ui, theme: &Theme) {
             ),
             (
                 "header",
-                "title font-size-max semibold (wraps) · path mono caption muted, front elided",
+                "title font-size-max semibold (wraps) · host mark (remote glyph + host, fh-remote-fg) · space-sm · path mono caption muted, front elided",
             ),
             (
                 "body",
@@ -73,6 +73,8 @@ pub fn draw(ui: &mut egui::Ui, theme: &Theme) {
                 "info glyph",
                 theme.accent_info_raised().to_egui(),
             ),
+            TokenChip::new("fh-remote-fg", "host mark", theme.fh_remote_fg().to_egui()),
+            TokenChip::without_color("fh-remote-max-width", "host text cap"),
             TokenChip::without_color("transfer-popup-width", "frame width"),
         ],
     );
@@ -268,12 +270,14 @@ fn dialog_card(ui: &mut egui::Ui, theme: &Theme, path: &str, capable: bool) {
                     )
                     .wrap(),
                 );
-                let max_w = ui.available_width();
-                ui.label(
-                    egui::RichText::new(elide_front_mono(ui, theme, path, max_w))
-                        .monospace()
-                        .size(theme.font_size_caption.value())
-                        .color(theme.text_muted().to_egui()),
+                remote_path_line(
+                    ui,
+                    theme,
+                    &tasty_ui_widgets::RemoteMark {
+                        host: "gx10",
+                        empty_label: t("attach.mirror_pill_label"),
+                    },
+                    path,
                 );
             });
         let rect = head.response.rect;
@@ -395,6 +399,36 @@ fn wrapped(
                 .color(color),
         )
         .wrap(),
+    );
+}
+
+/// 본체 `remote_path_line` 과 같은 형상: 공용 표지 위젯 + space-sm + 앞을 줄인 경로.
+fn remote_path_line(
+    ui: &mut egui::Ui,
+    theme: &Theme,
+    mark: &tasty_ui_widgets::RemoteMark<'_>,
+    path: &str,
+) {
+    let font = egui::FontId::monospace(theme.font_size_caption.value());
+    let line_h = ui.fonts(|f| f.row_height(&font));
+    let (rect, _) = ui.allocate_exact_size(
+        egui::vec2(ui.available_width(), line_h),
+        egui::Sense::hover(),
+    );
+    let mark_w = tasty_ui_widgets::paint_fh_remote_mark(
+        ui,
+        theme,
+        egui::pos2(rect.left(), rect.center().y),
+        mark,
+    );
+    let left = rect.left() + (mark_w + theme.spacing_sm).value();
+    let shown = elide_front_mono(ui, theme, path, rect.right() - left);
+    ui.painter().text(
+        egui::pos2(left, rect.top()),
+        egui::Align2::LEFT_TOP,
+        shown,
+        font,
+        theme.text_muted().to_egui(),
     );
 }
 

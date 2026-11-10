@@ -1290,7 +1290,7 @@ Section `#downloadrun` ↔ 본체 `src/adapters/ui/popup/download_run.rs`(PopupD
 | 디자인 jsx | 본체 함수 | 갤러리 함수 (`components/download_run.rs`) |
 |---|---|---|
 | `DownloadRunFrame`(container) | `draw_download_run` | `dialog_card` |
-| 헤더(제목 font-size-max semibold · 경로 mono caption muted) | `draw_download_run` 머리 Frame, 경로는 `elide_front_mono` | `dialog_card` 머리, `elide_front_mono` |
+| 헤더(제목 font-size-max semibold · `FhRemoteMark` · space-sm · 경로 mono caption muted) | `draw_download_run` 머리 Frame, 경로 줄은 `remote_path_line`(공용 `tasty_ui_widgets::paint_fh_remote_mark` + 남은 폭에서 `elide_front_mono`) | `dialog_card` 머리, 같은 형상의 `remote_path_line`(같은 공용 위젯, 표본 호스트 `gx10`) |
 | 본문(설명 body secondary · 한 파일 caption muted) | `wrapped` | `wrapped` |
 | 옛 서버 well(surface-raised · info glyph accent-info-raised · caption secondary) | `old_server_well` | `dialog_card` 안 |
 | footer ghost Cancel · primary Download and run(download glyph, 옛 서버면 비활성) | `footer_buttons` | `dialog_footer` |
@@ -1298,8 +1298,8 @@ Section `#downloadrun` ↔ 본체 `src/adapters/ui/popup/download_run.rs`(PopupD
 | `TransferProgressFrame` title="Downloading to open locally" action="Stop download" | `draw_download_run_progress`(`transfer.rs`의 `header_band`·`progress_row`·`footer_buttons`) | `draw_progress` |
 | `TransferErrorFrame` title="Download failed" reasonKind="sentence" | `draw_transfer_error`의 `TransferErrorKind::DownloadRun`, `reason_well` sentence | `failed_card`, `reason_well_kind` |
 
-**디자인과 다른 점**: 디자인의 경로 줄 앞 호스트 표지(`FhRemoteMark`, `fh-remote-*` 토큰)는 이 브랜치의 토큰
-판에 없어 본체와 갤러리 모두 경로만 그린다. 대화상자·큰 파일 확인·실패의 높이는 그린 내용을 재서 맞춘다(첫 프레임만
+경로 줄 앞 호스트 표지는 핸들러 picker 와 같은 공용 위젯과 `fh-remote-*` 토큰으로 그리고, 디자인의 connected 모양만
+쓴다. 디자인의 재연결 중 모양(`state="reconnecting"`)은 공용 위젯에 없어 picker 와 마찬가지로 그리지 않는다. 대화상자·큰 파일 확인·실패의 높이는 그린 내용을 재서 맞춘다(첫 프레임만
 대략의 높이). i18n 은 `download_run.dialog.*`·`download_run.large.*`·`download_run.reason.*`와
 `transfer.progress.{title_download_run,stop}`·`transfer.error.title_download_run`이다. 동작은
 [원격 attach](../../features/remote-attach/index.md#원격-파일-다운로드-후-실행)를 따른다.
