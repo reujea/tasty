@@ -34,19 +34,23 @@ impl LinkRemoteAnchor {
         segments: &[tasty_terminal_link::LinkSegment],
         top_row: usize,
         surface_rect: &PhysicalRect,
-        cell_w: f32,
-        cell_h: f32,
+        cell_w: PhysicalPx,
+        cell_h: PhysicalPx,
         host: String,
     ) -> Option<Self> {
-        let rows = (surface_rect.height.value() / cell_h).floor().max(0.0) as usize;
-        let mut bounds: Option<(f32, f32, f32, f32)> = None;
+        // 화면에 들어가는 행 수(길이 ÷ 길이의 비율).
+        let rows = (surface_rect.height.value() / cell_h.value())
+            .floor()
+            .max(0.0) as usize;
+        // (왼쪽, 위, 오른쪽, 아래)
+        let mut bounds: Option<(PhysicalPx, PhysicalPx, PhysicalPx, PhysicalPx)> = None;
         for seg in segments
             .iter()
             .filter(|s| s.absolute_row >= top_row && s.absolute_row < top_row + rows)
         {
-            let x0 = surface_rect.x.value() + seg.start_col as f32 * cell_w;
-            let x1 = surface_rect.x.value() + (seg.end_col + 1) as f32 * cell_w;
-            let y0 = surface_rect.y.value() + (seg.absolute_row - top_row) as f32 * cell_h;
+            let x0 = surface_rect.x + cell_w * seg.start_col as f32;
+            let x1 = surface_rect.x + cell_w * (seg.end_col + 1) as f32;
+            let y0 = surface_rect.y + cell_h * (seg.absolute_row - top_row) as f32;
             let y1 = y0 + cell_h;
             bounds = Some(match bounds {
                 None => (x0, y0, x1, y1),
@@ -56,10 +60,10 @@ impl LinkRemoteAnchor {
         let (x0, y0, x1, y1) = bounds?;
         Some(Self {
             anchor: PhysicalRect {
-                x: PhysicalPx(x0),
-                y: PhysicalPx(y0),
-                width: PhysicalPx(x1 - x0),
-                height: PhysicalPx(y1 - y0),
+                x: x0,
+                y: y0,
+                width: x1 - x0,
+                height: y1 - y0,
             },
             host,
         })
@@ -109,11 +113,7 @@ pub(crate) fn draw(ctx: &egui::Context, state: &MainViewState, scale_factor: f32
         ctx.request_repaint_after(delay - waited);
         return;
     }
-    let logical = tip.tip.anchor.to_logical(scale_factor);
-    let anchor = egui::Rect::from_min_size(
-        egui::pos2(logical.x.value(), logical.y.value()),
-        egui::vec2(logical.width.value(), logical.height.value()),
-    );
+    let anchor = crate::adapters::ui::to_egui_rect(tip.tip.anchor, scale_factor);
     let bubble = tasty_ui_widgets::LinkRemoteTip {
         word: crate::i18n::t("attach.mirror_pill_label"),
         host: &tip.tip.host,
@@ -149,15 +149,30 @@ mod tests {
                 end_col: 4,
             },
         ];
-        let a = LinkRemoteAnchor::new(&segments, 10, &surface(), 10.0, 20.0, "gx10".into())
-            .expect("visible");
+        let a = LinkRemoteAnchor::new(
+            &segments,
+            10,
+            &surface(),
+            PhysicalPx(10.0),
+            PhysicalPx(20.0),
+            "gx10".into(),
+        )
+        .expect("visible");
         assert_eq!(a.anchor.x.value(), 100.0);
         assert_eq!(a.anchor.y.value(), 50.0 + 2.0 * 20.0);
         assert_eq!(a.anchor.width.value(), 800.0);
         assert_eq!(a.anchor.height.value(), 40.0);
         // 화면 밖 세그먼트만 있으면 툴팁이 없다.
         assert!(
-            LinkRemoteAnchor::new(&segments, 20, &surface(), 10.0, 20.0, "gx10".into()).is_none()
+            LinkRemoteAnchor::new(
+                &segments,
+                20,
+                &surface(),
+                PhysicalPx(10.0),
+                PhysicalPx(20.0),
+                "gx10".into()
+            )
+            .is_none()
         );
     }
 
@@ -171,8 +186,8 @@ mod tests {
             }],
             0,
             &surface(),
-            10.0,
-            20.0,
+            PhysicalPx(10.0),
+            PhysicalPx(20.0),
             "gx10".into(),
         )
         .unwrap();

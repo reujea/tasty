@@ -105,8 +105,8 @@ impl MainView {
                 &highlight.segments,
                 top_row,
                 &surface_rect,
-                self.base.gpu.cell_width(),
-                self.base.gpu.cell_height(),
+                PhysicalPx(self.base.gpu.cell_width()),
+                PhysicalPx(self.base.gpu.cell_height()),
                 super::link_menu::remote_host_text(engine, surface_id),
             )
         })

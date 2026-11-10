@@ -14,6 +14,13 @@ const HOST: &str = "gx10";
 const MID: &str = "mac-company-attach";
 const LONG: &str = "build-runner-eu-west-07-staging-attach";
 
+/// 디자인 표본(BAR_ROWS)의 바 폭. 축소 단계를 보이려고 고른 표본 폭이며 제품 치수가 아니다.
+const BAR_W: LogicalPx = LogicalPx(470.0);
+const NARROW_W: LogicalPx = LogicalPx(300.0);
+const NARROWER_W: LogicalPx = LogicalPx(230.0);
+const FLOOR_W: LogicalPx = LogicalPx(120.0);
+const FLOOR_RECONNECTING_W: LogicalPx = LogicalPx(200.0);
+
 /// 원격 항목. 문구는 본체와 같은 번역 키에서 읽는다.
 fn remote(host: &str, reconnecting: bool) -> StatusBarRemote {
     StatusBarRemote {
@@ -56,22 +63,32 @@ fn local_bar(theme: &Theme) -> StatusBarData {
 }
 
 /// 한 줄 — 라벨과 주어진 폭의 바. 카드가 더 좁으면 카드 폭이 이긴다.
-fn row(ui: &mut egui::Ui, theme: &Theme, label: &str, w: f32, data: &StatusBarData) {
+fn row(ui: &mut egui::Ui, theme: &Theme, label: &str, w: LogicalPx, data: &StatusBarData) {
     ui.label(
         egui::RichText::new(label)
             .size(theme.font_size_caption.value())
             .color(egui::Color32::from(theme.text_muted())),
     );
-    let w = LogicalPx(ui.available_width().min(w));
+    let w = LogicalPx(ui.available_width()).min(w);
     draw_status_bar_view(ui, theme, w, data);
 }
 
 /// 한 테마의 표본 묶음. 바탕은 그 테마의 bg-app 이다.
-fn theme_card(ui: &mut egui::Ui, theme: &Theme, name: &str, rows: &[(&str, f32, StatusBarData)]) {
+fn theme_card(
+    ui: &mut egui::Ui,
+    theme: &Theme,
+    name: &str,
+    rows: &[(&str, LogicalPx, StatusBarData)],
+) {
     wrap_item(ui, |ui| theme_frame(ui, theme, name, rows));
 }
 
-fn theme_frame(ui: &mut egui::Ui, theme: &Theme, name: &str, rows: &[(&str, f32, StatusBarData)]) {
+fn theme_frame(
+    ui: &mut egui::Ui,
+    theme: &Theme,
+    name: &str,
+    rows: &[(&str, LogicalPx, StatusBarData)],
+) {
     egui::Frame::new()
         .fill(egui::Color32::from(theme.bg_app()))
         .stroke(egui::Stroke::new(
@@ -97,36 +114,40 @@ fn theme_frame(ui: &mut egui::Ui, theme: &Theme, name: &str, rows: &[(&str, f32,
 }
 
 /// 기본 표본 — 디자인 Spec 의 BAR_ROWS 와 같은 줄.
-fn main_rows(theme: &Theme) -> Vec<(&'static str, f32, StatusBarData)> {
+fn main_rows(theme: &Theme) -> Vec<(&'static str, LogicalPx, StatusBarData)> {
     let bar = |host: &str, reconnecting: bool| mirror_bar(theme, Some(remote(host, reconnecting)));
     vec![
-        ("local surface — no remote item", 470.0, local_bar(theme)),
-        ("mirror · connected — profile gx10", 470.0, bar(HOST, false)),
+        ("local surface — no remote item", BAR_W, local_bar(theme)),
+        ("mirror · connected — profile gx10", BAR_W, bar(HOST, false)),
         (
             "mirror · connected — profile mac-company-attach",
-            470.0,
+            BAR_W,
             bar(MID, false),
         ),
         (
             "mirror · reconnecting — neutral ink + status word",
-            470.0,
+            BAR_W,
             bar(MID, true),
         ),
         (
             "long profile name — capped at 160, end-elided",
-            470.0,
+            BAR_W,
             bar(LONG, false),
         ),
-        ("narrow — grid and surface id drop", 300.0, bar(LONG, false)),
-        ("narrower — palette cap drops", 230.0, bar(LONG, false)),
+        (
+            "narrow — grid and surface id drop",
+            NARROW_W,
+            bar(LONG, false),
+        ),
+        ("narrower — palette cap drops", NARROWER_W, bar(LONG, false)),
         (
             "floor — host text drops, glyph stays",
-            120.0,
+            FLOOR_W,
             bar(LONG, false),
         ),
         (
             "floor · reconnecting — the status word stays",
-            200.0,
+            FLOOR_RECONNECTING_W,
             bar(LONG, true),
         ),
     ]

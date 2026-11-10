@@ -27,7 +27,7 @@ fn host_galley(
     ctx: &egui::Context,
     th: &Theme,
     mark: &RemoteMark<'_>,
-    max_w: f32,
+    max_w: LogicalPx,
 ) -> Arc<egui::Galley> {
     let caption = th.font_size_caption.value();
     let (text, font) = if mark.host.is_empty() {
@@ -38,7 +38,7 @@ fn host_galley(
     let mut job =
         egui::text::LayoutJob::simple_singleline(text.to_owned(), font, egui::Color32::PLACEHOLDER);
     job.wrap = egui::text::TextWrapping {
-        max_width: max_w.max(0.0),
+        max_width: max_w.max(LogicalPx(0.0)).value(),
         max_rows: 1,
         break_anywhere: true,
         overflow_character: Some('…'),
@@ -53,7 +53,7 @@ fn layout(
     mark: &RemoteMark<'_>,
     style: MarkStyle,
 ) -> (Arc<egui::Galley>, LogicalPx) {
-    let galley = host_galley(ui.ctx(), th, mark, style.max_w.value());
+    let galley = host_galley(ui.ctx(), th, mark, style.max_w);
     let w = th.icon_glyph_size_xs + style.gap + LogicalPx(galley.rect.width());
     (galley, w)
 }
@@ -139,12 +139,12 @@ impl LinkRemoteTip<'_> {
         th: &Theme,
     ) -> (Arc<egui::Galley>, Option<Arc<egui::Galley>>, egui::Vec2) {
         let word = self.word_galley(ctx, th);
-        let inner_max = th.tooltip_max_width.value() - th.spacing_sm.scaled(2.0).value();
-        let before = word.rect.width() + th.spacing_sm.value();
+        let inner_max = th.tooltip_max_width - th.spacing_sm.scaled(2.0);
+        let before = LogicalPx(word.rect.width()) + th.spacing_sm;
         let style = Self::style(th);
-        let glyph = th.icon_glyph_size_xs.value();
+        let glyph = th.icon_glyph_size_xs;
         let host = (!self.host.is_empty()).then(|| {
-            let room = inner_max - before - glyph - style.gap.value();
+            let room = inner_max - before - glyph - style.gap;
             host_galley(
                 ctx,
                 th,
@@ -157,13 +157,13 @@ impl LinkRemoteTip<'_> {
         });
         let host_w = host
             .as_ref()
-            .map_or(0.0, |g| style.gap.value() + g.rect.width());
-        let h = word
-            .rect
-            .height()
-            .max(glyph)
-            .max(host.as_ref().map_or(0.0, |g| g.rect.height()));
-        (word, host, egui::vec2(before + glyph + host_w, h))
+            .map_or(LogicalPx(0.0), |g| style.gap + LogicalPx(g.rect.width()));
+        let h = LogicalPx(word.rect.height()).max(glyph).max(
+            host.as_ref()
+                .map_or(LogicalPx(0.0), |g| LogicalPx(g.rect.height())),
+        );
+        let w = before + glyph + host_w;
+        (word, host, egui::vec2(w.value(), h.value()))
     }
 
     /// 버블 크기 — 내용 + 여백(space-sm · space-xs) + 테두리.
@@ -224,7 +224,7 @@ impl LinkRemoteTip<'_> {
     /// `anchor`(링크 런) 아래 툴팁 층에 버블을 그린다. 아래에 자리가 없으면 위, 가로는 `bounds` 안으로 당긴다.
     pub fn show(&self, ctx: &egui::Context, th: &Theme, anchor: egui::Rect, bounds: egui::Rect) {
         let size = self.bubble_size(ctx, th);
-        let rect = link_tip_rect(anchor, size, th.tooltip_offset().value(), bounds);
+        let rect = link_tip_rect(anchor, size, th.tooltip_offset(), bounds);
         egui::Area::new(egui::Id::new("tasty_link_remote_tip"))
             .order(egui::Order::Tooltip)
             .fixed_pos(rect.min)
@@ -240,9 +240,10 @@ impl LinkRemoteTip<'_> {
 pub fn link_tip_rect(
     anchor: egui::Rect,
     size: egui::Vec2,
-    offset: f32,
+    offset: LogicalPx,
     bounds: egui::Rect,
 ) -> egui::Rect {
+    let offset = offset.value();
     let below = anchor.bottom() + offset;
     let top = if below + size.y <= bounds.bottom() {
         below
@@ -266,7 +267,7 @@ mod tests {
     #[test]
     fn the_link_tip_sits_below_the_run_when_there_is_room() {
         let anchor = egui::Rect::from_min_size(egui::pos2(100.0, 100.0), egui::vec2(84.0, 18.0));
-        let r = link_tip_rect(anchor, egui::vec2(120.0, 24.0), 4.0, bounds());
+        let r = link_tip_rect(anchor, egui::vec2(120.0, 24.0), LogicalPx(4.0), bounds());
         assert_eq!(r.top(), anchor.bottom() + 4.0);
         assert_eq!(r.center().x, anchor.center().x);
     }
@@ -274,7 +275,7 @@ mod tests {
     #[test]
     fn the_link_tip_goes_above_when_the_bottom_is_full_and_stays_in_the_window() {
         let anchor = egui::Rect::from_min_size(egui::pos2(780.0, 580.0), egui::vec2(20.0, 18.0));
-        let r = link_tip_rect(anchor, egui::vec2(120.0, 24.0), 4.0, bounds());
+        let r = link_tip_rect(anchor, egui::vec2(120.0, 24.0), LogicalPx(4.0), bounds());
         assert_eq!(r.bottom(), anchor.top() - 4.0);
         assert!(bounds().contains_rect(r));
     }

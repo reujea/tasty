@@ -114,7 +114,7 @@ fn term(ui: &mut egui::Ui, theme: &Theme, row: &Row) {
     );
     if let (true, Some(bubble)) = (tip, bubble) {
         let size = bubble.bubble_size(ui.ctx(), theme);
-        let at = tasty_ui_widgets::link_tip_rect(run, size, theme.tooltip_offset().value(), rect);
+        let at = tasty_ui_widgets::link_tip_rect(run, size, theme.tooltip_offset(), rect);
         bubble.paint(ui, theme, at);
     }
 }
