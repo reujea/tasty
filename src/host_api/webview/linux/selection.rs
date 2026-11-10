@@ -224,14 +224,19 @@ pub(super) fn query(
 
 /// 키 누름을 확장에 무장한다. 그 키가 입력 순서대로 문서에 도착하면 확장이 [`ViewMessage::Key`]로
 /// 답한다. 무장 메시지가 키보다 먼저 가도 무장만 하므로 순서와 무관하다. `done`은 무장 실패만 알린다.
+/// `needs_range`(Copy·Cut)이면 확장은 범위 선택이 없을 때 그 키를 막지 않고 엔진·페이지로 보낸다.
 pub(super) fn arm(
     webview: &WebView,
     nonce: u64,
     key: ArmKey,
+    needs_range: bool,
     done: impl FnOnce(Result<(), QueryError>) + 'static,
 ) {
     let page = webview.page_id();
-    let message = UserMessage::new(ARM_NAME, Some(&(nonce, key.code, key.mods).to_variant()));
+    let message = UserMessage::new(
+        ARM_NAME,
+        Some(&(nonce, key.code, key.mods, needs_range).to_variant()),
+    );
     let target = webview.clone();
     webview.send_message_to_page(&message, None::<&Cancellable>, move |result| {
         let armed = match result {

@@ -7,8 +7,8 @@
  *   that document has a range selection. The UI then runs the editing command. The listener is native,
  *   so it works while page scripts are disabled and never runs page script.
  * - Claimed keys: every armed combination stays claimed until the UI unclaims it. A claimed key that
- *   matches no live arm is cancelled without a command, so a bound Copy never falls through to the
- *   engine's empty copy.
+ *   matches no live arm is cancelled without a command. A bound Copy or Cut that finds no range
+ *   selection does not act, so it is not cancelled and reaches the engine default and the page.
  * - Direct query: for commands the host starts without a key, the UI asks for the focused frame's
  *   selection.
  * Messages carry only nonces, the page id, key codes, modifier bits and one boolean, never content. Contract: docs/design/systems/webview.md, editing actions section. */
@@ -44,6 +44,9 @@ typedef struct {
     guint64 nonce;
     guint key_code;
     guint mods;
+    /* Copy and Cut act only on a range selection. Without one the key is not Tasty's: it goes on to
+     * the engine default and the page handlers like any unbound key. */
+    gboolean needs_range;
 } Arm;
 
 typedef struct {
@@ -168,15 +171,18 @@ on_keydown(WebKitDOMEventTarget *target, WebKitDOMEvent *event, gpointer data)
         return;
     if (!g_hash_table_contains(state->claims, combo(key_code, mods)))
         return;
-    /* A claimed edit key belongs to Tasty: the engine default does not run, and page handlers after
-     * the document capture phase do not see it, so they cannot change the selection before the
-     * command runs. */
-    webkit_dom_event_prevent_default(event);
-    webkit_dom_event_stop_propagation(event);
     Arm *arm = take_arm(state, key_code, mods);
+    gboolean range = arm && WEBKIT_DOM_IS_DOCUMENT(target) && has_range(WEBKIT_DOM_DOCUMENT(target));
+    /* A claimed edit key that Tasty runs belongs to Tasty: the engine default does not run, and page
+     * handlers after the document capture phase do not see it, so they cannot change the selection
+     * before the command runs. A claimed key with no live arm is cancelled without a command. A Copy
+     * or Cut with nothing selected does not act, so it goes on to the engine and the page. */
+    if (!arm || range || !arm->needs_range) {
+        webkit_dom_event_prevent_default(event);
+        webkit_dom_event_stop_propagation(event);
+    }
     if (!arm)
         return;
-    gboolean range = WEBKIT_DOM_IS_DOCUMENT(target) && has_range(WEBKIT_DOM_DOCUMENT(target));
     GVariant *params = g_variant_new("(ttb)", arm->nonce, webkit_web_page_get_id(page), range);
     g_free(arm);
     webkit_web_page_send_message_to_view(page, webkit_user_message_new(KEY_NAME, params), NULL, NULL, NULL);
@@ -270,9 +276,9 @@ on_message(WebKitWebPage *page, WebKitUserMessage *message, G_GNUC_UNUSED gpoint
     State *state = state_of(page);
     if (g_strcmp0(name, ARM_NAME) == 0) {
         Arm arm = {0};
-        if (!params || !g_variant_is_of_type(params, G_VARIANT_TYPE("(tuu)")))
+        if (!params || !g_variant_is_of_type(params, G_VARIANT_TYPE("(tuub)")))
             return FALSE;
-        g_variant_get(params, "(tuu)", &arm.nonce, &arm.key_code, &arm.mods);
+        g_variant_get(params, "(tuub)", &arm.nonce, &arm.key_code, &arm.mods, &arm.needs_range);
         /* The arm arrives before its key, so every frame document that exists now, including one whose
          * frame is still loading, has the listener before the key is dispatched. */
         WebKitDOMDocument *doc = webkit_web_page_get_dom_document(page);

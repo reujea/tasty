@@ -269,7 +269,8 @@ pub trait WebViewKeySink {
     /// 페이지 전달을 막는다. 큐를 거치지 않으므로 닫히거나 교체된 WebView에는 실행되지 않는다.
     /// Windows 명령은 같은 WebView에 비동기로 전달된다. Linux는 키를 WebKit 입력 큐에 넘기고 web process 확장이
     /// 그 키를 입력 순서대로 받았다고 알린 뒤 실행한다. 그 사이 포커스·문서가 바뀌었거나 host 모달·overlay가
-    /// 열렸거나 WebView를 버렸으면 실행하지 않고, Copy·Cut은 그 시점에 선택이 없으면 실행하지 않는다.
+    /// 열렸거나 WebView를 버렸으면 실행하지 않는다. Copy·Cut은 그 시점에 범위 선택이 없으면 실행하지 않고 키를
+    /// 막지 않으므로, 그 키는 엔진 기본 동작과 페이지 keydown으로 간다.
     fn edit_action(
         &self,
         key: &Key,

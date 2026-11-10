@@ -35,6 +35,11 @@ pub(super) fn connect(
         }
         // 사용자 편집 바인딩은 키를 받은 이 WebView에서 입력 순서대로 엔진 명령으로 실행한다.
         if let Some(action) = bridge.edit_action(&key, &physical, mods) {
+            // 범위 선택이 없어 확장이 막지 않은 Copy·Cut을 페이지도 처리하지 않으면 WebKit이 원래 시각 그대로 UI에 다시
+            // 보낸다. 이미 본 누름이므로 다시 무장하지 않고 WebKit 기본 처리에 둔다.
+            if !newer {
+                return gtk::glib::Propagation::Proceed;
+            }
             // 응답 전에 host 모달·overlay가 열리면 실행하지 않도록 같은 키로 다시 묻는다.
             let gate = bridge.clone();
             let blocked: edit::Blocked =
