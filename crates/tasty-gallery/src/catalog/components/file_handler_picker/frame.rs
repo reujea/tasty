@@ -510,15 +510,28 @@ fn fh_group(
     );
 }
 
+/// 원격 대상 머리 — 경로 줄 앞 표지와 이름 판정이 정한 형식.
+pub(super) struct RemoteHead<'a> {
+    pub mark: &'a tasty_ui_widgets::RemoteMark<'a>,
+    /// 이름으로 연 원격 경로가 확장자·파일 이름으로 정한 형식. 경로 링크는 형식을 정하지 않아 None 이다.
+    pub format: Option<&'a str>,
+}
+
 /// 프레임 자기 헤더 — 제목 + 형식 Tag, 그 아래 mono 경로. 원격 대상이면 경로 줄 맨 앞에
-/// 공용 원격 표지를 그리고 경로는 남은 상자에 그린다.
+/// 공용 원격 표지를 그리고 경로는 남은 상자에 그린다. 원격 대상의 Tag 는 이름 판정이 정한 형식(accent)이고,
+/// 형식이 없으면 fallback 과 같은 `format unknown`(default)이다.
 fn fh_header(
     ui: &mut egui::Ui,
     theme: &Theme,
     state: FrameState,
     path: &str,
-    remote: Option<&tasty_ui_widgets::RemoteMark<'_>>,
+    remote: Option<&RemoteHead<'_>>,
 ) {
+    let format = match remote {
+        Some(head) => head.format,
+        None if state == FrameState::Fallback => None,
+        None => Some("markdown"),
+    };
     kit::region(
         ui,
         egui::Margin {
@@ -532,13 +545,13 @@ fn fh_header(
             ui.horizontal(|ui| {
                 ui.spacing_mut().item_spacing.x = theme.spacing_sm.value();
                 kit::title(ui, theme, "Open file with…");
-                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    if state == FrameState::Fallback {
-                        tag(ui, theme, "format unknown", TagVariant::Default, false);
-                    } else {
-                        tag_mono(ui, theme, "markdown", TagVariant::Accent, false);
-                    }
-                });
+                ui.with_layout(
+                    egui::Layout::right_to_left(egui::Align::Center),
+                    |ui| match format {
+                        Some(format) => tag_mono(ui, theme, format, TagVariant::Accent, false),
+                        None => tag(ui, theme, "format unknown", TagVariant::Default, false),
+                    },
+                );
             });
             // 파일명이 남도록 앞부분을 생략한 뒤 LTR 한 줄로 그린다.
             let path_font = egui::FontId::monospace(theme.font_size_caption.value());
@@ -547,12 +560,12 @@ fn fh_header(
             let (line_rect, _) =
                 ui.allocate_exact_size(egui::vec2(line_w, path_h), egui::Sense::hover());
             let mut path_left = line_rect.left();
-            if let Some(mark) = remote {
+            if let Some(head) = remote {
                 let mark_w = tasty_ui_widgets::paint_fh_remote_mark(
                     ui,
                     theme,
                     egui::pos2(path_left, line_rect.center().y),
-                    mark,
+                    head.mark,
                 );
                 path_left += (mark_w + theme.spacing_sm).value();
             }
@@ -753,14 +766,16 @@ pub(super) fn header_card(ui: &mut egui::Ui, theme: &Theme, path: &str) {
     });
 }
 
-/// 원격 경로 picker — 본문은 빈 picker 그대로이고 머리 경로 줄 앞에 원격 표지가 붙는다.
+/// 원격 경로 picker — 본문은 원격에 열 수 있는 핸들러 목록(빈 상태·전체 핸들러 그룹·1 회성 띠 없음)이고
+/// 머리 경로 줄 앞에 원격 표지가 붙는다. 원격 picker 는 후보가 있을 때만 열린다.
 /// 경로는 표지가 남긴 상자에 대해 본체와 같은 공용 함수로 앞을 줄인다.
 pub(super) fn remote_frame(
     ui: &mut egui::Ui,
     theme: &Theme,
     raw_path: &str,
-    mark: &tasty_ui_widgets::RemoteMark<'_>,
+    head: &RemoteHead<'_>,
 ) {
+    let mark = head.mark;
     let font = egui::FontId::monospace(theme.font_size_caption.value());
     let advance = ui.fonts(|f| {
         f.layout_no_wrap("00".into(), font.clone(), egui::Color32::PLACEHOLDER)
@@ -777,9 +792,9 @@ pub(super) fn remote_frame(
     );
     let path = fh_model::elide_target_front(raw_path, budget);
     kit::frame_card(ui, theme, FH_FRAME_WIDTH, kit::panel_fill(theme), |ui| {
-        fh_header(ui, theme, FrameState::Empty, &path, Some(mark));
-        fh_empty(ui, theme);
-        fh_footer(ui, theme, false);
+        fh_header(ui, theme, FrameState::Default, &path, Some(head));
+        fh_list(ui, theme, FrameState::Default);
+        fh_footer(ui, theme, true);
     });
 }
 

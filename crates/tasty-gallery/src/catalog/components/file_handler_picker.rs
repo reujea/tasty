@@ -8,7 +8,7 @@ use tasty_type_appearance::theme::Theme;
 
 use crate::catalog::spec::{self, StageVariant, TokenChip};
 use crate::catalog::widgets::dialog as kit;
-use frame::{FrameState, fh_footer, frame, header_card, remote_frame};
+use frame::{FrameState, RemoteHead, fh_footer, frame, header_card, remote_frame};
 use tasty_ui_widgets::file_handler as fh_model;
 use tasty_ui_widgets::tokens::FH_FRAME_WIDTH;
 
@@ -233,29 +233,41 @@ const PATH_SAMPLES: [&str; 3] = [
 const PATH_BUDGET: usize = tasty_ui_widgets::tokens::FH_TARGET_ELIDE_FALLBACK;
 
 /// 원격 경로 표본 — 디자인 Spec `file-handler-remote-path` 의 줄. 호스트 글자는 attach 프로필 이름이다.
-const REMOTE_PATH_ROWS: [(&str, &str, &str); 3] = [
-    ("remote path — profile gx10", "gx10", "src/main.rs"),
+/// 넷째 칸은 이름으로 연 경로가 정한 형식이다(경로 링크는 None → `format unknown`).
+const REMOTE_PATH_ROWS: [(&str, &str, &str, Option<&str>); 4] = [
+    ("remote path — profile gx10", "gx10", "src/main.rs", None),
+    (
+        "remote path opened by name (plugin, mirror file open) — the format its name settled keeps the accent Tag",
+        "gx10",
+        "docs/architecture.md",
+        Some("markdown"),
+    ),
     (
         "93-char path beside mac-company-attach — whole segments drop, the filename stays",
         "mac-company-attach",
         PATH_SAMPLES[1],
+        None,
     ),
     (
         "same path at the host cap — the one segment is cut at its front",
         "build-runner-eu-west-07-staging-attach",
         PATH_SAMPLES[1],
+        None,
     ),
 ];
 
 pub fn draw_remote_path(ui: &mut egui::Ui, theme: &Theme) {
     let empty_label = crate::i18n::t("attach.mirror_pill_label");
-    let row = |ui: &mut egui::Ui, (label, host, path): (&str, &str, &str)| {
+    let row = |ui: &mut egui::Ui, (label, host, path, format): (&str, &str, &str, Option<&str>)| {
         spec::cluster(ui, theme, label, |ui| {
             remote_frame(
                 ui,
                 theme,
                 path,
-                &tasty_ui_widgets::RemoteMark { host, empty_label },
+                &RemoteHead {
+                    mark: &tasty_ui_widgets::RemoteMark { host, empty_label },
+                    format,
+                },
             );
         });
     };
@@ -300,7 +312,14 @@ pub fn draw_remote_path(ui: &mut egui::Ui, theme: &Theme) {
                 "the word Remote (attach.mirror_pill_label) in the host slot, font-label",
             ),
             ("local path", "no mark — the line is the path alone"),
-            ("body", "unchanged — remote paths open the empty picker"),
+            (
+                "format Tag",
+                "remote target from a path link → format unknown, Tag default (outline) · remote target opened by name → Tag accent, the format its name settled",
+            ),
+            (
+                "body",
+                "the remote handler list, never the empty state (no All handlers group, no one-time strip) — with no remote handler the picker does not open and the download-and-run dialog opens instead",
+            ),
         ],
         &[
             TokenChip::new("fh-remote-fg", "host mark", theme.fh_remote_fg().to_egui()),
