@@ -149,6 +149,8 @@ mod unix {
     }
 
     /// `canonical`도 실제 경로를 바이트 그대로 돌려준다.
+    /// macOS APFS는 UTF-8이 아닌 이름의 폴더를 만들지 못하므로 Linux에서만 돈다.
+    #[cfg(target_os = "linux")]
     #[test]
     fn canonical_keeps_a_non_utf8_real_path() {
         use std::os::unix::ffi::OsStrExt;

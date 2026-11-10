@@ -284,6 +284,8 @@ mod tests {
         }
 
         /// 문자열로 손실 없이 표현할 수 없는 해석 결과는 실행할 경로와 달라지므로 해석하지 못한 값으로 본다.
+        /// macOS APFS는 UTF-8이 아닌 이름의 폴더를 만들지 못하므로 Linux에서만 돈다.
+        #[cfg(target_os = "linux")]
         #[test]
         fn a_path_under_a_non_utf8_launch_dir_is_not_usable() {
             use std::os::unix::ffi::OsStrExt;
