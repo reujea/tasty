@@ -76,6 +76,7 @@ fn merge_survivor_mapping_cleans_up_stale_terminal_on_convert_to_mesh() {
         .remote
         .attach_mesh_frames
         .update(local_10, vec![1, 2, 3], 1, 1, true);
+    engine.set_mirror_surface_foreground(local_10, Some("claude".to_string()));
 
     // 다음 병합이 이전 kind를 조회할 수 있도록 먼저 실제 트리에 반영한다.
     let tree = serde_json::json!({
@@ -142,6 +143,11 @@ fn merge_survivor_mapping_cleans_up_stale_terminal_on_convert_to_mesh() {
         engine.remote.attach_mesh_frames.get(local_10).is_none(),
         "옛(terminal 시절의 무의미한) mesh frame 캐시도 제거돼야 한다"
     );
+    assert_eq!(
+        engine.mirror_surface_foreground(local_10),
+        None,
+        "terminal 에서 출발한 kind 전환은 옛 전경 이름을 버린다"
+    );
 }
 
 /// 원격이 닫은 mirror surface는 로컬 닫기처럼 attach 점유 기록도 남기지 않는다.
@@ -168,6 +174,7 @@ fn merge_survivor_mapping_forgets_the_occupancy_of_a_remotely_closed_surface() {
     engine
         .occupy_soft(local_10, parent, None)
         .expect("soft 점유");
+    engine.set_mirror_surface_foreground(local_10, Some("claude".to_string()));
 
     let m2 = merge_survivor_mapping(&m1.remote_to_local, &[], &ids, &frame_tx, &mut engine)
         .expect("fixture construction");
@@ -175,6 +182,11 @@ fn merge_survivor_mapping_forgets_the_occupancy_of_a_remotely_closed_surface() {
     assert!(
         engine.live.occupancy.occupancy_of(local_10).is_none(),
         "원격이 닫은 surface 의 soft 점유가 남았다"
+    );
+    assert_eq!(
+        engine.mirror_surface_foreground(local_10),
+        None,
+        "원격이 닫은 surface 의 전경 이름이 남았다"
     );
 }
 

@@ -356,11 +356,8 @@ impl MainView {
         #[cfg(not(target_os = "macos"))]
         let option_as_meta = false;
 
-        let shift_enter_newline = engine.settings.terminal_input.shift_enter_newline(
-            self.state
-                .focused_surface_id(engine)
-                .and_then(|sid| engine.foreground_name(sid)),
-        );
+        let shift_enter_newline =
+            shift_enter_newline_for(engine, self.state.focused_surface_id(engine));
 
         let surface_id = self.state.focused_surface_id(engine);
         let read_state = surface_id.and_then(|sid| {
@@ -719,6 +716,18 @@ impl MainView {
 /// IME 억제). 억제 조건: 빈 문자열 / 제어·사설영역 문자(Delete 의 `\u{f728}` 등) /
 /// command modifier 동반(Ctrl+key 는 문자 삽입 아님) / IME 조합 중 non-ASCII(조합 결과는
 /// IME `Commit` 으로 도착하므로 중복 방지 — ASCII 숫자·기호는 조합을 안 거쳐 통과).
+/// 앱별 Shift+Enter 규칙. 이름은 로컬 폴링 값이고 mirror면 서버가 보낸 원격 전경 이름이다.
+/// 규칙은 인코딩하는 이 클라이언트의 설정으로 판단한다.
+fn shift_enter_newline_for(
+    engine: &crate::runtime::engine_read::EngineRead<'_>,
+    surface_id: Option<u32>,
+) -> bool {
+    engine
+        .settings
+        .terminal_input
+        .shift_enter_newline(surface_id.and_then(|sid| engine.foreground_name(sid)))
+}
+
 fn should_forward_text(text: &str, is_cmd: bool, ime_active: bool) -> bool {
     if text.is_empty() || is_cmd {
         return false;
@@ -786,6 +795,34 @@ fn win32_key_press(virtual_key: u8, character: u8, modifiers: ModifiersState) ->
         "\x1b[{virtual_key};0;{character};1;{control_state};1_\x1b[{virtual_key};0;{character};0;{control_state};1_"
     )
     .into_bytes()
+}
+
+#[cfg(test)]
+mod shift_enter_rule_tests {
+    use super::shift_enter_newline_for;
+
+    /// mirror는 서버가 보낸 원격 이름으로 규칙을 적용하고, 이름이 사라지면 기본 인코딩으로 돌아간다.
+    #[test]
+    fn a_mirror_follows_the_rule_of_the_pushed_remote_name() {
+        let (_, mut session) = crate::state::tests::test_mirror_state();
+        let mut e = session.borrow_mut();
+        let sid = e
+            .workspace_at(0)
+            .expect("workspace index is valid")
+            .all_surface_ids()[0];
+        e.runtime.settings.terminal_input.rules =
+            vec![tasty_settings::terminal_input::TerminalInputRule {
+                app: "claude".into(),
+                shift_enter_newline: true,
+            }];
+        assert!(!shift_enter_newline_for(&e.read(), Some(sid)), "첫 값 전");
+        e.set_mirror_surface_foreground(sid, Some("claude.exe".into()));
+        assert!(shift_enter_newline_for(&e.read(), Some(sid)));
+        e.set_mirror_surface_foreground(sid, Some("bash".into()));
+        assert!(!shift_enter_newline_for(&e.read(), Some(sid)));
+        e.set_mirror_surface_foreground(sid, None);
+        assert!(!shift_enter_newline_for(&e.read(), Some(sid)));
+    }
 }
 
 #[cfg(test)]

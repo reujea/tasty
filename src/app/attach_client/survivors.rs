@@ -130,6 +130,7 @@ pub(super) fn merge_survivor_mapping(
                     if old_kind == Some("terminal") {
                         engine.runtime.terminals.remove(l);
                         engine.forget_mirror_surface_busy(l);
+                        engine.forget_mirror_surface_foreground(l);
                     }
                     // cwd는 terminal뿐 아니라 explorer·markdown에도 있어 이전 kind와 함께 지운다.
                     engine.forget_mirror_surface_cwd(l);
@@ -243,6 +244,7 @@ pub(super) fn merge_survivor_mapping(
             engine.forget_mirror_surface_busy(local_id);
             engine.forget_mirror_surface_attention(local_id);
             engine.forget_mirror_surface_cwd(local_id);
+            engine.forget_mirror_surface_foreground(local_id);
             engine.remote.explorer_sources.remove(local_id);
             engine.remote.attach_mesh_frames.remove(local_id);
             // 원격이 닫은 surface도 로컬 닫기처럼 soft 점유 등 점유 기록을 남기지 않는다.

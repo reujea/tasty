@@ -169,8 +169,8 @@ workspace mirror 의 **탭 제목**은 스냅샷 pane JSON 의 tab `name`(원격
 `StreamControl` 은 `event` 태그 기반 확장 enum 이라, 새 이벤트도 새 `StreamTag` 없이 variant 로 추가된다. 구버전 서버는 `ClientResize` 를 무시하므로(전방호환) 기존 remote-authoritative 동작으로 graceful degrade 한다. 같은 이유로 구버전 client 는 `Attention` 프레임을 파싱하지 못해 조용히 무시하고, 구버전 서버는 그 프레임을 애초에 보내지 않는다 — 어느 쪽도 세션을 깨지 않고 attention 표시만 빠진다. **다만 그 무시가 공짜일 때만 안전하다** — 놓쳐도 잃을 것이 없는 이벤트에만 성립하는 성질이고, 아래 `Loss` 가 그 예외라 무시가 곧 "손실 없음" 으로 읽히지 않도록 **client 의 명시 선언으로 게이트**한다.
 
 Control의 server→client 상태 메시지는 `Resize`(그리드), `Activity`(busy/idle),
-`Attention`(주의 표시), `Cwd`(현재 폴더)다. 같은 상태를 다시 적용해도 결과는 같지만,
-유실된 메시지가 다음 tick에 자동 재전송된다는 뜻은 아니다. Activity·Attention·Cwd는
+`Attention`(주의 표시), `Cwd`(현재 폴더), `Foreground`(전경 프로세스 이름)다. 같은 상태를 다시 적용해도 결과는 같지만,
+유실된 메시지가 다음 tick에 자동 재전송된다는 뜻은 아니다. Activity·Attention·Cwd·Foreground는
 전송 전에 변화분 캐시를 갱신하므로 전송이 실패해도 값이 같으면 다시 보내지 않는다.
 client ack도 없다.
 
@@ -208,6 +208,10 @@ attention 의 관리 주체는 **surface 를 소유한 인스턴스**다: produc
 mirror 터미널은 로컬 셸이 없어 원격 셸이 OSC 7 을 쏠 때만 cwd 를 알 수 있었는데, 원격은 셸 프로세스를 직접 조회할 수 있어 어떤 셸이든 값이 온다.
 그 값은 **원격 경로**로 표시되어 로컬 파일시스템 연산(새 로컬 워크스페이스의 시작 폴더, 로컬 git 브랜치 조회, preset 저장)에는 쓰이지 않고, 원격에서 실행되거나 원격을 조회하는 소비자(예: mirror 에서 연 파일 피커의 시작 폴더)만 쓴다.
 규칙과 근거는 [surface-cwd invariant §3-2](../../design/policies/cwd.md#3-2-원격-출처-cwd-는-로컬-실행-경로로-새지-않는다) · 이 문서, 메커니즘은 [dev-guide/attach-behavior "surface cwd 전파"](../../dev-guide/attach-behavior.md#surface-cwd-전파).
+
+**전경 프로세스 이름도 같은 방향의 채널이다** — 원격이 점유 surface 의 전경 프로세스 이름을 같은 1Hz tick 에 `StreamControl::Foreground{surface_id, name}` 로 보낸다. 이름을 모르게 되면 `null` 을 보내 client 가 지운다.
+mirror 는 이 이름으로 로컬 surface 와 같게 동작한다: 앱별 Shift+Enter 규칙, 상태바 프로그램 이름, 마우스 캡처 제외·배너 제외 목록과 배너 더보기 메뉴, 프로그램이 바뀔 때 캡처 배너 닫기, 원격 자식이 셸로 돌아온 판정, 클릭 커서 이동(1Hz 값이라 전환 직후 지연이 있다), `surface.foreground_process`(원격 PID 는 `null`). 규칙과 목록은 client 의 설정으로 판정한다.
+첫 값을 받기 전이나 이 메시지를 보내지 않는 구버전 서버에서는 이름 미상으로 동작해 지금과 같다. 메커니즘은 [dev-guide/attach-behavior "전경 이름 전파"](../../dev-guide/attach-behavior.md#전경-이름-전파).
 
 **서버가 프레임을 버리면 `Loss`로 알린다.** PTY 출력 일부를 놓친 client는 그 상태로
 계속 그리면 잘못된 화면을 보여줄 수 있다. 그래서 서버는 그 연결에서 버린 프레임 수를 `StreamControl::Loss{frames}` 로 되돌려

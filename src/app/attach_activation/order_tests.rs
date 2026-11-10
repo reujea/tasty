@@ -26,10 +26,11 @@ fn busy_tick(session: &mut crate::runtime::engine_session::EngineSession, hub: &
     engine.forward_busy_activity(hub);
     engine.forward_attention(hub);
     engine.forward_surface_cwd(hub);
+    engine.forward_surface_foreground(hub);
 }
 
 /// 점유를 잡고 descriptor를 보내기 전 사이에 Busy tick이 끼어도 client의 첫 Control은
-/// descriptor다. descriptor 뒤 첫 tick에서 점유 터미널마다 busy·attention·cwd 최초 값이
+/// descriptor다. descriptor 뒤 첫 tick에서 점유 터미널마다 busy·attention·cwd·전경 이름 최초 값이
 /// 한 번씩 나간다. 준비 전 점유를 거르지 않으면 첫 Control이 activity가 되어 실패한다.
 #[test]
 fn a_busy_tick_before_the_descriptor_does_not_overtake_it() {
@@ -76,7 +77,7 @@ fn a_busy_tick_before_the_descriptor_does_not_overtake_it() {
         before_ready.is_empty(),
         "준비 전 점유에는 상태 Control을 보내지 않는다"
     );
-    for event in ["activity", "attention", "cwd"] {
+    for event in ["activity", "attention", "cwd", "foreground"] {
         for sid in &terminals {
             let count = frames
                 .iter()

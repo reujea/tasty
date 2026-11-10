@@ -603,6 +603,7 @@ fn remove_mirror_workspace_from_engine(
         engine.forget_mirror_surface_busy(local);
         engine.forget_mirror_surface_attention(local);
         engine.forget_mirror_surface_cwd(local);
+        engine.forget_mirror_surface_foreground(local);
         engine.remote.explorer_sources.remove(local);
         engine.remote.attach_mesh_frames.remove(local);
         // 로컬 닫기 정리와 같이 soft 점유 등 이 surface의 점유 기록을 지운다.

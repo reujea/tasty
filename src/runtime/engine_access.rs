@@ -272,8 +272,13 @@ impl EngineRef<'_> {
     pub(crate) fn is_surface_busy(&self, id: u32) -> bool {
         self.read().is_surface_busy(id)
     }
+    /// 로컬 폴링 값이 없으면 원격 mirror가 받은 값을 돌려준다.
     pub(crate) fn foreground_name(&self, id: u32) -> Option<&str> {
-        self.live.foreground_names.get(&id).map(String::as_str)
+        self.live
+            .foreground_names
+            .get(&id)
+            .map(String::as_str)
+            .or_else(|| self.remote.mirror_foreground.name(id))
     }
     pub(crate) fn is_typing(&self, id: u32) -> bool {
         self.live

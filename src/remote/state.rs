@@ -135,6 +135,8 @@ pub(crate) struct RemoteState {
     pub(crate) mirror_busy_surfaces: std::collections::HashSet<u32>,
     /// 원격 surface의 cwd. 두 호스트의 파일시스템이 달라 로컬 Path로 해석하지 않는다.
     pub(crate) mirror_surface_cwd: std::collections::HashMap<u32, RemoteCwd>,
+    /// 원격 surface의 전경 프로세스 이름과 세대. 로컬 폴링이 덮어쓰지 않도록 별도로 보관한다.
+    pub(crate) mirror_foreground: crate::core::state::MirrorForegrounds,
     /// busy 전송 후보를 마지막으로 만든 (holder, 값). 송신 성공 기록은 아니다.
     /// holder도 비교해야 같은 값으로 점유자가 바뀌어도 새 client에 초기 상태를 보낸다.
     pub(crate) last_forwarded_busy:
@@ -146,6 +148,9 @@ pub(crate) struct RemoteState {
     >,
     /// cwd 전송 후보의 (holder, 값). 같은 값이어도 holder가 바뀌면 새 후보를 만든다.
     pub(crate) last_forwarded_cwd:
+        std::collections::HashMap<u32, (crate::core::attach::AttachClientId, Option<String>)>,
+    /// 전경 이름 전송 후보의 (holder, 값). 같은 값이어도 holder가 바뀌면 새 후보를 만든다.
+    pub(crate) last_forwarded_foreground:
         std::collections::HashMap<u32, (crate::core::attach::AttachClientId, Option<String>)>,
     /// workspace별로 holder에 보낸 마지막 트리·surface 직렬화 값. 구조 변경 표시는 다른
     /// workspace의 확정에도 찍히므로, 같은 holder에 같은 트리를 다시 보내지 않는 데 쓴다.
@@ -203,9 +208,11 @@ impl RemoteState {
             pending_mesh_input_forward: std::collections::HashMap::new(),
             mirror_busy_surfaces: std::collections::HashSet::new(),
             mirror_surface_cwd: std::collections::HashMap::new(),
+            mirror_foreground: Default::default(),
             last_forwarded_busy: std::collections::HashMap::new(),
             last_forwarded_attention: std::collections::HashMap::new(),
             last_forwarded_cwd: std::collections::HashMap::new(),
+            last_forwarded_foreground: std::collections::HashMap::new(),
             last_structure_sent: std::collections::HashMap::new(),
         }
     }
@@ -318,6 +325,7 @@ impl RemoteState {
         self.last_forwarded_busy.remove(&id);
         self.last_forwarded_attention.remove(&id);
         self.last_forwarded_cwd.remove(&id);
+        self.last_forwarded_foreground.remove(&id);
         self.pending_attention_clear_forward.remove(&id);
         #[cfg(feature = "gui")]
         {

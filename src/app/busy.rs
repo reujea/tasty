@@ -4,7 +4,7 @@ use crate::app::App;
 use crate::view::ui::View as _;
 
 impl App {
-    /// Busy tick에서 상태를 갱신하고 busy·attention·cwd 변경을 점유 클라이언트에 전송한다.
+    /// Busy tick에서 상태를 갱신하고 busy·attention·cwd·전경 이름 변경을 점유 클라이언트에 전송한다.
     /// 전송 지연이나 실패가 있을 수 있어 원격 반영 시각은 보장하지 않는다.
     pub(crate) fn poll_busy_states(&mut self) {
         let hub = self.stream_hub.clone();
@@ -18,6 +18,7 @@ impl App {
             engine.forward_busy_activity(&hub);
             engine.forward_attention(&hub);
             engine.forward_surface_cwd(&hub);
+            engine.forward_surface_foreground(&hub);
             close_stale_mouse_capture_banners(&mut main.state, &engine.read());
             if changed {
                 main.mark_dirty();
@@ -29,6 +30,7 @@ impl App {
             engine.forward_busy_activity(&hub);
             engine.forward_attention(&hub);
             engine.forward_surface_cwd(&hub);
+            engine.forward_surface_foreground(&hub);
         }
         let engines = self.engines();
         let engines: Vec<_> = engines.windowed_and_parked().collect();

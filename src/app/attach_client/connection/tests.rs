@@ -32,6 +32,7 @@ fn remove_mirror_workspace_clears_terminal_busy_and_mesh() {
         .insert(local_surface, Terminal::new_detached(80, 24), None);
     engine.set_mirror_surface_busy(local_surface, true);
     engine.set_mirror_surface_cwd(local_surface, Some("/srv/remote".to_string()));
+    engine.set_mirror_surface_foreground(local_surface, Some("claude".to_string()));
     engine
         .remote
         .attach_mesh_frames
@@ -66,6 +67,11 @@ fn remove_mirror_workspace_clears_terminal_busy_and_mesh() {
     assert!(
         engine.remote.mirror_surface_cwd.is_empty(),
         "mirror cwd 엔트리 제거"
+    );
+    assert_eq!(
+        engine.mirror_surface_foreground(local_surface),
+        None,
+        "mirror 전경 이름 제거"
     );
     assert_eq!(
         state.active_workspace_index(&engine),

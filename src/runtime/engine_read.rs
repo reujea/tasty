@@ -42,6 +42,8 @@ pub(crate) struct EngineRead<'a> {
     html_entry_hosts: &'a HashSet<u32>,
     mirror_busy: &'a HashSet<u32>,
     #[cfg(feature = "gui")]
+    mirror_foreground: &'a crate::core::state::MirrorForegrounds,
+    #[cfg(feature = "gui")]
     readonly: &'a HashMap<u32, tasty_terminal::Terminal>,
     #[cfg(feature = "gui")]
     dag_source: super::dag_query::DagSource<'a>,
@@ -110,6 +112,8 @@ impl<'a> EngineRef<'a> {
             #[cfg(feature = "gui")]
             html_entry_hosts: &self.remote.html_entry_hosts,
             mirror_busy: &self.remote.mirror_busy_surfaces,
+            #[cfg(feature = "gui")]
+            mirror_foreground: &self.remote.mirror_foreground,
             #[cfg(feature = "gui")]
             readonly: &self.runtime.readonly_views,
             #[cfg(feature = "gui")]
@@ -262,9 +266,21 @@ impl<'a> EngineRead<'a> {
     pub(crate) fn busy_count(&self, ids: &[u32]) -> usize {
         ids.iter().filter(|id| self.is_surface_busy(**id)).count()
     }
+    /// 로컬 폴링 값이 없으면 원격 mirror가 받은 값을 돌려준다.
     #[cfg(feature = "gui")]
     pub(crate) fn foreground_name(&self, id: u32) -> Option<&str> {
-        self.live.foreground_names.get(&id).map(String::as_str)
+        self.live
+            .foreground_names
+            .get(&id)
+            .map(String::as_str)
+            .or_else(|| self.mirror_foreground.name(id))
+    }
+    /// mirror는 로컬 PTY가 없어 1Hz 캐시 값만 있다. 로컬은 PTY를 직접 조회한다.
+    #[cfg(feature = "gui")]
+    pub(crate) fn foreground_process_name_now(&self, id: u32) -> Option<String> {
+        self.terminals
+            .foreground_process_name(id)
+            .or_else(|| self.mirror_foreground.name(id).map(str::to_owned))
     }
     #[cfg(feature = "gui")]
     pub(crate) fn foreground_generation(&self, id: u32) -> u64 {
@@ -272,6 +288,7 @@ impl<'a> EngineRead<'a> {
             .foreground_generation
             .get(&id)
             .copied()
+            .or_else(|| self.mirror_foreground.generation(id))
             .unwrap_or(0)
     }
     pub(crate) fn is_surface_mouse_capture_disabled(&self, id: u32) -> bool {

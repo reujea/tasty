@@ -58,6 +58,11 @@ pub(super) fn apply_one_mirror_event(
                 host.engine.set_mirror_surface_cwd(local, cwd);
             }
         }
+        MirrorEvent::Foreground(remote_id, name) => {
+            if let Some(&local) = sess.state.remote_to_local.get(&remote_id) {
+                host.engine.set_mirror_surface_foreground(local, name);
+            }
+        }
         MirrorEvent::Attention(remote_id, kind) => {
             // 서버 상태를 반영할 때 로컬 해제 요청을 다시 forward하지 않는다.
             if let Some(&local) = sess.state.remote_to_local.get(&remote_id) {

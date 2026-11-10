@@ -41,6 +41,8 @@ pub enum MirrorEvent {
     Attention(u32, Option<tasty_ipc::stream::AttentionKindWire>),
     /// 원격 cwd. 로컬 파일시스템 경로로 사용하지 않으며 None이면 값을 지운다.
     Cwd(u32, Option<String>),
+    /// 원격 전경 프로세스 이름. None이면 값을 지운다.
+    Foreground(u32, Option<String>),
     /// 구조 변경 실패. 에이전트 요청은 로그, 사용자 요청은 toast로 알린다.
     StructuralFailed(u64, Option<String>),
     /// 사용자 요청의 포커스 의도를 뒤따르는 StructuralDelta에 전달할 op_id.
@@ -469,7 +471,9 @@ impl MirrorEvent {
         }
         std::mem::size_of::<Self>().saturating_add(match self {
             Self::Data(_, bytes) | Self::Mesh(_, _, _, _, bytes) => bytes.capacity(),
-            Self::Cwd(_, value) | Self::StructuralFailed(_, value) => text(value),
+            Self::Cwd(_, value) | Self::Foreground(_, value) | Self::StructuralFailed(_, value) => {
+                text(value)
+            }
             Self::StructuralDelta { tree, surfaces, .. } => surfaces.iter().fold(
                 json(tree).saturating_add(
                     surfaces
@@ -551,5 +555,22 @@ impl ClientSessionState {
             markdown: replace(&mut self.markdown_locals, markdown),
             html: replace(&mut self.html_locals, html),
         }
+    }
+}
+
+#[cfg(test)]
+mod retained_bytes_tests {
+    use super::MirrorEvent;
+
+    /// 수신 버퍼 예산은 이름 문자열도 센다. 빠지면 큰 이름이 예산을 우회한다.
+    #[test]
+    fn a_foreground_name_counts_toward_the_inbox_budget() {
+        let base = MirrorEvent::Foreground(1, None).retained_bytes();
+        let name = "x".repeat(4096);
+        let capacity = name.capacity();
+        assert_eq!(
+            MirrorEvent::Foreground(1, Some(name)).retained_bytes(),
+            base + capacity
+        );
     }
 }

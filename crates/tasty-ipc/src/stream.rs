@@ -412,6 +412,15 @@ pub enum StreamControl {
         /// The remote path, or `None` if the remote cwd is unknown.
         cwd: Option<String>,
     },
+    /// 서버→클라이언트: 원격 PTY의 전경 프로세스 이름. None이면 mirror의 저장값도 지운다.
+    /// mirror에는 조회할 로컬 PTY가 없어 앱별 입력 규칙·마우스 캡처 목록·상태바가 이 값을 쓴다.
+    /// 값이나 holder가 바뀔 때 보내며 유실 후 다음 tick의 재전송은 보장하지 않는다.
+    Foreground {
+        /// Remote surface id, resolved the same way as [`StreamControl::Resize`].
+        surface_id: u32,
+        /// The remote foreground process name, or `None` if it is unknown.
+        name: Option<String>,
+    },
     /// 서버→클라이언트: mesh mirror가 불가능한 surface의 오류.
     /// 대상 부재·지원 kind 아님·플러그인 미실행 등의 reason을 보낸다.
     MeshError { surface_id: u32, reason: String },
@@ -981,6 +990,28 @@ mod tests {
         assert!(s.contains(r#""event":"activity""#));
         let back: StreamControl = serde_json::from_str(&s).unwrap();
         assert_eq!(back, msg);
+    }
+
+    #[test]
+    fn stream_control_foreground_roundtrip_including_cleared() {
+        for name in [Some("claude".to_string()), None] {
+            let msg = StreamControl::Foreground {
+                surface_id: 9,
+                name,
+            };
+            let s = serde_json::to_string(&msg).unwrap();
+            assert!(s.contains(r#""event":"foreground""#));
+            let back: StreamControl = serde_json::from_str(&s).unwrap();
+            assert_eq!(back, msg);
+        }
+        let cleared = r#"{"event":"foreground","surface_id":3,"name":null}"#;
+        assert_eq!(
+            serde_json::from_str::<StreamControl>(cleared).unwrap(),
+            StreamControl::Foreground {
+                surface_id: 3,
+                name: None
+            }
+        );
     }
 
     #[test]

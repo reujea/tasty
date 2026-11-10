@@ -29,6 +29,9 @@ pub(super) fn mirror_event_from_control(payload: &[u8]) -> Option<MirrorEvent> {
             Some(MirrorEvent::Attention(surface_id, kind))
         }
         Ok(StreamControl::Cwd { surface_id, cwd }) => Some(MirrorEvent::Cwd(surface_id, cwd)),
+        Ok(StreamControl::Foreground { surface_id, name }) => {
+            Some(MirrorEvent::Foreground(surface_id, name))
+        }
         // 무엇을 잃었는지 알 수 없는 연결 단위 통지라 세션 전체를 재동기화한다.
         Ok(StreamControl::Loss { frames }) => Some(MirrorEvent::Desynced { frames }),
         Ok(StreamControl::StructuralResult {

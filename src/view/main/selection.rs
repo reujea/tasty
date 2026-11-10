@@ -201,7 +201,7 @@ impl MainView {
         let is_shell = self
             .state
             .focused_surface_id(engine)
-            .and_then(|sid| engine.terminals.foreground_process_name(sid))
+            .and_then(|sid| engine.foreground_process_name_now(sid))
             .map(|name| crate::click_cursor::is_shell_process(&name))
             .unwrap_or(false);
         if !is_shell {

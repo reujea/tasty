@@ -80,6 +80,65 @@ fn cwd_push_applies_as_remote_origin_and_null_clears_it() {
     );
 }
 
+/// 서버의 Foreground 프레임은 wire 파싱과 원격→로컬 ID 치환을 거쳐 mirror 이름이 되고 null 은 지운다.
+#[test]
+fn foreground_push_lands_on_the_local_id_and_null_clears_it() {
+    let (mut state, mut engine_session) = crate::state::tests::test_state();
+    let mut engine = engine_session.borrow_mut();
+    supply_ids(&engine);
+    let ws_id = 9_000u32;
+    let (pane_id, tab_id, local_surface) = (9_001u32, 9_002u32, 9_003u32);
+    let remote_surface = 42u32;
+    let mut mirror_ws = Workspace::new_with_terminal_marker(
+        ws_id,
+        "mirror".to_string(),
+        pane_id,
+        tab_id,
+        local_surface,
+    );
+    mirror_ws.mirror = true;
+    engine.push_mirror_workspace(mirror_ws);
+    engine
+        .runtime
+        .terminals
+        .insert(local_surface, Terminal::new_detached(80, 24), None);
+    let mut sess = test_session(ws_id, HashMap::from([(remote_surface, local_surface)]));
+    let mut plugin_manager: Option<crate::plugin::PluginManager> = None;
+    let frame = |name: Option<&str>| {
+        let payload = serde_json::to_vec(&StreamControl::Foreground {
+            surface_id: remote_surface,
+            name: name.map(str::to_string),
+        })
+        .expect("serialize");
+        mirror_event_from_control(&payload).expect("foreground event")
+    };
+
+    {
+        let mut host = MirrorHost::parked(&mut state, &mut engine);
+        apply_mirror_events(
+            &mut sess,
+            &mut host,
+            &mut plugin_manager,
+            vec![frame(Some("claude"))],
+        );
+    }
+    assert_eq!(
+        engine.mirror_surface_foreground(local_surface),
+        Some("claude")
+    );
+    assert_eq!(
+        engine.mirror_surface_foreground(remote_surface),
+        None,
+        "원격 ID에 저장하지 않는다"
+    );
+
+    {
+        let mut host = MirrorHost::parked(&mut state, &mut engine);
+        apply_mirror_events(&mut sess, &mut host, &mut plugin_manager, vec![frame(None)]);
+    }
+    assert_eq!(engine.mirror_surface_foreground(local_surface), None);
+}
+
 /// wire에서 파싱한 실패 사유가 사용자 안내까지 유지되는지 확인한다.
 #[test]
 fn a_structural_failure_reason_reaches_the_toast_verbatim() {

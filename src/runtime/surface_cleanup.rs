@@ -4,12 +4,13 @@
 use crate::runtime::engine_access::EngineMut;
 
 impl EngineMut<'_> {
-    /// 닫힌 surface의 busy·cwd·mesh frame(mirror 전용)과 attention 레코드를 지운다.
+    /// 닫힌 surface의 busy·cwd·전경 이름·mesh frame(mirror 전용)과 attention 레코드를 지운다.
     /// attention은 로컬 surface도 두 빌드에서 가지므로 로컬 레코드도 함께 지운다.
     /// client 쪽 정리는 workspace가 이미 없으면 건너뛰므로 사용자 닫기 경로도 여기서 회수한다.
     fn forget_mirror_surface_extras(&mut self, surface_id: u32) {
         self.remote.mirror_busy_surfaces.remove(&surface_id);
         self.remote.mirror_surface_cwd.remove(&surface_id);
+        self.remote.mirror_foreground.forget(surface_id);
         self.forget_mirror_surface_attention(surface_id);
         #[cfg(feature = "gui")]
         self.remote.attach_mesh_frames.remove(surface_id);
@@ -57,5 +58,19 @@ impl EngineMut<'_> {
         if let Some(factory) = self.runtime.waker_factory.as_ref() {
             factory.forget_surface(surface_id);
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    /// 사용자가 mirror를 닫으면 client 쪽 정리를 건너뛰므로 이 경로가 전경 이름과 세대를 지운다.
+    #[test]
+    fn closing_a_surface_forgets_its_mirror_foreground() {
+        let mut e_session = crate::state::tests::test_state().1;
+        let mut e = e_session.borrow_mut();
+        e.set_mirror_surface_foreground(4242, Some("claude".into()));
+        e.cleanup_surface_observations(4242);
+        assert_eq!(e.mirror_surface_foreground(4242), None);
+        assert_eq!(e.foreground_generation(4242), 0);
     }
 }

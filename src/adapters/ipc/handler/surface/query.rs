@@ -191,6 +191,11 @@ pub(crate) fn handle_foreground_process(
         .terminals
         .pty(surface_id)
         .and_then(|pty| pty.process_id());
+    if shell_pid.is_none()
+        && let Some(name) = engine.remote.mirror_foreground.name(surface_id)
+    {
+        return JsonRpcResponse::success(id, mirror_foreground_report(surface_id, name));
+    }
     JsonRpcResponse::success(
         id,
         foreground_report(
@@ -199,6 +204,17 @@ pub(crate) fn handle_foreground_process(
             tasty_terminal::foreground_process::get_foreground_process,
         ),
     )
+}
+
+/// mirror는 서버가 보낸 이름만 있다. 원격 PID는 이 머신의 프로세스가 아니므로 싣지 않고,
+/// 셸 여부는 이름으로만 판정한다.
+fn mirror_foreground_report(surface_id: u32, name: &str) -> serde_json::Value {
+    json!({
+        "surface_id": surface_id,
+        "name": name,
+        "pid": null,
+        "is_shell": tasty_terminal::foreground_process::is_known_shell_name(name),
+    })
 }
 
 /// 셸 PID 하나로 전경을 한 번 조회하고, 같은 결과로 이름·PID·셸 여부를 만든다.
@@ -453,5 +469,28 @@ mod tests {
                 "{mode:?} 가 트래킹 꺼짐으로 보고된다"
             );
         }
+    }
+
+    /// mirror는 서버가 보낸 이름을 답하고, 이 머신의 프로세스가 아닌 원격 PID는 싣지 않는다.
+    #[test]
+    fn a_mirror_reports_the_pushed_name_without_a_pid() {
+        let (_, mut session) = crate::state::tests::test_state();
+        let mut e = session.borrow_mut();
+        let ask = |e: &crate::runtime::engine_access::EngineMut<'_>| {
+            handle_foreground_process(&e.as_ref(), json!(1), &json!({ "surface_id": 4242 }))
+                .result
+                .expect("success")
+        };
+        assert!(
+            ask(&e)["name"].is_null(),
+            "첫 값을 받기 전에는 지금처럼 null"
+        );
+        e.set_mirror_surface_foreground(4242, Some("claude".into()));
+        let out = ask(&e);
+        assert_eq!(out["name"], json!("claude"));
+        assert!(out["pid"].is_null());
+        assert_eq!(out["is_shell"], json!(false));
+        e.set_mirror_surface_foreground(4242, Some("bash".into()));
+        assert_eq!(ask(&e)["is_shell"], json!(true));
     }
 }

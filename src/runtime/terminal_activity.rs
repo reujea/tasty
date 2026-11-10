@@ -1,4 +1,5 @@
 //! PTY 전경 이름으로 busy·마우스 캡처 설정을 계산하고 원격 busy 값은 따로 보관한다.
+//! mirror의 캡처 설정은 서버가 보낸 원격 전경 이름으로 계산한다.
 
 use crate::runtime::engine_access::EngineMut;
 
@@ -17,13 +18,15 @@ impl EngineMut<'_> {
         self.is_locally_or_mirror_busy(surface_id)
     }
 
-    /// 마지막 폴링의 전경 이름. 아직 해석하지 못한 surface는 None이다.
+    /// 마지막 폴링의 전경 이름. 로컬 값이 없으면 원격 mirror가 받은 값이다.
+    /// 아직 해석하지 못한 surface는 None이다.
     #[cfg(feature = "gui")]
     pub fn foreground_name(&self, surface_id: u32) -> Option<&str> {
         self.live
             .foreground_names
             .get(&surface_id)
             .map(String::as_str)
+            .or_else(|| self.remote.mirror_foreground.name(surface_id))
     }
 
     /// 관측한 전경 이름이 바뀔 때 증가한다. 배너가 이전 프로그램의 것인지 판단하는 데 쓴다.
@@ -34,6 +37,7 @@ impl EngineMut<'_> {
             .foreground_generation
             .get(&surface_id)
             .copied()
+            .or_else(|| self.remote.mirror_foreground.generation(surface_id))
             .unwrap_or(0)
     }
 
@@ -152,6 +156,17 @@ impl EngineMut<'_> {
                     mouse_capture_disabled.insert(sid);
                 }
                 names.insert(sid, f.name.clone());
+            }
+        }
+        // mirror는 로컬 PTY가 없어 원격 이름으로 판정한다. 아래에서 집합을 교체하므로 함께 계산한다.
+        for (sid, name) in self.remote.mirror_foreground.names() {
+            if self
+                .runtime
+                .settings
+                .general
+                .mouse_capture_disabled_for(name)
+            {
+                mouse_capture_disabled.insert(sid);
             }
         }
         bump_foreground_generations(

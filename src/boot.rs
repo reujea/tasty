@@ -399,6 +399,7 @@ fn run_due_timers(
                 engine.forward_busy_activity(&app.stream_hub);
                 engine.forward_attention(&app.stream_hub);
                 engine.forward_surface_cwd(&app.stream_hub);
+                engine.forward_surface_foreground(&app.stream_hub);
                 crate::remote::agent_children::tick(&app.stream_hub, &[engine.as_ref()]);
                 engine.poll_global_hooks();
                 let exec = app.services.hook_executor();

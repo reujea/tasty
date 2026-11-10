@@ -135,10 +135,12 @@ mod message;
 mod shell_integration_hint;
 mod soft_occupancy;
 mod surface_cwd;
+mod surface_foreground;
 
 pub(crate) use attention::AttentionKind;
 pub(crate) use surface_cwd::RemoteCwd;
 pub(crate) use surface_cwd::SurfaceCwd;
+pub(crate) use surface_foreground::MirrorForegrounds;
 #[cfg(feature = "gui")]
 pub use tasty_core::SurfaceDisplayPath;
 

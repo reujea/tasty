@@ -1167,6 +1167,20 @@ impl crate::runtime::engine_access::EngineMut<'_> {
 }
 
 impl crate::runtime::engine_access::EngineMut<'_> {
+    /// 서버가 관측한 전경 이름의 변화분을 mirror에 보낸다. mirror에는 조회할 로컬 PTY가 없다.
+    pub fn forward_surface_foreground(&mut self, hub: &StreamHub) {
+        for (client_id, surface_id, name) in self.surface_foreground_forwards() {
+            let msg = StreamControl::Foreground { surface_id, name };
+            let frame = StreamFrame::new(
+                StreamTag::Control,
+                serde_json::to_vec(&msg).unwrap_or_default(),
+            );
+            let _ = hub.push(client_id, frame); // 송신 실패에도 변화분 캐시는 갱신돼 같은 값은 다시 보내지 않는다.
+        }
+    }
+}
+
+impl crate::runtime::engine_access::EngineMut<'_> {
     fn build_workspace_descriptor(
         &self,
         idx: usize,

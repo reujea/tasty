@@ -1,7 +1,8 @@
 //! 마우스 캡처 배너의 더보기 메뉴. 대상 surface는 dialogs에 보관한다.
 //! 알림 끄기는 배너를 닫고, 캡처 비활성화는 배너를 남긴다.
 //! 행은 공용 `banner_more_row` 다. 프로그램 이름만 줄이고, 고정 문구가 상한 폭을 넘으면 그 행만 줄을 바꾼다.
-//! 프로그램 이름을 모르면(원격 mirror, 첫 foreground 조회 전, 조회 실패) 같은 메뉴를 이름 미상 형태로 연다.
+//! 프로그램 이름을 모르면(첫 foreground 조회 전, 조회 실패, 원격 mirror의 첫 값 수신 전·구버전 서버) 같은 메뉴를
+//! 이름 미상 형태로 연다. mirror는 서버가 보낸 원격 foreground 이름을 쓴다.
 //! 사유 줄과 비활성 두 행이며(공용 `banner_more_unknown`), 행을 눌러도 저장·닫기 없이 메뉴와 배너가 남는다.
 
 use crate::adapters::ui::banner::BannerScope;
@@ -577,6 +578,22 @@ mod tests {
         e.live.foreground_names.insert(42, "vimtest".into());
         push_banner(&mut state, 42);
         open_menu(&mut state, &e.read(), 42);
+        let frames = sweep_clicks(&state);
+        let (intents, closed) = run_menu(&mut state, &e.read(), frames);
+        assert!(!intents.is_empty());
+        assert!(closed);
+    }
+
+    /// mirror는 서버가 보낸 원격 이름으로 같은 행을 활성화하고 그 이름을 저장한다.
+    #[test]
+    fn a_mirror_name_from_the_server_enables_the_rows() {
+        let (mut state, mut session) = crate::state::tests::test_state();
+        let mut e = session.borrow_mut();
+        e.set_mirror_surface_foreground(42, Some("vimtest".into()));
+        assert_eq!(known_app_name(&e.read(), 42), Some("vimtest"));
+        push_banner(&mut state, 42);
+        open_menu(&mut state, &e.read(), 42);
+        assert!(!state.dialogs.mouse_capture_banner_menu_unknown);
         let frames = sweep_clicks(&state);
         let (intents, closed) = run_menu(&mut state, &e.read(), frames);
         assert!(!intents.is_empty());

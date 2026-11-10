@@ -224,18 +224,24 @@ pub(crate) fn handle_children(
 fn remote_child_fields(surface: u32, fields: &mut serde_json::Map<String, Value>) {
     #[cfg(feature = "gui")]
     if let Some(connected) = crate::remote::agent_children::remote_child_connected(surface) {
-        fields.insert("remote".into(), json!(true));
-        if connected {
-            fields.insert("liveness".into(), json!("connected"));
-        } else {
-            fields.insert("liveness".into(), json!("unknown"));
-            fields.insert("state".into(), json!("unknown"));
-            fields.insert("evidence".into(), json!("remote_disconnected"));
-            fields.insert("confidence".into(), json!("unobserved"));
-        }
+        remote_connection_fields(connected, fields);
     }
     #[cfg(not(feature = "gui"))]
     let _ = (surface, fields); // 헤드리스에는 attach client 가 없어 원격 자식도 없다.
+}
+
+/// 끊긴 동안에는 mirror 에 남은 원격 전경 이름 등 마지막 관측으로 낸 판정을 덮는다.
+#[cfg(feature = "gui")]
+fn remote_connection_fields(connected: bool, fields: &mut serde_json::Map<String, Value>) {
+    fields.insert("remote".into(), json!(true));
+    if connected {
+        fields.insert("liveness".into(), json!("connected"));
+    } else {
+        fields.insert("liveness".into(), json!("unknown"));
+        fields.insert("state".into(), json!("unknown"));
+        fields.insert("evidence".into(), json!("remote_disconnected"));
+        fields.insert("confidence".into(), json!("unobserved"));
+    }
 }
 
 /// children/state 응답이 같은 state/evidence/confidence 필드를 사용한다.
@@ -1095,6 +1101,40 @@ mod tests {
                 "'{key}' 가 목록과 단건에서 갈렸다: list={item}, single={single}"
             );
         }
+    }
+
+    /// 원격 자식의 mirror: 첫 이름을 받기 전에는 셸 근거를 쓰지 않고, 셸 이름을 받으면 로컬처럼
+    /// 셸 복귀로 판정한다. 연결이 끊긴 동안에는 남은 이름으로 낸 판정을 unknown 으로 덮는다.
+    #[cfg(feature = "gui")]
+    #[test]
+    fn a_mirror_child_judges_the_shell_by_the_pushed_name_only_while_connected() {
+        use crate::core::state::child_liveness::{ChildState, ChildStateEvidence};
+        let mut e_session = crate::state::tests::test_mirror_state().1;
+        let mut e = e_session.borrow_mut();
+        let sid = e
+            .workspace_at(0)
+            .expect("workspace index is valid")
+            .all_surface_ids()[0];
+
+        let before = e.child_liveness(sid);
+        assert_ne!(
+            before.evidence,
+            ChildStateEvidence::ForegroundIsShell,
+            "시작 직후"
+        );
+
+        e.set_mirror_surface_foreground(sid, Some("claude".into()));
+        assert_ne!(e.child_liveness(sid).state, ChildState::Stale);
+
+        e.set_mirror_surface_foreground(sid, Some("zsh".into()));
+        let back = e.child_liveness(sid);
+        assert_eq!(back.state, ChildState::Stale);
+        assert_eq!(back.evidence, ChildStateEvidence::ForegroundIsShell);
+
+        let mut fields = liveness_fields(back);
+        remote_connection_fields(false, &mut fields);
+        assert_eq!(fields["state"], json!("unknown"));
+        assert_eq!(fields["evidence"], json!("remote_disconnected"));
     }
 
     #[test]
