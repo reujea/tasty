@@ -1,12 +1,16 @@
 //! stream.open을 첫 줄로 보내 JSON-RPC 연결을 바이너리 스트림으로 전환한다.
 //! 프레임은 [tag:u8][len:u32 BE][payload] 형식이다. 점유·mirror 처리는 상위 계층이 맡는다.
 
+mod read_failure;
+
 use std::io::{self, Read, Write};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Duration;
 
 use serde::{Deserialize, Serialize};
+
+pub use read_failure::ReadFailure;
 
 /// Method name whose presence as the first JSON-RPC line upgrades a connection
 /// to the streaming channel.

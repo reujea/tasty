@@ -189,14 +189,40 @@ fn write_attach_frame(
     true
 }
 
+/// reader가 수신 오류로 끝날 때 원인을 남기는 데 필요한 연결 정보.
+pub struct AttachReaderEnd {
+    pub local_workspace: u32,
+    /// 이 소켓에 실제로 건 read timeout.
+    pub heartbeat_timeout: std::time::Duration,
+}
+
+impl AttachReaderEnd {
+    /// 끊김을 알리고 원인을 남긴다. 이미 끊김을 알렸다면 이 소켓은 이쪽(정리·쓰기 실패)이
+    /// 닫은 것이라 원격 원인이 아니므로 debug로만 남긴다.
+    fn report(&self, error: &anyhow::Error, disconnected: &AtomicBool) {
+        let cause = stream::ReadFailure::of_error(error);
+        let workspace = self.local_workspace;
+        if disconnected.swap(true, Ordering::SeqCst) {
+            tracing::debug!(
+                "attach reader thread: mirror workspace {workspace} 이미 끝난 연결의 수신 종료({cause:?}): {error}"
+            );
+        } else {
+            tracing::warn!(
+                "attach reader thread: mirror workspace {workspace} 연결 종료를 알린다. 원인 {}: {error}",
+                cause.describe(self.heartbeat_timeout)
+            );
+        }
+    }
+}
+
 pub fn spawn_attach_reader_thread(
     mut conn: StreamConnection,
     output: MirrorOutbox,
     frame_tx: FrameSender,
     disconnected: Arc<AtomicBool>,
     wake: Arc<dyn Fn() + Send + Sync>,
-    local_workspace: u32,
     decode_control: fn(&[u8]) -> Option<MirrorEvent>,
+    end: AttachReaderEnd,
 ) -> std::thread::JoinHandle<()> {
     std::thread::spawn(move || {
         let mut mesh_assembler = tasty_ipc::mesh_stream::MeshFrameAssembler::new();
@@ -251,10 +277,7 @@ pub fn spawn_attach_reader_thread(
                     }
                 },
                 Err(e) => {
-                    tracing::warn!(
-                        "attach reader thread: mirror workspace {local_workspace} 원격 수신 실패로 연결 종료를 알린다: {e}"
-                    );
-                    disconnected.store(true, Ordering::SeqCst);
+                    end.report(&e, &disconnected);
                     (wake)();
                     break;
                 }
@@ -447,8 +470,11 @@ impl PreparedConnection {
             frame_tx.clone(),
             disconnected.clone(),
             wake,
-            workspace,
             decode,
+            AttachReaderEnd {
+                local_workspace: workspace,
+                heartbeat_timeout,
+            },
         );
         let heartbeat = spawn_attach_heartbeat_thread(frame_tx.clone(), disconnected.clone());
         let workers = ConnectionWorkers::new(control, vec![writer, reader, heartbeat]);

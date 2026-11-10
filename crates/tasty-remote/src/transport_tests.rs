@@ -58,13 +58,16 @@ fn reader_receipt_finishes_while_delta_is_restored_ahead_of_data() {
         sender.clone(),
         disconnected,
         wake,
-        1,
         |_| {
             Some(MirrorEvent::StructuralDelta {
                 workspace_id: 1,
                 tree: serde_json::json!({}),
                 surfaces: Vec::new(),
             })
+        },
+        AttachReaderEnd {
+            local_workspace: 1,
+            heartbeat_timeout: stream::HEARTBEAT_TIMEOUT,
         },
     );
     stream::write_frame(&mut peer, StreamTag::Control, b"{}").unwrap();
@@ -220,4 +223,53 @@ fn the_heartbeat_timeout_is_still_on_the_socket_after_the_handshake() {
     drop(handshake);
     remote.cancel_attempt(&token);
     drop(peer.join().unwrap());
+}
+
+/// 서버 역할의 loopback peer를 띄워 handshake ack까지 보낸 연결을 돌려준다.
+fn acked_stream(timeout: Duration) -> (StreamConnection, TcpStream) {
+    use std::io::{BufRead, BufReader};
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let ours = TcpStream::connect(listener.local_addr().unwrap()).unwrap();
+    let handshake = std::thread::spawn(move || {
+        let (mut peer, _) = listener.accept().unwrap();
+        let mut request = String::new();
+        BufReader::new(peer.try_clone().unwrap())
+            .read_line(&mut request)
+            .unwrap();
+        stream::write_frame(
+            &mut peer,
+            StreamTag::Control,
+            &serde_json::to_vec(&serde_json::json!({"ok":true,"proto":1,"client_id":7})).unwrap(),
+        )
+        .unwrap();
+        peer
+    });
+    let (conn, _) =
+        StreamConnection::open_attach_workspace_with_timeout(ours, 1, 1, timeout).unwrap();
+    (conn, handshake.join().unwrap())
+}
+
+#[test]
+fn a_silent_peer_past_the_read_timeout_reads_as_a_heartbeat_timeout() {
+    let (mut conn, _peer) = acked_stream(Duration::from_millis(200));
+    let error = conn
+        .recv()
+        .expect_err("the silent peer trips the read timeout");
+    assert_eq!(
+        stream::ReadFailure::of_error(&error),
+        stream::ReadFailure::HeartbeatTimeout,
+        "{error}"
+    );
+}
+
+#[test]
+fn a_peer_that_closes_the_socket_reads_as_a_peer_close() {
+    let (mut conn, peer) = acked_stream(Duration::from_secs(5));
+    drop(peer);
+    let error = conn.recv().expect_err("the closed peer ends the stream");
+    assert_eq!(
+        stream::ReadFailure::of_error(&error),
+        stream::ReadFailure::PeerClosed,
+        "{error}"
+    );
 }

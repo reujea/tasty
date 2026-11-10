@@ -180,6 +180,37 @@ struct StreamHandshake {
     attach_workspace: Option<u32>,
 }
 
+/// 스트림 읽기 루프가 끝난 원인을 남길 때 필요한 연결 정보.
+struct StreamReadEnd {
+    client_id: StreamClientId,
+    peer: Option<std::net::SocketAddr>,
+    /// 이 소켓에 실제로 건 read timeout.
+    read_timeout: Duration,
+    /// 서버가 Detach를 먼저 보냈다. 그 뒤의 EOF는 client가 응답으로 닫은 것이다.
+    detach_sent: Arc<AtomicBool>,
+}
+
+impl StreamReadEnd {
+    /// 경고로 남길지와 문구. 서버가 먼저 Detach를 보낸 연결의 오류는 정상 종료의 뒷정리다.
+    fn read_error_report(&self, error: &std::io::Error) -> (bool, String) {
+        let cause = stream::ReadFailure::of_io(error);
+        let message = format!(
+            "stream client {} from {:?}: 읽기 루프가 끝났다. 원인 {} ({cause:?}): {error}",
+            self.client_id,
+            self.peer,
+            cause.describe(self.read_timeout)
+        );
+        (!self.detach_sent.load(Ordering::Acquire), message)
+    }
+
+    fn log_read_error(&self, error: &std::io::Error) {
+        match self.read_error_report(error) {
+            (true, message) => tracing::warn!("{message}"),
+            (false, message) => tracing::debug!("{message} (Detach 송신 뒤)"),
+        }
+    }
+}
+
 /// loopback의 동적 포트에서 수신하고 포트 파일로 주소를 알리는 IPC 서버.
 pub struct TcpIpcServer {
     command_rx: mpsc::Receiver<IpcCommand>,
@@ -545,7 +576,8 @@ impl TcpIpcServer {
         ctx: StreamContext,
         peer: Option<std::net::SocketAddr>,
     ) {
-        Self::arm_stream_read_timeout(&reader, ctx.heartbeat_timeout.get());
+        let read_timeout = ctx.heartbeat_timeout.get();
+        Self::arm_stream_read_timeout(&reader, read_timeout);
 
         let client_id = ctx.hub.alloc_id();
         let sink_rx = ctx.hub.register(client_id);
@@ -559,10 +591,18 @@ impl TcpIpcServer {
             Self::finish_stream_connection(&ctx, client_id, None, peer);
             return;
         }
-        let write_handle = Self::spawn_stream_write_thread(writer, sink_rx);
+        let detach_sent = Arc::new(AtomicBool::new(false));
+        let write_handle =
+            Self::spawn_stream_write_thread(writer, sink_rx, client_id, detach_sent.clone());
         Self::push_stream_ack(&ctx, client_id);
         Self::dispatch_stream_attach(&ctx, client_id, &handshake);
-        Self::run_stream_read_loop(&ctx, client_id, &mut reader);
+        let end = StreamReadEnd {
+            client_id,
+            peer,
+            read_timeout,
+            detach_sent,
+        };
+        Self::run_stream_read_loop(&ctx, &end, &mut reader);
         Self::finish_stream_connection(&ctx, client_id, Some(write_handle), peer);
     }
 
@@ -683,9 +723,12 @@ impl TcpIpcServer {
     }
 
     /// 실제 데이터가 없을 때 주기 Ping을 보내 상대의 읽기 timeout을 갱신한다.
+    /// Detach를 보냈으면 `detach_sent`를 세워 읽기 쪽이 뒤따르는 EOF를 정상 종료로 본다.
     fn spawn_stream_write_thread(
         writer: std::net::TcpStream,
         sink_rx: tasty_ipc::stream_hub::SinkReceiver,
+        client_id: StreamClientId,
+        detach_sent: Arc<AtomicBool>,
     ) -> thread::JoinHandle<()> {
         let mut w = writer;
         thread::spawn(move || {
@@ -695,15 +738,23 @@ impl TcpIpcServer {
                         if !frame.is_current() {
                             continue;
                         }
-                        if stream::write_frame(&mut w, frame.tag, &frame.payload).is_err() {
+                        if let Err(e) = stream::write_frame(&mut w, frame.tag, &frame.payload) {
+                            tracing::warn!(
+                                "stream client {client_id}: {:?} 프레임 송신 실패로 쓰기를 멈춘다(수신 timeout과 별개인 송신 오류): {e}",
+                                frame.tag
+                            );
                             break;
                         }
                         if frame.tag == StreamTag::Detach {
+                            detach_sent.store(true, Ordering::Release);
                             break;
                         }
                     }
                     Err(mpsc::RecvTimeoutError::Timeout) => {
-                        if stream::write_frame(&mut w, StreamTag::Ping, &[]).is_err() {
+                        if let Err(e) = stream::write_frame(&mut w, StreamTag::Ping, &[]) {
+                            tracing::warn!(
+                                "stream client {client_id}: 하트비트 Ping 송신 실패로 쓰기를 멈춘다(수신 timeout과 별개인 송신 오류): {e}"
+                            );
                             break;
                         }
                     }
@@ -745,14 +796,19 @@ impl TcpIpcServer {
     }
 
     /// 수신 프레임을 메인 루프로 넘겨 입력·크기 변경 등을 처리한다.
+    /// 읽기 오류로 끝나면 원인을 분류해 남긴다. client의 Detach와 메인 루프 소멸은 정상 종료다.
     fn run_stream_read_loop(
         ctx: &StreamContext,
-        client_id: StreamClientId,
+        end: &StreamReadEnd,
         reader: &mut BufReader<std::net::TcpStream>,
     ) {
+        let client_id = end.client_id;
         loop {
             match stream::read_frame(reader) {
-                Ok(frame) if frame.tag == StreamTag::Detach => break,
+                Ok(frame) if frame.tag == StreamTag::Detach => {
+                    tracing::debug!("stream client {client_id}: client가 Detach로 연결을 끝냈다");
+                    break;
+                }
                 Ok(frame) => {
                     if ctx
                         .inbound_tx
@@ -763,7 +819,10 @@ impl TcpIpcServer {
                     }
                     (ctx.waker)();
                 }
-                Err(_) => break, // EOF / oversize / unknown tag
+                Err(e) => {
+                    end.log_read_error(&e);
+                    break;
+                }
             }
         }
     }
@@ -2180,5 +2239,43 @@ mod handshake_tests {
         assert!(!TcpIpcServer::validate_stream_proto(
             &ctx, client_id, &hs, None
         ));
+    }
+}
+
+#[cfg(test)]
+mod read_end_tests {
+    use super::*;
+
+    fn end(detach_sent: bool) -> StreamReadEnd {
+        StreamReadEnd {
+            client_id: 42,
+            peer: Some(std::net::SocketAddr::from(([127, 0, 0, 1], 5555))),
+            read_timeout: Duration::from_secs(45),
+            detach_sent: Arc::new(AtomicBool::new(detach_sent)),
+        }
+    }
+
+    #[test]
+    fn a_read_timeout_is_warned_with_the_client_peer_and_armed_seconds() {
+        let (warn, message) =
+            end(false).read_error_report(&std::io::Error::from(std::io::ErrorKind::WouldBlock));
+        assert!(warn);
+        for part in [
+            "stream client 42",
+            "127.0.0.1:5555",
+            "45초",
+            "HeartbeatTimeout",
+        ] {
+            assert!(message.contains(part), "{part} in {message}");
+        }
+    }
+
+    #[test]
+    fn an_eof_after_the_server_sent_detach_is_not_a_warning() {
+        let eof = std::io::Error::from(std::io::ErrorKind::UnexpectedEof);
+        let (warn, message) = end(true).read_error_report(&eof);
+        assert!(!warn);
+        assert!(message.contains("PeerClosed"), "{message}");
+        assert!(end(false).read_error_report(&eof).0);
     }
 }

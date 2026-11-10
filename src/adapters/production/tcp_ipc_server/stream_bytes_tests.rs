@@ -41,13 +41,16 @@ fn actual_socket_writer_skips_retired_document_and_writes_live_frame() {
         hub.push(5, StreamFrame::new(StreamTag::Detach, vec![])),
         PushResult::Sent
     );
-    let writer = TcpIpcServer::spawn_stream_write_thread(server, rx);
+    let detach_sent = Arc::new(AtomicBool::new(false));
+    let writer = TcpIpcServer::spawn_stream_write_thread(server, rx, 1, detach_sent.clone());
     assert_eq!(stream::read_frame(&mut client).unwrap().payload, b"live");
     assert_eq!(
         stream::read_frame(&mut client).unwrap().tag,
         StreamTag::Detach
     );
     writer.join().unwrap();
+    // 읽기 루프가 뒤따르는 EOF를 정상 종료로 보도록 Detach 송신을 표시한다.
+    assert!(detach_sent.load(Ordering::Acquire));
     assert!(stream::read_frame(&mut client).is_err());
     assert!(hub.reserve_frame(5, &binding, FULL).is_some());
 }
@@ -61,7 +64,8 @@ fn actual_socket_writer_discards_old_registration_without_publishing_to_replacem
         PushResult::Sent
     );
     let replacement = hub.register(5);
-    let writer = TcpIpcServer::spawn_stream_write_thread(server, rx);
+    let writer =
+        TcpIpcServer::spawn_stream_write_thread(server, rx, 1, Arc::new(AtomicBool::new(false)));
     writer.join().unwrap();
     assert!(stream::read_frame(&mut client).is_err());
     assert!(replacement.try_recv().is_err());
@@ -178,7 +182,8 @@ fn actual_socket_writer_rechecks_authority_before_publishing_queued_frame() {
     current.store(false, Ordering::Release);
     hub.push(5, StreamFrame::new(StreamTag::Control, b"current".to_vec()));
     hub.push(5, StreamFrame::new(StreamTag::Detach, vec![]));
-    let writer = TcpIpcServer::spawn_stream_write_thread(server, rx);
+    let writer =
+        TcpIpcServer::spawn_stream_write_thread(server, rx, 1, Arc::new(AtomicBool::new(false)));
     assert_eq!(stream::read_frame(&mut client).unwrap().payload, b"current");
     assert_eq!(
         stream::read_frame(&mut client).unwrap().tag,
