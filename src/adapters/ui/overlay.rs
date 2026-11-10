@@ -79,19 +79,10 @@ pub(crate) fn draw_overlays(
     if let Some((scope, trigger_rect)) = banner_result.more_clicked {
         crate::adapters::ui::mouse_capture_menu::open(state, engine, ctx, &scope, trigger_rect);
     }
-    if let Some((workspace_id, clicks)) = banner_result.attach_refusal {
-        if clicks.dismiss {
-            state.attach_notices.dismiss(workspace_id);
-        }
-        // 매핑 지우기는 `tasty set workspace --clear-mapping`과 같은 저널 경로로 지운다.
-        if clicks.remove && engine.find_workspace_index_for_id(workspace_id).is_some() {
-            state.dispatch_intent(
-                crate::intent::Intent::DirectRename(
-                    crate::intent::rename::DirectRename::ClearWorkspaceMapping { workspace_id },
-                )
-                .from_user_menu("attach_refusal_banner"),
-            );
-        }
+    if let Some((workspace_id, clicks)) = banner_result.attach_refusal
+        && clicks.dismiss
+    {
+        state.attach_notices.dismiss(workspace_id);
     }
 
     if let Some((workspace_id, clicks)) = banner_result.attach_size_sync {

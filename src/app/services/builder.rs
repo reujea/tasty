@@ -212,6 +212,9 @@ impl AppServicesBuilder {
             telemetry_seq: Arc::new(tasty_telemetry::TelemetrySeq::new()),
             anomaly_detector: Arc::new(tasty_telemetry::AnomalyDetector::new()),
             attach_heartbeat: Default::default(),
+            reconnect_window_secs: Arc::new(std::sync::atomic::AtomicU64::new(
+                tasty_settings::DEFAULT_RECONNECT_TIMEOUT_SECS,
+            )),
             clock: self.clock.ok_or_else(|| anyhow::anyhow!("Clock missing"))?,
             clipboard: self
                 .clipboard

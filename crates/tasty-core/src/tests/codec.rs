@@ -172,3 +172,16 @@ fn snapshot_with_another_model_version_is_rejected() {
         Err(CodecError::Snapshot(_))
     ));
 }
+
+#[test]
+fn an_old_attach_mapping_record_still_decodes_and_is_dropped() {
+    // 매핑을 없애기 전 journal이 쓴 그대로의 본문이다.
+    let old = br#"{"type":"workspace.attach_mapping_set","id":3,"mapping":{"target":{"Inline":{"host":"me@box"}},"remote_workspace":7}}"#;
+    let event: DomainEvent = serde_json::from_slice(old).unwrap();
+    assert!(matches!(
+        event,
+        DomainEvent::WorkspaceAttachMappingSet { id: 3, .. }
+    ));
+    let cleared = br#"{"type":"workspace.attach_mapping_set","id":3,"mapping":null}"#;
+    assert!(serde_json::from_slice::<DomainEvent>(cleared).is_ok());
+}

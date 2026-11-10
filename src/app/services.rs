@@ -43,6 +43,8 @@ pub(crate) struct AppServices {
     pub(crate) anomaly_detector: Arc<tasty_telemetry::AnomalyDetector>,
     /// 이 프로세스가 맺는 새 attach 연결(서버·클라이언트·bulk)의 무응답 제한.
     pub(crate) attach_heartbeat: tasty_ipc::stream::SharedHeartbeatTimeout,
+    /// 저장된 원격 행의 재연결 시간(초). 설정을 적용할 때 바뀐다.
+    pub(crate) reconnect_window_secs: Arc<std::sync::atomic::AtomicU64>,
     clock: Arc<dyn Clock>,
     clipboard: Arc<dyn ClipboardSystem>,
     home: Arc<dyn HomeDirectory>,

@@ -1,7 +1,7 @@
 # 구조 writer 래칫 기준. scripts/check-core-writer-ratchet.sh --write-baseline 으로만 갱신한다.
 # metrics: field terminal subop appstate boundary
 # metric	file	fn	count
-field	src/app/attach_client/connection.rs	install_new_mirror	1
+field	src/app/attach_client/connection.rs	install_new_mirror	2
 field	src/app/attach_client/connection.rs	install_reconnected_mirror	1
 field	src/app/attach_client/output.rs	apply_mirror_structural_delta	1
 field	src/app/attach_client/projection.rs	build_mirror_workspace	1
@@ -9,7 +9,7 @@ field	src/app/journal/commands.rs	refresh_command_weight	1
 field	src/app/journal/commands.rs	resolve_ipc_for_engine	1
 field	src/app/journal/commands/child.rs	resolve_spawn	1
 field	src/app/journal/commands/create.rs	from_spec	1
-field	src/app/journal/commands/display.rs	apply	6
+field	src/app/journal/commands/display.rs	apply	5
 field	src/app/preset_editor.rs	merge	1
 field	src/runtime/journal_product/worker/assembly.rs	reserve_remap	5
 field	src/runtime/journal_product/worker/assembly.rs	undo	2

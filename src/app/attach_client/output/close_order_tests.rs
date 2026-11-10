@@ -13,7 +13,7 @@ fn end_after(
     let (mut state, mut engine_session) = crate::state::tests::test_state();
     let mut engine = engine_session.borrow_mut();
     let mut sess = test_session(9_000, HashMap::from([(42, 9_003)]));
-    sess.state.anchor_ws_id = Some(5);
+    sess.state.saved_row = Some(5);
     sess.state.workspace_close = WorkspaceClose::Pending(3);
     let mut plugin_manager: Option<crate::plugin::PluginManager> = None;
     {
@@ -32,7 +32,7 @@ fn a_second_queued_close_is_not_sent_and_the_first_success_still_ends_the_mirror
     let (mut state, mut engine_session) = crate::state::tests::test_state();
     let mut engine = engine_session.borrow_mut();
     let mut sess = test_session(9_000, HashMap::from([(42, 9_003)]));
-    sess.state.anchor_ws_id = Some(5);
+    sess.state.saved_row = Some(5);
     assert_eq!(refusal_of(&sess), None, "first close prepared");
     assert_eq!(
         refusal_of(&sess),
@@ -65,7 +65,7 @@ fn a_second_queued_close_is_not_sent_and_the_first_success_still_ends_the_mirror
     );
 }
 
-/// The success reply ends an anchored mirror without reconnecting, whether the server's EOF arrives in the
+/// The success reply ends an saved remote row without reconnecting, whether the server's EOF arrives in the
 /// same batch, in a later tick, or while a reconnect install owns the epoch.
 #[test]
 fn the_awaited_success_ends_the_mirror_before_or_with_its_eof() {
@@ -85,7 +85,7 @@ fn the_awaited_success_ends_the_mirror_before_or_with_its_eof() {
     );
 }
 
-/// A reply for another op, a refusal, or an EOF before any reply keeps the anchored mirror reconnecting.
+/// A reply for another op, a refusal, or an EOF before any reply keeps the saved remote row reconnecting.
 /// Only the missing reply is reported as an unknown result.
 #[test]
 fn without_the_awaited_success_the_mirror_is_not_ended() {

@@ -8,46 +8,17 @@ pub struct ReconnectSlot {
     pub backoff: Backoff,
     pub next_attempt: Instant,
     pub attempts: u32,
+    /// 이 재연결 구간이 시작된 시각. 재연결 시간 상한은 여기서부터 센다.
+    pub started: Instant,
     /// 슬롯을 지우면 첫 시도로 취급하므로 중단 상태를 별도로 보존한다.
-    /// 사용자가 해당 워크스페이스로 돌아오면 재개할 수 있다.
     pub given_up: bool,
-}
-
-/// 첫 자동 attach가 실패한 매핑의 다음 시도 시각. 실패마다 간격을 늘려 SSH 접속이 몰리지 않게 한다.
-/// 매핑이 바뀌면 이 기록을 적용하지 않는다.
-pub struct AttachRetry {
-    pub backoff: Backoff,
-    pub next_attempt: Instant,
-    pub mapping: tasty_model::WorkspaceAttachMapping,
-}
-
-impl AttachRetry {
-    pub fn new(mapping: tasty_model::WorkspaceAttachMapping) -> Self {
-        Self {
-            backoff: Backoff::new(),
-            next_attempt: Instant::now(),
-            mapping,
-        }
-    }
-
-    /// 실패를 하나 더 반영한다. `jitter`는 간격에 곱할 비율이다.
-    pub fn record_failure(&mut self, now: Instant, jitter: f64) {
-        let base = self.backoff.current();
-        self.backoff.advance();
-        self.next_attempt = now + base.mul_f64(jitter);
-    }
-
-    /// 같은 매핑을 아직 다시 시도할 수 없는지.
-    pub fn holds(&self, mapping: &tasty_model::WorkspaceAttachMapping, now: Instant) -> bool {
-        self.mapping == *mapping && now < self.next_attempt
-    }
 }
 
 /// AppEvent에 넣을 수 없는 터널 핸들을 별도 결과 채널로 전달한다.
 pub struct AutoAttachOutcome {
     pub attempt: AttemptToken,
-    /// 자동 attach의 로컬 anchor ID. anchor 없는 수동 요청은 None이며 중복 방지 집합에 넣지 않는다.
-    pub anchor_ws_id: Option<u32>,
+    /// 연결할 저장된 원격 행 ID. 행 없는 수동 요청은 None이며 중복 방지 집합에 넣지 않는다.
+    pub row: Option<u32>,
     pub remote_ws: u32,
     pub result: anyhow::Result<(Option<SshTunnel>, u16)>,
     /// 신규 mirror 생성 대신 기존 세션 재연결과 실패 시 백오프 갱신을 수행할지 구별한다.
@@ -75,11 +46,9 @@ pub struct Remote {
     pub last_active_ws: Option<u32>,
     pub pending_reactivation: std::collections::HashSet<u32>,
     pub reconnect: std::collections::HashMap<u32, ReconnectSlot>,
-    /// 첫 자동 attach 실패의 재시도 간격(anchor별). 재연결은 `reconnect`가 맡는다.
-    pub attach_retry: std::collections::HashMap<u32, AttachRetry>,
     pub refusals: crate::refusal::Refusals,
-    /// 이 client가 서버에서 닫은 원격 workspace를 가리키는 anchor 매핑. 매핑이 같은 동안 자동 attach하지 않는다.
-    pub closed_mappings: std::collections::HashMap<u32, tasty_model::WorkspaceAttachMapping>,
+    /// 이 실행 중 사용자가 연결을 끊은 원격 행. 명시적 연결 전까지 자동으로 붙지 않는다. 저장하지 않는다.
+    pub user_disconnected: std::collections::HashSet<u32>,
     next_attempt_id: u64,
     pub tx: std::sync::mpsc::Sender<AutoAttachOutcome>,
     pub rx: std::sync::mpsc::Receiver<AutoAttachOutcome>,
@@ -90,24 +59,6 @@ impl Default for Remote {
     }
 }
 impl Remote {
-    /// 첫 자동 attach 실패를 anchor의 재시도 기록에 더한다. 다른 매핑의 기록이면 처음부터 센다.
-    pub fn record_first_attach_failure(
-        &mut self,
-        anchor: u32,
-        mapping: &tasty_model::WorkspaceAttachMapping,
-        now: Instant,
-        jitter: f64,
-    ) {
-        let retry = self
-            .attach_retry
-            .entry(anchor)
-            .or_insert_with(|| AttachRetry::new(mapping.clone()));
-        if retry.mapping != *mapping {
-            *retry = AttachRetry::new(mapping.clone());
-        }
-        retry.record_failure(now, jitter);
-    }
-
     pub fn new() -> Self {
         let (tx, rx) = std::sync::mpsc::channel();
         let (connection_tx, connection_rx) = std::sync::mpsc::sync_channel(8);
@@ -127,8 +78,7 @@ impl Remote {
             last_active_ws: None,
             pending_reactivation: Default::default(),
             reconnect: Default::default(),
-            attach_retry: Default::default(),
-            closed_mappings: Default::default(),
+            user_disconnected: Default::default(),
             refusals: Default::default(),
             next_attempt_id: 1,
             tx,
@@ -257,8 +207,8 @@ impl AttemptToken {
 }
 pub struct AttemptRecord {
     pub token: AttemptToken,
-    pub anchor: Option<u32>,
-    pub mapping: Option<tasty_model::WorkspaceAttachMapping>,
+    pub row: Option<u32>,
+    pub binding: Option<tasty_model::RemoteBinding>,
 }
 impl Remote {
     pub fn spawn_attempt(
@@ -379,8 +329,8 @@ impl Remote {
     }
     pub fn begin_attempt(
         &mut self,
-        anchor: Option<u32>,
-        mapping: Option<tasty_model::WorkspaceAttachMapping>,
+        row: Option<u32>,
+        binding: Option<tasty_model::RemoteBinding>,
     ) -> Result<AttemptToken, &'static str> {
         if self.shutdown_started.is_some() {
             return Err("remote is shutting down");
@@ -390,9 +340,9 @@ impl Remote {
         if self.retirements.len() >= 128 {
             return Err("remote resource retirement capacity exhausted");
         }
-        if let Some(anchor) = anchor {
+        if let Some(row) = row {
             self.attempts.retain(|attempt| {
-                if attempt.anchor == Some(anchor) {
+                if attempt.row == Some(row) {
                     attempt.token.cancel();
                     false
                 } else {
@@ -413,8 +363,8 @@ impl Remote {
         }));
         self.attempts.push(AttemptRecord {
             token: token.clone(),
-            anchor,
-            mapping,
+            row,
+            binding,
         });
         Ok(token)
     }
@@ -453,6 +403,7 @@ impl ReconnectSlot {
             backoff: Backoff::new(),
             next_attempt: Instant::now(),
             attempts: 0,
+            started: Instant::now(),
             given_up: false,
         }
     }

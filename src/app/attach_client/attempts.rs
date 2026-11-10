@@ -65,11 +65,11 @@ impl MirrorAttempts {
         remote: &mut Remote,
     ) {
         self.connections.retain(|ticket, pending| {
-            let replaced = (target.anchor.is_some() || target.reconnect.is_some())
+            let replaced = (target.row.is_some() || target.reconnect.is_some())
                 && pending.engine == target.engine
                 && pending.reconnect.as_ref().map(|(id, _)| *id)
                     == target.reconnect.as_ref().map(|(id, _)| *id)
-                && pending.anchor == target.anchor;
+                && pending.row == target.row;
             if replaced {
                 pending.cancel_run(REPLACED);
                 remote.cancel_connection(*ticket);
@@ -113,17 +113,17 @@ mod tests {
 
     fn target(
         engine: crate::runtime::engine_session::EngineId,
-        anchor: Option<u32>,
+        row: Option<u32>,
     ) -> PendingMirrorInstall {
         PendingMirrorInstall {
             engine,
-            anchor,
+            row,
             window: None,
             view: None,
             selection: None,
             activate: false,
-            mapping: None,
-            mapping_token: None,
+            binding: None,
+            row_token: None,
             reconnect: None,
             resync: false,
             run: None,
@@ -171,7 +171,7 @@ mod tests {
         );
         assert_eq!(lookup(other, None).unwrap()["state"], "running");
         assert_eq!(lookup(newer, None).unwrap()["state"], "running");
-        // anchor 없는 요청은 기존 대체 규칙으로는 서로 바꾸지 않는다.
+        // 행 없는 요청은 기존 대체 규칙으로는 서로 바꾸지 않는다.
         pending.supersede_connections(&target(engine.id, None), &mut remote);
         assert_eq!(lookup(other, None).unwrap()["state"], "running");
     }
@@ -199,8 +199,8 @@ mod tests {
                 tasty_remote::pending_connection::ConnectionTarget {
                     port,
                     workspace,
-                    anchor: None,
-                    mapping: None,
+                    row: None,
+                    binding: None,
                 },
                 None,
                 wake.clone(),

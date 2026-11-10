@@ -11,13 +11,13 @@ fn mirror(
 ) -> PendingMirrorInstall {
     PendingMirrorInstall {
         engine,
-        anchor: Some(5),
+        row: Some(5),
         window: None,
         view: None,
         selection: None,
         activate: false,
-        mapping: None,
-        mapping_token: None,
+        binding: None,
+        row_token: None,
         reconnect,
         resync: false,
         run: None,

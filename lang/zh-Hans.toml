@@ -247,6 +247,8 @@ max_capacity_desc = "文件夹可容纳的总容量。会导致超出此限制�
 section = "附加连接"
 heartbeat_timeout = "断开前等待时长"
 heartbeat_timeout_desc = "附加连接在未收到对端任何数据时，等待多久后断开。保存的值适用于新连接，无需重启。现有连接不变。对端 Tasty 使用自己的值，可能会先断开。默认值为 30。"
+reconnect_window = "重新连接尝试时长"
+reconnect_window_desc = "从“断开前等待时长”到期导致连接断开时起，持续尝试重新连接的时长。0 禁用自动重新连接。此自动重试不适用于手动断开的连接。默认值 300。"
 
 [settings.file_handler]
 coming_soon = "此子标签页将在后续更新中提供。"
@@ -2681,15 +2683,6 @@ help = "目录路径（用于 explorer 类型）"
 [cli.help._root.new.workspace.arg.url]
 help = "URL（用于 html 类型）"
 
-[cli.help._root.new.workspace.arg.ssh_profile]
-help = "将此工作区映射到已保存的 SSH 配置档（远程机器）。激活工作区时宿主自动附加（SSH 隧道 + 工作区镜像）"
-
-[cli.help._root.new.workspace.arg.ssh]
-help = "映射到直接指定的一次性 SSH 目标，无需已保存的配置档，例如 --ssh user@host。与 `--ssh-profile` 互斥"
-
-[cli.help._root.new.workspace.arg.remote_workspace]
-help = "要附加的映射远程 tasty 上的工作区 ID"
-
 [cli.help._root.new.workspace.arg.category]
 help = "工作区所属分类（名称或 ID）。默认为 normal"
 
@@ -2896,18 +2889,6 @@ help = "新副标题"
 
 [cli.help._root.set.workspace.arg.description]
 help = "新描述"
-
-[cli.help._root.set.workspace.arg.ssh_profile]
-help = "将此工作区映射到已保存的 SSH 配置档（远程机器）"
-
-[cli.help._root.set.workspace.arg.ssh]
-help = "映射到一次性内联 SSH 目标，例如 --ssh user@host"
-
-[cli.help._root.set.workspace.arg.remote_workspace]
-help = "映射的远程 tasty 上要附加的工作区 ID"
-
-[cli.help._root.set.workspace.arg.clear_mapping]
-help = "清除现有 SSH 附加映射"
 
 [cli.help._root.set.workspace.arg.category]
 help = "将此工作区移至其他分类（名称或 ID）"

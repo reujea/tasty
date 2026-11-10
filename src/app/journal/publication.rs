@@ -466,14 +466,16 @@ impl JournalApplication {
                 tasty_core::DomainEvent::StructureReplaced { replacement, .. } => {
                     self.replacements.push((session.id, *replacement))
                 }
-                tasty_core::DomainEvent::WorkspaceAttachMappingSet { id, .. } => {
+                // 새로 저장된 행은 토큰을 받고, 이름 등을 바꾼 행은 진행 중인 연결을 그대로 둔다.
+                tasty_core::DomainEvent::RemoteRowSet { id, .. } => {
                     session
                         .remote
-                        .attach_mapping_tokens
-                        .insert(*id, Arc::new(()));
+                        .row_tokens
+                        .entry(*id)
+                        .or_insert_with(|| Arc::new(()));
                 }
-                tasty_core::DomainEvent::WorkspaceClosed { id } => {
-                    session.remote.attach_mapping_tokens.remove(id);
+                tasty_core::DomainEvent::RemoteRowRemoved { id } => {
+                    session.remote.row_tokens.remove(id);
                 }
                 _ => {}
             }
@@ -664,11 +666,11 @@ impl JournalApplication {
                 bound.imported_view,
             ),
         );
-        for workspace in session.core_state.local_workspaces() {
-            if workspace.attach_mapping.is_some() {
+        for workspace in session.core_state.mirror_workspaces() {
+            if workspace.is_saved_remote_row() {
                 session
                     .remote
-                    .attach_mapping_tokens
+                    .row_tokens
                     .entry(workspace.id)
                     .or_insert_with(|| Arc::new(()));
             }

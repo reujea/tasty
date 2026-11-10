@@ -41,7 +41,6 @@ fn scenario_ends_in_the_expected_structure() {
         (ws.subtitle.as_str(), ws.description.as_str()),
         ("sub", "desc")
     );
-    assert_eq!(ws.attach_mapping, None);
     assert_eq!(model.tabs[&1].explicit_name.as_deref(), Some("Build!"));
     assert_eq!(model.panes.keys().copied().collect::<Vec<_>>(), vec![1]);
     assert_eq!(model.panes[&1].tabs, vec![1]);
@@ -70,11 +69,9 @@ fn intermediate_state_keeps_moves_and_split_ratios() {
     assert_eq!(model.panes[&1].tabs, vec![1, 3]);
     assert_eq!(model.surfaces[&3].tab, 2);
     assert_eq!(model.tabs[&2].layout.leaves(), vec![2, 3]);
+    // 옛 매핑 기록은 해독되지만 모델에 남지 않는다.
     let after_details = run(&batches[..4]);
-    assert_eq!(
-        after_details.workspaces[&1].attach_mapping,
-        Some(tasty_model::WorkspaceAttachMapping::profile("box", Some(4)))
-    );
+    assert_eq!(after_details.workspaces[&1].subtitle, "sub");
 }
 
 #[test]

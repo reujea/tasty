@@ -139,9 +139,13 @@ impl App {
         }
     }
 
-    /// 사용자가 mirror 연결을 끊는다. 서버 workspace와 프로세스는 유지하고 로컬 mirror·세션·재연결 시도만 정리한다.
-    /// 매핑은 지우지 않으며, 사용자가 anchor로 다시 전환해야 다시 연결한다.
+    /// 사용자가 mirror 연결을 끊는다. 서버 workspace와 프로세스는 유지한다.
+    /// 저장된 원격 행은 형상을 남긴 끊긴 행이 되고 명시적으로 연결할 때까지 자동으로 붙지 않는다.
+    /// 시도 중인 행도 시도를 취소하고 같은 상태가 된다. 에이전트 mirror는 로컬 mirror와 세션을 정리한다.
     pub(crate) fn disconnect_mirror_workspace(&mut self, workspace_id: u32) -> bool {
+        if self.saved_row_binding(workspace_id).is_some() {
+            return self.disconnect_saved_row(workspace_id);
+        }
         let Some(index) = self
             .remote
             .sessions
@@ -173,8 +177,49 @@ impl App {
         true
     }
 
+    /// 저장된 원격 행의 연결을 사용자가 끊는다. 아직 붙지 않은 행이면 바뀔 것이 없지만 시도는 취소한다.
+    fn disconnect_saved_row(&mut self, row: u32) -> bool {
+        let cancelled =
+            cancel_mirror_attempts(&mut self.state.mirror_attempts, &mut self.remote, row);
+        // 행 토큰을 바꿔 아직 큐에 넣지 않은 시도도 낡은 것으로 만든다.
+        for session in self.engines.all_sessions_mut() {
+            if session.core_state.has_workspace(row) {
+                session
+                    .remote
+                    .row_tokens
+                    .insert(row, std::sync::Arc::new(()));
+            }
+        }
+        self.remote.active.remove(&row);
+        self.remote.user_disconnected.insert(row);
+        if let Some(index) = self
+            .remote
+            .sessions
+            .iter()
+            .position(|session| session.state.local_workspace == row)
+        {
+            if close_result_unknown(&self.remote.sessions[index]) {
+                self.toast_mirror_window(
+                    row,
+                    "attach.toast.workspace_close_unknown",
+                    crate::adapters::ui::ToastKind::Warning,
+                );
+            }
+            if let Err(error) = self.remote.sessions[index]
+                .send_frame(crate::ipc::stream::StreamTag::Detach, Vec::new())
+            {
+                tracing::debug!(%error, "detach notice could not reach the writer");
+            }
+            self.enter_disconnected(row);
+        }
+        tracing::info!(
+            "mirror disconnect: saved remote row {row} (cancelled attempts {cancelled})"
+        );
+        true
+    }
+
     /// 서버 닫기 성공이나 사용자 연결 끊기로 끝난 mirror를 정리한다. 원격발 끊김과 달리 재연결하지 않는다.
-    /// anchor는 재진입 대기로 두고, 정리로 바뀐 선택을 전환으로 읽지 않도록 직전 활성 workspace를 맞춘다.
+    /// 정리로 바뀐 선택을 전환으로 읽지 않도록 직전 활성 workspace를 맞춘다.
     pub(super) fn end_mirror_locally(&mut self, session: AttachClientSession) {
         cancel_mirror_attempts(
             &mut self.state.mirror_attempts,
@@ -182,9 +227,6 @@ impl App {
             session.state.local_workspace,
         );
         self.cleanup_mirror_workspace(&session, false);
-        if let Some(anchor) = session.state.anchor_ws_id {
-            self.remote.pending_reactivation.insert(anchor);
-        }
         self.remote.last_active_ws = self
             .focused_pair()
             .and_then(|(main, engine)| {
@@ -238,28 +280,7 @@ impl App {
             "attach mirror: local ws {workspace} (remote ws {}) closed on the server",
             session.state.remote_workspace
         );
-        self.remember_closed_mapping(&session);
         self.end_mirror_locally(session);
-    }
-
-    /// 서버에서 닫은 workspace를 가리키는 anchor 매핑을 기록해 같은 매핑으로 자동 attach하지 않게 한다.
-    /// 매핑은 사용자 설정이라 지우지 않는다. 사용자가 매핑을 바꾸거나 지우면 기록도 사라진다.
-    fn remember_closed_mapping(&mut self, session: &AttachClientSession) {
-        let Some(anchor) = session.state.anchor_ws_id else {
-            return;
-        };
-        let mapping = self.engines().sessions().find_map(|(_, engine)| {
-            engine
-                .workspaces()
-                .into_iter()
-                .find(|workspace| workspace.id == anchor)
-                .and_then(|workspace| workspace.attach_mapping.clone())
-        });
-        if let Some(mapping) = mapping
-            && mapping.remote_workspace == Some(session.state.remote_workspace)
-        {
-            self.remote.closed_mappings.insert(anchor, mapping);
-        }
     }
 
     /// mirror가 있는 창에 안내한다. 창이 없는 parked mirror는 로그만 남긴다.

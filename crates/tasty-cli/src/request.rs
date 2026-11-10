@@ -463,9 +463,6 @@ fn new_command_to_method_params(command: &NewCommands) -> (&'static str, serde_j
             file,
             path,
             url,
-            ssh_profile,
-            ssh,
-            remote_workspace,
             category,
             surface,
         } => {
@@ -478,9 +475,6 @@ fn new_command_to_method_params(command: &NewCommands) -> (&'static str, serde_j
                 "file_base": relative_file_base(file.as_deref()),
                 "path": path,
                 "url": url,
-                "attach_profile": ssh_profile,
-                "attach_ssh": ssh,
-                "attach_remote_workspace": remote_workspace,
                 "category": category,
             });
             // 명시한 surface_id로 창을 찾고, 찾지 못하면 거절한다.
@@ -742,10 +736,6 @@ fn set_command_to_method_params(command: &SetCommands) -> (&'static str, serde_j
             name,
             subtitle,
             description,
-            ssh_profile,
-            ssh,
-            remote_workspace,
-            clear_mapping,
             category,
         } => (
             "workspace.update",
@@ -754,10 +744,6 @@ fn set_command_to_method_params(command: &SetCommands) -> (&'static str, serde_j
                 "name": name,
                 "subtitle": subtitle,
                 "description": description,
-                "attach_profile": ssh_profile,
-                "attach_ssh": ssh,
-                "attach_remote_workspace": remote_workspace,
-                "attach_clear": clear_mapping,
                 "category": category,
             }),
         ),

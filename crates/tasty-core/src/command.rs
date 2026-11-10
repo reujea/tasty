@@ -9,7 +9,6 @@ mod replacement;
 pub(crate) mod retirement;
 
 use serde::{Deserialize, Serialize};
-use tasty_model::WorkspaceAttachMapping;
 
 use crate::{DomainEvent, JournalModel, Ratio};
 
@@ -132,10 +131,6 @@ pub enum StructuralCommand {
         name: Option<String>,
         subtitle: Option<String>,
         description: Option<String>,
-    },
-    SetWorkspaceAttachMapping {
-        workspace_id: u32,
-        mapping: Option<WorkspaceAttachMapping>,
     },
     MoveWorkspace {
         workspace_id: u32,

@@ -96,15 +96,51 @@ impl App {
                     self.state.remote_browsers.remove(&id);
                     return Ok(());
                 }
-                let mut target = self
-                    .mirror_install_target(Some(engine), None, None, true)
-                    .map_err(|error| error.to_string())?;
-                target.user = true;
-                target.profile = self
+                let profile = self
                     .state
                     .remote_browsers
                     .get(&id)
                     .map(|browser| browser.profile.clone());
+                // 같은 대상의 저장된 원격 행이 있으면 새 행을 만들지 않고 그 행으로 연결한다.
+                let existing = profile.as_ref().and_then(|profile| {
+                    self.saved_row_for_binding(&crate::model::RemoteBinding {
+                        profile: profile.clone(),
+                        remote_workspace: workspace,
+                    })
+                });
+                if let Some(row) = existing
+                    && self
+                        .remote
+                        .sessions
+                        .iter()
+                        .any(|session| session.state.saved_row == Some(row))
+                {
+                    // 형상이 남은 행은 그 행의 재연결 경로로 붙인다. 팝업이 연 연결은 쓰지 않는다.
+                    let (_, tunnel) = self.remote.take_browser_connection(id)?;
+                    self.remote.retire_tunnel(tunnel);
+                    self.state.remote_browsers.remove(&id);
+                    self.remote.user_disconnected.remove(&row);
+                    self.connect_saved_row(row, true);
+                    self.focus_mirror_workspace(row);
+                    return Ok(());
+                }
+                if let Some(row) = existing {
+                    self.ensure_row_token(row);
+                }
+                let mut target = self
+                    .mirror_install_target(
+                        existing.is_none().then_some(engine),
+                        existing,
+                        None,
+                        true,
+                    )
+                    .map_err(|error| error.to_string())?;
+                target.user = true;
+                target.profile = profile;
+                if let Some(row) = existing {
+                    self.remote.user_disconnected.remove(&row);
+                    self.remote.pending_reactivation.remove(&row);
+                }
                 let (port, tunnel) = self.remote.take_browser_connection(id)?;
                 self.state.remote_browsers.remove(&id);
                 self.queue_browser_mirror(target, port, workspace, tunnel)

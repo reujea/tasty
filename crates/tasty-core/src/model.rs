@@ -4,8 +4,7 @@ use std::collections::BTreeMap;
 
 use serde::{Deserialize, Serialize};
 use tasty_model::{
-    PaneId, RemoteBinding, SplitDirection, SurfaceId, TabId, WorkspaceAttachMapping,
-    WorkspaceCategoryId, WorkspaceId,
+    PaneId, RemoteBinding, SplitDirection, SurfaceId, TabId, WorkspaceCategoryId, WorkspaceId,
 };
 
 use crate::ids::{BatchId, Revision};
@@ -158,8 +157,6 @@ pub struct Workspace {
     /// 사용자·에이전트가 쓰는 부제. 없으면 빈 문자열이다.
     pub subtitle: String,
     pub description: String,
-    /// 원격 프로필·원격 workspace와의 연결 설정. Remote의 runtime ID mapping과 다르다.
-    pub attach_mapping: Option<WorkspaceAttachMapping>,
     /// 사용자 정의 키만 담는다. 위의 typed 속성을 예약 키로 넣지 않는다.
     pub metadata: BTreeMap<String, String>,
 }

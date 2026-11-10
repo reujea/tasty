@@ -434,7 +434,6 @@ fn prepare_workspace(
                             category: 1,
                             subtitle: String::new(),
                             description: String::new(),
-                            attach_mapping: None,
                         },
                         surface: SurfaceSpec {
                             id: id(IdKind::Surface),

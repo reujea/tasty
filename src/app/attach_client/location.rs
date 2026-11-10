@@ -77,14 +77,4 @@ mod tests {
             .store(true, std::sync::atomic::Ordering::Release);
         assert!(locations_of(std::slice::from_ref(&session))[&10].reconnecting);
     }
-
-    /// 자동 attach 매핑의 프로필 이름이 세션으로 넘어갈 값이다.
-    #[test]
-    fn an_attach_mapping_names_its_profile() {
-        let mapping = crate::model::WorkspaceAttachMapping::profile("gx10", Some(3));
-        assert_eq!(
-            crate::app::attach_client::pending::profile_of_mapping(&mapping).as_deref(),
-            Some("gx10")
-        );
-    }
 }

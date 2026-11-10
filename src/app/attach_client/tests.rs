@@ -114,7 +114,7 @@ pub(crate) fn test_session_with_frames(
             client_id: 1,
             remote_workspace: 7,
             bulk_port: 0,
-            anchor_ws_id: None,
+            saved_row: None,
             op_seq: 0,
             pending_op_focus: HashMap::new(),
             agent_requests: Default::default(),

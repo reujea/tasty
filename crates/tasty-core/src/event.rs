@@ -2,10 +2,7 @@
 
 use serde::{Deserialize, Serialize};
 
-use tasty_model::{
-    PaneId, SplitDirection, SurfaceId, TabId, WorkspaceAttachMapping, WorkspaceCategoryId,
-    WorkspaceId,
-};
+use tasty_model::{PaneId, SplitDirection, SurfaceId, TabId, WorkspaceCategoryId, WorkspaceId};
 
 use crate::ids::{BatchId, Revision};
 use crate::model::{DataRef, Placement, Ratio, SplitDirectionDef};
@@ -92,11 +89,12 @@ pub enum DomainEvent {
         subtitle: String,
         description: String,
     },
-    /// `None`이면 연결 설정을 지운다.
+    /// 없어진 workspace attach 매핑의 옛 기록. 옛 journal을 읽을 수 있게 남기며 값은 버린다.
     #[serde(rename = "workspace.attach_mapping_set")]
     WorkspaceAttachMappingSet {
         id: WorkspaceId,
-        mapping: Option<WorkspaceAttachMapping>,
+        #[serde(default)]
+        mapping: serde_json::Value,
     },
     /// 저장된 원격 워크스페이스 행을 만들거나 그 값 전체를 바꾼다.
     #[serde(rename = "remote_row.set")]

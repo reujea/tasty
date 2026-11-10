@@ -158,7 +158,7 @@ pub fn scenario() -> Vec<Vec<DomainEvent>> {
             },
             DomainEvent::WorkspaceAttachMappingSet {
                 id: ws,
-                mapping: Some(tasty_model::WorkspaceAttachMapping::profile("box", Some(4))),
+                mapping: serde_json::json!({"target": {"Profile": {"name": "box"}}, "remote_workspace": 4}),
             },
             DomainEvent::RemoteRowSet {
                 id: 900,
@@ -201,7 +201,7 @@ pub fn scenario() -> Vec<Vec<DomainEvent>> {
             },
             DomainEvent::WorkspaceAttachMappingSet {
                 id: ws,
-                mapping: None,
+                mapping: serde_json::Value::Null,
             },
             DomainEvent::RemoteRowRemoved { id: 900 },
         ],

@@ -3,7 +3,6 @@
 use crate::runtime::journal_payload::StoreBytes;
 use tasty_core::{DataRef, DomainEvent, JournalModel, Pane, Ratio, SplitTree};
 use tasty_event_store::EventStore;
-use tasty_model::WorkspaceAttachMapping;
 
 use super::common::{commit_events, db_path, open, scenario, stream};
 use crate::runtime::journal::{full_replay, load, load_all, save_snapshot};
@@ -100,11 +99,6 @@ const MUTATIONS: &[Mutation] = &[
         m.workspaces
             .values_mut()
             .for_each(|w| w.description.push('x'))
-    }),
-    ("workspace attach mapping", |m| {
-        m.workspaces
-            .values_mut()
-            .for_each(|w| w.attach_mapping = Some(WorkspaceAttachMapping::profile("box", Some(1))))
     }),
     ("workspace metadata", |m| {
         m.workspaces.values_mut().for_each(|w| {

@@ -795,7 +795,6 @@ impl JournalApplication {
             pending.request.method.as_str(),
             "workspace.update"
                 | "workspace.move"
-                | "intent.workspace-mapping"
                 | "intent.remote-row"
                 | "intent.workspace-rename"
                 | "intent.tab-name"

@@ -21,7 +21,6 @@ pub fn initialize(core: &mut CoreState, model: &JournalModel) -> Result<()> {
             workspace.category = source.category;
             workspace.subtitle = source.subtitle.clone();
             workspace.description = source.description.clone();
-            workspace.attach_mapping = source.attach_mapping.clone();
             Ok(workspace)
         })
         .collect::<Result<Vec<_>>>()?;

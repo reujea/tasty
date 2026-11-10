@@ -2,7 +2,7 @@ use std::path::PathBuf;
 
 use super::{
     NORMAL_CATEGORY_ID, Pane, PaneId, PaneNode, RemoteBinding, SurfaceId, TabId,
-    WorkspaceAttachMapping, WorkspaceCategoryId, WorkspaceId,
+    WorkspaceCategoryId, WorkspaceId,
 };
 
 /// workspace attach의 surface 분류.
@@ -29,8 +29,6 @@ pub struct Workspace {
     pub description: String,
     /// Always `Some` during normal operation. Temporarily `None` during structural mutations.
     pane_layout_opt: Option<PaneNode>,
-    /// 저장할 원격 attach 매핑. 활성화할 때 호스트가 자동 연결에 사용한다.
-    pub attach_mapping: Option<WorkspaceAttachMapping>,
     /// 원격 workspace를 보여 주는 client mirror인지. UI 구분 표시에 사용한다.
     pub mirror: bool,
     /// 사용자가 GUI로 붙여 저장되는 원격 행의 연결 대상. mirror에만 있다. 없는 mirror는 에이전트가
@@ -58,7 +56,6 @@ impl Workspace {
             subtitle: String::new(),
             description: String::new(),
             pane_layout_opt: Some(PaneNode::Leaf(pane)),
-            attach_mapping: None,
             mirror: false,
             remote_row: None,
             category: NORMAL_CATEGORY_ID,
@@ -101,7 +98,6 @@ impl Workspace {
             subtitle: String::new(),
             description: String::new(),
             pane_layout_opt: Some(PaneNode::Leaf(pane)),
-            attach_mapping: None,
             mirror: false,
             remote_row: None,
             category: NORMAL_CATEGORY_ID,
@@ -121,7 +117,6 @@ impl Workspace {
             subtitle,
             description: String::new(),
             pane_layout_opt: Some(pane_layout),
-            attach_mapping: None,
             mirror: false,
             remote_row: None,
             category: NORMAL_CATEGORY_ID,
@@ -151,11 +146,6 @@ impl Workspace {
                     .is_some_and(|pane| pane.tabs.is_empty())
             })
         })
-    }
-
-    /// 원격 attach 매핑을 설정하거나 해제한다.
-    pub fn set_attach_mapping(&mut self, mapping: Option<WorkspaceAttachMapping>) {
-        self.attach_mapping = mapping;
     }
 
     /// 카테고리 소속을 변경한다.

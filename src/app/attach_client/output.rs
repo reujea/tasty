@@ -57,13 +57,13 @@ impl App {
         let mut reconnecting: Vec<usize> = Vec::new();
         let mut resyncing: Vec<usize> = Vec::new();
         for idx in 0..self.remote.sessions.len() {
-            let (local_ws, disconnected, state, anchor_ws_id) = {
+            let (local_ws, disconnected, state, saved_row) = {
                 let sess = &self.remote.sessions[idx];
                 (
                     sess.state.local_workspace,
                     sess.transport.disconnected.load(Ordering::SeqCst),
                     sess.state.phase,
-                    sess.state.anchor_ws_id,
+                    sess.state.saved_row,
                 )
             };
 
@@ -109,13 +109,8 @@ impl App {
                 .state
                 .mirror_attempts
                 .installing_epoch(sess.state.local_workspace, &sess.transport.frame_tx.epoch());
-            let (disposition, unknown) = decide_session_end(
-                sess,
-                disconnected,
-                state,
-                anchor_ws_id.is_some(),
-                installing,
-            );
+            let (disposition, unknown) =
+                decide_session_end(sess, disconnected, state, saved_row.is_some(), installing);
             if unknown {
                 unknown_close.push(sess.state.local_workspace);
             }
@@ -129,7 +124,7 @@ impl App {
         }
         for &idx in &resyncing {
             if !self.resync_session(idx) {
-                if self.remote.sessions[idx].state.anchor_ws_id.is_some() {
+                if self.remote.sessions[idx].state.saved_row.is_some() {
                     reconnecting.push(idx);
                 } else {
                     dead.push(idx);
@@ -147,19 +142,19 @@ impl App {
         self.end_sessions(&dead, &closed);
     }
 }
-/// 이벤트를 적용한 뒤 세션의 끝을 정한다. 단절·phase·anchor는 이벤트 적용 전에 읽은 값이다.
+/// 이벤트를 적용한 뒤 세션의 끝을 정한다. 단절·phase·저장 여부는 이벤트 적용 전에 읽은 값이다.
 /// 두 번째 값은 회신 없이 끝난 서버 닫기가 있어 결과를 모른다고 알려야 하는지다.
 fn decide_session_end(
     sess: &AttachClientSession,
     disconnected: bool,
     phase: SessionState,
-    anchored: bool,
+    saved: bool,
     installing: bool,
 ) -> (DisconnectDisposition, bool) {
     let disposition = session_end(
         sess.state.workspace_close,
         installing,
-        disconnect_disposition(disconnected, phase, sess.resync_released(), anchored),
+        disconnect_disposition(disconnected, phase, sess.resync_released(), saved),
     );
     let unknown = matches!(
         disposition,
@@ -226,19 +221,20 @@ fn session_end(
     }
 }
 
-/// 연결별 종료 신호에는 한 번만 반응한다. 손실로 Detach를 보낸 세션은 anchor 없이도 재attach한다.
+/// 연결별 종료 신호에는 한 번만 반응한다. 저장된 원격 행은 재연결하고 에이전트 mirror는 정리한다.
+/// 손실로 Detach를 보낸 세션은 저장 여부와 관계없이 재attach한다.
 /// parked에서 Detach를 미룬 동안 별도로 끊기면 일반 끊김으로 처리한다.
 fn disconnect_disposition(
     disconnected: bool,
     state: SessionState,
     resync_released: bool,
-    has_anchor: bool,
+    saved_row: bool,
 ) -> DisconnectDisposition {
     if !disconnected || state != SessionState::Connected {
         DisconnectDisposition::None
     } else if resync_released {
         DisconnectDisposition::Resync
-    } else if has_anchor {
+    } else if saved_row {
         DisconnectDisposition::Reconnect
     } else {
         DisconnectDisposition::Cleanup

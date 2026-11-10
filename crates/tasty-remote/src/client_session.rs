@@ -238,11 +238,13 @@ static MIRROR_OUTBOX_PUSH_DROPPED: std::sync::atomic::AtomicBool =
     std::sync::atomic::AtomicBool::new(false);
 
 /// Reconnecting에서는 mirror와 scrollback을 남기고 연결만 교체한다.
-/// 완전히 닫힌 세션은 목록에서 제거하므로 Closed 상태는 두지 않는다.
+/// Disconnected는 저장된 원격 행이 형상을 남긴 채 연결 없이 기다리는 상태다(재연결 시간을 넘겼거나
+/// 사용자가 끊었다). 완전히 닫힌 세션은 목록에서 제거하므로 Closed 상태는 두지 않는다.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SessionState {
     Connected,
     Reconnecting,
+    Disconnected,
 }
 
 /// 성공한 사용자 요청의 다음 delta에 한 번 적용할 로컬 포커스 의도.
@@ -355,8 +357,8 @@ pub struct ClientSessionState {
     pub bulk_port: u16,
     /// 세션이 살아 있는 동안 터널을 유지한다. 직접 loopback 연결은 None.
     #[allow(dead_code)]
-    /// 자동 연결을 시작한 로컬 anchor ID. 수동 연결은 None.
-    pub anchor_ws_id: Option<u32>,
+    /// 저장된 원격 행이면 그 행 ID(`local_workspace`와 같다). 에이전트 mirror는 None이다.
+    pub saved_row: Option<u32>,
     pub op_seq: u64,
     /// 사용자 요청별 포커스 의도. 성공 회신에서 꺼내 다음 delta에 적용한다.
     /// 현재 실패 회신에서는 제거하지 않으며 재연결이나 세션 제거 때 정리된다.
@@ -424,8 +426,8 @@ impl AttachClientSession {
         self.state.phase
     }
 
-    pub fn anchor_ws_id(&self) -> Option<u32> {
-        self.state.anchor_ws_id
+    pub fn saved_row(&self) -> Option<u32> {
+        self.state.saved_row
     }
 
     /// 현재 sender로 큐에 넣는다. poison 상태에서는 sender를 회수해 사용한다.

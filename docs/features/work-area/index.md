@@ -41,9 +41,9 @@ CoreState
 
 MainView 의 최상위 컨테이너. 한 MainView 가 **여러 개**를 갖고 사이드바에서 전환한다.
 
-- 필드: `id` · `name` · `subtitle` · `description` · 상위 레이아웃 `PaneNode` · `attach_mapping`(원격 attach 매핑, 있으면 활성화 시 자동 attach) · `mirror`(원격을 attach 한 client mirror 인지 — 사이드바 REMOTE 표시/레일 corner chip 으로 구분) · `category`(사이드바 카테고리).
+- 필드: `id` · `name` · `subtitle` · `description` · 상위 레이아웃 `PaneNode` · `mirror`(원격을 attach 한 client mirror 인지 — 사이드바 REMOTE 표시/레일 corner chip 으로 구분) · `remote_row`(저장된 원격 행의 연결 대상, attach 프로필과 원격 workspace id) · `category`(사이드바 카테고리).
 - 포커스된 Pane 은 워크스페이스 필드가 아니라 View 의 `NavigationState` 가 워크스페이스마다 기억한다 — 전환해도 각자의 포커스가 보존된다.
-- 변형: 일반 워크스페이스 / **mirror 워크스페이스**(원격 attach 의 client측). mirror 는 런타임 전용(영속 안 함, 재시작 시 재attach), attach 의 점유 모델은 [actors](../../concepts/actors.md#점유-occupation-모델).
+- 변형: 일반 워크스페이스 / **mirror 워크스페이스**(원격 attach 의 client측). mirror 의 형상은 런타임 전용이고, 원격 연결 팝업에서 붙인 mirror 는 [저장된 원격 행](../remote-attach/index.md#저장된-원격-행과-mirror-내용)으로 남아 재시작 뒤 다시 연결한다, attach 의 점유 모델은 [actors](../../concepts/actors.md#점유-occupation-모델).
 
 ### Pane — 상위 레이아웃 (탭 무관)
 

@@ -23,10 +23,10 @@ pub struct ConnectionTarget {
     pub port: u16,
     /// 이 연결을 받을 로컬 workspace.
     pub workspace: u32,
-    /// 붙을 자리를 정하는 surface. 없으면 시도가 자리를 직접 고른다.
-    pub anchor: Option<u32>,
-    /// 원격 workspace 를 로컬에 대응시키는 표.
-    pub mapping: Option<tasty_model::WorkspaceAttachMapping>,
+    /// 연결할 저장된 원격 행. 같은 행의 이전 시도를 대체한다. 수동 요청은 None이다.
+    pub row: Option<u32>,
+    /// 저장된 원격 행의 연결 대상.
+    pub binding: Option<tasty_model::RemoteBinding>,
 }
 
 impl Remote {
@@ -41,8 +41,8 @@ impl Remote {
         let ConnectionTarget {
             port,
             workspace,
-            anchor,
-            mapping,
+            row,
+            binding,
         } = target;
         if self.pending_connections.len() >= 8 {
             self.retire_tunnel(tunnel);
@@ -53,7 +53,7 @@ impl Remote {
             self.retire_tunnel(tunnel);
             return Err("connection ticket exhausted".into());
         };
-        let token = match self.begin_attempt(anchor, mapping) {
+        let token = match self.begin_attempt(row, binding) {
             Ok(token) => token,
             Err(error) => {
                 self.retire_tunnel(tunnel);

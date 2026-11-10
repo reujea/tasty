@@ -15,16 +15,19 @@ pub(crate) struct PendingMirrorInstall {
     pub view: Option<std::sync::Weak<()>>,
     pub selection: Option<std::sync::Weak<()>>,
     pub activate: bool,
-    pub anchor: Option<u32>,
-    pub mapping: Option<crate::model::WorkspaceAttachMapping>,
-    pub mapping_token: Option<std::sync::Weak<()>>,
+    /// 연결할 저장된 원격 행. 행 없는 수동 요청과 새 행을 만드는 팝업 연결은 None이다.
+    pub row: Option<u32>,
+    /// 행의 연결 대상. 처리 중에 행의 대상이 바뀌거나 행이 닫히면 이 시도를 버린다.
+    pub binding: Option<crate::model::RemoteBinding>,
+    /// 행의 연결 토큰. 행을 닫거나 사용자가 끊으면 바뀌어 진행 중인 시도가 낡은 것이 된다.
+    pub row_token: Option<std::sync::Weak<()>>,
     pub reconnect: Option<(u32, tasty_remote::connection::ConnectionEpoch)>,
     pub resync: bool,
     /// 최종 결과를 받을 요청의 run. 결과 없이 모든 사본이 사라지면 `cancelled`로 끝난다.
     pub run: Option<crate::request_runs::RunGuard>,
     /// 사용자가 원격 연결 팝업에서 시작했다. 실패하면 시작한 창에 토스트를 띄운다.
     pub user: bool,
-    /// anchor 없는 수동 요청(`remote.attach`·`attach.into_gui`)의 대상. 같은 대상의 새 요청은
+    /// 행 없는 수동 요청(`remote.attach`·`attach.into_gui`)의 대상. 같은 대상의 새 요청은
     /// 진행 중인 이전 요청을 대체한다.
     pub manual: Option<String>,
     /// 연결할 때 고른 attach 프로필 이름. 설치할 때 세션에 옮겨 원격 호스트 표시의 글자가 된다.
@@ -71,28 +74,20 @@ impl PendingMirrorInstall {
     }
 }
 
-/// 자동 attach 매핑이 가리키는 프로필 이름. 인라인 매핑은 프로필이 없다.
-pub(crate) fn profile_of_mapping(mapping: &crate::model::WorkspaceAttachMapping) -> Option<String> {
-    match &mapping.target {
-        crate::model::WorkspaceAttachTarget::Profile { name } => Some(name.clone()),
-        crate::model::WorkspaceAttachTarget::Inline { .. } => None,
-    }
-}
-
 /// 시작한 창이나 engine이 사라져 시도를 버릴 때의 결과.
 pub(crate) const TARGET_DISCARDED: &str = "the window or engine that started the attach is gone";
 impl App {
     pub(crate) fn mirror_install_target(
         &self,
         explicit: Option<EngineId>,
-        anchor: Option<u32>,
+        row: Option<u32>,
         reconnect: Option<usize>,
         activate: bool,
     ) -> anyhow::Result<PendingMirrorInstall> {
-        let anchor = anchor.or_else(|| {
+        let row = row.or_else(|| {
             reconnect
                 .and_then(|index| self.remote.sessions.get(index))
-                .and_then(|session| session.state.anchor_ws_id)
+                .and_then(|session| session.state.saved_row)
         });
         let resync = reconnect
             .and_then(|index| self.remote.sessions.get(index))
@@ -115,7 +110,7 @@ impl App {
                 })
             })
             .or_else(|| {
-                anchor.and_then(|workspace| {
+                row.and_then(|workspace| {
                     self.engines
                         .all_sessions()
                         .find(|engine| engine.core_state.has_workspace(workspace))
@@ -138,33 +133,33 @@ impl App {
             .engines
             .get(engine)
             .ok_or_else(|| anyhow::anyhow!("mirror target engine missing"))?;
-        let mapping = anchor.and_then(|id| {
+        let binding = row.and_then(|id| {
             owner
                 .find_workspace_index_for_id(id)
                 .and_then(|index| owner.workspace_at(index))
-                .and_then(|workspace| workspace.attach_mapping.clone())
+                .and_then(|workspace| workspace.remote_row.clone())
         });
-        let mapping_token = anchor
-            .and_then(|id| owner.remote.attach_mapping_tokens.get(&id))
+        let row_token = row
+            .and_then(|id| owner.remote.row_tokens.get(&id))
             .map(Arc::downgrade);
-        // 재연결은 처음 연결한 프로필을 그대로 쓴다. 자동 attach는 매핑의 프로필이다.
+        // 재연결은 처음 연결한 프로필을 그대로 쓴다. 저장된 행은 행의 프로필이다.
         // 수동 요청은 호출자가 자기 프로필로 바꾼다.
         let profile = match reconnect.and_then(|index| self.remote.sessions.get(index)) {
             Some(session) => session.state.profile.clone(),
-            None => mapping.as_ref().and_then(profile_of_mapping),
+            None => binding.as_ref().map(|binding| binding.profile.clone()),
         };
         Ok(PendingMirrorInstall {
             profile,
             remote_workspace: None,
             resync,
-            mapping,
-            mapping_token,
+            binding,
+            row_token,
             engine,
             window,
             view: main.map(|main| main.base.state.identity()),
             selection: main.map(|main| main.state.navigation.generation()),
             activate,
-            anchor,
+            row,
             reconnect: old,
             run: None,
             user: false,
@@ -175,16 +170,16 @@ impl App {
         let Some(engine) = self.engines.get(target.engine) else {
             return false;
         };
-        if let Some(anchor) = target.anchor {
+        if let Some(row) = target.row {
             let current = engine
-                .find_workspace_index_for_id(anchor)
+                .find_workspace_index_for_id(row)
                 .and_then(|index| engine.workspace_at(index));
-            if current.is_none_or(|workspace| workspace.attach_mapping != target.mapping)
-                || target.mapping_token.as_ref().is_none_or(|token| {
+            if current.is_none_or(|workspace| workspace.remote_row != target.binding)
+                || target.row_token.as_ref().is_none_or(|token| {
                     engine
                         .remote
-                        .attach_mapping_tokens
-                        .get(&anchor)
+                        .row_tokens
+                        .get(&row)
                         .is_none_or(|current| !token.ptr_eq(&Arc::downgrade(current)))
                 })
             {
@@ -232,8 +227,8 @@ impl App {
             ConnectionTarget {
                 port,
                 workspace,
-                anchor: None,
-                mapping: None,
+                row: None,
+                binding: None,
             },
             tunnel,
             self.attach_client_wake.waker(),
@@ -267,7 +262,8 @@ impl App {
             let admission = mirror_id_needs(
                 &prepared.tree,
                 prepared.surfaces.len(),
-                target.reconnect.is_none(),
+                // 저장된 행에 처음 붙을 때는 그 행의 ID를 쓴다.
+                target.reconnect.is_none() && target.row.is_none(),
             )
             .and_then(|needed| {
                 engine
@@ -324,9 +320,9 @@ impl App {
                     {
                         self.focus_mirror_workspace(workspace);
                     }
-                    if let Some(anchor) = target.anchor {
-                        crate::app::auto_attach::forget_anchor_backoff(&mut self.remote, anchor);
-                        self.remote.refusals.clear_notice(anchor);
+                    if let Some(row) = target.row {
+                        crate::app::auto_attach::forget_row_backoff(&mut self.remote, row);
+                        self.remote.refusals.clear_notice(row);
                     }
                 }
                 Err(error) => self.fail_pending_mirror(ticket, &target, error.to_string()),
@@ -356,24 +352,19 @@ impl App {
             })
         {
             self.remote.sessions[index].state.resync_pending = None;
-            if target.anchor.is_some() {
+            if target.row.is_some() {
                 self.enter_reconnecting(index);
             } else {
                 let session = self.remote.sessions.remove(index);
                 self.cleanup_mirror_workspace(&session, true);
             }
         }
-        if let Some(anchor) = target.anchor {
-            self.remote.active.remove(&anchor);
+        if let Some(row) = target.row {
+            self.remote.active.remove(&row);
             if target.reconnect.is_some() {
-                self.on_reconnect_attempt_failed(anchor, &anyhow::anyhow!(error));
-            } else {
-                back_off_failed_first_attach(
-                    &mut self.remote,
-                    target.anchor,
-                    target.reconnect.is_some(),
-                    target.mapping.as_ref(),
-                );
+                self.on_reconnect_attempt_failed(row, &anyhow::anyhow!(error));
+            } else if let Some(binding) = &target.binding {
+                self.on_first_connect_failed(row, binding, &anyhow::anyhow!(error));
             }
         }
     }
@@ -434,8 +425,8 @@ pub(super) fn queue_on(
     let ticket = remote
         .queue_connection(
             ConnectionTarget {
-                anchor: target.anchor,
-                mapping: target.mapping.clone(),
+                row: target.row,
+                binding: target.binding.clone(),
                 ..connection
             },
             tunnel,
@@ -451,46 +442,4 @@ pub(super) fn queue_on(
         })?;
     attempts.register_connection(ticket, target);
     Ok(())
-}
-
-/// 접수 뒤 연결 단계에서 실패한 첫 자동 attach도 해석 실패와 같은 간격으로 미룬다.
-/// 재연결(`reconnecting`)은 재연결 백오프가 맡으므로 기록하지 않는다.
-fn back_off_failed_first_attach(
-    remote: &mut tasty_remote::outbound::Remote,
-    anchor: Option<u32>,
-    reconnecting: bool,
-    mapping: Option<&crate::model::WorkspaceAttachMapping>,
-) {
-    if let (Some(anchor), false) = (anchor, reconnecting) {
-        crate::app::auto_attach::back_off_first_attach(remote, anchor, mapping);
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    fn mapping() -> crate::model::WorkspaceAttachMapping {
-        crate::model::WorkspaceAttachMapping {
-            target: crate::model::WorkspaceAttachTarget::Profile { name: "p".into() },
-            remote_workspace: Some(1),
-        }
-    }
-
-    #[test]
-    fn a_first_attach_that_fails_after_queueing_backs_off() {
-        let mut remote = tasty_remote::outbound::Remote::new();
-        back_off_failed_first_attach(&mut remote, Some(10), false, Some(&mapping()));
-        let retry = remote.attach_retry.get(&10).expect("retry recorded");
-        assert_eq!(retry.mapping, mapping());
-        assert!(retry.holds(&mapping(), std::time::Instant::now()));
-    }
-
-    #[test]
-    fn a_reconnect_or_an_unanchored_failure_records_no_retry() {
-        let mut remote = tasty_remote::outbound::Remote::new();
-        back_off_failed_first_attach(&mut remote, Some(10), true, Some(&mapping()));
-        back_off_failed_first_attach(&mut remote, None, false, Some(&mapping()));
-        assert!(remote.attach_retry.is_empty());
-    }
 }

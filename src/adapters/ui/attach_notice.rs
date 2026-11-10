@@ -3,7 +3,7 @@
 
 use std::collections::HashMap;
 
-use tasty_remote::refusal::MappingNoticeKind;
+use tasty_remote::refusal::RowNoticeKind;
 
 use crate::i18n::{t, t_fmt};
 
@@ -12,7 +12,7 @@ use super::banner::{BannerManager, BannerScope, BannerState};
 /// 한 워크스페이스의 안내.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct AttachNoticeView {
-    pub(crate) kind: MappingNoticeKind,
+    pub(crate) kind: RowNoticeKind,
     pub(crate) target: String,
     /// 사용자가 그 워크스페이스를 활성화한 뒤의 안내인지. false면 행 표지만 보인다.
     pub(crate) announced: bool,
@@ -27,11 +27,15 @@ pub(crate) struct AttachNotices {
     dismissed: Option<u32>,
 }
 
-pub(crate) fn reason_key(kind: MappingNoticeKind) -> &'static str {
+pub(crate) fn reason_key(kind: RowNoticeKind) -> &'static str {
     match kind {
-        MappingNoticeKind::SelfInstance => "remote.refusal.self",
-        MappingNoticeKind::ProfileMissing => "remote.refusal.profile_missing",
-        MappingNoticeKind::Unresolved => "remote.refusal.unresolved",
+        RowNoticeKind::SelfInstance => "remote.refusal.self",
+        RowNoticeKind::ProfileMissing => "remote.refusal.profile_missing",
+        // 원격 연결 정보 팝업이 이 이유들을 대상 이름과 함께 보인다. 배너에는 일반 문장을 쓴다.
+        RowNoticeKind::Unresolved
+        | RowNoticeKind::RemoteWorkspaceMissing
+        | RowNoticeKind::Occupied
+        | RowNoticeKind::MirrorChain => "remote.refusal.unresolved",
     }
 }
 
@@ -42,7 +46,7 @@ pub(crate) fn title_parts() -> (&'static str, &'static str) {
 }
 
 /// 배너 본문. 이유 뒤에 할 일을 잇는다.
-pub(crate) fn banner_body(kind: MappingNoticeKind) -> String {
+pub(crate) fn banner_body(kind: RowNoticeKind) -> String {
     format!("{} {}", t(reason_key(kind)), t("remote.refusal.hint"))
 }
 
@@ -116,7 +120,7 @@ mod tests {
             HashMap::from([(
                 7,
                 AttachNoticeView {
-                    kind: MappingNoticeKind::SelfInstance,
+                    kind: RowNoticeKind::SelfInstance,
                     target: "127.0.0.1:7420".into(),
                     announced: true,
                 },
@@ -165,7 +169,7 @@ mod tests {
             HashMap::from([(
                 7,
                 AttachNoticeView {
-                    kind: MappingNoticeKind::SelfInstance,
+                    kind: RowNoticeKind::SelfInstance,
                     target: "127.0.0.1:7420".into(),
                     announced: false,
                 },

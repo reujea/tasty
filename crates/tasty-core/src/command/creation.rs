@@ -476,7 +476,6 @@ fn creation_events(model: &JournalModel, plan: &CreationPlan) -> Vec<DomainEvent
             category,
             subtitle,
             description,
-            attach_mapping,
         } => {
             events.push(DomainEvent::WorkspaceCreated {
                 id: *workspace,
@@ -490,12 +489,6 @@ fn creation_events(model: &JournalModel, plan: &CreationPlan) -> Vec<DomainEvent
                 subtitle: subtitle.clone(),
                 description: description.clone(),
             });
-            if attach_mapping.is_some() {
-                events.push(DomainEvent::WorkspaceAttachMappingSet {
-                    id: *workspace,
-                    mapping: attach_mapping.clone(),
-                });
-            }
             Some((*pane, *tab, 0))
         }
         Destination::Tab { pane, tab, index } => Some((*pane, *tab, *index)),

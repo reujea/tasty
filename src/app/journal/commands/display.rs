@@ -16,7 +16,6 @@ pub(super) enum DisplayAction {
         subtitle: Option<String>,
         description: Option<String>,
         category: Option<u32>,
-        mapping: Option<Option<crate::model::WorkspaceAttachMapping>>,
     },
     Order(Vec<u32>),
     TabName {
@@ -52,7 +51,6 @@ impl DisplayContinuation {
                 subtitle,
                 description,
                 category,
-                mapping,
             } => {
                 let category = category.filter(|id| core.category_index(*id).is_some());
                 if !core.has_workspace(id) {
@@ -83,9 +81,6 @@ impl DisplayContinuation {
                     }
                     if let Some(category) = category {
                         workspace.category = category;
-                    }
-                    if let Some(mapping) = mapping {
-                        workspace.attach_mapping = mapping;
                     }
                 }
             }
@@ -134,15 +129,11 @@ impl DisplayContinuation {
                     name,
                     subtitle,
                     description,
-                    mapping,
                     ..
                 } => {
                     name.as_ref().map_or(0, String::len)
                         + subtitle.as_ref().map_or(0, String::len)
                         + description.as_ref().map_or(0, String::len)
-                        + serde_json::to_vec(mapping)
-                            .expect("mapping serializes")
-                            .len()
                 }
             }
     }

@@ -833,7 +833,7 @@ fn workspace_create_waits_for_final_wire_and_replays_without_a_second_resource()
     let before = session.core_state.workspaces().len();
     let initial = request(
         "workspace.create",
-        serde_json::json!({"name":"durable-created","subtitle":"sub","description":"desc","attach_profile":"work-profile"}),
+        serde_json::json!({"name":"durable-created","subtitle":"sub","description":"desc"}),
         Some("workspace-created"),
         501,
     );

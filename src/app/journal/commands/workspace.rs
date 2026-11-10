@@ -16,9 +16,7 @@ pub(super) fn resolve(
     stream: &str,
 ) -> Result<Resolved, JsonRpcResponse> {
     match request.method.as_str() {
-        "workspace.update" | "intent.workspace-mapping" | "intent.workspace-rename" => {
-            update(request, session, stream)
-        }
+        "workspace.update" | "intent.workspace-rename" => update(request, session, stream),
         "workspace.move" => reorder(request, session),
         "intent.remote-row" => Ok(remote_row(request, session)),
         _ => unreachable!("workspace command family"),
@@ -34,10 +32,6 @@ fn update(
     let input = &request.params;
     let id = serde_json::Value::Null;
     let bad = |message| JsonRpcResponse::invalid_params(id.clone(), message);
-    #[cfg(not(debug_assertions))]
-    if let Some(error) = legacy::reject_loopback_attach(input, &id) {
-        return Err(error);
-    }
     let named = params::optional_u32(input, "id", &id)?;
     let workspace_id = if let Some(named) = named {
         named
@@ -55,20 +49,6 @@ fn update(
     };
     // Validate auxiliary inputs before resolving the mutation, just like the public handler.
     let category = legacy::resolve_category_param(core, input).map_err(&bad)?;
-    let clear = input
-        .get("attach_clear")
-        .and_then(|v| v.as_bool())
-        .unwrap_or(false);
-    let mapping = if request.method == "intent.workspace-mapping" {
-        Some(
-            serde_json::from_value(input["mapping"].clone())
-                .map_err(|error| bad(format!("invalid fixed mapping: {error}")))?,
-        )
-    } else if clear {
-        Some(None)
-    } else {
-        legacy::parse_attach_mapping(input).map_err(&bad)?.map(Some)
-    };
     let index = core
         .find_workspace_index_for_id(workspace_id)
         .ok_or_else(|| bad(format!("Workspace id {workspace_id} not found")))?;
@@ -113,7 +93,6 @@ fn update(
                 "subtitle": subtitle.as_ref().unwrap_or(&workspace.subtitle),
                 "description": description.as_ref().unwrap_or(&workspace.description),
                 "category": category.unwrap_or(workspace.category),
-                "attach_mapping": mapping.as_ref().unwrap_or(&workspace.attach_mapping),
             }),
         ));
         return Ok(Resolved {
@@ -130,7 +109,6 @@ fn update(
                     subtitle,
                     description,
                     category,
-                    mapping,
                 },
             }),
         });
@@ -146,7 +124,6 @@ fn update(
             subtitle: subtitle.clone(),
             description: description.clone(),
             category: None,
-            mapping: None,
         },
     });
     let mut changes = vec![C::UpdateWorkspaceMeta {
@@ -159,12 +136,6 @@ fn update(
         changes.push(C::SetWorkspaceCategory {
             workspace_id,
             category,
-        });
-    }
-    if let Some(mapping) = mapping {
-        changes.push(C::SetWorkspaceAttachMapping {
-            workspace_id,
-            mapping,
         });
     }
     Ok(Resolved {

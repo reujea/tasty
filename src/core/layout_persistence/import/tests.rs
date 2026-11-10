@@ -180,7 +180,6 @@ fn reconstruct(
                         &ws.layout.leaves(),
                         view.focused_panes.get(id).copied(),
                     ),
-                    attach_mapping: ws.attach_mapping.clone(),
                     category: saved_category(ws.category),
                 }
             })
@@ -517,10 +516,6 @@ fn typed_details_survive_import_replay_and_snapshot() {
     assert_eq!(
         (main.subtitle.as_str(), main.description.as_str()),
         ("sub", "desc")
-    );
-    assert_eq!(
-        main.attach_mapping,
-        Some(tasty_model::WorkspaceAttachMapping::profile("box", Some(4)))
     );
     let tabs = &outcome.mapping.workspaces[0].panes;
     assert_eq!(

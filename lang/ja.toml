@@ -247,6 +247,8 @@ max_capacity_desc = "フォルダが保持できる合計容量です。この�
 section = "アタッチ接続"
 heartbeat_timeout = "切断までの待機時間"
 heartbeat_timeout_desc = "相手からこの時間何も受信しなければ、アタッチ接続を切断します。保存した値は再起動なしで新しい接続から適用され、すでに開いている接続は変わりません。相手の Tasty は自身の値を使うため、先に切断することがあります。既定値 30。"
+reconnect_window = "再接続の試行時間"
+reconnect_window_desc = "「切断までの待機時間」が過ぎて接続が切れた時点から、再接続を試みる時間です。0 で自動再接続を無効にします。この自動再試行は、手動で切断した接続には適用されません。既定値 300。"
 
 [settings.file_handler]
 coming_soon = "このサブタブは今後のアップデートで利用可能になります。"
@@ -2655,15 +2657,6 @@ help = "ディレクトリパス（explorer 種別のとき）"
 [cli.help._root.new.workspace.arg.url]
 help = "URL（html 種別のとき）"
 
-[cli.help._root.new.workspace.arg.ssh_profile]
-help = "保存済み SSH プロファイルのリモートホストにこのワークスペースを対応づけます。このワークスペースを選択すると SSH トンネルで自動接続し、リモートワークスペースをミラーリングします。"
-
-[cli.help._root.new.workspace.arg.ssh]
-help = "保存済みプロファイルを使わずに SSH 接続先を直接指定します (例: --ssh user@host)。`--ssh-profile` とは併用できません。"
-
-[cli.help._root.new.workspace.arg.remote_workspace]
-help = "接続先となるリモート tasty のワークスペース ID"
-
 [cli.help._root.new.workspace.arg.category]
 help = "ワークスペースを入れるカテゴリ（名前または ID）。既定は normal"
 
@@ -2838,18 +2831,6 @@ help = "新しいサブタイトル"
 
 [cli.help._root.set.workspace.arg.description]
 help = "新しい説明"
-
-[cli.help._root.set.workspace.arg.ssh_profile]
-help = "このワークスペースを保存済み SSH プロファイルのリモートホストに対応づけます。"
-
-[cli.help._root.set.workspace.arg.ssh]
-help = "SSH 接続先を直接指定します (例: --ssh user@host)。"
-
-[cli.help._root.set.workspace.arg.remote_workspace]
-help = "アタッチ先となるリモート tasty 側のワークスペース id"
-
-[cli.help._root.set.workspace.arg.clear_mapping]
-help = "既存の SSH アタッチのマッピングを消す"
 
 [cli.help._root.set.workspace.arg.category]
 help = "このワークスペースを別のカテゴリへ移す (名前または id)"

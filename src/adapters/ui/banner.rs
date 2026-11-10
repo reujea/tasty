@@ -6,7 +6,7 @@
 use std::collections::{HashMap, VecDeque};
 use std::time::Instant;
 
-use tasty_remote::refusal::MappingNoticeKind;
+use tasty_remote::refusal::RowNoticeKind;
 use tasty_ui_widgets::{
     AttachRefusalBannerClicks, AttachRefusalBannerView, AttachSizeSyncBannerClicks,
     AttachSizeSyncBannerView, ControlSize, IconButton, IconButtonVariant,
@@ -58,7 +58,7 @@ pub enum BannerContentSource {
     /// 연결하지 않은 자동 attach 매핑의 안내. 닫기 버튼을 내용 안에 직접 둔다.
     AttachRefusal {
         anchor: u32,
-        kind: MappingNoticeKind,
+        kind: RowNoticeKind,
         target: String,
     },
     /// mirror 터미널 크기 동기화 실패. 다시 시도·닫기 버튼을 내용 안에 직접 둔다.
@@ -136,7 +136,7 @@ impl BannerState {
     pub fn attach_refusal(
         scope: BannerScope,
         anchor: u32,
-        kind: MappingNoticeKind,
+        kind: RowNoticeKind,
         target: String,
     ) -> Self {
         Self {
@@ -563,7 +563,7 @@ impl BannerManager {
             /// plugin egui-mesh 배너면 (plugin_id, instance_id, 셸 높이). host 면 None.
             mesh: Option<(String, u64, f32)>,
             /// 연결하지 않은 매핑 배너면 (anchor, 이유, 대상).
-            refusal: Option<(u32, MappingNoticeKind, String)>,
+            refusal: Option<(u32, RowNoticeKind, String)>,
             /// 크기 동기화 실패 배너면 (mirror 워크스페이스, 이름, 다시 시도 중).
             size_sync: Option<(u32, Vec<String>, bool)>,
             zone: egui::Rect,

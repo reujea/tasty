@@ -35,7 +35,7 @@ impl JournalApplication {
         session.journal_binding = None;
         session.engine_release = None;
         session.core_state = crate::core::CoreState::new_base();
-        session.remote.attach_mapping_tokens.clear();
+        session.remote.row_tokens.clear();
         session.persistence =
             crate::runtime::engine_session::EnginePersistence::new(session.persistence.slot);
         session.runtime.ids = Default::default();

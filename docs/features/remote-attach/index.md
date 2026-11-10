@@ -27,28 +27,23 @@ attach 의 본질은 **강한(hard) 배타 점유**다 — [Attach 메커니즘]
 - **자동 해제**: client 연결 종료(EOF) 또는 attach heartbeat TTL 만료(FIN/RST 없는 silent disconnect 감지) 시 lock 이 free 로 환원. 점유는 **휘발성** — 서버 재시작 시 전부 free(영속 안 함).
 - **실패하는 attach 는 점유를 잡지 않는다**: 핸드셰이크의 스트림 프로토콜 버전(`stream.open` 의 `proto`)이 서버와 다르면 attach 를 dispatch 하기 **전에** 거절 ack(`ok:false` + 사유)로 끊는다 — 성립할 수 없는 세션이 점유만 가져가 정상 attach 를 `already_attached` 로 막는 것을 방지한다. 검증 없이 잡으면, 소켓을 닫지 않는 구버전/hung peer 에서는 EOF 도 안 와 heartbeat 제한 시간까지 그 workspace 가 붙잡힌다. 근거: [Attach 메커니즘](../../dev-guide/attach-behavior.md).
 - **mirror 를 다시 mirror 로 붙이지 않는다**: 대상 workspace 나 surface 가 그 인스턴스의 mirror(다른 Tasty 에서 붙여 온 원격 행)면 서버가 점유를 잡기 전에 `workspace attach rejected: mirror_workspace` 로 거절한다(`attach_activation::begin`, GUI·헤드리스 공통). 원격 workspace 목록(`remote.workspaces`, `tasty remote workspaces`)은 각 항목의 `mirror` 로 이를 알려 준다. 원격 연결 팝업은 그 행을 비활성으로 두고 `mirror` 표지와 안내 문구를 보이며, CLI 목록은 그 행 아래에 같은 안내를 한 줄 덧붙인다. 연결 실패 toast 와 자동 재연결도 이 사유를 같은 안내로 보이고, 재연결은 이 사유를 받으면 바로 멈춘다. 체인이 생기면 중간 인스턴스가 끊길 때마다 바깥 mirror 가 연쇄로 흔들리고 점유가 엇갈린다.
-- **self-attach(자기 인스턴스 포트로 attach)는 거절된다**. GUI 원격 연결 팝업·IPC `attach.into_gui`·IPC `remote.attach`·자동 attach 모두 debug/release 공통으로 연결 전에 거절한다. handshake 는 `queue_mirror_connection` 을 거쳐 Remote worker 가 비동기로 수행하므로 교착하지 않는다. 거절하지 않으면 attach 가 성립해 자기 mirror 가 자기 workspace 를 hard 점유하고, 그동안 원본 workspace 의 로컬 입력이 막힌다. 같은 머신의 self-mirror 를 검증할 때는 별도 프로세스인 `tasty debug attach` 를 쓴다. 이 CLI 는 GUI 의 자기 포트 검사를 거치지 않고 서버 포트에 직접 붙는다.
+- **self-attach(자기 인스턴스 포트로 attach)는 거절된다**. GUI 원격 연결 팝업·IPC `attach.into_gui`·IPC `remote.attach`·저장된 원격 행의 연결 모두 debug/release 공통으로 연결 전에 거절한다. handshake 는 `queue_mirror_connection` 을 거쳐 Remote worker 가 비동기로 수행하므로 교착하지 않는다. 거절하지 않으면 attach 가 성립해 자기 mirror 가 자기 workspace 를 hard 점유하고, 그동안 원본 workspace 의 로컬 입력이 막힌다. 같은 머신의 self-mirror 를 검증할 때는 별도 프로세스인 `tasty debug attach` 를 쓴다. 이 CLI 는 GUI 의 자기 포트 검사를 거치지 않고 서버 포트에 직접 붙는다.
   - **IPC 계약 요약**: 자기 자신을 향한 `remote.attach` 의 결과는 대상 표기에 따라 다르다. loopback 표기(`127.0.0.1`·`localhost`·`[::1]` + 포트, 또는 그렇게 해석되는 프로필)는 **동기 오류**(`-32602`)로 응답하고 아무것도 시작하지 않는다. SSH 경로(호스트명·LAN IP)는 판정에 터널과 `system.info` 왕복이 필요하므로, `new_workspace:true` 만 생성 전에 같은 `-32602` 로 응답하고, 기존 워크스페이스 attach 는 응답을 늦추지 않고 즉시 `{attaching:true, attempt}` 를 준 뒤 **비동기로 거절**해 `remote.refusals` 에 `via_ssh: true` 로 기록한다. 호출자는 응답의 `attempt` 로 그 기록을 찾는다. `attach.into_gui` 는 GUI 에서 항상 동기로 답한다. 받은 `port` 가 이 인스턴스의 IPC 포트면 바로 `-32602` 이고, 다른 포트(사용자가 직접 연 SSH 터널의 로컬 포트 등)는 그 포트의 `system.info` 를 워커에서 물어 같은 `instance_id` 면 `-32602`(`... reaches this instance itself ...`), 아니면 `{queued:true}` 로 답한다. 이 확인 동안 응답이 그 왕복만큼 늦어지지만 메인 루프는 막히지 않는다(이 머신 실측 응답 약 0.1~0.2초). 접수 응답 `{queued:true}` 에는 결과를 조회할 `run` 이 붙는다([연결 결과 조회](#연결-결과-조회)). 상대가 연결을 받고 답하지 않으면 확인 상한(`PROBE_TIMEOUT`, 5초)까지 기다린 뒤 판정 없이 접수한다(실측 5.42초). 연결을 거부하거나 `instance_id` 를 보고하지 않는 상대도 판정 없이 접수한다. plugin host-call 로 부른 경우도 같다. 헤드리스에는 mirror 를 만들 쪽이 없으므로 접수하지 않는다. 자기 포트를 포함한 모든 요청을 이 빌드에 구현이 없다는 `-32017`(메서드 이름 포함)로 거절하며, plugin host-call 도 같다.
   - **처리 시점 거절(IPC)**: `attach.into_gui` 는 `port` 가, `remote.attach` 는 loopback 직결 대상(`--ssh 127.0.0.1:PORT` 형식, 또는 그렇게 해석되는 프로필)의 포트가 이 인스턴스의 IPC 포트면 요청을 처리하기 전에 `-32602` 오류(`... is this instance's own IPC port ...`)로 응답한다. 큐에 넣거나 연결 시도를 시작하지 않으며, `new_workspace:true` 여도 원격(=자기)에 워크스페이스를 만들지 않는다. 이 판정은 GUI 의 응답이다. 헤드리스는 두 메서드 모두 구현하지 않아 포트와 관계없이 `-32017` 로 거절한다. 프로필은 이 판정을 위해 요청 처리 중에 파일에서 읽는다.
   - **SSH 너머의 자기 자신**: 호스트명이나 LAN IP 로 자기 머신을 지정한 SSH 경로는 요청 포트가 터널의 로컬 포트라 포트 비교에 걸리지 않는다. 그래서 터널을 연 뒤 상대의 `system.info` 가 보고한 `instance_id` 를 이 프로세스의 값과 비교해, 같으면 같은 인스턴스로 보고 거절한다. `instance_id` 는 프로세스마다 새로 만드는 무작위 값이며(`tasty list info` 로도 보인다) 같은 머신의 다른 인스턴스(다른 홈)는 값이 달라 정상 attach 된다. 신뢰 경계는 SSH 이며 별도 권한 검사는 없다.
-    - `remote.attach` 의 `new_workspace:true` 는 원격(=자기)에 워크스페이스를 만들기 전에 `-32602`(`... is this instance itself; attaching to itself is refused`)로 응답한다. 기존 워크스페이스 attach 는 응답이 해석보다 먼저 나가므로(`{attaching:true}`) 거절을 `remote.refusals` 에 `via_ssh: true` 로 남긴다. 자동 attach 매핑도 같은 기록과 반복 방지를 따른다. GUI 원격 워크스페이스 추가 팝업은 목록을 받기 전에 판정해 안내 문구를 보여 주므로 그 엔드포인트로 연결하거나 원격에 워크스페이스를 만들지 않는다.
+    - `remote.attach` 의 `new_workspace:true` 는 원격(=자기)에 워크스페이스를 만들기 전에 `-32602`(`... is this instance itself; attaching to itself is refused`)로 응답한다. 기존 워크스페이스 attach 는 응답이 해석보다 먼저 나가므로(`{attaching:true}`) 거절을 `remote.refusals` 에 `via_ssh: true` 로 남긴다. 저장된 원격 행의 연결도 같은 기록을 남긴다. GUI 원격 워크스페이스 추가 팝업은 목록을 받기 전에 판정해 안내 문구를 보여 주므로 그 엔드포인트로 연결하거나 원격에 워크스페이스를 만들지 않는다.
     - 상대가 `instance_id` 를 보고하지 않는 이전 버전이면 판정하지 않고 진행한다. 판정하는 쪽은 항상 이 기능이 있는 버전이므로 그런 상대는 자기 자신일 수 없다. 판정용 `system.info` 요청 자체가 실패하면 그 연결 시도는 실패로 끝난다.
-  - **거절 조회**: 엔드포인트를 해석한 뒤에 정해지는 거절 — 자동 attach 매핑의 거절과 SSH 경로로 기존 워크스페이스에 보낸 `remote.attach` 의 거절 — 은 IPC `remote.refusals`(CLI `tasty remote refusals`)로 조회한다. `remote.attach` 응답의 시도 번호 `attempt` 가 항목의 `attempt` 와 같다. loopback 표기는 동기 오류로 끝나므로 보통 여기 오지 않는다(처리 시점 판정 뒤에 프로필 해석 결과가 달라졌을 때만 온다). 항목은 `attempt` · `anchor_workspace`(자동 attach 매핑의 로컬 워크스페이스, 수동 요청은 `null`) · `remote_workspace` · `port`(loopback 은 자기 IPC 포트, SSH 는 터널의 로컬 포트) · `via_ssh`(SSH 너머 `instance_id` 로 판정했는지) · `reconnect` 이고, 인스턴스가 끝날 때까지 최근 32건을 오래된 것부터 돌려준다. **범위는 자기 포트 거절뿐이다** — 엔드포인트 해석 실패·mirror 실패·성공은 기록하지 않으므로 목록에 없다고 연결에 성공한 것은 아니다. 요청 하나의 최종 결과는 [연결 결과 조회](#연결-결과-조회)의 `run` 으로 확인한다. GUI 팝업의 거절도 이 목록에 없다.
+  - **거절 조회**: 엔드포인트를 해석한 뒤에 정해지는 거절 — 저장된 원격 행의 연결 거절과 SSH 경로로 기존 워크스페이스에 보낸 `remote.attach` 의 거절 — 은 IPC `remote.refusals`(CLI `tasty remote refusals`)로 조회한다. `remote.attach` 응답의 시도 번호 `attempt` 가 항목의 `attempt` 와 같다. loopback 표기는 동기 오류로 끝나므로 보통 여기 오지 않는다(처리 시점 판정 뒤에 프로필 해석 결과가 달라졌을 때만 온다). 항목은 `attempt` · `row_workspace`(저장된 원격 행의 로컬 workspace, 수동 요청은 `null`) · `remote_workspace` · `port`(loopback 은 자기 IPC 포트, SSH 는 터널의 로컬 포트) · `via_ssh`(SSH 너머 `instance_id` 로 판정했는지) · `reconnect` 이고, 인스턴스가 끝날 때까지 최근 32건을 오래된 것부터 돌려준다. **범위는 자기 포트 거절뿐이다** — 엔드포인트 해석 실패·mirror 실패·성공은 기록하지 않으므로 목록에 없다고 연결에 성공한 것은 아니다. 요청 하나의 최종 결과는 [연결 결과 조회](#연결-결과-조회)의 `run` 으로 확인한다. GUI 팝업의 거절도 이 목록에 없다.
   - <a id="연결-결과-조회"></a>**연결 결과 조회**: `attach.into_gui` 의 `{queued:true}` 와 기존 워크스페이스 `remote.attach` 의 `{attaching:true}` 응답은 `run` 을 싣는다. `run.result {run}` 은 그 시도의 최종 결과를 준다. 공유 run 저장소는 [file-handler](../file-handler/index.md#접수-뒤-최종-결과)와 같다.
     - `succeeded`: mirror 설치 완료. `workspace_id` 에 로컬 mirror 워크스페이스 ID.
     - `failed`: 엔드포인트 해석 실패, 연결 실패, 핸드셰이크 거절(예: `already_attached`), 자기 인스턴스 거절, 연결 대기열 거절(동시 연결 대기 8건 상한 등, "the mirror connection could not be queued: <사유>"), mirror 설치 실패. `result` 에 사유 한 줄.
-    - `cancelled`: 같은 대상의 새 시도로 대체("replaced by a newer attach to the same target"), 시작한 창이나 engine 이 사라짐, 매핑 변경, 결과 없이 시도가 사라짐. `result` 에 사유.
-    - 같은 대상: 자동 attach·재연결은 같은 engine·anchor, 수동 요청은 `attach.into_gui` 의 `port`·`workspace`, 기존 workspace `remote.attach` 의 `profile`·`ssh`·`remote_workspace` 가 같은 것이다. 수동 요청은 엔드포인트를 해석 중이든 연결 중이든 끝나지 않은 이전 요청을 취소하고 새 요청이 결과를 받는다. 두 메서드는 서로 대체하지 않는다.
-    - 처음 기록한 결과만 남으므로 대체된 시도의 늦은 결과가 새 시도의 run 을 바꾸지 않는다. `new_workspace:true` 는 생성 결과를 지연 회신하므로 run 을 싣지 않는다. 자동 attach·재연결은 run 을 만들지 않고 기존 상태 표시를 따른다.
+    - `cancelled`: 같은 대상의 새 시도로 대체("replaced by a newer attach to the same target"), 시작한 창이나 engine 이 사라짐, 행이 닫히거나 사용자가 연결을 끊음, 결과 없이 시도가 사라짐. `result` 에 사유.
+    - 같은 대상: 저장된 행의 연결·재연결은 같은 engine·행, 수동 요청은 `attach.into_gui` 의 `port`·`workspace`, 기존 workspace `remote.attach` 의 `profile`·`ssh`·`remote_workspace` 가 같은 것이다. 수동 요청은 엔드포인트를 해석 중이든 연결 중이든 끝나지 않은 이전 요청을 취소하고 새 요청이 결과를 받는다. 두 메서드는 서로 대체하지 않는다.
+    - 처음 기록한 결과만 남으므로 대체된 시도의 늦은 결과가 새 시도의 run 을 바꾸지 않는다. `new_workspace:true` 는 생성 결과를 지연 회신하므로 run 을 싣지 않는다. 저장된 행의 자동 연결·재연결은 run 을 만들지 않고 행의 상태 표시를 따른다.
     - GUI 원격 연결 팝업에서 **연결** 이 접수된 뒤 연결·설치에 실패하면 시작한 창에 실패 토스트를 띄운다. 그 창이 닫혔거나 View 가 바뀌었으면 띄우지 않는다([토스트 정책](../../design/systems/toast.md)).
-  - **자기 포트 매핑의 반복 방지**: 자동 attach 매핑이 자기 포트로 해석되면 그 매핑으로 다시 시도하지 않는다. 인라인 대상(`--ssh`)은 대상 문자열이 포트를 정하므로 매핑이 바뀔 때까지 보류한다. 프로필 대상(`--ssh-profile`)은 프로필 내용이 프로세스 밖에서 바뀔 수 있어 그 워크스페이스를 다시 활성화할 때 한 번 다시 시도한다. 재연결 중의 거절은 다른 재연결 실패와 같은 백오프를 따른다.
-  - **연결하지 않은 매핑의 안내**: 자동 attach 매핑의 첫 연결이 자기 자신이라 거절되거나(`self_instance`), 매핑한 SSH 프로필이 없거나(`profile_missing`), 그 밖의 이유로 연결 지점을 준비하지 못하면(`unresolved`) 그 워크스페이스에 안내를 남긴다. 안내는 두 곳에 보인다. 사이드바의 그 워크스페이스 행에 경고 표지(alertTriangle, `attach-refusal-glyph` = accent-warning)가 활성 여부와 관계없이 붙고, 툴팁은 대상과 이유다. 이름 뒤 순서는 move 글리프 · 경고 표지 · 배지 묶음이며 배지가 가장 오른쪽이고 항목 사이는 `space-sm`이다. 표지가 배지를 대신하지 않는다. 그 워크스페이스가 활성인 동안 콘텐츠 위쪽(탭 바 아래)에 Workspace 배너가 뜬다. 배너는 대상(mono)·이유·할 일과 **매핑 지우기** 버튼, 닫기(×)를 가진다. 토스트는 띄우지 않고 포커스도 옮기지 않는다.
-    - 배너는 사용자 조작의 안내라 사용자가 그 워크스페이스를 활성화한 뒤에만 뜬다. 활성화로 시작한 시도의 안내이거나, 안내가 있는 워크스페이스를 사용자가 다시 활성화했을 때다. 이미 활성인 워크스페이스에 CLI·IPC로 매핑을 걸어 바로 거절됐으면 행 표지만 보이고, 사용자가 그 워크스페이스로 다시 오면 배너가 뜬다. 같은 워크스페이스 행을 다시 눌러도 활성 워크스페이스가 바뀌지 않으므로 배너는 뜨지 않는다.
-    - 매핑을 걸 때는 SSH 프로필이 있는지 확인하지 않는다(`set workspace --ssh-profile <없는 이름>`도 받아들인다). 자동 attach는 그 워크스페이스가 활성화될 때 시작하므로, 비활성 워크스페이스에 건 매핑은 사용자가 활성화하기 전까지 행 표지도 배너도 없다. 활성화하면 첫 시도가 `profile_missing`으로 끝나고 배너가 뜬다.
-    - 매핑 지우기는 `tasty set workspace --id <id> --clear-mapping`과 같은 저널 경로로 매핑을 지운다.
-    - ×는 그 창의 이번 활성화에만 배너를 숨긴다. 다른 워크스페이스로 갔다가 돌아오면 다시 보인다. 행 표지는 남는다.
-    - 안내는 매핑이 바뀌거나 지워질 때(CLI·IPC 포함), 워크스페이스가 닫힐 때, 같은 매핑으로 연결에 성공할 때(프로필 재확인 성공 포함) 사라진다. 재연결 중 실패는 안내를 만들지 않는다.
-    - 접힌 사이드바(레일)에서는 아바타 왼쪽 위 모서리에 12 칩(alertTriangle 8, 레일 배경 바탕)을 그린다. 오른쪽 위 알림 점, 오른쪽 아래 mirror 칩, 왼쪽 아래 move 칩과 함께 나올 수 있으며 우선순위는 없다. 아바타 hover 툴팁은 행 표지와 같고 칩은 따로 클릭을 받지 않는다.
+  - **저장된 원격 행의 연결 실패 안내**: [저장된 원격 행](#저장된-원격-행과-mirror-내용)의 첫 연결이 실패하거나, 재연결이 다시 시도해도 같은 결과가 나올 이유(`remote_workspace_missing`·`occupied`·`mirror_workspace`)로 끝나면 안내를 남긴다. 재연결의 이 실패는 행을 바로 **연결 끊김** 상태로 둔다. 이유는 자기 자신(`self_instance`), 저장된 attach 프로필 없음(`profile_missing`), 연결 지점 준비 실패(`unresolved`), 원격 workspace 없음(`remote_workspace_missing`), 다른 client가 점유 중(`occupied`), 대상이 mirror(`mirror_workspace`)다. 행은 자동으로 다시 연결하지 않고 사용자가 그 행을 다시 활성화할 때 한 번 다시 시도한다. 같은 대상으로 연결에 성공하거나 행이 닫히면 안내가 사라진다. 재연결 중의 엔드포인트 해석 실패 가운데서는 행의 attach 프로필이 없어진 경우(`profile_missing`)만 안내를 만든다. 연결 지점 준비 실패처럼 일시적일 수 있는 실패는 안내 없이 재연결을 이어 간다.
+    - 사이드바의 그 행에 경고 표지(alertTriangle, `attach-refusal-glyph` = accent-warning)가 활성 여부와 관계없이 붙고, 툴팁은 대상과 이유다. 이름 뒤 순서는 move 글리프 · 경고 표지 · 배지 묶음이며 배지가 가장 오른쪽이고 항목 사이는 `space-sm`이다. 접힌 사이드바(레일)에서는 아바타 왼쪽 위 모서리에 12 칩(alertTriangle 8, 레일 배경 바탕)을 그린다.
+    - 사용자가 그 행을 활성화한 뒤의 안내면 콘텐츠 위쪽(탭 바 아래)에 Workspace 배너가 뜬다. `remote_workspace_missing`·`occupied`·`mirror_workspace` 는 배너에서 `unresolved` 와 같은 문장을 쓴다. ×는 그 창의 이번 활성화에만 배너를 숨긴다. 토스트는 띄우지 않고 포커스도 옮기지 않는다.
     - 지금 남은 안내는 `remote.refusals` 응답의 `notices`(`workspace_id` · `kind` · `target`, 워크스페이스 ID 순)로 조회한다.
 - **force-detach**: **로컬 사용자만** 점유를 강제로 끊을 수 있다(서버 권한).
   끊으면 holder client 에 종료를 통지하고 대상은 **일반 surface/workspace 로 복귀**.
@@ -210,8 +205,8 @@ mirror 콘텐츠(grid) 갱신은 원격 출력이 올 때 즉시, 3초 tick 은 
 | 다운로드 후 실행 대화상자 경로 줄 앞 | mirror 경로에 원격에 열 핸들러가 없을 때 | [다운로드 후 실행](#원격-파일-다운로드-후-실행) |
 | 링크 런 아래 툴팁 | mirror 의 파일 경로 링크에 수식키 hover | [터미널 링크](../terminal-link/index.md) |
 
-- **호스트 글자**: 연결할 때 고른 `tasty-attach` 프로필 이름이다. 원격 연결 팝업, `remote attach --into-gui --profile`(IPC `remote.attach`의 `profile`), 자동 attach 매핑 `--ssh-profile` 이 프로필 이름을 세션에 넘긴다. 연결 시점 값이며 재연결해도 바꾸지 않는다. 연결 뒤 프로필 이름을 바꾸거나 지워도 이미 붙은 mirror 의 표시는 그대로다.
-- **프로필 없이 붙은 mirror**: `--ssh <dest>`, 인라인 매핑 `--ssh`, `--target-port`(`attach.into_gui`), debug attach 로 붙은 mirror 는 이 연결의 loopback 엔드포인트 `127.0.0.1:<로컬 포트>`(`remote_label`)를 쓴다. 글자는 `ClientSessionState::host_text` 한 곳에서 정한다.
+- **호스트 글자**: 연결할 때 고른 `tasty-attach` 프로필 이름이다. 원격 연결 팝업, `remote attach --into-gui --profile`(IPC `remote.attach`의 `profile`), 저장된 원격 행의 attach 프로필이 프로필 이름을 세션에 넘긴다. 연결 시점 값이며 재연결해도 바꾸지 않는다. 연결 뒤 프로필 이름을 바꾸거나 지워도 이미 붙은 mirror 의 표시는 그대로다.
+- **프로필 없이 붙은 mirror**: `--ssh <dest>`, `--target-port`(`attach.into_gui`), debug attach 로 붙은 mirror 는 이 연결의 loopback 엔드포인트 `127.0.0.1:<로컬 포트>`(`remote_label`)를 쓴다. 글자는 `ClientSessionState::host_text` 한 곳에서 정한다.
 - **재연결 중**: 연결이 끊겨 다시 붙는 동안 상태바는 원격 색을 빼고 상태어를 붙인다. 끊긴 연결을 활성처럼 보이지 않게 한다.
 - File Picker 의 host 배지와 탐색기 원격 작업의 호스트 표시(`HostMark`, 쓰기 거절·대기·결과 모름 문구의 `{host}`)도 같은 글자를 쓴다.
 
@@ -309,12 +304,12 @@ mirror 카드의 우클릭 메뉴는 마지막 묶음에 **워크스페이스 �
 - **워크스페이스 닫기(서버 닫기)**: 사이드바 메뉴뿐 아니라 `close_workspace` 단축키와, 마지막 surface·pane에서 workspace 닫기로 넘어가는 `close_surface`·`close_pane`·`close_active` 단축키(더블 탭 포함)도 같은 서버 닫기다. 로컬 workspace의 "마지막 것을 닫으면 workspace가 닫힌다"와 같은 규칙을 따르며, 서버를 유지하려면 연결 끊기를 쓴다. `DomainIntent::CloseWorkspace`가 mirror를 가리키면 `StructuralOp::CloseWorkspace{anchor_surface_id}`로 forward한다. 서버는 그 연결이 점유한 workspace를 `intent.close`의 workspace 대상으로 닫고 PTY를 끝낸다. 사용자 요청이면 서버의 닫은 항목 기록에 남는다.
   - 보내기 전에 연결을 확인한다. 연결이 없거나 재연결 중이면 `attach.toast.workspace_close_reconnecting`, 서버 descriptor에 `ipc.stream.workspace-close`가 없으면 `attach.toast.workspace_close_unsupported`, 같은 mirror의 닫기가 회신을 기다리면 `attach.toast.workspace_close_pending`을 띄우고 보내지 않는다.
   - 같은 mirror의 닫기 두 개가 첫 전송 전에 함께 준비돼도(키 반복·메뉴와 단축키) `execute_journal_forwards`가 전송 직전에 `workspace_close::send_refusal`로 다시 보고 두 번째를 보내지 않고 취소한다. 기다리던 op id가 덮어써지지 않아 첫 성공 회신이 mirror를 정리한다.
-  - client는 그 op의 성공 회신을 받은 뒤에만 mirror·세션을 정리한다. 성공 안내는 `attach.toast.workspace_closed_on_server`다. 서버 거절은 기존 구조 변경 실패 안내로 끝나며 mirror를 남긴다. 회신 전에 연결이 끝나면 `attach.toast.workspace_close_unknown`을 띄우고 기존 단절 처리(anchor 있으면 재연결, 없으면 정리)를 따른다.
+  - client는 그 op의 성공 회신을 받은 뒤에만 mirror·세션을 정리한다. 성공 안내는 `attach.toast.workspace_closed_on_server`다. 서버 거절은 기존 구조 변경 실패 안내로 끝나며 mirror를 남긴다. 회신 전에 연결이 끝나면 `attach.toast.workspace_close_unknown`을 띄우고 기존 단절 처리(저장된 행이면 재연결, 아니면 정리)를 따른다.
   - 서버의 마지막 workspace를 닫으면 서버는 빈 창 대신 새 터미널 workspace를 만든다. 서버 로컬 사용자의 마지막 workspace 닫기(창 닫기)와 구분한다.
-  - 성공한 anchor mirror는 재연결하지 않는다. 그 anchor의 매핑은 지우지 않고, 같은 매핑으로는 자동 attach하지 않는다(`Remote.closed_mappings`). 매핑을 바꾸거나 지우면 다시 후보가 된다.
+  - 저장된 원격 행을 서버에서 닫으면 행도 닫혀 저장 항목이 지워진다.
 - **워크스페이스 연결 끊기**: `Intent::DisconnectMirror{workspace_id}`를 App이 처리한다. 에이전트는 IPC `remote.disconnect`(CLI `tasty remote disconnect --workspace <mirror id>`)로 같은 정리를 부른다. 그 mirror의 재연결 endpoint·connection 시도를 취소하고 사용자 종료 정리(`cleanup_mirror_workspace(.., false)`)로 mirror·문서 surface·heartbeat를 정리한 뒤 transport를 놓아 socket·worker·소유 터널을 회수한다. 서버 workspace와 프로세스는 남고 서버 점유는 `Detach`(전달하지 못하면 EOF/TTL)로 풀린다. 다른 mirror 세션은 유지한다.
   - 재연결 중에도 끊을 수 있다. 늦게 도착한 재연결 결과는 세션·epoch가 없어 설치되지 않는다.
-  - anchor 매핑은 남긴다. anchor는 재진입 대기(`pending_reactivation`)로 두고, 정리로 바뀐 선택을 전환으로 읽지 않도록 직전 활성 workspace를 맞춘다. 사용자가 다른 workspace로 갔다가 anchor로 돌아오면 다시 연결한다. 네트워크 단절의 자동 재연결은 그대로다.
+  - 저장된 원격 행은 남는다. 행을 **연결 끊김** 상태로 두고(`enter_disconnected`), 사용자가 끊은 행은 다시 활성화해도 자동으로 연결하지 않는다(`Remote.user_disconnected`, 아래 "사용자 대기 갈래"). 원격 연결 팝업에서 같은 행을 다시 고르면 연결한다. 네트워크 단절의 자동 재연결은 그대로다.
   - 마지막 workspace였으면 창을 닫지 않고 기본 터미널 workspace를 만든다. 사용자의 닫은 항목 기록에는 넣지 않는다.
 
 ### 서버(피점유)측 비-holder 구조 변경 차단
@@ -334,19 +329,20 @@ mirror 카드의 우클릭 메뉴는 마지막 묶음에 **워크스페이스 �
 - **차단 근거**: [포커스 정책](../../design/policies/focus.md)(에이전트 행동의 부수효과가 사용자 상태에 닿지 않아야 함) — 서버 로컬에서 만든/닫은/옮긴 탭이 점유 client 화면에 통지 없이 편입/소멸/재배치되면, 원격 사용자가 보고 있는 화면에 자신이 하지 않은 변화가 일어나는 셈이라 이 원칙을 위반한다.
 - **메커니즘**: [dev-guide/attach-behavior "서버 로컬(비-holder) 구조 변경 차단"](../../dev-guide/attach-behavior.md#서버-로컬비-holder-구조-변경-차단).
 
-### 자동 매핑
+### 저장된 원격 행의 연결과 재연결
 
-`tasty set workspace --id <id> --ssh-profile <name> --remote-workspace <N>`(또는 `--ssh <user@host>`)로 로컬 워크스페이스에 원격 대상을 선언적으로 매핑한다(`Workspace.attach_mapping`, 구조 journal 영속. 설정·해제는 `DomainIntent::SetWorkspaceAttachMapping`에서 공통 journal 명령으로 합류한다). 매핑된 워크스페이스를 **활성화하면** 호스트가 자동으로 프로필 resolve → SSH 터널 → GUI mirror 를 띄운다. `remote_workspace` 가 None 이면 skip(ID 명시 필요), 이미 attach 중이면 재트리거 안 함. 자동 attach 는 mirror 를 *추가*만 하고 포커스/active 전환을 강제하지 않는다([포커스 독립성](../../design/policies/focus.md#cliipc-포커스-독립-원칙)).
+저장된 원격 행은 사용자가 그 행을 화면에 띄울 때 연결한다(`src/app/auto_attach.rs::maybe_connect_visible_row`). 행이 가리키는 attach 프로필을 해석해 SSH 터널을 열고 같은 행에 mirror 를 설치하며, 행의 이름·카테고리·위치는 그대로 둔다. 자동 연결은 mirror 를 채우기만 하고 포커스와 활성 workspace 를 옮기지 않는다([포커스 독립성](../../design/policies/focus.md#cliipc-포커스-독립-원칙)). 다시 시작한 직후의 행은 형상 없이 기다리다가 선택되면 연결한다.
 
-**첫 자동 attach 가 실패하면 간격을 두고 다시 시도한다**: 프로필 해석·포트 발견·터널 수립(엔드포인트 해석)이 실패하거나, mirror 접수가 바로 실패하거나, 접수 뒤 연결·설치 단계에서 실패하면, 같은 매핑의 다음 시도를 재연결과 같은 지수 백오프(0.5초에서 두 배씩 30초 상한, ±20% jitter)로 미룬다(`Remote.attach_retry`). 그 시각이 되면 타이머가 루프를 깨워 그 워크스페이스가 활성일 때 다시 시도한다. 자동 재시도 상한은 없다. 사용자가 그 워크스페이스로 돌아오면(엣지) 대기 없이 바로 시도하지만 간격은 초기화하지 않는다. 매핑을 바꾸면 기록을 적용하지 않고 바로 시도한다. mirror 설치에 성공하거나, 매핑을 지우거나 바꾸거나, 그 워크스페이스를 닫으면 기록을 지운다.
+- **첫 연결 실패**: 이유를 행 안내로 남기고(위 "저장된 원격 행의 연결 실패 안내") 사용자가 그 행으로 다시 옮기거나 다시 연결을 고를 때까지 시도하지 않는다(`Remote.pending_reactivation`). 같은 실패가 될 수 있는 SSH 접속을 되풀이하지 않기 위해서다.
+- **연결이 끊기면 mirror 는 살아 있는 채로 재연결한다**: heartbeat TTL 만료·force-detach 등 원격발 disconnect 로 저장된 행의 세션이 끊기면 mirror workspace/터미널을 걷어내지 않고 `Reconnecting` 상태로 두고(`src/app/attach_client/connection.rs::enter_reconnecting`), 지수 백오프(0.5s→30s, ±20% jitter)로 다시 연결한다(`src/app/auto_attach.rs::maybe_trigger_reconnect`).
+  - Reconnecting 에 들어갈 때 옛 연결의 소켓을 바로 닫는다(`ConnectionWorkers::close_socket`). 열어 두면 응답이 멈췄던 서버가 돌아온 직후 옛 연결을 살아 있는 점유자로 보고 새 attach 를 `already_attached` 로 거절한다.
+  - 재연결에 성공하면 살아 있던 surface 는 scrollback/local id 를 그대로 유지한 채(survivor mapping, `merge_survivor_mapping`) 연결만 새로 맺는다. 사용자가 그 행으로 돌아오면(엣지) 백오프 대기 없이 바로 한 번 더 시도한다.
+  - 다른 client 가 그 원격 workspace 를 점유 중이면(`already_attached`) 지수 증가 없이 30초 간격으로 기다린다.
+- **재연결 시간 창**: 끊긴 뒤 설정 `[remote_attach] reconnect_timeout_secs`(설정 창 General › Remote attach 의 `Keep reconnecting for`, 기본 300초, 0~3600초, 범위를 벗어난 파일 값은 300으로 되돌린다)이 지나도 연결하지 못하면 재연결을 멈추고 행을 **연결 끊김** 상태로 바꾼 뒤 안내 toast 를 띄운다. 0이면 끊기는 즉시 연결 끊김이 된다. 연결 끊김 행은 사용자가 다시 활성화하면 연결한다.
+- **상태**: 행의 세션 상태는 `Connected` · `Reconnecting` · `Disconnected` 셋이다(`tasty_remote::client_session::SessionState`).
+- **사용자 대기 갈래**: 화면에 띄운 행을 언제 연결하는지(L4)와 사용자가 끊은 행을 다시 활성화할 때 연결하는지(L1)는 사용자 결정을 기다린다. 지금은 추천안대로 띄운 행은 바로 연결하고(`visible_row_connects`), 사용자가 끊은 행은 다시 활성화해도 연결하지 않는다(`user_disconnect_holds`). 두 함수가 각 갈래의 유일한 분기다.
 
-**연결이 끊기면 mirror 는 살아있는 채로 자동 재연결을 시도한다**: heartbeat TTL 만료·force-detach 등 원격발 disconnect 로 앵커(매핑된 워크스페이스) 세션이 끊기면, mirror workspace/터미널을 걷어내는 대신 `Reconnecting` 상태로 전이해 살려두고(`src/app/attach_client/connection.rs::enter_reconnecting`), 지수 백오프(0.5s→30s, ±20% jitter)로 재연결을 자동 시도한다(`src/app/auto_attach.rs::maybe_trigger_reconnect`).
-Reconnecting 에 들어갈 때 옛 연결의 소켓을 바로 닫는다(`ConnectionWorkers::close_socket`). 열어 두면 응답이 멈췄던 서버가 돌아온 직후 옛 연결을 살아 있는 점유자로 보고 새 attach 를 `already_attached` 로 거절해 아래 30초 간격으로 밀린다. 닫아 두면 서버가 재개 즉시 끊김을 읽어 점유를 놓고, 자동 재연결은 서버가 돌아온 뒤 약 1초 안에 성공한다(Linux 실제 실행 2회, 같은 컴퓨터의 두 인스턴스를 `--ssh 127.0.0.1:<port>` 직결로 매핑, 서버를 SIGSTOP 25초 뒤 SIGCONT — SSH 터널·원격 호스트·macOS·Windows 는 미측정).
-재연결에 성공하면 살아있던 surface 는 scrollback/local id 를 그대로 유지한 채(survivor mapping, `merge_survivor_mapping`) 연결만 새로 맺는다 — 사용자가 아무 조작을 하지 않아도(그 워크스페이스를 계속 보고 있어도) 백그라운드에서 재시도가 진행된다.
-사용자가 그 워크스페이스로 전환해 돌아오면(엣지) 백오프 대기 없이 즉시 한 번 더 시도한다.
-다른 클라이언트가 여전히 그 원격 워크스페이스를 점유 중이면(`already_attached`) 지수 증가 없이 30초 간격으로 계속 대기하고, 20회 시도 후에도 실패하면 자동 재시도를 멈추고 안내 toast 를 띄운다(단, 그 워크스페이스를 왕복하는 수동 재시도는 계속 유효).
-앵커가 없는 임시 mirror(IPC `remote.attach` 등)는 이 대상이 아니라 기존처럼 즉시 정리된다.
-상세: [`dev-guide/attach-behavior` "GUI 자동 재연결 스코프"](../../dev-guide/attach-behavior.md#gui-자동-재연결-스코프) / ["재연결 시 세션 상태 보존"](../../dev-guide/attach-behavior.md#재연결-시-세션-상태-보존).
+IPC `remote.attach` 등 에이전트가 붙인 저장되지 않은 mirror 는 재연결 대상이 아니라 끊기면 바로 정리된다. 상세: [`dev-guide/attach-behavior` "GUI 자동 재연결 스코프"](../../dev-guide/attach-behavior.md#gui-자동-재연결-스코프) / ["재연결 시 세션 상태 보존"](../../dev-guide/attach-behavior.md#재연결-시-세션-상태-보존).
 
 ### 원격 포트 발견 실패 진단
 
@@ -372,7 +368,7 @@ Auto 체인이 전 단계 실패하면 가장 확정적인 분류(취소 > 타�
 | `PORT_DISCOVERY_STEP_TIMEOUT` | 20초 | ssh 자식 프로세스 1개의 프로세스 레벨 상한. `ConnectTimeout` 이 못 보는 구간(인증 핸드셰이크, 원격 명령 실행, `BatchMode=no` 로 뜬 프롬프트 대기)까지. 넘기면 kill + wait 로 좀비 없이 거둔다. |
 | `PORT_DISCOVERY_TOTAL_TIMEOUT` | 45초 | `discover_remote_port` / `detect_port_mode` **호출 1회 전체**. 각 단계는 `min(단계 상한, 남은 예산)` 만 받고 예산이 소진되면 남은 단계는 ssh 를 띄우지 않고 즉시 타임아웃 — auto 체인(3단계)이나 명시 `port_file`(`cat`→`type` 2회)에서 총 대기가 단계 수만큼 곱해지는 것을 막는다. |
 
-무응답 호스트 실측: auto 체인 ~30초(3 × 연결 상한), 최악 45초. 상한은 **포트 발견/감지 경로를 공유하는 모든 소비자**에 동시에 적용된다 — GUI 원격 워크스페이스 추가 팝업, 도구 메뉴 > Remote connections 재감지, `tasty remote workspaces`/`remote check`/`tool attach`/`tool remote-profile detect`, IPC `remote.workspaces`/`remote.attach`/`remote.profile.detect`, 그리고 매핑 워크스페이스 활성화 시의 자동 attach 워커.
+무응답 호스트 실측: auto 체인 ~30초(3 × 연결 상한), 최악 45초. 상한은 **포트 발견/감지 경로를 공유하는 모든 소비자**에 동시에 적용된다 — GUI 원격 워크스페이스 추가 팝업, 도구 메뉴 > Remote connections 재감지, `tasty remote workspaces`/`remote check`/`tool attach`/`tool remote-profile detect`, IPC `remote.workspaces`/`remote.attach`/`remote.profile.detect`, 그리고 저장된 원격 행의 연결·재연결 워커.
 
 **사용자 지정을 기본값보다 우선한다**: 프로필 `extra_options` 에 `ConnectTimeout=<초>` 를 직접 넣으면 그 값이 적용된다(ssh(1) 은 같은 키의 **먼저 나온 값**을 쓰고, tasty 는 기본값을 `extra_options` 뒤에 붙인다). 느린 회선/다단 ProxyJump 에서 상향하는 수단이다. 전체 예산(45초)은 프로필로 조정하지 않는다.
 
@@ -382,7 +378,7 @@ Auto 체인이 전 단계 실패하면 가장 확정적인 분류(취소 > 타�
 
 - 새 연결부터 적용한다. 재시작은 필요 없고 이미 열린 연결은 그대로다. 파일을 직접 고치면 다음 시작 때 읽는다.
 - 서버와 GUI client 가 각자 자기 설정을 쓰고 협상하지 않는다. 끊는 쪽은 프레임을 받지 못하는 프로세스이고 그 프로세스의 값을 쓴다. 설정을 읽지 않는 CLI attach 쪽은 30초다.
-- 설정 창의 General › Remote attach 서브탭(`src/view/settings/ui/tabs/remote_attach.rs`)에서 `Disconnect after` 로 바꿀 수 있다. 범위를 벗어난 입력은 확정할 때 경계값으로 맞춘다. 디자인↔본체 매핑은 [design-gallery-mapping](../../design/systems/design-gallery-mapping.md) 의 Remote attach 절.
+- 설정 창의 General › Remote attach 서브탭(`src/view/settings/ui/tabs/remote_attach.rs`)에서 `Disconnect after` 로 바꿀 수 있다. 같은 서브탭의 `Keep reconnecting for` 는 [재연결 시간 창](#저장된-원격-행의-연결과-재연결)이다. 범위를 벗어난 입력은 확정할 때 경계값으로 맞춘다. 디자인↔본체 매핑은 [design-gallery-mapping](../../design/systems/design-gallery-mapping.md) 의 Remote attach 절.
 
 세부 계약은 [Attach 메커니즘](../../dev-guide/attach-behavior.md#무응답-제한-설정)에 있다.
 
@@ -405,7 +401,7 @@ Auto 체인이 전 단계 실패하면 가장 확정적인 분류(취소 > 타�
 IPC method `remote.attach` { `remote_workspace`, `profile?`/`ssh?` }(CLI `tasty remote attach --into-gui --workspace <id> --ssh|--profile`) — 권한 토큰 없이 세션 토큰 호출자도 부른다. 선택한 원격 워크스페이스를 **로컬 mirror 로 attach**(호스트가 워커 스레드에서 SSH 터널을 세우고 mirror 를 재구성).
 **focus 중립**이 핵심: 이 IPC/에이전트 경로는 mirror workspace 를 *조용히 생성만* 하고 focus 를 그 ws 로 옮기지 않는다(`active_workspace` 불변).
 새 mirror 로의 focus 이동은 **사용자 입력 경로 전용 별도 단계**(RA02 팝업에서 사용자가 확정할 때)이며, release IPC 에는 focus 변경 API 가 없다([포커스 정책](../../design/policies/focus.md)).
-회신은 즉시 `{attaching:true}`(`attempt`·`run` 포함) — 연결 결과는 [`run.result`](#연결-결과-조회)로 읽고, mirror 는 비동기로 나타나므로 `tasty list workspaces`(세션 토큰이면 `surface.read` 필요)로 확인한다: mirror 워크스페이스는 행에 `[mirror]` 가 붙고(`remote-ws (id:7) [mirror] (1 panes)`), `workspace.list` IPC 응답에는 `mirror: true` 로 실린다.
+회신은 즉시 `{attaching:true}`(`attempt`·`run` 포함) — 연결 결과는 [`run.result`](#연결-결과-조회)로 읽고, mirror 는 비동기로 나타나므로 `tasty list workspaces`(세션 토큰이면 `surface.read` 필요)로 확인한다: mirror 워크스페이스는 행에 `[mirror]` 가 붙고(`remote-ws (id:7) [mirror] (1 panes)`), `workspace.list` IPC 응답에는 `mirror: true` 로 실린다. 저장된 원격 행이면 `remote_row`(`profile`·`remote_workspace`)가 함께 실리고, 아니면 `null` 이다.
 
 호출자가 알아야 할 동작:
 
@@ -413,7 +409,7 @@ IPC method `remote.attach` { `remote_workspace`, `profile?`/`ssh?` }(CLI `tasty 
 - **앞선 시도 교체**: 같은 대상(`profile`·`ssh`·`remote_workspace`)의 수동 요청이 아직 끝나지 않았으면 새 요청이 앞선 요청을 취소하고, 앞선 요청의 run 은 `cancelled` 로 끝난다. 연결을 마친 mirror 는 건드리지 않는다. GUI 원격 추가 팝업의 연결은 이 수동 요청 표지가 없어 교체 대상이 아니다. 이미 점유된 원격 workspace 에 요청하면 run 이 `workspace attach rejected: already_attached` 로 실패한다.
 - **실패**: 기존 workspace 는 접수 응답 뒤에 실패하므로 `run.result` 의 `state: failed` 와 `result` 로 받는다(닫힌 포트, 없는 프로필, 없는 원격 workspace, SSH 인증 실패). `new_workspace:true` 는 오류 응답 `-32050` 으로 받는다. 어느 쪽이든 mirror 행과 터널이 남지 않는다.
 - **SSH**: ssh 는 호출자가 아니라 호스트 프로세스에서 호스트의 환경·agent 로 실행되고 stdin 은 닫혀 있다. 호출자에게 프롬프트가 전달되는 경로는 없다.
-- **정리**: anchor 가 없어 끊기면 재연결 없이 바로 정리된다. 원격 workspace 를 남기고 mirror 만 떼려면 `tasty remote disconnect --workspace <mirror id>`(IPC `remote.disconnect`)를 쓴다. 대상은 원격 id 가 아니라 이쪽 mirror workspace id 이고, 응답의 `remote_workspace` 로 나중에 `remote attach --into-gui --workspace <원격 id>` 를 다시 부른다. mirror 워크스페이스를 `close workspace` 로 닫을 수는 없다. 마지막 surface 를 닫으면(`tasty close surface`, `surface.write` 필요) 원격 workspace 가 함께 닫히고 mirror 도 사라진다.
+- **정리**: 에이전트가 붙인 mirror 는 저장된 행이 아니라서 끊기면 재연결 없이 바로 정리된다. 원격 workspace 를 남기고 mirror 만 떼려면 `tasty remote disconnect --workspace <mirror id>`(IPC `remote.disconnect`)를 쓴다. 대상은 원격 id 가 아니라 이쪽 mirror workspace id 이고, 응답의 `remote_workspace` 로 나중에 `remote attach --into-gui --workspace <원격 id>` 를 다시 부른다. mirror 워크스페이스를 `close workspace` 로 닫을 수는 없다. 마지막 surface 를 닫으면(`tasty close surface`, `surface.write` 필요) 원격 workspace 가 함께 닫히고 mirror 도 사라진다.
 - **plugin 호스트 호출**: 메서드 표는 plugin 을 막지 않지만 App 층 처리는 외부 IPC 전용이다. plugin 이 호스트 호출로 `remote.attach`·`remote.refusals`·`remote.workspaces`·`remote.disconnect` 를 부르면 권한 거절 없이 `-32017` 을 받는다. `attach.into_gui` 만 호스트 호출을 처리한다. plugin 프로세스가 외부 IPC 로 부르면 토큰 없이 접속하므로 권한 표와 무관하게 Local 로 처리된다.
 
 ### 원격 워크스페이스 추가 팝업 (GUI picker — 사용자 경로)
@@ -496,12 +492,11 @@ attach 세션의 수명은 **창(window)이 아니라 engine 에 매인다.** �
   - `tasty remote check --ssh|--profile` — 원격 생존 확인(`--profile` = tasty-attach).
   - `tasty remote workspaces --ssh|--profile [--json]` — 원격 워크스페이스 목록 조회(browse). `--ssh 127.0.0.1:<port>` 로 loopback 직결(터널 없이 로컬 e2e).
   - `tasty remote new-workspace --ssh|--profile [--name <n>] [--cwd <원격경로>] [--json]` — 원격에 워크스페이스 생성(원격 mutate). 출력 id 를 `remote attach --workspace <id>` 에 넘기면 "만들고 그 자리에서 attach" 가 CLI 만으로 완성된다. `--cwd` 는 **원격 파일시스템** 기준이며 원격이 존재를 검증한다. 원격 active 는 불변(Agent origin).
-  - `tasty set workspace --id <id> --ssh-profile <name> --remote-workspace <N>` — 자동 매핑 선언.
-  - `tasty remote refusals` — 이 인스턴스를 대상으로 해서 거절한 최근 attach 시도와, 연결하지 않은 채 남은 자동 attach 매핑의 안내(IPC `remote.refusals`). 읽기 전용.
+  - `tasty remote refusals` — 이 인스턴스를 대상으로 해서 거절한 최근 attach 시도와, 연결하지 못한 저장된 원격 행의 안내(IPC `remote.refusals`). 읽기 전용.
   - `tasty remote disconnect --workspace <mirror id>` — 원격 workspace 와 그 프로세스는 남기고 이쪽 mirror 만 뗀다(IPC `remote.disconnect`, mirror 카드의 **워크스페이스 연결 끊기**와 같은 정리). 성공하면 `{disconnected:true, workspace_id, remote_workspace}` 를 출력한다. attach 세션이 없는 workspace 면 `-32602` 다.
 - **IPC (`attach.*`)**: `acquire`/`release`(stream 핸드셰이크), `into_gui`, `list`(점유 목록 조회), 원격 자식 에이전트용 `agent_target`·`agent_call`·`agent_commit`·`child_notice`·`child_notices`. 남의 점유를 푸는 메서드는 없다. 표 상세 → [dev-guide/attach-behavior](../../dev-guide/attach-behavior.md#ipc-표면-attach).
 - **IPC (`remote.*` — 원격 브라우징/생성/attach, IPC·CLI 양면 — [API 규약](../../dev-guide/api-conventions.md#ipc-메서드를-cli로-제공하는-기준))**: `remote.workspaces` { `profile?`/`ssh?` } → 원격 ws 목록(browse, 워커 스레드+지연 회신). `remote.attach` { `remote_workspace` | `new_workspace`, `profile?`/`ssh?`, `name?`, `cwd?` } → 원격 ws 를 로컬 mirror 로 attach(**focus 중립**: mirror 생성만, focus 이동 없음). `new_workspace:true` 면 원격에 워크스페이스를 먼저 만들고 그것을 attach 한다 — `remote_workspace` 와 상호배타이며, 이때만 **생성 완료까지 기다렸다 지연 회신**해 새 `remote_workspace` id 를 돌려준다(기존 ws attach 는 즉시 `{attaching:true}` 유지). 두 응답 모두 시도 번호 `attempt` 를 싣고, 기존 ws attach 는 최종 결과를 조회할 `run` 도 싣는다(위 연결 결과 조회). 자기 자신이 대상이면: loopback 표기는 이 응답 대신 동기 `-32602` 오류가 오고, SSH 경로는 `new_workspace:true` 만 생성 전 `-32602` 이며 기존 ws attach 는 `{attaching:true}` 응답 뒤 비동기 거절이 `remote.refusals`(`via_ssh: true`)에 남는다(위 self-attach 절의 IPC 계약 요약). `remote.refusals` {} → 자기 포트라서 연결하지 않은 최근 시도 목록(위 self-attach 절). `remote.disconnect` { `workspace_id` } → 그 mirror 의 연결만 끊는다(위 "mirror 닫기와 연결 끊기"). 두 번째 호출은 같은 끝 상태에서 `-32602` 로 답한다. `remote.attach`·`remote.refusals`·`remote.disconnect` 는 권한 토큰을 요구하지 않는다([플러그인 권한](../../dev-guide/plugin-permissions.md#토큰-없이도-열려-있는-메서드)). CLI 와 코어 공유 — 조회는 `tasty_remote::browse`, 생성은 `tasty_remote::create`.
-- **로컬 self attach**(별도 CLI 프로세스가 포트 파일로 로컬 인스턴스를 mirror): 사용자 mirror 조작 재현 성격이라 release 에 없음 — `tasty debug attach`(debug 빌드 전용, [`dev-guide/debug-ipc`](../../dev-guide/debug-ipc.md)). 같은 머신의 다른 인스턴스에 loopback 주소(`127.0.0.1:PORT`·`localhost:PORT`·`[::1]:PORT`)로 붙는 GUI 원격 연결 팝업·IPC `remote.attach`·자동 attach 는 release 에도 있다(아래 비-목표 절).
+- **로컬 self attach**(별도 CLI 프로세스가 포트 파일로 로컬 인스턴스를 mirror): 사용자 mirror 조작 재현 성격이라 release 에 없음 — `tasty debug attach`(debug 빌드 전용, [`dev-guide/debug-ipc`](../../dev-guide/debug-ipc.md)). 같은 머신의 다른 인스턴스에 loopback 주소(`127.0.0.1:PORT`·`localhost:PORT`·`[::1]:PORT`)로 붙는 GUI 원격 연결 팝업·IPC `remote.attach`·저장된 원격 행의 연결은 release 에도 있다(아래 비-목표 절).
 - **프로필**: `--profile`/`tool attach` 이 참조하는 tasty-attach 프로필(및 그것이 `ssh_ref` 로 참조하는 ssh 프로필)은 [remote-profiles](../remote-profiles/index.md) 이 관리.
 
 ## 원격 파일 다운로드 후 실행
@@ -569,7 +564,7 @@ bulk 파일 전송과 mirror 터미널 이미지 붙여넣기 업로드에 대�
 - Given 연결된 mirror 카드와 로컬 카드 When 각각 우클릭 Then mirror 에는 **워크스페이스 연결 끊기** 와 **워크스페이스 닫기** 가 함께 있고 로컬 카드에는 연결 끊기가 없다.
 - Given 연결된 mirror R When **워크스페이스 닫기** Then 서버 목록에서 R 만 사라지고 R 의 프로세스가 끝나며, 성공 회신 뒤 client 의 R mirror 와 세션이 정리된다. 다른 서버 workspace 와 로컬 workspace 는 유지된다.
 - Given 서버가 닫기를 거절하거나 capability 가 없는 구 서버 When **워크스페이스 닫기** Then mirror 는 남고 실패·미지원 안내가 뜬다. 회신 전에 연결이 끝나면 결과를 모른다고 안내하며 성공으로 표시하지 않는다.
-- Given 연결된 mirror R When **워크스페이스 연결 끊기** Then client 의 R mirror 만 사라지고 서버의 R 과 프로세스는 같은 ID 로 남으며 서버 점유가 풀린다. anchor 로 다시 전환하거나 다시 attach 하면 같은 workspace 와 출력에 접근한다.
+- Given 연결된 mirror R When **워크스페이스 연결 끊기** Then client 의 R mirror 만 사라지고 서버의 R 과 프로세스는 같은 ID 로 남으며 서버 점유가 풀린다. 저장된 원격 행이면 행은 연결 끊김으로 남는다. 다시 attach 하면 같은 workspace 와 출력에 접근한다.
 - Given mirror 로 붙은 원격 workspace R When 에이전트가 `tasty remote disconnect --workspace <mirror id>` Then 이쪽 mirror 는 사라지고 원격 R 과 그 프로세스는 남으며, `remote attach --into-gui --workspace <R>` 로 다시 붙으면 같은 화면이 보인다.
 - Given 그 항목을 누른 상태 When 확인 팝업이 떠 있다 Then 점유는 아직 유지되고, 취소·Escape·바깥 클릭 어느 쪽으로 닫아도 점유가 그대로 남는다.
 - Given 확인 팝업이 떠 있는 동안 원격이 스스로 끊었다 When 다음 프레임 Then 팝업은 즉시 닫힌다(대상 없는 확인을 남기지 않는다).
@@ -590,7 +585,7 @@ bulk 파일 전송과 mirror 터미널 이미지 붙여넣기 업로드에 대�
 - Given client 의 번들 markdown plugin 이 attach 시점에 안 떠 있음(부팅 때 꺼져 있던 plugin) When plugin 을 켠 뒤 그 mirror 워크스페이스를 연다 Then 빈 surface 로 남지 않고 plugin 이 뜬 뒤 원격 문서로 채워진다 — kind 대기 자리가 kind 등록 뒤 mirror 문서로 실제화되는 것(`src/app/attach_client/survivors/tests.rs` 단위 테스트)과 plugin 이 그 복원 data 를 로컬 snapshot 과 구별하는 것(`crates/tasty-plugin-markdown/src/tests.rs`)을 고정한다. 실측(GUI 두 인스턴스 loopback attach): 켜기 전 surface 목록 `Pending` → 켜고 연 뒤 `Remote`, 원문이 그려지고 탭 제목은 원격 파일 이름이다.
 - Given mirror markdown 문서 When plugin 이 그 문서를 연다 Then 원격 경로가 이 머신에 실재해도 파일을 읽지 않고, 상대경로를 풀 디렉토리를 두지 않으며, layout 에 남길 snapshot 도 내지 않는다 — 원문은 요청해 받은 것만 그린다(`crates/tasty-plugin-markdown/src/tests.rs`).
 - Given mirror markdown 문서 When 새로고침 버튼을 누르거나 `markdown.reload` 를 부른다 Then 원격 원문을 다시 요청하고, 늦게 온 옛 회신은 버린다(`crates/tasty-plugin-markdown/src/tests.rs`). 실측(GUI 두 인스턴스): 버튼 클릭과 `markdown.reload` 모두 원문을 다시 받아 stale 표시를 끈 문서로 다시 그린다.
-- Given mirror markdown 문서(원문을 기다리는 중이든 이미 표시 중이든) When anchor 매핑이 있는 세션의 attach 연결이 끊겨 재연결 대기에 들어감 Then 문서는 로딩 상태로 멈추지도 옛 원문을 최신처럼 남기지도 않고 "원격 연결이 끊어졌다" 는 끊김 화면으로 바뀐다 — 요청 송신 자체가 실패해도 같은 실패 결과가 간다. plugin 이 abandon 을 받으면 원문을 받은 뒤에도 끊김 상태가 되는 것(`crates/tasty-plugin-markdown/src/tests.rs`)과 끊김 상태가 원문보다 앞서 그려지는 것(`crates/tasty-plugin-markdown/src/render.rs` 단위 테스트)을 고정한다. 실측(GUI 두 인스턴스, 서버 종료): 원문을 표시 중이던 문서가 끊김 문구 화면으로 다시 그려졌다. anchor 가 없는 수동 attach 는 mirror 워크스페이스째 정리되고 끊김 toast 가 뜬다(실측).
+- Given mirror markdown 문서(원문을 기다리는 중이든 이미 표시 중이든) When 저장된 원격 행 세션의 attach 연결이 끊겨 재연결 대기에 들어감 Then 문서는 로딩 상태로 멈추지도 옛 원문을 최신처럼 남기지도 않고 "원격 연결이 끊어졌다" 는 끊김 화면으로 바뀐다 — 요청 송신 자체가 실패해도 같은 실패 결과가 간다. plugin 이 abandon 을 받으면 원문을 받은 뒤에도 끊김 상태가 되는 것(`crates/tasty-plugin-markdown/src/tests.rs`)과 끊김 상태가 원문보다 앞서 그려지는 것(`crates/tasty-plugin-markdown/src/render.rs` 단위 테스트)을 고정한다. 실측(GUI 두 인스턴스, 서버 종료): 원문을 표시 중이던 문서가 끊김 문구 화면으로 다시 그려졌다. 저장되지 않은 mirror 는 mirror 워크스페이스째 정리되고 끊김 toast 가 뜬다(실측).
 - Given 끊김 화면을 보이는 survivor mirror markdown 문서 When 같은 서버에 재연결 Then 사용자가 누르지 않아도 원문을 다시 받아 그린다 — 끊긴 동안 바뀐 원문이면 바뀐 원문이 온다. client 가 재연결 직후 survivor 문서마다 변경 신호를 한 번 보내고, plugin 은 그 신호로 원문을 보여 주던 문서는 stale 표시만, 원문을 못 보여 주던 문서(끊김·실패)는 재요청한다(`crates/tasty-plugin-markdown/src/tests.rs`). 실측(GUI 두 인스턴스, 서버를 SIGSTOP 해 heartbeat 만료로 끊고 SIGCONT 로 재연결): 같은 로컬 surface 가 끊김 화면에서 원문으로 돌아왔고, 재연결 신호 송신을 빼는 변이에서는 끊김 화면에 머물렀다. 서버를 재시작하면 원격 surface id 가 바뀌어 survivor 가 아니라 새 leaf 로 만들어지고 새로 원문을 받는다(실측).
 - Given mirror markdown 문서가 원문을 받아 표시 중 When 원격(GUI 서버)에서 그 문서가 다시 그려짐(파일 수정·테마 변경 등) Then client 는 원문을 자동으로 다시 받지 않고 새로고침 버튼 색만 바뀌며, 버튼을 누르면 그때 최신 원문이 온다 — 서버가 신호를 워크스페이스를 점유한 client 전부에 한 번씩 보내는 것과 점유가 없으면 아무것도 안 보내는 것(`src/remote/server.rs` 단위 테스트), client 가 자기 mirror 문서의 신호만 plugin 에 넘기는 것(`src/app/attach_client/output/tests.rs` 단위 테스트), plugin 이 신호로는 stale 표시만 켜는 것(`crates/tasty-plugin-markdown/src/tests.rs`)을 각각 고정한다.
   `webview.set_url` 수신이 그 신호 송신으로 이어지는 것은 `src/adapters/ipc/handler/webview.rs` 단위 테스트가 고정한다(신호 호출을 빼는 변이에서 실패).
@@ -611,13 +606,13 @@ bulk 파일 전송과 mirror 터미널 이미지 붙여넣기 업로드에 대�
 
 > 프로토콜과 터미널 화면 동기화는 headless로 검증할 수 있다 — 같은 머신에 인스턴스를 띄우고 debug 빌드의 `tasty debug attach --workspace <id> --dump-after <ms>` 로 그 인스턴스의 포트에 SSH 없이 직접 붙어 grid 일치를 확인한다. 포트는 `TASTY_HOME` 이 가리키는 데이터 루트의 포트 파일에서 읽으므로 서버 인스턴스의 `TASTY_HOME` 으로 실행한다. workspace id 는 `tasty remote workspaces --ssh 127.0.0.1:<port>` 로 찾는다.
 >
-> `tasty remote attach`·`tool attach`·`remote check` 에는 loopback 분기가 없다. `--ssh 127.0.0.1:<port>` 를 줘도 SSH 로 원격 포트를 찾으려다 "SSH connection failed" 로 끝난다. `127.0.0.1:PORT`·`localhost:PORT`·`[::1]:PORT` 직결은 browse(`remote workspaces`·`remote new-workspace`), IPC `remote.*`, GUI 원격 연결 팝업, 자동 attach 에만 있다.
+> `tasty remote attach`·`tool attach`·`remote check` 에는 loopback 분기가 없다. `--ssh 127.0.0.1:<port>` 를 줘도 SSH 로 원격 포트를 찾으려다 "SSH connection failed" 로 끝난다. `127.0.0.1:PORT`·`localhost:PORT`·`[::1]:PORT` 직결은 browse(`remote workspaces`·`remote new-workspace`), IPC `remote.*`, GUI 원격 연결 팝업, 저장된 원격 행의 연결에만 있다.
 
 ## 구현
 
 - 점유 레지스트리: `src/core/attach.rs` `OccupancyRegistry`(hard: `surface_locks` / `workspace_locks` / `surface_to_workspace`, acquire/release/force_detach/release_all_for_client · soft: 별도 엔트리 + acquire_soft/release_soft, docs/dev-guide/attach-behavior.md). 휘발성.
 - 런타임/스냅샷: `src/remote/server.rs`(서버측 수신, transport 무관 loopback), `src/remote/readonly.rs`(서버측 readonly mirror), `src/app/attach_poll.rs`(3초 tick).
-- 자동 매핑: `src/app/auto_attach.rs`(`Workspace.attach_mapping` 활성화 시 SSH 터널 + GUI mirror).
+- 저장된 원격 행의 연결·재연결: `src/app/auto_attach.rs`(행을 띄우면 SSH 터널 + GUI mirror, 재연결 시간 창).
 - IPC: `src/adapters/ipc/handler/attach.rs`(`attach.*`). 원격 브라우징/attach IPC는 `src/app/ipc/app_methods/remote.rs`와 `src/app/auto_attach.rs`를 거친다. `src/app/attach_client.rs`는 원 engine/attempt에 연결된 결과를 Remote projection에 설치한다. IPC 경로는 사용자 선택을 옮기지 않는다.
 - GUI picker: `src/adapters/ui/popup/remote_attach.rs`가 `BrowserRequest`를 보내고 `src/app/remote_browser.rs`가 원 browse owner를 확인해 연결한다. Connect는 원 engine/View의 mirror 설치 target에 사용자 활성화 의도를 고정한다. 현재 선택을 직접 쓰는 옛 `start_gui_attach`/`pending_gui_attach_user` 경로는 사용하지 않는다.
   새 원격 workspace 생성도 같은 browser 요청/결과 경계를 사용한다.
@@ -644,7 +639,7 @@ bulk 파일 전송과 mirror 터미널 이미지 붙여넣기 업로드에 대�
 
 ### 트리거
 
-`tasty remote attach --into-gui …` 또는 자동 매핑된 워크스페이스 활성화 → 로컬 GUI 에 mirror 워크스페이스가 **추가**된다(포커스/active 강제 전환 없음 — 부모 기획).
+`tasty remote attach --into-gui …` 또는 저장된 원격 행 활성화 → 로컬 GUI 에 mirror 워크스페이스가 **추가**된다(포커스/active 강제 전환 없음 — 부모 기획).
 
 ### UI 요소 인벤토리
 

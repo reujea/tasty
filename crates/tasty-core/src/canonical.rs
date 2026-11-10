@@ -93,7 +93,6 @@ pub struct CanonWorkspace {
     pub category: u32,
     pub subtitle: String,
     pub description: String,
-    pub attach_mapping: Option<serde_json::Value>,
     pub metadata: BTreeMap<String, String>,
     pub layout: CanonTree,
     /// layout의 leaf 순서.
@@ -178,21 +177,6 @@ pub fn direction_name(direction: SplitDirection) -> &'static str {
     match direction {
         SplitDirection::Horizontal => "horizontal",
         SplitDirection::Vertical => "vertical",
-    }
-}
-
-/// JSON 값의 객체 키를 정렬한다. serde_json의 순서 보존 기능이 켜져 있어도 같은 값이 같은 바이트가 된다.
-pub fn sorted_value(value: &serde_json::Value) -> serde_json::Value {
-    match value {
-        serde_json::Value::Object(map) => {
-            let sorted: BTreeMap<&String, serde_json::Value> =
-                map.iter().map(|(k, v)| (k, sorted_value(v))).collect();
-            serde_json::Value::Object(sorted.into_iter().map(|(k, v)| (k.clone(), v)).collect())
-        }
-        serde_json::Value::Array(items) => {
-            serde_json::Value::Array(items.iter().map(sorted_value).collect())
-        }
-        other => other.clone(),
     }
 }
 
@@ -320,9 +304,6 @@ impl Canonical {
                 category: ws.category,
                 subtitle: ws.subtitle.clone(),
                 description: ws.description.clone(),
-                attach_mapping: ws.attach_mapping.as_ref().map(|m| {
-                    sorted_value(&serde_json::to_value(m).unwrap_or(serde_json::Value::Null))
-                }),
                 metadata: ws.metadata.clone(),
                 layout: tree(&ws.layout),
                 panes,

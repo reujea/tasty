@@ -184,10 +184,8 @@ fn apply(m: &mut JournalModel, event: DomainEvent) -> Result<()> {
             workspace.description = description;
             Ok(())
         }
-        DomainEvent::WorkspaceAttachMappingSet { id, mapping } => {
-            get_mut(&mut m.workspaces, IdKind::Workspace, id)?.attach_mapping = mapping;
-            Ok(())
-        }
+        // 옛 매핑 기록은 읽고 버린다.
+        DomainEvent::WorkspaceAttachMappingSet { .. } => Ok(()),
         DomainEvent::RemoteRowSet { id, row } => {
             if m.workspaces.contains_key(&id) {
                 return Err(EvolveError::Duplicate(format!("workspace:{id}")));
@@ -411,7 +409,6 @@ fn create_workspace(
             layout: SplitTree::Leaf(pane),
             subtitle: String::new(),
             description: String::new(),
-            attach_mapping: None,
             metadata: Default::default(),
         },
     );

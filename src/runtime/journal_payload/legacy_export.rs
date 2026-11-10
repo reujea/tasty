@@ -54,7 +54,6 @@ pub(crate) fn capture(
                     .iter()
                     .position(|pane| view.focused_panes.get(id) == Some(pane))
                     .unwrap_or(0),
-                attach_mapping: workspace.attach_mapping.clone(),
                 category: workspace.category,
             })
         })

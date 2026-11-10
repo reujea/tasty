@@ -77,9 +77,7 @@ pub(super) fn apply_event(
             workspace.subtitle = subtitle.clone();
             workspace.description = description.clone();
         }
-        DomainEvent::WorkspaceAttachMappingSet { id, mapping } => {
-            workspace(engine, *id)?.attach_mapping = mapping.clone()
-        }
+        DomainEvent::WorkspaceAttachMappingSet { .. } => {}
         DomainEvent::WorkspaceMoved {
             id,
             category,

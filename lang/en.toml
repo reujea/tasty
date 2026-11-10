@@ -248,6 +248,8 @@ max_capacity_desc = "Total the folder may hold. A transfer that would push it pa
 section = "Attach connections"
 heartbeat_timeout = "Disconnect after"
 heartbeat_timeout_desc = "How long an attach connection can receive nothing from the other side before it disconnects. Saved values apply to new connections, no restart needed. Open connections don't change. The other Tasty uses its own value and may disconnect first. Default 30."
+reconnect_window = "Keep reconnecting for"
+reconnect_window_desc = "How long to keep trying to reconnect, starting when Disconnect after ends the connection. 0 disables automatic reconnecting. This automatic retry does not apply to connections you end yourself. Default 300."
 
 [settings.file_handler]
 coming_soon = "This sub-tab will be available in a future update."
@@ -2723,15 +2725,6 @@ help = "Directory path (for explorer type)"
 [cli.help._root.new.workspace.arg.url]
 help = "URL (for html type)"
 
-[cli.help._root.new.workspace.arg.ssh_profile]
-help = "Map this workspace to a saved SSH profile (a remote machine). When the workspace is activated, the host attaches automatically (SSH tunnel + workspace mirror)"
-
-[cli.help._root.new.workspace.arg.ssh]
-help = "Map to a one-off inline SSH target without a saved profile, e.g. --ssh user@host. Mutually exclusive with `--ssh-profile`"
-
-[cli.help._root.new.workspace.arg.remote_workspace]
-help = "Workspace id on the mapped remote tasty to attach to"
-
 [cli.help._root.new.workspace.arg.category]
 help = "Category to place the workspace in (name or id). Defaults to normal"
 
@@ -2893,7 +2886,7 @@ about = "Set a read mark on a surface"
 help = "Surface ID (default: $TASTY_SURFACE_ID, the calling surface)"
 
 [cli.help._root.set.workspace]
-about = "Update workspace name, subtitle, description, or SSH attach mapping"
+about = "Update workspace name, subtitle, description, or category"
 
 [cli.help._root.set.workspace.arg.id]
 help = "Workspace ID (required)"
@@ -2906,18 +2899,6 @@ help = "New subtitle"
 
 [cli.help._root.set.workspace.arg.description]
 help = "New description"
-
-[cli.help._root.set.workspace.arg.ssh_profile]
-help = "Map this workspace to a saved SSH profile (a remote machine)"
-
-[cli.help._root.set.workspace.arg.ssh]
-help = "Map to a one-off inline SSH target, e.g. --ssh user@host"
-
-[cli.help._root.set.workspace.arg.remote_workspace]
-help = "Workspace id on the mapped remote tasty to attach to"
-
-[cli.help._root.set.workspace.arg.clear_mapping]
-help = "Clear the existing SSH attach mapping"
 
 [cli.help._root.set.workspace.arg.category]
 help = "Move this workspace to another category (name or id)"

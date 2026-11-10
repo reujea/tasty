@@ -427,7 +427,6 @@ impl Creation {
                             category: 0,
                             subtitle: String::new(),
                             description: String::new(),
-                            attach_mapping: None,
                         },
                         surface: SurfaceSpec {
                             id: id(IdKind::Surface)?,

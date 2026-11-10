@@ -181,7 +181,7 @@ impl ResponsePlan {
                     serde_json::json!({
                         "id": id, "name":workspace.name, "subtitle":workspace.subtitle,
                         "description":workspace.description,"index":display_index,"surface_id":surface_id,
-                        "category":workspace.category,"attach_mapping":workspace.attach_mapping,
+                        "category":workspace.category,
                     }),
                 )
             }
@@ -228,7 +228,7 @@ impl ResponsePlan {
                     serde_json::json!({
                         "id": id, "name": workspace.name, "subtitle": workspace.subtitle,
                         "description": workspace.description, "index": display_index,
-                        "category": workspace.category, "attach_mapping": workspace.attach_mapping,
+                        "category": workspace.category,
                     }),
                 )
             }

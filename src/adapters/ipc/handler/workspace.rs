@@ -1,78 +1,8 @@
 use serde_json::json;
 
 use super::params;
-use crate::model::{WorkspaceAttachMapping, WorkspaceAttachTarget};
 use crate::runtime::engine_access::EngineRef;
 use tasty_ipc::protocol::JsonRpcResponse;
-
-/// attach_profile을 우선하고 없으면 attach_ssh를 읽는다. 둘 다 없으면 매핑 없음이다.
-/// 잘못된 원격 workspace 값은 생략으로 처리하지 않고 거절한다.
-pub(crate) fn parse_attach_mapping(
-    params: &serde_json::Value,
-) -> Result<Option<WorkspaceAttachMapping>, String> {
-    let remote_workspace = params::read_int::<u32>(params, "attach_remote_workspace")?;
-    if let Some(name) = params
-        .get("attach_profile")
-        .and_then(|v| v.as_str())
-        .filter(|s| !s.is_empty())
-    {
-        return Ok(Some(WorkspaceAttachMapping {
-            target: WorkspaceAttachTarget::Profile {
-                name: name.to_string(),
-            },
-            remote_workspace,
-        }));
-    }
-    if let Some(host) = params
-        .get("attach_ssh")
-        .and_then(|v| v.as_str())
-        .filter(|s| !s.is_empty())
-    {
-        return Ok(Some(WorkspaceAttachMapping {
-            target: WorkspaceAttachTarget::Inline {
-                host: host.to_string(),
-                remote_tasty: None,
-                port_mode: None,
-                port_file: None,
-            },
-            remote_workspace,
-        }));
-    }
-    Ok(None)
-}
-
-/// release 입력 제한에 쓰는 loopback 주소 형식 검사.
-#[cfg(not(debug_assertions))]
-fn is_loopback_attach_host(host: &str) -> bool {
-    let h = if host.strip_prefix("[::1]:").is_some() {
-        "::1"
-    } else if let Some((h, _port)) = host.rsplit_once(':') {
-        h
-    } else {
-        return false;
-    };
-    matches!(h, "127.0.0.1" | "localhost" | "::1")
-}
-
-/// release에서는 loopback attach 매핑을 거절한다. 로컬 mirror 시험은 debug attach를 쓴다.
-#[cfg(not(debug_assertions))]
-pub(crate) fn reject_loopback_attach(
-    params: &serde_json::Value,
-    id: &serde_json::Value,
-) -> Option<JsonRpcResponse> {
-    let host = params
-        .get("attach_ssh")
-        .and_then(|v| v.as_str())
-        .filter(|s| !s.is_empty())?;
-    if is_loopback_attach_host(host) {
-        return Some(JsonRpcResponse::invalid_params(
-            id.clone(),
-            "loopback(self) attach 매핑은 release 빌드에서 지원되지 않습니다 \
-             (로컬 self-attach 는 debug 빌드 `tasty debug attach` 전용).",
-        ));
-    }
-    None
-}
 
 /// create/update params 의 `category` 를 카테고리 id 로 해석한다.
 /// - 필드 없음 → `Ok(None)` (호출자가 normal 기본값 유지).
@@ -91,9 +21,15 @@ pub(crate) fn resolve_category_param(
     }
 }
 
-pub(crate) fn mapping_to_json(mapping: &Option<WorkspaceAttachMapping>) -> serde_json::Value {
-    match mapping {
-        Some(m) => serde_json::to_value(m).unwrap_or(serde_json::Value::Null),
+/// 저장된 원격 행의 연결 대상. 로컬 workspace와 에이전트 mirror는 null이다.
+pub(crate) fn remote_row_to_json(
+    binding: &Option<crate::model::RemoteBinding>,
+) -> serde_json::Value {
+    match binding {
+        Some(binding) => json!({
+            "profile": binding.profile,
+            "remote_workspace": binding.remote_workspace,
+        }),
         None => serde_json::Value::Null,
     }
 }
@@ -117,8 +53,8 @@ pub fn handle_workspace_list(
                 "active": i == window.active_workspace_index(engine),
                 "pane_count": ws.pane_layout().all_pane_ids().len(),
                 "busy_count": engine.read().busy_count(&sids),
-                "attach_mapping": mapping_to_json(&ws.attach_mapping),
-                // 연결 설정과 현재 mirror 여부는 다르다.
+                // 저장된 원격 행의 연결 대상. 에이전트 mirror는 mirror만 true다.
+                "remote_row": remote_row_to_json(&ws.remote_row),
                 "mirror": ws.mirror,
                 "category": ws.category,
                 "category_name": engine.category_name(ws.category),

@@ -1,10 +1,50 @@
-//! 저장된 원격 행을 가진 engine을 찾는다.
+//! 저장된 원격 행의 연결 상태 전환(끊긴 행, 재연결 시간)과 그 행을 가진 engine 찾기.
 //! 세션 연결·재연결 자체는 `connection`에 있다.
 
 use crate::app::App;
 use crate::runtime::engine_session::EngineId;
+use crate::view::ui::View as _;
+use tasty_remote::client_session::SessionState;
 
 impl App {
+    pub(crate) fn reconnect_window(&self) -> std::time::Duration {
+        std::time::Duration::from_secs(
+            self.services
+                .reconnect_window_secs
+                .load(std::sync::atomic::Ordering::Relaxed),
+        )
+    }
+
+    /// 저장된 원격 행을 형상을 남긴 끊긴 행으로 둔다. 연결이 남아 있으면 먼저 놓는다.
+    /// 자동 재연결은 멈추고, 그 행을 다시 열거나 연결 버튼으로 다시 붙는다.
+    pub(crate) fn enter_disconnected(&mut self, row: u32) {
+        let Some(idx) = self
+            .remote
+            .sessions
+            .iter()
+            .position(|session| session.state.saved_row == Some(row))
+        else {
+            return;
+        };
+        if self.remote.sessions[idx].state.phase == SessionState::Connected {
+            self.release_session_connection(idx, SessionState::Disconnected);
+        }
+        self.remote.sessions[idx].state.phase = SessionState::Disconnected;
+        self.remote.active.remove(&row);
+        self.remote.reconnect.entry(row).or_default().given_up = true;
+        self.mark_row_window_dirty(row);
+        tracing::info!("gui attach: saved remote row {row} 끊긴 상태로 전환");
+    }
+
+    fn mark_row_window_dirty(&mut self, row: u32) {
+        for (_, main, engine) in self.engines_mut().window_pairs() {
+            if engine.workspaces().into_iter().any(|ws| ws.id == row) {
+                main.mark_dirty();
+                break;
+            }
+        }
+    }
+
     /// 이 workspace를 저장된 원격 행으로 가진 engine.
     pub(crate) fn saved_remote_row_engine(&self, workspace: u32) -> Option<EngineId> {
         self.engines.all_sessions().find_map(|session| {

@@ -244,7 +244,7 @@ mirror 가 서버의 이름을 아직 받지 못했거나 이름을 보내지 �
 |---|---|---|---|
 | `mouse-capture` | Surface | 마우스를 캡처한 TUI에서 사용자가 드래그 선택을 시도했을 때 | 정적 `content_fn` + 더보기(⋯)·닫기. 프로그램 이름을 몰라도 ⋯ 메뉴가 있어 TTL 없이 동작이나 ×까지 남는다 |
 | `shell-integration-missing` | Surface | 사용자가 본 로컬 셸 surface가 출력은 있는데 PromptBoundary를 받지 못할 때. 로컬 PTY가 없는 원격 attach mirror에는 띄우지 않는다 | 정적 `content_fn` + 카운트다운·닫기. 동작이 없어 TTL 10초 뒤 닫힌다. TTL은 디자인 고정값이며 설정으로 노출하지 않는다 |
-| `attach-refusal` | Workspace | 사용자가 활성화한 워크스페이스의 자동 attach 매핑을 연결하지 않았을 때 | `BannerContentSource::AttachRefusal`(대상·이유)을 `tasty_ui_widgets::attach_refusal_banner_content`로 그린다. 매핑 지우기·닫기 버튼이 내용 안에 있어 모서리 닫기 슬롯을 쓰지 않는다. 스코프가 좁으면 매핑 지우기 버튼만 본문 아래 줄로 내리고 ×는 오른쪽 위에 남는다([좁은 스코프](#좁은-스코프)). ×는 그 창의 이번 활성화에만 숨긴다. 상세는 [원격 attach](../../features/remote-attach/index.md) |
+| `attach-refusal` | Workspace | 사용자가 활성화한 저장된 원격 행이 연결하지 못한 안내를 가질 때 | `BannerContentSource::AttachRefusal`(대상·이유)을 `tasty_ui_widgets::attach_refusal_banner_content`로 그린다. 매핑 지우기·닫기 버튼이 내용 안에 있어 모서리 닫기 슬롯을 쓰지 않는다. 스코프가 좁으면 매핑 지우기 버튼만 본문 아래 줄로 내리고 ×는 오른쪽 위에 남는다([좁은 스코프](#좁은-스코프)). ×는 그 창의 이번 활성화에만 숨긴다. 상세는 [원격 attach](../../features/remote-attach/index.md) |
 | `attach-size-sync` | Workspace | 활성 워크스페이스가 mirror 이고 그 터미널 크기 동기화가 자동 재시도 뒤에도 실패했을 때 | `BannerContentSource::AttachSizeSync`(탭 이름·다시 시도 중 여부)를 `tasty_ui_widgets::attach_size_sync_banner_content`로 그린다. 다시 시도·닫기 버튼이 내용 안에 있어 모서리 닫기 슬롯을 쓰지 않으며, 좁으면 다시 시도만 아래 줄로 내린다. 버튼은 App 이 그 세션에 적용하고 × 는 실패 목록을 비운다. 상세는 [attach 동작](../../dev-guide/attach-behavior.md#크기-요청의-응답과-재시도) |
 
 ## IPC / debug

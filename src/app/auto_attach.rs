@@ -1,7 +1,7 @@
-//! 매핑된 워크스페이스의 자동 attach와 재연결을 처리한다.
+//! 저장된 원격 행의 연결과 재연결을 처리한다.
 //! SSH 연결 준비는 워커가 맡고 메인 루프가 결과를 mirror 세션에 적용한다.
-//! 재연결은 예약 시각 또는 해당 워크스페이스 재활성화로 시도한다.
-//! 자동 재시도 상한에 도달해도 사용자가 다시 활성화하면 재시도할 수 있다.
+//! 아직 붙지 않은 행은 그 행이 보이면(포커스된 창의 활성 workspace) 연결하고, 연결이 끊긴 행은
+//! 재연결 시간 동안 예약 시각마다 다시 시도한 뒤 형상을 남긴 끊긴 행이 된다.
 //! docs/dev-guide/attach-behavior.md#gui-자동-재연결-스코프 참조.
 
 mod notice;
@@ -9,16 +9,16 @@ mod notice;
 use std::time::Instant;
 
 use tasty_remote_profiles::{Passkeys, RemoteProfiles};
-use tasty_ssh::{self as ssh, PortMode, SshTarget, SshTunnel};
+use tasty_ssh::{self as ssh, PortMode, SshTunnel};
 
 use crate::app::App;
-use crate::model::WorkspaceAttachTarget;
+use crate::model::RemoteBinding;
 use crate::view::ui::View as _;
 use tasty_remote::client_session::SessionState;
 use tasty_remote::outbound::{AutoAttachOutcome, ReconnectSlot};
+use tasty_remote::refusal::RowNoticeKind;
 
-/// 자동 재연결의 실패 횟수 상한. 워크스페이스 재활성화로 재시도하는 동작은 막지 않는다.
-const MAX_RECONNECT_ATTEMPTS: u32 = 20;
+pub(crate) use notice::connect_failure_kind;
 
 fn reconnect_due(slot: Option<&ReconnectSlot>, now: Instant) -> bool {
     match slot {
@@ -28,8 +28,7 @@ fn reconnect_due(slot: Option<&ReconnectSlot>, now: Instant) -> bool {
     }
 }
 
-/// 다음 재연결을 예약할 시각. None이어도 중단 상태를 가진 슬롯은 지우지 않는다.
-/// 슬롯이 없는 첫 시도는 현재 프레임에서 처리한다.
+/// 다음 재연결을 예약할 시각. 슬롯이 없는 첫 시도는 현재 프레임에서 처리한다.
 fn reconnect_wakeup_at(slot: Option<&ReconnectSlot>) -> Option<Instant> {
     match slot {
         Some(slot) if slot.given_up => None,
@@ -38,20 +37,31 @@ fn reconnect_wakeup_at(slot: Option<&ReconnectSlot>) -> Option<Instant> {
     }
 }
 
-/// 이번 실패까지 포함한 횟수를 받는다.
-fn reconnect_exhausted(attempts: u32) -> bool {
-    attempts >= MAX_RECONNECT_ATTEMPTS
+/// 재연결 구간이 시작된 뒤 재연결 시간이 지났는지.
+fn reconnect_window_elapsed(
+    slot: &ReconnectSlot,
+    now: Instant,
+    window: std::time::Duration,
+) -> bool {
+    now.saturating_duration_since(slot.started) >= window
 }
 
-/// 정상 진행 중인 백오프는 워크스페이스 전환만으로 초기화하지 않는다.
-fn should_reset_given_up(slot: Option<&ReconnectSlot>, edge_now: bool) -> bool {
-    edge_now && slot.is_some_and(|s| s.given_up)
+/// 사용자 대기 갈래 L4(권고 a): 아직 붙지 않은 저장된 원격 행이 보이게 되면 연결한다. 재시작 뒤
+/// 복원된 활성 행, 창 포커스 전환, 이웃 행 선택도 여기 든다. b로 정해지면 `edge_now`(사용자가
+/// 그 행으로 옮긴 프레임)만 true를 돌려준다.
+fn visible_row_connects(_edge_now: bool) -> bool {
+    true
+}
+
+/// 사용자 대기 갈래 L1(권고 a): 이 실행 중 사용자가 연결을 끊은 행은 명시적인 연결 전까지 자동으로
+/// 붙지 않는다. b로 정해지면 다음에 그 행을 열 때(`edge_now`) 다시 붙는다.
+fn user_disconnect_holds(user_disconnected: bool, _edge_now: bool) -> bool {
+    user_disconnected
 }
 
 impl App {
-    /// 활성 워크스페이스의 전환을 한 번 계산해 두 트리거가 같은 전환을 보게 한다.
+    /// 활성 workspace의 전환을 한 번 계산해 연결과 재연결이 같은 전환을 보게 한다.
     pub(crate) fn poll_auto_attach(&mut self) {
-        self.prune_first_attach_retries();
         let prev_active = self.remote.last_active_ws;
         let current_ws_id = self
             .focused_pair()
@@ -68,116 +78,154 @@ impl App {
             self.remote.refusals.announce(current);
         }
 
-        self.maybe_trigger_auto_attach(current_ws_id, prev_active);
+        self.maybe_connect_visible_row(current_ws_id, prev_active);
         self.maybe_trigger_reconnect(current_ws_id, prev_active);
         self.drain_auto_attach_results();
         self.sync_mapping_notices();
     }
 
-    /// 워크스페이스가 닫혔거나 매핑이 지워지거나 바뀐 anchor의 첫 attach 재시도 기록을 지운다.
-    /// 창과 parked engine을 모두 본다.
-    fn prune_first_attach_retries(&mut self) {
-        if self.remote.attach_retry.is_empty() && self.remote.closed_mappings.is_empty() {
-            return;
-        }
-        let live: std::collections::HashMap<u32, crate::model::WorkspaceAttachMapping> = self
-            .engines()
-            .sessions()
-            .flat_map(|(_, engine)| {
-                engine
-                    .workspaces()
-                    .into_iter()
-                    .filter_map(|ws| ws.attach_mapping.clone().map(|mapping| (ws.id, mapping)))
-                    .collect::<Vec<_>>()
-            })
-            .collect();
-        retain_live_first_attach_retries(&mut self.remote, |anchor| live.get(&anchor));
-        retain_live_closed_mappings(&mut self.remote, |anchor| live.get(&anchor));
-    }
-
     /// 타이머만 등록·해제한다. 중단 상태를 담은 재연결 슬롯은 보존한다.
     pub(crate) fn sync_reconnect_timers(&mut self, now: Instant) {
-        let mut wakeups: Vec<(u32, Instant)> = self
+        let window = self.reconnect_window();
+        let wakeups: Vec<(u32, Instant)> = self
             .remote
             .sessions
             .iter()
             .filter(|s| s.state() == SessionState::Reconnecting)
-            .filter_map(|s| s.anchor_ws_id())
-            // 워커가 이미 떠 있는 anchor 는 결과 이벤트(`AutoAttachReady`)가 깨운다.
-            .filter(|anchor| !self.remote.active.contains(anchor))
-            .filter_map(|anchor| {
-                reconnect_wakeup_at(self.remote.reconnect.get(&anchor)).map(|at| (anchor, at))
+            .filter_map(|s| s.saved_row())
+            // 워커가 이미 떠 있는 행은 결과 이벤트(`AutoAttachReady`)가 깨운다.
+            .filter(|row| !self.remote.active.contains(row))
+            .filter_map(|row| {
+                let slot = self.remote.reconnect.get(&row);
+                // 재연결 시간이 끝나는 시각에도 깨워 끊긴 행으로 바꾼다.
+                let deadline = slot.map(|slot| slot.started + window);
+                let next = reconnect_wakeup_at(slot);
+                match (next, deadline) {
+                    (Some(next), Some(deadline)) => Some((row, next.min(deadline))),
+                    (next, deadline) => next.or(deadline).map(|at| (row, at)),
+                }
             })
             .collect();
-        // 첫 attach의 재시도도 같은 타이머로 깨운다. 한 anchor는 둘 중 이른 시각을 쓴다.
-        for (anchor, retry) in &self.remote.attach_retry {
-            if self.remote.active.contains(anchor) {
-                continue;
-            }
-            let Some(at) = first_attach_wakeup_at(retry, now) else {
-                continue;
-            };
-            match wakeups.iter_mut().find(|(a, _)| a == anchor) {
-                Some((_, existing)) => *existing = (*existing).min(at),
-                None => wakeups.push((*anchor, at)),
-            }
-        }
         crate::app::timers::sync_reconnect_timers(&mut self.timers, &wakeups, now);
     }
 
-    /// 신규 매핑은 활성 상태면 연결하고, 연결 해제 뒤 대기 중인 anchor는 재활성화를 요구한다.
-    /// 대상 ID는 매핑에서 가져오며 포커스를 바꾸지 않는다.
-    fn auto_attach_candidate(
-        &self,
-        current_ws_id: Option<u32>,
-        prev_active: Option<u32>,
-    ) -> Option<(u32, crate::model::WorkspaceAttachMapping, u32)> {
-        let candidate = {
-            let (main, engine) = self.focused_pair()?;
-            let idx = main.state.active_workspace_index(engine.core);
-            match engine.workspace_at(idx) {
-                Some(ws) => ws.attach_mapping.as_ref().map(|m| (ws.id, m.clone())),
-                None => None,
-            }
-        };
-        let (anchor, mapping) = candidate?;
-        if !anchor_may_attach(&self.remote, anchor, &mapping, current_ws_id, prev_active) {
-            return None;
-        }
-        // 해석에 실패한 매핑은 간격을 두고 다시 시도한다. 사용자가 이 워크스페이스로 돌아오면 바로 시도한다.
-        let edge_now =
-            current_ws_id == Some(anchor) && is_reactivation_edge(current_ws_id, prev_active);
-        if first_attach_waits(
-            self.remote.attach_retry.get(&anchor),
-            &mapping,
-            Instant::now(),
-            edge_now,
-        ) {
-            return None;
-        }
-        let remote_ws = mapping.remote_workspace?;
-
-        Some((anchor, mapping, remote_ws))
+    /// 저장된 원격 행의 연결 대상. 창과 parked engine을 모두 본다.
+    pub(crate) fn saved_row_binding(&self, row: u32) -> Option<RemoteBinding> {
+        self.engines.all_sessions().find_map(|session| {
+            let core = &session.core_state;
+            core.find_workspace_index_for_id(row)
+                .and_then(|index| core.workspace_at(index))
+                .and_then(|ws| ws.remote_row.clone())
+        })
     }
 
-    fn maybe_trigger_auto_attach(&mut self, current_ws_id: Option<u32>, prev_active: Option<u32>) {
-        let Some((anchor, mapping, remote_ws)) =
-            self.auto_attach_candidate(current_ws_id, prev_active)
-        else {
+    /// 같은 연결 대상의 저장된 원격 행. 창과 parked engine을 모두 본다.
+    pub(crate) fn saved_row_for_binding(&self, binding: &RemoteBinding) -> Option<u32> {
+        self.engines.all_sessions().find_map(|session| {
+            session
+                .core_state
+                .mirror_workspaces()
+                .iter()
+                .find(|ws| ws.remote_row.as_ref() == Some(binding))
+                .map(|ws| ws.id)
+        })
+    }
+
+    fn row_session_phase(&self, row: u32) -> Option<SessionState> {
+        self.remote
+            .sessions
+            .iter()
+            .find(|session| session.state.saved_row == Some(row))
+            .map(|session| session.state.phase)
+    }
+
+    /// 포커스된 창의 활성 workspace가 붙지 않은 저장된 원격 행이면 연결을 시작한다.
+    /// 재연결 시간을 넘겨 끊긴 행은 사용자가 그 행으로 다시 옮겼을 때만 다시 붙는다.
+    fn maybe_connect_visible_row(&mut self, current_ws_id: Option<u32>, prev_active: Option<u32>) {
+        let Some(row) = current_ws_id else {
             return;
         };
+        if self.saved_row_binding(row).is_none() || self.remote.active.contains(&row) {
+            return;
+        }
+        let edge_now = is_reactivation_edge(current_ws_id, prev_active);
+        let user_disconnected = self.remote.user_disconnected.contains(&row);
+        if user_disconnect_holds(user_disconnected, edge_now) {
+            return;
+        }
+        match self.row_session_phase(row) {
+            Some(SessionState::Connected | SessionState::Reconnecting) => {}
+            Some(SessionState::Disconnected) => {
+                if edge_now {
+                    self.connect_saved_row(row, true);
+                }
+            }
+            None => {
+                // 실패한 행은 사용자가 다시 그 행으로 옮기거나 연결 버튼을 눌러야 다시 시도한다.
+                let waiting = self.remote.pending_reactivation.contains(&row);
+                if visible_row_connects(edge_now) && (!waiting || edge_now) {
+                    self.connect_saved_row(row, edge_now);
+                }
+            }
+        }
+    }
 
-        let attempt = match self
-            .remote
-            .begin_attempt(Some(anchor), Some(mapping.clone()))
-        {
+    /// 저장된 원격 행의 연결을 시작한다. 연결된 행이나 시도 중인 행은 그대로 둔다.
+    /// 형상이 남은 끊긴 행은 새 재연결 구간을 시작하고, 아직 붙지 않은 행은 첫 연결을 한다.
+    /// 사용자의 명시적 연결(팝업·메뉴)도 이 함수를 쓰며 그때는 사용자가 끊은 표지를 먼저 지운다.
+    pub(crate) fn connect_saved_row(&mut self, row: u32, from_user: bool) {
+        if self.remote.active.contains(&row) {
+            return;
+        }
+        let Some(binding) = self.saved_row_binding(row) else {
+            return;
+        };
+        self.ensure_row_token(row);
+        self.remote.pending_reactivation.remove(&row);
+        match self.row_session_phase(row) {
+            Some(SessionState::Connected) => {}
+            Some(SessionState::Reconnecting) => {
+                self.remote.reconnect.remove(&row);
+                self.trigger_reconnect_row(row, None, None);
+            }
+            Some(SessionState::Disconnected) => {
+                if let Some(session) = self
+                    .remote
+                    .sessions
+                    .iter_mut()
+                    .find(|session| session.state.saved_row == Some(row))
+                {
+                    session.state.phase = SessionState::Reconnecting;
+                }
+                self.remote.reconnect.insert(row, ReconnectSlot::new());
+                self.trigger_reconnect_row(row, None, None);
+            }
+            None => self.start_first_connect(row, binding, from_user),
+        }
+    }
+
+    /// 행의 연결 토큰이 없으면 만든다. 토큰이 없으면 시작한 시도가 바로 낡은 것으로 버려진다.
+    pub(crate) fn ensure_row_token(&mut self, row: u32) {
+        for session in self.engines.all_sessions_mut() {
+            if session.core_state.has_workspace(row) {
+                session
+                    .remote
+                    .row_tokens
+                    .entry(row)
+                    .or_insert_with(|| std::sync::Arc::new(()));
+            }
+        }
+    }
+
+    fn start_first_connect(&mut self, row: u32, binding: RemoteBinding, from_user: bool) {
+        let attempt = match self.remote.begin_attempt(Some(row), Some(binding.clone())) {
             Ok(attempt) => attempt,
             Err(error) => {
                 tracing::warn!("{error}");
                 return;
             }
         };
-        let endpoint_target = match self.mirror_install_target(None, Some(anchor), None, false) {
+        let endpoint_target = match self.mirror_install_target(None, Some(row), None, false) {
             Ok(target) => target,
             Err(error) => {
                 self.remote.finish_attempt(&attempt);
@@ -188,72 +236,72 @@ impl App {
         self.state
             .mirror_attempts
             .register_endpoint(attempt.clone(), endpoint_target);
-        self.remote.active.insert(anchor);
-        self.remote.pending_reactivation.remove(&anchor);
-        // 배너는 사용자 조작의 안내다. 매핑만 바뀌어 바로 시작한 시도의 안내는 행 표지만 보인다.
-        let from_activation =
-            current_ws_id == Some(anchor) && is_reactivation_edge(current_ws_id, prev_active);
-        self.remote.refusals.begin_attempt(anchor, from_activation);
-        let spawned =
-            self.spawn_endpoint_attempt(attempt, anchor, remote_ws, mapping.target.clone(), false);
+        self.remote.active.insert(row);
+        self.remote.refusals.begin_attempt(row, from_user);
+        let spawned = self.spawn_endpoint_attempt(
+            attempt,
+            row,
+            binding.remote_workspace,
+            binding.profile,
+            false,
+        );
         if let Err(error) = spawned {
-            self.reject_endpoint_start(anchor, error, false);
+            self.reject_endpoint_start(row, error, false);
         }
     }
 
-    /// 시도 중이 아닌 anchor를 예약 시각 또는 해당 워크스페이스 재활성화 때 재연결한다.
+    /// 재연결 중인 행을 예약 시각이나 사용자가 그 행으로 돌아왔을 때 다시 붙인다.
+    /// 재연결 시간을 넘기면 끊긴 행으로 바꾼다.
     fn maybe_trigger_reconnect(&mut self, current_ws_id: Option<u32>, prev_active: Option<u32>) {
-        let anchors: Vec<u32> = self
+        let rows: Vec<u32> = self
             .remote
             .sessions
             .iter()
             .filter(|s| s.state() == SessionState::Reconnecting)
-            .filter_map(|s| s.anchor_ws_id())
+            .filter_map(|s| s.saved_row())
             .collect();
-        for anchor in anchors {
-            self.trigger_reconnect_anchor(anchor, current_ws_id, prev_active);
+        let window = self.reconnect_window();
+        let now = Instant::now();
+        for row in rows {
+            if self.remote.active.contains(&row) {
+                continue;
+            }
+            let expired = self
+                .remote
+                .reconnect
+                .get(&row)
+                .is_some_and(|slot| reconnect_window_elapsed(slot, now, window));
+            if expired {
+                self.enter_disconnected(row);
+                self.notify_reconnect_giveup(row);
+                continue;
+            }
+            self.trigger_reconnect_row(row, current_ws_id, prev_active);
         }
     }
 
-    fn trigger_reconnect_anchor(
+    /// `current_ws_id`가 None이면 예약 시각과 관계없이 지금 시도한다(명시적 연결).
+    fn trigger_reconnect_row(
         &mut self,
-        anchor: u32,
+        row: u32,
         current_ws_id: Option<u32>,
         prev_active: Option<u32>,
     ) {
-        if self.remote.active.contains(&anchor) {
+        if self.remote.active.contains(&row) {
             return;
         }
-        let edge_now =
-            current_ws_id == Some(anchor) && is_reactivation_edge(current_ws_id, prev_active);
-        let existing_slot = self.remote.reconnect.get(&anchor);
-        let due = reconnect_due(existing_slot, Instant::now());
+        let edge_now = current_ws_id.is_none()
+            || (current_ws_id == Some(row) && is_reactivation_edge(current_ws_id, prev_active));
+        let due = reconnect_due(self.remote.reconnect.get(&row), Instant::now());
         if !edge_now && !due {
             return;
         }
-        if should_reset_given_up(existing_slot, edge_now) {
-            self.remote.reconnect.remove(&anchor);
-        }
-        // 대기 중 워크스페이스나 매핑이 사라졌을 수 있으므로 다시 읽는다.
-        let mapping = self.engines().windows().find_map(|(_, e)| {
-            e.workspaces()
-                .into_iter()
-                .find(|ws| ws.id == anchor)
-                .and_then(|ws| ws.attach_mapping.clone())
-        });
-        let Some(mapping) = mapping else {
-            forget_anchor_backoff(&mut self.remote, anchor);
-            self.remote.pending_reactivation.remove(&anchor);
+        // 대기 중 행이 닫혔을 수 있으므로 다시 읽는다.
+        let Some(binding) = self.saved_row_binding(row) else {
+            forget_row(&mut self.remote, row);
             return;
         };
-        let Some(remote_ws) = mapping.remote_workspace else {
-            return; // 원격 workspace id 미지정 — 자동 attach 와 같이 대상을 추측하지 않는다.
-        };
-
-        let attempt = match self
-            .remote
-            .begin_attempt(Some(anchor), Some(mapping.clone()))
-        {
+        let attempt = match self.remote.begin_attempt(Some(row), Some(binding.clone())) {
             Ok(attempt) => attempt,
             Err(error) => {
                 tracing::warn!("{error}");
@@ -264,8 +312,8 @@ impl App {
             .remote
             .sessions
             .iter()
-            .position(|session| session.state.anchor_ws_id == Some(anchor));
-        let endpoint_target = match self.mirror_install_target(None, Some(anchor), index, false) {
+            .position(|session| session.state.saved_row == Some(row));
+        let endpoint_target = match self.mirror_install_target(None, Some(row), index, false) {
             Ok(target) => target,
             Err(error) => {
                 self.remote.finish_attempt(&attempt);
@@ -276,18 +324,22 @@ impl App {
         self.state
             .mirror_attempts
             .register_endpoint(attempt.clone(), endpoint_target);
-        self.remote.active.insert(anchor);
-        self.remote.pending_reactivation.remove(&anchor);
-        let spawned =
-            self.spawn_endpoint_attempt(attempt, anchor, remote_ws, mapping.target.clone(), true);
+        self.remote.active.insert(row);
+        let spawned = self.spawn_endpoint_attempt(
+            attempt,
+            row,
+            binding.remote_workspace,
+            binding.profile,
+            true,
+        );
         if let Err(error) = spawned {
-            self.reject_endpoint_start(anchor, error, true);
+            self.reject_endpoint_start(row, error, true);
         }
     }
 
-    fn reject_endpoint_start(&mut self, anchor: u32, error: String, reconnect: bool) {
+    fn reject_endpoint_start(&mut self, row: u32, error: String, reconnect: bool) {
         self.state.mirror_attempts.discard_inactive_endpoints();
-        self.remote.active.remove(&anchor);
+        self.remote.active.remove(&row);
         let stage = if reconnect { "reconnect" } else { "endpoint" };
         tracing::warn!("remote {stage} start rejected: {error}");
     }
@@ -296,18 +348,18 @@ impl App {
     fn spawn_endpoint_attempt(
         &mut self,
         attempt: tasty_remote::outbound::AttemptToken,
-        anchor: u32,
+        row: u32,
         remote_ws: u32,
-        target: WorkspaceAttachTarget,
+        profile: String,
         is_reconnect: bool,
     ) -> Result<(), String> {
         let tx = self.remote.tx.clone();
         let proxy = self.view.proxy.clone();
         self.remote.spawn_attempt(attempt.clone(), move || {
-            let result = resolve_endpoint_bound(&target, &attempt);
+            let result = resolve_endpoint_bound(&profile, &attempt);
             let outcome = AutoAttachOutcome {
                 attempt,
-                anchor_ws_id: Some(anchor),
+                row: Some(row),
                 remote_ws,
                 result,
                 is_reconnect,
@@ -333,14 +385,14 @@ impl App {
             .endpoint_snapshot()
             .into_iter()
             .filter(|(_, target)| !self.mirror_install_target_is_current(target))
-            .map(|(token, target)| (token, target.anchor))
+            .map(|(token, target)| (token, target.row))
             .collect();
-        for (token, anchor) in stale {
+        for (token, row) in stale {
             self.state
                 .mirror_attempts
                 .cancel_endpoint(&token, &mut self.remote);
-            if let Some(anchor) = anchor {
-                self.remote.active.remove(&anchor);
+            if let Some(row) = row {
+                self.remote.active.remove(&row);
             }
         }
         self.state.mirror_attempts.discard_inactive_endpoints();
@@ -360,35 +412,13 @@ impl App {
         if !self.mirror_install_target_is_current(&target) {
             target.cancel_run(crate::app::attach_client::pending::TARGET_DISCARDED);
             if let Some(retired) = self.remote.finish_attempt(&outcome.attempt)
-                && let Some(anchor) = retired.anchor
+                && let Some(row) = retired.row
             {
-                self.remote.active.remove(&anchor);
+                self.remote.active.remove(&row);
             }
             return None;
         }
         Some(target)
-    }
-
-    fn accepted_mapping_is_current(
-        &mut self,
-        accepted: &tasty_remote::outbound::AttemptRecord,
-    ) -> bool {
-        if let Some(anchor) = accepted.anchor {
-            let current = self.engines.all_sessions().find_map(|session| {
-                session
-                    .core_state
-                    .workspaces()
-                    .iter()
-                    .find(|workspace| workspace.id == anchor)
-                    .and_then(|workspace| workspace.attach_mapping.clone())
-            });
-            if current != accepted.mapping {
-                self.remote.active.remove(&anchor);
-                tracing::debug!("discarding SSH result after attach mapping changed");
-                return false;
-            }
-        }
-        true
     }
 
     fn accept_auto_attach_outcome(
@@ -404,16 +434,31 @@ impl App {
             target.cancel_run("the attempt was replaced or cancelled");
             return None;
         };
-        if accepted.anchor != outcome.anchor_ws_id {
-            tracing::error!("remote outcome belongs to another anchor");
+        self.accepted_row_is_current(outcome, &accepted, &target)
+            .then_some((target, accepted))
+    }
+
+    /// 결과가 시도한 행의 것이고 그 행의 연결 대상이 그대로인지. 아니면 run을 끝낸다.
+    fn accepted_row_is_current(
+        &mut self,
+        outcome: &AutoAttachOutcome,
+        accepted: &tasty_remote::outbound::AttemptRecord,
+        target: &crate::app::attach_client::pending::PendingMirrorInstall,
+    ) -> bool {
+        if accepted.row != outcome.row {
+            tracing::error!("remote outcome belongs to another row");
             target.fail_run("the attach result belongs to another workspace");
-            return None;
+            return false;
         }
-        if !self.accepted_mapping_is_current(&accepted) {
-            target.cancel_run("the attach mapping changed");
-            return None;
+        if let Some(row) = accepted.row
+            && self.saved_row_binding(row) != accepted.binding
+        {
+            self.remote.active.remove(&row);
+            tracing::debug!("discarding SSH result after the saved row changed");
+            target.cancel_run("the saved remote row changed");
+            return false;
         }
-        Some((target, accepted))
+        true
     }
 
     fn apply_auto_attach_outcome(&mut self, outcome: AutoAttachOutcome) {
@@ -424,7 +469,7 @@ impl App {
         };
         let AutoAttachOutcome {
             attempt: _,
-            anchor_ws_id,
+            row,
             remote_ws,
             result,
             is_reconnect,
@@ -444,27 +489,24 @@ impl App {
                 target.fail_run(format!("the attach endpoint could not be resolved: {e:#}"));
                 if let Some(this) = e.downcast_ref::<tasty_remote::self_instance::ThisInstance>() {
                     tracing::warn!(
-                        "SSH attach 대상이 이 인스턴스 자신이라 거절했다 (anchor ws {anchor_ws_id:?}, remote ws {remote_ws}, reconnect={is_reconnect})"
+                        "SSH attach 대상이 이 인스턴스 자신이라 거절했다 (row {row:?}, remote ws {remote_ws}, reconnect={is_reconnect})"
                     );
                     self.record_self_refusal(&accepted, remote_ws, is_reconnect, this.port, true);
                     return;
                 }
                 tracing::warn!(
-                    "attach 엔드포인트 해석 실패 (anchor ws {anchor_ws_id:?}, remote ws {remote_ws}, reconnect={is_reconnect}): {e}"
+                    "attach 엔드포인트 해석 실패 (row {row:?}, remote ws {remote_ws}, reconnect={is_reconnect}): {e}"
                 );
-                if let Some(anchor) = anchor_ws_id {
-                    self.remote.active.remove(&anchor);
+                if let (Some(row), Some(binding)) = (row, accepted.binding.as_ref()) {
+                    self.remote.active.remove(&row);
+                    let kind = notice::resolve_failure_kind(&e);
                     if is_reconnect {
-                        self.on_reconnect_attempt_failed(anchor, &e);
-                    } else {
-                        if let Some(mapping) = accepted.mapping.as_ref() {
-                            self.remote.refusals.note(
-                                anchor,
-                                notice::resolve_failure_kind(&e),
-                                mapping,
-                            );
+                        if notice::reconnect_keeps_resolve_notice(&kind) {
+                            self.remote.refusals.note(row, kind, binding);
                         }
-                        self.on_first_attach_failed(anchor, accepted.mapping.as_ref());
+                        self.on_reconnect_attempt_failed(row, &e);
+                    } else {
+                        self.on_first_connect_failed(row, binding, &e);
                     }
                 }
             }
@@ -480,8 +522,7 @@ impl App {
         tunnel: Option<SshTunnel>,
         port: u16,
     ) {
-        // accept_auto_attach_outcome가 결과의 anchor와 같음을 확인했다.
-        let anchor_ws_id = accepted.anchor;
+        let row = accepted.row;
         let run = target.clone();
         // 자기 포트는 debug·release 모두 연결을 시도하기 전에 거절한다.
         let Some(attach_result) = self.queue_endpoint_mirror(target, port, remote_ws, tunnel)
@@ -496,14 +537,14 @@ impl App {
             Err(e) => {
                 run.fail_run(format!("the mirror connection could not start: {e}"));
                 tracing::warn!(
-                    "attach mirror 실패 (anchor ws {anchor_ws_id:?}, remote ws {remote_ws}, reconnect={is_reconnect}): {e}"
+                    "attach mirror 실패 (row {row:?}, remote ws {remote_ws}, reconnect={is_reconnect}): {e}"
                 );
-                if let Some(anchor) = anchor_ws_id {
-                    self.remote.active.remove(&anchor);
+                if let (Some(row), Some(binding)) = (row, accepted.binding.as_ref()) {
+                    self.remote.active.remove(&row);
                     if is_reconnect {
-                        self.on_reconnect_attempt_failed(anchor, &e);
+                        self.on_reconnect_attempt_failed(row, &e);
                     } else {
-                        self.on_first_attach_failed(anchor, accepted.mapping.as_ref());
+                        self.on_first_connect_failed(row, binding, &e);
                     }
                 }
             }
@@ -511,8 +552,7 @@ impl App {
     }
 
     /// 거절을 IPC로 조회할 수 있게 남기고, 같은 대상을 매 프레임 다시 해석하지 않게 한다.
-    /// 첫 attach는 재활성화 때까지 기다리고, 인라인 매핑은 매핑이 바뀔 때까지 보류한다.
-    /// 재연결은 다른 재연결 실패와 같은 백오프를 따른다.
+    /// 첫 연결은 그 행으로 다시 옮길 때까지 기다리고, 재연결은 다른 재연결 실패와 같은 백오프를 따른다.
     fn record_self_refusal(
         &mut self,
         accepted: &tasty_remote::outbound::AttemptRecord,
@@ -521,66 +561,62 @@ impl App {
         port: u16,
         via_ssh: bool,
     ) {
-        self.remote.refusals.record(
-            tasty_remote::refusal::AttachRefusal {
+        self.remote
+            .refusals
+            .record(tasty_remote::refusal::AttachRefusal {
                 attempt: accepted.token.id(),
-                anchor_workspace: accepted.anchor,
+                row_workspace: accepted.row,
                 remote_workspace: remote_ws,
                 port,
                 via_ssh,
                 reconnect: is_reconnect,
-            },
-            accepted.mapping.as_ref(),
-        );
-        let Some(anchor) = accepted.anchor else {
+            });
+        let (Some(row), Some(binding)) = (accepted.row, accepted.binding.as_ref()) else {
             return;
         };
-        if let Some(mapping) = accepted.mapping.as_ref() {
-            self.remote.refusals.note(
-                anchor,
-                tasty_remote::refusal::MappingNoticeKind::SelfInstance,
-                mapping,
-            );
-        }
-        self.remote.active.remove(&anchor);
+        self.remote.active.remove(&row);
+        let error = anyhow::anyhow!("attach target is this instance's own port {port}");
         if is_reconnect {
-            self.on_reconnect_attempt_failed(
-                anchor,
-                &anyhow::anyhow!("attach target is this instance's own port {port}"),
-            );
+            self.remote
+                .refusals
+                .note(row, RowNoticeKind::SelfInstance, binding);
+            self.on_reconnect_attempt_failed(row, &error);
         } else {
-            self.remote.pending_reactivation.insert(anchor);
+            self.remote
+                .refusals
+                .note(row, RowNoticeKind::SelfInstance, binding);
+            self.remote.pending_reactivation.insert(row);
         }
     }
 
-    fn on_first_attach_failed(
+    /// 첫 연결이 실패하면 이유를 행 안내로 남기고, 사용자가 그 행으로 다시 옮기거나 연결 버튼을 누를
+    /// 때까지 다시 시도하지 않는다. 다시 시도해도 같은 실패가 될 수 있어 SSH 접속을 반복하지 않는다.
+    pub(crate) fn on_first_connect_failed(
         &mut self,
-        anchor: u32,
-        mapping: Option<&crate::model::WorkspaceAttachMapping>,
+        row: u32,
+        binding: &RemoteBinding,
+        err: &anyhow::Error,
     ) {
-        back_off_first_attach(&mut self.remote, anchor, mapping);
+        let kind = notice::resolve_failure_kind(err);
+        let kind = connect_failure_kind(&err.to_string()).unwrap_or(kind);
+        self.remote.refusals.note(row, kind, binding);
+        self.remote.active.remove(&row);
+        self.remote.pending_reactivation.insert(row);
     }
 
-    /// already_attached는 긴 고정 간격, 나머지 실패는 지수 백오프로 재시도한다.
-    /// jitter로 동시 재시도 집중을 줄이며 상한에 도달하면 자동 재시도만 멈춘다.
-    pub(super) fn on_reconnect_attempt_failed(&mut self, anchor: u32, err: &anyhow::Error) {
-        let permanent_conflict = err.to_string().contains("already_attached");
-        // mirror를 다시 mirror하는 대상은 다시 시도해도 같은 거절이다.
-        let chain = tasty_remote::transport::attach_rejection_reason(&err.to_string())
-            == Some(tasty_remote::transport::REJECTED_MIRROR_WORKSPACE);
-        let slot = self.remote.reconnect.entry(anchor).or_default();
-        slot.attempts += 1;
-        if chain || reconnect_exhausted(slot.attempts) {
-            slot.given_up = true;
-            self.notify_reconnect_giveup(anchor);
+    /// 재연결 실패는 지수 백오프로 다시 시도한다. 다른 곳에서 사용 중이거나 원격 workspace가 없거나
+    /// mirror 체인이면 다시 시도해도 같은 거절이므로 바로 끊긴 행으로 두고 이유를 남긴다.
+    pub(super) fn on_reconnect_attempt_failed(&mut self, row: u32, err: &anyhow::Error) {
+        let permanent = connect_failure_kind(&err.to_string());
+        if let Some(kind) = permanent {
+            if let Some(binding) = self.saved_row_binding(row) {
+                self.remote.refusals.note(row, kind, &binding);
+            }
+            self.enter_disconnected(row);
             return;
         }
-        if permanent_conflict {
-            slot.backoff.reset();
-            while slot.backoff.current() < std::time::Duration::from_secs(30) {
-                slot.backoff.advance();
-            }
-        }
+        let slot = self.remote.reconnect.entry(row).or_default();
+        slot.attempts += 1;
         let base = slot.backoff.current();
         slot.backoff.advance();
         use rand::Rng;
@@ -588,10 +624,10 @@ impl App {
         slot.next_attempt = Instant::now() + base.mul_f64(jitter);
     }
 
-    /// 자동 재시도 중단을 알린다. 워크스페이스 재활성화로 다시 시도할 상태는 유지한다.
-    fn notify_reconnect_giveup(&mut self, anchor: u32) {
+    /// 재연결 시간이 지나 재연결을 멈췄다고 알린다. 그 행을 다시 열면 다시 시도한다.
+    fn notify_reconnect_giveup(&mut self, row: u32) {
         for (_, main, engine) in self.engines_mut().window_pairs() {
-            if engine.workspaces().into_iter().any(|ws| ws.id == anchor) {
+            if engine.workspaces().into_iter().any(|ws| ws.id == row) {
                 main.state.toasts.push(
                     crate::i18n::t("attach.toast.mirror_reconnect_giveup").to_string(),
                     crate::adapters::ui::ToastKind::Warning,
@@ -601,18 +637,16 @@ impl App {
                 break;
             }
         }
-        tracing::warn!(
-            "attach 재연결 포기 (anchor ws {anchor}) — {MAX_RECONNECT_ATTEMPTS}회 시도 후 자동 재시도 중단"
-        );
+        tracing::warn!("attach 재연결 중단 (row {row}) — 재연결 시간이 지나 끊긴 행으로 전환");
     }
 }
 
 /// 워커 스레드에서 프로필과 SSH 터널 또는 loopback 포트를 준비한다.
 fn resolve_endpoint_bound(
-    target: &WorkspaceAttachTarget,
+    profile: &str,
     attempt: &tasty_remote::outbound::AttemptToken,
 ) -> anyhow::Result<(Option<SshTunnel>, u16)> {
-    resolve_endpoint_bound_with(attempt, || resolve_endpoint(target))
+    resolve_endpoint_bound_with(attempt, || resolve_endpoint(profile))
 }
 
 /// 해석 함수를 받아 취소 등록·자기 판정을 붙인다. 시험은 SSH 없이 해석 결과를 넣는다.
@@ -633,28 +667,14 @@ fn resolve_endpoint_bound_with<T>(
     Ok(result)
 }
 
-fn resolve_endpoint(target: &WorkspaceAttachTarget) -> anyhow::Result<(Option<SshTunnel>, u16)> {
-    let (ssh_target, remote_tasty, port_mode, port_file) = match target {
-        WorkspaceAttachTarget::Profile { name } => {
-            let profiles = RemoteProfiles::load();
-            let passkeys = Passkeys::load();
-            let p = profiles
-                .get(name)
-                .ok_or_else(|| notice::ProfileNotFound(name.clone()))?;
-            ssh::resolve_attach_target(p, &profiles, &passkeys)?
-        }
-        WorkspaceAttachTarget::Inline {
-            host,
-            remote_tasty,
-            port_mode,
-            port_file,
-        } => (
-            SshTarget::parse(host),
-            remote_tasty.clone().unwrap_or_else(|| "tasty".into()),
-            port_mode.clone().unwrap_or_else(|| "auto".into()),
-            port_file.clone(),
-        ),
-    };
+fn resolve_endpoint(profile: &str) -> anyhow::Result<(Option<SshTunnel>, u16)> {
+    let profiles = RemoteProfiles::load();
+    let passkeys = Passkeys::load();
+    let p = profiles
+        .get(profile)
+        .ok_or_else(|| notice::ProfileNotFound(profile.to_owned()))?;
+    let (ssh_target, remote_tasty, port_mode, port_file) =
+        ssh::resolve_attach_target(p, &profiles, &passkeys)?;
 
     if let Some(port) = parse_loopback_port(&ssh_target.destination) {
         return Ok((None, port));
@@ -680,101 +700,23 @@ fn resolve_endpoint(target: &WorkspaceAttachTarget) -> anyhow::Result<(Option<Ss
     Ok((Some(tunnel), local_port))
 }
 
-/// 첫 자동 attach가 실패하면 같은 매핑의 다음 시도를 재연결과 같은 지수 백오프(0.5초에서
-/// 두 배씩, 상한 30초, jitter 0.8~1.2)로 미룬다. 자동 재시도 상한은 두지 않는다.
-/// 해석 실패·접수 실패와 접수 뒤 연결 실패가 함께 쓴다. 매핑이 없으면 기록하지 않는다.
-pub(crate) fn back_off_first_attach(
-    remote: &mut tasty_remote::outbound::Remote,
-    anchor: u32,
-    mapping: Option<&crate::model::WorkspaceAttachMapping>,
-) {
-    let Some(mapping) = mapping else {
-        return;
-    };
-    use rand::Rng;
-    let jitter = 0.8 + rand::rng().random::<f64>() * 0.4;
-    remote.record_first_attach_failure(anchor, mapping, Instant::now(), jitter);
+/// 행의 연결 시도·재연결·실패 기록을 모두 지운다. 행이 닫히거나 정리될 때 쓴다.
+pub(crate) fn forget_row(remote: &mut tasty_remote::outbound::Remote, row: u32) {
+    remote.active.remove(&row);
+    remote.reconnect.remove(&row);
+    remote.pending_reactivation.remove(&row);
+    remote.user_disconnected.remove(&row);
+    remote.refusals.clear_notice(row);
 }
 
-/// anchor의 재연결·첫 attach 실패 기록을 함께 지운다. mirror 설치 성공, 매핑 소멸, mirror 닫기가 쓴다.
-pub(crate) fn forget_anchor_backoff(remote: &mut tasty_remote::outbound::Remote, anchor: u32) {
-    remote.reconnect.remove(&anchor);
-    remote.attach_retry.remove(&anchor);
-}
-
-/// 기록한 매핑이 지금도 그 anchor의 매핑인 첫 attach 재시도 기록만 남긴다.
-fn retain_live_first_attach_retries<'a>(
-    remote: &mut tasty_remote::outbound::Remote,
-    current: impl Fn(u32) -> Option<&'a crate::model::WorkspaceAttachMapping>,
-) {
-    remote
-        .attach_retry
-        .retain(|anchor, retry| current(*anchor) == Some(&retry.mapping));
-}
-
-/// 서버에서 닫은 기록은 그 anchor의 매핑이 그대로일 때만 남긴다. 매핑을 바꾸거나 지우면 다시 후보가 된다.
-fn retain_live_closed_mappings<'a>(
-    remote: &mut tasty_remote::outbound::Remote,
-    current: impl Fn(u32) -> Option<&'a crate::model::WorkspaceAttachMapping>,
-) {
-    remote
-        .closed_mappings
-        .retain(|anchor, mapping| current(*anchor) == Some(&*mapping));
-}
-
-/// 연결 상태 쪽에서 이 anchor의 자동 attach를 막는 이유가 없는지 판정한다.
-fn anchor_may_attach(
-    remote: &tasty_remote::outbound::Remote,
-    anchor: u32,
-    mapping: &crate::model::WorkspaceAttachMapping,
-    current_ws_id: Option<u32>,
-    prev_active: Option<u32>,
-) -> bool {
-    // 재연결이 맡은 anchor에 새 mirror를 중복 생성하지 않는다.
-    if remote
-        .sessions
-        .iter()
-        .any(|s| s.anchor_ws_id() == Some(anchor) && s.state() == SessionState::Reconnecting)
-    {
-        return false;
-    }
-    let pending_reactivation = remote.pending_reactivation.contains(&anchor);
-    is_attach_trigger_allowed(pending_reactivation, current_ws_id, prev_active)
-        && !remote.active.contains(&anchor)
-        && !remote.refusals.holds(anchor, mapping)
-        // 사용자가 서버에서 닫은 workspace를 다시 열려고 하지 않는다.
-        && remote.closed_mappings.get(&anchor) != Some(mapping)
-}
-
-/// 첫 자동 attach를 아직 미뤄야 하는지. 재활성화 직후에는 기다리지 않는다.
-fn first_attach_waits(
-    retry: Option<&tasty_remote::outbound::AttachRetry>,
-    mapping: &crate::model::WorkspaceAttachMapping,
-    now: Instant,
-    edge_now: bool,
-) -> bool {
-    !edge_now && retry.is_some_and(|retry| retry.holds(mapping, now))
-}
-
-/// 아직 오지 않은 재시도 시각만 예약한다. 지난 시각을 예약하면 다른 워크스페이스에 있는 동안
-/// 루프를 계속 깨운다.
-fn first_attach_wakeup_at(
-    retry: &tasty_remote::outbound::AttachRetry,
-    now: Instant,
-) -> Option<Instant> {
-    (retry.next_attempt > now).then_some(retry.next_attempt)
+/// 연결에 성공한 행의 재연결 기록을 지운다.
+pub(crate) fn forget_row_backoff(remote: &mut tasty_remote::outbound::Remote, row: u32) {
+    remote.reconnect.remove(&row);
+    remote.pending_reactivation.remove(&row);
 }
 
 fn is_reactivation_edge(current: Option<u32>, previous: Option<u32>) -> bool {
     current.is_some() && current != previous
-}
-
-fn is_attach_trigger_allowed(
-    pending_reactivation: bool,
-    current: Option<u32>,
-    previous: Option<u32>,
-) -> bool {
-    !pending_reactivation || is_reactivation_edge(current, previous)
 }
 
 /// `127.0.0.1:PORT` / `localhost:PORT` / `[::1]:PORT` 면 PORT 를 돌려준다(loopback 직결).
@@ -829,71 +771,42 @@ mod tests {
     }
 
     #[test]
-    fn new_mapping_triggers_immediately_without_transition() {
-        assert!(is_attach_trigger_allowed(false, Some(1), Some(1)));
-        assert!(is_attach_trigger_allowed(false, Some(2), Some(1)));
+    fn the_reconnect_window_counts_from_the_start_of_the_disconnect() {
+        let mut slot = ReconnectSlot::new();
+        let start = slot.started;
+        let window = std::time::Duration::from_secs(300);
+        assert!(!reconnect_window_elapsed(&slot, start, window));
+        assert!(!reconnect_window_elapsed(
+            &slot,
+            start + std::time::Duration::from_secs(299),
+            window
+        ));
+        assert!(reconnect_window_elapsed(
+            &slot,
+            start + std::time::Duration::from_secs(300),
+            window
+        ));
+        // 백오프로 다음 시도가 밀려도 시작 시각은 그대로다.
+        slot.next_attempt = start + std::time::Duration::from_secs(900);
+        assert!(reconnect_window_elapsed(
+            &slot,
+            start + std::time::Duration::from_secs(301),
+            window
+        ));
+        assert!(reconnect_window_elapsed(
+            &slot,
+            start,
+            std::time::Duration::ZERO
+        ));
     }
 
+    /// 사용자 대기 갈래 L1·L4의 권고안: 보이는 행은 연결하고, 사용자가 끊은 행은 다시 열어도 붙지 않는다.
     #[test]
-    fn disconnected_anchor_waits_for_transition_before_retrigger() {
-        assert!(!is_attach_trigger_allowed(true, Some(1), Some(1)));
-        assert!(is_attach_trigger_allowed(true, Some(1), Some(2)));
-    }
-
-    fn mapping(remote_workspace: u32) -> crate::model::WorkspaceAttachMapping {
-        crate::model::WorkspaceAttachMapping::profile("srv", Some(remote_workspace))
-    }
-
-    /// 서버에서 닫은 매핑은 같은 anchor로 돌아와도 다시 attach하지 않는다. 매핑을 바꾸면 다시 후보가 되고,
-    /// 매핑이 바뀌거나 사라지면 기록도 지운다.
-    #[test]
-    fn a_mapping_closed_on_the_server_is_not_attached_again() {
-        let mut remote = tasty_remote::outbound::Remote::new();
-        remote.closed_mappings.insert(5, mapping(514));
-        assert!(!anchor_may_attach(
-            &remote,
-            5,
-            &mapping(514),
-            Some(5),
-            Some(1)
-        ));
-        assert!(anchor_may_attach(
-            &remote,
-            5,
-            &mapping(515),
-            Some(5),
-            Some(1)
-        ));
-
-        let same = mapping(514);
-        retain_live_closed_mappings(&mut remote, |_| Some(&same));
-        assert!(remote.closed_mappings.contains_key(&5));
-        let changed = mapping(515);
-        retain_live_closed_mappings(&mut remote, |_| Some(&changed));
-        assert!(remote.closed_mappings.is_empty());
-    }
-
-    /// 연결을 끊은 뒤 정리로 선택이 anchor에 머물러도 그 프레임은 전환이 아니다. 다른 workspace를 거쳐
-    /// 돌아올 때만 다시 attach한다.
-    #[test]
-    fn a_disconnected_anchor_waits_for_the_users_next_switch() {
-        let mut remote = tasty_remote::outbound::Remote::new();
-        remote.pending_reactivation.insert(5);
-        // 정리 뒤 last_active_ws를 현재 활성(anchor)으로 맞춘 상태.
-        assert!(!anchor_may_attach(
-            &remote,
-            5,
-            &mapping(514),
-            Some(5),
-            Some(5)
-        ));
-        assert!(anchor_may_attach(
-            &remote,
-            5,
-            &mapping(514),
-            Some(5),
-            Some(1)
-        ));
+    fn pending_user_decisions_follow_the_recommended_options() {
+        assert!(visible_row_connects(false));
+        assert!(visible_row_connects(true));
+        assert!(user_disconnect_holds(true, true));
+        assert!(!user_disconnect_holds(false, false));
     }
 
     #[test]
@@ -934,65 +847,6 @@ mod tests {
     }
 
     #[test]
-    fn reconnect_exhausted_at_max_not_before() {
-        assert!(!reconnect_exhausted(MAX_RECONNECT_ATTEMPTS - 1));
-        assert!(reconnect_exhausted(MAX_RECONNECT_ATTEMPTS));
-        assert!(reconnect_exhausted(MAX_RECONNECT_ATTEMPTS + 1));
-    }
-
-    #[test]
-    fn given_up_slot_resets_only_on_edge_reactivation() {
-        let mut slot = ReconnectSlot::new();
-        slot.given_up = true;
-        assert!(!should_reset_given_up(Some(&slot), false));
-        assert!(should_reset_given_up(Some(&slot), true));
-        slot.given_up = false;
-        assert!(!should_reset_given_up(Some(&slot), true));
-        assert!(!should_reset_given_up(None, true));
-    }
-
-    fn profile_mapping(name: &str) -> crate::model::WorkspaceAttachMapping {
-        crate::model::WorkspaceAttachMapping {
-            target: WorkspaceAttachTarget::Profile { name: name.into() },
-            remote_workspace: Some(1),
-        }
-    }
-
-    #[test]
-    fn first_attach_failures_space_out_until_the_cap() {
-        let t0 = Instant::now();
-        let mut retry = tasty_remote::outbound::AttachRetry::new(profile_mapping("p"));
-        let mut gaps = Vec::new();
-        for _ in 0..9 {
-            retry.record_failure(t0, 1.0);
-            gaps.push((retry.next_attempt - t0).as_millis());
-        }
-        assert_eq!(
-            gaps,
-            [500, 1000, 2000, 4000, 8000, 16000, 30000, 30000, 30000]
-        );
-    }
-
-    #[test]
-    fn a_failed_mapping_waits_unless_the_user_returns_or_it_changes() {
-        let t0 = Instant::now();
-        let mapping = profile_mapping("p");
-        let mut retry = tasty_remote::outbound::AttachRetry::new(mapping.clone());
-        retry.record_failure(t0, 1.0);
-        assert!(first_attach_waits(Some(&retry), &mapping, t0, false));
-        assert!(!first_attach_waits(Some(&retry), &mapping, t0, true));
-        assert!(!first_attach_waits(
-            Some(&retry),
-            &profile_mapping("other"),
-            t0,
-            false
-        ));
-        let later = t0 + std::time::Duration::from_millis(500);
-        assert!(!first_attach_waits(Some(&retry), &mapping, later, false));
-        assert!(!first_attach_waits(None, &mapping, t0, false));
-    }
-
-    #[test]
     fn automatic_attach_asks_a_tunnel_peer_and_refuses_this_instance() {
         let (port, server) = fake_peer::serve_once(
             serde_json::json!({ "instance_id": tasty_ipc::instance::instance_id() }),
@@ -1023,15 +877,12 @@ mod tests {
         );
         let mut remote = tasty_remote::outbound::Remote::new();
         let attempt = remote.begin_attempt(None, None).expect("attempt");
-        let Err(error) = resolve_endpoint_bound(
-            &WorkspaceAttachTarget::Profile { name: name.clone() },
-            &attempt,
-        ) else {
+        let Err(error) = resolve_endpoint_bound(&name, &attempt) else {
             panic!("a profile that does not exist cannot resolve");
         };
         assert_eq!(
             notice::resolve_failure_kind(&error),
-            tasty_remote::refusal::MappingNoticeKind::ProfileMissing,
+            RowNoticeKind::ProfileMissing,
             "{error}"
         );
         assert!(error.to_string().contains(&name), "{error}");
@@ -1045,46 +896,6 @@ mod tests {
         let port = fake_peer::free_port();
         let resolved = resolve_endpoint_bound_with(&attempt, || Ok((None::<()>, port)));
         assert_eq!(resolved.expect("direct endpoint").1, port);
-    }
-
-    #[test]
-    fn forgetting_an_anchor_clears_both_retry_records() {
-        let mut remote = tasty_remote::outbound::Remote::new();
-        let mapping = profile_mapping("a");
-        remote.reconnect.insert(3, ReconnectSlot::new());
-        back_off_first_attach(&mut remote, 3, Some(&mapping));
-        back_off_first_attach(&mut remote, 4, Some(&mapping));
-        forget_anchor_backoff(&mut remote, 3);
-        assert!(!remote.reconnect.contains_key(&3));
-        assert!(!remote.attach_retry.contains_key(&3));
-        assert!(remote.attach_retry.contains_key(&4), "other anchors stay");
-    }
-
-    #[test]
-    fn a_closed_or_remapped_workspace_drops_its_first_attach_record() {
-        let mut remote = tasty_remote::outbound::Remote::new();
-        let (kept, changed) = (profile_mapping("a"), profile_mapping("b"));
-        for anchor in [1, 2, 3] {
-            back_off_first_attach(&mut remote, anchor, Some(&kept));
-        }
-        // 1은 그대로, 2는 다른 매핑, 3은 워크스페이스나 매핑이 없다.
-        retain_live_first_attach_retries(&mut remote, |anchor| match anchor {
-            1 => Some(&kept),
-            2 => Some(&changed),
-            _ => None,
-        });
-        let mut left: Vec<u32> = remote.attach_retry.keys().copied().collect();
-        left.sort();
-        assert_eq!(left, vec![1]);
-    }
-
-    #[test]
-    fn a_past_retry_time_arms_no_timer() {
-        let t0 = Instant::now();
-        let mut retry = tasty_remote::outbound::AttachRetry::new(profile_mapping("p"));
-        retry.record_failure(t0, 1.0);
-        assert_eq!(first_attach_wakeup_at(&retry, t0), Some(retry.next_attempt));
-        assert_eq!(first_attach_wakeup_at(&retry, retry.next_attempt), None);
     }
 }
 

@@ -265,7 +265,6 @@ pub(crate) fn draft(
                         .unwrap_or(0),
                     subtitle: preset.subtitle.clone(),
                     description: preset.description.clone(),
-                    attach_mapping: None,
                     metadata: Default::default(),
                     layout,
                 },

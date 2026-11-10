@@ -159,7 +159,7 @@ pub enum SetCommands {
         #[arg(long)]
         surface: Option<u32>,
     },
-    /// Update workspace name, subtitle, description, or SSH attach mapping
+    /// Update workspace name, subtitle, description, or category
     Workspace {
         /// Workspace ID (required)
         #[arg(long)]
@@ -173,18 +173,6 @@ pub enum SetCommands {
         /// New description
         #[arg(long)]
         description: Option<String>,
-        /// Map this workspace to a saved SSH profile (a remote machine).
-        #[arg(long)]
-        ssh_profile: Option<String>,
-        /// Map to a one-off inline SSH target, e.g. --ssh user@host.
-        #[arg(long)]
-        ssh: Option<String>,
-        /// Workspace id on the mapped remote tasty to attach to.
-        #[arg(long)]
-        remote_workspace: Option<u32>,
-        /// Clear the existing SSH attach mapping.
-        #[arg(long)]
-        clear_mapping: bool,
         /// Move this workspace to another category (name or id).
         #[arg(long)]
         category: Option<String>,

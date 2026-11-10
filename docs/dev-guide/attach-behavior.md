@@ -57,7 +57,7 @@ attach 는 **server**(피점유 — PTY/grid 소유)와 **client**(점유 — mi
   - 점유된 workspace의 디렉터리·Git·markdown 조회와 응답 직렬화 예산은 `src/remote/server/content_queries.rs`가 담당한다. 호출자는 기존 `server` handler 경로를 사용한다.
 - **클라이언트측** — "원격성" 을 전부 흡수한다. 두 종류:
   - **로컬 CLI client**: 포트 파일(`~/.tasty/tasty.port`)을 읽어 그 loopback 포트로 직결. **release CLI 에서 제거 → debug 전용**(`tasty debug attach`).
-  - **loopback 직결 대상 지정**: GUI 원격 연결 팝업·IPC `remote.attach`·자동 attach 는 대상이 `127.0.0.1:PORT`·`localhost:PORT`·`[::1]:PORT` 면 SSH 없이 그 포트로 직결한다(`tasty_remote::browse::resolve_endpoint`, `src/app/auto_attach.rs`). release 에도 있으며, 같은 머신의 다른 인스턴스를 mirror 할 수 있다. 자기 인스턴스 포트는 아래 self-attach 거절을 따른다.
+  - **loopback 직결 대상 지정**: GUI 원격 연결 팝업·IPC `remote.attach`·저장된 원격 행의 연결은 대상이 `127.0.0.1:PORT`·`localhost:PORT`·`[::1]:PORT` 면 SSH 없이 그 포트로 직결한다(`tasty_remote::browse::resolve_endpoint`, `src/app/auto_attach.rs`). release 에도 있으며, 같은 머신의 다른 인스턴스를 mirror 할 수 있다. 자기 인스턴스 포트는 아래 self-attach 거절을 따른다.
   - **원격 client**: `ssh -L 127.0.0.1:<localport>:127.0.0.1:<remoteport> -N` 터널 후 그 **localport 로 직결**. 터널은 바이트 파이프라 스트림 프로토콜에 투명 — 원격 client 도 결국 자기 머신 loopback 에 붙는다(`tasty remote attach --ssh|--profile`).
 
 ### "로컬 attach 제거" 의 정확한 의미
@@ -84,16 +84,16 @@ attach 는 **server**(피점유 — PTY/grid 소유)와 **client**(점유 — mi
 - **끊긴 holder 는 재attach 를 막지 못한다** (이 문서). inbound 한 배치(`PumpOutcome`)의 적용 순서는 attach 연결이 먼저, 연결 종료 *정리*가 마지막이다 — 끊긴 client 의 잔여 입력 프레임이 그 client 의 점유가 살아 있는 동안 적용돼야 하기 때문이다. 그래서 한 배치에 "C1 끊김" 과 "C2 attach" 가 함께 실리면 C2 가 곧 사라질 C1 의 lock 에 막힌다. 이를 막기 위해 두 pump(`App::apply_stream_outcome` · `boot::headless_stream::apply`)가 배치 **머리**에서 `mark_clients_disconnected` 로 *사실만* 먼저 알리고, `acquire`/`acquire_workspace` 는 자기를 막고 선 holder 가 그 표시를 가지면 그 자리에서 점유를 회수한다. 회수는 경쟁이 있을 때만 하므로 경쟁이 없는 잔여 입력은 그대로 처리된다. 표시는 `release_all_for_client` 가 lock 과 함께 지워 한 배치를 넘지 않는다.
 - **입력 격리**: `apply_send_to_surface` 와 terminal broadcast·respawn이 함께 쓰는 `TerminalInputAccess::send` 가 `is_hard_occupied` 면 서버 로컬 입력 거부(tell의 `write_then_submit` 도 같은 검사를 한다), client 입력만 `feed_attached_input` 우회 경로로 PTY 도달. (soft 점유는 write 를 막지 않는다 — hard 만 격리.)
 - **점유는 핸드셰이크가 검증된 뒤에만 잡힌다** (이 문서). 점유를 잡는 유일한 진입점은 `dispatch_stream_attach` → `attach_workspace_for_stream`/`attach_surface_for_stream` 인데, 그 **앞에** `tcp_ipc_server.rs::validate_stream_proto` 가 있다. `stream.open` params 의 `proto` 가 `STREAM_PROTO` 와 다르면(생략 시 serde default `0`) attach 를 dispatch 하지 않고 `StreamAck{ok:false, proto, error}` 로 거절한다 — 점유가 애초에 잡히지 않는다. 없을 때의 문제: 프로토콜이 안 맞는 client 는 그 점유를 **쓸 수 없는데도** 가져가고, 소켓을 닫지 않는 구버전/hung peer 면 아래 EOF 가 오지 않아 heartbeat 제한 시간까지 그 workspace 가 붙잡혀 정상 attach 가 `already_attached` 로 거절됐다. 거절 ack 는 client(`StreamConnection::open_with`)가 이미 검사하는 형식이라 실패 사유가 그대로 사용자에게 전달된다.
-- **self-attach는 client에서 거절한다**: GUI 원격 연결 팝업(`queue_browser_mirror`), IPC `attach.into_gui`(`dispatch_pending_gui_attach`), IPC `remote.attach`와 자동 attach(`auto_attach.rs::handle_auto_attach_connected` → `queue_endpoint_mirror`)는 모두 `attach_client/dispatch.rs::dispatch_attach`를 거친다. 그 안의 `connect_unless_self`가 요청 포트를 자기 IPC 포트와 비교한다(debug/release 공통). SSH 터널 경로의 요청 포트는 터널의 로컬 포트라 자기 IPC 포트와 겹치지 않으므로, SSH 경로는 터널을 연 워커에서 `tasty_remote::self_instance::refuse_this_instance`가 상대 `system.info`의 `instance_id`(`tasty_ipc::instance::instance_id`)를 비교해 `ThisInstance` 오류로 끝낸다. 호출 위치는 `remote.attach` 워커 두 곳(`app_methods/remote.rs`의 `resolve_existing_endpoint`·`prepare_create_endpoint`), 자동 attach의 `resolve_endpoint_bound_with`, GUI 팝업의 `browser.rs::list_endpoint`다. 네 함수는 엔드포인트 해석을 인자로 받으므로, 각 모듈의 단위 시험이 SSH 없이 해석 결과(터널 여부·포트)와 가짜 `system.info` 상대를 넣어 터널이면 판정을 묻고 같은 `instance_id`면 거절하는지, 직결이면 묻지 않는지 확인한다. 실제 해석 함수를 그 자리에 넘기는지는 시험하지 않는다. 메인 루프는 `ThisInstance`를 `record_self_refusal(.., via_ssh: true)`로 기록한다. `tasty debug attach`는 별도 CLI 프로세스가 서버 포트에 직접 연결하므로 이 검사를 거치지 않는다. 이 검사는 GUI가 원격 대상을 선택한다는 정책이며, 현재 handshake는 `queue_mirror_connection`을 통해 Remote worker가 수행한다. 서버는 정상 SSH 터널과 self 연결을 loopback 주소만으로 구별할 수 없다. 로컬 검증은 별도 프로세스의 `tasty debug attach`를 사용한다.
-  IPC `attach.into_gui`와 loopback 대상의 `remote.attach`는 이 검사보다 앞서 처리 시점에 `ipc/handler/attach.rs::refuse_own_port`로 거절한다. `remote.attach`는 `app_methods/remote.rs`가 시도를 시작하기 전에 판정한다. `attach.into_gui`의 인자 해석과 자기 포트 판정은 `attach.rs::into_gui_target` 하나다. GUI는 App 층(`attach_client/into_gui.rs`, 외부 IPC는 `ipc_step_app_methods`, plugin host-call은 `process_plugin_ipc_calls`)이 이를 부른 뒤, 다른 포트는 워커가 그 포트의 `system.info`(세션 토큰 없음)를 물어 `instance_id`가 같으면 `-32602`(`... reaches this instance itself ...`)로, 아니면 메인 루프가 routing과 같은 규칙으로 고른 engine의 큐에 넣고 `{queued:true}`로 답한다. 판정을 워커에 두는 이유는 이 프로세스의 `system.info`를 메인 루프가 답하기 때문이다 — 메인 루프에서 물으면 자기 자신일 때 응답을 기다리며 멈춘다. 상대가 답하지 않거나 `instance_id`가 없으면 판정 없이 큐에 넣는다. 연결을 받고 답하지 않는 상대는 `browse::PROBE_TIMEOUT`(5초)까지 기다리므로 응답도 최대 그만큼 늦어진다. 워커의 판정은 `catch_unwind`로 감싸, 패닉하면 응답 없이 끝나지 않고 internal_error로 답한다. 헤드리스에는 큐를 처리해 mirror를 만드는 쪽이 없으므로 engine 처리기에 arm을 두지 않고, 자기 포트를 포함한 모든 요청을 `-32017`(메서드 이름 포함)로 거절한다. 자기 포트 판정 함수들도 GUI 빌드에만 있다. App 층이 처리하므로 멱등 키 선언은 `.kept_by_app_layer()`(버전 2)다. 자기 포트는 IPC 서버 시작 뒤 `AppServices::own_ipc_port`에 주입한 값이다. 그래서 `new_workspace:true`가 원격(=자기)에 workspace를 만들기 전에 끝난다. 아래 기록 경로는 주로 자동 attach가 쓴다.
-  엔드포인트 경로(IPC `remote.attach`·자동 attach)의 거절은 `auto_attach.rs::record_self_refusal`이 `Remote.refusals`(`tasty_remote::refusal`)에 남기고 IPC `remote.refusals`가 읽는다. 첫 attach의 거절은 anchor를 `pending_reactivation`에 넣어 다음 프레임의 재트리거를 막고, 인라인 매핑은 `Refusals::holds`로 매핑이 바뀔 때까지 후보에서 뺀다. 재연결 중의 거절은 `on_reconnect_attempt_failed`로 백오프를 기록한다.
-  같은 `Refusals`가 anchor별 안내(`MappingNotice`: 이유·대상·매핑)도 보관한다. 자기 자신 거절은 `record_self_refusal`이, 첫 attach의 해석 실패는 `apply_auto_attach_outcome`이 남긴다. 없는 프로필은 `resolve_endpoint`가 `auto_attach/notice.rs::ProfileNotFound`로 돌려줘 `profile_missing`으로 구별하고, 나머지 해석 실패는 `unresolved`다. `poll_auto_attach` 끝의 `sync_mapping_notices`가 창과 parked engine의 지금 매핑과 다른 안내를 지우고, 안내 세대가 바뀐 창의 `MainViewState.attach_notices`에 넘긴다. pending mirror 설치 성공이 그 anchor의 안내를 지운다. 행 표지와 Workspace 배너, ×의 활성화 단위 숨김은 창 쪽(`adapters/ui/attach_notice.rs`)이 맡는다.
+- **self-attach는 client에서 거절한다**: GUI 원격 연결 팝업(`queue_browser_mirror`), IPC `attach.into_gui`(`dispatch_pending_gui_attach`), IPC `remote.attach`와 저장된 원격 행의 연결(`auto_attach.rs::handle_auto_attach_connected` → `queue_endpoint_mirror`)은 모두 `attach_client/dispatch.rs::dispatch_attach`를 거친다. 그 안의 `connect_unless_self`가 요청 포트를 자기 IPC 포트와 비교한다(debug/release 공통). SSH 터널 경로의 요청 포트는 터널의 로컬 포트라 자기 IPC 포트와 겹치지 않으므로, SSH 경로는 터널을 연 워커에서 `tasty_remote::self_instance::refuse_this_instance`가 상대 `system.info`의 `instance_id`(`tasty_ipc::instance::instance_id`)를 비교해 `ThisInstance` 오류로 끝낸다. 호출 위치는 `remote.attach` 워커 두 곳(`app_methods/remote.rs`의 `resolve_existing_endpoint`·`prepare_create_endpoint`), 저장된 행 연결의 `resolve_endpoint_bound_with`, GUI 팝업의 `browser.rs::list_endpoint`다. 네 함수는 엔드포인트 해석을 인자로 받으므로, 각 모듈의 단위 시험이 SSH 없이 해석 결과(터널 여부·포트)와 가짜 `system.info` 상대를 넣어 터널이면 판정을 묻고 같은 `instance_id`면 거절하는지, 직결이면 묻지 않는지 확인한다. 실제 해석 함수를 그 자리에 넘기는지는 시험하지 않는다. 메인 루프는 `ThisInstance`를 `record_self_refusal(.., via_ssh: true)`로 기록한다. `tasty debug attach`는 별도 CLI 프로세스가 서버 포트에 직접 연결하므로 이 검사를 거치지 않는다. 이 검사는 GUI가 원격 대상을 선택한다는 정책이며, 현재 handshake는 `queue_mirror_connection`을 통해 Remote worker가 수행한다. 서버는 정상 SSH 터널과 self 연결을 loopback 주소만으로 구별할 수 없다. 로컬 검증은 별도 프로세스의 `tasty debug attach`를 사용한다.
+  IPC `attach.into_gui`와 loopback 대상의 `remote.attach`는 이 검사보다 앞서 처리 시점에 `ipc/handler/attach.rs::refuse_own_port`로 거절한다. `remote.attach`는 `app_methods/remote.rs`가 시도를 시작하기 전에 판정한다. `attach.into_gui`의 인자 해석과 자기 포트 판정은 `attach.rs::into_gui_target` 하나다. GUI는 App 층(`attach_client/into_gui.rs`, 외부 IPC는 `ipc_step_app_methods`, plugin host-call은 `process_plugin_ipc_calls`)이 이를 부른 뒤, 다른 포트는 워커가 그 포트의 `system.info`(세션 토큰 없음)를 물어 `instance_id`가 같으면 `-32602`(`... reaches this instance itself ...`)로, 아니면 메인 루프가 routing과 같은 규칙으로 고른 engine의 큐에 넣고 `{queued:true}`로 답한다. 판정을 워커에 두는 이유는 이 프로세스의 `system.info`를 메인 루프가 답하기 때문이다 — 메인 루프에서 물으면 자기 자신일 때 응답을 기다리며 멈춘다. 상대가 답하지 않거나 `instance_id`가 없으면 판정 없이 큐에 넣는다. 연결을 받고 답하지 않는 상대는 `browse::PROBE_TIMEOUT`(5초)까지 기다리므로 응답도 최대 그만큼 늦어진다. 워커의 판정은 `catch_unwind`로 감싸, 패닉하면 응답 없이 끝나지 않고 internal_error로 답한다. 헤드리스에는 큐를 처리해 mirror를 만드는 쪽이 없으므로 engine 처리기에 arm을 두지 않고, 자기 포트를 포함한 모든 요청을 `-32017`(메서드 이름 포함)로 거절한다. 자기 포트 판정 함수들도 GUI 빌드에만 있다. App 층이 처리하므로 멱등 키 선언은 `.kept_by_app_layer()`(버전 2)다. 자기 포트는 IPC 서버 시작 뒤 `AppServices::own_ipc_port`에 주입한 값이다. 그래서 `new_workspace:true`가 원격(=자기)에 workspace를 만들기 전에 끝난다. 아래 기록 경로는 주로 저장된 원격 행의 연결이 쓴다.
+  엔드포인트 경로(IPC `remote.attach`·저장된 원격 행의 연결)의 거절은 `auto_attach.rs::record_self_refusal`이 `Remote.refusals`(`tasty_remote::refusal`)에 남기고 IPC `remote.refusals`가 읽는다. 첫 연결의 거절은 행을 `pending_reactivation`에 넣어 사용자가 그 행으로 다시 옮길 때까지 다시 시도하지 않는다. 재연결 중의 거절은 `on_reconnect_attempt_failed`로 백오프를 기록한다.
+  같은 `Refusals`가 행별 안내(`RowNotice`: 이유·대상·연결 대상 `RemoteBinding`)도 보관한다. 자기 자신 거절은 `record_self_refusal`이, 첫 연결의 실패는 `on_first_connect_failed`가, 재연결의 영구 거절(`connect_failure_kind`: `already_attached`→`occupied`, `workspace_not_found`→`remote_workspace_missing`, `mirror_workspace`)은 `on_reconnect_attempt_failed`가 남긴다. 없는 프로필은 `resolve_endpoint`가 `auto_attach/notice.rs::ProfileNotFound`로 돌려줘 `profile_missing`으로 구별하고, 나머지 해석 실패는 `unresolved`다. `poll_auto_attach` 끝의 `sync_mapping_notices`가 창과 parked engine의 지금 행 연결 대상과 다른 안내를 지우고, 안내 세대가 바뀐 창의 `MainViewState.attach_notices`에 넘긴다. pending mirror 설치 성공이 그 행의 안내를 지운다. 행 표지와 Workspace 배너, ×의 활성화 단위 숨김은 창 쪽(`adapters/ui/attach_notice.rs`)이 맡는다.
 
 ## 조회 팝업과 연결 시도의 소유
 
 원격 workspace 조회·생성의 socket, SSH tunnel, attempt worker는 `tasty-remote::Remote`가 소유한다. 팝업은 목록과 요청 ID만 보관한다. App은 Browse 요청이 생성된 View identity와 EngineId를 고정하고, Connect에서 같은 원본을 확인한 뒤 PendingMirrorInstall로 전달한다. 연결 결과로 표시를 바꿀 때도 원 View와 selection generation을 확인한다.
 
-자동 attach의 SSH probe는 원 AttemptToken의 취소 scope에서 실행한다. 원 engine·workspace mapping이 사라지면 진행 중 시도를 취소하며, 늦게 받은 결과로 현재 연결을 덮지 않는다. 조회 결과 큐가 가득 차면 worker가 원 결과를 보유해 기다리되 취소 시 빠져나온다. 준비된 attach 연결은 실제 I/O retirement receipt를 App이 수집하도록 별도 bounded 결과 큐로 전달한다.
+저장된 행 연결의 SSH probe는 원 AttemptToken의 취소 scope에서 실행한다. 원 engine이나 행이 사라지거나 사용자가 연결을 끊으면(`remote.row_tokens`의 행 토큰 교체) 진행 중 시도를 취소하며, 늦게 받은 결과로 현재 연결을 덮지 않는다. 조회 결과 큐가 가득 차면 worker가 원 결과를 보유해 기다리되 취소 시 빠져나온다. 준비된 attach 연결은 실제 I/O retirement receipt를 App이 수집하도록 별도 bounded 결과 큐로 전달한다.
 
 UI 대기 기한과 worker 종료는 별개다. 기한 만료는 취소 요청이며, Remote의 종료 관측은 실제 thread join 및 연결 retirement receipt를 사용한다. 원 raw 입력을 새 connection epoch에 재전송하지 않는다.
 
@@ -263,11 +263,11 @@ raw bridge는 서버가 HEARTBEAT_TIMEOUT 안에 닫지 않으면 대기를 끝�
   진행 중 추가 통지는 합산하며, 완료 뒤 다시 손실이 나면 재attach할 수 있다.
   기존 reconnect_session이 survivor ID와 scrollback을 유지하며 mesh frame·구독 중복 방지 캐시는 초기화한다.
   살아남은 terminal mirror의 grid는 새 descriptor의 서버 크기로 맞춘다(아래 "리사이즈 전파").
-  실패하면 anchor가 있는 세션은 Reconnecting, 나머지는 정리한다.
+  실패하면 저장된 원격 행의 세션은 Reconnecting, 나머지는 정리한다.
 - parked engine은 stream ID와 오래됨 표시만 갱신하고 연결은 유지한다. 창을 복원하면
   `resume_resync_in_window`가 재attach를 시작한다. AttachClientData 또는 3초 AttachView가 이 처리를 실행한다.
   이 호출 연결은 기존 단위 테스트만으로 검증되지 않는다. 실제로 park→손실→창 복원을 재현해야 한다.
-- 창에서 시작한 재attach가 EOF를 기다리는 사이 park되면 anchor 없는 세션이 정리될 수 있다.
+- 창에서 시작한 재attach가 EOF를 기다리는 사이 park되면 저장되지 않은 세션이 정리될 수 있다.
   소스에서 확인한 한계이며 실행 재현이 확인된 것은 아니다.
 - CLI dump는 최대 세 번 재attach하고 수집을 처음부터 시작한다. 그 뒤 손실은 결과를 출력하면서 stderr로 알린다.
   `--send`는 첫 attach에서만 실행한다. raw bridge는 제한 없이 재attach하고 매번 stderr로 알린다.
@@ -569,65 +569,46 @@ attach의 `HEARTBEAT_TIMEOUT`은 별개다. SSH가 살아 있어도 Tasty의 데
 ## GUI 자동 재연결 스코프
 
 silent disconnect 정리(`cleanup_mirror_workspace`) 자체는 heartbeat TTL 만료로도 자동 발동한다
-(위 "연결 생존 확인"). anchor(매핑된 로컬 워크스페이스)에 물린 세션이 이렇게 끊기면
+(위 "연결 생존 확인"). 저장된 원격 행(`Workspace.remote_row`)에 물린 세션(`saved_row`)이 이렇게 끊기면
 mirror workspace 는 즉시 걷히지 않는다 — 세션이 `SessionState::Reconnecting` 으로 전이해
 재연결 대기 상태를 유지하고, 아래 backoff 스케줄이 자동으로 재연결을 시도한다.
-anchor 가 없는 mirror(IPC `remote.attach` 로 연 임시 mirror 등)는 대상이 아니라 기존처럼
-즉시 정리된다.
+저장되지 않은 mirror(IPC `remote.attach` 로 연 mirror 등)는 대상이 아니라 즉시 정리된다.
 
 `enter_reconnecting` 은 옛 transport 의 소켓을 그 자리에서 닫는다(`ConnectionWorkers::close_socket`, 작업 스레드 join 은 transport 를 바꿀 때의 drop 이 맡는다). 소켓을 재연결 성공까지 열어 두면 서버는 EOF 를 보지 못해 옛 점유를 heartbeat TTL 까지 쥐고, 서버가 멈췄다 돌아온 직후 도착한 새 attach 를 `already_attached` 로 거절한다. 닫아 두면 서버는 재개하자마자 옛 연결의 끝을 읽어 docs/dev-guide/attach-behavior.md 의 같은 배치 회수 규칙으로 새 attach 를 받는다. 재연결 설치(`install_reconnected_mirror`, 재동기화도 같은 설치를 거친다)는 끝에 `finish_reconnected_view` 로 재연결 toast 를 띄우고 그 mirror 의 explorer View 를 `reload_mirror` 로 다시 읽게 한다(옛 연결의 목록 요청 소비자는 비워지고 응답이 오지 않는다). 다시 읽기는 `connection/tests.rs` 의 `finishing_a_reconnect_rereads_that_mirrors_explorers` 가 본다. 설치 본문에서 이 함수를 부르는지는 App 시험 하네스가 없어 단위 시험으로 보지 않는다.
 
-- **레벨/엣지 트리거(기존, 신규 attach 전담)** — `src/app/auto_attach.rs::maybe_trigger_auto_attach`
-  는 "활성 워크스페이스가 매핑 Some & `Remote.active` 에 없으면 트리거"를 **매 프레임**
-  재평가한다. 단 첫 attach 가 실패한 anchor 는 `Remote.attach_retry`(`AttachRetry`)의 시각까지
-  건너뛴다(`first_attach_waits` — 같은 매핑·엣지 아님일 때만). 실패는 `back_off_first_attach`
-  (해석·접수 실패는 `on_first_attach_failed`, 접수 뒤 연결 실패는 `pending.rs::fail_pending_mirror`)가
-  재연결과 같은 `Backoff`(0.5초→30초)와 jitter 로 `Remote::record_first_attach_failure` 에 기록하고, `sync_reconnect_timers` 가 아직
-  오지 않은 시각만 `Tick::Reconnect(anchor)` 로 예약한다(지난 시각을 예약하면 다른 워크스페이스에
-  있는 동안 루프를 계속 깨운다). 기록은 `forget_anchor_backoff` 가 재연결 기록(`Remote.reconnect`)과 함께 지운다 — 설치 성공(`pending.rs`), 재연결 중 매핑 소멸(`trigger_reconnect_anchor`), mirror 닫기(`connection.rs`). 또 `poll_auto_attach` 머리의 `prune_first_attach_retries` 가 창과 parked engine 을 훑어 워크스페이스가 닫혔거나 매핑이 지워지거나 바뀐 anchor 의 기록을 지운다. 예를 들어 이미 활성인 워크스페이스에 `attach_mapping` 을 방금 새로 설정하면
-  (`tasty set workspace --ssh-profile ...`) 워크스페이스 전환 없이도 다음 프레임에 즉시
-  트리거된다. "재진입 대기(pending reactivation)" anchor(과거엔 disconnect 로 정리된
-  모든 anchor 가 여기 들어갔지만, 지금은 이 표시가 남아있는 것 자체는 드물다 — 아래
-  backoff 스케줄이 대부분 먼저 처리한다)만 엣지(전환) 게이팅: 활성 워크스페이스 id 가
-  **직전 프레임과 달라진 프레임에서만**(`App.remote.last_active_ws` 로 직전 값을 들고
-  비교, 술어는 `is_reactivation_edge`) 트리거를 허용한다. 최종 판정은
-  `is_attach_trigger_allowed(pending_reactivation, current, previous)`(단위 테스트
-  `new_mapping_triggers_immediately_without_transition`/
-  `disconnected_anchor_waits_for_transition_before_retrigger`).
-  - **backoff 재연결과의 레이스 회피**: anchor 에 이미 `Reconnecting` 세션이 있으면 이
-    트리거는 즉시 스킵한다(`maybe_trigger_reconnect` 전담 대상). 이 가드가 없으면 두
-    트리거가 같은 anchor 에 대해 동시에 `start_gui_attach`/`reconnect_session` 을 각각
-    spawn 해 mirror workspace 가 중복 생성될 수 있다.
+- **보이는 행의 첫 연결(`maybe_connect_visible_row`)** — 포커스된 창의 활성 workspace 가
+  세션 없는 저장된 원격 행이고 `Remote.active` 에 없으면 연결을 시작한다(`connect_saved_row` →
+  `start_first_connect`). 다시 시작한 직후 복원된 활성 행도 같다. 첫 연결이 실패한 행은
+  `pending_reactivation` 에 들어가 활성 workspace id 가 직전 프레임과 달라진 프레임(`is_reactivation_edge`,
+  직전 값은 `Remote.last_active_ws`)에서만 다시 시도한다. 사용자가 끊은 행(`Remote.user_disconnected`)은
+  `user_disconnect_holds` 가 참이면 시도하지 않는다. 사용자 대기 갈래 L1·L4 의 분기는 `user_disconnect_holds`·
+  `visible_row_connects` 두 함수에만 있다.
+  - **backoff 재연결과의 레이스 회피**: 행에 이미 세션이 있으면(`Connected`·`Reconnecting`) 이 경로는
+    시도하지 않는다. `Disconnected` 세션은 엣지에서만 `connect_saved_row` 로 새 재연결 구간을 시작한다.
 - **backoff 재연결 트리거(`maybe_trigger_reconnect`)** — `Reconnecting` 상태인
-  세션이 있는 각 anchor 마다 매 프레임 확인한다: ① 사용자가 **지금** 그 anchor
-  워크스페이스로 전환해 돌아왔으면(엣지, `current_ws_id == anchor` 로 한정 — 다른
-  워크스페이스로의 무관한 전환까지 모든 Reconnecting anchor 를 깨우지 않는다) 즉시, ②
-  아니어도 `App.remote.reconnect: HashMap<u32, ReconnectSlot>` 에 저장된 `next_attempt`
-  시각이 지났으면(Reconnecting 진입 직후 첫 시도는 슬롯이 없어 즉시). 두 조건 모두
-  `Remote.active` 게이트를 공유해 중복 attach 를 막는다. anchor 워크스페이스 자체가
-  삭제됐거나 `attach_mapping` 이 그 사이 사라지면 스케줄을 정리하고 skip 한다.
+  세션이 있는 각 행마다 매 프레임 확인한다: ① 사용자가 **지금** 그 행으로 전환해
+  돌아왔으면(엣지, `current_ws_id == row` 로 한정) 즉시, ② 아니어도 `Remote.reconnect`
+  의 `ReconnectSlot.next_attempt` 시각이 지났으면. 두 조건 모두 `Remote.active` 게이트를
+  공유해 중복 attach 를 막는다. 대기 중에 행이 닫혔으면 `forget_row` 로 스케줄을 정리하고 skip 한다.
+  - **재연결 시간 창**: `ReconnectSlot.started`(끊긴 시각)부터 `[remote_attach] reconnect_timeout_secs`
+    (`AppServices::reconnect_window_secs`, 설정 적용 때 `attach_heartbeat::apply` 가 갱신)가 지나면
+    `enter_disconnected` 로 행을 `Disconnected` 로 바꾸고 안내 toast(`mirror_reconnect_giveup`)를 띄운다.
+    `sync_reconnect_timers` 는 다음 시도 시각과 창이 끝나는 시각 중 이른 쪽을 `Tick::Reconnect(row)` 로 예약한다.
+    창이 0이면 `enter_reconnecting` 이 바로 `enter_disconnected` 를 부른다.
   - **GUI는 기다리지 않고 예약한다.** CLI의 `Backoff::sleep()` 대신 `current()`와
     `advance()`로 다음 시각을 계산하고 프레임마다 확인한다.
-
-  - **성공/실패 처리(`drain_auto_attach_results`)**: `is_reconnect` 플래그로 신규
-    attach(`start_gui_attach`)와 재연결(`reconnect_session`, survivor mapping — 아래
-    "재연결 시 세션 상태 보존" 참고)을 분기한다. 재연결 성공 시 `Remote.reconnect`
-    슬롯을 제거(다음 disconnect 때 새로 시작)한다. 실패는 `on_reconnect_attempt_failed`
-    로 처리: 에러 메시지에 `already_attached` 가 포함되면(다른 클라이언트가 그 원격
-    워크스페이스를 여전히 점유 — 영구적 충돌일 수 있음) 지수 증가 없이 max(30초) 간격에
-    고정해 폭주 없이 계속 대기하고, 그 외(네트워크/SSH 등 일시적 실패)는 통상적인 지수
-    백오프(0.5s→30s)로 늘린다. 간격에는 ±20% jitter 를 둬 여러 anchor 가 동시에 끊겼을
-    때 재시도가 한 tick 에 몰리는 것을 막는다. 시도 횟수가 `MAX_RECONNECT_ATTEMPTS`(20)에
-    도달하면 `ReconnectSlot.given_up` 을 세우고 안내 toast(`mirror_reconnect_giveup`)를
-    1회 띄운다 — `Remote.pending_reactivation` 은 건드리지 않으므로 사용자가 그
-    워크스페이스를 왕복하는 수동 재시도(엣지 트리거)는 계속 유효하다.
-    - **give-up은 슬롯에 남긴다.** 슬롯을 지우면 `reconnect_due(None, _)`가 첫 시도로
-      해석해 다시 시작한다. `given_up`이면 시각과 관계없이 자동 재시도를 막고, 사용자가
-      해당 workspace로 돌아오는 `should_reset_given_up` 조건에서만 재개한다.
-      실패 횟수는 이번 실패를 반영한 값이며 `attempts >= MAX_RECONNECT_ATTEMPTS`로 비교한다.
+  - **성공/실패 처리(`drain_auto_attach_results`)**: 재연결 성공 시 `forget_row_backoff` 가
+    `Remote.reconnect` 슬롯을 지운다(다음 disconnect 때 새로 시작). 실패는 `on_reconnect_attempt_failed`
+    로 처리한다: `connect_failure_kind` 가 영구 거절로 읽는 사유(`already_attached`·`workspace_not_found`·
+    `mirror_workspace`)는 행 안내를 남기고 바로 `enter_disconnected` 로 간다. 그 밖(네트워크/SSH 등 일시적
+    실패)은 지수 백오프(0.5s→30s)로 늘리고 ±20% jitter 를 둬 여러 행이 동시에 끊겼을 때 재시도가 한 tick 에
+    몰리는 것을 막는다.
+    - **`Disconnected` 는 슬롯을 `given_up` 으로 남긴다.** 슬롯을 지우면 `reconnect_due(None, _)`가 첫 시도로
+      해석해 다시 시작한다. 사용자가 그 행을 다시 활성화하거나 팝업에서 다시 고르면 `connect_saved_row` 가
+      새 슬롯으로 재연결 구간을 시작한다.
 
 - **`detach_orphaned_mirror_sessions` 와의 관계**: 간섭 없음. `apply_attach_client_output`
-  (disconnect 감지, anchor 있으면 `Reconnecting` 전이 / anchor 없으면
+  (disconnect 감지, 저장된 행이면 `Reconnecting` 전이 / 아니면
   `cleanup_mirror_workspace(sess, from_disconnect=true)`)과
   `detach_orphaned_mirror_sessions`(사용자가 mirror ws 자체를 닫은 고아 세션 정리,
   `from_disconnect=false`)는 서로 다른 세션 식별 기준(전자는 `disconnected` 플래그, 후자는
@@ -653,31 +634,31 @@ backoff 재연결이 매번 `start_gui_attach` 로 완전 신규 mirror workspac
   `reconnect_session` 은 재연결 직전의 `remote_to_local` 매핑을 old_map 으로 넘겨 재연결
   전후 살아있는 surface 의 scrollback/local id 를 보존한다.
 - **`SharedFrameSender`(`Arc<ConnectionSender>`)**: sender는 원 연결의 bounded queue를 가리킨다. 연결 epoch와 mapping/grant binding을 확인한 요청만 전송하며, 옛 입력을 재연결 뒤 새 sender로 다시 해소하지 않는다. 재연결은 새 transport를 설치하고 살아남은 표시 ID를 재사용할 수 있지만, 이전 연결의 pending 입력·frame 상태를 successor로 넘기지 않는다.
-- **`SessionState`(`Connected`/`Reconnecting`)**: 기존 `cleanup_mirror_workspace` 는
+- **`SessionState`(`Connected`/`Reconnecting`/`Disconnected`)**: 기존 `cleanup_mirror_workspace` 는
   disconnect 즉시 mirror workspace/터미널을 통째로 걷어내, 재연결 트리거가
-  발동할 시점엔 survivor-mapping 을 적용할 대상 자체가 남아있지 않았다. 이를 막기 위해 anchor 가 있는 세션의 disconnect 는 `cleanup_mirror_workspace`
+  발동할 시점엔 survivor-mapping 을 적용할 대상 자체가 남아있지 않았다. 이를 막기 위해 저장된 행 세션의 disconnect 는 `cleanup_mirror_workspace`
   를 부르지 않고 `enter_reconnecting`(mirror workspace/터미널을 그대로 둔 채 상태만
   `Reconnecting` 으로 전이, `Remote.active` 에서 제거해 재연결 트리거가 자유롭게
-  spawn 하게 함)으로 분기한다. anchor 가 없는 세션(임시 mirror)은 기존처럼 즉시
-  `cleanup_mirror_workspace`.
-- **늦은 결과**: App은 endpoint 결과의 AttemptToken, 원 View/engine 설치 대상, anchor와 현재 매핑을 확인한다. 닫히거나 변경된 대상의 결과는 `Remote::discard_endpoint_outcome`으로 넘긴다. 원 tunnel은 Remote retirement worker가 보유해 kill/wait하며 App drain에서 blocking Drop하지 않는다. 원 worker와 retirement receipt의 실제 join 관측이 끝나야 회수가 완료된다.
+  spawn 하게 함)으로 분기한다. 저장되지 않은 세션은 즉시
+  `cleanup_mirror_workspace`. 재연결 시간이 지나면 `Disconnected` 가 된다. 이때도 형상은 남는다.
+- **늦은 결과**: App은 endpoint 결과의 AttemptToken, 원 View/engine 설치 대상, 행과 현재 연결 대상·행 토큰을 확인한다. 닫히거나 변경된 대상의 결과는 `Remote::discard_endpoint_outcome`으로 넘긴다. 원 tunnel은 Remote retirement worker가 보유해 kill/wait하며 App drain에서 blocking Drop하지 않는다. 원 worker와 retirement receipt의 실제 join 관측이 끝나야 회수가 완료된다.
 
 ## mirror 세션 종료 (client → 원격 점유 해제)
 
 client 가 mirror 를 걷어내면 원격에 `Detach` 를 보내 원격 점유(hard workspace lock)를 해제해야 한다. 종료 트리거는 두 가지다.
 
 - **원격발 종료(EOF/force-detach/read timeout)**: reader 스레드가 `Detach`/`force_detached`/EOF 를 받거나(위 "연결 생존 확인" 참조) read timeout 으로 소켓 read 가 에러를 반환하면 `disconnected` 플래그가 선다. `apply_attach_client_output` 이 이를 상태별로 분기한다 —
-  - **anchor 있는 세션(매핑된 워크스페이스)**: `cleanup_mirror_workspace` 를 부르지 않고 `enter_reconnecting` 으로 전이(위 "재연결 시 세션 상태 보존" 참고) — mirror workspace/터미널을 살려둔 채 `Reconnecting` 상태로 두고 backoff 재연결에 맡긴다.
-  - **anchor 없는 세션(임시 mirror, IPC `remote.attach` 등)**: 기존과 동일하게 세션 제거 + `cleanup_mirror_workspace(sess, from_disconnect=true)`. 그 mirror 가 창의 유일한 워크스페이스였으면 정리 뒤 기본 터미널 워크스페이스를 다시 만든다(`MainViewState::recreate_workspace_if_empty`) — 창을 닫지도, 워크스페이스 0 개로 남기지도 않는다(이 문서).
+  - **저장된 원격 행의 세션**: `cleanup_mirror_workspace` 를 부르지 않고 `enter_reconnecting` 으로 전이(위 "재연결 시 세션 상태 보존" 참고) — mirror workspace/터미널을 살려둔 채 `Reconnecting` 상태로 두고 backoff 재연결에 맡긴다.
+  - **저장되지 않은 세션(IPC `remote.attach` 등)**: 세션 제거 + `cleanup_mirror_workspace(sess, from_disconnect=true)`. 그 mirror 가 창의 유일한 워크스페이스였으면 정리 뒤 기본 터미널 워크스페이스를 다시 만든다(`MainViewState::recreate_workspace_if_empty`) — 창을 닫지도, 워크스페이스 0 개로 남기지도 않는다(이 문서).
   - 이미 `Reconnecting` 상태인 세션(재연결 시도 자체가 실패해 다시 disconnected 로 관측되는 경우)은 이 분기에 다시 들어오지 않는다 — `disconnected && state == Connected` 조건이라 진입 시 이미 걸러진다.
 - **로컬발 종료(사용자 연결 끊기)**: mirror 카드의 **워크스페이스 연결 끊기**가 `Intent::DisconnectMirror`로
   `App::disconnect_mirror_workspace`(`attach_client/workspace_close.rs`)를 부른다. 에이전트용 IPC `remote.disconnect`
   (`app/ipc/app_methods/remote.rs`, CLI `tasty remote disconnect`)도 같은 함수를 부른다. `Connected`와 `Reconnecting`
-  모두 같은 경로다. 먼저 `cancel_mirror_attempts`가 `reconnect`가 그 mirror를 가리키는 endpoint·connection 시도를
+  모두 같은 경로다. 저장되지 않은 mirror는 먼저 `cancel_mirror_attempts`가 그 mirror를 가리키는 endpoint·connection 시도를
   취소하고(run은 `cancelled`), 세션을 vec에서 뺀 뒤 `end_mirror_locally`가 `cleanup_mirror_workspace(.., false)`로
-  정리하고 transport를 drop해 socket·worker·소유 터널을 retirement에 넘긴다. anchor는 `pending_reactivation`에 다시
-  넣고 `Remote.last_active_ws`를 정리 뒤의 활성 workspace로 맞춘다. 정리로 선택이 anchor로 옮겨져도 그 프레임이
-  전환 엣지가 되지 않아, 사용자가 다른 workspace를 거쳐 anchor로 돌아올 때만 다시 attach한다.
+  정리하고 transport를 drop해 socket·worker·소유 터널을 retirement에 넘긴다.
+  저장된 원격 행은 `disconnect_saved_row`가 맡는다. 시도를 취소하고 행 토큰을 바꿔 늦은 결과를 버리게 한 뒤
+  `Remote.user_disconnected`에 넣고, 원격에 `Detach`를 보내고 `enter_disconnected`로 형상을 남긴 끊긴 행으로 둔다.
   mirror의 **워크스페이스 닫기**는 이 경로가 아니라 아래 "서버 workspace 닫기"다.
 - **서버 workspace 닫기**: `build_mirror_forward_op`가 `DomainIntent::CloseWorkspace`를 `StructuralOp::CloseWorkspace`로 바꾼다.
   `apply_domain_intent`는 admission 전에 `workspace_close_refusal`로 연결(`Connected`·활성 epoch)·capability
@@ -689,8 +670,7 @@ client 가 mirror 를 걷어내면 원격에 `Detach` 를 보내 원격 점유(h
   설치 continuation과 단절 판정보다 먼저 보고 `ServerClosed`로 정리한다. 서버는 성공 회신 뒤 `force_detach_workspace`로
   `force_detached`와 EOF를 보내므로 그 EOF가 같은 묶음이든 다음 tick이든 재연결로 가지 않는다(`output/close_order_tests.rs`).
   `Pending`인 채로 단절이 처리되면 결과를 모른다는 안내를 띄우고 기존 단절 처리를 따른다. 재연결 설치는 `Idle`로 초기화한다.
-  정리는 연결 끊기와 같은 `end_mirror_locally`이며, 그 전에 `remember_closed_mapping`이 anchor 매핑을 `Remote.closed_mappings`에
-  기록해 `auto_attach_candidate`가 같은 매핑으로 다시 attach하지 않게 한다. 매핑이 바뀌거나 사라지면 `prune_first_attach_retries`가 지운다.
+  정리는 연결 끊기와 같은 `end_mirror_locally`이며 저장된 행이면 행도 닫혀 저장 항목이 지워진다.
   - 서버의 `resolve_remote_request`는 op를 `intent.close` + `CloseTarget::Workspace(held)`로 바꾼다. `close.rs::Request::workspace`는
     `Cause::RemoteHolder`이면 holder와 대상 workspace를 확인하고, 그 holder 자신의 hard 점유는 허용하되 다른 client의 hard 점유는
     거절한다. 서버의 마지막 workspace면 replacement workspace를 만든다. 서버 로컬 IPC `workspace.close`의 거절(점유·마지막)은 그대로다.
@@ -703,7 +683,7 @@ client 가 mirror 를 걷어내면 원격에 `Detach` 를 보내 원격 점유(h
   ([창 없는 상태의 세션 수명](../features/remote-attach/index.md#창-없는-상태parked에서의-세션-수명)).
   attach 설정 중에는 같은 동기 함수에서 워크스페이스를 만든 뒤 세션을 추가하므로,
   아직 워크스페이스를 만들지 않은 세션이 이 검사에 걸리지는 않는다.
-- **`cleanup_mirror_workspace`(공용, `from_disconnect: bool` 파라미터로 위 두 트리거 구분)**: mirror ws·터미널·mirror busy 엔트리·mesh 프레임 캐시 제거(창 있는 engine → parked engine 순으로 찾는다. 고아 판정과 순회 범위가 같아야 잔류가 없다. 이미 없으면 skip) → 원격에 `Detach` push → anchor 게이트(`Remote.active`) 해제 → 원 transport와 터널을 Remote retirement에 넘겨 실제 회수 관측. `from_disconnect=true`(원격발, anchor 없는 세션 한정)일 때만 anchor 를 `Remote.pending_reactivation` 에 추가(위 "GUI 자동 재연결 스코프" 참고) — `false`(로컬발/사용자 close)는 그 항목과 `Remote.reconnect` 스케줄 모두 명시적으로 제거해 이미 걷어낸 세션에 대한 재연결 시도를 남기지 않는다. 원격은 `Detach` 수신 시 read loop break → `Disconnected` → `release_all_for_client`(workspace+surface lock 해제).
+- **`cleanup_mirror_workspace`(공용, `from_disconnect: bool` 파라미터로 위 두 트리거 구분)**: mirror ws·터미널·mirror busy 엔트리·mesh 프레임 캐시 제거(창 있는 engine → parked engine 순으로 찾는다. 고아 판정과 순회 범위가 같아야 잔류가 없다. 이미 없으면 skip) → 원격에 `Detach` push → anchor 게이트(`Remote.active`) 해제 → 원 transport와 터널을 Remote retirement에 넘겨 실제 회수 관측. `false`(로컬발/사용자 close)는 `forget_row`로 그 행의 대기·재연결 스케줄을 지워 이미 걷어낸 세션에 대한 재연결 시도를 남기지 않는다. 원격은 `Detach` 수신 시 read loop break → `Disconnected` → `release_all_for_client`(workspace+surface lock 해제).
 - **적용 순회도 같은 범위다**: `apply_attach_client_output` 은 mirror 이벤트의 적용 대상을 창 있는 engine → parked engine 순으로 찾고(`mirror_output_host`), 찾은 뒤에만 reader 버퍼를 drain 한다 — 창이 없는 parked 구간에 도착한 출력·구조 delta 도 그 engine 에 즉시 적용된다(docs/dev-guide/attach-behavior.md). 고아 판정·정리·적용 세 순회의 범위가 같아야 "살아 있다고 판정된 engine 에 적용이 닿지 않는" 유실 구간이 생기지 않는다.
 
 ## force-detach
@@ -910,7 +890,7 @@ mirror 터미널은 attach snapshot(보이는 화면·커서·주요 모드)과 
 
 GUI가 mirror를 만드는 네 경로는 `attach_client/dispatch.rs::dispatch_attach`를 공유한다.
 source는 셋이다. `User`는 원격 연결 팝업, `Ipc`는 IPC `attach.into_gui`, `Endpoint`는 IPC
-`remote.attach`와 자동 attach다. 자기 포트면 `RejectedSelf`로 반환하고 connector를 호출하지
+`remote.attach`와 저장된 원격 행의 연결이다. 자기 포트면 `RejectedSelf`로 반환하고 connector를 호출하지
 않는다. 다른 포트면 connector를 정확히 한 번 호출하며 성공값/오류를 그대로 돌려준다.
 `Ipc`와 `Endpoint`는 성공해도 포커스를 옮기지 않고(설치 대상의 `activate=false`), 사용자
 경로 `User`만 기존처럼 새 mirror를 포커스한다. 이 분기는 raw stream client의 정상 로컬
@@ -920,7 +900,7 @@ attach와 별개다.
 통합시험은 `attach_dispatch_completed` 로그에서 자기 port/workspace와 source 값에 대응하는
 **완료**와 `connector_entries=0`, `outcome=rejected_self`를 확인한다. source 별로 따로 본다.
 `attach.into_gui` 요청은 source `attach.into_gui` 기록을, 자기 포트로 보낸 `remote.attach`
-요청은 source `remote.attach/auto-attach` 기록을 찾는다. 자동 attach는 같은 `Endpoint`
+요청은 source `remote.attach/auto-attach` 기록을 찾는다. 저장된 행의 연결은 같은 `Endpoint`
 source를 쓰지만 통합시험이 직접 실행하지 않는다. 이 기록은 dispatcher 반환 뒤에
 생기며, connector에 들어갔으면 실패해 돌아와도 진입 횟수가 남는다. 기록 구현은 모듈 선언에
 `cfg(debug_assertions)`가 붙은 별도 `dispatch/debug_completion.rs`에 있다. 새 IPC나 전역

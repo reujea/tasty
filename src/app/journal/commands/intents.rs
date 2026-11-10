@@ -232,16 +232,13 @@ impl JournalApplication {
                 "intent.tab-name",
                 serde_json::json!({"tab_id":tab_id,"name":name,"user_direct":origin.is_user()}),
             ),
-            R::ClearWorkspaceMapping { workspace_id } => (
-                "intent.workspace-mapping",
-                serde_json::json!({"id":workspace_id,"mapping":null}),
-            ),
         };
         self.admit_intent_request(engine_id, method, params, origin, None);
     }
 
     /// 저장된 원격 행의 현재 값을 journal에 저장하거나(`remove == false`) 지운다.
     /// 값은 처리 시점의 화면 상태에서 읽으므로 그사이 행이 닫혔으면 저장하지 않는다.
+    #[cfg(any(feature = "gui", test))]
     pub(crate) fn admit_remote_row(
         &mut self,
         engine_id: EngineId,

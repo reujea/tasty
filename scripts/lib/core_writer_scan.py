@@ -36,7 +36,7 @@ EXCLUDED_FNS = {
 APPSTATE_PREFIXES = ["src/state.rs", "src/state/"]
 
 ASSIGN_FIELDS = (
-    "name|subtitle|description|attach_mapping|mirror|category"
+    "name|subtitle|description|remote_row|mirror|category"
     "|explicit_name|layout_opt|tabs|workspaces|categories"
 )
 VEC_FIELDS = "tabs|workspaces|categories"
@@ -51,7 +51,7 @@ FIELD_WRITES = [
     ("vec", re.compile(r"\.\s*(?:" + VEC_FIELDS + r")\s*\.\s*(?:" + VEC_METHODS + r")\s*\(")),
     ("mem", re.compile(
         r"\b(?:replace|swap|take)\s*\(\s*&\s*mut\s+[^,;(){}]*?\.\s*(?:" + VEC_FIELDS + r")\b")),
-    ("setter", re.compile(r"\.\s*(?:set_attach_mapping|set_category)\s*\(")),
+    ("setter", re.compile(r"\.\s*set_category\s*\(")),
 ]
 TERMINAL_INSERT = re.compile(r"\bterminals\s*\.\s*insert\s*\(")
 
@@ -66,7 +66,7 @@ STRUCTURAL_CALLS = [
     "add_surface_tab", "add_surface_tab_background", "move_tab", "take_layout",
     "put_layout", "close_surface", "put_surface",
     "split_surface_by_id", "split_surface_by_id_generic", "split_with_surface",
-    "split_with_node", "extract_surface", "replace_surface", "set_attach_mapping",
+    "split_with_node", "extract_surface", "replace_surface",
     "set_category", "push_closed_item", "set_workspace_category", "create_category",
     "rename_category", "delete_category", "reorder_category",
     "apply_create_workspace_inner", "create_default_workspace",
@@ -76,7 +76,7 @@ STRUCTURAL_CALL_RE = re.compile(
 # src/state 밖에서 하위 연산을 직접 부르는 곳. setter는 field 지표가 이미 센다.
 SUBOP_RE = re.compile(
     r"\.\s*(" + "|".join(n for n in STRUCTURAL_CALLS
-                         if n not in ("set_attach_mapping", "set_category")) + r")\s*\(")
+                         if n != "set_category") + r")\s*\(")
 # 수신자가 `state`이면 View/명령 문맥 메서드 호출이다. 그 함수는 appstate 지표가 센다.
 APPSTATE_RECEIVER_RE = re.compile(r"\bstate\s*$")
 DIRECT_STRUCTURAL_EXTRA = [
@@ -108,6 +108,9 @@ BOUNDARY_LIMITS = {
     ("src/app/journal/publication.rs", "complete_opening", "projection::bootstrap::initialize"): 1,
     # Non-durable remote model install/reconnect/delta/removal, never local canonical writes.
     ("src/app/attach_client/connection.rs", "install_new_mirror", "push_mirror_workspace"): 1,
+    # A saved remote row's first connect fills the restored empty row in place, keeping its
+    # name, category and position. Still a mirror projection, never a local canonical write.
+    ("src/app/attach_client/connection.rs", "install_new_mirror", "replace_mirror_workspace"): 1,
     ("src/app/attach_client/connection.rs", "install_reconnected_mirror", "replace_mirror_workspace"): 1,
     ("src/app/attach_client/output.rs", "apply_mirror_structural_delta", "replace_mirror_workspace"): 1,
     ("src/app/attach_client/connection.rs", "remove_mirror_workspace_from_engine", "remove_mirror_workspace"): 1,

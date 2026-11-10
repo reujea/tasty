@@ -4,7 +4,7 @@ use serde::de::{self, Deserializer};
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 
-use crate::model::{SplitDirection, WorkspaceAttachMapping, WorkspaceCategoryId};
+use crate::model::{SplitDirection, WorkspaceCategoryId};
 
 #[derive(Serialize, Deserialize)]
 pub struct SavedLayout {
@@ -32,9 +32,6 @@ pub struct SavedWorkspace {
     pub pane_layout: SavedPaneNode,
     /// 왼쪽부터 깊이 우선으로 센 leaf pane 중 선택된 pane의 인덱스.
     pub focused_pane_index: usize,
-    /// 원격 attach 매핑. 필드가 없는 이전 파일은 None으로 읽는다.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub attach_mapping: Option<WorkspaceAttachMapping>,
     /// 필드가 없는 이전 파일은 기본 normal ID인 0으로 읽는다.
     #[serde(default)]
     pub category: WorkspaceCategoryId,

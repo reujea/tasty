@@ -399,8 +399,8 @@ fn bytes_held_by_other_requests_shrink_the_history_budget_without_failing_the_cl
     let holder = journal.next_ticket;
     journal.admit_intent_request(
         session.id,
-        "intent.workspace-mapping",
-        serde_json::json!({"id": 0, "mapping": null}),
+        "intent.remote-row",
+        serde_json::json!({"id": 0, "remove": true}),
         &origin,
         None,
     );

@@ -1,16 +1,16 @@
-//! 자기 자신(자기 포트, 또는 SSH 너머의 같은 인스턴스)으로 향한 attach 거절의 기록.
+//! 원격 행에 연결하지 못한 이유와, 자기 자신(자기 포트, 또는 SSH 너머의 같은 인스턴스)으로 향한
+//! attach 거절의 기록.
 //!
 //! 거절은 엔드포인트를 해석한 뒤 메인 루프에서 정해지므로 `remote.attach` 응답에 실을 수 없다.
-//! 호출자는 응답에 있는 시도 번호로 이 기록을 조회한다. 자동 attach 매핑의 거절은 같은 매핑이
-//! 남아 있는 동안 다시 시도하지 않도록 함께 보관한다.
+//! 호출자는 응답에 있는 시도 번호로 이 기록을 조회한다.
 //!
-//! 자동 attach 매핑을 연결하지 못한 이유(자기 자신, 없는 프로필, 해석 실패)는 anchor별 안내로도
-//! 남긴다. 사이드바 행 표지와 Workspace 배너가 이 안내를 읽는다. 안내는 그 anchor의 매핑이
-//! 바뀌거나 지워질 때, 또는 같은 매핑으로 연결에 성공할 때 사라진다.
+//! 저장된 원격 행을 연결하지 못한 이유(자기 자신, 없는 프로필, 해석 실패, 원격 workspace 없음,
+//! 다른 곳에서 사용 중, mirror 체인)는 행별 안내로 남긴다. 사이드바 행 표지와 원격 연결 정보
+//! 팝업이 이 안내를 읽는다. 안내는 그 행이 닫히거나 연결에 성공할 때 사라진다.
 
 use std::collections::{HashMap, VecDeque};
 
-use tasty_model::{WorkspaceAttachMapping, WorkspaceAttachTarget};
+use tasty_model::RemoteBinding;
 
 /// 보관하는 최근 거절 수. 넘으면 오래된 것부터 버린다.
 pub const REFUSAL_HISTORY: usize = 32;
@@ -20,8 +20,8 @@ pub const REFUSAL_HISTORY: usize = 32;
 pub struct AttachRefusal {
     /// `remote.attach` 응답의 `attempt`와 같은 번호.
     pub attempt: u64,
-    /// 자동 attach 매핑을 가진 로컬 workspace. 수동 `remote.attach`는 `None`이다.
-    pub anchor_workspace: Option<u32>,
+    /// 연결하려던 저장된 원격 행. 수동 `remote.attach`는 `None`이다.
+    pub row_workspace: Option<u32>,
     pub remote_workspace: u32,
     /// 해석한 연결 포트. loopback 직결이면 이 인스턴스의 IPC 포트이고, SSH 터널이면 터널의 로컬 포트다.
     pub port: u16,
@@ -30,68 +30,54 @@ pub struct AttachRefusal {
     pub reconnect: bool,
 }
 
-/// 자동 attach 매핑을 연결하지 않은 이유.
+/// 원격 행을 연결하지 못한 이유. 이름은 IPC 오류의 `data.reason`과 같다.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize)]
 #[serde(rename_all = "snake_case")]
-pub enum MappingNoticeKind {
+pub enum RowNoticeKind {
     /// 대상이 이 인스턴스 자신이다.
     SelfInstance,
-    /// 매핑이 가리키는 SSH 프로필이 없다.
+    /// 행이 가리키는 attach 프로필이 없다.
     ProfileMissing,
-    /// 프로필이나 인라인 대상의 연결 지점을 준비하지 못했다.
+    /// 프로필의 연결 지점을 준비하지 못했다.
     Unresolved,
+    /// 원격에 그 workspace가 없다.
+    RemoteWorkspaceMissing,
+    /// 다른 client가 그 원격 workspace를 점유하고 있다.
+    Occupied,
+    /// 원격 workspace가 그쪽에서도 mirror다.
+    #[serde(rename = "mirror_workspace")]
+    MirrorChain,
 }
 
-/// anchor 하나의 연결하지 않은 매핑 안내.
+/// 원격 행 하나의 연결하지 못한 이유 안내.
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct MappingNotice {
-    pub kind: MappingNoticeKind,
-    /// 표시용 대상. 프로필 이름 또는 인라인 대상 문자열이다.
+pub struct RowNotice {
+    pub kind: RowNoticeKind,
+    /// 표시용 대상. 프로필 이름이다.
     pub target: String,
-    /// 안내를 만든 매핑. 지금 매핑과 다르면 안내를 지운다.
-    pub mapping: WorkspaceAttachMapping,
-    /// 사용자가 그 워크스페이스를 활성화해 시작한 시도의 안내이거나, 안내가 있는 채로 사용자가
-    /// 활성화했는지. 배너는 사용자 조작의 안내라 이 값이 true일 때만 띄운다. 행 표지는 늘 보인다.
+    /// 안내를 만든 연결 대상.
+    pub binding: RemoteBinding,
+    /// 사용자가 그 행을 활성화해 시작한 시도의 안내이거나, 안내가 있는 채로 사용자가
+    /// 활성화했는지. 사용자 조작의 안내만 눈에 띄게 보인다. 행 표지는 늘 보인다.
     pub announced: bool,
-}
-
-/// 매핑의 표시용 대상.
-pub fn mapping_target(mapping: &WorkspaceAttachMapping) -> String {
-    match &mapping.target {
-        WorkspaceAttachTarget::Profile { name } => name.clone(),
-        WorkspaceAttachTarget::Inline { host, .. } => host.clone(),
-    }
 }
 
 #[derive(Default)]
 pub struct Refusals {
     recent: VecDeque<AttachRefusal>,
-    /// 인라인 대상은 대상 문자열이 포트를 정하므로 매핑이 그대로면 다시 시도해도 같은 거절이다.
-    /// 프로필 대상은 프로세스 밖에서 프로필 내용이 바뀔 수 있어 여기 보관하지 않는다.
-    held_inline: HashMap<u32, WorkspaceAttachMapping>,
-    notices: HashMap<u32, MappingNotice>,
-    /// 진행 중인 첫 attach 시도가 사용자의 워크스페이스 활성화로 시작됐는지.
+    notices: HashMap<u32, RowNotice>,
+    /// 진행 중인 첫 연결 시도가 사용자의 행 활성화로 시작됐는지.
     activation_attempts: std::collections::HashSet<u32>,
     /// 안내가 바뀔 때마다 오른다. 표시 쪽은 같은 세대를 다시 받지 않는다.
     notice_generation: u64,
 }
 
 impl Refusals {
-    pub fn record(&mut self, refusal: AttachRefusal, mapping: Option<&WorkspaceAttachMapping>) {
-        if let (Some(anchor), Some(mapping)) = (refusal.anchor_workspace, mapping)
-            && matches!(mapping.target, WorkspaceAttachTarget::Inline { .. })
-        {
-            self.held_inline.insert(anchor, mapping.clone());
-        }
+    pub fn record(&mut self, refusal: AttachRefusal) {
         if self.recent.len() == REFUSAL_HISTORY {
             self.recent.pop_front();
         }
         self.recent.push_back(refusal);
-    }
-
-    /// 이 anchor의 지금 매핑이 이미 자기 포트로 거절된 인라인 대상인지.
-    pub fn holds(&self, anchor: u32, mapping: &WorkspaceAttachMapping) -> bool {
-        self.held_inline.get(&anchor) == Some(mapping)
     }
 
     /// 오래된 것부터.
@@ -99,44 +85,45 @@ impl Refusals {
         self.recent.iter()
     }
 
-    /// 첫 attach 시도를 시작할 때 사용자의 활성화로 시작했는지 남긴다.
-    pub fn begin_attempt(&mut self, anchor: u32, from_activation: bool) {
+    /// 첫 연결 시도를 시작할 때 사용자의 활성화로 시작했는지 남긴다.
+    pub fn begin_attempt(&mut self, row: u32, from_activation: bool) {
         if from_activation {
-            self.activation_attempts.insert(anchor);
+            self.activation_attempts.insert(row);
         } else {
-            self.activation_attempts.remove(&anchor);
+            self.activation_attempts.remove(&row);
         }
     }
 
-    /// anchor의 안내를 새 이유로 바꾼다. 같은 매핑의 안내가 이미 알렸으면 알린 상태를 유지한다.
-    pub fn note(&mut self, anchor: u32, kind: MappingNoticeKind, mapping: &WorkspaceAttachMapping) {
-        let announced = self.activation_attempts.remove(&anchor)
+    /// 행의 안내를 새 이유로 바꾼다. 같은 대상의 안내가 이미 알렸으면 알린 상태를 유지한다.
+    pub fn note(&mut self, row: u32, kind: RowNoticeKind, binding: &RemoteBinding) {
+        let announced = self.activation_attempts.remove(&row)
             || self
                 .notices
-                .get(&anchor)
-                .is_some_and(|n| n.announced && n.mapping == *mapping);
-        let notice = MappingNotice {
+                .get(&row)
+                .is_some_and(|n| n.announced && n.binding == *binding);
+        let notice = RowNotice {
             kind,
-            target: mapping_target(mapping),
-            mapping: mapping.clone(),
+            target: binding.profile.clone(),
+            binding: binding.clone(),
             announced,
         };
-        if self.notices.get(&anchor) != Some(&notice) {
-            self.notices.insert(anchor, notice);
+        if self.notices.get(&row) != Some(&notice) {
+            self.notices.insert(row, notice);
             self.notice_generation += 1;
         }
     }
 
-    /// 같은 매핑으로 연결했을 때 anchor의 안내를 지운다.
-    pub fn clear_notice(&mut self, anchor: u32) {
-        if self.notices.remove(&anchor).is_some() {
+    /// 연결했거나 행이 닫혔을 때 안내를 지운다.
+    pub fn clear_notice(&mut self, row: u32) {
+        self.activation_attempts.remove(&row);
+        if self.notices.remove(&row).is_some() {
             self.notice_generation += 1;
         }
     }
 
-    /// 사용자가 안내가 있는 워크스페이스를 활성화했다. 이제 배너를 띄울 수 있다.
-    pub fn announce(&mut self, anchor: u32) {
-        if let Some(notice) = self.notices.get_mut(&anchor)
+    /// 사용자가 안내가 있는 행을 활성화했다.
+    pub fn announce(&mut self, row: u32) {
+        if let Some(notice) = self.notices.get_mut(&row)
             && !notice.announced
         {
             notice.announced = true;
@@ -148,15 +135,15 @@ impl Refusals {
         self.notice_generation
     }
 
-    /// 지금 매핑이 안내를 만든 매핑과 같은 anchor만 남긴다. 워크스페이스가 닫혔으면 `None`이다.
-    /// 지운 anchor가 있으면 true다.
+    /// 지금 연결 대상이 안내를 만든 대상과 같은 행만 남긴다. 행이 닫혔으면 `None`이다.
+    /// 지운 행이 있으면 true다.
     pub fn retain_current_notices<'a>(
         &mut self,
-        current: impl Fn(u32) -> Option<&'a WorkspaceAttachMapping>,
+        current: impl Fn(u32) -> Option<&'a RemoteBinding>,
     ) -> bool {
         let before = self.notices.len();
         self.notices
-            .retain(|anchor, notice| current(*anchor) == Some(&notice.mapping));
+            .retain(|row, notice| current(*row) == Some(&notice.binding));
         let removed = before != self.notices.len();
         if removed {
             self.notice_generation += 1;
@@ -164,12 +151,12 @@ impl Refusals {
         removed
     }
 
-    pub fn notice(&self, anchor: u32) -> Option<&MappingNotice> {
-        self.notices.get(&anchor)
+    pub fn notice(&self, row: u32) -> Option<&RowNotice> {
+        self.notices.get(&row)
     }
 
-    /// anchor 순서로 정렬한 안내.
-    pub fn notices(&self) -> Vec<(u32, &MappingNotice)> {
+    /// 행 ID 순서로 정렬한 안내.
+    pub fn notices(&self) -> Vec<(u32, &RowNotice)> {
         let mut all: Vec<_> = self.notices.iter().map(|(a, n)| (*a, n)).collect();
         all.sort_by_key(|(a, _)| *a);
         all
@@ -180,10 +167,10 @@ impl Refusals {
 mod tests {
     use super::*;
 
-    fn refusal(attempt: u64, anchor: Option<u32>) -> AttachRefusal {
+    fn refusal(attempt: u64, row: Option<u32>) -> AttachRefusal {
         AttachRefusal {
             attempt,
-            anchor_workspace: anchor,
+            row_workspace: row,
             remote_workspace: 1,
             port: 4000,
             via_ssh: false,
@@ -191,48 +178,21 @@ mod tests {
         }
     }
 
-    fn inline(host: &str) -> WorkspaceAttachMapping {
-        WorkspaceAttachMapping {
-            target: WorkspaceAttachTarget::Inline {
-                host: host.into(),
-                remote_tasty: None,
-                port_mode: None,
-                port_file: None,
-            },
-            remote_workspace: Some(1),
+    fn binding(profile: &str) -> RemoteBinding {
+        RemoteBinding {
+            profile: profile.into(),
+            remote_workspace: 1,
         }
     }
 
     #[test]
-    fn an_inline_mapping_stays_held_until_it_changes() {
+    fn a_notice_stays_until_its_binding_changes_or_goes() {
         let mut refusals = Refusals::default();
-        let refused = inline("127.0.0.1:4000");
-        refusals.record(refusal(1, Some(7)), Some(&refused));
-        assert!(refusals.holds(7, &refused));
-        assert!(!refusals.holds(7, &inline("127.0.0.1:4001")));
-        assert!(!refusals.holds(8, &refused));
-    }
-
-    #[test]
-    fn a_profile_mapping_is_listed_but_not_held() {
-        let mut refusals = Refusals::default();
-        let profile = WorkspaceAttachMapping::profile("me", Some(1));
-        refusals.record(refusal(1, Some(7)), Some(&profile));
-        assert!(!refusals.holds(7, &profile));
-        assert_eq!(refusals.recent().count(), 1);
-    }
-
-    #[test]
-    fn a_notice_stays_until_its_mapping_changes_or_goes() {
-        let mut refusals = Refusals::default();
-        let refused = inline("127.0.0.1:4000");
-        refusals.note(7, MappingNoticeKind::SelfInstance, &refused);
-        assert_eq!(
-            refusals.notice(7).map(|n| n.target.as_str()),
-            Some("127.0.0.1:4000")
-        );
+        let refused = binding("box");
+        refusals.note(7, RowNoticeKind::SelfInstance, &refused);
+        assert_eq!(refusals.notice(7).map(|n| n.target.as_str()), Some("box"));
         let noted = refusals.notice_generation();
-        refusals.note(7, MappingNoticeKind::SelfInstance, &refused);
+        refusals.note(7, RowNoticeKind::SelfInstance, &refused);
         assert_eq!(
             refusals.notice_generation(),
             noted,
@@ -242,11 +202,11 @@ mod tests {
         assert!(!refusals.retain_current_notices(|_| Some(&refused)));
         assert!(refusals.notice(7).is_some());
 
-        let changed = inline("127.0.0.1:4001");
+        let changed = binding("other");
         assert!(refusals.retain_current_notices(|_| Some(&changed)));
         assert!(refusals.notice(7).is_none());
 
-        refusals.note(7, MappingNoticeKind::SelfInstance, &refused);
+        refusals.note(7, RowNoticeKind::SelfInstance, &refused);
         assert!(refusals.retain_current_notices(|_| None));
         assert!(refusals.notices().is_empty());
     }
@@ -254,44 +214,72 @@ mod tests {
     #[test]
     fn only_a_user_activation_announces_a_notice() {
         let mut refusals = Refusals::default();
-        let refused = inline("127.0.0.1:4000");
-        // 에이전트가 활성 워크스페이스에 매핑을 걸어 바로 시작한 시도.
+        let refused = binding("box");
         refusals.begin_attempt(7, false);
-        refusals.note(7, MappingNoticeKind::SelfInstance, &refused);
+        refusals.note(7, RowNoticeKind::Occupied, &refused);
         assert!(!refusals.notice(7).unwrap().announced);
         refusals.announce(7);
         assert!(refusals.notice(7).unwrap().announced);
         // 배경 재시도가 같은 안내를 다시 남겨도 알린 상태가 남는다.
         refusals.begin_attempt(7, false);
-        refusals.note(7, MappingNoticeKind::SelfInstance, &refused);
+        refusals.note(7, RowNoticeKind::Occupied, &refused);
         assert!(refusals.notice(7).unwrap().announced);
 
         refusals.begin_attempt(8, true);
-        refusals.note(8, MappingNoticeKind::Unresolved, &inline("build-eu:7420"));
+        refusals.note(8, RowNoticeKind::Unresolved, &binding("eu"));
         assert!(refusals.notice(8).unwrap().announced);
     }
 
     #[test]
     fn a_profile_notice_names_the_profile_and_clears_on_connect() {
         let mut refusals = Refusals::default();
-        let profile = WorkspaceAttachMapping::profile("prod-web", Some(1));
-        refusals.note(3, MappingNoticeKind::ProfileMissing, &profile);
+        refusals.note(3, RowNoticeKind::ProfileMissing, &binding("prod-web"));
         let notice = refusals.notice(3).expect("noted");
         assert_eq!(notice.target, "prod-web");
-        assert_eq!(notice.kind, MappingNoticeKind::ProfileMissing);
+        assert_eq!(notice.kind, RowNoticeKind::ProfileMissing);
         refusals.clear_notice(3);
         assert!(refusals.notice(3).is_none());
+    }
+
+    #[test]
+    fn notice_kinds_use_the_ipc_reason_names() {
+        let names: Vec<_> = [
+            RowNoticeKind::SelfInstance,
+            RowNoticeKind::ProfileMissing,
+            RowNoticeKind::Unresolved,
+            RowNoticeKind::RemoteWorkspaceMissing,
+            RowNoticeKind::Occupied,
+            RowNoticeKind::MirrorChain,
+        ]
+        .iter()
+        .map(|kind| serde_json::to_value(kind).unwrap())
+        .collect();
+        assert_eq!(
+            names,
+            serde_json::json!([
+                "self_instance",
+                "profile_missing",
+                "unresolved",
+                "remote_workspace_missing",
+                "occupied",
+                "mirror_workspace"
+            ])
+            .as_array()
+            .unwrap()
+            .clone()
+        );
     }
 
     #[test]
     fn history_keeps_the_newest_refusals() {
         let mut refusals = Refusals::default();
         for attempt in 0..(REFUSAL_HISTORY as u64 + 3) {
-            refusals.record(refusal(attempt, None), None);
+            refusals.record(refusal(attempt, None));
         }
         let attempts: Vec<_> = refusals.recent().map(|r| r.attempt).collect();
         assert_eq!(attempts.len(), REFUSAL_HISTORY);
         assert_eq!(attempts.first(), Some(&3));
         assert_eq!(attempts.last(), Some(&(REFUSAL_HISTORY as u64 + 2)));
+        assert_eq!(refusals.recent().next().unwrap().row_workspace, None);
     }
 }

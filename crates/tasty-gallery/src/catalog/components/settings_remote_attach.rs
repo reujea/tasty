@@ -1,11 +1,12 @@
 //! 설정 › 일반 › 원격 attach 탭의 예제. 실제 설정 저장은 하지 않는다.
 //!
-//! 시안 `SettingsRemoteAttachFrame`의 콘텐츠 컬럼이다. 헤딩과 숫자 행 하나를 평소 값과 범위 밖 입력으로
-//! Mocha·Latte에 나란히 보이고 ko·ja, 좁은 폭의 쌓인 행을 함께 둔다.
+//! 시안 `SettingsRemoteAttachFrame`의 콘텐츠 컬럼이다. 헤딩과 숫자 행 둘(끊기 전 대기 시간, 재연결 시도
+//! 시간)을 평소 값과 범위 밖 입력으로 Mocha·Latte에 나란히 보이고 ko·ja, 좁은 폭의 쌓인 행을 함께 둔다.
+//! 범위 밖 입력은 첫 행에만 넣고 둘째 행은 기본값 300을 보인다.
 
 use std::cell::RefCell;
 
-use tasty_settings::HEARTBEAT_TIMEOUT_SECS_RANGE;
+use tasty_settings::{HEARTBEAT_TIMEOUT_SECS_RANGE, RECONNECT_TIMEOUT_SECS_RANGE};
 use tasty_type_appearance::theme::Theme;
 use tasty_type_geometry::length::LogicalPx;
 use tasty_ui_widgets::{Input, SettingsRow, settings_label_column};
@@ -107,8 +108,12 @@ const SPECIMENS: [Specimen; 12] = [
 ];
 
 thread_local! {
-    static BUFS: RefCell<Vec<String>> =
-        RefCell::new(SPECIMENS.iter().map(|s| s.typed.to_owned()).collect());
+    static BUFS: RefCell<Vec<(String, String)>> = RefCell::new(
+        SPECIMENS
+            .iter()
+            .map(|s| (s.typed.to_owned(), "300".to_owned()))
+            .collect(),
+    );
 }
 
 /// 카탈로그 등록 항목.
@@ -117,7 +122,7 @@ pub fn entry() -> crate::catalog::Spec {
         "settings-remote-attach",
         "General › Remote attach",
         Some(
-            "Attach connections · one integer row (10–600, mono s) · range line only when out of range",
+            "Attach connections · two integer rows (10–600 and 0–3600, mono s) · range line only when out of range",
         ),
         draw,
     )
@@ -156,12 +161,18 @@ fn draw(ui: &mut egui::Ui, theme: &Theme) {
                 "heading",
                 "font-label micro uppercase · letter-spacing-caps · muted",
             ),
-            ("rows", "one · SettingsRow + shared integer field"),
+            (
+                "rows",
+                "two · Disconnect after, then Keep reconnecting for · SettingsRow + shared integer field",
+            ),
             (
                 "field",
                 "mono Input that fits its value (number-field-min-width 90 floor) · right-aligned · static mono unit",
             ),
-            ("range", "10 … 600 · default 30 · clamp on commit"),
+            (
+                "range",
+                "10 … 600 · default 30 / 0 … 3600 · default 300 (0 is valid) · clamp on commit",
+            ),
             (
                 "range line",
                 "only when out of range (danger) · no range_note · space-xs under the field",
@@ -199,7 +210,7 @@ fn draw(ui: &mut egui::Ui, theme: &Theme) {
 }
 
 /// 한 칸의 설정 본문. 본체 `draw_remote_attach_tab`과 같은 위젯과 토큰을 쓴다.
-fn frame(ui: &mut egui::Ui, th: &Theme, s: &Specimen, buf: &mut String) {
+fn frame(ui: &mut egui::Ui, th: &Theme, s: &Specimen, bufs: &mut (String, String)) {
     let copy = |key: &'static str| match s.lang {
         "en" => crate::i18n::t(key),
         code => crate::i18n::t_lang(code, key),
@@ -221,14 +232,29 @@ fn frame(ui: &mut egui::Ui, th: &Theme, s: &Specimen, buf: &mut String) {
             );
             let row = SettingsRow::new(copy("settings.remote_attach.heartbeat_timeout"))
                 .caption(copy("settings.remote_attach.heartbeat_timeout_desc"));
-            let col = settings_label_column(ui, th, [&row]);
+            let reconnect = SettingsRow::new(copy("settings.remote_attach.reconnect_window"))
+                .caption(copy("settings.remote_attach.reconnect_window_desc"));
+            let col = settings_label_column(ui, th, [&row, &reconnect]);
+            let unit = copy("settings.number.unit_s");
+            let range = copy("settings.number.range_between");
             row.show(ui, th, col, |ui| {
                 seconds_control(
                     ui,
                     th,
-                    copy("settings.number.unit_s"),
-                    copy("settings.number.range_between"),
-                    buf,
+                    unit,
+                    range,
+                    HEARTBEAT_TIMEOUT_SECS_RANGE,
+                    &mut bufs.0,
+                );
+            });
+            reconnect.show(ui, th, col, |ui| {
+                seconds_control(
+                    ui,
+                    th,
+                    unit,
+                    range,
+                    RECONNECT_TIMEOUT_SECS_RANGE,
+                    &mut bufs.1,
                 );
             });
         });
@@ -236,8 +262,14 @@ fn frame(ui: &mut egui::Ui, th: &Theme, s: &Specimen, buf: &mut String) {
 }
 
 /// 숫자 칸과 단위, 범위 밖이면 그 아래 danger 한 줄(본체 숫자 칸과 같은 자리).
-fn seconds_control(ui: &mut egui::Ui, th: &Theme, unit: &str, range: &str, buf: &mut String) {
-    let (min, max) = HEARTBEAT_TIMEOUT_SECS_RANGE;
+fn seconds_control(
+    ui: &mut egui::Ui,
+    th: &Theme,
+    unit: &str,
+    range: &str,
+    (min, max): (u64, u64),
+    buf: &mut String,
+) {
     let settled = buf
         .trim()
         .parse::<i64>()

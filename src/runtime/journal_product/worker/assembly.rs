@@ -117,7 +117,6 @@ pub(super) fn undo(
                 category: 0,
                 subtitle: String::new(),
                 description: String::new(),
-                attach_mapping: None,
                 metadata: Default::default(),
                 layout: SplitTree::Leaf(pane),
             },

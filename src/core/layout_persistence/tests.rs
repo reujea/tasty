@@ -95,40 +95,9 @@ fn unknown_variant_is_rejected() {
 }
 
 #[test]
-fn saved_workspace_attach_mapping_round_trips() {
-    use super::schema::{SavedPane, SavedPaneNode, SavedSurfaceLayout, SavedTab, SavedWorkspace};
-    use crate::model::WorkspaceAttachMapping;
-
-    let leaf = SavedSurfaceLayout::Leaf(SavedSurface::Terminal {
-        cwd: None,
-        restore_command: None,
-        scrollback_ref: None,
-    });
-    let ws = SavedWorkspace {
-        name: "remote-a".into(),
-        subtitle: String::new(),
-        description: String::new(),
-        pane_layout: SavedPaneNode::Leaf(SavedPane {
-            tabs: vec![SavedTab {
-                name: "Shell".into(),
-                explicit_name: None,
-                surface: leaf,
-            }],
-            active_tab: 0,
-        }),
-        focused_pane_index: 0,
-        attach_mapping: Some(WorkspaceAttachMapping::profile("gx10", Some(1))),
-        category: 0,
-    };
-    let json = serde_json::to_string(&ws).unwrap();
-    let back: SavedWorkspace = serde_json::from_str(&json).unwrap();
-    assert_eq!(back.attach_mapping, ws.attach_mapping);
-}
-
-#[test]
-fn saved_workspace_without_mapping_field_is_none() {
+fn saved_workspace_old_attach_mapping_is_read_and_not_written_back() {
     use super::schema::SavedWorkspace;
-    // attach_mapping이 없는 이전 저장 형식.
+    // 원격 attach 매핑이 있던 옛 저장 형식. 값은 읽기만 하고 다시 쓰지 않는다.
     let legacy = r#"{
         "name": "ws",
         "subtitle": "",
@@ -137,10 +106,12 @@ fn saved_workspace_without_mapping_field_is_none() {
             { "name": "Shell", "explicit_name": null,
               "surface": { "Leaf": { "Terminal": {} } } }
         ], "active_tab": 0 } },
-        "focused_pane_index": 0
+        "focused_pane_index": 0,
+        "attach_mapping": { "target": { "Profile": { "name": "gx10" } }, "remote_workspace": 1 }
     }"#;
     let ws: SavedWorkspace = serde_json::from_str(legacy).unwrap();
-    assert!(ws.attach_mapping.is_none());
+    let json = serde_json::to_string(&ws).unwrap();
+    assert!(!json.contains("attach_mapping"), "{json}");
 }
 
 #[test]
@@ -201,7 +172,6 @@ fn saved_layout_categories_round_trip() {
                 active_tab: 0,
             }),
             focused_pane_index: 0,
-            attach_mapping: None,
             category: 1,
         }],
     };
@@ -278,7 +248,6 @@ mod slots {
                     active_tab: 0,
                 }),
                 focused_pane_index: 0,
-                attach_mapping: None,
                 category: 0,
             }],
         }

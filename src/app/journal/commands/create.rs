@@ -41,11 +41,6 @@ impl Request {
         let id = serde_json::Value::Null;
         let bad = |message| JsonRpcResponse::invalid_params(id.clone(), message);
         let internal = |message: String| JsonRpcResponse::internal_error(id.clone(), message);
-        #[cfg(not(debug_assertions))]
-        if let Some(response) = crate::ipc::handler::workspace::reject_loopback_attach(params, &id)
-        {
-            return Err(response);
-        }
         let kind = params
             .get("type")
             .and_then(|v| v.as_str())
@@ -60,8 +55,6 @@ impl Request {
         let category = crate::ipc::handler::workspace::resolve_category_param(core, params)
             .map_err(&bad)?
             .unwrap_or(0);
-        let attach_mapping =
-            crate::ipc::handler::workspace::parse_attach_mapping(params).map_err(&bad)?;
         if kind == "empty" {
             return Err(internal(
                 "Cannot create workspace with empty surface kind".into(),
@@ -69,13 +62,10 @@ impl Request {
         }
         let mut request = Self::base(session, kind, params, cwd)?;
         if let CreationDestination::Workspace {
-            category: current,
-            attach_mapping: current_mapping,
-            ..
+            category: current, ..
         } = &mut request.plan.destination
         {
             *current = category;
-            *current_mapping = attach_mapping;
         }
         Ok(request)
     }
@@ -90,7 +80,6 @@ impl Request {
         let internal =
             |message: String| JsonRpcResponse::internal_error(serde_json::Value::Null, message);
         let category = 0;
-        let attach_mapping = None;
         let shell = crate::core::state::ShellConfig::from_settings(&session.runtime.settings);
         let display_index = core.workspaces().len();
         let tab_name = if kind == "terminal" {
@@ -156,7 +145,6 @@ impl Request {
                         .and_then(|v| v.as_str())
                         .unwrap_or_default()
                         .into(),
-                    attach_mapping,
                 },
                 surface: SurfaceSpec {
                     id: 0,

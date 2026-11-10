@@ -1,7 +1,7 @@
 //! Read live structure without capture, storage, or resource creation.
 use super::{
     CanonCategory, CanonData, CanonPane, CanonSurface, CanonTab, CanonTree, CanonWorkspace,
-    Canonical, IdMode, direction_name, sorted_value,
+    Canonical, IdMode, direction_name,
 };
 use crate::CoreState;
 use tasty_model::{PaneNode, SurfaceDescriptor, SurfaceLayout};
@@ -59,9 +59,6 @@ pub fn core_canonical(engine: &CoreState) -> Canonical {
                 category: ws.category,
                 subtitle: ws.subtitle.clone(),
                 description: ws.description.clone(),
-                attach_mapping: ws.attach_mapping.as_ref().map(|m| {
-                    sorted_value(&serde_json::to_value(m).unwrap_or(serde_json::Value::Null))
-                }),
                 metadata: Default::default(),
                 layout: pane_tree(ws.pane_layout()),
                 panes,

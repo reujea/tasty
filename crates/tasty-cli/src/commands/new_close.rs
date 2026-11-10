@@ -26,18 +26,6 @@ pub enum NewCommands {
         /// URL (for html type)
         #[arg(long)]
         url: Option<String>,
-        /// Map this workspace to a saved SSH profile (a remote machine). When the
-        /// workspace is activated, the host attaches automatically (SSH tunnel +
-        /// workspace mirror).
-        #[arg(long)]
-        ssh_profile: Option<String>,
-        /// Map to a one-off inline SSH target without a saved profile, e.g.
-        /// --ssh user@host. Mutually exclusive with `--ssh-profile`.
-        #[arg(long)]
-        ssh: Option<String>,
-        /// Workspace id on the mapped remote tasty to attach to.
-        #[arg(long)]
-        remote_workspace: Option<u32>,
         /// Category to place the workspace in (name or id). Defaults to normal.
         #[arg(long)]
         category: Option<String>,

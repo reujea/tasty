@@ -12,7 +12,6 @@ pub(super) fn decide(m: &JournalModel, cmd: &StructuralCommand) -> Result<Struct
         | StructuralCommand::ReorderCategory { .. } => category(m, cmd),
         StructuralCommand::SetWorkspaceCategory { .. }
         | StructuralCommand::UpdateWorkspaceMeta { .. }
-        | StructuralCommand::SetWorkspaceAttachMapping { .. }
         | StructuralCommand::MoveWorkspace { .. } => workspace_change(m, cmd),
         StructuralCommand::SetRemoteRow { .. } | StructuralCommand::RemoveRemoteRow { .. } => {
             remote_row(m, cmd)
@@ -183,17 +182,6 @@ fn workspace_change(m: &JournalModel, cmd: &StructuralCommand) -> Result<Structu
                         .unwrap_or_else(|| ws.description.clone()),
                 });
             }
-            StructuralResult::Updated
-        }
-        StructuralCommand::SetWorkspaceAttachMapping {
-            workspace_id,
-            mapping,
-        } => {
-            workspace(m, *workspace_id)?;
-            events.push(DomainEvent::WorkspaceAttachMappingSet {
-                id: *workspace_id,
-                mapping: mapping.clone(),
-            });
             StructuralResult::Updated
         }
         StructuralCommand::MoveWorkspace {

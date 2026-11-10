@@ -175,10 +175,6 @@ fn only_explicit_local_patch_fields_are_eligible_for_pipelining() {
         ),
         (
             "workspace.update",
-            serde_json::json!({"id":workspace,"attach_clear":true}),
-        ),
-        (
-            "workspace.update",
             serde_json::json!({"id":workspace,"category":0}),
         ),
         (

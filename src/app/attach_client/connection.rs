@@ -128,7 +128,6 @@ impl App {
             transport,
         } = prepared;
         let frame_tx = transport.frame_tx.clone();
-        let anchor_ws_id = target.anchor;
         let local_ws_id;
         let remote_to_local: HashMap<u32, u32>;
         let markdown_locals: HashSet<u32>;
@@ -155,7 +154,11 @@ impl App {
             html_locals = mapping.html.clone();
             remote_to_local = std::mem::take(&mut mapping.remote_to_local);
 
-            local_ws_id = ids.next_workspace()?;
+            // 저장된 원격 행에 처음 붙으면 그 행 자리에 내용을 넣는다. 아니면 새 행을 만든다.
+            local_ws_id = match target.row {
+                Some(row) => row,
+                None => ids.next_workspace()?,
+            };
             let mut ws = build_mirror_workspace(
                 &mut structure_ids,
                 &mut main.state.navigation,
@@ -169,18 +172,28 @@ impl App {
                 &mapping.explorer,
                 &mut mapping.markdown,
             )?;
+            if target.row.is_some() && !engine.has_workspace(local_ws_id) {
+                anyhow::bail!("saved remote row {local_ws_id} is gone");
+            }
             install_mirror_fallbacks(&ws, &mut engine.runtime.surfaces);
             ws.mirror = true;
-            // 사용자가 원격 연결 팝업에서 붙인 workspace만 저장된 원격 행이 된다.
-            if target.user
-                && let Some(profile) = &target.profile
-            {
-                ws.remote_row = Some(crate::model::RemoteBinding {
-                    profile: profile.clone(),
-                    remote_workspace: workspace,
-                });
+            if target.row.is_some() {
+                // 행의 이름·카테고리·연결 대상은 replace가 남긴다.
+                if engine.replace_mirror_workspace(ws).is_err() {
+                    anyhow::bail!("saved remote row {local_ws_id} is gone");
+                }
+            } else {
+                // 사용자가 원격 연결 팝업에서 붙인 workspace만 저장된 원격 행이 된다.
+                if target.user
+                    && let Some(profile) = &target.profile
+                {
+                    ws.remote_row = Some(crate::model::RemoteBinding {
+                        profile: profile.clone(),
+                        remote_workspace: workspace,
+                    });
+                }
+                engine.push_mirror_workspace(ws);
             }
-            engine.push_mirror_workspace(ws);
             main.state.reconcile_presentation(engine.core);
             main.mark_dirty();
         }
@@ -195,7 +208,8 @@ impl App {
                 client_id,
                 remote_workspace: workspace,
                 bulk_port: port,
-                anchor_ws_id,
+                saved_row: (target.row.is_some() || (target.user && target.profile.is_some()))
+                    .then_some(local_ws_id),
                 op_seq: 0,
                 pending_op_focus: HashMap::new(),
                 agent_requests: Default::default(),
@@ -216,7 +230,7 @@ impl App {
             "gui attach: mirror workspace {local_ws_id} from 127.0.0.1:{port} (remote ws {workspace})"
         );
         self.probe_remote_home(local_ws_id);
-        if target.user && target.profile.is_some() {
+        if target.row.is_none() && target.user && target.profile.is_some() {
             self.journal
                 .admit_remote_row(target.engine, local_ws_id, false);
         }
@@ -404,7 +418,7 @@ impl App {
     }
 
     /// 사용자가 연결한 mirror로만 포커스를 옮긴다. IPC·자동 연결은 호출하지 않는다.
-    pub(super) fn focus_mirror_workspace(&mut self, ws_id: u32) {
+    pub(crate) fn focus_mirror_workspace(&mut self, ws_id: u32) {
         for (_, main, engine) in self.engines_mut().window_pairs() {
             if let Some(idx) = engine
                 .workspaces()
@@ -446,37 +460,21 @@ impl App {
         }
     }
 
-    /// anchor가 있는 세션은 연결이 끊겨도 mirror를 남겨 자동 재연결을 기다린다.
+    /// 저장된 원격 행의 세션은 연결이 끊겨도 형상을 남기고 재연결 시간 동안 다시 붙기를 시도한다.
+    /// 재연결 시간이 0이면 바로 끊긴 행이 된다.
     pub(super) fn enter_reconnecting(&mut self, idx: usize) {
-        let (anchor, local_workspace, markdown_locals, abandoned_captures) = {
-            let sess = &mut self.remote.sessions[idx];
-            sess.transport.html.documents.clear();
-            for mirror in sess.transport.html.mirrors.values() {
-                super::html::lock_mirror(mirror).disconnect();
+        let (row, local_workspace) =
+            self.release_session_connection(idx, SessionState::Reconnecting);
+        let window = self.reconnect_window();
+        if let Some(row) = row {
+            self.remote.active.remove(&row);
+            self.remote
+                .reconnect
+                .insert(row, tasty_remote::outbound::ReconnectSlot::new());
+            if window.is_zero() {
+                self.enter_disconnected(row);
+                return;
             }
-            sess.state.phase = SessionState::Reconnecting;
-            sess.transport.frame_tx.retire();
-            // 옛 소켓을 재연결 성공까지 열어 두면 서버는 그 연결을 살아 있는 점유자로 보고 새 attach 를
-            // already_attached 로 거절한다(긴 재시도 간격). 끊겼다고 본 지금 닫는다.
-            sess.transport.workers.close_socket();
-            (
-                sess.state.anchor_ws_id,
-                sess.state.local_workspace,
-                sess.state.markdown_locals.clone(),
-                std::mem::take(&mut sess.state.capture_uploads),
-            )
-        };
-        self.abandon_capture_uploads(abandoned_captures);
-        // 기다리던 원문 요청을 request_id=0으로 취소하고 표시 중인 원문도 끊김 상태로 바꾼다.
-        for local in markdown_locals {
-            push_markdown_content_result(
-                &mut self.plugin_manager,
-                &markdown_content_failure(local, 0, "mirror workspace disconnected"),
-            );
-        }
-        if let Some(anchor) = anchor {
-            self.remote.active.remove(&anchor);
-            self.remote.pending_reactivation.insert(anchor);
         }
         for (_, main, engine) in self.engines_mut().window_pairs() {
             if engine
@@ -494,8 +492,43 @@ impl App {
             }
         }
         tracing::info!(
-            "gui attach: mirror workspace {local_workspace} 재연결 대기(Reconnecting) 진입 (anchor {anchor:?})"
+            "gui attach: mirror workspace {local_workspace} 재연결 대기(Reconnecting) 진입 (row {row:?})"
         );
+    }
+
+    /// 세션의 연결을 놓고 형상은 남긴다. 저장된 원격 행 ID와 로컬 workspace를 돌려준다.
+    pub(super) fn release_session_connection(
+        &mut self,
+        idx: usize,
+        phase: SessionState,
+    ) -> (Option<u32>, u32) {
+        let (row, local_workspace, markdown_locals, abandoned_captures) = {
+            let sess = &mut self.remote.sessions[idx];
+            sess.transport.html.documents.clear();
+            for mirror in sess.transport.html.mirrors.values() {
+                super::html::lock_mirror(mirror).disconnect();
+            }
+            sess.state.phase = phase;
+            sess.transport.frame_tx.retire();
+            // 옛 소켓을 재연결 성공까지 열어 두면 서버는 그 연결을 살아 있는 점유자로 보고 새 attach 를
+            // already_attached 로 거절한다(긴 재시도 간격). 끊겼다고 본 지금 닫는다.
+            sess.transport.workers.close_socket();
+            (
+                sess.state.saved_row,
+                sess.state.local_workspace,
+                sess.state.markdown_locals.clone(),
+                std::mem::take(&mut sess.state.capture_uploads),
+            )
+        };
+        self.abandon_capture_uploads(abandoned_captures);
+        // 기다리던 원문 요청을 request_id=0으로 취소하고 표시 중인 원문도 끊김 상태로 바꾼다.
+        for local in markdown_locals {
+            push_markdown_content_result(
+                &mut self.plugin_manager,
+                &markdown_content_failure(local, 0, "mirror workspace disconnected"),
+            );
+        }
+        (row, local_workspace)
     }
 
     /// mirror 자원을 정리하며 사용자 닫힌 항목 기록에는 넣지 않는다.
@@ -558,14 +591,8 @@ impl App {
             self.journal
                 .admit_remote_row(engine, sess.state.local_workspace, true);
         }
-        if let Some(anchor) = sess.state.anchor_ws_id {
-            self.remote.active.remove(&anchor);
-            crate::app::auto_attach::forget_anchor_backoff(&mut self.remote, anchor);
-            if from_disconnect {
-                self.remote.pending_reactivation.insert(anchor);
-            } else {
-                self.remote.pending_reactivation.remove(&anchor);
-            }
+        if let Some(row) = sess.state.saved_row {
+            crate::app::auto_attach::forget_row(&mut self.remote, row);
         }
     }
 
@@ -659,17 +686,17 @@ fn remove_mirror_workspace_from_parked(
 fn log_mirror_cleanup(sess: &AttachClientSession, from_disconnect: bool) {
     if from_disconnect {
         tracing::warn!(
-            "attach mirror cleanup: local ws {} (remote ws {}, anchor {:?}) — 원격발 disconnect 로 정리",
+            "attach mirror cleanup: local ws {} (remote ws {}, row {:?}) — 원격발 disconnect 로 정리",
             sess.state.local_workspace,
             sess.state.remote_workspace,
-            sess.state.anchor_ws_id
+            sess.state.saved_row
         );
     } else {
         tracing::info!(
-            "attach mirror cleanup: local ws {} (remote ws {}, anchor {:?}) — 사용자 close 로 정리",
+            "attach mirror cleanup: local ws {} (remote ws {}, row {:?}) — 사용자 close 로 정리",
             sess.state.local_workspace,
             sess.state.remote_workspace,
-            sess.state.anchor_ws_id
+            sess.state.saved_row
         );
     }
 }

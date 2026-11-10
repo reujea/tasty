@@ -348,8 +348,8 @@ fn a_loss_on_a_parked_mirror_without_an_anchor_waits_for_a_window_instead_of_clo
         .insert(local_surface, Terminal::new_detached(80, 24), None);
     let mut sess = test_session(9_000, HashMap::from([(remote_surface, local_surface)]));
     assert!(
-        sess.state.anchor_ws_id.is_none(),
-        "전제: 수동 attach(anchor 없음)"
+        sess.state.saved_row.is_none(),
+        "전제: 에이전트 mirror(저장 행 아님)"
     );
     let (tx, frames_out) = tasty_remote::connection::channel();
     sess.transport.frame_tx = tx;
@@ -375,7 +375,7 @@ fn a_loss_on_a_parked_mirror_without_an_anchor_waits_for_a_window_instead_of_clo
             sess.transport.disconnected.load(Ordering::SeqCst),
             sess.state.phase,
             sess.resync_released(),
-            sess.state.anchor_ws_id.is_some(),
+            sess.state.saved_row.is_some(),
         ),
         DisconnectDisposition::None
     );
@@ -384,7 +384,7 @@ fn a_loss_on_a_parked_mirror_without_an_anchor_waits_for_a_window_instead_of_clo
             true,
             sess.state.phase,
             sess.resync_released(),
-            sess.state.anchor_ws_id.is_some(),
+            sess.state.saved_row.is_some(),
         ),
         DisconnectDisposition::Cleanup
     );
@@ -412,7 +412,7 @@ fn a_loss_on_a_parked_mirror_without_an_anchor_waits_for_a_window_instead_of_clo
             true,
             sess.state.phase,
             sess.resync_released(),
-            sess.state.anchor_ws_id.is_some(),
+            sess.state.saved_row.is_some(),
         ),
         DisconnectDisposition::Resync,
         "Detach를 보낸 뒤 EOF를 받으면 재attach한다"

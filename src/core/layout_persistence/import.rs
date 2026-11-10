@@ -838,12 +838,6 @@ impl Plan {
                 description: saved.description.clone(),
             });
         }
-        if let Some(mapping) = &saved.attach_mapping {
-            self.push(DomainEvent::WorkspaceAttachMappingSet {
-                id,
-                mapping: Some(mapping.clone()),
-            });
-        }
     }
 }
 

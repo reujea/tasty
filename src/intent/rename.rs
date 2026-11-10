@@ -26,8 +26,4 @@ pub enum DirectRename {
         tab_id: u32,
         name: Option<String>,
     },
-    /// 자동 attach 매핑을 지운다. 연결하지 않은 매핑 배너의 매핑 지우기 버튼이 보낸다.
-    ClearWorkspaceMapping {
-        workspace_id: u32,
-    },
 }

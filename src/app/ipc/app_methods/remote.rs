@@ -308,7 +308,7 @@ fn send_attach_outcome(
 ) {
     let outcome = tasty_remote::outbound::AutoAttachOutcome {
         attempt,
-        anchor_ws_id: None,
+        row: None,
         remote_ws,
         result,
         is_reconnect: false,

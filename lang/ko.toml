@@ -247,6 +247,8 @@ max_capacity_desc = "폴더가 보관할 수 있는 총 용량입니다. 이 한
 section = "Attach 연결"
 heartbeat_timeout = "끊기 전 대기 시간"
 heartbeat_timeout_desc = "상대에게서 이 시간 동안 아무것도 받지 못하면 attach 연결을 끊습니다. 저장한 값은 재시작 없이 새 연결부터 적용되고, 이미 열린 연결은 바뀌지 않습니다. 상대 Tasty는 자기 값을 쓰므로 먼저 끊을 수 있습니다. 기본값 30."
+reconnect_window = "재연결 시도 시간"
+reconnect_window_desc = "‘끊기 전 대기 시간’이 지나 연결이 끊긴 시점부터 재연결을 시도하는 시간입니다. 0이면 자동 재연결을 끕니다. 직접 끊은 연결에는 이 자동 재시도를 적용하지 않습니다. 기본값 300."
 
 [settings.file_handler]
 coming_soon = "이 서브탭은 향후 업데이트에서 제공됩니다."
@@ -2655,15 +2657,6 @@ help = "디렉토리 경로 (explorer 종류일 때)"
 [cli.help._root.new.workspace.arg.url]
 help = "URL (html 종류일 때)"
 
-[cli.help._root.new.workspace.arg.ssh_profile]
-help = "저장된 SSH 프로필의 원격 호스트에 이 워크스페이스를 연결합니다. 워크스페이스를 활성화하면 SSH 터널로 자동 연결하여 원격 워크스페이스를 미러링합니다."
-
-[cli.help._root.new.workspace.arg.ssh]
-help = "저장된 프로필 없이 SSH 접속 대상을 직접 지정합니다(예: --ssh user@host). `--ssh-profile`과 함께 사용할 수 없습니다."
-
-[cli.help._root.new.workspace.arg.remote_workspace]
-help = "연결할 원격 tasty의 워크스페이스 ID"
-
 [cli.help._root.new.workspace.arg.category]
 help = "워크스페이스를 넣을 카테고리 (이름 또는 ID). 기본은 normal"
 
@@ -2838,18 +2831,6 @@ help = "새 부제"
 
 [cli.help._root.set.workspace.arg.description]
 help = "새 설명"
-
-[cli.help._root.set.workspace.arg.ssh_profile]
-help = "이 워크스페이스를 저장된 SSH 프로필의 원격 호스트에 연결합니다."
-
-[cli.help._root.set.workspace.arg.ssh]
-help = "SSH 접속 대상을 직접 지정합니다(예: --ssh user@host)."
-
-[cli.help._root.set.workspace.arg.remote_workspace]
-help = "attach 할 원격 tasty 쪽 워크스페이스 id"
-
-[cli.help._root.set.workspace.arg.clear_mapping]
-help = "기존 SSH attach 매핑을 지운다"
 
 [cli.help._root.set.workspace.arg.category]
 help = "이 워크스페이스를 다른 카테고리로 옮긴다 (이름 또는 id)"

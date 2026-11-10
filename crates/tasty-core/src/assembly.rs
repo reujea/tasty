@@ -216,10 +216,6 @@ impl CreationAssembly {
                     subtitle: workspace.subtitle.clone(),
                     description: workspace.description.clone(),
                 });
-                events.push(DomainEvent::WorkspaceAttachMappingSet {
-                    id,
-                    mapping: workspace.attach_mapping.clone(),
-                });
                 splits(&layout, &mut |target, pane, split| {
                     events.push(DomainEvent::PaneSplit {
                         target,
