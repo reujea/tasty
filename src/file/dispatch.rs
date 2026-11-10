@@ -264,6 +264,23 @@ pub(crate) fn open_picker_from_read(
     });
 }
 
+/// picker 에 요청 출처 surface 를 싣는다. 출처 surface 가 있으면 선택을 연 workspace(`opened_in`)는 그
+/// surface 의 workspace 다. IPC 요청은 사용자가 보고 있는 workspace 가 아니라 그 surface 에서 연 것이다.
+#[cfg(feature = "gui")]
+pub(crate) fn set_picker_origin(
+    picker: &mut crate::state::FileHandlerPickerData,
+    engine: &crate::runtime::engine_read::EngineRead<'_>,
+    origin_surface_id: Option<u32>,
+) {
+    picker.origin_surface_id = origin_surface_id;
+    if let Some(workspace) = origin_surface_id
+        .and_then(|sid| engine.find_workspace_index_for_surface(sid))
+        .and_then(|(index, _)| engine.workspace_at(index))
+    {
+        picker.opened_in = Some(workspace.id);
+    }
+}
+
 /// 최근 목록과 후보 양쪽에서 대상에 맞지 않는 항목을 빼고 중복 후보를 제거한다.
 #[cfg(feature = "gui")]
 fn picker_lists(

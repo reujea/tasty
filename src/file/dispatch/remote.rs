@@ -159,7 +159,7 @@ fn open_remote_picker(
     let Some(picker) = state.dialogs.file_handler_picker.as_mut() else {
         return;
     };
-    picker.origin_surface_id = Some(origin_surface_id);
+    crate::file::dispatch::set_picker_origin(picker, engine, Some(origin_surface_id));
     picker.default_handler = None;
     picker.remote_host = Some(engine.mirror_host_text(origin_surface_id));
     picker.recent.retain(|summary| {

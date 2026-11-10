@@ -53,7 +53,7 @@ pub(crate) fn apply_identify_result(
         let fallback = engine.runtime.file_handler.all_handlers();
         crate::file::dispatch::open_picker(state, engine, target, detector, fallback, true, policy);
         if let Some(picker) = state.dialogs.file_handler_picker.as_mut() {
-            picker.origin_surface_id = origin_surface_id;
+            crate::file::dispatch::set_picker_origin(picker, &engine.read(), origin_surface_id);
         }
         return;
     }
