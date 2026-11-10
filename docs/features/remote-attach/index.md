@@ -131,7 +131,7 @@ GUI·headless 서버의 최신 요청 source를 조회하고, 크기 확인 뒤 
 mirror하는 kind만 원격 새 탭으로 forward한다. 1순위 핸들러가 그런 kind가 아니면 원격에 열 수 있는
 핸들러만 담은 핸들러 picker를 띄운다. 사용자 origin이라 client가 새 탭을
 선택한다. 원격(서버)은 자기 선택을 유지한다. 원격에 그 kind가 없어 실패하면 아래 실패 회신 규칙대로 toast가 뜬다. 그 밖의 형식은
-`explorer.state.remote_open_unsupported` 안내로 끝난다([파일 핸들러](../file-handler/index.md)).
+아래 "다운로드 후 실행" 대화상자로 묻는다([파일 핸들러](../file-handler/index.md)).
 mirror 터미널의 파일 경로 링크를 수식키로 클릭해도 같은 판정을 거친다. 링크 우클릭의 "연결 동작"은 자동 실행 없이 원격에 열 수 있는 핸들러만 담은 picker를 열고, 그런 핸들러가 없으면 같은 안내로 끝난다. 파일 선택 창의 원격 경로는 이 경로를 쓰지 않는다.
 headless 서버도 같다. attach 요청이 오면 서버가 plugin을 시작해 markdown kind를 등록하고,
 그 뒤의 더블클릭은 서버에 markdown 탭을 만들어 client가 원문을 받는다. 등록이 끝나기 전에 도착한
@@ -508,7 +508,10 @@ attach 세션의 수명은 **창(window)이 아니라 engine 에 매인다.** �
 - **실행**: 다 받으면 그 파일을 사용자 요청으로 로컬 dispatch 한다. 이후는 로컬 핸들러 설정을 그대로 따르며 원격 전용 분기가 없다. 그 핸들러가 탭을 여는데 활성 workspace 가 mirror 이면 새 로컬 workspace(자동 이름)를 만들어 거기서 연다. 이 workspace 는 일반 workspace 이며 사용자가 닫는다. 받은 파일은 실행별 폴더 정리로 지워질 수 있다. 그 파일을 가리키던 탭은 재시작 뒤에도 복원되며 해당 kind 의 파일 읽기 실패 처리를 따른다(markdown 은 읽기 오류 상태로 연다).
 - **취소·실패**: 확인 단계나 전송 중 취소, 연결 끊김·다른 연결로 교체, 전송 중 원격 파일 변경·교체(`changed`), 로컬 쓰기 실패에서는 받은 부분과 실행별 폴더를 지우고 핸들러를 실행하지 않는다.
 - **옛 서버**: attach descriptor 에 `ipc.stream.file-download` 가 없는 서버에는 요청을 보내지 않고 시작 단계에서 실패한다.
-- **진입점**: 사용자 버튼·1 MiB 초과 확인 팝업·폴더 거절과 실패 안내·옛 서버 비활성 이유는 디자인이 정해지지 않아 아직 없다. 지금은 debug 빌드의 `debug.remote_download.*`(CLI `tasty debug remote-download start|confirm|cancel`)로만 시작·확인·취소한다([debug IPC](../../dev-guide/debug-ipc.md)). 원격에 열 수 없는 파일은 지금처럼 `explorer.state.remote_open_unsupported` 안내로 끝난다.
+- **진입점**: mirror 탐색기 더블클릭, mirror 터미널 경로 링크의 수식키 클릭과 우클릭 "연결 동작"에서 원격에 열 수 있는 핸들러가 하나도 없으면, 사용자 요청에 한해 토스트 대신 "다운로드 후 실행" 대화상자(`download_run`)를 띄운다. 제목·원격 경로·설명·"파일 하나만" 안내와 Cancel / Download and run 이 있고, Esc·바깥 클릭은 Cancel 과 같다. 연결이 이 기능을 알리지 않은 옛 서버면 Download and run 을 비활성으로 두고 그 이유를 항상 보이게 적는다(대화상자를 열 때마다 연결 상태를 다시 읽는다). 새 탭 picker 의 html 판정 토스트(`explorer.state.remote_open_unsupported`)는 그대로다. debug 빌드의 `debug.remote_download.*`(CLI `tasty debug remote-download start|confirm|cancel`)는 같은 다운로드를 대화상자 없이 시작·확인·취소한다([debug IPC](../../dev-guide/debug-ipc.md)).
+- **큰 파일 확인**: 1 MiB 를 넘으면 `download_run_large` 팝업이 파일 이름과 크기(0.1 단위 올림, 1024 MiB 미만은 MiB, 이상은 GiB)를 보이고 Cancel / Download and run 을 묻는다. Esc·바깥 클릭은 Cancel 과 같아 아무것도 받지 않는다.
+- **진행**: 조각을 받는 동안 `download_run_progress` 팝업이 업로드 진행 팝업과 같은 형상(파일 이름·진행 막대·받은 크기/전체·속도)에 "Downloading to open locally" 제목과 Stop download 버튼을 보인다. Esc·바깥 클릭으로 닫히지 않고 다운로드도 멈추지 않는다. Stop download 만 다운로드를 멈추며 받은 부분을 지우고 핸들러를 실행하지 않는다. 모든 다운로드가 끝나면 닫힌다.
+- **실패 안내**: 사용자가 멈춘 경우를 빼고 실패하면 전송 실패 팝업(`transfer_error`)을 "Download failed" 제목으로 띄운다. 사유 칸은 원인마다 번역한 문장(`download_run.reason.*`, 옛 서버는 `download_run.dialog.unsupported_server`)을 UI 서체로 쓰고 Dismiss 만 둔다.
 - **무결성**: 내용 해시는 주고받지 않는다. 서버가 조각마다 첫 응답의 식별 정보(크기·수정 시각·생성 시각·Unix (device, inode))와 지금 파일을 대조하고, client 가 조각의 위치·크기·끝 표시를 처음 받은 크기와 대조한다. 전송 중 손상은 SSH 전송의 무결성 보호에 맡긴다. 같은 크기·같은 시각으로 내용만 바뀐 파일은 알아보지 못한다.
 - 전송 계약은 [Attach 메커니즘](../../dev-guide/attach-behavior.md#원격-파일-다운로드-ipcstreamfile-download)에 있다.
 
@@ -549,7 +552,7 @@ bulk 파일 전송과 mirror 터미널 이미지 붙여넣기 업로드에 대�
 
 - Given 동일 머신 두 인스턴스 When 한쪽이 다른 쪽 surface 를 attach Then mirror grid 가 원본과 일치한다(`--dump-after` 로 검증).
 - Given mirror workspace 의 explorer When 사용자가 `.md` 파일을 더블클릭 Then 원격에 그 파일의 markdown 탭이 생겨 client 에서 선택되고(원격 선택은 유지된다), client 는 원격 원문을 그린다. client 파일시스템과 로컬 최근 목록은 쓰이지 않는다(`file::dispatch::remote` 테스트).
-- Given mirror workspace 의 explorer When 원격에 열 수 있는 `open_surface` 핸들러가 없는 파일을 더블클릭 Then 로컬 picker·System·Ipc 핸들러 없이 안내 toast 만 뜬다.
+- Given mirror workspace 의 explorer When 원격에 열 수 있는 `open_surface` 핸들러가 없는 파일을 더블클릭 Then 로컬 picker·System·Ipc 핸들러 없이 "다운로드 후 실행" 대화상자가 뜨고, Download and run 을 누르기 전에는 아무것도 받지 않는다(`file::dispatch::remote` 테스트).
 - Given mirror 워크스페이스의 surface When 원격에 등록되지 않은 kind 로 convert 가 forward 돼 원격에서 실패 Then 회신 사유는 원격이 낸 `unknown surface kind: <kind>` 그대로이고, 대상 surface 가 있는데 "not found" 로 오지 않는다(`core::attach_runtime` 의 `forward_convert_unknown_kind_reports_the_remote_reason`).
 - Given surface 가 이미 점유됨 When 다른 client 가 attach 시도 Then holder 정보를 담아 거부된다.
 - Given 점유된 surface When 서버측 GUI 키/`surface.send` Then 입력이 차단되고 client 입력만 도달한다.

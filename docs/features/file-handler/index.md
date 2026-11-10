@@ -52,9 +52,9 @@ URL 대상의 picker 헤더에는 **URL 전용 형태가 따로 없다** — det
 - Agent(외부 IPC) 요청은 로컬과 마찬가지로 사용자 화면에 picker 를 띄우지 않는다. 우선순위 순서로 원격에 열 수 있는 첫 핸들러를 실행한다.
 - 원격에서 받은 파일(데이터 홈의 `download-run` 아래)을 사용자 요청으로 여는데 활성 workspace 가 mirror 이고 실행할 핸들러(1순위나 picker 선택)가 `OpenSurface` 이면, 활성 workspace 에 `NewTab` 을 내지 않고 새 로컬 workspace 를 만들어 연다([다운로드 후 실행](../remote-attach/index.md#원격-파일-다운로드-후-실행)). 에이전트 요청은 활성 workspace 를 바꾸지 않으므로 이 분기를 쓰지 않는다.
 - 실행한 `CreateTab` 은 원격 `StructuralOp::NewTab` 으로 forward 된다. 이 forward 는 실패가 아니며 `file_dispatch CreateTab failed` 경고를 남기지 않는다. 사용자 요청은 client 가 새 탭을 선택하고, 원격(서버)은 자기 선택을 유지한다(공통 forward 경로가 서버 쪽 선택을 바꾸지 않는다). Agent 와 PluginUnverified 요청은 client 선택도 유지하고 원격 실패를 warn 로그로만 남긴다.
-- 원격에 열 수 있는 핸들러가 하나도 없으면(`System`·`Ipc` 뿐, 허용되지 않은 kind, 매칭 없음) picker 를 띄우지 않는다. 사용자 요청과 PluginUnverified 요청이면 `explorer.state.remote_open_unsupported` toast, Agent(외부 IPC) 요청이면 warn 로그로 끝난다.
+- 원격에 열 수 있는 핸들러가 하나도 없으면(`System`·`Ipc` 뿐, 허용되지 않은 kind, 매칭 없음) picker 를 띄우지 않는다. 사용자 요청이면 [다운로드 후 실행](../remote-attach/index.md#원격-파일-다운로드-후-실행) 대화상자로 묻고, PluginUnverified 요청이면 `explorer.state.remote_open_unsupported` toast, Agent(외부 IPC) 요청이면 warn 로그로 끝난다.
 - 원격 경로는 로컬 최근 목록에 기록하지 않는다.
-- 터미널 링크 우클릭의 "연결 동작"(`file::dispatch::remote::open_remote_link_picker`)은 식별·자동 실행 없이 원격에 열 수 있는 핸들러 전체를 picker 로 연다. 로컬 링크의 "연결 동작"이 전체 핸들러를 보여 주는 것과 같다. 최근 목록도 같은 조건으로 거르고 기본 핸들러 표시는 두지 않는다. 그런 핸들러가 하나도 없으면 빈 picker 대신 `explorer.state.remote_open_unsupported` toast 로 끝난다.
+- 터미널 링크 우클릭의 "연결 동작"(`file::dispatch::remote::open_remote_link_picker`)은 식별·자동 실행 없이 원격에 열 수 있는 핸들러 전체를 picker 로 연다. 로컬 링크의 "연결 동작"이 전체 핸들러를 보여 주는 것과 같다. 최근 목록도 같은 조건으로 거르고 기본 핸들러 표시는 두지 않는다. 그런 핸들러가 하나도 없으면 빈 picker 대신 같은 "다운로드 후 실행" 대화상자로 묻는다.
 - 파일 선택 창(원격 경로 복사)은 이 경로를 쓰지 않는다. 판정은 `file::dispatch::remote` 한 곳에 있다. 근거 [원격 attach (Remote attach)](../remote-attach/index.md).
 
 ### Contribution 머지 + 부팅 자동 등록
@@ -137,13 +137,13 @@ picker에서 고른 핸들러는 이번 한 번만 실행한다. 형식별 기�
 | 터미널 링크 메뉴의 "연결 동작" — 식별을 건너뛰고 강제로 연다 | `all_handlers()` | 예 |
 | 원격(mirror) surface 경로 링크의 "연결 동작" (`open_remote_link_picker`) | `all_handlers()` 중 원격에 열 수 있는 것 — recent 도 같은 조건으로 거른다 | 예 |
 
-셋째는 원격에 열 수 있는 핸들러가 하나도 없으면 picker 를 띄우지 않고 `explorer.state.remote_open_unsupported` toast 로 끝난다. 설정 등록을 권하는 빈 picker 는 원격 경로에 뜨지 않는다.
+셋째는 원격에 열 수 있는 핸들러가 하나도 없으면 picker 를 띄우지 않는다. 사용자 요청은 [다운로드 후 실행](../remote-attach/index.md#원격-파일-다운로드-후-실행) 대화상자, PluginUnverified 요청은 `explorer.state.remote_open_unsupported` toast 로 끝난다. 설정 등록을 권하는 빈 picker 는 원격 경로에 뜨지 않는다.
 
 셋째 경로(원격에 열 수 있는 핸들러만 담은 원격 picker)에서는 머리 경로 줄 맨 앞에 원격 표지(remote 글리프 12 + 호스트 글자, `fh-remote-fg`, mono caption, 채움 없음)를 둔다. 글리프와 호스트 사이는 `fh-remote-gap`(4), 표지와 경로 사이는 space-sm(8)이다. 호스트 글자는 `fh-remote-max-width`(160)에서 끝을 줄이고, 비면 그 자리에 `attach.mirror_pill_label`(Remote)을 font-label 로 쓴다. 경로는 표지가 남긴 상자(390 − 표지 − 8)에 대해 같은 앞 생략 규칙으로 줄인다(`file_handler::target_budget_chars_beside`, 글자 폭을 잴 수 없으면 34자). 로컬 대상 picker 에는 표지가 없다. 호스트 글자는 [원격 위치 표시](../remote-attach/index.md#원격-위치-표시)와 같고 picker 를 연 시점 값이다. 표지는 본체와 갤러리가 공용 `tasty_ui_widgets::paint_fh_remote_mark` 로 그린다. Ctrl+클릭이 1순위를 원격에 열 수 없어 띄우는 원격 picker 도 같은 표지를 둔다.
 
 세 경로에서는 후보가 `handlers_for(d)` 가 아니라 `all_handlers()` 이고(recent 와 중복 제거), 다음 표시로 매칭 실패를 알린다: 그룹 라벨이 attention 톤의 "전체 핸들러", caption 이 "이 형식에 맞는 핸들러가 없습니다.", 헤더 Tag 가 "형식 알 수 없음", 그리고 헤더 아래 띠가 **1 회성**이고 다음에도 이 화면이 나온다고 적는다(user TOML 미변경). 기본 핸들러 Tag 는 이 상태에 붙지 않는다 — 매칭이 없으면 기본도 없다.
 
-**빈 상태**: 이 popup에 표시할 행이 없으면 빈 상태를 보여준다 — 후보와 recent 가 **둘 다 비면** 목록 자리가 중앙 블록으로 바뀐다. 지금 이 상태에 닿는 경로는 없다. 앞의 두 경로는 `all_handlers()` 를 싣는데 host 기본 핸들러가 `default-file-handlers.toml` 에 박혀 있어 plugin 을 전부 꺼도 0 이 되지 않는다. 셋째 경로(원격 후보 없음)는 picker 를 열지 않고 위처럼 toast 로 끝난다. 블록은 흐린 파일 글리프 + "등록된 핸들러가 없습니다." + 한 줄 안내 + "설정에서 핸들러 등록" 버튼(Settings 를 `FileHandler` 탭으로 오픈)이고, 프레임 폭과 footer 는 그대로고 [열기]만 비활성이다 — 같은 다이얼로그의 한 상태이지 다른 화면이 아니다.
+**빈 상태**: 이 popup에 표시할 행이 없으면 빈 상태를 보여준다 — 후보와 recent 가 **둘 다 비면** 목록 자리가 중앙 블록으로 바뀐다. 지금 이 상태에 닿는 경로는 없다. 앞의 두 경로는 `all_handlers()` 를 싣는데 host 기본 핸들러가 `default-file-handlers.toml` 에 박혀 있어 plugin 을 전부 꺼도 0 이 되지 않는다. 셋째 경로(원격 후보 없음)는 picker 를 열지 않는다. 블록은 흐린 파일 글리프 + "등록된 핸들러가 없습니다." + 한 줄 안내 + "설정에서 핸들러 등록" 버튼(Settings 를 `FileHandler` 탭으로 오픈)이고, 프레임 폭과 footer 는 그대로고 [열기]만 비활성이다 — 같은 다이얼로그의 한 상태이지 다른 화면이 아니다.
 
 ### 접수 뒤 최종 결과
 
