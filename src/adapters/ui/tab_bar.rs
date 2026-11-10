@@ -54,6 +54,8 @@ pub struct PaneTabBarView {
 pub struct TabScriptMarker {
     pub surface_id: u32,
     pub kind: tasty_ui_widgets::HtmlScriptMarkerKind,
+    /// 표지의 surface가 `http(s)` 페이지다. allowed 툴팁이 페이지 문구를 쓴다.
+    pub web: bool,
 }
 
 /// 탭 칸의 이동 대기 표시. 탭이 대상이면 링, 대상 서피스를 담은 비활성 탭이면 글리프다.
@@ -246,6 +248,7 @@ fn compute_tab_html_script_markers(
                 let marker = TabScriptMarker {
                     surface_id: sid,
                     kind,
+                    web: snapshot.web,
                 };
                 if kind == HtmlScriptMarkerKind::Blocked {
                     return Some(marker);
@@ -957,6 +960,7 @@ mod tests {
         pane.tab_html_script_marker[0] = Some(TabScriptMarker {
             surface_id: 7,
             kind,
+            web: false,
         });
         pane
     }
@@ -1400,6 +1404,7 @@ mod tests {
         pane.tab_html_script_marker[0] = Some(TabScriptMarker {
             surface_id: 7,
             kind: tasty_ui_widgets::HtmlScriptMarkerKind::Blocked,
+            web: false,
         });
         let shapes = settled_strip_shapes(pane);
         let label = shapes

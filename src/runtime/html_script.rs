@@ -32,6 +32,8 @@ pub(crate) struct HtmlSnapshot {
     pub(crate) phase: BannerPhase,
     /// 스크립트 안내가 원격 안내와 함께 보이며 원격 스크립트도 막혀 있다. 본문을 `body_remote`로 바꾼다.
     pub(crate) remote_body: bool,
+    /// 화면 문서가 로컬 view에 연 `http(s)` 페이지다. 두 안내와 allowed 표지 툴팁이 페이지 문구를 쓴다.
+    pub(crate) web: bool,
     pub(crate) marker: Option<ScriptMarker>,
     /// 원격 콘텐츠 안내 단계.
     pub(crate) remote_phase: BannerPhase,
@@ -54,6 +56,7 @@ pub(crate) fn snapshot(remote: &RemoteSurface, target: SurfaceBinding) -> HtmlSn
     remote.with_html_script(|state| HtmlSnapshot {
         phase: state.banner_phase(),
         remote_body: state.script_banner_needs_remote_body(),
+        web: state.current_is_web_page(),
         marker: state.marker(),
         remote_phase: state.remote_banner_phase(),
         remote_marker: state.remote_marker(),

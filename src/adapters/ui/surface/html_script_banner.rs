@@ -201,6 +201,40 @@ pub fn draw_stack(
     )
 }
 
+/// 스크립트 안내의 제목·본문·버튼 문구 키. `http(s)` 페이지(`web`)는 페이지 문구를 쓰고, 두 안내가
+/// 함께 보이지 않으므로 `body_remote`를 쓰지 않는다.
+fn script_copy(web: bool, remote_body: bool) -> (&'static str, &'static str, &'static str) {
+    if web {
+        return (
+            "banner.html_script.title_web",
+            "banner.html_script.body_web",
+            "banner.html_script.action_web",
+        );
+    }
+    let body = if remote_body {
+        "banner.html_script.body_remote"
+    } else {
+        "banner.html_script.body"
+    };
+    (
+        "banner.html_script.title",
+        body,
+        "banner.html_script.action",
+    )
+}
+
+/// 원격 안내의 제목·본문 문구 키. 버튼과 재로드 문구는 로컬 문서와 공유한다.
+fn remote_copy(web: bool) -> (&'static str, &'static str) {
+    if web {
+        (
+            "banner.html_remote.title_web",
+            "banner.html_remote.body_web",
+        )
+    } else {
+        ("banner.html_remote.title", "banner.html_remote.body")
+    }
+}
+
 /// `panel`에 안내 하나를 그리고 패널 위쪽에서 카드 아래 `banner_inset_gap`까지의 거리를 돌려준다.
 /// 안내가 없으면 `None`이다. 허용·닫기는 표시한 문서에 묶인 App 요청으로 반환한다.
 fn draw_one(
@@ -242,14 +276,11 @@ fn draw_one(
     child.set_opacity(shown.alpha);
     let (out, allow, dismiss) = match notice {
         Notice::Script => {
+            let (title, body, action) = script_copy(snapshot.web, snapshot.remote_body);
             let view = HtmlScriptBannerView {
-                title: t("banner.html_script.title"),
-                body: t(if snapshot.remote_body {
-                    "banner.html_script.body_remote"
-                } else {
-                    "banner.html_script.body"
-                }),
-                action: t("banner.html_script.action"),
+                title: t(title),
+                body: t(body),
+                action: t(action),
                 reloading: t("banner.html_script.reloading"),
                 loading_tooltip: t("banner.html_script.action_loading"),
                 state: shown.state,
@@ -264,8 +295,8 @@ fn draw_one(
         }
         Notice::Remote => {
             let view = HtmlRemoteBannerView {
-                title: t("banner.html_remote.title"),
-                body: t("banner.html_remote.body"),
+                title: t(remote_copy(snapshot.web).0),
+                body: t(remote_copy(snapshot.web).1),
                 action: t("banner.html_remote.action"),
                 reloading: t("banner.html_remote.reloading"),
                 loading_tooltip: t("banner.html_remote.action_loading"),

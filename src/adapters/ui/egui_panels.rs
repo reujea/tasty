@@ -364,6 +364,7 @@ pub fn draw_egui_panels(
                                     remote_marker: html_snapshot
                                         .as_ref()
                                         .and_then(|s| remote_address_marker(ui.ctx(), s, sid)),
+                                    web_page: html_snapshot.as_ref().is_some_and(|s| s.web),
                                     native: &native_content,
                                 };
                             let frame = html_bands.draw(ui, &th, sid, panel, &source);

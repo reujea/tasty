@@ -78,6 +78,8 @@ pub(crate) struct HtmlAddressSource<'a> {
     pub received: Option<&'a crate::runtime::html_receive::ReceiveSnapshot>,
     /// 주소 칸 끝 원격 콘텐츠 표지. 원격 안내가 화면에 있으면 호출자가 `None`을 넣는다.
     pub remote_marker: Option<tasty_ui_widgets::HtmlRemoteMarkerKind>,
+    /// 화면 문서가 `http(s)` 페이지다. allowed 표지 툴팁이 페이지 문구를 쓴다.
+    pub web_page: bool,
     /// egui 위에 그려지는 WebView 영역. 표지 툴팁이 피한다.
     pub native: &'a [egui::Rect],
 }
@@ -397,6 +399,9 @@ impl HtmlAddressBands {
                 kind,
                 tooltip: t(match kind {
                     HtmlRemoteMarkerKind::Blocked => "banner.html_remote.marker_blocked",
+                    HtmlRemoteMarkerKind::Allowed if source.web_page => {
+                        "banner.html_remote.marker_allowed_web"
+                    }
                     HtmlRemoteMarkerKind::Allowed => "banner.html_remote.marker_allowed",
                 }),
                 force_hover: false,

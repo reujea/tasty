@@ -447,6 +447,7 @@ fn paint_html_script_marker(
     use tasty_ui_widgets::HtmlScriptMarkerKind;
     let tooltip = crate::i18n::t(match marker.kind {
         HtmlScriptMarkerKind::Blocked => "banner.html_script.marker_blocked",
+        HtmlScriptMarkerKind::Allowed if marker.web => "banner.html_script.marker_allowed_web",
         HtmlScriptMarkerKind::Allowed => "banner.html_script.marker_allowed",
     });
     let mut child = ui.new_child(egui::UiBuilder::new().max_rect(slot).id_salt((

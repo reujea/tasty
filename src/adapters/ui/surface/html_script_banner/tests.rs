@@ -143,3 +143,36 @@ fn the_address_marker_waits_until_the_remote_notice_is_off_screen() {
         Some(HtmlRemoteMarkerKind::Blocked)
     );
 }
+
+/// `http(s)` 페이지는 페이지 문구를 쓰고 `body_remote`를 쓰지 않는다. 로컬 문서 문구는 그대로다.
+#[test]
+fn a_web_page_reads_the_page_copy_and_never_the_remote_body() {
+    assert_eq!(
+        script_copy(true, true),
+        (
+            "banner.html_script.title_web",
+            "banner.html_script.body_web",
+            "banner.html_script.action_web",
+        )
+    );
+    assert_eq!(script_copy(false, true).1, "banner.html_script.body_remote");
+    assert_eq!(
+        script_copy(false, false),
+        (
+            "banner.html_script.title",
+            "banner.html_script.body",
+            "banner.html_script.action",
+        )
+    );
+    assert_eq!(
+        remote_copy(true),
+        (
+            "banner.html_remote.title_web",
+            "banner.html_remote.body_web"
+        )
+    );
+    assert_eq!(
+        remote_copy(false),
+        ("banner.html_remote.title", "banner.html_remote.body")
+    );
+}

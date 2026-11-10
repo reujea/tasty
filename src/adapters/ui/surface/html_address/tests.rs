@@ -28,6 +28,7 @@ fn source<'a>(
         mirror: false,
         received: None,
         remote_marker: None,
+        web_page: false,
         native: &[],
     }
 }
