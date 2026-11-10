@@ -109,7 +109,7 @@ native WebView는 대기 표시를 위해 숨기거나 크기를 줄이지 않�
 | egui-mesh(번들 image/mesh_demo와 커스텀 plugin의 egui-mesh kind) | mesh 프레임 전달 | 입력 역방향 전달은 headless 서버에서만 지원한다. GUI 서버에서는 콘텐츠만 보인다 |
 | markdown | 원문을 받아 client의 markdown plugin이 자체 테마·설정으로 렌더 | 원격 상대경로 이미지·링크는 client에 파일이 없어 깨질 수 있다. 주소창에 원격 경로를 넣으면 같은 surface가 그 원격 파일로 바뀌며, 원격에 파일이 없으면 원격이 거절하고 주소창에 실패가 보인다. 최근 목록은 로컬 문서에만 있다 |
 | explorer | `list_dir_request` / `list_dir_result`로 디렉토리 탐색. 파일 더블클릭은 원격에 새 탭으로 연다 | 원격에서 콘텐츠를 mirror하는 kind(markdown 등)만 열 수 있다. 파일 변경(새 폴더·새 파일·이름 변경·휴지통·같은 연결 안의 붙여넣기·끌기)은 server 가 원격 쓰기 capability 를 알린 연결에서만 server 가 실행한다. 시스템에서 열기·새 탭·즐겨찾기 추가는 막는다 |
-| html | Linux X11·Windows·macOS GUI에서 파일 entry를, Linux X11·Windows·macOS 27 이상 GUI에서 원격 HTTP(S)를 native WebView로 표시 | 양쪽 협상과 client HTML plugin이 필요하다. 파일은 같은 root GET, HTTP(S)는 원격 호스트에서 요청한다. native Wayland·macOS 11–13 client는 HTTP(S)를 알리지 않으며 client network fallback은 없다. macOS는 원격 loopback 주소를 별칭으로 열어 페이지의 `location.host`가 다르다 |
+| html | Linux X11·Windows·macOS GUI에서 파일 entry를, Linux X11·Windows·macOS 27 이상 GUI에서 원격 HTTP(S)를 native WebView로 표시 | 양쪽 협상과 client HTML plugin이 필요하다. 파일은 같은 root GET, HTTP(S)는 원격 호스트에서 요청한다. native Wayland·macOS 11–26 client는 HTTP(S)를 알리지 않으며 client network fallback은 없다. macOS는 원격 loopback 주소를 별칭으로 열어 페이지의 `location.host`가 다르다 |
 | 나머지 | placeholder | 콘텐츠 mirror 미지원 |
 
 HTTP(S) 서버 전송은 GUI·headless 공통이다. Linux client는 실제 Xlib 창과 X11 GDK backend 준비를 확인한 뒤, Windows client는 GUI 창에서 HTTP·HTTPS·Reload를 선언한다. 전송 지원만으로 native viewer를 켜지 않는다. 요청은 원격 호스트의 서비스 상태를 바꿀 수 있으며 client의 HTML 설정·문서별 동의·기존 수신 한도는 그대로 적용한다.
