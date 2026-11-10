@@ -205,6 +205,7 @@ fn a_server_name_with_path_parts_stays_inside_the_run_folder() {
             identity: FileIdentity {
                 size: 1,
                 modified_ns: None,
+                created_ns: None,
                 file_id: None,
             },
         },
@@ -494,6 +495,7 @@ fn after_stat(size: u64) -> (Client, ConnectionEpoch, u64, tempfile::TempDir) {
             identity: FileIdentity {
                 size,
                 modified_ns: None,
+                created_ns: None,
                 file_id: None,
             },
         },

@@ -106,6 +106,7 @@ fn a_fifo_is_refused_without_blocking() {
     let identity = FileIdentity {
         size: 0,
         modified_ns: None,
+        created_ns: None,
         file_id: None,
     };
     assert_eq!(
@@ -276,4 +277,37 @@ mod worker {
             )
         );
     }
+}
+
+/// 생성 시각도 같은 파일인지 판단하는 값이다. Windows 처럼 (device, inode) 가 없는 서버에서는 같은 크기·수정
+/// 시각의 새 파일을 이 값으로 알아본다. 여기서는 (device, inode) 는 그대로 두고 생성 시각만 다르게 한다.
+#[test]
+fn a_different_creation_time_is_a_changed_file() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("f.txt");
+    std::fs::write(&path, b"same").unwrap();
+    let (_, identity) = stat(&path).unwrap();
+    // 서버가 OS 의 생성 시각을 그대로 싣는다(파일시스템이 주지 않으면 둘 다 비어 있다).
+    assert_eq!(
+        identity.created_ns,
+        super::unix_ns(std::fs::metadata(&path).unwrap().created())
+    );
+    let read = |identity: &FileIdentity| {
+        answer(
+            &path,
+            &DownloadOp::Read {
+                offset: 0,
+                identity: identity.clone(),
+            },
+        )
+    };
+    assert!(matches!(read(&identity), DownloadOutcome::Chunk { .. }));
+    let mut replaced = identity.clone();
+    replaced.created_ns = Some(identity.created_ns.map_or(1, |c| c + 1));
+    assert_eq!(
+        read(&replaced),
+        DownloadOutcome::Refused {
+            reason: DownloadRefusal::Changed
+        }
+    );
 }

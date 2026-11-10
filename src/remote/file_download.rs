@@ -263,13 +263,17 @@ fn open_without_blocking(path: &Path) -> std::io::Result<std::fs::File> {
 fn identity(meta: &std::fs::Metadata) -> FileIdentity {
     FileIdentity {
         size: meta.len(),
-        modified_ns: meta
-            .modified()
-            .ok()
-            .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
-            .map(|d| u64::try_from(d.as_nanos()).unwrap_or(u64::MAX)),
+        modified_ns: unix_ns(meta.modified()),
+        created_ns: unix_ns(meta.created()),
         file_id: file_id(meta),
     }
+}
+
+/// 시각을 UNIX 시각 이후 나노초로 바꾼다. 얻을 수 없으면 비운다.
+fn unix_ns(at: std::io::Result<std::time::SystemTime>) -> Option<u64> {
+    at.ok()
+        .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+        .map(|d| u64::try_from(d.as_nanos()).unwrap_or(u64::MAX))
 }
 
 #[cfg(unix)]

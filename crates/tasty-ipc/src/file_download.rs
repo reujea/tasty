@@ -53,6 +53,11 @@ pub struct FileIdentity {
     /// UNIX 시각 이후 나노초. JSON 이 u128 을 싣지 못하므로 u64 로 줄인다(2554 년까지 담긴다).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub modified_ns: Option<u64>,
+    /// 생성 시각(UNIX 시각 이후 나노초). Unix (device, inode)가 없는 OS(Windows)에서도 같은 크기·수정 시각의
+    /// 다른 파일로 바뀐 것을 알아본다. OS·파일시스템이 주지 않으면 비운다. 이 필드가 없는 상대와도
+    /// 호환된다(없으면 비교 값이 둘 다 비어 같다).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub created_ns: Option<u64>,
     /// Unix 의 (device, inode). 같은 경로에 다른 파일이 들어오면 바뀐다.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub file_id: Option<(u64, u64)>,
@@ -104,6 +109,7 @@ mod tests {
         let identity = FileIdentity {
             size: 3,
             modified_ns: Some(7),
+            created_ns: Some(5),
             file_id: Some((1, 2)),
         };
         let req = FileDownloadMsg::FileDownloadRequest {
