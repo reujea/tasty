@@ -30,6 +30,7 @@ alog_unavailable = "この会話の記録が見つからないため、ツール
 alog_count = "サブエージェント・作業 {}件 · 実行中 {}"
 alog_reload = "再読み込み"
 alog_close = "パネルを閉じる"
+alog_resize = "ドラッグして幅を変える"
 alog_main = "現在のエージェント"
 alog_sub = "サブエージェント"
 alog_bg = "バックグラウンド作業"

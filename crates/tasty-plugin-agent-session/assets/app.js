@@ -115,9 +115,43 @@
   }
   function SubPanel() {
     var p = subs.panel;
-    return html`<aside id="subpanel" hidden=${!!p.hidden}><div class="sph"><b>${p.title}</b><span class="cnt">${p.count}</span><a href=${'#' + p.reloadMark + '=1'} title=${p.reloadTitle}>↻</a><a href=${'#' + p.closeMark + '=1'} title=${p.closeTitle}>✕</a></div><div class="spl">${p.empty != null ? html`<div class="spe">${p.empty}</div>` : null}${(p.cards || []).map(function (c) { return html`<${SubCard} key=${c.k} c=${c} />`; })}</div></aside>`;
+    return html`<aside id="subpanel" hidden=${!!p.hidden}><div class="spr" title=${p.resizeTitle}></div><div class="sph"><b>${p.title}</b><span class="cnt">${p.count}</span><a href=${'#' + p.reloadMark + '=1'} title=${p.reloadTitle}>↻</a><a href=${'#' + p.closeMark + '=1'} title=${p.closeTitle}>✕</a></div><div class="spl">${p.empty != null ? html`<div class="spe">${p.empty}</div>` : null}${(p.cards || []).map(function (c) { return html`<${SubCard} key=${c.k} c=${c} />`; })}</div></aside>`;
   }
   function drawPanel() { if (panelRoot) P.render(html`<${SubPanel} />`, panelRoot); }
+
+  // 에이전트 내역 패널 너비 — 왼쪽 가장자리의 손잡이(`.spr`)를 끌어 바꾼다. 값은 이 페이지의
+  // localStorage 에 남겨 문서를 다시 실어도 유지한다. 상한은 창의 80% — 본문을 통째로 가리지 않게.
+  var W_KEY = 'as.subpanel.w', W_MIN = 240, W_MAX = 0.8;
+  function widthLimit() { return Math.round(window.innerWidth * W_MAX); }
+  function clampWidth(px) { return Math.max(W_MIN, Math.min(widthLimit(), px)); }
+  function setWidth(px) { document.documentElement.style.setProperty('--as-sub-w', Math.round(px) + 'px'); }
+  function savedWidth() {
+    try { return parseInt(window.localStorage.getItem(W_KEY) || '', 10) || 0; } catch (e) { return 0; }
+  }
+  function keepWidth(px) {
+    try { window.localStorage.setItem(W_KEY, String(Math.round(px))); } catch (e) { /* 못 남겨도 이번 화면은 쓴다 */ }
+  }
+  if (savedWidth()) setWidth(clampWidth(savedWidth()));
+  document.addEventListener('pointerdown', function (e) {
+    if (!e.target.closest || !e.target.closest('#subpanel .spr')) return;
+    e.preventDefault();
+    var move = function (ev) { setWidth(clampWidth(window.innerWidth - ev.clientX)); };
+    var up = function () {
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', up);
+      document.body.style.removeProperty('user-select');
+      var w = parseFloat(document.documentElement.style.getPropertyValue('--as-sub-w'));
+      if (w > 0) keepWidth(w);
+    };
+    document.body.style.setProperty('user-select', 'none');
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up);
+  });
+  // 창이 좁아지면 남겨 둔 폭을 상한 안으로 되돌린다.
+  window.addEventListener('resize', function () {
+    var w = savedWidth();
+    if (w > 0) setWidth(clampWidth(w));
+  });
 
   function Log() {
     var out = [html`<${Older} key="older" />`, html`<${SubsRow} key="subs" />`];

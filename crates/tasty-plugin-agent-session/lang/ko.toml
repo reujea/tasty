@@ -30,6 +30,7 @@ alog_unavailable = "이 대화의 기록을 찾지 못해 도구 호출 단계�
 alog_count = "하위 에이전트 · 작업 {}개 · 도는 중 {}"
 alog_reload = "다시 읽기"
 alog_close = "패널 닫기"
+alog_resize = "끌어서 너비를 바꾼다"
 alog_main = "현재 에이전트"
 alog_sub = "하위 에이전트"
 alog_bg = "백그라운드 작업"

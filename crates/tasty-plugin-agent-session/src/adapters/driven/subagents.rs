@@ -447,43 +447,54 @@ fn elapsed(secs: i64) -> String {
 ///
 /// 패널은 창 오른쪽에 붙고, 열려 있는 동안 본문이 그 너비만큼 비켜선다 — 덮으면 대화의 오른쪽
 /// 끝과 입력칸이 가린다. 좁은 창에서는 본문을 너무 깎지 않게 너비를 창의 40% 로 묶는다.
+///
+/// 너비는 왼쪽 가장자리를 끌어 바꾼다(`app.js` 가 `--as-sub-w` 를 올린다 · localStorage 에 남는다).
+/// 내용은 줄바꿈 없이 두고 가로로 스크롤한다 — 잘린 요약·경로를 패널을 넓히거나 밀어서 끝까지 본다.
 pub const STYLE: &str = r#"<style>
- #subpanel{position:fixed;top:0;right:0;bottom:0;width:min(380px,40vw);display:flex;
+ :root{--as-sub-w:min(380px,40vw)}
+ #subpanel{position:fixed;top:0;right:0;bottom:0;width:var(--as-sub-w);display:flex;
    flex-direction:column;background:#1a1d23;border-left:1px solid #2a2e37;z-index:5}
  #subpanel[hidden]{display:none}
- body:has(#subpanel:not([hidden])){padding-right:min(380px,40vw)}
+ body:has(#subpanel:not([hidden])){padding-right:var(--as-sub-w)}
+ /* 너비 조절 손잡이 — 왼쪽 테두리에 겹쳐 둔다. 커서가 가장자리임을 알린다. */
+ #subpanel .spr{position:absolute;left:-5px;top:0;bottom:0;width:10px;cursor:col-resize;
+   z-index:6;touch-action:none}
+ #subpanel .spr:hover{background:#2a2e37}
  #subpanel .sph{display:flex;align-items:center;gap:8px;padding:10px 12px;
    border-bottom:1px solid #2a2e37;color:#c8ccd4}
  #subpanel .sph b{font-weight:700}
  #subpanel .sph .cnt{color:#5a6070;flex:1}
  #subpanel .sph a{color:#8b93a1;text-decoration:none}
  #subpanel .sph a:hover{color:#c8ccd4}
- #subpanel .spl{flex:1;overflow-y:auto;padding:8px 12px}
- #subpanel .spe{color:#5a6070;padding:12px 0;white-space:pre-wrap}
+ #subpanel .spl{flex:1;overflow:auto;padding:8px 12px}
+ /* 카드는 가장 긴 줄만큼 넓어지고(최소 패널 폭), 넘치는 폭은 위 `.spl` 이 가로로 스크롤한다.
+    줄을 접지 않는 이유: 도구 요약·경로는 접히면 읽기 어렵고, 사용자가 폭을 직접 정한다. */
+ #subpanel .spl>*{width:max-content;min-width:100%}
+ #subpanel .spe{color:#5a6070;padding:12px 0;white-space:pre}
  #subpanel details.sa{border-left:2px solid #2a2e37;padding:4px 0 4px 10px;margin-bottom:10px}
  #subpanel details.sa.run{border-left-color:#5ac17d}
  #subpanel details.sa.main{border-left-color:#6a9bd8}
  #subpanel summary{cursor:pointer;list-style:none;display:flex;flex-direction:column;gap:2px}
  #subpanel summary::-webkit-details-marker{display:none}
  #subpanel .sat{display:flex;gap:6px;align-items:baseline}
- #subpanel .sad{color:#e6e9ef;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1}
+ #subpanel .sad{color:#e6e9ef;overflow:visible;text-overflow:clip;white-space:nowrap;flex:1}
  #subpanel .sas{color:#5ac17d;flex-shrink:0}
  #subpanel .main .sas{color:#6a9bd8}
  #subpanel .done .sas{color:#5a6070}
  #subpanel .fail .sas{color:#e06c75}
  #subpanel .sam{color:#5a6070;font-size:12px}
  #subpanel .sab{color:#8b93a1;font-size:12px;margin-top:8px}
- #subpanel .sax{white-space:pre-wrap;color:#c8ccd4;max-height:40vh;overflow-y:auto;
-   margin-top:2px;padding-left:2ch;overflow-wrap:anywhere}
+ #subpanel .sax{white-space:pre;color:#c8ccd4;max-height:40vh;overflow-y:auto;
+   margin-top:2px;padding-left:2ch}
  #subpanel .sax.none{color:#5a6070}
- #subpanel .sst{max-height:40vh;overflow-y:auto;margin-top:2px;padding-left:2ch;font-size:12px}
+ #subpanel .sst{max-height:40vh;overflow:auto;margin-top:2px;padding-left:2ch;font-size:12px}
  #subpanel .ss{display:flex;gap:4px;color:#c8ccd4;white-space:nowrap}
  #subpanel .ss .ts{color:#5a6070;flex-shrink:0}
  #subpanel .ss .sok{color:#5a6070;flex-shrink:0;width:1.2em}
  #subpanel .ss.ok .sok{color:#5ac17d}
  #subpanel .ss.err .sok{color:#e06c75}
  #subpanel .ss b{font-weight:600;flex-shrink:0}
- #subpanel .ss .ssm{color:#8b93a1;overflow:hidden;text-overflow:ellipsis}
+ #subpanel .ss .ssm{color:#8b93a1;overflow:visible;text-overflow:clip}
  #subpanel .sso{color:#5a6070;font-size:12px}
 </style>"#;
 
@@ -643,6 +654,7 @@ pub fn state(convo: &Convo) -> Value {
             "reloadMark": RELOAD_MARK,
             "closeTitle": t("sup.chat.alog_close"),
             "closeMark": CLOSE_MARK,
+            "resizeTitle": t("sup.chat.alog_resize"),
             "empty": empty,
             "cards": cards,
             "promptLabel": t("sup.chat.alog_prompt"),
@@ -683,12 +695,13 @@ pub fn panel_html(convo: &Convo) -> String {
     let p = &state(convo)["panel"];
     let s = |x: &Value| escape(x.as_str().unwrap_or_default());
     let mut h = format!(
-        r##"<aside id="subpanel"{}><div class="sph"><b>{}</b><span class="cnt">{}</span><a href="#{}=1" title="{}">↻</a><a href="#{}=1" title="{}">✕</a></div><div class="spl">"##,
+        r##"<aside id="subpanel"{}><div class="spr" title="{}"></div><div class="sph"><b>{}</b><span class="cnt">{}</span><a href="#{}=1" title="{}">↻</a><a href="#{}=1" title="{}">✕</a></div><div class="spl">"##,
         if p["hidden"] == true {
             r#" hidden="""#
         } else {
             ""
         },
+        s(&p["resizeTitle"]),
         s(&p["title"]),
         s(&p["count"]),
         s(&p["reloadMark"]),
@@ -1083,6 +1096,35 @@ mod tests {
         );
         assert!(h.contains("&lt;b&gt;") && !h.contains("<b><"));
         assert_eq!(message(&c)["subs"], state(&c), "패널 값을 그대로 싣는다");
+    }
+
+    #[test]
+    fn the_panel_carries_a_resize_handle_and_scrolls_sideways() {
+        let mut c = Convo {
+            session_id: Some("s".into()),
+            ..Convo::default()
+        };
+        c.subs
+            .settle(View::Loaded(vec![running("x")]), Instant::now());
+        let h = panel_html(&c);
+        assert!(
+            h.contains(r#"<div class="spr" title=""#),
+            "패널에 너비 조절 손잡이가 없다"
+        );
+        assert_eq!(
+            state(&c)["panel"]["resizeTitle"],
+            crate::domain::i18n::t("sup.chat.alog_resize"),
+            "손잡이 설명이 문구 표를 안 쓴다"
+        );
+        assert!(STYLE.contains("--as-sub-w"), "패널 폭이 변수로 안 빠졌다");
+        assert!(
+            STYLE.contains("#subpanel .spl{flex:1;overflow:auto"),
+            "패널 몸통이 가로로 스크롤되지 않는다"
+        );
+        assert!(
+            STYLE.contains("#subpanel .sad{color:#e6e9ef;overflow:visible"),
+            "카드 설명이 아직 잘린다"
+        );
     }
 
     #[test]

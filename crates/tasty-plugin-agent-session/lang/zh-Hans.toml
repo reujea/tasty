@@ -30,6 +30,7 @@ alog_unavailable = "找不到此对话的会话记录，因此无法显示其工
 alog_count = "{} 个子智能体和任务 · {} 个运行中"
 alog_reload = "重新加载"
 alog_close = "关闭面板"
+alog_resize = "拖动以调整宽度"
 alog_main = "当前智能体"
 alog_sub = "子智能体"
 alog_bg = "后台任务"

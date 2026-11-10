@@ -30,6 +30,7 @@ alog_unavailable = "Could not find this conversation's transcript, so its tool s
 alog_count = "{} subagents and tasks · {} running"
 alog_reload = "Reload"
 alog_close = "Close panel"
+alog_resize = "Drag to resize"
 alog_main = "Current agent"
 alog_sub = "Subagent"
 alog_bg = "Background task"
