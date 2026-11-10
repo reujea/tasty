@@ -298,7 +298,7 @@ pub fn draw_egui_panels(
                     ui,
                     target,
                     view,
-                    crate::adapters::ui::surface::dag_graph::DagChrome::Own { bed_focused },
+                    crate::adapters::ui::surface::dag_graph::DagChrome::Surface { bed_focused },
                 );
             });
             // 사용자가 상세에서 누른 세션 열기다. 사용자 조작이라 포커스를 옮긴다.

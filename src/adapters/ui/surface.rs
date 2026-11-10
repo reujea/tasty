@@ -6,6 +6,7 @@
 pub mod dag_graph;
 pub mod empty;
 pub mod explorer;
+pub mod graph_source;
 pub mod html_address;
 pub(crate) mod html_receive;
 pub mod html_script_banner;

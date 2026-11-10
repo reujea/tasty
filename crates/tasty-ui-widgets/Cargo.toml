@@ -11,6 +11,7 @@ egui_extras = "0.31"
 icu_normalizer = { version = "2.1", default-features = false, features = ["compiled_data"] }
 unicode-segmentation = "1.12"
 tasty-icons = { path = "../tasty-icons", features = ["egui"] }
+tasty-dag-layout = { path = "../tasty-dag-layout" }
 tasty-egui-theme = { path = "../tasty-egui-theme" }
 tasty-type-appearance = { path = "../tasty-type-appearance", features = ["egui-compat"] }
 tasty-type-geometry = { path = "../tasty-type-geometry" }

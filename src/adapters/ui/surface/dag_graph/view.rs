@@ -1,50 +1,21 @@
-//! surface별 이동·배율·선택과 조회·레이아웃 캐시.
+//! surface별 DAG 조회 상태와 공통 그래프 뷰 상태.
 //! 보이는 surface만 다음 조회 시각을 내보내고 호스트가 나머지 타이머를 취소한다.
-//! 레이아웃 캐시는 ID·엣지·방향·치수를 비교하며 task 상태만 바뀌면 좌표를 유지한다.
+//! 이동·배율·선택·레이아웃 캐시는 공통 [`GraphView`]가 가진다.
 
 use crate::runtime::engine_read::EngineRead;
 use std::collections::HashMap;
-use std::hash::{Hash as _, Hasher as _};
 use std::time::{Duration, Instant};
 
-use tasty_dag_layout::{GraphLayout, LayoutConfig, Orientation, layout_dag};
+use tasty_dag_layout::{LayoutConfig, Orientation};
 use tasty_model::{DagDirection, DagGraphSurface, SurfaceId};
 use tasty_type_appearance::theme::Theme;
+use tasty_ui_widgets::GraphView;
 
+use super::super::graph_source::GraphSource;
 use super::model::{DagData, DagListEntry, DagStatus, RunnerBadgeData, build_graph};
 
 /// DAG 데이터 조회 주기.
 pub const POLL_INTERVAL: Duration = Duration::from_millis(500);
-
-/// 줌 범위와 단위. 길이가 아니라 배율이라 `LogicalPx` 대상이 아니다.
-pub const ZOOM_MIN: f32 = 0.2;
-pub const ZOOM_MAX: f32 = 1.5;
-pub const ZOOM_STEP: f32 = 0.1;
-/// `fit` 의 상한 — 작은 그래프를 확대하지 않는다.
-pub const ZOOM_FIT_MAX: f32 = 1.0;
-
-/// 노드 LOD 3단계. 박스 크기는 tier 와 무관하게 고정이고 **내용만** 바뀐다.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Lod {
-    /// 이름 + 상태 라벨 + duration.
-    Full,
-    /// 글리프 + 이름.
-    Compact,
-    /// 상태 채움만.
-    Block,
-}
-
-impl Lod {
-    pub fn of(zoom: f32) -> Self {
-        if zoom >= 0.7 {
-            Lod::Full
-        } else if zoom >= 0.4 {
-            Lod::Compact
-        } else {
-            Lod::Block
-        }
-    }
-}
 
 /// surface와 팝업이 공유하는 관찰 대상. 워크스페이스는 데이터 조회 시 별도로 받는다.
 pub struct DagTarget<'a> {
@@ -77,14 +48,9 @@ impl DagPollRequest {
     }
 }
 
-/// 캐시된 좌표를 읽으며 뷰 상태도 바꿀 수 있도록 Rc로 공유한다.
-struct CachedLayout {
-    key: u64,
-    layout: std::rc::Rc<GraphLayout>,
-}
-
-/// surface 하나의 휘발성 뷰 상태.
-pub struct DagGraphView {
+/// DAG 데이터 소스 — 조회 주기·취소·마지막 결과. 화면 상태는 모른다.
+#[derive(Default)]
+pub struct DagGraphSource {
     /// 마지막 폴링 결과. `None` 이면 아직 한 번도 읽지 않았다.
     pub data: Option<DagData>,
     /// 마지막 폴링 시각 — [`POLL_INTERVAL`] 게이트.
@@ -94,52 +60,29 @@ pub struct DagGraphView {
     surface_activation: Option<u64>,
     /// 폴링이 실패했을 때의 사유(스토어 에러). 화면 하단에 조용히 표시한다.
     pub error: Option<String>,
-
-    pub zoom: f32,
-    /// 그래프 원점의 화면 오프셋(캔버스 좌상단 기준, logical px).
-    pub offset: egui::Vec2,
-    /// 선택된 task id.
-    pub selected: Option<String>,
-    /// 자동 맞춤을 적용한 DAG·방향·뷰포트 조합.
-    fit_key: Option<String>,
-    layout: Option<CachedLayout>,
 }
 
-impl Default for DagGraphView {
-    fn default() -> Self {
-        Self {
-            data: None,
-            last_poll: None,
-            query: None,
-            target: None,
-            surface_activation: None,
-            error: None,
-            zoom: 1.0,
-            offset: egui::Vec2::ZERO,
-            selected: None,
-            fit_key: None,
-            layout: None,
-        }
-    }
+/// DAG 조회 대상. 워크스페이스와 (지정했다면) DAG id.
+#[derive(Clone, Copy)]
+pub struct DagSourceTarget<'a> {
+    pub workspace_id: u32,
+    pub dag_id: Option<&'a str>,
 }
 
-impl DagGraphView {
-    fn bind_surface_activation(&mut self, activation: Option<u64>) {
-        if self.surface_activation != activation {
-            *self = Self::default();
-            self.surface_activation = activation;
-        }
-    }
-
+impl DagGraphSource {
     /// 이 프레임에 새로 읽어야 하는지.
     fn is_stale(&self, now: Instant) -> bool {
         self.last_poll
             .is_none_or(|t| now.duration_since(t) >= POLL_INTERVAL)
     }
+}
+
+impl GraphSource for DagGraphSource {
+    type Target<'a> = DagSourceTarget<'a>;
 
     /// 다음 폴링 시각. 아직 한 번도 안 읽었으면 `None`(= 즉시 읽어야 함).
     /// 호스트가 이 값을 `Tick::DagGraph` 데드라인으로 쓴다.
-    pub fn next_poll_at(&self) -> Option<Instant> {
+    fn next_poll_at(&self) -> Option<Instant> {
         if self.query.as_ref().is_some_and(|query| query.is_pending()) {
             Some(Instant::now() + POLL_INTERVAL)
         } else {
@@ -148,12 +91,11 @@ impl DagGraphView {
     }
 
     /// surface와 팝업이 공유하는 주기별 데이터 조회.
-    pub fn poll_if_stale(
-        &mut self,
-        engine: &EngineRead<'_>,
-        workspace_id: u32,
-        dag_id: Option<&str>,
-    ) {
+    fn poll_if_stale(&mut self, engine: &EngineRead<'_>, target: DagSourceTarget<'_>) {
+        let DagSourceTarget {
+            workspace_id,
+            dag_id,
+        } = target;
         let now = Instant::now();
         let source = engine.dag_source();
         let target = (workspace_id, dag_id.map(str::to_owned));
@@ -197,112 +139,26 @@ impl DagGraphView {
 
     /// 보고 있던 DAG 가 바뀌었으니 다음 프레임에 곧바로 다시 읽는다.
     /// (popup 의 목록→디테일 진입처럼 500ms 를 기다릴 이유가 없는 전환용.)
-    pub fn invalidate_poll(&mut self) {
+    fn invalidate_poll(&mut self) {
         self.query = None;
         self.last_poll = None;
     }
+}
 
-    /// 현재 데이터에 대한 레이아웃. 그래프 **모양**이 그대로면 캐시를 돌려준다.
-    pub fn layout(
-        &mut self,
-        direction: DagDirection,
-        cfg: &LayoutConfig,
-    ) -> std::rc::Rc<GraphLayout> {
-        let key = self.shape_key(direction, cfg);
-        if self.layout.as_ref().is_none_or(|c| c.key != key) {
-            let layout = std::rc::Rc::new(self.compute_layout(cfg));
-            self.layout = Some(CachedLayout { key, layout });
-        }
-        std::rc::Rc::clone(
-            &self
-                .layout
-                .as_ref()
-                .expect("layout cache filled above")
-                .layout,
-        )
-    }
+/// DAG 그래프 하나 — 데이터 소스와 공통 그래프 뷰 상태의 쌍. surface와 팝업이 같이 쓴다.
+#[derive(Default)]
+pub struct DagGraphView {
+    pub source: DagGraphSource,
+    pub canvas: GraphView,
+}
 
-    fn compute_layout(&self, cfg: &LayoutConfig) -> GraphLayout {
-        let Some(graph) = self.data.as_ref().and_then(|d| d.current.as_ref()) else {
-            return GraphLayout::default();
-        };
-        let ids: Vec<String> = graph.nodes.iter().map(|n| n.id.clone()).collect();
-        let edges: Vec<(usize, usize)> = graph.edges.iter().map(|e| (e.from, e.to)).collect();
-        layout_dag(&ids, &edges, cfg)
-    }
-
-    /// 상태를 제외한 레이아웃 캐시 키.
-    fn shape_key(&self, direction: DagDirection, cfg: &LayoutConfig) -> u64 {
-        let mut h = std::collections::hash_map::DefaultHasher::new();
-        direction.as_str().hash(&mut h);
-        for px in [
-            cfg.node_size.0,
-            cfg.node_size.1,
-            cfg.layer_gap,
-            cfg.sibling_gap,
-            cfg.component_gap,
-        ] {
-            px.value().to_bits().hash(&mut h);
+impl DagGraphView {
+    /// surface 세대가 바뀌면(닫혔다 다시 열림·교체) 소스와 화면 상태를 함께 버린다.
+    fn bind_surface_activation(&mut self, activation: Option<u64>) {
+        if self.source.surface_activation != activation {
+            *self = Self::default();
+            self.source.surface_activation = activation;
         }
-        if let Some(graph) = self.data.as_ref().and_then(|d| d.current.as_ref()) {
-            graph.id.hash(&mut h);
-            for n in &graph.nodes {
-                n.id.hash(&mut h);
-            }
-            for e in &graph.edges {
-                e.from.hash(&mut h);
-                e.to.hash(&mut h);
-            }
-        }
-        h.finish()
-    }
-
-    /// 같은 DAG·방향·32px 단위 뷰포트에서는 자동 맞춤을 한 번만 수행한다.
-    pub fn take_fit(
-        &mut self,
-        dag_id: &str,
-        direction: DagDirection,
-        viewport: egui::Vec2,
-    ) -> bool {
-        let key = format!(
-            "{dag_id}:{}:{}:{}",
-            direction.as_str(),
-            (viewport.x / 32.0).round() as i32,
-            (viewport.y / 32.0).round() as i32
-        );
-        if self.fit_key.as_deref() == Some(key.as_str()) {
-            return false;
-        }
-        self.fit_key = Some(key);
-        true
-    }
-
-    /// 줌을 한 단계 바꾸되 `anchor`(캔버스 로컬 좌표) 아래의 그래프 점을 고정한다.
-    pub fn zoom_by(&mut self, steps: f32, anchor: egui::Vec2) {
-        let next = (self.zoom + steps * ZOOM_STEP).clamp(ZOOM_MIN, ZOOM_MAX);
-        // 부동소수 누적으로 88.00001% 같은 값이 되지 않게 10% 격자에 맞춘다.
-        let next = (next * 10.0).round() / 10.0;
-        if (next - self.zoom).abs() < f32::EPSILON {
-            return;
-        }
-        self.offset = anchor - (anchor - self.offset) / self.zoom * next;
-        self.zoom = next;
-    }
-
-    /// 그래프 전체가 들어오도록 줌/오프셋을 맞춘다.
-    pub fn fit(&mut self, graph_size: egui::Vec2, viewport: egui::Vec2, padding: f32) {
-        if graph_size.x <= 0.0 || graph_size.y <= 0.0 {
-            return;
-        }
-        let usable = viewport - egui::vec2(padding * 2.0, padding * 2.0);
-        let k = (usable.x / graph_size.x)
-            .min(usable.y / graph_size.y)
-            .clamp(ZOOM_MIN, ZOOM_FIT_MAX);
-        self.zoom = k;
-        self.offset = egui::vec2(
-            ((viewport.x - graph_size.x * k) / 2.0).max(padding),
-            ((viewport.y - graph_size.y * k) / 2.0).max(padding),
-        );
     }
 }
 
@@ -336,7 +192,7 @@ impl DagGraphViewStore {
             .iter()
             .filter_map(|sid| {
                 let v = self.views.get(sid)?;
-                Some((*sid, v.next_poll_at().unwrap_or(now)))
+                Some((*sid, v.source.next_poll_at().unwrap_or(now)))
             })
             .collect()
     }
@@ -352,7 +208,13 @@ impl DagGraphViewStore {
                     .find_surface_by_id(req.surface_id)
                     .and_then(|surface| surface.activation_generation),
             );
-            view.poll_if_stale(engine, req.workspace_id, req.dag_id.as_deref());
+            view.source.poll_if_stale(
+                engine,
+                DagSourceTarget {
+                    workspace_id: req.workspace_id,
+                    dag_id: req.dag_id.as_deref(),
+                },
+            );
         }
     }
 
@@ -361,7 +223,7 @@ impl DagGraphViewStore {
     fn note_visible(&mut self, requests: &[DagPollRequest]) {
         for (id, view) in &mut self.views {
             if !requests.iter().any(|request| request.surface_id == *id) {
-                view.query = None;
+                view.source.query = None;
             }
         }
         self.visible.clear();
@@ -480,6 +342,13 @@ mod tests {
     use super::super::model::{DagEdgeData, DagGraphData, DagNodeData, DagRelation};
     use super::*;
 
+    fn target(workspace_id: u32, dag_id: Option<&str>) -> DagSourceTarget<'_> {
+        DagSourceTarget {
+            workspace_id,
+            dag_id,
+        }
+    }
+
     fn req(surface_id: SurfaceId) -> DagPollRequest {
         DagPollRequest {
             surface_id,
@@ -492,14 +361,14 @@ mod tests {
     fn changing_dag_target_discards_the_old_read_and_same_target_failure_keeps_its_snapshot() {
         let (_, engine) = crate::state::tests::test_state();
         let workspace = engine.core_state.workspace_at(0).unwrap().id;
-        let mut view = DagGraphView::default();
-        view.poll_if_stale(&engine.read(), workspace, Some("first"));
+        let mut view = DagGraphSource::default();
+        view.poll_if_stale(&engine.read(), target(workspace, Some("first")));
         let old = engine
             .runtime
             .dag_reads
             .take(engine.journal_binding.as_ref())
             .unwrap();
-        view.poll_if_stale(&engine.read(), workspace, Some("second"));
+        view.poll_if_stale(&engine.read(), target(workspace, Some("second")));
         assert!(!old.is_live());
         old.complete(Err("stale first result".into()));
         let current = engine
@@ -513,18 +382,18 @@ mod tests {
             dags: Vec::new(),
             runner: (false, false),
         }]));
-        view.poll_if_stale(&engine.read(), workspace, Some("second"));
+        view.poll_if_stale(&engine.read(), target(workspace, Some("second")));
         assert!(view.error.is_none());
         assert_eq!(view.data.as_ref().unwrap().workspace_id, workspace);
         view.invalidate_poll();
-        view.poll_if_stale(&engine.read(), workspace, Some("second"));
+        view.poll_if_stale(&engine.read(), target(workspace, Some("second")));
         engine
             .runtime
             .dag_reads
             .take(engine.journal_binding.as_ref())
             .unwrap()
             .complete(Err("current store error".into()));
-        view.poll_if_stale(&engine.read(), workspace, Some("second"));
+        view.poll_if_stale(&engine.read(), target(workspace, Some("second")));
         assert_eq!(view.error.as_deref(), Some("current store error"));
         assert_eq!(view.data.as_ref().unwrap().workspace_id, workspace);
     }
@@ -535,7 +404,8 @@ mod tests {
         let workspace = engine.core_state.workspace_at(0).unwrap().id;
         let mut view = DagGraphView::default();
         view.bind_surface_activation(Some(1));
-        view.poll_if_stale(&engine.read(), workspace, None);
+        view.source
+            .poll_if_stale(&engine.read(), target(workspace, None));
         engine
             .runtime
             .dag_reads
@@ -547,30 +417,34 @@ mod tests {
                 dags: Vec::new(),
                 runner: (false, false),
             }]));
-        view.poll_if_stale(&engine.read(), workspace, None);
-        assert!(view.data.is_some());
-        view.invalidate_poll();
-        view.poll_if_stale(&engine.read(), workspace, None);
+        view.source
+            .poll_if_stale(&engine.read(), target(workspace, None));
+        assert!(view.source.data.is_some());
+        view.source.invalidate_poll();
+        view.source
+            .poll_if_stale(&engine.read(), target(workspace, None));
         engine
             .runtime
             .dag_reads
             .take(engine.journal_binding.as_ref())
             .unwrap()
             .complete(Err(crate::runtime::dag_query::ReadError::Retired));
-        view.poll_if_stale(&engine.read(), workspace, None);
-        assert!(view.data.is_none());
-        view.invalidate_poll();
-        view.poll_if_stale(&engine.read(), workspace, None);
+        view.source
+            .poll_if_stale(&engine.read(), target(workspace, None));
+        assert!(view.source.data.is_none());
+        view.source.invalidate_poll();
+        view.source
+            .poll_if_stale(&engine.read(), target(workspace, None));
         let old = engine
             .runtime
             .dag_reads
             .take(engine.journal_binding.as_ref())
             .unwrap();
-        view.selected = Some("old-task".into());
+        view.canvas.selected = Some("old-task".into());
         view.bind_surface_activation(Some(2));
         assert!(!old.is_live());
-        assert!(view.selected.is_none());
-        assert!(view.query.is_none());
+        assert!(view.canvas.selected.is_none());
+        assert!(view.source.query.is_none());
     }
 
     #[test]
@@ -623,66 +497,10 @@ mod tests {
     #[test]
     fn poll_deadline_advances_after_a_read() {
         let now = Instant::now();
-        let mut view = DagGraphView::default();
+        let mut view = DagGraphSource::default();
         assert_eq!(view.next_poll_at(), None, "미폴링 = 즉시");
         view.last_poll = Some(now);
         assert_eq!(view.next_poll_at(), Some(now + POLL_INTERVAL));
-    }
-
-    #[test]
-    fn lod_tiers_follow_zoom_thresholds() {
-        assert_eq!(Lod::of(1.0), Lod::Full);
-        assert_eq!(Lod::of(0.7), Lod::Full);
-        assert_eq!(Lod::of(0.69), Lod::Compact);
-        assert_eq!(Lod::of(0.4), Lod::Compact);
-        assert_eq!(Lod::of(0.39), Lod::Block);
-    }
-
-    #[test]
-    fn zoom_snaps_to_ten_percent_steps_and_clamps() {
-        let mut v = DagGraphView::default();
-        v.zoom_by(-1.0, egui::Vec2::ZERO);
-        assert!((v.zoom - 0.9).abs() < 1e-6, "{}", v.zoom);
-        for _ in 0..50 {
-            v.zoom_by(-1.0, egui::Vec2::ZERO);
-        }
-        assert!((v.zoom - ZOOM_MIN).abs() < 1e-6, "{}", v.zoom);
-        for _ in 0..50 {
-            v.zoom_by(1.0, egui::Vec2::ZERO);
-        }
-        assert!((v.zoom - ZOOM_MAX).abs() < 1e-6, "{}", v.zoom);
-    }
-
-    #[test]
-    fn zoom_keeps_the_anchor_point_fixed() {
-        let mut v = DagGraphView {
-            offset: egui::vec2(10.0, 20.0),
-            ..DagGraphView::default()
-        };
-        let anchor = egui::vec2(100.0, 50.0);
-        let before = (anchor - v.offset) / v.zoom;
-        v.zoom_by(2.0, anchor);
-        let after = (anchor - v.offset) / v.zoom;
-        assert!((before - after).length() < 1e-3, "{before:?} vs {after:?}");
-    }
-
-    #[test]
-    fn fit_never_magnifies_beyond_one_hundred_percent() {
-        let mut v = DagGraphView::default();
-        v.fit(egui::vec2(50.0, 20.0), egui::vec2(800.0, 600.0), 16.0);
-        assert!(v.zoom <= ZOOM_FIT_MAX + 1e-6, "{}", v.zoom);
-    }
-
-    #[test]
-    fn fit_runs_once_per_dag_direction_and_viewport_bucket() {
-        let mut v = DagGraphView::default();
-        let vp = egui::vec2(800.0, 600.0);
-        assert!(v.take_fit("d:a", DagDirection::LeftRight, vp));
-        assert!(!v.take_fit("d:a", DagDirection::LeftRight, vp));
-        assert!(!v.take_fit("d:a", DagDirection::LeftRight, vp + egui::vec2(1.0, 0.0)));
-        assert!(v.take_fit("d:a", DagDirection::TopDown, vp));
-        assert!(v.take_fit("d:b", DagDirection::TopDown, vp));
-        assert!(v.take_fit("d:b", DagDirection::TopDown, vp + egui::vec2(200.0, 0.0)));
     }
 
     #[test]
@@ -705,15 +523,14 @@ mod tests {
     /// 상태만 바뀌면 레이아웃 캐시 키는 유지한다.
     #[test]
     fn shape_key_ignores_task_state() {
-        let cfg = LayoutConfig::default();
-        let mut v = DagGraphView {
-            data: Some(graph_data(&[
-                ("a", DagStatus::Waiting),
-                ("b", DagStatus::Waiting),
-            ])),
-            ..DagGraphView::default()
+        let lr = LayoutConfig::default();
+        let key = |data: &DagData, cfg: &LayoutConfig| {
+            tasty_ui_widgets::graph_shape_key(data.current.as_ref(), cfg)
         };
-        let waiting = v.shape_key(DagDirection::LeftRight, &cfg);
+        let waiting = key(
+            &graph_data(&[("a", DagStatus::Waiting), ("b", DagStatus::Waiting)]),
+            &lr,
+        );
 
         for state in [
             DagStatus::Ready,
@@ -724,32 +541,32 @@ mod tests {
             DagStatus::Skipped,
             DagStatus::Unknown,
         ] {
-            v.data = Some(graph_data(&[("a", state), ("b", DagStatus::Running)]));
             assert_eq!(
-                v.shape_key(DagDirection::LeftRight, &cfg),
+                key(&graph_data(&[("a", state), ("b", DagStatus::Running)]), &lr),
                 waiting,
                 "state {state:?} 가 레이아웃 캐시를 무효화했다"
             );
         }
 
-        v.data = Some(graph_data(&[
+        let three = graph_data(&[
             ("a", DagStatus::Waiting),
             ("b", DagStatus::Waiting),
             ("c", DagStatus::Waiting),
-        ]));
-        assert_ne!(v.shape_key(DagDirection::LeftRight, &cfg), waiting);
+        ]);
+        assert_ne!(key(&three, &lr), waiting);
 
-        v.data = Some(graph_data(&[
-            ("a", DagStatus::Waiting),
-            ("b", DagStatus::Waiting),
-        ]));
-        assert_eq!(v.shape_key(DagDirection::LeftRight, &cfg), waiting);
-        assert_ne!(v.shape_key(DagDirection::TopDown, &cfg), waiting);
-        let wider = LayoutConfig {
-            layer_gap: cfg.layer_gap + tasty_type_geometry::length::LogicalPx(8.0),
+        let two = graph_data(&[("a", DagStatus::Waiting), ("b", DagStatus::Waiting)]);
+        assert_eq!(key(&two, &lr), waiting);
+        let td = LayoutConfig {
+            orientation: Orientation::TopDown,
             ..LayoutConfig::default()
         };
-        assert_ne!(v.shape_key(DagDirection::LeftRight, &wider), waiting);
+        assert_ne!(key(&two, &td), waiting);
+        let wider = LayoutConfig {
+            layer_gap: lr.layer_gap + tasty_type_geometry::length::LogicalPx(8.0),
+            ..LayoutConfig::default()
+        };
+        assert_ne!(key(&two, &wider), waiting);
     }
 
     /// `(id, 상태)` 목록 → 앞 노드에서 뒤 노드로 이어지는 사슬 그래프.

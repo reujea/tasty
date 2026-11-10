@@ -45,6 +45,7 @@ pub mod file_handler;
 mod file_handler_form;
 mod filter_readout;
 mod folder_picker;
+mod graph_view;
 mod help_hint;
 mod horizontal_tab_bar;
 mod html_address_bar;
@@ -194,6 +195,23 @@ pub use file_handler_form::{
 };
 pub use filter_readout::{filter_readout, filter_readout_label, filter_readout_width};
 pub use folder_picker::FolderPickerFooter;
+pub use graph_view::{
+    DagCardView, DagStatus, EdgeInk, EdgeLink, GRAPH_NARROW_DETAIL_SHEET, GraphCanvasProps,
+    GraphChromeAction, GraphChromeLabels, GraphData, GraphDrawerDock, GraphDrawerSplit,
+    GraphEdgeData, GraphFrame, GraphMinimap, GraphNodeData, GraphNodeKind, GraphPainter, GraphView,
+    Lod as GraphLod, NodeVisual as GraphNodeVisual, Transform as GraphTransform,
+    ZOOM_FIT_MAX as GRAPH_ZOOM_FIT_MAX, ZOOM_MAX as GRAPH_ZOOM_MAX, ZOOM_MIN as GRAPH_ZOOM_MIN,
+    ZOOM_STEP as GRAPH_ZOOM_STEP, dag_card_colors, dag_kind_icon, dag_status_border,
+    dag_status_colors, draw_graph_canvas, draw_zoom_cluster, drawer_body, drawer_mono_row,
+    drawer_row, drawer_section, drawer_text_block, ellipsize as graph_ellipsize, machine_scoped_id,
+    orientation_key as graph_orientation_key, orthogonalize as graph_orthogonalize,
+    paint_arrow as graph_paint_arrow, paint_dag_card, paint_drawer_divider,
+    paint_edge_line as graph_paint_edge_line, paint_graph_minimap,
+    paint_lod_chip as graph_paint_lod_chip, paint_selection_ring as graph_paint_selection_ring,
+    round_corners as graph_round_corners, shape_key as graph_shape_key, split_graph_drawer,
+    text_width as graph_text_width, zoom_cluster_rect as graph_zoom_cluster_rect,
+    zoom_cluster_size as graph_zoom_cluster_size,
+};
 pub use help_hint::HelpHint;
 pub use horizontal_tab_bar::{
     TabScrollArrowInk, TabScrollArrowSide, horizontal_tab_bar_with_arrows, paint_tab_scroll_arrow,

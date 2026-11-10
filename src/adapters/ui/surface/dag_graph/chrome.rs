@@ -1,14 +1,15 @@
-//! DAG 헤더·실행 상태·이동 및 배율 버튼·미니맵·안내 표시.
-//! 폭이 좁으면 줌 숫자·미니맵부터 숨기고 러너 상태와 순환 관계 경고는 남긴다.
+//! DAG 헤더·실행 상태·사이클 배너·빈 상태 안내. 캔버스 위 버튼·미니맵은 공통 그래프 뷰가 그린다.
+//! 폭이 좁으면 헤더를 두 줄로 나누고 러너 상태와 순환 관계 경고는 남긴다.
 
-use tasty_dag_layout::GraphLayout;
 use tasty_model::DagDirection;
 use tasty_type_appearance::theme::Theme;
-use tasty_type_geometry::length::LogicalPx;
-use tasty_ui_widgets::{ControlSize, IconButton, IconButtonVariant, hspace, margin_sym};
+use tasty_ui_widgets::{
+    ControlSize, GRAPH_NARROW_DETAIL_SHEET as NARROW_DETAIL_SHEET, GraphChromeAction,
+    GraphChromeLabels, GraphView, IconButton, IconButtonVariant, draw_zoom_cluster,
+    graph_zoom_cluster_size, hspace, margin_sym,
+};
 
 use super::model::{DagData, DagGraphData, RunnerBadgeData};
-use super::view::{DagGraphView, Lod, ZOOM_MAX, ZOOM_MIN};
 use crate::adapters::ui::icons;
 use crate::i18n::{t, t_count, t_fmt, t_fmt2};
 
@@ -22,6 +23,36 @@ pub enum ChromeAction {
     Zoom(f32),
     /// 폴링 주기를 기다리지 않고 지금 다시 읽는다.
     Refresh,
+}
+
+impl From<GraphChromeAction> for ChromeAction {
+    fn from(action: GraphChromeAction) -> Self {
+        match action {
+            GraphChromeAction::ToggleDirection => ChromeAction::ToggleDirection,
+            GraphChromeAction::Fit => ChromeAction::Fit,
+            GraphChromeAction::Zoom(steps) => ChromeAction::Zoom(steps),
+        }
+    }
+}
+
+/// 캔버스 버튼 툴팁과 LOD 칩 문구.
+pub fn graph_chrome_labels() -> GraphChromeLabels<'static> {
+    GraphChromeLabels {
+        zoom_in: t("dag.zoom.in"),
+        zoom_out: t("dag.zoom.out"),
+        fit: t("dag.zoom.fit"),
+        direction: t("dag.zoom.direction"),
+        lod_compact: t("dag.lod.compact"),
+        lod_block: t("dag.lod.block"),
+    }
+}
+
+/// DAG 방향을 공통 그래프 뷰의 방향으로.
+pub fn orientation_of(direction: DagDirection) -> tasty_dag_layout::Orientation {
+    match direction {
+        DagDirection::LeftRight => tasty_dag_layout::Orientation::LeftRight,
+        DagDirection::TopDown => tasty_dag_layout::Orientation::TopDown,
+    }
 }
 
 /// 좁으면 DAG 이름·진행률과 러너 상태·새로고침을 두 줄로 나눈다.
@@ -336,212 +367,21 @@ fn resume_hint(ui: &mut egui::Ui, theme: &Theme, runner: &RunnerBadgeData) {
     hspace(ui, theme.spacing_sm);
 }
 
-/// 줌 퍼센트 판독창 폭.
-const ZOOM_READOUT_WIDTH: LogicalPx = LogicalPx(46.0);
-/// 이 폭보다 좁으면 줌 숫자를 숨긴다. 대응 디자인 토큰은 없다.
-const NARROW_ZOOM_LABEL: LogicalPx = LogicalPx(400.0);
-/// 상세를 우측 패널로 둘 수 있는 최소 surface 폭. 그 아래는 하단 시트다.
-pub const NARROW_DETAIL_SHEET: LogicalPx = LogicalPx(640.0);
-
-/// 줌 클러스터 전체 크기 — 버튼 4 개 + (판독창) + 1px 구분선.
-fn zoom_cluster_size(theme: &Theme, compact: bool) -> egui::Vec2 {
-    let h = theme.dag_chrome_height().value();
-    let mut w = h * 4.0 + theme.border_width.value();
-    if !compact {
-        w += ZOOM_READOUT_WIDTH.value();
-    }
-    egui::vec2(w, h)
-}
-
-/// 캔버스 안에서 줌 클러스터가 차지하는 자리. 캔버스 인터랙션이 이 영역을 비켜가야
-/// 하므로 그리기 전에 먼저 알아야 한다.
-pub fn zoom_cluster_rect(theme: &Theme, canvas: egui::Rect) -> egui::Rect {
-    let inset = theme.dag_chrome_inset().value();
-    let size = zoom_cluster_size(theme, canvas.width() < NARROW_ZOOM_LABEL.value());
-    egui::Rect::from_min_size(
-        egui::pos2(canvas.max.x - inset - size.x, canvas.max.y - inset - size.y),
-        size,
-    )
-}
-
-/// 클러스터 셀 하나. 눌렸으면 `true`.
-fn cluster_cell(
-    ui: &mut egui::Ui,
-    theme: &Theme,
-    rect: egui::Rect,
-    salt: &'static str,
-    icon: icons::Icon,
-    enabled: bool,
-    tooltip: &str,
-) -> bool {
-    let resp = ui.interact(
-        rect,
-        ui.id().with(("dag_zoom_cell", salt)),
-        egui::Sense::click(),
-    );
-    if enabled && resp.hovered() {
-        ui.painter().rect_filled(
-            rect,
-            theme.corner_radius_sm.value(),
-            theme.overlay_hover().to_egui_premultiplied(),
-        );
-    }
-    let color = if enabled {
-        theme.dag_chrome_fg()
-    } else {
-        theme.text_disabled()
-    };
-    let side = theme.icon_glyph_size_sm.value();
-    icon.image(side, color.to_egui()).paint_at(
-        ui,
-        egui::Rect::from_center_size(rect.center(), egui::vec2(side, side)),
-    );
-    enabled && resp.on_hover_text(tooltip).clicked()
-}
-
-/// 캔버스 위의 줌·맞춤·방향 버튼.
-fn draw_zoom_cluster(
-    ui: &mut egui::Ui,
-    theme: &Theme,
-    rect: egui::Rect,
-    view: &DagGraphView,
-    direction: DagDirection,
-) -> Option<ChromeAction> {
-    let compact = rect.width() < zoom_cluster_size(theme, false).x;
-    let radius = theme.corner_radius.value();
-    let border = theme.dag_chrome_border().to_egui();
-    ui.painter()
-        .rect_filled(rect, radius, theme.dag_chrome_bg().to_egui());
-    ui.painter().rect_stroke(
-        rect,
-        radius,
-        egui::Stroke::new(theme.border_width.value(), border),
-        egui::StrokeKind::Inside,
-    );
-
-    let side = theme.dag_chrome_height();
-    let mut x = rect.min.x;
-    // LogicalPx를 받아 egui 계산에서만 숫자로 꺼낸다.
-    let mut cell = |w: LogicalPx| {
-        let r = egui::Rect::from_min_size(
-            egui::pos2(x, rect.min.y),
-            egui::vec2(w.value(), side.value()),
-        );
-        x += w.value();
-        r
-    };
-
-    let mut action = None;
-    let minus = cell(side);
-    if cluster_cell(
-        ui,
-        theme,
-        minus,
-        "out",
-        icons::MINUS,
-        view.zoom > ZOOM_MIN,
-        t("dag.zoom.out"),
-    ) {
-        action = Some(ChromeAction::Zoom(-1.0));
-    }
-    if !compact {
-        let readout = cell(ZOOM_READOUT_WIDTH);
-        ui.painter().text(
-            readout.center(),
-            egui::Align2::CENTER_CENTER,
-            format!("{}%", (view.zoom * 100.0).round() as i32),
-            egui::FontId::monospace(theme.font_size_caption.value()),
-            theme.dag_chrome_fg().to_egui(),
-        );
-    }
-    let plus = cell(side);
-    if cluster_cell(
-        ui,
-        theme,
-        plus,
-        "in",
-        icons::PLUS,
-        view.zoom < ZOOM_MAX,
-        t("dag.zoom.in"),
-    ) {
-        action = Some(ChromeAction::Zoom(1.0));
-    }
-
-    let sep = cell(theme.border_width);
-    ui.painter().rect_filled(sep, 0.0, border);
-
-    if cluster_cell(
-        ui,
-        theme,
-        cell(side),
-        "fit",
-        icons::MOVE,
-        true,
-        t("dag.zoom.fit"),
-    ) {
-        action = Some(ChromeAction::Fit);
-    }
-    let dir_icon = match direction {
-        DagDirection::LeftRight => icons::ARROW_RIGHT,
-        DagDirection::TopDown => icons::ARROW_DOWN,
-    };
-    if cluster_cell(
-        ui,
-        theme,
-        cell(side),
-        "dir",
-        dir_icon,
-        true,
-        t("dag.zoom.direction"),
-    ) {
-        action = Some(ChromeAction::ToggleDirection);
-    }
-    action
-}
-
-/// 캔버스의 미니맵·줌 버튼·축약 표시.
-// 이유: 갤러리에서도 같은 인자 구성을 사용해 렌더링을 대조한다.
-#[allow(clippy::too_many_arguments)]
-pub fn draw_canvas_chrome(
-    ui: &mut egui::Ui,
-    theme: &Theme,
-    canvas: egui::Rect,
-    // 팝업이 back bar에 줌 버튼을 두면 미니맵은 캔버스 하단에 놓는다.
-    cluster: Option<egui::Rect>,
-    view: &DagGraphView,
-    graph: &DagGraphData,
-    layout: &GraphLayout,
-    direction: DagDirection,
-    lod: Lod,
-) -> Option<ChromeAction> {
-    let graph_size = egui::vec2(layout.width.value(), layout.height.value());
-    let stack_bottom = match cluster {
-        Some(c) => c.min.y,
-        None => canvas.max.y - theme.dag_chrome_inset().value(),
-    };
-    let plot = MinimapPlot {
-        graph,
-        layout,
-        graph_size,
-    };
-    paint_minimap(ui, theme, canvas, stack_bottom, view, plot);
-    let action = cluster.and_then(|c| draw_zoom_cluster(ui, theme, c, view, direction));
-    paint_lod_chip(&ui.painter_at(canvas), theme, canvas, lod);
-    action
-}
-
 /// 팝업 back bar의 줌·러너 표시. 제목이 대상을 나타내고 주기적으로 조회하므로
 /// DAG 선택기·새로고침 버튼은 중복으로 두지 않는다.
 pub fn draw_detail_backbar_actions(
     ui: &mut egui::Ui,
     theme: &Theme,
     data: &DagData,
-    view: &DagGraphView,
+    view: &GraphView,
     direction: DagDirection,
 ) -> Option<ChromeAction> {
     runner_badge(ui, theme, &data.runner);
-    let (rect, _) = ui.allocate_exact_size(zoom_cluster_size(theme, true), egui::Sense::hover());
-    draw_zoom_cluster(ui, theme, rect, view, direction)
+    let (rect, _) =
+        ui.allocate_exact_size(graph_zoom_cluster_size(theme, true), egui::Sense::hover());
+    let labels = graph_chrome_labels();
+    draw_zoom_cluster(ui, theme, rect, view, orientation_of(direction), &labels)
+        .map(ChromeAction::from)
 }
 
 /// 사이클 배너. 사이클이면 그래프는 그리되 "이 그래프는 완주할 수 없다" 를 알린다.
@@ -588,126 +428,6 @@ pub fn draw_cycle_banner(ui: &mut egui::Ui, theme: &Theme, cycle: &[String]) {
             theme.border_width.value(),
             theme.dag_cycle_border().to_egui(),
         ),
-    );
-}
-
-/// 좌하단 LOD 칩 — 지금 카드가 왜 축약돼 보이는지 알린다.
-pub fn paint_lod_chip(painter: &egui::Painter, theme: &Theme, rect: egui::Rect, lod: Lod) {
-    if lod == Lod::Full {
-        return;
-    }
-    let text = match lod {
-        Lod::Compact => t("dag.lod.compact"),
-        _ => t("dag.lod.block"),
-    };
-    let pad = theme.spacing_xs.value();
-    let font = egui::FontId::proportional(theme.font_size_micro.value());
-    let galley = painter.layout_no_wrap(text.to_string(), font, theme.dag_chrome_fg().to_egui());
-    let size = galley.size() + egui::vec2(pad * 2.0, pad);
-    let chip = egui::Rect::from_min_size(
-        egui::pos2(rect.min.x + pad, rect.max.y - size.y - pad),
-        size,
-    );
-    painter.rect_filled(
-        chip,
-        theme.dag_runner_radius().value(),
-        theme.dag_chrome_bg().to_egui(),
-    );
-    painter.galley(
-        chip.min + egui::vec2(pad, pad / 2.0),
-        galley,
-        theme.dag_chrome_fg().to_egui(),
-    );
-}
-
-/// 미니맵이 그릴 그래프. `layout.nodes` 는 `graph.nodes` 와 순서가 같다.
-struct MinimapPlot<'a> {
-    graph: &'a DagGraphData,
-    layout: &'a GraphLayout,
-    graph_size: egui::Vec2,
-}
-
-/// 좁은 화면에서는 숨기는 미니맵. 줌 버튼 위에 배치한다.
-fn paint_minimap(
-    ui: &egui::Ui,
-    theme: &Theme,
-    canvas: egui::Rect,
-    stack_bottom: f32,
-    view: &DagGraphView,
-    plot: MinimapPlot<'_>,
-) {
-    let MinimapPlot {
-        graph,
-        layout,
-        graph_size,
-    } = plot;
-    if canvas.width() < theme.dag_minimap_min_surface().value()
-        || graph_size.x <= 0.0
-        || graph_size.y <= 0.0
-    {
-        return;
-    }
-    let painter = ui.painter_at(canvas);
-    let gap = theme.spacing_sm.value();
-    let size = egui::vec2(
-        theme.dag_minimap_width().value(),
-        theme.dag_minimap_height().value(),
-    );
-    let map = egui::Rect::from_min_size(
-        egui::pos2(
-            canvas.max.x - size.x - theme.dag_chrome_inset().value(),
-            stack_bottom - gap - size.y,
-        ),
-        size,
-    );
-    painter.rect_filled(
-        map,
-        theme.dag_node_radius().value(),
-        theme.dag_minimap_bg().to_egui(),
-    );
-
-    let k = (size.x / graph_size.x).min(size.y / graph_size.y);
-    let base = map.min + (size - graph_size * k) / 2.0;
-    let node = theme.dag_minimap_node().to_egui();
-    let (nw, nh) = (
-        theme.dag_node_width().value() * k,
-        theme.dag_node_height().value() * k,
-    );
-    let node_dim = theme.dag_minimap_node_dim().to_egui();
-    for (n, data) in layout.nodes.iter().zip(&graph.nodes) {
-        painter.rect_filled(
-            egui::Rect::from_min_size(
-                base + egui::vec2(n.x.value() * k, n.y.value() * k),
-                egui::vec2(nw.max(1.0), nh.max(1.0)),
-            ),
-            0.0,
-            if data.status.is_dimmed() {
-                node_dim
-            } else {
-                node
-            },
-        );
-    }
-
-    // 현재 뷰포트가 그래프의 어디를 보고 있는지. 화면 좌표 → 그래프 좌표 역변환.
-    let vp = egui::Rect::from_min_size(
-        base + egui::vec2(
-            -view.offset.x / view.zoom * k,
-            -view.offset.y / view.zoom * k,
-        ),
-        egui::vec2(
-            canvas.width() / view.zoom * k,
-            canvas.height() / view.zoom * k,
-        ),
-    );
-    painter.rect_stroke(
-        vp.intersect(map),
-        0.0,
-        egui::Stroke::new(
-            theme.border_width.value(),
-            theme.dag_minimap_viewport().to_egui(),
-        ),
-        egui::StrokeKind::Inside,
     );
 }
 

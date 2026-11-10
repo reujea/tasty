@@ -184,7 +184,7 @@ const COPIED: &[(&str, Side, Side)] = &[
     ),
     (
         "DAG 줌 표시 폭",
-        Side::Lit(HOST_DAG_CHROME, "ZOOM_READOUT_WIDTH"),
+        Side::Lit(WIDGET_GRAPH_CHROME, "ZOOM_READOUT_WIDTH"),
         Side::Lit(GALLERY_DAG_CHROME, "ZOOM_READOUT_WIDTH"),
     ),
     (
@@ -236,7 +236,7 @@ const HOST_REMOTE_ATTACH: &str = "src/adapters/ui/popup/remote_attach.rs";
 const HOST_FILE_PICKER: &str = "src/adapters/ui/popup/file_picker.rs";
 const HOST_TUTORIAL_CALLOUT: &str = "src/adapters/ui/tutorial/callout.rs";
 const HOST_EXPLORER: &str = "src/adapters/ui/surface/explorer.rs";
-const HOST_DAG_CHROME: &str = "src/adapters/ui/surface/dag_graph/chrome.rs";
+const WIDGET_GRAPH_CHROME: &str = "crates/tasty-ui-widgets/src/graph_view/chrome.rs";
 const HOST_HOOK_HANDLERS: &str = "src/view/settings/ui/file_handler_tab/hook_handlers.rs";
 const HOST_KB_IMPORT_EXPORT: &str = "src/view/settings/ui/keybindings_tab/import_export.rs";
 const GALLERY_KB_IMPORT_EXPORT: &str =

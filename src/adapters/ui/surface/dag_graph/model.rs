@@ -8,48 +8,20 @@ use tasty_task_runtime::graph_view::{
     collect_graph_edges, drawn_edges, on_failure_kind, task_command_kind,
 };
 
-/// 색·기호·번역 라벨로 함께 표시하는 노드 상태.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum DagStatus {
-    Waiting,
-    Ready,
-    Running,
-    Succeeded,
-    Failed,
-    Cancelled,
-    Skipped,
-    Unknown,
-    /// DAG 요약 전용(`rollup_state: partially_failed`). task 하나의 상태로는 나오지 않는다.
-    PartiallyFailed,
+/// 색·기호·번역 라벨로 함께 표시하는 노드 상태. 색·기호는 공통 DAG 카드가 가진다.
+pub use tasty_ui_widgets::DagStatus;
+
+/// 노드 상태의 task 상태 변환과 번역 라벨.
+pub trait DagStatusText {
+    fn from_state(state: &TaskState) -> Self;
+    /// 철자 라벨(번역).
+    fn label(self) -> &'static str;
+    /// 호버 첫 줄에 쓰는 문장형 라벨(번역).
+    fn tooltip_label(self) -> &'static str;
 }
 
-impl DagStatus {
-    /// 개별 task 상태 전체와 표시 순서. DAG 목록 필터는 ROLLUP_ALL을 사용한다.
-    #[allow(dead_code)]
-    pub const ALL: [DagStatus; 8] = [
-        DagStatus::Waiting,
-        DagStatus::Ready,
-        DagStatus::Running,
-        DagStatus::Succeeded,
-        DagStatus::Failed,
-        DagStatus::Cancelled,
-        DagStatus::Skipped,
-        DagStatus::Unknown,
-    ];
-
-    /// DAG 집계에서 반환하는 일곱 상태와 목록 필터 순서. Cancelled는 Skipped로, Unknown은
-    /// Waiting으로 집계되므로 목록 필터에서는 두 개별 상태를 제외한다.
-    pub const ROLLUP_ALL: [DagStatus; 7] = [
-        DagStatus::Waiting,
-        DagStatus::Ready,
-        DagStatus::Running,
-        DagStatus::Succeeded,
-        DagStatus::PartiallyFailed,
-        DagStatus::Failed,
-        DagStatus::Skipped,
-    ];
-
-    pub fn from_state(state: &TaskState) -> Self {
+impl DagStatusText for DagStatus {
+    fn from_state(state: &TaskState) -> Self {
         match state {
             TaskState::Waiting => DagStatus::Waiting,
             TaskState::Ready => DagStatus::Ready,
@@ -62,39 +34,7 @@ impl DagStatus {
         }
     }
 
-    /// `rollup_state` 문자열(`DagSummary`)에서. 알 수 없으면 `Unknown`.
-    pub fn from_name(name: &str) -> Self {
-        match name {
-            "waiting" => DagStatus::Waiting,
-            "ready" => DagStatus::Ready,
-            "running" => DagStatus::Running,
-            "succeeded" => DagStatus::Succeeded,
-            "failed" => DagStatus::Failed,
-            "cancelled" => DagStatus::Cancelled,
-            "skipped" => DagStatus::Skipped,
-            "partially_failed" => DagStatus::PartiallyFailed,
-            _ => DagStatus::Unknown,
-        }
-    }
-
-    /// 글꼴 누락과 컬러 이모지 대체를 피하려 기하·수학 기호로 상태를 구분한다.
-    pub fn glyph(self) -> &'static str {
-        match self {
-            DagStatus::Waiting => "\u{25E6}",   // ◦ 흰 불릿
-            DagStatus::Ready => "\u{25B7}",     // ▷ 흰 삼각(다음 차례)
-            DagStatus::Running => "\u{25D1}",   // ◑ 반쯤 채운 원
-            DagStatus::Succeeded => "\u{25CF}", // ● 채운 원
-            DagStatus::Failed => "\u{00D7}",    // × 곱셈 기호
-            DagStatus::Cancelled => "\u{2212}", // − 빼기 기호
-            // 두 건너뜀 이유(미선택·선행 결과 없음)가 같은 글리프를 쓴다.
-            DagStatus::Skipped => "\u{2298}", // ⊘ 사선 원
-            DagStatus::Unknown => "?",
-            DagStatus::PartiallyFailed => "\u{25D2}", // ◒ 아래 반을 채운 원
-        }
-    }
-
-    /// 철자 라벨(번역).
-    pub fn label(self) -> &'static str {
+    fn label(self) -> &'static str {
         match self {
             DagStatus::Waiting => t("dag.status.waiting"),
             DagStatus::Ready => t("dag.status.ready"),
@@ -108,8 +48,7 @@ impl DagStatus {
         }
     }
 
-    /// 호버 첫 줄에 쓰는 문장형 라벨(번역).
-    pub fn tooltip_label(self) -> &'static str {
+    fn tooltip_label(self) -> &'static str {
         match self {
             DagStatus::Waiting => t("dag.tooltip.waiting"),
             DagStatus::Ready => t("dag.tooltip.ready"),
@@ -121,28 +60,6 @@ impl DagStatus {
             DagStatus::Unknown => t("dag.tooltip.unknown"),
             DagStatus::PartiallyFailed => t("dag.tooltip.partially_failed"),
         }
-    }
-
-    /// 취소·스킵 상태의 카드는 흐리게 표시한다.
-    pub fn is_dimmed(self) -> bool {
-        matches!(self, DagStatus::Cancelled | DagStatus::Skipped)
-    }
-
-    /// 하류 경로를 흐리게 표시할 시작 상태. 실행 정책을 평가하는 판정은 아니다.
-    pub fn kills_outgoing(self) -> bool {
-        self.is_dimmed() || self == DagStatus::Failed
-    }
-
-    /// 화면에서 완료된 것으로 세는 상태.
-    pub fn is_terminal(self) -> bool {
-        matches!(
-            self,
-            DagStatus::Succeeded
-                | DagStatus::Failed
-                | DagStatus::PartiallyFailed
-                | DagStatus::Cancelled
-                | DagStatus::Skipped
-        )
     }
 }
 
@@ -493,9 +410,35 @@ impl DagGraphData {
             .count();
         (skipped.count(), not_selected)
     }
+}
 
-    pub fn index_of(&self, id: &str) -> Option<usize> {
-        self.nodes.iter().position(|n| n.id == id)
+impl tasty_ui_widgets::GraphNodeData for DagNodeData {
+    fn node_id(&self) -> &str {
+        &self.id
+    }
+}
+
+impl tasty_ui_widgets::GraphEdgeData for DagEdgeData {
+    fn ends(&self) -> (usize, usize) {
+        (self.from, self.to)
+    }
+}
+
+/// 공통 그래프 뷰가 읽는 DAG 스냅샷. 그래프 신원은 DAG id 다.
+impl tasty_ui_widgets::GraphData for DagGraphData {
+    type Node = DagNodeData;
+    type Edge = DagEdgeData;
+
+    fn graph_key(&self) -> &str {
+        &self.id
+    }
+
+    fn nodes(&self) -> &[DagNodeData] {
+        &self.nodes
+    }
+
+    fn edges(&self) -> &[DagEdgeData] {
+        &self.edges
     }
 }
 
@@ -1031,7 +974,7 @@ mod tests {
     /// agent 작업은 provider 와 관계없이 전용 글리프로 그리고, 모르는 종류만 run 글리프로 둔다.
     #[test]
     fn agent_tasks_take_the_agent_glyph() {
-        use super::super::node::kind_icon;
+        use tasty_ui_widgets::dag_kind_icon as kind_icon;
         assert_eq!(
             kind_icon("agent").uri,
             crate::adapters::ui::icons::AGENT.uri

@@ -20,10 +20,11 @@ use crate::adapters::ui::surface::dag_graph::{
     DagChrome, DagTarget,
     chrome::{ChromeAction, draw_detail_backbar_actions},
     draw_dag_graph,
-    model::{DagStatus, format_clock, skip_count_suffix},
+    model::{DagStatus, DagStatusText as _, format_clock, skip_count_suffix},
     node::status_colors,
-    view::{DagGraphView, POLL_INTERVAL},
+    view::{DagGraphView, DagSourceTarget, POLL_INTERVAL},
 };
+use crate::adapters::ui::surface::graph_source::GraphSource as _;
 use crate::i18n::{t, t_count, t_count_template, t_fmt, t_fmt2};
 use crate::state::MainViewState;
 
@@ -109,7 +110,7 @@ impl DagListState {
             self.last_list_poll.map_or(now, |t| t + POLL_INTERVAL)
         };
         if self.open_workspace.is_some() && self.open_dag.is_some() {
-            list.min(self.graph.next_poll_at().unwrap_or(now))
+            list.min(self.graph.source.next_poll_at().unwrap_or(now))
         } else {
             list
         }
@@ -261,8 +262,13 @@ pub fn draw_dag_list_popup(
 
     dag.poll_list(&engine.as_ref());
     if let (Some(ws), Some(id)) = (dag.open_workspace, dag.open_dag.clone()) {
-        dag.graph
-            .poll_if_stale(&engine.as_ref(), ws, Some(id.as_str()));
+        dag.graph.source.poll_if_stale(
+            &engine.as_ref(),
+            DagSourceTarget {
+                workspace_id: ws,
+                dag_id: Some(id.as_str()),
+            },
+        );
     }
 
     // 주기 조회는 egui 지연 repaint 가 아니라 타이머 허브로 다음 조회를 예약한다. 지연 repaint 는 그려질 때만 갱신된다.
@@ -289,11 +295,13 @@ pub fn draw_dag_list_popup(
     let open_session = std::cell::Cell::new(None);
     let actions = |ui: &mut egui::Ui, theme: &Theme| {
         let dag = cell.borrow();
-        let Some(data) = dag.graph.data.clone() else {
+        let Some(data) = dag.graph.source.data.clone() else {
             return;
         };
         let direction = dag.direction;
-        if let Some(action) = draw_detail_backbar_actions(ui, theme, &data, &dag.graph, direction) {
+        if let Some(action) =
+            draw_detail_backbar_actions(ui, theme, &data, &dag.graph.canvas, direction)
+        {
             *backbar_action.borrow_mut() = Some(action);
         }
     };
@@ -618,7 +626,7 @@ fn draw_detail_graph(
         direction: &mut dag.direction,
     };
     // 크롬은 back bar 가 든다 — 헤더도 캔버스 줌 클러스터도 여기서는 안 그린다.
-    draw_dag_graph(ui, target, &mut dag.graph, DagChrome::BackBar(pending))
+    draw_dag_graph(ui, target, &mut dag.graph, DagChrome::Popup(pending))
 }
 
 /// 닫힘 정리 — 어떤 경로로 닫히든 다음 open 은 **목록 뷰**에서 시작한다.

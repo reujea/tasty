@@ -1,8 +1,9 @@
-//! 선택 노드의 상세 내용. 위치와 구분선 방향은 호출부에서 정한다.
+//! 선택 노드의 상세 내용. 위치·구분선·바탕 틀은 공통 그래프 뷰의 상세 자리가 정한다.
 
 use tasty_type_appearance::theme::Theme;
 use tasty_ui_widgets::{
-    Button, ButtonVariant, ControlSize, IconButton, TagVariant, margin_all, tag, vspace,
+    Button, ButtonVariant, ControlSize, IconButton, TagVariant, drawer_body, drawer_mono_row,
+    drawer_row as row, drawer_section as section, drawer_text_block, margin_all, tag, vspace,
 };
 
 use super::model::{
@@ -23,30 +24,6 @@ pub enum DetailAction {
     OpenSession(u32),
 }
 
-/// 상세 패널의 배치 위치.
-#[derive(Clone, Copy, PartialEq, Eq)]
-pub enum DetailDock {
-    /// 캔버스 오른쪽 고정폭 패널 — 캔버스와의 경계는 **왼쪽 세로선**.
-    Side,
-    /// 캔버스 아래 시트 — 경계는 **위쪽 가로선**. 팝오버로 띄울 때도 같다.
-    Sheet,
-}
-
-/// 도킹 자리와 캔버스 사이의 경계선. 도킹을 정한 쪽이 그 자리 rect 로 호출한다.
-pub fn dock_divider(painter: &egui::Painter, theme: &Theme, dock: egui::Rect, side: DetailDock) {
-    let ends = match side {
-        DetailDock::Side => [dock.left_top(), dock.left_bottom()],
-        DetailDock::Sheet => [dock.left_top(), dock.right_top()],
-    };
-    painter.line_segment(
-        ends,
-        egui::Stroke::new(
-            theme.border_width.value(),
-            theme.dag_detail_border().to_egui(),
-        ),
-    );
-}
-
 /// 상세 콘텐츠를 `ui` 안에 채운다.
 pub fn draw_detail(
     ui: &mut egui::Ui,
@@ -57,102 +34,87 @@ pub fn draw_detail(
 ) -> Option<DetailAction> {
     let mut action = None;
 
-    // 배경은 채우되 위치에 따른 구분선은 호출부에서 그린다.
-    let dock = ui.available_rect_before_wrap();
-    ui.painter()
-        .rect_filled(dock, 0.0, theme.dag_detail_bg().to_egui());
+    drawer_body(ui, theme, |ui| {
+        if header(ui, theme, node) {
+            action = Some(DetailAction::Close);
+        }
+        vspace(ui, theme.spacing_sm);
+        if let Some(surface) = awaiting_notice(ui, theme, node, now_ms) {
+            action = Some(DetailAction::OpenSession(surface));
+        }
+        unknown_reason(ui, theme, node);
 
-    egui::Frame::NONE
-        .inner_margin(margin_all(theme.dag_detail_padding()))
-        .show(ui, |ui| {
-            ui.set_min_width(dock.width() - theme.dag_detail_padding().value() * 2.0);
-            ui.spacing_mut().item_spacing =
-                egui::vec2(theme.spacing_xs.value(), theme.spacing_xs.value());
-            egui::ScrollArea::vertical()
-                .auto_shrink([false, false])
-                .drag_to_scroll(false)
-                .show(ui, |ui| {
-                    if header(ui, theme, node) {
-                        action = Some(DetailAction::Close);
-                    }
-                    vspace(ui, theme.spacing_sm);
-                    if let Some(surface) = awaiting_notice(ui, theme, node, now_ms) {
-                        action = Some(DetailAction::OpenSession(surface));
-                    }
-                    unknown_reason(ui, theme, node);
+        row(
+            ui,
+            theme,
+            t("dag.detail.on_failure"),
+            &on_failure_label(node.on_failure_kind),
+        );
+        if let Some(started) = node.started_at {
+            row(ui, theme, t("dag.detail.started"), &format_clock(started));
+        }
+        if let Some(d) = node_duration(node, now_ms) {
+            row(ui, theme, t("dag.detail.duration"), &d);
+        }
+        if let Some(code) = node.exit_code {
+            row(ui, theme, t("dag.detail.exit_code"), &code.to_string());
+        }
+        drawer_mono_row(ui, theme, t("dag.detail.task_id"), &node.id);
 
-                    row(
-                        ui,
-                        theme,
-                        t("dag.detail.on_failure"),
-                        &on_failure_label(node.on_failure_kind),
-                    );
-                    if let Some(started) = node.started_at {
-                        row(ui, theme, t("dag.detail.started"), &format_clock(started));
-                    }
-                    if let Some(d) = node_duration(node, now_ms) {
-                        row(ui, theme, t("dag.detail.duration"), &d);
-                    }
-                    if let Some(code) = node.exit_code {
-                        row(ui, theme, t("dag.detail.exit_code"), &code.to_string());
-                    }
-                    task_id_row(ui, theme, &node.id);
+        vspace(ui, theme.spacing_sm);
+        drawer_text_block(
+            ui,
+            theme,
+            t("dag.detail.command"),
+            &node.command_text,
+            theme.dag_detail_out_max_height().value(),
+            None,
+        );
 
-                    vspace(ui, theme.spacing_sm);
-                    labeled_block(
-                        ui,
-                        theme,
-                        t("dag.detail.command"),
-                        &node.command_text,
-                        theme.dag_detail_out_max_height().value(),
-                        false,
-                    );
+        if !node.incoming.is_empty() {
+            vspace(ui, theme.spacing_sm);
+            section(
+                ui,
+                theme,
+                &format!(
+                    "{label} \u{b7} {count}",
+                    label = t("dag.detail.dependencies"),
+                    count = node.incoming.len()
+                ),
+            );
+            for (idx, rel) in &node.incoming {
+                let Some(dep) = graph.nodes.get(*idx) else {
+                    continue;
+                };
+                if dependency_row(ui, theme, dep, rel.label()) {
+                    action = Some(DetailAction::Select(dep.id.clone()));
+                }
+            }
+        }
 
-                    if !node.incoming.is_empty() {
-                        vspace(ui, theme.spacing_sm);
-                        section(
-                            ui,
-                            theme,
-                            &format!(
-                                "{label} \u{b7} {count}",
-                                label = t("dag.detail.dependencies"),
-                                count = node.incoming.len()
-                            ),
-                        );
-                        for (idx, rel) in &node.incoming {
-                            let Some(dep) = graph.nodes.get(*idx) else {
-                                continue;
-                            };
-                            if dependency_row(ui, theme, dep, rel.label()) {
-                                action = Some(DetailAction::Select(dep.id.clone()));
-                            }
-                        }
-                    }
-
-                    if let Some(err) = &node.error_tail {
-                        vspace(ui, theme.spacing_sm);
-                        labeled_block(
-                            ui,
-                            theme,
-                            t("dag.detail.error"),
-                            err,
-                            theme.dag_detail_log_max_height().value(),
-                            true,
-                        );
-                    }
-                    if let Some(out) = &node.output_tail {
-                        vspace(ui, theme.spacing_sm);
-                        labeled_block(
-                            ui,
-                            theme,
-                            t("dag.detail.output"),
-                            out,
-                            theme.dag_detail_out_max_height().value(),
-                            true,
-                        );
-                    }
-                });
-        });
+        if let Some(err) = &node.error_tail {
+            vspace(ui, theme.spacing_sm);
+            drawer_text_block(
+                ui,
+                theme,
+                t("dag.detail.error"),
+                err,
+                theme.dag_detail_log_max_height().value(),
+                Some(t("dag.detail.copy")),
+            );
+        }
+        if let Some(out) = &node.output_tail {
+            vspace(ui, theme.spacing_sm);
+            drawer_text_block(
+                ui,
+                theme,
+                t("dag.detail.output"),
+                out,
+                theme.dag_detail_out_max_height().value(),
+                Some(t("dag.detail.copy")),
+            );
+        }
+    });
 
     action
 }
@@ -276,102 +238,6 @@ fn unknown_reason(ui: &mut egui::Ui, theme: &Theme, node: &DagNodeData) {
         .wrap(),
     );
     vspace(ui, theme.spacing_sm);
-}
-
-/// 상세 캡션. 번역 문구의 대소문자를 그대로 쓰고 caption 크기로 그린다.
-fn section(ui: &mut egui::Ui, theme: &Theme, title: &str) {
-    ui.label(
-        egui::RichText::new(title)
-            .size(theme.font_size_caption.value())
-            .color(theme.text_muted().to_egui()),
-    );
-}
-
-fn row(ui: &mut egui::Ui, theme: &Theme, label: &str, value: &str) {
-    ui.horizontal(|ui| {
-        ui.label(
-            egui::RichText::new(label)
-                .size(theme.font_size_caption.value())
-                .color(theme.text_muted().to_egui()),
-        );
-        ui.label(
-            egui::RichText::new(value)
-                .size(theme.font_size_caption.value())
-                .color(theme.text_primary().to_egui()),
-        );
-    });
-}
-
-/// CLI에서 사용할 task ID는 mono 값으로 두고 선택·복사할 수 있게 한다.
-fn task_id_row(ui: &mut egui::Ui, theme: &Theme, id: &str) {
-    ui.horizontal(|ui| {
-        ui.label(
-            egui::RichText::new(t("dag.detail.task_id"))
-                .size(theme.font_size_caption.value())
-                .color(theme.text_muted().to_egui()),
-        );
-        ui.add(
-            egui::Label::new(
-                egui::RichText::new(id)
-                    .monospace()
-                    .size(theme.font_size_caption.value())
-                    .color(theme.text_primary().to_egui()),
-            )
-            .selectable(true),
-        );
-    });
-}
-
-/// 높이를 넘으면 스크롤하는 텍스트 블록. copy면 복사 버튼도 표시한다.
-fn labeled_block(
-    ui: &mut egui::Ui,
-    theme: &Theme,
-    label: &str,
-    body: &str,
-    max_h: f32,
-    copy: bool,
-) {
-    if copy {
-        ui.horizontal(|ui| {
-            section(ui, theme, label);
-            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                if IconButton::new()
-                    .size(ControlSize::Sm)
-                    .show(ui, theme, &|ui, rect, c| {
-                        icons::COPY.image(rect.height(), c).paint_at(ui, rect)
-                    })
-                    .on_hover_text(t("dag.detail.copy"))
-                    .clicked()
-                {
-                    ui.ctx().copy_text(body.to_owned());
-                }
-            });
-        });
-    } else {
-        section(ui, theme, label);
-    }
-    egui::Frame::NONE
-        .fill(theme.dag_detail_log_bg().to_egui())
-        .inner_margin(margin_all(theme.spacing_xs))
-        .show(ui, |ui| {
-            egui::ScrollArea::vertical()
-                .max_height(max_h)
-                .auto_shrink([false, true])
-                .id_salt(label)
-                .drag_to_scroll(false)
-                .show(ui, |ui| {
-                    ui.add(
-                        egui::Label::new(
-                            egui::RichText::new(body)
-                                .monospace()
-                                .size(theme.font_size_caption.value())
-                                .color(theme.text_primary().to_egui()),
-                        )
-                        .selectable(true)
-                        .wrap(),
-                    );
-                });
-        });
 }
 
 /// 의존성 한 줄. 눌리면 `true`.

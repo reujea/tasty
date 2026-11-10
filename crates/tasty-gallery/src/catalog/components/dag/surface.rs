@@ -11,8 +11,6 @@ use super::detail::Dock;
 use super::{Graph, canvas, detail, runner};
 use crate::catalog::spec::{self, StageVariant, TokenChip};
 
-/// 헤더가 두 줄로 접히는 폭 — 디자인 "wraps < 640".
-const NARROW_CUTOFF: LogicalPx = LogicalPx(640.0);
 /// 무대에서 좁은 변형에 주는 폭 — 디자인 "narrow floor 320px".
 const NARROW_STAGE_WIDTH: LogicalPx = LogicalPx(320.0);
 /// 시안 `dag-tab-surface` 프레임 높이(320).
@@ -233,7 +231,7 @@ pub fn paint(
     // 탭 surface의 포커스. None이면 전시용 캔버스 톤을 쓴다.
     focused: Option<bool>,
 ) {
-    let narrow = rect.width() < NARROW_CUTOFF.value();
+    let narrow = rect.width() < tasty_ui_widgets::GRAPH_NARROW_DETAIL_SHEET.value();
     let pick_key = ui.id().with(("dag_surface_pick", salt));
     let sel_key = ui.id().with(("dag_surface_sel", salt));
     let mut picked: usize = ui.data(|d| d.get_temp(pick_key)).unwrap_or(0);

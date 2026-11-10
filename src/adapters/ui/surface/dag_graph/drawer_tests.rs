@@ -56,14 +56,14 @@ fn view_with_waiter_selected() -> DagGraphView {
         done: 1,
     };
     let mut view = DagGraphView::default();
-    view.data = Some(DagData {
+    view.source.data = Some(DagData {
         workspace_id: 1,
         dags: Vec::new(),
         current: Some(graph),
         runner: RunnerBadgeData::default(),
         target_missing: false,
     });
-    view.selected = Some("waiter".to_string());
+    view.canvas.selected = Some("waiter".to_string());
     view
 }
 
@@ -103,7 +103,7 @@ fn frame(
                     dag_id: &mut dag_id,
                     direction: &mut direction,
                 };
-                opened = draw_dag_graph(ui, target, view, DagChrome::Own { bed_focused: true });
+                opened = draw_dag_graph(ui, target, view, DagChrome::Surface { bed_focused: true });
             });
     });
     let texts = out
@@ -148,7 +148,7 @@ fn clicking_a_dependency_row_moves_the_selection_to_that_node() {
 
     let opened = click(&ctx, &mut view, at);
 
-    assert_eq!(view.selected.as_deref(), Some("upstream"));
+    assert_eq!(view.canvas.selected.as_deref(), Some("upstream"));
     assert_eq!(opened, None, "의존성 행은 세션을 열지 않는다");
 }
 
@@ -164,7 +164,7 @@ fn opening_the_awaiting_session_returns_its_surface_id() {
 
     assert_eq!(opened, Some(SESSION_SURFACE));
     assert_eq!(
-        view.selected.as_deref(),
+        view.canvas.selected.as_deref(),
         Some("waiter"),
         "세션 열기는 선택을 바꾸지 않는다"
     );
