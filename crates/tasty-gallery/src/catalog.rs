@@ -1427,6 +1427,7 @@ pub fn pages() -> Vec<Page> {
                         ),
                     ],
                 ),
+                components::remote_row_menu::close_remote_section(),
                 single(
                     "search",
                     "Search bar",
@@ -1446,6 +1447,7 @@ pub fn pages() -> Vec<Page> {
                             ),
                             components::sidebar_context_menu::draw,
                         ),
+                        components::remote_row_menu::menu_spec(),
                         spec(
                             "rail-category",
                             "Collapsed rail — `---` category button + anchored popup",

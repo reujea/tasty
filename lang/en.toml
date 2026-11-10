@@ -7224,3 +7224,20 @@ caption = "Calls within the window that count as a burst. Default 1000."
 
 [remote.row.reason]
 chain = "Workspace {} is a mirror from another machine. A mirror cannot be mirrored again."
+
+[child_graph]
+reconnect = "Reconnect"
+
+[remote.row.popup]
+connect = "Connect"
+
+[remote.row.menu]
+disconnect = "Disconnect"
+close_local = "Close locally"
+close_remote = "Close remote workspace…"
+
+[remote.row.close_remote]
+title = "Close remote workspace {}?"
+body = "The workspace and all its processes will end on the remote Tasty for profile {}. This cannot be undone."
+last = "Closing the last tab also closes the workspace on the remote Tasty."
+confirm = "Close remote workspace"

@@ -7154,3 +7154,20 @@ caption = "판정 창 안에서 이만큼 호출하면 폭주로 봅니다. 기�
 
 [remote.row.reason]
 chain = "{} 워크스페이스는 다른 컴퓨터의 미러입니다. 미러는 다시 미러링할 수 없습니다."
+
+[child_graph]
+reconnect = "재연결"
+
+[remote.row.popup]
+connect = "연결"
+
+[remote.row.menu]
+disconnect = "연결 끊기"
+close_local = "로컬에서 닫기"
+close_remote = "원격 워크스페이스 닫기…"
+
+[remote.row.close_remote]
+title = "원격 워크스페이스 {}을(를) 닫으시겠습니까?"
+body = "{} 프로필의 원격 Tasty에서 워크스페이스와 그 안의 모든 프로세스를 종료합니다. 되돌릴 수 없습니다."
+last = "마지막 탭을 닫으면 원격 Tasty의 워크스페이스도 닫힙니다."
+confirm = "원격 워크스페이스 닫기"

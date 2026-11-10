@@ -7154,3 +7154,20 @@ caption = "判定ウィンドウ内でこの回数に達すると急増とみな
 
 [remote.row.reason]
 chain = "ワークスペース {} は別のマシンのミラーです。ミラーをさらにミラーリングすることはできません。"
+
+[child_graph]
+reconnect = "再接続する"
+
+[remote.row.popup]
+connect = "接続する"
+
+[remote.row.menu]
+disconnect = "接続を切る"
+close_local = "ローカルで閉じる"
+close_remote = "リモートワークスペースを閉じる…"
+
+[remote.row.close_remote]
+title = "リモートワークスペース {} を閉じますか？"
+body = "プロファイル {} のリモート Tasty で、ワークスペースとその中の全プロセスを終了します。取り消せません。"
+last = "最後のタブを閉じると、リモートの Tasty でもワークスペースが閉じます。"
+confirm = "リモートワークスペースを閉じる"

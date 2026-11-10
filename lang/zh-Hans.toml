@@ -7444,3 +7444,20 @@ caption = "统计时段内达到此调用次数即判定为激增。默认值为
 
 [remote.row.reason]
 chain = "工作区 {} 是另一台计算机上工作区的镜像。无法再次镜像。"
+
+[child_graph]
+reconnect = "重新连接"
+
+[remote.row.popup]
+connect = "连接"
+
+[remote.row.menu]
+disconnect = "断开连接"
+close_local = "在本地关闭"
+close_remote = "关闭远程工作区…"
+
+[remote.row.close_remote]
+title = "关闭远程工作区 {}？"
+body = "将终止配置档 {} 对应的远程 Tasty 上的工作区及其中的所有进程。此操作无法撤销。"
+last = "关闭最后一个标签页也会关闭远程 Tasty 上的工作区。"
+confirm = "关闭远程工作区"

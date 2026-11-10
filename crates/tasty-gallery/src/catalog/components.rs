@@ -80,6 +80,7 @@ pub mod quit_modal;
 pub mod rail_marks;
 pub mod remote;
 pub mod remote_attach;
+pub mod remote_row_menu;
 pub mod rename_popup;
 pub mod restore_notice;
 pub mod scrim_scope;

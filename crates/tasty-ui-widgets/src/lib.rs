@@ -23,6 +23,7 @@ mod center_state;
 mod chip;
 mod chrome_slot;
 mod clipboard_viewer;
+mod close_remote_confirm;
 mod code_area;
 mod compact_state;
 mod control;
@@ -79,6 +80,7 @@ mod popup_title;
 mod ports_table;
 mod rail_marks;
 mod remote_mark;
+mod remote_row_menu;
 mod remote_tool;
 mod rename_popup;
 mod resize_grip;
@@ -152,6 +154,9 @@ pub use chip::{
 pub use chrome_slot::top_right_inset_square;
 pub use clipboard_viewer::{
     SEG_COMPACT_AT, SegmentIconPainter, TypeSegment, draw_type_segments, seg_shows_label,
+};
+pub use close_remote_confirm::{
+    CloseRemoteConfirmOutput, CloseRemoteConfirmView, close_remote_confirm,
 };
 pub use code_area::{CodeArea, CodeAreaKeys, CodeAreaOutput};
 pub use compact_state::{CompactStateGlyph, CompactStateRow, compact_state_row};
@@ -316,6 +321,11 @@ pub use rail_marks::{
 };
 pub use remote_mark::{
     LinkRemoteTip, RemoteMark, fh_remote_mark_width, link_tip_rect, paint_fh_remote_mark,
+};
+pub use remote_row_menu::{
+    REMOTE_ROW_CLOSE_LOCAL_KEY, REMOTE_ROW_CLOSE_REMOTE_KEY, REMOTE_ROW_CONNECT_KEY,
+    REMOTE_ROW_DISCONNECT_KEY, REMOTE_ROW_RECONNECT_KEY, RemoteRowMenu, RemoteRowState,
+    remote_row_menu,
 };
 pub use remote_tool::{
     FILTER_DROPDOWN_MAX_HEIGHT, LocalSshHost, LocalSshSectionData, ProtocolFilterItem,

@@ -169,7 +169,7 @@ src/catalog/components/file_handler_picker/frame.rs	yesterday	file_handler.picke
 src/catalog/components/file_handler_picker/frame.rs	you	file_handler.picker.origin_user
 src/catalog/components/file_picker.rs	Open	button.open,explorer.props.open,file_handler.picker.open_button,filepicker.open_button
 src/catalog/components/file_picker.rs	Permission denied	explorer.state.no_permission,filepicker.error_perm.title
-src/catalog/components/file_picker.rs	Reconnect	filepicker.error_conn.reconnect
+src/catalog/components/file_picker.rs	Reconnect	child_graph.reconnect,filepicker.error_conn.reconnect
 src/catalog/components/file_picker.rs	Retry	explorer.properties.retry,explorer.state.read_error_retry,filepicker.error_perm.retry,remote.size_sync.retry,remote_attach.retry,transfer.error.retry
 src/catalog/components/file_picker.rs	disabled	settings.file_handler.common.disabled
 src/catalog/components/file_picker.rs	—	dag.detail.none,port_scanner.external_dash
@@ -505,7 +505,7 @@ src/catalog/components/remote/passkeys.rs	Unknown kind.	remote_tool.kind_unknown
 src/catalog/components/remote/passkeys.rs	inline	remote_tool.attach_tag_inline
 src/catalog/components/remote/passkeys.rs	{} · {}	dag_list.row_meta
 src/catalog/components/remote_attach.rs	Cancel	button.cancel,download_run.dialog.cancel,explorer.op.cancel,image_viewer.cancel,preset.popup.cancel_button,quit_modal.cancel_button,remote_attach.cancel,remote_tool.cancel,transfer.progress.cancel
-src/catalog/components/remote_attach.rs	Connect	remote_attach.connect
+src/catalog/components/remote_attach.rs	Connect	remote.row.popup.connect,remote_attach.connect
 src/catalog/components/remote_attach.rs	Create & connect	remote_attach.connect_create
 src/catalog/components/remote_attach.rs	Stop	explorer.find.stop,html_remote.stop,remote_attach.stop
 src/catalog/components/remote_attach/new_row.rs	Creating workspace…	remote_attach.creating_workspace
@@ -519,6 +519,12 @@ src/catalog/components/remote_attach/panes.rs	Retry	explorer.properties.retry,ex
 src/catalog/components/remote_attach/rows.rs	busy	remote_attach.busy
 src/catalog/components/remote_attach/rows.rs	in use	remote_attach.in_use
 src/catalog/components/remote_attach/rows.rs	inactive	remote_attach.inactive,remote_tool.attach_inactive
+src/catalog/components/remote_row_menu.rs	Close locally	remote.row.menu.close_local
+src/catalog/components/remote_row_menu.rs	Close remote workspace…	remote.row.menu.close_remote
+src/catalog/components/remote_row_menu.rs	Disconnect	remote.row.menu.disconnect
+src/catalog/components/remote_row_menu.rs	Force detach	attach.force_detach
+src/catalog/components/remote_row_menu.rs	reconnecting	status_bar.remote_reconnecting
+src/catalog/components/remote_row_menu.rs	{}	remote.size_sync.names
 src/catalog/components/scrim_scope.rs	Convert surface	attach.pending.convert
 src/catalog/components/script_manager.rs	Add script	settings.scripts.add
 src/catalog/components/script_manager.rs	Add trigger…	settings.scripts.trigger_add
