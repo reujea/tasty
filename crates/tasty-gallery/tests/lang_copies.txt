@@ -240,6 +240,7 @@ src/catalog/components/md_address.rs	Go	explorer.address.go
 src/catalog/components/md_address.rs	No matching path	explorer.address.empty
 src/catalog/components/md_address.rs	Reload	html_address.reload
 src/catalog/components/md_address.rs	disabled	settings.file_handler.common.disabled
+src/catalog/components/md_address.rs	disconnected	status_bar.remote_disconnected
 src/catalog/components/md_large_file.rs	Cancel	button.cancel,download_run.dialog.cancel,explorer.op.cancel,image_viewer.cancel,preset.popup.cancel_button,quit_modal.cancel_button,remote_attach.cancel,remote_tool.cancel,transfer.progress.cancel
 src/catalog/components/md_large_file.rs	Open	button.open,explorer.props.open,file_handler.picker.open_button,filepicker.open_button
 src/catalog/components/modifier_hint.rs	Apply workspace preset	preset.popup.apply_workspace_title
@@ -508,12 +509,13 @@ src/catalog/components/remote_attach.rs	Cancel	button.cancel,download_run.dialog
 src/catalog/components/remote_attach.rs	Connect	remote.row.popup.connect,remote_attach.connect
 src/catalog/components/remote_attach.rs	Create & connect	remote_attach.connect_create
 src/catalog/components/remote_attach.rs	Stop	explorer.find.stop,html_remote.stop,remote_attach.stop
+src/catalog/components/remote_attach.rs	connecting	remote.row.state.connecting
 src/catalog/components/remote_attach/new_row.rs	Creating workspace…	remote_attach.creating_workspace
 src/catalog/components/remote_attach/new_row.rs	New workspace	remote_attach.new_workspace
 src/catalog/components/remote_attach/new_row.rs	Try again	remote_attach.try_again,settings.keybindings.ie_export_retry
 src/catalog/components/remote_attach/new_row.rs	on remote	remote_attach.new_workspace_on_remote
 src/catalog/components/remote_attach/panes.rs	Can't connect	remote_attach.cant_connect
-src/catalog/components/remote_attach/panes.rs	Connecting…	remote_attach.connecting
+src/catalog/components/remote_attach/panes.rs	Connecting…	remote.row.popup.connecting,remote_attach.connecting
 src/catalog/components/remote_attach/panes.rs	New workspace	remote_attach.new_workspace
 src/catalog/components/remote_attach/panes.rs	Retry	explorer.properties.retry,explorer.state.read_error_retry,filepicker.error_perm.retry,remote.size_sync.retry,remote_attach.retry,transfer.error.retry
 src/catalog/components/remote_attach/rows.rs	busy	remote_attach.busy
@@ -523,6 +525,8 @@ src/catalog/components/remote_row_menu.rs	Close locally	remote.row.menu.close_lo
 src/catalog/components/remote_row_menu.rs	Close remote workspace…	remote.row.menu.close_remote
 src/catalog/components/remote_row_menu.rs	Disconnect	remote.row.menu.disconnect
 src/catalog/components/remote_row_menu.rs	Force detach	attach.force_detach
+src/catalog/components/remote_row_menu.rs	connecting	remote.row.state.connecting
+src/catalog/components/remote_row_menu.rs	disconnected	status_bar.remote_disconnected
 src/catalog/components/remote_row_menu.rs	reconnecting	status_bar.remote_reconnecting
 src/catalog/components/remote_row_menu.rs	{}	remote.size_sync.names
 src/catalog/components/scrim_scope.rs	Convert surface	attach.pending.convert
@@ -684,6 +688,10 @@ src/catalog/icons_keys.rs	Option	settings.general.option_display_style_option
 src/catalog/icons_keys.rs	Option key display:	settings.general.option_display_style_label
 src/catalog/icons_keys.rs	Shift key display:	settings.general.shift_display_style_label
 src/catalog/icons_keys.rs	Symbol	settings.general.alt_display_style_symbol,settings.general.option_display_style_symbol,settings.general.shift_display_style_symbol
+src/catalog/layouts_remote_row.rs	close	command_palette.hint_close
+src/catalog/layouts_remote_row.rs	connecting	remote.row.state.connecting
+src/catalog/layouts_remote_row.rs	reconnecting	status_bar.remote_reconnecting
+src/catalog/layouts_remote_row.rs	{}	remote.size_sync.names
 src/catalog/layouts_settled.rs	Error	dag.detail.error
 src/catalog/layouts_settled.rs	{}	remote.size_sync.names
 src/catalog/overlays_resize.rs	default	file_handler.picker.default_tag

@@ -417,12 +417,54 @@ impl App {
             .into_iter()
             .map(|row| (row, self.row_state_name(row)))
             .collect();
+        let now = std::time::Instant::now();
         for session in self.engines.all_sessions_mut() {
             session.remote.row_states = rows
                 .iter()
                 .filter(|(row, _)| session.core_state.has_workspace(*row))
                 .copied()
                 .collect();
+        }
+        let views: Vec<(u32, crate::remote::state::RowView)> = rows
+            .iter()
+            .map(|&(row, name)| (row, self.row_view(row, name)))
+            .collect();
+        for session in self.engines.all_sessions_mut() {
+            let previous = std::mem::take(&mut session.remote.row_views);
+            session.remote.row_views = views
+                .iter()
+                .filter(|(row, _)| session.core_state.has_workspace(*row))
+                .map(|&(row, mut view)| {
+                    // 시도 시작 시각은 시도가 이어지는 동안 유지해 로딩 표시의 지연이 한 번만 지나게 한다.
+                    if view.trying_since.is_some() {
+                        view.trying_since = previous
+                            .get(&row)
+                            .and_then(|old| old.trying_since)
+                            .or(Some(now));
+                    }
+                    (row, view)
+                })
+                .collect();
+        }
+    }
+
+    /// 이번 실행에서 연결돼 있던 행의 원격 workspace 가 사라졌는지. 형상이 남은 끊긴 행에서만 참이다.
+    /// 재시작 뒤 실패는 연결 시도의 결과라 해당하지 않는다. 안내는 메모리에만 있어 재시작하면 지워진다.
+    pub(super) fn row_closed_elsewhere(&self, row: u32) -> bool {
+        self.row_session_phase(row) == Some(SessionState::Disconnected)
+            && self.remote.refusals.notice(row).is_some_and(|notice| {
+                notice.kind == tasty_remote::refusal::RowNoticeKind::RemoteWorkspaceMissing
+            })
+    }
+
+    /// 상태 이름 밖에서 화면이 읽는 행 사실. `trying_since`는 시도 중 표지일 뿐이고 실제 시각은
+    /// `publish_row_states`가 채운다.
+    fn row_view(&self, row: u32, name: &'static str) -> crate::remote::state::RowView {
+        crate::remote::state::RowView {
+            user_disconnected: self.remote.user_disconnected.contains(&row),
+            closed_elsewhere: self.row_closed_elsewhere(row),
+            trying_since: matches!(name, "connecting" | "reconnecting")
+                .then(std::time::Instant::now),
         }
     }
 

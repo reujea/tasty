@@ -697,6 +697,7 @@ mod tests {
             },
             active_tabs: Vec::new(),
             active_tab_ids: Vec::new(),
+            workspace_rect: None,
         }
     }
 

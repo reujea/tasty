@@ -82,6 +82,9 @@ pub(crate) fn draw_popup_layer(
     engine: &crate::runtime::engine_read::EngineRead<'_>,
     draw_ctx: &crate::adapters::ui::LayoutContext,
 ) {
+    // intent-exempt: 저장된 원격 행의 연결 팝업은 연결 상태를 따라 매 프레임 열고 닫는다. 사용자 포커스는 옮기지 않는다.
+    crate::adapters::ui::popup::remote_row::sync(state, engine, draw_ctx);
+
     // intent-exempt: 매 프레임 번역·크기를 렌더링 전에 갱신한다. Intent 큐는 한 프레임 지연을 만든다.
     for def in crate::adapters::ui::popup::defs::all_defs() {
         let new_title = if let Some(title_fn) = def.title_fn {

@@ -574,7 +574,7 @@ mirror workspace 는 즉시 걷히지 않는다 — 세션이 `SessionState::Rec
 재연결 대기 상태를 유지하고, 아래 backoff 스케줄이 자동으로 재연결을 시도한다.
 저장되지 않은 mirror(IPC `remote.attach` 로 연 mirror 등)는 대상이 아니라 즉시 정리된다.
 
-`enter_reconnecting` 은 옛 transport 의 소켓을 그 자리에서 닫는다(`ConnectionWorkers::close_socket`, 작업 스레드 join 은 transport 를 바꿀 때의 drop 이 맡는다). 소켓을 재연결 성공까지 열어 두면 서버는 EOF 를 보지 못해 옛 점유를 heartbeat TTL 까지 쥐고, 서버가 멈췄다 돌아온 직후 도착한 새 attach 를 `already_attached` 로 거절한다. 닫아 두면 서버는 재개하자마자 옛 연결의 끝을 읽어 docs/dev-guide/attach-behavior.md 의 같은 배치 회수 규칙으로 새 attach 를 받는다. 재연결 설치(`install_reconnected_mirror`, 재동기화도 같은 설치를 거친다)는 끝에 `finish_reconnected_view` 로 재연결 toast 를 띄우고 그 mirror 의 explorer View 를 `reload_mirror` 로 다시 읽게 한다(옛 연결의 목록 요청 소비자는 비워지고 응답이 오지 않는다). 다시 읽기는 `connection/tests.rs` 의 `finishing_a_reconnect_rereads_that_mirrors_explorers` 가 본다. 설치 본문에서 이 함수를 부르는지는 App 시험 하네스가 없어 단위 시험으로 보지 않는다.
+`enter_reconnecting` 은 옛 transport 의 소켓을 그 자리에서 닫는다(`ConnectionWorkers::close_socket`, 작업 스레드 join 은 transport 를 바꿀 때의 drop 이 맡는다). 소켓을 재연결 성공까지 열어 두면 서버는 EOF 를 보지 못해 옛 점유를 heartbeat TTL 까지 쥐고, 서버가 멈췄다 돌아온 직후 도착한 새 attach 를 `already_attached` 로 거절한다. 닫아 두면 서버는 재개하자마자 옛 연결의 끝을 읽어 docs/dev-guide/attach-behavior.md 의 같은 배치 회수 규칙으로 새 attach 를 받는다. 재연결 설치(`install_reconnected_mirror`, 재동기화도 같은 설치를 거친다)는 끝에 `finish_reconnected_view` 로 그 mirror 의 explorer View 를 `reload_mirror` 로 다시 읽게 한다(옛 연결의 목록 요청 소비자는 비워지고 응답이 오지 않는다). 다시 읽기는 `connection/tests.rs` 의 `finishing_a_reconnect_rereads_that_mirrors_explorers` 가 본다. 설치 본문에서 이 함수를 부르는지는 App 시험 하네스가 없어 단위 시험으로 보지 않는다.
 
 - **보이는 행의 첫 연결(`maybe_connect_visible_row`)** — 포커스된 창의 활성 workspace 가
   세션 없는 저장된 원격 행이고 `Remote.active` 에 없으면 연결을 시작한다(`connect_saved_row` →
@@ -592,7 +592,7 @@ mirror workspace 는 즉시 걷히지 않는다 — 세션이 `SessionState::Rec
   공유해 중복 attach 를 막는다. 대기 중에 행이 닫혔으면 `forget_row` 로 스케줄을 정리하고 skip 한다.
   - **재연결 시간 창**: `ReconnectSlot.started`(끊긴 시각)부터 `[remote_attach] reconnect_timeout_secs`
     (`AppServices::reconnect_window_secs`, 설정 적용 때 `attach_heartbeat::apply` 가 갱신)가 지나면
-    `enter_disconnected` 로 행을 `Disconnected` 로 바꾸고 안내 toast(`mirror_reconnect_giveup`)를 띄운다.
+    `enter_disconnected` 로 행을 `Disconnected` 로 바꾼다. toast 는 띄우지 않고 행의 연결 팝업이 상태를 보인다.
     `sync_reconnect_timers` 는 다음 시도 시각과 창이 끝나는 시각 중 이른 쪽을 `Tick::Reconnect(row)` 로 예약한다.
     창이 0이면 `enter_reconnecting` 이 바로 `enter_disconnected` 를 부른다.
   - **GUI는 기다리지 않고 예약한다.** CLI의 `Backoff::sleep()` 대신 `current()`와

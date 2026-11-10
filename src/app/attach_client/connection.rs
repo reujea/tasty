@@ -476,19 +476,13 @@ impl App {
                 return;
             }
         }
+        // 저장 행은 toast 대신 행 표지와 연결 팝업이 재연결 중임을 알린다.
         for (_, main, engine) in self.engines_mut().window_pairs() {
             if engine
-                .workspaces()
-                .into_iter()
-                .any(|ws| ws.id == local_workspace)
+                .find_workspace_index_for_id(local_workspace)
+                .is_some()
             {
-                main.state.toasts.push(
-                    crate::i18n::t("attach.toast.mirror_reconnecting").to_string(),
-                    crate::adapters::ui::ToastKind::Warning,
-                    crate::adapters::ui::ToastScope::Window,
-                );
                 main.mark_dirty();
-                break;
             }
         }
         tracing::info!(
@@ -619,12 +613,8 @@ impl App {
 }
 /// 재연결(재동기화 포함) 설치를 마친 mirror 를 View 에 알린다. 옛 연결의 목록 요청은 응답하지
 /// 않으므로 이 mirror 의 탐색기는 새 연결로 다시 읽는다.
+/// 다시 붙었다는 toast 는 없다. 저장 행은 표지가, 에이전트 mirror 는 재연결 자체가 없다.
 fn finish_reconnected_view(state: &mut crate::state::MainViewState, local_workspace: u32) {
-    state.toasts.push(
-        crate::i18n::t("attach.toast.mirror_reconnected").to_string(),
-        crate::adapters::ui::ToastKind::Success,
-        crate::adapters::ui::ToastScope::Window,
-    );
     state.explorer_views.reload_mirror(local_workspace);
 }
 

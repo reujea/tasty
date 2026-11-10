@@ -898,6 +898,7 @@ new_window_desc = "Open a new Tasty window"
 palette_tooltip = "Open command palette"
 theme_tooltip = "Toggle theme"
 remote_reconnecting = "reconnecting"
+remote_disconnected = "disconnected"
 
 # 호스트 알림 제목도 사용자에게 보이므로 t()로 번역한다.
 [notification]
@@ -1966,10 +1967,7 @@ mirror_capture_unconfirmed = "The remote connection ended before the screenshot 
 mirror_disconnected = "The remote connection was lost. The mirror workspace has been closed."
 # 매핑된 워크스페이스와 scrollback을 유지한 채 자동 재연결을 시도한다.
 mirror_reconnecting = "The remote connection was lost. Trying to reconnect…"
-mirror_reconnected = "Reconnected to the remote workspace."
 mirror_desynced = "Part of the remote screen was lost. Fetching it again…"
-# 자동 재시도는 끝났지만 워크스페이스를 다시 선택하면 재시도할 수 있다.
-mirror_reconnect_giveup = "Couldn't reconnect after several attempts. Switch away and back to this workspace to retry."
 # The server closed the mirrored workspace and its processes; the local mirror was removed.
 workspace_closed_on_server = "Closed the workspace on the remote Tasty."
 # The connection is down or reconnecting, so the close was not sent. Nothing changed on the server.
@@ -7224,12 +7222,35 @@ caption = "Calls within the window that count as a burst. Default 1000."
 
 [remote.row.reason]
 chain = "Workspace {} is a mirror from another machine. A mirror cannot be mirrored again."
+profile_missing = "Profile {} no longer exists. It may have been renamed or deleted."
+workspace_missing = "Workspace {} no longer exists on the remote Tasty."
+occupied = "Another client holds workspace {}. It cannot be taken over from here."
+endpoint = "Could not prepare the local tunnel endpoint for profile {}."
+self = "Profile {} points at this Tasty, so it was not connected."
 
 [child_graph]
 reconnect = "Reconnect"
+reconnecting = "Reconnecting…"
+
+[remote.row.state]
+connecting = "connecting"
+not_connected = "not connected"
 
 [remote.row.popup]
 connect = "Connect"
+profile = "Profile"
+remote_workspace = "Remote workspace"
+connecting = "Connecting…"
+lost_title = "Connection lost"
+lost_body = "Tasty will keep trying to reconnect for up to {} s."
+gave_up_title = "Reconnection timed out"
+gave_up_body = "Stopped trying to reconnect after {} s."
+user_title = "Disconnected"
+user_body_stay = "You disconnected this workspace. It stays disconnected until you reconnect."
+user_body_next = "You disconnected this workspace. It will reconnect the next time you open it."
+idle_title = "Not connected"
+failed_title = "Connection failed"
+closed_title = "Remote workspace closed"
 
 [remote.row.menu]
 disconnect = "Disconnect"

@@ -16,17 +16,24 @@ pub(super) const CONNECT: u32 = 9;
 pub(super) const CLOSE_LOCAL: u32 = 10;
 pub(super) const CLOSE_REMOTE: u32 = 11;
 
-/// 메뉴를 연 행이 저장된 원격 행이면 그 연결 상태.
-pub(super) fn saved_row_state(engine: &EngineRead<'_>, ws_idx: usize) -> Option<RemoteRowState> {
+/// 메뉴를 연 행이 저장된 원격 행이면 그 연결 상태와, 다른 곳에서 닫혀 남은 행인지.
+pub(super) fn saved_row_state(
+    engine: &EngineRead<'_>,
+    ws_idx: usize,
+) -> Option<(RemoteRowState, bool)> {
     let ws = engine.workspace_at(ws_idx)?;
-    ws.is_saved_remote_row()
-        .then(|| engine.remote_row_state(ws.id))
+    ws.is_saved_remote_row().then(|| {
+        (
+            engine.remote_row_state(ws.id),
+            engine.remote_row_view(ws.id).closed_elsewhere,
+        )
+    })
 }
 
 /// 연결 묶음(Connect 또는 Reconnect · Disconnect)과 닫기 묶음(Close locally · Close remote…).
-/// 할 수 없는 항목은 숨기지 않고 끈다.
-pub(super) fn saved_row_menu_items(state: RemoteRowState) -> Vec<MenuItem> {
-    let on = remote_row_menu(state);
+/// 할 수 없는 항목은 숨기지 않고 끈다. 다른 곳에서 닫혀 남은 행은 Reconnect 도 끈다.
+pub(super) fn saved_row_menu_items((state, closed): (RemoteRowState, bool)) -> Vec<MenuItem> {
+    let on = remote_row_menu(state, closed);
     let item = |id, key: &'static str, enabled| MenuItem {
         enabled,
         ..MenuItem::new(id, crate::i18n::t(key))
@@ -85,7 +92,7 @@ mod tests {
     #[test]
     fn the_saved_row_menu_disables_what_the_state_cannot_do() {
         assert_eq!(
-            shape(&saved_row_menu_items(RemoteRowState::Connected)),
+            shape(&saved_row_menu_items((RemoteRowState::Connected, false))),
             vec![
                 None,
                 Some((CONNECT, false)),
@@ -96,7 +103,7 @@ mod tests {
             ]
         );
         assert_eq!(
-            shape(&saved_row_menu_items(RemoteRowState::Disconnected)),
+            shape(&saved_row_menu_items((RemoteRowState::Disconnected, false))),
             vec![
                 None,
                 Some((CONNECT, true)),
@@ -106,12 +113,17 @@ mod tests {
                 Some((CLOSE_REMOTE, false)),
             ]
         );
+        assert_eq!(
+            shape(&saved_row_menu_items((RemoteRowState::Disconnected, true)))[1],
+            Some((CONNECT, false)),
+            "a row closed elsewhere keeps Reconnect, disabled"
+        );
     }
 
     /// 형상이 있었던 행은 Reconnect, 아직 붙지 않은 행은 Connect 문구를 쓴다.
     #[test]
     fn the_connect_item_says_reconnect_only_for_a_row_that_had_a_screen() {
-        let label = |state| saved_row_menu_items(state)[1].label.clone();
+        let label = |state| saved_row_menu_items((state, false))[1].label.clone();
         assert_eq!(
             label(RemoteRowState::Disconnected),
             crate::i18n::t("child_graph.reconnect")

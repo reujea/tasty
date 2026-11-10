@@ -180,6 +180,7 @@ fn layout_ctx(active_workspace_id: u32) -> LayoutContext {
         surface_rects: Vec::new(),
         active_tabs: Vec::new(),
         active_tab_ids: Vec::new(),
+        workspace_rect: None,
     }
 }
 

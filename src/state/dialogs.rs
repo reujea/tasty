@@ -182,6 +182,8 @@ pub struct DialogState {
     /// 저장된 원격 행을 원격에서 닫기 전 확인 대기. 확인하면 담아 둔 요청을 다시 보낸다.
     pub(crate) pending_close_remote:
         Option<crate::adapters::ui::popup::confirm_close_remote::PendingCloseRemote>,
+    /// 이 창에 보이는 저장된 원격 행 연결 팝업. 매 프레임 활성 workspace 에 맞춰 연다.
+    pub(crate) remote_row_popup: crate::adapters::ui::popup::remote_row::RemoteRowPopupState,
     /// 등록 해시와 다른 Lua 스크립트를 실행할지 확인하는 보류 상태.
     pub(crate) pending_script_confirm: Option<PendingScriptConfirm>,
     /// 원격 파일 전송 진행 상태. 모든 행이 끝나면 지운다.
@@ -262,6 +264,7 @@ impl DialogState {
             pending_category_delete: None,
             pending_force_detach_workspace: None,
             pending_close_remote: None,
+            remote_row_popup: Default::default(),
             pending_script_confirm: None,
             transfer_progress: None,
             transfer_error: VecDeque::new(),

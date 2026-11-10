@@ -2,6 +2,7 @@
 
 mod collapsed;
 mod full;
+pub(crate) mod remote_row;
 pub(crate) mod tools;
 pub(crate) mod view;
 

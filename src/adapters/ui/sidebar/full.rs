@@ -37,7 +37,9 @@ pub(super) fn entry_view(
         move_source: crate::adapters::ui::move_source::workspace_cue(engine, active_ws, pending)
             == Some(global_idx),
         attach_refusal: notices.tooltip(ws.id),
+        row_state: None,
     }
+    .with_remote_row(notices, engine, ws)
 }
 
 /// 카테고리 표시가 켜져 있으면 저장된 순서로 그룹을 만든다. 행은 전역 워크스페이스 인덱스를 유지한다.
@@ -335,6 +337,14 @@ pub(super) fn apply_attach_loading(
                         .map(|wait| wait.admitted),
                 )
                 .min()
+        })
+    };
+    // 저장된 원격 행은 연결을 시도하는 동안에도 같은 로딩 표시(LNB 스피너·레일 링)를 쓴다.
+    let since = |index| {
+        since(index).or_else(|| {
+            engine
+                .workspace_at(index)
+                .and_then(|ws| engine.remote_row_view(ws.id).trying_since)
         })
     };
     for (index, entry) in workspaces.iter_mut().enumerate() {

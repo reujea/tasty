@@ -116,9 +116,18 @@ pub fn draw_status_bar(
 
 /// 포커스 surface 가 mirror workspace 에 있으면 원격 항목, 로컬이면 None.
 fn remote_of(engine: &EngineRead<'_>, surface_id: Option<u32>) -> Option<StatusBarRemote> {
-    surface_id
-        .and_then(|sid| engine.mirror_location_of(sid))
-        .map(remote_item)
+    let sid = surface_id?;
+    let mut item = remote_item(engine.mirror_location_of(sid)?);
+    // 재연결을 멈춘 저장 행은 형상을 남긴 채 끊겨 있다. 같은 읽기 전용 모양에 끊김 상태어를 쓰고
+    // 툴팁은 연결된 항목과 같다.
+    if engine.mirror_workspace_of(sid).is_some_and(|ws| {
+        engine.remote_row_state(ws) == tasty_ui_widgets::RemoteRowState::Disconnected
+    }) {
+        item.reconnecting = true;
+        item.reconnecting_label = crate::i18n::t("status_bar.remote_disconnected").to_owned();
+        item.tooltip = crate::i18n::t("attach.mirror_workspace").to_owned();
+    }
+    Some(item)
 }
 
 /// mirror 위치 값을 상태바 원격 항목으로 바꾼다. 재연결 중이면 툴팁 첫 줄도 끊김 안내로 바꾼다.

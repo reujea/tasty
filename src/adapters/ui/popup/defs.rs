@@ -546,6 +546,8 @@ pub fn all_defs() -> &'static [PopupDef] {
                 draw_fn: super::confirm_close_remote::draw_confirm_close_remote,
                 on_close: Some(super::confirm_close_remote::on_close_confirm_close_remote),
             },
+            super::remote_row::def(super::remote_row::REMOTE_ROW_POPUP_ID),
+            super::remote_row::def(super::remote_row::REMOTE_ROW_SCRIM_POPUP_ID),
             PopupDef {
                 id: crate::adapters::ui::tutorial::topic_popup::TUTORIAL_TOPICS_POPUP_ID,
                 title_key: "tutorial.popup_title",

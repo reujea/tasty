@@ -27,6 +27,10 @@ pub const TAB_CONTENT_PADDING: i8 = SIZING.spacing_lg.0 as i8;
 // 1px·2px는 지원 배율에서 반올림 결과가 같고, 3px·4px도 고정 보정값으로 유지한다.
 // 요소 크기처럼 배율을 따라야 하는 값은 이 상수 대신 Theme 접근자로 관리한다.
 
+/// 폭 360px = DTCG `primitive.size-360`. 역할 토큰이 없는 폼·팝업 폭(셸 설정 폼, 저장된 원격 행 연결
+/// 팝업)이 쓴다. 배율 전 값이다.
+pub const SIZE_360: LogicalPx = LogicalPx(360.0);
+
 /// 구조 간격 1px = DTCG `primitive.size-1`.
 /// 예: 사이드바 WorkspaceRow subtitle 의 margin-top (디자인 chrome.jsx
 /// `marginTop: var(--tasty-size-1)`).

@@ -75,7 +75,7 @@
 
 - **Modal** — 전역 1개, 활성 시 입력 차단하는 View 의 한 형태(별개 엔티티 아님). `SettingsView`/`QuitView`/`PluginsView`.
 - **Popup** — View 내부 가상 창(타이틀바+콘텐츠, 드래그·z-order). 스코프 가짐. 상세 [`design/systems/popup.md`](../design/systems/popup.md).
-- **Toast** — View 안에 잠깐 표시하는 알림. 포커스를 받거나 입력을 소비하지 않는다. 사용자 행동에서만 표시하며, 예외로 attach mirror의 끊김·재연결·손실·구조 전달 실패를 알릴 수 있다. 에이전트 IPC로 직접 표시하지 않는다([토스트](../design/systems/toast.md)).
+- **Toast** — View 안에 잠깐 표시하는 알림. 포커스를 받거나 입력을 소비하지 않는다. 사용자 행동에서만 표시하며, 예외로 attach mirror의 끊김·손실·구조 전달 실패를 알릴 수 있다. 에이전트 IPC로 직접 표시하지 않는다([토스트](../design/systems/toast.md)).
 - **Banner** — parent 영역 상단의 안내와 조치 버튼. 포커스는 받지 않지만 마우스 입력을 처리한다. TTL·z-order를 사용하며 scope마다 하나를 표시하고 최대 5개를 대기시킨다. 사용자 행동에서만 표시하고 에이전트 IPC로 표시하지 않는다([배너](../design/systems/banner.md)).
 - **Modifier-hint 오버레이** — modifier를 누르고 있으면 기본 500ms 뒤, Shift 단독은 1200ms 뒤에 200ms 페이드로 단축키 목록을 보여 준다. 현재 누른 조합을 포함하는 단축키만 표시하며 키를 떼면 바로 사라진다.
   키보드 포커스는 그대로 두고 마우스로 이동·크기 조정·닫기를 할 수 있다. `ModifiersChanged`로 실제 사용자 입력만 받으며 IPC·CLI로 강제 표시하지 않는다. `enabled`가 꺼져 있으면 표시하지 않고 위치·크기는 `Settings::modifier_hint`에 저장한다.

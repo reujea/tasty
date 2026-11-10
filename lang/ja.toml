@@ -891,6 +891,7 @@ new_window_desc = "新しい Tasty ウィンドウを開く"
 palette_tooltip = "コマンドパレットを開く"
 theme_tooltip = "テーマを切り替え"
 remote_reconnecting = "再接続中"
+remote_disconnected = "切断済み"
 
 [notification]
 bell_title = "ベル"
@@ -1910,10 +1911,7 @@ mirror_capture_unconfirmed = "スクリーンショットのコピーが確認�
 mirror_disconnected = "リモート接続が切断されました。ミラーワークスペースを閉じました。"
 # 매핑된 워크스페이스와 scrollback을 유지한 채 자동 재연결을 시도한다.
 mirror_reconnecting = "リモート接続が切断されました。再接続を試みています…"
-mirror_reconnected = "リモートワークスペースに再接続しました。"
 mirror_desynced = "リモート画面の一部を取りこぼしました。取り直しています…"
-# 자동 재시도는 끝났지만 워크스페이스를 다시 선택하면 재시도할 수 있다.
-mirror_reconnect_giveup = "何度か試しましたが再接続できませんでした。このワークスペースを離れてから戻ると再試行します。"
 # サーバーがミラーしたワークスペースとそのプロセスを閉じ、ローカルのミラーも片付けた。
 workspace_closed_on_server = "リモートの Tasty でワークスペースを閉じました。"
 # 接続がないか再接続中なので閉じる要求を送っていない。サーバーは変わっていない。
@@ -7154,12 +7152,35 @@ caption = "判定ウィンドウ内でこの回数に達すると急増とみな
 
 [remote.row.reason]
 chain = "ワークスペース {} は別のマシンのミラーです。ミラーをさらにミラーリングすることはできません。"
+profile_missing = "プロファイル {} はもう存在しません。名前が変更されたか、削除された可能性があります。"
+workspace_missing = "リモートの Tasty にワークスペース {} はもう存在しません。"
+occupied = "別のクライアントがワークスペース {} に接続中です。ここから接続を引き継ぐことはできません。"
+endpoint = "プロファイル {} のローカルトンネルエンドポイントを準備できませんでした。"
+self = "プロファイル {} は実行中の Tasty 自身を指しているため、接続しませんでした。"
 
 [child_graph]
 reconnect = "再接続する"
+reconnecting = "再接続中…"
+
+[remote.row.state]
+connecting = "接続中"
+not_connected = "未接続"
 
 [remote.row.popup]
 connect = "接続する"
+profile = "プロファイル"
+remote_workspace = "リモートワークスペース"
+connecting = "接続中…"
+lost_title = "接続が途切れました"
+lost_body = "Tasty は最大 {} s の間、再接続を試みます。"
+gave_up_title = "再接続がタイムアウト"
+gave_up_body = "{} s 試行した後、再接続を中止しました。"
+user_title = "切断済み"
+user_body_stay = "手動で切断したワークスペースです。再接続するまで切断状態が続きます。"
+user_body_next = "手動で切断したワークスペースです。次に開くと再接続します。"
+idle_title = "未接続"
+failed_title = "接続失敗"
+closed_title = "リモートワークスペースが閉じられました"
 
 [remote.row.menu]
 disconnect = "接続を切る"

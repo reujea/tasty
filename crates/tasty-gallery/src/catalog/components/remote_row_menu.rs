@@ -33,8 +33,8 @@ enum Row {
 }
 
 /// 저장 행 메뉴의 항목. 순서는 본체 `saved_row_menu_items`와 같다.
-fn rows(lang: &str, state: RemoteRowState, categories: &[&str]) -> Vec<Row> {
-    let on = remote_row_menu(state);
+fn rows(lang: &str, state: RemoteRowState, closed: bool, categories: &[&str]) -> Vec<Row> {
+    let on = remote_row_menu(state, closed);
     let tx = |key: &'static str| t_lang(lang, key).to_owned();
     let mut rows = vec![
         Row::Item(tx("context_menu.rename_title"), true),
@@ -149,11 +149,22 @@ pub fn draw_menu(ui: &mut egui::Ui, theme: &Theme) {
                     ui,
                     theme,
                     "connected · categories on",
-                    &rows("en", RemoteRowState::Connected, &["Workspaces", "Services"]),
+                    &rows(
+                        "en",
+                        RemoteRowState::Connected,
+                        false,
+                        &["Workspaces", "Services"],
+                    ),
                 );
                 for (caption, state) in &STATES[..4] {
-                    menu(ui, theme, caption, &rows("en", *state, &[]));
+                    menu(ui, theme, caption, &rows("en", *state, false, &[]));
                 }
+                menu(
+                    ui,
+                    theme,
+                    "closed elsewhere (remote workspace gone)",
+                    &rows("en", RemoteRowState::Disconnected, true, &[]),
+                );
             },
         );
     });
@@ -171,7 +182,7 @@ pub fn draw_menu(ui: &mut egui::Ui, theme: &Theme) {
                             ui,
                             theme,
                             &format!("{lang} · {word}"),
-                            &rows(lang, state, &[]),
+                            &rows(lang, state, false, &[]),
                         );
                     }
                 }
@@ -188,7 +199,7 @@ pub fn draw_menu(ui: &mut egui::Ui, theme: &Theme) {
             ),
             (
                 "Connect / Reconnect",
-                "enabled: disconnected, not connected · disabled: connected, connecting, reconnecting · Reconnect when the row had a screen in this run",
+                "enabled: disconnected, not connected · disabled: connected, connecting, reconnecting, and a row whose remote workspace was closed elsewhere (not hidden; after a restart that row is not connected and Connect is enabled) · Reconnect when the row had a screen in this run",
             ),
             (
                 "Disconnect",

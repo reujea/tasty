@@ -1409,6 +1409,7 @@ mod tests {
             surface_rects: vec![(42, surface)],
             active_tabs: Vec::new(),
             active_tab_ids: Vec::new(),
+            workspace_rect: None,
         };
         let ctx = egui::Context::default();
         let run = |events: Vec<egui::Event>, mgr: &mut BannerManager| {

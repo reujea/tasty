@@ -81,6 +81,7 @@ mod ports_table;
 mod rail_marks;
 mod remote_mark;
 mod remote_row_menu;
+mod remote_row_popup;
 mod remote_tool;
 mod rename_popup;
 mod resize_grip;
@@ -317,7 +318,7 @@ pub use ports_table::{
 };
 pub use rail_marks::{
     paint_rail_category_line, paint_rail_flat_divider, paint_workspace_mirror_chip,
-    rail_category_line_length, rail_flat_divider_size,
+    paint_workspace_mirror_chip_offline, rail_category_line_length, rail_flat_divider_size,
 };
 pub use remote_mark::{
     LinkRemoteTip, RemoteMark, fh_remote_mark_width, link_tip_rect, paint_fh_remote_mark,
@@ -326,6 +327,12 @@ pub use remote_row_menu::{
     REMOTE_ROW_CLOSE_LOCAL_KEY, REMOTE_ROW_CLOSE_REMOTE_KEY, REMOTE_ROW_CONNECT_KEY,
     REMOTE_ROW_DISCONNECT_KEY, REMOTE_ROW_RECONNECT_KEY, RemoteRowMenu, RemoteRowState,
     remote_row_menu,
+};
+pub use remote_row_popup::{
+    REMOTE_ROW_POPUP_WIDTH, REMOTE_ROW_USER_BODY_NEXT, REMOTE_ROW_USER_BODY_STAY,
+    RemoteRowPopupBody, RemoteRowPopupCopy, RemoteRowPopupKind, RemoteRowPopupView,
+    RemoteRowReason, remote_row_popup, remote_row_popup_copy, remote_row_state_word_key,
+    remote_row_tag_line,
 };
 pub use remote_tool::{
     FILTER_DROPDOWN_MAX_HEIGHT, LocalSshHost, LocalSshSectionData, ProtocolFilterItem,

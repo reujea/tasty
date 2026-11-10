@@ -987,6 +987,7 @@ fn a_press_on_a_passive_picker_hidden_by_its_scope_keeps_the_proof_and_the_other
         surface_rects: vec![],
         active_tabs: vec![],
         active_tab_ids: vec![],
+        workspace_rect: None,
     };
     drop(
         egui::Context::default().run(egui::RawInput::default(), |ctx| {

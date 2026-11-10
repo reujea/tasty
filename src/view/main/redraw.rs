@@ -301,6 +301,9 @@ impl MainView {
         engine: &EngineRead<'_>,
         plugin_manager: Option<PluginDisplay<'_>>,
     ) {
+        if self.state.dialogs.remote_row_popup.take_dropped() {
+            self.hovered_link = None;
+        }
         crate::adapters::ui::link_remote_tip::sync(
             &mut self.state.link_remote_tip,
             self.hovered_link

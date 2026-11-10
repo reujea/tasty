@@ -18,6 +18,7 @@ pub(crate) mod port_scanner;
 pub(crate) mod preset_apply;
 pub(crate) mod rail_category;
 pub(crate) mod remote_attach;
+pub(crate) mod remote_row;
 pub(crate) mod remote_tool;
 /// 프레임을 그려 scrim의 실제 영역을 검사한다.
 #[cfg(test)]

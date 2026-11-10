@@ -330,6 +330,7 @@ impl View for PresetView {
                 surface_rects: Vec::new(),
                 active_tabs: Vec::new(),
                 active_tab_ids: Vec::new(),
+                workspace_rect: None,
             };
             toasts.draw(ctx, &empty_layout, false);
         });

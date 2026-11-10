@@ -16,7 +16,7 @@ use crate::input::Input;
 use crate::tokens::STRUCT_GAP_1;
 
 /// 폼 폭. 디자인 `ShellSetupFrame`의 `--tasty-size-360`이며 역할 토큰이 없다.
-pub const SHELL_SETUP_FORM_WIDTH: LogicalPx = LogicalPx(360.0);
+pub const SHELL_SETUP_FORM_WIDTH: LogicalPx = crate::tokens::SIZE_360;
 
 /// 호스트가 경로를 판정한 결과. 검증 줄은 판정마다 한 문구를 보인다.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

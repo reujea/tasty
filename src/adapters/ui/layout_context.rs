@@ -11,6 +11,8 @@ pub struct LayoutContext {
     pub active_tabs: Vec<(u32, usize)>,
     /// (pane_id, active_tab_id) for each pane.
     pub active_tab_ids: Vec<(u32, u32)>,
+    /// 활성 workspace 의 콘텐츠 영역(탭 바와 pane). 사이드바·상태바는 들어가지 않는다.
+    pub workspace_rect: Option<egui::Rect>,
 }
 
 /// 현재 상태와 레이아웃으로 팝업·토스트·배너가 공유할 영역 정보를 만든다.
@@ -59,5 +61,9 @@ pub(crate) fn build_layout_context(
         surface_rects,
         active_tabs,
         active_tab_ids,
+        workspace_rect: Some(crate::adapters::ui::to_egui_rect(
+            terminal_rect,
+            scale_factor,
+        )),
     }
 }

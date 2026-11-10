@@ -891,6 +891,7 @@ new_window_desc = "새 Tasty 윈도우 열기"
 palette_tooltip = "명령 팔레트 열기"
 theme_tooltip = "테마 전환"
 remote_reconnecting = "재연결 중"
+remote_disconnected = "연결 끊김"
 
 [notification]
 bell_title = "벨"
@@ -1910,10 +1911,7 @@ mirror_capture_unconfirmed = "스크린샷 복사가 확인되기 전에 원격 
 mirror_disconnected = "원격 연결이 끊어졌습니다. 미러 워크스페이스를 닫았습니다."
 # 매핑된 워크스페이스와 scrollback을 유지한 채 자동 재연결을 시도한다.
 mirror_reconnecting = "원격 연결이 끊어졌습니다. 재연결을 시도합니다…"
-mirror_reconnected = "원격 워크스페이스에 다시 연결했습니다."
 mirror_desynced = "원격 화면 데이터 일부가 누락되어 다시 받는 중입니다."
-# 자동 재시도는 끝났지만 워크스페이스를 다시 선택하면 재시도할 수 있다.
-mirror_reconnect_giveup = "여러 번 시도했지만 재연결하지 못했습니다. 이 워크스페이스에서 벗어났다가 돌아오면 다시 시도합니다."
 # 서버가 미러링한 워크스페이스와 그 프로세스를 닫았고 로컬 미러도 정리했다.
 workspace_closed_on_server = "원격 Tasty에서 워크스페이스를 닫았습니다."
 # 연결이 없거나 재연결 중이라 닫기를 보내지 않았다. 서버는 바뀌지 않았다.
@@ -7154,12 +7152,35 @@ caption = "판정 창 안에서 이만큼 호출하면 폭주로 봅니다. 기�
 
 [remote.row.reason]
 chain = "{} 워크스페이스는 다른 컴퓨터의 미러입니다. 미러는 다시 미러링할 수 없습니다."
+profile_missing = "{} 프로필이 더 이상 존재하지 않습니다. 이름이 변경되었거나 삭제되었을 수 있습니다."
+workspace_missing = "원격 Tasty에 {} 워크스페이스가 더 이상 존재하지 않습니다."
+occupied = "다른 클라이언트가 {} 워크스페이스에 연결되어 있습니다. 여기서는 연결을 가져올 수 없습니다."
+endpoint = "{} 프로필의 로컬 터널 엔드포인트를 준비하지 못했습니다."
+self = "{} 프로필은 지금 실행 중인 Tasty를 가리키므로 연결하지 않았습니다."
 
 [child_graph]
 reconnect = "재연결"
+reconnecting = "재연결 중…"
+
+[remote.row.state]
+connecting = "연결 중"
+not_connected = "미연결"
 
 [remote.row.popup]
 connect = "연결"
+profile = "프로필"
+remote_workspace = "원격 워크스페이스"
+connecting = "연결 중…"
+lost_title = "연결 두절"
+lost_body = "Tasty가 최대 {} s 동안 재연결을 시도합니다."
+gave_up_title = "재연결 시간 초과"
+gave_up_body = "{} s 동안 시도한 뒤 재연결을 중단했습니다."
+user_title = "연결 종료"
+user_body_stay = "직접 연결을 끊은 워크스페이스입니다. 재연결할 때까지 연결이 끊긴 상태로 유지됩니다."
+user_body_next = "직접 연결을 끊은 워크스페이스입니다. 다음에 열면 재연결합니다."
+idle_title = "미연결"
+failed_title = "연결 실패"
+closed_title = "원격 워크스페이스 닫힘"
 
 [remote.row.menu]
 disconnect = "연결 끊기"

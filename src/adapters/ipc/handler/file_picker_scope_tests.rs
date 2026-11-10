@@ -203,6 +203,7 @@ fn assert_hidden_child_round_trip(user_focused: bool) {
         surface_rects: vec![(sid, rect)],
         active_tabs: vec![],
         active_tab_ids: vec![],
+        workspace_rect: None,
     };
     let draw = |state: &mut RequestContext, layout: &LayoutContext, events| {
         let raw = egui::RawInput {

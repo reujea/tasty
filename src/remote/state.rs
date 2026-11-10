@@ -71,6 +71,9 @@ pub(crate) struct RemoteState {
     pub(crate) row_tokens: std::collections::HashMap<u32, std::sync::Arc<()>>,
     /// 저장된 원격 행의 연결 상태 이름. App이 매 회차 채우고 `workspace.list`가 읽는다.
     pub(crate) row_states: std::collections::HashMap<u32, &'static str>,
+    /// 저장된 원격 행의 화면 표지에 필요한 사실. App이 `row_states`와 함께 채운다.
+    #[cfg(feature = "gui")]
+    pub(crate) row_views: std::collections::HashMap<u32, RowView>,
     pub(crate) presentation: crate::model::StructurePresentationSnapshot,
     notifier: Option<tasty_ipc::stream_hub::StreamHub>,
     structure_changed: std::collections::BTreeSet<u32>,
@@ -182,6 +185,8 @@ impl RemoteState {
             attach_subscriptions: Default::default(),
             row_tokens: Default::default(),
             row_states: Default::default(),
+            #[cfg(feature = "gui")]
+            row_views: Default::default(),
             presentation: Default::default(),
             notifier: None,
             structure_changed: Default::default(),
@@ -381,4 +386,16 @@ mod tests {
         remote.forget_structure_sent(8);
         assert!(!remote.structure_already_sent(8, 2, b"tree-b"));
     }
+}
+
+/// 저장된 원격 행의 연결 팝업과 표지가 상태 이름 밖에서 읽는 사실.
+#[cfg(feature = "gui")]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub(crate) struct RowView {
+    /// 사용자가 끊은 행이다.
+    pub(crate) user_disconnected: bool,
+    /// 이번 실행에서 연결돼 있던 동안 원격 workspace 가 다른 곳에서 닫혔다. 저장하지 않는다.
+    pub(crate) closed_elsewhere: bool,
+    /// 연결을 시도하기 시작한 시각. 시도 중이 아니면 없다. 행 로딩 표시의 시작점이다.
+    pub(crate) trying_since: Option<std::time::Instant>,
 }

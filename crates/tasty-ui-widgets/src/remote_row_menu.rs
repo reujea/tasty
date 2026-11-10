@@ -50,10 +50,13 @@ pub const REMOTE_ROW_CLOSE_REMOTE_KEY: &str = "remote.row.menu.close_remote";
 
 /// 상태별 켜짐. 연결되지 않은 동안에는 원격에 닿을 수 없어 원격 닫기는 연결됐을 때만 켜진다.
 /// 연결 중·재연결 중의 Disconnect 는 진행 중인 시도를 취소한다.
-pub fn remote_row_menu(state: RemoteRowState) -> RemoteRowMenu {
+/// `closed_elsewhere`는 이번 실행에서 연결돼 있던 동안 원격 workspace 가 다른 곳에서 닫힌 행이다.
+/// 다시 붙을 곳이 없어 Reconnect 를 숨기지 않고 끈다. 이 표지는 저장하지 않아 재시작 뒤에는
+/// 아직 붙지 않은 행이 되고 Connect 가 켜진다.
+pub fn remote_row_menu(state: RemoteRowState, closed_elsewhere: bool) -> RemoteRowMenu {
     use RemoteRowState as S;
     RemoteRowMenu {
-        connect: matches!(state, S::Disconnected | S::NotConnected),
+        connect: matches!(state, S::Disconnected | S::NotConnected) && !closed_elsewhere,
         disconnect: matches!(state, S::Connected | S::Connecting | S::Reconnecting),
         close_local: true,
         close_remote: state == S::Connected,
@@ -74,7 +77,7 @@ mod tests {
     fn each_state_enables_what_the_design_table_lists() {
         use RemoteRowState as S;
         let row = |s| {
-            let m = remote_row_menu(s);
+            let m = remote_row_menu(s, false);
             (m.connect, m.disconnect, m.close_local, m.close_remote)
         };
         assert_eq!(row(S::Connected), (false, true, true, true));
@@ -82,6 +85,17 @@ mod tests {
         assert_eq!(row(S::Reconnecting), (false, true, true, false));
         assert_eq!(row(S::Disconnected), (true, false, true, false));
         assert_eq!(row(S::NotConnected), (true, false, true, false));
+    }
+
+    /// 다른 곳에서 닫혀 남은 행은 Reconnect 를 끄고 나머지는 끊긴 행과 같다.
+    #[test]
+    fn a_row_closed_elsewhere_keeps_reconnect_disabled() {
+        let m = remote_row_menu(RemoteRowState::Disconnected, true);
+        assert_eq!(
+            (m.connect, m.disconnect, m.close_local, m.close_remote),
+            (false, false, true, false)
+        );
+        assert_eq!(m.connect_key, REMOTE_ROW_RECONNECT_KEY);
     }
 
     #[test]
@@ -94,7 +108,7 @@ mod tests {
             (S::Connecting, REMOTE_ROW_CONNECT_KEY),
             (S::NotConnected, REMOTE_ROW_CONNECT_KEY),
         ] {
-            assert_eq!(remote_row_menu(state).connect_key, key, "{state:?}");
+            assert_eq!(remote_row_menu(state, false).connect_key, key, "{state:?}");
         }
     }
 }

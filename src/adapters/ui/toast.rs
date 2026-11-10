@@ -555,6 +555,7 @@ mod tests {
             surface_rects: Vec::new(),
             active_tabs: Vec::new(),
             active_tab_ids: Vec::new(),
+            workspace_rect: None,
         };
         let mut mgr = ToastManager::new();
         for i in 0..4 {

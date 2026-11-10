@@ -41,7 +41,7 @@ attach 의 본질은 **강한(hard) 배타 점유**다 — [Attach 메커니즘]
     - 같은 대상: 저장된 행의 연결·재연결은 같은 engine·행, 수동 요청은 `attach.into_gui` 의 `port`·`workspace`, 기존 workspace `remote.attach` 의 `profile`·`ssh`·`remote_workspace` 가 같은 것이다. 수동 요청은 엔드포인트를 해석 중이든 연결 중이든 끝나지 않은 이전 요청을 취소하고 새 요청이 결과를 받는다. 두 메서드는 서로 대체하지 않는다.
     - 처음 기록한 결과만 남으므로 대체된 시도의 늦은 결과가 새 시도의 run 을 바꾸지 않는다. `new_workspace:true` 는 생성 결과를 지연 회신하므로 run 을 싣지 않는다. 저장된 행의 자동 연결·재연결은 run 을 만들지 않고 행의 상태 표시를 따른다.
     - GUI 원격 연결 팝업에서 **연결** 이 접수된 뒤 연결·설치에 실패하면 시작한 창에 실패 토스트를 띄운다. 그 창이 닫혔거나 View 가 바뀌었으면 띄우지 않는다([토스트 정책](../../design/systems/toast.md)).
-  - **저장된 원격 행의 연결 실패 안내**: [저장된 원격 행](#저장된-원격-행과-mirror-내용)의 첫 연결이 실패하거나, 재연결이 다시 시도해도 같은 결과가 나올 이유(`remote_workspace_missing`·`occupied`·`mirror_workspace`)로 끝나면 안내를 남긴다. 재연결의 이 실패는 행을 바로 **연결 끊김** 상태로 둔다. 이유는 자기 자신(`self_instance`), 저장된 attach 프로필 없음(`profile_missing`), 연결 지점 준비 실패(`unresolved`), 원격 workspace 없음(`remote_workspace_missing`), 다른 client가 점유 중(`occupied`), 대상이 mirror(`mirror_workspace`)다. 행은 자동으로 다시 연결하지 않고 사용자가 그 행을 다시 활성화할 때 한 번 다시 시도한다. 같은 대상으로 연결에 성공하거나 행이 닫히면 안내가 사라진다. 재연결 중의 엔드포인트 해석 실패 가운데서는 행의 attach 프로필이 없어진 경우(`profile_missing`)만 안내를 만든다. 연결 지점 준비 실패처럼 일시적일 수 있는 실패는 안내 없이 재연결을 이어 간다.
+  - **저장된 원격 행의 연결 실패 안내**: [저장된 원격 행](#저장된-원격-행과-mirror-내용)의 첫 연결이 실패하거나, 재연결이 다시 시도해도 같은 결과가 나올 이유(`remote_workspace_missing`·`occupied`·`mirror_workspace`)로 끝나면 안내를 남긴다. 재연결의 이 실패는 행을 바로 **연결 끊김** 상태로 둔다. 이유는 자기 자신(`self_instance`), 저장된 attach 프로필 없음(`profile_missing`), 연결 지점 준비 실패(`unresolved`), 원격 workspace 없음(`remote_workspace_missing`), 다른 client가 점유 중(`occupied`), 대상이 mirror(`mirror_workspace`)다. 행은 자동으로 다시 연결하지 않고 사용자가 그 행을 다시 활성화할 때 한 번 다시 시도한다. 연결돼 있던 동안 원격 workspace 가 다른 곳에서 닫힌 행은 예외다(아래 "저장된 원격 행의 표시"). 같은 대상으로 연결에 성공하거나 행이 닫히면 안내가 사라진다. 재연결 중의 엔드포인트 해석 실패 가운데서는 행의 attach 프로필이 없어진 경우(`profile_missing`)만 안내를 만든다. 연결 지점 준비 실패처럼 일시적일 수 있는 실패는 안내 없이 재연결을 이어 간다.
     - 사이드바의 그 행에 경고 표지(alertTriangle, `attach-refusal-glyph` = accent-warning)가 활성 여부와 관계없이 붙고, 툴팁은 대상과 이유다. 이름 뒤 순서는 move 글리프 · 경고 표지 · 배지 묶음이며 배지가 가장 오른쪽이고 항목 사이는 `space-sm`이다. 접힌 사이드바(레일)에서는 아바타 왼쪽 위 모서리에 12 칩(alertTriangle 8, 레일 배경 바탕)을 그린다.
     - 사용자가 그 행을 활성화한 뒤의 안내면 콘텐츠 위쪽(탭 바 아래)에 Workspace 배너가 뜬다. `remote_workspace_missing`·`occupied`·`mirror_workspace` 는 배너에서 `unresolved` 와 같은 문장을 쓴다. ×는 그 창의 이번 활성화에만 배너를 숨긴다. 토스트는 띄우지 않고 포커스도 옮기지 않는다.
     - 지금 남은 안내는 `remote.refusals` 응답의 `notices`(`workspace_id` · `kind` · `target`, 워크스페이스 ID 순)로 조회한다.
@@ -318,7 +318,7 @@ move-surface 는 **source/target 이 같은 mirror workspace 안에 있을 때�
 
 | 항목 | 켜지는 상태 | 동작 |
 |---|---|---|
-| Connect · Reconnect(id 9) | 연결 끊김, 연결 전 | 사용자 요청으로 연결한다(`Intent::SavedRow{Connect}`). 이번 실행에서 형상이 있었던 행은 Reconnect 문구다 |
+| Connect · Reconnect(id 9) | 연결 끊김, 연결 전. 다른 곳에서 닫힌 행은 끈다 | 사용자 요청으로 연결한다(`Intent::SavedRow{Connect}`). 이번 실행에서 형상이 있었던 행은 Reconnect 문구다 |
 | Disconnect(id 8) | 연결됨, 연결 중, 재연결 중 | 위 "워크스페이스 연결 끊기"와 같다. 시도 중이면 그 시도를 취소한다 |
 | Close locally(id 10) | 항상 | 행을 이 Tasty에서 없앤다(`Intent::SavedRow{CloseLocally}`). 붙어 있으면 `Detach`만 보내고, 원격 workspace와 프로세스는 남는다. 연결 중인 시도도 취소한다 |
 | Close remote workspace…(id 11) | 연결됨 | 확인 대화를 연 뒤 위 서버 닫기를 보낸다. 성공하면 행도 사라진다 |
@@ -327,7 +327,7 @@ move-surface 는 **source/target 이 같은 mirror workspace 안에 있을 때�
 - `close_workspace` 단축키를 저장된 원격 행에서 누르면 로컬에서 닫기와 같다(`state::workspace::close_workspace_at`).
 - **원격 닫기 확인**(`src/adapters/ui/popup/confirm_close_remote.rs`): Window 범위, scrim 가운데, 폭 `info-modal-width`(440)다. 경고 글리프와 제목(행 이름), 본문(프로필), Cancel(기본 포커스)과 위험 버튼을 그린다. Esc·Cancel·바깥 클릭은 아무것도 보내지 않는다. 콘텐츠는 갤러리와 같은 `tasty_ui_widgets::close_remote_confirm`이다.
 - 사용자가 보낸 구조 요청이 저장된 원격 행을 비우면(workspace 닫기, 또는 지우는 surface가 그 workspace의 전부인 탭·pane·surface 닫기) dispatch가 요청을 보내지 않고 같은 확인을 연다(`workspace_close::saved_row_close`). 마지막 탭·pane 닫기에서 열리면 본문 앞에 `remote.row.close_remote.last` 한 줄을 더한다. 확인하면 담아 둔 요청을 이 팝업 출처(`UserSource::Menu("confirm_close_remote")`)로 다시 보내고, dispatch는 그 출처를 다시 묻지 않는다. 에이전트 요청(IPC `workspace.close` 등)은 묻지 않고 서버로 보낸다.
-- 다른 곳(다른 client, 원격 Tasty)에서 원격 workspace가 닫히면 행은 남고 안내로 이유를 보인다.
+- 다른 곳(다른 client, 원격 Tasty)에서 원격 workspace가 닫히면 행은 남고 안내로 이유를 보인다. 메뉴와 연결 팝업의 Reconnect는 비활성이다.
 
 ### 서버(피점유)측 비-holder 구조 변경 차단
 
@@ -355,9 +355,23 @@ move-surface 는 **source/target 이 같은 mirror workspace 안에 있을 때�
   - Reconnecting 에 들어갈 때 옛 연결의 소켓을 바로 닫는다(`ConnectionWorkers::close_socket`). 열어 두면 응답이 멈췄던 서버가 돌아온 직후 옛 연결을 살아 있는 점유자로 보고 새 attach 를 `already_attached` 로 거절한다.
   - 재연결에 성공하면 살아 있던 surface 는 scrollback/local id 를 그대로 유지한 채(survivor mapping, `merge_survivor_mapping`) 연결만 새로 맺는다. 사용자가 그 행으로 돌아오면(엣지) 백오프 대기 없이 바로 한 번 더 시도한다.
   - 다른 client 가 그 원격 workspace 를 점유 중이면(`already_attached`) 지수 증가 없이 30초 간격으로 기다린다.
-- **재연결 시간 창**: 끊긴 뒤 설정 `[remote_attach] reconnect_timeout_secs`(설정 창 General › Remote attach 의 `Keep reconnecting for`, 기본 300초, 0~3600초, 범위를 벗어난 파일 값은 300으로 되돌린다)이 지나도 연결하지 못하면 재연결을 멈추고 행을 **연결 끊김** 상태로 바꾼 뒤 안내 toast 를 띄운다. 0이면 끊기는 즉시 연결 끊김이 된다. 연결 끊김 행은 사용자가 다시 활성화하면 연결한다.
+- **재연결 시간 창**: 끊긴 뒤 설정 `[remote_attach] reconnect_timeout_secs`(설정 창 General › Remote attach 의 `Keep reconnecting for`, 기본 300초, 0~3600초, 범위를 벗어난 파일 값은 300으로 되돌린다)이 지나도 연결하지 못하면 재연결을 멈추고 행을 **연결 끊김** 상태로 바꾼다. toast 는 띄우지 않고 연결 팝업이 알린다. 0이면 끊기는 즉시 연결 끊김이 된다. 연결 끊김 행은 사용자가 다시 활성화하면 연결한다.
 - **상태**: 행의 세션 상태는 `Connected` · `Reconnecting` · `Disconnected` 셋이다(`tasty_remote::client_session::SessionState`).
 - **사용자 대기 갈래**: 화면에 띄운 행을 언제 연결하는지(L4)와 사용자가 끊은 행을 다시 활성화할 때 연결하는지(L1)는 사용자 결정을 기다린다. 지금은 추천안대로 띄운 행은 바로 연결하고(`visible_row_connects`), 사용자가 끊은 행은 다시 활성화해도 연결하지 않는다(`user_disconnect_holds`). 두 함수가 각 갈래의 유일한 분기다.
+
+### 저장된 원격 행의 표시
+
+연결되지 않은 저장된 원격 행은 toast 대신 연결 팝업과 표지로 상태를 보인다. 재연결 시작·성공·포기는 toast 를 띄우지 않는다. 팝업 내용과 표지는 갤러리 "Saved remote workspace" 절과 같은 공용 위젯이다.
+
+- **연결 팝업**(`src/adapters/ui/popup/remote_row.rs`, 내용은 `tasty_ui_widgets::remote_row_popup`): 행이 연결되지 않은 동안 그 workspace 범위로 workspace 영역 가운데에 뜨고, 연결되면 닫힌다. 포커스를 가져가지 않고 바깥 클릭으로 닫히지 않는다. 폭은 360(배율 적용, workspace 영역보다 넓으면 줄인다)이다.
+  - 이번 실행에서 형상이 있었던 행은 마지막 화면 위에 scrim 을 깔고 띄운다(`remote_row_over_screen`). scrim 이 포인터를 받아 아래 터미널은 hover·클릭을 받지 않고, scrim 이 덮일 때 파일 핸들러 picker 와 링크 툴팁을 닫는다. 형상이 없던 행은 빈 workspace 에 scrim 없이 띄운다(`remote_row`).
+  - 제목과 본문은 상태에 따라 연결 중, 연결 전, 연결 실패(이유), 재연결 중, 재연결 포기, 사용자가 끊음, 다른 곳에서 닫힘(`remote.row.popup.closed_title`) 중 하나다. 갈래는 `popup_kind` 가 정한다.
+  - 필드는 attach 프로필과 원격 workspace 다. 원격 workspace 는 번호로 보인다. 원격 이름은 저장하지 않는다.
+  - 버튼은 Connect·Reconnect 이고 `Intent::SavedRow{Connect}` 를 팝업 출처로 보낸다. 시도 중이면 spinner 와 Connecting·Reconnecting 문구로 끈다. 다른 곳에서 닫힌 행은 Reconnect 를 끈 채 그린다.
+- **사이드바 카드와 rail**: 카드의 원격 줄은 상태어(`remote.row.state.*` 등)를 붙이고 연결되지 않은 동안 원격 색을 뺀다. rail 의 mirror 칩은 연결되지 않은 동안 꺼진 칩으로 그린다. 연결되지 않은 행은 바쁨 수를 세지 않고, 시도 중이면 시도를 시작한 시각부터 로딩 표시를 그린다. 연결 실패 안내는 카드 툴팁에 프로필 → 원격 workspace 와 이유로 보인다.
+- **상태바**: 연결 끊김 행은 재연결 중처럼 원격 색을 빼고 `status_bar.remote_disconnected` 상태어를 붙인다.
+- **attach 거절 배너**: 저장된 원격 행에는 띄우지 않는다. 팝업과 카드가 같은 이유를 보인다.
+- **다른 곳에서 닫힌 행**: 연결돼 있던 동안 원격 workspace 가 다른 곳에서 닫혀 재연결이 `remote_workspace_missing` 으로 끝난 행은 다시 활성화해도 자동으로 연결하지 않고, 팝업과 메뉴의 Reconnect 를 끈다(`row_closed_elsewhere`). 이 표지는 메모리에만 있고 저장하지 않는다. 다시 시작하면 그 행은 아직 붙지 않은 행이고 Connect 가 켜진다.
 
 ### 저장된 원격 행을 쓰는 요청
 

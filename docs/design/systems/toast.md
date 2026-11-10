@@ -25,7 +25,7 @@ Toast는 “복사됨”, “저장됨”처럼 사용자 조작의 결과를 �
 | 사용자 조작의 OS 열기 실패(터미널 링크 클릭, 사용자 출처 System 파일 핸들러, Plugins 창의 폴더 열기·홈페이지) | 실패 토스트(Error) 1건. 성공에는 표시하지 않음. 에이전트·미증명 플러그인 출처의 System 핸들러 실패에는 토스트를 띄우지 않고, 요청의 `run`을 `failed`("the OS opener could not be started")로 끝낸다 |
 | 사용자 intent·구조 변경·분할선 확정·카테고리 초기화 실패 | 실패 토스트(Error) 1건. preset·split 하한·철회된 kind의 기존 안내와 중복하지 않음. 화면 없는 엔진에는 표시하지 않음 |
 | 에이전트 IPC 쓰기·intent 적용 실패 | 사용자 토스트 없음. 에이전트는 결과를 IPC 응답 문자열로 받는다. 접수 뒤 끝나는 요청(`file_handler.dispatch`·`markdown.navigate`·`hook_handler.dispatch`·`attach.into_gui`·기존 workspace `remote.attach`)은 응답의 `run`으로 최종 결과를 조회한다. 접수 응답 뒤의 적용 실패가 경고 로그로만 남는 그 밖의 경로는 [결과 피드백 원칙](../../principles/feedback-and-recovery.md#시작-경로에-따른-결과-전달)의 현행 미충족이다 |
-| mirror 연결 끊김·재연결·손실 | 연결 상태 토스트 허용. parked engine에서는 표시하지 않음 |
+| mirror 연결 끊김·손실 | 연결 상태 토스트 허용. parked engine에서는 표시하지 않음. 저장된 원격 행의 재연결 시작·성공·포기는 토스트 대신 행의 연결 팝업과 표지로 보임 |
 | 원격 연결 팝업의 연결 버튼이 접수된 뒤 연결·핸드셰이크·mirror 설치 실패 | 시작한 창에 실패 토스트(Error, `attach.toast.mirror_connect_failed`) 1건, 사유는 가운데를 줄여 붙임. 그 창이 닫혔거나 View가 바뀌었으면 표시하지 않음. IPC·자동 attach·재연결 실패는 이 토스트를 내지 않음 |
 | 사용자 구조 변경의 원격 적용 실패 | 실패 토스트 표시 |
 | agent origin 또는 직접 IPC 구조 요청의 원격 실패 | op_id로 origin을 기억해 토스트를 띄우지 않는다. 원격 실패 사유는 run을 가진 intent(mirror 대상 `file_handler.dispatch`·`markdown.navigate`)에만 `failed`로 전달된다([file-handler](../../features/file-handler/index.md#접수-뒤-최종-결과)). 직접 IPC 구조 요청(`split`·`tab.create` 등)은 `forwarded` 접수 응답 뒤 원격 실패가 로그로만 남으며 이는 현행 미충족이다 |

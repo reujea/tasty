@@ -69,6 +69,10 @@ impl AttachNotices {
         true
     }
 
+    pub(crate) fn get(&self, workspace_id: u32) -> Option<&AttachNoticeView> {
+        self.by_workspace.get(&workspace_id)
+    }
+
     /// 사이드바 행 표지의 툴팁. 대상과 이유를 두 줄로 보인다.
     pub(crate) fn tooltip(&self, workspace_id: u32) -> Option<String> {
         let notice = self.by_workspace.get(&workspace_id)?;

@@ -47,6 +47,15 @@ pub fn paint_rail_flat_divider(painter: &egui::Painter, theme: &Theme, rect: egu
 /// 아바타의 idle·active·hover 바탕 어디서나 칩을 드러낸다.
 /// 원의 지름은 `workspace-mirror-chip-size` 다.
 pub fn paint_workspace_mirror_chip(ui: &egui::Ui, theme: &Theme, avatar: egui::Rect) {
+    paint_mirror_chip(ui, theme, avatar, true);
+}
+
+/// 연결되지 않은 저장 원격 행의 mirror 칩. 테두리는 border-control, 글리프는 glyph-dim 이다.
+pub fn paint_workspace_mirror_chip_offline(ui: &egui::Ui, theme: &Theme, avatar: egui::Rect) {
+    paint_mirror_chip(ui, theme, avatar, false);
+}
+
+fn paint_mirror_chip(ui: &egui::Ui, theme: &Theme, avatar: egui::Rect, live: bool) {
     let halo_r = theme.spacing_sm.value();
     let chip_r = theme.workspace_mirror_chip_size().value() * 0.5;
     let border = theme.border_width.value();
@@ -59,11 +68,23 @@ pub fn paint_workspace_mirror_chip(ui: &egui::Ui, theme: &Theme, avatar: egui::R
     painter.circle_stroke(
         center,
         chip_r - border * 0.5,
-        egui::Stroke::new(border, theme.workspace_mirror_chip_border()),
+        egui::Stroke::new(
+            border,
+            if live {
+                theme.workspace_mirror_chip_border()
+            } else {
+                theme.border_control()
+            },
+        ),
     );
     let glyph_rect = egui::Rect::from_center_size(center, egui::vec2(glyph, glyph));
+    let fg = if live {
+        theme.workspace_mirror_fg()
+    } else {
+        theme.glyph_dim()
+    };
     tasty_icons::REMOTE
-        .image(glyph, theme.workspace_mirror_fg().into())
+        .image(glyph, fg.into())
         .paint_at(ui, glyph_rect);
 }
 

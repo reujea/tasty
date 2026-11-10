@@ -24,7 +24,8 @@ const ANCHORED_POPUPS: &[PopupId] = &[
 /// scrim 여부와는 별개인 분류다(docs/architecture/ui-widgets-crate.md).
 fn popup_shadow(popup_id: PopupId) -> Option<tasty_type_appearance::theme::ShadowToken> {
     let th = theme::theme();
-    if ANCHORED_POPUPS.contains(&popup_id) {
+    // 빈 workspace 위 원격 행 팝업은 scrim 이 없어 popover 그림자다.
+    if ANCHORED_POPUPS.contains(&popup_id) || popup_id == super::remote_row::REMOTE_ROW_POPUP_ID {
         Some(th.shadow_popover())
     } else {
         Some(th.shadow_modal())
@@ -236,6 +237,19 @@ impl PopupManager {
             }
         }
 
+        // 저장된 원격 행의 scrim 은 포인터를 받는다(마지막 화면은 inert). 그 위 포인터는 그 팝업 것이다.
+        if hovered_popup.is_none()
+            && let Some(pos) = pointer_pos
+        {
+            hovered_popup = open_indices.iter().rev().find_map(|&i| {
+                let popup = &self.popups[i];
+                (super::remote_row::scrim_takes_pointer(popup.id)
+                    && Self::popup_scope_rect(popup.id, &popup.scope, draw_ctx)
+                        .is_some_and(|r| r.contains(pos)))
+                .then_some(popup.id)
+            });
+        }
+
         // 닫기·포커스·맨 앞으로 올리기를 먼저 처리한다. 이동·리사이즈 시작은
         // 콘텐츠를 그린 뒤 위젯이 포인터를 사용했는지 확인하고 결정한다.
         if primary_pressed {
@@ -287,7 +301,8 @@ impl PopupManager {
             if primary_released {
                 popup.dragging = false;
             } else if primary_down && let Some(pos) = pointer_pos {
-                let bounds = Self::scope_rect(&popup.scope, draw_ctx).unwrap_or(screen_rect);
+                let bounds =
+                    Self::popup_scope_rect(popup.id, &popup.scope, draw_ctx).unwrap_or(screen_rect);
                 let new_pos = pos - popup.drag_offset;
                 popup.pos = egui::pos2(
                     new_pos.x.clamp(
@@ -341,7 +356,8 @@ impl PopupManager {
                 if edges.bottom {
                     max.y = max.y.max(min.y + mh);
                 }
-                let bounds = Self::scope_rect(&popup.scope, draw_ctx).unwrap_or(screen_rect);
+                let bounds =
+                    Self::popup_scope_rect(popup.id, &popup.scope, draw_ctx).unwrap_or(screen_rect);
                 let new_rect = egui::Rect::from_min_max(min, max).intersect(bounds);
                 popup.pos = new_rect.min;
                 popup.size = new_rect.size();
@@ -351,7 +367,8 @@ impl PopupManager {
 
         for popup in &mut self.popups {
             if popup.request_center && popup.open {
-                let center_rect = Self::scope_rect(&popup.scope, draw_ctx).unwrap_or(screen_rect);
+                let center_rect =
+                    Self::popup_scope_rect(popup.id, &popup.scope, draw_ctx).unwrap_or(screen_rect);
                 popup.pos = egui::pos2(
                     center_rect.center().x - popup.size.x / 2.0,
                     center_rect.center().y - popup.size.y / 2.0,
@@ -362,7 +379,8 @@ impl PopupManager {
 
         for popup in &mut self.popups {
             if popup.request_top && popup.open {
-                let anchor_rect = Self::scope_rect(&popup.scope, draw_ctx).unwrap_or(screen_rect);
+                let anchor_rect =
+                    Self::popup_scope_rect(popup.id, &popup.scope, draw_ctx).unwrap_or(screen_rect);
                 popup.pos = egui::pos2(
                     anchor_rect.center().x - popup.size.x / 2.0,
                     anchor_rect.min.y + th.spacing_sm.value(),
@@ -401,7 +419,8 @@ impl PopupManager {
             .map(|&i| {
                 (
                     i,
-                    Self::scope_rect(&self.popups[i].scope, draw_ctx).unwrap_or(screen_rect),
+                    Self::popup_scope_rect(self.popups[i].id, &self.popups[i].scope, draw_ctx)
+                        .unwrap_or(screen_rect),
                 )
             })
             .collect();
@@ -420,9 +439,13 @@ impl PopupManager {
                 continue;
             }
 
-            let scope_clip = Self::scope_rect(&popup.scope, draw_ctx).unwrap_or(screen_rect);
-            let clamp_rect =
-                Self::scope_bounds(&popup.scope, draw_ctx, screen_rect, th.spacing_sm.value());
+            let scope_clip =
+                Self::popup_scope_rect(popup.id, &popup.scope, draw_ctx).unwrap_or(screen_rect);
+            let clamp_rect = if super::remote_row::is_remote_row(popup.id) {
+                scope_clip
+            } else {
+                Self::scope_bounds(&popup.scope, draw_ctx, screen_rect, th.spacing_sm.value())
+            };
             popup.clamp_to_screen(clamp_rect);
 
             let popup_id = popup.id;
@@ -700,6 +723,22 @@ impl PopupManager {
         }
     }
 
+    /// 팝업의 소속 영역. 저장된 원격 행의 연결 팝업만 workspace 범위를 콘텐츠 영역(탭 바와 pane)으로
+    /// 좁힌다. 다른 workspace 범위 팝업은 창 전체다.
+    pub(crate) fn popup_scope_rect(
+        id: PopupId,
+        scope: &PopupScope,
+        ctx: Option<&LayoutContext>,
+    ) -> Option<egui::Rect> {
+        if super::remote_row::is_remote_row(id)
+            && matches!(scope, PopupScope::Workspace(_))
+            && let Some(rect) = ctx.and_then(|c| c.workspace_rect)
+        {
+            return Some(rect);
+        }
+        Self::scope_rect(scope, ctx)
+    }
+
     /// surface 팝업만 보더에서 inset만큼 안쪽에 둔다. 좁은 영역은 여백을 줄여 경계 역전을 막는다.
     /// 창·워크스페이스·pane·tab 범위에는 이 여백을 적용하지 않는다.
     pub(crate) fn scope_bounds(
@@ -757,6 +796,7 @@ impl PopupManager {
                 | super::transfer::TRANSFER_ERROR_POPUP_ID
                 | super::explorer_conflict::EXPLORER_CONFLICT_POPUP_ID
                 | super::confirm_close_remote::CONFIRM_CLOSE_REMOTE_POPUP_ID
+                | super::remote_row::REMOTE_ROW_SCRIM_POPUP_ID
         )
     }
 }
@@ -916,6 +956,7 @@ mod tests {
             surface_rects: vec![(SURFACE_A, surface_a()), (SURFACE_B, surface_b())],
             active_tabs: vec![(1, 0)],
             active_tab_ids: vec![],
+            workspace_rect: None,
         }
     }
 
@@ -989,6 +1030,7 @@ mod tests {
             surface_rects: vec![(SURFACE_A, tiny)],
             active_tabs: vec![],
             active_tab_ids: vec![],
+            workspace_rect: None,
         };
         let bounds = PopupManager::scope_bounds(
             &PopupScope::Surface(SURFACE_A),

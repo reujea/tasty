@@ -898,6 +898,7 @@ new_window_desc = "打开新的 Tasty 窗口"
 palette_tooltip = "打开命令面板"
 theme_tooltip = "切换主题"
 remote_reconnecting = "重新连接中"
+remote_disconnected = "已断开"
 
 [notification]
 bell_title = "响铃"
@@ -1917,10 +1918,7 @@ mirror_capture_unconfirmed = "确认截图复制完成前，远程连接已断�
 mirror_disconnected = "远程连接已断开。镜像工作区已关闭。"
 # 매핑된 워크스페이스와 scrollback을 유지한 채 자동 재연결을 시도한다.
 mirror_reconnecting = "远程连接已断开。正在尝试重新连接…"
-mirror_reconnected = "已重新连接到远程工作区。"
 mirror_desynced = "部分远程画面丢失。正在重新获取…"
-# 자동 재시도는 끝났지만 워크스페이스를 다시 선택하면 재시도할 수 있다.
-mirror_reconnect_giveup = "多次尝试后仍无法重新连接。请切换到其他工作区后再切回此工作区以重试。"
 # 서버가 미러링한 워크스페이스와 그 프로세스를 닫았고 로컬 미러도 정리했다.
 workspace_closed_on_server = "已关闭远程 Tasty 上的工作区。"
 # 연결이 없거나 재연결 중이라 닫기를 보내지 않았다. 서버는 바뀌지 않았다.
@@ -7444,12 +7442,35 @@ caption = "统计时段内达到此调用次数即判定为激增。默认值为
 
 [remote.row.reason]
 chain = "工作区 {} 是另一台计算机上工作区的镜像。无法再次镜像。"
+profile_missing = "配置档 {} 已不存在。可能已重命名或删除。"
+workspace_missing = "远程 Tasty 上的工作区 {} 已不存在。"
+occupied = "其他客户端已占用工作区 {}。无法从此处接管。"
+endpoint = "无法为配置档 {} 准备本地隧道端点。"
+self = "配置档 {} 指向当前 Tasty，因此未连接。"
 
 [child_graph]
 reconnect = "重新连接"
+reconnecting = "正在重新连接…"
+
+[remote.row.state]
+connecting = "连接中"
+not_connected = "未连接"
 
 [remote.row.popup]
 connect = "连接"
+profile = "配置档"
+remote_workspace = "远程工作区"
+connecting = "正在连接…"
+lost_title = "连接中断"
+lost_body = "Tasty 将持续尝试重新连接，最长 {} s。"
+gave_up_title = "重新连接超时"
+gave_up_body = "尝试 {} s 后已停止重新连接。"
+user_title = "连接已断开"
+user_body_stay = "已手动断开此工作区。重新连接前将保持断开。"
+user_body_next = "已手动断开此工作区。下次打开时将重新连接。"
+idle_title = "未连接"
+failed_title = "连接失败"
+closed_title = "远程工作区已关闭"
 
 [remote.row.menu]
 disconnect = "断开连接"

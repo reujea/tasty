@@ -13,6 +13,7 @@ pub mod foundations_uiscale;
 pub mod icons;
 pub mod icons_keys;
 pub mod layouts_attention;
+pub mod layouts_remote_row;
 pub mod layouts_settled;
 pub mod overlays_resize;
 pub mod overlays_settled;
@@ -2368,6 +2369,7 @@ pub fn pages() -> Vec<Page> {
                     ],
                 ),
                 layouts_attention::section(),
+                layouts_remote_row::section(),
                 single(
                     "movesource",
                     "Move source highlight",

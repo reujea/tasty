@@ -166,7 +166,8 @@ impl App {
         match self.row_session_phase(row) {
             Some(SessionState::Connected | SessionState::Reconnecting) => {}
             Some(SessionState::Disconnected) => {
-                if edge_now {
+                // 다른 곳에서 닫힌 행은 다시 붙을 곳이 없어 옮겨 와도 시도하지 않는다.
+                if edge_now && !self.row_closed_elsewhere(row) {
                     self.connect_saved_row(row, true);
                 }
             }
@@ -664,17 +665,12 @@ impl App {
         slot.next_attempt = Instant::now() + base.mul_f64(jitter);
     }
 
-    /// 재연결 시간이 지나 재연결을 멈췄다고 알린다. 그 행을 다시 열면 다시 시도한다.
+    /// 재연결 시간이 지나 재연결을 멈췄다. toast 는 없고 행 표지와 연결 팝업이 알린다.
+    /// 그 행을 다시 열면 다시 시도한다.
     fn notify_reconnect_giveup(&mut self, row: u32) {
         for (_, main, engine) in self.engines_mut().window_pairs() {
-            if engine.workspaces().into_iter().any(|ws| ws.id == row) {
-                main.state.toasts.push(
-                    crate::i18n::t("attach.toast.mirror_reconnect_giveup").to_string(),
-                    crate::adapters::ui::ToastKind::Warning,
-                    crate::adapters::ui::ToastScope::Window,
-                );
+            if engine.find_workspace_index_for_id(row).is_some() {
                 main.mark_dirty();
-                break;
             }
         }
         tracing::warn!("attach 재연결 중단 (row {row}) — 재연결 시간이 지나 끊긴 행으로 전환");

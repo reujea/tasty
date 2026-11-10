@@ -9,9 +9,7 @@ use card_status::CardPaint;
 use tasty_type_geometry::length::LogicalPx;
 use tasty_ui_widgets::LoadingPlacement;
 use tasty_ui_widgets::tokens::{STRUCT_GAP_1, STRUCT_GAP_2, STRUCT_GAP_3};
-use tasty_ui_widgets::{
-    ControlSize, IconButton, RowParent, RowState, TagVariant, hspace, tag_caps, vspace,
-};
+use tasty_ui_widgets::{ControlSize, IconButton, RowParent, RowState, hspace, vspace};
 
 /// 드래그 중 표시되는 ghost workspace 이름. DTCG primitive `font-size-12` 는 있으나
 /// semantic role 이 없어 `Theme` 필드가 없다 — docs/design/systems/theme.md 대로 **이름에 primitive 임을 남긴다**.
@@ -43,6 +41,8 @@ pub struct WorkspaceEntryView {
     pub move_source: bool,
     /// 자동 attach 매핑을 연결하지 않았으면 행 끝 경고 표지의 툴팁(대상과 이유).
     pub attach_refusal: Option<String>,
+    /// 저장된 원격 행이면 그 연결 상태. REMOTE 줄의 Tag·상태어와 레일 칩을 정한다.
+    pub row_state: Option<tasty_ui_widgets::RemoteRowState>,
 }
 
 /// 카테고리별 행과 전역 인덱스. 클릭·드래그 동작이 같은 워크스페이스를 가리키도록 전역 인덱스를 유지한다.
@@ -1346,7 +1346,7 @@ fn draw_collapsed_avatar(
         }
     }
     if ws.is_mirror {
-        tasty_ui_widgets::paint_workspace_mirror_chip(ui, th, rect);
+        card_status::paint_rail_mirror_chip(ui, th, ws, rect);
     }
     if resp.clicked() {
         actions.push(SidebarCollapsedAction::WorkspaceClicked(global_idx));
@@ -1433,21 +1433,7 @@ fn draw_workspace_card(
             vspace(ui, STRUCT_GAP_1);
             let resp = ui.horizontal(|ui| {
                 ui.add_space(body_indent);
-                ui.spacing_mut().item_spacing.x = th.workspace_mirror_gap().value();
-                let mirror_fg = match state {
-                    RowState::Selected => th.workspace_mirror_fg_active(),
-                    _ => state.hue(
-                        th,
-                        th.workspace_mirror_fg(),
-                        th.accent_remote_raised(),
-                        th.accent_remote_on_active(),
-                    ),
-                };
-                ui.add(
-                    icons::TERMINAL_PROMPT
-                        .image(th.workspace_mirror_icon_size().value(), mirror_fg.into()),
-                );
-                tag_caps(ui, th, mirror_pill_label, TagVariant::Info, false);
+                card_status::remote_line(ui, th, ws, state, mirror_pill_label);
             });
             remote_line = Some(resp.response.rect);
         }
@@ -1545,6 +1531,7 @@ mod tests {
             needs_input_count: 0,
             attached: false,
             is_mirror: false,
+            row_state: None,
             move_source: false,
             attach_refusal: None,
             is_active,
@@ -2035,6 +2022,7 @@ mod tests {
             subtitle: format!("{name}-sub"),
             description: format!("{name}-desc"),
             is_mirror: true,
+            row_state: None,
             ..mock_ws(name, false)
         }
     }
@@ -2465,6 +2453,7 @@ mod tests {
                 needs_input_count: 0,
                 attached: false,
                 is_mirror: false,
+                row_state: None,
                 move_source: false,
                 attach_refusal: None,
                 is_active: true,
@@ -2479,6 +2468,7 @@ mod tests {
                 needs_input_count: 0,
                 attached: false,
                 is_mirror: false,
+                row_state: None,
                 move_source: false,
                 attach_refusal: None,
                 is_active: false,
@@ -2493,6 +2483,7 @@ mod tests {
                 needs_input_count: 0,
                 attached: false,
                 is_mirror: false,
+                row_state: None,
                 move_source: false,
                 attach_refusal: None,
                 is_active: false,
@@ -2617,6 +2608,7 @@ mod tests {
             needs_input_count: 0,
             attached: true,
             is_mirror: false,
+            row_state: None,
             move_source: false,
             attach_refusal: None,
             is_active: true,
