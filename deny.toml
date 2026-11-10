@@ -26,12 +26,6 @@ ignore = [
   # webkit2gtk·gtk·트레이가 GTK3 0.18 계열을 벗어날 때 해제한다. 어느 판에서 벗어나는지는 미측정이다.
   "RUSTSEC-2024-0370", # proc-macro-error 1.0.4 unmaintained
 
-  # serial 0.4.0 유지보수 종료. 알려진 취약점이 아니다.
-  # portable-pty 0.8이 무조건 컴파일하는 serial 모듈로 들어오지만 호출되지 않는다.
-  # Tasty는 NativePtySystem만 쓰고(tasty-terminal pty.rs) SerialTty를 쓰는 코드는 없다.
-  # 아래 pin-utils 예외와 함께 portable-pty 0.9로 올릴 때 해제한다.
-  "RUSTSEC-2017-0008", # serial 0.4.0 unmaintained
-
   # ttf-parser 0.25.1 유지보수 종료. 알려진 취약점이 없고 공지에 수정판도 없다.
   # 빌드 도구가 아니라 실행 중에 글꼴을 읽는 파서다. cosmic-text(fontdb)와 egui(ab_glyph)로 제품에 들어간다.
   # 입력은 내장 글꼴, 시스템 글꼴, 사용자가 지정한 custom_font_path의 로컬 파일, 사용자가 ~/.tasty/lang에 놓은 언어팩의 동봉 글꼴이다.
@@ -49,11 +43,9 @@ ignore = [
   "RUSTSEC-2026-0192", # ttf-parser 0.25.1 unmaintained
 
   # pin-utils 0.1.0 유지보수 종료. 알려진 취약점이 아니다.
-  # nix 0.25(portable-pty 0.8)와 nix 0.26(termwiz 0.22)의 기본 기능 aio로 들어온다.
+  # nix 0.26(termwiz 0.22)의 기본 기능 aio로 들어온다.
   # nix 안의 사용처는 sys/aio.rs이고 이 저장소의 코드는 nix aio를 쓰지 않는다.
-  # portable-pty 0.9와 termwiz 0.23을 함께 올려야 사라지지만 터미널 동작이 달라진다. Windows ConPTY에 INHERIT_CURSOR가
-  # 항상 켜지고, Unix에서 SHELL 값과 상대 경로 실행 파일 검색 결과가 바뀐다.
-  # 세 OS에서 실제 실행으로 동작을 확인한 뒤 portable-pty 0.9·termwiz 0.23으로 함께 올릴 때 해제한다.
+  # termwiz를 nix 0.26을 쓰지 않는 판(0.23)으로 올릴 때 해제한다. termwiz를 올렸을 때의 터미널 동작 차이는 미측정이다.
   "RUSTSEC-2026-0441", # pin-utils 0.1.0 unmaintained
 
   # git2 0.20.4의 잠재 UB 두 건. 공지의 수정판은 0.21.0 이상이다.

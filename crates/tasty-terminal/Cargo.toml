@@ -7,7 +7,7 @@ description = "PTY + VTE terminal emulator library"
 
 [dependencies]
 termwiz = "0.22"
-portable-pty = "0.8"
+portable-pty = "0.9"
 regex = "1"
 anyhow = "1"
 tracing = "0.1"

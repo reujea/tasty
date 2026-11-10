@@ -236,8 +236,8 @@ impl Pty {
                 tasty_i18n::t_fmt(key, &shell)
             )));
         }
-        // 디렉터리는 portable-pty의 실행 파일 확인(access X_OK)을 통과해 fork 뒤 exec에서 조용히 실패한다.
-        // 그 전에 원인과 함께 거절한다.
+        // 디렉터리는 access(X_OK)를 통과한다. portable-pty도 fork 전에 거절하지만 원인 문구를 이 크레이트가 정하도록
+        // 먼저 거절한다.
         #[cfg(unix)]
         if std::path::Path::new(&shell).is_dir() {
             return Err(SpawnError::before_child(anyhow::anyhow!(
@@ -964,8 +964,8 @@ mod tests {
         assert!(error.to_string().contains("tasty-test-shell"), "{error}");
     }
 
-    /// A directory would pass the executable check and fail exec silently after fork, so it is
-    /// refused before any child with the cause in the message.
+    /// A directory passes access(X_OK), so it is refused before any child with the cause in the
+    /// message.
     #[test]
     fn a_directory_shell_fails_before_any_child_with_the_cause() {
         let error = spawn_shell("/").err().expect("a directory cannot start");
