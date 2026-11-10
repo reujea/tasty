@@ -1,6 +1,6 @@
 [package]
 name = "tasty-plugin-markdown"
-version = "0.1.569"
+version = "0.1.570"
 edition = "2024"
 license = "MIT"
 description = "Markdown viewer surface plugin (webview)"

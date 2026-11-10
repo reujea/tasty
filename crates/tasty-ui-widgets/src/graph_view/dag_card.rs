@@ -104,8 +104,8 @@ impl DagStatus {
 }
 
 /// 상태 바 오른쪽 본문 영역의 모서리 곡률 — 오른쪽 두 개만 카드와 같게 깎는다.
-fn body_corners(radius: f32) -> egui::CornerRadius {
-    let r = radius.round().clamp(0.0, u8::MAX as f32) as u8;
+fn body_corners(radius: LogicalPx) -> egui::CornerRadius {
+    let r = radius.value().round().clamp(0.0, u8::MAX as f32) as u8;
     egui::CornerRadius {
         nw: 0,
         sw: 0,
@@ -261,7 +261,9 @@ pub fn paint_dag_card(
     let (accent, status_bg, label_fg) = dag_card_colors(theme, card.status, card.awaiting);
     let dim = vis.dimmed;
     let (lod, zoom) = (vis.lod, vis.zoom);
-    let radius = (theme.dag_node_radius().value() * zoom).round();
+    let radius = theme.dag_node_radius() * zoom;
+    // egui 모서리 값은 정수 px로 반올림해 넘긴다.
+    let corner = radius.value().round();
     let stroke_w = theme.border_width.value();
 
     let border = if card.in_cycle {
@@ -279,7 +281,7 @@ pub fn paint_dag_card(
             .lerp_to_gamma(accent.to_egui(), BLOCK_FILL_MIX);
         painter.rect_filled(
             rect,
-            radius,
+            corner,
             if dim {
                 fill.gamma_multiply(theme.node_dim_opacity())
             } else {
@@ -288,17 +290,17 @@ pub fn paint_dag_card(
         );
         painter.rect_stroke(
             rect,
-            radius,
+            corner,
             egui::Stroke::new(stroke_w, tone(theme, border, dim)),
             egui::StrokeKind::Inside,
         );
         return;
     }
 
-    painter.rect_filled(rect, radius, tone(theme, status_bg, dim));
+    painter.rect_filled(rect, corner, tone(theme, status_bg, dim));
     painter.rect_stroke(
         rect,
-        radius,
+        corner,
         egui::Stroke::new(stroke_w, tone(theme, border, dim)),
         egui::StrokeKind::Inside,
     );
@@ -306,7 +308,7 @@ pub fn paint_dag_card(
     let bar_w = (theme.dag_node_bar_width().value() * zoom).max(1.0);
     painter.rect_filled(
         egui::Rect::from_min_max(rect.min, egui::pos2(rect.min.x + bar_w, rect.max.y)),
-        radius,
+        corner,
         tone(theme, accent, dim),
     );
 
