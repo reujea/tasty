@@ -282,42 +282,6 @@ fn picker_lists(
     (recent, cand)
 }
 
-/// 원격 경로는 로컬 핸들러에 넘기지 않도록 후보와 최근 목록이 모두 빈 picker를 만든다.
-/// `remote_host`는 머리 경로 줄 앞 표지의 호스트 글자다(비면 `Remote` 낱말).
-#[cfg(feature = "gui")]
-pub(crate) fn open_remote_placeholder_picker(
-    state: &mut RequestContext,
-    target: FileTarget,
-    remote_host: String,
-) {
-    let target = DispatchTarget::File(target);
-    let target_display = target.display();
-    state.dialogs.file_handler_picker = Some(FileHandlerPickerData {
-        origin_surface_id: None,
-        dispatch_origin: FileDispatchOrigin::Agent,
-        target,
-        target_display,
-        detector: None,
-        candidates: Vec::new(),
-        candidates_are_fallback: false,
-        recent: Vec::new(),
-        default_handler: None,
-        selected: None,
-        result: None,
-        ignore_size_limit: false,
-        run: None,
-        remote_host: Some(remote_host),
-    });
-    // 호출자는 링크 메뉴와 마우스 클릭뿐이라 사용자 요청으로 연다.
-    state.dispatch_intent(
-        crate::intent::UiIntent::OpenPopup {
-            id: crate::adapters::ui::popup::file_handler_picker::PICKER_POPUP_ID,
-            mode: crate::intent::OpenPopupMode::CenteredFocused,
-        }
-        .from_user_context_menu(),
-    );
-}
-
 #[cfg(feature = "gui")]
 fn handler_to_summary(h: &FileHandler, last_used_at: Option<i64>) -> PickerHandlerSummary {
     // 번역이 없으면 키 자체 대신 짧은 ID 표시를 사용하도록 None을 반환한다.
@@ -784,61 +748,6 @@ mod tests {
             vec!["host/md", "com.example.x/open", "host/html"]
         );
         assert_eq!(ids(&cand_rows), vec!["host/system"]);
-    }
-
-    /// 최근 목록을 채워도 원격 경로 picker에 로컬 핸들러가 나타나지 않아야 한다.
-    #[cfg(feature = "gui")]
-    #[test]
-    fn remote_placeholder_picker_carries_no_recent_even_when_recent_is_populated() {
-        let (mut state, mut engine_session) = crate::state::tests::test_state();
-        let mut engine = engine_session.borrow_mut();
-        let any = engine
-            .runtime
-            .file_handler
-            .all_handlers()
-            .into_iter()
-            .next()
-            .expect("host default handlers exist");
-        state.file_handler_recent.record(&any.id);
-
-        open_picker(
-            &mut state,
-            &mut engine,
-            file("/remote/a.md"),
-            None,
-            Vec::new(),
-            false,
-            crate::file::dispatch::FileDispatchPolicy {
-                dispatch_origin: FileDispatchOrigin::Agent,
-                ignore_size_limit: false,
-                run: None,
-            },
-        );
-        assert!(
-            !state
-                .dialogs
-                .file_handler_picker
-                .as_ref()
-                .unwrap()
-                .recent
-                .is_empty()
-        );
-        assert!(
-            state
-                .dialogs
-                .file_handler_picker
-                .as_ref()
-                .unwrap()
-                .remote_host
-                .is_none()
-        );
-
-        open_remote_placeholder_picker(&mut state, FileTarget::new("/remote/a.md"), "gx10".into());
-        let picker = state.dialogs.file_handler_picker.as_ref().unwrap();
-        assert!(picker.recent.is_empty());
-        assert!(picker.candidates.is_empty());
-        // 원격 경로 picker 만 머리에 호스트를 싣는다. 로컬 대상 picker 는 None 이다.
-        assert_eq!(picker.remote_host.as_deref(), Some("gx10"));
     }
 
     #[cfg(windows)]

@@ -113,8 +113,8 @@ docs/features/remote-attach/index.md에 따라 mirror explorer 의 파일 변경
 mirror explorer 에서 파일을 더블클릭하면 원격 호스트에 그 파일의 탭을 만든다.
 
 - 식별은 파일 이름만 본다(`DetectDepth::Name` — 확장자·path glob). client 에 같은 경로의 파일·디렉터리가 있어도 읽지 않는다.
-- 매칭 핸들러 중 `open_surface` 이면서 client 가 그 kind 의 콘텐츠를 mirror 하는 것(현재 markdown, 허용된 egui-mesh kind)만 실행한다. 1순위가 그런 핸들러면 바로 열고, 아니면 그런 핸들러만 담은 핸들러 picker 를 띄운다. 선택한 핸들러의 `CreateTab` 은 원격 `StructuralOp::NewTab` 으로 forward 되고 사용자 origin 으로 표시돼 원격과 client 양쪽에서 새 탭이 선택된다.
-- 그런 핸들러가 하나도 없으면(`system`·`ipc` 핸들러뿐, html 처럼 placeholder 로 보이는 kind, 매칭 없음) picker 없이 `explorer.state.remote_open_unsupported` toast 로 안내한다.
+- 매칭 핸들러 중 `open_surface` 이면서 client 가 그 kind 의 콘텐츠를 mirror 하는 것(현재 markdown, 허용된 egui-mesh kind, 그 연결이 HTML entry viewer 를 협상했을 때의 html)만 실행한다. 1순위가 그런 핸들러면 바로 열고, 아니면 그런 핸들러만 담은 핸들러 picker 를 띄운다. 선택한 핸들러의 `CreateTab` 은 원격 `StructuralOp::NewTab` 으로 forward 되고 사용자 origin 으로 표시돼 원격과 client 양쪽에서 새 탭이 선택된다.
+- 그런 핸들러가 하나도 없으면(`system`·`ipc` 핸들러뿐, viewer 를 협상하지 않은 연결의 html 처럼 placeholder 로 보이는 kind, 매칭 없음) picker 없이 `explorer.state.remote_open_unsupported` toast 로 안내한다.
 - 원격 경로는 로컬 최근 목록에 기록하지 않는다. 규칙 전체는 [파일 핸들러](../../features/file-handler/index.md) 의 원격 대상 절을 따른다.
 
 ## 화면

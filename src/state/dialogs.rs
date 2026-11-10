@@ -21,7 +21,7 @@ pub struct TerminalLinkMenu {
     /// "연결 동작" 이 picker 에 넘길 대상. `None` 이면 항목을 노출하지 않는다
     /// (mailto 등 핸들러로 열 곳이 없는 scheme).
     pub(crate) open_with: Option<crate::file::dispatch::DispatchTarget>,
-    /// 원격(mirror) surface 의 경로 링크 — 로컬 핸들러로 열 수 없어 빈 picker 만 띄운다.
+    /// 원격(mirror) surface 의 경로 링크 — 원격에 열 수 있는 핸들러만 picker 에 싣는다.
     pub(crate) remote_path: bool,
 }
 

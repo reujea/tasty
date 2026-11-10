@@ -775,27 +775,14 @@ impl MainView {
                 && !engine.terminals.has_pty(hovered.surface_id);
             match crate::file_dispatch::parse_link(&hovered.uri) {
                 crate::file_dispatch::LinkKind::FileTarget(path) => {
-                    if is_mirror {
-                        // 원격 경로: 로컬 핸들러 lookup/identify 를 타지 않고 빈
-                        // picker(placeholder)만 띄운다 — 후보도 recent 도 없다.
-                        crate::file::dispatch::open_remote_placeholder_picker(
-                            &mut self.state,
+                    // mirror의 경로는 원격 경로라 mirror origin으로 원격 열기 판정을 탄다.
+                    self.state.dispatch_intent(
+                        crate::file::dispatch::remote::terminal_link_file_intent(
                             crate::file::format::FileTarget::new(path),
-                            super::link_menu::remote_host_text(engine, hovered.surface_id),
-                        );
-                    } else {
-                        self.state.dispatch_intent(
-                            crate::app::command::DomainIntent::DispatchFile {
-                                target: crate::file::format::FileTarget::new(path),
-                                depth: crate::file::format::DetectDepth::Deep,
-                                origin_surface_id: None,
-                                dispatch_origin: crate::file::dispatch::FileDispatchOrigin::User,
-                                ignore_size_limit: false,
-                                run: None,
-                            }
-                            .from_user_menu("terminal_link_click"),
-                        );
-                    }
+                            hovered.surface_id,
+                            is_mirror,
+                        ),
+                    );
                 }
                 crate::file_dispatch::LinkKind::External(uri) => {
                     // 외부 URL(http:// 등)은 mirror 여부와 무관하게 기존대로 처리.

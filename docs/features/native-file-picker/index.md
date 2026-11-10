@@ -42,8 +42,9 @@ surface 가 없으면 그 workspace 에서 이 창이 선택한 surface(없으�
   없으면 활성 workspace 다.
 - **탭 스트립 빈 곳 메뉴의 새 HTML...**(`src/adapters/ui/new_tab_picker.rs::open`): 메뉴를 연 pane 의
   선택 탭 cwd 에서 로컬로 출발하고, 필터는 `html`·`htm`·`svg` 다. 메뉴를 연 pane 이 mirror workspace 에
-  속하면 피커를 열지 않고 `explorer.state.remote_open_unsupported` 토스트만 띄운다. html 은 mirror 에서
-  내용이 보이지 않아(원격 파일 열기가 같은 kind 의 핸들러를 거절하는 [원격 attach (Remote attach)](../remote-attach/index.md)와
+  속하고 그 연결이 HTML entry viewer 를 협상하지 않았거나 client 의 html kind 를 `com.tasty.html` 이 등록하지
+  않았으면 피커를 열지 않고 `explorer.state.remote_open_unsupported` 토스트만 띄운다. 그 상태의 html 은 mirror 에서
+  내용이 보이지 않아(원격 파일 열기가 같은 조건에서 html 핸들러를 거절하는 [원격 attach (Remote attach)](../remote-attach/index.md)와
   같은 이유) 원격에 탭을 만들어도 사용자가 볼 수 없기 때문이다.
 - **plugin `file_picker.trigger`**: 아래 "시작 위치" 절의 `origin_surface_id`, 없거나 찾지 못하면 활성
   workspace 다.

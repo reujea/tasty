@@ -132,7 +132,7 @@ mirror하는 kind만 원격 새 탭으로 forward한다. 1순위 핸들러가 �
 핸들러만 담은 핸들러 picker를 띄운다. 사용자 origin이라 원격과 client 모두 새 탭을
 선택한다. 원격에 그 kind가 없어 실패하면 아래 실패 회신 규칙대로 toast가 뜬다. 그 밖의 형식은
 `explorer.state.remote_open_unsupported` 안내로 끝난다([파일 핸들러](../file-handler/index.md)).
-터미널 링크와 파일 선택 창의 원격 경로는 아직 이 경로를 쓰지 않는다.
+mirror 터미널의 파일 경로 링크를 수식키로 클릭해도 같은 판정을 거친다. 링크 우클릭의 "연결 동작"은 자동 실행 없이 원격에 열 수 있는 핸들러만 담은 picker를 열고, 그런 핸들러가 없으면 같은 안내로 끝난다. 파일 선택 창의 원격 경로는 이 경로를 쓰지 않는다.
 headless 서버도 같다. attach 요청이 오면 서버가 plugin을 시작해 markdown kind를 등록하고,
 그 뒤의 더블클릭은 서버에 markdown 탭을 만들어 client가 원문을 받는다. 등록이 끝나기 전에 도착한
 요청은 원격에 kind가 없는 경우와 같이 아래 실패 회신 규칙을 따른다.

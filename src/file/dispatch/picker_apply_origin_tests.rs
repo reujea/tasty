@@ -398,7 +398,7 @@ fn a_user_origin_requests_activation_in_the_original_pane() {
 }
 
 #[test]
-fn user_dispatch_and_remote_placeholder_open_the_picker_as_user_requests() {
+fn user_dispatch_opens_the_picker_as_a_user_request() {
     let (mut core, _) = build_test_core();
     let (mut state, mut engine_session) = fixture();
     let mut engine = engine_session.borrow_mut();
@@ -418,13 +418,6 @@ fn user_dispatch_and_remote_placeholder_open_the_picker_as_user_requests() {
             ignore_size_limit: false,
             run: None,
         },
-    );
-    take_picker_open_request(&mut state, false);
-
-    crate::file::dispatch::open_remote_placeholder_picker(
-        &mut state,
-        FileTarget::new("/remote/a.md"),
-        "gx10".into(),
     );
     take_picker_open_request(&mut state, false);
 }

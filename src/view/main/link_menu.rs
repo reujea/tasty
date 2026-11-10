@@ -154,7 +154,7 @@ impl MainView {
     }
 
     /// 자동 실행이나 detector 조회 없이 전체 핸들러 선택창을 연다.
-    /// 원격 경로에는 후보와 최근 사용 목록을 표시하지 않는다.
+    /// 원격 경로에는 원격에 열 수 있는 핸들러만 표시한다.
     fn open_link_handler_picker(
         &mut self,
         engine: &crate::runtime::engine_read::EngineRead<'_>,
@@ -165,8 +165,12 @@ impl MainView {
         };
         match target {
             crate::file::dispatch::DispatchTarget::File(file) if link.remote_path => {
-                let host = remote_host_text(engine, link.surface_id);
-                crate::file::dispatch::open_remote_placeholder_picker(&mut self.state, file, host);
+                crate::file::dispatch::remote::open_remote_link_picker(
+                    &mut self.state,
+                    engine,
+                    file,
+                    link.surface_id,
+                );
             }
             target => {
                 let all = engine.file_handler.all_handlers();
