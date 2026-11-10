@@ -8,8 +8,8 @@
 
 ## 실행 폴더
 
-- 실행 폴더는 Tasty 프로세스가 시작될 때 OS가 준 현재 작업 폴더다. `boot::run`의 첫 문장(`init_from_process`)에서 한 번 읽어 고정하고, 프로세스가 끝날 때까지 바꾸지 않는다. 심볼릭 링크는 풀지 않는다.
-- `~`가 가리키는 OS 홈도 같은 시점에 한 번 읽어 고정한다. 실행 중 `HOME`이 바뀌어도 결과는 같다.
+- 실행 폴더는 Tasty 프로세스가 시작될 때 OS가 준 현재 작업 폴더다. `boot::run`의 첫 문장(`init_from_process`)에서 한 번 읽어 고정하고, 프로세스가 끝날 때까지 바꾸지 않는다. OS가 준 경로를 바이트 그대로 두고 Tasty가 더 풀지 않는다. macOS·Linux의 `getcwd`는 커널이 준 물리 경로라 심볼릭 링크가 이미 풀려 있다. 그래서 `cd ~/link && tasty`의 실행 폴더는 링크 대상 경로이고, `../x`는 셸의 논리 `$PWD` 기준과 다를 수 있다.
+- `~`가 가리키는 OS 홈도 같은 시점에 한 번 읽어 고정한다. 실행 중 `HOME`이 바뀌어도 결과는 같다. 고정한 홈이 상대 경로(`HOME=relhome`)면 홈을 모르는 것과 같이 다룬다.
 - 시작 폴더를 읽지 못하면(지워진 폴더에서 실행 등) "없음"으로 고정하고 경고 로그를 한 줄 남긴다. 상대 입력은 매번 같은 오류(`LaunchDirUnavailable`)가 된다. 홈이나 `/` 같은 다른 폴더로 대신하지 않는다. 절대 입력과 `~`는 영향이 없다.
 - 실행 방법에 따라 실행 폴더가 다르다. 터미널에서 실행하면 명령을 친 폴더, Linux GNOME 실행기에서는 실행기의 폴더(관측값 홈), Windows 시작 메뉴 바로 가기는 설치 폴더(`wix/main.wxs`의 `WorkingDirectory`)다.
 - GUI 호스트는 로그 파일을 연 직후 고정한 값을 `launch dir: <경로>`(info) 한 줄로 남긴다. 읽지 못했으면 `launch dir unavailable: <원인>`(warn)이다. release 로그 파일은 warn 이상만 남기므로 info 줄은 debug 빌드 로그 파일과 `TASTY_LOG=info` stderr에서 볼 수 있다.
@@ -23,7 +23,7 @@
 | `""` | `Empty` 오류 |
 | NUL 포함 | `Invalid` 오류 |
 | `scheme://…`(scheme 두 글자 이상, `file://` 포함) | `NotLocalPath` 오류. 원격·URL은 호출자가 먼저 가른다 |
-| `~`, `~/x`(Windows는 `~\x`도) | 고정한 홈 기준. 홈을 모르면 `HomeUnavailable` 오류 |
+| `~`, `~/x`(Windows는 `~\x`도) | 고정한 홈 기준. `~` 뒤의 구분자는 여럿이어도 모두 벗겨 홈 아래로 붙인다(`~//bin` → `<홈>/bin`). 홈을 모르거나 상대 경로면 `HomeUnavailable` 오류 |
 | `~user`, `~x` | 일반 상대 이름(실행 폴더 기준) |
 | 절대 경로 | 그대로 |
 | 상대 경로(`./x`, `../y/x`, `rel/x`, `a.md`, `.`, `..`) | 실행 폴더 기준 |
@@ -41,9 +41,17 @@
 - 구분자가 없으면 이름으로 보고 PATH에서 찾는다(`Search`). 구분자가 있으면 `resolve_path`와 같은 규칙으로 실행 폴더 기준 절대 경로다(`Path`). `/`는 모든 OS의 구분자다. Windows는 `\`와 드라이브 접두(`C:`)도 구분자로 본다. macOS·Linux의 `\`는 파일 이름 문자라 `a\b`는 이름이다.
 - `~`, `~/…`, `.`, `..`는 구분자가 없어도 폴더를 뜻하므로 경로다. `~name`은 이름이다.
 - `locate_command_in`은 `Path`면 그대로, `Search`면 넘겨받은 PATH를 앞에서부터 보고 첫 실행 파일의 절대 경로를 돌려준다. 디렉터리와 실행 권한 없는 파일(macOS·Linux는 `access(X_OK)`)은 건너뛴다. 없으면 `NotFoundInPath`이며 실행 폴더의 같은 이름 파일로 대신하지 않는다.
-- PATH의 상대 항목과 빈 항목은 실행 폴더 기준이다. POSIX `execvp`는 자식의 작업 폴더 기준으로 보지만, 그러면 같은 설정이 터미널마다 다른 파일을 가리키고 터미널이 없는 판정(설정 창, 부팅)과 기준이 갈린다.
-- Windows는 이름에 확장자가 없으면 `.exe`·`.cmd`·`.bat`·`.com`을 차례로 붙여 찾는다.
+- PATH의 상대 항목과 빈 항목은 실행 폴더 기준이다. POSIX `execvp`는 자식의 작업 폴더 기준으로 보지만, 그러면 같은 설정이 터미널마다 다른 파일을 가리키고 터미널이 없는 판정(설정 창, 부팅)과 기준이 갈린다. Windows의 드라이브 상대(`C:tools`)·루트 상대(`\tools`) PATH 항목은 명령 입력과 같은 이유로 건너뛴다. 찾은 결과는 언제나 절대 경로다.
+- Windows는 PATH 폴더마다 portable-pty 0.9의 `search_path`와 같은 순서로 본다. 적은 이름 그대로를 먼저 보고, 그다음 `PATHEXT`의 확장자 순서(변수가 없으면 `.EXE`)로 이름의 확장자를 바꿔 본다. 판정이 고른 파일과 spawn이 고를 파일이 같다.
 - 판정하는 곳과 실행하는 곳은 PATH 탐색 결과 하나를 함께 쓴다. 찾은 절대 경로를 실행에 넘기면 portable-pty가 PATH를 다시 찾지 않는다. 터미널 셸은 자식이 받을 PATH를 `tasty_utils::process::shell_child_path` 하나로 만들어 판정과 spawn이 같은 PATH로 찾는다([터미널 셸](../surfaces/terminal/index.md#pty-셸)).
+
+### 셸에 적용하는 범위
+
+이 규칙으로 판정과 실행을 맞추는 값은 사용자 셸 설정(`general.shell`)이다. 아래 셸 경로는 아직 이 유틸을 거치지 않는다.
+
+- 대체 셸 탐지(`GeneralSettings::detect_bash`)의 `/etc/passwd` 로그인 셸과 `$SHELL` 후보는 그대로 쓴다. 상대 `$SHELL`이면 프로세스 cwd 기준으로 존재를 판정한다.
+- 셸 설정이 비었고 대체 셸도 찾지 못하면 macOS·Linux의 PTY가 `$SHELL`(없으면 `/bin/sh`)을 그대로 넘긴다(`default_shell`).
+- 설정값을 해석하지 못했고(PATH에 없는 이름, 실행 폴더가 없는 상대 값 등) 대신할 셸도 없으면 설정 문자열을 그대로 넘기고, portable-pty가 자기 규칙으로 다시 찾는다.
 
 ## Windows
 

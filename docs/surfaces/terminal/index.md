@@ -18,7 +18,7 @@ ConPTY(Windows) / Unix PTY 로 네이티브 셸 실행(`TERM=xterm-256color`).
 
 **실행할 셸**: 설정 셸의 판정은 `tasty_settings::ShellPathStatus` 하나다. 런타임 대체(`GeneralSettings::runtime_shell`), 부팅 판정, 설정 창 터미널 탭 경고, 첫 실행 셸 설정 화면이 모두 이 판정을 쓰므로 같은 경로에 같은 결론을 낸다.
 
-- 설정값은 [경로 해석](../../concepts/path-resolution.md)의 실행 명령 규칙으로 먼저 절대 경로 하나로 푼다(`tasty_settings::ResolvedShell`). 이름만 쓴 값(`zsh`)은 자식 셸이 받을 PATH(`tasty_utils::process::shell_child_path`)에서 찾고, 구분자가 있는 상대 값(`./sh`, `../x/sh`, `rel/sh`)은 Tasty를 실행한 폴더 기준이다. 판정은 그 절대 경로로 하고, 대신하지 않으면 spawn도 같은 절대 경로를 실행한다. 그래서 터미널 작업 폴더나 탭과 관계없이 판정한 파일과 실행한 파일이 같다. 설정값과 `config.toml`은 바꾸지 않는다.
+- 설정값은 [경로 해석](../../concepts/path-resolution.md)의 실행 명령 규칙으로 먼저 절대 경로 하나로 푼다(`tasty_settings::ResolvedShell`). 이름만 쓴 값(`zsh`)은 자식 셸이 받을 PATH(`tasty_utils::process::shell_child_path`)에서 찾고, 구분자가 있는 상대 값(`./sh`, `../x/sh`, `rel/sh`)은 Tasty를 실행한 폴더 기준이다. 판정은 그 절대 경로로 하고, 대신하지 않으면 spawn도 같은 절대 경로를 실행한다. 그래서 셸 설정 값은 터미널 작업 폴더나 탭과 관계없이 판정한 파일과 실행한 파일이 같다. 대체 셸 탐지의 `$SHELL`, 빈 설정의 PTY 기본 셸, 해석하지 못한 값을 대신할 셸도 없을 때는 이 해석을 거치지 않는다([셸에 적용하는 범위](../../concepts/path-resolution.md#셸에-적용하는-범위)). 설정값과 `config.toml`은 바꾸지 않는다.
 
 - macOS·Linux 는 셸 이름을 보지 않는다. 실행할 수 있는 파일이면 fish·dash 처럼 bash·zsh 가 아닌 셸도 쓴다. 실행 가능 여부는 portable-pty 가 실행 전에 쓰는 것과 같은 `access(X_OK)` 로 본다.
 - Windows 는 Git Bash 만 쓴다. 파일 이름이 `bash.exe` 이고 `<루트>\bin` 또는 `<루트>\usr\bin` 에 있으며 그 루트에 `cmd\git.exe` 와 `usr\bin\msys-2.0.dll` 이 있어야 한다(`tasty_utils::shell_family::is_git_for_windows_bash`). 루트의 위치는 보지 않으므로 다른 곳에 설치했거나 Portable 이어도 쓴다. zsh·cmd·PowerShell·pwsh·nu, `git-bash.exe`, MSYS2 bash, `System32\bash.exe`(WSL), 복사한 파일은 쓰지 않는다. `git-bash.exe` 는 셸 연동을 받지 못한다. `usr\bin\bash.exe` 는 쓸 수 있지만 `MSYSTEM` 이 `MSYS` 여서 Windows PATH 에 Git 이 없으면 그 셸에서 `git` 을 찾지 못한다.
