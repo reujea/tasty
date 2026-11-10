@@ -15,15 +15,16 @@ publish = false
 # cargo build --release --manifest-path crates/tasty-plugin-sdk-wasm/Cargo.toml
 
 [dependencies]
-# 실험에 사용한 wasmtime 버전을 고정한다. 정식 지원은 보류 상태다.
+# wasmtime은 보안 수정이 백포트되는 36.x 줄을 쓴다(35.x 줄에는 고친 판이 없다).
+# 정식 지원은 보류 상태다.
 # 현재 정책: docs/dev-guide/plugin-packaging.md#정책-현행.
-wasmtime = { version = "35", default-features = false, features = [
+wasmtime = { version = "36", default-features = false, features = [
     "runtime",
     "cranelift",
     "component-model",
     "cache",
 ] }
-wasmtime-wasi = "35"
+wasmtime-wasi = "36"
 anyhow = "1"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
