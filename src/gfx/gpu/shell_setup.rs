@@ -193,13 +193,19 @@ mod windows_tests {
     use super::*;
 
     /// 첫 실행 화면은 설정 판정과 같은 결론을 낸다. 허용하지 않는 값은 확정할 수 없다.
+    /// 이름만 쓴 값은 PATH에서 찾으므로 `cmd.exe`는 System32의 파일이 되어 Git Bash가 아니다.
     #[test]
     fn the_setup_check_rejects_what_the_settings_judgement_rejects() {
         let dir = tempfile::tempdir().expect("tempdir");
         let cmd = dir.path().join("cmd.exe");
         std::fs::write(&cmd, "").expect("write fixture");
+        let absent = dir.path().join("absent").join("bash.exe");
         assert_eq!(shell_check(""), ShellSetupCheck::Empty);
-        assert_eq!(shell_check("cmd.exe"), ShellSetupCheck::Missing);
+        assert_eq!(shell_check("cmd.exe"), ShellSetupCheck::NotShell);
+        assert_eq!(
+            shell_check(&absent.to_string_lossy()),
+            ShellSetupCheck::Missing
+        );
         assert_eq!(
             shell_check(&cmd.to_string_lossy()),
             ShellSetupCheck::NotShell
