@@ -17,8 +17,14 @@
 
 ## [Unreleased]
 
+### Added
+
+- **원격 연결 팝업에서 붙인 workspace가 저장된 원격 행으로 남는다.** 이름·설명·카테고리·위치와 연결 대상(attach 프로필, 원격 workspace id)을 저장하고 재시작 뒤 같은 자리에 돌아와 선택되면 연결한다. 연결이 끊기면 형상을 남긴 채 설정 `[remote_attach] reconnect_timeout_secs`(설정 창 `Keep reconnecting for`, 기본 300초, 0~3600) 동안 다시 연결하고, 그 뒤에는 연결 끊김 행으로 남아 다시 열 때 연결한다. 에이전트가 IPC로 붙인 mirror는 저장하지 않는다.
+- **`workspace.list` 응답에 `remote_row`(`profile`·`remote_workspace`, 저장된 원격 행이 아니면 `null`)가 실린다.**
+
 ### Changed
 
+- **(BREAK) `remote.refusals` 항목의 `anchor_workspace`가 `row_workspace`(저장된 원격 행의 로컬 workspace)로 바뀐다.** 안내 `notices`의 `kind`에 `remote_workspace_missing`·`occupied`·`mirror_workspace`가 더해진다.
 - **macOS·Linux 터미널 셸의 `SHELL`이 바뀐다.** 셸은 Tasty가 받은 `SHELL`을 그대로 받는다. 전에는 항상 계정의 로그인 셸로 덮었고, 지금은 Tasty를 띄운 환경에 `SHELL`이 없을 때만 그 값을 넣는다. 실행 권한이 없는 셸의 오류 문구는 `because it is not executable`이다.
 - **셸 설정 값을 판정한 파일 그대로 실행한다.** 셸 설정(`general.shell`)은 한 번 절대 경로로 풀어 판정하고 같은 파일을 실행한다. 규칙은 [경로 해석](docs/concepts/path-resolution.md)에 있다.
   - 상대 경로(`./sh`, `../x/sh`, `rel/sh`)는 터미널 작업 디렉터리와 관계없이 Tasty를 실행한 폴더 기준이다. 이름만 쓴 값(`zsh`)은 `PATH`에서 찾은 파일로 판정하고 실행하며, Tasty를 실행한 폴더의 같은 이름 파일은 보지 않는다. `PATH`의 상대 항목도 Tasty를 실행한 폴더 기준이다.
@@ -34,6 +40,7 @@
 
 ### Removed
 
+- **workspace의 원격 attach 매핑이 없어진다.** `tasty new workspace`·`tasty set workspace`의 `--ssh-profile`·`--ssh`·`--remote-workspace`, `set workspace --clear-mapping`, IPC `workspace.create`·`workspace.update`의 `attach_profile`·`attach_ssh`·`attach_remote_workspace`·`attach_clear`, `workspace.list`의 `attach_mapping`, 배너의 매핑 지우기 동작이 함께 없어진다. 원격 workspace를 기억하려면 원격 연결 팝업에서 붙인다. 저장된 옛 매핑은 읽고 버린다.
 - **Windows의 셸 모드와 설정 › Misc › Tastyrc가 없어진다.** Windows Git Bash도 다른 OS처럼 빌트인 통합(OSC 7, OSC 133, PATH, LANG)과 사용자 `~/.bashrc`를 읽는 `bashrc.default` 하나로 실행한다. 설정 키 `general.shell_mode`는 읽을 때 무시하고 저장할 때 남기지 않는다. Tasty는 `bashrc`·`bashrc.user`를 만들거나 읽지 않는다. 설정 창의 셸 모드 행, Tastyrc 편집 화면, 저장 실패 토스트, `tasty debug settings open --subtab tastyrc`도 함께 없어진다.
 
 ## [0.14.0] - 2026-11-10
