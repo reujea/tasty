@@ -165,14 +165,24 @@ fn a_web_page_reads_the_page_copy_and_never_the_remote_body() {
         )
     );
     assert_eq!(
-        remote_copy(true),
+        remote_copy(true, true),
         (
             "banner.html_remote.title_web",
             "banner.html_remote.body_web"
         )
     );
     assert_eq!(
-        remote_copy(false),
-        ("banner.html_remote.title", "banner.html_remote.body")
+        remote_copy(true, false),
+        (
+            "banner.html_remote.title_web",
+            "banner.html_remote.body_web_sandbox_off"
+        ),
+        "without the sandbox there is no script notice to promise"
     );
+    for sandbox in [true, false] {
+        assert_eq!(
+            remote_copy(false, sandbox),
+            ("banner.html_remote.title", "banner.html_remote.body")
+        );
+    }
 }

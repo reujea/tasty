@@ -224,11 +224,17 @@ fn script_copy(web: bool, remote_body: bool) -> (&'static str, &'static str, &'s
 }
 
 /// 원격 안내의 제목·본문 문구 키. 버튼과 재로드 문구는 로컬 문서와 공유한다.
-fn remote_copy(web: bool) -> (&'static str, &'static str) {
+/// sandbox가 꺼진 페이지는 스크립트 안내가 없으므로 네트워크 스크립트를 차단 목록에 넣은 본문을 쓴다.
+/// 매 프레임 스냅샷 값으로 고르므로 안내가 떠 있는 동안 설정이 바뀌면 다음 프레임에 바뀐다.
+fn remote_copy(web: bool, sandbox: bool) -> (&'static str, &'static str) {
     if web {
         (
             "banner.html_remote.title_web",
-            "banner.html_remote.body_web",
+            if sandbox {
+                "banner.html_remote.body_web"
+            } else {
+                "banner.html_remote.body_web_sandbox_off"
+            },
         )
     } else {
         ("banner.html_remote.title", "banner.html_remote.body")
@@ -294,9 +300,10 @@ fn draw_one(
             )
         }
         Notice::Remote => {
+            let (title, body) = remote_copy(snapshot.web, snapshot.sandbox);
             let view = HtmlRemoteBannerView {
-                title: t(remote_copy(snapshot.web).0),
-                body: t(remote_copy(snapshot.web).1),
+                title: t(title),
+                body: t(body),
                 action: t("banner.html_remote.action"),
                 reloading: t("banner.html_remote.reloading"),
                 loading_tooltip: t("banner.html_remote.action_loading"),

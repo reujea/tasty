@@ -34,6 +34,8 @@ pub(crate) struct HtmlSnapshot {
     pub(crate) remote_body: bool,
     /// 화면 문서가 로컬 view에 연 `http(s)` 페이지다. 두 안내와 allowed 표지 툴팁이 페이지 문구를 쓴다.
     pub(crate) web: bool,
+    /// 전역 script sandbox. 꺼져 있으면 페이지의 원격 안내 본문이 네트워크 스크립트를 목록에 넣는다.
+    pub(crate) sandbox: bool,
     pub(crate) marker: Option<ScriptMarker>,
     /// 원격 콘텐츠 안내 단계.
     pub(crate) remote_phase: BannerPhase,
@@ -57,6 +59,7 @@ pub(crate) fn snapshot(remote: &RemoteSurface, target: SurfaceBinding) -> HtmlSn
         phase: state.banner_phase(),
         remote_body: state.script_banner_needs_remote_body(),
         web: state.current_is_web_page(),
+        sandbox: state.sandbox(),
         marker: state.marker(),
         remote_phase: state.remote_banner_phase(),
         remote_marker: state.remote_marker(),
