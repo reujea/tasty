@@ -201,17 +201,31 @@ impl AttachReaderEnd {
     /// 끊김을 알리고 원인을 남긴다. 이미 끊김을 알렸다면 이 소켓은 이쪽(정리·쓰기 실패)이
     /// 닫은 것이라 원격 원인이 아니므로 debug로만 남긴다.
     fn report(&self, error: &anyhow::Error, disconnected: &AtomicBool) {
+        match self.outcome(error, disconnected) {
+            (true, message) => tracing::warn!("{message}"),
+            (false, message) => tracing::debug!("{message}"),
+        }
+    }
+
+    /// `disconnected`를 세우고, 경고로 남길지와 문구를 돌려준다.
+    fn outcome(&self, error: &anyhow::Error, disconnected: &AtomicBool) -> (bool, String) {
         let cause = stream::ReadFailure::of_error(error);
         let workspace = self.remote_workspace;
         if disconnected.swap(true, Ordering::SeqCst) {
-            tracing::debug!(
-                "attach reader thread: remote workspace {workspace} 이미 끝난 연결의 수신 종료({cause:?}): {error}"
-            );
+            (
+                false,
+                format!(
+                    "attach reader thread: remote workspace {workspace} 이미 끝난 연결의 수신 종료({cause:?}): {error}"
+                ),
+            )
         } else {
-            tracing::warn!(
-                "attach reader thread: remote workspace {workspace} 연결 종료를 알린다. 원인 {}: {error}",
-                cause.describe(self.heartbeat_timeout)
-            );
+            (
+                true,
+                format!(
+                    "attach reader thread: remote workspace {workspace} 연결 종료를 알린다. 원인 {}: {error}",
+                    cause.describe(self.heartbeat_timeout)
+                ),
+            )
         }
     }
 }

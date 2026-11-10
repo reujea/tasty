@@ -273,3 +273,34 @@ fn a_peer_that_closes_the_socket_reads_as_a_peer_close() {
         "{error}"
     );
 }
+
+fn reader_end() -> AttachReaderEnd {
+    AttachReaderEnd {
+        remote_workspace: 513,
+        heartbeat_timeout: Duration::from_secs(45),
+    }
+}
+
+/// 이쪽이 먼저 끊김을 알린(정리·쓰기 실패) 뒤의 수신 오류는 원격 원인이 아니라 경고하지 않는다.
+#[test]
+fn a_read_error_after_our_own_disconnect_is_not_a_warning() {
+    let disconnected = AtomicBool::new(true);
+    let eof = anyhow::Error::from(std::io::Error::from(std::io::ErrorKind::UnexpectedEof));
+    let (warn, message) = reader_end().outcome(&eof, &disconnected);
+    assert!(!warn, "{message}");
+    assert!(message.contains("PeerClosed"), "{message}");
+    assert!(disconnected.load(Ordering::SeqCst));
+}
+
+/// 처음 끊김을 알리는 수신 오류는 원인과 실제로 건 timeout을 경고로 남기고 끊김을 세운다.
+#[test]
+fn the_first_read_error_warns_with_its_cause_and_raises_the_disconnect() {
+    let disconnected = AtomicBool::new(false);
+    let timeout = anyhow::Error::from(std::io::Error::from(std::io::ErrorKind::WouldBlock));
+    let (warn, message) = reader_end().outcome(&timeout, &disconnected);
+    assert!(warn, "{message}");
+    for part in ["remote workspace 513", "45초"] {
+        assert!(message.contains(part), "{part} in {message}");
+    }
+    assert!(disconnected.load(Ordering::SeqCst));
+}
