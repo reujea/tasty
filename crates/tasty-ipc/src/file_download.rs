@@ -54,8 +54,10 @@ pub struct FileIdentity {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub modified_ns: Option<u64>,
     /// 생성 시각(UNIX 시각 이후 나노초). Unix (device, inode)가 없는 OS(Windows)에서도 같은 크기·수정 시각의
-    /// 다른 파일로 바뀐 것을 알아본다. OS·파일시스템이 주지 않으면 비운다. 이 필드가 없는 상대와도
-    /// 호환된다(없으면 비교 값이 둘 다 비어 같다).
+    /// 다른 파일로 바뀐 것을 알아본다. OS·파일시스템이 주지 않으면 비운다. 이 필드를 보내지 않는 서버와는
+    /// client 가 받은 값(빈 값)을 그대로 돌려주므로 양쪽 모두 비어 같게 비교된다. 서버는 구조체 전체를
+    /// 비교하므로 이 필드를 모르는 client 는 생성 시각을 얻는 파일마다 `changed` 로 거절된다. 그런 client 는
+    /// 없다: 이 필드는 [`CAPABILITY`] 와 함께 들어왔다.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub created_ns: Option<u64>,
     /// Unix 의 (device, inode). 같은 경로에 다른 파일이 들어오면 바뀐다.
