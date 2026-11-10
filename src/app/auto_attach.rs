@@ -53,17 +53,11 @@ fn reconnect_window_elapsed(
     now.saturating_duration_since(slot.started) >= window
 }
 
-/// 사용자 대기 갈래 L4(권고 a): 아직 붙지 않은 저장된 원격 행이 보이게 되면 연결한다. 재시작 뒤
-/// 복원된 활성 행, 창 포커스 전환, 이웃 행 선택도 여기 든다. b로 정해지면 `edge_now`(사용자가
-/// 그 행으로 옮긴 프레임)만 true를 돌려준다.
-fn visible_row_connects(_edge_now: bool) -> bool {
-    true
-}
-
-/// 사용자 대기 갈래 L1(권고 a): 이 실행 중 사용자가 연결을 끊은 행은 명시적인 연결 전까지 자동으로
-/// 붙지 않는다. b로 정해지면 다음에 그 행을 열 때(`edge_now`) 다시 붙는다.
-fn user_disconnect_holds(user_disconnected: bool, _edge_now: bool) -> bool {
-    user_disconnected
+/// 아직 붙지 않은 저장된 원격 행이 보일 때 첫 연결을 시작할지. 보이게 되면 바로 연결한다. 재시작 뒤
+/// 복원된 활성 행, 창 포커스 전환, 이웃 행 선택도 같다. 한 번 실패한 행(`failed`)은 사용자가 그 행으로
+/// 다시 옮긴 프레임(`edge_now`)에만 다시 시도하고, 원격 workspace 가 없다고 확인된 행은 시도하지 않는다.
+fn first_connect_due(failed: bool, edge_now: bool, closed_elsewhere: bool) -> bool {
+    (!failed || edge_now) && !closed_elsewhere
 }
 
 impl App {
@@ -161,8 +155,9 @@ impl App {
             return;
         }
         let edge_now = is_reactivation_edge(current_ws_id, prev_active);
-        let user_disconnected = self.remote.user_disconnected.contains(&row);
-        if user_disconnect_holds(user_disconnected, edge_now) {
+        // 사용자가 끊은 행은 다시 열어도 붙지 않는다. 연결 버튼·메뉴 같은 명시적
+        // 연결이 표지를 지운다.
+        if self.remote.user_disconnected.contains(&row) {
             return;
         }
         match self.row_session_phase(row) {
@@ -174,13 +169,8 @@ impl App {
                 }
             }
             None => {
-                // 실패한 행은 사용자가 다시 그 행으로 옮기거나 연결 버튼을 눌러야 다시 시도한다.
-                // 원격 workspace 가 없다고 확인된 행은 이번 실행에서 다시 시도하지 않는다.
-                let waiting = self.remote.pending_reactivation.contains(&row);
-                if visible_row_connects(edge_now)
-                    && (!waiting || edge_now)
-                    && !self.row_closed_elsewhere(row)
-                {
+                let failed = self.remote.pending_reactivation.contains(&row);
+                if first_connect_due(failed, edge_now, self.row_closed_elsewhere(row)) {
                     self.connect_saved_row(row, edge_now);
                 }
             }
@@ -189,20 +179,21 @@ impl App {
 
     /// 저장된 원격 행의 연결을 시작한다. 연결된 행이나 시도 중인 행은 그대로 둔다.
     /// 형상이 남은 끊긴 행은 새 재연결 구간을 시작하고, 아직 붙지 않은 행은 첫 연결을 한다.
-    /// 사용자의 명시적 연결(팝업·메뉴)도 이 함수를 쓰며 그때는 사용자가 끊은 표지를 먼저 지운다.
-    pub(crate) fn connect_saved_row(&mut self, row: u32, from_user: bool) {
-        self.connect_saved_row_with_run(row, from_user, None);
+    /// `explicit` 은 명시적 연결(팝업·메뉴의 연결, 사용자가 그 행으로 옮김)이다. 그때는
+    /// 사용자가 끊은 표지를 먼저 지우고, 재연결 중인 행은 새 재연결 구간을 시작한다.
+    pub(crate) fn connect_saved_row(&mut self, row: u32, explicit: bool) {
+        self.connect_saved_row_with_run(row, explicit, None);
     }
 
     /// `run`이 있으면 이 연결의 결과를 그 run에 남긴다(`remote.attach`가 기존 행에 합류할 때).
     pub(crate) fn connect_saved_row_with_run(
         &mut self,
         row: u32,
-        from_user: bool,
+        explicit: bool,
         run: Option<u64>,
     ) {
-        if from_user {
-            // 사용자가 다시 연결하면 앞서 끊은 뜻은 끝난다. 다음 단절은 자동 재연결과 시간 만료를 따른다.
+        if explicit {
+            // 명시적으로 다시 연결하면 앞서 끊은 뜻은 끝난다. 다음 단절은 자동 재연결과 시간 만료를 따른다.
             self.remote.user_disconnected.remove(&row);
         }
         if self.remote.active.contains(&row) {
@@ -223,9 +214,9 @@ impl App {
             Some(SessionState::Connected) => {
                 run.into_iter().for_each(crate::request_runs::forget);
             }
-            // 사용자의 명시적 연결만 새 재연결 구간을 시작한다. 요청은 지금 구간의 예약 시도에 합류해
+            // 명시적 연결만 새 재연결 구간을 시작한다. 요청은 지금 구간의 예약 시도에 합류해
             // 시간 창과 백오프를 그대로 둔다.
-            Some(SessionState::Reconnecting) if from_user => {
+            Some(SessionState::Reconnecting) if explicit => {
                 self.remote.reconnect.insert(row, ReconnectSlot::new());
                 self.trigger_reconnect_row(row, None, None, run);
             }
@@ -864,13 +855,15 @@ mod tests {
         ));
     }
 
-    /// 사용자 대기 갈래 L1·L4의 권고안: 보이는 행은 연결하고, 사용자가 끊은 행은 다시 열어도 붙지 않는다.
+    /// Given 아직 붙지 않은 저장 행, When 화면에 보이면, Then 옮겨 온 프레임이 아니어도 연결한다(L4).
+    /// 한 번 실패한 행은 사용자가 그 행으로 옮긴 프레임에만, 다른 곳에서 닫힌 행은 시도하지 않는다.
     #[test]
-    fn pending_user_decisions_follow_the_recommended_options() {
-        assert!(visible_row_connects(false));
-        assert!(visible_row_connects(true));
-        assert!(user_disconnect_holds(true, true));
-        assert!(!user_disconnect_holds(false, false));
+    fn a_visible_row_connects_and_a_failed_row_waits_for_the_user() {
+        assert!(first_connect_due(false, false, false));
+        assert!(first_connect_due(false, true, false));
+        assert!(!first_connect_due(true, false, false));
+        assert!(first_connect_due(true, true, false));
+        assert!(!first_connect_due(false, true, true));
     }
 
     #[test]

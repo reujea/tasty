@@ -357,7 +357,7 @@ move-surface 는 **source/target 이 같은 mirror workspace 안에 있을 때�
   - 다른 client 가 그 원격 workspace 를 점유 중이면(`already_attached`) 다시 시도해도 같으므로 재연결을 멈추고 `occupied` 안내를 남긴 채 행을 바로 **연결 끊김** 상태로 둔다(`on_reconnect_attempt_failed`). `remote_workspace_missing`·`mirror_workspace` 도 같다.
 - **재연결 시간 창**: 끊긴 뒤 설정 `[remote_attach] reconnect_timeout_secs`(설정 창 General › Remote attach 의 `Keep reconnecting for`, 기본 300초, 0~3600초, 범위를 벗어난 파일 값은 300으로 되돌린다)이 지나도 연결하지 못하면 재연결을 멈추고 행을 **연결 끊김** 상태로 바꾼다. toast 는 띄우지 않고 연결 팝업이 알린다. 0이면 끊기는 즉시 연결 끊김이 된다. 연결 끊김 행은 사용자가 다시 활성화하면 연결한다. 시간 창은 재연결 예약과 함께 연결 결과를 받기 전(`drain_auto_attach_results`)과 준비된 연결을 설치하기 전(`poll_pending_mirror_installs`)에도 확인한다(`end_expired_reconnect_windows`). 시간 창이 끝난 뒤 준비된 연결은 설치하지 않고 행을 연결 끊김으로 둔다.
 - **상태**: 행의 세션 상태는 `Connected` · `Reconnecting` · `Disconnected` 셋이다(`tasty_remote::client_session::SessionState`).
-- **사용자 대기 갈래**: 화면에 띄운 행은 바로 연결한다(`visible_row_connects`). 사용자가 끊은 행은 다시 활성화해도 연결하지 않고, 사용자가 팝업·메뉴·원격 연결 팝업으로 명시적으로 연결하면 그 표지를 지운다(`user_disconnect_holds`). 두 함수가 각 갈래의 유일한 분기다.
+- **보이면 연결, 사용자가 끊은 행은 명시적 연결로만**: 화면에 띄운 행은 바로 연결한다(`first_connect_due`). 사용자가 끊은 행은 다시 활성화해도 연결하지 않고, 팝업·메뉴·원격 연결 팝업의 연결처럼 명시적으로 연결하면 그 표지를 지운다.
 
 ### 저장된 원격 행의 표시
 

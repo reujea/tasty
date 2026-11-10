@@ -580,9 +580,8 @@ mirror workspace 는 즉시 걷히지 않는다 — 세션이 `SessionState::Rec
   세션 없는 저장된 원격 행이고 `Remote.active` 에 없으면 연결을 시작한다(`connect_saved_row` →
   `start_first_connect`). 다시 시작한 직후 복원된 활성 행도 같다. 첫 연결이 실패한 행은
   `pending_reactivation` 에 들어가 활성 workspace id 가 직전 프레임과 달라진 프레임(`is_reactivation_edge`,
-  직전 값은 `Remote.last_active_ws`)에서만 다시 시도한다. 사용자가 끊은 행(`Remote.user_disconnected`)은
-  `user_disconnect_holds` 가 참이면 시도하지 않는다. 사용자 대기 갈래 L1·L4 의 분기는 `user_disconnect_holds`·
-  `visible_row_connects` 두 함수에만 있다.
+  직전 값은 `Remote.last_active_ws`)에서만 다시 시도한다(`first_connect_due`). 사용자가 끊은
+  행(`Remote.user_disconnected`)은 시도하지 않는다. 그 표지는 명시적 연결(`connect_saved_row` 의 `explicit`)만 지운다.
   - **backoff 재연결과의 레이스 회피**: 행에 이미 세션이 있으면(`Connected`·`Reconnecting`) 이 경로는
     시도하지 않는다. `Disconnected` 세션은 엣지에서만 `connect_saved_row` 로 새 재연결 구간을 시작한다.
 - **backoff 재연결 트리거(`maybe_trigger_reconnect`)** — `Reconnecting` 상태인

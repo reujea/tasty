@@ -230,8 +230,8 @@ fn decide(facts: RowFacts) -> RowUse {
     if !facts.has_window {
         return RowUse::Refuse(refusal(row, "window_parked"));
     }
-    // 에이전트가 그 행을 쓰는 것도 그 행을 여는 것과 같이 본다(N2).
-    if super::user_disconnect_holds(facts.user_disconnected, true) {
+    // 사용자가 끊은 행은 쓰는 요청으로 다시 붙지 않는다. 명시적 연결만 붙인다.
+    if facts.user_disconnected {
         return RowUse::Refuse(refusal(row, "user_disconnected"));
     }
     if facts.waiting >= ROW_WAIT_CAP {
@@ -404,7 +404,7 @@ impl App {
             Some("remote_workspace_missing")
         } else if !self.row_has_window(row) {
             Some("window_parked")
-        } else if super::user_disconnect_holds(self.remote.user_disconnected.contains(&row), true) {
+        } else if self.remote.user_disconnected.contains(&row) {
             Some("user_disconnected")
         } else {
             None
