@@ -200,7 +200,7 @@ HostShortcutPolicy는 ShortcutSources의 host·page_reserved·plugin·address·r
 address(주소창 포커스 `explorer_focus_address`)는 bridge가 받은 주소 띠 surface 목록(mirror가 아닌 html)에서만 가져가고, markdown 같은 다른 WebView 페이지에는 남긴다.
 설정 field·quick-switch·사용자 script·활성 plugin의 effective binding 생성은 webview_claims가 맡는다.
 
-웹 화면에서 동작하는 host·plugin·새로고침 바인딩은 수식키 유무와 관계없이 가져간다(예: `rename_tab`의 `F2`). 바인딩에 없는 키와 웹 화면에서 동작하지 않는 동작의 키는 페이지 입력에 남긴다. 설정 캡처는 수식키 없는 글자 키를 받지 않지만 설정 파일로 넣은 글자 키 바인딩은 그 글자의 입력을 대신한다. host가 가져간 refresh 키는 모델 focus가 아니라 키를 받은 WebView surface를 대상으로 한다([공통 새로고침](../../features/keybindings/index.md#공통-새로고침--refresh)).
+웹 화면에서 동작하는 host·plugin·새로고침 바인딩은 수식키 유무와 관계없이 가져간다(예: `rename_tab`의 `F2`). 바인딩에 없는 키와 웹 화면에서 동작하지 않는 동작의 키(아래 동작하지 않은 키)는 페이지 입력에 남긴다. 설정 캡처는 수식키 없는 글자 키를 받지 않지만 설정 파일로 넣은 글자 키 바인딩은 그 글자의 입력을 대신한다. host가 가져간 refresh 키는 모델 focus가 아니라 키를 받은 WebView surface를 대상으로 한다([공통 새로고침](../../features/keybindings/index.md#공통-새로고침--refresh)).
 find·copy·cut·paste·select_all·page_undo·page_redo는 host 액션 field에서 제외하고 이 예약 조합과 동등한 plugin 조합도 제외한다.
 
 ### 편집 액션
@@ -354,9 +354,33 @@ plugin 조합은 키를 받은 surface의 실행 범위로 거른다. plugin sur
 명령 조합만, 다른 WebView에서는 모든 plugin의 Global 명령 조합만 가져간다(`dispatch_plugin_shortcut_key`와 같은 범위).
 bridge는 동기화 때 WebView surface와 소유 plugin 목록을 받는다(`set_surface_owners`). 비활성 plugin은 제외한다.
 
-웹 화면 포커스에서 실행되지 않는 동작의 조합은 처음부터 가져가지 않는다. Explorer 포커스에서만 실행되는 `explorer_*`
-동작과 `copy_path`, 넘어온 키 처리에 없는 `fullscreen_stage_exit`, 카테고리를 끈 동안의 카테고리 전환 축과
-`toggle_categories_collapsed`, 위 실행 범위 밖의 plugin 조합이다(`webview_claims`). 모든 OS에 적용된다.
+동작하지 않은 키: Tasty 단축키가 동작하지 않은 키는 페이지·엔진으로 넘긴다([웹 화면의 키 처리 원칙](../policies/key-mapping.md#웹-화면의-키-처리-원칙)).
+native 콜백은 가져갈지를 동기로 정하고 실행은 나중에 host 큐에서 일어나므로 두 단계로 처리한다.
+
+- 정책에서 뺀다: 웹 화면 포커스에서 실행되지 않는 동작의 조합은 처음부터 가져가지 않는다. Explorer 포커스에서만
+  실행되는 `explorer_*` 동작과 `copy_path`, 넘어온 키 처리에 없는 `fullscreen_stage_exit`, 카테고리를 끈 동안의 카테고리 전환
+  축과 `toggle_categories_collapsed`, 위 실행 범위 밖의 plugin 조합이다(`webview_claims`). 모든 OS에 적용된다.
+- 처리 결과를 본다: 가져간 키의 plugin·새로고침·host 처리가 모두 동작하지 않으면(예: 포인터 아래 링크가 없는
+  `copy_link`, zoom 대상이 아닌 kind의 확대, 대상 페이지를 잡지 못한 새로고침) Linux는 그 키의 사본을 키를 받은 WebView에
+  다시 넣는다(`linux/key_replay.rs`). 사본과 host 큐 이벤트는 bridge가 가져갈 때 매긴 일련번호로 짝짓는다. 그래서 사본
+  큐가 넘쳐(64개) 버린 사본, 같은 surface에서 다시 만든 WebView처럼 짝이 없는 결과로는 아무 키도 다시 넣지 않는다. 키를 두 번
+  실행하는 것보다 버리는 편을 택한다. 다시 넣은 키는 host 판정을 건너뛰고 WebKit 기본 처리와 페이지 keydown으로 간다. 페이지가
+  처리하지 않아 WebKit이 그 키를 UI로 다시 보낼 때도 판정하지 않는다. WebKit은 원래 X 서버 시각 그대로 다시 보내고 새 누름은
+  이미 판정한 누름보다 시각이 늦으므로, 마지막으로 판정한 시각 이하의 누름(같은 시각이면 같은 키)을 이미 판정한 키로 본다.
+  반송은 길어야 몇 초 안에 돌아오므로 이 판정에는 나이 상한(5분)이 있다. 마지막 판정 뒤 5분이 지났거나 마지막 판정 시각보다
+  5분 넘게 이른 시각의 누름은 새 누름이다. 그래서 X 서버 시각이 반 순환(약 24.8일) 넘게 흐른 뒤의 누름도 새 누름으로 판정한다.
+  같은 시각에 기억하는 키는 16개이고, 넘친 뒤에는 그 시각의 모든 키를 판정한 키로 본다. 같은 키를 두 번 실행하는 것보다
+  버리는 편을 택한다. 시각이 0(CurrentTime)인 키는 순서를 알 수 없다. host로 가져간 시각 0 키는 처리하지 못해도 다시 넣지 않고
+  소비한다. 다시 넣은 키의 반송을 시각으로 구분할 수 없어 같은 키가 되풀이될 수 있기 때문이다. 범위가 필요한 편집 동작(Copy·Cut)의
+  시각 0 키는 무장할 때 표지를 남기고, 확장이 범위가 있어 그 키를 처리했다고 답하면 지운다. 표지는 범위 선택이 없어 키가
+  엔진·페이지로 갔을 때만 남아, 같은 키의 반송을 2초 동안 한 번 판정한 키로 보아 다시 무장하지 않는다. 확장이 늘 처리하는
+  Paste·SelectAll 같은 동작은 반송이 없으므로 표지를 남기지 않는다. 다시 넣는 시점은 host 큐를 처리할 때이므로, 같은
+  폴링 사이에 뒤이어 누른 키보다 늦게 페이지에 도착할 수 있다. 입력 게이트(모달·overlay·전체화면 무대)로 처리하지 않은 키와
+  WebView가 사라진 키는 다시 넣지 않는다.
+- Windows·macOS는 가져갈 때 키를 소비하며(Windows 훅이 보내지 않거나 `AcceleratorKeyPressed`를 handled로 표시, macOS
+  `performKeyEquivalent:`·`keyDown:`이 WKWebView에 넘기지 않음) 처리
+  결과로 다시 넣는 경로가 없다. 그래서 두 번째 단계의 동적인 경우는 이 OS에서 키가 페이지에 가지 않는다.
+- 핸들러가 동작 없이 처리했다고 답하는 경우(없는 번호의 탭·workspace 전환)는 처리한 키로 본다.
 
 키 설정·카테고리 사용 여부(`workspace_categories_enabled`)와 PluginCommandRegistry·PluginsConfig의 전역 revision이 바뀔 때만 정책 스냅숏을 다시 만든다.
 modifier가 있으면 winit과 같은 US physical-key 변환을 쓰고 표 밖 키는 논리 키로 돌아간다.

@@ -31,6 +31,7 @@ mod content_filter;
 pub(super) mod direct_paths;
 mod edit;
 mod key_press;
+mod key_replay;
 mod navigation_policy;
 mod overlay_backend;
 mod remote_block;
@@ -77,6 +78,8 @@ pub struct PlatformWebView {
     input_held: Rc<Cell<bool>>,
     /// 편집 명령의 비동기 선택 질의가 낡았는지 판정한다.
     edit_guard: edit::EditGuard,
+    /// host가 가져갔지만 처리하지 못한 키를 다시 넣는다.
+    key_replay: Rc<key_replay::KeyReplay>,
     /// 바탕 포커스 상태를 두는 사용자 스타일시트.
     bed_focus: bed_focus::BedFocusSheet,
 }
@@ -316,6 +319,7 @@ impl PlatformWebView {
         let content_process_ended = Rc::new(Cell::new(false));
         // 비동기 선택 질의 뒤 입력·문서 교체·폐기가 있었는지 판정한다.
         let edit_guard = edit::EditGuard::default();
+        let key_replay = Rc::new(key_replay::KeyReplay::default());
         let loads = Rc::new(RefCell::new(SignalOrderLoads::default()));
         let committed_url: Rc<RefCell<Option<String>>> = Rc::new(RefCell::new(None));
         {
@@ -404,7 +408,13 @@ impl PlatformWebView {
         }
 
         // 키는 WebKit 기본 처리 전에 host 정책에 묻고 클릭은 페이지에도 전달한다.
-        key_press::connect(&webview, surface_id, key_bridge.clone(), edit_guard.clone());
+        key_press::connect(
+            &webview,
+            surface_id,
+            key_bridge.clone(),
+            edit_guard.clone(),
+            key_replay.clone(),
+        );
         {
             let bridge = key_bridge.clone();
             let edit_guard = edit_guard.clone();
@@ -425,8 +435,9 @@ impl PlatformWebView {
         {
             // 편집 확장의 준비 알림과 입력 순서대로 도착한 무장 키의 답.
             let edit_guard = edit_guard.clone();
+            let key_replay = key_replay.clone();
             webview.connect_user_message_received(move |wv, message| {
-                edit::on_view_message(wv, message, &edit_guard)
+                edit::on_view_message(wv, message, &edit_guard, |arm| key_replay.settle_edit(arm))
             });
         }
         // 키는 toplevel의 event 신호를 먼저 지나고 포인터는 WebView의 event 신호를 먼저 지난다.
@@ -476,6 +487,7 @@ impl PlatformWebView {
             clip_unavailable_reported: Cell::new(false),
             input_held,
             edit_guard,
+            key_replay,
             bed_focus: bed_focus::BedFocusSheet::new(),
         })
     }
@@ -889,6 +901,12 @@ impl PlatformWebView {
         } else {
             self.reload();
         }
+    }
+
+    /// host가 이 WebView에서 가져간 일련번호 `id`의 키를 처리했다. 처리하지 못했으면(`replay`) 그 키를 WebView에
+    /// 다시 넣어 엔진·페이지로 보낸다. 짝이 되는 사본이 없으면 아무것도 하지 않는다.
+    pub fn finish_forwarded_key(&self, id: u64, replay: bool) {
+        self.key_replay.finish(&self.webview, id, replay);
     }
 
     /// 팔레트·host 키 경로의 편집 명령. 엔진이 포커스 frame과 편집 가능 여부를 판단한다.

@@ -66,7 +66,9 @@ impl App {
 
         for (id, keys) in key_batch {
             for ev in keys {
-                self.dispatch_forwarded_webview_key(id, ev);
+                let (key_id, surface_id) = (ev.id, ev.surface_id);
+                let outcome = self.dispatch_forwarded_webview_key(id, ev);
+                self.finish_forwarded_webview_key(id, surface_id, key_id, outcome);
             }
         }
         needs_poll
@@ -81,13 +83,35 @@ impl App {
         }
     }
 
+    /// 처리 결과를 키를 가져간 WebView에 알린다. Linux는 Tasty가 처리하지 못한 키를 그 WebView에 다시 넣어
+    /// 엔진·페이지로 보낸다. 입력 게이트로 막은 키는 다시 넣지 않는다. 다른 OS는 키를 가져갈 때 이미 소비했다.
+    #[cfg_attr(not(target_os = "linux"), allow(unused_variables))] // reason: 다른 OS는 가져갈 때 키를 소비해 되돌릴 대상이 없다
+    fn finish_forwarded_webview_key(
+        &mut self,
+        id: winit::window::WindowId,
+        surface_id: u32,
+        key_id: u64,
+        outcome: ForwardedKeyOutcome,
+    ) {
+        #[cfg(target_os = "linux")]
+        if let Some(webview) = self
+            .view
+            .views
+            .get(&id)
+            .and_then(|w| w.as_main())
+            .and_then(|main| main.webviews.get(&surface_id))
+        {
+            webview.finish_forwarded_key(key_id, outcome == ForwardedKeyOutcome::NotHandled);
+        }
+    }
+
     /// 키 도착만으로 모델 포커스를 옮기지 않는다. X11의 자식 창 입력이
     /// 호스트에 없는 focus-follows-mouse 동작을 만들지 않도록 클릭 요청과 구분한다.
     fn dispatch_forwarded_webview_key(
         &mut self,
         id: winit::window::WindowId,
         ev: crate::webview::WebViewKeyEvent,
-    ) {
+    ) -> ForwardedKeyOutcome {
         // winit 경로의 modal_blocks_input·입력 게이트와 같이, modal 창이나 overlay·전체화면 무대가
         // 열린 동안에는 plugin·새로고침·host 단축키 어느 것도 처리하지 않는다.
         let gates = engines_mut!(self).window_pair(id).map(|(main, _)| {
@@ -98,26 +122,49 @@ impl App {
         });
         let (overlay_open, fullscreen) = gates.unwrap_or((false, false));
         if !forwarded_key_may_dispatch(self.view.is_modal_active(), overlay_open, fullscreen) {
-            return;
+            return ForwardedKeyOutcome::Gated;
         }
         if self.dispatch_plugin_shortcut_key(id, &ev.key, ev.mods) {
-            return;
+            return ForwardedKeyOutcome::Handled;
         }
         let Some((main, mut engine)) = engines_mut!(self).window_pair(id) else {
-            return;
+            return ForwardedKeyOutcome::Gated;
         };
         // 플러그인 단축키에서 처리하지 않은 키는 원래 webview가 사라졌으면 버린다.
         if !main.webviews.contains_key(&ev.surface_id) {
-            return;
+            return ForwardedKeyOutcome::Gated;
         }
-        if dispatch_native_refresh_key(main, &mut engine, &ev) {
-            return;
+        if let Some(outcome) = dispatch_native_refresh_key(main, &mut engine, &ev) {
+            return outcome;
         }
-        if main.handle_shortcut(&engine.read(), &ev.key, ev.mods) {
+        let handled = main.handle_shortcut(&engine.read(), &ev.key, ev.mods);
+        if handled {
             main.after_shortcut_consumed(&engine.read());
         }
         // 호스트 단축키가 마지막 workspace를 닫았을 수 있어 다음 redraw 전에 닫기 요청을 처리한다.
         self.close_self_requesting_windows();
+        ForwardedKeyOutcome::from_handled(handled)
+    }
+}
+
+/// native WebView가 넘긴 키의 처리 결과.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ForwardedKeyOutcome {
+    /// Tasty 단축키가 동작했다. 키를 넘기지 않는다.
+    Handled,
+    /// 단축키가 동작하지 않았다. 키를 엔진·페이지로 넘긴다.
+    NotHandled,
+    /// 입력 게이트가 막았거나 키를 받은 WebView·창이 없다. 넘기지 않는다.
+    Gated,
+}
+
+impl ForwardedKeyOutcome {
+    fn from_handled(handled: bool) -> Self {
+        if handled {
+            Self::Handled
+        } else {
+            Self::NotHandled
+        }
     }
 }
 
@@ -151,38 +198,48 @@ fn forwarded_key_may_dispatch(modal_active: bool, overlay_open: bool, fullscreen
     !modal_active && !overlay_open && !fullscreen
 }
 
-/// 공통 새로고침은 모델 포커스가 아니라 키를 받은 페이지를 대상으로 한다. 정책이 이미 이 키를
-/// 페이지에서 가져왔으므로, 그 페이지를 대상으로 잡지 못하면 다른 surface 로 넘기지 않고 버린다.
-/// 새로고침 키였으면 true.
+/// 공통 새로고침은 모델 포커스가 아니라 키를 받은 페이지를 대상으로 한다. 새로고침 키가 아니면 None이다.
 fn dispatch_native_refresh_key(
     main: &mut crate::view::main::MainView,
     engine: &mut crate::runtime::engine_access::EngineMut<'_>,
     ev: &crate::webview::WebViewKeyEvent,
-) -> bool {
-    if !tasty_key_match::matches_any_binding(
-        &engine.runtime.settings.keybindings.refresh,
-        &ev.key,
-        ev.mods,
-    ) {
-        return false;
-    }
-    let outcome = if crate::adapters::ui::input::shortcuts::request_surface_refresh(
+) -> Option<ForwardedKeyOutcome> {
+    let outcome = native_refresh_outcome(
         &mut main.state,
         &engine.read(),
+        &engine.runtime.settings.keybindings.refresh,
+        ev,
+    )?;
+    if outcome == ForwardedKeyOutcome::Handled {
+        main.after_shortcut_consumed(&engine.read());
+    }
+    Some(outcome)
+}
+
+/// 새로고침 키를 키를 받은 페이지에 요청한다. 그 페이지를 대상으로 잡지 못하면 다른 surface로 보내지 않고
+/// 처리하지 못한 키로 넘긴다.
+fn native_refresh_outcome(
+    state: &mut crate::state::MainViewState,
+    engine: &crate::runtime::engine_read::EngineRead<'_>,
+    refresh: &[String],
+    ev: &crate::webview::WebViewKeyEvent,
+) -> Option<ForwardedKeyOutcome> {
+    if !tasty_key_match::matches_any_binding(refresh, &ev.key, ev.mods) {
+        return None;
+    }
+    let requested = crate::adapters::ui::input::shortcuts::request_surface_refresh(
+        state,
+        engine,
         ev.surface_id,
         crate::intent::RefreshTrigger::Shortcut,
-    ) {
-        main.after_shortcut_consumed(&engine.read());
-        "requested"
-    } else {
-        "dropped: the page cannot be targeted"
-    };
+    );
     tracing::debug!(
         target: "tasty::refresh",
-        "native webview refresh key for surface {}: {outcome}",
-        ev.surface_id
+        "native webview refresh key for surface {}: {}",
+        ev.surface_id,
+        if requested { "requested" } else { "not handled: the page cannot be targeted" }
     );
-    true
+    Some(ForwardedKeyOutcome::from_handled(requested))
 }
 
 #[cfg(test)]
@@ -217,5 +274,65 @@ mod tests {
         assert!(!super::forwarded_key_may_dispatch(true, false, false));
         assert!(!super::forwarded_key_may_dispatch(false, true, false));
         assert!(!super::forwarded_key_may_dispatch(false, false, true));
+    }
+
+    /// 단축키가 동작했으면 넘기지 않고, 동작하지 않았으면 엔진·페이지로 넘긴다.
+    #[test]
+    fn the_handler_result_decides_whether_the_key_is_passed_on() {
+        use super::ForwardedKeyOutcome as O;
+        assert_eq!(O::from_handled(true), O::Handled);
+        assert_eq!(O::from_handled(false), O::NotHandled);
+    }
+
+    /// 키를 받은 페이지를 새로고침 대상으로 잡으면 처리한 키, 잡지 못하면 처리하지 못한 키다.
+    /// 새로고침 바인딩이 아닌 키는 이 경로가 판정하지 않는다.
+    #[test]
+    fn a_refresh_key_for_a_page_that_cannot_be_targeted_is_not_handled() {
+        use super::ForwardedKeyOutcome as O;
+        use tasty_core::{DomainEvent as E, SurfaceSpec};
+        use winit::keyboard::{Key, ModifiersState};
+        let events = vec![
+            E::CategoryCreated {
+                id: 0,
+                name: "normal".into(),
+                index: 0,
+            },
+            E::WorkspaceCreated {
+                id: 1,
+                name: "w".into(),
+                category: 0,
+                index: 0,
+                pane: 1,
+            },
+            E::TabCreated {
+                id: 11,
+                pane: 1,
+                index: 0,
+                name: "markdown".into(),
+                surface: SurfaceSpec {
+                    id: 11,
+                    kind: "markdown".into(),
+                    data: None,
+                },
+            },
+        ];
+        let (mut state, mut session) =
+            crate::state::tests::test_state_from_model(crate::state::tests::test_model(events));
+        let engine = session.borrow_mut();
+        let refresh = vec!["f5".to_string()];
+        let key = |surface_id, key: &str| crate::webview::WebViewKeyEvent {
+            id: 0,
+            surface_id,
+            key: Key::Named(match key {
+                "F5" => winit::keyboard::NamedKey::F5,
+                _ => winit::keyboard::NamedKey::F6,
+            }),
+            mods: ModifiersState::empty(),
+        };
+        let outcome =
+            |state: &mut _, ev| super::native_refresh_outcome(state, &engine.read(), &refresh, &ev);
+        assert_eq!(outcome(&mut state, key(11, "F5")), Some(O::Handled));
+        assert_eq!(outcome(&mut state, key(99, "F5")), Some(O::NotHandled));
+        assert_eq!(outcome(&mut state, key(11, "F6")), None);
     }
 }

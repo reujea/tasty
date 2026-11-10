@@ -196,19 +196,19 @@ fn command_name(action: WebViewEditAction) -> &'static str {
 /// [`on_view_message`]가 명령을 실행한다. 그래서 앞서 입력한 선택 키와 뒤의 키 사이에서 순서가 지켜진다.
 /// 범위 선택이 없는 Copy·Cut은 확장이 막지 않고 답하므로 명령을 실행하지 않고 키는 엔진·페이지로 간다.
 /// 포인터 입력은 WebKit의 다른 큐라서 같은 묶음의 드래그와의 순서는 보장하지 않는다. 준비되지 않았거나 키를 keyCode로 옮길 수 없으면 Copy·Cut은 실행하지 않고(엔진의 빈 복사를
-/// 막도록 키를 소비한다), 다른 명령은 바로 실행한다.
+/// 막도록 키를 소비한다), 다른 명령은 바로 실행한다. 함께 돌려주는 번호는 [`echo_arm`]의 무장 번호다.
 pub(super) fn run_key_action(
     webview: &WebView,
     action: WebViewEditAction,
     key: Option<ArmKey>,
     guard: &EditGuard,
     blocked: Blocked,
-) -> Propagation {
+) -> (Propagation, Option<u64>) {
     let command = command_name(action);
     let page = webview.page_id();
     if guard.is_overflowed(page) {
         note(command, "not run (edit keys overflowed in this view)");
-        return Propagation::Stop;
+        return (Propagation::Stop, None);
     }
     let ready = guard.ready.get() == Some(page);
     match key.filter(|_| ready) {
@@ -228,7 +228,7 @@ pub(super) fn run_key_action(
                     }
                 }
             });
-            Propagation::Proceed
+            (Propagation::Proceed, echo_arm(action, nonce))
         }
         None if matches!(action, WebViewEditAction::Copy | WebViewEditAction::Cut) => {
             let why = if ready {
@@ -237,18 +237,35 @@ pub(super) fn run_key_action(
                 "the selection extension is not ready for this document"
             };
             tracing::warn!("webview: editing command {command} not run: {why}");
-            Propagation::Stop
+            (Propagation::Stop, None)
         }
         None => {
             webview.execute_editing_command(command);
             note(command, "runs (no ordered path)");
-            Propagation::Stop
+            (Propagation::Stop, None)
         }
     }
 }
 
+/// 무장한 키 중 확장이 막지 않고 엔진·페이지로 넘길 수 있는 키의 무장 번호. 범위 선택이 필요한 Copy·Cut만
+/// 해당하며, 다른 동작은 확장이 늘 기본 동작을 막아 WebKit이 반송하지 않는다.
+pub(super) fn echo_arm(action: WebViewEditAction, nonce: u64) -> Option<u64> {
+    matches!(action, WebViewEditAction::Copy | WebViewEditAction::Cut).then_some(nonce)
+}
+
+/// 확장의 답이 그 키의 기본 동작을 막았다는 뜻이면 true다. Copy·Cut은 범위가 있을 때만 막는다.
+pub(super) fn extension_took_key(action: WebViewEditAction, range: bool) -> bool {
+    range || echo_arm(action, 0).is_none()
+}
+
 /// 확장이 보낸 메시지를 처리한다. 확장의 메시지가 아니면 false다.
-pub(super) fn on_view_message(webview: &WebView, message: &UserMessage, guard: &EditGuard) -> bool {
+/// `settled`는 확장이 기본 동작을 막아 반송되지 않을 무장 번호를 받는다.
+pub(super) fn on_view_message(
+    webview: &WebView,
+    message: &UserMessage,
+    guard: &EditGuard,
+    settled: impl Fn(u64),
+) -> bool {
     match ViewMessage::parse(message) {
         None => false,
         Some(ViewMessage::Ready { page }) => {
@@ -259,9 +276,15 @@ pub(super) fn on_view_message(webview: &WebView, message: &UserMessage, guard: &
         }
         Some(ViewMessage::Key { nonce, page, range }) => {
             let Some(armed) = guard.take_armed(nonce) else {
+                if range {
+                    settled(nonce);
+                }
                 tracing::debug!("webview: edit key reply for a dropped arm");
                 return true;
             };
+            if extension_took_key(armed.action, range) {
+                settled(nonce);
+            }
             let command = command_name(armed.action);
             let copy_like = matches!(
                 armed.action,

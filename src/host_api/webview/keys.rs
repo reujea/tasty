@@ -98,6 +98,8 @@ fn is_engine_extra_edit_key(key: &Key, mods: ModifiersState) -> bool {
 
 #[derive(Debug, Clone)]
 pub struct WebViewKeyEvent {
+    /// 창 bridge 안에서 가져간 순서대로 늘어나는 일련번호. 처리 결과를 키를 가져간 WebView의 사본에 짝짓는다.
+    pub id: u64,
     /// 입력을 받은 surface. 큐를 처리할 때 대상이 남아 있는지 확인하는 데 쓴다.
     pub surface_id: u32,
     /// 물리 위치 폴백을 적용한 조회 키.
@@ -256,14 +258,28 @@ impl HostShortcutPolicy {
 /// 구현과 callback은 같은 GUI 스레드에서 사용하며 Send/Sync를 요구하지 않는다.
 pub trait WebViewKeySink {
     /// true이면 backend가 페이지 전달을 막는다. 큐 등록과 실제 액션 성공은 별개다.
-    /// key는 레이아웃 문자, physical은 위치이며 알 수 없으면 Unidentified다.
+    /// key는 레이아웃 문자, physical은 위치이며 알 수 없으면 Unidentified다. Linux는 결과를 키에 짝짓기 위해
+    /// [`Self::forward_key`]를 쓴다.
+    #[cfg(any(windows, target_os = "macos", test))]
     fn capture_key(
         &self,
         surface_id: u32,
         key: Key,
         physical: PhysicalKey,
         mods: ModifiersState,
-    ) -> bool;
+    ) -> bool {
+        self.forward_key(surface_id, key, physical, mods).is_some()
+    }
+
+    /// [`Self::capture_key`]와 같고, 가져갔으면 host 큐 이벤트의 일련번호([`WebViewKeyEvent::id`])를 돌려준다.
+    /// 처리 결과를 그 키에 짝지을 때 쓴다.
+    fn forward_key(
+        &self,
+        surface_id: u32,
+        key: Key,
+        physical: PhysicalKey,
+        mods: ModifiersState,
+    ) -> Option<u64>;
 
     /// 사용자 편집 바인딩이면 그 액션을 돌려준다. backend는 키를 받은 WebView에 즉시 실행하고
     /// 페이지 전달을 막는다. 큐를 거치지 않으므로 닫히거나 교체된 WebView에는 실행되지 않는다.
@@ -307,6 +323,8 @@ pub struct WebViewKeyBridge {
     /// plugin이 소유한 WebView surface와 그 plugin ID. 없는 surface는 plugin surface가 아니다.
     surface_owners: RefCell<std::collections::HashMap<u32, String>>,
     pending: RefCell<Vec<WebViewKeyEvent>>,
+    /// 다음에 가져갈 키의 일련번호.
+    next_key_id: std::cell::Cell<u64>,
     focus_requests: RefCell<Vec<u32>>,
     /// host 모달이 열려 있다. 모달을 열고 닫을 때 바로 바꾼다.
     modal_open: std::cell::Cell<bool>,
@@ -392,23 +410,26 @@ pub(crate) fn route_key_down(
 
 impl WebViewKeySink for WebViewKeyBridge {
     /// 정책이 선택한 키만 큐에 넣는다. 실행 시점이나 최종 동작 성공을 여기서 보장하지 않는다.
-    fn capture_key(
+    fn forward_key(
         &self,
         surface_id: u32,
         key: Key,
         physical: PhysicalKey,
         mods: ModifiersState,
-    ) -> bool {
+    ) -> Option<u64> {
         let key = shortcut_lookup_key(key, &physical, mods);
         if !self.claims(surface_id, &key, mods) {
-            return false;
+            return None;
         }
+        let id = self.next_key_id.get();
+        self.next_key_id.set(id.wrapping_add(1));
         self.pending.borrow_mut().push(WebViewKeyEvent {
+            id,
             surface_id,
             key,
             mods,
         });
-        true
+        Some(id)
     }
 
     fn edit_action(
