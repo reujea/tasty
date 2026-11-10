@@ -459,9 +459,13 @@ mirror 를 `--workspace`(숫자 id)나 `--pane` 으로 지정한 `tasty claude s
 
 전달·출처·통지 계약은 [Attach 메커니즘](../../dev-guide/attach-behavior.md#원격-자식-에이전트-ipcstreamagent-children), provider 별 동작은 [원격 attach 자식](../../plugins/remote-attach-children.md)에 있다.
 
-### mirror workspace 비영속
+### 저장된 원격 행과 mirror 내용
 
-원격 attach의 mirror workspace는 연결 세션의 projection이며 로컬 journal 구조에 포함되지 않는다. journal snapshot과 호환 export는 로컬 canonical 모델만 읽으므로 mirror를 저장하거나 재시작 시 일반 workspace로 복원하지 않는다. 팝업의 선택 프로필·목록·요청 식별자는 View의 비영속 상태다.
+원격 attach의 mirror 내용(pane·tab·surface 형상)은 연결 세션의 projection이며 로컬 journal 구조에 포함되지 않는다. journal snapshot과 호환 export의 로컬 canonical 모델은 mirror를 일반 workspace로 저장하거나 복원하지 않는다.
+
+사용자가 원격 연결 팝업에서 프로필을 골라 붙인 workspace는 **저장된 원격 행**이 된다. 행 하나는 journal의 `remote_rows` 항목(이벤트 `remote_row.set`·`remote_row.removed`)으로 저장되며, 값은 이름·부제·설명·카테고리·화면 순서 위치와 연결 대상(attach 프로필 이름, 원격 workspace id)이다. 이름·설명·카테고리를 바꾸거나 행을 옮기면 같은 항목을 고쳐 저장하고, 행이 닫히면 항목을 지운다. 원격에서 온 이름과 카테고리는 저장된 행의 값을 덮지 않는다. 없는 카테고리를 가리키거나 그 카테고리를 지우면 기본 카테고리로 저장한다. 다시 시작하면 저장된 행이 형상 없는 mirror 행으로 같은 위치에 돌아오고, 마지막으로 선택한 workspace가 그 행이었다면 그 행이 다시 선택된다. 원격 행은 로컬 구조 비교(`DIGEST_EXCLUDED`)에서 뺀다.
+
+IPC `remote.attach`·`attach.into_gui`처럼 에이전트가 붙인 mirror는 저장하지 않는다. 팝업의 선택 프로필·목록·요청 식별자는 View의 비영속 상태다.
 
 ### 창 없는 상태(parked)에서의 세션 수명
 

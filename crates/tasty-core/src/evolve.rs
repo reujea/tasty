@@ -188,6 +188,17 @@ fn apply(m: &mut JournalModel, event: DomainEvent) -> Result<()> {
             get_mut(&mut m.workspaces, IdKind::Workspace, id)?.attach_mapping = mapping;
             Ok(())
         }
+        DomainEvent::RemoteRowSet { id, row } => {
+            if m.workspaces.contains_key(&id) {
+                return Err(EvolveError::Duplicate(format!("workspace:{id}")));
+            }
+            m.remote_rows.insert(id, row);
+            Ok(())
+        }
+        DomainEvent::RemoteRowRemoved { id } => {
+            remove(&mut m.remote_rows, IdKind::Workspace, id)?;
+            Ok(())
+        }
         DomainEvent::WorkspaceMoved {
             id,
             category,
@@ -373,6 +384,10 @@ fn close_category(m: &mut JournalModel, id: WorkspaceCategoryId) -> Result<()> {
     }
     m.categories.remove(&id);
     m.category_order.retain(|c| *c != id);
+    // 원격 행은 카테고리 닫기를 막지 않고 기본 카테고리로 돌아간다.
+    for row in m.remote_rows.values_mut().filter(|row| row.category == id) {
+        row.category = tasty_model::NORMAL_CATEGORY_ID;
+    }
     Ok(())
 }
 

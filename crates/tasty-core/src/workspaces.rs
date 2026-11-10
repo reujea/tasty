@@ -57,6 +57,17 @@ impl CoreState {
         self.mirror_workspaces.push(workspace);
     }
 
+    /// 저장된 원격 행을 화면 순서의 `index`에 넣는다. 목록보다 큰 값은 끝으로 둔다.
+    pub fn insert_mirror_workspace(&mut self, index: usize, workspace: Workspace) {
+        assert!(workspace.mirror, "remote projection requires a mirror");
+        self.refresh_workspace_display_order();
+        let index = index.min(self.workspace_display_order.len());
+        self.workspace_display_order.insert(index, workspace.id);
+        self.mirror_projection_tokens
+            .insert(workspace.id, std::sync::Arc::new(()));
+        self.mirror_workspaces.push(workspace);
+    }
+
     pub(crate) fn insert_local_workspace(&mut self, index: usize, workspace: Workspace) {
         assert!(!workspace.mirror, "local projection cannot own a mirror");
         self.refresh_workspace_display_order();
@@ -105,6 +116,15 @@ impl CoreState {
         {
             self.mirror_projection_tokens
                 .insert(workspace.id, std::sync::Arc::new(()));
+            let mut workspace = workspace;
+            // 저장된 원격 행의 이름·설명·카테고리는 사용자가 정한 값이다. 원격 구조로 덮지 않는다.
+            if slot.remote_row.is_some() {
+                workspace.remote_row = slot.remote_row.take();
+                workspace.name = std::mem::take(&mut slot.name);
+                workspace.subtitle = std::mem::take(&mut slot.subtitle);
+                workspace.description = std::mem::take(&mut slot.description);
+                workspace.category = slot.category;
+            }
             *slot = workspace;
             Ok(())
         } else {

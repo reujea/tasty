@@ -20,23 +20,31 @@
 //! 이 크레이트는 이벤트 저장소에 의존하지 않는다. 저장 봉투·저장 형식 버전·migration, 저장
 //! batch와 [`DomainBatch`] 사이의 변환, 명령 실행기는 root runtime이 맡는다.
 
+mod assembly;
+pub mod canonical;
+mod categories;
 mod codec;
 mod command;
 mod creation;
 mod decider;
 mod event;
 mod evolve;
+mod finders;
 mod ids;
 mod model;
 mod operation;
+pub mod projection;
+mod replacement;
 mod retirement;
-mod undo;
-pub use undo::{ClosedPanePosition, ClosedSnapshot, UndoCapture, UndoPresentation, UndoRecord};
+mod state;
 mod streams;
+mod undo;
+pub mod workspaces;
 
 #[cfg(test)]
 mod tests;
 
+pub use assembly::{AssemblyDestination, CreationAssembly};
 pub use codec::{
     CodecError, EVENT_SCHEMA_VERSION, EncodedEvent, MODEL_VERSION, decode_event, decode_snapshot,
     encode_event, encode_snapshot,
@@ -50,31 +58,19 @@ pub use creation::{
 pub use decider::{Decider, Decision, DecisionContext};
 pub use event::{DomainBatch, DomainEvent, MetadataTarget, RecordedEvent, SplitSpec, SurfaceSpec};
 pub use evolve::{EvolveError, evolve};
+pub use finders::SurfaceDisplayPath;
 pub use ids::{BatchId, IdKind, Revision};
 pub use model::{
-    Applied, Category, DataRef, JournalModel, Pane, Placement, Ratio, SplitTree, Surface, Tab,
-    Workspace,
+    Applied, Category, DataRef, JournalModel, Pane, Placement, Ratio, RemoteRow, SplitTree,
+    Surface, Tab, Workspace,
 };
 pub use operation::{
     Activation, ActivationPhase, EntityId, Operation, OperationId, OperationOutcome,
 };
+pub use replacement::Replacement;
+pub use retirement::{CloseTarget, RetiredSurface, RetirementPlan};
+pub use state::CoreState;
 pub use streams::{
     STRUCTURE_STREAM_PREFIX, StreamBatch, StructureModels, evolve_streams, is_structure_stream,
 };
-
-pub use retirement::{CloseTarget, RetiredSurface, RetirementPlan};
-
-mod assembly;
-pub use assembly::{AssemblyDestination, CreationAssembly};
-
-mod replacement;
-pub use replacement::Replacement;
-
-pub mod canonical;
-mod categories;
-mod finders;
-pub mod projection;
-mod state;
-pub mod workspaces;
-pub use finders::SurfaceDisplayPath;
-pub use state::CoreState;
+pub use undo::{ClosedPanePosition, ClosedSnapshot, UndoCapture, UndoPresentation, UndoRecord};

@@ -45,6 +45,16 @@ pub fn initialize(core: &mut CoreState, model: &JournalModel) -> Result<()> {
     if live::core_canonical(core) != Canonical::of_journal(model, &SkipData) {
         return Err("bootstrap live projection differs from journal structure".into());
     }
+    // 원격 행은 로컬 구조 비교 대상이 아니므로 비교한 뒤에 넣는다.
+    let mut rows: Vec<_> = model.remote_rows.iter().collect();
+    rows.sort_by_key(|(id, row)| (row.index, **id));
+    for (id, row) in rows {
+        let mut workspace = Workspace::new_remote_row(*id, row.name.clone(), row.binding.clone());
+        workspace.subtitle = row.subtitle.clone();
+        workspace.description = row.description.clone();
+        workspace.category = row.category;
+        core.insert_mirror_workspace(row.index, workspace);
+    }
     core.committed_structure_revision = model.applied.revision;
     Ok(())
 }

@@ -1,8 +1,8 @@
 use std::path::PathBuf;
 
 use super::{
-    NORMAL_CATEGORY_ID, Pane, PaneId, PaneNode, SurfaceId, TabId, WorkspaceAttachMapping,
-    WorkspaceCategoryId, WorkspaceId,
+    NORMAL_CATEGORY_ID, Pane, PaneId, PaneNode, RemoteBinding, SurfaceId, TabId,
+    WorkspaceAttachMapping, WorkspaceCategoryId, WorkspaceId,
 };
 
 /// workspace attach의 surface 분류.
@@ -31,8 +31,11 @@ pub struct Workspace {
     pane_layout_opt: Option<PaneNode>,
     /// 저장할 원격 attach 매핑. 활성화할 때 호스트가 자동 연결에 사용한다.
     pub attach_mapping: Option<WorkspaceAttachMapping>,
-    /// 원격 workspace를 보여 주는 client mirror인지. 영속하지 않으며 UI 구분 표시에 사용한다.
+    /// 원격 workspace를 보여 주는 client mirror인지. UI 구분 표시에 사용한다.
     pub mirror: bool,
+    /// 사용자가 GUI로 붙여 저장되는 원격 행의 연결 대상. mirror에만 있다. 없는 mirror는 에이전트가
+    /// 만든 것이라 저장하지 않고 끊기면 정리한다.
+    pub remote_row: Option<RemoteBinding>,
     /// 이 워크스페이스가 속한 카테고리(사이드바 폴더) id. 기본값은 예약된
     /// `normal`([`NORMAL_CATEGORY_ID`]). layout.json 으로 영속(`SavedWorkspace.category`).
     pub category: WorkspaceCategoryId,
@@ -57,6 +60,7 @@ impl Workspace {
             pane_layout_opt: Some(PaneNode::Leaf(pane)),
             attach_mapping: None,
             mirror: false,
+            remote_row: None,
             category: NORMAL_CATEGORY_ID,
         }
     }
@@ -99,6 +103,7 @@ impl Workspace {
             pane_layout_opt: Some(PaneNode::Leaf(pane)),
             attach_mapping: None,
             mirror: false,
+            remote_row: None,
             category: NORMAL_CATEGORY_ID,
         }
     }
@@ -118,8 +123,34 @@ impl Workspace {
             pane_layout_opt: Some(pane_layout),
             attach_mapping: None,
             mirror: false,
+            remote_row: None,
             category: NORMAL_CATEGORY_ID,
         }
+    }
+
+    /// 아직 붙지 않은 저장 원격 행. 탭·pane·surface가 없어 화면에는 바탕색과 연결 팝업만 보인다.
+    /// 형상이 없음을 나타내는 자리 표시 pane 하나(id 0, 탭 없음)만 가진다.
+    pub fn new_remote_row(id: WorkspaceId, name: String, binding: RemoteBinding) -> Self {
+        let mut workspace = Self::new_with_pane(id, name, Pane::default());
+        workspace.mirror = true;
+        workspace.remote_row = Some(binding);
+        workspace
+    }
+
+    /// GUI로 붙여 저장되는 원격 행인지. 에이전트가 만든 mirror는 false다.
+    pub fn is_saved_remote_row(&self) -> bool {
+        self.mirror && self.remote_row.is_some()
+    }
+
+    /// 형상(탭·surface)이 없는 workspace인지. 아직 붙지 않은 원격 행이 이렇다.
+    pub fn is_bare(&self) -> bool {
+        self.pane_layout_opt.as_ref().is_some_and(|layout| {
+            layout.all_pane_ids().iter().all(|id| {
+                layout
+                    .find_pane(*id)
+                    .is_some_and(|pane| pane.tabs.is_empty())
+            })
+        })
     }
 
     /// 원격 attach 매핑을 설정하거나 해제한다.

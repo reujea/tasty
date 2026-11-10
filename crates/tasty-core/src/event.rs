@@ -98,6 +98,15 @@ pub enum DomainEvent {
         id: WorkspaceId,
         mapping: Option<WorkspaceAttachMapping>,
     },
+    /// 저장된 원격 워크스페이스 행을 만들거나 그 값 전체를 바꾼다.
+    #[serde(rename = "remote_row.set")]
+    RemoteRowSet {
+        id: WorkspaceId,
+        row: crate::model::RemoteRow,
+    },
+    /// 저장된 원격 워크스페이스 행을 지운다. 원격 workspace는 건드리지 않는다.
+    #[serde(rename = "remote_row.removed")]
+    RemoteRowRemoved { id: WorkspaceId },
     /// 순서와 카테고리 소속을 함께 바꾼다.
     #[serde(rename = "workspace.moved")]
     WorkspaceMoved {
@@ -309,6 +318,8 @@ impl DomainEvent {
         "workspace.renamed",
         "workspace.details_set",
         "workspace.attach_mapping_set",
+        "remote_row.set",
+        "remote_row.removed",
         "workspace.moved",
         "workspace.closed",
         "pane.split",
@@ -355,6 +366,8 @@ impl DomainEvent {
             Self::WorkspaceRenamed { .. } => "workspace.renamed",
             Self::WorkspaceDetailsSet { .. } => "workspace.details_set",
             Self::WorkspaceAttachMappingSet { .. } => "workspace.attach_mapping_set",
+            Self::RemoteRowSet { .. } => "remote_row.set",
+            Self::RemoteRowRemoved { .. } => "remote_row.removed",
             Self::WorkspaceMoved { .. } => "workspace.moved",
             Self::WorkspaceClosed { .. } => "workspace.closed",
             Self::PaneSplit { .. } => "pane.split",

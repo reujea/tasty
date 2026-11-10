@@ -158,7 +158,7 @@ mirror 이름·부제·설명·분류와 혼합 표시 순서는 비영속 App c
 - ID: 원래 ID로 비교하거나, category·workspace는 표시 순서로, pane·tab·surface는 전체 깊이 우선 순서로 번호를 다시 매겨 비교한다. importer는 새 ID를 받으므로 CoreState와 가져온 모델은 순서 번호로 비교한다.
 - 저장 자료: payload 번호가 아니라 내용으로 비교한다. 바이트 길이와 해시로 비교하거나, surface 저장 자료 형식으로 해석해 비교한다(scrollback은 길이와 해시). 비교에서 뺄 수도 있다.
 - CoreState 쪽 정규 표현은 현재 descriptor 트리를 읽는다. journal의 전체 로그 replay와 snapshot+tail 재구성 비교는 `src/runtime/tests/shadow_digest.rs`가 맡는다. 저장 형식 호환은 legacy JSON schema/import 시험으로 대조하며, 옛 mutable CoreState capture/restore 구현을 별도 정본으로 실행하지 않는다.
-- 비교에서 빼는 값: `SurfaceLayout::Split.node_id`(프로세스 내부 호환 projection 식별자), `Workspace.mirror`(원격 구조는 로컬 비교에서 통째로 제외), `JournalModel.applied`(journal 위치). 사용자 선택·접힘·탭바 스크롤은 CoreState 원본에 없으므로 이 제외 명부의 필드가 아니다.
+- 비교에서 빼는 값: `SurfaceLayout::Split.node_id`(프로세스 내부 호환 projection 식별자), `Workspace.mirror`(원격 구조는 로컬 비교에서 통째로 제외), `JournalModel.applied`(journal 위치), `JournalModel.remote_rows`(저장된 원격 행은 원격 구조를 가리키는 값이라 로컬 비교에서 제외). 사용자 선택·접힘·탭바 스크롤은 CoreState 원본에 없으므로 이 제외 명부의 필드가 아니다.
 
 ### UI primitive
 `tasty-egui-theme`(Theme를 egui Visuals/Style로 변환) · `tasty-ui-widgets`(본체·갤러리 공용 egui 위젯·배치 함수. [설명](ui-widgets-crate.md)) · `tasty-icons`(line/fill SVG. 본체·갤러리와 plugin 빌드가 공유) · `tasty-key-match`(바인딩과 키 이벤트 대조. 단축키·webview 공용, egui 입력은 egui-input feature, → settings/winit)

@@ -796,6 +796,7 @@ impl JournalApplication {
             "workspace.update"
                 | "workspace.move"
                 | "intent.workspace-mapping"
+                | "intent.remote-row"
                 | "intent.workspace-rename"
                 | "intent.tab-name"
                 | "intent.tab-move"

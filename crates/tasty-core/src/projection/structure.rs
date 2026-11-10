@@ -11,6 +11,8 @@ pub(super) fn apply_event(
             super::replacement::apply(engine, *replacement, retired)?
         }
         DomainEvent::EngineIncarnationStarted { .. } | DomainEvent::EngineRetired { .. } => {}
+        // 저장된 원격 행의 화면 상태는 host가 연결 흐름으로 관리한다. 부팅 때만 행을 만든다.
+        DomainEvent::RemoteRowSet { .. } | DomainEvent::RemoteRowRemoved { .. } => {}
         DomainEvent::CategoryCreated { id, name, index } => engine
             .categories
             .insert(*index, WorkspaceCategory::new(*id, name.clone())),

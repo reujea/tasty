@@ -7,10 +7,11 @@ pub(crate) fn presentation(
     let mut result = crate::model::RestoredPresentation {
         active_workspace: view
             .active_workspace
+            // 저장된 원격 행도 다시 열 때 선택된 workspace로 돌아온다. 에이전트 mirror는 남지 않는다.
             .filter(|id| {
-                core.local_workspaces()
-                    .iter()
-                    .any(|workspace| workspace.id == *id)
+                core.workspaces().iter().any(|workspace| {
+                    workspace.id == *id && (!workspace.mirror || workspace.is_saved_remote_row())
+                })
             })
             .or_else(|| {
                 core.local_workspaces()

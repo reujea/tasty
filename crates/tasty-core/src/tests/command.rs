@@ -154,3 +154,124 @@ fn a_recreated_split_with_the_same_leaves_rejects_the_old_revision() {
     );
     assert_eq!(model, before);
 }
+
+fn remote_row(index: usize, category: u32) -> RemoteRow {
+    RemoteRow {
+        name: "build".into(),
+        subtitle: String::new(),
+        description: String::new(),
+        category,
+        index,
+        binding: tasty_model::RemoteBinding {
+            profile: "mac".into(),
+            remote_workspace: 4,
+        },
+    }
+}
+
+#[test]
+fn a_saved_remote_row_is_stored_changed_and_removed_without_touching_local_order() {
+    let mut model = initial();
+    let order = model.workspace_order.clone();
+    execute(
+        &mut model,
+        &StructuralCommand::SetRemoteRow {
+            id: 50,
+            row: remote_row(1, 999),
+        },
+    );
+    assert_eq!(
+        model.remote_rows[&50].category,
+        tasty_model::NORMAL_CATEGORY_ID
+    );
+    assert_eq!(model.workspace_order, order);
+    let same = execute(
+        &mut model,
+        &StructuralCommand::SetRemoteRow {
+            id: 50,
+            row: remote_row(1, 999),
+        },
+    );
+    assert!(same.events.is_empty(), "an unchanged row emits nothing");
+    execute(&mut model, &StructuralCommand::DeleteCategory { id: 1 });
+    assert!(
+        decide_structure(
+            &model,
+            &StructuralCommand::SetRemoteRow {
+                id: order[0],
+                row: remote_row(0, 0),
+            },
+        )
+        .is_err(),
+        "a local workspace id cannot become a remote row"
+    );
+    execute(&mut model, &StructuralCommand::RemoveRemoteRow { id: 50 });
+    assert!(model.remote_rows.is_empty());
+    let missing = execute(&mut model, &StructuralCommand::RemoveRemoteRow { id: 50 });
+    assert!(missing.events.is_empty());
+}
+
+#[test]
+fn deleting_a_category_moves_its_saved_remote_rows_to_normal() {
+    let mut model = initial();
+    execute(
+        &mut model,
+        &StructuralCommand::SetRemoteRow {
+            id: 50,
+            row: remote_row(0, 1),
+        },
+    );
+    assert_eq!(model.remote_rows[&50].category, 1);
+    execute(&mut model, &StructuralCommand::DeleteCategory { id: 1 });
+    assert_eq!(
+        model.remote_rows[&50].category,
+        tasty_model::NORMAL_CATEGORY_ID
+    );
+}
+
+#[test]
+fn bootstrap_places_saved_remote_rows_as_bare_mirrors_at_their_index() {
+    let mut model = initial();
+    // live projection은 metadata를 따로 싣는다. 구조 비교만 남긴다.
+    model
+        .workspaces
+        .values_mut()
+        .for_each(|w| w.metadata.clear());
+    model.surfaces.values_mut().for_each(|s| s.metadata.clear());
+    for (id, index) in [(50, 0), (51, 99)] {
+        execute(
+            &mut model,
+            &StructuralCommand::SetRemoteRow {
+                id,
+                row: remote_row(index, 0),
+            },
+        );
+    }
+    let mut core = CoreState::new_base();
+    projection::bootstrap::initialize(&mut core, &model).unwrap();
+    let ids: Vec<_> = core.workspaces().into_iter().map(|w| w.id).collect();
+    assert_eq!(ids.first(), Some(&50));
+    assert_eq!(ids.last(), Some(&51));
+    let row = core.workspace_at(0).unwrap();
+    assert!(row.is_saved_remote_row() && row.is_bare());
+    assert_eq!(row.remote_row.as_ref().unwrap().profile, "mac");
+}
+
+#[test]
+fn a_remote_projection_keeps_the_saved_row_name_and_binding() {
+    let mut core = CoreState::new_base();
+    let binding = tasty_model::RemoteBinding {
+        profile: "mac".into(),
+        remote_workspace: 4,
+    };
+    let mut row = tasty_model::Workspace::new_remote_row(50, "mine".into(), binding.clone());
+    row.category = 3;
+    core.insert_mirror_workspace(0, row);
+    let mut remote = tasty_model::Workspace::new_with_pane(50, "theirs".into(), Default::default());
+    remote.mirror = true;
+    assert!(core.replace_mirror_workspace(remote).is_ok());
+    let ws = core.workspace_at(0).unwrap();
+    assert_eq!(ws.name, "mine");
+    assert_eq!(ws.category, 3);
+    assert_eq!(ws.remote_row.as_ref(), Some(&binding));
+}

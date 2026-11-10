@@ -141,6 +141,15 @@ pub enum StructuralCommand {
         workspace_id: u32,
         to_index: usize,
     },
+    /// 저장된 원격 행을 만들거나 값을 바꾼다. 없는 카테고리는 기본 카테고리로 저장한다.
+    SetRemoteRow {
+        id: u32,
+        row: crate::model::RemoteRow,
+    },
+    /// 저장된 원격 행을 지운다. 없는 행이면 이벤트를 만들지 않는다.
+    RemoveRemoteRow {
+        id: u32,
+    },
     RenameTab {
         tab_id: u32,
         name: Option<String>,

@@ -207,6 +207,8 @@ fn affected_workspaces(
             | E::CategoryMoved { .. }
             | E::CategoryClosed { .. }
             | E::WorkspaceAttachMappingSet { .. }
+            | E::RemoteRowSet { .. }
+            | E::RemoteRowRemoved { .. }
             | E::SurfaceCreationSeeded { .. }
             | E::SurfaceSeedImported { .. }
             | E::SurfaceDataRecorded { .. }

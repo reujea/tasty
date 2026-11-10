@@ -4,8 +4,8 @@ use std::collections::BTreeMap;
 
 use serde::{Deserialize, Serialize};
 use tasty_model::{
-    PaneId, SplitDirection, SurfaceId, TabId, WorkspaceAttachMapping, WorkspaceCategoryId,
-    WorkspaceId,
+    PaneId, RemoteBinding, SplitDirection, SurfaceId, TabId, WorkspaceAttachMapping,
+    WorkspaceCategoryId, WorkspaceId,
 };
 
 use crate::ids::{BatchId, Revision};
@@ -164,6 +164,21 @@ pub struct Workspace {
     pub metadata: BTreeMap<String, String>,
 }
 
+/// 사용자가 GUI로 붙인 원격 워크스페이스의 사이드바 행. 내용(탭·pane·surface)은 저장하지 않는다.
+/// id는 그 행의 로컬 workspace id다. 로컬 workspace 순서와 따로 보관하며 `index`는 로컬과 원격을
+/// 합친 사이드바 표시 순서에서의 자리다.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RemoteRow {
+    pub name: String,
+    #[serde(default)]
+    pub subtitle: String,
+    #[serde(default)]
+    pub description: String,
+    pub category: WorkspaceCategoryId,
+    pub index: usize,
+    pub binding: RemoteBinding,
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Pane {
     pub workspace: WorkspaceId,
@@ -222,6 +237,9 @@ pub struct JournalModel {
     pub category_order: Vec<WorkspaceCategoryId>,
     pub workspaces: BTreeMap<WorkspaceId, Workspace>,
     pub workspace_order: Vec<WorkspaceId>,
+    /// 저장된 원격 워크스페이스 행. 구조 비교(digest)에 들어가지 않는다.
+    #[serde(default)]
+    pub remote_rows: BTreeMap<WorkspaceId, RemoteRow>,
     pub panes: BTreeMap<PaneId, Pane>,
     pub tabs: BTreeMap<TabId, Tab>,
     pub surfaces: BTreeMap<SurfaceId, Surface>,

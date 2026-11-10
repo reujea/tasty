@@ -21,6 +21,7 @@ mod survivors;
 mod terminal_read;
 
 mod file_download;
+mod saved_row;
 mod user_waits;
 mod wire;
 pub(crate) mod workspace_close;

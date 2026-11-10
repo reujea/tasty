@@ -337,3 +337,100 @@ fn clearing_a_mapping_from_the_refusal_banner_removes_it_from_the_workspace() {
         None
     );
 }
+
+fn saved_row(id: u32, name: &str) -> crate::model::Workspace {
+    let mut workspace = mirror(id, name);
+    workspace.remote_row = Some(crate::model::RemoteBinding {
+        profile: "mac".into(),
+        remote_workspace: 4,
+    });
+    workspace
+}
+
+fn saved_row_changes(
+    resolved: &crate::app::journal::commands::workspace::Resolved,
+) -> Vec<(u32, tasty_core::RemoteRow)> {
+    resolved
+        .changes
+        .iter()
+        .filter_map(|change| match change {
+            tasty_core::StructuralCommand::SetRemoteRow { id, row } => Some((*id, row.clone())),
+            _ => None,
+        })
+        .collect()
+}
+
+#[test]
+fn saved_remote_rows_store_renames_and_display_moves_but_agent_mirrors_do_not() {
+    let (mut session, mut journal) = boot();
+    session
+        .core_state
+        .push_mirror_workspace(saved_row(900, "remote"));
+    session
+        .core_state
+        .push_mirror_workspace(mirror(901, "agent"));
+    let rename = |id| {
+        request(
+            "workspace.update",
+            serde_json::json!({"id": id, "name": "renamed", "description": "d"}),
+            None,
+            1,
+        )
+    };
+    let resolved =
+        crate::app::journal::commands::workspace::resolve(&rename(900), &session, "stream")
+            .ok()
+            .unwrap();
+    let rows = saved_row_changes(&resolved);
+    assert_eq!(rows.len(), 1);
+    assert_eq!(rows[0].0, 900);
+    assert_eq!(rows[0].1.name, "renamed");
+    assert_eq!(rows[0].1.description, "d");
+    assert_eq!(rows[0].1.index, 1, "after the single local workspace");
+    let agent = crate::app::journal::commands::workspace::resolve(&rename(901), &session, "stream")
+        .ok()
+        .unwrap();
+    assert!(
+        agent.changes.is_empty(),
+        "an agent mirror stays display-only"
+    );
+    let moved = crate::app::journal::commands::workspace::resolve(
+        &request(
+            "workspace.move",
+            serde_json::json!({"id": 900, "to_index": 0}),
+            None,
+            2,
+        ),
+        &session,
+        "stream",
+    )
+    .ok()
+    .unwrap();
+    let rows = saved_row_changes(&moved);
+    assert_eq!(rows.len(), 1, "only the saved row is stored");
+    assert_eq!(rows[0].1.index, 0);
+    let current = crate::app::journal::commands::workspace::resolve(
+        &request(
+            "intent.remote-row",
+            serde_json::json!({"id": 900, "remove": false}),
+            None,
+            3,
+        ),
+        &session,
+        "stream",
+    )
+    .ok()
+    .unwrap();
+    assert_eq!(saved_row_changes(&current)[0].1.name, "remote");
+    journal.admit_remote_row(session.id, 900, false);
+    journal.admit_remote_row(session.id, 900, true);
+    finish_intents(&mut journal, &mut session);
+    assert!(
+        journal
+            .commands
+            .completed_intents
+            .iter()
+            .all(|intent| intent.response.error.is_none()),
+        "storing and removing a saved row commit"
+    );
+}

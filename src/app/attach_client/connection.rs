@@ -171,6 +171,15 @@ impl App {
             )?;
             install_mirror_fallbacks(&ws, &mut engine.runtime.surfaces);
             ws.mirror = true;
+            // 사용자가 원격 연결 팝업에서 붙인 workspace만 저장된 원격 행이 된다.
+            if target.user
+                && let Some(profile) = &target.profile
+            {
+                ws.remote_row = Some(crate::model::RemoteBinding {
+                    profile: profile.clone(),
+                    remote_workspace: workspace,
+                });
+            }
             engine.push_mirror_workspace(ws);
             main.state.reconcile_presentation(engine.core);
             main.mark_dirty();
@@ -207,6 +216,10 @@ impl App {
             "gui attach: mirror workspace {local_ws_id} from 127.0.0.1:{port} (remote ws {workspace})"
         );
         self.probe_remote_home(local_ws_id);
+        if target.user && target.profile.is_some() {
+            self.journal
+                .admit_remote_row(target.engine, local_ws_id, false);
+        }
         Ok(local_ws_id)
     }
 
@@ -493,6 +506,7 @@ impl App {
         from_disconnect: bool,
     ) {
         log_mirror_cleanup(sess, from_disconnect);
+        let saved_row = self.saved_remote_row_engine(sess.state.local_workspace);
         // 창과 parked engine 모두 정리해야 창 복원 때 끊긴 mirror가 되살아나지 않는다.
         // 창을 순회하는 부분의 범위 일치는 자동 검증하지 않는다.
         // window_access::mirror_workspace_engine_alive의 검사 범위 설명을 참고한다.
@@ -539,6 +553,10 @@ impl App {
         sess.transport.disconnected.store(true, Ordering::SeqCst);
         if let Err(error) = sess.send_frame(StreamTag::Detach, Vec::new()) {
             tracing::debug!(%error, "detach notice could not reach the closing writer");
+        }
+        if let Some(engine) = saved_row {
+            self.journal
+                .admit_remote_row(engine, sess.state.local_workspace, true);
         }
         if let Some(anchor) = sess.state.anchor_ws_id {
             self.remote.active.remove(&anchor);

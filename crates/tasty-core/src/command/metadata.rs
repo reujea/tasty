@@ -14,6 +14,9 @@ pub(super) fn decide(m: &JournalModel, cmd: &StructuralCommand) -> Result<Struct
         | StructuralCommand::UpdateWorkspaceMeta { .. }
         | StructuralCommand::SetWorkspaceAttachMapping { .. }
         | StructuralCommand::MoveWorkspace { .. } => workspace_change(m, cmd),
+        StructuralCommand::SetRemoteRow { .. } | StructuralCommand::RemoveRemoteRow { .. } => {
+            remote_row(m, cmd)
+        }
         StructuralCommand::RenameTab { .. }
         | StructuralCommand::MoveTab { .. }
         | StructuralCommand::SetPaneRatio { .. }
@@ -347,4 +350,36 @@ fn check_revision(m: &JournalModel, expected: u64) -> Result<()> {
         return Err(Rejection("split changed since the drag began".into()));
     }
     Ok(())
+}
+
+fn remote_row(m: &JournalModel, cmd: &StructuralCommand) -> Result<StructuralDecision> {
+    let mut events = Vec::new();
+    match cmd {
+        StructuralCommand::SetRemoteRow { id, row } => {
+            if m.workspaces.contains_key(id) {
+                return Err(Rejection(format!(
+                    "workspace {id} is local and cannot be a remote row"
+                )));
+            }
+            let mut row = row.clone();
+            if !m.categories.contains_key(&row.category) {
+                row.category = tasty_model::NORMAL_CATEGORY_ID;
+            }
+            if m.remote_rows.get(id) != Some(&row) {
+                events.push(DomainEvent::RemoteRowSet { id: *id, row });
+            }
+        }
+        StructuralCommand::RemoveRemoteRow { id } => {
+            if m.remote_rows.contains_key(id) {
+                events.push(DomainEvent::RemoteRowRemoved { id: *id });
+            }
+        }
+        _ => unreachable!("remote row command family"),
+    }
+    Ok(StructuralDecision {
+        events,
+        effects: Vec::new(),
+        result: StructuralResult::Updated,
+        completed_command: None,
+    })
 }

@@ -20,6 +20,7 @@ pub(super) fn resolve(
             update(request, session, stream)
         }
         "workspace.move" => reorder(request, session),
+        "intent.remote-row" => Ok(remote_row(request, session)),
         _ => unreachable!("workspace command family"),
     }
 }
@@ -85,6 +86,22 @@ fn update(
         .and_then(|v| v.as_str())
         .map(str::to_owned);
     if workspace.mirror {
+        // 저장된 원격 행은 이름·설명·카테고리를 journal에도 남긴다. 화면 값은 아래 continuation이 바꾼다.
+        let changes = saved_row(workspace, index)
+            .map(|row| C::SetRemoteRow {
+                id: workspace_id,
+                row: tasty_core::RemoteRow {
+                    name: name.clone().unwrap_or_else(|| row.name.clone()),
+                    subtitle: subtitle.clone().unwrap_or_else(|| row.subtitle.clone()),
+                    description: description
+                        .clone()
+                        .unwrap_or_else(|| row.description.clone()),
+                    category: category.unwrap_or(row.category),
+                    ..row
+                },
+            })
+            .into_iter()
+            .collect();
         let token = core
             .mirror_projection_token(workspace_id)
             .expect("mirror projection has a lifetime");
@@ -100,7 +117,7 @@ fn update(
             }),
         ));
         return Ok(Resolved {
-            changes: Vec::new(),
+            changes,
             response,
             display: Some(DisplayContinuation {
                 engine: session.id,
@@ -211,6 +228,11 @@ fn reorder(request: &JsonRpcRequest, session: &EngineSession) -> Result<Resolved
                 to_index,
             });
         }
+        // 저장된 원격 행은 새 화면 순서의 위치를 저장한다. 바뀌지 않은 행은 core가 이벤트를 만들지 않는다.
+        changes.extend(core.mirror_workspaces().iter().filter_map(|workspace| {
+            let index = order.iter().position(|id| *id == workspace.id)?;
+            remote_row_command(workspace, index)
+        }));
         Some(DisplayContinuation {
             engine: session.id,
             mirrors: core
@@ -237,4 +259,44 @@ fn reorder(request: &JsonRpcRequest, session: &EngineSession) -> Result<Resolved
         )),
         display,
     })
+}
+
+/// 저장된 원격 행의 현재 값을 저장 명령으로 만든다. `index`는 합친 화면 순서의 위치다.
+pub(super) fn remote_row_command(workspace: &crate::model::Workspace, index: usize) -> Option<C> {
+    Some(C::SetRemoteRow {
+        id: workspace.id,
+        row: saved_row(workspace, index)?,
+    })
+}
+
+fn saved_row(workspace: &crate::model::Workspace, index: usize) -> Option<tasty_core::RemoteRow> {
+    Some(tasty_core::RemoteRow {
+        name: workspace.name.clone(),
+        subtitle: workspace.subtitle.clone(),
+        description: workspace.description.clone(),
+        category: workspace.category,
+        index,
+        binding: workspace.remote_row.clone()?,
+    })
+}
+
+fn remote_row(request: &JsonRpcRequest, session: &EngineSession) -> Resolved {
+    let core = &session.core_state;
+    let id = request.params["id"].as_u64().unwrap_or(u64::MAX) as u32;
+    let changes = if request.params["remove"].as_bool().unwrap_or(false) {
+        vec![C::RemoveRemoteRow { id }]
+    } else {
+        core.find_workspace_index_for_id(id)
+            .and_then(|index| remote_row_command(core.workspace_at(index)?, index))
+            .into_iter()
+            .collect()
+    };
+    Resolved {
+        changes,
+        response: ResponsePlan::Fixed(JsonRpcResponse::success(
+            serde_json::Value::Null,
+            serde_json::json!({"id": id}),
+        )),
+        display: None,
+    }
 }

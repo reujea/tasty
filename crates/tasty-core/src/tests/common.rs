@@ -160,6 +160,20 @@ pub fn scenario() -> Vec<Vec<DomainEvent>> {
                 id: ws,
                 mapping: Some(tasty_model::WorkspaceAttachMapping::profile("box", Some(4))),
             },
+            DomainEvent::RemoteRowSet {
+                id: 900,
+                row: crate::RemoteRow {
+                    name: "box".to_owned(),
+                    subtitle: String::new(),
+                    description: String::new(),
+                    category: 0,
+                    index: 1,
+                    binding: tasty_model::RemoteBinding {
+                        profile: "box".to_owned(),
+                        remote_workspace: 4,
+                    },
+                },
+            },
             DomainEvent::TabExplicitNameSet {
                 id: 1,
                 name: Some("Build!".to_owned()),
@@ -189,6 +203,7 @@ pub fn scenario() -> Vec<Vec<DomainEvent>> {
                 id: ws,
                 mapping: None,
             },
+            DomainEvent::RemoteRowRemoved { id: 900 },
         ],
         vec![
             DomainEvent::SurfaceClosed { id: 3 },

@@ -85,6 +85,7 @@ mod nav_state;
 mod pane;
 mod pane_tree;
 pub mod popup_kind;
+mod remote_binding;
 mod surface_descriptor;
 mod surface_layout;
 pub use surface_descriptor::SurfaceDescriptor;
@@ -107,6 +108,7 @@ pub use nav_state::{
 };
 pub use pane::*;
 pub use pane_tree::*;
+pub use remote_binding::RemoteBinding;
 pub use surface_trait::Surface;
 pub use tab::{SurfaceTitle, Tab};
 pub use terminal_surface::*;

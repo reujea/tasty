@@ -455,9 +455,10 @@ impl StoredView {
             sequence: 0,
             selection: ImportedView {
                 active_workspace: active.filter(|id| {
-                    core.local_workspaces()
-                        .iter()
-                        .any(|workspace| workspace.id == *id)
+                    core.workspaces().iter().any(|workspace| {
+                        workspace.id == *id
+                            && (!workspace.mirror || workspace.is_saved_remote_row())
+                    })
                 }),
                 focused_panes: captured.panes.into_iter().collect(),
                 active_tabs: captured.selected_tabs.into_iter().collect(),

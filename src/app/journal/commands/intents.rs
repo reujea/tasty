@@ -240,6 +240,23 @@ impl JournalApplication {
         self.admit_intent_request(engine_id, method, params, origin, None);
     }
 
+    /// 저장된 원격 행의 현재 값을 journal에 저장하거나(`remove == false`) 지운다.
+    /// 값은 처리 시점의 화면 상태에서 읽으므로 그사이 행이 닫혔으면 저장하지 않는다.
+    pub(crate) fn admit_remote_row(
+        &mut self,
+        engine_id: EngineId,
+        workspace_id: u32,
+        remove: bool,
+    ) {
+        self.admit_intent_request(
+            engine_id,
+            "intent.remote-row",
+            serde_json::json!({"id": workspace_id, "remove": remove}),
+            &crate::intent::IntentOrigin::System,
+            None,
+        );
+    }
+
     pub(super) fn admit_intent_request(
         &mut self,
         engine_id: EngineId,
