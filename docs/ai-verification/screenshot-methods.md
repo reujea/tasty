@@ -89,7 +89,7 @@ tasty screenshot --path /abs/win.png --window 2
 readback 하는데(`gfx/gpu/screenshot.rs`), native WebView overlay 는 그 swapchain 이 아니라
 **별개의 OS 자식 창**이다(Linux 는 X11 자식 창 안의 GTK 창 — `host_api/webview/linux.rs`).
 readback 이 그 자리에서 읽는 것은 overlay 아래에 host 가 그려 둔 chrome
-(`adapters/ui/surface/webview_chrome.rs`)이다. 페이지를 불러온 surface 는 boundary 상태라
+(`adapters/ui/surface/webview_chrome.rs`가 공용 `tasty_ui_widgets::webview_page_tile`로 그린다)이다. 페이지를 불러온 surface 는 boundary 상태라
 캡처에는 **글리프·라벨·URL 없는 빈 타일**(`bg-panel` + 1px 테두리)만 담긴다. 빈 타일은
 WebView 렌더링 실패를 뜻하지 않는다.
 

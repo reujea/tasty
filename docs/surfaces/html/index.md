@@ -529,7 +529,7 @@ surface 는 트리에선 `RemoteSurface` marker. 네이티브 WebView 의 naviga
 Failed chrome 의 URL 줄은 `webview.set_url` 의 선택 인자 `label` 을 먼저 보이고, label 이 없으면
 탐색 가능한 URL(`http(s)://`·`file://`)만 보인다. raw HTML 을 url 로 싣는 surface(markdown)는 label 로
 문서 경로를 보내므로 chrome 에 HTML 원문이 나오지 않는다. 줄은 mono `font_size_caption`(11) ·
-`text_disabled` 한 줄이며 넘치면 말줄임한다. chrome 내용은 좌우에 `space-lg`(16) 여백을 둬(시안 타일의 내용 padding) 긴 줄이 패널 가장자리에 닿지 않는다. 판정은 `webview_chrome.rs::chrome_caption` 이며, 주소로 볼지는 로드 분기(주소로 열기 / raw HTML 싣기)와 같은 `webview::is_navigable_url` 이 정한다.
+`text_disabled` 한 줄이며 넘치면 말줄임한다. chrome 내용은 좌우에 `space-lg`(16) 여백을 둬(시안 타일의 내용 padding) 긴 줄이 패널 가장자리에 닿지 않는다. chrome 의 배치와 그리기는 공용 `tasty_ui_widgets::webview_page_tile` 이 맡고 갤러리의 Loading·빈 안내 표본도 같은 함수를 부른다. 판정은 `webview_chrome.rs::chrome_caption` 이며, 주소로 볼지는 로드 분기(주소로 열기 / raw HTML 싣기)와 같은 `webview::is_navigable_url` 이 정한다.
 
 ### 디자인 토큰 매핑
 

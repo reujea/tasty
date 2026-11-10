@@ -344,7 +344,7 @@ markdown과 image는 kind 이름과 등록한 플러그인 id를 함께 본다. 
 
 ## 코드 위치
 
-- Surface 포커스 표현: 판정과 분류는 `src/state/surface_focus.rs`, 바탕 값 접근은 `tasty_ui_widgets::surface_bed`, chrome 타일은 `src/adapters/ui/surface/webview_chrome.rs`의 `WebviewTile`이다.
+- Surface 포커스 표현: 판정과 분류는 `src/state/surface_focus.rs`, 바탕 값 접근은 `tasty_ui_widgets::surface_bed`, chrome 타일의 바탕 선택은 `src/adapters/ui/surface/webview_chrome.rs`의 `WebviewTile`이고, 타일 그리기는 그 바탕을 받는 `tasty_ui_widgets::webview_page_tile`이다.
 
 - `active_modal_id()` / `modal_active` 게이트: `src/app/event_handler.rs`(`self.view.active_modal_id()`), View 디스패치.
 - focus 대상 해석 / `TASTY_SURFACE_ID` / `this`: `crates/tasty-cli/src/request.rs`.

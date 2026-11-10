@@ -192,6 +192,16 @@ The host HTML surface calls it from `src/adapters/ui/surface/html_address.rs`.
 `html_address_field_id` names the field's egui id inside a band id, so the host can give up
 the field focus after an open or when the native page takes the keyboard.
 
+`webview_page_tile` draws the host tile under a native WebView: Loading (Spinner and title),
+Failed (alert glyph, title and mono URL line), the empty notice (page glyph, title and hint)
+and the bare boundary. It paints the background and 1px border over the whole region and
+clips glyphs and text to the native content rect. A passed empty hint is drawn only under
+the empty notice, but its row stays in the vertical layout for every state. Callers pass translated strings, the URL
+line and the background, so the main app keeps the focus decision (`WebviewTile`) and the
+gallery passes `bg-panel` for the html kind. The main app calls it from
+`src/adapters/ui/surface/webview_chrome.rs`; the gallery calls it for the loading and empty
+page specimens.
+
 All lengths use LogicalPx and existing HTML address/input/banner Theme tokens. The band
 is 40 logical pixels high, with a 24-pixel error row when needed and an inside separator.
 Forward is omitted below the 440-pixel breakpoint; the field retains its 96-pixel minimum.
