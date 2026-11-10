@@ -1,128 +1,14 @@
 //! 의존 관계를 색과 파선 패턴으로 함께 구분한다. 화살촉은 의존하는 작업을 가리킨다.
+//! 꺾인선·모서리·파선·화살촉은 본체 캔버스와 같은 공통 그래프 뷰 함수로 그린다.
 
+use tasty_dag_layout::Orientation;
 use tasty_type_appearance::theme::Theme;
+use tasty_ui_widgets::{
+    EdgeInk, graph_orthogonalize, graph_paint_arrow, graph_paint_edge_line, graph_round_corners,
+};
 
 use super::Rel;
 use crate::catalog::spec::{self, StageVariant, TokenChip};
-
-/// 코너 하나를 이차 베지어로 몇 조각 내어 근사할지. egui 에는 SVG `Q` 가 없다.
-const CORNER_STEPS: usize = 6;
-
-/// 엔진이 남긴 대각선 구간을 흐름 방향에 맞춘 직교 경로로 바꾼다.
-pub fn orthogonalize(points: &[egui::Pos2], top_down: bool) -> Vec<egui::Pos2> {
-    let mut out: Vec<egui::Pos2> = Vec::with_capacity(points.len() * 2);
-    for w in points.windows(2) {
-        let (a, b) = (w[0], w[1]);
-        if out.last() != Some(&a) {
-            out.push(a);
-        }
-        let aligned = (a.x - b.x).abs() < 1.0 || (a.y - b.y).abs() < 1.0;
-        if !aligned {
-            if top_down {
-                let m = (a.y + b.y) / 2.0;
-                out.push(egui::pos2(a.x, m));
-                out.push(egui::pos2(b.x, m));
-            } else {
-                let m = (a.x + b.x) / 2.0;
-                out.push(egui::pos2(m, a.y));
-                out.push(egui::pos2(m, b.y));
-            }
-        }
-        out.push(b);
-    }
-    out
-}
-
-/// 직교 폴리라인의 각 꺾임을 반경 `r` 로 둥글린다 (디자인 `Q` 코너).
-pub fn round_corners(points: &[egui::Pos2], r: f32) -> Vec<egui::Pos2> {
-    if points.len() < 3 || r <= 0.0 {
-        return points.to_vec();
-    }
-    let mut out = vec![points[0]];
-    for i in 1..points.len() - 1 {
-        let (prev, cur, next) = (points[i - 1], points[i], points[i + 1]);
-        let in_len = (cur - prev).length();
-        let out_len = (next - cur).length();
-        let rr = r.min(in_len / 2.0).min(out_len / 2.0);
-        if rr <= 0.5 {
-            out.push(cur);
-            continue;
-        }
-        let a = cur - (cur - prev).normalized() * rr;
-        let b = cur + (next - cur).normalized() * rr;
-        out.push(a);
-        for s in 1..CORNER_STEPS {
-            let t = s as f32 / CORNER_STEPS as f32;
-            let u = 1.0 - t;
-            out.push(egui::pos2(
-                u * u * a.x + 2.0 * u * t * cur.x + t * t * b.x,
-                u * u * a.y + 2.0 * u * t * cur.y + t * t * b.y,
-            ));
-        }
-        out.push(b);
-    }
-    out.push(points[points.len() - 1]);
-    out
-}
-
-/// 디자인 `elbow(s, t, td, r)` — 두 점을 잇는 둥근 직교 경로.
-pub fn elbow(s: egui::Pos2, t: egui::Pos2, top_down: bool, r: f32) -> Vec<egui::Pos2> {
-    round_corners(&orthogonalize(&[s, t], top_down), r)
-}
-
-/// 폴리라인 한 줄. `dash` 가 있으면 SVG `stroke-dasharray` 처럼 선·틈 길이를 번갈아 끊어 그린다.
-pub fn paint_path(
-    painter: &egui::Painter,
-    points: &[egui::Pos2],
-    color: egui::Color32,
-    width: f32,
-    dash: Option<&[f32]>,
-) {
-    if points.len() < 2 {
-        return;
-    }
-    let stroke = egui::Stroke::new(width, color);
-    match dash {
-        None => painter.add(egui::Shape::line(points.to_vec(), stroke)),
-        Some(pattern) => {
-            let on: Vec<f32> = pattern.iter().step_by(2).copied().collect();
-            let off: Vec<f32> = pattern.iter().skip(1).step_by(2).copied().collect();
-            painter.add(egui::Shape::Vec(egui::Shape::dashed_line_with_offset(
-                points, stroke, &on, &off, 0.0,
-            )))
-        }
-    };
-}
-
-/// 도착점의 삼각 화살촉. `size` = `--tasty-dag-edge-arrow-size`(8).
-///
-/// 디자인 폴리곤은 밑변 8 · 높이 7 이다 — 높이는 밑변에서 1px(보더 폭) 뺀 값으로
-/// 잡아 카드 변에 정확히 닿게 한다.
-pub fn paint_arrow(
-    painter: &egui::Painter,
-    tip: egui::Pos2,
-    top_down: bool,
-    size: f32,
-    border_width: f32,
-    color: egui::Color32,
-) {
-    let half = size / 2.0;
-    let len = size - border_width;
-    let pts = if top_down {
-        vec![
-            egui::pos2(tip.x - half, tip.y - len),
-            egui::pos2(tip.x + half, tip.y - len),
-            tip,
-        ]
-    } else {
-        vec![
-            egui::pos2(tip.x - len, tip.y - half),
-            egui::pos2(tip.x - len, tip.y + half),
-            tip,
-        ]
-    };
-    painter.add(egui::Shape::convex_polygon(pts, color, egui::Stroke::NONE));
-}
 
 /// 엣지 견본 한 줄의 그리기 값. 선택 상태가 바꾸는 것은 굵기와 선 잉크뿐이다.
 pub(super) struct EdgeLook {
@@ -162,15 +48,19 @@ pub(super) fn specimen(
     let s = egui::pos2(rect.min.x + inset, rect.min.y + gap);
     let t = egui::pos2(rect.max.x - inset, rect.max.y - gap);
     let color = stroke.ink;
-    let path = elbow(s, t, true, theme.dag_edge_corner_radius().value());
-    paint_path(ui.painter(), &path, color, stroke.width, stroke.dash);
-    paint_arrow(
-        ui.painter(),
-        t,
-        true,
-        theme.dag_edge_arrow_size().value(),
-        theme.border_width.value(),
+    let ortho = graph_orthogonalize(&[s, t], Orientation::TopDown);
+    let path = graph_round_corners(&ortho, theme.dag_edge_corner_radius().value());
+    let ink = EdgeInk {
         color,
+        width: stroke.width,
+        dash: stroke.dash,
+    };
+    graph_paint_edge_line(ui.painter(), &path, &ink, 1.0);
+    graph_paint_arrow(
+        ui.painter(),
+        theme.dag_edge_arrow_size().value(),
+        color,
+        &ortho,
     );
     let cx = outer.center().x;
     ui.painter().text(

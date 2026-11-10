@@ -29,7 +29,7 @@ gallery-first 이전에 만들어져 본체 binary 에만 있는 view 는 갤러
 - **i18n** — 위젯 crate 는 `tasty-i18n` 을 의존하지 않는다. 라벨·tooltip 은 props 필드로 올려 본체 wrapper 가 주입한다. 그리기와 폭 계산이 **같은 필드**를 읽게 해서 문자열이 두 곳에서 독립 조립되지 않게 한다.
 - **글로벌 `theme()` 접근** — crate 함수는 항상 `&Theme` 을 명시적으로 받는다.
 
-선례: StatusBar(`crates/tasty-ui-widgets/src/status_bar.rs` ↔ `src/adapters/ui/status_bar.rs` ↔ `catalog/components/status_bar.rs`).
+선례: StatusBar(`crates/tasty-ui-widgets/src/status_bar.rs` ↔ `src/adapters/ui/status_bar.rs` ↔ `catalog/components/status_bar.rs`), 공통 그래프 뷰(`crates/tasty-ui-widgets/src/graph_view/` ↔ `src/adapters/ui/surface/dag_graph/` ↔ `catalog/components/dag/`, [graph-view](../design/systems/graph-view.md)).
 
 ## 무엇이 이 순서를 강제하는가
 

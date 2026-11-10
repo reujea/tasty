@@ -5,7 +5,7 @@
 - **렌더 경로**: host-egui
 - **주체**: 로컬 사용자(관찰) · AI Agent(생성)
 - **설계**: [다중 에이전트 협업 (Agent collaboration)](../../features/agent-collaboration/index.md)
-- **코드**: 등록 `register_dag_graph`(`src/runtime/surface_registry/builtins.rs`), 모델 `DagGraphSurface`(`crates/tasty-model/src/dag_graph_surface.rs`), 화면 `src/adapters/ui/surface/dag_graph/`
+- **코드**: 등록 `register_dag_graph`(`src/runtime/surface_registry/builtins.rs`), 모델 `DagGraphSurface`(`crates/tasty-model/src/dag_graph_surface.rs`), 화면 `src/adapters/ui/surface/dag_graph/` — 캔버스·조작 도구·상세 틀은 [공통 그래프 뷰](../../design/systems/graph-view.md)(`crates/tasty-ui-widgets/src/graph_view/`), DAG 조회는 `GraphSource` 구현 `DagGraphSource`
 - **화면**: [screens/graph.md](screens/graph.md)
 
 ## 목적·지원 범위

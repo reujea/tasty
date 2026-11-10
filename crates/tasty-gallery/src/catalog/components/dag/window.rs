@@ -12,7 +12,7 @@ use tasty_ui_widgets::{
 
 use super::detail::Dock;
 use super::rows::Entry;
-use super::{canvas, chrome, detail, rows, runner};
+use super::{canvas, detail, rows, runner};
 use crate::catalog::spec::{self, StageVariant, TokenChip};
 
 /// 시안 확정 크기 — `--tasty-dag-popup-width` / `-height`.
@@ -261,8 +261,9 @@ fn detail_view(ui: &mut egui::Ui, theme: &Theme, body: egui::Rect, entry: &Entry
 
     // 배율 표시는 캔버스와 같은 fit 계산 결과를 쓴다.
     let layout = super::layout(&entry.graph, theme, Orientation::TopDown);
-    let zoom = canvas::fit(canvas_rect, &layout, theme).zoom;
-    let cluster = chrome::zoom_cluster_size(theme, true);
+    let mut view = tasty_ui_widgets::GraphView::default();
+    view.zoom = canvas::fit_zoom(canvas_rect.size(), &layout, theme);
+    let cluster = tasty_ui_widgets::graph_zoom_cluster_size(theme, true);
     let badge_w = runner::badge_width(ui, theme, &entry.graph.runner);
     let badge_h = theme.dag_runner_height().value();
     let gap = theme.spacing_sm.value();
@@ -277,7 +278,17 @@ fn detail_view(ui: &mut egui::Ui, theme: &Theme, body: egui::Rect, entry: &Entry
         ),
         cluster,
     );
-    chrome::paint_zoom_cluster(ui, theme, cluster_rect, zoom, true);
+    // 예제의 버튼은 눌러도 바꿀 상태가 없다. 동작은 본체 팝업에서 확인한다.
+    if let Some(action) = tasty_ui_widgets::draw_zoom_cluster(
+        ui,
+        theme,
+        cluster_rect,
+        &view,
+        Orientation::TopDown,
+        &canvas::chrome_labels(),
+    ) {
+        tracing::trace!("gallery popup zoom cluster ignores {action:?}");
+    }
     runner::paint_badge(ui, theme, badge_rect, &entry.graph.runner);
 
     let mut sel = Some("unit".to_owned());
@@ -289,7 +300,6 @@ fn detail_view(ui: &mut egui::Ui, theme: &Theme, body: egui::Rect, entry: &Entry
         &entry.graph,
         Orientation::TopDown,
         &mut sel,
-        false,
         false,
         None,
     );

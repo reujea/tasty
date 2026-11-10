@@ -94,7 +94,7 @@ tasty split --level surface --surface <SID> --type dag_graph
 캔버스가 자체 조합을 박으면 이미 배정된 전역 액션과 조용히 겹친다.
 
 `Esc` 는 이 규칙에 맞지 않는다. 캔버스가 egui 의 `Key::Escape` 를 직접 읽어
-(`src/adapters/ui/surface/dag_graph/canvas.rs`) 포인터가 캔버스 위(줌 클러스터 밖)에 있으면
+(공통 그래프 뷰 `crates/tasty-ui-widgets/src/graph_view/canvas.rs`) 포인터가 캔버스 위(줌 클러스터 밖)에 있으면
 선택을 해제하고, 키를 소비하지 않는다. `KeybindingSettings` 에 대응 필드가 없다. 정책의
 예외는 Tasty 가 바꾸거나 가로챌 수 없는 OS 관리 단축키뿐이고 이 키는 Tasty 가 직접 처리하므로
 예외에 해당하지 않는다. 바인딩으로 노출할지 다른 방식으로 정리할지는 정해지지 않았다.

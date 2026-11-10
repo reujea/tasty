@@ -1,5 +1,8 @@
-//! DAG 화면 예제. 본체 바이너리의 뷰를 호출하지 않고 레이아웃을 재현한다.
-//! 노드 좌표는 본체와 같은 tasty-dag-layout 엔진으로 계산한다.
+//! DAG 화면 예제. 캔버스·카드·미니맵·줌 버튼·상세 자리는 본체와 같은 공통 그래프 뷰
+//! (`tasty_ui_widgets::draw_graph_canvas`, `paint_dag_card`)를 부르고, 여기에는 표본 데이터와
+//! 그 데이터를 공통 뷰에 넘기는 painter가 있다.
+//! 본체 바이너리에만 있는 DAG 헤더·러너 배지·사이클 배너·상세 내용·간선 잉크 규칙은 본체를 부를 수
+//! 없어 같은 모양으로 다시 그린다.
 //! 비례 글꼴에 없는 Dingbats 문자 대신 본체와 같은 기하 문자로 상태를 표시한다.
 
 pub mod canvas;
@@ -162,6 +165,22 @@ impl Status {
     /// 실패/취소 상류에 막혀 실행되지 않을 경로 (`DIM_STATUS`).
     pub fn is_dim(self) -> bool {
         matches!(self, Status::Skipped | Status::Cancelled)
+    }
+
+    /// 공통 DAG 카드의 상태.
+    pub fn card(self) -> tasty_ui_widgets::DagStatus {
+        use tasty_ui_widgets::DagStatus as S;
+        match self {
+            Status::Waiting => S::Waiting,
+            Status::Ready => S::Ready,
+            Status::Running => S::Running,
+            Status::Succeeded => S::Succeeded,
+            Status::Failed => S::Failed,
+            Status::Cancelled => S::Cancelled,
+            Status::Skipped => S::Skipped,
+            Status::Unknown => S::Unknown,
+            Status::PartiallyFailed => S::PartiallyFailed,
+        }
     }
 }
 
@@ -426,6 +445,60 @@ impl Graph {
         let src = self.nodes[from].status;
         let dst = self.nodes[to].status;
         dst.is_dim() || src == Status::Failed || src.is_dim()
+    }
+}
+
+impl tasty_ui_widgets::GraphNodeData for Node {
+    fn node_id(&self) -> &str {
+        &self.id
+    }
+}
+
+/// 공통 그래프 뷰에 넘기는 간선 하나.
+#[derive(Debug, Clone, Copy)]
+pub struct PlotEdge {
+    pub from: usize,
+    pub to: usize,
+    pub rel: Rel,
+}
+
+impl tasty_ui_widgets::GraphEdgeData for PlotEdge {
+    fn ends(&self) -> (usize, usize) {
+        (self.from, self.to)
+    }
+}
+
+/// 표본 그래프를 공통 그래프 뷰가 읽는 스냅샷으로 펼친 것.
+pub struct Plot<'a> {
+    pub graph: &'a Graph,
+    edges: Vec<PlotEdge>,
+}
+
+impl<'a> Plot<'a> {
+    pub fn new(graph: &'a Graph) -> Self {
+        let edges = graph
+            .edges()
+            .into_iter()
+            .map(|(from, to, rel)| PlotEdge { from, to, rel })
+            .collect();
+        Self { graph, edges }
+    }
+}
+
+impl tasty_ui_widgets::GraphData for Plot<'_> {
+    type Node = Node;
+    type Edge = PlotEdge;
+
+    fn graph_key(&self) -> &str {
+        &self.graph.id
+    }
+
+    fn nodes(&self) -> &[Node] {
+        &self.graph.nodes
+    }
+
+    fn edges(&self) -> &[PlotEdge] {
+        &self.edges
     }
 }
 

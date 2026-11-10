@@ -2437,6 +2437,14 @@ pub fn pages() -> Vec<Page> {
                             Some("640 아래에서 헤더 2행 · 미니맵 제거 · 상세는 하단 시트"),
                             components::dag::surface::draw,
                         ),
+                        spec(
+                            "dag-graph-view",
+                            "Shared graph view — states",
+                            Some(
+                                "본체 DAG surface·팝업과 같은 공통 그래프 뷰 · 빈 · 작은 · 큰 · 선택+상세 · 좁은 폭 · LOD 3단계",
+                            ),
+                            components::dag::canvas::draw_states,
+                        ),
                     ],
                 ),
                 section(

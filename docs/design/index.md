@@ -20,6 +20,7 @@
 | [theme](systems/theme.md) | 색·타이포·간격의 단일 출처 `Theme` + UI 디자인 규칙·그림자 토큰과 검사 범위 |
 | [design-token-mapping](systems/design-token-mapping.md) | Design System 토큰과 `Theme` 필드·호출처의 대응표 |
 | [design-gallery-mapping](systems/design-gallery-mapping.md) | 디자인 JSX 컴포넌트·갤러리 예제·호스트 함수의 대응표. 원격 피커 행·pane 포함 |
+| [graph-view](systems/graph-view.md) | DAG surface·popup·갤러리가 함께 쓰는 공통 그래프 뷰 — 데이터 계약, 캔버스, 조작 도구, Drawer 틀 |
 | [design-parity-notes](systems/design-parity-notes.md) | 디자인(html/CSS) ↔ 구현(winit/egui) 의 구조적 차이와 전사 원칙 |
 | [icons](systems/icons.md) | 라인/필 아이콘 세트 — SVG 지오메트리 단일 소스와 소비 구조 |
 | [popup](systems/popup.md) | View 내부 가상 창 — `PopupManager` + `PopupDef` 로 관리, 포커스 비독점 · 자식 파일 피커 범위 상속/숨김 보존 |

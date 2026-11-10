@@ -107,7 +107,7 @@ state.foo_views = foo_views;   // 반드시 복원 (이후 state 접근 전에)
 | Model | View | Store |
 |-------|------|-------|
 | `ExplorerPanel` (id, tabs, active) | `ExplorerView` (entries, …) | `MainViewState::explorer_views` |
-| `DagGraphSurface` (id, dag_id, workspace_id, direction) | `DagGraphView` (data, layout cache, …) | `MainViewState::dag_graph_views` |
+| `DagGraphSurface` (id, dag_id, workspace_id, direction) | `DagGraphView` (`source`: 조회·스냅샷, `canvas`: 공통 `GraphView` 배율·선택·layout cache) | `MainViewState::dag_graph_views` |
 | `TerminalSurface` / `EmptySurface` | (없음 — GPU 렌더 또는 id-only) | — |
 
 신규 host surface 추가 시 이 표에 줄을 더한다. plugin surface(`image`/`html`/`markdown`)는 여기 들어오지 않는다.

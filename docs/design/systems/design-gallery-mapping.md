@@ -1421,31 +1421,33 @@ Mocha·Latte는 고정 테마(`mocha_fallback`·`latte_theme`)로 위아래에 �
 
 | 디자인 jsx 컴포넌트 | tasty 함수 | 갤러리 항목 |
 |---|---|---|
-| `DagCanvas` | `canvas::draw_canvas` | `dag/canvas.rs::paint` (`dag-canvas` spec, 전사 미러) |
+| `DagCanvas` | 공통 `tasty_ui_widgets::draw_graph_canvas` + `canvas::DagPainter` | `dag/canvas.rs::paint` → 같은 `draw_graph_canvas` + `SamplePainter` (`dag-canvas` spec). 상태별 모습은 `dag-graph-view` spec |
 | `dagLayout()` | `tasty_dag_layout::layout_dag` | 동 crate 직접 호출 (미러 아님 — 아래) |
-| `elbow()` | `canvas::orthogonalize` + `round_corners` | `dag/edges.rs::elbow` / `orthogonalize` / `round_corners` |
-| `DagNode` | `node::paint_node` | `dag/node.rs::paint_card` (`dag-node`/`dag-kinds`/`dag-lod` spec) |
+| `elbow()` | 공통 `graph_orthogonalize` + `graph_round_corners` | `dag/edges.rs::specimen` → 같은 함수 |
+| `DagNode` | `node::paint_node` → 공통 `paint_dag_card` | `dag/node.rs::paint_card` → 같은 `paint_dag_card` (`dag-node`/`dag-kinds`/`dag-lod` spec) |
 | `DAG_STATUS` / `DAG_KIND` / `DAG_REL` | `model::{DagStatus, DagRelation}` | `dag.rs::{Status, Kind, Rel}` |
 | `DAG_PHASE` / `nodeLook` (실행 중 세부 단계) | `model::NodePhase` + `DagNodeData::{status_label, glyph}` + `node::node_colors` | `dag/phase.rs` 의 `Phase` + `Node::{status_label, glyph, accent, bg, label_fg, border}` (`dag-running-phase` spec) |
-| `nodeTitle` (호버 이유 줄) | `DagNodeData::hover_text` (`canvas::draw_canvas` 의 노드 툴팁) | `Node::hover_text` (`dag-why` spec 에 펼쳐 전시) |
+| `nodeTitle` (호버 이유 줄) | `DagNodeData::hover_text` (`DagPainter::hover_text` → 공통 캔버스의 노드 툴팁) | `Node::hover_text` (`dag-why` spec 에 펼쳐 전시) |
 | `DagDetail` 의 입력 대기 알림 · `Why unknown` | `detail::awaiting_notice` · `detail::unknown_reason`. 세션 열기는 `DetailAction::OpenSession` → `draw_dag_graph` 반환값 → `RequestContext::reveal_surface` | `dag/detail.rs::draw_body` (`dag-why` spec 의 두 상세) |
 | 전이 선택·미선택 노드(`routes` 섹션) | `model::{DagRelation, EdgeSelection}` + `node::paint_node` 의 skip 라벨·툴팁 | `dag/routes.rs::draw` (`dag-routes` spec) |
 | `RunnerBadge` | `chrome::runner_badge` + `resume_hint` (헤더 우측) | `dag/runner.rs::paint_badge` + `row` (`dag-runner` spec) |
 | 재개 힌트 캡션 | `chrome::resume_hint` — lead 비례폭 + 명령 mono 2 조각 | `dag/runner.rs::row` (동일 2 조각) |
-| `ZoomCluster` | `chrome::draw_zoom_cluster` (캔버스 우하단 — `draw_canvas_chrome` 안) | `dag/chrome.rs::paint_zoom_cluster` (`dag-chrome` spec) |
-| `Minimap` | `chrome::paint_minimap` (줌 클러스터 바로 위, 스킵·취소 노드는 `dag-minimap-node-dim`) | `dag/chrome.rs::paint_minimap` (`dag-chrome` spec) |
+| `ZoomCluster` | 공통 `tasty_ui_widgets::draw_zoom_cluster` (캔버스 우하단) | 같은 `draw_zoom_cluster` (`dag-chrome` spec) |
+| `Minimap` | 공통 `paint_graph_minimap` (줌 클러스터 바로 위, 흐린 노드는 `dag-minimap-node-dim`) | 같은 `paint_graph_minimap` (`dag-chrome` spec) |
 | `CycleBanner` | `chrome::draw_cycle_banner` | `dag/chrome.rs::paint_cycle_banner` (`dag-states` spec) |
-| LOD 힌트 칩 | `chrome::paint_lod_chip` | `dag/chrome.rs::paint_lod_chip` (캔버스 안) |
+| LOD 힌트 칩 | 공통 `graph_paint_lod_chip` (캔버스 안) | 같은 함수 (공통 캔버스 안) |
 | `DagEmpty` | surface `chrome::draw_empty`, 목록 popup `popup/dag_list.rs::draw_empty` → 공용 `tasty_ui_widgets::paint_dag_empty` | `dag/chrome.rs::paint_empty` → 같은 `paint_dag_empty` (`dag-states` spec — surface는 포커스·비포커스 바탕 두 장, 사라진 DAG 한 장, popup·search·filter 변형은 `bg-panel` 위 세 장. 글리프는 모두 `glyph-dim`. 모두 본체 문구 키) |
-| `DagDetail` / `DetailRow` / `LogBlock` | `detail::draw_detail` / `row` / `labeled_block` | `dag/detail.rs::draw_body` (`dag-detail` spec) |
-| `DagSurface` | `render::draw_dag_graph` + `DagChrome::Own` (헤더는 `chrome::draw_header`) | `dag/surface.rs::paint` (`dag-surface` spec). `focused`를 넘기면 캔버스가 `surface_bed`를 쓰고, 워크스페이스 팝업은 `dag-canvas-bg`를 유지한다 |
+| `DagDetail` / `DetailRow` / `LogBlock` | 틀은 공통 `split_graph_drawer` + `drawer_body`, 내용은 `detail::draw_detail` (`drawer_row` / `drawer_text_block`) | 틀은 같은 `drawer_body` + `paint_drawer_divider`, 내용은 `dag/detail.rs::draw_body` (`dag-detail` spec) |
+| `DagSurface` | `render::draw_dag_graph` + `DagChrome::Surface` (헤더는 `chrome::draw_header`) | `dag/surface.rs::paint` (`dag-surface` spec). `focused`를 넘기면 캔버스가 `surface_bed`를 쓰고, 워크스페이스 팝업은 `dag-canvas-bg`를 유지한다 |
 | `DagWindow` 디테일 back bar actions | `chrome::draw_detail_backbar_actions` (줌 클러스터 + 러너 배지) | `dag/window.rs::detail_view` (`dag-window-detail` spec) |
 | `dagRowItems` (DAG 목록 행) | `popup::dag_list::draw_row_trailing` | `dag/rows.rs::trailing` (`dag-rows` spec) |
 | `DagWindow` (워크스페이스 popup) | `popup::dag_list::draw_dag_list_popup` | `dag/window.rs::paint` (`dag-window` · `dag-window-detail` spec) |
 
-**전사 미러인 이유**: `render::draw_dag_graph` 는 `(ui, DagTarget<'_>, &mut DagGraphView, DagChrome)`
-로 호스트 상태(폴링 스냅샷 · 줌/오프셋 · 선택)에 의존하고, 갤러리는 main 바이너리를 의존할
-수 없다 — `remote_tool` 컨테이너 미등록 사유와 같다. 다만 DAG 는 **좌표 계산만은 미러가 아니라
+**공통 뷰와 남은 미러**: 캔버스·카드·미니맵·줌 클러스터·LOD 칩·Drawer 틀은
+[공통 그래프 뷰](graph-view.md)로 옮겨 본체와 갤러리가 같은 함수를 부른다. `render::draw_dag_graph`
+는 `(ui, DagTarget<'_>, &mut DagGraphView, DagChrome)` 로 호스트 상태(폴링 스냅샷)와 본체 문구에
+의존하고 갤러리는 main 바이너리를 의존할 수 없으므로, DAG 헤더 · 러너 배지 · 사이클 배너 · 상세
+내용 · 간선 잉크 규칙은 갤러리가 같은 모양으로 다시 그린다. 다만 DAG 는 **좌표 계산만은 미러가 아니라
 같은 코드**다: `tasty-dag-layout` 이 egui/Theme 를 모르는 순수 계산 crate 라 갤러리가 그대로
 의존한다(`crates/tasty-gallery/Cargo.toml`). 디자인 jsx 의 `dagLayout()` 은 시안용 최단 구현
 (longest-path + 중앙정렬)이라 sugiyama 결과와 좌표가 다르고, 갤러리는 **본체가 실제로 그리는
@@ -1487,13 +1489,13 @@ Mocha·Latte는 고정 테마(`mocha_fallback`·`latte_theme`)로 위아래에 �
   고르고 들어온 화면이라 고를 것이 없고, 같은 조작을 한 화면에 두 번 두지 않는다.
 
   렌더는 여전히 한 벌이다(`render::draw_dag_graph`). 크롬을 누가 드는가만
-  [`DagChrome`](../../../src/adapters/ui/surface/dag_graph/render.rs) 로 갈라, 탭 surface 는
-  `Own`(헤더 + 캔버스 오버레이), popup 디테일은 `BackBar(이미 눌린 조작)` 을 받는다. back bar
+  [`DagChrome`](../../../src/adapters/ui/surface/dag_graph/render.rs)(공통 `GraphFrame` 의 DAG 판)로 갈라, 탭 surface 는
+  `Surface`(헤더 + 캔버스 오버레이), popup 디테일은 `Popup(이미 눌린 조작)` 을 받는다. back bar
   는 본문보다 먼저 그려지므로 조작은 그 프레임 안에 답이 나와 있고, popup 쪽이 그 값을 본문
   호출로 넘긴다.
 
   그래서 두 specimen 은 **차이가 아니라 두 갈래**를 전시한다 — `dag-surface`
-  (`dag/surface.rs::paint`)가 `Own`, `dag-window-detail`(`dag/window.rs::detail_view`)가 `BackBar`
+  (`dag/surface.rs::paint`)가 `Surface`, `dag-window-detail`(`dag/window.rs::detail_view`)가 `Popup`
   이고, 둘 다 본체와 1:1 이다.
 
 ## 알림 요약과 상세 목록

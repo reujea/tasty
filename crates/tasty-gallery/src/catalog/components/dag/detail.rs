@@ -10,14 +10,8 @@ use super::{Graph, Rel, Status};
 use crate::catalog::spec::{self, StageVariant, TokenChip};
 use crate::i18n::t;
 
-/// 상세가 붙는 자리.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Dock {
-    /// 우측 288px 패널 — 왼쪽에 세로 구분선.
-    Side,
-    /// 하단 220px 시트 — 윗변에 가로 구분선.
-    Sheet,
-}
+/// 상세가 붙는 자리 — 본체와 같은 공통 그래프 뷰의 도킹 위치.
+pub use tasty_ui_widgets::GraphDrawerDock as Dock;
 
 fn caption(theme: &Theme) -> f32 {
     theme.font_size_caption.value()
@@ -356,37 +350,19 @@ pub fn draw_docked(
     dock: Dock,
     size: egui::Vec2,
 ) -> Option<String> {
-    let mut jump = None;
-    let stroke = egui::Stroke::new(
-        theme.border_width.value(),
-        theme.dag_detail_border().to_egui(),
-    );
+    // 바탕·여백·스크롤 틀과 경계선은 본체 상세와 같은 공통 Drawer 틀이다. 내용만 표본이 채운다.
     let (rect, _) = ui.allocate_exact_size(size, egui::Sense::hover());
-    ui.painter()
-        .rect_filled(rect, 0.0, theme.dag_detail_bg().to_egui());
-    match dock {
-        Dock::Side => {
-            ui.painter().vline(rect.min.x, rect.y_range(), stroke);
-        }
-        Dock::Sheet => {
-            ui.painter().hline(rect.x_range(), rect.min.y, stroke);
-        }
-    }
-    let pad = theme.dag_detail_padding().value();
-    let inner = rect.shrink(pad);
     let mut child = ui.new_child(
         egui::UiBuilder::new()
-            .max_rect(inner)
+            .id_salt(("dag_detail_scroll", id))
+            .max_rect(rect)
             .layout(egui::Layout::top_down(egui::Align::Min)),
     );
     child.set_clip_rect(rect);
-    egui::ScrollArea::vertical()
-        .id_salt(("dag_detail_scroll", id))
-        .drag_to_scroll(false)
-        .show(&mut child, |ui| {
-            ui.set_width(inner.width());
-            jump = draw_body(ui, theme, graph, id);
-        });
+    let jump =
+        tasty_ui_widgets::drawer_body(&mut child, theme, |ui| draw_body(ui, theme, graph, id))
+            .flatten();
+    tasty_ui_widgets::paint_drawer_divider(ui.painter(), theme, rect, dock);
     jump
 }
 

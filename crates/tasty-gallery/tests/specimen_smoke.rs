@@ -174,6 +174,12 @@ fn dag_surface_specimen_은_헤드리스로_렌더된다() {
 }
 
 #[test]
+fn 공통_그래프_뷰_상태_specimen_은_헤드리스로_렌더된다() {
+    let theme = tasty_themes::mocha_fallback();
+    run_frames(|ui| dag::canvas::draw_states(ui, &theme));
+}
+
+#[test]
 fn dag_rows_와_window_specimen_은_헤드리스로_렌더된다() {
     let theme = tasty_themes::mocha_fallback();
     run_frames(|ui| dag::rows::draw(ui, &theme));

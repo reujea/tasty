@@ -153,7 +153,7 @@ popup 상태에서 받는다. popup 폭 560은 상세 도킹 기준 640보다 �
 
 목록과 그래프 모두 **0.5 초** 주기로 다시 읽는다(runner tick 과 같은 주기). 열려 있는 동안만
 `request_repaint_after` 를 걸고, 스코프 밖 workspace 에서는 draw 자체가 돌지 않으므로 예약도
-남지 않는다. 그래프 쪽 폴링 게이트는 surface 와 **같은 함수**(`DagGraphView::poll_if_stale`)를
+남지 않는다. 그래프 쪽 폴링 게이트는 surface 와 **같은 함수**(`GraphSource::poll_if_stale` 의 DAG 구현 `DagGraphSource`)를
 쓴다 — 주기와 실패 처리가 두 경로에서 갈라질 수 없게 한 지점으로 모았다.
 
 목록도 [그래프의 App 조회 서비스](../../../surfaces/dag-graph/index.md#조회-소유와-취소)를 사용한다.

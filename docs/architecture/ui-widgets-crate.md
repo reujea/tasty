@@ -12,7 +12,7 @@ tasty-ui-widgets     layout / 위젯 primitive (본 문서)
    tasty (본체)    tasty-gallery
 ```
 
-- 의존: `egui`, `egui_extras`, `tasty-icons`, `tasty-egui-theme`, `tasty-type-appearance`(Theme schema), `tasty-type-geometry`(`LogicalPx`/`PhysicalPx`), `icu_normalizer`·`unicode-segmentation`(표시용 NFC와 원문 강조 범위 대응).
+- 의존: `egui`, `egui_extras`, `tasty-icons`, `tasty-egui-theme`, `tasty-type-appearance`(Theme schema), `tasty-type-geometry`(`LogicalPx`/`PhysicalPx`), `tasty-dag-layout`(공통 그래프 뷰의 레이어 배치), `icu_normalizer`·`unicode-segmentation`(표시용 NFC와 원문 강조 범위 대응).
 - **본체(`tasty`) 미의존** — widgets crate 는 본체 state·plugin·전역 `theme()` 를 모른다. 그리기 함수는 `&Theme` 을 **명시적 인자**로 받는다.
 - 갤러리는 본체 빌드와 분리 — `cargo build` 기본 타깃이 `tasty-gallery` 를 의존하지 않는다. `cargo run -p tasty-gallery` 로만 실행되는 standalone 데모.
 
@@ -166,6 +166,10 @@ Table 빌더의 길이 setter(`header_pad_x`·`header_pad_right`·`header_height
 ## 자동완성 후보의 포인터 확정
 
 `AutoComplete`는 자기 드롭다운 안의 주 버튼 누름에서만 입력 포커스를 유지한다. 후보를 떼기 전에 TextEdit의 blur가 호출자에게 원복으로 전달되지 않게 하며, 행 안에서 버튼을 떼면 원문 후보를 `Pick`으로 반환하고 입력 포커스를 해제한다. 후보 밖에서 떼면 선택하지 않는다. 다른 영역을 누르는 blur와 Enter·Esc는 이 포커스 유지에서 제외한다. `PathField`는 기존 우선순위인 취소 → 후보/버퍼 확정 → Go → 확정 없는 blur 원복을 적용한다. 공개 API와 일반 `Input`의 포커스 동작은 같고, 단독 AutoComplete의 버퍼 갱신은 호출자 책임이다.
+
+## 공통 그래프 뷰
+
+`graph_view` 모듈(crate 루트 재수출)은 노드·간선 그래프의 캔버스, 줌 클러스터, 미니맵, LOD 칩, 상세 Drawer 틀, DAG 카드를 제공한다. 데이터는 `GraphData` 계약으로, 카드 내용과 간선 잉크는 `GraphPainter`로, 문구는 `GraphChromeLabels`·`DagCardView`로 받는다. 본체 DAG surface·popup과 갤러리 DAG 예제가 함께 쓴다. 계약과 책임 경계는 [공통 그래프 뷰](../design/systems/graph-view.md)에 있다.
 
 ## 폴더 선택 footer
 

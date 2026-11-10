@@ -12,7 +12,7 @@ use super::{Graph, canvas, detail, runner};
 use crate::catalog::spec::{self, StageVariant, TokenChip};
 
 /// 무대에서 좁은 변형에 주는 폭 — 디자인 "narrow floor 320px".
-const NARROW_STAGE_WIDTH: LogicalPx = LogicalPx(320.0);
+pub(super) const NARROW_STAGE_WIDTH: LogicalPx = LogicalPx(320.0);
 /// 시안 `dag-tab-surface` 프레임 높이(320).
 const FOCUS_VIEW_H: LogicalPx = LogicalPx(320.0);
 /// 무대 높이 — 시안 520.
@@ -287,7 +287,6 @@ pub fn paint(
         graph,
         Orientation::TopDown,
         &mut sel,
-        !narrow,
         true,
         focused.map(|f| tasty_ui_widgets::surface_bed(theme, f)),
     );

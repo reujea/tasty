@@ -183,11 +183,6 @@ const COPIED: &[(&str, Side, Side)] = &[
         Side::Lit(GALLERY_EXPLORER_CELLS, "CELL_W"),
     ),
     (
-        "DAG 줌 표시 폭",
-        Side::Lit(WIDGET_GRAPH_CHROME, "ZOOM_READOUT_WIDTH"),
-        Side::Lit(GALLERY_DAG_CHROME, "ZOOM_READOUT_WIDTH"),
-    ),
-    (
         "훅 추가 행 라벨 폭",
         Side::Lit(HOST_HOOK_HANDLERS, "HOOK_ADD_LABEL_W"),
         Side::Lit(GALLERY_SETTINGS_HANDLER, "HOOK_ADD_LABEL_W"),
@@ -227,7 +222,6 @@ const GALLERY_EXPLORER_SIDEBAR: &str =
     "crates/tasty-gallery/src/catalog/components/explorer_sidebar.rs";
 const GALLERY_EXPLORER_CELLS: &str =
     "crates/tasty-gallery/src/catalog/components/explorer_view_cells.rs";
-const GALLERY_DAG_CHROME: &str = "crates/tasty-gallery/src/catalog/components/dag/chrome.rs";
 const GALLERY_SETTINGS_HANDLER: &str =
     "crates/tasty-gallery/src/catalog/components/settings_handler.rs";
 
@@ -236,7 +230,6 @@ const HOST_REMOTE_ATTACH: &str = "src/adapters/ui/popup/remote_attach.rs";
 const HOST_FILE_PICKER: &str = "src/adapters/ui/popup/file_picker.rs";
 const HOST_TUTORIAL_CALLOUT: &str = "src/adapters/ui/tutorial/callout.rs";
 const HOST_EXPLORER: &str = "src/adapters/ui/surface/explorer.rs";
-const WIDGET_GRAPH_CHROME: &str = "crates/tasty-ui-widgets/src/graph_view/chrome.rs";
 const HOST_HOOK_HANDLERS: &str = "src/view/settings/ui/file_handler_tab/hook_handlers.rs";
 const HOST_KB_IMPORT_EXPORT: &str = "src/view/settings/ui/keybindings_tab/import_export.rs";
 const GALLERY_KB_IMPORT_EXPORT: &str =
@@ -375,8 +368,8 @@ fn resolve(side: &Side, theme: &str, semantic: &str, primitive: &str) -> (String
 fn the_gallery_still_agrees_with_the_dimensions_it_restates() {
     // 항목을 삭제해 불일치를 숨기지 않도록 하한을 둔다. 쌍을 더할 때는 고치지 않는다.
     assert!(
-        COPIED.len() >= 36,
-        "비교 명부가 {}쌍으로 하한 36보다 적다. 복사본이 실제로 사라졌다면 양쪽이 같은 토큰을 읽는지 확인한 뒤 하한을 낮춘다. 불일치를 숨기려고 쌍을 지우지 않는다.",
+        COPIED.len() >= 35,
+        "비교 명부가 {}쌍으로 하한 35보다 적다. 복사본이 실제로 사라졌다면 양쪽이 같은 토큰을 읽는지 확인한 뒤 하한을 낮춘다. 불일치를 숨기려고 쌍을 지우지 않는다.",
         COPIED.len()
     );
     let theme = read(THEME);
