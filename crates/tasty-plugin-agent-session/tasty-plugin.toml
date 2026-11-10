@@ -1,7 +1,7 @@
 manifest_version = 1
 id = "com.tasty.agent-session"
 name = "Agent Session"
-version = "0.1.36"
+version = "0.1.37"
 description = "Chat tabs that run Claude Code (stream-json) or pi (rpc) sessions, started from agent profiles and role folders"
 api_version = "1"
 
@@ -161,16 +161,16 @@ required = false
 
 # ── 설정 페이지 ─────────────────────────────────────────────────────────
 #
-# 라벨은 설정 화면의 라벨 칸(최대 240px)에 한두 줄로 들어가게 짧게 둔다 — 왜 · 언제는 그 기능 뒤의 읽기 전용
-# 글(`kind = "text"`, 번역 `sup.about.*`)에 권장안으로 두고, 전체 세부는 `docs/surfaces/agent-session/index.md`
+# 라벨은 설정 화면의 라벨 칸(최대 240px)에 한두 줄로 들어가게 짧게 둔다 — 왜 · 언제는 그 스위치 아래 설명
+# (`caption_key`, 번역 `sup.about.*`)에 권장안으로 두고, 전체 세부는 `docs/surfaces/agent-session/index.md`
 # 의 설정 절에 있다.
 #
-# 묶음은 대화 기록 보관 → 컨텍스트 비용 자동 관리 → 세션 관리 → API 트래픽 조절 순서다. 컨텍스트 · 세션 묶음은
-# 스위치 없는 머리이고 기능마다 스위치(`kind = "toggle"`)를 둔다 — 머리 스위치는 묶음 전체를 숨기므로 기능
-# 여럿을 한 묶음에 모으면 쓸 수 없다. 그래서 기능 스위치를 꺼도 그 기준 칸은 보인다(개요 글이 그렇게 알린다).
-# 저장 키는 예전 묶음 머리 스위치와 같아 저장값이 그대로 이어진다. 모델에게 보내는 문구는 읽기 전용 글로 보이기만
-# 한다 — 기본 문구는 plugin 번역 키(`default_key`)이고, 다른 길로 값이 들어오면 그 값이 보인다. 각 `default` 는
-# 코드의 기본값과 같아야 한다(호스트는 안 건드린 값을 비워서 돌려준다) — 어느 시험이 보는지는 칸마다 적었다.
+# 묶음은 대화 기록 보관 → 컨텍스트 비용 자동 관리 → 세션 관리 → API 트래픽 조절 순서다. 컨텍스트 묶음의 머리
+# 스위치는 세 현행화를 한꺼번에 끄고, 그 안에서 기능마다 스위치(`kind = "toggle"`)를 둔다 — 기능 스위치를 꺼도
+# 그 기준 칸은 보인다. 기능 스위치의 저장 키는 예전 묶음 머리 스위치와 같아 저장값이 그대로 이어진다. 세션 묶음은
+# 스위치 없는 머리다. 모델에게 보내는 문구는 고칠 수 있는 글(`editable`)이다 — 기본 문구는 plugin 번역 키
+# (`default_key`)이고, 비우면 그 기본 문구를 쓴다. 각 `default` 는 코드의 기본값과 같아야 한다(호스트는 안
+# 건드린 값을 비워서 돌려준다) — 어느 시험이 보는지는 칸마다 적었다.
 [[contributes.settings_pages]]
 id = "agent_session"
 title_key = "settings.subtab.agent_session"
@@ -203,18 +203,15 @@ default = false
 group = "history"
 
 # 컨텍스트 비용 자동 관리 — 현행화 → compact 를 여는 세 자리(작업 중 · 유휴 · 사용 한도)와 그들이 함께 쓰는 문구
-# (`sync_compact`). 스위치 없는 머리다(`sync_compact::tests::manifest_defaults_match_the_code`).
+# (`sync_compact`). 머리 스위치(`context_on`)를 끄면 세 자리를 모두 끈다 — 기능 스위치 값은 남는다
+# (`sync_compact::tests::the_context_switch_turns_every_sync_off`).
 [[contributes.settings_pages.items]]
 kind = "group"
 id = "context"
 label_key = "sup.settings.group_context"
-
-[[contributes.settings_pages.items]]
-kind = "text"
-id = "context_about"
-label_key = "sup.settings.about_context"
-default_key = "sup.about.context"
-group = "context"
+storage_key = "context_on"
+default = true
+caption_key = "sup.about.context"
 
 # 작업 중 현행화 — 턴 끝 컨텍스트(토큰)가 기준을 넘으면 현행화 → compact. 기준은 창의 90% 를 넘지 않게 끌어내려
 # 쓴다. 끄는 것은 스위치뿐이다 — 기준은 1 이상이다.
@@ -224,6 +221,7 @@ id = "sync_working"
 label_key = "sup.settings.sync_on"
 storage_key = "sync_threshold_on"
 default = true
+caption_key = "sup.about.sync"
 group = "context"
 
 [[contributes.settings_pages.items]]
@@ -237,13 +235,6 @@ max = 2000000.0
 suffix_key = "sup.settings.sync_threshold_suffix"
 group = "context"
 
-[[contributes.settings_pages.items]]
-kind = "text"
-id = "sync_working_about"
-label_key = "sup.settings.about_sync"
-default_key = "sup.about.sync"
-group = "context"
-
 # 유휴 현행화 — 캐시가 식기 전(5분 캐시 240초 · 1시간 캐시 3,540초 쉰 뒤) 컨텍스트가 기준 이상이면 현행화 →
 # compact. 끄는 것은 스위치뿐이다 — 기준은 1 이상이다.
 [[contributes.settings_pages.items]]
@@ -252,6 +243,7 @@ id = "idle_sync"
 label_key = "sup.settings.idle_sync_on"
 storage_key = "idle_sync_on"
 default = true
+caption_key = "sup.about.idle_sync"
 group = "context"
 
 [[contributes.settings_pages.items]]
@@ -265,13 +257,6 @@ max = 2000000.0
 suffix_key = "sup.settings.idle_sync_suffix"
 group = "context"
 
-[[contributes.settings_pages.items]]
-kind = "text"
-id = "idle_sync_about"
-label_key = "sup.settings.about_idle_sync"
-default_key = "sup.about.idle_sync"
-group = "context"
-
 # 사용 한도 현행화 — 5시간 · 7일 창 중 큰 쪽의 사용률이 문턱(%)을 넘으면 한도에 끊기기 전에 현행화 → compact.
 # 창마다 한 번이다. 사용률은 claude.ai 로그인 프로필만 받는다. 끄는 것은 스위치뿐이다 — 문턱은 1 이상이다
 # (`sync_compact::tests::limit_sync_manifest_defaults_match_the_code`).
@@ -281,6 +266,7 @@ id = "limit_sync"
 label_key = "sup.settings.limit_sync_on"
 storage_key = "limit_sync_on"
 default = true
+caption_key = "sup.about.limit_sync"
 group = "context"
 
 [[contributes.settings_pages.items]]
@@ -294,21 +280,15 @@ max = 100.0
 suffix_key = "sup.settings.limit_sync_suffix"
 group = "context"
 
-[[contributes.settings_pages.items]]
-kind = "text"
-id = "limit_sync_about"
-label_key = "sup.settings.about_limit_sync"
-default_key = "sup.about.limit_sync"
-group = "context"
-
-# 현행화 문구 — 세 현행화가 함께 쓴다. 고칠 수 없게 보이기만 한다
-# (`sync_compact::tests::the_sync_prompts_are_read_only_text_in_a_group_without_a_switch`).
+# 현행화 문구 — 세 현행화가 함께 쓴다. 설정 창에서 고친다. 비우면 기본 문구다
+# (`sync_compact::tests::the_sync_prompts_are_editable_text_with_a_default`).
 [[contributes.settings_pages.items]]
 kind = "text"
 id = "sync_prompt"
 label_key = "sup.settings.sync_prompt"
 storage_key = "sync_prompt"
 default_key = "sup.default.sync_prompt"
+editable = true
 group = "context"
 
 [[contributes.settings_pages.items]]
@@ -317,6 +297,7 @@ id = "compact_prompt"
 label_key = "sup.settings.compact_prompt"
 storage_key = "compact_prompt"
 default_key = "sup.default.compact_prompt"
+editable = true
 group = "context"
 
 # 세션 관리 — 쉬는 세션의 프로세스 · 화면 자원과 캐시 알림. 스위치 없는 머리라 유휴 현행화를 꺼도 회수 스위치가
@@ -334,13 +315,7 @@ id = "idle_reclaim"
 label_key = "sup.settings.idle_reclaim"
 storage_key = "idle_reclaim"
 default = true
-group = "session"
-
-[[contributes.settings_pages.items]]
-kind = "text"
-id = "idle_reclaim_about"
-label_key = "sup.settings.about_reclaim"
-default_key = "sup.about.reclaim"
+caption_key = "sup.about.reclaim"
 group = "session"
 
 # 캐시 재작성 알림(`cache_watch`, `docs/surfaces/agent-session/index.md` § 설정) — 끄면 알림·상태줄 토큰만 끄고
@@ -351,13 +326,7 @@ id = "cache_watch"
 label_key = "sup.settings.cache_watch"
 storage_key = "cache_watch"
 default = true
-group = "session"
-
-[[contributes.settings_pages.items]]
-kind = "text"
-id = "cache_watch_about"
-label_key = "sup.settings.about_cache_watch"
-default_key = "sup.about.cache_watch"
+caption_key = "sup.about.cache_watch"
 group = "session"
 
 # 메모리 절약(`view_state`) — 켜면 호스트가 가려진 대화 탭의 WebView 를 없애고 다시 보일 때 만든다. 저장 키는
@@ -368,13 +337,7 @@ id = "memory_saver"
 label_key = "sup.settings.memory_saver"
 storage_key = "release_hidden_webview"
 default = false
-group = "session"
-
-[[contributes.settings_pages.items]]
-kind = "text"
-id = "memory_saver_about"
-label_key = "sup.settings.about_memory_saver"
-default_key = "sup.about.memory_saver"
+caption_key = "sup.about.memory_saver"
 group = "session"
 
 # API 트래픽 조절(`traffic`) — 상단 장비의 policing · shaping 한도보다 빠르게 보내 버려지는 일이 없게 claude 의 API

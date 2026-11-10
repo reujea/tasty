@@ -1,6 +1,6 @@
 [package]
 name = "tasty-plugin-agent-session"
-version = "0.1.36"
+version = "0.1.37"
 edition = "2024"
 license = "MIT"
 description = "External Tasty plugin: Claude Code chat-tab sessions driven over stream-json"

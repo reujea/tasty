@@ -65,6 +65,9 @@ pub const RECLAIM_KEY: &str = "idle_reclaim";
 /// 설정 창 묶음 머리의 스위치 — 끄면 그 기준을 0(끔)으로 읽는다. 기준 칸의 0 도 계속 끔이다.
 pub const THRESHOLD_ON_KEY: &str = "sync_threshold_on";
 pub const IDLE_ON_KEY: &str = "idle_sync_on";
+/// 컨텍스트 묶음 머리 스위치 — 끄면 세 현행화(작업 중 · 유휴 · 사용 한도)를 모두 끈다. 기능 스위치 값은 남는다.
+pub const CONTEXT_ON_KEY: &str = "context_on";
+pub const DEFAULT_CONTEXT_ON: bool = true;
 /// 사용 한도 현행화 — 스위치와 문턱(%). 문턱은 5시간 · 7일 창 중 큰 쪽의 사용률이다.
 pub const LIMIT_ON_KEY: &str = "limit_sync_on";
 pub const LIMIT_PERCENT_KEY: &str = "limit_sync_percent";
@@ -375,9 +378,13 @@ fn tokens_if_on<H: HostCall>(
         .clamp(IDLE_TOKENS_MIN, IDLE_TOKENS_MAX)
 }
 
-/// 설정을 읽는다. 두 기준 모두 토큰이다. 묶음 스위치를 끈 기준만 0(끔)으로 읽는다 — 기준 칸의 0 은 끔이
-/// 아니라 잘못된 값이라 기본값이 된다.
+/// 설정을 읽는다. 두 기준 모두 토큰이다. 스위치를 끈 기준만 0(끔)으로 읽는다 — 기준 칸의 0 은 끔이
+/// 아니라 잘못된 값이라 기본값이 된다. 컨텍스트 묶음 머리 스위치를 끄면 세 현행화가 모두 0 이다.
 pub fn read_knobs<H: HostCall>(host: &H) -> Knobs {
+    let context_on = setting(host, CONTEXT_ON_KEY)
+        .and_then(|v| v.as_bool())
+        .unwrap_or(DEFAULT_CONTEXT_ON);
+    let gate = |v: f64| if context_on { v } else { 0.0 };
     let turn_tokens = tokens_if_on(
         host,
         THRESHOLD_ON_KEY,
@@ -393,12 +400,12 @@ pub fn read_knobs<H: HostCall>(host: &H) -> Knobs {
         DEFAULT_IDLE_TOKENS,
     );
     Knobs {
-        turn_tokens,
-        idle_tokens,
+        turn_tokens: gate(turn_tokens),
+        idle_tokens: gate(idle_tokens),
         reclaim: setting(host, RECLAIM_KEY)
             .and_then(|v| v.as_bool())
             .unwrap_or(DEFAULT_RECLAIM),
-        limit_share: read_limit_share(host),
+        limit_share: gate(read_limit_share(host)),
         prompt: text_or(host, PROMPT_KEY, &default_sync_prompt()),
         compact: text_or(host, COMPACT_KEY, &default_compact_prompt()),
         cache_ttl: profile_cache_ttl(),
@@ -2421,7 +2428,8 @@ mod tests {
     }
 
     /// 묶음은 대화 기록 보관 → 컨텍스트 비용 자동 관리 → 세션 관리 → API 트래픽 조절 순서이고, 묶음마다 칸 수가
-    /// 정해져 있다 — 칸이 다른 묶음으로 새거나 빠지면 걸린다. 머리 스위치는 트래픽 묶음에만 있다.
+    /// 정해져 있다 — 칸이 다른 묶음으로 새거나 빠지면 걸린다. 머리 스위치는 컨텍스트 · 트래픽 묶음에 있다.
+    /// 기능 설명은 따로 된 글 칸이 아니라 스위치 아래 설명(`caption_key`)이다.
     #[test]
     fn the_settings_page_keeps_its_groups_in_order() {
         let items = manifest_items();
@@ -2439,10 +2447,64 @@ mod tests {
         };
         assert_eq!(
             groups.iter().map(|g| count(g)).collect::<Vec<_>>(),
-            [2, 12, 6, 2]
+            [2, 8, 3, 2]
         );
         let switched: Vec<&&str> = groups.iter().filter(|g| group_has_switch(g)).collect();
-        assert_eq!(switched, [&"traffic"]);
+        assert_eq!(switched, [&"context", &"traffic"]);
+        for (key, about) in [
+            (THRESHOLD_ON_KEY, "sync"),
+            (IDLE_ON_KEY, "idle_sync"),
+            (LIMIT_ON_KEY, "limit_sync"),
+            (RECLAIM_KEY, "reclaim"),
+            (crate::application::cache_watch::SETTING_KEY, "cache_watch"),
+            (crate::application::view_state::SAVER_KEY, "memory_saver"),
+            (CONTEXT_ON_KEY, "context"),
+        ] {
+            assert_eq!(
+                manifest_field(key, "caption_key"),
+                format!("sup.about.{about}"),
+                "{key}"
+            );
+        }
+        assert!(
+            !items
+                .iter()
+                .any(|b| item_field(b, "default_key").is_some_and(|k| k.starts_with("sup.about."))),
+            "설명이 따로 된 글 칸으로 남았다"
+        );
+    }
+
+    /// 컨텍스트 묶음 머리 스위치를 끄면 세 현행화가 모두 꺼진다 — 기능 스위치 · 기준 칸 값과 상관없다. 유휴
+    /// 회수는 다른 묶음이라 그대로다. 다시 켜면 기능 스위치 값이 돌아온다.
+    #[test]
+    fn the_context_switch_turns_every_sync_off() {
+        assert_eq!(manifest_field(CONTEXT_ON_KEY, "kind"), "group");
+        assert_eq!(
+            manifest_field(CONTEXT_ON_KEY, "default"),
+            DEFAULT_CONTEXT_ON.to_string()
+        );
+        let read = |on: bool| {
+            read_knobs(&Settings(vec![
+                (CONTEXT_ON_KEY, json!(on)),
+                (THRESHOLD_KEY, json!(300_000.0)),
+                (IDLE_KEY, json!(120_000.0)),
+                (LIMIT_PERCENT_KEY, json!(80.0)),
+            ]))
+        };
+        let k = read(false);
+        assert_eq!(
+            (k.turn_tokens, k.idle_tokens, k.limit_share),
+            (0.0, 0.0, 0.0)
+        );
+        assert!(k.reclaim, "유휴 회수는 따로 끈다");
+        let k = read(true);
+        assert_eq!((k.turn_tokens, k.idle_tokens), (300_000.0, 120_000.0));
+        assert!((k.limit_share - 0.8).abs() < 1e-9);
+        assert_eq!(
+            read_knobs(&Settings(vec![])).turn_tokens,
+            DEFAULT_THRESHOLD_TOKENS,
+            "저장값이 없으면 켬"
+        );
     }
 
     /// 기능마다 붙인 왜 · 언제 글은 코드가 쓰는 수를 적는다 — 칸이 없어 화면에서 고칠 수 없으므로 글이 틀리면
@@ -2500,25 +2562,24 @@ mod tests {
     }
 
     #[test]
-    fn the_sync_prompts_are_read_only_text_in_a_group_without_a_switch() {
-        // 문구 칸(`sync_prompt` · `compact_prompt`)은 읽기 전용 글이고 기본 글은 코드와 같은 번역 키다.
-        // 다른 길로 값이 들어오면 그것을 따른다(`text_or`) — 설정 창도 그 값을 보인다.
+    fn the_sync_prompts_are_editable_text_with_a_default() {
+        // 문구 칸(`sync_prompt` · `compact_prompt`)은 고칠 수 있는 글이고 기본 글은 코드와 같은 번역 키다.
+        // 고친 값을 따르고 비우면 기본 글이다(`text_or`). 세 현행화가 함께 쓰므로 컨텍스트 묶음에 든다.
         for (key, default_key) in [
             (PROMPT_KEY, "sup.default.sync_prompt"),
             (COMPACT_KEY, "sup.default.compact_prompt"),
         ] {
-            assert_eq!(
-                manifest_field(key, "kind"),
-                "text",
-                "{key} 를 고칠 수 있는 칸으로 냈다"
-            );
+            assert_eq!(manifest_field(key, "kind"), "text", "{key}");
+            assert_eq!(manifest_field(key, "editable"), "true", "{key}");
             assert_eq!(manifest_field(key, "default_key"), default_key);
             assert!(
                 include_str!("sync_compact.rs")
                     .contains(&format!("crate::domain::i18n::t(\"{default_key}\")"))
             );
-            // 세 현행화가 함께 쓰는 문구라 머리 스위치가 있는 묶음에 들지 않는다 — 들면 그 스위치를 끌 때 숨는다.
-            assert!(!group_has_switch(&manifest_field(key, "group")));
+            assert_eq!(
+                manifest_field(key, "group"),
+                manifest_field(CONTEXT_ON_KEY, "id")
+            );
         }
     }
 
@@ -2557,7 +2618,7 @@ mod tests {
                 item_index(key),
                 "{key} 가 스위치 바로 뒤가 아니다"
             );
-            assert!(!group_has_switch(&group));
+            assert_eq!(group, manifest_field(CONTEXT_ON_KEY, "id"), "{on}");
             groups.push(group);
         }
         assert!(
