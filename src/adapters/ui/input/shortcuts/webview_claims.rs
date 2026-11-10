@@ -372,9 +372,10 @@ mod tests {
             ModifiersState::CONTROL | alt_mod()
         ));
 
+        // 수식키 없는 문자 키도 Tasty 단축키가 먼저 받는다.
         assert!(kb.set_field("refresh", "r"));
         let policy = webview_shortcut_policy(&kb, Default::default(), false);
-        assert!(!policy.claims(&Key::Character("r".into()), none));
+        assert!(policy.claims(&Key::Character("r".into()), none));
 
         assert!(kb.clear_field("refresh"));
         let policy = webview_shortcut_policy(&kb, Default::default(), false);
@@ -406,17 +407,31 @@ mod tests {
         assert!(policy.matches_edit_binding(&v, ModifiersState::CONTROL));
     }
 
-    /// 기능키 예외는 공통 새로고침에만 있다. 다른 host 동작의 보조키 없는 F 키는 페이지에 남긴다.
+    /// 웹 화면에서 동작하는 host 동작은 수식키가 없어도 Tasty가 먼저 받는다(기본 `rename_tab`의 F2 등).
+    /// 바인딩을 옮기면 새 키만 가져간다.
     #[test]
-    fn other_modifierless_function_keys_stay_with_the_page() {
+    fn modifierless_host_bindings_are_claimed_over_a_page() {
         let mut kb = kb();
         kb.refresh.clear();
-        assert!(kb.set_field("toggle_settings", "f9"));
+        let none = ModifiersState::empty();
+        let f = |n| Key::Named(n);
+        use winit::keyboard::NamedKey::{F2, F3, F4, F9};
         let policy = webview_shortcut_policy(&kb, Default::default(), false);
-        assert!(!policy.claims(
-            &Key::Named(winit::keyboard::NamedKey::F9),
-            ModifiersState::empty()
-        ));
+        for key in [F2, F3, F4] {
+            assert!(
+                policy.claims(&f(key), none),
+                "{key:?}: {:?}",
+                policy.combos()
+            );
+        }
+        assert!(kb.set_field("toggle_settings", "f9"));
+        assert!(kb.set_field("rename_tab", "ctrl+alt+f2"));
+        let policy = webview_shortcut_policy(&kb, Default::default(), false);
+        assert!(policy.claims(&f(F9), none));
+        assert!(!policy.claims(&f(F2), none), "옮긴 rename_tab 의 옛 키");
+        // 웹 화면에서 동작하지 않는 동작의 수식키 없는 키(Explorer 새 폴더 F7, 무대 해제 Escape)는 넘긴다.
+        assert!(!policy.claims(&f(winit::keyboard::NamedKey::F7), none));
+        assert!(!policy.claims(&f(winit::keyboard::NamedKey::Escape), none));
     }
 
     /// 웹 화면 포커스에서 실행되지 않는 host 동작은 가져가지 않고 페이지·엔진에 넘긴다.

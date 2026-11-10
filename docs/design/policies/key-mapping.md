@@ -80,8 +80,7 @@ Windows 의 Win+L·Win+D·Win+E 같은 셸 예약 조합과 GNOME·KDE 의 Super
 
 ## 웹 화면의 키 처리 원칙
 
-native WebView(html·markdown 본문과 그 입력란)가 키를 받으면 Tasty 단축키가 먼저 받는다. 수식키 없는 키와 Shift 전용
-키는 공통 새로고침의 기능키를 빼고 페이지 입력에 남긴다.
+native WebView(html·markdown 본문과 그 입력란)가 키를 받으면 수식키 유무와 관계없이 Tasty 단축키가 먼저 받는다.
 
 - 웹 화면 포커스에서 할 일이 없는 동작(Explorer 전용 동작, 꺼진 카테고리 전환, 그 surface에서 실행 범위가 아닌
   plugin 명령 등)의 조합은 처음부터 가져가지 않고 WebView 엔진과 페이지로 넘긴다.

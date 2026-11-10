@@ -1,5 +1,5 @@
 //! native WebView 키를 공통 정책으로 판정해 host 요청 큐에 넣는다. 실제 실행은 큐를 읽는 호출자가 맡는다.
-//! modifier 없는 입력과 shift만 있는 입력은 페이지에 남긴다. 공통 새로고침의 기능키만 예외다. plugin 조합은 페이지 예약 키와도 비교한다.
+//! 수식키 유무와 관계없이 바인딩된 조합을 가져간다(Tasty 단축키 우선). plugin·새로고침 조합은 페이지 예약 키와도 비교한다.
 //! modifier 조합은 물리 US 배열 문자를 우선하고 물리 위치를 모르면 레이아웃 문자를 사용한다.
 //! repeat는 [`WebViewKeySink::consumes_repeat`]로 다시 실행하지 않고 막을지만 정한다. Linux의 키 press는
 //! repeat 표시가 없어 반복 이벤트도 일반 press로 전달한다.
@@ -126,7 +126,7 @@ pub struct ShortcutSources {
     pub plugin_owned: Vec<(String, Vec<String>)>,
     /// 주소 띠가 있는 html 페이지에서만 host가 가져갈 조합(주소창 포커스).
     pub address: Vec<String>,
-    /// 공통 새로고침 조합. modifier 가 없어도 F1~F24 기능키면 host 가 가져간다. 문자 키는 페이지에 남긴다.
+    /// 공통 새로고침 조합. 페이지 예약 조합과 같으면 가져가지 않는다.
     pub refresh: Vec<String>,
     /// 편집 액션별 사용자 조합. 엔진 기본 편집 키가 아닌 조합만 native 명령으로 실행한다.
     pub edit: Vec<(WebViewEditAction, Vec<String>)>,
@@ -145,7 +145,7 @@ pub struct HostShortcutPolicy {
 }
 
 impl HostShortcutPolicy {
-    /// modifier 있는 조합만 담고 같은 문자열은 중복 제거한다. plugin만 예약 조합과 의미를 비교한다.
+    /// 같은 문자열은 중복 제거한다. 새로고침·plugin만 예약 조합과 의미를 비교한다.
     pub fn new(sources: ShortcutSources) -> Self {
         let ShortcutSources {
             host,
@@ -156,11 +156,9 @@ impl HostShortcutPolicy {
             refresh,
             edit,
         } = sources;
-        // `function_key_ok` 이면 modifier 가 없어도 F1~F24 기능키를 담는다(공통 새로고침 전용).
-        fn push(combos: &mut Vec<String>, combo: String, function_key_ok: bool) {
-            let claimable = tasty_key_match::binding_has_modifier(&combo)
-                || (function_key_ok && tasty_key_match::binding_is_function_key(&combo));
-            if claimable && !combos.contains(&combo) {
+        // 수식키 없는 조합도 담는다. 웹 화면에서 동작할 수 없는 동작은 호출자가 미리 뺀다.
+        fn push(combos: &mut Vec<String>, combo: String) {
+            if !combo.is_empty() && !combos.contains(&combo) {
                 combos.push(combo);
             }
         }
@@ -173,19 +171,19 @@ impl HostShortcutPolicy {
 
         let mut host_only: Vec<String> = Vec::new();
         for combo in host {
-            push(&mut host_only, combo, false);
+            push(&mut host_only, combo);
         }
         // 페이지 예약 편집 조합이 먼저다. 같은 조합의 새로고침은 페이지에 남긴다.
         for combo in refresh {
             if !reserved(&combo) {
-                push(&mut host_only, combo, true);
+                push(&mut host_only, combo);
             }
         }
 
         let mut combos = host_only.clone();
         for combo in plugin {
             if !reserved(&combo) {
-                push(&mut combos, combo, false);
+                push(&mut combos, combo);
             }
         }
         let plugin_owned = plugin_owned
@@ -194,15 +192,11 @@ impl HostShortcutPolicy {
                 let mut kept = Vec::new();
                 for combo in owned {
                     if !reserved(&combo) {
-                        push(&mut kept, combo, false);
+                        push(&mut kept, combo);
                     }
                 }
                 (plugin_id, kept)
             })
-            .collect();
-        let address = address
-            .into_iter()
-            .filter(|c| tasty_key_match::binding_has_modifier(c))
             .collect();
 
         Self {
@@ -558,14 +552,15 @@ mod tests {
         assert!(bridge.capture_key(1, ch("e"), unknown_physical(), alt_mod()));
     }
 
+    /// 수식키 유무와 관계없이 바인딩을 가져가고(Tasty 단축키 우선) 같은 문자열은 하나만 둔다.
     #[test]
-    fn host_combos_are_filtered_by_modifier_and_deduplicated() {
+    fn host_combos_keep_modifierless_bindings_and_are_deduplicated() {
         let p = policy(
-            &["alt+d", "f", "shift+g", "alt+d", "ctrl+shift+k"],
+            &["alt+d", "f2", "shift+g", "alt+d", "ctrl+shift+k"],
             &[],
             &[],
         );
-        assert_eq!(p.combos(), ["alt+d", "ctrl+shift+k"]);
+        assert_eq!(p.combos(), ["alt+d", "f2", "shift+g", "ctrl+shift+k"]);
     }
 
     #[test]
@@ -582,7 +577,7 @@ mod tests {
             "plugin 콤보가 정책에 없다: {:?}",
             p.combos()
         );
-        assert!(!p.claims(&ch("f"), ModifiersState::empty()));
+        assert!(p.claims(&ch("f"), ModifiersState::empty()));
     }
 
     #[test]
@@ -890,7 +885,7 @@ mod tests {
         assert!(bridge.take_focus_requests().is_empty());
     }
 
-    /// 새로고침은 modifier 없는 기능키만 예외로 가져가고, 페이지 예약 조합과 같으면 페이지에 남긴다.
+    /// 새로고침은 수식키와 관계없이 가져가고, 페이지 예약 조합과 같으면 페이지에 남긴다.
     #[test]
     fn refresh_claims_function_keys_but_yields_to_page_reserved_combos() {
         let p = HostShortcutPolicy::new(ShortcutSources {
@@ -902,7 +897,7 @@ mod tests {
             refresh: strings(&["f5", "r", "CTRL+C", "F3", "ctrl+alt+r"]),
             edit: Vec::new(),
         });
-        assert_eq!(p.combos(), ["f5", "ctrl+alt+r"]);
+        assert_eq!(p.combos(), ["f5", "r", "ctrl+alt+r"]);
     }
 
     /// Windows 메시지 훅이 소비한 key-down은 Dispatch되지 않아 accelerator가 다시 오지 않는다.

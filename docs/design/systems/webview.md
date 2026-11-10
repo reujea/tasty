@@ -200,7 +200,7 @@ HostShortcutPolicy는 ShortcutSources의 host·page_reserved·plugin·address·r
 address(주소창 포커스 `explorer_focus_address`)는 bridge가 받은 주소 띠 surface 목록(mirror가 아닌 html)에서만 가져가고, markdown 같은 다른 WebView 페이지에는 남긴다.
 설정 field·quick-switch·사용자 script·활성 plugin의 effective binding 생성은 webview_claims가 맡는다.
 
-modifier 없는 키와 Shift 전용 키는 페이지 입력에 남긴다. 예외는 ShortcutSources의 refresh(공통 새로고침) 조합 중 F1~F24 기능키다. 문자를 만들지 않는 키라 입력·IME를 방해하지 않는다. host가 가져간 refresh 키는 모델 focus가 아니라 키를 받은 WebView surface를 대상으로 한다([공통 새로고침](../../features/keybindings/index.md#공통-새로고침--refresh)).
+웹 화면에서 동작하는 host·plugin·새로고침 바인딩은 수식키 유무와 관계없이 가져간다(예: `rename_tab`의 `F2`). 바인딩에 없는 키와 웹 화면에서 동작하지 않는 동작의 키는 페이지 입력에 남긴다. 설정 캡처는 수식키 없는 글자 키를 받지 않지만 설정 파일로 넣은 글자 키 바인딩은 그 글자의 입력을 대신한다. host가 가져간 refresh 키는 모델 focus가 아니라 키를 받은 WebView surface를 대상으로 한다([공통 새로고침](../../features/keybindings/index.md#공통-새로고침--refresh)).
 find·copy·cut·paste·select_all·page_undo·page_redo는 host 액션 field에서 제외하고 이 예약 조합과 동등한 plugin 조합도 제외한다.
 
 ### 편집 액션
@@ -368,7 +368,7 @@ winit 메시지 훅(`webview/windows/host_input.rs`)이 Translate·Dispatch 전�
 그 WebView의 `WebViewKeySink`로 위와 같은 순서(반복 → 입력 차단 → 편집 명령 → host 가져가기)를 판정한다.
 소비한 key-down은 보내지 않으므로 WM_CHAR도 생기지 않는다. key-up, IME가 처리하는 키(`VK_PROCESSKEY`), 변환표 밖 키,
 WebView 밖으로 가는 메시지는 판정하지 않고 그대로 보낸다. 그래서 Ctrl·Alt 없이 누르는 글자·숫자·기호 키(Shift 조합 포함)에 준
-편집 바인딩도 웹 화면에서 받는다. host 액션은 modifier가 있는 조합만 가져가는 정책이 다른 OS와 같다.
+편집 바인딩도 웹 화면에서 받는다. host 액션도 다른 OS와 같이 수식키 유무와 관계없이 가져간다.
 
 이 view에서도 `AcceleratorKeyPressed`는 같은 판정(`keys::route_key_down`)을 한다. 훅이 소비한 key-down은 Dispatch되지 않으므로
 WebView2가 그 키로 이 이벤트를 올리지 않는다. 훅이 통과시킨 키는 이 이벤트에서 한 번 더 판정하지만, 판정은 소비하지 않을 때 상태를
