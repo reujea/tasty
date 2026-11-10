@@ -11,6 +11,7 @@ pub mod clipboard_viewer;
 pub mod command_palette;
 pub mod convert;
 pub mod dag;
+pub mod download_run;
 pub mod drop_overlay;
 pub mod empty_surface;
 pub mod explorer_context_menu;

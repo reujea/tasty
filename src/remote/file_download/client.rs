@@ -84,12 +84,21 @@ struct Download {
     path: String,
     phase: Phase,
     /// 서버가 준 이름에서 경로 구성 요소를 지운 값. `stat` 결과 전에는 비어 있다.
-    name: String,
+    file_name: String,
     identity: Option<FileIdentity>,
     run_dir: Option<PathBuf>,
     file: Option<(std::fs::File, PathBuf)>,
     /// 답을 기다리는 요청과 보낸 시각.
     sent: Option<(u64, Instant)>,
+}
+
+/// 받는 중인 다운로드 하나의 진행.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct Progress {
+    pub id: u64,
+    pub name: String,
+    pub received: u64,
+    pub total: u64,
 }
 
 /// 한 세션의 연결 상태. 메인 루프가 세션마다 매번 알린다.
@@ -173,13 +182,6 @@ impl Client {
     }
 
     /// 다운로드를 시작한다. 서버가 기능을 알리지 않았거나 연결되지 않았으면 바로 실패를 돌려준다.
-    #[cfg_attr(
-        not(any(debug_assertions, test)),
-        expect(
-            dead_code,
-            reason = "the download button waits for a design; until then only the debug IPC starts, confirms and cancels downloads"
-        )
-    )]
     pub(crate) fn start(&mut self, workspace: u32, path: String) -> Result<u64, Failure> {
         let epoch = match self.sessions.get(&workspace) {
             None | Some((true, false, _)) => return Err(Failure::Disconnected),
@@ -196,7 +198,7 @@ impl Client {
                 epoch,
                 path,
                 phase: Phase::Stat,
-                name: String::new(),
+                file_name: String::new(),
                 identity: None,
                 run_dir: None,
                 file: None,
@@ -207,13 +209,6 @@ impl Client {
     }
 
     /// 1 MiB 를 넘는 파일의 확인. 이후 다시 묻지 않고 끝까지 받는다.
-    #[cfg_attr(
-        not(any(debug_assertions, test)),
-        expect(
-            dead_code,
-            reason = "the download button waits for a design; until then only the debug IPC starts, confirms and cancels downloads"
-        )
-    )]
     pub(crate) fn confirm(&mut self, id: u64) {
         let Some(d) = self.downloads.get_mut(&id) else {
             return;
@@ -227,17 +222,36 @@ impl Client {
     }
 
     /// 진행 중인 다운로드를 멈춘다. 다음 조각을 요청하지 않으며 받은 부분과 임시 폴더를 지운다.
-    #[cfg_attr(
-        not(any(debug_assertions, test)),
-        expect(
-            dead_code,
-            reason = "the download button waits for a design; until then only the debug IPC starts, confirms and cancels downloads"
-        )
-    )]
     pub(crate) fn cancel(&mut self, id: u64) {
         if self.downloads.contains_key(&id) {
             self.fail(id, Failure::Cancelled);
         }
+    }
+
+    /// 서버가 이 기능을 알린 연결인지. 메인 루프가 알린 세션 상태를 읽는다. 모르는 workspace 는 아니다.
+    pub(crate) fn capable(&self, workspace: u32) -> bool {
+        self.sessions
+            .get(&workspace)
+            .is_some_and(|(capable, _, _)| *capable)
+    }
+
+    /// 조각을 받는 중인 다운로드의 진행. 크기 확인 전이나 확인을 기다리는 다운로드는 담지 않는다.
+    pub(crate) fn receiving(&self) -> Vec<Progress> {
+        let mut out: Vec<Progress> = self
+            .downloads
+            .iter()
+            .filter_map(|(id, d)| match d.phase {
+                Phase::Read { offset } => Some(Progress {
+                    id: *id,
+                    name: d.file_name.clone(),
+                    received: offset,
+                    total: d.identity.as_ref().map_or(0, |i| i.size),
+                }),
+                Phase::Stat | Phase::Confirm => None,
+            })
+            .collect();
+        out.sort_by_key(|p| p.id);
+        out
     }
 
     pub(crate) fn take_events(&mut self) -> Vec<Event> {
@@ -342,14 +356,14 @@ impl Client {
             (_, DownloadOutcome::Refused { reason }) => Err(Failure::Refused(reason)),
             (Phase::Stat, DownloadOutcome::Stat { name, identity }) => {
                 let size = identity.size;
-                d.name = safe_file_name(&name);
+                d.file_name = safe_file_name(&name);
                 d.identity = Some(identity);
                 if size > CONFIRM_ABOVE_BYTES {
                     // 확인 전에는 폴더도 만들지 않는다.
                     d.phase = Phase::Confirm;
                     self.events.push(Event::Confirm {
                         id,
-                        name: d.name.clone(),
+                        name: d.file_name.clone(),
                         size,
                     });
                     Ok(None)
@@ -414,7 +428,7 @@ impl Client {
         let run_dir = root.join(format!("{stamp}-{}-{id}", std::process::id()));
         std::fs::create_dir_all(&run_dir).map_err(|_| Failure::LocalWrite)?;
         d.run_dir = Some(run_dir.clone());
-        let path = run_dir.join(&d.name);
+        let path = run_dir.join(&d.file_name);
         let file = std::fs::OpenOptions::new()
             .write(true)
             .create_new(true)

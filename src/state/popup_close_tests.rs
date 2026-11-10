@@ -366,6 +366,7 @@ fn xfer_err(name: &str) -> TransferError {
         name: name.to_string(),
         reason: "boom".to_string(),
         retry: None,
+        kind: crate::adapters::ui::popup::transfer::TransferErrorKind::Upload,
     }
 }
 

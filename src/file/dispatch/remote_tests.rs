@@ -165,7 +165,7 @@ fn an_agent_mirror_open_keeps_agent_origin_on_queued_creation() {
 }
 
 #[test]
-fn a_mirror_open_with_only_an_ipc_handler_runs_nothing_and_toasts() {
+fn a_mirror_open_with_only_an_ipc_handler_runs_nothing_and_asks_to_download() {
     let (mut core, _) = build_test_core();
     let (mut state, mut engine_session) = crate::state::tests::test_mirror_state();
     let mut engine = engine_session.borrow_mut();
@@ -193,12 +193,34 @@ fn a_mirror_open_with_only_an_ipc_handler_runs_nothing_and_toasts() {
     );
     assert!(queued_creates(&state).is_empty());
     assert!(state.pending_handler_ipc.is_empty());
-    assert!(state.pending_intents.is_empty());
+    // 대화상자를 여는 요청 하나만 쌓인다.
+    assert_eq!(state.pending_intents.len(), 1);
     assert!(
         state.dialogs.file_handler_picker.is_none(),
         "로컬 핸들러 전체 picker를 띄우지 않는다"
     );
-    assert_eq!(state.toasts.len(), 1);
+    assert_asked_to_download(&state, "/remote/doc.bin");
+}
+
+/// 사용자 요청은 토스트 대신 "다운로드 후 실행" 대화상자로 묻는다. 누르기 전에는 아무것도 받지 않는다.
+fn assert_asked_to_download(state: &crate::state::RequestContext, path: &str) {
+    assert_eq!(state.toasts.len(), 0, "the dialog replaces the toast");
+    let ask = state
+        .dialogs
+        .download_run
+        .ask
+        .as_ref()
+        .expect("the download and run dialog asks");
+    assert_eq!(ask.path, path);
+    assert!(
+        state.dialogs.download_run.runs.is_empty(),
+        "nothing starts before the button"
+    );
+    assert!(state.pending_intents.iter().any(|i| matches!(
+        &i.body,
+        crate::intent::Intent::Ui(crate::intent::UiIntent::OpenPopup { id, .. })
+            if *id == crate::adapters::ui::popup::download_run::DOWNLOAD_RUN_POPUP_ID
+    ) && i.origin.is_user()));
 }
 
 #[test]
@@ -225,7 +247,7 @@ fn a_mirror_open_without_a_detector_opens_no_picker() {
     );
     assert!(queued_creates(&state).is_empty());
     assert!(state.dialogs.file_handler_picker.is_none());
-    assert_eq!(state.toasts.len(), 1);
+    assert_asked_to_download(&state, "/remote/unknown");
 }
 
 #[test]
@@ -419,11 +441,12 @@ fn an_unverified_plugin_open_with_an_unopenable_first_handler_shows_the_remote_p
     assert_eq!(state.toasts.len(), 0);
 }
 
-/// 원격에 열 수 없으면 사용자와 증명하지 못한 plugin 중계 요청은 toast로, 외부 IPC 요청은 로그로 알린다.
+/// 원격에 열 수 없으면 사용자 요청은 "다운로드 후 실행" 대화상자로 묻고, 증명하지 못한 plugin 중계 요청은
+/// toast로, 외부 IPC 요청은 로그로 알린다.
 #[test]
-fn an_unopenable_remote_file_toasts_unless_an_external_ipc_asked() {
+fn an_unopenable_remote_file_asks_the_user_and_toasts_only_an_unverified_plugin() {
     for (origin, toasts) in [
-        (FileDispatchOrigin::User, 1),
+        (FileDispatchOrigin::User, 0),
         (FileDispatchOrigin::PluginUnverified, 1),
         (FileDispatchOrigin::Agent, 0),
     ] {
@@ -450,6 +473,11 @@ fn an_unopenable_remote_file_toasts_unless_an_external_ipc_asked() {
         assert!(state.dialogs.file_handler_picker.is_none(), "{origin:?}");
         assert!(queued_creates(&state).is_empty(), "{origin:?}");
         assert_eq!(state.toasts.len(), toasts, "{origin:?}");
+        assert_eq!(
+            state.dialogs.download_run.ask.is_some(),
+            origin == FileDispatchOrigin::User,
+            "{origin:?}"
+        );
     }
 }
 
@@ -712,7 +740,7 @@ fn a_mirror_terminal_link_click_without_a_remote_handler_runs_nothing_locally() 
     assert!(state.pending_handler_ipc.is_empty());
     assert!(queued_creates(&state).is_empty());
     assert!(state.dialogs.file_handler_picker.is_none());
-    assert_eq!(state.toasts.len(), 1);
+    assert_asked_to_download(&state, "/remote/data.bin");
 }
 
 #[test]
@@ -784,8 +812,7 @@ fn the_remote_link_menu_without_a_remote_handler_shows_no_empty_picker() {
         sid,
     );
     assert!(state.dialogs.file_handler_picker.is_none());
-    assert!(state.pending_intents.is_empty());
-    assert_eq!(state.toasts.len(), 1);
+    assert_asked_to_download(&state, "/remote/data.bin");
 }
 
 /// 받은 파일을 origin 없이 연 결과로 쌓인 요청. mirror 가 활성이면 이 경로에서 로컬 임시 파일이

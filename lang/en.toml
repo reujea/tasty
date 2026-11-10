@@ -1984,6 +1984,10 @@ workspace_close_unknown = "The connection ended before the server confirmed the 
 title = "Receiving file"
 # 진행 상황 보기만 닫으며 전송은 계속한다.
 cancel = "Cancel"
+# 다운로드 후 실행의 진행 제목이다.
+title_download_run = "Downloading to open locally"
+# 다운로드를 멈추고 받은 부분을 지운다.
+stop = "Stop download"
 
 [transfer.error]
 title = "Transfer failed"
@@ -1991,6 +1995,34 @@ title = "Transfer failed"
 body_suffix = " could not be received."
 dismiss = "Dismiss"
 retry = "Retry"
+# 다운로드 후 실행의 실패 제목이다.
+title_download_run = "Download failed"
+
+[download_run.dialog]
+title = "No handler on the remote host can open this file"
+description = "Download this file to this computer and open it with the locally configured handler? The file on the remote host stays unchanged."
+single_file = "One file only. Folders are not supported."
+run = "Download and run"
+cancel = "Cancel"
+unsupported_server = "Tasty on the remote host is too old to send files. Update it to use “Download and run”."
+
+[download_run.large]
+title = "Download a file larger than 1 MiB?"
+# {} 는 올림한 크기(예 3.2 MiB)다.
+body = "This file is {} (over 1 MiB). Downloading may take a while."
+
+[download_run.reason]
+directory = "Folders are not supported. “Download and run” supports one file only."
+not_regular = "The target is not a regular file and cannot be downloaded."
+not_found = "The file no longer exists on the remote host."
+permission_denied = "The remote host denied permission to read the file."
+changed = "The file changed on the remote host during the download."
+io = "The remote host could not read the file."
+disconnected = "The connection to the remote host was lost during the download."
+local_write = "The file could not be written on this computer."
+timeout = "The remote host did not respond in time during the download."
+bad_response = "The remote host sent file data in an unexpected format."
+not_attached = "The remote host refused the download because this connection is no longer attached to the workspace."
 
 [webview]
 no_page = "No page loaded"

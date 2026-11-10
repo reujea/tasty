@@ -19,22 +19,22 @@ pub const TRANSFER_ERROR_POPUP_ID: &str = "transfer_error";
 // 각 줄의 글자 크기 × line-height-ui로 계산한다.
 
 /// 글자 크기 한 줄의 높이.
-fn line_h(th: &theme::Theme, font: LogicalPx) -> LogicalPx {
+pub(super) fn line_h(th: &theme::Theme, font: LogicalPx) -> LogicalPx {
     font.scaled(th.line_height_ui)
 }
 
 /// 헤더 콘텐츠 높이 — glyph md와 제목 한 줄 중 큰 값.
-fn header_content_h(th: &theme::Theme) -> LogicalPx {
+pub(super) fn header_content_h(th: &theme::Theme) -> LogicalPx {
     th.icon_glyph_size_md.max(line_h(th, th.font_size_max))
 }
 
 /// 파일명 줄 높이 — glyph md와 본문 한 줄 중 큰 값.
-fn file_line_h(th: &theme::Theme) -> LogicalPx {
+pub(super) fn file_line_h(th: &theme::Theme) -> LogicalPx {
     th.icon_glyph_size_md.max(line_h(th, th.font_size_body))
 }
 
 /// 진행 행 하나 — 파일명 줄 + gap + bar + gap + 통계 줄.
-fn progress_row_h(th: &theme::Theme) -> LogicalPx {
+pub(super) fn progress_row_h(th: &theme::Theme) -> LogicalPx {
     file_line_h(th)
         + th.transfer_body_gap()
         + th.progress_height()
@@ -82,6 +82,17 @@ pub struct TransferError {
     ///
     /// [`BULK_REJECT_PREFIX`]: crate::app::attach_client::BULK_REJECT_PREFIX
     pub retry: Option<crate::core::PendingImageUpload>,
+    /// 업로드 실패인지 "다운로드 후 실행" 실패인지. 제목과 사유 칸의 서체가 다르다.
+    pub kind: TransferErrorKind,
+}
+
+/// 실패 팝업의 용도.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum TransferErrorKind {
+    /// 사유는 기계가 보고한 원인을 그대로 인용한다(mono).
+    Upload,
+    /// 사유는 원인마다 번역한 문장이다(UI 서체, 본문 크기). 높이는 그린 내용을 재서 정한다.
+    DownloadRun { content_height: Option<LogicalPx> },
 }
 
 /// 진행 팝업 높이 = header + body(행 N개) + footer. 행 수에 맞춰 딱 맞게(빈 하단 방지).
@@ -108,6 +119,12 @@ pub fn transfer_progress_sizer(state: &MainViewState, _e: &EngineRead<'_>) -> eg
 /// 실패 팝업 높이 = header + body(prose + reason well) + footer. reason 길이로 well 줄수 추정.
 pub fn transfer_error_sizer(state: &MainViewState, _e: &EngineRead<'_>) -> egui::Vec2 {
     let th = theme::theme();
+    if let Some(TransferErrorKind::DownloadRun {
+        content_height: Some(h),
+    }) = state.dialogs.transfer_error.front().map(|e| e.kind)
+    {
+        return egui::vec2(th.transfer_popup_width().value(), h.value());
+    }
     let header_h = th.transfer_header_pad_y().scaled(2.0) + header_content_h(&th);
     let footer_h = th.transfer_footer_pad_y().scaled(2.0) + LogicalPx(ControlSize::Sm.height(&th));
     let (name_len, reason_len) = state
@@ -228,6 +245,7 @@ pub fn draw_transfer_error(
     let name = head.name.clone();
     let reason = head.reason.clone();
     let retryable = head.retry.is_some();
+    let download_run = matches!(head.kind, TransferErrorKind::DownloadRun { .. });
 
     let esc = ui
         .ctx()
@@ -236,7 +254,7 @@ pub fn draw_transfer_error(
     let mut dismiss = esc;
     let mut retry = false;
     ui.spacing_mut().item_spacing = egui::vec2(0.0, 0.0);
-    ui.vertical(|ui| {
+    let drawn = ui.vertical(|ui| {
         ui.set_width(th.transfer_popup_width().value());
         ui.spacing_mut().item_spacing = egui::vec2(0.0, 0.0);
         header_band(
@@ -244,7 +262,11 @@ pub fn draw_transfer_error(
             &th,
             icons::ALERT_TRIANGLE,
             th.accent_danger_raised().into(),
-            t("transfer.error.title"),
+            if download_run {
+                t("transfer.error.title_download_run")
+            } else {
+                t("transfer.error.title")
+            },
             None,
         );
         body_region(ui, &th, |ui| {
@@ -264,7 +286,7 @@ pub fn draw_transfer_error(
                 );
             });
             ui.add_space(th.transfer_body_gap().value());
-            reason_well(ui, &th, &reason);
+            reason_well(ui, &th, &reason, download_run);
         });
         // danger-fill 금지 — ghost/secondary 만.
         footer_buttons(ui, &th, |ui| {
@@ -292,6 +314,14 @@ pub fn draw_transfer_error(
             }
         });
     });
+    if let Some(TransferErrorKind::DownloadRun { content_height }) = state
+        .dialogs
+        .transfer_error
+        .front_mut()
+        .map(|e| &mut e.kind)
+    {
+        *content_height = Some(LogicalPx(drawn.response.rect.height()));
+    }
 
     if retry {
         // 저장한 페이로드를 기존 업로드 큐에 다시 넣는다.
@@ -328,7 +358,7 @@ pub fn draw_transfer_error(
 }
 
 /// 헤더 띠 — glyph + 제목(+ 우측 trailing mono). 하단 separator.
-fn header_band(
+pub(super) fn header_band(
     ui: &mut egui::Ui,
     th: &theme::Theme,
     glyph: icons::Icon,
@@ -383,7 +413,7 @@ fn header_band(
 }
 
 /// 바디 region (사방 transfer-pad-x, 전체폭).
-fn body_region(ui: &mut egui::Ui, th: &theme::Theme, add: impl FnOnce(&mut egui::Ui)) {
+pub(super) fn body_region(ui: &mut egui::Ui, th: &theme::Theme, add: impl FnOnce(&mut egui::Ui)) {
     egui::Frame::new()
         .inner_margin(egui::Margin::same(th.transfer_pad_x().value() as i8))
         .show(ui, |ui| {
@@ -394,26 +424,10 @@ fn body_region(ui: &mut egui::Ui, th: &theme::Theme, add: impl FnOnce(&mut egui:
 
 /// 한 파일 진행 행 — 파일명 → determinate bar → done/total · rate. 줄 높이는 sizer와 같은
 /// [`file_line_h`]·[`line_h`]로 잡는다.
-fn progress_row(ui: &mut egui::Ui, th: &theme::Theme, row: &TransferRow) {
+pub(super) fn progress_row(ui: &mut egui::Ui, th: &theme::Theme, row: &TransferRow) {
     let w = ui.available_width();
     let left_center = egui::Layout::left_to_right(egui::Align::Center);
-    ui.allocate_ui_with_layout(egui::vec2(w, file_line_h(th).value()), left_center, |ui| {
-        ui.set_min_height(file_line_h(th).value());
-        ui.spacing_mut().item_spacing.x = th.spacing_sm.value();
-        let gsz = th.icon_glyph_size_md.value();
-        let (grect, _) = ui.allocate_exact_size(egui::vec2(gsz, gsz), egui::Sense::hover());
-        icons::FILE
-            .image(gsz, th.text_muted().into())
-            .paint_at(ui, grect);
-        let avail = ui.available_width();
-        let name = elide_mono(ui, th, &row.name, avail);
-        ui.label(
-            egui::RichText::new(name)
-                .monospace()
-                .size(th.font_size_body.value())
-                .color(th.text_primary()),
-        );
-    });
+    file_name_line(ui, th, row);
     ui.add_space(th.transfer_body_gap().value());
     progress_bar(ui, th, row_pct(row));
     ui.add_space(th.transfer_body_gap().value());
@@ -441,8 +455,31 @@ fn progress_row(ui: &mut egui::Ui, th: &theme::Theme, row: &TransferRow) {
     });
 }
 
+/// 파일 글리프와 mono 파일 이름(뒤를 말줄임) 한 줄.
+pub(super) fn file_name_line(ui: &mut egui::Ui, th: &theme::Theme, row: &TransferRow) {
+    let w = ui.available_width();
+    let left_center = egui::Layout::left_to_right(egui::Align::Center);
+    ui.allocate_ui_with_layout(egui::vec2(w, file_line_h(th).value()), left_center, |ui| {
+        ui.set_min_height(file_line_h(th).value());
+        ui.spacing_mut().item_spacing.x = th.spacing_sm.value();
+        let gsz = th.icon_glyph_size_md.value();
+        let (grect, _) = ui.allocate_exact_size(egui::vec2(gsz, gsz), egui::Sense::hover());
+        icons::FILE
+            .image(gsz, th.text_muted().into())
+            .paint_at(ui, grect);
+        let avail = ui.available_width();
+        let name = elide_mono(ui, th, &row.name, avail);
+        ui.label(
+            egui::RichText::new(name)
+                .monospace()
+                .size(th.font_size_body.value())
+                .color(th.text_primary()),
+        );
+    });
+}
+
 /// mono 문자열을 폭에 맞게 앞은 두고 뒤를 `…` 로 자른다(specimen elide_mono 와 동일).
-fn elide_mono(ui: &egui::Ui, th: &theme::Theme, s: &str, max_w: f32) -> String {
+pub(super) fn elide_mono(ui: &egui::Ui, th: &theme::Theme, s: &str, max_w: f32) -> String {
     let font = egui::FontId::monospace(th.font_size_body.value());
     let w = |t: &str| {
         ui.fonts(|f| {
@@ -480,8 +517,9 @@ fn progress_bar(ui: &mut egui::Ui, th: &theme::Theme, pct: u32) {
     }
 }
 
-/// command-well 패턴 — bg-app + 1px separator + radius, mono danger 텍스트.
-fn reason_well(ui: &mut egui::Ui, th: &theme::Theme, reason: &str) {
+/// command-well 패턴 — bg-app + 1px separator + radius, danger 텍스트. 기계가 보고한 원인은 mono 로
+/// 인용하고, 번역한 문장(`sentence`)은 UI 서체 본문 크기로 감아 쓴다.
+fn reason_well(ui: &mut egui::Ui, th: &theme::Theme, reason: &str, sentence: bool) {
     egui::Frame::new()
         .fill(th.bg_app().into())
         .stroke(egui::Stroke::new(
@@ -495,18 +533,31 @@ fn reason_well(ui: &mut egui::Ui, th: &theme::Theme, reason: &str) {
         ))
         .show(ui, |ui| {
             ui.set_min_width(ui.available_width());
-            ui.label(
-                egui::RichText::new(reason)
-                    .monospace()
-                    .size(th.font_size_caption.value())
-                    .color(th.accent_danger_raised()),
-            );
+            if sentence {
+                ui.spacing_mut().item_spacing.y = 0.0;
+                ui.add(
+                    egui::Label::new(
+                        egui::RichText::new(reason)
+                            .size(th.font_size_body.value())
+                            .line_height(Some(line_h(th, th.font_size_body).value()))
+                            .color(th.accent_danger_raised()),
+                    )
+                    .wrap(),
+                );
+            } else {
+                ui.label(
+                    egui::RichText::new(reason)
+                        .monospace()
+                        .size(th.font_size_caption.value())
+                        .color(th.accent_danger_raised()),
+                );
+            }
         });
 }
 
 /// 푸터 (transfer-footer-pad-y / transfer-pad-x, borderTop separator, 우측정렬). `add` 는 우→좌 순서로 위젯을
 /// 넣고 원하는 클릭 결과(bool)를 반환한다.
-fn footer_buttons<R>(
+pub(super) fn footer_buttons<R>(
     ui: &mut egui::Ui,
     th: &theme::Theme,
     add: impl FnOnce(&mut egui::Ui) -> R,
@@ -541,7 +592,7 @@ fn footer_buttons<R>(
 }
 
 /// 행 진행률 % (총 0 이면 완료 취급 100).
-fn row_pct(row: &TransferRow) -> u32 {
+pub(super) fn row_pct(row: &TransferRow) -> u32 {
     if row.total == 0 {
         return 100;
     }

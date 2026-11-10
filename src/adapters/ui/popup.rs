@@ -5,6 +5,7 @@ pub(crate) mod confirm_force_detach_workspace;
 pub(crate) mod convert;
 pub(crate) mod dag_list;
 pub(crate) mod defs;
+pub(crate) mod download_run;
 mod draw;
 pub(crate) mod explorer_conflict;
 pub(crate) mod explorer_properties;

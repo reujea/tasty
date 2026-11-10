@@ -1399,6 +1399,32 @@ pub fn pages() -> Vec<Page> {
                             ),
                             components::transfer::draw_error,
                         ),
+                        spec(
+                            "download-run-dialog",
+                            "Download and run — asked when no remote handler can open the file",
+                            Some(
+                                "400px · title + front-elided path · one-file line · old server disables the action",
+                            ),
+                            components::download_run::draw,
+                        ),
+                        spec(
+                            "download-run-large-file",
+                            "Download and run — over 1 MiB, asked once",
+                            Some("attention glyph · name and rounded-up size · Esc = Cancel"),
+                            components::download_run::draw_large,
+                        ),
+                        spec(
+                            "download-run-progress",
+                            "Download and run — progress with Stop download",
+                            Some("transfer progress shape · Esc and outside click do not close or stop"),
+                            components::download_run::draw_progress,
+                        ),
+                        spec(
+                            "download-run-failed",
+                            "Download and run — failed, one sentence per cause",
+                            Some("UI face reason well · Dismiss only"),
+                            components::download_run::draw_failed,
+                        ),
                     ],
                 ),
                 single(

@@ -1935,6 +1935,10 @@ workspace_close_unknown = "服务器确认关闭前，连接已断开。工作�
 title = "正在接收文件"
 # 진행 상황 보기만 닫으며 전송은 계속한다.
 cancel = "取消"
+# 다운로드 후 실행의 진행 제목이다.
+title_download_run = "正在下载以在本地打开"
+# 다운로드를 멈추고 받은 부분을 지운다.
+stop = "停止下载"
 
 [transfer.error]
 title = "传输失败"
@@ -1942,6 +1946,34 @@ title = "传输失败"
 body_suffix = " 接收失败。"
 dismiss = "关闭"
 retry = "重试"
+# 다운로드 후 실행의 실패 제목이다.
+title_download_run = "下载失败"
+
+[download_run.dialog]
+title = "远程主机上没有可打开此文件的处理器"
+description = "要将此文件下载到本机并使用本地配置的处理器打开吗？远程主机上的文件保持不变。"
+single_file = "仅支持单个文件。不支持文件夹。"
+run = "下载并运行"
+cancel = "取消"
+unsupported_server = "远程主机上的 Tasty 版本过旧，无法发送文件。请更新远程主机上的 Tasty 以使用“下载并运行”。"
+
+[download_run.large]
+title = "要下载超过 1 MiB 的文件吗？"
+# {} 는 올림한 크기(예 3.2 MiB)다.
+body = "此文件大小为 {}，超过 1 MiB。下载可能需要一些时间。"
+
+[download_run.reason]
+directory = "不支持文件夹。“下载并运行”仅支持单个文件。"
+not_regular = "目标不是普通文件，无法下载。"
+not_found = "远程主机上的文件已不存在。"
+permission_denied = "远程主机拒绝了读取文件的权限。"
+changed = "下载期间，远程主机上的文件发生了变化。"
+io = "远程主机无法读取文件。"
+disconnected = "下载期间，与远程主机的连接已断开。"
+local_write = "无法在本机写入文件。"
+timeout = "下载期间，远程主机未及时响应。"
+bad_response = "远程主机发送的文件数据格式不符合预期。"
+not_attached = "由于此连接已不再附加到工作区，远程主机拒绝了下载。"
 
 [webview]
 no_page = "未加载页面"

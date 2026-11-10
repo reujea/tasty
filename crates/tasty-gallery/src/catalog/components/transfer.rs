@@ -14,7 +14,7 @@ use crate::catalog::widgets::dialog as kit;
 // 글자 크기 × line-height-ui다.
 
 /// 글자 크기 한 줄의 높이.
-fn line_h(theme: &Theme, font: LogicalPx) -> LogicalPx {
+pub(super) fn line_h(theme: &Theme, font: LogicalPx) -> LogicalPx {
     font.scaled(theme.line_height_ui)
 }
 
@@ -181,17 +181,17 @@ pub fn draw_error(ui: &mut egui::Ui, theme: &Theme) {
     });
 }
 
-struct ProgressRow {
-    name: &'static str,
-    pct: u32,
-    done: &'static str,
-    total: &'static str,
-    rate: &'static str,
+pub(super) struct ProgressRow {
+    pub(super) name: &'static str,
+    pub(super) pct: u32,
+    pub(super) done: &'static str,
+    pub(super) total: &'static str,
+    pub(super) rate: &'static str,
 }
 
 /// `transfer-popup-width` 프레임 셸 (bg-panel + 1px border-strong + modal shadow). item_spacing 0 —
 /// 각 구역이 자체 패딩을 가진다.
-fn frame(ui: &mut egui::Ui, theme: &Theme, add: impl FnOnce(&mut egui::Ui)) {
+pub(super) fn frame(ui: &mut egui::Ui, theme: &Theme, add: impl FnOnce(&mut egui::Ui)) {
     egui::Frame::new()
         .fill(theme.bg_panel().to_egui())
         .stroke(egui::Stroke::new(
@@ -212,7 +212,7 @@ fn frame(ui: &mut egui::Ui, theme: &Theme, add: impl FnOnce(&mut egui::Ui)) {
 }
 
 /// 헤더 띠 — glyph + 제목(+ 우측 trailing). 하단 separator.
-fn header_band(
+pub(super) fn header_band(
     ui: &mut egui::Ui,
     theme: &Theme,
     glyph: icons::MockGlyph,
@@ -298,7 +298,7 @@ fn progress_card(ui: &mut egui::Ui, theme: &Theme, rows: &[ProgressRow]) {
 }
 
 /// 한 파일 진행 행 — 파일명 → determinate bar → done/total · rate.
-fn progress_row(ui: &mut egui::Ui, theme: &Theme, row: &ProgressRow) {
+pub(super) fn progress_row(ui: &mut egui::Ui, theme: &Theme, row: &ProgressRow) {
     let w = ui.available_width();
     let left_center = egui::Layout::left_to_right(egui::Align::Center);
     let file_h = theme
@@ -348,7 +348,7 @@ fn progress_row(ui: &mut egui::Ui, theme: &Theme, row: &ProgressRow) {
 
 /// determinate progress bar — recessed track + accent fill (0ms 무애니).
 /// 토큰: height=`--tasty-progress-height` · radius=radius-sm · track=bg-app · fill=accent-primary.
-fn progress_bar(ui: &mut egui::Ui, theme: &Theme, pct: u32) {
+pub(super) fn progress_bar(ui: &mut egui::Ui, theme: &Theme, pct: u32) {
     let h = theme.progress_height().value();
     let w = ui.available_width();
     let (rect, _) = ui.allocate_exact_size(egui::vec2(w, h), egui::Sense::hover());
@@ -415,6 +415,11 @@ fn error_card(ui: &mut egui::Ui, theme: &Theme, name: &str, reason: &str, retry:
 
 /// command-well 패턴 — bg-app + 1px separator + radius, mono danger 텍스트.
 fn reason_well(ui: &mut egui::Ui, theme: &Theme, reason: &str) {
+    reason_well_kind(ui, theme, reason, false);
+}
+
+/// 사유 칸. 기계가 보고한 원인은 mono 인용, 번역한 문장(`sentence`)은 UI 서체 본문 크기로 감는다.
+pub(super) fn reason_well_kind(ui: &mut egui::Ui, theme: &Theme, reason: &str, sentence: bool) {
     egui::Frame::new()
         .fill(theme.bg_app().to_egui())
         .stroke(egui::Stroke::new(
@@ -428,17 +433,30 @@ fn reason_well(ui: &mut egui::Ui, theme: &Theme, reason: &str) {
         ))
         .show(ui, |ui| {
             ui.set_min_width(ui.available_width());
-            ui.label(
-                egui::RichText::new(reason)
-                    .monospace()
-                    .size(theme.font_size_caption.value())
-                    .color(theme.accent_danger_raised().to_egui()),
-            );
+            if sentence {
+                ui.spacing_mut().item_spacing.y = 0.0;
+                ui.add(
+                    egui::Label::new(
+                        egui::RichText::new(reason)
+                            .size(theme.font_size_body.value())
+                            .line_height(Some(line_h(theme, theme.font_size_body).value()))
+                            .color(theme.accent_danger_raised().to_egui()),
+                    )
+                    .wrap(),
+                );
+            } else {
+                ui.label(
+                    egui::RichText::new(reason)
+                        .monospace()
+                        .size(theme.font_size_caption.value())
+                        .color(theme.accent_danger_raised().to_egui()),
+                );
+            }
         });
 }
 
 /// 바디 region (사방 transfer-pad-x, 전체폭).
-fn body_region(ui: &mut egui::Ui, theme: &Theme, add: impl FnOnce(&mut egui::Ui)) {
+pub(super) fn body_region(ui: &mut egui::Ui, theme: &Theme, add: impl FnOnce(&mut egui::Ui)) {
     egui::Frame::new()
         .inner_margin(egui::Margin::same(theme.transfer_pad_x().value() as i8))
         .show(ui, |ui| {
@@ -449,7 +467,7 @@ fn body_region(ui: &mut egui::Ui, theme: &Theme, add: impl FnOnce(&mut egui::Ui)
 
 /// 푸터 (transfer-footer-pad-y / transfer-pad-x, borderTop separator, 우측정렬). `add` 는 우→좌 순서로
 /// 위젯을 넣는다(먼저 넣은 것이 우측 끝).
-fn footer_buttons(ui: &mut egui::Ui, theme: &Theme, add: impl FnOnce(&mut egui::Ui)) {
+pub(super) fn footer_buttons(ui: &mut egui::Ui, theme: &Theme, add: impl FnOnce(&mut egui::Ui)) {
     let btn_h = LogicalPx(ControlSize::Sm.height(theme));
     let pad_y = theme.transfer_footer_pad_y();
     let pad_x = theme.transfer_pad_x();
@@ -480,7 +498,7 @@ fn footer_buttons(ui: &mut egui::Ui, theme: &Theme, add: impl FnOnce(&mut egui::
 }
 
 /// mono 문자열을 폭에 맞게 앞은 두고 뒤를 `…` 로 자른다(폰트 메트릭 근사).
-fn elide_mono(ui: &egui::Ui, theme: &Theme, s: &str, max_w: f32) -> String {
+pub(super) fn elide_mono(ui: &egui::Ui, theme: &Theme, s: &str, max_w: f32) -> String {
     let font = egui::FontId::monospace(theme.font_size_body.value());
     let w = |t: &str| {
         ui.fonts(|f| {

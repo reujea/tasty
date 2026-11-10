@@ -91,7 +91,8 @@ pub(crate) fn apply_remote_identify_result(
         .filter(|h| is_remote_openable(&engine.read(), h, Some(origin_surface_id)))
         .collect();
     let Some(first) = openable.first() else {
-        report_unsupported(state, &target, dispatch_origin);
+        let workspace = mirror_workspace(&engine.read(), origin_surface_id);
+        report_unsupported(state, &target, dispatch_origin, workspace);
         crate::file::dispatch::fail_run(
             policy.run,
             format!(
@@ -207,7 +208,8 @@ pub(crate) fn open_remote_link_picker(
         .filter(|h| is_remote_openable(engine, h, Some(origin_surface_id)))
         .collect();
     if openable.is_empty() {
-        report_unsupported(state, &target, FileDispatchOrigin::User);
+        let workspace = mirror_workspace(engine, origin_surface_id);
+        report_unsupported(state, &target, FileDispatchOrigin::User, workspace);
         return;
     }
     open_remote_picker(
@@ -225,7 +227,28 @@ pub(crate) fn open_remote_link_picker(
     );
 }
 
-fn report_unsupported(state: &mut RequestContext, target: &FileTarget, origin: FileDispatchOrigin) {
+/// origin surface 가 속한 mirror workspace 의 로컬 ID.
+fn mirror_workspace(engine: &EngineRead<'_>, origin_surface_id: u32) -> Option<u32> {
+    engine
+        .find_workspace_index_for_surface(origin_surface_id)
+        .and_then(|(index, _)| engine.workspace_at(index))
+        .map(|workspace| workspace.id)
+}
+
+/// 원격에 열 핸들러가 없다. 사용자 요청이면 "다운로드 후 실행" 대화상자로 묻고, 사용자 입력을 증명하지
+/// 못한 plugin 중계 요청은 안내 토스트, 외부 IPC 요청은 로그로 끝낸다.
+fn report_unsupported(
+    state: &mut RequestContext,
+    target: &FileTarget,
+    origin: FileDispatchOrigin,
+    workspace: Option<u32>,
+) {
+    if origin == FileDispatchOrigin::User
+        && let Some(workspace) = workspace
+    {
+        crate::adapters::ui::popup::download_run::ask(state, workspace, target.display());
+        return;
+    }
     match origin {
         FileDispatchOrigin::User | FileDispatchOrigin::PluginUnverified => state.toasts.push(
             crate::i18n::t("explorer.state.remote_open_unsupported").to_string(),

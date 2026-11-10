@@ -4,8 +4,8 @@
 use std::sync::atomic::{AtomicU64, Ordering};
 
 use crate::adapters::ui::popup::transfer::{
-    TRANSFER_ERROR_POPUP_ID, TRANSFER_PROGRESS_POPUP_ID, TransferError, TransferProgress,
-    TransferRow,
+    TRANSFER_ERROR_POPUP_ID, TRANSFER_PROGRESS_POPUP_ID, TransferError, TransferErrorKind,
+    TransferProgress, TransferRow,
 };
 use crate::app::App;
 use crate::view::ui::View as _;
@@ -367,6 +367,7 @@ impl App {
                 name,
                 reason,
                 retry,
+                kind: TransferErrorKind::Upload,
             });
             // 업로드는 사용자의 붙여넣기나 재시도 버튼에서 시작된다.
             main.state.dispatch_intent(
@@ -382,7 +383,7 @@ impl App {
 }
 
 /// 평균 전송률을 표시한다. 경과 시간이 0이면 대시를 반환한다.
-fn format_rate(sent: u64, elapsed: std::time::Duration) -> String {
+pub(crate) fn format_rate(sent: u64, elapsed: std::time::Duration) -> String {
     let secs = elapsed.as_secs_f64();
     if secs <= 0.0 {
         return "—".to_string();

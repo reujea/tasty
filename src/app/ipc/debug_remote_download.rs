@@ -1,6 +1,5 @@
 //! `debug.remote_download.*` — mirror workspace 의 원격 파일 하나를 "다운로드 후 실행" 한다.
-//! 버튼·확인 팝업은 디자인이 정해지지 않아 아직 없다. 그동안 사용자 조작(시작·1 MiB 초과 확인·취소)을
-//! 격리 인스턴스에서 재현하는 진입점이다. 진행과 결과는 메인 루프의 [`App::pump_file_downloads`] 가 처리한다.
+//! 창의 대화상자·확인·진행 팝업을 거치지 않고 시작·1 MiB 초과 확인·취소를 격리 인스턴스에서 재현한다. 진행과 결과는 메인 루프의 [`App::pump_file_downloads`] 가 처리한다.
 
 use crate::adapters::ipc::handler::params;
 use crate::app::App;
