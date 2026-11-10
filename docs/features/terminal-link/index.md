@@ -57,7 +57,7 @@ picker 에서 고른 핸들러는 focused pane 에 연다(좌클릭 링크와 �
 
 attach mirror surface(자식 PTY 없음 — `process_id().is_none()` 으로 판별)는 화면 경로가 **원격 호스트 경로**라 로컬 핸들러에 넘기지 않는다:
 - 로컬 `exists()` 검증 건너뛰고 OSC 7 원격 cwd 기준 경로를 그대로 링크로 emit(원격 경로도 하이라이트).
-- 수식키 클릭은 그 mirror surface 를 origin 으로 사용자 출처의 파일 열기(`DispatchFile`)를 보낸다(`file::dispatch::remote::terminal_link_file_intent`). 이후는 mirror explorer 더블클릭과 같은 [원격 대상 규칙](../file-handler/index.md#원격mirror-대상)이다: 파일 이름만으로 식별하고(client 의 같은 경로 파일은 읽지 않는다), 1순위가 원격에 열 수 있으면 원격 새 탭으로 열어 양쪽에서 선택한다. 1순위가 아니면 원격에 열 수 있는 핸들러만 담은 picker, 하나도 없으면 `explorer.state.remote_open_unsupported` toast 로 끝난다. 로컬 핸들러·OS 열기·브라우저로는 넘기지 않는다.
+- 수식키 클릭은 그 mirror surface 를 origin 으로 사용자 출처의 파일 열기(`DispatchFile`)를 보낸다(`file::dispatch::remote::terminal_link_file_intent`). 이후는 mirror explorer 더블클릭과 같은 [원격 대상 규칙](../file-handler/index.md#원격mirror-대상)이다: 파일 이름만으로 식별하고(client 의 같은 경로 파일은 읽지 않는다), 1순위가 원격에 열 수 있으면 원격 새 탭으로 열고 client 가 그 탭을 선택한다(원격은 자기 선택을 유지한다). 1순위가 아니면 원격에 열 수 있는 핸들러만 담은 picker, 하나도 없으면 `explorer.state.remote_open_unsupported` toast 로 끝난다. 로컬 핸들러·OS 열기·브라우저로는 넘기지 않는다.
 - `http://` 등 스킴 있는 URL 은 mirror 여부 무관하게 `webbrowser` 로 연다.
 - 수식키 hover 로 경로 링크가 잡히면 링크 셀 모양은 그대로 두고 링크 런 아래에 원격 위치 툴팁을 띄운다. 내용은 `attach.mirror_pill_label`(Remote, tooltip-fg) · space-sm · remote 글리프 + 호스트 글자(`link-remote-fg`, mono)다. 호스트 글자가 비면 낱말과 글리프만 그린다. 툴팁 최대 폭(240) 안에서 호스트 끝을 줄인다. 아래에 자리가 없으면 위에 두고, 가로는 창 안으로 당긴다. `tooltip-delay` 뒤에 나타나고 링크가 풀린 프레임에 사라진다. 로컬 surface 의 경로와 스킴 있는 URL 에는 띄우지 않는다. 호스트 글자는 [원격 위치 표시](../remote-attach/index.md#원격-위치-표시)와 같다(`src/adapters/ui/link_remote_tip.rs`, 공용 `tasty_ui_widgets::LinkRemoteTip`).
 - 빈 picker 의 머리 경로 줄 맨 앞에는 같은 호스트 표지가 붙는다([핸들러 picker](../file-handler/index.md)).

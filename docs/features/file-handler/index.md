@@ -51,7 +51,7 @@ URL 대상의 picker 헤더에는 **URL 전용 형태가 따로 없다** — det
 - 1순위가 원격에 열 수 없고 다른 후보가 있으면 사용자 요청과 PluginUnverified 요청은 기존 핸들러 picker 를 띄운다. 후보와 최근 목록에는 원격에 열 수 있는 핸들러만 남기고, 1순위가 목록에 없으므로 기본 핸들러 표시는 두지 않는다. fallback 표시(전체 핸들러 그룹·1 회성 띠)도 쓰지 않는다. picker 에서 고른 핸들러도 같은 조건을 다시 확인한 뒤 원격 새 탭으로 실행한다.
 - Agent(외부 IPC) 요청은 로컬과 마찬가지로 사용자 화면에 picker 를 띄우지 않는다. 우선순위 순서로 원격에 열 수 있는 첫 핸들러를 실행한다.
 - 원격에서 받은 파일(데이터 홈의 `download-run` 아래)을 사용자 요청으로 여는데 활성 workspace 가 mirror 이고 실행할 핸들러(1순위나 picker 선택)가 `OpenSurface` 이면, 활성 workspace 에 `NewTab` 을 내지 않고 새 로컬 workspace 를 만들어 연다([다운로드 후 실행](../remote-attach/index.md#원격-파일-다운로드-후-실행)). 에이전트 요청은 활성 workspace 를 바꾸지 않으므로 이 분기를 쓰지 않는다.
-- 실행한 `CreateTab` 은 원격 `StructuralOp::NewTab` 으로 forward 된다. 이 forward 는 실패가 아니며 `file_dispatch CreateTab failed` 경고를 남기지 않는다. 사용자 요청은 원격·client 양쪽에서 새 탭을 선택한다. Agent 와 PluginUnverified 요청은 선택을 유지하고 원격 실패를 warn 로그로만 남긴다.
+- 실행한 `CreateTab` 은 원격 `StructuralOp::NewTab` 으로 forward 된다. 이 forward 는 실패가 아니며 `file_dispatch CreateTab failed` 경고를 남기지 않는다. 사용자 요청은 client 가 새 탭을 선택하고, 원격(서버)은 자기 선택을 유지한다(공통 forward 경로가 서버 쪽 선택을 바꾸지 않는다). Agent 와 PluginUnverified 요청은 client 선택도 유지하고 원격 실패를 warn 로그로만 남긴다.
 - 원격에 열 수 있는 핸들러가 하나도 없으면(`System`·`Ipc` 뿐, 허용되지 않은 kind, 매칭 없음) picker 를 띄우지 않는다. 사용자 요청과 PluginUnverified 요청이면 `explorer.state.remote_open_unsupported` toast, Agent(외부 IPC) 요청이면 warn 로그로 끝난다.
 - 원격 경로는 로컬 최근 목록에 기록하지 않는다.
 - 터미널 링크 우클릭의 "연결 동작"(`file::dispatch::remote::open_remote_link_picker`)은 식별·자동 실행 없이 원격에 열 수 있는 핸들러 전체를 picker 로 연다. 로컬 링크의 "연결 동작"이 전체 핸들러를 보여 주는 것과 같다. 최근 목록도 같은 조건으로 거르고 기본 핸들러 표시는 두지 않는다. 그런 핸들러가 하나도 없으면 빈 picker 대신 `explorer.state.remote_open_unsupported` toast 로 끝난다.
@@ -143,7 +143,7 @@ picker에서 고른 핸들러는 이번 한 번만 실행한다. 형식별 기�
 
 세 경로에서는 후보가 `handlers_for(d)` 가 아니라 `all_handlers()` 이고(recent 와 중복 제거), 다음 표시로 매칭 실패를 알린다: 그룹 라벨이 attention 톤의 "전체 핸들러", caption 이 "이 형식에 맞는 핸들러가 없습니다.", 헤더 Tag 가 "형식 알 수 없음", 그리고 헤더 아래 띠가 **1 회성**이고 다음에도 이 화면이 나온다고 적는다(user TOML 미변경). 기본 핸들러 Tag 는 이 상태에 붙지 않는다 — 매칭이 없으면 기본도 없다.
 
-**빈 상태**: 이 popup에 표시할 행이 없으면 빈 상태를 보여준다 — 후보와 recent 가 **둘 다 비면** 목록 자리가 중앙 블록으로 바뀐다. 그래서 실제로 이 상태에 닿는 것은 위 표의 **셋째 경로**(원격 placeholder)다. 앞의 둘은 `all_handlers()` 를 싣는데 host 기본 핸들러가 `default-file-handlers.toml` 에 박혀 있어 plugin 을 전부 꺼도 0 이 되지 않는다. 블록은 흐린 파일 글리프 + "등록된 핸들러가 없습니다." + 한 줄 안내 + "설정에서 핸들러 등록" 버튼(Settings 를 `FileHandler` 탭으로 오픈)이고, 프레임 폭과 footer 는 그대로고 [열기]만 비활성이다 — 같은 다이얼로그의 한 상태이지 다른 화면이 아니다.
+**빈 상태**: 이 popup에 표시할 행이 없으면 빈 상태를 보여준다 — 후보와 recent 가 **둘 다 비면** 목록 자리가 중앙 블록으로 바뀐다. 지금 이 상태에 닿는 경로는 없다. 앞의 두 경로는 `all_handlers()` 를 싣는데 host 기본 핸들러가 `default-file-handlers.toml` 에 박혀 있어 plugin 을 전부 꺼도 0 이 되지 않는다. 셋째 경로(원격 후보 없음)는 picker 를 열지 않고 위처럼 toast 로 끝난다. 블록은 흐린 파일 글리프 + "등록된 핸들러가 없습니다." + 한 줄 안내 + "설정에서 핸들러 등록" 버튼(Settings 를 `FileHandler` 탭으로 오픈)이고, 프레임 폭과 footer 는 그대로고 [열기]만 비활성이다 — 같은 다이얼로그의 한 상태이지 다른 화면이 아니다.
 
 ### 접수 뒤 최종 결과
 
