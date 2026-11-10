@@ -49,10 +49,9 @@ ignore = [
   "RUSTSEC-2026-0441", # pin-utils 0.1.0 unmaintained
 
   # unsound 기본 검사 범위는 workspace의 직접 의존성이다. unmaintained는 간접 의존성도 본다.
-  # glib 0.18.5의 RUSTSEC-2024-0429와 rand 0.8.5의 RUSTSEC-2026-0097은
-  # lock에 남아 있지만 간접 의존성이라 이 범위에서는 보고되지 않는다.
+  # glib 0.18.5의 RUSTSEC-2024-0429는 lock에 남아 있지만 간접 의존성이라 이 범위에서는 보고되지 않는다.
   # 검사되지 않는 항목을 ignore에 넣으면 advisory-not-detected 경고가 발생한다.
-  # unsound 범위를 all로 넓힐 때는 두 의존성의 갱신 가능성과 예외 필요 여부를 다시 확인한다.
+  # unsound 범위를 all로 넓힐 때는 glib의 갱신 가능성과 예외 필요 여부를 다시 확인한다.
 
 ]
 
