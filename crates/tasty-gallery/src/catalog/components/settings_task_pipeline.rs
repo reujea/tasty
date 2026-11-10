@@ -51,10 +51,7 @@ pub fn draw(ui: &mut egui::Ui, theme: &Theme) {
         ui,
         theme,
         &[
-            (
-                "L2 position",
-                "Misc · after Scripts · before Tastyrc (Windows)",
-            ),
+            ("L2 position", "Misc · after Scripts"),
             (
                 "heading",
                 "REPORT LIMITS · font-label micro uppercase · muted",
