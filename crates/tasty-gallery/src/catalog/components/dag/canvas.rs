@@ -4,6 +4,7 @@
 
 use tasty_dag_layout::{GraphLayout, Orientation};
 use tasty_type_appearance::theme::Theme;
+use tasty_type_geometry::length::LogicalPx;
 use tasty_ui_widgets::{
     EdgeInk, GraphCanvasProps, GraphChromeLabels, GraphNodeVisual, GraphPainter, GraphView,
     draw_graph_canvas, paint_dag_card,
@@ -37,7 +38,7 @@ impl GraphPainter<Plot<'_>> for SamplePainter {
         };
         EdgeInk {
             color: color.to_egui(),
-            width: theme.dag_edge_width().value(),
+            width: theme.dag_edge_width(),
             dash: edge.rel.dash(),
         }
     }
@@ -91,7 +92,7 @@ pub fn fit_zoom(viewport: egui::Vec2, layout: &GraphLayout, theme: &Theme) -> f3
     view.fit(
         egui::vec2(layout.width.value(), layout.height.value()),
         viewport,
-        theme.dag_canvas_padding().value(),
+        theme.dag_canvas_padding(),
     );
     view.zoom
 }
@@ -204,11 +205,17 @@ fn state_tile(
                 })
             }
         });
-        tasty_ui_widgets::split_graph_drawer(&mut tile, theme, rect.width(), drawer, |ui| {
-            let viewport = ui.available_size();
-            let mut view = specimen_view(graph, dir, viewport, zoom, selected, theme);
-            paint_view(ui, theme, graph, dir, &mut view, true, None);
-        });
+        tasty_ui_widgets::split_graph_drawer(
+            &mut tile,
+            theme,
+            LogicalPx(rect.width()),
+            drawer,
+            |ui| {
+                let viewport = ui.available_size();
+                let mut view = specimen_view(graph, dir, viewport, zoom, selected, theme);
+                paint_view(ui, theme, graph, dir, &mut view, true, None);
+            },
+        );
     });
 }
 

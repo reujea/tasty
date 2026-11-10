@@ -3,6 +3,7 @@
 //! 상세는 넓은 화면에서 우측 고정폭 패널, 좁은 화면에서 하단 시트다. 자리는 공통
 //! 그래프 뷰가 나누고 **콘텐츠는 어느 쪽이든 [`super::detail::draw_detail`] 하나**다.
 
+use tasty_type_geometry::length::LogicalPx;
 use tasty_ui_widgets::{
     GraphCanvasProps, GraphData as _, GraphFrame, draw_graph_canvas, split_graph_drawer,
 };
@@ -90,7 +91,7 @@ pub fn draw_dag_graph(
     let split = split_graph_drawer(
         ui,
         theme,
-        surface_width,
+        LogicalPx(surface_width),
         selected.map(|node| move |ui: &mut egui::Ui| draw_detail(ui, theme, graph, node, now)),
         |ui| draw_graph_canvas(ui, theme, canvas_view, graph, &painter, &props),
     );
@@ -136,7 +137,7 @@ fn apply_chrome(
         }
         Some(ChromeAction::Fit) => {
             view.canvas
-                .fit(graph_size, viewport, theme.dag_canvas_padding().value());
+                .fit(graph_size, viewport, theme.dag_canvas_padding());
         }
         Some(ChromeAction::Zoom(steps)) => {
             view.canvas.zoom_by(steps, viewport / 2.0);

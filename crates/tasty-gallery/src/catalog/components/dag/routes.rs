@@ -1,6 +1,7 @@
 //! 전이 엣지의 선택 상태 네 가지와, 경로가 선택되지 않아 건너뛴 노드를 보인다.
 
 use tasty_type_appearance::theme::Theme;
+use tasty_type_geometry::length::LogicalPx;
 
 use super::edges::{self, EdgeLook};
 use super::node::{NodeVis, node_box, sample};
@@ -34,10 +35,10 @@ impl Selection {
     }
 
     /// 선 굵기. 선택된 경로만 `dag-edge-selected-width` 로 굵게 그린다.
-    pub fn width(self, theme: &Theme) -> f32 {
+    pub fn width(self, theme: &Theme) -> LogicalPx {
         match self {
-            Selection::Selected => theme.dag_edge_selected_width().value(),
-            _ => theme.dag_edge_width().value(),
+            Selection::Selected => theme.dag_edge_selected_width(),
+            _ => theme.dag_edge_width(),
         }
     }
 

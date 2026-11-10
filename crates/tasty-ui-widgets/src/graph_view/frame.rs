@@ -2,6 +2,7 @@
 //! 상세는 넓은 화면에서 우측 고정폭 패널, 좁은 화면에서 하단 시트다. 내용은 호출자가 채운다.
 
 use tasty_type_appearance::theme::Theme;
+use tasty_type_geometry::length::LogicalPx;
 
 use crate::{ControlSize, IconButton, margin_all};
 
@@ -74,11 +75,11 @@ pub struct GraphDrawerSplit<C, D> {
 pub fn split_graph_drawer<C, D>(
     ui: &mut egui::Ui,
     theme: &Theme,
-    surface_width: f32,
+    surface_width: LogicalPx,
     drawer: Option<impl FnOnce(&mut egui::Ui) -> D>,
     canvas: impl FnOnce(&mut egui::Ui) -> C,
 ) -> GraphDrawerSplit<C, D> {
-    let wide = surface_width >= GRAPH_NARROW_DETAIL_SHEET.value();
+    let wide = surface_width >= GRAPH_NARROW_DETAIL_SHEET;
     let Some(drawer) = drawer else {
         let viewport = ui.available_size();
         return GraphDrawerSplit {
@@ -206,7 +207,7 @@ pub fn drawer_text_block(
     theme: &Theme,
     label: &str,
     body: &str,
-    max_h: f32,
+    max_h: LogicalPx,
     copy_tooltip: Option<&str>,
 ) {
     if let Some(tooltip) = copy_tooltip {
@@ -233,7 +234,7 @@ pub fn drawer_text_block(
         .inner_margin(margin_all(theme.spacing_xs))
         .show(ui, |ui| {
             egui::ScrollArea::vertical()
-                .max_height(max_h)
+                .max_height(max_h.value())
                 .auto_shrink([false, true])
                 .id_salt(label)
                 .drag_to_scroll(false)

@@ -4,6 +4,7 @@
 
 use tasty_type_appearance::color::HexColor;
 use tasty_type_appearance::theme::Theme;
+use tasty_type_geometry::length::LogicalPx;
 
 use super::canvas::{NodeVisual, ellipsize, text_width};
 use super::state::Lod;
@@ -364,7 +365,12 @@ pub fn paint_dag_card(
     painter.text(
         egui::pos2(name_x, top + name_h / 2.0),
         egui::Align2::LEFT_CENTER,
-        ellipsize(painter, card.name, &name_font, inner.max.x - name_x),
+        ellipsize(
+            painter,
+            card.name,
+            &name_font,
+            LogicalPx(inner.max.x - name_x),
+        ),
         name_font,
         tone(theme, title_fg, dim),
     );
@@ -375,7 +381,7 @@ pub fn paint_dag_card(
 
     let meta_y = top + name_h + row_gap + meta_h / 2.0;
     let glyph = card.glyph;
-    let gw = text_width(painter, glyph, &meta_font) + gap;
+    let gw = text_width(painter, glyph, &meta_font).value() + gap;
     painter.text(
         egui::pos2(inner.min.x, meta_y),
         egui::Align2::LEFT_CENTER,
@@ -388,7 +394,7 @@ pub fn paint_dag_card(
     let mut right = inner.max.x;
     if let Some(d) = card.duration {
         let duration_font = egui::FontId::monospace(meta_font.size);
-        let dw = text_width(painter, d, &duration_font);
+        let dw = text_width(painter, d, &duration_font).value();
         if dw <= inner.width() - gw {
             painter.text(
                 egui::pos2(right, meta_y),
@@ -405,7 +411,7 @@ pub fn paint_dag_card(
         painter.text(
             egui::pos2(inner.min.x + gw, meta_y),
             egui::Align2::LEFT_CENTER,
-            ellipsize(painter, card.status_label, &meta_font, label_w),
+            ellipsize(painter, card.status_label, &meta_font, LogicalPx(label_w)),
             meta_font,
             tone(theme, label_fg, dim),
         );

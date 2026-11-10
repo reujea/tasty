@@ -4,6 +4,7 @@
 
 use tasty_dag_layout::{EdgeRoute, GraphLayout, Orientation};
 use tasty_type_appearance::theme::Theme;
+use tasty_type_geometry::length::LogicalPx;
 
 use super::chrome::{GraphChromeAction, GraphChromeLabels, draw_canvas_chrome, zoom_cluster_rect};
 use super::model::GraphData;
@@ -17,14 +18,17 @@ pub struct Transform {
 }
 
 impl Transform {
-    pub fn to_screen(self, x: f32, y: f32) -> egui::Pos2 {
-        egui::pos2(self.origin.x + x * self.zoom, self.origin.y + y * self.zoom)
+    pub fn to_screen(self, x: LogicalPx, y: LogicalPx) -> egui::Pos2 {
+        egui::pos2(
+            self.origin.x + (x * self.zoom).value(),
+            self.origin.y + (y * self.zoom).value(),
+        )
     }
 
-    pub fn rect(self, x: f32, y: f32, w: f32, h: f32) -> egui::Rect {
+    pub fn rect(self, x: LogicalPx, y: LogicalPx, w: LogicalPx, h: LogicalPx) -> egui::Rect {
         egui::Rect::from_min_size(
             self.to_screen(x, y),
-            egui::vec2(w * self.zoom, h * self.zoom),
+            egui::vec2((w * self.zoom).value(), (h * self.zoom).value()),
         )
     }
 }
@@ -44,7 +48,7 @@ pub struct NodeVisual {
 /// 간선 한 줄의 잉크.
 pub struct EdgeInk {
     pub color: egui::Color32,
-    pub width: f32,
+    pub width: LogicalPx,
     /// 선·틈 길이를 번갈아 적은 파선 패턴(배율 1 기준). `None` 이면 실선.
     pub dash: Option<&'static [f32]>,
 }
@@ -112,7 +116,7 @@ pub fn draw_graph_canvas<G: GraphData, P: GraphPainter<G>>(
     let graph_size = egui::vec2(layout.width.value(), layout.height.value());
     // 같은 그래프·방향·뷰포트에서는 자동 맞춤을 반복하지 않아 사용자의 이동·배율을 유지한다.
     if !graph.nodes().is_empty() && view.take_fit(graph.graph_key(), orientation, rect.size()) {
-        view.fit(graph_size, rect.size(), theme.dag_canvas_padding().value());
+        view.fit(graph_size, rect.size(), theme.dag_canvas_padding());
     }
 
     // 줌 버튼 영역을 미리 확보해 캔버스 이동·선택에서 제외한다.
@@ -158,10 +162,10 @@ pub fn draw_graph_canvas<G: GraphData, P: GraphPainter<G>>(
             continue;
         };
         let r = tr.rect(
-            pos.x.value(),
-            pos.y.value(),
-            props.node_size.x,
-            props.node_size.y,
+            pos.x,
+            pos.y,
+            LogicalPx(props.node_size.x),
+            LogicalPx(props.node_size.y),
         );
         if !rect.intersects(r.expand(theme.dag_node_selected_ring_width().value())) {
             continue;
@@ -273,7 +277,7 @@ fn node_at(
         .enumerate()
         .rev()
         .find(|(_, n)| {
-            tr.rect(n.x.value(), n.y.value(), node_size.x, node_size.y)
+            tr.rect(n.x, n.y, LogicalPx(node_size.x), LogicalPx(node_size.y))
                 .contains(p)
         })
         .map(|(i, _)| i)
@@ -312,17 +316,17 @@ fn paint_edge(
     let raw: Vec<egui::Pos2> = route
         .points
         .iter()
-        .map(|(x, y)| tr.to_screen(x.value(), y.value()))
+        .map(|(x, y)| tr.to_screen(*x, *y))
         .collect();
     if raw.len() < 2 {
         return;
     }
     let ortho = orthogonalize(&raw, orientation);
-    let rounded = round_corners(&ortho, theme.dag_edge_corner_radius().value() * tr.zoom);
+    let rounded = round_corners(&ortho, theme.dag_edge_corner_radius() * tr.zoom);
     paint_edge_line(painter, &rounded, ink, tr.zoom);
     paint_arrow(
         painter,
-        theme.dag_edge_arrow_size().value() * tr.zoom,
+        theme.dag_edge_arrow_size() * tr.zoom,
         ink.color,
         &ortho,
     );
@@ -330,7 +334,7 @@ fn paint_edge(
 
 /// 이미 화면 좌표로 옮긴 경로를 실선 또는 배율을 적용한 파선으로 긋는다.
 pub fn paint_edge_line(painter: &egui::Painter, path: &[egui::Pos2], ink: &EdgeInk, zoom: f32) {
-    let stroke = egui::Stroke::new(ink.width.max(1.0), ink.color);
+    let stroke = egui::Stroke::new(ink.width.value().max(1.0), ink.color);
     match ink.dash {
         Some(pattern) => {
             let on: Vec<f32> = pattern.iter().step_by(2).map(|v| v * zoom).collect();
@@ -374,8 +378,8 @@ pub fn orthogonalize(points: &[egui::Pos2], orientation: Orientation) -> Vec<egu
 }
 
 /// 각 꺾임점을 반경 `r` 짜리 사분원으로 깎는다.
-pub fn round_corners(points: &[egui::Pos2], r: f32) -> Vec<egui::Pos2> {
-    if points.len() < 3 || r <= 0.5 {
+pub fn round_corners(points: &[egui::Pos2], r: LogicalPx) -> Vec<egui::Pos2> {
+    if points.len() < 3 || r <= LogicalPx(0.5) {
         return points.to_vec();
     }
     const ARC_STEPS: usize = 4;
@@ -384,8 +388,8 @@ pub fn round_corners(points: &[egui::Pos2], r: f32) -> Vec<egui::Pos2> {
         let (prev, cur, next) = (points[i - 1], points[i], points[i + 1]);
         let din = (cur - prev).normalized();
         let dout = (next - cur).normalized();
-        let rin = r.min((cur - prev).length() / 2.0);
-        let rout = r.min((next - cur).length() / 2.0);
+        let rin = r.min(LogicalPx((cur - prev).length() / 2.0)).value();
+        let rout = r.min(LogicalPx((next - cur).length() / 2.0)).value();
         let start = cur - din * rin;
         let end = cur + dout * rout;
         out.push(start);
@@ -407,10 +411,11 @@ pub fn round_corners(points: &[egui::Pos2], r: f32) -> Vec<egui::Pos2> {
 /// 끝점 화살촉. 마지막 세그먼트 방향을 따른다.
 pub fn paint_arrow(
     painter: &egui::Painter,
-    size: f32,
+    size: LogicalPx,
     color: egui::Color32,
     points: &[egui::Pos2],
 ) {
+    let size = size.value();
     if size < 2.0 || points.len() < 2 {
         return;
     }
@@ -441,17 +446,22 @@ pub fn paint_selection_ring(painter: &egui::Painter, theme: &Theme, rect: egui::
 }
 
 /// 한 줄 글자 폭.
-pub fn text_width(painter: &egui::Painter, text: &str, font: &egui::FontId) -> f32 {
-    painter.ctx().fonts(|f| {
+pub fn text_width(painter: &egui::Painter, text: &str, font: &egui::FontId) -> LogicalPx {
+    LogicalPx(painter.ctx().fonts(|f| {
         f.layout_no_wrap(text.to_string(), font.clone(), egui::Color32::WHITE)
             .size()
             .x
-    })
+    }))
 }
 
 /// 글자 경계를 지키며 폭에 맞춰 줄인다.
-pub fn ellipsize(painter: &egui::Painter, text: &str, font: &egui::FontId, max_w: f32) -> String {
-    if max_w <= 0.0 {
+pub fn ellipsize(
+    painter: &egui::Painter,
+    text: &str,
+    font: &egui::FontId,
+    max_w: LogicalPx,
+) -> String {
+    if max_w <= LogicalPx(0.0) {
         return String::new();
     }
     if text_width(painter, text, font) <= max_w {

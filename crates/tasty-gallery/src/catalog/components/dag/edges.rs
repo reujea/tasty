@@ -3,6 +3,7 @@
 
 use tasty_dag_layout::Orientation;
 use tasty_type_appearance::theme::Theme;
+use tasty_type_geometry::length::LogicalPx;
 use tasty_ui_widgets::{
     EdgeInk, graph_orthogonalize, graph_paint_arrow, graph_paint_edge_line, graph_round_corners,
 };
@@ -17,7 +18,7 @@ pub(super) struct EdgeLook {
     /// 선과 화살표의 색.
     pub ink: egui::Color32,
     pub dash: Option<&'static [f32]>,
-    pub width: f32,
+    pub width: LogicalPx,
 }
 
 /// 디자인 `EdgeSpecimen` — 시안 뷰박스 120×56 안의 elbow 한 줄 + 이름 + 라벨.
@@ -49,19 +50,14 @@ pub(super) fn specimen(
     let t = egui::pos2(rect.max.x - inset, rect.max.y - gap);
     let color = stroke.ink;
     let ortho = graph_orthogonalize(&[s, t], Orientation::TopDown);
-    let path = graph_round_corners(&ortho, theme.dag_edge_corner_radius().value());
+    let path = graph_round_corners(&ortho, theme.dag_edge_corner_radius());
     let ink = EdgeInk {
         color,
         width: stroke.width,
         dash: stroke.dash,
     };
     graph_paint_edge_line(ui.painter(), &path, &ink, 1.0);
-    graph_paint_arrow(
-        ui.painter(),
-        theme.dag_edge_arrow_size().value(),
-        color,
-        &ortho,
-    );
+    graph_paint_arrow(ui.painter(), theme.dag_edge_arrow_size(), color, &ortho);
     let cx = outer.center().x;
     ui.painter().text(
         egui::pos2(cx, rect.max.y + gap),
@@ -86,7 +82,7 @@ fn edge_specimen(ui: &mut egui::Ui, theme: &Theme, rel: Rel) {
         color: rel.color(theme).to_egui(),
         ink: rel.color(theme).to_egui(),
         dash: rel.dash(),
-        width: theme.dag_edge_width().value(),
+        width: theme.dag_edge_width(),
     };
     specimen(ui, theme, stroke, rel.key(), Some(rel.label()));
 }

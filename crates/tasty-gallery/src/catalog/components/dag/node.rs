@@ -3,6 +3,7 @@
 //! 표시 상세도는 카드의 내용만 바꾸며 카드 크기는 유지한다.
 
 use tasty_type_appearance::theme::Theme;
+use tasty_type_geometry::length::LogicalPx;
 use tasty_ui_widgets::{DagCardView, GraphNodeVisual, graph_paint_selection_ring, paint_dag_card};
 
 use super::{Kind, Node, STATUS_ORDER, Status};
@@ -79,12 +80,12 @@ pub(super) fn row_height(ui: &egui::Ui, font: &egui::FontId) -> f32 {
 }
 
 pub(super) fn text_width(ui: &egui::Ui, text: &str, font: &egui::FontId) -> f32 {
-    tasty_ui_widgets::graph_text_width(ui.painter(), text, font)
+    tasty_ui_widgets::graph_text_width(ui.painter(), text, font).value()
 }
 
 /// 폭에 맞춰 말줄임. char 경계를 지킨다 — 바이트로 자르면 한글 이름에서 패닉한다.
 pub(super) fn ellipsize(ui: &egui::Ui, text: &str, font: &egui::FontId, max_w: f32) -> String {
-    tasty_ui_widgets::graph_ellipsize(ui.painter(), text, font, max_w)
+    tasty_ui_widgets::graph_ellipsize(ui.painter(), text, font, LogicalPx(max_w))
 }
 
 /// 줄바꿈 배치가 크기를 알 수 있도록 중첩 Ui 대신 한 번에 카드 영역을 예약한다.

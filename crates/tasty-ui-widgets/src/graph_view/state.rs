@@ -6,6 +6,7 @@ use std::hash::{Hash as _, Hasher as _};
 use std::rc::Rc;
 
 use tasty_dag_layout::{GraphLayout, LayoutConfig, Orientation, layout_dag};
+use tasty_type_geometry::length::LogicalPx;
 
 use super::model::{GraphData, GraphEdgeData as _, GraphNodeData as _};
 
@@ -131,10 +132,11 @@ impl GraphView {
     }
 
     /// 그래프 전체가 들어오도록 줌/오프셋을 맞춘다.
-    pub fn fit(&mut self, graph_size: egui::Vec2, viewport: egui::Vec2, padding: f32) {
+    pub fn fit(&mut self, graph_size: egui::Vec2, viewport: egui::Vec2, padding: LogicalPx) {
         if graph_size.x <= 0.0 || graph_size.y <= 0.0 {
             return;
         }
+        let padding = padding.value();
         let usable = viewport - egui::vec2(padding * 2.0, padding * 2.0);
         let k = (usable.x / graph_size.x)
             .min(usable.y / graph_size.y)
@@ -231,7 +233,11 @@ mod tests {
     #[test]
     fn fit_never_magnifies_beyond_one_hundred_percent() {
         let mut v = GraphView::default();
-        v.fit(egui::vec2(50.0, 20.0), egui::vec2(800.0, 600.0), 16.0);
+        v.fit(
+            egui::vec2(50.0, 20.0),
+            egui::vec2(800.0, 600.0),
+            LogicalPx(16.0),
+        );
         assert!(v.zoom <= ZOOM_FIT_MAX + 1e-6, "{}", v.zoom);
     }
 

@@ -41,7 +41,7 @@ impl GraphPainter<DagGraphData> for DagPainter {
         };
         EdgeInk {
             color: edge_ink(theme, edge.relation, dim, highlight).to_egui(),
-            width: width.value(),
+            width,
             dash: edge.relation.dash(),
         }
     }

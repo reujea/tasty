@@ -67,7 +67,7 @@ pub fn draw_detail(
             theme,
             t("dag.detail.command"),
             &node.command_text,
-            theme.dag_detail_out_max_height().value(),
+            theme.dag_detail_out_max_height(),
             None,
         );
 
@@ -99,7 +99,7 @@ pub fn draw_detail(
                 theme,
                 t("dag.detail.error"),
                 err,
-                theme.dag_detail_log_max_height().value(),
+                theme.dag_detail_log_max_height(),
                 Some(t("dag.detail.copy")),
             );
         }
@@ -110,7 +110,7 @@ pub fn draw_detail(
                 theme,
                 t("dag.detail.output"),
                 out,
-                theme.dag_detail_out_max_height().value(),
+                theme.dag_detail_out_max_height(),
                 Some(t("dag.detail.copy")),
             );
         }
