@@ -432,9 +432,14 @@ mod windows_platform {
         std::fs::write(root.path().join("bash.exe"), "").expect("write");
         let _s = Scope::known(root.path());
         let target = resolve_command("bash").expect("classify");
-        assert_eq!(
-            locate_command_in(&target, root.path().as_os_str()),
-            Ok(root.path().join("bash.exe"))
-        );
+        let found = locate_command_in(&target, root.path().as_os_str()).expect("found");
+        // 후보 이름은 PATHEXT 표기(보통 대문자 .EXE)를 따르고 NTFS는 대소문자를 가리지 않으므로
+        // 파일 이름은 대소문자를 무시해 비교한다.
+        assert_eq!(found.parent(), Some(root.path()));
+        let name = found
+            .file_name()
+            .and_then(|n| n.to_str())
+            .expect("utf-8 name");
+        assert!(name.eq_ignore_ascii_case("bash.exe"), "{name}");
     }
 }
