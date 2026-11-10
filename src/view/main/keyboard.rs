@@ -712,10 +712,6 @@ impl MainView {
     }
 }
 
-/// egui-mesh surface 로 `Text` wire 이벤트를 forward 할지 판정(egui-winit 미러 +
-/// IME 억제). 억제 조건: 빈 문자열 / 제어·사설영역 문자(Delete 의 `\u{f728}` 등) /
-/// command modifier 동반(Ctrl+key 는 문자 삽입 아님) / IME 조합 중 non-ASCII(조합 결과는
-/// IME `Commit` 으로 도착하므로 중복 방지 — ASCII 숫자·기호는 조합을 안 거쳐 통과).
 /// 앱별 Shift+Enter 규칙. 이름은 로컬 폴링 값이고 mirror면 서버가 보낸 원격 전경 이름이다.
 /// 규칙은 인코딩하는 이 클라이언트의 설정으로 판단한다.
 fn shift_enter_newline_for(
@@ -728,6 +724,10 @@ fn shift_enter_newline_for(
         .shift_enter_newline(surface_id.and_then(|sid| engine.foreground_name(sid)))
 }
 
+/// egui-mesh surface 로 `Text` wire 이벤트를 forward 할지 판정(egui-winit 미러 +
+/// IME 억제). 억제 조건: 빈 문자열 / 제어·사설영역 문자(Delete 의 `\u{f728}` 등) /
+/// command modifier 동반(Ctrl+key 는 문자 삽입 아님) / IME 조합 중 non-ASCII(조합 결과는
+/// IME `Commit` 으로 도착하므로 중복 방지 — ASCII 숫자·기호는 조합을 안 거쳐 통과).
 fn should_forward_text(text: &str, is_cmd: bool, ime_active: bool) -> bool {
     if text.is_empty() || is_cmd {
         return false;

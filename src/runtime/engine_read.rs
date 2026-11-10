@@ -388,3 +388,21 @@ impl WebviewRead<'_> {
         self.inner.webview_nav()
     }
 }
+
+#[cfg(all(test, feature = "gui"))]
+mod tests {
+    /// 클릭 커서 이동의 셸 판정: mirror 는 로컬 PTY 가 없어 서버가 보낸 이름을 쓴다.
+    #[test]
+    fn foreground_process_name_now_falls_back_to_the_mirror_name() {
+        let (_, mut session) = crate::state::tests::test_state();
+        let mut e = session.borrow_mut();
+        assert_eq!(e.read().foreground_process_name_now(4242), None);
+        e.set_mirror_surface_foreground(4242, Some("zsh".into()));
+        assert_eq!(
+            e.read().foreground_process_name_now(4242).as_deref(),
+            Some("zsh")
+        );
+        e.set_mirror_surface_foreground(4242, None);
+        assert_eq!(e.read().foreground_process_name_now(4242), None);
+    }
+}
