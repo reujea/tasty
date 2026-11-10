@@ -1635,11 +1635,15 @@ else if(e.key==='Enter'){{e.preventDefault();if(e.shiftKey)prev();else next();}}
 prevBtn.addEventListener('click',prev);
 nextBtn.addEventListener('click',next);
 closeBtn.addEventListener('click',closeBar);
-document.addEventListener('keydown',function(e){{
+window.addEventListener('keydown',function(e){{
 if(isFindKey(e)){{
 e.preventDefault();
+e.stopImmediatePropagation();
 openBar();
-}}else if(e.key==='Escape'&&!bar.hidden&&!e.defaultPrevented&&!e.isComposing&&!(isEditable(e.target)&&e.target!==input)){{
+}}
+}},true);
+document.addEventListener('keydown',function(e){{
+if(e.key==='Escape'&&!bar.hidden&&!e.defaultPrevented&&!e.isComposing&&!(isEditable(e.target)&&e.target!==input)){{
 closeBar();
 }}
 }});
@@ -4929,10 +4933,16 @@ Outro\n";
             "got: {script}"
         );
         assert!(script.contains("if(isFindKey(e)){"), "got: {script}");
+        // Tasty가 실행한 찾기 키는 window capture 단계에서 멈춰 페이지의 다른 keydown 처리기에 넘기지 않는다.
         assert!(
-            script.contains("e.preventDefault();\nopenBar();"),
+            script.contains("e.preventDefault();\ne.stopImmediatePropagation();\nopenBar();"),
             "got: {script}"
         );
+        assert!(
+            script.contains("window.addEventListener('keydown',function(e){\nif(isFindKey(e)){"),
+            "got: {script}"
+        );
+        assert!(script.contains("openBar();\n}\n},true);"), "got: {script}");
         // 판정은 설정에서 온 목록만 본다. 고정된 F 키 조건이 남으면 바꾼 설정이 무시된다.
         assert!(!script.contains("e.key==='f'"), "got: {script}");
     }

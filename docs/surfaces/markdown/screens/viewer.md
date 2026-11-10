@@ -531,7 +531,8 @@ macOS·Windows의 실제 실행 결과는 확인되지 않았다.
 `alt`→Command·`option`→Option)으로 바꿔 스크립트에 넣는다. 설정이 저장한 바인딩은 modifier 유무와
 관계없이 모두 넣는다. `ctrl`·`alt`·`option` 이 없고 F1~F24 가 아닌 바인딩(`f`·`shift+f`·`enter` 등)은
 글자 입력과 겹치므로, 입력칸(input·textarea·select·contenteditable)에 포커스가 있거나 IME 조합 중일 때는
-찾기로 가로채지 않는다. `F3`·`Shift+F3` 같은 기능 키는 어디서나 찾기를 연다. 조회에 실패하면 경고를 남기고 기본 프리셋 값(`ctrl+f`·`alt+f`)을
+찾기로 가로채지 않는다. `F3`·`Shift+F3` 같은 기능 키는 어디서나 찾기를 연다. 찾기 키는 문서 스크립트가 window capture 단계에서
+받아 기본 동작과 이후 전파를 막는다. 이 스크립트보다 먼저 등록된 window capture 처리기만 그 keydown 을 받는다. 조회에 실패하면 경고를 남기고 기본 프리셋 값(`ctrl+f`·`alt+f`)을
 쓴다. 사용자가 설정을 저장해 `find` 가 바뀌면 host 가 `command.host_shortcut_changed`
 (`action_ids` 에 `find`)를 발행하고 plugin 은 열린 문서를 모두 다시 만든다. 검색 자체는
 markdown plugin 문서에 내장된 신뢰 스크립트만으로 동작한다(네이티브 find API
