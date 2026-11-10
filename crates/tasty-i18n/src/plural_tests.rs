@@ -41,9 +41,9 @@ fn the_variant_is_picked_only_for_one() {
     assert_eq!(pick(1, "p", |k| plain.get(k).map(String::as_str)), "{} 개");
 }
 
-/// 내장 ko·ja 는 en 의 단수 변형을 물려받지 않는다. 모든 en 변형을 본다.
+/// en 외 내장 언어는 en 의 단수 변형을 물려받지 않는다. 모든 en 변형을 본다.
 #[test]
-fn builtin_korean_and_japanese_do_not_inherit_english_variants() {
+fn builtin_languages_other_than_english_do_not_inherit_english_variants() {
     let en = Translations::load_from("en", None).0;
     let variants: Vec<&String> = en
         .base

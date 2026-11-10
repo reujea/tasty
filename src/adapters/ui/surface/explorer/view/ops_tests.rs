@@ -521,7 +521,7 @@ fn removing_originals_has_its_own_progress_queue_and_success_words() {
     assert_eq!(text.title, t_fmt("explorer.result.removed_originals", "12"));
     assert!(labels(&text).is_empty(), "no Undo, nothing to retry");
 
-    // 하나만 지웠으면 en 은 단수 변형을 쓴다. ko·ja 는 한 문자열이다.
+    // 하나만 지웠으면 en 은 단수 변형을 쓴다. 다른 내장 언어는 한 문자열이다.
     let mut one = report(OpKind::RemoveOriginals, 1, 1);
     one.undo.clear();
     let title = card_text(&card(one)).title;

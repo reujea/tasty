@@ -1,4 +1,4 @@
-//! 플랫폼 전용 메뉴·트레이·Jump List의 번역 키와 placeholder를 세 언어에서 확인한다.
+//! 플랫폼 전용 메뉴·트레이·Jump List의 번역 키와 placeholder를 모든 내장 언어에서 확인한다.
 //! 플랫폼 소스를 실행하지 않고 읽으므로 다른 운영체제의 키도 검사할 수 있다.
 
 use std::collections::{BTreeMap, HashMap};

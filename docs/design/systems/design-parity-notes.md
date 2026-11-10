@@ -512,7 +512,7 @@ State 셀은 `status_dot`(점 `status_dot_size` 8 + `space-xs` 4 + caption 11px 
 - **부분 실패 카드**: 실패 줄 셋이 줄 상한 3을 채우면 폴더 줄은 "and 1 more" 에 든다. 표본은 같은 제목("3 failed")에서 폴더 줄을 보이고 실패 하나를 줄였다. 규칙 문장과 표본이 다르므로 규칙을 따랐다.
 - **취소 카드**: 본체 Retry 는 취소로 하지 않은 항목을 센다(`Report::retryable`). 그래서 표본에 없는 Retry 28 이 붙는다.
 - **버튼 순서**: 본체 카드 순서(Retry · Copy paths · Undo)를 그대로 쓴다. 표본은 Undo 를 Copy paths 앞에 둔다.
-- **언어**: 표본은 ko·ja 복사 카드 한 장씩만 보인다. 갤러리는 네 카드를 en·ko·ja 세 열로 모두 그리며, 문구는 본체와 같은 `lang/*.toml` 키를 읽는다(`crate::i18n::t_lang`). 경로와 OS 오류는 실제 카드처럼 번역하지 않는다.
+- **언어**: 표본은 ko·ja 복사 카드 한 장씩만 보인다. 갤러리는 네 카드를 내장 언어마다 한 열씩(en·ko·ja·zh-Hans) 모두 그리며, 문구는 본체와 같은 `lang/*.toml` 키를 읽는다(`crate::i18n::t_lang`). 경로와 OS 오류는 실제 카드처럼 번역하지 않는다.
 
 <a id="pathfield--autocomplete--go-합성-공용-위젯-편집이동원복-결정-포팅-2026-07-09"></a>
 

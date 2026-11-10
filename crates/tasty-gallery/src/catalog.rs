@@ -1080,7 +1080,8 @@ pub fn pages() -> Vec<Page> {
                             "Elastic width — the interpolated program name",
                             Some(
                                 "Every row interpolates a program name of arbitrary length, and \
-                                 word order differs by locale (en: name last; ko/ja: name first). \
+                                 word order differs by locale (en: name last; ko/ja: name first; \
+                                 zh-Hans: name in the middle). \
                                  So a row's label is two parts: the fixed text (never truncates) \
                                  and the program name in mono (same row ink as the fixed text: \
                                  menu-item-fg at rest, menu-item-fg-hover on hover), which is the \
@@ -1094,12 +1095,13 @@ pub fn pages() -> Vec<Page> {
                         ),
                         spec(
                             "banner-more-row-copy",
-                            "Row copy — en / ko / ja",
+                            "Row copy — en / ko / ja / zh-Hans",
                             Some(
                                 "Each row names the program and what changes for it: \u{201c}show \
                                  again\u{201d} for the notice, \u{201c}clicks\u{201d} for capture. \
                                  Each row = prefix + {app} (mono) + suffix; en uses the prefix \
-                                 only, ko/ja the suffix only. Width band 200–288 is unchanged; \
+                                 only, ko/ja the suffix only, zh-Hans both. Copy sits on one side \
+                                 or both, never empty on both. Width band 200–288 is unchanged; \
                                  with this copy no row wraps for a short name in any locale.",
                             ),
                             widgets::banner_mouse_capture::draw_row_copy,

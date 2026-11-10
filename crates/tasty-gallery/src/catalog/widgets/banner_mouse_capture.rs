@@ -34,7 +34,7 @@ fn disable_text() -> (&'static str, &'static str) {
         crate::i18n::t("popup.mouse_capture_banner_menu.disable_suffix"),
     )
 }
-/// `code`(en·ko·ja) 로케일의 두 행 고정 문구(앞, 뒤). 본체 `row_labels` 와 같은 키 쌍을 그 언어의
+/// 내장 언어 `code` 로케일의 두 행 고정 문구(앞, 뒤). 본체 `row_labels` 와 같은 키 쌍을 그 언어의
 /// `lang/{code}.toml` 에서 읽으므로 번역이 바뀌면 예제도 따라 바뀐다. en 은 갤러리 기본 언어다.
 fn locale_texts(code: &str) -> [(&'static str, &'static str); 2] {
     use crate::i18n::t_lang;
@@ -273,8 +273,9 @@ pub fn draw_elastic(ui: &mut egui::Ui, theme: &Theme) {
     );
 }
 
-/// 시안 "Row copy — en / ko / ja". 세 언어의 두 행을 본체와 같은 키로 그린다.
-/// en 은 앞 문구만, ko·ja 는 뒤 문구만 쓴다. 긴 이름 예제는 288 상한에서 이름만 줄어드는지 보인다.
+/// 시안 "Row copy — en / ko / ja / zh-Hans". en·ko·ja 예제 메뉴와 모든 내장 언어의 두 행 문구 표를
+/// 본체와 같은 키로 그린다. en 은 앞 문구만, ko·ja 는 뒤 문구만, zh-Hans 는 앞뒤 문구를 모두 쓴다.
+/// 긴 이름 예제는 288 상한에서 이름만 줄어드는지 보인다.
 pub fn draw_row_copy(ui: &mut egui::Ui, theme: &Theme) {
     spec::stage(ui, theme, StageVariant::Tight, |ui| {
         egui::Frame::new()
@@ -333,7 +334,7 @@ pub fn draw_row_copy(ui: &mut egui::Ui, theme: &Theme) {
     );
 }
 
-/// `code`(en·ko·ja) 로케일의 이름 미상 문구. 본체 `unknown_copy` 와 같은 키를 그 언어 파일에서 읽는다.
+/// 내장 언어 `code` 로케일의 이름 미상 문구. 본체 `unknown_copy` 와 같은 키를 그 언어 파일에서 읽는다.
 fn unknown_texts(code: &str) -> BannerMoreUnknownCopy<'static> {
     use crate::i18n::t_lang;
     BannerMoreUnknownCopy {
