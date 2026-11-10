@@ -221,6 +221,11 @@ mod worker {
     fn a_hanging_read_does_not_block_the_caller_and_answers_when_it_returns() {
         let hub = StreamHub::new();
         let rx = hub.register(41);
+        // 처리 함수가 읽기를 기다리면 시험이 멈추지 않고 아래 단언으로 실패하도록 3초 뒤 풀어 준다.
+        let watchdog = std::thread::spawn(|| {
+            std::thread::sleep(Duration::from_secs(3));
+            RELEASE.store(true, Ordering::Release);
+        });
         let begun = Instant::now();
         handle_with(&hub, 41, true, &request(7, "/hung/mount/f"), hanging_reader);
         // 처리 함수는 읽기를 기다리지 않고 돌아온다(메인 루프가 다음 일을 한다).
@@ -233,6 +238,7 @@ mod worker {
         assert!(waited < Duration::from_secs(1), "handle waited {waited:?}");
         assert!(rx.try_recv().is_err(), "no answer while the read hangs");
         RELEASE.store(true, Ordering::Release);
+        watchdog.join().unwrap();
         let frame = rx.recv_timeout(Duration::from_secs(5)).unwrap();
         assert_eq!(
             result_of(frame),
