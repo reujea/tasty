@@ -14,6 +14,10 @@ wgpu = { version = "24", optional = true }
 tracing = "0.1"
 
 tasty-type-geometry = { path = "../tasty-type-geometry" }
+tasty-utils = { path = "../tasty-utils" }
+
+# cosmic-text 의 대체 목록 trait 이 받는 문자 체계 타입. cosmic-text 가 쓰는 판과 같다.
+unicode-script = "0.5.8"
 
 # Fast non-cryptographic hash for hot-path glyph cache fallback
 rustc-hash = "2"

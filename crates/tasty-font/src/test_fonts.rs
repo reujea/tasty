@@ -88,6 +88,31 @@ pub(crate) fn collection(fonts: &[Vec<u8>]) -> Vec<u8> {
     out
 }
 
+/// cmap 을 출력 가능한 ASCII(U+0020~U+007E)만 남긴 형식 4 표로 바꾼다. 한글·가나가 없는 라틴
+/// 전용 파일의 대역이다. 글리프 번호는 원본 cmap 에서 읽는다.
+pub(crate) fn latin_only(mut font: Vec<u8>) -> Vec<u8> {
+    let mut db = cosmic_text::fontdb::Database::new();
+    let id = db.load_font_source(cosmic_text::fontdb::Source::Binary(std::sync::Arc::new(
+        font.clone(),
+    )))[0];
+    let parsed = cosmic_text::Font::new(&db, id, cosmic_text::fontdb::Weight::NORMAL).unwrap();
+    let glyphs: Vec<u16> = (0x20u32..=0x7e)
+        .map(|code| parsed.as_swash().charmap().map(code))
+        .collect();
+    let mut words: Vec<u16> = vec![0, 1, 3, 1, 0, 12]; // cmap 머리와 레코드 하나
+    let length = 16 + 2 * 2 * 4 + 2 * glyphs.len();
+    words.extend([4, length as u16, 0, 4, 4, 1, 0]); // 형식 4 머리, 구간 둘
+    words.extend([0x7e, 0xffff, 0, 0x20, 0xffff, 0, 1, 4, 0]);
+    words.extend(&glyphs);
+    let (cmap, _) = table(&font, b"cmap");
+    for (i, word) in words.iter().enumerate() {
+        font[cmap + i * 2..cmap + i * 2 + 2].copy_from_slice(&word.to_be_bytes());
+    }
+    let record = table_record(&font, b"cmap");
+    font[record + 12..record + 16].copy_from_slice(&((12 + length) as u32).to_be_bytes());
+    font
+}
+
 pub(crate) struct TempFont(tempfile::TempDir);
 
 impl TempFont {

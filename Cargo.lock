@@ -6112,8 +6112,10 @@ dependencies = [
  "cosmic-text",
  "rustc-hash 2.1.1",
  "tasty-type-geometry",
+ "tasty-utils",
  "tempfile",
  "tracing",
+ "unicode-script",
  "wgpu",
 ]
 

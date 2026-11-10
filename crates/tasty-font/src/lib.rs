@@ -133,6 +133,29 @@ fn register_custom_font_file(
     kept
 }
 
+/// `family` 의 면을 `alias` 이름으로 하나씩 더 등록한다. 지정 파일에 없는 글자를 미리보기와 같은
+/// 순서(설정 family, 묶음 D2Coding)로 찾게 하는 대체 목록의 이름이다(`fallback` 모듈). 원래 면은
+/// 그대로 두고, 더한 면은 `added` 에 넣어 다음 구성에서 지운다.
+fn alias_family(
+    db: &mut cosmic_text::fontdb::Database,
+    family: &str,
+    alias: &str,
+    added: &mut Vec<cosmic_text::fontdb::ID>,
+) {
+    let faces: Vec<_> = db
+        .faces()
+        .filter(|face| !added.contains(&face.id) && judge::has_family(face, family))
+        .cloned()
+        .collect();
+    for mut info in faces {
+        info.families = vec![(
+            alias.to_string(),
+            cosmic_text::fontdb::Language::English_UnitedStates,
+        )];
+        added.push(db.push_face_info(info));
+    }
+}
+
 /// cosmic-text 는 굵기·기울임이 맞는 면이 없는 family 를 대체 글꼴(비례폭일 수 있다)로 넘긴다. 파일에
 /// 없는 굵기·기울임은 같은 원래 이름의 다른 면(설치·묶음 글꼴)을 지정 파일 이름으로 하나 더 등록해
 /// 쓴다. 원래 면은 그대로 두고, 더한 면은 다음 구성에서 지운다.
@@ -214,7 +237,13 @@ impl FontConfig {
 
     /// Create a new FontConfig from every value of the request.
     pub fn from_request(request: &FontRequest) -> Self {
-        let mut font_system = FontSystem::new();
+        // 시스템 글꼴은 한 번만 읽고, 대체 목록만 지정 파일용으로 바꿔 다시 묶는다.
+        let (locale, db) = FontSystem::new().into_locale_and_db();
+        let mut font_system = FontSystem::new_with_locale_and_db_and_fallback(
+            locale,
+            db,
+            fallback::TerminalFallback::new(),
+        );
         font_system
             .db_mut()
             .load_font_data(D2CODING_REGULAR_TTF.to_vec());
@@ -264,6 +293,23 @@ impl FontConfig {
         if !request.custom_font_path.is_empty() {
             *custom_faces =
                 register_custom_font_file(font_system, &request.custom_font_path, &request.family);
+        }
+        if !custom_faces.is_empty() {
+            let db = font_system.db_mut();
+            if judge::names_a_font(&request.family) {
+                alias_family(
+                    db,
+                    &request.family,
+                    fallback::CUSTOM_FALLBACK_FAMILY,
+                    custom_faces,
+                );
+            }
+            alias_family(
+                db,
+                D2CODING_FAMILY,
+                fallback::CUSTOM_FALLBACK_BUNDLED,
+                custom_faces,
+            );
         }
         let name = if !custom_faces.is_empty() {
             CUSTOM_FILE_FAMILY
@@ -500,6 +546,7 @@ impl FrameClock {
 /// GPU 아틀라스. 헤드리스 소비자는 gpu 기능을 켜지 않아 wgpu 의존성을 제외한다.
 #[cfg(feature = "gpu")]
 mod atlas;
+mod fallback;
 mod judge;
 #[cfg(test)]
 mod test_fonts;
@@ -930,6 +977,112 @@ mod tests {
         }
     }
 
+    /// 그 글자를 그린 면의 이름.
+    fn drawn_family(config: &mut FontConfig, text: &str) -> String {
+        let id = drawn_face(config, text, false);
+        let db = config.font_system.db();
+        db.face(id).unwrap().families[0].0.clone()
+    }
+
+    /// 지정 파일에 없는 글자는 미리보기와 같이 설정 family, 그다음 묶음 D2Coding 이 맡는다. 표본
+    /// 네 줄(라틴·한글·숫자·가나)의 글자로 잰다.
+    #[test]
+    fn missing_glyphs_follow_the_family_then_the_bundled_font() {
+        use crate::fallback::{CUSTOM_FALLBACK_BUNDLED, CUSTOM_FALLBACK_FAMILY};
+        use crate::test_fonts::{TempFont, half_units_per_em, latin_only, renamed};
+        let file = TempFont::new(&latin_only(renamed(D2CODING_REGULAR_TTF.to_vec())));
+
+        let mut no_family = FontConfig::from_request(&with_file(&file.path(), ""));
+        for text in ["A", "1"] {
+            assert_eq!(
+                drawn_family(&mut no_family, text),
+                CUSTOM_FILE_FAMILY,
+                "{text}"
+            );
+        }
+        for text in ["한", "あ"] {
+            assert_eq!(
+                drawn_family(&mut no_family, text),
+                CUSTOM_FALLBACK_BUNDLED,
+                "{text}"
+            );
+        }
+
+        // 시스템 글꼴과 겹치지 않는 이름의 family 를 직접 넣는다.
+        let mut named = FontConfig::new(14.0, "");
+        let family_font = half_units_per_em(D2CODING_REGULAR_TTF.to_vec());
+        let family_font = {
+            let mut font = family_font;
+            let (name, len) = crate::test_fonts::table(&font, b"name");
+            let from: Vec<u8> = "D2Coding"
+                .encode_utf16()
+                .flat_map(u16::to_be_bytes)
+                .collect();
+            let to: Vec<u8> = "D2Codinj"
+                .encode_utf16()
+                .flat_map(u16::to_be_bytes)
+                .collect();
+            for start in name..name + len - from.len() {
+                if font[start..start + from.len()] == from[..] {
+                    font[start..start + to.len()].copy_from_slice(&to);
+                }
+            }
+            font
+        };
+        named.font_system.db_mut().load_font_data(family_font);
+        named.reconfigure(&with_file(&file.path(), "D2Codinj ligature"));
+        assert_eq!(drawn_family(&mut named, "A"), CUSTOM_FILE_FAMILY);
+        for text in ["한", "あ"] {
+            assert_eq!(
+                drawn_family(&mut named, text),
+                CUSTOM_FALLBACK_FAMILY,
+                "{text}"
+            );
+        }
+    }
+
+    /// 지정 파일이 없으면 두 대체 이름의 면이 없어 대체 순서가 바뀌지 않는다.
+    #[test]
+    fn without_a_custom_file_no_fallback_alias_is_registered() {
+        use crate::fallback::{CUSTOM_FALLBACK_BUNDLED, CUSTOM_FALLBACK_FAMILY};
+        let config = FontConfig::new(14.0, "");
+        assert!(config.load_family_data(CUSTOM_FALLBACK_FAMILY).is_none());
+        assert!(config.load_family_data(CUSTOM_FALLBACK_BUNDLED).is_none());
+    }
+
+    /// 지정 파일이 없으면 빠진 글자는 플랫폼 대체 순서(로케일에 따른 한자 자형 선택 포함) 그대로
+    /// 고른다. 플랫폼 목록만 쓴 같은 DB 와 결과가 같아야 한다.
+    #[test]
+    fn without_a_custom_file_missing_glyphs_follow_the_platform_order() {
+        let family = "Tasty No Such Family";
+        let mut ours = FontConfig::new(14.0, family);
+        let (locale, db) = FontSystem::new().into_locale_and_db();
+        let mut platform = FontConfig {
+            font_system: FontSystem::new_with_locale_and_db_and_fallback(
+                locale,
+                db,
+                cosmic_text::PlatformFallback,
+            ),
+            swash_cache: SwashCache::new(),
+            metrics: FontMetrics {
+                cell_width: ours.metrics.cell_width,
+                cell_height: ours.metrics.cell_height,
+                font_size: ours.metrics.font_size,
+                baseline: ours.metrics.baseline,
+            },
+            font_family: ours.font_family.clone(),
+            request: ours.request().clone(),
+            custom_faces: Vec::new(),
+        };
+        for text in ["A", "漢", "한", "あ"] {
+            assert_eq!(
+                drawn_family(&mut ours, text),
+                drawn_family(&mut platform, text),
+                "{text}"
+            );
+        }
+    }
+
     /// 묶음 파일은 family 가 가리키는 면을 쓰고, 아니면 첫 면을 쓴다.
     #[test]
     fn a_collection_uses_the_named_face_or_the_first() {
@@ -944,7 +1097,13 @@ mod tests {
         assert_eq!(named.metrics.cell_width, 14.0);
         let other = FontConfig::from_request(&with_file(&file.path(), RENAMED_FAMILY));
         assert_eq!(other.metrics.cell_width, 7.0);
-        assert_eq!(other.custom_faces.len(), 1);
+        let file_faces = other
+            .custom_faces
+            .iter()
+            .filter_map(|id| other.font_system.db().face(*id))
+            .filter(|face| judge::has_family(face, CUSTOM_FILE_FAMILY))
+            .count();
+        assert_eq!(file_faces, 1);
     }
 
     /// 실행된 기능 조합만으로는 기본값·선택적 의존 선언을 알 수 없어 매니페스트를 읽는다.
