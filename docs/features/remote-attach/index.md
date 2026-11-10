@@ -325,7 +325,7 @@ move-surface 는 **source/target 이 같은 mirror workspace 안에 있을 때�
 
 - 행의 상태는 App이 engine마다 싣는 `remote.row_states`를 읽는다(`EngineRead::remote_row_state`). 세션 단계가 `Connected`여도 손실 뒤 재동기화(Resync)로 소켓을 놓은 동안은 재연결 중으로 본다.
 - `close_workspace` 단축키를 저장된 원격 행에서 누르면 로컬에서 닫기와 같다(`state::workspace::close_workspace_at`).
-- **원격 닫기 확인**(`src/adapters/ui/popup/confirm_close_remote.rs`): Window 범위, scrim 가운데, 폭 `info-modal-width`(440)다. 경고 글리프와 제목(행 이름), 본문(프로필), Cancel(기본 포커스)과 위험 버튼을 그린다. Esc·Cancel·바깥 클릭은 아무것도 보내지 않는다. 콘텐츠는 갤러리와 같은 `tasty_ui_widgets::close_remote_confirm`이다.
+- **원격 닫기 확인**(`src/adapters/ui/popup/confirm_close_remote.rs`): Window 범위, scrim 가운데, 폭 `info-modal-width`(440)다. 경고 글리프와 제목(행 이름), 본문(프로필), Cancel(기본 포커스)과 위험 버튼을 그린다. Esc·Cancel 은 닫기만 하고 아무것도 보내지 않으며, 바깥 클릭으로는 닫히지 않는다. 콘텐츠는 갤러리와 같은 `tasty_ui_widgets::close_remote_confirm`이다.
 - 사용자가 보낸 구조 요청이 저장된 원격 행을 비우면(workspace 닫기, 또는 지우는 surface가 그 workspace의 전부인 탭·pane·surface 닫기) dispatch가 요청을 보내지 않고 같은 확인을 연다(`workspace_close::saved_row_close`). 마지막 탭·pane 닫기에서 열리면 본문 앞에 `remote.row.close_remote.last` 한 줄을 더한다. 확인하면 담아 둔 요청을 이 팝업 출처(`UserSource::Menu("confirm_close_remote")`)로 다시 보내고, dispatch는 그 출처를 다시 묻지 않는다. 에이전트 요청(IPC `workspace.close` 등)은 묻지 않고 서버로 보낸다.
 - 다른 곳(다른 client, 원격 Tasty)에서 원격 workspace가 닫히면 행은 남고 안내로 이유를 보인다. 메뉴와 연결 팝업의 Reconnect는 비활성이다.
 

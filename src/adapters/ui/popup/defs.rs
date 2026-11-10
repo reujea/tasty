@@ -537,7 +537,8 @@ pub fn all_defs() -> &'static [PopupDef] {
                 default_size: super::confirm_close_remote::confirm_close_remote_default_size(),
                 sizer: Some(super::confirm_close_remote::confirm_close_remote_sizer),
                 default_scope: PopupScope::Window,
-                close_on_outside_click: true,
+                // 파괴적 확인이라 Esc·Cancel 로만 닫는다. 바깥 클릭은 무시한다.
+                close_on_outside_click: false,
                 headless: true,
                 sticky_focus: false,
                 drag_handle: DragHandle::None,

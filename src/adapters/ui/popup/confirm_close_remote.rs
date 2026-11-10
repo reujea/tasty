@@ -119,7 +119,7 @@ pub fn confirm_close_remote_sizer(
     egui::vec2(theme::theme().info_modal_width().value(), h.value())
 }
 
-/// 어떤 경로로 닫히든(취소·바깥·Escape) 대기를 비운다. 담아 둔 요청은 보내지 않는다.
+/// 어떤 경로로 닫히든(취소·Escape) 대기를 비운다. 담아 둔 요청은 보내지 않는다. 바깥 클릭으로는 닫히지 않는다.
 pub fn on_close_confirm_close_remote(
     _ctx: &egui::Context,
     state: &mut MainViewState,
@@ -211,3 +211,7 @@ mod tests {
         assert!(!is_confirmed(&intent().from_agent_ipc().origin));
     }
 }
+
+#[cfg(test)]
+#[path = "confirm_close_remote_dismiss_tests.rs"]
+mod dismiss_tests;
