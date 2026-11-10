@@ -353,7 +353,10 @@ impl GeneralSettings {
         let resolved = self.resolved_shell();
         if !resolved.status.falls_back() {
             return match &resolved.path {
-                Some(path) => path.to_string_lossy().into_owned(),
+                // 판정이 문자열로 표현할 수 있는 경로만 돌려주므로 판정한 경로를 그대로 넘긴다.
+                Some(path) => path
+                    .to_str()
+                    .map_or_else(|| self.shell.clone(), str::to_owned),
                 None => self.shell.clone(),
             };
         }

@@ -20,7 +20,7 @@ use tasty_utils::path_resolve::{locate_command_in, resolve_command};
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ResolvedShell {
     pub status: ShellPathStatus,
-    /// 해석하지 못했으면(빈 값, PATH에 없는 이름, 풀 수 없는 경로) `None`.
+    /// 해석하지 못했으면(빈 값, PATH에 없는 이름, 풀 수 없는 경로, 문자열로 손실 없이 표현할 수 없는 경로) `None`.
     pub path: Option<PathBuf>,
 }
 
@@ -49,6 +49,11 @@ impl ResolvedShell {
         let Ok(path) = locate_command_in(&target, search_path) else {
             return missing;
         };
+        // 실행은 문자열 셸 경로로 넘어간다. 손실 없이 문자열로 표현할 수 없는 경로(비 UTF-8 실행 폴더 등)는
+        // 판정한 파일과 실행할 파일이 달라지므로 해석하지 못한 값으로 본다.
+        if path.to_str().is_none() {
+            return missing;
+        }
         Self {
             status: ShellPathStatus::judge(&path),
             path: Some(path),
@@ -276,6 +281,22 @@ mod tests {
             let resolved = ResolvedShell::with_search_path("sh", OsStr::new("rel"));
             assert_eq!(resolved.path, Some(launch.path().join("rel/sh")));
             assert_eq!(resolved.status, ShellPathStatus::Usable);
+        }
+
+        /// 문자열로 손실 없이 표현할 수 없는 해석 결과는 실행할 경로와 달라지므로 해석하지 못한 값으로 본다.
+        #[test]
+        fn a_path_under_a_non_utf8_launch_dir_is_not_usable() {
+            use std::os::unix::ffi::OsStrExt;
+            let root = tempfile::tempdir().expect("tempdir");
+            let launch = root.path().join(OsStr::from_bytes(b"\xff-launch"));
+            exec(&launch.join("sh"));
+            tasty_utils::path_resolve::push_launch_dir_override(
+                tasty_utils::path_resolve::LaunchDir::Known(launch.clone()),
+            );
+            let resolved = ResolvedShell::with_search_path("./sh", OsStr::new(""));
+            tasty_utils::path_resolve::pop_launch_dir_override();
+            assert_eq!(resolved.status, ShellPathStatus::Missing);
+            assert_eq!(resolved.path, None);
         }
 
         /// 실행 폴더 기준으로 디렉터리이거나 권한 없는 상대 값은 대신하지 않는 판정이다.
