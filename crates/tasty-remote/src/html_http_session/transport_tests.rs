@@ -166,6 +166,7 @@ fn actual_tcp_writer_drops_retired_http_begin_and_keeps_live_legacy_frames() {
             socket,
             rx,
             Arc::new(AtomicBool::new(false)),
+            Arc::new(AtomicBool::new(false)),
             Arc::new(|| {}),
             " owned HTTP retirement fixture",
         );

@@ -130,10 +130,13 @@ pub fn parse_attach_descriptor(ctrl: &Value) -> anyhow::Result<(String, Vec<Valu
     Ok((name, surfaces, tree))
 }
 
+/// `detach_sent`는 이쪽이 Detach를 보내기 시작했다는 표지다. reader가 뒤따르는 EOF를 원격 원인으로
+/// 남기지 않도록 [`AttachReaderEnd`]와 같은 값을 넘긴다.
 pub fn spawn_attach_write_thread(
     write_half: TcpStream,
     frame_rx: std::sync::mpsc::Receiver<super::connection::QueuedFrame>,
     disconnected: Arc<AtomicBool>,
+    detach_sent: Arc<AtomicBool>,
     wake: Arc<dyn Fn() + Send + Sync>,
     log_suffix: &'static str,
 ) -> std::thread::JoinHandle<()> {
@@ -156,6 +159,10 @@ pub fn spawn_attach_write_thread(
             let detach = item.tag == StreamTag::Detach;
             if !detach && (!queued.epoch.is_active() || disconnected.load(Ordering::Acquire)) {
                 continue;
+            }
+            if detach {
+                // 쓰기 뒤에는 이 스레드가 소켓을 닫고 서버도 바로 닫을 수 있어 reader가 먼저 EOF를 본다.
+                detach_sent.store(true, Ordering::SeqCst);
             }
             if !write_attach_frame(&mut write_half, &item, &disconnected, &wake, log_suffix) {
                 break;
@@ -195,6 +202,8 @@ pub struct AttachReaderEnd {
     pub remote_workspace: u32,
     /// 이 소켓에 실제로 건 read timeout.
     pub heartbeat_timeout: std::time::Duration,
+    /// 이쪽이 Detach를 보내기 시작했다(재동기화·연결 끊기). 쓰기 스레드와 같은 값이다.
+    pub detach_sent: Arc<AtomicBool>,
 }
 
 impl AttachReaderEnd {
@@ -216,6 +225,13 @@ impl AttachReaderEnd {
                 false,
                 format!(
                     "attach reader thread: remote workspace {workspace} 이미 끝난 연결의 수신 종료({cause:?}): {error}"
+                ),
+            )
+        } else if self.detach_sent.load(Ordering::SeqCst) {
+            (
+                false,
+                format!(
+                    "attach reader thread: remote workspace {workspace} 이쪽이 Detach로 끝낸 연결(재동기화 등)의 수신 종료({cause:?}): {error}"
                 ),
             )
         } else {
@@ -477,8 +493,15 @@ impl PreparedConnection {
         let disconnected = Arc::new(AtomicBool::new(false));
         frame_tx.bind_failure(disconnected.clone(), wake.clone());
         let output = MirrorOutbox::new(frame_tx.epoch());
-        let writer =
-            spawn_attach_write_thread(write_half, frame_rx, disconnected.clone(), wake.clone(), "");
+        let detach_sent = Arc::new(AtomicBool::new(false));
+        let writer = spawn_attach_write_thread(
+            write_half,
+            frame_rx,
+            disconnected.clone(),
+            detach_sent.clone(),
+            wake.clone(),
+            "",
+        );
         let reader = spawn_attach_reader_thread(
             conn,
             output.clone(),
@@ -489,6 +512,7 @@ impl PreparedConnection {
             AttachReaderEnd {
                 remote_workspace: workspace,
                 heartbeat_timeout,
+                detach_sent,
             },
         );
         let heartbeat = spawn_attach_heartbeat_thread(frame_tx.clone(), disconnected.clone());

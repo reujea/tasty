@@ -68,6 +68,7 @@ fn reader_receipt_finishes_while_delta_is_restored_ahead_of_data() {
         AttachReaderEnd {
             remote_workspace: 1,
             heartbeat_timeout: stream::HEARTBEAT_TIMEOUT,
+            detach_sent: Arc::new(AtomicBool::new(false)),
         },
     );
     stream::write_frame(&mut peer, StreamTag::Control, b"{}").unwrap();
@@ -278,6 +279,7 @@ fn reader_end() -> AttachReaderEnd {
     AttachReaderEnd {
         remote_workspace: 513,
         heartbeat_timeout: Duration::from_secs(45),
+        detach_sent: Arc::new(AtomicBool::new(false)),
     }
 }
 
@@ -303,4 +305,46 @@ fn the_first_read_error_warns_with_its_cause_and_raises_the_disconnect() {
         assert!(message.contains(part), "{part} in {message}");
     }
     assert!(disconnected.load(Ordering::SeqCst));
+}
+
+/// 재동기화는 disconnected 를 세우지 않고 Detach 만 보낸다. 그 뒤의 EOF 는 이쪽이 끝낸 연결이라
+/// 경고하지 않되, 재attach 가 이어지도록 끊김은 세운다.
+#[test]
+fn a_read_error_after_our_own_detach_is_not_a_warning_but_still_disconnects() {
+    let end = reader_end();
+    end.detach_sent.store(true, Ordering::SeqCst);
+    let disconnected = AtomicBool::new(false);
+    let eof = anyhow::Error::from(std::io::Error::from(std::io::ErrorKind::UnexpectedEof));
+    let (warn, message) = end.outcome(&eof, &disconnected);
+    assert!(!warn, "{message}");
+    assert!(message.contains("Detach"), "{message}");
+    assert!(disconnected.load(Ordering::SeqCst));
+}
+
+/// 쓰기 스레드는 Detach 를 쓰기 전에 표지를 세운다. 쓰기 쪽을 미리 닫아 쓰기가 반드시 실패하게 해
+/// 쓰기 뒤에 세우는 순서를 검출한다.
+#[test]
+fn the_writer_marks_our_detach_before_writing_it() {
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let ours = TcpStream::connect(listener.local_addr().unwrap()).unwrap();
+    let (_peer, _) = listener.accept().unwrap();
+    ours.shutdown(std::net::Shutdown::Write).unwrap();
+    let (sender, rx) = super::super::connection::channel();
+    sender
+        .send(OutFrame {
+            tag: StreamTag::Detach,
+            payload: Vec::new(),
+        })
+        .unwrap();
+    let detach_sent = Arc::new(AtomicBool::new(false));
+    let writer = spawn_attach_write_thread(
+        ours,
+        rx,
+        Arc::new(AtomicBool::new(false)),
+        detach_sent.clone(),
+        Arc::new(|| {}),
+        " detach order test",
+    );
+    writer.join().unwrap();
+    assert!(detach_sent.load(Ordering::SeqCst));
 }
