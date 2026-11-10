@@ -310,6 +310,65 @@ fn removing_a_row_before_a_saved_row_keeps_the_row_in_place() {
     assert_eq!(&restored(&model)[..2], &[51, first]);
 }
 
+/// Given 화면 [로컬 L0, 로컬 A, 저장 R, 로컬 B], When A의 마지막 pane을 B의 pane 자리로 옮겨(교체 이동)
+/// A가 없어지고 재시작하면, Then R은 L0과 B 사이에 돌아온다. 닫기와 같은 규칙이다.
+#[test]
+fn a_replace_move_that_empties_the_local_before_a_saved_row_keeps_the_row_in_place() {
+    let mut model = initial();
+    structure_only(&mut model);
+    let created = batch(
+        model.applied.batch.unwrap() + 1,
+        model.applied.revision.unwrap(),
+        &[
+            DomainEvent::WorkspaceCreated {
+                id: 60,
+                name: "b".into(),
+                category: 0,
+                index: 2,
+                pane: 9,
+            },
+            DomainEvent::TabCreated {
+                id: 9,
+                pane: 9,
+                index: 0,
+                name: "b".into(),
+                surface: super::common::surface(90, "terminal"),
+            },
+        ],
+    );
+    evolve(&mut model, &created).unwrap();
+    let order = model.workspace_order.clone();
+    let (l0, a, b) = (order[0], order[1], order[2]);
+    assert_eq!(b, 60);
+    assert_eq!(model.workspaces[&a].layout.leaves(), vec![3]);
+    set_row(&mut model, 50, Some(a), 0);
+    assert_eq!(restored(&model), vec![l0, a, 50, b]);
+
+    let replacement = Replacement {
+        source: EntityId {
+            kind: IdKind::Pane,
+            id: 3,
+        },
+        target: EntityId {
+            kind: IdKind::Pane,
+            id: 9,
+        },
+    };
+    let (_, removed) = replacement.simulate(&model).unwrap();
+    let input = batch(
+        model.applied.batch.unwrap() + 1,
+        model.applied.revision.unwrap(),
+        &[DomainEvent::StructureReplaced {
+            replacement,
+            removed,
+        }],
+    );
+    evolve(&mut model, &input).unwrap();
+    assert!(!model.workspaces.contains_key(&a));
+    assert_eq!(model.remote_rows[&50].after, Some(l0));
+    assert_eq!(restored(&model), vec![l0, 50, b]);
+}
+
 #[test]
 fn a_remote_projection_keeps_the_saved_row_name_and_binding() {
     let mut core = CoreState::new_base();

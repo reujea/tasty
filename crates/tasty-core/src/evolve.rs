@@ -114,7 +114,7 @@ fn apply(m: &mut JournalModel, event: DomainEvent) -> Result<()> {
             replacement,
             removed,
         } => {
-            let (after, actual) = replacement
+            let (mut after, actual) = replacement
                 .simulate(m)
                 .map_err(|error| EvolveError::InvalidFact(error.to_string()))?;
             if actual != removed {
@@ -122,6 +122,8 @@ fn apply(m: &mut JournalModel, event: DomainEvent) -> Result<()> {
                     "replacement removal set differs from its fact".into(),
                 ));
             }
+            // 마지막 pane 을 옮겨 없어진 로컬 뒤의 저장 행도 닫기와 같은 자리에 남는다.
+            reanchor_rows(&mut after, &m.workspace_order);
             *m = after;
             Ok(())
         }
@@ -435,23 +437,34 @@ fn move_workspace(
 
 fn close_workspace(m: &mut JournalModel, id: WorkspaceId) -> Result<()> {
     let workspace = remove(&mut m.workspaces, IdKind::Workspace, id)?;
-    // 닫힌 로컬 뒤에 있던 저장 행은 그 앞 로컬 뒤에 남는다. 화면에서도 같은 자리다.
-    let before = m
-        .workspace_order
-        .iter()
-        .position(|w| *w == id)
-        .and_then(|index| index.checked_sub(1))
-        .map(|index| m.workspace_order[index]);
-    for row in m.remote_rows.values_mut() {
-        if row.after == Some(id) {
-            row.after = before;
-        }
-    }
+    let old_order = m.workspace_order.clone();
     m.workspace_order.retain(|w| *w != id);
+    reanchor_rows(m, &old_order);
     for pane in workspace.layout.leaves() {
         drop_pane(m, pane)?;
     }
     Ok(())
+}
+
+/// 없어진 로컬 뒤에 있던 저장 행을 `old_order`에서 그 앞에 남은 가장 가까운 로컬 뒤로 옮긴다.
+/// 화면에서도 같은 자리다. 앞에 남은 로컬이 없으면 맨 앞이다.
+fn reanchor_rows(m: &mut JournalModel, old_order: &[WorkspaceId]) {
+    let workspaces = &m.workspaces;
+    for row in m.remote_rows.values_mut() {
+        let Some(gone) = row.after.filter(|after| !workspaces.contains_key(after)) else {
+            continue;
+        };
+        row.after = old_order
+            .iter()
+            .position(|w| *w == gone)
+            .and_then(|index| {
+                old_order[..index]
+                    .iter()
+                    .rev()
+                    .find(|w| workspaces.contains_key(w))
+            })
+            .copied();
+    }
 }
 
 fn split_pane(m: &mut JournalModel, target: PaneId, pane: PaneId, split: SplitSpec) -> Result<()> {
