@@ -143,3 +143,48 @@ fn is_remote_url_reads_only_the_http_schemes() {
     assert!(!is_remote_url("about:blank"));
     assert!(!is_remote_url("http"));
 }
+
+#[test]
+fn same_target_follows_whatwg_normalization() {
+    assert!(
+        same_target("http://h:80/a", "http://h/a"),
+        "default http port"
+    );
+    assert!(
+        same_target("https://h:443/a", "https://h/a"),
+        "default https port"
+    );
+    assert!(
+        !same_target("http://h:8080/a", "http://h/a"),
+        "other ports stay"
+    );
+    assert!(
+        same_target("http://h/a/../b/./c", "http://h/b/c"),
+        "dot path"
+    );
+    assert!(
+        same_target("http://bücher.example/", "http://xn--bcher-kva.example/"),
+        "IDN host"
+    );
+    assert!(
+        same_target(
+            "http://h/한글?q=값",
+            "http://h/%ED%95%9C%EA%B8%80?q=%EA%B0%92"
+        ),
+        "non-ASCII path and query"
+    );
+}
+
+#[test]
+fn a_designated_url_matches_the_engine_form_of_the_same_address() {
+    let mut t = TopLevelAdmission::default();
+    t.designate(Designation::Url(
+        "http://Bücher.example:80/x/../y#top".into(),
+    ));
+    assert!(t.start(
+        "http://xn--bcher-kva.example/y",
+        StartKind::Other,
+        false,
+        BLOCKED_LOCAL
+    ));
+}

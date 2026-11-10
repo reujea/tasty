@@ -53,24 +53,17 @@ pub fn is_remote_url(url: &str) -> bool {
     lower.starts_with("http://") || lower.starts_with("https://")
 }
 
-/// 비교용 주소. fragment를 빼고 scheme·authority를 소문자로, 빈 경로를 `/`로 둔다.
+/// 비교용 주소. WHATWG URL로 정규화하고(scheme·host 소문자, IDN punycode, 기본 포트 생략, 점 경로 해소,
+/// 퍼센트 인코딩, 빈 경로 `/`) fragment를 뺀다. 엔진이 탐색 신호에 넣는 주소도 같은 정규화를 거친다.
+/// 해석할 수 없는 주소는 fragment만 빼고 그대로 비교한다.
 fn normalized(url: &str) -> String {
-    let url = super::strip_fragment(url);
-    let Some((scheme, rest)) = url.split_once("://") else {
-        return url.to_string();
-    };
-    let end = rest.find(['/', '?']).unwrap_or(rest.len());
-    let (authority, tail) = rest.split_at(end);
-    let tail = if tail.starts_with('/') {
-        tail.to_string()
-    } else {
-        format!("/{tail}")
-    };
-    format!(
-        "{}://{}{tail}",
-        scheme.to_ascii_lowercase(),
-        authority.to_ascii_lowercase()
-    )
+    match url::Url::parse(url) {
+        Ok(mut parsed) => {
+            parsed.set_fragment(None);
+            parsed.into()
+        }
+        Err(_) => super::strip_fragment(url).to_string(),
+    }
 }
 
 /// 엔진이 정규화한 주소와 호스트가 넘긴 주소가 같은 문서를 가리키는지.
