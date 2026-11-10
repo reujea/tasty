@@ -131,3 +131,75 @@ fn a_popup_connection_takes_over_the_auto_attempt_of_the_same_row() {
     assert!(popup.row_token.as_ref().unwrap().upgrade().is_some());
     assert!(app.remote.refusals.notice(ROW).is_none());
 }
+
+/// handshake 응답까지 보내고 소켓을 쥐고 있는 loopback attach 서버. 연결이 준비된 상태가 된다.
+fn ready_peer() -> (u16, std::sync::mpsc::Receiver<std::net::TcpStream>) {
+    use std::io::{BufRead, BufReader};
+    use tasty_ipc::stream::{self, StreamTag};
+    let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+    let port = listener.local_addr().unwrap().port();
+    let (tx, rx) = std::sync::mpsc::channel();
+    std::thread::spawn(move || {
+        let (mut socket, _) = listener.accept().unwrap();
+        let mut request = String::new();
+        BufReader::new(socket.try_clone().unwrap())
+            .read_line(&mut request)
+            .unwrap();
+        for control in [
+            serde_json::json!({"ok": true, "proto": 1, "client_id": 7}),
+            serde_json::json!({"event": "attached_workspace", "name": "remote", "tree": null, "surfaces": []}),
+        ] {
+            stream::write_frame(
+                &mut socket,
+                StreamTag::Control,
+                &serde_json::to_vec(&control).unwrap(),
+            )
+            .unwrap();
+        }
+        tx.send(socket).unwrap();
+    });
+    (port, rx)
+}
+
+/// Given 재연결 중인 행의 연결이 준비돼 설치만 남았고 재연결 시간이 이미 지났지만 이번 루프의 만료 검사는
+/// 아직 돌지 않았다, When 설치를 poll 하면, Then 설치하지 않고 시간 창을 끝내 끊긴 행이 된다.
+#[test]
+fn a_connection_ready_after_the_window_ran_out_is_not_installed() {
+    if crate::test_support::rerun_alone(
+        module_path!(),
+        "a_connection_ready_after_the_window_ran_out_is_not_installed",
+    ) {
+        return;
+    }
+    let _home = crate::test_support::IsolatedHome::new();
+    let event_loop = event_loop();
+    let mut app = app_with_saved_row(&event_loop, Some(SessionState::Reconnecting));
+    app.ensure_row_token(ROW);
+    app.remote.reconnect.insert(ROW, ReconnectSlot::new());
+    let (port, peer) = ready_peer();
+    let target = app
+        .mirror_install_target(None, Some(ROW), Some(0), false)
+        .unwrap();
+    app.queue_mirror_connection(target, port, 3, None).unwrap();
+    app.remote.active.insert(ROW);
+    let (ticket, _) = app.state.mirror_attempts.connection_snapshot()[0].clone();
+    let until = Instant::now() + Duration::from_secs(10);
+    while app.remote.prepared_connection(ticket).is_none() {
+        assert!(Instant::now() < until, "the connection never got ready");
+        std::thread::sleep(Duration::from_millis(10));
+        app.remote.collect_connections();
+    }
+    let _socket = peer.recv_timeout(Duration::from_secs(5)).unwrap();
+    let window = app.reconnect_window();
+    app.remote.reconnect.get_mut(&ROW).unwrap().started =
+        Instant::now() - window - Duration::from_secs(1);
+
+    app.poll_pending_mirror_installs();
+
+    assert_eq!(
+        app.remote.sessions[0].state.phase,
+        SessionState::Disconnected
+    );
+    assert!(app.state.mirror_attempts.connection_snapshot().is_empty());
+    assert!(!app.remote.active.contains(&ROW));
+}

@@ -237,6 +237,7 @@ impl App {
     }
     pub(crate) fn poll_pending_mirror_installs(&mut self) {
         self.remote.collect_connections();
+        self.end_expired_reconnect_windows();
         let pending = self.state.mirror_attempts.connection_snapshot();
         for (ticket, target) in pending {
             if !self.mirror_install_target_is_current(&target) {

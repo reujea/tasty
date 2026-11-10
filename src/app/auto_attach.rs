@@ -306,6 +306,7 @@ impl App {
     /// 재연결 중인 행을 예약 시각이나 사용자가 그 행으로 돌아왔을 때 다시 붙인다.
     /// 재연결 시간을 넘기면 끊긴 행으로 바꾼다.
     fn maybe_trigger_reconnect(&mut self, current_ws_id: Option<u32>, prev_active: Option<u32>) {
+        self.end_expired_reconnect_windows();
         let rows: Vec<u32> = self
             .remote
             .sessions
@@ -313,25 +314,37 @@ impl App {
             .filter(|s| s.state() == SessionState::Reconnecting)
             .filter_map(|s| s.saved_row())
             .collect();
-        let window = self.reconnect_window();
-        let now = Instant::now();
         for row in rows {
-            let expired = self
-                .remote
-                .reconnect
-                .get(&row)
-                .is_some_and(|slot| reconnect_window_elapsed(slot, now, window));
-            if expired {
-                // 진행 중인 시도와 park한 창에서 설치를 기다리는 연결도 시간 창과 함께 끝낸다.
-                self.abandon_row_attempts(row, "the reconnect window ran out");
-                self.enter_disconnected(row);
-                self.notify_reconnect_giveup(row);
-                continue;
-            }
             if self.remote.active.contains(&row) {
                 continue;
             }
             self.trigger_reconnect_row(row, current_ws_id, prev_active, None);
+        }
+    }
+
+    /// 재연결 시간이 지난 재연결 중인 행을 끊긴 행으로 바꾼다. 진행 중인 시도와 park한 창에서 설치를
+    /// 기다리는 연결도 시간 창과 함께 끝낸다. 결과를 받거나 설치하기 전에도 불러, 시간이 지난 뒤
+    /// 준비된 연결이 이번 루프의 만료 검사보다 먼저 설치되지 않게 한다.
+    pub(crate) fn end_expired_reconnect_windows(&mut self) {
+        let window = self.reconnect_window();
+        let now = Instant::now();
+        let expired: Vec<u32> = self
+            .remote
+            .sessions
+            .iter()
+            .filter(|s| s.state() == SessionState::Reconnecting)
+            .filter_map(|s| s.saved_row())
+            .filter(|row| {
+                self.remote
+                    .reconnect
+                    .get(row)
+                    .is_some_and(|slot| reconnect_window_elapsed(slot, now, window))
+            })
+            .collect();
+        for row in expired {
+            self.abandon_row_attempts(row, "the reconnect window ran out");
+            self.enter_disconnected(row);
+            self.notify_reconnect_giveup(row);
         }
     }
 
@@ -442,6 +455,7 @@ impl App {
 
     pub(crate) fn drain_auto_attach_results(&mut self) {
         self.remote.reap_attempts();
+        self.end_expired_reconnect_windows();
         let stale: Vec<_> = self
             .state
             .mirror_attempts
