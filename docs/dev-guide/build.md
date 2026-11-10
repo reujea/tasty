@@ -201,7 +201,8 @@ build-dependency 도 호스트가 Windows 일 때만 해석된다. 실측(2026-0
 
 그래서 **Windows 가 아닌 호스트(실측은 Linux)에서 교차 빌드한 Windows exe 에는 아이콘도 VERSIONINFO 도 없고, 빌드는 그
 사실을 경고하지 않는다.** 배포 산출물은 이 갈래를 타지 않는다 — Windows 산출물은 네이티브 Windows
-러너가 만든다(`.github/workflows/release.yml` 의 `runs-on: [self-hosted, Windows]` 잡). 교차 빌드한
+러너가 만든다(`.github/workflows/release.yml` 의 `runs-on: [self-hosted, Windows]` 잡과, 같은 Windows 호스트의 arm64
+전용 러너를 쓰는 `runs-on: [win-arm64]` 잡). 교차 빌드한
 exe 는 컴파일·시험 확인용으로만 쓰고 배포물로 쓰지 않는다.
 
 ### 입력 선언이 곧 계약이다

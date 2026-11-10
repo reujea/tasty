@@ -83,6 +83,8 @@ git tag vX.Y.Z          # 'v' 접두사 + Cargo.toml 버전과 정확히 일치 
 git push origin main --tags
 ```
 
+이 push 뒤에는 태그로 시작한 release.yml 실행이 끝날 때까지 main 에 push 하지 않는다. main push 의 CI 가 같은 self-hosted 러너(특히 Windows arm64 전용 러너 `tasty-win-arm64`)를 먼저 잡으면 릴리스 빌드가 그만큼 늦게 시작한다. 실행이 끝났는지는 `gh run list --workflow=release.yml --limit 1` 의 상태나 `gh run watch <run-id>` 로 확인한다.
+
 ### 6. 워크플로 (release.yml)
 
 1. **create-release** — 버전 검증 → draft release 생성(body = 릴리스 노트).
@@ -168,9 +170,22 @@ Windows 빌드 스크립트는 태그 없는 `workflow_dispatch`에서도 cleanu
 | systemd 서비스 | `actions.runner.zilhak-tasty.tasty-server-x64.service` | `…tasty-gx10-arm64.service` |
 | 자동 시작 | enabled | enabled |
 
-macOS/Windows 러너도 동일 패턴(라벨만 `[self-hosted, macOS]` / `[self-hosted, Windows]`). Windows ARM64 전용 러너는 없고, x64 Windows 러너가 ARM64 산출물을 교차 빌드한다([Windows ARM64](#windows-arm64)).
+macOS/Windows 러너도 동일 패턴(라벨만 `[self-hosted, macOS]` / `[self-hosted, Windows]`).
 
-같은 mac/win 러너를 `.github/workflows/crossplatform-check.yml` 이 재사용한다 — dist 빌드 없이 컴파일 정합성만 확인하는 가벼운 가드다. **언제 도는가**: `main` 에 push 될 때(문서·사이트·마크다운만 바뀐 push 는 제외) · `main` 대상 PR · 수동 dispatch. 이 저장소는 PR 없이 main 에 직접 push 하는 흐름이라 push 가 실효 트리거이고, PR 트리거는 PR 흐름을 쓰게 될 때를 위해 남아 있다(선택 근거는 워크플로 파일 상단 주석). **무엇을 도는가**: 잡은 다섯(`check-windows` · `check-windows-arm64` · `check-headless` · `check-release` · `check-android`)이고, macOS 잡 `check-macos` 는 같은 트리거의 `.github/workflows/crossplatform-check-macos.yml` 에 따로 있다. 잡별 명령은 [ci-gates](ci-gates.md) 의 표가 정본이다. `check-windows` 와 `check-macos` 는 러너의 네이티브 host 타깃(`x86_64-pc-windows-msvc` / `aarch64-apple-darwin`)으로 돌아 `--target` 을 지정하지 않는다. `check-windows-arm64` 는 같은 x64 Windows 러너에서 `--target aarch64-pc-windows-msvc` 로 교차 컴파일만 한다([Windows ARM64](#windows-arm64)). `check-android` 는 Linux x64 러너에서 `--target aarch64-linux-android` 로 터미널 코어(`tasty-terminal` · `tasty-terminal-link`)를 교차 check 만 한다. 러너가 다른 잡들은 병렬로 돌고, Windows 러너가 하나면 두 Windows 잡은 차례로 실행된다. 같은 ref 의 앞선 실행을 취소하는 조건은 두 워크플로가 다르다([연속 push와 실행 취소](ci-gates.md#연속-push와-실행-취소)). (무거운 dist 빌드 검증은 여전히 수동 `build-check.yml`.)
+Windows 호스트(x64)에는 러너가 둘 있다.
+
+| 항목 | 일반 Windows 러너 | Windows arm64 전용 러너 |
+|------|--------|---------|
+| Runner 이름 | `tasty-win-runner` | `tasty-win-arm64` |
+| 라벨 | `self-hosted, X64, Windows` | `win-arm64` 하나(기본 라벨 없이 등록) |
+| 맡는 잡 | `runs-on: [self-hosted, Windows]` 잡(x64 빌드, `check-windows`) | `runs-on: [win-arm64]` 잡 세 개: release·build-check 의 `build-windows-arm64`, crossplatform-check 의 `check-windows-arm64` |
+| 실행 방식 | 서비스 | 서비스가 아니라 로그온 시 실행되는 예약 작업 `tasty-runner-arm64` |
+
+전용 러너는 같은 호스트에서 같은 계정·Rust·MSVC·WiX 환경을 쓰고 ARM64 산출물을 교차 빌드한다([Windows ARM64](#windows-arm64)). 라벨이 `win-arm64` 하나라 일반 `[self-hosted, Windows]` 잡은 이 러너로 오지 않고, arm64 잡도 일반 러너로 가지 않는다. 그래서 두 Windows 릴리스 빌드가 동시에 돈다. 동시에 돌 때 각 잡이 얼마나 느려지는지는 미측정이다.
+
+예약 작업은 호스트에 로그온한 동안만 러너를 띄운다. 로그온하지 않았거나 예약 작업이 멈추면 이 러너는 offline 이고, arm64 잡 세 개는 다른 러너로 넘어가지 않고 Queued 상태로 러너를 기다린다. 복구는 [트러블슈팅](#트러블슈팅)에 있다.
+
+같은 mac/win 러너를 `.github/workflows/crossplatform-check.yml` 이 재사용한다 — dist 빌드 없이 컴파일 정합성만 확인하는 가벼운 가드다. **언제 도는가**: `main` 에 push 될 때(문서·사이트·마크다운만 바뀐 push 는 제외) · `main` 대상 PR · 수동 dispatch. 이 저장소는 PR 없이 main 에 직접 push 하는 흐름이라 push 가 실효 트리거이고, PR 트리거는 PR 흐름을 쓰게 될 때를 위해 남아 있다(선택 근거는 워크플로 파일 상단 주석). **무엇을 도는가**: 잡은 다섯(`check-windows` · `check-windows-arm64` · `check-headless` · `check-release` · `check-android`)이고, macOS 잡 `check-macos` 는 같은 트리거의 `.github/workflows/crossplatform-check-macos.yml` 에 따로 있다. 잡별 명령은 [ci-gates](ci-gates.md) 의 표가 정본이다. `check-windows` 와 `check-macos` 는 러너의 네이티브 host 타깃(`x86_64-pc-windows-msvc` / `aarch64-apple-darwin`)으로 돌아 `--target` 을 지정하지 않는다. `check-windows-arm64` 는 같은 x64 Windows 호스트의 전용 러너 `tasty-win-arm64` 에서 `--target aarch64-pc-windows-msvc` 로 교차 컴파일만 한다([Windows ARM64](#windows-arm64)). `check-android` 는 Linux x64 러너에서 `--target aarch64-linux-android` 로 터미널 코어(`tasty-terminal` · `tasty-terminal-link`)를 교차 check 만 한다. 러너가 다른 잡들은 병렬로 돌므로 `check-windows`(일반 Windows 러너)와 `check-windows-arm64`(전용 러너)도 동시에 돈다. 같은 ref 의 앞선 실행을 취소하는 조건은 두 워크플로가 다르다([연속 push와 실행 취소](ci-gates.md#연속-push와-실행-취소)). (무거운 dist 빌드 검증은 여전히 수동 `build-check.yml`.)
 
 ### 1회 도구 설치 (러너 추가 / 새 도구 의존성 시)
 
@@ -205,7 +220,7 @@ WiX winget 은 `WIX` env 만 등록(`%WIX%\bin` PATH 추가 안 함) — `build-
 
 ### Windows ARM64
 
-Windows ARM64 산출물은 기존 x64 Windows 러너에서 `build-windows.ps1 -Arch arm64`로 교차 빌드한다. ARM64 Windows 러너를 따로 두지 않는 이유는 저장소 밖 인프라를 늘리지 않고 같은 MSVC·WiX 환경에서 두 아키텍처를 만들 수 있기 때문이다. 이 방식은 러너에서 ARM64 실행 파일을 실행할 수 없다는 한계가 있어 아래처럼 실행 검사를 대신한다.
+Windows ARM64 산출물은 x64 Windows 호스트에 두 번째로 등록한 전용 러너 `tasty-win-arm64`(라벨 `win-arm64`)에서 `build-windows.ps1 -Arch arm64`로 교차 빌드한다. ARM64 Windows 기기를 러너로 두지 않는 이유는 저장소 밖 인프라를 늘리지 않고 같은 MSVC·WiX 환경에서 두 아키텍처를 만들 수 있기 때문이다. 러너를 따로 등록한 이유는 x64 빌드와 동시에 돌리기 위해서다([러너 인벤토리](#러너-인벤토리)). 이 러너도 x64 호스트에 있어 ARM64 실행 파일을 실행할 수 없다. 그래서 아래처럼 실행 검사를 대신한다.
 
 - 두 Windows 잡 모두 `--target`(`x86_64-pc-windows-msvc` / `aarch64-pc-windows-msvc`)을 명시한다. 러너 호스트 아키텍처와 관계없이 파일 이름의 아키텍처와 실제 바이너리가 일치한다. 산출물은 `target\<triple>\<프로필>\`에 생기고 cargo-wix에도 같은 `--target`을 넘긴다.
 - 사전 조건: Rust 타깃(없으면 스크립트가 `rustup target add`로 추가), MSVC ARM64 빌드 도구와 clang-cl(`aws-lc-sys`의 AArch64 어셈블리에 필요하다. 스크립트가 `vswhere`로 둘 다 확인하고 없으면 중단), ARM64 MSI를 만드는 WiX 3.14 이상(스크립트가 `candle.exe` 버전을 확인). `wix/main.wxs`는 ARM64에서 64비트 Program Files와 Windows Installer 5.0(`InstallerVersion` 500)을 쓴다. x64 MSI의 `InstallerVersion` 450과 UpgradeCode는 그대로다.
@@ -238,6 +253,16 @@ ssh 8945hs 'systemctl status actions.runner.zilhak-tasty.tasty-server-x64.servic
 sudo systemctl {restart|stop|start} <service-name>
 sudo journalctl -u <service-name> -f
 gh api repos/zilhak/tasty/actions/runners        # GitHub 측 등록 상태
+gh api repos/zilhak/tasty/actions/runners --jq '.runners[] | select(.name=="tasty-win-arm64") | {status, busy}'   # Windows arm64 전용 러너
+```
+
+Windows arm64 전용 러너는 서비스가 아니다. offline 이면 Windows 호스트에 로그온한 세션에서 예약 작업을 실행한다.
+
+```powershell
+schtasks /Run /TN tasty-runner-arm64
+```
+
+```bash
 
 # 등록 해제 (머신 정리): stop+disable 후
 cd ~/actions-runner && ./config.sh remove --token <REMOVAL_TOKEN>   # token: Settings→Runners→Remove
@@ -250,6 +275,7 @@ cd ~/actions-runner && ./config.sh remove --token <REMOVAL_TOKEN>   # token: Set
 | `cargo-deb`/`cargo-generate-rpm`/`linuxdeploy` not found | 1회 설치 누락 + `release.yml` Setup PATH 점검 |
 | `cmake`/`freetype`/`fontconfig` 빠짐 | `build-linux.sh` 안내대로 `apt install` |
 | 러너 offline | `systemctl status` → `restart` |
+| Windows arm64 잡(release·build-check 의 `build-windows-arm64`, `check-windows-arm64`)이 Queued 에서 끝나지 않음 | 전용 러너 `tasty-win-arm64` 가 offline 이다. `timeout-minutes` 는 러너를 기다린 시간을 세지 않아 잡이 스스로 끝나지 않는다. 호스트가 로그온 상태인지 확인하고 예약 작업 `tasty-runner-arm64` 를 실행한다([운영 명령](#운영-명령)) |
 | release upload 실패 | `GH_TOKEN` 권한/tag 이름 확인 (`--clobber` 재업로드) |
 | Windows `candle could not be found` | WiX 3.x 미설치/`WIX` env 누락 → `winget install` 후 서비스 재시작 |
 | Windows ARM64 `MSVC ARM64 build tools not found` | Visual Studio Installer 에서 `Microsoft.VisualStudio.Component.VC.Tools.ARM64` 추가 |
