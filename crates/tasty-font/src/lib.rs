@@ -171,25 +171,44 @@ fn alias_faces(
     }
 }
 
+/// `family` 의 면 중 데이터를 읽을 수 있는 첫 면과 그 데이터로 `read` 가 만든 값. 읽지 못한 면은
+/// 건너뛴다. 미리보기(`FontConfig::load_family_data`)와 터미널 설정 family 대체 단계가 이 함수
+/// 하나로 골라 같은 면을 쓴다. `skip` 의 면은 보지 않는다.
+fn first_readable_face<T>(
+    db: &cosmic_text::fontdb::Database,
+    family: &str,
+    skip: &[cosmic_text::fontdb::ID],
+    mut read: impl FnMut(&[u8], u32) -> T,
+) -> Option<(cosmic_text::fontdb::ID, T)> {
+    db.faces()
+        .filter(|face| !skip.contains(&face.id) && judge::has_family(face, family))
+        .find_map(|face| {
+            db.with_face_data(face.id, &mut read)
+                .map(|value| (face.id, value))
+        })
+}
+
 /// 설정 family 의 면을 `alias` 이름으로 더 등록한다. 대체 단계는 요청 굵기와 같은 면만 쓰므로,
-/// 미리보기가 쓰는 면(`load_family_data` 처럼 DB 에서 그 family 의 첫 면)을 굵기와 관계없이 보통
-/// 굵기·보통 기울임 자리에 둔다. 다른 굵기·기울임은 그 family 에 그 면이 있으면 그 면을 쓴다.
+/// 미리보기가 쓰는 면(`first_readable_face`)을 굵기와 관계없이 보통 굵기·보통 기울임 자리에 둔다.
+/// 다른 굵기·기울임은 그 family 에 그 면이 있으면 그 면을 쓴다.
 fn alias_settings_family(
     db: &mut cosmic_text::fontdb::Database,
     family: &str,
     alias: &str,
     added: &mut Vec<cosmic_text::fontdb::ID>,
 ) {
-    let mut faces = db
+    let Some((chosen_id, ())) = first_readable_face(db, family, added, |_, _| ()) else {
+        return;
+    };
+    let (chosen, others): (Vec<_>, Vec<_>) = db
         .faces()
         .filter(|face| !added.contains(&face.id) && judge::has_family(face, family))
         .cloned()
-        .collect::<Vec<_>>()
-        .into_iter();
-    let Some(chosen) = faces.next() else {
+        .partition(|face| face.id == chosen_id);
+    let Some(chosen) = chosen.into_iter().next() else {
         return;
     };
-    added.extend(push_chosen_first(db, chosen, faces, alias));
+    added.extend(push_chosen_first(db, chosen, others, alias));
 }
 
 /// cosmic-text 는 굵기·기울임이 맞는 면이 없는 family 를 대체 글꼴(비례폭일 수 있다)로 넘긴다. 파일에
@@ -388,25 +407,13 @@ impl FontConfig {
     /// inside it. A collection holds several families, so the bytes alone name
     /// none of them. Returns `None` when no face of that family can be read.
     pub fn load_family_data(&self, family: &str) -> Option<FontFileFace<Vec<u8>>> {
-        for face in self.font_system.db().faces() {
-            for (name, _) in &face.families {
-                if name.eq_ignore_ascii_case(family) {
-                    let mut result = None;
-                    self.font_system
-                        .db()
-                        .with_face_data(face.id, |data, index| {
-                            result = Some(FontFileFace {
-                                file: data.to_vec(),
-                                face: index,
-                            });
-                        });
-                    if result.is_some() {
-                        return result;
-                    }
-                }
+        first_readable_face(self.font_system.db(), family, &[], |data, index| {
+            FontFileFace {
+                file: data.to_vec(),
+                face: index,
             }
-        }
-        None
+        })
+        .map(|(_, found)| found)
     }
 
     /// On-disk path of a font file providing `family` and the number of the
@@ -1109,6 +1116,54 @@ mod tests {
             db.with_face_data(id, |data, index| drawn = Some((data.to_vec(), index)));
             let (data, index) = drawn.unwrap();
             assert!(data == preview.file && index == preview.face, "{text}");
+        }
+    }
+
+    /// 같은 family 의 첫 면을 읽을 수 없으면 미리보기와 터미널 대체 단계 모두 그 면을 건너뛰고 읽을
+    /// 수 있는 다음 면을 쓴다. 읽을 수 없는 면은 빈 임시 폴더 안의 없는 파일 경로로 등록한다.
+    #[test]
+    fn an_unreadable_family_face_is_skipped_by_the_preview_and_the_terminal() {
+        use crate::fallback::CUSTOM_FALLBACK_FAMILY;
+        use crate::test_fonts::{TempFont, latin_only, renamed, renamed_as};
+        let family = "D2Codinj ligature";
+        let readable = renamed_as(D2CODING_REGULAR_TTF.to_vec(), "D2Codinj");
+        let mut db = cosmic_text::fontdb::Database::new();
+        let mut probe = cosmic_text::fontdb::Database::new();
+        probe.load_font_data(readable.clone());
+        let mut missing = probe.faces().next().unwrap().clone();
+        let dir = tempfile::tempdir().unwrap();
+        missing.source = cosmic_text::fontdb::Source::File(dir.path().join("missing.ttf"));
+        let missing = db.push_face_info(missing);
+        let readable_id = db.load_font_source(cosmic_text::fontdb::Source::Binary(
+            std::sync::Arc::new(readable.clone()),
+        ))[0];
+
+        let (picked, ()) = first_readable_face(&db, family, &[], |_, _| ()).unwrap();
+        assert_ne!(picked, missing);
+        assert_eq!(picked, readable_id);
+
+        let file = TempFont::new(&latin_only(renamed(D2CODING_REGULAR_TTF.to_vec())));
+        let mut config = FontConfig::with_db(
+            "en-US".to_string(),
+            db,
+            fallback::TerminalFallback::new(),
+            &with_file(&file.path(), family),
+        );
+        let preview = config.load_family_data(family).unwrap();
+        assert!(preview.file == readable && preview.face == 0);
+        for text in ["한", "あ"] {
+            let id = drawn_face(&mut config, text, false);
+            let db = config.font_system.db();
+            let face = db.face(id).unwrap();
+            assert!(judge::has_family(face, CUSTOM_FALLBACK_FAMILY), "{text}");
+            let (
+                cosmic_text::fontdb::Source::Binary(drawn),
+                Some(cosmic_text::fontdb::Source::Binary(chosen)),
+            ) = (&face.source, db.face(readable_id).map(|face| &face.source))
+            else {
+                panic!("{text}: 읽을 수 없는 면으로 그렸다");
+            };
+            assert!(std::sync::Arc::ptr_eq(drawn, chosen), "{text}");
         }
     }
 
