@@ -441,14 +441,14 @@ fn an_unverified_plugin_open_with_an_unopenable_first_handler_shows_the_remote_p
     assert_eq!(state.toasts.len(), 0);
 }
 
-/// 원격에 열 수 없으면 사용자 요청은 "다운로드 후 실행" 대화상자로 묻고, 증명하지 못한 plugin 중계 요청은
-/// toast로, 외부 IPC 요청은 로그로 알린다.
+/// 원격에 열 수 없으면 이름으로 연 원격 경로도 경로 링크와 같이 "다운로드 후 실행" 대화상자로 묻는다.
+/// 사용자 입력을 증명하지 못한 plugin 중계 요청도 picker와 같이 묻고 출처를 보존한다. 외부 IPC 요청은 로그로 끝낸다.
 #[test]
-fn an_unopenable_remote_file_asks_the_user_and_toasts_only_an_unverified_plugin() {
-    for (origin, toasts) in [
-        (FileDispatchOrigin::User, 0),
-        (FileDispatchOrigin::PluginUnverified, 1),
-        (FileDispatchOrigin::Agent, 0),
+fn an_unopenable_remote_file_opened_by_name_asks_unless_an_agent_opened_it() {
+    for origin in [
+        FileDispatchOrigin::User,
+        FileDispatchOrigin::PluginUnverified,
+        FileDispatchOrigin::Agent,
     ] {
         let (mut core, _) = build_test_core();
         let (mut state, mut engine_session) = crate::state::tests::test_mirror_state();
@@ -472,12 +472,25 @@ fn an_unopenable_remote_file_asks_the_user_and_toasts_only_an_unverified_plugin(
         );
         assert!(state.dialogs.file_handler_picker.is_none(), "{origin:?}");
         assert!(queued_creates(&state).is_empty(), "{origin:?}");
-        assert_eq!(state.toasts.len(), toasts, "{origin:?}");
-        assert_eq!(
-            state.dialogs.download_run.ask.is_some(),
-            origin == FileDispatchOrigin::User,
-            "{origin:?}"
-        );
+        assert_eq!(state.toasts.len(), 0, "{origin:?}");
+        let asks = state.dialogs.download_run.ask.is_some();
+        assert_eq!(asks, origin != FileDispatchOrigin::Agent, "{origin:?}");
+        let popup = state.pending_intents.iter().find(|i| {
+            matches!(
+                &i.body,
+                crate::intent::Intent::Ui(crate::intent::UiIntent::OpenPopup { id, .. })
+                    if *id == crate::adapters::ui::popup::download_run::DOWNLOAD_RUN_POPUP_ID
+            )
+        });
+        assert_eq!(popup.is_some(), asks, "{origin:?}");
+        if let Some(popup) = popup {
+            assert_eq!(
+                popup.origin.is_user(),
+                origin == FileDispatchOrigin::User,
+                "{origin:?} keeps its origin on the popup"
+            );
+        }
+        assert!(state.dialogs.download_run.runs.is_empty(), "{origin:?}");
     }
 }
 

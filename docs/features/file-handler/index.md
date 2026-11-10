@@ -45,14 +45,14 @@ URL 대상의 picker 헤더에는 **URL 전용 형태가 따로 없다** — det
 `origin_surface_id` 가 mirror workspace 의 surface 이면 경로는 원격 호스트의 파일이다. 입구는 mirror explorer 의 더블클릭, mirror 터미널의 파일 경로 링크 수식키 클릭, mirror origin 을 준 `file_handler.dispatch` 다. 터미널 링크 우클릭의 "연결 동작"은 아래 picker 전용 경로를 쓴다.
 
 - 식별은 요청한 깊이와 관계없이 Name 으로 한다. client 에 같은 경로의 파일·디렉터리가 있어도 읽지 않는다. CLI `--depth` 도 무시된다. `file_handler.dispatch` 응답의 `depth` 는 요청값을 그대로 돌려주므로 실제 식별 방식을 나타내지 않는다.
-- 한계: 확장자·파일명으로 정해지지 않는 형식(magic·MIME 으로만 식별되는 파일)은 매칭되지 않는다. Name 은 대상을 항상 파일로 보므로 디렉터리 경로는 `$directory` 에 매칭되지 않는다. 탐색기는 원격 목록이 파일이라고 알려 준 항목만 보내지만 IPC 입구는 이를 보장하지 않는다. 두 경우 모두 Agent(외부 IPC) 요청은 `accepted:true` 응답 뒤 run 이 `failed` 로 끝나고, 사용자 요청과 PluginUnverified 요청은 아래의 toast 로 끝난다(run 이 있으면 같은 실패를 기록한다).
+- 한계: 확장자·파일명으로 정해지지 않는 형식(magic·MIME 으로만 식별되는 파일)은 매칭되지 않는다. Name 은 대상을 항상 파일로 보므로 디렉터리 경로는 `$directory` 에 매칭되지 않는다. 탐색기는 원격 목록이 파일이라고 알려 준 항목만 보내지만 IPC 입구는 이를 보장하지 않는다. 두 경우 모두 Agent(외부 IPC) 요청은 `accepted:true` 응답 뒤 run 이 `failed` 로 끝나고, 사용자 요청과 PluginUnverified 요청은 아래의 다운로드 후 실행 대화상자로 묻는다(run 이 있으면 같은 실패를 기록한다).
 - 원격에 열 수 있는 핸들러는 `OpenSurface` 이면서 client 에 등록한 그 kind 가 원문 전달 허용 목록에 있거나 egui-mesh 인 것이다. 현재 markdown(`com.tasty.markdown`)과 egui-mesh kind 전부(plugin ID 무관)가 해당한다. html 은 client kind 를 `com.tasty.html` 이 등록했고 origin surface 가 속한 mirror workspace 의 연결이 HTML entry viewer 를 협상했을 때만 해당한다. 협상하지 않은 연결에서는 placeholder 라 제외한다. 원격에 같은 kind 가 없으면 원격의 새 탭 생성이 실패한다.
 - 1순위 핸들러가 원격에 열 수 있으면 로컬과 같이 바로 실행한다.
 - 1순위가 원격에 열 수 없고 다른 후보가 있으면 사용자 요청과 PluginUnverified 요청은 기존 핸들러 picker 를 띄운다. 후보와 최근 목록에는 원격에 열 수 있는 핸들러만 남기고, 1순위가 목록에 없으므로 기본 핸들러 표시는 두지 않는다. fallback 표시(전체 핸들러 그룹·1 회성 띠)도 쓰지 않는다. picker 에서 고른 핸들러도 같은 조건을 다시 확인한 뒤 원격 새 탭으로 실행한다.
 - Agent(외부 IPC) 요청은 로컬과 마찬가지로 사용자 화면에 picker 를 띄우지 않는다. 우선순위 순서로 원격에 열 수 있는 첫 핸들러를 실행한다.
 - 원격에서 받은 파일(데이터 홈의 `download-run` 아래)을 사용자 요청으로 여는데 활성 workspace 가 mirror 이고 실행할 핸들러(1순위나 picker 선택)가 `OpenSurface` 이면, 활성 workspace 에 `NewTab` 을 내지 않고 새 로컬 workspace 를 만들어 연다([다운로드 후 실행](../remote-attach/index.md#원격-파일-다운로드-후-실행)). 에이전트 요청은 활성 workspace 를 바꾸지 않으므로 이 분기를 쓰지 않는다.
 - 실행한 `CreateTab` 은 원격 `StructuralOp::NewTab` 으로 forward 된다. 이 forward 는 실패가 아니며 `file_dispatch CreateTab failed` 경고를 남기지 않는다. 사용자 요청은 client 가 새 탭을 선택하고, 원격(서버)은 자기 선택을 유지한다(공통 forward 경로가 서버 쪽 선택을 바꾸지 않는다). Agent 와 PluginUnverified 요청은 client 선택도 유지하고 원격 실패를 warn 로그로만 남긴다.
-- 원격에 열 수 있는 핸들러가 하나도 없으면(`System`·`Ipc` 뿐, 허용되지 않은 kind, 매칭 없음) picker 를 띄우지 않는다. 사용자 요청이면 [다운로드 후 실행](../remote-attach/index.md#원격-파일-다운로드-후-실행) 대화상자로 묻고, PluginUnverified 요청이면 `explorer.state.remote_open_unsupported` toast, Agent(외부 IPC) 요청이면 warn 로그로 끝난다.
+- 원격에 열 수 있는 핸들러가 하나도 없으면(`System`·`Ipc` 뿐, 허용되지 않은 kind, 매칭 없음) picker 를 띄우지 않는다. 사용자 요청과 PluginUnverified 요청은 입구(경로 링크·이름으로 연 경로)와 관계없이 [다운로드 후 실행](../remote-attach/index.md#원격-파일-다운로드-후-실행) 대화상자로 묻는다. PluginUnverified 요청의 대화상자는 picker 와 같이 에이전트 출처로 열리고, 다운로드는 사용자가 Download and run 을 누를 때만 시작한다. Agent(외부 IPC) 요청은 사용자 화면에 팝업을 만들지 않으므로 warn 로그로 끝난다.
 - 원격 경로는 로컬 최근 목록에 기록하지 않는다.
 - 터미널 링크 우클릭의 "연결 동작"(`file::dispatch::remote::open_remote_link_picker`)은 식별·자동 실행 없이 원격에 열 수 있는 핸들러 전체를 picker 로 연다. 로컬 링크의 "연결 동작"이 전체 핸들러를 보여 주는 것과 같다. 최근 목록도 같은 조건으로 거르고 기본 핸들러 표시는 두지 않는다. 그런 핸들러가 하나도 없으면 빈 picker 대신 같은 "다운로드 후 실행" 대화상자로 묻는다.
 - 파일 선택 창(원격 경로 복사)은 이 경로를 쓰지 않는다. 판정은 `file::dispatch::remote` 한 곳에 있다. 근거 [원격 attach (Remote attach)](../remote-attach/index.md).
@@ -137,7 +137,7 @@ picker에서 고른 핸들러는 이번 한 번만 실행한다. 형식별 기�
 | 터미널 링크 메뉴의 "연결 동작" — 식별을 건너뛰고 강제로 연다 | `all_handlers()` | 예 |
 | 원격(mirror) surface 경로 링크의 "연결 동작" (`open_remote_link_picker`) | `all_handlers()` 중 원격에 열 수 있는 것 — recent 도 같은 조건으로 거른다 | 예 |
 
-셋째는 원격에 열 수 있는 핸들러가 하나도 없으면 picker 를 띄우지 않는다. 사용자 요청은 [다운로드 후 실행](../remote-attach/index.md#원격-파일-다운로드-후-실행) 대화상자, PluginUnverified 요청은 `explorer.state.remote_open_unsupported` toast 로 끝난다. 설정 등록을 권하는 빈 picker 는 원격 경로에 뜨지 않는다.
+셋째는 원격에 열 수 있는 핸들러가 하나도 없으면 picker 를 띄우지 않는다. 이 picker 는 사용자 요청만 열므로 [다운로드 후 실행](../remote-attach/index.md#원격-파일-다운로드-후-실행) 대화상자로 묻는다. 설정 등록을 권하는 빈 picker 는 원격 경로에 뜨지 않는다.
 
 셋째 경로(원격에 열 수 있는 핸들러만 담은 원격 picker)에서는 머리 경로 줄 맨 앞에 원격 표지(remote 글리프 12 + 호스트 글자, `fh-remote-fg`, mono caption, 채움 없음)를 둔다. 글리프와 호스트 사이는 `fh-remote-gap`(4), 표지와 경로 사이는 space-sm(8)이다. 호스트 글자는 `fh-remote-max-width`(160)에서 끝을 줄이고, 비면 그 자리에 `attach.mirror_pill_label`(Remote)을 font-label 로 쓴다. 경로는 표지가 남긴 상자(390 − 표지 − 8)에 대해 같은 앞 생략 규칙으로 줄인다(`file_handler::target_budget_chars_beside`, 글자 폭을 잴 수 없으면 34자). 로컬 대상 picker 에는 표지가 없다. 호스트 글자는 [원격 위치 표시](../remote-attach/index.md#원격-위치-표시)와 같고 picker 를 연 시점 값이다. 표지는 본체와 갤러리가 공용 `tasty_ui_widgets::paint_fh_remote_mark` 로 그린다. Ctrl+클릭이 1순위를 원격에 열 수 없어 띄우는 원격 picker 도 같은 표지를 둔다.
 
@@ -189,7 +189,7 @@ origin 생략도 같은 원인 규칙을 적용한다.
 외부 IPC(CLI·에이전트 세션) 요청인 Agent는 로컬·원격 모두 사용자 화면에 picker 를 띄우지 않는다. 로컬에서 매칭 핸들러가 없으면
 fallback picker 대신 warn 로그를 남기고 실행하지 않으며 run 을 `failed`("no file handler matches <경로>")로 끝낸다.
 PluginUnverified는 사용자 클릭일 수 있어 아무 반응 없이 끝나지 않게 한다. 로컬에서 매칭 핸들러가 없으면 fallback picker 를 열고,
-mirror 에서 1순위를 원격에 열 수 없으면 원격 picker 를 열며, 원격에 열 수 있는 핸들러가 없으면 toast 로 알린다.
+mirror 에서 1순위를 원격에 열 수 없으면 원격 picker 를 열며, 원격에 열 수 있는 핸들러가 없으면 다운로드 후 실행 대화상자로 묻는다.
 그 picker 에서 확정해도 요청 출처는 그대로라 결과 탭을 선택하지 않는다.
 현재 focus로 사용자 여부를 추측하지 않는다.
 
@@ -208,7 +208,7 @@ webview 적격 조건은 native 엔진의 user gesture와 현재 페이지를 �
 macOS는 동등한 공개 gesture 판정이 없어 WebView가 OS에서 받은 클릭 뒤 1초 안의 main frame 탐색을 gesture로 본다([WebView 탐색](../../design/systems/webview.md#탐색-상태와-실행-소유)). 실제 클릭 결과는 측정하지 않았다.
 Linux의 실행 확인과 Windows의 코드·컴파일 확인은 구별한다.
 같은 프레임의 앞 클릭이나 재로드가 끼어든 정당 클릭도 PluginUnverified가 될 수 있다.
-사용자 원인은 적용 실패 toast에도 쓰고 Agent·PluginUnverified 실패는 로그로 알린다(원격에 열 수 없음 toast는 위 예외).
+사용자 원인은 적용 실패 toast에도 쓰고 Agent·PluginUnverified 실패는 로그로 알린다(원격에 열 수 없을 때의 다운로드 후 실행 대화상자는 위 예외).
 이 규칙은 파일 열기에 한정하며 plugin의 임의 사용자 선언을 신뢰하는 API가 아니다.
 
 ## 인터페이스

@@ -121,7 +121,7 @@ attention·notification 적재, terminal mark, 설정 적용·저장처럼 engin
 
 | 동작 | User | Agent |
 |------|------|-------|
-| UI Intent로 팝업 열기 | 허용 | 금지. debug 사용자 입력 재현 IPC는 예외. 사용자 입력을 증명하지 못한 plugin 중계 파일 열기(`FileDispatchOrigin::PluginUnverified`)의 무매칭 fallback picker·원격 picker도 예외다(외부 IPC 요청에는 열지 않는다). 확정해도 선택은 유지한다 |
+| UI Intent로 팝업 열기 | 허용 | 금지. debug 사용자 입력 재현 IPC는 예외. 사용자 입력을 증명하지 못한 plugin 중계 파일 열기(`FileDispatchOrigin::PluginUnverified`)의 무매칭 fallback picker·원격 picker·원격 파일 다운로드 후 실행 대화상자도 예외다(외부 IPC 요청에는 열지 않는다). 확정해도 선택은 유지한다 |
 | 닫은 항목 복원 기록 추가·OS 창 포커스·workspace 활성화 | 허용 | 금지 |
 
 에이전트의 새 창 생성은 별도 `window.create` 경로로 허용하며 기존 사용자 포커스를 유지한다. [포커스 정책](../policies/focus.md)을 따른다.

@@ -73,7 +73,12 @@ pub struct DownloadRunEntry {
 }
 
 /// 원격에 열 핸들러가 없는 사용자 파일 열기에서 대화상자를 연다.
-pub(crate) fn ask(state: &mut MainViewState, workspace: u32, path: String) {
+pub(crate) fn ask(
+    state: &mut MainViewState,
+    workspace: u32,
+    path: String,
+    origin: crate::file::dispatch::FileDispatchOrigin,
+) {
     let capable = downloads::client().capable(workspace);
     state.dialogs.download_run.ask = Some(DownloadRunAsk {
         workspace,
@@ -81,13 +86,16 @@ pub(crate) fn ask(state: &mut MainViewState, workspace: u32, path: String) {
         capable,
         content_height: None,
     });
-    state.dispatch_intent(
-        crate::intent::UiIntent::OpenPopup {
-            id: DOWNLOAD_RUN_POPUP_ID,
-            mode: crate::intent::OpenPopupMode::CenteredFocused,
-        }
-        .from_user_menu("download_run"),
-    );
+    let intent = crate::intent::UiIntent::OpenPopup {
+        id: DOWNLOAD_RUN_POPUP_ID,
+        mode: crate::intent::OpenPopupMode::CenteredFocused,
+    };
+    // 핸들러 picker와 같은 출처 규칙이다. 다운로드는 대화상자의 버튼을 누를 때만 시작한다.
+    state.dispatch_intent(match origin {
+        crate::file::dispatch::FileDispatchOrigin::User => intent.from_user_menu("download_run"),
+        crate::file::dispatch::FileDispatchOrigin::Agent
+        | crate::file::dispatch::FileDispatchOrigin::PluginUnverified => intent.from_agent_ipc(),
+    });
 }
 
 /// 실패 이유의 문장 키. 사용자가 멈춘 다운로드는 알리지 않는다.

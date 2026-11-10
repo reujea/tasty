@@ -194,7 +194,7 @@ pub(crate) fn terminal_link_file_intent(
 
 /// 터미널 링크 우클릭 "연결 동작"의 원격 경로. 식별·자동 실행 없이 원격에 열 수 있는 핸들러 전체를 picker로 연다.
 /// 로컬 링크의 "연결 동작"이 전체 핸들러를 보여 주는 것과 같은 계약이다. 열 수 있는 핸들러가 없으면
-/// 빈 picker 대신 Ctrl+클릭과 같은 안내 토스트를 띄운다.
+/// 빈 picker 대신 Ctrl+클릭과 같은 "다운로드 후 실행" 대화상자로 묻는다.
 pub(crate) fn open_remote_link_picker(
     state: &mut RequestContext,
     engine: &EngineRead<'_>,
@@ -235,29 +235,29 @@ fn mirror_workspace(engine: &EngineRead<'_>, origin_surface_id: u32) -> Option<u
         .map(|workspace| workspace.id)
 }
 
-/// 원격에 열 핸들러가 없다. 사용자 요청이면 "다운로드 후 실행" 대화상자로 묻고, 사용자 입력을 증명하지
-/// 못한 plugin 중계 요청은 안내 토스트, 외부 IPC 요청은 로그로 끝낸다.
+/// 원격에 열 핸들러가 없다. 사용자 요청과 사용자 입력을 증명하지 못한 plugin 중계 요청은 진입 경로와
+/// 관계없이 "다운로드 후 실행" 대화상자로 묻는다(핸들러 picker를 띄우는 범위와 같다). 외부 IPC 요청은
+/// 사용자 화면에 팝업을 만들지 않으므로 로그로 끝낸다.
 fn report_unsupported(
     state: &mut RequestContext,
     target: &FileTarget,
     origin: FileDispatchOrigin,
     workspace: Option<u32>,
 ) {
-    if origin == FileDispatchOrigin::User
-        && let Some(workspace) = workspace
-    {
-        crate::adapters::ui::popup::download_run::ask(state, workspace, target.display());
-        return;
-    }
-    match origin {
-        FileDispatchOrigin::User | FileDispatchOrigin::PluginUnverified => state.toasts.push(
-            crate::i18n::t("explorer.state.remote_open_unsupported").to_string(),
-            crate::adapters::ui::ToastKind::Info,
-            crate::adapters::ui::ToastScope::Window,
-        ),
-        FileDispatchOrigin::Agent => tracing::warn!(
+    match (origin, workspace) {
+        (FileDispatchOrigin::Agent, _) => tracing::warn!(
             target = %target.display(),
             "no file handler can open this remote file; not executed",
+        ),
+        (_, Some(workspace)) => crate::adapters::ui::popup::download_run::ask(
+            state,
+            workspace,
+            target.display(),
+            origin,
+        ),
+        (_, None) => tracing::warn!(
+            target = %target.display(),
+            "the origin surface left its mirror workspace; the remote file was not offered for download",
         ),
     }
 }
