@@ -14,6 +14,7 @@ use tasty_ui_widgets::{
 use super::html_script_banner::{
     app_backdrop, caption, framed, mocha, page_stand_in, tab_strip, themed_card,
 };
+use crate::catalog::components::html_address::page_placeholder;
 use crate::catalog::components::html_address::remote::size_card;
 use crate::catalog::icons;
 use crate::catalog::spec::{self, StageVariant, TokenChip};
@@ -279,6 +280,8 @@ pub(super) struct Variant {
     pub(super) loading: bool,
     /// 전역 script sandbox 꺼짐. web 원격 안내가 `body_web_sandbox_off` 본문을 쓴다.
     pub(super) sandbox_off: bool,
+    /// load가 끝나기 전이라 host가 WebView를 숨기고 페이지 영역에 Loading 타일을 그린다.
+    pub(super) page_loading: bool,
 }
 
 /// surface 하나: 탭 스트립 → 주소 띠(끝에 원격 표지) → inset 안내 묶음(크기 → 원격 → 스크립트) → 페이지.
@@ -366,7 +369,9 @@ pub(super) fn remote_surface(
         rect.max,
     );
     let page_label = if v.web { WEB_PAGE } else { "report.html" };
-    if v.styled {
+    if v.page_loading {
+        page_placeholder(ui, theme, page, "loading", "");
+    } else if v.styled {
         page_stand_in(ui, theme, page, page_label);
     } else {
         unstyled_page(ui, theme, page, page_label);

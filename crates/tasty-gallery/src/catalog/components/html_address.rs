@@ -409,7 +409,14 @@ pub(super) fn band_surface(
     page_placeholder(ui, theme, page, "page", address);
 }
 
-fn page_placeholder(ui: &mut egui::Ui, theme: &Theme, rect: egui::Rect, page: &str, address: &str) {
+/// 페이지 영역의 상태 표본(디자인 `HtmlPageState`). `page`는 `page`·`empty`·`loading`·`failed`다.
+pub(crate) fn page_placeholder(
+    ui: &mut egui::Ui,
+    theme: &Theme,
+    rect: egui::Rect,
+    page: &str,
+    address: &str,
+) {
     let mut body = ui.new_child(
         egui::UiBuilder::new()
             .max_rect(rect)

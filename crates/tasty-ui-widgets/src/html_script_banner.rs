@@ -48,6 +48,8 @@ pub struct HtmlScriptBannerView<'a> {
 /// 그린 카드 영역과 이번 프레임의 클릭.
 pub struct HtmlScriptBannerOutput {
     pub rect: egui::Rect,
+    /// 액션 자리(버튼, 재로드 중에는 스피너와 라벨). 비활성 버튼의 툴팁을 연 채로 보여 줄 때 기준이 된다.
+    pub action_rect: egui::Rect,
     pub hovered: bool,
     pub allow_clicked: bool,
     pub dismiss_clicked: bool,
@@ -106,14 +108,16 @@ fn draw_action(
     theme: &Theme,
     view: &HtmlScriptBannerView<'_>,
     rect: egui::Rect,
-) -> bool {
+) -> (bool, egui::Rect) {
     let mut child = ui.new_child(egui::UiBuilder::new().max_rect(rect));
     match view.state {
-        HtmlScriptBannerState::Blocked => Button::new(view.action)
-            .variant(ButtonVariant::Secondary)
-            .size(ControlSize::Sm)
-            .show(&mut child, theme)
-            .clicked(),
+        HtmlScriptBannerState::Blocked => {
+            let resp = Button::new(view.action)
+                .variant(ButtonVariant::Secondary)
+                .size(ControlSize::Sm)
+                .show(&mut child, theme);
+            (resp.clicked(), resp.rect)
+        }
         HtmlScriptBannerState::Loading => {
             // 전환은 잉크만 바뀐다. 지연이나 유예 없이 로드 시작부터 commit까지 비활성이다.
             let resp = Button::new(view.action)
@@ -127,7 +131,7 @@ fn draw_action(
                     .id_source(resp.id)
                     .show(ui, theme, resp.rect);
             }
-            false
+            (false, resp.rect)
         }
         HtmlScriptBannerState::Reloading => {
             let spin = theme.icon_glyph_size_sm.value();
@@ -147,19 +151,19 @@ fn draw_action(
                 egui::FontId::proportional(theme.banner_body_font_size().value()),
                 theme.banner_body_fg().to_egui(),
             );
-            false
+            (false, rect)
         }
     }
 }
 
-/// 행 내용을 그리고 액션 클릭 여부를 돌려준다. `ui`는 셸 안쪽 여백을 뺀 영역이다.
+/// 행 내용을 그리고 액션 클릭 여부와 액션 자리를 돌려준다. `ui`는 셸 안쪽 여백을 뺀 영역이다.
 fn draw_row(
     ui: &mut egui::Ui,
     theme: &Theme,
     view: &HtmlScriptBannerView<'_>,
     glyph_icon: tasty_icons::Icon,
     glyph_color: egui::Color32,
-) -> bool {
+) -> (bool, egui::Rect) {
     // 오른쪽은 닫기 슬롯 몫을 비운다. 셸이 이미 좌우 padding을 넣었으므로 그 몫은 뺀다.
     let reserve =
         (theme.icon_button_size_sm().value() + theme.spacing_sm.value() + theme.spacing_xs.value()
@@ -264,8 +268,9 @@ pub(crate) fn html_notice_banner(
     glyph_color: egui::Color32,
 ) -> HtmlScriptBannerOutput {
     let mut allow_clicked = false;
+    let mut action_rect = egui::Rect::NOTHING;
     let rect = banner_shell(ui, theme, 1.0, |ui| {
-        allow_clicked = draw_row(ui, theme, view, glyph, glyph_color);
+        (allow_clicked, action_rect) = draw_row(ui, theme, view, glyph, glyph_color);
     });
     let hovered = view.force_hover || ui.rect_contains_pointer(rect);
     let mut dismiss_clicked = false;
@@ -289,6 +294,7 @@ pub(crate) fn html_notice_banner(
     }
     HtmlScriptBannerOutput {
         rect,
+        action_rect,
         hovered,
         allow_clicked,
         dismiss_clicked,

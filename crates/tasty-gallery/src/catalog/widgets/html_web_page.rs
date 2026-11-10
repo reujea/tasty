@@ -335,19 +335,20 @@ fn flow() -> Vec<(&'static str, Variant)> {
             },
         ),
         (
-            "4a · user reload before Allow — the notice stays, loading: Allow disabled, Reload busy, until the reload commits",
+            "4a · user reload before Allow — page area: the host's Loading tile until the load finishes · the notice stays above it, loading: Allow disabled, Reload busy, until the reload commits",
             Variant {
                 remote: Some(R::Loading),
                 loading: true,
+                page_loading: true,
                 ..v
             },
         ),
         (
-            "4b · user reload after Allow (from step 3) — load in flight: no notice, markers stay allowed, Reload busy",
+            "4b · user reload after Allow (from step 3) — page area: the host's Loading tile · no notice · remote and tab markers stay allowed until commit (that load's scripts do not run) · Reload busy",
             Variant {
                 remote_marker: Some(M::Allowed),
                 script_marker: Some(HtmlScriptMarkerKind::Allowed),
-                styled: true,
+                page_loading: true,
                 loading: true,
                 ..v
             },
@@ -410,6 +411,41 @@ fn flow_cell(ui: &mut egui::Ui, theme: &Theme, cap: &str, size: egui::Vec2, v: V
             remote_surface(ui, theme, inner, v, cap);
         });
     });
+}
+
+/// loading 툴팁 프레임이 그리는 안내.
+#[derive(Clone, Copy)]
+enum Notice {
+    Remote,
+    Script,
+}
+
+/// loading 단계의 web 안내를 흐름 프레임 폭으로 그리고 비활성 버튼 자리와 툴팁 키를 돌려준다.
+fn loading_notice(
+    ui: &mut egui::Ui,
+    theme: &Theme,
+    notice: Notice,
+) -> (Option<egui::Rect>, &'static str) {
+    ui.allocate_ui(egui::vec2(FLOW_W.value(), 0.0), |ui| {
+        ui.set_width(FLOW_W.value());
+        match notice {
+            Notice::Remote => {
+                let view = remote_view(HtmlRemoteBannerState::Loading, false, true);
+                (
+                    Some(html_remote_banner(ui, theme, &view).action_rect),
+                    "banner.html_remote.action_loading",
+                )
+            }
+            Notice::Script => {
+                let view = script_view(HtmlScriptBannerState::Loading, false, true);
+                (
+                    Some(html_script_banner(ui, theme, &view).action_rect),
+                    "banner.html_script.action_loading",
+                )
+            }
+        }
+    })
+    .inner
 }
 
 /// 툴팁을 연 표지 프레임. 버블은 위로 열린다.
@@ -521,6 +557,14 @@ pub fn draw_flow(ui: &mut egui::Ui, theme: &Theme) {
                         });
                     });
                 }
+                for (cap, notice) in [
+                    ("remote notice · loading tooltip", Notice::Remote),
+                    ("script notice · loading tooltip", Notice::Script),
+                ] {
+                    spec::wrap_item(ui, |ui| {
+                        tip_cell(ui, theme, cap, |ui| loading_notice(ui, theme, notice));
+                    });
+                }
             });
         });
     });
@@ -539,28 +583,34 @@ pub fn draw_flow(ui: &mut egui::Ui, theme: &Theme) {
             ),
             (
                 "4a",
-                "reload before Allow → notice stays, loading · Allow disabled · Reload busy",
+                "user reload before Allow → notice stays over the Loading tile · loading until commit",
             ),
             (
                 "4b",
-                "reload after Allow → no notice · markers stay allowed · Reload busy",
+                "user reload after Allow → no notice · remote and tab markers allowed until commit · that load's scripts do not run",
             ),
             (
                 "4",
-                "commit of 4a or 4b → both allows cleared · remote notice blocked, even after ×",
+                "commit → both allows cleared · remote notice blocked, even after ×",
             ),
             ("×", "marker blocked remains · click → that notice again"),
             ("loading", "Allow disabled until commit · Reload busy"),
+            (
+                "page area",
+                "host Loading tile (Spinner + Loading…) from load start until the load finishes · band, notices, markers stay above it · measured on Linux",
+            ),
         ],
         &[],
     );
     spec::note(
         ui,
         theme,
-        "The notice first appears when the page commits, so a first load shows no loading frame. \
-         A reload of the same page has two branches until it commits: before Allow the notice \
-         stays in its loading state (4a), after Allow there is no notice and the markers stay \
-         allowed (4b). The notices' loading tooltip is the shared action_loading copy and is not \
-         drawn open here.",
+        "First load: the remote notice first shows when the page's load commits, already blocked, \
+         so step 1 has no loading frame before it. The Loading tile can still be up at that commit, \
+         until the load finishes. Reload before Allow (4a): the notice stays, loading, and keeps one \
+         title for every phase (title_web names no load state). The page area shows the Loading \
+         tile, not the earlier showing. Reload after Allow (4b): the allows and both markers hold \
+         until the reload commits, then clear, and the notice comes back. The two loading tooltips \
+         read the shared action_loading copy.",
     );
 }
