@@ -151,20 +151,17 @@ fn register_custom_font_file(
     kept
 }
 
-/// `family` 의 면을 `alias` 이름으로 하나씩 더 등록한다. 지정 파일에 없는 글자를 미리보기와 같은
-/// 순서(설정 family, 묶음 D2Coding)로 찾게 하는 대체 목록의 이름이다(`fallback` 모듈). 원래 면은
+/// `ids` 의 면을 `alias` 이름으로 하나씩 더 등록한다. 지정 파일에 없는 글자를 미리보기와 같은
+/// 순서(설정 family, 묶음 D2Coding)로 찾게 하는 대체 목록의 이름이다(`fallback` 모듈). 묶음 단계는
+/// 묶음 바이트에서 읽은 면만 넘겨, 같은 이름으로 설치된 다른 글꼴이 섞이지 않게 한다. 원래 면은
 /// 그대로 두고, 더한 면은 `added` 에 넣어 다음 구성에서 지운다.
-fn alias_family(
+fn alias_faces(
     db: &mut cosmic_text::fontdb::Database,
-    family: &str,
+    ids: &[cosmic_text::fontdb::ID],
     alias: &str,
     added: &mut Vec<cosmic_text::fontdb::ID>,
 ) {
-    let faces: Vec<_> = db
-        .faces()
-        .filter(|face| !added.contains(&face.id) && judge::has_family(face, family))
-        .cloned()
-        .collect();
+    let faces: Vec<_> = ids.iter().filter_map(|id| db.face(*id).cloned()).collect();
     for mut info in faces {
         info.families = vec![(
             alias.to_string(),
@@ -265,6 +262,9 @@ pub struct FontConfig {
     request: FontRequest,
     /// Faces registered from the custom file, removed on the next reconfiguration.
     custom_faces: Vec<cosmic_text::fontdb::ID>,
+    /// Faces loaded from the bundled D2Coding bytes. An installed font of the
+    /// same name is not one of them.
+    bundled_faces: Vec<cosmic_text::fontdb::ID>,
 }
 
 impl FontConfig {
@@ -278,19 +278,30 @@ impl FontConfig {
     pub fn from_request(request: &FontRequest) -> Self {
         // 시스템 글꼴은 한 번만 읽고, 대체 목록만 지정 파일용으로 바꿔 다시 묶는다.
         let (locale, db) = FontSystem::new().into_locale_and_db();
-        let mut font_system = FontSystem::new_with_locale_and_db_and_fallback(
-            locale,
-            db,
-            fallback::TerminalFallback::new(),
-        );
-        font_system
-            .db_mut()
-            .load_font_data(D2CODING_REGULAR_TTF.to_vec());
-        font_system
-            .db_mut()
-            .load_font_data(D2CODING_BOLD_TTF.to_vec());
+        Self::with_db(locale, db, fallback::TerminalFallback::new(), request)
+    }
+
+    /// Builds from a font database that does not hold the bundled font yet.
+    fn with_db(
+        locale: String,
+        db: cosmic_text::fontdb::Database,
+        fallback: impl cosmic_text::Fallback + 'static,
+        request: &FontRequest,
+    ) -> Self {
+        let mut font_system = FontSystem::new_with_locale_and_db_and_fallback(locale, db, fallback);
+        let bundled_faces: Vec<_> = [D2CODING_REGULAR_TTF, D2CODING_BOLD_TTF]
+            .into_iter()
+            .flat_map(|bytes| {
+                font_system
+                    .db_mut()
+                    .load_font_source(cosmic_text::fontdb::Source::Binary(std::sync::Arc::new(
+                        bytes.to_vec(),
+                    )))
+            })
+            .collect();
         let mut custom_faces = Vec::new();
-        let (font_family, metrics) = Self::resolve(&mut font_system, &mut custom_faces, request);
+        let (font_family, metrics) =
+            Self::resolve(&mut font_system, &mut custom_faces, &bundled_faces, request);
         Self {
             font_system,
             swash_cache: SwashCache::new(),
@@ -298,14 +309,19 @@ impl FontConfig {
             font_family,
             request: request.clone(),
             custom_faces,
+            bundled_faces,
         }
     }
 
     /// Reconfigure while reusing the system font database.
     /// A non-empty custom font path is read again on every call.
     pub fn reconfigure(&mut self, request: &FontRequest) {
-        let (font_family, metrics) =
-            Self::resolve(&mut self.font_system, &mut self.custom_faces, request);
+        let (font_family, metrics) = Self::resolve(
+            &mut self.font_system,
+            &mut self.custom_faces,
+            &self.bundled_faces,
+            request,
+        );
         self.metrics = metrics;
         self.font_family = font_family;
         self.swash_cache = SwashCache::new();
@@ -324,6 +340,7 @@ impl FontConfig {
     fn resolve(
         font_system: &mut FontSystem,
         custom_faces: &mut Vec<cosmic_text::fontdb::ID>,
+        bundled_faces: &[cosmic_text::fontdb::ID],
         request: &FontRequest,
     ) -> (FamilyOwned, FontMetrics) {
         for id in custom_faces.drain(..) {
@@ -343,9 +360,9 @@ impl FontConfig {
                     custom_faces,
                 );
             }
-            alias_family(
+            alias_faces(
                 db,
-                D2CODING_FAMILY,
+                bundled_faces,
                 fallback::CUSTOM_FALLBACK_BUNDLED,
                 custom_faces,
             );
@@ -796,6 +813,7 @@ mod tests {
             font_family,
             request: FontRequest::new(PhysicalPx(14.0), D2CODING_FAMILY),
             custom_faces: Vec::new(),
+            bundled_faces: Vec::new(),
         }
     }
 
@@ -1094,6 +1112,34 @@ mod tests {
         }
     }
 
+    /// 묶음 단계는 묶음 바이트의 면만 쓴다. 같은 이름의 다른 글꼴이 DB 에 먼저 있어도 미리보기처럼
+    /// 묶음 사본으로 그린다.
+    #[test]
+    fn the_bundled_step_ignores_an_installed_font_of_the_same_name() {
+        use crate::fallback::CUSTOM_FALLBACK_BUNDLED;
+        use crate::test_fonts::{TempFont, half_units_per_em, latin_only, renamed};
+        let file = TempFont::new(&latin_only(renamed(D2CODING_REGULAR_TTF.to_vec())));
+        let mut db = cosmic_text::fontdb::Database::new();
+        db.load_font_data(half_units_per_em(D2CODING_REGULAR_TTF.to_vec()));
+        let mut config = FontConfig::with_db(
+            "en-US".to_string(),
+            db,
+            fallback::TerminalFallback::new(),
+            &with_file(&file.path(), ""),
+        );
+        for text in ["한", "あ"] {
+            let id = drawn_face(&mut config, text, false);
+            let db = config.font_system.db();
+            assert!(
+                judge::has_family(db.face(id).unwrap(), CUSTOM_FALLBACK_BUNDLED),
+                "{text}"
+            );
+            let mut drawn = None;
+            db.with_face_data(id, |data, _| drawn = Some(data == D2CODING_REGULAR_TTF));
+            assert_eq!(drawn, Some(true), "{text}");
+        }
+    }
+
     /// 지정 파일이 없으면 두 대체 이름의 면이 없어 대체 순서가 바뀌지 않는다.
     #[test]
     fn without_a_custom_file_no_fallback_alias_is_registered() {
@@ -1126,6 +1172,7 @@ mod tests {
             font_family: ours.font_family.clone(),
             request: ours.request().clone(),
             custom_faces: Vec::new(),
+            bundled_faces: Vec::new(),
         };
         for text in ["A", "漢", "한", "あ"] {
             assert_eq!(
