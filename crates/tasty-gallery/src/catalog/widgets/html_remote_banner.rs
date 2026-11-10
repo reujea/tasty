@@ -53,6 +53,8 @@ const SCRIPT_MARKER_ALLOWED: &str = "banner.html_script.marker_allowed";
 /// `http(s)` 페이지(web) 문구. 그 밖의 키는 로컬 문서와 공유한다.
 const TITLE_WEB: &str = "banner.html_remote.title_web";
 const BODY_WEB: &str = "banner.html_remote.body_web";
+/// 전역 script sandbox가 꺼진 페이지의 원격 안내 본문. 네트워크 스크립트를 목록에 넣는다.
+pub(super) const BODY_WEB_SANDBOX_OFF: &str = "banner.html_remote.body_web_sandbox_off";
 const MARKER_ALLOWED_WEB: &str = "banner.html_remote.marker_allowed_web";
 pub(super) const SCRIPT_MARKER_BLOCKED: &str = "banner.html_script.marker_blocked";
 pub(super) const SCRIPT_MARKER_ALLOWED_WEB: &str = "banner.html_script.marker_allowed_web";
@@ -275,6 +277,8 @@ pub(super) struct Variant {
     pub(super) web: bool,
     /// 로드가 commit 전이라 주소 띠의 새로고침이 진행 중으로 보인다.
     pub(super) loading: bool,
+    /// 전역 script sandbox 꺼짐. web 원격 안내가 `body_web_sandbox_off` 본문을 쓴다.
+    pub(super) sandbox_off: bool,
 }
 
 /// surface 하나: 탭 스트립 → 주소 띠(끝에 원격 표지) → inset 안내 묶음(크기 → 원격 → 스크립트) → 페이지.
@@ -341,6 +345,9 @@ pub(super) fn remote_surface(
     if let Some(state) = v.remote {
         place(ui, 1, &|ui| {
             let mut view = remote_view(state, false, v.web);
+            if v.web && v.sandbox_off {
+                view.body = t(BODY_WEB_SANDBOX_OFF);
+            }
             view.narrow = narrow;
             html_remote_banner(ui, theme, &view).rect
         });

@@ -1548,6 +1548,7 @@ marker_blocked = "Remote content blocked. Click for details."
 marker_allowed = "Remote content allowed for this document until Tasty restarts"
 title_web = "Page loaded; remote content blocked"
 body_web = "Stylesheets, images, fonts, frames and media from the network are blocked, so the page may look incomplete. Allowing applies only to this showing of the page; reloading blocks remote content again. Permission to run scripts is requested separately."
+body_web_sandbox_off = "Stylesheets, images, fonts, frames, media and scripts from the network are blocked, so the page may look incomplete. Allowing applies only to this showing of the page; reloading blocks remote content again."
 marker_allowed_web = "Remote content allowed for this showing of the page; reloading blocks it again"
 
 [port_scanner]

@@ -11,8 +11,8 @@ use tasty_ui_widgets::{
 };
 
 use super::html_remote_banner::{
-    SCRIPT_MARKER_ALLOWED_WEB, SCRIPT_MARKER_BLOCKED, Variant, WEB_LABEL, address_band,
-    marker_view, remote_surface, remote_view, script_view, web_address_view,
+    BODY_WEB_SANDBOX_OFF, SCRIPT_MARKER_ALLOWED_WEB, SCRIPT_MARKER_BLOCKED, Variant, WEB_LABEL,
+    address_band, marker_view, remote_surface, remote_view, script_view, web_address_view,
 };
 use super::html_script_banner::{app_backdrop, caption, framed, mocha, tab, themed_card};
 use crate::catalog::icons;
@@ -37,10 +37,12 @@ const TIP_TOP: LogicalPx = LogicalPx(64.0);
 #[derive(Clone, Copy)]
 enum Row {
     Remote(HtmlRemoteBannerState, bool),
+    /// 전역 script sandbox 꺼짐의 원격 안내(blocked).
+    RemoteSandboxOff,
     Script(HtmlScriptBannerState),
 }
 
-const ROWS: [(&str, Row); 7] = [
+const ROWS: [(&str, Row); 8] = [
     (
         "remote · blocked",
         Row::Remote(HtmlRemoteBannerState::Blocked, false),
@@ -56,6 +58,10 @@ const ROWS: [(&str, Row); 7] = [
     (
         "remote · reloading",
         Row::Remote(HtmlRemoteBannerState::Reloading, false),
+    ),
+    (
+        "remote · blocked · script sandbox off — network scripts listed, no script sentence",
+        Row::RemoteSandboxOff,
     ),
     (
         "script · blocked (after the remote reload)",
@@ -75,6 +81,12 @@ fn draw_row(ui: &mut egui::Ui, theme: &Theme, row: Row, narrow: bool) {
     match row {
         Row::Remote(state, hover) => {
             let mut view = remote_view(state, hover, true);
+            view.narrow = narrow;
+            html_remote_banner(ui, theme, &view);
+        }
+        Row::RemoteSandboxOff => {
+            let mut view = remote_view(HtmlRemoteBannerState::Blocked, false, true);
+            view.body = t(BODY_WEB_SANDBOX_OFF);
             view.narrow = narrow;
             html_remote_banner(ui, theme, &view);
         }
@@ -212,6 +224,10 @@ pub fn draw_states(ui: &mut egui::Ui, theme: &Theme) {
                 "lifetime",
                 "this showing · cleared by the user's reload, navigation, Back, restart",
             ),
+            (
+                "sandbox off",
+                "remote notice body → body_web_sandbox_off · no script notice, no tab marker",
+            ),
             ("new tokens", "none"),
         ],
         &[],
@@ -276,15 +292,7 @@ fn flow() -> Vec<(&'static str, Variant)> {
     };
     vec![
         (
-            "1 · loading — only while a reload of the unallowed page is in flight",
-            Variant {
-                remote: Some(R::Loading),
-                loading: true,
-                ..v
-            },
-        ),
-        (
-            "1 · page viewed — remote notice (blocked) · no marker · no script notice",
+            "1 · page viewed — the remote notice first shows when the load commits, already blocked · no marker · no script notice",
             Variant {
                 remote: Some(R::Blocked),
                 ..v
@@ -327,7 +335,25 @@ fn flow() -> Vec<(&'static str, Variant)> {
             },
         ),
         (
-            "4 · user reload (or another page, Back, restart) — back to step 1, even after ×",
+            "4a · user reload before Allow — the notice stays, loading: Allow disabled, Reload busy, until the reload commits",
+            Variant {
+                remote: Some(R::Loading),
+                loading: true,
+                ..v
+            },
+        ),
+        (
+            "4b · user reload after Allow (from step 3) — load in flight: no notice, markers stay allowed, Reload busy",
+            Variant {
+                remote_marker: Some(M::Allowed),
+                script_marker: Some(HtmlScriptMarkerKind::Allowed),
+                styled: true,
+                loading: true,
+                ..v
+            },
+        ),
+        (
+            "4 · reload committed (4a or 4b; also another page, Back, restart) — both allows cleared, remote notice blocked as at step 1, shown even if dismissed before",
             Variant {
                 remote: Some(R::Blocked),
                 ..v
@@ -350,9 +376,25 @@ fn flow() -> Vec<(&'static str, Variant)> {
             },
         ),
         (
-            "global Allow remote content on · sandbox on — script notice at once",
+            "global Allow remote content on · sandbox on — script notice at once, no remote notice or marker",
             Variant {
                 script: Some(S::Blocked),
+                styled: true,
+                ..v
+            },
+        ),
+        (
+            "script sandbox off · step 1 — remote notice with the sandbox-off body (network scripts listed, no script sentence)",
+            Variant {
+                remote: Some(R::Blocked),
+                sandbox_off: true,
+                ..v
+            },
+        ),
+        (
+            "script sandbox off · remote reload committed — remote marker allowed · no script notice · no tab marker",
+            Variant {
+                remote_marker: Some(M::Allowed),
                 styled: true,
                 ..v
             },
@@ -495,7 +537,18 @@ pub fn draw_flow(ui: &mut egui::Ui, theme: &Theme) {
                 "3",
                 "script reloading → commit → no notice · both markers allowed",
             ),
-            ("4", "user reload → step 1, even after ×"),
+            (
+                "4a",
+                "reload before Allow → notice stays, loading · Allow disabled · Reload busy",
+            ),
+            (
+                "4b",
+                "reload after Allow → no notice · markers stay allowed · Reload busy",
+            ),
+            (
+                "4",
+                "commit of 4a or 4b → both allows cleared · remote notice blocked, even after ×",
+            ),
             ("×", "marker blocked remains · click → that notice again"),
             ("loading", "Allow disabled until commit · Reload busy"),
         ],
@@ -505,8 +558,9 @@ pub fn draw_flow(ui: &mut egui::Ui, theme: &Theme) {
         ui,
         theme,
         "The notice first appears when the page commits, so a first load shows no loading frame. \
-         The loading frame occurs only while the user reloads a page that was not allowed: the \
-         notice already on screen stays, with Allow disabled, until the reload commits. The \
-         notices' loading tooltip is the shared action_loading copy and is not drawn open here.",
+         A reload of the same page has two branches until it commits: before Allow the notice \
+         stays in its loading state (4a), after Allow there is no notice and the markers stay \
+         allowed (4b). The notices' loading tooltip is the shared action_loading copy and is not \
+         drawn open here.",
     );
 }
