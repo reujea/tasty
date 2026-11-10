@@ -3973,7 +3973,7 @@ help = "Kind: info, success, warning or error"
 help = "Shortcut keycap shown after the text; repeat for each key"
 
 [cli.help._root.debug.remote-download]
-about = "Remote file \"download and run\" on an attach mirror (debug builds only). Reproduces the user's start, over-1-MiB confirmation and cancel while the button and its popup wait for a design"
+about = "Reproduce remote file \"Download and run\" on an attach mirror from the CLI: the user's start, over-1-MiB confirmation and cancel (debug builds only)"
 
 [cli.help._root.debug.remote-download.start]
 about = "Start downloading one remote file of a mirror workspace and open it locally when done"

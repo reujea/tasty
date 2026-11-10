@@ -4061,13 +4061,13 @@ help = "种类：info、success、warning 或 error"
 help = "文本后显示的快捷键键帽；每个按键分别重复指定"
 
 [cli.help._root.debug.remote-download]
-about = "在 attach mirror 中对远程文件执行\"下载并运行\"（仅限调试构建）。在按钮及其弹出窗口的设计尚未确定期间，复现用户的开始下载、超过 1 MiB 时的确认和取消操作"
+about = "从 CLI 复现附加镜像中远程文件的“下载并运行”操作：用户的开始下载、超过 1 MiB 时的确认和取消操作（仅限调试构建）"
 
 [cli.help._root.debug.remote-download.start]
-about = "开始下载 mirror 工作区中的一个远程文件，完成后在本地打开"
+about = "开始下载镜像工作区中的一个远程文件，完成后在本地打开"
 
 [cli.help._root.debug.remote-download.start.arg.workspace]
-help = "mirror 工作区的本地 ID"
+help = "镜像工作区的本地 ID"
 
 [cli.help._root.debug.remote-download.start.arg.path]
 help = "远程主机上的文件路径"

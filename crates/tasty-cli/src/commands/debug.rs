@@ -165,9 +165,8 @@ pub enum DebugCommands {
         #[arg(long)]
         hint: Vec<String>,
     },
-    /// Remote file "download and run" on an attach mirror (debug builds only).
-    /// Reproduces the user's start, over-1-MiB confirmation and cancel while the
-    /// button and its popup wait for a design.
+    /// Reproduce remote file "Download and run" on an attach mirror from the CLI:
+    /// the user's start, over-1-MiB confirmation and cancel (debug builds only).
     #[command(subcommand)]
     RemoteDownload(RemoteDownloadDebugCommands),
     /// Banner inspection and direct fire/close (debug builds only).

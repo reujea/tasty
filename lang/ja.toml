@@ -3905,13 +3905,13 @@ help = "種類：info、success、warning、error"
 help = "文言の後に表示するショートカットのキーキャップ。キーごとに繰り返し指定"
 
 [cli.help._root.debug.remote-download]
-about = "attach mirrorでリモートファイルを\"ダウンロードして実行\"（debugビルド専用）。ボタンとポップアップのデザインが決まるまで、ユーザーによる開始、1 MiB超過時の確認、キャンセルの操作を再現"
+about = "CLIからアタッチミラーのリモートファイルの\"ダウンロードして実行\"について、ユーザーによる開始、1 MiB超過時の確認、キャンセルの操作を再現（debug ビルド専用）"
 
 [cli.help._root.debug.remote-download.start]
-about = "mirrorワークスペースのリモートファイルを1つダウンロードし、完了したらローカルで開く"
+about = "ミラーワークスペースのリモートファイルを1つダウンロードし、完了したらローカルで開く"
 
 [cli.help._root.debug.remote-download.start.arg.workspace]
-help = "mirrorワークスペースのローカルID"
+help = "ミラーワークスペースのローカルID"
 
 [cli.help._root.debug.remote-download.start.arg.path]
 help = "リモートホスト上のファイルパス"

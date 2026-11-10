@@ -3905,13 +3905,13 @@ help = "종류: info, success, warning, error"
 help = "문구 뒤에 표시할 단축키 키캡. 키마다 반복 지정"
 
 [cli.help._root.debug.remote-download]
-about = "attach mirror에서 원격 파일 \"다운로드 및 실행\"(debug 빌드 전용). 버튼과 팝업의 디자인이 정해지기 전까지 사용자의 시작, 1 MiB 초과 확인, 취소 동작을 재현"
+about = "CLI에서 Attach 미러의 원격 파일 \"다운로드 후 실행\"에 대한 사용자의 시작, 1 MiB 초과 확인, 취소 동작을 재현(debug 빌드 전용)"
 
 [cli.help._root.debug.remote-download.start]
-about = "mirror 워크스페이스의 원격 파일 하나를 다운로드하고 완료되면 로컬에서 열기"
+about = "미러 워크스페이스의 원격 파일 하나를 다운로드하고 완료되면 로컬에서 열기"
 
 [cli.help._root.debug.remote-download.start.arg.workspace]
-help = "mirror 워크스페이스의 로컬 ID"
+help = "미러 워크스페이스의 로컬 ID"
 
 [cli.help._root.debug.remote-download.start.arg.path]
 help = "원격 호스트의 파일 경로"
