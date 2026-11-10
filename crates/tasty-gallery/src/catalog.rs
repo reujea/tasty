@@ -2233,6 +2233,16 @@ pub fn pages() -> Vec<Page> {
                             components::status_bar::draw,
                         ),
                         spec(
+                            "statusbar-remote-item",
+                            "Remote item — a mirror surface has focus",
+                            Some(
+                                "remote glyph + host (attach profile name) leads the left cluster \
+                             in the remote hue · reconnecting drops to the bar's neutral ink + a \
+                             status word · host capped at 160, drops last",
+                            ),
+                            components::status_bar_remote::draw,
+                        ),
+                        spec(
                             "statusbar-theme-cell",
                             "Theme cell — one glyph box, both themes (settled)",
                             Some(

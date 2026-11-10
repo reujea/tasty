@@ -23,6 +23,8 @@ pub(crate) struct BrowserTarget {
     engine: crate::runtime::engine_session::EngineId,
     window: winit::window::WindowId,
     view: std::sync::Weak<()>,
+    /// 이 창에서 고른 attach 프로필 이름. 연결한 mirror의 호스트 글자가 된다.
+    profile: String,
 }
 impl App {
     pub(crate) fn remote_browser_request(
@@ -59,6 +61,7 @@ impl App {
                             engine,
                             window,
                             view: main.base.state.identity(),
+                            profile: profile.clone(),
                         })
                     })
                     .ok_or("remote browser View disappeared")?;
@@ -97,6 +100,11 @@ impl App {
                     .mirror_install_target(Some(engine), None, None, true)
                     .map_err(|error| error.to_string())?;
                 target.user = true;
+                target.profile = self
+                    .state
+                    .remote_browsers
+                    .get(&id)
+                    .map(|browser| browser.profile.clone());
                 let (port, tunnel) = self.remote.take_browser_connection(id)?;
                 self.state.remote_browsers.remove(&id);
                 self.queue_browser_mirror(target, port, workspace, tunnel)

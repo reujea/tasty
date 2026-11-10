@@ -110,6 +110,7 @@ pub mod sidebar;
 pub mod sidebar_context_menu;
 pub mod sidebar_running_count;
 pub mod status_bar;
+pub mod status_bar_remote;
 pub mod status_bar_theme_cell;
 pub mod surface_highlights;
 pub mod switch_overlay;

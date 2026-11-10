@@ -360,8 +360,11 @@ pub struct ClientSessionState {
     pub next_delta_focus: Option<PendingOpFocus>,
     /// 원격 surface별 크기 요청의 중복 전송 방지·응답 대기·실패 목록. 재연결 때 비운다.
     pub resize_sync: crate::resize_sync::ResizeSync,
-    /// 현재 배지는 loopback 엔드포인트다. 실제 SSH host 정보는 이 세션에 전달되지 않는다.
+    /// 이 연결의 loopback 엔드포인트(`127.0.0.1:<로컬 포트>`). 프로필 없이 붙은 mirror의 호스트 글자다.
     pub remote_label: String,
+    /// 연결할 때 고른 `tasty-attach` 프로필 이름. 연결 시점 값이라 재연결해도, 연결 뒤 프로필을
+    /// 바꾸거나 지워도 바꾸지 않는다.
+    pub profile: Option<String>,
     /// 응답에 소비자 정보가 없어 요청별로 기록한다. None은 File Picker, Some은 explorer surface ID다.
     pub pending_list_dir_consumers: HashMap<u64, Option<u32>>,
     /// 회신을 기다리는 캡처 업로드와 그 요청을 만든 View. 회신은 이 View에만 알리고,
@@ -540,6 +543,14 @@ pub struct RetiredDocuments {
     pub html: Vec<u32>,
 }
 impl ClientSessionState {
+    /// 원격 호스트 표시(상태바·picker·링크 툴팁)에 쓰는 글자. 프로필 이름이고, 프로필 없이 붙은
+    /// mirror는 `remote_label`이다.
+    pub fn host_text(&self) -> String {
+        self.profile
+            .clone()
+            .unwrap_or_else(|| self.remote_label.clone())
+    }
+
     /// Return retired plugin document IDs while retaining exactly the new projection's ownership.
     pub fn replace_document_ids(
         &mut self,

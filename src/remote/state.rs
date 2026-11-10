@@ -18,6 +18,16 @@ pub(crate) struct ExplorerRemoteHost {
     pub(crate) needs_update: bool,
 }
 
+/// mirror workspace가 어디에 붙어 있는지. 상태바·핸들러 picker·링크 툴팁의 원격 위치 표시가 읽는다.
+#[cfg(feature = "gui")]
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct MirrorLocation {
+    /// 호스트 글자(`ClientSessionState::host_text`). 비면 화면이 `Remote` 낱말을 쓴다.
+    pub(crate) host: String,
+    /// 연결이 끊겨 다시 연결하는 중이다. 화면은 원격 색을 빼고 상태어를 붙인다.
+    pub(crate) reconnecting: bool,
+}
+
 /// 원격으로 보낸 캡처를 붙여넣을 수 있는 동안의 기록.
 #[cfg(feature = "gui")]
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -106,6 +116,9 @@ pub(crate) struct RemoteState {
     /// mirror workspace(로컬 ID)마다 붙은 원격 Tasty. App 이 연결 상태에서 맞춘다.
     #[cfg(feature = "gui")]
     pub(crate) explorer_hosts: std::collections::HashMap<u32, ExplorerRemoteHost>,
+    /// mirror workspace(로컬 ID)마다 원격 위치 표시 값. App 이 연결 상태에서 맞춘다.
+    #[cfg(feature = "gui")]
+    pub(crate) mirror_locations: std::collections::HashMap<u32, MirrorLocation>,
     /// 마지막 서버 descriptor와 연결. 클라이언트의 탐색 경로와 분리한다.
     #[cfg(feature = "gui")]
     pub(crate) explorer_sources: explorer::MirrorExplorers,
@@ -194,6 +207,8 @@ impl RemoteState {
             explorer_writable: std::collections::HashSet::new(),
             #[cfg(feature = "gui")]
             explorer_hosts: std::collections::HashMap::new(),
+            #[cfg(feature = "gui")]
+            mirror_locations: std::collections::HashMap::new(),
             #[cfg(feature = "gui")]
             explorer_sources: Default::default(),
             #[cfg(feature = "gui")]

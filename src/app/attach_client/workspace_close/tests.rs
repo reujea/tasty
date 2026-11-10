@@ -23,6 +23,7 @@ fn mirror(
         run: None,
         user: false,
         manual: None,
+        profile: None,
     }
 }
 

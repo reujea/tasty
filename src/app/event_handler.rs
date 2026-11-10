@@ -469,6 +469,7 @@ impl ApplicationHandler<AppEvent> for App {
 
         self.poll_port_scans();
         self.poll_explorer_files();
+        self.sync_mirror_locations();
         self.services.poll_memory_writer();
         self.collect_plugin_file_shutdown();
         self.services.poll_state_writer();

@@ -196,6 +196,21 @@ mirror 콘텐츠(grid) 갱신은 원격 출력이 올 때 즉시, 3초 tick 은 
 실행상태(status dot 의 초록/회색)는 별도 채널로, 원격이 1Hz 로 자신의 busy 상태를 계산해 attach 스트림으로 forward 하고(mirror 터미널은 로컬 PTY 가 없어 스스로 계산할 방법이 없다 — 이 forward 가 유일한 소스) client 가 그 값을 반영한다.
 메커니즘 상세는 [dev-guide/attach-behavior "활동(busy) 상태 전파"](../../dev-guide/attach-behavior.md#활동busy-상태-전파).
 
+<a id="원격-위치-표시"></a>
+
+#### 원격 위치 표시
+
+사이드바를 보지 않아도 지금 보는 위치가 원격임을 알 수 있도록 호스트를 보인다. 모양은 [디자인 정본](../../dev-guide/design-change-workflow.md)을 따른다.
+
+| 위치 | 언제 | 문서 |
+|---|---|---|
+| 상태바 좌측 맨 앞 | focus surface 가 mirror workspace 에 있을 때 | [상태바](../workspace-status-bar/index.md) |
+
+- **호스트 글자**: 연결할 때 고른 `tasty-attach` 프로필 이름이다. 원격 연결 팝업, `remote attach --into-gui --profile`(IPC `remote.attach`의 `profile`), 자동 attach 매핑 `--ssh-profile` 이 프로필 이름을 세션에 넘긴다. 연결 시점 값이며 재연결해도 바꾸지 않는다. 연결 뒤 프로필 이름을 바꾸거나 지워도 이미 붙은 mirror 의 표시는 그대로다.
+- **프로필 없이 붙은 mirror**: `--ssh <dest>`, 인라인 매핑 `--ssh`, `--target-port`(`attach.into_gui`), debug attach 로 붙은 mirror 는 이 연결의 loopback 엔드포인트 `127.0.0.1:<로컬 포트>`(`remote_label`)를 쓴다. 글자는 `ClientSessionState::host_text` 한 곳에서 정한다.
+- **재연결 중**: 연결이 끊겨 다시 붙는 동안 상태바는 원격 색을 빼고 상태어를 붙인다. 끊긴 연결을 활성처럼 보이지 않게 한다.
+- File Picker 의 호스트 배지와 탐색기 원격 작업의 호스트 표시는 이 글자가 아니라 세션의 loopback 라벨(`remote_label`)을 읽는다.
+
 **주의 환기(attention)도 같은 방향의 별도 채널이다** — 원격이 자기 surface 의 attention(작업 완료 / 응답 필요)을 같은 1Hz tick 에 `StreamControl::Attention{surface_id, kind}` 로 forward 하고 client 가 자기 `AttentionStore` 에 반영한다.
 attention 의 관리 주체는 **surface 를 소유한 인스턴스**다: producer(완료 IPC/CLI, Claude 플러그인 훅, OSC 133 명령 완료, toast)가 전부 PTY 가 있는 쪽에서 돌고, 특히 `needs_input` 은 서버 훅에서만 나와 미러가 스스로 만들 수 없다.
 반영된 값은 로컬 attention 과 **같은 store** 에 들어가므로 미러 워크스페이스에서도 사이드바 개수 배지·surface 테두리·탭 제목 색이 그대로 동작한다.
@@ -616,7 +631,7 @@ bulk 파일 전송과 mirror 터미널 이미지 붙여넣기 업로드에 대�
 - **mirror 활성** — 이름·subtitle 사이 Tag `info` REMOTE(레일=우하단 chip). 원격 출력이 오면 즉시 갱신(3초 tick 은 backstop). status dot 은 별개로 실행상태(running/idle)만 표시.
 - **점유 중(서버측)** — 그 surface 는 readonly. force-detach 되면 일반 surface 로 복귀.
 - **강제 끊기 확인 팝업** — 사이드바 워크스페이스 행 우클릭의 강제 끊기가 여는 380px destructive confirm(헤더 close 글리프 danger + 대상 이름이 든 본문 + 취소/강제 끊기(danger)). headless · window scope · 중앙 정렬이라 대상 워크스페이스가 비활성이어도 보인다. 갤러리 specimen 은 점유 테두리와 같은 카드에 있다(`crates/tasty-gallery/src/catalog/components/occupancy_borders.rs`).
-- **세션 끊김** — 자동 재연결(지수 백오프) 동안의 표시도 mirror 워크스페이스 상태로 흡수.
+- **세션 끊김** — 자동 재연결(지수 백오프) 동안의 표시도 mirror 워크스페이스 상태로 흡수. 상태바 원격 항목은 원격 색을 빼고 재연결 상태어를 붙인다([원격 위치 표시](#원격-위치-표시)).
 
 ### 시각 소스
 

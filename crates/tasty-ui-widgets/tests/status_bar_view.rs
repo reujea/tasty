@@ -19,6 +19,7 @@ const PALETTE_KEYS: &str = "Ctrl+K";
 
 fn data() -> StatusBarData {
     StatusBarData {
+        remote: None,
         branch: Some("main".into()),
         surface_id: Some(3),
         pane_id: Some(1),

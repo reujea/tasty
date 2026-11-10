@@ -11,6 +11,7 @@ use crate::catalog::spec::{StageVariant, TokenChip, cluster, dont, meta, note, s
 /// specimen 공통 기본값 — 변형마다 필요한 필드만 덮어쓴다.
 fn base() -> StatusBarData {
     StatusBarData {
+        remote: None,
         branch: Some("feat/dag-detail".into()),
         surface_id: Some(3),
         pane_id: Some(1),
@@ -135,12 +136,16 @@ pub fn draw(ui: &mut egui::Ui, theme: &Theme) {
         &[
             ("height", "status-bar-height (24) — UI 배율 밖"),
             ("layout", "padding 0 10 · item gap 10"),
-            ("left", "branch · surface id · shell · grid"),
+            (
+                "left",
+                "remote (mirror only) · branch · surface id · shell · grid",
+            ),
             ("right", "palette keycap · theme glyph"),
             ("mono", "surface id · grid 만"),
             (
                 "drop order",
-                "1 grid → 2 shell → 3 surface id → 4 palette cap → 5 branch text (glyph stays)",
+                "1 grid → 2 shell → 3 surface id → 4 palette cap → 5 branch text (glyph stays) → \
+                 6 remote host text on a mirror (remote glyph stays)",
             ),
             ("theme", "a sun / theme glyph, not a coloured dot"),
             ("never drops", "theme glyph"),

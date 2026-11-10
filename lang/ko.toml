@@ -891,6 +891,7 @@ new_window_desc = "새 Tasty 윈도우 열기"
 [status_bar]
 palette_tooltip = "명령 팔레트 열기"
 theme_tooltip = "테마 전환"
+remote_reconnecting = "재연결 중"
 
 [notification]
 bell_title = "벨"

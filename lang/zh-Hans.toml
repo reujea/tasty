@@ -898,6 +898,7 @@ new_window_desc = "打开新的 Tasty 窗口"
 [status_bar]
 palette_tooltip = "打开命令面板"
 theme_tooltip = "切换主题"
+remote_reconnecting = "重新连接中"
 
 [notification]
 bell_title = "响铃"

@@ -891,6 +891,7 @@ new_window_desc = "新しい Tasty ウィンドウを開く"
 [status_bar]
 palette_tooltip = "コマンドパレットを開く"
 theme_tooltip = "テーマを切り替え"
+remote_reconnecting = "再接続中"
 
 [notification]
 bell_title = "ベル"

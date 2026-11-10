@@ -6,7 +6,7 @@ use crate::runtime::engine_read::EngineRead;
 use egui::emath::GuiRounding as _;
 use tasty_type_geometry::length::{LogicalPx, PhysicalPx};
 use tasty_type_geometry::rect::PhysicalRect;
-use tasty_ui_widgets::{StatusBarAction, StatusBarData, draw_status_bar_view};
+use tasty_ui_widgets::{StatusBarAction, StatusBarData, StatusBarRemote, draw_status_bar_view};
 
 use crate::state::MainViewState;
 use crate::state::branch::HeadState;
@@ -60,7 +60,10 @@ pub fn draw_status_bar(
         .map(|b| tasty_settings::KeybindingSettings::format_display(b, &engine.settings.general))
         .unwrap_or_default();
 
+    let remote = remote_of(engine, surface_id);
+
     let data = StatusBarData {
+        remote,
         branch,
         surface_id,
         pane_id,
@@ -111,6 +114,29 @@ pub fn draw_status_bar(
     }
 }
 
+/// 포커스 surface 가 mirror workspace 에 있으면 원격 항목, 로컬이면 None.
+fn remote_of(engine: &EngineRead<'_>, surface_id: Option<u32>) -> Option<StatusBarRemote> {
+    surface_id
+        .and_then(|sid| engine.mirror_location_of(sid))
+        .map(remote_item)
+}
+
+/// mirror 위치 값을 상태바 원격 항목으로 바꾼다. 재연결 중이면 툴팁 첫 줄도 끊김 안내로 바꾼다.
+fn remote_item(location: &crate::remote::state::MirrorLocation) -> StatusBarRemote {
+    let tooltip = if location.reconnecting {
+        "attach.toast.mirror_reconnecting"
+    } else {
+        "attach.mirror_workspace"
+    };
+    StatusBarRemote {
+        host: location.host.clone(),
+        reconnecting: location.reconnecting,
+        empty_label: crate::i18n::t("attach.mirror_pill_label").to_owned(),
+        reconnecting_label: crate::i18n::t("status_bar.remote_reconnecting").to_owned(),
+        tooltip: crate::i18n::t(tooltip).to_owned(),
+    }
+}
+
 /// detached HEAD는 같은 이름의 브랜치와 구분하도록 @를 붙인다.
 /// HeadState는 창 상태 타입이라 공용 위젯에 넘기기 전에 표시 문자열로 바꾼다.
 fn head_display(head: &HeadState) -> String {
@@ -122,7 +148,54 @@ fn head_display(head: &HeadState) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::{HeadState, head_display};
+    use super::{HeadState, head_display, remote_item, remote_of};
+    use crate::remote::state::MirrorLocation;
+
+    /// 같은 surface 라도 mirror workspace 에 있을 때만 원격 항목이 생긴다.
+    #[test]
+    fn only_a_mirror_surface_gets_the_remote_item() {
+        crate::i18n::init("en");
+        let location = MirrorLocation {
+            host: "mac-company-attach".into(),
+            reconnecting: false,
+        };
+        let (_state, mut local, sid, _root) = crate::state::tests::explorer_fixture(false);
+        // 로컬 workspace 는 위치 값이 있어도 표시하지 않는다.
+        local.remote.mirror_locations.insert(sid, location.clone());
+        assert!(remote_of(&local.read(), Some(sid)).is_none());
+
+        let (_state, mut mirror, sid, _root) = crate::state::tests::explorer_fixture(true);
+        // 연결 정보가 아직 없으면 항목도 없다.
+        assert!(remote_of(&mirror.read(), Some(sid)).is_none());
+        mirror.remote.mirror_locations.insert(sid, location);
+        let item = remote_of(&mirror.read(), Some(sid)).expect("mirror surface");
+        assert_eq!(item.host, "mac-company-attach");
+        assert!(remote_of(&mirror.read(), None).is_none());
+    }
+
+    /// mirror 는 호스트 글자와 연결 상태를 그대로 넘기고, 재연결 중이면 상태어와 끊김 툴팁을 쓴다.
+    #[test]
+    fn a_mirror_location_becomes_the_remote_item() {
+        crate::i18n::init("en");
+        let live = remote_item(&MirrorLocation {
+            host: "gx10".into(),
+            reconnecting: false,
+        });
+        assert_eq!(live.host, "gx10");
+        assert!(!live.reconnecting);
+        assert_eq!(live.tooltip, crate::i18n::t("attach.mirror_workspace"));
+        assert_eq!(live.empty_label, crate::i18n::t("attach.mirror_pill_label"));
+        let lost = remote_item(&MirrorLocation {
+            host: "gx10".into(),
+            reconnecting: true,
+        });
+        assert!(lost.reconnecting);
+        assert_eq!(lost.reconnecting_label, "reconnecting");
+        assert_eq!(
+            lost.tooltip,
+            crate::i18n::t("attach.toast.mirror_reconnecting")
+        );
+    }
 
     #[test]
     fn detached_gets_the_marker_and_a_branch_does_not() {

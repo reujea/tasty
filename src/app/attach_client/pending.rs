@@ -27,6 +27,8 @@ pub(crate) struct PendingMirrorInstall {
     /// anchor 없는 수동 요청(`remote.attach`·`attach.into_gui`)의 대상. 같은 대상의 새 요청은
     /// 진행 중인 이전 요청을 대체한다.
     pub manual: Option<String>,
+    /// 연결할 때 고른 attach 프로필 이름. 설치할 때 세션에 옮겨 원격 호스트 표시의 글자가 된다.
+    pub profile: Option<String>,
 }
 
 impl PendingMirrorInstall {
@@ -64,6 +66,14 @@ impl PendingMirrorInstall {
             crate::request_runs::RunGuard::new(run, "the attach attempt ended without a result")
         });
         self
+    }
+}
+
+/// 자동 attach 매핑이 가리키는 프로필 이름. 인라인 매핑은 프로필이 없다.
+pub(crate) fn profile_of_mapping(mapping: &crate::model::WorkspaceAttachMapping) -> Option<String> {
+    match &mapping.target {
+        crate::model::WorkspaceAttachTarget::Profile { name } => Some(name.clone()),
+        crate::model::WorkspaceAttachTarget::Inline { .. } => None,
     }
 }
 
@@ -135,7 +145,14 @@ impl App {
         let mapping_token = anchor
             .and_then(|id| owner.remote.attach_mapping_tokens.get(&id))
             .map(Arc::downgrade);
+        // 재연결은 처음 연결한 프로필을 그대로 쓴다. 자동 attach는 매핑의 프로필이다.
+        // 수동 요청은 호출자가 자기 프로필로 바꾼다.
+        let profile = match reconnect.and_then(|index| self.remote.sessions.get(index)) {
+            Some(session) => session.state.profile.clone(),
+            None => mapping.as_ref().and_then(profile_of_mapping),
+        };
         Ok(PendingMirrorInstall {
+            profile,
             resync,
             mapping,
             mapping_token,

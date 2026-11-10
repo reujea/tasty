@@ -193,6 +193,7 @@ impl App {
                 next_delta_focus: None,
                 resize_sync: ResizeSync::for_connection(resize_acks),
                 remote_label: format!("127.0.0.1:{port}"),
+                profile: target.profile.clone(),
                 pending_list_dir_consumers: HashMap::new(),
                 capture_uploads: HashMap::new(),
                 markdown_locals,

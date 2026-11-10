@@ -1,7 +1,7 @@
 //! 포커스된 서피스의 정보와 팔레트·테마 버튼을 그리는 상태바.
-//! 브랜치·서피스 ID·셸·그리드는 표시 전용이며 값이 없으면 해당 항목과 간격도 생략한다.
-//! 폭이 부족하면 그리드, 셸, 서피스 ID, 팔레트 키캡, 브랜치 이름 순서로 숨긴다.
-//! 브랜치 아이콘과 테마 아이콘은 마지막에도 남으며 더 좁으면 잘릴 수 있다.
+//! 원격 위치·브랜치·서피스 ID·셸·그리드는 표시 전용이며 값이 없으면 해당 항목과 간격도 생략한다.
+//! 폭이 부족하면 그리드, 셸, 서피스 ID, 팔레트 키캡, 브랜치 이름, 원격 호스트 글자 순서로 숨긴다.
+//! 원격 글리프·브랜치 아이콘·테마 아이콘은 마지막에도 남으며 더 좁으면 잘릴 수 있다.
 //! 배치할 Ui와 번역 문구는 호출자가 제공한다.
 
 use tasty_type_appearance::theme::Theme;
@@ -17,14 +17,31 @@ const ITEM_GAP: LogicalPx = LogicalPx(10.0);
 const BRANCH_MAX_W: LogicalPx = LogicalPx(160.0);
 
 /// 좌측 클러스터의 항목 수 — [`items_at`] 배열의 앞쪽 몇 칸이 좌측인지.
-const LEFT_COUNT: usize = 4;
+const LEFT_COUNT: usize = 5;
 
 /// 마지막 축소 단계. 이보다 더 접을 것이 없다(테마 글리프는 안 빠진다).
-const MAX_DROP_LEVEL: u8 = 5;
+const MAX_DROP_LEVEL: u8 = 6;
+
+/// 포커스 surface 가 mirror workspace 에 있을 때 좌측 맨 앞에 두는 원격 위치 항목.
+#[derive(Clone, Debug, Default)]
+pub struct StatusBarRemote {
+    /// 호스트 글자(attach 프로필 이름). 비면 `empty_label` 을 font-label 로 그린다.
+    pub host: String,
+    /// 연결이 끊겨 다시 연결하는 중이다. 원격 색을 빼고 `reconnecting_label` 을 붙인다.
+    pub reconnecting: bool,
+    /// 호스트 글자가 없을 때 그 자리에 쓰는 낱말.
+    pub empty_label: String,
+    /// 재연결 중 상태어.
+    pub reconnecting_label: String,
+    /// hover tooltip 첫 줄. 둘째 줄은 생략 없는 호스트 글자이며 비면 첫 줄만 보인다.
+    pub tooltip: String,
+}
 
 /// view 입력 — 한 프레임 분의 StatusBar 표시 데이터.
 #[derive(Clone, Debug, Default)]
 pub struct StatusBarData {
+    /// mirror surface 의 원격 위치. None 이면 항목을 생략한다(로컬 surface).
+    pub remote: Option<StatusBarRemote>,
     /// 브랜치명 또는 detached HEAD 표시를 호출자가 완성해 전달한다. None이면 항목을 생략한다.
     pub branch: Option<String>,
     /// focus surface id(숫자). "Copy Terminal ID" 가 복사하는 값과 동일.
@@ -124,12 +141,20 @@ pub fn draw_status_bar_view(
 
     // ── 좌측 클러스터 (읽기 전용) ──
     let mut drawn = 0usize;
-    if let Some(branch) = &data.branch
+    if let Some(remote) = &data.remote
         && shown[0].is_some()
     {
         gap_before(&mut bar, &mut drawn);
+        // 마지막 단계에서는 호스트 글자만 숨긴다. 글리프와 재연결 상태어는 남는다.
+        let style = RemoteCellStyle::of(th, glyph_size, remote.reconnecting);
+        remote_cell(&mut bar, bar_h, &style, remote, level < MAX_DROP_LEVEL);
+    }
+    if let Some(branch) = &data.branch
+        && shown[1].is_some()
+    {
+        gap_before(&mut bar, &mut drawn);
         // 이름을 숨겨도 저장소 안에 있다는 아이콘은 남긴다.
-        let name = (level < MAX_DROP_LEVEL).then_some(branch.as_str());
+        let name = (level < BRANCH_TEXT_DROP).then_some(branch.as_str());
         branch_cell(
             &mut bar,
             bar_h,
@@ -143,18 +168,18 @@ pub fn draw_status_bar_view(
             name,
         );
     }
-    if shown[1].is_some() {
+    if shown[2].is_some() {
         gap_before(&mut bar, &mut drawn);
         text_cell(&mut bar, bar_h, &mono, muted, &surface_label(data), None);
     }
     if let Some(shell) = &data.shell
-        && shown[2].is_some()
+        && shown[3].is_some()
     {
         gap_before(&mut bar, &mut drawn);
         text_cell(&mut bar, bar_h, &text, muted, shell, None);
     }
     if let Some(grid) = data.grid
-        && shown[3].is_some()
+        && shown[4].is_some()
     {
         gap_before(&mut bar, &mut drawn);
         text_cell(&mut bar, bar_h, &mono, muted, &grid_label(grid), None);
@@ -164,7 +189,7 @@ pub fn draw_status_bar_view(
 
     // 좌우 그룹 사이 간격은 spacer가 담당한다.
     drawn = 0;
-    if shown[4].is_some() {
+    if shown[5].is_some() {
         gap_before(&mut bar, &mut drawn);
         let resp =
             kbd_cell(&mut bar, th, bar_h, &data.palette_keys).on_hover_text(&data.palette_tooltip);
@@ -212,6 +237,9 @@ fn grid_label((cols, rows): (usize, usize)) -> String {
 /// branch는 이름을 포함한 폭, branch_glyph는 이름을 숨겼을 때의 폭이다.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 struct ItemWidths {
+    /// 원격 항목 전체 폭과 호스트 글자를 숨긴 폭.
+    remote: Option<LogicalPx>,
+    remote_floor: Option<LogicalPx>,
     branch: Option<LogicalPx>,
     branch_glyph: Option<LogicalPx>,
     surface: Option<LogicalPx>,
@@ -221,11 +249,23 @@ struct ItemWidths {
     theme: LogicalPx,
 }
 
+/// 브랜치 이름을 숨기는 축소 단계. 그다음 단계([`MAX_DROP_LEVEL`])가 원격 호스트 글자를 숨긴다.
+const BRANCH_TEXT_DROP: u8 = 5;
+
 /// 축소 단계 `level` 에서 각 항목이 실제로 차지하는 폭. 순서는 디자인의 배치 순서와
-/// 같다 — 브랜치 · surface id · shell · grid · 팔레트 키캡 · 테마 글리프.
-fn items_at(w: &ItemWidths, level: u8) -> [Option<LogicalPx>; 6] {
+/// 같다 — 원격 위치 · 브랜치 · surface id · shell · grid · 팔레트 키캡 · 테마 글리프.
+fn items_at(w: &ItemWidths, level: u8) -> [Option<LogicalPx>; 7] {
     [
-        if level >= 5 { w.branch_glyph } else { w.branch },
+        if level >= MAX_DROP_LEVEL {
+            w.remote_floor
+        } else {
+            w.remote
+        },
+        if level >= BRANCH_TEXT_DROP {
+            w.branch_glyph
+        } else {
+            w.branch
+        },
         (level < 3).then_some(w.surface).flatten(),
         (level < 2).then_some(w.shell).flatten(),
         (level < 1).then_some(w.grid).flatten(),
@@ -374,6 +414,129 @@ fn branch_name_budget(glyph_size: LogicalPx, gap: LogicalPx) -> LogicalPx {
     (BRANCH_MAX_W - glyph_size - gap).max(LogicalPx::default())
 }
 
+/// 원격 항목의 글꼴·색·간격. 연결됨은 원격 색, 재연결 중은 바의 기본 잉크다.
+struct RemoteCellStyle {
+    glyph_size: LogicalPx,
+    gap: LogicalPx,
+    host_max_w: LogicalPx,
+    glyph: egui::Color32,
+    host: egui::Color32,
+    word: egui::Color32,
+    mono: egui::FontId,
+    label: egui::FontId,
+}
+
+impl RemoteCellStyle {
+    fn of(th: &Theme, glyph_size: LogicalPx, reconnecting: bool) -> Self {
+        let (glyph, host) = if reconnecting {
+            (th.statusbar_glyph().into(), th.text_muted().into())
+        } else {
+            let remote: egui::Color32 = th.statusbar_remote_fg().into();
+            (remote, remote)
+        };
+        Self {
+            glyph_size,
+            gap: th.statusbar_remote_gap(),
+            host_max_w: th.statusbar_remote_max_width(),
+            glyph,
+            host,
+            word: th.text_muted().into(),
+            mono: egui::FontId::monospace(th.font_size_caption.value()),
+            label: crate::label_font(th.font_size_caption.value()),
+        }
+    }
+}
+
+/// 호스트 자리의 galley — 호스트 글자는 mono, 비었을 때의 낱말은 font-label. 상한에서 끝을 줄인다.
+fn remote_host_galley(
+    ui: &egui::Ui,
+    style: &RemoteCellStyle,
+    remote: &StatusBarRemote,
+) -> std::sync::Arc<egui::Galley> {
+    let (text, font) = if remote.host.is_empty() {
+        (remote.empty_label.as_str(), &style.label)
+    } else {
+        (remote.host.as_str(), &style.mono)
+    };
+    laid(ui, text, font, Some(style.host_max_w))
+}
+
+/// 원격 항목의 조각 — 글리프, (호스트), (재연결 상태어).
+fn remote_parts(
+    ui: &egui::Ui,
+    style: &RemoteCellStyle,
+    remote: &StatusBarRemote,
+    with_host: bool,
+) -> (
+    Option<std::sync::Arc<egui::Galley>>,
+    Option<std::sync::Arc<egui::Galley>>,
+) {
+    let host = with_host.then(|| remote_host_galley(ui, style, remote));
+    let word = remote
+        .reconnecting
+        .then(|| laid(ui, &remote.reconnecting_label, &style.label, None));
+    (host, word)
+}
+
+/// 조각 폭의 합. 조각 사이에는 `statusbar-remote-gap` 이 든다.
+fn remote_parts_width(
+    style: &RemoteCellStyle,
+    host: Option<&std::sync::Arc<egui::Galley>>,
+    word: Option<&std::sync::Arc<egui::Galley>>,
+) -> LogicalPx {
+    [host, word]
+        .into_iter()
+        .flatten()
+        .fold(style.glyph_size, |acc, g| {
+            acc + style.gap + LogicalPx(g.rect.width())
+        })
+}
+
+fn remote_widths(
+    ui: &egui::Ui,
+    style: &RemoteCellStyle,
+    remote: &StatusBarRemote,
+    with_host: bool,
+) -> LogicalPx {
+    let (host, word) = remote_parts(ui, style, remote, with_host);
+    remote_parts_width(style, host.as_ref(), word.as_ref())
+}
+
+/// 원격 항목 — 글리프 + 호스트 (+ 재연결 상태어). 읽기 전용이며 hover 하면 전체 호스트를 보인다.
+fn remote_cell(
+    ui: &mut egui::Ui,
+    h: LogicalPx,
+    style: &RemoteCellStyle,
+    remote: &StatusBarRemote,
+    with_host: bool,
+) {
+    let (host, word) = remote_parts(ui, style, remote, with_host);
+    let w = remote_parts_width(style, host.as_ref(), word.as_ref());
+    let (r, resp) = ui.allocate_exact_size(egui::vec2(w.value(), h.value()), egui::Sense::hover());
+    let gs = style.glyph_size.value();
+    let grect = egui::Rect::from_center_size(
+        egui::pos2(r.left() + gs / 2.0, r.center().y),
+        egui::Vec2::splat(gs),
+    );
+    tasty_icons::REMOTE
+        .image(gs, style.glyph)
+        .paint_at(ui, grect);
+    let mut x = r.left() + gs;
+    for (galley, color) in [(host, style.host), (word, style.word)] {
+        let Some(galley) = galley else { continue };
+        x += style.gap.value();
+        let pos = egui::pos2(x, r.center().y - galley.rect.height() / 2.0);
+        x += galley.rect.width();
+        ui.painter().galley(pos, galley, color);
+    }
+    resp.on_hover_ui(|ui| {
+        ui.label(&remote.tooltip);
+        if !remote.host.is_empty() {
+            ui.label(egui::RichText::new(&remote.host).font(style.mono.clone()));
+        }
+    });
+}
+
 /// 팔레트 키캡 셀 — [`crate::kbd`] 를 셀 안에 그리고 클릭을 받는다.
 fn kbd_cell(ui: &mut egui::Ui, th: &Theme, h: LogicalPx, keys: &str) -> egui::Response {
     let w = kbd_width(ui.ctx(), th, keys);
@@ -418,7 +581,16 @@ fn measure_items(
         LogicalPx(laid(ui, s, font, max_w).rect.width())
     };
     let gap = th.spacing_xs;
+    let remote = data.remote.as_ref().map(|remote| {
+        let style = RemoteCellStyle::of(th, glyph_size, remote.reconnecting);
+        (
+            remote_widths(ui, &style, remote, true),
+            remote_widths(ui, &style, remote, false),
+        )
+    });
     ItemWidths {
+        remote: remote.map(|(full, _)| full),
+        remote_floor: remote.map(|(_, floor)| floor),
         branch: data.branch.as_ref().map(|name| {
             glyph_size + gap + measure(name, text, Some(branch_name_budget(glyph_size, gap)))
         }),
@@ -441,6 +613,8 @@ mod tests {
     /// 서로 다른 합성 폭으로 각 단계에서 남는 항목을 확인한다.
     fn full() -> ItemWidths {
         ItemWidths {
+            remote: Some(LogicalPx(126.0)),
+            remote_floor: Some(LogicalPx(12.0)),
             branch: Some(LogicalPx(100.0)),
             branch_glyph: Some(LogicalPx(13.0)),
             surface: Some(LogicalPx(41.0)),
@@ -452,17 +626,19 @@ mod tests {
     }
 
     #[test]
-    fn the_drop_order_is_grid_shell_surface_palette_then_branch_text() {
+    fn the_drop_order_is_grid_shell_surface_palette_branch_text_then_host_text() {
         let w = full();
         // 단계마다 **직전 단계에서 하나만** 사라진다.
-        let seq: Vec<[Option<LogicalPx>; 6]> =
+        let seq: Vec<[Option<LogicalPx>; 7]> =
             (0..=MAX_DROP_LEVEL).map(|l| items_at(&w, l)).collect();
-        assert_eq!(seq[0][3], w.grid, "level 0 은 아무것도 안 접는다");
-        assert_eq!(seq[1][3], None, "1: grid");
-        assert_eq!(seq[2][2], None, "2: shell");
-        assert_eq!(seq[3][1], None, "3: surface id");
-        assert_eq!(seq[4][4], None, "4: palette");
-        assert_eq!(seq[5][0], w.branch_glyph, "5: 브랜치는 글리프만 남는다");
+        assert_eq!(seq[0][4], w.grid, "level 0 은 아무것도 안 접는다");
+        assert_eq!(seq[1][4], None, "1: grid");
+        assert_eq!(seq[2][3], None, "2: shell");
+        assert_eq!(seq[3][2], None, "3: surface id");
+        assert_eq!(seq[4][5], None, "4: palette");
+        assert_eq!(seq[5][1], w.branch_glyph, "5: 브랜치는 글리프만 남는다");
+        assert_eq!(seq[5][0], w.remote, "5: 원격 호스트는 아직 남는다");
+        assert_eq!(seq[6][0], w.remote_floor, "6: 원격은 글리프만 남는다");
     }
 
     #[test]
@@ -470,7 +646,7 @@ mod tests {
         let w = full();
         for level in 0..=MAX_DROP_LEVEL {
             assert_eq!(
-                items_at(&w, level)[5],
+                items_at(&w, level)[6],
                 Some(w.theme),
                 "level {level} 에서 테마 글리프가 빠졌다"
             );

@@ -10,7 +10,7 @@
 
 [작업 영역](../work-area/index.md) 하단의 24px 바. 작업 컬럼 아래 strip 을 항상 차지한다(타이틀바 `top_inset` 과 대칭인 `bottom_inset`). 포커스된 surface의 정보를 요약하고 명령 팔레트 단축키를 보여준다. 다른 workspace나 surface로 이동하는 버튼은 없다.
 
-항목은 좌측이 git 브랜치 · surface id · shell · grid, 우측이 팔레트 단축키 키캡 · 테마 글리프이고, **값이 없는 항목은 자리째 없다**(dash 를 그리지 않는다). 접는 순서는 아래 "좁은 윈도우" 절에 있다.
+항목은 좌측이 원격 위치(mirror 한정) · git 브랜치 · surface id · shell · grid, 우측이 팔레트 단축키 키캡 · 테마 글리프이고, **값이 없는 항목은 자리째 없다**(dash 를 그리지 않는다). 접는 순서는 아래 "좁은 윈도우" 절에 있다.
 
 ## 내부 동작 (headless-valid)
 
@@ -22,6 +22,12 @@ view 는 본체 binary 가 아니라 공용 crate `tasty-ui-widgets` 에 있어 
 
 좌측 클러스터는 **현재 focus surface 를 read** 해 표시한다 — 표시 *대상 결정* 이 focus 에 의존하지만 *동작이 아니라 표시* 라 [포커스 독립성](../../design/policies/focus.md#cliipc-포커스-독립-원칙) 에 위배되지 않는다(허용된 조회 read).
 
+- **원격 위치** — focus surface 가 [mirror workspace](../remote-attach/index.md#원격-위치-표시)에 있을 때만 좌측 맨 앞에 붙는다. 로컬 surface 로 옮기면 항목이 사라진다.
+  연결됨은 remote 글리프와 호스트 글자를 모두 `statusbar-remote-fg` 로 그리고, 채움은 없다.
+  호스트 글자는 mono caption 이고 `statusbar-remote-max-width`(160)에서 끝을 `…` 로 줄인다. 글자가 비면 그 자리에 `attach.mirror_pill_label`(Remote) 낱말을 font-label 로 쓴다.
+  연결이 끊겨 재연결 중이면 글리프는 `statusbar-glyph`, 호스트는 `text-muted` 로 바의 기본 잉크가 되고 뒤에 상태어 `status_bar.remote_reconnecting` 이 붙는다. 애니메이션은 없다.
+  조각 사이 간격은 `statusbar-remote-gap`(4)이다. 항목은 읽기 전용이며 hover 하면 tooltip 첫 줄(`attach.mirror_workspace`, 재연결 중이면 `attach.toast.mirror_reconnecting`)과 둘째 줄의 생략 없는 호스트 글자(mono, 비면 생략)를 보인다.
+  값은 App 이 세션 목록에서 mirror workspace 마다 맞추는 `RemoteState::mirror_locations` 에서 읽는다(`src/app/attach_client/location.rs`).
 - **브랜치 글리프 + 이름** — `git-branch` 글리프(`statusbar-glyph` 잉크)와 브랜치명.
   focus surface 의 cwd 기준 git 브랜치(`.git` 을 상위로 탐색해 `HEAD` 를 std::fs 로 파싱, git 바이너리/libgit2 비의존·크로스플랫폼).
   `.git` 이 디렉토리인 일반 repo 와 `gitdir:` 경로를 담은 **파일**인 worktree/submodule 을 모두 지원한다.
@@ -39,15 +45,16 @@ view 는 본체 binary 가 아니라 공용 crate `tasty-ui-widgets` 에 있어 
 
 ### 좁은 윈도우 — 접는 순서
 
-바가 좁아지면 **들어가는 가장 작은 단계**를 고른다. 단계는 다섯이다.
+바가 좁아지면 **들어가는 가장 작은 단계**를 고른다. 단계는 여섯이다.
 
 1. grid
 2. shell
 3. surface id
 4. 팔레트 키캡
 5. 브랜치 **텍스트**(글리프는 남는다)
+6. 원격 **호스트 텍스트**(remote 글리프와 재연결 상태어는 남는다)
 
-**테마 글리프는 어느 단계에서도 안 빠진다.** 5 단계보다 좁으면 거기서 멈춘다 — 더 접을 것이 없다. 브랜치 이름은 접히기 전에 먼저 말줄임된다(항목 전체가 160 을 넘지 않는다).
+**테마 글리프와 remote 글리프는 어느 단계에서도 안 빠진다.** 6 단계보다 좁으면 거기서 멈춘다 — 더 접을 것이 없다. 브랜치 이름은 접히기 전에 먼저 말줄임된다(항목 전체가 160 을 넘지 않는다). 원격 항목은 자연 폭으로 배치하고 줄여 맞추지 않는다. 호스트 글자만 자기 상한 160 에서 말줄임된다.
 
 ## 인터페이스
 
@@ -66,7 +73,10 @@ view 는 본체 binary 가 아니라 공용 crate `tasty-ui-widgets` 에 있어 
 - Given repo 아님 Then 브랜치 항목이 자리째 사라진다(dash 가 남지 않는다).
 - Given detached HEAD Then 브랜치 자리에 `@ <short sha>` 가 온다.
 - Given 팔레트 단축키 바인딩 없음 Then 키캡 항목이 자리째 사라진다.
-- Given 바가 좁아짐 Then grid → shell → surface id → 팔레트 키캡 → 브랜치 텍스트 순으로 빠지고 테마 글리프는 남는다.
+- Given 바가 좁아짐 Then grid → shell → surface id → 팔레트 키캡 → 브랜치 텍스트 → 원격 호스트 텍스트 순으로 빠지고 테마 글리프와 remote 글리프는 남는다.
+- Given focus surface 가 mirror workspace 에 있음 Then 좌측 맨 앞에 remote 글리프와 호스트 글자가 원격 색으로 보이고, 로컬 surface 로 옮기면 사라진다.
+- Given mirror 연결이 끊겨 재연결 중 Then 원격 색이 빠지고 상태어가 붙는다.
+- Given 호스트 글자가 160 보다 김 Then 끝이 `…` 로 줄고 hover tooltip 에 전체 값이 보인다.
 - Given 팔레트 키캡 클릭 Then 명령 팔레트가 토글된다.
 - Given 테마 글리프 클릭 Then latte ↔ mocha 가 전환되고 글리프가 해 ↔ 테마로 바뀐다.
 - Given 팔레트 단축키 설정 변경 Then 키캡 표시가 따라간다.

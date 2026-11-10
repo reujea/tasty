@@ -9,6 +9,7 @@ mod forward;
 mod home_probe;
 mod html;
 pub(crate) mod into_gui;
+mod location;
 mod navigation;
 pub(crate) mod op_runs;
 mod output;

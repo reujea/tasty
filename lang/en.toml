@@ -898,6 +898,7 @@ new_window_desc = "Open a new Tasty window"
 [status_bar]
 palette_tooltip = "Open command palette"
 theme_tooltip = "Toggle theme"
+remote_reconnecting = "reconnecting"
 
 # 호스트 알림 제목도 사용자에게 보이므로 t()로 번역한다.
 [notification]

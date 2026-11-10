@@ -153,6 +153,7 @@ impl App {
         let target_binding = match self.mirror_install_target(None, None, None, false) {
             Ok(target) => crate::app::attach_client::pending::PendingMirrorInstall {
                 manual,
+                profile: conn.profile.clone(),
                 ..target.with_run(run)
             },
             Err(error) => {

@@ -35,6 +35,8 @@ pub(crate) struct EngineRead<'a> {
     #[cfg(feature = "gui")]
     explorer_hosts: &'a HashMap<u32, crate::remote::state::ExplorerRemoteHost>,
     #[cfg(feature = "gui")]
+    mirror_locations: &'a HashMap<u32, crate::remote::state::MirrorLocation>,
+    #[cfg(feature = "gui")]
     mirror_capture_pastes: &'a HashMap<u32, crate::remote::state::MirrorCapturePaste>,
     surfaces: &'a HashMap<u32, Box<dyn Surface>>,
     mirror_cwd: &'a HashMap<u32, crate::core::state::RemoteCwd>,
@@ -106,6 +108,8 @@ impl<'a> EngineRef<'a> {
             #[cfg(feature = "gui")]
             explorer_hosts: &self.remote.explorer_hosts,
             #[cfg(feature = "gui")]
+            mirror_locations: &self.remote.mirror_locations,
+            #[cfg(feature = "gui")]
             mirror_capture_pastes: &self.remote.mirror_capture_pastes,
             surfaces: &self.runtime.surfaces,
             mirror_cwd: &self.remote.mirror_surface_cwd,
@@ -129,6 +133,15 @@ impl EngineRead<'_> {
         self.workspace_at(idx)
             .filter(|ws| ws.mirror)
             .map(|ws| ws.id)
+    }
+
+    /// surface 가 든 mirror workspace 의 원격 위치. 로컬 surface 이거나 연결 정보가 없으면 None.
+    pub(crate) fn mirror_location_of(
+        &self,
+        surface_id: u32,
+    ) -> Option<&crate::remote::state::MirrorLocation> {
+        self.mirror_workspace_of(surface_id)
+            .and_then(|ws| self.mirror_locations.get(&ws))
     }
 
     /// 이 mirror workspace에 아직 붙여넣을 수 있는 스크린샷 기록.

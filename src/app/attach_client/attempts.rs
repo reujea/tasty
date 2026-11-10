@@ -128,6 +128,7 @@ mod tests {
             resync: false,
             run: None,
             user: false,
+            profile: None,
             manual: None,
         }
     }
