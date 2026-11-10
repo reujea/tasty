@@ -166,8 +166,7 @@ pub(super) fn show_card_tooltips(
     }
 }
 
-/// 이름 아래 REMOTE 줄. 연결된 행과 에이전트 mirror 는 원격 색 글리프와 info Tag 이다.
-/// 연결되지 않은 저장 원격 행은 중립 Tag 뒤에 상태어를 붙이고 글리프도 Tag 글자색으로 낮춘다.
+/// 이름 아래 REMOTE 줄. 그리기는 갤러리 표본과 같은 `tasty_ui_widgets::remote_row_line`이다.
 pub(super) fn remote_line(
     ui: &mut egui::Ui,
     th: &Theme,
@@ -175,40 +174,20 @@ pub(super) fn remote_line(
     state: RowState,
     label: &str,
 ) {
-    ui.spacing_mut().item_spacing.x = th.workspace_mirror_gap().value();
-    let word = ws
-        .row_state
-        .and_then(tasty_ui_widgets::remote_row_state_word_key);
-    let glyph_color: egui::Color32 = match (word.is_some(), state) {
-        (true, _) => th.tag_fg().into(),
-        (false, RowState::Selected) => th.workspace_mirror_fg_active().into(),
-        (false, _) => state
-            .hue(
-                th,
-                th.workspace_mirror_fg(),
-                th.accent_remote_raised(),
-                th.accent_remote_on_active(),
-            )
-            .into(),
-    };
-    let word_color: egui::Color32 = if ws.is_active {
-        th.text_on_active().into()
-    } else {
-        th.text_muted().into()
-    };
     let glyph = |ui: &mut egui::Ui, rect: egui::Rect, c: egui::Color32| {
         crate::adapters::ui::icons::TERMINAL_PROMPT
             .image(rect.height(), c)
             .paint_at(ui, rect);
     };
-    tasty_ui_widgets::remote_row_tag_line(
+    tasty_ui_widgets::remote_row_line(
         ui,
         th,
         &glyph,
-        th.workspace_mirror_icon_size(),
-        glyph_color,
+        ws.row_state,
+        state,
+        ws.is_active,
         label,
-        word.map(|key| (crate::i18n::t(key), word_color)),
+        &|key| crate::i18n::t(key).to_owned(),
     );
 }
 

@@ -331,8 +331,8 @@ pub use remote_row_menu::{
 pub use remote_row_popup::{
     REMOTE_ROW_POPUP_WIDTH, REMOTE_ROW_USER_BODY_NEXT, REMOTE_ROW_USER_BODY_STAY,
     RemoteRowPopupBody, RemoteRowPopupCopy, RemoteRowPopupKind, RemoteRowPopupView,
-    RemoteRowReason, remote_row_popup, remote_row_popup_copy, remote_row_state_word_key,
-    remote_row_tag_line,
+    RemoteRowReason, remote_row_line, remote_row_popup, remote_row_popup_copy,
+    remote_row_state_word_key, remote_row_tag_line,
 };
 pub use remote_tool::{
     FILTER_DROPDOWN_MAX_HEIGHT, LocalSshHost, LocalSshSectionData, ProtocolFilterItem,

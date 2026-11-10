@@ -181,6 +181,53 @@ pub fn remote_row_tag_line(
     tag
 }
 
+/// 사이드바 카드 이름 아래 REMOTE 줄. 연결된 행과 에이전트 mirror(`row_state`가 `None`)는 원격 색
+/// 글리프와 info Tag 이고, 연결되지 않은 저장 원격 행은 중립 Tag 뒤에 상태어를 붙이고 글리프도
+/// Tag 글자색으로 낮춘다. 본체 사이드바와 갤러리 표본이 이 함수를 함께 부른다. `word`는 상태어
+/// 키를 호출자의 번역 문장으로 바꾼다.
+#[allow(clippy::too_many_arguments)] // 행 상태·색 선택에 필요한 입력을 한 번에 받는 공용 그리기 함수다.
+pub fn remote_row_line(
+    ui: &mut egui::Ui,
+    theme: &Theme,
+    glyph: IconPainter<'_>,
+    row_state: Option<RemoteRowState>,
+    state: crate::RowState,
+    active: bool,
+    label: &str,
+    word: &dyn Fn(&'static str) -> String,
+) -> egui::Response {
+    ui.spacing_mut().item_spacing.x = theme.workspace_mirror_gap().value();
+    let key = row_state.and_then(remote_row_state_word_key);
+    let glyph_color: egui::Color32 = match (key.is_some(), state) {
+        (true, _) => theme.tag_fg().into(),
+        (false, crate::RowState::Selected) => theme.workspace_mirror_fg_active().into(),
+        (false, _) => state
+            .hue(
+                theme,
+                theme.workspace_mirror_fg(),
+                theme.accent_remote_raised(),
+                theme.accent_remote_on_active(),
+            )
+            .into(),
+    };
+    let word_color: egui::Color32 = if active {
+        theme.text_on_active().into()
+    } else {
+        theme.text_muted().into()
+    };
+    remote_row_tag_line(
+        ui,
+        theme,
+        glyph,
+        theme.workspace_mirror_icon_size(),
+        glyph_color,
+        label,
+        key.map(|key| (word(key), word_color))
+            .as_ref()
+            .map(|(text, color)| (text.as_str(), *color)),
+    )
+}
+
 /// 팝업 콘텐츠의 입력값.
 pub struct RemoteRowPopupView<'a> {
     pub name: &'a str,

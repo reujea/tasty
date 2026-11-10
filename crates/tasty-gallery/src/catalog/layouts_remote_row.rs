@@ -1,15 +1,15 @@
 //! Layouts › Saved remote workspace. 시안 `layouts/remote-row.jsx`의 네 Spec 을 옮긴다.
-//! 연결 팝업 콘텐츠, 문구 선택, REMOTE 줄, 레일 칩은 본체와 같은 `tasty_ui_widgets` 함수로 그린다.
+//! 연결 팝업 콘텐츠, 문구 선택, REMOTE 줄, 로딩 표시, 레일 칩은 본체와 같은 `tasty_ui_widgets` 함수로 그린다.
 //! 마지막 화면(탭 바·pane)은 무대용 모형이다.
 
 use tasty_type_appearance::theme::Theme;
 use tasty_type_geometry::length::LogicalPx;
 use tasty_ui_widgets::{
-    REMOTE_ROW_POPUP_WIDTH, REMOTE_ROW_USER_BODY_NEXT, REMOTE_ROW_USER_BODY_STAY,
+    LoadingPlacement, REMOTE_ROW_POPUP_WIDTH, REMOTE_ROW_USER_BODY_NEXT, REMOTE_ROW_USER_BODY_STAY,
     RemoteRowPopupBody, RemoteRowPopupKind, RemoteRowPopupView, RemoteRowReason, RemoteRowState,
-    Spinner, attach_refusal_mark, paint_attach_refusal_chip, paint_workspace_mirror_chip,
-    paint_workspace_mirror_chip_offline, remote_row_popup, remote_row_popup_copy,
-    remote_row_state_word_key, remote_row_tag_line,
+    RowState, attach_refusal_mark, paint_attach_refusal_chip, paint_loading_overlay,
+    paint_workspace_mirror_chip, paint_workspace_mirror_chip_offline, remote_row_line,
+    remote_row_popup, remote_row_popup_copy,
 };
 
 use crate::catalog::icons::{ALERT_TRIANGLE, REMOTE};
@@ -595,13 +595,13 @@ fn row(
     warn: bool,
     active: bool,
 ) {
-    let fill = if active {
-        theme.overlay_active().to_egui_premultiplied()
+    let row_state = if active {
+        RowState::Selected
     } else {
-        egui::Color32::TRANSPARENT
+        RowState::Rest
     };
     egui::Frame::new()
-        .fill(fill)
+        .fill(row_state.fill(theme))
         .inner_margin(egui::Margin::symmetric(
             theme.workspace_row_padding_x().value() as i8,
             theme.spacing_xs.value() as i8,
@@ -609,23 +609,35 @@ fn row(
         .show(ui, |ui| {
             ui.set_width(ROWS_W.value() - theme.workspace_row_padding_x().value() * 2.0);
             ui.horizontal(|ui| {
-                let slot = theme.workspace_dot_slot().value();
-                let (dot, _) = ui.allocate_exact_size(egui::vec2(slot, slot), egui::Sense::hover());
+                // 본체 카드처럼 점 칸 높이는 제목 한 줄 높이다.
+                let title_row_h = ui.fonts(|f| {
+                    f.row_height(&egui::FontId::proportional(theme.font_size_body.value()))
+                });
+                let (dot, _) = ui.allocate_exact_size(
+                    egui::vec2(theme.workspace_dot_slot().value(), title_row_h),
+                    egui::Sense::hover(),
+                );
+                let color = match (state == RemoteRowState::Connected, active) {
+                    (true, true) => theme.status_dot_success_active(),
+                    (true, false) => theme.status_dot_success(),
+                    (false, true) => theme.status_dot_idle_active(),
+                    (false, false) => theme.status_dot_idle(),
+                };
+                ui.painter().circle_filled(
+                    dot.center(),
+                    theme.badge_dot_size().value() * 0.5,
+                    color.to_egui(),
+                );
+                // 본체 사이드바처럼 사이드바 배경 위에 행 채움을 받침으로 겹쳐 LNB 로딩을 그린다.
                 if state.attempting() {
-                    Spinner::new()
-                        .size(theme.icon_glyph_size_sm.value())
-                        .paint_in(ui, theme, dot);
-                } else {
-                    let color = match (state == RemoteRowState::Connected, active) {
-                        (true, true) => theme.status_dot_success_active(),
-                        (true, false) => theme.status_dot_success(),
-                        (false, true) => theme.status_dot_idle_active(),
-                        (false, false) => theme.status_dot_idle(),
-                    };
-                    ui.painter().circle_filled(
-                        dot.center(),
-                        theme.badge_dot_size().value() * 0.5,
-                        color.to_egui(),
+                    ui.painter()
+                        .rect_filled(dot, 0.0, theme.bg_sidebar().to_egui());
+                    paint_loading_overlay(
+                        ui,
+                        theme,
+                        dot,
+                        LoadingPlacement::Lnb,
+                        row_state.fill(theme),
                     );
                 }
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
@@ -643,29 +655,18 @@ fn row(
             });
             ui.horizontal(|ui| {
                 ui.add_space(theme.workspace_dot_slot().value() + ui.spacing().item_spacing.x);
-                ui.spacing_mut().item_spacing.x = theme.workspace_mirror_gap().value();
                 let glyph = |ui: &mut egui::Ui, rect: egui::Rect, c: egui::Color32| {
                     REMOTE.image(rect.height(), c).paint_at(ui, rect);
                 };
-                let live = state == RemoteRowState::Connected;
-                let word_color = if active {
-                    theme.text_on_active()
-                } else {
-                    theme.text_muted()
-                };
-                remote_row_tag_line(
+                remote_row_line(
                     ui,
                     theme,
                     &glyph,
-                    theme.workspace_mirror_icon_size(),
-                    if live {
-                        theme.workspace_mirror_fg().to_egui()
-                    } else {
-                        theme.tag_fg().to_egui()
-                    },
+                    Some(state),
+                    row_state,
+                    active,
                     "remote",
-                    remote_row_state_word_key(state)
-                        .map(|k| (t_lang(lang, k), word_color.to_egui())),
+                    &|key| t_lang(lang, key).to_owned(),
                 );
             });
         });
@@ -720,10 +721,13 @@ fn rail(ui: &mut egui::Ui, theme: &Theme) {
                                     theme.text_muted().to_egui(),
                                 );
                                 if state.attempting() {
-                                    Spinner::new()
-                                        .size(AVATAR.value() * 0.78)
-                                        .stroke(1.72)
-                                        .paint_in(ui, theme, avatar);
+                                    paint_loading_overlay(
+                                        ui,
+                                        theme,
+                                        avatar,
+                                        LoadingPlacement::Rail,
+                                        egui::Color32::TRANSPARENT,
+                                    );
                                 }
                                 if state == RemoteRowState::Connected {
                                     paint_workspace_mirror_chip(ui, theme, avatar);
