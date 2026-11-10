@@ -49,10 +49,10 @@ fn allowing_records_the_current_document_and_requests_one_reload() {
     st.allow_current().expect("allow");
     assert_eq!(
         st.allowance(),
-        Some(&Allowance {
+        Some(&Allowed::Document(Allowance {
             url: A.to_string(),
             fingerprint: Fingerprint([1; 32]),
-        })
+        }))
     );
     assert!(st.take_reload_request());
     assert!(!st.take_reload_request(), "요청은 한 번만 꺼낸다");
@@ -256,7 +256,7 @@ fn a_scan_that_ends_after_the_commit_attaches_to_that_document() {
     assert_eq!(st.current_detection(), Some(ScriptDetection::Scripts));
     st.allow_current().expect("allow after the scan");
     assert_eq!(
-        st.allowance().map(|a| a.fingerprint),
+        st.allowance().and_then(|a| a.fingerprint()),
         Some(Fingerprint([1; 32]))
     );
 }

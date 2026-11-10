@@ -95,8 +95,8 @@ fn state_json(st: &HtmlScriptState) -> Value {
     });
     let allowance = st.allowance().map(|a| {
         json!({
-            "url": a.url,
-            "fingerprint": a.fingerprint.to_hex(),
+            "url": a.url(),
+            "fingerprint": a.fingerprint().map(|f| f.to_hex()),
         })
     });
     let flags = st.banner();
@@ -105,6 +105,7 @@ fn state_json(st: &HtmlScriptState) -> Value {
         "document": document,
         "allowance": allowance,
         "allowed": st.current_is_allowed(),
+        "web_page": st.current_is_web_page(),
         "javascript": st.effective_js(),
         "loading": st.loading_before_commit(),
         "scanning": st.scan_pending(),
@@ -123,8 +124,8 @@ fn state_json(st: &HtmlScriptState) -> Value {
 fn remote_json(st: &HtmlScriptState) -> Value {
     let allowance = st.remote_allowance().map(|a| {
         json!({
-            "url": a.url,
-            "fingerprint": a.fingerprint.to_hex(),
+            "url": a.url(),
+            "fingerprint": a.fingerprint().map(|f| f.to_hex()),
         })
     });
     let flags = st.remote_banner();

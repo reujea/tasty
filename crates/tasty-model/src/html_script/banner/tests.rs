@@ -188,7 +188,7 @@ fn allow_waits_while_a_reload_with_changed_content_is_loading() {
     assert_eq!(st.update_banner(), BannerPhase::Blocked);
     st.allow_current().expect("allow after commit");
     assert_eq!(
-        st.allowance().map(|a| a.fingerprint),
+        st.allowance().and_then(|a| a.fingerprint()),
         Some(Fingerprint([2; 32])),
         "허용은 commit된 새 내용에 묶인다"
     );

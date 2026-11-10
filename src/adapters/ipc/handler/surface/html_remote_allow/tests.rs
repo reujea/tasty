@@ -95,7 +95,8 @@ fn refusals_name_their_reason_and_change_nothing() {
         reason(&allow(&mut state, &engine, json!({ "surface_id": sid }))),
         "no_document"
     );
-    rs.with_html_script(|st| commit(st, "https://example.com/", None));
+    // 응답 단계 없이 commit된 로컬 문서. http(s) 페이지는 URL로 허용한다(아래 시험).
+    rs.with_html_script(|st| commit(st, URL, None));
     assert_eq!(
         reason(&allow(&mut state, &engine, json!({ "surface_id": sid }))),
         "no_fingerprint"
@@ -160,4 +161,47 @@ fn the_query_reports_the_remote_state_without_showing_the_notice() {
     assert_eq!(remote["effective"], false);
     assert!(remote["banner"]["phase"].is_string());
     assert_eq!(rs.with_html_script(|st| st.clone()), before);
+}
+
+/// 지문 없는 `http(s)` 페이지는 URL로만 확인한다. 지문을 주면 그 페이지가 아닌 문서를 가리킨 것이다.
+#[test]
+fn an_http_page_is_allowed_by_url_only() {
+    const PAGE: &str = "https://example.com/guide";
+    let (mut state, mut engine_session, sid) = state_with_html_tab();
+    let engine = engine_session.borrow_mut();
+    let rs = html_surface(&engine, sid);
+    rs.with_html_script(|st| commit(st, PAGE, None));
+
+    for params in [
+        json!({ "surface_id": sid, "url": "https://example.com/other" }),
+        json!({ "surface_id": sid, "url": PAGE, "fingerprint": "01".repeat(32) }),
+    ] {
+        assert_eq!(
+            reason(&allow(&mut state, &engine, params)),
+            "document_changed"
+        );
+    }
+    assert!(rs.with_html_script(|st| st.remote_allowance().is_none()));
+
+    let r = allow(
+        &mut state,
+        &engine,
+        json!({ "surface_id": sid, "url": PAGE }),
+    )
+    .result
+    .expect("allowed");
+    assert_eq!(r["result"], "allowed");
+    assert_eq!(r["document"]["fingerprint"], Value::Null);
+
+    let q = crate::adapters::ipc::handler::surface::handle_html_script(
+        &engine.as_ref(),
+        json!(1),
+        &json!({ "surface_id": sid }),
+    )
+    .result
+    .expect("result");
+    assert_eq!(q["web_page"], true);
+    assert_eq!(q["remote"]["allowance"]["url"], PAGE);
+    assert_eq!(q["remote"]["allowance"]["fingerprint"], Value::Null);
+    assert!(q["allowance"].is_null(), "scripts are a separate allowance");
 }

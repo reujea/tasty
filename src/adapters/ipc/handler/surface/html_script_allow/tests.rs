@@ -140,7 +140,8 @@ fn loading_no_document_and_no_fingerprint_are_told_apart() {
     let resp = allow(&mut state, &engine, json!({ "surface_id": sid }));
     assert_eq!(reason(&resp), "no_document");
 
-    rs.with_html_script(|st| commit(st, "https://example.com/", None));
+    // 응답 단계 없이 commit된 로컬 문서. http(s) 페이지는 URL로 허용한다(아래 시험).
+    rs.with_html_script(|st| commit(st, URL, None));
     let resp = allow(&mut state, &engine, json!({ "surface_id": sid }));
     assert_eq!(reason(&resp), "no_fingerprint");
 
@@ -180,4 +181,37 @@ fn rejects_a_non_html_surface_a_missing_surface_and_bad_arguments() {
         .error
         .expect("bad url");
     assert_eq!(err.code, -32602);
+}
+
+/// `http(s)` 페이지의 스크립트도 URL로만 확인하고 지문 없이 기록한다.
+#[test]
+fn an_http_page_takes_a_script_allowance_by_url() {
+    const PAGE: &str = "https://example.com/guide";
+    let (mut state, mut engine_session, sid) = state_with_html_tab();
+    let engine = engine_session.borrow_mut();
+    let rs = html_surface(&engine, sid);
+    rs.with_html_script(|st| commit(st, PAGE, None));
+    let resp = allow(
+        &mut state,
+        &engine,
+        json!({ "surface_id": sid, "url": PAGE, "fingerprint": "01".repeat(32) }),
+    );
+    assert_eq!(reason(&resp), "document_changed");
+    let r = allow(
+        &mut state,
+        &engine,
+        json!({ "surface_id": sid, "url": PAGE }),
+    )
+    .result
+    .expect("allowed");
+    assert_eq!(r["result"], "allowed");
+    let q = crate::adapters::ipc::handler::surface::handle_html_script(
+        &engine.as_ref(),
+        json!(1),
+        &json!({ "surface_id": sid }),
+    )
+    .result
+    .expect("result");
+    assert_eq!(q["allowance"]["url"], PAGE);
+    assert_eq!(q["allowance"]["fingerprint"], Value::Null);
 }

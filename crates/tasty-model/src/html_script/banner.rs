@@ -62,6 +62,7 @@ impl HtmlScriptState {
     /// 첫 문서 전의 선택은 남긴다. 사용자가 연 파일은 새 탭 선택 뒤에 첫 로드가 온다.
     pub fn on_host_load_requested(&mut self) {
         self.host_requested_load = true;
+        self.allow_reload_armed = false;
         if self.current.is_some() {
             self.viewed_before_commit = false;
         }
@@ -71,6 +72,7 @@ impl HtmlScriptState {
     /// 사용자가 보고 있는 surface의 조작이므로 다음 문서를 본 것으로 하고, 앞선 호스트 로드 표지를 지운다.
     pub fn on_user_load_requested(&mut self) {
         self.host_requested_load = false;
+        self.allow_reload_armed = false;
         self.viewed_before_commit = true;
     }
 
@@ -105,7 +107,13 @@ impl HtmlScriptState {
     }
 
     /// 실행될 수 있는 스크립트가 있는지. 원격 `src` 스크립트만 있으면 원격 콘텐츠가 열려 있을 때만 그렇다.
+    /// `http(s)` 페이지는 파일을 읽지 않아 유무를 모르므로 있을 수 있다고 본다. 다만 원격이 열린 뒤에만
+    /// 묻는다(원격 허용 뒤 두 번째 선택). 원격 허용 재로드가 commit되기 전에는 기록만 맞고 화면은
+    /// 아직 원격 안내 단계라서 묻지 않는다. 페이지에서는 두 안내가 함께 보이지 않는다.
     fn has_runnable_scripts(&self) -> bool {
+        if self.current_is_web_page() {
+            return self.remote_effectively_allowed() && !self.remote.reloading_after_allow;
+        }
         match self.display_detection() {
             Some(ScriptDetection::Scripts) => true,
             Some(ScriptDetection::ScriptsRemoteOnly) => self.remote_scripts_runnable(),

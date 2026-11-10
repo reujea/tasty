@@ -2,7 +2,8 @@
 //!
 //! 배너의 허용 버튼과 같은 `HtmlScriptState::allow_current`로 허용 기록을 남기고 재로드를 요청한다.
 //! 대상은 surface ID로만 받고 포커스·선택·활성 탭은 바꾸지 않는다. 조회한 문서와 허용할 문서가
-//! 달라지는 경쟁은 `surface.html_script` 응답의 `url`·`fingerprint`를 인자로 받아 막는다.
+//! 달라지는 경쟁은 `surface.html_script` 응답의 `url`·`fingerprint`를 인자로 받아 막는다. 지문 없는
+//! `http(s)` 페이지는 `url`로만 확인하고, `fingerprint`를 주면 다른 문서로 보고 거절한다.
 
 use serde_json::{Value, json};
 use tasty_ipc::protocol::JsonRpcResponse;

@@ -370,7 +370,7 @@ impl ScriptGate {
         Response::Decided(js)
     }
 
-    /// 로컬 파일이 아닌 문서는 지문 없이 기록한다(허용 불가).
+    /// 로컬 파일이 아닌 문서는 지문 없이 기록한다. 로컬 view의 `http(s)` 페이지만 URL로 허용할 수 있다.
     fn respond_without_file(&self, url: &str) -> bool {
         let js = self.lock().on_main_response(url, None);
         tracing::debug!(

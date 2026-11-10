@@ -1,16 +1,18 @@
 //! 원격(`http(s)`) 리소스 차단의 문서 단위 허용과 안내 판정(docs/surfaces/html/index.md "원격 콘텐츠 차단").
 //!
-//! 허용 기록은 스크립트 허용과 따로 두지만 수명은 같다. 그 문서(URL + 지문)에만 묶이고 다른 문서가
-//! commit되면 풀린다. 응답 결정 단계에서 URL·지문이 맞을 때만 그 로드의 차단을 푼다
+//! 허용 기록은 스크립트 허용과 따로 두지만 수명은 같다. 그 문서(URL + 지문, `http(s)` 페이지는 URL과
+//! 허용 재로드 한 번)에만 묶이고 다른 문서가 commit되면 풀린다. 응답 결정 단계에서 허용 기록이 맞을 때만
+//! 그 로드의 차단을 푼다
 //! ([`HtmlScriptState::document_remote_allowed`]). 전역 "Allow remote content"가 켜져 있으면 감지·안내를
 //! 하지 않는다. entry mirror·HTTP view는 차단을 다른 곳이 정하므로 안내와 허용을 지원하지 않는다.
 //! 두 view의 정책은 다르다([`RemoteView`]). mirror는 전역 설정과 관계없이 원격을 늘 막고, HTTP view는
 //! endpoint가 client의 전역 설정과 같은 origin 규칙으로 정한다.
 //!
-//! 표시 판정은 스크립트 안내와 같은 열람 규칙을 쓴다. 원격 안내는 정적 참조가 있는 문서에만 뜬다.
-//! 정적 참조 없이 OS가 차단을 알린 문서는 표지만 남기고, 표지를 누르면 안내를 보인다.
+//! 표시 판정은 스크립트 안내와 같은 열람 규칙을 쓴다. 원격 안내는 정적 참조가 있는 문서와 로컬 view에
+//! 연 top-level `http(s)` 페이지에 뜬다. 정적 참조 없이 OS가 차단을 알린 문서는 표지만 남기고, 표지를
+//! 누르면 안내를 보인다.
 
-use super::{AllowError, Allowance, BannerFlags, BannerPhase, HtmlScriptState};
+use super::{AllowError, Allowed, BannerFlags, BannerPhase, HtmlScriptState};
 
 /// 원격 차단 상태. 필드는 [`HtmlScriptState`]가 직접 다룬다.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -19,7 +21,7 @@ pub(super) struct RemoteState {
     pub(super) global: bool,
     /// 원격 차단을 정하는 view 종류. 문서 단위 허용은 `Local`에서만 지원한다.
     pub(super) view: RemoteView,
-    pub(super) allowance: Option<Allowance>,
+    pub(super) allowance: Option<Allowed>,
     pub(super) banner: BannerFlags,
     /// 정적 참조 없이 관측한 차단을 사용자가 표지로 열었다.
     pub(super) reshown: bool,
@@ -138,7 +140,7 @@ impl HtmlScriptState {
     }
 
     /// 원격 허용 기록.
-    pub fn remote_allowance(&self) -> Option<&Allowance> {
+    pub fn remote_allowance(&self) -> Option<&Allowed> {
         self.remote.allowance.as_ref()
     }
 
@@ -160,9 +162,7 @@ impl HtmlScriptState {
     /// 현재 문서가 원격 허용 기록과 같은 문서인지.
     pub fn current_is_remote_allowed(&self) -> bool {
         match (&self.current, &self.remote.allowance) {
-            (Some(doc), Some(allow)) => doc
-                .scan
-                .is_some_and(|s| doc.url == allow.url && s.fingerprint == allow.fingerprint),
+            (Some(doc), Some(allow)) => allow.matches_document(doc),
             _ => false,
         }
     }
@@ -230,18 +230,11 @@ impl HtmlScriptState {
         if self.awaiting_verdict() {
             return Err(RemoteAllowError::Document(AllowError::Loading));
         }
-        let doc = self
-            .current
-            .as_ref()
-            .ok_or(RemoteAllowError::Document(AllowError::NoDocument))?;
-        let scan = doc
-            .scan
-            .ok_or(RemoteAllowError::Document(AllowError::NoFingerprint))?;
-        self.remote.allowance = Some(Allowance {
-            url: doc.url.clone(),
-            fingerprint: scan.fingerprint,
-        });
-        self.reload_requested = true;
+        let target = self
+            .current_allow_target()
+            .map_err(RemoteAllowError::Document)?;
+        self.remote.allowance = Some(target);
+        self.arm_allow_reload();
         self.remote.reloading_after_allow = true;
         Ok(())
     }
@@ -251,7 +244,8 @@ impl HtmlScriptState {
         if !self.remote_supported() || self.remote.global || self.current_is_remote_allowed() {
             return false;
         }
-        let refs = self.display_scan().is_some_and(|s| s.remote_refs);
+        // 페이지는 스캔이 없어 참조를 모르고 OS 관측은 Windows만 알린다. 페이지면 늘 안내가 필요하다.
+        let refs = self.display_scan().is_some_and(|s| s.remote_refs) || self.current_is_web_page();
         (refs || (self.remote.observed && self.remote.reshown)) && !self.remote.banner.dismissed
     }
 
@@ -295,7 +289,7 @@ impl HtmlScriptState {
         if self.remote_banner_phase() != BannerPhase::Hidden {
             return None;
         }
-        let refs = self.display_scan().is_some_and(|s| s.remote_refs);
+        let refs = self.display_scan().is_some_and(|s| s.remote_refs) || self.current_is_web_page();
         let dismissed = self.remote.banner.dismissed;
         // 정적 참조가 없으면 안내를 표지로 연 뒤 닫았을 때만 다시 표지가 된다.
         let blocked = if refs {
@@ -319,11 +313,16 @@ impl HtmlScriptState {
     }
 
     /// 스크립트 안내가 원격 안내와 함께 보이며 원격 스크립트도 막혀 있어 `body_remote` 본문을 써야 하는지.
+    /// `http(s)` 페이지는 두 안내가 함께 보이지 않아 쓰지 않는다.
     pub fn script_banner_needs_remote_body(&self) -> bool {
-        self.display_scan().is_some_and(|s| s.remote_scripts)
+        !self.current_is_web_page()
+            && self.display_scan().is_some_and(|s| s.remote_scripts)
             && self.remote_banner_phase() != BannerPhase::Hidden
     }
 }
 
 #[cfg(test)]
 mod tests;
+
+#[cfg(test)]
+mod web_page_tests;

@@ -1,7 +1,8 @@
 //! html surface 문서의 스크립트 감지 결과와 문서 단위 허용 상태.
 //!
-//! 규칙은 docs/surfaces/html/index.md을 따른다. 허용은 main frame 문서의 URL(fragment 제외)과
-//! 로드 때 구한 파일 전체 지문에 묶이고, 다른 main frame 문서가 commit되면 풀린다.
+//! 규칙은 docs/surfaces/html/index.md을 따른다. 로컬 문서의 허용은 main frame 문서의 URL(fragment 제외)과
+//! 로드 때 구한 파일 전체 지문에 묶이고, 다른 main frame 문서가 commit되면 풀린다. 지문이 없는 top-level
+//! `http(s)` 페이지의 허용은 URL에만 묶이고 허용이 요청한 재로드 한 번만 유지된다([`Allowed::Page`]).
 //! backend의 navigation 콜백이 아래 `on_*` 메서드를 순서대로 부르고 돌려받은 값으로 JS를 켜거나 끈다.
 
 pub mod banner;
@@ -66,15 +67,57 @@ pub struct ScriptScan {
 pub struct DocumentRecord {
     /// fragment를 뺀 URL.
     pub url: String,
-    /// 응답 단계 없이 commit된 문서나 `file://`이 아닌 문서는 `None`이다. 이 문서는 허용할 수 없다.
+    /// 응답 단계 없이 commit된 문서나 `file://`이 아닌 문서는 `None`이다. 이 문서는 로컬 view의
+    /// top-level `http(s)` 페이지일 때만 URL로 허용할 수 있다([`Allowed::Page`]).
     pub scan: Option<ScriptScan>,
 }
 
-/// 허용 기록. 허용 클릭 때의 현재 문서를 그대로 옮긴다.
+/// 로컬 문서의 허용 기록. 허용 클릭 때의 현재 문서를 그대로 옮긴다.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Allowance {
     pub url: String,
     pub fingerprint: Fingerprint,
+}
+
+/// 허용 대상. 스크립트 허용과 원격 허용이 같은 규칙을 쓴다.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Allowed {
+    /// 지문이 있는 문서. 같은 URL·같은 내용의 재로드에서 유지된다.
+    Document(Allowance),
+    /// 로컬 view에 연 top-level `http(s)` 페이지. 지문이 없어 URL만 기록하고, 허용이 요청한 재로드
+    /// 한 번만 유지된다. 사용자·에이전트의 새로고침, 다른 문서, 재시작에서 풀린다.
+    Page { url: String },
+}
+
+impl Allowed {
+    /// fragment를 뺀 URL.
+    pub fn url(&self) -> &str {
+        match self {
+            Self::Document(a) => &a.url,
+            Self::Page { url } => url,
+        }
+    }
+
+    /// 문서 지문. 페이지 허용에는 없다.
+    pub fn fingerprint(&self) -> Option<Fingerprint> {
+        match self {
+            Self::Document(a) => Some(a.fingerprint),
+            Self::Page { .. } => None,
+        }
+    }
+
+    /// 이 문서가 허용 기록과 같은지. 페이지 허용은 지문 없는 `http(s)` 문서에만 맞는다.
+    fn matches_document(&self, doc: &DocumentRecord) -> bool {
+        self.matches(&doc.url, doc.scan)
+    }
+
+    fn matches(&self, url: &str, scan: Option<ScriptScan>) -> bool {
+        match (self, scan) {
+            (Self::Document(a), Some(scan)) => a.url == url && a.fingerprint == scan.fingerprint,
+            (Self::Page { url: page }, None) => page == url && top_level::is_remote_url(url),
+            _ => false,
+        }
+    }
 }
 
 /// 응답 단계에서 시작한 원본 스캔의 식별자. 늦게 끝난 스캔이 다른 로드에 붙지 않도록 로드마다 새로 받는다.
@@ -126,7 +169,7 @@ pub struct BannerFlags {
 pub enum AllowError {
     /// 아직 commit된 문서가 없다.
     NoDocument,
-    /// 현재 문서의 지문이 없다(`file://`이 아니거나 응답 단계 없이 commit됐다).
+    /// 현재 문서의 지문이 없고 로컬 view의 `http(s)` 페이지도 아니다(응답 단계 없이 commit된 로컬 문서 등).
     NoFingerprint,
     /// 새 문서를 로드하는 중이고 아직 commit 전이다. 허용은 commit된 문서에만 묶는다.
     Loading,
@@ -137,8 +180,8 @@ impl std::fmt::Display for AllowError {
         match self {
             Self::NoDocument => f.write_str("no document has been committed yet"),
             Self::NoFingerprint => f.write_str(
-                "the current document has no content fingerprint (not a file:// document, \
-                 or it was committed without a response decision)",
+                "the current document has no content fingerprint and is not an http(s) page \
+                 (it was committed without a response decision, or this view takes no allow)",
             ),
             Self::Loading => {
                 f.write_str("a new document is loading; allowing waits until it commits")
@@ -153,7 +196,7 @@ pub struct HtmlScriptState {
     /// 전역 "Sandbox scripts" 설정. 꺼져 있으면 모든 문서에서 JS를 켠다.
     sandbox: bool,
     current: Option<DocumentRecord>,
-    allowance: Option<Allowance>,
+    allowance: Option<Allowed>,
     pending: Option<PendingResponse>,
     /// 현재 문서의 스캔이 아직 끝나지 않았다.
     current_wait: Option<ScanWait>,
@@ -166,6 +209,10 @@ pub struct HtmlScriptState {
     reload_requested: bool,
     /// 허용 뒤 재로드가 끝나지 않았다. 배너가 재로드 중 상태를 보인다.
     reloading_after_allow: bool,
+    /// 허용이 재로드를 요청했고 그 로드가 아직 시작하지 않았다. 사용자·호스트 로드 요청이 지운다.
+    allow_reload_armed: bool,
+    /// 지금 로드가 허용이 요청한 재로드다. 페이지 허용([`Allowed::Page`])은 이 로드에서만 유지된다.
+    allow_reload_active: bool,
     /// 다음 로드는 호스트가 URL을 넣은 로드다(plugin·IPC·복원). 이전 문서의 열람을 이어받지 않는다.
     host_requested_load: bool,
     /// 문서가 아직 없거나 로드 중일 때 사용자가 이 surface를 선택했다. 다음 commit 문서를 본 것으로 한다.
@@ -201,6 +248,8 @@ impl HtmlScriptState {
             committed_since_start: false,
             reload_requested: false,
             reloading_after_allow: false,
+            allow_reload_armed: false,
+            allow_reload_active: false,
             host_requested_load: false,
             viewed_before_commit: false,
             load_failed: false,
@@ -217,7 +266,7 @@ impl HtmlScriptState {
         self.current.as_ref()
     }
 
-    pub fn allowance(&self) -> Option<&Allowance> {
+    pub fn allowance(&self) -> Option<&Allowed> {
         self.allowance.as_ref()
     }
 
@@ -270,7 +319,7 @@ impl HtmlScriptState {
     /// 그렇다. 그 밖에는 결과와 관계없이 두 값이 같다.
     pub fn needs_scan_before_js(&self, url: &str) -> bool {
         let url = strip_fragment(url);
-        let same = |a: &Option<Allowance>| a.as_ref().is_some_and(|a| a.url == url);
+        let same = |a: &Option<Allowed>| a.as_ref().is_some_and(|a| a.url() == url);
         // 원격 허용은 전역 설정이 켜져 있어도 기다린다. 결정 없이 commit하면 허용 기록이 풀려, 전역을
         // 다시 껐을 때 같은 문서가 막힌다(허용 수명은 문서 단위다).
         (self.sandbox && same(&self.allowance)) || same(&self.remote.allowance)
@@ -279,11 +328,40 @@ impl HtmlScriptState {
     /// 현재 문서가 허용 기록과 같은 문서인지.
     pub fn current_is_allowed(&self) -> bool {
         match (&self.current, &self.allowance) {
-            (Some(doc), Some(allow)) => doc
-                .scan
-                .is_some_and(|s| doc.url == allow.url && s.fingerprint == allow.fingerprint),
+            (Some(doc), Some(allow)) => allow.matches_document(doc),
             _ => false,
         }
+    }
+
+    /// 화면 문서가 로컬 view에 연 top-level `http(s)` 페이지다. 지문이 없어 허용은 [`Allowed::Page`]로
+    /// 기록하고, 두 배너는 페이지 문구(web)와 페이지 표시 조건을 쓴다.
+    pub fn current_is_web_page(&self) -> bool {
+        self.remote_supported()
+            && self
+                .current
+                .as_ref()
+                .is_some_and(|doc| doc.scan.is_none() && top_level::is_remote_url(&doc.url))
+    }
+
+    /// 화면 문서의 허용 대상. 지문이 있으면 문서, 지문 없는 페이지면 URL, 그 밖에는 허용할 수 없다.
+    fn current_allow_target(&self) -> Result<Allowed, AllowError> {
+        let doc = self.current.as_ref().ok_or(AllowError::NoDocument)?;
+        match doc.scan {
+            Some(scan) => Ok(Allowed::Document(Allowance {
+                url: doc.url.clone(),
+                fingerprint: scan.fingerprint,
+            })),
+            None if self.current_is_web_page() => Ok(Allowed::Page {
+                url: doc.url.clone(),
+            }),
+            None => Err(AllowError::NoFingerprint),
+        }
+    }
+
+    /// 허용이 재로드를 요청했다. 그 재로드에서만 페이지 허용이 유지된다.
+    fn arm_allow_reload(&mut self) {
+        self.reload_requested = true;
+        self.allow_reload_armed = true;
     }
 
     /// 로드가 시작됐고 아직 main frame commit 전이다. 이 동안 허용을 받지 않는다.
@@ -314,6 +392,7 @@ impl HtmlScriptState {
     /// main frame 로드가 시작됐다. 응답 단계의 이전 결과를 비운다.
     pub fn on_load_started(&mut self) -> bool {
         self.pending = None;
+        self.allow_reload_active = std::mem::take(&mut self.allow_reload_armed);
         self.load_in_flight = true;
         self.committed_since_start = false;
         self.effective_js()
@@ -322,8 +401,8 @@ impl HtmlScriptState {
     /// main frame main resource의 응답 결정. `scan`은 `file://` 문서에서만 있다.
     pub fn on_main_response(&mut self, url: &str, scan: Option<ScriptScan>) -> bool {
         let url = strip_fragment(url).to_string();
-        let matched = matches(&self.allowance, &url, scan);
-        let matched_remote = matches(&self.remote.allowance, &url, scan);
+        let matched = self.response_matches(&self.allowance, &url, scan);
+        let matched_remote = self.response_matches(&self.remote.allowance, &url, scan);
         self.record_response(url, ScanSlot::Done(scan), matched, matched_remote)
     }
 
@@ -365,8 +444,8 @@ impl HtmlScriptState {
         if let Some(pending) = &self.pending
             && pending.scan == ScanSlot::Waiting(ticket)
         {
-            let matched = matches(&self.allowance, &pending.url, scan);
-            let matched_remote = matches(&self.remote.allowance, &pending.url, scan);
+            let matched = self.response_matches(&self.allowance, &pending.url, scan);
+            let matched_remote = self.response_matches(&self.remote.allowance, &pending.url, scan);
             let pending = self.pending.as_mut().expect("checked above");
             pending.scan = ScanSlot::Done(scan);
             pending.matched = matched;
@@ -390,6 +469,7 @@ impl HtmlScriptState {
     /// 응답 단계가 없었으면(bfcache 복원 등) `committed_url`로 지문 없는 문서를 기록한다.
     pub fn on_committed(&mut self, committed_url: Option<&str>) -> bool {
         let pending = self.pending.take();
+        self.allow_reload_active = false;
         let matched = pending.as_ref().is_some_and(|p| p.matched);
         if !matched {
             self.allowance = None;
@@ -421,11 +501,17 @@ impl HtmlScriptState {
             (&self.current, &record),
             (Some(a), Some(b)) if a.url == b.url
         );
-        let same_document = match waiting {
-            // 스캔이 끝나야 같은 문서인지 알 수 있다. 같은 URL이면 표지를 잠정 유지한다.
-            Some(_) => same_url,
-            None => matches!((&self.current, &record), (Some(a), Some(b)) if a == b),
-        };
+        // 지문 없는 `http(s)` 페이지는 같은 주소라도 commit마다 새 표시다. 닫힘을 이어받지 않는다.
+        let web_page = self.remote_supported()
+            && record
+                .as_ref()
+                .is_some_and(|r| r.scan.is_none() && top_level::is_remote_url(&r.url));
+        let same_document = !web_page
+            && match waiting {
+                // 스캔이 끝나야 같은 문서인지 알 수 있다. 같은 URL이면 표지를 잠정 유지한다.
+                Some(_) => same_url,
+                None => matches!((&self.current, &record), (Some(a), Some(b)) if a == b),
+            };
         let previous = std::mem::replace(&mut self.current, record);
         self.current_wait = waiting.map(|ticket| ScanWait {
             ticket,
@@ -474,13 +560,8 @@ impl HtmlScriptState {
         if self.awaiting_verdict() {
             return Err(AllowError::Loading);
         }
-        let doc = self.current.as_ref().ok_or(AllowError::NoDocument)?;
-        let scan = doc.scan.ok_or(AllowError::NoFingerprint)?;
-        self.allowance = Some(Allowance {
-            url: doc.url.clone(),
-            fingerprint: scan.fingerprint,
-        });
-        self.reload_requested = true;
+        self.allowance = Some(self.current_allow_target()?);
+        self.arm_allow_reload();
         self.reloading_after_allow = true;
         Ok(())
     }
@@ -502,11 +583,18 @@ impl HtmlScriptState {
     }
 }
 
-/// 허용 기록이 이 응답의 URL·지문과 같은지.
-fn matches(allowance: &Option<Allowance>, url: &str, scan: Option<ScriptScan>) -> bool {
-    match (allowance, scan) {
-        (Some(allow), Some(scan)) => allow.url == url && allow.fingerprint == scan.fingerprint,
-        _ => false,
+impl HtmlScriptState {
+    /// 허용 기록이 이 응답의 문서와 같은지. 페이지 허용은 허용이 요청한 재로드에서만 맞는다.
+    fn response_matches(
+        &self,
+        allowance: &Option<Allowed>,
+        url: &str,
+        scan: Option<ScriptScan>,
+    ) -> bool {
+        allowance.as_ref().is_some_and(|allow| {
+            allow.matches(url, scan)
+                && (matches!(allow, Allowed::Document(_)) || self.allow_reload_active)
+        })
     }
 }
 
