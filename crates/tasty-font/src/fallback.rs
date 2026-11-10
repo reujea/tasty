@@ -6,8 +6,8 @@
 //! 그대로다.
 
 use std::collections::HashMap;
-use std::sync::Mutex;
 use std::sync::atomic::AtomicBool;
+use std::sync::{Mutex, OnceLock};
 
 use cosmic_text::{Fallback, PlatformFallback};
 use unicode_script::Script;
@@ -30,19 +30,23 @@ fn prefixed(platform: &[&'static str]) -> Vec<&'static str> {
 pub(crate) struct TerminalFallback {
     platform: PlatformFallback,
     common: Vec<&'static str>,
-    /// 문자 체계와 로케일마다 한 번 만든다. cosmic-text 도 문자 체계마다 한 번만 묻는다.
-    scripts: Mutex<HashMap<(Script, String), &'static [&'static str]>>,
+}
+
+/// 문자 체계·로케일별 목록. `PlatformFallback` 의 답은 인자로만 정해지므로 프로세스에서 한 번
+/// 만들어 모든 인스턴스(창·설정 창·판정)가 같이 쓴다. trait 이 `&'static str` 조각을 돌려받으므로
+/// 만든 목록은 놓아 두며, 그 수는 문자 체계 수와 로케일 수의 곱으로 묶인다.
+type ScriptLists = Mutex<HashMap<(Script, String), &'static [&'static str]>>;
+
+fn script_lists() -> &'static ScriptLists {
+    static LISTS: OnceLock<ScriptLists> = OnceLock::new();
+    LISTS.get_or_init(|| Mutex::new(HashMap::new()))
 }
 
 impl TerminalFallback {
     pub(crate) fn new() -> Self {
         let platform = PlatformFallback;
         let common = prefixed(platform.common_fallback());
-        Self {
-            platform,
-            common,
-            scripts: Mutex::new(HashMap::new()),
-        }
+        Self { platform, common }
     }
 }
 
@@ -59,17 +63,32 @@ impl Fallback for TerminalFallback {
         static REPORTED: AtomicBool = AtomicBool::new(false);
         // 목록은 넣기만 하므로 poison 뒤에도 남은 항목은 온전하다.
         let mut scripts = tasty_utils::poison::recover_mutex(
-            self.scripts.lock(),
+            script_lists().lock(),
             "terminal font fallback lists",
             &REPORTED,
         );
         scripts
             .entry((script, locale.to_owned()))
-            // 조합 수는 문자 체계 수와 로케일 수의 곱으로 묶이므로 한 번 만든 목록을 놓아 둔다.
             .or_insert_with(|| {
                 Box::leak(
                     prefixed(self.platform.script_fallback(script, locale)).into_boxed_slice(),
                 )
             })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// 창·설정 창·판정마다 인스턴스가 새로 생겨도 문자 체계·로케일 하나에 목록은 하나다.
+    #[test]
+    fn instances_share_one_list_per_script_and_locale() {
+        let first = TerminalFallback::new();
+        let second = TerminalFallback::new();
+        let a = first.script_fallback(Script::Hangul, "ko-KR");
+        let b = second.script_fallback(Script::Hangul, "ko-KR");
+        assert!(std::ptr::eq(a, b));
+        assert_eq!(a[..PREFIX.len()], PREFIX);
     }
 }
