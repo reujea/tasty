@@ -315,19 +315,90 @@ mod tests {
         assert_eq!(descriptor(&path), expected);
     }
 
-    fn icacls(path: &std::path::Path) -> String {
-        let output = std::process::Command::new("icacls")
-            .arg(path)
-            .output()
-            .unwrap();
-        assert!(output.status.success(), "icacls: {output:?}");
-        String::from_utf8(output.stdout)
-            .unwrap()
-            .replace(&*path.to_string_lossy(), "<owned-file>")
-            .lines()
-            .map(str::trim)
-            .collect::<Vec<_>>()
-            .join("\n")
+    /// Mandatory label ACEs read by path, independently of the handle-based product check.
+    fn label_aces(path: &std::path::Path) -> Vec<Vec<u8>> {
+        use windows_sys::Win32::Security::{ACE_HEADER, GetAce, GetSecurityDescriptorSacl};
+        let name = wide(path);
+        let mut size = 0;
+        // SAFETY: NUL terminated path and a writable size output; the first call only sizes the buffer.
+        unsafe {
+            GetFileSecurityW(
+                name.as_ptr(),
+                LABEL_SECURITY_INFORMATION,
+                std::ptr::null_mut(),
+                0,
+                &mut size,
+            );
+        }
+        assert!(size > 0, "{}", io::Error::last_os_error());
+        let mut bytes = vec![0u8; size as usize];
+        assert_ne!(
+            // SAFETY: bytes has the requested capacity and all pointers remain live.
+            unsafe {
+                GetFileSecurityW(
+                    name.as_ptr(),
+                    LABEL_SECURITY_INFORMATION,
+                    bytes.as_mut_ptr().cast(),
+                    size,
+                    &mut size,
+                )
+            },
+            0,
+            "{}",
+            io::Error::last_os_error()
+        );
+        let mut present = 0;
+        let mut defaulted = 0;
+        let mut acl = std::ptr::null_mut();
+        assert_ne!(
+            // SAFETY: bytes holds the self-relative descriptor returned above; acl points into it.
+            unsafe {
+                GetSecurityDescriptorSacl(
+                    bytes.as_mut_ptr().cast(),
+                    &mut present,
+                    &mut acl,
+                    &mut defaulted,
+                )
+            },
+            0,
+            "{}",
+            io::Error::last_os_error()
+        );
+        if present == 0 || acl.is_null() {
+            return Vec::new();
+        }
+        // SAFETY: acl is a valid ACL inside bytes, which stays alive for the loop.
+        (0..unsafe { (*acl).AceCount })
+            .map(|index| {
+                let mut ace = std::ptr::null_mut();
+                // SAFETY: index is below AceCount; bytes and the ACL remain live.
+                assert_ne!(unsafe { GetAce(acl, u32::from(index), &mut ace) }, 0);
+                // SAFETY: GetAce returned a valid ACE whose header records its size.
+                let len = usize::from(unsafe { (*ace.cast::<ACE_HEADER>()).AceSize });
+                // SAFETY: the ACE occupies len bytes inside bytes; copied before bytes is dropped.
+                unsafe { std::slice::from_raw_parts(ace.cast::<u8>(), len) }.to_vec()
+            })
+            .collect()
+    }
+
+    /// Asserts exactly one mandatory label ACE whose SID is S-1-16-<rid>.
+    fn assert_single_label(aces: &[Vec<u8>], rid: u32) {
+        // SYSTEM_MANDATORY_LABEL_ACE_TYPE; its SID starts after the 4 byte header and 4 byte mask.
+        const LABEL_ACE: u8 = 0x11;
+        assert_eq!(aces.len(), 1, "exactly one label ACE: {aces:?}");
+        let ace = &aces[0];
+        assert_eq!(ace[0], LABEL_ACE, "label ACE type: {ace:?}");
+        let mut sid = vec![1u8, 1, 0, 0, 0, 0, 0, 16];
+        sid.extend_from_slice(&rid.to_le_bytes());
+        assert_eq!(ace.get(8..), Some(sid.as_slice()), "label SID S-1-16-{rid}");
+    }
+
+    fn level_rid(level: &str) -> u32 {
+        match level {
+            "L" => 0x1000,
+            "H" => 0x3000,
+            other => panic!("unexpected integrity level {other}"),
+        }
     }
 
     fn integrity_label_survives_or_replacement_is_rejected(level: &str) {
@@ -340,7 +411,8 @@ mod tests {
             .output()
             .unwrap();
         assert!(output.status.success(), "icacls: {output:?}");
-        let expected = icacls(&path);
+        let expected = label_aces(&path);
+        assert_single_label(&expected, level_rid(level));
         let mut payload_called = false;
         let result = super::super::replace_using(&path, super::super::Options::default(), |file| {
             payload_called = true;
@@ -348,11 +420,15 @@ mod tests {
                 .map(|entry| entry.unwrap().path())
                 .find(|path| path.extension().is_some_and(|extension| extension == "tmp"))
                 .unwrap();
-            assert_eq!(icacls(&temp), expected, "label must exist before payload");
+            assert_eq!(
+                label_aces(&temp),
+                expected,
+                "label must exist before payload"
+            );
             assert_eq!(file.metadata()?.len(), 0);
             std::io::Write::write_all(file, b"new")
         });
-        assert_eq!(icacls(&path), expected, "original label must survive");
+        assert_eq!(label_aces(&path), expected, "original label must survive");
         match result {
             Ok(()) => {
                 assert!(payload_called);
@@ -392,12 +468,13 @@ mod tests {
         assert!(output.status.success(), "icacls: {output:?}");
         let source = File::open(&path).unwrap();
         let target = create(&temp, &path, false).unwrap();
-        let expected = icacls(&path);
+        let expected = label_aces(&path);
+        assert_single_label(&expected, level_rid("L"));
         let result = preserve(&source, &target, &source.metadata().unwrap());
         assert_eq!(result.unwrap_err().kind(), io::ErrorKind::PermissionDenied);
         assert_eq!(target.metadata().unwrap().len(), 0);
         assert_eq!(std::fs::read(&path).unwrap(), b"old");
-        assert_eq!(icacls(&path), expected);
+        assert_eq!(label_aces(&path), expected);
     }
 
     #[test]
