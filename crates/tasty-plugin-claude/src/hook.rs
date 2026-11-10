@@ -3772,7 +3772,12 @@ mod tests {
         );
         assert_eq!(
             restore_command(&calls).unwrap(),
-            format!("claude -r sess-1 --settings \"{generated}\"")
+            if cfg!(windows) {
+                // Git Bash single quotes; the temporary path has no `'` or `!`.
+                format!("claude -r sess-1 --settings '{generated}'")
+            } else {
+                format!("claude -r sess-1 --settings \"{generated}\"")
+            }
         );
         // meta 도 함께 되살아난다 — 이후 `profile-current` / 무인자 reboot 가 승계한다.
         assert!(calls.contains(&HostCall::MetaSet {

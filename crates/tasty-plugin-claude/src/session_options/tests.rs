@@ -275,11 +275,15 @@ fn isolated_mock_cli_receives_independent_child_argv_profiles_and_omission() {
     );
 }
 
-/// POSIX shells need the brackets quoted; cmd.exe would keep single quotes in the value.
-#[cfg(not(windows))]
+/// POSIX shells need the brackets quoted; Git Bash on Windows reads the same rule.
 const MODEL_ARG: &str = "'provider/model[1m]'";
-#[cfg(windows)]
-const MODEL_ARG: &str = "provider/model[1m]";
+
+/// Linux·macOS keep the double-quoted path; Git Bash on Windows leaves plain characters bare.
+const SETTINGS_ARG: &str = if cfg!(windows) {
+    "/profile.json"
+} else {
+    "\"/profile.json\""
+};
 
 #[cfg(not(windows))]
 #[test]
@@ -292,14 +296,85 @@ fn settings_path_keeps_the_posix_double_quote_escapes() {
 
 #[cfg(windows)]
 #[test]
-fn settings_path_uses_cmd_quoting_with_single_backslashes() {
+fn settings_path_uses_git_bash_single_quotes() {
     assert_eq!(
         quote_path(r"C:\Users\user name\profiles\reviewer.json"),
-        r#""C:\Users\user name\profiles\reviewer.json""#
+        r"'C:\Users\user name\profiles\reviewer.json'"
     );
-    // The MSVC argv rule: backslashes before a quote are doubled, the quote is escaped.
-    assert_eq!(quote_path(r"C:\dir\"), r#""C:\dir\\""#);
-    assert_eq!(quote_path(r#"a\"b"#), r#""a\\\"b""#);
+    assert_eq!(
+        quote_path(r"\\localhost\D$\x\r.json"),
+        r"'\\localhost\D$\x\r.json'"
+    );
+}
+
+/// Git Bash reads the Windows command lines, so backslashes, UNC prefixes, `$`, backquotes and
+/// double quotes must stay literal; `'` and `!` leave the quotes.
+#[test]
+fn git_bash_quoting_keeps_windows_paths_literal() {
+    let cases = [
+        (
+            r"C:\Users\user name\p\reviewer.json",
+            r"'C:\Users\user name\p\reviewer.json'",
+        ),
+        (r"\\localhost\D$\x\r.json", r"'\\localhost\D$\x\r.json'"),
+        (r"C:\a$HOME\r.json", r"'C:\a$HOME\r.json'"),
+        (r"C:\a`id`\r.json", r"'C:\a`id`\r.json'"),
+        (r"C:\a!b\r.json", r"'C:\a'\!'b\r.json'"),
+        (r"C:\it's\r.json", r"'C:\it'\''s\r.json'"),
+        (r#"C:\a"b\r.json"#, r#"'C:\a"b\r.json'"#),
+        (r"C:\dir\", r"'C:\dir\'"),
+        ("provider/model[1m]", "'provider/model[1m]'"),
+        ("a&b", "'a&b'"),
+        ("a;b", "'a;b'"),
+        ("ultracode", "ultracode"),
+    ];
+    for (value, quoted) in cases {
+        assert_eq!(posix_single_quote(value), quoted, "{value}");
+    }
+}
+
+/// The quoted word must come back unchanged from an interactive-style bash with history
+/// expansion on. Skipped where bash is missing.
+#[cfg(unix)]
+#[test]
+fn git_bash_quoting_round_trips_through_bash() {
+    let values = [
+        r"C:\Users\user name\p\reviewer.json",
+        r"\\localhost\D$\x\r.json",
+        r"C:\a$HOME`id`\r.json",
+        r"C:\a!b\r.json",
+        r"C:\it's\r.json",
+        r#"C:\a"b\r.json"#,
+        r"C:\dir\",
+        "provider/model[1m]",
+        "a&b;c|d<e>f*",
+    ];
+    let script = values
+        .iter()
+        .map(|v| format!("printf '%s\\0' {}", posix_single_quote(v)))
+        .collect::<Vec<_>>()
+        .join("\n");
+    let output = match std::process::Command::new("bash")
+        .args([
+            "--norc",
+            "--noprofile",
+            "-c",
+            &format!("set -H -o history\n{script}"),
+        ])
+        .output()
+    {
+        Ok(output) => output,
+        Err(e) => {
+            tracing::warn!("bash unavailable, round trip not checked: {e}");
+            return;
+        }
+    };
+    assert!(output.status.success(), "{output:?}");
+    let words: Vec<&str> = std::str::from_utf8(&output.stdout)
+        .unwrap()
+        .split_terminator('\0')
+        .collect();
+    assert_eq!(words, values);
 }
 
 #[test]
@@ -324,7 +399,7 @@ fn hook_restore_and_reboot_preserve_options_and_settings_without_permission_pers
     assert_eq!(
         value,
         &format!(
-            "claude -r sess-a --settings \"/profile.json\" --model {MODEL_ARG} --effort ultracode"
+            "claude -r sess-a --settings {SETTINGS_ARG} --model {MODEL_ARG} --effort ultracode"
         )
     );
     assert!(matches!(&calls[1], PlannedCall::MetaSet {key, value, ..}
@@ -334,7 +409,7 @@ fn hook_restore_and_reboot_preserve_options_and_settings_without_permission_pers
     assert_eq!(
         reboot,
         format!(
-            "claude -r sess-a --settings \"/profile.json\" --permission-mode plan --model {MODEL_ARG} --effort ultracode\r"
+            "claude -r sess-a --settings {SETTINGS_ARG} --permission-mode plan --model {MODEL_ARG} --effort ultracode\r"
         )
     );
     std::fs::write(record_path(Some(dir.path()), "sess-a").unwrap(), "bad JSON").unwrap();

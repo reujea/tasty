@@ -892,7 +892,11 @@ mod tests {
     fn resume_command_with_profile_appends_quoted_settings_path() {
         assert_eq!(
             resume_command("0e5cbdf4-32a1", Some("/home/user/profile.json"), None),
-            "claude -r 0e5cbdf4-32a1 --settings \"/home/user/profile.json\"\r"
+            if cfg!(windows) {
+                "claude -r 0e5cbdf4-32a1 --settings /home/user/profile.json\r"
+            } else {
+                "claude -r 0e5cbdf4-32a1 --settings \"/home/user/profile.json\"\r"
+            }
         );
     }
 

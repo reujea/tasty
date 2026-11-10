@@ -64,7 +64,7 @@ impl SessionOptions {
         let mut out = String::new();
         for (key, value) in [("model", &self.model), ("effort", &self.effort)] {
             if let Some(value) = value {
-                out.push_str(&format!(" --{key} {}", escape_value(value)));
+                out.push_str(&format!(" --{key} {}", posix_single_quote(value)));
             }
         }
         out
@@ -275,15 +275,13 @@ pub(crate) fn store(data_dir: Option<&Path>, session: &str, options: &SessionOpt
 #[cfg(test)]
 mod tests;
 
-/// Windows commands target the default shell, cmd.exe, whatever MSYSTEM says.
-#[cfg(windows)]
-fn escape_value(value: &str) -> std::borrow::Cow<'_, str> {
-    shell_escape::windows::escape(value.into())
-}
-
-#[cfg(not(windows))]
-fn escape_value(value: &str) -> std::borrow::Cow<'_, str> {
-    shell_escape::escape(value.into())
+/// Quote one shell word for a POSIX shell, including Git Bash on Windows.
+///
+/// Inside single quotes `\`, `$`, `` ` `` and `"` stay literal, so Windows paths keep their
+/// backslashes, UNC prefixes and `D$` shares. `'` and `!` (interactive history expansion) are
+/// moved outside the quotes. The result does not depend on the `MSYSTEM` variable.
+pub(crate) fn posix_single_quote(value: &str) -> String {
+    shell_escape::unix::escape(value.into()).into_owned()
 }
 
 /// Keep the established double-quoted settings path syntax while escaping shell expansion.
@@ -300,32 +298,10 @@ pub(crate) fn quote_path(path: &str) -> String {
     out
 }
 
-/// cmd.exe passes a double-quoted path through, so backslashes stay single.
+/// Windows terminals run only Git Bash, which reads the command line with POSIX rules.
 #[cfg(windows)]
 pub(crate) fn quote_path(path: &str) -> String {
-    let mut out = String::from("\"");
-    let mut slashes = 0;
-    for c in path.chars() {
-        match c {
-            '\\' => slashes += 1,
-            // `"` is not a Windows file name character; if one arrives, use the MSVC argv escape
-            // (`\"` with its preceding backslashes doubled) that the claude executable parses.
-            '"' => {
-                out.extend(std::iter::repeat_n('\\', slashes * 2 + 1));
-                out.push('"');
-                slashes = 0;
-            }
-            _ => {
-                out.extend(std::iter::repeat_n('\\', slashes));
-                out.push(c);
-                slashes = 0;
-            }
-        }
-    }
-    // Backslashes before the closing quote would escape it under the MSVC argv rule.
-    out.extend(std::iter::repeat_n('\\', slashes * 2));
-    out.push('"');
-    out
+    posix_single_quote(path)
 }
 
 /// Refresh the restore command after profile resolution, preserving invocation-only selections.

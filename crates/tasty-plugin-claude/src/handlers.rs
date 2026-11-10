@@ -735,7 +735,7 @@ pub(crate) fn build_launch_command(
 ) -> String {
     let mut cmd = "claude".to_string();
     if let Some(t) = task {
-        let escaped = shell_escape::escape(t.into());
+        let escaped = crate::session_options::posix_single_quote(t);
         cmd.push_str(&format!(" --task {escaped}"));
     }
     if let Some(path) = profile_file {
@@ -1336,11 +1336,28 @@ mod tests {
         assert_ne!(out, "claude --task fix the bug", "must be escaped");
     }
 
+    /// Every OS gets the POSIX single-quote rule, whatever `MSYSTEM` the plugin inherited.
+    #[test]
+    fn build_launch_command_quotes_the_task_for_posix_shells() {
+        assert_eq!(
+            build_launch_command(Some("it's $HOME & !x; a|b"), None, None),
+            r"claude --task 'it'\''s $HOME & '\!'x; a|b'"
+        );
+    }
+
+    /// Linux·macOS keep the double-quoted path; Git Bash on Windows gets the POSIX single-quote
+    /// rule, which leaves a path of plain characters bare.
+    const PROFILE_ARG: &str = if cfg!(windows) {
+        "/home/user/profile.json"
+    } else {
+        "\"/home/user/profile.json\""
+    };
+
     #[test]
     fn build_launch_command_with_profile_appends_quoted_settings_path() {
         assert_eq!(
             build_launch_command(None, Some("/home/user/profile.json"), None),
-            "claude --settings \"/home/user/profile.json\""
+            format!("claude --settings {PROFILE_ARG}")
         );
     }
 
@@ -1348,7 +1365,7 @@ mod tests {
     fn build_launch_command_with_task_and_profile_appends_both() {
         assert_eq!(
             build_launch_command(Some("fix"), Some("/home/user/profile.json"), None),
-            "claude --task fix --settings \"/home/user/profile.json\""
+            format!("claude --task fix --settings {PROFILE_ARG}")
         );
     }
 
@@ -1382,7 +1399,11 @@ mod tests {
     fn build_launch_command_with_profile_and_permission_mode_fixes_order() {
         assert_eq!(
             build_launch_command(None, Some("/home/u/p.json"), Some("plan")),
-            "claude --settings \"/home/u/p.json\" --permission-mode plan"
+            if cfg!(windows) {
+                "claude --settings /home/u/p.json --permission-mode plan"
+            } else {
+                "claude --settings \"/home/u/p.json\" --permission-mode plan"
+            }
         );
     }
 
@@ -1540,9 +1561,9 @@ mod tests {
             None,
         );
         assert!(
-            out.starts_with(
-                "TASTY_SURFACE_ID=2 claude --settings \"/home/user/profile.json\" \"$(cat '"
-            ),
+            out.starts_with(&format!(
+                "TASTY_SURFACE_ID=2 claude --settings {PROFILE_ARG} \"$(cat '"
+            )),
             "got {out}"
         );
     }
