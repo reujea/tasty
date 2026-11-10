@@ -39,7 +39,7 @@ pub struct WorkspaceEntryView {
     pub is_active: bool,
     /// 이동 대기 대상이 이 워크스페이스 안에 있고 화면에 보이지 않는지. move 글리프로 표시한다.
     pub move_source: bool,
-    /// 자동 attach 매핑을 연결하지 않았으면 행 끝 경고 표지의 툴팁(대상과 이유).
+    /// 저장된 원격 행을 연결하지 못했으면 행 끝 경고 표지의 툴팁(무엇인지, 프로필 → 원격 workspace, 이유).
     pub attach_refusal: Option<String>,
     /// 저장된 원격 행이면 그 연결 상태. REMOTE 줄의 Tag·상태어와 레일 칩을 정한다.
     pub row_state: Option<tasty_ui_widgets::RemoteRowState>,
@@ -1332,7 +1332,7 @@ fn draw_collapsed_avatar(
     if ws.move_source {
         tasty_ui_widgets::paint_move_source_chip(ui, th, rect, th.bg_sidebar().into());
     }
-    // 자동 attach 거절 칩은 남은 왼쪽 위 모서리에 둔다. 툴팁은 펼친 행 표지와 같다.
+    // 저장 행 거절 칩은 남은 왼쪽 위 모서리에 둔다. 툴팁은 펼친 행 표지와 같다.
     if let Some(tooltip) = &ws.attach_refusal {
         tasty_ui_widgets::paint_attach_refusal_chip(ui, th, rect, th.bg_sidebar().into());
         tasty_ui_widgets::attach_refusal_avatar_tooltip(ui, th, &resp, tooltip, loading_line);

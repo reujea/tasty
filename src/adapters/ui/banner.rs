@@ -528,7 +528,6 @@ impl BannerManager {
             id: BannerId,
             /// plugin egui-mesh 배너면 (plugin_id, instance_id, 셸 높이). host 면 None.
             mesh: Option<(String, u64, f32)>,
-            /// 연결하지 않은 매핑 배너면 (anchor, 이유, 대상).
             /// 크기 동기화 실패 배너면 (mirror 워크스페이스, 이름, 다시 시도 중).
             size_sync: Option<(u32, Vec<String>, bool)>,
             zone: egui::Rect,

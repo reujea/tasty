@@ -187,17 +187,17 @@ pub enum RemoteCommands {
     },
     /// List recent attach attempts refused because they targeted this instance.
     ///
-    /// Refusals decided after the endpoint is resolved are listed here: an
-    /// automatic attach mapping that points at this instance, and a
-    /// `remote.attach` to an existing workspace that reaches this instance over
-    /// SSH by host name or LAN IP (that reply is `attaching` and the refusal
-    /// follows asynchronously). A loopback target on the own port is refused
-    /// immediately with an error instead. Each entry carries the attempt number
-    /// (the `attempt` in a `remote.attach` reply), the local workspace of the
-    /// mapping, the remote workspace id, the port, and whether it was decided
-    /// over SSH. Up to 32 of the newest refusals are kept
-    /// until the instance exits. Other connection failures are not listed.
-    /// Read-only.
+    /// Refusals decided after the endpoint is resolved are listed here: a
+    /// saved remote workspace row whose attach profile points at this
+    /// instance, and a `remote.attach` to an existing workspace that reaches
+    /// this instance over SSH by host name or LAN IP (that reply is `attaching`
+    /// and the refusal follows asynchronously). A loopback target on the own
+    /// port is refused immediately with an error instead. Each entry carries
+    /// the attempt number (the `attempt` in a `remote.attach` reply), the local
+    /// workspace of the saved row (null for a manual request), the remote
+    /// workspace id, the port, and whether it was decided over SSH. Up to 32 of
+    /// the newest refusals are kept until the instance exits. Other connection
+    /// failures are not listed. Read-only.
     Refusals,
     /// Detach a mirror from the local GUI and leave the remote workspace running.
     ///

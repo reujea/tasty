@@ -41,9 +41,9 @@ attach 의 본질은 **강한(hard) 배타 점유**다 — [Attach 메커니즘]
     - 같은 대상: 저장된 행의 연결·재연결은 같은 engine·행, 수동 요청은 `attach.into_gui` 의 `port`·`workspace`, 기존 workspace `remote.attach` 의 `profile`·`ssh`·`remote_workspace` 가 같은 것이다. 수동 요청은 엔드포인트를 해석 중이든 연결 중이든 끝나지 않은 이전 요청을 취소하고 새 요청이 결과를 받는다. 두 메서드는 서로 대체하지 않는다.
     - 처음 기록한 결과만 남으므로 대체된 시도의 늦은 결과가 새 시도의 run 을 바꾸지 않는다. `new_workspace:true` 는 생성 결과를 지연 회신하므로 run 을 싣지 않는다. 저장된 행의 자동 연결·재연결은 run 을 만들지 않고 행의 상태 표시를 따른다.
     - GUI 원격 연결 팝업에서 **연결** 이 접수된 뒤 연결·설치에 실패하면 시작한 창에 실패 토스트를 띄운다. 그 창이 닫혔거나 View 가 바뀌었으면 띄우지 않는다([토스트 정책](../../design/systems/toast.md)).
-  - **저장된 원격 행의 연결 실패 안내**: [저장된 원격 행](#저장된-원격-행과-mirror-내용)의 첫 연결이 실패하거나, 재연결이 다시 시도해도 같은 결과가 나올 이유(`remote_workspace_missing`·`occupied`·`mirror_workspace`)로 끝나면 안내를 남긴다. 재연결의 이 실패는 행을 바로 **연결 끊김** 상태로 둔다. 이유는 자기 자신(`self_instance`), 저장된 attach 프로필 없음(`profile_missing`), 연결 지점 준비 실패(`unresolved`), 원격 workspace 없음(`remote_workspace_missing`), 다른 client가 점유 중(`occupied`), 대상이 mirror(`mirror_workspace`)다. 행은 자동으로 다시 연결하지 않고 사용자가 그 행을 다시 활성화할 때 한 번 다시 시도한다. 원격 workspace 가 없다고 확인된 행(`remote_workspace_missing`)은 예외다(아래 "다른 곳에서 닫힌 행"). 같은 대상으로 연결에 성공하거나 행이 닫히면 안내가 사라진다. 재연결 중의 엔드포인트 해석 실패 가운데서는 행의 attach 프로필이 없어진 경우(`profile_missing`)만 안내를 만든다. 연결 지점 준비 실패처럼 일시적일 수 있는 실패는 안내 없이 재연결을 이어 간다.
+  - **저장된 원격 행의 연결 실패 안내**: [저장된 원격 행](#저장된-원격-행과-mirror-내용)의 첫 연결이 실패하거나, 재연결이 다시 시도해도 같은 결과가 나올 이유(`remote_workspace_missing`·`occupied`·`mirror_workspace`)로 끝나면 안내를 남긴다. 재연결의 이 실패는 행을 바로 **연결 끊김** 상태로 둔다. 이유는 자기 자신(`self_instance`), 저장된 attach 프로필 없음(`profile_missing`), 연결 지점 준비 실패(`unresolved`), 원격 workspace 없음(`remote_workspace_missing`), 다른 client가 점유 중(`occupied`), 대상이 mirror(`mirror_workspace`)다. 행은 자동으로 다시 연결하지 않고 사용자가 그 행을 다시 활성화할 때 한 번 다시 시도한다. 그 행을 쓰는 IPC 요청도 한 번 다시 시도한다(아래 "저장된 원격 행을 쓰는 요청"). 원격 workspace 가 없다고 확인된 행(`remote_workspace_missing`)은 예외라 사용자의 다시 활성화도 IPC 요청도 연결을 시도하지 않는다(아래 "다른 곳에서 닫힌 행"). 같은 대상으로 연결에 성공하거나 행이 닫히면 안내가 사라진다. 재연결 중의 엔드포인트 해석 실패 가운데서는 행의 attach 프로필이 없어진 경우(`profile_missing`)만 안내를 만든다. 연결 지점 준비 실패처럼 일시적일 수 있는 실패는 안내 없이 재연결을 이어 간다.
     - 사이드바의 그 행에 경고 표지(alertTriangle, `attach-refusal-glyph` = accent-warning)가 활성 여부와 관계없이 붙고, 툴팁은 대상과 이유다. 이름 뒤 순서는 move 글리프 · 경고 표지 · 배지 묶음이며 배지가 가장 오른쪽이고 항목 사이는 `space-sm`이다. 접힌 사이드바(레일)에서는 아바타 왼쪽 위 모서리에 12 칩(alertTriangle 8, 레일 배경 바탕)을 그린다.
-    - 사용자가 그 행을 활성화한 뒤의 안내면 콘텐츠 위쪽(탭 바 아래)에 Workspace 배너가 뜬다. `remote_workspace_missing`·`occupied`·`mirror_workspace` 는 배너에서 `unresolved` 와 같은 문장을 쓴다. ×는 그 창의 이번 활성화에만 배너를 숨긴다. 토스트는 띄우지 않고 포커스도 옮기지 않는다.
+    - 안내는 배너를 띄우지 않는다. 행의 연결 팝업이 같은 이유를 문장으로 보인다. 토스트는 띄우지 않고 포커스도 옮기지 않는다.
     - 지금 남은 안내는 `remote.refusals` 응답의 `notices`(`workspace_id` · `kind` · `target`, 워크스페이스 ID 순)로 조회한다.
 - **force-detach**: **로컬 사용자만** 점유를 강제로 끊을 수 있다(서버 권한).
   끊으면 holder client 에 종료를 통지하고 대상은 **일반 surface/workspace 로 복귀**.
@@ -350,14 +350,14 @@ move-surface 는 **source/target 이 같은 mirror workspace 안에 있을 때�
 
 저장된 원격 행은 사용자가 그 행을 화면에 띄울 때 연결한다(`src/app/auto_attach.rs::maybe_connect_visible_row`). 행이 가리키는 attach 프로필을 해석해 SSH 터널을 열고 같은 행에 mirror 를 설치하며, 행의 이름·카테고리·위치는 그대로 둔다. 자동 연결은 mirror 를 채우기만 하고 포커스와 활성 workspace 를 옮기지 않는다([포커스 독립성](../../design/policies/focus.md#cliipc-포커스-독립-원칙)). 다시 시작한 직후의 행은 형상 없이 기다리다가 선택되면 연결한다.
 
-- **첫 연결 실패**: 이유를 행 안내로 남기고(위 "저장된 원격 행의 연결 실패 안내") 사용자가 그 행으로 다시 옮기거나 다시 연결을 고를 때까지 시도하지 않는다(`Remote.pending_reactivation`). 같은 실패가 될 수 있는 SSH 접속을 되풀이하지 않기 위해서다.
+- **첫 연결 실패**: 이유를 행 안내로 남기고(위 "저장된 원격 행의 연결 실패 안내") 사용자가 그 행으로 다시 옮기거나 다시 연결을 고를 때까지 자동으로 시도하지 않는다(`Remote.pending_reactivation`). 같은 실패가 될 수 있는 SSH 접속을 되풀이하지 않기 위해서다. 예외로 그 행을 쓰는 IPC 요청은 한 번 다시 시도한다(`connect_saved_row` 가 `pending_reactivation` 을 지운다). 에이전트가 그 행을 쓰려 할 때 연결하기 위해서다. 첫 연결이 `remote_workspace_missing` 으로 끝난 행은 다른 곳에서 닫힌 행이라 IPC 요청도 시도하지 않고 거절한다.
 - **연결이 끊기면 mirror 는 살아 있는 채로 재연결한다**: heartbeat TTL 만료·force-detach 등 원격발 disconnect 로 저장된 행의 세션이 끊기면 mirror workspace/터미널을 걷어내지 않고 `Reconnecting` 상태로 두고(`src/app/attach_client/connection.rs::enter_reconnecting`), 지수 백오프(0.5s→30s, ±20% jitter)로 다시 연결한다(`src/app/auto_attach.rs::maybe_trigger_reconnect`).
   - Reconnecting 에 들어갈 때 옛 연결의 소켓을 바로 닫는다(`ConnectionWorkers::close_socket`). 열어 두면 응답이 멈췄던 서버가 돌아온 직후 옛 연결을 살아 있는 점유자로 보고 새 attach 를 `already_attached` 로 거절한다.
   - 재연결에 성공하면 살아 있던 surface 는 scrollback/local id 를 그대로 유지한 채(survivor mapping, `merge_survivor_mapping`) 연결만 새로 맺는다. 사용자가 그 행으로 돌아오면(엣지) 백오프 대기 없이 바로 한 번 더 시도한다.
-  - 다른 client 가 그 원격 workspace 를 점유 중이면(`already_attached`) 지수 증가 없이 30초 간격으로 기다린다.
+  - 다른 client 가 그 원격 workspace 를 점유 중이면(`already_attached`) 다시 시도해도 같으므로 재연결을 멈추고 `occupied` 안내를 남긴 채 행을 바로 **연결 끊김** 상태로 둔다(`on_reconnect_attempt_failed`). `remote_workspace_missing`·`mirror_workspace` 도 같다.
 - **재연결 시간 창**: 끊긴 뒤 설정 `[remote_attach] reconnect_timeout_secs`(설정 창 General › Remote attach 의 `Keep reconnecting for`, 기본 300초, 0~3600초, 범위를 벗어난 파일 값은 300으로 되돌린다)이 지나도 연결하지 못하면 재연결을 멈추고 행을 **연결 끊김** 상태로 바꾼다. toast 는 띄우지 않고 연결 팝업이 알린다. 0이면 끊기는 즉시 연결 끊김이 된다. 연결 끊김 행은 사용자가 다시 활성화하면 연결한다.
 - **상태**: 행의 세션 상태는 `Connected` · `Reconnecting` · `Disconnected` 셋이다(`tasty_remote::client_session::SessionState`).
-- **사용자 대기 갈래**: 화면에 띄운 행을 언제 연결하는지(L4)와 사용자가 끊은 행을 다시 활성화할 때 연결하는지(L1)는 사용자 결정을 기다린다. 지금은 추천안대로 띄운 행은 바로 연결하고(`visible_row_connects`), 사용자가 끊은 행은 다시 활성화해도 연결하지 않는다(`user_disconnect_holds`). 두 함수가 각 갈래의 유일한 분기다.
+- **사용자 대기 갈래**: 화면에 띄운 행은 바로 연결한다(`visible_row_connects`). 사용자가 끊은 행은 다시 활성화해도 연결하지 않고, 사용자가 팝업·메뉴·원격 연결 팝업으로 명시적으로 연결하면 그 표지를 지운다(`user_disconnect_holds`). 두 함수가 각 갈래의 유일한 분기다.
 
 ### 저장된 원격 행의 표시
 

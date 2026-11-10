@@ -45,7 +45,7 @@ const NOT_IN_HEADLESS: &[(&str, &str)] = &[
     ),
     (
         "remote.refusals",
-        "거절을 기록하는 remote.attach 와 자동 attach 가 GUI 에만 있다",
+        "거절을 기록하는 remote.attach 와 저장된 원격 행의 연결이 GUI 에만 있다",
     ),
     (
         "remote.disconnect",

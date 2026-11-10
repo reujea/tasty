@@ -22,6 +22,11 @@
 - **원격 연결 팝업에서 붙인 workspace가 저장된 원격 행으로 남는다.** 이름·설명·카테고리·위치와 연결 대상(attach 프로필, 원격 workspace id)을 저장하고 재시작 뒤 같은 자리에 돌아와 선택되면 연결한다. 연결이 끊기면 형상을 남긴 채 설정 `[remote_attach] reconnect_timeout_secs`(설정 창 `Keep reconnecting for`, 기본 300초, 0~3600) 동안 다시 연결하고, 그 뒤에는 연결 끊김 행으로 남아 다시 열 때 연결한다. 에이전트가 IPC로 붙인 mirror는 저장하지 않는다.
 - **연결되지 않은 저장된 원격 행은 workspace 가운데의 연결 팝업과 사이드바·rail·상태바 표지로 상태와 이유를 보인다.** 형상이 있던 행은 마지막 화면 위에 scrim 을 깔고, 팝업과 행 메뉴에서 Connect·Reconnect 를 고를 수 있다. 원격 workspace 가 다른 곳에서 닫힌 행은 Reconnect 가 꺼진다. 재연결 시작·성공·포기 toast 는 더 띄우지 않는다.
 - **`workspace.list` 응답에 `remote_row`(`profile`·`remote_workspace`, 저장된 원격 행이 아니면 `null`)가 실린다.**
+- **`workspace.list` 응답에 저장된 원격 행의 연결 상태 `remote_state`가 실린다.** 값은 `connected`·`connecting`·`reconnecting`·`disconnected`·`failed`·`not_connected`이고 저장된 원격 행이 아니면 `null`이다. 조회는 연결을 일으키지 않는다.
+- **연결되지 않은 저장된 원격 행을 쓰는 IPC 요청은 그 행을 연결한 뒤 실행한다.** 입력·원본 읽기·구조 변경·`terminal.spawn` 등이 해당하며 최대 35초 기다린다. 연결하지 못하면 `-32000`과 `data.reason`(`window_parked`·`connect_timeout`·`user_disconnected`·`busy`·`remote_workspace_missing`·연결 실패 이유)으로 답한다. 첫 연결이 실패한 행도 요청이 오면 한 번 다시 시도한다. 원격 workspace가 없다고 확인된 행은 시도하지 않고 거절한다.
+- **`remote.attach`가 같은 연결 대상의 저장된 원격 행을 연결한다.** 프로필과 원격 workspace id가 저장된 행과 같으면 새 mirror를 만들지 않고 응답에 `saved_row: true`와 `run`을 싣는다. 이미 연결 중인 행에 합류해도 `run`이 그 시도의 최종 결과를 받는다.
+- **mirror를 다시 mirror로 붙이지 않는다.** 대상이 그 인스턴스의 mirror면 서버가 `workspace attach rejected: mirror_workspace`로 거절한다. `remote.workspaces`(`tasty remote workspaces`) 항목에 `mirror`가 실리고, 원격 연결 팝업은 그 행을 비활성으로 두고 `mirror` 표지와 안내 문구를 보이며, CLI 목록은 그 행 아래에 안내 한 줄을 덧붙인다.
+- **저장된 원격 행의 우클릭 메뉴에 Connect(또는 Reconnect)·Disconnect·Close locally·Close remote workspace…가 생긴다.** 할 수 없는 항목은 꺼져 보인다. Close remote workspace…와 저장된 행을 비우는 닫기 요청은 확인 대화를 먼저 연다. 확인 대화는 Esc·Cancel로만 닫히고 바깥 클릭으로는 닫히지 않는다.
 
 ### Changed
 
@@ -41,6 +46,7 @@
 
 ### Removed
 
+- **자동 attach 거절 배너가 없어진다.** 연결하지 못한 저장된 원격 행의 이유는 행의 연결 팝업과 사이드바 행 표지·레일 칩 툴팁이 보인다. 배너의 **매핑 지우기** 버튼과 ×도 함께 없어진다.
 - **workspace의 원격 attach 매핑이 없어진다.** `tasty new workspace`·`tasty set workspace`의 `--ssh-profile`·`--ssh`·`--remote-workspace`, `set workspace --clear-mapping`, IPC `workspace.create`·`workspace.update`의 `attach_profile`·`attach_ssh`·`attach_remote_workspace`·`attach_clear`, `workspace.list`의 `attach_mapping`, 배너의 매핑 지우기 동작이 함께 없어진다. 원격 workspace를 기억하려면 원격 연결 팝업에서 붙인다. 저장된 옛 매핑은 읽고 버린다.
 - **Windows의 셸 모드와 설정 › Misc › Tastyrc가 없어진다.** Windows Git Bash도 다른 OS처럼 빌트인 통합(OSC 7, OSC 133, PATH, LANG)과 사용자 `~/.bashrc`를 읽는 `bashrc.default` 하나로 실행한다. 설정 키 `general.shell_mode`는 읽을 때 무시하고 저장할 때 남기지 않는다. Tasty는 `bashrc`·`bashrc.user`를 만들거나 읽지 않는다. 설정 창의 셸 모드 행, Tastyrc 편집 화면, 저장 실패 토스트, `tasty debug settings open --subtab tastyrc`도 함께 없어진다.
 

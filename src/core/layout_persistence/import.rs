@@ -7,7 +7,7 @@
 //! 결과와 명령 기록에 함께 남긴다. 같은 슬롯을 같은 내용으로 다시 가져오면 저장된 대응을 돌려주고
 //! 새로 쓰지 않는다. 선택·접힘 같은 화면 상태는 이벤트로 만들지 않고 결과로만 돌려준다.
 //!
-//! workspace 부제·설명·attach 매핑과 tab의 사용자 지정 이름은 전용 이벤트로 기록한다.
+//! workspace 부제·설명과 tab의 사용자 지정 이름은 전용 이벤트로 기록한다. 옛 형식의 attach 매핑은 읽고 버린다.
 //! terminal의 cwd·복원 명령·scrollback과 plugin surface 자료는 이벤트가 아니라 surface 저장 자료
 //! ([`surface_data::SurfaceData`]) payload로 저장하고 자료 참조로 가리킨다. 제품 worker가 선택된
 //! 슬롯에 구조 stream이 아직 없을 때 호출하며, 이미 활성화한 stream에는 파일을 다시 가져오지 않는다.
@@ -829,7 +829,7 @@ impl Plan {
         }
     }
 
-    /// 빈 부제·설명과 없는 연결 설정은 기본값이라 기록하지 않는다.
+    /// 빈 부제·설명은 기본값이라 기록하지 않는다.
     fn workspace_details(&mut self, id: WorkspaceId, saved: &SavedWorkspace) {
         if !saved.subtitle.is_empty() || !saved.description.is_empty() {
             self.push(DomainEvent::WorkspaceDetailsSet {

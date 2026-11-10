@@ -15,8 +15,8 @@ impl App {
         );
     }
 
-    /// 자기 포트라서 연결하지 않은 최근 attach 시도(오래된 것부터)와, 지금 연결하지 않은 채
-    /// 남은 자동 attach 매핑의 안내(워크스페이스 ID 순)를 돌려준다.
+    /// 자기 포트라서 연결하지 않은 최근 attach 시도(오래된 것부터)와, 연결하지 못한 저장된
+    /// 원격 행의 안내(워크스페이스 ID 순)를 돌려준다.
     pub(super) fn ipc_dispatch_remote_refusals(&mut self, cmd: &IpcCommand) {
         let rpc_id = cmd.request.id.clone().unwrap_or(serde_json::Value::Null);
         let refusals: Vec<_> = self.remote.refusals.recent().collect();

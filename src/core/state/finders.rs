@@ -77,7 +77,7 @@ pub(crate) fn mirror_workspace_index_for_structural(
         D::RestoreClosedItem { target_pane_id, .. } => {
             core.find_workspace_index_for_pane((*target_pane_id)?)
         }
-        // 이름·카테고리·attach 매핑은 원격 트리 구조가 아니다. mirror에서도 로컬에만 적용하며 forward하지 않는다.
+        // 이름·카테고리는 원격 트리 구조가 아니다. mirror에서도 로컬에만 적용하며 forward하지 않는다.
         D::SetWorkspaceCategory { .. }
         | D::CreateCategory { .. }
         | D::RenameCategory { .. }

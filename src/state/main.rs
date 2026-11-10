@@ -107,7 +107,7 @@ pub struct MainViewState {
     /// 상태바에 표시할 선택 surface의 Git branch 캐시. 무효화는 branch 모듈이 맡는다.
     #[cfg(feature = "gui")]
     pub(crate) branch_cache: branch::BranchCache,
-    /// 연결하지 않은 자동 attach 매핑의 행 표지·배너 상태. 안내는 App이 넘긴다.
+    /// 연결하지 못한 저장된 원격 행의 안내 사본. 행 표지·레일 칩과 연결 팝업이 읽는다. 안내는 App이 넘긴다.
     #[cfg(feature = "gui")]
     pub(crate) attach_notices: crate::adapters::ui::attach_notice::AttachNotices,
     /// 창 오른쪽 위 안내 열의 복원 실패·저장 멈춤 안내. 내용은 App이 넘긴다.

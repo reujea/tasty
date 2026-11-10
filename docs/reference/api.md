@@ -151,7 +151,7 @@ CLI는 `tasty events fetch`와 `tasty events follow`다. `follow`는 다시 연�
 `record,record_batch,summary,timeseries,top` · `cap.{set,list,remove,status,reset}` · `anomaly.list` · `session_summary`. [telemetry](../features/telemetry/index.md).
 
 ### 세션 / attach
-`session.{issue,revoke,list}` · `attach.{acquire,release,into_gui,list}`. `attach.into_gui` 는 GUI 전용이며 헤드리스는 접수하지 않고 `-32017` 로 거절한다. 연결되지 않은 저장된 원격 행을 쓰는 요청(입력·원본 읽기·구조 변경·`terminal.spawn` 등)은 그 행을 연결한 뒤 실행하며, 연결하지 못하면 `-32000` 과 `data.reason`(`window_parked`·`connect_timeout`·`user_disconnected`·연결 실패 이유)으로 답한다([저장된 원격 행을 쓰는 요청](../features/remote-attach/index.md#저장된-원격-행을-쓰는-요청)). attach 는 [remote-attach](../features/remote-attach/index.md), 신원 토큰은 [capability-elevation](../features/capability-elevation/index.md).
+`session.{issue,revoke,list}` · `attach.{acquire,release,into_gui,list}`. `attach.into_gui` 는 GUI 전용이며 헤드리스는 접수하지 않고 `-32017` 로 거절한다. 연결되지 않은 저장된 원격 행을 쓰는 요청(입력·원본 읽기·구조 변경·`terminal.spawn` 등)은 그 행을 연결한 뒤 실행하며, 연결하지 못하면 `-32000` 과 `data.reason`(`window_parked`·`connect_timeout`·`user_disconnected`·`busy`(연결을 기다리는 요청이 상한에 찼다)·`remote_workspace_missing`·연결 실패 이유)으로 답한다([저장된 원격 행을 쓰는 요청](../features/remote-attach/index.md#저장된-원격-행을-쓰는-요청)). attach 는 [remote-attach](../features/remote-attach/index.md), 신원 토큰은 [capability-elevation](../features/capability-elevation/index.md).
 
 ### 기타 호스트
 - 알림: `notification.{list,create}` — [notifications](../features/notifications/index.md)

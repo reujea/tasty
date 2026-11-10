@@ -45,7 +45,7 @@
   - `workspace_category.rename {id,name}` / `tasty workspace-category rename --id N --name X`
   - `workspace_category.delete {id}` / `tasty workspace-category delete --id N`
   - `workspace_category.move {id,to_index}` / `tasty workspace-category move --id N --to B` — `id` 는 창을 건너 유일해 라우팅이 주인 창을 짚는다. 종전의 `{from_index,to_index}` (`--from A`)도 받지만 그 순번은 창 안의 위치라 **포커스된 창**에 떨어진다([focus](../../design/policies/focus.md)). 둘을 함께 주면 거절한다.
-  - `workspace.create` / `workspace.update` 의 `category`(id 또는 이름) 파라미터 — `tasty new/set workspace --category <name|id>`. 없는 카테고리나 잘못된 attach 매핑 값(`attach_remote_workspace` 등)이면 workspace 를 만들거나 이름·부제·설명·카테고리를 바꾸지 않고 거절한다. 입력 검증을 적용 전에 끝내므로, 같은 멱등 키로 재시도해 저장된 거절 응답을 받아도 남은 변경이 없다.
+  - `workspace.create` / `workspace.update` 의 `category`(id 또는 이름) 파라미터 — `tasty new/set workspace --category <name|id>`. 없는 카테고리면 workspace 를 만들거나 이름·부제·설명·카테고리를 바꾸지 않고 거절한다. 입력 검증을 적용 전에 끝내므로, 같은 멱등 키로 재시도해 저장된 거절 응답을 받아도 남은 변경이 없다.
   - `workspace.list` 응답에 `category` / `category_name`
 ### 사용자 조작
 

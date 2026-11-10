@@ -1091,14 +1091,14 @@ General L1 에 5번째 L2 서브탭 "Remote transfer" 추가 — 원격 mirror �
 
 ## Settings › General › Remote attach
 
-General L1 의 6번째 L2 서브탭이다(Remote transfer 다음, macOS 전용 Display·Permissions 앞). `[remote_attach] heartbeat_timeout_secs` 를 편집하는 행 하나를 담는다. 디자인: `gallery/parts/overlay-frames.jsx` `SettingsRemoteAttachFrame` + `gallery/parts/settings-attach-section.jsx` `AttachConnectionsSection` + `gallery/overlays-windows/index.jsx` "Settings · General › Remote attach" spec.
+General L1 의 6번째 L2 서브탭이다(Remote transfer 다음, macOS 전용 Display·Permissions 앞). `[remote_attach] heartbeat_timeout_secs`(`Disconnect after`)와 `reconnect_timeout_secs`(`Keep reconnecting for`)를 편집하는 행 두 개를 담는다. 디자인: `gallery/parts/overlay-frames.jsx` `SettingsRemoteAttachFrame` + `gallery/parts/settings-attach-section.jsx` `AttachConnectionsSection` + `gallery/overlays-windows/index.jsx` "Settings · General › Remote attach" spec.
 
 | 디자인 jsx 컴포넌트 | 본체 함수 | 갤러리 항목 |
 |---|---|---|
 | `SettingsRemoteAttachFrame`(콘텐츠 컬럼) | `src/view/settings/ui/tabs/remote_attach.rs::draw_remote_attach_tab` | `components/settings_remote_attach.rs::draw` (`settings` 섹션 `settings-remote-attach` spec) |
 | 헤딩 "Attach connections" | `settings.remote_attach.section`, `font-label` micro uppercase muted, `letter-spacing-caps` | 동(같은 토큰) |
 | 행 + 설명 | `SettingsRow` + `SettingsRow::caption` | 동 |
-| `Input block mono`(오른쪽 정렬) + 정적 `font-label` `s` | `number::integer_field`(`NumberSpec::int(10.0, 600.0)`, `suffix`, `settings.number.unit_s`). 칸과 단위 사이는 `number-field-unit-gap` | `seconds_control`(같은 `Input`·토큰) |
+| `Input block mono`(오른쪽 정렬) + 정적 `font-label` `s` | `number::integer_field`(`NumberSpec::int` 에 각 행의 범위 `HEARTBEAT_TIMEOUT_SECS_RANGE` 10~600 · `RECONNECT_TIMEOUT_SECS_RANGE` 0~3600, `suffix`, `settings.number.unit_s`). 칸과 단위 사이는 `number-field-unit-gap` | `seconds_control`(같은 `Input`·토큰) |
 | 범위 밖 `role="status"` 줄 | 공용 숫자 칸의 기본 danger 문장 `settings.number.range_between`. `range_note` 없음. 칸 아래 `space-xs` | 동 |
 
 **전사 노트**:

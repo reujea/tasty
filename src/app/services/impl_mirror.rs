@@ -143,7 +143,7 @@ pub(crate) fn build_mirror_forward_op(
                 None
             }
         }
-        // 이름·카테고리·attach 매핑은 구조가 아니라서 위 분류가 mirror 차단 대상으로 고르지 않는다.
+        // 이름·카테고리는 구조가 아니라서 위 분류가 mirror 차단 대상으로 고르지 않는다.
         D::SetWorkspaceCategory { .. }
         | D::CreateCategory { .. }
         | D::RenameCategory { .. }
