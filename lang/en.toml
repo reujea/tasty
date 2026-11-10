@@ -2022,7 +2022,7 @@ disconnected = "The connection to the remote host was lost during the download."
 local_write = "The file could not be written on this computer."
 timeout = "The remote host did not respond in time during the download."
 bad_response = "The remote host sent file data in an unexpected format."
-not_attached = "The remote host refused the download because this connection is no longer attached to the workspace."
+not_attached = "The remote host refused the download because this client is no longer attached to the workspace."
 
 [webview]
 no_page = "No page loaded"

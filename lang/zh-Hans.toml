@@ -1973,7 +1973,7 @@ disconnected = "下载期间，与远程主机的连接已断开。"
 local_write = "无法在本机写入文件。"
 timeout = "下载期间，远程主机未及时响应。"
 bad_response = "远程主机发送的文件数据格式不符合预期。"
-not_attached = "由于此连接已不再附加到工作区，远程主机拒绝了下载。"
+not_attached = "由于此客户端已不再附加到工作区，远程主机拒绝了下载。"
 
 [webview]
 no_page = "未加载页面"
