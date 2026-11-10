@@ -339,10 +339,11 @@ impl App {
             .mirror_attempts
             .cancel_connection(ticket, &mut self.remote);
         tracing::warn!(engine=?target.engine,"mirror connection could not be installed: {error}");
-        let error = describe_attach_error(&error, target.remote_workspace);
-        target.fail_run(format!("the mirror could not be installed: {error}"));
+        // 상태 전이는 서버 거절 머리가 남은 원 오류로 분류한다. 번역한 문장은 run 결과와 토스트에만 쓴다.
+        let shown = describe_attach_error(&error, target.remote_workspace);
+        target.fail_run(format!("the mirror could not be installed: {shown}"));
         if target.user {
-            self.toast_attach_failure(target, &error);
+            self.toast_attach_failure(target, &shown);
         }
         if target.resync
             && let Some((workspace, epoch)) = &target.reconnect
@@ -443,3 +444,8 @@ pub(super) fn queue_on(
     attempts.register_connection(ticket, target);
     Ok(())
 }
+
+// X11 이벤트 루프로 App 을 만드는 시험이라 Linux 에서만 컴파일한다(preset_shutdown_tests 와 같다).
+#[cfg(all(test, target_os = "linux"))]
+#[path = "pending_failure_tests.rs"]
+mod failure_tests;
