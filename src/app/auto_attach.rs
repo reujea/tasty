@@ -180,8 +180,12 @@ impl App {
             }
             None => {
                 // 실패한 행은 사용자가 다시 그 행으로 옮기거나 연결 버튼을 눌러야 다시 시도한다.
+                // 원격 workspace 가 없다고 확인된 행은 이번 실행에서 다시 시도하지 않는다.
                 let waiting = self.remote.pending_reactivation.contains(&row);
-                if visible_row_connects(edge_now) && (!waiting || edge_now) {
+                if visible_row_connects(edge_now)
+                    && (!waiting || edge_now)
+                    && !self.row_closed_elsewhere(row)
+                {
                     self.connect_saved_row(row, edge_now);
                 }
             }

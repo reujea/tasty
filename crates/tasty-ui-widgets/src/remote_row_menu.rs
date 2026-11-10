@@ -50,7 +50,8 @@ pub const REMOTE_ROW_CLOSE_REMOTE_KEY: &str = "remote.row.menu.close_remote";
 
 /// 상태별 켜짐. 연결되지 않은 동안에는 원격에 닿을 수 없어 원격 닫기는 연결됐을 때만 켜진다.
 /// 연결 중·재연결 중의 Disconnect 는 진행 중인 시도를 취소한다.
-/// `closed_elsewhere`는 이번 실행에서 연결돼 있던 동안 원격 workspace 가 다른 곳에서 닫힌 행이다.
+/// `closed_elsewhere`는 이번 실행에서 원격 workspace 가 없다고 확인된 행이다(연결된 동안 다른 곳에서
+/// 닫혔거나 첫 연결이 workspace_not_found 로 끝났다).
 /// 다시 붙을 곳이 없어 Reconnect 를 숨기지 않고 끈다. 이 표지는 저장하지 않아 재시작 뒤에는
 /// 아직 붙지 않은 행이 되고 Connect 가 켜진다.
 pub fn remote_row_menu(state: RemoteRowState, closed_elsewhere: bool) -> RemoteRowMenu {

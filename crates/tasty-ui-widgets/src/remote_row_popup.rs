@@ -28,8 +28,8 @@ pub enum RemoteRowPopupKind {
     GaveUp,
     /// 사용자가 연결을 끊었다.
     User,
-    /// 이 행이 연결된 동안 원격 workspace 가 다른 곳에서 닫혔다. 같은 workspace 로 다시 붙을 수 없어
-    /// 버튼은 숨기지 않고 끈다.
+    /// 이번 실행에서 원격 workspace 가 없다고 확인됐다(연결된 동안 다른 곳에서 닫혔거나 첫 연결이
+    /// workspace_not_found 로 끝났다). 같은 workspace 로 다시 붙을 수 없어 버튼은 숨기지 않고 끈다.
     Closed,
 }
 

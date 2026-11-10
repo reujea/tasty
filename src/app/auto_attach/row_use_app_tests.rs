@@ -136,3 +136,45 @@ fn a_request_joins_the_reconnect_schedule_without_resetting_it() {
     );
     assert_eq!(slot.attempts, 0);
 }
+
+/// Given 재시작 뒤 첫 연결이 workspace_not_found 로 끝난 저장 행, Then 같은 실행 안에서는 다른 곳에서
+/// 닫힌 행이다: 팝업 Closed, 메뉴 Connect 꺼짐, 다시 옮겨 와도 연결하지 않음, 그 행을 쓰는 요청은
+/// 형상 유무와 상관없이 연결하지 않고 remote_workspace_missing 으로 거절. 재시작하면 Connect 가 켜진다.
+#[test]
+fn a_first_connect_to_a_missing_workspace_is_closed_elsewhere_for_the_run() {
+    alone!("a_first_connect_to_a_missing_workspace_is_closed_elsewhere_for_the_run");
+    let event_loop = event_loop();
+    let mut app = app_with_saved_row(&event_loop, None);
+    app.on_first_connect_failed(
+        ROW,
+        &crate::app::auto_attach::test_rig::binding(),
+        &anyhow::anyhow!("workspace attach rejected: workspace_not_found"),
+    );
+    let view = app.row_view(ROW, app.row_state_name(ROW));
+    assert!(view.closed_elsewhere);
+    assert_eq!(
+        popup_kind(RemoteRowState::NotConnected, view, true),
+        RemoteRowPopupKind::Closed
+    );
+    assert!(!tasty_ui_widgets::remote_row_menu(RemoteRowState::NotConnected, true).connect);
+
+    app.maybe_connect_visible_row(Some(ROW), None);
+    assert!(
+        !app.remote.active.contains(&ROW),
+        "a revisit does not connect"
+    );
+
+    let missing = |decision: RowUse| matches!(decision, RowUse::Refuse(ref refusal) if refusal.reason == "remote_workspace_missing");
+    assert!(missing(decide(app.row_facts(ROW))));
+    let mut shaped = crate::app::attach_client::tests::test_session(ROW, Default::default());
+    shaped.state.saved_row = Some(ROW);
+    shaped.state.phase = SessionState::Disconnected;
+    app.remote.sessions.push(shaped);
+    assert!(missing(decide(app.row_facts(ROW))));
+    assert!(!app.remote.active.contains(&ROW));
+
+    // 안내는 메모리에만 있다. 다음 실행의 같은 행은 표지가 없다.
+    let restarted = app_with_saved_row(&event_loop, None);
+    assert!(!restarted.row_closed_elsewhere(ROW));
+    assert!(tasty_ui_widgets::remote_row_menu(RemoteRowState::NotConnected, false).connect);
+}

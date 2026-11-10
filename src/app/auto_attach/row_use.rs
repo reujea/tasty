@@ -204,6 +204,8 @@ struct RowFacts {
     active: bool,
     has_window: bool,
     user_disconnected: bool,
+    /// 이번 실행에서 원격 workspace 가 없다고 확인된 행(`row_closed_elsewhere`).
+    closed_elsewhere: bool,
     notice: Option<tasty_remote::refusal::RowNoticeKind>,
     waiting: usize,
 }
@@ -220,6 +222,10 @@ fn decide(facts: RowFacts) -> RowUse {
     let row = facts.row;
     if !facts.saved || facts.connected() {
         return RowUse::Pass;
+    }
+    // 다시 시도해도 같은 결과라 연결을 시도하지 않는다.
+    if facts.closed_elsewhere {
+        return RowUse::Refuse(refusal(row, "remote_workspace_missing"));
     }
     if !facts.has_window {
         return RowUse::Refuse(refusal(row, "window_parked"));
@@ -346,6 +352,7 @@ impl App {
             active: self.remote.active.contains(&row),
             has_window: self.row_has_window(row),
             user_disconnected: self.remote.user_disconnected.contains(&row),
+            closed_elsewhere: self.row_closed_elsewhere(row),
             notice: self.remote.refusals.notice(row).map(|notice| notice.kind),
             waiting: self.row_waits.waiting.len(),
         }
@@ -393,7 +400,9 @@ impl App {
     ) {
         use crate::ipc::protocol::JsonRpcResponse;
         let id = cmd.request.id.clone().unwrap_or(serde_json::Value::Null);
-        let refused = if !self.row_has_window(row) {
+        let refused = if self.row_closed_elsewhere(row) {
+            Some("remote_workspace_missing")
+        } else if !self.row_has_window(row) {
             Some("window_parked")
         } else if super::user_disconnect_holds(self.remote.user_disconnected.contains(&row), true) {
             Some("user_disconnected")
@@ -515,10 +524,11 @@ impl App {
         }
     }
 
-    /// 이번 실행에서 연결돼 있던 행의 원격 workspace 가 사라졌는지. 형상이 남은 끊긴 행에서만 참이다.
-    /// 재시작 뒤 실패는 연결 시도의 결과라 해당하지 않는다. 안내는 메모리에만 있어 재시작하면 지워진다.
+    /// 이번 실행에서 행의 원격 workspace 가 없다고 확인됐는지. 연결돼 있던 동안 다른 곳에서 닫혔거나
+    /// 첫 연결이 workspace_not_found 로 끝난 행이다. 형상 유무와 상관없다. 안내는 메모리에만 있어
+    /// 재시작하면 지워지고 그 뒤 첫 연결은 다시 시도한다.
     pub(super) fn row_closed_elsewhere(&self, row: u32) -> bool {
-        self.row_session_phase(row) == Some(SessionState::Disconnected)
+        self.row_session_phase(row) != Some(SessionState::Connected)
             && self.remote.refusals.notice(row).is_some_and(|notice| {
                 notice.kind == tasty_remote::refusal::RowNoticeKind::RemoteWorkspaceMissing
             })
@@ -704,6 +714,7 @@ mod tests {
             active: false,
             has_window,
             user_disconnected: false,
+            closed_elsewhere: false,
             notice: None,
             waiting: 0,
         }

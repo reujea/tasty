@@ -117,6 +117,7 @@ pub(crate) fn popup_kind(
         RemoteRowState::Disconnected if view.user_disconnected => K::User,
         RemoteRowState::Disconnected if has_reason => K::Failed,
         RemoteRowState::Disconnected => K::GaveUp,
+        RemoteRowState::NotConnected if view.closed_elsewhere => K::Closed,
         RemoteRowState::NotConnected if has_reason => K::Failed,
         RemoteRowState::NotConnected => K::Idle,
     }
@@ -272,6 +273,7 @@ mod tests {
         assert_eq!(popup_kind(d, view(false, false), false), K::GaveUp);
         let n = RemoteRowState::NotConnected;
         assert_eq!(popup_kind(n, view(false, false), true), K::Failed);
+        assert_eq!(popup_kind(n, view(true, false), true), K::Closed);
         assert_eq!(popup_kind(n, view(false, false), false), K::Idle);
         assert_eq!(
             popup_kind(RemoteRowState::Reconnecting, RowView::default(), false),

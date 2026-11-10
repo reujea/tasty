@@ -41,7 +41,7 @@ attach 의 본질은 **강한(hard) 배타 점유**다 — [Attach 메커니즘]
     - 같은 대상: 저장된 행의 연결·재연결은 같은 engine·행, 수동 요청은 `attach.into_gui` 의 `port`·`workspace`, 기존 workspace `remote.attach` 의 `profile`·`ssh`·`remote_workspace` 가 같은 것이다. 수동 요청은 엔드포인트를 해석 중이든 연결 중이든 끝나지 않은 이전 요청을 취소하고 새 요청이 결과를 받는다. 두 메서드는 서로 대체하지 않는다.
     - 처음 기록한 결과만 남으므로 대체된 시도의 늦은 결과가 새 시도의 run 을 바꾸지 않는다. `new_workspace:true` 는 생성 결과를 지연 회신하므로 run 을 싣지 않는다. 저장된 행의 자동 연결·재연결은 run 을 만들지 않고 행의 상태 표시를 따른다.
     - GUI 원격 연결 팝업에서 **연결** 이 접수된 뒤 연결·설치에 실패하면 시작한 창에 실패 토스트를 띄운다. 그 창이 닫혔거나 View 가 바뀌었으면 띄우지 않는다([토스트 정책](../../design/systems/toast.md)).
-  - **저장된 원격 행의 연결 실패 안내**: [저장된 원격 행](#저장된-원격-행과-mirror-내용)의 첫 연결이 실패하거나, 재연결이 다시 시도해도 같은 결과가 나올 이유(`remote_workspace_missing`·`occupied`·`mirror_workspace`)로 끝나면 안내를 남긴다. 재연결의 이 실패는 행을 바로 **연결 끊김** 상태로 둔다. 이유는 자기 자신(`self_instance`), 저장된 attach 프로필 없음(`profile_missing`), 연결 지점 준비 실패(`unresolved`), 원격 workspace 없음(`remote_workspace_missing`), 다른 client가 점유 중(`occupied`), 대상이 mirror(`mirror_workspace`)다. 행은 자동으로 다시 연결하지 않고 사용자가 그 행을 다시 활성화할 때 한 번 다시 시도한다. 연결돼 있던 동안 원격 workspace 가 다른 곳에서 닫힌 행은 예외다(아래 "저장된 원격 행의 표시"). 같은 대상으로 연결에 성공하거나 행이 닫히면 안내가 사라진다. 재연결 중의 엔드포인트 해석 실패 가운데서는 행의 attach 프로필이 없어진 경우(`profile_missing`)만 안내를 만든다. 연결 지점 준비 실패처럼 일시적일 수 있는 실패는 안내 없이 재연결을 이어 간다.
+  - **저장된 원격 행의 연결 실패 안내**: [저장된 원격 행](#저장된-원격-행과-mirror-내용)의 첫 연결이 실패하거나, 재연결이 다시 시도해도 같은 결과가 나올 이유(`remote_workspace_missing`·`occupied`·`mirror_workspace`)로 끝나면 안내를 남긴다. 재연결의 이 실패는 행을 바로 **연결 끊김** 상태로 둔다. 이유는 자기 자신(`self_instance`), 저장된 attach 프로필 없음(`profile_missing`), 연결 지점 준비 실패(`unresolved`), 원격 workspace 없음(`remote_workspace_missing`), 다른 client가 점유 중(`occupied`), 대상이 mirror(`mirror_workspace`)다. 행은 자동으로 다시 연결하지 않고 사용자가 그 행을 다시 활성화할 때 한 번 다시 시도한다. 원격 workspace 가 없다고 확인된 행(`remote_workspace_missing`)은 예외다(아래 "다른 곳에서 닫힌 행"). 같은 대상으로 연결에 성공하거나 행이 닫히면 안내가 사라진다. 재연결 중의 엔드포인트 해석 실패 가운데서는 행의 attach 프로필이 없어진 경우(`profile_missing`)만 안내를 만든다. 연결 지점 준비 실패처럼 일시적일 수 있는 실패는 안내 없이 재연결을 이어 간다.
     - 사이드바의 그 행에 경고 표지(alertTriangle, `attach-refusal-glyph` = accent-warning)가 활성 여부와 관계없이 붙고, 툴팁은 대상과 이유다. 이름 뒤 순서는 move 글리프 · 경고 표지 · 배지 묶음이며 배지가 가장 오른쪽이고 항목 사이는 `space-sm`이다. 접힌 사이드바(레일)에서는 아바타 왼쪽 위 모서리에 12 칩(alertTriangle 8, 레일 배경 바탕)을 그린다.
     - 사용자가 그 행을 활성화한 뒤의 안내면 콘텐츠 위쪽(탭 바 아래)에 Workspace 배너가 뜬다. `remote_workspace_missing`·`occupied`·`mirror_workspace` 는 배너에서 `unresolved` 와 같은 문장을 쓴다. ×는 그 창의 이번 활성화에만 배너를 숨긴다. 토스트는 띄우지 않고 포커스도 옮기지 않는다.
     - 지금 남은 안내는 `remote.refusals` 응답의 `notices`(`workspace_id` · `kind` · `target`, 워크스페이스 ID 순)로 조회한다.
@@ -371,7 +371,7 @@ move-surface 는 **source/target 이 같은 mirror workspace 안에 있을 때�
 - **사이드바 카드와 rail**: 카드의 원격 줄은 상태어(`remote.row.state.*` 등)를 붙이고 연결되지 않은 동안 원격 색을 뺀다. rail 의 mirror 칩은 연결되지 않은 동안 꺼진 칩으로 그린다. 연결되지 않은 행은 바쁨 수를 세지 않고, 시도 중이면 시도를 시작한 시각부터 로딩 표시를 그린다. 연결 실패 안내는 카드 툴팁에 프로필 → 원격 workspace 와 이유로 보인다.
 - **상태바**: 연결 끊김 행은 재연결 중처럼 원격 색을 빼고 `status_bar.remote_disconnected` 상태어를 붙인다.
 - **attach 거절 배너**: 저장된 원격 행에는 띄우지 않는다. 팝업과 카드가 같은 이유를 보인다.
-- **다른 곳에서 닫힌 행**: 연결돼 있던 동안 원격 workspace 가 다른 곳에서 닫혀 재연결이 `remote_workspace_missing` 으로 끝난 행은 다시 활성화해도 자동으로 연결하지 않고, 팝업과 메뉴의 Reconnect 를 끈다(`row_closed_elsewhere`). 이 표지는 메모리에만 있고 저장하지 않는다. 다시 시작하면 그 행은 아직 붙지 않은 행이고 Connect 가 켜진다.
+- **다른 곳에서 닫힌 행**: 이번 실행에서 원격 workspace 가 없다고 확인된 행이다. 연결돼 있던 동안 다른 곳에서 닫혀 재연결이 `remote_workspace_missing` 으로 끝난 행과, 첫 연결이 같은 이유로 끝난 행이 모두 해당하며 형상 유무와 상관없다. 다시 활성화해도 자동으로 연결하지 않고, 팝업은 다른 곳에서 닫힘 갈래로 버튼을 끄며 메뉴의 Connect·Reconnect 도 끈다(`row_closed_elsewhere`). 그 행을 쓰는 요청은 연결을 시도하지 않고 바로 `remote_workspace_missing` 으로 거절한다. 이 표지는 메모리에만 있고 저장하지 않는다. 다시 시작하면 그 행은 아직 붙지 않은 행이고 Connect 가 켜진다.
 
 ### 저장된 원격 행을 쓰는 요청
 
@@ -383,6 +383,7 @@ IPC·CLI·plugin 요청이 연결되지 않은 저장된 원격 행을 쓰려 �
 - **오류**: 연결하지 못하면 `-32000` 과 `data: {reason, workspace_id}` 로 답한다. plugin host-call 은 같은 코드와 메시지를 받는다(`data` 없음). `reason` 은 다음 중 하나다.
   - `window_parked`: 그 행을 가진 창이 닫혀 있다(parked engine). 연결하지 않고 바로 답한다. 창을 여는 것은 포커스를 바꾸는 동작이라 요청으로 하지 않는다.
   - `user_disconnected`: 사용자가 이 실행 중 그 행의 연결을 끊었다(위 "사용자 대기 갈래").
+  - `remote_workspace_missing`(바로 답함): 이번 실행에서 원격 workspace 가 없다고 확인된 행이다(위 "다른 곳에서 닫힌 행"). 첫 연결 실패 뒤 다른 이유의 행은 요청이 한 번 더 연결을 시도하지만 이 행은 시도하지 않는다. `remote.attach` 도 같다.
   - `connect_timeout`: 상한 안에 연결되지 않았다.
   - 연결 실패 안내와 같은 이름: `self_instance`·`profile_missing`·`unresolved`·`remote_workspace_missing`·`occupied`·`mirror_workspace`.
   - `busy`: 연결을 기다리는 요청이 상한만큼 있다.
