@@ -65,6 +65,8 @@ pub struct FileHandlerPickerProps<'a> {
     /// 헤더 mono 경로 — 이미 **앞에서** 잘린 값이다
     /// (`tasty_ui_widgets::file_handler::elide_target_front`).
     pub target_display: &'a str,
+    /// 대상이 원격 경로이면 경로 줄 앞에 그릴 표지. 로컬 대상은 None.
+    pub remote: Option<tasty_ui_widgets::RemoteMark<'a>>,
     /// 감지된 형식. `None` 이면 "format unknown" Tag.
     pub detector_label: Option<&'a str>,
     pub candidates: &'a [FileHandlerPickerEntryView],
@@ -124,11 +126,24 @@ pub fn id_local_segment(id: &str) -> &str {
 
 /// 경로에 들어갈 문자 수를 폰트 폭으로 계산한다. 단일 글리프 폭이 아니라
 /// "00"과 "0"의 폭 차이를 사용해 egui의 정수 픽셀 advance 반올림을 반영한다.
-fn target_budget(ui: &egui::Ui, th: &Theme) -> usize {
+fn target_budget(
+    ui: &egui::Ui,
+    th: &Theme,
+    remote: Option<&tasty_ui_widgets::RemoteMark<'_>>,
+) -> usize {
     let font = egui::FontId::monospace(th.font_size_caption.value());
     let one = text_w(ui, "0", &font, egui::Color32::PLACEHOLDER);
     let two = text_w(ui, "00", &font, egui::Color32::PLACEHOLDER);
-    fh_model::target_budget_chars(LogicalPx(two - one))
+    let advance = LogicalPx(two - one);
+    match remote {
+        // 원격 표지가 있으면 경로 상자는 표지와 그 뒤 간격(space-sm)을 뺀 나머지다.
+        Some(mark) => fh_model::target_budget_chars_beside(
+            advance,
+            tasty_ui_widgets::fh_remote_mark_width(ui, th, mark),
+            th.spacing_sm,
+        ),
+        None => fh_model::target_budget_chars(advance),
+    }
 }
 
 /// 최근 사용 시각의 표시 구간.
@@ -374,14 +389,28 @@ fn header_band(ui: &mut egui::Ui, props: &FileHandlerPickerProps<'_>) {
         child.available_width(),
     );
 
+    // 원격 대상이면 경로 줄 맨 앞에 호스트 표지를 두고 경로는 남은 상자에 그린다.
+    let path_font = egui::FontId::monospace(th.font_size_caption.value());
+    let line_top = title_rect.bottom() + FH_GAP_SM.value();
+    let mut path_left = title_rect.left();
+    if let Some(mark) = &props.remote {
+        let line_h = ui.fonts(|f| f.row_height(&path_font));
+        let mark_w = tasty_ui_widgets::paint_fh_remote_mark(
+            ui,
+            th,
+            egui::pos2(path_left, line_top + line_h / 2.0),
+            mark,
+        );
+        path_left += (mark_w + th.spacing_sm).value();
+    }
     // 경로는 이미 앞에서 줄였으므로 RTL로 다시 배열하지 않는다.
     paint_truncated(
         ui,
-        egui::pos2(title_rect.left(), title_rect.bottom() + FH_GAP_SM.value()),
+        egui::pos2(path_left, line_top),
         props.target_display,
-        egui::FontId::monospace(th.font_size_caption.value()),
+        path_font,
         th.text_muted().into(),
-        title_rect.width(),
+        title_rect.right() - path_left,
     );
 }
 
@@ -912,8 +941,15 @@ pub fn draw_file_handler_picker(
         .duration_since(std::time::UNIX_EPOCH)
         .map(|d| d.as_secs() as i64)
         .unwrap_or(0);
-    let target_display =
-        fh_model::elide_target_front(&picker.target_display, target_budget(ui, &th));
+    let empty_label = t("attach.mirror_pill_label");
+    let remote = picker
+        .remote_host
+        .as_deref()
+        .map(|host| tasty_ui_widgets::RemoteMark { host, empty_label });
+    let target_display = fh_model::elide_target_front(
+        &picker.target_display,
+        target_budget(ui, &th, remote.as_ref()),
+    );
     let detector_str = picker.detector.as_ref().map(|d| d.as_str().to_string());
     let candidates: Vec<FileHandlerPickerEntryView> =
         picker.candidates.iter().map(|s| to_entry(s, now)).collect();
@@ -937,6 +973,7 @@ pub fn draw_file_handler_picker(
     let props = FileHandlerPickerProps {
         theme: &th,
         target_display: &target_display,
+        remote,
         detector_label: detector_str.as_deref(),
         candidates: &candidates,
         recent: &recent,
@@ -1013,7 +1050,7 @@ mod tests {
                 let one = text_w(ui, "0", &font, egui::Color32::PLACEHOLDER);
                 let two = text_w(ui, "00", &font, egui::Color32::PLACEHOLDER);
                 assert_eq!(
-                    target_budget(ui, &th),
+                    target_budget(ui, &th, None),
                     tasty_ui_widgets::tokens::FH_TARGET_ELIDE_FALLBACK
                 );
                 assert_eq!(
@@ -1073,6 +1110,7 @@ mod tests {
             FileHandlerPickerProps {
                 theme: &self.theme,
                 target_display: "docs/architecture.md",
+                remote: None,
                 detector_label: (!self.fallback).then_some("markdown"),
                 candidates: &self.candidates,
                 recent: &self.recent,
@@ -1493,7 +1531,7 @@ mod tests {
         let mut expected_path = String::new();
         let out = ctx.run(egui::RawInput::default(), |ctx| {
             egui::CentralPanel::default().show(ctx, |ui| {
-                expected_path = fh_model::elide_target_front(url, target_budget(ui, &th));
+                expected_path = fh_model::elide_target_front(url, target_budget(ui, &th, None));
                 assert!(matches!(
                     draw_file_handler_picker(ui, &mut state, &read),
                     PopupAction::None

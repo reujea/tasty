@@ -763,6 +763,7 @@ impl MainView {
                         crate::file::dispatch::open_remote_placeholder_picker(
                             &mut self.state,
                             crate::file::format::FileTarget::new(path),
+                            super::link_menu::remote_host_text(engine, hovered.surface_id),
                         );
                     } else {
                         self.state.dispatch_intent(

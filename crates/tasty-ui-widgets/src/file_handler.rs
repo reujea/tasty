@@ -1,7 +1,8 @@
 //! 본체와 갤러리가 공유하는 파일 핸들러 ID·경로의 말줄임 규칙.
 
 use crate::tokens::{
-    FH_ID_ELIDE_MAX, FH_ID_ELIDE_TAIL, FH_TARGET_ELIDE_FALLBACK, FH_TARGET_LINE_BOX,
+    FH_ID_ELIDE_MAX, FH_ID_ELIDE_TAIL, FH_TARGET_ELIDE_FALLBACK, FH_TARGET_ELIDE_FALLBACK_REMOTE,
+    FH_TARGET_LINE_BOX,
 };
 use tasty_type_geometry::length::LogicalPx;
 
@@ -26,6 +27,25 @@ pub fn target_budget_chars(mono_advance: LogicalPx) -> usize {
     let fits = (FH_TARGET_LINE_BOX.value() / w).floor();
     if !fits.is_finite() || fits < 1.0 {
         return FH_TARGET_ELIDE_FALLBACK;
+    }
+    fits as usize
+}
+
+/// 원격 표지 옆 경로 상자(경로 줄 − 표지 − `gap`)에 들어갈 글자 수.
+/// 글자 폭이나 표지 폭을 잴 수 없으면 호스트가 상한일 때의 값을 쓴다.
+pub fn target_budget_chars_beside(
+    mono_advance: LogicalPx,
+    mark_w: LogicalPx,
+    gap: LogicalPx,
+) -> usize {
+    let w = mono_advance.value();
+    let room = (FH_TARGET_LINE_BOX - mark_w - gap).value();
+    if !w.is_finite() || w <= 0.0 || !room.is_finite() {
+        return FH_TARGET_ELIDE_FALLBACK_REMOTE;
+    }
+    let fits = (room / w).floor();
+    if fits < 1.0 {
+        return FH_TARGET_ELIDE_FALLBACK_REMOTE;
     }
     fits as usize
 }
@@ -123,6 +143,31 @@ mod tests {
             out.chars().count()
         );
         assert_eq!(out, "…/file.rs");
+    }
+
+    /// 디자인 표본: 표지 = 12 + 4 + 호스트(6px 글자). 상자 = 390 − 표지 − 8.
+    #[test]
+    fn the_path_beside_a_remote_mark_gets_what_the_mark_leaves() {
+        let mark = |host_px: f32| LogicalPx(12.0 + 4.0 + host_px);
+        let budget =
+            |host_px| target_budget_chars_beside(LogicalPx(6.0), mark(host_px), LogicalPx(8.0));
+        assert_eq!(budget(24.0), 57, "gx10");
+        assert_eq!(budget(108.0), 43, "mac-company-attach");
+        assert_eq!(budget(90.0), 46, "127.0.0.1:54321");
+        assert_eq!(budget(160.0), 34, "host at the cap");
+        assert_eq!(
+            target_budget_chars_beside(LogicalPx(0.0), mark(24.0), LogicalPx(8.0)),
+            FH_TARGET_ELIDE_FALLBACK_REMOTE
+        );
+        // 93자 표본은 mac-company-attach 옆에서 조각 경계로, 상한에서는 한 조각 안에서 잘린다.
+        assert_eq!(
+            elide_target_front(B_SEGMENT, budget(108.0)),
+            "…/SidebarCategoryHeaderContrast.tsx"
+        );
+        assert_eq!(
+            elide_target_front(B_SEGMENT, budget(160.0)),
+            "…SidebarCategoryHeaderContrast.tsx"
+        );
     }
 
     #[test]

@@ -248,6 +248,7 @@ pub(crate) fn open_picker_from_read(
                 "the file handler picker closed without a choice",
             )
         }),
+        remote_host: None,
     });
     let intent = crate::intent::UiIntent::OpenPopup {
         id: crate::adapters::ui::popup::file_handler_picker::PICKER_POPUP_ID,
@@ -282,8 +283,13 @@ fn picker_lists(
 }
 
 /// 원격 경로는 로컬 핸들러에 넘기지 않도록 후보와 최근 목록이 모두 빈 picker를 만든다.
+/// `remote_host`는 머리 경로 줄 앞 표지의 호스트 글자다(비면 `Remote` 낱말).
 #[cfg(feature = "gui")]
-pub(crate) fn open_remote_placeholder_picker(state: &mut RequestContext, target: FileTarget) {
+pub(crate) fn open_remote_placeholder_picker(
+    state: &mut RequestContext,
+    target: FileTarget,
+    remote_host: String,
+) {
     let target = DispatchTarget::File(target);
     let target_display = target.display();
     state.dialogs.file_handler_picker = Some(FileHandlerPickerData {
@@ -300,6 +306,7 @@ pub(crate) fn open_remote_placeholder_picker(state: &mut RequestContext, target:
         result: None,
         ignore_size_limit: false,
         run: None,
+        remote_host: Some(remote_host),
     });
     // 호출자는 링크 메뉴와 마우스 클릭뿐이라 사용자 요청으로 연다.
     state.dispatch_intent(
@@ -816,11 +823,22 @@ mod tests {
                 .recent
                 .is_empty()
         );
+        assert!(
+            state
+                .dialogs
+                .file_handler_picker
+                .as_ref()
+                .unwrap()
+                .remote_host
+                .is_none()
+        );
 
-        open_remote_placeholder_picker(&mut state, FileTarget::new("/remote/a.md"));
+        open_remote_placeholder_picker(&mut state, FileTarget::new("/remote/a.md"), "gx10".into());
         let picker = state.dialogs.file_handler_picker.as_ref().unwrap();
         assert!(picker.recent.is_empty());
         assert!(picker.candidates.is_empty());
+        // 원격 경로 picker 만 머리에 호스트를 싣는다. 로컬 대상 picker 는 None 이다.
+        assert_eq!(picker.remote_host.as_deref(), Some("gx10"));
     }
 
     #[cfg(windows)]

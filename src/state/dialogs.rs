@@ -318,6 +318,8 @@ pub struct FileHandlerPickerData {
     pub(crate) ignore_size_limit: bool,
     /// 최종 결과를 기다리는 요청의 run. 선택 없이 사라지면 `cancelled`로 끝난다.
     pub(crate) run: Option<crate::request_runs::RunGuard>,
+    /// 대상이 mirror 원격 호스트의 경로이면 그 호스트 글자(비면 `Remote` 낱말). 로컬 대상은 None.
+    pub(crate) remote_host: Option<String>,
 }
 
 /// picker 의 닫기 사유.

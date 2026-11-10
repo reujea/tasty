@@ -1548,6 +1548,15 @@ pub fn pages() -> Vec<Page> {
                             components::file_handler_picker::draw_path_cut,
                         ),
                         spec(
+                            "file-handler-remote-path",
+                            "Remote path — the host leads the path line",
+                            Some(
+                                "remote glyph + host (attach profile name) before the path · \
+                             host capped at 160 · path front-elided in what the mark leaves",
+                            ),
+                            components::file_handler_picker::draw_remote_path,
+                        ),
+                        spec(
                             "filehandler-fallback",
                             "No suggestions — the whole catalog, one time only",
                             Some("All handlers in the attention tone + one-time strip"),

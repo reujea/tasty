@@ -165,7 +165,8 @@ impl MainView {
         };
         match target {
             crate::file::dispatch::DispatchTarget::File(file) if link.remote_path => {
-                crate::file::dispatch::open_remote_placeholder_picker(&mut self.state, file);
+                let host = remote_host_text(engine, link.surface_id);
+                crate::file::dispatch::open_remote_placeholder_picker(&mut self.state, file, host);
             }
             target => {
                 let all = engine.file_handler.all_handlers();
@@ -186,6 +187,17 @@ impl MainView {
         }
         self.mark_dirty();
     }
+}
+
+/// mirror surface 의 호스트 글자. 연결 정보가 아직 없으면 빈 글자(화면은 `Remote` 낱말)다.
+pub(super) fn remote_host_text(
+    engine: &crate::runtime::engine_read::EngineRead<'_>,
+    surface_id: u32,
+) -> String {
+    engine
+        .mirror_location_of(surface_id)
+        .map(|location| location.host.clone())
+        .unwrap_or_default()
 }
 
 /// hover 링크의 선택 양끝과 화면 문자열. 화면 내용이 hover 계산 뒤 바뀌었으면 None이다.

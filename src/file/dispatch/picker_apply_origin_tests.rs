@@ -424,6 +424,7 @@ fn user_dispatch_and_remote_placeholder_open_the_picker_as_user_requests() {
     crate::file::dispatch::open_remote_placeholder_picker(
         &mut state,
         FileTarget::new("/remote/a.md"),
+        "gx10".into(),
     );
     take_picker_open_request(&mut state, false);
 }

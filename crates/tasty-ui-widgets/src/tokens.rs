@@ -153,6 +153,10 @@ pub const FH_TARGET_MONO_ADVANCE: LogicalPx = LogicalPx(6.0);
 /// 글자 폭을 측정할 수 없을 때 사용하는 상한. 가용 폭을 위 증가분으로 나눈 값이다.
 pub const FH_TARGET_ELIDE_FALLBACK: usize = 65;
 
+/// 원격 표지 옆 경로의 글자 수를 잴 수 없을 때의 상한. 호스트 글자가 상한(160)일 때
+/// 남는 상자 206(390 − 12 − 4 − 160 − 8)을 6 으로 나눈 값이다.
+pub const FH_TARGET_ELIDE_FALLBACK_REMOTE: usize = 34;
+
 /// Recent 그룹 행 글리프의 흐리기. 디자인 `opacity: dim && !plugin ? 0.8 : 1` — plugin
 /// 행은 mauve 가 출처 표시라 흐리지 않는다.
 pub const FH_RECENT_DIM_OPACITY: f32 = 0.8;

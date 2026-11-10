@@ -510,8 +510,15 @@ fn fh_group(
     );
 }
 
-/// 프레임 자기 헤더 — 제목 + 형식 Tag, 그 아래 mono 경로.
-fn fh_header(ui: &mut egui::Ui, theme: &Theme, state: FrameState, path: &str) {
+/// 프레임 자기 헤더 — 제목 + 형식 Tag, 그 아래 mono 경로. 원격 대상이면 경로 줄 맨 앞에
+/// 공용 원격 표지를 그리고 경로는 남은 상자에 그린다.
+fn fh_header(
+    ui: &mut egui::Ui,
+    theme: &Theme,
+    state: FrameState,
+    path: &str,
+    remote: Option<&tasty_ui_widgets::RemoteMark<'_>>,
+) {
     kit::region(
         ui,
         egui::Margin {
@@ -536,16 +543,26 @@ fn fh_header(ui: &mut egui::Ui, theme: &Theme, state: FrameState, path: &str) {
             // 파일명이 남도록 앞부분을 생략한 뒤 LTR 한 줄로 그린다.
             let path_font = egui::FontId::monospace(theme.font_size_caption.value());
             let path_h = ui.fonts(|f| f.row_height(&path_font));
-            let path_w = ui.available_width();
-            let (path_rect, _) =
-                ui.allocate_exact_size(egui::vec2(path_w, path_h), egui::Sense::hover());
+            let line_w = ui.available_width();
+            let (line_rect, _) =
+                ui.allocate_exact_size(egui::vec2(line_w, path_h), egui::Sense::hover());
+            let mut path_left = line_rect.left();
+            if let Some(mark) = remote {
+                let mark_w = tasty_ui_widgets::paint_fh_remote_mark(
+                    ui,
+                    theme,
+                    egui::pos2(path_left, line_rect.center().y),
+                    mark,
+                );
+                path_left += (mark_w + theme.spacing_sm).value();
+            }
             paint_truncated(
                 ui,
-                path_rect.left_top(),
+                egui::pos2(path_left, line_rect.top()),
                 path,
                 path_font,
                 theme.text_muted().to_egui(),
-                path_w,
+                line_rect.right() - path_left,
             );
         },
     );
@@ -716,7 +733,7 @@ pub(super) fn frame_with_path(
         if !headless {
             fh_titlebar(ui, theme);
         }
-        fh_header(ui, theme, state, path);
+        fh_header(ui, theme, state, path, None);
         if state == FrameState::Fallback {
             fh_fallback_strip(ui, theme);
         }
@@ -732,7 +749,37 @@ pub(super) fn frame_with_path(
 /// 경로 생략 결과를 비교할 수 있도록 헤더만 그린다.
 pub(super) fn header_card(ui: &mut egui::Ui, theme: &Theme, path: &str) {
     kit::frame_card(ui, theme, FH_FRAME_WIDTH, kit::panel_fill(theme), |ui| {
-        fh_header(ui, theme, FrameState::Default, path);
+        fh_header(ui, theme, FrameState::Default, path, None);
+    });
+}
+
+/// 원격 경로 picker — 본문은 빈 picker 그대로이고 머리 경로 줄 앞에 원격 표지가 붙는다.
+/// 경로는 표지가 남긴 상자에 대해 본체와 같은 공용 함수로 앞을 줄인다.
+pub(super) fn remote_frame(
+    ui: &mut egui::Ui,
+    theme: &Theme,
+    raw_path: &str,
+    mark: &tasty_ui_widgets::RemoteMark<'_>,
+) {
+    let font = egui::FontId::monospace(theme.font_size_caption.value());
+    let advance = ui.fonts(|f| {
+        f.layout_no_wrap("00".into(), font.clone(), egui::Color32::PLACEHOLDER)
+            .rect
+            .width()
+            - f.layout_no_wrap("0".into(), font.clone(), egui::Color32::PLACEHOLDER)
+                .rect
+                .width()
+    });
+    let budget = fh_model::target_budget_chars_beside(
+        tasty_type_geometry::length::LogicalPx(advance),
+        tasty_ui_widgets::fh_remote_mark_width(ui, theme, mark),
+        theme.spacing_sm,
+    );
+    let path = fh_model::elide_target_front(raw_path, budget);
+    kit::frame_card(ui, theme, FH_FRAME_WIDTH, kit::panel_fill(theme), |ui| {
+        fh_header(ui, theme, FrameState::Empty, &path, Some(mark));
+        fh_empty(ui, theme);
+        fh_footer(ui, theme, false);
     });
 }
 

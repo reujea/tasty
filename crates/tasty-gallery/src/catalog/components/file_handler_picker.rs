@@ -8,7 +8,7 @@ use tasty_type_appearance::theme::Theme;
 
 use crate::catalog::spec::{self, StageVariant, TokenChip};
 use crate::catalog::widgets::dialog as kit;
-use frame::{FrameState, fh_footer, frame, header_card};
+use frame::{FrameState, fh_footer, frame, header_card, remote_frame};
 use tasty_ui_widgets::file_handler as fh_model;
 use tasty_ui_widgets::tokens::FH_FRAME_WIDTH;
 
@@ -231,6 +231,91 @@ const PATH_SAMPLES: [&str; 3] = [
 
 /// 이 예제는 글꼴을 실측하지 않고 측정할 수 없을 때의 문자 수 상한을 사용한다.
 const PATH_BUDGET: usize = tasty_ui_widgets::tokens::FH_TARGET_ELIDE_FALLBACK;
+
+/// 원격 경로 표본 — 디자인 Spec `file-handler-remote-path` 의 줄. 호스트 글자는 attach 프로필 이름이다.
+const REMOTE_PATH_ROWS: [(&str, &str, &str); 3] = [
+    ("remote path — profile gx10", "gx10", "src/main.rs"),
+    (
+        "93-char path beside mac-company-attach — whole segments drop, the filename stays",
+        "mac-company-attach",
+        PATH_SAMPLES[1],
+    ),
+    (
+        "same path at the host cap — the one segment is cut at its front",
+        "build-runner-eu-west-07-staging-attach",
+        PATH_SAMPLES[1],
+    ),
+];
+
+pub fn draw_remote_path(ui: &mut egui::Ui, theme: &Theme) {
+    let empty_label = crate::i18n::t("attach.mirror_pill_label");
+    let row = |ui: &mut egui::Ui, (label, host, path): (&str, &str, &str)| {
+        spec::cluster(ui, theme, label, |ui| {
+            remote_frame(
+                ui,
+                theme,
+                path,
+                &tasty_ui_widgets::RemoteMark { host, empty_label },
+            );
+        });
+    };
+    spec::stage(ui, theme, StageVariant::Wrap, |ui| {
+        spec::cluster(ui, theme, "local path — no mark", |ui| {
+            header_card(ui, theme, "docs/architecture.md");
+        });
+        for r in REMOTE_PATH_ROWS {
+            row(ui, r);
+        }
+    });
+    spec::meta(
+        ui,
+        theme,
+        &[
+            (
+                "where",
+                "path line, before the path — never in the title row",
+            ),
+            ("mark", "remote glyph 12 + host · mono caption · no fill"),
+            ("ink", "fh-remote-fg → accent-remote-raised"),
+            (
+                "gap",
+                "glyph ↔ host fh-remote-gap 4 · mark ↔ path space-sm 8",
+            ),
+            (
+                "host cap",
+                "fh-remote-max-width 160 on the host text · end-elided with …",
+            ),
+            (
+                "host text",
+                "attach profile name, as it was at connect time",
+            ),
+            ("path box", "390 − mark − 8; mark = 12 + 4 + host text"),
+            (
+                "path measure",
+                "front elision against the path box, at a segment boundary",
+            ),
+            ("path cap, unmeasured", "34 — the box left at the host cap"),
+            (
+                "no host text",
+                "the word Remote (attach.mirror_pill_label) in the host slot, font-label",
+            ),
+            ("local path", "no mark — the line is the path alone"),
+            ("body", "unchanged — remote paths open the empty picker"),
+        ],
+        &[
+            TokenChip::new("fh-remote-fg", "host mark", theme.fh_remote_fg().to_egui()),
+            TokenChip::without_color("fh-remote-gap", "glyph ↔ host"),
+            TokenChip::without_color("fh-remote-max-width", "host cap"),
+            TokenChip::new("text-muted", "path ink", theme.text_muted().to_egui()),
+        ],
+    );
+    spec::dont(
+        ui,
+        theme,
+        "Don't join host and path into one string (gx10:/src/main.rs). The path line elides at \
+         the front, so the host would be the first thing cut.",
+    );
+}
 
 pub fn draw_fallback(ui: &mut egui::Ui, theme: &Theme) {
     spec::stage(ui, theme, StageVariant::Wrap, |ui| {
