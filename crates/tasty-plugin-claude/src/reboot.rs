@@ -453,7 +453,8 @@ fn fetch_session_id(
 
 /// 셸에 보낼 resume 명령과 제출 문자(\r)를 만든다.
 /// 환경 변수는 PTY에 이미 주입돼 있으므로 POSIX 전용 인라인 환경 문법을 쓰지 않는다.
-/// 프로필은 인라인 JSON 대신 큰따옴표로 감싼 파일 경로로 전달한다.
+/// 프로필은 인라인 JSON 대신 OS별 규칙으로 인용한 파일 경로로 전달한다
+/// (Linux·macOS는 큰따옴표, Windows는 Git Bash 작은따옴표 규칙).
 pub(crate) fn resume_command(
     session_id: &str,
     profile_file: Option<&str>,

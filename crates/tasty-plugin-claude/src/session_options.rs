@@ -278,8 +278,9 @@ mod tests;
 /// Quote one shell word for a POSIX shell, including Git Bash on Windows.
 ///
 /// Inside single quotes `\`, `$`, `` ` `` and `"` stay literal, so Windows paths keep their
-/// backslashes, UNC prefixes and `D$` shares. `'` and `!` (interactive history expansion) are
-/// moved outside the quotes. The result does not depend on the `MSYSTEM` variable.
+/// backslashes, UNC prefixes and `D$` shares. `'` is moved outside the quotes as `'\''`. Following
+/// the shell-escape rule, `!` is also written outside as `'\!'`; bash gives the same word if it
+/// stays inside the single quotes. The result does not depend on the `MSYSTEM` variable.
 pub(crate) fn posix_single_quote(value: &str) -> String {
     shell_escape::unix::escape(value.into()).into_owned()
 }
