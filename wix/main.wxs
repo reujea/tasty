@@ -403,20 +403,25 @@
 
         <SetProperty Id='ARPINSTALLLOCATION' Value='[APPLICATIONFOLDER]' After='CostFinalize'/>
 
-        <!-- On a full uninstall, try to remove the invoking user's runtime-created
-             %USERPROFILE%\.tasty directory. The MSI file list does not include it.
-             Use the invoking user's token; ignore removal failures such as locked files.
-             Skip partial removals and upgrades so they preserve user data. -->
-        <CustomAction Id='PurgeTastyUserData'
-            Directory='APPLICATIONFOLDER'
-            ExeCommand='cmd.exe /c rmdir /s /q "%USERPROFILE%\.tasty"'
-            Execute='deferred'
-            Impersonate='yes'
+        <!-- Only the removal dialog can ask for %USERPROFILE%\.tasty to be deleted, and the MSI file
+             list does not include that folder. The action runs in the client UI sequence after
+             ExecuteAction, so silent and basic-UI removals never reach it, a failed or cancelled
+             removal never deletes data, and it runs as the user who started the removal.
+             TastyRemoveUserData is private so a command line cannot set it. The condition reads
+             WixUI_InstallMode because the Remove control event sets REMOVE only for the server
+             side, so REMOVE is empty here after the wizard. A file that cannot be
+             deleted does not fail the removal; the user is told that the folder remains. -->
+        <Property Id='TastyRemoveUserDataCommand' Value='cmd.exe /c rmdir /s /q "%USERPROFILE%\.tasty" &amp; if exist "%USERPROFILE%\.tasty" powershell.exe -NoProfile -NonInteractive -WindowStyle Hidden -Command "(New-Object -ComObject WScript.Shell).Popup(&apos;Tasty was uninstalled, but some data remains in the .tasty folder in your Windows user folder. Close Tasty if it is still running, then delete that folder manually.&apos;,0,&apos;Tasty data deletion incomplete&apos;,48)"'/>
+        <!-- The command lives in a property because the CustomAction target column holds 255 characters. -->
+        <CustomAction Id='RemoveTastyUserData'
+            Directory='TARGETDIR'
+            ExeCommand='[TastyRemoveUserDataCommand]'
+            Execute='immediate'
             Return='ignore'/>
 
-        <InstallExecuteSequence>
-            <Custom Action='PurgeTastyUserData' Before='RemoveFiles'>REMOVE="ALL" AND NOT UPGRADINGPRODUCTCODE</Custom>
-        </InstallExecuteSequence>
+        <InstallUISequence>
+            <Custom Action='RemoveTastyUserData' After='ExecuteAction'>TastyRemoveUserData="1" AND WixUI_InstallMode="Remove" AND NOT UPGRADINGPRODUCTCODE</Custom>
+        </InstallUISequence>
 
 
         <Icon Id='ProductIcon.ico' SourceFile='assets\icons\icon.ico'/>
@@ -427,9 +432,37 @@
         <UI>
             <UIRef Id='WixUI_FeatureTree'/>
 
+            <!-- The geometry follows the WixUI dialogs this one sits between. -->
+            <Dialog Id='TastyRemoveDataDlg' Width='370' Height='270' Title='!(loc.VerifyReadyDlg_Title)'>
+                <Control Id='Back' Type='PushButton' X='180' Y='243' Width='56' Height='17' Text='!(loc.WixUIBack)'>
+                    <Condition Action='disable'>Preselected</Condition>
+                    <Condition Action='enable'>NOT Preselected</Condition>
+                    <Publish Event='NewDialog' Value='MaintenanceTypeDlg'>NOT Preselected</Publish>
+                </Control>
+                <Control Id='Next' Type='PushButton' X='236' Y='243' Width='56' Height='17' Default='yes' Text='!(loc.WixUINext)'>
+                    <Publish Property='WixUI_InstallMode' Value='Remove' Order='1'>1</Publish>
+                    <Publish Event='NewDialog' Value='VerifyReadyDlg' Order='2'>1</Publish>
+                </Control>
+                <Control Id='Cancel' Type='PushButton' X='304' Y='243' Width='56' Height='17' Cancel='yes' Text='!(loc.WixUICancel)'>
+                    <Publish Event='SpawnDialog' Value='CancelDlg'>1</Publish>
+                </Control>
+                <Control Id='BannerBitmap' Type='Bitmap' X='0' Y='0' Width='370' Height='44' TabSkip='no' Text='!(loc.VerifyReadyDlgBannerBitmap)'/>
+                <Control Id='BannerLine' Type='Line' X='0' Y='44' Width='370' Height='0'/>
+                <Control Id='BottomLine' Type='Line' X='0' Y='234' Width='370' Height='0'/>
+                <Control Id='Title' Type='Text' X='15' Y='15' Width='300' Height='15' Transparent='yes' NoPrefix='yes' Text='{\WixUI_Font_Title}Uninstall Tasty'/>
+                <Control Id='RemoveUserData' Type='CheckBox' X='25' Y='70' Width='320' Height='17' Property='TastyRemoveUserData' CheckBoxValue='1' Text='Permanently delete settings, history, saved logins and profiles in .tasty'/>
+                <Control Id='RemoveUserDataDescription' Type='Text' X='37' Y='89' Width='308' Height='56' Text='This includes the entire .tasty folder in your Windows user folder, including themes, layouts, agent memory and plugin copies. Deletion happens only after a successful uninstall. Data stored elsewhere and Tasty hooks are kept.'/>
+            </Dialog>
 
+            <!-- A later NewDialog event replaces the WixUI target of the same control. -->
+            <Publish Dialog='MaintenanceTypeDlg' Control='RemoveButton' Event='NewDialog' Value='TastyRemoveDataDlg' Order='3'>1</Publish>
+            <Publish Dialog='VerifyReadyDlg' Control='Back' Event='NewDialog' Value='TastyRemoveDataDlg' Order='4'>WixUI_InstallMode = "Remove"</Publish>
 
-
+            <!-- msiexec /x with full UI skips the WixUI maintenance dialogs and would show ResumeDlg. -->
+            <InstallUISequence>
+                <Show Dialog='ResumeDlg' Before='ProgressDlg'>Installed AND (RESUME OR (Preselected AND NOT REMOVE="ALL"))</Show>
+                <Show Dialog='TastyRemoveDataDlg' Before='ProgressDlg'>Installed AND Preselected AND NOT RESUME AND REMOVE="ALL"</Show>
+            </InstallUISequence>
         </UI>
 
 
