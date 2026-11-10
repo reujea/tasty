@@ -369,6 +369,26 @@ fn a_replace_move_that_empties_the_local_before_a_saved_row_keeps_the_row_in_pla
     assert_eq!(restored(&model), vec![l0, 50, b]);
 }
 
+/// Given 화면 [로컬 L, 저장 R0, 저장 R1, 저장 R2], When R0과 R1을 지우고 새 저장 행 T를 맨 뒤에 더한 뒤
+/// 재시작하면, Then 순서는 [L, R2, T]다. 지운 행의 rank 빈칸이 남지 않는다.
+#[test]
+fn removing_saved_rows_renumbers_the_rest_so_a_new_row_stays_last() {
+    let mut model = initial();
+    structure_only(&mut model);
+    let order = model.workspace_order.clone();
+    let l = order[0];
+    for (id, rank) in [(50, 0), (51, 1), (52, 2)] {
+        set_row(&mut model, id, Some(l), rank);
+    }
+    assert_eq!(&restored(&model)[..4], &[l, 50, 51, 52]);
+    execute(&mut model, &StructuralCommand::RemoveRemoteRow { id: 50 });
+    execute(&mut model, &StructuralCommand::RemoveRemoteRow { id: 51 });
+    assert_eq!(model.remote_rows[&52].rank, 0);
+    // 화면 [L, R2, T]에서 T 앞의 저장 행은 R2 하나다.
+    set_row(&mut model, 53, Some(l), 1);
+    assert_eq!(&restored(&model)[..3], &[l, 52, 53]);
+}
+
 #[test]
 fn a_remote_projection_keeps_the_saved_row_name_and_binding() {
     let mut core = CoreState::new_base();

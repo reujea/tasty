@@ -197,6 +197,7 @@ fn apply(m: &mut JournalModel, event: DomainEvent) -> Result<()> {
         }
         DomainEvent::RemoteRowRemoved { id } => {
             remove(&mut m.remote_rows, IdKind::Workspace, id)?;
+            renumber_rows(m);
             Ok(())
         }
         DomainEvent::WorkspaceMoved {
@@ -464,6 +465,28 @@ fn reanchor_rows(m: &mut JournalModel, old_order: &[WorkspaceId]) {
                     .find(|w| workspaces.contains_key(w))
             })
             .copied();
+    }
+}
+
+/// 남은 저장 행의 `rank`를 화면 순서대로 빈칸 없이 다시 매긴다. 새 행의 rank 는 화면에서 앞에 있는
+/// 저장 행의 수라, 지운 행의 빈칸이 남으면 새 행이 그 뒤 행보다 앞에 복원된다. 순서는 bootstrap 과 같다.
+fn renumber_rows(m: &mut JournalModel) {
+    let order = &m.workspace_order;
+    let slot = |after: Option<WorkspaceId>| {
+        after
+            .and_then(|after| order.iter().position(|w| *w == after))
+            .map_or(0, |index| index + 1)
+    };
+    let mut rows: Vec<_> = m
+        .remote_rows
+        .iter()
+        .map(|(id, row)| (slot(row.after), row.rank, *id))
+        .collect();
+    rows.sort_unstable();
+    for (rank, (_, _, id)) in rows.into_iter().enumerate() {
+        if let Some(row) = m.remote_rows.get_mut(&id) {
+            row.rank = rank;
+        }
     }
 }
 
