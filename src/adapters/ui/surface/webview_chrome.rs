@@ -1,10 +1,11 @@
 //! native WebView 아래의 배경·상태 안내. 페이지 자체는 OS WebView가 그린다.
 //! Loading·Failed는 탐색 상태를 표시하고 나머지는 URL 유무로 빈 타일 또는 빈 화면 안내를 고른다.
 //! 메뉴·팝업·토스트 때문에 불러온 페이지가 숨겨지면 이 빈 타일이 보인다.
+//! 여기서는 문구·URL 줄·바탕만 정하고 타일은 공용 위젯이 그린다.
 
 use tasty_type_appearance::theme::Theme;
+use tasty_ui_widgets::WebviewPageState;
 
-use crate::adapters::ui::icons;
 use crate::state::surface_focus::FocusMark;
 use crate::theme;
 use crate::webview::NavState;
@@ -54,8 +55,7 @@ impl WebviewTile {
 /// 해당 상태 chrome, 그 외(Idle/Done)는 `url` 유무로 boundary(Some)/placeholder(None).
 /// boundary는 배경·테두리만 있는 빈 타일이다. 페이지가 잠시 가려진 동안에만 보이므로
 /// 글리프·라벨·URL을 그리지 않는다. Failed의 URL 줄은 [`chrome_caption`]이 고른 문자열을 보인다.
-/// 배경·테두리는 패널 전체에 그리고 아이콘·글자는 native WebView가 덮는 `content` 안으로 자른다.
-/// native 창이 비워 둔 분할선 여백으로 글자가 비치지 않게 하기 위해서다.
+/// 배치와 그리기는 갤러리와 같은 [`tasty_ui_widgets::webview_page_tile`]이 맡는다.
 /// `empty_hint`는 빈 안내 아래에 보일 caption이다(html surface의 주소창 안내).
 pub fn draw_webview_chrome(
     ui: &mut egui::Ui,
@@ -66,106 +66,23 @@ pub fn draw_webview_chrome(
     nav: NavState,
     empty_hint: Option<&str>,
 ) {
-    let caption = chrome_caption(url, page_label);
     let th = theme::theme();
-    let panel_rect = ui.max_rect();
-    ui.painter().rect_filled(panel_rect, 0.0, tile.bg(&th));
-    ui.painter().rect_stroke(
-        panel_rect,
-        0.0,
-        egui::Stroke::new(th.border_width.value(), th.border_default().to_egui()),
-        egui::StrokeKind::Inside,
-    );
-
-    let glyph = th.icon_glyph_size_md.value();
-    let hint_h = empty_hint.map_or(0.0, |_| {
-        th.spacing_sm.value() + th.font_size_caption.value()
-    });
-    let block_h = glyph + th.spacing_sm.value() + th.font_size_body.value() * 2.0 + hint_h;
-    let top_pad = ((panel_rect.height() - block_h) / 2.0).max(th.spacing_xl.value());
-
-    // 시안 `HtmlTile`의 내용 padding 16(space-lg)을 좌우에 둬 긴 URL 줄이 가장자리에 닿지 않게 한다.
-    let content_rect = panel_rect.shrink2(egui::vec2(th.spacing_lg.value(), 0.0));
-    ui.scope_builder(
-        egui::UiBuilder::new()
-            .max_rect(content_rect)
-            .layout(egui::Layout::top_down(egui::Align::Center)),
-        |ui| {
-            ui.set_clip_rect(ui.clip_rect().intersect(content));
-            ui.add_space(top_pad);
-            match nav {
-                NavState::Failed => {
-                    ui.add(icons::ALERT_CIRCLE.image(glyph, th.accent_danger_raised().to_egui()));
-                    ui.add_space(th.spacing_sm.value());
-                    label(
-                        ui,
-                        crate::i18n::t("webview.error"),
-                        th.accent_danger_raised().to_egui(),
-                    );
-                    if let Some(caption) = caption {
-                        url_line(ui, caption);
-                    }
-                }
-                NavState::Loading => {
-                    tasty_ui_widgets::Spinner::new()
-                        .size(th.spinner_size.value())
-                        .show(ui, &th);
-                    ui.add_space(th.spacing_sm.value());
-                    label(
-                        ui,
-                        crate::i18n::t("webview.loading"),
-                        th.text_muted().to_egui(),
-                    );
-                }
-                // URL이 있으면 boundary: 배경·테두리만 남긴다.
-                NavState::Idle | NavState::Done => {
-                    if url.is_none() {
-                        ui.add(icons::HTML.image(glyph, tile.no_page_glyph(&th)));
-                        ui.add_space(th.spacing_sm.value());
-                        label(
-                            ui,
-                            crate::i18n::t("webview.no_page"),
-                            th.text_muted().to_egui(),
-                        );
-                        if let Some(hint) = empty_hint {
-                            ui.add_space(th.spacing_sm.value());
-                            ui.add(
-                                egui::Label::new(
-                                    egui::RichText::new(hint)
-                                        .size(th.font_size_caption.value())
-                                        .color(th.text_muted().to_egui()),
-                                )
-                                .truncate(),
-                            );
-                        }
-                    }
-                }
-            }
+    let state = match nav {
+        NavState::Failed => WebviewPageState::Failed {
+            title: crate::i18n::t("webview.error"),
+            caption: chrome_caption(url, page_label),
         },
-    );
-}
-
-/// URL 줄(mono caption · text-muted · 한 줄 말줄임).
-fn url_line(ui: &mut egui::Ui, text: &str) {
-    let th = theme::theme();
-    ui.add(
-        egui::Label::new(
-            egui::RichText::new(text)
-                .font(egui::FontId::monospace(th.font_size_caption.value()))
-                .color(th.text_muted().to_egui()),
-        )
-        .truncate(),
-    );
-}
-
-/// 캡션 한 줄(body · 지정색).
-fn label(ui: &mut egui::Ui, text: &str, color: egui::Color32) {
-    let th = theme::theme();
-    ui.label(
-        egui::RichText::new(text)
-            .size(th.font_size_body.value())
-            .color(color),
-    );
+        NavState::Loading => WebviewPageState::Loading {
+            title: crate::i18n::t("webview.loading"),
+        },
+        // URL이 있으면 boundary: 배경·테두리만 남긴다.
+        NavState::Idle | NavState::Done if url.is_some() => WebviewPageState::Boundary,
+        NavState::Idle | NavState::Done => WebviewPageState::Empty {
+            title: crate::i18n::t("webview.no_page"),
+            glyph: tile.no_page_glyph(&th),
+        },
+    };
+    tasty_ui_widgets::webview_page_tile(ui, &th, tile.bg(&th), content, state, empty_hint);
 }
 
 #[cfg(test)]
