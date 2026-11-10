@@ -8,9 +8,8 @@ impl CellRenderer {
         device: &wgpu::Device,
         queue: &wgpu::Queue,
         surface_format: wgpu::TextureFormat,
-        font: &FontRequest,
+        font_config: FontConfig,
     ) -> Self {
-        let font_config = FontConfig::from_request(font);
         let atlas = GlyphAtlas::new(device);
 
         // 큰 화면을 위한 초기 용량. 필요하면 업로드 때 늘린다.

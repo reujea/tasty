@@ -21,6 +21,28 @@ pub(super) fn terminal_font_request(font: &EffectiveFont, scale_factor: f32) -> 
     }
 }
 
+/// 창을 만들 때 저장 설정으로 터미널 글꼴을 구성하고, 구성에 실제로 적용한 값의 서명을 함께
+/// 돌려준다. GPU 없이 구성되므로 첫 프레임 전에 저장값이 적용되는지 시험할 수 있다.
+pub(super) fn boot_terminal_font(
+    appearance: &crate::settings::AppearanceSettings,
+    scale_factor: f32,
+) -> (tasty_font::FontConfig, String) {
+    let request = terminal_font_request(&appearance.effective_terminal_font(), scale_factor);
+    let config = tasty_font::FontConfig::from_request(&request);
+    let signature = term_font_signature(config.request());
+    (config, signature)
+}
+
+/// 이 프레임에 터미널 글꼴을 다시 적용해야 하면 그 값을 돌려준다.
+pub(super) fn terminal_font_update(
+    last_signature: &str,
+    appearance: &crate::settings::AppearanceSettings,
+    scale_factor: f32,
+) -> Option<FontRequest> {
+    let request = terminal_font_request(&appearance.effective_terminal_font(), scale_factor);
+    (term_font_signature(&request) != last_signature).then_some(request)
+}
+
 /// 변경 감지용 서명. 문자열로 비교해 NaN 행간도 같은 값으로 본다.
 pub(super) fn term_font_signature(font: &FontRequest) -> String {
     format!(
@@ -246,11 +268,11 @@ impl GpuState {
         // 설정 변경은 App의 SettingsUpdated에서 전달받고, 여기서는 현재 Theme의 스타일을 다시 적용한다.
         tasty_egui_theme::apply_theme_to_egui(&crate::theme::theme(), &self.egui_ctx);
 
-        let term_font = terminal_font_request(
-            &engine.settings.appearance.effective_terminal_font(),
+        if let Some(term_font) = terminal_font_update(
+            &self.last_term_font_sig,
+            &engine.settings.appearance,
             self.scale_factor,
-        );
-        if term_font_signature(&term_font) != self.last_term_font_sig {
+        ) {
             self.renderer
                 .update_font(&self.device, &self.queue, &term_font);
             self.renderer
@@ -560,6 +582,59 @@ mod tests {
     #[test]
     fn request_keeps_the_family_unresolved() {
         assert_eq!(terminal_font_request(&base_font(), 1.0).family, "");
+    }
+
+    /// 묶음 D2Coding 의 unitsPerEm 을 절반으로 줄여 칸 폭이 14가 되는 파일. 시스템 글꼴과 겹치지
+    /// 않도록 family 이름도 바꾼다.
+    fn wide_renamed_font() -> Vec<u8> {
+        let mut font = tasty_font::D2CODING_REGULAR_TTF.to_vec();
+        let tables = u16::from_be_bytes([font[4], font[5]]) as usize;
+        let table = |font: &[u8], tag: &[u8; 4]| {
+            let r = (0..tables)
+                .map(|i| 12 + 16 * i)
+                .find(|&r| &font[r..r + 4] == tag)
+                .unwrap();
+            let word =
+                |at: usize| u32::from_be_bytes(font[at..at + 4].try_into().unwrap()) as usize;
+            (word(r + 8), word(r + 12))
+        };
+        let (head, _) = table(&font, b"head");
+        let units = u16::from_be_bytes([font[head + 18], font[head + 19]]);
+        font[head + 18..head + 20].copy_from_slice(&(units / 2).to_be_bytes());
+        let (name, len) = table(&font, b"name");
+        let from: Vec<u8> = "D2Coding"
+            .encode_utf16()
+            .flat_map(u16::to_be_bytes)
+            .collect();
+        let to: Vec<u8> = "D2Codinh"
+            .encode_utf16()
+            .flat_map(u16::to_be_bytes)
+            .collect();
+        for start in name..name + len - from.len() {
+            if font[start..start + from.len()] == from[..] {
+                font[start..start + to.len()].copy_from_slice(&to);
+            }
+        }
+        font
+    }
+
+    /// 저장 설정으로 창을 만들면 custom 파일과 줄 높이가 첫 프레임 전에 적용되고, 첫 프레임은
+    /// 글꼴을 다시 적용하지 않는다(`terminal_font_updates == 0`과 같은 판정).
+    #[test]
+    fn a_new_window_applies_the_saved_font_before_the_first_frame() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("wide.ttf");
+        std::fs::write(&path, wide_renamed_font()).unwrap();
+        let saved = format!(
+            "[default_font]\nfont_family = \"D2Codinh ligature\"\ncustom_font_path = {:?}\nline_height = 1.5\n",
+            path.display().to_string()
+        );
+        let appearance: crate::settings::AppearanceSettings = toml::from_str(&saved).unwrap();
+        let (config, signature) = boot_terminal_font(&appearance, 1.0);
+        assert_eq!(config.metrics.cell_height, 21.0);
+        assert_eq!(config.metrics.cell_width, 14.0);
+        assert_eq!(signature, term_font_signature(config.request()));
+        assert!(terminal_font_update(&signature, &appearance, 1.0).is_none());
     }
 
     #[test]

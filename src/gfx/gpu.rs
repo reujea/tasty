@@ -202,9 +202,9 @@ impl GpuState {
         };
         surface.configure(&device, &config);
 
-        let term_font =
-            egui_bridge::terminal_font_request(&appearance.effective_terminal_font(), scale_factor);
-        let renderer = CellRenderer::new(&device, &queue, surface_format, &term_font);
+        let (term_font, last_term_font_sig) =
+            egui_bridge::boot_terminal_font(appearance, scale_factor);
+        let renderer = CellRenderer::new(&device, &queue, surface_format, term_font);
 
         let egui_ctx = egui::Context::default();
 
@@ -259,9 +259,6 @@ impl GpuState {
         );
 
         let egui_renderer = egui_wgpu::Renderer::new(&device, surface_format, None, 1, false);
-
-        // 렌더러가 실제로 적용한 값으로 계산한다. 생성이 값을 빠뜨리면 첫 프레임에 다시 적용된다.
-        let last_term_font_sig = egui_bridge::term_font_signature(renderer.font_request());
 
         Ok(Self {
             surface,
