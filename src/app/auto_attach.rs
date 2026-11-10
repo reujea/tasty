@@ -6,6 +6,9 @@
 
 mod notice;
 pub(crate) mod row_use;
+// X11 이벤트 루프로 App 을 만드는 시험이라 Linux 에서만 컴파일한다(preset_shutdown_tests 와 같다).
+#[cfg(all(test, target_os = "linux"))]
+pub(crate) mod test_rig;
 
 use std::time::Instant;
 
@@ -195,6 +198,10 @@ impl App {
         from_user: bool,
         run: Option<u64>,
     ) {
+        if from_user {
+            // 사용자가 다시 연결하면 앞서 끊은 뜻은 끝난다. 다음 단절은 자동 재연결과 시간 만료를 따른다.
+            self.remote.user_disconnected.remove(&row);
+        }
         if self.remote.active.contains(&row) {
             run.into_iter().for_each(crate::request_runs::forget);
             return;

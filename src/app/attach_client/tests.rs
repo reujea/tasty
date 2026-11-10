@@ -71,7 +71,7 @@ impl ParkedEngine {
 }
 
 /// writer 없는 시험 세션. 입력 전송은 실패해도 forwarder가 다음 입력을 기다린다.
-pub(super) fn test_session(
+pub(crate) fn test_session(
     local_workspace: u32,
     remote_to_local: HashMap<u32, u32>,
 ) -> AttachClientSession {

@@ -776,3 +776,8 @@ mod tests {
         );
     }
 }
+
+// X11 이벤트 루프로 App 을 만드는 시험이라 Linux 에서만 컴파일한다(preset_shutdown_tests 와 같다).
+#[cfg(all(test, target_os = "linux"))]
+#[path = "row_use_app_tests.rs"]
+mod app_tests;
