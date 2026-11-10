@@ -922,7 +922,11 @@ fn opens_tab(pending: &[crate::intent::DispatchedIntent]) -> bool {
 #[test]
 fn a_downloaded_file_opened_on_an_active_mirror_goes_to_a_new_local_workspace() {
     // 픽스처가 데이터 홈을 테스트 폴더로 바꾸므로 경로는 픽스처를 만든 뒤 계산한다.
-    let downloaded = || crate::remote::file_download::client::run_root().join("run-1/notes.md");
+    let downloaded = || {
+        crate::remote::file_download::client::run_root()
+            .join("run-1")
+            .join("notes.md")
+    };
     let pending = open_locally(true, downloaded, FileDispatchOrigin::User);
     assert!(creates_workspace(&pending), "{pending:?}");
     assert!(!opens_tab(&pending));
@@ -949,7 +953,11 @@ fn a_downloaded_file_opened_on_an_active_mirror_goes_to_a_new_local_workspace() 
     assert!(
         surface_params["file"]
             .as_str()
-            .is_some_and(|f| f.ends_with("download-run/run-1/notes.md")),
+            .is_some_and(|f| std::path::Path::new(f).ends_with(
+                std::path::Path::new("download-run")
+                    .join("run-1")
+                    .join("notes.md")
+            )),
         "{surface_params}"
     );
     assert!(name.is_none(), "the name waits for a design");
@@ -964,7 +972,11 @@ fn a_downloaded_file_opened_on_an_active_mirror_goes_to_a_new_local_workspace() 
     let pending = open_locally(true, || "/tmp/other.md".into(), FileDispatchOrigin::User);
     assert!(!creates_workspace(&pending), "{pending:?}");
     // `..` 로 폴더 밖을 가리키면 받은 파일로 보지 않는다.
-    let outside = || crate::remote::file_download::client::run_root().join("../escaped.md");
+    let outside = || {
+        crate::remote::file_download::client::run_root()
+            .join("..")
+            .join("escaped.md")
+    };
     let pending = open_locally(true, outside, FileDispatchOrigin::User);
     assert!(!creates_workspace(&pending), "{pending:?}");
     // 에이전트 요청은 활성 workspace 를 바꾸지 않는다.
