@@ -143,6 +143,7 @@ impl GpuState {
             );
             ui::move_source::draw_move_source_ring(ctx, move_mark, scale_factor);
             ui::draw_status_bar(ctx, state, engine, terminal_rect, scale_factor);
+            ui::link_remote_tip::draw(ctx, state, scale_factor);
             // host 팝업을 먼저 그려 같은 프레임의 영역을 plugin hit-test에 전달한다.
             // 반대로 host가 보는 plugin 영역은 직전 프레임 값이다.
             // source_guards::frame_draw_order가 호출 순서를 검사한다.

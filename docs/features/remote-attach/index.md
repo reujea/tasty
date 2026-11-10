@@ -206,6 +206,7 @@ mirror 콘텐츠(grid) 갱신은 원격 출력이 올 때 즉시, 3초 tick 은 
 |---|---|---|
 | 상태바 좌측 맨 앞 | focus surface 가 mirror workspace 에 있을 때 | [상태바](../workspace-status-bar/index.md) |
 | 핸들러 picker 머리 경로 줄 앞 | mirror 의 경로 링크로 연 빈 picker | [핸들러 picker](../file-handler/index.md) |
+| 링크 런 아래 툴팁 | mirror 의 파일 경로 링크에 수식키 hover | [터미널 링크](../terminal-link/index.md) |
 
 - **호스트 글자**: 연결할 때 고른 `tasty-attach` 프로필 이름이다. 원격 연결 팝업, `remote attach --into-gui --profile`(IPC `remote.attach`의 `profile`), 자동 attach 매핑 `--ssh-profile` 이 프로필 이름을 세션에 넘긴다. 연결 시점 값이며 재연결해도 바꾸지 않는다. 연결 뒤 프로필 이름을 바꾸거나 지워도 이미 붙은 mirror 의 표시는 그대로다.
 - **프로필 없이 붙은 mirror**: `--ssh <dest>`, 인라인 매핑 `--ssh`, `--target-port`(`attach.into_gui`), debug attach 로 붙은 mirror 는 이 연결의 loopback 엔드포인트 `127.0.0.1:<로컬 포트>`(`remote_label`)를 쓴다. 글자는 `ClientSessionState::host_text` 한 곳에서 정한다.

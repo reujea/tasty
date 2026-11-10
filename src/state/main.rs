@@ -132,6 +132,9 @@ pub struct MainViewState {
     /// 배너 영역의 마우스 입력을 아래로 전달하지 않도록 한다. 키보드 포커스와는 별개다.
     #[cfg(feature = "gui")]
     pub(crate) banner_hovered: bool,
+    /// mirror 파일 경로 링크 위의 원격 위치 툴팁. 렌더 직전에 hover 링크에서 맞춘다.
+    #[cfg(feature = "gui")]
+    pub(crate) link_remote_tip: Option<crate::adapters::ui::link_remote_tip::LinkRemoteTipState>,
     /// 단축키 안내 위의 마우스 입력을 아래 surface로 전달하지 않도록 한다.
     #[cfg(feature = "gui")]
     pub(crate) modifier_hint_hovered: bool,

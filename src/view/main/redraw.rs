@@ -301,6 +301,13 @@ impl MainView {
         engine: &EngineRead<'_>,
         plugin_manager: Option<PluginDisplay<'_>>,
     ) {
+        crate::adapters::ui::link_remote_tip::sync(
+            &mut self.state.link_remote_tip,
+            self.hovered_link
+                .as_ref()
+                .and_then(|h| h.remote_tip.as_ref().map(|tip| (h.surface_id, tip))),
+            std::time::Instant::now(),
+        );
         let link_hover = self
             .hovered_link
             .as_ref()

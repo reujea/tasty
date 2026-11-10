@@ -2252,6 +2252,15 @@ pub fn pages() -> Vec<Page> {
                             components::status_bar_remote::draw,
                         ),
                         spec(
+                            "terminal-link-remote",
+                            "Path link on a mirror — say where it lives before the click",
+                            Some(
+                                "tooltip below the link run: Remote + remote glyph + host · \
+                             link cells unchanged · no tooltip for a local path or a URL",
+                            ),
+                            components::terminal_link_remote::draw,
+                        ),
+                        spec(
                             "statusbar-theme-cell",
                             "Theme cell — one glyph box, both themes (settled)",
                             Some(

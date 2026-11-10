@@ -192,6 +192,8 @@ pub(crate) struct HoveredLink {
     pub surface_id: u32,
     pub uri: String,
     pub highlight: crate::terminal_link::LinkHighlight,
+    /// mirror 의 파일 경로 링크이면 원격 위치 툴팁의 자리와 호스트 글자. 로컬·URL 은 None.
+    pub remote_tip: Option<crate::adapters::ui::link_remote_tip::LinkRemoteAnchor>,
 }
 
 /// 마지막 mesh hover 대상. 로컬·원격 경로가 배타적이므로 하나만 보관하고 대상 변경 때 PointerGone을 보낸다.

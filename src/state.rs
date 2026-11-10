@@ -221,6 +221,8 @@ impl RequestContext {
             #[cfg(feature = "gui")]
             banner_hovered: false,
             #[cfg(feature = "gui")]
+            link_remote_tip: None,
+            #[cfg(feature = "gui")]
             modifier_hint_hovered: false,
             #[cfg(feature = "gui")]
             popup_layers: Vec::new(),

@@ -3,6 +3,7 @@ pub(crate) mod divider;
 mod draw;
 mod egui_panels;
 pub(crate) mod icons;
+pub(crate) mod link_remote_tip;
 mod sidebar;
 pub(crate) mod status_bar;
 pub(crate) mod switch_overlay;

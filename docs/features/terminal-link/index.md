@@ -59,6 +59,8 @@ attach mirror surface(자식 PTY 없음 — `process_id().is_none()` 으로 판�
 - 로컬 `exists()` 검증 건너뛰고 OSC 7 원격 cwd 기준 경로를 그대로 링크로 emit(원격 경로도 하이라이트).
 - ctrl+클릭 시 로컬 핸들러 lookup 대신 **빈 핸들러 picker(empty-state placeholder)** 만 — 후보도 recent 도 싣지 않아 고를 수 있는 핸들러가 없다(recent 를 실으면 로컬 핸들러가 원격 경로로 실행된다). 원격 경로를 로컬 파일이나 브라우저로 잘못 여는 것을 방지.
 - `http://` 등 스킴 있는 URL 은 mirror 여부 무관하게 `webbrowser` 로 연다.
+- 수식키 hover 로 경로 링크가 잡히면 링크 셀 모양은 그대로 두고 링크 런 아래에 원격 위치 툴팁을 띄운다. 내용은 `attach.mirror_pill_label`(Remote, tooltip-fg) · space-sm · remote 글리프 + 호스트 글자(`link-remote-fg`, mono)다. 호스트 글자가 비면 낱말과 글리프만 그린다. 툴팁 최대 폭(240) 안에서 호스트 끝을 줄인다. 아래에 자리가 없으면 위에 두고, 가로는 창 안으로 당긴다. `tooltip-delay` 뒤에 나타나고 링크가 풀린 프레임에 사라진다. 로컬 surface 의 경로와 스킴 있는 URL 에는 띄우지 않는다. 호스트 글자는 [원격 위치 표시](../remote-attach/index.md#원격-위치-표시)와 같다(`src/adapters/ui/link_remote_tip.rs`, 공용 `tasty_ui_widgets::LinkRemoteTip`).
+- 빈 picker 의 머리 경로 줄 맨 앞에는 같은 호스트 표지가 붙는다([핸들러 picker](../file-handler/index.md)).
 
 ### 열기 실패
 

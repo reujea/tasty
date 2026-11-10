@@ -67,7 +67,7 @@ impl MainView {
 
         let cwd = engine.terminals.cwd(surface_id);
         let mirror = !engine.terminals.has_pty(surface_id);
-        let (span, cut) =
+        let (span, cut, top_row) =
             terminal.with_view(&self.state.terminal_views.get(engine, surface_id), |view| {
                 let point = crate::selection::pixel_to_grid(
                     x,
@@ -84,7 +84,7 @@ impl MainView {
                     cwd.as_deref(),
                     mirror,
                 )
-                .map(|span| (span, view.cut()))
+                .map(|span| (span, view.cut(), view.viewport().top_row))
             })?;
         let th = theme::theme();
         let highlight = LinkHighlight {
@@ -94,11 +94,29 @@ impl MainView {
             bg: th.selection_bg.to_gpu_rgba(),
             underline: th.accent_primary_raised().to_gpu_rgba(),
         };
+        // mirror 의 파일 경로만 원격 위치를 알린다. scheme 이 있는 URL 은 로컬 브라우저가 연다.
+        let remote_tip = (mirror
+            && matches!(
+                crate::file_dispatch::parse_link(&span.uri),
+                crate::file_dispatch::LinkKind::FileTarget(_)
+            ))
+        .then(|| {
+            crate::adapters::ui::link_remote_tip::LinkRemoteAnchor::new(
+                &highlight.segments,
+                top_row,
+                &surface_rect,
+                self.base.gpu.cell_width(),
+                self.base.gpu.cell_height(),
+                super::link_menu::remote_host_text(engine, surface_id),
+            )
+        })
+        .flatten();
         Some(HoveredLink {
             revision: cut.revision,
             surface_id,
             uri: span.uri,
             highlight,
+            remote_tip,
         })
     }
 

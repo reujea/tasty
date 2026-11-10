@@ -115,6 +115,7 @@ pub mod status_bar_theme_cell;
 pub mod surface_highlights;
 pub mod switch_overlay;
 pub mod tab_bar;
+pub mod terminal_link_remote;
 pub mod titlebar;
 pub mod toast;
 pub mod tools_menu;

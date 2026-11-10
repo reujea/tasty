@@ -295,7 +295,9 @@ pub use rail_marks::{
     paint_rail_category_line, paint_rail_flat_divider, paint_workspace_mirror_chip,
     rail_category_line_length, rail_flat_divider_size,
 };
-pub use remote_mark::{RemoteMark, fh_remote_mark_width, paint_fh_remote_mark};
+pub use remote_mark::{
+    LinkRemoteTip, RemoteMark, fh_remote_mark_width, link_tip_rect, paint_fh_remote_mark,
+};
 pub use remote_tool::{
     FILTER_DROPDOWN_MAX_HEIGHT, LocalSshHost, LocalSshSectionData, ProtocolFilterItem,
     ProtocolFilterLabels, RemoteRowChip, TabStripData, TextWrap, draw_local_ssh_section,
