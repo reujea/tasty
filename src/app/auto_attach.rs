@@ -5,6 +5,9 @@
 //! docs/dev-guide/attach-behavior.md#gui-자동-재연결-스코프 참조.
 
 mod notice;
+// X11 이벤트 루프로 App 을 만드는 시험이라 Linux 에서만 컴파일한다(preset_shutdown_tests 와 같다).
+#[cfg(all(test, target_os = "linux"))]
+mod reconnect_window_tests;
 pub(crate) mod row_use;
 // X11 이벤트 루프로 App 을 만드는 시험이라 Linux 에서만 컴파일한다(preset_shutdown_tests 와 같다).
 #[cfg(all(test, target_os = "linux"))]
@@ -91,27 +94,7 @@ impl App {
 
     /// 타이머만 등록·해제한다. 중단 상태를 담은 재연결 슬롯은 보존한다.
     pub(crate) fn sync_reconnect_timers(&mut self, now: Instant) {
-        let window = self.reconnect_window();
-        let wakeups: Vec<(u32, Instant)> = self
-            .remote
-            .sessions
-            .iter()
-            .filter(|s| s.state() == SessionState::Reconnecting)
-            .filter_map(|s| s.saved_row())
-            // 워커가 이미 떠 있는 행은 결과 이벤트(`AutoAttachReady`)가 깨운다.
-            .filter(|row| !self.remote.active.contains(row))
-            .filter_map(|row| {
-                let slot = self.remote.reconnect.get(&row);
-                // 재연결 시간이 끝나는 시각에도 깨워 끊긴 행으로 바꾼다.
-                let deadline = slot.map(|slot| slot.started + window);
-                let next = reconnect_wakeup_at(slot);
-                match (next, deadline) {
-                    (Some(next), Some(deadline)) => Some((row, next.min(deadline))),
-                    (next, deadline) => next.or(deadline).map(|at| (row, at)),
-                }
-            })
-            .collect();
-        let mut wakeups = wakeups;
+        let mut wakeups = self.reconnect_wakeups();
         // 연결을 기다리는 요청의 상한에도 깨워 시간 초과로 답한다.
         for (row, deadline) in self.row_waits.deadlines() {
             match wakeups.iter_mut().find(|(r, _)| *r == row) {
@@ -120,6 +103,27 @@ impl App {
             }
         }
         crate::app::timers::sync_reconnect_timers(&mut self.timers, &wakeups, now);
+    }
+
+    /// 재연결 중인 행마다 깨울 시각. 재연결 시간이 끝나는 시각에는 시도가 진행 중이어도 깨워
+    /// 끊긴 행으로 바꾼다. 워커가 떠 있는 행의 다음 시도는 결과 이벤트(`AutoAttachReady`)가 깨운다.
+    fn reconnect_wakeups(&self) -> Vec<(u32, Instant)> {
+        let window = self.reconnect_window();
+        self.remote
+            .sessions
+            .iter()
+            .filter(|s| s.state() == SessionState::Reconnecting)
+            .filter_map(|s| s.saved_row())
+            .filter_map(|row| {
+                let slot = self.remote.reconnect.get(&row);
+                let deadline = slot.map(|slot| slot.started + window);
+                let next = reconnect_wakeup_at(slot).filter(|_| !self.remote.active.contains(&row));
+                match (next, deadline) {
+                    (Some(next), Some(deadline)) => Some((row, next.min(deadline))),
+                    (next, deadline) => next.or(deadline).map(|at| (row, at)),
+                }
+            })
+            .collect()
     }
 
     /// 저장된 원격 행의 연결 대상. 창과 parked engine을 모두 본다.
@@ -303,17 +307,19 @@ impl App {
         let window = self.reconnect_window();
         let now = Instant::now();
         for row in rows {
-            if self.remote.active.contains(&row) {
-                continue;
-            }
             let expired = self
                 .remote
                 .reconnect
                 .get(&row)
                 .is_some_and(|slot| reconnect_window_elapsed(slot, now, window));
             if expired {
+                // 진행 중인 시도와 park한 창에서 설치를 기다리는 연결도 시간 창과 함께 끝낸다.
+                self.abandon_row_attempts(row, "the reconnect window ran out");
                 self.enter_disconnected(row);
                 self.notify_reconnect_giveup(row);
+                continue;
+            }
+            if self.remote.active.contains(&row) {
                 continue;
             }
             self.trigger_reconnect_row(row, current_ws_id, prev_active, None);

@@ -79,7 +79,21 @@ pub(super) fn cancel_mirror_attempts(
     remote: &mut tasty_remote::outbound::Remote,
     local_workspace: u32,
 ) -> usize {
-    let reason = "the mirror workspace was disconnected by the user";
+    cancel_mirror_attempts_for(
+        attempts,
+        remote,
+        local_workspace,
+        "the mirror workspace was disconnected by the user",
+    )
+}
+
+/// `reason`은 취소한 시도의 run에 남는다.
+pub(super) fn cancel_mirror_attempts_for(
+    attempts: &mut MirrorAttempts,
+    remote: &mut tasty_remote::outbound::Remote,
+    local_workspace: u32,
+    reason: &str,
+) -> usize {
     let mut cancelled = 0;
     for (token, target) in attempts.endpoint_snapshot() {
         if target.reconnect.as_ref().map(|(id, _)| *id) == Some(local_workspace) {
@@ -270,17 +284,7 @@ impl App {
     /// 저장된 원격 행의 연결을 사용자가 끊는다. 아직 붙지 않은 행이면 바뀔 것이 없지만 시도는 취소한다.
     fn disconnect_saved_row(&mut self, row: u32) -> bool {
         let cancelled =
-            cancel_mirror_attempts(&mut self.state.mirror_attempts, &mut self.remote, row);
-        // 행 토큰을 바꿔 아직 큐에 넣지 않은 시도도 낡은 것으로 만든다.
-        for session in self.engines.all_sessions_mut() {
-            if session.core_state.has_workspace(row) {
-                session
-                    .remote
-                    .row_tokens
-                    .insert(row, std::sync::Arc::new(()));
-            }
-        }
-        self.remote.active.remove(&row);
+            self.abandon_row_attempts(row, "the mirror workspace was disconnected by the user");
         self.remote.user_disconnected.insert(row);
         if let Some(index) = self
             .remote

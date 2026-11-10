@@ -17,6 +17,27 @@ impl App {
         )
     }
 
+    /// 행의 진행 중인 재연결 시도(endpoint 해석, 연결, 설치를 기다리는 준비된 연결)를 취소하고
+    /// 행 토큰을 바꿔 아직 큐에 넣지 않은 시도와 늦게 도착한 성공도 낡은 것으로 만든다.
+    pub(crate) fn abandon_row_attempts(&mut self, row: u32, reason: &str) -> usize {
+        let cancelled = super::workspace_close::cancel_mirror_attempts_for(
+            &mut self.state.mirror_attempts,
+            &mut self.remote,
+            row,
+            reason,
+        );
+        for session in self.engines.all_sessions_mut() {
+            if session.core_state.has_workspace(row) {
+                session
+                    .remote
+                    .row_tokens
+                    .insert(row, std::sync::Arc::new(()));
+            }
+        }
+        self.remote.active.remove(&row);
+        cancelled
+    }
+
     /// 저장된 원격 행을 형상을 남긴 끊긴 행으로 둔다. 연결이 남아 있으면 먼저 놓는다.
     /// 자동 재연결은 멈추고, 그 행을 다시 열거나 연결 버튼으로 다시 붙는다.
     pub(crate) fn enter_disconnected(&mut self, row: u32) {
