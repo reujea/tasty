@@ -61,7 +61,7 @@ completed body만 `Resource::body`로 제공한다. 완료 시 수신 buffer의 
 
 ## Host 연결과 원격 파일 열기
 
-`com.tasty.html`이 등록되지 않은 client에서는 deferred placeholder를 유지한다. 등록 뒤 같은 leaf를 원격 모드로 생성하며 원격 source를 client file URI로 변환하지 않는다. 현재 viewer는 Linux·Windows·macOS 27 이상 GUI가 광고한다. OS별 native 응답 어댑터와 실행 확인 범위는 [WebView 호스트 계약](../design/systems/webview.md)에 있다. macOS 11–26의 HTTP 미지원 계약은 파일 entry mirror와 별개이며 최소 OS 버전을 올리지 않는다.
+`com.tasty.html`이 등록되지 않은 client에서는 deferred placeholder를 유지한다. 등록 뒤 같은 leaf를 원격 모드로 생성하며 원격 source를 client file URI로 변환하지 않는다. 현재 viewer는 Linux·Windows·macOS GUI가 광고한다. OS별 native 응답 어댑터와 실행 확인 범위는 [WebView 호스트 계약](../design/systems/webview.md)에 있다. macOS 11–26의 HTTP 미지원 계약은 파일 entry mirror와 별개이며 최소 OS 버전을 올리지 않는다.
 
 주소 띠는 원격 경로를 축약 없이 읽기 전용으로 보이고 Reload만 제공한다. 크기 배너, 스크립트 배너, 페이지 순서로 하나의 inset을 적용한다. 큰 entry는 수신 전에 Allow·Decline을 기다리며 Decline 뒤에는 receiving을 종료하고 skipped tag를 표시한다. 완료한 body는 disconnect 중에도 보존하고 Reload를 비활성화한다. reconnect는 새 connection epoch로 다시 받는다.
 
