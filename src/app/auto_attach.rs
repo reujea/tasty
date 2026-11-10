@@ -179,8 +179,10 @@ impl App {
 
     /// 저장된 원격 행의 연결을 시작한다. 연결된 행이나 시도 중인 행은 그대로 둔다.
     /// 형상이 남은 끊긴 행은 새 재연결 구간을 시작하고, 아직 붙지 않은 행은 첫 연결을 한다.
-    /// `explicit` 은 명시적 연결(팝업·메뉴의 연결, 사용자가 그 행으로 옮김)이다. 그때는
-    /// 사용자가 끊은 표지를 먼저 지우고, 재연결 중인 행은 새 재연결 구간을 시작한다.
+    /// `explicit` 은 명시적 연결(팝업·메뉴의 연결, 에이전트의 `remote.connect`, 사용자가
+    /// 그 행으로 옮김)이다. 그때는 사용자가 끊은 표지를 먼저 지우고, 재연결 중인 행은 새
+    /// 재연결 구간을 시작한다. 옮김은 사용자가 끊은 행에는 부르지 않으므로
+    /// (`maybe_connect_visible_row`) 옮김만으로 그 표지가 풀리지는 않는다.
     pub(crate) fn connect_saved_row(&mut self, row: u32, explicit: bool) {
         self.connect_saved_row_with_run(row, explicit, None);
     }
