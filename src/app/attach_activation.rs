@@ -77,6 +77,19 @@ impl PendingAttach {
     }
 }
 
+/// mirror를 다시 mirror하는 체인은 지원하지 않는다. 접수 단계에서 거절해 점유를 잡지 않는다.
+pub(crate) const MIRROR_TARGET_REASON: &str = "mirror_workspace";
+
+fn targets_mirror(engine: &EngineMut<'_>, target: Target) -> bool {
+    match target {
+        Target::Surface(surface) => engine.is_mirror_surface(surface),
+        Target::Workspace(workspace) => engine
+            .find_workspace_index_for_id(workspace)
+            .and_then(|index| engine.workspace_at(index))
+            .is_some_and(|workspace| workspace.mirror),
+    }
+}
+
 pub(crate) fn begin(
     pending: &mut Vec<PendingAttach>,
     journal: &JournalApplication,
@@ -113,6 +126,10 @@ pub(crate) fn begin(
     journal.wake_application();
     if pending.len() >= 64 {
         crate::remote::server::reject_attach(hub, client, "busy", None);
+        return;
+    }
+    if targets_mirror(engine, target) {
+        crate::remote::server::reject_attach(hub, client, MIRROR_TARGET_REASON, None);
         return;
     }
     let (members, terminals) = match target {

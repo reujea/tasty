@@ -2335,6 +2335,7 @@ self_instance = "이 프로필은 지금 실행 중인 이 Tasty 자신을 가�
 try_again = "다시 시도"
 cancel = "취소"
 stop = "중단"
+chain_badge = "미러"
 
 [tutorial]
 btn_try = "직접 해보기"
@@ -7169,3 +7170,6 @@ caption = "호출을 세는 기간입니다. 기본값 60."
 label = "호출 횟수:"
 unit = "회"
 caption = "판정 창 안에서 이만큼 호출하면 폭주로 봅니다. 기본값 1000."
+
+[remote.row.reason]
+chain = "{} 워크스페이스는 다른 컴퓨터의 미러입니다. 미러는 다시 미러링할 수 없습니다."

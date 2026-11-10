@@ -2397,6 +2397,7 @@ self_instance = "This profile points to this Tasty itself. Attaching to itself i
 try_again = "Try again"
 cancel = "Cancel"
 stop = "Stop"
+chain_badge = "mirror"
 
 [tutorial]
 btn_try = "Try it"
@@ -7239,3 +7240,6 @@ caption = "The period calls are counted over. Default 60."
 label = "Calls in window:"
 unit = "calls"
 caption = "Calls within the window that count as a burst. Default 1000."
+
+[remote.row.reason]
+chain = "Workspace {} is a mirror from another machine. A mirror cannot be mirrored again."

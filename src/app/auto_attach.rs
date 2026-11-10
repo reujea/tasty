@@ -565,9 +565,12 @@ impl App {
     /// jitter로 동시 재시도 집중을 줄이며 상한에 도달하면 자동 재시도만 멈춘다.
     pub(super) fn on_reconnect_attempt_failed(&mut self, anchor: u32, err: &anyhow::Error) {
         let permanent_conflict = err.to_string().contains("already_attached");
+        // mirror를 다시 mirror하는 대상은 다시 시도해도 같은 거절이다.
+        let chain = tasty_remote::transport::attach_rejection_reason(&err.to_string())
+            == Some(tasty_remote::transport::REJECTED_MIRROR_WORKSPACE);
         let slot = self.remote.reconnect.entry(anchor).or_default();
         slot.attempts += 1;
-        if reconnect_exhausted(slot.attempts) {
+        if chain || reconnect_exhausted(slot.attempts) {
             slot.given_up = true;
             self.notify_reconnect_giveup(anchor);
             return;

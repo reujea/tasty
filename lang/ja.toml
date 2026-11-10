@@ -2335,6 +2335,7 @@ self_instance = "このプロファイルは実行中のこのTasty自身を指�
 try_again = "再試行"
 cancel = "キャンセル"
 stop = "中断"
+chain_badge = "ミラー"
 
 [tutorial]
 btn_try = "操作する"
@@ -7169,3 +7170,6 @@ caption = "呼び出しを数える期間です。既定値 60。"
 label = "呼び出し回数:"
 unit = "回"
 caption = "判定ウィンドウ内でこの回数に達すると急増とみなします。既定値 1000。"
+
+[remote.row.reason]
+chain = "ワークスペース {} は別のマシンのミラーです。ミラーをさらにミラーリングすることはできません。"

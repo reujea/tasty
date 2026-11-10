@@ -107,6 +107,20 @@ pub fn arm_attach_timeouts(sock: &TcpStream, log_prefix: &str, timeout: std::tim
     }
 }
 
+/// 서버가 workspace attach를 거절했을 때 연결 오류의 머리. 뒤에 서버의 거절 사유가 붙는다.
+pub const ATTACH_REJECTED: &str = "workspace attach rejected: ";
+
+/// 서버가 다시 mirror할 수 없는 대상(mirror workspace나 그 surface)이라 거절한 사유.
+pub const REJECTED_MIRROR_WORKSPACE: &str = "mirror_workspace";
+
+/// 연결 오류 문자열에서 서버의 거절 사유를 읽는다. 서버 거절이 아니면 `None`이다.
+pub fn attach_rejection_reason(error: &str) -> Option<&str> {
+    let (_, rest) = error.split_once(ATTACH_REJECTED)?;
+    rest.split(|c: char| !(c.is_ascii_alphanumeric() || c == '_'))
+        .next()
+        .filter(|reason| !reason.is_empty())
+}
+
 pub fn parse_attach_descriptor(ctrl: &Value) -> anyhow::Result<(String, Vec<Value>, Value)> {
     match ctrl.get("event").and_then(|v| v.as_str()) {
         Some("attached_workspace") => {}
@@ -115,7 +129,7 @@ pub fn parse_attach_descriptor(ctrl: &Value) -> anyhow::Result<(String, Vec<Valu
                 .get("reason")
                 .and_then(|v| v.as_str())
                 .unwrap_or("unknown");
-            anyhow::bail!("workspace attach rejected: {reason}");
+            anyhow::bail!("{ATTACH_REJECTED}{reason}");
         }
         other => anyhow::bail!("unexpected attach control event: {other:?}"),
     }

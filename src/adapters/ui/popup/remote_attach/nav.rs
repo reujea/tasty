@@ -40,12 +40,12 @@ pub(super) fn scroll_to_row(ui: &mut egui::Ui, top: f32, scroll: bool) {
     }
 }
 
-/// 방향키 이동 순서 — 새 행이 1번이고, 이미 attach 된(고를 수 없는) 행은 건너뛴다.
+/// 방향키 이동 순서 — 새 행이 1번이고, 이미 attach 됐거나 원격에서도 mirror인(고를 수 없는) 행은 건너뛴다.
 fn nav_order(ws: &[RemoteWorkspace]) -> Vec<WsSel> {
     std::iter::once(WsSel::New)
         .chain(
             ws.iter()
-                .filter(|w| !w.attached)
+                .filter(|w| !w.attached && !w.mirror)
                 .map(|w| WsSel::Existing(w.id)),
         )
         .collect()
@@ -81,6 +81,7 @@ mod tests {
             busy_count: 0,
             attached,
             holder: None,
+            mirror: false,
         }
     }
 
@@ -92,6 +93,13 @@ mod tests {
             vec![WsSel::New, WsSel::Existing(1), WsSel::Existing(3)]
         );
         assert_eq!(nav_order(&[]), vec![WsSel::New]);
+        let mut chain = ws(4, false);
+        chain.mirror = true;
+        assert_eq!(
+            nav_order(&[chain, ws(5, false)]),
+            vec![WsSel::New, WsSel::Existing(5)],
+            "a remote mirror cannot be mirrored again"
+        );
     }
 
     #[test]

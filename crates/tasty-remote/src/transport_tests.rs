@@ -348,3 +348,21 @@ fn the_writer_marks_our_detach_before_writing_it() {
     writer.join().unwrap();
     assert!(detach_sent.load(Ordering::SeqCst));
 }
+
+/// 거절 descriptor의 사유를 연결 오류에서 다시 읽을 수 있다. 오류 문장 뒤에 덧붙은 말은 사유가 아니다.
+#[test]
+fn a_rejection_reason_reads_back_from_the_connection_error() {
+    let ctrl = serde_json::json!({"event": "attach_error", "reason": "mirror_workspace"});
+    let error = parse_attach_descriptor(&ctrl)
+        .expect_err("rejected")
+        .to_string();
+    assert_eq!(
+        attach_rejection_reason(&error),
+        Some(REJECTED_MIRROR_WORKSPACE)
+    );
+    assert_eq!(
+        attach_rejection_reason(&format!("the mirror could not be installed: {error}")),
+        Some(REJECTED_MIRROR_WORKSPACE)
+    );
+    assert_eq!(attach_rejection_reason("connection refused"), None);
+}

@@ -129,6 +129,7 @@ mod tests {
             run: None,
             user: false,
             profile: None,
+            remote_workspace: None,
             manual: None,
         }
     }

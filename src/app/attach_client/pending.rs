@@ -29,6 +29,8 @@ pub(crate) struct PendingMirrorInstall {
     pub manual: Option<String>,
     /// 연결할 때 고른 attach 프로필 이름. 설치할 때 세션에 옮겨 원격 호스트 표시의 글자가 된다.
     pub profile: Option<String>,
+    /// 붙을 원격 workspace id. 연결을 큐에 넣을 때 정해진다.
+    pub remote_workspace: Option<u32>,
 }
 
 impl PendingMirrorInstall {
@@ -153,6 +155,7 @@ impl App {
         };
         Ok(PendingMirrorInstall {
             profile,
+            remote_workspace: None,
             resync,
             mapping,
             mapping_token,
@@ -340,6 +343,7 @@ impl App {
             .mirror_attempts
             .cancel_connection(ticket, &mut self.remote);
         tracing::warn!(engine=?target.engine,"mirror connection could not be installed: {error}");
+        let error = describe_attach_error(&error, target.remote_workspace);
         target.fail_run(format!("the mirror could not be installed: {error}"));
         if target.user {
             self.toast_attach_failure(target, &error);
@@ -375,6 +379,17 @@ impl App {
     }
 }
 
+/// 서버 거절 사유 중 사람이 고칠 수 없는 것은 그 이유 문장으로 바꾼다. 나머지는 그대로 둔다.
+pub(crate) fn describe_attach_error(error: &str, remote_workspace: Option<u32>) -> String {
+    match tasty_remote::transport::attach_rejection_reason(error) {
+        Some(tasty_remote::transport::REJECTED_MIRROR_WORKSPACE) => crate::i18n::t_fmt(
+            "remote.row.reason.chain",
+            &remote_workspace.map_or_else(|| "?".to_string(), |id| id.to_string()),
+        ),
+        _ => error.to_string(),
+    }
+}
+
 impl App {
     /// 팝업에서 시작한 시도가 실패하면 그 창에만 알린다. 창이 바뀌었으면 띄우지 않는다.
     pub(crate) fn toast_attach_failure(&mut self, target: &PendingMirrorInstall, error: &str) {
@@ -407,12 +422,13 @@ impl App {
 pub(super) fn queue_on(
     attempts: &mut super::attempts::MirrorAttempts,
     remote: &mut tasty_remote::outbound::Remote,
-    target: PendingMirrorInstall,
+    mut target: PendingMirrorInstall,
     connection: ConnectionTarget,
     tunnel: Option<tasty_ssh::SshTunnel>,
     wake: Arc<dyn Fn() + Send + Sync>,
     heartbeat_timeout: std::time::Duration,
 ) -> anyhow::Result<()> {
+    target.remote_workspace = Some(connection.workspace);
     attempts.supersede_connections(&target, remote);
     attempts.supersede_manual(&target, remote);
     let ticket = remote

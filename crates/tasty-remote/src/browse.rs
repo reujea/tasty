@@ -31,6 +31,8 @@ pub struct RemoteWorkspace {
     /// 점유중이면 lock holder(원격의 `AttachClientId` = u32; 없으면 None).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub holder: Option<u32>,
+    /// 원격 쪽에서도 다른 기계의 mirror인 workspace. mirror를 다시 mirror할 수 없어 attach 대상이 아니다.
+    pub mirror: bool,
 }
 
 /// `--profile` / `--ssh` 입력을 `(SshTarget, remote_tasty, port_mode, port_file)` 로
@@ -225,6 +227,7 @@ pub(crate) fn browse_via_port_bound(
             busy_count: ws.get("busy_count").and_then(|v| v.as_u64()).unwrap_or(0) as u32,
             attached: holder_entry.is_some(),
             holder: holder_entry.and_then(|h| *h),
+            mirror: ws.get("mirror").and_then(|v| v.as_bool()).unwrap_or(false),
         });
     }
     Ok(out)
@@ -277,7 +280,7 @@ mod tests {
                 BufReader::new(sock.try_clone().unwrap())
                     .read_line(&mut req)
                     .unwrap();
-                let resp = br#"{"jsonrpc":"2.0","result":[{"id":1,"name":"alpha","pane_count":2,"busy_count":0},{"id":2,"name":"beta","pane_count":1,"busy_count":1}],"id":1}"#;
+                let resp = br#"{"jsonrpc":"2.0","result":[{"id":1,"name":"alpha","pane_count":2,"busy_count":0},{"id":2,"name":"beta","pane_count":1,"busy_count":1,"mirror":true}],"id":1}"#;
                 sock.write_all(resp).unwrap();
                 sock.write_all(b"\n").unwrap();
             }
@@ -303,6 +306,8 @@ mod tests {
         assert!(list[1].attached);
         assert_eq!(list[1].holder, Some(7));
         assert_eq!(list[1].busy_count, 1);
+        assert!(!list[0].mirror, "a missing mirror field reads as local");
+        assert!(list[1].mirror, "a mirror on the remote is marked");
         h.join().unwrap();
     }
 

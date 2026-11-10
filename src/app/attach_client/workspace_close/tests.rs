@@ -24,6 +24,7 @@ fn mirror(
         user: false,
         manual: None,
         profile: None,
+        remote_workspace: None,
     }
 }
 

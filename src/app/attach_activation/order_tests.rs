@@ -90,3 +90,66 @@ fn a_busy_tick_before_the_descriptor_does_not_overtake_it() {
         }
     }
 }
+
+/// 첫 Control 프레임의 거절 사유.
+fn rejection_reason(rx: &tasty_ipc::stream_hub::SinkReceiver) -> Option<String> {
+    while let Ok(frame) = rx.try_recv() {
+        if frame.tag != StreamTag::Control {
+            continue;
+        }
+        let value: serde_json::Value =
+            serde_json::from_slice(&frame.payload).expect("control payload is JSON");
+        if value["event"] == "attach_error" {
+            return value["reason"].as_str().map(str::to_string);
+        }
+    }
+    None
+}
+
+/// mirror workspace와 그 surface는 다시 mirror할 수 없다. 접수에서 거절하고 점유를 잡지 않는다.
+#[test]
+fn attaching_to_a_mirror_workspace_or_its_surface_is_refused() {
+    let journal = JournalApplication::new(std::sync::Arc::new(|| {})).expect("journal");
+    let (mut state, mut session) = crate::state::tests::test_state();
+    let hub = StreamHub::new();
+    let id = session.id;
+    let mirror = {
+        let mut engine = session.borrow_mut();
+        crate::state::tests::add_mirror_test_workspace(&mut state, &mut engine)
+    };
+    let surface = {
+        let engine = session.borrow_mut();
+        let index = engine.find_workspace_index_for_id(mirror).expect("mirror");
+        engine
+            .workspace_at(index)
+            .expect("mirror")
+            .all_surface_ids()[0]
+    };
+    for target in [Target::Workspace(mirror), Target::Surface(surface)] {
+        let client = hub.alloc_id();
+        let rx = hub.register(client);
+        let mut pending: Vec<PendingAttach> = Vec::new();
+        begin(
+            &mut pending,
+            &journal,
+            id,
+            &mut session.borrow_mut(),
+            target,
+            client,
+            &hub,
+        );
+        assert!(pending.is_empty(), "a mirror target never waits");
+        assert_eq!(
+            rejection_reason(&rx).as_deref(),
+            Some(super::MIRROR_TARGET_REASON)
+        );
+        assert!(
+            !session
+                .borrow_mut()
+                .live
+                .occupancy
+                .client_holds_workspace(client),
+            "a refused mirror attach holds nothing"
+        );
+    }
+}

@@ -18,7 +18,7 @@ use tasty_ui_widgets::{
 use crate::adapters::ui::icons;
 use crate::adapters::ui::popup::PopupAction;
 
-use crate::i18n::t;
+use crate::i18n::{t, t_fmt};
 use crate::state::MainViewState;
 use crate::theme;
 use crate::theme::Theme;
@@ -978,7 +978,8 @@ fn ws_row(
     selected: bool,
     interactive: bool,
 ) -> bool {
-    let disabled = w.attached;
+    // 원격 쪽에서도 mirror인 workspace는 다시 mirror할 수 없어 점유된 행처럼 고를 수 없다.
+    let disabled = w.attached || w.mirror;
     let sense = if disabled || !interactive {
         egui::Sense::hover()
     } else {
@@ -986,12 +987,13 @@ fn ws_row(
     };
     let (resp, mut child) = ws_row_frame(ui, th, sense, selected, !disabled && interactive);
     let state = ws_row_state(selected, !disabled && interactive, &resp);
-    let kind = if w.busy_count > 0 {
+    let busy = w.busy_count > 0 && !w.mirror;
+    let kind = if busy {
         StatusKind::Running
     } else {
         StatusKind::Idle
     };
-    dot_slot_status(&mut child, th, kind, w.busy_count > 0, selected);
+    dot_slot_status(&mut child, th, kind, busy, selected);
     // 다른 클라이언트가 쓰는 워크스페이스도 이름은 읽으므로 text-muted다. 상태는 "in use" Tag가 알린다.
     let name_c = if disabled || !interactive {
         th.text_muted()
@@ -1014,7 +1016,16 @@ fn ws_row(
             .color(meta_c),
     );
     child.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-        if disabled {
+        if w.mirror {
+            tag_with_icon(
+                ui,
+                th,
+                t("remote_attach.chain_badge"),
+                TagVariant::Default,
+                icons::REMOTE,
+            )
+            .on_hover_text(t_fmt("remote.row.reason.chain", &w.name));
+        } else if w.attached {
             tag(
                 ui,
                 th,

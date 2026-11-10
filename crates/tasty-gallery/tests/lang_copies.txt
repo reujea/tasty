@@ -24,6 +24,7 @@ src/catalog/components/apply_preset.rs	Tab	port_scanner.column_tab,preset.tab.ta
 src/catalog/components/apply_preset.rs	Workspace	port_scanner.column_workspace,preset.tab.workspace,settings.keybindings.subtab.workspace,tutorial.step_workspace_title
 src/catalog/components/attach_loading.rs	New tab	attach.pending.new_tab,explorer.tab.new
 src/catalog/components/attach_loading/matrix.rs	inactive	remote_attach.inactive,remote_tool.attach_inactive
+src/catalog/components/attach_loading/matrix.rs	mirror	remote_attach.chain_badge
 src/catalog/components/attach_loading/matrix.rs	move	explorer.remote.op_move
 src/catalog/components/attach_loading/matrix.rs	off	settings.file_handler.extension_mapping.off
 src/catalog/components/category_dialogs.rs	Add workspace	workspace_category.add_workspace
@@ -629,6 +630,7 @@ src/catalog/components/sidebar.rs	Settings	button.settings,settings.window.title
 src/catalog/components/sidebar.rs	Tools	sidebar.tools_button,tools_menu.title
 src/catalog/components/sidebar.rs	WORKSPACES	sidebar.workspaces_heading
 src/catalog/components/sidebar.rs	inactive	remote_attach.inactive,remote_tool.attach_inactive
+src/catalog/components/sidebar.rs	mirror	remote_attach.chain_badge
 src/catalog/components/sidebar_context_menu.rs	Add workspace	workspace_category.add_workspace
 src/catalog/components/sidebar_context_menu.rs	Delete category	workspace_category.delete_category
 src/catalog/components/sidebar_context_menu.rs	Move to category	workspace_category.move_to_category
@@ -686,6 +688,7 @@ src/catalog/plugins_settled.rs	Go	explorer.address.go
 src/catalog/plugins_settled.rs	Unfocused	settings.appearance.colors.unfocused_heading,settings.appearance.preview_unfocused
 src/catalog/popup_frame.rs	close	command_palette.hint_close
 src/catalog/spacing.rs	Cancel	button.cancel,download_run.dialog.cancel,explorer.op.cancel,image_viewer.cancel,preset.popup.cancel_button,quit_modal.cancel_button,remote_attach.cancel,remote_tool.cancel,transfer.progress.cancel
+src/catalog/surface_focus.rs	mirror	remote_attach.chain_badge
 src/catalog/theme.rs	Delete	preset.toolbar.delete,remote_tool.delete
 src/catalog/theme.rs	Open	button.open,explorer.props.open,file_handler.picker.open_button,filepicker.open_button
 src/catalog/theme.rs	plugin	file_handler.picker.origin_plugin

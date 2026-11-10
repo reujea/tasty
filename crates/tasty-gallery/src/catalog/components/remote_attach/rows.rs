@@ -157,13 +157,14 @@ pub(super) fn ws_row(ui: &mut egui::Ui, theme: &Theme, w: &Ws, selected: bool, m
             .layout(egui::Layout::left_to_right(egui::Align::Center)),
     );
     child.spacing_mut().item_spacing.x = theme.spacing_sm.value();
-    let kind = if w.busy {
+    let busy = w.busy && !w.chain;
+    let kind = if busy {
         StatusKind::Running
     } else {
         StatusKind::Idle
     };
-    dot_slot_status(&mut child, theme, kind, w.busy, selected);
-    let name_c = if w.attached || muted {
+    dot_slot_status(&mut child, theme, kind, busy, selected);
+    let name_c = if w.attached || w.chain || muted {
         theme.text_muted()
     } else if selected {
         theme.text_on_active()
@@ -188,7 +189,16 @@ pub(super) fn ws_row(ui: &mut egui::Ui, theme: &Theme, w: &Ws, selected: bool, m
             .color(meta_c),
     );
     child.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-        if w.attached {
+        if w.chain {
+            tag_with_icon(
+                ui,
+                theme,
+                crate::i18n::t("remote_attach.chain_badge"),
+                TagVariant::Default,
+                icons::REMOTE,
+            )
+            .on_hover_text(crate::i18n::t_fmt("remote.row.reason.chain", w.name));
+        } else if w.attached {
             tag(ui, theme, "in use", TagVariant::Attached, false);
         } else if w.busy {
             ui.label(

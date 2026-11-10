@@ -2351,6 +2351,7 @@ self_instance = "此配置档指向当前 Tasty 本身。不支持附加到自�
 try_again = "重试"
 cancel = "取消"
 stop = "停止"
+chain_badge = "镜像"
 
 [tutorial]
 btn_try = "试一试"
@@ -7459,3 +7460,6 @@ caption = "统计调用次数的时段。默认值为 60。"
 label = "统计时段内调用次数："
 unit = "次"
 caption = "统计时段内达到此调用次数即判定为激增。默认值为 1000。"
+
+[remote.row.reason]
+chain = "工作区 {} 是另一台计算机上工作区的镜像。无法再次镜像。"

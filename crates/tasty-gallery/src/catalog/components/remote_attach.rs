@@ -122,6 +122,8 @@ struct Ws {
     panes: u32,
     busy: bool,
     attached: bool,
+    /// 원격 쪽에서도 다른 기계의 mirror인 workspace. 보이지만 고를 수 없다(R-58 체인).
+    chain: bool,
 }
 
 const WORKSPACES: &[Ws] = &[
@@ -130,18 +132,28 @@ const WORKSPACES: &[Ws] = &[
         panes: 3,
         busy: true,
         attached: false,
+        chain: false,
     },
     Ws {
         name: "api-gateway",
         panes: 2,
         busy: false,
         attached: true,
+        chain: false,
     },
     Ws {
         name: "scratch",
         panes: 1,
         busy: false,
         attached: false,
+        chain: false,
+    },
+    Ws {
+        name: "build-farm",
+        panes: 2,
+        busy: false,
+        attached: false,
+        chain: true,
     },
 ];
 
@@ -162,7 +174,16 @@ pub fn draw(ui: &mut egui::Ui, theme: &Theme) {
                 "new row",
                 "first row · plus glyph in dot slot · accent label · 'on remote'",
             ),
-            ("ws row", "StatusDot · name · panes · busy / in-use Tag"),
+            (
+                "ws row",
+                "StatusDot · name · panes · busy / in-use / mirror",
+            ),
+            (
+                "mirror (chain)",
+                "a remote workspace that is itself a mirror of another machine: shown, not \
+                 selectable, name text-muted, idle dot, neutral Tag remote glyph + mirror, \
+                 tooltip remote.row.reason.chain",
+            ),
             ("selected", "surface-active + 2px accent left bar"),
             ("footer", "Connect (primary, conditional) · Cancel (ghost)"),
         ],

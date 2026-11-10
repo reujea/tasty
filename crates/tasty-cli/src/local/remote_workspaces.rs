@@ -61,6 +61,13 @@ pub fn run_remote_workspaces(
                 )
             )?;
         }
+        if ws.mirror {
+            // 원격에서도 mirror인 workspace는 다시 mirror할 수 없다. 이유를 행 아래에 적는다.
+            outln!(
+                "    {}",
+                t_args("remote.row.reason.chain", &[ws.name.as_str()])
+            )?;
+        }
     }
     Ok(())
 }
