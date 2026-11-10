@@ -220,9 +220,14 @@ impl App {
             Some(SessionState::Connected) => {
                 run.into_iter().for_each(crate::request_runs::forget);
             }
-            Some(SessionState::Reconnecting) => {
-                self.remote.reconnect.remove(&row);
+            // 사용자의 명시적 연결만 새 재연결 구간을 시작한다. 요청은 지금 구간의 예약 시도에 합류해
+            // 시간 창과 백오프를 그대로 둔다.
+            Some(SessionState::Reconnecting) if from_user => {
+                self.remote.reconnect.insert(row, ReconnectSlot::new());
                 self.trigger_reconnect_row(row, None, None, run);
+            }
+            Some(SessionState::Reconnecting) => {
+                self.row_waits.join_run(row, run);
             }
             Some(SessionState::Disconnected) => {
                 if let Some(session) = self

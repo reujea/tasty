@@ -40,6 +40,11 @@ impl RowWaits {
         self.waiting.is_empty() && self.runs.is_empty()
     }
 
+    /// 진행 중인 행 연결에 run을 합류시킨다. 행이 연결되거나 연결을 끝내면 결과가 남는다.
+    pub(crate) fn join_run(&mut self, row: u32, run: Option<u64>) {
+        self.runs.extend(run.map(|run| (row, run)));
+    }
+
     /// 재연결 타이머와 함께 깨울 시각. 행마다 가장 이른 상한이다.
     pub(crate) fn deadlines(&self) -> Vec<(u32, Instant)> {
         let mut out: Vec<(u32, Instant)> = Vec::new();
@@ -420,7 +425,7 @@ impl App {
             );
         } else if joining {
             // 진행 중인 시도의 최종 결과를 이 run에도 남긴다.
-            self.row_waits.runs.push((row, run));
+            self.row_waits.join_run(row, Some(run));
         } else {
             self.connect_saved_row_with_run(row, false, Some(run));
         }

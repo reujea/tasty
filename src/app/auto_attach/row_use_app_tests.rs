@@ -97,3 +97,42 @@ fn a_joined_remote_attach_gets_the_final_success() {
         "succeeded"
     );
 }
+
+/// Given 백오프 예약을 기다리는 재연결 중인 행, When 그 행을 쓰는 요청이 오면, Then 요청은 기다리고
+/// 재연결 구간의 시작 시각·시도 수·다음 예약은 그대로다. 사용자의 명시적 연결만 새 구간을 시작한다.
+#[test]
+fn a_request_joins_the_reconnect_schedule_without_resetting_it() {
+    alone!("a_request_joins_the_reconnect_schedule_without_resetting_it");
+    let event_loop = event_loop();
+    let mut app = app_with_saved_row(&event_loop, Some(SessionState::Reconnecting));
+    let now = Instant::now();
+    let mut slot = tasty_remote::outbound::ReconnectSlot::new();
+    slot.started = now - Duration::from_secs(10);
+    slot.attempts = 3;
+    slot.next_attempt = now + Duration::from_secs(60);
+    let (started, next) = (slot.started, slot.next_attempt);
+    app.remote.reconnect.insert(ROW, slot);
+    let request: JsonRpcRequest = serde_json::from_value(serde_json::json!({
+        "jsonrpc": "2.0", "id": 1, "method": "terminal.spawn", "params": {"workspace": ROW},
+    }))
+    .unwrap();
+
+    assert_eq!(app.remote_row_use(&request), RowUse::Wait(ROW));
+    let slot = &app.remote.reconnect[&ROW];
+    assert_eq!(
+        (slot.started, slot.attempts, slot.next_attempt),
+        (started, 3, next)
+    );
+    assert!(
+        !app.remote.active.contains(&ROW),
+        "no attempt starts ahead of the schedule"
+    );
+
+    app.connect_saved_row(ROW, true);
+    let slot = &app.remote.reconnect[&ROW];
+    assert!(
+        slot.started > started,
+        "an explicit connect starts a new window"
+    );
+    assert_eq!(slot.attempts, 0);
+}
