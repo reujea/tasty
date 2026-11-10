@@ -118,6 +118,7 @@ fn head_info(repo: &Repository) -> (Option<String>, Option<String>) {
     };
     let branch = head
         .shorthand()
+        .ok()
         .filter(|sh| *sh != "HEAD")
         .map(|sh| sh.to_string());
     let oid = head.target().map(|oid| format!("{oid:.7}"));
@@ -168,7 +169,7 @@ pub fn collect_worktrees(repo: &Repository, current_workdir: &Path) -> Result<Ve
     }
 
     if let Ok(names) = repo.worktrees() {
-        for name in names.iter().flatten() {
+        for name in names.iter().filter_map(|n| n.ok().flatten()) {
             if let Some((entry, entry_canon)) =
                 linked_worktree_entry(repo, name, &current_canon, &seen_canon)
             {
@@ -281,8 +282,8 @@ pub fn collect_status(repo: &Repository) -> Result<Vec<StatusEntry>> {
     let mut out = Vec::with_capacity(statuses.len());
     for entry in statuses.iter() {
         let path = match entry.path() {
-            Some(p) => p.to_string(),
-            None => continue,
+            Ok(p) => p.to_string(),
+            Err(_) => continue,
         };
         let flags = entry.status();
         let status = if flags.is_conflicted() {
@@ -328,7 +329,7 @@ pub fn collect_log(repo: &Repository, limit: usize) -> Result<Vec<LogEntry>> {
                 let name = r
                     .shorthand()
                     .map(|s| s.to_string())
-                    .unwrap_or_else(|| r.name().unwrap_or("").to_string());
+                    .unwrap_or_else(|_| r.name().unwrap_or("").to_string());
                 if name.is_empty() {
                     continue;
                 }
@@ -350,7 +351,12 @@ pub fn collect_log(repo: &Repository, limit: usize) -> Result<Vec<LogEntry>> {
             Ok(c) => c,
             Err(_) => continue,
         };
-        let summary = commit.summary().unwrap_or_default().to_string();
+        let summary = commit
+            .summary()
+            .ok()
+            .flatten()
+            .unwrap_or_default()
+            .to_string();
         let author = commit.author();
         let author_name = author.name().unwrap_or_default().to_string();
         let time = format_time(commit.time());

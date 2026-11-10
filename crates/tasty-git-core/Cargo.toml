@@ -10,7 +10,7 @@ repository = "https://github.com/zilhak/tasty"
 anyhow = "1"
 tracing = "0.1"
 # Read-only libgit2 binding — HTTPS/SSH 불필요라 default-features off.
-git2 = { version = "0.20", default-features = false }
+git2 = { version = "0.21", default-features = false }
 # Windows verbatim prefix(`\\?\`) 제거 — worktree 경로 표시/비교 정규화에 사용.
 tasty-utils = { path = "../tasty-utils" }
 # 원격 조회 응답을 호스트와 플러그인이 같은 타입으로 읽는다.

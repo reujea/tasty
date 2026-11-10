@@ -1,6 +1,6 @@
 [package]
 name = "tasty-plugin-git-viewer"
-version = "0.1.458"
+version = "0.1.459"
 edition = "2024"
 license = "MIT"
 description = "External Tasty plugin: read-only git status/log/diff viewer popup"
@@ -20,7 +20,7 @@ tasty-utils = { path = "../tasty-utils" }
 # 호스트의 원격 조회와 저장소 탐색·수집 로직을 공유한다.
 tasty-git-core = { path = "../tasty-git-core" }
 # Repository 타입을 직접 쓰므로 tasty-git-core와 버전을 맞춘다.
-git2 = { version = "0.20", default-features = false }
+git2 = { version = "0.21", default-features = false }
 tasty-type-appearance = { path = "../tasty-type-appearance", features = ["egui-compat"] }
 tasty-ui-widgets = { path = "../tasty-ui-widgets" }
 serde_json = "1"

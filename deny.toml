@@ -48,15 +48,7 @@ ignore = [
   # termwiz를 nix 0.26을 쓰지 않는 판(0.23)으로 올릴 때 해제한다. termwiz를 올렸을 때의 터미널 동작 차이는 미측정이다.
   "RUSTSEC-2026-0441", # pin-utils 0.1.0 unmaintained
 
-  # git2 0.20.4의 잠재 UB 두 건. 공지의 수정판은 0.21.0 이상이다.
-  # 공지가 말하는 Remote::list와 Blame::blame_buffer의 BlameHunk 서명을 쓰는 곳이
-  # tasty-git-core·tasty-plugin-git-viewer와 나머지 src·crates에 없어 이 경로에 닿지 않는다.
-  # git2를 0.21 이상으로 올릴 때 해제한다. 0.21로 올렸을 때의 API 영향은 미측정이다.
-  "RUSTSEC-2026-0183", # git2 0.20.4: Remote::list() 잠재 UB
-  "RUSTSEC-2026-0184", # git2 0.20.4: BlameHunk Signature 잠재 UB
-
   # unsound 기본 검사 범위는 workspace의 직접 의존성이다. unmaintained는 간접 의존성도 본다.
-  # git2는 tasty-git-core·tasty-plugin-git-viewer의 직접 의존성이므로 위 예외가 필요하다.
   # glib 0.18.5의 RUSTSEC-2024-0429와 rand 0.8.5의 RUSTSEC-2026-0097은
   # lock에 남아 있지만 간접 의존성이라 이 범위에서는 보고되지 않는다.
   # 검사되지 않는 항목을 ignore에 넣으면 advisory-not-detected 경고가 발생한다.
