@@ -431,6 +431,9 @@ impl PlatformWebView {
             let http_start = http.as_ref().map(Rc::downgrade);
             let top_start = top_level.clone();
             let allow_start = allow_remote.clone();
+            // host 입력 경로는 아래에서 등록하므로 입력 증명은 등록 뒤에 채운다.
+            let click_slot: remote_block::ClickSlot = Rc::default();
+            let click_start = click_slot.clone();
             let h_start = NavigationStartingEventHandler::create(Box::new(
                 move |sender, args| -> windows::core::Result<()> {
                     tracing::debug!("WebView surface {surface_id}: load started");
@@ -486,7 +489,10 @@ impl PlatformWebView {
                             &args,
                             &uri_str,
                             kind,
-                            user_gesture,
+                            remote_block::Gesture {
+                                initiated: user_gesture,
+                                click: &click_start,
+                            },
                             remote_block::origin(allow_start.get(), gate_start.borrow().as_ref()),
                             surface_id,
                         );
@@ -838,6 +844,7 @@ impl PlatformWebView {
                 host_input::register(hwnd, surface_id, key_bridge.clone(), webview.clone())
             });
             let click = host_input.as_ref().map(host_input::RouteGuard::click);
+            click_slot.borrow_mut().clone_from(&click);
             same_document::install(&webview, surface_id, parent, &pending_navigations, click)
                 .map_err(|e| transient(format!("same-document navigation setup failed: {e}")))?;
 

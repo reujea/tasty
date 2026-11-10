@@ -10,12 +10,37 @@
 //! 로드 시작부터 하위 리소스 차단은 그대로라 commit된 새 문서의 하위 리소스는 그 문서의 상태를 따른다.
 
 use std::cell::{Cell, RefCell};
+use std::rc::Rc;
+use std::time::Instant;
 
-use tasty_model::html_script::top_level::{Origin, StartKind, TopLevelAdmission};
+use tasty_model::html_script::top_level::{Origin, StartKind, TopLevelAdmission, is_remote_url};
 use webview2_com::Microsoft::Web::WebView2::Win32::*;
 use windows::core::BOOL;
 
+use super::super::click_gesture::ClickGesture;
 use super::super::script_gate::ScriptGate;
+
+/// host 입력 경로의 입력 증명. 경로를 쓰지 못한 view는 비어 있다.
+pub(super) type ClickSlot = Rc<RefCell<Option<Rc<ClickGesture>>>>;
+
+/// 탐색의 사용자 제스처 근거. WebView2의 `IsUserInitiated`는 meta refresh에도 참으로 왔다(Windows 실 기기).
+/// 그래서 원격 문서의 사용자 이동 허용에는 host 입력 경로가 본 OS 입력(`ClickGesture`)도 함께 요구한다.
+pub(super) struct Gesture<'a> {
+    pub(super) initiated: bool,
+    pub(super) click: &'a ClickSlot,
+}
+
+impl Gesture<'_> {
+    /// 클릭 증명은 필요할 때만 소비한다. 한 입력은 main frame 탐색 하나만 증명한다.
+    fn proven(&self) -> bool {
+        self.initiated
+            && self
+                .click
+                .borrow()
+                .as_ref()
+                .is_some_and(|click| click.take(Instant::now(), Some(true)))
+    }
+}
 
 /// 이 원격 요청을 막아야 하면 `true`. 막은 하위 리소스 요청은 게이트에 관측으로 알린다.
 pub(super) fn refuse(
@@ -62,7 +87,7 @@ pub(super) fn navigation_starting(
     args: &ICoreWebView2NavigationStartingEventArgs,
     uri: &str,
     kind: Option<COREWEBVIEW2_NAVIGATION_KIND>,
-    user_gesture: bool,
+    gesture: Gesture<'_>,
     origin: Origin,
     surface_id: u32,
 ) {
@@ -92,11 +117,14 @@ pub(super) fn navigation_starting(
         Some(k) if k == COREWEBVIEW2_NAVIGATION_KIND_BACK_OR_FORWARD => StartKind::History,
         _ => StartKind::Other,
     };
+    let user_gesture =
+        origin.remote_document && !origin.remote_allowed && is_remote_url(uri) && gesture.proven();
     let admitted = top.start(uri, kind, user_gesture, origin);
     tracing::debug!(
         "WebView surface {surface_id}: top-level navigation {uri} admitted={admitted} \
-         (origin allowed={} remote={}, gesture={user_gesture})",
+         (origin allowed={} remote={}, initiated={}, gesture={user_gesture})",
         origin.remote_allowed,
-        origin.remote_document
+        origin.remote_document,
+        gesture.initiated
     );
 }
