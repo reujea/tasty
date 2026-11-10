@@ -86,6 +86,7 @@ RTL(아랍·히브리) 어순은 egui 한계로 범위 밖이다.
 - Given `[font] family` 가 글꼴 묶음 파일 안의 family(예: `Noto Sans CJK SC`) When 부팅 Then 그 파일 경로와 해당 글꼴 번호가 `TASTY_LOCALE_FONT`·`TASTY_LOCALE_FONT_FACE` 에 실리고 셸 UI·plugin UI 가 같은 글꼴 번호를 읽는다.
 - Given 코드가 `zh-Hans` 인 팩 When 시스템 CJK 폰트가 Noto CJK 묶음 Then 시스템 CJK 폰트도 SC 글꼴을 읽어 공용 한자가 SC 형태로 나오고 한글·가나는 □ 가 아니다(작은 라벨은 코드의 첫 부분이 `zh` 라 UI sans 로 그린다. 고정폭으로 남는 값은 D2Coding 이 앞에 있어 글꼴이 섞일 수 있다).
 - Given Windows 기본 설치 When `zh-Hans` 로 부팅 Then 시스템 CJK 폰트는 Microsoft YaHei UI(`msyh.ttc` 1번)가 앞이라 공용 한자가 SC 형태로 나오고 한글은 맑은 고딕으로 □ 가 아니다. 다른 언어로 부팅하면 맑은 고딕이 앞이라 한자 형태는 그대로이고 맑은 고딕에 없는 간체(`简` 등)만 YaHei로 나온다.
+- Given macOS 기본 설치 When `zh-Hans` 로 부팅 Then 시스템 CJK 폰트는 Hiragino Sans GB(`Hiragino Sans GB.ttc` 0번)가 앞이라 공용 한자가 SC 형태로 나오고 한글은 Apple SD Gothic Neo로 □ 가 아니다. 다른 언어로 부팅하면 Apple SD Gothic Neo가 앞이라 한자 형태는 그대로이고 Apple SD Gothic Neo에 없는 간체(`简`·`体` 등)만 Hiragino Sans GB로 나온다.
 - Given `[font] file` 이 `..` 나 절대경로로 팩 밖을 가리킴 When 부팅 Then resolve 거부(경고) — 팩 디렉토리 밖 파일은 읽지 않는다.
 - Given `general.language = "zz"` 이고 팩 없음 When 부팅 Then 영어 UI + 경고 토스트 1회(코드 · 기대 경로), headless/CLI 는 warn 1줄, `config.toml` 의 값은 `zz` 그대로.
 - Given 콤보의 현재 값이 목록에 없음 When 콤보를 열고 닫음 Then 값이 바뀌지 않는다.
