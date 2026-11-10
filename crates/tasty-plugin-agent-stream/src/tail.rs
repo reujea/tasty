@@ -169,7 +169,7 @@ fn file_identity(_path: &Path, meta: &std::fs::Metadata) -> Option<u64> {
 /// 툴체인에서 쓸 수 없으므로 Win32 `GetFileInformationByHandle` 을 직접 호출한다.
 /// 실패(핸들 열기 실패·API 실패)는 `None` — 길이 비교 판정으로 degrade 한다.
 #[cfg(windows)]
-#[allow(unsafe_code)] // 이 함수만 Win32 FFI 를 쓴다 — 나머지 crate 는 unsafe 금지 유지.
+#[allow(unsafe_code)] // 이유: 이 함수만 Win32 FFI 를 쓴다 — 나머지 crate 는 unsafe 금지 유지.
 fn file_identity(path: &Path, _meta: &std::fs::Metadata) -> Option<u64> {
     use std::os::windows::io::AsRawHandle;
 
