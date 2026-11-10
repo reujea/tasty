@@ -46,17 +46,13 @@ impl WebViewEditAction {
         Self::ALL.into_iter().find(|a| a.field_id() == id)
     }
 
-    /// 엔진이 이미 같은 편집으로 처리하는 키. 이 키는 페이지 keydown과 엔진 처리에 그대로 두어 한 번만
-    /// 실행한다. Windows는 Ctrl+C/X/V/A, Ctrl/Shift+Insert, Shift+Delete, Ctrl+Z, Ctrl+Shift+Z, Ctrl+Y다.
-    /// Linux는 Ctrl+V와 Shift+Insert뿐이다. WebKitGTK는 이 임베딩에서 Ctrl+Z 계열을 실행하지 않고,
-    /// 기본 Copy·Cut은 선택이 없어도 클립보드를 비우므로 Tasty가 받는다. 바인딩된 Ctrl+A도 Tasty가
-    /// 받아 다른 편집 바인딩과 같은 입력 순서 경로로 실행한다.
-    /// macOS WKWebView는 Edit 메뉴 없이 Cmd 편집 키를 실행하지 않으므로 대상이 없다.
+    /// 바인딩에 있어도 Tasty가 실행하지 않고 엔진과 페이지 keydown에 그대로 두는 키. Tasty 단축키가 먼저 받는다는
+    /// 원칙의 예외이며 Windows의 실행 취소·다시 실행 엔진 키(Ctrl+Z, Ctrl+Shift+Z, Ctrl+Y)만 해당한다. 웹 앱이
+    /// 실제 키 keydown으로 자기 실행 취소를 처리하게 둔다. 복사·잘라내기·붙여넣기·전체 선택은 엔진 키여도
+    /// Tasty가 실행하고 키를 넘기지 않는다. Linux WebKitGTK는 이 임베딩에서 Ctrl+Z 계열을 스스로 실행하지
+    /// 않으므로 Tasty가 받는다. macOS WKWebView는 Edit 메뉴 없이 Cmd 편집 키를 실행하지 않으므로 대상이 없다.
     fn is_engine_default(self, key: &Key, mods: ModifiersState) -> bool {
-        if cfg!(target_os = "linux") && !matches!(self, Self::Paste) {
-            return false;
-        }
-        self.is_engine_key(key, mods)
+        cfg!(windows) && matches!(self, Self::Undo | Self::Redo) && self.is_engine_key(key, mods)
     }
 
     /// 엔진이 바인딩과 관계없이 스스로 편집으로 처리할 수 있는 키. 입력을 막은 동안에는 바인딩에
@@ -666,51 +662,49 @@ mod tests {
         })
     }
 
-    /// 엔진 기본 편집 키가 아닌 사용자 조합만 native 명령이 되고, 기본 키는 엔진에 남긴다.
+    /// 복사·잘라내기·붙여넣기·전체 선택 바인딩은 엔진 기본 키여도 Tasty 명령이 된다. Windows의 실행 취소·다시 실행
+    /// 엔진 키만 엔진에 남긴다.
     #[test]
-    fn only_non_engine_edit_combos_become_native_commands() {
+    fn bound_edit_keys_become_native_commands_except_windows_undo_keys() {
         let p = edit_policy(&[
             (
                 WebViewEditAction::Copy,
-                &["ctrl+c", "alt+c", "ctrl+shift+c"],
+                &["ctrl+c", "alt+c", "ctrl+shift+c", "ctrl+insert"],
             ),
+            (WebViewEditAction::Cut, &["ctrl+x", "shift+delete"]),
+            (WebViewEditAction::Paste, &["ctrl+v", "shift+insert"]),
             (WebViewEditAction::SelectAll, &["ctrl+a", "ctrl+alt+a"]),
             (WebViewEditAction::Undo, &["ctrl+z", "alt+u"]),
             (WebViewEditAction::Redo, &["ctrl+shift+z", "ctrl+y"]),
         ]);
         let ctrl_shift = ModifiersState::CONTROL | ModifiersState::SHIFT;
+        let ctrl = ModifiersState::CONTROL;
+        let shift = ModifiersState::SHIFT;
+        let insert = Key::Named(NamedKey::Insert);
+        let delete = Key::Named(NamedKey::Delete);
+        let engine = |key: &str, mods| p.edit_action(&ch(key), mods);
+        assert_eq!(engine("c", ctrl_shift), Some(WebViewEditAction::Copy));
+        assert_eq!(engine("c", alt_mod()), Some(WebViewEditAction::Copy));
         assert_eq!(
-            p.edit_action(&ch("c"), ctrl_shift),
-            Some(WebViewEditAction::Copy)
-        );
-        assert_eq!(
-            p.edit_action(&ch("c"), alt_mod()),
-            Some(WebViewEditAction::Copy)
-        );
-        assert_eq!(
-            p.edit_action(&ch("a"), ModifiersState::CONTROL | alt_mod()),
+            engine("a", ModifiersState::CONTROL | alt_mod()),
             Some(WebViewEditAction::SelectAll)
         );
-        let ctrl = ModifiersState::CONTROL;
-        let engine_ctrl_c = p.edit_action(&ch("c"), ctrl);
-        if cfg!(any(target_os = "macos", target_os = "linux")) {
-            // macOS는 Edit 메뉴가 없고, Linux는 선택이 있을 때만 복사하도록 Tasty가 받는다.
-            assert_eq!(engine_ctrl_c, Some(WebViewEditAction::Copy));
-        } else {
-            assert_eq!(engine_ctrl_c, None, "Ctrl+C 는 엔진이 이미 복사한다");
-        }
-        let engine = |key: &str, mods| p.edit_action(&ch(key), mods);
-        if cfg!(any(target_os = "macos", target_os = "linux")) {
-            // Linux는 바인딩된 Ctrl+A를 다른 편집 바인딩과 같은 입력 순서 경로로 실행한다.
-            assert_eq!(engine("a", ctrl), Some(WebViewEditAction::SelectAll));
-        } else {
-            assert_eq!(engine("a", ctrl), None, "Ctrl+A 는 엔진이 전체 선택한다");
-        }
+        // 엔진도 처리하는 키지만 Tasty 동작이 있으므로 Tasty가 실행한다.
+        assert_eq!(engine("c", ctrl), Some(WebViewEditAction::Copy));
+        assert_eq!(p.edit_action(&insert, ctrl), Some(WebViewEditAction::Copy));
+        assert_eq!(engine("x", ctrl), Some(WebViewEditAction::Cut));
+        assert_eq!(p.edit_action(&delete, shift), Some(WebViewEditAction::Cut));
+        assert_eq!(engine("v", ctrl), Some(WebViewEditAction::Paste));
+        assert_eq!(
+            p.edit_action(&insert, shift),
+            Some(WebViewEditAction::Paste)
+        );
+        assert_eq!(engine("a", ctrl), Some(WebViewEditAction::SelectAll));
         if cfg!(windows) {
             assert_eq!(
                 engine("z", ctrl),
                 None,
-                "WebView2 는 Ctrl+Z 를 실행 취소한다"
+                "WebView2 는 Ctrl+Z 를 실행 취소하고 웹 앱이 그 keydown 을 받는다"
             );
             assert_eq!(engine("z", ctrl_shift), None);
             assert_eq!(
@@ -725,7 +719,7 @@ mod tests {
             assert_eq!(engine("y", ctrl), Some(WebViewEditAction::Redo));
         }
         assert_eq!(engine("u", alt_mod()), Some(WebViewEditAction::Undo));
-        assert_eq!(p.edit_action(&ch("v"), alt_mod()), None);
+        assert_eq!(engine("v", alt_mod()), None);
     }
 
     /// 빈 목록은 편집 명령을 만들지 않고 키는 페이지·host 판정으로 간다.
@@ -817,7 +811,7 @@ mod tests {
         let ctrl_shift = ModifiersState::CONTROL | ModifiersState::SHIFT;
         assert!(
             !bridge.blocks_edit_key(&ch("v"), &phys, ctrl_shift),
-            "막지 않는 동안에는 엔진에 그대로 둔다"
+            "막지 않는 동안에는 바인딩에 없는 엔진 키를 엔진에 그대로 둔다"
         );
         assert_eq!(bridge.edit_action(&ch("v"), &phys, ctrl_shift), None);
         assert_eq!(
@@ -858,19 +852,16 @@ mod tests {
             "반복은 host 큐에 넣지 않는다"
         );
         assert!(!bridge.consumes_repeat(1, &ch("q"), &phys, alt_mod()));
-        // Windows는 Ctrl+V를 엔진에 두므로 반복도 엔진으로 간다. Linux는 Copy를 Tasty가 실행하므로 반복을 막는다.
-        assert_eq!(
-            bridge.consumes_repeat(1, &ch("v"), &phys, ctrl),
-            cfg!(target_os = "macos")
-        );
-        assert_eq!(
-            bridge.consumes_repeat(1, &ch("c"), &phys, ctrl),
-            !cfg!(windows)
-        );
+        // 바인딩된 Ctrl+V·Ctrl+C는 Tasty가 실행하므로 반복도 막는다.
+        assert!(bridge.consumes_repeat(1, &ch("v"), &phys, ctrl));
+        assert!(bridge.consumes_repeat(1, &ch("c"), &phys, ctrl));
+        // 바인딩에 없는 엔진 키의 반복은 엔진으로 간다.
+        assert!(!bridge.consumes_repeat(1, &ch("z"), &phys, ctrl));
         bridge.set_modal_open(true);
-        assert!(
-            bridge.consumes_repeat(1, &ch("v"), &phys, ctrl),
-            "입력을 막은 동안에는 엔진 키 반복도 막는다"
+        assert_eq!(
+            bridge.consumes_repeat(1, &ch("z"), &phys, ctrl),
+            !cfg!(target_os = "macos"),
+            "입력을 막은 동안에는 바인딩에 없는 엔진 키 반복도 막는다"
         );
         assert!(!bridge.consumes_repeat(1, &ch("q"), &phys, alt_mod()));
     }

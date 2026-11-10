@@ -382,8 +382,8 @@ mod tests {
         assert!(!policy.claims(&f5, none));
     }
 
-    /// 새로고침을 페이지 편집 조합(엔진 기본 Paste인 Ctrl+V)에 묶어도 host가 가져가지 않는다.
-    /// 그 키는 엔진 붙여넣기로 페이지에 남는다. 다른 host 조합 경로로 새로고침이 들어가지 않는다.
+    /// 새로고침을 페이지 편집 조합(Paste인 Ctrl+V)에 묶어도 host 새로고침으로 가져가지 않는다.
+    /// 그 키는 편집 바인딩이 먼저다. 다른 host 조합 경로로 새로고침이 들어가지 않는다.
     #[test]
     fn a_refresh_binding_on_a_page_edit_key_stays_with_the_page() {
         let mut kb = kb();
@@ -397,13 +397,11 @@ mod tests {
             policy.combos()
         );
         assert!(!host_combos(&kb, false).iter().any(|c| c == "ctrl+v"));
-        if !cfg!(target_os = "macos") {
-            assert_eq!(
-                policy.edit_action(&v, ModifiersState::CONTROL),
-                None,
-                "엔진 기본 Paste는 엔진이 처리한다"
-            );
-        }
+        assert_eq!(
+            policy.edit_action(&v, ModifiersState::CONTROL),
+            Some(WebViewEditAction::Paste),
+            "바인딩된 Paste는 Tasty가 실행한다"
+        );
         assert!(policy.matches_edit_binding(&v, ModifiersState::CONTROL));
     }
 

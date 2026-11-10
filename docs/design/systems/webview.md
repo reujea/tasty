@@ -218,13 +218,16 @@ Copy·Cut이 아닌 명령을 callback 안에서 바로 실행한다. Windows의
 
 | 플랫폼 | 실행 경로 | 엔진에 그대로 두는 키 |
 |--------|-----------|------------------------|
-| Linux (WebKitGTK) | `webkit_web_view_execute_editing_command`(Copy·Cut·Paste·SelectAll·Undo·Redo). Copy·Cut은 아래 선택 확인을 거친다 | Ctrl+V, Shift+Insert |
-| Windows (WebView2) | DevTools `Input.dispatchKeyEvent`의 `commands`(copy·cut·paste·selectAll·undo·redo). 페이지는 키 정보가 없는 keydown을 한 번 받는다 | Ctrl+C/X/V/A, Ctrl+Insert, Shift+Insert, Shift+Delete, Ctrl+Z, Ctrl+Shift+Z, Ctrl+Y |
+| Linux (WebKitGTK) | `webkit_web_view_execute_editing_command`(Copy·Cut·Paste·SelectAll·Undo·Redo). Copy·Cut은 아래 선택 확인을 거친다 | 없음 |
+| Windows (WebView2) | DevTools `Input.dispatchKeyEvent`의 `commands`(copy·cut·paste·selectAll·undo·redo). 페이지는 키 정보가 없는 keydown을 한 번 받는다 | Ctrl+Z, Ctrl+Shift+Z, Ctrl+Y |
 | macOS (WKWebView) | NSResponder `copy:`·`cut:`·`paste:`·`selectAll:`·`undo:`·`redo:`. 뷰가 `undo:`·`redo:`에 응답하지 않으면 응답자 체인으로 보낸다 | 없음 |
 
-WebKitGTK의 기본 Copy·Cut은 선택이 없어도 빈 내용으로 클립보드를 차지해 기존 값을 지운다. 또 이 임베딩의
-WebKitGTK는 Ctrl+Z·Ctrl+Shift+Z를 스스로 실행하지 않는다. 그래서 Linux에서는 Ctrl+C·Ctrl+X·Ctrl+Insert·Shift+Delete·
-Ctrl+Z 계열과 Ctrl+A도 바인딩에 있으면 Tasty가 받는다. 이 키의 keydown은 확장의 document capture 리스너에서 멈춘다.
+복사·잘라내기·붙여넣기·전체 선택 바인딩은 엔진이 같은 키(Ctrl+C/X/V/A, Ctrl/Shift+Insert, Shift+Delete)를 처리하더라도
+Tasty가 실행하고 키를 넘기지 않는다([웹 화면의 키 처리 원칙](../policies/key-mapping.md#웹-화면의-키-처리-원칙)). 엔진에 그대로 두는
+키는 Windows의 실행 취소·다시 실행 엔진 키뿐이며, 웹 앱이 실제 키 keydown으로 자기 실행 취소를 처리하게 둔다.
+WebKitGTK의 기본 Copy·Cut은 선택이 없어도 빈 내용으로 클립보드를 차지해 기존 값을 지우고, 이 임베딩의
+WebKitGTK는 Ctrl+Z·Ctrl+Shift+Z를 스스로 실행하지 않는다. 그래서 Linux에서는 Ctrl+Z 계열도 바인딩에 있으면 Tasty가 받는다.
+Linux에서 Tasty가 받은 편집 키의 keydown은 확장의 document capture 리스너에서 멈춘다.
 페이지의 window capture 처리기와 document capture 처리기만 keydown을 받고, 요소·bubble 단계 처리기는 받지 않는다
 (`copy`·`cut` 이벤트는 엔진 명령이 그대로 보낸다). 확장은 앞선 처리기의 `preventDefault()`를 보지 않으므로 Linux에서는
 페이지가 keydown 취소로 이 명령을 막을 수 없으며, 페이지 keydown 취소가 명령을 막는 Windows와 다르다. 바인딩에서 지운
@@ -307,8 +310,9 @@ WebKitGTK의 기본 Copy는 선택이 없어도 빈 내용으로 클립보드를
 
 Windows의 DevTools 명령은 같은 WebView에 비동기로 전달되며, `controller.Close()` 뒤에는 호출이 실패한다.
 
-엔진에 그대로 두는 키는 바인딩에 있어도 Tasty가 명령을 실행하지 않는다. 페이지 keydown과 취소 규칙이 엔진 기본
-처리와 같게 유지되고 같은 입력이 두 번 실행되지 않는다. 바인딩에서 지워도 엔진 기본 편집 키는 계속 동작한다.
+엔진에 그대로 두는 키(Windows의 Ctrl+Z, Ctrl+Shift+Z, Ctrl+Y)는 바인딩에 있어도 Tasty가 명령을 실행하지 않는다. 페이지 keydown과
+취소 규칙이 엔진 기본 처리와 같게 유지되고 같은 입력이 두 번 실행되지 않는다. 그 밖의 바인딩된 엔진 키는 Tasty 명령 하나만
+실행되고 엔진 기본 처리는 일어나지 않는다. 바인딩에서 지워도 엔진 기본 편집 키는 계속 동작한다.
 Tasty 바인딩 해제는 Tasty가 더한 키를 없앨 뿐이다. 그 밖의 바인딩(예: `alt+c`, `ctrl+shift+c`)은 페이지 keydown
 대신 편집 명령으로 실행된다. 페이지 텍스트의 실행 취소·다시 실행은 `page_undo`·`page_redo`이며 Explorer 파일 이력의
 `explorer_undo`·`explorer_redo`와 별개다. 두 쌍은 같은 조합을 써도 충돌로 보지 않는다(`SHARED_COMBO_PAIRS`).

@@ -223,8 +223,9 @@ Option 시퀀스·튜플 원소와 중첩 Option의 Some(None)은 표현을 다�
   유무와 관계없이 host 가 가져간다(예: `rename_tab` 의 `F2`, [공통 새로고침](#공통-새로고침--refresh)의 `F5`).
   설정 캡처가 수식키 없는 글자 키를 받지 않으므로 기본 상태의 타이핑·IME 조합은 페이지에 남는다.
   ② 페이지 예약 액션 `find`·`copy`·`cut`·`paste`·`select_all`·`page_undo`·`page_redo` — host 액션으로 가져가지 않는다.
-  `find` 는 페이지가 자체로 구현한다(markdown 의 문서 내 검색 등). 편집 액션은 엔진이 원래
-  처리하는 키는 엔진에 두고, 그 밖의 바인딩은 키를 받은 WebView 의 엔진 편집 명령으로 바로 실행한다
+  `find` 는 페이지가 자체로 구현한다(markdown 의 문서 내 검색 등). 편집 액션의 바인딩은 키를 받은 WebView 의 엔진
+  편집 명령으로 바로 실행하고 키를 넘기지 않는다. 엔진이 같은 키(Ctrl+C 등)를 처리해도 Tasty 가 실행한다. 예외로
+  Windows 의 실행 취소·다시 실행 엔진 키(Ctrl+Z·Ctrl+Shift+Z·Ctrl+Y)는 엔진과 페이지에 둔다
   ([WebView 편집 액션](../../design/systems/webview.md#편집-액션)). markdown 문서 내 검색은 사용자의 `find` 바인딩을
   `settings.get_keybinding` 으로 읽어 문서 스크립트에 넣으므로 단축키 탭에서 바꾼 조합을 따른다
   ([markdown 문서 내 검색](../../surfaces/markdown/screens/viewer.md#문서-내-검색find-in-page)).
