@@ -93,7 +93,7 @@ pub(crate) fn apply_remote_identify_result(
     let Some(first) = openable.first() else {
         let engine = engine.read();
         let workspace = mirror_workspace(&engine, origin_surface_id)
-            .map(|id| (id, remote_host(&engine, origin_surface_id)));
+            .map(|id| (id, engine.mirror_host_text(origin_surface_id)));
         report_unsupported(state, &target, dispatch_origin, workspace);
         crate::file::dispatch::fail_run(
             policy.run,
@@ -161,7 +161,7 @@ fn open_remote_picker(
     };
     picker.origin_surface_id = Some(origin_surface_id);
     picker.default_handler = None;
-    picker.remote_host = Some(remote_host(engine, origin_surface_id));
+    picker.remote_host = Some(engine.mirror_host_text(origin_surface_id));
     picker.recent.retain(|summary| {
         engine
             .file_handler
@@ -205,7 +205,7 @@ pub(crate) fn open_remote_link_picker(
         .collect();
     if openable.is_empty() {
         let workspace = mirror_workspace(engine, origin_surface_id)
-            .map(|id| (id, remote_host(engine, origin_surface_id)));
+            .map(|id| (id, engine.mirror_host_text(origin_surface_id)));
         report_unsupported(state, &target, FileDispatchOrigin::User, workspace);
         return;
     }
@@ -222,15 +222,6 @@ pub(crate) fn open_remote_link_picker(
             run: None,
         },
     );
-}
-
-/// 원격 경로 줄 앞 표지의 호스트 글자([원격 위치 표시](../../../docs/features/remote-attach/index.md#원격-위치-표시)).
-/// 연결 정보가 아직 없으면 빈 글자이고 화면은 `Remote` 낱말을 쓴다.
-fn remote_host(engine: &EngineRead<'_>, origin_surface_id: u32) -> String {
-    engine
-        .mirror_location_of(origin_surface_id)
-        .map(|location| location.host.clone())
-        .unwrap_or_default()
 }
 
 /// origin surface 가 속한 mirror workspace 의 로컬 ID.

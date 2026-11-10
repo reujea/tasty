@@ -144,6 +144,15 @@ impl EngineRead<'_> {
             .and_then(|ws| self.mirror_locations.get(&ws))
     }
 
+    /// 원격 위치 표시(링크 툴팁, 원격 picker·다운로드 대화상자 경로 줄 앞 표지)의 호스트 글자
+    /// ([원격 위치 표시](../../docs/features/remote-attach/index.md#원격-위치-표시)).
+    /// 연결 정보가 아직 없으면 빈 글자이고 화면은 `Remote` 낱말을 쓴다.
+    pub(crate) fn mirror_host_text(&self, surface_id: u32) -> String {
+        self.mirror_location_of(surface_id)
+            .map(|location| location.host.clone())
+            .unwrap_or_default()
+    }
+
     /// 이 mirror workspace에 아직 붙여넣을 수 있는 스크린샷 기록.
     #[cfg(feature = "gui")]
     pub(crate) fn mirror_capture_paste(

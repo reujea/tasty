@@ -107,7 +107,7 @@ impl MainView {
                 &surface_rect,
                 PhysicalPx(self.base.gpu.cell_width()),
                 PhysicalPx(self.base.gpu.cell_height()),
-                super::link_menu::remote_host_text(engine, surface_id),
+                engine.mirror_host_text(surface_id),
             )
         })
         .flatten();
