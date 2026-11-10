@@ -37,6 +37,10 @@ use tasty_plugin_sdk::{
 };
 
 use crate::core::snapshot::{Retention, SnapshotStore};
+// 미리보기는 markdown 렌더러를 그 소스 자리에서 컴파일한다(preview.rs 의 #[path]). 그 소스의
+// 테스트는 자기 크레이트 기준 `crate::render` 를 쓰므로, 시험 빌드에서만 같은 이름을 루트에 둔다.
+#[cfg(test)]
+pub(crate) use crate::preview::render;
 use crate::session::{Mode, Session};
 
 const PLUGIN_ID: &str = "com.tasty.mdedit";
