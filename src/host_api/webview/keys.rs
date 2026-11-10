@@ -119,8 +119,11 @@ pub struct ShortcutSources {
     pub host: Vec<String>,
     /// 같은 의미의 plugin 조합을 제외할 페이지 예약 목록.
     pub page_reserved: Vec<String>,
-    /// 매니페스트와 사용자 설정을 합친 plugin 조합.
+    /// 매니페스트와 사용자 설정을 합친 plugin Global 명령 조합. plugin surface가 아닌 WebView에서 실행되는 범위다.
     pub plugin: Vec<String>,
+    /// plugin별 모든 명령(Global·Surface) 조합. 그 plugin의 surface가 키를 받으면 이 조합만 실행 범위다
+    /// (다른 plugin의 명령은 실행하지 않는다, `dispatch_plugin_shortcut_key`).
+    pub plugin_owned: Vec<(String, Vec<String>)>,
     /// 주소 띠가 있는 html 페이지에서만 host가 가져갈 조합(주소창 포커스).
     pub address: Vec<String>,
     /// 공통 새로고침 조합. modifier 가 없어도 F1~F24 기능키면 host 가 가져간다. 문자 키는 페이지에 남긴다.
@@ -132,7 +135,11 @@ pub struct ShortcutSources {
 /// 설정에서 만든 host 키 조합의 사본. 호출자가 변경 시 교체해야 한다.
 #[derive(Debug, Clone, Default)]
 pub struct HostShortcutPolicy {
+    /// host·새로고침·plugin Global 조합. plugin surface가 아닌 WebView의 판정이다.
     combos: Vec<String>,
+    /// host·새로고침 조합. plugin surface의 판정은 이것과 그 plugin의 조합을 쓴다.
+    host_only: Vec<String>,
+    plugin_owned: std::collections::HashMap<String, Vec<String>>,
     address: Vec<String>,
     edit: Vec<(WebViewEditAction, Vec<String>)>,
 }
@@ -144,51 +151,64 @@ impl HostShortcutPolicy {
             host,
             page_reserved,
             plugin,
+            plugin_owned,
             address,
             refresh,
             edit,
         } = sources;
-        let mut combos: Vec<String> = Vec::new();
         // `function_key_ok` 이면 modifier 가 없어도 F1~F24 기능키를 담는다(공통 새로고침 전용).
-        let mut push = |combo: String, function_key_ok: bool| {
+        fn push(combos: &mut Vec<String>, combo: String, function_key_ok: bool) {
             let claimable = tasty_key_match::binding_has_modifier(&combo)
                 || (function_key_ok && tasty_key_match::binding_is_function_key(&combo));
             if claimable && !combos.contains(&combo) {
                 combos.push(combo);
             }
+        }
+        // 표기 대소문자·modifier 순서가 달라도 같은 단축키이면 페이지 예약 조합으로 본다.
+        let reserved = |combo: &str| {
+            page_reserved
+                .iter()
+                .any(|r| tasty_key_match::bindings_equivalent(r, combo))
         };
 
+        let mut host_only: Vec<String> = Vec::new();
         for combo in host {
-            push(combo, false);
+            push(&mut host_only, combo, false);
         }
         // 페이지 예약 편집 조합이 먼저다. 같은 조합의 새로고침은 페이지에 남긴다.
         for combo in refresh {
-            if page_reserved
-                .iter()
-                .any(|r| tasty_key_match::bindings_equivalent(r, &combo))
-            {
-                continue;
+            if !reserved(&combo) {
+                push(&mut host_only, combo, true);
             }
-            push(combo, true);
         }
 
+        let mut combos = host_only.clone();
         for combo in plugin {
-            // 표기 대소문자·modifier 순서가 달라도 같은 단축키이면 제외한다.
-            if page_reserved
-                .iter()
-                .any(|r| tasty_key_match::bindings_equivalent(r, &combo))
-            {
-                continue;
+            if !reserved(&combo) {
+                push(&mut combos, combo, false);
             }
-            push(combo, false);
         }
-
+        let plugin_owned = plugin_owned
+            .into_iter()
+            .map(|(plugin_id, owned)| {
+                let mut kept = Vec::new();
+                for combo in owned {
+                    if !reserved(&combo) {
+                        push(&mut kept, combo, false);
+                    }
+                }
+                (plugin_id, kept)
+            })
+            .collect();
         let address = address
             .into_iter()
             .filter(|c| tasty_key_match::binding_has_modifier(c))
             .collect();
+
         Self {
             combos,
+            host_only,
+            plugin_owned,
             address,
             edit,
         }
@@ -199,8 +219,25 @@ impl HostShortcutPolicy {
         &self.combos
     }
 
+    /// plugin surface가 아닌 WebView에서 host가 가져갈 조합인지.
+    #[cfg(test)]
     pub fn claims(&self, key: &Key, mods: ModifiersState) -> bool {
-        tasty_key_match::matches_any_binding(&self.combos, key, mods)
+        self.claims_on(key, mods, None)
+    }
+
+    /// `owner`는 키를 받은 surface를 소유한 plugin이다. 그 plugin의 surface에서는 host 조합과 그 plugin의
+    /// 명령만 실행되므로 다른 plugin의 Global 조합은 가져가지 않는다.
+    pub fn claims_on(&self, key: &Key, mods: ModifiersState, owner: Option<&str>) -> bool {
+        match owner {
+            None => tasty_key_match::matches_any_binding(&self.combos, key, mods),
+            Some(plugin_id) => {
+                tasty_key_match::matches_any_binding(&self.host_only, key, mods)
+                    || self
+                        .plugin_owned
+                        .get(plugin_id)
+                        .is_some_and(|owned| tasty_key_match::matches_any_binding(owned, key, mods))
+            }
+        }
     }
 
     /// 엔진 기본 키까지 포함해 편집 바인딩에 걸리는지. 입력을 막은 동안 페이지로 보내지 않을 키다.
@@ -276,6 +313,8 @@ pub struct WebViewKeyBridge {
     policy: RefCell<HostShortcutPolicy>,
     /// 주소 띠가 있는 html surface. 주소창 포커스 조합은 이 페이지에서만 가져간다.
     address_surfaces: RefCell<std::collections::HashSet<u32>>,
+    /// plugin이 소유한 WebView surface와 그 plugin ID. 없는 surface는 plugin surface가 아니다.
+    surface_owners: RefCell<std::collections::HashMap<u32, String>>,
     pending: RefCell<Vec<WebViewKeyEvent>>,
     focus_requests: RefCell<Vec<u32>>,
     /// host 모달이 열려 있다. 모달을 열고 닫을 때 바로 바꾼다.
@@ -296,6 +335,11 @@ impl WebViewKeyBridge {
     /// 주소 띠가 있는 html surface 목록을 바꾼다.
     pub fn set_address_surfaces(&self, surfaces: std::collections::HashSet<u32>) {
         *self.address_surfaces.borrow_mut() = surfaces;
+    }
+
+    /// WebView surface를 소유한 plugin 목록을 바꾼다.
+    pub fn set_surface_owners(&self, owners: std::collections::HashMap<u32, String>) {
+        *self.surface_owners.borrow_mut() = owners;
     }
 
     pub fn take_pending(&self) -> Vec<WebViewKeyEvent> {
@@ -321,7 +365,8 @@ impl WebViewKeyBridge {
     /// host가 가져갈 조합인지만 판정한다. 큐는 바꾸지 않는다.
     fn claims(&self, surface_id: u32, key: &Key, mods: ModifiersState) -> bool {
         let policy = self.policy.borrow();
-        policy.claims(key, mods)
+        let owners = self.surface_owners.borrow();
+        policy.claims_on(key, mods, owners.get(&surface_id).map(String::as_str))
             || (self.address_surfaces.borrow().contains(&surface_id)
                 && policy.claims_for_address(key, mods))
     }
@@ -443,6 +488,7 @@ mod tests {
             host: strings(host),
             page_reserved: strings(page_reserved),
             plugin: strings(plugin),
+            plugin_owned: Vec::new(),
             address: Vec::new(),
             refresh: Vec::new(),
             edit: Vec::new(),
@@ -558,6 +604,7 @@ mod tests {
             host: Vec::new(),
             page_reserved: strings(&reserved),
             plugin: variants.clone(),
+            plugin_owned: Vec::new(),
             address: Vec::new(),
             refresh: Vec::new(),
             edit: Vec::new(),
@@ -572,6 +619,7 @@ mod tests {
             host: Vec::new(),
             page_reserved: strings(&reserved),
             plugin: strings(&["ctrl+shift+h"]),
+            plugin_owned: Vec::new(),
             address: Vec::new(),
             refresh: Vec::new(),
             edit: Vec::new(),
@@ -849,6 +897,7 @@ mod tests {
             host: Vec::new(),
             page_reserved: strings(&["ctrl+c", "f3"]),
             plugin: Vec::new(),
+            plugin_owned: Vec::new(),
             address: Vec::new(),
             refresh: strings(&["f5", "r", "CTRL+C", "F3", "ctrl+alt+r"]),
             edit: Vec::new(),

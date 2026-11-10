@@ -76,11 +76,22 @@ pub fn match_global_shortcut(
     None
 }
 
-/// WebView가 호스트로 전달할 단축키 목록. 비활성 설정의 플러그인은 제외한다.
-/// 입력을 처리할 때 포커스가 바뀔 수 있어 Global·Surface를 모두 포함하며 중복은 제거하지 않는다.
-/// 실제 실행할 명령은 호스트가 입력을 처리할 때 다시 선택한다.
-pub fn all_command_bindings(mgr: &PluginManager, host_kb: &KeybindingSettings) -> Vec<String> {
-    let mut out: Vec<String> = Vec::new();
+/// WebView가 호스트로 전달할 plugin 단축키. 비활성 설정의 플러그인은 제외한다.
+/// 실행 범위는 `App::dispatch_plugin_shortcut_key`와 같다: 키를 받은 surface가 plugin surface면 그 plugin의
+/// 모든 명령, 아니면 모든 plugin의 Global 명령이다. 실제 실행할 명령은 호스트가 입력을 처리할 때 다시 선택한다.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct WebViewCommandBindings {
+    /// 모든 plugin의 Global 명령 조합.
+    pub global: Vec<String>,
+    /// plugin별 Global·Surface 명령 조합.
+    pub owned: Vec<(String, Vec<String>)>,
+}
+
+pub fn webview_command_bindings(
+    mgr: &PluginManager,
+    host_kb: &KeybindingSettings,
+) -> WebViewCommandBindings {
+    let mut out = WebViewCommandBindings::default();
     for entry in mgr.command_registry.iter_all() {
         if mgr.config.is_disabled(&entry.plugin_id) {
             continue;
@@ -88,12 +99,21 @@ pub fn all_command_bindings(mgr: &PluginManager, host_kb: &KeybindingSettings) -
         let ov = mgr
             .config
             .shortcut_override(&entry.plugin_id, &entry.command_id);
-        let keys = match effective_binding(entry, ov, host_kb) {
+        let keys: Vec<String> = match effective_binding(entry, ov, host_kb) {
             EffectiveBinding::Keys(k) => k,
             EffectiveBinding::Inherit { keys, .. } => keys,
             EffectiveBinding::None => continue,
-        };
-        out.extend(keys.into_iter().filter(|k| !k.is_empty()));
+        }
+        .into_iter()
+        .filter(|k| !k.is_empty())
+        .collect();
+        if entry.scope == crate::plugin::manifest::CommandScope::Global {
+            out.global.extend(keys.iter().cloned());
+        }
+        match out.owned.iter_mut().find(|(id, _)| *id == entry.plugin_id) {
+            Some((_, owned)) => owned.extend(keys),
+            None => out.owned.push((entry.plugin_id.clone(), keys)),
+        }
     }
     out
 }
@@ -401,7 +421,7 @@ mod tests {
     }
 
     #[test]
-    fn all_command_bindings_collects_manifest_defaults_and_overrides() {
+    fn webview_command_bindings_collects_manifest_defaults_and_overrides() {
         let (_home, mut m) = mgr();
         m.command_registry.register_plugin(&manifest_with_commands(
             "com.example.a",
@@ -426,17 +446,25 @@ mod tests {
             },
         );
         let kb = KeybindingSettings::preset_tasty();
-        let mut got = all_command_bindings(&m, &kb);
-        got.sort();
+        let got = webview_command_bindings(&m, &kb);
         assert_eq!(
-            got,
+            got.global,
+            vec!["ctrl+shift+h".to_string()],
+            "사용자 설정이 기본 단축키를 대체하고 Global에는 Surface scope가 없어야 한다"
+        );
+        let mut owned = got.owned.clone();
+        assert_eq!(owned.len(), 1);
+        assert_eq!(owned[0].0, "com.example.a");
+        owned[0].1.sort();
+        assert_eq!(
+            owned[0].1,
             vec!["ctrl+shift+h".to_string(), "ctrl+shift+r".to_string()],
-            "사용자 설정이 기본 단축키를 대체하고 Surface scope도 포함해야 한다"
+            "그 plugin의 surface에서는 Surface scope도 실행 범위다"
         );
     }
 
     #[test]
-    fn all_command_bindings_skips_cleared_bindings() {
+    fn webview_command_bindings_skips_cleared_bindings() {
         let (_home, mut m) = mgr();
         m.command_registry.register_plugin(&manifest_with_commands(
             "com.example.a",
@@ -452,11 +480,13 @@ mod tests {
             crate::plugin::registry_state::ShortcutOverride::None,
         );
         let kb = KeybindingSettings::preset_tasty();
-        assert!(all_command_bindings(&m, &kb).is_empty());
+        let got = webview_command_bindings(&m, &kb);
+        assert!(got.global.is_empty());
+        assert!(got.owned.iter().all(|(_, keys)| keys.is_empty()));
     }
 
     #[test]
-    fn all_command_bindings_skips_disabled_plugins() {
+    fn webview_command_bindings_skips_disabled_plugins() {
         let (_home, mut m) = mgr();
         m.command_registry.register_plugin(&manifest_with_commands(
             "com.example.a",
@@ -468,11 +498,14 @@ mod tests {
         ));
         let kb = KeybindingSettings::preset_tasty();
         assert_eq!(
-            all_command_bindings(&m, &kb),
+            webview_command_bindings(&m, &kb).global,
             vec!["ctrl+alt+z".to_string()]
         );
         assert!(m.config.disable("com.example.a"));
-        assert!(all_command_bindings(&m, &kb).is_empty());
+        assert_eq!(
+            webview_command_bindings(&m, &kb),
+            WebViewCommandBindings::default()
+        );
     }
 
     // registry와 사용자 설정 변경으로 WebView의 단축키 캐시를 갱신할 수 있어야 한다.

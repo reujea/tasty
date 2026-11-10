@@ -133,8 +133,8 @@ pub struct MainView {
     pub(crate) webview_focus_release_pending: std::collections::HashSet<u32>,
     /// 마지막 동기화에서 실제 표시 중인 native webview가 있는지. Linux 키 조회 타이머에 사용한다.
     pub(crate) webview_any_visible: bool,
-    /// 바인딩 정책을 매 프레임 만들지 않도록 마지막 원본 설정을 보관한다.
-    pub(crate) webview_policy_src: Option<crate::settings::KeybindingSettings>,
+    /// 바인딩 정책을 매 프레임 만들지 않도록 마지막 원본 설정과 카테고리 사용 여부를 보관한다.
+    pub(crate) webview_policy_src: Option<(crate::settings::KeybindingSettings, bool)>,
     /// 같은 스냅샷을 만들 때 본 plugin 쪽 epoch 쌍
     /// (`PluginCommandRegistry::revision`, `PluginsConfig::shortcut_revision`).
     /// plugin manager 가 아직 없으면 `None`. 두 값 모두 프로세스 전역 단조 증가라

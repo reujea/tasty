@@ -344,10 +344,15 @@ Tasty는 이 취소를 덮어쓰지 않는다. 취소는 keydown을 받은 문�
 host가 페이지에 남긴 modifier 없는 키도 `find` 바인딩이면 markdown 페이지가 찾기로 처리한다(`F3` 등). 글자 입력과 겹치는 조합은 입력칸·IME 조합 중에는 처리하지 않는다.
 대소문자와 modifier 순서는 실제 binding parser로 비교한다.
 다른 host 액션에 사용자가 같은 조합을 준 경우까지 추가 제외하지는 않는다.
-plugin scope는 bridge에서 미리 거르지 않으므로 소비된 뒤 현재 host focus 규칙에 따라 실행되지 않는 키가 있을 수 있다.
-비활성 plugin은 제외한다.
+plugin 조합은 키를 받은 surface의 실행 범위로 거른다. plugin surface(`RemoteSurface`)에서는 그 plugin의 Global·Surface
+명령 조합만, 다른 WebView에서는 모든 plugin의 Global 명령 조합만 가져간다(`dispatch_plugin_shortcut_key`와 같은 범위).
+bridge는 동기화 때 WebView surface와 소유 plugin 목록을 받는다(`set_surface_owners`). 비활성 plugin은 제외한다.
 
-설정과 PluginCommandRegistry·PluginsConfig의 전역 revision이 바뀔 때만 정책 스냅숏을 다시 만든다.
+웹 화면 포커스에서 실행되지 않는 동작의 조합은 처음부터 가져가지 않는다. Explorer 포커스에서만 실행되는 `explorer_*`
+동작과 `copy_path`, 넘어온 키 처리에 없는 `fullscreen_stage_exit`, 카테고리를 끈 동안의 카테고리 전환 축과
+`toggle_categories_collapsed`, 위 실행 범위 밖의 plugin 조합이다(`webview_claims`). 모든 OS에 적용된다.
+
+키 설정·카테고리 사용 여부(`workspace_categories_enabled`)와 PluginCommandRegistry·PluginsConfig의 전역 revision이 바뀔 때만 정책 스냅숏을 다시 만든다.
 modifier가 있으면 winit과 같은 US physical-key 변환을 쓰고 표 밖 키는 논리 키로 돌아간다.
 key-up은 전달하지 않고 host의 modifier 저장값도 바꾸지 않는다.
 macOS·Windows의 자동 반복은 다시 실행하거나 큐에 넣지 않는다. 첫 누름을 입력 차단으로 막았거나, 편집 명령으로

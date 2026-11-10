@@ -78,6 +78,18 @@ Windows 의 Win+L·Win+D·Win+E 같은 셸 예약 조합과 GNOME·KDE 의 Super
 - **`option` 바인딩이 없으면 Win·Super 홀드는 modifier-hint 를 띄우지 않는다**(macOS 밖) — 타일링 WM·Super+드래그로
   이 키를 오래 누르는 사용이 흔하다. Alt·Ctrl·Shift 와 macOS Option 은 빈 조합도 보인다.
 
+## 웹 화면의 키 처리 원칙
+
+native WebView(html·markdown 본문과 그 입력란)가 키를 받으면 Tasty 단축키가 먼저 받는다. 수식키 없는 키와 Shift 전용
+키는 공통 새로고침의 기능키를 빼고 페이지 입력에 남긴다.
+
+- 웹 화면 포커스에서 할 일이 없는 동작(Explorer 전용 동작, 꺼진 카테고리 전환, 그 surface에서 실행 범위가 아닌
+  plugin 명령 등)의 조합은 처음부터 가져가지 않고 WebView 엔진과 페이지로 넘긴다.
+- 바인딩에 없다는 이유로 키를 막지 않는다. 바인딩에서 지운 키는 엔진의 원래 동작을 한다.
+
+html 주소 입력란은 egui 입력란 규칙을 따르며 이 원칙의 대상이 아니다. host 모달·overlay·전체화면 무대가 열린 동안의
+차단은 단축키 판정이 아니라 입력 게이트다. 플랫폼별 경로와 남은 한계는 [WebView 키 정책](../systems/webview.md)에 있다.
+
 ## 복사/붙여넣기 키 정책
 
 세 방식을 독립적으로 on/off:

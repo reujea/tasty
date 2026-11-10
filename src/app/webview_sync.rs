@@ -697,19 +697,38 @@ fn sync_webviews(
     // native 콜백이 사용할 단축키 스냅샷을 다시 만든다.
     let plugin_epoch =
         plugin_manager.map(|m| (m.command_registry.revision(), m.config.shortcut_revision()));
-    if view.webview_policy_src.as_ref() != Some(&engine.runtime.settings.keybindings)
+    let categories_enabled = engine.runtime.settings.general.workspace_categories_enabled;
+    if view.webview_policy_src.as_ref().map(|(kb, cat)| (kb, *cat))
+        != Some((&engine.runtime.settings.keybindings, categories_enabled))
         || view.webview_policy_plugin_epoch != plugin_epoch
     {
         let kb = &engine.runtime.settings.keybindings;
         let plugin_combos = plugin_manager
-            .map(|m| crate::plugin_bridge::key_dispatch::all_command_bindings(m, kb))
+            .map(|m| crate::plugin_bridge::key_dispatch::webview_command_bindings(m, kb))
             .unwrap_or_default();
         view.webview_key_bridge.set_policy(
-            crate::adapters::ui::input::shortcuts::webview_shortcut_policy(kb, plugin_combos),
+            crate::adapters::ui::input::shortcuts::webview_shortcut_policy(
+                kb,
+                plugin_combos,
+                categories_enabled,
+            ),
         );
-        view.webview_policy_src = Some(kb.clone());
+        view.webview_policy_src = Some((kb.clone(), categories_enabled));
         view.webview_policy_plugin_epoch = plugin_epoch;
     }
+    // plugin surface에서는 그 plugin의 명령만 실행되므로 bridge가 surface별로 실행 범위를 판정한다.
+    view.webview_key_bridge.set_surface_owners(
+        view.webviews
+            .keys()
+            .filter_map(|&sid| {
+                let surface = engine.find_surface_by_id(sid)?;
+                let remote = surface
+                    .as_any()
+                    .downcast_ref::<crate::plugin_bridge::remote_surface::RemoteSurface>()?;
+                Some((sid, remote.plugin_id.clone()))
+            })
+            .collect(),
+    );
     // 주소창 포커스 단축키는 주소 띠가 있는 html 페이지에서만 가져가고 다른 WebView 페이지에는 남긴다.
     // mirror 주소 띠는 읽기 전용이므로 편집 단축키 대상에서 제외한다.
     view.webview_key_bridge.set_address_surfaces(
