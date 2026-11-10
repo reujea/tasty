@@ -31,28 +31,113 @@ pub struct FontFileFace<F> {
     pub face: u32,
 }
 
-/// Adds the file's faces to the database. A file without faces is an error,
-/// so it must not be logged as loaded.
-fn register_font_file(font_system: &mut FontSystem, path: &str) -> Result<(), &'static str> {
-    let data = std::fs::read(path).map_err(|_| "cannot read the file")?;
-    let source = cosmic_text::fontdb::Source::Binary(std::sync::Arc::new(data));
-    if font_system.db_mut().load_font_source(source).is_empty() {
-        return Err("no usable font face");
-    }
-    Ok(())
-}
+/// Family name given to the faces of the custom font file. A name of its own
+/// keeps a system font or an earlier file with the same name from being picked
+/// instead of the file.
+pub const CUSTOM_FILE_FAMILY: &str = "Tasty Custom Font File";
 
-/// Reports whether any of the file's faces was registered.
-fn load_custom_font_file(font_system: &mut FontSystem, path: &str) -> bool {
-    match register_font_file(font_system, path) {
-        Ok(()) => {
-            tracing::info!("Loaded custom font file: {}", path);
-            true
-        }
+/// Reads the custom file and judges the face the terminal would use. Returns
+/// the bytes and that face's number, or `None` after logging why it is skipped.
+fn usable_custom_file(path: &str, family: &str) -> Option<(Vec<u8>, u32)> {
+    let bytes = std::fs::read(path)
+        .map_err(|error| tracing::warn!("Failed to load custom font file {}: {}", path, error))
+        .ok()?;
+    match judge::judge_terminal_bytes(bytes.clone(), family) {
+        Ok(index) => Some((bytes, index)),
         Err(reason) => {
             tracing::warn!("Failed to load custom font file {}: {}", path, reason);
-            false
+            None
         }
+    }
+}
+
+/// Keeps the face numbered `index` and the faces of its family under
+/// `CUSTOM_FILE_FAMILY` and drops the rest. Returns the kept IDs and the
+/// family the chosen face had.
+fn rename_chosen_faces(
+    db: &mut cosmic_text::fontdb::Database,
+    ids: &[cosmic_text::fontdb::ID],
+    index: u32,
+) -> (Vec<cosmic_text::fontdb::ID>, Option<String>) {
+    let chosen_family = ids
+        .iter()
+        .filter_map(|id| db.face(*id))
+        .find(|face| face.index == index)
+        .and_then(|face| face.families.first())
+        .map(|(name, _)| name.clone());
+    let mut kept = Vec::new();
+    for id in ids {
+        let Some(mut info) = db.face(*id).cloned() else {
+            continue;
+        };
+        db.remove_face(*id);
+        let same_family = chosen_family
+            .as_deref()
+            .is_some_and(|name| judge::has_family(&info, name));
+        if info.index == index || same_family {
+            info.families = vec![(
+                CUSTOM_FILE_FAMILY.to_string(),
+                cosmic_text::fontdb::Language::English_UnitedStates,
+            )];
+            kept.push(db.push_face_info(info));
+        }
+    }
+    (kept, chosen_family)
+}
+
+/// Registers the faces of the custom file the terminal uses and returns their
+/// IDs. The face is the one `judge_terminal_bytes` judges, so a rejected file is
+/// never drawn. Faces of the same family stay for bold and italic; the other
+/// faces of a collection are dropped.
+fn register_custom_font_file(
+    font_system: &mut FontSystem,
+    path: &str,
+    family: &str,
+) -> Vec<cosmic_text::fontdb::ID> {
+    let Some((bytes, index)) = usable_custom_file(path, family) else {
+        return Vec::new();
+    };
+    let db = font_system.db_mut();
+    let ids = db.load_font_source(cosmic_text::fontdb::Source::Binary(std::sync::Arc::new(
+        bytes,
+    )));
+    let (mut kept, chosen_family) = rename_chosen_faces(db, &ids, index);
+    if let Some(name) = chosen_family {
+        borrow_missing_variants(db, &name, &mut kept);
+    }
+    tracing::info!("Loaded custom font file: {}", path);
+    kept
+}
+
+/// cosmic-text 는 굵기·기울임이 맞는 면이 없는 family 를 대체 글꼴(비례폭일 수 있다)로 넘긴다. 파일에
+/// 없는 굵기·기울임은 같은 원래 이름의 다른 면(설치·묶음 글꼴)을 지정 파일 이름으로 하나 더 등록해
+/// 쓴다. 원래 면은 그대로 두고, 더한 면은 다음 구성에서 지운다.
+fn borrow_missing_variants(
+    db: &mut cosmic_text::fontdb::Database,
+    family: &str,
+    kept: &mut Vec<cosmic_text::fontdb::ID>,
+) {
+    let variant = |face: &cosmic_text::fontdb::FaceInfo| (face.weight, face.style);
+    let mut have: Vec<_> = kept
+        .iter()
+        .filter_map(|id| db.face(*id))
+        .map(variant)
+        .collect();
+    let borrowed: Vec<_> = db
+        .faces()
+        .filter(|face| !kept.contains(&face.id) && judge::has_family(face, family))
+        .cloned()
+        .collect();
+    for mut info in borrowed {
+        if have.contains(&variant(&info)) {
+            continue;
+        }
+        have.push(variant(&info));
+        info.families = vec![(
+            CUSTOM_FILE_FAMILY.to_string(),
+            cosmic_text::fontdb::Language::English_UnitedStates,
+        )];
+        kept.push(db.push_face_info(info));
     }
 }
 
@@ -92,6 +177,8 @@ pub struct FontConfig {
     pub font_family: FamilyOwned,
     /// The request the current metrics and family were built from.
     request: FontRequest,
+    /// Faces registered from the custom file, removed on the next reconfiguration.
+    custom_faces: Vec<cosmic_text::fontdb::ID>,
 }
 
 impl FontConfig {
@@ -110,20 +197,23 @@ impl FontConfig {
         font_system
             .db_mut()
             .load_font_data(D2CODING_BOLD_TTF.to_vec());
-        let (font_family, metrics) = Self::resolve(&mut font_system, request);
+        let mut custom_faces = Vec::new();
+        let (font_family, metrics) = Self::resolve(&mut font_system, &mut custom_faces, request);
         Self {
             font_system,
             swash_cache: SwashCache::new(),
             metrics,
             font_family,
             request: request.clone(),
+            custom_faces,
         }
     }
 
     /// Reconfigure while reusing the system font database.
     /// A non-empty custom font path is read again on every call.
     pub fn reconfigure(&mut self, request: &FontRequest) {
-        let (font_family, metrics) = Self::resolve(&mut self.font_system, request);
+        let (font_family, metrics) =
+            Self::resolve(&mut self.font_system, &mut self.custom_faces, request);
         self.metrics = metrics;
         self.font_family = font_family;
         self.swash_cache = SwashCache::new();
@@ -135,18 +225,30 @@ impl FontConfig {
         &self.request
     }
 
-    /// Loads the custom file, resolves the family and measures a cell. The first
-    /// build and every reconfiguration go through here.
-    fn resolve(font_system: &mut FontSystem, request: &FontRequest) -> (FamilyOwned, FontMetrics) {
-        if !request.custom_font_path.is_empty() {
-            load_custom_font_file(font_system, &request.custom_font_path);
+    /// Replaces the custom file's faces, resolves the family and measures a
+    /// cell. The first build and every reconfiguration go through here. A usable
+    /// custom file comes first, as in the settings preview; otherwise the family,
+    /// and the bundled font when no family is named.
+    fn resolve(
+        font_system: &mut FontSystem,
+        custom_faces: &mut Vec<cosmic_text::fontdb::ID>,
+        request: &FontRequest,
+    ) -> (FamilyOwned, FontMetrics) {
+        for id in custom_faces.drain(..) {
+            font_system.db_mut().remove_face(id);
         }
-        let family =
-            if request.family.is_empty() || request.family.eq_ignore_ascii_case("monospace") {
-                FamilyOwned::Name(D2CODING_FAMILY.to_string().into())
-            } else {
-                FamilyOwned::Name(request.family.clone().into())
-            };
+        if !request.custom_font_path.is_empty() {
+            *custom_faces =
+                register_custom_font_file(font_system, &request.custom_font_path, &request.family);
+        }
+        let name = if !custom_faces.is_empty() {
+            CUSTOM_FILE_FAMILY
+        } else if judge::names_a_font(&request.family) {
+            &request.family
+        } else {
+            D2CODING_FAMILY
+        };
+        let family = FamilyOwned::Name(name.to_string().into());
         let metrics =
             Self::measure_cell(font_system, request.size_px, &family, request.line_height);
         (family, metrics)
@@ -377,6 +479,7 @@ mod test_fonts;
 pub use atlas::GlyphAtlas;
 pub use judge::{
     TerminalFontRejection, file_provides_family, judge_terminal_bytes, judge_terminal_file,
+    terminal_face_index,
 };
 
 #[cfg(test)]
@@ -578,6 +681,7 @@ mod tests {
             metrics,
             font_family,
             request: FontRequest::new(14.0, D2CODING_FAMILY),
+            custom_faces: Vec::new(),
         }
     }
 
@@ -664,6 +768,134 @@ mod tests {
             ..FontRequest::new(14.0, "")
         });
         assert_eq!(config.metrics.cell_height, 21.0);
+    }
+
+    /// 그 글자를 그린 면. 칸 값은 이 컴퓨터의 글꼴에 따라 우연히 맞을 수 있어 면으로 단언한다.
+    fn drawn_face(config: &mut FontConfig, text: &str, bold: bool) -> cosmic_text::fontdb::ID {
+        let metrics = Metrics::new(14.0, 14.0);
+        let mut buffer = Buffer::new(&mut config.font_system, metrics);
+        let mut attrs = Attrs::new().family(config.font_family.as_family());
+        if bold {
+            attrs = attrs.weight(cosmic_text::Weight::BOLD);
+        }
+        buffer.set_text(
+            &mut config.font_system,
+            text,
+            &attrs,
+            Shaping::Advanced,
+            None,
+        );
+        buffer.shape_until_scroll(&mut config.font_system, false);
+        let run = buffer.layout_runs().next().expect("한 줄이 있어야 한다");
+        run.glyphs.first().expect("글리프가 있어야 한다").font_id
+    }
+
+    fn with_file(path: &str, family: &str) -> FontRequest {
+        FontRequest {
+            custom_font_path: path.to_string(),
+            ..FontRequest::new(14.0, family)
+        }
+    }
+
+    fn uses_the_file(config: &mut FontConfig) -> bool {
+        let id = drawn_face(config, "M", false);
+        config.custom_faces.contains(&id)
+    }
+
+    /// family 를 비워도, 다른 이름이어도, 같은 이름의 글꼴이 이미 있어도 지정한 파일로 그린다.
+    #[test]
+    fn the_terminal_draws_with_the_specified_file() {
+        use crate::test_fonts::{TempFont, half_units_per_em, renamed};
+        let unique = TempFont::new(&half_units_per_em(renamed(D2CODING_REGULAR_TTF.to_vec())));
+        let same_name = TempFont::new(&half_units_per_em(D2CODING_REGULAR_TTF.to_vec()));
+        for (file, family) in [
+            (&unique, ""),
+            (&unique, "monospace"),
+            (&unique, D2CODING_FAMILY),
+            (&unique, crate::test_fonts::RENAMED_FAMILY),
+            (&same_name, D2CODING_FAMILY),
+            (&same_name, ""),
+        ] {
+            let mut config = FontConfig::from_request(&with_file(&file.path(), family));
+            assert!(uses_the_file(&mut config), "family {family:?}");
+            assert_eq!(config.metrics.cell_width, 14.0, "family {family:?}");
+        }
+    }
+
+    /// 다시 적용하면 앞 파일의 면이 남지 않는다. 같은 이름의 앞 파일이 이기지 않고, 비우면 면 수가
+    /// 처음 값으로 돌아온다.
+    #[test]
+    fn reapplying_replaces_the_previous_file() {
+        use crate::test_fonts::{TempFont, half_units_per_em};
+        let first = TempFont::new(D2CODING_REGULAR_TTF);
+        let second = TempFont::new(&half_units_per_em(D2CODING_REGULAR_TTF.to_vec()));
+        let mut config = FontConfig::new(14.0, "");
+        let faces = config.font_system.db().len();
+        config.reconfigure(&with_file(&first.path(), D2CODING_FAMILY));
+        assert_eq!(config.metrics.cell_width, 7.0);
+        config.reconfigure(&with_file(&second.path(), D2CODING_FAMILY));
+        assert!(uses_the_file(&mut config));
+        assert_eq!(config.metrics.cell_width, 14.0);
+        config.reconfigure(&FontRequest::new(14.0, ""));
+        assert!(config.custom_faces.is_empty());
+        assert_eq!(config.font_system.db().len(), faces);
+        assert_eq!(config.metrics.cell_width, 7.0);
+    }
+
+    /// 판정이 거절한 파일은 이름이 일치해도 그리지 않는다. 판정과 선택이 같은 함수를 쓴다.
+    #[test]
+    fn a_rejected_file_is_not_drawn() {
+        use crate::test_fonts::{RENAMED_FAMILY, TempFont, renamed, without_table};
+        for broken in [without_table(b"cmap"), without_table(b"hhea")] {
+            let file = TempFont::new(&renamed(broken));
+            let mut config = FontConfig::from_request(&with_file(&file.path(), RENAMED_FAMILY));
+            assert!(config.custom_faces.is_empty());
+            assert!(config.load_family_data(RENAMED_FAMILY).is_none());
+            assert!(!uses_the_file(&mut config));
+        }
+        let text = TempFont::new(b"this is not a font\n");
+        let config = FontConfig::from_request(&with_file(&text.path(), ""));
+        assert!(config.custom_faces.is_empty());
+        match &config.font_family {
+            FamilyOwned::Name(name) => assert_eq!(&**name, D2CODING_FAMILY),
+            other => panic!("expected the bundled family, got {other:?}"),
+        }
+    }
+
+    /// Regular 만 든 파일의 굵게는 같은 원래 이름의 Bold(여기서는 묶음 D2Coding Bold)로 그린다.
+    /// 빌려 온 면이 없으면 cosmic-text 가 굵기가 없는 family 를 비례폭 대체 글꼴로 넘긴다.
+    #[test]
+    fn bold_text_uses_the_same_family_when_the_file_has_no_bold() {
+        use crate::test_fonts::TempFont;
+        let file = TempFont::new(D2CODING_REGULAR_TTF);
+        let mut config = FontConfig::from_request(&with_file(&file.path(), D2CODING_FAMILY));
+        let regular = drawn_face(&mut config, "M", false);
+        let bold = drawn_face(&mut config, "M", true);
+        assert!(config.custom_faces.contains(&regular));
+        assert!(config.custom_faces.contains(&bold));
+        let db = config.font_system.db();
+        assert_eq!(
+            db.face(regular).unwrap().weight,
+            cosmic_text::Weight::NORMAL
+        );
+        assert_eq!(db.face(bold).unwrap().weight, cosmic_text::Weight::BOLD);
+    }
+
+    /// 묶음 파일은 family 가 가리키는 면을 쓰고, 아니면 첫 면을 쓴다.
+    #[test]
+    fn a_collection_uses_the_named_face_or_the_first() {
+        use crate::test_fonts::{RENAMED_FAMILY, TempFont, collection, half_units_per_em, renamed};
+        let file = TempFont::new(&collection(&[
+            renamed(D2CODING_REGULAR_TTF.to_vec()),
+            half_units_per_em(D2CODING_REGULAR_TTF.to_vec()),
+        ]));
+        let first = FontConfig::from_request(&with_file(&file.path(), ""));
+        assert_eq!(first.metrics.cell_width, 7.0);
+        let named = FontConfig::from_request(&with_file(&file.path(), D2CODING_FAMILY));
+        assert_eq!(named.metrics.cell_width, 14.0);
+        let other = FontConfig::from_request(&with_file(&file.path(), RENAMED_FAMILY));
+        assert_eq!(other.metrics.cell_width, 7.0);
+        assert_eq!(other.custom_faces.len(), 1);
     }
 
     /// 실행된 기능 조합만으로는 기본값·선택적 의존 선언을 알 수 없어 매니페스트를 읽는다.

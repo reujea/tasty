@@ -8,6 +8,7 @@ use tasty_i18n::font::LocaleFontError;
 
 use crate::font::{
     FontConfig, FontFileFace, TerminalFontRejection, file_provides_family, judge_terminal_file,
+    terminal_face_index,
 };
 use crate::settings::AppearanceSettings;
 
@@ -35,8 +36,6 @@ pub struct FontVerdict {
 /// 코드로 정해지지 않고 제품 답에 달린 경우들.
 #[derive(Clone, Copy)]
 enum OpenCase {
-    /// 정상 파일인데 family 가 비었거나 달라 터미널이 그 파일을 쓰지 않는다.
-    FileNotUsedByTerminal,
     /// 저장된 family 이름의 글꼴이 없고 그 행의 파일도 그 이름을 제공하지 않는다.
     SavedFamilyGone,
 }
@@ -44,7 +43,6 @@ enum OpenCase {
 /// 위 경우가 오류인지 정하는 유일한 지점이다. 답이 달라지면 이 함수만 바꾼다.
 fn is_error(case: OpenCase) -> bool {
     match case {
-        OpenCase::FileNotUsedByTerminal => false,
         OpenCase::SavedFamilyGone => true,
     }
 }
@@ -74,11 +72,16 @@ fn names_a_font(family: &str) -> bool {
     !family.is_empty() && !family.eq_ignore_ascii_case("monospace")
 }
 
-/// egui 가 쓸 수 있는 파일의 바이트를 읽는다.
-pub(crate) fn load_ui_custom(path: &str) -> Result<Vec<u8>, LocaleFontError> {
+/// egui 가 쓸 수 있는 파일의 바이트와 면 번호를 읽는다. 면은 터미널이 그 파일에서 쓰는 면이라
+/// 미리보기와 터미널이 같은 글자를 그린다.
+pub(crate) fn load_ui_custom(
+    path: &str,
+    family: &str,
+) -> Result<FontFileFace<Vec<u8>>, LocaleFontError> {
     let bytes = std::fs::read(path).map_err(LocaleFontError::Read)?;
-    tasty_i18n::font::validate(&bytes)?;
-    Ok(bytes)
+    let face = terminal_face_index(&bytes, family);
+    tasty_i18n::font::validate_face(&bytes, face)?;
+    Ok(FontFileFace { file: bytes, face })
 }
 
 /// 이름으로 찾은 egui 글꼴.
@@ -126,7 +129,7 @@ fn judge_ui(
     let custom_reason = if custom.is_empty() {
         None
     } else {
-        load_ui_custom(custom).err().map(|e| e.to_string())
+        load_ui_custom(custom, family).err().map(|e| e.to_string())
     };
     let family_reason = match load_ui_family(family, custom, load) {
         UiFamily::Skip | UiFamily::Usable(_) => None,
@@ -144,13 +147,10 @@ fn judge_terminal(family: &str, custom: &str, lookup: &mut FontLookup) -> FontVe
     let custom_reason = if custom.is_empty() {
         None
     } else {
-        judge_terminal_file(custom)
+        // 터미널 렌더러도 이 판정으로 파일을 고르므로, 통과한 파일은 터미널이 쓴다.
+        judge_terminal_file(custom, family)
             .err()
             .map(|e| e.to_string())
-            .or_else(|| {
-                (is_error(OpenCase::FileNotUsedByTerminal) && !file_provides_family(custom, family))
-                    .then(|| "the terminal does not use this file".to_owned())
-            })
     };
     let family_reason = if names_a_font(family) {
         match lookup.config().judge_terminal_family(family, custom) {

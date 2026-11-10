@@ -58,6 +58,32 @@ pub(crate) fn half_units_per_em(mut font: Vec<u8>) -> Vec<u8> {
     font
 }
 
+/// 글꼴 파일들을 묶음 파일(ttc) 하나로 합친다. 각 면의 표 위치를 파일 처음 기준으로 옮긴다.
+pub(crate) fn collection(fonts: &[Vec<u8>]) -> Vec<u8> {
+    let header = 12 + 4 * fonts.len();
+    let mut out = Vec::new();
+    out.extend_from_slice(b"ttcf");
+    out.extend_from_slice(&0x0001_0000u32.to_be_bytes());
+    out.extend_from_slice(&(fonts.len() as u32).to_be_bytes());
+    let mut base = header;
+    for font in fonts {
+        out.extend_from_slice(&(base as u32).to_be_bytes());
+        base += font.len().next_multiple_of(4);
+    }
+    for font in fonts {
+        let start = out.len();
+        out.extend_from_slice(font);
+        let tables = u16::from_be_bytes([font[4], font[5]]) as usize;
+        for i in 0..tables {
+            let at = start + 12 + 16 * i + 8;
+            let offset = u32::from_be_bytes(out[at..at + 4].try_into().unwrap());
+            out[at..at + 4].copy_from_slice(&(offset + start as u32).to_be_bytes());
+        }
+        out.resize(out.len().next_multiple_of(4), 0);
+    }
+    out
+}
+
 pub(crate) struct TempFont(tempfile::TempDir);
 
 impl TempFont {

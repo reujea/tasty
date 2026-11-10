@@ -83,45 +83,92 @@ fn probe_chars(font: &Font) -> Vec<char> {
     chars.into_iter().step_by(step).collect()
 }
 
-/// 이 바이트로 터미널이 글자를 그릴 수 있는지 판정한다.
-pub fn judge_terminal_bytes(bytes: Vec<u8>) -> Result<(), TerminalFontRejection> {
+/// 비어 있거나 `monospace` 면 어떤 글꼴도 지정하지 않은 값이다.
+pub(crate) fn names_a_font(family: &str) -> bool {
+    !family.is_empty() && !family.eq_ignore_ascii_case("monospace")
+}
+
+/// 파일 안에서 터미널이 쓸 면. family 가 파일의 면을 가리키면 그 면, 아니면 첫 면이다.
+pub(crate) fn chosen_face(
+    db: &fontdb::Database,
+    ids: &[fontdb::ID],
+    family: &str,
+) -> Option<fontdb::ID> {
+    let named = names_a_font(family)
+        .then(|| {
+            ids.iter()
+                .copied()
+                .find(|id| db.face(*id).is_some_and(|face| has_family(face, family)))
+        })
+        .flatten();
+    named.or_else(|| ids.first().copied())
+}
+
+/// 이 바이트에서 터미널이 쓸 면의 번호. 미리보기도 같은 면을 그리도록 쓴다. 면이 없으면 0 이다.
+pub fn terminal_face_index(bytes: &[u8], family: &str) -> u32 {
+    let mut db = fontdb::Database::new();
+    let ids = db.load_font_source(fontdb::Source::Binary(Arc::new(bytes.to_vec())));
+    chosen_face(&db, &ids, family)
+        .and_then(|id| db.face(id))
+        .map_or(0, |face| face.index)
+}
+
+/// 그 면이 자기 cmap 의 글자를 하나라도 그리는지 본다.
+fn face_draws(system: &mut FontSystem, swash: &mut SwashCache, id: fontdb::ID) -> bool {
+    let Some(font) = Font::new(system.db(), id, fontdb::Weight::NORMAL) else {
+        return false;
+    };
+    let chars = probe_chars(&font);
+    let Some(family) = system
+        .db()
+        .face(id)
+        .and_then(|face| face.families.first())
+        .map(|(name, _)| name.clone())
+    else {
+        return false;
+    };
+    chars
+        .into_iter()
+        .any(|ch| draws_char(system, swash, &family, ch))
+}
+
+/// 이 바이트에서 `pick` 이 고른 면을 판정하고 그 면의 번호를 돌려준다.
+fn judge_picked(
+    bytes: Vec<u8>,
+    pick: impl FnOnce(&fontdb::Database, &[fontdb::ID]) -> Option<fontdb::ID>,
+) -> Result<u32, TerminalFontRejection> {
     let mut db = fontdb::Database::new();
     let ids = db.load_font_source(fontdb::Source::Binary(Arc::new(bytes)));
     if ids.is_empty() {
         return Err(TerminalFontRejection::NoFace);
     }
+    let picked = pick(&db, &ids).ok_or(TerminalFontRejection::CannotDraw)?;
+    let index = db
+        .face(picked)
+        .map(|face| face.index)
+        .ok_or(TerminalFontRejection::CannotDraw)?;
     let mut system = FontSystem::new_with_locale_and_db("en".to_owned(), db);
     let mut swash = SwashCache::new();
-    for id in ids {
-        let Some(font) = Font::new(system.db(), id, fontdb::Weight::NORMAL) else {
-            continue;
-        };
-        let chars = probe_chars(&font);
-        let Some(family) = system
-            .db()
-            .face(id)
-            .and_then(|face| face.families.first())
-            .map(|(name, _)| name.clone())
-        else {
-            continue;
-        };
-        if chars
-            .into_iter()
-            .any(|ch| draws_char(&mut system, &mut swash, &family, ch))
-        {
-            return Ok(());
-        }
+    if face_draws(&mut system, &mut swash, picked) {
+        Ok(index)
+    } else {
+        Err(TerminalFontRejection::CannotDraw)
     }
-    Err(TerminalFontRejection::CannotDraw)
 }
 
-/// 이 경로의 파일로 터미널이 글자를 그릴 수 있는지 판정한다.
-pub fn judge_terminal_file(path: &str) -> Result<(), TerminalFontRejection> {
+/// 터미널이 이 바이트에서 쓸 면(`chosen_face`)을 판정하고 그 면의 번호를 돌려준다. 터미널 렌더러와
+/// 설정 행이 같은 판정을 거치므로, 거절된 파일은 렌더러도 쓰지 않는다.
+pub fn judge_terminal_bytes(bytes: Vec<u8>, family: &str) -> Result<u32, TerminalFontRejection> {
+    judge_picked(bytes, |db, ids| chosen_face(db, ids, family))
+}
+
+/// 이 경로의 파일에서 터미널이 쓸 면을 판정한다.
+pub fn judge_terminal_file(path: &str, family: &str) -> Result<u32, TerminalFontRejection> {
     let bytes = std::fs::read(path).map_err(TerminalFontRejection::Read)?;
-    judge_terminal_bytes(bytes)
+    judge_terminal_bytes(bytes, family)
 }
 
-fn has_family(face: &fontdb::FaceInfo, family: &str) -> bool {
+pub(crate) fn has_family(face: &fontdb::FaceInfo, family: &str) -> bool {
     face.families
         .iter()
         .any(|(name, _)| name.eq_ignore_ascii_case(family))
@@ -156,7 +203,7 @@ impl FontConfig {
             && bytes_provide_family(&bytes, family)
         {
             found = true;
-            if judge_terminal_bytes(bytes).is_ok() {
+            if judge_terminal_bytes(bytes, family).is_ok() {
                 return Ok(());
             }
         }
@@ -168,9 +215,17 @@ impl FontConfig {
             .collect();
         found |= !faces.is_empty();
         for id in faces {
-            let mut bytes = None;
-            db.with_face_data(id, |data, _| bytes = Some(data.to_vec()));
-            if bytes.is_some_and(|bytes| judge_terminal_bytes(bytes).is_ok()) {
+            let mut found_face = None;
+            db.with_face_data(id, |data, index| found_face = Some((data.to_vec(), index)));
+            let Some((bytes, index)) = found_face else {
+                continue;
+            };
+            let at_index = |db: &fontdb::Database, ids: &[fontdb::ID]| {
+                ids.iter()
+                    .copied()
+                    .find(|id| db.face(*id).is_some_and(|face| face.index == index))
+            };
+            if judge_picked(bytes, at_index).is_ok() {
                 return Ok(());
             }
         }
@@ -187,7 +242,7 @@ mod tests {
     use super::*;
     use crate::D2CODING_REGULAR_TTF as VALID;
     use crate::test_fonts::{
-        RENAMED_FAMILY, TempFont, renamed, table, table_record, without_table,
+        RENAMED_FAMILY, TempFont, collection, renamed, table, table_record, without_table,
     };
 
     fn negative_height() -> Vec<u8> {
@@ -227,8 +282,8 @@ mod tests {
     }
 
     fn bytes_verdict(bytes: Vec<u8>) -> &'static str {
-        match judge_terminal_bytes(bytes) {
-            Ok(()) => "ok",
+        match judge_terminal_bytes(bytes, "") {
+            Ok(_) => "ok",
             Err(TerminalFontRejection::NoFace) => "no face",
             Err(TerminalFontRejection::CannotDraw) => "cannot draw",
             Err(_) => "other",
@@ -253,6 +308,33 @@ mod tests {
         assert_eq!(bytes_verdict(glyf_garbage()), "ok");
     }
 
+    /// 판정은 터미널이 쓸 면을 잰다. 첫 면이 그리지 못하면 다른 면이 정상이어도 거절한다.
+    #[test]
+    fn a_collection_is_judged_by_the_face_the_terminal_uses() {
+        let fonts = collection(&[renamed(without_table(b"cmap")), VALID.to_vec()]);
+        assert!(matches!(
+            judge_terminal_bytes(fonts.clone(), ""),
+            Err(TerminalFontRejection::CannotDraw)
+        ));
+        assert!(matches!(
+            judge_terminal_bytes(fonts.clone(), RENAMED_FAMILY),
+            Err(TerminalFontRejection::CannotDraw)
+        ));
+        assert_eq!(
+            judge_terminal_bytes(fonts, crate::D2CODING_FAMILY).unwrap(),
+            1
+        );
+    }
+
+    #[test]
+    fn the_preview_face_index_follows_the_terminal_choice() {
+        let fonts = collection(&[renamed(VALID.to_vec()), VALID.to_vec()]);
+        assert_eq!(terminal_face_index(&fonts, ""), 0);
+        assert_eq!(terminal_face_index(&fonts, RENAMED_FAMILY), 0);
+        assert_eq!(terminal_face_index(&fonts, crate::D2CODING_FAMILY), 1);
+        assert_eq!(terminal_face_index(&fonts, "No Such Family"), 0);
+    }
+
     #[test]
     fn a_font_without_latin_letters_is_judged_by_its_own_glyphs() {
         assert_eq!(bytes_verdict(only_a_symbol()), "ok");
@@ -262,7 +344,7 @@ mod tests {
     fn a_missing_path_and_a_folder_are_read_failures() {
         let dir = tempfile::tempdir().unwrap();
         for path in [dir.path().join("no-such-font.ttf"), dir.path().to_owned()] {
-            let verdict = judge_terminal_file(&path.display().to_string());
+            let verdict = judge_terminal_file(&path.display().to_string(), "");
             assert!(
                 matches!(verdict, Err(TerminalFontRejection::Read(_))),
                 "{path:?}: {verdict:?}"
@@ -320,24 +402,5 @@ mod tests {
             config.judge_terminal_family("Tasty No Such Family", ""),
             Err(TerminalFontRejection::FamilyNotFound)
         ));
-    }
-
-    /// 면이 없는 파일에 "Loaded" 를 남기지 않는다. 면이 있는지가 그 분기를 정한다.
-    #[test]
-    fn loading_a_text_file_registers_no_face() {
-        let file = TempFont::new(b"this is not a font\n");
-        let mut config = FontConfig::new(PROBE_SIZE, "");
-        let before = config.font_system.db().len();
-        assert!(!crate::load_custom_font_file(
-            &mut config.font_system,
-            &file.path()
-        ));
-        assert_eq!(config.font_system.db().len(), before);
-        let good = TempFont::new(VALID);
-        assert!(crate::load_custom_font_file(
-            &mut config.font_system,
-            &good.path()
-        ));
-        assert_eq!(config.font_system.db().len(), before + 1);
     }
 }

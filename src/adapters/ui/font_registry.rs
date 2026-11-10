@@ -197,9 +197,9 @@ fn register_custom_font(
     if eff.custom_font_path.is_empty() {
         return None;
     }
-    match load_ui_custom(&eff.custom_font_path) {
-        Ok(bytes) => {
-            insert_font(fonts, family_fonts, key, bytes, 0);
+    match load_ui_custom(&eff.custom_font_path, &eff.font_family) {
+        Ok(found) => {
+            insert_font(fonts, family_fonts, key, found.file, found.face);
             None
         }
         Err(e) => {
