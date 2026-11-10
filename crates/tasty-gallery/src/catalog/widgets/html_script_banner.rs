@@ -499,7 +499,7 @@ pub fn draw_states(ui: &mut egui::Ui, theme: &Theme) {
             ("reloading", "spinner + label · no × · fade out on commit"),
             (
                 "loading (still blocked)",
-                "Allow disabled from load start to commit · no delay · tooltip (top) \"Available when the document finishes loading\" · × kept",
+                "Allow disabled from load start to commit · no delay · tooltip (top) \"Available when loading finishes\" · × kept",
             ),
             (
                 "narrow",
