@@ -50,7 +50,7 @@ pub(crate) fn connect_failure_kind(error: &str) -> Option<RowNoticeKind> {
 impl App {
     /// 닫혔거나 연결 대상이 바뀐 행의 안내를 지우고, 세대가 바뀐 창에 남은 안내를 넘긴다.
     /// 창과 parked engine의 행을 모두 본다.
-    pub(super) fn sync_mapping_notices(&mut self) {
+    pub(super) fn sync_row_notices(&mut self) {
         if !self.remote.refusals.notices().is_empty() {
             let live: HashMap<u32, crate::model::RemoteBinding> = self
                 .engines()

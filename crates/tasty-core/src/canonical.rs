@@ -2,8 +2,8 @@
 //!
 //! 두 쪽을 같은 정규 표현([`Canonical`])으로 옮긴 뒤 비교한다. 정규 표현은 category·workspace 순서,
 //! 이름, 소속, pane·surface 분할 트리(방향·비율 비트), tab 순서와 이름, surface kind, workspace
-//! 부제·설명·attach 매핑, tab 명시 이름, metadata, surface 저장 자료를 담는다. 선택·포커스·접힘과
-//! 파생 캐시는 담지 않는다([`DIGEST_EXCLUDED`]).
+//! 부제·설명, tab 명시 이름, metadata, surface 저장 자료를 담는다. 선택·포커스·접힘, 파생 캐시와
+//! 원격 구조를 가리키는 저장된 원격 행은 담지 않는다([`DIGEST_EXCLUDED`]).
 //!
 //! - ID는 그대로 두거나([`Canonical`] 기본) [`Canonical::positional`]로 순회 순서 번호로 바꾼다.
 //!   importer는 새 ID를 받으므로 CoreState와 가져온 모델을 비교할 때는 순서 번호를 쓴다.

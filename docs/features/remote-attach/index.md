@@ -355,7 +355,7 @@ move-surface 는 **source/target 이 같은 mirror workspace 안에 있을 때�
   - Reconnecting 에 들어갈 때 옛 연결의 소켓을 바로 닫는다(`ConnectionWorkers::close_socket`). 열어 두면 응답이 멈췄던 서버가 돌아온 직후 옛 연결을 살아 있는 점유자로 보고 새 attach 를 `already_attached` 로 거절한다.
   - 재연결에 성공하면 살아 있던 surface 는 scrollback/local id 를 그대로 유지한 채(survivor mapping, `merge_survivor_mapping`) 연결만 새로 맺는다. 사용자가 그 행으로 돌아오면(엣지) 백오프 대기 없이 바로 한 번 더 시도한다.
   - 다른 client 가 그 원격 workspace 를 점유 중이면(`already_attached`) 다시 시도해도 같으므로 재연결을 멈추고 `occupied` 안내를 남긴 채 행을 바로 **연결 끊김** 상태로 둔다(`on_reconnect_attempt_failed`). `remote_workspace_missing`·`mirror_workspace` 도 같다.
-- **재연결 시간 창**: 끊긴 뒤 설정 `[remote_attach] reconnect_timeout_secs`(설정 창 General › Remote attach 의 `Keep reconnecting for`, 기본 300초, 0~3600초, 범위를 벗어난 파일 값은 300으로 되돌린다)이 지나도 연결하지 못하면 재연결을 멈추고 행을 **연결 끊김** 상태로 바꾼다. toast 는 띄우지 않고 연결 팝업이 알린다. 0이면 끊기는 즉시 연결 끊김이 된다. 연결 끊김 행은 사용자가 다시 활성화하면 연결한다.
+- **재연결 시간 창**: 끊긴 뒤 설정 `[remote_attach] reconnect_timeout_secs`(설정 창 General › Remote attach 의 `Keep reconnecting for`, 기본 300초, 0~3600초, 범위를 벗어난 파일 값은 300으로 되돌린다)이 지나도 연결하지 못하면 재연결을 멈추고 행을 **연결 끊김** 상태로 바꾼다. toast 는 띄우지 않고 연결 팝업이 알린다. 0이면 끊기는 즉시 연결 끊김이 된다. 연결 끊김 행은 사용자가 다시 활성화하면 연결한다. 시간 창은 재연결 예약과 함께 연결 결과를 받기 전(`drain_auto_attach_results`)과 준비된 연결을 설치하기 전(`poll_pending_mirror_installs`)에도 확인한다(`end_expired_reconnect_windows`). 시간 창이 끝난 뒤 준비된 연결은 설치하지 않고 행을 연결 끊김으로 둔다.
 - **상태**: 행의 세션 상태는 `Connected` · `Reconnecting` · `Disconnected` 셋이다(`tasty_remote::client_session::SessionState`).
 - **사용자 대기 갈래**: 화면에 띄운 행은 바로 연결한다(`visible_row_connects`). 사용자가 끊은 행은 다시 활성화해도 연결하지 않고, 사용자가 팝업·메뉴·원격 연결 팝업으로 명시적으로 연결하면 그 표지를 지운다(`user_disconnect_holds`). 두 함수가 각 갈래의 유일한 분기다.
 
@@ -364,7 +364,7 @@ move-surface 는 **source/target 이 같은 mirror workspace 안에 있을 때�
 연결되지 않은 저장된 원격 행은 toast 대신 연결 팝업과 표지로 상태를 보인다. 재연결 시작·성공·포기는 toast 를 띄우지 않는다. 팝업 내용과 표지는 갤러리 "Saved remote workspace" 절과 같은 공용 위젯이다.
 
 - **연결 팝업**(`src/adapters/ui/popup/remote_row.rs`, 내용은 `tasty_ui_widgets::remote_row_popup`): 행이 연결되지 않은 동안 그 workspace 범위로 workspace 영역 가운데에 뜨고, 연결되면 닫힌다. 포커스를 가져가지 않고 바깥 클릭으로 닫히지 않는다. 폭은 360(배율 적용, workspace 영역보다 넓으면 줄인다)이다.
-  - 이번 실행에서 형상이 있었던 행은 마지막 화면 위에 scrim 을 깔고 띄운다(`remote_row_over_screen`). scrim 이 포인터를 받아 아래 터미널은 hover·클릭을 받지 않고, scrim 이 덮일 때 파일 핸들러 picker 와 링크 툴팁을 닫는다. 형상이 없던 행은 빈 workspace 에 scrim 없이 띄운다(`remote_row`).
+  - 이번 실행에서 형상이 있었던 행은 마지막 화면 위에 scrim 을 깔고 띄운다(`remote_row_over_screen`). scrim 이 포인터를 받아 아래 터미널은 hover·클릭을 받지 않고, scrim 이 덮일 때 그 행에서 연 파일 핸들러 picker 와 링크 툴팁을 닫는다. picker 는 연 요청의 출처 workspace 를 기록한다. 사용자 조작은 그때의 활성 workspace, 출처 surface 를 준 요청(IPC `file_handler.dispatch` 의 `origin_surface_id` 등)은 그 surface 의 workspace 다. 연결돼 있던 저장 행이 끊기면 사용자가 다른 workspace 에 있어도 그 행에서 연 picker 를 그때 닫는다. 로컬 workspace 에서 연 picker 는 남는다. 형상이 없던 행은 빈 workspace 에 scrim 없이 띄운다(`remote_row`).
   - 제목과 본문은 상태에 따라 연결 중, 연결 전, 연결 실패(이유), 재연결 중, 재연결 포기, 사용자가 끊음, 다른 곳에서 닫힘(`remote.row.popup.closed_title`) 중 하나다. 갈래는 `popup_kind` 가 정한다.
   - 필드는 attach 프로필과 원격 workspace 다. 원격 workspace 는 번호로 보인다. 원격 이름은 저장하지 않는다.
   - 버튼은 Connect·Reconnect 이고 `Intent::SavedRow{Connect}` 를 팝업 출처로 보낸다. 시도 중이면 spinner 와 Connecting·Reconnecting 문구로 끈다. 다른 곳에서 닫힌 행은 Reconnect 를 끈 채 그린다.
@@ -388,7 +388,7 @@ IPC·CLI·plugin 요청이 연결되지 않은 저장된 원격 행을 쓰려 �
   - 연결 실패 안내와 같은 이름: `self_instance`·`profile_missing`·`unresolved`·`remote_workspace_missing`·`occupied`·`mirror_workspace`.
   - `busy`: 연결을 기다리는 요청이 상한만큼 있다.
 - 연결 뒤 대상 surface 가 원격에서 사라졌으면 다시 실행한 요청이 "없는 대상" 오류로 끝난다. 연결한 뒤에는 지금의 mirror 규칙을 따른다(예: mirror 를 대상으로 한 `terminal.spawn` 은 거절하고 원격 자식은 `attach.agent_target` → `attach.agent_call` 경로다).
-- **같은 연결 대상의 `remote.attach`**: 프로필과 원격 workspace id 가 저장된 원격 행과 같으면 새 mirror 를 만들지 않고 그 행을 연결한다. 응답은 `{attaching, remote_workspace, workspace_id, saved_row: true, run}` 이다. 이미 연결된 행이면 `attaching: false` 와 성공으로 끝난 `run` 을, 이미 연결 중인 행에 합류해도 `run` 을 주며, 그 시도가 끝나면 같은 결과(연결되면 성공, 연결 끊김·첫 연결 실패면 그 이유로 실패)를 남긴다. 재연결 중인 행에 합류하면 재연결 구간이 끝날 때까지 기다린다. 위의 `window_parked`·`user_disconnected` 는 같은 오류로 답한다. 연결해도 그 행은 저장된 원격 행으로 남는다.
+- **같은 연결 대상의 `remote.attach`**: 프로필과 원격 workspace id 가 저장된 원격 행과 같으면 새 mirror 를 만들지 않고 그 행을 연결한다. 응답은 `{attaching, remote_workspace, workspace_id, saved_row: true, run}` 이다. 이미 연결된 행이면 `attaching: false` 와 성공으로 끝난 `run` 을, 이미 연결 중인 행에 합류해도 `run` 을 주며, 그 시도가 끝나면 같은 결과(연결되면 성공, 연결 끊김·첫 연결 실패면 그 이유로 실패)를 남긴다. 재연결 중인 행에 합류하면 재연결 구간이 끝날 때까지 기다린다. 손실 뒤 재동기화(Resync) 중인 행에 오면 그 재동기화에 합류해, 다시 살아나면 성공으로, 재동기화가 실패해 재연결 끝에 연결하지 못하면 그 이유로 실패로 끝난다. 위의 `window_parked`·`user_disconnected` 는 같은 오류로 답한다. 연결해도 그 행은 저장된 원격 행으로 남는다.
 - **`remote.disconnect`**: 저장된 원격 행이면 아직 붙지 않은 행도 성공으로 답하고 진행 중인 시도를 취소한다. 행은 남고 다시 불러도 성공이다.
 - **`workspace.list`**: 저장된 원격 행에 `remote_state` 를 싣는다. 값은 `connected` · `connecting`(첫 연결 중) · `reconnecting` · `disconnected` · `failed`(첫 연결이 실패해 다시 열기를 기다림) · `not_connected` 이고, 저장된 행이 아니면 `null` 이다. 조회는 연결을 일으키지 않는다.
 
@@ -473,6 +473,8 @@ IPC method `remote.attach` { `remote_workspace`, `profile?`/`ssh?` }(CLI `tasty 
 
 **Connect 확정 = 사용자 동작 → focus 이동**: 원격 workspace를 골라 Connect하면 팝업은 `BrowserRequest::Connect`를 사용자 의도로 전달한다. App은 원 browse의 engine·window·View identity를 확인하고, 그 대상의 mirror 설치 요청에 사용자 활성화 의도를 고정한다. Remote가 보관한 조회 터널은 연결에 재사용된다. 설치가 완료되고 원 View와 선택 generation이 여전히 유효할 때 새 mirror를 선택하며, IPC `remote.attach`의 선택 중립 경로와 구분한다. 자기 인스턴스 연결은 공용 `dispatch_attach` 입구에서 거절한다.
 
+**같은 연결 대상의 저장된 원격 행**: 고른 프로필과 원격 workspace 가 저장된 원격 행과 같으면 새 행을 만들지 않는다. 형상이 남은 행은 그 행의 재연결로 붙인다. 형상이 없는 행은 팝업 연결이 그 행을 넘겨받는다(`take_over_saved_row`). 진행 중인 자동 첫 연결을 취소하고 행 토큰을 바꿔 늦은 결과를 낡은 것으로 만든 뒤, 팝업 연결을 그 행의 진행 중 시도로 둔다. 연결이 끝날 때까지 행은 연결 중(`connecting`)이고, 그 행에 보류한 요청과 합류한 `remote.attach` run 은 팝업 연결의 결과로 끝난다. 설치 대기열에 들기 전에 실패하면 첫 연결 실패로 끝난다.
+
 **조회 중(connecting) 사용자 조작 + 정리 계약**: Remote의 `poll_browsers`가 조회 시작 뒤 **20초**(`BROWSE_DEADLINE`) 경과를 관측하면 원 attempt에 취소를 요청하고 timeout 실패 값으로 전환한다. App과 팝업은 원 View·요청 ID가 일치하는 결과만 error 상태(+ Retry)로 표시한다. UI의 경과 표시도 같은 기한 상수를 사용하지만 취소와 worker 수명의 소유자는 Remote다.
 그 전에 사용자가 직접 중단할 수 있다. 조회 중 footer의 "중단"은 팝업을 닫지 않고 원 요청을 취소해 initial로 돌아간다. 헤더 × / Esc, 다른 프로필 선택도 해당 요청의 취소를 보낸다.
 Remote는 원 attempt의 SSH 취소와 터널 회수를 요청하고 worker의 실제 종료·join을 관측한다. 취소 요청을 자식 프로세스 회수 완료로 간주하지 않는다. 늦은 결과는 원 attempt/session 검사로 폐기하고, 함께 도착한 터널도 Remote의 회수 경로로 넘긴다([터널 수명](../../dev-guide/attach-behavior.md)).
@@ -509,7 +511,7 @@ mirror 를 `--workspace`(숫자 id)나 `--pane` 으로 지정한 `tasty claude s
 
 원격 attach의 mirror 내용(pane·tab·surface 형상)은 연결 세션의 projection이며 로컬 journal 구조에 포함되지 않는다. journal snapshot과 호환 export의 로컬 canonical 모델은 mirror를 일반 workspace로 저장하거나 복원하지 않는다.
 
-사용자가 원격 연결 팝업에서 프로필을 골라 붙인 workspace는 **저장된 원격 행**이 된다. 행 하나는 journal의 `remote_rows` 항목(이벤트 `remote_row.set`·`remote_row.removed`)으로 저장되며, 값은 이름·부제·설명·카테고리·자리와 연결 대상(attach 프로필 이름, 원격 workspace id)이다. 자리는 사이드바에서 바로 앞에 있는 로컬 workspace(`after`, 없으면 맨 앞)와 저장 행 가운데의 순번(`rank`)이다. 다른 저장 행이나 에이전트 mirror가 생기거나 없어져도 자리는 그대로고, 앞 로컬 workspace가 닫히면 그 앞 로컬 workspace 뒤로 바뀐다. 이름·설명·카테고리를 바꾸거나 행을 옮기면 같은 항목을 고쳐 저장하고, 행이 닫히면 항목을 지운다. 원격에서 온 이름과 카테고리는 저장된 행의 값을 덮지 않는다. 없는 카테고리를 가리키거나 그 카테고리를 지우면 기본 카테고리로 저장한다. 다시 시작하면 저장된 행이 형상 없는 mirror 행으로 같은 위치에 돌아오고, 마지막으로 선택한 workspace가 그 행이었다면 그 행이 다시 선택된다. 원격 행은 로컬 구조 비교(`DIGEST_EXCLUDED`)에서 뺀다.
+사용자가 원격 연결 팝업에서 프로필을 골라 붙인 workspace는 **저장된 원격 행**이 된다. 행 하나는 journal의 `remote_rows` 항목(이벤트 `remote_row.set`·`remote_row.removed`)으로 저장되며, 값은 이름·부제·설명·카테고리·자리와 연결 대상(attach 프로필 이름, 원격 workspace id)이다. 자리는 사이드바에서 바로 앞에 있는 로컬 workspace(`after`, 없으면 맨 앞)와 저장 행 가운데의 순번(`rank`)이다. 다른 저장 행이나 에이전트 mirror가 생기거나 없어져도 자리는 그대로고, 앞 로컬 workspace가 없어지면(닫기, 마지막 pane을 다른 workspace로 옮긴 교체 이동) 그 앞에 남은 가장 가까운 로컬 workspace 뒤로 바뀐다. 저장 행 하나를 지우면 남은 행의 순번을 화면 순서대로 빈칸 없이 다시 매겨, 뒤에 더한 행이 다시 시작한 뒤에도 뒤에 돌아온다. 이름·설명·카테고리를 바꾸거나 행을 옮기면 같은 항목을 고쳐 저장하고, 행이 닫히면 항목을 지운다. 원격에서 온 이름과 카테고리는 저장된 행의 값을 덮지 않는다. 없는 카테고리를 가리키거나 그 카테고리를 지우면 기본 카테고리로 저장한다. 다시 시작하면 저장된 행이 형상 없는 mirror 행으로 같은 위치에 돌아오고, 마지막으로 선택한 workspace가 그 행이었다면 그 행이 다시 선택된다. 원격 행은 로컬 구조 비교(`DIGEST_EXCLUDED`)에서 뺀다.
 
 IPC `remote.attach`·`attach.into_gui`처럼 에이전트가 붙인 mirror는 저장하지 않는다. 팝업의 선택 프로필·목록·요청 식별자는 View의 비영속 상태다.
 
@@ -518,7 +520,7 @@ IPC `remote.attach`·`attach.into_gui`처럼 에이전트가 붙인 mirror는 �
 attach 세션의 수명은 **창(window)이 아니라 engine 에 매인다.** 마지막 창을 닫거나(macOS 는 최소화도) 창은 사라지지만 engine 은 `App.engines` 에 parked 관계로 그대로 살아 있고([multi-window](../../architecture/multi-window.md), [App·Engine·View 상태 소유권](../../dev-guide/app-state-ownership.md) — parked engine 은 레이아웃 슬롯 점유를 유지한다), mirror 워크스페이스와 그 mirror 터미널도 그 engine 안에 남는다. 따라서:
 
 - **parking 만으로는 세션이 끊기지 않는다.** 고아 판정(`detach_orphaned_mirror_sessions`)이 묻는 것은 "창이 있는가"가 아니라 **"그 mirror 워크스페이스를 들고 있는 engine 이 살아 있는가"** 다 — 창 있는 engine 과 parked engine 을 함께 본다. 창 유무로 판정하면 사용자가 창을 최소화했을 뿐인데 원격에 `Detach` 가 나가 점유가 조용히 풀린다.
-- **사용자가 mirror 워크스페이스를 직접 닫으면** 어느 engine 에도 그 워크스페이스가 없으므로 고아로 판정되어 기존대로 정리된다 — `Detach` 통지 → 원격 점유 해제 + anchor 게이트 해제 + 터널 kill. 두 상황(창이 없어졌을 뿐 vs 워크스페이스가 없어짐)은 이 판정으로 구분된다.
+- **사용자가 mirror 워크스페이스를 직접 닫으면** 어느 engine 에도 그 워크스페이스가 없으므로 고아로 판정되어 기존대로 정리된다 — `Detach` 통지 → 원격 점유 해제 + 저장된 원격 행의 진행 중 시도 표지(`Remote.active`) 해제 + 터널 kill. 두 상황(창이 없어졌을 뿐 vs 워크스페이스가 없어짐)은 이 판정으로 구분된다.
 - **정리는 parked engine 에도 동일하게 적용된다.** mirror 워크스페이스 행뿐 아니라 mirror 터미널·mirror busy 엔트리·mesh 프레임 캐시를 함께 걷어내고 `active_workspace` 인덱스를 클램프한다.
   걷어낸 뒤 그 engine 에 워크스페이스가 하나도 없으면(사용자가 로컬 워크스페이스를 다 닫고 mirror 만 남겼던 경우) 기본 터미널 워크스페이스를 다시 만들어 활성으로 삼는다 — 원격이 끊겼다고 사용자 창을 닫지 않고, 워크스페이스 0 개인 창이 다음 redraw 에서 죽지도 않는다(`MainViewState::recreate_workspace_if_empty`, 에이전트가 마지막 surface 를 닫은 경우와 같은 복구 — [Attach 메커니즘](../../dev-guide/attach-behavior.md)).
   판정과 정리의 순회 범위는 **같아야** 한다 — 판정이 살아 있다고 본 engine 을 정리가 못 찾으면, 그 engine 이 나중에 창에 다시 실릴 때 아무 데도 연결되지 않은 mirror 워크스페이스가 되살아난다.

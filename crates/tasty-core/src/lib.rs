@@ -7,8 +7,9 @@
 //!
 //! - journal 하나에 엔진마다 구조 stream이 하나 있다. 이름은 [`STRUCTURE_STREAM_PREFIX`]로 시작한다.
 //! - [`JournalModel`]은 엔진 하나의 workspace·category·pane·tab·surface 트리와 이름·소속·분할 비율·
-//!   kind·kind 자료 참조를 담는다. workspace 부제·설명·attach 매핑과 tab 명시 이름은 typed 필드이며,
-//!   metadata는 사용자 정의 키만 담는다. 선택·포커스·접힘 같은 View 상태는 담지 않는다.
+//!   kind·kind 자료 참조를 담는다. workspace 부제·설명과 tab 명시 이름은 typed 필드이며,
+//!   metadata는 사용자 정의 키만 담는다. 저장된 원격 행([`RemoteRow`])은 로컬 workspace 순서와 따로
+//!   담는다. 선택·포커스·접힘 같은 View 상태는 담지 않는다.
 //!   ID와 분할 방향은 `tasty-model`의 타입을 쓴다.
 //! - [`evolve`]는 한 stream의 [`DomainBatch`]를, [`evolve_streams`]는 batch 하나를 모든 엔진 모델에
 //!   통째로 적용한다. 중간에 실패하면 모델은 바뀌지 않는다. snapshot은 [`StructureModels`] 전체다.

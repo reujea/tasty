@@ -83,7 +83,7 @@ impl App {
         self.maybe_connect_visible_row(current_ws_id, prev_active);
         self.maybe_trigger_reconnect(current_ws_id, prev_active);
         self.drain_auto_attach_results();
-        self.sync_mapping_notices();
+        self.sync_row_notices();
         self.publish_row_states();
     }
 
@@ -929,9 +929,9 @@ mod tests {
     }
 
     /// 프로필 파일 해석이 실제로 돌려주는 오류가 거절 안내의 `ProfileMissing` 으로 분류되는지 본다.
-    /// 오류를 감싸는 단계가 생기면 안내가 `Unresolved` 로 바뀌어 배너의 이유가 달라진다.
+    /// 오류를 감싸는 단계가 생기면 안내가 `Unresolved` 로 바뀌어 행 표지와 팝업의 이유가 달라진다.
     #[test]
-    fn a_missing_profile_mapping_resolves_to_the_profile_missing_notice() {
+    fn a_missing_profile_resolves_to_the_profile_missing_notice() {
         let name = format!(
             "no-such-profile-{}-{}",
             std::process::id(),
