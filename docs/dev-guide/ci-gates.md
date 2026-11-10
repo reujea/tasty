@@ -20,7 +20,7 @@ DPI 수동 변환 검사는 `src/`와 `crates/`의 파일 수 하한을 각각 �
 | SemVer 가드 | `cargo test --locked --no-default-features --no-fail-fast --test api_baseline_0_7 --test changelog_unreleased --test cli_naming_count_drift` | `test.yml` 의 `semver-guards` (self-hosted Linux X64) | main push · 수동 | [실측] |
 | macOS 컴파일 + 단위테스트 | `cargo check --workspace --locked` · `cargo test --workspace --lib --bins --locked --no-fail-fast` | `crossplatform-check-macos.yml` 의 `check-macos` (self-hosted macOS) | main push(문서 제외) · PR · 수동 | [실측] |
 | Windows lint + 단위테스트 **+ 지목 통합** | `cargo clippy --workspace --all-targets --locked` · `cargo test --workspace --lib --bins --locked --no-fail-fast` · `cargo test -p tasty-shm -p tasty-doc-guards --locked --no-fail-fast` | `crossplatform-check.yml` (self-hosted Windows) | main push(문서 제외) · PR · 수동 | [실측] |
-| Windows ARM64 컴파일 | `cargo check --workspace --all-targets --target aarch64-pc-windows-msvc --locked` (x64 러너에서 교차 컴파일, 테스트·링크 없음, C 의존성은 MSVC ARM64 빌드 도구 필요 — [release](release.md#windows-arm64)) | `crossplatform-check.yml` 의 `check-windows-arm64` (self-hosted Windows) | main push(문서 제외) · PR · 수동 | [배선] |
+| Windows ARM64 컴파일 | `cargo check --workspace --all-targets --target aarch64-pc-windows-msvc --locked` (x64 호스트의 전용 러너에서 교차 컴파일, 테스트·링크 없음, C 의존성은 MSVC ARM64 빌드 도구 필요 — [release](release.md#windows-arm64)) | `crossplatform-check.yml` 의 `check-windows-arm64` (같은 Windows 호스트의 전용 러너 `win-arm64`) | main push(문서 제외) · PR · 수동 | [배선] |
 | headless 컴파일 · **전체 스위트** · lint **+ Linux gui 단위테스트** | `cargo check --workspace --no-default-features --locked` · `cargo test --workspace --no-default-features --locked --no-fail-fast` · `cargo clippy --workspace --all-targets --no-default-features --locked` · `xvfb-run … cargo test --workspace --lib --bins --locked --no-fail-fast`(스텝 `cargo test (linux, gui, unit)` — 기본 feature, Xvfb 안에서 실행, 아래 [gui 단위 단계의 Xvfb](#gui-단위-단계의-xvfb)) · **관측(비차단)** `xvfb-run … cargo test --workspace --locked --no-fail-fast --test e2e_tests -- multi_window_owner_routing --exact`(스텝 `cargo test (linux, gui, e2e — 관측용)`, `continue-on-error: true` — 헤드리스 조합에서 컴파일하지 않는 이 시험을 돌리되 실패해도 잡을 차단하지 않는다) · **관측(비차단)** `xvfb-run … cargo test -p tasty-plugin-markdown --locked --no-fail-fast -- --ignored --exact render::webview_layout_tests::address_bar_stays_on_top_in_webkitgtk`·`render::bed_focus_webkit_tests::bed_focus_sheet_switches_state_values_in_place`(스텝 `cargo test (linux, gui, webview layout — 관측용)`, `continue-on-error: true` — markdown 주소창 배치와 바탕 포커스 시트를 WebKitGTK 로 재는 Linux 전용 시험, 아래 [webview 레이아웃 시험](#webview-레이아웃-시험)) | `crossplatform-check.yml` 의 `check-headless` (self-hosted Linux X64) | main push(문서 제외) · PR · 수동 | [실측] |
 | **not-debug(release) 컴파일 · gui** | `cargo check --workspace --release --locked` | `crossplatform-check.yml` 의 `check-release` (self-hosted Linux X64) | main push(문서 제외) · PR · 수동 | [실측] |
 | Android 터미널 코어 컴파일 | `cargo check -p tasty-terminal -p tasty-terminal-link --target aarch64-linux-android --locked` (x64 러너에서 교차 컴파일, NDK 없음, 링크·실행 없음, 두 크레이트만) | `crossplatform-check.yml` 의 `check-android` (self-hosted Linux X64) | main push(문서 제외) · PR · 수동 | [배선] |
@@ -234,19 +234,22 @@ checkout의 정리로 `target/`이 삭제되는 구성에는 로컬 증분 빌�
 러너를 붙잡는다. 상한은 러너를 기다린 시간을 세지 않고 잡이 실행된 시간만 센다.
 
 상한은 성공·실패로 끝난 실행 가운데 가장 긴 시간에 배수를 곱해 5분 단위로 올리고, 10분보다
-작으면 10분으로 둔다. 배수는 3이다. 표본이 5회 미만이거나 같은 명령을 같은 러너에서 실행하는
-다른 잡의 실측을 대신 쓰는 잡은 5다. 측정한 실행은 checkout이 `target/`을 지운 뒤 처음부터
+작으면 10분으로 둔다. 배수는 3이다. 표본이 5회 미만이거나 같은 명령을 같은 러너(또는 같은
+호스트의 다른 러너)에서 실행하는 다른 잡의 실측을 대신 쓰는 잡은 5다. 측정한 실행은 checkout이 `target/`을 지운 뒤 처음부터
 빌드했으므로 실측값에 콜드 빌드가 이미 들어 있다. 배수는 공유 러너의 부하 차이를 흡수한다.
 
 - 실측: `gh run list --workflow=<파일>`로 실행을 고르고 `gh run view <run-id> --json jobs`의
   `startedAt`·`completedAt`으로 잡 시간을 잰다. 단계가 하나도 없는 취소 잡은 러너를 기다리다
   취소된 것이라 제외한다. 취소된 잡은 끝까지 실행되지 않았으므로 최대에 넣지 않는다.
 - 측정 범위: crossplatform-check·supply-chain-check·test는 2026-09-17~2026-10-08의 전체
-  실행, release는 2026-09-26의 1회, 나머지는 2026-10-07~2026-10-08의 최근 30회다.
+  실행, release는 2026-09-26의 1회(Windows 두 잡은 2026-09-26~2026-11-10의 전체 실행 5회),
+  나머지는 2026-10-07~2026-10-08의 최근 30회다.
 - build-check는 같은 기간 실행 기록이 없어 같은 빌드 스크립트를 같은 러너에서 실행하는
-  release 잡의 실측을 쓴다. Windows ARM64 빌드 잡(release·build-check)은 아직 실행 기록이 없어
-  같은 스크립트를 같은 러너에서 실행하는 x64 build-windows의 실측을 쓴다. check-windows-arm64도
-  실행 기록이 없어 같은 러너에서 더 많은 작업(clippy·테스트)을 하는 check-windows의 실측을 쓴다. test-linux-x64도 실행 기록이 없어 같은 러너에서 workspace
+  release 잡의 실측을 쓴다. build-check의 build-windows-arm64는 같은 스크립트를 같은 러너
+  (`win-arm64`)에서 실행하는 release build-windows-arm64의 실측을 쓴다. release build-windows-arm64의
+  실측은 전용 러너로 옮기기 전 x64 러너에서 x64 잡이 끝난 뒤 따로 실행한 값이다. 같은 호스트에서
+  두 Windows 빌드가 동시에 돌 때의 시간은 미측정이다. check-windows-arm64도
+  실행 기록이 없어 같은 호스트의 다른 러너에서 더 많은 작업(clippy·테스트)을 하는 check-windows의 실측을 쓴다. test-linux-x64도 실행 기록이 없어 같은 러너에서 workspace
   시험을 실행하는 check-headless의 실측을 쓴다. check-android도 실행 기록이 없어 같은 러너에서 `cargo check`를
   실행하는 check-release의 실측을 쓴다.
 
@@ -255,8 +258,8 @@ checkout의 정리로 `target/`이 삭제되는 구성에는 로컬 증분 빌�
 | 워크플로 | 잡 | 성공 | 실패 | 실측 최대(분) | 배수 | timeout-minutes |
 |---|---|---|---|---|---|---|
 | build-check.yml | build-macos | 0 | 0 | 7.9 (release 대리) | 공유 러너 예외 | 180 |
-| build-check.yml | build-windows | 0 | 0 | 11.4 (release 대리) | 5 | 60 |
-| build-check.yml | build-windows-arm64 | 0 | 0 | 11.4 (release build-windows 대리) | 5 | 60 |
+| build-check.yml | build-windows | 0 | 0 | 25.9 (release 대리) | 5 | 130 |
+| build-check.yml | build-windows-arm64 | 0 | 0 | 25.9 (release 대리) | 5 | 130 |
 | build-check.yml | build-linux-x64 | 0 | 0 | 9.3 (release 대리) | 5 | 50 |
 | build-check.yml | build-linux-arm64 | 0 | 0 | 7.2 (release 대리) | 5 | 40 |
 | complexity-check.yml | check-file-size | 24 | 0 | 0.3 | 3 | 10 |
@@ -271,8 +274,8 @@ checkout의 정리로 `target/`이 삭제되는 구성에는 로컬 증분 빌�
 | plugin-version-check.yml | version-bump | 25 | 0 | 0.4 | 3 | 10 |
 | release.yml | create-release | 1 | 0 | 0.2 | 5 | 10 |
 | release.yml | build-macos | 1 | 0 | 7.9 | 공유 러너 예외 | 180 |
-| release.yml | build-windows | 1 | 0 | 11.4 | 5 | 60 |
-| release.yml | build-windows-arm64 | 0 | 0 | 11.4 (build-windows 대리) | 5 | 60 |
+| release.yml | build-windows | 5 | 0 | 25.9 | 3 | 80 |
+| release.yml | build-windows-arm64 | 3 | 0 | 25.9 | 5 | 130 |
 | release.yml | build-linux-x64 | 1 | 0 | 9.3 | 5 | 50 |
 | release.yml | build-linux-arm64 | 1 | 0 | 7.2 | 5 | 40 |
 | release.yml | publish-release | 1 | 0 | 0.2 | 5 | 10 |

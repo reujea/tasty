@@ -69,14 +69,15 @@ jobs:
         if: always()
         run: rm -rf dist
 
-  # 두 Windows 잡은 아키텍처를 명시해 빌드한다. 기존 Windows x64 러너는 ARM64를 교차 빌드한다.
+  # 두 Windows 잡은 아키텍처를 명시해 빌드한다. ARM64는 같은 x64 호스트의 전용 러너(라벨 win-arm64)가
+  # 교차 빌드하므로 두 잡이 동시에 돈다.
   # 근거와 확인 범위: docs/dev-guide/release.md#windows-arm64
   build-windows:
     needs: create-release
     if: ${{ always() && (needs.create-release.result == 'success' || github.event_name == 'workflow_dispatch') }}
     runs-on: [self-hosted, Windows]
-    # 실측 최대 11.4분 × 5. 기준: docs/dev-guide/ci-gates.md#잡-시간-상한
-    timeout-minutes: 60
+    # 실측 최대 25.9분 × 3. 기준: docs/dev-guide/ci-gates.md#잡-시간-상한
+    timeout-minutes: 80
     steps:
       - uses: actions/checkout@v4
 
@@ -105,9 +106,9 @@ jobs:
   build-windows-arm64:
     needs: create-release
     if: ${{ always() && (needs.create-release.result == 'success' || github.event_name == 'workflow_dispatch') }}
-    runs-on: [self-hosted, Windows]
-    # build-windows 대리 실측 최대 11.4분 × 5. 기준: docs/dev-guide/ci-gates.md#잡-시간-상한
-    timeout-minutes: 60
+    runs-on: [win-arm64]
+    # 실측 최대 25.9분 × 5. 기준: docs/dev-guide/ci-gates.md#잡-시간-상한
+    timeout-minutes: 130
     steps:
       - uses: actions/checkout@v4
 

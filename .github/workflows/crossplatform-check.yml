@@ -116,10 +116,10 @@ jobs:
             "window: FAILED — $($_.Exception.Message)"
           }
 
-  # Windows ARM64 타깃 컴파일을 검사한다. 기존 Windows x64 러너에서 교차 컴파일하며
-  # 테스트 실행과 링크·패키징은 포함하지 않는다. C 의존성은 MSVC ARM64 빌드 도구로 컴파일한다.
+  # Windows ARM64 타깃 컴파일을 검사한다. x64 Windows 호스트의 전용 러너(라벨 win-arm64)에서
+  # 교차 컴파일하며 테스트 실행과 링크·패키징은 포함하지 않는다. C 의존성은 MSVC ARM64 빌드 도구로 컴파일한다.
   check-windows-arm64:
-    runs-on: [self-hosted, Windows]
+    runs-on: [win-arm64]
     # check-windows 대리 실측 최대 13.7분 × 5. 기준: docs/dev-guide/ci-gates.md#잡-시간-상한
     timeout-minutes: 70
     steps:

@@ -28,8 +28,8 @@ jobs:
 
   build-windows:
     runs-on: [self-hosted, Windows]
-    # release build-windows 대리 실측 최대 11.4분 × 5. 기준: docs/dev-guide/ci-gates.md#잡-시간-상한
-    timeout-minutes: 60
+    # release build-windows 대리 실측 최대 25.9분 × 5. 기준: docs/dev-guide/ci-gates.md#잡-시간-상한
+    timeout-minutes: 130
     steps:
       - uses: actions/checkout@v4
 
@@ -69,11 +69,12 @@ jobs:
         shell: pwsh
         run: Remove-Item -Recurse -Force dist -ErrorAction SilentlyContinue
 
-  # ARM64 산출물은 x64 Windows 러너에서 교차 빌드하고 PE 머신 타입으로 아키텍처를 확인한다.
+  # ARM64 산출물은 x64 Windows 호스트의 전용 러너(라벨 win-arm64)에서 교차 빌드하고
+  # PE 머신 타입으로 아키텍처를 확인한다.
   build-windows-arm64:
-    runs-on: [self-hosted, Windows]
-    # release build-windows 대리 실측 최대 11.4분 × 5. 기준: docs/dev-guide/ci-gates.md#잡-시간-상한
-    timeout-minutes: 60
+    runs-on: [win-arm64]
+    # release build-windows-arm64 대리 실측 최대 25.9분 × 5. 기준: docs/dev-guide/ci-gates.md#잡-시간-상한
+    timeout-minutes: 130
     steps:
       - uses: actions/checkout@v4
 
