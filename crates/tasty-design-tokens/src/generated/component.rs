@@ -516,6 +516,12 @@ pub mod explorer {
 pub mod fh {
     use tasty_type_geometry::length::LogicalPx;
 
+    /// `component.fh-remote-gap` → `{semantic.space-xs}` = 4px
+    pub const REMOTE_GAP: LogicalPx = crate::generated::semantic::SPACE_XS;
+
+    /// `component.fh-remote-max-width` → `{primitive.size-160}` = 160px
+    pub const REMOTE_MAX_WIDTH: LogicalPx = crate::generated::primitive::SIZE_160;
+
     /// `component.fh-when-width` → `{primitive.size-56}` = 56px
     pub const WHEN_WIDTH: LogicalPx = crate::generated::primitive::SIZE_56;
 }
@@ -854,6 +860,13 @@ pub mod kbd {
 
     /// `component.kbd-size` → `{primitive.size-16}` = 16px
     pub const SIZE: LogicalPx = crate::generated::primitive::SIZE_16;
+}
+
+pub mod link {
+    use tasty_type_geometry::length::LogicalPx;
+
+    /// `component.link-remote-gap` → `{semantic.space-xs}` = 4px
+    pub const REMOTE_GAP: LogicalPx = crate::generated::semantic::SPACE_XS;
 }
 
 pub mod listctrl {
@@ -1578,6 +1591,12 @@ pub mod statusbar {
 
     /// `component.statusbar-glyph-size` → `{semantic.icon-size-xs}` = 12px
     pub const GLYPH_SIZE: LogicalPx = crate::generated::semantic::ICON_SIZE_XS;
+
+    /// `component.statusbar-remote-gap` → `{semantic.space-xs}` = 4px
+    pub const REMOTE_GAP: LogicalPx = crate::generated::semantic::SPACE_XS;
+
+    /// `component.statusbar-remote-max-width` → `{primitive.size-160}` = 160px
+    pub const REMOTE_MAX_WIDTH: LogicalPx = crate::generated::primitive::SIZE_160;
 }
 
 pub mod surface {

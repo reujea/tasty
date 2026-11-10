@@ -505,6 +505,10 @@
       "$type": "fontFamily",
       "$value": "\"D2Coding\", \"SF Mono\", \"Cascadia Code\", \"JetBrains Mono\", ui-monospace, \"Menlo\", \"Consolas\", monospace"
     },
+    "font-family-mono-system": {
+      "$type": "fontFamily",
+      "$value": "\"SF Mono\", \"Cascadia Code\", \"JetBrains Mono\", ui-monospace, \"Menlo\", \"Consolas\""
+    },
     "font-size-10": {
       "$type": "dimension",
       "$value": "10px"
@@ -3166,6 +3170,14 @@
       "$type": "dimension",
       "$value": "{primitive.size-240}"
     },
+    "link-remote-fg": {
+      "$type": "color",
+      "$value": "{semantic.accent-remote-raised}"
+    },
+    "link-remote-gap": {
+      "$type": "dimension",
+      "$value": "{semantic.space-xs}"
+    },
     "tooltip-offset": {
       "$type": "dimension",
       "$value": "{semantic.space-xs}"
@@ -3553,6 +3565,18 @@
     "statusbar-glyph-size": {
       "$type": "dimension",
       "$value": "{semantic.icon-size-xs}"
+    },
+    "statusbar-remote-fg": {
+      "$type": "color",
+      "$value": "{semantic.accent-remote-raised}"
+    },
+    "statusbar-remote-gap": {
+      "$type": "dimension",
+      "$value": "{semantic.space-xs}"
+    },
+    "statusbar-remote-max-width": {
+      "$type": "dimension",
+      "$value": "{primitive.size-160}"
     },
     "git-toolbar-height": {
       "$type": "dimension",
@@ -4555,6 +4579,18 @@
     "fh-when-width": {
       "$type": "dimension",
       "$value": "{primitive.size-56}"
+    },
+    "fh-remote-fg": {
+      "$type": "color",
+      "$value": "{semantic.accent-remote-raised}"
+    },
+    "fh-remote-gap": {
+      "$type": "dimension",
+      "$value": "{semantic.space-xs}"
+    },
+    "fh-remote-max-width": {
+      "$type": "dimension",
+      "$value": "{primitive.size-160}"
     },
     "swatch-size": {
       "$type": "dimension",

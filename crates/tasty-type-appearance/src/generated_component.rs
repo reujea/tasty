@@ -1818,6 +1818,24 @@ impl crate::theme::Theme {
         LogicalPx((440.0 * self.ui_zoom).round())
     }
 
+    /// `component.fh-remote-fg` → `{semantic.accent-remote-raised}`
+    #[inline]
+    pub fn fh_remote_fg(&self) -> HexColor {
+        self.accent_remote_raised()
+    }
+
+    /// `component.fh-remote-gap` → `{semantic.space-xs}` = 4px
+    #[inline]
+    pub fn fh_remote_gap(&self) -> LogicalPx {
+        self.spacing_xs
+    }
+
+    /// `component.fh-remote-max-width` → `{primitive.size-160}` = 160px
+    #[inline]
+    pub fn fh_remote_max_width(&self) -> LogicalPx {
+        LogicalPx((160.0 * self.ui_zoom).round())
+    }
+
     /// `component.fh-when-width` → `{primitive.size-56}` = 56px
     #[inline]
     pub fn fh_when_width(&self) -> LogicalPx {
@@ -2806,6 +2824,18 @@ impl crate::theme::Theme {
     #[inline]
     pub fn kbd_size(&self) -> LogicalPx {
         LogicalPx((16.0 * self.ui_zoom).round())
+    }
+
+    /// `component.link-remote-fg` → `{semantic.accent-remote-raised}`
+    #[inline]
+    pub fn link_remote_fg(&self) -> HexColor {
+        self.accent_remote_raised()
+    }
+
+    /// `component.link-remote-gap` → `{semantic.space-xs}` = 4px
+    #[inline]
+    pub fn link_remote_gap(&self) -> LogicalPx {
+        self.spacing_xs
     }
 
     /// `component.listctrl-chevron-fg` → `{semantic.text-muted}`
@@ -5026,6 +5056,24 @@ impl crate::theme::Theme {
     #[inline]
     pub fn statusbar_glyph_size(&self) -> LogicalPx {
         self.icon_glyph_size_xs
+    }
+
+    /// `component.statusbar-remote-fg` → `{semantic.accent-remote-raised}`
+    #[inline]
+    pub fn statusbar_remote_fg(&self) -> HexColor {
+        self.accent_remote_raised()
+    }
+
+    /// `component.statusbar-remote-gap` → `{semantic.space-xs}` = 4px
+    #[inline]
+    pub fn statusbar_remote_gap(&self) -> LogicalPx {
+        self.spacing_xs
+    }
+
+    /// `component.statusbar-remote-max-width` → `{primitive.size-160}` = 160px
+    #[inline]
+    pub fn statusbar_remote_max_width(&self) -> LogicalPx {
+        LogicalPx((160.0 * self.ui_zoom).round())
     }
 
     /// `component.statusbar-theme-glyph` → `{semantic.glyph-dim}`
