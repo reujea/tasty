@@ -35,6 +35,14 @@ impl MirrorForegrounds {
         }
     }
 
+    /// 새 연결의 첫 값 전 상태로 만든다. 이름은 지우고 세대는 올려, 옛 연결에서 연 배너를 닫고
+    /// 같은 이름이 다시 와도 옛 배너의 세대와 겹치지 않게 한다.
+    #[cfg(feature = "gui")]
+    pub(crate) fn reset_for_new_connection(&mut self, surface_id: u32) {
+        self.names.remove(&surface_id);
+        *self.generations.entry(surface_id).or_insert(0) += 1;
+    }
+
     pub(crate) fn forget(&mut self, surface_id: u32) {
         self.names.remove(&surface_id);
         self.generations.remove(&surface_id);
@@ -55,6 +63,15 @@ impl EngineMut<'_> {
     #[cfg(any(feature = "gui", test))]
     pub fn forget_mirror_surface_foreground(&mut self, surface_id: u32) {
         self.remote.mirror_foreground.forget(surface_id);
+    }
+
+    /// 재연결 설치에서만 부른다. 같은 연결의 구조 변경에서는 서버가 같은 값을 다시 보내지 않으므로
+    /// 살아남은 terminal의 이름을 유지해야 한다.
+    #[cfg(feature = "gui")]
+    pub fn reset_mirror_surface_foreground_for_connection(&mut self, surface_id: u32) {
+        self.remote
+            .mirror_foreground
+            .reset_for_new_connection(surface_id);
     }
 
     #[cfg(test)]

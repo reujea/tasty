@@ -365,7 +365,7 @@ mirror 터미널은 로컬 PTY 가 없어 1Hz `refresh_busy_surfaces` 가 전경
 - **캡처 제외 목록**: `refresh_busy_surfaces` 가 `mouse_capture_disabled_surfaces` 를 교체할 때 mirror 이름도 함께 판정한다. 따로 계산하지 않으면 다음 tick 에 mirror 판정이 지워진다.
 - **PTY 를 직접 조회하던 곳**: 클릭 커서 이동은 로컬에서 PTY 를 직접 조회하고, mirror 에서는 1Hz 캐시 값을 쓴다(`EngineRead::foreground_process_name_now`). `surface.foreground_process` 는 mirror 에 대해 받은 이름과 이름으로 판정한 `is_shell` 을 답하고, 이 머신의 프로세스가 아닌 원격 PID 는 `null` 이다.
 - **자식 생존 판정**: 원격 자식의 mirror 도 이름이 셸이면 `Stale`/`Confirmed` 가 된다. 첫 값을 받기 전에는 이름이 없어 이 근거를 쓰지 않는다. holder 연결이 끊긴 동안에는 받은 이름이 남아 있어도 `terminal.children`·`terminal.state` 가 원격 자식을 `unknown` 으로 덮는다.
-- **정리**: cwd 와 같은 지점에서 지운다 — `remove_mirror_workspace_from_engine`, delta 의 removed 처리, survivor 의 terminal 에서 출발한 kind 전환, 모든 닫기 경로의 `cleanup_surface_observations`.
+- **정리**: cwd 와 같은 지점에서 지운다 — `remove_mirror_workspace_from_engine`, delta 의 removed 처리, survivor 의 terminal 에서 출발한 kind 전환, 모든 닫기 경로의 `cleanup_surface_observations`. 재연결 설치(`install_reconnected_survivors`, 재동기화의 재attach 포함)는 살아남은 surface 의 이름을 지우고 세대를 올린다. 새 연결의 첫 값 전(구버전 서버면 계속)에는 이름 미상이고, 옛 연결에서 연 캡처 배너는 닫힌다. 같은 연결의 구조 delta 병합은 서버가 같은 값을 다시 보내지 않으므로 살아남은 terminal 의 이름을 유지한다.
 - **구버전 호환**: 구버전 client 는 `Foreground` 를 파싱 실패로 무시한다. 구버전 server 는 보내지 않아 저장소가 비고, 이름을 쓰는 기능은 지금처럼 이름 미상으로 동작한다(규칙 미일치, 메뉴 비활성 형태).
 
 ## 주의 환기(attention) 전파

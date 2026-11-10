@@ -65,7 +65,7 @@ fn apply_reconnect_terminal_sizes(
 /// 기존 원격 surface의 로컬 ID·자원을 재사용하고 추가·삭제·kind 변경을 반영한다.
 /// markdown은 기존 핸들을 공유해 구조 변경 때마다 문서를 다시 만들지 않는다.
 /// 재연결 설치의 핵심부. 살아남은 mirror를 새 descriptor에 병합하고, terminal mirror를 서버 크기로
-/// 맞추고, 옛 연결의 크기 요청 상태를 비운다. 순서가 중요하다. 크기를 맞춘 뒤 상태를 비워야 다음
+/// 맞추고, 옛 연결의 크기 요청 상태와 전경 이름을 비운다. 순서가 중요하다. 크기를 맞춘 뒤 상태를 비워야 다음
 /// 리사이즈 스윕이 새 mirror grid와 목표를 비교해 요청을 다시 보내고, 그 응답을 새 연결에서 기다린다.
 pub(super) fn install_reconnected_survivors(
     remote_to_local: &mut HashMap<u32, u32>,
@@ -80,6 +80,10 @@ pub(super) fn install_reconnected_survivors(
     *remote_to_local = std::mem::take(&mut mapping.remote_to_local);
     apply_reconnect_terminal_sizes(remote_to_local, surfaces, &mut engine.runtime.terminals);
     resize_sync.reset_for_connection(resize_acks);
+    // 옛 연결이 보낸 전경 이름은 새 연결의 첫 값(구버전 서버면 영영 없음) 전까지 쓰지 않는다.
+    for &local in remote_to_local.values() {
+        engine.reset_mirror_surface_foreground_for_connection(local);
+    }
     Ok(mapping)
 }
 

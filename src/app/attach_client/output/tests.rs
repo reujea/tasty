@@ -139,6 +139,76 @@ fn foreground_push_lands_on_the_local_id_and_null_clears_it() {
     assert_eq!(engine.mirror_surface_foreground(local_surface), None);
 }
 
+/// 구버전 서버로 재연결: Activity·Cwd 는 오지만 Foreground 는 오지 않으므로 옛 이름이 되살아나지 않는다.
+/// 새 서버가 첫 값을 보내면 그때부터 이름을 쓴다.
+#[test]
+fn after_a_reconnect_without_foreground_frames_the_name_stays_unknown() {
+    use crate::app::attach_client::survivors::install_reconnected_survivors;
+    let (mut state, mut engine_session) = crate::state::tests::test_state();
+    let mut engine = engine_session.borrow_mut();
+    supply_ids(&engine);
+    let ids = test_ids();
+    let (tx, _rx) = tasty_remote::connection::channel();
+    let frame_tx: SharedFrameSender = tx;
+    let terminal = vec![serde_json::json!({
+        "remote_id": 42, "role": "terminal", "cols": 80, "rows": 24,
+    })];
+    let m1 = merge_survivor_mapping(&HashMap::new(), &terminal, &ids, &frame_tx, &mut engine)
+        .expect("fixture construction");
+    let local = m1.remote_to_local[&42];
+    let mut sess = test_session(9_000, m1.remote_to_local.clone());
+    let mut plugin_manager: Option<crate::plugin::PluginManager> = None;
+    {
+        let mut host = MirrorHost::parked(&mut state, &mut engine);
+        apply_mirror_events(
+            &mut sess,
+            &mut host,
+            &mut plugin_manager,
+            vec![MirrorEvent::Foreground(42, Some("claude".to_string()))],
+        );
+    }
+    assert_eq!(engine.mirror_surface_foreground(local), Some("claude"));
+
+    install_reconnected_survivors(
+        &mut sess.state.remote_to_local,
+        &mut sess.state.resize_sync,
+        false,
+        &terminal,
+        &ids,
+        &frame_tx,
+        &mut engine,
+    )
+    .expect("reconnect install");
+    {
+        let mut host = MirrorHost::parked(&mut state, &mut engine);
+        apply_mirror_events(
+            &mut sess,
+            &mut host,
+            &mut plugin_manager,
+            vec![
+                MirrorEvent::Activity(42, false),
+                MirrorEvent::Cwd(42, Some("/srv".to_string())),
+            ],
+        );
+    }
+    assert_eq!(
+        engine.mirror_surface_foreground(local),
+        None,
+        "구버전 서버의 재연결 뒤에는 이름 미상"
+    );
+
+    {
+        let mut host = MirrorHost::parked(&mut state, &mut engine);
+        apply_mirror_events(
+            &mut sess,
+            &mut host,
+            &mut plugin_manager,
+            vec![MirrorEvent::Foreground(42, Some("vim".to_string()))],
+        );
+    }
+    assert_eq!(engine.mirror_surface_foreground(local), Some("vim"));
+}
+
 /// wire에서 파싱한 실패 사유가 사용자 안내까지 유지되는지 확인한다.
 #[test]
 fn a_structural_failure_reason_reaches_the_toast_verbatim() {

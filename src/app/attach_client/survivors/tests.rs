@@ -584,6 +584,66 @@ fn reconnect_install_sizes_survivors_and_clears_the_resize_wait() {
     assert!(!sync.acks_expected(), "새 연결의 서버 기능을 따른다");
 }
 
+/// terminal → terminal 재연결: 옛 연결의 전경 이름은 새 연결의 첫 Foreground 전까지 쓰지 않는다.
+/// 같은 연결의 구조 변경(병합만)에서는 살아남은 terminal 의 이름을 유지한다.
+#[test]
+fn reconnect_install_forgets_the_old_foreground_but_a_structural_merge_keeps_it() {
+    let (_, mut engine_session) = crate::state::tests::test_state();
+    let mut engine = engine_session.borrow_mut();
+    supply_ids(&engine);
+    let ids = test_ids();
+    let (tx, _rx) = tasty_remote::connection::channel();
+    let frame_tx: SharedFrameSender = tx;
+    let terminal = vec![serde_json::json!({
+        "remote_id": 10, "role": "terminal", "cols": 80, "rows": 24,
+    })];
+    let m1 = merge_survivor_mapping(&HashMap::new(), &terminal, &ids, &frame_tx, &mut engine)
+        .expect("fixture construction");
+    let local = m1.remote_to_local[&10];
+    engine.set_mirror_surface_foreground(local, Some("claude".to_string()));
+    let old_generation = engine.foreground_generation(local);
+
+    let m2 = merge_survivor_mapping(&m1.remote_to_local, &terminal, &ids, &frame_tx, &mut engine)
+        .expect("structural merge");
+    assert_eq!(m2.remote_to_local[&10], local);
+    assert_eq!(
+        engine.mirror_surface_foreground(local),
+        Some("claude"),
+        "같은 연결의 구조 변경은 이름을 지우지 않는다"
+    );
+
+    let mut remote_to_local = m2.remote_to_local.clone();
+    let mut sync = tasty_remote::resize_sync::ResizeSync::for_connection(true);
+    install_reconnected_survivors(
+        &mut remote_to_local,
+        &mut sync,
+        true,
+        &terminal,
+        &ids,
+        &frame_tx,
+        &mut engine,
+    )
+    .expect("reconnect install");
+    assert_eq!(remote_to_local[&10], local, "같은 로컬 ID 를 재사용한다");
+    assert_eq!(
+        engine.mirror_surface_foreground(local),
+        None,
+        "새 연결의 첫 값 전(구버전 서버면 계속) 이름 미상"
+    );
+    assert_ne!(
+        engine.foreground_generation(local),
+        old_generation,
+        "옛 연결에서 연 캡처 배너는 다음 tick 에 닫힌다"
+    );
+
+    engine.set_mirror_surface_foreground(local, Some("claude".to_string()));
+    assert_ne!(
+        engine.foreground_generation(local),
+        old_generation,
+        "같은 이름이 다시 와도 옛 배너의 세대와 겹치지 않는다"
+    );
+}
+
 fn explorer_fixture(
     engine: &mut EngineMut<'_>,
 ) -> (
