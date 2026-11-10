@@ -390,6 +390,7 @@ if(log)log.scrollTop=log.scrollHeight;
     h.push_str(&crate::application::prompts::script_html());
     h.push_str(&clear_button::script_html());
     h.push_str(&crate::adapters::driving::md_table::script_html());
+    h.push_str(&crate::adapters::driving::links::script_html());
     let skills = convo
         .session_id
         .as_deref()

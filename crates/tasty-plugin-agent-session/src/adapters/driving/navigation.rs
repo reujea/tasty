@@ -328,6 +328,13 @@ impl<H: crate::ports::host::SendHost, S: crate::ports::supervisor::SupervisorHan
             if let Some(c) = self.convos.get_mut(&sid) {
                 subagents::click(host, &self.sup, sid, c, what);
             }
+        } else if crate::adapters::driving::links::open_clicked(
+            host,
+            sid,
+            self.convos.get(&sid).and_then(statusline::full_cwd),
+            url,
+        ) {
+            // 답 글의 링크 — URL 은 브라우저, 있는 경로는 호스트 파일 열기로 넘겼다.
         } else if let Some(c) = self.convos.get(&sid)
             && statusline::copy_cwd(host, sid, c, url)
         {

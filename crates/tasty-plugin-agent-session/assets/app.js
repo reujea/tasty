@@ -37,6 +37,8 @@
       g.textContent = props.text;
       g.removeAttribute('data-tbl');
       if (window.tastyTables) window.tastyTables(g);
+      g.removeAttribute('data-lnk');
+      if (window.tastyLinks) window.tastyLinks(g);
     }, [props.text, props.cls]);
     return html`<div class=${props.cls} ref=${ref}></div>`;
   }

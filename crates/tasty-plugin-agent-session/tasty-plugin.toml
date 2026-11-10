@@ -1,7 +1,7 @@
 manifest_version = 1
 id = "com.tasty.agent-session"
 name = "Agent Session"
-version = "0.1.34"
+version = "0.1.35"
 description = "Chat tabs that run Claude Code (stream-json) or pi (rpc) sessions, started from agent profiles and role folders"
 api_version = "1"
 

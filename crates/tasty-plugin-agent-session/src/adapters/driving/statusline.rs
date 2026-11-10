@@ -113,7 +113,7 @@ fn copy_marked<H: crate::ports::host::HostCall>(
 }
 
 /// 상태줄이 보이는 작업 폴더의 전체 값 — 데몬 행의 것, 없으면 시작 폼에서 고른 것.
-fn full_cwd(convo: &Convo) -> Option<&str> {
+pub(crate) fn full_cwd(convo: &Convo) -> Option<&str> {
     convo
         .listed_cwd
         .as_deref()

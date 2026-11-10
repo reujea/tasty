@@ -5,6 +5,7 @@ pub(crate) mod context_menu;
 pub(crate) mod folder_pick;
 pub(crate) mod html;
 pub(crate) mod ipc;
+pub(crate) mod links;
 pub(crate) mod manage;
 pub(crate) mod md_table;
 pub(crate) mod messages;
