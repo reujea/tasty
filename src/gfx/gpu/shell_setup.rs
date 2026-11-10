@@ -193,7 +193,8 @@ mod windows_tests {
     use super::*;
 
     /// 첫 실행 화면은 설정 판정과 같은 결론을 낸다. 허용하지 않는 값은 확정할 수 없다.
-    /// 이름만 쓴 값은 PATH에서 찾으므로 `cmd.exe`는 System32의 파일이 되어 Git Bash가 아니다.
+    /// 이름만 쓴 값은 PATH에서 찾으므로 찾으면 `NotShell`, 못 찾으면 `Missing`이다. 시험이 PATH를 정하지 않으므로
+    /// `cmd.exe`는 설정 판정 결과와 대응하는지만 본다.
     #[test]
     fn the_setup_check_rejects_what_the_settings_judgement_rejects() {
         let dir = tempfile::tempdir().expect("tempdir");
@@ -201,7 +202,12 @@ mod windows_tests {
         std::fs::write(&cmd, "").expect("write fixture");
         let absent = dir.path().join("absent").join("bash.exe");
         assert_eq!(shell_check(""), ShellSetupCheck::Empty);
-        assert_eq!(shell_check("cmd.exe"), ShellSetupCheck::NotShell);
+        let bare = match ShellPathStatus::of("cmd.exe") {
+            ShellPathStatus::Missing => ShellSetupCheck::Missing,
+            ShellPathStatus::NotShell => ShellSetupCheck::NotShell,
+            other => panic!("cmd.exe must be rejected: {other:?}"),
+        };
+        assert_eq!(shell_check("cmd.exe"), bare);
         assert_eq!(
             shell_check(&absent.to_string_lossy()),
             ShellSetupCheck::Missing
