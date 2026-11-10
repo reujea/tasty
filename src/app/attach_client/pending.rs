@@ -329,7 +329,7 @@ impl App {
             }
         }
     }
-    fn fail_pending_mirror(
+    pub(crate) fn fail_pending_mirror(
         &mut self,
         ticket: ConnectionTicket,
         target: &PendingMirrorInstall,

@@ -60,3 +60,74 @@ fn an_expired_window_ends_the_attempt_in_progress() {
         "a late success of the cancelled attempt is stale"
     );
 }
+
+/// 첫 연결 대상. 시험에는 View 가 없어 `mirror_install_target` 대신 행 토큰을 직접 싣는다.
+fn first_connect_target(
+    app: &crate::app::App,
+) -> crate::app::attach_client::pending::PendingMirrorInstall {
+    let engine = app.saved_remote_row_engine(ROW).expect("the row engine");
+    let token = app
+        .engines
+        .get(engine)
+        .and_then(|session| session.remote.row_tokens.get(&ROW))
+        .map(std::sync::Arc::downgrade);
+    crate::app::attach_client::pending::PendingMirrorInstall {
+        engine,
+        window: None,
+        view: None,
+        selection: None,
+        activate: false,
+        row: Some(ROW),
+        binding: Some(binding()),
+        row_token: token,
+        reconnect: None,
+        resync: false,
+        run: None,
+        user: false,
+        manual: None,
+        profile: Some("rv".to_string()),
+        remote_workspace: Some(3),
+    }
+}
+
+/// Given 형상 없는 저장 행의 자동 첫 연결이 진행 중, When 원격 연결 팝업이 같은 프로필·원격 workspace 를
+/// 고르면, Then 자동 시도는 취소되고 그 결과는 낡은 것이라 설치되지도 occupied 안내를 남기지도 않는다.
+#[test]
+fn a_popup_connection_takes_over_the_auto_attempt_of_the_same_row() {
+    if crate::test_support::rerun_alone(
+        module_path!(),
+        "a_popup_connection_takes_over_the_auto_attempt_of_the_same_row",
+    ) {
+        return;
+    }
+    let _home = crate::test_support::IsolatedHome::new();
+    let event_loop = event_loop();
+    let mut app = app_with_saved_row(&event_loop, None);
+    app.ensure_row_token(ROW);
+    let token = app
+        .remote
+        .begin_attempt(Some(ROW), Some(binding()))
+        .unwrap();
+    let auto = first_connect_target(&app);
+    app.state
+        .mirror_attempts
+        .register_endpoint(token.clone(), auto.clone());
+    app.remote.active.insert(ROW);
+
+    app.take_over_saved_row(ROW);
+
+    assert!(!token.is_active(), "the auto attempt is cancelled");
+    assert!(app.state.mirror_attempts.endpoint_snapshot().is_empty());
+    assert!(
+        app.remote.active.contains(&ROW),
+        "the popup connection is now the row attempt"
+    );
+    // 첫 연결 결과는 행 토큰으로 판정한다(`mirror_install_target_is_current`). 시험에는 View 가 없어 토큰만 본다.
+    assert!(
+        auto.row_token.as_ref().unwrap().upgrade().is_none(),
+        "a late auto result is stale and is neither installed nor noted"
+    );
+    let popup = first_connect_target(&app);
+    assert!(popup.row_token.as_ref().unwrap().upgrade().is_some());
+    assert!(app.remote.refusals.notice(ROW).is_none());
+}

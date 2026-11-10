@@ -98,6 +98,77 @@ fn a_joined_remote_attach_gets_the_final_success() {
     );
 }
 
+/// Given 자동 첫 연결을 시도 중인 형상 없는 저장 행에 보류한 요청과 합류한 `remote.attach` run,
+/// When 원격 연결 팝업이 같은 행을 넘겨받으면, Then 팝업 연결이 끝날 때까지 행은 connecting 이고 요청과
+/// run 은 기다린다. 팝업 연결이 실패하면 둘 다 그 연결의 실패로 끝난다.
+#[test]
+fn a_popup_takeover_keeps_held_requests_and_joined_runs_for_its_result() {
+    alone!("a_popup_takeover_keeps_held_requests_and_joined_runs_for_its_result");
+    let event_loop = event_loop();
+    let mut app = app_with_saved_row(&event_loop, None);
+    app.ensure_row_token(ROW);
+    app.remote.active.insert(ROW);
+    let (tx, rx) = std::sync::mpsc::sync_channel(1);
+    let request: JsonRpcRequest = serde_json::from_value(serde_json::json!({
+        "jsonrpc": "2.0", "id": 7, "method": "terminal.spawn", "params": {"workspace": ROW},
+    }))
+    .unwrap();
+    let held = Gated::Ipc {
+        cmd: crate::ipc::server::IpcCommand::new(request, tx),
+        progress: Default::default(),
+    };
+    app.hold_for_remote_row(held, RowUse::Wait(ROW));
+    let run = remote_attach(&mut app)["run"].as_u64().unwrap();
+
+    app.take_over_saved_row(ROW);
+    app.advance_row_waits();
+    assert_eq!(app.row_state_name(ROW), "connecting");
+    assert!(rx.try_recv().is_err(), "the held request still waits");
+    assert_eq!(
+        crate::request_runs::lookup(run, None).unwrap()["state"],
+        "running"
+    );
+
+    let engine = app
+        .engines
+        .all_sessions()
+        .find(|engine| engine.core_state.has_workspace(ROW))
+        .unwrap()
+        .id;
+    let popup = crate::app::attach_client::pending::PendingMirrorInstall {
+        engine,
+        row: Some(ROW),
+        window: None,
+        view: None,
+        selection: None,
+        activate: true,
+        binding: Some(crate::app::auto_attach::test_rig::binding()),
+        row_token: None,
+        reconnect: None,
+        resync: false,
+        run: None,
+        user: true,
+        manual: None,
+        profile: Some("rv".to_string()),
+        remote_workspace: Some(3),
+    };
+    app.fail_pending_mirror(
+        tasty_remote::pending_connection::ConnectionTicket(1),
+        &popup,
+        "workspace attach rejected: already_attached".to_string(),
+    );
+    app.advance_row_waits();
+    let answered =
+        serde_json::to_value(rx.try_recv().expect("the held request is answered")).unwrap();
+    assert_eq!(
+        answered["error"]["data"]["reason"], "occupied",
+        "{answered}"
+    );
+    let ended = crate::request_runs::lookup(run, None).unwrap();
+    assert_eq!(ended["state"], "failed", "{ended}");
+    assert!(ended.to_string().contains("occupied"), "{ended}");
+}
+
 /// Given 백오프 예약을 기다리는 재연결 중인 행, When 그 행을 쓰는 요청이 오면, Then 요청은 기다리고
 /// 재연결 구간의 시작 시각·시도 수·다음 예약은 그대로다. 사용자의 명시적 연결만 새 구간을 시작한다.
 #[test]

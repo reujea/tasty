@@ -87,23 +87,27 @@ pub(super) fn cancel_mirror_attempts(
     )
 }
 
-/// `reason`은 취소한 시도의 run에 남는다.
+/// `reason`은 취소한 시도의 run에 남는다. 저장된 원격 행이면 첫 연결 시도도 취소한다.
 pub(super) fn cancel_mirror_attempts_for(
     attempts: &mut MirrorAttempts,
     remote: &mut tasty_remote::outbound::Remote,
     local_workspace: u32,
     reason: &str,
 ) -> usize {
+    let mine = |target: &super::pending::PendingMirrorInstall| {
+        target.reconnect.as_ref().map(|(id, _)| *id) == Some(local_workspace)
+            || target.row == Some(local_workspace)
+    };
     let mut cancelled = 0;
     for (token, target) in attempts.endpoint_snapshot() {
-        if target.reconnect.as_ref().map(|(id, _)| *id) == Some(local_workspace) {
+        if mine(&target) {
             target.cancel_run(reason);
             attempts.cancel_endpoint(&token, remote);
             cancelled += 1;
         }
     }
     for (ticket, target) in attempts.connection_snapshot() {
-        if target.reconnect.as_ref().map(|(id, _)| *id) == Some(local_workspace) {
+        if mine(&target) {
             target.cancel_run(reason);
             attempts.cancel_connection(ticket, remote);
             cancelled += 1;

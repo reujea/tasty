@@ -125,31 +125,58 @@ impl App {
                     return Ok(());
                 }
                 if let Some(row) = existing {
-                    self.ensure_row_token(row);
+                    self.take_over_saved_row(row);
                 }
-                let mut target = self
-                    .mirror_install_target(
-                        existing.is_none().then_some(engine),
-                        existing,
-                        None,
-                        true,
-                    )
-                    .map_err(|error| error.to_string())?;
-                target.user = true;
-                target.profile = profile;
-                if let Some(row) = existing {
-                    self.remote.user_disconnected.remove(&row);
-                    self.remote.pending_reactivation.remove(&row);
+                let queued = self.queue_popup_mirror(id, engine, existing, profile, workspace);
+                if let (Err(error), Some(row)) = (&queued, existing) {
+                    self.end_taken_over_row(row, error);
                 }
-                let (port, tunnel) = self.remote.take_browser_connection(id)?;
-                self.state.remote_browsers.remove(&id);
-                self.queue_browser_mirror(target, port, workspace, tunnel)
-                    .map_err(|error| error.to_string())?;
+                queued?;
             }
             BrowserRequest::Cancel { .. } => {}
         }
         Ok(())
     }
+    /// 팝업 연결을 그 창(저장 행이면 그 행)의 mirror 로 설치하도록 넘긴다.
+    fn queue_popup_mirror(
+        &mut self,
+        id: u64,
+        engine: crate::runtime::engine_session::EngineId,
+        existing: Option<u32>,
+        profile: Option<String>,
+        workspace: u32,
+    ) -> Result<(), String> {
+        let mut target = self
+            .mirror_install_target(existing.is_none().then_some(engine), existing, None, true)
+            .map_err(|error| error.to_string())?;
+        target.user = true;
+        target.profile = profile;
+        let (port, tunnel) = self.remote.take_browser_connection(id)?;
+        self.state.remote_browsers.remove(&id);
+        self.queue_browser_mirror(target, port, workspace, tunnel)
+            .map_err(|error| error.to_string())
+    }
+
+    /// 형상 없는 저장 행을 팝업 연결로 붙이기 전에 그 행의 자동 시도를 취소하고 표지를 지운다.
+    /// 두 시도가 같은 원격 workspace 를 두고 겨루면 늦은 쪽이 occupied 로 끝나 연결된 행에 안내가 남는다.
+    /// 넘겨받은 팝업 연결은 그 행의 진행 중 시도다. 연결이 끝날 때까지 행은 연결 중이고, 보류한 요청과
+    /// 합류한 run 은 그 연결의 결과로 끝난다(실패는 `fail_pending_mirror`, 성공은 설치된 세션).
+    pub(crate) fn take_over_saved_row(&mut self, row: u32) {
+        self.abandon_row_attempts(row, "replaced by a connection from the remote popup");
+        self.ensure_row_token(row);
+        self.remote.user_disconnected.remove(&row);
+        self.remote.pending_reactivation.remove(&row);
+        self.remote.active.insert(row);
+    }
+
+    /// 넘겨받은 팝업 연결이 설치 대기열에 들기 전에 실패하면 그 행의 첫 연결 실패로 끝낸다.
+    fn end_taken_over_row(&mut self, row: u32, error: &str) {
+        self.remote.active.remove(&row);
+        if let Some(binding) = self.saved_row_binding(row) {
+            self.on_first_connect_failed(row, &binding, &anyhow::anyhow!(error.to_owned()));
+        }
+    }
+
     fn browser_target_is_current(
         &self,
         id: u64,
