@@ -442,6 +442,44 @@ fn a_lost_result_frame_ends_the_downloads_of_that_connection() {
 }
 
 #[test]
+fn a_lost_result_frame_spares_downloads_that_await_no_answer() {
+    let (_remote, big, content) = fixture(CONFIRM_ABOVE_BYTES + 1);
+    let (_remote2, small, small_content) = fixture(CHUNK_BYTES * 2);
+    let root = tempfile::tempdir().unwrap();
+    let mut client = Client::new(root.path().to_path_buf());
+    let first = epoch();
+    client.sync(&[view(&first, true, true)]);
+    // 확인을 기다리는 다운로드.
+    let asking = client
+        .start(WS, big.to_string_lossy().into_owned())
+        .unwrap();
+    turn(&mut client, &first); // stat
+    assert!(matches!(
+        client.take_events().as_slice(),
+        [Event::Confirm { id, .. }] if *id == asking
+    ));
+    // 첫 조각을 받고 다음 조각을 아직 요청하지 않은 다운로드.
+    let between = client
+        .start(WS, small.to_string_lossy().into_owned())
+        .unwrap();
+    turn(&mut client, &first); // stat
+    turn(&mut client, &first); // 첫 조각
+    client.lost_frames(&first);
+    assert!(client.take_events().is_empty(), "no answer was pending");
+    client.confirm(asking);
+    let events = run_until_idle(&mut client, &first);
+    let mut done: Vec<(u64, Vec<u8>)> = events
+        .iter()
+        .map(|e| match e {
+            Event::Done { id, path, .. } => (*id, std::fs::read(path).unwrap()),
+            other => panic!("expected only Done, got {other:?}"),
+        })
+        .collect();
+    done.sort_by_key(|(id, _)| *id);
+    assert_eq!(done, vec![(asking, content), (between, small_content)]);
+}
+
+#[test]
 fn a_request_without_an_answer_times_out_after_the_reply_limit() {
     let (_remote, path, _) = fixture(CHUNK_BYTES * 3);
     let root = tempfile::tempdir().unwrap();

@@ -304,13 +304,14 @@ impl Client {
         }
     }
 
-    /// 그 연결이 결과 프레임을 잃었다(`StreamControl::Loss`). 그 세대에 묶인 다운로드는 응답을 받지 못할
-    /// 수 있으므로 모두 끝낸다.
+    /// 그 연결이 결과 프레임을 잃었다(`StreamControl::Loss`). 그 세대에서 보낸 요청의 답을 기다리는
+    /// 다운로드만 끝낸다. 잃은 프레임이 그 답일 수 있기 때문이다. 확인을 기다리거나 다음 조각을 아직
+    /// 요청하지 않은 다운로드는 잃을 답이 없으므로 그대로 이어 간다.
     pub(crate) fn lost_frames(&mut self, epoch: &ConnectionEpoch) {
         let ids: Vec<u64> = self
             .downloads
             .iter()
-            .filter(|(_, d)| d.epoch.same(epoch))
+            .filter(|(_, d)| d.epoch.same(epoch) && d.sent.is_some())
             .map(|(id, _)| *id)
             .collect();
         for id in ids {
