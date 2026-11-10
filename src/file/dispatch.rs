@@ -229,6 +229,9 @@ pub(crate) fn open_picker_from_read(
         .then(|| candidates.first().map(|h| h.id.clone()))
         .flatten();
     let target_display = target.display();
+    let opened_in = engine
+        .workspace_at(state.active_workspace_index(engine))
+        .map(|workspace| workspace.id);
     state.dialogs.file_handler_picker = Some(FileHandlerPickerData {
         origin_surface_id: None,
         dispatch_origin,
@@ -249,6 +252,7 @@ pub(crate) fn open_picker_from_read(
             )
         }),
         remote_host: None,
+        opened_in,
     });
     let intent = crate::intent::UiIntent::OpenPopup {
         id: crate::adapters::ui::popup::file_handler_picker::PICKER_POPUP_ID,

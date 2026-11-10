@@ -967,6 +967,7 @@ fn mk_picker_data() -> FileHandlerPickerData {
         ignore_size_limit: false,
         run: None,
         remote_host: None,
+        opened_in: None,
     }
 }
 

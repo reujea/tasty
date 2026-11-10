@@ -330,6 +330,8 @@ pub struct FileHandlerPickerData {
     pub(crate) run: Option<crate::request_runs::RunGuard>,
     /// 대상이 mirror 원격 호스트의 경로이면 그 호스트 글자(비면 `Remote` 낱말). 로컬 대상은 None.
     pub(crate) remote_host: Option<String>,
+    /// picker 를 열 때의 활성 workspace. 저장된 원격 행이 끊기면 그 행에서 연 picker 만 닫는다.
+    pub(crate) opened_in: Option<u32>,
 }
 
 /// picker 의 닫기 사유.

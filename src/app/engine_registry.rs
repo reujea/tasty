@@ -474,6 +474,7 @@ mod tests {
             ignore_size_limit: false,
             run: Some(crate::request_runs::RunGuard::new(run, "picker dropped")),
             remote_host: None,
+            opened_in: None,
         });
         assert!(reg.park(wid(1), state).is_some());
         let ended = crate::request_runs::lookup(run, None).unwrap();

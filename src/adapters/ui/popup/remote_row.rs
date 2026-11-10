@@ -60,7 +60,7 @@ pub(crate) fn wanted(engine: &EngineRead<'_>, ws: &crate::model::Workspace) -> O
     }
 }
 
-/// 활성 workspace 에 맞춰 팝업을 열고 닫는다. 끊긴 행에서 열려 있던 파일 처리기 선택은 닫는다.
+/// 활성 workspace 에 맞춰 팝업을 열고 닫는다. 끊긴 행에서 연 파일 처리기 선택은 닫는다.
 pub(crate) fn sync(
     state: &mut MainViewState,
     engine: &EngineRead<'_>,
@@ -91,9 +91,16 @@ pub(crate) fn sync(
     state.popups.mark_passive(id);
     if id == REMOTE_ROW_SCRIM_POPUP_ID && previous.is_none_or(|(_, row)| row == ws_id) {
         state.dialogs.remote_row_popup.dropped = true;
-        if state
-            .popups
-            .is_open(super::file_handler_picker::PICKER_POPUP_ID)
+        // 다른 workspace 에서 연 picker 는 그 행으로 옮겨 와도 닫지 않는다.
+        let opened_here = state
+            .dialogs
+            .file_handler_picker
+            .as_ref()
+            .is_some_and(|picker| picker.opened_in == Some(ws_id));
+        if opened_here
+            && state
+                .popups
+                .is_open(super::file_handler_picker::PICKER_POPUP_ID)
         {
             // intent-exempt: scrim 이 덮는 같은 프레임에 닫아야 picker 가 scrim 아래에서 입력을 받지 않는다.
             state
@@ -344,7 +351,32 @@ mod tests {
         assert!(!state.popups.is_open(REMOTE_ROW_SCRIM_POPUP_ID));
     }
 
-    /// 끊긴 행에서 열려 있던 파일 처리기 선택은 닫히고 다시 연결돼도 다시 열리지 않는다(Q1-a).
+    /// `opened_in` workspace 에서 연 파일 처리기 선택을 둔다.
+    fn open_picker(state: &mut crate::state::RequestContext, opened_in: u32) {
+        let picker = super::super::file_handler_picker::PICKER_POPUP_ID;
+        state.dialogs.file_handler_picker = Some(crate::state::FileHandlerPickerData {
+            origin_surface_id: None,
+            dispatch_origin: crate::file::dispatch::FileDispatchOrigin::User,
+            target: crate::file::format::FileTarget::new("/tmp/row-picker.txt").into(),
+            target_display: "/tmp/row-picker.txt".to_string(),
+            detector: None,
+            candidates: vec![],
+            candidates_are_fallback: false,
+            recent: vec![],
+            default_handler: None,
+            selected: None,
+            result: None,
+            ignore_size_limit: false,
+            run: None,
+            remote_host: None,
+            opened_in: Some(opened_in),
+        });
+        state.popups.open(picker);
+        assert!(state.popups.is_open(picker));
+    }
+
+    /// Given 저장 행에서 연 파일 처리기 선택, When 그 행이 끊기면, Then 선택은 닫히고 다시 연결돼도
+    /// 다시 열리지 않는다(Q1-a).
     #[test]
     fn a_picker_open_on_the_row_closes_when_it_drops_and_stays_closed() {
         let picker = super::super::file_handler_picker::PICKER_POPUP_ID;
@@ -352,10 +384,7 @@ mod tests {
         let row = saved_row(&mut state, &mut session);
         session.remote.row_states = std::collections::HashMap::from([(row, "connected")]);
         sync(&mut state, &session.read(), &layout(row));
-        state
-            .popups
-            .open_with_scope(picker, PopupScope::Workspace(row));
-        assert!(state.popups.is_open(picker));
+        open_picker(&mut state, row);
 
         session.remote.row_states = std::collections::HashMap::from([(row, "reconnecting")]);
         sync(&mut state, &session.read(), &layout(row));
@@ -364,6 +393,25 @@ mod tests {
         session.remote.row_states = std::collections::HashMap::from([(row, "connected")]);
         sync(&mut state, &session.read(), &layout(row));
         assert!(!state.popups.is_open(picker));
+    }
+
+    /// Given 다른 workspace 에서 연 파일 처리기 선택, When 끊긴 저장 행으로 옮겨 가면, Then 선택은 남는다.
+    #[test]
+    fn a_picker_opened_in_another_workspace_stays_on_the_dropped_row() {
+        let picker = super::super::file_handler_picker::PICKER_POPUP_ID;
+        let (mut state, mut session) = crate::state::tests::test_state();
+        let local = session.read().workspace_at(0).unwrap().id;
+        let row = saved_row(&mut state, &mut session);
+        session.remote.row_states = std::collections::HashMap::from([(row, "disconnected")]);
+        state.set_active_workspace_index(&session.read(), 0);
+        sync(&mut state, &session.read(), &layout(local));
+        open_picker(&mut state, local);
+
+        let last = session.read().workspaces().len() - 1;
+        state.set_active_workspace_index(&session.read(), last);
+        sync(&mut state, &session.read(), &layout(row));
+        assert!(state.popups.is_open(REMOTE_ROW_SCRIM_POPUP_ID));
+        assert!(state.popups.is_open(picker));
     }
 
     /// 빈 workspace(형상 없음)는 scrim 없는 팝업, 끊긴 형상은 scrim 팝업이다.
