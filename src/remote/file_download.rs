@@ -11,16 +11,59 @@ pub(crate) mod client;
 
 use base64::Engine;
 use std::io::{Read, Seek, SeekFrom};
-use std::path::Path;
+use std::path::{Path, PathBuf};
+use std::sync::Weak;
+use std::sync::atomic::{AtomicUsize, Ordering};
 use tasty_ipc::file_download::{
     CHUNK_BYTES, DownloadOp, DownloadOutcome, DownloadRefusal, FileDownloadMsg, FileIdentity,
 };
 use tasty_ipc::stream::{StreamFrame, StreamTag};
 use tasty_ipc::stream_hub::StreamHub;
 
+/// 동시에 파일을 읽는 worker 상한. 응답 없는 마운트에 걸린 worker 는 끝날 때까지 자리를 차지한다.
+const WORKER_CAP: usize = 8;
+static WORKERS: AtomicUsize = AtomicUsize::new(0);
+
+/// worker 자리 하나. 놓으면 자리를 돌려준다.
+struct WorkerPermit;
+
+impl WorkerPermit {
+    fn acquire() -> Option<Self> {
+        WORKERS
+            .fetch_update(Ordering::AcqRel, Ordering::Acquire, |n| {
+                (n < WORKER_CAP).then_some(n + 1)
+            })
+            .ok()
+            .map(|_| Self)
+    }
+}
+
+impl Drop for WorkerPermit {
+    fn drop(&mut self) {
+        WORKERS.fetch_sub(1, Ordering::AcqRel);
+    }
+}
+
+/// 파일을 읽어 결과를 만드는 함수. 시험은 블록되는 가짜를 넣는다.
+type Reader = fn(&Path, &DownloadOp) -> DownloadOutcome;
+
 /// 요청에 답한다. `holds` 는 이 연결이 이 인스턴스의 workspace 를 하나라도 점유했는가다.
 /// 디렉터리 조회와 같이 경로를 점유 workspace 안으로 제한하지 않는다.
+///
+/// 메인 루프에서 부른다. 파일 메타데이터·열기·읽기는 요청마다 worker 스레드에서 하고 결과 프레임만
+/// 허브로 보낸다. 응답 없는 네트워크 마운트에서도 메인 루프는 멈추지 않는다. client 는 다운로드마다
+/// 요청을 하나씩만 보내므로 요청 순서와 응답 대응은 `request_id` 로 그대로 유지된다.
 pub(crate) fn handle(hub: &StreamHub, client_id: u32, holds: bool, msg: &FileDownloadMsg) {
+    handle_with(hub, client_id, holds, msg, answer);
+}
+
+fn handle_with(
+    hub: &StreamHub,
+    client_id: u32,
+    holds: bool,
+    msg: &FileDownloadMsg,
+    reader: Reader,
+) {
     let FileDownloadMsg::FileDownloadRequest {
         request_id,
         path,
@@ -29,21 +72,84 @@ pub(crate) fn handle(hub: &StreamHub, client_id: u32, holds: bool, msg: &FileDow
     else {
         return;
     };
-    let outcome = if holds {
-        answer(Path::new(path), op)
-    } else {
-        refused(DownloadRefusal::NotAttached)
+    let request_id = *request_id;
+    if !holds {
+        reply(
+            hub,
+            client_id,
+            None,
+            request_id,
+            refused(DownloadRefusal::NotAttached),
+        );
+        return;
+    }
+    // 연결이 이미 사라졌으면 답할 곳이 없다.
+    let Some(binding) = hub.client_binding(client_id) else {
+        return;
     };
+    let Some(permit) = WorkerPermit::acquire() else {
+        tracing::warn!("file download workers are all busy; refusing a request");
+        reply(
+            hub,
+            client_id,
+            Some(&binding),
+            request_id,
+            refused(DownloadRefusal::Io),
+        );
+        return;
+    };
+    let worker_hub = hub.clone();
+    let worker_binding = binding.clone();
+    let path = PathBuf::from(path);
+    let op = op.clone();
+    let spawned = std::thread::Builder::new()
+        .name("file-download".into())
+        .spawn(move || {
+            let _permit = permit;
+            let outcome = reader(&path, &op);
+            reply(
+                &worker_hub,
+                client_id,
+                Some(&worker_binding),
+                request_id,
+                outcome,
+            );
+        });
+    // 이유: worker 는 join 하지 않는다. 걸린 마운트에서 끝나지 않을 수 있고, 끝나면 자리를 스스로 돌려준다.
+    if let Err(error) = spawned {
+        tracing::warn!(%error, "file download worker did not start");
+        reply(
+            hub,
+            client_id,
+            Some(&binding),
+            request_id,
+            refused(DownloadRefusal::Io),
+        );
+    }
+}
+
+/// 결과 프레임 하나를 보낸다. `binding` 이 있으면 그 연결이 그대로일 때만 보낸다.
+fn reply(
+    hub: &StreamHub,
+    client_id: u32,
+    binding: Option<&Weak<()>>,
+    request_id: u64,
+    outcome: DownloadOutcome,
+) {
     let reply = FileDownloadMsg::FileDownloadResult {
-        request_id: *request_id,
+        request_id,
         outcome,
     };
     match serde_json::to_vec(&reply) {
         Ok(bytes) => {
+            let frame = StreamFrame::new(StreamTag::Control, bytes);
             // 결과를 돌려받지 않는다. 허브가 프레임을 버리면(Dropped) client 는 Loss 알림으로 그 연결의
             // 다운로드를 끝내고, 알림도 받지 못하면 요청별 응답 상한(REPLY_LIMIT)으로 끝낸다. 연결이
-            // 끊기면 연결 세대가 바뀌어 끝난다.
-            let _ = hub.push(client_id, StreamFrame::new(StreamTag::Control, bytes));
+            // 끊기거나 바뀌면 client 의 연결 세대가 바뀌어 끝난다.
+            let _ = match binding {
+                Some(binding) => hub.push_bound(client_id, binding, frame),
+                None => hub.push(client_id, frame),
+            };
         }
         Err(error) => tracing::warn!("file download reply did not serialize: {error}"),
     }

@@ -177,3 +177,97 @@ fn a_file_changed_or_replaced_after_stat_is_refused() {
         }
     );
 }
+
+mod worker {
+    use super::super::{handle, handle_with};
+    use std::sync::atomic::{AtomicBool, Ordering};
+    use std::time::{Duration, Instant};
+    use tasty_ipc::file_download::{DownloadOp, DownloadOutcome, DownloadRefusal, FileDownloadMsg};
+    use tasty_ipc::stream_hub::StreamHub;
+
+    static ENTERED: AtomicBool = AtomicBool::new(false);
+    static RELEASE: AtomicBool = AtomicBool::new(false);
+
+    /// 응답 없는 마운트처럼 풀어 줄 때까지 돌아오지 않는 읽기.
+    fn hanging_reader(_: &std::path::Path, _: &DownloadOp) -> DownloadOutcome {
+        ENTERED.store(true, Ordering::Release);
+        while !RELEASE.load(Ordering::Acquire) {
+            std::thread::sleep(Duration::from_millis(5));
+        }
+        DownloadOutcome::Refused {
+            reason: DownloadRefusal::NotFound,
+        }
+    }
+
+    fn request(request_id: u64, path: &str) -> FileDownloadMsg {
+        FileDownloadMsg::FileDownloadRequest {
+            request_id,
+            path: path.into(),
+            op: DownloadOp::Stat,
+        }
+    }
+
+    fn result_of(frame: tasty_ipc::stream::StreamFrame) -> (u64, DownloadOutcome) {
+        match serde_json::from_slice(&frame.payload).unwrap() {
+            FileDownloadMsg::FileDownloadResult {
+                request_id,
+                outcome,
+            } => (request_id, outcome),
+            other => panic!("unexpected {other:?}"),
+        }
+    }
+
+    #[test]
+    fn a_hanging_read_does_not_block_the_caller_and_answers_when_it_returns() {
+        let hub = StreamHub::new();
+        let rx = hub.register(41);
+        let begun = Instant::now();
+        handle_with(&hub, 41, true, &request(7, "/hung/mount/f"), hanging_reader);
+        // 처리 함수는 읽기를 기다리지 않고 돌아온다(메인 루프가 다음 일을 한다).
+        let waited = begun.elapsed();
+        let deadline = Instant::now() + Duration::from_secs(5);
+        while !ENTERED.load(Ordering::Acquire) && Instant::now() < deadline {
+            std::thread::sleep(Duration::from_millis(5));
+        }
+        assert!(ENTERED.load(Ordering::Acquire), "the worker never started");
+        assert!(waited < Duration::from_secs(1), "handle waited {waited:?}");
+        assert!(rx.try_recv().is_err(), "no answer while the read hangs");
+        RELEASE.store(true, Ordering::Release);
+        let frame = rx.recv_timeout(Duration::from_secs(5)).unwrap();
+        assert_eq!(
+            result_of(frame),
+            (
+                7,
+                DownloadOutcome::Refused {
+                    reason: DownloadRefusal::NotFound
+                }
+            )
+        );
+    }
+
+    #[test]
+    fn a_real_read_answers_through_the_worker_and_a_non_holder_is_refused_at_once() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("f.txt");
+        std::fs::write(&path, b"abc").unwrap();
+        let hub = StreamHub::new();
+        let rx = hub.register(42);
+        handle(&hub, 42, true, &request(1, &path.to_string_lossy()));
+        let (id, outcome) = result_of(rx.recv_timeout(Duration::from_secs(5)).unwrap());
+        assert_eq!(id, 1);
+        assert!(
+            matches!(outcome, DownloadOutcome::Stat { ref name, .. } if name == "f.txt"),
+            "{outcome:?}"
+        );
+        handle(&hub, 42, false, &request(2, &path.to_string_lossy()));
+        assert_eq!(
+            result_of(rx.try_recv().expect("the refusal is sent without a worker")),
+            (
+                2,
+                DownloadOutcome::Refused {
+                    reason: DownloadRefusal::NotAttached
+                }
+            )
+        );
+    }
+}
