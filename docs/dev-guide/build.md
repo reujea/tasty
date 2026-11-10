@@ -393,6 +393,14 @@ cargo install cargo-wix; winget install WiXToolset.WiXToolset   # 1회
 
 `build-windows.ps1`은 MSI 단계에서 `$env:WIX\bin`을 PATH 앞에 붙인다. `wix/main.wxs`는 파일마다 이름을 적어야 하므로, MSI 빌드 전에 `LICENSES/`의 각 파일에 대응하는 `Source`가 있는지 검사한다. 검증 포인트: MSI UpgradeCode 유지(`wix/main.wxs`), 설치→시작 메뉴→제거.
 
+MSI 제거의 사용자 데이터 삭제는 `wix/main.wxs`의 `RemoveTastyUserData`가 맡는다. 이 동작을 실행 시퀀스로 옮기지 않는다.
+
+- 삭제는 `InstallUISequence`의 `ExecuteAction` 뒤에서 실행한다. 화면 없는 제거(`/qn`)와 기본 UI 제거(`/qb`)는 이 시퀀스를 돌지 않고, 실패하거나 취소한 제거는 이 동작까지 오지 않으며, 제거를 시작한 사용자의 권한으로 돈다.
+- 체크박스 프로퍼티 `TastyRemoveUserData`는 비공개라 명령줄로 켤 수 없다. 조건에 `REMOVE`를 쓰지 않는다. 마법사의 `Remove` 이벤트는 클라이언트 쪽 `REMOVE`를 채우지 않아 조건이 거짓이 된다. 서버 쪽 `UILevel`도 전체 UI에서 2라 쓸 수 없다.
+- 설정 앱은 Windows Installer 항목의 제거 버튼에 `msiexec /qb /x {제품 코드}`를 실행한다. 기본 UI는 UI 시퀀스를 돌지 않으므로 이 버튼은 데이터를 남긴다. 체크박스는 수정(`ModifyPath`, `MsiExec.exe /I{제품 코드}`)의 Remove와 `.msi` 재실행에서 나온다. Windows 기본 제거와 수정을 그대로 두기 위해 기본 항목을 `ARPSYSTEMCOMPONENT`로 숨기거나 `NoModify`, `NoRepair`, 자체 `UninstallString`으로 바꾸지 않는다. `msiexec /x {제품 코드} /qf`로 직접 실행하면 WixUI가 `ResumeDlg`를 내므로 그 조건을 좁혀 체크박스 화면을 대신 띄운다.
+- 화면 없는 작업(세션 0)에서는 `msiexec /i {제품 코드}`도 UI 수준이 3으로 낮아진다. 전체 UI는 콘솔 세션에서 확인한다.
+- `crates/tasty-doc-guards/tests/wix_user_data_removal_needs_checkbox.rs`가 이 구성을 문자열로 검사한다. MSI를 만들어 실행하지는 않는다.
+
 #### Linux
 
 ```bash

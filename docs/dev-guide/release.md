@@ -230,7 +230,7 @@ Windows ARM64 산출물은 x64 Windows 호스트에 두 번째로 등록한 전�
   - 체크섬 파일을 다시 읽어 그 아키텍처의 배포물 전부를 담는지와 각 해시가 맞는지 확인하고, 산출물 명부(이름과 크기)를 출력한다. staging 디렉터리는 `dist\tasty-windows-<arch>`처럼 아키텍처별이라 같은 dist에서 두 아키텍처를 만들어도 서로 덮지 않는다.
 - CI는 `crossplatform-check.yml`의 `check-windows-arm64`가 main push마다 ARM64 타깃 `cargo check`를 실행한다([ci-gates](ci-gates.md)). 테스트 실행과 링크는 포함하지 않는다.
 - 확인 범위: Windows x64 개발 환경에서 두 아키텍처의 GUI ZIP·MSI·헤드리스 ZIP 생성, 본체·번들 plugin의 PE, 고지 세트와 체크섬을 확인했다. 같은 dist에 양쪽 배포물과 두 체크섬 명부가 함께 유지되는 것도 확인했다. 두 아키텍처의 패키징·산출물 검사는 CI의 태그 없는 실행에서도 확인했으며, ARM64 교차 컴파일·링크와 cargo-wix의 MSI 생성·`dark.exe` 추출을 포함한다.
-- 미측정: Windows ARM 기기에서 설치·실행·제거는 확인하지 않았다. MSI 파일 추출·내용 검사는 실기기의 설치와 custom action 실행 검증을 대신하지 않는다. 실제 Release 자산 업로드도 별도 릴리스 단계의 확인 대상이다. 검증 환경이 없다는 이유로 ARM64 산출물을 제외하지 않는다.
+- 미측정: Windows ARM 기기에서 설치·실행·제거는 확인하지 않았다. MSI 파일 추출·내용 검사는 실기기의 설치와 custom action 실행 검증을 대신하지 않는다. 제거 체크박스를 켠 삭제는 x64 Windows 11에서 시험 계정으로 확인했고, 제거 절차는 [build](build.md)의 Windows MSI 절에 있다. 실제 Release 자산 업로드도 별도 릴리스 단계의 확인 대상이다. 검증 환경이 없다는 이유로 ARM64 산출물을 제외하지 않는다.
 - 실제 릴리스 뒤에는 받은 산출물의 PE 머신 타입을 `dumpbin /headers` 등으로 다시 확인한다. ARM64 Windows 기기를 쓸 수 있으면 설치·실행·제거를 확인하고, 없으면 미측정으로 기록한다.
 
 ### CI PATH 매핑
