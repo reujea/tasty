@@ -69,6 +69,8 @@ pub(crate) struct RemoteState {
         std::collections::HashMap<(u32, u32), super::subscription::Subscription>,
     /// 저장된 원격 행의 연결 토큰. 행을 닫거나 사용자가 끊으면 바꿔 진행 중인 연결을 낡게 만든다.
     pub(crate) row_tokens: std::collections::HashMap<u32, std::sync::Arc<()>>,
+    /// 저장된 원격 행의 연결 상태 이름. App이 매 회차 채우고 `workspace.list`가 읽는다.
+    pub(crate) row_states: std::collections::HashMap<u32, &'static str>,
     pub(crate) presentation: crate::model::StructurePresentationSnapshot,
     notifier: Option<tasty_ipc::stream_hub::StreamHub>,
     structure_changed: std::collections::BTreeSet<u32>,
@@ -179,6 +181,7 @@ impl RemoteState {
             html_http: Default::default(),
             attach_subscriptions: Default::default(),
             row_tokens: Default::default(),
+            row_states: Default::default(),
             presentation: Default::default(),
             notifier: None,
             structure_changed: Default::default(),

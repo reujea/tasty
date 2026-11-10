@@ -118,6 +118,7 @@ impl App {
 
         // 게이트 결과를 기다리던 요청은 실행하지 않고 종료 오류로 답한다. IPC 서버가 닫히기 전이다.
         self.gate_queue.reject_all(self.plugin_manager.as_mut());
+        self.row_waits.reject_all(self.plugin_manager.as_mut());
         for session in self.engines.all_sessions_mut() {
             // Begin stop now; the retained session receipt is observed by the shutdown phase.
             let _ = session.poll_runner_stop(&self.services.tasks);
@@ -215,6 +216,7 @@ impl App {
     /// 일반 핸들러를 실행하지 않고 종료 오류를 돌려줘 정리된 상태를 건드리지 않는다.
     fn reject_pending_ipc(&mut self) {
         self.gate_queue.reject_all(self.plugin_manager.as_mut());
+        self.row_waits.reject_all(self.plugin_manager.as_mut());
         let Some(ipc) = self.hub.ipc_server.as_ref() else {
             return;
         };

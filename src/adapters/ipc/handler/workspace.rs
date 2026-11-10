@@ -34,6 +34,21 @@ pub(crate) fn remote_row_to_json(
     }
 }
 
+/// 저장된 원격 행의 연결 상태. 저장된 행이 아니면 null이다.
+fn remote_state(
+    engine: &crate::runtime::engine_access::EngineRef<'_>,
+    ws: &crate::model::Workspace,
+) -> serde_json::Value {
+    if ws.remote_row.is_none() {
+        return serde_json::Value::Null;
+    }
+    // 헤드리스는 원격 행을 연결하지 않아 상태가 실리지 않는다.
+    match engine.remote.row_states.get(&ws.id) {
+        Some(state) => json!(state),
+        None => json!("not_connected"),
+    }
+}
+
 pub fn handle_workspace_list(
     window: &dyn crate::ipc::window_port::IpcWindow,
     engine: &crate::runtime::engine_access::EngineRef<'_>,
@@ -55,6 +70,7 @@ pub fn handle_workspace_list(
                 "busy_count": engine.read().busy_count(&sids),
                 // 저장된 원격 행의 연결 대상. 에이전트 mirror는 mirror만 true다.
                 "remote_row": remote_row_to_json(&ws.remote_row),
+                "remote_state": remote_state(engine, ws),
                 "mirror": ws.mirror,
                 "category": ws.category,
                 "category_name": engine.category_name(ws.category),

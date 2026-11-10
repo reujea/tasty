@@ -58,7 +58,12 @@ impl App {
             .sessions
             .iter()
             .find(|session| session.state.local_workspace == workspace_id)
-            .map(|session| session.state.remote_workspace);
+            .map(|session| session.state.remote_workspace)
+            // 아직 붙지 않은 저장된 원격 행도 끊을 수 있다. 바뀌는 것은 진행 중인 시도뿐이다.
+            .or_else(|| {
+                self.saved_row_binding(workspace_id)
+                    .map(|binding| binding.remote_workspace)
+            });
         let response = match remote_workspace {
             Some(remote_workspace) if self.disconnect_mirror_workspace(workspace_id) => {
                 host_ipc::protocol::JsonRpcResponse::success(
@@ -121,6 +126,17 @@ impl App {
             )
         {
             send_response(&cmd.response_tx, refused);
+            return;
+        }
+        // 같은 연결 대상의 저장된 원격 행이 있으면 새 mirror를 만들지 않고 그 행을 연결한다.
+        if let RemoteAttachTarget::Existing(remote_ws) = &target
+            && let Some(profile) = conn.profile.as_deref()
+            && let Some(row) = self.saved_row_for_binding(&crate::model::RemoteBinding {
+                profile: profile.to_owned(),
+                remote_workspace: *remote_ws,
+            })
+        {
+            self.attach_to_saved_row(cmd, caller, row, *remote_ws);
             return;
         }
         let attempt = match self.remote.begin_attempt(None, None) {

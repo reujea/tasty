@@ -98,6 +98,19 @@ impl App {
                 return;
             }
         };
+        #[cfg(feature = "gui")]
+        {
+            let decision = self.remote_row_use(&request);
+            if decision != crate::app::auto_attach::row_use::RowUse::Pass {
+                let gated = crate::app::request_gate::Gated::Plugin {
+                    call,
+                    request,
+                    progress,
+                };
+                self.hold_for_remote_row(gated, decision);
+                return;
+            }
+        }
         if call.method == tasty_plugin_protocol::METHOD_HOST_SHARED_BUFFER_CREATE {
             self.handle_ipc_shared_buffer_create(&call);
             return;

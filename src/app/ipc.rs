@@ -116,6 +116,8 @@ impl App {
         if self.advance_request_gates(&mut tally) {
             return true;
         }
+        #[cfg(feature = "gui")]
+        self.advance_row_waits();
         while let Some(cmd) = round.next(self.hub.ipc_server.as_deref()) {
             if !self.gate_queue.is_empty() {
                 self.gate_queue.park(
@@ -184,7 +186,7 @@ impl App {
 
     /// 명령을 각 단계에 전달하고 처리·재집계·종료 여부를 반환한다. 일부 응답은 비동기로 이어진다.
     /// 게이트가 writer 결과를 기다리면 명령을 보관하고, 결과가 나오면 같은 함수로 다시 들어온다.
-    fn ipc_dispatch_command(
+    pub(crate) fn ipc_dispatch_command(
         &mut self,
         mut cmd: crate::ipc::server::IpcCommand,
         mut progress: crate::ipc::handler::gate::GateProgress,
@@ -222,6 +224,15 @@ impl App {
             }
             Step::Pending => return self.park_ipc(cmd, progress, resumed),
         };
+        #[cfg(feature = "gui")]
+        {
+            let decision = self.remote_row_use(&cmd.request);
+            if decision != crate::app::auto_attach::row_use::RowUse::Pass {
+                let gated = crate::app::request_gate::Gated::Ipc { cmd, progress };
+                self.hold_for_remote_row(gated, decision);
+                return IpcStep::Handled;
+            }
+        }
         if self.journal.admit_ipc(&cmd, &caller) {
             return IpcStep::Handled;
         }

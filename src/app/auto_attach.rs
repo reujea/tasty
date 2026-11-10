@@ -5,6 +5,7 @@
 //! docs/dev-guide/attach-behavior.md#gui-자동-재연결-스코프 참조.
 
 mod notice;
+pub(crate) mod row_use;
 
 use std::time::Instant;
 
@@ -82,6 +83,7 @@ impl App {
         self.maybe_trigger_reconnect(current_ws_id, prev_active);
         self.drain_auto_attach_results();
         self.sync_mapping_notices();
+        self.publish_row_states();
     }
 
     /// 타이머만 등록·해제한다. 중단 상태를 담은 재연결 슬롯은 보존한다.
@@ -106,6 +108,14 @@ impl App {
                 }
             })
             .collect();
+        let mut wakeups = wakeups;
+        // 연결을 기다리는 요청의 상한에도 깨워 시간 초과로 답한다.
+        for (row, deadline) in self.row_waits.deadlines() {
+            match wakeups.iter_mut().find(|(r, _)| *r == row) {
+                Some((_, at)) => *at = (*at).min(deadline),
+                None => wakeups.push((row, deadline)),
+            }
+        }
         crate::app::timers::sync_reconnect_timers(&mut self.timers, &wakeups, now);
     }
 
@@ -174,19 +184,33 @@ impl App {
     /// 형상이 남은 끊긴 행은 새 재연결 구간을 시작하고, 아직 붙지 않은 행은 첫 연결을 한다.
     /// 사용자의 명시적 연결(팝업·메뉴)도 이 함수를 쓰며 그때는 사용자가 끊은 표지를 먼저 지운다.
     pub(crate) fn connect_saved_row(&mut self, row: u32, from_user: bool) {
+        self.connect_saved_row_with_run(row, from_user, None);
+    }
+
+    /// `run`이 있으면 이 연결의 결과를 그 run에 남긴다(`remote.attach`가 기존 행에 합류할 때).
+    pub(crate) fn connect_saved_row_with_run(
+        &mut self,
+        row: u32,
+        from_user: bool,
+        run: Option<u64>,
+    ) {
         if self.remote.active.contains(&row) {
+            run.into_iter().for_each(crate::request_runs::forget);
             return;
         }
         let Some(binding) = self.saved_row_binding(row) else {
+            run.into_iter().for_each(crate::request_runs::forget);
             return;
         };
         self.ensure_row_token(row);
         self.remote.pending_reactivation.remove(&row);
         match self.row_session_phase(row) {
-            Some(SessionState::Connected) => {}
+            Some(SessionState::Connected) => {
+                run.into_iter().for_each(crate::request_runs::forget);
+            }
             Some(SessionState::Reconnecting) => {
                 self.remote.reconnect.remove(&row);
-                self.trigger_reconnect_row(row, None, None);
+                self.trigger_reconnect_row(row, None, None, run);
             }
             Some(SessionState::Disconnected) => {
                 if let Some(session) = self
@@ -198,9 +222,9 @@ impl App {
                     session.state.phase = SessionState::Reconnecting;
                 }
                 self.remote.reconnect.insert(row, ReconnectSlot::new());
-                self.trigger_reconnect_row(row, None, None);
+                self.trigger_reconnect_row(row, None, None, run);
             }
-            None => self.start_first_connect(row, binding, from_user),
+            None => self.start_first_connect(row, binding, from_user, run),
         }
     }
 
@@ -217,17 +241,25 @@ impl App {
         }
     }
 
-    fn start_first_connect(&mut self, row: u32, binding: RemoteBinding, from_user: bool) {
+    fn start_first_connect(
+        &mut self,
+        row: u32,
+        binding: RemoteBinding,
+        from_user: bool,
+        run: Option<u64>,
+    ) {
         let attempt = match self.remote.begin_attempt(Some(row), Some(binding.clone())) {
             Ok(attempt) => attempt,
             Err(error) => {
+                run.into_iter().for_each(crate::request_runs::forget);
                 tracing::warn!("{error}");
                 return;
             }
         };
         let endpoint_target = match self.mirror_install_target(None, Some(row), None, false) {
-            Ok(target) => target,
+            Ok(target) => target.with_run(run),
             Err(error) => {
+                run.into_iter().for_each(crate::request_runs::forget);
                 self.remote.finish_attempt(&attempt);
                 tracing::warn!("remote target unavailable: {error}");
                 return;
@@ -276,7 +308,7 @@ impl App {
                 self.notify_reconnect_giveup(row);
                 continue;
             }
-            self.trigger_reconnect_row(row, current_ws_id, prev_active);
+            self.trigger_reconnect_row(row, current_ws_id, prev_active, None);
         }
     }
 
@@ -286,24 +318,31 @@ impl App {
         row: u32,
         current_ws_id: Option<u32>,
         prev_active: Option<u32>,
+        run: Option<u64>,
     ) {
+        // 아래에서 시도를 시작하지 않고 끝나면 run을 결과 없이 둔다.
+        let forget = |run: Option<u64>| run.into_iter().for_each(crate::request_runs::forget);
         if self.remote.active.contains(&row) {
+            forget(run);
             return;
         }
         let edge_now = current_ws_id.is_none()
             || (current_ws_id == Some(row) && is_reactivation_edge(current_ws_id, prev_active));
         let due = reconnect_due(self.remote.reconnect.get(&row), Instant::now());
         if !edge_now && !due {
+            forget(run);
             return;
         }
         // 대기 중 행이 닫혔을 수 있으므로 다시 읽는다.
         let Some(binding) = self.saved_row_binding(row) else {
+            forget(run);
             forget_row(&mut self.remote, row);
             return;
         };
         let attempt = match self.remote.begin_attempt(Some(row), Some(binding.clone())) {
             Ok(attempt) => attempt,
             Err(error) => {
+                forget(run);
                 tracing::warn!("{error}");
                 return;
             }
@@ -314,8 +353,9 @@ impl App {
             .iter()
             .position(|session| session.state.saved_row == Some(row));
         let endpoint_target = match self.mirror_install_target(None, Some(row), index, false) {
-            Ok(target) => target,
+            Ok(target) => target.with_run(run),
             Err(error) => {
+                forget(run);
                 self.remote.finish_attempt(&attempt);
                 tracing::warn!("remote reconnect target unavailable: {error}");
                 return;

@@ -184,6 +184,9 @@ pub(crate) struct App {
     pub(crate) publication_inputs: publication_input::PublicationInputs,
     /// 요청 게이트의 저장 결과를 기다리는 IPC 명령·plugin 호출. 접수 순서대로 하나씩 진행한다.
     pub(crate) gate_queue: request_gate::GateQueue,
+    /// 연결되지 않은 저장된 원격 행을 쓰려는 요청. 연결되거나 상한이 지나면 진행한다.
+    #[cfg(feature = "gui")]
+    pub(crate) row_waits: auto_attach::row_use::RowWaits,
     pub(crate) services: AppServices,
     pub(crate) state: state::AppState,
     pub(crate) hub: Hub,
@@ -389,6 +392,8 @@ impl App {
             }),
             publication_inputs: Default::default(),
             gate_queue: Default::default(),
+            #[cfg(feature = "gui")]
+            row_waits: Default::default(),
             services: crate::boot::wiring::build_production_core(memory, {
                 let proxy = proxy.clone();
                 Arc::new(move || {
@@ -492,6 +497,8 @@ impl App {
             preset_io: Default::default(),
             publication_inputs: Default::default(),
             gate_queue: Default::default(),
+            #[cfg(feature = "gui")]
+            row_waits: Default::default(),
             services: crate::boot::wiring::build_production_core_headless(memory, journal_wake)?
                 .with_journal_metrics(journal_metrics),
             state: state::AppState::default(),
