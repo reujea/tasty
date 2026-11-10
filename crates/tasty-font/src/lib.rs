@@ -1150,36 +1150,29 @@ mod tests {
     }
 
     /// 지정 파일이 없으면 빠진 글자는 플랫폼 대체 순서(로케일에 따른 한자 자형 선택 포함) 그대로
-    /// 고른다. 플랫폼 목록만 쓴 같은 DB 와 결과가 같아야 한다.
+    /// 고른다. 같은 원본 DB 에 같은 묶음 자산을 넣은 두 구성에서 대체 구현만 바꿔 비교한다. 시스템
+    /// 글꼴을 읽은 DB 와 빈 DB 로 각각 재므로 시스템 글꼴이 없는 환경도 이 시험 안에서 지난다.
     #[test]
     fn without_a_custom_file_missing_glyphs_follow_the_platform_order() {
-        let family = "Tasty No Such Family";
-        let mut ours = FontConfig::new(14.0, family);
-        let (locale, db) = FontSystem::new().into_locale_and_db();
-        let mut platform = FontConfig {
-            font_system: FontSystem::new_with_locale_and_db_and_fallback(
-                locale,
-                db,
-                cosmic_text::PlatformFallback,
-            ),
-            swash_cache: SwashCache::new(),
-            metrics: FontMetrics {
-                cell_width: ours.metrics.cell_width,
-                cell_height: ours.metrics.cell_height,
-                font_size: ours.metrics.font_size,
-                baseline: ours.metrics.baseline,
-            },
-            font_family: ours.font_family.clone(),
-            request: ours.request().clone(),
-            custom_faces: Vec::new(),
-            bundled_faces: Vec::new(),
-        };
-        for text in ["A", "漢", "한", "あ"] {
-            assert_eq!(
-                drawn_family(&mut ours, text),
-                drawn_family(&mut platform, text),
-                "{text}"
+        let request = FontRequest::new(PhysicalPx(14.0), "Tasty No Such Family");
+        let (locale, system) = FontSystem::new().into_locale_and_db();
+        let empty = cosmic_text::fontdb::Database::new();
+        for (label, db) in [("system", system), ("empty", empty)] {
+            let mut ours = FontConfig::with_db(
+                locale.clone(),
+                db.clone(),
+                fallback::TerminalFallback::new(),
+                &request,
             );
+            let mut platform =
+                FontConfig::with_db(locale.clone(), db, cosmic_text::PlatformFallback, &request);
+            for text in ["A", "漢", "한", "あ"] {
+                assert_eq!(
+                    drawn_face(&mut ours, text, false),
+                    drawn_face(&mut platform, text, false),
+                    "{label} {text}"
+                );
+            }
         }
     }
 
