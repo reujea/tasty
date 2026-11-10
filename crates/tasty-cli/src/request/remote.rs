@@ -139,4 +139,12 @@ mod tests {
         ]);
         assert_eq!(method, "attach.into_gui");
     }
+
+    /// 연결 끊기 대상은 mirror 의 로컬 workspace id 다. 원격 id 와 섞지 않도록 이름을 붙여 보낸다.
+    #[test]
+    fn disconnect_sends_the_local_mirror_workspace_id() {
+        let (method, params) = sent(&["tasty", "remote", "disconnect", "--workspace", "7"]);
+        assert_eq!(method, "remote.disconnect");
+        assert_eq!(params, json!({ "workspace_id": 7 }));
+    }
 }

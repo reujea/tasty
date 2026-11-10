@@ -655,7 +655,8 @@ client 가 mirror 를 걷어내면 원격에 `Detach` 를 보내 원격 점유(h
   - **anchor 없는 세션(임시 mirror, IPC `remote.attach` 등)**: 기존과 동일하게 세션 제거 + `cleanup_mirror_workspace(sess, from_disconnect=true)`. 그 mirror 가 창의 유일한 워크스페이스였으면 정리 뒤 기본 터미널 워크스페이스를 다시 만든다(`MainViewState::recreate_workspace_if_empty`) — 창을 닫지도, 워크스페이스 0 개로 남기지도 않는다(이 문서).
   - 이미 `Reconnecting` 상태인 세션(재연결 시도 자체가 실패해 다시 disconnected 로 관측되는 경우)은 이 분기에 다시 들어오지 않는다 — `disconnected && state == Connected` 조건이라 진입 시 이미 걸러진다.
 - **로컬발 종료(사용자 연결 끊기)**: mirror 카드의 **워크스페이스 연결 끊기**가 `Intent::DisconnectMirror`로
-  `App::disconnect_mirror_workspace`(`attach_client/workspace_close.rs`)를 부른다. `Connected`와 `Reconnecting`
+  `App::disconnect_mirror_workspace`(`attach_client/workspace_close.rs`)를 부른다. 에이전트용 IPC `remote.disconnect`
+  (`app/ipc/app_methods/remote.rs`, CLI `tasty remote disconnect`)도 같은 함수를 부른다. `Connected`와 `Reconnecting`
   모두 같은 경로다. 먼저 `cancel_mirror_attempts`가 `reconnect`가 그 mirror를 가리키는 endpoint·connection 시도를
   취소하고(run은 `cancelled`), 세션을 vec에서 뺀 뒤 `end_mirror_locally`가 `cleanup_mirror_workspace(.., false)`로
   정리하고 transport를 drop해 socket·worker·소유 터널을 retirement에 넘긴다. anchor는 `pending_reactivation`에 다시

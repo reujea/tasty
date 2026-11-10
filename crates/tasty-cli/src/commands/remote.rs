@@ -199,6 +199,21 @@ pub enum RemoteCommands {
     /// until the instance exits. Other connection failures are not listed.
     /// Read-only.
     Refusals,
+    /// Detach a mirror from the local GUI and leave the remote workspace running.
+    ///
+    /// Does what the mirror card's "Disconnect Workspace" menu item does: the
+    /// local mirror workspace, its attach session, and its reconnect attempts
+    /// are cleared, while the remote workspace and its processes keep running.
+    /// Attach again later with `tasty remote attach --into-gui --workspace
+    /// <remote id>`. The reply carries that remote id. Fails if the workspace
+    /// is not a mirror with an attach session. Use `tasty close surface` only
+    /// when the remote workspace should close too.
+    Disconnect {
+        /// Local id of the mirror workspace (the `[mirror]` entry in
+        /// `tasty list workspaces`), not the remote id.
+        #[arg(long)]
+        workspace: u32,
+    },
 }
 
 impl RemoteCommands {

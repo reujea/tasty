@@ -42,6 +42,42 @@ impl App {
         );
     }
 
+    /// GUI의 "워크스페이스 연결 끊기"와 같다. 이쪽 mirror·세션·재연결 시도만 정리하고
+    /// 원격 workspace와 그 프로세스는 남긴다. 같은 원격 workspace에 다시 attach할 수 있다.
+    pub(super) fn ipc_dispatch_remote_disconnect(&mut self, cmd: &IpcCommand) {
+        let rpc_id = cmd.request.id.clone().unwrap_or(serde_json::Value::Null);
+        let workspace_id = match params::require_u32(&cmd.request.params, "workspace_id", &rpc_id) {
+            Ok(id) => id,
+            Err(response) => {
+                send_response(&cmd.response_tx, response);
+                return;
+            }
+        };
+        let remote_workspace = self
+            .remote
+            .sessions
+            .iter()
+            .find(|session| session.state.local_workspace == workspace_id)
+            .map(|session| session.state.remote_workspace);
+        let response = match remote_workspace {
+            Some(remote_workspace) if self.disconnect_mirror_workspace(workspace_id) => {
+                host_ipc::protocol::JsonRpcResponse::success(
+                    rpc_id,
+                    serde_json::json!({
+                        "disconnected": true,
+                        "workspace_id": workspace_id,
+                        "remote_workspace": remote_workspace,
+                    }),
+                )
+            }
+            _ => host_ipc::protocol::JsonRpcResponse::invalid_params(
+                rpc_id,
+                format!("workspace {workspace_id} is not a mirror with an attach session"),
+            ),
+        };
+        send_response(&cmd.response_tx, response);
+    }
+
     /// mirror를 만들되 로컬·원격 포커스는 옮기지 않는다.
     /// 기존 workspace는 attaching으로 즉시 응답한다. 새 workspace는 생성 결과 ID를 응답한 뒤
     /// mirror 연결을 이어 가므로 두 경우 모두 응답이 mirror 연결 완료를 뜻하지 않는다.
