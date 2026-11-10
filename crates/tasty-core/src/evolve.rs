@@ -435,6 +435,18 @@ fn move_workspace(
 
 fn close_workspace(m: &mut JournalModel, id: WorkspaceId) -> Result<()> {
     let workspace = remove(&mut m.workspaces, IdKind::Workspace, id)?;
+    // 닫힌 로컬 뒤에 있던 저장 행은 그 앞 로컬 뒤에 남는다. 화면에서도 같은 자리다.
+    let before = m
+        .workspace_order
+        .iter()
+        .position(|w| *w == id)
+        .and_then(|index| index.checked_sub(1))
+        .map(|index| m.workspace_order[index]);
+    for row in m.remote_rows.values_mut() {
+        if row.after == Some(id) {
+            row.after = before;
+        }
+    }
     m.workspace_order.retain(|w| *w != id);
     for pane in workspace.layout.leaves() {
         drop_pane(m, pane)?;

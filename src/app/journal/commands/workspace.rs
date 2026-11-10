@@ -67,7 +67,7 @@ fn update(
         .map(str::to_owned);
     if workspace.mirror {
         // 저장된 원격 행은 이름·설명·카테고리를 journal에도 남긴다. 화면 값은 아래 continuation이 바꾼다.
-        let changes = saved_row(workspace, index)
+        let changes = saved_row(core, &display_order(core), workspace)
             .map(|row| C::SetRemoteRow {
                 id: workspace_id,
                 row: tasty_core::RemoteRow {
@@ -199,11 +199,12 @@ fn reorder(request: &JsonRpcRequest, session: &EngineSession) -> Result<Resolved
                 to_index,
             });
         }
-        // 저장된 원격 행은 새 화면 순서의 위치를 저장한다. 바뀌지 않은 행은 core가 이벤트를 만들지 않는다.
-        changes.extend(core.mirror_workspaces().iter().filter_map(|workspace| {
-            let index = order.iter().position(|id| *id == workspace.id)?;
-            remote_row_command(workspace, index)
-        }));
+        // 저장된 원격 행은 새 화면 순서의 자리를 저장한다. 바뀌지 않은 행은 core가 이벤트를 만들지 않는다.
+        changes.extend(
+            core.mirror_workspaces()
+                .iter()
+                .filter_map(|workspace| remote_row_command(core, &order, workspace)),
+        );
         Some(DisplayContinuation {
             engine: session.id,
             mirrors: core
@@ -232,21 +233,51 @@ fn reorder(request: &JsonRpcRequest, session: &EngineSession) -> Result<Resolved
     })
 }
 
-/// 저장된 원격 행의 현재 값을 저장 명령으로 만든다. `index`는 합친 화면 순서의 위치다.
-pub(super) fn remote_row_command(workspace: &crate::model::Workspace, index: usize) -> Option<C> {
+/// 저장된 원격 행의 현재 값을 저장 명령으로 만든다. 자리는 합친 화면 순서 `order`에서 읽는다.
+pub(super) fn remote_row_command(
+    core: &crate::core::CoreState,
+    order: &[u32],
+    workspace: &crate::model::Workspace,
+) -> Option<C> {
     Some(C::SetRemoteRow {
         id: workspace.id,
-        row: saved_row(workspace, index)?,
+        row: saved_row(core, order, workspace)?,
     })
 }
 
-fn saved_row(workspace: &crate::model::Workspace, index: usize) -> Option<tasty_core::RemoteRow> {
+fn display_order(core: &crate::core::CoreState) -> Vec<u32> {
+    core.workspaces()
+        .iter()
+        .map(|workspace| workspace.id)
+        .collect()
+}
+
+/// 화면 순서에서 행의 자리: 바로 앞 로컬 workspace와, 앞에 있는 저장 행의 수.
+fn row_place(core: &crate::core::CoreState, order: &[u32], id: u32) -> (Option<u32>, usize) {
+    let before = &order[..order.iter().position(|w| *w == id).unwrap_or(order.len())];
+    let local = |w: &u32| core.local_workspaces().iter().any(|l| l.id == *w);
+    let saved = |w: &u32| {
+        core.mirror_workspaces()
+            .iter()
+            .any(|m| m.id == *w && m.remote_row.is_some())
+    };
+    let after = before.iter().rev().find(|w| local(w)).copied();
+    (after, before.iter().filter(|w| saved(w)).count())
+}
+
+fn saved_row(
+    core: &crate::core::CoreState,
+    order: &[u32],
+    workspace: &crate::model::Workspace,
+) -> Option<tasty_core::RemoteRow> {
+    let (after, rank) = row_place(core, order, workspace.id);
     Some(tasty_core::RemoteRow {
         name: workspace.name.clone(),
         subtitle: workspace.subtitle.clone(),
         description: workspace.description.clone(),
         category: workspace.category,
-        index,
+        after,
+        rank,
         binding: workspace.remote_row.clone()?,
     })
 }
@@ -258,7 +289,9 @@ fn remote_row(request: &JsonRpcRequest, session: &EngineSession) -> Resolved {
         vec![C::RemoveRemoteRow { id }]
     } else {
         core.find_workspace_index_for_id(id)
-            .and_then(|index| remote_row_command(core.workspace_at(index)?, index))
+            .and_then(|index| {
+                remote_row_command(core, &display_order(core), core.workspace_at(index)?)
+            })
             .into_iter()
             .collect()
     };

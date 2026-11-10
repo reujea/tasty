@@ -155,13 +155,14 @@ fn a_recreated_split_with_the_same_leaves_rejects_the_old_revision() {
     assert_eq!(model, before);
 }
 
-fn remote_row(index: usize, category: u32) -> RemoteRow {
+fn remote_row(after: Option<u32>, category: u32) -> RemoteRow {
     RemoteRow {
         name: "build".into(),
         subtitle: String::new(),
         description: String::new(),
         category,
-        index,
+        after,
+        rank: 0,
         binding: tasty_model::RemoteBinding {
             profile: "mac".into(),
             remote_workspace: 4,
@@ -177,7 +178,7 @@ fn a_saved_remote_row_is_stored_changed_and_removed_without_touching_local_order
         &mut model,
         &StructuralCommand::SetRemoteRow {
             id: 50,
-            row: remote_row(1, 999),
+            row: remote_row(None, 999),
         },
     );
     assert_eq!(
@@ -189,7 +190,7 @@ fn a_saved_remote_row_is_stored_changed_and_removed_without_touching_local_order
         &mut model,
         &StructuralCommand::SetRemoteRow {
             id: 50,
-            row: remote_row(1, 999),
+            row: remote_row(None, 999),
         },
     );
     assert!(same.events.is_empty(), "an unchanged row emits nothing");
@@ -199,7 +200,7 @@ fn a_saved_remote_row_is_stored_changed_and_removed_without_touching_local_order
             &model,
             &StructuralCommand::SetRemoteRow {
                 id: order[0],
-                row: remote_row(0, 0),
+                row: remote_row(None, 0),
             },
         )
         .is_err(),
@@ -218,7 +219,7 @@ fn deleting_a_category_moves_its_saved_remote_rows_to_normal() {
         &mut model,
         &StructuralCommand::SetRemoteRow {
             id: 50,
-            row: remote_row(0, 1),
+            row: remote_row(None, 1),
         },
     );
     assert_eq!(model.remote_rows[&50].category, 1);
@@ -229,32 +230,84 @@ fn deleting_a_category_moves_its_saved_remote_rows_to_normal() {
     );
 }
 
-#[test]
-fn bootstrap_places_saved_remote_rows_as_bare_mirrors_at_their_index() {
-    let mut model = initial();
+fn structure_only(model: &mut JournalModel) {
     // live projection은 metadata를 따로 싣는다. 구조 비교만 남긴다.
     model
         .workspaces
         .values_mut()
         .for_each(|w| w.metadata.clear());
     model.surfaces.values_mut().for_each(|s| s.metadata.clear());
-    for (id, index) in [(50, 0), (51, 99)] {
-        execute(
-            &mut model,
-            &StructuralCommand::SetRemoteRow {
-                id,
-                row: remote_row(index, 0),
+}
+
+fn set_row(model: &mut JournalModel, id: u32, after: Option<u32>, rank: usize) {
+    execute(
+        model,
+        &StructuralCommand::SetRemoteRow {
+            id,
+            row: RemoteRow {
+                rank,
+                ..remote_row(after, 0)
             },
-        );
-    }
+        },
+    );
+}
+
+fn restored(model: &JournalModel) -> Vec<u32> {
     let mut core = CoreState::new_base();
-    projection::bootstrap::initialize(&mut core, &model).unwrap();
-    let ids: Vec<_> = core.workspaces().into_iter().map(|w| w.id).collect();
+    projection::bootstrap::initialize(&mut core, model).unwrap();
+    core.workspaces().into_iter().map(|w| w.id).collect()
+}
+
+#[test]
+fn bootstrap_places_saved_remote_rows_as_bare_mirrors_after_their_local() {
+    let mut model = initial();
+    structure_only(&mut model);
+    let order = model.workspace_order.clone();
+    set_row(&mut model, 50, None, 0);
+    set_row(&mut model, 51, order.last().copied(), 1);
+    let ids = restored(&model);
     assert_eq!(ids.first(), Some(&50));
     assert_eq!(ids.last(), Some(&51));
+    let mut core = CoreState::new_base();
+    projection::bootstrap::initialize(&mut core, &model).unwrap();
     let row = core.workspace_at(0).unwrap();
     assert!(row.is_saved_remote_row() && row.is_bare());
     assert_eq!(row.remote_row.as_ref().unwrap().profile, "mac");
+}
+
+/// Given 화면 [로컬 A, 저장 R, 로컬 B], When A를 닫고 재시작하면, Then R은 B 앞 맨 앞에 돌아온다.
+#[test]
+fn closing_the_local_before_a_saved_row_keeps_the_row_in_place() {
+    let mut model = initial();
+    structure_only(&mut model);
+    let order = model.workspace_order.clone();
+    assert!(order.len() >= 2, "{order:?}");
+    let (a, b) = (order[0], order[1]);
+    set_row(&mut model, 50, Some(a), 0);
+    assert_eq!(&restored(&model)[..3], &[a, 50, b]);
+
+    let input = batch(
+        model.applied.batch.unwrap() + 1,
+        model.applied.revision.unwrap(),
+        &[DomainEvent::WorkspaceClosed { id: a }],
+    );
+    evolve(&mut model, &input).unwrap();
+    assert_eq!(model.remote_rows[&50].after, None);
+    assert_eq!(&restored(&model)[..2], &[50, b]);
+}
+
+/// Given 화면 [저장 S, 저장 R, 로컬 L](또는 S 자리에 에이전트 mirror), When S를 지우고 재시작하면,
+/// Then R은 L 앞에 돌아온다. 저장 행의 자리는 다른 원격 행의 수에 기대지 않는다.
+#[test]
+fn removing_a_row_before_a_saved_row_keeps_the_row_in_place() {
+    let mut model = initial();
+    structure_only(&mut model);
+    let first = model.workspace_order[0];
+    set_row(&mut model, 50, None, 0);
+    set_row(&mut model, 51, None, 1);
+    assert_eq!(&restored(&model)[..3], &[50, 51, first]);
+    execute(&mut model, &StructuralCommand::RemoveRemoteRow { id: 50 });
+    assert_eq!(&restored(&model)[..2], &[51, first]);
 }
 
 #[test]

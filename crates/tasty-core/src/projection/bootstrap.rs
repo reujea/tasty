@@ -44,15 +44,21 @@ pub fn initialize(core: &mut CoreState, model: &JournalModel) -> Result<()> {
     if live::core_canonical(core) != Canonical::of_journal(model, &SkipData) {
         return Err("bootstrap live projection differs from journal structure".into());
     }
-    // 원격 행은 로컬 구조 비교 대상이 아니므로 비교한 뒤에 넣는다.
+    // 원격 행은 로컬 구조 비교 대상이 아니므로 비교한 뒤에 넣는다. 각 행은 앞 로컬 바로 뒤에,
+    // 같은 앞 로컬을 가진 행끼리는 저장 행 순서대로 놓는다. 앞 로컬이 없으면 맨 앞이다.
+    let slot = |row: &crate::RemoteRow| {
+        row.after
+            .and_then(|after| model.workspace_order.iter().position(|w| *w == after))
+            .map_or(0, |index| index + 1)
+    };
     let mut rows: Vec<_> = model.remote_rows.iter().collect();
-    rows.sort_by_key(|(id, row)| (row.index, **id));
-    for (id, row) in rows {
+    rows.sort_by_key(|(id, row)| (slot(row), row.rank, **id));
+    for (placed, (id, row)) in rows.into_iter().enumerate() {
         let mut workspace = Workspace::new_remote_row(*id, row.name.clone(), row.binding.clone());
         workspace.subtitle = row.subtitle.clone();
         workspace.description = row.description.clone();
         workspace.category = row.category;
-        core.insert_mirror_workspace(row.index, workspace);
+        core.insert_mirror_workspace(slot(row) + placed, workspace);
     }
     core.committed_structure_revision = model.applied.revision;
     Ok(())

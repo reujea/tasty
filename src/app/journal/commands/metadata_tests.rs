@@ -351,7 +351,12 @@ fn saved_remote_rows_store_renames_and_display_moves_but_agent_mirrors_do_not() 
     assert_eq!(rows[0].0, 900);
     assert_eq!(rows[0].1.name, "renamed");
     assert_eq!(rows[0].1.description, "d");
-    assert_eq!(rows[0].1.index, 1, "after the single local workspace");
+    let local = session.core_state.local_workspaces()[0].id;
+    assert_eq!(
+        (rows[0].1.after, rows[0].1.rank),
+        (Some(local), 0),
+        "after the single local workspace"
+    );
     let agent = crate::app::journal::commands::workspace::resolve(&rename(901), &session, "stream")
         .ok()
         .unwrap();
@@ -373,7 +378,7 @@ fn saved_remote_rows_store_renames_and_display_moves_but_agent_mirrors_do_not() 
     .unwrap();
     let rows = saved_row_changes(&moved);
     assert_eq!(rows.len(), 1, "only the saved row is stored");
-    assert_eq!(rows[0].1.index, 0);
+    assert_eq!((rows[0].1.after, rows[0].1.rank), (None, 0), "at the front");
     let current = crate::app::journal::commands::workspace::resolve(
         &request(
             "intent.remote-row",

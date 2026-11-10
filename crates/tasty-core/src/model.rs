@@ -162,8 +162,9 @@ pub struct Workspace {
 }
 
 /// 사용자가 GUI로 붙인 원격 워크스페이스의 사이드바 행. 내용(탭·pane·surface)은 저장하지 않는다.
-/// id는 그 행의 로컬 workspace id다. 로컬 workspace 순서와 따로 보관하며 `index`는 로컬과 원격을
-/// 합친 사이드바 표시 순서에서의 자리다.
+/// id는 그 행의 로컬 workspace id다. 로컬 workspace 순서와 따로 보관하고, 자리는 바로 앞 로컬
+/// workspace(`after`)와 저장 행 사이의 순서(`rank`)로 둔다. 다른 저장 행·에이전트 mirror가 생기거나
+/// 없어져도 자리가 밀리지 않는다.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RemoteRow {
     pub name: String,
@@ -172,7 +173,12 @@ pub struct RemoteRow {
     #[serde(default)]
     pub description: String,
     pub category: WorkspaceCategoryId,
-    pub index: usize,
+    /// 사이드바에서 바로 앞에 있는 로컬 workspace. 없으면 맨 앞이다.
+    #[serde(default)]
+    pub after: Option<WorkspaceId>,
+    /// 사이드바의 저장 행 가운데 몇 번째인지. 같은 `after`를 가진 행 사이의 순서다.
+    #[serde(default)]
+    pub rank: usize,
     pub binding: RemoteBinding,
 }
 

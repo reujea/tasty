@@ -167,7 +167,8 @@ pub fn scenario() -> Vec<Vec<DomainEvent>> {
                     subtitle: String::new(),
                     description: String::new(),
                     category: 0,
-                    index: 1,
+                    after: Some(1),
+                    rank: 0,
                     binding: tasty_model::RemoteBinding {
                         profile: "box".to_owned(),
                         remote_workspace: 4,
