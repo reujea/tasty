@@ -522,14 +522,14 @@ surface 는 트리에선 `RemoteSurface` marker. 네이티브 WebView 의 naviga
   숨겨지거나(오버레이 모드가 숨김일 때다. 투명 모드에서는 페이지 위에 팝업을 합성하고, 불투명 모드에서는 페이지를 보인 채 팝업 상자만
   가린다. OS 별 모드는 [WebView §egui 오버레이와 native WebView](../../design/systems/webview.md#egui-오버레이와-native-webview)에 있다), 토스트 카드가 이 surface 와 겹쳐 이 WebView 만 숨겨지면(지금 키를 받는 WebView 는 숨기지 않는다) 그 동안 boundary 타일이 보인다. boundary 는 `bg-panel` 배경과 1px `border-default`
   테두리만 있는 빈 타일이며 글리프·라벨·URL 을 그리지 않는다.
-- **Failed** — 실패. overlay 를 숨긴 채 `ALERT_CIRCLE`(`accent-danger`) + "Failed to load"
+- **Failed** — 실패. overlay 를 숨긴 채 `ALERT_CIRCLE` + "Failed to load"(글리프·제목 `accent-danger-raised`)
   + URL chrome. 실패 사유는 화면 대신 `tracing::warn!` 로그로만 남긴다. 이 상태에서는 스크립트
   차단 배너와 탭 표지를 그리지 않는다(아래 "스크립트 허용" 절).
 
 Failed chrome 의 URL 줄은 `webview.set_url` 의 선택 인자 `label` 을 먼저 보이고, label 이 없으면
 탐색 가능한 URL(`http(s)://`·`file://`)만 보인다. raw HTML 을 url 로 싣는 surface(markdown)는 label 로
 문서 경로를 보내므로 chrome 에 HTML 원문이 나오지 않는다. 줄은 mono `font_size_caption`(11) ·
-`text_disabled` 한 줄이며 넘치면 말줄임한다. chrome 내용은 좌우에 `space-lg`(16) 여백을 둬(시안 타일의 내용 padding) 긴 줄이 패널 가장자리에 닿지 않는다. chrome 의 배치와 그리기는 공용 `tasty_ui_widgets::webview_page_tile` 이 맡고 갤러리의 Loading·빈 안내 표본도 같은 함수를 부른다. 판정은 `webview_chrome.rs::chrome_caption` 이며, 주소로 볼지는 로드 분기(주소로 열기 / raw HTML 싣기)와 같은 `webview::is_navigable_url` 이 정한다.
+`text-muted` 한 줄이며 넘치면 말줄임한다. chrome 내용은 좌우에 `space-lg`(16) 여백을 둬(시안 타일의 내용 padding) 긴 줄이 패널 가장자리에 닿지 않는다. chrome 의 배치와 그리기는 공용 `tasty_ui_widgets::webview_page_tile` 이 맡고 갤러리의 Loading·빈 안내 표본도 같은 함수를 부른다. 판정은 `webview_chrome.rs::chrome_caption` 이며, 주소로 볼지는 로드 분기(주소로 열기 / raw HTML 싣기)와 같은 `webview::is_navigable_url` 이 정한다.
 
 ### 디자인 토큰 매핑
 
