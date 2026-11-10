@@ -18,6 +18,7 @@ const AUTOMATIC: &[(&str, &str)] = &[
     ("build-check.yml", "build-windows-arm64"),
     ("complexity-check.yml", "check-file-size"),
     ("crossplatform-check-macos.yml", "check-macos"),
+    ("crossplatform-check.yml", "check-android"),
     ("crossplatform-check.yml", "check-headless"),
     ("crossplatform-check.yml", "check-release"),
     ("crossplatform-check.yml", "check-windows"),

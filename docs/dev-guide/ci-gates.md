@@ -23,6 +23,7 @@ DPI 수동 변환 검사는 `src/`와 `crates/`의 파일 수 하한을 각각 �
 | Windows ARM64 컴파일 | `cargo check --workspace --all-targets --target aarch64-pc-windows-msvc --locked` (x64 러너에서 교차 컴파일, 테스트·링크 없음, C 의존성은 MSVC ARM64 빌드 도구 필요 — [release](release.md#windows-arm64)) | `crossplatform-check.yml` 의 `check-windows-arm64` (self-hosted Windows) | main push(문서 제외) · PR · 수동 | [배선] |
 | headless 컴파일 · **전체 스위트** · lint **+ Linux gui 단위테스트** | `cargo check --workspace --no-default-features --locked` · `cargo test --workspace --no-default-features --locked --no-fail-fast` · `cargo clippy --workspace --all-targets --no-default-features --locked` · `xvfb-run … cargo test --workspace --lib --bins --locked --no-fail-fast`(스텝 `cargo test (linux, gui, unit)` — 기본 feature, Xvfb 안에서 실행, 아래 [gui 단위 단계의 Xvfb](#gui-단위-단계의-xvfb)) · **관측(비차단)** `xvfb-run … cargo test --workspace --locked --no-fail-fast --test e2e_tests -- multi_window_owner_routing --exact`(스텝 `cargo test (linux, gui, e2e — 관측용)`, `continue-on-error: true` — 헤드리스 조합에서 컴파일하지 않는 이 시험을 돌리되 실패해도 잡을 차단하지 않는다) · **관측(비차단)** `xvfb-run … cargo test -p tasty-plugin-markdown --locked --no-fail-fast -- --ignored --exact render::webview_layout_tests::address_bar_stays_on_top_in_webkitgtk`·`render::bed_focus_webkit_tests::bed_focus_sheet_switches_state_values_in_place`(스텝 `cargo test (linux, gui, webview layout — 관측용)`, `continue-on-error: true` — markdown 주소창 배치와 바탕 포커스 시트를 WebKitGTK 로 재는 Linux 전용 시험, 아래 [webview 레이아웃 시험](#webview-레이아웃-시험)) | `crossplatform-check.yml` 의 `check-headless` (self-hosted Linux X64) | main push(문서 제외) · PR · 수동 | [실측] |
 | **not-debug(release) 컴파일 · gui** | `cargo check --workspace --release --locked` | `crossplatform-check.yml` 의 `check-release` (self-hosted Linux X64) | main push(문서 제외) · PR · 수동 | [실측] |
+| Android 터미널 코어 컴파일 | `cargo check -p tasty-terminal -p tasty-terminal-link --target aarch64-linux-android --locked` (x64 러너에서 교차 컴파일, NDK 없음, 링크·실행 없음, 두 크레이트만) | `crossplatform-check.yml` 의 `check-android` (self-hosted Linux X64) | main push(문서 제외) · PR · 수동 | [배선] |
 | 문서 가드 | `cargo test -p tasty-doc-guards --locked --no-fail-fast` | `doc-guards.yml` (ubuntu-latest) | main push · PR · 수동 — **경로 필터 없음**([가드 검증](guard-verification.md)) | [실측] |
 | 파일 SLOC | `bash scripts/check-file-size.sh` | `complexity-check.yml` (self-hosted Linux X64) | main push(문서 제외) · PR · 수동 | [실측] |
 | 동결 총합 래칫 | `bash scripts/check-frozen-sum-ratchet.sh` | `complexity-check.yml` (self-hosted Linux X64, 같은 잡) | main push(문서 제외) · PR · 수동 | [실측] |
@@ -246,7 +247,8 @@ checkout의 정리로 `target/`이 삭제되는 구성에는 로컬 증분 빌�
   release 잡의 실측을 쓴다. Windows ARM64 빌드 잡(release·build-check)은 아직 실행 기록이 없어
   같은 스크립트를 같은 러너에서 실행하는 x64 build-windows의 실측을 쓴다. check-windows-arm64도
   실행 기록이 없어 같은 러너에서 더 많은 작업(clippy·테스트)을 하는 check-windows의 실측을 쓴다. test-linux-x64도 실행 기록이 없어 같은 러너에서 workspace
-  시험을 실행하는 check-headless의 실측을 쓴다.
+  시험을 실행하는 check-headless의 실측을 쓴다. check-android도 실행 기록이 없어 같은 러너에서 `cargo check`를
+  실행하는 check-release의 실측을 쓴다.
 
 - macOS dist 빌드 잡은 배수를 쓰지 않는다. 이 러너는 업무용 맥과 함께 쓰며, 부하가 높을 때 40분 안에 끝나지 못해 180분으로 둔다.
 
@@ -263,6 +265,7 @@ checkout의 정리로 `target/`이 삭제되는 구성에는 로컬 증분 빌�
 | crossplatform-check.yml | check-windows-arm64 | 0 | 0 | 13.7 (check-windows 대리) | 5 | 70 |
 | crossplatform-check.yml | check-headless | 26 | 38 | 15.7 | 3 | 50 |
 | crossplatform-check.yml | check-release | 93 | 3 | 1.7 | 3 | 10 |
+| crossplatform-check.yml | check-android | 0 | 0 | 1.7 (check-release 대리) | 5 | 10 |
 | doc-guards.yml | doc-guards | 29 | 0 | 1.8 | 3 | 10 |
 | format-check.yml | fmt | 30 | 0 | 0.4 | 3 | 10 |
 | plugin-version-check.yml | version-bump | 25 | 0 | 0.4 | 3 | 10 |

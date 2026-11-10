@@ -1,6 +1,6 @@
 name: Cross-platform Check
 
-# Windows·Linux 컴파일과 테스트를 실행한다. Windows ARM64는 컴파일만 검사한다. macOS 잡은 crossplatform-check-macos.yml에 있다.
+# Windows·Linux 컴파일과 테스트를 실행한다. Windows ARM64는 컴파일만, Android는 터미널 코어 컴파일만 검사한다. macOS 잡은 crossplatform-check-macos.yml에 있다.
 on:
   push:
     branches: [main]
@@ -246,3 +246,24 @@ jobs:
 
       - name: cargo check (gui, release)
         run: cargo check --workspace --release --locked
+
+  # Android(aarch64-linux-android) 타깃에서 터미널 코어(tasty-terminal·tasty-terminal-link)가 컴파일되는지 검사한다.
+  # 의존 그래프에 Android를 모르는 크레이트나 C 빌드 의존성이 들어오면 실패한다.
+  # cargo check이므로 NDK가 필요 없고 링크·실행은 검사하지 않는다. 다른 크레이트의 Android 컴파일도 보지 않는다.
+  check-android:
+    runs-on: [self-hosted, Linux, X64]
+    # check-release 대리 실측 최대 1.7분 × 5. 기준: docs/dev-guide/ci-gates.md#잡-시간-상한
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup PATH
+        run: |
+          echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      - name: ensure aarch64-linux-android target
+        run: rustup target add aarch64-linux-android
+
+      - name: cargo check (android, terminal core)
+        run: cargo check -p tasty-terminal -p tasty-terminal-link --target aarch64-linux-android --locked
