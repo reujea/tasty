@@ -113,8 +113,10 @@ child를 남기지 않으므로 알려진 준비 실패로 응답하고 불명 �
 reader/writer worker 시작·capture 주입이 실패하면 불명이다.
 
 - Unix: `openpty`와 실행 파일 검색은 fork 전에 실패한다. portable-pty는 절대 경로를 그대로 쓰고, `./`·`../`로
-  시작하는 상대 경로는 작업 디렉터리 기준으로, 그 밖의 상대 이름은 PATH 항목에서 찾는다. 후보가 디렉터리이거나
-  `access(X_OK)`를 통과하지 못하면 원인과 함께 거절한다. 디렉터리는 `access(X_OK)`를 통과하므로 `tasty-terminal`이
+  시작하는 상대 경로는 작업 디렉터리 기준으로 찾는다. 이 두 경우 후보가 디렉터리이거나 `access(X_OK)`를 통과하지
+  못하면 원인과 함께 거절한다. 그 밖의 상대 이름은 PATH 항목에서 차례로 찾는다. 상대 PATH 항목은 작업 디렉터리
+  기준이다. 쓸 수 없는 후보(디렉터리, 실행 권한 없음)는 사유만 모으고 다음 항목으로 넘어가며, 끝까지 쓸 수 있는
+  후보가 없을 때만 모은 사유와 함께 실패한다. 디렉터리는 `access(X_OK)`를 통과하므로 `tasty-terminal`이
   portable-pty보다 먼저 디렉터리인지 확인해 "is a directory" 원인과 함께 거절한다. fork 뒤
   pre_exec의 `setsid`·`TIOCSCTTY` 실패는 std `Command::spawn`이 오류 파이프로 받아 그 child를 회수한 뒤
   돌려준다. exec 실패는 오류로 돌아오지 않는다. portable-pty의 pre_exec가 stderr 위 descriptor를 모두
