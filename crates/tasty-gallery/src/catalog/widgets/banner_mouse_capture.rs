@@ -376,8 +376,8 @@ fn unknown_menu(ui: &mut egui::Ui, theme: &Theme, copy: BannerMoreUnknownCopy<'_
 }
 
 /// 시안 "Program name unknown — rows shown disabled". 이름을 모를 때도 ⋯ 는 그대로 그리고(예약 56),
-/// 메뉴는 사유 줄 + 구분선 + 비활성 두 행이다. 원격 mirror 는 이름이 늘 미상이라 이 메뉴가 곧 mirror 의
-/// 메뉴다(별도 예제 없음).
+/// 메뉴는 사유 줄 + 구분선 + 비활성 두 행이다. 원격 mirror 는 서버가 보낸 이름을 쓰므로 첫 값 수신 전과
+/// 이름을 보내지 않는 구버전 서버에서만 이 메뉴다(별도 예제 없음).
 pub fn draw_unknown_name(ui: &mut egui::Ui, theme: &Theme) {
     app_stage(ui, theme, |ui| {
         card_slot(ui, theme, "name unknown — menu open (en)", |ui| {
@@ -422,7 +422,7 @@ pub fn draw_unknown_name(ui: &mut egui::Ui, theme: &Theme) {
         &[
             (
                 "unknown when",
-                "remote mirror · before first poll · lookup failed",
+                "before first poll/push · lookup failed · old server",
             ),
             ("⋯ trigger", "always drawn — same as known name"),
             ("body reserve", "56 (unchanged)"),
