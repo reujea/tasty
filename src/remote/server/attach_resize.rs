@@ -266,6 +266,7 @@ mod tests {
                 tasty_ipc::explorer_op::CAPABILITY,
                 tasty_ipc::agent_child::CAPABILITY,
                 tasty_ipc::terminal_read::CAPABILITY,
+                tasty_ipc::file_download::CAPABILITY,
                 tasty_ipc::html_transfer::CAPABILITY,
                 tasty_ipc::html_transfer::VIEWER_CAPABILITY,
                 tasty_ipc::html_transfer::RESOURCE_CAPABILITY,

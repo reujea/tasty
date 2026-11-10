@@ -310,6 +310,10 @@ fn apply_file_requests(app: &mut App, engine: &mut EngineMut<'_>, outcome: &mut 
             reads::reply_missing(&app.stream_hub, client_id, &msg);
         }
     }
+    for (client_id, msg) in std::mem::take(&mut outcome.file_downloads) {
+        let holds = engine.live.occupancy.client_holds_workspace(client_id);
+        crate::remote::file_download::handle(&app.stream_hub, client_id, holds, &msg);
+    }
     for (client_id, msg) in std::mem::take(&mut outcome.git_query_requests) {
         use tasty_ipc::stream_hub::GitQueryRequestMsg;
         let GitQueryRequestMsg::GitQueryRequest {

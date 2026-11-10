@@ -92,6 +92,8 @@ pub struct PumpOutcome {
     pub agent_children: Vec<(StreamClientId, crate::agent_child::AgentClientMsg)>,
     /// holder 의 원본 터미널 읽기. 별도의 event 태그를 가진 Control JSON이다.
     pub terminal_reads: Vec<(StreamClientId, crate::terminal_read::TerminalReadMsg)>,
+    /// holder 의 원격 파일 하나 가져오기. 별도의 event 태그를 가진 Control JSON이다.
+    pub file_downloads: Vec<(StreamClientId, crate::file_download::FileDownloadMsg)>,
     /// bulk begin·chunk·commit을 도착 순서대로 보관한다. 태그별로 나누면 같은 배치의
     /// chunk를 begin보다 먼저 처리할 수 있다. 결속 workspace는 연결의 bulk_workspace에서 찾는다.
     pub bulk_events: Vec<(StreamClientId, BulkEvent)>,
@@ -868,6 +870,10 @@ impl StreamHub {
             serde_json::from_slice::<crate::terminal_read::TerminalReadMsg>(payload)
         {
             out.terminal_reads.push((client_id, msg));
+        } else if let Ok(msg) =
+            serde_json::from_slice::<crate::file_download::FileDownloadMsg>(payload)
+        {
+            out.file_downloads.push((client_id, msg));
         }
     }
 }

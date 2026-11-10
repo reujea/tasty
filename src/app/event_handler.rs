@@ -1540,6 +1540,10 @@ impl App {
                 reads::reply_missing(hub, client_id, &msg);
             }
         }
+        for (client_id, msg) in outcome.file_downloads.drain(..) {
+            let holds = find_workspace_holder_engine_mut(self.engines_mut(), client_id).is_some();
+            crate::remote::file_download::handle(hub, client_id, holds, &msg);
+        }
         // begin보다 chunk가 먼저 처리되지 않도록 bulk 이벤트는 도착 순서를 유지한다.
         for (client_id, event) in outcome.bulk_events.drain(..) {
             match hub.bulk_workspace(client_id) {

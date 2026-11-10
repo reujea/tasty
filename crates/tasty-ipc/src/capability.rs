@@ -83,6 +83,11 @@ pub const CAPABILITIES: &[Capability] = &[
         name: crate::terminal_read::CAPABILITY,
         version: crate::terminal_read::VERSION,
     },
+    // client는 attach descriptor로 연결마다 확인한다. 여기 선언은 조회용 사본이다.
+    Capability {
+        name: crate::file_download::CAPABILITY,
+        version: crate::file_download::VERSION,
+    },
     // 구 서버는 cursor 인자를 버리고 공유 마크를 읽는다. 전송 전에 지원 여부를 확인한다.
     Capability {
         name: crate::output_cursor::CAPABILITY,

@@ -11,6 +11,7 @@ pub mod capability;
 pub mod client;
 pub mod dispatch;
 pub mod explorer_op;
+pub mod file_download;
 pub mod host_call;
 pub mod host_port;
 pub mod html_http;

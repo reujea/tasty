@@ -6,6 +6,8 @@ pub(crate) mod server;
 pub(crate) mod agent_children;
 pub(crate) mod terminal_read;
 
+pub(crate) mod file_download;
+
 pub(crate) mod structure_sync;
 
 #[cfg(feature = "gui")]
