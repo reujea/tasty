@@ -186,12 +186,13 @@ struct StreamReadEnd {
     peer: Option<std::net::SocketAddr>,
     /// 이 소켓에 실제로 건 read timeout.
     read_timeout: Duration,
-    /// 서버가 Detach를 먼저 보냈다. 그 뒤의 EOF는 client가 응답으로 닫은 것이다.
-    detach_sent: Arc<AtomicBool>,
+    /// 서버가 연결을 끝내는 프레임(Detach, `force_detached`)을 보내기 시작했다.
+    /// 그 뒤의 EOF는 client가 응답으로 닫은 것이다.
+    server_ending: Arc<AtomicBool>,
 }
 
 impl StreamReadEnd {
-    /// 경고로 남길지와 문구. 서버가 먼저 Detach를 보낸 연결의 오류는 정상 종료의 뒷정리다.
+    /// 경고로 남길지와 문구. 서버가 끝내기 시작한 연결의 오류는 정상 종료의 뒷정리다.
     fn read_error_report(&self, error: &std::io::Error) -> (bool, String) {
         let cause = stream::ReadFailure::of_io(error);
         let message = format!(
@@ -200,13 +201,13 @@ impl StreamReadEnd {
             self.peer,
             cause.describe(self.read_timeout)
         );
-        (!self.detach_sent.load(Ordering::Acquire), message)
+        (!self.server_ending.load(Ordering::Acquire), message)
     }
 
     fn log_read_error(&self, error: &std::io::Error) {
         match self.read_error_report(error) {
             (true, message) => tracing::warn!("{message}"),
-            (false, message) => tracing::debug!("{message} (Detach 송신 뒤)"),
+            (false, message) => tracing::debug!("{message} (서버가 끝낸 연결)"),
         }
     }
 }
@@ -591,16 +592,16 @@ impl TcpIpcServer {
             Self::finish_stream_connection(&ctx, client_id, None, peer);
             return;
         }
-        let detach_sent = Arc::new(AtomicBool::new(false));
+        let server_ending = Arc::new(AtomicBool::new(false));
         let write_handle =
-            Self::spawn_stream_write_thread(writer, sink_rx, client_id, detach_sent.clone());
+            Self::spawn_stream_write_thread(writer, sink_rx, client_id, server_ending.clone());
         Self::push_stream_ack(&ctx, client_id);
         Self::dispatch_stream_attach(&ctx, client_id, &handshake);
         let end = StreamReadEnd {
             client_id,
             peer,
             read_timeout,
-            detach_sent,
+            server_ending,
         };
         Self::run_stream_read_loop(&ctx, &end, &mut reader);
         Self::finish_stream_connection(&ctx, client_id, Some(write_handle), peer);
@@ -722,13 +723,47 @@ impl TcpIpcServer {
         }
     }
 
+    /// 서버가 끝내는 연결의 프레임. client는 Detach와 그보다 먼저 오는 `force_detached` Control
+    /// 어느 쪽을 받아도 연결을 닫는다(`notify_detached`).
+    fn frame_ends_connection(tag: StreamTag, payload: &[u8]) -> bool {
+        match tag {
+            StreamTag::Detach => true,
+            StreamTag::Control => serde_json::from_slice::<serde_json::Value>(payload)
+                .is_ok_and(|v| v.get("event").and_then(|e| e.as_str()) == Some("force_detached")),
+            _ => false,
+        }
+    }
+
+    /// 프레임 하나를 쓴다. 쓰기를 이어 가면 true, 실패했거나 Detach를 썼으면 false다.
+    /// client는 연결을 끝내는 프레임을 받자마자 닫을 수 있다. 표지를 쓰기 전에 세워야 읽기 쪽이
+    /// 뒤따르는 EOF를 먼저 처리해도 정상 종료로 본다.
+    fn write_stream_frame(
+        w: &mut std::net::TcpStream,
+        tag: StreamTag,
+        payload: &[u8],
+        client_id: StreamClientId,
+        server_ending: &AtomicBool,
+    ) -> bool {
+        if Self::frame_ends_connection(tag, payload) {
+            server_ending.store(true, Ordering::Release);
+        }
+        if let Err(e) = stream::write_frame(w, tag, payload) {
+            tracing::warn!(
+                "stream client {client_id}: {tag:?} 프레임 송신 실패로 쓰기를 멈춘다(수신 timeout과 별개인 송신 오류): {e}"
+            );
+            return false;
+        }
+        tag != StreamTag::Detach
+    }
+
     /// 실제 데이터가 없을 때 주기 Ping을 보내 상대의 읽기 timeout을 갱신한다.
-    /// Detach를 보냈으면 `detach_sent`를 세워 읽기 쪽이 뒤따르는 EOF를 정상 종료로 본다.
+    /// 서버가 연결을 끝내는 프레임은 쓰기 전에 `server_ending`을 세워 읽기 쪽이 뒤따르는 EOF를
+    /// 정상 종료로 본다.
     fn spawn_stream_write_thread(
         writer: std::net::TcpStream,
         sink_rx: tasty_ipc::stream_hub::SinkReceiver,
         client_id: StreamClientId,
-        detach_sent: Arc<AtomicBool>,
+        server_ending: Arc<AtomicBool>,
     ) -> thread::JoinHandle<()> {
         let mut w = writer;
         thread::spawn(move || {
@@ -738,15 +773,13 @@ impl TcpIpcServer {
                         if !frame.is_current() {
                             continue;
                         }
-                        if let Err(e) = stream::write_frame(&mut w, frame.tag, &frame.payload) {
-                            tracing::warn!(
-                                "stream client {client_id}: {:?} 프레임 송신 실패로 쓰기를 멈춘다(수신 timeout과 별개인 송신 오류): {e}",
-                                frame.tag
-                            );
-                            break;
-                        }
-                        if frame.tag == StreamTag::Detach {
-                            detach_sent.store(true, Ordering::Release);
+                        if !Self::write_stream_frame(
+                            &mut w,
+                            frame.tag,
+                            &frame.payload,
+                            client_id,
+                            &server_ending,
+                        ) {
                             break;
                         }
                     }
@@ -2246,12 +2279,12 @@ mod handshake_tests {
 mod read_end_tests {
     use super::*;
 
-    fn end(detach_sent: bool) -> StreamReadEnd {
+    fn end(server_ending: bool) -> StreamReadEnd {
         StreamReadEnd {
             client_id: 42,
             peer: Some(std::net::SocketAddr::from(([127, 0, 0, 1], 5555))),
             read_timeout: Duration::from_secs(45),
-            detach_sent: Arc::new(AtomicBool::new(detach_sent)),
+            server_ending: Arc::new(AtomicBool::new(server_ending)),
         }
     }
 

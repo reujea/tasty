@@ -515,7 +515,7 @@ attach 스트림은 read timeout 이 없는 순수 blocking I/O 라 네트워크
   - read timeout 만료는 macOS·Linux 에서 `WouldBlock`(EAGAIN), Windows 에서 `TimedOut` 으로 온다. Windows 쪽은 Rust std 문서 기준이며 실 기기에서 측정하지 않았다. 프레임 일부를 받는 도중의 만료도 같은 kind 라 "아무 프레임도 받지 못함"으로 단정하지 않는다.
   - N 은 상수가 아니라 그 소켓에 실제로 건 값이다. GUI client 는 연결을 시작할 때 넘긴 값, 서버는 연결마다 `StreamContext` 에서 읽은 값을 쓴다.
   - **GUI client**(`spawn_attach_reader_thread`): `attach reader thread: mirror workspace <id> 연결 종료를 알린다. 원인 <문구>: <원본 오류>` 를 `warn` 으로 남긴다. 정리나 쓰기 실패로 이쪽이 먼저 `disconnected` 를 세운 뒤의 수신 오류는 원격 원인이 아니라 `debug` 로만 남긴다.
-  - **서버 읽기 루프**(`run_stream_read_loop`): `stream client <id> from <peer>: 읽기 루프가 끝났다. 원인 <문구> (<분류>): <원본 오류>` 를 `warn` 으로 남긴다. client 가 보낸 Detach, 메인 루프 소멸, 서버가 Detach 를 먼저 보낸 뒤의 오류는 정상 종료라 `debug` 이하다.
+  - **서버 읽기 루프**(`run_stream_read_loop`): `stream client <id> from <peer>: 읽기 루프가 끝났다. 원인 <문구> (<분류>): <원본 오류>` 를 `warn` 으로 남긴다. client 가 보낸 Detach, 메인 루프 소멸, 서버가 연결을 끝내는 프레임(Detach 나 그보다 먼저 가는 `force_detached` Control)을 보내기 시작한 뒤의 오류는 정상 종료라 `debug` 이하다. client 는 그 프레임을 받자마자 닫을 수 있으므로 쓰기 스레드는 그 표지를 프레임을 쓰기 **전에** 세운다. 그 프레임의 쓰기 실패는 따로 `warn` 으로 남는다.
   - **서버 쓰기 스레드**(`spawn_stream_write_thread`): 데이터 프레임이나 Ping 을 쓰지 못하면 `stream client <id>: ... 송신 실패로 쓰기를 멈춘다(수신 timeout과 별개인 송신 오류)` 를 `warn` 으로 남긴다. 읽기 쪽 하트비트 timeout 과 문구로 구분된다.
   - bulk 채널(`src/app/attach_client/bulk.rs`)은 읽기 실패를 직접 로그하지 않고 업로드 결과의 오류로 돌려준다. 그래서 이 분류를 적용하지 않는다.
 - **GUI heartbeat 스레드 정리**: `cleanup_mirror_workspace` 가 세션 종료 시(원격발이든 사용자 close 든) `sess.disconnected` 를 set 해, `writer: Arc<Mutex<TcpStream>>` 를 계속 붙들고 있는 heartbeat 스레드가 다음 tick 에 스스로 종료하게 한다 — 안 하면 세션이 정리된 뒤에도 소켓/스레드가 새는 leak.

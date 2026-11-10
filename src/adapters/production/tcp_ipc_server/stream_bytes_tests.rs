@@ -41,8 +41,8 @@ fn actual_socket_writer_skips_retired_document_and_writes_live_frame() {
         hub.push(5, StreamFrame::new(StreamTag::Detach, vec![])),
         PushResult::Sent
     );
-    let detach_sent = Arc::new(AtomicBool::new(false));
-    let writer = TcpIpcServer::spawn_stream_write_thread(server, rx, 1, detach_sent.clone());
+    let server_ending = Arc::new(AtomicBool::new(false));
+    let writer = TcpIpcServer::spawn_stream_write_thread(server, rx, 1, server_ending.clone());
     assert_eq!(stream::read_frame(&mut client).unwrap().payload, b"live");
     assert_eq!(
         stream::read_frame(&mut client).unwrap().tag,
@@ -50,10 +50,42 @@ fn actual_socket_writer_skips_retired_document_and_writes_live_frame() {
     );
     writer.join().unwrap();
     // 읽기 루프가 뒤따르는 EOF를 정상 종료로 보도록 Detach 송신을 표시한다.
-    assert!(detach_sent.load(Ordering::Acquire));
+    assert!(server_ending.load(Ordering::Acquire));
     assert!(stream::read_frame(&mut client).is_err());
     assert!(hub.reserve_frame(5, &binding, FULL).is_some());
 }
+/// client는 끝내는 프레임을 받자마자 닫을 수 있으므로 표지는 쓰기 전에 선다.
+/// 쓰기 쪽을 미리 닫아 쓰기가 반드시 실패하게 해, 쓰기 뒤에 세우는 순서를 검출한다.
+#[test]
+fn the_ending_mark_is_set_before_the_frame_write_starts() {
+    let cases = [
+        (StreamFrame::new(StreamTag::Detach, vec![]), true),
+        (
+            StreamFrame::new(
+                StreamTag::Control,
+                br#"{"event":"force_detached","reason":"local"}"#.to_vec(),
+            ),
+            true,
+        ),
+        (
+            StreamFrame::new(StreamTag::Control, b"live".to_vec()),
+            false,
+        ),
+    ];
+    for (frame, ends) in cases {
+        let tag = frame.tag;
+        let (_client, server) = sockets();
+        server.shutdown(std::net::Shutdown::Write).unwrap();
+        let hub = StreamHub::new();
+        let rx = hub.register(5);
+        assert_eq!(hub.push(5, frame), PushResult::Sent);
+        let server_ending = Arc::new(AtomicBool::new(false));
+        let writer = TcpIpcServer::spawn_stream_write_thread(server, rx, 1, server_ending.clone());
+        writer.join().unwrap();
+        assert_eq!(server_ending.load(Ordering::Acquire), ends, "{tag:?}");
+    }
+}
+
 #[test]
 fn actual_socket_writer_discards_old_registration_without_publishing_to_replacement() {
     let (mut client, server) = sockets();
