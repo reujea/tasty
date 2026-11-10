@@ -163,6 +163,12 @@ fn measured(h: Option<LogicalPx>, th: &theme::Theme) -> egui::Vec2 {
     egui::vec2(th.transfer_popup_width().value(), h.value())
 }
 
+/// PopupDef.default_size — 등록 시점의 placeholder. sizer 가 매 프레임 다시 계산한다.
+pub fn download_run_default_size() -> egui::Vec2 {
+    let th = theme::theme();
+    measured(None, &th)
+}
+
 pub fn download_run_sizer(state: &MainViewState, _e: &EngineRead<'_>) -> egui::Vec2 {
     let th = theme::theme();
     let h = state

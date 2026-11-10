@@ -78,3 +78,17 @@ fn every_failure_is_listed(failure: &Failure) {
         ) => {}
     }
 }
+
+#[test]
+fn the_registration_placeholder_is_the_first_frame_size_of_the_sizer() {
+    // 배율 1에서 transfer-popup-width 400, 첫 프레임 높이는 그 절반이다.
+    let th = theme::Theme::with_colors_and_zoom(tasty_themes::mocha_fallback_colors(), false, 1.0);
+    assert_eq!(measured(None, &th), egui::vec2(400.0, 200.0));
+    // 배율이 바뀌면 placeholder 도 sizer 와 같은 폭을 따른다.
+    let zoomed =
+        theme::Theme::with_colors_and_zoom(tasty_themes::mocha_fallback_colors(), false, 1.5);
+    assert_eq!(
+        measured(None, &zoomed).x,
+        zoomed.transfer_popup_width().value()
+    );
+}
