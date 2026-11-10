@@ -192,7 +192,7 @@ pub fn draw(ui: &mut egui::Ui, theme: &Theme) {
     spec::note(
         ui,
         theme,
-        "The minimap paints each node in its status colour, so it doubles as a health strip: \
-         a red block anywhere in the graph is visible without zooming out.",
+        "The minimap paints every node in one colour and fades dimmed nodes, \
+         so it shows the shape of the graph and where the viewport sits, not node status.",
     );
 }
