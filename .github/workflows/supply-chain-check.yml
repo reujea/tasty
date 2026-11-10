@@ -1,7 +1,8 @@
 name: Supply Chain Check
 
 # 의존성·설정 변경은 push와 PR에서, 새 보안 공지는 주간 실행에서 확인한다.
-# push만 Cargo.lock/deny.toml 경로로 제한하며 PR에는 경로 필터를 두지 않는다.
+# push만 Cargo.lock/deny.toml, workspace에서 제외한 tasty-plugin-sdk-wasm의
+# Cargo.toml/Cargo.lock, 이 워크플로 파일 경로로 제한하며 PR에는 경로 필터를 두지 않는다.
 # deny.toml의 advisories, licenses, bans, sources 규칙을 적용한다.
 
 on:
@@ -10,6 +11,9 @@ on:
     paths:
       - Cargo.lock
       - deny.toml
+      - crates/tasty-plugin-sdk-wasm/Cargo.toml
+      - crates/tasty-plugin-sdk-wasm/Cargo.lock
+      - .github/workflows/supply-chain-check.yml
   pull_request:
     branches: [main]
   schedule:
@@ -43,3 +47,9 @@ jobs:
 
       - name: cargo deny --workspace check
         run: cargo deny --workspace check
+
+      # workspace에서 제외한 크레이트는 자체 Cargo.lock을 쓰므로 --workspace에 잡히지 않는다.
+      # 앞 단계가 실패해도 이 그래프의 결과를 따로 확인한다.
+      - name: cargo deny check (tasty-plugin-sdk-wasm, workspace exclude)
+        if: success() || failure()
+        run: cargo deny --manifest-path crates/tasty-plugin-sdk-wasm/Cargo.toml check
