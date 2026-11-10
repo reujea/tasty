@@ -107,6 +107,8 @@ const SYSTEM_CJK_FONT_FILES: &[&str] = &[
     "AppleSDGothicNeo",
     "ヒラギノ",
     "Arial Unicode",
+    "Hiragino Sans GB",
+    "STHeiti",
 ];
 const SYSTEM_CJK_LIST_OWNER: &str = "crates/tasty-egui-theme/src/lib.rs";
 

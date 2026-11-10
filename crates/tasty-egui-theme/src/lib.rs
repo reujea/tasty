@@ -229,8 +229,9 @@ pub const SYSTEM_CJK_FONT_KEYS: &[&str] = &[SYSTEM_CJK_FONT_KEY, "system_cjk_2"]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 struct CjkSlot {
     candidates: &'static [&'static str],
-    /// 묶음 파일에서 이름으로 고를 글꼴. 없거나 찾지 못하면 0번이다.
-    family: Option<&'static str>,
+    /// 묶음 파일에서 이름으로 고를 글꼴. 후보 파일마다 이름이 다를 수 있어 앞 이름부터
+    /// 찾는다. 비었거나 하나도 찾지 못하면 0번이다.
+    families: &'static [&'static str],
 }
 
 /// 간체 UI 언어. 별칭(`zh`, `zh-CN`)은 언어 코드로 받지 않으므로 여기서도 정확히 비교한다.
@@ -255,7 +256,7 @@ impl CjkStack {
 
 // 본체와 플러그인이 같은 글꼴을 쓰도록 후보는 여기에만 둔다.
 
-/// Noto 묶음과 macOS 후보에서 간체 UI가 이름으로 찾는 글꼴.
+/// Noto 묶음에서 간체 UI가 이름으로 찾는 글꼴.
 const NOTO_SIMPLIFIED_CHINESE_FACE: &str = "Noto Sans CJK SC";
 
 const LINUX_NOTO: &[&str] = &[
@@ -274,30 +275,41 @@ const LINUX_NOTO: &[&str] = &[
 const LINUX_STACK: CjkStack = CjkStack {
     simplified_chinese: &[CjkSlot {
         candidates: LINUX_NOTO,
-        family: Some(NOTO_SIMPLIFIED_CHINESE_FACE),
+        families: &[NOTO_SIMPLIFIED_CHINESE_FACE],
     }],
     other: &[CjkSlot {
         candidates: LINUX_NOTO,
-        family: None,
+        families: &[],
     }],
 };
 
-const MACOS_CANDIDATES: &[&str] = &[
-    "/System/Library/Fonts/AppleSDGothicNeo.ttc",
-    "/System/Library/Fonts/ヒラギノ角ゴシック W3.ttc",
-    "/System/Library/Fonts/Supplemental/Arial Unicode.ttf",
-];
+/// 한글 칸. 첫 후보가 없는 버전을 위해 지금까지 쓰던 후보 순서를 그대로 둔다.
+const MACOS_HANGUL: CjkSlot = CjkSlot {
+    candidates: &[
+        "/System/Library/Fonts/AppleSDGothicNeo.ttc",
+        "/System/Library/Fonts/ヒラギノ角ゴシック W3.ttc",
+        "/System/Library/Fonts/Supplemental/Arial Unicode.ttf",
+    ],
+    families: &[],
+};
 
-/// 측정 전이라 Linux와 같은 규칙을 그대로 둔다.
+/// 간체 칸. Hiragino Sans GB는 GB2312 1급과 가나를 모두 갖고 SC 형태다. 파일이 없으면
+/// STHeiti의 Heiti SC를 쓴다. STHeiti 묶음의 0번은 TC라 이름으로 SC를 찾는다.
+const MACOS_SIMPLIFIED: CjkSlot = CjkSlot {
+    candidates: &[
+        "/System/Library/Fonts/Hiragino Sans GB.ttc",
+        "/System/Library/Fonts/STHeiti Light.ttc",
+    ],
+    families: &["Hiragino Sans GB", "Heiti SC"],
+};
+
+/// Apple SD Gothic Neo는 GB2312 1급 3,755자 중 1,669자(`简`·`体` 포함)가 없고 공용
+/// 한자를 KR 형태로 그린다. Hiragino Sans GB에는 한글이 없다. 간체 UI는 간체 칸을 앞에
+/// 두어 공용 한자를 SC 형태로 그리고, 다른 언어는 Apple SD Gothic Neo를 앞에 두어 기존
+/// 한자 형태를 유지하고 없는 글자만 간체 칸으로 채운다.
 const MACOS_STACK: CjkStack = CjkStack {
-    simplified_chinese: &[CjkSlot {
-        candidates: MACOS_CANDIDATES,
-        family: Some(NOTO_SIMPLIFIED_CHINESE_FACE),
-    }],
-    other: &[CjkSlot {
-        candidates: MACOS_CANDIDATES,
-        family: None,
-    }],
+    simplified_chinese: &[MACOS_SIMPLIFIED, MACOS_HANGUL],
+    other: &[MACOS_HANGUL, MACOS_SIMPLIFIED],
 };
 
 /// 간체·가나는 Microsoft YaHei UI가, 한글은 맑은 고딕이 맡는다. 기본 설치에 둘을 모두
@@ -305,11 +317,11 @@ const MACOS_STACK: CjkStack = CjkStack {
 /// 한글이 없다.
 const WINDOWS_YAHEI: CjkSlot = CjkSlot {
     candidates: &["C:/Windows/Fonts/msyh.ttc"],
-    family: Some("Microsoft YaHei UI"),
+    families: &["Microsoft YaHei UI"],
 };
 const WINDOWS_MALGUN: CjkSlot = CjkSlot {
     candidates: &["C:/Windows/Fonts/malgun.ttf"],
-    family: None,
+    families: &[],
 };
 
 /// 간체 UI는 YaHei를 앞에 두어 공용 한자를 SC 형태로 그린다. 다른 언어는 맑은 고딕을
@@ -380,10 +392,12 @@ fn share_system_cjk_bytes(path: &std::path::Path, bytes: Vec<u8>) -> &'static [u
         .or_insert_with(|| Box::leak(bytes.into_boxed_slice()))
 }
 
-/// 묶음 파일에서 이름으로 글꼴 번호를 찾는다. 이름이 없거나 찾지 못하면 0번이다.
-fn cjk_face_by_family(bytes: &[u8], family: Option<&str>) -> u32 {
-    family
-        .and_then(|family| tasty_i18n::font::collection_face_by_family(bytes, family))
+/// 묶음 파일에서 이름으로 글꼴 번호를 찾는다. 앞 이름부터 찾고, 이름이 없거나 하나도
+/// 찾지 못하면 0번이다.
+fn cjk_face_by_family(bytes: &[u8], families: &[&str]) -> u32 {
+    families
+        .iter()
+        .find_map(|family| tasty_i18n::font::collection_face_by_family(bytes, family))
         .unwrap_or(0)
 }
 
@@ -392,17 +406,17 @@ fn cjk_face_by_family(bytes: &[u8], family: Option<&str>) -> u32 {
 /// 공유하지 않으므로 다음 호출에서 다시 읽는다.
 fn first_usable_cjk_font<'a>(
     candidates: impl IntoIterator<Item = &'a std::path::Path>,
-    family: Option<&str>,
+    families: &[&str],
 ) -> Option<SystemCjkFont> {
     candidates.into_iter().find_map(|path| {
         if let Some(bytes) = cached_system_cjk_bytes(path) {
-            let face = cjk_face_by_family(bytes, family);
+            let face = cjk_face_by_family(bytes, families);
             if tasty_i18n::font::validate_face(bytes, face).is_ok() {
                 return Some(SystemCjkFont { bytes, face });
             }
         }
         let bytes = std::fs::read(path).ok()?;
-        let face = cjk_face_by_family(&bytes, family);
+        let face = cjk_face_by_family(&bytes, families);
         match tasty_i18n::font::validate_face(&bytes, face) {
             Ok(()) => Some(SystemCjkFont {
                 bytes: share_system_cjk_bytes(path, bytes),
@@ -426,7 +440,7 @@ fn usable_cjk_fonts(slots: &[CjkSlot]) -> Vec<SystemCjkFont> {
         .filter_map(|slot| {
             first_usable_cjk_font(
                 slot.candidates.iter().map(std::path::Path::new),
-                slot.family,
+                slot.families,
             )
         })
         .collect()
@@ -533,7 +547,7 @@ mod system_cjk_tests {
         let missing = dir.path().join("missing.ttf");
 
         let found =
-            first_usable_cjk_font([missing.as_path(), broken.as_path(), valid.as_path()], None)
+            first_usable_cjk_font([missing.as_path(), broken.as_path(), valid.as_path()], &[])
                 .unwrap();
         assert_eq!(found.bytes, D2CODING);
         assert_eq!(found.face, 0);
@@ -546,16 +560,16 @@ mod system_cjk_tests {
         std::fs::write(&broken, b"not a font").unwrap();
         let missing = dir.path().join("missing.ttf");
 
-        assert!(first_usable_cjk_font([missing.as_path(), broken.as_path()], None).is_none());
+        assert!(first_usable_cjk_font([missing.as_path(), broken.as_path()], &[]).is_none());
     }
 
     #[test]
     fn a_font_without_the_named_face_stays_on_the_first_face() {
         assert_eq!(
-            cjk_face_by_family(D2CODING, Some(NOTO_SIMPLIFIED_CHINESE_FACE)),
+            cjk_face_by_family(D2CODING, &[NOTO_SIMPLIFIED_CHINESE_FACE]),
             0
         );
-        assert_eq!(cjk_face_by_family(D2CODING, None), 0);
+        assert_eq!(cjk_face_by_family(D2CODING, &[]), 0);
     }
 
     #[test]
@@ -573,10 +587,10 @@ mod system_cjk_tests {
         let path = dir.path().join("shared.ttf");
         std::fs::write(&path, D2CODING).unwrap();
 
-        let first = first_usable_cjk_font([path.as_path()], None).unwrap();
+        let first = first_usable_cjk_font([path.as_path()], &[]).unwrap();
         // 파일을 지워도 두 번째 요청은 처음 읽은 바이트를 다시 쓴다.
         std::fs::remove_file(&path).unwrap();
-        let second = first_usable_cjk_font([path.as_path()], None).unwrap();
+        let second = first_usable_cjk_font([path.as_path()], &[]).unwrap();
         assert!(std::ptr::eq(first.bytes, second.bytes));
 
         let (a, b) = (first.into_font_data(), second.into_font_data());
@@ -594,11 +608,11 @@ mod system_cjk_tests {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("later.ttf");
 
-        assert!(first_usable_cjk_font([path.as_path()], None).is_none());
+        assert!(first_usable_cjk_font([path.as_path()], &[]).is_none());
         std::fs::write(&path, b"not a font").unwrap();
-        assert!(first_usable_cjk_font([path.as_path()], None).is_none());
+        assert!(first_usable_cjk_font([path.as_path()], &[]).is_none());
         std::fs::write(&path, D2CODING).unwrap();
-        let found = first_usable_cjk_font([path.as_path()], None).unwrap();
+        let found = first_usable_cjk_font([path.as_path()], &[]).unwrap();
         assert_eq!(found.bytes, D2CODING);
     }
 
@@ -631,27 +645,52 @@ mod system_cjk_tests {
     }
 
     #[test]
-    fn linux_and_macos_keep_one_file_and_name_only_the_simplified_face() {
-        for (os, candidates) in [("linux", LINUX_NOTO), ("macos", MACOS_CANDIDATES)] {
-            let stack = cjk_stack_for_os(os);
+    fn linux_keeps_one_file_and_names_only_the_simplified_face() {
+        let stack = cjk_stack_for_os("linux");
+        assert_eq!(
+            stack.slots_for(SIMPLIFIED_CHINESE_LOCALE),
+            [CjkSlot {
+                candidates: LINUX_NOTO,
+                families: &[NOTO_SIMPLIFIED_CHINESE_FACE],
+            }]
+        );
+        for other in OTHER_LOCALES {
             assert_eq!(
-                stack.slots_for(SIMPLIFIED_CHINESE_LOCALE),
+                stack.slots_for(other),
                 [CjkSlot {
-                    candidates,
-                    family: Some(NOTO_SIMPLIFIED_CHINESE_FACE),
+                    candidates: LINUX_NOTO,
+                    families: &[],
                 }],
-                "{os}"
+                "{other}"
             );
-            for other in OTHER_LOCALES {
-                assert_eq!(
-                    stack.slots_for(other),
-                    [CjkSlot {
-                        candidates,
-                        family: None,
-                    }],
-                    "{os} {other}"
-                );
-            }
+        }
+    }
+
+    /// 간체 UI만 간체 칸을 앞에 둔다. 한글 칸은 지금까지의 후보 순서를 그대로 쓴다.
+    #[test]
+    fn macos_puts_the_simplified_slot_first_only_for_simplified_chinese() {
+        let hangul = CjkSlot {
+            candidates: &[
+                "/System/Library/Fonts/AppleSDGothicNeo.ttc",
+                "/System/Library/Fonts/ヒラギノ角ゴシック W3.ttc",
+                "/System/Library/Fonts/Supplemental/Arial Unicode.ttf",
+            ],
+            families: &[],
+        };
+        let simplified = CjkSlot {
+            candidates: &[
+                "/System/Library/Fonts/Hiragino Sans GB.ttc",
+                "/System/Library/Fonts/STHeiti Light.ttc",
+            ],
+            families: &["Hiragino Sans GB", "Heiti SC"],
+        };
+        let stack = cjk_stack_for_os("macos");
+        assert_eq!(
+            stack.slots_for(SIMPLIFIED_CHINESE_LOCALE),
+            [simplified, hangul]
+        );
+        for other in OTHER_LOCALES {
+            assert_eq!(stack.slots_for(other), [hangul, simplified], "{other}");
         }
     }
 
@@ -668,7 +707,7 @@ mod system_cjk_tests {
             return;
         };
         let bytes = std::fs::read(path).unwrap();
-        let simplified = cjk_face_by_family(&bytes, Some(NOTO_SIMPLIFIED_CHINESE_FACE));
+        let simplified = cjk_face_by_family(&bytes, &[NOTO_SIMPLIFIED_CHINESE_FACE]);
         assert_ne!(simplified, 0, "{} has no simplified face", path.display());
         assert!(tasty_i18n::font::validate_face(&bytes, simplified).is_ok());
     }
@@ -710,6 +749,52 @@ mod system_cjk_tests {
             not_first, "",
             "simplified UI text should not fall past YaHei"
         );
+    }
+
+    /// 이 Mac에 설치된 두 칸이 언어 이름·가나·대표 간체를 모두 그리는지 잰다.
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn the_installed_macos_fonts_draw_every_language_name() {
+        use ab_glyph::Font as _;
+
+        const NAMES: &str = "English한국어日本語简体中文";
+        const SIMPLIFIED: &str = "曾启遍复窗警令直言将名滚骨角门今";
+        const KANA: &str = "ひらがなカタカナー";
+        for locale in [SIMPLIFIED_CHINESE_LOCALE, "en", "ko", "ja"] {
+            let slots = cjk_stack_for_os("macos").slots_for(locale);
+            let fonts = usable_cjk_fonts(slots);
+            assert_eq!(fonts.len(), 2, "{locale}: both slots should find a font");
+            let parsed: Vec<_> = fonts
+                .iter()
+                .map(|f| ab_glyph::FontRef::try_from_slice_and_index(f.bytes, f.face).unwrap())
+                .collect();
+            let missing: String = NAMES
+                .chars()
+                .chain(SIMPLIFIED.chars())
+                .chain(KANA.chars())
+                .filter(|c| parsed.iter().all(|font| font.glyph_id(*c).0 == 0))
+                .collect();
+            assert_eq!(missing, "", "{locale}");
+        }
+        let first =
+            &usable_cjk_fonts(cjk_stack_for_os("macos").slots_for(SIMPLIFIED_CHINESE_LOCALE))[0];
+        let first = ab_glyph::FontRef::try_from_slice_and_index(first.bytes, first.face).unwrap();
+        let not_first: String = SIMPLIFIED
+            .chars()
+            .filter(|c| first.glyph_id(*c).0 == 0)
+            .collect();
+        assert_eq!(
+            not_first, "",
+            "simplified UI text should not fall past the simplified slot"
+        );
+
+        // 예비 칸이 아니라 Hiragino Sans GB의 W3가 egui 판정을 통과해 첫 칸이 되는지 본다.
+        let hiragino = std::fs::read("/System/Library/Fonts/Hiragino Sans GB.ttc").unwrap();
+        let face = cjk_face_by_family(&hiragino, MACOS_SIMPLIFIED.families);
+        assert_eq!(face, 0, "Hiragino Sans GB W3 is face 0");
+        assert!(tasty_i18n::font::validate_face(&hiragino, face).is_ok());
+        let chosen = &usable_cjk_fonts(&[MACOS_SIMPLIFIED])[0];
+        assert_eq!(chosen.bytes, hiragino.as_slice());
     }
 }
 
