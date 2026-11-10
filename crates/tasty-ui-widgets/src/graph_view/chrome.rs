@@ -196,6 +196,7 @@ pub fn draw_zoom_cluster(
 }
 
 /// 캔버스의 미니맵·줌 버튼·축약 표시.
+// 이유: 갤러리에서도 같은 인자 구성을 사용해 렌더링을 대조한다.
 #[allow(clippy::too_many_arguments)]
 pub(super) fn draw_canvas_chrome<G: GraphData, P: GraphPainter<G>>(
     ui: &mut egui::Ui,
