@@ -44,3 +44,56 @@ fn an_explicit_reconnect_clears_the_user_disconnect_mark() {
         "{decision:?}"
     );
 }
+
+fn remote_attach(app: &mut App) -> serde_json::Value {
+    let (tx, rx) = std::sync::mpsc::sync_channel(1);
+    let request: JsonRpcRequest = serde_json::from_value(serde_json::json!({
+        "jsonrpc": "2.0", "id": 1, "method": "remote.attach",
+        "params": {"profile": "rv", "remote_workspace": 3},
+    }))
+    .unwrap();
+    let cmd = crate::ipc::server::IpcCommand::new(request, tx);
+    app.attach_to_saved_row(&cmd, &crate::ipc::caller::CallerContext::local(), ROW, 3);
+    let response = rx.try_recv().expect("an immediate response");
+    serde_json::to_value(response).unwrap()["result"].clone()
+}
+
+/// Given 연결을 시도 중인 저장 행, When `remote.attach` 가 그 시도에 합류하고 시도가 끝내 실패하면,
+/// Then 합류한 요청의 run 도 실패로 끝나 CLI 가 rc 1 을 낸다.
+#[test]
+fn a_joined_remote_attach_gets_the_final_failure() {
+    alone!("a_joined_remote_attach_gets_the_final_failure");
+    let event_loop = event_loop();
+    let mut app = app_with_saved_row(&event_loop, Some(SessionState::Reconnecting));
+    app.remote.active.insert(ROW);
+    let result = remote_attach(&mut app);
+    let run = result["run"].as_u64().expect("a joined request has a run");
+
+    app.advance_row_waits();
+    assert_eq!(
+        crate::request_runs::lookup(run, None).unwrap()["state"],
+        "running"
+    );
+
+    app.enter_disconnected(ROW);
+    app.advance_row_waits();
+    let ended = crate::request_runs::lookup(run, None).unwrap();
+    assert_eq!(ended["state"], "failed", "{ended}");
+}
+
+/// Given 연결을 시도 중인 저장 행, When 합류한 뒤 그 시도가 연결되면, Then 합류한 run 은 성공이다.
+#[test]
+fn a_joined_remote_attach_gets_the_final_success() {
+    alone!("a_joined_remote_attach_gets_the_final_success");
+    let event_loop = event_loop();
+    let mut app = app_with_saved_row(&event_loop, Some(SessionState::Reconnecting));
+    app.remote.active.insert(ROW);
+    let run = remote_attach(&mut app)["run"].as_u64().unwrap();
+    app.remote.active.remove(&ROW);
+    app.remote.sessions[0].state.phase = SessionState::Connected;
+    app.advance_row_waits();
+    assert_eq!(
+        crate::request_runs::lookup(run, None).unwrap()["state"],
+        "succeeded"
+    );
+}

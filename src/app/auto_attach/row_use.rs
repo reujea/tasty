@@ -31,11 +31,13 @@ struct RowWait {
 #[derive(Default)]
 pub(crate) struct RowWaits {
     waiting: Vec<RowWait>,
+    /// 진행 중인 행 연결에 합류한 `remote.attach`의 run. 행이 연결되거나 연결을 끝내면 그 결과를 남긴다.
+    runs: Vec<(u32, u64)>,
 }
 
 impl RowWaits {
     pub(crate) fn is_empty(&self) -> bool {
-        self.waiting.is_empty()
+        self.waiting.is_empty() && self.runs.is_empty()
     }
 
     /// 재연결 타이머와 함께 깨울 시각. 행마다 가장 이른 상한이다.
@@ -52,6 +54,14 @@ impl RowWaits {
 
     /// 종료가 시작되면 기다리던 요청에 종료 응답을 보낸다.
     pub(crate) fn reject_all(&mut self, mut plugins: Option<&mut crate::plugin::PluginManager>) {
+        for (_, run) in self.runs.drain(..) {
+            crate::request_runs::finish(
+                run,
+                crate::request_runs::RunState::Failed,
+                "host is shutting down",
+                serde_json::Value::Null,
+            );
+        }
         for wait in self.waiting.drain(..) {
             answer(
                 wait.gated,
@@ -367,7 +377,8 @@ impl App {
     }
 
     /// `remote.attach`가 같은 연결 대상의 저장된 원격 행을 가리키면 새 mirror를 만들지 않고 그 행을
-    /// 연결한다. 연결된 행이면 바로 성공으로 끝난 run을 준다. 이미 연결 중인 행에 합류하면 run이 없다.
+    /// 연결한다. 연결된 행이면 바로 성공으로 끝난 run을 준다. 이미 연결 중인 행에 합류하면 그 시도가
+    /// 끝날 때 run에 같은 결과를 남긴다.
     pub(crate) fn attach_to_saved_row(
         &mut self,
         cmd: &crate::ipc::server::IpcCommand,
@@ -393,26 +404,25 @@ impl App {
             );
             return;
         }
-        let connected = self.row_session_phase(row) == Some(SessionState::Connected);
+        let connected = self.row_facts(row).connected();
         let joining = !connected && self.remote.active.contains(&row);
-        let run = (!joining).then(|| {
-            crate::request_runs::begin(
-                "remote.attach",
-                crate::request_runs::reader_of(caller),
-                serde_json::json!({ "remote_workspace": remote_ws, "workspace_id": row }),
-            )
-        });
+        let run = crate::request_runs::begin(
+            "remote.attach",
+            crate::request_runs::reader_of(caller),
+            serde_json::json!({ "remote_workspace": remote_ws, "workspace_id": row }),
+        );
         if connected {
-            if let Some(run) = run {
-                crate::request_runs::finish(
-                    run,
-                    crate::request_runs::RunState::Succeeded,
-                    format!("already attached as workspace {row}"),
-                    serde_json::json!({ "workspace_id": row }),
-                );
-            }
-        } else if !joining {
-            self.connect_saved_row_with_run(row, false, run);
+            crate::request_runs::finish(
+                run,
+                crate::request_runs::RunState::Succeeded,
+                format!("already attached as workspace {row}"),
+                serde_json::json!({ "workspace_id": row }),
+            );
+        } else if joining {
+            // 진행 중인 시도의 최종 결과를 이 run에도 남긴다.
+            self.row_waits.runs.push((row, run));
+        } else {
+            self.connect_saved_row_with_run(row, false, Some(run));
         }
         crate::ipc::server::send_response(
             &cmd.response_tx,
@@ -548,6 +558,36 @@ impl App {
         }
         for gated in ready {
             self.resume_row_request(gated);
+        }
+        self.settle_joined_runs();
+    }
+
+    /// 합류한 run을 행이 연결되면 성공으로, 연결을 끝내면 그 이유로 실패로 끝낸다.
+    fn settle_joined_runs(&mut self) {
+        use crate::request_runs::{RunState, finish};
+        let runs = std::mem::take(&mut self.row_waits.runs);
+        for (row, run) in runs {
+            let facts = self.row_facts(row);
+            let (state, result) = match progress(&facts) {
+                Progress::Waiting => {
+                    self.row_waits.runs.push((row, run));
+                    continue;
+                }
+                Progress::Ready if facts.saved => {
+                    (RunState::Succeeded, format!("attached as workspace {row}"))
+                }
+                Progress::Ready => (
+                    RunState::Failed,
+                    "the saved remote workspace row was closed".to_owned(),
+                ),
+                Progress::Failed(reason) => (RunState::Failed, refusal(row, &reason).message),
+            };
+            finish(
+                run,
+                state,
+                result,
+                serde_json::json!({ "workspace_id": row }),
+            );
         }
     }
 

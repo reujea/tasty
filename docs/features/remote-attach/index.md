@@ -387,7 +387,7 @@ IPC·CLI·plugin 요청이 연결되지 않은 저장된 원격 행을 쓰려 �
   - 연결 실패 안내와 같은 이름: `self_instance`·`profile_missing`·`unresolved`·`remote_workspace_missing`·`occupied`·`mirror_workspace`.
   - `busy`: 연결을 기다리는 요청이 상한만큼 있다.
 - 연결 뒤 대상 surface 가 원격에서 사라졌으면 다시 실행한 요청이 "없는 대상" 오류로 끝난다. 연결한 뒤에는 지금의 mirror 규칙을 따른다(예: mirror 를 대상으로 한 `terminal.spawn` 은 거절하고 원격 자식은 `attach.agent_target` → `attach.agent_call` 경로다).
-- **같은 연결 대상의 `remote.attach`**: 프로필과 원격 workspace id 가 저장된 원격 행과 같으면 새 mirror 를 만들지 않고 그 행을 연결한다. 응답은 `{attaching, remote_workspace, workspace_id, saved_row: true, run}` 이다. 이미 연결된 행이면 `attaching: false` 와 성공으로 끝난 `run` 을, 이미 연결 중인 행에 합류하면 `run: null` 을 준다. 위의 `window_parked`·`user_disconnected` 는 같은 오류로 답한다. 연결해도 그 행은 저장된 원격 행으로 남는다.
+- **같은 연결 대상의 `remote.attach`**: 프로필과 원격 workspace id 가 저장된 원격 행과 같으면 새 mirror 를 만들지 않고 그 행을 연결한다. 응답은 `{attaching, remote_workspace, workspace_id, saved_row: true, run}` 이다. 이미 연결된 행이면 `attaching: false` 와 성공으로 끝난 `run` 을, 이미 연결 중인 행에 합류해도 `run` 을 주며, 그 시도가 끝나면 같은 결과(연결되면 성공, 연결 끊김·첫 연결 실패면 그 이유로 실패)를 남긴다. 재연결 중인 행에 합류하면 재연결 구간이 끝날 때까지 기다린다. 위의 `window_parked`·`user_disconnected` 는 같은 오류로 답한다. 연결해도 그 행은 저장된 원격 행으로 남는다.
 - **`remote.disconnect`**: 저장된 원격 행이면 아직 붙지 않은 행도 성공으로 답하고 진행 중인 시도를 취소한다. 행은 남고 다시 불러도 성공이다.
 - **`workspace.list`**: 저장된 원격 행에 `remote_state` 를 싣는다. 값은 `connected` · `connecting`(첫 연결 중) · `reconnecting` · `disconnected` · `failed`(첫 연결이 실패해 다시 열기를 기다림) · `not_connected` 이고, 저장된 행이 아니면 `null` 이다. 조회는 연결을 일으키지 않는다.
 
