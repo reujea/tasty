@@ -1,7 +1,7 @@
 use winit::window::Window;
 
 use crate::adapters::ui;
-use crate::model::PhysicalRect;
+use crate::model::{PhysicalPx, PhysicalRect};
 use crate::runtime::engine_read::EngineRead;
 use crate::settings::EffectiveFont;
 use crate::state::MainViewState;
@@ -14,7 +14,7 @@ use super::GpuState;
 /// 때문에 매 프레임 다른 값으로 판단할 수 있다.
 pub(super) fn terminal_font_request(font: &EffectiveFont, scale_factor: f32) -> FontRequest {
     FontRequest {
-        size_px: font.effective_font_size(scale_factor),
+        size: PhysicalPx(font.effective_font_size(scale_factor)),
         family: font.font_family.clone(),
         custom_font_path: font.custom_font_path.clone(),
         line_height: font.line_height,
@@ -25,7 +25,10 @@ pub(super) fn terminal_font_request(font: &EffectiveFont, scale_factor: f32) -> 
 pub(super) fn term_font_signature(font: &FontRequest) -> String {
     format!(
         "{}|{}|{}|{}",
-        font.size_px, font.family, font.custom_font_path, font.line_height
+        font.size.value(),
+        font.family,
+        font.custom_font_path,
+        font.line_height
     )
 }
 
@@ -547,7 +550,7 @@ mod tests {
         f.custom_font_path = "/tmp/x.ttf".into();
         f.line_height = 1.5;
         let request = terminal_font_request(&f, 2.0);
-        assert_eq!(request.size_px, 28.0);
+        assert_eq!(request.size, PhysicalPx(28.0));
         assert_eq!(request.family, "Hack");
         assert_eq!(request.custom_font_path, "/tmp/x.ttf");
         assert_eq!(request.line_height, 1.5);

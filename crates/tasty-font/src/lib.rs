@@ -3,6 +3,7 @@
 use std::collections::BTreeSet;
 
 use cosmic_text::{Attrs, Buffer, FamilyOwned, FontSystem, Metrics, Shaping, SwashCache};
+use tasty_type_geometry::length::PhysicalPx;
 
 /// Family name of the bundled D2Coding ligature font.
 /// Must match the `family` entry in the ttf `name` table exactly
@@ -146,8 +147,8 @@ fn borrow_missing_variants(
 /// path only.
 #[derive(Debug, Clone, PartialEq)]
 pub struct FontRequest {
-    /// Pixel size after display scaling, not the point size of the setting.
-    pub size_px: f32,
+    /// Size after display scaling, not the point size of the setting.
+    pub size: PhysicalPx,
     /// The family as written in the settings. Empty or `monospace` means the bundled font.
     pub family: String,
     /// Empty means no custom font file.
@@ -158,9 +159,9 @@ pub struct FontRequest {
 
 impl FontRequest {
     /// A request without a custom font file and with single line height.
-    pub fn new(size_px: f32, family: &str) -> Self {
+    pub fn new(size: PhysicalPx, family: &str) -> Self {
         Self {
-            size_px,
+            size,
             family: family.to_string(),
             custom_font_path: String::new(),
             line_height: 1.0,
@@ -185,7 +186,7 @@ impl FontConfig {
     /// Create a new FontConfig with the given font size and family name.
     /// If `font_family` is empty or "monospace", the bundled D2Coding ligature font is used.
     pub fn new(font_size: f32, font_family: &str) -> Self {
-        Self::from_request(&FontRequest::new(font_size, font_family))
+        Self::from_request(&FontRequest::new(PhysicalPx(font_size), font_family))
     }
 
     /// Create a new FontConfig from every value of the request.
@@ -249,8 +250,12 @@ impl FontConfig {
             D2CODING_FAMILY
         };
         let family = FamilyOwned::Name(name.to_string().into());
-        let metrics =
-            Self::measure_cell(font_system, request.size_px, &family, request.line_height);
+        let metrics = Self::measure_cell(
+            font_system,
+            request.size.value(),
+            &family,
+            request.line_height,
+        );
         (family, metrics)
     }
 
@@ -680,7 +685,7 @@ mod tests {
             swash_cache: SwashCache::new(),
             metrics,
             font_family,
-            request: FontRequest::new(14.0, D2CODING_FAMILY),
+            request: FontRequest::new(PhysicalPx(14.0), D2CODING_FAMILY),
             custom_faces: Vec::new(),
         }
     }
@@ -723,7 +728,7 @@ mod tests {
 
     fn saved_values(path: &str) -> FontRequest {
         FontRequest {
-            size_px: 14.0,
+            size: PhysicalPx(14.0),
             family: crate::test_fonts::RENAMED_FAMILY.to_string(),
             custom_font_path: path.to_string(),
             line_height: 1.5,
@@ -765,7 +770,7 @@ mod tests {
         let config = FontConfig::from_request(&FontRequest {
             custom_font_path: "/nonexistent/tasty-font-test.ttf".to_string(),
             line_height: 1.5,
-            ..FontRequest::new(14.0, "")
+            ..FontRequest::new(PhysicalPx(14.0), "")
         });
         assert_eq!(config.metrics.cell_height, 21.0);
     }
@@ -793,7 +798,7 @@ mod tests {
     fn with_file(path: &str, family: &str) -> FontRequest {
         FontRequest {
             custom_font_path: path.to_string(),
-            ..FontRequest::new(14.0, family)
+            ..FontRequest::new(PhysicalPx(14.0), family)
         }
     }
 
@@ -836,7 +841,7 @@ mod tests {
         config.reconfigure(&with_file(&second.path(), D2CODING_FAMILY));
         assert!(uses_the_file(&mut config));
         assert_eq!(config.metrics.cell_width, 14.0);
-        config.reconfigure(&FontRequest::new(14.0, ""));
+        config.reconfigure(&FontRequest::new(PhysicalPx(14.0), ""));
         assert!(config.custom_faces.is_empty());
         assert_eq!(config.font_system.db().len(), faces);
         assert_eq!(config.metrics.cell_width, 7.0);

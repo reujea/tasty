@@ -13,6 +13,8 @@ wgpu = { version = "24", optional = true }
 
 tracing = "0.1"
 
+tasty-type-geometry = { path = "../tasty-type-geometry" }
+
 # Fast non-cryptographic hash for hot-path glyph cache fallback
 rustc-hash = "2"
 
