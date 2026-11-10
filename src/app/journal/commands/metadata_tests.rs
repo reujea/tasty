@@ -404,3 +404,70 @@ fn saved_remote_rows_store_renames_and_display_moves_but_agent_mirrors_do_not() 
         "storing and removing a saved row commit"
     );
 }
+
+/// 같은 슬롯 1 을 새 journal 로 다시 열어 복원이 끝날 때까지 돌린다.
+#[cfg(feature = "gui")]
+fn reopen_slot(session: &mut EngineSession) -> JournalApplication {
+    session.core_state = crate::core::CoreState::new_base();
+    session.journal_binding = None;
+    let mut journal = JournalApplication::new(Arc::new(|| {})).unwrap();
+    journal
+        .begin_engine(
+            session,
+            EngineSelection::Slot {
+                slot: 1,
+                resume: true,
+            },
+        )
+        .unwrap();
+    let mut stall = StallBudget::new(&journal);
+    while !(session.journal_binding.is_some() && journal.is_ready(session.id)) {
+        journal.poll_bootstrap(&mut [&mut *session], None).unwrap();
+        journal.poll_restore_bootstrap(session).unwrap();
+        stall.nap("reopen slot 1");
+    }
+    journal
+}
+
+#[cfg(feature = "gui")]
+fn has_row(session: &EngineSession, id: u32) -> bool {
+    session
+        .core_state
+        .mirror_workspaces()
+        .iter()
+        .any(|workspace| workspace.id == id && workspace.is_saved_remote_row())
+}
+
+/// Given restore_layout 이 꺼진 창의 저장된 원격 행, When 그 창을 닫아 슬롯이 은퇴하면(window_lifecycle 의
+/// retire_main_window 가 부르는 retire_engine), Then 저장 행은 슬롯과 함께 사라져 다시 열어도 없다.
+/// 대조로 은퇴하지 않은 슬롯을 다시 열면 행이 돌아온다.
+#[cfg(feature = "gui")] // 창 슬롯 은퇴(retirement)는 gui 조합에만 있다.
+#[test]
+fn closing_a_window_without_layout_restore_drops_its_saved_rows_with_the_slot() {
+    let (mut session, mut journal) = boot();
+    session.runtime.settings.general.restore_layout = false;
+    session
+        .core_state
+        .push_mirror_workspace(saved_row(900, "remote"));
+    journal.admit_remote_row(session.id, 900, false);
+    finish_intents(&mut journal, &mut session);
+    drop(journal);
+
+    let mut journal = reopen_slot(&mut session);
+    assert!(has_row(&session, 900), "a kept slot restores the saved row");
+
+    journal.retire_engine(session.id, session.journal_binding.clone().unwrap(), true);
+    let mut stall = StallBudget::new(&journal);
+    while journal.has_pending_retirements() {
+        journal.poll_bootstrap(&mut [&mut session], None).unwrap();
+        stall.nap("retire slot 1");
+    }
+    assert!(journal.layout_slot_retired(1));
+    drop(journal);
+
+    let _journal = reopen_slot(&mut session);
+    assert!(
+        !has_row(&session, 900),
+        "the retired slot took the saved row"
+    );
+}

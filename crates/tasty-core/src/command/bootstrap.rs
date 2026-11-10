@@ -62,6 +62,13 @@ pub(super) fn decide(
                     id: record.id.clone(),
                 }),
         );
+        // 저장된 원격 행도 이 incarnation 의 구조다. 슬롯을 새로 시작하면 함께 지운다.
+        events.extend(
+            model
+                .remote_rows
+                .keys()
+                .map(|id| DomainEvent::RemoteRowRemoved { id: *id }),
+        );
         events.extend(
             model
                 .workspace_order

@@ -12,7 +12,18 @@ pub(super) fn apply_event(
         }
         DomainEvent::EngineIncarnationStarted { .. } | DomainEvent::EngineRetired { .. } => {}
         // 저장된 원격 행의 화면 상태는 host가 연결 흐름으로 관리한다. 부팅 때만 행을 만든다.
-        DomainEvent::RemoteRowSet { .. } | DomainEvent::RemoteRowRemoved { .. } => {}
+        DomainEvent::RemoteRowSet { .. } => {}
+        // host는 행을 닫을 때 화면의 mirror를 먼저 지운다. 남아 있는 형상 없는 행은 부팅 뒤 슬롯을 새로
+        // 시작하는 초기화가 지운 행이라 여기서 함께 거둔다. 형상이 있는 행은 host의 연결이 가진다.
+        DomainEvent::RemoteRowRemoved { id } => {
+            if let Some(index) = engine.find_workspace_index_for_id(*id)
+                && engine
+                    .workspace_at(index)
+                    .is_some_and(|workspace| workspace.is_saved_remote_row() && workspace.is_bare())
+            {
+                retired.push(Retired::Workspace(engine.remove_workspace_at(index)));
+            }
+        }
         DomainEvent::CategoryCreated { id, name, index } => engine
             .categories
             .insert(*index, WorkspaceCategory::new(*id, name.clone())),
