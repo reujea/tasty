@@ -162,14 +162,22 @@ impl TopLevelAdmission {
 }
 
 /// 진행 중인 subframe 탐색의 현재 hop 주소. 탐색 id로 시작·리다이렉트·종료를 따라간다.
+/// id를 모르는 탐색의 주소는 끝을 대조할 수 없어 main commit([`Self::clear`])까지 모두 남긴다.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct SubframeNavigations {
     hops: Vec<(u64, String)>,
+    /// id를 모르는 탐색이 지난 주소. 서로 덮어쓰지 않는다.
+    unidentified: Vec<String>,
 }
 
 impl SubframeNavigations {
-    /// subframe 탐색이 시작했거나 리다이렉트로 다음 hop에 갔다.
-    pub fn hop(&mut self, id: u64, url: &str) {
+    /// subframe 탐색이 시작했거나 리다이렉트로 다음 hop에 갔다. 같은 id면 앞 hop 주소를 바꾼다.
+    /// id를 모르면(`None`) 주소를 더하기만 한다.
+    pub fn hop(&mut self, id: Option<u64>, url: &str) {
+        let Some(id) = id else {
+            self.unidentified.push(url.to_string());
+            return;
+        };
         match self.hops.iter_mut().find(|(i, _)| *i == id) {
             Some(entry) => entry.1 = url.to_string(),
             None => self.hops.push((id, url.to_string())),
@@ -184,11 +192,13 @@ impl SubframeNavigations {
     /// main frame commit. 앞 문서의 frame이 사라지므로 남은 기록을 지운다.
     pub fn clear(&mut self) {
         self.hops.clear();
+        self.unidentified.clear();
     }
 
     /// 이 주소로 가는 subframe 탐색이 진행 중인지.
     pub fn claims(&self, url: &str) -> bool {
         self.hops.iter().any(|(_, hop)| same_target(hop, url))
+            || self.unidentified.iter().any(|hop| same_target(hop, url))
     }
 }
 

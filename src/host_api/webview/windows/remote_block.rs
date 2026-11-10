@@ -140,7 +140,8 @@ pub(super) fn navigation_starting(
 /// subframe 탐색과 탐색 시작 없는 기록 변경을 top-level 허용에 알린다. 첫 문서를 열기 전에 부른다.
 ///
 /// - `FrameNavigationStarting`·`FrameNavigationCompleted`: subframe 탐색의 hop 주소를 기록하고 지운다.
-///   id를 읽지 못한 탐색은 끝을 대조할 수 없어 main commit까지 남긴다(차단 쪽으로 닫는다).
+///   id를 읽지 못한 탐색의 주소는 끝을 대조할 수 없어 서로 덮어쓰지 않고 main commit까지 모두 남긴다
+///   (차단 쪽으로 닫는다). 완료 때 id를 읽지 못한 탐색도 그 주소를 main commit까지 남긴다.
 /// - `HistoryChanged`: 같은 문서 이동(fragment 이력, `Navigate`의 fragment 주소)은 `NavigationStarting` 없이
 ///   기록만 바꾼다. 그 이동을 지목한 [`Designation::Next`](tasty_model::html_script::top_level::Designation)가
 ///   남아 뒤의 페이지 이동을 열지 않게 지운다. 문서를 바꾸는 탐색은 이 이벤트보다 먼저 시작해 지목을 소비한다.
@@ -154,15 +155,18 @@ pub(super) fn install(
     let start = NavigationStartingEventHandler::create(Box::new(
         move |_sender, args| -> windows::core::Result<()> {
             let Some(args) = args else { return Ok(()) };
-            let mut id = u64::MAX;
+            let mut raw = 0u64;
             // SAFETY: args는 이 콜백 동안 valid하며 main thread에서 읽는다. 출력 값은 지역 변수다.
-            if let Err(e) = unsafe { args.NavigationId(&mut id) } {
-                tracing::warn!(
-                    "WebView surface {surface_id}: frame NavigationId failed ({e}); \
-                     the frame address is kept until the next commit"
-                );
-                id = u64::MAX;
-            }
+            let id = match unsafe { args.NavigationId(&mut raw) } {
+                Ok(()) => Some(raw),
+                Err(e) => {
+                    tracing::warn!(
+                        "WebView surface {surface_id}: frame NavigationId failed ({e}); \
+                         the frame address is kept until the next main commit"
+                    );
+                    None
+                }
+            };
             let mut uri = PWSTR::null();
             // SAFETY: 위와 같다. 반환 URI의 할당은 호출자가 해제한다.
             unsafe { args.Uri(&mut uri)? };
@@ -184,7 +188,7 @@ pub(super) fn install(
                 Ok(()) => frames_done.borrow_mut().end(id),
                 Err(e) => tracing::warn!(
                     "WebView surface {surface_id}: frame NavigationId failed on completion ({e}); \
-                     the frame address is kept until the next commit"
+                     the frame address is kept until the next main commit"
                 ),
             }
             Ok(())

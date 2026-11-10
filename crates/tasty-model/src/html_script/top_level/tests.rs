@@ -196,16 +196,16 @@ fn a_subframe_navigation_to_the_admitted_url_gets_no_document_exception() {
     t.designate(Designation::Next);
     assert!(t.start(B, StartKind::Other, false, BLOCKED_LOCAL));
     assert!(t.admits_document(B, &frames), "the main request");
-    frames.hop(7, HOP);
+    frames.hop(Some(7), HOP);
     assert!(t.admits_document(B, &frames), "a frame going elsewhere");
-    frames.hop(7, "http://127.0.0.1:8000/b.html#frag");
+    frames.hop(Some(7), "http://127.0.0.1:8000/b.html#frag");
     assert!(
         !t.admits_document(B, &frames),
         "the same URL from a subframe is refused"
     );
     frames.end(7);
     assert!(t.admits_document(B, &frames));
-    frames.hop(8, B);
+    frames.hop(Some(8), B);
     frames.clear();
     assert!(
         t.admits_document(B, &frames),
@@ -248,4 +248,23 @@ fn a_history_change_without_a_start_drops_a_next_designation() {
         t.start(B, StartKind::History, false, BLOCKED_REMOTE),
         "only Next waits for any start"
     );
+}
+
+#[test]
+fn unidentified_subframe_navigations_keep_every_address_until_commit() {
+    let mut t = TopLevelAdmission::default();
+    let mut frames = SubframeNavigations::default();
+    t.designate(Designation::Next);
+    assert!(t.start(B, StartKind::Other, false, BLOCKED_LOCAL));
+    frames.hop(None, B);
+    frames.hop(None, HOP);
+    assert!(
+        !t.admits_document(B, &frames),
+        "a later unidentified navigation does not replace the first address"
+    );
+    assert!(frames.claims(HOP));
+    frames.end(u64::MAX);
+    assert!(!t.admits_document(B, &frames), "no id can end it");
+    frames.clear();
+    assert!(t.admits_document(B, &frames), "main commit empties it");
 }
