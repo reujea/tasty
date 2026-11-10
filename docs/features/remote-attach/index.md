@@ -200,7 +200,7 @@ mirror 콘텐츠(grid) 갱신은 원격 출력이 올 때 즉시, 3초 tick 은 
 
 #### 원격 위치 표시
 
-사이드바를 보지 않아도 지금 보는 위치가 원격임을 알 수 있도록 다음 자리에 호스트를 보인다. 모양은 [디자인 정본](../../dev-guide/design-change-workflow.md)을 따른다.
+사이드바를 보지 않아도 지금 보는 위치가 원격임을 알 수 있도록 다음 자리에 호스트를 보인다. 원격 호스트를 보이는 다른 자리도 같은 글자를 쓴다. 모양은 [디자인 정본](../../dev-guide/design-change-workflow.md)을 따른다.
 
 | 위치 | 언제 | 문서 |
 |---|---|---|
@@ -211,7 +211,7 @@ mirror 콘텐츠(grid) 갱신은 원격 출력이 올 때 즉시, 3초 tick 은 
 - **호스트 글자**: 연결할 때 고른 `tasty-attach` 프로필 이름이다. 원격 연결 팝업, `remote attach --into-gui --profile`(IPC `remote.attach`의 `profile`), 자동 attach 매핑 `--ssh-profile` 이 프로필 이름을 세션에 넘긴다. 연결 시점 값이며 재연결해도 바꾸지 않는다. 연결 뒤 프로필 이름을 바꾸거나 지워도 이미 붙은 mirror 의 표시는 그대로다.
 - **프로필 없이 붙은 mirror**: `--ssh <dest>`, 인라인 매핑 `--ssh`, `--target-port`(`attach.into_gui`), debug attach 로 붙은 mirror 는 이 연결의 loopback 엔드포인트 `127.0.0.1:<로컬 포트>`(`remote_label`)를 쓴다. 글자는 `ClientSessionState::host_text` 한 곳에서 정한다.
 - **재연결 중**: 연결이 끊겨 다시 붙는 동안 상태바는 원격 색을 빼고 상태어를 붙인다. 끊긴 연결을 활성처럼 보이지 않게 한다.
-- File Picker 의 호스트 배지와 탐색기 원격 작업의 호스트 표시는 이 글자가 아니라 세션의 loopback 라벨(`remote_label`)을 읽는다.
+- File Picker 의 host 배지와 탐색기 원격 작업의 호스트 표시(`HostMark`, 쓰기 거절·대기·결과 모름 문구의 `{host}`)도 같은 글자를 쓴다.
 
 **주의 환기(attention)도 같은 방향의 별도 채널이다** — 원격이 자기 surface 의 attention(작업 완료 / 응답 필요)을 같은 1Hz tick 에 `StreamControl::Attention{surface_id, kind}` 로 forward 하고 client 가 자기 `AttentionStore` 에 반영한다.
 attention 의 관리 주체는 **surface 를 소유한 인스턴스**다: producer(완료 IPC/CLI, Claude 플러그인 훅, OSC 133 명령 완료, toast)가 전부 PTY 가 있는 쪽에서 돌고, 특히 `needs_input` 은 서버 훅에서만 나와 미러가 스스로 만들 수 없다.

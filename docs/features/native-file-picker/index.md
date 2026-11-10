@@ -403,7 +403,7 @@ view 는 `FilePickerProps` 만 받고 `FilePickerAction` 만 돌려주므로 상
   엔트리가 표시된다(`inherit_cwd` 가 꺼져 있어도 같다).
 - Given mirror workspace 가 활성이고 원격 cwd 를 모름 When Tools 메뉴에서 파일 피커를 열면 Then
   `Loading` 상태를 거쳐 attach 채널로 받은 원격 홈 디렉토리 엔트리가 표시되고 헤더에 host 배지가
-  뜬다.
+  뜬다. 배지 글자는 [원격 위치 표시](../remote-attach/index.md#원격-위치-표시)와 같은 attach 프로필 이름이다.
 - Given mirror surface 에 서버가 원격 cwd 를 push 함 When 그 surface 에서 파일 피커를 열면 Then 원격
   홈이 아니라 그 원격 cwd 의 엔트리를 요청한다.
 - Given `file_picker.trigger` 에 존재하지 않는 로컬 `start_dir` 를 실음 Then 에러 화면이 아니라 홈에서

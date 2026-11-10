@@ -115,7 +115,7 @@ fn apply_result(
         };
         picker.entries = es;
         if picker.remote_host.is_none() {
-            picker.remote_host = Some(sess.state.remote_label.clone());
+            picker.remote_host = Some(sess.state.host_text());
         }
         if truncated {
             host.toast(

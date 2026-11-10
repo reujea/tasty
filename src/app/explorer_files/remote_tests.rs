@@ -207,8 +207,10 @@ fn a_remote_job_relays_progress_answers_and_its_result() {
 #[test]
 fn a_lost_connection_or_refusal_ends_the_job() {
     let (ws, request) = queued(Operation::Trash(vec!["/srv/a".into()]));
-    let (sess, _rx) =
+    let (mut sess, _rx) =
         crate::app::attach_client::tests::test_session_with_frames(ws, HashMap::new());
+    // 결과를 모르는 카드는 attach 프로필 이름으로 원격을 가리킨다.
+    sess.state.profile = Some("gx10".into());
     let mut sessions = vec![sess];
     let mut files = super::super::ExplorerFiles::default();
     start(&mut files, &sessions, ws, request);
@@ -219,7 +221,7 @@ fn a_lost_connection_or_refusal_ends_the_job() {
     };
     assert_eq!(
         lost.title(),
-        crate::i18n::t_fmt("explorer.remote.lost_title", "127.0.0.1:0")
+        crate::i18n::t_fmt("explorer.remote.lost_title", "gx10")
     );
     assert_eq!(
         lost.body(),

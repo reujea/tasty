@@ -259,7 +259,7 @@ impl super::ExplorerFiles {
             seen: Default::default(),
             cancel_sent: false,
             result: None,
-            host: sess.state.remote_label.clone(),
+            host: sess.state.host_text(),
             verb,
         });
         Ok(())
@@ -367,7 +367,7 @@ impl crate::app::App {
                 (
                     s.state.local_workspace,
                     crate::remote::state::ExplorerRemoteHost {
-                        label: s.state.remote_label.clone(),
+                        label: s.state.host_text(),
                         needs_update: connected && !s.transport.explorer_write,
                     },
                 )

@@ -543,7 +543,7 @@ pub struct RetiredDocuments {
     pub html: Vec<u32>,
 }
 impl ClientSessionState {
-    /// 원격 호스트 표시(상태바·picker·링크 툴팁)에 쓰는 글자. 프로필 이름이고, 프로필 없이 붙은
+    /// 원격 호스트 표시(상태바·핸들러 picker·링크 툴팁·File Picker 배지·탐색기)에 쓰는 글자. 프로필 이름이고, 프로필 없이 붙은
     /// mirror는 `remote_label`이다.
     pub fn host_text(&self) -> String {
         self.profile
