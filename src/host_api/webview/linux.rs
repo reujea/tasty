@@ -34,6 +34,7 @@ mod navigation_policy;
 mod overlay_backend;
 mod remote_block;
 pub(super) mod selection;
+mod view_navigation;
 use super::entry_response::EntryResponseSource;
 use content_filter::compile_remote_block_filter;
 use remote_block::RemoteBlock;
@@ -851,32 +852,6 @@ impl PlatformWebView {
         std::mem::take(&mut *self.pending_navigations.borrow_mut())
     }
 
-    pub fn load_url(&self, url: &str) {
-        self.edit_guard.bump();
-        // 같은 문서의 fragment 이동은 load-changed 없이 끝난다(측정). Loading을 세우면 풀리지 않는다.
-        if self.nav_state.get() == NavState::Done
-            && crate::model::is_same_document_fragment_move(self.webview.uri().as_deref(), url)
-        {
-            self.webview.load_uri(url);
-            return;
-        }
-        self.loads.borrow_mut().requested();
-        self.nav_state.set(NavState::Loading);
-        self.webview.load_uri(url);
-    }
-
-    pub fn load_html(&self, html: &str) {
-        self.edit_guard.bump();
-        if self.entry_source.is_some() {
-            tracing::warn!("raw HTML load rejected for a remote entry WebView");
-            self.nav_state.set(NavState::Failed);
-            return;
-        }
-        self.loads.borrow_mut().requested();
-        self.nav_state.set(NavState::Loading);
-        self.webview.load_html(html, None);
-    }
-
     pub fn set_zoom(&self, factor: f64) {
         self.webview.set_zoom_level(factor);
     }
@@ -955,39 +930,9 @@ impl PlatformWebView {
         }
     }
 
-    /// 호스트가 시작한 로드·이동은 web process의 load-changed보다 먼저 대기 중인 선택 질의를 무효화한다.
-    /// web process가 바쁘면 load-changed가 선택 응답보다 늦게 온다(측정).
-    pub fn reload(&self) {
-        self.edit_guard.bump();
-        self.webview.reload();
-    }
-
     /// 팔레트·host 키 경로의 편집 명령. 엔진이 포커스 frame과 편집 가능 여부를 판단한다.
     pub fn execute_edit(&self, action: super::WebViewEditAction) {
         edit::run_editing_command(&self.webview, action, &self.edit_guard);
-    }
-
-    pub fn go_back(&self) {
-        self.edit_guard.bump();
-        self.webview.go_back();
-    }
-
-    pub fn go_forward(&self) {
-        self.edit_guard.bump();
-        self.webview.go_forward();
-    }
-
-    /// 주소 표시용 탐색 정보. 주소 선택 규칙은 `committed_document_url`이 정한다.
-    pub fn nav_info(&self) -> crate::model::WebViewNavInfo {
-        crate::model::WebViewNavInfo {
-            url: crate::model::committed_document_url(
-                self.nav_state.get(),
-                self.webview.uri().map(|u| u.to_string()),
-                self.committed_url.borrow().clone(),
-            ),
-            can_go_back: self.webview.can_go_back(),
-            can_go_forward: self.webview.can_go_forward(),
-        }
     }
 
     /// 사용자 탐색 조작에 없는 로드 중지를 debug IPC에서 재현한다.
