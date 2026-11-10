@@ -275,8 +275,9 @@ t.addEventListener('keydown',function(e){{
 /* **쉘과 같은 편집 키** — 터미널 서피스는 Home/End(fn+←/→)를 줄 처음·끝으로, PageUp/PageDown
    (fn+↑/↓)을 스크롤로 쓴다. macOS 의 textarea 는 Home/End 로 커서를 옮기지 않고, 이 webview 에서는 그
    키의 기능 문자가 깨진 글자로 들어갔다(실측 2026-10-22). 같은 뜻으로 맞춘다 — Home/End 는 커서가 있는
-   줄의 처음·끝(Shift 면 선택을 늘린다, ⌘·Ctrl 이면 글 전체의 처음·끝), PageUp/PageDown 은 대화를 한
-   화면씩 넘긴다. 나머지 편집 키(⌥·⌘+화살표 · ⌥·⌘+⌫ · fn+⌫)는 textarea 가 이미 같은 뜻으로 한다. */
+   줄의 처음·끝(Shift 면 선택을 늘린다, ⌘·Ctrl 이면 글 전체의 처음·끝), ⌘↑/⌘↓ 는 글 전체의 처음·끝
+   (Shift 면 선택을 늘린다), PageUp/PageDown 은 대화를 한 화면씩 넘긴다. 나머지 편집 키(⌥+화살표 ·
+   ⌘←/→ · ⌥·⌘+⌫ · fn+⌫)는 textarea 가 이미 같은 뜻으로 한다. */
 t.addEventListener('keydown',function(e){{
   if(e.isComposing||e.keyCode===229)return;
   var k=e.key;
@@ -287,12 +288,16 @@ t.addEventListener('keydown',function(e){{
     lg.scrollTop+=(k==='PageUp'?-1:1)*Math.max(40,lg.clientHeight-40);
     return;
   }}
-  if((k!=='Home'&&k!=='End')||e.altKey)return;
+  // ⌘↑ · ⌘↓ = 글 전체의 처음 · 끝(macOS 관례 — 노트북에는 Home/End 키가 없다).
+  var doc=e.metaKey&&!e.ctrlKey&&(k==='ArrowUp'||k==='ArrowDown');
+  if(!doc&&((k!=='Home'&&k!=='End')||e.altKey))return;
+  if(doc&&e.altKey)return;
   e.preventDefault();
   var v=t.value, back=t.selectionDirection==='backward';
   var head=back?t.selectionStart:t.selectionEnd, anchor=back?t.selectionEnd:t.selectionStart;
   var pos;
-  if(e.metaKey||e.ctrlKey)pos=k==='Home'?0:v.length;
+  if(doc)pos=k==='ArrowUp'?0:v.length;
+  else if(e.metaKey||e.ctrlKey)pos=k==='Home'?0:v.length;
   else if(k==='Home')pos=v.lastIndexOf('\n',head-1)+1;
   else{{ var i=v.indexOf('\n',head); pos=i===-1?v.length:i; }}
   if(!e.shiftKey)t.setSelectionRange(pos,pos);

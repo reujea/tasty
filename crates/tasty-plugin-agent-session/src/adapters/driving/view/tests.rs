@@ -1270,3 +1270,16 @@ fn a_sent_turn_keeps_its_time_through_render_snapshot_and_restore() {
     let back = turns_from_snapshot(&snapshot_with_turns(Some("s"), &c.turns));
     assert_eq!(back[0].at, Some(at), "복원하면 시각이 사라진다");
 }
+
+/// ⌘↑ · ⌘↓ 는 글 전체의 처음 · 끝이다 — 노트북에는 Home/End 키가 없다. ⌥ 가 붙으면 textarea 에 맡긴다.
+#[test]
+fn command_up_and_down_move_to_the_start_and_end_of_the_text() {
+    let c = Convo {
+        session_id: Some("s1".into()),
+        ..Default::default()
+    };
+    let h = render(&c, false);
+    assert!(h.contains("var doc=e.metaKey&&!e.ctrlKey&&(k==='ArrowUp'||k==='ArrowDown');"));
+    assert!(h.contains("if(doc)pos=k==='ArrowUp'?0:v.length;"));
+    assert!(h.contains("if(doc&&e.altKey)return;"));
+}
