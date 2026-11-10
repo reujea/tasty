@@ -208,6 +208,32 @@ impl App {
                     })
         })
     }
+    /// 시작한 창이 사라져 버린 설치 대기가 그 행의 진행 중 표지를 가졌으면 지운다. 행 토큰이
+    /// 그대로일 때만 이 시도의 표지다. 행을 닫거나 끊거나 팝업이 넘겨받으면 토큰이 바뀌고, 표지는
+    /// 그쪽이 정리하거나 새 시도가 가진다. 첫 연결은 다시 보이거나 다시 고를 때 연결하도록 남긴다.
+    /// 그 행을 기다리던 요청과 합류한 run 은 다음 `advance_row_waits` 가 행 사실(창 없음이면
+    /// window_parked)로 끝낸다.
+    fn end_discarded_row_attempt(&mut self, target: &PendingMirrorInstall) {
+        let Some(row) = target.row else {
+            return;
+        };
+        let owned = target.row_token.as_ref().is_some_and(|token| {
+            self.engines.get(target.engine).is_some_and(|engine| {
+                engine
+                    .remote
+                    .row_tokens
+                    .get(&row)
+                    .is_some_and(|current| token.ptr_eq(&Arc::downgrade(current)))
+            })
+        });
+        if !owned || !self.remote.active.remove(&row) {
+            return;
+        }
+        if target.reconnect.is_none() {
+            self.remote.pending_reactivation.insert(row);
+        }
+    }
+
     pub(crate) fn queue_mirror_connection(
         &mut self,
         target: PendingMirrorInstall,
@@ -245,6 +271,7 @@ impl App {
                 self.state
                     .mirror_attempts
                     .cancel_connection(ticket, &mut self.remote);
+                self.end_discarded_row_attempt(&target);
                 continue;
             }
             if let Some(error) = self.remote.connection_error(ticket) {

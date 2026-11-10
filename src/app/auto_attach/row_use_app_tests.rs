@@ -316,3 +316,138 @@ fn a_first_connect_to_a_missing_workspace_is_closed_elsewhere_for_the_run() {
     assert!(!restarted.row_closed_elsewhere(ROW));
     assert!(tasty_ui_widgets::remote_row_menu(RemoteRowState::NotConnected, false).connect);
 }
+
+/// 행 `ROW` 의 연결 준비를 마친 첫 연결 설치 대기. 시작한 창은 시험 rig 의 행 창이다.
+fn queue_first_connect_install(app: &mut App, user: bool) {
+    let engine = app
+        .engines
+        .all_sessions()
+        .find(|engine| engine.core_state.has_workspace(ROW))
+        .unwrap();
+    let row_token = engine
+        .remote
+        .row_tokens
+        .get(&ROW)
+        .map(std::sync::Arc::downgrade);
+    let target = crate::app::attach_client::pending::PendingMirrorInstall {
+        engine: engine.id,
+        row: Some(ROW),
+        window: Some(winit::window::WindowId::from(u64::MAX - 2)),
+        view: None,
+        selection: None,
+        activate: true,
+        binding: Some(crate::app::auto_attach::test_rig::binding()),
+        row_token,
+        reconnect: None,
+        resync: false,
+        run: None,
+        user,
+        manual: None,
+        profile: Some("rv".to_string()),
+        remote_workspace: Some(3),
+    };
+    app.state.mirror_attempts.register_connection(
+        tasty_remote::pending_connection::ConnectionTicket(1),
+        target,
+    );
+}
+
+/// 형상 없는 저장 행의 첫 연결이 설치 대기 중일 때 행의 창을 park 하고 다시 연다.
+fn park_and_reopen_while_installing(user: bool) {
+    let event_loop = event_loop();
+    let mut app = app_with_saved_row(&event_loop, None);
+    app.ensure_row_token(ROW);
+    if user {
+        app.take_over_saved_row(ROW);
+    } else {
+        app.remote.active.insert(ROW);
+    }
+    queue_first_connect_install(&mut app, user);
+    let (tx, rx) = std::sync::mpsc::sync_channel(1);
+    let request: JsonRpcRequest = serde_json::from_value(serde_json::json!({
+        "jsonrpc": "2.0", "id": 7, "method": "terminal.spawn", "params": {"workspace": ROW},
+    }))
+    .unwrap();
+    let held = Gated::Ipc {
+        cmd: crate::ipc::server::IpcCommand::new(request, tx),
+        progress: Default::default(),
+    };
+    app.hold_for_remote_row(held, RowUse::Wait(ROW));
+    let run = remote_attach(&mut app)["run"].as_u64().unwrap();
+    assert_eq!(app.row_state_name(ROW), "connecting");
+
+    let (state, _) = crate::state::tests::test_state();
+    let parked = app
+        .engines
+        .park(winit::window::WindowId::from(u64::MAX - 2), state)
+        .expect("the row's window is parked");
+    app.poll_pending_mirror_installs();
+    app.advance_row_waits();
+    assert!(
+        !app.remote.active.contains(&ROW),
+        "the discarded attempt ends"
+    );
+    assert!(app.remote.pending_reactivation.contains(&ROW));
+    let answered =
+        serde_json::to_value(rx.try_recv().expect("the held request is answered")).unwrap();
+    assert_eq!(
+        answered["error"]["data"]["reason"], "window_parked",
+        "{answered}"
+    );
+    let ended = crate::request_runs::lookup(run, None).unwrap();
+    assert_eq!(ended["state"], "failed", "{ended}");
+
+    let (reopened, _) = app.engines.unpark_first().expect("a parked engine");
+    assert_eq!(reopened, parked);
+    app.engines
+        .attach_window(winit::window::WindowId::from(u64::MAX - 3), reopened);
+    assert_ne!(app.row_state_name(ROW), "connecting");
+    // 다시 보이게 된 행을 막는 진행 중 표지가 없어, 보이게 된 프레임에 새 첫 연결로 간다.
+    let facts = app.row_facts(ROW);
+    assert!(!facts.active && facts.has_window && facts.phase.is_none());
+    assert_eq!(decide(facts), RowUse::Wait(ROW));
+}
+
+/// Given 자동 첫 연결이 설치 대기 중인 형상 없는 저장 행, When 행의 창을 park 했다가 다시 열면,
+/// Then 행은 연결 중으로 멈추지 않고 다시 보일 때 연결할 행으로 남는다. 보류 요청은 window_parked 로,
+/// 합류 run 은 실패로 끝난다.
+#[test]
+fn a_parked_window_ends_an_auto_first_connect_waiting_to_install() {
+    alone!("a_parked_window_ends_an_auto_first_connect_waiting_to_install");
+    park_and_reopen_while_installing(false);
+}
+
+/// Given 원격 팝업이 넘겨받아 설치 대기 중인 첫 연결, When 행의 창을 park 했다가 다시 열면,
+/// Then 자동 첫 연결과 같이 끝난다.
+#[test]
+fn a_parked_window_ends_a_taken_over_first_connect_waiting_to_install() {
+    alone!("a_parked_window_ends_a_taken_over_first_connect_waiting_to_install");
+    park_and_reopen_while_installing(true);
+}
+
+/// Given 행 토큰이 바뀐 뒤 남은 낡은 설치 대기와 새 시도가 가진 진행 중 표지, When 그 대기를 버리면,
+/// Then 새 시도의 진행 중 표지는 그대로다.
+#[test]
+fn a_discarded_install_leaves_the_mark_of_a_newer_attempt() {
+    alone!("a_discarded_install_leaves_the_mark_of_a_newer_attempt");
+    let event_loop = event_loop();
+    let mut app = app_with_saved_row(&event_loop, None);
+    app.ensure_row_token(ROW);
+    queue_first_connect_install(&mut app, false);
+    for engine in app.engines.all_sessions_mut() {
+        if engine.core_state.has_workspace(ROW) {
+            engine
+                .remote
+                .row_tokens
+                .insert(ROW, std::sync::Arc::new(()));
+        }
+    }
+    app.remote.active.insert(ROW);
+    app.poll_pending_mirror_installs();
+    assert!(
+        app.state.mirror_attempts.connection_snapshot().is_empty(),
+        "the stale install was discarded"
+    );
+    assert!(app.remote.active.contains(&ROW));
+    assert!(!app.remote.pending_reactivation.contains(&ROW));
+}
