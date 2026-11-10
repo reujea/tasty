@@ -61,10 +61,19 @@ hint = "请检查显示器、合成器和图形驱动程序，然后重新启动
 [boot.shell_setup]
 title = "选择 Shell"
 subtitle = "新终端将启动此 Shell。之后可在设置中更改。"
+git_bash_missing = "在默认安装位置未找到 Git Bash。请安装 Git for Windows，或在 bash.exe 位于其他位置时输入其路径。"
+git_bash_required = "在 Windows 上，Tasty 仅运行 Git Bash。输入其 bash.exe 的路径。"
 check_missing = "此路径下没有文件"
+check_not_shell = "不是 Git Bash。请使用 Git for Windows 的 bash.exe"
 check_directory = "此路径是文件夹，不是程序"
 check_not_executable = "此文件没有执行权限"
 check_valid = "已找到 Shell"
+check_valid_git_bash = "已找到 Git Bash"
+
+[terminal_error]
+shell_not_git_bash = "配置的 Shell 不是 Git Bash：{}。请在设置中将路径设为 Git for Windows 的 bash.exe。"
+git_bash_not_found = "未设置 Shell，且在默认安装位置未找到 Git Bash。请安装 Git for Windows，或在设置中指定其 bash.exe 的路径。"
+shell_missing_windows = "配置的 Shell 路径下没有文件：{}。请在设置中将路径设为 Git for Windows 的 bash.exe。"
 
 [window_error.new_window]
 title = "无法打开新窗口"
@@ -411,6 +420,9 @@ input_placeholder = "可执行文件名（例如 claude）"
 input_notice = "开启：发送 LF。关闭：使用平台的按键编码。精确匹配可执行文件名，忽略大小写和 .exe。应用检测最多需要一秒；node 等启动器不会自动识别为 Claude。Claude Code 插件仅添加一次默认规则，并保留你的更改。"
 heading = "终端"
 shell_label = "Shell："
+shell_not_found_windows = "⚠ 在默认安装位置未找到 Git Bash。在安装 Git for Windows 或设置其 bash.exe 的路径之前，无法启动新终端。"
+shell_not_git_bash = "⚠ 配置的 Shell 不是 Git Bash。在将路径设置为 Git for Windows 的 bash.exe 之前，无法启动新终端。"
+shell_missing_windows = "⚠ 配置的 Shell 路径下没有文件。在将路径设置为 Git for Windows 的 bash.exe 之前，无法启动新终端。"
 shell_not_found_unix = "⚠ 在配置的路径中未找到 Shell。在设置为现有 Shell 的路径之前，新终端将使用 Tasty 找到的其他 Shell 打开。"
 shell_is_directory = "⚠ 配置的 Shell 路径是文件夹。在将路径设置为 Shell 程序之前，无法启动新终端。"
 shell_not_executable = "⚠ 配置的 Shell 文件没有执行权限。在赋予其执行权限（chmod +x）或选择其他 Shell 之前，无法启动新终端。"
@@ -806,6 +818,7 @@ cancel_button = "取消"
 tools_button = "工具"
 collapse_button = "折叠"
 workspaces_heading = "工作区"
+running_surfaces_tooltip = "运行中的 Surface：{}"
 
 [context_menu]
 rename_title = "重命名"
@@ -2132,6 +2145,7 @@ frame_tag_mismatch = "帧 {}：预期为 Data 标记，实际收到 {}"
 frame_echo_mismatch = "帧 {}：回显不匹配，发送 {}，收到 {}"
 
 [cli.plugin_cli]
+invalid_children_format = "--format 的值 '{}' 无效：使用 table 或 json"
 manifest_skipped = "警告：已跳过位于 {} 的插件清单：{}"
 name_shadows_host_command = "警告：插件 CLI 命令 '{}' 未注册，因为 tasty 内置命令已使用该名称"
 no_subcommand = "未提供子命令"
@@ -3560,6 +3574,9 @@ help = "代替父 Surface 的外部父对象键（参见 `spawn --parent-externa
 [cli.help._root.terminal.children.arg.workspace]
 help = "子终端所在的工作区（ID 或名称）；打开多个窗口时，需与 --parent-external 一同指定"
 
+[cli.help._root.terminal.children.arg.format]
+help = "格式：table | json。默认值：table（父 ID 表）"
+
 [cli.help._root.terminal.parent]
 about = "返回指定子 Surface 的父 Surface ID"
 
@@ -4928,6 +4945,7 @@ help = "别名：`--workspace 7` → `workspace:7`"
 help = "别名：`--window 42` → `window:42`"
 
 [cli.help._root.memory.put.arg.account]
+help = "别名：`--account alice` → `account:alice`"
 
 [cli.help._root.memory.put.arg.global]
 help = "别名：`--global` → `global`"
@@ -4969,6 +4987,7 @@ help = "别名：`--workspace 7` → `workspace:7`"
 help = "别名：`--window 42` → `window:42`"
 
 [cli.help._root.memory.get.arg.account]
+help = "别名：`--account alice` → `account:alice`"
 
 [cli.help._root.memory.get.arg.global]
 help = "别名：`--global` → `global`"
@@ -4992,6 +5011,7 @@ help = "别名：`--workspace 7` → `workspace:7`"
 help = "别名：`--window 42` → `window:42`"
 
 [cli.help._root.memory.delete.arg.account]
+help = "别名：`--account alice` → `account:alice`"
 
 [cli.help._root.memory.delete.arg.global]
 help = "别名：`--global` → `global`"
@@ -5018,6 +5038,7 @@ help = "别名：`--workspace 7` → `workspace:7`"
 help = "别名：`--window 42` → `window:42`"
 
 [cli.help._root.memory.exists.arg.account]
+help = "别名：`--account alice` → `account:alice`"
 
 [cli.help._root.memory.exists.arg.global]
 help = "别名：`--global` → `global`"
@@ -5041,6 +5062,7 @@ help = "别名：`--workspace 7` → `workspace:7`"
 help = "别名：`--window 42` → `window:42`"
 
 [cli.help._root.memory.list.arg.account]
+help = "别名：`--account alice` → `account:alice`"
 
 [cli.help._root.memory.list.arg.global]
 help = "别名：`--global` → `global`"
@@ -5076,6 +5098,7 @@ help = "别名：`--workspace 7` → `workspace:7`"
 help = "别名：`--window 42` → `window:42`"
 
 [cli.help._root.memory.query.arg.account]
+help = "别名：`--account alice` → `account:alice`"
 
 [cli.help._root.memory.query.arg.global]
 help = "别名：`--global` → `global`"
@@ -5117,6 +5140,7 @@ help = "别名：`--workspace 7` → `workspace:7`"
 help = "别名：`--window 42` → `window:42`"
 
 [cli.help._root.memory.export.arg.account]
+help = "别名：`--account alice` → `account:alice`"
 
 [cli.help._root.memory.export.arg.global]
 help = "别名：`--global` → `global`"
@@ -5146,6 +5170,7 @@ help = "别名：`--workspace 7` → `workspace:7`"
 help = "别名：`--window 42` → `window:42`"
 
 [cli.help._root.memory.count.arg.account]
+help = "别名：`--account alice` → `account:alice`"
 
 [cli.help._root.memory.count.arg.global]
 help = "别名：`--global` → `global`"
@@ -5172,6 +5197,7 @@ help = "别名：`--workspace 7` → `workspace:7`"
 help = "别名：`--window 42` → `window:42`"
 
 [cli.help._root.memory.stats.arg.account]
+help = "别名：`--account alice` → `account:alice`"
 
 [cli.help._root.memory.stats.arg.global]
 help = "别名：`--global` → `global`"
@@ -5202,6 +5228,7 @@ help = "别名：`--workspace 7` → `workspace:7`"
 help = "别名：`--window 42` → `window:42`"
 
 [cli.help._root.memory.secret.put.arg.account]
+help = "别名：`--account alice` → `account:alice`"
 
 [cli.help._root.memory.secret.put.arg.global]
 help = "别名：`--global` → `global`"
@@ -5243,6 +5270,7 @@ help = "别名：`--workspace 7` → `workspace:7`"
 help = "别名：`--window 42` → `window:42`"
 
 [cli.help._root.memory.secret.get.arg.account]
+help = "别名：`--account alice` → `account:alice`"
 
 [cli.help._root.memory.secret.get.arg.global]
 help = "别名：`--global` → `global`"
@@ -5266,6 +5294,7 @@ help = "别名：`--workspace 7` → `workspace:7`"
 help = "别名：`--window 42` → `window:42`"
 
 [cli.help._root.memory.secret.delete.arg.account]
+help = "别名：`--account alice` → `account:alice`"
 
 [cli.help._root.memory.secret.delete.arg.global]
 help = "别名：`--global` → `global`"
@@ -5292,6 +5321,7 @@ help = "别名：`--workspace 7` → `workspace:7`"
 help = "别名：`--window 42` → `window:42`"
 
 [cli.help._root.memory.secret.exists.arg.account]
+help = "别名：`--account alice` → `account:alice`"
 
 [cli.help._root.memory.secret.exists.arg.global]
 help = "别名：`--global` → `global`"
@@ -5315,6 +5345,7 @@ help = "别名：`--workspace 7` → `workspace:7`"
 help = "别名：`--window 42` → `window:42`"
 
 [cli.help._root.memory.secret.list.arg.account]
+help = "别名：`--account alice` → `account:alice`"
 
 [cli.help._root.memory.secret.list.arg.global]
 help = "别名：`--global` → `global`"
@@ -5350,6 +5381,7 @@ help = "别名：`--workspace 7` → `workspace:7`"
 help = "别名：`--window 42` → `window:42`"
 
 [cli.help._root.memory.secret.count.arg.account]
+help = "别名：`--account alice` → `account:alice`"
 
 [cli.help._root.memory.secret.count.arg.global]
 help = "别名：`--global` → `global`"
@@ -5376,6 +5408,7 @@ help = "别名：`--workspace 7` → `workspace:7`"
 help = "别名：`--window 42` → `window:42`"
 
 [cli.help._root.memory.secret.stats.arg.account]
+help = "别名：`--account alice` → `account:alice`"
 
 [cli.help._root.memory.secret.stats.arg.global]
 help = "别名：`--global` → `global`"
@@ -6266,11 +6299,13 @@ help = "要重试的任务 ID"
 help = "同时将下游 Skipped/Failed 任务重置为 Waiting。类型化（contract_version 2）任务拒绝此操作"
 
 [cli.help._root.agent.task-graph]
+about = "以父 ID 表、JSON 或 Graphviz dot 格式输出任务 DAG"
 
 [cli.help._root.agent.task-graph.arg.workspace_id]
 help = "工作区 ID（不依赖焦点，必填）"
 
 [cli.help._root.agent.task-graph.arg.format]
+help = "格式：table | json | dot。默认值：table（父 ID 表）。表中将每条边的源节点列为父节点；使用 json 或 dot 查看边的种类"
 
 [cli.help._root.agent.dag-list]
 about = "列出所有已注册的 DAG。DAG 由推导得出，不单独存储：标有相同 `metadata.dag` 字符串的任务形成一个显式分组，其余任务按弱连通性分组（`depends_on` / `Fallback.task` / `Reduce.inputs` / `metadata.fallback_of` / v2 `bindings` / v2 `transitions`）。省略 `--workspace` 可扫描所有现存工作区"
@@ -6282,6 +6317,7 @@ help = "限制为单个工作区。省略 = 所有现存工作区"
 help = "同时包含每个 DAG 的任务 ID 列表（`task_ids`）"
 
 [cli.help._root.agent.dag-get]
+about = "以父 ID 表、JSON 或 Graphviz dot 格式输出单个 DAG（由 `dag-list` 列出）——节点和边的结构与 `task-graph` 相同，仅限该 DAG"
 
 [cli.help._root.agent.dag-get.arg.id]
 help = "来自 `dag-list` 的 DAG ID（`d:<metadata.dag>` 或 `c:<root task id>`）"
@@ -6290,6 +6326,7 @@ help = "来自 `dag-list` 的 DAG ID（`d:<metadata.dag>` 或 `c:<root task id>`
 help = "将查找限制为单个工作区。显式 ID 由用户指定，两个工作区可能具有相同 ID；传入此参数以消除歧义"
 
 [cli.help._root.agent.dag-get.arg.format]
+help = "格式：table | json | dot。默认值：table（父 ID 表）。表中将每条边的源节点列为父节点；使用 json 或 dot 查看边的种类"
 
 [cli.help._root.agent.dag-report]
 about = "输出 DAG 报告：包含每个任务根据已存储状态生成的自动部分，以及每次尝试的自定义备注。除非指定 `--include-raw`，否则不包含标准输出和标准错误"

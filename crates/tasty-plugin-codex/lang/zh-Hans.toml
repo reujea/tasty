@@ -198,6 +198,9 @@ help = "完全绕过批准和沙箱（--dangerously-bypass-approvals-and-sandbox
 [codex.cli.arg.children_args.surface]
 help = "父 Surface ID（默认为调用方的 TASTY_SURFACE_ID；未设置时，若恰有一个父实例则使用该实例）"
 
+[codex.cli.arg.children_args.format]
+help = "格式：table | json。默认值：table（父 ID 表）"
+
 [codex.cli.arg.children_args.workspace]
 help = "子实例所在的工作区（ID 或名称）。仅在从 Codex 对话中调用且其子实例分布于多个工作区时使用"
 

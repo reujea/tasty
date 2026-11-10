@@ -417,6 +417,9 @@ help = "将所有待发送结果重新排队以立即发送，包括已停止自
 [claude.cli.arg.remote_results_args.id]
 help = "完成日志中的结果 ID。显示该结果及其正文；省略时列出已存储的结果，不含正文"
 
+[claude.cli.arg.children_args.format]
+help = "格式：table | json。默认值：table（父 ID 表）"
+
 [claude.cli.arg.children_args.workspace]
 help = "子实例所在的工作区（ID 或名称）。仅在从子实例分布于多个工作区的 Codex 对话中调用时使用"
 
