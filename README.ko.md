@@ -6,7 +6,7 @@ English: [README.md](README.md)
 
 > **Tasty** 는 AI 코딩 에이전트를 위해 설계된 크로스 플랫폼 GPU 가속 터미널 에뮬레이터다. Windows·macOS·Linux에서 여러 에이전트의 작업을 조율하고 화면 없이도 사용할 수 있다. 에이전트는 IPC·CLI로 대상 ID를 지정해 작업한다.
 
-[![Version](https://img.shields.io/badge/version-0.13.4-blue)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-0.14.0-blue)](CHANGELOG.md)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](#라이선스)
 [![Platforms](https://img.shields.io/badge/platforms-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey)](docs/installation.md)
 [![Workspace](https://img.shields.io/badge/workspace-63%20crates-orange)](crates/)

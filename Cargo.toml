@@ -41,7 +41,7 @@ dead_code = "deny"
 
 [package]
 name = "tasty"
-version = "0.13.4"
+version = "0.14.0"
 edition = "2024"
 authors = ["zilhak <zilhak1@gmail.com>"]
 license = "MIT"

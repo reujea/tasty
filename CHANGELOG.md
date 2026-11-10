@@ -17,6 +17,8 @@
 
 ## [Unreleased]
 
+## [0.14.0] - 2026-11-10
+
 ### Added
 
 - `terminal.children`, `claude.children`, `codex.children`의 각 항목에 `parent`(부모 surface id 또는 외부 키)와 `last_report_at`(밀리초, 없으면 `null`)이 생겼다.
@@ -24,14 +26,15 @@
 - **설정의 글꼴 행이 쓸 수 없는 값을 표시한다.** 파일 입력에는 빨간 테두리와 아래 한 줄, family 행에는 줄만 표시하고 저장된 값은 메인 창에 토스트로 알린다. 값은 그대로 저장할 수 있다. 줄의 칸은 포인터 버튼이 눌린 동안 높이가 바뀌지 않아, 값을 고치다 아래 행을 눌러도 클릭이 빗나가지 않는다.
 - **사이드바 워크스페이스 행에 실행 중인 surface 개수가 나온다.** 점 옆 숫자로 표시하고 기준은 실행 중 점과 같다. 값이 0이면 숫자가 없고 이름 위치는 그대로다. 100 이상은 `99+`이고 숫자에 포인터를 올리면 정확한 값이 보인다. 접힌 사이드바에는 표시하지 않는다.
 - **Plugins 창 Attention 탭에 예약 id(`com.tasty.`) 폴더가 폴더마다 한 행으로 보이고 `Remove`로 지울 수 있다.** 탭 배지와 사이드바 배지에 함께 센다. 행과 상세는 폴더 이름과 매니페스트 id만 보이고 조치는 `Remove`뿐이다. 확인하면 그 폴더만 지우며, 지우기 직전에 부모가 플러그인 루트인지, 링크가 아닌 디렉터리인지, 매니페스트가 여전히 거부되는 id인지 다시 확인해 맞지 않으면 지우지 않고 실패 토스트를 띄운다. `known-plugins.toml`·`plugins.toml`은 바꾸지 않는다. 성공·실패 토스트는 200자 상한에 맞춰 가운데를 줄인다. `tasty plugin remove <id>`는 폴더를 지우지 않고 실패하며, 오류 문구가 Attention 탭의 제거를 안내한다. 이런 폴더가 새로 보일 때 남기는 경고 알림도 바뀌어, 제목은 `Plugin '<id>' was not registered`이고 본문은 접두 사유와 Plugins › Attention 안내다.
-- **앱 언어에 중국어 간체(`zh-Hans`)가 내장 언어로 들어온다.** 설정 › 일반 › 언어 목록이 `English`, `한국어`, `日本語`, `简体中文` 순서가 되고, `简体中文`을 고르면 `general.language = "zh-Hans"`로 저장된다(재시작 뒤 반영). 번들 플러그인 문구와 `tasty --help`도 간체로 나온다. `zh`·`zh-CN`·`zh_CN`·`zh-hans`는 별칭이 아니라서 지금처럼 영어와 경고가 나온다. 전에 `~/.tasty/lang/zh-Hans/pack.toml` 언어팩을 두었다면 그 팩은 이제 읽지 않는다. 덮어쓰기는 `~/.tasty/lang/zh-Hans.toml`, 플러그인 문구는 `~/.tasty/lang/plugins/<plugin-id>/zh-Hans.toml`에 둔다.
+- **앱 언어에 중국어 간체(`zh-Hans`)가 내장 언어로 들어온다.** 설정 › 일반 › 언어 목록이 `English`, `한국어`, `日本語`, `简体中文` 순서가 되고, `简体中文`을 고르면 `general.language = "zh-Hans"`로 저장된다(재시작 뒤 반영). 번들 플러그인 문구와 `tasty --help`도 간체로 나온다. `zh`·`zh-CN`·`zh_CN`·`zh-hans`는 별칭이 아니라서 지금처럼 영어와 경고가 나온다.
 
 ### Changed
 
 - **(BREAK) Windows 터미널은 Git Bash만 실행한다.** `bash.exe`가 `<루트>\bin` 또는 `<루트>\usr\bin`에 있고 그 루트에 `cmd\git.exe`와 `usr\bin\msys-2.0.dll`이 있어야 Git Bash로 본다. 루트 위치는 보지 않으므로 다른 곳에 설치했거나 Portable이어도 쓴다. zsh·cmd·PowerShell·pwsh·nu, `git-bash.exe`, MSYS2 bash, `System32\bash.exe`(WSL), 복사한 파일은 쓰지 않는다. 저장된 `general.shell`이 Git Bash가 아니거나 그 경로에 아무것도 없으면 탐지한 셸로 대신하지 않는다. GUI를 시작하면 첫 실행 셸 설정 화면이 그 값을 입력란에 담아 뜨고, 다른 값을 확정할 때까지 저장값은 그대로다. 설정 창은 원인별 오류 줄을 보이고, 새 터미널은 child를 만들기 전에 원인과 함께 실패한다. 값이 비었으면 기본 설치 위치 세 곳에서 찾은 Git Bash로 실행하고, 찾지 못하면 `COMSPEC`(cmd.exe)으로 빠지지 않는다. 이때 GUI 시작 시 셸 설정 화면이 뜨고 새 터미널은 실패한다. macOS·Linux의 판정과 대체는 그대로다.
 - **(BREAK) Linux에서 `DISPLAY`가 있으면 Wayland 세션에서도 X11(XWayland)로 실행한다.** 네이티브 메뉴, WebView, 파일 놓기, 클립보드 경로가 X11에서 동작하기 때문이다. `DISPLAY`와 `WAYLAND_DISPLAY`가 모두 있으면 X 서버에 시험 연결(한도 10초)하고, 실패하면 경고를 남기고 네이티브 Wayland로 내려간다. `DISPLAY`만 있는데 X 서버에 연결하지 못하면 시작에 실패한다. GDK도 같은 백엔드로 맞추며, 터미널 자식과 플러그인이 받는 `DISPLAY`·`WAYLAND_DISPLAY`는 바꾸지 않고 `GDK_BACKEND`도 더하지 않는다. 배율은 컴포지터가 X 클라이언트에 알리는 값을 따른다. Tasty 실행 환경에 `GDK_BACKEND=wayland`를 직접 설정하면 GTK 초기화가 실패해 트레이 아이콘과 WebView를 만들지 못한다.
+- **(BREAK) `~/.tasty/lang/zh-Hans/pack.toml` 언어팩을 읽지 않는다.** `zh-Hans`가 내장 언어가 되어 `general.language = "zh-Hans"`는 팩 없이 내장 카탈로그를 읽는다. 전에 이 언어팩을 두었다면 그 팩은 이제 읽지 않는다. 덮어쓰기는 `~/.tasty/lang/zh-Hans.toml`, 플러그인 문구는 `~/.tasty/lang/plugins/<plugin-id>/zh-Hans.toml`에 둔다.
 - **Markdown 문서의 링크·인용·찾기 결과·콜아웃·표 머리 칸의 색이 바뀐다.** 링크는 `accent-primary-raised`, 인용 글자는 투명도 없이 `md-quote-fg`, 찾기 결과는 노란 채움 위 어두운 글자다. 콜아웃 제목·아이콘은 종류 색의 raised 단계, 본문은 `text-primary`다. 표 머리 칸은 `surface-raised` 바탕이고, 없는 위키 링크와 문서 오류 제목은 `accent-danger-raised`다.
-- **Linux에서 Markdown 문서의 바탕과 표 줄이 포커스를 따른다.** 포커스가 없는 문서는 터미널과 같은 비포커스 바탕을 쓴다. 문서를 다시 싣지 않으므로 스크롤·선택·찾기·주소칸 입력이 그대로이며 `sandbox_scripts`를 켜도 같다. macOS·Windows에서는 호스트가 아직 포커스를 넘기지 않아 문서가 전처럼 늘 포커스 바탕이다.
+- **Linux에서 Markdown 문서의 바탕과 표 본문·교차 행 바탕이 포커스를 따른다.** 포커스가 없는 문서는 터미널과 같은 비포커스 바탕을 쓴다. 문서를 다시 싣지 않으므로 스크롤·선택·찾기·주소칸 입력이 그대로이며 `sandbox_scripts`를 켜도 같다. macOS·Windows에서는 호스트가 아직 포커스를 넘기지 않아 문서가 전처럼 늘 포커스 바탕이다.
 - **(BREAK) `tasty agent task-graph`·`dag-get`과 `tasty terminal|claude|codex children`의 기본 출력이 JSON에서 부모 ID 표로 바뀌었다.** 표는 `| id | parents | ... |` 형식이고 `parents`에 부모가 여럿이면 쉼표로 잇는다. JSON을 읽는 스크립트는 `--format json`을 더한다. `children`에 `--format table|json`이 생겼다. `task-graph`·`dag-get`의 `--format json|dot` 출력과 IPC 응답은 그대로다.
 - **일본어 UI의 작은 라벨 글꼴이 바뀐다.** 번역 문구를 그리는 절·열 제목, Tag, 상태 낱말, 낱말이 든 개수, 단위, 힌트가 고정폭 대신 UI 글꼴로 나온다. 고정폭 글꼴에 없는 한자 때문에 한 낱말 안에서 글꼴이 바뀌던 현상을 없앤다. 간체 중국어 UI도 같은 규칙을 따른다. 경로·코드·ID·버전·숫자는 모든 언어에서 고정폭이고 영어·한국어 화면은 그대로다. 줄 높이와 글자 기준선은 이전과 같아 화면 배치는 그대로이고, 라틴 글자는 UI 글꼴이라 조금 얇아진다.
 - **빈 칸, Explorer 파일 영역, DAG 탭 캔버스, Markdown·이미지의 대기 화면도 포커스를 바탕으로 보인다.** 터미널과 같은 바탕 쌍을 쓰고, 점유돼 입력을 받지 않는 surface는 포커스가 있어도 비포커스 바탕이다. 비포커스 Explorer의 hover·놓기 대상 행 글자는 새 바탕에 맞춰 대비를 높인다. 워크스페이스 팝업의 DAG 그래프는 그대로다.
@@ -60,6 +63,7 @@
 - **글꼴 아틀라스에 담을 수 없는 글리프가 앱을 끝내지 않는다.** 아틀라스보다 넓은 글리프와, 넘친 뒤 이미지 밖으로 나가는 큰 글리프에서 epaint가 패닉했다. 그래서 그런 글꼴 값을 설정 창이 그리거나 보통 글꼴을 큰 크기·배율로 쓰면 앱이 끝났다. 이제 그 글리프는 그리지 않고 경고 로그를 남기며 너비는 1em으로 둔다. 아틀라스 이미지가 너비 이상으로 자라지 않아 wgpu 업로드 패닉도 막는다.
 - **글꼴 모음(collection) 안의 family를 찾으면 그 face 번호를 쓴다.** 언어 팩 family나 이름으로 지정한 글꼴이 face 0을 읽어 다른 family로 보이던 문제를 고쳤다. face 번호는 family 이름으로 찾고, 플러그인에는 경로와 함께 `TASTY_LOCALE_FONT_FACE`로 전달한다.
 - **간체 중국어 UI가 Noto CJK의 SC face로 그린다.** Noto CJK 모음은 일본어 face가 처음이라 zh-Hans UI의 공용 한자가 일본식 자형으로 나왔다. 다른 언어는 face 0 그대로다.
+- **Windows·macOS에서 간체 한자가 빠지지 않고 `zh-Hans` UI는 공용 한자를 간체 형태로 그린다.** 기존 시스템 CJK 글꼴(Windows 맑은 고딕, macOS Apple SD Gothic Neo)에는 GB2312 1급 간체 글자 상당수가 없어, 언어 목록의 `简体中文`이 모든 UI 언어에서 □로 나왔고 공용 한자도 간체 형태가 아니었다. 이제 간체 글꼴을 함께 설치한다. Windows는 Microsoft YaHei UI(`msyh.ttc`), macOS는 Hiragino Sans GB이고 없으면 Heiti SC(`STHeiti Light.ttc`)다. `zh-Hans` UI는 간체 글꼴을 앞에 두어 공용 한자를 SC 형태로 그리고 한글은 기존 글꼴로 채운다. 그 밖의 언어 UI는 기존 글꼴을 앞에 두어 한자 형태를 유지하고, 기존 글꼴에 없는 간체만 간체 글꼴로 채운다. Linux는 바뀌지 않았다.
 - **Fedora에서 Noto CJK를 찾는다.** Fedora 패키지가 설치하는 정적·가변 Noto CJK 경로를 후보에 더해 CJK 글자가 네모로 나오지 않는다. 가변 파일은 마지막 후보이고 egui가 축을 정하지 못해 기본 Thin 굵기로 그린다.
 - **시스템 CJK 글꼴을 호스트·갤러리·플러그인이 같은 후보 목록으로 설치한다.** egui가 패닉할 후보는 경고와 함께 건너뛴다. macOS 플러그인도 첫 후보가 없으면 호스트처럼 Hiragino를 찾는다.
 - **읽을 수 없는 `custom_font_path`나 이름 글꼴이 앱을 끝내지 않는다.** 이전에는 파싱되지 않는 경로가 surface 글꼴 override와 함께 저장되면 실행할 때마다 앱이 끝났고, 입력 중인 설정 미리보기에서도 저장 전에 끝났다. fontdb가 나열하지만 ab_glyph가 거부하는 family와 줄 높이가 양수가 아닌 글꼴도 같았다. 이제 거부된 글꼴은 없는 파일처럼 경고 로그를 남기고 기본 글꼴을 쓰며, 저장값은 그대로 둔다.
