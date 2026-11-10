@@ -5,8 +5,8 @@ use tasty_type_appearance::theme::Theme;
 use tasty_type_geometry::length::LogicalPx;
 use tasty_ui_widgets::{
     HtmlAddressAction, HtmlAddressKind as Kind, HtmlAddressLabels, HtmlAddressState,
-    HtmlAddressView, HtmlScriptBannerState, HtmlScriptBannerView, html_address_bar,
-    html_address_content_inset, html_script_banner,
+    HtmlAddressView, HtmlScriptBannerState, HtmlScriptBannerView, WebviewPageState,
+    html_address_bar, html_address_content_inset, html_script_banner, webview_page_tile,
 };
 
 pub(crate) mod remote;
@@ -410,6 +410,9 @@ pub(super) fn band_surface(
 }
 
 /// 페이지 영역의 상태 표본(디자인 `HtmlPageState`). `page`는 `page`·`empty`·`loading`·`failed`다.
+/// `empty`·`loading`은 본체와 같은 [`tasty_ui_widgets::webview_page_tile`]로 그린다.
+/// html surface는 띠 kind라 바탕이 `bg-panel`이다(본체 `WebviewTile::Plain`). 본체 html
+/// surface처럼 주소창 안내를 넘기므로 loading도 안내 줄 몫을 넣은 위치에 놓인다.
 pub(crate) fn page_placeholder(
     ui: &mut egui::Ui,
     theme: &Theme,
@@ -417,6 +420,37 @@ pub(crate) fn page_placeholder(
     page: &str,
     address: &str,
 ) {
+    let hint = t_fmt(
+        "html_address.empty_hint",
+        if cfg!(target_os = "macos") {
+            "⌘L"
+        } else {
+            "Alt+L"
+        },
+    );
+    let tile = match page {
+        "loading" => Some(WebviewPageState::Loading {
+            title: t("webview.loading"),
+        }),
+        "empty" => Some(WebviewPageState::Empty {
+            title: t("webview.no_page"),
+            glyph: theme.text_disabled().to_egui(),
+        }),
+        _ => None,
+    };
+    if let Some(state) = tile {
+        let mut body = ui.new_child(egui::UiBuilder::new().max_rect(rect));
+        body.set_clip_rect(ui.clip_rect().intersect(rect));
+        webview_page_tile(
+            &mut body,
+            theme,
+            theme.bg_panel().to_egui(),
+            rect,
+            state,
+            Some(&hint),
+        );
+        return;
+    }
     let mut body = ui.new_child(
         egui::UiBuilder::new()
             .max_rect(rect)
@@ -424,64 +458,34 @@ pub(crate) fn page_placeholder(
     );
     body.set_clip_rect(ui.clip_rect().intersect(rect));
     body.spacing_mut().item_spacing.y = theme.spacing_sm.value();
-    let sub = match page {
-        "empty" => Some(t_fmt(
-            "html_address.empty_hint",
-            if cfg!(target_os = "macos") {
-                "⌘L"
-            } else {
-                "Alt+L"
-            },
-        )),
-        "failed" => Some(address.into()),
-        _ => None,
-    };
+    let failed = page == "failed";
+    let sub = failed.then_some(address);
     let glyph = theme.icon_glyph_size_md;
-    let block = if page == "page" {
-        theme.font_size_body
+    let block = if failed {
+        glyph + theme.spacing_sm + theme.font_size_body + theme.spacing_sm + theme.font_size_caption
     } else {
-        glyph
-            + theme.spacing_sm
-            + theme.font_size_body
-            + if sub.is_some() {
-                theme.spacing_sm + theme.font_size_caption
-            } else {
-                LogicalPx(0.0)
-            }
+        theme.font_size_body
     };
     body.add_space(
         ((LogicalPx(rect.height()) - block) / 2.0)
             .max(LogicalPx(0.0))
             .value(),
     );
-    match page {
-        "empty" => {
-            body.add(tasty_icons::HTML.image(glyph.value(), theme.text_disabled().to_egui()));
-        }
-        "loading" => {
-            tasty_ui_widgets::Spinner::new()
-                .size(glyph.value())
-                .show(&mut body, theme);
-        }
-        "failed" => {
-            body.add(
-                tasty_icons::ALERT_CIRCLE
-                    .image(glyph.value(), theme.accent_danger_raised().to_egui()),
-            );
-        }
-        _ => {}
+    if failed {
+        body.add(
+            tasty_icons::ALERT_CIRCLE.image(glyph.value(), theme.accent_danger_raised().to_egui()),
+        );
     }
-    let title = match page {
-        "empty" => t("webview.no_page"),
-        "loading" => t("webview.loading"),
-        "failed" => t("webview.error"),
-        _ => "Native page area",
+    let title = if failed {
+        t("webview.error")
+    } else {
+        "Native page area"
     };
     body.label(
         egui::RichText::new(title)
             .size(theme.font_size_body.value())
             .color(
-                if page == "failed" {
+                if failed {
                     theme.accent_danger()
                 } else {
                     theme.text_muted()
@@ -490,15 +494,10 @@ pub(crate) fn page_placeholder(
             ),
     );
     if let Some(sub) = sub {
-        let font = if page == "failed" {
-            egui::FontId::monospace(theme.font_size_caption.value())
-        } else {
-            egui::FontId::proportional(theme.font_size_caption.value())
-        };
         body.add(
             egui::Label::new(
                 egui::RichText::new(sub)
-                    .font(font)
+                    .font(egui::FontId::monospace(theme.font_size_caption.value()))
                     .color(theme.text_muted().to_egui()),
             )
             .truncate(),

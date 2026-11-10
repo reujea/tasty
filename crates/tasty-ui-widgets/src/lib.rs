@@ -111,6 +111,7 @@ mod tree_row;
 mod two_depth;
 mod ui_code;
 mod warning_callout;
+mod webview_page_tile;
 pub use approval_choice::approval_choice;
 pub use attach_loading::{LoadingPlacement, PendingIndicator, paint_loading_overlay};
 pub use attach_refusal::{
@@ -399,6 +400,7 @@ pub use ui_code::{
     ui_code_font, ui_code_rects, ui_copy, ui_copy_in, ui_copy_job, ui_copy_size,
 };
 pub use warning_callout::warning_callout;
+pub use webview_page_tile::{WebviewPageState, WebviewPageTileOutput, webview_page_tile};
 
 pub use notifications::{
     NotificationAction, NotificationLabels, NotificationPanelState, NotificationRow,
