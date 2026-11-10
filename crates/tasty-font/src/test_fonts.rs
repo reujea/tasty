@@ -29,7 +29,17 @@ pub(crate) fn remove_table(mut font: Vec<u8>, tag: &[u8; 4]) -> Vec<u8> {
 }
 
 /// name 표의 글꼴 이름을 바꾼다. `D2Coding` 이 시스템 목록과 겹치지 않게 하는 데 쓴다.
-pub(crate) fn renamed(mut font: Vec<u8>) -> Vec<u8> {
+pub(crate) fn renamed(font: Vec<u8>) -> Vec<u8> {
+    renamed_as(font, "D2Codinh")
+}
+
+/// name 표의 `D2Coding` 을 같은 길이의 `to` 로 바꾼다.
+pub(crate) fn renamed_as(mut font: Vec<u8>, to: &str) -> Vec<u8> {
+    assert_eq!(
+        to.len(),
+        "D2Coding".len(),
+        "이름 길이가 같아야 표 길이가 그대로다"
+    );
     let (name, len) = table(&font, b"name");
     let utf16 = |s: &str| {
         s.encode_utf16()
@@ -37,8 +47,8 @@ pub(crate) fn renamed(mut font: Vec<u8>) -> Vec<u8> {
             .collect::<Vec<u8>>()
     };
     let pairs = [
-        (b"D2Coding".to_vec(), b"D2Codinh".to_vec()),
-        (utf16("D2Coding"), utf16("D2Codinh")),
+        (b"D2Coding".to_vec(), to.as_bytes().to_vec()),
+        (utf16("D2Coding"), utf16(to)),
     ];
     for (from, to) in pairs {
         for start in name..name + len - from.len() {

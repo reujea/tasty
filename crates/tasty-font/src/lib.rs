@@ -52,6 +52,47 @@ fn usable_custom_file(path: &str, family: &str) -> Option<(Vec<u8>, u32)> {
     }
 }
 
+/// Registers `chosen` under `alias` in the regular slot (normal weight, style
+/// and stretch), so plain text uses it whatever its own weight is, and keeps a
+/// copy with its own weight and style when those differ. Each of `others` is
+/// added under `alias` unless its weight and style take one of those slots.
+/// Returns the IDs added.
+fn push_chosen_first(
+    db: &mut cosmic_text::fontdb::Database,
+    chosen: cosmic_text::fontdb::FaceInfo,
+    others: impl IntoIterator<Item = cosmic_text::fontdb::FaceInfo>,
+    alias: &str,
+) -> Vec<cosmic_text::fontdb::ID> {
+    let regular = (
+        cosmic_text::fontdb::Weight::NORMAL,
+        cosmic_text::fontdb::Style::Normal,
+    );
+    let variant = |face: &cosmic_text::fontdb::FaceInfo| (face.weight, face.style);
+    let mut kept = Vec::new();
+    let mut push = |db: &mut cosmic_text::fontdb::Database,
+                    mut info: cosmic_text::fontdb::FaceInfo| {
+        info.families = vec![(
+            alias.to_string(),
+            cosmic_text::fontdb::Language::English_UnitedStates,
+        )];
+        kept.push(db.push_face_info(info));
+    };
+    let mut as_regular = chosen.clone();
+    (as_regular.weight, as_regular.style) = regular;
+    as_regular.stretch = cosmic_text::fontdb::Stretch::Normal;
+    push(db, as_regular);
+    if variant(&chosen) != regular {
+        push(db, chosen.clone());
+    }
+    for info in others {
+        let taken = variant(&info) == regular || variant(&info) == variant(&chosen);
+        if !taken {
+            push(db, info);
+        }
+    }
+    kept
+}
+
 /// Keeps the face numbered `index` and the faces of its family under
 /// `CUSTOM_FILE_FAMILY` and drops the rest. The chosen face takes the regular
 /// slot, so plain text uses the face the settings row judged and the preview
@@ -73,39 +114,16 @@ fn rename_chosen_faces(
     for id in ids {
         db.remove_face(*id);
     }
-    let regular = (
-        cosmic_text::fontdb::Weight::NORMAL,
-        cosmic_text::fontdb::Style::Normal,
-    );
-    let variant = |face: &cosmic_text::fontdb::FaceInfo| (face.weight, face.style);
     let Some(chosen) = faces.iter().find(|face| face.index == index).cloned() else {
         return (Vec::new(), chosen_family);
     };
-    let mut kept = Vec::new();
-    let mut push = |db: &mut cosmic_text::fontdb::Database,
-                    mut info: cosmic_text::fontdb::FaceInfo| {
-        info.families = vec![(
-            CUSTOM_FILE_FAMILY.to_string(),
-            cosmic_text::fontdb::Language::English_UnitedStates,
-        )];
-        kept.push(db.push_face_info(info));
-    };
-    let mut as_regular = chosen.clone();
-    (as_regular.weight, as_regular.style) = regular;
-    as_regular.stretch = cosmic_text::fontdb::Stretch::Normal;
-    push(db, as_regular);
-    if variant(&chosen) != regular {
-        push(db, chosen.clone());
-    }
-    for info in faces {
-        let same_family = chosen_family
-            .as_deref()
-            .is_some_and(|name| judge::has_family(&info, name));
-        let taken = variant(&info) == regular || variant(&info) == variant(&chosen);
-        if info.index != index && same_family && !taken {
-            push(db, info);
-        }
-    }
+    let others = faces.into_iter().filter(|info| {
+        info.index != index
+            && chosen_family
+                .as_deref()
+                .is_some_and(|name| judge::has_family(info, name))
+    });
+    let kept = push_chosen_first(db, chosen, others, CUSTOM_FILE_FAMILY);
     (kept, chosen_family)
 }
 
@@ -154,6 +172,27 @@ fn alias_family(
         )];
         added.push(db.push_face_info(info));
     }
+}
+
+/// 설정 family 의 면을 `alias` 이름으로 더 등록한다. 대체 단계는 요청 굵기와 같은 면만 쓰므로,
+/// 미리보기가 쓰는 면(`load_family_data` 처럼 DB 에서 그 family 의 첫 면)을 굵기와 관계없이 보통
+/// 굵기·보통 기울임 자리에 둔다. 다른 굵기·기울임은 그 family 에 그 면이 있으면 그 면을 쓴다.
+fn alias_settings_family(
+    db: &mut cosmic_text::fontdb::Database,
+    family: &str,
+    alias: &str,
+    added: &mut Vec<cosmic_text::fontdb::ID>,
+) {
+    let mut faces = db
+        .faces()
+        .filter(|face| !added.contains(&face.id) && judge::has_family(face, family))
+        .cloned()
+        .collect::<Vec<_>>()
+        .into_iter();
+    let Some(chosen) = faces.next() else {
+        return;
+    };
+    added.extend(push_chosen_first(db, chosen, faces, alias));
 }
 
 /// cosmic-text 는 굵기·기울임이 맞는 면이 없는 family 를 대체 글꼴(비례폭일 수 있다)로 넘긴다. 파일에
@@ -297,7 +336,7 @@ impl FontConfig {
         if !custom_faces.is_empty() {
             let db = font_system.db_mut();
             if judge::names_a_font(&request.family) {
-                alias_family(
+                alias_settings_family(
                     db,
                     &request.family,
                     fallback::CUSTOM_FALLBACK_FAMILY,
@@ -1010,25 +1049,10 @@ mod tests {
 
         // 시스템 글꼴과 겹치지 않는 이름의 family 를 직접 넣는다.
         let mut named = FontConfig::new(14.0, "");
-        let family_font = half_units_per_em(D2CODING_REGULAR_TTF.to_vec());
-        let family_font = {
-            let mut font = family_font;
-            let (name, len) = crate::test_fonts::table(&font, b"name");
-            let from: Vec<u8> = "D2Coding"
-                .encode_utf16()
-                .flat_map(u16::to_be_bytes)
-                .collect();
-            let to: Vec<u8> = "D2Codinj"
-                .encode_utf16()
-                .flat_map(u16::to_be_bytes)
-                .collect();
-            for start in name..name + len - from.len() {
-                if font[start..start + from.len()] == from[..] {
-                    font[start..start + to.len()].copy_from_slice(&to);
-                }
-            }
-            font
-        };
+        let family_font = crate::test_fonts::renamed_as(
+            half_units_per_em(D2CODING_REGULAR_TTF.to_vec()),
+            "D2Codinj",
+        );
         named.font_system.db_mut().load_font_data(family_font);
         named.reconfigure(&with_file(&file.path(), "D2Codinj ligature"));
         assert_eq!(drawn_family(&mut named, "A"), CUSTOM_FILE_FAMILY);
@@ -1038,6 +1062,35 @@ mod tests {
                 CUSTOM_FALLBACK_FAMILY,
                 "{text}"
             );
+        }
+    }
+
+    /// 설정 family 에 보통 굵기의 면이 없어도 파일에 없는 글자는 그 family 가 맡고, 미리보기가 쓰는
+    /// 면(`load_family_data`)으로 그린다. 대체 단계는 요청 굵기와 같은 면만 쓰므로 굵은 면만 있는
+    /// family 를 그대로 별칭으로 붙이면 묶음 D2Coding 으로 넘어간다.
+    #[test]
+    fn missing_glyphs_use_a_family_without_a_regular_face() {
+        use crate::fallback::CUSTOM_FALLBACK_FAMILY;
+        use crate::test_fonts::{TempFont, latin_only, renamed, renamed_as};
+        let file = TempFont::new(&latin_only(renamed(D2CODING_REGULAR_TTF.to_vec())));
+        let mut config = FontConfig::new(14.0, "");
+        config
+            .font_system
+            .db_mut()
+            .load_font_data(renamed_as(D2CODING_BOLD_TTF.to_vec(), "D2Codinj"));
+        config.reconfigure(&with_file(&file.path(), "D2Codinj ligature"));
+        let preview = config.load_family_data("D2Codinj ligature").unwrap();
+        for text in ["한", "あ"] {
+            let id = drawn_face(&mut config, text, false);
+            let db = config.font_system.db();
+            assert!(
+                judge::has_family(db.face(id).unwrap(), CUSTOM_FALLBACK_FAMILY),
+                "{text}"
+            );
+            let mut drawn = None;
+            db.with_face_data(id, |data, index| drawn = Some((data.to_vec(), index)));
+            let (data, index) = drawn.unwrap();
+            assert!(data == preview.file && index == preview.face, "{text}");
         }
     }
 
