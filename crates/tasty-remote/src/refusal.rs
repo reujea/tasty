@@ -57,17 +57,12 @@ pub struct RowNotice {
     pub target: String,
     /// 안내를 만든 연결 대상.
     pub binding: RemoteBinding,
-    /// 사용자가 그 행을 활성화해 시작한 시도의 안내이거나, 안내가 있는 채로 사용자가
-    /// 활성화했는지. 사용자 조작의 안내만 눈에 띄게 보인다. 행 표지는 늘 보인다.
-    pub announced: bool,
 }
 
 #[derive(Default)]
 pub struct Refusals {
     recent: VecDeque<AttachRefusal>,
     notices: HashMap<u32, RowNotice>,
-    /// 진행 중인 첫 연결 시도가 사용자의 행 활성화로 시작됐는지.
-    activation_attempts: std::collections::HashSet<u32>,
     /// 안내가 바뀔 때마다 오른다. 표시 쪽은 같은 세대를 다시 받지 않는다.
     notice_generation: u64,
 }
@@ -85,27 +80,12 @@ impl Refusals {
         self.recent.iter()
     }
 
-    /// 첫 연결 시도를 시작할 때 사용자의 활성화로 시작했는지 남긴다.
-    pub fn begin_attempt(&mut self, row: u32, from_activation: bool) {
-        if from_activation {
-            self.activation_attempts.insert(row);
-        } else {
-            self.activation_attempts.remove(&row);
-        }
-    }
-
-    /// 행의 안내를 새 이유로 바꾼다. 같은 대상의 안내가 이미 알렸으면 알린 상태를 유지한다.
+    /// 행의 안내를 새 이유로 바꾼다.
     pub fn note(&mut self, row: u32, kind: RowNoticeKind, binding: &RemoteBinding) {
-        let announced = self.activation_attempts.remove(&row)
-            || self
-                .notices
-                .get(&row)
-                .is_some_and(|n| n.announced && n.binding == *binding);
         let notice = RowNotice {
             kind,
             target: binding.profile.clone(),
             binding: binding.clone(),
-            announced,
         };
         if self.notices.get(&row) != Some(&notice) {
             self.notices.insert(row, notice);
@@ -115,18 +95,7 @@ impl Refusals {
 
     /// 연결했거나 행이 닫혔을 때 안내를 지운다.
     pub fn clear_notice(&mut self, row: u32) {
-        self.activation_attempts.remove(&row);
         if self.notices.remove(&row).is_some() {
-            self.notice_generation += 1;
-        }
-    }
-
-    /// 사용자가 안내가 있는 행을 활성화했다.
-    pub fn announce(&mut self, row: u32) {
-        if let Some(notice) = self.notices.get_mut(&row)
-            && !notice.announced
-        {
-            notice.announced = true;
             self.notice_generation += 1;
         }
     }
@@ -209,25 +178,6 @@ mod tests {
         refusals.note(7, RowNoticeKind::SelfInstance, &refused);
         assert!(refusals.retain_current_notices(|_| None));
         assert!(refusals.notices().is_empty());
-    }
-
-    #[test]
-    fn only_a_user_activation_announces_a_notice() {
-        let mut refusals = Refusals::default();
-        let refused = binding("box");
-        refusals.begin_attempt(7, false);
-        refusals.note(7, RowNoticeKind::Occupied, &refused);
-        assert!(!refusals.notice(7).unwrap().announced);
-        refusals.announce(7);
-        assert!(refusals.notice(7).unwrap().announced);
-        // 배경 재시도가 같은 안내를 다시 남겨도 알린 상태가 남는다.
-        refusals.begin_attempt(7, false);
-        refusals.note(7, RowNoticeKind::Occupied, &refused);
-        assert!(refusals.notice(7).unwrap().announced);
-
-        refusals.begin_attempt(8, true);
-        refusals.note(8, RowNoticeKind::Unresolved, &binding("eu"));
-        assert!(refusals.notice(8).unwrap().announced);
     }
 
     #[test]

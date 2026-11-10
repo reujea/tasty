@@ -79,11 +79,6 @@ impl App {
             })
             .map(|ws| ws.id);
         self.remote.last_active_ws = current_ws_id;
-        if let Some(current) = current_ws_id
-            && is_reactivation_edge(current_ws_id, prev_active)
-        {
-            self.remote.refusals.announce(current);
-        }
 
         self.maybe_connect_visible_row(current_ws_id, prev_active);
         self.maybe_trigger_reconnect(current_ws_id, prev_active);
@@ -249,7 +244,7 @@ impl App {
                 self.remote.reconnect.insert(row, ReconnectSlot::new());
                 self.trigger_reconnect_row(row, None, None, run);
             }
-            None => self.start_first_connect(row, binding, from_user, run),
+            None => self.start_first_connect(row, binding, run),
         }
     }
 
@@ -266,13 +261,7 @@ impl App {
         }
     }
 
-    fn start_first_connect(
-        &mut self,
-        row: u32,
-        binding: RemoteBinding,
-        from_user: bool,
-        run: Option<u64>,
-    ) {
+    fn start_first_connect(&mut self, row: u32, binding: RemoteBinding, run: Option<u64>) {
         let attempt = match self.remote.begin_attempt(Some(row), Some(binding.clone())) {
             Ok(attempt) => attempt,
             Err(error) => {
@@ -294,7 +283,6 @@ impl App {
             .mirror_attempts
             .register_endpoint(attempt.clone(), endpoint_target);
         self.remote.active.insert(row);
-        self.remote.refusals.begin_attempt(row, from_user);
         let spawned = self.spawn_endpoint_attempt(
             attempt,
             row,
