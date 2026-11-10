@@ -94,7 +94,7 @@ html surface 위쪽에 host가 주소 띠를 그린다. 띠는 공용 view `tast
 - **입력 해석** — Enter로 확정한 입력을 `tasty_utils::html_address::resolve_html_address`가 해석한다. 절대 경로, `~` 경로, `file://`·`http(s)://` 주소를 받는다. 상대 입력은 현재 문서가 로컬 파일이면 그 폴더 기준, 웹 문서면 그 URL 기준, 문서가 없으면 surface cwd 기준이다. 기준이 없으면 요청을 보내지 않고 거절한다. 앞뒤 공백만 있는 입력은 아무것도 하지 않는다.
 - **로컬 파일 확인** — 로컬 대상은 열기 전에 작업 스레드가 파일인지 확인한다(`std::fs::metadata`). 결과를 기다리는 동안 띠는 50ms마다 다시 그려 결과를 본다. 결과가 오기 전에 입력이 바뀌거나 Esc로 취소하면 그 결과를 버린다. 없는 파일과 확인할 수 없는 경로는 "File not found", 폴더 같은 파일이 아닌 대상과 지원하지 않는 주소는 "Enter a valid file path or HTTP(S) URL", 기준 없는 상대 입력은 "Can't resolve a relative path"로 거절한다. 확인을 통과해도 실제 로드가 성공한다는 보장은 아니다. 실제 실패는 위 실패 상태로 보인다.
 - **오류 행** — 거절하면 입력란 테두리가 `input-border-invalid`가 되고 띠 아래에 24px 오류 행이 생긴다. 편집 중인 입력과 이전 문서·주소는 그대로다. 다음 키 입력, Esc, 성공한 열기에서 지운다. 타이머로 지우지 않는다.
-- **열기** — 확정한 주소만 `WebViewUserNav::Open`으로 사용자 탐색 큐에 넣는다. 사용자 출처 로드이므로 스크립트가 있는 문서는 commit 뒤 배너가 바로 뜬다. `allow_remote_content` 설정은 다른 로드와 같이 적용된다. 연 뒤에는 편집을 끝내 띠가 시도 주소와 commit 주소를 보인다.
+- **열기** — 확정한 주소만 `WebViewUserNav::Open`으로 사용자 탐색 큐에 넣는다. 사용자 출처 로드이므로 스크립트가 있는 문서는 commit 뒤 배너가 바로 뜬다. `allow_remote_content` 설정과 문서 단위 원격 허용은 연 주소의 top-level 요청을 막지 않고, 새 문서의 하위 원격 요청에만 적용된다([top-level 탐색](#top-level-탐색)). 연 뒤에는 편집을 끝내 띠가 시도 주소와 commit 주소를 보인다.
 - **빈 탭** — 호스트 주소가 없는 html surface(`tasty new tab --type html`)는 처음에 native WebView가 없다. 띠로 주소를 열어 사용자 탐색 큐에 들어오면 그 redraw에서 WebView를 만들고 같은 큐로 첫 로드를 한다. 그 뒤로 WebView를 유지한다. 빈 상태 chrome은 html 글리프, "No page loaded", 그리고 "Type a path or URL in the address bar · <단축키>" 힌트를 보인다. 힌트의 단축키는 주소창 포커스 바인딩의 첫 값이며 바인딩이 없으면 힌트를 그리지 않는다.
 - **배치** — 쌓는 순서는 탭 스트립 → 띠(+오류 행) → 크기 안내(mirror) → 원격 콘텐츠 안내 → 스크립트 배너 → 페이지다. 안내는 합치지 않고 따로 카드로 쌓는다. 카드마다 위에 `banner_margin`, 아래에 `banner_inset_gap`을 두며 다음 카드는 앞 카드의 간격 끝에서 `banner_inset_gap`만큼 올라가 시작하므로 카드 사이 간격도 8이다(`html_script_banner::draw_stack`). egui 패스가 띠와 배너의 높이 합을 `MainViewState::html_content_insets`에 남기고, WebView 동기화(`MainView::html_content_top`)가 같은 프레임에 물리 px로 바꿔 페이지를 그만큼 내린다. 배너가 사라지면 페이지는 띠 바로 아래로 돌아온다. 빈 상태·로딩·실패 chrome도 띠 아래에 그린다.
 - **포커스와 키** — 입력란을 누르거나 주소창 포커스 단축키를 누르면 egui 입력란이 키보드 포커스를 받는다. 띠가 포커스를 가진 동안에는 host 팝업·복원 안내 입력과 같은 키보드 게이트(`MainViewState::keyboard_overlay_open`)가 열려 실제 키·IME가 egui로 가고, 터미널과 Tasty 단축키로는 가지 않는다. 포커스를 가진 띠가 그 프레임에 그려지지 않으면(탭·workspace 전환) 포커스를 놓아 게이트를 닫는다. 띠가 포커스를 새로 얻으면 WebView 동기화가 그 surface의 native 페이지에서 OS 키보드 포커스를 회수한다. Linux X는 포커스 창의 자손 위에 포인터가 있으면 키를 그 자손에 보내므로, 띠가 포커스를 가진 동안 그 페이지 창 전체를 입력 shape에서 뺀다. 그래서 포인터가 페이지 위에 있어도 키가 페이지로 가지 않는다. 이 동안 페이지는 포인터도 받지 않으며, 페이지 자리를 누르면 그 누름으로 띠의 편집이 끝나고 shape가 돌아온다(XFixes가 없으면 shape를 바꾸지 못한다). macOS·Windows는 키를 키보드 포커스 창에만 보내므로 shape를 바꾸지 않는다. 띠가 포커스를 가진 동안 페이지가 포커스를 새로 얻으면 띠의 편집을 끝낸다. 회수 요청이 늦게 반영되는 동안 남은 페이지 포커스는 새로 얻은 것으로 보지 않는다. OS 포커스 조회는 띠가 포커스를 가진 동안에만 한다. 띠의 포커스는 주소 입력과 사용 가능한 탐색 버튼(뒤로·앞으로·새로고침. 비활성 버튼, 숨은 앞으로, 로딩 중 Spinner는 제외)을 모두 포함한다. 그 안에서 `Tab`·`Shift+Tab`은 버튼과 주소 입력 사이를 순서대로 돈다. Ctrl·Alt·Cmd를 함께 누른 `Tab`은 돌지 않는다. 띠의 위젯은 `Tab`과 방향키를 focus lock filter로 잡아 egui 기본 순회가 띠 밖 host 위젯으로 포커스를 옮기지 않게 하고, 다음 대상은 띠가 고른다. 포커스를 받은 버튼은 `Enter`·`Space`로 눌리고 바깥에 포커스 테두리를 그린다. 테두리는 새 디자인 값 없이 이미 승인된 토큰 `border_focus`·`focus_ring_width`를 쓰며, 플러그인 추가 화면의 포커스 테두리와 egui 선택 테두리가 같은 쌍을 쓴다. 주소 입력에서 Tab으로 떠나면 다른 곳으로 포커스를 옮길 때처럼 거절되지 않은 초안은 지금 주소로 돌아가고 편집 표시가 꺼진다. 주소 입력으로 돌아오면 주소 전체를 고른다. 미러의 읽기 전용 주소는 고르지 않고 편집 상태도 되지 않는다. `Esc`와 페이지의 포커스 획득은 버튼 포커스도 놓는다. 포커스를 가진 버튼이 그 동작으로 사라지거나 비활성이 되면(새로고침이 Spinner로 바뀌거나 뒤로가 히스토리 처음에 닿을 때) 포커스가 풀리고 게이트가 닫힌다.
@@ -348,15 +348,32 @@ OS별 구현은 다음과 같다.
 - entry mirror와 HTTP view는 차단을 다른 곳이 정한다. 그래서 이 view에서는 문서 단위 허용과 안내를 지원하지 않고 `unsupported_view`로 거절한다. 두 view의 정책은 달라서 `remote.view`(`local`·`mirror`·`http`)로 구분하고 실효값(`remote.effective`)도 view마다 정한다.
   - mirror: 응답 경계가 전역 설정과 관계없이 원격을 늘 막는다. 실효값은 늘 거짓이다.
   - HTTP view: endpoint가 client의 전역 설정과 같은 origin 기본 허용으로 정한다. 실효값은 전역 설정이다. 같은 origin 요청은 설정과 관계없이 열려 있다.
-- top-level `http(s)` 탐색: 실효값이 참인 동안 문서에서 연 `http(s)` 링크·이동도 막지 않는다(Linux 탐색 정책, macOS 규칙 목록, Windows 문서 요청이 같은 실효값을 쓴다). 문서 단위 허용도 같다. 그 탐색이 commit되면 다른 문서이므로 허용이 풀리고 새 문서의 하위 원격 요청은 다시 막힌다. 원래 문서로 돌아와도 허용 기록이 없으므로 다시 허용해야 열린다. 시험은 `a_remote_navigation_from_an_allowed_document_releases_the_allowance`다.
+- top-level `http(s)` 탐색은 아래 [top-level 탐색](#top-level-탐색)의 규칙을 따른다. 허용한 문서에서 연 탐색이 commit되면 다른 문서이므로 허용이 풀리고 새 문서의 하위 원격 요청은 다시 막힌다. 원래 문서로 돌아와도 허용 기록이 없으므로 다시 허용해야 열린다. 시험은 `a_remote_navigation_from_an_allowed_document_releases_the_allowance`와 `the_navigation_origin_stays_with_the_committed_document`다.
+
+### top-level 탐색
+
+원격 차단은 화면 문서의 하위 리소스(스타일시트·이미지·글꼴·스크립트·fetch 등)와 서브프레임 문서를 막는다. main frame의 `http(s)` 문서 요청은 다음 출처일 때 연다(`tasty_model::html_script::top_level`).
+
+- 호스트가 지목한 로드: 주소창 Enter, `tasty html open`, plugin·복원이 넣은 `webview_url`, 새로고침, 뒤로·앞으로. 화면 문서의 차단 여부와 관계없다.
+- 원격이 열린 화면 문서(전역 설정 또는 문서 단위 허용)가 시작한 링크·meta refresh·`location` 이동.
+- `http(s)` 화면 문서에서 사용자가 링크를 눌러 시작한 이동(사용자 제스처). 그 문서의 meta refresh·스크립트 이동은 열지 않는다.
+
+연 판단은 그 로드의 리다이렉트 hop에도 이어지고 commit이나 그 로드의 종료에서 닫힌다. 근거는 탐색이 시작된 시점의 commit된 화면 문서다. 새 문서는 허용을 받지 않으므로 `remote.allowance`가 없고 `allowed`·`effective`가 거짓이다. 새 문서가 시작한 다음 이동도 위 규칙으로 다시 정한다. 위 출처가 아닌 이동(허용 없는 로컬 문서의 링크 등)은 첫 요청부터 보내지 않는다. 리다이렉트 대상이 `file://`이면 WebKit이 로드를 끝내지 않는다(`Load request cancelled`).
+
+차단은 로드 시작부터 켜 둔 채로 두고 top-level 문서 요청만 따로 연다. commit 때 차단을 다시 켜지 않으므로 새 문서의 첫 하위 요청이 나갈 틈이 없다. 연 `http(s)` 문서는 스캔이 없어 지문이 없으므로 원격 허용을 받을 수 없고, 정적 참조 감지도 없어 원격 안내가 뜨지 않는다.
+
+- Linux: content filter가 `^https?://`를 막되 `load-context: top-frame`인 `document` 요청은 빼고(`ignore-previous-rules`), 탐색 정책이 navigation action과 main frame 응답을 위 규칙으로 정한다. 서브프레임 문서는 `child-frame`이라 filter가 막는다. navigation action은 main frame과 서브프레임을 구분하지 못하므로 연 판단은 서브프레임 문서를 열지 않는다. 호스트 지목은 `load_url`의 주소, 새로고침·뒤로·앞으로의 navigation type으로 대조한다.
+- Windows: `NavigationStarting`(main frame만)에서 허용을 정하고 리다이렉트(`IsRedirected`)마다 대상 주소를 옮긴다. `WebResourceRequested`는 `DOCUMENT` 문맥이고 그 hop 주소인 요청만 거절하지 않는다. 호스트 지목은 `Navigate`·`Reload`·`GoBack`·`GoForward` 직후의 다음 탐색이다. 뒤로·앞으로는 이동할 이력이 있을 때만 지목한다.
+- Linux 측정(WebKitGTK 2.50.4, 서버 접근 로그를 tag로 센 값): 허용한 문서의 클릭·meta refresh·`location`, 주소 입력 재현(`debug webview-history --action open`), `tasty html open`, 허용 전 문서와 빈 탭의 주소 입력에서 B가 commit됐고 B 하위 요청은 모두 0건이었다. 302·301·303·307·308, 3단·지연 리다이렉트도 같았다. 전역 허용 대조군에서는 같은 이동의 B 하위 요청 2건이 서버에 도착했다. 허용 없는 로컬 문서의 클릭은 첫 hop부터 0건이었고 `STARTED`도 오지 않았다. B의 원격 iframe, B의 meta refresh가 가는 C, 허용 문서에서 간 로컬 문서의 meta refresh가 가는 C도 0건이었다. B 안에서 사용자가 누른 링크와 주소창으로 연 B의 새로고침·뒤로·앞으로는 이동했다. 지연 없는 서버로 허용 문서 클릭 20회, 주소 입력 20회를 반복해 40회 모두 commit됐고 B 하위 요청 합계는 0건이었다. 허용한 로컬 문서의 로컬 iframe이 http로 이동하면 요청이 나가지만 main 문서의 허용은 바뀌지 않았다. https는 측정하지 않았다.
+- macOS: 이 규칙을 아직 적용하지 않았다. 규칙 목록이 문서 요청도 막는다. 문서 단위 허용 중 meta refresh·스크립트 이동과 주소 입력 재현(`debug webview-history --action open`)이 `blocked by a content blocker`로 실패했다(측정). 허용 전 문서의 주소창·`html open`과 실제 링크 클릭은 측정하지 않았다.
 
 ### 적용
 
 backend는 실효값 `전역 설정 || 문서 단위 허용` 하나를 한 곳에서 native에 쓴다. 문서 단위 값은 스크립트 게이트가 상태를 바꾸는 지점마다 다시 읽는다. 그 지점은 로드 시작, 응답 결정, 보류한 결정의 재개, commit, 종료·실패다. commit 전에는 그 로드의 응답 결정을 따르고, commit 뒤에는 화면 문서의 허용을 따른다. 그래서 전역 설정 변경과 문서 허용이 서로를 덮지 않고, 허용이 다음 문서로 새지 않는다.
 
-- Linux: http(s) content filter와 탐색 정책을 `linux/remote_block.rs`가 켜고 끈다.
+- Linux: http(s) content filter와 탐색 정책을 `linux/remote_block.rs`가 켜고 끈다. 실효값은 하위 리소스와 서브프레임에 적용하고, main frame 문서 요청은 [top-level 탐색](#top-level-탐색) 규칙이 정한다.
 - macOS: WKContentRuleList를 `macos/remote_block.rs`가 붙이고 뗀다.
-- Windows: `WebResourceRequested`가 요청마다 게이트의 문서 값을 읽는다(`windows/remote_block.rs`). 막은 하위 리소스 요청은 OS 관측으로 게이트에 알린다. 정적 참조 없이 막힌 문서의 표지 근거다.
+- Windows: `WebResourceRequested`가 요청마다 게이트의 문서 값을 읽는다(`windows/remote_block.rs`). 연 top-level 탐색의 main 문서 요청은 거절하지 않는다. 막은 하위 리소스 요청은 OS 관측으로 게이트에 알린다. 정적 참조 없이 막힌 문서의 표지 근거다.
 - 규칙·필터 컴파일 전이나 컴파일 실패 동안에는 막지 못한다.
 
 ### 안내와 표지
@@ -406,6 +423,8 @@ backend는 실효값 `전역 설정 || 문서 단위 허용` 하나를 한 곳�
 - Given 그 문서 When 조회 응답의 `url`·`fingerprint`로 `tasty surface html-remote-allow`를 실행한다 Then `result`는 `allowed`이고, 재로드에서 원격 요청이 서버에 도착하며, 스크립트 허용 기록과 JS 값은 그대로다(Linux 실제 실행).
 - Given 원격을 허용한 문서 When 같은 문서를 재로드하거나, 전역 원격 허용을 켠 채 재로드한 뒤 다시 끈다 Then 허용 기록과 원격 요청이 유지된다(Linux 실제 실행, 모델 시험 `reloading_with_the_global_switch_on_keeps_the_document_allowance`).
 - Given 원격을 허용한 문서 When 파일 내용을 바꾼 뒤 재로드하거나 다른 문서를 연다 Then 허용 기록이 풀리고 새 문서의 원격 요청은 가지 않는다(Linux 실제 실행).
+- Given 원격을 허용한 로컬 문서 When 클릭·meta refresh·`location`으로 `http(s)` 문서로 바로 또는 리다이렉트를 거쳐 이동한다 Then 새 문서가 commit되고 새 문서의 하위 원격 요청은 0건이며 `remote.allowance`가 없다(Linux 실제 실행).
+- Given 원격 허용 여부와 관계없는 html surface When 주소창 Enter나 `tasty html open`으로 `http(s)` 주소를 연다 Then 그 문서가 commit되고 하위 원격 요청은 0건이다. 그 문서에서 사용자가 누른 링크와 새로고침·뒤로·앞으로는 이동하고, 문서 자신의 meta refresh·스크립트 이동과 원격 iframe은 요청하지 않는다(Linux 실제 실행).
 - Given 에이전트가 원격 참조가 있는 로컬 문서를 html 탭으로 열었다 When 사용자가 그 탭을 선택한다 Then 원격 안내 카드가 주소 띠 아래에 보이고 WebView는 카드 아래 `banner_inset_gap` 뒤에서 시작하며, 원격 요청은 가지 않는다(Linux 실제 실행).
 - Given 원격 안내가 보인다 When 사용자가 ×를 누른다 Then 카드가 사라지고 주소 입력란 끝에 globeOff 표지가 보이며 조회의 `remote.marker`는 `blocked`다. When 그 표지를 누른다 Then 안내가 다시 `blocked`로 보이고 `remote.allowance`는 `null`이며 활성 탭은 그대로다(Linux 실제 실행).
 - Given 원격 안내가 보인다 When 사용자가 [Allow remote content]를 누른다 Then 재로드 중 카드가 스피너를 보인 뒤 사라지고, 원격 요청이 서버에 도착하며, 주소 입력란 끝에 globe 표지가 보이고 스크립트 허용과 JS 값은 그대로다(Linux 실제 실행).

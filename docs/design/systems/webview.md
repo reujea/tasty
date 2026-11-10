@@ -761,7 +761,7 @@ html 은 이 값을 전역 sandbox 로 받고 문서마다 스크립트를 판�
 
 ## 원격 리소스 차단
 
-일반 WebView의 allow_remote_content=false는 navigation과 페이지 내부 HTTP·HTTPS 요청을 함께 제한한다.
+일반 WebView의 allow_remote_content=false는 페이지 내부 HTTP·HTTPS 요청과 서브프레임을 제한한다. main frame navigation은 주소창·에이전트가 연 로드, 원격이 열린 문서가 시작한 이동, 원격 문서에서 사용자가 누른 링크만 연다([html surface의 top-level 탐색](../../surfaces/html/index.md#top-level-탐색)).
 원격 파일 entry 모드는 [별도 응답 경계](#원격-파일-entry-응답-모드)를 사용하며 이 설정으로 하위 파일이나 HTTP(S)를 활성화하지 않는다.
 Linux는 `^https?://` WebKit content filter를 홈의 webkit-content-filters 저장소에 비동기 컴파일한다.
 완료 callback은 그때의 차단 상태를 다시 읽고, 상태가 바뀌면 기존 필터를 제거한 뒤 필요하면 붙인다.
