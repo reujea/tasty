@@ -9,13 +9,6 @@ all-features = true
 version = 2
 yanked = "deny"
 ignore = [
-  # quick-xml DoS 두 건: 빌드 시 신뢰하는 XML만 처리한다.
-  # Linux Wayland 빌드의 wayland-scanner가 고정된 프로토콜 XML을 읽는다.
-  # wayland-scanner의 quick-xml ^0.39와 winit 의존성에 묶여 있다.
-  # 공식 winit으로 복귀할 때 quick-xml 0.41 이상으로 올릴 수 있는지 확인하고 해제한다.
-  "RUSTSEC-2026-0194", # quick-xml: 시작 태그 중복 속성 검사 quadratic 런타임
-  "RUSTSEC-2026-0195", # quick-xml: NsReader 무제한 네임스페이스 할당 메모리 고갈
-
   # paste 1.0.15 유지보수 종료. 알려진 취약점이 아니다.
   # metal 0.31(wgpu-hal 24)만 쓰는 프로시저 매크로이고 macOS 대상 그래프에만 있다. 컴파일할 때만 실행된다.
   # wgpu를 올려 metal 0.31이 빠질 때 해제한다. 어느 wgpu 판에서 빠지는지는 미측정이다.
