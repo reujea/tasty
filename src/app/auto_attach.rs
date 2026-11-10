@@ -221,6 +221,10 @@ impl App {
         self.ensure_row_token(row);
         self.remote.pending_reactivation.remove(&row);
         match self.row_session_phase(row) {
+            // 재동기화(Resync) 중인 행은 이미 다시 붙는 중이라 run 을 그 결과에 합류시킨다.
+            Some(SessionState::Connected) if !self.row_link_live(row) => {
+                self.row_waits.join_run(row, run);
+            }
             Some(SessionState::Connected) => {
                 run.into_iter().for_each(crate::request_runs::forget);
             }

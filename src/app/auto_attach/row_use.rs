@@ -468,7 +468,7 @@ impl App {
     }
 
     /// 행 세션의 소켓이 살아 있는지. 원격 위치 표시의 재연결 판정(`locations_of`)과 같은 기준이다.
-    fn row_link_live(&self, row: u32) -> bool {
+    pub(super) fn row_link_live(&self, row: u32) -> bool {
         self.remote
             .sessions
             .iter()

@@ -169,6 +169,73 @@ fn a_popup_takeover_keeps_held_requests_and_joined_runs_for_its_result() {
     assert!(ended.to_string().contains("occupied"), "{ended}");
 }
 
+/// 손실 뒤 재동기화(Resync) 중인 행: 단계는 Connected 지만 소켓을 놓았다.
+fn resyncing_app(event_loop: &winit::event_loop::EventLoop<crate::AppEvent>) -> App {
+    let mut app = app_with_saved_row(event_loop, Some(SessionState::Connected));
+    app.ensure_row_token(ROW);
+    app.remote.sessions[0].state.resync_pending = Some(0);
+    app.remote.sessions[0]
+        .transport
+        .disconnected
+        .store(true, std::sync::atomic::Ordering::Release);
+    app
+}
+
+/// Given 재동기화 중인 저장 행, When `remote.attach`가 그 행에 오고 재동기화가 끝나 다시 살아나면,
+/// Then 요청은 붙는 중으로 답하고 run 은 버려지지 않고 성공으로 끝난다.
+#[test]
+fn a_remote_attach_during_resync_gets_its_success() {
+    alone!("a_remote_attach_during_resync_gets_its_success");
+    let event_loop = event_loop();
+    let mut app = resyncing_app(&event_loop);
+    let result = remote_attach(&mut app);
+    assert_eq!(result["attaching"], true, "{result}");
+    let run = result["run"].as_u64().unwrap();
+    app.advance_row_waits();
+    assert_eq!(
+        crate::request_runs::lookup(run, None).unwrap()["state"],
+        "running"
+    );
+
+    app.remote.sessions[0].state.resync_pending = None;
+    app.remote.sessions[0]
+        .transport
+        .disconnected
+        .store(false, std::sync::atomic::Ordering::Release);
+    app.advance_row_waits();
+    assert_eq!(
+        crate::request_runs::lookup(run, None).unwrap()["state"],
+        "succeeded"
+    );
+}
+
+/// Given 재동기화 중인 저장 행, When `remote.attach`가 그 행에 오고 재동기화가 다시 시도해도 같은
+/// 거절(원격 workspace 없음)로 실패하면, Then run 은 그 실패로 끝난다.
+#[test]
+fn a_remote_attach_during_resync_gets_its_failure() {
+    alone!("a_remote_attach_during_resync_gets_its_failure");
+    let event_loop = event_loop();
+    let mut app = resyncing_app(&event_loop);
+    let run = remote_attach(&mut app)["run"].as_u64().unwrap();
+    let target = app
+        .mirror_install_target(None, Some(ROW), Some(0), false)
+        .unwrap();
+    assert!(target.resync);
+
+    app.fail_pending_mirror(
+        tasty_remote::pending_connection::ConnectionTicket(1),
+        &target,
+        "workspace attach rejected: workspace_not_found".to_string(),
+    );
+    app.advance_row_waits();
+    let ended = crate::request_runs::lookup(run, None).unwrap();
+    assert_eq!(ended["state"], "failed", "{ended}");
+    assert!(
+        ended.to_string().contains("remote_workspace_missing"),
+        "{ended}"
+    );
+}
+
 /// Given 백오프 예약을 기다리는 재연결 중인 행, When 그 행을 쓰는 요청이 오면, Then 요청은 기다리고
 /// 재연결 구간의 시작 시각·시도 수·다음 예약은 그대로다. 사용자의 명시적 연결만 새 구간을 시작한다.
 #[test]
