@@ -84,6 +84,7 @@ impl PlatformWebView {
             let url = HSTRING::from(url);
             if let Err(e) = self.webview.Navigate(&url) {
                 tracing::warn!("WebView2 Navigate failed: {e}");
+                self.withdraw_next();
             }
         }
     }
@@ -117,6 +118,7 @@ impl PlatformWebView {
         // SAFETY: webview는 self가 살아있는 동안 valid, main thread 호출.
         if let Err(e) = unsafe { self.webview.Reload() } {
             tracing::warn!("WebView2 Reload failed: {e}");
+            self.withdraw_next();
         }
     }
 
@@ -129,6 +131,7 @@ impl PlatformWebView {
         // SAFETY: webview는 self가 살아있는 동안 valid, main thread 호출.
         if let Err(e) = unsafe { self.webview.GoBack() } {
             tracing::warn!("WebView2 GoBack failed: {e}");
+            self.withdraw_next();
         }
     }
 
@@ -141,6 +144,7 @@ impl PlatformWebView {
         // SAFETY: webview는 self가 살아있는 동안 valid, main thread 호출.
         if let Err(e) = unsafe { self.webview.GoForward() } {
             tracing::warn!("WebView2 GoForward failed: {e}");
+            self.withdraw_next();
         }
     }
 
@@ -187,6 +191,11 @@ impl PlatformWebView {
                 tracing::warn!("WebView2 history query failed: {e}; the step is not designated")
             }
         }
+    }
+
+    /// 탐색을 시작하지 못한 호출이 세운 지목을 거둔다. 남으면 뒤의 페이지 이동이 그 지목을 소비한다.
+    fn withdraw_next(&self) {
+        self.top_level.borrow_mut().withdraw(&Designation::Next);
     }
 
     /// `nav_info` 실패를 웹뷰별 첫 번째만 warn, 이후는 debug로 남긴다.

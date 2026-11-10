@@ -853,7 +853,7 @@ impl PlatformWebView {
             click_slot.borrow_mut().clone_from(&click);
             same_document::install(&webview, surface_id, parent, &pending_navigations, click)
                 .map_err(|e| transient(format!("same-document navigation setup failed: {e}")))?;
-            remote_block::install(&webview, &frames, surface_id)
+            remote_block::install(&webview, &top_level, &frames, surface_id)
                 .map_err(|e| transient(format!("top-level navigation setup failed: {e}")))?;
 
             Ok(Self {

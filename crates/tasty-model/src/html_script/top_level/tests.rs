@@ -212,3 +212,40 @@ fn a_subframe_navigation_to_the_admitted_url_gets_no_document_exception() {
         "frames of the old document are gone"
     );
 }
+
+#[test]
+fn a_withdrawn_designation_does_not_open_a_later_page_navigation() {
+    let mut t = TopLevelAdmission::default();
+    t.designate(Designation::Next);
+    t.withdraw(&Designation::Next);
+    assert!(
+        !t.start(B, StartKind::Other, false, BLOCKED_REMOTE),
+        "meta refresh after a failed Navigate"
+    );
+}
+
+#[test]
+fn withdrawing_leaves_a_newer_designation() {
+    let mut t = TopLevelAdmission::default();
+    t.designate(Designation::Next);
+    t.designate(Designation::Reload);
+    t.withdraw(&Designation::Next);
+    assert!(t.start(B, StartKind::Reload, false, BLOCKED_REMOTE));
+}
+
+#[test]
+fn a_history_change_without_a_start_drops_a_next_designation() {
+    let mut t = TopLevelAdmission::default();
+    t.designate(Designation::Next);
+    t.drop_next();
+    assert!(
+        !t.start(B, StartKind::Other, false, BLOCKED_REMOTE),
+        "the page's later automatic navigation stays closed"
+    );
+    t.designate(Designation::History);
+    t.drop_next();
+    assert!(
+        t.start(B, StartKind::History, false, BLOCKED_REMOTE),
+        "only Next waits for any start"
+    );
+}

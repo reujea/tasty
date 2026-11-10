@@ -133,6 +133,21 @@ impl TopLevelAdmission {
         self.target.as_deref().is_some_and(|t| same_target(t, url))
     }
 
+    /// 지목한 호출이 탐색을 시작하지 못했다. 그 지목이 아직 남아 있으면 지운다.
+    pub fn withdraw(&mut self, designation: &Designation) {
+        if self.designation.as_ref() == Some(designation) {
+            self.designation = None;
+        }
+    }
+
+    /// 탐색 시작 없이 문서 기록이 바뀌었다(같은 문서 이동). [`Designation::Next`]는 다음 탐색 시작을 기다리는
+    /// 지목이라, 시작 없이 끝난 호스트 이동(같은 문서 이력 항목 등)의 지목이 뒤의 페이지 이동으로 새지 않게 지운다.
+    pub fn drop_next(&mut self) {
+        if self.designation == Some(Designation::Next) {
+            self.designation = None;
+        }
+    }
+
     /// 이 문서 요청에 top-level 예외를 줄지. 열린 로드의 현재 hop이고, 같은 주소로 가는 subframe 탐색이
     /// 진행 중이지 않아야 한다. 요청에서 frame을 알 수 없는 backend(WebView2)가 subframe 문서 요청에 예외를
     /// 주지 않게 한다. 둘이 겹치면 main 요청도 막는다(차단 쪽으로 닫는다).

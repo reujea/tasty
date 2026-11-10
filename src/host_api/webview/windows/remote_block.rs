@@ -137,12 +137,16 @@ pub(super) fn navigation_starting(
     );
 }
 
-/// subframe 탐색을 top-level 허용에 알린다. 첫 문서를 열기 전에 부른다.
+/// subframe 탐색과 탐색 시작 없는 기록 변경을 top-level 허용에 알린다. 첫 문서를 열기 전에 부른다.
 ///
 /// - `FrameNavigationStarting`·`FrameNavigationCompleted`: subframe 탐색의 hop 주소를 기록하고 지운다.
 ///   id를 읽지 못한 탐색은 끝을 대조할 수 없어 main commit까지 남긴다(차단 쪽으로 닫는다).
+/// - `HistoryChanged`: 같은 문서 이동(fragment 이력, `Navigate`의 fragment 주소)은 `NavigationStarting` 없이
+///   기록만 바꾼다. 그 이동을 지목한 [`Designation::Next`](tasty_model::html_script::top_level::Designation)가
+///   남아 뒤의 페이지 이동을 열지 않게 지운다. 문서를 바꾸는 탐색은 이 이벤트보다 먼저 시작해 지목을 소비한다.
 pub(super) fn install(
     webview: &ICoreWebView2,
+    top_level: &Rc<RefCell<TopLevelAdmission>>,
     frames: &Rc<RefCell<SubframeNavigations>>,
     surface_id: u32,
 ) -> windows::core::Result<()> {
@@ -186,10 +190,18 @@ pub(super) fn install(
             Ok(())
         },
     ));
+    let top_history = top_level.clone();
+    let history = HistoryChangedEventHandler::create(Box::new(
+        move |_sender, _args| -> windows::core::Result<()> {
+            top_history.borrow_mut().drop_next();
+            Ok(())
+        },
+    ));
     let mut token: i64 = 0;
     // SAFETY: webview와 handler는 호출 동안 valid, main thread 호출. 출력 token은 지역 변수다.
     unsafe {
         webview.add_FrameNavigationStarting(&start, &mut token)?;
-        webview.add_FrameNavigationCompleted(&done, &mut token)
+        webview.add_FrameNavigationCompleted(&done, &mut token)?;
+        webview.add_HistoryChanged(&history, &mut token)
     }
 }
