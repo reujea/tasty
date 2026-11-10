@@ -3,7 +3,8 @@
 //! 이 범위는 산문으로 여러 문서(한·영)에 복제돼 있어, 하한을 바꿀 때 일부 문장이 옛 값으로 남을 수 있다.
 //! 단위는 macOS 메이저 버전이다.
 //!
-//! 판정 대상은 `macOS` 뒤 공백(줄바꿈 포함) 다음에 오는 `11`, en dash 또는 하이픈, 숫자 형태뿐이다.
+//! 판정 대상은 `macOS` 뒤 공백(줄바꿈 포함) 다음에 오는 `11`, 구분자, 숫자 형태뿐이다.
+//! 구분자는 en dash·하이픈·물결·em dash이며 앞뒤 공백을 허용한다. 표기 방식을 바꿔 가드를 피하지 않게 한다.
 //! docs/ 안의 이 형태는 모두 HTTP viewer 미지원 범위라는 전제를 둔다. 다른 사실(예: per-store proxy API가
 //! 없는 버전)은 범위 표기 대신 "macOS 14 이전" 같은 형태로 쓴다. 문장 식별로 예외를 두면 줄바꿈이나
 //! 문구가 바뀔 때 예외가 조용히 빠지거나 넓어지므로 예외 목록을 두지 않는다.
@@ -19,6 +20,13 @@ const CONST_PREFIX: &str = "const FIRST_MEASURED: isize = ";
 
 /// 미지원 범위의 시작 버전. 앱 최소 macOS(LSMinimumSystemVersion)와 같다.
 const RANGE_START: &str = "11";
+
+/// 범위 구분자. 문서가 쓰는 en dash 외에 손으로 쓰기 쉬운 형태도 잡는다.
+const SEPARATORS: [char; 4] = ['–', '-', '~', '—'];
+
+/// 하한 규칙을 설명하려고 범위를 직접 적는 문서. 이 문서의 일치는 0건 판정에서 세지 않는다.
+/// 실제 사용자·개발 문서가 모두 다른 형태로 바뀌었는데 설명 문서 하나로 통과하지 않게 한다.
+const SELF_DOC: &str = "docs/dev-guide/duplicated-sets.md";
 
 /// 문서 수집 실패로 빈 결과가 통과하지 않게 한다.
 const DOCS_FLOOR: Floor = Floor {
@@ -62,9 +70,10 @@ fn ranges(contents: &str) -> Vec<(usize, u32)> {
         let Some(rest) = rest.strip_prefix(RANGE_START) else {
             continue;
         };
-        let Some(rest) = rest.strip_prefix(['–', '-']) else {
+        let Some(rest) = rest.trim_start().strip_prefix(SEPARATORS) else {
             continue;
         };
+        let rest = rest.trim_start();
         let digits: String = rest.chars().take_while(char::is_ascii_digit).collect();
         let Ok(upper) = digits.parse() else {
             continue;
@@ -93,12 +102,16 @@ fn macos_http_viewer_floor_matches_the_source() {
     .unwrap_or_else(|why| panic!("{why}"));
 
     let mut matched = 0usize;
+    let mut matched_outside_self = 0usize;
     let mut violations = Vec::new();
     for file in &files {
         let contents = std::fs::read_to_string(&file.path)
             .unwrap_or_else(|e| panic!("{}를 읽지 못했다: {e}", file.rel));
         for (line, upper) in ranges(&contents) {
             matched += 1;
+            if file.rel != SELF_DOC {
+                matched_outside_self += 1;
+            }
             if upper != expected {
                 violations.push(format!(
                     "  {}:{line} — macOS {RANGE_START}–{upper}",
@@ -109,8 +122,8 @@ fn macos_http_viewer_floor_matches_the_source() {
     }
 
     assert!(
-        matched > 0,
-        "docs/에서 `macOS {RANGE_START}–N` 범위를 하나도 찾지 못했다. 문서 표기가 바뀌었다면 이 가드의 판정 형태를 함께 고친다"
+        matched_outside_self > 0,
+        "{SELF_DOC} 밖의 docs/에서 `macOS {RANGE_START}–N` 범위를 하나도 찾지 못했다. 문서 표기가 바뀌었다면 이 가드의 판정 형태를 함께 고친다"
     );
     assert!(
         violations.is_empty(),
@@ -140,7 +153,12 @@ fn the_floor_reader_and_range_matcher_react_to_planted_text() {
         ranges("native Wayland와 macOS\n11–26 client"),
         vec![(1, 26)]
     );
+    assert_eq!(ranges("macOS 11~13"), vec![(1, 13)]);
+    assert_eq!(ranges("macOS 11 – 13"), vec![(1, 13)]);
+    assert_eq!(ranges("macOS 11—13"), vec![(1, 13)]);
+    assert_eq!(ranges("macOS 11 ~ 26"), vec![(1, 26)]);
     assert!(ranges("macOS 14–26 have").is_empty());
+    assert!(ranges("macOS 11 – 기타").is_empty());
     assert!(ranges("macOS 11은 바뀌지 않는다").is_empty());
     assert!(ranges("macOS 27 이상").is_empty());
     assert!(ranges("macOS 11-compatible").is_empty());
