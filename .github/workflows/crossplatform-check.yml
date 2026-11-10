@@ -248,8 +248,8 @@ jobs:
         run: cargo check --workspace --release --locked
 
   # Android(aarch64-linux-android) 타깃에서 터미널 코어(tasty-terminal·tasty-terminal-link)가 컴파일되는지 검사한다.
-  # 의존 그래프에 Android를 모르는 크레이트나 C 빌드 의존성이 들어오면 실패한다.
-  # cargo check이므로 NDK가 필요 없고 링크·실행은 검사하지 않는다. 다른 크레이트의 Android 컴파일도 보지 않는다.
+  # 두 크레이트의 Android 컴파일 실패를 검출한다. 현재 의존 그래프는 NDK 없이 검사된다.
+  # 링크·실행과 다른 크레이트의 Android 컴파일은 검사하지 않는다.
   check-android:
     runs-on: [self-hosted, Linux, X64]
     # check-release 대리 실측 최대 1.7분 × 5. 기준: docs/dev-guide/ci-gates.md#잡-시간-상한
