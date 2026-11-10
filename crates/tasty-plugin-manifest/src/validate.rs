@@ -964,11 +964,20 @@ impl Manifest {
             SettingsItemDecl::Text {
                 default,
                 default_key,
+                storage_key,
+                editable,
                 ..
             } => {
                 if default.is_empty() && default_key.as_deref().is_none_or(str::is_empty) {
                     anyhow::bail!(
                         "contributes.settings_pages '{}' item '{}': text needs default or default_key",
+                        page.id,
+                        id
+                    );
+                }
+                if *editable && storage_key.is_none() {
+                    anyhow::bail!(
+                        "contributes.settings_pages '{}' item '{}': editable text needs storage_key",
                         page.id,
                         id
                     );

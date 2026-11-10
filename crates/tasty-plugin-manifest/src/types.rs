@@ -706,6 +706,9 @@ pub enum SettingsItemDecl {
         storage_key: String,
         #[serde(default)]
         default: bool,
+        /// 행 아래 설명 글 i18n 키. 없으면 설명 없이 그린다.
+        #[serde(default)]
+        caption_key: Option<String>,
         /// 들어갈 묶음(`kind = "group"` 항목의 `id`). 없으면 묶음 밖이다.
         #[serde(default)]
         group: Option<String>,
@@ -744,11 +747,12 @@ pub enum SettingsItemDecl {
         group: Option<String>,
     },
 
-    /// 읽기 전용 글. host 는 고칠 수 없는 글(선택·복사는 된다)로 그린다. plugin 이 쓰는 값을 보여 주기만 한다.
+    /// 글. 기본은 읽기 전용이라 host 는 고칠 수 없는 글(선택·복사는 된다)로 그린다.
     ///
     /// - `storage_key` 의 저장값이 문자열이면 그것을 보인다. 없으면 `default_key`(i18n) 를, 그것도 없으면
     ///   `default` 를 보인다. `default_key` · `default` 중 하나는 있어야 한다(검증).
-    /// - host 는 이 칸에 쓰지 않는다.
+    /// - `editable` 이 참이면 host 는 여러 줄 입력으로 그리고 고친 글을 `storage_key` 에 문자열로 저장한다.
+    ///   비우면 기본 글을 쓴다는 뜻이다. 이때 `storage_key` 가 있어야 한다(검증). 거짓이면 host 는 쓰지 않는다.
     Text {
         id: String,
         label_key: String,
@@ -758,6 +762,8 @@ pub enum SettingsItemDecl {
         default: String,
         #[serde(default)]
         default_key: Option<String>,
+        #[serde(default)]
+        editable: bool,
         /// 들어갈 묶음(`kind = "group"` 항목의 `id`). 없으면 묶음 밖이다.
         #[serde(default)]
         group: Option<String>,
@@ -770,6 +776,7 @@ pub enum SettingsItemDecl {
     ///   plugin 은 이 값을 읽어 기능을 끈다.
     /// - `storage_key` 가 없으면 스위치 없는 머리이고 항목은 늘 보인다. 이때는 항목이 하나 이상 있어야 한다.
     /// - `default` 는 키 부재 시 스위치 값이다(기본 켬).
+    /// - `caption_key` 가 있으면 머리 줄 아래에 설명 글을 둔다. 스위치를 꺼도 보인다.
     Group {
         id: String,
         label_key: String,
@@ -777,6 +784,8 @@ pub enum SettingsItemDecl {
         storage_key: Option<String>,
         #[serde(default = "group_default_on")]
         default: bool,
+        #[serde(default)]
+        caption_key: Option<String>,
     },
 }
 
