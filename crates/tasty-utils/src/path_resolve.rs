@@ -191,8 +191,13 @@ fn resolve_in(raw: &str, base: &LaunchDir) -> Result<PathBuf, PathResolveError> 
     }
     #[cfg(windows)]
     {
+        // 유니코드로 표현할 수 없는 실행 폴더(짝 없는 서로게이트)를 손실 변환하면 다른 폴더가 된다.
+        // 그 폴더를 기준으로 하는 상대 입력은 실행 폴더가 없을 때와 같이 실패한다. 절대 입력은 영향이 없다.
         let base = match base {
-            LaunchDir::Known(dir) => Ok(dir.to_string_lossy().into_owned()),
+            LaunchDir::Known(dir) => dir
+                .to_str()
+                .map(str::to_owned)
+                .ok_or_else(|| "launch directory is not valid Unicode".to_owned()),
             LaunchDir::Unavailable(why) => Err(why.clone()),
         };
         windows::resolve(raw, base.as_deref().map_err(String::as_str)).map(PathBuf::from)

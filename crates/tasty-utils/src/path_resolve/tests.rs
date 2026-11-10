@@ -428,6 +428,30 @@ mod windows_platform {
         assert_eq!(found, root.path().join("bash.exe"));
     }
 
+    /// 유니코드로 표현할 수 없는 실행 폴더는 손실 변환하지 않는다. 상대 입력은 실패하고 절대 입력과
+    /// 이름은 그대로 해석한다.
+    #[test]
+    fn a_launch_dir_without_unicode_rejects_only_relative_inputs() {
+        use std::os::windows::ffi::OsStringExt;
+        let wide: Vec<u16> = r"D:\launch".encode_utf16().chain([0xD800]).collect();
+        let dir = PathBuf::from(std::ffi::OsString::from_wide(&wide));
+        assert!(dir.to_str().is_none());
+        let _s = Scope::known(&dir);
+        assert!(matches!(
+            resolve_path(r".\bin\bash.exe"),
+            Err(PathResolveError::LaunchDirUnavailable(_))
+        ));
+        assert!(matches!(
+            resolve_command(r".\bin\bash.exe"),
+            Err(PathResolveError::LaunchDirUnavailable(_))
+        ));
+        assert_eq!(resolve_path(r"C:\a"), Ok(PathBuf::from(r"C:\a")));
+        assert_eq!(
+            resolve_command("bash"),
+            Ok(CommandTarget::Search("bash".into()))
+        );
+    }
+
     #[test]
     fn a_bare_name_gets_executable_extensions_on_path() {
         let root = tempfile::tempdir().expect("tempdir");
