@@ -5,6 +5,7 @@
 //! batch_writer는 저장소별 전담 writer가 공유하는 접수·묶음·완료·종료 실행기다.
 //! file_replace는 설정 파일의 원자 교체·쓰기 잠금·내용 관측값이다.
 //! 테마·설정·DB 등 기능별 경로는 각 크레이트가 path::tasty_home 위에 정의한다.
+//! path_resolve는 한 Tasty 프로세스 안에서 같은 입력을 같은 경로로 푸는 규칙이다.
 
 pub mod batch_writer;
 pub mod execution;
@@ -13,6 +14,7 @@ pub mod html_address;
 pub mod id;
 pub mod notify;
 pub mod path;
+pub mod path_resolve;
 pub mod plugin_id;
 pub mod plugin_namespaces;
 pub mod poison;

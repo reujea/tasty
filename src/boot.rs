@@ -95,6 +95,8 @@ fn maintain_memory_at_boot(arc: &std::sync::Arc<std::sync::Mutex<tasty_memory::M
 
 /// main에서 호출하는 프로세스 진입점.
 pub fn run() -> anyhow::Result<std::process::ExitCode> {
+    // 상대 경로의 기준(실행 폴더)과 `~`의 홈을 다른 초기화보다 먼저 한 번 읽어 고정한다.
+    tasty_utils::path_resolve::init_from_process();
     // 자식 셸에 활성화 토큰이 새지 않도록 다른 초기화·스레드보다 먼저 읽어 두고 환경에서 지운다.
     #[cfg(feature = "gui")]
     single_instance::evidence::capture_and_clear_env();
@@ -132,6 +134,7 @@ pub fn run() -> anyhow::Result<std::process::ExitCode> {
             };
             // CLI도 같은 바이너리라 호스트로 결정한 뒤 열어야 실행 중 호스트의 로그를 자르지 않는다.
             os::enable_host_file_log();
+            tasty_utils::path_resolve::log_launch_dir();
             // Windows 호스트 종료 시 자식 셸도 정리하도록 job을 만든다. CLI에는 만들지 않는다.
             tasty_reaper::init_host_reaper();
             #[cfg(feature = "gui")]

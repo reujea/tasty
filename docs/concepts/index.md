@@ -9,3 +9,4 @@
 | [hierarchy](hierarchy.md) | App·EngineSession·View와 구조 projection, Workspace/Pane/Tab/Surface 및 두 레벨 레이아웃 |
 | [plugins](plugins.md) | 플러그인 — 배포/통합 축, surface_kind 렌더 분기, 권한 |
 | [typed-length](typed-length.md) | `PhysicalPx`/`LogicalPx` newtype (DPI 혼동 컴파일 차단) |
+| [path-resolution](path-resolution.md) | 실행 폴더 고정, 파일 경로·실행 명령 해석 규칙과 같은 값 계약 (`tasty_utils::path_resolve`) |
