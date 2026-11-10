@@ -59,14 +59,28 @@ fn launch_dir_from_env(value: Option<&OsStr>) -> LaunchDir {
 
 fn fixed() -> &'static Fixed {
     FIXED.get_or_init(|| Fixed {
-        launch: match std::env::current_dir() {
-            Ok(dir) => LaunchDir::Known(PathBuf::from(crate::path::strip_verbatim_prefix(
-                &dir.to_string_lossy(),
-            ))),
-            Err(e) => LaunchDir::Unavailable(e.to_string()),
-        },
+        launch: launch_dir_from_cwd(std::env::current_dir()),
         home: crate::path::os_home_dir(),
     })
+}
+
+/// OS가 준 cwd를 그대로 보존한다. 문자열로 바꿨다 되돌리면 비 UTF-8 이름이 다른 경로가 된다.
+fn launch_dir_from_cwd(cwd: std::io::Result<PathBuf>) -> LaunchDir {
+    match cwd {
+        Ok(dir) => LaunchDir::Known(without_verbatim_prefix(dir)),
+        Err(e) => LaunchDir::Unavailable(e.to_string()),
+    }
+}
+
+/// Windows verbatim 접두사만 벗긴다. 다른 OS와 UTF-8이 아닌 경로는 받은 값 그대로다.
+fn without_verbatim_prefix(path: PathBuf) -> PathBuf {
+    #[cfg(windows)]
+    if let Some(text) = path.to_str()
+        && text.starts_with(r"\\?\")
+    {
+        return PathBuf::from(crate::path::strip_verbatim_prefix(text));
+    }
+    path
 }
 
 /// 고정한 실행 폴더를 로그 한 줄로 남긴다. 로그를 연 뒤에 부른다.
@@ -165,7 +179,10 @@ fn resolve_in(raw: &str, base: &LaunchDir) -> Result<PathBuf, PathResolveError> 
         return Err(PathResolveError::NotLocalPath);
     }
     if let Some(rest) = tilde_rest(raw) {
-        let home = os_home().ok_or(PathResolveError::HomeUnavailable)?;
+        // 상대 홈(HOME=relhome)은 고정 기준이 아니므로 홈을 모르는 것과 같이 다룬다.
+        let home = os_home()
+            .filter(|home| home.is_absolute())
+            .ok_or(PathResolveError::HomeUnavailable)?;
         return Ok(lexical(&if rest.is_empty() {
             home
         } else {
@@ -207,19 +224,20 @@ fn is_url(raw: &str) -> bool {
 }
 
 /// `~`·`~/x`(Windows는 `~\x`도)이면 홈 뒤에 붙일 나머지. `~user`는 펴지 않는다.
+/// 나머지 앞의 구분자는 모두 벗긴다. 남기면 `~//bin`의 `/bin`이 홈을 대신하는 루트 경로가 된다.
 fn tilde_rest(raw: &str) -> Option<&str> {
     if raw == "~" {
         return Some("");
     }
     let rest = raw.strip_prefix('~')?;
-    let rest = rest.strip_prefix('/').or_else(|| {
-        if cfg!(windows) {
-            rest.strip_prefix('\\')
-        } else {
-            None
-        }
-    })?;
-    Some(rest)
+    if !rest.starts_with(is_separator) {
+        return None;
+    }
+    Some(rest.trim_start_matches(is_separator))
+}
+
+fn is_separator(c: char) -> bool {
+    c == '/' || (cfg!(windows) && c == '\\')
 }
 
 /// `.`만 지우고 `..`는 남긴다. 심볼릭 링크 앞의 `..`를 OS와 다르게 접지 않기 위해서다.
@@ -325,18 +343,12 @@ fn locate_in(
     };
     let candidates = candidate_names(name);
     for entry in std::env::split_paths(path) {
-        // 빈 항목은 POSIX에서 "현재 폴더"다. 상대 항목과 함께 실행 폴더 기준으로 고정한다.
-        let dir = if entry.is_absolute() {
-            entry
-        } else {
-            match base {
-                LaunchDir::Known(dir) => dir.join(entry),
-                LaunchDir::Unavailable(_) => continue,
-            }
+        let Some(dir) = path_entry_dir(entry, base) else {
+            continue;
         };
         for candidate in &candidates {
             let file = lexical(&dir.join(candidate));
-            if is_executable_file(&file) {
+            if file.is_absolute() && is_executable_file(&file) {
                 return Ok(file);
             }
         }
@@ -344,14 +356,36 @@ fn locate_in(
     Err(LocateError::NotFoundInPath(name.clone()))
 }
 
-/// Windows는 확장자가 없으면 실행 확장자를 차례로 붙인다.
+/// PATH 항목을 찾을 폴더로 바꾼다. 빈 항목은 POSIX에서 "현재 폴더"이므로 상대 항목과 함께 실행
+/// 폴더 기준으로 고정한다. Windows의 드라이브 상대(`C:tools`)·루트 상대(`\tools`) 항목은 고정할 수
+/// 없는 드라이브 상태에 기대므로 건너뛴다(명령 입력의 거부 규칙과 같다).
+fn path_entry_dir(entry: PathBuf, base: &LaunchDir) -> Option<PathBuf> {
+    if entry.is_absolute() {
+        return Some(entry);
+    }
+    #[cfg(windows)]
+    if entry
+        .to_str()
+        .is_none_or(windows::path_entry_depends_on_drive_state)
+    {
+        return None;
+    }
+    match base {
+        LaunchDir::Known(dir) => Some(dir.join(entry)),
+        LaunchDir::Unavailable(_) => None,
+    }
+}
+
+/// 한 PATH 폴더에서 볼 파일 이름. Windows는 portable-pty 0.9의 `search_path`와 같이 원래 이름을
+/// 먼저 보고 `PATHEXT` 순서(없으면 `.EXE`)로 확장자를 바꿔 본다. 자식은 호스트 `PATHEXT`를 받는다.
 fn candidate_names(name: &str) -> Vec<String> {
-    if cfg!(windows) && Path::new(name).extension().is_none() {
-        ["exe", "cmd", "bat", "com"]
-            .iter()
-            .map(|ext| format!("{name}.{ext}"))
-            .collect()
-    } else {
+    #[cfg(windows)]
+    {
+        let pathext = std::env::var("PATHEXT").ok();
+        windows::candidate_names(name, pathext.as_deref())
+    }
+    #[cfg(not(windows))]
+    {
         vec![name.to_owned()]
     }
 }
@@ -374,10 +408,7 @@ fn is_executable_file(path: &Path) -> bool {
 /// 같은 값 계약 밖의 별도 단계. 심볼릭 링크를 푼 실제 경로(보안 경계·동일 파일 판정 전용).
 /// Windows verbatim 접두사를 벗긴다. 없는 경로는 오류다.
 pub fn canonical(resolved: &Path) -> std::io::Result<PathBuf> {
-    let real = std::fs::canonicalize(resolved)?;
-    Ok(PathBuf::from(crate::path::strip_verbatim_prefix(
-        &real.to_string_lossy(),
-    )))
+    std::fs::canonicalize(resolved).map(without_verbatim_prefix)
 }
 
 /// 시험용 스레드 로컬 override. 자식 스레드에는 상속되지 않는다.

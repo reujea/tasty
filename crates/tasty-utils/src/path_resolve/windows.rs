@@ -37,6 +37,37 @@ pub(super) fn resolve(raw: &str, base: Result<&str, &str>) -> Result<String, Pat
     }
 }
 
+/// PATH 항목이 드라이브별 현재 폴더(`C:tools`)나 현재 드라이브(`\tools`)에 기대는지.
+/// 이런 항목은 고정 기준으로 풀 수 없어 건너뛴다. 절대·일반 상대 항목은 `false`다.
+pub(super) fn path_entry_depends_on_drive_state(entry: &str) -> bool {
+    let entry = entry.replace('/', "\\");
+    if entry.starts_with(r"\\") {
+        return false;
+    }
+    if has_drive(&entry) {
+        return !entry[2..].starts_with('\\');
+    }
+    entry.starts_with('\\')
+}
+
+/// 한 PATH 폴더에서 차례로 볼 파일 이름. portable-pty 0.9 `search_path`와 같다: 원래 이름 다음
+/// `PATHEXT`(`;` 구분, 없으면 `.EXE`)의 각 확장자로 바꾼 이름이다. 바꾸므로 `a.exe`에 `.CMD`면 `a.CMD`다.
+pub(super) fn candidate_names(name: &str, pathext: Option<&str>) -> Vec<String> {
+    let mut names = vec![name.to_owned()];
+    for ext in pathext.unwrap_or(".EXE").split(';') {
+        let ext = ext.strip_prefix('.').unwrap_or(ext);
+        if ext.is_empty() {
+            continue;
+        }
+        let stem = match name.rfind('.') {
+            Some(dot) if dot > 0 => &name[..dot],
+            _ => name,
+        };
+        names.push(format!("{stem}.{ext}"));
+    }
+    names
+}
+
 /// `/c`, `/c/…`, `/c\…`(한 글자 드라이브)를 `C:\…`로 바꾼다. 그 밖에는 `None`.
 fn msys_drive(raw: &str) -> Option<String> {
     let bytes = raw.as_bytes();
@@ -137,6 +168,37 @@ mod tests {
         assert_eq!(ok("../y/x"), r"D:\launch\dir\..\y\x");
         assert_eq!(ok("."), r"D:\launch\dir");
         assert_eq!(ok(".."), r"D:\launch\dir\..");
+    }
+
+    #[test]
+    fn path_entries_that_depend_on_drive_state_are_flagged() {
+        for entry in ["C:tools", "C:", r"\tools", "/tools"] {
+            assert!(path_entry_depends_on_drive_state(entry), "{entry}");
+        }
+        for entry in [
+            r"C:\tools",
+            "C:/tools",
+            r"\\srv\share",
+            "rel",
+            r"rel\bin",
+            "",
+        ] {
+            assert!(!path_entry_depends_on_drive_state(entry), "{entry}");
+        }
+    }
+
+    #[test]
+    fn candidates_follow_portable_pty_search_order() {
+        assert_eq!(candidate_names("bash", None), ["bash", "bash.EXE"]);
+        assert_eq!(
+            candidate_names("bash", Some(".COM;.EXE;.BAT;.CMD")),
+            ["bash", "bash.COM", "bash.EXE", "bash.BAT", "bash.CMD"]
+        );
+        // 확장자는 덧붙이지 않고 바꾼다.
+        assert_eq!(
+            candidate_names("bash.exe", Some(".CMD;;.EXE")),
+            ["bash.exe", "bash.CMD", "bash.EXE"]
+        );
     }
 
     #[test]

@@ -1,6 +1,6 @@
 [package]
 name = "tasty-plugin-html"
-version = "0.1.170"
+version = "0.1.171"
 edition = "2024"
 license = "MIT"
 description = "External Tasty plugin: HTML viewer surface (uses host webview overlay)"

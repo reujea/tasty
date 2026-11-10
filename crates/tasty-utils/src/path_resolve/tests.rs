@@ -112,6 +112,55 @@ mod unix {
         );
     }
 
+    /// `~` 뒤 구분자가 여럿이어도 홈 기준을 잃지 않는다.
+    #[test]
+    fn repeated_separators_after_tilde_stay_under_home() {
+        let _s = Scope::new(LaunchDir::Known(d()), Some(PathBuf::from("/home/u")));
+        assert_eq!(
+            resolve_path("~//bin/sh"),
+            Ok(PathBuf::from("/home/u/bin/sh"))
+        );
+        assert_eq!(resolve_path("~///"), Ok(PathBuf::from("/home/u")));
+        assert_eq!(
+            resolve_command("~//bin/sh"),
+            Ok(CommandTarget::Path(PathBuf::from("/home/u/bin/sh")))
+        );
+    }
+
+    /// 상대 홈은 고정 기준이 아니므로 `~` 해석에 쓰지 않는다.
+    #[test]
+    fn a_relative_home_is_not_used_for_tilde() {
+        let _s = Scope::new(LaunchDir::Known(d()), Some(PathBuf::from("relhome")));
+        assert_eq!(resolve_path("~/sh"), Err(PathResolveError::HomeUnavailable));
+        assert_eq!(resolve_path("~"), Err(PathResolveError::HomeUnavailable));
+    }
+
+    /// UTF-8이 아닌 실행 폴더 이름도 바이트 그대로 고정하고 기준으로 쓴다.
+    #[test]
+    fn a_non_utf8_launch_dir_is_kept_byte_for_byte() {
+        use std::os::unix::ffi::OsStrExt;
+        let dir = PathBuf::from(OsStr::from_bytes(b"/launch/\xff-dir"));
+        assert_eq!(
+            launch_dir_from_cwd(Ok(dir.clone())),
+            LaunchDir::Known(dir.clone())
+        );
+        let _s = Scope::known(&dir);
+        assert_eq!(resolve_path("./sh"), Ok(dir.join("sh")));
+    }
+
+    /// `canonical`도 실제 경로를 바이트 그대로 돌려준다.
+    #[test]
+    fn canonical_keeps_a_non_utf8_real_path() {
+        use std::os::unix::ffi::OsStrExt;
+        let root = tempfile::tempdir().expect("tempdir");
+        let dir = root.path().join(OsStr::from_bytes(b"\xfe-real"));
+        std::fs::create_dir(&dir).expect("dir");
+        assert_eq!(
+            canonical(&dir).expect("canonical"),
+            std::fs::canonicalize(&dir).expect("std canonicalize")
+        );
+    }
+
     #[test]
     fn tilde_without_a_home_is_an_error() {
         let _s = Scope::new(LaunchDir::Known(d()), None);
@@ -345,6 +394,36 @@ mod windows_platform {
             resolve_command("C:zsh"),
             Err(PathResolveError::DriveRelative)
         );
+    }
+
+    #[test]
+    fn repeated_separators_after_tilde_stay_under_home_on_windows() {
+        let _s = Scope::new(
+            LaunchDir::Known(PathBuf::from(r"D:\launch")),
+            Some(PathBuf::from(r"C:\Users\u")),
+        );
+        assert_eq!(
+            resolve_path(r"~\\bin\bash.exe"),
+            Ok(PathBuf::from(r"C:\Users\u\bin\bash.exe"))
+        );
+    }
+
+    /// 드라이브 상대·루트 상대 PATH 항목은 건너뛰고 결과는 언제나 절대 경로다.
+    #[test]
+    fn drive_dependent_path_entries_are_skipped() {
+        let root = tempfile::tempdir().expect("tempdir");
+        std::fs::write(root.path().join("bash.exe"), "").expect("write");
+        let _s = Scope::known(root.path());
+        let target = resolve_command("bash.exe").expect("classify");
+        let path = std::env::join_paths([
+            PathBuf::from("C:tools"),
+            PathBuf::from(r"\tools"),
+            root.path().to_path_buf(),
+        ])
+        .expect("join");
+        let found = locate_command_in(&target, &path).expect("found");
+        assert!(found.is_absolute());
+        assert_eq!(found, root.path().join("bash.exe"));
     }
 
     #[test]
