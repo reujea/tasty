@@ -28,6 +28,9 @@ pub(super) fn apply_one_mirror_event(
                 .http_documents
                 .close_all(&sess.transport.frame_tx);
             sess.state.resize_sync.forget_pending();
+            // 버린 프레임에 다운로드 결과가 있었을 수 있다. 기다리지 않고 끝낸다.
+            crate::remote::file_download::client::client()
+                .lost_frames(&sess.transport.frame_tx.epoch());
             begin_resync(sess, host, frames);
         }
         MirrorEvent::Data(remote_id, bytes) => {

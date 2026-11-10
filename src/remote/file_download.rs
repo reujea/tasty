@@ -40,7 +40,9 @@ pub(crate) fn handle(hub: &StreamHub, client_id: u32, holds: bool, msg: &FileDow
     };
     match serde_json::to_vec(&reply) {
         Ok(bytes) => {
-            // 손실·끊김은 허브가 처리한다. client 는 연결 세대가 바뀌면 전송을 실패로 끝낸다.
+            // 결과를 돌려받지 않는다. 허브가 프레임을 버리면(Dropped) client 는 Loss 알림으로 그 연결의
+            // 다운로드를 끝내고, 알림도 받지 못하면 요청별 응답 상한(REPLY_LIMIT)으로 끝낸다. 연결이
+            // 끊기면 연결 세대가 바뀌어 끝난다.
             let _ = hub.push(client_id, StreamFrame::new(StreamTag::Control, bytes));
         }
         Err(error) => tracing::warn!("file download reply did not serialize: {error}"),

@@ -331,3 +331,149 @@ fn starting_a_download_removes_run_folders_older_than_a_day() {
     client.sweep_old_runs(SystemTime::now());
     assert!(fresh.exists());
 }
+
+/// 보낸 요청 하나를 꺼낸다.
+fn one_request(sends: &[(u32, FileDownloadMsg)]) -> u64 {
+    let [(_, FileDownloadMsg::FileDownloadRequest { request_id, .. })] = sends else {
+        panic!("expected one request, got {sends:?}");
+    };
+    *request_id
+}
+
+fn no_done(events: &[Event]) -> bool {
+    !events.iter().any(|e| matches!(e, Event::Done { .. }))
+}
+
+#[test]
+fn a_new_connection_while_waiting_for_confirmation_fails_without_sending() {
+    let (_remote, path, _) = fixture(CONFIRM_ABOVE_BYTES + 1);
+    for capable in [true, false] {
+        let root = tempfile::tempdir().unwrap();
+        let mut client = Client::new(root.path().to_path_buf());
+        let first = epoch();
+        client.sync(&[view(&first, true, true)]);
+        let id = client
+            .start(WS, path.to_string_lossy().into_owned())
+            .unwrap();
+        let events = run_until_idle(&mut client, &first);
+        assert!(matches!(events.as_slice(), [Event::Confirm { .. }]));
+        // 확인을 기다리는 사이 새 세대가 Connected 로 들어온다(옛 서버일 수도 있다).
+        let second = epoch();
+        assert!(client.sync(&[view(&second, capable, true)]).is_empty());
+        let events = client.take_events();
+        assert_eq!(
+            events,
+            vec![Event::Failed {
+                id,
+                failure: Failure::Disconnected
+            }],
+            "capable={capable}"
+        );
+        client.confirm(id);
+        assert!(client.sync(&[view(&second, capable, true)]).is_empty());
+        assert!(client.take_events().is_empty());
+        assert_eq!(runs(root.path()), 0);
+    }
+}
+
+#[test]
+fn a_new_connection_between_chunks_fails_and_removes_the_partial_file() {
+    let (_remote, path, _) = fixture(CHUNK_BYTES * 3);
+    let root = tempfile::tempdir().unwrap();
+    let mut client = Client::new(root.path().to_path_buf());
+    let first = epoch();
+    client.sync(&[view(&first, true, true)]);
+    let id = client
+        .start(WS, path.to_string_lossy().into_owned())
+        .unwrap();
+    turn(&mut client, &first); // stat
+    turn(&mut client, &first); // 첫 조각을 받았고 다음 요청은 아직 보내지 않았다.
+    assert_eq!(runs(root.path()), 1);
+    let second = epoch();
+    assert!(client.sync(&[view(&second, true, true)]).is_empty());
+    let events = client.take_events();
+    assert_eq!(
+        events,
+        vec![Event::Failed {
+            id,
+            failure: Failure::Disconnected
+        }]
+    );
+    assert_eq!(runs(root.path()), 0);
+}
+
+#[test]
+fn a_lost_result_frame_ends_the_downloads_of_that_connection() {
+    let (_remote, path, _) = fixture(CHUNK_BYTES * 3);
+    let root = tempfile::tempdir().unwrap();
+    let mut client = Client::new(root.path().to_path_buf());
+    let first = epoch();
+    client.sync(&[view(&first, true, true)]);
+    let id = client
+        .start(WS, path.to_string_lossy().into_owned())
+        .unwrap();
+    turn(&mut client, &first); // stat
+    turn(&mut client, &first); // 첫 조각
+    let request_id = one_request(&client.sync(&[view(&first, true, true)]));
+    // 다른 연결의 손실 알림은 상관없다.
+    client.lost_frames(&epoch());
+    assert!(client.take_events().is_empty());
+    client.lost_frames(&first);
+    assert_eq!(
+        client.take_events(),
+        vec![Event::Failed {
+            id,
+            failure: Failure::Disconnected
+        }]
+    );
+    assert_eq!(runs(root.path()), 0);
+    // 늦게 온 결과는 버린다.
+    client.receive(
+        &first,
+        request_id,
+        DownloadOutcome::Chunk {
+            offset: CHUNK_BYTES,
+            data_b64: String::new(),
+            eof: false,
+        },
+    );
+    assert!(client.take_events().is_empty());
+}
+
+#[test]
+fn a_request_without_an_answer_times_out_after_the_reply_limit() {
+    let (_remote, path, _) = fixture(CHUNK_BYTES * 3);
+    let root = tempfile::tempdir().unwrap();
+    let mut client = Client::new(root.path().to_path_buf());
+    let first = epoch();
+    let start = Instant::now();
+    client.sync_at(&[view(&first, true, true)], start);
+    let id = client
+        .start(WS, path.to_string_lossy().into_owned())
+        .unwrap();
+    turn(&mut client, &first); // stat
+    turn(&mut client, &first); // 첫 조각
+    one_request(&client.sync_at(&[view(&first, true, true)], start));
+    // 상한까지는 기다린다.
+    assert!(
+        client
+            .sync_at(&[view(&first, true, true)], start + REPLY_LIMIT)
+            .is_empty()
+    );
+    assert!(client.take_events().is_empty());
+    assert_eq!(runs(root.path()), 1);
+    client.sync_at(
+        &[view(&first, true, true)],
+        start + REPLY_LIMIT + Duration::from_millis(1),
+    );
+    let events = client.take_events();
+    assert_eq!(
+        events,
+        vec![Event::Failed {
+            id,
+            failure: Failure::TimedOut
+        }]
+    );
+    assert!(no_done(&events));
+    assert_eq!(runs(root.path()), 0);
+}
