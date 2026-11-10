@@ -40,7 +40,7 @@ tasty 는 [Conventional Commits](https://www.conventionalcommits.org/) 를 따�
 | `i18n` | 번역 변경 — 하드코딩 문자열의 번역 키 전환, `lang/{en,ko,ja,zh-Hans}.toml` 키 추가/수정 |
 | `chore` | 빌드 설정, 의존성, CI, 버전 bump 등 |
 
-`i18n` 을 `refactor` 로 흡수하지 않는 이유: 리뷰어가 "어떤 문자열이 번역 대상이 됐고 어떤 lang 파일이 같이 바뀌었나" 로 히스토리를 걸러야 하는데, 그 기준이 구조 개선과 섞이면 잡히지 않는다. 키 정합(3 파일 동일 키 · placeholder 개수)이 깨지는 회귀도 이 type 안에서 추적된다. 번역 키를 건드리지 않는 문자열 리팩토링은 그대로 `refactor`.
+`i18n` 을 `refactor` 로 흡수하지 않는 이유: 리뷰어가 "어떤 문자열이 번역 대상이 됐고 어떤 lang 파일이 같이 바뀌었나" 로 히스토리를 걸러야 하는데, 그 기준이 구조 개선과 섞이면 잡히지 않는다. 키 정합(4 파일 동일 키 · placeholder 개수)이 깨지는 회귀도 이 type 안에서 추적된다. 번역 키를 건드리지 않는 문자열 리팩토링은 그대로 `refactor`.
 
 ## 단위 — 한 커밋 = 한 변경
 
