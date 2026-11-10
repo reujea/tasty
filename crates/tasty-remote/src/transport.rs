@@ -191,7 +191,8 @@ fn write_attach_frame(
 
 /// reader가 수신 오류로 끝날 때 원인을 남기는 데 필요한 연결 정보.
 pub struct AttachReaderEnd {
-    pub local_workspace: u32,
+    /// 이 연결이 점유한 원격 workspace id. 이쪽 mirror workspace id가 아니다.
+    pub remote_workspace: u32,
     /// 이 소켓에 실제로 건 read timeout.
     pub heartbeat_timeout: std::time::Duration,
 }
@@ -201,14 +202,14 @@ impl AttachReaderEnd {
     /// 닫은 것이라 원격 원인이 아니므로 debug로만 남긴다.
     fn report(&self, error: &anyhow::Error, disconnected: &AtomicBool) {
         let cause = stream::ReadFailure::of_error(error);
-        let workspace = self.local_workspace;
+        let workspace = self.remote_workspace;
         if disconnected.swap(true, Ordering::SeqCst) {
             tracing::debug!(
-                "attach reader thread: mirror workspace {workspace} 이미 끝난 연결의 수신 종료({cause:?}): {error}"
+                "attach reader thread: remote workspace {workspace} 이미 끝난 연결의 수신 종료({cause:?}): {error}"
             );
         } else {
             tracing::warn!(
-                "attach reader thread: mirror workspace {workspace} 연결 종료를 알린다. 원인 {}: {error}",
+                "attach reader thread: remote workspace {workspace} 연결 종료를 알린다. 원인 {}: {error}",
                 cause.describe(self.heartbeat_timeout)
             );
         }
@@ -472,7 +473,7 @@ impl PreparedConnection {
             wake,
             decode,
             AttachReaderEnd {
-                local_workspace: workspace,
+                remote_workspace: workspace,
                 heartbeat_timeout,
             },
         );

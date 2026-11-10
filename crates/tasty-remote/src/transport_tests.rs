@@ -66,7 +66,7 @@ fn reader_receipt_finishes_while_delta_is_restored_ahead_of_data() {
             })
         },
         AttachReaderEnd {
-            local_workspace: 1,
+            remote_workspace: 1,
             heartbeat_timeout: stream::HEARTBEAT_TIMEOUT,
         },
     );
