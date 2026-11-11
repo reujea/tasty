@@ -392,19 +392,29 @@ native 콜백은 가져갈지를 동기로 정하고 실행은 나중에 host �
   key·code·keyCode로 페이지 keydown 1건이 되고, 10회 연타는 10건, 길게 누르기는 첫 누름 1건과 `repeat` 반복이 된다. 동작한
   키(이름 바꾸기 팝업, 탭 전환, 길게 누른 단축키)는 첫 누름·반복 모두 페이지에 가지 않는다. 사람 손 입력·IME 조합·AltGr·결과
   전에 surface를 닫는 경우는 실제 실행으로 확인하지 않았다.
-- 결과 전에 온 자동 반복과 key-up도 그 누름과 함께 붙잡는다(Windows). 동작하지 않았으면 누름·반복을 순서대로 넘기고,
+- macOS는 가져간 `NSEvent`를 같은 일련번호로 붙잡았다가(`macos/key_replay.rs`, 상한 64, 넘치면 가장 오래된 것을 버림)
+  동작하지 않았다는 결과가 오면 그 WKWebView 하위 클래스의 super 구현에 다시 넘긴다. `performKeyEquivalent:`로 받은
+  키는 super `performKeyEquivalent:`에 넘기고, 처리되지 않았으면 super `keyDown:`에 넘긴다. `keyDown:`으로 받은 키는
+  super `keyDown:`에 넘긴다. 메뉴와 다른 뷰는 다시 판정하지 않는다. WebKit은 페이지가 처리하지 않은 key-down을 같은
+  `NSEvent`로 앱에 다시 보내므로, 다시 넘긴 이벤트(시각·keyCode)를 5초 동안(64개까지) 기억해 판정하지 않고 super에
+  맡긴다. 다시 넘기는 도중 다시 들어온 키도 판정하지 않는다. debug 빌드에서 OS 합성 키(`CGEvent`) 입력으로 확인한 범위:
+  동작하지 않은 키(포인터 아래 링크가 없는 `copy_link`)의 수식키 없는 키·Ctrl 조합·Cmd+Shift 조합이 원래 key·code·수식키로
+  페이지 keydown 1건과 keyup 1건이 되고, 10회 연타는 10건, 길게 누르기는 첫 누름 1건과 `repeat` 반복 5건이며, Cmd 조합을
+  다시 넘겨도 같은 키가 두 번 기록되지 않는다. 동작한 키(이름 바꾸기 팝업, 탭 전환, 활성 카테고리 전환)는 페이지 keydown이
+  없다. 같은 키가 main에서는 keyup만 페이지에 갔다. 키가 어느 입구(`performKeyEquivalent:`·`keyDown:`)로 들어왔는지는
+  로그가 없어 측정으로 가르지 않았다. 사람 손 입력·IME 조합·결과 전에 surface를 닫는 경우는 실제 실행으로 확인하지 않았다.
+- 결과 전에 온 자동 반복과 key-up도 그 누름과 함께 붙잡는다(Windows·macOS). 동작하지 않았으면 누름·반복을 순서대로 넘기고,
   동작했으면 버린다. 붙잡은 key-up은 결과와 관계없이 key-down 뒤에 넘긴다(가져가기 전에도 key-up은 페이지로 갔다). 결과가
   온 뒤의 반복은 그 물리 키의 첫 누름 결과를 따른다: 넘겼으면 반복도 그대로 엔진·페이지로 가고, 동작했거나 입력 게이트에
-  막혔으면 소비한다. 이 기록은 그 키의 key-up, 같은 키의 새 누름, 그 view의 포커스 획득(`GotFocus`)에서 지운다. 결과 전에
+  막혔으면 소비한다. 이 기록은 그 키의 key-up, 같은 키의 새 누름, 그 view의 포커스 획득(Windows `GotFocus`, macOS
+  `becomeFirstResponder`)에서 지운다. 결과 전에
   뗀 누름은 기록을 남기지 않는다. WebView를 다시 만들면 붙잡은 키와 기록이 함께 사라져 옛 결과는 아무것도 넘기지 않는다.
-- macOS는 가져갈 때 키를 소비하며(`performKeyEquivalent:`·`keyDown:`이 WKWebView에 넘기지 않음) 처리 결과로 다시 넣는
-  경로가 없다. 그래서 두 번째 단계의 동적인 경우는 macOS에서 키가 페이지에 가지 않는다.
 - 핸들러가 동작 없이 처리했다고 답하는 경우(없는 번호의 탭·workspace 전환)는 처리한 키로 본다.
 
 키 설정·카테고리 사용 여부(`workspace_categories_enabled`)와 PluginCommandRegistry·PluginsConfig의 전역 revision이 바뀔 때만 정책 스냅숏을 다시 만든다.
 modifier가 있으면 winit과 같은 US physical-key 변환을 쓰고 표 밖 키는 논리 키로 돌아간다.
 key-up은 전달하지 않고 host의 modifier 저장값도 바꾸지 않는다.
-macOS·Windows의 자동 반복은 다시 실행하거나 큐에 넣지 않는다. Windows는 첫 누름을 host 큐로 가져갔으면 그 결과를
+macOS·Windows의 자동 반복은 다시 실행하거나 큐에 넣지 않는다. 첫 누름을 host 큐로 가져갔으면 그 결과를
 따른다(위 "동작하지 않은 키"). 그 기록이 없으면 첫 누름을 입력 차단으로 막았거나, 편집 명령으로 실행했거나, host가
 가져갔을 조합일 때 반복도 페이지·엔진에 보내지 않는다(`WebViewKeySink::consumes_repeat`).
 엔진에 그대로 두는 키와 가져가지 않는 키의 반복은 엔진·페이지로 간다. Linux/GDK의 key press에는 repeat 표시가 없어
