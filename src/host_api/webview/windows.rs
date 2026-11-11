@@ -823,6 +823,18 @@ impl PlatformWebView {
             controller
                 .add_GotFocus(&h_focus, &mut tok_focus)
                 .map_err(|e| transient(format!("add_GotFocus failed: {e}")))?;
+            let replay_blur = key_replay.clone();
+            let mut tok_blur: i64 = 0;
+            let h_blur = FocusChangedEventHandler::create(Box::new(
+                move |_sender, _args| -> windows::core::Result<()> {
+                    // 포커스를 잃기 전의 누름 결과가 늦게 와도 이 view에 다시 넘기지 않는다.
+                    replay_blur.clear_decisions();
+                    Ok(())
+                },
+            ));
+            controller
+                .add_LostFocus(&h_blur, &mut tok_blur)
+                .map_err(|e| transient(format!("add_LostFocus failed: {e}")))?;
 
             let host_input = host_input_on.then(|| {
                 host_input::register(
