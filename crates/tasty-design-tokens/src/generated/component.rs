@@ -513,6 +513,19 @@ pub mod explorer {
     pub const TOOLBAR_COMPACT_BELOW: LogicalPx = crate::generated::primitive::SIZE_440;
 }
 
+pub mod fallback {
+    use tasty_type_geometry::length::LogicalPx;
+
+    /// `component.fallback-menu-edge-margin` → `{semantic.space-sm}` = 8px
+    pub const MENU_EDGE_MARGIN: LogicalPx = crate::generated::semantic::SPACE_SM;
+
+    /// `component.fallback-menu-max-width` → `{primitive.size-320}` = 320px
+    pub const MENU_MAX_WIDTH: LogicalPx = crate::generated::primitive::SIZE_320;
+
+    /// `component.fallback-menu-min-width` → `{primitive.size-160}` = 160px
+    pub const MENU_MIN_WIDTH: LogicalPx = crate::generated::primitive::SIZE_160;
+}
+
 pub mod fh {
     use tasty_type_geometry::length::LogicalPx;
 
@@ -633,6 +646,52 @@ pub mod git {
 
     /// `component.git-toolbar-height` → `{semantic.toolbar-height}` = 32px
     pub const TOOLBAR_HEIGHT: LogicalPx = crate::generated::semantic::TOOLBAR_HEIGHT;
+}
+
+pub mod graph {
+    use tasty_type_geometry::length::LogicalPx;
+
+    /// `component.graph-base-chip-gap` → `{semantic.space-xs}` = 4px
+    pub const BASE_CHIP_GAP: LogicalPx = crate::generated::semantic::SPACE_XS;
+
+    /// `component.graph-base-chip-height` → `{primitive.size-16}` = 16px
+    pub const BASE_CHIP_HEIGHT: LogicalPx = crate::generated::primitive::SIZE_16;
+
+    /// `component.graph-base-chip-padding-x` → `{semantic.space-xs}` = 4px
+    pub const BASE_CHIP_PADDING_X: LogicalPx = crate::generated::semantic::SPACE_XS;
+
+    /// `component.graph-base-picker-height` → `{primitive.size-400}` = 400px
+    pub const BASE_PICKER_HEIGHT: LogicalPx = crate::generated::primitive::SIZE_400;
+
+    /// `component.graph-base-picker-width` → `{primitive.size-360}` = 360px
+    pub const BASE_PICKER_WIDTH: LogicalPx = crate::generated::primitive::SIZE_360;
+
+    /// `component.graph-child-popup-height` → `{component.dag-popup-height}` = 460px
+    pub const CHILD_POPUP_HEIGHT: LogicalPx = super::dag::POPUP_HEIGHT;
+
+    /// `component.graph-child-popup-width` → `{primitive.size-600}` = 600px
+    pub const CHILD_POPUP_WIDTH: LogicalPx = crate::generated::primitive::SIZE_600;
+
+    /// `component.graph-drawer-cover-below` → `{primitive.size-480}` = 480px
+    pub const DRAWER_COVER_BELOW: LogicalPx = crate::generated::primitive::SIZE_480;
+
+    /// `component.graph-drawer-head-height` → `{component.drilldown-backbar-height}` = 36px
+    pub const DRAWER_HEAD_HEIGHT: LogicalPx = super::drilldown::BACKBAR_HEIGHT;
+
+    /// `component.graph-drawer-motion` → `{semantic.motion-ui}` = 120ms (ms)
+    pub const DRAWER_MOTION: f32 = crate::generated::semantic::MOTION_UI;
+
+    /// `component.graph-drawer-width` → `{component.dag-detail-width}` = 288px
+    pub const DRAWER_WIDTH: LogicalPx = super::dag::DETAIL_WIDTH;
+
+    /// `component.graph-push-motion` → `{semantic.motion-ui}` = 120ms (ms)
+    pub const PUSH_MOTION: f32 = crate::generated::semantic::MOTION_UI;
+
+    /// `component.graph-reveal-margin` → `{semantic.space-lg}` = 16px
+    pub const REVEAL_MARGIN: LogicalPx = crate::generated::semantic::SPACE_LG;
+
+    /// `component.graph-toolbar-height` → `{component.drilldown-backbar-height}` = 36px
+    pub const TOOLBAR_HEIGHT: LogicalPx = super::drilldown::BACKBAR_HEIGHT;
 }
 
 pub mod help_hint {

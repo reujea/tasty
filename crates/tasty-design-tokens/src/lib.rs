@@ -1,5 +1,5 @@
 //! DTCG 디자인 토큰을 저장하고 Rust 상수와 Theme 접근자를 생성한다.
-//! primitive → semantic → component, 총 1513 토큰을 `dtcg/tasty.tokens.json`에 보관한다.
+//! primitive → semantic → component, 총 1530 토큰을 `dtcg/tasty.tokens.json`에 보관한다.
 //! 생성 결과는 커밋하며 `tests/freshness.rs`가 현재 생성기 출력과 비교한다.
 //!
 //! # Tier 규율 (컴파일 타임 강제)

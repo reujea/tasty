@@ -1818,6 +1818,24 @@ impl crate::theme::Theme {
         LogicalPx((440.0 * self.ui_zoom).round())
     }
 
+    /// `component.fallback-menu-edge-margin` → `{semantic.space-sm}` = 8px
+    #[inline]
+    pub fn fallback_menu_edge_margin(&self) -> LogicalPx {
+        self.spacing_sm
+    }
+
+    /// `component.fallback-menu-max-width` → `{primitive.size-320}` = 320px
+    #[inline]
+    pub fn fallback_menu_max_width(&self) -> LogicalPx {
+        LogicalPx((320.0 * self.ui_zoom).round())
+    }
+
+    /// `component.fallback-menu-min-width` → `{primitive.size-160}` = 160px
+    #[inline]
+    pub fn fallback_menu_min_width(&self) -> LogicalPx {
+        LogicalPx((160.0 * self.ui_zoom).round())
+    }
+
     /// `component.fh-remote-fg` → `{semantic.accent-remote-raised}`
     #[inline]
     pub fn fh_remote_fg(&self) -> HexColor {
@@ -2104,6 +2122,90 @@ impl crate::theme::Theme {
     #[inline]
     pub fn git_toolbar_height(&self) -> LogicalPx {
         self.toolbar_height
+    }
+
+    /// `component.graph-base-chip-gap` → `{semantic.space-xs}` = 4px
+    #[inline]
+    pub fn graph_base_chip_gap(&self) -> LogicalPx {
+        self.spacing_xs
+    }
+
+    /// `component.graph-base-chip-height` → `{primitive.size-16}` = 16px
+    #[inline]
+    pub fn graph_base_chip_height(&self) -> LogicalPx {
+        LogicalPx((16.0 * self.ui_zoom).round())
+    }
+
+    /// `component.graph-base-chip-padding-x` → `{semantic.space-xs}` = 4px
+    #[inline]
+    pub fn graph_base_chip_padding_x(&self) -> LogicalPx {
+        self.spacing_xs
+    }
+
+    /// `component.graph-base-picker-height` → `{primitive.size-400}` = 400px
+    #[inline]
+    pub fn graph_base_picker_height(&self) -> LogicalPx {
+        LogicalPx((400.0 * self.ui_zoom).round())
+    }
+
+    /// `component.graph-base-picker-width` → `{primitive.size-360}` = 360px
+    #[inline]
+    pub fn graph_base_picker_width(&self) -> LogicalPx {
+        LogicalPx((360.0 * self.ui_zoom).round())
+    }
+
+    /// `component.graph-child-popup-height` → `{component.dag-popup-height}` = 460px
+    #[inline]
+    pub fn graph_child_popup_height(&self) -> LogicalPx {
+        self.dag_popup_height()
+    }
+
+    /// `component.graph-child-popup-width` → `{primitive.size-600}` = 600px
+    #[inline]
+    pub fn graph_child_popup_width(&self) -> LogicalPx {
+        LogicalPx((600.0 * self.ui_zoom).round())
+    }
+
+    /// `component.graph-drawer-cover-below` → `{primitive.size-480}` = 480px
+    #[inline]
+    pub fn graph_drawer_cover_below(&self) -> LogicalPx {
+        LogicalPx((480.0 * self.ui_zoom).round())
+    }
+
+    /// `component.graph-drawer-head-height` → `{component.drilldown-backbar-height}` = 36px
+    #[inline]
+    pub fn graph_drawer_head_height(&self) -> LogicalPx {
+        self.drilldown_backbar_height()
+    }
+
+    /// `component.graph-drawer-motion` → `{semantic.motion-ui}` = 120ms
+    #[inline]
+    pub fn graph_drawer_motion(&self) -> Millis {
+        Millis(120.0)
+    }
+
+    /// `component.graph-drawer-width` → `{component.dag-detail-width}` = 288px
+    #[inline]
+    pub fn graph_drawer_width(&self) -> LogicalPx {
+        self.dag_detail_width()
+    }
+
+    /// `component.graph-push-motion` → `{semantic.motion-ui}` = 120ms
+    #[inline]
+    pub fn graph_push_motion(&self) -> Millis {
+        Millis(120.0)
+    }
+
+    /// `component.graph-reveal-margin` → `{semantic.space-lg}` = 16px
+    #[inline]
+    pub fn graph_reveal_margin(&self) -> LogicalPx {
+        self.spacing_lg
+    }
+
+    /// `component.graph-toolbar-height` → `{component.drilldown-backbar-height}` = 36px
+    #[inline]
+    pub fn graph_toolbar_height(&self) -> LogicalPx {
+        self.drilldown_backbar_height()
     }
 
     /// `component.help-hint-color` → `{semantic.text-muted}`

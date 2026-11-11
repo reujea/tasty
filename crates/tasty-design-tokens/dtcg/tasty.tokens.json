@@ -5455,6 +5455,62 @@
       "$type": "dimension",
       "$value": "{primitive.size-460}"
     },
+    "graph-drawer-width": {
+      "$type": "dimension",
+      "$value": "{component.dag-detail-width}"
+    },
+    "graph-drawer-cover-below": {
+      "$type": "dimension",
+      "$value": "{primitive.size-480}"
+    },
+    "graph-drawer-head-height": {
+      "$type": "dimension",
+      "$value": "{component.drilldown-backbar-height}"
+    },
+    "graph-drawer-motion": {
+      "$type": "duration",
+      "$value": "{semantic.motion-ui}"
+    },
+    "graph-reveal-margin": {
+      "$type": "dimension",
+      "$value": "{semantic.space-lg}"
+    },
+    "graph-push-motion": {
+      "$type": "duration",
+      "$value": "{semantic.motion-ui}"
+    },
+    "graph-toolbar-height": {
+      "$type": "dimension",
+      "$value": "{component.drilldown-backbar-height}"
+    },
+    "graph-child-popup-width": {
+      "$type": "dimension",
+      "$value": "{primitive.size-600}"
+    },
+    "graph-child-popup-height": {
+      "$type": "dimension",
+      "$value": "{component.dag-popup-height}"
+    },
+    "graph-base-chip-height": {
+      "$type": "dimension",
+      "$value": "{primitive.size-16}"
+    },
+    "graph-base-chip-gap": {
+      "$type": "dimension",
+      "$value": "{semantic.space-xs}"
+    },
+    "graph-base-chip-padding-x": {
+      "$type": "dimension",
+      "$value": "{semantic.space-xs}"
+    },
+    "graph-base-picker-width": {
+      "$type": "dimension",
+      "$value": "{primitive.size-360}"
+    },
+    "graph-base-picker-height": {
+      "$type": "dimension",
+      "$value": "{primitive.size-400}"
+    },
     "palette-list-max-height": {
       "$type": "dimension",
       "$value": "{primitive.size-320}"
@@ -5674,6 +5730,18 @@
     "tools-menu-max-width": {
       "$type": "dimension",
       "$value": "{primitive.size-240}"
+    },
+    "fallback-menu-min-width": {
+      "$type": "dimension",
+      "$value": "{primitive.size-160}"
+    },
+    "fallback-menu-max-width": {
+      "$type": "dimension",
+      "$value": "{primitive.size-320}"
+    },
+    "fallback-menu-edge-margin": {
+      "$type": "dimension",
+      "$value": "{semantic.space-sm}"
     },
     "explorer-state-compact-below": {
       "$type": "dimension",
