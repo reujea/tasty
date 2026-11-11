@@ -67,9 +67,7 @@ impl PendingNative {
                 return Ok(None);
             };
             let profile = profile.map_err(|error| error.to_string())?;
-            if !gtk::is_initialized() {
-                gtk::init().map_err(|error| error.to_string())?;
-            }
+            tasty_platform::gtk_init::ensure()?;
             let store =
                 DataStore::new(profile).map_err(|error| format!("native HTTP store: {error:?}"))?;
             let config = self.context_config()?;

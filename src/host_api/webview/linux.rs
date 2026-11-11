@@ -203,9 +203,7 @@ impl PlatformWebView {
             _ => std::ptr::null_mut(),
         };
 
-        if !gtk::is_initialized() {
-            gtk::init().map_err(|e| perm(format!("GTK init failed: {e}")))?;
-        }
+        tasty_platform::gtk_init::ensure().map_err(|e| perm(format!("GTK init failed: {e}")))?;
 
         let xlib =
             x11_dl::xlib::Xlib::open().map_err(|e| perm(format!("Failed to open Xlib: {e}")))?;

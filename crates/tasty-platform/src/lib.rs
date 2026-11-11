@@ -8,6 +8,8 @@ pub mod crash_report;
 /// debug 격리 — OS 열기를 띄우지 않고 기록만 한다(`TASTY_DEBUG_OS_OPEN_LOG`, docs/dev-guide/self-verification.md#os-열기와-지연-주입).
 #[cfg(debug_assertions)]
 pub mod debug_os_open;
+#[cfg(all(target_os = "linux", feature = "gui"))]
+pub mod gtk_init;
 #[cfg(all(windows, feature = "gui"))]
 pub mod jump_list;
 #[cfg(all(target_os = "macos", feature = "gui"))]

@@ -67,7 +67,31 @@ pub fn draw_webview_chrome(
     empty_hint: Option<&str>,
 ) {
     let th = theme::theme();
-    let state = match nav {
+    let notice = crate::boot::display_backend::current_notice();
+    let state = page_state(tile, &th, url, page_label, nav, notice);
+    // 안내 아래에는 주소창 안내를 두지 않는다. 페이지를 열 수 없는 상태라 안내가 맞지 않는다.
+    let empty_hint = empty_hint.filter(|_| notice.is_none());
+    tasty_ui_widgets::webview_page_tile(ui, &th, tile.bg(&th), content, state, empty_hint);
+}
+
+/// 타일 상태를 고른다. 표시 경로 때문에 이 프로세스가 WebView를 만들 수 없으면(`notice`) 탐색 상태와
+/// 관계없이 그 안내다. 그때는 어느 surface에도 WebView가 생기지 않는다.
+fn page_state<'a>(
+    tile: WebviewTile,
+    th: &Theme,
+    url: Option<&'a str>,
+    page_label: Option<&'a str>,
+    nav: NavState,
+    notice: Option<tasty_ui_widgets::DisplayNotice>,
+) -> WebviewPageState<'a> {
+    if let Some(kind) = notice {
+        return WebviewPageState::Notice {
+            title: crate::i18n::t(kind.title_key()),
+            sub: kind.sub_key().map(crate::i18n::t),
+            at_end: false,
+        };
+    }
+    match nav {
         NavState::Failed => WebviewPageState::Failed {
             title: crate::i18n::t("webview.error"),
             caption: chrome_caption(url, page_label),
@@ -79,10 +103,9 @@ pub fn draw_webview_chrome(
         NavState::Idle | NavState::Done if url.is_some() => WebviewPageState::Boundary,
         NavState::Idle | NavState::Done => WebviewPageState::Empty {
             title: crate::i18n::t("webview.no_page"),
-            glyph: tile.no_page_glyph(&th),
+            glyph: tile.no_page_glyph(th),
         },
-    };
-    tasty_ui_widgets::webview_page_tile(ui, &th, tile.bg(&th), content, state, empty_hint);
+    }
 }
 
 #[cfg(test)]
@@ -113,6 +136,67 @@ mod tests {
                 assert_eq!(plain.no_page_glyph(&th), th.text_disabled().to_egui());
             }
         }
+    }
+
+    /// Given 표시 경로 안내, When 어느 탐색 상태든, Then 그 kind의 제목·해결책이다. gtk-init은 해결책이 없다.
+    #[test]
+    fn a_display_notice_replaces_every_navigation_state() {
+        use super::{NavState, WebviewPageState, page_state};
+        use tasty_ui_widgets::DisplayNotice;
+        let th = tasty_themes::mocha_fallback();
+        let tile = WebviewTile::of(FocusMark::Edge, true);
+        for kind in DisplayNotice::ALL {
+            for nav in [
+                NavState::Idle,
+                NavState::Loading,
+                NavState::Done,
+                NavState::Failed,
+            ] {
+                for url in [None, Some("file:///tmp/a.html")] {
+                    let state = page_state(tile, &th, url, None, nav, Some(kind));
+                    let WebviewPageState::Notice { title, sub, at_end } = state else {
+                        panic!("{kind:?} {nav:?}: {state:?}");
+                    };
+                    assert_eq!(title, crate::i18n::t(kind.title_key()));
+                    assert_eq!(sub, kind.sub_key().map(crate::i18n::t));
+                    assert!(!at_end);
+                }
+            }
+        }
+        let gtk = page_state(
+            tile,
+            &th,
+            None,
+            None,
+            NavState::Idle,
+            Some(DisplayNotice::GtkInit),
+        );
+        assert!(matches!(gtk, WebviewPageState::Notice { sub: None, .. }));
+    }
+
+    /// Given 안내 없음, Then 지금과 같은 상태다(빈 타일·로딩·실패·빈 안내).
+    #[test]
+    fn without_a_notice_the_navigation_state_decides() {
+        use super::{NavState, WebviewPageState, page_state};
+        let th = tasty_themes::mocha_fallback();
+        let tile = WebviewTile::of(FocusMark::Edge, true);
+        let url = Some("https://tasty.dev");
+        assert!(matches!(
+            page_state(tile, &th, url, None, NavState::Idle, None),
+            WebviewPageState::Boundary
+        ));
+        assert!(matches!(
+            page_state(tile, &th, url, None, NavState::Loading, None),
+            WebviewPageState::Loading { .. }
+        ));
+        assert!(matches!(
+            page_state(tile, &th, url, None, NavState::Failed, None),
+            WebviewPageState::Failed { .. }
+        ));
+        assert!(matches!(
+            page_state(tile, &th, None, None, NavState::Done, None),
+            WebviewPageState::Empty { .. }
+        ));
     }
 
     #[test]

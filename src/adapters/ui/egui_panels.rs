@@ -423,7 +423,12 @@ pub fn draw_egui_panels(
                                 snapshot,
                                 content,
                             );
+                            // 받은 문서를 띄울 WebView를 만들 수 없는 표시 경로면 받기가 끝난 뒤 안내를 보인다.
+                            let unshowable = snapshot.ready
+                                && !snapshot.receiving
+                                && crate::boot::display_backend::current_notice().is_some();
                             if snapshot.failed
+                                || unshowable
                                 || (!snapshot.receiving && !snapshot.ready && snapshot.connected)
                             {
                                 crate::webview_chrome_ui::draw_webview_chrome(

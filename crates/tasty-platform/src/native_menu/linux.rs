@@ -20,11 +20,8 @@ use super::{MenuItem, MenuOutcome};
 const WATCHDOG: Duration = Duration::from_secs(30);
 
 fn ensure_gtk() -> bool {
-    if gtk::is_initialized() {
-        return true;
-    }
-    match gtk::init() {
-        Ok(_) => true,
+    match crate::gtk_init::ensure() {
+        Ok(()) => true,
         Err(e) => {
             tracing::warn!("gtk::init failed: {e}");
             false

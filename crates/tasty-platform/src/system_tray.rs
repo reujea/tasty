@@ -89,9 +89,7 @@ fn create_tray_icon_inner() -> Result<(TrayIcon, TrayMenuIds), Box<dyn std::erro
     // calling thread and does not init it itself. Initialize lazily; if GTK is
     // unavailable (no display / no GTK), bail so the caller degrades gracefully.
     #[cfg(target_os = "linux")]
-    if !gtk::is_initialized() {
-        gtk::init().map_err(|e| format!("GTK init failed: {e}"))?;
-    }
+    crate::gtk_init::ensure().map_err(|e| format!("GTK init failed: {e}"))?;
 
     let icon =
         crate::app_icon::tray_icon().ok_or("failed to decode tray icon from embedded PNG")?;

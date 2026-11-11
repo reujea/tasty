@@ -8,6 +8,93 @@
 //! Wayland로 내려갈 수 있을 때만 내려간다.
 
 use std::ffi::OsStr;
+use std::sync::OnceLock;
+
+use tasty_ui_widgets::DisplayNotice;
+
+/// 시작 때 고른 표시 백엔드. 창을 만든 뒤의 안내가 원인을 고를 때 읽는다.
+// 이유: 판정을 기록하는 곳은 Linux 이벤트 루프 설정뿐이라 다른 OS에서는 값이 만들어지지 않는다.
+#[cfg_attr(not(target_os = "linux"), allow(dead_code))]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum StartBackend {
+    X11,
+    /// `DISPLAY`가 없어 네이티브 Wayland로 실행했다(XWayland 없음).
+    Wayland,
+    /// `DISPLAY`의 X 서버에 연결하지 못해 Wayland로 내려갔다.
+    WaylandFallback,
+    /// 표시 서버가 없다.
+    Unset,
+}
+
+/// 시작 판정과 시작 환경에서 읽은 값. 환경은 읽기만 하고 바꾸지 않는다.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct StartDisplay {
+    pub(crate) backend: StartBackend,
+    /// 시작 환경의 `GDK_BACKEND`가 x11을 허용하지 않는다.
+    pub(crate) gdk_backend_blocks_x11: bool,
+}
+
+static START: OnceLock<StartDisplay> = OnceLock::new();
+
+/// 시작 판정을 남긴다. 이벤트 루프는 한 번만 만들어지므로 첫 값만 남긴다.
+// 이유: Linux 이벤트 루프 설정만 부른다.
+#[cfg_attr(not(target_os = "linux"), allow(dead_code))]
+fn record_start(start: StartDisplay) {
+    if START.set(start).is_err() {
+        tracing::debug!(?start, "display backend start already recorded");
+    }
+}
+
+/// 이 프로세스의 시작 판정. Linux가 아니거나 아직 정하지 않았으면 `None`이다.
+pub(crate) fn start() -> Option<StartDisplay> {
+    START.get().copied()
+}
+
+/// `GDK_BACKEND` 값이 x11 백엔드를 허용하지 않는지. GDK는 쉼표로 나눈 이름을 그대로 비교하고
+/// `*`는 어느 백엔드든 받는다. `help`는 목록을 출력한 뒤 기본 목록을 쓴다. 값이 없으면 기본 목록을 쓰고,
+/// 빈 값은 고를 백엔드가 없어 x11도 열지 못한다. GDK처럼 바이트로 비교하므로 UTF-8이 아닌 항목이
+/// 섞여 있어도 `x11`이나 `*` 항목이 있으면 막지 않는다.
+// 이유: GDK는 Linux에서만 쓰므로 Linux 이벤트 루프 설정만 부른다.
+#[cfg_attr(not(target_os = "linux"), allow(dead_code))]
+pub(crate) fn gdk_backend_blocks_x11(value: Option<&OsStr>) -> bool {
+    let Some(value) = value else {
+        return false;
+    };
+    let bytes = value.as_encoded_bytes();
+    let allows = bytes == b"help"
+        || bytes
+            .split(|&byte| byte == b',')
+            .any(|name| name == b"x11" || name == b"*");
+    !allows
+}
+
+/// WebView를 만들 수 없는 표시 경로의 안내 kind를 고른다. Wayland 창이면 GTK 결과와 관계없이 원인 1·1b다.
+/// X11 창에서 GTK 초기화가 실패하면 `GDK_BACKEND`가 x11을 막을 때만 원인 2이고, 그 밖은 원인을 모르는
+/// GTK 초기화 실패다.
+pub(crate) fn classify(start: Option<StartDisplay>, gtk_failed: bool) -> Option<DisplayNotice> {
+    let start = start?;
+    match start.backend {
+        StartBackend::Wayland => Some(DisplayNotice::NativeWayland),
+        StartBackend::WaylandFallback => Some(DisplayNotice::NativeWaylandXFailed),
+        StartBackend::X11 | StartBackend::Unset if gtk_failed => {
+            Some(if start.gdk_backend_blocks_x11 {
+                DisplayNotice::GdkBackend
+            } else {
+                DisplayNotice::GtkInit
+            })
+        }
+        StartBackend::X11 | StartBackend::Unset => None,
+    }
+}
+
+/// 지금 이 프로세스에서 보일 안내 kind. Linux가 아니면 언제나 `None`이다.
+pub(crate) fn current_notice() -> Option<DisplayNotice> {
+    #[cfg(target_os = "linux")]
+    let gtk_failed = tasty_platform::gtk_init::failed();
+    #[cfg(not(target_os = "linux"))]
+    let gtk_failed = false;
+    classify(start(), gtk_failed)
+}
 
 /// 환경변수가 가리키는 표시 서버. 값이 비어 있으면 없는 것으로 본다. winit도 같게 읽는다.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -62,7 +149,7 @@ mod linux {
     use winit::platform::x11::EventLoopBuilderExtX11;
     use x11rb::rust_connection::RustConnection;
 
-    use super::DisplayEnv;
+    use super::{DisplayEnv, StartBackend, StartDisplay};
     use crate::AppEvent;
 
     /// 끊긴 원격 `DISPLAY`에서 시작을 얼마나 기다릴지의 상한.
@@ -134,7 +221,22 @@ mod linux {
             choose(env, || with_timeout(X_PROBE_TIMEOUT, || connect_x(None)));
         apply(builder, &choice);
         log_choice(&choice, env, started.elapsed());
+        super::record_start(StartDisplay {
+            backend: start_backend(&choice),
+            gdk_backend_blocks_x11: super::gdk_backend_blocks_x11(
+                std::env::var_os("GDK_BACKEND").as_deref(),
+            ),
+        });
         connection
+    }
+
+    fn start_backend(choice: &Choice) -> StartBackend {
+        match choice {
+            Choice::X11 => StartBackend::X11,
+            Choice::WaylandFallback(_) => StartBackend::WaylandFallback,
+            Choice::Wayland => StartBackend::Wayland,
+            Choice::Unset => StartBackend::Unset,
+        }
     }
 
     fn apply(builder: &mut EventLoopBuilder<AppEvent>, choice: &Choice) {
@@ -219,6 +321,18 @@ mod linux {
             assert!(started.elapsed() < Duration::from_secs(10));
         }
 
+        /// Given 시작 판정, Then 안내가 읽는 시작 백엔드는 같은 갈래다.
+        #[test]
+        fn every_choice_keeps_its_start_backend() {
+            assert_eq!(start_backend(&Choice::X11), StartBackend::X11);
+            assert_eq!(start_backend(&Choice::Wayland), StartBackend::Wayland);
+            assert_eq!(
+                start_backend(&Choice::WaylandFallback("gone".to_string())),
+                StartBackend::WaylandFallback
+            );
+            assert_eq!(start_backend(&Choice::Unset), StartBackend::Unset);
+        }
+
         #[test]
         fn a_display_with_no_server_is_a_connection_error() {
             // 절대 경로 소켓을 쓰는 번호가 아니라 파일이 없는 소켓을 가리켜 실제 서버와 겹치지 않는다.
@@ -263,5 +377,132 @@ mod tests {
         assert_eq!(read(":0", "", "").expected_backend_name(), "x11");
         assert_eq!(read("", "wayland-0", "").expected_backend_name(), "wayland");
         assert_eq!(read("", "", "").expected_backend_name(), "none");
+    }
+
+    fn started(backend: StartBackend, gdk_backend_blocks_x11: bool) -> Option<StartDisplay> {
+        Some(StartDisplay {
+            backend,
+            gdk_backend_blocks_x11,
+        })
+    }
+
+    /// Given `GDK_BACKEND` 값, When x11 허용 여부를 본다, Then GDK가 x11을 열 수 있는 값만 막지 않는다.
+    #[test]
+    fn only_values_that_let_gdk_open_x11_do_not_block_it() {
+        for open in [
+            None,
+            Some("x11"),
+            Some("wayland,x11"),
+            Some("*"),
+            Some("help"),
+        ] {
+            assert!(!gdk_backend_blocks_x11(open.map(OsStr::new)), "{open:?}");
+        }
+        for blocked in ["wayland", "broadway", "", "X11", "x11 ", "wayland,"] {
+            assert!(
+                gdk_backend_blocks_x11(Some(OsStr::new(blocked))),
+                "{blocked:?}"
+            );
+        }
+    }
+
+    /// Given UTF-8이 아닌 바이트가 섞인 `GDK_BACKEND`, When x11 허용 여부를 본다,
+    /// Then `x11`·`*` 항목이 있으면 막지 않고 없으면 막는다.
+    #[cfg(unix)]
+    #[test]
+    fn non_utf8_entries_do_not_hide_an_x11_entry() {
+        use std::os::unix::ffi::OsStrExt;
+        for open in [&b"x11,\xff"[..], b"*,\xff"] {
+            assert!(
+                !gdk_backend_blocks_x11(Some(OsStr::from_bytes(open))),
+                "{open:?}"
+            );
+        }
+        for blocked in [&b"x\xff"[..], b"wayland,\xff"] {
+            assert!(
+                gdk_backend_blocks_x11(Some(OsStr::from_bytes(blocked))),
+                "{blocked:?}"
+            );
+        }
+    }
+
+    /// Given Wayland 창, When GTK 결과와 `GDK_BACKEND`가 무엇이든, Then 원인 1·1b 안내다.
+    #[test]
+    fn a_wayland_window_always_names_native_wayland() {
+        for gtk_failed in [false, true] {
+            for blocks in [false, true] {
+                assert_eq!(
+                    classify(started(StartBackend::Wayland, blocks), gtk_failed),
+                    Some(DisplayNotice::NativeWayland)
+                );
+                assert_eq!(
+                    classify(started(StartBackend::WaylandFallback, blocks), gtk_failed),
+                    Some(DisplayNotice::NativeWaylandXFailed)
+                );
+            }
+        }
+    }
+
+    /// Given X11 창, When GTK 초기화가 실패했다, Then `GDK_BACKEND`가 x11을 막을 때만 원인 2이고 그 밖은 gtk-init이다.
+    #[test]
+    fn a_gtk_failure_on_x11_names_gdk_backend_only_when_it_blocks_x11() {
+        assert_eq!(
+            classify(started(StartBackend::X11, true), true),
+            Some(DisplayNotice::GdkBackend)
+        );
+        assert_eq!(
+            classify(started(StartBackend::X11, false), true),
+            Some(DisplayNotice::GtkInit)
+        );
+    }
+
+    /// Given X11 창과 정상 GTK 또는 판정 전, Then 안내가 없다.
+    #[test]
+    fn a_working_x11_window_or_no_start_has_no_notice() {
+        for blocks in [false, true] {
+            assert_eq!(classify(started(StartBackend::X11, blocks), false), None);
+            assert_eq!(classify(started(StartBackend::Unset, blocks), false), None);
+        }
+        assert_eq!(classify(None, true), None);
+    }
+
+    /// Tasty는 `GDK_BACKEND`를 읽기만 한다. 지우거나 덮으면 PTY 자식과 플러그인이 다른 값을 받는다.
+    #[test]
+    fn no_source_writes_gdk_backend() {
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+        let mut stack = vec![root.join("src"), root.join("crates")];
+        let mut scanned = 0usize;
+        let mut writes = Vec::new();
+        while let Some(dir) = stack.pop() {
+            let Ok(entries) = std::fs::read_dir(&dir) else {
+                continue;
+            };
+            for entry in entries.flatten() {
+                let path = entry.path();
+                if path.is_dir() {
+                    if path.file_name().is_some_and(|n| n != "target") {
+                        stack.push(path);
+                    }
+                    continue;
+                }
+                if path.extension().is_none_or(|e| e != "rs") {
+                    continue;
+                }
+                let Ok(text) = std::fs::read_to_string(&path) else {
+                    continue;
+                };
+                scanned += 1;
+                for line in text.lines().filter(|l| l.contains("\"GDK_BACKEND\"")) {
+                    if ["set_var", "remove_var", "env_remove", ".env("]
+                        .iter()
+                        .any(|w| line.contains(w))
+                    {
+                        writes.push(format!("{}: {line}", path.display()));
+                    }
+                }
+            }
+        }
+        assert!(scanned > 1000, "scanned only {scanned} files");
+        assert!(writes.is_empty(), "GDK_BACKEND writes: {writes:#?}");
     }
 }

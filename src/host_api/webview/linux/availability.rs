@@ -11,9 +11,7 @@ pub(crate) fn http_available(window: &(impl HasWindowHandle + HasDisplayHandle))
     if !supported_handles(window.as_raw(), display.as_raw()) {
         return false;
     }
-    if !gtk::is_initialized()
-        && let Err(error) = gtk::init()
-    {
+    if let Err(error) = tasty_platform::gtk_init::ensure() {
         tracing::warn!(%error, "native HTTP viewer unavailable: GTK initialization failed");
         return false;
     }
