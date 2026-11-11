@@ -65,7 +65,7 @@ rg -n 'toasts|report_apply_error|push_toast' src/adapters/ipc src/app/ipc src/ap
 
 **같은 모서리의 스택**: 맨 아래 카드의 기준점이 같은 스코프들은 한 열로 합친다. 오른쪽 아래 pane 의 스택은 workspace 스택과 같은 점에 놓이므로, 따로 그리면 카드가 겹친다. 합친 열은 가장 새 카드가 맨 아래이고 상한 5개를 스코프 구분 없이 함께 센다. 영역은 가장 넓은 스코프의 것을 써서 좁은 pane 위쪽 경계에 잘리지 않는다. 판정은 기준점 좌표로 하므로 `Window`·`Surface` 스코프도 같은 점에 놓이면 합쳐진다.
 
-메인 창 밖의 Settings·Preset·Plugins 창은 각자 토스트 스택을 갖고 `Window` 범위만 그린다. Settings 창의 관리자는 `ToastManager::for_settings_window`로 만들어 위 Settings 하단 거리를 쓴다. 보조 창의 View는 engine을 받지 않으므로 App이 이벤트(그리기 포함)를 넘기기 전에 전역 수명을 그 관리자에 넣는다(`App::sync_auxiliary_toast_lifetime`). 값은 포커스 메인 창 engine에서, 메인 창이 없으면(마지막 창 park, macOS 최소화) parked를 포함한 아무 engine에서 읽는다. 설정 적용이 parked engine까지 갱신하기 때문이다. engine이 하나도 없으면 설정 창과 같이 설정 파일을 읽는다. 메인 창은 overlay가 draw 직전에 같은 값을 맞춘다. debug 빌드의 `debug.toast`는 창과 범위를 지정해 토스트를 띄운다. 사용자 조작 없이 위치를 실측하기 위한 진입점이며 release에는 없다([debug IPC](../../dev-guide/debug-ipc.md)).
+메인 창 밖의 Settings·Preset·Plugins 창은 각자 토스트 스택을 갖고 `Window` 범위만 그린다. Settings 창의 관리자는 `ToastManager::for_settings_window`로 만들어 위 Settings 하단 거리를 쓴다. 보조 창의 View는 engine을 받지 않으므로 App이 이벤트(그리기 포함)를 넘기기 전에 전역 수명을 그 관리자에 넣는다(`App::sync_auxiliary_toast_lifetime`). 값은 설정 적용이 남기는 최신 snapshot(`Services::latest_settings`)에서 읽는다. 저장이 실패해도 이 snapshot은 적용한 값을 유지하므로, 설정 파일을 읽어 만든 엔진보다 우선한다. 이번 실행에서 아직 적용한 적이 없어 snapshot이 비어 있으면 포커스 메인 창 engine, 메인 창이 없으면(마지막 창 park, macOS 최소화) parked를 포함한 아무 engine에서 읽는다. 그동안의 engine 설정은 설정 파일에서 읽은 값이다. snapshot도 engine도 없으면 그 창에서 처음 한 번만 설정 파일을 읽고, 이후 이벤트에서는 다시 읽지 않는다. 메인 창은 overlay가 draw 직전에 같은 값을 맞춘다. debug 빌드의 `debug.toast`는 창과 범위를 지정해 토스트를 띄운다. 사용자 조작 없이 위치를 실측하기 위한 진입점이며 release에는 없다([debug IPC](../../dev-guide/debug-ipc.md)).
 
 ## 시각 / 레이아웃
 

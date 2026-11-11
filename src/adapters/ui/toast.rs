@@ -73,6 +73,8 @@ pub struct ToastManager {
     /// 마지막 draw에서 포인터 아래에 있던 카드의 토스트 id. 그 뒤 프레임이 쉬는 동안에도
     /// 포인터는 그 자리에 있었으므로 다음 draw에서도 붙잡는다.
     hovered_last: Vec<u64>,
+    /// 설정값으로 수명을 맞춘 적이 있는지. 보조 창이 설정 파일을 창마다 한 번만 읽게 한다.
+    lifetime_synced: bool,
     /// Window·Workspace 범위 스택의 하단 기준. 메인 창은 상태바, Settings 창은 하단 버튼 줄을 피한다.
     window_bottom: ToastStackBottom,
 }
@@ -86,6 +88,7 @@ impl ToastManager {
             card_rects: Vec::new(),
             drawn_cards: Vec::new(),
             hovered_last: Vec::new(),
+            lifetime_synced: false,
             window_bottom: ToastStackBottom::Window,
         }
     }
@@ -107,6 +110,14 @@ impl ToastManager {
     /// 않고, 이후 push/coalesce 되거나 포인터에 붙잡힌 토스트부터 적용된다. draw 직전에 호출한다.
     pub fn set_lifetime_ms(&mut self, ms: u64) {
         self.lifetime = Duration::from_millis(ms);
+        self.lifetime_synced = true;
+    }
+
+    /// 아직 설정값으로 수명을 맞춘 적이 없을 때만 `ms()`로 맞춘다. 이미 맞췄으면 `ms`를 부르지 않는다.
+    pub fn set_lifetime_ms_once(&mut self, ms: impl FnOnce() -> u64) {
+        if !self.lifetime_synced {
+            self.set_lifetime_ms(ms());
+        }
     }
 
     #[cfg(test)]

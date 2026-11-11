@@ -38,38 +38,46 @@ impl App {
             return;
         }
         let ms = {
+            let latest = self.services.latest_settings();
             let focused = self.focused_pair().map(|(_, engine)| engine);
             let any_engine = self.engines().windowed_and_parked().next();
             global_toast_duration_ms(
+                latest,
                 focused.as_ref().map(|e| &e.runtime.settings),
                 any_engine.as_ref().map(|e| &e.runtime.settings),
-                crate::settings::Settings::load,
             )
         };
         if let Some(view) = self.view.views.get_mut(&id)
             && let Some((_, toasts)) = auxiliary_toasts(view.as_any_mut())
         {
-            toasts.set_lifetime_ms(ms);
+            match ms {
+                Some(ms) => toasts.set_lifetime_ms(ms),
+                None => toasts.set_lifetime_ms_once(|| {
+                    crate::settings::Settings::load().overlay.toast_duration_ms
+                }),
+            }
         }
     }
 }
 
-/// 보조 창 토스트 수명의 출처. 설정 적용이 parked 엔진까지 갱신하고 설정 창도 엔진이 없으면 파일을
-/// 읽으므로, 포커스 메인 창 → 아무 엔진(parked 포함) → 설정 파일 순서로 같은 전역 값을 얻는다.
+/// 보조 창 토스트 수명의 출처. 설정 적용은 저장이 실패해도 최신 snapshot을 남기므로 그 값이 우선이다.
+/// snapshot은 이번 실행에서 처음 적용하기 전까지 비어 있고, 그동안 엔진 설정은 파일에서 읽은 값이다.
+/// 엔진도 없으면 `None`이고, 호출자가 창마다 한 번만 설정 파일을 읽는다.
 fn global_toast_duration_ms(
+    latest: Option<&crate::settings::Settings>,
     focused: Option<&crate::settings::Settings>,
     any_engine: Option<&crate::settings::Settings>,
-    load: impl FnOnce() -> crate::settings::Settings,
-) -> u64 {
-    match focused.or(any_engine) {
-        Some(s) => s.overlay.toast_duration_ms,
-        None => load().overlay.toast_duration_ms,
-    }
+) -> Option<u64> {
+    latest
+        .or(focused)
+        .or(any_engine)
+        .map(|s| s.overlay.toast_duration_ms)
 }
 
 #[cfg(test)]
 mod tests {
     use super::global_toast_duration_ms;
+    use crate::adapters::ui::ToastManager;
     use crate::settings::Settings;
 
     fn with_ms(ms: u64) -> Settings {
@@ -81,30 +89,56 @@ mod tests {
         }
     }
 
-    fn never_load() -> Settings {
-        panic!("엔진이 있으면 설정 파일을 읽지 않는다")
-    }
-
-    /// Given 포커스 메인 창의 엔진이 전역 5000ms, Then 5000ms다.
+    /// Given 저장이 실패해 파일·새 엔진은 2000ms, 최신 적용 snapshot은 5000ms, Then 5000ms다.
     #[test]
-    fn a_focused_engine_gives_the_global_duration() {
-        let s = with_ms(5000);
+    fn the_latest_applied_snapshot_wins_over_a_stale_engine() {
+        let (latest, stale) = (with_ms(5000), with_ms(2000));
         assert_eq!(
-            global_toast_duration_ms(Some(&s), Some(&s), never_load),
-            5000
+            global_toast_duration_ms(Some(&latest), Some(&stale), Some(&stale)),
+            Some(5000)
+        );
+        assert_eq!(
+            global_toast_duration_ms(Some(&latest), None, Some(&stale)),
+            Some(5000)
         );
     }
 
-    /// Given 마지막 메인 창을 park해 포커스 창이 없고 parked 엔진만 5000ms, Then 5000ms다.
+    /// Given 아직 적용한 적이 없고 포커스 메인 창의 엔진이 5000ms, Then 5000ms다.
     #[test]
-    fn a_parked_engine_gives_the_global_duration_without_a_focused_window() {
+    fn before_any_apply_a_focused_engine_gives_the_global_duration() {
         let s = with_ms(5000);
-        assert_eq!(global_toast_duration_ms(None, Some(&s), never_load), 5000);
+        assert_eq!(
+            global_toast_duration_ms(None, Some(&s), Some(&s)),
+            Some(5000)
+        );
     }
 
-    /// Given 엔진이 하나도 없고 설정 파일이 5000ms, Then 설정 창과 같이 파일 값 5000ms다.
+    /// Given 아직 적용한 적이 없고 마지막 메인 창을 park해 parked 엔진만 5000ms, Then 5000ms다.
     #[test]
-    fn no_engine_falls_back_to_the_settings_file() {
-        assert_eq!(global_toast_duration_ms(None, None, || with_ms(5000)), 5000);
+    fn before_any_apply_a_parked_engine_gives_the_global_duration() {
+        let s = with_ms(5000);
+        assert_eq!(global_toast_duration_ms(None, None, Some(&s)), Some(5000));
+    }
+
+    /// Given snapshot도 엔진도 없음, Then 출처가 없다(호출자가 파일을 읽는다).
+    #[test]
+    fn without_snapshot_or_engine_there_is_no_in_memory_source() {
+        assert_eq!(global_toast_duration_ms(None, None, None), None);
+    }
+
+    /// Given 출처가 없는 이벤트가 여러 번, Then 설정 파일 대신 쓰는 값은 창마다 한 번만 읽는다.
+    #[test]
+    fn the_file_fallback_is_read_once_per_window() {
+        let mut toasts = ToastManager::new();
+        let mut reads = 0;
+        for _ in 0..3 {
+            toasts.set_lifetime_ms_once(|| {
+                reads += 1;
+                5000
+            });
+        }
+        assert_eq!(reads, 1);
+        toasts.set_lifetime_ms(7000);
+        toasts.set_lifetime_ms_once(|| unreachable!("이미 맞춘 수명은 다시 읽지 않는다"));
     }
 }
