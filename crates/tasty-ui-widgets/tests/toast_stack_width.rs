@@ -31,12 +31,14 @@ fn filled_rects(theme: &Theme, fill: impl Fn(&Theme) -> egui::Color32) -> Vec<Re
         bottom: ToastStackBottom::ScopeMargin,
         entries: vec![
             ToastEntryView {
+                id: 1,
                 kind: ToastKind::Warning,
                 message: LONG.into(),
                 hint: Vec::new(),
                 alpha: 1.0,
             },
             ToastEntryView {
+                id: 2,
                 kind: ToastKind::Success,
                 message: SHORT.into(),
                 hint: Vec::new(),
@@ -148,6 +150,7 @@ fn draw(theme: &Theme, message: &str, hint: Vec<String>) -> (Rect, Vec<Rect>) {
         scope_rect,
         bottom: ToastStackBottom::ScopeMargin,
         entries: vec![ToastEntryView {
+            id: 3,
             kind: ToastKind::Success,
             message: message.into(),
             hint,
@@ -274,6 +277,7 @@ fn bottom_card_rect(theme: &Theme, bottom: ToastStackBottom) -> Rect {
         scope_rect,
         bottom,
         entries: vec![ToastEntryView {
+            id: 4,
             kind: ToastKind::Info,
             message: "Settings applied".into(),
             hint: Vec::new(),

@@ -37,8 +37,8 @@ use tasty_ui_widgets::{
 pub use tasty_ui_widgets::{ToastEntryView, ToastScopeView, ToastStackBottom, ToastViewProps};
 
 /// 공용 위젯에 Tooltip 레이어 painter를 전달해 다른 UI 위에 토스트를 그린다.
-/// 그린 카드의 egui 사각형을 돌려준다.
-pub fn draw_toast_view(ctx: &egui::Context, props: &ToastViewProps<'_>) -> Vec<egui::Rect> {
+/// 그린 카드마다 토스트 id와 egui 사각형을 돌려준다.
+pub fn draw_toast_view(ctx: &egui::Context, props: &ToastViewProps<'_>) -> Vec<(u64, egui::Rect)> {
     if props.scopes.is_empty() {
         return Vec::new();
     }
@@ -230,6 +230,7 @@ impl ToastManager {
                     .iter()
                     .filter_map(|id| self.toasts.iter().find(|t| t.id == *id))
                     .map(|t| ToastEntryView {
+                        id: t.id,
                         kind: t.kind,
                         message: t.message.clone(),
                         hint: t.hint.clone(),
@@ -245,7 +246,7 @@ impl ToastManager {
         };
         self.card_rects = draw_toast_view(ctx, &props)
             .into_iter()
-            .map(|r| crate::model::LogicalRect {
+            .map(|(_, r)| crate::model::LogicalRect {
                 x: crate::model::LogicalPx(r.min.x),
                 y: crate::model::LogicalPx(r.min.y),
                 width: crate::model::LogicalPx(r.width()),
@@ -639,12 +640,14 @@ mod tests {
             bottom: ToastStackBottom::ScopeMargin,
             entries: vec![
                 ToastEntryView {
+                    id: 2,
                     kind: ToastKind::Info,
                     message: "info".into(),
                     hint: Vec::new(),
                     alpha: 1.0,
                 },
                 ToastEntryView {
+                    id: 3,
                     kind: ToastKind::Error,
                     message: "long error message that may wrap into multiple lines".into(),
                     hint: Vec::new(),
@@ -661,6 +664,7 @@ mod tests {
             scope_rect: egui::Rect::from_min_size(egui::pos2(0.0, 0.0), egui::vec2(800.0, 600.0)),
             bottom: ToastStackBottom::ScopeMargin,
             entries: vec![ToastEntryView {
+                id: 4,
                 kind: ToastKind::Warning,
                 message: "invisible".into(),
                 hint: Vec::new(),

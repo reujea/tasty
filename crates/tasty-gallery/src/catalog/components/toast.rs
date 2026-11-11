@@ -117,6 +117,7 @@ pub fn draw(ui: &mut egui::Ui, theme: &Theme) {
             SPECIMEN_W.value(),
             SPECIMEN_H_SINGLE.value(),
             vec![ToastEntryView {
+                id: 1,
                 kind: ToastKind::Info,
                 message: "Reloaded settings.json".into(),
                 hint: Vec::new(),
@@ -137,6 +138,7 @@ pub fn draw(ui: &mut egui::Ui, theme: &Theme) {
             SPECIMEN_W.value(),
             SPECIMEN_H_SINGLE.value(),
             vec![ToastEntryView {
+                id: 2,
                 kind: ToastKind::Success,
                 message: "Workspace saved.".into(),
                 hint: Vec::new(),
@@ -157,6 +159,7 @@ pub fn draw(ui: &mut egui::Ui, theme: &Theme) {
             SPECIMEN_W.value(),
             SPECIMEN_H_SINGLE.value(),
             vec![ToastEntryView {
+                id: 3,
                 kind: ToastKind::Warning,
                 message: "Low disk space — clean up downloads.".into(),
                 hint: Vec::new(),
@@ -177,6 +180,7 @@ pub fn draw(ui: &mut egui::Ui, theme: &Theme) {
             SPECIMEN_W.value(),
             SPECIMEN_H_SINGLE.value(),
             vec![ToastEntryView {
+                id: 4,
                 kind: ToastKind::Error,
                 message: "Plugin crashed: tasty-plugin-foo. See logs.".into(),
                 hint: Vec::new(),
@@ -197,6 +201,7 @@ pub fn draw(ui: &mut egui::Ui, theme: &Theme) {
             SPECIMEN_W.value(),
             SPECIMEN_H_WRAP.value(),
             vec![ToastEntryView {
+                id: 5,
                 kind: ToastKind::Warning,
                 message:
                     "이것은 매우 긴 toast 메시지로, 카드 폭 상한 toast-max-width(320)를 넘으면 여러 줄에 \
@@ -226,18 +231,21 @@ pub fn draw(ui: &mut egui::Ui, theme: &Theme) {
             SPECIMEN_H_STACK.value(),
             vec![
                 ToastEntryView {
+                    id: 6,
                     kind: ToastKind::Info,
                     message: "Two notices while importing the bundle".into(),
                     hint: Vec::new(),
                     alpha: 1.0,
                 },
                 ToastEntryView {
+                    id: 7,
                     kind: ToastKind::Warning,
                     message: "Held by another client (readonly)".into(),
                     hint: Vec::new(),
                     alpha: 1.0,
                 },
                 ToastEntryView {
+                    id: 8,
                     kind: ToastKind::Info,
                     message: "Settings applied".into(),
                     hint: Vec::new(),
@@ -245,12 +253,14 @@ pub fn draw(ui: &mut egui::Ui, theme: &Theme) {
                 },
                 // 메뉴·마우스로 복사했고 binding이 있을 때 붙는 hint. 시안 Toast stack과 같다.
                 ToastEntryView {
+                    id: 9,
                     kind: ToastKind::Success,
                     message: "Path copied to clipboard".into(),
                     hint: copy_hint(),
                     alpha: 1.0,
                 },
                 ToastEntryView {
+                    id: 10,
                     kind: ToastKind::Error,
                     message: "Force detach — connection dropped".into(),
                     hint: Vec::new(),
