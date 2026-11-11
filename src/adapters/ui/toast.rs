@@ -68,6 +68,8 @@ pub struct ToastManager {
     /// 마지막 draw에서 그린 카드 영역(egui 논리 좌표). 토스트가 없으면 비어 있다.
     /// WebView 동기화가 이 영역과 겹치는 native 화면만 숨긴다.
     card_rects: Vec<crate::model::LogicalRect>,
+    /// 마지막 draw에서 그린 카드의 토스트 id와 egui 사각형. 다음 draw가 포인터 아래 카드를 찾는다.
+    drawn_cards: Vec<(u64, egui::Rect)>,
     /// Window·Workspace 범위 스택의 하단 기준. 메인 창은 상태바, Settings 창은 하단 버튼 줄을 피한다.
     window_bottom: ToastStackBottom,
 }
@@ -79,6 +81,7 @@ impl ToastManager {
             next_id: 1,
             lifetime: DEFAULT_LIFETIME,
             card_rects: Vec::new(),
+            drawn_cards: Vec::new(),
             window_bottom: ToastStackBottom::Window,
         }
     }
@@ -180,7 +183,22 @@ impl ToastManager {
 
     /// 만료·표시 범위를 정리하고 공용 위젯으로 그린다. 모션 감소이면 페이드를 생략한다.
     pub fn draw(&mut self, ctx: &egui::Context, draw_ctx: &LayoutContext, reduced_motion: bool) {
-        let now = Instant::now();
+        self.draw_at(ctx, draw_ctx, reduced_motion, Instant::now());
+    }
+
+    /// `now` 시각으로 [`Self::draw`]를 한다. 시험이 시간을 정할 수 있게 분리했다.
+    fn draw_at(
+        &mut self,
+        ctx: &egui::Context,
+        draw_ctx: &LayoutContext,
+        reduced_motion: bool,
+        now: Instant,
+    ) {
+        // 만료 판정 전에 붙잡아야 페이드아웃이 끝나기 직전 카드도 되살아난다. 포인터 좌표와
+        // 지난 프레임 사각형만 비교하므로 클릭·드래그·포커스는 아래로 그대로 간다.
+        let pointer = ctx.input(|i| i.pointer.hover_pos());
+        let hovered = hovered_ids(&self.drawn_cards, pointer);
+        hold_hovered(&mut self.toasts, &hovered, now);
 
         self.toasts.retain(|t| {
             let age = now.duration_since(t.spawned_at);
@@ -192,11 +210,18 @@ impl ToastManager {
 
         if self.toasts.is_empty() {
             self.card_rects.clear();
+            self.drawn_cards.clear();
             return;
         }
 
-        // 살아있는 동안에는 매 프레임 다시 그려야 페이드가 보인다.
-        ctx.request_repaint();
+        if self.toasts.iter().all(|t| hovered.contains(&t.id)) {
+            // 붙잡힌 카드는 불투명으로 멈춰 있다. 포인터가 움직이거나 창을 벗어나면 입력이
+            // 프레임을 깨우므로 매 프레임 다시 그리지 않는다.
+            ctx.request_repaint_after(self.lifetime);
+        } else {
+            // 살아있는 동안에는 매 프레임 다시 그려야 페이드가 보인다.
+            ctx.request_repaint();
+        }
 
         let th = theme::theme();
         self.toasts.sort_by_key(|t| t.id);
@@ -244,8 +269,10 @@ impl ToastManager {
             theme: &th,
             scopes: &scopes,
         };
-        self.card_rects = draw_toast_view(ctx, &props)
-            .into_iter()
+        self.drawn_cards = draw_toast_view(ctx, &props);
+        self.card_rects = self
+            .drawn_cards
+            .iter()
             .map(|(_, r)| crate::model::LogicalRect {
                 x: crate::model::LogicalPx(r.min.x),
                 y: crate::model::LogicalPx(r.min.y),
@@ -348,6 +375,26 @@ fn fade_in() -> Duration {
 /// 수명이 처음부터 흐른다. `now`로 두면 alpha가 0이라 카드가 그려지지 않는다.
 fn full_opacity_start(now: Instant) -> Instant {
     now.checked_sub(fade_in()).unwrap_or(now)
+}
+
+/// 포인터가 위에 있는 카드의 토스트 id. 포인터가 창 밖이면 없다.
+fn hovered_ids(drawn: &[(u64, egui::Rect)], pointer: Option<egui::Pos2>) -> Vec<u64> {
+    let Some(pos) = pointer else {
+        return Vec::new();
+    };
+    drawn
+        .iter()
+        .filter(|(_, r)| r.contains(pos))
+        .map(|(id, _)| *id)
+        .collect()
+}
+
+/// 포인터 아래 카드의 수명을 멈춘다. 매 프레임 생성 시각을 등장 페이드 끝으로 당겨 두므로
+/// 카드는 불투명으로 남고, 포인터가 떠나면 전역 수명이 처음부터 흐른다.
+fn hold_hovered(toasts: &mut [ToastState], hovered: &[u64], now: Instant) {
+    for t in toasts.iter_mut().filter(|t| hovered.contains(&t.id)) {
+        t.spawned_at = full_opacity_start(now);
+    }
 }
 
 /// 상태의 시간 값을 공용 위젯의 fade_alpha에 전달한다.
@@ -626,6 +673,313 @@ mod tests {
             mgr.messages(),
             vec!["ws 2", "ws 3", "pane 0", "pane 1", "pane 2"]
         );
+    }
+
+    fn screen() -> egui::Rect {
+        egui::Rect::from_min_size(egui::pos2(0.0, 0.0), egui::vec2(1200.0, 800.0))
+    }
+
+    fn window_layout() -> LayoutContext {
+        LayoutContext {
+            active_workspace: 0,
+            active_workspace_id: 0,
+            pane_rects: Vec::new(),
+            surface_rects: Vec::new(),
+            active_tabs: Vec::new(),
+            active_tab_ids: Vec::new(),
+            workspace_rect: None,
+        }
+    }
+
+    /// 포인터 이벤트 하나로 한 프레임을 그린다.
+    fn frame(
+        ctx: &egui::Context,
+        mgr: &mut ToastManager,
+        event: Option<egui::Event>,
+        now: Instant,
+        reduced_motion: bool,
+    ) {
+        let layout = window_layout();
+        drop(ctx.run(
+            egui::RawInput {
+                screen_rect: Some(screen()),
+                events: event.into_iter().collect(),
+                ..Default::default()
+            },
+            |ctx| mgr.draw_at(ctx, &layout, reduced_motion, now),
+        ));
+    }
+
+    fn card_of(mgr: &ToastManager, id: u64) -> egui::Rect {
+        mgr.drawn_cards
+            .iter()
+            .find(|(i, _)| *i == id)
+            .map(|(_, r)| *r)
+            .expect("card drawn")
+    }
+
+    fn alpha_of(mgr: &ToastManager, id: u64, now: Instant) -> f32 {
+        let t = mgr.toasts.iter().find(|t| t.id == id).expect("toast alive");
+        compute_alpha(t, now, false)
+    }
+
+    fn after(t0: Instant, ms: u64) -> Instant {
+        t0 + Duration::from_millis(ms)
+    }
+
+    /// 포인터 아래 카드만 붙잡는다. 페이드아웃 중이던 카드도 불투명으로 돌아온다.
+    #[test]
+    fn hold_hovered_pins_only_the_hovered_card_at_full_opacity() {
+        let now = Instant::now() + Duration::from_secs(10);
+        let fading = now - DEFAULT_LIFETIME - Duration::from_millis(80);
+        let mut toasts = vec![
+            mk_state(1, ToastKind::Info, "a"),
+            mk_state(2, ToastKind::Info, "b"),
+        ];
+        toasts[0].spawned_at = fading;
+        toasts[1].spawned_at = fading;
+        assert!(compute_alpha(&toasts[0], now, false) < 0.6);
+        hold_hovered(&mut toasts, &[1], now);
+        assert!((compute_alpha(&toasts[0], now, false) - 1.0).abs() < 1e-3);
+        let age = now.duration_since(toasts[0].spawned_at);
+        assert!(age < toasts[0].lifetime + Duration::from_millis(FADE_OUT_MS as u64));
+        assert_eq!(toasts[1].spawned_at, fading);
+        // 모션 감소에서도 수명 안이다.
+        assert_eq!(compute_alpha(&toasts[0], now, true), 1.0);
+    }
+
+    #[test]
+    fn hovered_ids_needs_a_pointer_inside_a_card() {
+        let r = egui::Rect::from_min_size(egui::pos2(10.0, 10.0), egui::vec2(50.0, 20.0));
+        let drawn = [(4, r)];
+        assert_eq!(hovered_ids(&drawn, Some(r.center())), vec![4]);
+        assert!(hovered_ids(&drawn, Some(egui::pos2(0.0, 0.0))).is_empty());
+        assert!(hovered_ids(&drawn, None).is_empty());
+    }
+
+    /// Given 떠 있는 토스트, When 포인터를 카드 위에 수명보다 오래 둔다, Then 불투명으로 남는다.
+    /// When 포인터가 창을 벗어난다, Then 그때부터 전역 수명과 소멸 페이드 뒤 사라진다.
+    #[test]
+    fn a_hovered_toast_outlives_its_lifetime_and_restarts_when_left() {
+        let ctx = egui::Context::default();
+        let mut mgr = ToastManager::new();
+        mgr.set_lifetime_ms(2000);
+        mgr.push_info("hold me", ToastScope::Window);
+        let id = mgr.toasts[0].id;
+        let t0 = mgr.toasts[0].spawned_at;
+        frame(&ctx, &mut mgr, None, after(t0, 100), false);
+        frame(&ctx, &mut mgr, None, after(t0, 100), false);
+        let center = card_of(&mgr, id).center();
+
+        for ms in [500, 1500, 2500, 4000, 6000] {
+            frame(
+                &ctx,
+                &mut mgr,
+                Some(egui::Event::PointerMoved(center)),
+                after(t0, ms),
+                false,
+            );
+            assert_eq!(mgr.len(), 1, "{ms}ms");
+            assert!(
+                (alpha_of(&mgr, id, after(t0, ms)) - 1.0).abs() < 1e-3,
+                "{ms}ms"
+            );
+        }
+
+        let left = after(t0, 6000);
+        frame(
+            &ctx,
+            &mut mgr,
+            Some(egui::Event::PointerGone),
+            after(t0, 6010),
+            false,
+        );
+        // 떠난 뒤 전역 수명 안에서는 남는다.
+        frame(
+            &ctx,
+            &mut mgr,
+            None,
+            left + Duration::from_millis(1800),
+            false,
+        );
+        assert_eq!(mgr.len(), 1);
+        assert!((alpha_of(&mgr, id, left + Duration::from_millis(1800)) - 1.0).abs() < 1e-3);
+        // 수명 + 소멸 페이드가 지나면 사라진다.
+        frame(
+            &ctx,
+            &mut mgr,
+            None,
+            left + Duration::from_millis(2000 + 160 + 20),
+            false,
+        );
+        assert_eq!(mgr.len(), 0);
+    }
+
+    /// Given 페이드아웃 중인 카드, When 포인터를 올린다, Then 완전 불투명으로 되살아난다.
+    #[test]
+    fn hovering_a_fading_card_revives_it() {
+        let ctx = egui::Context::default();
+        let mut mgr = ToastManager::new();
+        mgr.push_info("fading", ToastScope::Window);
+        let id = mgr.toasts[0].id;
+        let t0 = mgr.toasts[0].spawned_at;
+        frame(&ctx, &mut mgr, None, after(t0, 2060), false);
+        frame(&ctx, &mut mgr, None, after(t0, 2080), false);
+        assert!(alpha_of(&mgr, id, after(t0, 2080)) < 0.6);
+        let center = card_of(&mgr, id).center();
+        frame(
+            &ctx,
+            &mut mgr,
+            Some(egui::Event::PointerMoved(center)),
+            after(t0, 2150),
+            false,
+        );
+        assert_eq!(mgr.len(), 1);
+        assert!((alpha_of(&mgr, id, after(t0, 2150)) - 1.0).abs() < 1e-3);
+    }
+
+    /// Given 같은 열에 카드 두 장, When 위 카드에만 포인터를 둔다, Then 아래 카드만 사라진다.
+    #[test]
+    fn only_the_hovered_card_of_a_column_is_held() {
+        let ctx = egui::Context::default();
+        let mut mgr = ToastManager::new();
+        mgr.push_info("older on top", ToastScope::Window);
+        mgr.push_info("newer below", ToastScope::Window);
+        let (top, below) = (mgr.toasts[0].id, mgr.toasts[1].id);
+        let t0 = mgr.toasts[0].spawned_at;
+        frame(&ctx, &mut mgr, None, after(t0, 100), false);
+        frame(&ctx, &mut mgr, None, after(t0, 100), false);
+        assert!(card_of(&mgr, top).bottom() < card_of(&mgr, below).top());
+        let center = card_of(&mgr, top).center();
+        frame(
+            &ctx,
+            &mut mgr,
+            Some(egui::Event::PointerMoved(center)),
+            after(t0, 3000),
+            false,
+        );
+        assert_eq!(mgr.messages(), vec!["older on top"]);
+        // 아래 카드가 사라지면 붙잡힌 카드가 앵커 쪽으로 내려와 포인터에서 벗어난다.
+        assert!(card_of(&mgr, top).center().y > center.y);
+        assert!(hovered_ids(&mgr.drawn_cards, Some(center)).is_empty());
+        assert!(mgr.drawn_cards.iter().all(|(id, _)| *id != below));
+    }
+
+    /// Given 모션 감소, When hover한다, Then 남고, 떠나면 수명 뒤 페이드 없이 사라진다.
+    #[test]
+    fn reduced_motion_hover_holds_and_then_ends_without_fade() {
+        let ctx = egui::Context::default();
+        let mut mgr = ToastManager::new();
+        mgr.push_info("rm", ToastScope::Window);
+        let id = mgr.toasts[0].id;
+        let t0 = mgr.toasts[0].spawned_at;
+        frame(&ctx, &mut mgr, None, after(t0, 10), true);
+        frame(&ctx, &mut mgr, None, after(t0, 10), true);
+        let center = card_of(&mgr, id).center();
+        frame(
+            &ctx,
+            &mut mgr,
+            Some(egui::Event::PointerMoved(center)),
+            after(t0, 5000),
+            true,
+        );
+        assert_eq!(mgr.len(), 1);
+        let t = &mgr.toasts[0];
+        assert_eq!(compute_alpha(t, after(t0, 5000), true), 1.0);
+        frame(
+            &ctx,
+            &mut mgr,
+            Some(egui::Event::PointerGone),
+            after(t0, 5000),
+            true,
+        );
+        let left = after(t0, 5000);
+        let t = &mgr.toasts[0];
+        assert_eq!(
+            compute_alpha(t, left + Duration::from_millis(2000), true),
+            0.0
+        );
+    }
+
+    /// Given hover로 붙잡은 카드, When 같은 범위·문구가 다시 온다, Then 그 카드에 합쳐지고
+    /// 불투명으로 남는다.
+    #[test]
+    fn a_held_card_absorbs_the_same_message_without_flicker() {
+        let ctx = egui::Context::default();
+        let mut mgr = ToastManager::new();
+        mgr.push_info("dup", ToastScope::Window);
+        let id = mgr.toasts[0].id;
+        let t0 = mgr.toasts[0].spawned_at;
+        frame(&ctx, &mut mgr, None, after(t0, 100), false);
+        frame(&ctx, &mut mgr, None, after(t0, 100), false);
+        let center = card_of(&mgr, id).center();
+        frame(
+            &ctx,
+            &mut mgr,
+            Some(egui::Event::PointerMoved(center)),
+            Instant::now(),
+            false,
+        );
+        mgr.push_info("dup", ToastScope::Window);
+        assert_eq!(mgr.len(), 1);
+        assert!((alpha_of(&mgr, id, Instant::now()) - 1.0).abs() < 1e-3);
+    }
+
+    /// Given 카드 아래 버튼, When 카드 위에서 누르고 뗀다, Then 버튼이 클릭을 받고 토스트는
+    /// 포인터 아래 레이어가 되지 않는다. 대조군은 토스트 없이 같은 클릭이다.
+    #[test]
+    fn a_click_on_a_held_card_reaches_the_widget_below() {
+        fn click_through(with_toast: bool) -> (bool, bool) {
+            let ctx = egui::Context::default();
+            let mut mgr = ToastManager::new();
+            if with_toast {
+                mgr.push_info("over the button", ToastScope::Window);
+            }
+            let layout = window_layout();
+            let mut card = None;
+            let mut clicked = false;
+            let mut over_area = false;
+            let mut run = |events: Vec<egui::Event>, card_out: &mut Option<egui::Rect>| {
+                let mut hit = false;
+                drop(ctx.run(
+                    egui::RawInput {
+                        screen_rect: Some(screen()),
+                        events,
+                        ..Default::default()
+                    },
+                    |ctx| {
+                        egui::CentralPanel::default().show(ctx, |ui| {
+                            let b = ui.add_sized(ui.available_size(), egui::Button::new("below"));
+                            hit = b.clicked();
+                        });
+                        mgr.draw(ctx, &layout, false);
+                        *card_out = mgr.drawn_cards.first().map(|(_, r)| *r);
+                    },
+                ));
+                hit
+            };
+            run(Vec::new(), &mut card);
+            run(Vec::new(), &mut card);
+            let pos = card.map_or(egui::pos2(1100.0, 700.0), |r| r.center());
+            let press = |pressed| egui::Event::PointerButton {
+                pos,
+                button: egui::PointerButton::Primary,
+                pressed,
+                modifiers: egui::Modifiers::NONE,
+            };
+            run(vec![egui::Event::PointerMoved(pos)], &mut card);
+            over_area |= ctx
+                .layer_id_at(pos)
+                .is_some_and(|l| l.order == egui::Order::Tooltip);
+            run(vec![press(true)], &mut card);
+            clicked |= run(vec![press(false)], &mut card);
+            if with_toast {
+                assert_eq!(mgr.len(), 1, "card held under the pointer");
+            }
+            (clicked, over_area)
+        }
+        assert_eq!(click_through(false), (true, false), "control");
+        assert_eq!(click_through(true), (true, false));
     }
 
     #[test]
