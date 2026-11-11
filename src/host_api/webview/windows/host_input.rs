@@ -307,6 +307,7 @@ unsafe fn create_once(
         unsafe { env.CreateCoreWebView2Controller(hwnd, &callback) }
     };
     started.map_err(|e| format!("CreateController failed: {e}"))?;
+    super::key_replay::entering_nested_message_loop();
     let (hr, controller) =
         webview2_com::wait_with_pump(rx).map_err(|e| format!("Controller wait failed: {e}"))?;
     match (hr, controller) {

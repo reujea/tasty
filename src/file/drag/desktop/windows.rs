@@ -160,6 +160,7 @@ pub(super) fn start(request: &Request) -> Result<Outcome, String> {
     }
     .into();
     let mut effect = DROPEFFECT::default();
+    crate::host_api::webview::entering_nested_message_loop();
     // SAFETY: OLE is initialized on this UI thread by _ole; data and source are live COM objects,
     // and effect outlives the modal drag loop.
     let status = unsafe { DoDragDrop(&data, &source, DROPEFFECT_COPY, &mut effect) };

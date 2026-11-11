@@ -50,6 +50,9 @@ pub use macos::PlatformWebView;
 
 #[cfg(windows)]
 pub use self::windows::PlatformWebView;
+/// 중첩 메시지 루프(모달 메뉴·끌기 등)에 들어가기 직전에 부른다. 그 루프의 키는 winit 훅을 거치지 않는다.
+#[cfg(windows)]
+pub(crate) use self::windows::entering_nested_message_loop;
 /// winit 메시지 훅이 WebView로 가는 키를 페이지보다 먼저 판정한다(Windows host 입력 경로).
 #[cfg(windows)]
 pub(crate) use self::windows::filter_host_input;

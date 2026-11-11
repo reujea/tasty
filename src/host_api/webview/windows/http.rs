@@ -73,6 +73,7 @@ fn mitigate_webrtc(webview: &ICoreWebView2) -> Result<()> {
     // SAFETY: live WebView on its COM apartment thread; the buffer is NUL-terminated and
     // outlives the call, which copies it.
     unsafe { webview.AddScriptToExecuteOnDocumentCreated(PCWSTR(script.as_ptr()), &handler) }?;
+    super::key_replay::entering_nested_message_loop();
     webview2_com::wait_with_pump(receiver).map_err(|error| {
         Error::new(
             windows::Win32::Foundation::E_FAIL,

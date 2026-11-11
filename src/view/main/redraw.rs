@@ -463,6 +463,9 @@ impl MainView {
         warn_if_menu_anchor_scale_premise_broken(self.base.winit.scale_factor());
         #[cfg(debug_assertions)]
         super::debug_menu::answer_or_return!(self, engine, items, cont);
+        // TrackPopupMenu는 중첩 메시지 루프를 돈다.
+        #[cfg(windows)]
+        crate::host_api::webview::entering_nested_message_loop();
         match show_context_menu(self.base.winit.as_ref(), x as f64, y as f64, items) {
             MenuOutcome::Ready(result) => {
                 cont(self, engine, result);

@@ -69,6 +69,7 @@ impl Echoes {
 }
 
 /// 다시 보낸 메시지의 키와 lParam 상태. `AcceleratorKeyPressed`의 물리 키 상태와 같은 비트 배치다.
+/// Ctrl·Shift 상태는 넣지 않는다. 원래 메시지(MSG)의 wParam·lParam에 그 상태가 없다.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) struct PostedKey {
     vk: u32,
@@ -279,6 +280,12 @@ thread_local! {
 
 /// 훅에 새 메시지가 왔다. 앞서 Dispatch한 다시 보낸 메시지의 반송 표지를 지운다.
 pub(super) fn message_arrived() {
+    DISPATCHING.with(Dispatching::end);
+}
+
+/// 중첩 메시지 루프(`wait_with_pump`·`TrackPopupMenu`·`DoDragDrop`)에 들어간다. 그 루프의 메시지는 winit 훅을
+/// 거치지 않아 다음 훅 호출이 표지를 지우지 못하므로, 루프에 들어가기 전에 표지를 끝낸다.
+pub(crate) fn entering_nested_message_loop() {
     DISPATCHING.with(Dispatching::end);
 }
 
@@ -623,22 +630,53 @@ mod tests {
         assert!(!d.take(f9));
     }
 
+    fn key_msg(message: u32, vk: usize, lparam: u32) -> MSG {
+        MSG {
+            message,
+            wParam: WPARAM(vk),
+            lParam: LPARAM(lparam as i32 as isize),
+            ..MSG::default()
+        }
+    }
+
+    fn take_dispatching(key: PostedKey) -> bool {
+        DISPATCHING.with(|d| d.take(key))
+    }
+
     /// Given 동작하지 않은 R(수식키 없음)을 다시 보냈고 글자 키라 반송이 오지 않았다, When 다음 메시지가 훅에
-    /// 온 뒤 중첩 메시지 루프에서 실제 Ctrl+R(같은 물리 키)이 `AcceleratorKeyPressed`로 온다, Then 표지에 쓰이지
-    /// 않아 단축키 판정을 받는다. 다른 키가 먼저 오면 표지는 그 이벤트에서 비워진다.
+    /// 온 뒤 실제 Ctrl+R(같은 물리 키)이 `AcceleratorKeyPressed`로 온다, Then 표지에 쓰이지 않아 단축키 판정을
+    /// 받는다. 다른 키가 먼저 오면 표지는 그 이벤트에서 비워진다.
     #[test]
     fn a_leftover_posted_mark_never_takes_another_real_key() {
-        let d = Dispatching::default();
-        let r = posted(0x0100, 0x52, 0x0013_0001);
-        d.begin(r);
-        d.end();
-        assert!(!d.take(r), "실제 Ctrl+R이 판정을 건너뛰었다");
-        d.begin(r);
-        assert!(!d.take(posted(0x0100, 0x11, 0x001d_0001)));
-        assert!(!d.take(r), "다른 키가 지나간 뒤의 R이 판정을 건너뛰었다");
+        let msg = key_msg(0x0100, 0x52, 0x0013_0001);
+        let r = PostedKey::of(&MsgCopy::of(&msg));
+        dispatching_posted(&msg);
+        message_arrived();
+        assert!(!take_dispatching(r), "실제 Ctrl+R이 판정을 건너뛰었다");
+        dispatching_posted(&msg);
+        assert!(!take_dispatching(posted(0x0100, 0x11, 0x001d_0001)));
+        assert!(
+            !take_dispatching(r),
+            "다른 키가 지나간 뒤의 R이 판정을 건너뛰었다"
+        );
         // 같은 VK라도 물리 키가 다르면(주 Enter와 숫자패드 Enter) 반송이 아니다.
-        d.begin(posted(0x0100, 0x0D, 0x001c_0001));
-        assert!(!d.take(posted(0x0100, 0x0D, 0x011c_0001)));
+        dispatching_posted(&key_msg(0x0100, 0x0D, 0x001c_0001));
+        assert!(!take_dispatching(posted(0x0100, 0x0D, 0x011c_0001)));
+        message_arrived();
+    }
+
+    /// Given 다시 보낸 R의 표지가 남았다(반송 없는 글자 키), When 다음 훅 호출 없이 host가 중첩 메시지 루프에
+    /// 들어가고 그 루프에서 실제 Ctrl+R(lParam 상태가 같음)이 `AcceleratorKeyPressed`로 온다, Then 표지는 루프
+    /// 진입에서 끝나 그 키는 판정을 받는다.
+    #[test]
+    fn entering_a_nested_message_loop_ends_the_resend_mark() {
+        let msg = key_msg(0x0100, 0x52, 0x0013_0001);
+        dispatching_posted(&msg);
+        entering_nested_message_loop();
+        assert!(
+            !take_dispatching(PostedKey::of(&MsgCopy::of(&msg))),
+            "중첩 루프의 실제 Ctrl+R이 판정을 건너뛰었다"
+        );
     }
 
     /// Given 같은 키를 두 번 눌렀고 첫 누름의 key-up을 훅이 다시 보낸다, When 그 key-up이 Dispatch 중에

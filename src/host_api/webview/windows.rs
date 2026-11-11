@@ -45,6 +45,7 @@ use super::{NavState, PendingNavigation, WebViewBounds};
 use tasty_model::html_script::top_level::{SubframeNavigations, TopLevelAdmission};
 
 pub(crate) use host_input::filter_message as filter_host_input;
+pub(crate) use key_replay::entering_nested_message_loop;
 
 pub struct PlatformWebView {
     hwnd: HWND,
@@ -271,6 +272,7 @@ impl PlatformWebView {
             )
             .map_err(|e| transient(format!("CreateEnvironment failed: {e}")))?;
 
+            key_replay::entering_nested_message_loop();
             let env = webview2_com::wait_with_pump(env_rx)
                 .map_err(|e| transient(format!("Environment wait failed: {e}")))?
                 .ok_or_else(|| transient("No environment returned"))?;
