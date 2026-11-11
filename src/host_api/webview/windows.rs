@@ -1044,6 +1044,7 @@ impl Drop for PlatformWebView {
         drop(self.http.take());
         // 창을 없애기 전에 메시지 훅 등록을 지운다.
         drop(self.host_input.take());
+        self.key_replay.forget_posted();
         // SAFETY: controller.Close()는 webview2 자원 해제, DestroyWindow는 child HWND 정리.
         // 둘 다 self가 처음 만들어진 main thread에서 Drop이 호출된다는 전제 (PlatformWebView는
         // !Send/!Sync 기본 — COM 객체 포함).

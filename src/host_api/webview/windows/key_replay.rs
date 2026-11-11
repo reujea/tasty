@@ -16,6 +16,7 @@
 //! 반복을 삼키지 않는다.
 
 use std::cell::{Cell, RefCell};
+use std::collections::HashMap;
 use std::time::{Duration, Instant};
 
 use webview2_com::{Microsoft::Web::WebView2::Win32::*, *};
@@ -32,8 +33,8 @@ use crate::host_api::webview::keys::{KeyDownRoute, WebViewKeySink, route_key_dow
 
 const WM_KEYUP: u32 = 0x0101;
 const WM_SYSKEYUP: u32 = 0x0105;
-/// 다시 보낸 메시지 목록의 상한. 창이 사라져 돌아오지 않은 메시지가 쌓이지 않게 한다. 결과 전에 붙잡을 수 있는
-/// 이벤트를 한꺼번에 다시 보내도 훅이 꺼내기 전에 앞 표지가 밀리지 않도록 그 수와 같게 둔다.
+/// 창 하나에 다시 보낸 메시지 목록의 상한. 창이 사라져 돌아오지 않은 메시지가 쌓이지 않게 한다. 한 WebView가
+/// 결과 전에 붙잡을 수 있는 이벤트를 한꺼번에 다시 보내도 훅이 꺼내기 전에 앞 표지가 밀리지 않도록 그 수와 같게 둔다.
 const POSTED_LIMIT: usize = HELD_EVENT_LIMIT;
 /// 다시 넘긴 키가 `AcceleratorKeyPressed`로 돌아올 수 있는 시간.
 const ECHO_LIMIT: Duration = Duration::from_secs(1);
@@ -273,8 +274,34 @@ impl Posted {
     }
 }
 
+/// 다시 보낸 메시지 목록을 대상 창(WebView 하나의 키보드 포커스 창)마다 둔다. 같은 GUI 스레드의 여러 WebView가
+/// 한꺼번에 다시 보내도 한 창의 표지가 다른 창의 메시지에 밀리지 않는다.
+#[derive(Debug, Default)]
+struct PostedByWindow(HashMap<isize, Posted>);
+
+impl PostedByWindow {
+    fn push(&mut self, copy: MsgCopy) {
+        self.0.entry(copy.hwnd).or_default().push(copy);
+    }
+
+    fn take(&mut self, copy: &MsgCopy) -> bool {
+        self.0.get_mut(&copy.hwnd).is_some_and(|p| p.take(copy))
+    }
+
+    fn forget(&mut self, copy: &MsgCopy) {
+        if let Some(p) = self.0.get_mut(&copy.hwnd) {
+            p.forget(copy);
+        }
+    }
+
+    /// WebView가 닫혔다. 그 창의 목록을 지운다.
+    fn close_window(&mut self, hwnd: isize) {
+        self.0.remove(&hwnd);
+    }
+}
+
 thread_local! {
-    static POSTED: RefCell<Posted> = RefCell::new(Posted::default());
+    static POSTED: RefCell<PostedByWindow> = RefCell::new(PostedByWindow::default());
     static DISPATCHING: Dispatching = Dispatching::default();
 }
 
@@ -329,6 +356,8 @@ pub(super) struct KeyReplay {
     target: ICoreWebView2,
     hold: RefCell<KeyHold<KeyId, WinKey>>,
     echoes: RefCell<Echoes>,
+    /// 키 메시지를 다시 보낸 창. 닫힐 때 그 창의 표지 목록을 지운다.
+    posted_windows: RefCell<Vec<isize>>,
 }
 
 impl KeyReplay {
@@ -338,6 +367,7 @@ impl KeyReplay {
             target,
             hold: RefCell::new(KeyHold::default()),
             echoes: RefCell::new(Echoes::default()),
+            posted_windows: RefCell::new(Vec::new()),
         }
     }
 
@@ -362,6 +392,17 @@ impl KeyReplay {
     /// key-up을 붙잡았으면 true다.
     pub(super) fn release(&self, key_id: KeyId, key: WinKey) -> bool {
         self.hold.borrow_mut().release(key_id, key).is_none()
+    }
+
+    /// WebView를 닫는다. 이 view가 키를 다시 보낸 창의 표지 목록을 지운다.
+    pub(super) fn forget_posted(&self) {
+        let windows = std::mem::take(&mut *self.posted_windows.borrow_mut());
+        POSTED.with(|p| {
+            let mut p = p.borrow_mut();
+            for hwnd in windows {
+                p.close_window(hwnd);
+            }
+        });
     }
 
     /// 다시 넘긴 키가 `AcceleratorKeyPressed`로 돌아왔으면 표지를 지우고 true다.
@@ -391,7 +432,14 @@ impl KeyReplay {
         };
         for key in settled.replay.into_iter().chain(settled.release) {
             match key {
-                WinKey::Msg(copy) => post(copy, self.surface_id),
+                WinKey::Msg(copy) => {
+                    let mut windows = self.posted_windows.borrow_mut();
+                    if !windows.contains(&copy.hwnd) {
+                        windows.push(copy.hwnd);
+                    }
+                    drop(windows);
+                    post(copy, self.surface_id);
+                }
                 WinKey::Cdp(cdp) => {
                     self.echoes
                         .borrow_mut()
@@ -736,6 +784,30 @@ mod tests {
         assert!(p.take(&msg(0x41, 0)), "맨 앞 메시지의 표지가 밀렸다");
         assert!(p.take(&msg(0x44, 64)));
         assert!(!p.take(&msg(0x41, 0)), "표지는 한 번만 쓴다");
+    }
+
+    /// Given 같은 GUI 스레드의 WebView A가 결과 전 붙잡을 수 있는 최대 이벤트(4,224개)를, B가 1개를 붙잡았다,
+    /// When 두 결과가 메시지 루프가 돌기 전에 연달아 와 모두 다시 보낸다, Then A의 맨 앞 메시지도 훅이 꺼낼 때
+    /// 다시 보낸 것으로 알아본다. A가 닫히면 A의 목록만 사라진다.
+    #[test]
+    fn posted_marks_are_kept_per_window() {
+        let msg = |hwnd: isize, n: usize| MsgCopy {
+            hwnd,
+            message: 0x0100,
+            wparam: 0x41 + n / 66,
+            lparam: (((n % 66) as isize) << 16) | 1,
+        };
+        let mut p = PostedByWindow::default();
+        for n in 0..HELD_EVENT_LIMIT {
+            p.push(msg(1, n));
+        }
+        p.push(msg(2, 0));
+        assert!(p.take(&msg(1, 0)), "A의 맨 앞 표지가 B의 메시지에 밀렸다");
+        assert!(p.take(&msg(2, 0)));
+        p.close_window(1);
+        assert!(!p.take(&msg(1, 1)));
+        p.push(msg(2, 1));
+        assert!(p.take(&msg(2, 1)));
     }
 
     #[test]

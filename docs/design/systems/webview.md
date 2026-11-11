@@ -382,6 +382,7 @@ native 콜백은 가져갈지를 동기로 정하고 실행은 나중에 host �
   extended 비트)로 짝짓는다. 주 Enter와 숫자패드 Enter처럼 VK가 같은 키가 섞이지 않는다. scan code가 없는 합성 입력만
   VK로 구분한다. host 입력 훅이 소비한 키는 그 창 메시지(hwnd·message·
   wParam·lParam)를 `PostMessageW`로 같은 창에 다시 보낸다. 다시 온 메시지는 보낸 목록과 대조해 판정 없이 통과시키므로
+  (목록은 대상 창마다 두고 상한은 WebView 하나가 결과 전에 붙잡을 수 있는 이벤트 수 4,224개다. WebView를 닫으면 그 창의 목록을 지운다)
   winit이 Translate·Dispatch해 원래 입력과 같은 길(엔진 기본 동작 포함)로 간다. WM_CHAR는 그때의 키보드 상태로 만들어져,
   결과 전에 Shift 등을 뗐으면 다른 글자가 될 수 있다. `AcceleratorKeyPressed`로 가져간 키(옵션 없는 view, 중첩 메시지
   루프)는 원래 메시지를 얻을 수 없어 DevTools `Input.dispatchKeyEvent`로 같은 키(key·code·vk·수식키, 글자 없는
