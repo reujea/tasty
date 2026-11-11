@@ -12,8 +12,9 @@ use std::collections::VecDeque;
 pub(crate) const HELD_LIMIT: usize = 64;
 /// 결과 전에 한 누름에 붙잡는 반복의 상한. 넘친 반복은 붙잡지 않고 소비한다(결과가 와도 넘기지 않는다).
 pub(crate) const REPEAT_LIMIT: usize = 64;
-/// 결과를 기다리며 붙잡을 수 있는 이벤트 수의 상한(누름마다 첫 누름·반복·key-up). macOS 반송 표지의 상한이다.
-#[cfg(target_os = "macos")]
+/// 결과를 기다리며 붙잡을 수 있는 이벤트 수의 상한(누름마다 첫 누름·반복·key-up). macOS 반송 표지와 Windows 다시
+/// 보낸 메시지 목록의 상한이다.
+#[cfg(any(target_os = "macos", target_os = "windows"))]
 pub(crate) const HELD_EVENT_LIMIT: usize = HELD_LIMIT * (REPEAT_LIMIT + 2);
 /// 누름 결과를 기억하는 물리 키 수의 상한. 동시에 누른 키 수보다 넉넉하다.
 const DECIDED_LIMIT: usize = 16;

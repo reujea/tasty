@@ -25,13 +25,14 @@ use winit::keyboard::{Key, ModifiersState, NamedKey, PhysicalKey};
 use super::keyboard::{
     current_winit_mods, dom_character_key, vk_to_winit_key, win32_scancode_to_physical,
 };
-use crate::host_api::webview::key_hold::{KeyHold, RepeatRoute};
+use crate::host_api::webview::key_hold::{HELD_EVENT_LIMIT, KeyHold, RepeatRoute};
 use crate::host_api::webview::keys::{KeyDownRoute, WebViewKeySink, route_key_down};
 
 const WM_KEYUP: u32 = 0x0101;
 const WM_SYSKEYUP: u32 = 0x0105;
-/// 다시 보낸 메시지 목록의 상한. 창이 사라져 돌아오지 않은 메시지가 쌓이지 않게 한다.
-const POSTED_LIMIT: usize = 256;
+/// 다시 보낸 메시지 목록의 상한. 창이 사라져 돌아오지 않은 메시지가 쌓이지 않게 한다. 결과 전에 붙잡을 수 있는
+/// 이벤트를 한꺼번에 다시 보내도 훅이 꺼내기 전에 앞 표지가 밀리지 않도록 그 수와 같게 둔다.
+const POSTED_LIMIT: usize = HELD_EVENT_LIMIT;
 /// 다시 넘긴 키가 `AcceleratorKeyPressed`로 돌아올 수 있는 시간.
 const ECHO_LIMIT: Duration = Duration::from_secs(1);
 
@@ -203,34 +204,44 @@ pub(super) enum WinKey {
     Cdp(CdpKey),
 }
 
+/// 다시 보낸 창 메시지 목록. 훅이 이 목록의 메시지를 판정 없이 통과시킨다.
+#[derive(Debug, Default)]
+struct Posted(Vec<MsgCopy>);
+
+impl Posted {
+    fn push(&mut self, copy: MsgCopy) {
+        self.0.push(copy);
+        if self.0.len() > POSTED_LIMIT {
+            self.0.remove(0);
+        }
+    }
+
+    /// 다시 보낸 메시지면 목록에서 지우고 true다.
+    fn take(&mut self, copy: &MsgCopy) -> bool {
+        let found = self.0.iter().position(|m| m == copy);
+        found.map(|i| self.0.remove(i)).is_some()
+    }
+
+    /// 보내지 못한 메시지의 표지를 지운다.
+    fn forget(&mut self, copy: &MsgCopy) {
+        if let Some(i) = self.0.iter().rposition(|m| m == copy) {
+            self.0.remove(i);
+        }
+    }
+}
+
 thread_local! {
-    /// 다시 보낸 창 메시지. 훅이 이 목록의 메시지를 판정 없이 통과시킨다.
-    static POSTED: RefCell<Vec<MsgCopy>> = const { RefCell::new(Vec::new()) };
+    static POSTED: RefCell<Posted> = RefCell::new(Posted::default());
 }
 
 /// 다시 보낸 메시지면 목록에서 지우고 true다.
 pub(super) fn take_posted(msg: &MSG) -> bool {
     let copy = MsgCopy::of(msg);
-    POSTED.with(|p| {
-        let mut p = p.borrow_mut();
-        match p.iter().position(|m| *m == copy) {
-            Some(i) => {
-                p.remove(i);
-                true
-            }
-            None => false,
-        }
-    })
+    POSTED.with(|p| p.borrow_mut().take(&copy))
 }
 
 fn post(copy: MsgCopy, surface_id: u32) {
-    POSTED.with(|p| {
-        let mut p = p.borrow_mut();
-        p.push(copy);
-        if p.len() > POSTED_LIMIT {
-            p.remove(0);
-        }
-    });
+    POSTED.with(|p| p.borrow_mut().push(copy));
     // SAFETY: 이 GUI 스레드가 받은 창 핸들에 같은 메시지를 다시 보낸다. 창이 사라졌으면 실패를 돌려준다.
     let sent = unsafe {
         PostMessageW(
@@ -241,12 +252,7 @@ fn post(copy: MsgCopy, surface_id: u32) {
         )
     };
     if let Err(e) = sent {
-        POSTED.with(|p| {
-            let mut p = p.borrow_mut();
-            if let Some(i) = p.iter().rposition(|m| *m == copy) {
-                p.remove(i);
-            }
-        });
+        POSTED.with(|p| p.borrow_mut().forget(&copy));
         tracing::warn!("WebView surface {surface_id}: re-posting a key message failed: {e}");
     }
 }
@@ -546,6 +552,27 @@ mod tests {
         e.note(0x78, false, false, t);
         assert!(e.take(0x78, false, 0x43, t));
         assert!(!e.take(0x78, false, 0x43, t));
+    }
+
+    /// Given 물리 키 4개의 첫 누름마다 결과 전 반복 64개를 붙잡았다, When 넷 다 동작하지 않아 메시지 루프가 돌기
+    /// 전에 260개를 연달아 다시 보낸다, Then 맨 앞 메시지도 훅이 꺼낼 때 다시 보낸 것으로 알아본다.
+    #[test]
+    fn posted_marks_cover_every_held_event_sent_at_once() {
+        let msg = |vk: usize, n: isize| MsgCopy {
+            hwnd: 1,
+            message: 0x0100,
+            wparam: vk,
+            lparam: (n << 16) | 1,
+        };
+        let mut p = Posted::default();
+        for key in 0..4 {
+            for n in 0..=64 {
+                p.push(msg(0x41 + key, n));
+            }
+        }
+        assert!(p.take(&msg(0x41, 0)), "맨 앞 메시지의 표지가 밀렸다");
+        assert!(p.take(&msg(0x44, 64)));
+        assert!(!p.take(&msg(0x41, 0)), "표지는 한 번만 쓴다");
     }
 
     #[test]
