@@ -19,6 +19,8 @@ struct Held<K, E> {
     press: E,
     repeats: Vec<E>,
     release: Option<E>,
+    /// 포커스가 바뀌기 전의 누름이다. 결과가 와도 key-down을 넘기지 않고 기록도 남기지 않는다.
+    stale: bool,
 }
 
 /// 결과가 온 누름에서 넘길 이벤트.
@@ -82,6 +84,7 @@ impl<K: Copy + PartialEq, E> KeyHold<K, E> {
             press,
             repeats: Vec::new(),
             release: None,
+            stale: false,
         });
         if self.held.len() > self.limit {
             self.held.pop_front();
@@ -90,12 +93,12 @@ impl<K: Copy + PartialEq, E> KeyHold<K, E> {
         true
     }
 
-    /// 아직 떼지 않은 마지막 붙잡은 누름.
+    /// 아직 떼지 않은 마지막 붙잡은 누름. 포커스가 바뀌기 전의 누름은 뒤 입력을 붙잡지 않는다.
     fn open_held(&mut self, key: K) -> Option<&mut Held<K, E>> {
         self.held
             .iter_mut()
             .rev()
-            .find(|h| h.key == key && h.release.is_none())
+            .find(|h| h.key == key && h.release.is_none() && !h.stale)
     }
 
     /// 자동 반복 key-down의 처리를 정한다.
@@ -125,9 +128,13 @@ impl<K: Copy + PartialEq, E> KeyHold<K, E> {
     }
 
     /// 포커스가 바뀌었다. 다른 곳에서 누른 키의 반복이 옛 결과를 따르지 않게 누름 결과를 지운다.
-    /// 결과를 기다리는 누름은 그대로 둔다(결과가 오면 넘기거나 버린다).
+    /// 결과를 기다리는 누름은 옛 세대로 표시한다. 그 결과가 나중에 와도 key-down을 넘기거나 기록을 되살리지
+    /// 않고, 붙잡은 key-up만 넘긴다. 짝은 그대로 두어 뒤 번호의 결과가 앞 누름에 붙지 않게 한다.
     pub(crate) fn clear_decisions(&mut self) {
         self.decided.clear();
+        for held in &mut self.held {
+            held.stale = true;
+        }
     }
 
     /// 일련번호 `id`의 결과가 왔다. `pass`는 Tasty 단축키가 동작하지 않아 키를 넘길지다. 짝이 없으면 None이다.
@@ -147,14 +154,14 @@ impl<K: Copy + PartialEq, E> KeyHold<K, E> {
                 held.id
             );
         };
-        if held.release.is_none() {
+        if held.release.is_none() && !held.stale {
             self.decided.retain(|(k, _)| *k != held.key);
             self.decided.push((held.key, pass));
             if self.decided.len() > DECIDED_LIMIT {
                 self.decided.remove(0);
             }
         }
-        let replay = if pass {
+        let replay = if pass && !held.stale {
             std::iter::once(held.press).chain(held.repeats).collect()
         } else {
             Vec::new()
@@ -266,6 +273,37 @@ mod tests {
         assert_eq!(q.finish(1, true), Some(settled(&["d1"], Some("u1"))));
         assert_eq!(q.finish(2, true), Some(settled(&["d2", "r2"], None)));
         assert_eq!(q.repeat(7, "r"), RepeatRoute::Pass("r"));
+    }
+
+    /// 포커스가 바뀐 뒤 온 옛 누름의 결과는 key-down을 넘기지 않고 기록도 남기지 않는다. 붙잡은 key-up만 넘긴다.
+    /// 포커스가 바뀐 뒤의 반복과 key-up은 옛 누름에 붙지 않는다.
+    #[test]
+    fn a_result_after_a_focus_change_does_not_revive_the_old_press() {
+        // Given 결과를 기다리는 누름, When 포커스가 바뀐 뒤 처리 안 됨 결과가 온다,
+        // Then 넘길 key-down이 없고 뒤 반복은 기존 판정을 쓴다.
+        let mut q = KeyHold::<u32, &str>::default();
+        q.forwarded(1, 7, "down");
+        q.clear_decisions();
+        assert_eq!(q.finish(1, false), Some(settled(&[], None)));
+        assert_eq!(q.repeat(7, "r"), RepeatRoute::Unknown("r"));
+
+        q.forwarded(2, 7, "down");
+        q.clear_decisions();
+        assert_eq!(q.finish(2, true), Some(settled(&[], None)));
+        assert_eq!(q.repeat(7, "r"), RepeatRoute::Unknown("r"));
+
+        // Given 결과 전에 key-up까지 붙잡은 누름, When 포커스가 바뀐 뒤 결과가 온다, Then key-up만 넘긴다.
+        q.forwarded(3, 8, "down");
+        assert_eq!(q.release(8, "up"), None);
+        q.clear_decisions();
+        assert_eq!(q.finish(3, true), Some(settled(&[], Some("up"))));
+
+        // Given 포커스가 바뀐 뒤의 반복·key-up, Then 옛 누름에 붙지 않는다.
+        q.forwarded(4, 9, "down");
+        q.clear_decisions();
+        assert_eq!(q.repeat(9, "r"), RepeatRoute::Unknown("r"));
+        assert_eq!(q.release(9, "up"), Some("up"));
+        assert_eq!(q.finish(4, true), Some(settled(&[], None)));
     }
 
     /// 붙잡은 누름이 없는 key-up은 그대로 돌려준다.

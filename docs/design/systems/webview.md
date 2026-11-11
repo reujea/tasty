@@ -407,8 +407,9 @@ native 콜백은 가져갈지를 동기로 정하고 실행은 나중에 host �
   동작했으면 버린다. 붙잡은 key-up은 결과와 관계없이 key-down 뒤에 넘긴다(가져가기 전에도 key-up은 페이지로 갔다). 결과가
   온 뒤의 반복은 그 물리 키의 첫 누름 결과를 따른다: 넘겼으면 반복도 그대로 엔진·페이지로 가고, 동작했거나 입력 게이트에
   막혔으면 소비한다. 이 기록은 그 키의 key-up, 같은 키의 새 누름, 그 view의 포커스 획득(Windows `GotFocus`, macOS
-  `becomeFirstResponder`)에서 지운다. 결과 전에
-  뗀 누름은 기록을 남기지 않는다. WebView를 다시 만들면 붙잡은 키와 기록이 함께 사라져 옛 결과는 아무것도 넘기지 않는다.
+  `becomeFirstResponder`)에서 지운다. 포커스를 얻을 때 결과를 기다리던 누름은 옛 세대가 되어, 그 결과가 나중에 와도
+  key-down·반복을 넘기지 않고 기록도 남기지 않는다(붙잡은 key-up만 넘긴다). 그 뒤의 반복·key-up은 옛 누름에 붙지 않는다.
+  결과 전에 뗀 누름은 기록을 남기지 않는다. WebView를 다시 만들면 붙잡은 키와 기록이 함께 사라져 옛 결과는 아무것도 넘기지 않는다.
 - 핸들러가 동작 없이 처리했다고 답하는 경우(없는 번호의 탭·workspace 전환)는 처리한 키로 본다.
 
 키 설정·카테고리 사용 여부(`workspace_categories_enabled`)와 PluginCommandRegistry·PluginsConfig의 전역 revision이 바뀔 때만 정책 스냅숏을 다시 만든다.
