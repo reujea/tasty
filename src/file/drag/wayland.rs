@@ -1,5 +1,7 @@
 //! Independent proxies on winit's *same* libwayland client, as in smithay-clipboard.
 //! The genuine pointer grab serial and originating surface are observed before handoff.
+//! One owner per connection serves every window: the compositor addresses a client's data device,
+//! so per-window devices on the same seat would compete for one drag.
 #[cfg(test)]
 mod tests;
 
@@ -8,7 +10,7 @@ use std::{
     cell::RefCell,
     io::Write,
     os::fd::{AsRawFd, OwnedFd},
-    rc::Rc,
+    rc::{Rc, Weak},
     sync::Arc,
     time::{Duration, Instant},
 };
@@ -25,14 +27,22 @@ use winit::{
     window::Window,
 };
 
-pub(super) struct Context(Rc<RefCell<Owner>>);
+pub(super) struct Context {
+    owner: Rc<RefCell<Owner>>,
+    /// Protocol id of this window's `wl_surface`.
+    origin: u32,
+    _window: Arc<Window>,
+}
 struct Owner {
     queue: EventQueue<State>,
     state: State,
     connection: Connection,
     // Drops after the queue/connection: foreign proxies must not outlive the display owner.
-    _window: Arc<Window>,
     _display_owner: winit::event_loop::OwnedDisplayHandle,
+}
+thread_local! {
+    /// Live owners keyed by libwayland display pointer. winit runs every window on this thread.
+    static OWNERS: RefCell<Vec<(usize, Weak<RefCell<Owner>>)>> = const { RefCell::new(Vec::new()) };
 }
 struct Seat {
     id: u32,
@@ -63,7 +73,6 @@ struct State {
     manager: Option<wl_data_device_manager::WlDataDeviceManager>,
     seats: Vec<Seat>,
     active: Option<Active>,
-    origin: u32,
 }
 
 impl Context {
@@ -90,13 +99,6 @@ impl Context {
         {
             return Err("Wayland drag display owner mismatch".into());
         }
-        // SAFETY: OwnedDisplayHandle retains winit's connection even after its event loop has exited.
-        let connection = Connection::from_backend(unsafe {
-            Backend::from_foreign_display(display.display.as_ptr().cast())
-        });
-        let mut queue = connection.new_event_queue();
-        let q = queue.handle();
-        let mut state = State::default();
         // SAFETY: Borrow the surface's identity without installing a listener or destroying winit's proxy.
         let id = unsafe {
             wayland_client::backend::ObjectId::from_ptr(
@@ -105,24 +107,34 @@ impl Context {
             )
         }
         .map_err(|e| e.to_string())?;
-        state.origin = id.protocol_id();
-        connection.display().get_registry(&q, ());
-        queue.roundtrip(&mut state).map_err(|e| e.to_string())?;
-        queue.roundtrip(&mut state).map_err(|e| e.to_string())?;
-        connection.flush().map_err(|e| e.to_string())?;
-        Ok(Some(Self(Rc::new(RefCell::new(Owner {
-            queue,
-            state,
-            connection,
+        let key = display.display.as_ptr() as usize;
+        let shared = OWNERS.with_borrow_mut(|owners| {
+            owners.retain(|(_, owner)| owner.strong_count() > 0);
+            owners
+                .iter()
+                .find(|(display, _)| *display == key)
+                .and_then(|(_, owner)| owner.upgrade())
+        });
+        let owner = match shared {
+            Some(owner) => owner,
+            None => {
+                let owner = Rc::new(RefCell::new(Owner::new(display, display_owner)?));
+                OWNERS.with_borrow_mut(|owners| owners.push((key, Rc::downgrade(&owner))));
+                owner
+            }
+        };
+        Ok(Some(Self {
+            owner,
+            origin: id.protocol_id(),
             _window: window,
-            _display_owner: display_owner,
-        })))))
+        }))
     }
     pub(super) fn poll(&mut self) -> Result<(), String> {
-        self.0.borrow_mut().poll()
+        self.owner.borrow_mut().poll()
     }
     pub(super) fn start(&mut self, bytes: Vec<u8>) -> Result<Session, String> {
-        let mut owner = self.0.borrow_mut();
+        let origin_id = self.origin;
+        let mut owner = self.owner.borrow_mut();
         owner.poll()?;
         let Owner {
             state,
@@ -143,7 +155,7 @@ impl Context {
             .filter_map(|seat| {
                 seat.grab
                     .as_ref()
-                    .filter(|(_, surface)| surface.id().protocol_id() == state.origin)
+                    .filter(|(_, surface)| surface.id().protocol_id() == origin_id)
                     .map(|grab| (seat, grab))
             })
             .collect();
@@ -185,10 +197,32 @@ impl Context {
             }
             return Err(error.to_string());
         }
-        Ok(Session(self.0.clone()))
+        Ok(Session(self.owner.clone()))
     }
 }
 impl Owner {
+    fn new(
+        display: winit::raw_window_handle::WaylandDisplayHandle,
+        display_owner: winit::event_loop::OwnedDisplayHandle,
+    ) -> Result<Self, String> {
+        // SAFETY: OwnedDisplayHandle retains winit's connection even after its event loop has exited.
+        let connection = Connection::from_backend(unsafe {
+            Backend::from_foreign_display(display.display.as_ptr().cast())
+        });
+        let mut queue = connection.new_event_queue();
+        let q = queue.handle();
+        let mut state = State::default();
+        connection.display().get_registry(&q, ());
+        queue.roundtrip(&mut state).map_err(|e| e.to_string())?;
+        queue.roundtrip(&mut state).map_err(|e| e.to_string())?;
+        connection.flush().map_err(|e| e.to_string())?;
+        Ok(Self {
+            queue,
+            state,
+            connection,
+            _display_owner: display_owner,
+        })
+    }
     fn poll(&mut self) -> Result<(), String> {
         // winit (or another shared-display reader) reads the socket; dispatch only our queue.
         self.queue
