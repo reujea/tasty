@@ -25,6 +25,9 @@ struct Held<K, E> {
     press: E,
     repeats: Vec<E>,
     release: Option<E>,
+    /// 같은 물리 키를 새로 눌렀다(앞 key-up을 이 view가 보지 못한 경우). 뒤 반복·key-up을 받지 않고, 결과가 와도
+    /// 기록을 남기지 않는다. 이미 붙잡은 이벤트는 결과에 따라 그대로 넘기거나 버린다.
+    superseded: bool,
 }
 
 /// 결과가 온 누름에서 넘길 이벤트.
@@ -79,7 +82,15 @@ impl<K: Copy + PartialEq, E> KeyHold<K, E> {
     /// 반복이 아닌 key-down을 그 자리에서 정했다(`pass` = 엔진·페이지로 넘김, false = 소비). host 큐로 가져간
     /// 누름처럼 그 물리 키의 반복이 이 결과를 따른다.
     pub(crate) fn decide(&mut self, key: K, pass: bool) {
+        self.supersede(key);
         self.record(key, pass);
+    }
+
+    /// 같은 물리 키의 새 첫 누름이다. 아직 떼지 않은 앞 누름은 뒤 입력을 받지 않고 기록도 남기지 않는다.
+    fn supersede(&mut self, key: K) {
+        for held in self.held.iter_mut().filter(|h| h.key == key) {
+            held.superseded = true;
+        }
     }
 
     fn record(&mut self, key: K, pass: bool) {
@@ -93,6 +104,7 @@ impl<K: Copy + PartialEq, E> KeyHold<K, E> {
     /// host가 일련번호 `id`로 가져간 첫 누름을 붙잡는다. 넘치면 가장 오래된 누름을 버리고 false다. 버린 누름의
     /// 결과는 짝이 없어 무시된다(두 번 실행하거나 엉뚱한 키를 넘기는 것보다 버리는 편이 안전하다).
     pub(crate) fn forwarded(&mut self, id: u64, key: K, press: E) -> bool {
+        self.supersede(key);
         self.decided.retain(|(k, _)| *k != key);
         self.held.push_back(Held {
             id,
@@ -100,6 +112,7 @@ impl<K: Copy + PartialEq, E> KeyHold<K, E> {
             press,
             repeats: Vec::new(),
             release: None,
+            superseded: false,
         });
         if self.held.len() > self.limit {
             self.held.pop_front();
@@ -108,12 +121,12 @@ impl<K: Copy + PartialEq, E> KeyHold<K, E> {
         true
     }
 
-    /// 아직 떼지 않은 마지막 붙잡은 누름.
+    /// 아직 떼지 않았고 새 누름으로 대체되지 않은 붙잡은 누름.
     fn open_held(&mut self, key: K) -> Option<&mut Held<K, E>> {
         self.held
             .iter_mut()
             .rev()
-            .find(|h| h.key == key && h.release.is_none())
+            .find(|h| h.key == key && h.release.is_none() && !h.superseded)
     }
 
     /// 자동 반복 key-down의 처리를 정한다.
@@ -161,7 +174,7 @@ impl<K: Copy + PartialEq, E> KeyHold<K, E> {
                 held.id
             );
         };
-        if held.release.is_none() {
+        if held.release.is_none() && !held.superseded {
             self.record(held.key, pass);
         }
         let replay = if pass {
@@ -290,6 +303,32 @@ mod tests {
         assert_eq!(q.release(8, "up"), None);
         assert_eq!(q.finish(2, true), Some(settled(&["down"], Some("up"))));
         assert_eq!(q.repeat(8, "r"), RepeatRoute::Unknown("r"));
+    }
+
+    /// Given 결과를 기다리는 누름의 key-up을 이 view가 보지 못했다(포커스 이동), When 같은 키를 새로 눌러 그
+    /// 자리에서 소비했다, Then 새 누름의 반복은 새 판정을 따르고, 늦게 온 옛 결과는 옛 누름만 다시 넘기며 새
+    /// 판정을 덮지 않는다.
+    #[test]
+    fn a_new_press_decided_on_the_spot_is_kept_apart_from_an_old_held_press() {
+        let mut q = KeyHold::<u32, &str>::default();
+        q.forwarded(1, 7, "d1");
+        q.decide(7, false);
+        assert_eq!(q.repeat(7, "r2"), RepeatRoute::Drop);
+        assert_eq!(q.finish(1, true), Some(settled(&["d1"], None)));
+        assert_eq!(q.repeat(7, "r3"), RepeatRoute::Drop);
+    }
+
+    /// Given 결과를 기다리는 누름의 key-up을 보지 못했다, When 같은 키를 새로 눌러 host로 가져가고 그 key-up이
+    /// 결과 전에 온다, Then key-up은 새 누름에 붙고, 옛 결과는 기록을 남기지 않아 새 누름의 key-up 뒤 기록이 없다.
+    #[test]
+    fn an_old_result_leaves_no_decision_after_a_new_press_is_released() {
+        let mut q = KeyHold::<u32, &str>::default();
+        q.forwarded(1, 7, "d1");
+        q.forwarded(2, 7, "d2");
+        assert_eq!(q.release(7, "u2"), None);
+        assert_eq!(q.finish(1, false), Some(settled(&[], None)));
+        assert_eq!(q.finish(2, true), Some(settled(&["d2"], Some("u2"))));
+        assert_eq!(q.repeat(7, "r"), RepeatRoute::Unknown("r"));
     }
 
     /// 그 자리에서 정한 첫 누름도 반복이 그 결과를 따른다. 수식키를 뗀 뒤의 반복이 다시 판정되지 않는다.
