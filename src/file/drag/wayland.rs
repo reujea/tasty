@@ -91,50 +91,9 @@ impl Context {
         display_owner: Option<winit::event_loop::OwnedDisplayHandle>,
         inbound: bool,
     ) -> Result<Option<Self>, String> {
-        let RawDisplayHandle::Wayland(display) =
-            window.display_handle().map_err(|e| e.to_string())?.as_raw()
-        else {
+        let Some((owner, origin)) = shared_owner(&window, display_owner, inbound)? else {
             return Ok(None);
         };
-        let RawWindowHandle::Wayland(handle) =
-            window.window_handle().map_err(|e| e.to_string())?.as_raw()
-        else {
-            return Ok(None);
-        };
-        let display_owner = display_owner.ok_or("Wayland drag requires an owned display handle")?;
-        if display_owner
-            .display_handle()
-            .map_err(|e| e.to_string())?
-            .as_raw()
-            != window.display_handle().map_err(|e| e.to_string())?.as_raw()
-        {
-            return Err("Wayland drag display owner mismatch".into());
-        }
-        // SAFETY: Borrow the surface's identity without installing a listener or destroying winit's proxy.
-        let id = unsafe {
-            wayland_client::backend::ObjectId::from_ptr(
-                wl_surface::WlSurface::interface(),
-                handle.surface.as_ptr().cast(),
-            )
-        }
-        .map_err(|e| e.to_string())?;
-        let key = display.display.as_ptr() as usize;
-        let shared = OWNERS.with_borrow_mut(|owners| {
-            owners.retain(|(_, owner)| owner.strong_count() > 0);
-            owners
-                .iter()
-                .find(|(display, _)| *display == key)
-                .and_then(|(_, owner)| owner.upgrade())
-        });
-        let owner = match shared {
-            Some(owner) => owner,
-            None => {
-                let owner = Rc::new(RefCell::new(Owner::new(display, display_owner, inbound)?));
-                OWNERS.with_borrow_mut(|owners| owners.push((key, Rc::downgrade(&owner))));
-                owner
-            }
-        };
-        let origin = id.protocol_id();
         let inbox = Rc::new(RefCell::new(Vec::new()));
         owner
             .borrow_mut()
@@ -235,6 +194,60 @@ impl Context {
         }
         Ok(Session(self.owner.clone()))
     }
+}
+/// A connection's owner and one window's surface protocol id.
+type SharedOwner = (Rc<RefCell<Owner>>, u32);
+/// The owner of `window`'s libwayland connection, created on first use, and the window's surface
+/// protocol id. `None` for a window that is not a Wayland one.
+fn shared_owner(
+    window: &Window,
+    display_owner: Option<winit::event_loop::OwnedDisplayHandle>,
+    inbound: bool,
+) -> Result<Option<SharedOwner>, String> {
+    let RawDisplayHandle::Wayland(display) =
+        window.display_handle().map_err(|e| e.to_string())?.as_raw()
+    else {
+        return Ok(None);
+    };
+    let RawWindowHandle::Wayland(handle) =
+        window.window_handle().map_err(|e| e.to_string())?.as_raw()
+    else {
+        return Ok(None);
+    };
+    let display_owner = display_owner.ok_or("Wayland drag requires an owned display handle")?;
+    if display_owner
+        .display_handle()
+        .map_err(|e| e.to_string())?
+        .as_raw()
+        != window.display_handle().map_err(|e| e.to_string())?.as_raw()
+    {
+        return Err("Wayland drag display owner mismatch".into());
+    }
+    // SAFETY: Borrow the surface's identity without installing a listener or destroying winit's proxy.
+    let id = unsafe {
+        wayland_client::backend::ObjectId::from_ptr(
+            wl_surface::WlSurface::interface(),
+            handle.surface.as_ptr().cast(),
+        )
+    }
+    .map_err(|e| e.to_string())?;
+    let key = display.display.as_ptr() as usize;
+    let shared = OWNERS.with_borrow_mut(|owners| {
+        owners.retain(|(_, owner)| owner.strong_count() > 0);
+        owners
+            .iter()
+            .find(|(display, _)| *display == key)
+            .and_then(|(_, owner)| owner.upgrade())
+    });
+    let owner = match shared {
+        Some(owner) => owner,
+        None => {
+            let owner = Rc::new(RefCell::new(Owner::new(display, display_owner, inbound)?));
+            OWNERS.with_borrow_mut(|owners| owners.push((key, Rc::downgrade(&owner))));
+            owner
+        }
+    };
+    Ok(Some((owner, id.protocol_id())))
 }
 impl Owner {
     fn new(
