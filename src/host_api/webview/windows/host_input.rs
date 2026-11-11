@@ -28,7 +28,10 @@ use windows::Win32::UI::WindowsAndMessaging::{
 };
 use windows::core::*;
 
-use super::key_replay::{KeyId, KeyReplay, MsgCopy, WinKey, release_key, take_posted};
+use super::key_replay::{
+    KeyId, KeyReplay, MsgCopy, WinKey, dispatching_posted, message_arrived, release_key,
+    take_posted,
+};
 use super::keyboard::{
     current_winit_mods, key_down_message, key_up_vk, layout_character_key, vk_to_winit_key,
     win32_scancode_to_physical,
@@ -161,9 +164,11 @@ pub(crate) fn filter_message(msg: *const c_void) -> bool {
     }
     // SAFETY: winit은 훅에 PeekMessage가 채운 유효한 MSG 포인터를 넘긴다.
     let msg = unsafe { &*msg.cast::<MSG>() };
+    message_arrived();
     note_click(msg);
     note_key_up(msg);
     if take_posted(msg) {
+        dispatching_posted(msg);
         return false;
     }
     if hold_key_up(msg) {

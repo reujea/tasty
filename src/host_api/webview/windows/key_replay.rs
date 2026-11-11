@@ -9,11 +9,13 @@
 //!   배열·Shift·CapsLock으로 만든 문자다(`dom_character_key`).
 //!
 //! 다시 넘긴 키가 WebView2에서 `AcceleratorKeyPressed`로 다시 올라와도 판정하지 않도록 재주입 하나마다 표지를
-//! 하나 짧은 시간 둔다. 다시 보낸 메시지의 표지는 그 키(vk, key-up 여부)로 짝짓는다. host 입력 경로에서는 실제 키도
-//! 훅이 먼저 판정하므로 표지가 실제 키에 쓰여도 결과가 같다. 합성 키의 표지는 scan code가 없는 이벤트에만 쓴다.
-//! 실제 키보드 이벤트는 scan code가 있으므로 훅이 없는 view에서 남은 표지가 실제 누름이나 반복을 삼키지 않는다.
+//! 하나 둔다. 다시 보낸 key-down의 반송은 그 메시지를 Dispatch하는 동안 바로 온다. 그래서 그 표지는 훅이 그
+//! 메시지를 꺼낸 때부터 다음 메시지가 훅에 오기 전까지만 두고, 그 사이 첫 `AcceleratorKeyPressed`에만 쓴다. 키와
+//! lParam 상태(scan·extended·Alt·이전 상태·반복 수)가 모두 같아야 반송으로 본다. 합성 키의 표지는 scan code가
+//! 없는 이벤트에만 쓴다. 실제 키보드 이벤트는 scan code가 있으므로 훅이 없는 view에서 남은 표지가 실제 누름이나
+//! 반복을 삼키지 않는다.
 
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 use std::time::{Duration, Instant};
 
 use webview2_com::{Microsoft::Web::WebView2::Win32::*, *};
@@ -36,40 +38,80 @@ const POSTED_LIMIT: usize = HELD_EVENT_LIMIT;
 /// 다시 넘긴 키가 `AcceleratorKeyPressed`로 돌아올 수 있는 시간.
 const ECHO_LIMIT: Duration = Duration::from_secs(1);
 
-/// 재주입 하나의 반송 표지.
+/// DevTools로 합성한 키 하나의 반송 표지.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 struct Echo {
     vk: u32,
     up: bool,
-    /// DevTools로 합성한 키다. 합성 키에는 scan code가 없다.
-    synthetic: bool,
     at: Instant,
 }
 
-/// 다시 넘긴 키의 반송 표지들. 표지 하나는 반송 하나에만 쓰이고 `ECHO_LIMIT` 뒤에 사라진다.
+/// 합성한 키의 반송 표지들. 표지 하나는 반송 하나에만 쓰이고 `ECHO_LIMIT` 뒤에 사라진다.
 #[derive(Debug, Default)]
 struct Echoes(Vec<Echo>);
 
 impl Echoes {
-    fn note(&mut self, vk: u32, up: bool, synthetic: bool, at: Instant) {
-        self.0.push(Echo {
-            vk,
-            up,
-            synthetic,
-            at,
-        });
+    fn note(&mut self, vk: u32, up: bool, at: Instant) {
+        self.0.push(Echo { vk, up, at });
     }
 
-    /// `AcceleratorKeyPressed`로 온 키가 반송이면 표지를 지우고 true다. 합성 키의 표지는 scan code가 없는
-    /// 이벤트에만 쓴다.
+    /// `AcceleratorKeyPressed`로 온 키가 반송이면 표지를 지우고 true다. 합성 키에는 scan code가 없으므로 scan
+    /// code가 있는 이벤트(실제 키보드)에는 쓰지 않는다.
     fn take(&mut self, vk: u32, up: bool, scan: u32, now: Instant) -> bool {
         self.0
             .retain(|e| now.saturating_duration_since(e.at) <= ECHO_LIMIT);
-        let found = self
-            .0
-            .iter()
-            .position(|e| e.vk == vk && e.up == up && (!e.synthetic || scan == 0));
+        if scan != 0 {
+            return false;
+        }
+        let found = self.0.iter().position(|e| e.vk == vk && e.up == up);
         found.map(|i| self.0.remove(i)).is_some()
+    }
+}
+
+/// 다시 보낸 메시지의 키와 lParam 상태. `AcceleratorKeyPressed`의 물리 키 상태와 같은 비트 배치다.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) struct PostedKey {
+    vk: u32,
+    up: bool,
+    state: u32,
+}
+
+impl PostedKey {
+    fn of(copy: &MsgCopy) -> Self {
+        Self {
+            vk: (copy.wparam & 0xffff) as u32,
+            up: copy.message == WM_KEYUP || copy.message == WM_SYSKEYUP,
+            state: copy.lparam as u32,
+        }
+    }
+}
+
+/// `AcceleratorKeyPressed` 물리 키 상태를 키 메시지 lParam의 비트 배치로 옮긴다.
+fn status_state(status: &COREWEBVIEW2_PHYSICAL_KEY_STATUS) -> u32 {
+    (status.RepeatCount & 0xffff)
+        | (status.ScanCode & 0xff) << 16
+        | u32::from(status.IsExtendedKey.as_bool()) << 24
+        | u32::from(status.IsMenuKeyDown.as_bool()) << 29
+        | u32::from(status.WasKeyDown.as_bool()) << 30
+        | u32::from(status.IsKeyReleased.as_bool()) << 31
+}
+
+/// 지금 Dispatch 중인 다시 보낸 메시지. 그 반송 하나에만 쓰인다.
+#[derive(Debug, Default)]
+struct Dispatching(Cell<Option<PostedKey>>);
+
+impl Dispatching {
+    fn begin(&self, key: PostedKey) {
+        self.0.set(Some(key));
+    }
+
+    fn end(&self) {
+        self.0.set(None);
+    }
+
+    /// 첫 `AcceleratorKeyPressed`가 표지를 비운다. 그 이벤트가 표지의 키·상태와 같으면 반송이다.
+    fn take(&self, key: PostedKey) -> bool {
+        self.0.take() == Some(key)
     }
 }
 
@@ -232,6 +274,20 @@ impl Posted {
 
 thread_local! {
     static POSTED: RefCell<Posted> = RefCell::new(Posted::default());
+    static DISPATCHING: Dispatching = Dispatching::default();
+}
+
+/// 훅에 새 메시지가 왔다. 앞서 Dispatch한 다시 보낸 메시지의 반송 표지를 지운다.
+pub(super) fn message_arrived() {
+    DISPATCHING.with(Dispatching::end);
+}
+
+/// 훅이 꺼낸 다시 보낸 메시지를 이제 Dispatch한다. 그 key-down의 반송을 판정하지 않게 표지를 둔다.
+pub(super) fn dispatching_posted(msg: &MSG) {
+    let key = PostedKey::of(&MsgCopy::of(msg));
+    if !key.up {
+        DISPATCHING.with(|d| d.begin(key));
+    }
 }
 
 /// 다시 보낸 메시지면 목록에서 지우고 true다.
@@ -303,8 +359,22 @@ impl KeyReplay {
     }
 
     /// 다시 넘긴 키가 `AcceleratorKeyPressed`로 돌아왔으면 표지를 지우고 true다.
-    pub(super) fn take_echo(&self, vk: u32, up: bool, scan: u32) -> bool {
-        self.echoes.borrow_mut().take(vk, up, scan, Instant::now())
+    pub(super) fn take_echo(
+        &self,
+        vk: u32,
+        up: bool,
+        status: &COREWEBVIEW2_PHYSICAL_KEY_STATUS,
+    ) -> bool {
+        let posted = PostedKey {
+            vk,
+            up,
+            state: status_state(status),
+        };
+        DISPATCHING.with(|d| d.take(posted))
+            || self
+                .echoes
+                .borrow_mut()
+                .take(vk, up, status.ScanCode, Instant::now())
     }
 
     /// 일련번호 `id`의 결과를 적용한다. 동작하지 않았으면 붙잡은 key-down을 다시 넘기고, 붙잡은 key-up은
@@ -315,25 +385,15 @@ impl KeyReplay {
         };
         for key in settled.replay.into_iter().chain(settled.release) {
             match key {
-                WinKey::Msg(copy) => {
-                    let up = copy.message == WM_KEYUP || copy.message == WM_SYSKEYUP;
-                    if !up {
-                        self.note_echo((copy.wparam & 0xffff) as u32, false, false);
-                    }
-                    post(copy, self.surface_id);
-                }
+                WinKey::Msg(copy) => post(copy, self.surface_id),
                 WinKey::Cdp(cdp) => {
-                    self.note_echo(cdp.vk, cdp.up, true);
+                    self.echoes
+                        .borrow_mut()
+                        .note(cdp.vk, cdp.up, Instant::now());
                     self.dispatch(&cdp);
                 }
             }
         }
-    }
-
-    fn note_echo(&self, vk: u32, up: bool, synthetic: bool) {
-        self.echoes
-            .borrow_mut()
-            .note(vk, up, synthetic, Instant::now());
     }
 
     fn dispatch(&self, cdp: &CdpKey) {
@@ -385,7 +445,7 @@ pub(super) fn accelerator_key_handler(
             let mut vk: u32 = 0;
             // SAFETY: 위와 같다.
             unsafe { args.VirtualKey(&mut vk) }?;
-            if replay.take_echo(vk, up, status.ScanCode) {
+            if replay.take_echo(vk, up, &status) {
                 return Ok(());
             }
             let Some(key) = vk_to_winit_key(vk) else {
@@ -531,12 +591,12 @@ mod tests {
     fn synthetic_echo_marks_never_take_real_keys() {
         let t = Instant::now();
         let mut e = Echoes::default();
-        e.note(0x78, false, true, t);
+        e.note(0x78, false, t);
         assert!(!e.take(0x78, false, 0x43, t + Duration::from_millis(40)));
         assert!(!e.take(0x78, false, 0x43, t + Duration::from_millis(300)));
         assert!(e.take(0x78, false, 0, t + Duration::from_millis(300)));
         assert!(!e.take(0x78, false, 0, t + Duration::from_millis(310)));
-        e.note(0x78, true, true, t);
+        e.note(0x78, true, t);
         assert!(
             !e.take(0x78, false, 0, t),
             "key-down은 key-up 표지에 쓰이지 않는다"
@@ -544,14 +604,61 @@ mod tests {
         assert!(!e.take(0x78, true, 0, t + ECHO_LIMIT + Duration::from_millis(1)));
     }
 
-    /// Given 훅이 다시 보낸 F9 key-down, When 원래 lParam(scan 0x43)으로 반송된다, Then 표지에 쓰인다.
+    fn posted(message: u32, vk: usize, lparam: u32) -> PostedKey {
+        PostedKey::of(&MsgCopy {
+            hwnd: 1,
+            message,
+            wparam: vk,
+            lparam: lparam as i32 as isize,
+        })
+    }
+
+    /// Given 훅이 다시 보낸 F9 key-down(lParam 0x00430001)을 Dispatch한다, When 같은 키·상태의
+    /// `AcceleratorKeyPressed`가 온다, Then 반송으로 보고 표지를 비운다. 뒤의 같은 이벤트는 판정을 받는다.
     #[test]
-    fn posted_echo_marks_take_the_original_scan() {
-        let t = Instant::now();
-        let mut e = Echoes::default();
-        e.note(0x78, false, false, t);
-        assert!(e.take(0x78, false, 0x43, t));
-        assert!(!e.take(0x78, false, 0x43, t));
+    fn a_posted_key_down_echo_is_taken_once_during_its_dispatch() {
+        let d = Dispatching::default();
+        let f9 = posted(0x0100, 0x78, 0x0043_0001);
+        d.begin(f9);
+        assert!(d.take(f9));
+        assert!(!d.take(f9));
+    }
+
+    /// Given 동작하지 않은 R(수식키 없음)을 다시 보냈고 글자 키라 반송이 오지 않았다, When 다음 메시지가 훅에
+    /// 온 뒤 중첩 메시지 루프에서 실제 Ctrl+R(같은 물리 키)이 `AcceleratorKeyPressed`로 온다, Then 표지에 쓰이지
+    /// 않아 단축키 판정을 받는다. 다른 키가 먼저 오면 표지는 그 이벤트에서 비워진다.
+    #[test]
+    fn a_leftover_posted_mark_never_takes_another_real_key() {
+        let d = Dispatching::default();
+        let r = posted(0x0100, 0x52, 0x0013_0001);
+        d.begin(r);
+        d.end();
+        assert!(!d.take(r), "실제 Ctrl+R이 판정을 건너뛰었다");
+        d.begin(r);
+        assert!(!d.take(posted(0x0100, 0x11, 0x001d_0001)));
+        assert!(!d.take(r), "다른 키가 지나간 뒤의 R이 판정을 건너뛰었다");
+        // 같은 VK라도 물리 키가 다르면(주 Enter와 숫자패드 Enter) 반송이 아니다.
+        d.begin(posted(0x0100, 0x0D, 0x001c_0001));
+        assert!(!d.take(posted(0x0100, 0x0D, 0x011c_0001)));
+    }
+
+    /// 물리 키 상태 비트 배치는 키 메시지 lParam과 같다. 측정한 반송(F9 누름·뗌, Alt+K)의 값이다.
+    #[test]
+    fn status_state_matches_the_message_lparam() {
+        let st = |repeat, scan, ext: bool, menu: bool, was: bool, rel: bool| {
+            status_state(&COREWEBVIEW2_PHYSICAL_KEY_STATUS {
+                RepeatCount: repeat,
+                ScanCode: scan,
+                IsExtendedKey: ext.into(),
+                IsMenuKeyDown: menu.into(),
+                WasKeyDown: was.into(),
+                IsKeyReleased: rel.into(),
+            })
+        };
+        assert_eq!(st(1, 0x43, false, false, false, false), 0x0043_0001);
+        assert_eq!(st(1, 0x43, false, false, true, true), 0xc043_0001);
+        assert_eq!(st(1, 0x25, false, true, false, false), 0x2025_0001);
+        assert_eq!(st(1, 0x1c, true, false, false, false), 0x011c_0001);
     }
 
     /// Given 물리 키 4개의 첫 누름마다 결과 전 반복 64개를 붙잡았다, When 넷 다 동작하지 않아 메시지 루프가 돌기
