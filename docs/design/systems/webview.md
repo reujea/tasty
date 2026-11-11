@@ -388,9 +388,11 @@ native 콜백은 가져갈지를 동기로 정하고 실행은 나중에 host �
   `rawKeyDown`)를 합성한다. DOM key는 판정 시점의 배열·Shift·CapsLock으로 `ToUnicodeEx`가 만드는 문자다(US 배열의
   Ctrl+Shift+1은 "!", dead key는 "Dead"). Ctrl·Alt는 빼고 읽고, 둘을 함께 누르면 AltGr일 수 있어 그대로 읽는다. 문자가
   없는 키는 named key 이름이다. 이 경로의 키는 Ctrl·Alt 조합과 글자가 아닌 키라 글자를 넣지 않는다. AltGr(Ctrl+Alt)로 글자를
-  만드는 키는 이 경로에서 글자가 들어가지 않는다. 다시 넘긴 키가 `AcceleratorKeyPressed`로 돌아와도 판정하지 않도록 그 키
-  (vk·key-up 여부)의 표지를 1초 둔다. 훅이 없는 view에서는 그 1초 안에 같은 키를 다시 누르면 한 번이 판정 없이 페이지로 갈
-  수 있다. debug 빌드는 환경변수 `TASTY_DEBUG_WEBVIEW2_NO_HOST_INPUT`에 값이 있으면 host 입력 경로 없이 view를 만들어 이
+  만드는 키는 이 경로에서 글자가 들어가지 않는다. 다시 넘긴 키가 `AcceleratorKeyPressed`로 돌아와도 판정하지 않도록 재주입
+  하나마다 표지를 하나 1초 둔다. 다시 보낸 메시지의 표지는 그 키(vk·key-up 여부)로 짝짓는다. host 입력 경로에서는 실제 키도 훅이 먼저
+  판정했으므로 표지에 쓰여도 결과가 같다. 합성 키의 표지는 scan code가 없는 이벤트에만 쓴다. 실제 키보드 이벤트에는 scan
+  code가 있으므로, 반송되지 않고 남은 표지가 훅 없는 view의 다음 실제 누름이나 반복을 삼키지 않는다. 측정에서 합성 키는
+  `AcceleratorKeyPressed`로 반송되지 않았다. debug 빌드는 환경변수 `TASTY_DEBUG_WEBVIEW2_NO_HOST_INPUT`에 값이 있으면 host 입력 경로 없이 view를 만들어 이
   경로를 재현한다. release 빌드에는 이 분기가 없다. WebView2 debug 빌드에서 OS 합성 키 입력(scan code 포함)으로 두 경로
   모두 확인한 범위: 동작하지 않은 키(포인터 아래 링크가 없는 `copy_link`)의 수식키 없는 키·Ctrl 조합·Alt+Shift 조합이 원래
   key·code·keyCode로 페이지 keydown 1건이 되고, 10회 연타는 10건, 길게 누르기는 첫 누름 1건과 `repeat` 반복이 된다. 동작한

@@ -8,9 +8,10 @@
 //!   이 경로의 키는 Ctrl·Alt 조합과 글자가 아닌 키라 글자를 넣지 않는다(`rawKeyDown`). DOM `key`는 판정 시점의
 //!   배열·Shift·CapsLock으로 만든 문자다(`dom_character_key`).
 //!
-//! 다시 넘긴 키가 WebView2에서 `AcceleratorKeyPressed`로 다시 올라와도 판정하지 않도록 그 키(vk, key-up 여부)의
-//! 표지를 짧은 시간 둔다. host 입력 경로에서는 실제 키도 훅이 먼저 판정하므로 표지가 실제 키에 쓰여도 결과가 같다.
-//! 훅이 없는 view에서는 표지가 남은 동안 같은 키의 실제 누름 하나가 판정 없이 페이지로 갈 수 있다.
+//! 다시 넘긴 키가 WebView2에서 `AcceleratorKeyPressed`로 다시 올라와도 판정하지 않도록 재주입 하나마다 표지를
+//! 하나 짧은 시간 둔다. 다시 보낸 메시지의 표지는 그 키(vk, key-up 여부)로 짝짓는다. host 입력 경로에서는 실제 키도
+//! 훅이 먼저 판정하므로 표지가 실제 키에 쓰여도 결과가 같다. 합성 키의 표지는 scan code가 없는 이벤트에만 쓴다.
+//! 실제 키보드 이벤트는 scan code가 있으므로 훅이 없는 view에서 남은 표지가 실제 누름이나 반복을 삼키지 않는다.
 
 use std::cell::RefCell;
 use std::time::{Duration, Instant};
@@ -33,6 +34,43 @@ const WM_SYSKEYUP: u32 = 0x0105;
 const POSTED_LIMIT: usize = 256;
 /// 다시 넘긴 키가 `AcceleratorKeyPressed`로 돌아올 수 있는 시간.
 const ECHO_LIMIT: Duration = Duration::from_secs(1);
+
+/// 재주입 하나의 반송 표지.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct Echo {
+    vk: u32,
+    up: bool,
+    /// DevTools로 합성한 키다. 합성 키에는 scan code가 없다.
+    synthetic: bool,
+    at: Instant,
+}
+
+/// 다시 넘긴 키의 반송 표지들. 표지 하나는 반송 하나에만 쓰이고 `ECHO_LIMIT` 뒤에 사라진다.
+#[derive(Debug, Default)]
+struct Echoes(Vec<Echo>);
+
+impl Echoes {
+    fn note(&mut self, vk: u32, up: bool, synthetic: bool, at: Instant) {
+        self.0.push(Echo {
+            vk,
+            up,
+            synthetic,
+            at,
+        });
+    }
+
+    /// `AcceleratorKeyPressed`로 온 키가 반송이면 표지를 지우고 true다. 합성 키의 표지는 scan code가 없는
+    /// 이벤트에만 쓴다.
+    fn take(&mut self, vk: u32, up: bool, scan: u32, now: Instant) -> bool {
+        self.0
+            .retain(|e| now.saturating_duration_since(e.at) <= ECHO_LIMIT);
+        let found = self
+            .0
+            .iter()
+            .position(|e| e.vk == vk && e.up == up && (!e.synthetic || scan == 0));
+        found.map(|i| self.0.remove(i)).is_some()
+    }
+}
 
 /// 훅이 붙잡은 창 메시지.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -218,8 +256,7 @@ pub(super) struct KeyReplay {
     surface_id: u32,
     target: ICoreWebView2,
     hold: RefCell<KeyHold<KeyId, WinKey>>,
-    /// 다시 넘긴 키(vk, key-up 여부)와 그 시각.
-    echoes: RefCell<Vec<(u32, bool, Instant)>>,
+    echoes: RefCell<Echoes>,
 }
 
 impl KeyReplay {
@@ -228,7 +265,7 @@ impl KeyReplay {
             surface_id,
             target,
             hold: RefCell::new(KeyHold::default()),
-            echoes: RefCell::new(Vec::new()),
+            echoes: RefCell::new(Echoes::default()),
         }
     }
 
@@ -260,17 +297,8 @@ impl KeyReplay {
     }
 
     /// 다시 넘긴 키가 `AcceleratorKeyPressed`로 돌아왔으면 표지를 지우고 true다.
-    pub(super) fn take_echo(&self, vk: u32, up: bool) -> bool {
-        let now = Instant::now();
-        let mut echoes = self.echoes.borrow_mut();
-        echoes.retain(|(_, _, at)| now.saturating_duration_since(*at) <= ECHO_LIMIT);
-        match echoes.iter().position(|(v, u, _)| *v == vk && *u == up) {
-            Some(i) => {
-                echoes.remove(i);
-                true
-            }
-            None => false,
-        }
+    pub(super) fn take_echo(&self, vk: u32, up: bool, scan: u32) -> bool {
+        self.echoes.borrow_mut().take(vk, up, scan, Instant::now())
     }
 
     /// 일련번호 `id`의 결과를 적용한다. 동작하지 않았으면 붙잡은 key-down을 다시 넘기고, 붙잡은 key-up은
@@ -284,20 +312,22 @@ impl KeyReplay {
                 WinKey::Msg(copy) => {
                     let up = copy.message == WM_KEYUP || copy.message == WM_SYSKEYUP;
                     if !up {
-                        self.note_echo((copy.wparam & 0xffff) as u32, false);
+                        self.note_echo((copy.wparam & 0xffff) as u32, false, false);
                     }
                     post(copy, self.surface_id);
                 }
                 WinKey::Cdp(cdp) => {
-                    self.note_echo(cdp.vk, cdp.up);
+                    self.note_echo(cdp.vk, cdp.up, true);
                     self.dispatch(&cdp);
                 }
             }
         }
     }
 
-    fn note_echo(&self, vk: u32, up: bool) {
-        self.echoes.borrow_mut().push((vk, up, Instant::now()));
+    fn note_echo(&self, vk: u32, up: bool, synthetic: bool) {
+        self.echoes
+            .borrow_mut()
+            .note(vk, up, synthetic, Instant::now());
     }
 
     fn dispatch(&self, cdp: &CdpKey) {
@@ -349,7 +379,7 @@ pub(super) fn accelerator_key_handler(
             let mut vk: u32 = 0;
             // SAFETY: 위와 같다.
             unsafe { args.VirtualKey(&mut vk) }?;
-            if replay.take_echo(vk, up) {
+            if replay.take_echo(vk, up, status.ScanCode) {
                 return Ok(());
             }
             let Some(key) = vk_to_winit_key(vk) else {
@@ -486,6 +516,36 @@ mod tests {
             false,
         );
         assert_eq!(k.key, "Dead");
+    }
+
+    /// Given 훅 없는 view에서 F9를 다시 합성했고 반송은 오지 않았다, When 표지가 남은 동안 실제 F9 반복(scan
+    /// 0x43)과 새 누름이 온다, Then 둘 다 표지에 쓰이지 않아 판정을 받는다. scan code 없는 반송은 표지 하나에만
+    /// 쓰이고, 표지는 1초 뒤 사라진다.
+    #[test]
+    fn synthetic_echo_marks_never_take_real_keys() {
+        let t = Instant::now();
+        let mut e = Echoes::default();
+        e.note(0x78, false, true, t);
+        assert!(!e.take(0x78, false, 0x43, t + Duration::from_millis(40)));
+        assert!(!e.take(0x78, false, 0x43, t + Duration::from_millis(300)));
+        assert!(e.take(0x78, false, 0, t + Duration::from_millis(300)));
+        assert!(!e.take(0x78, false, 0, t + Duration::from_millis(310)));
+        e.note(0x78, true, true, t);
+        assert!(
+            !e.take(0x78, false, 0, t),
+            "key-down은 key-up 표지에 쓰이지 않는다"
+        );
+        assert!(!e.take(0x78, true, 0, t + ECHO_LIMIT + Duration::from_millis(1)));
+    }
+
+    /// Given 훅이 다시 보낸 F9 key-down, When 원래 lParam(scan 0x43)으로 반송된다, Then 표지에 쓰인다.
+    #[test]
+    fn posted_echo_marks_take_the_original_scan() {
+        let t = Instant::now();
+        let mut e = Echoes::default();
+        e.note(0x78, false, false, t);
+        assert!(e.take(0x78, false, 0x43, t));
+        assert!(!e.take(0x78, false, 0x43, t));
     }
 
     #[test]
