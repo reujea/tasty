@@ -155,6 +155,7 @@
 - Given 1 MiB 이하로 읽어 둔 markdown 문서 When 파일이 1 MiB를 넘게 커진다 Then 내용을 다시 읽지 않고 대용량 확인 팝업을 띄우며, 팝업이 떠 있는 동안 이전 내용이 보인다. When 취소한다 Then 이전 내용이 사라지고 대기 상태가 된다. When [열기]를 고른다 Then 새 내용이 보인다.
 - Given markdown surface가 아닌 ID When `tasty markdown reload --surface <ID>` Then invalid params 오류로 끝나고 성공으로 답하지 않는다.
 - Given 로컬 파일을 연 markdown surface When 그 WebView의 web process가 끝난다 Then 다음 동기화에서 같은 본문을 다시 실어 문서가 다시 보인다([WebView](../../design/systems/webview.md#탐색-상태와-실행-소유)).
+- Given Linux에서 표시 경로 때문에 WebView를 만들 수 없다(네이티브 Wayland, x11을 허용하지 않는 `GDK_BACKEND`, GTK 초기화 실패) When markdown 파일을 연다 Then 문서 자리에 html surface와 같은 표시 경로 안내가 surface 포커스 바탕 위에 보인다([표시 경로 안내](../../design/systems/linux-display-backend.md#표시-경로-안내)).
 
 ## 화면
 

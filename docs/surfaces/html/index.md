@@ -522,6 +522,7 @@ surface 는 트리에선 `RemoteSurface` marker. 네이티브 WebView 의 naviga
   숨겨지거나(오버레이 모드가 숨김일 때다. 투명 모드에서는 페이지 위에 팝업을 합성하고, 불투명 모드에서는 페이지를 보인 채 팝업 상자만
   가린다. OS 별 모드는 [WebView §egui 오버레이와 native WebView](../../design/systems/webview.md#egui-오버레이와-native-webview)에 있다), 토스트 카드가 이 surface 와 겹쳐 이 WebView 만 숨겨지면(지금 키를 받는 WebView 는 숨기지 않는다) 그 동안 boundary 타일이 보인다. boundary 는 `bg-panel` 배경과 1px `border-default`
   테두리만 있는 빈 타일이며 글리프·라벨·URL 을 그리지 않는다.
+- **표시 경로 안내** — Linux에서 표시 경로 때문에 WebView를 만들 수 없으면(네이티브 Wayland, x11을 허용하지 않는 `GDK_BACKEND`, GTK 초기화 실패) 위 상태 대신 info 글리프(`glyph-dim`)와 원인을 담은 제목, 해결책 줄(`text-muted`)을 그린다. 두 줄 모두 말줄임 없이 줄을 바꾸고 영역보다 길면 세로로 스크롤한다. 버튼·링크는 없다. kind와 판정은 [표시 경로 안내](../../design/systems/linux-display-backend.md#표시-경로-안내)에 있다. markdown과 html mirror도 같은 안내다.
 - **Failed** — 실패. overlay 를 숨긴 채 `ALERT_CIRCLE` + "Failed to load"(글리프·제목 `accent-danger-raised`)
   + URL chrome. 실패 사유는 화면 대신 `tracing::warn!` 로그로만 남긴다. 이 상태에서는 스크립트
   차단 배너와 탭 표지를 그리지 않는다(아래 "스크립트 허용" 절).
@@ -538,7 +539,7 @@ Failed chrome 의 URL 줄은 `webview.set_url` 의 선택 인자 `label` 을 먼
 ### 갤러리 specimen
 
 `crates/tasty-gallery/src/catalog/components/html_chrome.rs` — Layouts › `Content viewers` ›
-`HTML (webview) chrome`. boundary / placeholder / loading / error 4 chrome 상태만 전사(콘텐츠는
+`HTML (webview) chrome`. boundary / placeholder / loading / error 4 chrome 상태와 표시 경로 안내(`html-display-backend-notice`)를 전사(콘텐츠는
 overlay). 3자 매핑: [design-gallery-mapping.md](../../design/systems/design-gallery-mapping.md#surface-viewers-plugins).
 
 ### 시각 소스
@@ -547,7 +548,7 @@ overlay). 3자 매핑: [design-gallery-mapping.md](../../design/systems/design-g
 
 ### 원격 HTTP(S) native viewer
 
-Linux X11·Windows·macOS 27 이상 client는 지원하는 GUI·headless 원격 서버에 attach하면 HTTP·HTTPS·Reload를 별도로 협상한다. `DISPLAY`가 있는 Wayland 세션의 XWayland도 X11 경로다([백엔드 선택](../../design/systems/linux-display-backend.md)). 격리 GNOME 세션에서 가용 판정이 참인 것까지 확인했고 XWayland의 실제 attach는 미측정이다. Linux는 실제 등록된 Xlib 창과 X11 GDK backend가 준비되어야 하며 환경 변수로 켜지 않는다. Windows는 문서마다 전용 WebView2 context가 인증 proxy로 원격 호스트에 요청한다([Windows HTTP context](../../dev-guide/windows-http-context.md)). macOS는 문서마다 비영속 WebKit 저장소가 같은 인증 proxy로 요청한다. WebKit은 loopback 주소에 직접 연결하므로 원격 `localhost`·`127.x`·`[::1]`은 `*.tasty.localhost` 별칭 주소로 열린다. 주소 표시는 원래 주소를 보이지만 페이지 스크립트의 `location.host`는 별칭이고, 문서 안에서 원격 loopback을 절대 주소로 가리킨 하위 리소스·fetch·WebSocket은 막힌다([macOS HTTP context](../../dev-guide/macos-http-context.md)). native Wayland와 macOS 11–26 client는 이 경로를 알리지 않고 미지원 표시를 유지한다. macOS 최소 버전 11은 바뀌지 않는다. 파일 mirror·구 peer fallback은 별도 기존 경로다.
+Linux X11·Windows·macOS 27 이상 client는 지원하는 GUI·headless 원격 서버에 attach하면 HTTP·HTTPS·Reload를 별도로 협상한다. `DISPLAY`가 있는 Wayland 세션의 XWayland도 X11 경로다([백엔드 선택](../../design/systems/linux-display-backend.md)). 격리 GNOME 세션에서 가용 판정이 참인 것까지 확인했고 XWayland의 실제 attach는 미측정이다. Linux는 실제 등록된 Xlib 창과 X11 GDK backend가 준비되어야 하며 환경 변수로 켜지 않는다. Windows는 문서마다 전용 WebView2 context가 인증 proxy로 원격 호스트에 요청한다([Windows HTTP context](../../dev-guide/windows-http-context.md)). macOS는 문서마다 비영속 WebKit 저장소가 같은 인증 proxy로 요청한다. WebKit은 loopback 주소에 직접 연결하므로 원격 `localhost`·`127.x`·`[::1]`은 `*.tasty.localhost` 별칭 주소로 열린다. 주소 표시는 원래 주소를 보이지만 페이지 스크립트의 `location.host`는 별칭이고, 문서 안에서 원격 loopback을 절대 주소로 가리킨 하위 리소스·fetch·WebSocket은 막힌다([macOS HTTP context](../../dev-guide/macos-http-context.md)). native Wayland client는 이 경로를 알리지 않는다. 그 환경에서는 WebView 자체를 만들 수 없어 html mirror surface도 페이지 영역에 표시 경로 안내를 보인다([표시 경로 안내](../../design/systems/linux-display-backend.md#표시-경로-안내)). macOS 11–26 client는 이 경로를 알리지 않고 미지원 표시를 유지한다. macOS 최소 버전 11은 바뀌지 않는다. 파일 mirror·구 peer fallback은 별도 기존 경로다.
 
 원격 호스트가 실제 HTTP 요청을 실행한다. POST 같은 요청은 원격 서비스의 상태를 바꿀 수 있다. client의 sandboxScripts·allowRemoteContent 설정, 같은 origin 기본 허용과 각 redirect/cross-origin 검사, 브라우저 CORS·CSP·mixed-content 정책을 유지한다. 수신한 정확한 본문을 검사하고 지문과 문서에 묶인 스크립트 허용은 이미 받은 응답으로 다시 표시하여 POST를 재실행하지 않는다. 명시적 Reload는 같은 native view에서 원래 method/upload와 cookie로 새 요청을 보낸다. Windows·macOS는 이전 endpoint가 닫힌 뒤 새 문서의 endpoint가 같은 proxy 주소를 이어받는다. Reload 영수증이 없는 문서(첫 로드 실패, Reload 미협상)는 새 view에서 entry 주소를 GET으로 다시 열며 이전 cookie를 옮기지 않는다.
 
