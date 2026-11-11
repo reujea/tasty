@@ -258,9 +258,9 @@ impl HostShortcutPolicy {
 /// 구현과 callback은 같은 GUI 스레드에서 사용하며 Send/Sync를 요구하지 않는다.
 pub trait WebViewKeySink {
     /// true이면 backend가 페이지 전달을 막는다. 큐 등록과 실제 액션 성공은 별개다.
-    /// key는 레이아웃 문자, physical은 위치이며 알 수 없으면 Unidentified다. Linux·Windows는 결과를 키에
-    /// 짝짓기 위해 [`Self::forward_key`]를 쓴다.
-    #[cfg(any(target_os = "macos", test))]
+    /// key는 레이아웃 문자, physical은 위치이며 알 수 없으면 Unidentified다. backend는 결과를 키에 짝짓기 위해
+    /// [`Self::forward_key`]를 쓰고, 이 함수는 판정만 보는 시험에 쓴다.
+    #[cfg(test)]
     fn capture_key(
         &self,
         surface_id: u32,
@@ -301,6 +301,8 @@ pub trait WebViewKeySink {
     /// 자동 반복 key-down을 페이지·엔진에 보내지 않을지. 첫 누름이 막혔거나(입력 차단), 편집 명령으로
     /// 실행됐거나, host가 가져갔을 조합이면 true다. 반복에서는 아무것도 실행하거나 큐에 넣지 않는다.
     /// false이면 반복을 엔진·페이지에 그대로 둔다. Linux GDK press에는 repeat 표시가 없어 쓰지 않는다.
+    /// Windows·macOS backend는 그 물리 키의 첫 누름을 host 큐로 가져간 기록이 있으면 그 결과를 먼저 따르고
+    /// (`key_hold`), 기록이 없을 때만 이 판정을 쓴다.
     #[cfg(any(windows, target_os = "macos", test))]
     fn consumes_repeat(
         &self,

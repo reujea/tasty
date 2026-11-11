@@ -4,6 +4,7 @@
 mod content_rules;
 mod delegate_state;
 mod http;
+mod key_replay;
 mod keyboard;
 mod navigation_debug;
 mod overlay_backend;
@@ -37,7 +38,6 @@ use objc2_web_kit::{
 };
 use winit::raw_window_handle::{HasWindowHandle, RawWindowHandle};
 
-use self::keyboard::{macos_keycode_to_physical, ns_chars_to_winit_key, nsevent_mods_to_winit};
 use super::click_gesture::ClickGesture;
 use super::entry_response::EntryResponseSource;
 use super::keys::WebViewKeySink;
@@ -447,6 +447,8 @@ struct KeyWebViewIvars {
     clip_holes: RefCell<Vec<NSRect>>,
     /// 대상 팝업이 보이는 동안 참이다. 그림은 그대로 두고 뷰 전체의 포인터를 부모(winit 뷰)로 보낸다.
     host_pointer: Cell<bool>,
+    /// host가 가져간 키를 결과까지 붙잡는다.
+    replay: key_replay::KeyReplay,
 }
 
 define_class!(
@@ -470,7 +472,9 @@ define_class!(
         /// define_class가 Bool 반환 shim을 만들므로 return 대신 마지막 bool 표현식으로 값을 돌려준다.
         #[unsafe(method(performKeyEquivalent:))]
         fn perform_key_equivalent(&self, event: &NSEvent) -> bool {
-            if view_holds_first_responder(self) && self.forward_key_to_host(event) {
+            if view_holds_first_responder(self)
+                && self.forward_key_to_host(event, key_replay::Entry::KeyEquivalent)
+            {
                 true
             } else {
                 // SAFETY: main thread AppKit responder chain. super 구현에 위임.
@@ -480,11 +484,27 @@ define_class!(
 
         #[unsafe(method(keyDown:))]
         fn key_down(&self, event: &NSEvent) {
-            if self.forward_key_to_host(event) {
+            if self.forward_key_to_host(event, key_replay::Entry::KeyDown) {
                 return;
             }
             // SAFETY: main thread AppKit responder chain. super 구현에 위임.
             unsafe { msg_send![super(self), keyDown: event] }
+        }
+
+        /// 결과를 기다리는 누름의 key-up은 결과까지 붙잡는다(`key_replay`).
+        #[unsafe(method(keyUp:))]
+        fn key_up(&self, event: &NSEvent) {
+            let held = key_replay::HeldEvent {
+                event: event.retain(),
+                entry: key_replay::Entry::KeyUp,
+            };
+            if !self.ivars().replay.is_replayed(event)
+                && self.ivars().replay.release(event.keyCode(), held)
+            {
+                return;
+            }
+            // SAFETY: main thread AppKit responder chain. super 구현에 위임.
+            unsafe { msg_send![super(self), keyUp: event] }
         }
 
         /// native 클릭을 host에 알리고 원래 이벤트 처리는 super에 맡긴다.
@@ -524,6 +544,8 @@ define_class!(
         fn become_first_responder(&self) -> bool {
             let ivars = self.ivars();
             ivars.key_bridge.note_focus(ivars.surface_id);
+            // 다른 곳에서 누른 키의 반복이 이 뷰의 옛 누름 결과를 따르지 않게 한다.
+            ivars.replay.clear_decisions();
             // SAFETY: main thread AppKit. super 구현에 위임.
             unsafe { msg_send![super(self), becomeFirstResponder] }
         }
@@ -545,6 +567,7 @@ impl KeyWebView {
             click,
             clip_holes: RefCell::new(Vec::new()),
             host_pointer: Cell::new(false),
+            replay: key_replay::KeyReplay::default(),
         });
         // SAFETY: WKWebView 의 지정 초기화자를 super 로 호출.
         unsafe { msg_send![super(this), initWithFrame: frame, configuration: config] }
@@ -564,37 +587,6 @@ impl KeyWebView {
                 && local.y >= r.origin.y
                 && local.y < r.origin.y + r.size.height
         })
-    }
-
-    fn forward_key_to_host(&self, event: &NSEvent) -> bool {
-        let mods = nsevent_mods_to_winit(event.modifierFlags());
-        let chars = event.charactersIgnoringModifiers();
-        let Some(key) = chars.and_then(|c| ns_chars_to_winit_key(&c.to_string())) else {
-            return false;
-        };
-        let physical = macos_keycode_to_physical(event.keyCode());
-        let ivars = self.ivars();
-        // 자동 반복은 다시 실행하지 않고, 첫 누름을 막거나 가져갔던 조합이면 WebKit에도 보내지 않는다.
-        if event.isARepeat() {
-            return ivars
-                .key_bridge
-                .consumes_repeat(ivars.surface_id, &key, &physical, mods);
-        }
-        if ivars.key_bridge.blocks_edit_key(&key, &physical, mods) {
-            return true;
-        }
-        // Edit 메뉴가 없어 Cmd 편집 키(실행 취소 포함)도 사용자 바인딩으로 이 WebView의 편집 명령을 실행한다.
-        if let Some(action) = ivars.key_bridge.edit_action(&key, &physical, mods) {
-            run_editing_command(self, action);
-            return true;
-        }
-        if ivars
-            .key_bridge
-            .capture_key(ivars.surface_id, key.clone(), physical, mods)
-        {
-            return true;
-        }
-        false
     }
 }
 
@@ -1079,6 +1071,12 @@ impl PlatformWebView {
     }
 
     /// 팔레트·host 키 경로의 편집 명령. 엔진이 포커스 frame과 편집 가능 여부를 판단한다.
+    /// host가 이 WebView에서 가져간 일련번호 `id`의 키를 처리했다. 처리하지 못했으면(`replay`) 붙잡은 원래
+    /// 키를 이 뷰의 super 구현에 넘겨 엔진·페이지로 보낸다(`key_replay`). 짝이 되는 키가 없으면 아무것도 하지 않는다.
+    pub fn finish_forwarded_key(&self, id: u64, replay: bool) {
+        self.webview.finish_forwarded_key(id, replay);
+    }
+
     pub fn execute_edit(&self, action: super::WebViewEditAction) {
         run_editing_command(&self.webview, action);
     }
@@ -1235,6 +1233,7 @@ unsafe fn logical_to_nsrect(parent: &NSView, bounds: WebViewBounds, _scale_facto
 
 #[cfg(test)]
 mod tests {
+    use super::keyboard::ns_chars_to_winit_key;
     use super::*;
     use winit::keyboard::{Key, NamedKey};
 
