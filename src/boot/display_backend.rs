@@ -50,6 +50,11 @@ pub(crate) fn start() -> Option<StartDisplay> {
     START.get().copied()
 }
 
+/// 네이티브 Wayland 창이 `DISPLAY`의 X 서버 연결 실패로 생겼는지(원인 1b).
+pub(crate) fn started_after_x_failure() -> bool {
+    start().is_some_and(|start| start.backend == StartBackend::WaylandFallback)
+}
+
 /// `GDK_BACKEND` 값이 x11 백엔드를 허용하지 않는지. GDK는 쉼표로 나눈 이름을 그대로 비교하고
 /// `*`는 어느 백엔드든 받는다. `help`는 목록을 출력한 뒤 기본 목록을 쓴다. 값이 없으면 기본 목록을 쓰고,
 /// 빈 값은 고를 백엔드가 없어 x11도 열지 못한다. GDK처럼 바이트로 비교하므로 UTF-8이 아닌 항목이

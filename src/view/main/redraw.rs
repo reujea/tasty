@@ -1686,8 +1686,10 @@ impl MainView {
             .explorer_set_clipboard(paths.to_vec(), cut, source)
         {
             tracing::debug!(kind = ?std::mem::discriminant(&error), "file copy retained in app slot");
-            self.state.toasts.push_info(
-                crate::i18n::t("toast.clipboard_files_internal_copy"),
+            let (key, kind) = error.files_feedback(crate::clipboard::error::FileClipboardOp::Copy);
+            self.state.toasts.push(
+                crate::i18n::t(key),
+                kind,
                 crate::adapters::ui::ToastScope::Surface(surface_id),
             );
         }

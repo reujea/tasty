@@ -125,8 +125,11 @@ impl MainViewState {
                     .get()
                     .is_some_and(|c| c.source == target && c.is_local())
                 {
-                    self.toasts.push_info(
-                        crate::i18n::t("toast.clipboard_files_internal_paste"),
+                    let (key, kind) =
+                        error.files_feedback(crate::clipboard::error::FileClipboardOp::Paste);
+                    self.toasts.push(
+                        crate::i18n::t(key),
+                        kind,
                         crate::adapters::ui::ToastScope::Window,
                     );
                 }

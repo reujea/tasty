@@ -178,7 +178,7 @@ mod tests {
     #[test]
     fn initialization_failure_survives_every_operation() {
         let error = ClipboardError::BackendUnavailable("fixture".into())
-            .for_display(DisplayBackend::Wayland);
+            .for_display(DisplayBackend::Wayland { x_failed: false });
         let mut clipboard = ClipboardContext {
             inner: Err(error.clone()),
         };
