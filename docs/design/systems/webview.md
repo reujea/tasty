@@ -385,7 +385,9 @@ native 콜백은 가져갈지를 동기로 정하고 실행은 나중에 host �
   winit이 Translate·Dispatch해 원래 입력과 같은 길(엔진 기본 동작 포함)로 간다. WM_CHAR는 그때의 키보드 상태로 만들어져,
   결과 전에 Shift 등을 뗐으면 다른 글자가 될 수 있다. `AcceleratorKeyPressed`로 가져간 키(옵션 없는 view, 중첩 메시지
   루프)는 원래 메시지를 얻을 수 없어 DevTools `Input.dispatchKeyEvent`로 같은 키(key·code·vk·수식키, 글자 없는
-  `rawKeyDown`)를 합성한다. 이 경로의 키는 Ctrl·Alt 조합과 글자가 아닌 키라 글자를 넣지 않는다. AltGr(Ctrl+Alt)로 글자를
+  `rawKeyDown`)를 합성한다. DOM key는 판정 시점의 배열·Shift·CapsLock으로 `ToUnicodeEx`가 만드는 문자다(US 배열의
+  Ctrl+Shift+1은 "!", dead key는 "Dead"). Ctrl·Alt는 빼고 읽고, 둘을 함께 누르면 AltGr일 수 있어 그대로 읽는다. 문자가
+  없는 키는 named key 이름이다. 이 경로의 키는 Ctrl·Alt 조합과 글자가 아닌 키라 글자를 넣지 않는다. AltGr(Ctrl+Alt)로 글자를
   만드는 키는 이 경로에서 글자가 들어가지 않는다. 다시 넘긴 키가 `AcceleratorKeyPressed`로 돌아와도 판정하지 않도록 그 키
   (vk·key-up 여부)의 표지를 1초 둔다. 훅이 없는 view에서는 그 1초 안에 같은 키를 다시 누르면 한 번이 판정 없이 페이지로 갈
   수 있다. debug 빌드는 환경변수 `TASTY_DEBUG_WEBVIEW2_NO_HOST_INPUT`에 값이 있으면 host 입력 경로 없이 view를 만들어 이

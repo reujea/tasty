@@ -62,6 +62,36 @@ pub(super) fn layout_character_key(vk: u32, scan: u32) -> Option<winit::keyboard
     character_key_in_layout(vk, scan, &state, layout)
 }
 
+/// 페이지가 받을 DOM `key` 문자. 단축키 비교용 US 문자와 달리 지금 배열이 Shift·CapsLock·AltGr로 만드는 문자다
+/// (US 배열의 Ctrl+Shift+1은 "!"). Ctrl·Alt는 문자를 바꾸지 않으므로 빼고 읽는다. 둘을 함께 누르면 AltGr일 수
+/// 있어 그대로 둔다. 글자가 없는 키와 읽지 못한 경우는 None이다.
+pub(super) fn dom_character_key(vk: u32, scan: u32) -> Option<winit::keyboard::Key> {
+    use windows::Win32::UI::Input::KeyboardAndMouse::{GetKeyboardLayout, GetKeyboardState};
+    let mut state = [0u8; 256];
+    // SAFETY: 256바이트 배열에 이 스레드의 키 상태를 쓰는 조회다.
+    if let Err(error) = unsafe { GetKeyboardState(&mut state) } {
+        tracing::warn!(%error, "GetKeyboardState failed; the replayed key keeps its US character");
+        return None;
+    }
+    strip_shortcut_modifiers(&mut state);
+    // SAFETY: 0은 호출 스레드의 입력 언어를 뜻하며 조회만 한다.
+    let layout = unsafe { GetKeyboardLayout(0) };
+    character_key_in_layout(vk, scan, &state, layout)
+}
+
+/// 키 상태에서 Ctrl·Alt를 지운다. Ctrl과 Alt가 함께 눌렸으면(AltGr일 수 있다) 그대로 둔다.
+pub(super) fn strip_shortcut_modifiers(state: &mut [u8; 256]) {
+    const CONTROL: [usize; 3] = [0x11, 0xA2, 0xA3];
+    const ALT: [usize; 3] = [0x12, 0xA4, 0xA5];
+    let down = |state: &[u8; 256], keys: &[usize]| keys.iter().any(|&k| state[k] & 0x80 != 0);
+    if down(state, &CONTROL) && down(state, &ALT) {
+        return;
+    }
+    for k in CONTROL.into_iter().chain(ALT) {
+        state[k] &= !0x80;
+    }
+}
+
 /// `ToUnicodeEx`의 0x4 플래그(Windows 10 1607 이상)는 dead key 상태를 바꾸지 않아 뒤따르는 메시지의 조합이
 /// 그대로 남는다. 그보다 오래된 Windows는 이 플래그를 모르므로 dead key 조합이 깨질 수 있다.
 const TO_UNICODE_KEEP_KEYBOARD_STATE: u32 = 0x4;
@@ -332,6 +362,37 @@ mod tests {
             }
             assert_eq!(character_key_in_layout(0x41, 0x1E, &plain, de), ch("a"));
         });
+    }
+
+    /// Given Ctrl+Shift 상태, When DOM 문자용으로 고친다, Then Ctrl만 빠지고 Shift는 남는다.
+    /// Given Ctrl+Alt 상태(AltGr일 수 있다), Then 그대로 둔다.
+    #[test]
+    fn dom_characters_ignore_ctrl_and_alt_but_keep_altgr() {
+        let mut ctrl_shift = [0u8; 256];
+        ctrl_shift[0x11] = 0x80;
+        ctrl_shift[0xA2] = 0x80;
+        ctrl_shift[0x10] = 0x80;
+        ctrl_shift[0x14] = 0x01;
+        strip_shortcut_modifiers(&mut ctrl_shift);
+        assert_eq!(ctrl_shift[0x11] & 0x80, 0);
+        assert_eq!(ctrl_shift[0xA2] & 0x80, 0);
+        assert_eq!(ctrl_shift[0x10], 0x80);
+        assert_eq!(ctrl_shift[0x14], 0x01);
+
+        let mut alt = [0u8; 256];
+        alt[0x12] = 0x80;
+        alt[0xA4] = 0x80;
+        strip_shortcut_modifiers(&mut alt);
+        assert_eq!(alt[0x12] & 0x80, 0);
+
+        let mut altgr = [0u8; 256];
+        altgr[0x11] = 0x80;
+        altgr[0xA2] = 0x80;
+        altgr[0x12] = 0x80;
+        altgr[0xA5] = 0x80;
+        let before = altgr;
+        strip_shortcut_modifiers(&mut altgr);
+        assert_eq!(altgr, before);
     }
 
     #[test]

@@ -5,7 +5,8 @@
 //!   다시 온 메시지는 보낸 목록과 대조해 판정 없이 통과시키고, winit이 Translate·Dispatch한다. WM_CHAR는 그때의
 //!   키보드 상태로 만들어지므로 결과 전에 Shift를 뗐으면 다른 글자가 될 수 있다.
 //! - `AcceleratorKeyPressed`: 원래 메시지를 얻을 수 없어 DevTools `Input.dispatchKeyEvent`로 같은 키를 합성한다.
-//!   이 경로의 키는 Ctrl·Alt 조합과 글자가 아닌 키라 글자를 넣지 않는다(`rawKeyDown`).
+//!   이 경로의 키는 Ctrl·Alt 조합과 글자가 아닌 키라 글자를 넣지 않는다(`rawKeyDown`). DOM `key`는 판정 시점의
+//!   배열·Shift·CapsLock으로 만든 문자다(`dom_character_key`).
 //!
 //! 다시 넘긴 키가 WebView2에서 `AcceleratorKeyPressed`로 다시 올라와도 판정하지 않도록 그 키(vk, key-up 여부)의
 //! 표지를 짧은 시간 둔다. host 입력 경로에서는 실제 키도 훅이 먼저 판정하므로 표지가 실제 키에 쓰여도 결과가 같다.
@@ -20,7 +21,9 @@ use windows::Win32::UI::WindowsAndMessaging::{MSG, PostMessageW};
 use windows::core::*;
 use winit::keyboard::{Key, ModifiersState, NamedKey, PhysicalKey};
 
-use super::keyboard::{current_winit_mods, vk_to_winit_key, win32_scancode_to_physical};
+use super::keyboard::{
+    current_winit_mods, dom_character_key, vk_to_winit_key, win32_scancode_to_physical,
+};
 use crate::host_api::webview::key_hold::{KeyHold, RepeatRoute};
 use crate::host_api::webview::keys::{KeyDownRoute, WebViewKeySink, route_key_down};
 
@@ -63,10 +66,12 @@ pub(super) struct CdpKey {
 }
 
 impl CdpKey {
+    /// `layout`은 지금 배열이 만드는 문자(`dom_character_key`)다. 없으면 `key`(단축키 비교용 값)에서 만든다.
     pub(super) fn new(
         up: bool,
         vk: u32,
         key: &Key,
+        layout: Option<&Key>,
         physical: &PhysicalKey,
         mods: ModifiersState,
         repeat: bool,
@@ -74,7 +79,7 @@ impl CdpKey {
         Self {
             up,
             vk,
-            key: dom_key(key, mods),
+            key: dom_key(key, layout, mods),
             code: dom_code(physical),
             mods,
             repeat,
@@ -109,8 +114,14 @@ impl CdpKey {
     }
 }
 
-/// DOM `KeyboardEvent.key` 값. winit의 named key 이름은 DOM 이름과 같다(공백 키만 다르다).
-fn dom_key(key: &Key, mods: ModifiersState) -> String {
+/// DOM `KeyboardEvent.key` 값. 배열 문자가 있으면 그것이고, dead key는 "Dead"다. 없으면 단축키 비교용 값에서
+/// 만든다. winit의 named key 이름은 DOM 이름과 같다(공백 키만 다르다).
+fn dom_key(key: &Key, layout: Option<&Key>, mods: ModifiersState) -> String {
+    match layout {
+        Some(Key::Character(c)) => return c.to_string(),
+        Some(Key::Dead(_)) => return "Dead".into(),
+        _ => {}
+    }
     match key {
         Key::Character(c) if mods.shift_key() => c.to_uppercase(),
         Key::Character(c) => c.to_string(),
@@ -349,7 +360,16 @@ pub(super) fn accelerator_key_handler(
             let physical = win32_scancode_to_physical(status.ScanCode, extended);
             let mods = current_winit_mods();
             let repeat = !up && status.WasKeyDown.as_bool();
-            let cdp = WinKey::Cdp(CdpKey::new(up, vk, &key, &physical, mods, repeat));
+            let layout = dom_character_key(vk, status.ScanCode);
+            let cdp = WinKey::Cdp(CdpKey::new(
+                up,
+                vk,
+                &key,
+                layout.as_ref(),
+                &physical,
+                mods,
+                repeat,
+            ));
             if up {
                 if replay.release(key_id, cdp) {
                     // SAFETY: 위와 같다.
@@ -412,6 +432,7 @@ mod tests {
             false,
             0x43,
             &Key::Character("c".into()),
+            None,
             &PhysicalKey::Code(KeyCode::KeyC),
             ModifiersState::CONTROL | ModifiersState::SHIFT,
             false,
@@ -426,6 +447,7 @@ mod tests {
             true,
             0x78,
             &Key::Named(NamedKey::F9),
+            None,
             &PhysicalKey::Code(KeyCode::F9),
             ModifiersState::empty(),
             false,
@@ -434,6 +456,36 @@ mod tests {
         assert_eq!(v["type"], "keyUp");
         assert_eq!(v["key"], "F9");
         assert_eq!(v["code"], "F9");
+    }
+
+    /// Given US 배열의 Ctrl+Shift+1(단축키 비교값 "1", 배열 문자 "!"), When 합성한다, Then DOM key는 "!"이고
+    /// code는 Digit1이다. dead key는 "Dead"다.
+    #[test]
+    fn cdp_key_uses_the_layout_character() {
+        let bang = Key::Character("!".into());
+        let k = CdpKey::new(
+            false,
+            0x31,
+            &Key::Character("1".into()),
+            Some(&bang),
+            &PhysicalKey::Code(KeyCode::Digit1),
+            ModifiersState::CONTROL | ModifiersState::SHIFT,
+            false,
+        );
+        let v: serde_json::Value = serde_json::from_str(&k.params()).unwrap();
+        assert_eq!(v["key"], "!");
+        assert_eq!(v["code"], "Digit1");
+        let dead = Key::Dead(Some('^'));
+        let k = CdpKey::new(
+            false,
+            0xDC,
+            &Key::Character("\\".into()),
+            Some(&dead),
+            &PhysicalKey::Code(KeyCode::Backquote),
+            ModifiersState::CONTROL,
+            false,
+        );
+        assert_eq!(k.key, "Dead");
     }
 
     #[test]
