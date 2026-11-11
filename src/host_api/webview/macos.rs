@@ -1070,13 +1070,13 @@ impl PlatformWebView {
         *self.script_gate.borrow_mut() = Some(gate);
     }
 
-    /// 팔레트·host 키 경로의 편집 명령. 엔진이 포커스 frame과 편집 가능 여부를 판단한다.
     /// host가 이 WebView에서 가져간 일련번호 `id`의 키를 처리했다. 처리하지 못했으면(`replay`) 붙잡은 원래
     /// 키를 이 뷰의 super 구현에 넘겨 엔진·페이지로 보낸다(`key_replay`). 짝이 되는 키가 없으면 아무것도 하지 않는다.
     pub fn finish_forwarded_key(&self, id: u64, replay: bool) {
         self.webview.finish_forwarded_key(id, replay);
     }
 
+    /// 팔레트·host 키 경로의 편집 명령. 엔진이 포커스 frame과 편집 가능 여부를 판단한다.
     pub fn execute_edit(&self, action: super::WebViewEditAction) {
         run_editing_command(&self.webview, action);
     }
