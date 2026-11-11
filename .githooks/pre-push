@@ -80,7 +80,7 @@ check_published_plugin_version() {
             continue
         fi
         if ! git cat-file -e "${remote_sha}^{commit}" 2>/dev/null; then
-            red "$remote_ref: 원격 커밋 $remote_sha를 로컬에서 찾을 수 없습니다."
+            red "$remote_ref: 원격 커밋 ${remote_sha}를 로컬에서 찾을 수 없습니다."
             red "git fetch $PUSH_REMOTE 후 다시 시도해 주세요. 얕은 복제라면 git fetch --unshallow가 필요합니다."
             failed=1
             continue
@@ -100,7 +100,7 @@ check_published_plugin_version() {
     done <<EOF
 $PUSH_REFS
 EOF
-    echo "ref $considered개: 검사 $judged개, 생략 $((considered - judged))개"
+    echo "ref ${considered}개: 검사 ${judged}개, 생략 $((considered - judged))개"
     return "$failed"
 }
 
