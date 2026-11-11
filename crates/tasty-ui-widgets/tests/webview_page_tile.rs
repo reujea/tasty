@@ -118,3 +118,126 @@ fn an_empty_hint_moves_every_state_to_the_same_glyph_top() {
     let hint_h = theme.spacing_sm.value() + theme.font_size_caption.value();
     assert_eq!(top(bare) - top(loading), hint_h / 2.0);
 }
+
+const SHORT_TITLE: &str = "GTK failed to initialize, so this view and the tray icon are off.";
+const LONG_TITLE: &str =
+    "GDK_BACKEND in Tasty's launch environment blocks X11, so this view and the tray icon are off.";
+const LONG_SUB: &str = "Remove GDK_BACKEND from Tasty's launch environment, then restart Tasty.";
+
+fn notice(
+    title: &'static str,
+    sub: Option<&'static str>,
+    at_end: bool,
+) -> WebviewPageState<'static> {
+    WebviewPageState::Notice { title, sub, at_end }
+}
+
+/// Given 들어가는 안내, When 그린다, Then 블록이 세로 가운데에 오고 스크롤이 없다.
+#[test]
+fn a_notice_that_fits_sits_in_the_middle() {
+    let theme = tasty_themes::mocha_fallback();
+    let region = Rect::from_min_size(Pos2::new(20.0, 20.0), vec2(400.0, 300.0));
+    let out = render(
+        &theme,
+        region,
+        notice(SHORT_TITLE, Some(LONG_SUB), false),
+        None,
+    );
+    assert!(!out.overflows);
+    let glyph = out.glyph.expect("info glyph");
+    let sub = out.sub.expect("fix line");
+    assert_eq!(glyph.height(), theme.icon_glyph_size_md.value());
+    assert!((glyph.center().x - region.center().x).abs() <= 0.5);
+    let above = glyph.top() - region.top();
+    let below = region.bottom() - sub.bottom();
+    assert!((above - below).abs() <= 1.0, "above {above}, below {below}");
+}
+
+/// Given 영역보다 긴 안내, When 그린다, Then 위 여백에서 시작하고 스크롤이 생기며 해결책 줄은 잘리지 않는다.
+#[test]
+fn a_notice_taller_than_the_rect_starts_at_the_top_and_scrolls() {
+    let theme = tasty_themes::mocha_fallback();
+    let region = Rect::from_min_size(Pos2::new(0.0, 0.0), vec2(160.0, 150.0));
+    let out = render(
+        &theme,
+        region,
+        notice(LONG_TITLE, Some(LONG_SUB), false),
+        None,
+    );
+    assert!(out.overflows);
+    let glyph = out.glyph.expect("info glyph");
+    assert_eq!(glyph.top(), region.top() + theme.spacing_md.value());
+    let sub = out.sub.expect("fix line");
+    let caption_line = (theme.font_size_caption * theme.line_height_ui).value();
+    assert!(
+        sub.height() > caption_line,
+        "the fix wraps over more than one line"
+    );
+    assert!(
+        sub.bottom() > region.bottom(),
+        "the fix continues below the rect"
+    );
+}
+
+/// Given 넘치는 안내, When 그린다, Then 스크롤 영역이 영역 가장자리까지 차고 여백은 그 안쪽에 있다.
+#[test]
+fn the_notice_scrolls_edge_to_edge_with_the_padding_inside() {
+    let theme = tasty_themes::mocha_fallback();
+    let region = Rect::from_min_size(Pos2::new(10.0, 10.0), vec2(160.0, 150.0));
+    let out = render(
+        &theme,
+        region,
+        notice(LONG_TITLE, Some(LONG_SUB), false),
+        None,
+    );
+    assert!(out.overflows);
+    let scroll = out.scroll.expect("scroll area");
+    for (got, want) in [
+        (scroll.left(), region.left()),
+        (scroll.right(), region.right()),
+        (scroll.top(), region.top()),
+        (scroll.bottom(), region.bottom()),
+    ] {
+        assert!((got - want).abs() <= 0.5, "{scroll:?} vs {region:?}");
+    }
+    let title = out.title.expect("title");
+    let pad = theme.spacing_md.value();
+    assert!(
+        (title.left() - (region.left() + pad)).abs() <= 0.5,
+        "{title:?}"
+    );
+    assert!(
+        (title.right() - (region.right() - pad)).abs() <= 0.5,
+        "{title:?}"
+    );
+}
+
+/// Given 넘치는 안내와 끝 프레임 표시, When 그린다, Then 해결책 줄의 끝이 영역 안에 보인다.
+#[test]
+fn the_end_frame_shows_the_last_fix_line() {
+    let theme = tasty_themes::mocha_fallback();
+    let region = Rect::from_min_size(Pos2::new(0.0, 0.0), vec2(160.0, 150.0));
+    let out = render(
+        &theme,
+        region,
+        notice(LONG_TITLE, Some(LONG_SUB), true),
+        None,
+    );
+    assert!(out.overflows);
+    let sub = out.sub.expect("fix line");
+    let area_bottom = region.bottom() - theme.spacing_md.value();
+    assert!(sub.top() >= region.top(), "{sub:?}");
+    assert!((sub.bottom() - area_bottom).abs() <= 0.5, "{sub:?}");
+}
+
+/// Given 해결책이 없는 안내, When 그린다, Then 해결책 자리는 caption 한 줄 높이로 남는다.
+#[test]
+fn a_notice_without_a_fix_keeps_one_empty_caption_line() {
+    let theme = tasty_themes::mocha_fallback();
+    let region = Rect::from_min_size(Pos2::new(0.0, 0.0), vec2(220.0, 150.0));
+    let out = render(&theme, region, notice(SHORT_TITLE, None, false), None);
+    let sub = out.sub.expect("reserved fix line");
+    let caption_line = (theme.font_size_caption * theme.line_height_ui).value();
+    assert!((sub.height() - caption_line).abs() <= 0.01);
+    assert!(!out.overflows);
+}
