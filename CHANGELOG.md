@@ -28,6 +28,7 @@
 - **IPC `remote.connect {workspace_id}`와 CLI `tasty remote connect --workspace <local id>`로 저장된 원격 행을 명시적으로 연결한다.** 사용자가 끊은 행도 그 표지를 지우고 붙는다. 응답은 `{attaching, workspace_id, run}`이고 결과는 `run.result`로 읽는다. CLI는 결과를 기다려 실패하면 종료 코드 1이다. 저장된 원격 행이 아니면 `-32000`과 `data.reason: "not_a_saved_row"`, 원격 workspace가 없거나 창이 닫혀 있으면 `remote_workspace_missing`·`window_parked`로 바로 거절한다. 사용자가 끊은 행을 쓰는 요청의 `user_disconnected` 오류 메시지는 이 명령을 안내한다.
 - **mirror를 다시 mirror로 붙이지 않는다.** 대상이 그 인스턴스의 mirror면 서버가 `workspace attach rejected: mirror_workspace`로 거절한다. `remote.workspaces`(`tasty remote workspaces`) 항목에 `mirror`가 실리고, 원격 연결 팝업은 그 행을 비활성으로 두고 `mirror` 표지와 안내 문구를 보이며, CLI 목록은 그 행 아래에 안내 한 줄을 덧붙인다.
 - **저장된 원격 행의 우클릭 메뉴에 Connect(또는 Reconnect)·Disconnect·Close locally·Close remote workspace…가 생긴다.** 할 수 없는 항목은 꺼져 보인다. Close remote workspace…와 저장된 행을 비우는 닫기 요청은 확인 대화를 먼저 연다. 확인 대화는 Esc·Cancel로만 닫히고 바깥 클릭으로는 닫히지 않는다.
+- **토스트 위에 포인터를 올려 두면 토스트가 사라지지 않는다.** 포인터를 치우면 그때부터 Toast duration(`overlay.toast_duration_ms`)만큼 보인 뒤 사라지고, 흐려지던 토스트도 포인터를 올리면 다시 또렷해진다. 토스트는 여전히 클릭·드래그·포커스를 받지 않아 아래 대상에 그대로 간다.
 
 ### Changed
 
@@ -43,6 +44,7 @@
 
 ### Fixed
 
+- **같은 알림이 짧은 간격으로 다시 와도 떠 있던 토스트가 깜빡이지 않는다.** 전에는 합쳐질 때 한 프레임 사라졌다가 다시 페이드인했다.
 - **저장한 터미널 custom 글꼴 파일과 줄 높이가 재시작 뒤와 새 창에서도 적용된다.** 전에는 설정을 적용한 창에서만 쓰였고, 재시작하거나 새 창을 열면 파일과 줄 높이 없이 그려 칸 크기와 글꼴이 달라졌다.
 
 ### Removed

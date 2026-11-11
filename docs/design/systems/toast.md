@@ -6,7 +6,7 @@ Toast는 “복사됨”, “저장됨”처럼 사용자 조작의 결과를 �
 
 | 항목 | Popup | Toast |
 |------|-------|-------|
-| 수명 | 사용자가 닫을 때까지 | 일정 시간 후 자동 소멸(기본 2s, Settings › General › Overlay 의 Toast duration 으로 1~10s 조절) |
+| 수명 | 사용자가 닫을 때까지 | 일정 시간 후 자동 소멸(기본 2s, Settings › General › Overlay 의 Toast duration 으로 1~10s 조절). 포인터가 카드 위에 있는 동안 멈추고, 벗어나면 전역 수명이 처음부터 흐른다 |
 | 포커스 | 클릭 시 보유 가능 | **절대 받지 않음** |
 | 입력 | 클릭/드래그/X | **소비 안 함**(마우스 통과) |
 | 타이틀바 | 있음 | 없음(본문만) |
@@ -104,6 +104,13 @@ hint를 붙이는 호출부는 다음 셋이다. 호출부는 `ToastManager::pus
 
 Toast 위에서 마우스 클릭/드래그해도 토스트는 무시하고 이벤트가 아래 레이어(터미널/popup/divider)로 통과한다. `popup_hovered` 도 토스트 영역에선 false. 키보드 포커스도 받지 않아 `has_focused()` 와 무관.
 
+**hover 유지**: `ToastManager::draw`는 만료 판정 전에 포인터 위치(`hover_pos`)를 지난 프레임에 그린 카드 사각형과 비교한다. 포인터 아래 카드는 그 프레임의 생성 시각을 등장 페이드 끝(`now - FADE_IN`)으로 당겨, 완전 불투명으로 남고 만료되지 않는다. 페이드아웃 중이던 카드도 불투명으로 돌아온다. 포인터가 카드를 벗어나거나 창을 떠나면(`hover_pos`가 없음) 그 프레임부터 전역 수명이 처음부터 흐르고 소멸 페이드 뒤 사라진다. 모션 감소에서는 수명이 끝나면 페이드 없이 사라진다. 토스트별 수명 값은 없고 언제나 전역 `toast_duration_ms`를 쓴다.
+
+- 판정은 카드 단위다. 같은 열에서 포인터 아래 카드만 멈추고 다른 카드는 제 수명대로 사라진다. 열은 앵커(아래)에서 위로 쌓으므로, 붙잡힌 카드보다 아래(새) 카드가 사라지면 붙잡힌 카드가 내려와 포인터에서 벗어날 수 있다.
+- 판정은 좌표 비교뿐이다. Area·`Sense`·`interact`를 만들지 않으므로 위 입력 계약이 그대로다.
+- 살아 있는 토스트가 모두 붙잡혀 있으면 매 프레임 다시 그리지 않고 `request_repaint_after(수명)`만 건다. 포인터 이동과 창 이탈은 입력으로 프레임을 깨운다.
+- 포인터가 native WebView 위에 있으면 메인 창 egui가 포인터 위치를 받지 못한다. 카드와 겹치는 WebView는 카드가 떠 있는 동안 숨기므로(아래 절) 그 자리에서는 판정된다. 키를 받는 WebView 위의 카드는 WebView 아래에 가려 hover 대상이 아니다.
+
 ## native WebView 위의 토스트
 
 토스트는 egui가 그리므로 OS 자식 창인 WebView(`html` · `markdown`)가 그 위를 덮는다. 카드 사각형과 겹치는 WebView만 그 카드가 그려지는 동안(페이드 포함) 숨기고, 그 자리에는 html surface의 boundary 빈 타일이 보인다. 겹치지 않는 WebView는 그대로 보인다.
@@ -118,11 +125,11 @@ Toast 위에서 마우스 클릭/드래그해도 토스트는 무시하고 이�
 
 포커스 조회는 OS 호출이므로 카드와 겹치는 WebView에만 한다. 토스트는 포커스를 받지 않으므로 숨긴 WebView의 키보드 포커스를 회수하지 않는다.
 
-`draw_toast_scopes`가 그린 카드의 사각형(스코프 경계로 자른 값)을 돌려주고 `ToastManager::card_rects`가 마지막 프레임의 값을 보관한다. 토스트가 없으면 비어 있다. WebView 동기화는 이 영역을 물리 좌표로 바꿔 WebView 사각형과 면적을 공유하는지 비교한다. 변이 맞닿기만 하면 겹침이 아니다. 전체 WebView를 숨기는 방식은 토스트마다 모든 페이지가 깜박이고, 카드를 WebView 밖으로 옮기는 방식은 pane마다 WebView가 아닌 영역이 없을 수 있어 채택하지 않았다. 키를 받는 WebView 위의 카드를 보이게 할 방법은 디자인 요청으로 남아 있다.
+`draw_toast_scopes`가 그린 카드마다 토스트 id와 사각형(스코프 경계로 자른 값)을 돌려주고 `ToastManager::card_rects`가 마지막 프레임의 사각형을 보관한다. 토스트가 없으면 비어 있다. WebView 동기화는 이 영역을 물리 좌표로 바꿔 WebView 사각형과 면적을 공유하는지 비교한다. 변이 맞닿기만 하면 겹침이 아니다. 전체 WebView를 숨기는 방식은 토스트마다 모든 페이지가 깜박이고, 카드를 WebView 밖으로 옮기는 방식은 pane마다 WebView가 아닌 영역이 없을 수 있어 채택하지 않았다. 키를 받는 WebView 위의 카드를 보이게 할 방법은 디자인 요청으로 남아 있다.
 
 ## 합치기 / 제한
 
-같은 스코프에서 같은 메시지가 짧은 시간(기본 500ms) 내 다시 발생하면 새로 만들지 않고 **기존 토스트 수명만 갱신**(연속 Ctrl+C 깜빡임 방지). 이미 등장 페이드를 지난 카드는 생성 시각을 등장 페이드 길이만큼 앞당겨 불투명을 유지한 채 수명을 처음부터 흐르게 하고, 등장 중인 카드는 생성 시각을 바꾸지 않는다. 스코프당(같은 모서리로 합친 열은 열당) 최대 동시 5개, 초과 시 가장 오래된(맨 위) 것 즉시 제거. 넘친 토스트를 `+N more` 같은 요약 행으로 접지 않는다. 쉬는 카드는 나이와 관계없이 모두 불투명(alpha 1)이고 불투명도는 등장·소멸 페이드에만 쓴다.
+같은 스코프에서 같은 메시지가 짧은 시간(기본 500ms) 내 다시 발생하면 새로 만들지 않고 **기존 토스트 수명만 갱신**(연속 Ctrl+C 깜빡임 방지). 이미 등장 페이드를 지난 카드는 생성 시각을 등장 페이드 길이만큼 앞당겨 불투명을 유지한 채 수명을 처음부터 흐르게 하고, 등장 중인 카드는 생성 시각을 바꾸지 않는다. hover로 붙잡힌 카드는 나이가 늘 등장 페이드 길이라 포인터가 있는 동안 오는 같은 문구는 언제든 그 카드에 합쳐진다. 스코프당(같은 모서리로 합친 열은 열당) 최대 동시 5개, 초과 시 가장 오래된(맨 위) 것 즉시 제거. 넘친 토스트를 `+N more` 같은 요약 행으로 접지 않는다. 쉬는 카드는 나이와 관계없이 모두 불투명(alpha 1)이고 불투명도는 등장·소멸 페이드에만 쓴다.
 
 본문은 **200자(유니코드 문자 기준)** 로 제한한다. 초과 시 앞 200자만 남기고 줄바꿈 + 안내 접미(`toast.char_limit_notice`)를 붙여(`<앞 200자>\n(200자 제한)`) 긴 입력 때문에 토스트가 지나치게 길어지는 것을 막는다. 길이/자르기는 char 경계로 처리해 멀티바이트에서 안전하며, coalesce 비교 이전(`push` 진입부 `truncate_message`)에 적용된다.
 
@@ -136,8 +143,9 @@ Toast 위에서 마우스 클릭/드래그해도 토스트는 무시하고 이�
 같은 레이아웃·색·그리기 함수를 사용한다. 입력 폭·테마·배율이 같아야 같은 화면이 된다.
 
 - `ToastEntryView` / `ToastScopeView` / `ToastViewProps` — 그릴 준비가 끝난 입력. 시간도
-  상태도 안 들어 있고 `alpha` 는 이미 계산돼 있다.
-- `draw_toast_scopes(painter, props)` — 스택 배치 + 카드 chrome. `Context` 가 아니라
+  상태도 안 들어 있고 `alpha` 는 이미 계산돼 있다. `ToastEntryView::id`는 호출자가 정한 카드 식별자다.
+- `draw_toast_scopes(painter, props)` — 스택 배치 + 카드 chrome. 그린 카드마다 `(id, 사각형)`을
+  돌려주며 그리지 않은 카드(alpha 0, 위쪽 경계 밖)는 빠진다. `Context` 가 아니라
   `Painter` 를 받는 이유는 호출부마다 그릴 레이어가 다르기 때문이다: 본체는
   `Order::Tooltip` 레이어 painter 를, 갤러리는 무대 frame 의 painter 를 넘긴다.
 - `toast_layout_card(ctx, theme, message, max_width)` — 본문 galley 와 카드 크기(폭 × 높이).
@@ -160,7 +168,7 @@ Toast 위에서 마우스 클릭/드래그해도 토스트는 무시하고 이�
   `crates/tasty-type-appearance/src/toast_kind.rs` 이고 여기는 재수출이다.
 - `ToastScope` — 위 enum. 정본은 `crates/tasty-model/src/toast_kind.rs`.
 - `ToastState` — id, message, kind, scope, spawned_at, lifetime.
-- `ToastManager` — `push(message, kind, scope)` / `push_info(...)` / `draw(ctx, &LayoutContext, reduced_motion)`(만료 제거 + 렌더). `MainViewState::toasts` 로 통합, draw 는 popup draw 직후(= 위 레이어)에서.
+- `ToastManager` — `push(message, kind, scope)` / `push_info(...)` / `draw(ctx, &LayoutContext, reduced_motion)`(hover 유지 + 만료 제거 + 렌더). 지난 프레임에 그린 `(id, 사각형)`을 보관해 hover 판정에 쓴다. `MainViewState::toasts` 로 통합, draw 는 popup draw 직후(= 위 레이어)에서.
 - `compute_alpha` — `ToastState` 에서 곡선이 읽는 두 값을 꺼내는 어댑터. `ToastState` 가
   `ToastScope`를 포함해 `tasty-model`에 의존하므로 위젯 크레이트로 옮기지 않는다.
 - `truncate_message` — 문자 수 제한. `push` 진입부라 그리기 경로가 아니다.
