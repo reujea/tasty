@@ -103,10 +103,6 @@ impl KeyReplay {
         self.hold.borrow_mut().release(code, held).is_none()
     }
 
-    pub(super) fn clear_decisions(&self) {
-        self.hold.borrow_mut().clear_decisions();
-    }
-
     /// 일련번호 `id`의 결과를 적용한다. 넘길 이벤트를 `send`로 순서대로 super에 보낸다.
     pub(super) fn finish(&self, id: u64, pass: bool, mut send: impl FnMut(&HeldEvent)) {
         let Some(Settled { replay, release }) = self.hold.borrow_mut().finish(id, pass) else {

@@ -544,8 +544,6 @@ define_class!(
         fn become_first_responder(&self) -> bool {
             let ivars = self.ivars();
             ivars.key_bridge.note_focus(ivars.surface_id);
-            // 다른 곳에서 누른 키의 반복이 이 뷰의 옛 누름 결과를 따르지 않게 한다.
-            ivars.replay.clear_decisions();
             // SAFETY: main thread AppKit. super 구현에 위임.
             unsafe { msg_send![super(self), becomeFirstResponder] }
         }

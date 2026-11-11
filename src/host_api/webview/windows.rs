@@ -810,13 +810,10 @@ impl PlatformWebView {
                 .map_err(|e| transient(format!("add_AcceleratorKeyPressed failed: {e}")))?;
 
             let key_bridge_focus = key_bridge.clone();
-            let replay_focus = key_replay.clone();
             let mut tok_focus: i64 = 0;
             let h_focus = FocusChangedEventHandler::create(Box::new(
                 move |_sender, _args| -> windows::core::Result<()> {
                     key_bridge_focus.note_focus(surface_id);
-                    // 다른 곳에서 누른 키의 반복이 이 view의 옛 누름 결과를 따르지 않게 한다.
-                    replay_focus.clear_decisions();
                     Ok(())
                 },
             ));

@@ -357,10 +357,6 @@ impl KeyReplay {
         self.hold.borrow_mut().release(key_id, key).is_none()
     }
 
-    pub(super) fn clear_decisions(&self) {
-        self.hold.borrow_mut().clear_decisions();
-    }
-
     /// 다시 넘긴 키가 `AcceleratorKeyPressed`로 돌아왔으면 표지를 지우고 true다.
     pub(super) fn take_echo(
         &self,
