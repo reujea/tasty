@@ -9,7 +9,7 @@
 //!   배열·Shift·CapsLock으로 만든 문자다(`dom_character_key`).
 //!
 //! 다시 넘긴 키가 WebView2에서 `AcceleratorKeyPressed`로 다시 올라와도 판정하지 않도록 재주입 하나마다 표지를
-//! 하나 둔다. 다시 보낸 key-down의 반송은 그 메시지를 Dispatch하는 동안 바로 온다. 그래서 그 표지는 훅이 그
+//! 하나 둔다. 다시 보낸 key-down·key-up의 반송은 그 메시지를 Dispatch하는 동안 바로 온다. 그래서 그 표지는 훅이 그
 //! 메시지를 꺼낸 때부터 다음 메시지가 훅에 오기 전까지만 두고, 그 사이 첫 `AcceleratorKeyPressed`에만 쓴다. 키와
 //! lParam 상태(scan·extended·Alt·이전 상태·반복 수)가 모두 같아야 반송으로 본다. 합성 키의 표지는 scan code가
 //! 없는 이벤트에만 쓴다. 실제 키보드 이벤트는 scan code가 있으므로 훅이 없는 view에서 남은 표지가 실제 누름이나
@@ -282,12 +282,15 @@ pub(super) fn message_arrived() {
     DISPATCHING.with(Dispatching::end);
 }
 
-/// 훅이 꺼낸 다시 보낸 메시지를 이제 Dispatch한다. 그 key-down의 반송을 판정하지 않게 표지를 둔다.
+/// 훅이 꺼낸 다시 보낸 메시지를 이제 Dispatch한다. 그 반송을 판정하지 않게 표지를 둔다.
 pub(super) fn dispatching_posted(msg: &MSG) {
-    let key = PostedKey::of(&MsgCopy::of(msg));
-    if !key.up {
-        DISPATCHING.with(|d| d.begin(key));
-    }
+    let copy = MsgCopy::of(msg);
+    DISPATCHING.with(|d| begin_posted(d, &copy));
+}
+
+/// key-down과 key-up 모두 표지를 둔다. key-up의 반송이 판정되면 같은 키의 다음 누름에 붙은 결과를 지운다.
+fn begin_posted(d: &Dispatching, copy: &MsgCopy) {
+    d.begin(PostedKey::of(copy));
 }
 
 /// 다시 보낸 메시지면 목록에서 지우고 true다.
@@ -640,6 +643,25 @@ mod tests {
         // 같은 VK라도 물리 키가 다르면(주 Enter와 숫자패드 Enter) 반송이 아니다.
         d.begin(posted(0x0100, 0x0D, 0x001c_0001));
         assert!(!d.take(posted(0x0100, 0x0D, 0x011c_0001)));
+    }
+
+    /// Given 같은 키를 두 번 눌렀고 첫 누름의 key-up을 훅이 다시 보낸다, When 그 key-up이 Dispatch 중에
+    /// 반송된다, Then 반송으로 보고 판정하지 않는다(두 번째 누름의 기록에 붙지 않는다). 다음 메시지인 두 번째
+    /// key-down이 오면 표지는 비워져 그 누름은 판정을 받는다.
+    #[test]
+    fn a_posted_key_up_echo_never_reaches_the_next_press() {
+        let d = Dispatching::default();
+        let up1 = MsgCopy {
+            hwnd: 1,
+            message: WM_KEYUP,
+            wparam: 0x78,
+            lparam: 0xc043_0001_u32 as i32 as isize,
+        };
+        begin_posted(&d, &up1);
+        assert!(d.take(PostedKey::of(&up1)), "첫 key-up의 반송이 판정됐다");
+        begin_posted(&d, &up1);
+        d.end();
+        assert!(!d.take(posted(0x0100, 0x78, 0x0043_0001)));
     }
 
     /// 물리 키 상태 비트 배치는 키 메시지 lParam과 같다. 측정한 반송(F9 누름·뗌, Alt+K)의 값이다.

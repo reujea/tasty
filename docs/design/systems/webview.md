@@ -389,7 +389,7 @@ native 콜백은 가져갈지를 동기로 정하고 실행은 나중에 host �
   Ctrl+Shift+1은 "!", dead key는 "Dead"). Ctrl·Alt는 빼고 읽고, 둘을 함께 누르면 AltGr일 수 있어 그대로 읽는다. 문자가
   없는 키는 named key 이름이다. 이 경로의 키는 Ctrl·Alt 조합과 글자가 아닌 키라 글자를 넣지 않는다. AltGr(Ctrl+Alt)로 글자를
   만드는 키는 이 경로에서 글자가 들어가지 않는다. 다시 넘긴 키가 `AcceleratorKeyPressed`로 돌아와도 판정하지 않도록 재주입
-  하나마다 표지를 하나 둔다. 측정에서 다시 보낸 key-down은 그 메시지를 Dispatch하는 동안(다음 메시지가 훅에 오기 전) 원래 lParam과
+  하나마다 표지를 하나 둔다. 다시 보낸 key-down·key-up 모두 표지를 둔다. key-up의 반송이 판정되면 같은 키의 다음 누름 기록을 지울 수 있기 때문이다(실제 key-up은 `AcceleratorKeyPressed`를 올렸고, 다시 보낸 key-up의 반송은 따로 측정하지 않았다). 측정에서 다시 보낸 key-down은 그 메시지를 Dispatch하는 동안(다음 메시지가 훅에 오기 전) 원래 lParam과
   같은 상태(scan·extended·Alt·이전 상태·반복 수)로 반송됐다. 그래서 다시 보낸 메시지의 표지는 훅이 그 메시지를 꺼낸 때부터 다음
   메시지가 훅에 올 때까지만 두고, 그 사이 첫 `AcceleratorKeyPressed`에만 쓴다. 키와 상태가 모두 같아야 반송으로 본다. 반송이 없는
   글자 키의 표지는 다음 메시지에서 지워지므로, 뒤에 오는 같은 물리 키의 다른 누름(중첩 메시지 루프의 실제 Ctrl+R 등)은 판정을
