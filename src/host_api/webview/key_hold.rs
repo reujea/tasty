@@ -41,7 +41,7 @@ pub(crate) enum RepeatRoute<E> {
     Pass(E),
     /// 첫 누름이 동작했거나 입력 게이트에 막혔다. backend는 반복을 소비한다.
     Drop,
-    /// 이 물리 키의 첫 누름을 가져간 기록이 없다. backend는 기존 판정(`consumes_repeat`)을 쓴다.
+    /// 이 물리 키의 첫 누름을 판정한 기록이 없다. backend는 기존 판정(`consumes_repeat`)을 쓴다.
     Unknown(E),
 }
 
@@ -49,7 +49,8 @@ pub(crate) enum RepeatRoute<E> {
 /// 짝이 없어 아무것도 넘기지 않는다.
 pub(crate) struct KeyHold<K, E> {
     held: VecDeque<Held<K, E>>,
-    /// 물리 키별 첫 누름의 결과(true = 넘김). key-up·새 첫 누름·포커스 변경에서 지운다.
+    /// 물리 키별 첫 누름의 결과(true = 넘김). 그 자리에서 정한 누름과 host 결과가 온 누름을 모두 기록한다.
+    /// key-up·새 첫 누름·포커스 변경에서 지운다.
     decided: Vec<(K, bool)>,
     limit: usize,
 }
@@ -69,15 +70,24 @@ impl<K: Copy + PartialEq, E> KeyHold<K, E> {
         }
     }
 
-    /// 반복이 아닌 key-down이 왔다. 가져가지 않은 누름이어도 그 물리 키의 옛 결과를 지운다.
-    pub(crate) fn press(&mut self, key: K) {
+    /// 반복이 아닌 key-down을 그 자리에서 정했다(`pass` = 엔진·페이지로 넘김, false = 소비). host 큐로 가져간
+    /// 누름처럼 그 물리 키의 반복이 이 결과를 따른다.
+    pub(crate) fn decide(&mut self, key: K, pass: bool) {
+        self.record(key, pass);
+    }
+
+    fn record(&mut self, key: K, pass: bool) {
         self.decided.retain(|(k, _)| *k != key);
+        self.decided.push((key, pass));
+        if self.decided.len() > DECIDED_LIMIT {
+            self.decided.remove(0);
+        }
     }
 
     /// host가 일련번호 `id`로 가져간 첫 누름을 붙잡는다. 넘치면 가장 오래된 누름을 버리고 false다. 버린 누름의
     /// 결과는 짝이 없어 무시된다(두 번 실행하거나 엉뚱한 키를 넘기는 것보다 버리는 편이 안전하다).
     pub(crate) fn forwarded(&mut self, id: u64, key: K, press: E) -> bool {
-        self.press(key);
+        self.decided.retain(|(k, _)| *k != key);
         self.held.push_back(Held {
             id,
             key,
@@ -155,11 +165,7 @@ impl<K: Copy + PartialEq, E> KeyHold<K, E> {
             );
         };
         if held.release.is_none() && !held.stale {
-            self.decided.retain(|(k, _)| *k != held.key);
-            self.decided.push((held.key, pass));
-            if self.decided.len() > DECIDED_LIMIT {
-                self.decided.remove(0);
-            }
+            self.record(held.key, pass);
         }
         let replay = if pass && !held.stale {
             std::iter::once(held.press).chain(held.repeats).collect()
@@ -243,8 +249,8 @@ mod tests {
         assert_eq!(q.release(7, "up"), Some("up"));
         assert_eq!(q.repeat(7, "r"), RepeatRoute::Unknown("r"));
 
-        q.press(8);
-        assert_eq!(q.repeat(8, "r"), RepeatRoute::Unknown("r"));
+        q.forwarded(4, 8, "down8");
+        assert_eq!(q.repeat(8, "r"), RepeatRoute::Held);
 
         q.forwarded(3, 9, "down9");
         q.finish(3, true);
@@ -304,6 +310,27 @@ mod tests {
         assert_eq!(q.repeat(9, "r"), RepeatRoute::Unknown("r"));
         assert_eq!(q.release(9, "up"), Some("up"));
         assert_eq!(q.finish(4, true), Some(settled(&[], None)));
+    }
+
+    /// 그 자리에서 정한 첫 누름도 반복이 그 결과를 따른다. 수식키를 뗀 뒤의 반복이 다시 판정되지 않는다.
+    #[test]
+    fn repeats_follow_a_first_press_decided_on_the_spot() {
+        // Given 편집 명령으로 실행해 소비한 첫 누름, When 반복이 온다, Then 반복도 소비한다.
+        let mut q = KeyHold::<u32, &str>::default();
+        q.decide(7, false);
+        assert_eq!(q.repeat(7, "r"), RepeatRoute::Drop);
+        // Given 엔진·페이지로 넘긴 첫 누름, When 반복이 온다, Then 반복도 넘긴다.
+        q.decide(8, true);
+        assert_eq!(q.repeat(8, "r"), RepeatRoute::Pass("r"));
+        // Given 같은 키를 다시 누르고 이번에는 소비했다, Then 앞 결과가 아니라 새 결과를 따른다.
+        q.decide(8, false);
+        assert_eq!(q.repeat(8, "r"), RepeatRoute::Drop);
+        // Given 앞서 넘긴 키를 다시 누르고 host로 가져갔다, Then 결과 전 반복은 붙잡는다.
+        q.forwarded(1, 7, "down");
+        assert_eq!(q.repeat(7, "r"), RepeatRoute::Held);
+        // Given key-up, Then 기록이 지워진다.
+        assert_eq!(q.release(8, "up"), Some("up"));
+        assert_eq!(q.repeat(8, "r"), RepeatRoute::Unknown("r"));
     }
 
     /// 붙잡은 누름이 없는 key-up은 그대로 돌려준다.

@@ -415,9 +415,11 @@ native 콜백은 가져갈지를 동기로 정하고 실행은 나중에 host �
 키 설정·카테고리 사용 여부(`workspace_categories_enabled`)와 PluginCommandRegistry·PluginsConfig의 전역 revision이 바뀔 때만 정책 스냅숏을 다시 만든다.
 modifier가 있으면 winit과 같은 US physical-key 변환을 쓰고 표 밖 키는 논리 키로 돌아간다.
 key-up은 전달하지 않고 host의 modifier 저장값도 바꾸지 않는다.
-macOS·Windows의 자동 반복은 다시 실행하거나 큐에 넣지 않는다. 첫 누름을 host 큐로 가져갔으면 그 결과를
-따른다(위 "동작하지 않은 키"). 그 기록이 없으면 첫 누름을 입력 차단으로 막았거나, 편집 명령으로 실행했거나, host가
-가져갔을 조합일 때 반복도 페이지·엔진에 보내지 않는다(`WebViewKeySink::consumes_repeat`).
+macOS·Windows의 자동 반복은 다시 실행하거나 큐에 넣지 않는다. 반복은 그 물리 키의 첫 누름 결과를 따른다. host 큐로
+가져간 누름은 처리 결과를(위 "동작하지 않은 키"), 그 자리에서 정한 누름은 그 판정을 따른다. 입력 차단으로 막았거나 편집
+명령으로 실행한 첫 누름의 반복은 소비하고, 엔진·페이지로 넘긴 첫 누름의 반복은 넘긴다. 그래서 첫 누름 뒤 수식키를 떼도
+반복은 다시 판정하지 않는다. 첫 누름의 기록이 없을 때(이 view가 첫 누름을 보지 못함)만 반복을 그 자리의 수식키로
+판정해, 입력 차단·편집 명령·host가 가져갔을 조합이면 페이지·엔진에 보내지 않는다(`WebViewKeySink::consumes_repeat`).
 엔진에 그대로 두는 키와 가져가지 않는 키의 반복은 엔진·페이지로 간다. Linux/GDK의 key press에는 repeat 표시가 없어
 정상 press 오판을 피하려고 반복도 일반 press로 처리한다.
 Windows WebView2는 `AcceleratorKeyPressed`를 Ctrl이나 Alt를 누르고 있거나 글자로 바뀌지 않는 키에서만 올린다

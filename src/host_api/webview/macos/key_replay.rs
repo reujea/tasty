@@ -63,8 +63,9 @@ impl KeyReplay {
         echoes.iter().any(|(t, c, _)| *t == stamp && *c == code)
     }
 
-    pub(super) fn press(&self, code: u16) {
-        self.hold.borrow_mut().press(code);
+    /// 그 자리에서 정한 첫 누름. 반복이 이 결과를 따른다.
+    pub(super) fn decide(&self, code: u16, pass: bool) {
+        self.hold.borrow_mut().decide(code, pass);
     }
 
     pub(super) fn forwarded(&self, id: u64, code: u16, held: HeldEvent) {
@@ -128,8 +129,8 @@ impl KeyWebView {
             event: event.retain(),
             entry,
         };
-        // 자동 반복은 다시 실행하지 않는다. 첫 누름의 결과를 따르고, 기록이 없으면 첫 누름을 막거나 가져갔을
-        // 조합인지로 정한다.
+        // 자동 반복은 다시 실행하지 않는다. 첫 누름의 결과(그 자리에서 정했든 host 결과든)를 따르고, 기록이
+        // 없으면 첫 누름을 막거나 가져갔을 조합인지로 정한다.
         if event.isARepeat() {
             return match ivars.replay.repeat(code, held) {
                 RepeatRoute::Held | RepeatRoute::Drop => true,
@@ -142,12 +143,12 @@ impl KeyWebView {
             };
         }
         if ivars.key_bridge.blocks_edit_key(&key, &physical, mods) {
-            ivars.replay.press(code);
+            ivars.replay.decide(code, false);
             return true;
         }
         // Edit 메뉴가 없어 Cmd 편집 키(실행 취소 포함)도 사용자 바인딩으로 이 WebView의 편집 명령을 실행한다.
         if let Some(action) = ivars.key_bridge.edit_action(&key, &physical, mods) {
-            ivars.replay.press(code);
+            ivars.replay.decide(code, false);
             run_editing_command(self, action);
             return true;
         }
@@ -160,7 +161,7 @@ impl KeyWebView {
                 true
             }
             None => {
-                ivars.replay.press(code);
+                ivars.replay.decide(code, true);
                 false
             }
         }

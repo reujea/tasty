@@ -239,8 +239,9 @@ Option 시퀀스·튜플 원소와 중첩 Option의 Some(None)은 표현을 다�
 - **key-up 은 어느 백엔드도 올리지 않는다**(press 만). host 는 실려온 modifier 값만
   읽고 자기 `base.modifiers` 를 갱신하지 않으므로 modifier stuck 이 생기지 않는다.
 - **auto-repeat 필터는 플랫폼이 갈린다** — macOS(`isARepeat`)·Windows(`WasKeyDown`)는
-  입력 차단·편집 명령·host 선점에 해당하는 키의 반복을 다시 실행하지 않고 소비한다. 나머지는 엔진·페이지에 둔다.
-  첫 누름을 host 가 가져갔으면 반복이 그 결과를 따른다 — 동작하지 않아 넘겼으면 반복도 엔진·페이지로 간다
+  반복을 다시 실행하지 않고 그 물리 키의 첫 누름 결과를 따른다. 입력 차단·편집 명령으로 소비한 첫 누름의 반복은 소비하고,
+  엔진·페이지로 넘긴 첫 누름의 반복은 넘긴다. 첫 누름을 host 가 가져갔으면 처리 결과를 따른다 — 동작하지 않아 넘겼으면
+  반복도 엔진·페이지로 간다. 첫 누름의 기록이 없을 때만 반복을 그 자리의 수식키로 판정한다
   ([반복 판정](../../design/systems/webview.md)). **Linux/GDK 는 걸러내지 않는다**(GTK `key-press-event` 에 repeat 플래그가 없고,
   press/release 를 직접 세는 대체 판정은 X 서버의 detectable auto-repeat 설정에 따라 정상
   press 를 삼킬 수 있다). host 단축키는 전부 edge 동작이라 반복 입력을 같은 방식으로 처리하고, winit

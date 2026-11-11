@@ -301,8 +301,8 @@ pub trait WebViewKeySink {
     /// 자동 반복 key-down을 페이지·엔진에 보내지 않을지. 첫 누름이 막혔거나(입력 차단), 편집 명령으로
     /// 실행됐거나, host가 가져갔을 조합이면 true다. 반복에서는 아무것도 실행하거나 큐에 넣지 않는다.
     /// false이면 반복을 엔진·페이지에 그대로 둔다. Linux GDK press에는 repeat 표시가 없어 쓰지 않는다.
-    /// Windows·macOS backend는 그 물리 키의 첫 누름을 host 큐로 가져간 기록이 있으면 그 결과를 먼저 따르고
-    /// (`key_hold`), 기록이 없을 때만 이 판정을 쓴다.
+    /// Windows·macOS backend는 그 물리 키의 첫 누름을 판정한 기록(그 자리의 판정이나 host 결과)이 있으면 그
+    /// 결과를 먼저 따르고(`key_hold`), 기록이 없을 때만 이 판정을 쓴다.
     #[cfg(any(windows, target_os = "macos", test))]
     fn consumes_repeat(
         &self,

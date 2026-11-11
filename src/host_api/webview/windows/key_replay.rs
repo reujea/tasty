@@ -202,8 +202,9 @@ impl KeyReplay {
         }
     }
 
-    pub(super) fn press(&self, vk: u32) {
-        self.hold.borrow_mut().press(vk);
+    /// 그 자리에서 정한 첫 누름. 반복이 이 결과를 따른다.
+    pub(super) fn decide(&self, vk: u32, pass: bool) {
+        self.hold.borrow_mut().decide(vk, pass);
     }
 
     pub(super) fn forwarded(&self, id: u64, vk: u32, key: WinKey) {
@@ -353,7 +354,8 @@ pub(super) fn accelerator_key_handler(
                     route_key_down(&*sink, surface_id, key, physical, mods, false, run_edit);
                 match route {
                     KeyDownRoute::Forwarded(id) => replay.forwarded(id, vk, cdp),
-                    KeyDownRoute::Pass | KeyDownRoute::Consumed => replay.press(vk),
+                    KeyDownRoute::Pass => replay.decide(vk, true),
+                    KeyDownRoute::Consumed => replay.decide(vk, false),
                 }
                 route.consumed()
             };

@@ -216,7 +216,8 @@ pub(crate) fn filter_message(msg: *const c_void) -> bool {
         });
         match route {
             KeyDownRoute::Forwarded(id) => replay.forwarded(id, km.vk, copy),
-            KeyDownRoute::Pass | KeyDownRoute::Consumed => replay.press(km.vk),
+            KeyDownRoute::Pass => replay.decide(km.vk, true),
+            KeyDownRoute::Consumed => replay.decide(km.vk, false),
         }
         route.consumed()
     };
