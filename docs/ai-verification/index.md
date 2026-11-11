@@ -9,6 +9,7 @@ Tasty를 개발하는 에이전트가 UI·렌더링·입력을 직접 재현하�
 | [DPI 배율](dpi-scale-verification.md) | DPI가 1이 아닌 환경을 만들고 설정값과 실제 창 크기를 대조하는 방법 |
 | [GNOME 세션](gnome-session-verification.md) | 격리 GNOME Shell에서 XWayland와 네이티브 Wayland 경로를 재는 방법 |
 | [IME](ime-testing.md) | debug의 surface.ime_*로 한글·CJK 입력을 재현하는 방법과 한계 |
+| [macOS 키 주입 권한](macos-key-injection.md) | OS 합성 키로 측정할 때 손쉬운 사용 권한을 받는 앱, 확인·요청 절차, Terminal.app 대안 |
 
 검증은 커밋 전에 직접 수행한다. 실행 환경은 [자체 검증 가이드](../dev-guide/self-verification.md)와 [격리 절차](../dev-guide/self-verification.md#독립-검증--개발도-agent-가-스스로-확인할-수-있어야-한다)를 따른다.
 
