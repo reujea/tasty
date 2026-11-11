@@ -120,7 +120,7 @@ const OTHER_LOCKS: &[(&str, &str, &str)] = &[
         "`TASTY_AGENT_ID` 환경변수",
     ),
     (
-        "crates/tasty-cli/src/cwd_resolve.rs",
+        "crates/tasty-cli/src/cwd_test.rs",
         "CWD_LOCK",
         "프로세스 cwd를 보호한다. 같은 크레이트의 set_current_dir 재진입 검사에서 별도로 확인한다.",
     ),

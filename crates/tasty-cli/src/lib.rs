@@ -7,6 +7,8 @@ pub mod caller_context;
 pub mod commands;
 mod contract;
 pub mod cwd_resolve;
+#[cfg(test)]
+mod cwd_test;
 pub mod dispatch;
 pub mod dynamic;
 pub mod events;

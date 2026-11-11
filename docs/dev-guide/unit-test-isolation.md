@@ -70,7 +70,7 @@ assert!(path.starts_with(home.path().join("screenshots")));
 | `tasty-host-plugin` | `test_support::HomeEnvGuard` (`bundle_sig` · `manager::pump` 공용) | `HOME` + `TASTY_HOME` | `HOME_ENV_LOCK` |
 | `tasty-telemetry` | `agent_id::tests::AgentIdEnvGuard` | `TASTY_AGENT_ID` | `ENV_LOCK` |
 | `tasty-cli` | `request::tests::SurfaceIdEnvGuard` | `TASTY_SURFACE_ID` | 단일 `#[test]` 안에 모아 대체 |
-| `tasty-cli` | `cwd_resolve::tests::CwdGuard` | 프로세스 cwd | `CWD_LOCK` |
+| `tasty-cli` | `cwd_test::CwdGuard` (`enter` 는 cwd 변경, `hold` 는 읽기 전용) | 프로세스 cwd | `CWD_LOCK` |
 | `tasty-settings` | `general::tests::RelativeHomeGuard` | `TASTY_HOME` | `SERIAL` |
 
 `tasty-settings` 의 `TmpHome` 은 이 표에 없다 — 그것은 **env 를 안 만진다**(홈 경로를
