@@ -58,6 +58,89 @@ pub(crate) fn wants_inbound(start: Option<crate::boot::display_backend::StartBac
     )
 }
 
+/// The text clipboard of one window on a native Wayland start, carried by the same per-connection
+/// data device owner as incoming drags. egui-winit is built without smithay-clipboard and its
+/// arboard fallback speaks only X11, so without this handle such windows would have only an
+/// in-process clipboard. `new` returns `None` on X11 and XWayland, which keep arboard.
+#[cfg(target_os = "linux")]
+pub(crate) struct TextSelection(wayland::Clipboard);
+#[cfg(target_os = "linux")]
+impl TextSelection {
+    pub(crate) fn new(
+        window: &Window,
+        display_owner: Option<winit::event_loop::OwnedDisplayHandle>,
+    ) -> Option<Self> {
+        let inbound = wants_inbound(crate::boot::display_backend::start().map(|s| s.backend));
+        match wayland::Clipboard::new(window, display_owner, inbound) {
+            Ok(clipboard) => clipboard.map(Self),
+            Err(error) => {
+                tracing::warn!(%error, "native Wayland clipboard unavailable");
+                None
+            }
+        }
+    }
+    /// Makes `text` the system selection.
+    pub(crate) fn copy(&mut self, text: String) {
+        if let Err(error) = self.0.copy(text) {
+            tracing::warn!(%error, "could not set the Wayland clipboard");
+        }
+    }
+    /// Asks for the selection text on behalf of input target `tag`. Our own copy is returned at
+    /// once; a foreign one is read in the background and arrives from `poll` with the same tag. A
+    /// newer request or `cancel` drops a read still waiting.
+    pub(crate) fn request(&mut self, tag: u64) -> Option<String> {
+        match self.0.request(tag) {
+            Ok(wayland::Paste::Ready(text)) => Some(text).filter(|t| !t.is_empty()),
+            Ok(wayland::Paste::Pending | wayland::Paste::Empty) => None,
+            Err(error) => {
+                tracing::warn!(%error, "could not read the Wayland clipboard");
+                None
+            }
+        }
+    }
+    pub(crate) fn cancel(&mut self) {
+        self.0.cancel();
+    }
+    /// Runs the shared queue and returns finished pastes as `(tag, text)`.
+    pub(crate) fn poll(&mut self) -> Vec<(u64, String)> {
+        self.0.poll().unwrap_or_else(|error| {
+            tracing::warn!(%error, "Wayland clipboard queue failed");
+            Vec::new()
+        })
+    }
+    /// A paste is being read or copied text is still being written to a receiver.
+    pub(crate) fn busy(&self) -> bool {
+        self.0.busy()
+    }
+}
+/// No other OS has a system clipboard of its own here: egui-winit's stays in use, so no value exists.
+#[cfg(not(target_os = "linux"))]
+pub(crate) enum TextSelection {}
+#[cfg(not(target_os = "linux"))]
+impl TextSelection {
+    pub(crate) fn new(
+        _: &Window,
+        _: Option<winit::event_loop::OwnedDisplayHandle>,
+    ) -> Option<Self> {
+        None
+    }
+    pub(crate) fn copy(&mut self, _: String) {
+        match *self {}
+    }
+    pub(crate) fn request(&mut self, _: u64) -> Option<String> {
+        match *self {}
+    }
+    pub(crate) fn cancel(&mut self) {
+        match *self {}
+    }
+    pub(crate) fn poll(&mut self) -> Vec<(u64, String)> {
+        match *self {}
+    }
+    pub(crate) fn busy(&self) -> bool {
+        match *self {}
+    }
+}
+
 pub(crate) struct Context {
     #[cfg(target_os = "linux")]
     wayland: Option<wayland::Context>,

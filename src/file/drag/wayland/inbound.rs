@@ -1,8 +1,8 @@
 //! Incoming file drags on the standing data device, kept free of protocol objects so every event
 //! order can be tested. The owner applies the returned commands to the real `wl_data_offer`s.
 //!
-//! Selection offers are only destroyed: Tasty has no Wayland clipboard, and sending them
-//! accept/receive would change another client's clipboard negotiation.
+//! A selection offer never takes part in a drag: its mime list is handed to the text clipboard
+//! (`selection`), which never sends it accept or set_actions.
 use crate::file::drag::InboundEvent;
 use std::{
     collections::HashMap,
@@ -204,16 +204,18 @@ impl Inbound {
         self.pump(now);
     }
 
-    pub(super) fn selection(&mut self, offer: Option<u32>) {
-        let Some(offer) = offer else {
-            return;
-        };
+    /// Hands a selection offer's mime list over to the clipboard and stops tracking it. `None` for
+    /// the offer of the current drag, which is never a selection.
+    pub(super) fn take_selection(&mut self, offer: u32) -> Option<Vec<String>> {
         if self.dnd.as_ref().is_some_and(|dnd| dnd.offer == offer) {
-            return;
+            return None;
         }
-        if self.offers.remove(&offer).is_some() {
-            self.commands.push(Command::Destroy { offer });
-        }
+        Some(
+            self.offers
+                .remove(&offer)
+                .map(|o| o.mimes)
+                .unwrap_or_default(),
+        )
     }
 
     /// Ends the current drag as if it left, e.g. when its seat disappears.

@@ -287,15 +287,18 @@ fn an_oversized_list_is_refused() {
 }
 
 #[test]
-fn a_selection_during_a_drag_destroys_only_its_own_offer() {
+fn a_selection_during_a_drag_leaves_the_drag_offer_alone() {
     let now = Instant::now();
     let (mut inbound, _) = hovering(now);
     inbound.take_events();
     offer(&mut inbound, 7, &["text/plain"]);
-    inbound.selection(Some(7));
-    inbound.selection(Some(1));
-    inbound.selection(None);
-    assert_eq!(inbound.take_commands(), [Command::Destroy { offer: 7 }]);
+    assert_eq!(
+        inbound.take_selection(7),
+        Some(vec!["text/plain".to_string()])
+    );
+    assert_eq!(inbound.take_selection(1), None);
+    // The handed-over offer is the clipboard's to destroy, not the drag's.
+    assert!(inbound.take_commands().is_empty());
     inbound.offer_action(1, Action::Copy);
     inbound.drop_here(now);
     assert_eq!(

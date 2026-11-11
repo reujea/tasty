@@ -310,8 +310,7 @@ impl GpuState {
     pub fn finish_egui_frame(&mut self, window: &Window, full_output: egui::FullOutput) {
         // egui의 비입력 프레임이 창 IME를 끄지 않게 한다.
         self.egui_state.set_allow_ime(false);
-        self.egui_state
-            .handle_platform_output(window, full_output.platform_output);
+        self.apply_egui_output(window, full_output.platform_output);
 
         let paint_jobs = self
             .egui_ctx

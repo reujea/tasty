@@ -125,3 +125,59 @@ fn standing_device_is_created_only_behind_the_start_judgment() {
     assert!(drag.contains("wayland::Context::new(window, display_owner, inbound)"));
     assert_eq!(drag.matches("wayland::Context::new(").count(), 1);
 }
+
+/// The text clipboard adds no device of its own and, like the standing device, nothing at all
+/// outside a native Wayland start: no keyboard, no selection source, no handle.
+#[test]
+fn the_text_clipboard_lives_only_behind_the_start_judgment() {
+    let owner = include_str!("../wayland.rs");
+    let clip = include_str!("clip.rs");
+    assert!(!clip.contains(".get_data_device("));
+    assert_eq!(owner.matches(".get_keyboard(").count(), 1);
+    assert!(owner.contains("if s.inbound && c.contains(wl_seat::Capability::Keyboard) {"));
+    assert!(!owner.contains("create_data_source(&queue.handle(), SelectionSource)"));
+    assert_eq!(clip.matches("create_data_source(").count(), 1);
+    let new = &clip[clip.find("fn new(").unwrap()..];
+    assert!(
+        new.contains("if !inbound || display_owner.is_none() {\n            return Ok(None);"),
+        "Clipboard::new must refuse before touching the connection"
+    );
+    let drag = include_str!("../../drag.rs");
+    assert_eq!(drag.matches("wayland::Clipboard::new(").count(), 1);
+    assert!(drag.contains("wayland::Clipboard::new(window, display_owner, inbound)"));
+    assert_eq!(
+        drag.matches("wants_inbound(crate::boot::display_backend::start()")
+            .count(),
+        2
+    );
+}
+
+#[test]
+#[ignore = "requires TASTY_TEST_WAYLAND_DISPLAY on an isolated compositor"]
+fn a_text_clipboard_exists_only_on_a_native_wayland_start() {
+    let display = std::env::var("TASTY_TEST_WAYLAND_DISPLAY").expect("owned display required");
+    assert_eq!(std::env::var("WAYLAND_DISPLAY").unwrap(), display);
+    let events = EventLoop::builder()
+        .with_wayland()
+        .with_any_thread(true)
+        .build()
+        .unwrap();
+    // reason: This fixture creates no event handler and only inspects the initial handles.
+    #[allow(deprecated)]
+    let window = Arc::new(events.create_window(Window::default_attributes()).unwrap());
+    assert!(
+        Clipboard::new(&window, Some(events.owned_display_handle()), false)
+            .unwrap()
+            .is_none()
+    );
+    assert!(Clipboard::new(&window, None, true).unwrap().is_none());
+    let mut clipboard = Clipboard::new(&window, Some(events.owned_display_handle()), true)
+        .unwrap()
+        .unwrap();
+    // Nothing was copied: no selection of ours to paste at once.
+    assert!(!matches!(clipboard.request(1).unwrap(), Paste::Ready(_)));
+    assert!(clipboard.poll().unwrap().is_empty());
+    let owner = clipboard.owner.borrow();
+    assert!(owner.state.own_source.is_none());
+    assert!(owner.state.seats.iter().all(|seat| seat.device.is_some()));
+}

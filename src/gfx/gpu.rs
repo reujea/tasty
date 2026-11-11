@@ -12,6 +12,7 @@ mod render_pass;
 mod screenshot;
 mod shell_setup;
 mod surface_lifecycle;
+mod text_selection;
 
 use crate::runtime::engine_read::EngineRead;
 #[cfg(test)]
@@ -80,6 +81,8 @@ pub struct GpuState {
     pub(super) renderer: CellRenderer,
     pub(crate) egui_ctx: egui::Context,
     pub(super) egui_state: egui_winit::State,
+    /// egui's clipboard on a native Wayland start (`text_selection.rs`).
+    pub(super) text_selection: Option<crate::file::drag::TextSelection>,
     pub(super) egui_renderer: egui_wgpu::Renderer,
     /// native WebView 위 창 단위 오버레이 host 와 그 surface. 그림 위치가 오버레이 창인 모드가 필요할 때
     /// WebView 동기화 뒤 훅이 붙인다. OS host 를 만들지 못하면 `None` 이다.
@@ -272,6 +275,7 @@ impl GpuState {
             renderer,
             egui_ctx,
             egui_state,
+            text_selection: None,
             egui_renderer,
             overlay_surface: None,
             scale_factor,
@@ -310,6 +314,7 @@ impl GpuState {
             }
             _ => {}
         }
+        self.route_paste_key(event);
         let response = self.egui_state.on_window_event(window, event);
         (response.consumed, response.repaint)
     }
@@ -319,9 +324,9 @@ impl GpuState {
         &mut self.egui_state.egui_input_mut().events
     }
 
-    /// egui-winit 클립보드의 텍스트.
+    /// 지금 붙여 넣을 egui 클립보드 텍스트. 네이티브 Wayland에서 다른 앱의 선택은 나중에 Paste로 온다.
     pub fn egui_clipboard_text(&mut self) -> Option<String> {
-        self.egui_state.clipboard_text()
+        self.clipboard_text_now()
     }
 
     /// 메뉴를 닫는 클릭처럼 egui에 전달하지 않은 입력 뒤에 PointerGone을 넣어
@@ -712,8 +717,7 @@ impl GpuState {
         #[cfg(not(windows))]
         let ime_widget_focused = platform_output.ime.is_some();
 
-        self.egui_state
-            .handle_platform_output(window, platform_output);
+        self.apply_egui_output(window, platform_output);
 
         #[cfg(not(windows))]
         {

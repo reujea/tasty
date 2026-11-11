@@ -240,7 +240,10 @@ wgpu = { version = "24", optional = true }
 
 egui = { version = "0.31", optional = true }
 egui-wgpu = { version = "0.31", optional = true }
-egui-winit = { version = "0.31", optional = true }
+# smithay-clipboard is left out: its data device would compete with Tasty's standing one for
+# incoming drags on native Wayland, where Tasty carries egui's clipboard itself. arboard stays for X11.
+# winit keeps its default features through the direct winit dependency.
+egui-winit = { version = "0.31", optional = true, default-features = false, features = ["arboard", "bytemuck", "links", "wayland", "x11"] }
 # SVG 아이콘을 읽고 현재 글자색으로 그리는 데 사용한다.
 egui_extras = { version = "0.31", features = ["svg", "image"], optional = true }
 # egui는 결합 문자를 앞 글자에 합치지 않아 표시용 문자열만 NFC로 합성한다.

@@ -98,8 +98,7 @@ impl GpuState {
                 });
         });
 
-        self.egui_state
-            .handle_platform_output(window, full_output.platform_output);
+        self.apply_egui_output(window, full_output.platform_output);
 
         let screen_descriptor = egui_wgpu::ScreenDescriptor {
             size_in_pixels: [self.size.width, self.size.height],

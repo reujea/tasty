@@ -67,7 +67,11 @@ impl MainView {
             self.state.html_address.request_focus(sid);
         }
         let gpu = &mut self.base.gpu;
-        let clipboard = gpu.egui_clipboard_text();
+        // The key's own paste (a native Wayland read in flight) loses to the binding as well.
+        gpu.cancel_pending_paste();
+        let clipboard = (action == AddressKeyAction::Edit(WebViewEditAction::Paste))
+            .then(|| gpu.egui_clipboard_text())
+            .flatten();
         remap_events(gpu.egui_input_events_mut(), from, action, clipboard);
         self.mark_dirty();
     }

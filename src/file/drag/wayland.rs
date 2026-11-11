@@ -1,10 +1,16 @@
 //! Independent proxies on winit's *same* libwayland client, as in smithay-clipboard.
 //! The genuine pointer grab serial and originating surface are observed before handoff.
 //! One owner per connection serves every window: the compositor addresses a client's data device,
-//! so per-window devices on the same seat would compete for one drag.
+//! so per-window devices on the same seat would compete for one drag. The same device carries the
+//! text selection on a native Wayland start (`clip`).
+mod clip;
 mod inbound;
+mod selection;
 #[cfg(test)]
 mod tests;
+
+pub(super) use clip::Clipboard;
+pub(crate) use selection::Paste;
 
 use super::{InboundEvent, Outcome};
 use inbound::{Action, Command, Enter, Gate, Inbound, URI_LIST};
@@ -21,8 +27,8 @@ use wayland_client::{
     Connection, Dispatch, EventQueue, Proxy, QueueHandle, WEnum,
     backend::Backend,
     protocol::{
-        wl_data_device, wl_data_device_manager, wl_data_offer, wl_data_source, wl_pointer,
-        wl_registry, wl_seat, wl_surface,
+        wl_data_device, wl_data_device_manager, wl_data_offer, wl_data_source, wl_keyboard,
+        wl_pointer, wl_registry, wl_seat, wl_surface,
     },
 };
 use winit::{
@@ -52,6 +58,8 @@ struct Seat {
     id: u32,
     seat: wl_seat::WlSeat,
     pointer: Option<wl_pointer::WlPointer>,
+    /// Only for selection serials, and only on a native Wayland start.
+    keyboard: Option<wl_keyboard::WlKeyboard>,
     device: Option<wl_data_device::WlDataDevice>,
     focus: Option<wl_surface::WlSurface>,
     grab: Option<(u32, wl_surface::WlSurface)>,
@@ -83,6 +91,13 @@ struct State {
     dnd: Inbound,
     /// Window surfaces of this connection and the events waiting for each.
     windows: HashMap<u32, Rc<RefCell<Vec<InboundEvent>>>>,
+    clip: selection::Selection,
+    /// Our source holding the text selection.
+    own_source: Option<wl_data_source::WlDataSource>,
+    /// Latest keyboard or pointer button serial and its seat, for `set_selection`.
+    serial: Option<(u32, u32)>,
+    /// Last clipboard handle number given out.
+    next_client: u64,
 }
 
 impl Context {
@@ -323,6 +338,8 @@ impl Owner {
         }
         self.state.dnd.pump(Instant::now());
         apply_inbound(&mut self.state);
+        self.state.clip.pump(Instant::now());
+        clip::apply_selection(&mut self.state);
         self.connection.flush().map_err(|e| e.to_string())
     }
 }
@@ -395,9 +412,12 @@ fn apply_inbound(s: &mut State) {
     }
 }
 fn receive(offer: &wl_data_offer::WlDataOffer) -> std::io::Result<Box<dyn Read>> {
+    receive_as(offer, URI_LIST)
+}
+fn receive_as(offer: &wl_data_offer::WlDataOffer, mime: &str) -> std::io::Result<Box<dyn Read>> {
     let (reader, writer) = std::io::pipe()?;
     // libwayland duplicates the descriptor when marshalling, so our write end closes here.
-    offer.receive(URI_LIST.into(), writer.as_fd());
+    offer.receive(mime.into(), writer.as_fd());
     drop(writer);
     Ok(Box::new(nonblocking(reader.into())?))
 }
@@ -465,12 +485,18 @@ impl Drop for Owner {
         if let Some(active) = self.state.active.take() {
             active.source.destroy();
         }
+        if let Some(source) = self.state.own_source.take() {
+            source.destroy();
+        }
         for (_, offer) in self.state.offers.drain() {
             offer.destroy();
         }
         for seat in &mut self.state.seats {
             if let Some(p) = seat.pointer.take() {
                 p.release();
+            }
+            if let Some(k) = seat.keyboard.take() {
+                k.release();
             }
             if let Some(d) = seat.device.take() {
                 d.release();
@@ -512,6 +538,7 @@ impl Dispatch<wl_registry::WlRegistry, ()> for State {
                     id: name,
                     seat,
                     pointer: None,
+                    keyboard: None,
                     device: None,
                     focus: None,
                     grab: None,
@@ -524,6 +551,9 @@ impl Dispatch<wl_registry::WlRegistry, ()> for State {
                     let mut seat = s.seats.remove(index);
                     if let Some(p) = seat.pointer.take() {
                         p.release();
+                    }
+                    if let Some(k) = seat.keyboard.take() {
+                        k.release();
                     }
                     if let Some(d) = seat.device.take() {
                         d.release();
@@ -553,6 +583,14 @@ impl Dispatch<wl_seat::WlSeat, u32> for State {
                 capabilities: WEnum::Value(c),
             } = e
         {
+            // Selection serials need our own keyboard; only the standing device sets a selection.
+            if s.inbound && c.contains(wl_seat::Capability::Keyboard) {
+                if local.keyboard.is_none() {
+                    local.keyboard = Some(seat.get_keyboard(q, *id));
+                }
+            } else if let Some(k) = local.keyboard.take() {
+                k.release();
+            }
             if c.contains(wl_seat::Capability::Pointer) {
                 if local.pointer.is_none() {
                     local.pointer = Some(seat.get_pointer(q, *id));
@@ -595,6 +633,7 @@ impl Dispatch<wl_pointer::WlPointer, u32> for State {
                 state: WEnum::Value(wl_pointer::ButtonState::Pressed),
                 ..
             } => {
+                s.serial = Some((*id, serial));
                 // Only the first button owns the implicit grab serial. A later left press cannot replace it.
                 if seat.buttons.is_empty() && button == 272 {
                     seat.grab = seat.focus.clone().map(|surface| (serial, surface));
@@ -725,7 +764,13 @@ impl Dispatch<wl_data_device::WlDataDevice, u32> for State {
             wl_data_device::Event::Leave => s.dnd.leave(),
             wl_data_device::Event::Drop => s.dnd.drop_here(Instant::now()),
             wl_data_device::Event::Selection { id } => {
-                s.dnd.selection(id.map(|offer| offer.id().protocol_id()));
+                let offer = id.map(|offer| offer.id().protocol_id());
+                match offer.map(|offer| (offer, s.dnd.take_selection(offer))) {
+                    // The drag's own offer cannot be a selection; ignore a confused compositor.
+                    Some((_, None)) => {}
+                    Some((offer, Some(mimes))) => s.clip.offered(Some((offer, mimes))),
+                    None => s.clip.offered(None),
+                }
             }
             _ => {}
         }
