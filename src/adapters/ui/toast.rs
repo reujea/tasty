@@ -104,7 +104,7 @@ impl ToastManager {
     }
 
     /// 토스트 수명을 설정값(ms)으로 동기화한다. 이미 떠 있는 토스트에는 소급하지
-    /// 않고, 이후 push/coalesce 되는 토스트부터 적용된다. draw 직전에 호출한다.
+    /// 않고, 이후 push/coalesce 되거나 포인터에 붙잡힌 토스트부터 적용된다. draw 직전에 호출한다.
     pub fn set_lifetime_ms(&mut self, ms: u64) {
         self.lifetime = Duration::from_millis(ms);
     }
@@ -208,7 +208,7 @@ impl ToastManager {
         // 포인터가 떠나는 프레임에서 수명이 처음부터 흐른다.
         let mut held = std::mem::replace(&mut self.hovered_last, hovered.clone());
         held.extend(hovered.iter().copied());
-        hold_hovered(&mut self.toasts, &held, now);
+        hold_hovered(&mut self.toasts, &held, now, self.lifetime);
 
         self.toasts.retain(|t| {
             let age = now.duration_since(t.spawned_at);
@@ -401,10 +401,11 @@ fn hovered_ids(drawn: &[(u64, egui::Rect)], pointer: Option<egui::Pos2>) -> Vec<
 }
 
 /// 포인터 아래 카드의 수명을 멈춘다. 매 프레임 생성 시각을 등장 페이드 끝으로 당겨 두므로
-/// 카드는 불투명으로 남고, 포인터가 떠나면 전역 수명이 처음부터 흐른다.
-fn hold_hovered(toasts: &mut [ToastState], hovered: &[u64], now: Instant) {
+/// 카드는 불투명으로 남고, 포인터가 떠나면 전역 수명 `lifetime`이 처음부터 흐른다.
+fn hold_hovered(toasts: &mut [ToastState], hovered: &[u64], now: Instant, lifetime: Duration) {
     for t in toasts.iter_mut().filter(|t| hovered.contains(&t.id)) {
         t.spawned_at = full_opacity_start(now);
+        t.lifetime = lifetime;
     }
 }
 
@@ -796,6 +797,36 @@ mod tests {
         assert!((alpha_of(&mgr, id, Instant::now()) - 1.0).abs() < 1e-3);
     }
 
+    /// Given 2000ms 카드를 hover 중이다, When 전역 수명을 5000ms로 바꾸고 포인터가 떠난다,
+    /// Then 떠난 뒤 새 전역 수명 5000ms를 기준으로 만료된다.
+    #[test]
+    fn a_held_card_takes_the_new_global_lifetime() {
+        let ctx = egui::Context::default();
+        let mut mgr = ToastManager::new();
+        mgr.set_lifetime_ms(2000);
+        let t0 = Instant::now() - Duration::from_secs(60);
+        let (id, center) = shown_card(&ctx, &mut mgr, t0);
+        frame(
+            &ctx,
+            &mut mgr,
+            Some(egui::Event::PointerMoved(center)),
+            after(t0, 500),
+            false,
+        );
+        mgr.set_lifetime_ms(5000);
+        frame(&ctx, &mut mgr, None, after(t0, 600), false);
+        let left = after(t0, 700);
+        frame(&ctx, &mut mgr, Some(egui::Event::PointerGone), left, false);
+        assert_eq!(mgr.card_lifetimes(), vec![Duration::from_millis(5000)]);
+        let late = left + Duration::from_millis(4000);
+        frame(&ctx, &mut mgr, None, late, false);
+        assert_eq!(mgr.len(), 1);
+        assert!((alpha_of(&mgr, id, late) - 1.0).abs() < 1e-3);
+        let gone = left + Duration::from_millis(5000 + FADE_OUT_MS as u64);
+        frame(&ctx, &mut mgr, None, gone, false);
+        assert_eq!(mgr.len(), 0);
+    }
+
     /// 모션 감소도 같다. 마지막 hover 1950ms 뒤 떠나도 떠난 프레임에서 불투명이다.
     #[test]
     fn reduced_motion_leaving_after_an_idle_hover_restarts_the_lifetime() {
@@ -831,7 +862,7 @@ mod tests {
         toasts[0].spawned_at = fading;
         toasts[1].spawned_at = fading;
         assert!(compute_alpha(&toasts[0], now, false) < 0.6);
-        hold_hovered(&mut toasts, &[1], now);
+        hold_hovered(&mut toasts, &[1], now, DEFAULT_LIFETIME);
         assert!((compute_alpha(&toasts[0], now, false) - 1.0).abs() < 1e-3);
         let age = now.duration_since(toasts[0].spawned_at);
         assert!(age < toasts[0].lifetime + Duration::from_millis(FADE_OUT_MS as u64));
