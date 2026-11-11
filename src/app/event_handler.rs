@@ -1128,6 +1128,7 @@ impl App {
 
     /// 모달에 이벤트를 전달하고 반환한 닫기 요청을 처리한다. 호출자는 이후 일반 창 처리를 하지 않는다.
     fn handle_active_modal_window_event(&mut self, id: WindowId, event: WindowEvent) {
+        self.sync_auxiliary_toast_lifetime(id);
         let action = if let Some(modal) = self.view.views.get_mut(&id) {
             let mut ctx = ViewCtx {
                 modal_active: false,
@@ -1190,6 +1191,7 @@ impl App {
         }
         self.refresh_approval_presentations();
         self.refresh_preset_editor(id);
+        self.sync_auxiliary_toast_lifetime(id);
         let modal_active = self.view.is_modal_active();
         let action = {
             if let Some(w) = self.view.views.get_mut(&id) {

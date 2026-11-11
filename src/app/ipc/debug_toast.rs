@@ -2,8 +2,9 @@
 //! 토스트는 사용자 행동의 결과에만 뜨므로 release에는 두지 않는다. 격리 인스턴스에서 위치를 실측하는 진입점이다.
 
 use crate::adapters::ipc::handler::params;
-use crate::adapters::ui::{ToastKind, ToastManager, ToastScope};
+use crate::adapters::ui::{ToastKind, ToastScope};
 use crate::app::App;
+use crate::app::auxiliary_toasts::auxiliary_toasts;
 use crate::app::ipc::IpcStep;
 use crate::ipc::protocol::JsonRpcResponse;
 use crate::ipc::server::{IpcCommand, send_response};
@@ -217,22 +218,6 @@ fn resolve_main_scope(
             }
         }
     }
-}
-
-/// 자기 토스트 스택을 가진 보조 창. 모달과 preset 편집기는 메인 창과 별개의 창 범위 스택을 쓴다.
-fn auxiliary_toasts(view: &mut dyn std::any::Any) -> Option<(&'static str, &mut ToastManager)> {
-    if view.is::<crate::view::settings::SettingsView>() {
-        return view
-            .downcast_mut::<crate::view::settings::SettingsView>()
-            .map(|v| ("settings", &mut v.toasts));
-    }
-    if view.is::<crate::view::preset::PresetView>() {
-        return view
-            .downcast_mut::<crate::view::preset::PresetView>()
-            .map(|v| ("preset", &mut v.toasts));
-    }
-    view.downcast_mut::<crate::view::plugins::PluginsView>()
-        .map(|v| ("plugins", &mut v.toasts))
 }
 
 #[cfg(test)]

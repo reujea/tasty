@@ -797,6 +797,43 @@ mod tests {
         assert!((alpha_of(&mgr, id, Instant::now()) - 1.0).abs() < 1e-3);
     }
 
+    /// Given 보조 창이 만드는 관리자(설정 창·프리셋·플러그인)와 전역 5000ms, When App이 이벤트 전에
+    /// 넣는 값으로 맞춘 뒤 hover했다가 떠난다, Then 카드 수명은 기본 2000ms가 아니라 5000ms다.
+    /// 보조 창 View는 GPU 없이 만들 수 없어 App의 배선 자체는 실제 실행으로 잰다.
+    #[test]
+    fn auxiliary_window_managers_restart_with_the_synced_global_lifetime() {
+        let global = tasty_settings::Settings {
+            overlay: tasty_settings::OverlaySettings {
+                toast_duration_ms: 5000,
+            },
+            ..Default::default()
+        };
+        for mut mgr in [ToastManager::for_settings_window(), ToastManager::new()] {
+            let ctx = egui::Context::default();
+            assert_eq!(mgr.lifetime, DEFAULT_LIFETIME);
+            mgr.set_lifetime_ms(global.overlay.toast_duration_ms);
+            let t0 = Instant::now() - Duration::from_secs(60);
+            let (_, center) = shown_card(&ctx, &mut mgr, t0);
+            frame(
+                &ctx,
+                &mut mgr,
+                Some(egui::Event::PointerMoved(center)),
+                after(t0, 500),
+                false,
+            );
+            frame(
+                &ctx,
+                &mut mgr,
+                Some(egui::Event::PointerGone),
+                after(t0, 600),
+                false,
+            );
+            assert_eq!(mgr.card_lifetimes(), vec![Duration::from_millis(5000)]);
+            frame(&ctx, &mut mgr, None, after(t0, 600 + 4000), false);
+            assert_eq!(mgr.len(), 1);
+        }
+    }
+
     /// Given 2000ms 카드를 hover 중이다, When 전역 수명을 5000ms로 바꾸고 포인터가 떠난다,
     /// Then 떠난 뒤 새 전역 수명 5000ms를 기준으로 만료된다.
     #[test]

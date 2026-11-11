@@ -14,6 +14,8 @@ pub(crate) mod attach_poll;
 #[cfg(feature = "gui")]
 pub(crate) mod auto_attach;
 #[cfg(feature = "gui")]
+pub(crate) mod auxiliary_toasts;
+#[cfg(feature = "gui")]
 pub(crate) mod boot_machine;
 #[cfg(feature = "gui")]
 pub(crate) mod busy;
