@@ -28,7 +28,7 @@ use windows::Win32::UI::WindowsAndMessaging::{
 };
 use windows::core::*;
 
-use super::key_replay::{KeyReplay, MsgCopy, WinKey, release_vk, take_posted};
+use super::key_replay::{KeyId, KeyReplay, MsgCopy, WinKey, release_key, take_posted};
 use super::keyboard::{
     current_winit_mods, key_down_message, key_up_vk, layout_character_key, vk_to_winit_key,
     win32_scancode_to_physical,
@@ -145,11 +145,11 @@ fn note_key_up(msg: &MSG) {
 
 /// 결과를 기다리는 누름의 key-up이면 붙잡는다. 붙잡았으면 true이고 winit은 그 메시지를 보내지 않는다.
 fn hold_key_up(msg: &MSG) -> bool {
-    let Some(vk) = release_vk(msg.message, msg.wParam.0) else {
+    let Some(key_id) = release_key(msg.message, msg.wParam.0, msg.lParam.0) else {
         return false;
     };
     route_of(msg.hwnd, |r| r.replay.clone())
-        .is_some_and(|replay| replay.release(vk, WinKey::Msg(MsgCopy::of(msg))))
+        .is_some_and(|replay| replay.release(key_id, WinKey::Msg(MsgCopy::of(msg))))
 }
 
 /// winit 메시지 훅. 등록한 WebView로 가는 key-down을 소비했으면 true를 돌려주고, winit은 그 메시지를
@@ -198,9 +198,10 @@ pub(crate) fn filter_message(msg: *const c_void) -> bool {
         key
     };
     let physical = win32_scancode_to_physical(km.scan, km.extended);
+    let key_id = KeyId::new(km.vk, km.scan, km.extended);
     let copy = WinKey::Msg(MsgCopy::of(msg));
     let consumed = if km.repeat {
-        match replay.repeat(km.vk, copy) {
+        match replay.repeat(key_id, copy) {
             RepeatRoute::Held | RepeatRoute::Drop => true,
             RepeatRoute::Pass(_) => false,
             RepeatRoute::Unknown(_) => {
@@ -215,9 +216,9 @@ pub(crate) fn filter_message(msg: *const c_void) -> bool {
             super::run_editing_command(&target, action, surface_id)
         });
         match route {
-            KeyDownRoute::Forwarded(id) => replay.forwarded(id, km.vk, copy),
-            KeyDownRoute::Pass => replay.decide(km.vk, true),
-            KeyDownRoute::Consumed => replay.decide(km.vk, false),
+            KeyDownRoute::Forwarded(id) => replay.forwarded(id, key_id, copy),
+            KeyDownRoute::Pass => replay.decide(key_id, true),
+            KeyDownRoute::Consumed => replay.decide(key_id, false),
         }
         route.consumed()
     };

@@ -378,7 +378,9 @@ native 콜백은 가져갈지를 동기로 정하고 실행은 나중에 host �
   폴링 사이에 뒤이어 누른 키보다 늦게 페이지에 도착할 수 있다. 입력 게이트(모달·overlay·전체화면 무대)로 처리하지 않은 키와
   WebView가 사라진 키는 다시 넣지 않는다.
 - Windows는 가져간 key-down의 원래 이벤트를 같은 일련번호로 붙잡았다가(`windows/key_replay.rs`, 상한 64, 넘치면 가장
-  오래된 것을 버림) 동작하지 않았다는 결과가 오면 다시 넘긴다. host 입력 훅이 소비한 키는 그 창 메시지(hwnd·message·
+  오래된 것을 버림) 동작하지 않았다는 결과가 오면 다시 넘긴다. 누름·반복·key-up은 VK가 아니라 물리 키(scan code와
+  extended 비트)로 짝짓는다. 주 Enter와 숫자패드 Enter처럼 VK가 같은 키가 섞이지 않는다. scan code가 없는 합성 입력만
+  VK로 구분한다. host 입력 훅이 소비한 키는 그 창 메시지(hwnd·message·
   wParam·lParam)를 `PostMessageW`로 같은 창에 다시 보낸다. 다시 온 메시지는 보낸 목록과 대조해 판정 없이 통과시키므로
   winit이 Translate·Dispatch해 원래 입력과 같은 길(엔진 기본 동작 포함)로 간다. WM_CHAR는 그때의 키보드 상태로 만들어져,
   결과 전에 Shift 등을 뗐으면 다른 글자가 될 수 있다. `AcceleratorKeyPressed`로 가져간 키(옵션 없는 view, 중첩 메시지

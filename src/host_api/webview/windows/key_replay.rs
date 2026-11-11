@@ -128,6 +128,25 @@ fn dom_code(physical: &PhysicalKey) -> String {
     }
 }
 
+/// 누름·반복·key-up을 짝짓는 물리 키. scan code와 extended 비트로 구분한다(주 Enter와 숫자패드 Enter는 VK가
+/// 같다). scan code가 없는 합성 입력만 VK로 구분한다.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) struct KeyId {
+    scan: u32,
+    extended: bool,
+    vk: u32,
+}
+
+impl KeyId {
+    pub(super) fn new(vk: u32, scan: u32, extended: bool) -> Self {
+        Self {
+            scan,
+            extended,
+            vk: if scan == 0 { vk } else { 0 },
+        }
+    }
+}
+
 /// 붙잡은 원래 이벤트.
 #[derive(Debug)]
 pub(super) enum WinKey {
@@ -187,7 +206,7 @@ fn post(copy: MsgCopy, surface_id: u32) {
 pub(super) struct KeyReplay {
     surface_id: u32,
     target: ICoreWebView2,
-    hold: RefCell<KeyHold<u32, WinKey>>,
+    hold: RefCell<KeyHold<KeyId, WinKey>>,
     /// 다시 넘긴 키(vk, key-up 여부)와 그 시각.
     echoes: RefCell<Vec<(u32, bool, Instant)>>,
 }
@@ -203,12 +222,12 @@ impl KeyReplay {
     }
 
     /// 그 자리에서 정한 첫 누름. 반복이 이 결과를 따른다.
-    pub(super) fn decide(&self, vk: u32, pass: bool) {
-        self.hold.borrow_mut().decide(vk, pass);
+    pub(super) fn decide(&self, key_id: KeyId, pass: bool) {
+        self.hold.borrow_mut().decide(key_id, pass);
     }
 
-    pub(super) fn forwarded(&self, id: u64, vk: u32, key: WinKey) {
-        if !self.hold.borrow_mut().forwarded(id, vk, key) {
+    pub(super) fn forwarded(&self, id: u64, key_id: KeyId, key: WinKey) {
+        if !self.hold.borrow_mut().forwarded(id, key_id, key) {
             tracing::warn!(
                 "WebView surface {}: too many keys waiting for a result; dropped the oldest",
                 self.surface_id
@@ -216,13 +235,13 @@ impl KeyReplay {
         }
     }
 
-    pub(super) fn repeat(&self, vk: u32, key: WinKey) -> RepeatRoute<WinKey> {
-        self.hold.borrow_mut().repeat(vk, key)
+    pub(super) fn repeat(&self, key_id: KeyId, key: WinKey) -> RepeatRoute<WinKey> {
+        self.hold.borrow_mut().repeat(key_id, key)
     }
 
     /// key-up을 붙잡았으면 true다.
-    pub(super) fn release(&self, vk: u32, key: WinKey) -> bool {
-        self.hold.borrow_mut().release(vk, key).is_none()
+    pub(super) fn release(&self, key_id: KeyId, key: WinKey) -> bool {
+        self.hold.borrow_mut().release(key_id, key).is_none()
     }
 
     pub(super) fn clear_decisions(&self) {
@@ -325,13 +344,14 @@ pub(super) fn accelerator_key_handler(
             let Some(key) = vk_to_winit_key(vk) else {
                 return Ok(());
             };
-            let physical =
-                win32_scancode_to_physical(status.ScanCode, status.IsExtendedKey.as_bool());
+            let extended = status.IsExtendedKey.as_bool();
+            let key_id = KeyId::new(vk, status.ScanCode, extended);
+            let physical = win32_scancode_to_physical(status.ScanCode, extended);
             let mods = current_winit_mods();
             let repeat = !up && status.WasKeyDown.as_bool();
             let cdp = WinKey::Cdp(CdpKey::new(up, vk, &key, &physical, mods, repeat));
             if up {
-                if replay.release(vk, cdp) {
+                if replay.release(key_id, cdp) {
                     // SAFETY: 위와 같다.
                     unsafe { args.SetHandled(true) }?;
                 }
@@ -341,7 +361,7 @@ pub(super) fn accelerator_key_handler(
             // host 입력 경로의 view도 판정한다. 훅이 소비한 키는 여기로 오지 않고, 훅을 지나지 않은
             // 키(중첩 메시지 루프)는 여기서 받는다(host_input 모듈 설명).
             let consumed = if repeat {
-                match replay.repeat(vk, cdp) {
+                match replay.repeat(key_id, cdp) {
                     RepeatRoute::Held | RepeatRoute::Drop => true,
                     RepeatRoute::Pass(_) => false,
                     RepeatRoute::Unknown(_) => {
@@ -353,9 +373,9 @@ pub(super) fn accelerator_key_handler(
                 let route =
                     route_key_down(&*sink, surface_id, key, physical, mods, false, run_edit);
                 match route {
-                    KeyDownRoute::Forwarded(id) => replay.forwarded(id, vk, cdp),
-                    KeyDownRoute::Pass => replay.decide(vk, true),
-                    KeyDownRoute::Consumed => replay.decide(vk, false),
+                    KeyDownRoute::Forwarded(id) => replay.forwarded(id, key_id, cdp),
+                    KeyDownRoute::Pass => replay.decide(key_id, true),
+                    KeyDownRoute::Consumed => replay.decide(key_id, false),
                 }
                 route.consumed()
             };
@@ -368,9 +388,16 @@ pub(super) fn accelerator_key_handler(
     ))
 }
 
-/// key-up 메시지(WM_KEYUP·WM_SYSKEYUP)의 vk.
-pub(super) fn release_vk(message: u32, wparam: usize) -> Option<u32> {
-    (message == WM_KEYUP || message == WM_SYSKEYUP).then_some((wparam & 0xffff) as u32)
+/// key-up 메시지(WM_KEYUP·WM_SYSKEYUP)의 물리 키.
+pub(super) fn release_key(message: u32, wparam: usize, lparam: isize) -> Option<KeyId> {
+    let l = lparam as u32;
+    (message == WM_KEYUP || message == WM_SYSKEYUP).then(|| {
+        KeyId::new(
+            (wparam & 0xffff) as u32,
+            (l >> 16) & 0xff,
+            l & (1 << 24) != 0,
+        )
+    })
 }
 
 #[cfg(test)]
@@ -410,9 +437,40 @@ mod tests {
     }
 
     #[test]
-    fn release_vk_reads_both_key_up_messages() {
-        assert_eq!(release_vk(WM_KEYUP, 0x78), Some(0x78));
-        assert_eq!(release_vk(WM_SYSKEYUP, 0x43), Some(0x43));
-        assert_eq!(release_vk(0x0100, 0x43), None);
+    fn release_key_reads_both_key_up_messages() {
+        // F9 key-up: scan 0x43. 32비트 lParam을 부호 확장한 값(winit이 넘기는 isize)이다.
+        let f9 = 0xffff_ffff_c043_0001_u64 as isize;
+        assert_eq!(
+            release_key(WM_KEYUP, 0x78, f9),
+            Some(KeyId::new(0x78, 0x43, false))
+        );
+        assert_eq!(
+            release_key(WM_SYSKEYUP, 0x78, f9),
+            Some(KeyId::new(0x78, 0x43, false))
+        );
+        assert_eq!(release_key(0x0100, 0x78, f9), None);
+    }
+
+    /// Given 주 Enter와 숫자패드 Enter(같은 VK)를 결과 전에 함께 누른다, When 주 Enter를 먼저 뗀다,
+    /// Then 그 key-up은 주 Enter의 누름에 붙고 숫자패드 Enter의 반복은 자기 누름에 붙는다.
+    #[test]
+    fn keys_sharing_a_virtual_key_are_held_per_physical_key() {
+        let enter = KeyId::new(0x0D, 0x1C, false);
+        let numpad_enter = KeyId::new(0x0D, 0x1C, true);
+        assert_ne!(enter, numpad_enter);
+        let mut q = KeyHold::<KeyId, &str>::default();
+        q.forwarded(1, enter, "enter down");
+        q.forwarded(2, numpad_enter, "numpad down");
+        assert_eq!(q.release(enter, "enter up"), None);
+        assert_eq!(q.repeat(numpad_enter, "numpad repeat"), RepeatRoute::Held);
+        let first = q.finish(1, true).expect("enter result");
+        assert_eq!(first.replay, vec!["enter down"]);
+        assert_eq!(first.release, Some("enter up"));
+        let second = q.finish(2, true).expect("numpad result");
+        assert_eq!(second.replay, vec!["numpad down", "numpad repeat"]);
+        assert_eq!(second.release, None);
+        // scan code가 없는 합성 입력은 VK로 구분한다.
+        assert_ne!(KeyId::new(0x41, 0, false), KeyId::new(0x42, 0, false));
+        assert_eq!(KeyId::new(0x41, 0x1E, false), KeyId::new(0x61, 0x1E, false));
     }
 }
