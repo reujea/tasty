@@ -31,7 +31,9 @@ const MAX_PER_SCOPE: usize = 5;
 /// 문자 수가 이 상한을 넘으면 앞부분과 안내 접미만 표시한다.
 /// 번역문을 만들 때와 같은 TOAST_MAX_CHARS를 사용한다.
 const MAX_MESSAGE_CHARS: usize = crate::i18n::TOAST_MAX_CHARS;
-use tasty_ui_widgets::{TOAST_FADE_OUT_MS as FADE_OUT_MS, toast_fade_alpha};
+use tasty_ui_widgets::{
+    TOAST_FADE_IN_MS as FADE_IN_MS, TOAST_FADE_OUT_MS as FADE_OUT_MS, toast_fade_alpha,
+};
 pub use tasty_ui_widgets::{ToastEntryView, ToastScopeView, ToastStackBottom, ToastViewProps};
 
 /// 공용 위젯에 Tooltip 레이어 painter를 전달해 다른 UI 위에 토스트를 그린다.
@@ -127,7 +129,11 @@ impl ToastManager {
                 && t.message == message
                 && now.duration_since(t.spawned_at) < COALESCE_WINDOW
         }) {
-            existing.spawned_at = now;
+            // 등장 중인 카드는 그대로 둔다. 이미 불투명한 카드를 `now`로 되돌리면 alpha가 0이 되어
+            // 한 프레임 사라졌다가 다시 페이드인한다.
+            if now.duration_since(existing.spawned_at) >= fade_in() {
+                existing.spawned_at = full_opacity_start(now);
+            }
             existing.kind = kind;
             existing.hint = hint;
             existing.lifetime = self.lifetime;
@@ -332,6 +338,17 @@ fn merge_columns(th: &theme::Theme, members: &[StackMember]) -> Vec<StackColumn>
     columns.into_iter().map(|(_, c)| c).collect()
 }
 
+/// 등장 페이드 시간.
+fn fade_in() -> Duration {
+    Duration::from_secs_f32(FADE_IN_MS / 1000.0)
+}
+
+/// 등장 페이드를 막 끝낸 시각. `spawned_at`을 이 값으로 두면 카드가 완전 불투명이 되고
+/// 수명이 처음부터 흐른다. `now`로 두면 alpha가 0이라 카드가 그려지지 않는다.
+fn full_opacity_start(now: Instant) -> Instant {
+    now.checked_sub(fade_in()).unwrap_or(now)
+}
+
 /// 상태의 시간 값을 공용 위젯의 fade_alpha에 전달한다.
 pub fn compute_alpha(t: &ToastState, now: Instant, reduced_motion: bool) -> f32 {
     toast_fade_alpha(now.duration_since(t.spawned_at), t.lifetime, reduced_motion)
@@ -454,6 +471,39 @@ mod tests {
         mgr.push("dup", ToastKind::Info, ToastScope::Window);
         mgr.push("dup", ToastKind::Warning, ToastScope::Window);
         assert_eq!(mgr.toasts.len(), 1);
+        assert_eq!(mgr.toasts[0].kind, ToastKind::Warning);
+    }
+
+    /// Given 등장 페이드를 지난 카드, When 같은 범위·문구가 합쳐진다, Then 카드는 불투명으로
+    /// 남고 수명이 처음부터 흐른다.
+    #[test]
+    fn coalesce_keeps_an_opaque_card_opaque() {
+        let mut mgr = ToastManager::new();
+        mgr.push("dup", ToastKind::Info, ToastScope::Window);
+        let shown = Instant::now() - Duration::from_millis(300);
+        mgr.toasts[0].spawned_at = shown;
+        mgr.push("dup", ToastKind::Info, ToastScope::Window);
+        assert_eq!(mgr.toasts.len(), 1);
+        let t = &mgr.toasts[0];
+        let now = Instant::now();
+        assert!((compute_alpha(t, now, false) - 1.0).abs() < 1e-3);
+        assert!(t.spawned_at > shown, "수명이 갱신되지 않았다");
+        // 남은 수명은 전역 수명에서 등장 페이드 몫만 뺀 값이다.
+        let left = (t.spawned_at + t.lifetime).saturating_duration_since(now);
+        assert!(
+            left + fade_in() + Duration::from_millis(50) >= t.lifetime,
+            "{left:?}"
+        );
+    }
+
+    /// Given 등장 페이드 중인 카드, When 합쳐진다, Then 등장 시각을 바꾸지 않아 페이드가 이어진다.
+    #[test]
+    fn coalesce_leaves_a_fading_in_card_alone() {
+        let mut mgr = ToastManager::new();
+        mgr.push("dup", ToastKind::Info, ToastScope::Window);
+        let spawned = mgr.toasts[0].spawned_at;
+        mgr.push("dup", ToastKind::Warning, ToastScope::Window);
+        assert_eq!(mgr.toasts[0].spawned_at, spawned);
         assert_eq!(mgr.toasts[0].kind, ToastKind::Warning);
     }
 
