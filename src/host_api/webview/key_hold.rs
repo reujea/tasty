@@ -10,6 +10,11 @@ use std::collections::VecDeque;
 
 /// 결과를 기다리는 누름의 상한. host 큐는 매 이벤트 루프에서 비워지므로 정상 입력은 여기에 닿지 않는다.
 pub(crate) const HELD_LIMIT: usize = 64;
+/// 결과 전에 한 누름에 붙잡는 반복의 상한. 넘친 반복은 붙잡지 않고 소비한다(결과가 와도 넘기지 않는다).
+pub(crate) const REPEAT_LIMIT: usize = 64;
+/// 결과를 기다리며 붙잡을 수 있는 이벤트 수의 상한(누름마다 첫 누름·반복·key-up). macOS 반송 표지의 상한이다.
+#[cfg(target_os = "macos")]
+pub(crate) const HELD_EVENT_LIMIT: usize = HELD_LIMIT * (REPEAT_LIMIT + 2);
 /// 누름 결과를 기억하는 물리 키 수의 상한. 동시에 누른 키 수보다 넉넉하다.
 const DECIDED_LIMIT: usize = 16;
 
@@ -114,7 +119,9 @@ impl<K: Copy + PartialEq, E> KeyHold<K, E> {
     /// 자동 반복 key-down의 처리를 정한다.
     pub(crate) fn repeat(&mut self, key: K, event: E) -> RepeatRoute<E> {
         if let Some(held) = self.open_held(key) {
-            held.repeats.push(event);
+            if held.repeats.len() < REPEAT_LIMIT {
+                held.repeats.push(event);
+            }
             return RepeatRoute::Held;
         }
         match self.decided.iter().find(|(k, _)| *k == key) {
@@ -331,6 +338,19 @@ mod tests {
         // Given key-up, Then 기록이 지워진다.
         assert_eq!(q.release(8, "up"), Some("up"));
         assert_eq!(q.repeat(8, "r"), RepeatRoute::Unknown("r"));
+    }
+
+    /// 결과 전 반복은 상한까지만 붙잡고, 넘친 반복은 소비만 한다.
+    #[test]
+    fn repeats_before_the_result_are_held_up_to_the_limit() {
+        let mut q = KeyHold::<u32, u32>::default();
+        q.forwarded(1, 7, 0);
+        for i in 1..=REPEAT_LIMIT as u32 + 3 {
+            assert_eq!(q.repeat(7, i), RepeatRoute::Held);
+        }
+        let settled = q.finish(1, true).expect("paired result");
+        assert_eq!(settled.replay.len(), 1 + REPEAT_LIMIT);
+        assert_eq!(settled.replay.last(), Some(&(REPEAT_LIMIT as u32)));
     }
 
     /// 붙잡은 누름이 없는 key-up은 그대로 돌려준다.

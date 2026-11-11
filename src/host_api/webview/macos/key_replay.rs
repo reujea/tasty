@@ -6,6 +6,8 @@
 //!
 //! WebKit은 페이지가 처리하지 않은 key-down을 같은 `NSEvent`로 앱에 다시 보낸다. 다시 넘긴 이벤트가 그렇게 돌아와
 //! 다시 판정되면 같은 키를 또 가져가므로, 다시 넘긴 이벤트(시각·keyCode)를 짧은 시간 기억해 판정하지 않는다.
+//! 표지는 각 이벤트를 super에 넘기기 직전에 남기고, 개수 상한은 결과 전에 붙잡을 수 있는 이벤트 수와 같다. 그래서
+//! 한 번에 넘기는 이벤트의 표지가 넘기기 전에 밀려나지 않는다.
 
 use std::cell::{Cell, RefCell};
 use std::collections::VecDeque;
@@ -17,12 +19,32 @@ use objc2_app_kit::NSEvent;
 
 use super::keyboard::{macos_keycode_to_physical, ns_chars_to_winit_key, nsevent_mods_to_winit};
 use super::{KeyWebView, run_editing_command};
-use crate::host_api::webview::key_hold::{KeyHold, RepeatRoute, Settled};
+use crate::host_api::webview::key_hold::{HELD_EVENT_LIMIT, KeyHold, RepeatRoute, Settled};
 
 /// 다시 넘긴 이벤트가 WebKit 반송으로 돌아올 수 있는 시간.
 const ECHO_LIMIT: Duration = Duration::from_secs(5);
-/// 반송 표지의 상한.
-const ECHO_COUNT_LIMIT: usize = 64;
+/// 반송 표지의 상한. 한 결과로 넘길 수 있는 이벤트보다 많고, 결과 전에 붙잡을 수 있는 이벤트 수와 같다.
+const ECHO_COUNT_LIMIT: usize = HELD_EVENT_LIMIT;
+
+/// 다시 넘긴 이벤트의 (시각, keyCode)와 넘긴 때.
+#[derive(Default)]
+struct EchoMarks(VecDeque<(f64, u16, Instant)>);
+
+impl EchoMarks {
+    fn note(&mut self, stamp: f64, code: u16, now: Instant) {
+        self.0.push_back((stamp, code, now));
+        if self.0.len() > ECHO_COUNT_LIMIT {
+            self.0.pop_front();
+        }
+    }
+
+    /// 같은 이벤트가 performKeyEquivalent:와 keyDown:로 두 번 올 수 있어 표지를 지우지 않고 시간으로만 버린다.
+    fn contains(&mut self, stamp: f64, code: u16, now: Instant) -> bool {
+        self.0
+            .retain(|(_, _, at)| now.saturating_duration_since(*at) <= ECHO_LIMIT);
+        self.0.iter().any(|(t, c, _)| *t == stamp && *c == code)
+    }
+}
 
 /// key-down을 받은 입구.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -44,8 +66,7 @@ pub(super) struct KeyReplay {
     hold: RefCell<KeyHold<u16, HeldEvent>>,
     /// 다시 넘기는 중이다. super 호출 안에서 다시 들어온 키는 판정하지 않는다.
     replaying: Cell<bool>,
-    /// 다시 넘긴 이벤트의 (시각, keyCode)와 넘긴 때.
-    echoes: RefCell<VecDeque<(f64, u16, Instant)>>,
+    echoes: RefCell<EchoMarks>,
 }
 
 impl KeyReplay {
@@ -54,13 +75,9 @@ impl KeyReplay {
         if self.replaying.get() {
             return true;
         }
-        let now = Instant::now();
-        let mut echoes = self.echoes.borrow_mut();
-        echoes.retain(|(_, _, at)| now.saturating_duration_since(*at) <= ECHO_LIMIT);
-        let stamp = event.timestamp();
-        let code = event.keyCode();
-        // 같은 이벤트가 performKeyEquivalent:와 keyDown:로 두 번 올 수 있어 표지를 지우지 않고 시간으로만 버린다.
-        echoes.iter().any(|(t, c, _)| *t == stamp && *c == code)
+        self.echoes
+            .borrow_mut()
+            .contains(event.timestamp(), event.keyCode(), Instant::now())
     }
 
     /// 그 자리에서 정한 첫 누름. 반복이 이 결과를 따른다.
@@ -92,18 +109,16 @@ impl KeyReplay {
         let Some(Settled { replay, release }) = self.hold.borrow_mut().finish(id, pass) else {
             return;
         };
-        let now = Instant::now();
-        {
-            let mut echoes = self.echoes.borrow_mut();
-            for held in &replay {
-                echoes.push_back((held.event.timestamp(), held.event.keyCode(), now));
-                if echoes.len() > ECHO_COUNT_LIMIT {
-                    echoes.pop_front();
-                }
-            }
-        }
         self.replaying.set(true);
-        for held in replay.iter().chain(release.as_ref()) {
+        for held in &replay {
+            self.echoes.borrow_mut().note(
+                held.event.timestamp(),
+                held.event.keyCode(),
+                Instant::now(),
+            );
+            send(held);
+        }
+        if let Some(held) = &release {
             send(held);
         }
         self.replaying.set(false);
@@ -188,5 +203,25 @@ impl KeyWebView {
                 Entry::KeyUp => unsafe { msg_send![super(self), keyUp: event] },
             }
         });
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Given 결과 전에 붙잡을 수 있는 만큼의 이벤트를 넘긴다, When 그 반송이 온다,
+    /// Then 처음 넘긴 이벤트도 표지로 알아본다. 5초가 지난 표지는 버린다.
+    #[test]
+    fn echo_marks_keep_every_event_a_result_can_replay() {
+        let mut marks = EchoMarks::default();
+        let start = Instant::now();
+        for i in 0..ECHO_COUNT_LIMIT {
+            marks.note(i as f64, 7, start);
+        }
+        assert!(marks.contains(0.0, 7, start));
+        assert!(marks.contains((ECHO_COUNT_LIMIT - 1) as f64, 7, start));
+        assert!(!marks.contains(0.0, 8, start));
+        assert!(!marks.contains(0.0, 7, start + ECHO_LIMIT + Duration::from_millis(1)));
     }
 }
