@@ -131,10 +131,12 @@ impl ToastManager {
         let message = truncate_message(message.into());
         let now = Instant::now();
 
+        // 포인터 아래 카드는 draw가 쉬는 동안에도 붙잡힌 상태라 나이와 관계없이 합친다.
+        let held = &self.hovered_last;
         if let Some(existing) = self.toasts.iter_mut().rev().find(|t| {
             t.scope == scope
                 && t.message == message
-                && now.duration_since(t.spawned_at) < COALESCE_WINDOW
+                && (held.contains(&t.id) || now.duration_since(t.spawned_at) < COALESCE_WINDOW)
         }) {
             // 등장 중인 카드는 그대로 둔다. 이미 불투명한 카드를 `now`로 되돌리면 alpha가 0이 되어
             // 한 프레임 사라졌다가 다시 페이드인한다.
@@ -771,6 +773,27 @@ mod tests {
         let gone = left + DEFAULT_LIFETIME + Duration::from_millis(FADE_OUT_MS as u64);
         frame(&ctx, &mut mgr, None, gone, false);
         assert_eq!(mgr.len(), 0);
+    }
+
+    /// Given hover draw 뒤 프레임이 600ms 쉰다, When 같은 범위·문구를 push한다, Then 새 카드 없이
+    /// 붙잡힌 카드에 합쳐지고 불투명으로 남는다.
+    #[test]
+    fn an_idle_held_card_still_absorbs_the_same_message() {
+        let ctx = egui::Context::default();
+        let mut mgr = ToastManager::new();
+        let t0 = Instant::now() - Duration::from_secs(60);
+        let (id, center) = shown_card(&ctx, &mut mgr, t0);
+        let hover = Instant::now() - Duration::from_millis(600);
+        frame(
+            &ctx,
+            &mut mgr,
+            Some(egui::Event::PointerMoved(center)),
+            hover,
+            false,
+        );
+        mgr.push_info("held card", ToastScope::Window);
+        assert_eq!(mgr.len(), 1);
+        assert!((alpha_of(&mgr, id, Instant::now()) - 1.0).abs() < 1e-3);
     }
 
     /// 모션 감소도 같다. 마지막 hover 1950ms 뒤 떠나도 떠난 프레임에서 불투명이다.
