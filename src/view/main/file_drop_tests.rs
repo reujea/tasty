@@ -66,3 +66,21 @@ fn a_refused_folder_explains_why() {
     );
     assert!(text.contains(crate::i18n::t(reason)));
 }
+
+/// 네이티브 Wayland는 끄는 동안 포인터 좌표가 없다. drop과 함께 온 좌표로 칸을 고른다.
+#[test]
+fn a_drop_position_decides_even_without_a_cursor() {
+    let at = drop_point(Some((5.0, 6.0)), None);
+    assert_eq!(at, Some((5.0, 6.0)));
+    assert_eq!(
+        route(None, at.map(|at| (at, true))),
+        Route::AtCursor(5.0, 6.0)
+    );
+    let cursor = winit::dpi::PhysicalPosition::new(1.0, 2.0);
+    assert_eq!(drop_point(Some((5.0, 6.0)), Some(cursor)), Some((5.0, 6.0)));
+    assert_eq!(drop_point(None, Some(cursor)), Some((1.0, 2.0)));
+    assert_eq!(
+        route(None, drop_point(None, None).map(|at| (at, true))),
+        Route::NoCursor
+    );
+}

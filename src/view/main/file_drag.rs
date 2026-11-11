@@ -62,7 +62,24 @@ impl MainView {
             .set_cursor(winit::window::CursorIcon::Default);
     }
 
+    /// Native Wayland incoming drags hold no outbound state: an outbound drag pending native
+    /// work keeps the poll timer alive the same way.
+    #[cfg(target_os = "linux")]
+    pub(crate) fn has_inbound_drop(&self) -> bool {
+        self.file_drag
+            .context
+            .as_ref()
+            .is_some_and(crate::file::drag::Context::inbound_pending)
+    }
+
+    /// Also hands this window the native Wayland incoming drag events read by the shared queue.
     pub(crate) fn poll_outbound_drag(&mut self, engine: &EngineRead<'_>) {
+        #[cfg(target_os = "linux")]
+        if let Some(context) = self.file_drag.context.as_mut() {
+            let incoming = context.poll();
+            self.apply_inbound_drag(incoming);
+        }
+        #[cfg(not(target_os = "linux"))]
         if let Some(context) = self.file_drag.context.as_mut() {
             context.poll();
         }

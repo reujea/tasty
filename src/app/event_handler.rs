@@ -2078,8 +2078,13 @@ impl App {
 
     fn any_pending_native_menu(&self) -> bool {
         self.view.views.values().any(|w| {
-            w.as_main()
-                .is_some_and(|m| m.has_pending_native_menu() || m.has_outbound_drag())
+            w.as_main().is_some_and(|m| {
+                #[cfg(target_os = "linux")]
+                let inbound = m.has_inbound_drop();
+                #[cfg(not(target_os = "linux"))]
+                let inbound = false;
+                m.has_pending_native_menu() || m.has_outbound_drag() || inbound
+            })
         })
     }
 

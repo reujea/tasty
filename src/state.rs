@@ -319,6 +319,8 @@ impl RequestContext {
             #[cfg(feature = "gui")]
             pending_file_drops: Vec::new(),
             #[cfg(feature = "gui")]
+            pending_drop_position: None,
+            #[cfg(feature = "gui")]
             plugin_popup_closes: Vec::new(),
             #[cfg(feature = "gui")]
             plugin_popup_focus_bumps: Vec::new(),

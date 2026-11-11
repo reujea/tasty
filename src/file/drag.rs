@@ -25,6 +25,39 @@ pub(crate) enum Outcome {
     Unknown,
 }
 
+/// A file drag entering a window from another client (native Wayland only; winit reports the
+/// X11 one as `WindowEvent::HoveredFile`/`DroppedFile`). Positions are surface-local logical px.
+#[cfg(target_os = "linux")]
+#[derive(Debug, Clone, PartialEq)]
+pub(crate) enum InboundEvent {
+    /// The file list is known; the window starts its hover display.
+    Hover {
+        paths: Vec<PathBuf>,
+        at: (f64, f64),
+    },
+    Motion {
+        at: (f64, f64),
+    },
+    Leave,
+    /// The drop target is fixed at `at`.
+    Drop {
+        paths: Vec<PathBuf>,
+        at: (f64, f64),
+    },
+}
+
+/// The standing data device that receives incoming drags exists only when the process started on
+/// native Wayland (no `DISPLAY`, or its X server unreachable). X11 and XWayland keep winit's
+/// `DroppedFile` path and create a data device only while dragging out.
+#[cfg(target_os = "linux")]
+pub(crate) fn wants_inbound(start: Option<crate::boot::display_backend::StartBackend>) -> bool {
+    use crate::boot::display_backend::StartBackend;
+    matches!(
+        start,
+        Some(StartBackend::Wayland | StartBackend::WaylandFallback)
+    )
+}
+
 pub(crate) struct Context {
     #[cfg(target_os = "linux")]
     wayland: Option<wayland::Context>,
@@ -36,7 +69,9 @@ impl Context {
     ) -> Self {
         #[cfg(target_os = "linux")]
         {
-            let wayland = match wayland::Context::new(window, display_owner) {
+            let inbound =
+                wants_inbound(crate::boot::display_backend::start().map(|start| start.backend));
+            let wayland = match wayland::Context::new(window, display_owner, inbound) {
                 Ok(context) => context,
                 Err(error) => {
                     tracing::warn!(%error, "native drag context unavailable");
@@ -51,14 +86,29 @@ impl Context {
             Self {}
         }
     }
-    pub(crate) fn poll(&mut self) {
-        #[cfg(target_os = "linux")]
-        if let Some(context) = self.wayland.as_mut()
-            && let Err(error) = context.poll()
-        {
-            tracing::warn!(%error, "native drag input context failed");
-            self.wayland = None;
+    /// Runs the native drag queue and returns the incoming drag events for this window.
+    #[cfg(target_os = "linux")]
+    pub(crate) fn poll(&mut self) -> Vec<InboundEvent> {
+        let Some(context) = self.wayland.as_mut() else {
+            return Vec::new();
+        };
+        match context.poll() {
+            Ok(events) => events,
+            Err(error) => {
+                tracing::warn!(%error, "native drag input context failed");
+                self.wayland = None;
+                Vec::new()
+            }
         }
+    }
+    #[cfg(not(target_os = "linux"))]
+    pub(crate) fn poll(&mut self) {}
+    /// An incoming drag is hovering or being read, or a window has events not yet taken.
+    #[cfg(target_os = "linux")]
+    pub(crate) fn inbound_pending(&self) -> bool {
+        self.wayland
+            .as_ref()
+            .is_some_and(wayland::Context::inbound_pending)
     }
 }
 
@@ -117,5 +167,19 @@ impl Session {
     }
     pub(crate) fn accepted(&self) -> bool {
         self.backend.accepted()
+    }
+}
+
+#[cfg(all(test, target_os = "linux"))]
+mod tests {
+    use super::wants_inbound;
+    use crate::boot::display_backend::StartBackend;
+    #[test]
+    fn only_a_native_wayland_start_keeps_a_standing_device() {
+        assert!(wants_inbound(Some(StartBackend::Wayland)));
+        assert!(wants_inbound(Some(StartBackend::WaylandFallback)));
+        assert!(!wants_inbound(Some(StartBackend::X11)));
+        assert!(!wants_inbound(Some(StartBackend::Unset)));
+        assert!(!wants_inbound(None));
     }
 }
