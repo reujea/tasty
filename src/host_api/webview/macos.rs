@@ -473,7 +473,7 @@ define_class!(
         #[unsafe(method(performKeyEquivalent:))]
         fn perform_key_equivalent(&self, event: &NSEvent) -> bool {
             if view_holds_first_responder(self)
-                && self.forward_key_to_host(event, key_replay::Entry::KeyEquivalent)
+                && self.forward_key_to_host(event, key_replay::Entry::Equivalent)
             {
                 true
             } else {
@@ -484,7 +484,7 @@ define_class!(
 
         #[unsafe(method(keyDown:))]
         fn key_down(&self, event: &NSEvent) {
-            if self.forward_key_to_host(event, key_replay::Entry::KeyDown) {
+            if self.forward_key_to_host(event, key_replay::Entry::Down) {
                 return;
             }
             // SAFETY: main thread AppKit responder chain. super 구현에 위임.
@@ -496,7 +496,7 @@ define_class!(
         fn key_up(&self, event: &NSEvent) {
             let held = key_replay::HeldEvent {
                 event: event.retain(),
-                entry: key_replay::Entry::KeyUp,
+                entry: key_replay::Entry::Up,
             };
             if !self.ivars().replay.is_replayed(event)
                 && self.ivars().replay.release(event.keyCode(), held)
@@ -1234,7 +1234,6 @@ unsafe fn logical_to_nsrect(parent: &NSView, bounds: WebViewBounds, _scale_facto
 #[cfg(test)]
 mod tests {
     use super::keyboard::ns_chars_to_winit_key;
-    use super::*;
     use winit::keyboard::{Key, NamedKey};
 
     #[test]

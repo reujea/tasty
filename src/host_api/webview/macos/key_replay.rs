@@ -49,9 +49,12 @@ impl EchoMarks {
 /// key-down을 받은 입구.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum Entry {
-    KeyEquivalent,
-    KeyDown,
-    KeyUp,
+    /// `performKeyEquivalent:`
+    Equivalent,
+    /// `keyDown:`
+    Down,
+    /// `keyUp:`
+    Up,
 }
 
 /// 붙잡은 원래 이벤트.
@@ -188,7 +191,7 @@ impl KeyWebView {
         self.ivars().replay.finish(id, pass, |held| {
             let event = &*held.event;
             match held.entry {
-                Entry::KeyEquivalent => {
+                Entry::Equivalent => {
                     // SAFETY: main thread AppKit. 이 뷰의 super 구현에 원래 이벤트를 넘긴다.
                     let handled: bool =
                         unsafe { msg_send![super(self), performKeyEquivalent: event] };
@@ -198,9 +201,9 @@ impl KeyWebView {
                     }
                 }
                 // SAFETY: 위와 같다.
-                Entry::KeyDown => unsafe { msg_send![super(self), keyDown: event] },
+                Entry::Down => unsafe { msg_send![super(self), keyDown: event] },
                 // SAFETY: 위와 같다.
-                Entry::KeyUp => unsafe { msg_send![super(self), keyUp: event] },
+                Entry::Up => unsafe { msg_send![super(self), keyUp: event] },
             }
         });
     }
