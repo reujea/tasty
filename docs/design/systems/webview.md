@@ -395,9 +395,14 @@ native 콜백은 가져갈지를 동기로 정하고 실행은 나중에 host �
   `AcceleratorKeyPressed`로 반송되지 않았다. debug 빌드는 환경변수 `TASTY_DEBUG_WEBVIEW2_NO_HOST_INPUT`에 값이 있으면 host 입력 경로 없이 view를 만들어 이
   경로를 재현한다. release 빌드에는 이 분기가 없다. WebView2 debug 빌드에서 OS 합성 키 입력(scan code 포함)으로 두 경로
   모두 확인한 범위: 동작하지 않은 키(포인터 아래 링크가 없는 `copy_link`)의 수식키 없는 키·Ctrl 조합·Alt+Shift 조합이 원래
-  key·code·keyCode로 페이지 keydown 1건이 되고, 10회 연타는 10건, 길게 누르기는 첫 누름 1건과 `repeat` 반복이 된다. 동작한
-  키(이름 바꾸기 팝업, 탭 전환, 길게 누른 단축키)는 첫 누름·반복 모두 페이지에 가지 않는다. 사람 손 입력·IME 조합·AltGr·결과
-  전에 surface를 닫는 경우는 실제 실행으로 확인하지 않았다.
+  key·code·keyCode로 페이지 keydown 1건이 되고(US 배열의 Ctrl+Shift+1은 key "!"), 10회 연타는 10건, 길게 누르기는 첫 누름
+  1건과 `repeat` 반복이 된다. 동작한 키(이름 바꾸기 팝업, 탭 전환, 길게 누른 단축키)는 첫 누름·반복 모두 페이지에 가지 않는다.
+  다시 넘긴 키 직후 1초 안에 같은 물리 키의 다른 단축키(F9 뒤 Shift+F9)를 누르면 그 단축키가 동작한다. host 입력 경로에서는
+  편집 명령으로 실행한 Ctrl+C에서 Ctrl만 떼고 C를 계속 누르면 c keydown·반복이 페이지에 가지 않고, 페이지로 넘긴 1을 누른 채
+  Ctrl을 더해도 반복은 탭을 바꾸지 않고 페이지로 간다. 훅 없는 view에서는 수식키 없는 글자 키가 `AcceleratorKeyPressed`로
+  오지 않아 두 경우 모두 첫 누름의 기록이 없다. Ctrl을 뗀 뒤의 C 반복은 판정 없이 페이지로 가고, Ctrl을 더한 1의 반복은 그
+  자리의 수식키로 판정되어 소비된다(탭은 바뀌지 않는다). 사람 손 입력·IME 조합·AltGr·결과 전에 surface를 닫는 경우·VK가 같은
+  두 물리 키를 결과 전에 함께 누르는 경우는 실제 실행으로 확인하지 않았다.
 - macOS는 가져간 `NSEvent`를 같은 일련번호로 붙잡았다가(`macos/key_replay.rs`, 상한 64, 넘치면 가장 오래된 것을 버림)
   동작하지 않았다는 결과가 오면 그 WKWebView 하위 클래스의 super 구현에 다시 넘긴다. `performKeyEquivalent:`로 받은
   키는 super `performKeyEquivalent:`에 넘기고, 처리되지 않았으면 super `keyDown:`에 넘긴다. `keyDown:`으로 받은 키는
