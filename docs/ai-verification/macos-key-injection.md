@@ -8,7 +8,7 @@ macOS는 셸에서 실행한 프로세스의 보호 리소스 접근을 그 셸�
 
 ## adhoc 서명 앱은 빌드마다 권한이 풀린다
 
-배포 DMG와 `scripts/build-macos-dmg.sh`로 만든 앱은 adhoc 서명이다([빌드](../dev-guide/build.md)). 서명 방식은 `codesign -dv <앱 경로>`로 확인한다. 2026-11-11 측정 대상 Mac의 앱은 다음과 같았다.
+배포 DMG와 `scripts/build-macos-dmg.sh`로 만든 앱은 adhoc 서명이다([빌드](../dev-guide/build.md)). 서명 방식은 `codesign -dv <앱 경로>`로 확인한다. adhoc 서명 앱은 출력에 다음 값이 나온다.
 
 - `Signature=adhoc`
 - `flags=0x2(adhoc)`
@@ -46,20 +46,15 @@ let opts = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true] a
 print("AXIsProcessTrustedWithOptions(prompt)=\(AXIsProcessTrustedWithOptions(opts))")
 ```
 
-호출 전후에 위 두 조회 값을 기록한다. 대화상자가 떴는지는 `screencapture -x`로 화면을 찍어 확인한다. 캡처에는 사용자 화면이 찍히므로 파일을 그 Mac의 작업 폴더에만 두고 판정한 뒤 지운다. 보고서에는 판정 결과만 적는다. `screencapture`에는 화면 기록 권한도 필요하다([스크린샷](screenshot-methods.md)).
+두 함수는 권한이 아직 없으면 false를 돌려준다. 호출 전후에 위 두 조회 값을 기록한다. 대화상자가 떴는지는 `screencapture -x`로 화면을 찍어 확인한다. 캡처에는 사용자 화면이 찍히므로 파일을 그 Mac의 작업 폴더에만 두고 판정한 뒤 지운다. 보고서에는 판정 결과만 적는다. `screencapture`에는 화면 기록 권한도 필요하다([스크린샷](screenshot-methods.md)). 원격 데스크톱처럼 화면 전체를 덮는 창이 있으면 대화상자가 그 뒤나 다른 Space에 뜰 수 있어 캡처로 판정할 수 없다. 손쉬운 사용 목록의 항목은 시스템 설정을 열어야 보이므로 child가 확인하지 않는다.
 
-2026-11-11 측정에서 확인한 사실과 확인하지 못한 사실은 다음과 같다.
-
-- 두 함수 모두 false를 돌려줬다. 호출 뒤 두 조회 값도 false였다.
-- 3초 뒤 찍은 캡처에서는 대화상자를 찾지 못했다. 다만 Mac 화면 전체를 원격 데스크톱 창이 덮고 있었다. 그래서 대화상자가 그 창 뒤나 다른 Space에 떴는지는 판정하지 못했다. 원격 데스크톱처럼 화면을 덮는 창이 있으면 캡처로 대화상자를 판정할 수 없다.
-- 손쉬운 사용 목록에 어떤 항목이 생겼는지는 미확인이다. 시스템 설정 화면을 열지 않았기 때문이다.
-- 사용자가 허용한 뒤에는 이미 실행 중이던 셸에서 두 조회 값이 true로 바뀌었다. 셸과 Tasty.app을 다시 시작하지 않았다. 허용이 팝업으로 이뤄졌는지 시스템 설정에서 이뤄졌는지는 확인하지 못했다.
+사용자가 허용하면 이미 실행 중인 셸에서 다시 조회한 값이 true가 된다. 셸과 Tasty.app을 다시 시작하지 않아도 된다(측정함).
 
 ## 대안: Terminal.app이 권한을 받게 한다
 
-Tasty.app을 다시 빌드할 때마다 권한을 다시 받지 않으려면 키 입력 스크립트를 Terminal.app에서 실행한다. 그러면 Terminal.app이 responsible process가 된다. Terminal.app은 Apple이 서명했고 이 저장소에서 다시 빌드하지 않는다. 같은 날 `codesign -dv`로 확인한 값은 `Identifier=com.apple.Terminal`, `TeamIdentifier=not set`이었고 adhoc이 아니었다. 사용자는 Terminal.app의 손쉬운 사용을 한 번만 켜면 된다.
+Tasty.app을 다시 빌드할 때마다 권한을 다시 받지 않으려면 키 입력 스크립트를 Terminal.app에서 실행한다. 그러면 Terminal.app이 responsible process가 된다. Terminal.app은 Apple이 서명했고(`codesign -dv`의 `Identifier=com.apple.Terminal`, adhoc 아님) 이 저장소에서 다시 빌드하지 않는다. 사용자는 Terminal.app의 손쉬운 사용을 한 번만 켜면 된다.
 
-이 절차는 아직 실행하지 않았다. 아래 단계는 모두 미측정이다.
+아래 단계는 모두 미측정이다.
 
 1. 측정 스크립트를 작업 폴더에 둔다. 스크립트는 결과를 작업 폴더의 파일에 쓰고, 마지막에 완료 표지 파일을 만든다.
 2. child 셸에서 `open -a Terminal <스크립트>`로 Terminal.app 창에서 실행한다.
