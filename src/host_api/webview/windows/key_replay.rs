@@ -70,7 +70,8 @@ impl Echoes {
 }
 
 /// 다시 보낸 메시지의 키와 lParam 상태. `AcceleratorKeyPressed`의 물리 키 상태와 같은 비트 배치다.
-/// Ctrl·Shift 상태는 넣지 않는다. 원래 메시지(MSG)의 wParam·lParam에 그 상태가 없다.
+/// Ctrl·Shift 상태는 넣지 않는다. 훅이 꺼낼 때 GetKeyState로 읽을 수는 있지만, 중첩 루프 진입에서 표지를 끝내
+/// 남은 창은 같은 Dispatch 안에서 다른 실제 키가 먼저 오는 경우뿐이고, 그 비교는 Windows 실제 실행 측정 없이 정하지 않는다.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) struct PostedKey {
     vk: u32,
