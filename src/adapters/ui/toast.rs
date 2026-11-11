@@ -70,6 +70,9 @@ pub struct ToastManager {
     card_rects: Vec<crate::model::LogicalRect>,
     /// 마지막 draw에서 그린 카드의 토스트 id와 egui 사각형. 다음 draw가 포인터 아래 카드를 찾는다.
     drawn_cards: Vec<(u64, egui::Rect)>,
+    /// 마지막 draw에서 포인터 아래에 있던 카드의 토스트 id. 그 뒤 프레임이 쉬는 동안에도
+    /// 포인터는 그 자리에 있었으므로 다음 draw에서도 붙잡는다.
+    hovered_last: Vec<u64>,
     /// Window·Workspace 범위 스택의 하단 기준. 메인 창은 상태바, Settings 창은 하단 버튼 줄을 피한다.
     window_bottom: ToastStackBottom,
 }
@@ -82,6 +85,7 @@ impl ToastManager {
             lifetime: DEFAULT_LIFETIME,
             card_rects: Vec::new(),
             drawn_cards: Vec::new(),
+            hovered_last: Vec::new(),
             window_bottom: ToastStackBottom::Window,
         }
     }
@@ -198,7 +202,11 @@ impl ToastManager {
         // 지난 프레임 사각형만 비교하므로 클릭·드래그·포커스는 아래로 그대로 간다.
         let pointer = ctx.input(|i| i.pointer.hover_pos());
         let hovered = hovered_ids(&self.drawn_cards, pointer);
-        hold_hovered(&mut self.toasts, &hovered, now);
+        // 모든 카드가 붙잡히면 프레임을 쉬므로 지난 draw 뒤의 시간도 hover로 친다. 그래야
+        // 포인터가 떠나는 프레임에서 수명이 처음부터 흐른다.
+        let mut held = std::mem::replace(&mut self.hovered_last, hovered.clone());
+        held.extend(hovered.iter().copied());
+        hold_hovered(&mut self.toasts, &held, now);
 
         self.toasts.retain(|t| {
             let age = now.duration_since(t.spawned_at);
@@ -211,6 +219,7 @@ impl ToastManager {
         if self.toasts.is_empty() {
             self.card_rects.clear();
             self.drawn_cards.clear();
+            self.hovered_last.clear();
             return;
         }
 
@@ -725,6 +734,66 @@ mod tests {
 
     fn after(t0: Instant, ms: u64) -> Instant {
         t0 + Duration::from_millis(ms)
+    }
+
+    /// 카드 하나를 그려 두고 그 중심과 id를 돌려준다. 생성 시각은 `t0`이다.
+    fn shown_card(ctx: &egui::Context, mgr: &mut ToastManager, t0: Instant) -> (u64, egui::Pos2) {
+        mgr.push_info("held card", ToastScope::Window);
+        let id = mgr.toasts[0].id;
+        mgr.toasts[0].spawned_at = t0;
+        frame(ctx, mgr, None, after(t0, 100), false);
+        frame(ctx, mgr, None, after(t0, 100), false);
+        (id, card_of(mgr, id).center())
+    }
+
+    /// Given 모든 카드가 붙잡혀 프레임이 쉰다, When 마지막 hover 프레임 1900ms 뒤 포인터가
+    /// 떠난다, Then 떠난 프레임부터 전역 수명이 처음부터 흘러 수명 - 등장 페이드 동안 불투명이다.
+    #[test]
+    fn leaving_after_an_idle_hover_restarts_the_lifetime() {
+        let ctx = egui::Context::default();
+        let mut mgr = ToastManager::new();
+        let t0 = Instant::now() - Duration::from_secs(60);
+        let (id, center) = shown_card(&ctx, &mut mgr, t0);
+        let hover = after(t0, 500);
+        frame(
+            &ctx,
+            &mut mgr,
+            Some(egui::Event::PointerMoved(center)),
+            hover,
+            false,
+        );
+        let left = hover + Duration::from_millis(1900);
+        frame(&ctx, &mut mgr, Some(egui::Event::PointerGone), left, false);
+        let late = left + DEFAULT_LIFETIME - fade_in() - Duration::from_millis(20);
+        frame(&ctx, &mut mgr, None, late, false);
+        assert_eq!(mgr.len(), 1);
+        assert!((alpha_of(&mgr, id, late) - 1.0).abs() < 1e-3);
+        let gone = left + DEFAULT_LIFETIME + Duration::from_millis(FADE_OUT_MS as u64);
+        frame(&ctx, &mut mgr, None, gone, false);
+        assert_eq!(mgr.len(), 0);
+    }
+
+    /// 모션 감소도 같다. 마지막 hover 1950ms 뒤 떠나도 떠난 프레임에서 불투명이다.
+    #[test]
+    fn reduced_motion_leaving_after_an_idle_hover_restarts_the_lifetime() {
+        let ctx = egui::Context::default();
+        let mut mgr = ToastManager::new();
+        let t0 = Instant::now() - Duration::from_secs(60);
+        let (id, center) = shown_card(&ctx, &mut mgr, t0);
+        let hover = after(t0, 500);
+        frame(
+            &ctx,
+            &mut mgr,
+            Some(egui::Event::PointerMoved(center)),
+            hover,
+            true,
+        );
+        let left = hover + Duration::from_millis(1950);
+        frame(&ctx, &mut mgr, Some(egui::Event::PointerGone), left, true);
+        let t = mgr.toasts.iter().find(|t| t.id == id).expect("alive");
+        assert_eq!(compute_alpha(t, left, true), 1.0);
+        let late = left + DEFAULT_LIFETIME - fade_in() - Duration::from_millis(20);
+        assert_eq!(compute_alpha(t, late, true), 1.0);
     }
 
     /// 포인터 아래 카드만 붙잡는다. 페이드아웃 중이던 카드도 불투명으로 돌아온다.
