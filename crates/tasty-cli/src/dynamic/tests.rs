@@ -847,6 +847,8 @@ fn a_path_for_an_attach_mirror_is_sent_unchanged_for_the_server_to_check() {
 
 #[test]
 fn a_path_for_a_local_target_is_still_resolved_and_checked_here() {
+    // 해석한 cwd와 아래 current_dir() 읽기가 같은 cwd에서 나오도록 다른 시험의 cwd 변경을 막는다.
+    let _cwd = crate::cwd_test::hold();
     let (params, _) = path_request(
         &[
             "pathy",
@@ -866,6 +868,8 @@ fn a_path_for_a_local_target_is_still_resolved_and_checked_here() {
 
 #[test]
 fn the_host_is_not_asked_without_a_path_or_a_numeric_placement() {
+    // 해석한 cwd와 아래 current_dir() 읽기가 같은 cwd에서 나오도록 다른 시험의 cwd 변경을 막는다.
+    let _cwd = crate::cwd_test::hold();
     let (_, asked) = path_request(&["pathy", "spawn", "--workspace", "7"], true);
     assert!(asked.is_empty());
     let (params, asked) = path_request(
@@ -882,6 +886,8 @@ fn the_host_is_not_asked_without_a_path_or_a_numeric_placement() {
 
 #[test]
 fn a_method_without_remote_execution_keeps_local_paths_even_for_a_numeric_workspace() {
+    // 해석한 cwd와 아래 current_dir() 읽기가 같은 cwd에서 나오도록 다른 시험의 cwd 변경을 막는다.
+    let _cwd = crate::cwd_test::hold();
     // launch 의 --workspace 는 새 workspace 이름이라 숫자여도 mirror 를 가리키지 않는다.
     let (params, asked) =
         path_request(&["pathy", "launch", "--workspace", "7", "--cwd", "."], true);

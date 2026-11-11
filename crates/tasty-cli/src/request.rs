@@ -1017,6 +1017,8 @@ mod tests {
     /// 절대 경로는 기준을 싣지 않고, 상대 경로는 호출자 폴더를 함께 싣되 file은 바꾸지 않는다.
     #[test]
     fn only_a_relative_file_carries_the_caller_folder() {
+        // 해석한 기준 폴더와 아래 current_dir() 읽기가 같은 cwd에서 나오도록 다른 시험의 cwd 변경을 막는다.
+        let _cwd = crate::cwd_test::hold();
         let full = if cfg!(windows) { r"C:\a.md" } else { "/a.md" };
         for args in [
             &["tasty", "new", "tab", "--pane", "1", "--file"][..],
