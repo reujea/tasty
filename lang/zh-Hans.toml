@@ -2863,6 +2863,9 @@ about = "在 Surface 上设置读取标记"
 [cli.help._root.set.mark.arg.surface]
 help = "Surface ID（默认：$TASTY_SURFACE_ID，即调用方 Surface）"
 
+[cli.help._root.set.workspace]
+about = "更新工作区名称、副标题、描述或分类"
+
 [cli.help._root.set.workspace.arg.id]
 help = "工作区 ID（必填）"
 
@@ -3106,12 +3109,30 @@ help = "输出 JSON 对象，替代供人阅读的文本（供脚本和智能体
 
 [cli.help._root.remote.refusals]
 about = "列出近期因目标为本实例而被拒绝的附加尝试"
+long = """
+列出近期因目标为本实例而被拒绝的附加尝试。
+
+此处列出解析端点后判定的拒绝：附加配置档指向本实例的已保存远程工作区行，以及通过主机名或 LAN IP 经 SSH 到达本实例的、针对现有工作区的 `remote.attach`（响应为 `attaching`，随后异步拒绝）。指向自身端口的回环目标则立即报错拒绝。每条记录包含尝试编号（`attempt`，位于 `remote.attach` 响应中）、已保存行的本地工作区（手动请求时为 null）、远程工作区 ID、端口，以及是否通过 SSH 判定。最多保留最新的 32 条拒绝记录，直到实例退出。其他连接失败不在此列出。只读。"""
 
 [cli.help._root.remote.disconnect]
 about = "从本地 GUI 分离镜像并保持远程工作区运行"
+long = """
+从本地 GUI 分离镜像并保持远程工作区运行。
+
+执行与镜像卡片的“断开工作区连接”菜单项相同的操作：清除本地镜像工作区、其附加会话和重新连接尝试，远程工作区及其进程继续运行。之后可使用 `tasty remote attach --into-gui --workspace <remote id>` 再次附加。已保存的远程工作区行保留在列表中；使用 `tasty remote connect --workspace <local id>` 再次连接。响应包含该远程 ID。如果工作区不是具有附加会话的镜像，则操作失败。仅在也要关闭远程工作区时使用 `tasty close surface`。"""
 
 [cli.help._root.remote.disconnect.arg.workspace]
 help = "镜像工作区的本地 ID（`tasty list workspaces` 中的 `[mirror]` 条目），而非远程 ID"
+
+[cli.help._root.remote.connect]
+about = "连接已保存的远程工作区行，包括用户已断开连接的行"
+long = """
+连接已保存的远程工作区行，包括用户已断开连接的行。
+
+清除该行的用户断开连接状态，并在不移动焦点的情况下连接。输出已接受请求的响应，然后等待最终结果并将其输出为第二行。已连接的行立即成功，正在连接的行加入该次尝试。如果结果不是成功，或未在 90 秒内到达，则以退出码 1 退出。如果工作区不是已保存的远程工作区行、其远程工作区已不存在，或其窗口已关闭，则立即失败。"""
+
+[cli.help._root.remote.connect.arg.workspace]
+help = "已保存的远程工作区行的本地 ID（其在 `tasty list workspaces` 中的条目），而非远程 ID"
 
 [cli.help._root.send]
 about = "发送文本、按键或队列消息"

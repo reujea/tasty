@@ -2805,6 +2805,9 @@ about = "서피스에 읽기 마크 설정"
 [cli.help._root.set.mark.arg.surface]
 help = "서피스 ID (기본값: $TASTY_SURFACE_ID, 호출한 서피스)"
 
+[cli.help._root.set.workspace]
+about = "워크스페이스의 이름·부제·설명 또는 카테고리 갱신"
+
 [cli.help._root.set.workspace.arg.id]
 help = "워크스페이스 ID (필수)"
 
@@ -3031,12 +3034,21 @@ help = "사람용 텍스트 대신 JSON 객체 출력(스크립트·에이전트
 
 [cli.help._root.remote.refusals]
 about = "이 인스턴스를 대상으로 해서 거절한 최근 attach 시도를 나열합니다"
+long = "이 인스턴스를 대상으로 해서 거절한 최근 attach 시도를 나열합니다.\n\n엔드포인트를 해석한 뒤에 판정한 거절을 나열합니다. attach 프로필이 이 인스턴스를 가리키는 저장된 원격 워크스페이스 행과, 호스트명이나 LAN IP로 SSH를 거쳐 이 인스턴스에 도달하는 기존 워크스페이스 대상 `remote.attach`가 해당합니다(응답은 `attaching`이고 거절은 비동기로 이어집니다). 반면 자기 포트의 루프백 대상은 즉시 오류로 거절합니다. 각 항목에는 시도 번호(`attempt`, `remote.attach` 응답에 포함), 저장된 행의 로컬 워크스페이스(수동 요청이면 null), 원격 워크스페이스 ID, 포트, SSH로 판정했는지가 포함됩니다. 인스턴스가 종료될 때까지 최근 거절을 최대 32개 보관합니다. 다른 연결 실패는 나열하지 않습니다. 읽기 전용입니다."
 
 [cli.help._root.remote.disconnect]
 about = "로컬 GUI에서 미러 연결을 끊고 원격 워크스페이스 실행 유지"
+long = "로컬 GUI에서 미러 연결을 끊고 원격 워크스페이스는 계속 실행합니다.\n\n미러 카드의 \"워크스페이스 연결 끊기\" 메뉴 항목과 같은 동작을 수행합니다. 로컬 미러 워크스페이스, 해당 attach 세션, 재연결 시도는 정리하고 원격 워크스페이스와 그 프로세스는 계속 실행합니다. 나중에 `tasty remote attach --into-gui --workspace <remote id>`로 다시 attach할 수 있습니다. 저장된 원격 워크스페이스 행은 목록에 남습니다. `tasty remote connect --workspace <local id>`로 다시 연결할 수 있습니다. 응답에는 해당 원격 ID가 포함됩니다. 대상 워크스페이스가 attach 세션이 있는 미러가 아니면 실패합니다. 원격 워크스페이스도 닫으려는 경우에만 `tasty close surface`를 사용합니다."
 
 [cli.help._root.remote.disconnect.arg.workspace]
 help = "미러 워크스페이스의 로컬 ID (`tasty list workspaces`의 `[mirror]` 항목). 원격 ID가 아님"
+
+[cli.help._root.remote.connect]
+about = "사용자가 연결을 끊은 행을 포함해 저장된 원격 워크스페이스 행 연결"
+long = "사용자가 연결을 끊은 행을 포함해 저장된 원격 워크스페이스 행을 연결합니다.\n\n해당 행에 대한 사용자의 연결 끊김 상태를 해제하고 포커스를 옮기지 않은 채 연결합니다. 접수 응답을 출력한 뒤 최종 결과를 기다려 두 번째 줄에 출력합니다. 이미 연결된 행은 즉시 성공하고, 연결 중인 행은 진행 중인 시도에 합류합니다. 결과가 성공이 아니거나 90초 안에 도착하지 않으면 종료 코드 1로 종료합니다. 워크스페이스가 저장된 원격 워크스페이스 행이 아니거나, 해당 원격 워크스페이스가 없어졌거나, 해당 윈도우가 닫혔으면 즉시 실패합니다."
+
+[cli.help._root.remote.connect.arg.workspace]
+help = "저장된 원격 워크스페이스 행의 로컬 ID (`tasty list workspaces`의 해당 항목). 원격 ID가 아님"
 
 [cli.help._root.send]
 about = "텍스트, 키, 큐 메시지 전송"

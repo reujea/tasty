@@ -199,38 +199,7 @@ const MODIFIER_TOKENS: &[&str] = &[
 /// 번역이 아직 도착하지 않은 키다. 영어 원문이 번역 기준 커밋 뒤에 생기거나 바뀐 키라 해당 언어 파일에 두지 않고,
 /// 런타임은 영어 바탕으로 대체한다. 번역이 들어오면 항목을 지운다. 지운 키가 여기 남으면 검사가 실패한다.
 /// 영어 값을 복사해 채우지 않는다. 그러면 번역되지 않은 키를 찾을 수 없다.
-const PENDING_TRANSLATION_KEYS: &[(&str, &str, &str)] = &[
-    ("lang", "ko", "cli.help._root.remote.connect.about"),
-    ("lang", "ko", "cli.help._root.remote.connect.long"),
-    (
-        "lang",
-        "ko",
-        "cli.help._root.remote.connect.arg.workspace.help",
-    ),
-    ("lang", "ja", "cli.help._root.remote.connect.about"),
-    ("lang", "ja", "cli.help._root.remote.connect.long"),
-    (
-        "lang",
-        "ja",
-        "cli.help._root.remote.connect.arg.workspace.help",
-    ),
-    ("lang", "zh-Hans", "cli.help._root.remote.connect.about"),
-    ("lang", "zh-Hans", "cli.help._root.remote.connect.long"),
-    (
-        "lang",
-        "zh-Hans",
-        "cli.help._root.remote.connect.arg.workspace.help",
-    ),
-    ("lang", "ko", "cli.help._root.set.workspace.about"),
-    ("lang", "ko", "cli.help._root.remote.refusals.long"),
-    ("lang", "ko", "cli.help._root.remote.disconnect.long"),
-    ("lang", "ja", "cli.help._root.set.workspace.about"),
-    ("lang", "ja", "cli.help._root.remote.refusals.long"),
-    ("lang", "ja", "cli.help._root.remote.disconnect.long"),
-    ("lang", "zh-Hans", "cli.help._root.set.workspace.about"),
-    ("lang", "zh-Hans", "cli.help._root.remote.refusals.long"),
-    ("lang", "zh-Hans", "cli.help._root.remote.disconnect.long"),
-];
+const PENDING_TRANSLATION_KEYS: &[(&str, &str, &str)] = &[];
 
 /// 누락이 알려진 키의 임시 예외다. 키가 추가되면 항목도 제거한다. 새 누락은 수정하는 것이 기본이다.
 const PENDING_FIX_MISSING_KEYS: &[(&str, &str)] = &[];
