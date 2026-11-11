@@ -77,10 +77,17 @@ pub fn render_start_with(
     h.push_str(&format!(
         r##"<div id="starting"><div class="spin"></div><div class="starting-msg" id="starting-msg"></div></div>
 <section class="pane{on}" id="tab-connect">
-<h1>{title}</h1>
-<p class="sub">{sub}</p>
 "##,
         on = on("connect"),
+    ));
+    // 시작 폼과 역할 표를 나란히 둔다 — 좁으면 표가 폼 아래로 내려간다(CSS `.connect-split`).
+    // 제목은 **왼쪽 칸 안**에 둔다. 두 칸 바깥에 두면 오른쪽 역할 제목이 제목 · 설명 높이만큼
+    // 내려가 두 칸의 머리가 어긋난다.
+    h.push_str(r#"<div class="connect-split"><div class="connect-main">"#);
+    h.push_str(&format!(
+        r#"<h1>{title}</h1>
+<p class="sub">{sub}</p>
+"#,
         title = escape(&crate::domain::i18n::t("sup.form.title")),
         sub = escape(&crate::domain::i18n::t("sup.form.subtitle")),
     ));
@@ -93,8 +100,6 @@ pub fn render_start_with(
             escape(e)
         ));
     }
-    // 시작 폼과 역할 표를 나란히 둔다 — 좁으면 표가 폼 아래로 내려간다(CSS `.connect-split`).
-    h.push_str(r#"<div class="connect-split"><div class="connect-main">"#);
     h.push_str(&connect_form(profiles, cwd));
     h.push_str(&known_or_hint(profiles, known));
     h.push_str("</div>");
