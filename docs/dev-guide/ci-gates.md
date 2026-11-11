@@ -607,35 +607,17 @@ ASCII 중심 `strings`는 한글 이름을 놓친다. 로그에서 ignored와 �
 위 표의 "기본 조합 clippy" 행은 워크스페이스 **전체**를 말한다. lane 이 시간을 아끼려고
 `cargo clippy -p <크레이트>` 로 좁히면 다른 물음에 답하게 된다 — cargo 는 `--workspace` 일
 때 워크스페이스 전체의 feature 를 통합하고, `-p` 일 때는 그 크레이트의 의존 폐포 안에서만
-통합한다. **그 차이가 판정을 가르는 자리가 실제로 있고, 패키지 검사에서는 통과한 함수가 push 검사에서
-실패할 수 있다.**
+통합한다. **그 차이가 판정을 가르면 패키지 검사에서는 통과한 함수가 push 검사에서 실패할 수 있다.**
 
 - **기제.** 인지복잡도 lint(`cognitive_complexity = "deny"`, 문턱은 [complexity-gate](complexity-gate.md))는
   매크로 전개 뒤를 센다. `tracing` 의 `log` feature 가 켜지면 `tracing::info!`·`warn!` 한
-  자리가 log 통합 분기까지 전개돼 훨씬 크게 세어진다. 그래서 같은 함수가 `-p` 에서는 문턱
-  아래, `--workspace` 에서는 문턱 위가 된다.
-- **누가 켜나.** Linux 에서 `tracing/log` 를 켜는 것은 `calloop` 다(← `calloop-wayland-source`
-  ← `smithay-client-toolkit` ← `smithay-clipboard` ← `egui-winit`). 번들 plugin 크레이트는
-  이 사슬 밖이라 `-p` 트리에는 `"log"` 가 없다. 헤드리스 조합(`--no-default-features`)의
-  워크스페이스 트리에도 있다.
-- **플랫폼마다 답이 다르다.** `cargo tree --workspace --target <triple> -e features -i tracing`
-  에서 `tracing feature "log"` 가 나오는 것은 Linux 뿐이다 — `x86_64-pc-windows-msvc` ·
-  `aarch64-apple-darwin` 트리에는 없다. 그래서 기본 조합 clippy 를 배선한 유일한 자동 잡인
-  `check-windows` 는 **이 갈림을 못 본다** — 그 트리의 `tracing` feature 집합이 `-p` 쪽과
-  같다. 이 문턱을 넘는 자리를 잡는 채널은 Linux 쪽 둘이다: pre-push `B.4`(훅을 깐
-  체크아웃만)와 `check-headless` 의 clippy. 뒤쪽은 `--no-default-features` 라 `gui` 뒤에
-  있는 코드는 안 본다 — 그 자리에서는 `B.4` 하나만 남는다.
-
-실측 2026-09-23 — `tasty-plugin-claude` 에 `if` 셋과 `tracing` 매크로 넷을 가진 함수 하나를
-심고(변이) 잰 뒤 원복했다. 변이 없는 트리에서는 앞 두 명령이 모두 rc=0 이었다.
-
-| 명령 | rc | 판정 |
-|---|---|---|
-| `cargo clippy -p tasty-plugin-claude --all-targets -- -D clippy::correctness` | 0 | 문턱 안 넘음 |
-| 같은 명령 + `--features tracing/log` | 101 | 인지복잡도 32 로 문턱 초과 |
-| `cargo clippy --workspace --all-targets -- -D clippy::correctness` (pre-push `B.4` 와 같은 명령) | 101 | 같은 자리 32 로 문턱 초과 |
-| `cargo clippy --workspace --all-targets --no-default-features --locked` (`check-headless` 와 같은 명령) | 101 | 같은 자리 32 로 문턱 초과 |
-| `cargo clippy --workspace --all-targets --locked --target x86_64-pc-windows-msvc` (`check-windows` 의 대리) | **미측정** | 이 머신에서는 `libsqlite3-sys` · `mlua-sys` 빌드 스크립트에서 멈춘다. 위 "못 본다" 는 clippy 실측이 아니라 cargo tree 의 feature 집합에서 나온 추론이다 |
+  자리가 log 통합 분기까지 전개돼 훨씬 크게 세어진다. 그래서 워크스페이스의 어느 의존이
+  `tracing/log` 를 켜면 같은 함수가 `-p` 에서는 문턱 아래, `--workspace` 에서는 문턱 위가 된다.
+  `cargo clippy -p <크레이트> --features tracing/log` 로 그 갈래를 재현할 수 있다.
+- **지금은 켜는 의존이 없다.** egui-winit 을 smithay-clipboard 없이 빌드한 뒤로
+  `cargo tree --workspace -e features -i tracing` 에 `tracing feature "log"` 가 나오지 않는다.
+  Linux 의 기본 조합과 `--no-default-features` 조합 모두 같다(2026-11-12 측정). 의존을 더하거나
+  feature 를 바꾸면 이 사슬이 다시 생길 수 있으므로 판정 전에 아래 첫 명령으로 확인한다.
 
 패키지만 지정한 통과 결과로 워크스페이스 검사를 대신하지 않는다. 비교 명령은 다음과 같다:
 
