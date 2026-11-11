@@ -36,6 +36,7 @@ pub mod git_viewer;
 pub mod glyph;
 pub mod html_address;
 pub mod html_chrome;
+pub mod html_display_backend;
 pub mod image_viewer;
 pub mod info_modal;
 pub mod kb_import_export;

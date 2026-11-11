@@ -365,6 +365,38 @@ pub(super) fn band_surface(
     address: &str,
     editing: bool,
 ) {
+    band_surface_with(ui, theme, id, width, height, kind, address, editing, "page");
+}
+
+/// 띠 아래 페이지 자리에 `page` 상태를 그리는 [`band_surface`]. `page`는 [`page_placeholder`]의 값이다.
+// 이유: 시안 prop 구성을 유지해 비교하기 쉽게 한다.
+#[allow(clippy::too_many_arguments)]
+pub(super) fn band_page(
+    ui: &mut egui::Ui,
+    theme: &Theme,
+    id: &str,
+    width: LogicalPx,
+    height: LogicalPx,
+    kind: Kind,
+    address: &str,
+    page: &str,
+) {
+    band_surface_with(ui, theme, id, width, height, kind, address, false, page);
+}
+
+// 이유: 시안 prop 구성을 유지해 비교하기 쉽게 한다.
+#[allow(clippy::too_many_arguments)]
+fn band_surface_with(
+    ui: &mut egui::Ui,
+    theme: &Theme,
+    id: &str,
+    width: LogicalPx,
+    height: LogicalPx,
+    kind: Kind,
+    address: &str,
+    editing: bool,
+    page_state: &str,
+) {
     let (rect, _) = ui.allocate_exact_size(
         egui::vec2(width.value(), height.value()),
         egui::Sense::hover(),
@@ -406,11 +438,13 @@ pub(super) fn band_surface(
         &view,
     );
     let page = egui::Rect::from_min_max(egui::pos2(rect.left(), out.rect.bottom()), rect.max);
-    page_placeholder(ui, theme, page, "page", address);
+    // 띠 표본마다 id가 다른 `child`에서 그려야 한 줄에 놓인 두 안내의 스크롤 영역 id가 겹치지 않는다.
+    page_placeholder(&mut child, theme, page, page_state, address);
 }
 
-/// 페이지 영역의 상태 표본(디자인 `HtmlPageState`). `page`는 `page`·`empty`·`loading`·`failed`다.
-/// `empty`·`loading`은 본체와 같은 [`tasty_ui_widgets::webview_page_tile`]로 그린다.
+/// 페이지 영역의 상태 표본(디자인 `HtmlPageState`). `page`는 `page`·`empty`·`loading`·`failed`와
+/// 표시 경로 안내 kind 이름(`native-wayland` 등, [`tasty_ui_widgets::DisplayNotice::design_kind`])이다.
+/// `empty`·`loading`·안내는 본체와 같은 [`tasty_ui_widgets::webview_page_tile`]로 그린다.
 /// html surface는 띠 kind라 바탕이 `bg-panel`이다(본체 `WebviewTile::Plain`). 본체 html
 /// surface처럼 주소창 안내를 넘기므로 loading도 안내 줄 몫을 넣은 위치에 놓인다.
 pub(crate) fn page_placeholder(
@@ -436,7 +470,10 @@ pub(crate) fn page_placeholder(
             title: t("webview.no_page"),
             glyph: theme.text_disabled().to_egui(),
         }),
-        _ => None,
+        other => tasty_ui_widgets::DisplayNotice::ALL
+            .into_iter()
+            .find(|kind| kind.design_kind() == other)
+            .map(|kind| super::html_display_backend::notice_state(kind, "en", false)),
     };
     if let Some(state) = tile {
         let mut body = ui.new_child(egui::UiBuilder::new().max_rect(rect));

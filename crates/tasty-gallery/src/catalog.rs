@@ -609,6 +609,12 @@ pub fn pages() -> Vec<Page> {
                             widgets::toast::draw,
                         ),
                         spec(
+                            "toast-display-backend",
+                            "Toast — display backend notices",
+                            Some("Native Wayland clipboard: what is off, why, and the fix · warning"),
+                            widgets::toast::draw_display_backend,
+                        ),
+                        spec(
                             "toast-stack",
                             "Toast stack",
                             Some("Bottom-right stack, newest at the bottom, oldest dropped past 5"),

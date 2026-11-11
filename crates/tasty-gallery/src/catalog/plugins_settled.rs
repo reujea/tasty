@@ -6,7 +6,7 @@ use tasty_type_geometry::length::LogicalPx;
 use tasty_ui_widgets::surface_bed;
 
 use crate::catalog::components::markdown_viewer::document;
-use crate::catalog::components::{html_chrome, md_address, md_large_file};
+use crate::catalog::components::{html_chrome, html_display_backend, md_address, md_large_file};
 use crate::catalog::spec::{StageVariant, TokenChip, cluster, dont, meta, note, stage};
 
 /// 시안 바탕 견본의 치수: 폭 200, 안쪽 여백 12, 표와 코드 사이 8, 표 줄 12, 코드 칸 16, 라벨 간격 6.
@@ -187,6 +187,22 @@ pub fn draw_doc_background(ui: &mut egui::Ui, theme: &Theme) {
                         surface_bed(theme, focused),
                         theme.glyph_dim(),
                     );
+                });
+            }
+        }
+        for kind in tasty_ui_widgets::DisplayNotice::ALL {
+            for (focused, word) in [(true, "focused"), (false, "unfocused")] {
+                let name = format!("Chrome tile, {}, {word}", kind.design_kind());
+                cluster(ui, theme, &name, |ui| {
+                    ui.push_id(("md-notice", kind.design_kind(), word), |ui| {
+                        html_display_backend::notice_tile(
+                            ui,
+                            theme,
+                            surface_bed(theme, focused),
+                            html_display_backend::TILE_W,
+                            html_display_backend::notice_state(kind, "en", false),
+                        );
+                    });
                 });
             }
         }

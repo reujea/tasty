@@ -88,6 +88,7 @@ pub fn section() -> Section {
                 ),
                 draw,
             },
+            super::html_display_backend::spec(),
             Spec {
                 id: "html-focus-edge",
                 title: "HTML — focus edge above the band",

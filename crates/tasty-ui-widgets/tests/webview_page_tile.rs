@@ -241,3 +241,18 @@ fn a_notice_without_a_fix_keeps_one_empty_caption_line() {
     assert!((sub.height() - caption_line).abs() <= 0.01);
     assert!(!out.overflows);
 }
+
+/// Given 안내 kind 네 개, Then 해결책 키는 제목 키에 `_sub`를 붙인 이름이고 GTK 초기화 실패만 해결책이 없다.
+#[test]
+fn every_notice_fix_key_follows_its_title_key() {
+    use tasty_ui_widgets::DisplayNotice;
+    for kind in DisplayNotice::ALL {
+        match kind.sub_key() {
+            Some(sub) => assert_eq!(sub, format!("{}_sub", kind.title_key())),
+            None => assert_eq!(kind, DisplayNotice::GtkInit),
+        }
+    }
+    let kinds: std::collections::BTreeSet<_> =
+        DisplayNotice::ALL.iter().map(|k| k.design_kind()).collect();
+    assert_eq!(kinds.len(), DisplayNotice::ALL.len());
+}

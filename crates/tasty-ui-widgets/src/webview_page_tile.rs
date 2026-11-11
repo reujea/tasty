@@ -34,6 +34,59 @@ pub enum WebviewPageState<'a> {
     },
 }
 
+/// WebView를 만들 수 없는 표시 경로의 안내 kind(정본 `HtmlPageState` `DB_NOTICE`). html·markdown·html
+/// mirror가 같은 kind와 같은 문구 키를 쓴다. 문구는 tasty-page `display_backend_copy.js`에서 복사한다.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum DisplayNotice {
+    /// 원인 1: XWayland가 없어 네이티브 Wayland로 실행됐다.
+    NativeWayland,
+    /// 원인 1b: `DISPLAY`의 X 서버에 연결하지 못해 네이티브 Wayland로 내려갔다.
+    NativeWaylandXFailed,
+    /// 원인 2: 시작 환경의 `GDK_BACKEND`가 x11을 허용하지 않아 GTK 초기화가 실패했다.
+    GdkBackend,
+    /// 창은 X11인데 다른 이유로 GTK 초기화가 실패했다. 해결책 줄이 없다.
+    GtkInit,
+}
+
+impl DisplayNotice {
+    pub const ALL: [Self; 4] = [
+        Self::NativeWayland,
+        Self::NativeWaylandXFailed,
+        Self::GdkBackend,
+        Self::GtkInit,
+    ];
+
+    /// 정본 kind 이름.
+    pub fn design_kind(self) -> &'static str {
+        match self {
+            Self::NativeWayland => "native-wayland",
+            Self::NativeWaylandXFailed => "native-wayland-x",
+            Self::GdkBackend => "gdk-backend",
+            Self::GtkInit => "gtk-init",
+        }
+    }
+
+    /// 원인을 담은 제목의 번역 키.
+    pub fn title_key(self) -> &'static str {
+        match self {
+            Self::NativeWayland => "webview.native_wayland",
+            Self::NativeWaylandXFailed => "webview.native_wayland_x_failed",
+            Self::GdkBackend => "webview.gdk_backend",
+            Self::GtkInit => "webview.gtk_init_failed",
+        }
+    }
+
+    /// 해결책 줄의 번역 키. GTK 초기화 실패는 사용자가 할 수 있는 해결책이 없어 키가 없다.
+    pub fn sub_key(self) -> Option<&'static str> {
+        match self {
+            Self::NativeWayland => Some("webview.native_wayland_sub"),
+            Self::NativeWaylandXFailed => Some("webview.native_wayland_x_failed_sub"),
+            Self::GdkBackend => Some("webview.gdk_backend_sub"),
+            Self::GtkInit => None,
+        }
+    }
+}
+
 /// 그린 요소의 위치. 그리지 않은 요소는 `None`이다.
 #[derive(Clone, Copy, Debug, Default)]
 pub struct WebviewPageTileOutput {

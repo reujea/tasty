@@ -416,7 +416,9 @@ pub use ui_code::{
     ui_code_font, ui_code_rects, ui_copy, ui_copy_in, ui_copy_job, ui_copy_size,
 };
 pub use warning_callout::warning_callout;
-pub use webview_page_tile::{WebviewPageState, WebviewPageTileOutput, webview_page_tile};
+pub use webview_page_tile::{
+    DisplayNotice, WebviewPageState, WebviewPageTileOutput, webview_page_tile,
+};
 
 pub use notifications::{
     NotificationAction, NotificationLabels, NotificationPanelState, NotificationRow,

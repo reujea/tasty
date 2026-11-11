@@ -249,3 +249,79 @@ pub fn draw_stack(ui: &mut egui::Ui, theme: &Theme) {
          either. Hold the cap by dropping the oldest card.",
     );
 }
+
+/// 시안 `toast-display-backend`: 네이티브 Wayland에서 다른 앱과 복사·붙여넣기를 못 할 때의 warning 카드.
+/// 본체와 같은 키를 네 언어로 그린다. 카드는 hint·아이콘·버튼 없이 기존 카드 그대로다.
+pub fn draw_display_backend(ui: &mut egui::Ui, theme: &Theme) {
+    const KEYS: [&str; 6] = [
+        "toast.clipboard_wayland_unsupported",
+        "toast.clipboard_wayland_x_failed",
+        "toast.clipboard_files_wayland_copy",
+        "toast.clipboard_files_wayland_paste",
+        "toast.clipboard_files_wayland_x_failed_copy",
+        "toast.clipboard_files_wayland_x_failed_paste",
+    ];
+    stage(ui, theme, StageVariant::Column, |ui| {
+        ui.spacing_mut().item_spacing.y = theme.spacing_sm.value();
+        for key in [KEYS[0], KEYS[2], KEYS[3]] {
+            toast_card::draw_single_card(
+                ui,
+                theme,
+                ToastKind::Warning,
+                crate::i18n::t_lang("en", key),
+                &[],
+                1.0,
+            );
+        }
+    });
+    stage(ui, theme, StageVariant::Wrap, |ui| {
+        for key in KEYS {
+            let name = format!("toast-db-{}", key["toast.".len()..].replace('_', "-"));
+            crate::catalog::spec::cluster(ui, theme, &name, |ui| {
+                ui.vertical(|ui| {
+                    ui.spacing_mut().item_spacing.y = theme.spacing_sm.value();
+                    for lang in ["en", "ko", "ja", "zh-Hans"] {
+                        toast_card::draw_single_card(
+                            ui,
+                            theme,
+                            ToastKind::Warning,
+                            crate::i18n::t_lang(lang, key),
+                            &[],
+                            1.0,
+                        );
+                    }
+                });
+            });
+        }
+    });
+    meta(
+        ui,
+        theme,
+        &[
+            ("variant", "warning (rail accent-warning)"),
+            (
+                "variant change",
+                "the clipboard toasts on native Wayland are warning; the X11 failure toasts toast.clipboard_files_internal_copy / _paste stay info",
+            ),
+            (
+                "card",
+                "the Toast card as it is · no icon, no hint, no button, no link",
+            ),
+            (
+                "body",
+                "what is off · cause · fix · one string per key, at most 200 characters in every language",
+            ),
+            ("life", "the global toast setting, like every other toast"),
+        ],
+        &[
+            TokenChip::new("accent-warning", "rail", theme.accent_warning().to_egui()),
+            TokenChip::new("surface-raised", "card", theme.surface_raised().to_egui()),
+            TokenChip::without_color("toast-max-width", "card width cap (320)"),
+        ],
+    );
+    note(
+        ui,
+        theme,
+        "These notices are long for a toast, but their life is the global toast setting like every other toast; none of them has a life of its own. Menus raise none: where the native menu cannot open, Tasty opens its fallback menu.",
+    );
+}
