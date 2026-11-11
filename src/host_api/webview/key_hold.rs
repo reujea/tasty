@@ -33,7 +33,8 @@ struct Held<K, E> {
 pub(crate) struct Settled<E> {
     /// 다시 넘길 key-down(첫 누름과 그 뒤 반복). Tasty 단축키가 동작했으면 비어 있다.
     pub replay: Vec<E>,
-    /// 붙잡았던 key-up. 결과와 관계없이 key-down 뒤에 넘긴다(가져가기 전에도 key-up은 페이지로 갔다).
+    /// 붙잡았던 key-up. 결과와 관계없이 key-down 뒤에 넘긴다. key-up은 세 OS 모두 판정하지 않고 페이지로 보낸다
+    /// (Linux는 key-release를 엔진에 그대로 둔다). 동작한 키의 페이지는 key-down 없이 key-up만 받는다.
     pub release: Option<E>,
 }
 
