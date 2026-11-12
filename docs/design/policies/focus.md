@@ -136,7 +136,7 @@ recent.query는 state.db의 공유 캐시에서 종류별 최근 항목 최대 1
 | 부류 | 하는 일 | 판정 |
 |---|---|---|
 | 보고 | 응답에 활성 상태를 싣는다(`"focused"` · `"active"` · `active_workspace`) | 위 "활성 상태 *조회* 는 허용" 그대로 |
-| 기본값 채우기 | 대상은 인자로 지목됐고, **미지정 인자**만 포커스가 채운다 — 새 탭·split 의 cwd 상속, `surface_id` 를 안 실은 `workspace.create` 의 cwd 상속, `telemetry.record` 의 workspace, `approval.request` 의 workspace(단 `surface_id` 를 줬으면 그 surface 의 워크스페이스라 포커스를 안 읽는다) | 호출자가 명시하면 안 읽는다. 명시하지 않으면 같은 인자로 두 번 불러도 값이 다를 수 있다 |
+| 기본값 채우기 | 대상은 인자로 지목됐고, **미지정 인자**만 포커스가 채운다 — 새 탭·split 의 cwd 상속(원격 attach 요청이 `inherit_cwd` 를 실으면 읽지 않는다), `surface_id`·`inherit_cwd` 를 안 실은 `workspace.create` 의 cwd 상속, `telemetry.record` 의 workspace, `approval.request` 의 workspace(단 `surface_id` 를 줬으면 그 surface 의 워크스페이스라 포커스를 안 읽는다) | 호출자가 명시하면 안 읽는다. 명시하지 않으면 같은 인자로 두 번 불러도 값이 다를 수 있다 |
 | 계측 태그 | 공통 요청 게이트(`handler/gate.rs`)가 audit 귀속에 engine의 활성 workspace를 읽는다. telemetry는 같은 engine의 첫 workspace를 태그로 쓴다 | **판정에는 안 쓰인다** — 게이트가 빌린 engine의 관측 문맥이며, 요청이 작용한 대상이나 사용자의 포커스를 증명하지 않는다 |
 | 알림 배치 | cap 임계·이상 탐지·승인 요청 알림이 활성 워크스페이스에 뜬다 | 사용자에게 보이라고 두는 자리라 에이전트 대상 결정이 아니다 |
 | 효과 scope | `debug.host_popup.open` 의 `workspace_scope` | debug 전용. 사용자 조작 재현이라 창 종속이 뜻 자체다 |
@@ -280,8 +280,11 @@ Tasty에는 포커스를 주는 IPC 메서드가 없다.
   Core는 구조를 만들고 결과 ID를 반환하며, App의 사용자 continuation이 해당 View의 선택을 적용한다.
   원격 전송의 active/focused 값은 별도 명시 projection으로 합성한다.
   - IPC `tab.create`(CLI `tasty new tab`): `false`. 새 탭은 뒤에 붙기만 한다.
-  - attach forward 의 `NewTab`: 원격 **사용자**의 손 조작이면 `true`, 원격 에이전트면 `false`
-    (복원 스택을 가르는 `ForwardOrigin` 과 같은 축).
+  - attach forward 의 `NewTab`: 서버 View 의 선택을 바꾸지 않는다. 서버 View 의 선택과 client
+    View 의 선택은 서로 독립이다. 원격 사용자의 손 조작이면 client 가 역반영 뒤 자기 View 에서 새 탭을
+    선택한다([원격 attach](../../features/remote-attach/index.md)). 원격 요청의 cwd 상속 원본도 서버
+    선택이 아니라 client 가 요청 값 `inherit_cwd` 에 명시한다. 요청에 기준 surface 가 없을 때만 서버
+    View 의 선택을 쓴다([surface cwd §3-1](cwd.md#3-1-mirror원격-attach-forward-경로도-같은-불변식-대상)).
   - 파일 열기의 origin 갈래: `FileDispatchOrigin` 에서 파생(위 "에이전트 닫기와 포커스" 의 파일
     열기 항목).
   - `Intent::NewTab`: 발화 origin 이 사용자면 `true`, 아니면 `false`. 에이전트 라벨로 오는

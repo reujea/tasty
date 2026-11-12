@@ -78,10 +78,10 @@ attach 로 연결한 원격 워크스페이스(mirror)에 `tasty claude spawn` /
 
 ## 서버(S) plugin
 
-host 는 원격 출처 호출에 `parent_external = attach:o<n>`·`attach_context`·`workspace`·`pane`(spawn), `attach_target_surface`(tell·kill)를 넣는다. plugin 은 `attach:` 부모와 `attach_context` 가 함께 있을 때만 원격 출처로 본다.
+host 는 원격 출처 호출에 `parent_external = attach:o<n>`·`attach_context`·`workspace`·`pane`·`inherit_cwd`(spawn), `attach_target_surface`(tell·kill)를 넣는다. `inherit_cwd` 는 client 가 고른 cwd 상속 원본을 host 가 확인한 값이며, client 가 같은 이름으로 보낸 plugin 인자는 host 가 지운다. plugin 은 `attach:` 부모와 `attach_context` 가 함께 있을 때만 원격 출처로 본다.
 
 - 이 부모에게는 완료 알림 훅을 걸지 않고 `codex.parent`·Codex 호출 문맥도 쓰지 않는다. 상태·이벤트·메타는 host 가 L 로 중계한다.
-- spawn 은 `terminal.spawn` 에 받은 부모·위치·문맥을 그대로 싣고, 기존 로컬 spawn 과 같은 기동 경로(세션 토큰·settings·프로필·권한 모드·오류 감시)를 쓴다. claude 는 S 의 Claude Code 설정에 Tasty Stop·StopFailure 훅이 없으면 응답에 경고를 싣는다.
+- spawn 은 `terminal.spawn` 에 받은 부모·위치·문맥·`inherit_cwd` 를 그대로 싣고(`tasty_plugin_agent_common::remote_attach::AttachOrigin::spawn_request`), 기존 로컬 spawn 과 같은 기동 경로(세션 토큰·settings·프로필·권한 모드·오류 감시)를 쓴다. claude 는 S 의 Claude Code 설정에 Tasty Stop·StopFailure 훅이 없으면 응답에 경고를 싣는다.
 - 서버의 공개 호출(서버 사용자의 CLI·다른 도구)은 attach 원격 자식을 바꾸지 못한다. `tell`·`reboot` 의 대상 surface 부모가 `attach:` 이거나, `kill`·`respawn`·`child_profile`(claude)·`broadcast` 가 `attach:` 부모 키를 지정하면 plugin 이 거절한다. host 는 그 자식의 attach 점유 예외를 생성 plugin 단위로 주므로, 이 검사가 없으면 서버 로컬 호출이 같은 plugin 을 거쳐 점유를 우회한다. plugin 의 내부 동작(auto_resume·훅 처리)은 공개 호출이 아니어서 그대로다.
 - 원격 출처 호출의 대상은 `attach_target_surface` 가 지금도 그 출처 부모(`terminal.parent` 의 `parent_external`)의 자식일 때만 쓴다. 공개 호출이 출처 키를 꾸며 넣어도 다른 surface 에는 닿지 않는다. 같은 부모의 자식인지까지 꾸민 호출을 가려내는 것은 host 의 문맥 토큰 확인 몫이다.
 - tell 은 `attach_target_surface` 에만 보낸다. kill 은 `terminal.children{parent_external}` 에서 그 surface 의 index 를 찾아 `terminal.kill` 한다.
@@ -94,7 +94,8 @@ host 는 원격 출처 호출에 `parent_external = attach:o<n>`·`attach_contex
 
 ## 한계
 
-- 원격 spawn 의 `--cwd`·`--profile-file` 은 CLI 가 C 에서 확인하지 않고 그대로 넘기며 서버가 확인한다([Attach 메커니즘](../dev-guide/attach-behavior.md#cli-경로-인자)). `--cwd` 를 생략하면 서버의 기본 위치에서 시작한다.
+- 원격 spawn 의 `--cwd`·`--profile-file` 은 CLI 가 C 에서 확인하지 않고 그대로 넘기며 서버가 확인한다([Attach 메커니즘](../dev-guide/attach-behavior.md#cli-경로-인자)). `--cwd` 를 생략하면 대상 pane 에서 client View 가 선택한 탭의 선택 surface 의 서버 쪽 cwd 에서 시작한다. client `inherit_cwd` 설정이 꺼져 있으면 상속하지 않는다. client 가 원본을 고르지 못한 요청은 서버 View 의 선택과 서버 설정을 쓴다([surface cwd §3-1](../design/policies/cwd.md#3-1-mirror원격-attach-forward-경로도-같은-불변식-대상)).
+- `inherit_cwd` 를 모르는 옛 서버는 그 값을 무시한다. 그때 `--cwd` 를 생략한 자식은 서버의 기본 위치에서 시작한다.
 - respawn·broadcast·launch 는 원격 자식에 대해 지원하지 않는다.
 - 결과불명 call 의 부모 기록은 plugin 메모리에만 있다. plugin 이 다시 시작한 뒤 온 늦은 자식은 닫는다.
 - 서버 host 가 다시 시작하면 attach 출처가 사라진다. 그때 진행 중이던 call 은 결과불명이고, 그 출처의 자식 결과는 host 가 `rejected` 로 답해 서버 plugin 에 포기한 기록으로 남는다. 서버 재시작 뒤 출처를 복구해 결과를 다시 전달하는 기능은 없다.

@@ -254,8 +254,9 @@ CLI가 성공한 IPC 앞뒤에서 남긴 일반 warning은 hook-failures.log의 
 terminal 워크스페이스의 cwd는 명시 `--cwd`가 우선이다. 생략하고 inherit_cwd가 켜져 있으면
 지정한 서피스의 로컬 cwd를 상속한다. 서피스까지 생략하면 선택된 윈도우의 포커스 서피스에서
 상속하는 기존 동작이다. 상속을 끄거나 원본이 mirror여서 로컬 cwd가 없으면 홈을 사용한다.
-IPC의 숫자가 아닌 surface_id는 invalid_params다. 윈도우 선택은 라우터가, cwd 선택은
-workspace 핸들러의 `resolve_create_cwd`·`inherit_cwd_for_create`가 맡는다.
+IPC의 숫자가 아닌 surface_id는 invalid_params다. IPC 인자 `inherit_cwd`는 창 선택과 별개로
+상속 원본만 정한다(원격 attach client가 쓴다. CLI 플래그는 없다). 윈도우 선택은 라우터가, cwd 선택은
+workspace 핸들러의 `resolve_create_cwd`·`named_inherit_source`·`inherit_cwd_for_create`가 맡는다.
 
 ## 호출자 환경 (`caller_context.rs`)
 

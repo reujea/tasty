@@ -350,7 +350,7 @@ mirror 터미널은 로컬 PTY가 없어 `TerminalStore::cwd`에서 OS PID 조�
 - **값 소멸은 `cwd: null`**: 원격도 cwd 를 모르게 되면 `null` 이 나가고 client 는 엔트리를 지운다 — 표현이 없으면 옛 원격 경로가 영구히 남는다.
 - **client 적용**: `MirrorEvent::Cwd(remote_surface_id, cwd)` → 세션 `remote_to_local` 치환 → `EngineMut::set_mirror_surface_cwd`. 값은 `Terminal` 캐시가 아니라 **별도 맵 `mirror_surface_cwd`** 에 `RemoteCwd` 로 저장되고, `EngineRef::surface_cwd` 가 mirror surface 에 대해 이 값을 우선한다. 원격 경로라 로컬 실행 자리로는 나가지 않는다([surface-cwd §3-2](../design/policies/cwd.md#3-2-원격-출처-cwd-는-로컬-실행-경로로-새지-않는다)).
 - **정리**: busy 와 같은 teardown 두 곳(`remove_mirror_workspace_from_engine` · delta 의 removed 처리)에 더해, delta 의 survivor **kind 전환 전부**에서 `forget_mirror_surface_cwd` 를 부른다 — busy 는 terminal 에서 출발한 전환만 정리하지만 cwd 는 비-terminal kind 에도 있다.
-- **구버전 호환**: 구버전 client 는 `Cwd` 를 파싱 실패로 무시하고, 구버전 server 는 보내지 않아 맵이 빈다 — 그때 mirror convert 는 종전대로 서버측 convert 요청 해석(`app/journal/commands/inbound.rs::resolve_remote_request`, `inherit_cwd` 설정에 따른 원 surface cwd 조회)으로 동작한다.
+- **구버전 호환**: 구버전 client 는 `Cwd` 를 파싱 실패로 무시하고, 구버전 server 는 보내지 않아 맵이 빈다 — mirror convert 는 이 맵을 쓰지 않는다. convert 의 cwd 는 op 의 `inherit_cwd` 가 가리키는 대상 surface 의 서버 cwd 를 서버측 요청 해석(`app/journal/commands/inbound.rs`)이 직접 읽는다([mirror 구조 변경 forward](#mirror-구조-변경-forward)).
 
 ## 전경 이름 전파
 
@@ -463,6 +463,10 @@ mirror workspace의 split/new-tab/close/move/convert/restore는 로컬 journal�
 - App은 원 EngineId·connection epoch·sender와 local↔remote mapping, origin을 요청 값으로 고정한다. `prepare_journal_forward`와 `src/app/journal/forward.rs`가 durable enqueue 명령을 claim한 뒤 같은 연결·mapping인지 다시 검사한다. 기존 raw 입력이나 구조 전송을 재연결 뒤 새 sender로 자동 재송신하지 않는다.
 - 로컬 forward operation의 Succeeded는 그 원 연결 큐에 접수됐다는 뜻이다. 원격 서버의 실행·확정 완료와 같지 않다. 서버가 해당 구조의 writer이며 원격 result/delta가 mirror 변경을 전달한다.
 - 서버의 `src/app/journal/commands/inbound.rs`가 holder와 대상 workspace를 검증하고 명령으로 실행한다. result → delta → 새 surface snapshot/tap 순서를 유지해 ID mapping보다 raw 출력이 먼저 오지 않게 한다.
+- 생성 op(`NewTab`·`SplitPane`·`SplitSurface`·`ConvertSurface`)는 선택 필드 `inherit_cwd`로 cwd 상속 원본을 싣는다. `tasty_ipc::stream::InheritCwd`가 wire 값을 정한다: 생략·`null`은 기준 없음, `{"surface": N}`은 원격 surface N, `"none"`은 상속 안 함이다. 다른 값은 `Unknown`으로 원래 값을 보존해 읽는다. 역직렬화가 실패하면 서버 hub가 그 프레임을 회신 없이 버려 client가 결과를 기다리게 되므로, 모르는 값은 op를 깨지 않고 서버가 `StructuralResult { ok: false }`로 거절한다.
+  - client GUI는 요청을 낸 창의 View(`App::mirror_forward_op`), client IPC는 대상 pane의 completion View(`forwarding::local_op`)로 원본을 고른다. `remote_structural_op`가 원본을 원격 ID로 바꾸고, 매핑이 없으면 move target과 같이 보내지 않고 원 요청을 실패로 끝낸다.
+  - 서버 `inbound.rs`의 `check_inherit_cwd`는 원본이 점유 workspace에 있고 anchor(또는 대상 surface)와 같은 pane인지 확인한다. 원본을 명시한 요청은 서버의 `inherit_cwd` 설정으로 막지 않고 서버 View의 선택을 읽지 않는다. 기준 없음이면 서버 View의 선택과 서버 설정을 쓴다(`create_spec.rs`의 `CwdSource`).
+  - 서버는 descriptor `stream_capabilities`에 `ipc.stream.inherit-cwd`를 싣는다. `STREAM_PROTO`는 올리지 않았다. 필드를 모르는 옛 서버는 무시하므로 기준 없음과 같은 결과가 되고 `"none"`만 지켜지지 않는다. client는 capability가 없어도 보내고, `"none"`을 보낼 때 info 로그를 남긴다.
 - source와 target을 함께 갖는 move는 둘 다 같은 세션 mapping으로 원격 ID를 해소한다. local↔mirror 또는 다른 mirror workspace 사이 이동은 로컬 번호를 원격 번호처럼 보내지 않는다.
 - user/agent origin은 요청과 함께 전달한다. origin이 없으면 옛 client의 user 동작을 유지하고, 모르는 값은 agent로 처리한다. 원격 user 표지가 로컬 View 포커스를 바꿀 권한을 주지는 않는다. 사용자 요청의 실패는 해당 View 정책에 따른 표시, 에이전트 실패는 로그로 처리한다.
 - 원격 RestoreClosedItem은 anchor workspace의 서버 복원 기록만 사용한다. 비어 있다고 로컬 스택으로 fallback하지 않는다. 서버 로컬 복원의 전역 LIFO와 원격 workspace 범위는 구분한다.
@@ -715,8 +719,9 @@ attach 로 연결한 mirror 에 `tasty claude spawn`·`tasty codex spawn` 으로
 ### 원격 call
 
 1. client plugin 이 `attach.agent_target{workspace|pane|surface_id}` 로 mirror 와 기준 surface(`anchor_surface_id`)를 확인한 뒤 `attach.agent_call{anchor_surface_id, method, target_surface_id?, parent?, role?, nickname?, params}` 를 부른다. `method` 는 호출 plugin 자기 namespace 의 접두사 없는 메서드 이름이고, `target_surface_id` 는 tell·kill 이 다룰 기존 원격 자식의 mirror surface(L)다. 응답은 `{call_id, result, children:[{surface_id, remote_surface_id, index}]}` 다. client host 는 결과를 받을 때까지 응답을 미루며 상한은 35초다(plugin SDK 전용 핸들 상한 40초보다 짧다).
-2. client host 는 `agent_call_request{call_id, namespace, method, anchor_surface_id, target_surface_id?, params}` 를 holder 연결로 보낸다. 두 surface 는 서버 쪽 id(R)로 바꿔 싣고, 실행 위치(workspace·pane)는 서버가 `anchor_surface_id` 에서 정한다. 부모·`_tasty_context`·`caller_surface` 는 보내지 않는다. `call_id` 는 출처 안에서 유일하고, 같은 `call_id` 를 다시 보내면 서버는 다시 실행하지 않고 보관한 결과를 돌려준다.
-3. 서버 host 는 그 plugin 의 `remote_attach.methods` 에 있는지, workspace 를 이 holder 가 점유하는지 확인한다. 인자에서 host 소유 이름(`parent`·`surface`·`parent_external`·`workspace`·`pane`·`caller_surface`·`attach_context`·`attach_target_surface`·`_tasty*`)을 지우고 host 가 정한 값을 넣는다. spawn 에는 `parent_external = attach:o<n>`·`attach_context`(call 문맥 토큰)·`workspace`·`pane` 을, tell·kill 에는 확인한 대상 R 을 `attach_target_surface` 로 넣는다.
+2. client host 는 `agent_call_request{call_id, namespace, method, anchor_surface_id, target_surface_id?, inherit_cwd?, params}` 를 holder 연결로 보낸다. 두 surface 는 서버 쪽 id(R)로 바꿔 싣고, 실행 위치(workspace·pane)는 서버가 `anchor_surface_id` 에서 정한다. 부모·`_tasty_context`·`caller_surface` 는 보내지 않는다. `call_id` 는 출처 안에서 유일하고, 같은 `call_id` 를 다시 보내면 서버는 다시 실행하지 않고 보관한 결과를 돌려준다.
+   - `inherit_cwd` 는 구조 op 와 같은 값이다. client `inherit_cwd` 설정이 켜져 있으면 anchor 가 있는 pane 에서 client View 가 선택한 탭의 선택 surface 를 R 로 바꿔 싣고, 꺼져 있으면 `"none"` 이다. 고른 surface 의 R 을 세션 매핑에서 찾지 못하면 보내지 않고 그 call 을 `-32602` 실패로 끝낸다(결과불명이 아니다).
+3. 서버 host 는 그 plugin 의 `remote_attach.methods` 에 있는지, workspace 를 이 holder 가 점유하는지 확인한다. 인자에서 host 소유 이름(`parent`·`surface`·`parent_external`·`workspace`·`pane`·`caller_surface`·`attach_context`·`attach_target_surface`·`inherit_cwd`·`_tasty*`)을 지우고 host 가 정한 값을 넣는다. `inherit_cwd` 원본이 점유 workspace 밖이거나 anchor 와 다른 pane 이거나 모르는 값이면 실행하지 않고 실패로 답한다. spawn 에는 `parent_external = attach:o<n>`·`attach_context`(call 문맥 토큰)·`workspace`·`pane`·확인한 `inherit_cwd` 를, tell·kill 에는 확인한 대상 R 을 `attach_target_surface` 로 넣는다.
 4. 서버 host 는 그 호출을 일반 namespace 진입점이 아닌 원격 전용 전달로 plugin 에 넘긴다. plugin 의 host 호출은 매니페스트 권한·사용자 허가 검사를 그대로 받는다.
 5. 서버 plugin 이 `terminal.spawn` 에 `attach_context` 를 실으면 host 는 문맥 토큰이 그 출처·그 plugin·그 workspace 의 진행 중인 call 인지 확인한 뒤에만 `attach:o<n>` 부모로 등록한다. 만든 자식(R)은 그 call 의 결과에 귀속한다. 같은 출처의 call 이 겹쳐도 각 call 은 자기가 만든 자식만 받는다.
 6. 서버는 `agent_call_result{call_id, outcome, spawned}` 를 보낸다. client 는 `spawned` 의 R 이 mirror 에 나타나면 L 로 바꿔 client child registry 에 plugin 부모 아래로 등록한 뒤 plugin 에 답한다.
@@ -760,7 +765,7 @@ attach 로 연결한 mirror 에 `tasty claude spawn`·`tasty codex spawn` 으로
 
 plugin CLI 의 `path_kind` 인자는 보통 CLI 가 자기 디렉터리 기준 절대 경로로 바꾸고 검사한다. 원격 실행을 선언한 메서드(`remote_attach.methods`)에 경로 인자와 숫자 `--workspace` 또는 `--pane` 이 있으면, CLI 는 보내기 전에 `attach.agent_target` 으로 대상이 mirror 인지 묻는다. mirror 면 경로를 바꾸지 않고 그대로 보내 서버가 확인하게 한다. 그 밖의 명령(예: 숫자 이름을 받는 `launch --workspace`)과 로컬 대상은 기존 처리 그대로다. 질문이 실패하면 로컬로 다룬다.
 
-서버 host 는 원격 holder spawn 의 `cwd` 가 절대 경로가 아니면 거절한다. 상대 경로를 서버 프로세스의 작업 위치로 풀지 않기 위해서다.
+서버 host 는 원격 holder spawn 의 `cwd` 가 절대 경로가 아니면 거절한다. 상대 경로를 서버 프로세스의 작업 위치로 풀지 않기 위해서다. `cwd` 를 생략하면 host 는 plugin 이 넘긴 `inherit_cwd` 로 시작 위치를 정한다. 원본 surface 의 서버 cwd, `"none"` 이면 상속 없음, 없으면 서버 View 선택과 서버 설정이다. plugin 을 거쳐 온 값이라 host 는 원본이 자식을 만들 pane 에 있는지 다시 확인한다.
 
 ### 한계
 

@@ -247,12 +247,14 @@ GUI mirror 는 "원격 화면 일부를 놓쳤다" 경고 toast 를 띄운 뒤 �
 mirror 워크스페이스는 "통째로 원격" 인 원격 워크스페이스의 뷰다 — 입력(키스트로크)은 이미 원격 PTY 로 forward 된다. 그 안에서의 **구조 변경**(surface/pane split · 새 탭 · 닫기 · 탭 순서 변경 · 닫은 항목 복원)을 로컬에서 실행하면 로컬 셸 PTY 가 mirror 에 섞여 "workspace 전체가 remote" 불변식을 깬다. 따라서 mirror 워크스페이스 구조 변경은 **로컬에서 실행하지 않고**, 대신 **원격 인스턴스에서 실행되도록 forward** 한다.
 
 - **판별·로컬 차단**: App의 journal 요청 해소가 명시 대상의 mirror 여부를 확인한다. `src/app/journal/commands/forwarding.rs`가 지원 op를 고정하고 로컬 구조·PTY를 변경하지 않는다. 지원하지 않는 교체 이동·respawn·adopt는 원 요청에 오류를 반환한다.
-- **forward 요청**: 로컬 anchor와 원격 anchor, connection registration, origin을 원 요청에 고정한다. journal에 forward 의무를 확정한 뒤 App의 `src/app/journal/forward.rs`가 원 연결로 전달한다. 로컬 View의 선택 후속 처리는 원 View identity·선택 세대를 확인한 뒤에만 실행한다.
+- **forward 요청**: 로컬 anchor와 원격 anchor, connection registration, origin, cwd 상속 원본(`inherit_cwd`)을 원 요청에 고정한다. journal에 forward 의무를 확정한 뒤 App의 `src/app/journal/forward.rs`가 원 연결로 전달한다. 로컬 View의 선택 후속 처리는 원 View identity·선택 세대를 확인한 뒤에만 실행한다.
 - **원격 실행**: 서버의 `src/app/journal/commands/inbound.rs`는 holder와 명시 대상을 검증하고 공통 journal 명령·효과 경계로 실행한다. 확정 결과를 `StructuralResult`로 보내고 해당 workspace의 `StructuralDelta`, 새 surface의 출력 tap 순서로 공개한다.
+- **새 surface 의 cwd 는 client 의 선택을 따른다**: 서버 View 의 선택과 client View 의 선택은 독립이다. 새 탭·pane 분할·surface 분할·convert 요청은 client 가 고른 상속 원본을 `inherit_cwd` 에 싣는다. 새 탭·pane 분할이면 anchor pane 에서 client View 가 선택한 탭의 선택 surface, surface 분할·convert 면 대상 surface 다. client `inherit_cwd` 설정이 꺼져 있으면 "상속 안 함"(`"none"`)을 싣는다. 서버는 그 원본의 자기 PTY cwd 로 만들고, 원격 요청은 서버 View 의 선택을 바꾸지 않는다. 요청에 원본이 없으면 서버 View 의 선택과 서버 설정을 쓴다(fallback). 원본이 점유 workspace·같은 pane 밖이거나 모르는 값이면 서버가 거절하고, client 가 고른 surface 의 원격 ID 를 세션 매핑에서 찾지 못하면 client 가 보내지 않고 실패로 끝낸다. 값 형태와 단계는 [surface cwd §3-1](../../design/policies/cwd.md#3-1-mirror원격-attach-forward-경로도-같은-불변식-대상)에 있다.
+  - 이 값을 모르는 옛 서버는 필드를 무시해 서버 선택으로 만든다. `"none"` 도 지켜지지 않아 서버 설정이 켜져 있으면 상속한다. 이 값을 이해하는 서버는 attach descriptor 에 `ipc.stream.inherit-cwd` 를 싣고, 없는 서버에 `"none"` 을 보낼 때 client 는 info 로그를 남긴다.
 
 - **점유 상속 (필수 불변식)**: forward 로 원격에 **새로 생긴 터미널은 그 workspace 의 hard 점유를 상속**한다("workspace 전체가 remote" 유지 — docs/dev-guide/attach-behavior.md 은 점유가 surface 생성 방식과 무관함을 못박는다).
   점유는 attach 시점 멤버 스냅샷으로 끝나는 게 아니라, 구조 변경으로 늘어난 멤버까지 확장돼야 한다.
-  `execute_forwarded_structural_op` 이 added 터미널을 `OccupancyRegistry::add_workspace_member` 로 `surface_locks`(→`is_hard_occupied`: 서버 입력차단·resize sweep skip·readonly) + `surface_to_workspace`(→`feed_attached_workspace_input`/`apply_attached_workspace_resize` 의 holder 검증)에 같은 holder 로 등록한다.
+  서버의 구조 관측(`src/runtime/structure_observation.rs`)이 그 workspace 에서 준비된 새 터미널을 `OccupancyRegistry::add_workspace_member` 로 `surface_locks`(→`is_hard_occupied`: 서버 입력차단·resize sweep skip·readonly) + `surface_to_workspace`(→`feed_attached_workspace_input`/`apply_attached_workspace_resize` 의 holder 검증)에 같은 holder 로 등록한다.
   이 등록이 빠지면 새 surface 가 비점유로 남아 (1) host 창 sweep 이 자기 grid 로 되돌리는 레터박스 (2) 점유 미표시 (3) client 입력·resize 거부가 발생한다.
   - 생성도 점유 차단 대상이다. `tasty claude/codex spawn`은 `terminal.spawn` →
     `tab::handle_tab_create` → `apply_create_tab`을 사용한다. 로컬 호출로 생성한 직후
@@ -502,7 +504,11 @@ IPC method `remote.attach` { `remote_workspace`, `profile?`/`ssh?` }(CLI `tasty 
 그 전에 사용자가 직접 중단할 수 있다. 조회 중 footer의 "중단"은 팝업을 닫지 않고 원 요청을 취소해 initial로 돌아간다. 헤더 × / Esc, 다른 프로필 선택도 해당 요청의 취소를 보낸다.
 Remote는 원 attempt의 SSH 취소와 터널 회수를 요청하고 worker의 실제 종료·join을 관측한다. 취소 요청을 자식 프로세스 회수 완료로 간주하지 않는다. 늦은 결과는 원 attempt/session 검사로 폐기하고, 함께 도착한 터널도 Remote의 회수 경로로 넘긴다([터널 수명](../../dev-guide/attach-behavior.md)).
 
-**"+ 새 워크스페이스" 행 — 원격에 만들어서 붙는 경로**: loaded 목록의 **첫 행**은 원격에 이미 있는 워크스페이스가 아니라 `+ 새 워크스페이스` 다. 이 행을 고르고 확정하면 조회에 쓴 같은 터널로 원격에 `workspace.create` 를 1회 보내고, 그 응답의 ws id 를 **기존 Connect 와 똑같은 attach 지점**으로 넘긴다. 이름/cwd 를 묻는 UI 는 없다 — params 를 빈 객체로 보내 원격의 기본값(`type`=terminal, 기본 이름, 원격 자기 활성 surface 의 cwd 상속)을 쓴다. 클라이언트는 원격 파일시스템 경로를 모르므로 cwd 를 지어내지 않는다(명시 지정은 IPC/CLI 쪽 몫).
+**"+ 새 워크스페이스" 행 — 원격에 만들어서 붙는 경로**: loaded 목록의 **첫 행**은 원격에 이미 있는 워크스페이스가 아니라 `+ 새 워크스페이스` 다. 이 행을 고르고 확정하면 조회에 쓴 같은 터널로 원격에 `workspace.create` 를 1회 보내고, 그 응답의 ws id 를 **기존 Connect 와 똑같은 attach 지점**으로 넘긴다. 이름/cwd 를 묻는 UI 는 없다 — 원격의 기본값(`type`=terminal, 기본 이름)을 쓴다. 클라이언트는 원격 파일시스템 경로를 모르므로 cwd 를 지어내지 않는다(명시 지정은 IPC/CLI 쪽 몫). cwd 상속 원본은 client 가 `workspace.create` 의 `inherit_cwd` 인자로 정한다.
+
+- 팝업을 연 창의 포커스 surface 가 **같은 원격**의 mirror 터미널이면 그 원격 surface id 를 싣는다(`{"surface": N}`). 같은 원격인지는 그 mirror 세션을 연결한 attach 프로필 이름이 팝업의 프로필과 같은지로 정한다. mirror 세션에는 서버 `instance_id` 가 없기 때문이다.
+- client `inherit_cwd` 설정이 꺼져 있으면 `"none"` 을 싣는다.
+- 같은 원격인지 판정할 수 없으면(포커스가 로컬 surface, 프로필 없이 붙은 mirror, 다른 프로필) 싣지 않는다. 그때 원격은 자기 포커스 surface 와 자기 설정으로 정한다(fallback).
 
 - **버튼이 아니라 목록 행**이다. 이웃 ws 행과 같은 select-then-confirm 을 따르고 확정은 footer 가 한다 — 그때 primary 라벨이 `Connect` → `Create & connect` 로 바뀐다. 목록 안의 행인데 혼자만 클릭 즉시 실행되면 그 자체가 상호작용 불일치이고, 원격을 **변경하는** 동작 직전의 되돌릴 수 있는 순간도 사라진다.
 - **구분은 세 채널 동시** — `plus` 글리프 · accent 라벨 · 행 아래 1px 구분선. 색 하나로만 구분하지 않는다. 글리프는 ws 행의 status-dot 과 **같은 폭 슬롯** 안에서 center 되어, 이름 열의 좌측 정렬선이 아래 행들과 픽셀 동일하다.
@@ -517,6 +523,7 @@ Remote는 원 attempt의 SSH 취소와 터널 회수를 요청하고 worker의 �
 
 - **생성은 성공했는데 attach 가 실패하면 원격에 워크스페이스가 남는다.** 정리 수단은 원격의 `workspace.close` IPC, 또는 mirror 안에서 마지막 surface 를 닫아 원격 ws 를 purge 시키는 기존 경로다(아래 "역반영 대신 강제 detach").
 - **레이아웃을 저장하는 원격에서는 그 워크스페이스가 재시작 후에도 남는다.** 원격이 만든 것은 mirror 가 아닌 일반 워크스페이스라 원격의 슬롯 파일에 영속된다(비영속 제외 대상은 로컬 mirror 뿐 — 아래 절). 즉 이 기능은 **원격의 영속 상태를 늘린다**: 무심코 여러 번 확정하면 원격에 워크스페이스가 계속 쌓인다.
+- `inherit_cwd` 인자를 모르는 옛 원격은 그 인자를 무시하고 자기 포커스로 상속한다. `"none"` 도 지켜지지 않는다.
 - self(loopback) attach 거절은 그대로 적용된다 — 새 ws 를 만들었더라도 대상 포트가 자기 자신이면 attach 되지 않는다(생성만 되고 끝). debug 와 release 모두 같은 사전 검사를 거친다.
 
 ### 원격 자식 에이전트
@@ -527,6 +534,7 @@ mirror 를 `--workspace`(숫자 id)나 `--pane` 으로 지정한 `tasty claude s
 - 서버의 다른 사용자·도구는 점유 중인 그 자식에 입력하거나 그 자식을 닫을 수 없다. 원격 출처 표지를 꾸민 일반 요청은 host 가 거절한다.
 - 연결이 끊긴 동안 자식의 상태는 `unknown` 으로 보이고, 같은 서버 프로세스에 다시 붙으면 쌓인 완료가 한 번 기록된다. 결과를 확정할 수 없는 지시는 성공이나 실패로 단정하지 않고 결과불명으로 답한다. 서버 프로세스가 다시 시작하면 그 전 자식의 결과는 이어지지 않는다.
 - `--cwd`·`--profile-file` 은 서버 기준 절대 경로만 받는다. 이 기능이 없는 구 서버의 mirror 에는 자식을 만들지 않고 오류로 끝난다.
+- `--cwd` 를 생략하면 자식은 대상 pane 에서 client View 가 선택한 탭의 선택 surface 의 서버 쪽 cwd 에서 시작한다. client `inherit_cwd` 설정이 꺼져 있으면 상속하지 않는다. 새 탭과 같은 규칙이다.
 
 전달·출처·통지 계약은 [Attach 메커니즘](../../dev-guide/attach-behavior.md#원격-자식-에이전트-ipcstreamagent-children), provider 별 동작은 [원격 attach 자식](../../plugins/remote-attach-children.md)에 있다.
 
