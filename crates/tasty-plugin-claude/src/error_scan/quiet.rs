@@ -451,7 +451,8 @@ impl QuietState {
         (count, released)
     }
 
-    /// 무출력 알림을 선언에 맞춰 보류하거나 버린다. 작업 선언이 surface 전체 선언보다 먼저다.
+    /// 무출력 알림을 선언에 맞춰 보류하거나 버린다. 파일 기준 알림은 작업 선언이 surface 전체 선언보다 먼저고,
+    /// 화면 기준 대기 알림은 surface 전체 선언이 작업 선언보다 먼저다.
     pub(crate) fn dispose(&mut self, notice: QuietNotice, quiet_ms: u64, now_ms: u64) -> Send {
         let task_decl = |decls: &[Decl], id: &str| {
             decls
