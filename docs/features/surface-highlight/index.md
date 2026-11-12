@@ -13,7 +13,7 @@
 
 ## 내부 동작 (headless-valid)
 
-`CoreState.attention`의 `AttentionStore`는 surface마다 `{ kind, raised_at }` 하나를 보관한다.
+`LiveDomainState.attention`의 `AttentionStore`는 surface마다 `{ kind, raised_at }` 하나를 보관한다.
 `raise_attention`은 ID 0을 무시하고 기존 레코드를 새 kind와 시각으로 교체한다.
 높은 우선순위의 kind도 다음 raise로 교체될 수 있다. 우선순위는 여러 surface를 함께 표시할 때 사용한다.
 

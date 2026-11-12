@@ -66,4 +66,5 @@ Surface는 호스트 내장, egui-mesh 플러그인, webview 플러그인으로 
 ## 관련
 
 - [actors.md](actors.md) — 이 구조를 사용하는 주체 (로컬/AI/원격)
+- [상태 모델](state-model/index.md) — 각 계층의 상태 축과 전이, 계층 사이의 집계·제한
 - View 내부 오버레이: [`design/systems/popup.md`](../design/systems/popup.md) · [`design/systems/toast.md`](../design/systems/toast.md). 모달 계열 View 는 위 "View 의 종류" 표 참조.
