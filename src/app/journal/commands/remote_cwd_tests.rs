@@ -322,3 +322,65 @@ fn an_agent_creation_carries_the_client_view_selection() {
         );
     }
 }
+
+/// 원격 holder 의 자식 터미널: 서버 View 가 탭 A 를 골라도 client 가 고른 탭 B 의 폴더에서 시작한다.
+/// 기준이 없으면 서버 선택과 서버 설정, "상속 안 함"이면 없음, 명시 cwd 가 있으면 그 값이다.
+#[test]
+fn a_remote_child_starts_in_the_client_selected_folder() {
+    use super::child::launch_cwd;
+    let mut fixture = fixture();
+    let (a, b) = (fixture.roots[&A].clone(), fixture.roots[&B].clone());
+    let other = fixture.roots[&OTHER_PANE].to_string_lossy().into_owned();
+    for inherit in [true, false] {
+        fixture.session.runtime.settings.general.inherit_cwd = inherit;
+        let engine = fixture.session.borrow_mut();
+        let engine = engine.as_ref();
+        let launch = |explicit: Option<&str>, source| {
+            launch_cwd(&engine, &server_view_on_a(), 10, explicit, source)
+        };
+        assert_eq!(launch(None, CwdSource::Surface(B)), Some(b.clone()));
+        assert_eq!(launch(None, CwdSource::NoInherit), None);
+        assert_eq!(
+            launch(None, CwdSource::View),
+            inherit.then(|| a.clone()),
+            "server inherit_cwd = {inherit}"
+        );
+        assert_eq!(
+            launch(Some(&other), CwdSource::Surface(B)),
+            Some(std::path::PathBuf::from(&other))
+        );
+    }
+}
+
+/// host 예약 인자는 자식을 만들 pane 의 surface 만 받는다. 모르는 값도 거절한다.
+#[test]
+fn a_remote_child_source_must_be_in_its_pane() {
+    use super::child::remote_cwd_source;
+    let fixture = fixture();
+    let pane = fixture
+        .session
+        .core_state
+        .find_pane_by_id(10)
+        .expect("pane 10");
+    let id = serde_json::Value::Null;
+    let source = |value: serde_json::Value| remote_cwd_source(&value, pane, &id);
+    assert_eq!(source(serde_json::json!({})).ok(), Some(CwdSource::View));
+    assert_eq!(
+        source(serde_json::json!({"inherit_cwd": null})).ok(),
+        Some(CwdSource::View)
+    );
+    assert_eq!(
+        source(serde_json::json!({"inherit_cwd": "none"})).ok(),
+        Some(CwdSource::NoInherit)
+    );
+    assert_eq!(
+        source(serde_json::json!({"inherit_cwd": {"surface": B}})).ok(),
+        Some(CwdSource::Surface(B))
+    );
+    for refused in [
+        serde_json::json!({"inherit_cwd": {"surface": OTHER_PANE}}),
+        serde_json::json!({"inherit_cwd": "all"}),
+    ] {
+        assert!(source(refused.clone()).is_err(), "{refused}");
+    }
+}

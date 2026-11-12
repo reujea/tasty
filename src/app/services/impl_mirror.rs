@@ -13,20 +13,28 @@ pub(crate) struct ClientCwd<'a> {
     pub inherit: bool,
 }
 
+/// pane에서 View가 고른 탭의 선택 surface. 로컬 생성이 상속 원본으로 쓰는 것과 같은 surface다.
+#[cfg(feature = "gui")]
+pub(crate) fn view_selected_surface(
+    core: &crate::core::CoreState,
+    presentation: &dyn crate::model::StructurePresentation,
+    pane: u32,
+) -> Option<u32> {
+    let pane = core.find_pane_by_id(pane)?;
+    let tab = pane
+        .tabs
+        .get(presentation.tab_index(pane))
+        .or_else(|| pane.tabs.first())?;
+    presentation
+        .surface_id(tab)
+        .filter(|surface| tab.contains_surface(*surface))
+        .or_else(|| tab.first_surface_id())
+}
+
 #[cfg(feature = "gui")]
 impl ClientCwd<'_> {
-    /// pane에서 View가 고른 탭의 선택 surface. 로컬 생성이 상속 원본으로 쓰는 것과 같은 surface다.
     fn selected(&self, core: &crate::core::CoreState, pane: u32) -> Option<u32> {
-        let presentation = self.presentation?;
-        let pane = core.find_pane_by_id(pane)?;
-        let tab = pane
-            .tabs
-            .get(presentation.tab_index(pane))
-            .or_else(|| pane.tabs.first())?;
-        presentation
-            .surface_id(tab)
-            .filter(|surface| tab.contains_surface(*surface))
-            .or_else(|| tab.first_surface_id())
+        view_selected_surface(core, self.presentation?, pane)
     }
 
     fn of_pane(

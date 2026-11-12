@@ -133,15 +133,16 @@ impl App {
             let host = super::output::mirror_engine_host(self, ws);
             let sess = &mut self.remote.sessions[idx];
             let engines = engines_mut!(self);
-            let mut engine = match host {
-                Some(super::output::MirrorOutputHost::Window(wid)) => {
-                    engines.window_pair(wid).map(|(_, e)| e)
-                }
-                Some(super::output::MirrorOutputHost::Parked(id)) => {
-                    engines.parked_session(id).map(|(_, e)| e)
-                }
+            let (view, mut engine) = match host {
+                Some(super::output::MirrorOutputHost::Window(wid)) => engines
+                    .window_pair(wid)
+                    .map(|(main, e)| (Some(&main.state), Some(e))),
+                Some(super::output::MirrorOutputHost::Parked(id)) => engines
+                    .parked_session(id)
+                    .map(|(state, e)| (Some(&*state), Some(e))),
                 None => None,
-            };
+            }
+            .unwrap_or((None, None));
             for msg in inbox {
                 let sink = Sink {
                     engine: engine.as_mut(),
@@ -150,6 +151,9 @@ impl App {
                     meta_writes: &mut meta_writes,
                 };
                 apply(sess, sink, ws, msg);
+            }
+            if let (Some(view), Some(engine)) = (view, engine.as_ref()) {
+                choose_call_sources(ws, engine.core, &view.navigation);
             }
             flush_outgoing(sess, ws);
             if let Some(engine) = engine.as_mut() {
@@ -475,6 +479,47 @@ fn notice_outcome(
     }
 }
 
+/// 아직 보내지 않은 call 의 cwd 상속 원본을 client View 선택으로 정한다. 서버 View 의 선택은 이 client 의
+/// 선택과 독립이므로, anchor 가 있는 pane 에서 client View 가 고른 탭의 선택 surface 를 싣는다.
+fn choose_call_sources(
+    ws: u32,
+    core: &crate::core::CoreState,
+    presentation: &dyn crate::model::StructurePresentation,
+) {
+    let mut client = agents::client();
+    for (_, out) in client.outgoing.iter_mut().filter(|(w, _)| *w == ws) {
+        if let Outgoing::Call {
+            anchor,
+            inherit: true,
+            source: source @ None,
+            ..
+        } = out
+        {
+            *source = core.find_pane_for_surface(*anchor).and_then(|pane| {
+                crate::app::services::impl_mirror::view_selected_surface(core, presentation, pane)
+            });
+        }
+    }
+}
+
+/// call 이 싣는 원격 cwd 상속 원본. 고른 로컬 surface 의 원격 매핑이 없으면 Err 다.
+fn remote_call_source(
+    inherit: bool,
+    source: Option<u32>,
+    local_to_remote: &std::collections::HashMap<u32, u32>,
+) -> Result<Option<tasty_ipc::stream::InheritCwd>, String> {
+    let source = match source {
+        Some(local) if inherit => Some(
+            local_to_remote
+                .get(&local)
+                .copied()
+                .ok_or_else(|| format!("inherit_cwd surface {local} is outside the mirror"))?,
+        ),
+        _ => None,
+    };
+    Ok(tasty_ipc::stream::InheritCwd::of_client(inherit, source))
+}
+
 /// 쌓인 요청을 세션 ID 로 바꿔 보낸다. 출처가 정해진 연결에만 보낸다.
 fn flush_outgoing(sess: &AttachClientSession, ws: u32) {
     let mut client = agents::client();
@@ -504,6 +549,8 @@ fn flush_outgoing(sess: &AttachClientSession, ws: u32) {
                 anchor,
                 target,
                 params,
+                inherit,
+                source,
             } => {
                 let Some(anchor) = local_to_remote.get(&anchor).copied() else {
                     if let Some(call) = client.calls.get_mut(&call_id) {
@@ -512,6 +559,14 @@ fn flush_outgoing(sess: &AttachClientSession, ws: u32) {
                     }
                     continue;
                 };
+                // 보내지 않은 거절이라 결과를 모르는 상태가 아니다. 실패로 끝낸다.
+                let inherit_cwd = match remote_call_source(inherit, source, &local_to_remote) {
+                    Ok(value) => value,
+                    Err(reason) => {
+                        client.refuse_call(call_id, reason);
+                        continue;
+                    }
+                };
                 AgentClientMsg::AgentCallRequest {
                     call_id,
                     namespace,
@@ -519,7 +574,7 @@ fn flush_outgoing(sess: &AttachClientSession, ws: u32) {
                     anchor_surface_id: anchor,
                     target_surface_id: target,
                     params,
-                    inherit_cwd: None,
+                    inherit_cwd,
                 }
             }
             Outgoing::Commit { call_id, remote } => AgentClientMsg::AgentCallCommit {
@@ -705,5 +760,78 @@ fn late_spawns(plugins: &mut Option<crate::plugin::PluginManager>, ws: u32, now:
             plugin: call.plugin.clone(),
             rx,
         });
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tasty_ipc::stream::InheritCwd;
+
+    /// client 설정이 꺼져 있으면 "상속 안 함", 고른 로컬 surface 는 원격 ID, 고르지 못했으면 싣지 않는다.
+    /// 고른 surface 의 원격 매핑이 없으면 거절한다.
+    #[test]
+    fn a_call_sends_the_remote_id_of_the_chosen_source() {
+        let local_to_remote: std::collections::HashMap<u32, u32> =
+            [(3, 40), (4, 41)].into_iter().collect();
+        assert_eq!(
+            remote_call_source(true, Some(3), &local_to_remote),
+            Ok(Some(InheritCwd::Surface(40)))
+        );
+        assert_eq!(remote_call_source(true, None, &local_to_remote), Ok(None));
+        assert_eq!(
+            remote_call_source(false, Some(3), &local_to_remote),
+            Ok(Some(InheritCwd::NoInherit))
+        );
+        assert!(
+            remote_call_source(true, Some(7), &local_to_remote)
+                .unwrap_err()
+                .contains("surface 7")
+        );
+    }
+
+    /// 보내기 전 call 은 anchor 의 pane 에서 client View 가 고른 탭(둘째 탭 102)의 surface 를 원본으로 고른다.
+    /// anchor 는 그 pane 의 첫 탭(101)이다. 설정이 꺼진 call 은 고르지 않는다.
+    #[cfg(feature = "gui")]
+    #[test]
+    fn a_queued_call_takes_the_client_view_selection_of_the_anchor_pane() {
+        const WS: u32 = 9_900_517;
+        let (mut state, session) = crate::state::tests::two_pane_fixture();
+        let core = &session.core_state;
+        state
+            .navigation
+            .goto_tab(core.find_pane_by_id(10).expect("pane 10"), 1);
+        let queued = |call_id, inherit| {
+            (
+                WS,
+                Outgoing::Call {
+                    call_id,
+                    namespace: "claude".into(),
+                    method: "spawn".into(),
+                    anchor: 101,
+                    target: None,
+                    params: Value::Null,
+                    inherit,
+                    source: None,
+                },
+            )
+        };
+        agents::client()
+            .outgoing
+            .extend([queued(1, true), queued(2, false)]);
+        choose_call_sources(WS, core, &state.navigation);
+        let mut client = agents::client();
+        let (mine, rest): (Vec<_>, Vec<_>) = std::mem::take(&mut client.outgoing)
+            .into_iter()
+            .partition(|(w, _)| *w == WS);
+        client.outgoing = rest;
+        let sources: Vec<_> = mine
+            .into_iter()
+            .map(|(_, out)| match out {
+                Outgoing::Call { source, .. } => source,
+                other => panic!("not a call: {other:?}"),
+            })
+            .collect();
+        assert_eq!(sources, vec![Some(102), None]);
     }
 }

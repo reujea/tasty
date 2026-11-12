@@ -251,6 +251,8 @@ fn call(
                 anchor,
                 target,
                 params: params.get("params").cloned().unwrap_or(Value::Null),
+                inherit: engine.runtime.settings.general.inherit_cwd,
+                source: None,
             },
         ));
         Ok(call_id)

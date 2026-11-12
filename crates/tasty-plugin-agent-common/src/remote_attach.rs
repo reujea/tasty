@@ -24,6 +24,8 @@ const METHOD_NOT_FOUND: i32 = -32601;
 
 /// host 가 원격 출처 호출에 넣는 키. client 가 보낸 같은 이름은 서버 host 가 지운다.
 pub const CONTEXT_KEY: &str = "attach_context";
+/// host 가 확인해 넣는 새 자식 cwd 상속 원본. client View 가 고른 원격 surface 또는 상속 안 함이다.
+pub const INHERIT_CWD_KEY: &str = "inherit_cwd";
 /// tell·kill 대상으로 host 가 확인한 서버 쪽 자식 surface.
 pub const TARGET_KEY: &str = "attach_target_surface";
 /// client plugin 이 서버 plugin 에 턴 결과를 돌려보내 달라고 알리는 plugin 인자. 부모가 Codex 대화일 때만 넣는다.
@@ -283,9 +285,15 @@ impl AttachOrigin {
         })
     }
 
-    /// host `terminal.spawn` 에 원격 출처 부모·위치·문맥을 그대로 싣는다.
+    /// host `terminal.spawn` 에 원격 출처 부모·위치·문맥과 새 자식 cwd 상속 원본을 그대로 싣는다.
     pub fn spawn_request(params: &Value, map: &mut Map<String, Value>) {
-        for key in ["parent_external", "workspace", "pane", CONTEXT_KEY] {
+        for key in [
+            "parent_external",
+            "workspace",
+            "pane",
+            CONTEXT_KEY,
+            INHERIT_CWD_KEY,
+        ] {
             if let Some(v) = params.get(key).filter(|v| !v.is_null()) {
                 map.insert(key.into(), v.clone());
             }
@@ -628,6 +636,34 @@ mod tests {
             call(&malformed, spawn_request()),
             Err(CallError::Unknown(_))
         ));
+    }
+
+    /// host 가 넣은 원격 출처 값과 cwd 상속 원본을 `terminal.spawn` 에 그대로 넘긴다. 빈 값은 싣지 않는다.
+    #[test]
+    fn the_spawn_request_carries_the_host_cwd_source() {
+        let params = json!({
+            "parent_external": "attach:o3",
+            "workspace": "2",
+            "pane": 5,
+            "attach_context": "tok",
+            "inherit_cwd": {"surface": 9},
+            "prompt": "hi",
+        });
+        let mut map = Map::new();
+        AttachOrigin::spawn_request(&params, &mut map);
+        assert_eq!(
+            Value::Object(map),
+            json!({
+                "parent_external": "attach:o3",
+                "workspace": "2",
+                "pane": 5,
+                "attach_context": "tok",
+                "inherit_cwd": {"surface": 9},
+            })
+        );
+        let mut map = Map::new();
+        AttachOrigin::spawn_request(&json!({ "inherit_cwd": null }), &mut map);
+        assert!(map.is_empty());
     }
 
     #[test]

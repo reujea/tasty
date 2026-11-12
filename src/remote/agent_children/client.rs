@@ -31,6 +31,11 @@ pub(crate) enum Outgoing {
         anchor: u32,
         target: Option<u32>,
         params: serde_json::Value,
+        /// call 접수 때 client의 `general.inherit_cwd`. 꺼져 있으면 "상속 안 함"을 보낸다.
+        inherit: bool,
+        /// 새 자식의 cwd 상속 원본(로컬 mirror surface). 보내기 직전 client View가 anchor의 pane에서 고른
+        /// 탭의 선택 surface로 정한다. 고르지 못하면 싣지 않는다(서버 fallback).
+        source: Option<u32>,
     },
     Commit {
         call_id: u64,
@@ -181,6 +186,19 @@ impl Client {
                 }
             }
         }
+    }
+
+    /// 서버에 보내기 전에 거절한 call 을 실패로 끝낸다. 서버는 아무것도 만들지 않았다.
+    pub(crate) fn refuse_call(&mut self, call_id: u64, reason: String) {
+        tracing::warn!("attach agent call {call_id} was not sent: {reason}");
+        self.call_result(
+            call_id,
+            CallOutcome::Error(tasty_ipc::agent_child::CallError {
+                code: -32602,
+                message: reason,
+            }),
+            Vec::new(),
+        );
     }
 
     /// 결과를 기록한다. 자식이 없거나 등록할 부모가 없으면 바로 끝난다.
@@ -467,6 +485,23 @@ mod tests {
             late_retry_at: None,
             wire: None,
         }
+    }
+
+    /// 보내기 전에 거절한 call 은 결과불명이 아니라 실패다. plugin 은 다시 보내지 않고 오류로 끝낸다.
+    #[test]
+    fn a_call_refused_before_sending_ends_as_a_failure() {
+        let mut c = Client::default();
+        c.calls.insert(1, call(4, Some(ParentKey::Surface(9))));
+        c.refuse_call(1, "inherit_cwd surface 7 is outside the mirror".into());
+        let refused = &c.calls[&1];
+        assert_eq!(refused.state, CallState::Done);
+        assert_eq!(
+            refused.outcome,
+            Some(CallOutcome::Error(tasty_ipc::agent_child::CallError {
+                code: -32602,
+                message: "inherit_cwd surface 7 is outside the mirror".into(),
+            }))
+        );
     }
 
     #[test]

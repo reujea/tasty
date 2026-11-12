@@ -142,23 +142,13 @@ pub(super) fn resolve_spawn(
     {
         return Err(bad(format!("cwd does not exist: {path}")));
     }
-    let launch_cwd = cwd.as_ref().map(std::path::PathBuf::from).or_else(|| {
-        if !session.runtime.settings.general.inherit_cwd {
-            return None;
-        }
-        let tab = view
-            .selected_tabs
-            .get(&pane)
-            .and_then(|id| pane_value.tabs.iter().find(|tab| tab.id == *id))
-            .or_else(|| pane_value.tabs.first())?;
-        let surface = view
-            .selected_surfaces
-            .get(&tab.id)
-            .copied()
-            .filter(|id| tab.contains_surface(*id))
-            .or_else(|| tab.first_surface_id())?;
-        session.as_ref().local_surface_cwd(surface)
-    });
+    // 원격 holder 의 자식은 client 가 고른 원본(host 가 확인해 넣은 예약 인자)을 잇는다. 없을 때만 이 서버의
+    // View 선택과 설정을 쓴다(fallback). 로컬 호출자의 같은 이름 인자는 쓰지 않는다.
+    let source = match &attach_parent {
+        Some(_) => remote_cwd_source(input, pane_value, &id)?,
+        None => super::create_spec::CwdSource::View,
+    };
+    let launch_cwd = launch_cwd(&session.as_ref(), view, pane, cwd.as_deref(), source);
     let mut result =
         create::Request::base(session, "terminal", &serde_json::json!({}), launch_cwd)?;
     let receipt = session
@@ -320,6 +310,63 @@ pub(super) fn resolve_respawn(
     result.shape = create::Shape::ChildRespawn { index };
     result.one_shot_input = command;
     Ok(result)
+}
+
+/// 자식 터미널의 시작 폴더. 명시 cwd, 원격 holder 가 고른 원본, 이 서버 View 의 선택 순서로 정한다.
+/// 이 서버의 `inherit_cwd` 설정은 View 선택에만 적용한다. 원본을 고른 요청자는 이미 자기 설정으로 판단했다.
+pub(super) fn launch_cwd(
+    engine: &crate::runtime::engine_access::EngineRef<'_>,
+    view: &crate::runtime::journal_product::CompletionView,
+    pane: u32,
+    explicit: Option<&str>,
+    source: super::create_spec::CwdSource,
+) -> Option<std::path::PathBuf> {
+    use super::create_spec::CwdSource;
+    if let Some(path) = explicit {
+        return Some(std::path::PathBuf::from(path));
+    }
+    let surface = match source {
+        CwdSource::Surface(surface) => surface,
+        CwdSource::NoInherit => return None,
+        CwdSource::View if engine.runtime.settings.general.inherit_cwd => {
+            super::create_spec::selected_in_view(engine.core, view, pane)?
+        }
+        CwdSource::View => return None,
+    };
+    engine.local_surface_cwd(surface)
+}
+
+/// 원격 holder 자식의 cwd 상속 원본. 원본 surface 는 자식을 만들 pane 에 있어야 한다. 서버 연결 처리가 이미
+/// 확인했지만 plugin 을 거쳐 온 값이라 여기서 다시 확인한다. 모르는 값은 거절한다.
+pub(super) fn remote_cwd_source(
+    input: &serde_json::Value,
+    pane: &crate::model::Pane,
+    id: &serde_json::Value,
+) -> Result<super::create_spec::CwdSource, JsonRpcResponse> {
+    use super::create_spec::CwdSource;
+    use tasty_ipc::stream::InheritCwd;
+    let Some(value) = input
+        .get(tasty_ipc::agent_child::INHERIT_CWD_PARAM)
+        .filter(|value| !value.is_null())
+    else {
+        return Ok(CwdSource::View);
+    };
+    let bad = |message: String| JsonRpcResponse::invalid_params(id.clone(), message);
+    match serde_json::from_value::<InheritCwd>(value.clone()) {
+        Ok(InheritCwd::NoInherit) => Ok(CwdSource::NoInherit),
+        Ok(InheritCwd::Surface(surface))
+            if pane.tabs.iter().any(|tab| tab.contains_surface(surface)) =>
+        {
+            Ok(CwdSource::Surface(surface))
+        }
+        Ok(InheritCwd::Surface(surface)) => Err(bad(format!(
+            "inherit_cwd surface {surface} is not in pane {}",
+            pane.id
+        ))),
+        Ok(InheritCwd::Unknown(_)) | Err(_) => {
+            Err(bad(format!("unsupported inherit_cwd value {value}")))
+        }
+    }
 }
 
 #[cfg(test)]

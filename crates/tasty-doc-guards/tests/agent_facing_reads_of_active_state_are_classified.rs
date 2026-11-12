@@ -94,12 +94,6 @@ const ROSTER: &[(&str, Kind, usize, &str)] = &[
         "호출자가 지정한 pane 안의 selected tab을 원 CWD 상속 입력으로 고정하며 전역 workspace 선택으로 바꾸지 않는다",
     ),
     (
-        "src/app/journal/commands/child.rs",
-        IdResolved,
-        1,
-        "명시 workspace와 pane으로 찾은 부모 생성 위치의 선택 tab에서 CWD를 상속한다",
-    ),
-    (
         "src/app/journal/commands/assembly.rs",
         IdResolved,
         1,

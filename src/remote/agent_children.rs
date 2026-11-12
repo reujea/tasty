@@ -261,6 +261,7 @@ const RESERVED_PARAMS: &[&str] = &[
     "caller_surface",
     "attach_context",
     "attach_target_surface",
+    tasty_ipc::agent_child::INHERIT_CWD_PARAM,
 ];
 
 fn sanitized(params: Value) -> serde_json::Map<String, Value> {
@@ -294,7 +295,7 @@ pub(crate) fn handle(
                 anchor_surface_id,
                 target_surface_id,
                 params,
-                inherit_cwd: _,
+                inherit_cwd,
             } => {
                 let started = start_call(
                     plugins.as_deref_mut(),
@@ -306,6 +307,7 @@ pub(crate) fn handle(
                         method: &method,
                         anchor: anchor_surface_id,
                         target: target_surface_id,
+                        inherit_cwd,
                     },
                     params,
                     now,
@@ -347,6 +349,8 @@ struct Target<'a> {
     method: &'a str,
     anchor: u32,
     target: Option<u32>,
+    /// client 가 실은 새 자식 cwd 상속 원본. 확인한 뒤 host 예약 인자로 넘긴다.
+    inherit_cwd: Option<tasty_ipc::stream::InheritCwd>,
 }
 
 /// holder 출처 대신 실행하는 데 필요한 기존 권한. 새 승인 흐름 없이 매니페스트 선언·사용자 허가를 그대로 쓴다.
@@ -367,6 +371,7 @@ fn start_call(
         method,
         anchor,
         target,
+        inherit_cwd,
     } = call;
     let reject = |code, message: String| Some(call_error(call_id, error(code, message)));
     let Some(engine) = engines.iter().find(|e| {
@@ -388,6 +393,9 @@ fn start_call(
     let Some(pane) = engine.core.find_pane_for_surface(anchor) else {
         return reject(-32602, format!("surface {anchor} has no pane"));
     };
+    if let Err(reason) = check_inherit_cwd(engine, inherit_cwd.as_ref(), workspace, pane) {
+        return reject(-32602, reason);
+    }
     let Some(plugins) = plugins else {
         return reject(
             -32003,
@@ -436,6 +444,12 @@ fn start_call(
     if let Some(target) = target {
         params.insert("attach_target_surface".into(), json!(target));
     }
+    if let Some(inherit_cwd) = &inherit_cwd {
+        params.insert(
+            tasty_ipc::agent_child::INHERIT_CWD_PARAM.into(),
+            json!(inherit_cwd),
+        );
+    }
     let (tx, rx) = std::sync::mpsc::sync_channel(1);
     plugins.forward_attach_call(&full, Value::Object(params), None, Value::Null, tx, None);
     waiting().push(Waiting {
@@ -444,6 +458,37 @@ fn start_call(
         rx,
     });
     None
+}
+
+/// client 가 실은 cwd 상속 원본은 이 연결이 점유한 workspace 의, anchor 와 같은 pane 의 surface 여야 한다.
+/// 모르는 값도 거절한다. 원본이 터미널이 아니거나 cwd 를 모르는 것은 거절하지 않는다(상속하지 않는다).
+fn check_inherit_cwd(
+    engine: &EngineRef<'_>,
+    value: Option<&tasty_ipc::stream::InheritCwd>,
+    workspace: u32,
+    pane: u32,
+) -> Result<(), String> {
+    use tasty_ipc::stream::InheritCwd;
+    match value {
+        None | Some(InheritCwd::NoInherit) => Ok(()),
+        Some(unknown @ InheritCwd::Unknown(_)) => Err(format!(
+            "unsupported inherit_cwd value {}",
+            unknown.wire_text()
+        )),
+        Some(InheritCwd::Surface(source)) => {
+            if engine.live.occupancy.workspace_of_surface(*source) != Some(workspace) {
+                return Err(format!(
+                    "inherit_cwd surface {source} is not in a workspace this connection holds"
+                ));
+            }
+            if engine.core.find_pane_for_surface(*source) != Some(pane) {
+                return Err(format!(
+                    "inherit_cwd surface {source} is not in the pane of the anchor surface"
+                ));
+            }
+            Ok(())
+        }
+    }
 }
 
 /// namespace 소유 plugin 이 이 메서드를 원격 실행용으로 선언했고, 켜져 있으며 필요한 기존 권한을 허가받았는지.
@@ -580,6 +625,7 @@ mod tests {
             "_tasty_context": {"provider": "codex"},
             "attach_context": "x",
             "workspace": "1",
+            "inherit_cwd": {"surface": 4},
         }));
         assert_eq!(Value::Object(map), json!({"prompt": "hi"}));
     }
@@ -589,5 +635,51 @@ mod tests {
         assert_eq!(origin_of_parent("attach:o12"), Some(12));
         assert_eq!(origin_of_parent("attach:x"), None);
         assert_eq!(origin_of_parent("codex:abc"), None);
+    }
+
+    /// client 가 실은 cwd 원본은 이 연결이 점유한 workspace 의, anchor 와 같은 pane 에 있어야 한다.
+    #[cfg(feature = "gui")]
+    #[test]
+    fn the_client_cwd_source_must_be_in_the_anchor_pane() {
+        use tasty_ipc::stream::InheritCwd;
+        let (_, mut session) = crate::state::tests::two_pane_fixture();
+        let workspace = session.core_state.workspace_at(0).expect("workspace").id;
+        let surfaces = session
+            .core_state
+            .workspace_at(0)
+            .unwrap()
+            .all_surface_ids();
+        session
+            .live
+            .occupancy
+            .acquire_workspace(workspace, &surfaces, &surfaces, 7)
+            .unwrap();
+        let engine = session.borrow_mut();
+        let engine = engine.as_ref();
+        let check =
+            |value: Option<InheritCwd>| check_inherit_cwd(&engine, value.as_ref(), workspace, 10);
+        for ok in [
+            None,
+            Some(InheritCwd::NoInherit),
+            Some(InheritCwd::Surface(101)),
+            Some(InheritCwd::Surface(102)),
+        ] {
+            assert_eq!(check(ok.clone()), Ok(()), "{ok:?}");
+        }
+        assert!(
+            check(Some(InheritCwd::Surface(201)))
+                .unwrap_err()
+                .contains("not in the pane")
+        );
+        assert!(
+            check(Some(InheritCwd::Surface(9_999)))
+                .unwrap_err()
+                .contains("not in a workspace this connection holds")
+        );
+        assert!(
+            check(Some(InheritCwd::Unknown(json!(3))))
+                .unwrap_err()
+                .contains("unsupported inherit_cwd value 3")
+        );
     }
 }

@@ -25,6 +25,10 @@ pub const VERSION: u32 = 1;
 /// 원격 자식의 프로세스 종료. host 가 PTY 종료에서 만든다.
 pub const PROCESS_EXIT: &str = "process-exit";
 
+/// host 가 확인한 새 자식 cwd 상속 원본을 싣는 plugin 인자 이름. 값은 [`crate::stream::InheritCwd`] 의
+/// wire 형태다. plugin 은 이 값을 host `terminal.spawn` 에 그대로 넘긴다. client 가 `params` 에 같은 이름을
+/// 넣어도 서버가 지운다.
+pub const INHERIT_CWD_PARAM: &str = "inherit_cwd";
 /// 원격 holder call 문맥을 host 가 넣는 plugin 인자 이름. 일반 namespace 요청은 이 이름을 쓸 수 없다.
 pub const CONTEXT_PARAM: &str = "attach_context";
 /// host 가 확인한 원격 자식 surface 를 싣는 plugin 인자 이름.
