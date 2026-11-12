@@ -978,7 +978,7 @@ allow 검사에는 cfg_attr 안의 allow와 한글 `이유:` 표지도 포함한
 | pre-commit | 주석 없는 `let _ =` (C.6) | 부분 — 전수판 `crates/tasty-doc-guards/tests/let_underscore_documented.rs` 가 훅의 상위집합이고, 그 전수판을 `doc-guards.yml`(경로 필터 없음) · `check-windows` · `check-headless` 가 자동 실행한다. 자동 잡의 clippy는 `let_underscore_must_use`(warn)로 `let _ = <Result>`를 알린다. 주석의 사유는 검사하지 않아 사유가 있는 코드에도 경고하며, `-D warnings`가 없어 이 경고만으로 빌드를 막지는 않는다([error-handling](error-handling.md)) |
 | pre-commit | 로컬 티켓 인용(T.1) | ✅ doc-guards.yml과 pre-push B.7도 no_todo_file_citation을 실행한다. 이 검사는 staged diff가 아닌 전체 작업 트리를 읽는다. |
 | pre-push | 플러그인 버전 `--range <원격 tip> <로컬 tip>`(B.9) | ✅ plugin-version-check.yml과 같은 스크립트다. Git이 전달한 두 tip을 사용하며 비교 범위를 알 수 없으면 실패한다. staged 변경을 보는 P.1과 구분한다. |
-| pre-push | `cargo clippy --workspace --all-targets -- -D clippy::correctness` | 부분 — Windows 잡의 clippy 는 `--locked` 를 쓰고 correctness deny 를 걸지 않는다. 그리고 이 훅은 Linux 트리의 feature 집합(`tracing/log` 가 켜진 쪽)으로 lint 를 센다 — Windows 잡은 그 갈림을 못 본다([크레이트를 지목한 clippy](#크레이트를-지목한-clippy-는-push-와-다른-feature-집합을-잰다)) |
+| pre-push | `cargo clippy --workspace --all-targets -- -D clippy::correctness` | 부분 — Windows 잡의 clippy 는 `--locked` 를 쓰고 correctness deny 를 걸지 않는다. 그리고 이 훅은 Linux 트리의 워크스페이스 feature 집합으로 lint 를 센다. 지금은 `tracing/log` 를 켜는 의존이 없지만, 그런 의존이 생기면 이 훅은 켜진 쪽으로 세고 Windows 잡은 그 갈림을 못 본다([크레이트를 지목한 clippy](#크레이트를-지목한-clippy-는-push-와-다른-feature-집합을-잰다)) |
 | pre-push | `cargo check --no-default-features` | ✅ `crossplatform-check.yml` |
 | pre-push | `cargo test -p tasty-doc-guards` | ✅ `doc-guards.yml` — **같은 크레이트를 부른다**. 훅은 push 하는 머신에서만 돌아 worker 머신엔 이 채널이 없다 |
 | pre-push | `cargo check --workspace --release --locked` | ✅ crossplatform-check.yml의 check-release와 같은 명령이다. debug 검사와 별도로 실행하며 bin 하나로 좁히지 않는다. |
