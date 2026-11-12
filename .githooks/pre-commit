@@ -419,8 +419,16 @@ check_plugin_version_bump() {
         fi
     fi
 
-    base=$(git merge-base main HEAD 2>/dev/null || true)
-    [ -n "$base" ] || base=HEAD
+    # 통합 브랜치(develop)와의 공통 조상과 비교한다. 로컬 develop이 없는 clone은 origin/develop을 쓴다.
+    base=""
+    for ref in develop origin/develop; do
+        base=$(git merge-base "$ref" HEAD 2>/dev/null || true)
+        [ -z "$base" ] || break
+    done
+    if [ -z "$base" ]; then
+        yellow "▸ [P.1] develop·origin/develop과의 공통 조상을 찾지 못했다. HEAD와 비교한다."
+        base=HEAD
+    fi
 
     set +e
     bash scripts/check-plugin-version-bump.sh --staged --base "$base"
