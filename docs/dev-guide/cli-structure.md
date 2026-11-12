@@ -321,6 +321,12 @@ close 계열의 호출자 자기 보호(`caller_surface_id`)는 호출자 문맥
 - [build](build.md) — 크레이트 **경계**(이 문서는 크레이트 **내부**)
 - [attach-behavior](attach-behavior.md) — `local/attach.rs` 의 attach 세션 머신
 
+## 포트 파일과 남은 인스턴스
+
+`tasty port`(`local/port.rs`)는 포트 파일의 포트를 출력한다. 포트 파일과 같은 폴더의 `tasty.instance` 가 같은 포트를 적었고 그 PID 가 끝났거나 다른 프로세스면 포트를 출력하지 않고 종료 코드 3으로 끝낸다. 1은 일반 실패, 2는 인자 오류이므로 원격 포트 발견(`tasty_ssh::discover_remote_port`)이 이 값으로 "원격 tasty 미실행"을 확정한다. 값은 `tasty_ssh::PORT_COMMAND_EXITED_INSTANCE_CODE` 하나에서 정한다. 인스턴스 파일로 판별할 수 없으면 포트를 출력한다.
+
+단발 RPC(`run.rs`)는 연결 시도를 바꾸지 않는다. 연결이 실패한 뒤 `ConnectFailure::judged` 가 같은 판별을 해 안내를 `cli.request.connect_failed` 와 `cli.request.connect_failed_instance_exited` 중에서 고른다. 훅 기록의 영어 진단도 같은 문장이다. 판별 함수는 `tasty_ipc::instance_file::port_owner` 이고 사용자 문서는 [원격 attach 기능 문서](../features/remote-attach/index.md#남은-포트-파일)다.
+
 ## 에이전트 훅 전달 실패 기록
 
 CLI는 포트 파일 부재, 연결 실패, JSON-RPC 오류를 접속 대상의

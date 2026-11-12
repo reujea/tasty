@@ -116,7 +116,7 @@ GUI 부팅은 가장 먼저 데이터 홈의 구조 저널 writer 잠금(`<홈>/
 
 #### 같은 홈의 다시 실행
 
-release는 같은 홈에 프로세스 하나만 둔다. 잠금을 얻은 인스턴스는 `<홈>/tasty.instance`에 PID·프로세스 시작 시각을 쓰고, IPC 서버가 열리면 포트를 넣어 다시 쓴다(임시 파일 뒤 rename). 정상 종료 때 저널 잠금을 놓기 전에 지운다. Linux release는 세션 버스에 `io.github.zilhak.tasty`(정규화한 기본 홈) 또는 `io.github.zilhak.tasty.h<정규화 경로 해시>`(다른 홈) 이름으로 `org.freedesktop.Application`을 등록한다. debug는 `TASTY_DEBUG_SINGLE_INSTANCE=1`일 때만 등록한다.
+release는 같은 홈에 프로세스 하나만 둔다. 잠금을 얻은 인스턴스는 `<홈>/tasty.instance`에 PID·프로세스 시작 시각을 쓰고, IPC 서버가 열리면 포트를 넣어 다시 쓴다(임시 파일 뒤 rename). 정상 종료 때 저널 잠금을 놓기 전에 지운다. 비정상 종료로 남은 파일은 두 번째 실행과 CLI가 PID와 시작 시각으로 알아본다. CLI는 그 판별로 남은 포트 파일을 구분한다([남은 포트 파일](../remote-attach/index.md#남은-포트-파일)). Linux release는 세션 버스에 `io.github.zilhak.tasty`(정규화한 기본 홈) 또는 `io.github.zilhak.tasty.h<정규화 경로 해시>`(다른 홈) 이름으로 `org.freedesktop.Application`을 등록한다. debug는 `TASTY_DEBUG_SINGLE_INSTANCE=1`일 때만 등록한다.
 
 - Given 잠금이 다른 프로세스에 있고 인스턴스 파일의 PID·시작 시각이 살아 있는 프로세스와 같고 포트가 있을 때, When release GUI를 사용자 실행 증거 없이 실행하면, Then `window.create`로 새 View 하나를 요청하고 종료 코드 0으로 끝난다. 새 View는 `tasty new window`와 같은 에이전트 창이며 슬롯 규칙도 같다.
 - Given 같은 조건에서 실행기가 준 `XDG_ACTIVATION_TOKEN`·`DESKTOP_STARTUP_ID`(Linux)나 `AllowSetForegroundWindow` 성공(Windows)이 있을 때, When release GUI를 실행하면, Then 실행 중인 Tasty가 숨기거나 최소화한 View를 다시 보이고 마지막 포커스 View의 활성화를 OS에 요청한다. MainView가 없으면 새 창을 연다. 두 번째 프로세스는 종료 코드 0으로 끝난다.

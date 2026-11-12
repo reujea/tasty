@@ -696,7 +696,7 @@ client 가 mirror 를 걷어내면 원격에 `Detach` 를 보내 원격 점유(h
 
 ## 원격 생존 확인 (`remote check`)
 
-`crates/tasty-cli/src/local/remote_check.rs`. 포트 발견만으론 **stale 포트 파일**(죽은 인스턴스 잔재)을 오판하므로 3단계: ① 포트 발견 → ② `ssh -L` 터널 → ③ 터널 localport 로 `system.info` **1회**. 응답이 와야 alive(stdout `alive: …`, exit 0). 거부/EOF/타임아웃 = dead(stderr, exit≠0). 단계별 상한은 ① 포트 발견 45초(위 "SSH 터널" 절의 3겹 상한) → ② 터널 ready-probe 5초 → ③ IPC 프로브 5초(`remote_check.rs` 의 `PROBE_TIMEOUT`) — 어느 단계도 무한 대기하지 않으므로 "단발 판정" 계약이 전 구간에서 성립한다. 1회성이라 재연결 백오프 없음. SSH 부품은 attach 와 공유, list 핸들러는 안 건드림.
+`crates/tasty-cli/src/local/remote_check.rs`. 포트 발견만으론 **stale 포트 파일**(죽은 인스턴스 잔재)을 오판하므로 3단계: ① 포트 발견 → ② `ssh -L` 터널 → ③ 터널 localport 로 `system.info` **1회**. 응답이 와야 alive(stdout `alive: …`, exit 0). 거부/EOF/타임아웃 = dead(stderr, exit≠0). ③ 이 끊긴 연결로 실패하고 터널 ssh stderr 에 채널 연결 실패 줄이 나왔으면 `no_ipc_response` 대신 리스너 없음(`cli.remote_check.listener_absent`)으로 알린다. 판정은 `crates/tasty-ssh/src/listener.rs` 의 순수 함수와 `SshTunnel::remote_listener_absent` 이고 근거는 [원격 attach 기능 문서](../features/remote-attach/index.md#원격-포트의-리스너-없음)에 있다. 단계별 상한은 ① 포트 발견 45초(위 "SSH 터널" 절의 3겹 상한) → ② 터널 ready-probe 5초 → ③ IPC 프로브 5초(`remote_check.rs` 의 `PROBE_TIMEOUT`) — 어느 단계도 무한 대기하지 않으므로 "단발 판정" 계약이 전 구간에서 성립한다. 1회성이라 재연결 백오프 없음. SSH 부품은 attach 와 공유, list 핸들러는 안 건드림.
 
 ## 원격 자식 에이전트 (`ipc.stream.agent-children`)
 

@@ -399,16 +399,17 @@ IPC `remote.attach` 등 에이전트가 붙인 저장되지 않은 mirror 는 �
 
 ### 원격 포트 발견 실패 진단
 
-포트 발견(`ssh.rs::discover_remote_port`, auto fallback 체인 subcommand→file-unix→file-windows)이 전 단계 실패하면 `PortDiscoveryError` 로 원인을 5분류한다 — **원격 stderr 문자열 매칭에 의존하지 않는다**(원격 로케일에 따라 문자열이 달라져 신뢰 불가, 실측: 한국어 "그런 파일이나 디렉터리가 없습니다" / 영어 "No such file or directory"). 대신 ssh(1) exit code 로 로케일 독립적으로 판정한다:
+포트 발견(`ssh.rs::discover_remote_port`, auto fallback 체인 subcommand→file-unix→file-windows)이 전 단계 실패하면 `PortDiscoveryError` 로 원인을 6분류한다 — **원격 stderr 문자열 매칭에 의존하지 않는다**(원격 로케일에 따라 문자열이 달라져 신뢰 불가, 실측: 한국어 "그런 파일이나 디렉터리가 없습니다" / 영어 "No such file or directory"). 대신 ssh(1) exit code 로 로케일 독립적으로 판정한다:
 
 - **SSH 연결 자체 실패**(exit 255, 시그널 종료, 로컬 ssh spawn 실패) — 네트워크/인증 문제.
 - **원격 인스턴스 미실행**(그 외 비정상 종료 — 원격 명령까지는 도달했다는 확정 신호) — 관례 위치에 포트 파일이 없거나 `tasty port` 가 실패. 이 저장소가 다루는 attach 실패의 대다수를 차지하는 케이스.
+- **원격 인스턴스 종료 확정**(subcommand 단계의 `tasty port` 가 종료 코드 3으로 끝남) — 원격 tasty 가 포트 파일 옆 `tasty.instance` 로 그 포트를 쓴 인스턴스가 끝났다고 판별했다(아래 "남은 포트 파일"). 추정이 아니라 원격의 판별이라 auto 체인은 여기서 멈춘다. 파일 모드로 넘어가면 같은 남은 파일을 판별 없이 읽어 죽은 포트를 돌려주기 때문이다. 셸 감지(`tool remote-profile detect`)는 이 응답을 subcommand 모드가 동작하는 것으로 본다. 이 판별이 없는 옛 원격 tasty 는 종료 코드 1로 끝나 위 "원격 인스턴스 미실행" 추정과 fallback 이 그대로 적용된다.
 - **포트 파싱 실패**(exit 0, stdout 을 포트 숫자로 못 읽음) — 연결·명령은 성공했지만 출력이 이례적(원격 tasty 버전 불일치 등).
 - **취소**(사용자가 조회를 끊음 — `tasty_ssh::SshCancel`) — 확정 사실이라 대표 에러 선택에서 최우선.
 - **타임아웃**(상한 안에 아무 답도 오지 않음) — 무응답 호스트(패킷이 조용히 버려지는 IP·방화벽 DROP·꺼진 머신), 보이지 않는 프롬프트 대기, 또는 체인 전체 예산 소진. 아래 "연결 시도 상한" 참고. `SshConnectionFailed` 로 접지 않고 따로 두는 이유는 ① 사용자가 취할 조치가 다르고(도달성/회선 점검 vs 인증·호스트키 점검), ② 타임아웃 kill 도 시그널 종료라 접으면 원격발 시그널 종료와 뭉개지기 때문이다.
 
 각 분류는 `lang/{en,ko,ja,zh-Hans}.toml` `[ssh.port_discovery]` 의 번역된 문구로만 노출된다 — 원격 raw stderr·내부 명령(`cat`/`type`)·포트 파일 경로는 에러의 `Display` 에 담기지 않고 생성 시점에 `tracing::debug!` 로만 로그된다(`PortDiscoveryError::detail()`).
-Auto 체인이 전 단계 실패하면 가장 확정적인 분류(취소 > 타임아웃 > SSH 연결 실패 > 인스턴스 미실행 > 파싱 실패 순)를 대표 에러로 고른다 — 한 단계가 무응답이면 다른 단계의 "연결 실패" 는 앞 단계에서 시간을 써서 남은 시간이 부족해진 결과일 수 있어 대표로 삼으면 오도한다 — 마지막 단계 에러만 남기면 정보량이 가장 적은 사유가 노출되던 문제를 막는다.
+Auto 체인이 전 단계 실패하면 가장 확정적인 분류(취소 > 인스턴스 종료 확정 > 타임아웃 > SSH 연결 실패 > 인스턴스 미실행 > 파싱 실패 순)를 대표 에러로 고른다 — 한 단계가 무응답이면 다른 단계의 "연결 실패" 는 앞 단계에서 시간을 써서 남은 시간이 부족해진 결과일 수 있어 대표로 삼으면 오도한다 — 마지막 단계 에러만 남기면 정보량이 가장 적은 사유가 노출되던 문제를 막는다.
 이 분류는 `ssh::discover_remote_port`/`remote_browse::resolve_endpoint` 를 공유 소비하는 모든 경로(GUI 원격 워크스페이스 추가 팝업, `tasty remote check`/`remote workspaces`/`tool attach`, IPC `remote.workspaces`/`remote.attach`, 자동 재연결)에 동일하게 적용된다.
 
 ### 연결 시도 상한 (no-hang)
@@ -435,9 +436,25 @@ Auto 체인이 전 단계 실패하면 가장 확정적인 분류(취소 > 타�
 
 세부 계약은 [Attach 메커니즘](../../dev-guide/attach-behavior.md#무응답-제한-설정)에 있다.
 
+### 남은 포트 파일
+
+인스턴스가 비정상 종료하면 `tasty.port` 와 `tasty.instance` 가 남는다. `tasty port` 는 포트 파일과 같은 폴더의 `tasty.instance` 를 읽어, 그 기록이 같은 포트를 적었는데 기록한 PID 가 없거나 시작 시각이 다른 프로세스(PID 재사용)면 포트를 출력하지 않는다. stderr 에 포트 파일이 남은 것이라고 알리고 종료 코드 3(`tasty_ssh::PORT_COMMAND_EXITED_INSTANCE_CODE`)으로 끝난다. 판별은 두 번째 실행이 쓰는 것과 같은 `tasty_ipc::instance_file` 이다.
+
+- 인스턴스 파일이 없거나(옛 버전, headless 실행, 다른 폴더를 가리키는 `--port-file`), 읽지 못하거나, 다른 포트를 적었거나, 아직 포트를 적지 않았으면 판별하지 않고 지금처럼 포트를 출력한다.
+- 원격의 `file-unix`·`file-windows` 모드와 프로필의 명시 `port_file` 은 `tasty port` 를 거치지 않아 이 판별이 없다. 그 경우는 아래 "원격 포트의 리스너 없음" 이 알린다.
+- 일반 CLI 요청은 연결을 그대로 시도한다. 연결이 실패한 뒤에만 같은 판별을 해, 끝난 인스턴스의 포트 파일이면 "Is tasty running?" 대신 포트 파일이 남은 것이라고 알린다.
+
+### 원격 포트의 리스너 없음
+
+`ssh -L` 은 로컬 리스너를 먼저 열기 때문에 원격 포트에 받을 프로세스가 없어도 터널 수립은 성공한다. 이 경우 터널을 지난 첫 요청에서 ssh 가 `channel N: open failed: connect failed: …` 를 stderr 에 쓰고 로컬 연결을 닫는다. 터널은 ssh stderr 를 사용자 stderr 로 그대로 넘기면서 이 줄을 표시하고, 요청이 응답 없이 끊긴 연결(EOF·재설정·중단)로 실패했고 이 줄이 나왔으면 "원격 포트에 리스너가 없다(원격 tasty 가 실행 중이 아니거나 포트 파일이 오래됐다)" 로 알린다(`ssh.tunnel.listener_absent`, `remote check` 는 `cli.remote_check.listener_absent`).
+
+- 판정에 쓰는 `open failed: connect failed` 는 ssh 클라이언트가 거절 사유 코드를 바꾼 고정 문자열이라 원격 OS·로케일과 무관하다. 그 뒤의 사유 문구는 원격 OS 가 만들어 보지 않는다. 판정은 실패한 뒤에만 하며 줄을 최대 0.5초 기다린다. 성공 경로의 지연은 없다.
+- 리스너는 있지만 응답이 IPC 가 아니면(다른 서비스) 이 줄이 없어 기존 IPC 실패 안내가 나온다.
+- 적용 경로: `tasty remote check`·`remote workspaces`·`remote new-workspace`, GUI 를 거치지 않는 `tasty remote attach`·`tasty tool attach`, IPC `remote.attach` 의 새 workspace 생성(`--into-gui --new-workspace`). IPC `remote.attach` 의 기존 workspace 연결은 터널 뒤 첫 요청이 메인 루프의 attach 연결에서 일어나 이 분류가 없다.
+
 ### 원격 생존 확인
 
-`tasty remote check --ssh|--profile` — 원격 인스턴스가 *지금 살아있는지* 단발 판정. 포트 발견만으론 stale 포트 파일을 오판할 수 있어, 터널 수립 후 가벼운 IPC(`system.info`) 1회 응답까지 확인해야 alive(exit 0). 실패(거부/EOF/타임아웃)는 dead(exit≠0). 세 단계 모두 상한이 있어 무응답 호스트에서도 단발 판정이 성립한다 — ① 포트 발견은 위 "연결 시도 상한", ② 터널 ready-probe 5초, ③ IPC 프로브 5초(`remote_browse::PROBE_TIMEOUT`).
+`tasty remote check --ssh|--profile` — 원격 인스턴스가 *지금 살아있는지* 단발 판정. 포트 발견만으론 stale 포트 파일을 오판할 수 있어, 터널 수립 후 가벼운 IPC(`system.info`) 1회 응답까지 확인해야 alive(exit 0). 실패(거부/EOF/타임아웃)는 dead(exit≠0). 원격 `tasty port` 가 남은 포트 파일을 판별하면 터널을 열기 전에 실패하고, 터널을 연 뒤 리스너가 없으면 위 "원격 포트의 리스너 없음" 안내로 실패한다. 세 단계 모두 상한이 있어 무응답 호스트에서도 단발 판정이 성립한다 — ① 포트 발견은 위 "연결 시도 상한", ② 터널 ready-probe 5초, ③ IPC 프로브 5초(`remote_browse::PROBE_TIMEOUT`).
 
 ### 원격 워크스페이스 브라우징 (Browse)
 
@@ -632,6 +649,9 @@ bulk 파일 전송과 mirror 터미널 이미지 붙여넣기 업로드에 대�
 - Given client 가 FIN/RST 없이 조용히 끊김(silent disconnect) When attach heartbeat TTL 이 만료 Then 점유 lock 이 EOF 와 동일하게 자동 free 되고, 같은 surface/workspace 로 새 client 의 재attach 가 성공한다.
 - Given workspace attach When 멤버 터미널 하나가 이미 다른 client 점유 Then workspace attach 가 거부된다.
 - Given stale 포트 파일만 있는 죽은 인스턴스 When `tasty remote check` Then dead(exit≠0)로 판정한다.
+- Given 원격에 `tasty.port` 와 `tasty.instance` 가 남았고 그 PID 가 없거나 다른 프로세스다 When 원격에서 `tasty port` Then 포트를 출력하지 않고 종료 코드 3으로 끝나며 포트 파일이 남은 것이라고 알린다(`crates/tasty-cli/src/port_file.rs`, `crates/tasty-ipc/src/instance_file.rs` 시험. 실측: 격리 홈 debug GUI 를 `kill -9` 한 뒤 rc 3). 인스턴스가 실행 중이면 지금처럼 포트를 출력하고 0으로 끝난다(실측).
+- Given 같은 상태 When auto 모드 포트 발견 Then 파일 모드로 넘어가지 않고 원격 인스턴스 종료 확정으로 실패한다(`crates/tasty-ssh/src/lib.rs` 의 ssh 대역 시험).
+- Given 원격 포트 파일이 가리키는 포트에 리스너가 없다 When `tasty remote check`·`remote workspaces`·`remote new-workspace`·`tool attach` Then 오류가 원격 tasty 미실행 또는 오래된 포트 파일을 원인으로 적고 "터널을 연결했지만" 문장을 쓰지 않는다. 원격 포트에 다른 서비스가 리스닝 중이면 기존 IPC 실패 안내가 나온다(실측: 8945hs 의 빈 포트와 sshd 포트).
 - Given 부모 Tasty의 `TASTY_SESSION_TOKEN`을 상속한 GUI·CLI When 다른 인스턴스로 원격 브라우징·생성·생존 확인 요청을 보낸다 Then 요청에 세션 토큰이 없고, 원격은 `session_token unknown` 없이 응답한다.
 - Given workspace attach 대상에 egui-mesh surface(번들 image/mesh_demo 또는 커스텀 plugin 의 egui-mesh kind) 가 있음 When client 가 GUI mirror 로 attach Then 그 surface 의 실제 렌더 콘텐츠가 mirror pane 에 표시된다(placeholder 아님). markdown은 아래의 원문 전달 채널을 사용한다.
   - image — 미검증.
