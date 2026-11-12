@@ -6319,7 +6319,7 @@ dependencies = [
 
 [[package]]
 name = "tasty-plugin-claude"
-version = "0.2.61"
+version = "0.2.62"
 dependencies = [
  "anyhow",
  "directories",

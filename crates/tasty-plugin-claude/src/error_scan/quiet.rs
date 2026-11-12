@@ -181,22 +181,8 @@ impl Decl {
         self.until_ms.is_none_or(|u| now_ms < u)
     }
 
-    fn hold(&mut self, mut item: Held) {
-        if let Some(h) = self.held.iter_mut().find(|h| h.key == item.key) {
-            h.count = h.count.saturating_add(item.count);
-            h.last_ms = h.last_ms.max(item.last_ms);
-            h.first_ms = h.first_ms.min(item.first_ms);
-            h.quiet_ms = h.quiet_ms.max(item.quiet_ms);
-        } else if self.held.len() >= HELD_KEYS_MAX {
-            self.overflow.get_or_insert_with(Overflow::default).add(
-                item.count,
-                item.first_ms,
-                item.last_ms,
-            );
-        } else {
-            item.label = one_line(&item.label);
-            self.held.push(item);
-        }
+    fn hold(&mut self, item: Held) {
+        hold_item(&mut self.held, &mut self.overflow, item);
     }
 
     fn to_json(&self) -> Value {
@@ -212,19 +198,51 @@ impl Decl {
     }
 
     fn from_json(v: &Value) -> Option<Self> {
+        let (held, overflow) = held_from_json(v.get("held"), v.get("overflow"));
         Some(Self {
             task: v.get("task").and_then(Value::as_str).map(String::from),
             secs: v.get("secs")?.as_i64()?,
             set_at_ms: v.get("set_at_ms")?.as_u64()?,
             until_ms: v.get("until_ms").and_then(Value::as_u64),
-            held: v
-                .get("held")
-                .and_then(Value::as_array)
-                .map(|a| a.iter().filter_map(Held::from_json).collect())
-                .unwrap_or_default(),
-            overflow: Overflow::from_json(v.get("overflow")),
+            held,
+            overflow,
         })
     }
+}
+
+/// 같은 대상이면 합치고, 항목 수 상한을 넘으면 [`Overflow`] 로 센다. 이름은 한 줄로 잘라 둔다.
+fn hold_item(held: &mut Vec<Held>, overflow: &mut Option<Overflow>, mut item: Held) {
+    if let Some(h) = held.iter_mut().find(|h| h.key == item.key) {
+        h.count = h.count.saturating_add(item.count);
+        h.last_ms = h.last_ms.max(item.last_ms);
+        h.first_ms = h.first_ms.min(item.first_ms);
+        h.quiet_ms = h.quiet_ms.max(item.quiet_ms);
+    } else if held.len() >= HELD_KEYS_MAX {
+        overflow
+            .get_or_insert_with(Overflow::default)
+            .add(item.count, item.first_ms, item.last_ms);
+    } else {
+        item.label = one_line(&item.label);
+        held.push(item);
+    }
+}
+
+/// meta 의 항목 배열을 읽는다. meta 는 밖에서 바뀔 수 있어 쌓을 때와 같은 이름 길이·항목 수 상한을 다시 건다.
+fn held_from_json(
+    items: Option<&Value>,
+    overflow: Option<&Value>,
+) -> (Vec<Held>, Option<Overflow>) {
+    let mut held = Vec::new();
+    let mut overflow = Overflow::from_json(overflow);
+    for item in items
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+        .filter_map(Held::from_json)
+    {
+        hold_item(&mut held, &mut overflow, item);
+    }
+    (held, overflow)
 }
 
 /// 선언이 끝난 이유. 묶음 문구에 번역하지 않는 표기로 적는다.
@@ -302,6 +320,8 @@ impl Release {
     }
 
     fn from_json(v: &Value) -> Option<Self> {
+        v.get("items")?.as_array()?;
+        let (items, overflow) = held_from_json(v.get("items"), v.get("overflow"));
         Some(Self {
             id: v.get("id")?.as_str()?.to_string(),
             reason: EndReason::parse(v.get("reason")?.as_str()?)?,
@@ -309,13 +329,8 @@ impl Release {
             secs: v.get("secs")?.as_i64()?,
             set_at_ms: v.get("set_at_ms")?.as_u64()?,
             at_ms: v.get("at_ms")?.as_u64()?,
-            items: v
-                .get("items")?
-                .as_array()?
-                .iter()
-                .filter_map(Held::from_json)
-                .collect(),
-            overflow: Overflow::from_json(v.get("overflow")),
+            items,
+            overflow,
             delivered_to: surfaces(v.get("delivered_to")),
             recipients: surfaces(v.get("recipients")),
         })

@@ -269,7 +269,7 @@ fn item(label: &str, count: u32) -> Held {
     Held {
         key: label.into(),
         kind: HeldKind::Task,
-        label: crate::error_scan::quiet::one_line(label),
+        label: label.into(),
         count,
         first_ms: 600_000,
         last_ms: 3_540_000,
@@ -277,7 +277,7 @@ fn item(label: &str, count: u32) -> Held {
     }
 }
 
-/// 묶음 줄은 한 줄이다(이름은 쌓을 때 한 줄로 잘린다). 항목이 많거나 상한을 넘으면 남은 알림 수만 적는다.
+/// 묶음 줄은 한 줄이다. 잘리지 않은 이름이 와도 줄로 쓸 때 한 줄로 자른다. 항목이 많거나 상한을 넘으면 남은 알림 수만 적는다.
 #[test]
 fn a_release_line_is_one_line_with_capped_items() {
     let long = "x".repeat(200);
@@ -409,5 +409,76 @@ fn every_parent_gets_every_release_when_many_end_at_once() {
             }
         }
         assert_eq!(held, vec![(1, many), (2, many)], "error {error}");
+    }
+}
+
+/// meta 는 밖에서 바뀔 수 있다. 줄바꿈·긴 이름·상한보다 많은 항목을 담은 선언과 묶음을 되살려 보내도 줄은 한 줄이고
+/// 상한을 넘은 항목은 남은 알림 수로 적는다.
+#[test]
+fn restored_meta_is_cut_to_one_line_and_capped() {
+    let now = crate::error_scan::unix_now_ms();
+    let held: Vec<Value> = (0..70)
+        .map(|i| {
+            let label = match i {
+                0 => "first\nsecond".to_string(),
+                1 => "x".repeat(200),
+                _ => format!("cmd {i}"),
+            };
+            json!({ "key": format!("T{i}"), "kind": "task quiet", "label": label, "count": 1,
+                    "first_ms": now, "last_ms": now, "quiet_ms": 600_000 })
+        })
+        .collect();
+    let host = Host::new();
+    host.meta.borrow_mut().insert(
+        QUIET_META_KEY.into(),
+        json!({ "decls": [{ "task": null, "mode": "hold", "secs": 600, "set_at_ms": now,
+                            "until_ms": now + 600_000, "held": held }] })
+        .to_string(),
+    );
+    host.meta.borrow_mut().insert(
+        crate::error_scan::quiet::QUIET_RELEASE_META_KEY.into(),
+        json!({ "releases": [{ "id": "r", "reason": "expired", "task": null, "secs": 600,
+                               "set_at_ms": now, "at_ms": now, "items": held }] })
+        .to_string(),
+    );
+    let scanner = tracked();
+    let notify = || {
+        handle_notify_quiet_release(
+            &scanner,
+            &host,
+            &json!({ "caller_surface": 1, "target_surface": 5 }),
+            &tr(),
+        )
+        .unwrap();
+    };
+    crate::notice::test_log::take();
+    notify();
+    quiet(&scanner, &host, json!({ "surface": 5, "clear": true })).unwrap();
+    notify();
+    let lines = crate::notice::test_log::take();
+    assert_eq!(
+        lines.len(),
+        2,
+        "되살린 묶음과 되살린 선언의 묶음: {lines:?}"
+    );
+    for (_, line) in &lines {
+        assert!(!line.contains('\n') && !line.contains('\r'), "{line}");
+        assert!(line.contains("first second ×1"), "{line}");
+        assert!(line.contains(&format!("{}…", "x".repeat(80))), "{line}");
+        assert!(!line.contains(&"x".repeat(81)), "{line}");
+        assert!(
+            line.contains("70 held") && line.contains("+65 more"),
+            "64개 뒤 6건은 남은 수로: {line}"
+        );
+    }
+    let stored: Value =
+        serde_json::from_str(&host.meta.borrow()[crate::error_scan::quiet::QUIET_RELEASE_META_KEY])
+            .unwrap();
+    let releases = stored["releases"].as_array().unwrap();
+    assert_eq!(releases.len(), 2);
+    for r in releases {
+        assert_eq!(r["items"].as_array().unwrap().len(), 64, "{r}");
+        assert_eq!(r["overflow"]["count"], 6, "{r}");
+        assert_eq!(r["items"][0]["label"], "first second", "{r}");
     }
 }

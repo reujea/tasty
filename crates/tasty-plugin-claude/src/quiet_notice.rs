@@ -171,7 +171,8 @@ fn scope(tr: &Translator, r: &Release) -> String {
 }
 
 /// 항목 목록. 시각은 선언 시작부터 지난 분이다. 로그 줄에는 시각이 없어 시간대 없이 바로 읽히게 한다.
-/// 이름은 쌓을 때 이미 한 줄로 잘랐다. 적지 않은 항목과 항목 수 상한을 넘은 알림은 남은 알림 수로 적는다.
+/// 이름은 쌓을 때와 meta 에서 되살릴 때 한 줄로 잘랐지만 줄 하나가 알림 하나라는 계약을 여기서도 지킨다.
+/// 적지 않은 항목과 항목 수 상한을 넘은 알림은 남은 알림 수로 적는다.
 fn items_text(tr: &Translator, r: &Release) -> String {
     let minutes = |ms: u64| (ms.saturating_sub(r.set_at_ms) / 60_000).to_string();
     let mut parts: Vec<String> = r
@@ -182,7 +183,7 @@ fn items_text(tr: &Translator, r: &Release) -> String {
             tr.t_args(
                 "claude.notify.quiet_item",
                 &[
-                    &i.label,
+                    &one_line(&i.label),
                     &i.count.to_string(),
                     i.kind.token(),
                     &minutes(i.first_ms),
