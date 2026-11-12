@@ -774,12 +774,12 @@ pub fn handle_task_run(
         }
         "stop" => {
             // 메인 스레드에서 러너 join 을 기다리지 않는다. 러너 tick 은 Custom dispatch 마다 메인 스레드의
-            // 응답을 기다리므로, 여기서 기다리면 서로를 기다린다. 끝난 worker 는 메인 루프의
-            // poll_runner_stops 가 회수하고, 그때까지 응답과 status 는 state "stopping" 이다.
-            drop(
-                core.tasks
-                    .request_stop_workspace(engine.task_scope, workspace_id),
-            );
+            // 응답을 기다리므로, 여기서 기다리면 서로를 기다린다. poll 은 끝난 worker 만 join 하는
+            // 비차단 확인이라, 이미 끝난 worker(crash 포함)는 여기서 회수되어 응답이 stopped 가 된다.
+            // 아직 도는 worker 는 끝날 때까지 state "stopping" 이고 메인 루프의 poll_runner_stops 가 회수한다.
+            core.tasks
+                .request_stop_workspace(engine.task_scope, workspace_id)
+                .poll();
         }
         "status" => {}
         other => {

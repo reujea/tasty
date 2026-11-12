@@ -219,6 +219,12 @@ impl TaskService {
         self.runner_registry.poll_stops()
     }
 
+    /// 시험 전용. workspace 러너 스레드가 실제로 끝났는가. 회수하지 않는다.
+    #[cfg(any(test, feature = "test-support"))]
+    pub fn runner_worker_finished(&self, workspace_id: u32) -> Option<bool> {
+        self.runner_registry.worker_finished(workspace_id)
+    }
+
     /// 러너가 꺼져 있어도 저장소를 조회해 실제 작업 수를 채운다.
     pub fn runner_status(&self, scope: &TaskScope, workspace_id: u32) -> RunnerStatus {
         self.runner_registry

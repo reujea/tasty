@@ -443,6 +443,8 @@ tasty-test-support = { path = "crates/tasty-test-support" }
 tasty-host-plugin = { path = "crates/tasty-host-plugin", features = ["test-support"] }
 # writer 없이 바로 실행하는 핸들과 시험이 직접 잠그는 공유 저장소를 활성화한다.
 tasty-memory = { path = "crates/tasty-memory", features = ["test-support"] }
+# 시험이 러너 스레드가 실제로 끝났는지 회수 없이 조회하는 함수를 활성화한다.
+tasty-task-runtime = { path = "crates/tasty-task-runtime", features = ["test-support"] }
 tasty-doc-guards = { path = "crates/tasty-doc-guards" }
 # 지연 시험의 대조 측정용이다. docs/dev-guide/self-verification.md#시간-측정과-실패-진단
 tasty-latency-control = { path = "crates/tasty-latency-control" }

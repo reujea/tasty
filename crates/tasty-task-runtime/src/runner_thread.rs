@@ -341,6 +341,14 @@ impl RunnerRegistry {
             false
         }
     }
+    /// 시험 전용. workspace 러너 스레드가 실제로 끝났는가. 등록부에서 지우지 않고 join 하지도 않는다.
+    /// 등록된 러너가 없으면 `None`, 이미 join 했으면 `Some(true)`다.
+    #[cfg(any(test, feature = "test-support"))]
+    pub(crate) fn worker_finished(&self, workspace: u32) -> Option<bool> {
+        let control = self.lock_recovering().get(&workspace).cloned()?;
+        let slot = control.join.lock().ok()?;
+        Some(slot.as_ref().is_none_or(|handle| handle.is_finished()))
+    }
     /// workspace 에 멈추지 않은 러너가 있는가. 어느 engine 의 러너인지는 보지 않는다.
     pub(crate) fn has_live_runner(&self, workspace: u32) -> bool {
         self.lock_recovering()

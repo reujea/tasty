@@ -15,6 +15,10 @@ serde_json = "1"
 rand = "0.9"
 tracing = "0.1"
 
+[features]
+# 다른 크레이트의 시험이 러너 스레드 상태를 조회하는 함수. dev-dependency로 켠다. 제품 빌드에는 없다.
+test-support = []
+
 [target.'cfg(unix)'.dependencies]
 libc = "0.2"
 

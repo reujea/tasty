@@ -110,3 +110,55 @@ fn stop_answers_while_the_runner_waits_for_the_main_thread_and_status_reports_th
         std::thread::sleep(Duration::from_millis(10));
     }
 }
+
+#[test]
+fn stop_on_a_crashed_runner_answers_stopped() {
+    let _home = crate::test_support::TastyHomeGuard::new();
+    let memory: Arc<Mutex<dyn MemoryStorage>> =
+        Arc::new(Mutex::new(tasty_memory::testing::InMemoryStorage::new()));
+    let core = super::super::cli_entry_tests::test_core_builder()
+        .with_memory(memory.clone())
+        .build()
+        .unwrap();
+    // 러너 스레드가 첫 dispatch 를 보낸 직후 부르는 waker 가 panic 해 러너가 crash 한다.
+    let (tx, _rx) = mpsc::channel::<IpcCommand>();
+    core.set_host_ipc_injector(HostIpcInjector::new(
+        tx,
+        Arc::new(|| panic!("runner crash for the stop test")),
+    ));
+    let (_state, mut session) = crate::state::tests::test_state();
+    let mut engine = session.borrow_mut();
+    {
+        let mut guard = memory.lock().unwrap();
+        let seq = AtomicU64::new(0);
+        let mut store = TaskStore::new(&mut *guard, HOST_OWNER, &seq);
+        store
+            .create(TaskCreateOpts {
+                workspace_id: 1,
+                name: "spawn".into(),
+                command: TaskCommand::Custom {
+                    ipc_method: "fake.spawn".into(),
+                    params: json!({}),
+                    poll: None,
+                },
+                depends_on: vec![],
+                on_failure: OnFailure::Abort,
+                metadata: Value::Null,
+                now_ms: 1000,
+            })
+            .unwrap();
+    }
+
+    task_run(&core, &mut engine, "start");
+    // crashed 표시는 스레드가 끝나기 전에 선다. 회수하지 않는 조회로 스레드 종료까지 본다.
+    let deadline = Instant::now() + Duration::from_secs(10);
+    while core.tasks.runner_worker_finished(1) != Some(true) {
+        assert!(Instant::now() < deadline, "runner thread did not end");
+        std::thread::sleep(Duration::from_millis(10));
+    }
+    assert_eq!(state(&task_run(&core, &mut engine, "status")), "crashed");
+
+    let stopped = task_run(&core, &mut engine, "stop");
+    assert_eq!(state(&stopped), "stopped", "{stopped}");
+    assert_eq!(stopped["crashed"], json!(false), "{stopped}");
+}
