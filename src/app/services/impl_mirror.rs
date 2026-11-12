@@ -50,6 +50,7 @@ pub(crate) fn build_mirror_forward_op(
             direction: axis(direction),
             surface_kind: kind.clone(),
             params: surface_params.clone(),
+            inherit_cwd: None,
         }),
         D::SplitPane {
             target_pane_id,
@@ -62,6 +63,7 @@ pub(crate) fn build_mirror_forward_op(
             direction: axis(direction),
             surface_kind: kind.clone(),
             params: surface_params.clone(),
+            inherit_cwd: None,
         }),
         D::CreateTab {
             pane_id,
@@ -72,6 +74,7 @@ pub(crate) fn build_mirror_forward_op(
             anchor_surface_id: pane_anchor(*pane_id)?,
             surface_kind: kind.clone(),
             params: surface_params.clone(),
+            inherit_cwd: None,
         }),
         // 서버는 anchor가 속한 workspace가 이 연결이 점유한 workspace인지 확인한 뒤 전체를 닫는다.
         D::CloseWorkspace { workspace_id } => Some(StructuralOp::CloseWorkspace {
@@ -122,6 +125,7 @@ pub(crate) fn build_mirror_forward_op(
                 surface_kind,
                 params,
                 cwd: cwd.map(|p| p.to_string_lossy().into_owned()),
+                inherit_cwd: None,
             })
         }
         D::MoveSurface {

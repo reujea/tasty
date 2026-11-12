@@ -1,6 +1,8 @@
 //! Remote holder authorization precedes admission; key lookup precedes target resolution.
 use super::*;
-use tasty_ipc::stream::{ForwardOrigin, StreamControl, StreamFrame, StreamTag, StructuralOp};
+use tasty_ipc::stream::{
+    ForwardOrigin, InheritCwd, StreamControl, StreamFrame, StreamTag, StructuralOp,
+};
 use tasty_ipc::stream_hub::StreamHub;
 
 pub(crate) struct RemoteReply {
@@ -15,6 +17,8 @@ pub(crate) struct RemoteReply {
     /// 전체 workspace 닫기. 서버가 닫지 않았다는 회신(`closed:false`)은 실패로 돌려준다.
     pub closes_workspace: bool,
     pub converted: Option<u32>,
+    /// 생성 op가 실은 cwd 상속 원본. 접수 뒤 대상 해석에서 확인하고, 생성 해석이 이 값으로 상속 원본을 정한다.
+    pub inherit_cwd: Option<InheritCwd>,
 }
 /// 원격 홀더가 보낸 구조 변경 요청 하나. `PumpOutcome::structural_ops` 의 항목이
 /// 그대로 이 네 값이다.
@@ -76,6 +80,7 @@ impl JournalApplication {
                 StructuralOp::ConvertSurface { surface_id, .. } => Some(*surface_id),
                 _ => None,
             },
+            inherit_cwd: op.inherit_cwd().cloned(),
         };
         let request = remote_request(client, runtime_epoch, registration, op_id, op, origin);
         self.admit_request(
@@ -148,6 +153,7 @@ impl JournalApplication {
             {
                 return Err("workspace not found".into());
             }
+            check_inherit_cwd(core, &op, pane, remote.workspace)?;
             let mut request = pending.request.clone();
             request.idempotency_key = None;
             let merged = |params: &serde_json::Value, fields: serde_json::Value| {
@@ -230,21 +236,28 @@ impl JournalApplication {
                     surface_kind,
                     params,
                     cwd,
+                    inherit_cwd,
                 } => {
                     if let Some(reason) = missing_markdown_file(&surface_kind, &params) {
                         return Err(reason);
                     }
-                    let cwd = cwd
-                        .filter(|value| !value.trim().is_empty())
-                        .map(std::path::PathBuf::from)
-                        .or_else(|| {
-                            session
+                    // 기준이 없으면 이 서버의 설정으로 원래 surface의 cwd를 잇는다(fallback).
+                    let inherited =
+                        match super::create_spec::CwdSource::of_remote(inherit_cwd.as_ref()) {
+                            super::create_spec::CwdSource::View => session
                                 .runtime
                                 .settings
                                 .general
                                 .inherit_cwd
-                                .then(|| session.as_ref().local_surface_cwd(surface_id))
-                                .flatten()
+                                .then_some(surface_id),
+                            super::create_spec::CwdSource::Surface(source) => Some(source),
+                            super::create_spec::CwdSource::NoInherit => None,
+                        };
+                    let cwd = cwd
+                        .filter(|value| !value.trim().is_empty())
+                        .map(std::path::PathBuf::from)
+                        .or_else(|| {
+                            inherited.and_then(|source| session.as_ref().local_surface_cwd(source))
                         });
                     let spec = super::create_spec::Spec {
                         destination: super::create_spec::Destination::Convert {
@@ -314,6 +327,45 @@ impl JournalApplication {
         std::mem::take(&mut self.commands.completed_remote)
     }
 }
+/// 생성 op가 실은 cwd 상속 원본을 확인한다. 원본 surface는 이 연결이 점유한 workspace에 있고, 새 탭·pane
+/// 분할은 anchor와, surface 분할·변환은 대상 surface와 같은 pane에 있어야 한다. 모르는 값도 거절한다.
+/// 거절하면 아무것도 만들지 않는다. 원본이 터미널이 아니거나 cwd를 모르는 것은 거절 사유가 아니다(상속하지 않는다).
+pub(super) fn check_inherit_cwd(
+    core: &crate::core::CoreState,
+    op: &StructuralOp,
+    pane: u32,
+    workspace: u32,
+) -> Result<(), String> {
+    match op.inherit_cwd() {
+        None | Some(InheritCwd::NoInherit) => Ok(()),
+        Some(unknown @ InheritCwd::Unknown(_)) => Err(format!(
+            "unsupported inherit_cwd value {} in structural_op.{}",
+            unknown.wire_text(),
+            op.wire_kind()
+        )),
+        Some(InheritCwd::Surface(source)) => {
+            let owned = core
+                .find_workspace_index_for_surface(*source)
+                .and_then(|(index, _)| core.workspace_at(index))
+                .is_some_and(|held| held.id == workspace);
+            if !owned {
+                return Err(tasty_utils::target::unowned_target_message(
+                    "surface",
+                    u64::from(*source),
+                    &format!("structural_op.{}.inherit_cwd", op.wire_kind()),
+                ));
+            }
+            if core.find_pane_for_surface(*source) != Some(pane) {
+                return Err(format!(
+                    "inherit_cwd surface {source} is not in pane {pane} of structural_op.{}",
+                    op.wire_kind()
+                ));
+            }
+            Ok(())
+        }
+    }
+}
+
 /// 원격 경로의 존재는 원격이 판정한다. 로컬 `markdown.navigate` 처럼 없는 파일로는 markdown surface 를
 /// 바꾸지 않고 거절 사유를 돌려준다. 바꾸면 보던 문서가 불러오지 못한 문서로 대체된다.
 fn missing_markdown_file(surface_kind: &str, params: &serde_json::Value) -> Option<String> {
@@ -542,6 +594,7 @@ mod correlation_tests {
             direction: tasty_ipc::stream::SplitAxis::Horizontal,
             surface_kind: "terminal".into(),
             params: serde_json::json!({}),
+            inherit_cwd: None,
         };
         let request = remote_request(3, u64::MAX, u128::MAX, 1, op.clone(), ForwardOrigin::User);
         let stored: serde_json::Value = serde_json::from_slice(&request_digest(&request)).unwrap();

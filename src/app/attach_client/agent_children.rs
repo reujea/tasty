@@ -519,6 +519,7 @@ fn flush_outgoing(sess: &AttachClientSession, ws: u32) {
                     anchor_surface_id: anchor,
                     target_surface_id: target,
                     params,
+                    inherit_cwd: None,
                 }
             }
             Outgoing::Commit { call_id, remote } => AgentClientMsg::AgentCallCommit {

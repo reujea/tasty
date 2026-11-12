@@ -472,6 +472,7 @@ fn a_remote_user_close_takes_the_same_history_budget() {
                 restore: false,
                 closes_workspace: false,
                 converted: None,
+                inherit_cwd: None,
             });
         assert_eq!(resolve(&mut journal, &mut session), ticket);
         let pending = &journal.commands.pending[&ticket];

@@ -1,6 +1,7 @@
 //! stream.open을 첫 줄로 보내 JSON-RPC 연결을 바이너리 스트림으로 전환한다.
 //! 프레임은 [tag:u8][len:u32 BE][payload] 형식이다. 점유·mirror 처리는 상위 계층이 맡는다.
 
+mod inherit_cwd;
 mod read_failure;
 
 use std::io::{self, Read, Write};
@@ -10,6 +11,7 @@ use std::time::Duration;
 
 use serde::{Deserialize, Serialize};
 
+pub use inherit_cwd::InheritCwd;
 pub use read_failure::ReadFailure;
 
 /// Method name whose presence as the first JSON-RPC line upgrades a connection
@@ -32,6 +34,10 @@ pub const INPUT_ACK_CAPABILITY: &str = "ipc.stream.input-ack";
 /// 서버가 [`StructuralOp::CloseWorkspace`]로 점유한 workspace 전체를 닫고 결과를 회신한다는 capability 이름.
 /// 이 기능이 없는 구 서버는 모르는 op를 회신 없이 버리므로 client는 보내지 않고 미지원으로 알린다.
 pub const WORKSPACE_CLOSE_CAPABILITY: &str = "ipc.stream.workspace-close";
+/// 서버가 원격 생성 요청의 `inherit_cwd`(상속 원본 surface 또는 상속 안 함)를 따른다는 capability 이름.
+/// 이 기능이 없는 구 서버는 필드를 무시하고 자기 View 선택과 자기 설정으로 상속한다. client는 그래도
+/// 요청을 보낸다. 결과는 필드가 없을 때의 규칙과 같지만 "상속 안 함"은 지켜지지 않는다.
+pub const INHERIT_CWD_CAPABILITY: &str = "ipc.stream.inherit-cwd";
 /// workspace attach descriptor에서 이 연결의 서버 기능 이름 목록을 담는 키.
 /// 구 서버는 이 키를 보내지 않으므로 없으면 빈 목록으로 읽는다.
 pub const DESCRIPTOR_CAPABILITIES: &str = "stream_capabilities";
@@ -458,6 +464,9 @@ pub enum StructuralOp {
         surface_kind: String,
         #[serde(default)]
         params: serde_json::Value,
+        /// cwd 상속 원본. 생략하면 서버가 자기 View 선택과 자기 설정을 쓴다([`InheritCwd`]).
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        inherit_cwd: Option<InheritCwd>,
     },
     /// Split the pane containing the anchor surface.
     SplitPane {
@@ -467,6 +476,9 @@ pub enum StructuralOp {
         surface_kind: String,
         #[serde(default)]
         params: serde_json::Value,
+        /// cwd 상속 원본. 생략하면 서버가 자기 View 선택과 자기 설정을 쓴다([`InheritCwd`]).
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        inherit_cwd: Option<InheritCwd>,
     },
     /// Add a new tab to the pane containing the anchor surface.
     NewTab {
@@ -475,6 +487,9 @@ pub enum StructuralOp {
         surface_kind: String,
         #[serde(default)]
         params: serde_json::Value,
+        /// cwd 상속 원본. 생략하면 서버가 자기 View 선택과 자기 설정을 쓴다([`InheritCwd`]).
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        inherit_cwd: Option<InheritCwd>,
     },
     /// Close a surface (cascading up to tab/pane/workspace as usual).
     CloseSurface { surface_id: u32 },
@@ -499,6 +514,9 @@ pub enum StructuralOp {
         /// client가 모르면 None으로 보내고 서버가 원래 surface에서 찾는다.
         #[serde(default)]
         cwd: Option<String>,
+        /// `cwd`가 없을 때의 상속 원본. 생략하면 서버가 자기 설정으로 원래 surface의 cwd를 찾는다.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        inherit_cwd: Option<InheritCwd>,
     },
     /// Move a live surface onto another surface's slot. On the wire both ids are
     /// remote ids of the held workspace; the server rejects a target outside it.
@@ -640,6 +658,31 @@ impl StructuralOp {
             } => Some(*target_surface_id),
             _ => None,
         }
+    }
+
+    /// 생성 op가 싣는 cwd 상속 원본. 생성이 아닌 op와 생략은 None이다.
+    pub fn inherit_cwd(&self) -> Option<&InheritCwd> {
+        match self {
+            StructuralOp::SplitSurface { inherit_cwd, .. }
+            | StructuralOp::SplitPane { inherit_cwd, .. }
+            | StructuralOp::NewTab { inherit_cwd, .. }
+            | StructuralOp::ConvertSurface { inherit_cwd, .. } => inherit_cwd.as_ref(),
+            _ => None,
+        }
+    }
+
+    /// cwd 상속 원본을 바꾼 사본. 생성이 아닌 op는 그대로 돌려준다. client는 로컬 surface ID로
+    /// op를 만든 뒤 이 함수로 원격 ID를 넣는다.
+    pub fn with_inherit_cwd(&self, value: Option<InheritCwd>) -> StructuralOp {
+        let mut cloned = self.clone();
+        match &mut cloned {
+            StructuralOp::SplitSurface { inherit_cwd, .. }
+            | StructuralOp::SplitPane { inherit_cwd, .. }
+            | StructuralOp::NewTab { inherit_cwd, .. }
+            | StructuralOp::ConvertSurface { inherit_cwd, .. } => *inherit_cwd = value,
+            _ => {}
+        }
+        cloned
     }
 
     /// Return a copy with the `MoveSurface` target replaced by the mapped **remote**
@@ -1127,6 +1170,7 @@ mod tests {
                 direction: SplitAxis::Horizontal,
                 surface_kind: "terminal".to_string(),
                 params: serde_json::json!({}),
+                inherit_cwd: None,
             },
             origin: Some(ForwardOrigin::User),
         };
@@ -1146,11 +1190,13 @@ mod tests {
                 direction: SplitAxis::Vertical,
                 surface_kind: "terminal".to_string(),
                 params: serde_json::json!({"a": 1}),
+                inherit_cwd: None,
             },
             StructuralOp::NewTab {
                 anchor_surface_id: 4,
                 surface_kind: "markdown".to_string(),
                 params: serde_json::json!({"file": "/x"}),
+                inherit_cwd: None,
             },
             StructuralOp::CloseSurface { surface_id: 5 },
             StructuralOp::CloseTab {
@@ -1169,6 +1215,7 @@ mod tests {
                 surface_kind: "image".to_string(),
                 params: serde_json::json!({}),
                 cwd: Some("/tmp/proj".to_string()),
+                inherit_cwd: None,
             },
             StructuralOp::MoveSurface {
                 source_surface_id: 10,
@@ -1256,17 +1303,20 @@ mod tests {
                 direction: SplitAxis::Vertical,
                 surface_kind: "terminal".to_string(),
                 params: serde_json::json!({}),
+                inherit_cwd: None,
             },
             StructuralOp::SplitPane {
                 anchor_surface_id: 1,
                 direction: SplitAxis::Vertical,
                 surface_kind: "terminal".to_string(),
                 params: serde_json::json!({}),
+                inherit_cwd: None,
             },
             StructuralOp::NewTab {
                 anchor_surface_id: 1,
                 surface_kind: "terminal".to_string(),
                 params: serde_json::json!({}),
+                inherit_cwd: None,
             },
             StructuralOp::CloseSurface { surface_id: 1 },
             StructuralOp::CloseTab {
@@ -1285,6 +1335,7 @@ mod tests {
                 surface_kind: "terminal".to_string(),
                 params: serde_json::json!({}),
                 cwd: None,
+                inherit_cwd: None,
             },
             StructuralOp::MoveSurface {
                 source_surface_id: 1,
@@ -1456,6 +1507,7 @@ mod tests {
             direction: SplitAxis::Vertical,
             surface_kind: "terminal".to_string(),
             params: serde_json::json!({}),
+            inherit_cwd: None,
         };
         let remote = local.with_anchor_surface_id(100);
         assert_eq!(remote.anchor_surface_id(), 100);

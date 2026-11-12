@@ -294,6 +294,7 @@ pub(crate) fn handle(
                 anchor_surface_id,
                 target_surface_id,
                 params,
+                inherit_cwd: _,
             } => {
                 let started = start_call(
                     plugins.as_deref_mut(),

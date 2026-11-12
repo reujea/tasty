@@ -68,6 +68,12 @@ pub const CAPABILITIES: &[Capability] = &[
         name: crate::stream::INPUT_ACK_CAPABILITY,
         version: 1,
     },
+    // client는 attach descriptor로 연결마다 확인한다. 원격 "+ 새 워크스페이스"는 조회 연결이라
+    // descriptor가 없으므로 이 선언으로 확인할 수 있다.
+    Capability {
+        name: crate::stream::INHERIT_CWD_CAPABILITY,
+        version: 1,
+    },
     // client는 attach descriptor로 연결마다 확인한다. 여기 선언은 조회용 사본이다.
     Capability {
         name: crate::explorer_op::CAPABILITY,

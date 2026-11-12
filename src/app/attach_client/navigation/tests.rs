@@ -125,18 +125,21 @@ fn pending_op_focus_for_new_tab_and_split_is_new_resource() {
             anchor_surface_id: 1,
             surface_kind: "terminal".to_string(),
             params: serde_json::Value::Null,
+            inherit_cwd: None,
         },
         StructuralOp::SplitSurface {
             surface_id: 1,
             direction: SplitAxis::Horizontal,
             surface_kind: "terminal".to_string(),
             params: serde_json::Value::Null,
+            inherit_cwd: None,
         },
         StructuralOp::SplitPane {
             anchor_surface_id: 1,
             direction: SplitAxis::Vertical,
             surface_kind: "terminal".to_string(),
             params: serde_json::Value::Null,
+            inherit_cwd: None,
         },
         StructuralOp::RestoreClosedItem {
             anchor_surface_id: 1,

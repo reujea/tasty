@@ -13,6 +13,7 @@ fn tab(anchor: u32) -> StructuralOp {
         anchor_surface_id: anchor,
         surface_kind: "terminal".into(),
         params: serde_json::json!({}),
+        inherit_cwd: None,
     }
 }
 
@@ -76,6 +77,7 @@ fn both_split_axes_use_normal_geometry_and_only_clip_real_resources() {
                     direction,
                     surface_kind: "terminal".into(),
                     params: serde_json::json!({}),
+                    inherit_cwd: None,
                 }
             } else {
                 StructuralOp::SplitSurface {
@@ -83,6 +85,7 @@ fn both_split_axes_use_normal_geometry_and_only_clip_real_resources() {
                     direction,
                     surface_kind: "terminal".into(),
                     params: serde_json::json!({}),
+                    inherit_cwd: None,
                 }
             };
             state
@@ -433,6 +436,7 @@ fn noncreation_requests_wait_for_result_and_delta_without_prelayout_or_focus_cha
             surface_kind: "terminal".into(),
             params: serde_json::json!({}),
             cwd: None,
+            inherit_cwd: None,
         },
     ]
     .into_iter()

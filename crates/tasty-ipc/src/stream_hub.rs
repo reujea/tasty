@@ -1628,6 +1628,7 @@ mod tests {
             direction: SplitAxis::Vertical,
             surface_kind: "terminal".to_string(),
             params: serde_json::json!({}),
+            inherit_cwd: None,
         };
         let payload = serde_json::to_vec(&StreamControl::StructuralOp {
             op_id: 3,

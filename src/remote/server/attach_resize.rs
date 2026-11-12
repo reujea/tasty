@@ -263,6 +263,7 @@ mod tests {
                 tasty_ipc::stream::RESIZE_ACK_CAPABILITY,
                 tasty_ipc::stream::INPUT_ACK_CAPABILITY,
                 tasty_ipc::stream::WORKSPACE_CLOSE_CAPABILITY,
+                tasty_ipc::stream::INHERIT_CWD_CAPABILITY,
                 tasty_ipc::explorer_op::CAPABILITY,
                 tasty_ipc::agent_child::CAPABILITY,
                 tasty_ipc::terminal_read::CAPABILITY,

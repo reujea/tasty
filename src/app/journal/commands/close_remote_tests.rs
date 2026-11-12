@@ -152,6 +152,7 @@ fn a_workspace_close_that_did_not_close_is_returned_as_a_failure() {
         restore: false,
         closes_workspace: true,
         converted: None,
+        inherit_cwd: None,
     };
     let outcome = |rx: &tasty_ipc::stream_hub::SinkReceiver| {
         let frame = rx.recv().expect("structural result");

@@ -62,6 +62,30 @@ pub(super) enum Destination {
     },
 }
 
+/// 생성 요청의 cwd 상속 원본. 원격 holder 요청만 `View` 외의 값을 가진다.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum CwdSource {
+    /// 이 인스턴스 View의 선택을 이 인스턴스의 `inherit_cwd` 설정으로 상속한다. 로컬 요청의 규칙이며,
+    /// 원격 요청이 기준을 싣지 않았을 때의 fallback이다.
+    View,
+    /// 요청이 지목한 surface의 실행 시점 cwd. 요청자가 이미 상속을 판단했으므로 이 인스턴스의 설정으로 막지 않는다.
+    Surface(u32),
+    /// 상속하지 않는다. View 선택도 쓰지 않는다.
+    NoInherit,
+}
+
+impl CwdSource {
+    /// 원격 요청이 실은 값. 모르는 값은 접수 단계에서 거절했으므로 여기 오지 않는다.
+    pub fn of_remote(value: Option<&tasty_ipc::stream::InheritCwd>) -> Self {
+        use tasty_ipc::stream::InheritCwd;
+        match value {
+            Some(InheritCwd::Surface(surface)) => CwdSource::Surface(*surface),
+            Some(InheritCwd::NoInherit | InheritCwd::Unknown(_)) => CwdSource::NoInherit,
+            None => CwdSource::View,
+        }
+    }
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub(super) struct Spec {
     pub destination: Destination,
@@ -174,6 +198,7 @@ impl Spec {
         request: &crate::ipc::protocol::JsonRpcRequest,
         engine: &crate::runtime::engine_access::EngineRef<'_>,
         view: &crate::runtime::journal_product::CompletionView,
+        source: CwdSource,
     ) -> Result<Self, crate::ipc::protocol::JsonRpcResponse> {
         use crate::ipc::{handler::params, protocol::JsonRpcResponse};
         let id = serde_json::Value::Null;
@@ -205,12 +230,13 @@ impl Spec {
                         .or_else(|| tab.first_surface_id())
                 })
         };
-        let inherit = |surface: Option<u32>| {
-            if engine.runtime.settings.general.inherit_cwd {
-                surface.and_then(|surface| engine.local_surface_cwd(surface))
-            } else {
-                None
+        // `selected`는 View 규칙의 상속 원본이다. 원격 요청이 원본을 정했으면 그 값만 쓴다.
+        let inherit = |selected: Option<u32>| match source {
+            CwdSource::View if engine.runtime.settings.general.inherit_cwd => {
+                selected.and_then(|surface| engine.local_surface_cwd(surface))
             }
+            CwdSource::View | CwdSource::NoInherit => None,
+            CwdSource::Surface(surface) => engine.local_surface_cwd(surface),
         };
         let (destination, cwd) = match request.method.as_str() {
             "image.open" => {
@@ -452,7 +478,9 @@ mod tests {
                 },
             }))
             .expect("request");
-            let spec = Spec::from_public(&request, &engine.as_ref(), &view()).expect("spec");
+            let spec =
+                Spec::from_public(&request, &engine.as_ref(), &view(), super::CwdSource::View)
+                    .expect("spec");
             assert!(matches!(spec.destination, Destination::Surface { .. }));
             assert_eq!(spec.params["file"], expected, "surface {surface}");
             assert!(spec.params.get("file_base").is_none());

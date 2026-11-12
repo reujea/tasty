@@ -567,17 +567,28 @@ impl JournalApplication {
         } else if pending.request.method == "terminal.respawn" {
             super::child::resolve_respawn(&pending.request, session)
         } else {
-            super::create_spec::Spec::from_public(&pending.request, &session.as_ref(), &view)
-                .and_then(|spec| Request::from_spec(spec, session))
-                .and_then(|request| {
-                    hold_explorer_floor(
-                        request,
-                        session,
-                        self.split_geometries
-                            .get(&session.id)
-                            .map_or(&[], Vec::as_slice),
-                    )
-                })
+            let source = match &pending.reply {
+                super::Reply::Remote(remote) => {
+                    super::create_spec::CwdSource::of_remote(remote.inherit_cwd.as_ref())
+                }
+                _ => super::create_spec::CwdSource::View,
+            };
+            super::create_spec::Spec::from_public(
+                &pending.request,
+                &session.as_ref(),
+                &view,
+                source,
+            )
+            .and_then(|spec| Request::from_spec(spec, session))
+            .and_then(|request| {
+                hold_explorer_floor(
+                    request,
+                    session,
+                    self.split_geometries
+                        .get(&session.id)
+                        .map_or(&[], Vec::as_slice),
+                )
+            })
         };
         match resolved {
             Ok(mut resource) => {

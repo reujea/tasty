@@ -195,6 +195,7 @@ fn an_old_peer_creation_needs_the_matching_kind_and_anchor_shape() {
                 },
                 surface_kind: "terminal".into(),
                 params: serde_json::json!({}),
+                inherit_cwd: None,
             },
             Creation::Pane(d) => StructuralOp::SplitPane {
                 anchor_surface_id: 100,
@@ -205,6 +206,7 @@ fn an_old_peer_creation_needs_the_matching_kind_and_anchor_shape() {
                 },
                 surface_kind: "terminal".into(),
                 params: serde_json::json!({}),
+                inherit_cwd: None,
             },
         };
         let changes = match creation {
@@ -356,6 +358,7 @@ fn a_different_creation_shape_cannot_complete_a_surface_split() {
         direction: SplitAxis::Vertical,
         surface_kind: "terminal".into(),
         params: serde_json::json!({}),
+        inherit_cwd: None,
     };
     let r = state
         .attach_pending

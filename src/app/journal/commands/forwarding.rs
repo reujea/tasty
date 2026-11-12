@@ -76,7 +76,13 @@ fn local_op(
             let spec = if request.method == "intent.create" {
                 serde_json::from_value::<super::create_spec::Spec>(request.params.clone()).ok()?
             } else {
-                super::create_spec::Spec::from_public(request, session, view).ok()?
+                super::create_spec::Spec::from_public(
+                    request,
+                    session,
+                    view,
+                    super::create_spec::CwdSource::View,
+                )
+                .ok()?
             };
             let axis = |direction| match direction {
                 crate::model::SplitDirection::Horizontal => SplitAxis::Horizontal,
@@ -87,6 +93,7 @@ fn local_op(
                     anchor_surface_id: pane_anchor(pane)?,
                     surface_kind: spec.kind,
                     params: spec.params,
+                    inherit_cwd: None,
                 }),
                 super::create_spec::Destination::Pane { target, direction } => {
                     Some(StructuralOp::SplitPane {
@@ -94,6 +101,7 @@ fn local_op(
                         direction: axis(direction),
                         surface_kind: spec.kind,
                         params: spec.params,
+                        inherit_cwd: None,
                     })
                 }
                 super::create_spec::Destination::Surface { target, direction } => {
@@ -102,6 +110,7 @@ fn local_op(
                         direction: axis(direction),
                         surface_kind: spec.kind,
                         params: spec.params,
+                        inherit_cwd: None,
                     })
                 }
                 super::create_spec::Destination::Convert {
@@ -112,6 +121,7 @@ fn local_op(
                     surface_kind: spec.kind,
                     params: spec.params,
                     cwd: spec.cwd.map(|path| path.to_string_lossy().into_owned()),
+                    inherit_cwd: None,
                 }),
                 _ => None,
             }

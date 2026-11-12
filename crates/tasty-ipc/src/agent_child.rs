@@ -87,6 +87,10 @@ pub enum AgentClientMsg {
         target_surface_id: Option<u32>,
         #[serde(default)]
         params: serde_json::Value,
+        /// 새 자식 터미널의 cwd 상속 원본(원격 surface 또는 상속 안 함). 생략하면 서버가 자기 View
+        /// 선택과 자기 설정을 쓴다. 서버는 이 값을 확인해 host 예약 인자로 넘긴다.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        inherit_cwd: Option<crate::stream::InheritCwd>,
     },
     /// 이 call 로 생긴 자식의 부모 경로를 client 가 다 준비했다. 서버는 그 전까지 그 자식의 통지를
     /// 보관만 하고 보내지 않는다. 준비 전에 온 완료가 수신처 없이 버려지지 않게 한다.

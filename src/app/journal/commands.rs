@@ -1042,6 +1042,8 @@ mod close_pause_tests;
 #[cfg(test)]
 mod close_remote_tests;
 #[cfg(test)]
+mod remote_cwd_tests;
+#[cfg(test)]
 mod tests;
 
 // Stream JSON through a hash so raw terminal input is never retained as a command digest.
