@@ -176,11 +176,113 @@ fn activation_transition_table_matches_the_journal_rule() {
     );
 }
 
-/// 함수 본문의 줄에서 `//` 주석을 뗀 코드 부분. 주석 속 `=> "`·`=> S::`를 값으로 읽지 않게 한다.
-fn code_lines(body: &str) -> impl Iterator<Item = &str> {
-    body.lines()
-        .map(|line| line.split_once("//").map_or(line, |(code, _)| code).trim())
-        .filter(|line| !line.is_empty())
+/// 줄 주석(`//`)과 블록 주석(`/* */`)을 지운 코드. 문자열 리터럴 안의 `//`는 그대로 둔다.
+/// 주석 속 `=> "x"`·`=> S::X`를 갈래로 읽지 않게 한다.
+fn strip_comments(code: &str) -> String {
+    let mut out = String::with_capacity(code.len());
+    let mut chars = code.chars().peekable();
+    let mut in_string = false;
+    while let Some(c) = chars.next() {
+        if in_string {
+            out.push(c);
+            match c {
+                '\\' => out.extend(chars.next()),
+                '"' => in_string = false,
+                _ => {}
+            }
+            continue;
+        }
+        match (c, chars.peek()) {
+            ('"', _) => {
+                in_string = true;
+                out.push(c);
+            }
+            ('/', Some('/')) => {
+                for c in chars.by_ref() {
+                    if c == '\n' {
+                        out.push('\n');
+                        break;
+                    }
+                }
+            }
+            ('/', Some('*')) => {
+                chars.next();
+                let mut depth = 1usize;
+                while depth > 0 {
+                    match (chars.next(), chars.peek()) {
+                        (Some('*'), Some('/')) => {
+                            chars.next();
+                            depth -= 1;
+                        }
+                        (Some('/'), Some('*')) => {
+                            chars.next();
+                            depth += 1;
+                        }
+                        (Some(_), _) => {}
+                        (None, _) => break,
+                    }
+                }
+                out.push(' ');
+            }
+            _ => out.push(c),
+        }
+    }
+    out
+}
+
+/// 함수 본문의 첫 `match` 블록을 갈래 `(패턴, 값)` 목록으로 나눈다. 주석을 먼저 지우고,
+/// 괄호 깊이 0의 쉼표로 갈래를 자르므로 여러 줄로 나뉜 OR 패턴도 갈래 하나로 모인다.
+/// 화살표(`=>`)가 없는 갈래가 있으면 실패한다.
+fn match_arms(body: &str, what: &str) -> Vec<(String, String)> {
+    let code = strip_comments(body);
+    let start = code
+        .find("match ")
+        .unwrap_or_else(|| panic!("{what}에서 match를 찾지 못했다"));
+    let open = start
+        + code[start..]
+            .find('{')
+            .unwrap_or_else(|| panic!("{what}의 match에 블록이 없다"));
+    let mut arms = Vec::new();
+    let mut current = String::new();
+    let mut depth = 0usize;
+    let mut in_string = false;
+    let mut escaped = false;
+    for c in code[open + 1..].chars() {
+        if in_string {
+            current.push(c);
+            match c {
+                _ if escaped => escaped = false,
+                '\\' => escaped = true,
+                '"' => in_string = false,
+                _ => {}
+            }
+            continue;
+        }
+        match c {
+            '"' => in_string = true,
+            '(' | '[' | '{' => depth += 1,
+            ')' | ']' => depth -= 1,
+            '}' if depth == 0 => break,
+            '}' => depth -= 1,
+            ',' if depth == 0 => {
+                arms.push(std::mem::take(&mut current));
+                continue;
+            }
+            _ => {}
+        }
+        current.push(c);
+    }
+    arms.push(current);
+    arms.iter()
+        .map(|arm| arm.split_whitespace().collect::<Vec<_>>().join(" "))
+        .filter(|arm| !arm.is_empty())
+        .map(|arm| {
+            let (pattern, value) = arm
+                .split_once("=>")
+                .unwrap_or_else(|| panic!("{what}에 화살표 없는 갈래가 있다: {arm}"));
+            (pattern.trim().to_string(), value.trim().to_string())
+        })
+        .collect()
 }
 
 /// 패턴 안의 문자열 리터럴 전부. `Some("a" | "b")` 같은 OR 패턴은 두 문자열을 모두 돌려준다.
@@ -193,50 +295,50 @@ fn quoted(pattern: &str) -> Vec<String> {
         .collect()
 }
 
-/// `row_state_name`이 돌려주는 문자열.
+/// `row_state_name`이 돌려주는 문자열. 갈래 값이 문자열 리터럴 하나가 아니면 실패한다.
 fn code_row_states(body: &str) -> BTreeSet<String> {
-    code_lines(body)
-        .flat_map(|line| line.split("=> \"").skip(1))
-        .filter_map(|tail| tail.split_once('"').map(|(name, _)| name.to_string()))
+    let what = format!("{ROW_USE}의 row_state_name");
+    match_arms(body, &what)
+        .into_iter()
+        .map(|(_, value)| {
+            let names = quoted(&value);
+            match names.as_slice() {
+                [name] if value == format!("\"{name}\"") => name.clone(),
+                _ => panic!("{what}의 갈래 값이 문자열 리터럴 하나가 아니다: {value}"),
+            }
+        })
         .collect()
 }
 
 /// `remote_row_state`의 문자열 → `S::<값>` 대응과 나머지 갈래(`_ =>`)의 값.
-/// OR 패턴은 모든 문자열을 같은 값으로 읽고, 가드나 문자열이 없는 패턴처럼 읽지 못하는 형태는 실패한다.
+/// OR 패턴은 줄 수와 관계없이 모든 문자열을 같은 값으로 읽는다. 가드가 있거나 문자열이 없는
+/// 패턴, `S::<이름>`이 아닌 값처럼 읽지 못하는 형태는 실패한다.
 fn code_sidebar_map(body: &str) -> (Vec<(String, String)>, String) {
+    let what = format!("{ENGINE_READ}의 remote_row_state");
     let mut map = Vec::new();
     let mut fallback = None;
-    for line in code_lines(body) {
-        if !line.contains("=>") {
-            continue;
-        }
-        let Some((pattern, value)) = line.split_once("=> S::") else {
-            panic!(
-                "{ENGINE_READ}의 remote_row_state에 읽지 못하는 갈래가 있다(`=> S::<값>` 형태만 읽는다): {line}"
-            )
-        };
-        let value = value.trim_end_matches(',').trim().to_string();
-        assert!(
-            !value.is_empty() && value.chars().all(char::is_alphanumeric),
-            "{ENGINE_READ}의 remote_row_state 갈래 값이 단순 이름이 아니다: {line}"
-        );
-        let pattern = pattern.trim();
+    for (pattern, value) in match_arms(body, &what) {
+        let name = value
+            .strip_prefix("S::")
+            .filter(|v| !v.is_empty() && v.chars().all(char::is_alphanumeric))
+            .unwrap_or_else(|| {
+                panic!("{what}의 갈래 값이 `S::<이름>`이 아니다: {pattern} => {value}")
+            })
+            .to_string();
         if pattern == "_" {
-            fallback = Some(value);
+            fallback = Some(name);
             continue;
         }
-        let names = quoted(pattern);
+        let names = quoted(&pattern);
         assert!(
             !names.is_empty() && !pattern.contains(" if "),
-            "{ENGINE_READ}의 remote_row_state에 읽지 못하는 패턴이 있다(문자열 리터럴과 `|`만 읽는다): {line}"
+            "{what}에 읽지 못하는 패턴이 있다(문자열 리터럴과 `|`만 읽는다): {pattern}"
         );
-        for name in names {
-            map.push((name, value.clone()));
+        for n in names {
+            map.push((n, name.clone()));
         }
     }
-    let fallback = fallback.unwrap_or_else(|| {
-        panic!("{ENGINE_READ}의 remote_row_state에서 `_ => S::..` 갈래를 찾지 못했다")
-    });
+    let fallback = fallback.unwrap_or_else(|| panic!("{what}에서 `_ => S::..` 갈래를 찾지 못했다"));
     (map, fallback)
 }
 
