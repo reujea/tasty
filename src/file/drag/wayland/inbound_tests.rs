@@ -270,6 +270,26 @@ fn a_failed_read_refuses_the_drag_and_never_finishes() {
 }
 
 #[test]
+fn a_list_already_complete_when_the_limit_passes_is_refused() {
+    let now = Instant::now();
+    let mut inbound = Inbound::default();
+    offer(&mut inbound, 1, &[URI_LIST]);
+    enter(&mut inbound, 1, 5, OPEN, now);
+    inbound.take_commands();
+    let pipe = Pipe::default();
+    pipe.push(Step::Data(LIST));
+    pipe.push(Step::Eof);
+    inbound.attach(1, Ok(Box::new(pipe)));
+    inbound.offer_action(1, Action::Copy);
+    inbound.pump(now + READ_LIMIT);
+    assert!(inbound.take_events().is_empty());
+    assert_eq!(inbound.take_commands(), rejected(1));
+    inbound.drop_here(now + READ_LIMIT);
+    assert!(inbound.take_events().is_empty());
+    assert_eq!(inbound.take_commands(), [Command::Destroy { offer: 1 }]);
+}
+
+#[test]
 fn an_oversized_list_is_refused() {
     let now = Instant::now();
     let mut inbound = Inbound::default();

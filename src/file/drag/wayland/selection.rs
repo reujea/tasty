@@ -213,11 +213,13 @@ impl Selection {
         let Some(reading) = self.reading.as_mut() else {
             return;
         };
+        // The limit comes first: text that arrived after it is not delivered either.
+        if now >= reading.deadline {
+            tracing::warn!("clipboard paste timed out");
+            self.reading = None;
+            return;
+        }
         let Some(pipe) = reading.pipe.as_mut() else {
-            if now >= reading.deadline {
-                tracing::warn!("clipboard paste timed out");
-                self.reading = None;
-            }
             return;
         };
         let mut buf = [0u8; 32 * 1024];
@@ -230,12 +232,7 @@ impl Selection {
                         break Some("clipboard text exceeds 16 MiB".to_string());
                     }
                 }
-                Err(e) if e.kind() == std::io::ErrorKind::WouldBlock => {
-                    if now >= reading.deadline {
-                        break Some("clipboard paste timed out".to_string());
-                    }
-                    return;
-                }
+                Err(e) if e.kind() == std::io::ErrorKind::WouldBlock => return,
                 Err(e) if e.kind() == std::io::ErrorKind::Interrupted => {}
                 Err(error) => break Some(error.to_string()),
             }

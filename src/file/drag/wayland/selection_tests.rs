@@ -159,6 +159,22 @@ fn a_paste_that_does_not_arrive_in_time_is_dropped() {
 }
 
 #[test]
+fn text_already_waiting_when_the_limit_passes_is_not_delivered() {
+    let now = Instant::now();
+    let mut s = Selection::default();
+    offered(&mut s, 5, &["text/plain"]);
+    s.request(A, now);
+    let pipe = Pipe::default();
+    s.attach(5, Ok(Box::new(pipe.clone())));
+    // The source wrote everything and closed, but the first pump after that is past the limit.
+    pipe.push(Step::Data(b"late"));
+    pipe.push(Step::Eof);
+    s.pump(now + READ_LIMIT);
+    assert!(!s.busy());
+    assert!(s.take_results(A.client).is_empty());
+}
+
+#[test]
 fn a_receive_that_never_got_a_pipe_also_times_out() {
     let now = Instant::now();
     let mut s = Selection::default();

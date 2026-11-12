@@ -236,7 +236,10 @@ impl Inbound {
         let Some(dnd) = self.dnd.as_mut() else {
             return;
         };
-        if let Some(pipe) = dnd.pipe.as_mut() {
+        // The limit comes first: a list that arrived after it is refused too.
+        if dnd.pipe.is_some() && now >= dnd.deadline {
+            self.fail("incoming file list timed out");
+        } else if let Some(pipe) = dnd.pipe.as_mut() {
             let mut buf = [0u8; 32 * 1024];
             let failure = loop {
                 match pipe.read(&mut buf) {
@@ -254,12 +257,7 @@ impl Inbound {
                             break Some("incoming file list exceeds 1 MiB".to_string());
                         }
                     }
-                    Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => {
-                        if now >= dnd.deadline {
-                            break Some("incoming file list timed out".to_string());
-                        }
-                        break None;
-                    }
+                    Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => break None,
                     Err(error) if error.kind() == std::io::ErrorKind::Interrupted => {}
                     Err(error) => break Some(error.to_string()),
                 }
