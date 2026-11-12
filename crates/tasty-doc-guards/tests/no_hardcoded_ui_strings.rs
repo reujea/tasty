@@ -333,20 +333,51 @@ fn leading_literal(after: &str) -> Option<&str> {
     None
 }
 
-/// 플레이스홀더 색 헬퍼의 글자 인자(첫 쉼표 뒤)가 같은 줄의 리터럴이면 H 규칙으로 판정한다.
-fn find_hint_helper_calls(line: &str, out: &mut Vec<String>) {
+/// 플레이스홀더 색 헬퍼의 글자 인자(최상위 첫 쉼표 뒤)가 리터럴이면 H 규칙으로 판정한다.
+/// 호출이 여러 줄에 걸쳐도 놓치지 않게 파일 전체를 주석·리터럴을 가린 사본에서 괄호 짝으로 읽고,
+/// 같은 바이트 위치의 리터럴을 원문에서 꺼낸다. `skipped[i]` 가 참인 줄(테스트 영역)에서 시작한
+/// 호출은 건너뛴다. 돌려주는 줄 번호는 리터럴이 있는 줄이다.
+fn find_hint_helper_calls(contents: &str, skipped: &[bool]) -> Vec<(usize, String)> {
     const HELPER: &str = "tasty_egui_theme::hint_text(";
-    for (pos, _) in line.match_indices(HELPER) {
-        let rest = &line[pos + HELPER.len()..];
-        let Some(comma) = rest.find(',') else {
+    let code = tasty_doc_guards::source_text::mask_non_code_aligned(contents);
+    let line_of = |at: usize| code[..at].matches('\n').count();
+    let mut out = Vec::new();
+    for (pos, _) in code.match_indices(HELPER) {
+        if skipped.get(line_of(pos)).copied().unwrap_or(false) {
+            continue;
+        }
+        let open = pos + HELPER.len();
+        let Some(comma) = top_level_comma(&code[open..]) else {
             continue;
         };
-        if let Some(lit) = leading_literal(&rest[comma + 1..])
+        let arg = open + comma + 1;
+        if let Some(lit) = leading_literal(&contents[arg..])
             && hint_violation(lit)
         {
-            out.push(format!("hint_text {lit:?}"));
+            let lit_at = arg + contents[arg..].find('"').unwrap_or(0);
+            out.push((line_of(lit_at) + 1, format!("hint_text {lit:?}")));
         }
     }
+    out
+}
+
+/// 여는 괄호 바로 뒤부터 짝이 되는 닫는 괄호 전까지에서 깊이 0의 첫 쉼표 위치.
+fn top_level_comma(code: &str) -> Option<usize> {
+    let mut depth = 0usize;
+    for (i, c) in code.char_indices() {
+        match c {
+            '(' | '[' | '{' => depth += 1,
+            ')' | ']' | '}' => {
+                if depth == 0 {
+                    return None;
+                }
+                depth -= 1;
+            }
+            ',' if depth == 0 => return Some(i),
+            _ => {}
+        }
+    }
+    None
 }
 
 /// `line` 에서 `call` 뒤에 리터럴이 오는 자리를 전부 찾아 `judge` 로 판정한다.
@@ -483,8 +514,10 @@ fn scan_file(contents: &str) -> Vec<(usize, String)> {
     let lines: Vec<&str> = contents.lines().collect();
     let mut found = Vec::new();
     let mut tests = TestRegion::default();
+    let mut skipped = vec![false; lines.len()];
     for (idx, line) in lines.iter().enumerate() {
         if tests.skip(line) {
+            skipped[idx] = true;
             continue;
         }
         let trimmed = line.trim_start();
@@ -494,7 +527,6 @@ fn scan_file(contents: &str) -> Vec<(usize, String)> {
         let mut hits = Vec::new();
         find_calls(line, WIDGET_CALLS, strict_violation, &mut hits);
         find_calls(line, &[".hint_text("], hint_violation, &mut hits);
-        find_hint_helper_calls(line, &mut hits);
         find_calls(line, NATIVE_CALLS, prose_violation, &mut hits);
         find_calls(line, FALLBACK_CALLS, prose_violation, &mut hits);
         find_calls(line, PRINT_CALLS, prose_violation, &mut hits);
@@ -505,6 +537,8 @@ fn scan_file(contents: &str) -> Vec<(usize, String)> {
             found.push((idx + 1, hit));
         }
     }
+    found.extend(find_hint_helper_calls(contents, &skipped));
+    found.sort();
     found
 }
 
@@ -658,6 +692,31 @@ fn a_sentence_inside_the_hint_color_helper_is_reported() {
     assert!(scan_file(example).is_empty(), "기술 예시는 허용한다");
     let bare = ".hint_text(\"Enter a host name\")";
     assert_eq!(scan_file(bare).len(), 1);
+}
+
+/// 헬퍼 호출을 여러 줄로 나눠 써도 같은 판정을 한다. 보고 줄은 리터럴이 있는 줄이다.
+#[test]
+fn a_sentence_inside_a_multi_line_hint_color_helper_is_reported() {
+    let wrapped = "let e = TextEdit::singleline(v)\n    .hint_text(tasty_egui_theme::hint_text(\n        th,\n        \"Enter a host name\",\n    ));";
+    assert_eq!(
+        scan_file(wrapped),
+        vec![(4, "hint_text \"Enter a host name\"".to_owned())],
+        "여러 줄 헬퍼 안의 문장을 놓쳤다"
+    );
+    let example = ".hint_text(tasty_egui_theme::hint_text(\n    th,\n    \"10.0.4.12\",\n))";
+    assert!(scan_file(example).is_empty(), "기술 예시는 허용한다");
+    // 첫 인자 안의 쉼표는 인자 구분이 아니다.
+    let nested =
+        ".hint_text(tasty_egui_theme::hint_text(\n    pick(a, b),\n    \"Enter a host name\",\n))";
+    assert_eq!(scan_file(nested).len(), 1, "첫 인자의 쉼표에서 잘못 끊었다");
+    let translated =
+        ".hint_text(tasty_egui_theme::hint_text(\n    th,\n    t(\"remote.host_hint\"),\n))";
+    assert!(scan_file(translated).is_empty(), "번역 호출은 허용한다");
+    // 주석과 테스트 영역 안의 호출은 보지 않는다.
+    let commented = "// .hint_text(tasty_egui_theme::hint_text(\n//     th,\n//     \"Enter a host name\",\n// ))";
+    assert!(scan_file(commented).is_empty());
+    let in_test = "#[cfg(test)]\nmod tests {\n    fn f() {\n        x.hint_text(tasty_egui_theme::hint_text(\n            th,\n            \"Enter a host name\",\n        ));\n    }\n}";
+    assert!(scan_file(in_test).is_empty());
 }
 
 /// 예외 경로의 존재만 확인한다. 해당 예외가 아직 필요한지는 별도 검토해야 한다.
