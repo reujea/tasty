@@ -17,6 +17,30 @@ pub fn read_port_diagnosed(port_file: Option<&str>) -> std::result::Result<u16, 
     pf::read_port_file_from(port_file)
 }
 
+/// 포트 파일 옆 인스턴스 파일이 그 포트를 쓴 인스턴스가 끝났다고 말하면 그 기록. 판별할 수
+/// 없으면(인스턴스 파일 없음 등) None이며 호출자는 기존 동작을 유지한다.
+pub fn exited_owner(
+    port_file: Option<&str>,
+    port: u16,
+) -> Option<tasty_ipc::instance_file::InstanceRecord> {
+    let path = pf::resolve_port_file_path(port_file).ok()?;
+    match pf::port_owner(&path, port) {
+        tasty_ipc::instance_file::PortOwner::Exited(record) => Some(record),
+        _ => None,
+    }
+}
+
+/// 끝난 인스턴스가 남긴 포트 파일의 안내.
+pub fn exited_message(port_file: Option<&str>, port: u16, pid: u32) -> String {
+    let path = pf::resolve_port_file_path(port_file)
+        .map(|p| p.display().to_string())
+        .unwrap_or_default();
+    tasty_i18n::t_args(
+        "cli.port_file.instance_exited",
+        &[&path, &port.to_string(), &pid.to_string()],
+    )
+}
+
 /// 실패 조건 → 현재 로케일 문장. en 값은 [`PortFileError`] 의 기본 렌더링과
 /// 문자 단위로 같아야 한다(아래 테스트가 강제).
 pub(crate) fn localize(err: &PortFileError) -> String {
@@ -50,6 +74,33 @@ mod tests {
             localize(&PortFileError::Invalid),
             PortFileError::Invalid.to_string()
         );
+    }
+
+    /// 포트 파일과 같은 포트를 적은 인스턴스 기록의 PID가 다른 프로세스면 끝난 인스턴스다.
+    /// 인스턴스 파일이 없으면 판별하지 않는다.
+    #[test]
+    fn a_port_file_next_to_a_stale_instance_record_is_reported_as_exited() {
+        use tasty_ipc::instance_file::{self, InstanceRecord};
+        let home = tempfile::tempdir().unwrap();
+        let port_file = home.path().join("tasty.port");
+        std::fs::write(&port_file, "4321").unwrap();
+        let port_file = port_file.to_str().unwrap();
+        assert_eq!(exited_owner(Some(port_file), 4321), None);
+        let pid = std::process::id();
+        let start = instance_file::process_start_time(pid).unwrap();
+        let stale = InstanceRecord {
+            pid,
+            start_time: start.wrapping_add(1),
+            port: Some(4321),
+        };
+        instance_file::write(home.path(), &stale).unwrap();
+        assert_eq!(exited_owner(Some(port_file), 4321), Some(stale));
+        let live = InstanceRecord {
+            start_time: start,
+            ..stale
+        };
+        instance_file::write(home.path(), &live).unwrap();
+        assert_eq!(exited_owner(Some(port_file), 4321), None);
     }
 
     /// 격리 홈의 경로도 안내에 그대로 포함한다.

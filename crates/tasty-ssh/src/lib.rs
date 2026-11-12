@@ -307,6 +307,10 @@ pub const PORT_DISCOVERY_STEP_TIMEOUT: Duration = Duration::from_secs(20);
 /// 프로세스 생성·회수·출력 수집까지 이 시간 안에 끝난다는 보장은 없다.
 pub const PORT_DISCOVERY_TOTAL_TIMEOUT: Duration = Duration::from_secs(45);
 
+/// `tasty port`가 포트 파일을 쓴 인스턴스가 끝났다고 판별했을 때의 종료 코드. 일반 실패 1,
+/// 인자 오류 2와 구분해 원격 포트 발견이 "원격 tasty 미실행"으로 확정할 수 있게 한다.
+pub const PORT_COMMAND_EXITED_INSTANCE_CODE: i32 = 3;
+
 /// 한 번의 포트 발견 호출에 허용된 총 예산의 만료 시각. 체인 각 단계에 남은 예산을
 /// 나눠준다(단계 상한 × 단계 수로 총 대기가 곱해지는 것을 막는다).
 #[derive(Clone, Copy, Debug)]

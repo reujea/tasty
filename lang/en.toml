@@ -2136,6 +2136,7 @@ tell_no_target = "Error: no target surface. Pass --surface or run inside a tasty
 no_instance = "No running tasty instance found (port file not found at {})"
 home_unresolved = "Could not determine config directory"
 invalid_contents = "Invalid port file contents"
+instance_exited = "The tasty instance that wrote the port file {} is not running (port {}, PID {} has exited or now belongs to another process). The port file is stale."
 
 # 직접 출력하는 문구는 오류·경고 접두어를 포함한다. 나머지는 호출자가 접두어를 붙인다.
 [cli.webhook]

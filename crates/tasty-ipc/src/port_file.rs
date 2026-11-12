@@ -40,18 +40,33 @@ pub fn read_port_file() -> Result<u16, PortFileError> {
     read_port_file_from(None)
 }
 
+/// 지정 경로가 있으면 그 경로, 없으면 기본 port file 경로.
+pub fn resolve_port_file_path(port_file: Option<&str>) -> Result<PathBuf, PortFileError> {
+    match port_file {
+        Some(p) => Ok(PathBuf::from(p)),
+        None => port_file_path().ok_or(PortFileError::HomeUnresolved),
+    }
+}
+
 /// 지정 경로 (또는 기본) 의 port file 에서 포트 읽기.
 pub fn read_port_file_from(port_file: Option<&str>) -> Result<u16, PortFileError> {
-    let path = match port_file {
-        Some(p) => PathBuf::from(p),
-        None => port_file_path().ok_or(PortFileError::HomeUnresolved)?,
-    };
+    let path = resolve_port_file_path(port_file)?;
     let contents = std::fs::read_to_string(&path)
         .map_err(|_| PortFileError::NotFound { path: path.clone() })?;
     contents
         .trim()
         .parse::<u16>()
         .map_err(|_| PortFileError::Invalid)
+}
+
+/// port file이 있는 폴더의 인스턴스 파일로 그 포트를 쓴 인스턴스가 끝났는지 본다. 기본 port
+/// file은 홈에 있으므로 홈의 인스턴스 파일을 읽는다. 다른 폴더를 지정했고 그 폴더에 인스턴스 파일이
+/// 없으면 판별하지 않는다.
+pub fn port_owner(port_file_path: &Path, port: u16) -> crate::instance_file::PortOwner {
+    match port_file_path.parent() {
+        Some(dir) => crate::instance_file::port_owner_in(dir, port),
+        None => crate::instance_file::PortOwner::Unknown,
+    }
 }
 
 /// Completed lifecycle publication. This is not a queued save receipt.

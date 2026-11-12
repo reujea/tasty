@@ -7,9 +7,17 @@ use anyhow::Result;
 use crate::out::outln;
 
 /// tasty.port의 포트를 출력한다. 기본 루트는 release ~/.tasty/, debug ~/.tasty-debug/다.
-/// --port-file로 별도 파일을 지정할 수 있다.
+/// --port-file로 별도 파일을 지정할 수 있다. 포트 파일 옆 인스턴스 파일이 그 포트의 인스턴스가
+/// 끝났다고 말하면 포트를 출력하지 않고 tasty_ssh::PORT_COMMAND_EXITED_INSTANCE_CODE로 끝낸다.
 pub fn run_port(port_file: Option<&str>) -> Result<()> {
     let port = crate::port_file::read_port(port_file)?;
+    if let Some(record) = crate::port_file::exited_owner(port_file, port) {
+        crate::out::errln!(
+            "{}",
+            crate::port_file::exited_message(port_file, port, record.pid)
+        );
+        std::process::exit(tasty_ssh::PORT_COMMAND_EXITED_INSTANCE_CODE);
+    }
     outln!("{port}")?;
     Ok(())
 }

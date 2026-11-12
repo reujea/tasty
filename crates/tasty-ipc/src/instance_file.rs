@@ -78,6 +78,37 @@ pub fn read_state(home: &Path) -> InstanceState {
     }
 }
 
+/// 포트 파일의 포트를 그 홈의 인스턴스 파일과 대조한 결과.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PortOwner {
+    /// 같은 포트를 적은 기록의 PID·시작 시각이 맞다.
+    Live,
+    /// 같은 포트를 적은 기록이 있으나 그 PID가 없거나 다른 프로세스다. 포트 파일도 남은 것이다.
+    Exited(InstanceRecord),
+    /// 판별할 수 없다. 인스턴스 파일이 없거나(옛 버전·다른 위치의 포트 파일), 읽지 못했거나,
+    /// 다른 포트를 적었거나, 아직 포트를 적지 않았다.
+    Unknown,
+}
+
+/// 인스턴스 상태와 포트 파일의 포트로 그 포트의 주인을 정한다. 기록의 포트가 다르면 두 파일이
+/// 같은 실행에서 나왔다고 볼 수 없으므로 판별하지 않는다.
+pub fn port_owner(state: &InstanceState, port: u16) -> PortOwner {
+    match state {
+        InstanceState::Live(record) if record.port == Some(port) => PortOwner::Live,
+        InstanceState::Booting(BootingReason::Stale { record, .. })
+            if record.port == Some(port) =>
+        {
+            PortOwner::Exited(*record)
+        }
+        _ => PortOwner::Unknown,
+    }
+}
+
+/// `home`의 인스턴스 파일을 읽어 [`port_owner`]로 판별한다.
+pub fn port_owner_in(home: &Path, port: u16) -> PortOwner {
+    port_owner(&read_state(home), port)
+}
+
 /// 기록을 임시 파일 + rename으로 쓴다.
 pub fn write(home: &Path, record: &InstanceRecord) -> std::io::Result<()> {
     let bytes = serde_json::to_vec(record).map_err(std::io::Error::other)?;
@@ -130,6 +161,49 @@ mod tests {
                 InstanceState::Booting(BootingReason::Stale { .. })
             ));
         }
+    }
+
+    #[test]
+    fn only_a_stale_record_with_the_same_port_marks_the_port_as_exited() {
+        let live = classify(record(Some(4000)), Some(500));
+        assert_eq!(port_owner(&live, 4000), PortOwner::Live);
+        assert_eq!(port_owner(&live, 4001), PortOwner::Unknown);
+        for observed in [None, Some(501)] {
+            let stale = classify(record(Some(4000)), observed);
+            assert_eq!(
+                port_owner(&stale, 4000),
+                PortOwner::Exited(record(Some(4000)))
+            );
+            assert_eq!(port_owner(&stale, 4001), PortOwner::Unknown);
+        }
+        let no_port = classify(record(None), Some(500));
+        assert_eq!(port_owner(&no_port, 4000), PortOwner::Unknown);
+        assert_eq!(
+            port_owner(&InstanceState::Booting(BootingReason::NoFile), 4000),
+            PortOwner::Unknown
+        );
+    }
+
+    /// 살아 있는 PID라도 시작 시각이 다르면(PID 재사용) 끝난 인스턴스로 본다.
+    #[test]
+    fn a_reused_live_pid_reads_back_as_exited() {
+        let home = tempfile::tempdir().unwrap();
+        assert_eq!(port_owner_in(home.path(), 4000), PortOwner::Unknown);
+        let pid = std::process::id();
+        let start_time = process_start_time(pid).expect("own start time");
+        let reused = InstanceRecord {
+            pid,
+            start_time: start_time.wrapping_add(1),
+            port: Some(4000),
+        };
+        write(home.path(), &reused).unwrap();
+        assert_eq!(port_owner_in(home.path(), 4000), PortOwner::Exited(reused));
+        let live = InstanceRecord {
+            start_time,
+            ..reused
+        };
+        write(home.path(), &live).unwrap();
+        assert_eq!(port_owner_in(home.path(), 4000), PortOwner::Live);
     }
 
     #[test]
