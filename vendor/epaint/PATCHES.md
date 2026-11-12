@@ -1,6 +1,6 @@
 # epaint 0.31.1 — tasty 사본
 
-crates.io의 `epaint` 0.31.1(상류 커밋 `1669e52a7ccfc3489c1b0999b9ed48894a0b3887`, `crates/epaint`)에 아래 패치를 적용한 사본이다. 루트 `Cargo.toml`의 `[patch.crates-io]`가 이 디렉토리를 가리킨다. 이 항목은 이 workspace의 빌드에만 적용되므로 본체, 갤러리, 이 workspace의 플러그인이 이 사본으로 빌드된다. `tasty-plugin-sdk-wasm`은 workspace 밖이지만 egui를 쓰지 않는다. `tasty-official-plugins` 레포는 자기 workspace로 빌드해 상류 epaint를 쓰므로 같은 패닉이 남아 있다.
+crates.io의 `epaint` 0.31.1(상류 커밋 `1669e52a7ccfc3489c1b0999b9ed48894a0b3887`, `crates/epaint`)에 아래 패치를 적용한 사본이다. 루트 `Cargo.toml`의 `[patch.crates-io]`가 이 디렉토리를 가리킨다. 이 항목은 이 workspace의 빌드에만 적용되므로 본체, 갤러리, 이 workspace의 플러그인이 이 사본으로 빌드된다. `tasty-plugin-sdk-wasm`은 workspace 밖이지만 egui를 쓰지 않는다. `tasty-official-plugins` 레포는 자기 workspace로 빌드하지만, 그 레포의 `[patch.crates-io]`가 epaint를 이 저장소의 고정 커밋(git `rev`)에서 받아 같은 사본으로 빌드한다.
 
 ## 옮긴 것과 뺀 것
 
