@@ -55,6 +55,7 @@ GNOME 기본값에서는 정수 배율만 고를 수 있다. 배율 1과 표의 
 - **egui 복사**: egui가 내놓은 복사 텍스트(`OutputCommand::CopyText`)를 egui-winit에 넘기기 전에 가져와 data source로 선택을 잡는다. mime은 `text/plain;charset=utf-8`·`UTF8_STRING`·`text/plain`이다. serial은 이 연결이 마지막으로 받은 키보드 입력이나 포인터 버튼의 것이다. 받는 쪽에는 비차단으로 쓰고(30초 상한) 끝나면 닫는다. 다른 앱이 선택을 가져가면 source를 버린다.
 - **egui 붙여넣기**: 붙여넣기 키(egui-winit과 같은 판정)가 오면 Tasty가 잡은 선택은 바로, 다른 앱의 선택은 그때 읽기 시작해 다 읽은 뒤 다음 egui 프레임 입력에 붙여넣기로 넣는다. 선택 offer는 최신 하나만 보관하고 미리 읽지 않는다. 넣기 직전에 요청 때 포커스였던 입력칸이 지금도 포커스인지 대조해 아니면 버린다. 그 프레임 입력에 포커스를 옮길 수 있는 입력(포인터 버튼 누름, Tab·Shift+Tab, 방향키, Escape)이 있으면 그 프레임에는 넣지 않고 다음 프레임에 다시 대조한다. 앱 코드가 프레임 안에서 직접 포커스를 옮기는 경우는 이 대조가 막지 못한다. 새 붙여넣기, 선택 교체, 3초 경과, 16 MiB 초과도 읽기를 버린다.
 - X11·XWayland 창에는 Wayland 연결이 없어 장치·키보드·source를 만들지 않는다. egui 클립보드는 arboard다.
+- 갤러리(`tasty-gallery`)는 이 장치를 붙이지 않는다. 네이티브 Wayland에서 갤러리 입력칸은 외부 앱과 클립보드를 주고받지 않는다(앱 안 복사·붙여넣기만). smithay-clipboard는 갤러리에서도 끈다. 켜 두면 `--workspace` 빌드의 feature 통합으로 본체에도 다시 들어오기 때문이다.
 - 터미널 복사·붙여넣기와 Explorer 파일 클립보드는 이 장치를 쓰지 않는다(위 표).
 
 격리 GNOME Shell 46(`--no-x11`)에서 가상 키보드가 있는 채로 시작해 GNOME Files의 파일을 터미널로 10번 끌어 놓아 10번 모두 열렸고, Explorer 칸으로 놓으면 복사됐다. egui 입력칸과 GNOME Text Editor 사이의 텍스트 복사·붙여넣기를 양방향으로 확인했다. 원인 1b(`DISPLAY`의 X 서버 연결 실패)에서도 끌어오기와 양방향 클립보드를 한 번씩 확인했다. 물리 화면과 실제 사용자 세션은 재지 않았다([측정 한계](../../ai-verification/gnome-session-verification.md#정리와-한계)).
