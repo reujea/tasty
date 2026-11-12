@@ -29,6 +29,7 @@ fn setup() -> (Arc<Faults>, RunnerContext, Arc<AgentEventQueue>) {
         agent_turns: Default::default(),
         completion: Arc::new(crate::completion::fixture::Resolver::default()),
         report_limits: Default::default(),
+        host_dispatch_timeout: crate::runner_host::HOST_DISPATCH_TIMEOUT,
     };
     ctx.with_store(|mem| {
         let mut s = TaskStore::new(mem, HOST_OWNER, ctx.agent_seq.as_ref());

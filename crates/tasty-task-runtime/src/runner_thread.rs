@@ -1204,6 +1204,7 @@ mod tests {
             agent_turns: Default::default(),
             completion: Arc::new(crate::completion::fixture::Resolver::default()),
             report_limits: Default::default(),
+            host_dispatch_timeout: crate::runner_host::HOST_DISPATCH_TIMEOUT,
         };
         (td, ctx)
     }

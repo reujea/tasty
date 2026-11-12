@@ -93,6 +93,8 @@ pub struct TaskService {
     report_limits: Arc<crate::runner_host::SharedReportLimits>,
     /// 저장소가 memory 대체 모드면 그 원인. 재시작 복구를 요구한 그래프를 거절하는 데 쓴다.
     store_fallback: Option<String>,
+    /// 러너의 host IPC 응답 대기 상한(밀리초). 다음에 시작하는 러너부터 쓴다. 시험만 바꾼다.
+    host_dispatch_timeout_ms: Arc<std::sync::atomic::AtomicU64>,
 }
 
 impl TaskService {
@@ -110,6 +112,9 @@ impl TaskService {
             agent_turns: Arc::new(crate::agent_turns::AgentTurns::new()),
             report_limits: Default::default(),
             store_fallback: None,
+            host_dispatch_timeout_ms: Arc::new(std::sync::atomic::AtomicU64::new(
+                crate::runner_host::HOST_DISPATCH_TIMEOUT.as_millis() as u64,
+            )),
         }
     }
 
@@ -157,7 +162,21 @@ impl TaskService {
             agent_turns: self.agent_turns.clone(),
             completion: self.completion.clone(),
             report_limits: self.report_limits.clone(),
+            host_dispatch_timeout: std::time::Duration::from_millis(
+                self.host_dispatch_timeout_ms
+                    .load(std::sync::atomic::Ordering::Acquire),
+            ),
         }
+    }
+
+    /// 시험 전용. 다음에 시작하는 러너의 host IPC 응답 대기 상한을 바꾼다. 시험이 쥔 요청보다 상한이
+    /// 먼저 끝나 러너가 그 dispatch 를 벗어나지 않게 길게 둘 때 쓴다.
+    #[cfg(any(test, feature = "test-support"))]
+    pub fn set_host_dispatch_timeout(&self, timeout: std::time::Duration) {
+        self.host_dispatch_timeout_ms.store(
+            u64::try_from(timeout.as_millis()).unwrap_or(u64::MAX),
+            std::sync::atomic::Ordering::Release,
+        );
     }
 
     /// 받은 workspace에 남은 runner 상태를 정리한다. runner 스레드를 자동 시작하지는 않는다.

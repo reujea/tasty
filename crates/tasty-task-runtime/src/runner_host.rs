@@ -90,6 +90,8 @@ pub(crate) struct RunnerContext {
     pub(crate) completion: Arc<dyn crate::completion::CompletionResolver>,
     /// 설정이 정하는 report 상한.
     pub(crate) report_limits: Arc<SharedReportLimits>,
+    /// host IPC 요청 하나의 응답 대기 상한. 제품 경로는 [`HOST_DISPATCH_TIMEOUT`]이고 시험만 바꾼다.
+    pub(crate) host_dispatch_timeout: Duration,
 }
 
 static RUN_RESULT_POISON_REPORTED: std::sync::atomic::AtomicBool =
@@ -140,7 +142,7 @@ impl RunnerContext {
         params: serde_json::Value,
     ) -> Result<serde_json::Value, PluginCallError> {
         let inj = self.host_ipc.get().ok_or(PluginCallError::Uninitialized)?;
-        inj.dispatch(method, params, HOST_DISPATCH_TIMEOUT)
+        inj.dispatch(method, params, self.host_dispatch_timeout)
             .map_err(PluginCallError::Inject)
     }
 
@@ -154,7 +156,7 @@ impl RunnerContext {
             .host_ipc
             .get()
             .ok_or(LateCall::Failed(PluginCallError::Uninitialized))?;
-        inj.dispatch_keeping_late_answer(method, params, HOST_DISPATCH_TIMEOUT)
+        inj.dispatch_keeping_late_answer(method, params, self.host_dispatch_timeout)
             .map_err(|e| match e {
                 LateDispatch::Failed(e) => LateCall::Failed(PluginCallError::Inject(e)),
                 LateDispatch::Pending(late) => LateCall::Pending(late),
@@ -528,6 +530,7 @@ mod tests {
             agent_turns: Default::default(),
             completion: Arc::new(crate::completion::fixture::Resolver::default()),
             report_limits: Default::default(),
+            host_dispatch_timeout: crate::runner_host::HOST_DISPATCH_TIMEOUT,
         };
         (td, ctx)
     }
