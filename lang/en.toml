@@ -2044,6 +2044,7 @@ gtk_init_failed = "GTK failed to initialize, so this view and the tray icon are 
 [ssh.port_discovery]
 connection_failed = "SSH connection failed (this may be a network or authentication problem)."
 instance_not_running = "No tasty instance appears to be running on the remote host."
+instance_exited = "The remote tasty instance is not running. Its port file was left by an instance that has exited."
 parse_failed = "Could not parse the port reported by the remote host — the remote tasty version may be unexpected."
 timed_out = "The remote host did not respond in time (it may be unreachable, or the connection may be too slow)."
 cancelled = "The port lookup was stopped."

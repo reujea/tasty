@@ -386,6 +386,9 @@ pub enum PortDiscoveryFailureKind {
     /// SSH 연결과 원격 명령 실행은 됐으나 포트를 얻지 못했다(원격에 tasty 인스턴스가
     /// 없는 것으로 추정 — 관례 위치의 포트 파일 부재, `tasty port` 실패 등).
     RemoteInstanceNotRunning,
+    /// 원격 `tasty port`가 포트 파일을 쓴 인스턴스가 끝났다고 판별했다
+    /// ([`PORT_COMMAND_EXITED_INSTANCE_CODE`]). 추정이 아니라 원격의 판별 결과다.
+    RemoteInstanceExited,
     /// 명령은 성공했으나(exit 0) stdout 에서 포트 숫자를 파싱하지 못했다.
     PortParseFailed,
     /// 폴링 예산이 소진됐거나, 연결 실패의 경과 시간이 연결 제한 이상이다.
@@ -403,6 +406,7 @@ impl PortDiscoveryFailureKind {
         match self {
             Self::SshConnectionFailed => "ssh.port_discovery.connection_failed",
             Self::RemoteInstanceNotRunning => "ssh.port_discovery.instance_not_running",
+            Self::RemoteInstanceExited => "ssh.port_discovery.instance_exited",
             Self::PortParseFailed => "ssh.port_discovery.parse_failed",
             Self::TimedOut => "ssh.port_discovery.timed_out",
             Self::Cancelled => "ssh.port_discovery.cancelled",
@@ -416,13 +420,19 @@ impl PortDiscoveryFailureKind {
 pub struct PortDiscoveryError {
     pub kind: PortDiscoveryFailureKind,
     detail: String,
+    /// 원격 명령이 끝난 종료 코드. 명령이 끝나지 않았거나 시그널로 끝났으면 None.
+    exit_code: Option<i32>,
 }
 
 impl PortDiscoveryError {
     fn new(kind: PortDiscoveryFailureKind, detail: impl Into<String>) -> Self {
         let detail = detail.into();
         tracing::debug!(?kind, %detail, "원격 포트 발견 실패");
-        Self { kind, detail }
+        Self {
+            kind,
+            detail,
+            exit_code: None,
+        }
     }
 
     /// 진단용 원문(로그 전용) — `Display` 에는 포함하지 않는다.
@@ -770,10 +780,12 @@ fn run_capture_with_budget(
         let stderr = String::from_utf8_lossy(&output.stderr);
         let code = output.status.code();
         let elapsed = started.elapsed();
-        return Err(PortDiscoveryError::new(
+        let mut error = PortDiscoveryError::new(
             refine_with_elapsed(classify_by_exit_code(code), elapsed),
             format!("code={code:?} elapsed={elapsed:?}: {}", stderr.trim()),
-        ));
+        );
+        error.exit_code = code;
+        return Err(error);
     }
     Ok(String::from_utf8_lossy(&output.stdout).into_owned())
 }
@@ -837,8 +849,20 @@ fn discover_via_subcommand(
     verify: bool,
     deadline: Deadline,
 ) -> Result<u16, PortDiscoveryError> {
-    let out = run_ssh_capture(ssh, target, verify, &[remote_tasty, "port"], deadline)?;
+    let out = run_ssh_capture(ssh, target, verify, &[remote_tasty, "port"], deadline)
+        .map_err(refine_port_command_failure)?;
     parse_port(&out)
+}
+
+/// 원격 `tasty port`의 종료 코드가 [`PORT_COMMAND_EXITED_INSTANCE_CODE`]면 끝난 인스턴스로 확정한다.
+/// 이 판별이 없는 옛 원격은 다른 실패 코드로 끝나므로 기존 추정 분류가 남는다.
+fn refine_port_command_failure(mut error: PortDiscoveryError) -> PortDiscoveryError {
+    if error.kind == PortDiscoveryFailureKind::RemoteInstanceNotRunning
+        && error.exit_code == Some(PORT_COMMAND_EXITED_INSTANCE_CODE)
+    {
+        error.kind = PortDiscoveryFailureKind::RemoteInstanceExited;
+    }
+    error
 }
 
 /// 명시 port 파일을 읽는 원격 명령 후보(순서대로 시도). `cat`(unix/powershell/git
@@ -894,11 +918,12 @@ const AUTO_FALLBACK_CHAIN: [PortMode; 3] = [
     PortMode::FileWindows,
 ];
 
-/// 여러 실패 중 취소 → 시간 초과 → 연결 실패 → 인스턴스 미실행 추정 → 파싱 실패
-/// 순서로 대표 오류를 고른다. 같은 분류에서는 먼저 시도한 단계의 오류를 사용한다.
+/// 여러 실패 중 취소 → 인스턴스 종료 확정 → 시간 초과 → 연결 실패 → 인스턴스 미실행 추정 →
+/// 파싱 실패 순서로 대표 오류를 고른다. 같은 분류에서는 먼저 시도한 단계의 오류를 사용한다.
 fn pick_most_informative(mut errors: Vec<PortDiscoveryError>) -> PortDiscoveryError {
-    const PRIORITY: [PortDiscoveryFailureKind; 5] = [
+    const PRIORITY: [PortDiscoveryFailureKind; 6] = [
         PortDiscoveryFailureKind::Cancelled,
+        PortDiscoveryFailureKind::RemoteInstanceExited,
         PortDiscoveryFailureKind::TimedOut,
         PortDiscoveryFailureKind::SshConnectionFailed,
         PortDiscoveryFailureKind::RemoteInstanceNotRunning,
@@ -951,8 +976,9 @@ pub fn discover_remote_port(
         match discover_single_mode(ssh, target, remote_tasty, m, verify, debug, deadline) {
             Ok(port) => return Ok(port),
             // 취소는 fallback 대상이 아니다 — 다음 모드를 시도하면 방금 끊은 조회가
-            // 새 ssh 를 띄운다.
-            Err(e) if e.kind == PortDiscoveryFailureKind::Cancelled => return Err(e.into()),
+            // 새 ssh 를 띄운다. 끝난 인스턴스도 멈춘다 — 파일 모드는 같은 남은 포트 파일을
+            // 판별 없이 읽어 성공으로 돌려준다.
+            Err(e) if stops_auto_chain(e.kind) => return Err(e.into()),
             Err(e) => {
                 tracing::debug!("{m:?} 포트 발견 실패({e}) — 다음 모드로 fallback");
                 errors.push(e);
@@ -960,6 +986,14 @@ pub fn discover_remote_port(
         }
     }
     Err(pick_most_informative(errors).into())
+}
+
+/// Auto 체인에서 다음 모드로 넘어가지 않는 실패.
+fn stops_auto_chain(kind: PortDiscoveryFailureKind) -> bool {
+    matches!(
+        kind,
+        PortDiscoveryFailureKind::Cancelled | PortDiscoveryFailureKind::RemoteInstanceExited
+    )
 }
 
 /// 단일(비-Auto) 모드 1회 시도. `Auto` 는 호출 전 체인으로 분해되므로 unreachable.
@@ -992,6 +1026,8 @@ where
     for m in AUTO_FALLBACK_CHAIN {
         match try_mode(m) {
             Ok(_) => return Ok(m),
+            // 원격 tasty가 판별해 답했으니 이 방식은 동작한다. 인스턴스가 꺼져 있을 뿐이다.
+            Err(e) if e.kind == PortDiscoveryFailureKind::RemoteInstanceExited => return Ok(m),
             Err(e) => {
                 tracing::debug!("{m:?} 감지 프로브 실패({e}) — 다음 모드");
                 errors.push(e);
@@ -1088,6 +1124,28 @@ pub fn detect_and_persist(name: &str) -> Result<PortMode> {
     profiles.upsert(p);
     profiles.save()?;
     result
+}
+
+/// 시험용 실행 스크립트를 만든다. 이 프로세스가 쓰기 fd를 연 동안 다른 시험 스레드가 fork하면 그
+/// 자식이 exec 전까지 fd를 물고 있어 스크립트 실행이 ETXTBSY로 실패한다. 그래서 별도 sh가 쓰게 해
+/// 이 프로세스에는 쓰기 fd가 생기지 않게 한다.
+#[cfg(all(test, unix))]
+pub(crate) fn write_test_script(path: &Path, script: &str) {
+    let status = Command::new("sh")
+        .args([
+            "-c",
+            "printf '%s' \"$1\" > \"$2\" && chmod 700 \"$2\"",
+            "sh",
+        ])
+        .arg(script)
+        .arg(path)
+        .status()
+        .expect("sh");
+    assert!(
+        status.success(),
+        "writing {} failed: {status}",
+        path.display()
+    );
 }
 
 #[cfg(test)]
@@ -1508,6 +1566,92 @@ mod tests {
         assert_eq!(err.detail(), raw);
         assert!(!err.to_string().contains("tasty.port"));
         assert!(!err.to_string().contains("cat:"));
+    }
+
+    /// 원격 `tasty port`의 종료 코드 3만 끝난 인스턴스로 확정한다.
+    #[test]
+    fn only_the_port_command_exit_code_three_means_an_exited_instance() {
+        let failure = |code| {
+            let mut e =
+                PortDiscoveryError::new(PortDiscoveryFailureKind::RemoteInstanceNotRunning, "x");
+            e.exit_code = Some(code);
+            refine_port_command_failure(e).kind
+        };
+        assert_eq!(
+            failure(PORT_COMMAND_EXITED_INSTANCE_CODE),
+            PortDiscoveryFailureKind::RemoteInstanceExited
+        );
+        assert_eq!(
+            failure(1),
+            PortDiscoveryFailureKind::RemoteInstanceNotRunning
+        );
+        assert!(stops_auto_chain(
+            PortDiscoveryFailureKind::RemoteInstanceExited
+        ));
+        assert!(!stops_auto_chain(
+            PortDiscoveryFailureKind::RemoteInstanceNotRunning
+        ));
+    }
+
+    /// 원격 셸 대신 쓰는 ssh 대역. `tasty port`에는 `port_rc`로 끝나고, 파일 읽기 명령에는 남은
+    /// 포트 파일처럼 45123을 출력한다.
+    #[cfg(unix)]
+    struct FakeSsh(std::path::PathBuf);
+
+    #[cfg(unix)]
+    impl FakeSsh {
+        fn new(name: &str, port_rc: i32) -> Self {
+            use std::sync::atomic::AtomicUsize;
+            static SEQ: AtomicUsize = AtomicUsize::new(0);
+            let seq = SEQ.fetch_add(1, Ordering::Relaxed);
+            let path = std::env::temp_dir().join(format!(
+                "tasty-ssh-fake-{}-{seq}-{name}",
+                std::process::id()
+            ));
+            let script = format!(
+                "#!/bin/sh\nfor a in \"$@\"; do last=\"$a\"; done\n\
+                 if [ \"$last\" = port ]; then exit {port_rc}; fi\necho 45123\n"
+            );
+            crate::write_test_script(&path, &script);
+            Self(path)
+        }
+    }
+
+    #[cfg(unix)]
+    impl Drop for FakeSsh {
+        fn drop(&mut self) {
+            if let Err(e) = std::fs::remove_file(&self.0) {
+                tracing::warn!("fake ssh cleanup failed: {e}");
+            }
+        }
+    }
+
+    /// 원격이 끝난 인스턴스라고 답하면 auto 체인이 파일 모드로 넘어가 남은 포트를 돌려주지 않는다.
+    /// 판별이 없는 옛 원격(종료 코드 1)은 지금처럼 파일 모드의 포트를 쓴다.
+    #[cfg(unix)]
+    #[test]
+    fn auto_discovery_stops_at_an_exited_remote_instance() {
+        let target = SshTarget::parse("fake-host");
+        let exited = FakeSsh::new("exited", PORT_COMMAND_EXITED_INSTANCE_CODE);
+        let err = discover_remote_port(
+            &exited.0,
+            &target,
+            "tasty",
+            PortMode::Auto,
+            false,
+            false,
+            None,
+        )
+        .expect_err("exited instance");
+        assert_eq!(
+            err.downcast_ref::<PortDiscoveryError>().map(|e| e.kind),
+            Some(PortDiscoveryFailureKind::RemoteInstanceExited)
+        );
+        let old = FakeSsh::new("old", 1);
+        let port =
+            discover_remote_port(&old.0, &target, "tasty", PortMode::Auto, false, false, None)
+                .expect("old remote falls back to the file");
+        assert_eq!(port, 45123);
     }
 
     #[test]

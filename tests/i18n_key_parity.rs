@@ -203,6 +203,9 @@ const PENDING_TRANSLATION_KEYS: &[(&str, &str, &str)] = &[
     ("lang", "ko", "cli.port_file.instance_exited"),
     ("lang", "ja", "cli.port_file.instance_exited"),
     ("lang", "zh-Hans", "cli.port_file.instance_exited"),
+    ("lang", "ko", "ssh.port_discovery.instance_exited"),
+    ("lang", "ja", "ssh.port_discovery.instance_exited"),
+    ("lang", "zh-Hans", "ssh.port_discovery.instance_exited"),
 ];
 
 /// 누락이 알려진 키의 임시 예외다. 키가 추가되면 항목도 제거한다. 새 누락은 수정하는 것이 기본이다.
