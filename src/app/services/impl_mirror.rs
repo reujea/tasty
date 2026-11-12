@@ -1,8 +1,5 @@
 //! Explicit mirror structural operation translation; execution belongs to journal Forward.
 use super::*;
-/// anchor는 로컬 surface ID이며 전송할 때 세션 매핑으로 바꾼다.
-/// pane·tab 작업은 대표 surface를 찾는다. MoveSurface는 같은 workspace의 두 대상만 허용한다.
-/// 다른 workspace의 로컬 ID를 보내면 원격의 무관한 surface ID와 겹칠 수 있다.
 /// 원격 생성 요청에 싣는 cwd 상속 원본을 정하는 client 쪽 재료. 서버 View의 선택은 이 client의 선택과
 /// 독립이므로, client가 자기 View 선택과 자기 설정으로 원본을 정해 요청에 싣는다.
 #[cfg(feature = "gui")]
@@ -78,6 +75,9 @@ impl crate::app::App {
     }
 }
 
+/// anchor는 로컬 surface ID이며 전송할 때 세션 매핑으로 바꾼다.
+/// pane·tab 작업은 대표 surface를 찾는다. MoveSurface는 같은 workspace의 두 대상만 허용한다.
+/// 다른 workspace의 로컬 ID를 보내면 원격의 무관한 surface ID와 겹칠 수 있다.
 #[cfg(feature = "gui")]
 pub(crate) fn build_mirror_forward_op(
     engine: &crate::core::CoreState,
