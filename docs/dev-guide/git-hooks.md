@@ -10,7 +10,7 @@ CI에서도 실행하는 검사와 로컬 훅에서만 실행하는 검사는 [c
 
 | ID | 검사 | 범위와 수정 방법 |
 |----|------|------------------|
-| M.1 | merge 커밋 차단 | 진행 중인 merge를 취소하고 rebase 후 fast-forward merge한다. |
+| M.1 | merge 커밋 차단 | 충돌을 해결한 merge 커밋을 [merge 커밋 판정](#merge-커밋-판정)으로 확인한다. 역병합과 승격이 아니면 진행 중인 merge를 취소하고 rebase 후 fast-forward merge한다. |
 | A.1 | `mod`와 `use` 선언 순서 | 커밋 대상 Rust 파일의 선언 영역에서 `mod`를 `use`보다 앞에 둔다. |
 | A.2 | `cargo fmt --check` | Rust 파일이 변경되면 워크스페이스를 검사한다. 제외된 크레이트는 해당 경로가 변경됐을 때 별도로 검사한다. |
 | A.3 | 셸 스크립트 정적 검사 | `scripts/check-shell-assets.sh`에 커밋 대상 파일을 전달한다. `shellcheck`가 없거나 warning 이상의 문제가 있으면 중단한다. |
@@ -130,9 +130,29 @@ B.10은 루트 크레이트를 시험 프로필로 따로 컴파일하므로 루
 
 ## pre-merge-commit
 
-fast-forward가 아닌 merge 커밋 생성을 막는다. 차단되면 `git merge --abort`로 현재 merge를 취소한다. 작업 브랜치에서 `git rebase <대상-브랜치>`를 실행한 뒤 대상 브랜치로 전환해 `git merge --ff-only <작업-브랜치>`로 반영한다.
+fast-forward가 아닌 merge 커밋 중 역병합과 승격이 아닌 것을 막는다([merge 커밋 판정](#merge-커밋-판정)). 차단되면 `git merge --abort`로 현재 merge를 취소한다. 작업 브랜치에서 `git rebase <대상-브랜치>`를 실행한 뒤 대상 브랜치로 전환해 `git merge --ff-only <작업-브랜치>`로 반영한다.
 
-충돌한 merge는 이 훅 대신 충돌 해결 후 실행하는 `git commit`의 pre-commit M.1에서 차단한다. 충돌을 해결할 때는 양쪽 변경이 필요한 이유를 확인하고 내용을 합친다.
+충돌한 merge는 이 훅 대신 충돌 해결 후 실행하는 `git commit`의 pre-commit M.1에서 같은 판정으로 확인한다. 충돌을 해결할 때는 양쪽 변경이 필요한 이유를 확인하고 내용을 합친다.
+
+### merge 커밋 판정
+
+pre-merge-commit과 M.1은 `scripts/lib/merge-policy.sh`의 `merge_commit_allowed`로 판정한다. 아래 다섯 경우만 허용한다.
+
+| 현재 브랜치 | 합치는 브랜치 |
+|---|---|
+| `release` | `main` |
+| `develop` | `main` |
+| `develop` | `release` |
+| `release` | `develop` |
+| `main` | `release` |
+
+- 현재 브랜치는 `HEAD`가 가리키는 브랜치 이름이다. detached HEAD에서는 거부한다.
+- 합치는 커밋은 M.1에서는 `MERGE_HEAD` 파일에서 읽는다. pre-merge-commit이 실행될 때는 Git이 `MERGE_HEAD`를 아직 쓰지 않으므로, `git merge`가 합치는 커밋마다 넘기는 `GITHEAD_<커밋>` 환경 변수에서 읽는다(Git 2.43.0에서 확인).
+- 합치는 브랜치는 그 커밋과 같은 커밋을 가리키는 `develop`·`release`·`main`이나 `origin/develop`·`origin/release`·`origin/main`이다. 해시로 합쳤거나 그 사이 브랜치가 움직였다면 이름을 찾지 못해 거부한다.
+- 커밋 두 개 이상을 한 번에 합치는 merge는 거부한다.
+- 판정 파일이 없는 트리에서는 모든 merge 커밋을 막는다.
+
+`scripts/tests/merge-policy.sh`가 판정 표 전체와 일회용 저장소의 실제 merge(허용 다섯 경우, 작업 브랜치 merge, detached HEAD, 여러 커밋 merge, 이름 없는 커밋, 충돌 상태)를 확인한다. `githooks_are_pinned` 시험이 이 스크립트를 실행한다.
 
 ## 검사 추가와 검증
 

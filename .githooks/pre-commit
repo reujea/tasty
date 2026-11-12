@@ -17,10 +17,19 @@ green()  { printf '\033[32m%s\033[0m\n' "$*"; }
 
 # ─
 # M.1  merge 커밋 차단
-if git rev-parse -q --verify MERGE_HEAD >/dev/null 2>&1; then
+# develop·release·main 사이의 역병합과 승격만 허용한다. 판정은 pre-merge-commit과 같은 함수다.
+# 허용 범위: docs/dev-guide/git-hooks.md#merge-커밋-판정
+merge_commit_permitted() {
+    [ -f scripts/lib/merge-policy.sh ] || return 1
+    # shellcheck source=../scripts/lib/merge-policy.sh
+    . scripts/lib/merge-policy.sh
+    merge_commit_allowed
+}
+if git rev-parse -q --verify MERGE_HEAD >/dev/null 2>&1 && ! merge_commit_permitted; then
     red "✘ merge 커밋을 만들 수 없습니다. rebase와 fast-forward merge를 사용해 주세요."
     echo
     yellow "▸ 프로젝트는 rebase로 변경을 반영해 커밋 이력을 일렬로 유지합니다."
+    yellow "  merge 커밋은 develop·release·main 사이의 역병합과 승격에만 만듭니다."
     yellow "  진행 중인 merge를 취소한 뒤 아래 순서로 다시 시도해 주세요."
     echo
     yellow "▸ 실행할 명령:"

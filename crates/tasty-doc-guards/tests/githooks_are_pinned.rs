@@ -455,6 +455,27 @@ fn pre_push_checks_do_not_inherit_the_pushing_repository_environment() {
     );
 }
 
+/// 역병합·승격 merge 커밋만 허용하는 판정을 일회용 저장소의 실제 `git merge` 로 확인한다.
+/// 허용 범위: docs/dev-guide/git-hooks.md#merge-커밋-판정
+#[test]
+fn merge_commits_are_allowed_only_for_back_merges_and_promotions() {
+    let scratch = tasty_doc_guards::temp_scratch::Scratch::new("merge-policy");
+    let output = hook_bash_command()
+        .arg(hook_path(
+            &repo_root().join("scripts/tests/merge-policy.sh"),
+        ))
+        .arg(hook_path(&repo_root()))
+        .arg(hook_path(scratch.path()))
+        .output()
+        .expect("run disposable merge repository fixture");
+    assert!(
+        output.status.success(),
+        "stdout={}\nstderr={}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+}
+
 fn hook_bash() -> std::path::PathBuf {
     use std::process::Command;
     // On Windows, the system bash.exe may be a WSL launcher without a distribution.

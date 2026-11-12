@@ -1,13 +1,26 @@
 #!/usr/bin/env bash
-# merge 커밋 생성을 막는다. fast-forward merge에는 이 훅이 실행되지 않는다.
-# 충돌 해결 후 git commit으로 만드는 merge 커밋은 pre-commit의 M.1에서 검사한다.
+# merge 커밋 생성을 막는다. 역병합과 승격만 허용한다. fast-forward merge에는 이 훅이 실행되지 않는다.
+# 충돌 해결 후 git commit으로 만드는 merge 커밋은 pre-commit의 M.1에서 같은 판정으로 검사한다.
+# 허용 범위: docs/dev-guide/git-hooks.md#merge-커밋-판정
 # 설치: git config core.hooksPath .githooks
 set -e
 
 red()    { printf '\033[31m%s\033[0m\n' "$*" >&2; }
 yellow() { printf '\033[33m%s\033[0m\n' "$*" >&2; }
 
+cd "$(git rev-parse --show-toplevel)"
+
+# 판정 파일이 없는 트리에서는 모든 merge 커밋을 막는다.
+if [ -f scripts/lib/merge-policy.sh ]; then
+    # shellcheck source=../scripts/lib/merge-policy.sh
+    . scripts/lib/merge-policy.sh
+    if merge_commit_allowed; then
+        exit 0
+    fi
+fi
+
 red 'merge 커밋을 만들 수 없습니다. rebase와 fast-forward merge를 사용해 주세요.'
+yellow 'merge 커밋은 develop·release·main 사이의 역병합과 승격에만 만듭니다.'
 yellow '현재 merge가 진행 중이므로 먼저 취소해 주세요:'
 yellow '    git merge --abort'
 yellow '그런 다음 작업 브랜치에서 대상 브랜치의 변경을 반영해 주세요:'
