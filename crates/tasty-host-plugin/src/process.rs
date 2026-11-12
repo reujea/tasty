@@ -124,7 +124,7 @@ pub struct PluginProcess {
     pub resp_rx: MeteredReceiver<PluginResponse>,
     pub event_rx: MeteredReceiver<PluginEvent>,
     last_pong: Arc<Mutex<Instant>>,
-    /// 답을 받지 못한 가장 오래된 ping의 송신 시각(pump의 now). 메인 스레드만 읽고 쓴다.
+    /// 답을 받지 못한 가장 오래된 ping의 송신 시각(Ping 발화의 격자 시각). 메인 스레드만 읽고 쓴다.
     /// 첫 ping 전에는 None이라 무응답 판정을 하지 않는다.
     ping_owed_since: Option<Instant>,
     /// 보조 핸들 채널 상태. 첫 사용 시 Pending → Ready 전이하며 reader 스레드 시작.

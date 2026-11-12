@@ -127,3 +127,60 @@ fn wake_jitter_does_not_push_the_restart_a_tick_later() {
         "깨어난 시각의 흔들림 때문에 60초 판정이 한 tick 밀렸다"
     );
 }
+
+/// 정지 전에 보낸 ping에 답하지 않은 채 정지하면 정지 시간도 경과에 들어가 복구 첫 판정에서 재시작한다.
+#[test]
+fn an_unanswered_ping_before_a_stall_restarts_on_the_first_tick_after_it() {
+    let base = Instant::now() - S(400);
+    let mut m = mgr_at(base);
+    m.pump(base + S(15));
+    answered_at(&m, base + S(16));
+    m.pump(base + S(30)); // 답하지 않은 채 정지한다.
+    assert!(alive(&m));
+
+    m.pump(base + S(225));
+    assert!(
+        !alive(&m),
+        "정지 전부터 답하지 않은 ping이 있는데 복구 첫 판정에서 재시작하지 않았다"
+    );
+}
+
+/// 정지 직전 ping의 응답을 수신 스레드가 정지 중에 기록했으면 복구 때 재시작하지 않는다.
+#[test]
+fn an_answer_recorded_during_the_stall_counts_as_answered() {
+    let base = Instant::now() - S(400);
+    let mut m = mgr_at(base);
+    m.pump(base + S(15));
+    answered_at(&m, base + S(16));
+    m.pump(base + S(30));
+    answered_at(&m, base + S(100)); // 메인은 멈춰 있지만 수신 스레드가 응답을 기록했다.
+
+    m.pump(base + S(225));
+    assert!(alive(&m), "정지 중에 답한 플러그인을 복구 때 재시작했다");
+}
+
+/// 격자 사이에 복구하면 복구 ping은 직전 격자 시각으로 기록되고, 재시작은 그 격자 시각부터
+/// 60초 뒤다(실제 송신 뒤로는 45.1초). docs/dev-guide/timer-hub.md의 서술을 고정한다.
+#[test]
+fn a_recovery_between_grid_points_restarts_sixty_seconds_after_the_grid_time() {
+    let base = Instant::now() - S(400);
+    let mut m = mgr_at(base);
+    m.pump(base + S(15));
+    answered_at(&m, base + S(16));
+
+    // +224.9초에 복구한다. 다음 예정 시각은 +225초, 이번 발화의 격자 시각은 +210초다.
+    m.pump(base + S(224) + Duration::from_millis(900));
+    for t in [225, 240, 255] {
+        m.pump(base + S(t));
+        assert!(
+            alive(&m),
+            "복구 격자 시각(+210초) 뒤 {}초에 재시작했다",
+            t - 210
+        );
+    }
+    m.pump(base + S(270));
+    assert!(
+        !alive(&m),
+        "복구 격자 시각(+210초) 뒤 60초가 지났는데 재시작하지 않았다"
+    );
+}
