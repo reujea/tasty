@@ -60,7 +60,7 @@ jobs:
     needs: create-release
     if: ${{ always() && (needs.create-release.result == 'success' || github.event_name == 'workflow_dispatch') }}
     runs-on: [self-hosted, macOS]
-    # 업무용 맥과 러너를 함께 쓴다. 부하가 높으면 40분으로 끝나지 않는다. 기준: docs/dev-guide/ci-gates.md#잡-시간-상한
+    # macOS 전용 러너에서 아직 실측이 없어 이전 값을 둔다. 첫 실행 뒤 다시 정한다. 기준: docs/dev-guide/ci-gates.md#잡-시간-상한
     timeout-minutes: 180
     steps:
       - uses: actions/checkout@v4

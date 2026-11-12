@@ -254,11 +254,11 @@ checkout의 정리로 `target/`이 삭제되는 구성에는 로컬 증분 빌�
   시험을 실행하는 check-headless의 실측을 쓴다. check-android도 실행 기록이 없어 같은 러너에서 `cargo check`를
   실행하는 check-release의 실측을 쓴다.
 
-- macOS dist 빌드 잡은 배수를 쓰지 않는다. 이 러너는 업무용 맥과 함께 쓰며, 부하가 높을 때 40분 안에 끝나지 못해 180분으로 둔다.
+- macOS dist 빌드 잡(`build-macos`)은 다른 작업과 공유하지 않는 macOS 전용 러너에서 돈다. 전용 러너에서는 아직 이 잡의 GH 실행이 0회라 실측과 배수를 정하지 않았고, 이전 공유 러너에서 정한 180분을 그대로 둔다. 전용 러너에서 첫 GH 실행 뒤 같은 규칙(실측 최대 × 배수)으로 다시 정한다. 참고값으로 같은 러너의 화면 세션에서 `build-macos-dmg.sh`를 직접 실행하면 17분 23초, check-macos 잡(cold)은 14.9분이 걸렸다. 두 값은 규칙의 실측·대리로 쓰지 않는다.
 
 | 워크플로 | 잡 | 성공 | 실패 | 실측 최대(분) | 배수 | timeout-minutes |
 |---|---|---|---|---|---|---|
-| build-check.yml | build-macos | 0 | 0 | 7.9 (release 대리) | 공유 러너 예외 | 180 |
+| build-check.yml | build-macos | 0 | 0 | 미측정(전용 러너에서 GH 잡 실행 0회) | 미측정(전용 러너에서 GH 잡 실행 0회) | 180 |
 | build-check.yml | build-windows | 0 | 0 | 25.9 (release 대리) | 5 | 130 |
 | build-check.yml | build-windows-arm64 | 0 | 0 | 25.9 (release 대리) | 5 | 130 |
 | build-check.yml | build-linux-x64 | 0 | 0 | 9.3 (release 대리) | 5 | 50 |
@@ -274,7 +274,7 @@ checkout의 정리로 `target/`이 삭제되는 구성에는 로컬 증분 빌�
 | format-check.yml | fmt | 30 | 0 | 0.4 | 3 | 10 |
 | plugin-version-check.yml | version-bump | 25 | 0 | 0.4 | 3 | 10 |
 | release.yml | create-release | 1 | 0 | 0.2 | 5 | 10 |
-| release.yml | build-macos | 1 | 0 | 7.9 | 공유 러너 예외 | 180 |
+| release.yml | build-macos | 0 | 0 | 미측정(전용 러너에서 GH 잡 실행 0회) | 미측정(전용 러너에서 GH 잡 실행 0회) | 180 |
 | release.yml | build-windows | 5 | 0 | 25.9 | 3 | 80 |
 | release.yml | build-windows-arm64 | 3 | 0 | 25.9 | 5 | 130 |
 | release.yml | build-linux-x64 | 1 | 0 | 9.3 | 5 | 50 |
