@@ -23,24 +23,38 @@ const IPC_CONNECT_TIMEOUT: Duration = Duration::from_secs(3);
 pub(crate) struct ConnectFailure {
     port: u16,
     source: std::io::Error,
+    /// 포트 파일 옆 인스턴스 파일이 그 포트의 인스턴스가 끝났다고 말한다.
+    exited: bool,
 }
 
 impl ConnectFailure {
     /// 사용자 표시용 — 현재 로케일.
     fn localized(&self) -> String {
-        tasty_i18n::t_fmt2(
-            "cli.request.connect_failed",
-            &self.port.to_string(),
-            &self.source.to_string(),
-        )
+        let key = if self.exited {
+            "cli.request.connect_failed_instance_exited"
+        } else {
+            "cli.request.connect_failed"
+        };
+        tasty_i18n::t_fmt2(key, &self.port.to_string(), &self.source.to_string())
     }
 
     /// 영어 카탈로그와 정확히 같은 진단문을 반환한다.
     pub(crate) fn diagnostic(&self) -> crate::hook_failure::DiagnosticEnglish {
+        let hint = if self.exited {
+            "The tasty instance that wrote the port file has exited, so the port file is stale."
+        } else {
+            "Is tasty running?"
+        };
         crate::hook_failure::DiagnosticEnglish::new_unchecked(format!(
-            "Could not connect to tasty instance on port {}: {}. Is tasty running?",
+            "Could not connect to tasty instance on port {}: {}. {hint}",
             self.port, self.source
         ))
+    }
+
+    /// 연결 시도는 그대로 두고, 실패한 뒤에만 포트 파일이 끝난 인스턴스의 것인지 확인한다.
+    fn judged(mut self, port_file: Option<&str>) -> Self {
+        self.exited = crate::port_file::exited_owner(port_file, self.port).is_some();
+        self
     }
 }
 
@@ -60,7 +74,16 @@ fn connect_ipc(port: u16) -> std::result::Result<TcpStream, ConnectFailure> {
 fn connect_ipc_within(port: u16, left: Duration) -> std::result::Result<TcpStream, ConnectFailure> {
     let addr = SocketAddr::from(([127, 0, 0, 1], port));
     let bound = left.min(IPC_CONNECT_TIMEOUT).max(Duration::from_millis(1));
-    TcpStream::connect_timeout(&addr, bound).map_err(|source| ConnectFailure { port, source })
+    TcpStream::connect_timeout(&addr, bound).map_err(|source| ConnectFailure {
+        port,
+        source,
+        exited: false,
+    })
+}
+
+/// 포트 파일에서 읽은 포트에 연결한다. 실패 안내는 그 포트 파일의 인스턴스가 끝났는지 구분한다.
+fn connect_ipc_from(port: u16, port_file: Option<&str>) -> Result<TcpStream, ConnectFailure> {
+    connect_ipc(port).map_err(|e| e.judged(port_file))
 }
 
 /// 도움말·버전 출력은 오류가 아니라 clap이 렌더링하는 정상 출력이다.
@@ -189,7 +212,7 @@ fn run_dynamic_client(
             return Err(anyhow::anyhow!("{}", crate::port_file::localize(&e)));
         }
     };
-    let stream = match connect_ipc(port) {
+    let stream = match connect_ipc_from(port, port_file) {
         Ok(s) => s,
         Err(e) => {
             hook_failure::record(&request.method, &request.params, None, &e.diagnostic());
@@ -319,7 +342,7 @@ fn run_dynamic_client_with_auto_wait(
     let port = crate::port_file::read_port(port_file)?;
 
     let first_value = {
-        let stream = connect_ipc(port)?;
+        let stream = connect_ipc_from(port, port_file)?;
         let mut conn = IpcConnection::new(stream)?;
         match conn.send(&request) {
             Ok(value) => value,
@@ -421,7 +444,7 @@ fn run_dynamic_client_polling(
     #[allow(unused_assignments)]
     let mut last_response: Option<serde_json::Value> = None;
     loop {
-        let stream = connect_ipc(port)?;
+        let stream = connect_ipc_from(port, port_file)?;
         let mut conn = IpcConnection::new(stream)?;
         match conn.send(&request) {
             Ok(value) => {
@@ -499,7 +522,7 @@ fn run_client_inner(command: Commands, port_file: Option<&str>, envelope: Envelo
         }
         (Err(e), _) => return Err(anyhow::anyhow!("{}", crate::port_file::localize(&e))),
     };
-    let stream = match (connect_ipc(port), offline) {
+    let stream = match (connect_ipc_from(port, port_file), offline) {
         (Ok(stream), _) => stream,
         // 포트 파일이 남아 있어도 연결이 거절되면 그 포트에 인스턴스가 없다.
         (Err(e), Some(change)) if e.source.kind() == std::io::ErrorKind::ConnectionRefused => {
@@ -796,6 +819,7 @@ mod language_split_tests {
                 std::io::ErrorKind::ConnectionRefused,
                 "Connection refused",
             ),
+            exited: false,
         }
     }
 
@@ -804,6 +828,34 @@ mod language_split_tests {
         tasty_i18n::init("en");
         let f = failure(59999);
         assert_eq!(f.localized(), f.diagnostic().as_str());
+        let exited = ConnectFailure {
+            exited: true,
+            ..failure(59999)
+        };
+        assert_eq!(exited.localized(), exited.diagnostic().as_str());
+        assert!(!exited.localized().contains("Is tasty running?"));
+    }
+
+    /// 연결 실패 뒤 포트 파일 옆 인스턴스 기록이 끝난 프로세스를 가리키면 그 사실을 안내한다.
+    /// 인스턴스 파일이 없으면 기존 안내를 쓴다.
+    #[test]
+    fn a_failed_connection_names_a_stale_port_file() {
+        use tasty_ipc::instance_file::{self, InstanceRecord};
+        let home = tempfile::tempdir().unwrap();
+        let port_file = home.path().join("tasty.port");
+        std::fs::write(&port_file, "59999").unwrap();
+        let port_file = port_file.to_str().unwrap();
+        assert!(!failure(59999).judged(Some(port_file)).exited);
+        let pid = std::process::id();
+        let stale = InstanceRecord {
+            pid,
+            start_time: instance_file::process_start_time(pid)
+                .unwrap()
+                .wrapping_add(1),
+            port: Some(59999),
+        };
+        instance_file::write(home.path(), &stale).unwrap();
+        assert!(failure(59999).judged(Some(port_file)).exited);
     }
 
     /// OnceLock으로 로케일을 재설정할 수 없어 진단문이 i18n 없이 고정되는지 확인한다.

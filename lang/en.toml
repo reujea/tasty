@@ -2150,6 +2150,7 @@ cwd_invalid = "Error: --cwd: {}"
 json_arg_invalid = "Error: {}: not valid JSON: {}"
 close_self_no_surface = "Error: TASTY_SURFACE_ID not set. 'close self' can only be used inside a tasty terminal."
 connect_failed = "Could not connect to tasty instance on port {}: {}. Is tasty running?"
+connect_failed_instance_exited = "Could not connect to tasty instance on port {}: {}. The tasty instance that wrote the port file has exited, so the port file is stale."
 
 # 오류 본문만 번역한다. 접두어는 호출자가 붙인다.
 [cli.cwd_resolve]
