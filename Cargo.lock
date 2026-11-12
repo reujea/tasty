@@ -6363,7 +6363,7 @@ dependencies = [
 
 [[package]]
 name = "tasty-plugin-codex"
-version = "0.2.96"
+version = "0.2.97"
 dependencies = [
  "anyhow",
  "getrandom 0.3.4",

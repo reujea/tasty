@@ -574,13 +574,17 @@ fn receive_for_surface<H: HostCall>(
 /// 부모의 완료 로그(notify mod·Monitor 가 읽는 곳)에 한 줄을 쓴다.
 #[cfg(not(test))]
 fn append_line(surface: u32, line: &str) -> std::io::Result<()> {
-    tasty_utils::notify::append_notify_line(surface, line)
+    crate::notice::append(surface, crate::notice::NoticeKind::RemoteResult, line)
 }
 
 /// 시험은 실제 완료 로그(`TASTY_PARENT_HOME`)에 쓰지 않고 이 스레드에 모은다.
 #[cfg(test)]
 fn append_line(surface: u32, line: &str) -> std::io::Result<()> {
-    test_log::LINES.with(|l| l.borrow_mut().push((surface, line.to_string())));
+    let line = tasty_utils::notify::notice_line(
+        crate::notice::NoticeKind::RemoteResult.notice_type(),
+        line,
+    );
+    test_log::LINES.with(|l| l.borrow_mut().push((surface, line)));
     Ok(())
 }
 

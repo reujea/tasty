@@ -250,6 +250,7 @@ fn a_surface_parent_gets_each_turn_body_stored_before_its_notice() {
     let lines = test_log::take();
     assert_eq!(lines.len(), 1, "{lines:?}");
     assert_eq!(lines[0].0, 5);
+    assert!(lines[0].1.starts_with("[info] surface "), "{}", lines[0].1);
     let id = lines[0].1.split_whitespace().last().unwrap().to_string();
     assert!(
         lines[0]

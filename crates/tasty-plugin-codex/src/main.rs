@@ -16,6 +16,7 @@ mod execution_probe_tests;
 mod handlers;
 mod ids;
 mod install;
+mod notice;
 mod ownership;
 mod reboot;
 mod reboot_watch;

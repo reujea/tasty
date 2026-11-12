@@ -571,10 +571,14 @@ pub(crate) fn handle_notify_caller<H: HostCall>(
     let kind = optional_str(params, "kind").unwrap_or_else(|| "tell".into());
     let message = notify_caller_message(tr, &kind, target);
     let screen_text = fetch_screen_text_for_hint(host, target);
-    let message = append_sandbox_hint_if_detected(tr, message, screen_text.as_deref());
+    let with_hint = append_sandbox_hint_if_detected(tr, message.clone(), screen_text.as_deref());
+    let notice = crate::notice::NoticeKind::of_done_line(
+        target_state(host, target).as_deref(),
+        with_hint != message,
+    );
 
     // 로그 쓰기에 실패해도 경고를 남기고 훅 정리를 계속한다.
-    if let Err(e) = tasty_utils::notify::append_notify_line(caller, &message) {
+    if let Err(e) = crate::notice::append(caller, notice, &with_hint) {
         tracing::warn!("codex notify-caller completion-log append failed: {e}");
     }
 
@@ -584,6 +588,13 @@ pub(crate) fn handle_notify_caller<H: HostCall>(
     rearm_if_still_alive(host, caller, target, &kind);
 
     Ok(json!({}))
+}
+
+/// 대상의 현재 상태(`idle`·`needs_input`·`exited` 등). 조회에 실패하면 `None` 이며 완료 줄은 info 로 남는다.
+fn target_state<H: HostCall>(host: &H, target: u32) -> Option<String> {
+    host.call("terminal.state", json!({ "surface": target }))
+        .ok()
+        .and_then(|r| r.get("state").and_then(|v| v.as_str()).map(str::to_string))
 }
 
 /// 대상 터미널이 조회되면 완료 훅을 다시 등록한다. 조회 실패 시 생략한다.
