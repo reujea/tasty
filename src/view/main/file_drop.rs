@@ -27,10 +27,10 @@ enum Route {
 
 /// 놓은 자리. drop과 함께 온 좌표가 있으면 그것을, 없으면 마지막 포인터 좌표를 쓴다.
 fn drop_point(
-    dropped_at: Option<(f32, f32)>,
+    dropped_at: Option<(PhysicalPx, PhysicalPx)>,
     cursor: Option<winit::dpi::PhysicalPosition<f64>>,
-) -> Option<(f32, f32)> {
-    dropped_at.or_else(|| cursor.map(|pos| (pos.x as f32, pos.y as f32)))
+) -> Option<(PhysicalPx, PhysicalPx)> {
+    dropped_at.or_else(|| cursor.map(|pos| (PhysicalPx(pos.x as f32), PhysicalPx(pos.y as f32))))
 }
 
 /// hover 가 정한 explorer 칸이 먼저다. 없으면 놓은 좌표와 그 좌표가 터미널 영역 안인지로 정한다.
@@ -101,20 +101,22 @@ impl MainView {
         let sf = self.base.gpu.scale_factor();
         let physical = |(x, y): (f64, f64)| {
             (
-                LogicalPx(x as f32).to_physical(sf).value(),
-                LogicalPx(y as f32).to_physical(sf).value(),
+                LogicalPx(x as f32).to_physical(sf),
+                LogicalPx(y as f32).to_physical(sf),
             )
         };
+        // The hover state and its callers still take bare physical px pairs.
+        let bare = |(x, y): (PhysicalPx, PhysicalPx)| (x.value(), y.value());
         for event in events {
             match event {
                 InboundEvent::Hover { paths, at } => {
                     for path in paths {
-                        self.hover_file_at(path, Some(physical(at)));
+                        self.hover_file_at(path, Some(bare(physical(at))));
                     }
                 }
                 InboundEvent::Motion { at } => {
                     if let Some(hover) = self.state.drop_hover.as_mut() {
-                        hover.cursor = Some(physical(at));
+                        hover.cursor = Some(bare(physical(at)));
                     }
                 }
                 InboundEvent::Leave => self.handle_hovered_file_cancelled(),
@@ -172,7 +174,7 @@ impl MainView {
         let hovered = crate::explorer_ui::view::drag::take_os_drop(&mut self.state.explorer_views);
         let terminal_rect = self.compute_terminal_rect();
         let cursor = drop_point(dropped_at, self.cursor_position)
-            .map(|(x, y)| ((x, y), terminal_rect.contains(PhysicalPx(x), PhysicalPx(y))));
+            .map(|(x, y)| ((x.value(), y.value()), terminal_rect.contains(x, y)));
         let (x, y) = match route(hovered, cursor) {
             Route::Hovered(sid, dest, decided) => {
                 self.drop_into_explorer(engine, sid, dest, decided, drops);

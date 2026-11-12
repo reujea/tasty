@@ -263,7 +263,7 @@ pub struct MainViewState {
 
     /// 놓은 자리(물리 px). 끄는 동안 포인터 좌표가 없는 네이티브 Wayland drop이 함께 넘긴다.
     #[cfg(feature = "gui")]
-    pub(crate) pending_drop_position: Option<(f32, f32)>,
+    pub(crate) pending_drop_position: Option<(PhysicalPx, PhysicalPx)>,
 
     /// 렌더 중 발견한 팝업 닫기 요청. App이 매니저에 전달한다.
     #[cfg(feature = "gui")]

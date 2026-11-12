@@ -70,17 +70,20 @@ fn a_refused_folder_explains_why() {
 /// 네이티브 Wayland는 끄는 동안 포인터 좌표가 없다. drop과 함께 온 좌표로 칸을 고른다.
 #[test]
 fn a_drop_position_decides_even_without_a_cursor() {
-    let at = drop_point(Some((5.0, 6.0)), None);
-    assert_eq!(at, Some((5.0, 6.0)));
+    use tasty_type_geometry::length::PhysicalPx;
+    let dropped = (PhysicalPx(5.0), PhysicalPx(6.0));
+    let at = drop_point(Some(dropped), None);
+    assert_eq!(at, Some(dropped));
     assert_eq!(
-        route(None, at.map(|at| (at, true))),
+        route(None, at.map(|(x, y)| ((x.value(), y.value()), true))),
         Route::AtCursor(5.0, 6.0)
     );
     let cursor = winit::dpi::PhysicalPosition::new(1.0, 2.0);
-    assert_eq!(drop_point(Some((5.0, 6.0)), Some(cursor)), Some((5.0, 6.0)));
-    assert_eq!(drop_point(None, Some(cursor)), Some((1.0, 2.0)));
+    assert_eq!(drop_point(Some(dropped), Some(cursor)), Some(dropped));
     assert_eq!(
-        route(None, drop_point(None, None).map(|at| (at, true))),
-        Route::NoCursor
+        drop_point(None, Some(cursor)),
+        Some((PhysicalPx(1.0), PhysicalPx(2.0)))
     );
+    assert_eq!(drop_point(None, None), None);
+    assert_eq!(route(None, None), Route::NoCursor);
 }
